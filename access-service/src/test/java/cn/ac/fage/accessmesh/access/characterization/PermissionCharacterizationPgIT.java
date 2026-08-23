@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.junit.jupiter.api.BeforeAll;
@@ -32,19 +31,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 权限读链路特征测试（T-ACCESS-017，真实 PostgreSQL + Redis，Testcontainers）。
  * <p>
- * 固化模型收敛 Epic（T-PERM-042 起）触碰的三条读链路的当前正确行为：
+ * 固化模型收敛 Epic（T-PERM-042 起）触碰的读链路的当前正确行为
+ * （T-ORG-001：原 sys_user→abstract_user 转换链路随主体 ID 统一删除，
+ *  {@code TypeResolutionService.resolveUserId} 的单元覆盖见 TypeResolutionServiceImplTest）：
  * </p>
  * <ol>
- *   <li><b>Resolver 映射</b>：{@code sys_user.id}（字符串）经 {@code type_definition(user_type).ADMIN_USER}
- *       解析为 {@code abstract_user.id}；类型未注册 / 投影缺失 / 软删后返回 null。</li>
  *   <li><b>有效角色展开</b>：{@code resolveEffectiveRoles} 缓存 miss 回源回填、hit 复用、
  *       失效后回源可见 DB 变化；GROUP_ROLE 树展开 + 停用角色过滤。</li>
  *   <li><b>scopeAll 类型级放行</b>：{@code scope_all=true} 授权行放行该资源类型的
  *       任意实例（{@code hasPermissionByCode}/{@code getDeniedEntityIds}）。</li>
  * </ol>
  * <p>
- * 已知缺陷（USER/ROLE 实例门禁 ID 空间错位）的正确预期测试归 T-PERM-042，
- * 本类不断言错误行为。Docker 不可用时由 Testcontainers 自动跳过（容器轨道）。
+ * USER/ROLE 实例门禁业务编码语义测试见 InstanceGateBusinessCodePgIT（T-PERM-042）；
+ * 主体 ID 统一（同 ID 双表插入/不碰撞）测试见 LocalSubjectIdUnificationPgIT（T-ORG-001）。
+ * Docker 不可用时由 Testcontainers 自动跳过（容器轨道）。
  * </p>
  */
 @Tag("testcontainers")
@@ -111,8 +111,6 @@ class PermissionCharacterizationPgIT {
     }
 
     @Autowired
-    private TypeResolutionService typeResolutionService;
-    @Autowired
     private SubjectDomainService subjectDomainService;
     @Autowired
     private PermQueryEngine permQueryEngine;
@@ -120,26 +118,6 @@ class PermissionCharacterizationPgIT {
     private CacheService cacheService;
     @Autowired
     private JdbcTemplate jdbc;
-
-    // ===== 链路 2：Resolver sys_user.id → abstract_user.id 映射 =====
-
-    @Test
-    @DisplayName("Resolver：ADMIN_USER 外部ID（sys_user.id 字符串）经真实 SQL 解析为 abstract_user.id")
-    void resolverShouldMapSysUserIdToAbstractUserId() {
-        Long subjectId = insertAbstractUser("910001", "特征测试-操作者投影");
-
-        assertThat(typeResolutionService.resolveUserId(TENANT, "ADMIN_USER", "910001")).isEqualTo(subjectId);
-        // 投影缺失 → null（调用方 fail-closed）
-        assertThat(typeResolutionService.resolveUserId(TENANT, "ADMIN_USER", "910404")).isNull();
-        // 主体类型未注册 → null
-        assertThat(typeResolutionService.resolveUserId(TENANT, "NOT_A_TYPE", "910001")).isNull();
-        // 租户隔离：种子只在租户 1，租户 2 解析不到类型
-        assertThat(typeResolutionService.resolveUserId(2L, "ADMIN_USER", "910001")).isNull();
-
-        // 软删投影后不再解析（delete_flag 过滤）
-        jdbc.update("UPDATE abstract_user SET delete_flag = id, deleted_at = now() WHERE id = ?", subjectId);
-        assertThat(typeResolutionService.resolveUserId(TENANT, "ADMIN_USER", "910001")).isNull();
-    }
 
     // ===== 链路 3：resolveEffectiveRoles 缓存 hit/miss 两态 =====
 

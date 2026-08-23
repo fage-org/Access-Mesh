@@ -19,9 +19,10 @@ import java.time.LocalDateTime;
 public class SysUser {
 
     /**
-     * 主键ID（自增）
+     * 主键ID（T-ORG-001 主体 ID 终态：= abstract_user.id，由调用方经序列预取显式赋值，
+     * 列无自增——KeyType.None 使显式 id 随 INSERT 落库）
      */
-    @Id(keyType = KeyType.Auto)
+    @Id(keyType = KeyType.None)
     private Long id;
 
     /**

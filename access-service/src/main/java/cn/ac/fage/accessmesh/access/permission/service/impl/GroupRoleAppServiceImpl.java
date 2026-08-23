@@ -17,7 +17,6 @@ import cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.GroupRoleAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
@@ -90,7 +89,6 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
     @PermissionChange
     public void addGroupRoleExtraRole(Long tenantId, GroupRoleExtraRoleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         Long groupId = typeResolutionService.resolveRoleId(
             tenantId, req.groupRoleTypeCode(), req.groupRoleExternalId(), req.groupDomainCode());
@@ -103,7 +101,7 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
             throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Basic role not found: " + req.basicRoleExternalId());
         }
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(groupId), OperationCodeConstants.ASSIGN)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(groupId), OperationCodeConstants.ASSIGN)) {
             throw new SecurityException("Permission denied: ASSIGN on ROLE:" + groupId);
         }
 
@@ -153,7 +151,6 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
     @PermissionChange
     public void removeGroupRoleExtraRole(Long tenantId, GroupRoleExtraRoleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         Long groupId = typeResolutionService.resolveRoleId(
             tenantId, req.groupRoleTypeCode(), req.groupRoleExternalId(), req.groupDomainCode());
@@ -166,7 +163,7 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
             throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Basic role not found: " + req.basicRoleExternalId());
         }
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(groupId), OperationCodeConstants.REVOKE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(groupId), OperationCodeConstants.REVOKE)) {
             throw new SecurityException("Permission denied: REVOKE on ROLE:" + groupId);
         }
 

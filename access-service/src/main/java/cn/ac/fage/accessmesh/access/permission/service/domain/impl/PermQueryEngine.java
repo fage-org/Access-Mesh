@@ -16,7 +16,6 @@ import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapp
 import cn.ac.fage.accessmesh.access.permission.service.domain.*;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResolveContext;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
-import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.access.permission.util.RolePermEntryMapper;
@@ -104,24 +103,6 @@ public class PermQueryEngine {
         this.typeResolutionService = typeResolutionService;
         this.cacheService = cacheService;
         this.operationPermissionMapper = operationPermissionMapper;
-    }
-
-    /**
-     * 解析操作者在权限域的投影主体 ID（{@code abstract_user.id}）。
-     * <p>
-     * 登录会话 / 签名代理主体持有的操作者 ID 是 admin 域 {@code sys_user.id}
-     * （{@code abstract_user.external_id}）；本引擎内部按 {@code abstract_user.id}
-     * 匹配 {@code user_role.abstract_user_id}。所有调用方传入的操作者 ID 必须先经
-     * 本方法转换，再作为主体参与权限判定。投影中不存在时返回 null（调用方 fail-closed）。
-     * </p>
-     *
-     * @param tenantId 租户 ID
-     * @param operatorId 操作者 sys_user.id
-     * @return 抽象用户主体 ID；权限投影中不存在时返回 null
-     */
-    public Long resolveOperatorSubjectId(Long tenantId, Long operatorId) {
-        return typeResolutionService.resolveUserId(
-            tenantId, LocalProjectionOwner.SUBJECT_ADMIN_USER, String.valueOf(operatorId));
     }
 
     /**
@@ -227,9 +208,8 @@ public class PermQueryEngine {
     /**
      * 按业务编码检查是否有权限（对外）
      * <p>
-     * 门禁主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
-     * {@code sys_user.id}。调用方先经 {@link cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver#requireSubjectId}
-     * 完成 {@code sys_user.id → abstract_user.id} 转换（转换失败 fail-closed）。
+     * 主体参数即主体 ID（T-ORG-001 统一后 {@code operatorId = abstract_user.id = sys_user.id}），
+     * 无任何运行时 ID 空间转换层。
      * {@code resourceCode} 为业务编码（USER/ROLE 门禁传主体/角色 ID 字符串化，SERVICE 传 serviceCode）；
      * {@code null} 表示仅类型级校验。未知类型/未知操作 fail-closed 拒绝。
      * </p>

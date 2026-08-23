@@ -14,7 +14,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
-import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,9 +67,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_CREATE", targetType = "type_definition", targetId = "#result.id()", summary = "'create type definition ' + #req.typeKey() + ':' + #req.typeValue()")
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on TYPE_DEFINITION");
         }
 
@@ -107,9 +105,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     @Override
     @Transactional(readOnly = true)
     public TypeDefinitionResp getType(Long tenantId, Long typeId) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, String.valueOf(typeId), OperationCodeConstants.VIEW)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, String.valueOf(typeId), OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION:" + typeId);
         }
 
@@ -132,9 +129,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     @Override
     @Transactional(readOnly = true)
     public List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
         }
 
@@ -161,9 +157,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_UPDATE", targetType = "type_definition", targetId = "#req.typeId()", summary = "'update type definition ' + #req.typeId()")
     public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, String.valueOf(req.typeId()), OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, String.valueOf(req.typeId()), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + req.typeId());
         }
 
@@ -196,7 +191,6 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_REMOVE", targetType = "type_definition", targetId = "", summary = "'batch remove type definitions'")
     public void deleteTypesByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         if (ids == null || ids.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -214,7 +208,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
         // T-PERM-042：引擎纯查询，拒绝时由调用方显式抛出
         Set<Long> deniedIds = engine.getDeniedEntityIds(
-            tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, validInputIds, OperationCodeConstants.MANAGE);
+            tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, validInputIds, OperationCodeConstants.MANAGE);
         if (!deniedIds.isEmpty()) {
             throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + deniedIds);
         }

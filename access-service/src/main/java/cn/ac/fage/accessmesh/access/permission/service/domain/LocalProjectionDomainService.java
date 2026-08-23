@@ -14,6 +14,19 @@ import java.util.Set;
 public interface LocalProjectionDomainService {
 
     /**
+     * 创建本地用户主体链（T-ORG-001，architecture §12.2）：预取主体 ID N 后显式写
+     * abstract_user(id=N, external_id=N, ADMIN_USER) + resource_entity(ADMIN_USER, code=N)。
+     * <p>
+     * 调用方（access.application 用户创建编排）随后以同一 N 写 sys_user(id=N)——
+     * 本方法只负责主体侧，不写 admin 域事实。与外部主体（仅 abstract_user 自增取号）
+     * 共用同一 ID 生成源，任何创建顺序均不碰撞。
+     * </p>
+     *
+     * @return 预取并落库的主体 ID（= 调用方 sys_user.id）
+     */
+    Long createLocalUserSubject(Long tenantId, String name, boolean enabled, String extraJson);
+
+    /**
      * UPSERT abstract_user(ADMIN_USER) + resource_entity(ADMIN_USER)。
      *
      * @return abstract_user.id

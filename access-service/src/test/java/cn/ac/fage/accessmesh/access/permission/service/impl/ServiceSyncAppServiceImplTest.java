@@ -40,9 +40,6 @@ class ServiceSyncAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        // 测试简化：投影主体 = 传入 operatorId（两套 ID 真实差异由 PermissionViewAppServiceImplTest 覆盖）
-        lenient().when(engine.resolveOperatorSubjectId(anyLong(), anyLong()))
-            .thenAnswer(inv -> inv.getArgument(1));
         service = new ServiceSyncAppServiceImpl(
             resourceSyncHandler, mappingSyncHandler, serviceConfigMapper,
             typeResolutionService, strategyFactory, engine);

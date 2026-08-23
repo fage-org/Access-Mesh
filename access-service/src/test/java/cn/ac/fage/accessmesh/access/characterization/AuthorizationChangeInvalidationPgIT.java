@@ -126,7 +126,8 @@ class AuthorizationChangeInvalidationPgIT {
     void batchRevokeShouldInvalidateCachesAfterCommitAndReloadFromDb() {
         // -- 装配：操作者（scopeAll 的 ROLE:MANAGE 授权）+ 目标角色 + 受影响用户 --
         Long operatorSysUserId = 920001L;
-        Long operatorSubject = insertAbstractUser(String.valueOf(operatorSysUserId), "特征测试-撤销操作者");
+        // T-ORG-001：统一主体 ID——操作者主体显式同 ID 落库（operatorId 即主体 ID，无转换层）
+        Long operatorSubject = insertAbstractUserWithId(operatorSysUserId, "特征测试-撤销操作者");
         Long operatorRole = insertAbstractRole("op-role-920101", "特征测试-操作者角色");
         insertUserRole(operatorSubject, "ROLE", operatorRole);
         insertRolePerm(operatorRole, RESOURCE_TYPE_ROLE, ROLE_MANAGE_BIT, true, null);
@@ -187,6 +188,13 @@ class AuthorizationChangeInvalidationPgIT {
     }
 
     // ===== 数据装配 =====
+
+    private Long insertAbstractUserWithId(Long id, String name) {
+        return jdbc.queryForObject(
+            "INSERT INTO abstract_user (id, tenant_id, user_type, external_id, name, enabled, extra, owner_service_code) "
+                + "VALUES (?, ?, ?, ?, ?, true, '{}', NULL) RETURNING id",
+            Long.class, id, TENANT, USER_TYPE_ADMIN, String.valueOf(id), name);
+    }
 
     private Long insertAbstractUser(String externalId, String name) {
         return jdbc.queryForObject(

@@ -25,7 +25,6 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionServ
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
-import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import cn.ac.fage.accessmesh.access.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.permission.util.TreeBuilder;
@@ -117,9 +116,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_CREATE", targetType = "abstract_role", targetId = "#result.id()", summary = "'create role ' + #req.externalId()")
     public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("无创建角色的权限");
         }
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
@@ -148,7 +146,6 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_UPDATE", targetType = "abstract_role", targetId = "#roleId", summary = "'update role ' + #roleId")
     public RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
@@ -156,7 +153,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         }
         localProjectionGuard.rejectIfLocalRole(role);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -176,7 +173,6 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_MOVE", targetType = "abstract_role", targetId = "#roleId", summary = "'move role ' + #roleId + ' to ' + #parentId")
     public void moveRole(Long tenantId, Long roleId, Long parentId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
@@ -184,7 +180,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         }
         localProjectionGuard.rejectIfLocalRole(role);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -206,7 +202,6 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @PermissionChange
     public void deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         if (roleIds == null || roleIds.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -235,7 +230,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
         // T-PERM-042：ROLE 实例门禁改业务编码语义（resource_entity(ROLE).code = roleId）
         Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
-            tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+            tenantId, operatorId, ResourceTypeCode.ROLE,
             existingRoles.keySet().stream().map(String::valueOf).collect(Collectors.toSet()),
             OperationCodeConstants.MANAGE);
 
@@ -269,7 +264,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
             Set<Long> descendantSet = new HashSet<>(descendantIds);
             Set<String> deniedDescendantCodes = engine.getDeniedResourceCodes(
-                tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+                tenantId, operatorId, ResourceTypeCode.ROLE,
                 descendantSet.stream().map(String::valueOf).collect(Collectors.toSet()),
                 OperationCodeConstants.MANAGE);
             for (Long descId : descendantIds) {
@@ -331,9 +326,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @Override
     public List<RoleTreeResp> getRoleTree(Long tenantId, String domainCode) {
         // T-PERM-042：授权页角色树读门禁（architecture §14.5 终态，类型级 ROLE:VIEW）
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on ROLE");
         }
         if (domainCode != null && !domainCode.isBlank()

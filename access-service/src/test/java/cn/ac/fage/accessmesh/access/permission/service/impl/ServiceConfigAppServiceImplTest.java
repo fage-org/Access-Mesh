@@ -37,9 +37,6 @@ class ServiceConfigAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        // 测试简化：投影主体 = 传入 operatorId（两套 ID 真实差异由 PermissionViewAppServiceImplTest 覆盖）
-        lenient().when(engine.resolveOperatorSubjectId(anyLong(), anyLong()))
-            .thenAnswer(inv -> inv.getArgument(1));
         // 真实 SyncTypeGuard（validateSyncTypesExtra 不依赖 mapper）：保存边界结构校验真实生效
         service = new ServiceConfigAppServiceImpl(serviceConfigMapper, engine, resourceApiMappingMapper,
                 new SyncTypeGuard(serviceConfigMapper, new ObjectMapper()));

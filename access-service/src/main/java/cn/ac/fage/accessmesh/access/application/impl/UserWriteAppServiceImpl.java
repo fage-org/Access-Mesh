@@ -103,7 +103,13 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
                 AdminErrorCode.PHONE_ALREADY_EXISTS.getMessage());
         }
 
+        // T-ORG-001（architecture §12.2）：预取主体 ID N → 显式同 ID 写 abstract_user(external_id=N)
+        // 与 sys_user(id=N)，两表共用 abstract_user.id 序列，与外部主体取号互不碰撞
+        Long subjectId = localProjectionDomainService.createLocalUserSubject(
+            tenantId, req.name(), isEnabled(req.status()), extraUsername(req.username()));
+
         SysUser user = new SysUser();
+        user.setId(subjectId);
         user.setTenantId(tenantId);
         user.setUsername(req.username());
         user.setName(req.name());
@@ -122,11 +128,9 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         user.setDeleteFlag(0L);
         userDomainService.insert(user);
 
-        Long abstractUserId = localProjectionDomainService.upsertAdminUser(
-            tenantId, user.getId(), user.getName(), isEnabled(user.getStatus()), extraUsername(user.getUsername()));
-        recordProjectionChange(tenantId, "abstract_user", abstractUserId, "UPSERT",
-            new Long[]{abstractUserId}, new Long[0]);
-        PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
+        recordProjectionChange(tenantId, "abstract_user", subjectId, "UPSERT",
+            new Long[]{subjectId}, new Long[0]);
+        PermissionChangeContext.markUsers(tenantId, Set.of(subjectId));
 
         if (req.orgId() != null) {
             validateOrgInDefaultTree(tenantId, req.orgId());
@@ -150,10 +154,10 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
                 tenantId, user.getId(), req.orgId(), roleTypeCode,
                 targetOrg != null ? targetOrg.getParentId() : null);
             recordProjectionChange(tenantId, "user_role", userRoleId, "BIND",
-                new Long[]{abstractUserId}, new Long[0]);
+                new Long[]{subjectId}, new Long[0]);
         }
 
-        log.info("Projected user create: userId={}, abstractUserId={}", user.getId(), abstractUserId);
+        log.info("Projected user create: userId={}, subjectId={}", user.getId(), subjectId);
         return new UserCreateResp(user.getId(), initialPassword);
     }
 

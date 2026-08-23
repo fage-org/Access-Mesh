@@ -169,7 +169,7 @@ class UserWriteAppServiceFaultInjectionIT {
     void projectionFailureRollsBackFactAndChangeLog() {
         doThrow(new SystemException(90001, "projection failed"))
             .when(localProjectionDomainService)
-            .upsertAdminUser(anyLong(), anyLong(), anyString(), anyBoolean(), any());
+            .createLocalUserSubject(anyLong(), anyString(), anyBoolean(), any());
 
         assertThatThrownBy(() -> userWriteAppService.createUser(createReq()))
             .isInstanceOf(SystemException.class)

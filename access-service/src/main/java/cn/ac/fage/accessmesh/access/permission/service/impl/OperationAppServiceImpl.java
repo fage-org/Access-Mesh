@@ -12,7 +12,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContex
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
-import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -79,10 +78,9 @@ public class OperationAppServiceImpl implements OperationAppService {
     @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_CREATE", targetType = "operation_permission", targetId = "#result.id()", summary = "'create operation permission ' + #resourceTypeCode + ':' + #code")
     public OperationPermissionResp createOperation(Long tenantId, String resourceTypeCode, String code, String name, Long binaryBit, Long inheritMask, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         // 权限校验
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("No permission to create operation");
         }
 
@@ -137,9 +135,8 @@ public class OperationAppServiceImpl implements OperationAppService {
     @Override
     public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode) {
         // T-PERM-042：授权页操作列表读门禁（architecture §14.5 终态，类型级 OPERATION:VIEW）
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.VIEW)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on OPERATION");
         }
         Integer resourceType = null;
@@ -172,10 +169,9 @@ public class OperationAppServiceImpl implements OperationAppService {
     @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_UPDATE", targetType = "operation_permission", targetId = "#operationId", summary = "'update operation permission ' + #operationId")
     public OperationPermissionResp updateOperation(Long tenantId, Long operationId, String name, Long binaryBit, Long inheritMask, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         // 权限校验
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to update operation");
         }
 
@@ -209,10 +205,9 @@ public class OperationAppServiceImpl implements OperationAppService {
     @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_REMOVE", targetType = "operation_permission", targetId = "", summary = "'batch remove operation permissions'")
     public void deleteOperations(Long tenantId, List<Long> operationIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         // 权限校验
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete operations");
         }
 

@@ -9,7 +9,7 @@ import java.util.Set;
 /**
  * 聚合授权计划的唯一预检与执行入口。
  * <p>主体参数（{@code subjectId}）为权限域投影主体（{@code abstract_user.id}），
- * 禁止直接传 admin 域 {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。</p>
+ * T-ORG-001 统一后操作者 ID 即主体 ID（{@code abstract_user.id}），无运行时转换层。</p>
  */
 public interface PermissionGrantPlanDomainService {
 

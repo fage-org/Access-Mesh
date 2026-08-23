@@ -74,7 +74,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * 检查是否有权限授予指定权限
      * <p>
      * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
-     * {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。
+     * （T-ORG-001 统一后操作者 ID 即主体 ID，无转换层）。
      * </p>
      *
      * @param tenantId         租户ID
@@ -108,7 +108,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * 4. 批量查询角色资源权限
      * 5. 构建查找映射并逐个评估
      * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
-     * {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。
+     * （T-ORG-001 统一后操作者 ID 即主体 ID，无转换层）。
      * </p>
      *
      * @param tenantId    租户ID

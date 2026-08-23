@@ -14,7 +14,6 @@ import cn.ac.fage.accessmesh.access.permission.service.DomainConfigAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
-import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,9 +70,8 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "PERMISSION", action = "DOMAIN_CONFIG_UPSERT", targetType = "domain_config", targetId = "#result.id()", summary = "'upsert domain config ' + #req.domainCode() + ':' + #req.configType()")
     public DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to manage domain config");
         }
 
@@ -119,9 +117,8 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     @Override
     @Transactional(readOnly = true)
     public DomainConfigResp getDomainConfig(Long tenantId, String domainCode, String configType) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -148,9 +145,8 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     @Override
     @Transactional(readOnly = true)
     public List<DomainConfigResp> listDomainConfigs(Long tenantId, String domainCode) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -184,9 +180,8 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     @OperationLog(module = "PERMISSION", action = "DOMAIN_CONFIG_REMOVE", targetType = "domain_config", targetId = "", summary = "'batch remove domain configs'")
     public void deleteDomainConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete domain configs");
         }
 

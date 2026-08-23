@@ -330,7 +330,7 @@ public class PermQuery {
      * <p>
      * 类型+实例查询，全范围匹配时提前返回，不评估，最小输出。
      * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
-     * {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。
+     * （T-ORG-001 统一后操作者 ID 即主体 ID，无转换层）。
      * </p>
      *
      * @param tenantId         租户ID
@@ -365,7 +365,7 @@ public class PermQuery {
      * 仅限引擎内部与已完成解析的调用方（资源树、API 映射、资源依赖、权限树等
      * 直接管理资源实体的后台链路）使用，禁止用于 USER/ROLE 等业务对象门禁。
      * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
-     * {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。
+     * （T-ORG-001 统一后操作者 ID 即主体 ID，无转换层）。
      * </p>
      *
      * @param tenantId         租户ID

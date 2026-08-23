@@ -42,8 +42,6 @@ class OperationAppServiceImplTest {
     @BeforeEach
     void setUp() {
         // 测试简化：投影主体 = 传入 operatorId
-        lenient().when(engine.resolveOperatorSubjectId(anyLong(), anyLong()))
-            .thenAnswer(inv -> inv.getArgument(1));
         service = new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine);
     }
 

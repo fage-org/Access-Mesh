@@ -57,6 +57,35 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     }
 
     @Override
+    public Long createLocalUserSubject(Long tenantId, String name, boolean enabled, String extraJson) {
+        Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
+        Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_USER);
+        // T-ORG-001（§12.2）：abstract_user.id 序列预取主体 ID，external_id 终态 = 主体 ID 字符串化，
+        // 不能先插行再回填——本地用户由调用方以同一 N 显式插 sys_user(id=N)
+        Long subjectId = abstractUserMapper.nextSubjectId();
+        String externalId = String.valueOf(subjectId);
+        LocalDateTime now = LocalDateTime.now();
+
+        AbstractUser user = new AbstractUser();
+        user.setId(subjectId);
+        user.setTenantId(tenantId);
+        user.setUserType(userType);
+        user.setExternalId(externalId);
+        user.setName(name);
+        user.setEnabled(enabled);
+        user.setExtra(extraJson);
+        user.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+        user.setCreatedAt(now);
+        user.setUpdatedAt(now);
+        user.setDeleteFlag(0L);
+        abstractUserMapper.insertWithExplicitId(user);
+
+        upsertResource(tenantId, resourceType, externalId, name, null,
+            enabled ? STATUS_ENABLED : STATUS_DISABLED, now);
+        return subjectId;
+    }
+
+    @Override
     public Long upsertAdminUser(Long tenantId, Long sysUserId, String name, boolean enabled, String extraJson) {
         Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_ADMIN_USER);
         Integer resourceType = requireType(tenantId, "resource_type", LocalProjectionOwner.RESOURCE_ADMIN_USER);

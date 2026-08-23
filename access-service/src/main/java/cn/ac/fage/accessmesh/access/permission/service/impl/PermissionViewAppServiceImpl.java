@@ -34,7 +34,6 @@ import cn.ac.fage.accessmesh.access.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.access.permission.util.PermViewAssembler;
 import cn.ac.fage.accessmesh.access.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
-import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.ScopeModeSupport;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -122,8 +121,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      */
     @Override
     public PermissionEffectivePermissionsResp getEffectivePermissions(Long tenantId, UserPermissionViewReq req) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
+        Long operatorId = OperatorContext.getOperatorId();
 
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
@@ -133,7 +131,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             if (userId == null) {
                 return new PermissionEffectivePermissionsResp(PermConstants.TargetType.USER, List.of(), 0, pageNum, pageSize, false);
             }
-            if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on USER:" + userId);
             }
             PaginatedResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, req);
@@ -152,10 +150,10 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         // ROLE 分支：操作者需要对被查角色有 VIEW 权限
         Long roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         if (roleId != null) {
-            if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.VIEW)) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on ROLE:" + roleId);
             }
-        } else if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+        } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on ROLE");
         }
         PaginatedResp<PermissionItem> paged = getRolePermissionItemsPaged(
@@ -436,15 +434,14 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      */
     @Override
     public ResourcePermissionViewResp getResourcePermissions(Long tenantId, String domainCode, String resourceTypeCode, String resourceCode, String codeType) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
+        Long operatorId = OperatorContext.getOperatorId();
         Long resourceEntityId = typeResolutionService.resolveResourceId(tenantId, resourceTypeCode, resourceCode, codeType, domainCode);
         if (resourceEntityId != null) {
-            if (!engine.hasPermissionByEntityId(tenantId, operatorSubjectId, ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.VIEW)) {
+            if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on RESOURCE:" + resourceEntityId);
             }
         } else {
-            if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW)) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on RESOURCE");
             }
         }
@@ -525,15 +522,14 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      */
     @Override
     public RolePermissionViewResp getRolePermissions(Long tenantId, String domainCode, String roleTypeCode, String roleExternalId, boolean expandSub) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
+        Long operatorId = OperatorContext.getOperatorId();
         Long roleId = typeResolutionService.resolveRoleId(tenantId, roleTypeCode, roleExternalId, domainCode);
         if (roleId != null) {
-            if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.VIEW)) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on ROLE:" + roleId);
             }
         } else {
-            if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on ROLE");
             }
         }
@@ -665,9 +661,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      */
     @Override
     public PermissionExplainResp explain(Long tenantId, PermissionExplainReq req) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
         boolean scopeAll = ScopeModeSupport.toScopeAllForGrant(req.scopeMode(), req.resourceCode(), req.codeType());
@@ -786,15 +781,14 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      */
     @Override
     public ItemsResp<EffectiveRoleResp> listEffectiveRoles(Long tenantId, UserEffectiveRolesReq req) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
+        Long operatorId = OperatorContext.getOperatorId();
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId != null) {
-            if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on USER:" + userId);
             }
         } else {
-            if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.USER, null, OperationCodeConstants.VIEW)) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on USER");
             }
         }
@@ -906,9 +900,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      */
     @Override
     public List<ResourcePermissionTreeResp> getUserResourceTree(Long tenantId, Long userId, UserResourceTreeReq req) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on USER:" + userId);
         }
 
@@ -1034,8 +1027,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      */
     @Override
     public UserEffectivePermissionCodesResp getEffectivePermissionCodesForManage(Long tenantId, UserEffectivePermissionCodesReq req) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
+        Long operatorId = OperatorContext.getOperatorId();
 
         // 解析目标用户
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
@@ -1044,8 +1036,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         }
 
         // 门禁：自查豁免；查他人时操作者需对被查用户有 USER:VIEW，防任意登录用户枚举 ID 越权读取他人权限码。
-        if (!Objects.equals(operatorSubjectId, userId)
-            && !engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
+        if (!Objects.equals(operatorId, userId)
+            && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on USER:" + userId);
         }
         return getEffectivePermissionCodes(tenantId, req);

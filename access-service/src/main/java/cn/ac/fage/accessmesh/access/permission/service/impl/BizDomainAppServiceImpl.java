@@ -14,7 +14,6 @@ import cn.ac.fage.accessmesh.access.permission.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.permission.service.BizDomainAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
-import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -68,9 +67,8 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     @OperationLog(module = "PERMISSION", action = "BIZ_DOMAIN_CREATE", targetType = "biz_domain", targetId = "#result.id()", summary = "'create biz domain ' + #req.code()")
     public BizDomainResp createBizDomain(Long tenantId, BizDomainCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to create biz domain");
         }
 
@@ -103,9 +101,8 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     @Override
     @Transactional(readOnly = true)
     public BizDomainResp getBizDomain(Long tenantId, Long domainId) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.DOMAIN, String.valueOf(domainId), OperationCodeConstants.VIEW)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DOMAIN, String.valueOf(domainId), OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DOMAIN:" + domainId);
         }
 
@@ -127,9 +124,8 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     @Override
     @Transactional(readOnly = true)
     public List<BizDomainResp> listBizDomains(Long tenantId) {
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
-            tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.DOMAIN, null, OperationCodeConstants.VIEW)) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DOMAIN");
         }
 
@@ -155,9 +151,8 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     @OperationLog(module = "PERMISSION", action = "BIZ_DOMAIN_UPDATE", targetType = "biz_domain", targetId = "#req.domainId()", summary = "'update biz domain ' + #req.domainId()")
     public BizDomainResp updateBizDomain(Long tenantId, BizDomainUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to update biz domain");
         }
 
@@ -188,9 +183,8 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     @OperationLog(module = "PERMISSION", action = "BIZ_DOMAIN_REMOVE", targetType = "biz_domain", targetId = "", summary = "'batch remove biz domains'")
     public void deleteBizDomainsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete biz domains");
         }
 

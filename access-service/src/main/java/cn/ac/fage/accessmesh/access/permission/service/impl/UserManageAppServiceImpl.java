@@ -33,7 +33,6 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionServ
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.permission.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
-import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.PermissionConstants;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -144,9 +143,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_CREATE", targetType = "abstract_user", targetId = "#result.id()", summary = "'create user ' + #req.externalId()")
     public UserResp createUser(Long tenantId, UserCreateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.USER, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("No permission to create user");
         }
         localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
@@ -179,7 +177,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_USER_UPDATE", targetType = "abstract_user", targetId = "#req.userId()", summary = "'update user ' + #req.userId()")
     public UserResp updateUser(Long tenantId, UserUpdateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         AbstractUser existing = subjectDomainService.selectValidUserById(tenantId, req.userId());
         if (existing == null) {
@@ -187,8 +184,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
         localProjectionGuard.rejectIfLocalUser(existing);
 
-        if (!operatorSubjectId.equals(req.userId())) {
-            if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE)) {
+        if (!operatorId.equals(req.userId())) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE)) {
                 throw new SecurityException("Permission denied: MANAGE on USER");
             }
         }
@@ -224,7 +221,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
 
         Long operatorId = OperatorContext.getOperatorId();
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
         LocalDateTime now = LocalDateTime.now();
 
         Set<Long> userIdsSet = new LinkedHashSet<>(userIds);
@@ -239,7 +235,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Set<Long> existingUserIds = users.stream().map(AbstractUser::getId).collect(Collectors.toSet());
 
         Set<Long> nonSelfUserIds = existingUserIds.stream()
-            .filter(id -> !operatorSubjectId.equals(id))
+            .filter(id -> !operatorId.equals(id))
             .collect(Collectors.toSet());
 
         if (!nonSelfUserIds.isEmpty()) {
@@ -249,7 +245,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 .map(String::valueOf)
                 .collect(Collectors.toSet());
             Set<String> deniedCodes = engine.getDeniedResourceCodes(
-                tenantId, operatorSubjectId, ResourceTypeCode.USER, nonSelfUserCodes, OperationCodeConstants.MANAGE);
+                tenantId, operatorId, ResourceTypeCode.USER, nonSelfUserCodes, OperationCodeConstants.MANAGE);
             if (!deniedCodes.isEmpty()) {
                 throw new SecurityException("No permission to delete users: " + deniedCodes);
             }
@@ -276,7 +272,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     @PermissionChange
     public void assignRole(Long tenantId, UserAssignRoleReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         if (req.items() == null || req.items().isEmpty()) {
             throw new BizException(PermissionErrorCode.REQUEST_ITEMS_EMPTY.getCode(), "items must not be empty");
@@ -335,7 +330,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         // T-PERM-042：ROLE 实例门禁改业务编码语义（resource_entity(ROLE).code = roleId）
         Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
-            tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+            tenantId, operatorId, ResourceTypeCode.ROLE,
             targetRoleIds.stream().map(String::valueOf).collect(Collectors.toSet()),
             OperationCodeConstants.MANAGE);
 
@@ -434,7 +429,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         validateDomainCodeForOrgPosition(req.roleTypeCode(), req.domainCode());
 
         Long operatorId = OperatorContext.getOperatorId();
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         Map<String, Long> userIdMap = typeResolutionService.batchResolveUserIds(
             tenantId, req.subjectTypeCode(), new LinkedHashSet<>(req.subjectExternalIds()));
@@ -451,7 +445,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
 
         Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
-            tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+            tenantId, operatorId, ResourceTypeCode.ROLE,
             Set.of(String.valueOf(targetRoleId)), OperationCodeConstants.MANAGE);
         if (!deniedRoleCodes.isEmpty()) {
             throw new SecurityException("No permission to manage role: " + req.roleTypeCode() + "/" + req.roleExternalId());
@@ -534,7 +528,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     @PermissionChange
     public void revokeRolesBatch(Long tenantId, UserRoleBatchRevokeReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         if (req.items() == null || req.items().isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -597,7 +590,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         // T-PERM-042：ROLE 实例门禁改业务编码语义（resource_entity(ROLE).code = roleId）
         Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
-            tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+            tenantId, operatorId, ResourceTypeCode.ROLE,
             targetRoleIds.stream().map(String::valueOf).collect(Collectors.toSet()),
             OperationCodeConstants.MANAGE);
 

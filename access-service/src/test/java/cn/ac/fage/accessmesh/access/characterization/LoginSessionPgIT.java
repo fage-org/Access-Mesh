@@ -119,10 +119,11 @@ class LoginSessionPgIT {
     @DisplayName("登录：真实库用户 + 真实 Redis 验证码 → 会话建立 → userinfo 消费 → logout 失效")
     void loginShouldEstablishSessionAgainstRealDatabaseAndRedis() throws Exception {
         // 真实 sys_user 行（BCrypt 密码，登录链路走 UserDomainService 真实 SQL）
+        // T-ORG-001：sys_user.id 已去自增（显式主体 ID），fixture 显式给 id
         jdbc.update(
-            "INSERT INTO sys_user (tenant_id, username, password, name, status, user_type, force_reset_pwd) "
-                + "VALUES (?, ?, ?, '特征测试-登录用户', 1, 3, false)",
-            TENANT, USERNAME, cn.dev33.satoken.secure.BCrypt.hashpw(PASSWORD));
+            "INSERT INTO sys_user (id, tenant_id, username, password, name, status, user_type, force_reset_pwd) "
+                + "VALUES (?, ?, ?, ?, '特征测试-登录用户', 1, 3, false)",
+            910501L, TENANT, USERNAME, cn.dev33.satoken.secure.BCrypt.hashpw(PASSWORD));
 
         // 真实 Redis 验证码（validateCaptcha 的 Lua GET+DEL 一次性消费）
         String captchaId = UUID.randomUUID().toString();

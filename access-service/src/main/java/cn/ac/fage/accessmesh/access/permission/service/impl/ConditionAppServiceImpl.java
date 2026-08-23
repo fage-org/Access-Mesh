@@ -16,7 +16,6 @@ import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.ConditionAppService;
 import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
-import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -85,8 +84,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_CREATE", targetType = "permission_condition", targetId = "#result.id()", summary = "'create permission condition ' + #req.code()")
     public ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on CONDITION");
         }
 
@@ -150,8 +148,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @PermissionChange
     public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, String.valueOf(req.conditionId()), OperationCodeConstants.UPDATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, String.valueOf(req.conditionId()), OperationCodeConstants.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.conditionId());
         }
 
@@ -219,8 +216,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @PermissionChange
     public void deleteCondition(Long tenantId, Long conditionId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, String.valueOf(conditionId), OperationCodeConstants.DELETE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, String.valueOf(conditionId), OperationCodeConstants.DELETE)) {
             throw new SecurityException("Permission denied: DELETE on CONDITION:" + conditionId);
         }
 
@@ -262,7 +258,6 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @PermissionChange
     public void deleteConditionsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         if (ids == null || ids.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -277,7 +272,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
 
         // T-PERM-042：引擎纯查询，拒绝时由调用方显式抛出
         Set<Long> deniedIds = engine.getDeniedEntityIds(
-            tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, validInputIds, OperationCodeConstants.DELETE);
+            tenantId, operatorId, ResourceTypeCode.CONDITION, validInputIds, OperationCodeConstants.DELETE);
         if (!deniedIds.isEmpty()) {
             throw new SecurityException("Permission denied: DELETE on CONDITION:" + deniedIds);
         }

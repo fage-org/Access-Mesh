@@ -150,7 +150,7 @@ COMMENT ON COLUMN sys_login_log.status IS '结果：0=失败，1=成功';
 -- 3. sys_user - 用户表（事实源，投影到权限域 abstract_user）
 -- -----------------------------------------------------------------------------
 CREATE TABLE sys_user (
-    id              BIGSERIAL PRIMARY KEY,
+    id              BIGINT PRIMARY KEY,
     tenant_id       BIGINT NOT NULL,
     username        VARCHAR(64) NOT NULL,
     password        VARCHAR(256) NOT NULL,
@@ -174,7 +174,7 @@ CREATE TABLE sys_user (
 CREATE UNIQUE INDEX uk_user_username ON sys_user (tenant_id, username) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_user_phone ON sys_user (tenant_id, phone) WHERE delete_flag = 0 AND phone IS NOT NULL;
 
-COMMENT ON TABLE sys_user IS '用户表，access-service admin 域事实源；默认组织树是用户目录/身份池，负责用户生命周期。终态（T-ACCESS-016 §12.2）：id = abstract_user.id 同值（主体 ID），列改 BIGINT 显式赋值去自增，本地用户创建先 nextval 预取主体 ID N，再显式插 abstract_user(id=N, external_id=N) 与本表(id=N)——实施归 T-ORG-001';
+COMMENT ON TABLE sys_user IS '用户表，access-service admin 域事实源；默认组织树是用户目录/身份池，负责用户生命周期。id = abstract_user.id 同值（主体 ID，T-ORG-001 已落地）：列 BIGINT 显式赋值（无自增），本地用户创建先 nextval(pg_get_serial_sequence(abstract_user.id)) 预取主体 ID N，再显式插 abstract_user(id=N, external_id=N) 与本表(id=N)；外部主体仅插 abstract_user（自增取号），两向创建顺序均不碰撞（architecture §12.2）';
 COMMENT ON COLUMN sys_user.username IS '登录账号，租户内唯一';
 COMMENT ON COLUMN sys_user.password IS '密码（BCrypt 加密，前端 SHA256 摘要传输）';
 COMMENT ON COLUMN sys_user.gender IS '性别：0=未知，1=男，2=女';
