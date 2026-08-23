@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-017
 title: 窄回归安全网与最小 CI
-status: proposed
+status: in-progress
 plan: docs/plans/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
@@ -40,8 +40,41 @@ last_updated: 2026-08-23
 - CI 以退出状态判定成功，不 grep 维护测试数量；不建发布流水线与多分支矩阵。
 - 30 秒 Gateway 撤权总边界的验证归 T-ACCESS-021 E2E，本任务只覆盖 access-service 侧 afterCommit 失效。
 
+## 实施记录（2026-08-23）
+
+### 特征测试落点（五条链路 × 两层）
+
+| 链路 | 单测层 | PG（Testcontainers）层 |
+|---|---|---|
+| 登录会话 | 复用既有 `PlatformSessionIdleTimeoutTest` / `PlatformSessionAbsoluteTimeoutTest`（已有登录 200 + accessToken + expiresIn==timeout + 立即 userinfo 200 特征断言） | 新增 `characterization/LoginSessionPgIT`：真实 sys_user + 真实 Redis（验证码 Lua 一次性消费、sa-token redis-jackson 会话）→ 登录/userinfo/logout 全链 |
+| Resolver 映射 | 新增 `TypeResolutionServiceImplTest`（4 用例：正向映射/类型未注册/投影缺失/缓存回填） | 新增 `PermissionCharacterizationPgIT#resolverShouldMapSysUserIdToAbstractUserId`（真实 SQL + 软删过滤 + 租户隔离） |
+| resolveEffectiveRoles | 补强 `SubjectDomainServiceImplTest`（全 hit → 零 SQL 零回填断言；既有混合 hit/miss 用例保留） | 新增 `PermissionCharacterizationPgIT` 两用例：miss 回源回填 + hit 复用 + 失效后回源；GROUP_ROLE 树展开 + 停用过滤 |
+| scopeAll 放行 | 补强 `PermQueryEngineTest` 两用例：query 提前返回 allow + 零实例查询；getDeniedIds 短路空拒绝集 | 新增 `PermissionCharacterizationPgIT#scopeAllGrantShouldAllowTypeLevelAccess`（真实授权行放行 + 无授权 fail-closed 对照） |
+| afterCommit 失效 | 补强 `PermissionChangeAspectTest`：事务同步激活分支（注册 afterCommit → 提交后 flush → afterCompletion 清理） | 新增 `characterization/AuthorizationChangeInvalidationPgIT`：`batchRevoke` 真实调用（真实事务 + 切面 + 操作者门禁走真实引擎）→ DB 软删断言 + EFFECTIVE_ROLES/ROLE_PERM_SNAPSHOT 失效断言 + 重查回源新状态断言 |
+
+### 发现并修复的生产缺陷（用户裁决 2026-08-23）
+
+`OperationPermissionMapper.selectByResourceTypeAndCodes` 的 XML `foreach collection="operationCodes"` 与接口 `@Param("codes")` 不一致：真实 DB 查询路径（引擎 hasPermission/getDeniedIds/query 带 operationCodes → `ResolveContext.prepareOperations` → `TypeResolutionServiceImpl.batchResolveOperationIds`）全部抛 `BindingException`，mock 单测不可见。该缺陷阻断 scopeAll 与 afterCommit 两条链路的 PG 特征测试；经用户裁决按接口为准一行修复 XML（`collection="codes"`），特征测试随之转绿。登记于此供 T-PERM-042 回归时知悉。
+
+### 容器轨道 tag 与 CI 分工（用户决策 2026-08-23）
+
+- 既有 9 个容器测试类 + 新增 3 个特征 IT 统一标注 `@Tag("testcontainers")`；单测 job 以 `mvn test -DexcludedGroups=testcontainers` 排除（GitHub ubuntu runner 自带 Docker，不排除则容器门控失效）。
+- CI = 单个 workflow `.github/workflows/ci.yml`：`unit-tests` job（push/PR/手动，单测强制）+ `testcontainers` job（仅 PR/手动触发，全量 `mvn test`）。
+
+### 本地验证证据（2026-08-23，Docker Desktop 4.87 + WSL2，socat 代理 `docker-api-proxy` 容器暴露 tcp://localhost:2375）
+
+- 单测层：全仓库 `mvn test -DexcludedGroups=testcontainers` → BUILD SUCCESS，容器测试类 0 执行（tag 排除生效）。
+- 容器层：12 个容器测试类（9 既有 + 3 新增）在本地 Docker 全部跑绿——SchemaPostgres 12/12、PermissionCharacterizationPgIT 4/4、AuthorizationChangeInvalidationPgIT 1/1、LoginSessionPgIT 1/1、LocalProjectionBatchSqlIT 2/2、Menu/UserWrite/UserOrg FaultInjection 合跑 22/22、TaskExecutionLeaseConcurrency 10/10、DualInstance+SyncMetadata+Integration 合跑 8/8。
+- 环境限制备注：全部模块全部测试挤单进程一次 `mvn test` 时，本地 Windows + socat 代理环境在后段出现资源容量性失败（分批/单类重跑均绿，与代码无关）；CI runner 直连 Docker 无此瓶颈，以 CI 全量跑作为最终判据。
+
+### 待办（CI 真实运行证据，由仓库所有者操作）
+
+1. push 本提交到 `origin/feat-permission-center`（push 自动触发 `unit-tests` job）。
+2. GitHub Web UI → Actions → CI → Run workflow 手动触发（执行 `testcontainers` job）。
+3. 两个 job 各成功一次后，将 workflow URL、提交 SHA 与退出状态补记至本节（验收第 5 条闭环前本任务保持 in-progress）。
+
 ## 非目标 / 遗留
 
-- 不修任何生产缺陷（发现即登记给对应任务）。
+- 不修任何生产缺陷（发现即登记给对应任务；本次 XML 参数名修复为阻断验收路径的用户裁决例外，见实施记录）。
 - 不做 E2E（T-ACCESS-021）、不建发布流水线/部署自动化。
 - 不覆盖与模型重构无关的链路（缓存内部实现由既有容器门控覆盖）。

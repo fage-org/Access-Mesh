@@ -15,6 +15,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -60,6 +61,7 @@ import static org.mockito.Mockito.doReturn;
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)
 @TestPropertySource(properties = {
     "spring.config.import=optional:classpath:/test-nacos-dummy.yml",

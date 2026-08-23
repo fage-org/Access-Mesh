@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.schema;
 
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link AccessServiceSchemaH2Test} 为兜底验证。
  * </p>
  */
+@Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)
 class AccessServiceSchemaPostgresTest {
 

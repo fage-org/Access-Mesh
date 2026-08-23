@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Set;
@@ -78,6 +79,51 @@ class PermissionChangeAspectTest {
         // 空累积不应触发任何失效或广播
         verify(subjectDomainService, never()).invalidateRoleCacheByRoles(anyLong(), any());
         verify(publisher, never()).publish(anyLong(), any(), any(), any());
+    }
+
+    /**
+     * T-ACCESS-017 特征测试（链路 5）：事务同步激活时，flush 不在方法返回前执行，
+     * 而是注册 afterCommit 回调——提交后才失效缓存与广播，afterCompletion 清理 ThreadLocal。
+     * 这是授权写路径（@Transactional + @PermissionChange）的主路径语义。
+     */
+    @Test
+    @org.mockito.junit.jupiter.MockitoSettings(strictness = org.mockito.quality.Strictness.LENIENT)
+    void shouldDeferFlushToAfterCommitWhenTransactionActive() throws Throwable {
+        when(joinPoint.proceed()).thenAnswer(inv -> {
+            PermissionChangeContext.markRoles(1L, 200L);
+            return "ok";
+        });
+
+        org.mockito.ArgumentCaptor<TransactionSynchronization> syncCaptor =
+            org.mockito.ArgumentCaptor.forClass(TransactionSynchronization.class);
+
+        try (MockedStatic<TransactionSynchronizationManager> txMock =
+                 org.mockito.Mockito.mockStatic(TransactionSynchronizationManager.class)) {
+            txMock.when(TransactionSynchronizationManager::isSynchronizationActive).thenReturn(true);
+
+            aspect.around(joinPoint, pc);
+
+            // 方法返回 = 事务提交前：flush 不得执行
+            verify(subjectDomainService, never()).invalidateRoleCacheByRoles(anyLong(), any());
+            verify(publisher, never()).publish(anyLong(), any(), any(), any());
+            // ThreadLocal 仍持有累积器（等 afterCompletion 清理）
+            org.junit.jupiter.api.Assertions.assertNotNull(PermissionChangeContext.snapshot());
+
+            txMock.verify(() -> TransactionSynchronizationManager.registerSynchronization(syncCaptor.capture()));
+        }
+
+        TransactionSynchronization sync = syncCaptor.getValue();
+
+        // 提交后（afterCommit）：失效 + 广播执行
+        sync.afterCommit();
+        verify(subjectDomainService).invalidateRoleCacheByRoles(eq(1L), eq(Set.of(200L)));
+        verify(cacheService).evictBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(200L)));
+        verify(cacheService).evictAll(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L));
+        verify(publisher).publish(eq(1L), eq(Set.of(200L)), any(), any());
+
+        // 完成后（afterCompletion）：ThreadLocal 清理
+        sync.afterCompletion(TransactionSynchronization.STATUS_COMMITTED);
+        assertNull(PermissionChangeContext.snapshot());
     }
 
     /**

@@ -9,6 +9,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.task.JobInvocable;
 import cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionContext;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -57,6 +58,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)
 class TaskExecutionLeaseConcurrencyTest {
 

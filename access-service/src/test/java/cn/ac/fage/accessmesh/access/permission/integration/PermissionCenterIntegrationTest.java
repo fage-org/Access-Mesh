@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.integration;
 
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 @SpringBootTest
 @ActiveProfiles("test")
+@Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)
 class PermissionCenterIntegrationTest {
 

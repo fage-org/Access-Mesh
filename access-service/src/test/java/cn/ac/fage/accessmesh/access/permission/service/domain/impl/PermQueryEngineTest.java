@@ -146,6 +146,83 @@ class PermQueryEngineTest {
         verify(rolePermMapper).selectInstancePermsByBitsBatch(1L, Set.of(20L), Set.of(200L), bitMaskEntries);
     }
 
+    /**
+     * T-ACCESS-017 特征测试（链路 4）：scopeAll 类型级授权命中时提前返回放行——
+     * 允许结果 + scopeAllMatched=true + 零实例级查询（verify never），
+     * 且 forValidate（evaluateConditions=false）不触发条件评估。
+     */
+    @Test
+    void queryShouldEarlyReturnAllowOnScopeAllMatch() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("SERVICE")))
+            .thenReturn(Map.of("SERVICE", 8));
+        when(typeResolutionService.batchResolveOperationIds(1L, "SERVICE", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 901L));
+
+        OperationPermission viewOp = operation(901L, 8, "VIEW", 2L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(901L))).thenReturn(List.of(viewOp));
+        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:8")))
+            .thenReturn(Map.of(901L, viewOp));
+
+        // scope_all=true 的授权行：resource_entity_id 必须为 null（DDL CHECK 约束）
+        RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
+        scopeAllPerm.setId(501L);
+        scopeAllPerm.setAbstractRoleId(20L);
+        scopeAllPerm.setResourceEntityId(null);
+        scopeAllPerm.setResourceType(8);
+        scopeAllPerm.setGrantedBits(2L);
+        scopeAllPerm.setScopeAll(true);
+        scopeAllPerm.setDeleteFlag(0L);
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of(scopeAllPerm));
+
+        PermQuery query = PermQuery.forValidate(1L, 10L, "SERVICE", "svc-code-1", "VIEW");
+
+        PermResult result = engine.query(query);
+
+        assertTrue(result.allowed());
+        assertTrue(result.scopeAllMatched());
+        assertEquals(1, result.scopeAllEntries().size());
+        // 类型级放行：跳过实例级查询（提前返回分支的核心特征）
+        verify(rolePermMapper, never()).selectInstancePermsByBitsBatch(any(), any(), any(), any());
+    }
+
+    /**
+     * T-ACCESS-017 特征测试（链路 4）：getDeniedIds 批量门禁在 scopeAll 命中时
+     * 短路返回空拒绝集（全部允许），不触发实例级批量查询。
+     */
+    @Test
+    void getDeniedIdsShouldReturnEmptyOnScopeAllMatch() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("SERVICE")))
+            .thenReturn(Map.of("SERVICE", 8));
+        when(typeResolutionService.batchResolveOperationIds(1L, "SERVICE", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 901L));
+
+        OperationPermission viewOp = operation(901L, 8, "VIEW", 2L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(901L))).thenReturn(List.of(viewOp));
+        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:8")))
+            .thenReturn(Map.of(901L, viewOp));
+
+        RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
+        scopeAllPerm.setId(501L);
+        scopeAllPerm.setAbstractRoleId(20L);
+        scopeAllPerm.setResourceEntityId(null);
+        scopeAllPerm.setResourceType(8);
+        scopeAllPerm.setGrantedBits(2L);
+        scopeAllPerm.setScopeAll(true);
+        scopeAllPerm.setDeleteFlag(0L);
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of(scopeAllPerm));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(inv -> inv.getArgument(1));
+
+        Set<Long> denied = engine.getDeniedIds(1L, 10L, "SERVICE", Set.of(1L, 2L, 3L), "VIEW");
+
+        assertTrue(denied.isEmpty());
+        verify(rolePermMapper, never()).selectInstancePermsByBitsBatch(any(), any(), any(), any());
+    }
+
     @Test
     void testForUserView() {
         when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));

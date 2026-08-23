@@ -77,6 +77,25 @@ class SubjectDomainServiceImplTest {
         assertEquals(PermCacheCatalog.EFFECTIVE_ROLES, tokenCaptor.getValue().catalog());
     }
 
+    /**
+     * T-ACCESS-017 特征测试（链路 3）：缓存全命中时必须零 SQL、零回填——
+     * EFFECTIVE_ROLES 全 hit 是快照链路的常态路径，任何回源都会放大 DB 压力。
+     */
+    @Test
+    void batchResolveEffectiveRolesShouldSkipDbAndBackfillWhenAllCached() {
+        Set<Long> userIds = Set.of(1L, 2L);
+
+        when(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, userIds))
+            .thenReturn(Map.of(1L, Set.of(10L), 2L, Set.of(20L)));
+
+        Map<Long, Set<Long>> result = service.batchResolveEffectiveRoles(1L, userIds);
+
+        assertEquals(Set.of(10L), result.get(1L));
+        assertEquals(Set.of(20L), result.get(2L));
+        verify(userRoleMapper, never()).selectValidByUserIdsWithValidity(anyLong(), any(), any(LocalDateTime.class));
+        verify(cacheService, never()).putBatch(any(cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry.class), anyLong(), any());
+    }
+
     @Test
     void invalidateRoleCacheBatchShouldDelegateToBatchEvict() {
         Set<Long> userIds = Set.of(1L, 2L, 3L);
