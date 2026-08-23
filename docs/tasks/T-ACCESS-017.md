@@ -63,15 +63,21 @@ last_updated: 2026-08-23
 - **P2 putBatch 重载校验错误**：`SubjectDomainServiceImplTest` 全 hit 零回填补测改为 token/catalog 两个 `putBatch` 重载都 `never`，并加 `beginRead` never（全 hit 不进 miss 分支）。
 - **P3 put 重载校验错误**：`TypeResolutionServiceImplTest` 空结果不缓存断言改为两个 `put` 重载都 `never`。
 
+### 二轮评审修复：容器 fork 线程残留（2026-08-23）
+
+- **现象（评审 P1，核实属实）**：容器 execution 的 12 个类全部跑完后，11 个 `@SpringBootTest` 上下文驻留 JVM（各自 Redisson Netty/Hikari/scheduler 线程不释放，评审 dump 计 614 线程），而各自静态容器已先停、旧调度器仍轮询死连接；fork `System.exit(0)` 后 30 秒无法退净被 Surefire 强杀（`jvmRun1.dump` + "kill self fork" 日志；2026-08-22 起 dumpstream 已存在，非本次引入）。
+- **修复**：11 个 Spring 容器测试类统一 `@DirtiesContext(classMode = AFTER_CLASS)`——类结束即关闭上下文释放线程。零复用损失：这些类各自绑定独占容器（`@DynamicPropertySource` 指向自己的静态 `@Container`），上下文 key 互不相同本就不可能跨类复用，关闭只是把生命周期提前；`DualInstanceContainerTest` 的手工实例 B 上下文已有 `@AfterAll close()`，`AccessServiceSchemaPostgresTest` 纯 JDBC 无 Spring 不涉及。
+- **验证（评审判据：无 jvmRun dump、无强杀日志）**：清空 `surefire-reports` 后 `mvn -B test -pl access-service` 全量 722 项全绿（662 + 60），BUILD SUCCESS，**0 条 "kill self fork" 日志、0 个 jvmRun dump**，耗时 3m49s（较修复前 5m27s 更快——省掉强杀等待）。仅存的 `.dumpstream` 为 Surefire 类路径提示（`Boot Manifest-JAR contains absolute paths`），与线程残留无关。
+
 ### 容器轨道 tag 与 CI 分工（用户决策 2026-08-23）
 
 - 既有 9 个容器测试类 + 新增 3 个特征 IT 统一标注 `@Tag("testcontainers")`。
 - **双 execution 分层（评审修复后定稿，用户决策「两类分开测试」）**：MyBatis-Flex 方言挂在全局静态 `FlexGlobalConfig.defaultConfig`——同 JVM 混跑时先行的 H2 上下文（`AccessServiceApplicationTest` 等）把方言置为反引号风格，后续 PG 容器测试的 `BaseMapper` 语句全部 `BadSqlGrammar`（`INSERT INTO \`sys_job_log\`` 发给 PG 报语法错误；单类跑不触发，历史基线与 mock 单测均不可见）。access-service pom 的 surefire 拆两个 execution：默认 execution `excludedGroups=testcontainers`（单测轨道，可 `-DskipTestcontainers=true` 跳过容器组），`testcontainers` execution `groups=testcontainers`（容器轨道）。两个 execution 各自独立 fork 进程（surefire 每执行目标独立 JVM），物理隔离方言串扰与线程残留；进程内保持 fork 复用，时长不受类级分叉拖累。
 - CI = 单个 workflow `.github/workflows/ci.yml`：`unit-tests` job（push/PR/手动，`mvn -B test -DskipTestcontainers=true`）+ `testcontainers` job（仅 PR/手动触发，全量 `mvn -B test`）；退出状态判定成功，不建发布流水线与多分支矩阵。
 
-### 本地验证证据（2026-08-23 评审修复后，Docker Desktop 4.87 + WSL2，socat 代理 `docker-api-proxy` 容器暴露 tcp://localhost:2375）
+### 本地验证证据（2026-08-23 二轮评审修复后，Docker Desktop 4.87 + WSL2，socat 代理 `docker-api-proxy` 容器暴露 tcp://localhost:2375）
 
-- **CI 容器 job 精确命令 `mvn -B test -pl access-service`：BUILD SUCCESS**——单测 execution 662 项（2 既有 skip）+ 容器 execution 60 项（12 类），0 失败 0 错误，耗时 5m27s。
+- **CI 容器 job 精确命令 `mvn -B test -pl access-service`：BUILD SUCCESS**——单测 execution 662 项（2 既有 skip）+ 容器 execution 60 项（12 类），0 失败 0 错误，耗时 3m49s，无强杀日志、无 jvmRun dump（`@DirtiesContext` 生效，见二轮评审修复）。
 - **CI 单测 job 命令 `mvn -B test -DskipTestcontainers=true`：BUILD SUCCESS**——662 项全绿、容器类 0 执行，耗时 1m29s。
 - 本地单类定向 `-Dtest=PermissionCharacterizationPgIT` 正常（另一 execution 空匹配容忍）。
 - 首轮曾以 `reuseForks=false`（每类独立 JVM）验证全量 722 项全绿（16m26s），确认根因修复有效后改为双 execution 分层（同样全绿且快 3 倍）。
