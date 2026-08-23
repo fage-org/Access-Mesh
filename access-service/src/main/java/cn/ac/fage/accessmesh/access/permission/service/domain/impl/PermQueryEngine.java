@@ -215,138 +215,220 @@ public class PermQueryEngine {
         return builder.build();
     }
 
-    
+    // ===== 引擎便捷 API（T-ACCESS-016 定稿终态，T-PERM-042 落地）=====
+    // code 与 entityId 两轨不得混用：
+    //   - hasPermissionByCode / getDeniedResourceCodes：业务编码语义，对外（USER/ROLE 等业务对象门禁与跨服务 SDK）。
+    //     resource_entity(USER).code = subjectId、resource_entity(ROLE).code = roleId（architecture §12.3）。
+    //   - hasPermissionByEntityId / getDeniedEntityIds：resource_entity.id 语义，仅引擎内部或已完成解析的调用方
+    //     （资源树、API 映射、资源依赖、权限树等直接管理资源实体的后台链路）。
+    // 引擎纯查询不抛 SecurityException；异常由调用方显式抛出（admin 域经 AdminPermissionValidator 门面、
+    // permission 域 AppService if-throw）。
+
     /**
-     * 检查是否有权限
+     * 按业务编码检查是否有权限（对外）
      * <p>
      * 门禁主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
      * {@code sys_user.id}。调用方先经 {@link cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver#requireSubjectId}
      * 完成 {@code sys_user.id → abstract_user.id} 转换（转换失败 fail-closed）。
+     * {@code resourceCode} 为业务编码（USER/ROLE 门禁传主体/角色 ID 字符串化，SERVICE 传 serviceCode）；
+     * {@code null} 表示仅类型级校验。未知类型/未知操作 fail-closed 拒绝。
      * </p>
      *
      * @param tenantId         租户ID
      * @param subjectId        权限域投影主体ID（abstract_user.id）
      * @param resourceTypeCode 资源类型码
-     * @param resourceId       资源ID（可为null）
+     * @param resourceCode     业务编码，null 表示类型级校验
      * @param operationCode    操作码
      * @return 是否有权限
      */
-    public boolean hasPermission(Long tenantId, Long subjectId, String resourceTypeCode,
-                                  Object resourceId, String operationCode) {
-        PermQuery q = PermQuery.forValidate(tenantId, subjectId,
-            resourceTypeCode, resourceId != null ? String.valueOf(resourceId) : null, operationCode);
+    public boolean hasPermissionByCode(Long tenantId, Long subjectId, String resourceTypeCode,
+                                        String resourceCode, String operationCode) {
+        PermQuery q = PermQuery.forValidate(tenantId, subjectId, resourceTypeCode, resourceCode, operationCode);
         return query(q).allowed();
     }
 
     /**
-     * 批量校验权限（有拒绝ID时抛异常）
+     * 按 resource_entity.id 检查是否有权限（仅引擎内部或已完成解析的调用方）
      * <p>
-     * 门禁主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
-     * {@code sys_user.id}。调用方先经 {@link cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver#requireSubjectId}
-     * 完成 {@code sys_user.id → abstract_user.id} 转换（转换失败 fail-closed）。
+     * 实例目标直接以 {@code resource_entity.id} 匹配，不做 code 解析。
+     * 仅限权限域内部及直接管理资源实体的后台链路（资源树、API 映射、资源依赖、权限树等）使用；
+     * USER/ROLE 等业务对象门禁与跨服务 SDK 禁止使用（统一业务编码，见
+     * {@link #hasPermissionByCode}）。门禁主体契约同 {@link #hasPermissionByCode}。
      * </p>
      *
      * @param tenantId         租户ID
      * @param subjectId        权限域投影主体ID（abstract_user.id）
      * @param resourceTypeCode 资源类型码
-     * @param resourceIds      资源ID集合
+     * @param resourceEntityId resource_entity.id，null 表示类型级校验
      * @param operationCode    操作码
-     * @throws SecurityException 有拒绝ID时抛出异常
+     * @return 是否有权限
      */
-    public <ID> void validateBatch(Long tenantId, Long subjectId, String resourceTypeCode,
-                                    Set<ID> resourceIds, String operationCode) {
-        Set<ID> denied = getDeniedIds(tenantId, subjectId, resourceTypeCode, resourceIds, operationCode);
-        if (!denied.isEmpty())
-            throw new SecurityException("Permission denied: " + operationCode + " on " + resourceTypeCode + ":" + denied);
+    public boolean hasPermissionByEntityId(Long tenantId, Long subjectId, String resourceTypeCode,
+                                            Long resourceEntityId, String operationCode) {
+        PermQuery q = PermQuery.forValidateByEntityId(
+            tenantId, subjectId, resourceTypeCode, resourceEntityId, operationCode);
+        return query(q).allowed();
     }
 
     /**
-     * 批量权限检查 -- 优化版，最小化数据库查询。
+     * 批量获取被拒绝的业务编码集合（对外，纯查询不抛异常）
      * <p>
-     * 门禁主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
-     * {@code sys_user.id}。调用方先经 {@link cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver#requireSubjectId}
-     * 完成 {@code sys_user.id → abstract_user.id} 转换（转换失败 fail-closed）。
-     * 相比N次单独查询，此方法：
-     * <ol>
-     *   <li>一次查询解析用户角色</li>
-     *   <li>一次查询类型级权限（scopeAll=true）</li>
-     *   <li>如果类型级匹配，所有资源都被允许</li>
-     *   <li>否则，一次批量查询实例级权限</li>
-     *   <li>内存计算拒绝ID集合</li>
-     * </ol>
+     * 门禁主体契约同 {@link #hasPermissionByCode}。优化管线（implementation §3.1）：
+     * 一次解析用户角色 → 一次查询类型级 scopeAll（命中且条件/冲突评估通过则全部允许，
+     * <b>包括尚无投影实体的编码</b>——与 {@link #hasPermissionByCode} 的 scopeAll 提前返回
+     * 语义一致）→ 未命中才一次批量 {@code code → resource_entity.id} 解析
+     * （{@link TypeResolutionService#batchResolveResourceIds}，无 N+1）+ 一次批量实例级查询 →
+     * 内存计算拒绝集合。未解析到投影实体的 code 直接拒绝（fail-closed，与单条 forAuthCheck
+     * 内部解析语义一致）。
+     * </p>
      *
      * @param tenantId         租户ID
      * @param subjectId        权限域投影主体ID（abstract_user.id）
      * @param resourceTypeCode 资源类型码
-     * @param resourceIds      资源ID集合
+     * @param resourceCodes    业务编码集合
      * @param operationCode    操作码
-     * @return 被拒绝的资源ID集合
+     * @return 被拒绝的业务编码集合
      */
-    public <ID> Set<ID> getDeniedIds(Long tenantId, Long subjectId, String resourceTypeCode,
-                                      Set<ID> resourceIds, String operationCode) {
-        if (resourceIds == null || resourceIds.isEmpty()) {
+    public Set<String> getDeniedResourceCodes(Long tenantId, Long subjectId, String resourceTypeCode,
+                                               Set<String> resourceCodes, String operationCode) {
+        if (resourceCodes == null || resourceCodes.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> distinctCodes = new LinkedHashSet<>(resourceCodes);
+
+        // 1. 解析用户角色（1次查询）
+        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, subjectId);
+        if (roleIds.isEmpty()) {
+            return distinctCodes; // 无角色 = 全部拒绝
+        }
+
+        // 2. 预解析类型和操作ID；未知类型/未知操作 fail-closed
+        ResolveContext ctx = new ResolveContext(tenantId, typeResolutionService);
+        ctx.prepareResourceTypes(Set.of(resourceTypeCode));
+        ctx.prepareOperations(resourceTypeCode, Set.of(operationCode));
+        Integer resourceTypeValue = ctx.getResourceTypeValue(resourceTypeCode);
+        Long operationId = ctx.getOperationId(resourceTypeCode, operationCode);
+        if (resourceTypeValue == null || operationId == null) {
+            return distinctCodes; // 未知类型/未知操作 = 全部拒绝
+        }
+
+        // 3. 类型级 scopeAll 优先（含条件与冲突评估）：命中则全部允许，不做 code 解析
+        Map<Integer, Long> bitMasks = resolveBitMasks(tenantId, Set.of(resourceTypeValue), Set.of(operationId));
+        if (passesScopeAll(tenantId, roleIds, bitMasks)) {
+            return Set.of();
+        }
+
+        // 4. 未命中才批量 code → entity 解析（TypeResolutionService 下沉，禁 N+1）
+        List<ResourceResolveRequest> requests = distinctCodes.stream()
+            .map(code -> new ResourceResolveRequest(resourceTypeCode, code, null, null))
+            .toList();
+        Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(tenantId, requests);
+        Map<String, Long> entityIdByCode = new LinkedHashMap<>();
+        for (String code : distinctCodes) {
+            Long entityId = resolved.get(new ResourceResolveKey(resourceTypeCode, code, null, null));
+            if (entityId != null) {
+                entityIdByCode.put(code, entityId);
+            }
+        }
+        if (entityIdByCode.isEmpty()) {
+            return distinctCodes; // 无有效投影 = 全部拒绝
+        }
+
+        // 5. 实例级批量查询（含条件与冲突评估）+ 内存映射回编码；未解析的 code 一并拒绝（fail-closed）
+        Set<Long> deniedEntityIds = computeInstanceDenied(
+            tenantId, roleIds, new LinkedHashSet<>(entityIdByCode.values()), bitMasks);
+        Set<String> denied = new LinkedHashSet<>();
+        for (String code : distinctCodes) {
+            Long entityId = entityIdByCode.get(code);
+            if (entityId == null || deniedEntityIds.contains(entityId)) {
+                denied.add(code);
+            }
+        }
+        return denied;
+    }
+
+    /**
+     * 批量获取被拒绝的 resource_entity.id 集合（仅引擎内部或已完成解析的调用方，纯查询不抛异常）
+     * <p>
+     * 实例目标直接按 {@code resource_entity.id} 匹配，不做 code 解析；使用边界同
+     * {@link #hasPermissionByEntityId}。门禁主体契约同 {@link #hasPermissionByCode}。
+     * 未知类型/未知操作/无角色 fail-closed 全量拒绝。相比 N 次单独查询：
+     * 一次解析用户角色 → 一次类型级 scopeAll 查询（命中则全部允许，含条件与冲突评估）→
+     * 一次批量实例级查询（含条件与冲突评估）→ 内存计算拒绝集合。
+     * </p>
+     *
+     * @param tenantId         租户ID
+     * @param subjectId        权限域投影主体ID（abstract_user.id）
+     * @param resourceTypeCode 资源类型码
+     * @param resourceEntityIds resource_entity.id 集合
+     * @param operationCode    操作码
+     * @return 被拒绝的 resource_entity.id 集合
+     */
+    public Set<Long> getDeniedEntityIds(Long tenantId, Long subjectId, String resourceTypeCode,
+                                         Set<Long> resourceEntityIds, String operationCode) {
+        if (resourceEntityIds == null || resourceEntityIds.isEmpty()) {
             return Set.of();
         }
 
         // 1. 解析用户角色（1次查询）
         Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, subjectId);
         if (roleIds.isEmpty()) {
-            return new LinkedHashSet<>(resourceIds); // 无角色 = 全部拒绝
+            return new LinkedHashSet<>(resourceEntityIds); // 无角色 = 全部拒绝
         }
 
-        // 2. 创建 ResolveContext，预解析类型和操作ID（避免重复调用）
+        // 2. 预解析类型和操作ID（避免重复调用）
         ResolveContext ctx = new ResolveContext(tenantId, typeResolutionService);
         ctx.prepareResourceTypes(Set.of(resourceTypeCode));
         ctx.prepareOperations(resourceTypeCode, Set.of(operationCode));
 
         Integer resourceTypeValue = ctx.getResourceTypeValue(resourceTypeCode);
         if (resourceTypeValue == null) {
-            return new LinkedHashSet<>(resourceIds); // 未知类型 = 全部拒绝
+            return new LinkedHashSet<>(resourceEntityIds); // 未知类型 = 全部拒绝
         }
         Long operationId = ctx.getOperationId(resourceTypeCode, operationCode);
         if (operationId == null) {
-            return new LinkedHashSet<>(resourceIds); // 未知操作 = 全部拒绝
+            return new LinkedHashSet<>(resourceEntityIds); // 未知操作 = 全部拒绝
         }
 
-        // 3. 查询类型级权限（scopeAll=true）— 1次查询
+        // 3. 类型级 scopeAll 优先（含条件与冲突评估）：命中则全部允许
         Map<Integer, Long> bitMasks = resolveBitMasks(tenantId, Set.of(resourceTypeValue), Set.of(operationId));
+        if (passesScopeAll(tenantId, roleIds, bitMasks)) {
+            return Set.of();
+        }
+
+        // 4. 实例级批量查询（含条件与冲突评估）+ 内存计算拒绝集合
+        return computeInstanceDenied(tenantId, roleIds, resourceEntityIds, bitMasks);
+    }
+
+    /**
+     * 类型级 scopeAll 是否放行（含条件与冲突评估）。
+     * <p>
+     * scopeAll 命中且评估非空即放行该资源类型的任意实例；条件或冲突评估清空条目则视为未命中。
+     * </p>
+     */
+    private boolean passesScopeAll(Long tenantId, Set<Long> roleIds, Map<Integer, Long> bitMasks) {
         List<RolePermEntry> scopeAllEntries = queryScopeAll(tenantId, roleIds, bitMasks);
-
-        // 4. 若scopeAll匹配，则所有资源均允许
-        if (!scopeAllEntries.isEmpty()) {
-            // 评估条件（如有需要）
-            List<RolePermEntry> evaluated = conditionDomainService.evaluate(tenantId, scopeAllEntries, Map.of());
-            if (!evaluated.isEmpty()) {
-                evaluated = conflictDomainService.filterPermMutex(tenantId, evaluated);
-                if (!evaluated.isEmpty()) {
-                    return Set.of(); // 通过scopeAll全部允许
-                }
-            }
+        if (scopeAllEntries.isEmpty()) {
+            return false;
         }
-
-        // 5. 将resourceIds转换为Long以批量查询
-        Set<Long> resourceEntityIds = new HashSet<>();
-        Map<Long, ID> entityIdToOriginalId = new HashMap<>();
-        for (ID id : resourceIds) {
-            Long entityId = toLongId(id);
-            if (entityId != null) {
-                resourceEntityIds.add(entityId);
-                entityIdToOriginalId.put(entityId, id);
-            }
+        List<RolePermEntry> evaluated = conditionDomainService.evaluate(tenantId, scopeAllEntries, Map.of());
+        if (evaluated.isEmpty()) {
+            return false;
         }
-        if (resourceEntityIds.isEmpty()) {
-            return new LinkedHashSet<>(resourceIds); // 无有效ID = 全部拒绝
-        }
+        evaluated = conflictDomainService.filterPermMutex(tenantId, evaluated);
+        return !evaluated.isEmpty();
+    }
 
-        // 6. 批量查询实例级权限（1次查询）
-        List<RolePermEntry> instanceEntries = queryInstance(
-            tenantId,
-            roleIds,
-            resourceEntityIds,
-            resolveBitMasks(tenantId, Set.of(resourceTypeValue), Set.of(operationId))
-        );
+    /**
+     * 实例级批量查询（含条件与冲突评估）并计算拒绝集合。
+     * <p>
+     * 调用方须已完成角色/类型/操作解析与 scopeAll 检查（未命中路径的共享实例步骤）。
+     * </p>
+     */
+    private Set<Long> computeInstanceDenied(Long tenantId, Set<Long> roleIds,
+                                             Set<Long> resourceEntityIds, Map<Integer, Long> bitMasks) {
+        List<RolePermEntry> instanceEntries = queryInstance(tenantId, roleIds, resourceEntityIds, bitMasks);
 
-        // 8. 评估实例级权限的条件和冲突
         if (!instanceEntries.isEmpty()) {
             instanceEntries = conditionDomainService.evaluate(tenantId, instanceEntries, Map.of());
         }
@@ -354,7 +436,6 @@ public class PermQueryEngine {
             instanceEntries = conflictDomainService.filterPermMutex(tenantId, instanceEntries);
         }
 
-        // 9. 收集允许的资源ID
         Set<Long> allowedEntityIds = new HashSet<>();
         for (RolePermEntry entry : instanceEntries) {
             if (entry.resourceEntityId() != null) {
@@ -362,41 +443,13 @@ public class PermQueryEngine {
             }
         }
 
-        // 10. 计算被拒绝的ID（内存操作）
-        Set<ID> denied = new LinkedHashSet<>();
-        for (ID id : resourceIds) {
-            Long entityId = toLongId(id);
+        Set<Long> denied = new LinkedHashSet<>();
+        for (Long entityId : resourceEntityIds) {
             if (entityId == null || !allowedEntityIds.contains(entityId)) {
-                denied.add(id);
+                denied.add(entityId);
             }
         }
         return denied;
-    }
-
-    /**
-     * 将ID转换为Long类型。支持Long、Integer、String、Number类型。
-     *
-     * @param id 原始ID
-     * @return Long类型ID，转换失败返回null
-     */
-    private <ID> Long toLongId(ID id) {
-        if (id == null) {
-            return null;
-        }
-        if (id instanceof Long) {
-            return (Long) id;
-        }
-        if (id instanceof Integer) {
-            return ((Integer) id).longValue();
-        }
-        if (id instanceof Number) {
-            return ((Number) id).longValue();
-        }
-        try {
-            return Long.parseLong(String.valueOf(id));
-        } catch (NumberFormatException e) {
-            return null;
-        }
     }
 
     // ===== 私有步骤方法 =====

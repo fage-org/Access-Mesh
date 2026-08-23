@@ -7,9 +7,10 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngi
  * <p>
  * 登录会话 / 签名代理主体持有的操作者 ID 是 admin 域 {@code sys_user.id}
  * （external_id）；权限引擎按 {@code abstract_user.id} 匹配
- * {@code user_role.abstract_user_id}。因此所有 engine 门禁（hasPermission /
- * validateBatch / getDeniedIds）以及任何与投影 ID 空间比较的自查逻辑，
- * 必须先经 {@link #requireSubjectId} 把操作者 ID 转换为投影主体 ID。
+ * {@code user_role.abstract_user_id}。因此所有 engine 门禁（hasPermissionByCode /
+ * hasPermissionByEntityId / getDeniedResourceCodes / getDeniedEntityIds）以及任何
+ * 与投影 ID 空间比较的自查逻辑，必须先经 {@link #requireSubjectId} 把操作者 ID
+ * 转换为投影主体 ID。
  * </p>
  * <p>
  * 转换失败（操作者主体在权限投影中不存在）时 fail-closed 抛

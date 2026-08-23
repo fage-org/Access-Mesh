@@ -38,7 +38,7 @@ class BizDomainAppServiceImplTest {
 
     @Test
     void shouldCreateBizDomainWhenPermissionGranted() {
-        when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(true);
 
         BizDomainCreateReq req = new BizDomainCreateReq("HR", "人力资源", "desc");
@@ -55,7 +55,7 @@ class BizDomainAppServiceImplTest {
 
     @Test
     void shouldThrowWhenCreateBizDomainPermissionDenied() {
-        when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(false);
 
         BizDomainCreateReq req = new BizDomainCreateReq("HR", "人力资源", "desc");

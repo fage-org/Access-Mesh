@@ -5,8 +5,6 @@ import cn.ac.fage.accessmesh.access.application.query.OrgVisibilityQueryService;
 import cn.ac.fage.accessmesh.access.application.query.mapper.OrgVisibilityQueryMapper;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
@@ -15,12 +13,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -65,31 +60,17 @@ public class OrgVisibilityQueryServiceImpl implements OrgVisibilityQueryService 
         if (userId == null) {
             return Set.of();
         }
-        // 一次 engine.getDeniedIds 批量查询：先批量解析业务键 → 投影 ID，
-        // denied 结果映射回组织 ID；未解析（无投影）的组织视为不可见（与单条 query deny 语义一致）
-        List<Long> candidateList = new ArrayList<>(orgIds);
-        List<ResourceResolveRequest> requests = candidateList.stream()
-            .map(orgId -> new ResourceResolveRequest(AdminResourceType.ORG, String.valueOf(orgId), null, null))
-            .toList();
-        Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(tenantId, requests);
-        Map<Long, Long> entityIdByOrgId = new LinkedHashMap<>();
-        for (Long orgId : candidateList) {
-            Long entityId = resolved.get(
-                new ResourceResolveKey(AdminResourceType.ORG, String.valueOf(orgId), null, null));
-            if (entityId != null) {
-                entityIdByOrgId.put(orgId, entityId);
-            }
-        }
-        if (entityIdByOrgId.isEmpty()) {
-            return Set.of();
-        }
-        Set<Long> deniedEntityIds = engine.getDeniedIds(
-            tenantId, userId, AdminResourceType.ORG,
-            new LinkedHashSet<>(entityIdByOrgId.values()), OPERATION_VIEW);
+        // T-PERM-042：一次 engine.getDeniedResourceCodes 批量业务编码门禁——
+        // code → entity 解析下沉引擎（无 N+1）；未解析（无投影）的组织进入拒绝集合 → 不可见
+        Set<String> orgCodes = orgIds.stream()
+            .map(String::valueOf)
+            .collect(java.util.stream.Collectors.toSet());
+        Set<String> deniedOrgCodes = engine.getDeniedResourceCodes(
+            tenantId, userId, AdminResourceType.ORG, orgCodes, OPERATION_VIEW);
         Set<Long> visible = new LinkedHashSet<>();
-        for (Map.Entry<Long, Long> entry : entityIdByOrgId.entrySet()) {
-            if (!deniedEntityIds.contains(entry.getValue())) {
-                visible.add(entry.getKey());
+        for (Long orgId : orgIds) {
+            if (!deniedOrgCodes.contains(String.valueOf(orgId))) {
+                visible.add(orgId);
             }
         }
         return visible;

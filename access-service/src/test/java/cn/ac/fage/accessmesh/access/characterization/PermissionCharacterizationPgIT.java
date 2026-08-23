@@ -40,7 +40,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li><b>有效角色展开</b>：{@code resolveEffectiveRoles} 缓存 miss 回源回填、hit 复用、
  *       失效后回源可见 DB 变化；GROUP_ROLE 树展开 + 停用角色过滤。</li>
  *   <li><b>scopeAll 类型级放行</b>：{@code scope_all=true} 授权行放行该资源类型的
- *       任意实例（{@code hasPermission}/{@code getDeniedIds}）。</li>
+ *       任意实例（{@code hasPermissionByCode}/{@code getDeniedEntityIds}）。</li>
  * </ol>
  * <p>
  * 已知缺陷（USER/ROLE 实例门禁 ID 空间错位）的正确预期测试归 T-PERM-042，
@@ -193,15 +193,15 @@ class PermissionCharacterizationPgIT {
         insertUserRole(grantee, "ROLE", role);
         insertRolePerm(role, RESOURCE_TYPE_SERVICE, SERVICE_VIEW_BIT, true, null);
 
-        // 类型级放行：任意实例 ID（含不存在的 999）均通过 hasPermission
-        assertThat(permQueryEngine.hasPermission(TENANT, grantee, "SERVICE", "999", "VIEW")).isTrue();
+        // 类型级放行：任意实例业务编码（含不存在的 999）均通过 hasPermissionByCode
+        assertThat(permQueryEngine.hasPermissionByCode(TENANT, grantee, "SERVICE", "999", "VIEW")).isTrue();
         // 批量门禁：scopeAll 命中 → 空拒绝集
-        assertThat(permQueryEngine.getDeniedIds(TENANT, grantee, "SERVICE", Set.of(1L, 2L, 3L), "VIEW")).isEmpty();
+        assertThat(permQueryEngine.getDeniedEntityIds(TENANT, grantee, "SERVICE", Set.of(1L, 2L, 3L), "VIEW")).isEmpty();
 
         // 对照组：无授权用户 fail-closed
         Long outsider = insertAbstractUser("912002", "特征测试-无授权用户");
-        assertThat(permQueryEngine.hasPermission(TENANT, outsider, "SERVICE", "1", "VIEW")).isFalse();
-        assertThat(permQueryEngine.getDeniedIds(TENANT, outsider, "SERVICE", Set.of(1L, 2L), "VIEW"))
+        assertThat(permQueryEngine.hasPermissionByCode(TENANT, outsider, "SERVICE", "1", "VIEW")).isFalse();
+        assertThat(permQueryEngine.getDeniedEntityIds(TENANT, outsider, "SERVICE", Set.of(1L, 2L), "VIEW"))
             .containsExactlyInAnyOrder(1L, 2L);
     }
 

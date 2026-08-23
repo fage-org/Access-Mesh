@@ -49,7 +49,7 @@ class TypeDefinitionAppServiceImplTest {
 
     @Test
     void shouldCreateTypeWhenPermissionGranted() {
-        when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(true);
 
         TypeCreateReq req = new TypeCreateReq(
@@ -71,7 +71,7 @@ class TypeDefinitionAppServiceImplTest {
 
     @Test
     void shouldThrowWhenCreateTypePermissionDenied() {
-        when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(false);
 
         TypeCreateReq req = new TypeCreateReq(
@@ -83,7 +83,7 @@ class TypeDefinitionAppServiceImplTest {
 
     @Test
     void shouldThrowTypeDefinitionNotFoundWhenUpdateTargetMissing() {
-        when(engine.hasPermission(eq(1L), eq(100L), any(), eq(99L), any()))
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("99"), any()))
             .thenReturn(true);
         when(typeDefinitionMapper.selectValidById(1L, 99L)).thenReturn(null);
 

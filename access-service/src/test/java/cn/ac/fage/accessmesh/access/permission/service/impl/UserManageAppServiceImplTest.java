@@ -80,7 +80,7 @@ class UserManageAppServiceImplTest {
 
         try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.getDeniedIds(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), eq(Set.of(10L)), eq(OperationCodeConstants.MANAGE)))
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), eq(Set.of("10")), eq(OperationCodeConstants.MANAGE)))
                 .thenReturn(Set.of());
             when(abstractRoleMapper.selectValidByIds(eq(1L), eq(Set.of(10L)))).thenReturn(List.of());
             when(userRoleMapper.selectValidByUserIdsTypeAndTargetIds(eq(1L), eq(Set.of(20L)), eq(ResourceTypeCode.ROLE), eq(Set.of(10L))))

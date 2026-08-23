@@ -114,7 +114,7 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void shouldReturnNullWhenRoleNotFound() {
-        when(engine.hasPermission(anyLong(), anyLong(), eq(ResourceTypeCode.ROLE), eq(null), eq(OperationCodeConstants.VIEW)))
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), eq(ResourceTypeCode.ROLE), eq(null), eq(OperationCodeConstants.VIEW)))
             .thenReturn(true);
         when(typeResolutionService.resolveRoleId(1L, "ADMIN", "r-nonexistent", "default")).thenReturn(null);
 
@@ -125,7 +125,7 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void shouldDenyExplainWhenUserNotFound() {
-        when(engine.hasPermission(anyLong(), anyLong(), eq(ResourceTypeCode.SYSTEM_CONFIG), eq((Long) null), eq(OperationCodeConstants.VIEW)))
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), eq(ResourceTypeCode.SYSTEM_CONFIG), eq((String) null), eq(OperationCodeConstants.VIEW)))
             .thenReturn(true);
         when(typeResolutionService.resolveUserId(1L, "USER", "u-999")).thenReturn(null);
 
@@ -142,7 +142,7 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void shouldExplainRoleScopeAllWithTypeLevelQuery() {
-        when(engine.hasPermission(anyLong(), anyLong(), eq(ResourceTypeCode.SYSTEM_CONFIG), eq((Long) null), eq(OperationCodeConstants.VIEW)))
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), eq(ResourceTypeCode.SYSTEM_CONFIG), eq((String) null), eq(OperationCodeConstants.VIEW)))
             .thenReturn(true);
         when(typeResolutionService.resolveRoleId(1L, "ADMIN_ROLE", "role-1", "admin")).thenReturn(20L);
         when(engine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null).build());
@@ -165,7 +165,7 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void shouldExplainRoleInstanceWithoutScopeAllFallback() {
-        when(engine.hasPermission(anyLong(), anyLong(), eq(ResourceTypeCode.SYSTEM_CONFIG), eq((Long) null), eq(OperationCodeConstants.VIEW)))
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), eq(ResourceTypeCode.SYSTEM_CONFIG), eq((String) null), eq(OperationCodeConstants.VIEW)))
             .thenReturn(true);
         when(typeResolutionService.resolveRoleId(1L, "ADMIN_ROLE", "role-1", "admin")).thenReturn(20L);
         when(engine.query(any(PermQuery.class))).thenReturn(PermResult.deny("NO_PERMISSION"));
@@ -189,7 +189,7 @@ class PermissionViewAppServiceImplTest {
 
     @Test
     void shouldReturnEmptyTreeWhenUserNotFound() {
-        when(engine.hasPermission(anyLong(), anyLong(), eq(ResourceTypeCode.USER), eq(999L), eq(OperationCodeConstants.VIEW)))
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), eq(ResourceTypeCode.USER), eq("999"), eq(OperationCodeConstants.VIEW)))
             .thenReturn(true);
         when(subjectDomainService.resolveEffectiveRoles(1L, 999L)).thenReturn(Set.of());
 
@@ -286,14 +286,14 @@ class PermissionViewAppServiceImplTest {
 
         assertNotNull(resp);
         assertTrue(resp.permissions().isEmpty());
-        verify(engine, never()).hasPermission(anyLong(), anyLong(), any(), any(), any());
+        verify(engine, never()).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
     }
 
     @Test
     void getEffectivePermissionCodesForManageShouldDenyOthersWithoutUserView() {
         // 查他人：operator 投影主体=1001，subject "2" 投影=1002，无 USER:VIEW → SecurityException（门禁用 abstract 主体，非 sys id）
         when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "2")).thenReturn(1002L);
-        when(engine.hasPermission(1L, 1001L, ResourceTypeCode.USER, 1002L, OperationCodeConstants.VIEW))
+        when(engine.hasPermissionByCode(1L, 1001L, ResourceTypeCode.USER, "1002", OperationCodeConstants.VIEW))
             .thenReturn(false);
 
         assertThrows(SecurityException.class, () ->
@@ -305,7 +305,7 @@ class PermissionViewAppServiceImplTest {
     void getEffectivePermissionCodesForManageShouldAllowOthersWithUserView() {
         // 查他人：operator 投影主体=1001，subject "2" 投影=1002，有 USER:VIEW → 正常下发
         when(typeResolutionService.resolveUserId(1L, "ADMIN_USER", "2")).thenReturn(1002L);
-        when(engine.hasPermission(1L, 1001L, ResourceTypeCode.USER, 1002L, OperationCodeConstants.VIEW))
+        when(engine.hasPermissionByCode(1L, 1001L, ResourceTypeCode.USER, "1002", OperationCodeConstants.VIEW))
             .thenReturn(true);
         when(subjectDomainService.resolveEffectiveRoles(1L, 1002L)).thenReturn(Set.of());
 

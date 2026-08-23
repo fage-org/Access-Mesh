@@ -40,7 +40,7 @@ class DomainConfigAppServiceImplTest {
     void shouldUpsertDomainConfigWhenPermissionGranted() {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
                 .thenReturn(true);
             when(typeResolutionService.resolveDomainId(1L, "HR")).thenReturn(10L);
             when(domainConfigMapper.selectValidByTypeString(1L, 10L, "SCOPE")).thenReturn(null);
@@ -61,7 +61,7 @@ class DomainConfigAppServiceImplTest {
     void shouldThrowWhenUpsertDomainConfigPermissionDenied() {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
                 .thenReturn(false);
 
             DomainConfigReq req = new DomainConfigReq("HR", "SCOPE", "{}");

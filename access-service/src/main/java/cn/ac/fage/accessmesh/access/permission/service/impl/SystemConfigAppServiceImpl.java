@@ -71,7 +71,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     public SystemConfigResp upsertSystemConfig(Long tenantId, SystemConfigReq req) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to manage system config");
         }
 
@@ -118,7 +118,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     public SystemConfigResp getSystemConfig(Long tenantId, String configKey) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -142,7 +142,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     public List<SystemConfigResp> listSystemConfigs(Long tenantId) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 

@@ -358,6 +358,41 @@ public class PermQuery {
     }
 
     /**
+     * 创建管理操作验证查询（resource_entity.id 语义）
+     * <p>
+     * 与 {@link #forValidate} 相同的查询形态（类型+实例、全范围匹配时提前返回、不评估、最小输出），
+     * 但实例目标直接以 {@code resource_entity.id} 给出，跳过 code 解析。
+     * 仅限引擎内部与已完成解析的调用方（资源树、API 映射、资源依赖、权限树等
+     * 直接管理资源实体的后台链路）使用，禁止用于 USER/ROLE 等业务对象门禁。
+     * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
+     * {@code sys_user.id}（先经 {@code OperatorSubjectResolver.requireSubjectId} 转换）。
+     * </p>
+     *
+     * @param tenantId         租户ID
+     * @param subjectId        权限域投影主体ID（abstract_user.id）
+     * @param resourceTypeCode 资源类型编码
+     * @param resourceEntityId resource_entity.id，null 表示仅类型级校验
+     * @param operationCode    操作编码
+     * @return 权限查询实例
+     */
+    public static PermQuery forValidateByEntityId(Long tenantId, Long subjectId,
+                                                   String resourceTypeCode, Long resourceEntityId,
+                                                   String operationCode) {
+        PermQuery q = new PermQuery(tenantId);
+        q.userId = subjectId;
+        q.resourceTypeCodes = resourceTypeCode == null ? Set.of() : Set.of(resourceTypeCode);
+        q.resourceEntityIds = resourceEntityId == null ? null : Set.of(resourceEntityId);
+        q.operationCodes = operationCode == null ? Set.of() : Set.of(operationCode);
+        q.queryScopeAll = true;
+        q.queryInstance = true;
+        q.earlyReturnOnScopeAll = true;
+        q.evaluateConditions = false;
+        q.evaluateConflicts = false;
+        q.evaluateMatchesBit = false;
+        return q;
+    }
+
+    /**
      * 创建范围查询
      * <p>
      * 类型+实例查询，无提前返回，不评估，不检查位匹配，返回所有辅助信息。

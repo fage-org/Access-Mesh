@@ -4,10 +4,6 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
-import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
-import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.dev33.satoken.stp.StpUtil;
@@ -16,13 +12,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * 本地权限门禁：通过 PermQueryEngine 校验，不再 Feign 自调用。
@@ -57,10 +49,9 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
         if (resourceCodes == null || resourceCodes.isEmpty()) {
             return;
         }
-        // 批量校验走 engine.getDeniedIds（一次解析操作者 + 一次角色解析 + 批量实例级查询）。
-        //  修复：getDeniedIds 按 resource_entity.id（投影主键）查询，
-        // 必须先批量解析业务键 → 投影 ID，denied 结果再映射回业务键；
-        // 未解析（无投影实体）→ fail-closed 拒绝（与单条 forAuthCheck 内部解析语义一致）。
+        // T-PERM-042：业务编码语义批量门禁。code → entity 解析下沉引擎
+        // （getDeniedResourceCodes 内部经 TypeResolutionService 批量解析，无 N+1）；
+        // 未解析（无投影实体）的 code 进入拒绝集合 → fail-closed（与单条 forAuthCheck 内部解析语义一致）。
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = currentOperatorId();
         Long userId = typeResolutionService.resolveUserId(
@@ -70,33 +61,10 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
                 operatorId, resourceTypeCode, resourceCodes, operationCode);
             throw new SecurityException("权限校验失败: 操作者主体不存在");
         }
-        List<ResourceResolveRequest> requests = resourceCodes.stream()
-            .map(code -> new ResourceResolveRequest(resourceTypeCode, code, null, null))
-            .toList();
-        Map<ResourceResolveKey, Long> resolved = typeResolutionService.batchResolveResourceIds(tenantId, requests);
-        Map<String, Long> entityIdByCode = new LinkedHashMap<>();
-        List<String> unresolved = new ArrayList<>();
-        for (String code : resourceCodes) {
-            Long entityId = resolved.get(new ResourceResolveKey(resourceTypeCode, code, null, null));
-            if (entityId == null) {
-                unresolved.add(code);
-            } else {
-                entityIdByCode.put(code, entityId);
-            }
-        }
-        if (!unresolved.isEmpty()) {
-            log.warn("Permission check resource projection missing: operatorId={}, resourceType={}, codes={}",
-                operatorId, resourceTypeCode, unresolved);
-            throw new SecurityException("权限校验失败: 资源投影不存在: " + unresolved);
-        }
-        Set<Long> deniedEntityIds = engine.getDeniedIds(
-            tenantId, userId, resourceTypeCode, new LinkedHashSet<>(entityIdByCode.values()), operationCode);
-        if (!deniedEntityIds.isEmpty()) {
-            Set<String> deniedCodes = entityIdByCode.entrySet().stream()
-                .filter(e -> deniedEntityIds.contains(e.getValue()))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toSet());
-            log.warn("Permission denied (batch): operatorId={}, resourceType={}, resourceCodes={}, operation={}",
+        Set<String> deniedCodes = engine.getDeniedResourceCodes(
+            tenantId, userId, resourceTypeCode, new LinkedHashSet<>(resourceCodes), operationCode);
+        if (!deniedCodes.isEmpty()) {
+            log.warn("Permission denied (batch): operatorId={}, resourceType={}, deniedCodes={}, operation={}",
                 operatorId, resourceTypeCode, deniedCodes, operationCode);
             throw new SecurityException(
                 String.format("权限被拒绝: 无法在 %s:%s 上执行 %s 操作。原因: %s",
@@ -114,15 +82,14 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
                 operatorId, resourceTypeCode, resourceCode, operationCode);
             throw new SecurityException("权限校验失败: 操作者主体不存在");
         }
-        PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, resourceCode, operationCode);
-        PermResult result = engine.query(q);
-        if (result == null || !result.allowed()) {
-            String reason = result != null ? result.reason() : "NO_PERMISSION";
-            log.warn("Permission denied: operatorId={}, resourceType={}, resourceCode={}, operation={}, reason={}",
-                operatorId, resourceTypeCode, resourceCode, operationCode, reason);
+        // T-PERM-042 评审 P2：单点门禁按 admin contract §2 终态收敛到 engine.hasPermissionByCode
+        //（forValidate 语义），不再构造 forAuthCheck + query 的第二套门禁语义
+        if (!engine.hasPermissionByCode(tenantId, userId, resourceTypeCode, resourceCode, operationCode)) {
+            log.warn("Permission denied: operatorId={}, resourceType={}, resourceCode={}, operation={}",
+                operatorId, resourceTypeCode, resourceCode, operationCode);
             throw new SecurityException(
                 String.format("权限被拒绝: 无法在 %s:%s 上执行 %s 操作。原因: %s",
-                    resourceTypeCode, resourceCode, operationCode, reason));
+                    resourceTypeCode, resourceCode, operationCode, "NO_PERMISSION"));
         }
     }
 

@@ -40,7 +40,7 @@ class SystemConfigAppServiceImplTest {
     void shouldUpsertSystemConfigWhenPermissionGranted() {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
                 .thenReturn(true);
             when(systemConfigMapper.selectByConfigKey(1L, "admin.key1")).thenReturn(null);
 
@@ -60,7 +60,7 @@ class SystemConfigAppServiceImplTest {
     void shouldThrowWhenUpsertSystemConfigPermissionDenied() {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
                 .thenReturn(false);
 
             SystemConfigReq req = new SystemConfigReq("admin.key1", "{}", "desc");
@@ -74,7 +74,7 @@ class SystemConfigAppServiceImplTest {
     void shouldRejectConfigKeyWithoutAllowedPrefix() {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             BizException ex = assertThrows(BizException.class,
@@ -90,7 +90,7 @@ class SystemConfigAppServiceImplTest {
     void shouldRejectBlankConfigKey() {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             assertThrows(BizException.class,
@@ -105,7 +105,7 @@ class SystemConfigAppServiceImplTest {
         // "adminx.*" 不以 "admin." 开头 → 拒绝，防止前缀近似键绕过
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             assertThrows(BizException.class,
@@ -117,7 +117,7 @@ class SystemConfigAppServiceImplTest {
     void shouldAcceptAllAllowedPrefixes() {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermission(eq(1L), eq(100L), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
                 .thenReturn(true);
             when(systemConfigMapper.selectByConfigKey(eq(1L), anyString())).thenReturn(null);
 

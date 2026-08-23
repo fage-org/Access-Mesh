@@ -86,7 +86,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     public ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on CONDITION");
         }
 
@@ -151,7 +151,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, req.conditionId(), OperationCodeConstants.UPDATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, String.valueOf(req.conditionId()), OperationCodeConstants.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.conditionId());
         }
 
@@ -220,7 +220,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     public void deleteCondition(Long tenantId, Long conditionId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, conditionId, OperationCodeConstants.DELETE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, String.valueOf(conditionId), OperationCodeConstants.DELETE)) {
             throw new SecurityException("Permission denied: DELETE on CONDITION:" + conditionId);
         }
 
@@ -275,7 +275,12 @@ public class ConditionAppServiceImpl implements ConditionAppService {
             return;
         }
 
-        engine.validateBatch(tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, validInputIds, OperationCodeConstants.DELETE);
+        // T-PERM-042：引擎纯查询，拒绝时由调用方显式抛出
+        Set<Long> deniedIds = engine.getDeniedEntityIds(
+            tenantId, operatorSubjectId, ResourceTypeCode.CONDITION, validInputIds, OperationCodeConstants.DELETE);
+        if (!deniedIds.isEmpty()) {
+            throw new SecurityException("Permission denied: DELETE on CONDITION:" + deniedIds);
+        }
 
         List<PermissionCondition> entities = conditionMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) {

@@ -136,8 +136,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         }
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
-            roleId, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+            String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
         AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
@@ -196,7 +196,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         // 操作者授权校验 - 对角色拥有MANAGE权限
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -538,7 +538,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -577,7 +577,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         // 操作者授权校验 - 需要VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.VIEW)) {
             return List.of();
         }
 
@@ -635,7 +635,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         // 操作者授权校验 - 需要VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(parent.getAbstractRoleId()), OperationCodeConstants.VIEW)) {
             return List.of();
         }
 
@@ -674,7 +674,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, parent.getAbstractRoleId(), OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(parent.getAbstractRoleId()), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + parent.getAbstractRoleId());
         }
 
@@ -848,7 +848,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         // 操作者授权校验
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, child.getAbstractRoleId(), OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(child.getAbstractRoleId()), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + child.getAbstractRoleId());
         }
 

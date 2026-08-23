@@ -195,7 +195,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     public ConflictRuleResp createConflictRule(Long tenantId, ConflictRuleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on CONFLICT_RULE");
         }
 
@@ -290,7 +290,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     public ConflictRuleResp updateConflictRule(Long tenantId, ConflictRuleUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, req.id(), OperationCodeConstants.UPDATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, String.valueOf(req.id()), OperationCodeConstants.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONFLICT_RULE:" + req.id());
         }
 
@@ -399,7 +399,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     public void deleteConflictRule(Long tenantId, Long ruleId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, ruleId, OperationCodeConstants.DELETE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, String.valueOf(ruleId), OperationCodeConstants.DELETE)) {
             throw new SecurityException("Permission denied: DELETE on CONFLICT_RULE:" + ruleId);
         }
 
@@ -445,7 +445,12 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             return;
         }
 
-        engine.validateBatch(tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, validInputIds, OperationCodeConstants.DELETE);
+        // T-PERM-042：引擎纯查询，拒绝时由调用方显式抛出
+        Set<Long> deniedIds = engine.getDeniedEntityIds(
+            tenantId, operatorSubjectId, ResourceTypeCode.CONFLICT_RULE, validInputIds, OperationCodeConstants.DELETE);
+        if (!deniedIds.isEmpty()) {
+            throw new SecurityException("Permission denied: DELETE on CONFLICT_RULE:" + deniedIds);
+        }
 
         List<PermissionConflictRule> entities = conflictRuleMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) {

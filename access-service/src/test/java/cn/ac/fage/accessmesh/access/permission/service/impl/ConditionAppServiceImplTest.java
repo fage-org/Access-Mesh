@@ -72,7 +72,7 @@ class ConditionAppServiceImplTest {
 
         @Test
         void shouldAccept_whenAllItemsAreIpOrDateOrTime() {
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             String rules = "{\"logic\":\"AND\",\"items\":["
@@ -88,7 +88,7 @@ class ConditionAppServiceImplTest {
 
         @Test
         void shouldReject_whenItemTypeIsUnknown() {
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             String rules = "{\"logic\":\"AND\",\"items\":["
@@ -105,7 +105,7 @@ class ConditionAppServiceImplTest {
 
         @Test
         void shouldReject_whenItemsArrayIsEmpty() {
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             String rules = "{\"logic\":\"AND\",\"items\":[]}";
@@ -119,7 +119,7 @@ class ConditionAppServiceImplTest {
 
         @Test
         void shouldAccept_whenGatewayEvaluableFalse_evenWithUnknownType() {
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             // gatewayEvaluable=false 时不做白名单校验（不可下发本就不会出现在 Gateway 评估路径）
@@ -141,7 +141,7 @@ class ConditionAppServiceImplTest {
             // 老条件：gatewayEvaluable=false + 规则含未知类型；用户只切 flag → 不改 rules
             PermissionCondition existing = newCondition(false,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"ORG_SCOPE\",\"params\":{}}]}");
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
             when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
 
@@ -157,7 +157,7 @@ class ConditionAppServiceImplTest {
         void shouldAcceptFlipToTrue_whenExistingRulesArePushable() {
             PermissionCondition existing = newCondition(false,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
             when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
 
@@ -172,7 +172,7 @@ class ConditionAppServiceImplTest {
             // 老条件：gatewayEvaluable=true；用户只改 rules 不改 flag → 用新 rules 校验
             PermissionCondition existing = newCondition(true,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
             when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
 
@@ -192,7 +192,7 @@ class ConditionAppServiceImplTest {
         @Test
         void shouldReject_whenLogicIsTypo() {
             // T-PERM-017 P2-B：'ANDD' 被旧实现按 OR 处理 → 放宽权限。写入门禁拒绝。
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             String rules = "{\"logic\":\"ANDD\",\"items\":["
@@ -209,7 +209,7 @@ class ConditionAppServiceImplTest {
         @Test
         void shouldReject_whenLogicIsBlankString() {
             // T-PERM-017 P2-B：显式空串旧实现写入放行但运行时走 OR，现改为写入门禁拒绝。
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             String rules = "{\"logic\":\"\",\"items\":["
@@ -226,7 +226,7 @@ class ConditionAppServiceImplTest {
         @Test
         void shouldReject_whenLogicIsExplicitNull() {
             // T-PERM-017 P3：显式 null 会在运行时 fail-close；写入门禁保持一致，直接拒绝。
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             String rules = "{\"logic\":null,\"items\":["
@@ -242,7 +242,7 @@ class ConditionAppServiceImplTest {
 
         @Test
         void shouldReject_whenLogicIsLowerCase() {
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             String rules = "{\"logic\":\"and\",\"items\":["
@@ -256,7 +256,7 @@ class ConditionAppServiceImplTest {
 
         @Test
         void shouldAccept_whenLogicIsExplicitOr() {
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             String rules = "{\"logic\":\"OR\",\"items\":["
@@ -271,7 +271,7 @@ class ConditionAppServiceImplTest {
         @Test
         void shouldAccept_whenLogicOmitted_defaultsToAnd() {
             // 缺省 logic 兼容旧行为（默认 AND），写入门禁放行
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((Long) null), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq((String) null), any()))
                 .thenReturn(true);
 
             String rules = "{\"items\":["
@@ -292,7 +292,7 @@ class ConditionAppServiceImplTest {
             // T-PERM-017 P2-A：update 反查 serviceCodes 并 markServiceCodes
             PermissionCondition existing = newCondition(true,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
             when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
             when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))
@@ -308,7 +308,7 @@ class ConditionAppServiceImplTest {
         void shouldMarkServiceCodes_whenDeleteCondition() {
             PermissionCondition existing = newCondition(true,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\"2026-01-01\",\"end\":\"2026-12-31\"}}]}");
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
             when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
             when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))
@@ -324,7 +324,7 @@ class ConditionAppServiceImplTest {
             // 条件未被任何 grant 引用 → selectServiceCodesByConditionIds 返回空集合 → no-op
             PermissionCondition existing = newCondition(false,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
-            when(engine.hasPermission(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
+            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
             when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
             when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))

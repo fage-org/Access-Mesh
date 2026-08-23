@@ -188,11 +188,11 @@ class PermQueryEngineTest {
     }
 
     /**
-     * T-ACCESS-017 特征测试（链路 4）：getDeniedIds 批量门禁在 scopeAll 命中时
+     * T-ACCESS-017 特征测试（链路 4）：getDeniedEntityIds 批量门禁在 scopeAll 命中时
      * 短路返回空拒绝集（全部允许），不触发实例级批量查询。
      */
     @Test
-    void getDeniedIdsShouldReturnEmptyOnScopeAllMatch() {
+    void getDeniedEntityIdsShouldReturnEmptyOnScopeAllMatch() {
         when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("SERVICE")))
             .thenReturn(Map.of("SERVICE", 8));
@@ -217,7 +217,7 @@ class PermQueryEngineTest {
         when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(inv -> inv.getArgument(1));
 
-        Set<Long> denied = engine.getDeniedIds(1L, 10L, "SERVICE", Set.of(1L, 2L, 3L), "VIEW");
+        Set<Long> denied = engine.getDeniedEntityIds(1L, 10L, "SERVICE", Set.of(1L, 2L, 3L), "VIEW");
 
         assertTrue(denied.isEmpty());
         verify(rolePermMapper, never()).selectInstancePermsByBitsBatch(any(), any(), any(), any());
@@ -437,6 +437,145 @@ class PermQueryEngineTest {
         List<RolePermEntry> cachedForRole = captor.getValue().get(20L);
         assertNotNull(cachedForRole);
         assertTrue(cachedForRole.isEmpty());
+    }
+
+    // ===== T-PERM-042：显式资源 API（业务编码轨 / entityId 轨）=====
+
+    /**
+     * T-PERM-042 错参正确预期（USER 业务编码轨）：getDeniedResourceCodes 先经
+     * TypeResolutionService 一次批量 code → entity 解析，再在 resource_entity.id 空间
+     * 查实例授权——业务编码（abstract_user.id 字符串化）不再被当作 resource_entity.id 直查。
+     * 未解析到投影实体的编码（"30"）fail-closed 进入拒绝集合。
+     */
+    @Test
+    void getDeniedResourceCodesShouldResolveBusinessCodesInEntitySpace() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("USER")))
+            .thenReturn(Map.of("USER", 6));
+        when(typeResolutionService.batchResolveOperationIds(1L, "USER", Set.of("MANAGE")))
+            .thenReturn(Map.of("MANAGE", 601L));
+
+        OperationPermission manageOp = operation(601L, 6, "MANAGE", 16L, 2L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(601L))).thenReturn(List.of(manageOp));
+        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:6")))
+            .thenReturn(Map.of(601L, manageOp));
+
+        // scopeAll 未命中
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of());
+
+        // 一次批量解析：code "10"→entity 1001、code "20"→entity 1002；"30" 无投影
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(Map.of(
+            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey("USER", "10", null, null), 1001L,
+            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey("USER", "20", null, null), 1002L));
+
+        // 实例授权只挂在 entity 1001（code "10"）
+        RoleResourcePermission granted = new RoleResourcePermission();
+        granted.setId(501L);
+        granted.setAbstractRoleId(20L);
+        granted.setResourceEntityId(1001L);
+        granted.setResourceType(6);
+        granted.setGrantedBits(16L);
+        granted.setDeleteFlag(0L);
+        when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(1001L, 1002L)), any()))
+            .thenReturn(List.of(granted));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(inv -> inv.getArgument(1));
+
+        Set<String> denied = engine.getDeniedResourceCodes(
+            1L, 10L, "USER", new java.util.LinkedHashSet<>(List.of("10", "20", "30")), "MANAGE");
+
+        assertEquals(Set.of("20", "30"), denied);
+        // code → entity 解析一次批量完成（无 N+1），实例查询落在投影 ID 空间
+        verify(typeResolutionService).batchResolveResourceIds(eq(1L), any());
+        verify(rolePermMapper).selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(1001L, 1002L)), any());
+    }
+
+    /** T-PERM-042：无角色主体 fail-closed 全量拒绝（不解析 code、不查实例级）。 */
+    @Test
+    void getDeniedResourceCodesShouldDenyAllWhenSubjectHasNoRole() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
+
+        Set<String> denied = engine.getDeniedResourceCodes(1L, 10L, "ROLE", Set.of("1", "2"), "MANAGE");
+
+        assertEquals(Set.of("1", "2"), denied);
+        verify(typeResolutionService, never()).batchResolveResourceIds(any(), any());
+        verify(rolePermMapper, never()).selectInstancePermsByBitsBatch(any(), any(), any(), any());
+    }
+
+    /**
+     * T-PERM-042 评审 P1：scopeAll 类型级授权命中时放行全部业务编码——包括尚无投影实体的编码，
+     * 且不做 code 解析（管线与 implementation §3.1 一致：先 scopeAll、未命中才解析 code）。
+     */
+    @Test
+    void getDeniedResourceCodesShouldAllowAllOnScopeAllWithoutProjectionResolution() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("USER")))
+            .thenReturn(Map.of("USER", 6));
+        when(typeResolutionService.batchResolveOperationIds(1L, "USER", Set.of("MANAGE")))
+            .thenReturn(Map.of("MANAGE", 601L));
+
+        OperationPermission manageOp = operation(601L, 6, "MANAGE", 16L, 2L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(601L))).thenReturn(List.of(manageOp));
+        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:6")))
+            .thenReturn(Map.of(601L, manageOp));
+
+        RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
+        scopeAllPerm.setId(501L);
+        scopeAllPerm.setAbstractRoleId(20L);
+        scopeAllPerm.setResourceEntityId(null);
+        scopeAllPerm.setResourceType(6);
+        scopeAllPerm.setGrantedBits(16L);
+        scopeAllPerm.setScopeAll(true);
+        scopeAllPerm.setDeleteFlag(0L);
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of(scopeAllPerm));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(inv -> inv.getArgument(1));
+
+        // 全部 code 均无投影（batchResolveResourceIds 未打桩 → 返回空 Map），scopeAll 仍放行
+        Set<String> denied = engine.getDeniedResourceCodes(1L, 10L, "USER", Set.of("10", "20"), "MANAGE");
+
+        assertTrue(denied.isEmpty());
+        // scopeAll 命中短路：零 code 解析、零实例级查询
+        verify(typeResolutionService, never()).batchResolveResourceIds(any(), any());
+        verify(rolePermMapper, never()).selectInstancePermsByBitsBatch(any(), any(), any(), any());
+    }
+
+    /**
+     * T-PERM-042（RESOURCE entityId 轨）：hasPermissionByEntityId 直接按 resource_entity.id
+     * 匹配实例授权，不做任何 code 解析（资源实体管理链路语义）。
+     */
+    @Test
+    void hasPermissionByEntityIdShouldQueryEntityIdSpaceDirectly() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("RESOURCE")))
+            .thenReturn(Map.of("RESOURCE", 7));
+        when(typeResolutionService.batchResolveOperationIds(1L, "RESOURCE", Set.of("MANAGE")))
+            .thenReturn(Map.of("MANAGE", 701L));
+
+        OperationPermission manageOp = operation(701L, 7, "MANAGE", 16L, 2L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(701L))).thenReturn(List.of(manageOp));
+        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:7")))
+            .thenReturn(Map.of(701L, manageOp));
+
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of());
+
+        RoleResourcePermission granted = new RoleResourcePermission();
+        granted.setId(502L);
+        granted.setAbstractRoleId(20L);
+        granted.setResourceEntityId(200L);
+        granted.setResourceType(7);
+        granted.setGrantedBits(16L);
+        granted.setDeleteFlag(0L);
+        when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), any()))
+            .thenReturn(List.of(granted));
+
+        assertTrue(engine.hasPermissionByEntityId(1L, 10L, "RESOURCE", 200L, "MANAGE"));
+        // entityId 轨零 code 解析
+        verify(typeResolutionService, never()).batchResolveResourceIds(any(), any());
+        verify(rolePermMapper).selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), any());
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

@@ -80,7 +80,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
 
@@ -138,7 +138,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     public ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE:" + serviceCode);
         }
 
@@ -162,7 +162,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     public List<ServiceConfigResp> listServiceConfigs(Long tenantId) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE");
         }
 
@@ -189,7 +189,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
 
@@ -241,7 +241,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     public List<ApiMappingResp> listServiceApis(Long tenantId, String serviceCode) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE:" + serviceCode);
         }
         return resourceApiMappingMapper.selectByTenantAndServiceCode(tenantId, serviceCode).stream().map(mapping -> new ApiMappingResp(

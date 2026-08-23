@@ -158,8 +158,8 @@ class PermissionGrantAppServiceImplTest {
         parent.setTenantId(1L);
         parent.setAbstractRoleId(20L);
         when(rolePermMapper.selectValidById(1L, null, 10L)).thenReturn(parent);
-        when(engine.hasPermission(
-            1L, 10L, ResourceTypeCode.ROLE, 20L, OperationCodeConstants.MANAGE)).thenReturn(true);
+        when(engine.hasPermissionByCode(
+            1L, 10L, ResourceTypeCode.ROLE, "20", OperationCodeConstants.MANAGE)).thenReturn(true);
 
         RolePermissionAddChildReq.ChildItem child = new RolePermissionAddChildReq.ChildItem(
             "DATA", "report:sales", "default", "VIEW", ScopeMode.INSTANCE, false, null);

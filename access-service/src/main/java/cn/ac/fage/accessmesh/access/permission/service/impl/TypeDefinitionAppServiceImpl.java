@@ -70,7 +70,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on TYPE_DEFINITION");
         }
 
@@ -109,7 +109,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     public TypeDefinitionResp getType(Long tenantId, Long typeId) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, typeId, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, String.valueOf(typeId), OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION:" + typeId);
         }
 
@@ -134,7 +134,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     public List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
         }
 
@@ -163,7 +163,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, req.typeId(), OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, String.valueOf(req.typeId()), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + req.typeId());
         }
 
@@ -212,7 +212,12 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             return;
         }
 
-        engine.validateBatch(tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, validInputIds, OperationCodeConstants.MANAGE);
+        // T-PERM-042：引擎纯查询，拒绝时由调用方显式抛出
+        Set<Long> deniedIds = engine.getDeniedEntityIds(
+            tenantId, operatorSubjectId, ResourceTypeCode.TYPE_DEFINITION, validInputIds, OperationCodeConstants.MANAGE);
+        if (!deniedIds.isEmpty()) {
+            throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + deniedIds);
+        }
 
         List<TypeDefinition> entities = typeDefinitionMapper.selectValidByIds(tenantId, validInputIds);
 

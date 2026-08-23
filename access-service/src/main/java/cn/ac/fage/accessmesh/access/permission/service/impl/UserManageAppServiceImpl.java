@@ -146,7 +146,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Long operatorId = OperatorContext.getOperatorId();
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.USER, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.USER, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("No permission to create user");
         }
         localProjectionGuard.rejectReservedSubjectType(req.subjectTypeCode());
@@ -188,7 +188,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         localProjectionGuard.rejectIfLocalUser(existing);
 
         if (!operatorSubjectId.equals(req.userId())) {
-            if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE)) {
+            if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.USER, null, OperationCodeConstants.MANAGE)) {
                 throw new SecurityException("Permission denied: MANAGE on USER");
             }
         }
@@ -243,9 +243,15 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             .collect(Collectors.toSet());
 
         if (!nonSelfUserIds.isEmpty()) {
-            Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorSubjectId, ResourceTypeCode.USER, nonSelfUserIds, OperationCodeConstants.MANAGE);
-            if (!deniedIds.isEmpty()) {
-                throw new SecurityException("No permission to delete users: " + deniedIds);
+            // T-PERM-042：USER 实例门禁改业务编码语义（resource_entity(USER).code = subjectId），
+            // 不再把 abstract_user.id 当 resource_entity.id 直查
+            Set<String> nonSelfUserCodes = nonSelfUserIds.stream()
+                .map(String::valueOf)
+                .collect(Collectors.toSet());
+            Set<String> deniedCodes = engine.getDeniedResourceCodes(
+                tenantId, operatorSubjectId, ResourceTypeCode.USER, nonSelfUserCodes, OperationCodeConstants.MANAGE);
+            if (!deniedCodes.isEmpty()) {
+                throw new SecurityException("No permission to delete users: " + deniedCodes);
             }
         }
 
@@ -327,7 +333,11 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             }
         }
 
-        Set<Long> deniedRoleIds = engine.getDeniedIds(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, targetRoleIds, OperationCodeConstants.MANAGE);
+        // T-PERM-042：ROLE 实例门禁改业务编码语义（resource_entity(ROLE).code = roleId）
+        Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+            tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+            targetRoleIds.stream().map(String::valueOf).collect(Collectors.toSet()),
+            OperationCodeConstants.MANAGE);
 
         Set<Long> allUserIds = new LinkedHashSet<>();
         for (UserAssignRoleReq.AssignItem item : req.items()) {
@@ -367,7 +377,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 continue;
             }
 
-            if (deniedRoleIds.contains(targetRoleId)) {
+            if (deniedRoleCodes.contains(String.valueOf(targetRoleId))) {
                 errors.add("No permission to manage role: " + item.roleTypeCode() + "/" + item.roleExternalId());
                 continue;
             }
@@ -440,9 +450,10 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + req.roleTypeCode() + "/" + req.roleExternalId());
         }
 
-        Set<Long> deniedRoleIds = engine.getDeniedIds(
-            tenantId, operatorSubjectId, ResourceTypeCode.ROLE, Set.of(targetRoleId), OperationCodeConstants.MANAGE);
-        if (deniedRoleIds.contains(targetRoleId)) {
+        Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+            tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+            Set.of(String.valueOf(targetRoleId)), OperationCodeConstants.MANAGE);
+        if (!deniedRoleCodes.isEmpty()) {
             throw new SecurityException("No permission to manage role: " + req.roleTypeCode() + "/" + req.roleExternalId());
         }
 
@@ -584,7 +595,11 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             }
         }
 
-        Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, targetRoleIds, OperationCodeConstants.MANAGE);
+        // T-PERM-042：ROLE 实例门禁改业务编码语义（resource_entity(ROLE).code = roleId）
+        Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+            tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+            targetRoleIds.stream().map(String::valueOf).collect(Collectors.toSet()),
+            OperationCodeConstants.MANAGE);
 
         Map<Long, AbstractRole> roleMap = targetRoleIds.isEmpty() ? Map.of()
             : abstractRoleMapper.selectValidByIds(tenantId, targetRoleIds)
@@ -632,7 +647,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
             }
 
-            if (deniedIds.contains(targetRoleId)) {
+            if (deniedRoleCodes.contains(String.valueOf(targetRoleId))) {
                 deniedItems.add(item.subjectTypeCode() + "/" + item.subjectExternalId() + " -> " + item.roleTypeCode() + "/" + item.roleExternalId());
                 continue;
             }

@@ -51,8 +51,8 @@ class ServiceConfigAppServiceImplTest {
      */
     @Test
     void shouldSaveServiceConfigWhenPermissionGranted() {
-        when(engine.hasPermission(eq(1L), eq(100L),
-            eq(ResourceTypeCode.SERVICE), eq((Long) null), eq(OperationCodeConstants.MANAGE)))
+        when(engine.hasPermissionByCode(eq(1L), eq(100L),
+            eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCodeConstants.MANAGE)))
             .thenReturn(true);
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-service")).thenReturn(null);
 
@@ -69,8 +69,8 @@ class ServiceConfigAppServiceImplTest {
 
     @Test
     void shouldThrowWhenSaveServiceConfigPermissionDenied() {
-        when(engine.hasPermission(eq(1L), eq(100L),
-            eq(ResourceTypeCode.SERVICE), eq((Long) null), eq(OperationCodeConstants.MANAGE)))
+        when(engine.hasPermissionByCode(eq(1L), eq(100L),
+            eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCodeConstants.MANAGE)))
             .thenReturn(false);
 
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1, null);
@@ -159,8 +159,8 @@ class ServiceConfigAppServiceImplTest {
     }
 
     private void mockManagePermission() {
-        when(engine.hasPermission(eq(1L), eq(100L),
-            eq(ResourceTypeCode.SERVICE), eq((Long) null), eq(OperationCodeConstants.MANAGE)))
+        when(engine.hasPermissionByCode(eq(1L), eq(100L),
+            eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCodeConstants.MANAGE)))
             .thenReturn(true);
     }
 }

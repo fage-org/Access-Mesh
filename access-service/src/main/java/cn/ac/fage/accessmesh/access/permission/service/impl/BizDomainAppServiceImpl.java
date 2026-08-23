@@ -70,7 +70,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to create biz domain");
         }
 
@@ -105,7 +105,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     public BizDomainResp getBizDomain(Long tenantId, Long domainId) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.DOMAIN, domainId, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.DOMAIN, String.valueOf(domainId), OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DOMAIN:" + domainId);
         }
 
@@ -129,7 +129,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
     public List<BizDomainResp> listBizDomains(Long tenantId) {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
             tenantId, OperatorContext.getOperatorId(), engine);
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.DOMAIN, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.DOMAIN, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DOMAIN");
         }
 
@@ -157,7 +157,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to update biz domain");
         }
 
@@ -190,7 +190,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete biz domains");
         }
 

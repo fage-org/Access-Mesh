@@ -77,7 +77,7 @@ class ResourceDeletePermChangeRegistrationTest {
         root.setId(10L);
         when(resourceEntityDomainService.selectValidByIds(1L, Set.of(10L)))
             .thenReturn(List.of(root));
-        when(engine.getDeniedIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
+        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
             .thenReturn(Set.of());
         when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
             .thenReturn(java.util.Map.of(10L, List.of(11L)));
@@ -113,7 +113,7 @@ class ResourceDeletePermChangeRegistrationTest {
         root.setId(10L);
         when(resourceEntityDomainService.selectValidByIds(1L, Set.of(10L)))
             .thenReturn(List.of(root));
-        when(engine.getDeniedIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
+        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
             .thenReturn(Set.of());
         when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
             .thenReturn(java.util.Map.of(10L, List.of()));

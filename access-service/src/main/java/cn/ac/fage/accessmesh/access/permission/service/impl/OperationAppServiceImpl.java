@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorSubjectResolver;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
@@ -81,7 +82,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         // 权限校验
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("No permission to create operation");
         }
 
@@ -135,6 +136,12 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     @Override
     public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode) {
+        // T-PERM-042：授权页操作列表读门禁（architecture §14.5 终态，类型级 OPERATION:VIEW）
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on OPERATION");
+        }
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
@@ -168,7 +175,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         // 权限校验
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to update operation");
         }
 
@@ -205,7 +212,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
         // 权限校验
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to delete operations");
         }
 

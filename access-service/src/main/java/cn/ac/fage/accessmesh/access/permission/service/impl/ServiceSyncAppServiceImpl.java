@@ -124,7 +124,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
      * @throws SecurityException 无权限时抛出
      */
     private void validatePermission(Long tenantId, Long operatorSubjectId, ServiceConfigSyncReq req) {
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.SYNC_INTERFACE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.SYNC_INTERFACE)) {
             throw new SecurityException("Permission denied: SYNC_INTERFACE on SERVICE:" + req.serviceCode());
         }
     }

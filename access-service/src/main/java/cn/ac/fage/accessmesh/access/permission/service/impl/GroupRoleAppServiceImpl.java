@@ -103,7 +103,7 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
             throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Basic role not found: " + req.basicRoleExternalId());
         }
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, groupId, OperationCodeConstants.ASSIGN)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(groupId), OperationCodeConstants.ASSIGN)) {
             throw new SecurityException("Permission denied: ASSIGN on ROLE:" + groupId);
         }
 
@@ -166,7 +166,7 @@ public class GroupRoleAppServiceImpl implements GroupRoleAppService {
             throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Basic role not found: " + req.basicRoleExternalId());
         }
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, groupId, OperationCodeConstants.REVOKE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(groupId), OperationCodeConstants.REVOKE)) {
             throw new SecurityException("Permission denied: REVOKE on ROLE:" + groupId);
         }
 

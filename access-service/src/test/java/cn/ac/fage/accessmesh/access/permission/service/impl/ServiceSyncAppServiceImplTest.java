@@ -52,7 +52,7 @@ class ServiceSyncAppServiceImplTest {
     void shouldThrowWhenSyncPermissionDenied() {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermission(eq(1L), eq(100L),
+            when(engine.hasPermissionByCode(eq(1L), eq(100L),
                 eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCodeConstants.SYNC_INTERFACE)))
                 .thenReturn(false);
 
@@ -68,7 +68,7 @@ class ServiceSyncAppServiceImplTest {
     void shouldThrowWhenServiceConfigNotFound() {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermission(eq(1L), eq(100L),
+            when(engine.hasPermissionByCode(eq(1L), eq(100L),
                 eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCodeConstants.SYNC_INTERFACE)))
                 .thenReturn(true);
             when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-svc")).thenReturn(null);

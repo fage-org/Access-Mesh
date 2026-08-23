@@ -119,7 +119,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("无创建角色的权限");
         }
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
@@ -156,7 +156,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         }
         localProjectionGuard.rejectIfLocalRole(role);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -184,7 +184,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         }
         localProjectionGuard.rejectIfLocalRole(role);
 
-        if (!engine.hasPermission(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, roleId, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -233,11 +233,15 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         Map<Long, AbstractRole> existingRoles = roles.stream()
             .collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
-        Set<Long> deniedIds = engine.getDeniedIds(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, existingRoles.keySet(), OperationCodeConstants.MANAGE);
+        // T-PERM-042：ROLE 实例门禁改业务编码语义（resource_entity(ROLE).code = roleId）
+        Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+            tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+            existingRoles.keySet().stream().map(String::valueOf).collect(Collectors.toSet()),
+            OperationCodeConstants.MANAGE);
 
         Set<Long> permittedIds = new LinkedHashSet<>();
         for (Long roleId : existingRoles.keySet()) {
-            if (!deniedIds.contains(roleId)) {
+            if (!deniedRoleCodes.contains(String.valueOf(roleId))) {
                 permittedIds.add(roleId);
             } else {
                 log.info("操作者{}无权删除角色: {}", operatorId, roleId);
@@ -264,9 +268,12 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             List<Long> descendantIds = subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, groupRoleIds);
 
             Set<Long> descendantSet = new HashSet<>(descendantIds);
-            Set<Long> deniedDescendantIds = engine.getDeniedIds(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, descendantSet, OperationCodeConstants.MANAGE);
+            Set<String> deniedDescendantCodes = engine.getDeniedResourceCodes(
+                tenantId, operatorSubjectId, ResourceTypeCode.ROLE,
+                descendantSet.stream().map(String::valueOf).collect(Collectors.toSet()),
+                OperationCodeConstants.MANAGE);
             for (Long descId : descendantIds) {
-                if (!deniedDescendantIds.contains(descId)) {
+                if (!deniedDescendantCodes.contains(String.valueOf(descId))) {
                     allIdsToDelete.add(descId);
                 } else {
                     log.info("操作者{}无权删除子孙角色: {}", operatorId, descId);
@@ -277,7 +284,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         subjectDomainService.softDeleteRoleBatch(tenantId, new java.util.HashSet<>(allIdsToDelete));
         OperationLogRuntimeContext.setSummary(
             "soft-deleted " + allIdsToDelete.size() + " role(s), rootPermitted="
-                + permittedIds.size() + ", denied=" + deniedIds.size()
+            + permittedIds.size() + ", denied=" + deniedRoleCodes.size()
         );
 
         ArrayNode itemsJson = objectMapper.createArrayNode();
@@ -323,6 +330,12 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     public List<RoleTreeResp> getRoleTree(Long tenantId, String domainCode) {
+        // T-PERM-042：授权页角色树读门禁（architecture §14.5 终态，类型级 ROLE:VIEW）
+        Long operatorSubjectId = OperatorSubjectResolver.requireSubjectId(
+            tenantId, OperatorContext.getOperatorId(), engine);
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on ROLE");
+        }
         if (domainCode != null && !domainCode.isBlank()
             && !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE)) {
             return List.of();

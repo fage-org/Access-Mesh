@@ -5,7 +5,6 @@ import cn.ac.fage.accessmesh.access.application.query.impl.OrgVisibilityQuerySer
 import cn.ac.fage.accessmesh.access.application.query.mapper.OrgVisibilityQueryMapper;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
@@ -18,13 +17,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
@@ -63,24 +60,19 @@ class OrgVisibilityQueryServiceImplTest {
         }
 
         @Test
-        @DisplayName("engine 允许的 orgId 被保留（批量解析业务键 + 一次 getDeniedIds）")
+        @DisplayName("engine 允许的 orgId 被保留（一次 getDeniedResourceCodes 业务编码批量门禁）")
         void allowedOrgs_kept() {
             when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
                 .thenReturn(1000L);
-            when(typeResolutionService.batchResolveResourceIds(eq(1L), anyList())).thenReturn(
-                Map.of(
-                    new ResourceResolveKey(AdminResourceType.ORG, "100", null, null), 1001L,
-                    new ResourceResolveKey(AdminResourceType.ORG, "200", null, null), 1002L,
-                    new ResourceResolveKey(AdminResourceType.ORG, "300", null, null), 1003L));
-            when(engine.getDeniedIds(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
                 anySet(), eq("VIEW")))
-                .thenReturn(new java.util.LinkedHashSet<>(List.of(1003L))); // 300 → denied
+                .thenReturn(new java.util.LinkedHashSet<>(List.of("300"))); // 300 → denied
 
             Set<Long> result = service.filterVisibleOrgIds(1L, 100L, List.of(100L, 200L, 300L));
 
             assertThat(result).containsExactlyInAnyOrder(100L, 200L);
             assertThat(result).doesNotContain(300L);
-            verify(engine).getDeniedIds(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            verify(engine).getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
                 anySet(), eq("VIEW"));
         }
 
@@ -89,9 +81,7 @@ class OrgVisibilityQueryServiceImplTest {
         void engineFailure_propagates() {
             when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
                 .thenReturn(1000L);
-            when(typeResolutionService.batchResolveResourceIds(eq(1L), anyList())).thenReturn(
-                Map.of(new ResourceResolveKey(AdminResourceType.ORG, "100", null, null), 1001L));
-            when(engine.getDeniedIds(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
                 anySet(), eq("VIEW")))
                 .thenThrow(new RuntimeException("timeout"));
 
@@ -137,13 +127,9 @@ class OrgVisibilityQueryServiceImplTest {
             when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L, 60L));
             when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
                 .thenReturn(1000L);
-            when(typeResolutionService.batchResolveResourceIds(eq(1L), anyList())).thenReturn(
-                Map.of(
-                    new ResourceResolveKey(AdminResourceType.ORG, "50", null, null), 5001L,
-                    new ResourceResolveKey(AdminResourceType.ORG, "60", null, null), 6001L));
-            when(engine.getDeniedIds(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
                 anySet(), eq("VIEW")))
-                .thenReturn(new java.util.LinkedHashSet<>(List.of(6001L))); // 60 → denied
+                .thenReturn(new java.util.LinkedHashSet<>(List.of("60"))); // 60 → denied
 
             Set<Long> result = service.getOperatorVisibleDefaultTreeOrgIds(1L, 100L);
 
@@ -160,13 +146,9 @@ class OrgVisibilityQueryServiceImplTest {
             when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L, 60L));
             when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
                 .thenReturn(1000L);
-            when(typeResolutionService.batchResolveResourceIds(eq(1L), anyList())).thenReturn(
-                Map.of(
-                    new ResourceResolveKey(AdminResourceType.ORG, "50", null, null), 5001L,
-                    new ResourceResolveKey(AdminResourceType.ORG, "60", null, null), 6001L));
-            when(engine.getDeniedIds(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
                 anySet(), eq("VIEW")))
-                .thenReturn(new java.util.LinkedHashSet<>(List.of(6001L))); // 60 → denied
+                .thenReturn(new java.util.LinkedHashSet<>(List.of("60"))); // 60 → denied
 
             Set<Long> result = service.getOperatorVisibleDefaultTreeOrgIds(1L, 100L);
 
@@ -183,9 +165,7 @@ class OrgVisibilityQueryServiceImplTest {
             when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L));
             when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_ADMIN_USER, "100"))
                 .thenReturn(1000L);
-            when(typeResolutionService.batchResolveResourceIds(eq(1L), anyList())).thenReturn(
-                Map.of(new ResourceResolveKey(AdminResourceType.ORG, "50", null, null), 5001L));
-            when(engine.getDeniedIds(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(AdminResourceType.ORG),
                 anySet(), eq("VIEW")))
                 .thenReturn(new java.util.LinkedHashSet<>());
             doThrow(new RuntimeException("redis down"))
