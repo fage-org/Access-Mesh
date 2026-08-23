@@ -179,7 +179,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         // resource_entity.name NOT NULL 而 abstract_user.name 可空，name 缺省以 externalId 兜底（评审 P1-1）
         boolean enabled = Boolean.TRUE.equals(user.getEnabled());
         localProjectionDomainService.upsertUserResource(tenantId, user.getId(), resourceName(user), enabled);
-        recordProjectionChange(tenantId, user.getId(), "UPSERT");
+        recordProjectionChange(tenantId, operatorId, user.getId(), "UPSERT");
         PermissionChangeContext.markUsers(tenantId, Set.of(user.getId()));
         return toUserResp(user);
     }
@@ -220,7 +220,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         // 有效角色置空，评审 P1-2），登记 markUsers 失效主体有效角色缓存（afterCommit 由 AOP 处理）
         localProjectionDomainService.upsertUserResource(
             tenantId, existing.getId(), resourceName(existing), Boolean.TRUE.equals(existing.getEnabled()));
-        recordProjectionChange(tenantId, existing.getId(), "UPSERT");
+        recordProjectionChange(tenantId, operatorId, existing.getId(), "UPSERT");
         PermissionChangeContext.markUsers(tenantId, Set.of(existing.getId()));
         return toUserResp(existing);
     }
@@ -848,11 +848,12 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         return user.getName() != null ? user.getName() : user.getExternalId();
     }
 
-    /** 投影写变更日志（T-ACCESS-019：USER 投影 UPSERT 与主体事实同事务登记） */
-    private void recordProjectionChange(Long tenantId, Long userId, String operation) {
+    /** 投影写变更日志（T-ACCESS-019：USER 投影 UPSERT 与主体事实同事务登记）；
+     * 操作者传方法已解析的 operatorId，不重读上下文（二轮评审 P2 同款修正） */
+    private void recordProjectionChange(Long tenantId, Long operatorId, Long userId, String operation) {
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, OperatorContext.getOperatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "abstract_user", userId, operation, null, null, null,
                 new Long[]{userId}, new Long[0])));

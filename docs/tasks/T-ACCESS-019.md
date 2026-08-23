@@ -106,3 +106,17 @@ last_updated: 2026-08-23
 - **P2 父镜像/moveRole 无测试覆盖**（属实）：补 moveRole 单测（投影镜像新父 + 预计算反查）与 IT 用例（createRole 投影 parent_id 镜像、moveRole 迁移投影父节点、裸父角色 fail-closed 整体回滚）。
 
 修复后全量回归：673 tests 0 failures（Testcontainers IT 扩至 6 用例，真实 PG+Redis）。评审另核实无 P0；`git diff --check` 无格式问题。
+
+## 二轮评审修复记录（2026-08-23，codex gpt-5.6-sol 第二轮只读评审：2 P1 + 2 P2）
+
+- **P1-A 禁用 GROUP_ROLE 仍授出其展开角色**（属实，存量缺口；与一轮 P1-2 同属「禁用主体/角色时授权可用性一致」验收句的角色侧，按用户一轮同类拍板延伸本任务内修）：`expandInMemory`/`selectRoleTreeByGroupIds` 只过滤 delete_flag 不过滤 status，且组角色 id 本身不进入有效角色集（只有其展开进入），`retainAll(enabled)` 无法过滤。修复：`resolveGroupRolesBatch` 以树查询结果构建禁用集合——根组角色禁用 → 展开置空；`expandInMemory` 递归遇禁用嵌套组剪枝整棵子树（基础角色仍由调用方 retainAll 过滤）。
+- **P1-B 反查与前向展开不对称**（部分属实）：①直接 GROUP_ROLE 绑定（被变更角色本身为组角色时的组成员）被漏——`selectValidByTargetIdsAndType` 只查 ROLE 型且 `selectAncestorGroupRoleIdsBatch` 显式排除起点 id（属实，已修：`findUserIdsByEffectiveRoles` 补 GROUP_ROLE 直绑查询并过滤 `abstract_user_id IS NULL` 的 relation 行防污染；`invalidateRoleCacheByRoles` 共用同口径一并生效）。②`extra.basicRoleIds` 引用组角色漏反查——**核实后不修**：全库无该 JSON 的任何写入方（唯一 extra 管理入口 `addGroupRoleExtraRole` 写 user_role relation 行，见遗留），为零生产者路径建反查属过度设计。
+- **P2-A 投影软删未限定 code_type**（属实，已修）：`softDeleteOwnResources` 改用 `selectByTypeAndCodesAndCodeTypes` 限定 `default`，与 upsert 定位对称，不误删同 code 非默认编码行。
+- **P2-B recordProjectionChange 重读 OperatorContext**（属实，已修）：Role/UserManage 的投影日志 helper 改传方法已解析的 operatorId；显式传参与上下文不一致或上下文未绑定（内部调用抛 SecurityException）时不再记错/失败。
+- **测试**：新增 IT「组角色生命周期」——组经生产写路径创建（投影自动产出）+ BASIC 经 moveRole 挂组 + 成员 GROUP_ROLE 直绑 + 预热成员缓存放行 → updateRole 禁用组（验证 P1-A 展开置空 + P1-B① 直绑成员缓存真实失效）→ deleteRoles 级联删除两投影；更新 SubjectDomainServiceImplTest 严格 stub（反查新增 GROUP_ROLE 直绑查询）。
+
+修复后全量回归：674 tests 0 failures（IT 7 用例）。二轮评审亦确认一轮五项修复在普通 USER/BASIC_ROLE 路径实现正确。
+
+## 遗留补充（二轮评审发现，GROUP_ROLE extra 双轨不一致——存量问题，待立项）
+
+- **extra 机制双轨不一致（pre-existing）**：管理入口 `addGroupRoleExtraRole` 写 `user_role(target_type=GROUP_ROLE, target_id=组, relation_id=基础角色)`（仅 `extra-roles/list` 读取展示），而前向授权展开只消费角色树 + `abstract_role.extra.basicRoleIds` JSON——**relation 行不参与授权展开**，即经 API 添加的组角色 extra 基础角色实际不授予；`extra.basicRoleIds` JSON 则无任何写入方（vestigial）。待 T-PERM-043（GROUP_ROLE 写入口删除）一并裁决 extra 机制去留或统一为单轨。

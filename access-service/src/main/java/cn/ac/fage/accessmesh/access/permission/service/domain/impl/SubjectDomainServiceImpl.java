@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -318,6 +319,8 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
      * 批量解析组角色
      * <p>
      * 使用PostgreSQL递归CTE一次性查询所有子孙角色，然后在内存中展开。
+     * 禁用组角色整体失权（二轮评审 P1-A）：根组角色禁用 → 展开为空；
+     * 递归展开遇禁用嵌套组 → 剪枝其整棵子树（基础角色仍由调用方 retainAll(enabled) 过滤）。
      * </p>
      */
     private Map<Long, Set<Long>> resolveGroupRolesBatch(Long tenantId, Set<Long> groupRoleIds) {
@@ -340,8 +343,18 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
             .map(AbstractRole::getId)
             .collect(Collectors.toSet());
 
+        Set<Long> disabledRoleIds = allRoles.stream()
+            .filter(r -> r.getStatus() != null && r.getStatus() == 0)
+            .map(AbstractRole::getId)
+            .collect(Collectors.toSet());
+
         for (Long groupRoleId : groupRoleIds) {
-            Set<Long> expanded = expandInMemory(groupRoleId, parentToChildren, roleMap, nestedGroupRoleIds, new HashSet<>());
+            if (disabledRoleIds.contains(groupRoleId)) {
+                result.put(groupRoleId, Set.of());
+                continue;
+            }
+            Set<Long> expanded = expandInMemory(groupRoleId, parentToChildren, roleMap, nestedGroupRoleIds,
+                disabledRoleIds, new HashSet<>());
             result.put(groupRoleId, expanded);
         }
 
@@ -349,10 +362,11 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     }
 
     /**
-     * 在内存中递归展开组角色
+     * 在内存中递归展开组角色；遇禁用嵌套组剪枝其整棵子树（二轮评审 P1-A）
      */
     private Set<Long> expandInMemory(Long roleId, Map<Long, List<AbstractRole>> parentToChildren,
-                                     Map<Long, AbstractRole> roleMap, Set<Long> nestedGroupRoleIds, Set<Long> visited) {
+                                     Map<Long, AbstractRole> roleMap, Set<Long> nestedGroupRoleIds,
+                                     Set<Long> disabledRoleIds, Set<Long> visited) {
         if (roleId == null || visited.contains(roleId)) {
             return Set.of();
         }
@@ -367,7 +381,10 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
                 AbstractRole basicRole = roleMap.get(basicId);
                 if (basicRole != null && basicRole.getRoleType() != null
                     && basicRole.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
-                    result.addAll(expandInMemory(basicId, parentToChildren, roleMap, nestedGroupRoleIds, visited));
+                    if (!disabledRoleIds.contains(basicId)) {
+                        result.addAll(expandInMemory(basicId, parentToChildren, roleMap, nestedGroupRoleIds,
+                            disabledRoleIds, visited));
+                    }
                 } else if (basicRole != null) {
                     result.add(basicId);
                 }
@@ -377,7 +394,10 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         List<AbstractRole> children = parentToChildren.getOrDefault(roleId, List.of());
         for (AbstractRole child : children) {
             if (child.getRoleType() != null && child.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
-                result.addAll(expandInMemory(child.getId(), parentToChildren, roleMap, nestedGroupRoleIds, visited));
+                if (!disabledRoleIds.contains(child.getId())) {
+                    result.addAll(expandInMemory(child.getId(), parentToChildren, roleMap, nestedGroupRoleIds,
+                        disabledRoleIds, visited));
+                }
             } else {
                 result.add(child.getId());
             }
@@ -470,13 +490,19 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
 
         Set<Long> userIds = new HashSet<>(userRoleMapper.selectValidByTargetIdsAndType(
                 tenantId, roleIds, PermConstants.TargetType.ROLE)
-            .stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet()));
+            .stream().map(UserRole::getAbstractUserId).filter(Objects::nonNull).collect(Collectors.toSet()));
+
+        // 直接 GROUP_ROLE 绑定（被变更角色本身为组角色时的组成员；祖先查询显式排除起点 id，
+        // 该类成员须单独覆盖——二轮评审 P1-B）
+        userIds.addAll(userRoleMapper.selectValidByTargetIdsAndType(
+                tenantId, roleIds, PermConstants.TargetType.GROUP_ROLE)
+            .stream().map(UserRole::getAbstractUserId).filter(Objects::nonNull).collect(Collectors.toSet()));
 
         List<Long> ancestorGroupRoleIds = abstractRoleMapper.selectAncestorGroupRoleIdsBatch(tenantId, roleIds);
         if (!ancestorGroupRoleIds.isEmpty()) {
             userIds.addAll(userRoleMapper.selectValidByTargetIdsAndType(
                 tenantId, new HashSet<>(ancestorGroupRoleIds), PermConstants.TargetType.GROUP_ROLE)
-            .stream().map(UserRole::getAbstractUserId).collect(Collectors.toSet()));
+            .stream().map(UserRole::getAbstractUserId).filter(Objects::nonNull).collect(Collectors.toSet()));
         }
         return userIds;
     }

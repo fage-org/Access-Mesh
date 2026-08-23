@@ -365,6 +365,47 @@ class UserRoleWriteProjectionPgIT {
         assertThat(disabledRow.get("name")).isEqualTo("t019-ext-disabled");
     }
 
+    @Test
+    @DisplayName("组角色生命周期（二轮评审 P1-A/P1-B）：禁用组角色整体失权并失效预热缓存；删除覆盖 GROUP_ROLE 直绑成员")
+    void groupRoleLifecycleShouldStopGrantingAndInvalidateWarmCache() {
+        Long creator = insertSubject("t019-op-group", "组角色操作者");
+        Long creatorRole = insertBasicRole("t019-holder-group", "组角色操作者角色");
+        insertUserRole(creator, creatorRole);
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_ROLE, CREATE_BIT);
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_ROLE, MANAGE_BIT);
+        bindOperator(creator);
+
+        // 组角色与基础角色均经生产写路径创建（投影自动产出）；BASIC 挂 GROUP 受 createRole
+        // 父子类型一致约束，经 moveRole 挂到组下
+        RoleResp group = roleManageAppService.createRole(
+            TENANT, new RoleCreateReq(null, "GROUP_ROLE", "t019-ext-group", "组角色", null, null), creator);
+        RoleResp basic = roleManageAppService.createRole(
+            TENANT, new RoleCreateReq(null, "BASIC_ROLE", "t019-ext-group-basic", "组内基础角色", null, null), creator);
+        roleManageAppService.moveRole(TENANT, basic.id(), group.id(), creator);
+
+        // 组成员（GROUP_ROLE 直绑）与组内基础角色上的授权，先于成员首次引擎调用装配
+        Long member = insertSubject("t019-member", "组成员");
+        insertGroupBinding(member, group.id());
+        insertScopeAllRolePerm(basic.id(), RESOURCE_TYPE_ROLE, CREATE_BIT);
+
+        // 预热成员 EFFECTIVE_ROLES：经组展开获得基础角色 → 放行
+        assertThat(permQueryEngine.hasPermissionByCode(
+            TENANT, member, "ROLE", null, "CREATE")).isTrue();
+
+        // 禁用组角色：反查须覆盖 GROUP_ROLE 直绑成员（P1-B①，含预热缓存失效），
+        // 禁用组展开为空（P1-A）→ 重新回源后整体失权
+        roleManageAppService.updateRole(TENANT, group.id(), "组角色-禁用", 0, null, null, creator);
+        assertThat(permQueryEngine.hasPermissionByCode(
+            TENANT, member, "ROLE", null, "CREATE")).isFalse();
+
+        // 删除组角色（级联子孙基础角色）：预计算反查覆盖直绑成员，两投影均软删
+        roleManageAppService.deleteRoles(TENANT, List.of(group.id()), creator);
+        assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(group.id()))
+            .get("delete_flag")).longValue()).isNotZero();
+        assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(basic.id()))
+            .get("delete_flag")).longValue()).isNotZero();
+    }
+
     // ===== 数据装配（jdbc 直插事实/授权，先于相关主体首次引擎调用） =====
 
     private void bindOperator(Long operatorId) {
@@ -390,6 +431,12 @@ class UserRoleWriteProjectionPgIT {
         jdbc.update(
             "INSERT INTO user_role (tenant_id, abstract_user_id, target_type, target_id) VALUES (?, ?, 'ROLE', ?)",
             TENANT, abstractUserId, targetRoleId);
+    }
+
+    private void insertGroupBinding(Long abstractUserId, Long groupRoleId) {
+        jdbc.update(
+            "INSERT INTO user_role (tenant_id, abstract_user_id, target_type, target_id) VALUES (?, ?, 'GROUP_ROLE', ?)",
+            TENANT, abstractUserId, groupRoleId);
     }
 
     private void insertScopeAllRolePerm(Long roleId, int resourceType, long grantedBits) {

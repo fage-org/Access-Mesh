@@ -363,9 +363,11 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             .map(String::valueOf).collect(java.util.stream.Collectors.toSet()));
     }
 
-    /** 批量按 code 软删本地投影资源行（一次批量加载 + 过滤 owner + 一次批量软删；外部行跳过） */
+    /** 批量按 code 软删本地投影资源行（一次批量加载 + 过滤 owner + 一次批量软删；外部行跳过）。
+     * 限定 code_type=default 与 upsert 定位对称（二轮评审 P2：不误删同 code 非默认编码行） */
     private void softDeleteOwnResources(Long tenantId, Integer resourceType, Set<String> codes) {
-        List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodes(tenantId, resourceType, codes);
+        List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+            tenantId, resourceType, codes, Set.of(CODE_TYPE_DEFAULT));
         List<Long> ownIds = resources.stream()
             .filter(LocalProjectionDomainServiceImpl::isOwnResource)
             .map(ResourceEntity::getId)

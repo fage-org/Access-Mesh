@@ -140,7 +140,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         // 新角色无授权快照与成员，无需 PermissionChange 失效登记
         localProjectionDomainService.upsertRoleResource(
             tenantId, roleId, req.name(), 1, req.parentId());
-        recordProjectionChange(tenantId, roleId, "UPSERT");
+        recordProjectionChange(tenantId, operatorId, roleId, "UPSERT");
 
         AbstractRole role = abstractRoleMapper.selectOneById(roleId);
         return toRoleResp(role);
@@ -181,7 +181,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         // 登记 markRoles 反查受影响用户失效（afterCommit 由 @PermissionChange AOP 处理）
         localProjectionDomainService.upsertRoleResource(
             tenantId, roleId, role.getName(), role.getStatus(), role.getParentId());
-        recordProjectionChange(tenantId, roleId, "UPSERT");
+        recordProjectionChange(tenantId, operatorId, roleId, "UPSERT");
         PermissionChangeContext.markRoles(tenantId, Set.of(roleId));
 
         return toRoleResp(role);
@@ -221,7 +221,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         // T-ACCESS-019：ROLE 资源投影同事务镜像父节点
         localProjectionDomainService.upsertRoleResource(
             tenantId, roleId, role.getName(), role.getStatus(), role.getParentId());
-        recordProjectionChange(tenantId, roleId, "UPSERT");
+        recordProjectionChange(tenantId, operatorId, roleId, "UPSERT");
         PermissionChangeContext.markUsers(tenantId, oldTreeUserIds);
         PermissionChangeContext.markRoles(tenantId, Set.of(roleId));
     }
@@ -429,11 +429,12 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         return abstractRoleMapper.selectRoleListCount(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone);
     }
 
-    /** 投影写变更日志（T-ACCESS-019：ROLE 投影 UPSERT 与角色事实同事务登记） */
-    private void recordProjectionChange(Long tenantId, Long roleId, String operation) {
+    /** 投影写变更日志（T-ACCESS-019：ROLE 投影 UPSERT 与角色事实同事务登记）；
+     * 操作者用方法已解析的 operatorId，不重读上下文（二轮评审 P2：显式传参与上下文不一致时记错主体） */
+    private void recordProjectionChange(Long tenantId, Long operatorId, Long roleId, String operation) {
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, OperatorContext.getOperatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "abstract_role", roleId, operation, null, null, null,
                 new Long[0], new Long[]{roleId})));

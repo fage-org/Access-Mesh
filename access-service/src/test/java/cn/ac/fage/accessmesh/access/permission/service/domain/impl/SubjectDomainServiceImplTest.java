@@ -112,6 +112,7 @@ class SubjectDomainServiceImplTest {
     /**
      * T-PERM-018 P2：批量失效多角色关联用户缓存，固定 ≤3 SQL（直接用户 + 祖先组角色 + 组角色用户），
      * 一次 evictBatch，消除按角色循环 N+1。
+     * 二轮评审 P1-B①：直接 GROUP_ROLE 绑定（被变更角色本身为组角色时的组成员）也纳入反查。
      */
     @Test
     void invalidateRoleCacheByRolesShouldBatchLoadUsersAndAncestorGroupRoles() {
@@ -119,19 +120,23 @@ class SubjectDomainServiceImplTest {
 
         UserRole directRel = new UserRole();
         directRel.setAbstractUserId(1L);
+        UserRole groupBoundRel = new UserRole();
+        groupBoundRel.setAbstractUserId(3L);
         UserRole ancestorRel = new UserRole();
         ancestorRel.setAbstractUserId(2L);
 
         when(userRoleMapper.selectValidByTargetIdsAndType(1L, roleIds, PermConstants.TargetType.ROLE))
             .thenReturn(List.of(directRel));
+        when(userRoleMapper.selectValidByTargetIdsAndType(1L, roleIds, PermConstants.TargetType.GROUP_ROLE))
+            .thenReturn(List.of(groupBoundRel));
         when(abstractRoleMapper.selectAncestorGroupRoleIdsBatch(1L, roleIds)).thenReturn(List.of(50L));
         when(userRoleMapper.selectValidByTargetIdsAndType(eq(1L), eq(Set.of(50L)), eq(PermConstants.TargetType.GROUP_ROLE)))
             .thenReturn(List.of(ancestorRel));
 
         service.invalidateRoleCacheByRoles(1L, roleIds);
 
-        // 合并直接用户 + 组角色用户，一次 evictBatch
-        verify(cacheService).evictBatch(eq(PermCacheCatalog.EFFECTIVE_ROLES), eq(1L), eq(Set.of(1L, 2L)));
+        // 合并直接用户 + 组直绑用户 + 组角色用户，一次 evictBatch
+        verify(cacheService).evictBatch(eq(PermCacheCatalog.EFFECTIVE_ROLES), eq(1L), eq(Set.of(1L, 2L, 3L)));
     }
 
     @Test
@@ -139,6 +144,8 @@ class SubjectDomainServiceImplTest {
         Set<Long> roleIds = Set.of(20L);
 
         when(userRoleMapper.selectValidByTargetIdsAndType(1L, roleIds, PermConstants.TargetType.ROLE))
+            .thenReturn(List.of());
+        when(userRoleMapper.selectValidByTargetIdsAndType(1L, roleIds, PermConstants.TargetType.GROUP_ROLE))
             .thenReturn(List.of());
         when(abstractRoleMapper.selectAncestorGroupRoleIdsBatch(1L, roleIds)).thenReturn(List.of());
 
