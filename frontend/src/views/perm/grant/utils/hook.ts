@@ -73,13 +73,6 @@ export function usePermissionGrant() {
   const canManage = computed(() =>
     hasPerms(PERMISSION_GRANT_PERMS.ROLE_MANAGE)
   );
-  const canResource = computed(() =>
-    hasPerms(PERMISSION_GRANT_PERMS.RESOURCE_VIEW)
-  );
-  const canOperation = computed(() =>
-    hasPerms(PERMISSION_GRANT_PERMS.OPERATION_VIEW)
-  );
-
   // ========== 只读依赖（首次加载；切换主体/类型不重复拉取） ==========
 
   /**
@@ -133,12 +126,12 @@ export function usePermissionGrant() {
     try {
       const [typeResp, treeResp, opResp, conditionResp] = await Promise.all([
         getTypeDefList({}),
-        canResource.value
-          ? getResourceTree({})
-          : Promise.resolve({ items: [] }),
-        canOperation.value
-          ? getOperationList({})
-          : Promise.resolve({ items: [] }),
+        // 门控说明（T-ACCESS-021 GUI 段缺陷修复）：资源树/操作列不做前端 capability 前置——
+        // /auth/user-menu 权限串按 admin 域类型白名单派生，不含 RESOURCE/OPERATION 类型码，
+        // 前置判定恒 false 会使矩阵恒空；访问控制由后端类型级 VIEW 门禁（T-PERM-042）承担，
+        // 无权限者收到接口错误提示
+        getResourceTree({}),
+        getOperationList({}),
         // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），条件列表始终加载
         getConditionList()
       ]);
@@ -458,15 +451,11 @@ export function usePermissionGrant() {
         // 原子提交（context+baseline，无网络）；任一读失败整体失败、context 不提交，
         // 杜绝"树/操作/标记失败但主体已切换"的部分提交
         const [treeResp, opResp, markResp, baselineItems] = await Promise.all([
-          canResource.value
-            ? getResourceTree({ resourceTypeCode: opts.typeCode })
-            : Promise.resolve({ items: [] }),
-          canOperation.value
-            ? getOperationList({
-                resourceTypeCode: opts.typeCode,
-                includeGlobalFallback: true
-              })
-            : Promise.resolve({ items: [] }),
+          getResourceTree({ resourceTypeCode: opts.typeCode }),
+          getOperationList({
+            resourceTypeCode: opts.typeCode,
+            includeGlobalFallback: true
+          }),
           // 全量主权限查询一次 → "已有权限类型"标记（§2.2 标记/排序；
           // 缺省 resourceTypeCode 返回全量，兼容契约 §6.4）
           getRolePermissionList({
@@ -505,15 +494,11 @@ export function usePermissionGrant() {
       // 无部分提交问题；失败不回滚，§3.6 步骤 2 语义）
       const [storeOk, treeResp, opResp] = await Promise.all([
         grantStore.switchMatrixType(opts.typeCode),
-        canResource.value
-          ? getResourceTree({ resourceTypeCode: opts.typeCode })
-          : Promise.resolve({ items: [] }),
-        canOperation.value
-          ? getOperationList({
-              resourceTypeCode: opts.typeCode,
-              includeGlobalFallback: true
-            })
-          : Promise.resolve({ items: [] })
+        getResourceTree({ resourceTypeCode: opts.typeCode }),
+        getOperationList({
+          resourceTypeCode: opts.typeCode,
+          includeGlobalFallback: true
+        })
       ]);
       // 序号守卫：过期请求不写任何状态
       if (token !== matrixToken) return false;
@@ -935,8 +920,6 @@ export function usePermissionGrant() {
     subjectType,
     canView,
     canManage,
-    canResource,
-    canOperation,
     grantStore,
     // 依赖数据
     /** 全量资源森林（授权弹窗子权限配置器与详情层使用，子权限可跨类型） */
