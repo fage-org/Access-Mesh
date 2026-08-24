@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.access.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
+import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
@@ -67,6 +68,7 @@ public class AccessBootstrapInitializer {
 
     private static final String TYPE_KEY_RESOURCE = "resource_type";
     private static final String TYPE_KEY_ROLE = "role_type";
+    private static final String TYPE_KEY_USER = "user_type";
 
     private final UserDomainService userDomainService;
     private final LocalProjectionDomainService localProjectionDomainService;
@@ -97,10 +99,11 @@ public class AccessBootstrapInitializer {
         Long tenantId = BootstrapGraphDefinition.TENANT_ID;
         Map<String, Integer> resourceTypes = resolveGrantResourceTypes(tenantId);
         Integer basicRoleType = requireType(tenantId, TYPE_KEY_ROLE, BootstrapGraphDefinition.ADMIN_ROLE_TYPE_CODE);
+        Integer localUserType = requireType(tenantId, TYPE_KEY_USER, LocalProjectionOwner.SUBJECT_LOCAL_USER);
         Map<String, Long> operationBits = loadOperationBits(tenantId, resourceTypes);
 
         List<String> conflicts = new ArrayList<>();
-        boolean complete = inspect(tenantId, resourceTypes, basicRoleType, operationBits, conflicts);
+        boolean complete = inspect(tenantId, resourceTypes, basicRoleType, localUserType, operationBits, conflicts);
         if (!conflicts.isEmpty()) {
             throw new IllegalStateException("bootstrap 固定图冲突（不自动修复，请人工核对）: "
                 + String.join("; ", conflicts));
@@ -121,7 +124,7 @@ public class AccessBootstrapInitializer {
      *         有冲突时返回值无意义（调用方以 conflicts 非空先行 fail-fast）
      */
     private boolean inspect(Long tenantId, Map<String, Integer> resourceTypes, Integer basicRoleType,
-                            Map<String, Long> operationBits, List<String> conflicts) {
+                            Integer localUserType, Map<String, Long> operationBits, List<String> conflicts) {
         boolean adminPresent = false;
         Long adminSubjectId = null;
 
@@ -133,13 +136,17 @@ public class AccessBootstrapInitializer {
             if (admin.getStatus() == null || admin.getStatus() != 1) {
                 conflicts.add("sys_user 'admin' 存在但已停用 (status=" + admin.getStatus() + ")");
             }
-            // 禁用主体引擎侧有效角色置空（T-ACCESS-019 DDL 语义）——no-op 判定必须将其视为冲突
+            // 禁用主体引擎侧有效角色置空（T-ACCESS-019 DDL 语义）——no-op 判定必须将其视为冲突；
+            // 身份键 user_type=LOCAL_USER / external_id=主体 ID（§14.2 固定图身份）漂移同样构成冲突
             AbstractUser subject = subjectDomainService.selectValidUserById(tenantId, adminSubjectId);
             if (subject == null) {
                 conflicts.add("sys_user 'admin' 存在但 abstract_user(LOCAL_USER) 主体缺失（主体链断裂）");
-            } else if (!subject.getId().equals(adminSubjectId)) {
-                conflicts.add("admin 主体链 ID 不一致: sys_user.id=" + adminSubjectId
-                    + ", abstract_user.id=" + subject.getId());
+            } else if (!Objects.equals(subject.getUserType(), localUserType)) {
+                conflicts.add("admin 主体身份漂移: abstract_user.user_type=" + subject.getUserType()
+                    + "（固定图要求 LOCAL_USER=" + localUserType + "）");
+            } else if (!String.valueOf(adminSubjectId).equals(subject.getExternalId())) {
+                conflicts.add("admin 主体身份漂移: abstract_user.external_id=" + subject.getExternalId()
+                    + "（固定图要求主体 ID " + adminSubjectId + "）");
             } else if (!Boolean.TRUE.equals(subject.getEnabled())) {
                 conflicts.add("admin 主体 (abstract_user) 已禁用——禁用主体有效角色置空，权限不可用");
             }
@@ -194,15 +201,27 @@ public class AccessBootstrapInitializer {
             Set.of(BootstrapGraphDefinition.SERVICE_RESOURCE_CODE));
         boolean serviceResourcePresent = !serviceResources.isEmpty();
         Long serviceResourceId = serviceResourcePresent ? serviceResources.get(0).getId() : null;
+        if (serviceResourcePresent && (serviceResources.get(0).getStatus() == null
+                || serviceResources.get(0).getStatus() != 1)) {
+            conflicts.add("SERVICE 资源 '" + BootstrapGraphDefinition.SERVICE_RESOURCE_CODE
+                + "' 已停用 (status=" + serviceResources.get(0).getStatus() + ")——实例级 SERVICE 授权不生效");
+        }
 
         // —— API 资源（13 个）——
         Map<String, Long> apiResourceIds = new HashMap<>();
         Set<String> expectedApiCodes = BootstrapGraphDefinition.apiRoutes().stream()
             .map(route -> BootstrapGraphDefinition.apiResourceCode(route.method(), route.path()))
             .collect(Collectors.toSet());
+        Set<String> disabledApiCodes = new HashSet<>();
         for (ResourceEntity resource : seedWriter.findResources(
                 tenantId, resourceTypes.get(ResourceTypeCode.API), expectedApiCodes)) {
             apiResourceIds.put(resource.getCode(), resource.getId());
+            if (resource.getStatus() == null || resource.getStatus() != 1) {
+                disabledApiCodes.add(resource.getCode());
+            }
+        }
+        if (!disabledApiCodes.isEmpty()) {
+            conflicts.add("API 资源已停用（Gateway 实例级鉴权将失效）: " + disabledApiCodes);
         }
         if (!apiResourceIds.isEmpty() && apiResourceIds.size() < expectedApiCodes.size()) {
             Set<String> missing = new HashSet<>(expectedApiCodes);

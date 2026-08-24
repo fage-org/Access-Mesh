@@ -60,7 +60,7 @@ last_updated: 2026-08-24
   - `AccessBootstrapInitializer`（`@Transactional + @PermissionChange` 单事务；三状态检测 + 固定图创建；类型值经 TypeResolutionService 解析、操作位从 operation_permission 读取，零硬编码数值）；
   - `BootstrapGraphDefinition`（固定图唯一定义源：13 API 清单 + 20 条授权 = 13 实例级 API:ACCESS + §14.4 的 7 条业务门禁）；
   - `BootstrapSeedWriter`（接口，`permission.service.domain`）+ `BootstrapSeedWriterImpl`（**包内可见实现**，非 public 类）：user_role 绑定、resource_entity(SERVICE/API)、resource_api_mapping 写入与授权落库（复用 `PermissionGrantPlanDomainService.apply(PreparedGrantPlan)` 纯写入管线 + `validateSingleManualGrants`/`validateGrantAttributes` 校验）——未给通用授权服务新增无操作者公开入口。
-- **测试**：`AccessBootstrapRunnerTest`（密码 fail-fast/委托/上下文清理，2 用例）；`AccessBootstrapPgIT`（Testcontainers PG16+Redis7，11 用例：状态①全图断言+BCrypt 校验、真实登录（验证码经 Redis、clientId=admin-web）、状态② no-op 绝不重置密码+行数快照、状态③绑定缺失/授权缺失/映射 serviceCode 不匹配/ROLE 投影缺失/主体禁用/业务键被其他角色类型占用/SERVICE-only 部分图 fail-fast、类型种子缺失显式报错）。
+- **测试**：`AccessBootstrapRunnerTest`（密码 fail-fast/委托/上下文清理/默认关闭装配语义，3 用例）；`AccessBootstrapPgIT`（Testcontainers PG16+Redis7，14 用例：事务性——创建链最后一步注入故障全表回滚、状态①全图断言+BCrypt 校验、真实登录（验证码经 Redis、clientId=admin-web）、状态② no-op 绝不重置密码+行数快照、状态③绑定缺失/授权缺失/映射 serviceCode 不匹配/ROLE 投影缺失/主体禁用/主体身份漂移（user_type、external_id）/API·SERVICE 资源停用/业务键被其他角色类型占用/SERVICE-only 部分图 fail-fast、类型种子缺失显式报错）。
 - **文档回写**：README 快速开始（compose 命令/DDL 首启说明/bootstrap 启用方式/启动顺序）、runbook（临时验证 fixture 节整体删除、前置条件与重建步骤改 bootstrap 口径、章节重排）、architecture §14.7 实施终态。
 
 ### 设计决策（2026-08-24 用户确认）
@@ -83,6 +83,19 @@ last_updated: 2026-08-24
 
 评审附带发现并修复（用户决策）的**既有配置缺陷**：Redisson 对空串密码也发 AUTH，无密码 Redis 无法连接——compose redis 固定开发密码 `accessmesh-dev`，access-service/gateway/example-service 的 `REDIS_PASSWORD` 占位符默认值同步统一，一键链路零参数可用。
 
+### 评审收口第二轮（2026-08-24，codex gpt-5.6-sol xhigh 复审后修复）
+
+外部模型复审 6 项发现（2 P1 + 4 P2）全部核实属实并处置：
+
+1. **P1 主体身份键校验缺失**：检测未校验 `abstract_user.user_type=LOCAL_USER` 与 `external_id=主体 ID`（§14.2 固定图身份键；原 ID 相等比较因按 ID 查询恒成立，属死代码）——补两条身份键漂移 fail-fast，删除死代码分支。
+2. **P1 SERVICE/API 资源停用漏检**：固定 SERVICE/API 资源仅按存在性参与完整判定，未校验 `status=1`（上一轮只补了 USER/ROLE 投影）——补 SERVICE/API 停用 fail-fast，与投影状态校验对齐。
+3. **P2 ArchUnit 防扩散范围过宽**：`..permission.service.domain..` 整包放行使领域内任意 DomainService 可依赖 BootstrapSeedWriter——收紧为仅 `..permission.service.domain.impl..`（实现落位包）。
+4. **P2 默认关闭无装配验证**：补 ApplicationContextRunner 用例（enabled 缺省 → Runner 不装配；enabled=true → 装配），注解删除/属性名漂移即报警。
+5. **P2 缺单事务回滚注入**（project-rules §测试适用性覆盖"一条事务故障注入"）：PgIT Order(0) 以 `@SpyBean` 在创建链最后一步 `insertGrants` 注入故障，断言全部固定图表零残留。
+6. **P2 compose 边界**：三服务端口改绑 `127.0.0.1`（不暴露外部接口）；Redis 密码改 `${REDIS_PASSWORD:-accessmesh-dev}` 同源插值（command/healthcheck），"生产可覆盖"注释名实相符。PG trust 认证维持既有用户决策（2026-08-24 实施决策①），回环绑定后不对外暴露。
+
+PgIT 扩至 14 用例（+回滚注入、+身份漂移 user_type/external_id、+API/SERVICE 资源停用）。
+
 ### 验收证据（WSL2 Docker 真实链路，2026-08-24）
 
 - **一键基础设施**：`docker compose up -d`（WSL2 docker-desktop）→ postgresql/redis/nacos 三容器 healthy。
@@ -90,7 +103,7 @@ last_updated: 2026-08-24
 - **bootstrap 创建**：启动日志 `Bootstrap graph created: tenant=1, adminSubjectId=1, roleId=1, apiResources=13, mappings=12, grants=20`。
 - **首管理员登录**：`POST /auth/captcha` → Redis 读码 → `POST /auth/login`（tenantId=1/admin/环境变量密码/admin-web）→ `code=200`、accessToken 签发、`forceResetPwd=false`。
 - **重启幂等 no-op**：重启后日志 `Bootstrap graph already present and matching — no-op (password untouched)`；`sys_user=1/abstract_role=1/grants=20` 无重复建号。
-- **容器测试**：`AccessBootstrapPgIT` 11 用例真实 Testcontainers 执行全部通过（含三状态与边界用例）；单测 85 全绿（含 ArchUnit 防扩散规则）。
+- **容器测试**：`AccessBootstrapPgIT` 14 用例真实 Testcontainers 执行全部通过（含事务回滚注入、三状态与边界用例）；单测全绿（含 ArchUnit 防扩散规则与 Runner 装配语义）。
 
 ### 遗留登记
 

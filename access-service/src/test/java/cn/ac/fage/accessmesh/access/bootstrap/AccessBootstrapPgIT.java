@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.auth.LoginResp;
 import cn.ac.fage.accessmesh.access.admin.service.AuthService;
 import cn.ac.fage.accessmesh.access.application.bootstrap.AccessBootstrapInitializer;
 import cn.ac.fage.accessmesh.access.application.bootstrap.BootstrapGraphDefinition;
+import cn.ac.fage.accessmesh.access.permission.service.domain.BootstrapSeedWriter;
 import cn.dev33.satoken.secure.BCrypt;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.SpyBean;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -34,15 +36,20 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.reset;
 
 /**
  * 空库 bootstrap 幂等三状态验收（T-ACCESS-020，真实 PostgreSQL + Redis，Testcontainers；
  * architecture §14.2/§14.3）。
  * <p>
- * 固定顺序执行：状态①单事务创建固定图 → 首管理员真实登录（验证码经 Redis）→ 状态②整体
- * no-op（预改密码哈希后重跑，绝不重置）→ 状态③三类冲突 fail-fast（绑定缺失 / 授权缺失 /
- * 固定业务键被其他角色类型占用）→ 类型种子缺失显式报错。Runner 装配与密码 fail-fast 由
- * {@code AccessBootstrapRunnerTest} 单测覆盖；本 IT 以 enabled=false 上下文手动调
+ * 固定顺序执行：状态①单事务创建固定图（前置：写入链最后一步注入故障证明整体回滚）→ 首管理员
+ * 真实登录（验证码经 Redis）→ 状态②整体 no-op（预改密码哈希后重跑，绝不重置）→ 状态③冲突
+ * fail-fast（绑定缺失 / 授权缺失 / 映射 serviceCode / ROLE 投影 / 主体禁用 / 主体身份漂移 /
+ * API·SERVICE 资源停用 / 固定业务键被其他角色类型占用）→ 类型种子缺失显式报错。Runner 装配与
+ * 密码 fail-fast 由 {@code AccessBootstrapRunnerTest} 单测覆盖；本 IT 以 enabled=false 上下文手动调
  * initializer（同一 Spring 代理，事务与 @PermissionChange 语义一致）。
  * </p>
  */
@@ -110,6 +117,28 @@ class AccessBootstrapPgIT {
     private StringRedisTemplate stringRedisTemplate;
     @Autowired
     private JdbcTemplate jdbc;
+
+    /** 写入组件 spy：仅回滚用例对最后一步 insertGrants 注入故障，其余用例真实执行（用毕 reset）。 */
+    @SpyBean
+    private BootstrapSeedWriter seedWriter;
+
+    @Test
+    @Order(0)
+    @DisplayName("事务性：创建链最后一步注入故障 → 单事务整体回滚，全部固定图表无残留")
+    void midCreationFailureRollsBackEntireGraph() {
+        doThrow(new IllegalStateException("injected: insertGrants failure"))
+            .when(seedWriter).insertGrants(anyLong(), anyLong(), any());
+        try {
+            assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("injected: insertGrants failure");
+
+            snapshotRowCounts().forEach((table, count) -> assertThat(count)
+                .as("回滚后 %s 应无残留行", table).isZero());
+        } finally {
+            reset(seedWriter);
+        }
+    }
 
     @Test
     @Order(1)
@@ -307,6 +336,47 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(9)
+    @DisplayName("状态③：admin 主体身份漂移（user_type / external_id 背离固定图身份键）→ fail-fast")
+    void subjectIdentityDriftFailsFast() {
+        jdbc.update("UPDATE abstract_user SET user_type = user_type + 1 WHERE tenant_id = ? "
+                + "AND id = (SELECT id FROM sys_user WHERE tenant_id = ? AND username = ?)",
+            TENANT, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);
+        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("abstract_user.user_type");
+
+        // 还原 user_type、漂移 external_id：两条身份键独立报告
+        jdbc.update("UPDATE abstract_user SET user_type = user_type - 1, external_id = 'drifted' "
+                + "WHERE tenant_id = ? AND id = (SELECT id FROM sys_user WHERE tenant_id = ? AND username = ?)",
+            TENANT, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);
+        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("abstract_user.external_id");
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("状态③：API / SERVICE 资源停用（status=0）→ fail-fast 报资源停用")
+    void disabledApiOrServiceResourceFailsFast() {
+        jdbc.update("UPDATE resource_entity SET status = 0 WHERE tenant_id = ? "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
+                + "AND code = 'POST:/admin/user/create'",
+            TENANT);
+        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("API 资源已停用");
+
+        jdbc.update("UPDATE resource_entity SET status = 0 WHERE tenant_id = ? "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'SERVICE') "
+                + "AND code = 'access-service'",
+            TENANT);
+        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("SERVICE 资源 'access-service' 已停用");
+    }
+
+    @Test
+    @Order(11)
     @DisplayName("状态③：固定业务键被其他角色类型占用 → fail-fast 报告占用")
     void occupiedBusinessKeyFailsFast() {
         jdbc.update("UPDATE abstract_role SET role_type = 1 WHERE tenant_id = ? AND external_id = ?",
@@ -318,7 +388,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(10)
+    @Order(12)
     @DisplayName("状态③：仅 SERVICE 资源残留（其余固定图清空）→ 报\"固定图部分存在\"而非撞唯一约束")
     void partialGraphReportsConflictInsteadOfConstraintViolation() {
         Long adminSubjectId = jdbc.queryForObject(
@@ -351,7 +421,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(11)
+    @Order(13)
     @DisplayName("类型种子缺失（DDL 未完整执行）→ 显式 fail-fast 指向权威 DDL")
     void missingTypeSeedFailsFastWithDdlHint() {
         jdbc.update("DELETE FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' "
