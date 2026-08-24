@@ -76,4 +76,19 @@ class AccessServiceArchitectureTest {
             .resideInAPackage("..admin..")
             .check(classes);
     }
+
+    @Test
+    @DisplayName("BootstrapSeedWriter 仅允许 bootstrap 编排与所属领域包依赖（无操作者写入入口防扩散）")
+    void bootstrapSeedWriterIsBootstrapOnly() {
+        noClasses()
+            .that().resideOutsideOfPackage("..application.bootstrap..")
+            .and().resideOutsideOfPackage("..permission.service.domain..")
+            .and().resideOutsideOfPackage("..architecture..")
+            .should().dependOnClassesThat()
+            .haveNameMatching(".*BootstrapSeedWriter(Impl)?")
+            .because("BootstrapSeedWriter 是包内可见、bootstrap 专用的无操作者写入组件"
+                + "（T-ACCESS-020，architecture §14.2）——除 bootstrap initializer 与所属领域包外"
+                + "任何代码不得依赖，防止绕过操作者权限校验的写入扩散")
+            .check(classes);
+    }
 }

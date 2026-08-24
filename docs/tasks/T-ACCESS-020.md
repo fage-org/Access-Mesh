@@ -60,7 +60,7 @@ last_updated: 2026-08-24
   - `AccessBootstrapInitializer`（`@Transactional + @PermissionChange` 单事务；三状态检测 + 固定图创建；类型值经 TypeResolutionService 解析、操作位从 operation_permission 读取，零硬编码数值）；
   - `BootstrapGraphDefinition`（固定图唯一定义源：13 API 清单 + 20 条授权 = 13 实例级 API:ACCESS + §14.4 的 7 条业务门禁）；
   - `BootstrapSeedWriter`（接口，`permission.service.domain`）+ `BootstrapSeedWriterImpl`（**包内可见实现**，非 public 类）：user_role 绑定、resource_entity(SERVICE/API)、resource_api_mapping 写入与授权落库（复用 `PermissionGrantPlanDomainService.apply(PreparedGrantPlan)` 纯写入管线 + `validateSingleManualGrants`/`validateGrantAttributes` 校验）——未给通用授权服务新增无操作者公开入口。
-- **测试**：`AccessBootstrapRunnerTest`（密码 fail-fast/委托/上下文清理，2 用例）；`AccessBootstrapPgIT`（Testcontainers PG16+Redis7，7 用例：状态①全图断言+BCrypt 校验、真实登录（验证码经 Redis、clientId=admin-web）、状态② no-op 绝不重置密码+行数快照、状态③绑定缺失/授权缺失/业务键被其他角色类型占用 fail-fast、类型种子缺失显式报错）。
+- **测试**：`AccessBootstrapRunnerTest`（密码 fail-fast/委托/上下文清理，2 用例）；`AccessBootstrapPgIT`（Testcontainers PG16+Redis7，11 用例：状态①全图断言+BCrypt 校验、真实登录（验证码经 Redis、clientId=admin-web）、状态② no-op 绝不重置密码+行数快照、状态③绑定缺失/授权缺失/映射 serviceCode 不匹配/ROLE 投影缺失/主体禁用/业务键被其他角色类型占用/SERVICE-only 部分图 fail-fast、类型种子缺失显式报错）。
 - **文档回写**：README 快速开始（compose 命令/DDL 首启说明/bootstrap 启用方式/启动顺序）、runbook（临时验证 fixture 节整体删除、前置条件与重建步骤改 bootstrap 口径、章节重排）、architecture §14.7 实施终态。
 
 ### 设计决策（2026-08-24 用户确认）
@@ -70,7 +70,28 @@ last_updated: 2026-08-24
 3. **首管理员 `force_reset_pwd=false`**：密码经环境变量自设非随机分发，与 runbook 旧 fixture 口径一致，不挡 E2E/前端登录链。
 4. **compose 仅初始化 access_db**：example-service 演示库不在链路，README 保持单独执行说明。
 
+### 评审收口（2026-08-24，codex gpt-5.6-sol xhigh 评审后修复）
+
+外部模型评审发现 4 项检测语义缺陷 + 1 项防扩散缺口，核实后全部修复：
+
+1. **状态②匹配强度不足**：检测补 `abstract_user.enabled`（禁用主体引擎有效角色置空，no-op 判定必须视为冲突）、USER/ROLE 资源投影 `status=1`、管理角色 `resource_entity(ROLE)` 投影存在性校验（此前创建有写、检测没查）。
+2. **映射匹配键缺 `service_code`**：`mappingKey` 补齐为 `serviceCode|resourceId|METHOD|path`（与唯一索引同构；Gateway 快照按 serviceCode 过滤，其他服务的同路径映射不能冒充）。
+3. **授权匹配键缺可变属性**：`GrantKey` 补 `conditionId`/`dependOn`/`grantSource`（条件授权或 AUTO_DEP 派生行不得冒充无条件 MANUAL 直接授权）；绑定检测补 `relation_id=null` 直绑校验（组角色 relation 绑定不算固定图直绑）。
+4. **部分存在误入状态①**：任一固定图对象存在而其余缺失时报告"固定图部分存在"冲突（此前会走创建链撞唯一约束，报不可诊断的数据库异常）。
+5. **BootstrapSeedWriter 防扩散（用户决策）**：ArchUnit 新增守护规则——`BootstrapSeedWriter(Impl)` 仅允许 `application.bootstrap` 与所属领域包依赖，违反即架构测试失败（public 接口无法 package-private 的补偿强制）。
+6. 风格：业务门禁操作码改用 `OperationCodeConstants` 常量、删除未用常量；PgIT 补 4 个边界用例（映射 serviceCode 不匹配/ROLE 投影缺失/主体禁用/SERVICE-only 部分图），共 11 用例。
+
+评审附带发现并修复（用户决策）的**既有配置缺陷**：Redisson 对空串密码也发 AUTH，无密码 Redis 无法连接——compose redis 固定开发密码 `accessmesh-dev`，access-service/gateway/example-service 的 `REDIS_PASSWORD` 占位符默认值同步统一，一键链路零参数可用。
+
+### 验收证据（WSL2 Docker 真实链路，2026-08-24）
+
+- **一键基础设施**：`docker compose up -d`（WSL2 docker-desktop）→ postgresql/redis/nacos 三容器 healthy。
+- **DDL 首启自动执行**：`information_schema.tables=33`、`type_definition=31`、`operation_permission=117`，与权威 DDL 一致。
+- **bootstrap 创建**：启动日志 `Bootstrap graph created: tenant=1, adminSubjectId=1, roleId=1, apiResources=13, mappings=12, grants=20`。
+- **首管理员登录**：`POST /auth/captcha` → Redis 读码 → `POST /auth/login`（tenantId=1/admin/环境变量密码/admin-web）→ `code=200`、accessToken 签发、`forceResetPwd=false`。
+- **重启幂等 no-op**：重启后日志 `Bootstrap graph already present and matching — no-op (password untouched)`；`sys_user=1/abstract_role=1/grants=20` 无重复建号。
+- **容器测试**：`AccessBootstrapPgIT` 11 用例真实 Testcontainers 执行全部通过（含三状态与边界用例）；单测 85 全绿（含 ArchUnit 防扩散规则）。
+
 ### 遗留登记
 
-- **外部 Docker 主机一键链路验证**（验收最后一条）：开发机无 Docker，`compose up → DDL 自动执行 → access-service(bootstrap enabled) → captcha+login 登录成功` 的完整链路未真实执行；`AccessBootstrapPgIT`（disabledWithoutDocker）随 CI/外部 Docker 环境运行时可同时补跑该链路（PgIT 已覆盖等价的检测/创建/登录语义），证据待登记。
 - E2E 目标用户、普通 BASIC_ROLE、目标 API 映射与授权/撤权 30 秒时效验证归 T-ACCESS-021。

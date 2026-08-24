@@ -25,7 +25,8 @@ spring:
     redis:
       host: 127.0.0.1
       port: 6379
-      password: ${REDIS_PASSWORD:}
+      # 默认与 docker-compose.yml 的开发密码一致（Redisson 对空串密码也发 AUTH，无密码 Redis 连不上）
+      password: ${REDIS_PASSWORD:accessmesh-dev}
       database: 0
   # 第三轮评审 P3 修复（2026-08-14）：spring.jackson.* 配置块已删除——date-time-format 非 Boot
   # 有效键（JacksonProperties 仅暴露 date-format），且全局 ObjectMapper 由 common cacheObjectMapper

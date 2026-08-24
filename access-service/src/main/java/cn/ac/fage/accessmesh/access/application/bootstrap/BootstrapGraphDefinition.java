@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.application.bootstrap;
 
+import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 
 import java.util.List;
@@ -39,10 +40,11 @@ public final class BootstrapGraphDefinition {
     public static final String SERVICE_RESOURCE_CODE = "access-service";
     public static final String SERVICE_RESOURCE_NAME = "access-service";
 
-    /** resource_api_mapping.service_code 与 resource_entity.owner_service_code */
+    /**
+     * resource_api_mapping.service_code（Gateway 路由 metadata 同值，快照查询按此过滤）与
+     * resource_entity.owner_service_code。
+     */
     public static final String API_SERVICE_CODE = "access-service";
-
-    public static final String DEFAULT_CODE_TYPE = "default";
 
     /**
      * bootstrap 管理 API 清单条目。
@@ -93,17 +95,20 @@ public final class BootstrapGraphDefinition {
      */
     public static List<GrantSpec> businessGrants() {
         return List.of(
-            new GrantSpec(ResourceTypeCode.USER, "CREATE", null, false),
-            new GrantSpec(ResourceTypeCode.ROLE, "CREATE", null, false),
-            new GrantSpec(ResourceTypeCode.ROLE, "MANAGE", null, false),
-            new GrantSpec(ResourceTypeCode.SERVICE, "MANAGE_API_MAPPING", SERVICE_RESOURCE_CODE, false),
-            new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, "VIEW", null, false),
-            new GrantSpec(ResourceTypeCode.RESOURCE, "VIEW", null, false),
-            new GrantSpec(ResourceTypeCode.OPERATION, "VIEW", null, false));
+            new GrantSpec(ResourceTypeCode.USER, OperationCodeConstants.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.ROLE, OperationCodeConstants.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.ROLE, OperationCodeConstants.MANAGE, null, false),
+            new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.MANAGE_API_MAPPING,
+                SERVICE_RESOURCE_CODE, false),
+            new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.VIEW, null, false));
     }
 
     /**
      * Gateway 层实例级 API:ACCESS 授权（由管理 API 清单派生，13 项）。
+     * ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子），OperationCodeConstants
+     * 未收录该码，此处按契约字符串声明。
      */
     public static List<GrantSpec> apiAccessGrants() {
         return apiRoutes().stream()

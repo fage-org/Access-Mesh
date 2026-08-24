@@ -52,18 +52,19 @@ Gateway (8080)
 
 ## 快速开始（开发中）
 
-- **基础设施**：一键编排根目录 `docker-compose.yml`（PostgreSQL 16 / Redis 7 / Nacos standalone，开发期 trust 认证，与各服务默认配置零参数对接）：
+- **基础设施**：一键编排根目录 `docker-compose.yml`（PostgreSQL 16 / Redis 7（固定开发密码 `accessmesh-dev`，与各服务 `REDIS_PASSWORD` 默认值一致）/ Nacos standalone，开发期 trust 认证，与各服务默认配置零参数对接）：
 
   ```bash
   docker compose up -d
   ```
 
 - **数据库**：PostgreSQL 容器**首次启动（空数据卷）自动执行**唯一权威 DDL `docs/design/schema/access-service.sql`（建库 `access_db` + 租户 1 类型种子）；重复 `up` 不会重复执行。DDL 变更后的重建（DROP SCHEMA + 手动 psql）见 [rebuild runbook](docs/design/access-service-rebuild-runbook.md)。example 库用 `docs/design/schema/example-service.sql`（不在 compose 初始化范围，需单独执行）。
-- **首管理员**：access-service 内置幂等 bootstrap（`access.bootstrap.enabled`，默认关闭；仅单实例启用）。启用后空库自动创建 `admin` 首管理员 + 管理用功能角色并按 bootstrap 管理 API 清单最小授权；密码经环境变量注入、BCrypt 哈希落库，重复启动 no-op 不重置密码：
+- **首管理员**：access-service 内置幂等 bootstrap（`access.bootstrap.enabled`，默认关闭；仅单实例启用）。启用后空库自动创建 `admin` 首管理员 + 管理用功能角色并按 bootstrap 管理 API 清单最小授权；密码经环境变量注入、BCrypt 哈希落库，重复启动 no-op 不重置密码（三个密钥环境变量为服务启动必填，缺一 fail-fast）：
 
   ```bash
   ACCESS_BOOTSTRAP_ENABLED=true ACCESS_BOOTSTRAP_ADMIN_PASSWORD=<你的密码> \
-    JWT_SECRET_KEY=<密钥> mvn spring-boot:run -pl access-service
+    JWT_SECRET_KEY=<密钥> ACCESSMESH_SIGNATURE_SECRET=<签名密钥> PERM_INTERNAL_SECRET=<内部密钥> \
+    mvn spring-boot:run -pl access-service
   ```
 
 - **启动顺序**：基础设施 → access-service (9100) → Gateway (8080) → 前端（`frontend/`，开发模式 `npm run dev`）。

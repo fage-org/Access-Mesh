@@ -69,7 +69,8 @@ spring:
     redis:
       host: ${REDIS_HOST:127.0.0.1}
       port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
+      # 默认与 docker-compose.yml 的开发密码一致（Redisson 对空串密码也发 AUTH）
+      password: ${REDIS_PASSWORD:accessmesh-dev}
       database: 0
       timeout: 3000
 

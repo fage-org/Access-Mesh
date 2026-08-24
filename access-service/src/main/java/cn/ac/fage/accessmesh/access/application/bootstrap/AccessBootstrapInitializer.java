@@ -4,8 +4,8 @@ import cn.ac.fage.accessmesh.access.admin.entity.SysUser;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
-import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
+import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
@@ -133,17 +133,23 @@ public class AccessBootstrapInitializer {
             if (admin.getStatus() == null || admin.getStatus() != 1) {
                 conflicts.add("sys_user 'admin' 存在但已停用 (status=" + admin.getStatus() + ")");
             }
-            Long subjectProjection = typeResolutionService.resolveUserId(
-                tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(adminSubjectId));
-            if (subjectProjection == null) {
+            // 禁用主体引擎侧有效角色置空（T-ACCESS-019 DDL 语义）——no-op 判定必须将其视为冲突
+            AbstractUser subject = subjectDomainService.selectValidUserById(tenantId, adminSubjectId);
+            if (subject == null) {
                 conflicts.add("sys_user 'admin' 存在但 abstract_user(LOCAL_USER) 主体缺失（主体链断裂）");
-            } else if (!subjectProjection.equals(adminSubjectId)) {
+            } else if (!subject.getId().equals(adminSubjectId)) {
                 conflicts.add("admin 主体链 ID 不一致: sys_user.id=" + adminSubjectId
-                    + ", abstract_user.id=" + subjectProjection);
+                    + ", abstract_user.id=" + subject.getId());
+            } else if (!Boolean.TRUE.equals(subject.getEnabled())) {
+                conflicts.add("admin 主体 (abstract_user) 已禁用——禁用主体有效角色置空，权限不可用");
             }
-            if (seedWriter.findResources(tenantId, resourceTypes.get(ResourceTypeCode.USER),
-                    Set.of(String.valueOf(adminSubjectId))).isEmpty()) {
+            List<ResourceEntity> userResources = seedWriter.findResources(
+                tenantId, resourceTypes.get(ResourceTypeCode.USER), Set.of(String.valueOf(adminSubjectId)));
+            if (userResources.isEmpty()) {
                 conflicts.add("sys_user 'admin' 存在但 resource_entity(USER) 投影缺失");
+            } else if (userResources.get(0).getStatus() == null || userResources.get(0).getStatus() != 1) {
+                conflicts.add("admin 的 resource_entity(USER) 投影已停用 (status="
+                    + userResources.get(0).getStatus() + ")");
             }
         }
 
@@ -162,15 +168,24 @@ public class AccessBootstrapInitializer {
             if (role.getStatus() == null || role.getStatus() != 1) {
                 conflicts.add("bootstrap 管理角色已停用 (status=" + role.getStatus() + ")，其授权不会生效");
             }
+            // ROLE 资源投影（upsertRoleResource 同事务产物）：缺失/停用会破坏角色树与授权页链路
+            List<ResourceEntity> roleResources = seedWriter.findResources(
+                tenantId, resourceTypes.get(ResourceTypeCode.ROLE), Set.of(String.valueOf(roleId)));
+            if (roleResources.isEmpty()) {
+                conflicts.add("bootstrap 管理角色的 resource_entity(ROLE) 投影缺失");
+            } else if (roleResources.get(0).getStatus() == null || roleResources.get(0).getStatus() != 1) {
+                conflicts.add("bootstrap 管理角色的 resource_entity(ROLE) 投影已停用 (status="
+                    + roleResources.get(0).getStatus() + ")");
+            }
         }
 
-        // —— 绑定（双方齐全才可比；单边存在即部分存在冲突） ——
+        // —— 绑定（双方齐全才可比；relation_id 必须为 null——组角色关联等 relation 绑定不算固定图直绑） ——
         if (adminPresent && rolePresent) {
-            if (seedWriter.findValidBindings(tenantId, adminSubjectId, roleId).isEmpty()) {
-                conflicts.add("首管理员与 bootstrap 管理角色的 user_role 绑定缺失（关联缺失）");
+            boolean directBindingExists = seedWriter.findValidBindings(tenantId, adminSubjectId, roleId).stream()
+                .anyMatch(binding -> binding.getRelationId() == null);
+            if (!directBindingExists) {
+                conflicts.add("首管理员与 bootstrap 管理角色的 user_role 直绑缺失（关联缺失或仅存 relation 绑定）");
             }
-        } else if (adminPresent != rolePresent) {
-            conflicts.add("固定图部分存在: admin=" + adminPresent + ", 管理角色=" + rolePresent);
         }
 
         // —— SERVICE 资源 ——
@@ -207,20 +222,20 @@ public class AccessBootstrapInitializer {
                 .collect(Collectors.toSet());
             Set<String> mappedKeys = seedWriter.findMappings(tenantId, mappedResourceIds).stream()
                 .filter(mapping -> Boolean.TRUE.equals(mapping.getEnabled()))
-                .map(mapping -> mappingKey(
+                .map(mapping -> mappingKey(mapping.getServiceCode(),
                     mapping.getResourceEntityId(), mapping.getHttpMethod(), mapping.getPathPattern()))
                 .collect(Collectors.toSet());
             List<String> missingMappings = mappedRoutes.stream()
                 .filter(route -> apiResourceIds.containsKey(
                     BootstrapGraphDefinition.apiResourceCode(route.method(), route.path())))
-                .filter(route -> !mappedKeys.contains(
-                    mappingKey(apiResourceIds.get(
-                        BootstrapGraphDefinition.apiResourceCode(route.method(), route.path())),
-                        route.method(), route.path())))
+                .filter(route -> !mappedKeys.contains(mappingKey(BootstrapGraphDefinition.API_SERVICE_CODE,
+                    apiResourceIds.get(BootstrapGraphDefinition.apiResourceCode(route.method(), route.path())),
+                    route.method(), route.path())))
                 .map(route -> route.method() + " " + route.path())
                 .toList();
             if (!missingMappings.isEmpty()) {
-                conflicts.add("API 映射缺失或未启用: " + missingMappings);
+                conflicts.add("API 映射缺失或未启用（serviceCode=" + BootstrapGraphDefinition.API_SERVICE_CODE
+                    + "）: " + missingMappings);
             }
         }
 
@@ -241,12 +256,24 @@ public class AccessBootstrapInitializer {
         }
 
         boolean apiResourcesComplete = apiResourceIds.size() == expectedApiCodes.size();
-        return adminPresent && rolePresent && serviceResourcePresent && apiResourcesComplete;
+        boolean complete = adminPresent && rolePresent && serviceResourcePresent && apiResourcesComplete;
+        if (!complete) {
+            // 状态③而非①：任一固定图对象已存在而其余缺失时按"部分存在"报告，
+            // 避免走创建链撞唯一约束（报不可诊断的数据库异常）
+            boolean anyPresent = adminPresent || rolePresent || serviceResourcePresent || !apiResourceIds.isEmpty();
+            if (anyPresent) {
+                conflicts.add("固定图部分存在: admin=" + adminPresent + ", 管理角色=" + rolePresent
+                    + ", SERVICE资源=" + serviceResourcePresent
+                    + ", API资源=" + apiResourceIds.size() + "/" + expectedApiCodes.size());
+            }
+        }
+        return complete;
     }
 
-    /** 映射存在键：resourceId|METHOD|path（与 resource_api_mapping 唯一索引同构）。 */
-    private static String mappingKey(Long resourceEntityId, String httpMethod, String pathPattern) {
-        return resourceEntityId + "|" + httpMethod.toUpperCase() + "|" + pathPattern;
+    /** 映射存在键：serviceCode|resourceId|METHOD|path（与 resource_api_mapping 唯一索引同构——Gateway 快照按 serviceCode 过滤）。 */
+    private static String mappingKey(String serviceCode, Long resourceEntityId,
+                                     String httpMethod, String pathPattern) {
+        return serviceCode + "|" + resourceEntityId + "|" + httpMethod.toUpperCase() + "|" + pathPattern;
     }
 
     // ===== 状态①：单事务创建固定图 =====
@@ -364,12 +391,18 @@ public class AccessBootstrapInitializer {
         return grants;
     }
 
-    /** 授权匹配键：范围/资源 + 类型 + 操作位 + 转授位（canGrant 参与匹配——目标 API 授权传递链依赖）。 */
+    /**
+     * 授权匹配键：范围/资源 + 类型 + 操作位 + 转授位 + 完整可变属性（canGrant 参与匹配——目标 API
+     * 授权传递链依赖；conditionId/dependOn/grantSource 参与匹配——条件授权或依赖派生（AUTO_DEP）
+     * 行不能冒充固定图要求的无条件 MANUAL 直接授权，否则生命周期不再由固定图控制）。
+     */
     private record GrantKey(Long resourceEntityId, Integer resourceType, Long grantedBits,
-                            boolean scopeAll, boolean canGrant) {
+                            boolean scopeAll, boolean canGrant, Long conditionId, Long dependOn,
+                            String grantSource) {
         static GrantKey of(RoleResourcePermission p) {
             return new GrantKey(p.getResourceEntityId(), p.getResourceType(), p.getGrantedBits(),
-                Boolean.TRUE.equals(p.getScopeAll()), Boolean.TRUE.equals(p.getCanGrant()));
+                Boolean.TRUE.equals(p.getScopeAll()), Boolean.TRUE.equals(p.getCanGrant()),
+                p.getConditionId(), p.getDependOn(), p.getGrantSource());
         }
     }
 

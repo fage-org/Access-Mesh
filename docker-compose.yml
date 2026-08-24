@@ -32,15 +32,18 @@ services:
       timeout: 3s
       retries: 12
 
+  # 固定开发密码 accessmesh-dev（与 access-service/gateway 的 REDIS_PASSWORD 占位符默认值一致，
+  # 一键链路零参数；Redisson 对空串密码也发 AUTH，无密码 Redis 反而连不上；生产用环境变量覆盖）
   redis:
     image: redis:7-alpine
     container_name: accessmesh-redis
+    command: redis-server --requirepass accessmesh-dev
     ports:
       - "6379:6379"
     volumes:
       - accessmesh-redisdata:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "accessmesh-dev", "ping"]
       interval: 5s
       timeout: 3s
       retries: 12

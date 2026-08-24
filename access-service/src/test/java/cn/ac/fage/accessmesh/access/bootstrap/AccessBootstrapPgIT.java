@@ -249,7 +249,7 @@ class AccessBootstrapPgIT {
 
         assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("user_role 绑定缺失");
+            .hasMessageContaining("user_role 直绑缺失");
     }
 
     @Test
@@ -268,6 +268,45 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(6)
+    @DisplayName("状态③：映射 serviceCode 不匹配（其他服务的同路径映射不能冒充）→ fail-fast 报映射缺失")
+    void wrongServiceCodeMappingFailsFast() {
+        jdbc.update("UPDATE resource_api_mapping SET service_code = 'example-service' WHERE tenant_id = ? "
+            + "AND service_code = 'access-service'", TENANT);
+
+        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("API 映射缺失或未启用");
+    }
+
+    @Test
+    @Order(7)
+    @DisplayName("状态③：管理角色 ROLE 资源投影缺失 → fail-fast 报投影缺失")
+    void missingRoleProjectionFailsFast() {
+        jdbc.update("UPDATE resource_entity SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'ROLE') "
+                + "AND code = (SELECT id::text FROM abstract_role WHERE tenant_id = ? AND external_id = ?)",
+            TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
+
+        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("resource_entity(ROLE) 投影缺失");
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("状态③：admin 主体被禁用（引擎有效角色置空）→ fail-fast 报主体禁用")
+    void disabledAdminSubjectFailsFast() {
+        jdbc.update("UPDATE abstract_user SET enabled = false WHERE tenant_id = ? "
+                + "AND id = (SELECT id FROM sys_user WHERE tenant_id = ? AND username = ?)",
+            TENANT, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);
+
+        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("已禁用");
+    }
+
+    @Test
+    @Order(9)
     @DisplayName("状态③：固定业务键被其他角色类型占用 → fail-fast 报告占用")
     void occupiedBusinessKeyFailsFast() {
         jdbc.update("UPDATE abstract_role SET role_type = 1 WHERE tenant_id = ? AND external_id = ?",
@@ -279,7 +318,40 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(7)
+    @Order(10)
+    @DisplayName("状态③：仅 SERVICE 资源残留（其余固定图清空）→ 报\"固定图部分存在\"而非撞唯一约束")
+    void partialGraphReportsConflictInsteadOfConstraintViolation() {
+        Long adminSubjectId = jdbc.queryForObject(
+            "SELECT id FROM sys_user WHERE tenant_id = ? AND username = ?",
+            Long.class, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);
+
+        // 软删固定图全部对象，仅保留 SERVICE 资源
+        jdbc.update("UPDATE role_resource_permission SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
+            + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?)",
+            TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
+        jdbc.update("UPDATE resource_api_mapping SET delete_flag = id, deleted_at = now() WHERE tenant_id = ?", TENANT);
+        jdbc.update("UPDATE resource_entity SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API')",
+            TENANT);
+        jdbc.update("UPDATE resource_entity SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'USER') "
+                + "AND code = ?",
+            TENANT, String.valueOf(adminSubjectId));
+        jdbc.update("UPDATE abstract_role SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? AND external_id = ?",
+            TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
+        jdbc.update("UPDATE abstract_user SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? AND id = ?",
+            TENANT, adminSubjectId);
+        jdbc.update("UPDATE sys_user SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? AND username = ?",
+            TENANT, BootstrapGraphDefinition.ADMIN_USERNAME);
+
+        assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("固定图部分存在")
+            .hasMessageContaining("SERVICE资源=true");
+    }
+
+    @Test
+    @Order(11)
     @DisplayName("类型种子缺失（DDL 未完整执行）→ 显式 fail-fast 指向权威 DDL")
     void missingTypeSeedFailsFastWithDdlHint() {
         jdbc.update("DELETE FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' "
