@@ -542,7 +542,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         mapping.setServiceCode(req.serviceCode());
         mapping.setHttpMethod(req.httpMethod());
         mapping.setPathPattern(req.pathPattern());
-        mapping.setMatchOrder(req.matchOrder());
+        // 契约可选字段缺省 0（与 DDL match_order DEFAULT 0 对齐；显式 null 会绕过列默认直写违例）
+        mapping.setMatchOrder(req.matchOrder() != null ? req.matchOrder() : 0);
         mapping.setEnabled(req.enabled() != null ? req.enabled() : true);
         mapping.setExtra(req.extra());
         LocalDateTime now = LocalDateTime.now();

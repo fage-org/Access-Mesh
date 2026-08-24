@@ -104,9 +104,13 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         }
 
         // T-ORG-001（architecture §12.2）：预取主体 ID N → 显式同 ID 写 abstract_user(external_id=N)
-        // 与 sys_user(id=N)，两表共用 abstract_user.id 序列，与外部主体取号互不碰撞
+        // 与 sys_user(id=N)，两表共用 abstract_user.id 序列，与外部主体取号互不碰撞。
+        // status 缺省解析一次、两侧同源（T-ACCESS-021 E2E 发现的缺陷修复：此前 sys_user 侧
+        // 默认 1=启用而 isEnabled(null)=false，未传 status 时建成「启用+禁用」自相矛盾的主体，
+        // 权限管线按禁用主体解析 → 快照恒空 → 全接口 403）。语义以 DDL 为准：1=启用，0=停用。
+        Integer status = req.status() != null ? req.status() : 1;
         Long subjectId = localProjectionDomainService.createLocalUserSubject(
-            tenantId, req.name(), isEnabled(req.status()), extraUsername(req.username()));
+            tenantId, req.name(), isEnabled(status), extraUsername(req.username()));
 
         SysUser user = new SysUser();
         user.setId(subjectId);
@@ -117,7 +121,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         user.setEmail(req.email());
         String initialPassword = generateRandomPassword();
         user.setPassword(BCrypt.hashpw(initialPassword));
-        user.setStatus(req.status() != null ? req.status() : 1);
+        user.setStatus(status);
         // UserCreateReq 无 gender/user_type/force_reset_pwd 字段，显式 NULL 插入会绕过列默认值
         // 触发 NOT NULL 约束（DDL：gender 0=未知，user_type 1=人员，force_reset_pwd 随机初始密码须强制改密）
         user.setGender(0);

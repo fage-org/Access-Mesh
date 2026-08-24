@@ -14,7 +14,7 @@ import jakarta.validation.constraints.NotBlank;
  * @param name        姓名（必填，显示名称）
  * @param phone       手机号（可选）
  * @param email       邮箱（可选）
- * @param status      状态（可选，默认0=正常）
+ * @param status      状态（可选，默认 1=启用；1=启用，0=停用——与 DDL sys_user.status 语义一致）
  * @param orgId       所属组织ID（可选，创建时一步完成组织分配）
  * @param primaryOrg  是否设为主组织（可选，orgId存在时默认true）
  */
@@ -42,7 +42,7 @@ public record UserCreateReq(
     String email,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（1=启用，0=停用；与 DDL sys_user.status 一致，缺省 1）
      */
     Integer status,
 

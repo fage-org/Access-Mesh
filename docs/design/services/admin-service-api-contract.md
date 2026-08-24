@@ -152,7 +152,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `name` | `String` | 否 | 模糊匹配 |
 | `phone` | `String` | 否 | 模糊匹配 |
 | `email` | `String` | 否 | 模糊匹配 |
-| `status` | `Integer` | 否 | 0=正常, 1=禁用 |
+| `status` | `Integer` | 否 | 1=启用, 0=停用（与 DDL `sys_user.status` 一致） |
 | `orgId` | `Long` | 否 | 选中组织/岗位 ID; 不传时返回操作者在默认树内可见的全部用户; 传时仅返回直接挂在该组织 (含子树, 视实现决策) 的成员 |
 
 **响应 DTO**: `PaginatedResult<UserPageItemResp>`, `items[]` 字段:
@@ -166,7 +166,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `name` | `String` | 显示名 |
 | `phone` | `String` | |
 | `email` | `String` | |
-| `status` | `Integer` | 0=正常, 1=禁用 |
+| `status` | `Integer` | 1=启用, 0=停用（与 DDL `sys_user.status` 一致） |
 | `orgs` | `List<OrgBrief>` | 用户所属组织简表 |
 | `createdAt` | `LocalDateTime` | |
 
@@ -247,7 +247,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `name` | `String` | 是 | 显示名 |
 | `phone` | `String` | 否 | |
 | `email` | `String` | 否 | |
-| `status` | `Integer` | 否 | 默认 0 (正常) |
+| `status` | `Integer` | 否 | 默认 1 (启用)；1=启用, 0=停用（T-ACCESS-021 修正：原文「0=正常,1=禁用」与 DDL/启停接口语义矛盾） |
 | `orgId` | `Long` | 否 | 创建时一步完成挂载; **必须**属于默认组织树, 否则抛 `BizException(ORG_NOT_IN_DEFAULT_TREE)` |
 | `primaryOrg` | `Boolean` | 否 | 仅当 `orgId` 非空时生效, 默认 true |
 
