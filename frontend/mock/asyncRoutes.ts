@@ -1,4 +1,8 @@
-// 模拟后端动态生成路由
+// 模拟后端动态生成路由（pure-admin 模板演示数据）
+//
+// T-FE-041 起本文件不再被消费：前端已切换纯静态路由模式（initRouter 不再请求
+// /get-async-routes，src/api/routes.ts 已删除）。保留仅作模板机制参考；若 Phase 3
+// 需要后端下发动态路由，先恢复 src/api/routes.ts 与 router/utils.ts 的远程装配分支。
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
 /**

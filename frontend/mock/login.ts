@@ -1,9 +1,10 @@
-// 根据角色动态生成路由 / 模拟前端按钮级 perm 门控（fake server）
+// mock 登录与用户菜单（fake server，VITE_MOCK_LOGIN 开关控制注册）
 //
 // 注意：
 // - 这是 fake server 仅模拟前端 UX 隐藏，**真实拒绝以 access-service 后端 permissionValidator 为准**。
 // - perm 串字面量从 `views/system/user/utils/perms.ts`（SSOT）反向导入，禁止再硬编码。
 //   契约见 `docs/design/org-user-permission-contract.md` §4。
+// - T-FE-041：默认关闭（真实 /auth 链路经 Gateway）；响应壳已对齐 PermResult 契约。
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 import {
   ORG_USER_PERMS as P,
@@ -228,75 +229,118 @@ const KNOWN_USERS = Object.keys(ROLE_PERM_MATRIX);
 
 function buildLoginPayload(username: string) {
   const profile = ROLE_PROFILES[username];
-  const permissions = ROLE_PERM_MATRIX[username];
   return {
-    avatar: profile.avatar,
-    username,
-    nickname: profile.nickname,
-    roles: [username === "admin" ? "admin" : "common"],
-    permissions,
+    // 响应对齐后端 LoginResp（PermResult.data）
     // 显式假串前缀，避免被误认为真 JWT
     accessToken: `mock-token-${username}`,
-    refreshToken: `mock-refresh-${username}`,
+    refreshToken: null,
+    expiresIn: 7200,
+    tokenType: "Bearer",
+    userId: 1,
+    username,
+    tenantId: 1,
+    forceResetPwd: false,
+    // 以下为前端 store 兼容字段（真后端 LoginResp 不含，mock 供 setToken 参考）
+    avatar: profile.avatar,
+    nickname: profile.nickname,
+    roles: [username === "admin" ? "admin" : "common"],
+    permissions: ROLE_PERM_MATRIX[username],
     expires: "2030/10/30 00:00:00"
   };
 }
 
-export default defineFakeRoute([
-  {
-    url: "/login",
-    method: "post",
-    response: ({ body }) => {
-      const username = body?.username as string;
-      // 未知账号显式拒绝，避免静默放行掩盖真后端 401（联调时切真后端不会被误命中 mock）
-      if (!username || !KNOWN_USERS.includes(username)) {
-        console.warn(
-          `[mock/login] 未知账号 "${username}"，拒绝登录。可用账号：${KNOWN_USERS.join(", ")}`
-        );
-        return {
-          success: false,
-          message: `账号或密码错误（mock 已知账号：${KNOWN_USERS.join(", ")}）`
-        };
-      }
-      return {
-        success: true,
-        data: buildLoginPayload(username)
-      };
-    }
-  },
-  {
-    /**
-     * v1.4 双轨并行下发入口（mock）。
-     * <p>
-     * 真后端从 token 解析 userId 后查权限中心；mock 无 token 解码逻辑，
-     * 通过 token 字段 `mock-token-{username}` 反查 ROLE_PERM_MATRIX。
-     * 切真后端时本 mock 自动让位（fake server 仅在未配置真接口时生效）。
-     * <p>
-     * 响应壳必须与真后端 `PermResult<UserMenuResp>`（code=200/message/data）一致 ——
-     * 前端 store/user.ts 通过 `unwrap` 解包，旧的 `{ success, data }` 壳会被当作 code 缺失抛错。
-     */
-    url: "/auth/user-menu",
-    method: "post",
-    response: ({ headers }) => {
-      const auth = (headers?.authorization ??
-        headers?.Authorization ??
-        "") as string;
-      // Authorization 形如 "Bearer mock-token-{username}"
-      const match = /mock-token-([a-z0-9_-]+)/i.exec(auth);
-      const username = match?.[1] ?? "admin";
-      const profile = ROLE_PROFILES[username] ?? ROLE_PROFILES.admin;
-      const permissions = ROLE_PERM_MATRIX[username] ?? ROLE_PERM_MATRIX.admin;
-      return {
-        code: 200,
-        message: "ok",
-        data: {
-          // mock 暂不下发菜单树（前端路由由 /get-async-routes 提供，菜单可见性轨道仍走旧路径）；
-          // 真后端此处会返回完整 DIR/MENU 树
-          menus: [],
-          roles: [profile.nickname ?? username],
-          permissions
+/**
+ * T-FE-041 mock 开关：默认 false（.env.development VITE_MOCK_LOGIN），mock 不注册任何路由，
+ * 真实 /auth 链路全程经 vite proxy → Gateway。仅前端联调需要 mock 登录时置 true；
+ * 此时响应壳已对齐 PermResult 契约，前端代码零分支。
+ * <p>
+ * 注意：fake-server 中间件先于 vite proxy 执行，开关打开时 /auth/user-menu 会被本 mock
+ * 拦截（无法同时使用真实登录 + mock 菜单）。
+ */
+const MOCK_LOGIN_ENABLED = process.env.VITE_MOCK_LOGIN === "true";
+
+export default defineFakeRoute(
+  MOCK_LOGIN_ENABLED
+    ? [
+        {
+          /**
+           * mock 验证码（T-FE-041 评审修复）：登录页始终请求 /auth/captcha，
+           * 缺本路由则"纯 mock 联调"仍依赖真实后端。返回假 ID + SVG 占位图
+           * （mock 登录不校验验证码，任意 4 位输入即可）。
+           */
+          url: "/auth/captcha",
+          method: "post",
+          response: () => {
+            const svg =
+              '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40"><rect width="100%" height="100%" fill="#f0f2f5"/><text x="60" y="25" text-anchor="middle" font-family="monospace" font-size="14" fill="#909399">MOCK</text></svg>';
+            return {
+              code: 200,
+              message: "ok",
+              data: {
+                captchaId: `mock-captcha-${Date.now()}`,
+                image: `data:image/svg+xml;base64,${Buffer.from(svg).toString("base64")}`
+              }
+            };
+          }
+        },
+        {
+          url: "/auth/login",
+          method: "post",
+          response: ({ body }) => {
+            const username = body?.username as string;
+            // 未知账号显式拒绝，避免静默放行掩盖真后端 401（联调时切真后端不会被误命中 mock）
+            if (!username || !KNOWN_USERS.includes(username)) {
+              console.warn(
+                `[mock/login] 未知账号 "${username}"，拒绝登录。可用账号：${KNOWN_USERS.join(", ")}`
+              );
+              return {
+                code: 10001,
+                message: `账号或密码错误（mock 已知账号：${KNOWN_USERS.join(", ")}）`,
+                data: null
+              };
+            }
+            return {
+              code: 200,
+              message: "ok",
+              data: buildLoginPayload(username)
+            };
+          }
+        },
+        {
+          /**
+           * v1.4 双轨并行下发入口（mock）。
+           * <p>
+           * 真后端从 token 解析 userId 后查权限中心；mock 无 token 解码逻辑，
+           * 通过 token 字段 `mock-token-{username}` 反查 ROLE_PERM_MATRIX。
+           * <p>
+           * 响应壳与真后端 `PermResult<UserMenuResp>`（code=200/message/data）一致 ——
+           * 前端 store/user.ts 通过 `unwrap` 解包。
+           */
+          url: "/auth/user-menu",
+          method: "post",
+          response: ({ headers }) => {
+            const auth = (headers?.authorization ??
+              headers?.Authorization ??
+              "") as string;
+            // Authorization 形如 "Bearer mock-token-{username}"
+            const match = /mock-token-([a-z0-9_-]+)/i.exec(auth);
+            const username = match?.[1] ?? "admin";
+            const profile = ROLE_PROFILES[username] ?? ROLE_PROFILES.admin;
+            const permissions =
+              ROLE_PERM_MATRIX[username] ?? ROLE_PERM_MATRIX.admin;
+            return {
+              code: 200,
+              message: "ok",
+              data: {
+                // mock 暂不下发菜单树（纯静态路由模式下菜单由本地 modules 渲染）；
+                // 真后端此处会返回完整 DIR/MENU 树
+                menus: [],
+                roles: [profile.nickname ?? username],
+                permissions
+              }
+            };
+          }
         }
-      };
-    }
-  }
-]);
+      ]
+    : []
+);

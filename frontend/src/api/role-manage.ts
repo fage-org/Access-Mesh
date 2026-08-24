@@ -1,7 +1,8 @@
 /**
  * 角色管理 API
- * 经 @/utils/http 调用 access-service 端点（`/api/perm/abstract-role/*`）；
- * Phase 1 由 mock/role-manage.ts（vite-plugin-fake-server）提供假数据。
+ * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/abstract-role/*`
+ *（Gateway StripPrefix=1 后到 access-service `/api/perm/abstract-role`）。
+ * T-FE-041 切换真实链路后，mock/role-manage.ts 的旧 `/api/perm/**` 路径已自然失配。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  *
@@ -171,7 +172,7 @@ export type GroupRoleExtraRoleReq = {
 // ========== API 函数 ==========
 
 /**
- * 查询角色树（POST /api/perm/abstract-role/tree）
+ * 查询角色树（POST /perm/api/perm/abstract-role/tree）
  * 响应 ItemsResp<RoleTreeResp>，data.items[0].root 为根节点树。
  */
 export const getRoleTree = async (
@@ -179,7 +180,7 @@ export const getRoleTree = async (
 ): Promise<RoleTreeNode[]> => {
   const res = await http.request<PermResult<ItemsResp<{ root: RoleTreeNode }>>>(
     "post",
-    "/api/perm/abstract-role/tree",
+    "/perm/api/perm/abstract-role/tree",
     { data: params }
   );
   const items = unwrap(res).items ?? [];
@@ -187,44 +188,44 @@ export const getRoleTree = async (
   return items.map(it => it.root).filter(Boolean);
 };
 
-/** 分页查询角色列表（POST /api/perm/abstract-role/list） */
+/** 分页查询角色列表（POST /perm/api/perm/abstract-role/list） */
 export const getRoleList = async (
   params: RoleListQuery
 ): Promise<PaginatedResp<RoleResp>> => {
   const res = await http.request<PermResult<PaginatedResp<RoleResp>>>(
     "post",
-    "/api/perm/abstract-role/list",
+    "/perm/api/perm/abstract-role/list",
     { data: params }
   );
   return unwrap(res);
 };
 
-/** 创建角色（POST /api/perm/abstract-role/create） */
+/** 创建角色（POST /perm/api/perm/abstract-role/create） */
 export const createRole = async (data: RoleCreateReq): Promise<RoleResp> => {
   const res = await http.request<PermResult<RoleResp>>(
     "post",
-    "/api/perm/abstract-role/create",
+    "/perm/api/perm/abstract-role/create",
     { data }
   );
   return unwrap(res);
 };
 
-/** 更新角色（POST /api/perm/abstract-role/update） */
+/** 更新角色（POST /perm/api/perm/abstract-role/update） */
 export const updateRole = async (data: RoleUpdateReq): Promise<RoleResp> => {
   const res = await http.request<PermResult<RoleResp>>(
     "post",
-    "/api/perm/abstract-role/update",
+    "/perm/api/perm/abstract-role/update",
     { data }
   );
   return unwrap(res);
 };
 
-/** 移动角色树节点（POST /api/perm/abstract-role/move） */
+/** 移动角色树节点（POST /perm/api/perm/abstract-role/move） */
 export const moveRole = async (data: RoleMoveReq): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
       "post",
-      "/api/perm/abstract-role/move",
+      "/perm/api/perm/abstract-role/move",
       {
         data
       }
@@ -232,12 +233,12 @@ export const moveRole = async (data: RoleMoveReq): Promise<void> => {
   );
 };
 
-/** 删除角色，支持批量（POST /api/perm/abstract-role/remove） */
+/** 删除角色，支持批量（POST /perm/api/perm/abstract-role/remove） */
 export const removeRoles = async (ids: number[]): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
       "post",
-      "/api/perm/abstract-role/remove",
+      "/perm/api/perm/abstract-role/remove",
       {
         data: { ids }
       }
@@ -246,7 +247,7 @@ export const removeRoles = async (ids: number[]): Promise<void> => {
 };
 
 /**
- * 查询角色详情（POST /api/perm/abstract-role/detail）
+ * 查询角色详情（POST /perm/api/perm/abstract-role/detail）
  *
  * 🔧 API 核对项（登记 T-PERM-022）：后端 Controller 现用 IdReq{id}（内部主键），
  * 与 api-contract §6.10.3 / 项目铁律「调用方不应存储 access-service 内部主键」不符；
@@ -256,7 +257,7 @@ export const removeRoles = async (ids: number[]): Promise<void> => {
 export const getRoleDetail = async (id: number): Promise<RoleResp> => {
   const res = await http.request<PermResult<RoleResp>>(
     "post",
-    "/api/perm/abstract-role/detail",
+    "/perm/api/perm/abstract-role/detail",
     { data: { id } }
   );
   return unwrap(res);
@@ -264,39 +265,39 @@ export const getRoleDetail = async (id: number): Promise<RoleResp> => {
 
 // ========== 分组角色额外角色 ==========
 
-/** 查询分组角色额外基本角色（POST /api/perm/abstract-role/extra-roles/list） */
+/** 查询分组角色额外基本角色（POST /perm/api/perm/abstract-role/extra-roles/list） */
 export const listExtraRoles = async (
   params: GroupRoleExtraRolesQuery
 ): Promise<RoleSummaryResp[]> => {
   const res = await http.request<PermResult<ItemsResp<RoleSummaryResp>>>(
     "post",
-    "/api/perm/abstract-role/extra-roles/list",
+    "/perm/api/perm/abstract-role/extra-roles/list",
     { data: params }
   );
   return unwrap(res).items ?? [];
 };
 
-/** 分组角色添加基本角色（POST /api/perm/abstract-role/extra-roles/add） */
+/** 分组角色添加基本角色（POST /perm/api/perm/abstract-role/extra-roles/add） */
 export const addExtraRole = async (
   data: GroupRoleExtraRoleReq
 ): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
       "post",
-      "/api/perm/abstract-role/extra-roles/add",
+      "/perm/api/perm/abstract-role/extra-roles/add",
       { data }
     )
   );
 };
 
-/** 分组角色移除基本角色（POST /api/perm/abstract-role/extra-roles/remove） */
+/** 分组角色移除基本角色（POST /perm/api/perm/abstract-role/extra-roles/remove） */
 export const removeExtraRole = async (
   data: GroupRoleExtraRoleReq
 ): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
       "post",
-      "/api/perm/abstract-role/extra-roles/remove",
+      "/perm/api/perm/abstract-role/extra-roles/remove",
       { data }
     )
   );

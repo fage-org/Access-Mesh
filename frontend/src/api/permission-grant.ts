@@ -1,6 +1,8 @@
 /**
  * 权限授予 API（4.1 权限授予页 v3，T-FE-036）
- * 经 @/utils/http 调用 access-service 端点（`/api/perm/role-resource-permission/*`）。
+ * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/role-resource-permission/*`
+ *（Gateway StripPrefix=1 后到 access-service `/api/perm/role-resource-permission`）。
+ * T-FE-041 切换真实链路后，mock/permission-grant.ts 的旧 `/api/perm/**` 路径已自然失配。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
@@ -209,7 +211,7 @@ export type ApplyGrantPlanReq = {
 // ========== API 函数 ==========
 
 /**
- * 查询角色权限配置（POST /api/perm/role-resource-permission/list）。
+ * 查询角色权限配置（POST /perm/api/perm/role-resource-permission/list）。
  * 门禁：目标抽象角色 ROLE:VIEW（失败返回空列表）。
  * 本页调用约定：includeChildren=true 一次取全量（主+子），来源链计算仅消费 dependOn==null
  * 主权限，详情层按 dependOn 分组子权限（免逐项懒加载，对齐设计 §12 缺口 5）。
@@ -219,14 +221,14 @@ export const getRolePermissionList = async (
 ): Promise<ItemsResp<RolePermissionItem>> => {
   const res = await http.request<PermResult<ItemsResp<RolePermissionItem>>>(
     "post",
-    "/api/perm/role-resource-permission/list",
+    "/perm/api/perm/role-resource-permission/list",
     { data: params }
   );
   return unwrap(res);
 };
 
 /**
- * 聚合授权提交（POST /api/perm/role-resource-permission/apply-grant-plan，唯一写入口）。
+ * 聚合授权提交（POST /perm/api/perm/role-resource-permission/apply-grant-plan，唯一写入口）。
  * 记录级 plan = creates（主权限可带 children 一次性建树 / 子权限 parentPermissionId 挂父）
  * + updates（canGrant/conditionCode 微变更）+ removes（主权限级联删子/子权限单条删），
  * 单事务原子执行（任一失败整体回滚）。
@@ -237,7 +239,7 @@ export const applyGrantPlan = async (
 ): Promise<ItemsResp<RolePermissionItem>> => {
   const res = await http.request<PermResult<ItemsResp<RolePermissionItem>>>(
     "post",
-    "/api/perm/role-resource-permission/apply-grant-plan",
+    "/perm/api/perm/role-resource-permission/apply-grant-plan",
     { data: params }
   );
   return unwrap(res);
@@ -279,15 +281,19 @@ export type SubPermAllowedTypesReq = {
 };
 
 /**
- * 查询子权限允许类型（POST /api/perm/role-resource-permission/sub-perm-allowed-types）。
+ * 查询子权限允许类型（POST /perm/api/perm/role-resource-permission/sub-perm-allowed-types）。
  * 只读契约：判定口径与 §6.5 SUB_PERM fail-closed 写校验同一策略解析函数。
+ *
+ * ⚠️ 后端未实现（api-contract §6.5.2 契约已定稿、PermissionGrantController 无此端点，
+ * T-FE-041 真实路径切换后由 mock 显性化为 404）：子权限配置区在真实环境暂不可用，
+ * 归后端补齐（见 docs/tasks/T-FE-041.md 遗留登记）；不阻断主权限授予场景。
  */
 export const getSubPermAllowedTypes = async (
   params: SubPermAllowedTypesReq
 ): Promise<SubPermissionPolicy> => {
   const res = await http.request<PermResult<SubPermissionPolicy>>(
     "post",
-    "/api/perm/role-resource-permission/sub-perm-allowed-types",
+    "/perm/api/perm/role-resource-permission/sub-perm-allowed-types",
     { data: params }
   );
   return unwrap(res);

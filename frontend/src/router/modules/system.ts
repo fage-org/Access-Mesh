@@ -14,6 +14,15 @@ import { PERMISSION_QUERY_PERM_LIST } from "@/views/system/permission-query/util
 
 const Layout = () => import("@/layout/index.vue");
 
+/**
+ * 系统管理路由（导航收敛：T-FE-041，里程碑 A）。
+ * <p>
+ * 顶级与全部子页 `showLink: false` —— 默认只显示通过真实 Gateway 冒烟的页面（登录页、主页、授权页）。
+ * 路由与页面代码全部保留（隐藏不删），恢复时按页移除 showLink 即可：
+ * - Phase 3 终态清单（随联调完成逐个开放）：组织与用户、角色管理、服务与接口、权限查询/排查
+ * - 长期隐藏（模型收敛/复用门禁，开放需另行评审）：类型定义、系统配置、操作日志、业务域、
+ *   冲突规则、资源依赖、资源与操作定义、权限条件、权限变更日志
+ */
 export default {
   path: "/system",
   name: "System",
@@ -22,6 +31,7 @@ export default {
   meta: {
     icon: "ep/setting",
     title: "系统管理",
+    showLink: false,
     rank: 10
   },
   children: [
@@ -30,6 +40,7 @@ export default {
       name: "SystemUser",
       component: () => import("@/views/system/user/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 Phase 3 开放清单（导航收敛，路由保留）
         icon: "ep/user",
         title: "组织与用户",
         // 单一事实源派生：见 views/system/user/utils/perms.ts
@@ -41,6 +52,7 @@ export default {
       name: "SystemRole",
       component: () => import("@/views/system/role/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 Phase 3 开放清单（导航收敛，路由保留）
         icon: "ep/user-filled",
         title: "角色管理",
         // 单一事实源派生：见 views/system/role/utils/perms.ts
@@ -52,6 +64,7 @@ export default {
       name: "SystemTypeDef",
       component: () => import("@/views/system/type-def/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 长期隐藏（导航收敛，路由保留）
         icon: "ep/files",
         title: "类型定义",
         // 单一事实源派生：见 views/system/type-def/utils/perms.ts
@@ -63,6 +76,7 @@ export default {
       name: "SystemConfig",
       component: () => import("@/views/system/config/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 长期隐藏（导航收敛，路由保留）
         icon: "ep/tools",
         title: "系统配置",
         // 单一事实源派生：见 views/system/config/utils/perms.ts
@@ -74,6 +88,7 @@ export default {
       name: "SystemOperationLog",
       component: () => import("@/views/system/operation-log/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 长期隐藏（导航收敛，路由保留）
         icon: "ep/document",
         title: "操作日志",
         // 单一事实源派生：见 views/system/operation-log/utils/perms.ts
@@ -86,6 +101,7 @@ export default {
       name: "SystemBizDomain",
       component: () => import("@/views/system/biz-domain/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 长期隐藏（导航收敛，路由保留）
         icon: "ep/office-building",
         title: "业务域",
         // 单一事实源派生：见 views/system/biz-domain/utils/perms.ts
@@ -98,6 +114,7 @@ export default {
       name: "SystemServiceInterface",
       component: () => import("@/views/system/service-interface/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 Phase 3 开放清单（导航收敛，路由保留）
         icon: "ep/connection",
         title: "服务与接口",
         // 单一事实源派生：见 views/system/service-interface/utils/perms.ts
@@ -109,6 +126,7 @@ export default {
       name: "SystemResourceOperation",
       component: () => import("@/views/system/resource-operation/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 长期隐藏（导航收敛，路由保留）
         icon: "ep/coins",
         title: "资源与操作",
         // 单一事实源派生：见 views/system/resource-operation/utils/perms.ts
@@ -121,6 +139,7 @@ export default {
       name: "SystemPermissionCondition",
       component: () => import("@/views/system/permission-condition/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 长期隐藏（导航收敛，路由保留）
         icon: "ep/key",
         title: "权限条件"
         // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），路由不再做读取门禁；
@@ -132,6 +151,7 @@ export default {
       name: "SystemConflictRule",
       component: () => import("@/views/system/conflict-rule/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 长期隐藏（导航收敛，路由保留）
         icon: "ep/warn-triangle-filled",
         title: "冲突规则",
         // 单一事实源派生：见 views/system/conflict-rule/utils/perms.ts
@@ -144,6 +164,7 @@ export default {
       name: "SystemResourceDependency",
       component: () => import("@/views/system/resource-dependency/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 长期隐藏（导航收敛，路由保留）
         icon: "ep/share",
         title: "资源依赖",
         // 单一事实源派生：见 views/system/resource-dependency/utils/perms.ts
@@ -157,6 +178,7 @@ export default {
       name: "SystemPermissionChangeLog",
       component: () => import("@/views/system/permission-change-log/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 长期隐藏（导航收敛，路由保留）
         icon: "ep/history",
         title: "权限变更日志",
         // 单一事实源派生：见 views/system/permission-change-log/utils/perms.ts
@@ -169,6 +191,7 @@ export default {
       name: "SystemPermissionQuery",
       component: () => import("@/views/system/permission-query/index.vue"),
       meta: {
+        showLink: false, // T-FE-041 Phase 3 开放清单（导航收敛，路由保留）
         icon: "ep/key",
         title: "权限排查",
         // 单一事实源派生：见 views/system/permission-query/utils/perms.ts

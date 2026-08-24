@@ -84,7 +84,7 @@ describe("grant-store 四态状态机（DoD-3）", () => {
     await store.selectSubject(CTX, MATRIX_TYPE);
     expect(mockRequest).toHaveBeenCalledWith(
       "post",
-      "/api/perm/role-resource-permission/list",
+      "/perm/api/perm/role-resource-permission/list",
       {
         data: {
           domainCode: null,
@@ -121,7 +121,7 @@ describe("grant-store 四态状态机（DoD-3）", () => {
     expect(mockRequest).toHaveBeenCalledTimes(2);
     const applyCall = mockRequest.mock.calls[1];
     expect(applyCall[1]).toBe(
-      "/api/perm/role-resource-permission/apply-grant-plan"
+      "/perm/api/perm/role-resource-permission/apply-grant-plan"
     );
     expect(applyCall[2].data.roleTypeCode).toBe("BASIC_ROLE");
     expect(applyCall[2].data.plan.creates).toHaveLength(1);
@@ -464,7 +464,7 @@ describe("grant-store 四态状态机（DoD-3）", () => {
     expect(ok).toBe(true);
     // 请求体带 resourceTypeCode（T-PERM-040 契约 §6.4）
     const call = mockRequest.mock.calls[1];
-    expect(call[1]).toBe("/api/perm/role-resource-permission/list");
+    expect(call[1]).toBe("/perm/api/perm/role-resource-permission/list");
     expect(call[2].data).toMatchObject({
       roleTypeCode: "BASIC_ROLE",
       roleExternalId: "BASIC_201",

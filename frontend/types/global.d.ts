@@ -71,6 +71,8 @@ declare global {
     VITE_HIDE_HOME: string;
     VITE_COMPRESSION: ViteCompression;
     VITE_ENABLE_PROD_MOCK: boolean;
+    /** 开发代理目标（Gateway 主端口），vite.config 四条前缀转发消费 */
+    VITE_PROXY_TARGET: string;
   }
 
   /**

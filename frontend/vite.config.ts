@@ -15,6 +15,7 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
     VITE_PORT,
     VITE_COMPRESSION,
     VITE_PUBLIC_PATH,
+    VITE_PROXY_TARGET,
     VITE_ENABLE_PROD_MOCK
   } = wrapperEnv(loadEnv(mode, root));
   return {
@@ -29,7 +30,27 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
       port: VITE_PORT,
       host: "0.0.0.0",
       // 本地跨域代理 https://cn.vitejs.dev/config/server-options.html#server-proxy
-      proxy: {},
+      // T-FE-041：与 Gateway 外部路径同约定转发（无开发环境语义 rewrite，
+      // StripPrefix 由 Gateway 侧负责）——/auth(StripPrefix=0 直通)、
+      // /admin、/perm、/example(StripPrefix=1)。唯一例外见 VITE_PROXY_TARGET 覆写。
+      proxy: {
+        "/auth": {
+          target: VITE_PROXY_TARGET,
+          changeOrigin: true
+        },
+        "/admin": {
+          target: VITE_PROXY_TARGET,
+          changeOrigin: true
+        },
+        "/perm": {
+          target: VITE_PROXY_TARGET,
+          changeOrigin: true
+        },
+        "/example": {
+          target: VITE_PROXY_TARGET,
+          changeOrigin: true
+        }
+      },
       // 预热文件以提前转换和缓存结果，降低启动期间的初始页面加载时长并防止转换瀑布
       warmup: {
         clientFiles: ["./index.html", "./src/{views,components}/*"]

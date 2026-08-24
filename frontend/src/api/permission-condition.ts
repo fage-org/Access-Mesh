@@ -1,7 +1,8 @@
 /**
  * 权限条件 API
- * 经 @/utils/http 调用 access-service 端点（/api/perm/permission-condition/*）；
- * Phase 1 由 mock/permission-condition.ts（vite-plugin-fake-server）提供假数据。
+ * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/permission-condition/*`
+ *（Gateway StripPrefix=1 后到 access-service `/api/perm/permission-condition`）。
+ * T-FE-041 切换真实链路后，mock/permission-condition.ts 的旧 `/api/perm/**` 路径已自然失配。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.6
@@ -61,63 +62,63 @@ export type ConditionUpdateReq = {
   description?: string;
 };
 
-/** 查询条件列表（POST /api/perm/permission-condition/list，EmptyReq）。
+/** 查询条件列表（POST /perm/api/perm/permission-condition/list，EmptyReq）。
  *  后端返回 ItemsResp<ConditionResp>（无分页无筛选），前端本地过滤。
  *  🔧 Phase 2 补 ConditionListReq（keyword/enabled/pageNum/pageSize），登记 T-PERM-029。 */
 export const getConditionList = async (): Promise<ItemsResp<ConditionResp>> => {
   const res = await http.request<PermResult<ItemsResp<ConditionResp>>>(
     "post",
-    "/api/perm/permission-condition/list",
+    "/perm/api/perm/permission-condition/list",
     { data: {} }
   );
   return unwrap(res);
 };
 
-/** 查询条件详情（POST /api/perm/permission-condition/detail，IdReq{id}）。
+/** 查询条件详情（POST /perm/api/perm/permission-condition/detail，IdReq{id}）。
  *  🔧 用内部主键 id，Phase 2 切业务键 code（T-PERM-029）。 */
 export const getConditionDetail = async (
   id: number
 ): Promise<ConditionResp> => {
   const res = await http.request<PermResult<ConditionResp>>(
     "post",
-    "/api/perm/permission-condition/detail",
+    "/perm/api/perm/permission-condition/detail",
     { data: { id } }
   );
   return unwrap(res);
 };
 
-/** 创建条件（POST /api/perm/permission-condition/create） */
+/** 创建条件（POST /perm/api/perm/permission-condition/create） */
 export const createCondition = async (
   data: ConditionCreateReq
 ): Promise<ConditionResp> => {
   const res = await http.request<PermResult<ConditionResp>>(
     "post",
-    "/api/perm/permission-condition/create",
+    "/perm/api/perm/permission-condition/create",
     { data }
   );
   return unwrap(res);
 };
 
-/** 更新条件（POST /api/perm/permission-condition/update）。
+/** 更新条件（POST /perm/api/perm/permission-condition/update）。
  *  🔧 conditionId 为内部 id，Phase 2 切业务键 code（T-PERM-029）。 */
 export const updateCondition = async (
   data: ConditionUpdateReq
 ): Promise<ConditionResp> => {
   const res = await http.request<PermResult<ConditionResp>>(
     "post",
-    "/api/perm/permission-condition/update",
+    "/perm/api/perm/permission-condition/update",
     { data }
   );
   return unwrap(res);
 };
 
-/** 删除条件，支持批量（POST /api/perm/permission-condition/remove，IdsReq{ids}）。
+/** 删除条件，支持批量（POST /perm/api/perm/permission-condition/remove，IdsReq{ids}）。
  *  🔧 用内部 id，Phase 2 切业务键 code（T-PERM-029）。 */
 export const removeConditions = async (ids: number[]): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
       "post",
-      "/api/perm/permission-condition/remove",
+      "/perm/api/perm/permission-condition/remove",
       { data: { ids } }
     )
   );

@@ -34,27 +34,11 @@ class PureHttp {
     this.httpInterceptorsResponse();
   }
 
-  /** `token`过期后，暂存待执行的请求 */
-  private static requests = [];
-
-  /** 防止重复刷新`token` */
-  private static isRefreshing = false;
-
   /** 初始化配置对象 */
   private static initConfig: PureHttpRequestConfig = {};
 
   /** 保存当前`Axios`实例对象 */
   private static axiosInstance: AxiosInstance = Axios.create(defaultConfig);
-
-  /** 重连原始请求 */
-  private static retryOriginalRequest(config: PureHttpRequestConfig) {
-    return new Promise(resolve => {
-      PureHttp.requests.push((token: string) => {
-        config.headers["Authorization"] = formatToken(token);
-        resolve(config);
-      });
-    });
-  }
 
   /** 请求拦截 */
   private httpInterceptorsRequest(): void {
@@ -70,7 +54,7 @@ class PureHttp {
           return config;
         }
         /** 请求白名单，放置一些不需要`token`的接口（通过设置请求白名单，防止`token`过期后再请求造成的死循环问题） */
-        const whiteList = ["/refresh-token", "/login"];
+        const whiteList = ["/auth/captcha", "/auth/login"];
         return whiteList.some(url => config.url.endsWith(url))
           ? config
           : new Promise(resolve => {
@@ -79,28 +63,15 @@ class PureHttp {
                 const now = new Date().getTime();
                 const expired = parseInt(data.expires) - now <= 0;
                 if (expired) {
-                  if (!PureHttp.isRefreshing) {
-                    PureHttp.isRefreshing = true;
-                    // token过期刷新
-                    useUserStoreHook()
-                      .handRefreshToken({ refreshToken: data.refreshToken })
-                      .then(res => {
-                        const token = res.data.accessToken;
-                        config.headers["Authorization"] = formatToken(token);
-                        PureHttp.requests.forEach(cb => cb(token));
-                        PureHttp.requests = [];
-                      })
-                      .finally(() => {
-                        PureHttp.isRefreshing = false;
-                      });
-                  }
-                  resolve(PureHttp.retryOriginalRequest(config));
+                  // 会话到期即清本地会话回登录页（T-FE-041：无 refresh-token 体系，
+                  // 后端普通 Sa-Token 会话不支持刷新；本次请求无令牌放行，由 Gateway 401 兜底）
+                  useUserStoreHook().logOut();
                 } else {
                   config.headers["Authorization"] = formatToken(
                     data.accessToken
                   );
-                  resolve(config);
                 }
+                resolve(config);
               } else {
                 resolve(config);
               }
@@ -132,6 +103,12 @@ class PureHttp {
       (error: PureHttpError) => {
         const $error = error;
         $error.isCancelRequest = Axios.isCancel($error);
+        // HTTP 401 统一窄处理（T-FE-041）：收到 401 即清除本地会话并跳转登录页；
+        // 不增加 refresh-token、自动续期或重试体系。后端业务失败为 HTTP 200 + code≠200，
+        // 不经过此分支。403/503 等其余状态码由页面层自行处理。
+        if ($error?.response?.status === 401) {
+          useUserStoreHook().logOut();
+        }
         // 所有的响应异常 区分来源为取消请求/非取消请求
         return Promise.reject($error);
       }

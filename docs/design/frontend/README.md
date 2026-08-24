@@ -17,6 +17,7 @@
 
 | 页面 | 文档 | 任务 | 状态 |
 |---|---|---|---|
+| 登录页 | `login.md` | T-FE-041 | ✅ adopted（2026-08-24 真实登录链路实现回写） |
 | 2.1 组织与用户 | （已归档至 `docs/archive/2026-06-21/org-user-page-impl-plan.md`，权威契约见 org-user-permission-contract.md） | — | ✅ |
 | 2.2 角色管理 | `role-manage.md` | T-FE-002 | ✅ |
 | 3.1 资源+操作定义 | `resource-operation.md` | T-FE-008 | ✅ |

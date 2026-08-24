@@ -1,7 +1,8 @@
 /**
  * 类型定义 API
- * 经 @/utils/http 调用 access-service 端点（`/api/perm/type-definition/*`）；
- * Phase 1 由 mock/type-def.ts（vite-plugin-fake-server）提供假数据。
+ * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/type-definition/*`
+ *（Gateway StripPrefix=1 后到 access-service `/api/perm/type-definition`）。
+ * T-FE-041 切换真实链路后，mock/type-def.ts 的旧 `/api/perm/**` 路径已自然失配。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *
@@ -109,7 +110,7 @@ export type TypeDefUpdateReq = {
 
 // ========== API 函数 ==========
 
-/** 查询类型定义列表（POST /api/perm/type-definition/list）。
+/** 查询类型定义列表（POST /perm/api/perm/type-definition/list）。
  *  后端 TypeListReq 现仅 domainCode（未生效），返回 ItemsResp<TypeDefinitionResp>（租户全量，
  *  无分页/无 typeKey 过滤）。前端 hook 拿全量 items 后本地做 typeKey/keyword 过滤 + 切片分页。
  *  🔧 后端补 typeKey/keyword/pageNum/pageSize 参数 + 返回 PaginatedResp 登记于 T-PERM-023。 */
@@ -118,53 +119,53 @@ export const getTypeDefList = async (
 ): Promise<ItemsResp<TypeDefResp>> => {
   const res = await http.request<PermResult<ItemsResp<TypeDefResp>>>(
     "post",
-    "/api/perm/type-definition/list",
+    "/perm/api/perm/type-definition/list",
     { data: params }
   );
   return unwrap(res);
 };
 
-/** 查询类型定义详情（POST /api/perm/type-definition/detail，IdReq{id}） */
+/** 查询类型定义详情（POST /perm/api/perm/type-definition/detail，IdReq{id}） */
 export const getTypeDefDetail = async (id: number): Promise<TypeDefResp> => {
   const res = await http.request<PermResult<TypeDefResp>>(
     "post",
-    "/api/perm/type-definition/detail",
+    "/perm/api/perm/type-definition/detail",
     { data: { id } }
   );
   return unwrap(res);
 };
 
-/** 创建类型定义（POST /api/perm/type-definition/create） */
+/** 创建类型定义（POST /perm/api/perm/type-definition/create） */
 export const createTypeDef = async (
   data: TypeDefCreateReq
 ): Promise<TypeDefResp> => {
   const res = await http.request<PermResult<TypeDefResp>>(
     "post",
-    "/api/perm/type-definition/create",
+    "/perm/api/perm/type-definition/create",
     { data }
   );
   return unwrap(res);
 };
 
-/** 更新类型定义（POST /api/perm/type-definition/update） */
+/** 更新类型定义（POST /perm/api/perm/type-definition/update） */
 export const updateTypeDef = async (
   data: TypeDefUpdateReq
 ): Promise<TypeDefResp> => {
   const res = await http.request<PermResult<TypeDefResp>>(
     "post",
-    "/api/perm/type-definition/update",
+    "/perm/api/perm/type-definition/update",
     { data }
   );
   return unwrap(res);
 };
 
-/** 删除类型定义，支持批量（POST /api/perm/type-definition/remove，IdsReq{ids}）。
+/** 删除类型定义，支持批量（POST /perm/api/perm/type-definition/remove，IdsReq{ids}）。
  *  isSystem=true 的系统预置项后端跳过删除。 */
 export const removeTypeDefs = async (ids: number[]): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
       "post",
-      "/api/perm/type-definition/remove",
+      "/perm/api/perm/type-definition/remove",
       { data: { ids } }
     )
   );

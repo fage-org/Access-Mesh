@@ -57,6 +57,7 @@ const wrapperEnv = (envConf: Recordable): ViteEnv => {
     VITE_CDN: false,
     VITE_HIDE_HOME: "false",
     VITE_COMPRESSION: "none",
+    VITE_PROXY_TARGET: "http://localhost:8080",
     VITE_ENABLE_PROD_MOCK: false
   };
 
@@ -73,6 +74,11 @@ const wrapperEnv = (envConf: Recordable): ViteEnv => {
       process.env[envName] = realName;
     } else if (typeof realName === "object") {
       process.env[envName] = JSON.stringify(realName);
+    } else {
+      // 布尔/数字也写回（字符串形式），供 dev server 进程内加载的模块读取
+      // （如 mock/login.ts 的 VITE_MOCK_LOGIN 开关；T-FE-041 评审修复：
+      //  此前布尔值不写回，.env.development 的开关对 mock 文件无效）
+      process.env[envName] = String(realName);
     }
   }
   return ret;

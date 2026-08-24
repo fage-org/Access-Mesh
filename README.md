@@ -37,7 +37,7 @@ Gateway (8080)
 
 ## 项目状态
 
-**核心后端已实现并经容器化测试验证**：access-service 归并完成（T-ACCESS-001~015），权限引擎、缓存 30 秒撤权边界与 9 类 68 项 Docker 门控测试已在外部主机真实执行通过。**产品垂直切片推进中**：统一身份与资源模型、空库 bootstrap、前端真实登录、授权 E2E，见 [product-vertical-slice 计划](docs/plans/product-vertical-slice-plan.md)；前端部分页面仍为 mock 联调。设计文档入口见 [docs/README.md](docs/README.md)。
+**核心后端已实现并经容器化测试验证**：access-service 归并完成（T-ACCESS-001~015），权限引擎、缓存 30 秒撤权边界与 9 类 68 项 Docker 门控测试已在外部主机真实执行通过。**产品垂直切片推进中**：统一身份与资源模型、空库 bootstrap、前端真实登录（T-FE-041 done，登录/主页/授权页已走真实 Gateway 链路）、授权 E2E 进行中，见 [product-vertical-slice 计划](docs/plans/product-vertical-slice-plan.md)；其余管理页面仍为 mock 联调（Phase 3 逐页切换）。设计文档入口见 [docs/README.md](docs/README.md)。
 
 ## 文档
 
@@ -68,7 +68,8 @@ Gateway (8080)
   ```
 
 - **启动顺序**：基础设施 → access-service (9100) → Gateway (8080) → 前端（`frontend/`，开发模式 `npm run dev`）。
-- **当前限制**：前端登录链路仍为 mock（随 T-FE-041）；E2E 目标用户与普通角色不在 bootstrap 范围（随 T-ACCESS-021 授权 E2E 创建）。
+- **前端**：真实登录链路已通（T-FE-041）——`pnpm dev` 默认走真实 `/auth` 链路（vite 代理 `/auth`、`/admin`、`/perm`、`/example` → Gateway 8080，目标可经 `VITE_PROXY_TARGET` 覆盖）；纯 mock 联调可置 `VITE_MOCK_LOGIN=true`（.env.development）。注意默认端口 8848 与 Nacos 控制台端口相同，本机同时起 Nacos 容器时以 `VITE_PORT=8890` 等覆盖启动。默认导航仅显示登录/主页/授权页（其余管理页路由保留隐藏，Phase 3 逐页开放）。
+- **当前限制**：E2E 目标用户与普通角色不在 bootstrap 范围（随 T-ACCESS-021 授权 E2E 创建）；管理页面（组织与用户、角色管理等）仍为 mock 联调。
 
 ## License
 

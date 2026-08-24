@@ -16,7 +16,6 @@ import {
   storageLocal,
   isIncludeAllChildren
 } from "@pureadmin/utils";
-import { getConfig } from "@/config";
 import { buildHierarchyTree } from "@/utils/tree";
 import { userKey, type DataInfo } from "@/utils/auth";
 import { type menuType, routerArrays } from "@/layout/types";
@@ -27,7 +26,6 @@ const IFrame = () => import("@/layout/frame.vue");
 const modulesRoutes = import.meta.glob("/src/views/**/*.{vue,tsx}");
 
 // 动态路由
-import { getAsyncRoutes } from "@/api/routes";
 
 function handRank(routeInfo: any) {
   const { name, path, parentId, meta } = routeInfo;
@@ -196,34 +194,19 @@ function handleAsyncRoutes(routeList) {
   addPathMatch();
 }
 
-/** 初始化路由（`new Promise` 写法防止在异步请求中造成无限循环）*/
+/**
+ * 初始化路由（`new Promise` 写法保持调用方签名兼容）。
+ * <p>
+ * T-FE-041 起为纯静态路由模式：所有业务路由由 `src/router/modules/*.ts` 本地声明，
+ * 不再请求模板遗留的 `/get-async-routes`（真实后端无此端点，且其 mock 会注入
+ * 与导航收敛口径冲突的演示菜单）。菜单可见性由路由 `meta.showLink` 控制，
+ * 后端 `/auth/user-menu` 下发的菜单树存于 user store（可见性轨道数据，Phase 3 接线消费）。
+ */
 function initRouter() {
-  if (getConfig()?.CachingAsyncRoutes) {
-    // 开启动态路由缓存本地localStorage
-    const key = "async-routes";
-    const asyncRouteList = storageLocal().getItem(key) as any;
-    if (asyncRouteList && asyncRouteList?.length > 0) {
-      return new Promise(resolve => {
-        handleAsyncRoutes(asyncRouteList);
-        resolve(router);
-      });
-    } else {
-      return new Promise(resolve => {
-        getAsyncRoutes().then(({ data }) => {
-          handleAsyncRoutes(cloneDeep(data));
-          storageLocal().setItem(key, data);
-          resolve(router);
-        });
-      });
-    }
-  } else {
-    return new Promise(resolve => {
-      getAsyncRoutes().then(({ data }) => {
-        handleAsyncRoutes(cloneDeep(data));
-        resolve(router);
-      });
-    });
-  }
+  return new Promise(resolve => {
+    handleAsyncRoutes([]);
+    resolve(router);
+  });
 }
 
 /**

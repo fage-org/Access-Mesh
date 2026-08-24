@@ -3,12 +3,13 @@ import Motion from "./utils/motion";
 import { useRouter } from "vue-router";
 import { message } from "@/utils/message";
 import { loginRules } from "./utils/rule";
-import { ref, reactive, toRaw } from "vue";
+import { ref, reactive, toRaw, onMounted } from "vue";
 import { debounce } from "@pureadmin/utils";
 import { useNav } from "@/layout/hooks/useNav";
 import { useEventListener } from "@vueuse/core";
 import type { FormInstance } from "element-plus";
 import { useLayout } from "@/layout/hooks/useLayout";
+import { getCaptcha } from "@/api/auth";
 import { useUserStoreHook } from "@/store/modules/user";
 import { initRouter, getTopMenu } from "@/router/utils";
 import { bg, avatar, illustration } from "./utils/static";
@@ -19,6 +20,7 @@ import dayIcon from "@/assets/svg/day.svg?component";
 import darkIcon from "@/assets/svg/dark.svg?component";
 import Lock from "~icons/ri/lock-fill";
 import User from "~icons/ri/user-3-fill";
+import Cyanpass from "~icons/ri/shield-keyhole-line";
 
 defineOptions({
   name: "Login"
@@ -37,9 +39,30 @@ dataThemeChange(overallStyle.value);
 const { title } = useNav();
 
 const ruleForm = reactive({
-  username: "admin",
-  password: "admin123"
+  username: "",
+  password: "",
+  captchaCode: ""
 });
+
+/** 当前验证码 ID（后端一次性消费，登录失败后必须刷新） */
+const captchaId = ref("");
+/** 验证码图片（base64，后端已含 data:image/png;base64, 前缀） */
+const captchaImage = ref("");
+
+/** 拉取/刷新验证码：页面加载与每次登录失败后调用（发起即失效旧验证码——后端一次性消费） */
+const refreshCaptcha = async () => {
+  captchaId.value = "";
+  ruleForm.captchaCode = "";
+  try {
+    const { captchaId: id, image } = await getCaptcha();
+    captchaId.value = id;
+    captchaImage.value = image;
+  } catch {
+    message("验证码获取失败，请检查服务后点击图片重试", { type: "error" });
+  }
+};
+
+onMounted(refreshCaptcha);
 
 const onLogin = async (formEl: FormInstance | undefined) => {
   if (!formEl) return;
@@ -49,23 +72,28 @@ const onLogin = async (formEl: FormInstance | undefined) => {
       useUserStoreHook()
         .loginByUsername({
           username: ruleForm.username,
-          password: ruleForm.password
+          password: ruleForm.password,
+          captchaId: captchaId.value,
+          captchaCode: ruleForm.captchaCode
         })
-        .then(res => {
-          if (res.success) {
-            // 获取后端路由
-            return initRouter().then(() => {
-              disabled.value = true;
-              router
-                .push(getTopMenu(true).path)
-                .then(() => {
-                  message("登录成功", { type: "success" });
-                })
-                .finally(() => (disabled.value = false));
-            });
-          } else {
-            message("登录失败", { type: "error" });
-          }
+        .then(() => {
+          // 获取后端路由
+          return initRouter().then(() => {
+            disabled.value = true;
+            router
+              .push(getTopMenu(true).path)
+              .then(() => {
+                message("登录成功", { type: "success" });
+              })
+              .finally(() => (disabled.value = false));
+          });
+        })
+        .catch((error: Error) => {
+          // 业务失败（HTTP 200 + code≠200，经 unwrap 抛 RequestError）展示后端 message；
+          // 验证码一次性消费，无论何种失败均刷新——返回 promise 使 loading 覆盖刷新过程，
+          // 期间按钮不可重复提交（评审修复：避免慢网下用已消费旧码立即重试）
+          message(error?.message || "登录失败", { type: "error" });
+          return refreshCaptcha();
         })
         .finally(() => (loading.value = false));
     }
@@ -147,6 +175,46 @@ useEventListener(document, "keydown", ({ code }) => {
                   placeholder="密码"
                   :prefix-icon="useRenderIcon(Lock)"
                 />
+              </el-form-item>
+            </Motion>
+
+            <Motion :delay="200">
+              <el-form-item prop="captchaCode">
+                <el-input
+                  v-model="ruleForm.captchaCode"
+                  clearable
+                  maxlength="4"
+                  placeholder="验证码"
+                  :prefix-icon="useRenderIcon(Cyanpass)"
+                >
+                  <template #append>
+                    <img
+                      v-if="captchaImage"
+                      :src="captchaImage"
+                      alt="验证码"
+                      title="点击刷新验证码"
+                      class="cursor-pointer select-none"
+                      style="height: 40px; width: 120px"
+                      @click="refreshCaptcha"
+                    />
+                    <span
+                      v-else
+                      class="cursor-pointer"
+                      style="
+                        display: inline-block;
+                        height: 40px;
+                        width: 120px;
+                        line-height: 40px;
+                        text-align: center;
+                        font-size: 12px;
+                        color: var(--el-text-color-secondary);
+                      "
+                      @click="refreshCaptcha"
+                    >
+                      点击加载
+                    </span>
+                  </template>
+                </el-input>
               </el-form-item>
             </Motion>
 
