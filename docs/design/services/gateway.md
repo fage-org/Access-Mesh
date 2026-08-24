@@ -165,6 +165,12 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 - 接口级鉴权契约以 `../permission-center/api-contract.md` 为准（§6.5 check-interface、§6.6 interface-snapshot）。
 - CORS、限流、请求体大小、安全响应头按 `../project-rules.md` 和网关配置实现。
 
+## 测试域与 E2E IT（T-ACCESS-021，2026-08-24）
+
+- 单元/上下文测试（`GatewayApplicationConfigTest` 等）与容器 E2E（`BasicRoleGrantVerticalSliceE2EIT`，`@Tag("testcontainers")`）按 surefire 双 execution 分轨（`-DskipTestcontainers=true` 跳过容器组），与 access-service 同款。
+- 跨服务 E2E IT 托管于 gateway 测试域：access-service 以 **test 依赖**引入（生产依赖图不变；附带 webmvc 须显式 `spring-webmvc` test 依赖恢复——common 对 webmvc 的既有排除使最近路径去重吞掉该件），IT 以**子进程**（独立 JVM）启动两服务、PG/Redis 走 Testcontainers、重启即 kill+respawn；`GatewayApplicationConfigTest` 因此显式 `web-application-type=reactive` 并排除 access-service 依赖树新带入的自动配置（Redisson/RedissonCacheAutoConfiguration/sa-token-servlet 注册器/DataSource 系）。
+- E2E 环境免 Nacos：`spring.cloud.discovery.client.simple.instances` 静态实例直连（路由与权限回源 WebClient 同源解析）；真实 Nacos 链路由 compose 手动 runbook 覆盖。执行细节与证据见任务卡 T-ACCESS-021。
+
 ## 实现参考
 
 - 整体架构见 `../architecture.md`。
