@@ -121,8 +121,10 @@ last_updated: 2026-08-24
 
 ## GUI 段暴露并修复的产品缺陷（2026-08-24，随本任务修复）
 
-3. **授权页资源矩阵恒空（前端 capability 门控源错误）**：授权页以 `hasPerms("RESOURCE:VIEW"/"OPERATION:VIEW")` 作资源树/操作列加载前置，而 `/auth/user-menu` 权限串按 admin 域类型白名单派生（`EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES`），永不含 RESOURCE/OPERATION 类型码 → 真实链路下矩阵恒空、bootstrap 管理员无法经授权页完成任何授予（mock 权限矩阵含这两个码，联调期未暴露）。修复：授权页 hook 去除该前置门控、直接请求（后端 T-PERM-042 类型级 VIEW 门禁为权威，无权限者收接口错误提示）。处置口径（用户确认）：前端去前置门控、本任务内修。
-4. **`operation-permission/list` 缺 `includeGlobalFallback` 后端实现**：api-contract §5.3（T-PERM-040）已定稿该参数（「专属优先、全局回退」合并）、mock 已按契约实现、前端矩阵操作列固定传 true，但后端 `OperationListReq` 无此字段（Jackson 未知属性拒绝 → 90001 请求体格式错误）——此前被缺陷③的门控前置整体跳过而掩盖。修复：DTO 补字段 + `OperationAppServiceImpl` 按契约实现合并（指定类型=专属∪无同码冲突的全局、同码专属优先；类型缺省+true=仅全局集合）+ mapper 补 `selectGlobalOperations` + 单测 4 用例（门禁/缺省现状/合并优先级/仅全局）。
+3. **授权页资源矩阵恒空（前端 capability 门控源错误）**：授权页以 `hasPerms("RESOURCE:VIEW"/"OPERATION:VIEW")` 作资源树/操作列加载前置，而 `/auth/user-menu` 权限串按 admin 域类型白名单派生（`EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES`），永不含 RESOURCE/OPERATION 类型码 → 真实链路下矩阵恒空、bootstrap 管理员无法经授权页完成任何授予（mock 权限矩阵含这两个码，联调期未暴露）。修复与口径：授权页 hook 不作 capability 前置、直接请求（后端 T-PERM-042 类型级 VIEW 门禁为权威，无权限者收接口错误提示）；RESOURCE:VIEW/OPERATION:VIEW 从页面权限 SSOT 与授权页 mock 矩阵移除（后端接口门禁不经前端 capability 表达）。
+4. **`operation-permission/list` 缺 `includeGlobalFallback` 后端实现**：api-contract §5.3（T-PERM-040）已定稿该参数（「专属优先、全局回退」合并）、mock 已按契约实现、前端矩阵操作列固定传 true，但后端 `OperationListReq` 无此字段（Jackson 未知属性拒绝 → 90001 请求体格式错误）——此前被缺陷③的门控前置整体跳过而掩盖。修复：DTO 补字段 + 合并语义落在共享解析器 `OperationResolutionDomainService`（`mergeGlobalFallback` + `normalizeCode` 统一 trim+大写口径；指定类型=专属 ∪ 无同码冲突的全局、同码专属优先；类型缺省+true=仅全局集合），`operation-permission/list` 与授权计划 `resolveOperation`（operationCode 适用性校验）**同一实现**（契约 §6.5「禁止两套逻辑」）+ 单测覆盖（门禁/缺省现状/合并优先级/仅全局）。
+
+**收口补充**：合并实现初版在 AppService 内联、与授权计划存在两套口径（normalize 差异），已收敛为上述共享 DomainService（纯内存、调用方各自装载防 N+1）；授权页前端 SSOT 不再登记 RESOURCE:VIEW/OPERATION:VIEW（后端接口门禁不经前端 capability 表达，mock 授权页登记同步移除）。**遗留登记**：`views/system/resource-operation`（Phase 3 隐藏管理页，mock 联调）仍以这两个码作前端门控，其真实化联调时按同一口径处理（归前端 Phase 3）。
 
 ## 收口记录（2026-08-24，全部完成）
 
