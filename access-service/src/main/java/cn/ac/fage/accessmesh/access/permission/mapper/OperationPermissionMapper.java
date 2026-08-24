@@ -65,6 +65,14 @@ public interface OperationPermissionMapper extends BaseMapper<OperationPermissio
         @Param("resourceType") Integer resourceType);
 
     /**
+     * 查询租户的全局操作定义（resource_type IS NULL，适用所有资源类型；api-contract §5.3）。
+     *
+     * @param tenantId 租户ID
+     * @return 全局操作权限列表
+     */
+    List<OperationPermission> selectGlobalOperations(@Param("tenantId") Long tenantId);
+
+    /**
      * 根据租户ID和资源类型集合批量查询操作权限
      *
      * @param tenantId      租户ID

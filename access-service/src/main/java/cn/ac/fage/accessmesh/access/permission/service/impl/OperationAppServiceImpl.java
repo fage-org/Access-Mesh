@@ -133,7 +133,8 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @return 操作权限响应列表
      */
     @Override
-    public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode) {
+    public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode,
+                                                        Boolean includeGlobalFallback) {
         // T-PERM-042：授权页操作列表读门禁（architecture §14.5 终态，类型级 OPERATION:VIEW）
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.VIEW)) {
@@ -143,8 +144,24 @@ public class OperationAppServiceImpl implements OperationAppService {
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         }
-        return operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)
-            .stream().map(this::toResp).collect(Collectors.toList());
+        // T-ACCESS-021 补齐 api-contract §5.3（T-PERM-040 定稿、mock 已按契约实现）：false/缺省维持
+        // 现状（resourceType=null → 全量原始定义；指定类型 → 仅专属定义）
+        if (!Boolean.TRUE.equals(includeGlobalFallback)) {
+            return operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)
+                .stream().map(this::toResp).collect(Collectors.toList());
+        }
+        // true：「专属优先、全局回退」合并——resourceTypeCode=null/缺省时无专属侧，仅返回全局集合
+        if (resourceType == null) {
+            return operationPermissionMapper.selectGlobalOperations(tenantId)
+                .stream().map(this::toResp).collect(Collectors.toList());
+        }
+        List<OperationPermission> dedicated = operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType);
+        Set<String> dedicatedCodes = dedicated.stream().map(OperationPermission::getCode).collect(Collectors.toSet());
+        List<OperationPermission> merged = new java.util.ArrayList<>(dedicated);
+        operationPermissionMapper.selectGlobalOperations(tenantId).stream()
+            .filter(global -> !dedicatedCodes.contains(global.getCode()))
+            .forEach(merged::add);
+        return merged.stream().map(this::toResp).collect(Collectors.toList());
     }
 
     /**
