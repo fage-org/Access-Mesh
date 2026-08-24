@@ -37,7 +37,9 @@ Gateway (8080)
 
 ## 项目状态
 
-**核心后端已实现并经容器化测试验证**：access-service 归并完成（T-ACCESS-001~015），权限引擎、缓存 30 秒撤权边界与 9 类 68 项 Docker 门控测试已在外部主机真实执行通过。**产品垂直切片推进中**：统一身份与资源模型、空库 bootstrap、前端真实登录（T-FE-041 done，登录/主页/授权页已走真实 Gateway 链路）、授权 E2E 进行中，见 [product-vertical-slice 计划](docs/plans/product-vertical-slice-plan.md)；其余管理页面仍为 mock 联调（Phase 3 逐页切换）。设计文档入口见 [docs/README.md](docs/README.md)。
+**核心垂直切片完成（里程碑 A，T-ACCESS-021 验收通过）**：从空库 bootstrap 到网关级授权生效的完整产品链路已由跨服务 E2E 测试钉死并通过（[BasicRoleGrantVerticalSliceE2EIT](gateway/src/test/java/cn/ac/fage/accessmesh/gateway/e2e/BasicRoleGrantVerticalSliceE2EIT.java)，固定 8 步：空库首管理员真实登录 → 创建用户/空权限 BASIC_ROLE 并分配 → 真实创建 API 映射 → 403 → 授予 API:ACCESS → 30 秒内 200 → 双服务子进程重启后仍 200 + 权限服务不可用 fail-closed 503 → 撤权 30 秒内恢复 403），授权页 GUI 授予场景亦经真实浏览器操作验收；E2E 过程中修复 4 处真实缺陷（API 映射缺省 matchOrder、用户创建 status 两侧同源、授权页 capability 门控源错误、operation-permission/list 缺 includeGlobalFallback 后端实现）。验证证据见[任务卡 T-ACCESS-021](docs/tasks/T-ACCESS-021.md)。
+
+**未交付清单**（里程碑 B 加固与后续，见 [product-vertical-slice 计划](docs/plans/product-vertical-slice-plan.md)）：登录锁定临时化、GROUP_ROLE 写入口删除、文件服务安全加固、Gateway CORS 环境化、时间语义 UTC 统一、操作日志收敛、退役 API 删除（T-ADMIN-022~T-ADMIN-024/T-GW-007/T-ACCESS-024/025）；example-service 受保护接口接入（T-API-001）；验证证据收口（T-ACCESS-026）。租户开通/运营能力未交付（首期固定单租户）；PERSONAL/GROUP_ROLE 角色生命周期未交付（首期功能角色仅 BASIC_ROLE）；其余管理页面仍为 mock 联调（前端 Phase 3 逐页切换）。设计文档入口见 [docs/README.md](docs/README.md)。
 
 ## 文档
 

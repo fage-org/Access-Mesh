@@ -1,0 +1,1 @@
+{"code":200,"message":"success","data":{"userId":2,"tenantId":null,"username":null,"name":null,"phone":null,"email":null,"avatar":null,"roles":[{"roleId":null,"roleName":"E2E Basic Role"}],"permissions":[],"orgs":[]},"requestId":"0ee1cba3-ff32-49ff-bec4-96a5fb568551","traceId":"0ee1cba3-ff32-49ff-bec4-96a5fb568551"}

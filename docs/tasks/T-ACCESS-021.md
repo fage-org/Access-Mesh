@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-021
 title: BASIC_ROLE 授权垂直切片 E2E 验收 + README 回写
-status: in-progress
+status: done
 plan: docs/plans/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
@@ -21,7 +21,7 @@ acceptance:
   - "「测试全绿」不替代本验收：单测/容器门控通过仅是准入，本任务才是产品口径结论"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-08-24
 ---
 
@@ -74,7 +74,10 @@ last_updated: 2026-08-24
 
 | 验证项 | 命令 | 结果 |
 | --- | --- | --- |
-| E2E IT（含断言收口后复验，多次执行） | `mvn -pl gateway test -Dtest=BasicRoleGrantVerticalSliceE2EIT` | 每次均 Tests run: 8, Failures: 0, Errors: 0（76.68s / 77.85s / 98.60s / 83.64s） |
+| E2E IT（含断言收口后复验，多次执行） | `mvn -pl gateway test -Dtest=BasicRoleGrantVerticalSliceE2EIT` | 每次均 Tests run: 8, Failures: 0, Errors: 0（76.68s / 77.85s / 98.60s / 83.64s / 83.51s） |
+| 缺陷④修复后 access-service 单测 | `mvn -pl access-service test -DskipTestcontainers=true` | Tests run: 697, Failures: 0（含 operation 合并语义 4 用例） |
+| `DualInstanceContainerTest`（9100 释放后） | `mvn -pl access-service test -Dtest=DualInstanceContainerTest` | Tests run: 3, Failures: 0, Errors: 0 |
+| 前端（缺陷③修复后） | `pnpm test` + vue-tsc | Tests 210 passed；typecheck 通过 |
 | gateway 单测轨道 | `mvn -pl gateway test -DskipTestcontainers=true` | Tests run: 83, Failures: 0, Errors: 0 |
 | access-service 单测轨道 | `mvn -pl access-service test -DskipTestcontainers=true` | Tests run: 695, Failures: 0 |
 | access-service 容器轨 | `mvn -pl access-service test` | Tests run: 86, 1 Error——唯一失败 `DualInstanceContainerTest` 为 Port 9100 冲突（本任务为 GUI 段保持运行的 runbook access-service 实例占用），其余 85 项（含权限链路/投影/登录/失效广播全部 PgIT）通过；GUI 段完成、9100 释放后重跑该用例确认 |
@@ -89,36 +92,42 @@ last_updated: 2026-08-24
 
 两处均为 E2E 执行失败后经内部快照探针与 DB 六表转储定位、修复后全绿的真实缺陷，符合「E2E 不替代、只钉死产品结论」的任务定位。
 
-## GUI 段 runbook（授权页授予场景，待执行）
+## GUI 段 runbook（授权页授予场景）
 
-> 环境持续运行中（重启 ZCode 后可直接续做）。目标：现有授权页完成「授予 API:ACCESS」+ 截图登记 + 效果断言（⑥的 GUI 侧佐证；完整 8 步结论以 IT 为准）。
+> 可重复执行程序；2026-08-24 已按本程序经浏览器自动化真实执行并通过（执行记录见下）。
 
-**当前环境状态（已就绪）**：
+**环境（重建程序）**：
 
-- compose（WSL2）：postgresql/redis/nacos 三容器 healthy，**空库重建后已完成 bootstrap**（admin/管理角色/固定图 20 授权）。
-- 服务：access-service 9100（`ACCESS_BOOTSTRAP_ENABLED=true`，admin 密码 `E2E-Runbook-Admin-2026!`）+ Gateway 8080，均为宿主机 `mvn spring-boot:run` 后台进程，真实 Nacos 注册发现。
-- 前端：`pnpm dev` @ http://localhost:8890（VITE_PORT=8890 避让 Nacos 控制台）。
-- 链路数据（步骤①-④已 curl 预备，DB/Redis 持久）：目标用户 `e2e-target`（id=2，initialPassword 见 `D:/tmp/target_pwd.txt`；令牌为 Sa-Token 2h 会话，过期后按 runbook 步骤 4 重登）、`BASIC_ROLE externalId=e2e-basic-role`（id=2，空权限）、已分配、my-info API 映射已建（id=13，resourceId=16）——**当前目标用户调用 POST /admin/role/my-info 为 403**（未授权态，有效令牌下）。
+- compose（WSL2）：`docker compose down -v && docker compose up -d`（空库重建 + DDL 首启执行 + bootstrap 种子）。
+- 服务：access-service 9100（`ACCESS_BOOTSTRAP_ENABLED=true` + 密码/密钥环境变量）+ Gateway 8080（宿主机 `mvn spring-boot:run`，真实 Nacos 注册发现）。
+- 前端：`VITE_PORT=8890 pnpm dev`。
+- 前置（步骤①-④，curl 经 Gateway）：admin 真实登录 → 创建目标用户（initialPassword）与 `BASIC_ROLE externalId=e2e-basic-role` 并分配 → 经资源树定位 bootstrap 预建 API 资源并创建 my-info 映射 → 目标用户真实登录断言 403。
 
 **操作步骤**：
 
-1. 浏览器打开 `http://localhost:8890/#/login`：账号 `admin`、密码 `E2E-Runbook-Admin-2026!`，验证码答案从 Redis 读页面当前码：
-   `wsl docker exec accessmesh-redis redis-cli -a accessmesh-dev --no-auth-warning --scan --pattern 'captcha:*'`（唯一存活键即页面当前验证码，`GET` 取答案）。截图①登录页。
-2. 登录后进入 `http://localhost:8890/#/perm/grant`（导航「首页」外仅授权页可见；截图②授权页初始）。
-3. 左栏主体树选角色 **E2E Basic Role**（搜索框输入过滤）；中栏矩阵定位 API 资源 `bootstrap:目标接口(my-info)`（资源树内 code=`POST:/admin/role/my-info`）；打开授权弹窗勾选操作 **ACCESS**（INSTANCE，不带 canGrant）；右栏变更清单出现 1 条；点底部 **保存全部（1）**（即 apply-grant-plan，截图③提交前/④提交成功）。
-4. 效果断言（curl，30 秒窗口内轮询至 200）。目标令牌若已过 2h 会话期（401），先用 initialPassword 重登（同验证码读码法）：
-   `curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:8080/admin/role/my-info -H "Authorization: Bearer <target_token>"` → 断言 200（截图⑤终端结果）。
-5. 截图归档至 `docs/tasks/evidence/t-access-021/` 并在本卡登记文件名与时间戳。
-6. 复原：无（该环境为 E2E 专用，撤权恢复 403 已由 IT 步骤⑧覆盖；如需 GUI 侧也演示撤权，可经同一授权页取消勾选保存）。
+1. 浏览器打开 `http://localhost:8890/#/login`：账号 `admin`，验证码答案从 Redis 读页面当前码（`docker exec accessmesh-redis redis-cli -a accessmesh-dev --scan --pattern 'captcha:*'`，唯一存活键即页面当前验证码）。
+2. 进入 `http://localhost:8890/#/perm/grant`：左栏主体树选 **E2E Basic Role**；类型下拉切 **API接口（API）**；搜索 `my-info` 定位 `bootstrap:目标接口(my-info)`。
+3. 点 **授权** 打开弹窗：操作权限选 **访问接口（ACCESS）** → 资源树勾选 `POST:/admin/role/my-info` → **确定** 暂存变更 → 底部 **保存全部（1）**（apply-grant-plan 唯一写入口）。
+4. 效果断言（curl，保存提交起 30 秒窗口）：目标用户 `POST /admin/role/my-info` 轮询至 HTTP 200 + 信封 code=200（令牌过 2h 会话期先以 initialPassword 重登）。
+5. 截图/证据归档 `docs/tasks/evidence/t-access-021/` 并在本卡登记。
 
-**执行主体**：默认浏览器自动化（点击通道故障时的备选：人工按本 runbook 操作，回填截图）。
+## GUI 段执行记录（2026-08-24，通过）
 
-**阻塞记录（2026-08-24）**：IAB 浏览器 fill/type 有效但 click/keydown 事件不达页面处理器（按钮 @click 与 document Enter 监听均不触发、验证码未被消费；Chromium 拒绝 evaluate 写 cookie/localStorage）——判定为宿主会话级环境故障。当前处置：成果与本 runbook 存档，ZCode 重启后按 runbook 续做。
+- **环境**：WSL2 compose（pg/redis/nacos）+ 宿主机 access-service/Gateway（真实 Nacos）+ 前端 8890；ZCode 重启后浏览器点击通道恢复，全程浏览器自动化真实操作。
+- **链路**：真实验证码登录 admin → /perm/grant 选 E2E Basic Role → API 类型 → 定位 my-info → 授权弹窗选 ACCESS + 勾选资源 → 暂存「新增 1：ACCESS · 无条件 · 1 个资源」→ 保存全部（1）。
+- **效果**：保存提交后 **0.4s** 目标用户 my-info 即 HTTP 200 + 信封 code=200（userId=2、roles 含 E2E Basic Role）——GUI 授予 → Gateway 权限生效完整闭环。
+- **证据**（`docs/tasks/evidence/t-access-021/`，2026-08-24）：`01-logged-in-welcome.png`（已登录首页）、`02-grant-page-initial.png`（授权页初始）、`03-matrix-myinfo-row.png`（API 类型矩阵定位目标资源）、`04-grant-dialog-access.png`（授权弹窗 ACCESS+勾选）、`05-change-panel-staged.png`（变更清单暂存）、`06-after-save.png`（保存后）、`07-target-myinfo-200.json`（目标用户 200 响应原文）。
+- **附带验证**：GUI 段中 access-service 经历一次完整重启（缺陷④修复部署），bootstrap 状态② no-op（密码未重置）复验通过。
 
-## 收口清单（待办）
+## GUI 段暴露并修复的产品缺陷（2026-08-24，随本任务修复）
 
-- [ ] GUI 段执行 + 截图登记（runbook 见上）。
-- [ ] `DualInstanceContainerTest` 重跑确认（GUI 段完成、9100 释放后）。
-- [ ] README 项目状态段落改写（「核心垂直切片完成」+ 未交付清单）。
-- [ ] design 回写：architecture §14 E2E 执行终态（gateway.md 测试段已回写）。
-- [ ] 最终提交 SHA 与执行时间登记。
+3. **授权页资源矩阵恒空（前端 capability 门控源错误）**：授权页以 `hasPerms("RESOURCE:VIEW"/"OPERATION:VIEW")` 作资源树/操作列加载前置，而 `/auth/user-menu` 权限串按 admin 域类型白名单派生（`EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES`），永不含 RESOURCE/OPERATION 类型码 → 真实链路下矩阵恒空、bootstrap 管理员无法经授权页完成任何授予（mock 权限矩阵含这两个码，联调期未暴露）。修复：授权页 hook 去除该前置门控、直接请求（后端 T-PERM-042 类型级 VIEW 门禁为权威，无权限者收接口错误提示）。处置口径（用户确认）：前端去前置门控、本任务内修。
+4. **`operation-permission/list` 缺 `includeGlobalFallback` 后端实现**：api-contract §5.3（T-PERM-040）已定稿该参数（「专属优先、全局回退」合并）、mock 已按契约实现、前端矩阵操作列固定传 true，但后端 `OperationListReq` 无此字段（Jackson 未知属性拒绝 → 90001 请求体格式错误）——此前被缺陷③的门控前置整体跳过而掩盖。修复：DTO 补字段 + `OperationAppServiceImpl` 按契约实现合并（指定类型=专属∪无同码冲突的全局、同码专属优先；类型缺省+true=仅全局集合）+ mapper 补 `selectGlobalOperations` + 单测 4 用例（门禁/缺省现状/合并优先级/仅全局）。
+
+## 收口记录（2026-08-24，全部完成）
+
+- [x] GUI 段执行 + 截图登记（runbook 见上，执行记录与证据已登记）。
+- [x] `DualInstanceContainerTest` 重跑确认（9100 释放后 3/3 通过）。
+- [x] README 项目状态段落改写（「核心垂直切片完成」+ 未交付清单）。
+- [x] design 回写：architecture §14.8 E2E 执行终态 + gateway.md 测试域 + admin 契约 status 语义更正。
+- [x] 最终提交登记：缺陷修复 `39ec80a3f`/`53140dfe7`（access）、`2a8f2985b`（fe）、E2E IT `61bbdb132` + 断言收口 `f08a8a330`/`470d5f705`（gateway test）；执行时间 2026-08-24；环境 Windows 11 + WSL2 docker-desktop。
