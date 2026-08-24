@@ -39,6 +39,7 @@ public class OperationAppServiceImpl implements OperationAppService {
     private final OperationPermissionMapper operationPermissionMapper;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
+    private final cn.ac.fage.accessmesh.access.permission.service.domain.OperationResolutionDomainService operationResolution;
 
     /**
      * 构造函数注入依赖
@@ -49,10 +50,12 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     public OperationAppServiceImpl(OperationPermissionMapper operationPermissionMapper,
                                       TypeResolutionService typeResolutionService,
-                                      PermQueryEngine engine) {
+                                      PermQueryEngine engine,
+                                      cn.ac.fage.accessmesh.access.permission.service.domain.OperationResolutionDomainService operationResolution) {
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
+        this.operationResolution = operationResolution;
     }
 
     /**
@@ -150,18 +153,11 @@ public class OperationAppServiceImpl implements OperationAppService {
             return operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)
                 .stream().map(this::toResp).collect(Collectors.toList());
         }
-        // true：「专属优先、全局回退」合并——resourceTypeCode=null/缺省时无专属侧，仅返回全局集合
-        if (resourceType == null) {
-            return operationPermissionMapper.selectGlobalOperations(tenantId)
-                .stream().map(this::toResp).collect(Collectors.toList());
-        }
-        List<OperationPermission> dedicated = operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType);
-        Set<String> dedicatedCodes = dedicated.stream().map(OperationPermission::getCode).collect(Collectors.toSet());
-        List<OperationPermission> merged = new java.util.ArrayList<>(dedicated);
-        operationPermissionMapper.selectGlobalOperations(tenantId).stream()
-            .filter(global -> !dedicatedCodes.contains(global.getCode()))
-            .forEach(merged::add);
-        return merged.stream().map(this::toResp).collect(Collectors.toList());
+        // true：「专属优先、全局回退」合并——经共享解析器（与授权计划 operationCode 适用性校验
+        // 同一实现，契约禁止两套逻辑；resourceTypeCode=null/缺省时无专属侧仅全局集合）
+        return operationResolution.mergeGlobalFallback(
+                operationPermissionMapper.selectByTenantAndResourceType(tenantId, null), resourceType)
+            .stream().map(this::toResp).collect(Collectors.toList());
     }
 
     /**

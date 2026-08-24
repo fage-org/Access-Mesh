@@ -50,7 +50,8 @@ class PermissionGrantPlanDomainServiceImplTest {
         service = new PermissionGrantPlanDomainServiceImpl(
             typeResolutionService, domainClassifyService, permissionGrantDomainService,
             rolePermissionMapper, resourceEntityMapper, operationPermissionMapper,
-            permissionConditionMapper, domainConfigMapper, new ObjectMapper());
+            permissionConditionMapper, domainConfigMapper, new ObjectMapper(),
+            new OperationResolutionDomainServiceImpl());
     }
 
     @Test

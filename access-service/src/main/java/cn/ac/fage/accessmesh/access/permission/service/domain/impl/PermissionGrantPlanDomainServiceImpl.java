@@ -18,6 +18,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.OperationResolutionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionGrantPlanDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
@@ -58,6 +59,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     private final PermissionConditionMapper permissionConditionMapper;
     private final DomainConfigMapper domainConfigMapper;
     private final ObjectMapper objectMapper;
+    private final OperationResolutionDomainService operationResolutionDomainService;
 
     public PermissionGrantPlanDomainServiceImpl(
             TypeResolutionService typeResolutionService,
@@ -68,7 +70,8 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             OperationPermissionMapper operationPermissionMapper,
             PermissionConditionMapper permissionConditionMapper,
             DomainConfigMapper domainConfigMapper,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            OperationResolutionDomainService operationResolutionDomainService) {
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.permissionGrantDomainService = permissionGrantDomainService;
@@ -78,6 +81,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         this.permissionConditionMapper = permissionConditionMapper;
         this.domainConfigMapper = domainConfigMapper;
         this.objectMapper = objectMapper;
+        this.operationResolutionDomainService = operationResolutionDomainService;
     }
 
     @Override
@@ -477,20 +481,15 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                                                  Integer resourceType,
                                                  String operationCode,
                                                  Set<String> knownOperationCodes) {
+        // 「专属优先、全局回退」经共享解析器（OperationResolutionDomainService，与
+        // operation-permission/list 的 includeGlobalFallback 同一实现，契约禁止两套逻辑）
         String normalizedCode = normalize(operationCode);
-        OperationPermission specific = operations.stream()
-            .filter(operation -> Objects.equals(operation.getResourceType(), resourceType))
+        OperationPermission resolved = operationResolutionDomainService
+            .mergeGlobalFallback(operations, resourceType).stream()
             .filter(operation -> normalizedCode.equals(normalize(operation.getCode())))
             .findFirst().orElse(null);
-        if (specific != null) {
-            return specific;
-        }
-        OperationPermission global = operations.stream()
-            .filter(operation -> operation.getResourceType() == null)
-            .filter(operation -> normalizedCode.equals(normalize(operation.getCode())))
-            .findFirst().orElse(null);
-        if (global != null) {
-            return global;
+        if (resolved != null) {
+            return resolved;
         }
         if (knownOperationCodes.contains(normalizedCode)) {
             throw biz(PermissionErrorCode.RESOURCE_TYPE_OPERATION_MISMATCH,

@@ -41,8 +41,9 @@ class OperationAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        // 测试简化：投影主体 = 传入 operatorId
-        service = new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine);
+        // 测试简化：投影主体 = 传入 operatorId；共享解析器为纯内存实现，直接用真实例
+        service = new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine,
+            new cn.ac.fage.accessmesh.access.permission.service.domain.impl.OperationResolutionDomainServiceImpl());
     }
 
     @Test
@@ -94,11 +95,11 @@ class OperationAppServiceImplTest {
                 isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
             when(typeResolutionService.resolveTypeValue(eq(1L), eq("resource_type"), eq("ROLE")))
                 .thenReturn(5);
-            // 专属：VIEW/MANAGE；全局：VIEW（同码，被剔除）+ SYNC（保留）
-            when(operationPermissionMapper.selectByTenantAndResourceType(eq(1L), eq(5)))
-                .thenReturn(List.of(op(5, "VIEW"), op(5, "MANAGE")));
-            when(operationPermissionMapper.selectGlobalOperations(eq(1L)))
-                .thenReturn(List.of(op(null, "VIEW"), op(null, "SYNC")));
+            // 合并路径单查全量（含其它类型专属与全局），由共享解析器内存合并：
+            // ROLE 专属 VIEW/MANAGE；全局 VIEW（同码被剔除）+ SYNC（保留）；USER 专属不入结果
+            when(operationPermissionMapper.selectByTenantAndResourceType(eq(1L), isNull()))
+                .thenReturn(List.of(op(5, "VIEW"), op(5, "MANAGE"),
+                    op(null, "VIEW"), op(null, "SYNC"), op(6, "CREATE")));
 
             List<String> codes = service.listOperations(1L, "ROLE", null, true)
                 .stream().map(r -> r.code()).toList();
@@ -113,13 +114,12 @@ class OperationAppServiceImplTest {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
                 isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
-            when(operationPermissionMapper.selectGlobalOperations(eq(1L)))
-                .thenReturn(List.of(op(null, "VIEW"), op(null, "SYNC")));
+            when(operationPermissionMapper.selectByTenantAndResourceType(eq(1L), isNull()))
+                .thenReturn(List.of(op(5, "VIEW"), op(null, "VIEW"), op(null, "SYNC")));
 
             List<String> codes = service.listOperations(1L, null, null, true)
                 .stream().map(r -> r.code()).toList();
             assertEquals(List.of("VIEW", "SYNC"), codes);
-            verify(operationPermissionMapper).selectGlobalOperations(eq(1L));
         }
     }
 }
