@@ -13,6 +13,12 @@
     <name>Gateway Service</name>
     <description>Spring Cloud Gateway - traffic entry point</description>
 
+    <properties>
+        <!-- 单测轨道开关（T-ACCESS-021 与 access-service 同款双 execution 分层）：
+             true 时 mvn test 跳过 testcontainers 组 execution（CI 单测 job / 本地快速反馈） -->
+        <skipTestcontainers>false</skipTestcontainers>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
@@ -102,6 +108,46 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- T-ACCESS-021：Testcontainers 容器轨道（PG/Redis） -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- T-ACCESS-021：common（compile）对 spring-webmvc 的既有排除使最近路径的
+             starter-web 子树失去 webmvc，access-service(test) 的同 artifact 路径整体被
+             「omitted for duplicate」去重——webmvc 因此从测试类路径消失，E2E 的
+             access-service 子进程（servlet 栈）无法启动。显式 test 依赖恢复：仅进入
+             测试类路径（GatewayApplicationConfigTest 已显式 reactive），生产编译/运行
+             classpath 不受影响。 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- T-ACCESS-021：跨服务 E2E IT（BasicRoleGrantVerticalSliceE2EIT）以子进程启动
+             access-service——两服务需在同一 java.class.path 上。仅 test scope，不进入生
+             产依赖图。排除 spring-boot-starter-logging 防 Logback 与 log4j2 双 Provider
+             （与 access-service 对 web starter 的处理同模式；其依赖树实测无 logback，此为
+             防回归保险）。注意：webmvc/webflux 因此共存于 gateway 测试类路径——上下文测试
+             显式 reactive（GatewayApplicationConfigTest），E2E 子进程按服务各自显式声明。 -->
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>access-service</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
     </dependencies>
 
     <build>
@@ -109,6 +155,42 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+            <!-- T-ACCESS-021：与 access-service 同款双 execution 分层（默认 execution 排除
+                 testcontainers 组、容器组独立 execution 可经 -DskipTestcontainers=true 跳过），
+                 CI 单测 job 全量跑容器 E2E 会拖垮反馈速度，必须与仓库既有轨道一致分层。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <nacos.logging.default.config.enabled>false</nacos.logging.default.config.enabled>
+                        <api.version>1.44</api.version>
+                    </systemPropertyVariables>
+                    <includes>
+                        <include>**/Test*.java</include>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                        <include>**/*TestCase.java</include>
+                        <include>**/*IT.java</include>
+                    </includes>
+                    <excludedGroups>testcontainers</excludedGroups>
+                    <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>testcontainers</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>test</goal>
+                        </goals>
+                        <configuration>
+                            <excludedGroups combine.self="override"/>
+                            <groups>testcontainers</groups>
+                            <skip>${skipTestcontainers}</skip>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
