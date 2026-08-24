@@ -15,8 +15,10 @@
  *   （后端 role-resource-permission/* 均校验目标抽象角色）。
  *
  * perm 串字面量全部为既有资源类型:操作码复用（无新增权限串）：
- * ROLE:VIEW / ROLE:MANAGE（access-service 乙层锚点）、CONDITION:VIEW（3.2 条件）、
- * RESOURCE:VIEW / OPERATION:VIEW（3.1 资源与操作）。
+ * ROLE:VIEW / ROLE:MANAGE（access-service 乙层锚点）、CONDITION:VIEW（3.2 条件）。
+ * 资源树/操作列等只读数据接口的门禁（RESOURCE:VIEW/OPERATION:VIEW）是后端类型级
+ * 接口门禁，不经前端 capability 判定——这两个码不在 /auth/user-menu 权限串白名单内，
+ * 登记为前端 capability 会造成真实链路与 mock 的环境差异（T-ACCESS-021 缺陷③口径）。
  */
 export const PERMISSION_GRANT_PERMS = {
   // ===== 配权门禁（轨道 2，目标抽象角色） =====
@@ -31,10 +33,6 @@ export const PERMISSION_GRANT_PERMS = {
    * 本串保留仅对齐后端枚举；不再参与条件列表加载门控与矩阵登记。
    */
   CONDITION_VIEW: "CONDITION:VIEW",
-  /** 资源树（矩阵资源行 / 授权弹窗资源选择） */
-  RESOURCE_VIEW: "RESOURCE:VIEW",
-  /** 操作列定义 */
-  OPERATION_VIEW: "OPERATION:VIEW",
 
   // ===== 左栏数据源门禁（轨道 1，组织入口二期/个人入口预留） =====
   /** 组织树数据源（组织入口二期） */
@@ -58,14 +56,3 @@ export const PERMISSION_GRANT_PERM_LIST: ReadonlyArray<PermissionGrantPermValue>
   Array.from(new Set(Object.values(PERMISSION_GRANT_PERMS))).filter(
     p => p !== PERMISSION_GRANT_PERMS.CONDITION_VIEW
   );
-
-/**
- * 仅查看类 perm 串（mock 角色矩阵的最小集合）：
- * 矩阵只读 + 只读依赖数据可见，无授权/数据源写门禁。
- */
-export const PERMISSION_GRANT_VIEW_PERMS: ReadonlyArray<PermissionGrantPermValue> =
-  [
-    PERMISSION_GRANT_PERMS.ROLE_VIEW,
-    PERMISSION_GRANT_PERMS.RESOURCE_VIEW,
-    PERMISSION_GRANT_PERMS.OPERATION_VIEW
-  ];
