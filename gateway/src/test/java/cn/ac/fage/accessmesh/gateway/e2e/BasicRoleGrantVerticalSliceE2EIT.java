@@ -142,6 +142,8 @@ class BasicRoleGrantVerticalSliceE2EIT {
     private static String targetToken;
     private static long targetApiResourceId;
     private static long grantedPermissionId;
+    /** 授权（⑤）响应到达的单调时刻——⑥的 30 秒陈旧窗口自该时刻起算（与⑧撤权同口径） */
+    private static long grantResponseAtNanos;
 
     @BeforeAll
     static void bootStack() throws Exception {
@@ -293,6 +295,8 @@ class BasicRoleGrantVerticalSliceE2EIT {
         JsonNode items = postForData(
             gateway() + "/perm/api/perm/role-resource-permission/apply-grant-plan", adminToken, req)
             .path("items");
+        // ⑥的 30 秒陈旧窗口自授权响应到达时刻起算（与⑧撤权同口径）
+        grantResponseAtNanos = System.nanoTime();
         assertThat(items.isArray() && items.size() == 1)
             .as("授权计划必须产生恰好一条授权记录").isTrue();
         grantedPermissionId = items.get(0).path("id").asLong();
@@ -301,28 +305,34 @@ class BasicRoleGrantVerticalSliceE2EIT {
 
     @Test
     @Order(6)
-    @DisplayName("⑥ 目标用户再次调用目标接口，30 秒陈旧窗口内轮询至 200")
+    @DisplayName("⑥ 目标用户再次调用目标接口，授权响应起 30 秒陈旧窗口内轮询至真实成功")
     void step6_targetUserAllowedAfterGrant() {
-        long deadline = System.nanoTime() + STALE_WINDOW.toNanos();
-        Integer got = null;
+        // 窗口自⑤授权响应时刻起算——若步骤方法间发生调度停顿，不得挤占 30 秒预算
+        long deadline = grantResponseAtNanos + STALE_WINDOW.toNanos();
+        Boolean allowed = null;
         IOException lastError = null;
         while (System.nanoTime() < deadline) {
             try {
-                int status = postStatus(gateway() + TARGET_API_PATH, targetToken);
-                if (status == 200) {
-                    got = status;
+                EnvelopeResult r = postEnvelope(gateway() + TARGET_API_PATH, targetToken);
+                if (r.status() == 200) {
+                    // HTTP 200 必须同时信封 code=200 与目标用户数据结构——业务失败（HTTP 200 +
+                    // code≠200）不会自愈，立即失败而非继续轮询
+                    assertMyInfoSuccess(r, "授权生效");
+                    allowed = true;
                     break;
                 }
-                assertThat(status == 403 || status == 503)
-                    .as("授权生效等待期只允许 403（陈旧拒绝）或 503（回源瞬时失败），实际 " + status)
+                assertThat(r.status() == 403 || r.status() == 503)
+                    .as("授权生效等待期只允许 403（陈旧拒绝）或 503（回源瞬时失败），实际 " + r.status())
                     .isTrue();
             } catch (IOException e) {
                 lastError = e;
             }
             sleepQuiet(1000);
         }
-        assertThat(got).withFailMessage(() -> "授权必须在 30 秒陈旧窗口内生效（服务端快照探针："
-            + probeInternalSnapshot() + "；DB 关键行：" + dumpGrantChainRows() + "）").isEqualTo(200);
+        final IOException finalLastError = lastError;
+        assertThat(allowed).withFailMessage(() -> "授权必须在授权响应起 30 秒陈旧窗口内真实生效（最后错误："
+            + finalLastError + "；服务端快照探针：" + probeInternalSnapshot()
+            + "；DB 关键行：" + dumpGrantChainRows() + "）").isTrue();
     }
 
     @Test
@@ -351,13 +361,15 @@ class BasicRoleGrantVerticalSliceE2EIT {
             URI.create("http://localhost:" + gatewayPort + "/actuator/health"), false);
 
         long deadline = System.nanoTime() + STALE_WINDOW.toNanos();
-        Integer got = null;
+        Boolean stillAllowed = null;
         IOException lastError = null;
         while (System.nanoTime() < deadline) {
             try {
-                int status = postStatus(gateway() + TARGET_API_PATH, targetToken);
-                if (status == 200) {
-                    got = status;
+                EnvelopeResult r = postEnvelope(gateway() + TARGET_API_PATH, targetToken);
+                if (r.status() == 200) {
+                    // 重启后同样按信封级判定（HTTP 200 + code=200 + 目标用户数据结构）
+                    assertMyInfoSuccess(r, "重启后");
+                    stillAllowed = true;
                     break;
                 }
             } catch (IOException e) {
@@ -365,7 +377,9 @@ class BasicRoleGrantVerticalSliceE2EIT {
             }
             sleepQuiet(1000);
         }
-        assertThat(got).as("重启后目标接口必须仍为 200（最后错误：" + lastError + "）").isEqualTo(200);
+        assertThat(stillAllowed)
+            .as("重启后目标接口必须仍为真实成功（最后错误：" + lastError + "）")
+            .isTrue();
     }
 
     @Test
@@ -694,6 +708,52 @@ class BasicRoleGrantVerticalSliceE2EIT {
             Thread.currentThread().interrupt();
             throw new IOException("请求被中断: " + url, e);
         }
+    }
+
+    /** HTTP 状态 + 响应体（envelope 为懒解析：仅 HTTP 200 时可信为信封 JSON） */
+    private record EnvelopeResult(int status, String rawBody) {}
+
+    /** POST + JSON Body；返回状态码与原始响应体（放行路径需信封级判定，拒绝路径只看状态码） */
+    private static EnvelopeResult postEnvelope(String url, String bearerToken) throws IOException {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
+            .timeout(Duration.ofSeconds(20))
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString("{}", StandardCharsets.UTF_8));
+        if (bearerToken != null) {
+            builder.header("Authorization", "Bearer " + bearerToken);
+        }
+        try {
+            HttpResponse<String> response = HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            return new EnvelopeResult(response.statusCode(), response.body());
+        } catch (HttpTimeoutException e) {
+            throw new IOException("请求超时: " + url, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("请求被中断: " + url, e);
+        }
+    }
+
+    /**
+     * 目标接口真实成功断言：HTTP 200 之外必须信封 code=200 且返回目标用户自身的数据结构
+     * （userId 一致、roles 含已分配角色）——业务失败（HTTP 200 + code≠200）不得判成功。
+     * 契约口径：my-info（loadUserRolesAndPermissions）仅角色/权限/组织列表有值，
+     * username 等字段为 null 属契约内行为，不作断言。
+     */
+    private static void assertMyInfoSuccess(EnvelopeResult r, String scene) {
+        JsonNode envelope;
+        try {
+            envelope = JSON.readTree(r.rawBody());
+        } catch (IOException e) {
+            throw new IllegalStateException(scene + "：响应不是合法 JSON：" + r.rawBody(), e);
+        }
+        assertThat(envelope.path("code").asInt())
+            .as(scene + "目标接口必须信封 code=200（HTTP 200 + 业务失败不得判成功），响应：" + r.rawBody())
+            .isEqualTo(200);
+        JsonNode data = envelope.path("data");
+        assertThat(data.path("userId").asLong())
+            .as(scene + "必须返回目标用户自身数据，响应：" + r.rawBody()).isEqualTo(targetUserId);
+        assertThat(data.path("roles").isArray() && data.path("roles").size() >= 1)
+            .as(scene + "必须含已分配角色，响应：" + r.rawBody()).isTrue();
     }
 
     /** POST + JSON Body；断言 HTTP 200 + 信封 code=200，返回 data 节点（失败信息含响应体） */
