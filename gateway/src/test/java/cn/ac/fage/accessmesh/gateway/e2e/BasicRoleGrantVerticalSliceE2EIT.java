@@ -315,6 +315,11 @@ class BasicRoleGrantVerticalSliceE2EIT {
             try {
                 EnvelopeResult r = postEnvelope(gateway() + TARGET_API_PATH, targetToken);
                 if (r.status() == 200) {
+                    // 到达时刻校验：请求发起在窗内不代表响应到达在窗内（单次请求可阻塞），
+                    // 超窗到达的 200 不得判通过——「超时即失败」以响应到达时刻为准
+                    assertThat(System.nanoTime())
+                        .as("授权生效响应必须在 30 秒窗口内到达（发起在窗内不代表到达在窗内）")
+                        .isLessThanOrEqualTo(deadline);
                     // HTTP 200 必须同时信封 code=200 与目标用户数据结构——业务失败（HTTP 200 +
                     // code≠200）不会自愈，立即失败而非继续轮询
                     assertMyInfoSuccess(r, "授权生效");
@@ -409,6 +414,10 @@ class BasicRoleGrantVerticalSliceE2EIT {
             try {
                 int status = postStatus(gateway() + TARGET_API_PATH, targetToken);
                 if (status == 403) {
+                    // 到达时刻校验（与⑥同口径）：超窗到达的 403 不得判通过
+                    assertThat(System.nanoTime())
+                        .as("撤权恢复 403 响应必须在 30 秒窗口内到达（发起在窗内不代表到达在窗内）")
+                        .isLessThanOrEqualTo(deadline);
                     denied = status;
                     break;
                 }

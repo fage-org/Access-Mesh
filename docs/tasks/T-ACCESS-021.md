@@ -62,7 +62,7 @@ last_updated: 2026-08-24
 
 ## 自动化轨终态（2026-08-24）
 
-**交付物**：`gateway/src/test/java/cn/ac/fage/accessmesh/gateway/e2e/BasicRoleGrantVerticalSliceE2EIT.java`（8 个 ordered 用例 = 固定 8 步；fail-closed 与⑦合并）。计时与断言口径：⑥的 30 秒陈旧窗口自⑤授权响应到达时刻单调起算（与⑧撤权同口径）；放行路径（⑥⑦）为信封级成功断言——HTTP 200 + 信封 code=200 + 目标用户数据结构（userId 一致、roles 含已分配角色；my-info 契约仅角色/权限/组织列表有值，username 为 null 属契约内行为）；拒绝路径（④⑧的 403、fail-closed 的 503）按 HTTP 状态断言。
+**交付物**：`gateway/src/test/java/cn/ac/fage/accessmesh/gateway/e2e/BasicRoleGrantVerticalSliceE2EIT.java`（8 个 ordered 用例 = 固定 8 步；fail-closed 与⑦合并）。计时与断言口径：⑥的 30 秒陈旧窗口自⑤授权响应到达时刻单调起算（与⑧撤权同口径），窗口判定以目标状态响应**到达时刻**为准——请求发起在窗内不代表到达在窗内，超窗到达的 200/403 判失败；放行路径（⑥⑦）为信封级成功断言——HTTP 200 + 信封 code=200 + 目标用户数据结构（userId 一致、roles 含已分配角色；my-info 契约仅角色/权限/组织列表有值，username 为 null 属契约内行为）；拒绝路径（④⑧的 403、fail-closed 的 503）按 HTTP 状态断言。
 
 - **拓扑**：PG16/Redis7 为 Testcontainers（DDL 经 JDBC 一次性执行）；access-service 与 Gateway 以**子进程**（独立 JVM、固定随机端口、类路径过滤 test-classes）从测试 JVM 启动；步骤⑦ kill 后重新 spawn（真实进程重启语义）。restart 幂等由 bootstrap 状态②顺带覆盖。
 - **网关免 Nacos 直连**：`--spring.cloud.discovery.client.simple.instances.access-service[0].uri`（路由 lb:// 与 PermissionClient 负载均衡 WebClient 同一解析源）。
@@ -74,7 +74,7 @@ last_updated: 2026-08-24
 
 | 验证项 | 命令 | 结果 |
 | --- | --- | --- |
-| E2E IT（含断言收口后复验，连续三次执行） | `mvn -pl gateway test -Dtest=BasicRoleGrantVerticalSliceE2EIT` | 三次均 Tests run: 8, Failures: 0, Errors: 0（76.68s / 77.85s / 98.60s） |
+| E2E IT（含断言收口后复验，多次执行） | `mvn -pl gateway test -Dtest=BasicRoleGrantVerticalSliceE2EIT` | 每次均 Tests run: 8, Failures: 0, Errors: 0（76.68s / 77.85s / 98.60s / 83.64s） |
 | gateway 单测轨道 | `mvn -pl gateway test -DskipTestcontainers=true` | Tests run: 83, Failures: 0, Errors: 0 |
 | access-service 单测轨道 | `mvn -pl access-service test -DskipTestcontainers=true` | Tests run: 695, Failures: 0 |
 | access-service 容器轨 | `mvn -pl access-service test` | Tests run: 86, 1 Error——唯一失败 `DualInstanceContainerTest` 为 Port 9100 冲突（本任务为 GUI 段保持运行的 runbook access-service 实例占用），其余 85 项（含权限链路/投影/登录/失效广播全部 PgIT）通过；GUI 段完成、9100 释放后重跑该用例确认 |
