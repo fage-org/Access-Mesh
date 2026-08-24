@@ -49,20 +49,20 @@ last_updated: 2026-08-24
 - 不扩展第二个授权场景（组织主体、条件权限等，前端 phase3 联调承接）。
 - 不建独立 E2E 测试工程/平台（以最小可重复执行为准）。
 
-## 执行决策（2026-08-24 用户确认）
+## 执行口径
 
-1. **自动化形态**：Testcontainers 跨服务 IT（gateway 模块 test 域托管，access-service 为 test 依赖；`@Tag("testcontainers")` 随 CI 容器门控）。
-2. **验证码**：Redis 按 captchaId 只读取码（/auth/captcha 真实签发、后端真实校验；T-ACCESS-020 验收同款）。
+1. **自动化形态**：Testcontainers 跨服务 IT（gateway 模块 test 域托管，access-service 为 test 依赖；`@Tag("testcontainers")` 随 CI 容器门控）；页面操作段落以受控 runbook + 截图登记。
+2. **验证码**：Redis 按 captchaId 只读取码（/auth/captcha 真实签发、后端真实校验）。
 3. **fail-closed 验证位置**：与步骤⑦合并（停 access-service 断言 503 → 重启两服务断言 200）。
-4. **既有开发卷处置**：`docker compose down -v` 清卷重建（bootstrap 固定图可自动再生）。
-5. **步骤⑤ GUI 段**：双轨合成——IT 内⑤经 apply-grant-plan API（与授权页同一唯一写入口、同构请求体）；授权页 GUI 场景在真实 compose 环境以受控 runbook 执行（截图登记）。
+4. **既有开发卷处置**：GUI 段前 `docker compose down -v` 清卷重建（bootstrap 固定图自动再生）。
+5. **步骤⑤双轨**：IT 内经 apply-grant-plan API（与授权页同一唯一写入口、同构请求体）；授权页 GUI 场景在真实 compose 环境以受控 runbook 执行（截图登记）。
 6. **重启语义**：子进程级（独立 JVM spawn/kill，无静态状态残留疑虑）。
-7. **GUI 段执行主体**：浏览器自动化执行（授权页授予 + 截图）。
-8. **实现级自定（未上升用户）**：IT 内免 Nacos 容器，Gateway 路由与权限回源 WebClient 经 `spring.cloud.discovery.client.simple.instances` 静态实例直连（predicates/filters/serviceCode 元数据不变，真实 Nacos 由 compose runbook 段覆盖）。
+7. **GUI 段执行主体**：浏览器自动化（备选：人工按 runbook 操作回填截图）。
+8. **IT 免 Nacos**：Gateway 路由与权限回源 WebClient 经 `spring.cloud.discovery.client.simple.instances` 静态实例直连（predicates/filters/serviceCode 元数据不变，真实 Nacos 由 compose runbook 段覆盖）。
 
-## 自动化轨终态（2026-08-24，已完成并两轮全绿）
+## 自动化轨终态（2026-08-24）
 
-**交付物**：`gateway/src/test/java/cn/ac/fage/accessmesh/gateway/e2e/BasicRoleGrantVerticalSliceE2EIT.java`（8 个 ordered 用例 = 固定 8 步；fail-closed 与⑦合并）。
+**交付物**：`gateway/src/test/java/cn/ac/fage/accessmesh/gateway/e2e/BasicRoleGrantVerticalSliceE2EIT.java`（8 个 ordered 用例 = 固定 8 步；fail-closed 与⑦合并）。计时与断言口径：⑥的 30 秒陈旧窗口自⑤授权响应到达时刻单调起算（与⑧撤权同口径）；放行路径（⑥⑦）为信封级成功断言——HTTP 200 + 信封 code=200 + 目标用户数据结构（userId 一致、roles 含已分配角色；my-info 契约仅角色/权限/组织列表有值，username 为 null 属契约内行为）；拒绝路径（④⑧的 403、fail-closed 的 503）按 HTTP 状态断言。
 
 - **拓扑**：PG16/Redis7 为 Testcontainers（DDL 经 JDBC 一次性执行）；access-service 与 Gateway 以**子进程**（独立 JVM、固定随机端口、类路径过滤 test-classes）从测试 JVM 启动；步骤⑦ kill 后重新 spawn（真实进程重启语义）。restart 幂等由 bootstrap 状态②顺带覆盖。
 - **网关免 Nacos 直连**：`--spring.cloud.discovery.client.simple.instances.access-service[0].uri`（路由 lb:// 与 PermissionClient 负载均衡 WebClient 同一解析源）。
@@ -74,21 +74,20 @@ last_updated: 2026-08-24
 
 | 验证项 | 命令 | 结果 |
 | --- | --- | --- |
-| E2E IT 首绿 | `mvn -pl gateway test -Dtest=BasicRoleGrantVerticalSliceE2EIT` | Tests run: 8, Failures: 0, Errors: 0（76.68s） |
-| E2E 复跑稳定 | 同上 | Tests run: 8, Failures: 0, Errors: 0（77.85s） |
+| E2E IT（含断言收口后复验，连续三次执行） | `mvn -pl gateway test -Dtest=BasicRoleGrantVerticalSliceE2EIT` | 三次均 Tests run: 8, Failures: 0, Errors: 0（76.68s / 77.85s / 98.60s） |
 | gateway 单测轨道 | `mvn -pl gateway test -DskipTestcontainers=true` | Tests run: 83, Failures: 0, Errors: 0 |
 | access-service 单测轨道 | `mvn -pl access-service test -DskipTestcontainers=true` | Tests run: 695, Failures: 0 |
-| access-service 容器轨 | `mvn -pl access-service test` | Tests run: 86, 1 Error——唯一失败 `DualInstanceContainerTest` 为 Port 9100 冲突（本任务为 GUI 段保持运行的 runbook access-service 实例占用），其余 85 项（含权限链路/投影/登录/失效广播全部 PgIT）通过；GUI 段完成停服后复跑该用例确认 |
+| access-service 容器轨 | `mvn -pl access-service test` | Tests run: 86, 1 Error——唯一失败 `DualInstanceContainerTest` 为 Port 9100 冲突（本任务为 GUI 段保持运行的 runbook access-service 实例占用），其余 85 项（含权限链路/投影/登录/失效广播全部 PgIT）通过；GUI 段完成、9100 释放后重跑该用例确认 |
 | gateway 全量（单测+容器轨） | `mvn -pl gateway test` | Tests run: 83 + 8, 全绿（BUILD SUCCESS，E2E 92.59s） |
 
-（提交存档：缺陷修复 `39ec80a3f`、E2E IT `61bbdb132`、文档与 runbook `ca9fb399c`，2026-08-24；最终轮证据在收口时补记。）
+（代码提交存档：缺陷修复 `39ec80a3f`、E2E IT `61bbdb132`，2026-08-24；文档修订见分支历史，最终收口证据在任务完成时补记。）
 
 ## E2E 揪出并修复的产品缺陷（2026-08-24）
 
 1. **resource-api-mapping/create 缺省 matchOrder 500**：`ApiMappingAddReq.matchOrder` 契约可选、DDL `DEFAULT 0`，但 `addApiMapping` 将 null 透传显式写库触发 NOT NULL 违例（MyBatis-Flex 显式 null 绕过列默认）。修复：`ResourceManageAppServiceImpl.addApiMapping` 缺省 0（update 路径本就 null 跳过）。
 2. **用户创建 status 两侧不同源（语义级）**：`createUser` 中 sys_user 侧 `status` 缺省 1，而 `abstract_user.enabled` 经 `isEnabled(req.status())`（null→false）——未传 status 时建成「sys_user 启用 + 主体禁用」的自相矛盾主体，权限管线按禁用主体解析 → 快照恒空 → 全接口 403。修复：缺省值解析一次两侧同源（DDL 权威语义 1=启用）；`UserCreateReq` javadoc 与 admin 契约 create 段的「0=正常,1=禁用」错误表述同步更正为「1=启用,0=停用，缺省 1」（契约自身启停段与 DDL/实现本就一致）。
 
-两处均为 E2E 首轮红→定位（内部快照探针 + DB 六表转储）→修复→全绿的真实缺陷，符合「E2E 不替代、只钉死产品结论」的任务定位。
+两处均为 E2E 执行失败后经内部快照探针与 DB 六表转储定位、修复后全绿的真实缺陷，符合「E2E 不替代、只钉死产品结论」的任务定位。
 
 ## GUI 段 runbook（授权页授予场景，待执行）
 
@@ -114,12 +113,12 @@ last_updated: 2026-08-24
 
 **执行主体**：默认浏览器自动化（点击通道故障时的备选：人工按本 runbook 操作，回填截图）。
 
-**阻塞记录（2026-08-24）**：IAB 浏览器 fill/type 有效但 click/keydown 事件不达页面处理器（按钮 @click 与 document Enter 监听均不触发、验证码未被消费；Chromium 拒绝 evaluate 写 cookie/localStorage）——判定为宿主会话级环境故障。用户决策：成果存档 + 本 runbook + 重启 ZCode 后重试。
+**阻塞记录（2026-08-24）**：IAB 浏览器 fill/type 有效但 click/keydown 事件不达页面处理器（按钮 @click 与 document Enter 监听均不触发、验证码未被消费；Chromium 拒绝 evaluate 写 cookie/localStorage）——判定为宿主会话级环境故障。当前处置：成果与本 runbook 存档，ZCode 重启后按 runbook 续做。
 
 ## 收口清单（待办）
 
 - [ ] GUI 段执行 + 截图登记（runbook 见上）。
-- [ ] `DualInstanceContainerTest` 复跑确认（GUI 段完成、9100 释放后）。
+- [ ] `DualInstanceContainerTest` 重跑确认（GUI 段完成、9100 释放后）。
 - [ ] README 项目状态段落改写（「核心垂直切片完成」+ 未交付清单）。
 - [ ] design 回写：architecture §14 E2E 执行终态（gateway.md 测试段已回写）。
 - [ ] 最终提交 SHA 与执行时间登记。
