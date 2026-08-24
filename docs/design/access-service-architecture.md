@@ -532,3 +532,11 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 - 目标接口固定为 `POST /admin/role/my-info`（登录用户自查，无二层管理门禁）。
 - bootstrap 仅预建其 `resource_entity(API)` 资源并在管理角色上精确授予该 API 的 `API:ACCESS + canGrant=true`（首管理员经该角色预持，授权载体见 §14.1），不创建其 `resource_api_mapping`——映射由 E2E 真实创建：既保证「真实创建 API 映射」步骤成立，又使 `canGrant` 授权传递链合法、目标用户保持初始 403。
 - E2E 目标用户与普通功能角色由 E2E 场景内经管理链路创建（双角色双用户模型，配合 T-ACCESS-020/T-ACCESS-021）。
+
+### 14.7 实施终态（T-ACCESS-020，2026-08-24）
+
+- **组件落位**：`access.application.bootstrap` 包承载 `AccessBootstrapRunner`（`@ConditionalOnProperty` 装配 + 密码 fail-fast + 租户上下文绑定）、`AccessBootstrapInitializer`（事务化 initializer，`@Transactional` + `@PermissionChange` 单事务）、`AccessBootstrapProperties`、`BootstrapGraphDefinition`（固定图唯一定义源：13 API 清单 + 20 条授权）；无操作者写入组件为 `permission.service.domain.BootstrapSeedWriter`（接口）+ `impl` 包内可见实现（非 public 类，仅经接口被 bootstrap initializer 注入）。放 application 层原因：需同时依赖 admin 域（UserDomainService）与 permission 域领域服务，两域互依赖为架构测试所禁。
+- **领域服务复用**：主体+USER 投影（`createLocalUserSubject`）、sys_user（`UserDomainService.insert`，字段形态对齐 createUser 链）、角色（`SubjectDomainService.createRole` + `upsertRoleResource` ROLE 投影）；授权写入复用 `PermissionGrantPlanDomainService.apply(PreparedGrantPlan)`（公开 record 可直接构造，apply 为纯写入；写前经 `validateSingleManualGrants`/`validateGrantAttributes` 不变量校验）——未给任何通用授权服务新增无操作者公开入口。类型值经 `TypeResolutionService` 解析、操作位从 `operation_permission.binary_bit` 读取，bootstrap 代码不硬编码内部数值。
+- **实施决策（2026-08-24 用户确认）**：① 权威 DDL 经 compose `docker-entrypoint-initdb.d` 首启自动执行（`POSTGRES_DB=access_db`、trust 认证与默认数据源零参数对接；重建模式仍按 runbook 手动 psql）；② 幂等状态②为**固定图子集匹配**——固定图 20 条授权/12 映射/绑定/身份全部匹配即 no-op，管理角色上的额外授权与图外数据（E2E 创建物）不构成冲突（T-ACCESS-021 第⑦步重启前提）；`canGrant` 参与匹配（授权传递链依赖）、name/密码不参与（可改名、绝不重置）；③ 首管理员 `force_reset_pwd=false`（密码经环境变量自设，非随机分发，不挡 E2E 登录链）；④ compose 仅初始化 `access_db`（example-service 演示库不在链路，README 单独说明）。
+- **固定图规模**：1 SERVICE 资源 + 13 API 资源 + 12 映射（目标接口无映射）+ 20 条授权（13 实例级 `API:ACCESS` + §14.4 的 7 条业务门禁，其中 6 条 scopeAll、1 条 SERVICE 实例）。`resource_api_mapping.path_pattern` 为 Gateway 外部路径（含 `/perm`、`/admin` 副前缀）——Gateway `PermissionFilter` 以原始请求路径匹配。
+- **验证**：`AccessBootstrapRunnerTest`（密码 fail-fast/委托）单测通过；`AccessBootstrapPgIT`（Testcontainers PG16+Redis7）覆盖状态①全图断言+真实登录（验证码经 Redis、clientId=admin-web）、状态② no-op 不重置密码、状态③绑定/授权缺失与业务键占用 fail-fast、类型种子缺失显式报错；外部 Docker 主机一键链路验证（compose→DDL→bootstrap→登录）因本机无 Docker 登记遗留，随 CI/外部环境执行后补证据。

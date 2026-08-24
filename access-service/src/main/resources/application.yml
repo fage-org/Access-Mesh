@@ -70,6 +70,13 @@ access:
   oauth2:
     resource-paths:
       - path: /auth/oauth2/userinfo
+  # T-ACCESS-020：空库 bootstrap（幂等首管理员种子）。默认关闭；仅单实例启用
+  # （无分布式锁，多实例同时启用存在并发建号风险，唯一约束仅兜底）。
+  # enabled=true 时 ACCESS_BOOTSTRAP_ADMIN_PASSWORD 缺失/空白启动失败（fail-fast，密码不写日志）。
+  # 幂等三状态：固定图不存在→单事务创建 / 完整匹配→no-op 绝不重置密码 / 部分存在或业务键被占→启动失败报冲突。
+  bootstrap:
+    enabled: ${ACCESS_BOOTSTRAP_ENABLED:false}
+    admin-password: ${ACCESS_BOOTSTRAP_ADMIN_PASSWORD:}
 
 sa-token:
   # T-ACCESS-003：平台用户会话与 Gateway 统一（token-name/token-prefix/token-style/timeout/active-timeout/会话键）

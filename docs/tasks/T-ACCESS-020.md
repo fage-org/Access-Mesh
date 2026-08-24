@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-020
 title: 空库 bootstrap（一键基础设施 + 幂等首管理员种子）
-status: proposed
+status: done
 plan: docs/plans/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
@@ -21,8 +21,8 @@ acceptance:
   - "空库 → 一键基础设施 → 首管理员可登录的完整链路在外部 Docker 主机验证一次并登记证据"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-08-23
+  status: done
+last_updated: 2026-08-24
 ---
 
 # T-ACCESS-020 空库 bootstrap
@@ -48,3 +48,29 @@ last_updated: 2026-08-23
 - 不做计费、套餐、租户配额；不做平台超管跨租户代管；不做完整租户运营后台；不做租户开通（首期固定租户 1）。
 - 不做租户创建/停用接口与租户表（SaaS 对外宣称前另行立项；Gateway 已从可信会话解析租户，现状无任意指定风险）。
 - 不引入 Flyway/Liquibase。
+
+## 实施记录（2026-08-24）
+
+### 交付物
+
+- **根目录 `docker-compose.yml`**：`postgresql`（postgres:16-alpine，`POSTGRES_DB=access_db` + trust 认证，挂载 `docs/design/schema/access-service.sql` 至 `docker-entrypoint-initdb.d/` 首启自动执行 DDL）/ `redis`（redis:7-alpine）/ `nacos`（v2.3.2 standalone，8848+9848 gRPC）；服务名与 AGENTS.md 既有命令一致，README/AGENTS 断链修复。
+- **bootstrap 代码**（包 `access.application.bootstrap`，跨域写编排层——需同时依赖 admin/permission 两域领域服务，两域互依赖为 ArchUnit 所禁）：
+  - `AccessBootstrapProperties`（`access.bootstrap.enabled` / `admin-password`，默认关闭）；
+  - `AccessBootstrapRunner`（`@ConditionalOnProperty` 装配；密码缺失/空白 fail-fast 不写日志；绑定租户 1 上下文后触发 initializer）；
+  - `AccessBootstrapInitializer`（`@Transactional + @PermissionChange` 单事务；三状态检测 + 固定图创建；类型值经 TypeResolutionService 解析、操作位从 operation_permission 读取，零硬编码数值）；
+  - `BootstrapGraphDefinition`（固定图唯一定义源：13 API 清单 + 20 条授权 = 13 实例级 API:ACCESS + §14.4 的 7 条业务门禁）；
+  - `BootstrapSeedWriter`（接口，`permission.service.domain`）+ `BootstrapSeedWriterImpl`（**包内可见实现**，非 public 类）：user_role 绑定、resource_entity(SERVICE/API)、resource_api_mapping 写入与授权落库（复用 `PermissionGrantPlanDomainService.apply(PreparedGrantPlan)` 纯写入管线 + `validateSingleManualGrants`/`validateGrantAttributes` 校验）——未给通用授权服务新增无操作者公开入口。
+- **测试**：`AccessBootstrapRunnerTest`（密码 fail-fast/委托/上下文清理，2 用例）；`AccessBootstrapPgIT`（Testcontainers PG16+Redis7，7 用例：状态①全图断言+BCrypt 校验、真实登录（验证码经 Redis、clientId=admin-web）、状态② no-op 绝不重置密码+行数快照、状态③绑定缺失/授权缺失/业务键被其他角色类型占用 fail-fast、类型种子缺失显式报错）。
+- **文档回写**：README 快速开始（compose 命令/DDL 首启说明/bootstrap 启用方式/启动顺序）、runbook（临时验证 fixture 节整体删除、前置条件与重建步骤改 bootstrap 口径、章节重排）、architecture §14.7 实施终态。
+
+### 设计决策（2026-08-24 用户确认）
+
+1. **DDL 执行**：compose 首启自动执行（initdb.d 挂载）；runbook 手动重建模式保留。
+2. **幂等状态②口径**：固定图子集匹配——只校验 bootstrap 自建固定图（20 授权/12 映射/绑定/身份）完整匹配即 no-op；图外数据（E2E 创建的用户/角色/授权）与管理角色上的额外授权行不构成冲突（T-ACCESS-021 第⑦步"重启后权限仍生效"的前提）；canGrant 参与匹配，name/密码不参与。
+3. **首管理员 `force_reset_pwd=false`**：密码经环境变量自设非随机分发，与 runbook 旧 fixture 口径一致，不挡 E2E/前端登录链。
+4. **compose 仅初始化 access_db**：example-service 演示库不在链路，README 保持单独执行说明。
+
+### 遗留登记
+
+- **外部 Docker 主机一键链路验证**（验收最后一条）：开发机无 Docker，`compose up → DDL 自动执行 → access-service(bootstrap enabled) → captcha+login 登录成功` 的完整链路未真实执行；`AccessBootstrapPgIT`（disabledWithoutDocker）随 CI/外部 Docker 环境运行时可同时补跑该链路（PgIT 已覆盖等价的检测/创建/登录语义），证据待登记。
+- E2E 目标用户、普通 BASIC_ROLE、目标 API 映射与授权/撤权 30 秒时效验证归 T-ACCESS-021。

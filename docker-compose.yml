@@ -1,0 +1,66 @@
+# AccessMesh 开发期基础设施（T-ACCESS-020）
+# 仅承诺一键基础设施（PostgreSQL / Redis / Nacos），不包含应用服务——
+# 应用启动顺序见 README.md「快速开始」：access-service (9100) → Gateway (8080) → 前端。
+#
+# 一键启动：docker compose up -d
+# PostgreSQL 首次启动（空数据卷）时自动执行唯一权威 DDL（挂载至 initdb.d），
+# 建库 access_db 并写入类型种子；重复 up 不会重复执行（仅空数据目录首启触发）。
+# 库表重建（开发期 DDL 变更后）见 docs/design/access-service-rebuild-runbook.md。
+#
+# PostgreSQL 采用 trust 认证（本地开发，用户 postgres / 无密码），
+# 与 access-service 默认数据源配置（DB_USERNAME=postgres，DB_PASSWORD 空）直接兼容；
+# 生产环境请自行替换认证方式。
+
+services:
+  postgresql:
+    image: postgres:16-alpine
+    container_name: accessmesh-postgresql
+    environment:
+      POSTGRES_DB: access_db
+      POSTGRES_USER: postgres
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - accessmesh-pgdata:/var/lib/postgresql/data
+      # 唯一权威 DDL：仅空数据目录首启自动执行（建表 + 租户 1 类型种子，无管理员账号——
+      # 首管理员由 access-service bootstrap 提供，见 README.md「快速开始」）
+      - ./docs/design/schema/access-service.sql:/docker-entrypoint-initdb.d/01-access-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d access_db"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  redis:
+    image: redis:7-alpine
+    container_name: accessmesh-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - accessmesh-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  # standalone 模式（内嵌 derby 存储，开发够用）；8848 HTTP/控制台 + 9848 gRPC
+  # （spring-cloud-alibaba 2023.0.1.0 对应 nacos client 2.3.x 需要 gRPC 端口）
+  nacos:
+    image: nacos/nacos-server:v2.3.2
+    container_name: accessmesh-nacos
+    environment:
+      MODE: standalone
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8848/nacos/v1/console/health/readiness || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+
+volumes:
+  accessmesh-pgdata:
+  accessmesh-redisdata:

@@ -52,10 +52,22 @@ Gateway (8080)
 
 ## 快速开始（开发中）
 
-- **基础设施**：需要 PostgreSQL、Redis、Nacos。一键编排（根目录 `docker-compose.yml` + 首管理员 bootstrap）随 [product-vertical-slice 计划](docs/plans/product-vertical-slice-plan.md) 的 T-ACCESS-020 提供；此前需自备对应服务。
-- **数据库**：执行唯一权威 DDL `docs/design/schema/access-service.sql`（单库 `access_db`；example 库用 `docs/design/schema/example-service.sql`）。
+- **基础设施**：一键编排根目录 `docker-compose.yml`（PostgreSQL 16 / Redis 7 / Nacos standalone，开发期 trust 认证，与各服务默认配置零参数对接）：
+
+  ```bash
+  docker compose up -d
+  ```
+
+- **数据库**：PostgreSQL 容器**首次启动（空数据卷）自动执行**唯一权威 DDL `docs/design/schema/access-service.sql`（建库 `access_db` + 租户 1 类型种子）；重复 `up` 不会重复执行。DDL 变更后的重建（DROP SCHEMA + 手动 psql）见 [rebuild runbook](docs/design/access-service-rebuild-runbook.md)。example 库用 `docs/design/schema/example-service.sql`（不在 compose 初始化范围，需单独执行）。
+- **首管理员**：access-service 内置幂等 bootstrap（`access.bootstrap.enabled`，默认关闭；仅单实例启用）。启用后空库自动创建 `admin` 首管理员 + 管理用功能角色并按 bootstrap 管理 API 清单最小授权；密码经环境变量注入、BCrypt 哈希落库，重复启动 no-op 不重置密码：
+
+  ```bash
+  ACCESS_BOOTSTRAP_ENABLED=true ACCESS_BOOTSTRAP_ADMIN_PASSWORD=<你的密码> \
+    JWT_SECRET_KEY=<密钥> mvn spring-boot:run -pl access-service
+  ```
+
 - **启动顺序**：基础设施 → access-service (9100) → Gateway (8080) → 前端（`frontend/`，开发模式 `npm run dev`）。
-- **当前限制**：空库尚无首管理员种子（随 T-ACCESS-020）；前端登录链路仍为 mock（随 T-FE-041）。
+- **当前限制**：前端登录链路仍为 mock（随 T-FE-041）；E2E 目标用户与普通角色不在 bootstrap 范围（随 T-ACCESS-021 授权 E2E 创建）。
 
 ## License
 

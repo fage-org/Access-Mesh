@@ -145,7 +145,7 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 | [T-ORG-001](../tasks/T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | ✅ | T-PERM-042 | A |
 | [T-ACCESS-018](../tasks/T-ACCESS-018.md) | 资源类型收敛（五组合并 + 双常量合一 + 前端权限串） | ✅ | T-ORG-001 | A |
 | [T-ACCESS-019](../tasks/T-ACCESS-019.md) | USER/ROLE 全写路径同事务资源投影 | ✅ | T-ACCESS-018 | A |
-| [T-ACCESS-020](../tasks/T-ACCESS-020.md) | 空库 bootstrap（一键基础设施 + 幂等首管理员种子） | ⚙️ | T-ACCESS-019 | A |
+| [T-ACCESS-020](../tasks/T-ACCESS-020.md) | 空库 bootstrap（一键基础设施 + 幂等首管理员种子） | ✅ | T-ACCESS-019 | A |
 | [T-FE-041](../tasks/T-FE-041.md) | 前端真实登录链路与默认导航收敛 | ⚙️ | T-ACCESS-020 | A |
 | [T-ACCESS-021](../tasks/T-ACCESS-021.md) | BASIC_ROLE 授权垂直切片 E2E 验收 + README 回写 | ⚙️ | T-ACCESS-020, T-FE-041 | A |
 | [T-ADMIN-022](../tasks/T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | ⚙️ | T-ORG-001, T-ACCESS-021 | B |
@@ -181,3 +181,4 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 - 2026-08-23 执行：T-PERM-042 done——引擎四显式 API（hasPermissionByCode/getDeniedResourceCodes 对外、hasPermissionByEntityId/getDeniedEntityIds entityId 轨）落地，hasPermission/validateBatch/getDeniedIds/toLongId 删除清零；9 处 getDeniedIds 全量改造（USER/ROLE 6 处错传点改业务编码语义）；授权页 3 读接口补类型级 VIEW 门禁；新增 InstanceGateBusinessCodePgIT（自装配投影 fixtures）。全量双层验证 BUILD SUCCESS（单测 670 + 容器 63），T-ORG-001 依赖解除。
 - 2026-08-23 执行：T-ACCESS-017 done（`37de53f61` → `80e87fb98`）——五链路特征测试单测+PG 两层全绿；最小 CI 两 job（单测 push 强制 / 容器 PR+手动门控）在 GitHub Actions 真实跑通。过程中发现并修复两处生产缺陷：`OperationPermissionMapper.selectByResourceTypeAndCodes` XML 参数名与接口不一致（真实查询路径 BindingException）；MyBatis-Flex 全局方言被 H2 上下文污染致 PG 容器测试反引号 SQL（surefire 双 execution 分层隔离）。T-PERM-042 依赖解除，模型收敛 Epic 可启动。
 - 2026-08-23 执行：T-ACCESS-019 done——USER/ROLE 管理写路径同事务资源投影与鉴权可用性收口（含管理入口保留清单增补 ROLE、move/delete 失效预计算、存量 selectValidRoleById 参数反转修复），全量 674 tests 0 failures；详细范围、口径与遗留（外部 sync 三入口、GROUP_ROLE extra 双轨）见任务卡。T-ACCESS-020 依赖解除。
+- 2026-08-24 执行：T-ACCESS-020 done——根目录 docker-compose.yml（pg16/redis7/nacos standalone，DDL initdb.d 首启自动执行）+ 幂等 bootstrap（`access.bootstrap.enabled` 默认关闭；application.bootstrap 包 Runner/Initializer/固定图定义 + permission 域包内可见 BootstrapSeedWriter，授权复用 PermissionGrantPlanDomainService.apply）；固定图 = admin 主体链 + bootstrap-admin 管理角色 + 13 API 资源/12 映射 + 20 条授权；幂等子集匹配口径、force_reset_pwd=false、compose 仅 access_db 三项经用户决策；README/AGENTS 断链修复、runbook fixture 节删除、architecture §14.7 回写。单测 81 通过（含 Runner 单测）；AccessBootstrapPgIT 与外部 Docker 主机一键链路验证因开发机无 Docker 登记遗留（随 CI/外部环境补证据）。T-FE-041 依赖解除。
