@@ -307,7 +307,7 @@ class UserRoleWriteProjectionPgIT {
         assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(child.id()))
             .get("parent_id")).longValue()).isEqualTo(parentAProjectionId);
 
-        // moveRole 同步迁移投影父节点（旧父链成员事务内预计算失效，评审 P1-3）
+        // moveRole 同步迁移投影父节点（旧父链成员事务内预计算失效）
         roleManageAppService.moveRole(TENANT, child.id(), parentB.id(), creator);
         assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(child.id()))
             .get("parent_id")).longValue()).isEqualTo(parentBProjectionId);
@@ -325,7 +325,7 @@ class UserRoleWriteProjectionPgIT {
     }
 
     @Test
-    @DisplayName("禁用主体拒鉴（评审 P1-2）：enabled=false 后有效角色置空、门禁全拒；name=null 以 externalId 兜底投影（评审 P1-1）")
+    @DisplayName("禁用主体拒鉴：enabled=false 后有效角色置空、门禁全拒；name=null 以 externalId 兜底投影")
     void disabledSubjectShouldBeDeniedAndNullNameFallsBackToExternalId() {
         Long creator = insertSubject("t019-op-disable", "禁用操作者");
         Long creatorRole = insertBasicRole("t019-holder-disable", "禁用角色");
@@ -333,7 +333,7 @@ class UserRoleWriteProjectionPgIT {
         insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_USER, CREATE_BIT);
         bindOperator(creator);
 
-        // name=null：abstract_user.name 可空，投影以 externalId 兜底（评审 P1-1）
+        // name=null：abstract_user.name 可空，投影以 externalId 兜底
         UserResp targetResp = userManageAppService.createUser(
             TENANT, new UserCreateReq("USER", "t019-ext-disabled", null, true, null));
         Long target = targetResp.id();
@@ -356,7 +356,7 @@ class UserRoleWriteProjectionPgIT {
         bindOperator(manager);
         userManageAppService.updateUser(TENANT, new UserUpdateReq(target, null, false, null));
 
-        // DDL 语义 enabled=false 鉴权不通过：有效角色置空后门禁全拒（评审 P1-2）
+        // DDL 语义 enabled=false 鉴权不通过：有效角色置空后门禁全拒
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, target, "ROLE", null, "CREATE")).isFalse();
         // 禁用镜像到投影 status=0，name 保持兜底值
@@ -366,7 +366,7 @@ class UserRoleWriteProjectionPgIT {
     }
 
     @Test
-    @DisplayName("组角色生命周期（二轮评审 P1-A/P1-B）：禁用组角色整体失权并失效预热缓存；删除覆盖 GROUP_ROLE 直绑成员")
+    @DisplayName("组角色生命周期：禁用组角色整体失权并失效预热缓存；删除覆盖 GROUP_ROLE 直绑成员")
     void groupRoleLifecycleShouldStopGrantingAndInvalidateWarmCache() {
         Long creator = insertSubject("t019-op-group", "组角色操作者");
         Long creatorRole = insertBasicRole("t019-holder-group", "组角色操作者角色");
@@ -412,6 +412,44 @@ class UserRoleWriteProjectionPgIT {
             .get("delete_flag")).longValue()).isNotZero();
         assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(basic.id()))
             .get("delete_flag")).longValue()).isNotZero();
+    }
+
+    @Test
+    @DisplayName("嵌套组剪枝：外层组启用 + 内层组停用 → 内层整棵子树不参与展开，重新启用恢复")
+    void nestedGroupPruningShouldExcludeDisabledSubtree() {
+        Long creator = insertSubject("t019-op-nested", "嵌套组操作者");
+        Long creatorRole = insertBasicRole("t019-holder-nested", "嵌套组操作者角色");
+        insertUserRole(creator, creatorRole);
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_ROLE, CREATE_BIT);
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_ROLE, MANAGE_BIT);
+        bindOperator(creator);
+
+        RoleResp outer = roleManageAppService.createRole(
+            TENANT, new RoleCreateReq(null, "GROUP_ROLE", "t019-ext-nested-outer", "外层组", null, null), creator);
+        RoleResp inner = roleManageAppService.createRole(
+            TENANT, new RoleCreateReq(null, "GROUP_ROLE", "t019-ext-nested-inner", "内层组", null, null), creator);
+        RoleResp leaf = roleManageAppService.createRole(
+            TENANT, new RoleCreateReq(null, "BASIC_ROLE", "t019-ext-nested-leaf", "内层组基础角色", null, null), creator);
+        roleManageAppService.moveRole(TENANT, inner.id(), outer.id(), creator);
+        roleManageAppService.moveRole(TENANT, leaf.id(), inner.id(), creator);
+
+        Long member = insertSubject("t019-nested-member", "嵌套组成员");
+        insertGroupBinding(member, outer.id());
+        insertScopeAllRolePerm(leaf.id(), RESOURCE_TYPE_ROLE, CREATE_BIT);
+
+        // 外层→内层→基础角色全启用：展开包含叶子角色 → 放行
+        assertThat(permQueryEngine.hasPermissionByCode(
+            TENANT, member, "ROLE", null, "CREATE")).isTrue();
+
+        // 停用内层组（外层仍启用）：内层整棵子树剪枝 + 祖先反查失效外层组成员缓存 → 拒绝
+        roleManageAppService.updateRole(TENANT, inner.id(), "内层组-停用", 0, null, null, creator);
+        assertThat(permQueryEngine.hasPermissionByCode(
+            TENANT, member, "ROLE", null, "CREATE")).isFalse();
+
+        // 重新启用内层组：子树恢复参与展开 → 放行
+        roleManageAppService.updateRole(TENANT, inner.id(), "内层组-启用", 1, null, null, creator);
+        assertThat(permQueryEngine.hasPermissionByCode(
+            TENANT, member, "ROLE", null, "CREATE")).isTrue();
     }
 
     // ===== 数据装配（jdbc 直插事实/授权，先于相关主体首次引擎调用） =====

@@ -103,7 +103,7 @@ public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
      * 批量查询禁用主体 ID（enabled=false 且未删除）。
      * <p>
      * DDL 语义：abstract_user.enabled=false 时鉴权不通过——有效角色解析用本方法
-     * 将禁用主体的有效角色置空（T-ACCESS-019 评审 P1-2）。
+     * 将禁用主体的有效角色置空。
      * </p>
      *
      * @param tenantId 租户ID

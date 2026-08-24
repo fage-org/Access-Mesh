@@ -535,7 +535,7 @@ last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 与业务编�
 - `syncVersion` 使用事件时间 + 序号；同一幂等键下旧版本请求必须返回成功但不覆盖新状态。permission-center 必须通过 `sync_metadata.last_sync_occurred_at + last_sync_sequence_no` 做原子比较更新，禁止只在内存中判断版本。
 - 父资源使用 `parentResourceTypeCode + parentResourceCode` 业务键定位，permission-center 内部解析为 `parentId`；父资源不存在时返回 `retryClass=DEPENDENCY_MISSING`，调用方可按短退避重发。
 - 调用方必须通过可信 Header 提供服务身份；permission-center 必须校验认证服务身份、`sourceService`、`resourceTypeCode` 白名单，禁止任意服务同步任意资源类型。
-- 外部业务服务同步自身资源类型时调用本接口（`resourceTypeCode` 为服务自有类型，须通过服务身份与类型白名单校验）；AccessMesh 本地投影行（`owner_service_code=access-service`）由 `access.application` 同事务维护，本接口 UPSERT/DISABLE/DELETE 任一 mutation 命中已有本地投影实体时前置所有权检查返回 20045 拒绝（T-ACCESS-018：resource 侧取消类型级保留——USER/MENU 为公共基础类型，外部同步自身用户/菜单资源合法，新建撞本地投影 code 由唯一约束兜底；管理入口 `/perm/resource-entity/create|update` 的类型保留清单为 `{USER, ORG, MENU, ROLE}`（ROLE 随 T-ACCESS-019 增补，ROLE 资源由角色管理写路径产出），人工不得绕过管理事实链路）。
+- 外部业务服务同步自身资源类型时调用本接口（`resourceTypeCode` 为服务自有类型，须通过服务身份与类型白名单校验）；AccessMesh 本地投影行（`owner_service_code=access-service`）由 access.application（用户/组织/菜单编排）与 permission 域管理入口（角色/主体编排，T-ACCESS-019）经 LocalProjectionDomainService 同事务维护，本接口 UPSERT/DISABLE/DELETE 任一 mutation 命中已有本地投影实体时前置所有权检查返回 20045 拒绝（T-ACCESS-018：resource 侧取消类型级保留——USER/MENU 为公共基础类型，外部同步自身用户/菜单资源合法，新建撞本地投影 code 由唯一约束兜底；管理入口 `/perm/resource-entity/create|update` 的类型保留清单为 `{USER, ORG, MENU, ROLE}`（ROLE 随 T-ACCESS-019 增补，ROLE 资源由角色管理写路径产出），人工不得绕过管理事实链路）。
 - 外部业务服务的全量校准同步走 `resource-entity/full-sync`，不是逐条调用本接口。
 
 #### 6.2.2.1 资源实体分领域全量校准

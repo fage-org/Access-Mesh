@@ -6,8 +6,9 @@ import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
  * AccessMesh 本地权限投影所有权与保留业务键。
  * <p>
  * 管理事实派生的 abstract_user / abstract_role / resource_entity / user_role
- * 统一标记 {@link #SERVICE_CODE}，只能由 {@code access.application} 经
- * LocalProjectionDomainService 写入。
+ * 统一标记 {@link #SERVICE_CODE}，只能经 LocalProjectionDomainService 写入——
+ * 调用方为 {@code access.application}（用户/组织/菜单编排）与 permission 域
+ * 管理入口（角色/主体编排，T-ACCESS-019），事务由调用方 AppService 声明。
  * </p>
  * <p>
  * 保留业务键终态（T-ACCESS-016 §4.3/§13.2，T-ACCESS-018 落地；管理入口保留清单随 T-ACCESS-019 增补 ROLE）：

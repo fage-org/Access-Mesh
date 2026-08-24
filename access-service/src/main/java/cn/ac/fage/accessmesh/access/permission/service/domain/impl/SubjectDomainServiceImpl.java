@@ -232,7 +232,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         // T-ACCESS-008：授权 L2 miss——数据库读取前记录单调时钟起点，回填只写剩余 TTL
         CacheReadToken<Set<Long>> readToken = cacheService.beginRead(PermCacheCatalog.EFFECTIVE_ROLES);
 
-        // T-ACCESS-019 评审 P1-2：DDL 语义 enabled=false 时鉴权不通过——禁用主体有效角色置空
+        // T-ACCESS-019：DDL 语义 enabled=false 时鉴权不通过——禁用主体有效角色置空
         // （空集同样回填缓存，重新启用由写路径 markUsers 失效）
         Map<Long, Set<Long>> disabledEmpty = new HashMap<>();
         Set<Long> disabledUserIds = new HashSet<>(
@@ -495,7 +495,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
             .stream().map(UserRole::getAbstractUserId).filter(Objects::nonNull).collect(Collectors.toSet()));
 
         // 直接 GROUP_ROLE 绑定（被变更角色本身为组角色时的组成员；祖先查询显式排除起点 id，
-        // 该类成员须单独覆盖——二轮评审 P1-B）
+        // 该类成员须单独覆盖）
         userIds.addAll(userRoleMapper.selectValidByTargetIdsAndType(
                 tenantId, roleIds, PermConstants.TargetType.GROUP_ROLE)
             .stream().map(UserRole::getAbstractUserId).filter(Objects::nonNull).collect(Collectors.toSet()));

@@ -166,11 +166,11 @@ class RoleManageAppServiceImplTest {
         }
 
         verify(localProjectionDomainService).softDeleteRoleResources(1L, java.util.Set.of(123L));
-        // 角色事实 BATCH_DELETE + 投影 DELETE 各一次（评审 P1-4）
+        // 角色事实 BATCH_DELETE + 投影 DELETE 各一次
         verify(auditDomainService, org.mockito.Mockito.times(2)).recordChangeLog(any(), any());
     }
 
-    /** T-ACCESS-019：moveRole 投影镜像新父节点，旧父链成员在树变更前预计算失效（评审 P1-3）。 */
+    /** T-ACCESS-019：moveRole 投影镜像新父节点，旧父链成员在树变更前预计算失效。 */
     @Test
     void shouldProjectRoleResourceOnMove() {
         AbstractRole role = new AbstractRole();

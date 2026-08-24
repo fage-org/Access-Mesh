@@ -145,7 +145,7 @@ flowchart LR
 - access 内部 `PermissionFeignClient` / `SyncTaskFeignClient` 及 `@EnableFeignClients`。
 - 为旧同步链路存在的配置、测试和运行手册。
 
-面向外部服务的 `/api/perm/**/sync`、`/full-sync` 契约和 `sync_metadata` 继续保留。外部 sync 不得使用 `sourceService∈{access-service,admin-service}`，也不得写入保留业务键（subject `LOCAL_USER`（原 ADMIN_USER 更名）/ `ORG|POSITION` / `SYS_USER_ORG`；resource 侧已取消类型级保留，本地投影行按 owner=access-service 所有权保护，终态见下方注记）。本地投影只能由 `access.application` 经 `LocalProjectionDomainService` 写入。
+面向外部服务的 `/api/perm/**/sync`、`/full-sync` 契约和 `sync_metadata` 继续保留。外部 sync 不得使用 `sourceService∈{access-service,admin-service}`，也不得写入保留业务键（subject `LOCAL_USER`（原 ADMIN_USER 更名）/ `ORG|POSITION` / `SYS_USER_ORG`；resource 侧已取消类型级保留，本地投影行按 owner=access-service 所有权保护，终态见下方注记）。本地投影只能经 `LocalProjectionDomainService` 写入——调用方为 access.application（用户/组织/菜单编排）与 permission 域管理入口（角色/主体编排，RoleManage/UserManage AppService，T-ACCESS-019），事务由调用方 AppService 声明。
 
 **保留业务键终态（T-ACCESS-016 定稿，收敛后按所有权保护，实施归 T-ACCESS-018）**：
 

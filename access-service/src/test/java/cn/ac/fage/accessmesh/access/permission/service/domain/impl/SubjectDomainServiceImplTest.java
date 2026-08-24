@@ -112,7 +112,7 @@ class SubjectDomainServiceImplTest {
     /**
      * T-PERM-018 P2：批量失效多角色关联用户缓存，固定 ≤4 SQL（直接用户 + 组直绑用户 + 祖先组角色 + 组角色用户），
      * 一次 evictBatch，消除按角色循环 N+1。
-     * 二轮评审 P1-B①：直接 GROUP_ROLE 绑定（被变更角色本身为组角色时的组成员）也纳入反查。
+     * 直接 GROUP_ROLE 绑定（被变更角色本身为组角色时的组成员）也纳入反查。
      */
     @Test
     void invalidateRoleCacheByRolesShouldBatchLoadUsersAndAncestorGroupRoles() {

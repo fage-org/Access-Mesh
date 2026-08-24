@@ -38,7 +38,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     private final TypeResolutionService typeResolutionService;
     private final AbstractUserMapper abstractUserMapper;
-    /** 所有权防线（无状态）：USER/ORG/MENU 为公共类型后防本地投影接管外部行（评审 P1） */
+    /** 所有权防线（无状态）：USER/ORG/MENU 为公共类型后防本地投影接管外部行 */
     private final LocalProjectionGuard localProjectionGuard = new LocalProjectionGuard();
     private final AbstractRoleMapper abstractRoleMapper;
     private final ResourceEntityMapper resourceEntityMapper;
@@ -366,7 +366,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     }
 
     /** 批量按 code 软删本地投影资源行（一次批量加载 + 过滤 owner + 一次批量软删；外部行跳过）。
-     * 限定 code_type=default 与 upsert 定位对称（二轮评审 P2：不误删同 code 非默认编码行） */
+     * 限定 code_type=default 与 upsert 定位对称（不误删同 code 非默认编码行） */
     private void softDeleteOwnResources(Long tenantId, Integer resourceType, Set<String> codes) {
         List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
             tenantId, resourceType, codes, Set.of(CODE_TYPE_DEFAULT));
@@ -389,7 +389,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         ResourceEntity existing = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, code, CODE_TYPE_DEFAULT);
         // 公共类型（USER/ORG/MENU）下命中行可能属外部同步：fail-closed 拒绝接管，
-        // 不改写 owner、不留悬挂的 sync_metadata.target_id（评审 P1）
+        // 不改写 owner、不留悬挂的 sync_metadata.target_id）
         localProjectionGuard.rejectIfForeignResource(existing);
         if (existing == null) {
             ResourceEntity resource = new ResourceEntity();

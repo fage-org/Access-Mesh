@@ -8,7 +8,8 @@ import java.util.Set;
  * 管理事实对应的本地权限投影。
  * <p>
  * 只写权限计算表，不写 sync_metadata。owner_service_code 固定为 access-service。
- * 事务由 access.application 声明。
+ * 事务由调用方 AppService 声明（access.application 用户/组织/菜单编排与
+ * permission 域角色/主体管理编排，T-ACCESS-019）。
  * </p>
  */
 public interface LocalProjectionDomainService {

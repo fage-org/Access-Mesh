@@ -210,7 +210,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                 throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "父角色不存在: " + parentId);
             }
         }
-        // 旧父链成员须在树变更前反查（提交后旧链关系不可再发现，评审 P1-3）；
+        // 旧父链成员须在树变更前反查（提交后旧链关系不可再发现）；
         // 新父链成员由提交后 markRoles 反查覆盖（新树可达）
         Set<Long> oldTreeUserIds = subjectDomainService.findUserIdsByEffectiveRoles(tenantId, Set.of(roleId));
         role.setParentId(parentId);
@@ -306,12 +306,12 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             }
         }
 
-        // 受影响用户须在软删前反查（提交后已删角色不可作组展开递归起点，评审 P1-3）
+        // 受影响用户须在软删前反查（提交后已删角色不可作组展开递归起点）
         Set<Long> affectedUserIds = subjectDomainService.findUserIdsByEffectiveRoles(tenantId, allIdsToDelete);
         subjectDomainService.softDeleteRoleBatch(tenantId, new java.util.HashSet<>(allIdsToDelete));
         // T-ACCESS-019：ROLE 资源投影同事务软删（含级联子孙角色），实例授权目标随之不可解析（fail-closed）
         localProjectionDomainService.softDeleteRoleResources(tenantId, allIdsToDelete);
-        // 投影软删变更日志（评审 P1-4：覆盖含级联子孙的全量删除集合，与决策 4 的逐投影写登记对齐）
+        // 投影软删变更日志（覆盖含级联子孙的全量删除集合，与逐投影写登记口径对齐）
         List<AuditDomainService.ChangeLogEntry> projectionDeletes = allIdsToDelete.stream()
             .map(deletedId -> new AuditDomainService.ChangeLogEntry(
                 "abstract_role", deletedId, "DELETE", null, null, null,
@@ -338,7 +338,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             itemsJson.add(it);
         }
 
-        // 受影响用户按事务内预计算集合显式失效（评审 P1-3），角色权限快照直清照旧（铁律 P1-B）
+        // 受影响用户按事务内预计算集合显式失效，角色权限快照直清照旧（铁律 P1-B）
         PermissionChangeContext.markUsers(tenantId, affectedUserIds);
         PermissionChangeContext.markRoleSnapshots(tenantId, allIdsToDelete);
 
@@ -430,7 +430,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     }
 
     /** 投影写变更日志（T-ACCESS-019：ROLE 投影 UPSERT 与角色事实同事务登记）；
-     * 操作者用方法已解析的 operatorId，不重读上下文（二轮评审 P2：显式传参与上下文不一致时记错主体） */
+     * 操作者用方法已解析的 operatorId，不重读上下文（显式传参与上下文不一致时记错主体） */
     private void recordProjectionChange(Long tenantId, Long operatorId, Long roleId, String operation) {
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(

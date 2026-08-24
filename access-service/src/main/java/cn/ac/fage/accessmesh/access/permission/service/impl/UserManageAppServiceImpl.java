@@ -176,7 +176,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         abstractUserMapper.insert(user);
 
         // T-ACCESS-019：USER 资源投影与主体事实同事务（code=subjectId，§12.3）；
-        // resource_entity.name NOT NULL 而 abstract_user.name 可空，name 缺省以 externalId 兜底（评审 P1-1）
+        // resource_entity.name NOT NULL 而 abstract_user.name 可空，name 缺省以 externalId 兜底
         boolean enabled = Boolean.TRUE.equals(user.getEnabled());
         localProjectionDomainService.upsertUserResource(tenantId, user.getId(), resourceName(user), enabled);
         recordProjectionChange(tenantId, operatorId, user.getId(), "UPSERT");
@@ -217,7 +217,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         abstractUserMapper.update(existing);
 
         // T-ACCESS-019：USER 资源投影同事务镜像 name/enabled；enabled 变更影响授权可用性（禁用主体
-        // 有效角色置空，评审 P1-2），登记 markUsers 失效主体有效角色缓存（afterCommit 由 AOP 处理）
+        // 有效角色置空），登记 markUsers 失效主体有效角色缓存（afterCommit 由 AOP 处理）
         localProjectionDomainService.upsertUserResource(
             tenantId, existing.getId(), resourceName(existing), Boolean.TRUE.equals(existing.getEnabled()));
         recordProjectionChange(tenantId, operatorId, existing.getId(), "UPSERT");
@@ -843,13 +843,13 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         return abstractUserMapper.selectUserListCount(tenantId, userType, keyword, matchNone);
     }
 
-    /** resource_entity.name NOT NULL 兜底：abstract_user.name 可空，缺省以 externalId 承载展示名（评审 P1-1） */
+    /** resource_entity.name NOT NULL 兜底：abstract_user.name 可空，缺省以 externalId 承载展示名 */
     private static String resourceName(AbstractUser user) {
         return user.getName() != null ? user.getName() : user.getExternalId();
     }
 
     /** 投影写变更日志（T-ACCESS-019：USER 投影 UPSERT 与主体事实同事务登记）；
-     * 操作者传方法已解析的 operatorId，不重读上下文（二轮评审 P2 同款修正） */
+     * 操作者传方法已解析的 operatorId，不重读上下文 */
     private void recordProjectionChange(Long tenantId, Long operatorId, Long userId, String operation) {
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
