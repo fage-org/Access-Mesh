@@ -203,15 +203,15 @@ function handleCommand(command: string, row: any) {
 }
 async function handleToggleStatus(row: any, newVal: number) {
   const newStatus: 0 | 1 = newVal === 1 ? 1 : 0;
-  const actionText = newStatus === 1 ? "启用" : "禁用";
-  // 禁用方向需二次确认（影响登录），启用方向直通
+  const actionText = newStatus === 1 ? "启用" : "停用";
+  // 停用方向需二次确认（影响登录），启用方向直通
   if (newStatus === 0) {
     try {
       await ElMessageBox.confirm(
-        `确认禁用用户 "${row.name}"？禁用后该用户将无法登录。`,
-        "禁用确认",
+        `确认停用用户 "${row.name}"？停用后该用户将无法登录。`,
+        "停用确认",
         {
-          confirmButtonText: "确认禁用",
+          confirmButtonText: "确认停用",
           cancelButtonText: "取消",
           type: "warning"
         }
@@ -315,7 +315,7 @@ const columns = [
                 class="w-20!"
               >
                 <el-option label="启用" :value="1" />
-                <el-option label="禁用" :value="0" />
+                <el-option label="停用" :value="0" />
               </el-select>
             </el-form-item>
             <el-form-item class="mb-0!">
@@ -379,7 +379,7 @@ const columns = [
                   :disabled="!canToggleUserStatus"
                   inline-prompt
                   active-text="启用"
-                  inactive-text="禁用"
+                  inactive-text="停用"
                   @change="(val: number) => handleToggleStatus(row, val)"
                 />
               </el-tooltip>

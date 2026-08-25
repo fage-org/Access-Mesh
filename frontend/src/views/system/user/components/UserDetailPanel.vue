@@ -315,7 +315,7 @@ function formatDate(val: string | null): string {
             <span class="text-sm font-medium">{{ user.name }}</span>
             <span :class="['status-dot', user.status === 1 ? 'on' : 'off']" />
             <span class="text-xs text-gray-400">{{
-              user.status === 1 ? "已启用" : "已禁用"
+              user.status === 1 ? "已启用" : "已停用"
             }}</span>
           </div>
           <div class="text-xs text-gray-400 mt-0.5">

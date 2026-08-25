@@ -76,7 +76,7 @@ const onLogin = async (formEl: FormInstance | undefined) => {
           captchaId: captchaId.value,
           captchaCode: ruleForm.captchaCode
         })
-        .then(() => {
+        .then(loginData => {
           // 获取后端路由
           return initRouter().then(() => {
             disabled.value = true;
@@ -84,6 +84,14 @@ const onLogin = async (formEl: FormInstance | undefined) => {
               .push(getTopMenu(true).path)
               .then(() => {
                 message("登录成功", { type: "success" });
+                // 初始密码/管理员重置后待改密：系统暂无自助改密通道，
+                // 非阻断提示引导联系管理员（T-ADMIN-022，归属自 T-FE-041 移入）
+                if (loginData?.forceResetPwd) {
+                  message("当前密码为初始密码，请联系管理员重置", {
+                    type: "warning",
+                    duration: 6000
+                  });
+                }
               })
               .finally(() => (disabled.value = false));
           });
@@ -194,7 +202,7 @@ useEventListener(document, "keydown", ({ code }) => {
                       alt="验证码"
                       title="点击刷新验证码"
                       class="cursor-pointer select-none"
-                      style="height: 40px; width: 120px"
+                      style=" width: 120px;height: 40px"
                       @click="refreshCaptcha"
                     />
                     <span
@@ -202,12 +210,12 @@ useEventListener(document, "keydown", ({ code }) => {
                       class="cursor-pointer"
                       style="
                         display: inline-block;
-                        height: 40px;
                         width: 120px;
-                        line-height: 40px;
-                        text-align: center;
+                        height: 40px;
                         font-size: 12px;
+                        line-height: 40px;
                         color: var(--el-text-color-secondary);
+                        text-align: center;
                       "
                       @click="refreshCaptcha"
                     >
