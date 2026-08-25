@@ -163,19 +163,20 @@ public class AuthServiceImpl implements AuthService {
         return new CaptchaResp(captchaId, image);
     }
 
-/**
- * 用户密码登录
- * <p>
- * 执行完整的密码登录流程：验证码校验、客户端校验、用户查询、
- * 临时锁定检查（失败计数键）、密码校验、登录失败记录、Sa-Token会话创建。
- * 登录成功后清除失败计数；失败时累加计数，达到阈值后凭键剩余 TTL
- * 临时锁定，键过期自动恢复（T-ADMIN-022）。
- * </p>
- *
- * @param req 登录请求，包含租户ID、用户名、密码、验证码等
- * @return 登录响应，包含令牌、用户信息、是否强制重置密码等
- * @throws BizException 验证码错误、用户不存在、账号临时锁定、用户已停用、密码错误等
- */
+    /**
+     * 用户密码登录
+     * <p>
+     * 执行完整的密码登录流程：验证码校验、客户端校验、用户查询、
+     * 停用检查（管理员手工启停，优先于临时锁定提示）、临时锁定检查
+     * （失败计数键）、密码校验、登录失败记录、Sa-Token会话创建。
+     * 登录成功后清除失败计数；失败时累加计数，达到阈值后凭键剩余 TTL
+     * 临时锁定，键过期自动恢复（T-ADMIN-022）。
+     * </p>
+     *
+     * @param req 登录请求，包含租户ID、用户名、密码、验证码等
+     * @return 登录响应，包含令牌、用户信息、是否强制重置密码等
+     * @throws BizException 验证码错误、用户不存在、用户已停用、账号临时锁定、密码错误等
+     */
     @Override
     public LoginResp login(LoginReq req) {
         validateCaptcha(req.captchaId(), req.captchaCode());
@@ -183,21 +184,24 @@ public class AuthServiceImpl implements AuthService {
 
         Long tenantId = Long.parseLong(req.tenantId());
         SysUser user = userDomainService.findByUsername(tenantId, req.username());
-        if (isAccountLocked(tenantId, req.username())) {
-            // T-ADMIN-022：计数键即锁（临时，键过期自动恢复），拒绝时补记登录日志留审计痕迹
-            safeRecordLoginLog(tenantId, user != null ? user.getId() : null, req.username(),
-                LOGIN_TYPE_PASSWORD, req.clientId(), 0, "登录失败次数过多，账号临时锁定");
-            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(),
-                "登录失败次数过多，账号已临时锁定，请" + LOCK_DURATION_MINUTES + "分钟后重试");
-        }
         if (user == null) {
             recordLoginFail(tenantId, req.username());
             safeRecordLoginLog(tenantId, null, req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户不存在");
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
-        if (user.getStatus() != null && user.getStatus() == 0) {
+        // 停用检查用 status != 1 fail-closed：仅 0/1 收口后任何未定义值
+        // 都不应进入会话（与投影 isEnabled(status)==1 对齐，防止认证放行+主体停用分裂）
+        if (user.getStatus() == null || user.getStatus() != 1) {
             safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户已停用");
             throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
+        }
+        if (isAccountLocked(tenantId, req.username())) {
+            // T-ADMIN-022：计数键即锁（临时，键过期自动恢复），拒绝时补记登录日志留审计痕迹；
+            // 停用（管理员事实）优先于临时锁定提示，避免重叠时误导「30分钟后重试」
+            safeRecordLoginLog(tenantId, user.getId(), req.username(),
+                LOGIN_TYPE_PASSWORD, req.clientId(), 0, "登录失败次数过多，账号临时锁定");
+            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(),
+                "登录失败次数过多，账号已临时锁定，请" + LOCK_DURATION_MINUTES + "分钟后重试");
         }
         if (user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
             recordLoginFail(tenantId, req.username());
@@ -277,7 +281,7 @@ public class AuthServiceImpl implements AuthService {
             safeRecordLoginLog(tenantId, null, maskPhone(req.phone()), LOGIN_TYPE_SMS, req.clientId(), 0, "用户不存在");
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
-        if (user.getStatus() != null && user.getStatus() == 0) {
+        if (user.getStatus() == null || user.getStatus() != 1) {
             safeRecordLoginLog(tenantId, user.getId(), user.getUsername(), LOGIN_TYPE_SMS, req.clientId(), 0, "用户已停用");
             throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
         }

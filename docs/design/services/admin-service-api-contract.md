@@ -247,7 +247,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `name` | `String` | 是 | 显示名 |
 | `phone` | `String` | 否 | |
 | `email` | `String` | 否 | |
-| `status` | `Integer` | 否 | 默认 1 (启用)；1=启用, 0=停用（T-ACCESS-021 修正：原文「0=正常,1=禁用」与 DDL/启停接口语义矛盾） |
+| `status` | `Integer` | 否 | 默认 1 (启用)；1=启用, 0=停用（T-ACCESS-021 修正：原文「0=正常,1=禁用」与 DDL/启停接口语义矛盾）；仅接纳 0/1，其它值抛 `BizException(INVALID_PARAM)`（T-ADMIN-022 评审修复：create 为 status 写入口，与 update/enable 同口径） |
 | `orgId` | `Long` | 否 | 创建时一步完成挂载; **必须**属于默认组织树, 否则抛 `BizException(ORG_NOT_IN_DEFAULT_TREE)` |
 | `primaryOrg` | `Boolean` | 否 | 仅当 `orgId` 非空时生效, 默认 true |
 

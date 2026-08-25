@@ -97,3 +97,18 @@ last_updated: 2026-08-25
 - 前端 typecheck / 210 单测 / lint / 生产构建（vite build，Windows 下 NODE_OPTIONS 内联执行）全绿。
 
 **遗留登记**：smsLogin 无失败计数与锁定检查（用户决策 #4，另行评估）；系统无用户自助改密通道（forceResetPwd 只能提示引导联系管理员，如需自助改密另行立项）。
+
+## 外部评审与修复收口（2026-08-25，codex gpt-5.6-sol xhigh）
+
+评审范围 `1b367fff1..HEAD`（前 4 提交），结论 0 致命 / 1 高 / 5 低，逐条核实全部属实并处置：
+
+| # | 级别 | 评审发现 | 核实与处置 |
+|---|------|----------|------------|
+| 1 | 高 | `/user/create` 的 `UserCreateReq.status` 无校验，可写 status=2：投影 `isEnabled(2)=false` 停用但登录不拒 → 「认证成功+权限主体停用」事实分裂，违反「仅 0/1」验收 | **修复**：`createUser` 补 0/1 校验（INVALID_PARAM，与 update/enable 同口径）；认证侧 `login`/`smsLogin` 停用检查改 `status != 1` fail-closed（与投影 isEnabled 对齐，任何未定义值不再进入会话）；新增 `UserWriteAppServiceCreateStatusTest` 2 用例（status=2 拒绝且零写入、status=0 投影同步停用）；契约 §4.1.3 status 描述补校验说明 |
+| 2 | 低 | 停用与临时锁定重叠时提示优先级错误：锁定检查先于停用检查，被锁定又被管理员停用的账号仍提示「30分钟后重试」误导 | **修复**：停用检查（管理员事实，10003）提前至临时锁定检查（10004）之前；`AuthLoginLockTest` 新增重叠用例固化优先级 |
+| 3 | 低 | 容器测试未断言失败计数键带 TTL（永不过期键会使锁定变永久，测试仍会通过） | **修复**：`LoginLockTemporaryPgIT` 补 `getExpire(lockKey) > 0` 断言 |
+| 4 | 低 | 残留术语：architecture 文档仍以已删除的 `lockUser` 作匿名租户解析示例；`UserUpdateStatusReq` 类级注释仍写「禁用」 | **修复**：示例更新为通用表述（解析能力保留、历史示例已删）；类注释两处改「停用」 |
+| 5 | 低 | 两处格式回退：`login()` Javadoc 丢失类内缩进；登录页内联样式经 lint 属性重排后格式异常 | **修复**：恢复缩进；内联样式整理为 `width: 120px; height: 40px` 并经 lint 复跑确认稳定 |
+| 6 | 低 | 前端新增行为（forceResetPwd warning、停用确认）无组件测试 | **用户决策不补**：均为单行 if/文案级逻辑，组件测试需 mock initRouter/router/message/ElMessageBox 成本高断言价值低，按任务卡「测试层声明适用的最小层、不补无价值测试」原则登记豁免 |
+
+修复后验证：单测轨道 702 tests 0 failures（新增 AuthLoginLockTest +2 至 6 用例、UserWriteAppServiceCreateStatusTest 2 用例）；LoginLockTemporaryPgIT 2 用例（含 TTL 断言）真实容器通过；前端 lint 全绿且格式稳定。

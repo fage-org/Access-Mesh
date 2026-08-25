@@ -161,6 +161,9 @@ class LoginLockTemporaryPgIT {
             assertThat(dbStatus(userId)).as("第 %d 次失败后 status 仍为 1（锁定不落库）", i).isEqualTo(1);
         }
         assertThat(stringRedisTemplate.opsForValue().get(lockKey)).isEqualTo("5");
+        // 计数键必须带 TTL（Lua INCR+EXPIRE）：剩余 TTL 即剩余锁定时长，永不过期键会使锁定变永久
+        assertThat(stringRedisTemplate.getExpire(lockKey, TimeUnit.SECONDS))
+            .as("失败计数键应带正 TTL").isPositive();
 
         // 第 6 次正确密码：凭计数键拒绝（10004），仍不落库，且补记锁定失败日志
         JsonNode locked = login(username, PASSWORD);

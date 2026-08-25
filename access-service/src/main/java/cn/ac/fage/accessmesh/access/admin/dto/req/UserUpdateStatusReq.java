@@ -7,8 +7,8 @@ import java.util.List;
 /**
  * 用户状态变更请求记录类
  * <p>
- * 用于批量启用或禁用用户。
- * status=1 表示启用，status=0 表示禁用。
+ * 用于批量启用或停用用户。
+ * status=1 表示启用，status=0 表示停用。
  * </p>
  *
  * @param ids    用户ID列表（必填，至少包含一个ID）

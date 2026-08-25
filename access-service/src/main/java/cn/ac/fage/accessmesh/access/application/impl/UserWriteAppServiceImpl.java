@@ -94,6 +94,10 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         permissionValidator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.CREATE);
         Long tenantId = TenantContextHolder.getTenantId();
 
+        // status 仅接纳 0/1（T-ADMIN-022 语义收口：0=停用，1=启用；写入口全部拦截非法值）
+        if (req.status() != null && req.status() != 0 && req.status() != 1) {
+            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
+        }
         if (userDomainService.existsByUsername(tenantId, req.username())) {
             throw new BizException(AdminErrorCode.USER_ALREADY_EXISTS.getCode(),
                 AdminErrorCode.USER_ALREADY_EXISTS.getMessage());

@@ -212,4 +212,35 @@ class AuthLoginLockTest {
         JsonNode correct = login(PASSWORD);
         assertThat(correct.get("code").asInt()).isEqualTo(200);
     }
+
+    @Test
+    @DisplayName("停用与临时锁定重叠：停用（管理员事实）优先，返回 10003 而非误导性的 10004")
+    void disabledTakesPrecedenceOverTemporaryLock() throws Exception {
+        SysUser user = enabledUser();
+        user.setStatus(0);
+        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(user);
+        ValueOperations<String, String> valueOperations = stubRedis();
+        when(valueOperations.get(LOCK_KEY)).thenReturn("5");
+
+        JsonNode body = login(PASSWORD);
+
+        assertThat(body.get("code").asInt()).isEqualTo(10003);
+        ArgumentCaptor<LoginLogEntry> captor = ArgumentCaptor.forClass(LoginLogEntry.class);
+        verify(loginLogDomainService).recordLoginLog(captor.capture());
+        assertThat(captor.getValue().failReason()).isEqualTo("用户已停用");
+    }
+
+    @Test
+    @DisplayName("未定义状态值 fail-closed：status=2 脏数据按停用拒绝，不建立会话")
+    void undefinedStatusFailsClosed() throws Exception {
+        SysUser user = enabledUser();
+        user.setStatus(2);
+        when(userDomainService.findByUsername(1L, USERNAME)).thenReturn(user);
+        ValueOperations<String, String> valueOperations = stubRedis();
+        when(valueOperations.get(LOCK_KEY)).thenReturn(null);
+
+        JsonNode body = login(PASSWORD);
+
+        assertThat(body.get("code").asInt()).isEqualTo(10003);
+    }
 }

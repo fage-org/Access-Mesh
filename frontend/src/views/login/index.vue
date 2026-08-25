@@ -202,7 +202,7 @@ useEventListener(document, "keydown", ({ code }) => {
                       alt="验证码"
                       title="点击刷新验证码"
                       class="cursor-pointer select-none"
-                      style=" width: 120px;height: 40px"
+                      style="width: 120px; height: 40px"
                       @click="refreshCaptcha"
                     />
                     <span
