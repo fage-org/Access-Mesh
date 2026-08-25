@@ -445,10 +445,10 @@ CREATE TABLE sys_file (
 
 CREATE INDEX idx_file_tenant ON sys_file (tenant_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE sys_file IS '文件元信息，实际文件存储在 S3 兼容对象存储中';
+COMMENT ON TABLE sys_file IS '文件元信息，实际文件存储在本地磁盘（file.storage.path，单实例约束：多实例部署下本地盘不可共享，T-ADMIN-023 登记）';
 COMMENT ON COLUMN sys_file.original_name IS '原始文件名';
 COMMENT ON COLUMN sys_file.file_name IS '存储文件名（UUID）';
-COMMENT ON COLUMN sys_file.file_path IS '存储路径（bucket/path）';
+COMMENT ON COLUMN sys_file.file_path IS '存储相对路径（{bizType}/yyyy/MM/dd/{uuid}{ext}，读取时经路径安全校验必须位于存储根内）';
 COMMENT ON COLUMN sys_file.file_url IS '访问URL';
 COMMENT ON COLUMN sys_file.file_size IS '文件大小（字节）';
 COMMENT ON COLUMN sys_file.file_type IS 'MIME 类型';

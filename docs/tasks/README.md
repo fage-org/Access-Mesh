@@ -125,8 +125,9 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021`（见下表）。`T-ADMIN-001~0
 | T-ADMIN-020 | access-service admin 域 CRUD 代码清理（痛点 #6，低优先级） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；access-service-architecture | — | ⚙️ | ⏳ |
 | T-ADMIN-021 | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源；P2-3，2026-08-01 立项） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §9；admin-service-api-contract §4.2.1 | — | ⚙️ | ⏳ |
 | [T-ADMIN-022](T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | admin-service-api-contract；schema/access-service.sql；default-org-tree-user-lifecycle | T-ORG-001, T-ACCESS-021 | ✅ | ✓ |
-| [T-ADMIN-023](T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | product-vertical-slice | admin-service-api-contract；access-service-architecture | T-ACCESS-021 | ⚙️ | ⏳ |
+| [T-ADMIN-023](T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | product-vertical-slice | admin-service-api-contract；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |
 | [T-ADMIN-024](T-ADMIN-024.md) | 恒拒绝退役 API 直接删除（/role/create、/role/grant-menu、/user-role/assign、/user-role/revoke 及配套 DTO/错误码/文档；已核实前端/SDK/文档无活引用） | product-vertical-slice | admin-service-api-contract | T-ACCESS-021 | ⚙️ | ⏳ |
+| [T-ADMIN-025](T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE；2026-08-25 T-ADMIN-023 执行期用户决策另立，B+ 不在里程碑 B 闭包） | [product-vertical-slice](../plans/product-vertical-slice-plan.md) | admin-service-api-contract；access-service-architecture；schema/access-service.sql | T-ADMIN-023 | ⚙️ | ⏳ |
 
 ### 组织/用户与跨服务 API（product-vertical-slice）
 

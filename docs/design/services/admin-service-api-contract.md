@@ -14,6 +14,8 @@ last_reviewed: 2026-08-23
 >
 > **术语（T-ACCESS-012）**：本文中「admin / admin-service 层」指 access-service admin 域入口，「permission-center」指同服务 permission 域（本地 `PermQueryEngine`/AppService 调用，无跨服务 HTTP）；历史决策表中的旧服务名表述按此映射阅读，不改变契约本身。
 >
+> **文件模块补记（T-ADMIN-023，2026-08-25）**：§4.7 文件管理（`/file/*`）为安全加固时从实现反向登记的契约（模块先于本契约存在），含 VIEW 门禁、统一路径安全函数、删除顺序反转与单实例本地存储约束语义。
+>
 > 关联文档:
 > - `../project-rules.md` (强约束: 报文/接口/异常/错误码段)
 > - `../permission-center/api-contract.md` (业务键, /api/perm/user-role/* 代理调用)
@@ -921,6 +923,71 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ---
 
+### 4.7 文件管理 (`/file`) 🔧 (T-ADMIN-023 安全加固补记, 2026-08-25 契约从实现反向登记)
+
+> 本模块先于契约存在（代码即事实），T-ADMIN-023 安全加固时反向登记契约；前端暂无消费方。
+> **资源类型**: `ADMIN_FILE`（type_definition `resource_type=25`）。**存储**: 本地磁盘单实例
+> （默认 `${user.home}/accessmesh-files`，多实例部署下本地盘不可共享为已知限制，见
+> `../access-service-architecture.md` §15；不建对象存储抽象层）。
+
+#### 4.7.1 `POST /file/upload` 🔧
+
+**请求**: `multipart/form-data`（`@RequestParam` 例外之一）：`file`（文件）+ `bizType`（业务类型，可选，默认 `default`）。
+**响应**: `PermResult<Long>`（文件记录 ID）。
+
+**安全语义**:
+
+- **门禁**: `ADMIN_FILE:CREATE` 类型级。
+- **bizType 格式白名单**: `^[A-Za-z0-9_-]{1,32}$`（null/空白归一 `default`）；bizType 是存储路径第一段，违规拒绝 `10506`（不排斥未来新增业务类型，仅消除路径注入面）。
+- **文件校验**: 大小上限（默认 10MB，`10503`）；危险扩展名黑名单 + 按 bizType 的扩展名白名单（`10504`）；原始文件名 sanitize；落盘文件名 = UUID + 扩展名；存储相对路径 `{bizType}/yyyy/MM/dd/{uuid}{ext}`。
+- **路径安全**: 目录与目标文件构造均经统一路径安全函数（规范化后必须位于存储根内，违规 `10506`）。
+
+#### 4.7.2 `POST /file/detail` 🔧
+
+**请求 DTO**: `IdReq`。**响应**: `PermResult<FileResp>`（`id/fileName/originalName/fileType/fileUrl/fileSize/fileType/storagePath(=file_path)/createdAt`）。
+**错误**: `10501`。**门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
+
+#### 4.7.3 `POST /file/page` 🔧
+
+**请求 DTO**: `FilePageReq { pageNum?, pageSize?, sort?, bizType? }`。**响应**: `PermResult<PaginatedResult<FileResp>>`（按创建时间倒序，可按 bizType 过滤）。
+**门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
+
+#### 4.7.4 `POST /file/download` 🔧
+
+**请求 DTO**: `IdReq`。**响应**: 文件字节流直接写 HTTP 响应（`Content-Disposition: attachment`；全仓唯一绕过 `PermResult` 包装的文件流白名单端点，T-ACCESS-011 登记）。
+**错误**: `10501`（元数据或物理文件不存在）/ `10506`（路径非法）/ `10507`（读取 IO 失败；原裸 `10504/10505` 硬编码已归位，T-ADMIN-023）。
+**门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
+
+#### 4.7.5 `POST /file/delete` 🔧
+
+**请求 DTO**: `IdsReq { ids: List<Long> }`（批量）。**响应**: `PermResult<Void>`。
+**门禁**: `ADMIN_FILE:DELETE` 批量实例级（resourceCode = 文件 ID；无 ADMIN_FILE 投影机制，实际由 scopeAll 全量授权决定放行，fail-closed）。
+
+**删除顺序（T-ADMIN-023 反转后的终态语义）**:
+
+1. 同一事务内提交元数据软删除（`delete_flag=id`）；
+2. 事务提交成功后经事务同步（afterCommit）物理清理文件；
+3. 物理清理失败仅记 WARN **保留孤儿文件**（孤儿文件优于丢失有效文件，可人工清理），不回滚已提交的软删、不使接口失败；
+4. 无事务上下文时软删后立即清理。
+
+**遗留**: 孤儿文件自动回收调度不做（仅记录）；多实例共享存储/对象存储不做（另立任务）。
+
+#### 4.7.6 安全语义总表
+
+| 端点 | 门禁（操作/档位） | 路径安全 | 错误码 |
+|------|------------------|----------|--------|
+| `/file/upload` | `ADMIN_FILE:CREATE` 类型级 | 目录 + 目标文件经统一路径安全函数；bizType 格式白名单 | `10502/10503/10504/10506` |
+| `/file/detail` | `ADMIN_FILE:VIEW` 类型级 | 不触盘 | `10501` |
+| `/file/page` | `ADMIN_FILE:VIEW` 类型级 | 不触盘 | — |
+| `/file/download` | `ADMIN_FILE:VIEW` 类型级 | DB filePath 经统一路径安全函数（纵深防御） | `10501/10506/10507` |
+| `/file/delete` | `ADMIN_FILE:DELETE` 批量实例级 | 清理阶段经统一路径安全函数（非法路径容忍为孤儿，不回滚软删） | —（软删总是提交） |
+
+> **VIEW 档位说明（用户决策 2026-08-25）**: detail/page/download 暂按类型级 VIEW 过渡；
+> 「文件夹级授权」（bizType 即文件夹实例，预置+惰性登记投影，全链路 CREATE/VIEW/DELETE
+> 按 folder 隔离、page 按可见文件夹过滤）另立任务卡 `T-ADMIN-025` 落地，落地时本节门禁档位升级。
+
+---
+
 ## 5. 已对齐接口汇总 (✅ 6 项)
 
 | # | 接口 | 来源 record | 备注 |
@@ -1085,7 +1152,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | 10210-10229 | 用户密码重置 |
 | 10300-10399 | 组织 CRUD |
 | 10400-10499 | 用户-组织关系 |
-| 10500-10599 | 用户-角色代理 |
-| 10600-19999 | 保留给 admin-service 后续模块 (字典/通知/文件/任务/审计等) |
+| 10500 | 用户-角色代理（退役接口恒 `10111`；`10501-10599` 文件模块：`10501` 不存在 / `10502` 上传失败 / `10503` 超限 / `10504` 类型不允许 / `10505` 删除失败（删除顺序反转后仅保留枚举，正常链路不再抛出）/ `10506` 路径非法（T-ADMIN-023）/ `10507` 读取失败（T-ADMIN-023）） |
+| 10600-19999 | 保留给 admin-service 后续模块 (字典/通知/任务/审计等) |
 
 具体码值由各模块的 `XxxErrorCode` 枚举类落地; 90001-99999 段 (参数校验/系统异常) 由 `common` 模块统一定义.

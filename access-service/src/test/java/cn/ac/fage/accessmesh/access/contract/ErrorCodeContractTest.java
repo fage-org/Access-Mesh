@@ -73,6 +73,8 @@ class ErrorCodeContractTest {
         Map.entry("ADMIN:FILE_TOO_LARGE", 10503),
         Map.entry("ADMIN:FILE_TYPE_NOT_ALLOWED", 10504),
         Map.entry("ADMIN:FILE_DELETE_FAILED", 10505),
+        Map.entry("ADMIN:FILE_PATH_ILLEGAL", 10506),
+        Map.entry("ADMIN:FILE_READ_FAILED", 10507),
         Map.entry("ADMIN:JOB_NOT_FOUND", 10601),
         Map.entry("ADMIN:CONFIG_NOT_FOUND", 10701),
         Map.entry("ADMIN:CONFIG_SYSTEM_IMMUTABLE", 10702),

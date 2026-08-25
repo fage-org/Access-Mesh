@@ -548,3 +548,19 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 - **自动化轨**：`BasicRoleGrantVerticalSliceE2EIT`（gateway 测试域，`@Tag("testcontainers")` 随 CI 容器门控）——固定 8 步全链路：PG/Redis Testcontainers + 双服务子进程（独立 JVM、随机端口、重启=kill+respawn），Gateway 免 Nacos（`spring.cloud.discovery.client.simple.instances` 静态实例直连，路由与回源 WebClient 同源解析），验证码 Redis 读码，fail-closed 503 与步骤⑦合并；⑥的 30 秒窗口自⑤授权响应到达时刻单调起算、以目标状态响应到达时刻判定（与⑧撤权同口径）；放行路径信封级断言（HTTP 200 + code=200 + 目标用户数据结构）。落位与测试域约束见 `docs/design/services/gateway.md` §测试域。
 - **页面轨**：授权页 GUI 授予场景经真实浏览器操作验收（compose 真实环境 + 真实 Nacos；变更暂存→apply-grant-plan 保存→0.4s 生效 200），截图与响应证据归档 `docs/tasks/evidence/t-access-021/`。
 - **E2E 修复的四处缺陷**（均为自动化轨/API 轨或页面轨暴露的真实产品缺陷）：① `resource-api-mapping/create` 缺省 matchOrder 显式 null 写库违例（缺省 0 对齐 DDL）；② 用户创建 status 两侧不同源（缺省一次解析同源，DDL 权威语义 1=启用；DTO javadoc 与 admin 契约 create 段表述同步更正）；③ 授权页资源矩阵恒空（前端 capability 门控用了 user-menu 权限串白名单必然排除的 RESOURCE:VIEW/OPERATION:VIEW；改为直接请求、后端类型级 VIEW 门禁为权威）；④ `operation-permission/list` 补齐 api-contract §5.3 `includeGlobalFallback` 后端实现（「专属优先、全局回退」合并）。
+
+## 15. 文件存储单实例本地盘约束（T-ADMIN-023 登记，2026-08-25）
+
+> 文件模块（`/file/*`，admin 域）物理文件存储在**本地磁盘**（`file.storage.path`，默认 `${user.home}/accessmesh-files`），
+> 与 §1.1「支持至少两个 access-service 实例并行运行」目标的关系在此显式登记。
+
+- **已知限制**：多实例部署下本地盘不可共享——元数据（`sys_file`）在共享 PostgreSQL，物理文件在实例本地盘，
+  跨实例上传/下载/删除会找不到文件（读失败/清理失败保留孤儿）。多实例部署场景需绑定单实例入口或等待共享存储方案。
+- **档位决策（用户确认，安全最小修复）**：不建对象存储抽象层、不做共享存储/分布式文件锁、不做孤儿文件自动回收调度
+  （清理失败仅记 WARN，孤儿可人工清）。
+- **安全终态（同任务收口）**：全接口 `ADMIN_FILE` 门禁（upload=CREATE、detail/page/download=VIEW、delete=DELETE）；
+  统一路径安全函数（规范化后必须位于存储根内）应用于上传目录/上传目标/下载/删除四条物理路径（`filePath` 源于 DB 仍校验，纵深防御）；
+  bizType 格式白名单 `^[A-Za-z0-9_-]{1,32}$`；删除顺序=先同事务软删元数据、提交后 afterCommit 物理清理、失败容忍孤儿。
+- **演进方向**：多实例/对象存储与「文件夹级授权」（bizType 即文件夹实例）均另立任务（后者为 `T-ADMIN-025`），
+  不在本约束内承诺。
+- 接口契约与错误码（10501-10507）见 `docs/design/services/admin-service-api-contract.md` §4.7。
