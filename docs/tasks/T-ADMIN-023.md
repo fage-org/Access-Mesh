@@ -85,6 +85,13 @@ last_updated: 2026-08-25
 
 修复后回归：FileServiceImplTest **19/19**（16+3）、FileServiceSecurityPgIT 6/6、全量单测轨/容器轨复跑全绿（见最终提交）。
 
+## 外部评审收口（2026-08-25，codex gpt-5.6-sol xhigh 复审：1 P1 属实已修复，其余全过）
+
+- **P1（属实）**：内部评审收口新增的 `@PostConstruct validateStorageConfig` 绝对路径校验击穿既有跨服务 E2E——`BasicRoleGrantVerticalSliceE2EIT`（gateway 测试域，CI 容器轨道）以子进程加载 access-service 生产 classes 并传 `--file.storage.path=files`（相对路径），`isAbsolute()` 恒 false → 子进程启动即抛 `IllegalStateException`，E2E 全挂。内部两轮评审与回归均只覆盖 `-pl access-service`，遗漏该跨模块消费方——外部评审抓出。
+- **修复**：保留生产 fail-fast，E2E 改传 `Path.of("files").toAbsolutePath()`（对齐同文件 `ACCESS_SERVICE_CLASSES_DIR` 既有手法与注释惯例）；全仓 grep 确认该值为唯一相对路径调用点（FileServiceSecurityPgIT 用绝对临时目录，生产默认 `${user.home}/...` 绝对）。
+- **验证**：`mvn test -pl gateway -Dtest=BasicRoleGrantVerticalSliceE2EIT` **8/8 全绿**（92.8s，双服务子进程真实启动链路）。
+- 其余结论：五项验收静态审查全过（门禁先于触库/securePath 四路径/删除顺序/无 N+1 跳层/文档一致）；`git diff --check` 通过；无其它实质缺陷。codex 因只读沙箱无法复跑测试（改用既有 Surefire 报告），本轮 8/8 为本侧实测补证。
+
 ## 设计回写（done）
 
 - `admin-service-api-contract.md`：新增 §4.7 文件管理（5 端点契约 + 安全语义总表 + VIEW 档位说明与 T-ADMIN-025 衔接 + 删除顺序终态语义）；头注补文件模块补记；附录 B 错误码段更新（10501-10507 全码值 + 10505 语义注明）。
