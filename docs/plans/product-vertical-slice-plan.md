@@ -148,7 +148,7 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 | [T-ACCESS-020](../tasks/T-ACCESS-020.md) | 空库 bootstrap（一键基础设施 + 幂等首管理员种子） | ✅ | T-ACCESS-019 | A |
 | [T-FE-041](../tasks/T-FE-041.md) | 前端真实登录链路与默认导航收敛 | ✅ | T-ACCESS-020 | A |
 | [T-ACCESS-021](../tasks/T-ACCESS-021.md) | BASIC_ROLE 授权垂直切片 E2E 验收 + README 回写 | ✅ | T-ACCESS-020, T-FE-041 | A |
-| [T-ADMIN-022](../tasks/T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | ⚙️ | T-ORG-001, T-ACCESS-021 | B |
+| [T-ADMIN-022](../tasks/T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | ✅ | T-ORG-001, T-ACCESS-021 | B |
 | [T-PERM-043](../tasks/T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | ⚙️ | T-ACCESS-019, T-ACCESS-021 | B |
 | [T-ADMIN-023](../tasks/T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | ⚙️ | T-ACCESS-021 | B |
 | [T-GW-007](../tasks/T-GW-007.md) | Gateway CORS 环境化与 actuator 暴露收口 | ⚙️ | T-ACCESS-021 | B |
@@ -190,3 +190,5 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 - 2026-08-24 二轮评审收口：T-FE-041 外部模型（codex gpt-5.6-sol xhigh）复审——上轮 5 项修复全部确认无回归，未发现致命/高问题；新检出 2 中/3 低并核实修复：登录失败后验证码刷新纳入按钮 loading（发起即失效旧 captchaId，防慢网重复提交已消费旧码）、固定 tenantId/clientId 展开顺序后置获最终覆盖权、登录 store 单测补 menus 非空夹具与 userKey 持久化断言、login.md 修正 401 不降级语义与契约来源表述（admin 契约文档未收录登录端点，登记文档治理遗留）。1 中登记遗留：sub-perm-allowed-types 后端端点未实现（api-contract §6.5.2 已定稿、Controller 缺失，真实路径切换后子权限配置区 404，不阻断 API:ACCESS 主权限验收，后端补齐归后续）。验证：210 单测/typecheck/lint/生产构建全绿。
 
 - 2026-08-24 执行：T-ACCESS-021 done——自动化轨跨服务 E2E IT 固定 8 步全绿（gateway 83 单测/access-service 697 单测/DualInstance 3 用例回归通过）；GUI 授权页授予场景经真实浏览器操作闭环（保存后 0.4s 生效 200，7 份证据归档）；E2E 共修复四处真实产品缺陷（API 映射缺省 matchOrder、用户创建 status 两侧同源、授权页 capability 门控源错误、operation-permission/list 补齐契约 §5.3 includeGlobalFallback）；README 项目状态改「核心垂直切片完成」+ 未交付清单，architecture §14.8 回写。**里程碑 A 达成，里程碑 B 任务依赖解除。** 执行口径与证据见[任务卡](../tasks/T-ACCESS-021.md)。
+
+- 2026-08-25 执行：T-ADMIN-022 done（里程碑 B 首项）——登录失败锁定改「计数键即锁」（checkAccountLocked increment(key,0) 改 GET、删除 lockUser/status=2/投影禁用编排与全部写库路径），锁定拒绝补记 sys_login_log、提示 10004 固定 30 分钟文案与停用 10003 可区分；sys_user.status 单一口径 0=停用/1=启用 收口（实体/DTO/契约注释 + /user/update 补 0/1 校验 + 前端「禁用」→「停用」措辞）；forceResetPwd 非阻断提示随本任务落地（归属自 T-FE-041 移入，经用户确认）。5 项执行期用户决策与 smsLogin 锁定缺口遗留登记见任务卡。验证：单测 698 全绿 + AuthLoginLockTest 4 用例 + LoginLockTemporaryPgIT 2 用例真实容器 + 前端 typecheck/210 单测/lint/构建全绿。

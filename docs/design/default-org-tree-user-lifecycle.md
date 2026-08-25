@@ -118,7 +118,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 用户投影必须覆盖两个事实，由 `access.application` 在写入 `sys_user` 的同一事务内维护（本地投影，业务键定位，不回填内部 ID）：
 
 1. `sys_user -> abstract_user(subjectTypeCode=LOCAL_USER, subjectExternalId=sys_user.id)`
-   - `enabled` 跟随 `sys_user.status`
+   - `enabled` 跟随 `sys_user.status`（仅 0=停用/1=启用，管理员手工启停；登录失败临时锁定不落库、不触发投影禁用——Redis 失败计数键剩余 TTL 即锁定时长，键过期自动恢复，T-ADMIN-022）
 
 2. `sys_user -> resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)`
    - `codeType = default`

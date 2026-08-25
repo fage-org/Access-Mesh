@@ -290,7 +290,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `name` | `String` | 否 | |
 | `phone` | `String` | 否 | |
 | `email` | `String` | 否 | |
-| `status` | `Integer` | 否 | 0/1 |
+| `status` | `Integer` | 否 | 1=启用, 0=停用；仅接纳 0/1，其它值抛 `BizException(INVALID_PARAM)`（T-ADMIN-022 语义收口，与 DDL `sys_user.status` 单一口径） |
 
 **响应**: `PermResult<Void>`
 
@@ -336,16 +336,18 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 #### 4.1.6 `POST /user/enable` 🔧
 
-**目的**: 批量启用/禁用用户 (启停一体). `status=1` 启用, `status=0` 禁用. 高危生命周期操作.
+**目的**: 批量启用/停用用户 (启停一体, 管理员手工启停). `status=1` 启用, `status=0` 停用. 高危生命周期操作.
 
 > 设计决策: 启停**不**拆为 `/user/enable` + `/user/disable` 双接口, 沿用现有 `UserUpdateStatusReq(ids, status)` 形态; 在 AppService 内部按 `status` 动态选择门禁操作码 (`ENABLE` vs `DISABLE`).
+>
+> **status 语义单一口径（T-ADMIN-022）**: `sys_user.status` 仅 0(停用)/1(启用)；登录失败临时锁定不落库（Redis 失败计数键剩余 TTL 即锁定时长，键过期自动恢复），历史 `status=2` 已删除。
 
 **请求 DTO**: `UserUpdateStatusReq`
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
 | `ids` | `List<Long>` | 是 | 用户 ID 列表 |
-| `status` | `Integer` | 是 | 1=启用, 0=禁用 |
+| `status` | `Integer` | 是 | 1=启用, 0=停用 |
 
 **响应**: `PermResult<Void>`
 
@@ -356,14 +358,14 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **投影动作** (每个 id):
 1. 主事务: UPDATE `sys_user.status`
-2. 启用 → `upsertAdminUser`；禁用 → `disableAdminUser`
+2. 启用 → `upsertAdminUser`；停用 → `disableAdminUser`
 
 **错误码段**: 10190-10209
 
 **当前差距**: 门禁码按 status 派发与默认树二次校验由 `UserWriteAppService` 执行。
 
 **验收要点**:
-- 不允许禁用操作者本人 → `BizException(CANNOT_DISABLE_SELF)`.
+- 不允许停用操作者本人 → `BizException(CANNOT_DISABLE_SELF)`.
 - 非默认树成员管理员调用此接口必须被门禁拦截 (因其无 `USER:ENABLE`（启停共用一码，v1.4 DISABLE 已并入）).
 
 ---

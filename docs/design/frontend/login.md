@@ -36,7 +36,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 ## 交互流程
 
 1. **页面加载**（onMounted）→ `POST /auth/captcha` → 展示图片（base64 已含 `data:image/png;base64,` 前缀）、记录 captchaId；失败弹"验证码获取失败"，可点击图片/占位重试。
-2. **提交** → `loginByUsername` → 成功：`initRouter()`（纯静态路由）→ 跳 `getTopMenu()`（里程碑 A 即 `/welcome`）→ "登录成功"；失败（业务 code/网络异常，经 `unwrap` 抛 `RequestError`）：展示后端 message → **无条件刷新验证码**（旧码已被后端消费；刷新 promise 纳入按钮 loading——期间不可重复提交，旧 captchaId/输入即刻失效，新码到达后恢复）。
+2. **提交** → `loginByUsername` → 成功：`initRouter()`（纯静态路由）→ 跳 `getTopMenu()`（里程碑 A 即 `/welcome`）→ "登录成功"（若 `forceResetPwd=true` 追加非阻断 warning「当前密码为初始密码，请联系管理员重置」——系统暂无自助改密通道，T-ADMIN-022）；失败（业务 code/网络异常，经 `unwrap` 抛 `RequestError`）：展示后端 message → **无条件刷新验证码**（旧码已被后端消费；刷新 promise 纳入按钮 loading——期间不可重复提交，旧 captchaId/输入即刻失效，新码到达后恢复）。登录失败提示经 message 透传天然区分：**10003 停用**（管理员手工启停，需管理员恢复）与 **10004 临时锁定**（失败计数键剩余 TTL 自动恢复，文案含 30 分钟指引）——T-ADMIN-022 口径，`sys_user.status` 仅 0/1，临时锁定不落库。
 3. **验证码点击刷新**：任何时刻点击图片重新拉取（发起即失效旧验证码 + 清空输入）。
 
 验证码有效期 5 分钟、一次性；后端运行时强制校验（无开关）。
@@ -57,7 +57,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 ## 权限接线（hasPerms → 按钮 → 降级）
 
-登录页本身无权限门禁（白名单路由）。登录后角色/权限经 `/auth/user-menu` 写入 store，供路由 `auths` 过滤与页面按钮 `hasPerms` 使用。`forceResetPwd` 提示适配归 T-ADMIN-022。
+登录页本身无权限门禁（白名单路由）。登录后角色/权限经 `/auth/user-menu` 写入 store，供路由 `auths` 过滤与页面按钮 `hasPerms` 使用。`forceResetPwd` 提示适配已随 T-ADMIN-022 落地（登录成功后非阻断 warning）。
 
 ## 令牌生命周期与 401 窄处理
 
