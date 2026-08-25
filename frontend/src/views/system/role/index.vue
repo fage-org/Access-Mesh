@@ -188,7 +188,7 @@ function allowDrop(draggingNode: any, targetNode: any, type: string): boolean {
 
 const router = useRouter();
 
-/** 权限授予入口可用：ROLE:VIEW（授予页矩阵查看门禁）；BASIC_ROLE 预选，GROUP_ROLE 到授予页展开选基础角色 */
+/** 权限授予入口可用：ROLE:VIEW（授予页矩阵查看门禁）；BASIC_ROLE 预选（授予页 T-PERM-043 后仅展示 BASIC_ROLE） */
 const canGrant = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_VIEW));
 
 function goPermissionGrant(node: RoleTreeNode) {

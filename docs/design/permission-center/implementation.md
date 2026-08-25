@@ -71,7 +71,7 @@ cn.ac.fage.accessmesh.permission
 │   ├── UserRoleController
 │   └── UserRoleSyncController
 ├── service
-│   ├── impl (23 AppService 实现)
+│   ├── impl (22 AppService 实现；GroupRoleAppServiceImpl 随 T-PERM-043 写入口删除)
 │   │   ├── AbstractRoleSyncAppServiceImpl
 │   │   ├── AbstractUserSyncAppServiceImpl
 │   │   ├── BizDomainAppServiceImpl
@@ -79,7 +79,6 @@ cn.ac.fage.accessmesh.permission
 │   │   ├── ConflictRuleAppServiceImpl
 │   │   ├── DependencyAppServiceImpl
 │   │   ├── DomainConfigAppServiceImpl
-│   │   ├── GroupRoleAppServiceImpl
 │   │   ├── LogQueryAppServiceImpl
 │   │   ├── OperationAppServiceImpl
 │   │   ├── PermissionCheckAppServiceImpl
@@ -616,9 +615,11 @@ API 资源删除 / 资源软删导致角色权限事实变化
   → 递归失效关联所有用户的角色缓存
   → 相关接口快照失效
 
-GROUP_ROLE 变更（parent_id 或 extra.basicRoleIds 修改）
+GROUP_ROLE 树结构变更（moveRole 调整 parent_id；extra.basicRoleIds 无任何写入方，T-PERM-043 后专用写入口已删除）
   → PermissionChangeContext.markRoles(groupRoleId)
   → afterCommit 批量失效 ROLE_PERM_SNAPSHOT + 关联用户 EFFECTIVE_ROLES + 广播
+  （T-PERM-043：create/update 已拒绝 GROUP_ROLE(20022)，move/remove 保留为存量行清理通道；
+  extra.basicRoleIds 双事实源遗留登记见仓库 README「技术债遗留登记」段与 T-PERM-043 任务卡）
 
 条件规则变更（permission_condition）
   → PermissionChangeContext.markConditions(conditionIds)

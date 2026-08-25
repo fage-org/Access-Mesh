@@ -131,32 +131,6 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
                                                    @Param("targetType") String targetType);
 
     /**
-     * 根据租户ID、目标类型、目标ID和关联ID查询有效用户角色
-     *
-     * @param tenantId    租户ID
-     * @param targetType  目标类型
-     * @param targetId    目标ID
-     * @param relationId  关联ID
-     * @return 用户角色实体，不存在返回null
-     */
-    UserRole selectValidByTargetAndRelation(@Param("tenantId") Long tenantId,
-                                              @Param("targetType") String targetType,
-                                              @Param("targetId") Long targetId,
-                                              @Param("relationId") Long relationId);
-
-    /**
-     * 根据租户ID、目标类型和目标ID查询有效用户角色列表
-     *
-     * @param tenantId   租户ID
-     * @param targetType 目标类型
-     * @param targetId   目标ID
-     * @return 用户角色列表
-     */
-    List<UserRole> selectByTargetTypeAndTargetId(@Param("tenantId") Long tenantId,
-                                                    @Param("targetType") String targetType,
-                                                    @Param("targetId") Long targetId);
-
-    /**
      * 批量查询指定 (userId, targetId, relationId) 三元组的有效用户角色（同 targetType）。
      * <p>
      * 用于 user-role full-sync 阶段 B 一次性预加载所有 items 对应的 user_role 行，避免循环单条 select。

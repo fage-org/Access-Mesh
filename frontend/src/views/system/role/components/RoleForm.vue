@@ -67,9 +67,10 @@ const statusOptions = [
   { label: "禁用", value: 0 }
 ];
 
-/** 表单校验规则。
- *  externalId 对可管理类型（BASIC_ROLE/GROUP_ROLE）必填——额外角色功能强依赖非空业务键
- *  （后端 GroupRoleExtraRoleReq/ListReq 的 group/basic externalId 均 @NotBlank，评审 P2-externalId）。 */
+/**
+ * 表单校验规则。externalId 对可管理类型（T-PERM-043 后仅 BASIC_ROLE）新建必填——业务键依赖
+ *（schema 唯一索引 uk_abstract_role_external；原额外角色 DTO 依赖随 T-PERM-043 退役）。
+ */
 const rules = computed<FormRules>(() => ({
   roleTypeCode: [
     { required: true, message: "请选择角色类型", trigger: "change" }
@@ -304,7 +305,7 @@ defineExpose({
       <el-input
         v-else
         v-model="formData.externalId"
-        placeholder="必填，用于与外部系统关联（额外角色功能依赖）"
+        placeholder="必填，用于与外部系统关联"
         clearable
         maxlength="128"
       />

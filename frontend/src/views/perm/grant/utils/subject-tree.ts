@@ -8,9 +8,11 @@ import type { RoleTreeNode } from "@/api/role-manage";
 import type { SubjectTreeNode } from "./types";
 
 /**
- * 角色树过滤：仅保留 BASIC_ROLE / GROUP_ROLE（ORG/POSITION/PERSONAL 不属角色入口，§1.1）。
- * 递归保留真实 children（含嵌套 BASIC_ROLE/GROUP_ROLE，评审问题 5）。
+ * 角色树过滤：T-PERM-043 后仅保留 BASIC_ROLE（GROUP_ROLE 写入口已删除，主体树不展示，
+ * 存量节点整棵裁掉；ORG/POSITION/PERSONAL 不属角色入口，§1.1）。
+ * 递归保留真实 children（评审问题 5）。
  * ROOT 为分组根容器，透明下钻不入结果。
+ * buildExtraContainer 等 GROUP_ROLE 展开代码保留（不可达），待 role_inclusion 立项恢复。
  */
 export function filterVisibleTree(nodes: RoleTreeNode[]): SubjectTreeNode[] {
   const result: SubjectTreeNode[] = [];
@@ -19,10 +21,7 @@ export function filterVisibleTree(nodes: RoleTreeNode[]): SubjectTreeNode[] {
       result.push(...filterVisibleTree(node.children ?? []));
       continue;
     }
-    if (
-      node.roleTypeCode !== "BASIC_ROLE" &&
-      node.roleTypeCode !== "GROUP_ROLE"
-    ) {
+    if (node.roleTypeCode !== "BASIC_ROLE") {
       continue;
     }
     result.push({

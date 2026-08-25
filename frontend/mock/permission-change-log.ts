@@ -44,7 +44,7 @@ type PaginatedResp<T> = {
 /** 统一成功信封（对齐 common.model.PermResult.success） */
 const ok = data => ({ code: 200, message: "success", data });
 
-// ========== Mock 数据：变更日志（覆盖 7 种 eventType + 多 entityType/operation） ==========
+// ========== Mock 数据：变更日志（覆盖 6 种 eventType + 1 种超枚举 + 多 entityType/operation） ==========
 
 /**
  * permission_change_log 内存数据。
@@ -250,35 +250,6 @@ const mockLogs: ChangeLogResp[] = [
     changeSource: "MANUAL",
     requestId: "req-cl-006",
     createdAt: "2026-07-09 13:30:00"
-  },
-  {
-    id: 7,
-    tenantId: 1,
-    entityType: "abstract_role",
-    entityId: 201,
-    operation: "INSERT",
-    oldSnapshot: null,
-    newSnapshot:
-      '{"id":201,"roleTypeCode":"GROUP_ROLE","externalId":"role_group_audit","name":"审计组"}',
-    diffSnapshot: JSON.stringify({
-      eventType: "GROUP_ROLE_CHANGE",
-      items: [
-        {
-          changeType: "ADD",
-          role: {
-            roleTypeCode: "GROUP_ROLE",
-            roleExternalId: "role_group_audit",
-            roleName: "审计组"
-          }
-        }
-      ]
-    }),
-    affectedAbstractUserIds: [],
-    affectedAbstractRoleIds: [201],
-    changeReason: "新建审计分组角色",
-    changeSource: "MANUAL",
-    requestId: "req-cl-007",
-    createdAt: "2026-07-08 09:10:00"
   },
   {
     id: 8,

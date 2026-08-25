@@ -4,19 +4,15 @@ import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.GroupRoleExtraRolesListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleTreeReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleMoveReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.GroupRoleExtraRoleReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleSummaryResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleTreeResp;
-import cn.ac.fage.accessmesh.access.permission.service.GroupRoleAppService;
 import cn.ac.fage.accessmesh.access.permission.service.RoleManageAppService;
 import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
 import jakarta.validation.Valid;
@@ -31,9 +27,11 @@ import java.util.List;
  * 角色管理控制器
  * <p>
  * 提供角色的CRUD操作、树结构查询、角色移动等功能。
- * 同时支持组角色的扩展角色管理。
  * 所有接口采用POST + JSON Body方式。
  * 租户ID通过TenantContextHolder从X-Tenant-Id请求头获取。
+ * </p><p>
+ * T-PERM-043：GROUP_ROLE 专用写入口（/extra-roles/add|remove|list）已删除，
+ * 通用 create/update 入口显式拒绝 GROUP_ROLE（首期功能角色仅 BASIC_ROLE）。
  * </p>
  */
 @RestController
@@ -41,18 +39,14 @@ import java.util.List;
 public class PermRoleController {
 
     private final RoleManageAppService roleManageAppService;
-    private final GroupRoleAppService groupRoleManageAppService;
 
     /**
      * 构造函数注入依赖
      *
      * @param roleManageAppService       角色管理服务
-     * @param groupRoleManageAppService  组角色管理服务
      */
-    public PermRoleController(RoleManageAppService roleManageAppService,
-                                GroupRoleAppService groupRoleManageAppService) {
+    public PermRoleController(RoleManageAppService roleManageAppService) {
         this.roleManageAppService = roleManageAppService;
-        this.groupRoleManageAppService = groupRoleManageAppService;
     }
 
     /**
@@ -165,52 +159,6 @@ public class PermRoleController {
     @PostMapping("/move")
     public PermResult<Void> moveRole(@Valid @RequestBody RoleMoveReq req) {
         roleManageAppService.moveRole(TenantContextHolder.getTenantId(), req.roleId(), req.parentId(), null);
-        return PermResult.success();
-    }
-
-    /**
-     * 查询组角色的扩展角色列表
-     * <p>
-     * 组角色可以配置额外的扩展角色，当用户加入组角色时自动继承这些扩展角色。
-     * </p>
-     *
-     * @param req 扩展角色列表查询请求
-     * @return 扩展角色摘要列表
-     */
-    @PostMapping("/extra-roles/list")
-    public PermResult<ItemsResp<RoleSummaryResp>> listExtraRoles(@Valid @RequestBody GroupRoleExtraRolesListReq req) {
-        return PermResult.success(new ItemsResp<>(
-            groupRoleManageAppService.listGroupRoleExtraRoles(TenantContextHolder.getTenantId(), req)
-        ));
-    }
-
-    /**
-     * 为组角色添加扩展角色
-     * <p>
-     * 配置组角色的扩展角色，用户加入该组角色后将自动获得扩展角色的权限。
-     * </p>
-     *
-     * @param req 扩展角色添加请求
-     * @return 操作成功结果
-     */
-    @PostMapping("/extra-roles/add")
-    public PermResult<Void> addExtraRole(@Valid @RequestBody GroupRoleExtraRoleReq req) {
-        groupRoleManageAppService.addGroupRoleExtraRole(TenantContextHolder.getTenantId(), req, null);
-        return PermResult.success();
-    }
-
-    /**
-     * 移除组角色的扩展角色
-     * <p>
-     * 删除组角色与扩展角色的关联配置。
-     * </p>
-     *
-     * @param req 扩展角色移除请求
-     * @return 操作成功结果
-     */
-    @PostMapping("/extra-roles/remove")
-    public PermResult<Void> removeExtraRole(@Valid @RequestBody GroupRoleExtraRoleReq req) {
-        groupRoleManageAppService.removeGroupRoleExtraRole(TenantContextHolder.getTenantId(), req, null);
         return PermResult.success();
     }
 }

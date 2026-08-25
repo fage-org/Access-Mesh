@@ -155,6 +155,40 @@ class AbstractRoleSyncAppServiceTest {
                 .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
     }
 
+    /** T-PERM-043：sync 通道与通用 create/update 同口径拒绝 GROUP_ROLE（20022）。 */
+    @Test
+    void shouldRejectGroupRoleTypeOnSync() {
+        mockHeaderMatch();
+        AbstractRoleSyncReq req = new AbstractRoleSyncReq("UPSERT", "GROUP_ROLE", "group-100",
+                "Group 100", null, null, "ROOT",
+                1, 0, null,
+                SOURCE_SERVICE, "group", "100",
+                new SyncVersionRef(OCCURRED_AT, 1L));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+                .isEqualTo(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+    }
+
+    /** T-PERM-043：full-sync 通道同口径拒绝 GROUP_ROLE（20022），不落任何同步事实。 */
+    @Test
+    void shouldRejectGroupRoleTypeOnFullSync() {
+        mockHeaderMatch();
+        cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleFullSyncReq req =
+                new cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleFullSyncReq(
+                        new cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleSyncScope(
+                                SOURCE_SERVICE, "GROUP_ROLE", "ROOT"),
+                        java.util.List.of(new cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleSyncItem(
+                                "group-100", "Group 100", null, null, 1, 0, null,
+                                "group", "100", new SyncVersionRef(OCCURRED_AT, 1L))));
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.fullSync(TENANT_ID, req, httpRequest))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+                .isEqualTo(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+        org.mockito.Mockito.verifyNoInteractions(syncMetadataDomainService);
+        org.mockito.Mockito.verifyNoInteractions(abstractRoleMapper);
+    }
+
     @Test
     void shouldReturnSecurityDenied_whenSourceServiceMismatch() {
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, "other-service"));

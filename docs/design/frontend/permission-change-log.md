@@ -85,7 +85,7 @@
 
 ### diff_snapshot 规范（api-contract §6.8 L1590-1671）
 
-顶层：`eventType`（7 枚举）+ `items[]`
+顶层：`eventType`（6 枚举；T-PERM-043 移除 `GROUP_ROLE_CHANGE`，该值自登记起无任何生产方）+ `items[]`
 
 | eventType | 含义 | items 典型字段 |
 |---|---|---|
@@ -94,7 +94,6 @@
 | ROLE_STATUS_CHANGE | 角色状态变更 | role + before/after |
 | RESOURCE_STATUS_CHANGE | 资源状态变更 | resource + before/after |
 | CONDITION_CHANGE | 条件变更 | before/after |
-| GROUP_ROLE_CHANGE | 分组角色变更 | role |
 | RESOURCE_DEPENDENCY_CHANGE | 资源依赖变更 | resource + message |
 
 `items[].changeType`：ADD / REMOVE / UPDATE
@@ -138,9 +137,9 @@ export const PERMISSION_CHANGE_LOG_PERMS = {
 | 5 | changeSource 枚举 | 🔧 | schema L631 注释写 ADMIN/SYNC/API/SYSTEM，后端代码实际用 MANUAL/SERVICE_SYNC（复用 PermConstants.MaintainSource）。schema 注释修正 |
 | 6 | 独立权限码 | 🔧 | 复用 SYSTEM_CONFIG:VIEW 做审计查询门禁，审计语义混淆。Phase 2 评估独立 PERMISSION_CHANGE_LOG:VIEW |
 | 7 | list 端点 | ✅ | `/api/perm/log/change/list` 分页查询可用，返回 PaginatedResp |
-| 8 | diff_snapshot 规范 | ✅ | §6.8 L1590-1671 完整规范，7 种 eventType + 3 种 changeType 固定枚举 |
+| 8 | diff_snapshot 规范 | ✅ | §6.8 完整规范，6 种 eventType（T-PERM-043 后）+ 3 种 changeType 固定枚举 |
 | 9 | detail 端点 | ✅ | 无需独立 detail（Resp 含全字段 + diffSnapshot），设计合理 |
-| 10 | eventType 枚举一致性 | 🔧 | 后端批量删除角色 `diffSnapshot.eventType` 写 `"ROLE_BATCH_DELETE"`（`RoleManageAppServiceImpl:286`），超出 §6.8 定义的 7 枚举。前端 `EVENT_TYPE_META` fallback 显示原值不崩溃，但枚举不一致需后端收敛或契约补枚举 |
+| 10 | eventType 枚举一致性 | 🔧 | 后端批量删除角色 `diffSnapshot.eventType` 写 `"ROLE_BATCH_DELETE"`（`RoleManageAppServiceImpl` 批量删除聚合日志，eventType 写入处），超出 §6.8 定义的 6 枚举（T-PERM-043 后）。前端 `EVENT_TYPE_META` fallback 显示原值不崩溃，但枚举不一致需后端收敛或契约补枚举 |
 
 ## 6. 组件识别（Step 1.5 -> T-FE-001 组件池）
 
@@ -154,9 +153,9 @@ export const PERMISSION_CHANGE_LOG_PERMS = {
 
 `mock/permission-change-log.ts`（零 src 依赖，本地声明类型，对齐 operation-log.ts 范式）：
 
-- 14 条变更日志，覆盖全部 7 种 eventType + 1 种超枚举（ROLE_BATCH_DELETE，验证 fallback）
+- 13 条变更日志（T-PERM-043 删 GROUP_ROLE_CHANGE 条目后），覆盖全部 6 种 eventType + 1 种超枚举（ROLE_BATCH_DELETE，验证 fallback）
 - 覆盖 entityType：role_resource_permission / user_role / resource_entity / abstract_role / permission_condition / resource_dependency
-- 覆盖 operation：INSERT / UPDATE / DELETE / BATCH_DELETE / BATCH_REMOVE（后两者为 entityId=0 批量聚合日志，对齐后端 `RoleManageAppServiceImpl:300` / `UserManageAppServiceImpl:672`）
+- 覆盖 operation：INSERT / UPDATE / DELETE / BATCH_DELETE / BATCH_REMOVE（后两者为 entityId=0 批量聚合日志，对齐后端 RoleManageAppServiceImpl 批量删除 / UserManageAppServiceImpl 批量撤销的聚合日志写入）
 - 覆盖 entityId=0 批量聚合场景：抽象角色批量删除 + 用户角色批量撤销
 - 覆盖 changeSource：MANUAL / SERVICE_SYNC
 - diff_snapshot 含 permission/role/resource/before-after 组合，验证 diff 面板结构化渲染

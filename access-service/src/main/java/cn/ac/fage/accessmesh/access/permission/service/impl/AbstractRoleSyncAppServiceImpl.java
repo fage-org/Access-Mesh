@@ -1,8 +1,10 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.common.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleFullSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleSyncItem;
@@ -86,6 +88,11 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
+        // T-PERM-043：GROUP_ROLE 生命周期冻结——外部同步通道与通用 create/update 同口径拒绝（20022）
+        if (PermConstants.TargetType.GROUP_ROLE.equals(req.roleTypeCode())) {
+            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                "不支持同步 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
+        }
         // 服务-类型白名单（service_config.extra.syncTypes，fail-closed）：服务须声明该角色类型
         if (!syncTypeGuard.validate(tenantId, req.sourceService(), SyncTypes.role(req.roleTypeCode()))) {
             return SyncResultBuilder.securityDenied("SERVICE_TYPE_NOT_ALLOWED");
@@ -175,6 +182,11 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
         localProjectionGuard.rejectReservedRoleType(req.scope().roleTypeCode());
+        // T-PERM-043：GROUP_ROLE 生命周期冻结——外部同步通道与通用 create/update 同口径拒绝（20022）
+        if (PermConstants.TargetType.GROUP_ROLE.equals(req.scope().roleTypeCode())) {
+            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                "不支持同步 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
+        }
         // 服务-类型白名单（fail-closed）：scope 角色类型须在服务声明的 roleTypeCodes 内
         if (!syncTypeGuard.validate(tenantId, req.scope().sourceService(),
                 SyncTypes.role(req.scope().roleTypeCode()))) {

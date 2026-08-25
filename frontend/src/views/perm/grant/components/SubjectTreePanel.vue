@@ -1,10 +1,10 @@
 <script setup lang="ts">
 /**
  * 左栏主体树（§1.1 两入口；首期角色入口，组织入口二期占位）。
- * 角色入口数据源：abstract-role/tree（权限中心，BASIC_ROLE + GROUP_ROLE）；
- * GROUP_ROLE 展开 = 其关联基础角色虚拟子节点（extra-roles/list，已联调），
- * 选中子节点后主体 = 该基础角色（BASIC_ROLE，与运行时展开语义一致，决策 13）。
- * GROUP_ROLE 节点本身无权限矩阵（只读提示）。
+ * 角色入口数据源：abstract-role/tree（权限中心）；T-PERM-043 后主体树仅展示 BASIC_ROLE
+ * （GROUP_ROLE 写入口已删除、节点整棵裁掉；extra-roles/list 已退役）。
+ * GROUP_ROLE 展开/选中分支代码保留为不可达（expandGroup、requestSelectGroup 等），
+ * 待未来 role_inclusion 单事实源立项后随 subject-tree 过滤恢复。
  *
  * 受控协议（评审问题 3 组件部分）：组件不持有选中态，由父组件通过 activeKey/selectingKey
  * 两阶段提交--点击候选 emit requestSelect，父组件确认成功才设 activeKey；saving 期间
@@ -41,7 +41,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** 请求选中可授权主体（BASIC_ROLE 或分组展开的基础角色）；父组件确认成功才设 activeKey */
   (e: "requestSelect", payload: { key: string; context: GrantContext }): void;
-  /** 请求选中 GROUP_ROLE 节点本身（无独立权限矩阵，提示展开选择基础角色） */
+  /** 请求选中 GROUP_ROLE 节点本身（无独立权限矩阵，提示展开选择基础角色；T-PERM-043 后不可达） */
   (e: "requestSelectGroup", payload: { key: string; name: string }): void;
 }>();
 

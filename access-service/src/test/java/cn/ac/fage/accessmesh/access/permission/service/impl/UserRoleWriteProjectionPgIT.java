@@ -77,10 +77,11 @@ class UserRoleWriteProjectionPgIT {
     private static final Long TENANT = 1L;
     private static final Path DDL_PATH = Path.of("..", "docs", "design", "schema", "access-service.sql");
 
-    /** type_definition 种子：user_type/LOCAL_USER=3、USER=1；role_type/BASIC_ROLE=6 */
+    /** type_definition 种子：user_type/LOCAL_USER=3、USER=1；role_type/BASIC_ROLE=6、GROUP_ROLE=5 */
     private static final int USER_TYPE_LOCAL = 3;
     private static final int USER_TYPE_EXTERNAL = 1;
     private static final int ROLE_TYPE_BASIC = 6;
+    private static final int ROLE_TYPE_GROUP = 5;
     /** resource_type 种子：USER=6、ROLE=5；CRUD 预置 CREATE=1，ROLE/USER:MANAGE=16 */
     private static final int RESOURCE_TYPE_USER = 6;
     private static final int RESOURCE_TYPE_ROLE = 5;
@@ -127,6 +128,8 @@ class UserRoleWriteProjectionPgIT {
     private RoleManageAppService roleManageAppService;
     @Autowired
     private UserManageAppService userManageAppService;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService;
     @Autowired
     private PermQueryEngine permQueryEngine;
     @Autowired
@@ -375,40 +378,50 @@ class UserRoleWriteProjectionPgIT {
         insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_ROLE, MANAGE_BIT);
         bindOperator(creator);
 
-        // 组角色与基础角色均经生产写路径创建（投影自动产出）；BASIC 挂 GROUP 受 createRole
-        // 父子类型一致约束，经 moveRole 挂到组下
-        RoleResp group = roleManageAppService.createRole(
-            TENANT, new RoleCreateReq(null, "GROUP_ROLE", "t019-ext-group", "组角色", null, null), creator);
+        // T-PERM-043：createRole 已拒绝 GROUP_ROLE，组角色改 JDBC 直插事实（读模型保留冻结）；
+        // 基础角色仍经生产写路径创建（BASIC_ROLE CRUD 不受影响）；BASIC 挂 GROUP 经 moveRole
+        Long groupId = insertGroupRole("t019-ext-group", "组角色");
         RoleResp basic = roleManageAppService.createRole(
             TENANT, new RoleCreateReq(null, "BASIC_ROLE", "t019-ext-group-basic", "组内基础角色", null, null), creator);
-        roleManageAppService.moveRole(TENANT, basic.id(), group.id(), creator);
+        roleManageAppService.moveRole(TENANT, basic.id(), groupId, creator);
 
         // 组成员（GROUP_ROLE 直绑）与组内基础角色上的授权，先于成员首次引擎调用装配
         Long member = insertSubject("t019-member", "组成员");
-        insertGroupBinding(member, group.id());
+        insertGroupBinding(member, groupId);
         insertScopeAllRolePerm(basic.id(), RESOURCE_TYPE_ROLE, CREATE_BIT);
 
         // 预热成员 EFFECTIVE_ROLES：经组展开获得基础角色 → 放行
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isTrue();
 
-        // 禁用组角色：反查须覆盖 GROUP_ROLE 直绑成员（含预热缓存失效），
-        // 禁用组展开为空 → 重新回源后整体失权
-        roleManageAppService.updateRole(TENANT, group.id(), "组角色-禁用", 0, null, null, creator);
+        // 禁用组角色：updateRole 已拒绝 GROUP_ROLE，JDBC 直改 status 后按生产同款入口
+        // （PermissionChangeAspect 提交后调 invalidateRoleCacheByRoles）失效缓存——
+        // 仅复刻 flush 的 EFFECTIVE_ROLES 腿（status 翻转不改 role_perm 事实，ROLE_PERM_SNAPSHOT/
+        // ORG_VISIBILITY/广播腿省略无影响；updateRole 完整 afterCommit 链由本类
+        // roleWritePathShouldProjectAndCloseInstanceGate 经生产路径覆盖）。
+        // 反查须覆盖 GROUP_ROLE 直绑成员（含预热缓存失效），禁用组展开为空 → 整体失权
+        setRoleStatus(groupId, 0);
+        subjectDomainService.invalidateRoleCacheByRoles(TENANT, java.util.Set.of(groupId));
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isFalse();
 
-        // 重新启用恢复授权；status 写入口未限定 0/1，非启用值（如 2）fail-closed 视为禁用
-        roleManageAppService.updateRole(TENANT, group.id(), "组角色-启用", 1, null, null, creator);
+        // 重新启用恢复授权；非启用值（如 2）fail-closed 视为禁用
+        setRoleStatus(groupId, 1);
+        subjectDomainService.invalidateRoleCacheByRoles(TENANT, java.util.Set.of(groupId));
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isTrue();
-        roleManageAppService.updateRole(TENANT, group.id(), "组角色-异常状态", 2, null, null, creator);
+        setRoleStatus(groupId, 2);
+        subjectDomainService.invalidateRoleCacheByRoles(TENANT, java.util.Set.of(groupId));
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isFalse();
 
-        // 删除组角色（级联子孙基础角色）：预计算反查覆盖直绑成员，两投影均软删
-        roleManageAppService.deleteRoles(TENANT, List.of(group.id()), creator);
-        assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(group.id()))
+        // 删除组角色（delete 保持可用，级联子孙基础角色）：预计算反查覆盖直绑成员，
+        // 角色事实与两投影（组=装配补建、BASIC=生产产出）均软删
+        roleManageAppService.deleteRoles(TENANT, List.of(groupId), creator);
+        assertThat(((Number) jdbc.queryForMap(
+            "SELECT delete_flag FROM abstract_role WHERE id = ?", groupId)
+            .get("delete_flag")).longValue()).isNotZero();
+        assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(groupId))
             .get("delete_flag")).longValue()).isNotZero();
         assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(basic.id()))
             .get("delete_flag")).longValue()).isNotZero();
@@ -424,32 +437,70 @@ class UserRoleWriteProjectionPgIT {
         insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_ROLE, MANAGE_BIT);
         bindOperator(creator);
 
-        RoleResp outer = roleManageAppService.createRole(
-            TENANT, new RoleCreateReq(null, "GROUP_ROLE", "t019-ext-nested-outer", "外层组", null, null), creator);
-        RoleResp inner = roleManageAppService.createRole(
-            TENANT, new RoleCreateReq(null, "GROUP_ROLE", "t019-ext-nested-inner", "内层组", null, null), creator);
+        // T-PERM-043：组角色 JDBC 直插（createRole 已拒绝）；move 保持可用完成树装配
+        Long outerId = insertGroupRole("t019-ext-nested-outer", "外层组");
+        Long innerId = insertGroupRole("t019-ext-nested-inner", "内层组");
         RoleResp leaf = roleManageAppService.createRole(
             TENANT, new RoleCreateReq(null, "BASIC_ROLE", "t019-ext-nested-leaf", "内层组基础角色", null, null), creator);
-        roleManageAppService.moveRole(TENANT, inner.id(), outer.id(), creator);
-        roleManageAppService.moveRole(TENANT, leaf.id(), inner.id(), creator);
+        roleManageAppService.moveRole(TENANT, innerId, outerId, creator);
+        roleManageAppService.moveRole(TENANT, leaf.id(), innerId, creator);
 
         Long member = insertSubject("t019-nested-member", "嵌套组成员");
-        insertGroupBinding(member, outer.id());
+        insertGroupBinding(member, outerId);
         insertScopeAllRolePerm(leaf.id(), RESOURCE_TYPE_ROLE, CREATE_BIT);
 
         // 外层→内层→基础角色全启用：展开包含叶子角色 → 放行
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isTrue();
 
-        // 停用内层组（外层仍启用）：内层整棵子树剪枝 + 祖先反查失效外层组成员缓存 → 拒绝
-        roleManageAppService.updateRole(TENANT, inner.id(), "内层组-停用", 0, null, null, creator);
+        // 停用内层组（外层仍启用，updateRole 已拒绝 GROUP_ROLE 改 JDBC 直改）：
+        // 内层整棵子树剪枝 + 祖先反查失效外层组成员缓存 → 拒绝
+        setRoleStatus(innerId, 0);
+        subjectDomainService.invalidateRoleCacheByRoles(TENANT, java.util.Set.of(innerId));
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isFalse();
 
         // 重新启用内层组：子树恢复参与展开 → 放行
-        roleManageAppService.updateRole(TENANT, inner.id(), "内层组-启用", 1, null, null, creator);
+        setRoleStatus(innerId, 1);
+        subjectDomainService.invalidateRoleCacheByRoles(TENANT, java.util.Set.of(innerId));
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, member, "ROLE", null, "CREATE")).isTrue();
+    }
+
+    @Test
+    @DisplayName("T-PERM-043：通用 create/update 入口拒绝 GROUP_ROLE(20022)；BASIC_ROLE 创建不受影响")
+    void groupRoleWriteEntriesShouldBeRejectedWithTypeMismatch() {
+        Long creator = insertSubject("t019-op-reject-group", "组角色拒绝操作者");
+        Long creatorRole = insertBasicRole("t019-holder-reject-group", "组角色拒绝操作者角色");
+        insertUserRole(creator, creatorRole);
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_ROLE, CREATE_BIT);
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_ROLE, MANAGE_BIT);
+        bindOperator(creator);
+
+        // createRole 显式拒绝 GROUP_ROLE，复用 ROLE_TYPE_MISMATCH(20022)
+        assertThatThrownBy(() -> roleManageAppService.createRole(
+                TENANT, new RoleCreateReq(null, "GROUP_ROLE", "t019-ext-reject-group", "被拒组角色", null, null), creator))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+            .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+            .isEqualTo(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+        assertThat(countRoleByExternalId("t019-ext-reject-group")).isZero();
+
+        // updateRole 按目标现行类型拒绝（JDBC 直插的存量组角色行），事实未被触碰
+        Long groupId = insertGroupRole("t019-ext-legacy-group", "存量组角色");
+        assertThatThrownBy(() -> roleManageAppService.updateRole(
+                TENANT, groupId, "改名被拒", null, null, null, creator))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+            .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+            .isEqualTo(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+        assertThat(jdbc.queryForMap(
+            "SELECT name, status FROM abstract_role WHERE id = ?", groupId))
+            .containsEntry("name", "存量组角色")
+            .containsEntry("status", 1);
+
+        // BASIC_ROLE 创建不受影响（首期唯一功能角色）
+        RoleResp basic = roleManageAppService.createRole(
+            TENANT, new RoleCreateReq(null, "BASIC_ROLE", "t019-ext-basic-ok", "基础角色不受影响", null, null), creator);
+        assertThat(basic.id()).isNotNull();
     }
 
     // ===== 数据装配（jdbc 直插事实/授权，先于相关主体首次引擎调用） =====
@@ -471,6 +522,25 @@ class UserRoleWriteProjectionPgIT {
             "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, parent_id, extra) "
                 + "VALUES (?, ?, ?, ?, 1, NULL, '{}') RETURNING id",
             Long.class, TENANT, ROLE_TYPE_BASIC, externalId, name);
+    }
+
+    /**
+     * T-PERM-043：createRole 已拒绝 GROUP_ROLE，组角色事实经 JDBC 直插装配（读模型用例）；
+     * 同步补建 ROLE 投影（对齐原 createRole 生产副作用），否则 moveRole 挂子角色时
+     * upsertRoleResource 因父投影缺失 fail-closed。
+     */
+    private Long insertGroupRole(String externalId, String name) {
+        Long id = jdbc.queryForObject(
+            "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, parent_id, extra) "
+                + "VALUES (?, ?, ?, ?, 1, NULL, '{}') RETURNING id",
+            Long.class, TENANT, ROLE_TYPE_GROUP, externalId, name);
+        localProjectionDomainService.upsertRoleResource(TENANT, id, name, 1, null);
+        return id;
+    }
+
+    /** T-PERM-043：updateRole 已拒绝 GROUP_ROLE，status 经 JDBC 直改（role_type 种子 GROUP_ROLE=5）。 */
+    private void setRoleStatus(Long roleId, int status) {
+        jdbc.update("UPDATE abstract_role SET status = ? WHERE id = ?", status, roleId);
     }
 
     private void insertUserRole(Long abstractUserId, Long targetRoleId) {

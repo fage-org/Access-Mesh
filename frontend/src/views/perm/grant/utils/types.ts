@@ -30,15 +30,19 @@ export type GrantContext = {
   fromGroupRoleName?: string | null;
 };
 
-/** 左栏主体树节点（角色入口：BASIC_ROLE + GROUP_ROLE；GROUP_ROLE 展开为基础角色虚拟子节点） */
+/**
+ * 左栏主体树节点（角色入口：T-PERM-043 后主体树仅 BASIC_ROLE；GROUP_ROLE 展开为基础角色
+ * 虚拟子节点的分支保留为不可达，待 role_inclusion 立项恢复）
+ */
 export type SubjectTreeNode = {
   /** el-tree node-key（BASIC_ROLE 用 `role:{externalId}`；分组展开子节点 `role:{externalId}@{groupExternalId}`） */
   key: string;
   /**
    * 节点种类（不依赖 roleTypeCode 猜测，评审问题 5）：
-   * - ROLE：真实角色节点（BASIC_ROLE/GROUP_ROLE，来自 getRoleTree，含嵌套真实 children）
-   * - EXTRA_CONTAINER：GROUP_ROLE 展开时"关联基础角色"虚拟容器（不可选，装 EXTRA_ROLE）
-   * - EXTRA_ROLE：虚拟容器内的基础角色子节点（extra-roles/list；选中主体=该基础角色）
+   * - ROLE：真实角色节点（T-PERM-043 后主体树仅 BASIC_ROLE，来自 getRoleTree，含嵌套真实 children）
+   * - EXTRA_CONTAINER：GROUP_ROLE 展开时"关联基础角色"虚拟容器（不可选，装 EXTRA_ROLE；
+   *   T-PERM-043 后不可达，extra-roles/list 已退役，结构保留待恢复）
+   * - EXTRA_ROLE：虚拟容器内的基础角色子节点（选中主体=该基础角色；同上不可达）
    */
   kind: "ROLE" | "EXTRA_CONTAINER" | "EXTRA_ROLE";
   roleTypeCode: string;

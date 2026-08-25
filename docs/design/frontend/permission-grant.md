@@ -26,8 +26,8 @@ last_reviewed: 2026-08-09
 9. **变更预览**：矩阵就地标记（绿=有效/新增、黄=待更新、红=待撤销，三态复用同一形态，**不使用删除线**，§3.3/§6.2）+ **右栏变更清单**（定位 / 逐条撤销）+ 底部"保存全部 / 放弃全部"。
 10. **继承默认**：默认**开**（显示含继承，页头标注"模拟 CHILD 展开视图，非运行时默认"）；**直接授权与继承用颜色区分**（直接=实色/深色，继承=淡色，来源类型用图标区分）；开关用于"只看直接授权"的干净视图（与运行时默认一致）。
 11. **条件模型（v3.1 记录级聚焦编辑）**：同一角色在同一资源/范围 + 操作 + 父权限下最多一条 MANUAL 直接授权；弹窗内**单条件**（无条件或一个条件）与 canGrant 是**聚焦授权记录**的可编辑属性。资源树复选框只控制授权的新增/保留/撤销，点击资源行聚焦后，设置区只读取和修改该聚焦记录；新勾选资源使用固定默认值（无条件、不可再授予、无子权限），不继承设置区当前值；修改任一记录不产生其他记录的变更；不做隐式覆盖——批量效率由**显式复制**（源=聚焦记录，确认覆盖）承担（§4）。
-12. **主体入口**：**两入口共用一套组件**（路由/参数区分主体类型）：角色（BASIC_ROLE + GROUP_ROLE）/ 组织（ORG + POSITION）；**PERSONAL 预留**（首期移除：个人 `abstract_role` 生命周期待后端同步链路落地后恢复，见 §1.1/§12 注）。原因：有角色权限的主体不一定有组织/用户权限，两类授权是独立领域能力。
-13. **分组角色**：GROUP_ROLE **只读**——左栏展开为其关联的基础角色（`extra.basicRoleIds`，`abstract-role/extra-roles/list`，已联调 ✅），选中基础角色后按普通基础角色查看/授权（授权目标 = 基础角色本身，与运行时展开语义一致，无需聚合视图）。
+12. **主体入口**：**两入口共用一套组件**（路由/参数区分主体类型）：角色（T-PERM-043 后仅 BASIC_ROLE，GROUP_ROLE 已隐藏）/ 组织（ORG + POSITION）；**PERSONAL 预留**（首期移除：个人 `abstract_role` 生命周期待后端同步链路落地后恢复，见 §1.1/§12 注）。原因：有角色权限的主体不一定有组织/用户权限，两类授权是独立领域能力。
+13. **分组角色（T-PERM-043 已隐藏）**：GROUP_ROLE 主体树节点不再展示（写入口已删除、extra-roles/list 已退役）；原「只读展开为基础角色」交互的代码保留为不可达，待 role_inclusion 单事实源立项后恢复。
 14. **来源链计算**：**前端自算**（资源树 + `inheritMask` + list 主权限，纯函数对齐引擎语义）；list 主权限 = baseline（`includeChildren=true` 一次取全量，§6.1 加载口径）结果中过滤 `dependOn==null` 的记录——**不再单独以 `includeChildren=false` 拉取来源链输入**；仅"已有权限类型"辅助查询（T-FE-038 注记）单独使用 `includeChildren=false`；T-PERM-034 另补小字段（§12）。
 15. **页面密度与图例**：移除独立页面标题卡片，主体选择状态由左栏承担；矩阵工具栏图例拆分为“形态”和“颜色”两组：形态覆盖直接/资源继承/操作继承/组合继承/条件/可转授，颜色说明有效/新增、待更新、待撤销；子权限使用独立蓝色数量标识。
 16. **验收**：场景清单驱动（§11）。
@@ -38,13 +38,13 @@ last_reviewed: 2026-08-09
 
 | 入口 | 挂载位置                        | 主体类型                          | 左栏主体数据源                                                | 编辑能力                                                             |
 | ---- | ------------------------------- | --------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- |
-| 角色 | 角色管理页（2.2）"权限授予"入口 | `ROLE`（BASIC_ROLE + GROUP_ROLE） | `abstract-role/tree`（权限中心）                              | GROUP_ROLE 只读（展开为基础角色后按基础角色编辑），BASIC_ROLE 可编辑 |
+| 角色 | 角色管理页（2.2）"权限授予"入口 | `ROLE`（T-PERM-043 后仅 BASIC_ROLE） | `abstract-role/tree`（权限中心）                              | BASIC_ROLE 可编辑（GROUP_ROLE 节点不展示，写入口已删除） |
 | 组织 | 组织管理页（2.1）入口           | `ORG`（ORG + POSITION）           | 组织树（admin-service，见 `org-user-permission-contract.md`） | 可编辑（**二期，首期不做**）                                         |
 | 个人 | 用户管理/详情页（2.1）入口      | `PERSONAL`                        | 用户列表（admin-service）                                     | **首期移除**（见下注）                                               |
 
 - 路由约定：`/perm/grant?subjectType=ROLE|ORG`（前端同一页面组件，`subjectType` 驱动主体数据源与左栏文案；`PERSONAL` 预留，首期不挂路由）。
 - 主体切换：左栏树选中即切换查看目标；**未保存变更在切换主体/离开时拦截**（§6.4）。
-- **GROUP_ROLE 展开**（P1-2）：树中 GROUP_ROLE 节点展开为虚拟子节点（`extra-roles/list` 返回的基础角色），选中子节点后主体 = 该基础角色（`BASIC_ROLE`），查看/授权/保存全部按基础角色走；GROUP_ROLE 节点本身无权限矩阵。
+- **GROUP_ROLE 展开（T-PERM-043 隐藏）**：主体树过滤仅保留 BASIC_ROLE，GROUP_ROLE 节点整棵裁掉（`extra-roles/list` 已退役，展开代码保留为不可达，待 role_inclusion 立项恢复）。
 - 权限接线：各入口按 `subjectType` 映射能力门控（§10）。
 
 ### 1.2 与相邻页面分工
@@ -86,7 +86,7 @@ GrantContext = { domainCode, roleTypeCode, roleExternalId }
 | 入口 | 选中节点                     | roleTypeCode | roleExternalId                                                                            | domainCode          |
 | ---- | ---------------------------- | ------------ | ----------------------------------------------------------------------------------------- | ------------------- |
 | ROLE | BASIC_ROLE 角色              | `BASIC_ROLE` | 角色 `externalId`（角色树接口返回）                                                       | **恒 null**（P1-1） |
-| ROLE | GROUP_ROLE 展开子节点        | `BASIC_ROLE` | 子节点（基础角色）`externalId`                                                            | 同上                |
+| ROLE | ~~GROUP_ROLE 展开子节点~~（T-PERM-043 后不可达：主体树不展示 GROUP_ROLE，展开代码保留待恢复） | `BASIC_ROLE` | 子节点（基础角色）`externalId` | 同上 |
 | ORG  | 组织节点（orgType=ORG）      | `ORG`        | `String(节点 id)`（即 `sys_org.id`，对齐 api-contract L656 示例 `roleExternalId:"2001"`） | **恒 null**（P1-1） |
 | ORG  | 岗位节点（orgType=POSITION） | `POSITION`   | `String(节点 id)`                                                                         | 同上                |
 
@@ -349,9 +349,9 @@ interface MatrixContext {
 ### 6.5 提交状态机（工程加固简化，2026-08-02 确认）
 
 - **Pinia store `grant-store.ts`**（T-FE-036 内新建，不复用现有全局 store）：提交状态用 **discriminated union** 表达，保持 `idle` / `dirty` / `saving` / `saveFailed` 四态；内部管理页低频，超时由“提示刷新确认”覆盖，不做自动恢复 machinery。
-- **页面 capability 与状态正交**：顶层 `capability: 'edit' | 'view'` **仅由门禁派生**（ROLE:VIEW -> view；ROLE:MANAGE -> edit）+ GROUP_ROLE 主体 -> view；**不再由 AUTO_DEP 派生**。AUTO_DEP 降为**记录级** `readonlyReason: 'AUTO_DEP' | null`：AUTO_DEP 记录禁编辑/删除 + 悬浮标注（**不禁用整个单元格**，并存 MANUAL 记录仍可编辑/添加），与页面状态机互不干扰（同一页 MANUAL 可编辑 + AUTO_DEP 记录只读共存）。
+- **页面 capability 与状态正交**：顶层 `capability: 'edit' | 'view'` **仅由门禁派生**（ROLE:VIEW -> view；ROLE:MANAGE -> edit；GROUP_ROLE 主体 -> view 一支随 T-PERM-043 主体树隐藏而不可达，代码保留）；**不再由 AUTO_DEP 派生**。AUTO_DEP 降为**记录级** `readonlyReason: 'AUTO_DEP' | null`：AUTO_DEP 记录禁编辑/删除 + 悬浮标注（**不禁用整个单元格**，并存 MANUAL 记录仍可编辑/添加），与页面状态机互不干扰（同一页 MANUAL 可编辑 + AUTO_DEP 记录只读共存）。
 - **baseline 迁移规则**：`baseline` 只在 `apply-grant-plan` **明确成功**后切换（响应返回新权限结果）；失败 -> 条目保留标红，提示“保存失败，请重试”（整体重试，前端 saving 期间按钮 disabled 防重复提交）；**超时/网络未知** -> 提示“网络异常，请刷新页面确认当前状态”，管理员刷新 list 自行判断（不做自动 list 对比 + 重放）。
-- **readonly 派生**：页面 capability 由门禁（ROLE:VIEW/MANAGE）与 GROUP_ROLE 主体派生；记录级 readonlyReason 由 AUTO_DEP 派生，两者正交。
+- **readonly 派生**：页面 capability 由门禁（ROLE:VIEW/MANAGE）派生（GROUP_ROLE 主体派生支随 T-PERM-043 不可达）；记录级 readonlyReason 由 AUTO_DEP 派生，两者正交。
 - 状态机为 T-FE-036 实现要点（DoD：S5 相关场景必须走状态机路径验证）。
 - **baseline 迁移（请求粒度）**：请求成功后才整体移入新 baseline（草稿只保留未成功请求的条目）；再次进入页面以最新 baseline 为准。
 - 离开保护：存在未保存变更时，路由切换/刷新/切换主体 -> 确认提示（ElMessageBox）。
@@ -404,7 +404,6 @@ interface MatrixContext {
 | 资源树                     | `resource-entity/tree`                                                                                | api-contract.md §5.x（3.1 页契约）               |
 | 操作权限（含 inheritMask） | `operation-permission/list`                                                                           | api-contract.md §5.x（3.1 页契约）               |
 | 资源类型候选（类型下拉）   | `type-definition/list`（资源类型定义，筛选 type_key）                                                 | api-contract.md §5.1（🔧 T-FE-038）              |
-| GROUP_ROLE 展开            | `abstract-role/extra-roles/list`                                                                      | api-contract.md §6.10.3（已联调 ✅）             |
 | 条件列表                   | `permission-condition/list`                                                                           | api-contract.md §5.6（T-PERM-029）               |
 
 ## 9. 组件结构（含复用）
@@ -439,7 +438,7 @@ interface MatrixContext {
 
 ## 11. 验收场景清单（T-FE-036/T-FE-038/T-FE-039/**T-FE-040（v3.1 记录级聚焦编辑，2026-08-08 登记）** 拆分子任务依据；S1~S11 全套）
 
-- **S1 两入口**：角色/组织入口分别进入，左栏主体树正确；GROUP_ROLE 只读（无授权按钮，来源标注"来自基础角色"）。（个人入口首期移除，P1-4）
+- **S1 两入口**：角色/组织入口分别进入，左栏主体树正确（T-PERM-043 后角色入口仅 BASIC_ROLE；GROUP_ROLE 只读/展开交互已不可达，历史验收步骤随读模型恢复立项时回归）。（个人入口首期移除，P1-4）
 - **S2 查看矩阵**：继承默认开；来源形态正确区分直接/资源继承/操作继承/双重继承（实色/淡色 + 上/右/组合箭头；**AUTO_DEP 无独立来源图标，来源属性在悬浮详情标注**）；两开关可独立关闭；操作列可配置（增删列，刷新后保留）；树形行展开/折叠/搜索；**ALL 虚拟行**（含范围标识、与实例行互斥）；悬浮详情正确（来源链/条件/范围/canGrant/createdAt/childCount，**条件/范围/可授予并入详情不占格**）；多来源并存正确展示；**AUTO_DEP 只读**（不可编辑/删除，**只读落实到记录/详情项、不禁用整个单元格**，并存 MANUAL 仍可编辑）；**多来源聚合归并正确**（含 AUTO_DEP 参与聚合；直接+继承并存取实色、两段继承并存组合箭头、任一 canGrant=true 粗黑边框、全部有条件条纹、任一无条件来源时普通填充且其他条件来源仅在详情中展示）；绿/黄/红三态各最多一个聚合图标；子权限用独立蓝色数量标识且继承格不复制。**（✅ T-FE-039 已实现，2026-08-08）**
 - **S3 授权弹窗（v3.1 记录级聚焦编辑）**：打开即见资源树；未选操作时只读，选择操作后已有 INSTANCE 授权正确勾选；**矩阵无权限单元格打开时自动聚焦 initial 资源**（未授权也聚焦，设置区只读展示默认值）；**复选框切换勾选**（取消已有节点生成 remove、新勾选生成 add 且属性=新增默认值），**点击行其余区域聚焦该记录**；**焦点为空时首次勾选自动聚焦，焦点非空时批量勾选不抢焦点**；未授权资源可聚焦（设置区只读，勾选后启用）；聚焦记录的条件/canGrant 修改只生成该记录自己的 update，不产生其他记录变更；**取消勾选焦点记录时焦点清空**；聚焦记录带条件且当前角色已加载来源中存在其他无条件来源时展示有效来源提示（限定当前角色，不声称用户级最终权限）；**显式复制**：源=聚焦记录的条件+再授予，目标=已勾选 MANUAL 记录多选+确认覆盖，不复制子权限，条件非空时目标 canGrant=false；右上角“全量”可新增/保留/撤销当前类型 ALL（ALL 焦点=ALL 虚拟记录，可独立配置条件/再授予/子权限）；子权限入口在设置区、挂载到聚焦记录（单父记录上下文），资源类型选择按 SUB_PERM 允许集过滤（ALLOW_ALL/ALLOW_LIST/ALLOW_NONE），**启用条件=焦点为有效 MANUAL 或待新增 add 草稿**（未授权/仅 AUTO_DEP 槽位时禁用）；**焦点=MANUAL 编辑槽位**（仅 AUTO_DEP 来源的资源行也可聚焦，勾选创建并存 MANUAL，AUTO_DEP 只在详情只读）；**取消勾选焦点记录：焦点清空+草稿 suspended**（同弹窗重新勾选恢复；提交时 baseline 记录生成 remove、待新增 add 草稿取消整个变更组、取消弹窗恢复进入前页面草稿）；**选择 ALL 聚焦 ALL 槽位，取消 ALL 回 INSTANCE 清空焦点**；**条件选择/复制条件无 CONDITION:VIEW 门禁**（产品确认条件规则全租户开放）；**停用条件**：新选仅启用（停用灰显）、存量停用绑定回显标注"条件已停用"且未改 conditionCode 时保存保留、**源条件停用时复制入口禁用**（提示"请先选择启用条件或清除条件后再复制"，避免隐式清空目标条件导致权限扩大）；**显式复制启用条件=焦点为有效 MANUAL 或待新增草稿**，目标排除源、跳过同值、add 就地改属性、update 合并单条、禁止同一 id 追加多条 update、**合并后 after==before 归一化删除**；**已勾选/待撤销 MANUAL 节点行内显示紧凑摘要**（条件/再授予/子权限数/草稿状态，remove 显示红色待撤销）；取消弹窗不泄漏草稿，确认后主子权限一起进入变更清单；无步骤编号和独立现状表；确定后矩阵实时 diff；**确定语义只匹配 MANUAL**（AUTO_DEP 不进比对）。
 - **S4 权限详情**：授权记录、来源、条件、子权限、草稿状态均可查看；不显示添加、编辑、删除入口，点击详情不产生授权变更。
@@ -490,7 +489,7 @@ interface MatrixContext {
 
 > 注（P1-4）：个人入口（PERSONAL）首期移除；个人 `abstract_role` 生命周期（用户同步 upsert/删除 `PERSONAL_{external_id}`）另立后端任务，落地后恢复个人入口与 S1 个人分支验收。
 
-本页只依赖 list + apply-grant-plan + extra-roles/list + 资源树/操作/条件等只读接口；**仅迁移期保留的 save/revoke/children/add-child/remove-child（终态=随 T-PERM-034 迁移后删除）不得由本页调用**。
+本页只依赖 list + apply-grant-plan + 资源树/操作/条件等只读接口（T-PERM-043 后不再依赖 extra-roles/list，该接口已退役）；**仅迁移期保留的 save/revoke/children/add-child/remove-child（终态=随 T-PERM-034 迁移后删除）不得由本页调用**。
 
 > 注：MANUAL 新授权禁止“多操作位组合一次授权”，弹窗与后端均要求单操作；`grantedBits` 的组合位拆解仅保留为读取异常/内部来源记录时的防御性展示。
 

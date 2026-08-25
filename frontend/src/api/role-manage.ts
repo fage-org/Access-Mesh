@@ -19,7 +19,9 @@ import { type PermResult, unwrap } from "./_envelope";
  * - ORG / POSITION / PERSONAL：外部同步自动生成（ORG/POSITION 由组织同步、
  *   PERSONAL 由用户同步连带创建 PERSONAL_{external_id}），不在角色管理页展示，
  *   其权限分配归「权限授予」(页面待重做，原 T-FE-014 已废弃) 与「用户详情」(2.1)。
- * - BASIC_ROLE / GROUP_ROLE：功能角色，本页可 CRUD。
+ * - BASIC_ROLE：首期唯一功能角色，本页可 CRUD。
+ * - GROUP_ROLE：T-PERM-043 后端写入口已删除，本页隐藏（读模型类型码保留，
+ *   供权限授予等读场景识别）。
  */
 export const ROLE_TYPE_CODE = {
   ORG: "ORG",
@@ -42,12 +44,14 @@ export const ROLE_TYPE_LABEL: Record<string, string> = {
 
 /**
  * 角色管理页可手工 CRUD 的功能角色类型。
- * 仅 BASIC_ROLE / GROUP_ROLE——其余三类（ORG/POSITION/PERSONAL）由外部同步生成，
- * 不在本页管理（schema access-service.sql，abstract_user 创建时自动生成 PERSONAL）。
+ * T-PERM-043 后仅 BASIC_ROLE——首期唯一功能角色；GROUP_ROLE 后端写入口已删除
+ * （extra-roles/* 退役、create/update 拒绝 20022），选项从本页隐藏。
+ * 代码保留：ROLE_TYPE_CODE/ROLE_TYPE_LABEL 与额外角色面板/API 封装不删，
+ * 待未来按 role_inclusion 单事实源立项后随常量恢复。
+ * 其余三类（ORG/POSITION/PERSONAL）由外部同步生成，不在本页管理。
  */
 export const MANAGEABLE_ROLE_TYPES: RoleTypeCode[] = [
-  ROLE_TYPE_CODE.BASIC_ROLE,
-  ROLE_TYPE_CODE.GROUP_ROLE
+  ROLE_TYPE_CODE.BASIC_ROLE
 ];
 
 // ========== 类型定义 ==========
@@ -144,7 +148,10 @@ export type RoleMoveReq = {
   parentId?: number | null;
 };
 
-/** 角色摘要（对齐 RoleSummaryResp，分组角色额外角色列表项） */
+/**
+ * 角色摘要（历史对齐 RoleSummaryResp；T-PERM-043 后后端 DTO 已删，类型仅供下方
+ * 已退役的 extra-roles 封装引用，勿在新代码中使用）
+ */
 export type RoleSummaryResp = {
   id: number;
   roleTypeCode: string;
@@ -152,14 +159,14 @@ export type RoleSummaryResp = {
   name: string;
 };
 
-/** 分组角色额外角色查询（对齐 GroupRoleExtraRolesListReq） */
+/** 分组角色额外角色查询（历史对齐 GroupRoleExtraRolesListReq，后端 DTO 已删；已退役保留） */
 export type GroupRoleExtraRolesQuery = {
   domainCode?: string | null;
   groupRoleTypeCode: string;
   groupRoleExternalId: string;
 };
 
-/** 分组角色额外角色增删（对齐 GroupRoleExtraRoleReq） */
+/** 分组角色额外角色增删（历史对齐 GroupRoleExtraRoleReq，后端 DTO 已删；已退役保留） */
 export type GroupRoleExtraRoleReq = {
   groupDomainCode?: string | null;
   groupRoleTypeCode: string;
@@ -263,9 +270,10 @@ export const getRoleDetail = async (id: number): Promise<RoleResp> => {
   return unwrap(res);
 };
 
-// ========== 分组角色额外角色 ==========
+// ========== 分组角色额外角色（T-PERM-043 已退役：后端 extra-roles/* 三接口已删，
+// 以下封装保留供角色页隐藏面板代码引用，恢复 role_inclusion 立项时随 MANAGEABLE_ROLE_TYPES 放开；勿在新代码中调用） ==========
 
-/** 查询分组角色额外基本角色（POST /perm/api/perm/abstract-role/extra-roles/list） */
+/** 查询分组角色额外基本角色（已退役，POST /perm/api/perm/abstract-role/extra-roles/list） */
 export const listExtraRoles = async (
   params: GroupRoleExtraRolesQuery
 ): Promise<RoleSummaryResp[]> => {
@@ -277,7 +285,7 @@ export const listExtraRoles = async (
   return unwrap(res).items ?? [];
 };
 
-/** 分组角色添加基本角色（POST /perm/api/perm/abstract-role/extra-roles/add） */
+/** 分组角色添加基本角色（已退役，POST /perm/api/perm/abstract-role/extra-roles/add） */
 export const addExtraRole = async (
   data: GroupRoleExtraRoleReq
 ): Promise<void> => {
@@ -290,7 +298,7 @@ export const addExtraRole = async (
   );
 };
 
-/** 分组角色移除基本角色（POST /perm/api/perm/abstract-role/extra-roles/remove） */
+/** 分组角色移除基本角色（已退役，POST /perm/api/perm/abstract-role/extra-roles/remove） */
 export const removeExtraRole = async (
   data: GroupRoleExtraRoleReq
 ): Promise<void> => {

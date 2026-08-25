@@ -19,10 +19,11 @@ const ok = data => ({ code: 200, message: "success", data });
  * 类型说明（overview §角色模型 + schema access-service.sql）：
  * - ORG / POSITION：由组织同步自动生成
  * - PERSONAL：由用户同步连带创建（PERSONAL_{external_id}）
- * - BASIC_ROLE / GROUP_ROLE：功能角色，角色管理页可 CRUD
+ * - BASIC_ROLE：功能角色，角色管理页可 CRUD（首期唯一，T-PERM-043）
+ * - GROUP_ROLE：写入口已删除（T-PERM-043），前端隐藏；mock 树数据保留供历史参考
  *
  * mock 返回全部 5 种类型的扁平森林（模拟后端全量返回），前端 hook 按本页范围
- * 过滤为仅 BASIC_ROLE / GROUP_ROLE 展示（ORG/POSITION/PERSONAL 归权限授予/用户详情）。
+ * 过滤为仅 BASIC_ROLE 展示（ORG/POSITION/PERSONAL/GROUP_ROLE 归权限授予/用户详情或隐藏）。
  */
 const mockRoleTree = {
   id: 0,

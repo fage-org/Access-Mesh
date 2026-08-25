@@ -24,14 +24,20 @@ function makeNode(over: Partial<RoleTreeNode>): RoleTreeNode {
   };
 }
 
-describe("filterVisibleTree（评审问题 5）", () => {
-  it("过滤非角色类型，仅保留 BASIC_ROLE/GROUP_ROLE 且 kind=ROLE", () => {
+describe("filterVisibleTree（评审问题 5；T-PERM-043 后仅 BASIC_ROLE）", () => {
+  it("过滤非角色类型与 GROUP_ROLE（写入口已删除），仅保留 BASIC_ROLE 且 kind=ROLE", () => {
     const roots = [
       makeNode({
         id: 101,
         roleTypeCode: "BASIC_ROLE",
         externalId: "B1",
         name: "基础"
+      }),
+      makeNode({
+        id: 201,
+        roleTypeCode: "GROUP_ROLE",
+        externalId: "G1",
+        name: "分组（T-PERM-043 后不展示）"
       }),
       makeNode({
         id: 301,
@@ -78,18 +84,25 @@ describe("filterVisibleTree（评审问题 5）", () => {
     expect(result[0].externalId).toBe("B1");
   });
 
-  it("递归保留嵌套真实 children（GROUP_401 -> GROUP_403）", () => {
+  it("递归保留嵌套真实 children（BASIC_101 -> BASIC_103；GROUP_ROLE 嵌套已随 T-PERM-043 整棵裁掉）", () => {
     const nested = makeNode({
       id: 201,
-      roleTypeCode: "GROUP_ROLE",
-      externalId: "GROUP_401",
-      name: "核心开发组",
+      roleTypeCode: "BASIC_ROLE",
+      externalId: "BASIC_101",
+      name: "运维角色组",
       children: [
         makeNode({
           id: 203,
+          roleTypeCode: "BASIC_ROLE",
+          externalId: "BASIC_103",
+          name: "运维角色-后端",
+          children: []
+        }),
+        makeNode({
+          id: 204,
           roleTypeCode: "GROUP_ROLE",
-          externalId: "GROUP_403",
-          name: "核心开发-后端",
+          externalId: "GROUP_401",
+          name: "分组子节点（不展示）",
           children: []
         })
       ]
@@ -97,8 +110,28 @@ describe("filterVisibleTree（评审问题 5）", () => {
     const result = filterVisibleTree([nested]);
     expect(result).toHaveLength(1);
     expect(result[0].children).toHaveLength(1);
-    expect(result[0].children![0].externalId).toBe("GROUP_403");
+    expect(result[0].children![0].externalId).toBe("BASIC_103");
     expect(result[0].children![0].kind).toBe("ROLE");
+  });
+
+  it("GROUP_ROLE 父节点整棵裁掉（其下 BASIC_ROLE 子节点不残留，T-PERM-043）", () => {
+    const groupWithBasicChild = makeNode({
+      id: 201,
+      roleTypeCode: "GROUP_ROLE",
+      externalId: "GROUP_401",
+      name: "分组（写入口已删除）",
+      children: [
+        makeNode({
+          id: 202,
+          roleTypeCode: "BASIC_ROLE",
+          externalId: "BASIC_UNDER_GROUP",
+          name: "组内基础角色",
+          children: []
+        })
+      ]
+    });
+    const result = filterVisibleTree([groupWithBasicChild]);
+    expect(result).toHaveLength(0);
   });
 
   it("停用角色保留（status=0，展示层标记）", () => {

@@ -178,9 +178,8 @@ last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 与业务编�
 | `POST /api/perm/abstract-role/update`             | 更新角色                 |
 | `POST /api/perm/abstract-role/move`               | 移动角色树节点           |
 | `POST /api/perm/abstract-role/remove`             | 删除角色，支持批量       |
-| `POST /api/perm/abstract-role/extra-roles/list`   | 查询分组角色额外基本角色 |
-| `POST /api/perm/abstract-role/extra-roles/add`    | 分组角色添加基本角色     |
-| `POST /api/perm/abstract-role/extra-roles/remove` | 分组角色移除基本角色     |
+
+> T-PERM-043 退役：`/api/perm/abstract-role/extra-roles/list|add|remove` 三接口已删除（分组角色额外基本角色专用入口）。写入口 `add` 自实现起写 `user_role.abstract_user_id=null` 违反 NOT NULL 从未成功，`list` 无数据生产者恒空；前端/SDK 无生产调用方，不做兼容层。角色包含关系待未来按 `role_inclusion(group_role_id, included_role_id)` 单事实源另行立项。`create`/`update` 显式拒绝 `GROUP_ROLE`（复用 `ROLE_TYPE_MISMATCH(20022)`，见 §6.10.3）。
 
 #### `POST /api/perm/abstract-role/list`
 
@@ -974,6 +973,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 - **四个分类均可选**；某分类缺失或为空数组 = 该分类无任何权限（对应链路同步全部 `SECURITY_DENIED`）。
 - **四条链路的最小映射**：主体同步校验 `subjectTypeCode`；角色同步校验 `roleTypeCode`；资源同步校验 `resourceTypeCode`；用户角色同步校验写入事实使用的 `subjectTypeCode` + `roleTypeCode` + `sourceType`（`relationKey` 角色类型为引用，不要求声明）。
+- **GROUP_ROLE 例外（T-PERM-043）**：角色同步在白名单之外恒拒 `GROUP_ROLE`（`ROLE_TYPE_MISMATCH(20022)`，先于白名单判定）——即使服务声明了 `roleTypeCodes: ["GROUP_ROLE"]` 也不生效。
 - **服务状态**：`status != 1`（禁用）时该服务全部 sync/full-sync 拒绝。
 - **校验顺序**：使用经过认证的服务身份（凭证通过后绑定的 `X-Service-Code`）查询配置，不信任请求体；未通过统一返回 `SECURITY_DENIED`（`SERVICE_TYPE_NOT_ALLOWED`），内部日志记录真实原因，不向调用方返回白名单明细。
 - **保留键纵深**：即使白名单错误声明 `LOCAL_USER`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 AccessMesh 保留键，入口仍以 20045 拒绝。
@@ -1657,7 +1657,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 `diff_snapshot` 字段约束：
 
 - 顶层必须包含 `eventType` 和 `items[]`。
-- `eventType` 固定枚举：`USER_ROLE_CHANGE`、`ROLE_PERMISSION_CHANGE`、`ROLE_STATUS_CHANGE`、`RESOURCE_STATUS_CHANGE`、`CONDITION_CHANGE`、`GROUP_ROLE_CHANGE`、`RESOURCE_DEPENDENCY_CHANGE`。
+- `eventType` 固定枚举：`USER_ROLE_CHANGE`、`ROLE_PERMISSION_CHANGE`、`ROLE_STATUS_CHANGE`、`RESOURCE_STATUS_CHANGE`、`CONDITION_CHANGE`、`RESOURCE_DEPENDENCY_CHANGE`（`GROUP_ROLE_CHANGE` 随 T-PERM-043 extra-roles 写入口删除移除——该事件类型自登记起无任何生产方）。
 - `items[].changeType` 固定枚举：`ADD`、`REMOVE`、`UPDATE`。
 - `recent-changes` 响应中的 `impactLevel` 固定枚举：`DIRECT` 表示直接命中查询对象，`POSSIBLE` 表示通过角色、资源、条件、分组等间接关系可能影响查询对象。
 - 权限项使用稳定业务键：`domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode`。
@@ -1742,7 +1742,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - `relationId` 与表 `user_role.relation_id` 一致（如 POSITION 等类型需要时填写，否则 `null`）。`relationId` 是关联组织角色的 `abstract_role.id`（permission-center 内部主键），**外部不应据此反查业务实体**。
 - `UserRolesResp.RoleSummary` 另含 `relationExternalId`（关联组织角色业务键 = sys_org.id 字符串，P2-1 增），供 admin 层解析组织名，避免用内部主键 `relationId` 错查 `sys_org`。permission-center `getUserRoles` 批量解析关联组织角色 externalId 填充。
 
-#### 6.10.3 `abstract-role/tree` 与 `extra-roles/*`
+#### 6.10.3 `abstract-role/tree`
 
 **`POST /api/perm/abstract-role/tree`**：
 
@@ -1755,22 +1755,15 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - `domainCode` 可省略或显式 `null`：返回**全部**角色树（P1-1 修正：`abstract_role` 已移除 `biz_domain_id`，不按域过滤；原"仅返回全局域角色树（biz_domain_id 为空）"为旧模型残留文字）。
 - `domainCode` 有值：仅校验域存在性（域不存在→空树），并按域分类规则判断当前域是否覆盖角色管理资源类型（`RoleManageAppServiceImpl.getRoleTree` L313-318，`DomainQueryMode.GLOBAL_PLUS`）；**不按域过滤角色**（角色树本身返回全量）。
 
-**`POST /api/perm/abstract-role/extra-roles/list|add|remove`** — 使用业务键定位分组角色与基本角色，示例（`add`）：
+**T-PERM-043：GROUP_ROLE 写入口收口**：
 
-```json
-{
-  "groupDomainCode": "admin",
-  "groupRoleTypeCode": "GROUP_ROLE",
-  "groupRoleExternalId": "finance_admin",
-  "basicDomainCode": "admin",
-  "basicRoleTypeCode": "BASIC_ROLE",
-  "basicRoleExternalId": "role_report_viewer"
-}
-```
-
-`groupDomainCode`/`basicDomainCode` 可选：仅校验域存在性（域不存在→解析失败），**不按域过滤、不区分角色归属域**（`abstract_role` 无域列，P1-1 修正；原"分组角色和基本角色可能属于不同业务域，因此使用独立的 groupDomainCode 和 basicDomainCode 分别定位"为旧模型残留文字）。
-
-`list` 仅需定位分组角色的一组字段（`groupRoleTypeCode` + `groupRoleExternalId`；`domainCode` 可选，同上仅校验域存在性），响应为 `{ "items": [...] }`，每项为角色摘要（至少包含 `id`、`roleTypeCode`、`externalId`、`name`）。
+- `extra-roles/list|add|remove` 三接口删除（见 §5.2 退役说明）。
+- `create`：`roleTypeCode=GROUP_ROLE` 抛 `ROLE_TYPE_MISMATCH(20022)`（首期功能角色仅 BASIC_ROLE）。
+- `update`：目标角色现行类型为 GROUP_ROLE 时抛 `ROLE_TYPE_MISMATCH(20022)`（请求体无 `roleTypeCode`，按目标类型判定）。
+- `sync`/`full-sync`：`roleTypeCode=GROUP_ROLE` 抛 `ROLE_TYPE_MISMATCH(20022)`（外部同步通道与通用入口同口径拒绝，GROUP_ROLE 生命周期冻结）。
+- `move`/`remove` 不拒绝 GROUP_ROLE：保留为存量行的清理通道。
+- `user-role/assign|revoke` 对存量 GROUP_ROLE 行仍可用（运行时读模型冻结：直绑展开、有效角色解析不受本任务影响）。
+- GROUP_ROLE 枚举、role_type 种子与读模型（tree/list 过滤值、有效角色树展开）保留且冻结。
 
 #### 6.10.4 `resource-api-mapping/create` 与 `update` 响应
 

@@ -32,7 +32,6 @@ export type DiffEventType =
   | "ROLE_STATUS_CHANGE"
   | "RESOURCE_STATUS_CHANGE"
   | "CONDITION_CHANGE"
-  | "GROUP_ROLE_CHANGE"
   | "RESOURCE_DEPENDENCY_CHANGE";
 
 /** 变更类型固定枚举（§6.8 L1667） */
@@ -154,7 +153,7 @@ const VALID_CHANGE_TYPES: ReadonlySet<string> = new Set([
  *  逐项校验 items：仅保留非空对象且 changeType 属于 ADD/REMOVE/UPDATE 的元素，
  *  避免历史/异常数据（如 items:[null]）在 DiffSnapshotPanel 渲染时访问 item.changeType 抛错。
  *  eventType 仅校验为 string（不限制枚举值）--后端批量删除角色实际写 "ROLE_BATCH_DELETE"
- *  超出 §6.8 7 枚举，前端 EVENT_TYPE_META fallback 显示原值不崩溃。 */
+ *  超出 §6.8 6 枚举（T-PERM-043 后），前端 EVENT_TYPE_META fallback 显示原值不崩溃。 */
 export function parseDiffSnapshot(
   raw: string | null | undefined
 ): DiffSnapshot | null {

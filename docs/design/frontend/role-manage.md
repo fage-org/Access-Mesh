@@ -14,7 +14,8 @@ last_reviewed: 2026-07-26
 
 ## 1. 页面定位
 
-角色管理页**仅管理可手工创建的功能角色**：`BASIC_ROLE`（基础角色）与 `GROUP_ROLE`（分组角色）。
+角色管理页**仅管理可手工创建的功能角色**：`BASIC_ROLE`（基础角色，首期唯一功能角色）。
+`GROUP_ROLE`（分组角色）自 T-PERM-043 起后端写入口删除（extra-roles/* 退役、create/update 拒绝 20022），本页选项隐藏、存量节点不展示（代码保留，见 §4.2）。
 
 5 种抽象角色类型中，其余 3 类不在本页展示：
 
@@ -25,9 +26,9 @@ last_reviewed: 2026-07-26
 
 **设计依据**：ORG/POSITION/PERSONAL 被抽象成角色，只是为了让它们能"像角色一样被分配权限"——它们本身不是"被管理的角色"。角色管理页的职责是**管理角色**（创建/编辑/删除功能角色），不是**分配和管理权限**。权限分配是权限授予页的职责（v3 已重建，T-FE-036）（`default-org-tree-user-lifecycle.md:72`：功能角色分配走 `ROLE:MANAGE`，不归 `ORG`/`USER` 资源类型）。
 
-- **本页可 CRUD**：BASIC_ROLE / GROUP_ROLE（`MANAGEABLE_ROLE_TYPES`）。
-- **配权入口已恢复（T-FE-036，2026-08-02）**：角色信息卡片提供「权限授予」按钮（`ROLE:VIEW` 门控），跳转 `/perm/grant?subjectType=ROLE`；BASIC_ROLE 携带 `roleExternalId` 预选，GROUP_ROLE 到授予页展开选择基础角色。本页不内嵌配权矩阵。
-- **树结构（C2）**：后端 `getRoleTree` 返回**扁平森林**——根 = `parentId=null` 的真实角色，`TreeBuilder` 按 parentId 组装，**无任何"类型虚拟根"节点**。前端 hook `filterVisibleTree` 裁剪为仅 BASIC_ROLE / GROUP_ROLE 展示（跳过 mock ROOT 容器、按类型过滤）。
+- **本页可 CRUD**：BASIC_ROLE（`MANAGEABLE_ROLE_TYPES`，T-PERM-043 后仅此一项）。
+- **配权入口已恢复（T-FE-036，2026-08-02）**：角色信息卡片提供「权限授予」按钮（`ROLE:VIEW` 门控），跳转 `/perm/grant?subjectType=ROLE`；BASIC_ROLE 携带 `roleExternalId` 预选。本页不内嵌配权矩阵。
+- **树结构（C2）**：后端 `getRoleTree` 返回**扁平森林**——根 = `parentId=null` 的真实角色，`TreeBuilder` 按 parentId 组装，**无任何"类型虚拟根"节点**。前端 hook `filterVisibleTree` 裁剪为仅 BASIC_ROLE 展示（跳过 mock ROOT 容器、按类型过滤；GROUP_ROLE 节点整棵裁掉）。
 
 ## 2. 布局结构
 
@@ -42,7 +43,8 @@ last_reviewed: 2026-07-26
 │     └─ el-tree（draggable）     ├─ meta（排序/ID/只读提示）│
 │                                 └─ 额外基本角色区*        │
 └─────────────────────────────────────────────────────────┘
-* 额外基本角色区仅当选中分组角色（GROUP_ROLE）时显示
+* 额外基本角色区仅当选中分组角色（GROUP_ROLE）时显示；T-PERM-043 后 GROUP_ROLE 节点
+  不展示，该区不可达（代码保留，见 §4.2）
 ```
 
 - 页面层 `display: grid; grid-template-columns: minmax(220px, 280px) 1fr`（响应式宽度，禁止固定 px）。
@@ -70,9 +72,9 @@ last_reviewed: 2026-07-26
 
 | 字段 | 校验 | 说明 |
 |---|---|---|
-| roleTypeCode | 必填 | 新建可选 BASIC_ROLE/GROUP_ROLE；编辑只读 |
+| roleTypeCode | 必填 | 新建仅可选 BASIC_ROLE（T-PERM-043 后 GROUP_ROLE 隐藏）；编辑只读 |
 | name | 必填，2-64 字符 | 角色名称 |
-| externalId | 新建必填（可管理类型）；编辑只读 | 外部标识；BASIC_ROLE/GROUP_ROLE 新建强制必填（额外角色功能依赖业务键，评审 P2）。**编辑态只读**——externalId 是业务键/定位锚点（schema 唯一索引 `uk_abstract_role_external`、额外角色 DTO 用它定位角色），改它会破坏既有引用，与 parentId 只读同口径；update 请求不含 externalId 字段 |
+| externalId | 新建必填（可管理类型）；编辑只读 | 外部标识；BASIC_ROLE 新建强制必填（业务键依赖：schema 唯一索引 `uk_abstract_role_external`；历史上额外角色功能亦依赖此业务键）。**编辑态只读**——externalId 是业务键/定位锚点，改它会破坏既有引用，与 parentId 只读同口径；update 请求不含 externalId 字段 |
 | parentId | 可空 | 父角色（空=顶层森林根） |
 | status | 必填 | 启用/禁用 |
 | sortOrder | 必填，0-9999 | 排序号 |
@@ -82,14 +84,14 @@ last_reviewed: 2026-07-26
 
 ### 4.1 树操作
 
-- **加载**：进入页面 `getRoleTree({domainCode: null})` → 后端返回扁平森林（parentId=null 真实角色为根，无类型虚拟根）→ hook `filterVisibleTree` 裁剪为仅 BASIC_ROLE / GROUP_ROLE 展示（跳过 mock ROOT 容器 + 按类型过滤同类型子树）。
+- **加载**：进入页面 `getRoleTree({domainCode: null})` → 后端返回扁平森林（parentId=null 真实角色为根，无类型虚拟根）→ hook `filterVisibleTree` 裁剪为仅 BASIC_ROLE 展示（跳过 mock ROOT 容器 + 按类型过滤同类型子树；GROUP_ROLE 节点整棵裁掉）。
 - **搜索**：输入框 `filter` → el-tree `filter-node-method` 按名称过滤。
-- **选中**：点击节点 → 右侧展示详情卡片（选中即渲染，根节点也是真实角色）；分组角色同时加载额外基本角色。
+- **选中**：点击节点 → 右侧展示详情卡片（选中即渲染，根节点也是真实角色）。
 - **拖拽移动**：`draggable` + `:allow-drop` + `node-drop`。
   - `allowDrop` 拦截：只读类型不可拖动；**跨类型禁止**（目标节点 roleTypeCode 须与拖拽节点一致——inner 是父须同类型，before/after 是兄弟须同类型）；inner 到只读类型目标禁止。
   - `handleNodeDrop` 兜底：跨类型 `message` 提示 + `await loadTree()` 回滚（不调 moveRole）；只读类型同理回滚。
   - 合法则 `moveRole({roleId, parentId})`，**成功后 `await loadTree()` 同步 parentId**（el-tree 仅移动 DOM 不更新 data.parentId，不重拉会导致后续编辑父角色展示/连续拖拽按旧 parentId 判断，评审 P2-拖拽）。
-- **新增**：顶部「新增角色」下拉 → 按类型（BASIC_ROLE / GROUP_ROLE）打开表单，默认顶层（parentId=null）。
+- **新增**：顶部「新增角色」下拉 → 按类型（BASIC_ROLE）打开表单，默认顶层（parentId=null）。
 - **编辑/删除/启停**：详情卡片按钮（ROLE:MANAGE 统一门禁，见 §7）。
 
 ### 4.1.1 父角色选择器（RoleForm 内 popover 树）
@@ -101,19 +103,15 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 - **类型切换**：新建时切换角色类型，父角色自动重置为顶层（跨类型父子不合法）。
 - **编辑态只读（P3）**：父角色渲染为纯只读 input，无 popover、不可点选。**编辑不修改 parentId**，层级调整只走拖拽/move 接口（`updateRole` 不含 parentId 字段）。
 
-### 4.2 分组角色额外基本角色
+### 4.2 分组角色额外基本角色（T-PERM-043 已退役，代码保留）
 
-仅 GROUP_ROLE 节点选中时显示：
+后端 `extra-roles/list|add|remove` 三接口已删除（写入口 `add` 自实现起写 `user_role.abstract_user_id=null` 违反 NOT NULL 从未成功，`list` 恒空；管理侧 user_role 关系与运行时 `abstract_role.extra.basicRoleIds` 双事实源遗留登记见仓库 README「技术债遗留登记」段）。未来按 `role_inclusion(group_role_id, included_role_id)` 单事实源另行立项后恢复。
 
-- `listExtraRoles` 加载已关联基本角色列表。
-- 「添加」弹出候选（未关联的 BASIC_ROLE）→ `addExtraRole`（门禁 `ROLE:ASSIGN`，对齐后端 addExtraRole:104）。
-- 「移除」→ `removeExtraRole`（门禁 `ROLE:REVOKE`，对齐后端 removeExtraRole:166）。
-- 业务键定位：`groupRoleTypeCode + groupRoleExternalId` + `basicRoleTypeCode + basicRoleExternalId`（后端 DTO 均 `@NotBlank`）。
-- **externalId 依赖（评审 P2）**：额外角色功能强依赖非空业务键。本页表单已强制 BASIC_ROLE/GROUP_ROLE 的 externalId 必填；若选中 GROUP_ROLE 缺 externalId（脏数据兜底），额外角色区显示「不可用」提示并禁用添加按钮。
+前端处置：**代码保留不删**——`index.vue` 额外基本角色面板（`v-if` GROUP_ROLE 选中）、`hook.ts` 的 `loadExtraRoles/addExtraRole/removeExtraRole`、`api/role-manage.ts` 的 extra-roles 封装与 `ROLE:ASSIGN/REVOKE` perm 串均保留；`MANAGEABLE_ROLE_TYPES` 收窄为 `[BASIC_ROLE]` 后 GROUP_ROLE 节点不进树、选项不进下拉，面板不可达（死代码，待恢复时随常量放开）。
 
 ### 4.3 配权
 
-- 配权入口已恢复（T-FE-036，2026-08-02）：「权限授予」按钮（`ROLE:VIEW` 门控，`Key` 图标，类型主按钮）跳转 `/perm/grant?subjectType=ROLE`，BASIC_ROLE 携带 `roleExternalId` 预选、GROUP_ROLE 到授予页展开选择基础角色。
+- 配权入口已恢复（T-FE-036，2026-08-02）：「权限授予」按钮（`ROLE:VIEW` 门控，`Key` 图标，类型主按钮）跳转 `/perm/grant?subjectType=ROLE`，BASIC_ROLE 携带 `roleExternalId` 预选。
 
 ## 5. API 依赖（链接后端契约章节）
 
@@ -126,9 +124,8 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 | 移动 | `POST /api/perm/abstract-role/move` | `{roleId,parentId?}` | `Void` | ✅ |
 | 删除 | `POST /api/perm/abstract-role/remove` | `{ids:[]}` | `Void` | ✅ |
 | 详情 | `POST /api/perm/abstract-role/detail` | `{id}` (IdReq) | `RoleResp` | 🔧 见 §7 |
-| 额外角色列表 | `POST /api/perm/abstract-role/extra-roles/list` | `{domainCode?,groupRoleTypeCode,groupRoleExternalId}` | `ItemsResp<RoleSummaryResp>` | ✅ |
-| 额外角色增 | `POST /api/perm/abstract-role/extra-roles/add` | 业务键 | `Void` | ✅ |
-| 额外角色删 | `POST /api/perm/abstract-role/extra-roles/remove` | 业务键 | `Void` | ✅ |
+
+> T-PERM-043：`extra-roles/list|add|remove` 三行移除（后端接口删除，前端封装保留为不可达代码，见 §4.2）。`create`/`update` 后端显式拒绝 GROUP_ROLE（20022），与本页仅 BASIC_ROLE 的口径一致。
 
 ## 6. 组件结构（含可复用组件识别）
 
@@ -161,21 +158,20 @@ views/system/role/
 | `ROLE:VIEW` | VIEW | ROLE | 路由可达 + 树可见 |
 | `ROLE:CREATE` | CREATE | ROLE | 新增角色下拉 |
 | `ROLE:MANAGE` | MANAGE | ROLE | 编辑 / 启停 / 删除 / 移动 |
-| `ROLE:ASSIGN` | ASSIGN | ROLE | 分组角色添加额外基本角色 |
-| `ROLE:REVOKE` | REVOKE | ROLE | 分组角色移除额外基本角色 |
+| `ROLE:ASSIGN` | ASSIGN | ROLE | 分组角色添加额外基本角色（T-PERM-043 后不可达，代码保留） |
+| `ROLE:REVOKE` | REVOKE | ROLE | 分组角色移除额外基本角色（T-PERM-043 后不可达，代码保留） |
 
-> **B1 口径**：后端 `RoleManageAppServiceImpl` 的 updateRole(:150)/moveRole(:176)/deleteRoles(:196) 均以 `ROLE:MANAGE` 做门禁，无独立 UPDATE/DELETE/MOVE 操作码。前端 EDIT/DELETE/GRANT 统一映射到 `ROLE:MANAGE`（评审 P2 修正）。`ROLE_MANAGE_PERM_LIST` 用 `Set` 去重，确保路由 `meta.auths` 无冗余。
+> **B1 口径**：后端 `RoleManageAppServiceImpl` 的 updateRole/moveRole/deleteRoles 均以 `ROLE:MANAGE` 做门禁，无独立 UPDATE/DELETE/MOVE 操作码。前端 EDIT/DELETE/GRANT 统一映射到 `ROLE:MANAGE`（评审 P2 修正）。`ROLE_MANAGE_PERM_LIST` 用 `Set` 去重，确保路由 `meta.auths` 无冗余。
 >
-> **额外角色独立门禁（评审 P1-额外角色）**：后端 `GroupRoleAppServiceImpl` 的 addExtraRole(:104)/removeExtraRole(:166) 分别校验 `ASSIGN`/`REVOKE`（授予/回收分离，比 MANAGE 更敏感，与组织页 USER_ROLE_ASSIGN/REVOKE 同口径）。前端添加按钮用 `canAssign`、移除按钮用 `canRevoke` 分别门控，原两按钮都用 `canEdit`(MANAGE) 会导致 403 或看不到按钮。
+> **额外角色独立门禁（评审 P1-额外角色；T-PERM-043 后接口已删）**：原后端 addExtraRole/removeExtraRole 分别校验 `ASSIGN`/`REVOKE` 的入口已删除；前端 `canAssign`/`canRevoke` 门控与 perm 串保留（面板不可达），待 role_inclusion 立项恢复接线。
 
 ### 降级策略
 
 - 无 `ROLE:VIEW` → 路由不可达（`meta.auths` 派生自 `ROLE_MANAGE_PERM_LIST`）。
 - 无 `ROLE:CREATE` → 隐藏「新增角色」下拉。
 - 无 `ROLE:MANAGE` → 隐藏编辑/启停/删除按钮。
-- 无 `ROLE:ASSIGN` → 隐藏「添加」额外角色按钮。
-- 无 `ROLE:REVOKE` → 隐藏「移除」额外角色按钮。
-- ORG/POSITION/PERSONAL 只读类型 → 无论权限如何，均不展示编辑/删除按钮（业务约束，非权限）。
+- 无 `ROLE:ASSIGN` / `ROLE:REVOKE` → 隐藏额外角色「添加/移除」按钮（T-PERM-043 后面板不可达，门控保留）。
+- ORG/POSITION/PERSONAL 只读类型 → 无论权限如何，均不展示编辑/删除按钮（业务约束，非权限）；GROUP_ROLE 节点整体不展示（写入口已删除）。
 
 ### mock 角色矩阵（`mock/login.ts`）
 
@@ -216,13 +212,13 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。
 
 ### ✅ 满足
 
-- list/create/update/move/remove/extra-roles/* 全部满足前端需求，请求/响应结构与 mock 对齐。
+- list/create/update/move/remove 全部满足前端需求，请求/响应结构与 mock 对齐。
   - **tree 不在此列**：`/tree` 只返回启用角色（`AND status=1`），禁用后从树消失无法再启用，见 §8 第 3 条 🔧（T-PERM-022）。
 
 ### 备注
 
 - **RoleResp 缺 `roleTypeName` 友好字段**：后端已返回 `roleTypeName`，但前端统一用 `ROLE_TYPE_LABEL` 映射更稳（防类型码扩展时后端未同步）。非缺口。
-- **本页范围限定**：角色管理页仅管理 BASIC_ROLE / GROUP_ROLE（评审反馈驱动修正）。ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示——它们被抽象成角色仅为"像角色一样被分配权限"，权限分配归权限授予页（v3 已重建，T-FE-036；组织入口二期、个人入口首期移除）与 2.1 用户详情弹窗（评审确认 B 选项 3）。非缺口，是设计意图。
+- **本页范围限定**：角色管理页仅管理 BASIC_ROLE（T-PERM-043 后唯一可手工创建的功能角色）。ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示——它们被抽象成角色仅为"像角色一样被分配权限"，权限分配归权限授予页（v3 已重建，T-FE-036；组织入口二期、个人入口首期移除）与 2.1 用户详情弹窗（评审确认 B 选项 3）。GROUP_ROLE 写入口已删除、选项隐藏（存量节点不展示，delete/move 后端仍可用作清理）。非缺口，是设计意图。
 - **PERSONAL 权限分配入口**（原 T-FE-014 设计要点，v3 首期移除个人入口，permission-grant.md §1.2）：① 权限授予页选角色时能选到 PERSONAL（待个人 `abstract_role` 同步链路落地后恢复）；② 2.1 用户详情页弹额外窗口配置该用户 PERSONAL 角色的权限（弹窗形式避免页面杂乱）。
 
 ## 9. 已知限制（Phase 1）

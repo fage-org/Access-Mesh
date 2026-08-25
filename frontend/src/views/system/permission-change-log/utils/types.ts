@@ -79,7 +79,6 @@ export const EVENT_TYPE_META: Record<
   ROLE_STATUS_CHANGE: { label: "角色状态变更", type: "info" },
   RESOURCE_STATUS_CHANGE: { label: "资源状态变更", type: "info" },
   CONDITION_CHANGE: { label: "条件变更", type: "primary" },
-  GROUP_ROLE_CHANGE: { label: "分组角色变更", type: "primary" },
   RESOURCE_DEPENDENCY_CHANGE: { label: "资源依赖变更", type: "warning" }
 };
 

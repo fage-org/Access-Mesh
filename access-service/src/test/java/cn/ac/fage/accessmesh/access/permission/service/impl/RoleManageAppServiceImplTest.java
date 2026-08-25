@@ -120,6 +120,50 @@ class RoleManageAppServiceImplTest {
         verify(auditDomainService).recordChangeLog(any(), any());
     }
 
+    /** T-PERM-043：createRole 显式拒绝 GROUP_ROLE（ROLE_TYPE_MISMATCH 20022），不触类型解析与投影。 */
+    @Test
+    void shouldRejectCreateGroupRoleWithTypeMismatch() {
+        RoleCreateReq req = new RoleCreateReq(null, "GROUP_ROLE", "ext-group", "分组角色", null, null);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.createRole(1L, req, 100L))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+                .isEqualTo(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+        }
+        verifyNoInteractions(typeResolutionService);
+        verifyNoInteractions(subjectDomainService);
+        verifyNoInteractions(localProjectionDomainService);
+    }
+
+    /** T-PERM-043：updateRole 显式拒绝 GROUP_ROLE 目标（按现行类型判定，ROLE_TYPE_MISMATCH 20022）。 */
+    @Test
+    void shouldRejectUpdateGroupRoleWithTypeMismatch() {
+        AbstractRole groupRole = new AbstractRole();
+        groupRole.setId(123L);
+        groupRole.setTenantId(1L);
+        groupRole.setRoleType(5);
+        groupRole.setName("分组角色");
+        groupRole.setStatus(1);
+        when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(groupRole);
+        // 生产代码 GROUP_ROLE 判定先于 MANAGE 门禁（与 rejectIfLocalRole 同为权限前前置检查）；
+        // lenient 使本用例对未来门禁前移也保持通过（此时 stub 才被消费）
+        lenient().when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(
+                () -> service.updateRole(1L, 123L, "新名", 0, null, null, 100L))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+            .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
+            .isEqualTo(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+        verifyNoInteractions(localProjectionDomainService);
+        verifyNoInteractions(abstractRoleMapper);
+    }
+
     /** T-ACCESS-019：updateRole 同事务镜像 name/status 到 ROLE 投影。 */
     @Test
     void shouldProjectRoleResourceOnUpdate() {

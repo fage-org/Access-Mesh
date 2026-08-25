@@ -51,7 +51,8 @@ import java.util.stream.Collectors;
  * <p>
  * 提供角色的CRUD操作、树结构查询、角色移动等功能。
  * 角色是权限系统的核心概念，用于组织用户并配置权限。
- * 支持组角色、组织角色、业务角色等多种类型。
+ * T-PERM-043：create/update 显式拒绝 GROUP_ROLE（首期功能角色仅 BASIC_ROLE），
+ * delete/move 保持可用作为存量 GROUP_ROLE 行的清理通道。
  * 所有操作均进行权限校验，确保操作者有相应权限。
  * </p>
  */
@@ -105,9 +106,10 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     /**
      * 创建角色
      * <p>
-     * 创建新的角色实体。角色类型包括组角色、组织角色、业务角色等。
-     * 可指定父角色实现角色的层级关系。
-     * 需要ROLE_CREATE权限。
+     * 创建新的角色实体。T-PERM-043 后 ORG/POSITION 被 rejectReservedRoleType 拒（20045）、
+     * GROUP_ROLE 显式拒（20022）；首期功能角色仅 BASIC_ROLE（PERSONAL 由用户同步连带
+     * 生成，不归本入口管理，但入口未对其额外设限——历史行为）。
+     * 可指定父角色实现角色的层级关系。需要ROLE_CREATE权限。
      * </p>
      *
      * @param tenantId   租户ID
@@ -127,9 +129,22 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         }
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
 
+        // T-PERM-043：GROUP_ROLE 写入口收口——create 显式拒绝（20022 类型不匹配语义），
+        // 首期功能角色仅 BASIC_ROLE；delete/move 保持可用，作为存量 GROUP_ROLE 行的清理通道
+        if (PermConstants.TargetType.GROUP_ROLE.equals(req.roleTypeCode())) {
+            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                "不支持创建 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
+        }
+
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.roleTypeCode());
         if (roleType == null) {
             throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的roleTypeCode: " + req.roleTypeCode());
+        }
+        // 按值双保险：与 updateRole 同基准封死「自定义别名 type_code 映射 role_type=5」的
+        // 理论绕过面（现实被 type_definition 唯一约束封死，此处防御纵深）
+        if (roleType == RoleType.GROUP_ROLE.getValue()) {
+            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                "不支持创建 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
         }
         Long roleId = subjectDomainService.createRole(
             tenantId, req.parentId(), roleType,
@@ -164,6 +179,13 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);
         }
         localProjectionGuard.rejectIfLocalRole(role);
+
+        // T-PERM-043：GROUP_ROLE 写入口收口——update 显式拒绝（20022 类型不匹配语义，
+        // 请求体无 roleTypeCode，按目标角色现行类型判定）
+        if (role.getRoleType() != null && role.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
+            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                "不支持更新 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
+        }
 
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);

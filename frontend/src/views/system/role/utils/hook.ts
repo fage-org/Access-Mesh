@@ -41,8 +41,10 @@ export function useRoleManage() {
   // ========== 树加载 ==========
 
   /**
-   * 过滤树：仅保留角色管理页可管理的类型（BASIC_ROLE / GROUP_ROLE）。
-   * ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示（归权限授予/用户详情）。
+   * 过滤树：仅保留角色管理页可管理的类型（MANAGEABLE_ROLE_TYPES，T-PERM-043 后仅
+   * BASIC_ROLE）。ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示（归权限授予/
+   * 用户详情）；GROUP_ROLE 写入口已删除、选项隐藏，存量节点整棵裁掉（额外角色
+   * 面板随选中类型不触发，extra-roles API 保留但不可达）。
    *
    * C2 后树为扁平森林（parentId=null 真实角色为根，无类型虚拟根）：
    * 递归裁剪——节点类型不在可见集合则整棵裁掉，同类型子树保留。

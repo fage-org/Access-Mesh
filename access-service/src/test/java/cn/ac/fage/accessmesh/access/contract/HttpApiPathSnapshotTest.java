@@ -29,7 +29,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 快照基线：扫描全部 Controller 注解并与两份权威契约文档及「归并前代码路径」
  * （git 5f1e65dd5^：210 条）双向核对——归并后恰为 198 条，仅减少 12 条且全部
  * 有设计决策背书（11 条 /sync-task/*：T-ACCESS-005 退役；/audit-log/page：
- * T-ACCESS-007 确认零引用后删除）。
+ * T-ACCESS-007 确认零引用后删除）；T-PERM-043 再删 3 条 extra-roles/* 后为 195 条。
  * </p>
  * <p>
  * 契约断言封闭口径（评审修复：堵住空 method 数组与 path()[0] 逃逸）：
@@ -48,9 +48,6 @@ class HttpApiPathSnapshotTest {
     private static final Set<String> EXPECTED_PATHS = Set.of("""
 /api/perm/abstract-role/create
 /api/perm/abstract-role/detail
-/api/perm/abstract-role/extra-roles/add
-/api/perm/abstract-role/extra-roles/list
-/api/perm/abstract-role/extra-roles/remove
 /api/perm/abstract-role/full-sync
 /api/perm/abstract-role/list
 /api/perm/abstract-role/move
@@ -246,13 +243,10 @@ class HttpApiPathSnapshotTest {
 /user/user-menus
 """.strip().split("\n"));
 
-    /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约，198 条）。 */
+    /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约，195 条；T-PERM-043 删 3 条 extra-roles）。 */
     private static final Set<String> EXPECTED_SIGNATURES = Set.of("""
 /api/perm/abstract-role/create|access.permission.dto.req.RoleCreateReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
 /api/perm/abstract-role/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
-/api/perm/abstract-role/extra-roles/add|access.permission.dto.req.GroupRoleExtraRoleReq|common.model.PermResult<Void>
-/api/perm/abstract-role/extra-roles/list|access.permission.dto.req.GroupRoleExtraRolesListReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.RoleSummaryResp>>
-/api/perm/abstract-role/extra-roles/remove|access.permission.dto.req.GroupRoleExtraRoleReq|common.model.PermResult<Void>
 /api/perm/abstract-role/full-sync|access.permission.dto.req.AbstractRoleFullSyncReq|common.model.PermResult<perm.common.dto.resp.SyncResultResp>
 /api/perm/abstract-role/list|access.permission.dto.req.RoleListReq|common.model.PermResult<access.permission.dto.resp.PaginatedResp<access.permission.dto.resp.RoleResp>>
 /api/perm/abstract-role/move|access.permission.dto.req.RoleMoveReq|common.model.PermResult<Void>
@@ -456,7 +450,11 @@ class HttpApiPathSnapshotTest {
         "/sync-task/list", "/sync-task/page", "/sync-task/detail", "/sync-task/delete",
         "/sync-task/due", "/sync-task/reset", "/sync-task/retry-now", "/sync-task/mark-success",
         "/sync-task/mark-failed", "/sync-task/batch-status", "/sync-task/rebuild-from-fact",
-        "/audit-log/page"
+        "/audit-log/page",
+        // T-PERM-043：GROUP_ROLE 写入口删除（含读接口 list，唯一生产者 add 从未成功写入）
+        "/api/perm/abstract-role/extra-roles/add",
+        "/api/perm/abstract-role/extra-roles/list",
+        "/api/perm/abstract-role/extra-roles/remove"
     );
 
     /** 扫描 classpath 上全部 Controller 并拼装「路径|请求类型|响应类型」签名（类级/方法级均枚举全部 path 值）。 */
@@ -517,7 +515,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("全量路径快照：Controller 映射恰为 198 条，增删必须显式更新快照")
+    @DisplayName("全量路径快照：Controller 映射恰为 195 条，增删必须显式更新快照")
     void controllerPaths_matchSnapshot() throws Exception {
         Set<String> actual = new TreeSet<>();
         scanSignatures().forEach(s -> actual.add(s.substring(0, s.indexOf('|'))));
@@ -527,7 +525,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("签名快照：路径→请求体类型|响应类型 恰为 198 条（DTO 类型级漂移检测）")
+    @DisplayName("签名快照：路径→请求体类型|响应类型 恰为 195 条（DTO 类型级漂移检测）")
     void signatures_matchSnapshot() throws Exception {
         assertThat(scanSignatures())
             .as("请求/响应 DTO 类型变更必须显式更新签名快照并记录依据")
@@ -603,7 +601,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("退役接口负向断言：/sync-task/* 与 /audit-log/page 无任何 Controller 映射")
+    @DisplayName("退役接口负向断言：/sync-task/*、/audit-log/page 与 extra-roles/* 无任何 Controller 映射")
     void retiredPaths_haveNoControllerMappings() throws Exception {
         Set<String> actual = new TreeSet<>();
         scanSignatures().forEach(s -> actual.add(s.substring(0, s.indexOf('|'))));

@@ -105,24 +105,6 @@
           AND delete_flag = 0
     </select>
 
-
-    <select id="selectValidByTargetAndRelation" resultType="cn.ac.fage.accessmesh.access.permission.entity.UserRole">
-        SELECT * FROM user_role
-        WHERE tenant_id = #{tenantId}
-          AND target_type = #{targetType}
-          AND target_id = #{targetId}
-          AND relation_id = #{relationId}
-          AND delete_flag = 0
-    </select>
-
-    <select id="selectByTargetTypeAndTargetId" resultType="cn.ac.fage.accessmesh.access.permission.entity.UserRole">
-        SELECT * FROM user_role
-        WHERE tenant_id = #{tenantId}
-          AND target_type = #{targetType}
-          AND target_id = #{targetId}
-          AND delete_flag = 0
-    </select>
-
     <select id="selectValidByUserTargetRelation" resultType="cn.ac.fage.accessmesh.access.permission.entity.UserRole">
         SELECT * FROM user_role
         WHERE tenant_id = #{tenantId}
