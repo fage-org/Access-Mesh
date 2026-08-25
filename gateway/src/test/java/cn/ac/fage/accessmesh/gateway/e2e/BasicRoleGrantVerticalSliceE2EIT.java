@@ -157,6 +157,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
 
         int accessPort = freePort();
         int gatewayPort = freePort();
+        int gatewayMgmtPort = freePort();
 
         // access-service：bootstrap 首启创建固定图（步骤①的空库侧）
         accessService = startService("access-service", ACCESS_MAIN_CLASS,
@@ -167,10 +168,11 @@ class BasicRoleGrantVerticalSliceE2EIT {
         // 主体落库后再进入步骤①，避免登录与种子竞态
         waitAdminSeeded();
 
-        // Gateway：lb://access-service 经 SimpleDiscoveryClient 静态实例直连
+        // Gateway：lb://access-service 经 SimpleDiscoveryClient 静态实例直连；
+        // T-GW-007 就绪探针改探管理端口 /actuator/health（主端口已无任何 /actuator/**）
         gatewayService = startService("gateway", GATEWAY_MAIN_CLASS,
-            gatewayArgs(gatewayPort, accessPort), gatewayEnv(),
-            URI.create("http://localhost:" + gatewayPort + "/actuator/health"), false);
+            gatewayArgs(gatewayPort, gatewayMgmtPort, accessPort), gatewayEnv(),
+            URI.create("http://127.0.0.1:" + gatewayMgmtPort + "/actuator/health"), false);
     }
 
     @AfterAll
@@ -361,9 +363,10 @@ class BasicRoleGrantVerticalSliceE2EIT {
 
         int gatewayPort = gatewayService.port();
         gatewayService.destroy();
+        int restartMgmtPort = freePort();
         gatewayService = startService("gateway", GATEWAY_MAIN_CLASS,
-            gatewayArgs(gatewayPort, accessPort), gatewayEnv(),
-            URI.create("http://localhost:" + gatewayPort + "/actuator/health"), false);
+            gatewayArgs(gatewayPort, restartMgmtPort, accessPort), gatewayEnv(),
+            URI.create("http://127.0.0.1:" + restartMgmtPort + "/actuator/health"), false);
 
         long deadline = System.nanoTime() + STALE_WINDOW.toNanos();
         Boolean stillAllowed = null;
@@ -528,11 +531,14 @@ class BasicRoleGrantVerticalSliceE2EIT {
     }
 
     /** Gateway 子进程启动参数（首启与步骤⑦重启共用） */
-    private static List<String> gatewayArgs(int port, int accessPort) {
+    private static List<String> gatewayArgs(int port, int managementPort, int accessPort) {
         return List.of(
             // 共享类路径含 webmvc（access-service test 依赖），必须显式 reactive
             "--spring.main.web-application-type=reactive",
             "--server.port=" + port,
+            // T-GW-007：actuator 经独立管理端口提供（默认 8081 固定值会与本机占用/并发运行冲突，
+            // 传 E2E 分配的空闲端口）；就绪探针同样改探管理端口（主端口已无 /actuator/**）
+            "--management.server.port=" + managementPort,
             "--spring.data.redis.host=" + redis.getHost(),
             "--spring.data.redis.port=" + redis.getMappedPort(6379),
             "--spring.data.redis.password=" + REDIS_PASSWORD,

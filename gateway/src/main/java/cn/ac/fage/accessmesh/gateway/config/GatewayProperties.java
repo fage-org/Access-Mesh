@@ -42,7 +42,8 @@ public class GatewayProperties {
      * 白名单配置
      * <p>
      * 配置不需要认证和权限校验的路径列表。
-     * 这些路径直接放行，如认证接口、健康检查、公开资源等。
+     * 这些路径直接放行，如认证接口、公开资源等。
+     * T-GW-007：/actuator/** 移出白名单——actuator 经独立管理端口提供，主端口不再暴露。
      * </p>
      */
     @Getter
@@ -50,7 +51,6 @@ public class GatewayProperties {
     public static class Whitelist {
         private List<String> paths = List.of(
             "/auth/**",
-            "/actuator/health",
             "/public/**",
             "/captcha/**"
         );

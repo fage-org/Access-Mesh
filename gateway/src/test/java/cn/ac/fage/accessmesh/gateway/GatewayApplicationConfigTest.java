@@ -225,8 +225,31 @@ class GatewayApplicationConfigTest {
             "permission.service-url 必须为 lb://access-service（T-ACCESS-010 切换），实际 " + props.getPermission().getServiceUrl());
         assertTrue(props.getWhitelist().getPaths().contains("/auth/**"),
             "whitelist 必须包含 /auth/**");
+        // T-GW-007：主端口白名单不得含任何 /actuator 路径（actuator 经独立管理端口提供）
+        assertTrue(props.getWhitelist().getPaths().stream().noneMatch(p -> p.startsWith("/actuator")),
+            "whitelist 不得包含 /actuator/**（T-GW-007 移至管理端口），实际 " + props.getWhitelist().getPaths());
         // Spring 应用名（Nacos 服务名）配置加载
         String appName = applicationContext.getEnvironment().getProperty("spring.application.name");
         assertTrue("gateway".equals(appName), "spring.application.name 必须为 gateway，实际 " + appName);
+    }
+
+    @Test
+    @DisplayName("T-GW-007 CORS 环境化绑定：默认 localhost 列表 + credentials + 管理端口分离")
+    void corsEnvironmentalizedAndManagementPortSplit() {
+        org.springframework.cloud.gateway.config.GlobalCorsProperties cors =
+            applicationContext.getBean(org.springframework.cloud.gateway.config.GlobalCorsProperties.class);
+        org.springframework.web.cors.CorsConfiguration cfg =
+            cors.getCorsConfigurations().get("/**");
+        assertNotNull(cfg, "globalcors /** 配置必须存在（yml 键 '[/**]' 经 Binder 绑定后 key 为 /**）");
+        assertTrue(java.util.List.of("http://localhost:5173").equals(cfg.getAllowedOriginPatterns()),
+            "allowed-origin-patterns 默认必须为明确 localhost 列表（开发直连调试；T-GW-007）,实际 "
+                + cfg.getAllowedOriginPatterns());
+        assertTrue(Boolean.TRUE.equals(cfg.getAllowCredentials()), "allow-credentials 默认 true");
+
+        var env = applicationContext.getEnvironment();
+        assertTrue("8081".equals(env.getProperty("management.server.port")),
+            "management.server.port 默认 8081（独立管理端口），实际 " + env.getProperty("management.server.port"));
+        assertTrue("127.0.0.1".equals(env.getProperty("management.server.address")),
+            "management.server.address 默认 127.0.0.1（仅同机可达），实际 " + env.getProperty("management.server.address"));
     }
 }

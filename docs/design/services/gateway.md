@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-06-28
+last_reviewed: 2026-08-25
 ---
 
 # Gateway 服务设计
@@ -20,7 +20,7 @@ last_reviewed: 2026-06-28
 
 ## 核心链路
 
-1. 接收客户端请求并匹配白名单。
+1. 接收客户端请求并匹配白名单（`/auth/**`、`/public/**`、`/captcha/**`；无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。
 2. 解析 Sa-Token / OAuth2 Token，得到主体信息。
 3. 清洗客户端伪造的安全 Header，再注入可信 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
 4. **快照鉴权**（T-PERM-001）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地快照缓存——命中则本地匹配；未命中回源拉取 `interface-snapshot` 快照后缓存再匹配。
@@ -118,7 +118,9 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 
 ### 监控指标
 
-Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter-actuator` + `micrometer-registry-prometheus`，端点 `/actuator/prometheus`。
+Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter-actuator` + `micrometer-registry-prometheus`。
+
+**端点暴露（T-GW-007 收口）**：`health/info/prometheus/metrics` 全部仅经**独立管理端口**提供——`management.server.port`（默认 8081，`GATEWAY_MANAGEMENT_PORT` 可覆盖）+ `management.server.address`（默认 127.0.0.1 仅同机可达，`GATEWAY_MANAGEMENT_ADDRESS` 可放开）。主端口 8080 **不提供任何 `/actuator/**` 端点**（白名单同步移除，主端口 `/actuator/*` 返回 404）；存活/就绪探针与 Prometheus 抓取一律访问管理端口。注意 Nacos 远端 `gateway.yml` 优先级高于本地 application.yml，远端覆盖需保持一致的收敛口径。
 
 #### 计数器
 
@@ -160,10 +162,19 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
     summary: "Gateway 快照加载超过 5 秒全链路截止"
 ```
 
+## CORS 配置终态（T-GW-007，2026-08-25 用户口径）
+
+- **部署前提**：生产前端经 nginx 反向代理成同源（浏览器请求全部同源，CORS 无生产消费场景）；开发经 vite 代理同为同源。CORS 仅在直连网关调试场景消费。
+- 配置面：`spring.cloud.gateway.globalcors.cors-configurations.'[/**]'`（Binder 绑定后 map key 为 `/**`）。
+  - `allowed-origin-patterns`：默认 `http://localhost:5173`（开发直连调试），`GATEWAY_CORS_ALLOWED_ORIGINS` 环境变量/Nacos 可覆盖；**显式置空 = CORS 禁用**（同源部署终态：跨域请求不加 CORS 头被浏览器拒绝，启动 INFO 声明）。
+  - `allow-credentials: true`（保持；token 走 Authorization 头，无 cookie 依赖，未来接 cookie 会话时不受影响）。
+- **启动 fail-fast**（`GatewayCorsConfigValidator`，校验最终生效值含 Nacos 覆盖后的值）：`allow-credentials=true` 且 origin 列表含任意 `*` 通配 → 启动失败（任意源携带凭证为安全缺陷，含 Nacos 远端旧值回退场景）。缺失/显式空均不放行任意源（fail-closed）。
+- 匿名白名单（`gateway.whitelist.paths`）：`/auth/**`、`/public/**`、`/captcha/**`；`/actuator/**` 已全部移除（管理端口提供，见「监控指标」段）。
+
 ## 与权限中心的约定
 
 - 接口级鉴权契约以 `../permission-center/api-contract.md` 为准（§6.5 check-interface、§6.6 interface-snapshot）。
-- CORS、限流、请求体大小、安全响应头按 `../project-rules.md` 和网关配置实现。
+- 限流、请求体大小、安全响应头按网关配置实现；CORS 见上文「CORS 配置终态」段。
 
 ## 测试域与 E2E IT（T-ACCESS-021，2026-08-24）
 
