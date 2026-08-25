@@ -68,7 +68,8 @@ const services: ServiceConfigResp[] = [
     serviceCode: "access-service",
     name: "访问控制服务",
     basePath: "/",
-    description: "组织、用户、菜单、认证与权限管理（admin/perm 归并后唯一部署单元）",
+    description:
+      "组织、用户、菜单、认证与权限管理（admin/perm 归并后唯一部署单元）",
     status: 1,
     extra: '{"owner":"identity"}',
     createdAt: "2026-06-18 09:30:00"
