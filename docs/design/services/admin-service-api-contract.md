@@ -982,7 +982,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/file/download` | `ADMIN_FILE:VIEW` 类型级 | DB filePath 经统一路径安全函数（纵深防御） | `10501/10506/10507` |
 | `/file/delete` | `ADMIN_FILE:DELETE` 批量实例级 | 清理阶段经统一路径安全函数（非法路径容忍为孤儿，不回滚软删） | —（软删总是提交） |
 
-> **VIEW 档位说明（用户决策 2026-08-25）**: detail/page/download 暂按类型级 VIEW 过渡；
+> **VIEW 档位说明（2026-08-25 口径）**: detail/page/download 暂按类型级 VIEW 过渡；
 > 「文件夹级授权」（bizType 即文件夹实例，预置+惰性登记投影，全链路 CREATE/VIEW/DELETE
 > 按 folder 隔离、page 按可见文件夹过滤）另立任务卡 `T-ADMIN-025` 落地，落地时本节门禁档位升级。
 

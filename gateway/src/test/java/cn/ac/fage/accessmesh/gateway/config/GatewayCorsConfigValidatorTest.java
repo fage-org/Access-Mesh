@@ -95,7 +95,7 @@ class GatewayCorsConfigValidatorTest {
     }
 
     @Test
-    @DisplayName("allowed-origins(exact) 含 \"*\" + credentials=true → 启动 fail-fast（评审收口 D-2：兄弟键同样拦）")
+    @DisplayName("allowed-origins(exact) 含 \"*\" + credentials=true → 启动 fail-fast（兄弟键同样拦）")
     void exactOriginsWildcardWithCredentialsFailsFast() {
         CorsConfiguration cfg = new CorsConfiguration();
         cfg.setAllowedOrigins(List.of("*"));

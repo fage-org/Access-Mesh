@@ -119,7 +119,7 @@ class FileServiceSecurityPgIT {
         }
     }
 
-    /** 评审收口 F-1：测试结束递归清理临时存储根，避免每次运行泄漏系统临时目录 */
+    /** 测试结束递归清理临时存储根，避免每次运行泄漏系统临时目录 */
     @AfterAll
     static void cleanupStorageRoot() throws Exception {
         try (var walk = Files.walk(STORAGE_ROOT)) {

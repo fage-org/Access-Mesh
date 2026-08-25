@@ -134,7 +134,7 @@ public class FileServiceImpl implements FileService {
     );
 
     /**
-     * bizType 格式白名单（T-ADMIN-023 用户决策）：仅字母/数字/下划线/连字符，长度 1-32。
+     * bizType 格式白名单：仅字母/数字/下划线/连字符，长度 1-32。
      * <p>
      * bizType 是存储路径第一段，禁止 `/`、`..` 等路径注入字符；不限定具体取值，
      * 不排斥未来新增业务类型。
@@ -169,7 +169,7 @@ public class FileServiceImpl implements FileService {
     }
 
     /**
-     * 启动校验存储根必须为绝对路径（评审收口 P2-S1）。
+     * 启动校验存储根必须为绝对路径。
      * <p>
      * securePath 的 containment 在相对配置下仍成立（相对进程 CWD），但落盘位置随启动目录
      * 漂移不可预期；fail-fast 优于运行期不可预期行为。
@@ -480,8 +480,8 @@ public class FileServiceImpl implements FileService {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), "物理文件不存在");
         }
         try {
-            // 评审收口 P2-S2：originalName 源于 DB（可能早于控制字符剥离落库），响应头拼接前
-            // 防御性剥离控制字符，阻断 CRLF 类 header 污染
+            // originalName 源于 DB（可能早于控制字符剥离落库），响应头拼接前防御性剥离
+            // 控制字符，阻断 CRLF 类 header 污染
             String safeOriginalName = f.getOriginalName() == null ? "" : f.getOriginalName();
             response.setHeader("Content-Disposition",
                 "attachment; filename=\"" + safeOriginalName.replaceAll("\\p{Cntrl}", "") + "\"");
@@ -521,7 +521,7 @@ public class FileServiceImpl implements FileService {
     }
 
     /**
-     * bizType 归一化 + 格式白名单校验（T-ADMIN-023 用户决策）
+     * bizType 归一化 + 格式白名单校验
      * <p>
      * null/空白归一为 "default"（与 Controller defaultValue 语义一致）；
      * 非空必须匹配 ^[A-Za-z0-9_-]{1,32}$——bizType 是存储路径第一段，
@@ -545,8 +545,8 @@ public class FileServiceImpl implements FileService {
     /**
      * 安全化文件名
      * <p>
-     * 移除路径遍历字符、危险字符与控制字符（评审收口 P2-S2：CRLF 可致日志伪造与
-     * 下载头污染，写入侧剥离），限制文件名长度（最大200字符，保留扩展名）。
+     * 移除路径遍历字符、危险字符与控制字符（CRLF 可致日志伪造与下载头污染，
+     * 写入侧剥离），限制文件名长度（最大200字符，保留扩展名）。
      * </p>
      *
      * @param fileName 原始文件名
@@ -570,7 +570,7 @@ public class FileServiceImpl implements FileService {
             .replace(">", "")
             .replace("\"", "");
 
-        // 限制长度（保留扩展名；无扩展名直接截断，防 lastIndexOf('.')=-1 越界——评审收口顺手修复）
+        // 限制长度（保留扩展名；无扩展名直接截断，防 lastIndexOf('.')=-1 越界）
         if (sanitized.length() > 200) {
             int dot = sanitized.lastIndexOf('.');
             if (dot >= 0) {

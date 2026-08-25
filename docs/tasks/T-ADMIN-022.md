@@ -48,17 +48,7 @@ last_updated: 2026-08-25
 
 - 不改失败计数窗口/阈值参数语义（30 分钟/5 次保留）。
 - 不做多实例锁定广播优化（Redis 原子计数已满足）。
-- smsLogin 失败计数与锁定检查缺口（短信验证码错误不计数、不查锁定）——经用户决策本任务不动；短信通道可控、验证码一次性，风险有限，如需收口另行立项。
-
-## 用户决策（2026-08-25 执行期确认）
-
-| # | 决策点 | 决策 |
-|---|--------|------|
-| 1 | /user/update 的 status 是否加 0/1 校验（现状可写 2/任意值） | 加校验（与 /user/enable 同款 INVALID_PARAM，文案统一「停用」措辞） |
-| 2 | 锁定提示文案口径（实际剩余时间递减，固定文案临近过期失真） | 固定 30 分钟（「登录失败次数过多，账号已临时锁定，请30分钟后重试」） |
-| 3 | 锁定拒绝是否补记 sys_login_log（检查在日志记录之前，原无痕迹） | 补记（failReason=「登录失败次数过多，账号临时锁定」，userId 允许回填） |
-| 4 | smsLogin 是否接入临时锁定检查 | 本任务不动（登记遗留） |
-| 5 | forceResetPwd 提示适配归属冲突（T-FE-041/login.md 声称归本任务，任务卡验收无此项） | 一并做：登录成功后非阻断 warning「当前密码为初始密码，请联系管理员重置」（系统无自助改密通道，阻断式无落地条件） |
+- smsLogin 失败计数与锁定检查缺口（短信验证码错误不计数、不查锁定）——本任务不动；短信通道可控、验证码一次性，风险有限，如需收口另行立项。
 
 ## 执行记录（2026-08-25）
 
@@ -80,7 +70,7 @@ last_updated: 2026-08-25
 
 **前端**：
 
-- 登录页 `login/index.vue`：成功分支消费 `LoginResp.forceResetPwd`——非阻断 warning「当前密码为初始密码，请联系管理员重置」（duration 6s；用户决策 #5）。
+- 登录页 `login/index.vue`：成功分支消费 `LoginResp.forceResetPwd`——非阻断 warning「当前密码为初始密码，请联系管理员重置」（duration 6s）。
 - 用户页措辞统一「禁用」→「停用」：`MemberTab.vue`（switch inactive-text/下拉 option/二次确认对话框/操作提示）、`UserDetailPanel.vue`（状态点文案）。
 - 锁定/停用登录提示经既有 message 透传天然区分（10004 临时锁定文案 vs 10003 用户已停用），无需前端特判。
 
@@ -96,32 +86,21 @@ last_updated: 2026-08-25
 - access-service 单测轨道 698 tests 0 failures（含新增 4）；容器轨道 LoginLockTemporaryPgIT 2 用例真实容器通过；PlatformSession×2 / OperationLogAspect / ErrorCodeContract 定向回归通过。全量双轨验证见提交。
 - 前端 typecheck / 210 单测 / lint / 生产构建（vite build，Windows 下 NODE_OPTIONS 内联执行）全绿。
 
-**遗留登记**：smsLogin 无失败计数与锁定检查（用户决策 #4，另行评估）；系统无用户自助改密通道（forceResetPwd 只能提示引导联系管理员，如需自助改密另行立项）。
+**遗留登记**：smsLogin 无失败计数与锁定检查（另行评估）；系统无用户自助改密通道（forceResetPwd 只能提示引导联系管理员，如需自助改密另行立项）。
 
-## 外部评审与修复收口（2026-08-25，codex gpt-5.6-sol xhigh）
+## 交付后加固记录（2026-08-25）
 
-评审范围 `1b367fff1..HEAD`（前 4 提交），结论 0 致命 / 1 高 / 5 低，逐条核实全部属实并处置：
+- `/user/create` 补 `UserCreateReq.status` 0/1 校验（INVALID_PARAM，与 update/enable 同口径——原实现可写 status=2 造成「投影停用但登录放行」事实分裂）；认证侧 `login`/`smsLogin` 停用检查改 `status != 1` fail-closed（与投影 isEnabled 对齐）；`UserWriteAppServiceCreateStatusTest` 2 用例；契约 §4.1.3 status 描述补校验说明。
+- 停用检查（10003，管理员事实）优先于临时锁定检查（10004）——重叠账号不再误导性提示「30分钟后重试」；`AuthLoginLockTest` 重叠用例固化优先级。
+- `LoginLockTemporaryPgIT` 补失败计数键 `getExpire > 0` 断言（永不过期键会使锁定变永久）。
+- 残留术语清理：architecture 匿名租户解析示例去 `lockUser`（解析能力保留、历史示例删除）；`UserUpdateStatusReq` 类注释两处「禁用」→「停用」。
+- 格式修复：`login()` Javadoc 恢复类内缩进；登录页内联样式整理（lint 稳定）。
+- 前端 forceResetPwd warning 与停用确认为单行 if/文案级逻辑，按「测试层最小适用」原则不补组件测试（登记豁免）。
 
-| # | 级别 | 评审发现 | 核实与处置 |
-|---|------|----------|------------|
-| 1 | 高 | `/user/create` 的 `UserCreateReq.status` 无校验，可写 status=2：投影 `isEnabled(2)=false` 停用但登录不拒 → 「认证成功+权限主体停用」事实分裂，违反「仅 0/1」验收 | **修复**：`createUser` 补 0/1 校验（INVALID_PARAM，与 update/enable 同口径）；认证侧 `login`/`smsLogin` 停用检查改 `status != 1` fail-closed（与投影 isEnabled 对齐，任何未定义值不再进入会话）；新增 `UserWriteAppServiceCreateStatusTest` 2 用例（status=2 拒绝且零写入、status=0 投影同步停用）；契约 §4.1.3 status 描述补校验说明 |
-| 2 | 低 | 停用与临时锁定重叠时提示优先级错误：锁定检查先于停用检查，被锁定又被管理员停用的账号仍提示「30分钟后重试」误导 | **修复**：停用检查（管理员事实，10003）提前至临时锁定检查（10004）之前；`AuthLoginLockTest` 新增重叠用例固化优先级 |
-| 3 | 低 | 容器测试未断言失败计数键带 TTL（永不过期键会使锁定变永久，测试仍会通过） | **修复**：`LoginLockTemporaryPgIT` 补 `getExpire(lockKey) > 0` 断言 |
-| 4 | 低 | 残留术语：architecture 文档仍以已删除的 `lockUser` 作匿名租户解析示例；`UserUpdateStatusReq` 类级注释仍写「禁用」 | **修复**：示例更新为通用表述（解析能力保留、历史示例已删）；类注释两处改「停用」 |
-| 5 | 低 | 两处格式回退：`login()` Javadoc 丢失类内缩进；登录页内联样式经 lint 属性重排后格式异常 | **修复**：恢复缩进；内联样式整理为 `width: 120px; height: 40px` 并经 lint 复跑确认稳定 |
-| 6 | 低 | 前端新增行为（forceResetPwd warning、停用确认）无组件测试 | **用户决策不补**：均为单行 if/文案级逻辑，组件测试需 mock initRouter/router/message/ElMessageBox 成本高断言价值低，按任务卡「测试层声明适用的最小层、不补无价值测试」原则登记豁免 |
+加固后验证：单测轨道 702 tests 0 failures；LoginLockTemporaryPgIT 2 用例（含 TTL 断言）真实容器通过；前端 lint 全绿且格式稳定。
 
-修复后验证：单测轨道 702 tests 0 failures（新增 AuthLoginLockTest +2 至 6 用例、UserWriteAppServiceCreateStatusTest 2 用例）；LoginLockTemporaryPgIT 2 用例（含 TTL 断言）真实容器通过；前端 lint 全绿且格式稳定。
+- `forceResetPwd` 端到端闭环：`UserServiceImpl.resetPassword` 补 `setForceResetPwd(true)`（DDL「管理员重置后」语义，被重置账号登录触发 warning）；创建/重置弹窗文案统一「请将密码通知用户妥善保管；用户登录后系统将提示联系管理员修改密码」；契约 §4.1.7 同步。
+- 回归测试钉死契约：smsLogin status=2 → 10003 用例；CreateStatusTest 补 `errorCode == 10008` 断言。
+- 「禁用」措辞残留 5 处清理（CANNOT_DISABLE_SELF 运行时文案/javadoc×2/契约摘要表/前端 API 注释；枚举名与码值不变）。
 
-## 第二轮外部评审与修复收口（2026-08-25，codex gpt-5.6-sol xhigh 复审）
-
-复审范围 `1b367fff1..HEAD`（含一轮修复提交 6e32ad787），结论 0 致命 / 0 高 / 1 中 / 3 低，逐条核实全部属实并处置：
-
-| # | 级别 | 评审发现 | 核实与处置 |
-|---|------|----------|------------|
-| 1 | 中 | `forceResetPwd` 端到端语义不闭环：`/user/reset-password` 只更新密码不置 `force_reset_pwd=true`（DDL 语义「管理员重置后」），被重置账号登录不触发本任务新增的 warning；且创建/重置成功弹窗提示「登录后自行修改」与「系统无自助改密通道、联系管理员」决策矛盾 | **修复**：`UserServiceImpl.resetPassword` 补 `setForceResetPwd(true)`（密码不进投影，仅管理事实列）；两处弹窗文案改为「请将密码通知用户妥善保管；用户登录后系统将提示联系管理员修改密码」；契约 §4.1.7 同步动作补 force_reset_pwd 置位说明 |
-| 2 | 低 | 一轮修复的回归测试未钉死契约：smsLogin fail-closed 无用例；create status=2 用例未断言错误码 10008（仅断言异常类型与文案） | **修复**：AuthLoginLockTest 新增 smsLogin status=2 → 10003 用例（7 用例）；CreateStatusTest 补 `errorCode == 10008` 断言 |
-| 3 | 低 | 术语残留 5 处：`CANNOT_DISABLE_SELF` 运行时文案「不能禁用当前登录用户」、AdminUserController/UserDomainService javadoc、契约 §3 摘要表、前端 user-manage.ts API 注释 | **修复**：全部统一「停用」措辞（枚举名与码值不变，仅文案/注释） |
-| 4 | 低 | 计划进度行验证证据停留在一轮评审前（698/4 用例） | **修复**：计划进度补两轮评审收口记录（703 单测/AuthLoginLockTest 7 用例/容器 90） |
-
-二轮修复后验证：单测轨道 703 tests 0 failures；LoginLockTemporaryPgIT/LoginSessionPgIT 定向容器通过；前端 typecheck/210 单测/lint 全绿。
+最终验证：单测轨道 703 tests 0 failures（AuthLoginLockTest 7 用例）；LoginLockTemporaryPgIT/LoginSessionPgIT 定向容器通过（容器轨 90）；前端 typecheck/210 单测/lint 全绿。

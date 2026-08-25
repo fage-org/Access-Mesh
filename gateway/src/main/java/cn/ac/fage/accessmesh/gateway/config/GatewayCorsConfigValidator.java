@@ -13,11 +13,11 @@ import java.util.Map;
 /**
  * Gateway CORS 配置启动校验器（T-GW-007）
  * <p>
- * 校验 {@code spring.cloud.gateway.globalcors} 最终生效值（含 Nacos 远端覆盖后的值），
- * 规则按 2026-08-25 用户口径（生产 nginx 同源代理，CORS 无生产消费场景）：
+ * 校验 {@code spring.cloud.gateway.globalcors} 最终生效值（含 Nacos 远端覆盖后的值）。
+ * 部署前提：生产 nginx 同源代理、开发 vite 代理（CORS 无生产消费场景）。规则：
  * <ul>
- *   <li>origin 列表为空或未配置：允许——CORS 禁用（同源部署终态），跨域请求不加 CORS 头
- *       被浏览器拒绝（fail-closed，不放行任意源），启动 INFO 声明；</li>
+ *   <li>origin 列表为空或未配置：允许——CORS 禁用（同源部署终态），跨域请求被
+ *       CorsProcessor 主动 403 拒绝且无 CORS 头（fail-closed，不放行任意源），启动 INFO 声明；</li>
  *   <li>origin 列表含通配（任意含 {@code *} 的 pattern）且 {@code allow-credentials=true}：
  *       启动 fail-fast（任意源携带凭证为安全缺陷，含 Nacos 远端旧值回退场景）。</li>
  * </ul>
@@ -60,8 +60,8 @@ public class GatewayCorsConfigValidator implements InitializingBean {
         List<String> exact = rawExact == null ? List.of()
             : rawExact.stream().filter(o -> o != null && !o.isBlank()).toList();
         boolean credentials = Boolean.TRUE.equals(cfg.getAllowCredentials());
-        // 禁用判定必须两键皆空（评审收口 D-2 修复：exact 键含通配时 patterns 为 null——
-        // spring-web 的 setAllowedOrigins 不做通配转移，仅以 patterns 空判定禁用会提前返回漏过 exact 校验）
+        // 禁用判定必须两键皆空：exact 键含通配时 patterns 为 null（spring-web 的 setAllowedOrigins
+        // 不做通配转移），仅以 patterns 空判定禁用会提前返回漏过 exact 校验
         if (patterns.isEmpty() && exact.isEmpty()) {
             log.info("Gateway CORS disabled for {} (empty allowed-origin-patterns/origins): same-origin deployment, "
                 + "cross-origin requests get no CORS headers", pathKey);

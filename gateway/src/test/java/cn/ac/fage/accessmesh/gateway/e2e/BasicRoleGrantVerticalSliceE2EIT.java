@@ -694,7 +694,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
     private static int freePort() throws IOException {
         try (ServerSocket socket = new ServerSocket()) {
             socket.setReuseAddress(true);
-            // 评审收口 D-4：显式绑 127.0.0.1——服务端口（含 management.server.address 默认）均为 IPv4 回环，
+            // 显式绑 127.0.0.1——服务端口（含 management.server.address 默认）均为 IPv4 回环，
             // 绑 "localhost" 在解析为 ::1 时只保留 IPv6 家族端口，与管理端口实际绑定地址族不一致
             socket.bind(new InetSocketAddress("127.0.0.1", 0));
             return socket.getLocalPort();

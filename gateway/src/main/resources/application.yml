@@ -57,7 +57,7 @@ spring:
 
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
-      # T-GW-007 CORS 环境化（用户口径 2026-08-25：生产 nginx 同源代理，CORS 无生产消费场景）：
+      # T-GW-007 CORS 环境化（生产 nginx 同源代理，CORS 无生产消费场景）：
       # - 默认 http://localhost:8848 仅供开发直连调试（前端 dev 实际端口，vite 代理模式下同源不触发 CORS）
       # - GATEWAY_CORS_ALLOWED_ORIGINS 显式置空 = CORS 禁用（同源部署终态：跨域请求被主动 403 拒绝且无 CORS 头）
       # - 通配 origin（含 "*"）+ allow-credentials=true 由 GatewayCorsConfigValidator 启动 fail-fast 拒绝

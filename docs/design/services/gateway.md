@@ -162,7 +162,7 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
     summary: "Gateway 快照加载超过 5 秒全链路截止"
 ```
 
-## CORS 配置终态（T-GW-007，2026-08-25 用户口径）
+## CORS 配置终态（T-GW-007，2026-08-25）
 
 - **部署前提**：生产前端经 nginx 反向代理成同源（浏览器请求全部同源，CORS 无生产消费场景）；开发经 vite 代理同为同源。CORS 仅在直连网关调试场景消费。
 - 配置面：`spring.cloud.gateway.globalcors.cors-configurations.'[/**]'`（Binder 绑定后 map key 为 `/**`）。
