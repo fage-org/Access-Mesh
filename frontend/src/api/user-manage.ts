@@ -367,7 +367,7 @@ export const getOrgPage = async (
 
 // ========== /user 启停 & 重置密码 API ==========
 
-/** 批量启用/禁用用户（POST /user/enable，IdsReq + status） */
+/** 批量启用/停用用户（POST /user/enable，IdsReq + status） */
 export const enableUsers = async (data: {
   ids: number[];
   status: 0 | 1;

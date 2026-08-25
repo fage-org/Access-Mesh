@@ -112,3 +112,16 @@ last_updated: 2026-08-25
 | 6 | 低 | 前端新增行为（forceResetPwd warning、停用确认）无组件测试 | **用户决策不补**：均为单行 if/文案级逻辑，组件测试需 mock initRouter/router/message/ElMessageBox 成本高断言价值低，按任务卡「测试层声明适用的最小层、不补无价值测试」原则登记豁免 |
 
 修复后验证：单测轨道 702 tests 0 failures（新增 AuthLoginLockTest +2 至 6 用例、UserWriteAppServiceCreateStatusTest 2 用例）；LoginLockTemporaryPgIT 2 用例（含 TTL 断言）真实容器通过；前端 lint 全绿且格式稳定。
+
+## 第二轮外部评审与修复收口（2026-08-25，codex gpt-5.6-sol xhigh 复审）
+
+复审范围 `1b367fff1..HEAD`（含一轮修复提交 6e32ad787），结论 0 致命 / 0 高 / 1 中 / 3 低，逐条核实全部属实并处置：
+
+| # | 级别 | 评审发现 | 核实与处置 |
+|---|------|----------|------------|
+| 1 | 中 | `forceResetPwd` 端到端语义不闭环：`/user/reset-password` 只更新密码不置 `force_reset_pwd=true`（DDL 语义「管理员重置后」），被重置账号登录不触发本任务新增的 warning；且创建/重置成功弹窗提示「登录后自行修改」与「系统无自助改密通道、联系管理员」决策矛盾 | **修复**：`UserServiceImpl.resetPassword` 补 `setForceResetPwd(true)`（密码不进投影，仅管理事实列）；两处弹窗文案改为「请将密码通知用户妥善保管；用户登录后系统将提示联系管理员修改密码」；契约 §4.1.7 同步动作补 force_reset_pwd 置位说明 |
+| 2 | 低 | 一轮修复的回归测试未钉死契约：smsLogin fail-closed 无用例；create status=2 用例未断言错误码 10008（仅断言异常类型与文案） | **修复**：AuthLoginLockTest 新增 smsLogin status=2 → 10003 用例（7 用例）；CreateStatusTest 补 `errorCode == 10008` 断言 |
+| 3 | 低 | 术语残留 5 处：`CANNOT_DISABLE_SELF` 运行时文案「不能禁用当前登录用户」、AdminUserController/UserDomainService javadoc、契约 §3 摘要表、前端 user-manage.ts API 注释 | **修复**：全部统一「停用」措辞（枚举名与码值不变，仅文案/注释） |
+| 4 | 低 | 计划进度行验证证据停留在一轮评审前（698/4 用例） | **修复**：计划进度补两轮评审收口记录（703 单测/AuthLoginLockTest 7 用例/容器 90） |
+
+二轮修复后验证：单测轨道 703 tests 0 failures；LoginLockTemporaryPgIT/LoginSessionPgIT 定向容器通过；前端 typecheck/210 单测/lint 全绿。

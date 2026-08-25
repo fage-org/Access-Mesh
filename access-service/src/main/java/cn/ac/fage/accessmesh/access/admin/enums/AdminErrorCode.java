@@ -69,9 +69,9 @@ public enum AdminErrorCode {
     INVALID_PARAM(10008, "参数格式错误"),
 
     /**
-     * 不能禁用当前登录用户
+     * 不能停用当前登录用户
      */
-    CANNOT_DISABLE_SELF(10009, "不能禁用当前登录用户"),
+    CANNOT_DISABLE_SELF(10009, "不能停用当前登录用户"),
 
     // ===== 组织相关错误（10101-10199） =====
 

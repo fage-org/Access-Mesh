@@ -385,6 +385,9 @@ public class UserServiceImpl implements UserService {
             : generateRandomPassword();
 
         user.setPassword(BCrypt.hashpw(effectivePassword));
+        // DDL force_reset_pwd 语义：首次登录/管理员重置后须改密（T-ADMIN-022 二轮评审修复：
+        // 重置后置 true，登录页 warning 对被重置账号才闭环；系统无自助改密通道，改密仍由管理员执行）
+        user.setForceResetPwd(true);
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.update(user);
 

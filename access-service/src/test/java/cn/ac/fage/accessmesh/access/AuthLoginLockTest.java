@@ -243,4 +243,26 @@ class AuthLoginLockTest {
 
         assertThat(body.get("code").asInt()).isEqualTo(10003);
     }
+
+    @Test
+    @DisplayName("smsLogin 同口径 fail-closed：status=2 脏数据按停用拒绝（10003）")
+    void smsLoginUndefinedStatusAlsoFailsClosed() throws Exception {
+        SysUser user = enabledUser();
+        user.setStatus(2);
+        when(userDomainService.findByPhone(1L, "13800000001")).thenReturn(user);
+        // 短信验证码 Lua（2 参 execute）与验证码共用 stub，返回 "123456" 即校验通过
+        when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn("123456");
+
+        MvcResult result = mockMvc.perform(post("/auth/login/sms")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(MAPPER.writeValueAsString(java.util.Map.of(
+                    "tenantId", "1", "phone", "13800000001",
+                    "smsCode", "123456", "clientId", "console"))))
+            .andExpect(status().isOk())
+            .andReturn();
+        JsonNode body = MAPPER.readTree(
+            result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8));
+
+        assertThat(body.get("code").asInt()).isEqualTo(10003);
+    }
 }

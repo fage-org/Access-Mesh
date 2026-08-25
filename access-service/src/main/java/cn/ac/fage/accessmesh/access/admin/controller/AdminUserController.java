@@ -103,10 +103,10 @@ public class AdminUserController {
     }
 
     /**
-     * 批量启用/禁用用户
+     * 批量启用/停用用户
      * <p>
-     * 根据请求中的 status 字段批量启用或禁用用户账号。
-     * status=1 启用，status=0 禁用。
+     * 根据请求中的 status 字段批量启用或停用用户账号。
+     * status=1 启用，status=0 停用。
      * </p>
      *
      * @param req 用户状态变更请求，包含用户ID列表和目标状态

@@ -87,7 +87,9 @@ class UserWriteAppServiceCreateStatusTest {
     void createRejectsStatusOutsideZeroAndOne() {
         assertThatThrownBy(() -> service.createUser(req(2)))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
-            .hasMessageContaining("0(停用)或1(启用)");
+            .hasMessageContaining("0(停用)或1(启用)")
+            .extracting("errorCode", org.assertj.core.api.InstanceOfAssertFactories.INTEGER)
+            .isEqualTo(10008);
 
         verify(userDomainService, never()).existsByUsername(anyLong(), anyString());
         verify(userDomainService, never()).insert(any(SysUser.class));

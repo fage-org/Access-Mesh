@@ -119,7 +119,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/user/create` | INSERT `sys_user` (+ 可选 `sys_user_org`) | `upsertAdminUser`；若带 orgId：`bindUserOrg` |
 | `/user/update` | UPDATE `sys_user` | `upsertAdminUser` |
 | `/user/delete` | 软删 `sys_user`，级联清理 `sys_user_org` | 每条关系 `unbindUserOrg`；`deleteAdminUser` |
-| `/user/enable` | UPDATE `sys_user.status` | 启用 `upsertAdminUser`；禁用 `disableAdminUser` |
+| `/user/enable` | UPDATE `sys_user.status` | 启用 `upsertAdminUser`；停用 `disableAdminUser` |
 | `/user/reset-password` | UPDATE `sys_user.password` | 无（密码不进入权限投影） |
 | `/org/create` | INSERT `sys_org` | `upsertAdminOrg` |
 | `/org/update` | UPDATE `sys_org` | `upsertAdminOrg` |
@@ -389,7 +389,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **门禁**: `USER:RESET_PASSWORD@userId` 实例级 + 默认树边界二次校验.
 
-**同步动作**: 无 (密码不进入 permission-center)
+**同步动作**: 无 (密码不进入 permission-center). 重置成功后 `sys_user.force_reset_pwd` 置 `true`（DDL 语义「首次登录/管理员重置后须改密」——T-ADMIN-022 二轮评审修复，登录页据此提示联系管理员；系统无自助改密通道）.
 
 **错误码段**: 10210-10229
 
