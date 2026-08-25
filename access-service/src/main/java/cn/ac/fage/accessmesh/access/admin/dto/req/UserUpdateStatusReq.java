@@ -12,7 +12,7 @@ import java.util.List;
  * </p>
  *
  * @param ids    用户ID列表（必填，至少包含一个ID）
- * @param status 目标状态（必填，1=启用，0=禁用）
+ * @param status 目标状态（必填，1=启用，0=停用）
  */
 public record UserUpdateStatusReq(
     /**
@@ -22,7 +22,7 @@ public record UserUpdateStatusReq(
     List<Long> ids,
 
     /**
-     * 目标状态（1=启用，0=禁用）
+     * 目标状态（1=启用，0=停用）
      */
     @NotNull(message = "状态不能为空")
     Integer status

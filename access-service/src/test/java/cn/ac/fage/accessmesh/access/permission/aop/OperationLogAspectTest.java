@@ -575,7 +575,7 @@ class OperationLogAspectTest {
 
     // ===== 匿名安全写租户解析（T-ACCESS-007 第三轮 P1#1）=====
 
-    /** 含 tenantId 参数的方法（模拟 lockUser 登录失败自动锁定） */
+    /** 含 tenantId 参数的方法（模拟匿名链路经方法参数携带租户，如历史登录失败锁定入口） */
     @OperationLog(module = "perm", action = "USER_LOCK", targetType = "sys_user",
         targetId = "#userId", summary = "'lock user ' + #userId")
     public void lockMethod(Long tenantId, Long userId) {

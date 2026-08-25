@@ -20,7 +20,6 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService.L
 import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
-import cn.ac.fage.accessmesh.access.application.UserWriteAppService;
 import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.SaManager;
@@ -52,7 +51,8 @@ import org.slf4j.LoggerFactory;
  * <p>
  * 提供用户登录认证相关的核心功能，包括验证码生成、密码登录、短信登录、
  * 用户信息获取、用户菜单获取等。
- * 实现了登录失败次数限制、账号锁定、验证码一次性使用等安全机制。
+ * 实现了登录失败计数、临时锁定（计数键即锁，键过期自动恢复，不落库）、
+ * 验证码一次性使用等安全机制（T-ADMIN-022）。
  * 使用Redis Lua脚本确保原子性操作，避免竞态条件。
  * 用户菜单和权限通过 UserMenuQueryService 跨域聚合查询获取（T-ACCESS-006）。
  * </p>
@@ -104,7 +104,6 @@ public class AuthServiceImpl implements AuthService {
     private final LoginLogDomainService loginLogDomainService;
     private final StringRedisTemplate redisTemplate;
     private final UserMenuQueryService userMenuQueryService;
-    private final UserWriteAppService userWriteAppService;
 
     /**
      * 平台用户会话过期展示口径（秒）。
@@ -137,15 +136,13 @@ public class AuthServiceImpl implements AuthService {
                            OAuth2ClientDomainService oauth2ClientDomainService,
                            LoginLogDomainService loginLogDomainService,
                            StringRedisTemplate redisTemplate,
-                           UserMenuQueryService userMenuQueryService,
-                           UserWriteAppService userWriteAppService) {
+                           UserMenuQueryService userMenuQueryService) {
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.oauth2ClientDomainService = oauth2ClientDomainService;
         this.loginLogDomainService = loginLogDomainService;
         this.redisTemplate = redisTemplate;
         this.userMenuQueryService = userMenuQueryService;
-        this.userWriteAppService = userWriteAppService;
     }
 
     /**
@@ -166,18 +163,19 @@ public class AuthServiceImpl implements AuthService {
         return new CaptchaResp(captchaId, image);
     }
 
-    /**
-     * 用户密码登录
-     * <p>
-     * 执行完整的密码登录流程：验证码校验、客户端校验、用户查询、
-     * 账号锁定检查、密码校验、登录失败记录、Sa-Token会话创建。
-     * 登录成功后清除失败计数，失败时累加计数并可能锁定账号。
-     * </p>
-     *
-     * @param req 登录请求，包含租户ID、用户名、密码、验证码等
-     * @return 登录响应，包含令牌、用户信息、是否强制重置密码等
-     * @throws BizException 验证码错误、用户不存在、账号锁定、密码错误等
-     */
+/**
+ * 用户密码登录
+ * <p>
+ * 执行完整的密码登录流程：验证码校验、客户端校验、用户查询、
+ * 临时锁定检查（失败计数键）、密码校验、登录失败记录、Sa-Token会话创建。
+ * 登录成功后清除失败计数；失败时累加计数，达到阈值后凭键剩余 TTL
+ * 临时锁定，键过期自动恢复（T-ADMIN-022）。
+ * </p>
+ *
+ * @param req 登录请求，包含租户ID、用户名、密码、验证码等
+ * @return 登录响应，包含令牌、用户信息、是否强制重置密码等
+ * @throws BizException 验证码错误、用户不存在、账号临时锁定、用户已停用、密码错误等
+ */
     @Override
     public LoginResp login(LoginReq req) {
         validateCaptcha(req.captchaId(), req.captchaCode());
@@ -185,7 +183,13 @@ public class AuthServiceImpl implements AuthService {
 
         Long tenantId = Long.parseLong(req.tenantId());
         SysUser user = userDomainService.findByUsername(tenantId, req.username());
-        checkAccountLocked(tenantId, req.username());
+        if (isAccountLocked(tenantId, req.username())) {
+            // T-ADMIN-022：计数键即锁（临时，键过期自动恢复），拒绝时补记登录日志留审计痕迹
+            safeRecordLoginLog(tenantId, user != null ? user.getId() : null, req.username(),
+                LOGIN_TYPE_PASSWORD, req.clientId(), 0, "登录失败次数过多，账号临时锁定");
+            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(),
+                "登录失败次数过多，账号已临时锁定，请" + LOCK_DURATION_MINUTES + "分钟后重试");
+        }
         if (user == null) {
             recordLoginFail(tenantId, req.username());
             safeRecordLoginLog(tenantId, null, req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户不存在");
@@ -194,10 +198,6 @@ public class AuthServiceImpl implements AuthService {
         if (user.getStatus() != null && user.getStatus() == 0) {
             safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户已停用");
             throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
-        }
-        if (user.getStatus() != null && user.getStatus() == 2) {
-            safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "账号已锁定");
-            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(), AdminErrorCode.USER_LOCKED.getMessage());
         }
         if (user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
             recordLoginFail(tenantId, req.username());
@@ -426,21 +426,30 @@ public class AuthServiceImpl implements AuthService {
     }
 
     /**
-     * 检查账号是否被锁定
+     * 检查账号是否处于临时锁定
      * <p>
-     * 检查Redis中的登录失败计数，达到上限则抛出账号锁定异常。
+     * 读取现有失败计数键（GET 只读，不创建键——旧实现 increment(key, 0) 会为
+     * 不存在用户创建无 TTL 的零值键）。计数达到上限即锁定，键的剩余 TTL 即
+     * 剩余锁定时长，键过期自动恢复可登录（T-ADMIN-022：计数键即锁，不落库、
+     * 不新增第二个锁键）。
      * </p>
      *
      * @param tenantId 租户ID
      * @param username 用户名
-     * @throws BizException 登录失败次数过多，账号已锁定
+     * @return true 表示锁定中，应拒绝登录
      */
-    private void checkAccountLocked(Long tenantId, String username) {
+    private boolean isAccountLocked(Long tenantId, String username) {
         String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
-        Long failCount = redisTemplate.opsForValue().increment(key, 0);
-        if (failCount != null && failCount >= MAX_LOGIN_FAIL_COUNT) {
-            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(),
-                "登录失败次数过多，账号已锁定" + LOCK_DURATION_MINUTES + "分钟");
+        String failCount = redisTemplate.opsForValue().get(key);
+        if (failCount == null) {
+            return false;
+        }
+        // 计数键由本服务 Lua INCR 写入，正常必为数字；脏值按未锁定处理并告警
+        try {
+            return Long.parseLong(failCount) >= MAX_LOGIN_FAIL_COUNT;
+        } catch (NumberFormatException e) {
+            log.warn("登录失败计数键存在非数字值，按未锁定处理: key={}, value={}", key, failCount);
+            return false;
         }
     }
 
@@ -448,7 +457,9 @@ public class AuthServiceImpl implements AuthService {
      * 记录登录失败
      * <p>
      * 使用Lua脚本原子性地累加失败计数并设置过期时间。
-     * 达到上限时将用户状态更新为锁定状态。
+     * 计数键即锁：达到上限后的拒绝由 {@link #isAccountLocked} 依据计数判定，
+     * 键过期自动恢复，不再持久化锁定状态到 sys_user.status
+     * （T-ADMIN-022 删除 sys_user.status=2 写入与投影禁用编排）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -457,21 +468,11 @@ public class AuthServiceImpl implements AuthService {
     private void recordLoginFail(Long tenantId, String username) {
         String key = LOGIN_FAIL_PREFIX + tenantId + ":" + username;
         // 使用 Lua 脚本原子性地执行 INCR + EXPIRE，避免竞态条件
-        Long count = redisTemplate.execute(
+        redisTemplate.execute(
             new DefaultRedisScript<>(LUA_INCREMENT_WITH_EXPIRE, Long.class),
             Collections.singletonList(key),
             String.valueOf(LOCK_DURATION_MINUTES * 60)  // TTL in seconds
         );
-
-        if (count != null && count >= MAX_LOGIN_FAIL_COUNT) {
-            // （用户决策：同步禁用投影）:锁定走 UserWriteAppService 内部编排，
-            // 同一事务更新 sys_user.status=2 + 禁用权限投影 + change_log + 缓存失效，
-            // 不再直写 DomainService（旧实现绕过投影，锁定用户已登录会话权限持续有效）
-            SysUser user = userDomainService.findByUsername(tenantId, username);
-            if (user != null) {
-                userWriteAppService.lockUser(tenantId, user.getId());
-            }
-        }
     }
 
     /**

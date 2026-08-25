@@ -62,7 +62,7 @@ public interface UserDomainService {
      *
      * @param tenantId 租户ID，用于多租户隔离
      * @param userIds  待更新的用户ID列表
-     * @param status   目标状态（1=启用，0=禁用）
+     * @param status   目标状态（1=启用，0=停用）
      */
     void batchUpdateStatus(Long tenantId, List<Long> userIds, Integer status);
 

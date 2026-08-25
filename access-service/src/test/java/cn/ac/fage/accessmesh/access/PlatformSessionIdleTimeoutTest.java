@@ -108,11 +108,11 @@ class PlatformSessionIdleTimeoutTest {
         when(userDomainService.findByUsername(1L, "alice")).thenReturn(user);
         when(userDomainService.selectValidById(anyLong(), anyLong())).thenReturn(user);
         when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn("8888");
-        // 登录链路 checkAccountLocked/recordLoginFail 走 opsForValue（increment/get/set），mock 掉
+        // 登录链路 isAccountLocked/clearLoginFail 走 opsForValue.get / delete，mock 掉（get 默认 null=未锁定）
         org.springframework.data.redis.core.ValueOperations<String, String> valueOperations =
             org.mockito.Mockito.mock(org.springframework.data.redis.core.ValueOperations.class);
         org.mockito.Mockito.lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
-        org.mockito.Mockito.lenient().when(valueOperations.increment(anyString(), anyLong())).thenReturn(0L);
+        org.mockito.Mockito.lenient().when(valueOperations.get(anyString())).thenReturn(null);
 
         MvcResult result = mockMvc.perform(post("/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)

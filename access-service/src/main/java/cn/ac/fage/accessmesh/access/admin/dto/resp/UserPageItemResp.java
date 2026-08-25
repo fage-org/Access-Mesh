@@ -15,7 +15,7 @@ import java.util.List;
  * @param name       姓名（显示名称）
  * @param phone      手机号
  * @param email      邮箱
- * @param status     状态（0=正常，1=禁用）
+ * @param status     状态（0=停用，1=启用）
  * @param orgs       所属组织列表
  * @param createdAt  创建时间
  */
@@ -46,7 +46,7 @@ public record UserPageItemResp(
     String email,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（0=停用，1=启用）
      */
     Integer status,
 

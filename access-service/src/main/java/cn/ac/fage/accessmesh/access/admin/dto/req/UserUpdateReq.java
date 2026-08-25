@@ -13,7 +13,7 @@ import jakarta.validation.constraints.NotNull;
  * @param name   姓名（可选）
  * @param phone  手机号（可选）
  * @param email  邮箱（可选）
- * @param status 状态（可选，0=正常，1=禁用）
+ * @param status 状态（可选，0=停用，1=启用）
  */
 public record UserUpdateReq(
     /**
@@ -38,7 +38,7 @@ public record UserUpdateReq(
     String email,
 
     /**
-     * 状态（0=停用，1=正常，2=锁定——锁定由登录失败自动触发，不走本接口）
+     * 状态（0=停用，1=启用，仅接纳 0/1；登录失败临时锁定不落库、不经本接口——T-ADMIN-022）
      */
     Integer status
 ) {}

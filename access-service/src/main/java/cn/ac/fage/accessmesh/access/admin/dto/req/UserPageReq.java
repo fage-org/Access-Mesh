@@ -17,7 +17,7 @@ import jakarta.validation.constraints.Min;
  * @param name     姓名（可选，模糊匹配）
  * @param phone    手机号（可选，模糊匹配）
  * @param email    邮箱（可选，模糊匹配）
- * @param status   状态（可选，0=正常，1=禁用）
+ * @param status   状态（可选，0=停用，1=启用）
  */
 public record UserPageReq(
     /**
@@ -56,7 +56,7 @@ public record UserPageReq(
     String email,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（0=停用，1=启用）
      */
     Integer status,
 

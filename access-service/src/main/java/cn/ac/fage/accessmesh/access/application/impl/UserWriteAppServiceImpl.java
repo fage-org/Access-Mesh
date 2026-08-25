@@ -182,6 +182,10 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(),
                 AdminErrorCode.USER_NOT_FOUND.getMessage());
         }
+        // status 仅接纳 0/1（T-ADMIN-022 语义收口：0=停用，1=启用，临时锁定不落库）
+        if (req.status() != null && req.status() != 0 && req.status() != 1) {
+            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
+        }
         if (req.phone() != null && !req.phone().equals(user.getPhone())
             && userDomainService.existsByPhone(tenantId, req.phone())) {
             throw new BizException(AdminErrorCode.PHONE_ALREADY_EXISTS.getCode(),
@@ -209,27 +213,6 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         recordProjectionChange(tenantId, "abstract_user", abstractUserId, "UPSERT",
             new Long[]{abstractUserId}, new Long[0]);
         PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    @PermissionChange
-    @OperationLog(module = "ACCESS", action = "USER_LOCK", targetType = "sys_user",
-        targetId = "#userId", summary = "'lock user ' + #userId")
-    public void lockUser(Long tenantId, Long userId) {
-        // 无权限门禁：登录失败自动锁定（匿名上下文无操作者）；写事实 + 投影同一事务
-        userDomainService.batchUpdateStatus(tenantId, List.of(userId), 2);
-        Long abstractUserId = localProjectionDomainService.findAdminUserId(tenantId, userId);
-        localProjectionDomainService.disableAdminUser(tenantId, userId);
-        if (abstractUserId != null) {
-            auditDomainService.recordChangeLog(
-                new AuditDomainService.ChangeLogContext(
-                    tenantId, null, null, PermConstants.MaintainSource.MANUAL, "login-lock"),
-                List.of(new AuditDomainService.ChangeLogEntry(
-                    "abstract_user", abstractUserId, "DISABLE", null, null, null,
-                    new Long[]{abstractUserId}, new Long[0])));
-            PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
-        }
     }
 
     @Override
@@ -313,7 +296,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         targetId = "", summary = "'enable/disable users'")
     public void updateStatus(UserUpdateStatusReq req) {
         if (req.status() == null || (req.status() != 0 && req.status() != 1)) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(禁用)或1(启用)");
+            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
         }
         if (req.status() == 0) {
             long currentUserId = currentOperatorId();

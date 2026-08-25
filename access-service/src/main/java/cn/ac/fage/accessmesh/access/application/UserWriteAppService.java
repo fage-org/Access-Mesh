@@ -18,11 +18,4 @@ public interface UserWriteAppService {
     void deleteUser(IdsReq req);
 
     void updateStatus(UserUpdateStatusReq req);
-
-    /**
-     * 内部锁定入口（登录失败达阈值触发）：sys_user.status=2 + 同步禁用权限投影。
-     * 无权限门禁——登录路径无操作者（匿名上下文）也可调用；
-     * 与 {@link #updateStatus} 不同，不校验操作者身份与 ENABLE 权限。
-     */
-    void lockUser(Long tenantId, Long userId);
 }

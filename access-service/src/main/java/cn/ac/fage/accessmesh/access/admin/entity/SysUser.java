@@ -66,7 +66,7 @@ public class SysUser {
     private Integer gender;
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（0=停用，1=启用，管理员手工启停；临时锁定不落库——T-ADMIN-022）
      */
     private Integer status;
 
