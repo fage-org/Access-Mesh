@@ -9,7 +9,7 @@ design_refs:
   - docs/design/services/admin-service-api-contract.md
   - docs/design/access-service-architecture.md
 depends_on: [T-ACCESS-021]
-blocks: [T-ACCESS-026]
+blocks: [T-ACCESS-026, T-ADMIN-025]
 acceptance:
   - "detail/page/download 全部补 VIEW 门禁（对齐 upload/delete 已有校验，资源类型按收敛后类型码）"
   - "统一路径安全函数（规范化后必须位于存储根目录内）应用于上传、读取、下载、删除四条路径，替换仅 upload 有检查的现状；filePath 虽源于 DB 仍做纵深防御"
@@ -63,6 +63,27 @@ last_updated: 2026-08-25
 - `mvn test -pl access-service -DskipTestcontainers=true`：**726 用例，0 失败**（2 skip 为既有基线）。
 - `mvn test -pl access-service`（含容器轨）：容器轨 **97 用例，0 失败**，BUILD SUCCESS（总计 823 = 前基线 801 + 本任务新增 22：FileServiceImplTest 16 + FileServiceSecurityPgIT 6）。
 - 本机 Docker 29.7.2 真实容器执行。
+
+## 评审收口（2026-08-25，双轨子代理全面评审：0 P0/P1，10 P2 + 2 存疑全处置）
+
+代码轨结论：securePath containment 经 Windows 本机实证（盘符/盘符相对/UNC/绝对段/兄弟前缀/混合分隔符全拒绝）；afterCommit 异常传播语义（cleanup 内逐文件 catch 为必需）、OperationLog 切面在事务外层（定序正确）、无事务分支不可达性（生产唯一调用方 FileController + Spring 托管事务恒激活同步）均核实通过；旧代码 `BIZ_TYPE_ALLOWED_EXTENSIONS.getOrDefault(null,...)` 实际抛 NPE（HTTP 路径被 controller defaultValue 兜底不可达）——本次归一化是修复而非行为变更。
+
+修复项：
+- **P2-S1**：`@PostConstruct validateStorageConfig` 启动校验 `file.storage.path` 必须绝对路径（fail-fast），配单测（相对路径 IllegalStateException / 绝对路径通过）。
+- **P2-S2**：控制字符剥离双层——`sanitizeFileName` 前置 `replaceAll("\\p{Cntrl}", "")`（写入侧，阻断日志伪造/下载头污染面）+ `downloadFile` 响应头拼接前防御性剥离（读取侧，覆盖剥离前落库的存量 originalName）；配单测 2 例（上传剥离断言 + 下载头剥离断言）。实证本工程内嵌 Tomcat 10.1.19 写出时已中和 CTL，本项为纵深防御与容器可移植性加固。
+- **顺手修复既存缺陷**：sanitizeFileName 长度截断分支在无扩展名文件名下 `substring(0,-1)` SIOOBE（>200 字符无点 → 500）——改为 dot<0 直接截断 + ext 超长 Math.max 防御。
+- **F-1**：FileServiceSecurityPgIT 补 `@AfterAll` 递归清理临时存储根（测试卫生，不再泄漏系统临时目录）。
+- **P2-1**：本卡 `blocks` 补 `T-ADMIN-025`（反链完整）。
+- **P2-2**：看板 T-ADMIN 计数器 025→026。
+- **P2-3**：T-ADMIN-025 移出 plan `tasks:` 闭包（消除「18 项」归档条件与 tasks 19 项的矛盾；任务卡注明 `plan` 字段仅为溯源）。
+- **P2-4**：契约 §4.7.2 FileResp 字段清单修正（原 fileType 重复/漏 fileSuffix，按 record 实序重写 + MIME 双填怪癖注明）。
+- **P2-5**：契约 §7 决策 #14 错误码段口径与附录 B 同步。
+- **P2-6**：`docs/design/architecture.md` 3 处「S3 兼容对象存储」失实残留修正（技术栈表/功能清单/模块表 → 本地磁盘单实例）。
+- **存疑1**：契约 §4.7.3「pageNum/pageSize 可选默认 1」系反向照抄 FilePageReq javadoc 的未实现承诺——契约与 javadoc 同步改为「必填，服务端未实现缺省默认」。
+- **存疑2（symlink）**：登记进 T-ADMIN-025 非目标/遗留（词法 normalize 不解析 symlink，单实例可信盘档位接受）。
+- **登记不修**（P2-7，系统性惯例）：任务卡「用户决策」过程清单与 T-ADMIN-022 等近期 done 卡同款保留；下载 IO 失败路径残留 Content-Disposition 为既存化妆问题不动。
+
+修复后回归：FileServiceImplTest **19/19**（16+3）、FileServiceSecurityPgIT 6/6、全量单测轨/容器轨复跑全绿（见最终提交）。
 
 ## 设计回写（done）
 

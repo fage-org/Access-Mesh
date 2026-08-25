@@ -29,7 +29,6 @@ tasks:
   - T-ADMIN-024
   - T-API-001
   - T-ACCESS-026
-  - T-ADMIN-025
 acceptance: "里程碑 A（核心可运行，与 T-ACCESS-021 固定 8 步一致）：空库启动 → 首管理员（bootstrap 管理角色）真实登录 → 创建目标用户与普通 BASIC_ROLE 并分配给目标用户（角色空权限）→ 为目标接口创建 API 映射 → 目标用户实测 403 → 授权页授予 API:ACCESS → 实测 200 → 重启后仍 200 → 撤权后 30 秒内恢复 403；全过程一套用户 ID、一套资源类型、一套授权事实源；README 状态随 E2E 结论回写。里程碑 B（试点加固）：本计划 18 项任务全部 done 或经确认 cancelled，验证证据登记、access-post-merge-plan 归档。里程碑 B 任务不反向阻塞里程碑 A 的达成声明。"
 last_updated: 2026-08-25
 ---
@@ -158,11 +157,11 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 | [T-ADMIN-024](../tasks/T-ADMIN-024.md) | 恒拒绝退役 API 直接删除 | ⚙️ | T-ACCESS-021 | B |
 | [T-API-001](../tasks/T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | ⚙️ | T-ACCESS-021 | B |
 | [T-ACCESS-026](../tasks/T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | ⚙️ | 全部 B 任务 + T-API-001 | B |
-| [T-ADMIN-025](../tasks/T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE；T-ADMIN-023 执行期用户决策另立） | ⚙️ | T-ADMIN-023 | B+ |
+| [T-ADMIN-025](../tasks/T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE；T-ADMIN-023 执行期用户决策另立） | ⚙️ | T-ADMIN-023 | B+* |
 
 > T-FE-042（前端默认导航收敛）已取消：范围并入 [T-FE-041](../tasks/T-FE-041.md)（同为前端发布面，避免任务碎片化），看板保留 cancelled 记录。
 >
-> T-ADMIN-025（文件夹级授权）为 2026-08-25 T-ADMIN-023 执行期用户决策新增的能力任务（B+）：不在里程碑 B 闭包内、不阻塞 T-ACCESS-026 与本计划归档（归档条件的「18 项」不包含它），完成后按正常任务卡生命周期推进。
+> T-ADMIN-025（文件夹级授权）为 2026-08-25 T-ADMIN-023 执行期用户决策新增的能力任务（B+*）：**不在本计划 `tasks:` 闭包内**（不阻塞 T-ACCESS-026 与本计划按 18 项收口），任务卡 frontmatter 的 `plan` 字段仅为来源溯源；其推进与收口按正常任务卡生命周期独立进行，必要时另立计划承载。
 
 ## 归档条件
 

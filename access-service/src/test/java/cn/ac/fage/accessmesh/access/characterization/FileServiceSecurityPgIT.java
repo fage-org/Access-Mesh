@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.characterization;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -115,6 +116,20 @@ class FileServiceSecurityPgIT {
             postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
              var st = conn.createStatement()) {
             st.execute(sql);
+        }
+    }
+
+    /** 评审收口 F-1：测试结束递归清理临时存储根，避免每次运行泄漏系统临时目录 */
+    @AfterAll
+    static void cleanupStorageRoot() throws Exception {
+        try (var walk = Files.walk(STORAGE_ROOT)) {
+            walk.sorted(java.util.Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (java.io.IOException e) {
+                    // 尽力清理，失败不影响测试结果
+                }
+            });
         }
     }
 

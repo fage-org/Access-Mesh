@@ -10,7 +10,7 @@
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 027 |
 | permission-center | `T-PERM` | 044 |
-| admin-service | `T-ADMIN` | 025 |
+| admin-service | `T-ADMIN` | 026 |
 | gateway | `T-GW` | 008 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
 | 跨服务 API 契约 | `T-API` | 002 |

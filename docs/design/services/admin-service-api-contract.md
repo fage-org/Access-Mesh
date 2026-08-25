@@ -944,12 +944,12 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 #### 4.7.2 `POST /file/detail` 🔧
 
-**请求 DTO**: `IdReq`。**响应**: `PermResult<FileResp>`（`id/fileName/originalName/fileType/fileUrl/fileSize/fileType/storagePath(=file_path)/createdAt`）。
+**请求 DTO**: `IdReq`。**响应**: `PermResult<FileResp>`（字段序：`id/fileName/originalName/fileSuffix/fileUrl/fileSize/fileType/storagePath(=file_path)/createdAt`；既有实现将 MIME 同时填入 `fileSuffix` 与 `fileType` 两位置，消费方按 `fileType` 取 MIME）。
 **错误**: `10501`。**门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
 
 #### 4.7.3 `POST /file/page` 🔧
 
-**请求 DTO**: `FilePageReq { pageNum?, pageSize?, sort?, bizType? }`。**响应**: `PermResult<PaginatedResult<FileResp>>`（按创建时间倒序，可按 bizType 过滤）。
+**请求 DTO**: `FilePageReq { pageNum, pageSize, sort?, bizType? }`（`pageNum/pageSize` 必填——服务端未实现缺省默认值，缺省将失败；`sort/bizType` 可选）。**响应**: `PermResult<PaginatedResult<FileResp>>`（按创建时间倒序，可按 bizType 过滤）。
 **门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
 
 #### 4.7.4 `POST /file/download` 🔧
@@ -1033,7 +1033,7 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 | 11 | `IdReq` 入参字段名为 `id` 而非 `orgId/userId` | 复用公共 record; 前端在 Phase 2 调整 mock 字段 (例如 `/org/users` 入参 `{ id }`) |
 | 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (如 `/role/list`, `/user-org/list`, `/org/users`; **`/org/tree` 已由 T-ADMIN-021 消化, P1-3**) |
 | 13 | `/user/update` 自我修改业务豁免 | 在 AppService 调用门禁前判断 `operatorId == id` 跳过门禁; 不放在门禁层 |
-| 14 | 错误码段 admin-service 子分配 | 用户域 10001-10299 / 组织域 10300-10499 / 关系域 10400-10499 / 角色代理 10500-10599 / 其他保留 10600-19999 |
+| 14 | 错误码段 admin-service 子分配 | 用户域 10001-10299 / 组织域 10300-10499 / 关系域 10400-10499 / 10500 用户-角色代理（退役接口恒 10111）+ 10501-10599 文件模块（附录 B，T-ADMIN-023 起） / 其他保留 10600-19999 |
 
 ---
 

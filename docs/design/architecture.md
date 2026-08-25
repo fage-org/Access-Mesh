@@ -34,7 +34,7 @@ last_reviewed: 2026-08-22
 | 配置中心 | Nacos                              | 与注册中心复用                       |
 | 消息队列 | RocketMQ                           | 预留给未来异步事件；当前无内部同步链路（归并后同库同事务），缓存失效经 Redis pub/sub 广播，不经过 RocketMQ |
 | 缓存     | Redis                              | L2 缓存、Sa-Token 会话存储、分布式锁 |
-| 对象存储 | S3 兼容（MinIO / 阿里云 OSS）      | 文件上传下载                         |
+| 文件存储 | 本地磁盘（file.storage.path）       | 文件上传下载；单实例约束（多实例本地盘不可共享，access-service-architecture §15，T-ADMIN-023 登记） |
 | 任务调度 | Spring Scheduler                   | 轻量定时任务（兼演示权限控制）       |
 | 认证框架 | Sa-Token + OAuth2                  | 多种授权模式并存                     |
 | 链路追踪 | Micrometer Tracing + OpenTelemetry | 分布式 traceId 生成与传递            |
@@ -185,7 +185,7 @@ last_reviewed: 2026-08-22
 - **角色管理**：角色与授权由 permission 域直接提供（`/api/perm/abstract-role` 等），管理端不重复建设
 - **字典管理**：系统字典/枚举值维护
 - **通知/消息**：系统公告 + 站内信
-- **文件/OSS**：S3 标准文件上传下载
+- **文件管理**：本地磁盘文件上传下载（单实例约束，无对象存储）
 - **审计日志**：用户操作行为记录
 - **任务调度**：定时任务管理
 - **系统设置**：系统级配置参数管理
@@ -201,7 +201,7 @@ last_reviewed: 2026-08-22
 | 5   | 角色管理    | ~4         | -（permission 域表）         | 功能角色列表经 `application.query` 跨域只读查询；角色/授权管理直接使用 permission 域接口，旧 admin 侧代理端点已恒拒绝（20045/10111） |
 | 6   | 字典管理    | ~6         | sys_dict_type, sys_dict_data | 字典类型 + 字典数据CRUD，支持缓存                              |
 | 7   | 通知管理    | ~6         | sys_notice, sys_user_notice  | 系统公告 + 站内信，含已读/未读状态                              |
-| 8   | 文件管理    | ~4         | sys_file                     | S3兼容上传/下载/删除，文件元信息持久化                          |
+| 8   | 文件管理    | ~4         | sys_file                     | 本地磁盘上传/下载/删除（单实例约束），文件元信息持久化                          |
 | 9   | 审计日志    | ~3         | operation_log（合并表）      | 操作日志记录 + 查询（`@OperationLog` AOP 自动采集；module=ADMIN/PERMISSION/ACCESS） |
 | 10   | 任务调度    | ~5         | sys_job, sys_job_log, sys_task_execution | Spring Scheduler + 数据库租约（多实例抢占/续租/接管），兼演示定时任务中的权限控制 |
 | 11   | 系统设置    | ~3         | system_config（合并表）      | 系统级参数配置 CRUD（`admin.*`/`permission.*`/`access.*` 命名空间） |

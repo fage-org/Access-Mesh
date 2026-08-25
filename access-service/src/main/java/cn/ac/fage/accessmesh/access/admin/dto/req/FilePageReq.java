@@ -7,19 +7,19 @@ package cn.ac.fage.accessmesh.access.admin.dto.req;
  * 支持按业务类型过滤。
  * </p>
  *
- * @param pageNum  页码（可选，默认1）
- * @param pageSize 每页大小（可选，默认10）
+ * @param pageNum  页码（必填，服务端未实现缺省默认）
+ * @param pageSize 每页大小（必填，服务端未实现缺省默认）
  * @param sort     排序字段（可选）
  * @param bizType  业务类型（可选，用于过滤）
  */
 public record FilePageReq(
     /**
-     * 页码
+     * 页码（必填，服务端未实现缺省默认）
      */
     Integer pageNum,
 
     /**
-     * 每页大小
+     * 每页大小（必填，服务端未实现缺省默认）
      */
     Integer pageSize,
 

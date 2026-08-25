@@ -235,6 +235,51 @@ class FileServiceImplTest {
         verifyNoInteractions(fileMapper);
     }
 
+    @Test
+    @DisplayName("uploadFile 原始文件名含控制字符（CRLF）→ 落库前剥离（防日志伪造/下载头污染）")
+    void uploadFileStripsControlCharactersFromOriginalName() {
+        MockMultipartFile file = new MockMultipartFile(
+            "file", "ev\r\ril.txt", "text/plain", "abc".getBytes());
+
+        service.uploadFile(file, "default");
+
+        var captor = org.mockito.ArgumentCaptor.forClass(SysFile.class);
+        verify(fileMapper).insert(captor.capture());
+        String savedName = captor.getValue().getOriginalName();
+        assertThat(savedName).isEqualTo("evil.txt");
+        assertThat(savedName).doesNotContain("\r").doesNotContain("\n");
+    }
+
+    @Test
+    @DisplayName("启动校验：storagePath 相对路径 → IllegalStateException fail-fast；绝对路径通过")
+    void validateStorageConfigRequiresAbsolutePath() {
+        ReflectionTestUtils.setField(service, "storagePath", "relative/dir");
+        assertThatThrownBy(() -> service.validateStorageConfig())
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("绝对路径");
+
+        ReflectionTestUtils.setField(service, "storagePath", storageRoot.toString());
+        assertThatCode(() -> service.validateStorageConfig()).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("downloadFile DB originalName 含 CRLF → 响应头剥离控制字符")
+    void downloadFileStripsControlCharactersInHeader() throws Exception {
+        Path target = storageRoot.resolve("default/2026/08/25/uuid.txt");
+        Files.createDirectories(target.getParent());
+        Files.writeString(target, "abc");
+        SysFile row = fileRow(1L, "default/2026/08/25/uuid.txt");
+        row.setOriginalName("po\r\nisoned.txt");
+        when(fileMapper.selectValidById(TENANT, 1L)).thenReturn(row);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        byte[] data = service.downloadFile(1L, response);
+
+        assertThat(data).isEqualTo("abc".getBytes());
+        assertThat(response.getHeader("Content-Disposition"))
+            .isEqualTo("attachment; filename=\"poisoned.txt\"");
+    }
+
     // ===== ③ 删除顺序反转（先软删提交、afterCommit 物理清理、失败容忍孤儿） =====
 
     @Test

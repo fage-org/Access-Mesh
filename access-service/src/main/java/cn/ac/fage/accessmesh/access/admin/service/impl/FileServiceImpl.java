@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.admin.service.FileService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import com.mybatisflex.core.paginate.Page;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -165,6 +166,23 @@ public class FileServiceImpl implements FileService {
     public FileServiceImpl(SysFileMapper fileMapper, AdminPermissionValidator permissionValidator) {
         this.fileMapper = fileMapper;
         this.permissionValidator = permissionValidator;
+    }
+
+    /**
+     * 启动校验存储根必须为绝对路径（评审收口 P2-S1）。
+     * <p>
+     * securePath 的 containment 在相对配置下仍成立（相对进程 CWD），但落盘位置随启动目录
+     * 漂移不可预期；fail-fast 优于运行期不可预期行为。
+     * </p>
+     *
+     * @throws IllegalStateException file.storage.path 非绝对路径
+     */
+    @PostConstruct
+    void validateStorageConfig() {
+        if (!Paths.get(storagePath).isAbsolute()) {
+            throw new IllegalStateException(
+                "file.storage.path 必须为绝对路径，当前配置: " + storagePath);
+        }
     }
 
     /**
@@ -462,8 +480,11 @@ public class FileServiceImpl implements FileService {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), "物理文件不存在");
         }
         try {
+            // 评审收口 P2-S2：originalName 源于 DB（可能早于控制字符剥离落库），响应头拼接前
+            // 防御性剥离控制字符，阻断 CRLF 类 header 污染
+            String safeOriginalName = f.getOriginalName() == null ? "" : f.getOriginalName();
             response.setHeader("Content-Disposition",
-                "attachment; filename=\"" + f.getOriginalName() + "\"");
+                "attachment; filename=\"" + safeOriginalName.replaceAll("\\p{Cntrl}", "") + "\"");
             response.setContentType(f.getFileType() != null ? f.getFileType() : "application/octet-stream");
             return Files.readAllBytes(filePath);
         } catch (IOException e) {
@@ -524,8 +545,8 @@ public class FileServiceImpl implements FileService {
     /**
      * 安全化文件名
      * <p>
-     * 移除路径遍历字符和危险字符，防止路径遍历攻击。
-     * 限制文件名长度（最大200字符），保留扩展名。
+     * 移除路径遍历字符、危险字符与控制字符（评审收口 P2-S2：CRLF 可致日志伪造与
+     * 下载头污染，写入侧剥离），限制文件名长度（最大200字符，保留扩展名）。
      * </p>
      *
      * @param fileName 原始文件名
@@ -534,8 +555,9 @@ public class FileServiceImpl implements FileService {
     private String sanitizeFileName(String fileName) {
         if (fileName == null) return null;
 
-        // 移除路径分隔符和危险字符
+        // 移除控制字符（CRLF 等）、路径分隔符和危险字符
         String sanitized = fileName
+            .replaceAll("\\p{Cntrl}", "")
             .replace("/", "")
             .replace("\\", "")
             .replace("..", "")
@@ -548,11 +570,15 @@ public class FileServiceImpl implements FileService {
             .replace(">", "")
             .replace("\"", "");
 
-        // 限制长度（保留扩展名）
+        // 限制长度（保留扩展名；无扩展名直接截断，防 lastIndexOf('.')=-1 越界——评审收口顺手修复）
         if (sanitized.length() > 200) {
-            String ext = getFileExtension(sanitized);
-            String nameWithoutExt = sanitized.substring(0, sanitized.lastIndexOf('.'));
-            sanitized = nameWithoutExt.substring(0, 200 - (ext != null ? ext.length() : 0)) + (ext != null ? ext : "");
+            int dot = sanitized.lastIndexOf('.');
+            if (dot >= 0) {
+                String ext = sanitized.substring(dot);
+                sanitized = sanitized.substring(0, Math.max(0, 200 - ext.length())) + ext;
+            } else {
+                sanitized = sanitized.substring(0, 200);
+            }
         }
 
         return sanitized;
