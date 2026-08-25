@@ -93,4 +93,27 @@ class GatewayCorsConfigValidatorTest {
             new GatewayCorsConfigValidator(propsWith(cors(List.of("*"), null)));
         assertThatCode(validator::afterPropertiesSet).doesNotThrowAnyException();
     }
+
+    @Test
+    @DisplayName("allowed-origins(exact) 含 \"*\" + credentials=true → 启动 fail-fast（评审收口 D-2：兄弟键同样拦）")
+    void exactOriginsWildcardWithCredentialsFailsFast() {
+        CorsConfiguration cfg = new CorsConfiguration();
+        cfg.setAllowedOrigins(List.of("*"));
+        cfg.setAllowCredentials(true);
+        GatewayCorsConfigValidator validator = new GatewayCorsConfigValidator(propsWith(cfg));
+        assertThatThrownBy(validator::afterPropertiesSet)
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("禁止通配 origin");
+    }
+
+    @Test
+    @DisplayName("allowed-origins(exact) 明确列表 + credentials=true → 通过")
+    void exactOriginsExplicitListWithCredentialsPasses() {
+        CorsConfiguration cfg = new CorsConfiguration();
+        cfg.setAllowedOriginPatterns(List.of("http://localhost:8848"));
+        cfg.setAllowedOrigins(List.of("http://localhost:8848"));
+        cfg.setAllowCredentials(true);
+        GatewayCorsConfigValidator validator = new GatewayCorsConfigValidator(propsWith(cfg));
+        assertThatCode(validator::afterPropertiesSet).doesNotThrowAnyException();
+    }
 }

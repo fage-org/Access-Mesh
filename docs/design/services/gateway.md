@@ -120,7 +120,7 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 
 Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter-actuator` + `micrometer-registry-prometheus`。
 
-**端点暴露（T-GW-007 收口）**：`health/info/prometheus/metrics` 全部仅经**独立管理端口**提供——`management.server.port`（默认 8081，`GATEWAY_MANAGEMENT_PORT` 可覆盖）+ `management.server.address`（默认 127.0.0.1 仅同机可达，`GATEWAY_MANAGEMENT_ADDRESS` 可放开）。主端口 8080 **不提供任何 `/actuator/**` 端点**（白名单同步移除，主端口 `/actuator/*` 返回 404）；存活/就绪探针与 Prometheus 抓取一律访问管理端口。注意 Nacos 远端 `gateway.yml` 优先级高于本地 application.yml，远端覆盖需保持一致的收敛口径。
+**端点暴露（T-GW-007 收口）**：`health/info/prometheus/metrics` 全部仅经**独立管理端口**提供——`management.server.port`（默认 8081，`GATEWAY_MANAGEMENT_PORT` 可覆盖）+ `management.server.address`（默认 127.0.0.1 仅同机可达，`GATEWAY_MANAGEMENT_ADDRESS` 可放开）。注意：端口类变量**不支持空串禁用**——空串经 Binder 绑定为 null（等于未配置），管理端口分离会静默回退。主端口 8080 **不提供任何 `/actuator/**` 端点**（白名单同步移除，主端口 `/actuator/*` 返回 404）；存活/就绪探针与 Prometheus 抓取一律访问管理端口。注意 Nacos 远端 `gateway.yml` 优先级高于本地 application.yml，远端覆盖需保持一致的收敛口径。
 
 #### 计数器
 
@@ -166,9 +166,9 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 
 - **部署前提**：生产前端经 nginx 反向代理成同源（浏览器请求全部同源，CORS 无生产消费场景）；开发经 vite 代理同为同源。CORS 仅在直连网关调试场景消费。
 - 配置面：`spring.cloud.gateway.globalcors.cors-configurations.'[/**]'`（Binder 绑定后 map key 为 `/**`）。
-  - `allowed-origin-patterns`：默认 `http://localhost:5173`（开发直连调试），`GATEWAY_CORS_ALLOWED_ORIGINS` 环境变量/Nacos 可覆盖；**显式置空 = CORS 禁用**（同源部署终态：跨域请求不加 CORS 头被浏览器拒绝，启动 INFO 声明）。
+  - `allowed-origin-patterns`：默认 `http://localhost:8848`（前端 dev 实际端口，开发直连调试），`GATEWAY_CORS_ALLOWED_ORIGINS` 环境变量/Nacos 可覆盖；**显式置空 = CORS 禁用**（同源部署终态：跨域请求被 CorsProcessor 主动 403 拒绝且无 CORS 头，启动 INFO 声明）。
   - `allow-credentials: true`（保持；token 走 Authorization 头，无 cookie 依赖，未来接 cookie 会话时不受影响）。
-- **启动 fail-fast**（`GatewayCorsConfigValidator`，校验最终生效值含 Nacos 覆盖后的值）：`allow-credentials=true` 且 origin 列表含任意 `*` 通配 → 启动失败（任意源携带凭证为安全缺陷，含 Nacos 远端旧值回退场景）。缺失/显式空均不放行任意源（fail-closed）。
+- **启动 fail-fast**（`GatewayCorsConfigValidator`，校验最终生效值含 Nacos 覆盖后的值）：`allow-credentials=true` 且 origin 列表（`allowed-origin-patterns` 与兄弟键 `allowed-origins`）含任意 `*` 通配 → 启动失败（任意源携带凭证为安全缺陷，含 Nacos 远端旧值回退场景；exact 键通配若漏到运行期会每请求 500）。缺失/显式空均不放行任意源（fail-closed）。
 - 匿名白名单（`gateway.whitelist.paths`）：`/auth/**`、`/public/**`、`/captcha/**`；`/actuator/**` 已全部移除（管理端口提供，见「监控指标」段）。
 
 ## 与权限中心的约定

@@ -58,14 +58,14 @@ spring:
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
       # T-GW-007 CORS 环境化（用户口径 2026-08-25：生产 nginx 同源代理，CORS 无生产消费场景）：
-      # - 默认 http://localhost:5173 仅供开发直连调试（vite 代理模式下同源不触发 CORS）
-      # - GATEWAY_CORS_ALLOWED_ORIGINS 显式置空 = CORS 禁用（同源部署终态，跨域请求不加 CORS 头被浏览器拒绝）
+      # - 默认 http://localhost:8848 仅供开发直连调试（前端 dev 实际端口，vite 代理模式下同源不触发 CORS）
+      # - GATEWAY_CORS_ALLOWED_ORIGINS 显式置空 = CORS 禁用（同源部署终态：跨域请求被主动 403 拒绝且无 CORS 头）
       # - 通配 origin（含 "*"）+ allow-credentials=true 由 GatewayCorsConfigValidator 启动 fail-fast 拒绝
       # - 注意 Nacos 远端 gateway.yml 优先级更高：远端覆盖值同样经校验器（含旧 "*" 值会启动失败）
       globalcors:
         cors-configurations:
           '[/**]':
-            allowed-origin-patterns: ${GATEWAY_CORS_ALLOWED_ORIGINS:http://localhost:5173}
+            allowed-origin-patterns: ${GATEWAY_CORS_ALLOWED_ORIGINS:http://localhost:8848}
             allowed-methods: "*"
             allowed-headers: "*"
             allow-credentials: true
@@ -163,6 +163,8 @@ gateway:
 # T-GW-007：actuator 与主端口分离——health/info/prometheus/metrics 全部仅经独立管理端口提供，
 # 主端口 8080 无任何 /actuator/** 端点（白名单同步移除）；存活/就绪探针与 Prometheus 抓取改访问管理端口。
 # 管理端口默认绑定回环地址（仅同机可达）；远程抓取/容器化部署经 GATEWAY_MANAGEMENT_ADDRESS 放开。
+# 注意：GATEWAY_MANAGEMENT_PORT 不支持空串禁用——空串经 Binder 绑定为 null（等于未配置），
+# 会使管理端口分离静默回退（actuator 回到主端口匿名可达）；放开/覆盖必须给完整值。
 # 注意 Nacos 远端 gateway.yml 优先级更高，生产覆盖需保持一致的收敛口径（远端旧值同样受
 # GatewayCorsConfigValidator 与本端口默认值约束面控制）。
 management:

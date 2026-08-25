@@ -2,6 +2,8 @@ package cn.ac.fage.accessmesh.gateway;
 
 import cn.ac.fage.accessmesh.gateway.cache.PermInvalidationSubscriber;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
+import org.springframework.cloud.gateway.config.GlobalCorsProperties;
+import org.springframework.web.cors.CorsConfiguration;
 import cn.dev33.satoken.SaManager;
 import cn.dev33.satoken.config.SaTokenConfig;
 import org.junit.jupiter.api.DisplayName;
@@ -236,13 +238,11 @@ class GatewayApplicationConfigTest {
     @Test
     @DisplayName("T-GW-007 CORS 环境化绑定：默认 localhost 列表 + credentials + 管理端口分离")
     void corsEnvironmentalizedAndManagementPortSplit() {
-        org.springframework.cloud.gateway.config.GlobalCorsProperties cors =
-            applicationContext.getBean(org.springframework.cloud.gateway.config.GlobalCorsProperties.class);
-        org.springframework.web.cors.CorsConfiguration cfg =
-            cors.getCorsConfigurations().get("/**");
+        GlobalCorsProperties cors = applicationContext.getBean(GlobalCorsProperties.class);
+        CorsConfiguration cfg = cors.getCorsConfigurations().get("/**");
         assertNotNull(cfg, "globalcors /** 配置必须存在（yml 键 '[/**]' 经 Binder 绑定后 key 为 /**）");
-        assertTrue(java.util.List.of("http://localhost:5173").equals(cfg.getAllowedOriginPatterns()),
-            "allowed-origin-patterns 默认必须为明确 localhost 列表（开发直连调试；T-GW-007）,实际 "
+        assertTrue(java.util.List.of("http://localhost:8848").equals(cfg.getAllowedOriginPatterns()),
+            "allowed-origin-patterns 默认必须为明确 localhost 列表（前端 dev 实际端口 8848，开发直连调试；T-GW-007），实际 "
                 + cfg.getAllowedOriginPatterns());
         assertTrue(Boolean.TRUE.equals(cfg.getAllowCredentials()), "allow-credentials 默认 true");
 
