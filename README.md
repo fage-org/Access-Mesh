@@ -72,7 +72,7 @@ Gateway (8080)
     mvn spring-boot:run -pl access-service
   ```
 
-- **启动顺序**：基础设施 → access-service (9100) → Gateway (8080) → 前端（`frontend/`，开发模式 `npm run dev`）。
+- **启动顺序**：基础设施 → access-service (9100) → Gateway (8080) → example-service (9300，可选) → 前端（`frontend/`，开发模式 `npm run dev`）。example-service 演示受保护接口 `POST /api/example/demo/hello`（经 Gateway `/example/**` 访问）：启动须与 Gateway 同源注入 `ACCESSMESH_SIGNATURE_SECRET`（身份签名校验，密钥不一致或缺失时所有经 Gateway 的请求返回信封 30003）；接口需先在 access-service 注册 API 资源与映射并授权后方可 200（接入步骤见 [example-service 设计](docs/design/services/example-service.md)）。
 - **时间语义（部署说明，T-ACCESS-024）**：全链路 UTC 墙钟——JVM 默认时区由 common 启动即强制 UTC（代码级，日志时间戳与 cron 调度随之统一 UTC；部署无需 `-Duser.timezone`/`TZ` 约定），TIMESTAMPTZ 读写经全局 TypeHandler 显式 UTC 换算（连接串无时区参数，禁带 `serverTimezone`）；API 返回 ISO-8601 无偏移字符串（语义=UTC 墙钟），前端展示时区转换按需另行处理。切换前由非 UTC JVM 写入的开发数据卷读取墙钟会整体偏移，`docker compose down -v` 重建即可（无生产数据、不做迁移）。详见 [归并后目标架构 §16](docs/design/access-service-architecture.md)。
 - **前端**：真实登录链路已通（T-FE-041）——`pnpm dev` 默认走真实 `/auth` 链路（vite 代理 `/auth`、`/admin`、`/perm`、`/example` → Gateway 8080，目标可经 `VITE_PROXY_TARGET` 覆盖）；纯 mock 联调可置 `VITE_MOCK_LOGIN=true`（.env.development）。注意默认端口 8848 与 Nacos 控制台端口相同，本机同时起 Nacos 容器时以 `VITE_PORT=8890` 等覆盖启动。默认导航仅显示登录/主页/授权页（其余管理页路由保留隐藏，Phase 3 逐页开放）。
 - **当前限制**：E2E 目标用户与普通角色不在 bootstrap 范围（随 T-ACCESS-021 授权 E2E 创建）；管理页面（组织与用户、角色管理等）仍为 mock 联调。

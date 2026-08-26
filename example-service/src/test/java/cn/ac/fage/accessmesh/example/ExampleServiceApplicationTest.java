@@ -110,4 +110,30 @@ class ExampleServiceApplicationTest {
         assertThat(json.readTree(badSig).path("code").asInt())
             .as("错误签名必须被拒绝（30003），响应：" + badSig).isEqualTo(30003);
     }
+
+    @Test
+    @DisplayName("签名时间戳超窗（过期/未来）：拒绝 30003")
+    void staleOrFutureTimestamp_rejectedWith30003() throws Exception {
+        for (long ts : new long[] {System.currentTimeMillis() / 1000 - 3600,
+                                   System.currentTimeMillis() / 1000 + 3600}) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("X-User-Id", "42");
+            headers.set("X-Tenant-Id", "1");
+            try {
+                javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+                mac.init(new javax.crypto.spec.SecretKeySpec(
+                    "test-signature-secret".getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+                byte[] sig = mac.doFinal(("42|1|" + ts).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                headers.set("X-User-Signature", java.util.HexFormat.of().formatHex(sig));
+                headers.set("X-Signature-Timestamp", String.valueOf(ts));
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
+            String raw = rest.postForObject("/api/example/demo/hello",
+                new HttpEntity<>(Map.of("name", "AccessMesh"), headers), String.class);
+            assertThat(json.readTree(raw).path("code").asInt())
+                .as("时间戳超窗（ts=" + ts + "）必须被拒绝（30003），响应：" + raw).isEqualTo(30003);
+        }
+    }
 }

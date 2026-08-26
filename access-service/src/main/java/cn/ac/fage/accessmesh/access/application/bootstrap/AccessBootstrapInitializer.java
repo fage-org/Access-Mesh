@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  * 幂等三状态（固定图子集匹配口径，2026-08-24 用户决策）：
  * <ol>
  *   <li><b>固定图完全不存在</b> → 本事务内创建完整固定图（首管理员主体链 + 管理用功能角色 +
- *       SERVICE/API 资源与映射 + 20 条授权）；</li>
+ *       SERVICE/API 资源与映射 + 21 条授权）；</li>
  *   <li><b>固定图完整匹配</b> → 整体 no-op，绝不重置密码（name/密码/邮箱等可变属性不参与匹配）；
  *       固定图之外的数据（E2E 等管理链路创建的用户/角色/授权）不构成冲突——否则 T-ACCESS-021
  *       第⑦步"重启后权限仍生效"无法通过；</li>
@@ -204,7 +204,7 @@ public class AccessBootstrapInitializer {
         if (serviceResourcePresent && (serviceResources.get(0).getStatus() == null
                 || serviceResources.get(0).getStatus() != 1)) {
             conflicts.add("SERVICE 资源 '" + BootstrapGraphDefinition.SERVICE_RESOURCE_CODE
-                + "' 已停用 (status=" + serviceResources.get(0).getStatus() + ")——实例级 SERVICE 授权不生效");
+                + "' 已停用 (status=" + serviceResources.get(0).getStatus() + ")——固定图种子对象失效");
         }
 
         // —— API 资源（13 个）——
@@ -258,7 +258,7 @@ public class AccessBootstrapInitializer {
             }
         }
 
-        // —— 授权（20 条，子集匹配：固定图条目齐全即可，角色上的多余授权不冲突） ——
+        // —— 授权（21 条，子集匹配：固定图条目齐全即可，角色上的多余授权不冲突） ——
         if (rolePresent && roleId != null) {
             Set<GrantKey> existing = seedWriter.findValidGrants(tenantId, roleId).stream()
                 .map(GrantKey::of)
@@ -331,7 +331,7 @@ public class AccessBootstrapInitializer {
         // 绑定
         seedWriter.insertRoleBinding(tenantId, subjectId, roleId);
 
-        // SERVICE 资源（实例级 SERVICE:MANAGE_API_MAPPING 的绑定对象）
+        // SERVICE 资源（固定图种子对象；MANAGE_API_MAPPING 已类型级，保留供未来实例级授权）
         Long serviceResourceId = seedWriter.insertResource(tenantId,
             resourceTypes.get(ResourceTypeCode.SERVICE),
             BootstrapGraphDefinition.SERVICE_RESOURCE_CODE, BootstrapGraphDefinition.SERVICE_RESOURCE_NAME);
@@ -350,7 +350,7 @@ public class AccessBootstrapInitializer {
             }
         }
 
-        // 授权（20 条：业务门禁 7 + 实例级 API:ACCESS 13）
+        // 授权（21 条：业务门禁 8（全 scopeAll，含 SERVICE:MANAGE_API_MAPPING 与 API:ACCESS 两条类型级）+ 实例级 API:ACCESS 13）
         List<RoleResourcePermission> grants = buildExpectedGrants(
             tenantId, roleId, resourceTypes, operationBits, apiResourceIds, serviceResourceId);
         seedWriter.insertGrants(tenantId, roleId, grants);
@@ -450,7 +450,7 @@ public class AccessBootstrapInitializer {
         return value;
     }
 
-    /** 固定图 20 条授权所需操作位（resourceTypeCode:operationCode → binary_bit，缺失 fail-fast）。 */
+    /** 固定图 21 条授权所需操作位（resourceTypeCode:operationCode → binary_bit，缺失 fail-fast）。 */
     private Map<String, Long> loadOperationBits(Long tenantId, Map<String, Integer> resourceTypes) {
         Set<Integer> typeValues = new HashSet<>(resourceTypes.values());
         Set<String> operationCodes = BootstrapGraphDefinition.allGrants().stream()

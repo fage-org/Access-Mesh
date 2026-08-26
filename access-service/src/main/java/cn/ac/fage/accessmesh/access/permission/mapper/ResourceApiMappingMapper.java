@@ -64,6 +64,17 @@ public interface ResourceApiMappingMapper extends BaseMapper<ResourceApiMapping>
                                                 @Param("resourceIds") Set<Long> resourceIds);
 
     /**
+     * 查询服务下全部启用的 API 映射（接口快照的 scopeAll 展开用：类型级 API 授权
+     * 展开为「全部已注册接口」时按 serviceCode 取全量 enabled 映射）
+     *
+     * @param tenantId    租户ID
+     * @param serviceCode 服务编码
+     * @return 映射列表
+     */
+    List<ResourceApiMapping> selectEnabledByServiceCode(@Param("tenantId") Long tenantId,
+                                                        @Param("serviceCode") String serviceCode);
+
+    /**
      * 根据租户ID、可选资源ID和可选服务编码查询有效映射列表
      *
      * @param tenantId   租户ID

@@ -39,17 +39,19 @@ public class GatewaySignatureFilter extends OncePerRequestFilter {
 
     private static final Logger log = LoggerFactory.getLogger(GatewaySignatureFilter.class);
     private static final String HMAC_SHA256 = "HmacSHA256";
-    /** 与 Gateway 侧 perm.signature.valid-seconds 同源的签名时效窗（秒） */
-    private static final long VALID_SECONDS = 300;
 
     private final String secret;
+    /** 签名时效窗（秒），与 access-service perm.signature.valid-seconds 运维同调 */
+    private final long validSeconds;
     private final ObjectMapper objectMapper;
     private volatile boolean secretConfigured;
 
     public GatewaySignatureFilter(
             @Value("${example.signature.secret:${ACCESSMESH_SIGNATURE_SECRET:}}") String secret,
+            @Value("${example.signature.valid-seconds:300}") long validSeconds,
             ObjectMapper objectMapper) {
         this.secret = secret;
+        this.validSeconds = validSeconds;
         this.objectMapper = objectMapper;
     }
 
@@ -99,7 +101,7 @@ public class GatewaySignatureFilter extends OncePerRequestFilter {
         } catch (NumberFormatException e) {
             return false;
         }
-        if (Math.abs(System.currentTimeMillis() / 1000 - ts) > VALID_SECONDS) {
+        if (Math.abs(System.currentTimeMillis() / 1000 - ts) > validSeconds) {
             return false;
         }
         try {

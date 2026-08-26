@@ -51,10 +51,10 @@ class SnapshotAssemblerTest {
         // ACCESS 操作位固定为 1（与 DDL 种子位无耦合——测试只验证按位过滤逻辑本身）
         cn.ac.fage.accessmesh.access.permission.entity.OperationPermission access =
             new cn.ac.fage.accessmesh.access.permission.entity.OperationPermission();
+        access.setCode("ACCESS");
         access.setBinaryBit(1L);
-        org.mockito.Mockito.when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
-                org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.any(),
-                org.mockito.ArgumentMatchers.any()))
+        org.mockito.Mockito.lenient().when(operationPermissionMapper.selectByTenantAndResourceType(
+                org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.any()))
             .thenReturn(java.util.List.of(access));
     }
 
@@ -64,7 +64,7 @@ class SnapshotAssemblerTest {
             + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}";
         PermissionCondition cond = newCondition(true, rules);
         when(conditionMapper.selectValidByIds(eq(TENANT_ID), any())).thenReturn(List.of(cond));
-        when(apiMappingMapper.selectForSnapshot(eq(TENANT_ID), eq(SERVICE_CODE), any()))
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
         PermResult result = resultWith(entryWithCondition(RESOURCE_ID, CONDITION_ID));
@@ -83,7 +83,7 @@ class SnapshotAssemblerTest {
             + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}";
         PermissionCondition cond = newCondition(false, rules);
         when(conditionMapper.selectValidByIds(eq(TENANT_ID), any())).thenReturn(List.of(cond));
-        when(apiMappingMapper.selectForSnapshot(eq(TENANT_ID), eq(SERVICE_CODE), any()))
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
         PermResult result = resultWith(entryWithCondition(RESOURCE_ID, CONDITION_ID));
@@ -102,7 +102,7 @@ class SnapshotAssemblerTest {
             + "{\"type\":\"ORG_SCOPE\",\"params\":{\"orgIds\":[1]}}]}";
         PermissionCondition cond = newCondition(true, rules);
         when(conditionMapper.selectValidByIds(eq(TENANT_ID), any())).thenReturn(List.of(cond));
-        when(apiMappingMapper.selectForSnapshot(eq(TENANT_ID), eq(SERVICE_CODE), any()))
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
         PermResult result = resultWith(entryWithCondition(RESOURCE_ID, CONDITION_ID));
@@ -124,7 +124,7 @@ class SnapshotAssemblerTest {
             + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}";
         PermissionCondition cond = newCondition(true, rules);
         when(conditionMapper.selectValidByIds(eq(TENANT_ID), any())).thenReturn(List.of(cond));
-        when(apiMappingMapper.selectForSnapshot(eq(TENANT_ID), eq(SERVICE_CODE), any()))
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
         // 角色A：无条件授权；角色B：含条件授权（IP 白名单）
@@ -155,7 +155,7 @@ class SnapshotAssemblerTest {
             + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}";
         PermissionCondition cond = newCondition(true, rules);
         when(conditionMapper.selectValidByIds(eq(TENANT_ID), any())).thenReturn(List.of(cond));
-        when(apiMappingMapper.selectForSnapshot(eq(TENANT_ID), eq(SERVICE_CODE), any()))
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
         RolePermEntry roleA = new RolePermEntry(
@@ -176,7 +176,7 @@ class SnapshotAssemblerTest {
     void shouldExcludeNonAccessOperations_fromSnapshot() {
         // 快照路径与 fallback check-interface 同口径：仅 ACCESS 操作码构成 Gateway 放行依据，
         // API 资源的 VIEW/UPDATE 等非 ACCESS 授权是资源管理语义，不得被网关当作接口放行
-        when(apiMappingMapper.selectForSnapshot(eq(TENANT_ID), eq(SERVICE_CODE), any()))
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
         RolePermEntry viewOnly = new RolePermEntry(
@@ -198,6 +198,85 @@ class SnapshotAssemblerTest {
         // 仅 ACCESS 实例条目进入快照；VIEW 实例与 VIEW scopeAll 均被排除
         assertThat(entries).hasSize(1);
         assertThat(entries.get(0).scopeMode()).isEqualTo(ScopeMode.INSTANCE);
+    }
+
+    @Test
+    void shouldExpandScopeAll_toEnabledMappingsAsInstance() {
+        // 类型级 API 授权语义=「全部已注册 API」：scopeAll 条目展开为该 serviceCode 全部
+        // enabled 映射的 INSTANCE 条目（含 method/path），不输出 ALL 通配——未注册接口
+        // 维持默认拒绝（§14.2 禁止 API 类型级 scopeAll 大包授权）
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
+            .thenReturn(List.of(
+                apiMapping("POST", "/api/order"),
+                apiMapping("GET", "/api/order")));
+
+        RolePermEntry scopeAll = new RolePermEntry(
+            1L, 10L, null, null, API_TYPE, 1L, null, null,
+            "DIRECT", true, null, false, null, true);
+        PermResult result = PermResult.builder(true, "ok")
+            .scopeAllEntries(List.of(scopeAll))
+            .build();
+
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+
+        assertThat(entries).hasSize(2);
+        assertThat(entries).allMatch(e -> e.scopeMode() == ScopeMode.INSTANCE);
+        assertThat(entries).anyMatch(e -> "POST".equals(e.httpMethod()) && "/api/order".equals(e.pathPattern()));
+        assertThat(entries).anyMatch(e -> "GET".equals(e.httpMethod()) && "/api/order".equals(e.pathPattern()));
+    }
+
+    @Test
+    void shouldExpandScopeAllPerMapping_whenConditional() {
+        // 含条件的 scopeAll 授权：每个映射保留条件语义（条件规则内联或置 null 走 fallback）
+        String rules = "{\"logic\":\"AND\",\"items\":["
+            + "{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}";
+        PermissionCondition cond = newCondition(true, rules);
+        when(conditionMapper.selectValidByIds(eq(TENANT_ID), any())).thenReturn(List.of(cond));
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
+            .thenReturn(List.of(apiMapping("POST", "/api/order"), apiMapping("GET", "/api/order")));
+
+        RolePermEntry scopeAll = new RolePermEntry(
+            1L, 10L, null, null, API_TYPE, 1L, null, null,
+            "DIRECT", true, CONDITION_ID, true, null, true);
+        PermResult result = PermResult.builder(true, "ok")
+            .scopeAllEntries(List.of(scopeAll))
+            .build();
+
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+
+        assertThat(entries).hasSize(2);
+        assertThat(entries).allMatch(e -> e.hasCondition() && CONDITION_ID.equals(e.conditionId())
+            && rules.equals(e.conditionRules()));
+    }
+
+    @Test
+    void shouldHonorInheritedAccessBit_viaInheritMask() {
+        // 继承位语义与 fallback 引擎一致：自定义操作 effectiveBits(binaryBit|inheritMask)
+        // 覆盖 ACCESS 位时，持该操作（grantedBits 只含其 binaryBit）同样构成接口放行
+        cn.ac.fage.accessmesh.access.permission.entity.OperationPermission access =
+            new cn.ac.fage.accessmesh.access.permission.entity.OperationPermission();
+        access.setCode("ACCESS");
+        access.setBinaryBit(1L);
+        // MANAGE_API 位 4，inheritMask=1（继承 ACCESS）→ effectiveBits=5
+        cn.ac.fage.accessmesh.access.permission.entity.OperationPermission manageApi =
+            new cn.ac.fage.accessmesh.access.permission.entity.OperationPermission();
+        manageApi.setCode("MANAGE_API");
+        manageApi.setBinaryBit(4L);
+        manageApi.setInheritMask(1L);
+        org.mockito.Mockito.when(operationPermissionMapper.selectByTenantAndResourceType(
+                org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.any()))
+            .thenReturn(java.util.List.of(access, manageApi));
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
+            .thenReturn(List.of(apiMapping("POST", "/api/order")));
+
+        RolePermEntry inheritedOnly = new RolePermEntry(
+            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 4L, "MANAGE_API", 4L,
+            "DIRECT", true, null, false, null, false);
+        PermResult result = resultWith(inheritedOnly);
+
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+
+        assertThat(entries).as("经 inheritMask 继承 ACCESS 的操作必须进入快照").hasSize(1);
     }
 
     // ===== helpers =====

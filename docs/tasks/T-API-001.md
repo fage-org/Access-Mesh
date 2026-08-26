@@ -64,14 +64,16 @@ example-service 仍是启动骨架（仅 Application 类，无任何 Controller�
 
 - **交付后加固记录（评审处置）**：① 接口快照路径补 ACCESS 操作码过滤（`SnapshotAssembler` 原只按 API 资源类型过滤，非 ACCESS 操作的 API 授权也会被 Gateway 视为接口放行，与 fallback check-interface 语义不一致——属既有缺陷，补 `OPERATION_ACCESS` 过滤与 fallback 双路径同口径，SnapshotAssemblerTest 6 用例含「非 ACCESS 排除」回归）；② example 增 `GatewaySignatureFilter`（身份信任链示例）：复算 Gateway SignatureEnrichFilter 的 HMAC-SHA256（`HMAC(secret, userId|tenantId|timestamp)`，时效窗 300s 同 Gateway valid-seconds，常量时间比较），携带身份头但签名缺失/不匹配/密钥未配置一律拒绝信封 30003（fail-closed）；信任边界的根本保障仍是网络隔离，签名为纵深防御演示，控制器 javadoc 同口径改写；③ EPP 注册断言改 `ClassLoader.getResources` 枚举全部 `META-INF/spring.factories`（消除类路径顺序脆弱性，与 SpringFactoriesLoader 合并语义一致）；④ 文档治理修复：任务卡过程句、architecture.md 基础设施图 example_db/交互矩阵 OpenFeign 行/perm-data 树注释三处旧事实、BootstrapGraphDefinition 注释计数 7→8/20→21、example-service.md SDK 参考（标注规划口径）与数据库（无数据源）章节矛盾、access-service-architecture §14.4 补首管理员「内置 API 超管」语义强度提示、§14.7 存量轮次词改当前口径。
 
+- **交付后加固记录（外部复审二轮）**：① P1 语义修正——API 类型级 scopeAll 快照装配不再输出 ALL 通配条目，改展开为该 serviceCode 全部 enabled 映射的 INSTANCE 条目（条件语义保留，`ResourceApiMappingMapper.selectEnabledByServiceCode` 一次性查询）：原实现经 ALL 条目使 Gateway 对该服务任意路由路径（含未注册接口）直接放行，违反 §14.2「禁止 API 类型级 scopeAll 大包授权」与未注册默认拒绝口径；类型级授权语义钉死为「全部已注册 API」，新增映射经快照 TTL/广播窗口生效；② 快照 ACCESS 位掩码补继承语义——`resolveAccessCoverageMask` 取「有效位（binaryBit|inheritMask）覆盖 ACCESS 的全部操作位」，与 fallback 引擎一致（自定义操作经 inheritMask 继承 ACCESS 时快照同样放行）；不采用 `PermResult.effectiveOperationEntries`（无 conditionId 投影，条件装配必需），单次 mapper 查询不变；③ example POM 排除 `spring-boot-starter-logging`（web starter 传递 Logback 与显式 log4j2 starter 双 Provider，实际选择 Logback 导致 log4j2-spring.xml 全部被忽略）+ 修复 log4j2-spring.xml `Property` 元素层级错误（Log4j2 真正生效后暴露）；④ 签名时效窗可配置 `example.signature.valid-seconds`（默认 300，与 access-service `perm.signature.valid-seconds` 运维同调）；⑤ README 启动顺序补 example-service（含 ACCESSMESH_SIGNATURE_SECRET 同源要求与 30003 行为）；⑥ AccessBootstrapInitializer 五处注释计数 20→21/门禁 7→8/实例级 SERVICE 残留表述、§14.7「（第二轮）」轮次词、未用 import 清理。SnapshotAssemblerTest 6→9（scopeAll 展开/含条件展开/inheritMask 继承），ExampleServiceApplicationTest 3→4（时间戳超窗过期+未来）。
+
 **遗留登记**：`docs/design/schema/example-service.sql` 无消费方（瘦身删数据源），保留供未来演示数据场景；Nacos 远端若持有 example 旧配置需清理（bootstrap.yml 死配置时期远端从未生效，无迁移负担）。
 
 **验证证据（Windows 11 + WSL2 docker-desktop，2026-08-26）**：
 
 | 验证项 | 命令 | 结果 |
 | --- | --- | --- |
-| example 单测 | `mvn -pl example-service test` | Tests run: 6, Failures: 0（DemoControllerTest 3：回显/30001/30002；ExampleServiceApplicationTest 3：瘦身后上下文启动+信封回显+全局异常 30001+伪造身份头 30003） |
+| example 单测 | `mvn -pl example-service test` | Tests run: 7, Failures: 0（DemoControllerTest 3：回显/30001/30002；ExampleServiceApplicationTest 4：上下文启动+信封回显+30001+伪造身份头 30003+时间戳超窗 30003） |
 | example E2E（三子进程 403→200） | `mvn -pl gateway test -Dtest=ExampleProtectedApiE2EIT` | Tests run: 6, Failures: 0（④真实 403 → ⑥ 200+身份回显+30001+直连伪造身份头 30003；加固后复跑全绿） |
-| access-service 单测轨 | `mvn -pl access-service test -DskipTestcontainers=true` | Tests run: 737, Failures: 0（基线 736 + SnapshotAssemblerTest 新增「非 ACCESS 操作位排除」回归 1；AccessServiceApplicationTest 10/10 含枚举式 EPP 断言） |
+| access-service 单测轨 | `mvn -pl access-service test -DskipTestcontainers=true` | 740 全绿（基线 736 + SnapshotAssemblerTest 新增 3：非 ACCESS 排除/scopeAll 展开/inheritMask 继承；AccessServiceApplicationTest 10/10 含枚举式 EPP 断言——加固后复跑） |
 | access-service 容器轨（bootstrap 图变更回归） | `mvn -pl access-service test` | Tests run: 98, Failures: 0（AccessBootstrapPgIT 14/14：授权计数 20→21/scopeAll 6→8/canGrant 2 同步更新） |
 | gateway 全量（BasicRoleGrant E2E 回归 + 新 E2E） | `mvn -pl gateway test` | 单测轨 93 + 容器轨 14 全绿（BasicRoleGrantVerticalSliceE2EIT 8/8 回归通过——类型级化未破坏原链路；ExampleProtectedApiE2EIT 6/6） |

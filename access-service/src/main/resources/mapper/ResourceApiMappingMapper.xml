@@ -41,6 +41,14 @@
           AND enabled = true
     </select>
 
+    <select id="selectEnabledByServiceCode" resultType="cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping">
+        SELECT * FROM resource_api_mapping
+        WHERE tenant_id = #{tenantId}
+          AND service_code = #{serviceCode}
+          AND delete_flag = 0
+          AND enabled = true
+    </select>
+
     <select id="selectValidList" resultType="cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping">
         SELECT * FROM resource_api_mapping
         WHERE tenant_id = #{tenantId}
