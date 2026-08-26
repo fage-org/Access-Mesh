@@ -430,8 +430,8 @@ private LocalDateTime deletedAt;
 
 - **全面使用 Java 8+ 时间 API**：`LocalDateTime`、`LocalDate`、`LocalTime`。
 - **禁止**使用 `java.util.Date`、`java.sql.Timestamp`、`java.sql.Date`。
-- 数据库时区统一为 UTC，应用层转换为本地时区后展示。
-- Jackson 序列化配置：`LocalDateTime` 序列化为 ISO-8601 字符串（`"2026-04-21T10:00:00"`）。
+- **时间语义全链路 UTC（T-ACCESS-024）**：JVM 默认时区由 common `UtcTimezoneEnvironmentPostProcessor` 启动即强制 UTC（代码级，应用与 `@SpringBootTest` 同源生效，部署无需 `-Duser.timezone`/`TZ`）；`LocalDateTime` ↔ TIMESTAMPTZ 由全局 `TimestamptzLocalDateTimeTypeHandler` 显式按 UTC 换算（经 `OffsetDateTime`，不经 `java.sql.Timestamp`/JVM 时区漂移；handler 落位 access-service、经 `MybatisFlexTypeHandlerConfig` 全局注册，新服务模块引入 DB 实体时须复制同等 handler——不上提 common 以免引入 ORM 依赖）；JDBC URL 禁止携带 `serverTimezone`（MySQL 语义参数，pgjdbc 忽略且误导）。未来多时区部署另立任务，本项目不做跨时区支持。
+- Jackson 序列化配置：`LocalDateTime` 序列化为 ISO-8601 字符串（`"2026-04-21T10:00:00"`，无偏移，语义=UTC 墙钟）；全局 ObjectMapper（common `cacheObjectMapper`）时区固定 UTC。前端展示时区转换按需另行处理，服务端不做「应用层转本地时区」。
 
 ### 7.5 Record 使用规范
 

@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.common.cache;
 import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
 import cn.ac.fage.accessmesh.common.cache.impl.CombinedL1L2Store;
 import cn.ac.fage.accessmesh.common.cache.impl.RedissonBucketStore;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.redisson.api.RedissonClient;
@@ -17,6 +18,20 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.Mockito.mock;
 
 class CacheAutoConfigurationTest {
+
+    @Test
+    void cacheObjectMapperShouldUseUtcTimezone() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.register(CacheAutoConfiguration.class);
+            context.refresh();
+
+            ObjectMapper mapper = context.getBean(ObjectMapper.class);
+
+            // T-ACCESS-024：时间序列化统一 UTC。LocalDateTime 本身无时区（ISO 无偏移），
+            // setTimeZone(UTC) 是对未来引入 Date 等带时区类型的防御性兜底
+            assertEquals("UTC", mapper.getSerializationConfig().getTimeZone().getID());
+        }
+    }
 
     @Test
     void cacheServiceShouldFallbackToL1OnlyWhenRedissonStoresAreUnavailable() throws Exception {

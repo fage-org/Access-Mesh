@@ -152,7 +152,7 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 | [T-PERM-043](../tasks/T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | ✅ | T-ACCESS-019, T-ACCESS-021 | B |
 | [T-ADMIN-023](../tasks/T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | ✅ | T-ACCESS-021 | B |
 | [T-GW-007](../tasks/T-GW-007.md) | Gateway CORS 环境化与 actuator 暴露收口 | ✅ | T-ACCESS-021 | B |
-| [T-ACCESS-024](../tasks/T-ACCESS-024.md) | 时间语义 UTC 统一（TypeHandler/JDBC/JVM） | ⚙️ | T-ACCESS-021 | B |
+| [T-ACCESS-024](../tasks/T-ACCESS-024.md) | 时间语义 UTC 统一（TypeHandler/JDBC/JVM） | ✅ | T-ACCESS-021 | B |
 | [T-ACCESS-025](../tasks/T-ACCESS-025.md) | 操作日志收敛（默认不序列化参数，复用 summary 摘要） | ⚙️ | T-ACCESS-021 | B |
 | [T-ADMIN-024](../tasks/T-ADMIN-024.md) | 恒拒绝退役 API 直接删除 | ⚙️ | T-ACCESS-021 | B |
 | [T-API-001](../tasks/T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | ⚙️ | T-ACCESS-021 | B |

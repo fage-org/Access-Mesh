@@ -17,7 +17,9 @@ spring:
     # stringtype=unspecified（T-ACCESS-002 评审修复）：全项目 JSONB 列由实体 String 映射，
     # PGJDBC 默认 stringtype=VARCHAR 在真实 PostgreSQL 上对 JSONB 列写入报 42804 类型不匹配；
     # unspecified 让服务端按目标列推断类型（PGJDBC 官方推荐），一处配置覆盖全部 JSONB 列。
-    url: jdbc:postgresql://127.0.0.1:5432/access_db?useSSL=false&serverTimezone=Asia/Shanghai&stringtype=unspecified
+    # serverTimezone 残留已删（T-ACCESS-024）：MySQL 语义参数，pgjdbc 忽略且误导；
+    # TIMESTAMPTZ 换算由 TypeHandler 显式 UTC 承担，JVM 时区由 common EPP 强制 UTC。
+    url: jdbc:postgresql://127.0.0.1:5432/access_db?useSSL=false&stringtype=unspecified
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver

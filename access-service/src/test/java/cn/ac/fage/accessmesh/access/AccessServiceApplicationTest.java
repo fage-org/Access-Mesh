@@ -17,12 +17,14 @@ import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.env.EnvironmentPostProcessor;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.mock.mockito.MockBean;
 
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.io.support.SpringFactoriesLoader;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
@@ -32,6 +34,7 @@ import org.springframework.test.context.TestPropertySource;
 
 import javax.sql.DataSource;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.Mockito.when;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -217,6 +220,46 @@ class AccessServiceApplicationTest {
         assertNotNull(console, "Console Appender 必须存在（log4j2-spring.xml 配置解析失败时 Appenders 为空）");
         assertTrue(console.getLayout() instanceof JsonLayout,
             "Layout 必须为 JsonLayout（project-rules §4.2 全环境 JSON），实际 " + console.getLayout().getClass().getName());
+    }
+
+    /**
+     * T-ACCESS-024 验收：common 的 {@code UtcTimezoneEnvironmentPostProcessor} 经
+     * spring.factories 注册，@SpringBootTest 上下文环境准备阶段即强制 JVM 默认时区 UTC
+     * （测试 JVM 不经 main()，部署级方案罩不住的场景）。注册发现断言与宿主时区无关
+     * （默认时区即 UTC 的环境下时区断言无判别力，注册丢失只能由 loader 断言暴露）；
+     * 时区断言在非 UTC 宿主上证明 EPP 已实际执行。
+     */
+    @Test
+    @DisplayName("T-ACCESS-024：EPP spring.factories 注册可发现，上下文 JVM 默认时区强制 UTC")
+    void utcTimezoneEnforcedByEnvironmentPostProcessor() {
+        List<String> discovered = SpringFactoriesLoader.forDefaultResourceLocation()
+            .loadFactoryNames(EnvironmentPostProcessor.class);
+        assertTrue(discovered.contains(
+                "cn.ac.fage.accessmesh.common.timezone.UtcTimezoneEnvironmentPostProcessor"),
+            "META-INF/spring.factories 必须注册 UtcTimezoneEnvironmentPostProcessor，实际发现 "
+                + discovered);
+        assertTrue("UTC".equals(java.util.TimeZone.getDefault().getID()),
+            "Spring 上下文加载后 JVM 默认时区必须为 UTC，实际 "
+                + java.util.TimeZone.getDefault().getID());
+    }
+
+    /**
+     * T-ACCESS-024 验收：唯一 ObjectMapper 时区为 UTC（防御性兜底，见
+     * {@link cn.ac.fage.accessmesh.common.cache.CacheAutoConfiguration#cacheObjectMapper()}）。
+     * bean 名断言钉死该唯一实例即 cacheObjectMapper 本体（兼任 HTTP 序列化），
+     * 排除 Boot 默认 jacksonObjectMapper 竞争胜出的歧义（两者时区同为 UTC，TZ 断言无法区分）。
+     */
+    @Test
+    @DisplayName("T-ACCESS-024：全局 ObjectMapper 时区为 UTC（Jackson 序列化时区统一）")
+    void objectMapperUsesUtcTimezone() {
+        String[] mapperBeanNames = applicationContext.getBeanNamesForType(ObjectMapper.class);
+        assertTrue(mapperBeanNames.length == 1 && "cacheObjectMapper".equals(mapperBeanNames[0]),
+            "唯一 ObjectMapper 必须为 common cacheObjectMapper（兼任 HTTP 序列化），实际 "
+                + java.util.Arrays.toString(mapperBeanNames));
+        ObjectMapper mapper = applicationContext.getBean(ObjectMapper.class);
+        assertTrue("UTC".equals(mapper.getSerializationConfig().getTimeZone().getID()),
+            "全局 ObjectMapper 时区必须为 UTC，实际 "
+                + mapper.getSerializationConfig().getTimeZone().getID());
     }
 
     /**

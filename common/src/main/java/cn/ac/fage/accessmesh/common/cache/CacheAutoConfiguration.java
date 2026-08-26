@@ -13,6 +13,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 
 import java.util.Map;
+import java.util.TimeZone;
 
 /**
  * 基础缓存自动配置类
@@ -50,7 +51,10 @@ public class CacheAutoConfiguration {
     /**
      * 提供 ObjectMapper 用于 JSON 序列化
      * <p>
-     * 如果用户已配置 ObjectMapper，则使用用户的配置
+     * 如果用户已配置 ObjectMapper，则使用用户的配置。
+     * 时间序列化统一 UTC（T-ACCESS-024）：{@code LocalDateTime} 本身无时区
+     * （ISO-8601 无偏移、契约语义=UTC 墙钟），{@code setTimeZone(UTC)} 是对
+     * 未来可能引入的 {@code java.util.Date} 等带时区类型的防御性兜底，现状无消费方。
      * </p>
      */
     @Bean
@@ -59,6 +63,7 @@ public class CacheAutoConfiguration {
         ObjectMapper mapper = new ObjectMapper();
         mapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
         mapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        mapper.setTimeZone(TimeZone.getTimeZone("UTC"));
         return mapper;
     }
 

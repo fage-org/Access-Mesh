@@ -289,7 +289,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 **落地实现（T-ACCESS-009，2026-08-21，7 项用户决策）**：
 
-- **执行键**：`job:{jobId}:{yyyyMMdd'T'HHmmss}`（计划触发时刻秒级截断）；手动触发为 `job:{jobId}:manual:{epochMilli}-{UUID}`（独立执行，不与计划执行竞争，UUID 防同毫秒并发触发碰撞）。`JobServiceImpl` 通过 `ExecutionKeyCronTrigger` 在 Trigger 计算时捕获本轮触发时刻传入执行编排。cron 按 JVM 时区计算，**各实例部署约定同一时区（项目约定，不做跨时区支持）**。多实例继续各自触发 Spring Scheduler；正确性全部由 `sys_task_execution` 的原子条件 SQL 承担（`SysTaskExecutionMapper.xml`：`tryClaimExecution` INSERT ... ON CONFLICT（部分唯一索引推断）+ 条件 DO UPDATE ... RETURNING，租约判定/续租/完成全部以数据库 `now()` 为基准），Redis 不参与。
+- **执行键**：`job:{jobId}:{yyyyMMdd'T'HHmmss}`（计划触发时刻秒级截断）；手动触发为 `job:{jobId}:manual:{epochMilli}-{UUID}`（独立执行，不与计划执行竞争，UUID 防同毫秒并发触发碰撞）。`JobServiceImpl` 通过 `ExecutionKeyCronTrigger` 在 Trigger 计算时捕获本轮触发时刻传入执行编排。cron 按 JVM 时区计算，JVM 默认时区由 common `UtcTimezoneEnvironmentPostProcessor` 启动即强制 UTC（§16，2026-08-25 起），**各实例天然同时区（项目约定，不做跨时区支持）**。多实例继续各自触发 Spring Scheduler；正确性全部由 `sys_task_execution` 的原子条件 SQL 承担（`SysTaskExecutionMapper.xml`：`tryClaimExecution` INSERT ... ON CONFLICT（部分唯一索引推断）+ 条件 DO UPDATE ... RETURNING，租约判定/续租/完成全部以数据库 `now()` 为基准），Redis 不参与。
 - **attempt 级 fencing**：`attempt_count` 同时是 fencing token——每次抢占原子递增并由 RETURNING 返回本次尝试号；续租与完成写回按「`lease_owner` + `attempt_count`」双条件判定。同实例接管自己的过期任务（owner 不变、attempt 递增）时旧尝试不能续租或覆盖新尝试的结果。
 - **租约生命周期**：抢占（PENDING/FAILED 或租约过期才允许，且 `attempt_count < MAX_ATTEMPTS=3`）→ **抢占成功后立即启动后台续租（每 20s，租约 60s）——覆盖执行器排队等待期，排队超过租约期不会被误接管；执行线程出队后再做一次租约校验，丢失则跳过执行** → 条件完成/失败；SUCCESS 后不可再抢占。业务失败写回 FAILED 后由扫描器按「失败后至少一次重试」语义接管重试（同一执行键，attempt+1），超限后收敛终态。执行编排位于调度层 `JobServiceImpl`（DomainService 不承担线程池/调度编排，也不横向注入其他 DomainService）。**计划触发时重读数据库任务行**：已删除/已停用任务跳过执行、新 invokeTarget 即时生效；接管重试的计划时刻由执行键反解（`parseScheduledTime`，手动键为 null），不随尝试漂移。
 - **多实例配置对账（用户决策：周期对账 + 触发时重读）**：任务 CRUD 只操作当前实例内存调度表；各实例经 `JobScheduleReconciler`（60s 周期）跨租户**单条批量查询**（`selectAllEnabledJobs`，§8.4.8 禁止按租户循环查询——启动加载同步迁移）重载启用任务并 diff 重调度。对账为**真 diff**——按已调度任务的 cron 快照跳过未变化项，不做每轮全量取消/重建；Trigger 先构造成功再取消旧调度，cron 非法时保留旧调度。**批量加载失败 = 全部状态未知**，本轮不做任何调度变更（含删除判定）——错过的计划触发不产生执行记录，接管无法补偿，临时数据库异常不得被解释成全部停用。配置漂移窗口约为对账间隔 60s + 单轮对账耗时；窗口内旧 cron 可能多触发一次（独立执行键、走完整租约/幂等治理），不引入实时广播（MQ）避免过度设计。
@@ -362,6 +362,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - 在授权读取需要 L1 时引入租户级权限版本屏障。
 - 首次正式部署前引入数据库版本管理工具，并以 `access-service.sql` 作为 V1 基线。
 - 根据查询与变更热点细化缓存、权限版本和任务分片粒度。
+- 时间类型全面改 `OffsetDateTime`/`Instant` 携带时区（97 个 TIMESTAMPTZ 列 + 全部实体/DTO 改型）：T-ACCESS-024 以「`LocalDateTime` 全链路 UTC 墙钟」止血档（§16）闭合正确性风险，改型属改动量与收益不匹配的可选演进，多时区部署需求出现前不启动。
 
 ## 12. 主体身份模型（B-lite 终态，T-ACCESS-016 定稿）
 
@@ -564,3 +565,34 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 - **演进方向**：多实例/对象存储与「文件夹级授权」（bizType 即文件夹实例）均另立任务（后者为 `T-ADMIN-025`），
   不在本约束内承诺。
 - 接口契约与错误码（10501-10507）见 `docs/design/services/admin-service-api-contract.md` §4.7。
+
+## 16. 时间语义 UTC 统一（T-ACCESS-024，2026-08-25）
+
+> 语义定约：**`LocalDateTime` 全链路 UTC 墙钟**。TIMESTAMPTZ 存储唯一瞬时，Java 侧墙钟恒按 UTC 解释，
+> 读写、生产（`LocalDateTime.now()`）、序列化、调度四点同源 UTC，TIMESTAMPTZ 语义不再随部署环境漂移。
+
+- **TypeHandler 显式换算**：`TimestamptzLocalDateTimeTypeHandler`（`MybatisFlexTypeHandlerConfig` 全局注册）
+  写入 `parameter.atOffset(UTC)`、读取 `atZoneSameInstant(UTC).toLocalDateTime()`，经 pgjdbc 原生
+  `OffsetDateTime` 双向映射——不经 `java.sql.Timestamp` 中转（规范 §7.4 禁用，且其按 JVM 默认时区换算是
+  旧漂移源）。服务器/会话时区不参与语义，连接串无需任何时区参数。
+- **JVM 默认时区强制 UTC（用户决策：代码级）**：common `UtcTimezoneEnvironmentPostProcessor` 经
+  `META-INF/spring.factories` 注册，环境准备阶段 `TimeZone.setDefault(UTC)`——应用启动、`@SpringBootTest`
+  容器轨、E2E 子进程同源生效（测试 JVM 不经 main()，部署级 `-Duser.timezone`/`TZ` 罩不住该场景，是选
+  代码级的决定性原因）。部署侧无需任何时区约定；随之统一为 UTC 的行为面：日志时间戳、cron 调度时区
+  （§8.1 各实例同时区约定自动闭合）。
+- **生产点**：审计字段等 163 处（51 文件，2026-08-25 实测）`LocalDateTime.now()` 依赖强制后的 JVM UTC 产出 UTC 墙钟，与 DB 侧
+  `DEFAULT now()`（真 UTC 瞬时）一致；不需要逐点改 `now(ZoneOffset.UTC)`（改动面大且无防回归护栏，未选）。
+- **JDBC URL**：`serverTimezone=Asia/Shanghai` 残留已删（MySQL 语义参数，pgjdbc 忽略且误导）——
+  access `application.yml` 与 example `bootstrap.yml` 两处。**Nacos 提示**：远端 `access-service.yml`
+  若持有旧 URL 覆盖值需同步清理，否则仅误导不改行为（pgjdbc 忽略该参数）。
+- **Jackson（用户决策：文档钉死 + 防御一行）**：`LocalDateTime` 序列化 ISO-8601 无偏移字符串
+  （`"2026-04-21T10:00:00"`），契约语义=UTC 墙钟，前端展示时区转换按需另行处理；全局 ObjectMapper
+  （common `cacheObjectMapper`，经 `@ConditionalOnMissingBean` 同时承担 HTTP 序列化）`setTimeZone(UTC)`
+  为对未来 `Date` 等带时区类型的防御性兜底（现状全仓无此类字段，no-op）。
+- **既有开发数据卷**：切换前由非 UTC JVM（+8 开发机）写入的行，切换后读取墙钟整体偏 -8h——
+  开发期标准处置 `docker compose down -v` 重建（与 T-ACCESS-021 runbook 同款）；无生产数据，不做迁移。
+- **验证**：`TimestamptzDualTimezonePgIT`（容器轨道，用户决策：测试内切换默认时区）同一 PG 上
+  Asia/Shanghai 与 UTC 两轮经真实 mapper 写读相同 `LocalDateTime`——轮内往返一致、跨轮读一致、
+  两轮库内瞬时（绕过 handler 直读 `OffsetDateTime`）相同且等于墙钟按 UTC 解释；单测轨
+  `TimestamptzLocalDateTimeTypeHandlerTest`（换算数学）+ `UtcTimezoneEnvironmentPostProcessorTest`
+  （幂等/强制）+ `AccessServiceApplicationTest` EPP spring.factories 注册发现断言（宿主时区无关）+ 时区断言（非 UTC 宿主证明实际执行）。

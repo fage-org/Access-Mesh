@@ -66,6 +66,7 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 - 不可变 DTO 优先使用 Java 21 Record。
 - Lombok 允许精确导入并按需使用；`@Builder` 可用于复杂构造或测试数据装配，但禁止 `@Data`、`@Value`、`@EqualsAndHashCode` 等隐式生成过多逻辑的注解。
 - 日期统一使用 `java.time.LocalDateTime`，禁止 `java.util.Date`。
+- 时间语义全链路 UTC：JVM 默认时区由 common `UtcTimezoneEnvironmentPostProcessor` 启动即强制 UTC；`LocalDateTime` ↔ TIMESTAMPTZ 由 TypeHandler 显式按 UTC 换算（handler 落位 access-service，新服务引入 DB 实体时须复制）；JDBC URL 禁带 `serverTimezone`。详见 `docs/design/project-rules.md` §7.4。
 - 实体类不含业务逻辑，审计字段由框架填充。
 
 ## 权限中心实现提醒

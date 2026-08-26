@@ -12,7 +12,8 @@ spring:
         server-addr: 127.0.0.1:8848
         file-extension: yml
   datasource:
-    url: jdbc:postgresql://127.0.0.1:5432/example_db?useSSL=false&serverTimezone=Asia/Shanghai
+    # serverTimezone 残留已删（T-ACCESS-024）：MySQL 语义参数，pgjdbc 忽略且误导
+    url: jdbc:postgresql://127.0.0.1:5432/example_db?useSSL=false
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
