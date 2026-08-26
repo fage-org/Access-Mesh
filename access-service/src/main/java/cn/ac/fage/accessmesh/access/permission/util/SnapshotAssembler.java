@@ -25,7 +25,8 @@ import java.util.stream.Collectors;
  * <p>
  * 将权限查询结果转换为接口权限快照条目列表。
  * 通过引擎获取用户全量权限，按 API 资源类型过滤，查询 API 映射并组装条目。
- * scopeAll 条目不展开为 N 个 API 资源，而是直接作为一个条目传递。
+ * API 类型的 scopeAll 条目展开为该 serviceCode 全部 enabled 映射的 INSTANCE 条目
+ * （不输出 ALL 通配），实例级条目照常通过 API 映射组装。
  * </p>
  * <p>
  * T-PERM-017 C3：对 hasCondition=true 的条目按 {@code permission_condition.gateway_evaluable}

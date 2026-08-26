@@ -53,11 +53,11 @@ public class GatewaySignatureFilter extends OncePerRequestFilter {
         this.secret = secret;
         this.validSeconds = validSeconds;
         this.objectMapper = objectMapper;
+        this.secretConfigured = secret != null && !secret.isBlank();
     }
 
     @PostConstruct
-    void verifyConfig() {
-        secretConfigured = secret != null && !secret.isBlank();
+    void logUnconfiguredSecret() {
         if (!secretConfigured) {
             log.error("签名密钥未配置（example.signature.secret / ACCESSMESH_SIGNATURE_SECRET）："
                 + "携带身份头的请求将被一律拒绝（fail-closed）");
@@ -89,7 +89,7 @@ public class GatewaySignatureFilter extends OncePerRequestFilter {
         chain.doFilter(request, response);
     }
 
-    /** 复算并比对 HMAC 签名（常量时间比较）；时间戳超 300 秒视为过期 */
+    /** 复算并比对 HMAC 签名（常量时间比较）；时间戳超出 validSeconds 窗口视为过期 */
     private boolean verify(String userId, String tenantId, String signature, String timestamp) {
         if (!secretConfigured || signature == null || signature.isBlank()
             || timestamp == null || userId == null || tenantId == null) {
