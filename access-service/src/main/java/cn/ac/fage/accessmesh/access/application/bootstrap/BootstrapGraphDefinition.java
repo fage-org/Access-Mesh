@@ -35,7 +35,7 @@ public final class BootstrapGraphDefinition {
     public static final String ADMIN_ROLE_EXTERNAL_ID = "bootstrap-admin";
     public static final String ADMIN_ROLE_NAME = "Bootstrap Admin";
 
-    /** SERVICE 资源（实例级 SERVICE:MANAGE_API_MAPPING 的绑定对象，DDL 无种子、本地投影不产出） */
+    /** SERVICE 资源（固定图种子对象，DDL 无种子、本地投影不产出；MANAGE_API_MAPPING 已类型级，保留供未来实例级授权） */
     public static final String SERVICE_RESOURCE_TYPE_CODE = ResourceTypeCode.SERVICE;
     public static final String SERVICE_RESOURCE_CODE = "access-service";
     public static final String SERVICE_RESOURCE_NAME = "access-service";
@@ -91,7 +91,7 @@ public final class BootstrapGraphDefinition {
     }
 
     /**
-     * 业务门禁最小集（§14.4，7 项；ROLE:MANAGE 掩码已含 VIEW，不重复授 ROLE:VIEW）。
+     * 业务门禁最小集（§14.4，8 项；ROLE:MANAGE 掩码已含 VIEW，不重复授 ROLE:VIEW）。
      */
     public static List<GrantSpec> businessGrants() {
         return List.of(
@@ -123,7 +123,7 @@ public final class BootstrapGraphDefinition {
             .toList();
     }
 
-    /** 全部固定图授权（业务门禁 7 + API:ACCESS 13 = 20 条） */
+    /** 全部固定图授权（业务门禁 8 + API:ACCESS 13 = 21 条） */
     public static List<GrantSpec> allGrants() {
         return java.util.stream.Stream.concat(businessGrants().stream(), apiAccessGrants().stream()).toList();
     }

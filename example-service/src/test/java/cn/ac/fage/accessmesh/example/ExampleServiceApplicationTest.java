@@ -28,7 +28,8 @@ import static org.assertj.core.api.Assertions.assertThat;
         "spring.cloud.nacos.config.enabled=false",
         "spring.cloud.nacos.config.import-check.enabled=false",
         "spring.cloud.nacos.discovery.enabled=false",
-        "spring.config.import=optional:classpath:/test-nope.yml"
+        "spring.config.import=optional:classpath:/test-nope.yml",
+        "example.signature.secret=test-signature-secret"
     })
 class ExampleServiceApplicationTest {
 
@@ -37,6 +38,22 @@ class ExampleServiceApplicationTest {
 
     private final ObjectMapper json = new ObjectMapper();
 
+    /** 按 Gateway SignatureEnrichFilter 同款算法构造签名请求头（HMAC-SHA256，hex） */
+    private static void sign(HttpHeaders headers, String userId, String tenantId) {
+        long ts = System.currentTimeMillis() / 1000;
+        try {
+            javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+            mac.init(new javax.crypto.spec.SecretKeySpec(
+                "test-signature-secret".getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+            byte[] sig = mac.doFinal((userId + "|" + tenantId + "|" + ts)
+                .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            headers.set("X-User-Signature", java.util.HexFormat.of().formatHex(sig));
+            headers.set("X-Signature-Timestamp", String.valueOf(ts));
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     @Test
     @DisplayName("上下文启动 + hello 接口：统一信封 200 与身份回显")
     void helloReturnsEnvelopeAndEchoesIdentity() throws Exception {
@@ -44,6 +61,7 @@ class ExampleServiceApplicationTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("X-User-Id", "42");
         headers.set("X-Tenant-Id", "1");
+        sign(headers, "42", "1");
 
         String raw = rest.postForObject("/api/example/demo/hello",
             new HttpEntity<>(Map.of("name", "AccessMesh"), headers), String.class);
@@ -63,11 +81,33 @@ class ExampleServiceApplicationTest {
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("X-User-Id", "42");
         headers.set("X-Tenant-Id", "1");
+        sign(headers, "42", "1");
 
         String raw = rest.postForObject("/api/example/demo/hello",
             new HttpEntity<>(Map.of("name", "  "), headers), String.class);
 
         JsonNode envelope = json.readTree(raw);
         assertThat(envelope.path("code").asInt()).as("业务错误必须映射为 30001，响应：" + raw).isEqualTo(30001);
+    }
+
+    @Test
+    @DisplayName("伪造身份头（无有效签名直连）：签名校验拒绝 30003")
+    void forgedIdentityHeaders_rejectedWith30003() throws Exception {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("X-User-Id", "42");
+        headers.set("X-Tenant-Id", "1");
+        // 不带 X-User-Signature（模拟直连伪造）与带错误签名两种形态
+        String noSig = rest.postForObject("/api/example/demo/hello",
+            new HttpEntity<>(Map.of("name", "AccessMesh"), headers), String.class);
+        assertThat(json.readTree(noSig).path("code").asInt())
+            .as("伪造身份头必须被签名校验拒绝（30003），响应：" + noSig).isEqualTo(30003);
+
+        headers.set("X-User-Signature", "0000000000000000000000000000000000000000000000000000000000000000");
+        headers.set("X-Signature-Timestamp", String.valueOf(System.currentTimeMillis() / 1000));
+        String badSig = rest.postForObject("/api/example/demo/hello",
+            new HttpEntity<>(Map.of("name", "AccessMesh"), headers), String.class);
+        assertThat(json.readTree(badSig).path("code").asInt())
+            .as("错误签名必须被拒绝（30003），响应：" + badSig).isEqualTo(30003);
     }
 }

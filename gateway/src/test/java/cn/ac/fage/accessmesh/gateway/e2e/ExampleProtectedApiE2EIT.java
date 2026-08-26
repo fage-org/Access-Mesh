@@ -147,8 +147,11 @@ class ExampleProtectedApiE2EIT {
             URI.create("http://localhost:" + accessPort + "/auth/captcha"), ACCESS_SERVICE_CLASSES_DIR);
         waitAdminSeeded();
 
+        // ACCESSMESH_SIGNATURE_SECRET 与 Gateway 同源：example 的 GatewaySignatureFilter
+        // 复算 Gateway 注入的 X-User-Signature（身份信任链示例）
         exampleService = startService("example-service", EXAMPLE_MAIN_CLASS,
-            exampleServiceArgs(examplePort), Map.of("JWT_SECRET_KEY", JWT_SECRET),
+            exampleServiceArgs(examplePort), Map.of("JWT_SECRET_KEY", JWT_SECRET,
+                "ACCESSMESH_SIGNATURE_SECRET", SIGNATURE_SECRET),
             URI.create("http://localhost:" + examplePort + "/api/example/demo/hello"),
             EXAMPLE_SERVICE_CLASSES_DIR);
 
@@ -367,6 +370,16 @@ class ExampleProtectedApiE2EIT {
         assertThat(invalid.status()).as("参数非法为业务错误，HTTP 仍须 200").isEqualTo(200);
         assertThat(parseEnvelope(invalid).path("code").asInt())
             .as("参数非法必须映射为 example 业务域错误码 30001").isEqualTo(30001);
+
+        // 身份信任链：绕过 Gateway 直连 example 携伪造身份头 → 签名校验拒绝信封 code=30003
+        // （GatewaySignatureFilter 复算 X-User-Signature，无有效签名一律 fail-closed）
+        EnvelopeResult forged = postEnvelope(
+            "http://localhost:" + exampleService.port() + "/api/example/demo/hello",
+            null, "{\"name\":\"E2E\"}",
+            Map.of("X-User-Id", String.valueOf(targetUserId), "X-Tenant-Id", TENANT_ID));
+        assertThat(forged.status()).as("伪造身份头为业务错误，HTTP 仍须 200").isEqualTo(200);
+        assertThat(parseEnvelope(forged).path("code").asInt())
+            .as("直连伪造身份头必须被签名校验拒绝（30003）").isEqualTo(30003);
     }
 
     // ------------------------------------------------------------------
@@ -664,12 +677,20 @@ class ExampleProtectedApiE2EIT {
     private record EnvelopeResult(int status, String rawBody) {}
 
     private static EnvelopeResult postEnvelope(String url, String bearerToken, String body) throws IOException {
+        return postEnvelope(url, bearerToken, body, null);
+    }
+
+    private static EnvelopeResult postEnvelope(String url, String bearerToken, String body,
+                                               Map<String, String> extraHeaders) throws IOException {
         HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url))
             .timeout(Duration.ofSeconds(20))
             .header("Content-Type", "application/json")
             .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8));
         if (bearerToken != null) {
             builder.header("Authorization", "Bearer " + bearerToken);
+        }
+        if (extraHeaders != null) {
+            extraHeaders.forEach(builder::header);
         }
         try {
             HttpResponse<String> response = HTTP.send(builder.build(), HttpResponse.BodyHandlers.ofString());

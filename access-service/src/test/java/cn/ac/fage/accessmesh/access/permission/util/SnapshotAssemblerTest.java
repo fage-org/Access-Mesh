@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.util;
 
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping;
@@ -39,12 +40,22 @@ class SnapshotAssemblerTest {
 
     @Mock private ResourceApiMappingMapper apiMappingMapper;
     @Mock private PermissionConditionMapper conditionMapper;
+    @Mock private cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper operationPermissionMapper;
 
     private SnapshotAssembler assembler;
 
     @BeforeEach
     void setUp() {
-        assembler = new SnapshotAssembler(apiMappingMapper, conditionMapper, new ObjectMapper());
+        assembler = new SnapshotAssembler(apiMappingMapper, conditionMapper, operationPermissionMapper,
+            new ObjectMapper());
+        // ACCESS 操作位固定为 1（与 DDL 种子位无耦合——测试只验证按位过滤逻辑本身）
+        cn.ac.fage.accessmesh.access.permission.entity.OperationPermission access =
+            new cn.ac.fage.accessmesh.access.permission.entity.OperationPermission();
+        access.setBinaryBit(1L);
+        org.mockito.Mockito.when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
+                org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any()))
+            .thenReturn(java.util.List.of(access));
     }
 
     @Test
@@ -118,7 +129,7 @@ class SnapshotAssemblerTest {
 
         // 角色A：无条件授权；角色B：含条件授权（IP 白名单）
         RolePermEntry unconditional = new RolePermEntry(
-            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "VIEW", 1L,
+            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
             "DIRECT", true, null, false, null, false);
         RolePermEntry conditional = entryWithCondition(RESOURCE_ID, CONDITION_ID);
         PermResult result = resultWith(unconditional, conditional);
@@ -148,10 +159,10 @@ class SnapshotAssemblerTest {
             .thenReturn(List.of(apiMapping("POST", "/api/order")));
 
         RolePermEntry roleA = new RolePermEntry(
-            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "VIEW", 1L,
+            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
             "DIRECT", true, CONDITION_ID, true, null, false);
         RolePermEntry roleB = new RolePermEntry(
-            2L, 20L, RESOURCE_ID, "res-code", API_TYPE, 1L, "VIEW", 1L,
+            2L, 20L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
             "DIRECT", true, CONDITION_ID, true, null, false);
         PermResult result = resultWith(roleA, roleB);
 
@@ -159,6 +170,34 @@ class SnapshotAssemblerTest {
 
         assertThat(entries).hasSize(1);
         assertThat(entries.get(0).conditionId()).isEqualTo(CONDITION_ID);
+    }
+
+    @Test
+    void shouldExcludeNonAccessOperations_fromSnapshot() {
+        // 快照路径与 fallback check-interface 同口径：仅 ACCESS 操作码构成 Gateway 放行依据，
+        // API 资源的 VIEW/UPDATE 等非 ACCESS 授权是资源管理语义，不得被网关当作接口放行
+        when(apiMappingMapper.selectForSnapshot(eq(TENANT_ID), eq(SERVICE_CODE), any()))
+            .thenReturn(List.of(apiMapping("POST", "/api/order")));
+
+        RolePermEntry viewOnly = new RolePermEntry(
+            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 2L, "VIEW", 2L,
+            "DIRECT", true, null, false, null, false);
+        RolePermEntry viewScopeAll = new RolePermEntry(
+            2L, 20L, null, null, API_TYPE, 2L, "VIEW", 2L,
+            "DIRECT", true, null, false, null, true);
+        RolePermEntry accessEntry = new RolePermEntry(
+            3L, 30L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
+            "DIRECT", true, null, false, null, false);
+        PermResult result = PermResult.builder(true, "ok")
+            .instanceEntries(List.of(viewOnly, accessEntry))
+            .scopeAllEntries(List.of(viewScopeAll))
+            .build();
+
+        List<ApiPermissionEntry> entries = assembler.buildSnapshot(TENANT_ID, result, SERVICE_CODE, API_TYPE);
+
+        // 仅 ACCESS 实例条目进入快照；VIEW 实例与 VIEW scopeAll 均被排除
+        assertThat(entries).hasSize(1);
+        assertThat(entries.get(0).scopeMode()).isEqualTo(ScopeMode.INSTANCE);
     }
 
     // ===== helpers =====
@@ -182,7 +221,7 @@ class SnapshotAssemblerTest {
             "res-code",    // resourceCode
             API_TYPE,      // resourceType
             1L,            // grantedBits
-            "VIEW",        // operationCode
+            "ACCESS",      // operationCode
             1L,            // effectiveBits
             "DIRECT",      // grantSource
             true,          // canGrant

@@ -4,8 +4,10 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
+import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping;
+import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
@@ -39,17 +41,38 @@ import java.util.stream.Collectors;
 @Component
 public class SnapshotAssembler {
 
+    /** 网关接口鉴权专用操作码（api-contract/DDL 运行时种子；快照与 check-interface 双路径同口径） */
+    private static final String OPERATION_ACCESS = "ACCESS";
+
+    /**
+     * 解析 API 资源类型的 ACCESS 操作位（operation_permission.binary_bit）。
+     * 种子缺失时返回 0——位掩码与 0 按位与恒为 0，全部条目被排除（fail-closed，
+     * 与引擎对未知操作的保守语义一致；该种子由权威 DDL 运行时保证存在）。
+     */
+    private long resolveAccessBit(Long tenantId, Integer apiType) {
+        List<OperationPermission> ops = operationPermissionMapper
+            .selectByTenantResourceTypesAndOpCodes(tenantId, Set.of(apiType), Set.of(OPERATION_ACCESS));
+        return ops.stream()
+            .map(OperationPermission::getBinaryBit)
+            .filter(Objects::nonNull)
+            .mapToLong(Long::longValue)
+            .findFirst().orElse(0L);
+    }
+
     private static final Logger log = LoggerFactory.getLogger(SnapshotAssembler.class);
 
     private final ResourceApiMappingMapper apiMappingMapper;
+    private final OperationPermissionMapper operationPermissionMapper;
     private final PermissionConditionMapper conditionMapper;
     private final ObjectMapper objectMapper;
 
     public SnapshotAssembler(ResourceApiMappingMapper apiMappingMapper,
                              PermissionConditionMapper conditionMapper,
+                             OperationPermissionMapper operationPermissionMapper,
                              ObjectMapper objectMapper) {
         this.apiMappingMapper = apiMappingMapper;
         this.conditionMapper = conditionMapper;
+        this.operationPermissionMapper = operationPermissionMapper;
         this.objectMapper = objectMapper;
     }
 
@@ -78,9 +101,15 @@ public class SnapshotAssembler {
             return List.of();
         }
 
-        // 筛选 API 类型的权限条目
+        // 筛选 API 类型的权限条目。接口快照语义与 fallback 的 check-interface 对齐：
+        // 仅 ACCESS 操作位构成 Gateway 放行依据（fallback 路径 PermQuery.forInterfaceCheck
+        // 亦按 "ACCESS" 操作码匹配位）——API 资源的非 ACCESS 操作授权（VIEW/UPDATE 等）是
+        // 资源管理语义，不得被网关当作接口放行。快照条目的 operationCode 为 null
+        // （RolePermEntryMapper.toEntry 不填），须按 ACCESS 的 binary_bit 位判断
+        long accessBit = resolveAccessBit(tenantId, apiType);
         List<RolePermEntry> apiEntries = entries.stream()
             .filter(e -> e.resourceType() != null && e.resourceType().equals(apiType))
+            .filter(e -> e.grantedBits() != null && (e.grantedBits() & accessBit) != 0)
             .toList();
 
         if (apiEntries.isEmpty()) {

@@ -23,7 +23,12 @@ public enum ExampleErrorCode {
     /**
      * 网关身份头缺失（X-User-Id / X-Tenant-Id 未注入，链路异常）
      */
-    DEMO_IDENTITY_HEADER_MISSING(30002, "网关身份请求头缺失，请经 Gateway 访问本接口");
+    DEMO_IDENTITY_HEADER_MISSING(30002, "网关身份请求头缺失，请经 Gateway 访问本接口"),
+
+    /**
+     * 网关身份签名校验失败（X-User-Signature 缺失/不匹配/时间戳超窗，或本服务签名密钥未配置）
+     */
+    SIGNATURE_INVALID(30003, "身份请求头签名校验失败");
 
     /**
      * 构造错误码

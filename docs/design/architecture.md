@@ -73,8 +73,8 @@ last_reviewed: 2026-08-22
        └───────────┬──────────────┘          └────────┬────────┘
                    │                                  │
                    ▼                                  ▼
-              PostgreSQL                        PostgreSQL
-              (access_db)                       (example_db)
+              PostgreSQL                         （无）
+              (access_db)                  example-service 无数据源（T-API-001 瘦身）
 ```
 
 ### 1.4 服务间交互矩阵
@@ -86,7 +86,7 @@ last_reviewed: 2026-08-22
 | gateway         | access-service | HTTP (转发)    | `/admin/**`、`/perm/**`（合并路由，StripPrefix=1）、`/auth/**`（StripPrefix=0）登录与管理接口转发 |
 | gateway         | access-service | HTTP (负载均衡 WebClient) | 快照鉴权：`POST /api/perm/auth/interface-snapshot` 拉取全量接口权限快照；未覆盖场景回退 `check-interface` 实时鉴权 |
 | gateway         | example-service | HTTP (转发)   | 演示服务接口转发                                                                             |
-| example-service | access-service | OpenFeign（perm-sdk `PermissionFeignClient`） | 鉴权查询、权限数据查询；Feign 目标已随 T-ACCESS-010 切换为 `access-service` |
+| example-service | access-service | HTTP（内部同步通道，运维期） | 接口资源注册：`POST /api/perm/resource-entity/sync`（X-Internal-Secret + X-Service-Code 身份）。运行期业务调用为零——接口级鉴权由 Gateway 承担（T-API-001：example 已删 perm-client/openfeign，无 Feign 鉴权查询） |
 
 ### 1.5 管理端前后端交互原则
 
@@ -340,7 +340,7 @@ admin 域管理事实（`sys_user`/`sys_org`/`sys_menu`）与 permission 域权�
 perm-sdk/
 ├── perm-common/                          # 公共模型、异常、工具（PermResult, PermissionContext, ConditionRule 等）
 ├── perm-client-spring-boot-starter/      # 业务服务引用
-├── perm-data-spring-boot-starter/        # 数据权限参考实现（仅 example 使用）
+├── perm-data-spring-boot-starter/        # 数据权限参考实现（⚠️ 未实现/规划中，无使用方；example 已随 T-API-001 移除该依赖）
 └── perm-gateway-spring-boot-starter/     # 网关引用
 ```
 

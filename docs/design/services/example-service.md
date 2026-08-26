@@ -24,6 +24,7 @@ last_reviewed: 2026-06-20
 - 接入路径（E2E `ExampleProtectedApiE2EIT` 钉死）：业务服务经 `/api/perm/resource-entity/sync`（X-Internal-Secret + X-Service-Code 身份、service_config `syncTypes` 白名单）注册 API 资源 → 管理员创建 `resource_api_mapping`（外部路径 `/example/api/example/demo/hello`）→ 授予角色 `API:ACCESS` → 403 变 200。
 - 依赖瘦身：POM 删除 perm-client、perm-data、openfeign、MyBatis-Flex、PostgreSQL、Redis、MapStruct、JSqlParser（均无消费方）；保留 common（统一响应体/全局异常处理器）、web、validation、nacos、log4j2。无数据源、无缓存消费（`accessmesh.cache.enabled=false`）。
 - 菜单/按钮/范围/条件权限等其余演示场景仍为规划（见上表），随核心主线后续任务补齐。
+- 错误码子段约定：30001-30099 为演示接口（demo）相关错误（`ExampleErrorCode` 代码注释为登记处），30001+ 段位分配随新资源扩展时在代码枚举中登记。
 
 ## 演示场景
 
@@ -45,10 +46,12 @@ last_reviewed: 2026-06-20
 - 子权限表示当前报表下额外范围，例如仅在销售报表下允许查看 B 部门数据。
 - 全量范围通过对外 `scopeMode=ALL` 表达，不使用 `data:all` 这类特殊资源编码。
 
-## SDK 参考
+## SDK 参考（规划口径，非本服务当前形态）
 
-- Spring Boot 项目：以 `perm-client-spring-boot-starter` 为核心，结合 `perm-data-spring-boot-starter`、`perm-gateway-spring-boot-starter` 提供自动配置式接入参考。
-- 普通 Java 项目：提供轻量 client SDK，复用稳定鉴权和权限查询契约，不依赖 Spring Boot 自动配置。
+> 本服务当前形态（T-API-001）不引入任何权限 SDK——接口级鉴权由 Gateway 承担，资源注册走内部同步 HTTP 通道（见上节）。以下为未来菜单权限、权限查询等场景的接入规划。
+
+- Spring Boot 项目（规划）：以 `perm-client-spring-boot-starter` 为核心（当前仅为 Feign 远程查询 SDK，见 architecture §4.4/§4.5.1 名实对齐口径），`perm-gateway-spring-boot-starter` 供网关使用，`perm-data` 未实现（experimental）。
+- 普通 Java 项目（规划）：提供轻量 client SDK，复用稳定鉴权和权限查询契约，不依赖 Spring Boot 自动配置。
 - 其他语言项目：通过稳定 HTTP API 契约和接入文档对接，不要求依赖 Java SDK。
 
 当前 starter 模块是接入形态与能力边界的参考实现；最终交付形态需要在核心主线稳定后再统一收敛与裁决。
@@ -57,4 +60,4 @@ last_reviewed: 2026-06-20
 
 ## 数据库
 
-example-service 表结构以 `../schema/example-service.sql` 为准。本文档不重复维护字段、索引、约束。
+本服务当前无数据源（T-API-001 依赖瘦身删除 PostgreSQL/MyBatis-Flex）。`../schema/example-service.sql` 暂无消费方，保留供未来演示数据场景；启用时需重新引入数据源依赖并在本文档恢复表结构口径。

@@ -20,6 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
  * 注册方式：access-service 中创建资源实体与 API 映射（serviceCode=example-service、
  * pathPattern=/example/api/example/demo/hello，外部路径），再向角色授予 API:ACCESS。
  * </p>
+ * <p>
+ * 身份信任链：Gateway HeaderCleanFilter 清除客户端自带身份头后注入 X-User-Id/X-Tenant-Id，
+ * {@code GatewaySignatureFilter}（本服务）复算 X-User-Signature HMAC 验证身份头确为 Gateway 注入
+ * （缺失/不匹配拒绝 30003）；本接口再要求身份头存在（30002）。信任边界的根本保障是网络隔离
+ * （业务服务仅 Gateway 可达），签名校验是纵深防御示例而非替代。
+ * </p>
  */
 @RestController
 @RequestMapping("/api/example/demo")
@@ -28,8 +34,8 @@ public class DemoController {
     /**
      * 问候接口（身份回显）
      * <p>
-     * 返回问候语并回显 Gateway 注入的 X-User-Id / X-Tenant-Id 身份请求头，
-     * 证明请求经 Gateway 鉴权后真实到达业务服务；身份头缺失说明未走 Gateway 链路。
+     * 返回问候语并回显 Gateway 注入的 X-User-Id / X-Tenant-Id 身份请求头（签名已由
+     * {@code GatewaySignatureFilter} 前置校验），证明请求经 Gateway 鉴权后真实到达业务服务。
      * </p>
      *
      * @param req       请求体（name 非空白）
