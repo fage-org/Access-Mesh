@@ -231,13 +231,19 @@ class AccessServiceApplicationTest {
      */
     @Test
     @DisplayName("T-ACCESS-024：EPP spring.factories 注册可发现，上下文 JVM 默认时区强制 UTC")
-    void utcTimezoneEnforcedByEnvironmentPostProcessor() {
-        List<String> discovered = SpringFactoriesLoader.forDefaultResourceLocation()
-            .loadFactoryNames(EnvironmentPostProcessor.class);
-        assertTrue(discovered.contains(
+    void utcTimezoneEnforcedByEnvironmentPostProcessor() throws java.io.IOException {
+        // 直接读 spring.factories 断言注册（load() 会实例化全部 EPP——CloudFoundry 等第三方
+        // EPP 在测试环境不可实例化，不适合作为发现断言载体）
+        java.util.Properties factories = new java.util.Properties();
+        try (var in = getClass().getResourceAsStream("/META-INF/spring.factories")) {
+            assertTrue(in != null, "common META-INF/spring.factories 必须在类路径上");
+            factories.load(in);
+        }
+        String registered = factories.getProperty(EnvironmentPostProcessor.class.getName(), "");
+        assertTrue(registered.contains(
                 "cn.ac.fage.accessmesh.common.timezone.UtcTimezoneEnvironmentPostProcessor"),
-            "META-INF/spring.factories 必须注册 UtcTimezoneEnvironmentPostProcessor，实际发现 "
-                + discovered);
+            "META-INF/spring.factories 必须注册 UtcTimezoneEnvironmentPostProcessor，实际 "
+                + registered);
         assertTrue("UTC".equals(java.util.TimeZone.getDefault().getID()),
             "Spring 上下文加载后 JVM 默认时区必须为 UTC，实际 "
                 + java.util.TimeZone.getDefault().getID());

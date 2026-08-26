@@ -17,6 +17,14 @@ last_reviewed: 2026-06-20
 - 提供 Spring Boot starter、普通 Java SDK 和其他语言接口文档的参考集成方式与验证样板。
 - 不作为生产业务系统模板的强制实现，只用于验证和展示权限中心能力。
 
+## 已交付：单受保护接口（T-API-001）
+
+- `POST /api/example/demo/hello`（身份回显接口）：入参 `{name}`，返回问候语 + Gateway `HeaderEnrichFilter` 注入的 `X-User-Id`/`X-Tenant-Id` 回显；`name` 空白拒绝 30001、身份头缺失拒绝 30002（example 业务域错误码段 30001-39999，`ExampleErrorCode`）。
+- 接口级鉴权完全由 Gateway 承担（规范 §2.4 服务内不重复鉴权）：Gateway `/example/**` 路由（StripPrefix=1、`serviceCode=example-service`）按接口快照放行/拒绝；业务服务不引入 perm-client/perm-data，无服务内二次鉴权。
+- 接入路径（E2E `ExampleProtectedApiE2EIT` 钉死）：业务服务经 `/api/perm/resource-entity/sync`（X-Internal-Secret + X-Service-Code 身份、service_config `syncTypes` 白名单）注册 API 资源 → 管理员创建 `resource_api_mapping`（外部路径 `/example/api/example/demo/hello`）→ 授予角色 `API:ACCESS` → 403 变 200。
+- 依赖瘦身：POM 删除 perm-client、perm-data、openfeign、MyBatis-Flex、PostgreSQL、Redis、MapStruct、JSqlParser（均无消费方）；保留 common（统一响应体/全局异常处理器）、web、validation、nacos、log4j2。无数据源、无缓存消费（`accessmesh.cache.enabled=false`）。
+- 菜单/按钮/范围/条件权限等其余演示场景仍为规划（见上表），随核心主线后续任务补齐。
+
 ## 演示场景
 
 | 场景               | 目标                                                           |

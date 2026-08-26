@@ -472,7 +472,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 固定图幂等写入以下对象：
 
-1. `resource_entity(SERVICE, code=access-service)`——当前 DDL 无 SERVICE 类型资源种子、本地投影亦不产出（仅 USER/ROLE/MENU 投影），实例级 `SERVICE:MANAGE_API_MAPPING` 需要该服务资源作为绑定对象。
+1. `resource_entity(SERVICE, code=access-service)`——当前 DDL 无 SERVICE 类型资源种子、本地投影亦不产出（仅 USER/ROLE/MENU 投影）；`SERVICE:MANAGE_API_MAPPING` 已改类型级（§14.4），该资源保留为固定图种子对象（scopeAll 授权不依赖实例绑定，历史兼容且供未来实例级授权使用）。
 2. 管理用功能角色（BASIC_ROLE，业务键固定）。
 3. 首管理员主体链：`abstract_user(LOCAL_USER)` + `sys_user`（同主体 ID，§12.2）+ `resource_entity(USER)` 投影。
 4. 管理 API 清单内每个接口的 `resource_entity(API)` 资源 + `resource_api_mapping`，并给管理角色精确授予实例级 `API:ACCESS`。
@@ -508,11 +508,11 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | `USER:CREATE`                          | ALL                | 创建目标用户                                                                                     |
 | `ROLE:CREATE`                          | ALL                | 创建 BASIC_ROLE                                                                                  |
 | `ROLE:MANAGE`                          | ALL                | 管理新建角色与为用户分配角色；继承掩码已含 VIEW，角色树 `ROLE:VIEW`、授权列表与 sub-perm 查询的 `ROLE:VIEW@目标角色` 均被覆盖，不重复授 `ROLE:VIEW` |
-| `SERVICE:MANAGE_API_MAPPING`           | INSTANCE(`access-service`) | 创建目标 API 映射（依赖固定图对象 1 的 SERVICE 资源）                                     |
+| `SERVICE:MANAGE_API_MAPPING`           | ALL                | 管理任意接入服务的 API 映射（T-API-001 起类型级：新接入服务的首条映射必须由首管理员创建，实例级会造成无正规入口的鸡生蛋） |
 | `TYPE_DEFINITION:VIEW`                 | ALL                | 授权页无条件加载类型列表且后端 `listTypes` 强制门禁                                              |
 | `RESOURCE:VIEW`                        | ALL                | 授权页资源树加载门控（门禁补齐见 §14.5）                                                        |
 | `OPERATION:VIEW`                       | ALL                | 授权页操作列表加载门控（同上）                                                                   |
-| `API:ACCESS`（目标 `my-info` 资源实例） | INSTANCE + `canGrant=true` | 向 BASIC_ROLE 授权（授权传递链）；落管理角色（首管理员唯一绑定，等价仅首管理员持有，见 §14.1） |
+| `API:ACCESS`（类型级）                  | ALL + `canGrant=true` | 向 BASIC_ROLE 授权任意接口（授权传递链；T-API-001 起类型级：新接入服务接口的授权必须由首管理员完成，实例级会造成鸡生蛋）；落管理角色（首管理员唯一绑定，等价仅首管理员持有，见 §14.1）。13 项管理 API 清单的实例级 `API:ACCESS` 授权保留（最小暴露面不变） |
 
 不授予 `RESOURCE:CREATE` 等 API 资源创建权限，避免无谓扩大根权限。
 
@@ -536,10 +536,10 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 
 ### 14.7 实施终态（T-ACCESS-020，2026-08-24）
 
-- **组件落位**：`access.application.bootstrap` 包承载 `AccessBootstrapRunner`（`@ConditionalOnProperty` 装配 + 密码 fail-fast + 租户上下文绑定）、`AccessBootstrapInitializer`（事务化 initializer，`@Transactional` + `@PermissionChange` 单事务）、`AccessBootstrapProperties`、`BootstrapGraphDefinition`（固定图唯一定义源：13 API 清单 + 20 条授权）；无操作者写入组件为 `permission.service.domain.BootstrapSeedWriter`（接口）+ `impl` 包内可见实现（非 public 类，仅经接口被 bootstrap initializer 注入）。放 application 层原因：需同时依赖 admin 域（UserDomainService）与 permission 域领域服务，两域互依赖为架构测试所禁。
+- **组件落位**：`access.application.bootstrap` 包承载 `AccessBootstrapRunner`（`@ConditionalOnProperty` 装配 + 密码 fail-fast + 租户上下文绑定）、`AccessBootstrapInitializer`（事务化 initializer，`@Transactional` + `@PermissionChange` 单事务）、`AccessBootstrapProperties`、`BootstrapGraphDefinition`（固定图唯一定义源：13 API 清单 + 21 条授权）；无操作者写入组件为 `permission.service.domain.BootstrapSeedWriter`（接口）+ `impl` 包内可见实现（非 public 类，仅经接口被 bootstrap initializer 注入）。放 application 层原因：需同时依赖 admin 域（UserDomainService）与 permission 域领域服务，两域互依赖为架构测试所禁。
 - **领域服务复用**：主体+USER 投影（`createLocalUserSubject`）、sys_user（`UserDomainService.insert`，字段形态对齐 createUser 链）、角色（`SubjectDomainService.createRole` + `upsertRoleResource` ROLE 投影）；授权写入复用 `PermissionGrantPlanDomainService.apply(PreparedGrantPlan)`（公开 record 可直接构造，apply 为纯写入；写前经 `validateSingleManualGrants`/`validateGrantAttributes` 不变量校验）——未给任何通用授权服务新增无操作者公开入口。类型值经 `TypeResolutionService` 解析、操作位从 `operation_permission.binary_bit` 读取，bootstrap 代码不硬编码内部数值。
-- **实施决策（2026-08-24 用户确认）**：① 权威 DDL 经 compose `docker-entrypoint-initdb.d` 首启自动执行（`POSTGRES_DB=access_db`、trust 认证与默认数据源零参数对接；重建模式仍按 runbook 手动 psql）；② 幂等状态②为**固定图子集匹配**——固定图 20 条授权/12 映射/绑定/身份全部匹配即 no-op，管理角色上的额外授权与图外数据（E2E 创建物）不构成冲突（T-ACCESS-021 第⑦步重启前提）；`canGrant` 参与匹配（授权传递链依赖）、name/密码不参与（可改名、绝不重置）；③ 首管理员 `force_reset_pwd=false`（密码经环境变量自设，非随机分发，不挡 E2E 登录链）；④ compose 仅初始化 `access_db`（example-service 演示库不在链路，README 单独说明）。
-- **固定图规模**：1 SERVICE 资源 + 13 API 资源 + 12 映射（目标接口无映射）+ 20 条授权（13 实例级 `API:ACCESS` + §14.4 的 7 条业务门禁，其中 6 条 scopeAll、1 条 SERVICE 实例）。`resource_api_mapping.path_pattern` 为 Gateway 外部路径（含 `/perm`、`/admin` 副前缀）——Gateway `PermissionFilter` 以原始请求路径匹配。
+- **实施决策（2026-08-24 用户确认）**：① 权威 DDL 经 compose `docker-entrypoint-initdb.d` 首启自动执行（`POSTGRES_DB=access_db`、trust 认证与默认数据源零参数对接；重建模式仍按 runbook 手动 psql）；② 幂等状态②为**固定图子集匹配**——固定图 21 条授权/12 映射/绑定/身份全部匹配即 no-op，管理角色上的额外授权与图外数据（E2E 创建物）不构成冲突（T-ACCESS-021 第⑦步重启前提）；`canGrant` 参与匹配（授权传递链依赖）、name/密码不参与（可改名、绝不重置）；③ 首管理员 `force_reset_pwd=false`（密码经环境变量自设，非随机分发，不挡 E2E 登录链）；④ compose 仅初始化 `access_db`（example-service 演示库不在链路，README 单独说明）。
+- **固定图规模**：1 SERVICE 资源 + 13 API 资源 + 12 映射（目标接口无映射）+ 21 条授权（13 实例级 `API:ACCESS` + §14.4 的 8 条业务门禁，全部 scopeAll——含 T-API-001 的 `SERVICE:MANAGE_API_MAPPING` 与 `API:ACCESS+canGrant` 两条类型级）。`resource_api_mapping.path_pattern` 为 Gateway 外部路径（含 `/perm`、`/admin` 副前缀）——Gateway `PermissionFilter` 以原始请求路径匹配。
 - **验证**：`AccessBootstrapRunnerTest`（密码 fail-fast/委托/默认关闭装配语义）单测通过；`AccessBootstrapPgIT`（Testcontainers PG16+Redis7）14 用例真实容器执行通过——事务性（创建链最后一步注入故障单事务整体回滚）、状态①全图断言+真实登录（验证码经 Redis、clientId=admin-web）、状态② no-op 不重置密码、状态③绑定/授权/映射 serviceCode/ROLE 投影/主体禁用/主体身份漂移（`user_type`/`external_id` 背离固定图身份键）/API·SERVICE 资源停用/业务键占用/SERVICE-only 部分图 fail-fast、类型种子缺失显式报错；WSL2 Docker 完整链路真实验证通过（compose up→DDL 首启自动执行→bootstrap 创建→captcha+login 200→重启 no-op，证据见任务卡）。
 - **评审收口（2026-08-24）**：外部模型评审修复状态②匹配强度（`abstract_user.enabled`、USER/ROLE 投影 `status`、ROLE 投影存在性）、映射键补 `serviceCode`、授权键补 `conditionId`/`dependOn`/`grantSource`、绑定要求 `relation_id=null` 直绑、部分存在报"固定图部分存在"冲突（不走创建链撞唯一约束）；`BootstrapSeedWriter(Impl)` 由 ArchUnit 规则限定仅 `application.bootstrap` 与所属领域包依赖（public 接口无法 package-private 的补偿强制）。附带修复既有配置缺陷：Redisson 对空串密码也发 AUTH——compose redis 固定开发密码 `accessmesh-dev`，三服务 `REDIS_PASSWORD` 占位符默认值统一。
 - **评审收口第二轮（2026-08-24）**：外部模型复审修复 2 P1——状态②检测补主体身份键校验（`abstract_user.user_type=LOCAL_USER`、`external_id=主体 ID`，§14.2 固定图身份；原 ID 相等比较属死代码已删）与 SERVICE/API 固定资源 `status=1` 校验（与 USER/ROLE 投影状态口径对齐）；4 P2——ArchUnit 防扩散收紧为仅 `application.bootstrap` 与 `permission.service.domain.impl`（实现落位包）可依赖 `BootstrapSeedWriter(Impl)`、补 Runner 默认关闭装配语义测试（ApplicationContextRunner）、补单事务回滚故障注入用例（project-rules §测试适用性覆盖）、compose 三服务端口改绑 `127.0.0.1` 且 Redis 密码 `${REDIS_PASSWORD:-accessmesh-dev}` 同源插值（command/healthcheck 一致、可整链覆盖；PG trust 认证维持实施决策①）。

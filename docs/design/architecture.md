@@ -24,7 +24,7 @@ last_reviewed: 2026-08-22
 | ----------------------------- | ------------------------------ | ---------------------- | ---------- | ---------------------------------------------------------------------- |
 | gateway                       | Spring Cloud Gateway (WebFlux) | 无（纯网关）           | 8080       | 流量入口：路由转发、Token 校验、接口鉴权                               |
 | access-service（访问控制服务）| Spring Boot 3 (WebMVC)         | PostgreSQL（access_db，public schema） | 9100 | 用户、组织、菜单、认证、字典/通知/文件/审计/调度（admin 域）+ 通用权限管理与鉴权引擎（permission 域）；模块化单体，默认组织树是用户目录；组织既是业务树也是角色容器 |
-| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | PostgreSQL（独立实例） | 9300       | 核心主线稳定后提供真实接入示例，展示 access-service 权限能力对接与权限管控 **（⚠️ 当前仅启动骨架 — 2026-06-20 审计 S-020：仅含 `ExampleServiceApplication`，演示 Controller/DTO 待 perm-sdk 与核心主线稳定后补齐）**         |
+| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | 无（瘦身后无数据源，T-API-001） | 9300       | 权限中心接入示例：单受保护接口 `POST /api/example/demo/hello`（身份回显，经 Gateway `/example/**` 路由鉴权，3xxxx 错误码段）；接口级鉴权完全由 Gateway 承担（规范 §2.4），业务服务不引入权限 SDK |
 
 ### 1.2 基础设施
 
@@ -347,7 +347,7 @@ perm-sdk/
 | Starter                          | 功能                                                                                                                       |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | perm-common                      | 公共模型（PermResult/PermissionContext/ConditionRule 等）、统一异常                                                        |
-| perm-client-spring-boot-starter  | access-service 权限客户端：反射扫描接口+@PermResource 增强、全量幂等注册、PermissionClient 鉴权查询、Feign 容错与身份透传（混合模式；Feign 目标已切换为 access-service） |
+| perm-client-spring-boot-starter  | access-service 权限客户端（已实现部分）：`PermissionFeignClient` 远程查询/写方法（checkAuth、batchCheckAuth、角色/资源/授权维护等）、`@EnableFeignClients` 自动装配与 `X-Internal-Secret`/`X-Service-Code` 身份透传拦截器（`perm.client.enabled` 开关）。接口扫描/@PermResource/自动注册未实现（T-API-001 名实对齐；有真实消费者后另行评估） |
 | perm-gateway-spring-boot-starter | 网关插件：快照模式本地匹配鉴权（T-PERM-001）、条件本地评估、未覆盖场景回退 access-service 实时鉴权                        |
 | perm-data-spring-boot-starter    | 数据权限参考实现（非官方 SDK）：@DataPermission/@DataPermissions 注解、JSqlParser SQL 改写、请求级数据范围缓存 **（⚠️ 规划中，未实现 — 2026-06-20 审计 S-011：当前模块仅含空 `PermDataAutoConfiguration`，注解/拦截器/SQL 改写均未落地，待核心主线稳定后补齐）**             |
 
@@ -357,9 +357,8 @@ perm-sdk/
 
 | 组件                           | 说明                                                                                                  |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
-| `@PermResource(value = "xxx")` | 标记在 Controller 方法上，声明该接口需要的操作权限。启动时自动上报到 access-service                          |
-| `PermissionClient`             | 业务服务查询用户权限视图的客户端。主要方法：`hasPermission(resourceId, operationId)`、`getMenuTree()` |
-| `DataPermissionInterceptor`    | MyBatis 拦截器，自动在 SQL 中注入数据权限过滤条件                                                     |
+| `PermissionFeignClient`        | `@FeignClient(name="access-service")`：checkAuth/batchCheckAuth 等远程查询与角色/资源/授权维护方法（api-contract 契约） |
+| `FeignInternalSyncInterceptor` | 同步/写路径身份透传：注入 `X-Internal-Secret`（`${perm.internal-secret}`）与 `X-Service-Code`（`${perm.service-code}`） |
 
 #### 4.5.2 perm-gateway-spring-boot-starter
 

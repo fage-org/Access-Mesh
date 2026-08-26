@@ -148,6 +148,22 @@
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- T-API-001：跨服务 E2E IT（ExampleProtectedApiE2EIT）以子进程启动
+             example-service（网关 /example/** 路由的下游）——三服务需在同一
+             java.class.path 上。仅 test scope，不进入生产依赖图；排除
+             spring-boot-starter-logging 防 Logback 与 log4j2 双 Provider。 -->
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>example-service</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
     </dependencies>
 
     <build>

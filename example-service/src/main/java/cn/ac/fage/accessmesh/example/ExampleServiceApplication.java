@@ -1,22 +1,18 @@
 package cn.ac.fage.accessmesh.example;
 
-import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.cloud.openfeign.EnableFeignClients;
 
 /**
  * 示例服务应用程序入口
  * <p>
  * Example Service 微服务的 Spring Boot 主启动类。
- * 作为权限SDK集成的示例演示服务，展示如何使用perm-client-starter
- * 进行权限校验、用户同步、资源管理等操作。
- * 启用 Feign 客户端和 MyBatis Mapper 扫描。
+ * 作为权限中心的接入示例演示服务：接口级鉴权由 Gateway 承担（规范 §2.4
+ * 服务内不重复鉴权），业务服务无需引入权限 SDK 即可被保护，因此本服务
+ * 不依赖 perm-client / perm-data starter，也不做服务内二次鉴权。
  * </p>
  */
 @SpringBootApplication
-@EnableFeignClients
-@MapperScan("cn.ac.fage.accessmesh.example.mapper")
 public class ExampleServiceApplication {
 
     /**

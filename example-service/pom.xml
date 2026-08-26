@@ -14,18 +14,12 @@
     <description>Demo service showing permission center integration</description>
 
     <dependencies>
+        <!-- 统一响应体 PermResult / 全局异常处理 / UTC 时区装配；缓存等能力按条件装配，无 Redis 也可启动 -->
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>common</artifactId>
         </dependency>
-        <dependency>
-            <groupId>cn.ac.fage.accessmesh</groupId>
-            <artifactId>perm-client-spring-boot-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>cn.ac.fage.accessmesh</groupId>
-            <artifactId>perm-data-spring-boot-starter</artifactId>
-        </dependency>
+        <!-- 接口级鉴权由 Gateway 承担（规范 §2.4），业务服务不消费 perm-client/perm-data starter -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -33,10 +27,6 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.cloud</groupId>
-            <artifactId>spring-cloud-starter-openfeign</artifactId>
         </dependency>
         <dependency>
             <groupId>com.alibaba.cloud</groupId>
@@ -47,31 +37,13 @@
             <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.mybatis-flex</groupId>
-            <artifactId>mybatis-flex-spring-boot3-starter</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.postgresql</groupId>
-            <artifactId>postgresql</artifactId>
-            <version>${postgresql.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.mapstruct</groupId>
-            <artifactId>mapstruct</artifactId>
-            <version>${mapstruct.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.github.jsqlparser</groupId>
-            <artifactId>jsqlparser</artifactId>
-            <version>${jsqlparser.version}</version>
-        </dependency>
-        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-log4j2</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

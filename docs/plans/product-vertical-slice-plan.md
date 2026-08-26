@@ -155,7 +155,7 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 | [T-ACCESS-024](../tasks/T-ACCESS-024.md) | 时间语义 UTC 统一（TypeHandler/JDBC/JVM） | ✅ | T-ACCESS-021 | B |
 | [T-ACCESS-025](../tasks/T-ACCESS-025.md) | 操作日志收敛（默认不序列化参数，复用 summary 摘要） | ⚙️ | T-ACCESS-021 | B |
 | [T-ADMIN-024](../tasks/T-ADMIN-024.md) | 恒拒绝退役 API 直接删除 | ⚙️ | T-ACCESS-021 | B |
-| [T-API-001](../tasks/T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | ⚙️ | T-ACCESS-021 | B |
+| [T-API-001](../tasks/T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | ✅ | T-ACCESS-021 | B |
 | [T-ACCESS-026](../tasks/T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | ⚙️ | 全部 B 任务 + T-API-001 | B |
 | [T-ADMIN-025](../tasks/T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE；T-ADMIN-023 执行期用户决策另立） | ⚙️ | T-ADMIN-023 | B+* |
 

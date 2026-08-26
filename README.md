@@ -9,7 +9,8 @@
 - **RBAC 权限引擎**：资源-操作-角色三位一体，支持条件权限和范围权限
 - **网关级鉴权**：Spring Cloud Gateway + Sa-Token，接口级白名单模式（快照本地匹配 + 30 秒撤权边界）
 - **OAuth2 认证**：授权码+PKCE / 密码 / 客户端凭证多种模式
-- **SDK**：perm-client（Feign 远程查询 SDK，业务服务按需使用）、perm-gateway（Gateway 鉴权插件，已使用）；perm-data 未实现（规划中）
+- **SDK**：perm-client（Feign 远程查询 SDK，业务服务按需使用）、perm-gateway（Gateway 鉴权插件，已使用）；perm-data **未实现**（experimental/规划中，当前为空配置类，勿依赖）
+- **接入示例**：example-service 单受保护接口已交付（`POST /api/example/demo/hello`，经 Gateway 鉴权 + 身份回显）；报表数据范围、动态 SQL 数据权限**未交付**（规划中，见权限中心计划）
 
 ## 技术栈
 
@@ -30,7 +31,7 @@
 Gateway (8080)
   ├── access-service (9100)    admin 域：用户/组织/菜单/认证/字典/通知/文件/审计/调度
   │                             permission 域：核心权限管理与鉴权引擎
-  └── example-service (9300)    对接演示（启动骨架；单受保护接口随 T-API-001 交付）
+  └── example-service (9300)    对接演示（单受保护接口 /api/example/demo/hello 已随 T-API-001 交付，经 Gateway 鉴权）
 ```
 
 `admin-service` 与 `permission-center` 已归并为 `access-service`（单库 `access_db`），详见 [架构设计](docs/design/architecture.md) 与 [归并后目标架构](docs/design/access-service-architecture.md)。
@@ -39,7 +40,7 @@ Gateway (8080)
 
 **核心垂直切片完成（里程碑 A，T-ACCESS-021 验收通过）**：从空库 bootstrap 到网关级授权生效的完整产品链路已由跨服务 E2E 测试钉死并通过（[BasicRoleGrantVerticalSliceE2EIT](gateway/src/test/java/cn/ac/fage/accessmesh/gateway/e2e/BasicRoleGrantVerticalSliceE2EIT.java)，固定 8 步：空库首管理员真实登录 → 创建用户/空权限 BASIC_ROLE 并分配 → 真实创建 API 映射 → 403 → 授予 API:ACCESS → 30 秒内 200 → 双服务子进程重启后仍 200 + 权限服务不可用 fail-closed 503 → 撤权 30 秒内恢复 403），授权页 GUI 授予场景亦经真实浏览器操作验收；E2E 过程中修复 4 处真实缺陷（API 映射缺省 matchOrder、用户创建 status 两侧同源、授权页 capability 门控源错误、operation-permission/list 缺 includeGlobalFallback 后端实现）。验证证据见[任务卡 T-ACCESS-021](docs/tasks/T-ACCESS-021.md)。
 
-**未交付清单**（里程碑 B 加固与后续，见 [product-vertical-slice 计划](docs/plans/product-vertical-slice-plan.md)）：操作日志收敛、退役 API 删除（T-ADMIN-024/T-ACCESS-025；T-ADMIN-022、T-ADMIN-023、T-GW-007、T-ACCESS-024 已交付）；example-service 受保护接口接入（T-API-001）；验证证据收口（T-ACCESS-026）。租户开通/运营能力未交付（首期固定单租户）；PERSONAL/GROUP_ROLE 角色生命周期未交付（首期功能角色仅 BASIC_ROLE；GROUP_ROLE 写入口已随 T-PERM-043 删除，create/update/sync/full-sync 拒绝 20022、extra-roles/* 退役、前端选项隐藏，读模型保留冻结，存量行可经 delete/move 清理）；其余管理页面仍为 mock 联调（前端 Phase 3 逐页切换）。设计文档入口见 [docs/README.md](docs/README.md)。
+**未交付清单**（里程碑 B 加固与后续，见 [product-vertical-slice 计划](docs/plans/product-vertical-slice-plan.md)）：操作日志收敛、退役 API 删除（T-ADMIN-024/T-ACCESS-025；T-ADMIN-022、T-ADMIN-023、T-GW-007、T-ACCESS-024、T-API-001 已交付）；验证证据收口（T-ACCESS-026）。租户开通/运营能力未交付（首期固定单租户）；PERSONAL/GROUP_ROLE 角色生命周期未交付（首期功能角色仅 BASIC_ROLE；GROUP_ROLE 写入口已随 T-PERM-043 删除，create/update/sync/full-sync 拒绝 20022、extra-roles/* 退役、前端选项隐藏，读模型保留冻结，存量行可经 delete/move 清理）；其余管理页面仍为 mock 联调（前端 Phase 3 逐页切换）。设计文档入口见 [docs/README.md](docs/README.md)。
 
 **技术债遗留登记——GROUP_ROLE 双事实源**（T-PERM-043 登记）：管理侧曾以 `user_role(target_type=GROUP_ROLE, relation_id=基础角色)` 表达组-角色包含（专用写入口已删，该路径从未成功写入），运行时前向授权展开则消费角色树 + `abstract_role.extra(JSONB).basicRoleIds`（现行无任何写入方——create/update/sync/full-sync 均已拒绝 GROUP_ROLE(20022)；历史管理侧 extra 透传通道曾可写，存量不保证为空）——两套读路径互不同步。未来出现真实组角色需求时按 `role_inclusion(group_role_id, included_role_id)` 单事实源表重新立项，删除 `extra.basicRoleIds`，禁止继续滥用 `user_role` 表达角色包含关系（详见 [T-PERM-043 任务卡](docs/tasks/T-PERM-043.md)）。
 
@@ -62,7 +63,7 @@ Gateway (8080)
   docker compose up -d
   ```
 
-- **数据库**：PostgreSQL 容器**首次启动（空数据卷）自动执行**唯一权威 DDL `docs/design/schema/access-service.sql`（建库 `access_db` + 租户 1 类型种子）；重复 `up` 不会重复执行。DDL 变更后的重建（DROP SCHEMA + 手动 psql）见 [rebuild runbook](docs/design/access-service-rebuild-runbook.md)。example 库用 `docs/design/schema/example-service.sql`（不在 compose 初始化范围，需单独执行）。
+- **数据库**：PostgreSQL 容器**首次启动（空数据卷）自动执行**唯一权威 DDL `docs/design/schema/access-service.sql`（建库 `access_db` + 租户 1 类型种子）；重复 `up` 不会重复执行。DDL 变更后的重建（DROP SCHEMA + 手动 psql）见 [rebuild runbook](docs/design/access-service-rebuild-runbook.md)。（T-API-001 瘦身后 example-service 无数据源，`docs/design/schema/example-service.sql` 暂无消费方，保留供未来演示数据场景使用。）
 - **首管理员**：access-service 内置幂等 bootstrap（`access.bootstrap.enabled`，默认关闭；仅单实例启用）。启用后空库自动创建 `admin` 首管理员 + 管理用功能角色并按 bootstrap 管理 API 清单最小授权；密码经环境变量注入、BCrypt 哈希落库，重复启动 no-op 不重置密码（三个密钥环境变量为服务启动必填，缺一 fail-fast）：
 
   ```bash

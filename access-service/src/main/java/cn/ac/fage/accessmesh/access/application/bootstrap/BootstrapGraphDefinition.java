@@ -98,11 +98,17 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.USER, OperationCodeConstants.CREATE, null, false),
             new GrantSpec(ResourceTypeCode.ROLE, OperationCodeConstants.CREATE, null, false),
             new GrantSpec(ResourceTypeCode.ROLE, OperationCodeConstants.MANAGE, null, false),
+            // T-API-001：类型级（scopeAll）——接入新服务（如 example-service）的首条 API 映射
+            // 创建必须由首管理员完成，实例级会造成鸡生蛋（无正规入口补授新服务实例）
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.MANAGE_API_MAPPING,
-                SERVICE_RESOURCE_CODE, false),
+                null, false),
             new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.VIEW, null, false),
-            new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.VIEW, null, false));
+            new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.VIEW, null, false),
+            // T-API-001：类型级 API:ACCESS + canGrant——新接入服务接口的授权必须由首管理员完成，
+            // 实例级（仅 13 个管理接口）会造成鸡生蛋（无正规入口给新接口授权）。
+            // ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子），此处按契约字符串声明
+            new GrantSpec(ResourceTypeCode.API, "ACCESS", null, true));
     }
 
     /**

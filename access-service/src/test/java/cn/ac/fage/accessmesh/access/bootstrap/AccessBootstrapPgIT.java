@@ -142,7 +142,7 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(1)
-    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+13API 资源/12 映射/20 授权）")
+    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+13API 资源/12 映射/21 授权）")
     void createsFullGraphOnEmptyDatabase() {
         initializer.initialize(BOOTSTRAP_PASSWORD);
 
@@ -209,20 +209,21 @@ class AccessBootstrapPgIT {
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 AND re.code = 'POST:/admin/role/my-info'",
             Long.class, TENANT)).isEqualTo(0L);
 
-        // 20 条授权：6 条业务门禁 scopeAll + 14 条实例（13 API:ACCESS + 1 SERVICE:MANAGE_API_MAPPING）；
-        // 仅目标 API 携带 canGrant=true
+        // 21 条授权（T-API-001）：8 条业务门禁 scopeAll（含 SERVICE:MANAGE_API_MAPPING 类型级
+        // 与 API:ACCESS 类型级+canGrant）+ 13 条实例（13 API:ACCESS）；canGrant=true 共 2 条
+        // （目标 API 实例 + API:ACCESS 类型级）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(20L);
+            Long.class, TENANT, roleId)).isEqualTo(21L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
-            Long.class, TENANT, roleId)).isEqualTo(6L);
+            Long.class, TENANT, roleId)).isEqualTo(8L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND can_grant = true",
-            Long.class, TENANT, roleId)).isEqualTo(1L);
+            Long.class, TENANT, roleId)).isEqualTo(2L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission p JOIN resource_entity re "
                 + "ON p.resource_entity_id = re.id AND re.tenant_id = p.tenant_id "

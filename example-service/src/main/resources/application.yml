@@ -1,0 +1,25 @@
+server:
+  port: 9300
+
+spring:
+  application:
+    name: example-service
+  # 对齐 access-service 模式：无 bootstrap starter，Nacos 远端配置经 config.import 加载
+  config:
+    import: optional:nacos:example-service.yml
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+      config:
+        server-addr: 127.0.0.1:8848
+        file-extension: yml
+
+logging:
+  config: classpath:log4j2-spring.xml
+
+# 本服务无缓存消费（common 缓存装配关闭；caffeine 在 common 为 optional 依赖未传递）。
+# 全局 ObjectMapper 由 Spring Boot 自动配置提供，Jackson 默认时区即 UTC，与全链路 UTC 语义一致。
+accessmesh:
+  cache:
+    enabled: false
