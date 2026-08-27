@@ -35,7 +35,7 @@ public interface AuditDomainService {
      * （T-ACCESS-007 §8.2 事务分级），写入失败仅告警、不影响主业务事务。
      * </p>
      *
-     * @param entry 操作日志条目（含已脱敏限长的请求体与 HTTP 上下文）
+     * @param entry 操作日志条目（含 HTTP 上下文；request_body 已随 T-ACCESS-025 停用不入本记录）
      */
     void asyncRecordLog(OperationLogEntry entry);
 
@@ -78,10 +78,10 @@ public interface AuditDomainService {
     /**
      * 操作日志条目（T-ACCESS-007 参数对象化）。
      * <p>
-     * 承载 operation_log 表全部业务列（id/createdAt 由实现填充）。
+     * 承载 operation_log 表全部业务列（id/createdAt 由实现填充；request_body 列
+     * 随 T-ACCESS-025 参数序列化收敛停用，恒为 NULL，不入本记录）。
      * 由 {@code @OperationLog} AOP 在同步线程构造：采集 HTTP 上下文
-     * （requestUrl/ipAddress）、序列化并脱敏限长请求体（requestBody）、
-     * 记录响应码与耗时；operatorName 从登录会话读取，
+     * （requestUrl/ipAddress），记录响应码与耗时；operatorName 从登录会话读取，
      * 未登录/无会话调用为 null。内部动态日志（冲突通知等）除 tenantId/module/action/
      * summary 外其余字段为 null。
      * </p>
@@ -98,7 +98,6 @@ public interface AuditDomainService {
         String ipAddress,
         String requestId,
         String requestUrl,
-        String requestBody,
         Integer responseCode,
         Integer costTime
     ) {}

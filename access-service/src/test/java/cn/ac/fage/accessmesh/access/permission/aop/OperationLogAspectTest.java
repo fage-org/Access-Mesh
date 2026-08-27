@@ -9,7 +9,6 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,11 +23,9 @@ import org.springframework.core.annotation.Order;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.lang.reflect.Method;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,8 +35,8 @@ import static org.mockito.Mockito.*;
  * OperationLogAspect 单元测试
  * <p>
  * 测试 SpEL 表达式求值（参数型、结果型）、异常路径、operatorId 采样、
- * 运行时覆盖与请求体脱敏序列化。
- * 无 HTTP 请求上下文时 ipAddress/requestUrl/requestId 为 null，请求体仍序列化。
+ * 运行时覆盖与默认路径无参数内容（T-ACCESS-025 收敛：方法参数一律不入库）。
+ * 无 HTTP 请求上下文时 ipAddress/requestUrl/requestId 为 null。
  * </p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -58,7 +55,7 @@ class OperationLogAspectTest {
 
     @BeforeEach
     void setUp() {
-        aspect = new OperationLogAspect(auditDomainService, new ObjectMapper());
+        aspect = new OperationLogAspect(auditDomainService);
     }
 
     // ===== 辅助方法 =====
@@ -121,19 +118,9 @@ class OperationLogAspectTest {
         // 仅用于 AOP 拦截测试
     }
 
-    /**
-     * 测试用 SpEL bean — 含敏感参数（校验请求体脱敏）
-     */
+    /** 测试用 SpEL bean — 含敏感参数（校验默认路径无参数内容，T-ACCESS-025） */
     @OperationLog(module = "test", action = "login-attempt", targetType = "SINGLE", targetId = "", summary = "'login attempt'")
     public void secretMethod(String username, String password) {
-        // 仅用于 AOP 拦截测试
-    }
-
-    /**
-     * 测试用 SpEL bean — 大对象参数（校验序列化前替换为元数据）
-     */
-    @OperationLog(module = "test", action = "upload", targetType = "file", targetId = "", summary = "'upload'")
-    public void uploadMethod(byte[] content, MultipartFile file, String filename) {
         // 仅用于 AOP 拦截测试
     }
 
@@ -162,7 +149,6 @@ class OperationLogAspectTest {
             assertEquals("soft-deleted 3 row(s)", entry.summary());
             assertEquals("test", entry.module());
             assertEquals("batch-delete", entry.action());
-            assertNotNull(entry.requestBody(), "方法参数应序列化为请求体");
             assertEquals(200, entry.responseCode());
         }
     }
@@ -299,7 +285,7 @@ class OperationLogAspectTest {
     }
 
     @Test
-    void shouldMaskSensitiveArgsInRequestBody() throws Throwable {
+    void shouldNotIncludeParameterContentInLogEntry() throws Throwable {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class);
              MockedStatic<TenantContextHolder> tenant = mockStatic(TenantContextHolder.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
@@ -313,25 +299,27 @@ class OperationLogAspectTest {
 
             aspect.around(joinPoint, opLog);
 
+            // T-ACCESS-025：默认路径不序列化方法参数——日志条目全部可观测内容
+            // （含 toString 全量序列化）不得出现任何参数值，密码/用户名等载荷不入库
             OperationLogEntry entry = captureEntry();
-            assertNotNull(entry.requestBody(), "方法参数应序列化为请求体");
-            // T-ACCESS-007 §8.2：密码等敏感字段值脱敏后入库，明文不得进入日志
-            assertFalse(entry.requestBody().contains("p@ss"), "请求体不得含明文密码");
-            assertTrue(entry.requestBody().contains("\"password\":\"***\""));
-            assertTrue(entry.requestBody().contains("\"username\":\"alice\""), "非敏感字段保留");
+            String allContent = entry.toString();
+            assertFalse(allContent.contains("alice"), "日志条目不得含参数明文（username）");
+            assertFalse(allContent.contains("p@ss"), "日志条目不得含参数明文（password）");
+            assertEquals("login attempt", entry.summary(), "摘要为注解静态文本，不含参数");
         }
     }
 
-    /** 测试用 bean — 含 code 字段（模拟 OAuth2 token 授权码，按调用作用域精确掩码） */
+    /** 测试用 bean — 含 code 凭证参数（模拟 OAuth2 token 授权码，验证凭证不进任何日志字段） */
     @OperationLog(module = "test", action = "oauth2-token", targetType = "oauth2_token",
         targetId = "#clientId", summary = "'token for ' + #clientId")
     public void oauth2TokenMethod(String clientId, String code, String name) {
         // 仅用于 AOP 拦截测试
     }
 
-    /** 测试: 作用域内精确掩码 code（评审 P2#3）——OAuth2ServiceImpl.token body 调用 markSensitiveField("code") */
+    /** 测试: 高风险操作经现有 summary/runtime context 记录对象 ID、动作、结果（T-ACCESS-025）——
+     *  摘要仅含对象标识（clientId），凭证参数（code 授权码）不进入任何日志字段。 */
     @Test
-    void shouldMaskScopedSensitiveFieldCodeInRequestBody() throws Throwable {
+    void shouldRecordOnlyTargetIdentityInSummaryForHighRiskOperation() throws Throwable {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class);
              MockedStatic<TenantContextHolder> tenant = mockStatic(TenantContextHolder.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
@@ -343,62 +331,14 @@ class OperationLogAspectTest {
                     String.class, String.class, String.class)
                 .getAnnotation(OperationLog.class);
 
-            // 模拟 OAuth2ServiceImpl.token 方法体在进入时登记调用作用域（around 入口先 clear，须在 proceed 回调中设置）
-            when(joinPoint.proceed()).thenAnswer(_invocation -> {
-                OperationLogRuntimeContext.markSensitiveField("code");
-                return null;
-            });
-
             aspect.around(joinPoint, opLog);
 
             OperationLogEntry entry = captureEntry();
-            assertNotNull(entry.requestBody(), "方法参数应序列化为请求体");
-            assertFalse(entry.requestBody().contains("authcode123"), "作用域内 code（授权码）应被精确掩码");
-            assertTrue(entry.requestBody().contains("\"code\":\"***\""));
-            assertTrue(entry.requestBody().contains("\"name\":\"kept\""), "非敏感字段保留");
-        }
-    }
-
-    /** 测试用 bean — 含 configValue（模拟 ConfigServiceImpl.updateConfig，服务端权威掩码） */
-    @OperationLog(module = "test", action = "config-update", targetType = "system_config",
-        targetId = "#req.id()", summary = "'update config ' + #req.id()")
-    public void configUpdateMethod(Object req, Object desc) {
-        // 仅用于 AOP 拦截测试
-    }
-
-    /** 测试: 服务端权威掩码 configValue——ConfigServiceImpl.updateConfig 依实体真实 configKey
-     *  判定密钥类后 markSensitiveField("configValue")，与客户端是否提交键无关。 */
-    @Test
-    void shouldMaskConfigValueWhenMarkedServerAuthoritative() throws Throwable {
-        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class);
-             MockedStatic<TenantContextHolder> tenant = mockStatic(TenantContextHolder.class)) {
-            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            tenant.when(TenantContextHolder::getTenantId).thenReturn(1L);
-
-            // 模拟旧客户端只提交 id/configValue/remark（无 configKey）的请求参数
-            Map<String, Object> req = new java.util.LinkedHashMap<>();
-            req.put("id", 42L);
-            req.put("configValue", "new-signing-secret");
-            req.put("remark", null);
-
-            setupJoinPoint(getClass(), "configUpdateMethod", new Object[]{req, "keep"},
-                new String[]{"req", "desc"}, null);
-            OperationLog opLog = getClass().getDeclaredMethod("configUpdateMethod", Object.class, Object.class)
-                .getAnnotation(OperationLog.class);
-
-            // 模拟 ConfigServiceImpl.updateConfig：从 DB 实体判定为密钥类后按作用域登记（around 入口先 clear）
-            when(joinPoint.proceed()).thenAnswer(_invocation -> {
-                OperationLogRuntimeContext.markSensitiveField("configValue");
-                return null;
-            });
-
-            aspect.around(joinPoint, opLog);
-
-            OperationLogEntry entry = captureEntry();
-            assertNotNull(entry.requestBody());
-            assertFalse(entry.requestBody().contains("new-signing-secret"), "密钥配置值不得明文进审计请求体");
-            assertTrue(entry.requestBody().contains("\"configValue\":\"***\""));
-            assertTrue(entry.requestBody().contains("\"desc\":\"keep\""), "非敏感字段保留");
+            assertEquals("oauth2_token", entry.targetType());
+            assertEquals("client-1", entry.targetId(), "targetId 记录对象标识");
+            assertEquals("token for client-1", entry.summary(), "摘要复用现有 SpEL，只含对象标识与动作结果");
+            String allContent = entry.toString();
+            assertFalse(allContent.contains("authcode123"), "凭证参数（授权码）不得进入日志任何字段");
         }
     }
 
@@ -486,41 +426,6 @@ class OperationLogAspectTest {
             OperationLogEntry entry = captureEntry();
             assertNull(entry.operatorName());
             assertEquals(100L, entry.operatorId());
-        }
-    }
-
-    /**
-     * 测试: 大对象参数在序列化前替换为元数据（评审 P1-2）。
-     * <p>byte[]/MultipartFile 不写入实际内容（Base64/文件内容），仅保留 type/name/length/size 元数据。</p>
-     */
-    @Test
-    void shouldSerializeLargeObjectsAsMetadata() throws Throwable {
-        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class);
-             MockedStatic<TenantContextHolder> tenant = mockStatic(TenantContextHolder.class)) {
-            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
-            tenant.when(TenantContextHolder::getTenantId).thenReturn(1L);
-
-            byte[] content = new byte[]{1, 2, 3};
-            MultipartFile file = mock(MultipartFile.class);
-            when(file.getName()).thenReturn("file");
-            when(file.getOriginalFilename()).thenReturn("secret.bin");
-            when(file.getSize()).thenReturn(1234L);
-
-            setupJoinPoint(getClass(), "uploadMethod", new Object[]{content, file, "myfile"},
-                new String[]{"content", "file", "filename"}, null);
-            OperationLog opLog = getClass().getDeclaredMethod("uploadMethod", byte[].class, MultipartFile.class, String.class)
-                .getAnnotation(OperationLog.class);
-
-            aspect.around(joinPoint, opLog);
-
-            OperationLogEntry entry = captureEntry();
-            assertNotNull(entry.requestBody(), "方法参数应序列化为请求体");
-            assertTrue(entry.requestBody().contains("\"type\":\"byte-array\""));
-            assertTrue(entry.requestBody().contains("\"length\":3"));
-            assertTrue(entry.requestBody().contains("\"type\":\"multipart-file\""));
-            assertTrue(entry.requestBody().contains("\"size\":1234"));
-            assertTrue(entry.requestBody().contains("\"originalFilename\":\"secret.bin\""), "文件名作为元数据展示");
-            assertFalse(entry.requestBody().contains("AQID"), "byte[] 内容不得以 Base64 形式写入审计字段");
         }
     }
 

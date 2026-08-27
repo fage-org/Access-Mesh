@@ -16,7 +16,7 @@
 --                   键使用 admin.*/permission.*/access.* 命名空间；存量种子键已迁移至 admin.* 前缀
 --                   （T-ACCESS-007），见下方 INSERT 种子，新增键经 upsert 入口 fail-closed 校验前缀）
 --   operation_log  = sys_audit_log + 原 operation_log（字段取超集；target_id 使用字符串；
---                   模块标识 ADMIN/PERMISSION/ACCESS；request_body 敏感内容脱敏并限长）
+--                   模块标识 ADMIN/PERMISSION/ACCESS；request_body 停用恒 NULL，T-ACCESS-025 参数序列化收敛）
 --
 -- 软删约定（与旧库一致）：
 --   delete_flag BIGINT：0 = 未删除，删除时填本行 id（确保唯一约束不冲突）
@@ -557,7 +557,7 @@ VALUES
 
 -- -----------------------------------------------------------------------------
 -- 16. operation_log - 操作日志（合并 sys_audit_log + 原 operation_log，字段取超集；
---     不做软删除；target_id 使用字符串；request_body 敏感内容脱敏并限长；
+--     不做软删除；target_id 使用字符串；request_body 停用恒 NULL（T-ACCESS-025 参数序列化收敛）；
 --     module 三值枚举 ADMIN/PERMISSION/ACCESS，T-ACCESS-007 收敛）
 -- -----------------------------------------------------------------------------
 CREATE TABLE operation_log (
@@ -573,7 +573,7 @@ CREATE TABLE operation_log (
     ip_address     VARCHAR(64),
     request_id     VARCHAR(64),
     request_url    VARCHAR(256),           -- 原 admin sys_audit_log
-    request_body   VARCHAR(4000),          -- 原 admin sys_audit_log（TEXT→限长，敏感内容脱敏）
+    request_body   VARCHAR(4000),          -- 停用恒 NULL（T-ACCESS-025：方法参数不再序列化入库）
     response_code  INT,                    -- 原 admin sys_audit_log
     cost_time      INT,                    -- 原 admin sys_audit_log
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -594,7 +594,7 @@ COMMENT ON COLUMN operation_log.summary IS '操作摘要';
 COMMENT ON COLUMN operation_log.operator_id IS '操作人ID（permission 侧语义）';
 COMMENT ON COLUMN operation_log.operator_name IS '操作人名称（permission 侧语义）';
 COMMENT ON COLUMN operation_log.request_url IS '请求URL（admin 侧语义）';
-COMMENT ON COLUMN operation_log.request_body IS '请求体（敏感字段已脱敏，限长 4000）';
+COMMENT ON COLUMN operation_log.request_body IS '停用恒 NULL（T-ACCESS-025 操作日志参数序列化收敛；列保留兼容既有数据）';
 COMMENT ON COLUMN operation_log.response_code IS '响应状态码（admin 侧语义）';
 COMMENT ON COLUMN operation_log.cost_time IS '耗时（毫秒）';
 COMMENT ON COLUMN operation_log.request_id IS '请求/追踪ID';

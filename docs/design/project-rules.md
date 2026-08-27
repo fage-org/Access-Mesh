@@ -1201,7 +1201,7 @@ phase plan / README 任务行只保留：标题（简短）、状态、直接依
 ### 写入口通用清单（适用影响权限计算或缓存的写入口）
 
 1. `@Transactional(rollbackFor=Exception.class)` 单事务原子
-2. `@OperationLog` 入口级操作日志（必填 `module`/`action`/`targetType`/`targetId`/`summary`；`module` 三值 `ADMIN/PERMISSION/ACCESS`，`action` 大写事件码 `{业务对象}_{动作}`，`targetType` 用小写表名、批量操作 `targetId=""`；判定与脱敏细节见 access-service-architecture §8.2）
+2. `@OperationLog` 入口级操作日志（必填 `module`/`action`/`targetType`/`targetId`/`summary`；`module` 三值 `ADMIN/PERMISSION/ACCESS`，`action` 大写事件码 `{业务对象}_{动作}`，`targetType` 用小写表名、批量操作 `targetId=""`；方法参数不入库、摘要只记对象 ID/动作/结果——判定细节见 access-service-architecture §8.2，标注不再测试强制（T-ACCESS-025））
 3. `@PermissionChange` 缓存失效 AOP（afterCommit flush mark\*）--**按影响范围适用**：仅影响权限计算/缓存的写入口标注；普通配置写操作不强制
 4. 契约要求的审计记录（如 `auditDomainService.recordChangeLog`，按写入口语义写合适的 change_log）
 5. 按影响范围调用适当的 `PermissionChangeContext.mark*`（角色权限事实写入口用 `markRoles`；条件变更用 `markConditions`；服务/API 变更用 `markServiceCodes`）

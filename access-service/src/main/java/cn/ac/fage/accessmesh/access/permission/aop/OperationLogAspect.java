@@ -4,16 +4,11 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
-import cn.ac.fage.accessmesh.access.infrastructure.util.SensitiveDataUtils;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.dev33.satoken.session.SaSession;
 import cn.dev33.satoken.stp.StpUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
-import jakarta.servlet.http.Part;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -24,32 +19,30 @@ import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.core.Ordered;
 import org.springframework.core.ParameterNameDiscoverer;
 import org.springframework.core.annotation.Order;
-import org.springframework.core.io.Resource;
 import org.springframework.expression.EvaluationContext;
 import org.springframework.expression.Expression;
 import org.springframework.expression.ExpressionParser;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.Reader;
-import java.io.Writer;
 import java.lang.reflect.Method;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * 操作日志切面
  * <p>
  * 拦截标注了 {@link OperationLog} 的 AppService 方法，
  * 自动调用 AuditDomainService.asyncRecordLog 记录入口级操作日志。
- * 在同步线程采集 HTTP 上下文（requestUrl/ipAddress）、序列化并脱敏限长请求体，
- * 记录响应码与耗时；日志写入由异步线程池承担（独立短事务，失败不影响主业务）。
+ * 在同步线程采集 HTTP 上下文（requestUrl/ipAddress），记录响应码与耗时；
+ * 日志写入由异步线程池承担（独立短事务，失败不影响主业务）。
  * 内部动态日志（diff 快照、冲突通知）仍由 AuditDomainService 显式调用。
+ * </p>
+ * <p>
+ * <b>不序列化方法参数/请求体（T-ACCESS-025 收敛）</b>：操作日志只保留租户、操作者、
+ * 动作、目标、结果摘要、耗时与请求上下文（requestId/ip/requestUrl）；方法参数载荷
+ * 一律不入库——载荷级审计由 {@code permission_change_log} 等专用强事务日志承载。
+ * 高风险操作的对象 ID/动作/结果经 {@code @OperationLog.summary} SpEL 或
+ * {@code OperationLogRuntimeContext.setSummary()} 记录（现有机制，不扩展）。
  * </p>
  * <p>
  * <b>切面定序</b>：{@code @Order(Ordered.LOWEST_PRECEDENCE - 1)} 使本切面位于
@@ -76,13 +69,11 @@ public class OperationLogAspect {
     private static final int OPERATOR_NAME_MAX_LEN = 256;
 
     private final AuditDomainService auditDomainService;
-    private final ObjectMapper objectMapper;
     private final ExpressionParser parser = new SpelExpressionParser();
     private final ParameterNameDiscoverer parameterNameDiscoverer = new DefaultParameterNameDiscoverer();
 
-    public OperationLogAspect(AuditDomainService auditDomainService, ObjectMapper objectMapper) {
+    public OperationLogAspect(AuditDomainService auditDomainService) {
         this.auditDomainService = auditDomainService;
-        this.objectMapper = objectMapper;
     }
 
     /**
@@ -169,100 +160,9 @@ public class OperationLogAspect {
             ipAddress,
             HttpRequestUtils.getRequestId(request),
             request != null ? request.getRequestURI() : null,
-            maskRequestBody(joinPoint, runtimeSnapshot.sensitiveFields()),
             200,
             costTime
         ));
-    }
-
-    /**
-     * 序列化方法参数为请求体并脱敏限长（T-ACCESS-007 §8.2）。
-     * <p>
-     * 将方法参数按参数名包装为 {@code Map} 后序列化，使敏感字段名
-     * （password/pwd/secret/token/…）在 JSON 中可被 {@link SensitiveDataUtils}
-     * 按字段名匹配识别（Jackson 树遍历脱敏）——位置参数直接序列化会退化为
-     * JSON 数组，数组元素无字段名，明文密码将无法脱敏入库。参数名不可用时降级为数组序列化。
-     * 密码/验证码/Token/密钥等敏感字段值替换为掩码，超长时截断追加省略号；
-     * 序列化失败返回 null（不阻断日志记录）。
-     * 文件/流/二进制等大对象参数在序列化前替换为元数据（见 {@link #toSafeSerializableValue}），
-     * 避免完整序列化文件内容并写入审计字段。
-     * </p>
-     */
-    private String maskRequestBody(ProceedingJoinPoint joinPoint, java.util.Set<String> extraPreciseFields) {
-        Object[] args = joinPoint.getArgs();
-        if (args == null || args.length == 0) {
-            return null;
-        }
-        try {
-            Object body = args;
-            MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-            Method method = signature.getMethod();
-            String[] paramNames = parameterNameDiscoverer.getParameterNames(method);
-            if (paramNames != null && paramNames.length == args.length) {
-                Map<String, Object> named = new LinkedHashMap<>();
-                for (int i = 0; i < args.length; i++) {
-                    named.put(paramNames[i], toSafeSerializableValue(args[i]));
-                }
-                body = named;
-            } else {
-                Object[] safeArgs = new Object[args.length];
-                for (int i = 0; i < args.length; i++) {
-                    safeArgs[i] = toSafeSerializableValue(args[i]);
-                }
-                body = safeArgs;
-            }
-            return SensitiveDataUtils.maskRequestBody(
-                objectMapper.writeValueAsString(body), SensitiveDataUtils.REQUEST_BODY_MAX_LEN,
-                extraPreciseFields);
-        } catch (Exception e) {
-            return null;
-        }
-    }
-
-    /**
-     * 将可能含大对象/流的参数替换为安全元数据，仅保留描述性信息。
-     * <p>
-     * MultipartFile/Part（文件上传）、byte[]（二进制）、InputStream/OutputStream/Reader/Writer、
-     * File/Resource、HttpServletRequest/Response/Session 均不序列化实际内容：
-     * 文件内容可能高达数十 MB，完整序列化会（a）在请求线程上构造大字节数组/Base64 造成性能问题，
-     * （b）把文件开头内容写入审计字段。替换为包含类名/名称/大小的元数据 Map。
-     * </p>
-     */
-    private Object toSafeSerializableValue(Object arg) {
-        if (arg == null) {
-            return null;
-        }
-        if (arg instanceof MultipartFile mf) {
-            Map<String, Object> meta = new LinkedHashMap<>();
-            meta.put("type", "multipart-file");
-            meta.put("name", mf.getName());
-            meta.put("originalFilename", mf.getOriginalFilename());
-            meta.put("size", mf.getSize());
-            return meta;
-        }
-        if (arg instanceof Part part) {
-            Map<String, Object> meta = new LinkedHashMap<>();
-            meta.put("type", "part");
-            meta.put("name", part.getName());
-            meta.put("size", part.getSize());
-            return meta;
-        }
-        if (arg instanceof byte[] bytes) {
-            Map<String, Object> meta = new LinkedHashMap<>();
-            meta.put("type", "byte-array");
-            meta.put("length", bytes.length);
-            return meta;
-        }
-        if (arg instanceof InputStream || arg instanceof OutputStream
-            || arg instanceof Reader || arg instanceof Writer
-            || arg instanceof File || arg instanceof Resource
-            || arg instanceof HttpServletRequest || arg instanceof HttpServletResponse
-            || arg instanceof HttpSession) {
-            Map<String, Object> meta = new LinkedHashMap<>();
-            meta.put("type", arg.getClass().getSimpleName());
-            return meta;
-        }
-        return arg;
     }
 
     /**

@@ -236,7 +236,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             auditDomainService.asyncRecordLog(new AuditDomainService.OperationLogEntry(
                 tenantId, "PERMISSION", "CONFLICT_DETECTED", "permission_conflict_rule", null,
                 String.format("Perm conflict blocked: tenantId=%d, ops=%s", tenantId, conflictingOpIds),
-                null, null, null, null, null, null, null, null
+                null, null, null, null, null, null, null
             ));
         } catch (Exception e) {
             log.error("Failed to record permission conflict notification: tenantId={}", tenantId, e);

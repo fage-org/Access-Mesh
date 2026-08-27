@@ -261,9 +261,9 @@ public class NoticeServiceImpl implements NoticeService {
      * 如果已有记录则更新，否则创建新记录。
      * </p>
      * <p>
-     * 审计豁免（T-ACCESS-007 登记）：用户自操作的轻量已读标记，写 sys_user_notice
-     * 状态位，不标注 @OperationLog——高频低价值操作，审计追踪价值低，与 admin 域
-     * 管理写操作区分；已读事件可通过 sys_user_notice.read_at 列追踪。
+     * 审计口径：用户自操作的轻量已读标记，写 sys_user_notice 状态位，不标注
+     * @OperationLog——高频低价值操作，审计追踪价值低，与 admin 域管理写操作区分；
+     * 已读事件可通过 sys_user_notice.read_at 列追踪。
      * </p>
      *
      * @param noticeId 通知ID

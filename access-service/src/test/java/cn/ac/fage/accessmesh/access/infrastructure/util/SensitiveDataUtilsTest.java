@@ -8,10 +8,11 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 敏感数据脱敏工具测试（T-ACCESS-007 §8.2）。
+ * 敏感数据脱敏工具测试（T-ACCESS-007 §8.2；T-ACCESS-025 冻结保留）。
  * <p>
- * 验证 operation_log 写入前对密码/Token/密钥等敏感字段的掩码替换、
- * 非敏感字段保留、嵌套对象内敏感字段命中、以及请求体限长截断。
+ * 验证冻结保留的脱敏工具行为：密码/Token/密钥等敏感字段的掩码替换、
+ * 非敏感字段保留、嵌套对象内敏感字段命中、以及请求体限长截断
+ * （冻结前为 operation_log 入库前处理，当前无审计生产调用方）。
  * </p>
  */
 class SensitiveDataUtilsTest {
@@ -204,8 +205,9 @@ class SensitiveDataUtilsTest {
 
     @Test
     void shouldMaskCodeWhenScopedAsExtraPreciseField() {
-        // P2#3：OAuth2 token/refresh 场景经 OperationLogRuntimeContext.markSensitiveField("code")
-        // 把 code 并入调用作用域精确匹配集合，授权码按那是掩码、业务场景不受影响。
+        // 冻结参数形态用例：extraPreciseFields 按调用作用域并入精确匹配集合
+        // （该登记机制已随 T-ACCESS-025 删除，参数形态随工具冻结保留），
+        // 授权码按整体相等掩码、非同名业务字段不受影响。
         String masked = SensitiveDataUtils.maskJson(
             "{\"code\":\"authcode123\",\"name\":\"keep\"}", java.util.Set.of("code"));
 

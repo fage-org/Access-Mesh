@@ -4,55 +4,44 @@ import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * AppService 操作日志覆盖与契约校验（T-ACCESS-007 评审修复）。
+ * AppService 操作日志契约校验（T-ACCESS-025 收敛后口径）。
  * <p>
- * <b>permission 域强制全覆盖</b>：扫描 {@code permission.service.impl} 包下全部
- * {@code *AppServiceImpl} 的 public + {@code @Transactional} 非 readOnly 写方法，
- * 断言必须标注 {@link OperationLog}。曾硬编码 15 个类清单导致 4 个 Sync 实现
- * （AbstractRole/AbstractUser/ResourceEntity/UserRole）的 8 个 sync/fullSync 写入口
- * 漏标（P1 绕过原因），现改为包扫描消除清单漂移。
- * </p>
- * <p>
- * <b>契约校验</b>：对已标注方法统一校验——module 三值化（ADMIN/PERMISSION/ACCESS）、
+ * <b>仅校验已标注方法</b>：对三域（permission/admin/application）已标注
+ * {@link OperationLog} 的方法统一校验——module 三值化（ADMIN/PERMISSION/ACCESS）、
  * action 大写事件码、targetType 为小写物理表名（白名单见 {@link #KNOWN_TABLE_NAMES}，
- * 与 access-service.sql 同步）或逻辑对象码例外、summary 为合法 SpEL（纯文本单引号包裹）。
+ * 与 access-service.sql 同步）或逻辑对象码例外、summary/targetId 为合法 SpEL
+ * （纯文本单引号包裹）。
  * </p>
  * <p>
- * <b>admin/application 域强制全覆盖（T-ACCESS-014）</b>：{@code admin.service.impl}、
- * {@code application.impl}、{@code application.query.impl} 的 public {@code @Transactional}
- * 非 readOnly 写方法同样必须标注 {@link OperationLog} 或经 {@link #EXEMPT_WRITE_METHODS}
- * 登记豁免（豁免须同步登记于方法 Javadoc 与任务卡验收，禁止静默缺标）。无事务方法不在
- * 强制范围：委托门面（Menu/Org/UserOrg 写方法委托 WriteAppService）的审计由事务边界的
- * AppService 承载（重复标注会产生双重日志），登录/登出会话操作由 sys_login_log 承载，
- * application.query.impl 全部 readOnly=true 无写方法（access-service-architecture §8.2）。
+ * <b>不再强制全覆盖（T-ACCESS-025）</b>：「所有事务写方法必须标注 @OperationLog」的
+ * 包扫描强制断言与豁免登记机制已删除——写方法是否标注由写入口通用清单
+ * （project-rules §写入口通用清单）规范指导，存量 32 文件/101 处注解不强制新增，
+ * 仅保持已标注语义（本类契约校验）。无事务方法不在校验范围（委托门面的审计由
+ * 事务边界的 AppService 承载，登录/登出由 sys_login_log 承载，
+ * access-service-architecture §8.2）。
  * </p>
  */
 class AppServiceOperationLogCoverageTest {
 
-    /** permission 域 AppService 实现包（强制全覆盖） */
+    /** permission 域 AppService 实现包 */
     private static final String PERMISSION_PACKAGE = "cn.ac.fage.accessmesh.access.permission.service.impl";
 
-    /** admin 域 Service 实现包（已标注方法契约校验） */
+    /** admin 域 Service 实现包 */
     private static final String ADMIN_PACKAGE = "cn.ac.fage.accessmesh.access.admin.service.impl";
 
-    /** application 域写服务包 + 查询服务包（已标注方法契约校验） */
+    /** application 域写服务包 + 查询服务包 */
     private static final List<String> APPLICATION_PACKAGES = List.of(
         "cn.ac.fage.accessmesh.access.application.impl",
         "cn.ac.fage.accessmesh.access.application.query.impl"
@@ -72,22 +61,6 @@ class AppServiceOperationLogCoverageTest {
     private static final Set<String> TARGET_TYPE_EXCEPTIONS = Set.of("oauth2_token");
 
     /**
-     * 写方法审计豁免登记（T-ACCESS-014）：高频低价值用户自操作不标注 {@code @OperationLog}。
-     * 键为「完整类名#方法名(参数完整类名,…)」——限定唯一方法，跨包同名类与方法重载不会
-     * 被连带豁免；{@link #everyRegisteredExemptionMustTargetExactlyOneWriteMethod}
-     * 校验每项精确命中一个写方法，失配即失败。豁免必须三处同步登记——本清单、方法
-     * Javadoc、任务卡验收，禁止静默缺标：
-     * <ul>
-     *   <li>{@code admin.service.impl.NoticeServiceImpl#markNoticeAsRead(Long, Long)}：
-     *       用户自操作已读状态位写入，已读事件经 {@code sys_user_notice.read_at} 列追踪
-     *       （T-ACCESS-007 先例）。</li>
-     * </ul>
-     */
-    private static final Set<String> EXEMPT_WRITE_METHODS = Set.of(
-        "cn.ac.fage.accessmesh.access.admin.service.impl.NoticeServiceImpl"
-            + "#markNoticeAsRead(java.lang.Long,java.lang.Long)");
-
-    /**
      * 物理表名白名单（access-service.sql 全部 33 表）。targetType 必须命中该集合
      * 或 {@link #TARGET_TYPE_EXCEPTIONS}，防止遗留非表名值（BATCH/SINGLE/oauth2_client 等）回潮。
      */
@@ -105,50 +78,14 @@ class AppServiceOperationLogCoverageTest {
     private final SpelExpressionParser parser = new SpelExpressionParser();
 
     @Test
-    void shouldAnnotateAllTransactionalWriteMethodsInPermissionDomain() {
-        List<Class<?>> classes = scanPackage(PERMISSION_PACKAGE);
-        assertTrue(classes.size() >= 19,
-            "permission.service.impl 应扫描到全部 AppService 实现（含 4 个 Sync），实际 " + classes.size());
-
-        List<String> violations = new ArrayList<>();
-        collectWriteMethodViolations(classes, violations);
-
-        assertEquals(List.of(), violations,
-            () -> "permission 域写方法缺 @OperationLog 或契约违规: " + String.join("; ", violations));
-    }
-
-    /**
-     * T-ACCESS-014 强制覆盖：admin/application 域写方法与 permission 域同口径——
-     * public {@code @Transactional} 非 readOnly 方法必须标注 {@link OperationLog}
-     * 或经 {@link #EXEMPT_WRITE_METHODS} 登记豁免，已标注方法做契约校验。
-     */
-    @Test
-    void shouldAnnotateAllTransactionalWriteMethodsInAdminAndApplicationDomains() {
-        List<Class<?>> adminClasses = scanPackage(ADMIN_PACKAGE);
-        assertTrue(adminClasses.size() >= 14,
-            "admin.service.impl 应扫描到全部 *ServiceImpl 实现，实际 " + adminClasses.size());
-
-        List<Class<?>> applicationClasses = scanPackages(ADMIN_PACKAGE, APPLICATION_PACKAGES);
-        int applicationCount = applicationClasses.size() - adminClasses.size();
-        assertTrue(applicationCount >= 7,
-            "application.impl + application.query.impl 应扫描到全部写/查询服务实现，实际 " + applicationCount);
-
-        List<String> violations = new ArrayList<>();
-        collectWriteMethodViolations(applicationClasses, violations);
-
-        assertEquals(List.of(), violations,
-            () -> "admin/application 域写方法缺 @OperationLog（或未登记豁免）或契约违规: "
-                + String.join("; ", violations));
-    }
-
-    @Test
     void shouldValidateContractOfAnnotatedMethodsInAllDomains() {
-        // 契约校验对已标注 @OperationLog 的方法无条件生效——不依赖 @Transactional 写方法判定
-        // （即不要求 isWriteMethod），且覆盖 permission/admin/application 三域。否则 OAuth2
-        // token/refresh/revoke、Job trigger 等已标注但非事务入口会绕过契约校验（漏检的是对
-        // 已存在注解的合法性检查，与强制覆盖缺失注解是两件事——后者由上方域内强制断言承担）。
+        // 契约校验对已标注 @OperationLog 的方法无条件生效——不依赖 @Transactional 写方法判定，
+        // 覆盖 permission/admin/application 三域（含 OAuth2 token/refresh/revoke、Job trigger
+        // 等已标注但非事务入口）。
         List<Class<?>> allDomains = new ArrayList<>(scanPackage(PERMISSION_PACKAGE));
         allDomains.addAll(scanPackages(ADMIN_PACKAGE, APPLICATION_PACKAGES));
+        assertTrue(allDomains.size() >= 40,
+            "三域应扫描到全部 Service 实现，实际 " + allDomains.size());
 
         List<String> violations = new ArrayList<>();
         for (Class<?> clazz : allDomains) {
@@ -165,79 +102,9 @@ class AppServiceOperationLogCoverageTest {
             () -> "三域已标注方法契约违规: " + String.join("; ", violations));
     }
 
-    /**
-     * 豁免登记有效性（T-ACCESS-014）：每项豁免必须精确命中 permission/admin/application
-     * 三域扫描范围内唯一一个写方法——被豁免方法改名、删除或失去 @Transactional 后失配
-     * 即失败，防止豁免清单残留死条目。
-     */
-    @Test
-    void everyRegisteredExemptionMustTargetExactlyOneWriteMethod() {
-        List<Class<?>> allDomains = new ArrayList<>(scanPackage(PERMISSION_PACKAGE));
-        allDomains.addAll(scanPackages(ADMIN_PACKAGE, APPLICATION_PACKAGES));
-
-        Map<String, Long> hitCounts = new HashMap<>();
-        for (Class<?> clazz : allDomains) {
-            for (Method method : clazz.getDeclaredMethods()) {
-                if (!isWriteMethod(method)) {
-                    continue;
-                }
-                String key = exemptionKey(clazz, method);
-                if (EXEMPT_WRITE_METHODS.contains(key)) {
-                    hitCounts.merge(key, 1L, Long::sum);
-                }
-            }
-        }
-
-        List<String> invalid = EXEMPT_WRITE_METHODS.stream()
-            .filter(key -> hitCounts.getOrDefault(key, 0L) != 1L)
-            .toList();
-        assertEquals(List.of(), invalid,
-            () -> "豁免登记未精确命中唯一写方法（已失配）: " + String.join("; ", invalid));
-    }
-
     // ---------------------------------------------------------------------
     // helpers
     // ---------------------------------------------------------------------
-
-    /** 是否为入口级写方法：public + @Transactional 且非 readOnly */
-    private static boolean isWriteMethod(Method method) {
-        if (!Modifier.isPublic(method.getModifiers())) {
-            return false;
-        }
-        Transactional tx = method.getAnnotation(Transactional.class);
-        return tx != null && !tx.readOnly();
-    }
-
-    /**
-     * 收集写方法的缺标/契约违例：缺 {@code @OperationLog} 且未登记豁免，或注解契约违规。
-     * permission 与 admin/application 域强制覆盖共用同一口径。
-     */
-    private void collectWriteMethodViolations(List<Class<?>> classes, List<String> violations) {
-        for (Class<?> clazz : classes) {
-            for (Method method : clazz.getDeclaredMethods()) {
-                if (!isWriteMethod(method)) {
-                    continue;
-                }
-                String where = clazz.getSimpleName() + "#" + method.getName();
-                OperationLog opLog = method.getAnnotation(OperationLog.class);
-                if (opLog == null) {
-                    if (!EXEMPT_WRITE_METHODS.contains(exemptionKey(clazz, method))) {
-                        violations.add("缺少 @OperationLog（或未登记豁免）: " + where);
-                    }
-                    continue;
-                }
-                assertValidContract(clazz, method, opLog, violations);
-            }
-        }
-    }
-
-    /** 豁免键：完整类名#方法名(参数完整类名,…)——跨包同名类与方法重载均不会被连带豁免 */
-    private static String exemptionKey(Class<?> clazz, Method method) {
-        String params = Arrays.stream(method.getParameterTypes())
-            .map(Class::getName)
-            .collect(Collectors.joining(","));
-        return clazz.getName() + "#" + method.getName() + "(" + params + ")";
-    }
 
     /** 校验 @OperationLog 五属性契约，违规写入 violations */
     private void assertValidContract(Class<?> clazz, Method method, OperationLog opLog,
@@ -284,11 +151,7 @@ class AppServiceOperationLogCoverageTest {
     /**
      * 扫描包下全部 Service 实现类（含 query/impl 子包内查询服务），用于契约校验。
      * <p>
-     * 匹配 {@code *ServiceImpl}（含 {@code *AppServiceImpl} 与 admin 域 {@code *ServiceImpl}）：
-     * 评审 P2#7 修复——原仅匹配 {@code *AppServiceImpl} 会把 admin 域实现类
-     * （ConfigServiceImpl 等命名 {@code *ServiceImpl}）整体过滤掉，导致 admin 域
-     * "已标注方法契约校验"实际从未执行。permission.service.impl 包内均为 *AppServiceImpl，
-     * 后缀放宽为 ServiceImpl 对 permission 域强制全覆盖结果无影响。
+     * 匹配 {@code *ServiceImpl}（含 {@code *AppServiceImpl} 与 admin 域 {@code *ServiceImpl}）。
      * </p>
      */
     private static List<Class<?>> scanPackage(String pkg) {

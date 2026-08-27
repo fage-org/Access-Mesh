@@ -85,7 +85,8 @@ public class OperationLog {
     private String requestUrl;
 
     /**
-     * 请求体内容（T-ACCESS-002 归并自 admin sys_audit_log，敏感字段已脱敏，限长 4000）
+     * 请求体内容（T-ACCESS-002 归并自 admin sys_audit_log；T-ACCESS-025 操作日志参数序列化收敛起停用恒 NULL，
+     * 列与字段保留兼容存量数据，不再写入）
      */
     private String requestBody;
 

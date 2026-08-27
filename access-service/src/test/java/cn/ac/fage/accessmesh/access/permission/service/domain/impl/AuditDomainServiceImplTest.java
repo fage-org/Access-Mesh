@@ -40,7 +40,7 @@ class AuditDomainServiceImplTest {
         service.asyncRecordLog(new AuditDomainService.OperationLogEntry(
             1L, "perm", "CREATE", "abstract_role", "10",
             "created role", 100L, "alice", "127.0.0.1", "req-1",
-            "/api/roles", "{\"name\":\"admin\"}", 200, 50));
+            "/api/roles", 200, 50));
 
         ArgumentCaptor<OperationLog> captor = ArgumentCaptor.forClass(OperationLog.class);
         verify(operationLogMapper).insert(captor.capture());
@@ -56,7 +56,8 @@ class AuditDomainServiceImplTest {
         assertEquals("127.0.0.1", log.getIpAddress());
         assertEquals("req-1", log.getRequestId());
         assertEquals("/api/roles", log.getRequestUrl());
-        assertEquals("{\"name\":\"admin\"}", log.getRequestBody());
+        // T-ACCESS-025：request_body 列停用，任何路径不再写入参数内容
+        assertNull(log.getRequestBody());
         assertEquals(200, log.getResponseCode());
         assertEquals(50, log.getCostTime());
     }
@@ -71,7 +72,7 @@ class AuditDomainServiceImplTest {
         assertThrows(RuntimeException.class, () -> service.asyncRecordLog(
             new AuditDomainService.OperationLogEntry(
                 1L, "perm", "CREATE", "abstract_role", "10",
-                "created role", 100L, null, null, null, null, null, 200, 5)));
+                "created role", 100L, null, null, null, null, 200, 5)));
     }
 
     @Test

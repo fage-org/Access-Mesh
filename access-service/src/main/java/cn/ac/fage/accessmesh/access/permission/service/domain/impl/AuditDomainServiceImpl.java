@@ -122,7 +122,7 @@ public class AuditDomainServiceImpl implements AuditDomainService {
         opLog.setIpAddress(entry.ipAddress());
         opLog.setRequestId(entry.requestId());
         opLog.setRequestUrl(entry.requestUrl());
-        opLog.setRequestBody(entry.requestBody());
+        // request_body 列随 T-ACCESS-025 参数序列化收敛停用（恒 NULL），不再写入
         opLog.setResponseCode(entry.responseCode());
         opLog.setCostTime(entry.costTime());
         opLog.setCreatedAt(LocalDateTime.now());

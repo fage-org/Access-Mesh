@@ -9,8 +9,16 @@ import com.fasterxml.jackson.databind.node.TextNode;
 /**
  * 敏感数据脱敏工具（T-ACCESS-007）。
  * <p>
- * 用于 operation_log 等审计日志写入前对请求体/摘要中的敏感字段值脱敏，
- * 保证密码、验证码、Token、密钥等不会明文入库（access-service-architecture §8.2）。
+ * <b>冻结口径（T-ACCESS-025）</b>：本工具自操作日志参数序列化收敛后不再有审计链路
+ * 生产调用方，保留现状冻结——不再扩展脱敏字典（{@code SENSITIVE_TERMS}/
+ * {@code PRECISE_SENSITIVE_FIELDS}）与递归脱敏规则（树遍历/内嵌 JSON/跨字段
+ * configKey 判定），也不新增脱敏入口。如未来恢复载荷级审计，须经任务卡立项重启，
+ * 不得在冻结期内增量扩展。
+ * </p>
+ * <p>
+ * 原用于 operation_log 等审计日志写入前对请求体/摘要中的敏感字段值脱敏
+ * （冻结前口径，当前无审计生产调用方），保证密码、验证码、Token、密钥等不会明文入库
+ * （access-service-architecture §8.2）。
  * 脱敏采用 Jackson 递归树遍历：将 JSON 解析为对象树，按字段名（忽略大小写与下划线）
  * 是否包含敏感子串判定，命中敏感字段名时将其值替换为掩码 {@value #MASK}。
  * </p>
@@ -47,17 +55,18 @@ public final class SensitiveDataUtils {
      * 仅保留 {@code codeverifier}（PKCE 验证器，全局唯一无业务碰撞）。
      * {@code code}（OAuth2 授权码）不在此全局集合——「code」同名业务字段（组织/资源编码
      * {@code OrgUpdateReq.code} / {@code ResourceUpdateReq.code} 等）会被误掩码为 {@code ***}，
-     * 降低审计追溯价值。OAuth2 token/refresh 场景由
-     * {@code OperationLogRuntimeContext.markSensitiveField("code")} 按调用作用域并入精确匹配，
-     * 授权码仍脱敏、业务编码保留。 */
+     * 降低审计追溯价值。原「按调用作用域并入精确匹配」机制（经运行时上下文登记）
+     * 已随 T-ACCESS-025 操作日志参数序列化收敛移除；本工具冻结保留 {@code extraPreciseFields}
+     * 参数形态不变。 */
     private static final String[] PRECISE_SENSITIVE_FIELDS = {
         "codeverifier"
     };
 
     /** 密钥类配置键名匹配子串（大写、去下划线后 contains 匹配）。
      * 用于配置键的密钥类判定：键名命中任一子串（如 {@code admin.OAUTH_CLIENT_SECRET}、
-     * {@code admin.API_TOKEN}）即视为敏感配置。该判定由服务端基于入库实体的真实 configKey 调用
-     * （{@code ConfigServiceImpl}），而非信任客户端请求字段。凭证独有词按 contains 匹配即可，
+     * {@code admin.API_TOKEN}）即视为敏感配置。原由服务端基于入库实体的真实 configKey 调用
+     * （{@code ConfigServiceImpl.updateConfig}，已随 T-ACCESS-025 删除），而非信任客户端请求字段；
+     * 当前无生产调用方，冻结保留判定规则。凭证独有词按 contains 匹配即可，
      * 不会误伤普通配置；通用词 {@code key} 见 {@link #SECRET_CONFIG_KEY_SUFFIX_TERMS}。 */
     private static final String[] SECRET_CONFIG_KEY_TERMS = {
         "password", "secret", "token", "apikey", "privatekey"
@@ -93,7 +102,7 @@ public final class SensitiveDataUtils {
      *
      * @param json              原始 JSON（可为 null）
      * @param extraPreciseFields 调用作用域并入的精确字段名集合（小写去下划线归一后整体相等匹配）；
-     *                           如 OAuth2 场景并入 {@code code}（授权码）——见 {@code OperationLogRuntimeContext.markSensitiveField}。
+     *                           冻结保留的参数形态，当前无生产调用方传入非 null 值；
      *                           为 null 时等价于 {@link #maskJson(String)}
      * @return 脱敏后的 JSON；null 返回 null；非合法 JSON（纯文本、空串）原样返回
      */
@@ -316,15 +325,16 @@ public final class SensitiveDataUtils {
     /**
      * 配置键名是否为密钥类（如 {@code admin.OAUTH_CLIENT_SECRET} / {@code admin.SIGNING_KEY}）。
      * <p>
-     * 供服务端基于入库实体的真实 {@code configKey} 判定是否需在审计请求体中掩码 {@code configValue}
-     * （{@code ConfigServiceImpl.updateConfig}），而非信任客户端请求字段；亦用于 {@code SystemConfigReq}
-     * 输入侧的跨字段脱敏。归一化去下划线后，对 {@link #SECRET_CONFIG_KEY_TERMS} 做 contains 匹配，
-     * 对 {@link #SECRET_CONFIG_KEY_SUFFIX_TERMS}（通用词 {@code key}）做 endsWith 后缀匹配——
-     * 避免 {@code key} 的 contains 误伤名称中偶然含 {@code key} 子串的普通配置键。
+     * 原供服务端基于入库实体的真实 {@code configKey} 判定是否需在审计请求体中掩码 {@code configValue}
+     * （{@code ConfigServiceImpl.updateConfig}，该调用已随 T-ACCESS-025 删除），而非信任客户端请求字段；
+     * 亦用于 {@code maskNode} 的 configKey+configValue 跨字段脱敏规则（冻结保留）。
+     * 当前无生产调用方，随本工具冻结保留。归一化去下划线后，对 {@link #SECRET_CONFIG_KEY_TERMS}
+     * 做 contains 匹配，对 {@link #SECRET_CONFIG_KEY_SUFFIX_TERMS}（通用词 {@code key}）做 endsWith
+     * 后缀匹配——避免 {@code key} 的 contains 误伤名称中偶然含 {@code key} 子串的普通配置键。
      * </p>
      *
      * @param configKey 配置键名
-     * @return true=密钥类配置，其值不得明文进审计
+     * @return true=密钥类配置
      */
     public static boolean isSecretConfigKey(String configKey) {
         if (configKey == null || configKey.isBlank()) {
