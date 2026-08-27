@@ -174,7 +174,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 
 - 权限运行时计算应复用统一的 `PermQueryEngine` 角色解析、条件评估、冲突处理、租户过滤和缓存逻辑。
 - **缓存失效采用 Redis pub/sub 主动广播 + TTL 兜底**（2026-06-27 T-PERM-007 核对）：写操作通过 `@PermissionChange` 绑定 `PermissionChangeContext`，业务侧只调用 `markRoles/markUsers/markConditions/markRoleSnapshots/markServiceCodes` 登记影响范围；事务提交后由 `PermissionChangeAspect` 统一 evict `EFFECTIVE_ROLES` / `ROLE_PERM_SNAPSHOT` / `CONDITION_RULES` 并通过 `StringRedisTemplate.convertAndSend("perm:invalidate", PermInvalidateEvent JSON)` 广播。Gateway 订阅后 evict 本地接口快照；广播丢失由 TTL（30-60s）自然过期兜底。**已删除 `permission_version` 机制**（原“递增 version 驱动失效”的设计已废弃，Gateway 不读 version）。
-- Gateway 可做本地 L1 缓存（Caffeine, TTL 30s），L2 缓存由权限中心内部维护（Redis，通过 `CacheService` + `PermCacheCatalog` 统一管理）。权限中心侧不再缓存 `INTERFACE_SNAPSHOT(L2)`，接口快照每次实时调 engine 构建，依赖 `ROLE_PERM_SNAPSHOT` 兜住角色权限记录读路径。
+- Gateway 本地 L1 缓存（Caffeine，TTL ≤15s，catalog `gw:interface-snapshot`；30 秒是串行授权安全总预算 = 授权 L2 ≤10s + 回源全链路截止 ≤5s + 快照 L1 ≤15s，见 architecture §7.2），L2 缓存由权限中心内部维护（Redis，通过 `CacheService` + `PermCacheCatalog` 统一管理）。权限中心侧不再缓存 `INTERFACE_SNAPSHOT(L2)`，接口快照每次实时调 engine 构建，依赖 `ROLE_PERM_SNAPSHOT` 兜住角色权限记录读路径。
 - 缓存失效在事务提交后由 `PermissionChangeAspect.afterCommit` 执行；业务侧（AppService / DomainService 方法体）禁止手写 `TransactionSynchronizationManager`。
 - 接口级权限检查（`check-interface`）匹配 API 映射后直接走 `API.ACCESS` 引擎判定，无额外 VIEW 门禁。
 

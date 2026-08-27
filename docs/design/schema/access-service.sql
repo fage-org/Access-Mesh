@@ -1194,8 +1194,8 @@ CREATE TABLE domain_config (
 
 CREATE INDEX idx_domain_config_domain ON domain_config (tenant_id, biz_domain_id, config_type) WHERE delete_flag = 0;
 
-COMMENT ON TABLE domain_config IS '域配置：SCOPE=域范围 / RELATION=域关系 / BINDING=域绑定 / SUB_PERM=子权限配置 / CLASSIFY=域分类配置。每个域独立，无继承';
-COMMENT ON COLUMN domain_config.config_type IS 'SCOPE / RELATION / BINDING / SUB_PERM / CLASSIFY';
+COMMENT ON TABLE domain_config IS '域配置：SUB_PERM=子权限配置 / CLASSIFY=域分类配置（仅此两类已实现并接受写入；SCOPE/RELATION/BINDING 为历史设想类型，未实现，请求校验拒绝）。每个域独立，无继承';
+COMMENT ON COLUMN domain_config.config_type IS 'SUB_PERM / CLASSIFY（实现范围与 ConfigType 枚举一致；其余历史类型不分配）';
 COMMENT ON COLUMN domain_config.extra IS 'SUB_PERM示例: {"allowed":[{"parent_type":"MENU","child_types":["BUTTON","DATA"]}]}, CLASSIFY示例: {"resourceTypeCodes":["ORG","USER"]}';
 
 -- -----------------------------------------------------------------------------

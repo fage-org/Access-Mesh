@@ -421,7 +421,7 @@ PermQueryEngine.query(PermQuery q)
 | ------------ | ---------------------------------------- | ------------------------------------------------------------- |
 | 单次鉴权     | `POST /api/perm/auth/check`              | `engine.query(PermQuery.forAuthCheck())`                      |
 | 批量鉴权     | `POST /api/perm/auth/batch-check`        | `engine.query(PermQuery.forAuthCheck())` x N                  |
-| 资源权限查询 | `POST /api/perm/auth/query-resources`    | `engine.query(PermQuery.forResourceCheck())`                  |
+| 资源权限查询 | `POST /api/perm/auth/query-resources`    | `engine.query(PermQuery.forUserView())`                       |
 | 范围权限查询 | `POST /api/perm/auth/query-scopes`       | `engine.query(PermQuery.forScopeQuery())`                     |
 | 接口级判定   | `POST /api/perm/auth/check-interface`    | `engine.query(PermQuery.forInterfaceCheck())`                 |
 | 权限视图     | `POST /api/perm/permission-view/*`       | `engine.query(PermQuery.forUserView())` + `PermViewAssembler` |

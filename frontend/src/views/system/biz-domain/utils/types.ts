@@ -40,20 +40,16 @@ export function createEmptyDomainConfigForm(): DomainConfigFormData {
 }
 
 /**
- * 域配置类型选项（对齐 schema domain_config.config_type 注释，access-service.sql）。
+ * 域配置类型选项（对齐 schema domain_config.config_type 注释与后端 ConfigType 枚举）。
  *
- * schema 注释列 5 种：SCOPE / RELATION / BINDING / SUB_PERM / CLASSIFY。
- * 🔧 后端 AppServiceImpl.upsertDomainConfig 注释只提 CLASSIFY/SUB_PERM，schema 注释列 5 种，登记 T-PERM-026。
- * 前端下拉列全 5 种，不限于 CLASSIFY（任务标题「CLASSIFY 类型归属」实为 configType 之一）。
+ * 仅 SUB_PERM / CLASSIFY 两类已实现并接受写入（后端 DomainConfigReq 白名单校验拒绝其余值）；
+ * SCOPE / RELATION / BINDING 为历史设想类型，未实现，不再提供选项（原 5 种下拉已于 2026-08-27 收窄）。
  */
 export const CONFIG_TYPE_OPTIONS: ReadonlyArray<{
   label: string;
   value: string;
 }> = [
   { label: "CLASSIFY（域分类配置）", value: "CLASSIFY" },
-  { label: "SCOPE（域范围）", value: "SCOPE" },
-  { label: "RELATION（域关系）", value: "RELATION" },
-  { label: "BINDING（域绑定）", value: "BINDING" },
   { label: "SUB_PERM（子权限配置）", value: "SUB_PERM" }
 ];
 

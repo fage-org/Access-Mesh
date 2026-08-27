@@ -41,17 +41,14 @@ const err = (code: number, message: string) => ({ code, message, data: null });
 // mock 调用共享注册表 mock/_bizDomainRegistry.ts 的 resolveDomainId，实时感知运行时新建/删除的业务域
 //（修复：原静态 DOMAIN_CODE_TO_ID 反查表不含新建域 code，导致新建域保存配置返回「未知域编码」）。
 
-// ========== Mock 数据：域配置（覆盖 5 种 configType + 多域） ==========
+// ========== Mock 数据：域配置（configType 仅 SUB_PERM / CLASSIFY 两类） ==========
 
 /**
  * domain_config 内存数据。
  *
- * schema 注释（access-service.sql）：
- * - config_type 取值：SCOPE / RELATION / BINDING / SUB_PERM / CLASSIFY
+ * schema 注释与后端 ConfigType 枚举（access-service.sql / DomainConfigReq 白名单）：
+ * - config_type 取值：SUB_PERM / CLASSIFY（仅此两类已实现，写入校验拒绝其余值）
  * - 每个域独立，无继承
- *
- * 🔧 后端 AppServiceImpl.upsertDomainConfig 注释只提 CLASSIFY/SUB_PERM，schema 注释列 5 种，
- * 登记 T-PERM-026。mock 覆盖全 5 种以验证前端下拉展示与筛选。
  */
 const mockConfigs: DomainConfigResp[] = [
   {
@@ -68,8 +65,8 @@ const mockConfigs: DomainConfigResp[] = [
     tenantId: 1,
     bizDomainId: 2,
     domainCode: "HR",
-    configType: "SCOPE",
-    extra: '{"mode":"DOMAIN_ONLY"}',
+    configType: "SUB_PERM",
+    extra: '{"allowed":[{"parent_type":"USER","child_types":["POSITION"]}]}',
     updatedAt: "2026-01-02 11:00:00"
   },
   {
@@ -86,8 +83,8 @@ const mockConfigs: DomainConfigResp[] = [
     tenantId: 1,
     bizDomainId: 3,
     domainCode: "ORDER",
-    configType: "RELATION",
-    extra: '{"parent":"ORDER","child":"ORDER_ITEM"}',
+    configType: "SUB_PERM",
+    extra: '{"allowed":[{"parent_type":"ORDER","child_types":["ORDER_ITEM"]}]}',
     updatedAt: "2026-01-03 11:00:00"
   },
   {
@@ -95,8 +92,8 @@ const mockConfigs: DomainConfigResp[] = [
     tenantId: 1,
     bizDomainId: 4,
     domainCode: "CRM",
-    configType: "BINDING",
-    extra: '{"resourceType":"CUSTOMER","bindTo":"USER"}',
+    configType: "CLASSIFY",
+    extra: '{"typeCodes":["CUSTOMER","CONTACT"]}',
     updatedAt: "2026-01-04 10:00:00"
   },
   {
@@ -105,7 +102,7 @@ const mockConfigs: DomainConfigResp[] = [
     bizDomainId: 4,
     domainCode: "CRM",
     configType: "SUB_PERM",
-    extra: '{"parent":"CUSTOMER:VIEW","children":["CUSTOMER:EXPORT"]}',
+    extra: '{"allowed":[{"parent_type":"CUSTOMER","child_types":["CONTACT"]}]}',
     updatedAt: "2026-01-04 11:00:00"
   },
   {
@@ -113,8 +110,8 @@ const mockConfigs: DomainConfigResp[] = [
     tenantId: 1,
     bizDomainId: 5,
     domainCode: "ASSET",
-    configType: "SCOPE",
-    extra: '{"mode":"GLOBAL_PLUS"}',
+    configType: "CLASSIFY",
+    extra: '{"typeCodes":["ASSET","LICENSE"]}',
     updatedAt: "2026-01-05 10:00:00"
   }
 ];
