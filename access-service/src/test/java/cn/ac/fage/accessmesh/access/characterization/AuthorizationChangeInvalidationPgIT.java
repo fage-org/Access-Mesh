@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
-import cn.ac.fage.accessmesh.access.permission.dto.req.BatchRevokeReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionGrantAppService;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
@@ -38,7 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * 授权变更 afterCommit 缓存失效特征测试（T-ACCESS-017·链路 5，真实 PostgreSQL + Redis）。
  * <p>
- * 固化完整链路的当前正确行为：{@code PermissionGrantAppService.batchRevoke} 真实调用
+ * 固化完整链路的当前正确行为：{@code PermissionGrantAppService.applyGrantPlan}（removes）真实调用
  * （真实事务 + @PermissionChange 切面）→ 事务提交后 afterCommit flush →
  * EFFECTIVE_ROLES / ROLE_PERM_SNAPSHOT 缓存失效 → 下次权限查询 miss 回源拿到撤销后的新状态。
  * 操作者门禁走真实引擎（scopeAll 的 ROLE:MANAGE 授权）与真实 Resolver 映射。
@@ -122,7 +122,7 @@ class AuthorizationChangeInvalidationPgIT {
     private JdbcTemplate jdbc;
 
     @Test
-    @DisplayName("batchRevoke：事务提交后 afterCommit 失效缓存，重查回源拿到撤销后的新状态")
+    @DisplayName("applyGrantPlan removes：事务提交后 afterCommit 失效缓存，重查回源拿到撤销后的新状态")
     void batchRevokeShouldInvalidateCachesAfterCommitAndReloadFromDb() {
         // -- 装配：操作者（scopeAll 的 ROLE:MANAGE 授权）+ 目标角色 + 受影响用户 --
         Long operatorSysUserId = 920001L;
@@ -153,8 +153,9 @@ class AuthorizationChangeInvalidationPgIT {
         // -- 真实调用：操作者上下文绑定 + batchRevoke（真实事务 + 切面 + afterCommit）--
         AccessRequestContext.bind(RequestContext.user(TENANT, operatorSysUserId));
         try {
-            permissionGrantAppService.batchRevoke(TENANT, new BatchRevokeReq(
-                null, "BASIC_ROLE", "target-role-920201", List.of(revokedPermId)));
+            permissionGrantAppService.applyGrantPlan(TENANT, new ApplyGrantPlanReq(
+                null, "BASIC_ROLE", "target-role-920201",
+                new ApplyGrantPlanReq.GrantPlan(null, null, List.of(revokedPermId))));
         } finally {
             AccessRequestContext.clear();
         }

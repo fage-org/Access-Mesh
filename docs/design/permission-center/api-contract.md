@@ -293,14 +293,14 @@ last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 与业务编�
 | `POST /api/perm/role-resource-permission/list`         | 查询角色权限配置（§6.4）                                       |
 | `POST /api/perm/role-resource-permission/apply-grant-plan` | **授权页面唯一写入口**（§6.5.1）：记录级 creates/updates/removes + 单事务原子 + 受影响行数断言（无 CAS/无幂等表，收窄） |
 | `POST /api/perm/role-resource-permission/sub-perm-allowed-types` | **授权页只读契约（🔧 v3.1）**：按父资源类型返回 SUB_PERM 允许的子资源类型（§6.5.2） |
-| `POST /api/perm/role-resource-permission/save` | **随 T-PERM-034 删除（复审确认）**；删除前兼容保留、已弃用：管理域存量调用；授权页面禁止调用 |
-| `POST /api/perm/role-resource-permission/revoke` | **随 T-PERM-034 迁移后删除（复审确认）**；删除前兼容保留、已弃用：删除语义由 apply-grant-plan.removes 覆盖 |
-| `POST /api/perm/role-resource-permission/children` | **随 T-PERM-034 迁移后删除（复审确认）**；删除前兼容保留、已弃用：查询由 list includeChildren 覆盖 |
-| `POST /api/perm/role-resource-permission/add-child` | **随 T-PERM-034 迁移后删除（复审确认）**；删除前兼容保留、已弃用：新增由 creates + parentPermissionId 覆盖；**兼容期仍强制 ROLE:MANAGE 门禁、逐项 checkCanGrant 与子权限属性不变量（20043）**——不得成为 20043 绕过路径 |
+| `POST /api/perm/role-resource-permission/save` ~~已删除~~ | 旧批量授予（已随 T-PERM-034 删除，2026-08-27 评审 F-07 收口，无映射 404；管理域存量调用经核实为零） |
+| `POST /api/perm/role-resource-permission/revoke` ~~已删除~~ | 旧批量撤销（同上删除；删除语义由 apply-grant-plan.removes 覆盖） |
+| `POST /api/perm/role-resource-permission/children` ~~已删除~~ | 旧子权限查询（同上删除；查询由 list includeChildren 覆盖） |
+| `POST /api/perm/role-resource-permission/add-child` ~~已删除~~ | 旧子权限新增（同上删除；新增由 creates + parentPermissionId 覆盖） |
 | `POST /api/perm/role-resource-permission/update-child` ~~已移除~~ | 编辑子权限（同上移除；updates 覆盖）                           |
 | `POST /api/perm/role-resource-permission/children-save` ~~已移除~~ | 批量子权限提交（同上移除；plan 三段覆盖）                      |
 | `POST /api/perm/role-resource-permission/rebuild` ~~已移除~~ | 主权限原子重建（同上移除；removes+creates 同事务覆盖）         |
-| `POST /api/perm/role-resource-permission/remove-child` | **随 T-PERM-034 迁移后删除（复审确认）**；删除前兼容保留、已弃用：删除由 removes 覆盖 |
+| `POST /api/perm/role-resource-permission/remove-child` ~~已删除~~ | 旧子权限删除（已随 T-PERM-034 删除，无映射 404；删除由 removes 覆盖） |
 
 ### 5.6 高级能力
 
@@ -982,7 +982,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ### 6.4 角色权限配置查询（list）
 
-> **写入入口（2026-08-08 落地）**：授权页面的全部写操作统一走 §6.5.1 `apply-grant-plan`（记录级 creates/updates/removes + 单事务原子 + 受影响行数断言；**砍 expectedRevision CAS / grant_revision 列 / 幂等表 / 20037/20039 / clientRequestId / @Idempotent**）。`save`/`revoke` 因管理域存量调用**仅迁移期保留**、`children`/`add-child`/`remove-child` 作为迁移期兼容接口保留；五者均标记弃用且授权页面禁止调用，**T-PERM-034 完成后统一删除（2026-08-08 复审确认，终态=删除）**。计划中的 `update-child`/`children-save`/`rebuild` 不实现。以下 §6.4/§6.5 规则已并入 §6.5.1 统一预检。
+> **写入入口（2026-08-27 端点退役收口）**：授权页面的全部写操作统一走 §6.5.1 `apply-grant-plan`（记录级 creates/updates/removes + 单事务原子 + 受影响行数断言；**砍 expectedRevision CAS / grant_revision 列 / 幂等表 / 20037/20039 / clientRequestId / @Idempotent**）。旧写入口 `save`/`revoke`/`children`/`add-child`/`remove-child` **已从 Controller 删除（无映射 404，无存量调用方，不留兼容层）**；`update-child`/`children-save`/`rebuild` 从未实现。以下 §6.4/§6.5 规则已并入 §6.5.1 统一预检。
 
 #### 查询角色权限配置
 
@@ -1034,7 +1034,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 子权限通过 `role_resource_permission.depend_on` 表达。`depend_on` 指向一条主权限记录的 `id`，表示当前授权依赖该主权限存在。典型场景：角色拥有"销售报表 DATA_READ"主权限，主权限下挂"上海数据 DATA_READ"和"杭州数据 DATA_READ"作为范围权限。
 
-**单入口收敛（2026-08-02）**：授权页面不再调用子权限独立接口，创建/编辑/删除全部通过 §6.5.1 `apply-grant-plan` 的记录级 plan 表达。`add-child`/`remove-child` 仅作迁移期兼容保留并标记弃用；`update-child`/`children-save` 不实现：
+**单入口收敛（2026-08-02，2026-08-27 端点退役收口）**：授权页面不再调用子权限独立接口，创建/编辑/删除全部通过 §6.5.1 `apply-grant-plan` 的记录级 plan 表达。`add-child`/`remove-child` 等旧端点**已删除（无映射 404）**；`update-child`/`children-save` 从未实现：
 
 - 新增子权限 = `creates[]` 项带 `parentPermissionId`（**属性系统不变量：`conditionCode` 必须为 null、`canGrant` 必须为 false，违反 -> 20043，2026-08-08 复审产品确认**）
 - 编辑子权限 = **不支持**（子权限不承载条件/再授予，`updates[]` 目标为子权限 -> 20043；见 §6.5.1 校验规则）

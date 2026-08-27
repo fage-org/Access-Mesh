@@ -42,7 +42,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-22
+last_updated: 2026-08-27
 ---
 
 # T-PERM-034 4.1 权限授予后端改造
@@ -75,4 +75,4 @@ v3 权限授予页（T-FE-036）需要后端补齐授权写链路能力。2026-0
 
 ## 完成记录
 
-（待实现后填写）
+- **2026-08-27 范围第 5 项（端点退役）独立收口（评审 F-07，用户决策）**：`save/revoke/children/add-child/remove-child` 五端点从 PermissionGrantController 删除（无存量调用方，AppService 五方法、五个请求 DTO、死私有方法一并清除）；SDK 面 perm-common `RoleGrantReq`/`BatchRevokeReq` 与 perm-client `PermissionFeignClient.batchGrant/batchRevoke` 同步移除；快照 190→185 + RETIRED_PATHS 登记；新增 RetiredGrantApiContractTest（五端点 404 + 存活端点委托）；AuthorizationChangeInvalidationPgIT 撤销场景改走 applyGrantPlan removes。任务其余六项（grantSource/grantedBits、includeChildren、createdAt/childCount、sub-perm-allowed-types、prevalidate 不变量族、测试矩阵）待 T-PERM-031 完成后推进，任务整体不置 done。

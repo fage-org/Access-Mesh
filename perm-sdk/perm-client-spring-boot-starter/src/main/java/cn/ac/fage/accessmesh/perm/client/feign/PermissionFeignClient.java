@@ -171,24 +171,8 @@ public interface PermissionFeignClient {
     PermResult<ItemsResp<OperationPermissionResp>> listOperations(@RequestBody OperationListReq req);
 
     // ========== 权限授予/撤销 ==========
-
-    /**
-     * 批量授予权限
-     *
-     * @param req 角色权限授予请求
-     * @return 授予结果，包含权限条目列表
-     */
-    @PostMapping("/api/perm/role-resource-permission/save")
-    PermResult<RolePermissionItemsResp> batchGrant(@RequestBody RoleGrantReq req);
-
-    /**
-     * 批量撤销权限
-     *
-     * @param req 批量撤销权限请求
-     * @return 撤销结果
-     */
-    @PostMapping("/api/perm/role-resource-permission/revoke")
-    PermResult<Void> batchRevoke(@RequestBody BatchRevokeReq req);
+    // 旧写入口 batchGrant(/save)/batchRevoke(/revoke) 已随 T-PERM-034 端点退役删除（2026-08-27）；
+    // 授权写入唯一入口为 /api/perm/role-resource-permission/apply-grant-plan（记录级 plan 单事务原子）。
 
     /**
      * 查询用户有效权限视图

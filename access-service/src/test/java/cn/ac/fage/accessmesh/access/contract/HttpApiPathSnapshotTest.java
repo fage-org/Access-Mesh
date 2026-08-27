@@ -31,7 +31,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 有设计决策背书（11 条 /sync-task/*：T-ACCESS-005 退役；/audit-log/page：
  * T-ACCESS-007 确认零引用后删除）；T-PERM-043 再删 3 条 extra-roles/* 后为 195 条；
  * T-ADMIN-024 再删 5 条 admin 侧角色写代理（/role/create、/role/grant-menu、
- * /role/revoke-menu、/user-role/assign、/user-role/revoke，无存量调用方）后为 190 条。
+ * /role/revoke-menu、/user-role/assign、/user-role/revoke，无存量调用方）后为 190 条；
+ * T-PERM-034 再删 5 条 role-resource-permission 旧写入口（save/revoke/children/
+ * add-child/remove-child，2026-08-27 评审 F-07，apply-grant-plan 为唯一写入口）后为 185 条。
  * </p>
  * <p>
  * 契约断言封闭口径（评审修复：堵住空 method 数组与 path()[0] 逃逸）：
@@ -127,13 +129,8 @@ class HttpApiPathSnapshotTest {
 /api/perm/resource-entity/sync
 /api/perm/resource-entity/tree
 /api/perm/resource-entity/update
-/api/perm/role-resource-permission/add-child
 /api/perm/role-resource-permission/apply-grant-plan
-/api/perm/role-resource-permission/children
 /api/perm/role-resource-permission/list
-/api/perm/role-resource-permission/remove-child
-/api/perm/role-resource-permission/revoke
-/api/perm/role-resource-permission/save
 /api/perm/service-config/apis
 /api/perm/service-config/detail
 /api/perm/service-config/list
@@ -240,7 +237,7 @@ class HttpApiPathSnapshotTest {
 /user/user-menus
 """.strip().split("\n"));
 
-    /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约，190 条；T-ADMIN-024 删 5 条角色写代理）。 */
+    /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约，185 条；T-ADMIN-024 删 5 条角色写代理、T-PERM-034 删 5 条旧写入口）。 */
     private static final Set<String> EXPECTED_SIGNATURES = Set.of("""
 /api/perm/abstract-role/create|access.permission.dto.req.RoleCreateReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
 /api/perm/abstract-role/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
@@ -321,13 +318,8 @@ class HttpApiPathSnapshotTest {
 /api/perm/resource-entity/sync|access.permission.dto.req.ResourceEntitySyncReq|common.model.PermResult<perm.common.dto.resp.SyncResultResp>
 /api/perm/resource-entity/tree|access.permission.dto.req.ResourceTreeReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.ResourceTreeResp>>
 /api/perm/resource-entity/update|access.permission.dto.req.ResourceUpdateReq|common.model.PermResult<access.permission.dto.resp.ResourceResp>
-/api/perm/role-resource-permission/add-child|access.permission.dto.req.RolePermissionAddChildReq|common.model.PermResult<access.permission.dto.resp.RolePermissionItemsResp>
 /api/perm/role-resource-permission/apply-grant-plan|access.permission.dto.req.ApplyGrantPlanReq|common.model.PermResult<access.permission.dto.resp.RolePermissionItemsResp>
-/api/perm/role-resource-permission/children|access.permission.dto.req.RolePermissionChildrenReq|common.model.PermResult<access.permission.dto.resp.RolePermissionItemsResp>
 /api/perm/role-resource-permission/list|access.permission.dto.req.RolePermissionListReq|common.model.PermResult<access.permission.dto.resp.RolePermissionItemsResp>
-/api/perm/role-resource-permission/remove-child|access.permission.dto.req.RolePermissionRemoveChildReq|common.model.PermResult<Void>
-/api/perm/role-resource-permission/revoke|access.permission.dto.req.BatchRevokeReq|common.model.PermResult<Void>
-/api/perm/role-resource-permission/save|access.permission.dto.req.RoleGrantReq|common.model.PermResult<access.permission.dto.resp.RolePermissionItemsResp>
 /api/perm/service-config/apis|access.permission.dto.req.ServiceConfigApisReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.ApiMappingResp>>
 /api/perm/service-config/detail|access.permission.dto.req.ServiceConfigGetReq|common.model.PermResult<access.permission.dto.resp.ServiceConfigResp>
 /api/perm/service-config/list|access.permission.dto.req.EmptyReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.ServiceConfigResp>>
@@ -452,7 +444,14 @@ class HttpApiPathSnapshotTest {
         "/role/grant-menu",
         "/role/revoke-menu",
         "/user-role/assign",
-        "/user-role/revoke"
+        "/user-role/revoke",
+        // T-PERM-034：role-resource-permission 旧写入口删除（2026-08-27 评审 F-07 收口，
+        // 契约终态=apply-grant-plan 唯一写入口；无存量调用方，授权页 v3.1 已走 apply-grant-plan）
+        "/api/perm/role-resource-permission/save",
+        "/api/perm/role-resource-permission/revoke",
+        "/api/perm/role-resource-permission/children",
+        "/api/perm/role-resource-permission/add-child",
+        "/api/perm/role-resource-permission/remove-child"
     );
 
     /** 扫描 classpath 上全部 Controller 并拼装「路径|请求类型|响应类型」签名（类级/方法级均枚举全部 path 值）。 */
@@ -513,7 +512,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("全量路径快照：Controller 映射恰为 190 条，增删必须显式更新快照")
+    @DisplayName("全量路径快照：Controller 映射恰为 185 条，增删必须显式更新快照")
     void controllerPaths_matchSnapshot() throws Exception {
         Set<String> actual = new TreeSet<>();
         scanSignatures().forEach(s -> actual.add(s.substring(0, s.indexOf('|'))));
@@ -523,7 +522,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("签名快照：路径→请求体类型|响应类型 恰为 190 条（DTO 类型级漂移检测）")
+    @DisplayName("签名快照：路径→请求体类型|响应类型 恰为 185 条（DTO 类型级漂移检测）")
     void signatures_matchSnapshot() throws Exception {
         assertThat(scanSignatures())
             .as("请求/响应 DTO 类型变更必须显式更新签名快照并记录依据")
@@ -599,7 +598,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("退役接口负向断言：RETIRED_PATHS 全部路径（/sync-task/*、/audit-log/page、extra-roles/*、admin 侧角色写代理 5 条）无任何 Controller 映射")
+    @DisplayName("退役接口负向断言：RETIRED_PATHS 全部路径（/sync-task/*、/audit-log/page、extra-roles/*、admin 侧角色写代理 5 条、role-resource-permission 旧写入口 5 条）无任何 Controller 映射")
     void retiredPaths_haveNoControllerMappings() throws Exception {
         Set<String> actual = new TreeSet<>();
         scanSignatures().forEach(s -> actual.add(s.substring(0, s.indexOf('|'))));
