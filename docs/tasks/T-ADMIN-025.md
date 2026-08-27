@@ -3,7 +3,7 @@ doc_type: task
 id: T-ADMIN-025
 title: 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE）
 status: proposed
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: admin-service
 design_refs:
   - docs/design/services/admin-service-api-contract.md

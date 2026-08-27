@@ -3,7 +3,7 @@ doc_type: task
 id: T-API-001
 title: example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
   - docs/design/services/example-service.md

@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 产品垂直切片与试点加固计划
-status: proposed
+status: archived
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md
@@ -30,7 +30,7 @@ tasks:
   - T-API-001
   - T-ACCESS-026
 acceptance: "里程碑 A（核心可运行，与 T-ACCESS-021 固定 8 步一致）：空库启动 → 首管理员（bootstrap 管理角色）真实登录 → 创建目标用户与普通 BASIC_ROLE 并分配给目标用户（角色空权限）→ 为目标接口创建 API 映射 → 目标用户实测 403 → 授权页授予 API:ACCESS → 实测 200 → 重启后仍 200 → 撤权后 30 秒内恢复 403；全过程一套用户 ID、一套资源类型、一套授权事实源；README 状态随 E2E 结论回写。里程碑 B（试点加固）：本计划 18 项任务全部 done 或经确认 cancelled，验证证据登记、access-post-merge-plan 归档。里程碑 B 任务不反向阻塞里程碑 A 的达成声明。"
-last_updated: 2026-08-25
+last_updated: 2026-08-27
 ---
 
 # 产品垂直切片与试点加固计划
@@ -118,7 +118,7 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 
 加固任务互不阻塞，但避免与同链路任务并发（T-ADMIN-022 与 T-ORG-001 同触 AuthService/用户写链路故串行；T-PERM-043 与 T-ACCESS-019 同触 RoleManageAppServiceImpl 故串行）。
 
-跨计划引用：63 位掩码 JSON 精度问题归属既有任务 [T-PERM-028](../tasks/T-PERM-028.md)（frontend-phase2），本计划不重复立项；建议在里程碑 B 前完成以免前端授权页联调返工。
+跨计划引用：63 位掩码 JSON 精度问题归属既有任务 T-PERM-028（frontend-phase2，任务详情内联看板未建卡），本计划不重复立项；建议在里程碑 B 前完成以免前端授权页联调返工。
 
 ## 任务卡编制硬约束（防过度设计 / 防局部最优）
 
@@ -139,27 +139,27 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 
 | ID | 标题 | 状态 | 直接依赖 | 里程碑 |
 |---|---|---|---|---|
-| [T-ACCESS-016](../tasks/T-ACCESS-016.md) | 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约 + 首管理员权限模型） | ✅ | — | A |
-| [T-ACCESS-017](../tasks/T-ACCESS-017.md) | 窄回归安全网与最小 CI | ✅ | — | A |
-| [T-PERM-042](../tasks/T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | ✅ | T-ACCESS-016, T-ACCESS-017 | A |
-| [T-ORG-001](../tasks/T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | ✅ | T-PERM-042 | A |
-| [T-ACCESS-018](../tasks/T-ACCESS-018.md) | 资源类型收敛（五组合并 + 双常量合一 + 前端权限串） | ✅ | T-ORG-001 | A |
-| [T-ACCESS-019](../tasks/T-ACCESS-019.md) | USER/ROLE 全写路径同事务资源投影 | ✅ | T-ACCESS-018 | A |
-| [T-ACCESS-020](../tasks/T-ACCESS-020.md) | 空库 bootstrap（一键基础设施 + 幂等首管理员种子） | ✅ | T-ACCESS-019 | A |
-| [T-FE-041](../tasks/T-FE-041.md) | 前端真实登录链路与默认导航收敛 | ✅ | T-ACCESS-020 | A |
-| [T-ACCESS-021](../tasks/T-ACCESS-021.md) | BASIC_ROLE 授权垂直切片 E2E 验收 + README 回写 | ✅ | T-ACCESS-020, T-FE-041 | A |
-| [T-ADMIN-022](../tasks/T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | ✅ | T-ORG-001, T-ACCESS-021 | B |
-| [T-PERM-043](../tasks/T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | ✅ | T-ACCESS-019, T-ACCESS-021 | B |
-| [T-ADMIN-023](../tasks/T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | ✅ | T-ACCESS-021 | B |
-| [T-GW-007](../tasks/T-GW-007.md) | Gateway CORS 环境化与 actuator 暴露收口 | ✅ | T-ACCESS-021 | B |
-| [T-ACCESS-024](../tasks/T-ACCESS-024.md) | 时间语义 UTC 统一（TypeHandler/JDBC/JVM） | ✅ | T-ACCESS-021 | B |
-| [T-ACCESS-025](../tasks/T-ACCESS-025.md) | 操作日志收敛（默认不序列化参数，复用 summary 摘要） | ✅ | T-ACCESS-021 | B |
-| [T-ADMIN-024](../tasks/T-ADMIN-024.md) | 恒拒绝退役 API 直接删除（含 /role/revoke-menu 共 5 个） | ✅ | T-ACCESS-021 | B |
-| [T-API-001](../tasks/T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | ✅ | T-ACCESS-021 | B |
-| [T-ACCESS-026](../tasks/T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | ⚙️ | 全部 B 任务 + T-API-001 | B |
-| [T-ADMIN-025](../tasks/T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE；T-ADMIN-023 执行期用户决策另立） | ⚙️ | T-ADMIN-023 | B+* |
+| [T-ACCESS-016](../../tasks/T-ACCESS-016.md) | 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约 + 首管理员权限模型） | ✅ | — | A |
+| [T-ACCESS-017](../../tasks/T-ACCESS-017.md) | 窄回归安全网与最小 CI | ✅ | — | A |
+| [T-PERM-042](../../tasks/T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | ✅ | T-ACCESS-016, T-ACCESS-017 | A |
+| [T-ORG-001](../../tasks/T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | ✅ | T-PERM-042 | A |
+| [T-ACCESS-018](../../tasks/T-ACCESS-018.md) | 资源类型收敛（五组合并 + 双常量合一 + 前端权限串） | ✅ | T-ORG-001 | A |
+| [T-ACCESS-019](../../tasks/T-ACCESS-019.md) | USER/ROLE 全写路径同事务资源投影 | ✅ | T-ACCESS-018 | A |
+| [T-ACCESS-020](../../tasks/T-ACCESS-020.md) | 空库 bootstrap（一键基础设施 + 幂等首管理员种子） | ✅ | T-ACCESS-019 | A |
+| [T-FE-041](../../tasks/T-FE-041.md) | 前端真实登录链路与默认导航收敛 | ✅ | T-ACCESS-020 | A |
+| [T-ACCESS-021](../../tasks/T-ACCESS-021.md) | BASIC_ROLE 授权垂直切片 E2E 验收 + README 回写 | ✅ | T-ACCESS-020, T-FE-041 | A |
+| [T-ADMIN-022](../../tasks/T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | ✅ | T-ORG-001, T-ACCESS-021 | B |
+| [T-PERM-043](../../tasks/T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | ✅ | T-ACCESS-019, T-ACCESS-021 | B |
+| [T-ADMIN-023](../../tasks/T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | ✅ | T-ACCESS-021 | B |
+| [T-GW-007](../../tasks/T-GW-007.md) | Gateway CORS 环境化与 actuator 暴露收口 | ✅ | T-ACCESS-021 | B |
+| [T-ACCESS-024](../../tasks/T-ACCESS-024.md) | 时间语义 UTC 统一（TypeHandler/JDBC/JVM） | ✅ | T-ACCESS-021 | B |
+| [T-ACCESS-025](../../tasks/T-ACCESS-025.md) | 操作日志收敛（默认不序列化参数，复用 summary 摘要） | ✅ | T-ACCESS-021 | B |
+| [T-ADMIN-024](../../tasks/T-ADMIN-024.md) | 恒拒绝退役 API 直接删除（含 /role/revoke-menu 共 5 个） | ✅ | T-ACCESS-021 | B |
+| [T-API-001](../../tasks/T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | ✅ | T-ACCESS-021 | B |
+| [T-ACCESS-026](../../tasks/T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | ✅ | 全部 B 任务 + T-API-001 | B |
+| [T-ADMIN-025](../../tasks/T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE；T-ADMIN-023 执行期用户决策另立） | ⚙️ | T-ADMIN-023 | B+* |
 
-> T-FE-042（前端默认导航收敛）已取消：范围并入 [T-FE-041](../tasks/T-FE-041.md)（同为前端发布面，避免任务碎片化），看板保留 cancelled 记录。
+> T-FE-042（前端默认导航收敛）已取消：范围并入 [T-FE-041](../../tasks/T-FE-041.md)（同为前端发布面，避免任务碎片化），看板保留 cancelled 记录。
 >
 > T-ADMIN-025（文件夹级授权）为 2026-08-25 T-ADMIN-023 执行期用户决策新增的能力任务（B+*）：**不在本计划 `tasks:` 闭包内**（不阻塞 T-ACCESS-026 与本计划按 18 项收口），任务卡 frontmatter 的 `plan` 字段仅为来源溯源；其推进与收口按正常任务卡生命周期独立进行，必要时另立计划承载。
 
@@ -178,6 +178,7 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 - 2026-08-23 闭环修订：bootstrap 授权链闭合（Gateway 空快照默认拒绝 + canGrant 授权传递两个先有鸡问题，经最小种子解决）——T-ACCESS-016 定稿 bootstrap 管理 API 清单（双层最小授权）与 E2E 目标接口 POST /admin/role/my-info（仅预建资源+预授 canGrant 用权限、不建映射）；T-ACCESS-020 补种子执行与幂等语义（事务化 initializer、业务键 create/no-op、单事务、fail-fast、单实例）；T-ACCESS-021 场景对齐（真实创建 my-info 映射、页面授予/runbook 回收固定分工）；GW-007 主端口删除全部 actuator 口径收口；T-FE-041 场景与导航确定清单；T-ACCESS-017 补 CI 真实运行证据；README 特性表真实化。
 - 2026-08-23 契约修订：真实登录契约补全（LoginReq 四要素+验证码强校验、tenantId=1/clientId=admin-web、expiresIn 转绝对时间、不接刷新令牌、复用 _envelope.unwrap 不改全局解包、删默认账号密码）；Gateway 唯一外部路径约定（/auth/**、/admin/**、/perm/api/perm/**、/example/**，vite 同路径转发，仅切换登录+授权页消费模块）；bootstrap 管理 API 清单补授权页初始化读接口；幂等口径统一（业务键 create/no-op、占用即 fail-fast、专用写入组件不加公开无操作者入口）；导航口径改"里程碑 A 只显示冒烟通过的页面"；测试要求改最小适用层；CI 证据以 GHA 两 job 真实跑通为准（外部主机基线为历史事实）；README 架构图与两处索引的旧口径（SDK 参考实现、40 项）真实化。
 - 2026-08-23 验收链路修订：E2E 固定 8 步顺序（角色分配先于授权、403 断言先于授权真实执行、撤权单调计时轮询）；bootstrap 管理角色业务门禁最小集明确到 operation/scopeMode/实例；bootstrap 幂等改三状态口径（完整存在整体 no-op / 部分残缺启动失败报告冲突）；T-FE-041 模块清单收敛为授权页实际消费五模块、新增 401 窄处理规则；任务卡规范改必填+按适用填写；索引旧"40 项"口径统一。计划自此冻结扩展，进入执行。
+- 2026-08-27 收口：T-ACCESS-026 done——外部 Docker 验证证据正式登记（Docker Desktop 4.87 + WSL2、`mvn -B test -pl access-service`、修复链 `c8dc06c52` → `b9f48bb39` → `7b7cf3254`、9 类 68 项历史基线，不建计数同步机制）；里程碑 B 后段任务（T-ADMIN-023/T-GW-007/T-ACCESS-024/T-ACCESS-025/T-ADMIN-024/T-API-001）详见各自任务卡；access-post-merge-plan 与本计划（18 项全 done，里程碑 A + B 达成）双计划归档至 `docs/archive/2026-08-27/`，状态字段一致性复核完成（存量 T-FE-024/025/029~031 看板漂移一并收口）。**计划转 completed 归档。**
 - 前置事实基线：代码基线 @ `7b7cf3254`（计划与任务卡文档修改使工作区非 clean）；外部 Docker 主机已真实执行 9 类 68 项 Testcontainers 门控（修复链 `c8dc06c52` → `b9f48bb39` → `7b7cf3254`，构成历史验证基线）。
 - 2026-08-23 执行：T-ORG-001 done——主体 ID 统一（序列预取 + sys_user/abstract_user 同 ID 双表插入，Flex 主键策略适配 KeyType.None/insertWithExplicitId）；OperatorSubjectResolver 与 resolveOperatorSubjectId 全量删除清零（82 处调用 + Javadoc）；空库重建 runbook 落地（含 Redis 清理）；双层全绿（单测 674 + 容器 65，新增 LocalSubjectIdUnificationPgIT）。T-ACCESS-018 依赖解除。
 - 2026-08-23 执行：T-ACCESS-018 done——DDL 种子按 §13 终值重编（resource_type 28→23、operation_permission 139→117，LOCAL_USER 更名、ORG=29、USER:ENABLE bit32）；ResourceTypeCode 扩为 23 码单一常量源、AdminResourceType 删除（约 26 文件切换）、AdminOperationCode.GRANT/REVOKE 删除；subject 保留键 ADMIN_USER→LOCAL_USER（含登录会话与全链路投影解析）；resource 侧取消类型级保留、外部 sync mutation 前置 rejectIfLocalResource（20045，含 DELETE 负向测试）、管理入口清单换值 {USER, ORG, MENU}；前端权限串全量切换（user/grant/permission-query 页 + mock）；文档全量同步（api-contract、admin 契约、runbook fixture、org-user 契约 v1.5 等）；schema 双测试新增退役码值登记（16/17/18/19/22/28 不复用）。T-ACCESS-019 依赖解除。
@@ -192,7 +193,7 @@ T-ACCESS-026 验证证据与文档状态收口               ← 全部里程碑
 
 - 2026-08-24 二轮评审收口：T-FE-041 外部模型（codex gpt-5.6-sol xhigh）复审——上轮 5 项修复全部确认无回归，未发现致命/高问题；新检出 2 中/3 低并核实修复：登录失败后验证码刷新纳入按钮 loading（发起即失效旧 captchaId，防慢网重复提交已消费旧码）、固定 tenantId/clientId 展开顺序后置获最终覆盖权、登录 store 单测补 menus 非空夹具与 userKey 持久化断言、login.md 修正 401 不降级语义与契约来源表述（admin 契约文档未收录登录端点，登记文档治理遗留）。1 中登记遗留：sub-perm-allowed-types 后端端点未实现（api-contract §6.5.2 已定稿、Controller 缺失，真实路径切换后子权限配置区 404，不阻断 API:ACCESS 主权限验收，后端补齐归后续）。验证：210 单测/typecheck/lint/生产构建全绿。
 
-- 2026-08-24 执行：T-ACCESS-021 done——自动化轨跨服务 E2E IT 固定 8 步全绿（gateway 83 单测/access-service 697 单测/DualInstance 3 用例回归通过）；GUI 授权页授予场景经真实浏览器操作闭环（保存后 0.4s 生效 200，7 份证据归档）；E2E 共修复四处真实产品缺陷（API 映射缺省 matchOrder、用户创建 status 两侧同源、授权页 capability 门控源错误、operation-permission/list 补齐契约 §5.3 includeGlobalFallback）；README 项目状态改「核心垂直切片完成」+ 未交付清单，architecture §14.8 回写。**里程碑 A 达成，里程碑 B 任务依赖解除。** 执行口径与证据见[任务卡](../tasks/T-ACCESS-021.md)。
+- 2026-08-24 执行：T-ACCESS-021 done——自动化轨跨服务 E2E IT 固定 8 步全绿（gateway 83 单测/access-service 697 单测/DualInstance 3 用例回归通过）；GUI 授权页授予场景经真实浏览器操作闭环（保存后 0.4s 生效 200，7 份证据归档）；E2E 共修复四处真实产品缺陷（API 映射缺省 matchOrder、用户创建 status 两侧同源、授权页 capability 门控源错误、operation-permission/list 补齐契约 §5.3 includeGlobalFallback）；README 项目状态改「核心垂直切片完成」+ 未交付清单，architecture §14.8 回写。**里程碑 A 达成，里程碑 B 任务依赖解除。** 执行口径与证据见[任务卡](../../tasks/T-ACCESS-021.md)。
 
 - 2026-08-25 执行：T-ADMIN-022 done（里程碑 B 首项）——登录失败锁定改「计数键即锁」（checkAccountLocked increment(key,0) 改 GET、删除 lockUser/status=2/投影禁用编排与全部写库路径），锁定拒绝补记 sys_login_log、提示 10004 固定 30 分钟文案与停用 10003 可区分；sys_user.status 单一口径 0=停用/1=启用 收口（实体/DTO/契约注释 + /user/update 补 0/1 校验 + 前端「禁用」→「停用」措辞）；forceResetPwd 非阻断提示随本任务落地（归属自 T-FE-041 移入，经用户确认）。5 项执行期用户决策与 smsLogin 锁定缺口遗留登记见任务卡。
 - 2026-08-25 外部评审两轮收口（codex gpt-5.6-sol xhigh）：一轮 1 高/5 低——/user/create 补 status 0/1 校验、认证侧停用检查 fail-closed（status!=1 与投影 isEnabled 对齐）、停用提示优先于临时锁定、PgIT 补计数键 TTL 断言、文档/格式残留清理；二轮 0 致命/0 高/1 中/3 低——resetPassword 补置 force_reset_pwd=true（DDL「管理员重置后」语义闭环）、创建/重置弹窗文案去「登录后自行修改」矛盾、smsLogin fail-closed 用例与 create 错误码断言补齐、5 处「禁用」术语残留清理。验证：单测轨道 703 全绿（AuthLoginLockTest 7 用例）+ 容器轨道 90 全绿 + 前端 typecheck/210 单测/lint 全绿。逐条处置见任务卡评审表。

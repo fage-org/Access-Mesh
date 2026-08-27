@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-016
 title: 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约）
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md

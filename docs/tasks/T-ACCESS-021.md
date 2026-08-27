@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-021
 title: BASIC_ROLE 授权垂直切片 E2E 验收 + README 回写
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
   - docs/design/permission-center/core-flows.md

@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: admin-service 与 permission-center 归并为 access-service
-status: completed
+status: archived
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md
@@ -100,7 +100,7 @@ last_updated: 2026-08-22
 - 2026-08-22：T-ACCESS-010 done（Gateway /admin/**+/perm/** 合并单路由 → lb://access-service + auth-routes 同目标，service-url/指标/日志统一；perm-sdk PermissionFeignClient → access-service + 18 路径封闭契约测试 + 删除 SyncTaskFeignClient + perm.service-code 去默认值 fail-fast；主代码/测试/前端/mock/DDL 注释旧名全量清理，LEGACY_ADMIN_SOURCE 拒绝列表值与负向断言保留；死代码 RestTemplateConfig 删除；architecture §1/gateway.md/access-service-architecture §9/AGENTS/README 回写；4 项用户决策；阶段 4 启动）。同日 AI 复评 1 P1 + 3 P2 全部属实并修复：Starter @Import 显式装配 FeignInternalSyncInterceptor（原 @EnableFeignClients 不注册普通 @Component、组件扫描覆盖不到 SDK 包，拦截器从未装配）+ 装配测试 4 项（含 PropertyPlaceholderAutoConfiguration 复现 strict 占位符语义与 starter logging 桥接环排除两处附带发现）；SDK 契约测试改全方法封闭（不预过滤、唯一 @RequestBody、禁 Web 参数类型、路径防重复）；Gateway 路由测试补 auth-routes Path/StripPrefix 固化与路由总数恰 3；PermissionFilter 生产告警与 PermCenterUnreachableException→AccessServiceUnreachableException、copilot-instructions sourceService 示例等 4 处旧名清理。全量回归通过（access 610 / gateway 59 / perm-client 12）。二轮复评 2 P2 + 1 P3 属实修复（禁用注解断言改按注解实例判定——原参数类型检查对 @RequestBody+@RequestParam 共存无效；路由总数改直接断言 routes.size()==3——原 byId HashSet 折叠重复 ID；删未使用 import）。
 - 2026-08-22：T-ACCESS-011 done（契约/回滚/架构/空库/双实例验收门禁：新增 45 个验收测试；验收期修复 Gateway 会话两项缺陷——P0 getExtra 恒 401 改读 SaSession、P1 无操作超时校验+滑动续期；40 个 Docker 门控容器测试按环境受限豁免待 CI，计划归档前必须跑绿。详见 [任务卡](../../tasks/T-ACCESS-011.md)）。同日评审修复：Gateway 阻塞 Redis 调用移出事件循环（boundedElastic）、契约快照封闭化（类级/方法级全路径枚举、DTO 全包路径消歧、统一响应包装断言）、新增双上下文共享容器 PG/Redis 双实例测试（缓存跨实例失效/任务抢占/接管，Docker 门控）。
 
-- 2026-08-22：T-ACCESS-012 done（设计全量回写与残留清理收口）：architecture.md §2~§7 按归并后实现重写并收敛重复（快照模式鉴权、admin 域概览、同事务本地投影）；`services/admin-service.md` 标 superseded 并与四份旧 DDL 一并物理归档至 `docs/archive/2026-08-22/`，`admin-service-api-contract.md` 补归并定位与术语映射；permission-center 四件套、v3.5、example/default-org-tree 与前端设计文档 schema 权威统一改指 `access-service.sql`，双服务叙事与轮次标记清理；前端 mock/src 旧 schema 注释修正；proposed T-PERM/T-ADMIN 任务逐卡重基线（T-PERM-033 取消聚合层直连 /api/perm/*、T-PERM-034 裁 RoleProxyServiceImpl 失效子项并保留 SDK 契约面删除断任务、T-PERM-019 移除 D4、T-PERM-021 F1.e 收窄为外部 sync runbook、T-ADMIN-021 去远程故障语义、T-PERM-039 修正悬空引用）；任务看板门禁解除、设计变更待核对逐项收口；README/AGENTS 索引同步。后续任务 T-ACCESS-013/014 迁入 [access-post-merge-plan](../../plans/access-post-merge-plan.md)；本计划 12 个任务全部 done，转 completed 并归档至 `docs/archive/2026-08-22/`。T-ACCESS-011 登记的「CI 跑绿 40 个 Docker 门控测试」原为本计划归档前置条件，经用户决策（2026-08-22）随归档转移至 access-post-merge-plan 准入条件。
+- 2026-08-22：T-ACCESS-012 done（设计全量回写与残留清理收口）：architecture.md §2~§7 按归并后实现重写并收敛重复（快照模式鉴权、admin 域概览、同事务本地投影）；`services/admin-service.md` 标 superseded 并与四份旧 DDL 一并物理归档至 `docs/archive/2026-08-22/`，`admin-service-api-contract.md` 补归并定位与术语映射；permission-center 四件套、v3.5、example/default-org-tree 与前端设计文档 schema 权威统一改指 `access-service.sql`，双服务叙事与轮次标记清理；前端 mock/src 旧 schema 注释修正；proposed T-PERM/T-ADMIN 任务逐卡重基线（T-PERM-033 取消聚合层直连 /api/perm/*、T-PERM-034 裁 RoleProxyServiceImpl 失效子项并保留 SDK 契约面删除断任务、T-PERM-019 移除 D4、T-PERM-021 F1.e 收窄为外部 sync runbook、T-ADMIN-021 去远程故障语义、T-PERM-039 修正悬空引用）；任务看板门禁解除、设计变更待核对逐项收口；README/AGENTS 索引同步。后续任务 T-ACCESS-013/014 迁入 [access-post-merge-plan](../2026-08-27/access-post-merge-plan.md)（该计划已于 2026-08-27 完成并归档）；本计划 12 个任务全部 done，转 completed 并归档至 `docs/archive/2026-08-22/`。T-ACCESS-011 登记的「CI 跑绿 40 个 Docker 门控测试」原为本计划归档前置条件，经用户决策（2026-08-22）随归档转移至 access-post-merge-plan 准入条件。
 
 ## 归档条件
 

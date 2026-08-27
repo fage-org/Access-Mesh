@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-017
 title: 窄回归安全网与最小 CI
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md

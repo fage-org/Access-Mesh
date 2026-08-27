@@ -13,7 +13,7 @@ access-service 归并主链（T-ACCESS-001~012）全部完成。T-ACCESS-012 收
 | `schema/seed-admin-operations.sql` | `docs/design/schema/` | 旧 admin 操作种子；同上 |
 | `schema/seed-perm-operations.sql` | `docs/design/schema/` | 旧 perm 操作种子；同上 |
 | `admin-service.md` | `docs/design/services/` | 原独立 admin-service 服务设计；`status: superseded`，被 `docs/design/access-service-architecture.md`（§2/§3/§4）取代，`/admin/**`、`/auth/**` 契约仍由 `docs/design/services/admin-service-api-contract.md`（adopted）承载 |
-| `access-service-merge-plan.md` | `docs/plans/` | 归并主计划（T-ACCESS-001~012）全部 done 转 completed；后续任务 T-ACCESS-013/014 迁入 `docs/plans/access-post-merge-plan.md` |
+| `access-service-merge-plan.md` | `docs/plans/` | 归并主计划（T-ACCESS-001~012）全部 done 转 completed；后续任务 T-ACCESS-013/014 迁入 access-post-merge-plan（该计划已于 2026-08-27 完成并归档至 `docs/archive/2026-08-27/`） |
 
 ## 当前权威设计入口
 
@@ -21,6 +21,6 @@ access-service 归并主链（T-ACCESS-001~012）全部完成。T-ACCESS-012 收
 - 唯一权威 DDL：`docs/design/schema/access-service.sql`
 - admin 域对外契约：`docs/design/services/admin-service-api-contract.md`
 - 整体拓扑：`docs/design/architecture.md`
-- 后续强化计划：`docs/plans/access-post-merge-plan.md`（准入前置：CI 跑绿 T-ACCESS-011 登记的 40 项 Docker 门控测试）
+- 后续强化计划：已完成并归档（`docs/archive/2026-08-27/access-post-merge-plan.md`；其 CI 准入前置由 T-ACCESS-017 最小 CI 落地关闭）
 
 本批次文档仅用于历史追溯，不作为实现依据；与权威文档冲突时以权威文档为准。

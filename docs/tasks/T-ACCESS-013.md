@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-013
 title: OAuth2 资源服务器与 scope 授权模型（委托令牌访问业务 API 的显式开放）
 status: done
-plan: docs/plans/access-post-merge-plan.md
+plan: docs/archive/2026-08-27/access-post-merge-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md#6-可信请求上下文与安全策略

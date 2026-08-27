@@ -3,7 +3,7 @@ doc_type: task
 id: T-ADMIN-023
 title: 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序）
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: admin-service
 design_refs:
   - docs/design/services/admin-service-api-contract.md

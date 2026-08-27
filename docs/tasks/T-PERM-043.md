@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-043
 title: GROUP_ROLE 写入口删除与前端隐藏
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md

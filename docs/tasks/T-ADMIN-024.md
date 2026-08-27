@@ -3,7 +3,7 @@ doc_type: task
 id: T-ADMIN-024
 title: 恒拒绝退役 API 直接删除（含 /role/revoke-menu，共 5 个端点）
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: admin-service
 design_refs:
   - docs/design/services/admin-service-api-contract.md

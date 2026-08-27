@@ -34,6 +34,7 @@ docs/
 ├── tasks/                             # 任务（原子执行单元，看板为唯一权威清单）
 │   └── README.md
 └── archive/                           # 归档文档（仅追溯，不作为实现依据）
+    ├── 2026-08-27/
     ├── 2026-08-22/
     ├── 2026-08-15/
     ├── 2026-07-26/
@@ -71,8 +72,8 @@ docs/
 | 主题 | 文档 |
 |------|------|
 | ~~access-service 归并计划~~ | （已归档 2026-08-22）T-ACCESS-001~012 全部 done，见 [archive/2026-08-22/](archive/2026-08-22/) |
-| access-service 归并后续强化 | [plans/access-post-merge-plan.md](plans/access-post-merge-plan.md)（T-ACCESS-013~015 已全 done；准入前置以 CI 退出状态为准，T-ACCESS-026 归档时关闭） |
-| 产品垂直切片与试点加固 | [plans/product-vertical-slice-plan.md](plans/product-vertical-slice-plan.md)（2026-08-22 立项、2026-08-23 评审修订：模型收敛 + bootstrap + 前端真实登录 + BASIC_ROLE E2E 垂直切片（里程碑 A）+ 试点加固与收口（里程碑 B）；18 项任务） |
+| ~~access-service 归并后续强化~~ | （已归档 2026-08-27）T-ACCESS-013~015 全 done，CI 准入前置由 T-ACCESS-017 关闭，见 [archive/2026-08-27/](archive/2026-08-27/) |
+| ~~产品垂直切片与试点加固~~ | （已归档 2026-08-27）18 项任务全 done（里程碑 A E2E 八步全绿 + 里程碑 B 加固与收口），见 [archive/2026-08-27/](archive/2026-08-27/) |
 | 项目诊断与完善计划 | [plans/improvement-plan.md](plans/improvement-plan.md) |
 | ~~组织与用户融合页实现计划~~ | （已归档 2026-06-21）P0/P1/P2 三阶段全 100%，见 [archive/2026-06-21/](archive/2026-06-21/)；权威契约以 [design/org-user-permission-contract.md](design/org-user-permission-contract.md) v1.2 + [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
 | ~~API 核对清单~~ | （已归档 2026-06-21）16 个 🔧 接口已实现，见 [archive/2026-06-21/](archive/2026-06-21/)；契约权威以 [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
@@ -127,6 +128,7 @@ docs/
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `archive/2026-08-27/` | product-vertical-slice 计划收口归档（T-ACCESS-026）：产品垂直切片与试点加固计划（18 项全 done，里程碑 A+B 达成）+ access-post-merge-plan（T-ACCESS-013~015 全 done，CI 准入前置关闭）。外部 Docker 验证证据与 CI 口径见任务卡 T-ACCESS-026。权威入口：`design/access-service-architecture.md` | [archive/2026-08-27/README.md](archive/2026-08-27/README.md) |
 | `archive/2026-08-22/` | access-service 归并收口归档（T-ACCESS-012）：四份旧 DDL、原 admin-service 服务设计（superseded）、归并主计划（T-ACCESS-001~012 全部完成）。权威入口：`design/access-service-architecture.md` + `design/schema/access-service.sql` + `design/services/admin-service-api-contract.md` |
 | `archive/2026-07-12/` | 前端 Phase 1 归档：13 页 T-FE 任务（T-FE-001~014）全 done，API 核对清单产出（🔧❌ 登记 T-PERM-022~034 归 Phase 2），组件池确认（派生 T-FE-024 归 Phase 4），设计回写完成（13 份全 adopted）。build/lint/typecheck + mvn test 均通过。 | [archive/2026-07-12/README.md](archive/2026-07-12/README.md) |
 | `archive/2026-06-28/` | 工作单 A/B/C 归档：权限缓存失效改造（T-PERM-001~008·017·018）、scopeMode 协议迁移（T-PERM-009~015）、Gateway 失联兜底（T-GW-001~006）均已完成。稳定结论已沉淀至 v3.5-design §7.2 / api-contract scopeMode / gateway.md 失联兜底模式与快照失效标记。 | [archive/2026-06-28/README.md](archive/2026-06-28/README.md) |

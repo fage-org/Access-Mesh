@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-015
 title: 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL（消除 sys_menu DDL-实体漂移）
 status: done
-plan: docs/plans/access-post-merge-plan.md
+plan: docs/archive/2026-08-27/access-post-merge-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md#§3-模块边界

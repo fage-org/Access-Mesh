@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-025
 title: 操作日志收敛（默认不序列化参数，裁剪覆盖要求）
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md

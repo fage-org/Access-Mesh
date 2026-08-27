@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: access-service 归并后续强化（OAuth2 资源服务器 + 菜单写链路收口）
-status: proposed
+status: archived
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md
@@ -11,13 +11,13 @@ tasks:
   - T-ACCESS-014
   - T-ACCESS-015
 acceptance: "T-ACCESS-013~015 全部 done 或经确认 cancelled；归并主链（T-ACCESS-001~012）验收结论保持有效；稳定结论只存在于 docs/design。"
-last_updated: 2026-08-22
+last_updated: 2026-08-27
 ---
 
 # access-service 归并后续强化（OAuth2 资源服务器 + 菜单写链路收口）
 
-> 状态：proposed
-> 来源：归并主计划 [access-service-merge](../archive/2026-08-22/access-service-merge-plan.md)（T-ACCESS-001~012，2026-08-22 全部完成归档）收口后，其后续跟进任务迁入本计划。
+> 状态：completed（已归档 2026-08-27；T-ACCESS-013~015 全部 done，CI 准入前置由 T-ACCESS-017 最小 CI 关闭）
+> 来源：归并主计划 [access-service-merge](../2026-08-22/access-service-merge-plan.md)（T-ACCESS-001~012，2026-08-22 全部完成归档）收口后，其后续跟进任务迁入本计划。
 
 ## 目标
 
@@ -36,9 +36,9 @@ last_updated: 2026-08-22
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ACCESS-013](../tasks/T-ACCESS-013.md) | OAuth2 资源服务器与 scope 授权模型（委托令牌访问业务 API 显式开放） | ✅ | T-ACCESS-012 ✅ |
-| [T-ACCESS-014](../tasks/T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | ✅ | T-ACCESS-007 ✅ |
-| [T-ACCESS-015](../tasks/T-ACCESS-015.md) | 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL | ✅ | T-ACCESS-012 ✅ |
+| [T-ACCESS-013](../../tasks/T-ACCESS-013.md) | OAuth2 资源服务器与 scope 授权模型（委托令牌访问业务 API 显式开放） | ✅ | T-ACCESS-012 ✅ |
+| [T-ACCESS-014](../../tasks/T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | ✅ | T-ACCESS-007 ✅ |
+| [T-ACCESS-015](../../tasks/T-ACCESS-015.md) | 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL | ✅ | T-ACCESS-012 ✅ |
 
 ## 归档条件
 

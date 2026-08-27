@@ -3,7 +3,7 @@ doc_type: task
 id: T-ORG-001
 title: 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver）
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: org-user
 design_refs:
   - docs/design/access-service-architecture.md

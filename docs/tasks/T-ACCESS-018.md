@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-018
 title: 资源类型收敛（五组合并 + 双常量合一 + 前端权限串）
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
   - docs/design/schema/access-service.sql

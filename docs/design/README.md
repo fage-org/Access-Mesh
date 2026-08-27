@@ -67,6 +67,7 @@ Claude 按需技能位于 `.claude/skills/`。
 
 | 归档批次              | 说明                                                                                                                                            |
 | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `../archive/2026-08-27/` | product-vertical-slice 计划收口归档（T-ACCESS-026）：产品垂直切片与试点加固计划（18 项全 done，里程碑 A+B 达成）+ access-post-merge-plan（T-ACCESS-013~015 全 done）。权威入口：`access-service-architecture.md` | 
 | `../archive/2026-08-22/` | access-service 归并收口归档（T-ACCESS-012）：四份旧 DDL（admin-service.sql / permission-center.sql / seed-admin-operations.sql / seed-perm-operations.sql）、原 admin-service 服务设计（admin-service.md，superseded）、归并主计划 access-service-merge-plan.md（T-ACCESS-001~012 全部完成）。权威入口：`access-service-architecture.md` + `schema/access-service.sql` + `services/admin-service-api-contract.md` |
 | `../archive/2026-06-28/` | 工作单 A/B/C 执行计划归档：权限缓存失效改造、scopeMode 协议迁移、Gateway 失联兜底全部完成。稳定结论已沉淀至本目录 v3.5-design §7.2 / api-contract scopeMode / gateway.md |
 | `../archive/2026-06-21/` | API 核对清单 + 「组织与用户」融合页实现计划归档：16 个 🔧 接口已由 admin-service 实现；org-user-page P0/P1/P2 全 100%。契约权威以 `org-user-permission-contract.md` v1.2 + `services/admin-service-api-contract.md` v1.0 为准 |

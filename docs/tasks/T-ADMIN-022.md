@@ -3,7 +3,7 @@ doc_type: task
 id: T-ADMIN-022
 title: 登录锁定临时化与账号状态语义统一
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: admin-service
 design_refs:
   - docs/design/services/admin-service-api-contract.md

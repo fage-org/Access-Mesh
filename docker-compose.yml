@@ -1,6 +1,6 @@
 # AccessMesh 开发期基础设施（T-ACCESS-020）
 # 仅承诺一键基础设施（PostgreSQL / Redis / Nacos），不包含应用服务——
-# 应用启动顺序见 README.md「快速开始」：access-service (9100) → Gateway (8080) → 前端。
+# 应用启动顺序见 README.md「快速开始」：access-service (9100) → Gateway (8080) → example-service (9300，可选) → 前端。
 #
 # 一键启动：docker compose up -d
 # 端口仅绑定回环地址（127.0.0.1）——本地开发边界，不暴露到外部网络接口。

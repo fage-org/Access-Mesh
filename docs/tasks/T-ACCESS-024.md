@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-024
 title: 时间语义 UTC 统一（TypeHandler/JDBC/JVM）
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
   - docs/design/project-rules.md

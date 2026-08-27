@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-019
 title: USER/ROLE 全写路径同事务资源投影
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-architecture.md

@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-020
 title: 空库 bootstrap（一键基础设施 + 幂等首管理员种子）
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: cross-service
 design_refs:
   - docs/design/schema/access-service.sql

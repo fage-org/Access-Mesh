@@ -10,7 +10,7 @@ last_reviewed: 2026-08-23
 # access-service 目标架构与归并约束
 
 本文定义 `admin-service` 与 `permission-center` 归并为 `access-service` 后的权威目标架构。实施编排见
-[`../archive/2026-08-22/access-service-merge-plan.md`](../archive/2026-08-22/access-service-merge-plan.md)（T-ACCESS-001~012 已于 2026-08-22 全部完成归档；后续强化见 [`../plans/access-post-merge-plan.md`](../plans/access-post-merge-plan.md)）。新增和修改不得恢复旧服务边界或内部异步同步链路。
+[`../archive/2026-08-22/access-service-merge-plan.md`](../archive/2026-08-22/access-service-merge-plan.md)（T-ACCESS-001~012 已于 2026-08-22 全部完成归档；后续强化 T-ACCESS-013~015 亦已完成，其计划见 [`../archive/2026-08-27/access-post-merge-plan.md`](../archive/2026-08-27/access-post-merge-plan.md)）。新增和修改不得恢复旧服务边界或内部异步同步链路。
 
 接口字段、权限语义和领域规则仍分别以现有 admin 与 permission 设计文档为准；当服务拓扑、事务边界、数据源、缓存或调用方式与旧文档冲突时，以本文为准。
 

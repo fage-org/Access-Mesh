@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-042
 title: 权限引擎显式资源 API 与实例门禁修复
 status: done
-plan: docs/plans/product-vertical-slice-plan.md
+plan: docs/archive/2026-08-27/product-vertical-slice-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md
