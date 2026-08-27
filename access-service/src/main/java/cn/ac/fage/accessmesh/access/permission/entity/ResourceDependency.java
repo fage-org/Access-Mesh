@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * <p>
  * 表示资源之间的权限依赖关系。
  * 定义某个资源的权限依赖于另一个资源的权限。
- * 支持权限自动授予（autoGrant）和权限位映射（operationBits）。
+ * autoGrant 为预留禁用字段（自动授权未实现，写入口拒绝 true），操作位映射（operationBits）已生效。
  * 用于实现权限的级联授予和依赖管理。
  * </p>
  *
@@ -56,7 +56,7 @@ public class ResourceDependency {
     private Long requiredOperationBits;
 
     /**
-     * 是否自动授予（true=自动授予依赖权限，false=不自动）
+     * 预留未实现：自动授权暂缓（T-PERM-035），写入口仅接受 false（true 返回 20048），默认 false
      */
     private Boolean autoGrant;
 

@@ -39,7 +39,7 @@ Mapper
 规则：
 
 - Controller 不直接调用 Mapper
-- AppService 不横向注入另一个 AppService
+- 同层横向调用**允许**（2026-08-22 全局放开，见 project-rules.md §分层规范）：调度层 Service 互调、DomainService 互调、跨域 Service/AppService 注入复用；通用约束为仅限同层、禁循环依赖、复用优先于重实现、跨域 Mapper 直读边界不变（admin/permission 域互不直读对方 Mapper）
 - 新功能优先复用已有 DomainService，而不是在 AppService 里重写领域逻辑
 - 写操作事务放在 AppService，DomainService 不声明事务
 
@@ -146,8 +146,8 @@ Map<Long, Xxx> rowMap = rows.stream()
 
 ## 禁止事项
 
-- 禁止跳层调用
-- 禁止同层横向调用（**唯一例外（2026-08-08 产品确认）**：授权域 `PermissionGrantPlanDomainServiceImpl` → `PermissionGrantDomainService` 组合注入允许，限定单向/无循环/仅校验能力不承载事务/不推广，见 project-rules.md §分层规范）
+- 禁止跳层调用（Controller 不得直调 Mapper；DomainService 不得调用调度层 Service）
+- 同层横向调用已全局放开（2026-08-22，旧「禁止+单点例外」规则废止；约束见上方分层规则节）
 - 禁止 `System.out.println`
 - 禁止 `catch (Exception e) {}` 静默吞异常
 - 禁止在事务内发起 Feign 或 MQ 调用

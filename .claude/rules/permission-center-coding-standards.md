@@ -92,7 +92,8 @@ PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, resourc
 PermResult r = engine.query(q);
 return PermResultUtils.toAuthCheckResp(r);
 
-PermQuery q = PermQuery.forResourceQuery(tenantId, userId, resourceTypeCodes, operationCodes);
+// query-resources 语义走 forUserView（forResourceQuery 零生产调用，勿用于新代码）
+PermQuery q = PermQuery.forUserView(tenantId, userId);
 PermResult r = engine.query(q);
 
 PermQuery q = PermQuery.forValidate(tenantId, operatorId, resourceTypeCode, resourceCode, operationCode);

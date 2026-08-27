@@ -17,7 +17,7 @@ metadata:
 | 组件 | 职责 | 使用场景 |
 |------|------|---------|
 | `PermQueryEngine` | 统一查询入口 `query(PermQuery)` + 业务层API | 所有权限查询的唯一入口 |
-| `PermQuery` | 统一入参 DTO，5个预设工厂 | 调用方构造查询参数 |
+| `PermQuery` | 统一入参 DTO，8个预设工厂 | 调用方构造查询参数 |
 | `PermResult` | 统一返回对象 | 调用方获取结果 |
 | `OperationCodeConstants` | 操作码常量（CREATE/MANAGE/DELETE等） | 业务层权限校验参数 |
 | `ResourceTypeCode` | 资源类型常量（ROLE/USER/SERVICE等） | 业务层权限校验参数 |
@@ -113,8 +113,13 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> results =
 | forAuthCheck | ✅ | ✅ | ✅ | ✅ | ✅ | 无 |
 | forInterfaceCheck | ✅ | ✅ | ✅ | ✅ | ✅ | 全部 |
 | forResourceQuery | ❌ | ✅ | - | ❌ | ❌ | resource+op |
+| forResourceCheck | ✅ | ✅ | ❌ | ✅ | ✅ | resource+op |
 | forValidate | ✅ | ✅ | ✅ | ❌ | ❌ | 无 |
+| forValidateByEntityId | ✅ | ✅ | ✅ | ❌ | ❌ | 无（entityId 轨，仅引擎内部/已完成解析的调用方） |
 | forScopeQuery | ✅ | ✅ | ❌ | ❌ | ❌ | resource+op+role |
+| forUserView | ✅ | ✅ | ❌ | ✅ | ✅ | resource+op+role（用户全量视图，快照读缓存） |
+
+> 使用政策（2026-08-27 核实）：`forResourceQuery` / `forResourceCheck` 当前**零生产调用**（`query-resources` 实际走 `forUserView`），勿用于新代码；`forValidateByEntityId` 仅限引擎内部或已完成解析的调用方（资源树、API 映射、资源依赖、权限树），禁止用于 USER/ROLE 等业务对象门禁。
 
 ## Engine 内部流程
 

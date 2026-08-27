@@ -461,7 +461,7 @@ interface MatrixContext {
 
 ## 12. 与后端 T-PERM-034 的关系（范围更新）
 
-前端自算来源链（§3.5），T-PERM-034 已补齐下列能力（授权页面写链路收敛为 list + apply-grant-plan；`save/revoke/children/add-child/remove-child` **仅迁移期保留**（因 admin-service 存量调用，**终态=随 T-PERM-034 迁移后删除，2026-08-08 确认**），授权页面禁止调用；`update-child/children-save/rebuild` 不实现）：
+前端自算来源链（§3.5），T-PERM-034 已补齐下列能力（授权页面写链路收敛为 list + apply-grant-plan；`save/revoke/children/add-child/remove-child` **已删除（2026-08-27 端点退役，无映射 404，无存量调用方）**，授权页面无从调用；`update-child/children-save/rebuild` 不实现）：
 
 1. **`RolePermissionItemResp` 暴露 `grantSource`**（MANUAL / AUTO_DEP）：来源标注与 AUTO_DEP 只读需要（当前实体有、Resp 未暴露，`PermissionGrantAppServiceImpl.toItemRespList`）。
 2. **`RolePermissionItemResp` 暴露 `grantedBits`**：`operationCode=null`（组合位无对应操作定义）时前端按位拆解展示与操作继承展开（当前 Resp 无此字段）。
@@ -489,7 +489,7 @@ interface MatrixContext {
 
 > 注（P1-4）：个人入口（PERSONAL）首期移除；个人 `abstract_role` 生命周期（用户同步 upsert/删除 `PERSONAL_{external_id}`）另立后端任务，落地后恢复个人入口与 S1 个人分支验收。
 
-本页只依赖 list + apply-grant-plan + 资源树/操作/条件等只读接口（T-PERM-043 后不再依赖 extra-roles/list，该接口已退役）；**仅迁移期保留的 save/revoke/children/add-child/remove-child（终态=随 T-PERM-034 迁移后删除）不得由本页调用**。
+本页只依赖 list + apply-grant-plan + 资源树/操作/条件等只读接口（T-PERM-043 后不再依赖 extra-roles/list，该接口已退役）；**已删除的 save/revoke/children/add-child/remove-child（无映射 404）不得由本页调用（亦无从调用）**。
 
 > 注：MANUAL 新授权禁止“多操作位组合一次授权”，弹窗与后端均要求单操作；`grantedBits` 的组合位拆解仅保留为读取异常/内部来源记录时的防御性展示。
 

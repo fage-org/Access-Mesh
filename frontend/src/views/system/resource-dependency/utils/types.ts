@@ -25,7 +25,7 @@ export type DependencyFormData = {
   sourceOperationCodes: string[];
   /** 要求操作码列表（必填，对应 requiredOperationBits） */
   requiredOperationCodes: string[];
-  /** 是否自动授权（默认 true） */
+  /** 预留禁用：自动授权未实现（默认 false；后端拒绝 true 返回 20048，T-PERM-035 暂缓） */
   autoGrant: boolean;
   description: string;
 };

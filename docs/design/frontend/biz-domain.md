@@ -94,20 +94,17 @@ last_reviewed: 2026-07-01
 
 | 字段 | 校验 | 说明 |
 |---|---|---|
-| configType | 必填，下拉 5 选 1 | 新建可选；编辑只读（upsert 键 domainCode+configType 的一部分） |
+| configType | 必填，下拉 2 选 1（SUB_PERM/CLASSIFY） | 新建可选；编辑只读（upsert 键 domainCode+configType 的一部分）；写入白名单校验拒绝其余历史类型 |
 | extra | 必填，合法 JSON | textarea 编辑；提交前 `JSON.parse` 校验；默认 `{}` |
 
-### 3.5 配置类型选项（CONFIG_TYPE_OPTIONS，对齐 schema 注释）
+### 3.5 配置类型选项（CONFIG_TYPE_OPTIONS，对齐 schema 注释与后端白名单）
 
 | value | label |
 |---|---|
 | CLASSIFY | CLASSIFY（域分类配置） |
-| SCOPE | SCOPE（域范围） |
-| RELATION | RELATION（域关系） |
-| BINDING | BINDING（域绑定） |
 | SUB_PERM | SUB_PERM（子权限配置） |
 
-> 🔧 后端 `AppServiceImpl.upsertDomainConfig` 注释只提 CLASSIFY/SUB_PERM，schema 注释列 5 种（登记 T-PERM-026）。前端下拉列全 5 种。
+> 2026-08-27 收窄：仅 SUB_PERM/CLASSIFY 两类已实现，后端 `DomainConfigReq` 白名单校验拒绝 `SCOPE/RELATION/BINDING`（历史设想类型，未实现）；前端下拉与 mock 已同步收窄。
 
 ## 4. 交互流程
 
@@ -144,7 +141,7 @@ last_reviewed: 2026-07-01
 ### 4.6 子表：新增域配置
 
 - 下区「新增配置」按钮（`v-if="canManage && currentDomain"`，门禁 `SYSTEM_CONFIG:MANAGE`）→ DomainConfigForm 弹窗。
-- 表单：domainCode（只读展示当前域）、configType 下拉 5 选 1、extra textarea（默认 `{}`）。提交前 `JSON.parse` 校验 extra。
+- 表单：domainCode（只读展示当前域）、configType 下拉 2 选 1（SUB_PERM/CLASSIFY）、extra textarea（默认 `{}`）。提交前 `JSON.parse` 校验 extra。
 - 提交 → `saveDomainConfig`（domainCode + configType + extra）→ mock upsert（不存在则 insert，自动分配 id+时间戳）→ 成功 `loadConfigs`。
 
 ### 4.7 子表：编辑域配置
@@ -184,7 +181,7 @@ views/system/biz-domain/
 └── utils/
     ├── hook.ts                # useBizDomain（主表 CRUD + 选中域 + 子表加载 + 删除确认）
     ├── perms.ts               # BIZ_DOMAIN_PERMS（SSOT，DOMAIN:VIEW + SYSTEM_CONFIG:VIEW/MANAGE）
-    └── types.ts               # 表单类型 + 工厂 + CONFIG_TYPE_OPTIONS 5 项 + parseExtra
+    └── types.ts               # 表单类型 + 工厂 + CONFIG_TYPE_OPTIONS 2 项（SUB_PERM/CLASSIFY） + parseExtra
 ```
 
 > **mock 共享注册表**：`mock/_bizDomainRegistry.ts` 持有业务域内存数据（唯一权威源），`mock/biz-domain.ts`（CRUD）与 `mock/domain-config.ts`（save 解析 domainCode→bizDomainId）共用同一份。使运行时新建/删除的业务域能被 domain-config save 实时感知（后端等价 `typeResolutionService.resolveDomainId`）。零 src 依赖（仅 mock 间共享，不 import @/api/*）。
@@ -269,11 +266,8 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026。
    - 前端可行性：✅ 本页本地过滤+分页（业务域量小可接受）；后端补参数后切回服务端分页。
    - 归属：T-PERM-026 🔧。
 
-5. **AppServiceImpl configType 注释不全**
-   - 现状：`upsertDomainConfig` 注释只提 CLASSIFY/SUB_PERM，schema 注释列 5 种（SCOPE/RELATION/BINDING/SUB_PERM/CLASSIFY）。
-   - 期望：注释补全 5 种 configType 语义。
-   - 前端可行性：✅ 本页 configType 下拉已列全 5 种。
-   - 归属：T-PERM-026 🔧（确认型，非必改）。
+5. ~~**AppServiceImpl configType 注释不全**~~（已收口反转，2026-08-27）
+   - 原 🔧 登记的"schema 注释列 5 种 vs 后端只提两类"漂移已按两类收口定案：SUB_PERM/CLASSIFY 为唯一实现范围（DDL 注释、后端注释、`DomainConfigReq` 白名单、前端下拉四处同源），SCOPE/RELATION/BINDING 为历史设想类型不再提供；原"前端列全 5 种"已被收窄取代。
 
 6. **domain-config save 的 extra JSONB↔String 映射确认**
    - 现状：schema `extra JSONB NOT NULL DEFAULT '{}'`，entity `DomainConfig.extra` 声明为 `String`，AppServiceImpl 直接 `setExtra(req.extra())`。MyBatis-Flex + 驱动处理 JSONB↔String 序列化。

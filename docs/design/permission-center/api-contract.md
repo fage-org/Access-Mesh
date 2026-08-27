@@ -1045,7 +1045,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 - 子权限继承父权限的 `abstract_role_id`，调用方不需要再次传角色。
 - 子权限的 `depend_on = parentPermissionId`，只支持一层，不允许子权限继续挂子权限。
-- 子权限资源类型必须符合 `domain_config(config_type='SUB_PERM')` 中对当前业务域的配置。**fail-closed**：配置不存在 / `extra` 为空 / `extra` 格式错误 → 统一拒绝（20011，错误信息区分"配置缺失/配置为空/配置格式错误"）；`extra="*"` = **显式**允许任意子资源类型（通配必须显式声明，不得靠"未配置"隐式放行）。父域直接按父权限记录自身 `resource_type` 批量反查类型码与所属域，INSTANCE/ALL 统一，不依赖 `resource_entity_id`。该规则由 `PermissionGrantPlanDomainService.prevalidate` 强制；兼容保留的旧 `add-child` 不作为授权页面入口。**授权页面的类型选择过滤走只读契约 `sub-perm-allowed-types`（§6.5.2，判定口径与本条一致）**。
+- 子权限资源类型必须符合 `domain_config(config_type='SUB_PERM')` 中对当前业务域的配置。**fail-closed**：配置不存在 / `extra` 为空 / `extra` 格式错误 → 统一拒绝（20011，错误信息区分"配置缺失/配置为空/配置格式错误"）；`extra="*"` = **显式**允许任意子资源类型（通配必须显式声明，不得靠"未配置"隐式放行）。父域直接按父权限记录自身 `resource_type` 批量反查类型码与所属域，INSTANCE/ALL 统一，不依赖 `resource_entity_id`。该规则由 `PermissionGrantPlanDomainService.prevalidate` 强制；旧 `add-child` 已删除（2026-08-27 端点退役，无映射 404），不作为授权页面入口亦无从调用。**授权页面的类型选择过滤走只读契约 `sub-perm-allowed-types`（§6.5.2，判定口径与本条一致）**。
 - `scopeMode=ALL` 表示该授权覆盖 `resourceTypeCode` 下全部资源；此时请求不传 `resourceCode/codeType`，运行时响应也通过 `scopeMode=ALL` 明确表达全量范围。
 - 删除主权限时，系统必须级联软删 `depend_on` 指向该主权限的所有子权限。
 - 子权限写入、删除都必须记录 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效父角色缓存（afterCommit）。

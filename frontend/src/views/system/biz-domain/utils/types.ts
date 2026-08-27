@@ -16,7 +16,7 @@ export interface BizDomainFormData {
  *  configType 为 upsert 键的一部分（domainCode+configType），编辑只读。
  *  extra 为 JSON 字符串（后端 schema 是 JSONB，前端按字符串编辑 + JSON.parse 校验）。 */
 export interface DomainConfigFormData {
-  /** 配置类型（新建下拉选 5 种，编辑只读——upsert 键） */
+  /** 配置类型（新建下拉选 SUB_PERM/CLASSIFY 两类，编辑只读——upsert 键；写入白名单拒绝其余历史类型） */
   configType: string;
   /** 配置值（JSON 字符串，必填，提交前 JSON.parse 校验合法性） */
   extra: string;
