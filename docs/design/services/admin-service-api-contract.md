@@ -128,7 +128,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/user-org/remove` | DELETE `sys_user_org` | `unbindUserOrg` |
 | `/user-org/set-primary` | UPDATE `sys_user_org.is_primary` | 无（`is_primary` 不映射 `user_role` 拓扑） |
 
-> 功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）继续走 `/user-role/*` 正式管理 API。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
+> 功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）的分配/回收走 `/api/perm/user-role/*`（permission 域），admin 侧 `/user-role/*` 仅保留 `/user-role/list` 读聚合。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
 
 ---
 
@@ -715,7 +715,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ### 4.4 用户-角色 (`/user-role`)
 
-> **核心决策（T-ACCESS-006 修订，T-ADMIN-024 删除收口）**: 合并后角色管理由 permission 域直接提供（`/api/perm/user-role/*`），admin 侧不再维护角色代理。`/user-role/list` 保留为读接口（经 `access.application.query` 的 `UserRoleQueryService` 聚合，POSITION 补所属组织名）；原 `/user-role/assign`、`/user-role/revoke` 写代理已删除（无存量调用方，不留兼容层，无映射 404），角色分配/回收走 `/api/perm/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由 permission 域 enforce）。注：「无映射 404」为 access-service 直连语义；经 Gateway 访问的未注册路径先被接口快照按 `unregistered-policy=DENY` 拦为 403（fail-closed），前端联调对已删端点的实际观察值为 403。
+> **核心决策（T-ACCESS-006 修订，T-ADMIN-024 删除收口）**: 合并后角色管理由 permission 域直接提供（`/api/perm/user-role/*`），admin 侧不再维护角色代理。`/user-role/list` 保留为读接口（经 `access.application.query` 的 `UserRoleQueryService` 聚合，POSITION 补所属组织名）；原 `/user-role/assign`、`/user-role/revoke` 写代理已删除（无存量调用方，不留兼容层，无映射 404），角色分配/回收走 `/api/perm/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由 permission 域 enforce）。注：已删端点在 access-service 无任何 Handler 映射（注册表证据见 HttpApiPathSnapshotTest 负向断言与 RetiredRoleApiContractTest）；运行时观察值按入口区分——匿名直连 admin 路径族先被 RequestContextInterceptor 拒为 401（不泄露路径存在性），通过拦截后无映射即 404，经 Gateway 的未注册路径先被接口快照按 `unregistered-policy=DENY` 拦为 403（fail-closed）。
 > 接口使用业务键 `(roleTypeCode, roleExternalId)` 标识角色。仅服务功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL); 排除 ORG/POSITION (后者走 /user-org/*)。
 
 #### 4.4.1 `POST /user-role/list` 🔧
@@ -967,7 +967,7 @@ Phase 2 后端实现以上 19 个接口后, 必须满足:
 | 11 | `IdReq` 入参字段名为 `id` 而非 `orgId/userId` | 复用公共 record; 前端在 Phase 2 调整 mock 字段 (例如 `/org/users` 入参 `{ id }`) |
 | 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (如 `/role/list`, `/user-org/list`, `/org/users`; **`/org/tree` 已由 T-ADMIN-021 消化, P1-3**) |
 | 13 | `/user/update` 自我修改业务豁免 | 在 AppService 调用门禁前判断 `operatorId == id` 跳过门禁; 不放在门禁层 |
-| 14 | 错误码段 admin-service 子分配 | 用户域 10001-10299 / 组织域 10300-10499 / 关系域 10400-10499 / 10500 用户-角色代理（10111 已随端点删除退役、码值不复用）+ 10501-10599 文件模块（附录 B，T-ADMIN-023 起） / 其他保留 10600-19999 |
+| 14 | 错误码段 admin-service 子分配 | 用户域 10001-10299 / 组织域 10300-10499 / 关系域 10400-10499 / 10500 用户-角色代理段（历史分配，无活跃错误码；10111 已退役且码值不复用）+ 10501-10599 文件模块（附录 B，T-ADMIN-023 起） / 其他保留 10600-19999 |
 
 ---
 
@@ -1084,7 +1084,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | 10210-10229 | 用户密码重置 |
 | 10300-10399 | 组织 CRUD |
 | 10400-10499 | 用户-组织关系 |
-| 10500 | 用户-角色代理（`10111` 已随端点删除退役、码值不复用；`10501-10599` 文件模块：`10501` 不存在 / `10502` 上传失败 / `10503` 超限 / `10504` 类型不允许 / `10505` 删除失败（删除顺序反转后仅保留枚举，正常链路不再抛出）/ `10506` 路径非法（T-ADMIN-023）/ `10507` 读取失败（T-ADMIN-023）） |
+| 10500 | 用户-角色代理段（历史分配，无活跃错误码；`10111` 已随端点删除退役、码值不复用；`10501-10599` 文件模块：`10501` 不存在 / `10502` 上传失败 / `10503` 超限 / `10504` 类型不允许 / `10505` 删除失败（删除顺序反转后仅保留枚举，正常链路不再抛出）/ `10506` 路径非法（T-ADMIN-023）/ `10507` 读取失败（T-ADMIN-023）） |
 | 10600-19999 | 保留给 admin-service 后续模块 (字典/通知/任务/审计等) |
 
 具体码值由各模块的 `XxxErrorCode` 枚举类落地; 90001-99999 段 (参数校验/系统异常) 由 `common` 模块统一定义.

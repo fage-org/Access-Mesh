@@ -38,7 +38,7 @@ last_updated: 2026-08-27
 
 - 直删不保留兼容层；错误码码值不复用（ErrorCodeContractTest RETIRED_POST_MERGE_ADMIN 登记断言：枚举名不残留、码值不被复用）。
 - admin 侧仅保留读聚合：/role/list、/role/my-info、/user-role/list（跨域只读查询服务）。
-- 已删端点语义：access-service 直连无映射 404；经 Gateway 的未注册路径先被接口快照按 unregistered-policy=DENY 拦为 403（fail-closed，更严）。
+- 已删端点语义：access-service 无任何 Handler 映射（带身份直连观察值 404；匿名直连 admin 路径族先被 RequestContextInterceptor 拒为 401；经 Gateway 的未注册路径先被接口快照按 unregistered-policy=DENY 拦为 403，fail-closed）。
 
 ## 非目标 / 遗留
 
