@@ -21,7 +21,7 @@ import java.util.List;
  * 角色权限定义了角色可以访问的资源及其操作权限。
  * 写入唯一入口为 apply-grant-plan（记录级 plan 单事务原子执行）；
  * 旧写入口 save/revoke/children/add-child/remove-child 已随 T-PERM-034 删除（2026-08-27，
- * 评审 F-07 收口：无存量调用方，删除语义由 apply-grant-plan 的 creates/updates/removes 覆盖）。
+ * 端点退役收口：无存量调用方，删除语义由 apply-grant-plan 的 creates/updates/removes 覆盖）。
  * 所有接口采用POST + JSON Body方式。
  * </p>
  */

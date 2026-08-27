@@ -46,7 +46,7 @@ last_updated: 2026-06-29
 ## 当前状态
 
 - `resource_dependency` 表已设计（access-service.sql）
-- `PermissionGrantAppServiceImpl` TODO：`自动授予依赖权限（autoGrantForInsert）`（L130）
+- `PermissionGrantAppServiceImpl` 原 `autoGrantForInsert` TODO 已随旧写入口端点退役移除（2026-08-27）；T-PERM-035 实现时在 apply-grant-plan 唯一写入口链路新增
 - `PermissionGrantDomainService` / Impl TODO：`自动授权解析（resolveAutoGrants）`（L13/L39）
 
 ## 实现路径（已归档 improvement-plan §2.1）

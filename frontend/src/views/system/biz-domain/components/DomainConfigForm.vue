@@ -34,7 +34,7 @@ const formRef = ref<FormInstance>();
 const isEdit = computed(() => props.mode === "edit");
 
 /** 表单校验规则。
- *  configType 必填（新建下拉选 5 种，编辑只读——upsert 键 domainCode+configType 的一部分）。
+ *  configType 必填（新建下拉选 SUB_PERM/CLASSIFY 两类，编辑只读——upsert 键 domainCode+configType 的一部分）。
  *  extra 必填 + JSON 合法性校验（与后端 JsonValidationUtils.validateJson 对齐）。 */
 const rules = computed<FormRules>(() => ({
   configType: [
@@ -120,7 +120,7 @@ defineExpose({
 
     <el-form-item label="配置类型" prop="configType">
       <!--
-        新建下拉选 5 种（对齐 schema config_type 注释）；编辑只读：configType 是 upsert 键的一部分
+        新建下拉选 SUB_PERM/CLASSIFY 两类（对齐 schema 注释与后端白名单）；编辑只读：configType 是 upsert 键的一部分
         （domainCode+configType），改它等于新建新配置，与 system-config configKey 稳定键同口径。
       -->
       <el-select

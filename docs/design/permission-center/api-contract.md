@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 与业务编码语义定稿（§3.4/§10-18）
+last_reviewed: 2026-08-27   # 2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048；此前：2026-08-23 T-ACCESS-016 定稿
 ---
 
 # Permission Center 外部 API 契约
@@ -293,7 +293,7 @@ last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 与业务编�
 | `POST /api/perm/role-resource-permission/list`         | 查询角色权限配置（§6.4）                                       |
 | `POST /api/perm/role-resource-permission/apply-grant-plan` | **授权页面唯一写入口**（§6.5.1）：记录级 creates/updates/removes + 单事务原子 + 受影响行数断言（无 CAS/无幂等表，收窄） |
 | `POST /api/perm/role-resource-permission/sub-perm-allowed-types` | **授权页只读契约（🔧 v3.1）**：按父资源类型返回 SUB_PERM 允许的子资源类型（§6.5.2） |
-| `POST /api/perm/role-resource-permission/save` ~~已删除~~ | 旧批量授予（已随 T-PERM-034 删除，2026-08-27 评审 F-07 收口，无映射 404；管理域存量调用经核实为零） |
+| `POST /api/perm/role-resource-permission/save` ~~已删除~~ | 旧批量授予（已随 T-PERM-034 删除，2026-08-27 端点退役收口，无映射 404；管理域存量调用经核实为零） |
 | `POST /api/perm/role-resource-permission/revoke` ~~已删除~~ | 旧批量撤销（同上删除；删除语义由 apply-grant-plan.removes 覆盖） |
 | `POST /api/perm/role-resource-permission/children` ~~已删除~~ | 旧子权限查询（同上删除；查询由 list includeChildren 覆盖） |
 | `POST /api/perm/role-resource-permission/add-child` ~~已删除~~ | 旧子权限新增（同上删除；新增由 creates + parentPermissionId 覆盖） |
@@ -1025,7 +1025,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 | createdAt | string | 创建时间，ISO-8601 无时区（如 `2026-04-20T10:30:00`，对齐 §6.8 示例） |
 | childCount | number | 直接子权限数（depend_on = 本 id，不含孙代）；list 时按 depend_on 分组 COUNT 一次返回 |
 
-- 门禁：目标抽象角色 ROLE:VIEW（`PermissionGrantAppServiceImpl` L508-526，失败返回空列表）。
+- 门禁：目标抽象角色 ROLE:VIEW（`PermissionGrantAppServiceImpl.listPermissions` 入口校验，失败返回空列表）。
 
 
 
@@ -1693,7 +1693,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 - `source*` 表示源资源，即被授权后会触发依赖补全的资源，对应 `resource_dependency.resource_entity_id`。
 - `target*` 表示被源资源依赖、需要自动补全的目标资源，对应 `resource_dependency.depends_on_resource_entity_id`。
-- **`autoGrant` 预留未实现（2026-08-27 F-06 收口）**：自动授权暂缓（T-PERM-035，design-review §11 E4），create / update / batch-sync 全部写入口拒绝 `true`（错误码 **20048** `AUTO_GRANT_NOT_SUPPORTED`），仅接受 `false`/省略；表列默认 `false`。依赖补全当前不生效，规则中的「触发依赖补全」语义为 T-PERM-035 实现后的目标态。
+- **`autoGrant` 预留未实现（2026-08-27 设计定案）**：自动授权暂缓（T-PERM-035，design-review §11 E4），create / update / batch-sync 全部写入口拒绝 `true`（错误码 **20048** `AUTO_GRANT_NOT_SUPPORTED`），仅接受 `false`/省略；表列默认 `false`。依赖补全当前不生效，规则中的「触发依赖补全」语义为 T-PERM-035 实现后的目标态。
 - 授权源资源时，自动补全查询条件必须是 `resource_dependency.resource_entity_id = sourceResourceId`，不能反向使用 `depends_on_resource_entity_id` 查询。
 - `sourceOperationCodes` 转为 `source_operation_bits`；为空表示任意源操作触发。
 - `requiredOperationCodes` 转为 `required_operation_bits`，表示目标资源需要自动补全的操作。

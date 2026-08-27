@@ -48,7 +48,7 @@ last_updated: 2026-08-22
 | 任务 | 工作单 | 范围 | 冲突状态 | 执行门禁 |
 |---|---|---|---|---|
 | [T-PERM-019](../tasks/T-PERM-019.md) | D 防呆机制 | `type_value` 自动分配、`BusinessKeys`、`@AppliesTo`（D4 SyncHandler 版本声明已移除——T-ACCESS-012 重基线） | `DESIGN_DRIFT`：`typeValue` 入参旧描述与软删不复用保证方式需先收敛 | 执行前确认 D1 语义和 BusinessKeys 默认方案 |
-| [T-PERM-020](../tasks/T-PERM-020.md) | E 清理预设 | `domain_config` 旧配置、PermQuery 工厂、RocketMQ 脚注、`auto-grant` TODO | `CONFLICT_REQUIRES_DECISION`：`forValidate` / `forResourceCheck` 仍被当前设计使用 | 执行前确认 E2 替代设计 |
+| [T-PERM-020](../tasks/T-PERM-020.md) | E 清理预设 | `domain_config` 旧配置、PermQuery 工厂、RocketMQ 脚注、`auto-grant` TODO | `CONFLICT_REQUIRES_DECISION`：`forValidate` / `forResourceCheck` 的设计引用已于 2026-08-27 消解（implementation §3.6 改 forUserView）| 删除前常规确认零调用即可 |
 | [T-PERM-021](../tasks/T-PERM-021.md) | F 文档准确性 + 代码简化 | 指标自动化、DTO 单源、ownership 单源、日志链路、外部 sync/full-sync runbook（T-ACCESS-012 收窄） | `CONFLICT_REQUIRES_DECISION`：ownership 字段删除与 request_id NOT NULL 有当前设计约束；`requestId`/`traceId` 语义存在漂移 | 执行前确认 F1.c/F1.d 取舍 |
 
 ## 当前进度

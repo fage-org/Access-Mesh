@@ -299,6 +299,13 @@ export default defineFakeRoute([
 
       const sourceRef = getResourceRef(sourceId)!;
       const targetRef = getResourceRef(targetId)!;
+      // 对齐后端（2026-08-27）：autoGrant 仅接受 false/省略，true 返回 20048
+      if (body.autoGrant === true) {
+        return error(
+          20048,
+          "autoGrant=true 不支持：自动授权未实现（预留字段），仅接受 false"
+        );
+      }
       const created: InternalDep = {
         id: nextId++,
         tenantId: 1,
@@ -315,7 +322,7 @@ export default defineFakeRoute([
             body.requiredOperationCodes,
             body.targetResourceTypeCode
           ) ?? 0,
-        autoGrant: body.autoGrant != null ? body.autoGrant : true,
+        autoGrant: false,
         description: body.description ?? null,
         createdAt: now(),
         deleted: false
@@ -361,6 +368,13 @@ export default defineFakeRoute([
         return error(409, "等价依赖规则已存在（同源/目标资源对 + 同触发操作）");
       }
 
+      // 对齐后端（2026-08-27）：autoGrant 仅接受 false/省略，true 返回 20048
+      if (body.autoGrant === true) {
+        return error(
+          20048,
+          "autoGrant=true 不支持：自动授权未实现（预留字段），仅接受 false"
+        );
+      }
       // 全量替换（对齐 conflict-rule UpdateReq 范式，Q3=B）：资源对可改，完整字段覆盖
       const sourceRef = getResourceRef(sourceId)!;
       const targetRef = getResourceRef(targetId)!;
@@ -375,7 +389,7 @@ export default defineFakeRoute([
       d.requiredOperationBits =
         codesToBits(body.requiredOperationCodes, body.targetResourceTypeCode) ??
         0;
-      d.autoGrant = body.autoGrant != null ? body.autoGrant : true;
+      d.autoGrant = false;
       d.description = body.description ?? null;
       return ok(clone(d));
     }

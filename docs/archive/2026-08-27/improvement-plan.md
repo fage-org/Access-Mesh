@@ -171,11 +171,11 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 ```
 
 > **4 阶段执行编排已拆为独立 plan**（本文件保留为 roadmap，tasks:[] 保持空）：
-> - Phase 1 -> [frontend-phase1-plan.md](../archive/2026-07-12/frontend-phase1-plan.md)（archived）
-> - Phase 2 → [frontend-phase2-plan.md](frontend-phase2-plan.md)（proposed）
-> - Phase 3 → [frontend-phase3-plan.md](frontend-phase3-plan.md)（proposed）
-> - Phase 4 → [frontend-phase4-plan.md](frontend-phase4-plan.md)（proposed）
-> 任务清单见各 phase plan 与 [tasks/README.md](../tasks/README.md) 看板。
+> - Phase 1 -> [frontend-phase1-plan.md](../2026-07-12/frontend-phase1-plan.md)（archived）
+> - Phase 2 → [frontend-phase2-plan.md](../../plans/frontend-phase2-plan.md)（proposed）
+> - Phase 3 → [frontend-phase3-plan.md](../../plans/frontend-phase3-plan.md)（proposed）
+> - Phase 4 → [frontend-phase4-plan.md](../../plans/frontend-phase4-plan.md)（proposed）
+> 任务清单见各 phase plan 与 [tasks/README.md](../../tasks/README.md) 看板。
 
 ### 4.1 Phase 1 工作流（两阶段推进）
 
@@ -350,7 +350,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 ### Phase 2: 核心功能补齐 + 后端接口改造
 
-> **执行口径以 [frontend-phase2-plan.md](frontend-phase2-plan.md) 为准**。本节仅作阶段背景，不重定义目标/DoD。其中自动授权（T-PERM-035）/ 动态数据权限（T-PERM-036）受 design-review §11 暂缓门禁约束，近期不推进，见 phase2 plan decision_refs。
+> **执行口径以 [frontend-phase2-plan.md](../../plans/frontend-phase2-plan.md) 为准**。本节仅作阶段背景，不重定义目标/DoD。其中自动授权（T-PERM-035）/ 动态数据权限（T-PERM-036）受 design-review §11 暂缓门禁约束，近期不推进，见 phase2 plan decision_refs。
 
 **阶段背景**：自动授权、API 改造、动态数据权限验证（完整 DoD 见 §5.1，但 035/036 暂缓项近期不推进）。
 
@@ -504,7 +504,7 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 
 **当前进度**：第 1 批 2.1「组织与用户」P0 前端骨架 + P1 后端契约（16 个 🔧 接口已实现）+ P2 权限接线降级三阶段均 100% 完成（原 `docs/plans/org-user-page-impl-plan.md` 已于 2026-06-21 归档至 `docs/archive/2026-06-21/`，详见该批次 README）。
 
-> **与 design-review 决策对齐（2026-06-20 审计 S-026）**：本计划 §3.1 痛点 #3（自动授权）/ #4（动态数据权限）原标为 Phase 2 近期工作项，但 design-review §11（已归档至 [../archive/2026-06-17/design-review.md](../archive/2026-06-17/design-review.md)）已决策：
+> **与 design-review 决策对齐（2026-06-20 审计 S-026）**：本计划 §3.1 痛点 #3（自动授权）/ #4（动态数据权限）原标为 Phase 2 近期工作项，但 design-review §11（已归档至 [2026-06-17/design-review.md](../2026-06-17/design-review.md)）已决策：
 > - **E4**：auto-grant 保留 TODO + 排期 Phase X（**未排期**）
 > - **Q7/B**：动态数据权限端到端测试延后到 example-service，且 example-service 暂不实现
 >

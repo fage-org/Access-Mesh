@@ -375,7 +375,7 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 - `user-role-proxy-fix-plan` 已"已完成待验收"：迁移后核对每个 M/S 任务的 `design_writeback` 是否已 done，未回写的补回写或显式标注。
 
 **Step 4 — improvement-plan 与 api-gap-analysis**
-- `improvement-plan.md`（502 行）：痛点诊断结论沉淀进 `design/`；4 阶段任务拆为 tasks（按领域分前缀）；plan 保留为 roadmap 编排（可维持单一 plan 或拆多 plan）。
+- `improvement-plan.md`：已于 2026-08-27 归档至 `docs/archive/2026-08-27/`（诊断与四阶段拆分使命完成，Phase 1 已归档、Phase 2-4 由独立 plan 承载），本 Step 对其不再适用；痛点 #3/#4 暂缓决策仍作 T-PERM-035/036 溯源。
 - `api-gap-analysis.md`：每条 gap 转 `T-API-NNN`；清单本身作为 plan 引用这些 task。
 
 **Step 5 — 修复交叉链接 + 刷新索引**

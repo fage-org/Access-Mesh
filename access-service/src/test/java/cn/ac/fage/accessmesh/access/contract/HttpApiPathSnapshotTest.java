@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * T-ADMIN-024 再删 5 条 admin 侧角色写代理（/role/create、/role/grant-menu、
  * /role/revoke-menu、/user-role/assign、/user-role/revoke，无存量调用方）后为 190 条；
  * T-PERM-034 再删 5 条 role-resource-permission 旧写入口（save/revoke/children/
- * add-child/remove-child，2026-08-27 评审 F-07，apply-grant-plan 为唯一写入口）后为 185 条。
+ * add-child/remove-child，2026-08-27 设计定案，apply-grant-plan 为唯一写入口）后为 185 条。
  * </p>
  * <p>
  * 契约断言封闭口径（评审修复：堵住空 method 数组与 path()[0] 逃逸）：
@@ -445,7 +445,7 @@ class HttpApiPathSnapshotTest {
         "/role/revoke-menu",
         "/user-role/assign",
         "/user-role/revoke",
-        // T-PERM-034：role-resource-permission 旧写入口删除（2026-08-27 评审 F-07 收口，
+        // T-PERM-034：role-resource-permission 旧写入口删除（2026-08-27 端点退役收口，
         // 契约终态=apply-grant-plan 唯一写入口；无存量调用方，授权页 v3.1 已走 apply-grant-plan）
         "/api/perm/role-resource-permission/save",
         "/api/perm/role-resource-permission/revoke",

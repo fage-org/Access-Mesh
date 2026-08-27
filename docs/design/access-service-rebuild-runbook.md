@@ -84,6 +84,8 @@
 | `abstract_user` 与 `sys_user` id 不一致 | 走了旧投影补建路径或手工插数 | 空库重建模式下删数重走管理链路 |
 | 登录后权限全拒 | Redis 未清理（旧主体键命中重建后重叠 id） | 重做步骤 1.3 Redis 清理 |
 | 外部主体与本地用户主键冲突 | 序列被手工回拨 | `SELECT setval(pg_get_serial_sequence('abstract_user','id'), (SELECT max(id) FROM abstract_user))` 修正水位 |
+| 资源依赖编辑保存报 20048 | 存量 `auto_grant=true` 行（旧 DDL `DEFAULT true` / 旧 mock 默认 true 时期写入；2026-08-27 起写入口拒绝 true、开关禁用，存量行编辑任何字段都会命中拒绝） | 一次性订正：`UPDATE resource_dependency SET auto_grant = false WHERE auto_grant AND delete_flag = 0;` 后重试；或直接删除重建该依赖 |
+| 域配置编辑报 400（configType 仅支持 SUB_PERM/CLASSIFY） | 存量 `SCOPE`/`RELATION`/`BINDING` 历史类型行（未实现类型，2026-08-27 起写入白名单拒绝） | 一次性订正：`UPDATE domain_config SET delete_flag = id, deleted_at = now() WHERE config_type IN ('SCOPE','RELATION','BINDING') AND delete_flag = 0;` 软删历史行后按两类重新配置 |
 
 ## 4. 相关权威文档
 

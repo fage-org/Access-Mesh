@@ -224,7 +224,7 @@ public enum PermissionErrorCode {
 
     /**
      * autoGrant=true 不支持：自动授权未实现（T-PERM-035 暂缓，design-review §11 E4），
-     * resource_dependency.auto_grant 为预留字段，实现前所有写入口仅接受 false（2026-08-27 F-06 收口）。
+     * resource_dependency.auto_grant 为预留字段，实现前所有写入口仅接受 false（2026-08-27 设计定案）。
      */
     AUTO_GRANT_NOT_SUPPORTED(20048, "autoGrant=true 不支持：自动授权未实现（预留字段），仅接受 false");
 

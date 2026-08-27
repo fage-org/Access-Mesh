@@ -500,7 +500,7 @@ cn.ac.fage.accessmesh.{service}
 | 层级                     | 命名                                        | 职责                                                           | 典型方法                                                                    |
 | ------------------------ | ------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
 | **调度层 AppService**    | `XxxAppService` / `XxxAppServiceImpl`       | 业务流程编排、跨领域协调、外部接口契约转换、权限检查、事务边界 | `batchGrant()`、`check()`、`listEffectiveRoles()`                           |
-| **逻辑级 DomainService** | `XxxDomainService` / `XxxDomainServiceImpl` | 单一领域逻辑、可复用的原子操作、内部数据转换、缓存管理         | `resolveEffectiveRoles()`、`batchGetDescendantIds()`、`revokePermissions()` |
+| **逻辑级 DomainService** | `XxxDomainService` / `XxxDomainServiceImpl` | 单一领域逻辑、可复用的原子操作、内部数据转换、缓存管理         | `resolveEffectiveRoles()`、`batchGetDescendantIds()`、`checkCanGrant()` |
 
 **核心原则**：
 
@@ -516,7 +516,7 @@ cn.ac.fage.accessmesh.{service}
 | ------------------------ | ---------------------------------------------------------------- | ----------------------------- |
 | 用户角色解析（带缓存）   | `SubjectDomainService.resolveEffectiveRoles()`                   | 调度层直接查询 `user_role` 表 |
 | 资源层级遍历             | `ResourceEntityDomainService.batchGetDescendantIds()`            | 调度层写递归遍历逻辑          |
-| 权限级联删除             | `PermissionGrantDomainService.revokePermissions()`               | 调度层写子权限删除循环        |
+| 权限级联删除             | `PermissionGrantPlanDomainService.apply()`（removes 软删+级联+行数断言 20036） | 调度层写子权限删除循环        |
 | 角色关联用户缓存批量失效 | `SubjectDomainService.invalidateRoleCacheByRoles()`              | afterCommit 按角色循环逐个失效（N+1） |
 | 类型解析（code ↔ value） | `TypeResolutionService.resolveTypeValue()` / `resolveTypeCode()` | 调度层查 `type_definition` 表 |
 
@@ -592,7 +592,7 @@ cn.ac.fage.accessmesh.{service}
 ```
 调度层 PermissionGrantAppServiceImpl
   └→ 调用 SubjectDomainService.resolveEffectiveRoles()（带缓存）
-  └→ 调用 PermissionGrantDomainService.revokePermissions()（级联删除）
+  └→ 调用 PermissionGrantPlanDomainService.prevalidate/apply（removes 软删+级联，行数断言 fail-closed）
   └→ 登记 PermissionChangeContext.markRoles()（@PermissionChange AOP afterCommit 失效 + 广播）
 
 调度层 PermissionViewAppServiceImpl

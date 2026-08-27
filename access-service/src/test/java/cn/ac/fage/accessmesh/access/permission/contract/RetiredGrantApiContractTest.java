@@ -23,7 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * role-resource-permission 旧写入口删除契约测试（T-PERM-034 第 5 项，2026-08-27 评审 F-07 收口）。
+ * role-resource-permission 旧写入口删除契约测试（T-PERM-034 第 5 项，2026-08-27 端点退役收口）。
  * <p>
  * 授权写入终态为 apply-grant-plan 唯一入口（记录级 plan 单事务原子）：
  * 旧端点 /save、/revoke、/children、/add-child、/remove-child 已从 Controller 删除

@@ -11,7 +11,7 @@ import java.util.List;
  * 提供角色权限的查询和聚合授予功能。
  * 写入唯一入口为 applyGrantPlan（记录级 plan 单事务原子执行）；
  * 旧写入口 batchGrant/batchRevoke/listChildren/addChildren/removeChild 已随
- * T-PERM-034 删除（2026-08-27，评审 F-07 收口，无存量调用方）。
+ * T-PERM-034 删除（2026-08-27 端点退役收口，无存量调用方）。
  * </p>
  */
 public interface PermissionGrantAppService {

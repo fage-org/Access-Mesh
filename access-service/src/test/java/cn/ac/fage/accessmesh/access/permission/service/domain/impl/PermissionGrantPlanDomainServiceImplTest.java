@@ -100,6 +100,32 @@ class PermissionGrantPlanDomainServiceImplTest {
         assertEquals(20036, exception.getErrorCode());
     }
 
+    @Test
+    void shouldRejectPlanWhenOperatorCannotDelegate() {
+        stubNestedCreateBase();
+        DomainConfig subPerm = new DomainConfig();
+        subPerm.setBizDomainId(7L);
+        subPerm.setConfigType("SUB_PERM");
+        subPerm.setExtra("*");
+        when(domainClassifyService.findDomainIdsByTypeCodes(1L, java.util.Set.of("DATA")))
+            .thenReturn(Map.of("DATA", 7L));
+        when(domainConfigMapper.selectByTenantId(1L)).thenReturn(List.of(subPerm));
+        when(permissionGrantDomainService.checkCanGrant(eq(1L), eq(10L), any(), eq(null)))
+            .thenAnswer(invocation -> {
+                java.util.Set<PermissionGrantDomainService.GrantCheckKey> keys = invocation.getArgument(2);
+                return keys.stream().collect(java.util.stream.Collectors.toMap(
+                    key -> String.format("%s:%s:%s:%s:%s",
+                        key.resourceTypeCode(), key.resourceCode(), key.codeType(),
+                        key.operationCode(), key.scopeAll() ? "ALL" : "SPECIFIC"),
+                    key -> new PermissionGrantDomainService.GrantCheckResult(false, "NO_DELEGABLE_PERMISSION")));
+            });
+
+        BizException exception = assertThrows(BizException.class, () ->
+            service.prevalidate(1L, 10L, 20L, null, nestedCreatePlan()));
+
+        assertEquals(20040, exception.getErrorCode());
+    }
+
     private void stubNestedCreateBase() {
         when(rolePermissionMapper.selectValidByRoleId(1L, 20L)).thenReturn(List.of());
         when(typeResolutionService.batchResolveTypeValues(

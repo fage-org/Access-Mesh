@@ -167,6 +167,13 @@ export default defineFakeRoute([
       const { domainCode, configType, extra } = body || {};
       if (!domainCode) return err(400, "domainCode 不能为空");
       if (!configType) return err(400, "configType 不能为空");
+      // 对齐后端 DomainConfigReq @Pattern 白名单（2026-08-27）：仅接受已实现两类
+      if (configType !== "SUB_PERM" && configType !== "CLASSIFY") {
+        return err(
+          400,
+          "configType 仅支持 SUB_PERM/CLASSIFY（SCOPE/RELATION/BINDING 未实现）"
+        );
+      }
       if (!extra) return err(400, "extra 不能为空");
       // 校验 extra 为合法 JSON（后端 JsonValidationUtils.validateJson 等价）
       try {

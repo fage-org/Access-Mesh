@@ -359,7 +359,7 @@ interface MatrixContext {
 
 ## 7. 字段定义
 
-### 7.1 对齐后端 `RolePermissionItemResp`（`PermissionGrantAppServiceImpl.toItemRespList` L782）
+### 7.1 对齐后端 `RolePermissionItemResp`（`PermissionGrantAppServiceImpl.toItemRespList`）
 
 | 字段             | 类型         | 说明                                               |
 | ---------------- | ------------ | -------------------------------------------------- |
@@ -431,7 +431,7 @@ interface MatrixContext {
 | 操作列                        | OPERATION:VIEW                                                                 | 操作列不可见                   |
 | 权限详情                      | ROLE:VIEW                                                                      | 分支、来源与子权限只读展示     |
 
-> 双层门禁说明（P1-3）：左栏**数据源**可见性沿用入口页既有门禁（`ORG:VIEW` / `USER:VIEW` / 岗位 `ORG:VIEW_POSITION`，对齐 frontend `user/utils/perms.ts`；T-ACCESS-018 类型收敛后权限串）；**矩阵查看/授权动作**统一用对目标抽象角色的 ROLE:VIEW / ROLE:MANAGE（后端 `role-resource-permission/*` 均校验目标抽象角色，`PermissionGrantAppServiceImpl` L152/482/520/587/748）——组织/个人被抽象成角色正是为了"像角色一样被配权"（role-manage.md §1 依据）。
+> 双层门禁说明（P1-3）：左栏**数据源**可见性沿用入口页既有门禁（`ORG:VIEW` / `USER:VIEW` / 岗位 `ORG:VIEW_POSITION`，对齐 frontend `user/utils/perms.ts`；T-ACCESS-018 类型收敛后权限串）；**矩阵查看/授权动作**统一用对目标抽象角色的 ROLE:VIEW / ROLE:MANAGE（后端 `role-resource-permission/*` 均校验目标抽象角色，`PermissionGrantAppServiceImpl` 各端点入口统一校验）——组织/个人被抽象成角色正是为了"像角色一样被配权"（role-manage.md §1 依据）。
 > 个人入口业务键（P1-3，**首期移除**）：左栏用户列表（admin-service）→ 选中用户 → 业务键 `PERSONAL_{external_id}`（`external_id` = 用户同步到 permission-center 时的 `sys_user.id`，即用户列表返回的 id；对齐 role-manage.md:24）——待个人 `abstract_role` 同步链路建成后恢复（§12 注）。
 
 > **已知缺口（2026-08-07 记录，暂不修改）**：类型候选数据源 `type-definition/list` 在真实后端强制校验 `TYPE_DEFINITION:VIEW`（`TypeDefinitionAppServiceImpl.listTypes` L131-134），但本页权限清单未声明该依赖——只有 ROLE/RESOURCE/OPERATION 查看权（无类型管理权限）的配权用户会让 loadDeps 整体失败并误显示「暂无资源类型配置」。**决策：全链路未打通前不做处理**（mock 不校验权限，开发不受阻）；联调任务 T-FE-018 汇合时评估：为授权页声明 `TYPE_DEFINITION:VIEW` 只读依赖（perms.ts 门控 + 缺权限明确提示 + mock 角色矩阵补权限串），或由后端提供免类型管理权限的候选来源。
@@ -463,7 +463,7 @@ interface MatrixContext {
 
 前端自算来源链（§3.5），T-PERM-034 已补齐下列能力（授权页面写链路收敛为 list + apply-grant-plan；`save/revoke/children/add-child/remove-child` **仅迁移期保留**（因 admin-service 存量调用，**终态=随 T-PERM-034 迁移后删除，2026-08-08 确认**），授权页面禁止调用；`update-child/children-save/rebuild` 不实现）：
 
-1. **`RolePermissionItemResp` 暴露 `grantSource`**（MANUAL / AUTO_DEP）：来源标注与 AUTO_DEP 只读需要（当前实体有、Resp 未暴露，`PermissionGrantAppServiceImpl.toItemRespList` L782）。
+1. **`RolePermissionItemResp` 暴露 `grantSource`**（MANUAL / AUTO_DEP）：来源标注与 AUTO_DEP 只读需要（当前实体有、Resp 未暴露，`PermissionGrantAppServiceImpl.toItemRespList`）。
 2. **`RolePermissionItemResp` 暴露 `grantedBits`**：`operationCode=null`（组合位无对应操作定义）时前端按位拆解展示与操作继承展开（当前 Resp 无此字段）。
 3. **`role-resource-permission/list` 增加 `includeChildren` 参数**（默认 true 兼容）：`true` 返回主权限及挂载子权限（baseline 一次取全量，§6.1）；`false` 只返回主权限（辅助查询）；**来源链只消费 `dependOn==null` 主权限**（当前 `selectValidByRoleId` 未过滤 depend_on）。
 4. ~~新增 update-child~~（已移除，T-FE-038 当前口径）：子权限不提供条件权限或再授予编辑，界面不发起子权限 updates；新增固定 `conditionCode=null`、`canGrant=false`，撤销走 removes。

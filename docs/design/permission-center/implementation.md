@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-23   # T-ACCESS-016 引擎显式资源 API 契约定稿（§3.1/§7.2/§7.3/§7.6）
+last_reviewed: 2026-08-27   # 2026-08-27 §3.6 引擎入口映射修正（query-resources→forUserView）、§4.1 端点退役收口；此前：2026-08-23 T-ACCESS-016 定稿
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -265,8 +265,6 @@ public interface PermissionGrantDomainService {
     Map<String, GrantCheckResult> checkCanGrant(Long tenantId, Long operatorId,
                                                 Set<GrantCheckKey> permissions, String domainCode);
 
-    void revokePermissions(Long tenantId, Long roleId, List<Long> permissionIds);
-
     record GrantCheckKey(String resourceTypeCode, String resourceCode,
                          String operationCode, boolean scopeAll) {}
 
@@ -434,7 +432,7 @@ PermQueryEngine.query(PermQuery q)
 
 ### 4.1 接口定义（收窄重写）
 
-授权页面写链路收敛为 **list + apply-grant-plan** 两个端点（另加只读契约 `sub-perm-allowed-types`，§6.5.2）。`save/revoke/children/add-child/remove-child` **已随 T-PERM-034 端点退役删除（2026-08-27 评审 F-07 收口：仓库内外无存量调用方、项目未上线，不留兼容层，Controller 无映射 404；SDK 面 perm-common RoleGrantReq/BatchRevokeReq 与 perm-client PermissionFeignClient.batchGrant/batchRevoke 同步移除）**；`update-child/children-save/rebuild` 不实现。角色权限写入的唯一约束并发兜底优先按 PostgreSQL SQLState `23505` 分类，约束名消息仅作驱动包装兼容兜底。
+授权页面写链路收敛为 **list + apply-grant-plan** 两个端点（另加只读契约 `sub-perm-allowed-types`，§6.5.2）。`save/revoke/children/add-child/remove-child` **已随 T-PERM-034 端点退役删除（2026-08-27 端点退役收口：仓库内外无存量调用方、项目未上线，不留兼容层，Controller 无映射 404；SDK 面 perm-common RoleGrantReq/BatchRevokeReq 与 perm-client PermissionFeignClient.batchGrant/batchRevoke 同步移除）**；`update-child/children-save/rebuild` 不实现。角色权限写入的唯一约束并发兜底优先按 PostgreSQL SQLState `23505` 分类，约束名消息仅作驱动包装兼容兜底。
 
 **SUB_PERM 共享策略对象（复审实现建议采纳，复审补公开入口）**：从 `assertSubPermissionAllowed` 抽取不可变策略对象 `SubPermissionPolicy { mode, reason, allowedTypeCodes, allows(childTypeCode) }`，**唯一公开解析入口 `PermissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, parentResourceTypeCode)`**——读接口（`sub-perm-allowed-types`）由 AppService 映射其结果直接序列化；写链路 `prevalidate` 内部复用同一解析器（`policy.allows(childTypeCode)`），**禁止在 AppService/Controller 另行编写 SUB_PERM 判断（读写同源）**；顶层通配、全量结构校验（任一 allowed 项非法 -> CONFIG_INVALID）、并集去重、大小写不敏感与错误原因均在策略内统一组装，读写不再各自编排判断。**校验顺序**：先按主/子记录分类（子权限 create 非 null/false -> 20043、子权限 update -> 20043），主权限再评估 20041（条件不可转授）→ 20042（条件启用状态）→ 20033 → 其他。
 

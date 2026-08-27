@@ -89,11 +89,11 @@
 | T-PERM-031 | 3.4 资源依赖后端 | frontend-phase2 | api-contract §5.6/§6.9；core-flows §12 | T-FE-011 | ⚙️ | ⏳ |
 | T-PERM-032 | 7.2 变更日志后端 | frontend-phase2 | api-contract §5.8/§6.8；implementation §2.3 | T-FE-012 | ⚙️ | ⏳ |
 | T-PERM-033 | 4.2 权限查询后端（门禁统一 + DTO 扩展；聚合层已取消，直连 /api/perm/*） | frontend-phase2 | api-contract §6.6-§6.8；implementation；design/frontend/permission-query.md | T-FE-013 | ⚙️ | ⏳ |
-| [T-PERM-034](T-PERM-034.md) | 4.1 权限授予后端（见任务卡；第 5 项旧端点退役已随 2026-08-27 评审 F-07 独立收口） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；permission-grant.md §12；access-service.sql | T-PERM-031 | ⚙️ | ⏳ |
+| [T-PERM-034](T-PERM-034.md) | 4.1 权限授予后端（见任务卡；第 5 项旧端点退役已随 2026-08-27 端点退役收口） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；permission-grant.md §12；access-service.sql | T-PERM-031 | ⚙️ | ⏳ |
 | [T-PERM-035](T-PERM-035.md) | 自动授权（resolveAutoGrants + autoGrantForInsert + 循环依赖检测）— ⚠️ design-review §11 E4 暂缓未排期 | [frontend-phase2](../plans/frontend-phase2-plan.md) | core-flows §12；implementation §4；api-contract | T-PERM-034 | ⚙️ | ⏳ |
 | [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证（scopeMode → SQL 映射链路）— ⚠️ design-review §11 Q7/B 暂缓（延后 example-service） | frontend-phase2 | api-contract §6.7；core-flows；implementation | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |
 | [T-PERM-037](T-PERM-037.md) | 跨页共性接口改造 + api-contract 回写收尾 | frontend-phase2 | api-contract；implementation | T-PERM-022~034 | ⚙️ | ⏳ |
-| T-PERM-038 | 全局 TODO 收口（improvement-plan 附录 A） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；implementation | — | ⚙️ | ⏳ |
+| T-PERM-038 | 全局 TODO 收口（已归档 improvement-plan 附录 A） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；implementation | — | ⚙️ | ⏳ |
 | T-PERM-039 | 测试补充（access-service permission 域新增改造接口测试） | frontend-phase4 | api-contract；implementation | T-PERM-037 | ⚙️ | ⏳ |
 | [T-PERM-040](T-PERM-040.md) | 4.1 权限授予单资源类型后端支持 | [frontend-phase2](../plans/frontend-phase2-plan.md) | | T-PERM-028, T-PERM-034 | ⚙️ | ⏳ |
 | [T-PERM-041](T-PERM-041.md) | 主权限条件不变量（20041 不可转授 + 20042 启用状态） | [frontend-phase2](../plans/frontend-phase2-plan.md) | | T-PERM-034 | ⚙️ | ⏳ |
@@ -256,12 +256,12 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 ### P4 — 工作单 D/E/F（proposed，执行前确认）
 
 1. `T-PERM-019` 工作单 D 防呆机制：整体无硬冲突，但 `typeValue` 外部入参描述和软删不复用保证方式存在 `DESIGN_DRIFT`，需先确认并回写设计。
-2. `T-PERM-020` 工作单 E 清理预设：`forValidate` / `forResourceCheck` 与当前管理校验和 `auth/query-resources` 设计冲突；RocketMQ 与 auto-grant 已被后续设计收敛；执行前必须确认 E2 替代设计。
+2. `T-PERM-020` 工作单 E 清理预设：`forValidate` / `forResourceCheck` 与当前管理校验和 `auth/query-resources` 的设计冲突已于 2026-08-27 消解（implementation §3.6 改为 forUserView，forResourceCheck 主代码零调用，删除无设计引用障碍）；RocketMQ 与 auto-grant 已被后续设计收敛。
 3. `T-PERM-021` 工作单 F 文档准确性与代码简化：ownership 字段删除、`request_id NOT NULL` 均存在当前设计约束，且 `requestId`/`traceId` 语义需先收敛；执行前必须确认 F1.c/F1.d。
 
 ### P5 — 前端 Phase 1（archived，2026-07-12 归档）
 
-> D/E/F 重启前提「前端 Phase 1 收尾」的关键路径。按 improvement-plan §4.1 三批次（简单→复杂）推进。Phase 1 **不改后端**，各页前端任务在 API 核对中产出 🔧❌ 清单，登记为 Phase 2 后端任务 T-PERM-022~034。
+> D/E/F 重启前提「前端 Phase 1 收尾」的关键路径。按已归档 improvement-plan（archive/2026-08-27/）§4.1 三批次（简单→复杂）推进。Phase 1 **不改后端**，各页前端任务在 API 核对中产出 🔧❌ 清单，登记为 Phase 2 后端任务 T-PERM-022~034。
 
 **第 1 批 🟢🟡**：`T-FE-002` 角色管理 → `T-FE-003` 类型定义 → `T-FE-004` 系统配置 → `T-FE-005` 操作日志
 **第 2 批 🟡**：`T-FE-006` 业务域 → `T-FE-007` 服务+接口 → `T-FE-008` 资源+操作 → `T-FE-009` 权限条件

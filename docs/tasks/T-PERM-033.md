@@ -20,7 +20,7 @@ acceptance:
   - "explain 响应扩展命中条件/条件评估过程/冲突详情 + 评估上下文来源（管理员输入 vs 当前请求）+ IP/时间条件评估 + 敏感条件值脱敏"
   - "recentChanges 按完整权限键 6 字段过滤（domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode；当前实现只按用户/角色取 50 条）"
   - "LOCAL_USER/USER 主体语义核对（subjectTypeCode 来源与候选查询方式、TypeResolutionService.resolveUserId 解析路径；ADMIN_USER 已随 T-ACCESS-018 更名 LOCAL_USER）"
-  - "query-resources / permission-view/* 契约核对完成、差异登记（effective-roles/resource-users/role-permissions/effective-permission-codes/resource-tree + treeMode TODO）"
+  - "query-resources / permission-view/* 契约核对完成、差异登记（effective-roles/resource-users/role-permissions/effective-permission-codes/resource-tree；~~treeMode TODO~~ 已随 2026-08-27 契约移除决策收口，见 v3.5.1-evolution）"
   - "前端联调路径为既有契约端点（/api/perm/permission-view/effective-permissions、/api/perm/permission-view/explain、/api/perm/auth/query-scopes）；无新增 Gateway 路由（3 路由契约不动）；前端 perms.ts 常量 SYSTEM_CONFIG:VIEW 切换为 PERMISSION_QUERY:VIEW"
 design_writeback:
   required: true
@@ -55,7 +55,7 @@ T-FE-013 权限排查页前端已实现（Phase 1 mock 驱动，mock 路径 `/pe
 2. **explain DTO 扩展**：命中条件/条件评估过程/冲突详情；评估上下文来源（管理员输入 vs 当前请求）；IP/时间等条件如何评估；敏感条件值脱敏。
 3. **recentChanges 按完整权限键过滤**：按 6 字段过滤，只返回与目标权限键相关的事件（契约 §6.8）。
 4. **LOCAL_USER/USER 主体语义核对**：`LOCAL_USER` 是 AccessMesh 管理端用户（本地访问主体，原 ADMIN_USER 更名）、`USER` 为外部人员类型；核对 `subjectTypeCode` 来源、候选查询方式与 `resolveUserId` 解析路径。
-5. **query-resources API 核对**（§6.6 运行时 SDK 视角，前端不做 UI；treeMode TODO 一并核对）。
+5. **query-resources API 核对**（§6.6 运行时 SDK 视角，前端不做 UI；treeMode 已从契约移除，无需核对）。
 6. **permission-view/* 契约差异核对**（§6.8 字段一致性）。
 7. **前端联调切换**：mock 路径 `/permission-query/*` 切换为契约路径 `/api/perm/*`（实际切换在 T-FE-019 联调执行）。
 

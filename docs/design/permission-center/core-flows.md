@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-22   # 2026-08-22 归并收口回写；此前：2026-08-08 复审（20041/20042/20043 主/子分类、旧端点终态、SubPermissionPolicy）
+last_reviewed: 2026-08-27   # 2026-08-27 §6 端点退役收口、§10.1 treeMode 移除；此前：2026-08-22 归并收口回写
 ---
 
 # Permission Center 核心流程链路
@@ -327,7 +327,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - `resource-dependency/batch-sync` 的 FULL diff 只能清理同一 `ownerServiceCode + maintainSource` 范围内缺失的规则，不能清理其他服务或其他维护来源的规则。
 - 依赖规则变更时按 `grantDepId` 精准清理自动补全记录。
 - 自动补全同样需要记录变更日志，并通过 `PermissionChangeContext.markRoles/markServiceCodes` 在 afterCommit 阶段失效 `ROLE_PERM_SNAPSHOT`、用户有效角色缓存并广播。
-- **注意**：`auto-grant` 自动补全功能标记为 TODO，Phase 1-5 未完整实现。当前 `PermissionGrantDomainService.revokePermissions` 只做权限事实软删；缓存失效与广播由调用方通过 `PermissionChangeContext` + `@PermissionChange` afterCommit 统一处理。
+- **注意**：`auto-grant` 自动补全功能标记为 TODO，Phase 1-5 未完整实现。撤销走 `apply-grant-plan` 的 removes（软删+级联+行数断言 20036 fail-closed）；缓存失效与广播由调用方通过 `PermissionChangeContext` + `@PermissionChange` afterCommit 统一处理。
 
 ## 13. 场景十：权限视图和审计排查
 

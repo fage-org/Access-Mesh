@@ -31,14 +31,12 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.service.domain.*;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.access.permission.util.DatabaseExceptionSupport;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.permission.util.ScopeModeSupport;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,7 +48,7 @@ import java.util.stream.Collectors;
 /**
  * 权限授予服务实现类
  * <p>
- * 提供角色权限的批量授予、批量撤销、权限列表查询、子权限管理等核心功能。
+ * 提供角色权限的查询（list）与聚合授予（apply-grant-plan 唯一写入口，记录级 plan 单事务原子）。
  * 实现严格的授权传递安全校验：操作者必须拥有canGrant=true的权限才能授权给他人。
  * 使用批量解析优化性能，避免N+1查询问题。
  * 通过 @PermissionChange afterCommit 统一执行缓存失效和失效广播，确保数据一致性。
@@ -355,10 +353,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         return new BizException(errorCode.getCode(), errorCode.getMessage());
     }
 
-    private BizException biz(PermissionErrorCode errorCode, String message) {
-        return new BizException(errorCode.getCode(), message);
-    }
-
     // ===== 私有批量加载方法 =====
 
     /**
@@ -370,22 +364,5 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         }
         return resourceEntityMapper.selectValidByIds(tenantId, ids)
             .stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r, (a, b) -> a));
-    }
-
-    /**
-     * 按资源类型批量加载操作权限
-     */
-    private Map<Integer, List<OperationPermission>> batchLoadOperationsByResourceTypes(Long tenantId, Set<Integer> resourceTypes) {
-        if (resourceTypes == null || resourceTypes.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        Map<Integer, List<OperationPermission>> result = new LinkedHashMap<>();
-        for (Integer resourceType : resourceTypes) {
-            if (resourceType == null) {
-                continue;
-            }
-            result.put(resourceType, operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType));
-        }
-        return result;
     }
 }

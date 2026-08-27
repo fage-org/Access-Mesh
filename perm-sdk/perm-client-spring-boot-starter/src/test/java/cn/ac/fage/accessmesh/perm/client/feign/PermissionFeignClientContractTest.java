@@ -51,8 +51,6 @@ class PermissionFeignClientContractTest {
         "/api/perm/resource-entity/update",
         "/api/perm/resource-entity/remove",
         "/api/perm/operation-permission/list",
-        "/api/perm/role-resource-permission/save",
-        "/api/perm/role-resource-permission/revoke",
         "/api/perm/permission-view/effective-permissions",
         "/api/perm/permission-view/effective-permission-codes"
     );
@@ -86,7 +84,7 @@ class PermissionFeignClientContractTest {
             .toList();
 
         assertThat((long) actualPaths.size())
-            .as("接口方法总数必须与契约清单一致（18），防止增删端点静默漂移")
+            .as("接口方法总数必须与契约清单一致（16，2026-08-27 随 T-PERM-034 端点退役移除 save/revoke 后），防止增删端点静默漂移")
             .isEqualTo(CONTRACT_PATHS.size());
         assertThat(actualPaths)
             .as("SDK 声明的路径集合必须与契约清单完全一致")

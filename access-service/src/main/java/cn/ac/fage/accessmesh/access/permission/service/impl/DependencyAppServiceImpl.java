@@ -380,6 +380,12 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         int deletedCount = 0;
         int updatedCount = 0;
 
+        // autoGrant=true 逐项预检：在任何写操作（FULL diff 删除/更新/插入）之前统一拦截，
+        // 避免「先执行删除再回滚」的事务补偿路径
+        for (DependencyBatchSyncReq.DependencySyncItem item : items) {
+            rejectAutoGrantTrue(item.autoGrant());
+        }
+
         if (isFullSync) {
             List<ResourceDependency> existingDeps = dependencyMapper.selectByOwnerService(tenantId, req.serviceCode(), req.maintainSource());
 
@@ -453,7 +459,6 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         // 性能优化：收集插入项用于批量操作
         List<ResourceDependency> toInsert = new ArrayList<>();
         for (DependencyBatchSyncReq.DependencySyncItem item : items) {
-            rejectAutoGrantTrue(item.autoGrant());
             ResourceResolveKey sourceKey = new ResourceResolveKey(
                 item.sourceResourceTypeCode(), item.sourceResourceCode(), item.sourceCodeType(), null);
             ResourceResolveKey targetKey = new ResourceResolveKey(

@@ -28,7 +28,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 /**
- * autoGrant 假能力收口（2026-08-27 评审 F-06）：自动授权未实现（T-PERM-035 暂缓），
+ * autoGrant 预留未实现收口（2026-08-27 设计定案）：自动授权未实现（T-PERM-035 暂缓），
  * 所有写入口必须拒绝 true（20048）、省略时落库 false——
  * 旧实现（null 默认 true、true 静默入库）在本组用例下必然失败，锁住修复。
  */
@@ -109,7 +109,6 @@ class DependencyAppServiceImplTest {
     void shouldRejectAutoGrantTrueOnBatchSyncItem() {
         when(engine.hasPermissionByCode(eq(1L), anyLong(), eq(ResourceTypeCode.DEPENDENCY),
             isNull(), eq(OperationCodeConstants.SYNC))).thenReturn(true);
-        when(typeResolutionService.batchResolveResourceIds(eq(1L), anyList())).thenReturn(Map.of());
 
         DependencyBatchSyncReq req = new DependencyBatchSyncReq("example-service", "SERVICE_SYNC",
             "INCREMENTAL", List.of(new DependencyBatchSyncReq.DependencySyncItem(

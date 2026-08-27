@@ -113,7 +113,7 @@ last_reviewed: 2026-08-22   # T-ACCESS-012 重基线：取消聚合层，直连 
 ### Step 1.5 组件识别（T-FE-001 组件池）
 - **资源键输入**（resourceTypeCode + resourceCode + codeType）：Tab2 主资源 + Tab3 单资源复用，候选登记待 2+ 页确认抽取
 - **SubjectInputBar**：USER/ROLE 主体输入，候选登记
-- **treeMode 结果树**：§6.6 L1249 + query-permission-tree，本页不做 UI，登记 T-PERM-033
+- **treeMode 结果树**：已从契约移除（2026-08-27，树由调用方自建，见 v3.5.1-evolution）；query-permission-tree 为独立接口不受影响，本页不做 UI
 
 ## 8. 权限接线
 
@@ -139,5 +139,5 @@ last_reviewed: 2026-08-22   # T-ACCESS-012 重基线：取消聚合层，直连 
 | 4 | recentChanges 按权限键过滤 | 🔧 | 完整 6 字段过滤（当前 :735 只按用户/角色取 50 条） |
 | 5 | LOCAL_USER/USER 主体语义 | 🔧 | 来源与候选查询方式 |
 | 6 | query-resources API 核对 | 🔧 | 运行时 SDK 视角，不做 UI |
-| 7 | ~~treeMode TODO~~ | 已收口 | 2026-08-27 评审 F-09 决策：从契约移除（无真实消费方），树由调用方自建，登记 v3.5.1-evolution |
+| 7 | ~~treeMode TODO~~ | 已收口 | 2026-08-27 设计定案：从契约移除（无真实消费方），树由调用方自建，登记 v3.5.1-evolution |
 | 8 | permission-view/* 契约差异 | 🔧 | effective-roles/resource-users/role-permissions/effective-permission-codes/resource-tree |

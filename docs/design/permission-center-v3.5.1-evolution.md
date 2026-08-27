@@ -25,7 +25,7 @@ last_reviewed: 2026-06-20
 | 风险与回归监控（原 §14） | 同上 | 待方案稳定 |
 | 法务/合规附件（原 §15） | PM 决策：合规话术待重新调研 | 需重新调研 |
 | 持久化 outbox 重投 | 审计 S-003 决策 A | v3.5 采用 Redis pub/sub + TTL 兜底；outbox 重投作为增量评估项 |
-| `query-resources` 树模式响应（`treeMode`） | api-contract §6.6（2026-08-27 契约移除，评审 F-09） | 无真实消费方（前端 mock 与 E2E 均未用）；树由调用方基于平面列表自建，`includeChildren` 可展开资源父子关系；出现真实服务端树需求时重新评估 |
+| `query-resources` 树模式响应（`treeMode`） | api-contract §6.6（2026-08-27 契约移除，设计定案） | 无真实消费方（前端 mock 与 E2E 均未用）；树由调用方基于平面列表自建，`includeChildren` 可展开资源父子关系；出现真实服务端树需求时重新评估 |
 
 ## 纳入流程
 
