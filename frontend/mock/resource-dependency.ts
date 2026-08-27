@@ -67,7 +67,7 @@ const deps: InternalDep[] = [
     depResourceCode: "auth-check",
     sourceOperationBits: 2,
     requiredOperationBits: 2,
-    autoGrant: true,
+    autoGrant: false,
     description: "访问角色管理需先通过鉴权校验",
     createdAt: BASE_TIME,
     deleted: false
@@ -81,7 +81,7 @@ const deps: InternalDep[] = [
     depResourceCode: "res-tree",
     sourceOperationBits: 2,
     requiredOperationBits: 2,
-    autoGrant: true,
+    autoGrant: false,
     description: "资源与操作页需资源树查询接口",
     createdAt: BASE_TIME,
     deleted: false
@@ -95,7 +95,7 @@ const deps: InternalDep[] = [
     depResourceCode: "dept-data",
     sourceOperationBits: 2,
     requiredOperationBits: 2,
-    autoGrant: true,
+    autoGrant: false,
     description: "组织与用户页依赖部门数据",
     createdAt: BASE_TIME,
     deleted: false

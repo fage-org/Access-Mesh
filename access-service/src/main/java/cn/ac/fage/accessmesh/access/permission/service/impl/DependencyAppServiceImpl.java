@@ -118,7 +118,8 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         dep.setDependsOnResourceEntityId(targetId);
         dep.setSourceOperationBits(sourceOperationBits);
         dep.setRequiredOperationBits(requiredOperationBits);
-        dep.setAutoGrant(req.autoGrant() != null ? req.autoGrant() : true);
+        rejectAutoGrantTrue(req.autoGrant());
+        dep.setAutoGrant(Boolean.TRUE.equals(req.autoGrant()));
         dep.setDescription(req.description());
         dep.setCreatedBy(operatorId);
         LocalDateTime now = LocalDateTime.now();
@@ -214,6 +215,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         if (req.requiredOperationCodes() != null) {
             dep.setRequiredOperationBits(resolveOperationBits(tenantId, req.requiredOperationCodes(), req.targetResourceTypeCode()));
         }
+        rejectAutoGrantTrue(req.autoGrant());
         if (req.autoGrant() != null) dep.setAutoGrant(req.autoGrant());
         if (req.description() != null) dep.setDescription(req.description());
         dep.setUpdatedAt(LocalDateTime.now());
@@ -225,6 +227,17 @@ public class DependencyAppServiceImpl implements DependencyAppService {
             .collect(Collectors.toSet());
         Map<Long, ResourceEntity> entityMap = loadResourceEntityMap(tenantId, resourceIds);
         return toDependencyResp(dep, entityMap);
+    }
+
+    /**
+     * autoGrant=true 写入拒绝（fail-closed）：自动授权未实现（T-PERM-035 暂缓），
+     * 所有写入口（create/update/batch-sync）在落库前统一拦截，禁止静默接受。
+     */
+    private static void rejectAutoGrantTrue(Boolean autoGrant) {
+        if (Boolean.TRUE.equals(autoGrant)) {
+            throw new BizException(PermissionErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(),
+                PermissionErrorCode.AUTO_GRANT_NOT_SUPPORTED.getMessage());
+        }
     }
 
     /**
@@ -440,6 +453,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         // 性能优化：收集插入项用于批量操作
         List<ResourceDependency> toInsert = new ArrayList<>();
         for (DependencyBatchSyncReq.DependencySyncItem item : items) {
+            rejectAutoGrantTrue(item.autoGrant());
             ResourceResolveKey sourceKey = new ResourceResolveKey(
                 item.sourceResourceTypeCode(), item.sourceResourceCode(), item.sourceCodeType(), null);
             ResourceResolveKey targetKey = new ResourceResolveKey(
@@ -473,7 +487,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
                 dep.setDependsOnResourceEntityId(targetResourceId);
                 dep.setSourceOperationBits(sourceOperationBits);
                 dep.setRequiredOperationBits(requiredOperationBits);
-                dep.setAutoGrant(item.autoGrant() != null ? item.autoGrant() : true);
+                dep.setAutoGrant(Boolean.TRUE.equals(item.autoGrant()));
                 dep.setDescription(item.description());
                 dep.setOwnerServiceCode(req.serviceCode());
                 dep.setMaintainSource(req.maintainSource());

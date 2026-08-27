@@ -1683,8 +1683,8 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "targetResourceCode": "api:report:sales:query",
       "targetCodeType": "default",
       "requiredOperationCodes": ["ACCESS"],
-      "autoGrant": true,
-      "description": "授权销售报表读取时自动补齐查询接口"
+      "autoGrant": false,
+      "description": "销售报表读取依赖查询接口（自动补全未实现，autoGrant 仅接受 false）"
     }
   ]
 }
@@ -1694,6 +1694,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 - `source*` 表示源资源，即被授权后会触发依赖补全的资源，对应 `resource_dependency.resource_entity_id`。
 - `target*` 表示被源资源依赖、需要自动补全的目标资源，对应 `resource_dependency.depends_on_resource_entity_id`。
+- **`autoGrant` 预留未实现（2026-08-27 F-06 收口）**：自动授权暂缓（T-PERM-035，design-review §11 E4），create / update / batch-sync 全部写入口拒绝 `true`（错误码 **20048** `AUTO_GRANT_NOT_SUPPORTED`），仅接受 `false`/省略；表列默认 `false`。依赖补全当前不生效，规则中的「触发依赖补全」语义为 T-PERM-035 实现后的目标态。
 - 授权源资源时，自动补全查询条件必须是 `resource_dependency.resource_entity_id = sourceResourceId`，不能反向使用 `depends_on_resource_entity_id` 查询。
 - `sourceOperationCodes` 转为 `source_operation_bits`；为空表示任意源操作触发。
 - `requiredOperationCodes` 转为 `required_operation_bits`，表示目标资源需要自动补全的操作。

@@ -39,7 +39,7 @@ export function createEmptyDependencyForm(): DependencyFormData {
     targetResourceEntityId: null,
     sourceOperationCodes: [],
     requiredOperationCodes: [],
-    autoGrant: true,
+    autoGrant: false,
     description: ""
   };
 }

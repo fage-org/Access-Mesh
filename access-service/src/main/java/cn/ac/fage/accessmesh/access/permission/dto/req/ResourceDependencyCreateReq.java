@@ -19,7 +19,7 @@ import java.util.List;
  * @param targetResourceCode     目标资源编码，必填
  * @param targetCodeType         目标编码类型，可选
  * @param requiredOperationCodes 要求操作编码列表，必填且不能为空
- * @param autoGrant              是否自动授权，可选
+ * @param autoGrant              预留未实现：自动授权暂缓（T-PERM-035），仅接受 false/省略，传 true 返回 20048
  * @param description            依赖描述，可选
  */
 public record ResourceDependencyCreateReq(
