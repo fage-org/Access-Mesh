@@ -113,7 +113,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> results =
 | forAuthCheck | ✅ | ✅ | ✅ | ✅ | ✅ | 无 |
 | forInterfaceCheck | ✅ | ✅ | ✅ | ✅ | ✅ | 全部 |
 | forResourceQuery | ❌ | ✅ | - | ❌ | ❌ | resource+op |
-| forResourceCheck | ✅ | ✅ | ❌ | ✅ | ✅ | resource+op |
+| forResourceCheck | ✅ | ✅ | ✅ | ✅ | ✅ | resource+op |
 | forValidate | ✅ | ✅ | ✅ | ❌ | ❌ | 无 |
 | forValidateByEntityId | ✅ | ✅ | ✅ | ❌ | ❌ | 无（entityId 轨，仅引擎内部/已完成解析的调用方） |
 | forScopeQuery | ✅ | ✅ | ❌ | ❌ | ❌ | resource+op+role |
