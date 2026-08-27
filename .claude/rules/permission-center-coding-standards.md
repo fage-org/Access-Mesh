@@ -209,7 +209,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 @Transactional(rollbackFor = Exception.class)
 @OperationLog(...)
 @PermissionChange
-public List<RolePermissionItemResp> batchGrant(Long tenantId, RoleGrantReq req) {
+public List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlanReq req) {
     // ... 业务逻辑 ...
     // 登记受影响范围（mark 方法在未绑定时 no-op，越界调用安全）
     PermissionChangeContext.markRoles(tenantId, roleId);
@@ -280,9 +280,9 @@ entityBatchLoadDomainService.batchLoadResources(...);  // 类已删除
 // ✅ 正确 — 使用 @OperationLog 注解
 @Override
 @Transactional(rollbackFor = Exception.class)
-@OperationLog(module = "perm", action = "BATCH_GRANT", targetType = "abstract_role",
-    targetId = "#req.roleExternalId", summary = "save granted role perms")
-public List<RolePermissionItemResp> batchGrant(Long tenantId, RoleGrantReq req) {
+@OperationLog(module = "perm", action = "ROLE_RESOURCE_PERMISSION_APPLY_PLAN", targetType = "abstract_role",
+    targetId = "#req.roleExternalId", summary = "apply grant plan")
+public List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlanReq req) {
     // 业务逻辑
     // 不再需要手动调用 auditDomainService.asyncRecordLog(...) 做入口级日志
 }

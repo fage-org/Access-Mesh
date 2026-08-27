@@ -28,7 +28,7 @@ export type DomainConfigResp = {
   tenantId?: number;
   /** 所属业务域 ID（后端 save 时由 domainCode 解析） */
   bizDomainId: number;
-  /** 配置类型编码（SCOPE / RELATION / BINDING / SUB_PERM / CLASSIFY） */
+  /** 配置类型编码（仅 SUB_PERM / CLASSIFY 已实现，写入白名单校验拒绝其余历史类型） */
   configType: string;
   /** 配置值（JSON 字符串，schema 是 JSONB） */
   extra: string;

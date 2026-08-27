@@ -122,4 +122,25 @@ class DependencyAppServiceImplTest {
         verify(dependencyMapper, never()).insert(any(ResourceDependency.class));
         verify(dependencyMapper, never()).insertBatch(anyList());
     }
+
+    @Test
+    void shouldRejectAutoGrantTrueBeforeFullDiffDeletion() {
+        when(engine.hasPermissionByCode(eq(1L), anyLong(), eq(ResourceTypeCode.DEPENDENCY),
+            isNull(), eq(OperationCodeConstants.SYNC))).thenReturn(true);
+
+        DependencyBatchSyncReq req = new DependencyBatchSyncReq("example-service", "SERVICE_SYNC",
+            "FULL", List.of(new DependencyBatchSyncReq.DependencySyncItem(
+                "REPORT", "report:sales", null, null,
+                "API", "api:report:sales:query", null, List.of("ACCESS"), Boolean.TRUE, "d")));
+
+        BizException ex = assertThrows(BizException.class,
+            () -> service.batchSyncDependencies(1L, req, 100L));
+
+        assertEquals(PermissionErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(), ex.getErrorCode());
+        // 预检先于 FULL diff 全部数据库操作：存量查询与删除/写入均不得发生
+        verify(dependencyMapper, never()).selectByOwnerService(anyLong(), anyString(), anyString());
+        verify(dependencyMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
+        verify(dependencyMapper, never()).insert(any(ResourceDependency.class));
+        verify(dependencyMapper, never()).insertBatch(anyList());
+    }
 }

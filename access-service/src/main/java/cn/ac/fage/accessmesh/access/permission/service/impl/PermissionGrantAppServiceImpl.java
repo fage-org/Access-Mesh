@@ -10,16 +10,13 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RolePermissionListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RolePermissionItemResp;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
-import cn.ac.fage.accessmesh.access.permission.entity.DomainConfig;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
-import cn.ac.fage.accessmesh.access.permission.enums.ConfigType;
 import cn.ac.fage.accessmesh.access.permission.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper;
-import cn.ac.fage.accessmesh.access.permission.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
@@ -30,7 +27,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.service.domain.*;
-import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.PermissionConstants;
@@ -40,7 +36,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -67,50 +62,30 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private final AbstractRoleMapper abstractRoleMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final OperationPermissionMapper operationPermissionMapper;
-    private final DomainConfigMapper domainConfigMapper;
     private final PermissionConditionMapper permissionConditionMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
-    private final PermissionGrantDomainService permissionGrantDomainService;
     private final PermissionGrantPlanDomainService permissionGrantPlanDomainService;
     private final AuditDomainService auditDomainService;
-    private final SubjectDomainService subjectDomainService;
     private final TypeResolutionService typeResolutionService;
-    private final DomainClassifyService domainClassifyService;
     private final PermQueryEngine engine;
 
-    /**
-     * 构造函数注入所有依赖
-     * <p>
-     * TODO: 构造函数依赖过多(14个)，违反单一职责原则
-     * 建议：拆分为GrantValidationService/GrantExecutionService/GrantCascadeService
-     * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
-     * </p>
-     */
     public PermissionGrantAppServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                       ResourceEntityMapper resourceEntityMapper,
                                       OperationPermissionMapper operationPermissionMapper,
-                                      DomainConfigMapper domainConfigMapper,
                                       PermissionConditionMapper permissionConditionMapper,
                                       RoleResourcePermissionMapper rolePermMapper,
-                                      PermissionGrantDomainService permissionGrantDomainService,
                                       PermissionGrantPlanDomainService permissionGrantPlanDomainService,
                                       AuditDomainService auditDomainService,
-                                      SubjectDomainService subjectDomainService,
                                       TypeResolutionService typeResolutionService,
-                                      DomainClassifyService domainClassifyService,
                                       PermQueryEngine engine) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.operationPermissionMapper = operationPermissionMapper;
-        this.domainConfigMapper = domainConfigMapper;
         this.permissionConditionMapper = permissionConditionMapper;
         this.rolePermMapper = rolePermMapper;
-        this.permissionGrantDomainService = permissionGrantDomainService;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
         this.auditDomainService = auditDomainService;
-        this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
-        this.domainClassifyService = domainClassifyService;
         this.engine = engine;
     }
 

@@ -48,7 +48,7 @@ flowchart LR
 | 1    | `POST /api/perm/type-definition/create`      | `typeKey + typeCode + typeValue`             | 建立用户、角色、资源类型               |
 | 2    | `POST /api/perm/biz-domain/create`           | `code=admin`                                 | 建立业务域                             |
 | 3    | `POST /api/perm/operation-permission/create` | `resourceTypeCode + operationCode`           | 建立 VIEW/EDIT/ACCESS/DATA_READ 等操作 |
-| 4    | `POST /api/perm/domain-config/save`          | `configType=SCOPE/RELATION/BINDING/SUB_PERM` | 约束域内允许的角色、资源、操作和子权限 |
+| 4    | `POST /api/perm/domain-config/save`          | `configType=SUB_PERM/CLASSIFY`（仅此两类已实现，写入白名单校验拒绝其余值） | 约束域内允许的子权限策略与资源类型分类 |
 | 5    | `POST /api/perm/system-config/save`          | 租户级配置                                   | 保存角色唯一性、默认策略等配置         |
 
 关键逻辑：
@@ -310,10 +310,12 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 
 目标：授权某个资源时，自动补齐它依赖的接口或数据资源权限。
 
+> **状态（2026-08-27 定稿）**：本场景为**未来目标态**——自动授权未实现（T-PERM-035 暂缓，design-review §11 E4）。当前 `autoGrant` 为预留禁用字段：create / update / batch-sync 全部写入口拒绝 `true`（20048），仅接受 `false`/省略，依赖补全不生效；依赖规则本身可正常建立与维护（autoGrant=false）。下表流程在 T-PERM-035 实现后生效。
+
 | 步骤 | 接口                                            | 关键入参                                                        | 结果                 |
 | ---- | ----------------------------------------------- | --------------------------------------------------------------- | -------------------- |
-| 1    | `POST /api/perm/resource-dependency/create`     | 源资源、依赖资源、触发操作位、required 操作位、`autoGrant=true` | 建立依赖规则         |
-| 2    | `POST /api/perm/role-resource-permission/apply-grant-plan` | 给角色授权源资源（plan.creates）              | 自动补齐依赖资源权限（grantSource=AUTO_DEP） |
+| 1    | `POST /api/perm/resource-dependency/create`     | 源资源、依赖资源、触发操作位、required 操作位、`autoGrant=true`（**目标态；当前被 20048 拒绝，仅接受 false**） | 建立依赖规则         |
+| 2    | `POST /api/perm/role-resource-permission/apply-grant-plan` | 给角色授权源资源（plan.creates）              | 自动补齐依赖资源权限（grantSource=AUTO_DEP，**目标态行为**） |
 | 3    | 自动处理                                        | 写入 `grantSource=AUTO_DEP + grantDepId`                        | 标记补全来源         |
 | 4    | `POST /api/perm/role-resource-permission/list`  | 查询角色权限                                                    | 能看到自动补齐结果   |
 | 5    | `POST /api/perm/resource-dependency/batch-sync` | 修改依赖规则                                                    | 清理旧补全并重新评估 |
@@ -327,7 +329,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - `resource-dependency/batch-sync` 的 FULL diff 只能清理同一 `ownerServiceCode + maintainSource` 范围内缺失的规则，不能清理其他服务或其他维护来源的规则。
 - 依赖规则变更时按 `grantDepId` 精准清理自动补全记录。
 - 自动补全同样需要记录变更日志，并通过 `PermissionChangeContext.markRoles/markServiceCodes` 在 afterCommit 阶段失效 `ROLE_PERM_SNAPSHOT`、用户有效角色缓存并广播。
-- **注意**：`auto-grant` 自动补全功能标记为 TODO，Phase 1-5 未完整实现。撤销走 `apply-grant-plan` 的 removes（软删+级联+行数断言 20036 fail-closed）；缓存失效与广播由调用方通过 `PermissionChangeContext` + `@PermissionChange` afterCommit 统一处理。
+- **注意**：`auto-grant` 自动补全功能标记为 TODO，Phase 1-5 未完整实现（T-PERM-035 暂缓；当前写入口拒绝 `autoGrant=true` 返回 20048，见本节开头状态声明）。撤销走 `apply-grant-plan` 的 removes（软删+级联+行数断言 20036 fail-closed）；缓存失效与广播由调用方通过 `PermissionChangeContext` + `@PermissionChange` afterCommit 统一处理。
 
 ## 13. 场景十：权限视图和审计排查
 

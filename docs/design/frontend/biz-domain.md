@@ -78,7 +78,7 @@ last_reviewed: 2026-07-01
 | id | number | 内部主键 |
 | tenantId | number? | 租户 ID |
 | bizDomainId | number | 所属业务域 ID（save 时由 domainCode 解析） |
-| configType | string | 配置类型（SCOPE / RELATION / BINDING / SUB_PERM / CLASSIFY） |
+| configType | string | 配置类型（仅 SUB_PERM / CLASSIFY 已实现，2026-08-27 起写入白名单校验拒绝其余历史类型） |
 | extra | string | 配置值（JSON 字符串，schema 是 JSONB） |
 | updatedAt | string? | 更新时间 |
 

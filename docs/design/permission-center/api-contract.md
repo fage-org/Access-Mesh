@@ -1822,7 +1822,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 1. **租户来源**：只使用 `X-Tenant-Id` 和安全上下文，请求体不保留 `tenantId`。
 2. **对象定位**：取消通用 `Ref` 对象，使用固定扁平字段和标准业务键。
-3. **授权入口**：授权页面写链路收敛为**唯一写入口 `POST /api/perm/role-resource-permission/apply-grant-plan`**（2026-08-02 单入口收敛，收窄：单事务原子 + 受影响行数断言，无 CAS/幂等表/clientRequestId）。`save/revoke/children/add-child/remove-child` **仅迁移期保留并标记弃用**（授权页面禁止调用；**终态=随 T-PERM-034 删除，2026-08-08 复审确认**）；`update-child/children-save/rebuild` 不实现。
+3. **授权入口**：授权页面写链路收敛为**唯一写入口 `POST /api/perm/role-resource-permission/apply-grant-plan`**（2026-08-02 单入口收敛，收窄：单事务原子 + 受影响行数断言，无 CAS/幂等表/clientRequestId）。`save/revoke/children/add-child/remove-child` **已删除（2026-08-27 端点退役，Controller 无映射 404，不留兼容层；删除/新增/查询语义分别由 apply-grant-plan 的 removes/creates 与 list includeChildren 覆盖）**；`update-child/children-save/rebuild` 从未实现。
 4. **接口同步**：首期仅支持 FULL 全量同步。
 5. **兼容策略**：项目未上线，不考虑旧接口兼容，直接按新契约实现。
 6. **运行时查询**：SDK 除布尔鉴权外，需要提供通用资源查询和范围权限查询；查询结果返回权限事实，不返回业务服务私有数据。

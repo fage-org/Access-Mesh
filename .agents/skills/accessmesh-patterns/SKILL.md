@@ -112,7 +112,6 @@ private LocalDateTime deletedAt;
 | 场景             | 优先入口                                                                                                      |
 | ---------------- | ------------------------------------------------------------------------------------------------------------- |
 | 用户有效角色解析 | `SubjectDomainService.resolveEffectiveRoles()`                                                                |
-| 角色权限撤销     | `PermissionGrantDomainService.revokePermissions()`                                                            |
 | 授权传递校验     | `PermissionGrantDomainService.checkCanGrant()`                                                                |
 | 类型批量解析     | `TypeResolutionService.batchResolveTypeValues()` / `batchResolveResourceIds()` / `batchResolveOperationIds()` |
 | 管理权限批量校验 | `PermQueryEngine.getDeniedResourceCodes()`（业务编码）/ `getDeniedEntityIds()`（entityId 轨）                    |

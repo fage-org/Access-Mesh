@@ -64,7 +64,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 
 复杂查询使用 `PermQuery`，授权传递校验使用 `PermissionGrantDomainService`。
 
-> **主体契约**：Domain 层 API（forAuthCheck/forInterfaceCheck/forResourceQuery/forScopeQuery/forValidate）与
+> **主体契约**：Domain 层 API（forAuthCheck/forInterfaceCheck/forResourceQuery/forScopeQuery/forValidate/forUserView）与
 > canGrant 委托链的 `userId`/`subjectId` 均指权限域投影主体（`abstract_user.id`），禁止直接传 `sys_user.id`。
 
 ```java
@@ -85,8 +85,8 @@ Set<Long> entityIds = matchApiPaths(tenantId, path, method);
 PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, "ACCESS");
 return PermResultUtils.toCheckInterfaceResp(engine.query(q), cacheTtl);
 
-// queryResources — 资源筛选
-PermQuery q = PermQuery.forResourceQuery(tenantId, userId, resourceTypeCodes, operationCodes);
+// queryResources — 资源筛选（实现走 forUserView 取全量权限事实；forResourceQuery 无生产调用方，勿用于新代码）
+PermQuery q = PermQuery.forUserView(tenantId, userId);
 return PermResultUtils.toQueryResourcesResp(engine.query(q), cacheTtl);
 
 // validate — 管理操作校验
