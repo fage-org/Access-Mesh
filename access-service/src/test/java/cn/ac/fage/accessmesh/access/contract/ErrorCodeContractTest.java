@@ -22,7 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * admin-service / permission-center）为基线，固化全部 53 + 37 个错误码的
  * 「枚举名 → 码值」映射；当前枚举必须逐项包含且名称与码值的绑定不变
  * （同一编号不得改由其他枚举名承载，防止语义漂移）。归并后新增码
- * （10108~10111、20044~20047）不违反基线，只需满足分段规则。
+ * （10108~10110、20044~20047）不违反基线，只需满足分段规则；
+ * 归并后新增码的退役走 RETIRED_POST_MERGE_ADMIN 登记。
  * </p>
  * <p>
  * 规则断言（access-service-architecture §9 / project-rules §1.2）：
@@ -41,6 +42,16 @@ class ErrorCodeContractTest {
      */
     private static final java.util.Set<String> RETIRED_ADMIN_NAMES =
         java.util.Set.of("MENU_PERM_CODE_EXISTS");
+
+    /**
+     * 归并后新增码的退役登记（枚举名已从当前枚举移除，退役码值不得被复用）：
+     * ROLE_API_RETIRED(10111) 随 admin 侧角色写代理端点删除退役（T-ADMIN-024：
+     * /role/create、/role/grant-menu、/role/revoke-menu、/user-role/assign、
+     * /user-role/revoke 经核实无存量调用方直删，不留兼容层）。
+     * 不在 PRE_MERGE_BASELINE 内（归并后新增），故独立登记。
+     */
+    private static final Map<String, Integer> RETIRED_POST_MERGE_ADMIN =
+        Map.of("ROLE_API_RETIRED", 10111);
 
     private static final Map<String, Integer> PRE_MERGE_BASELINE = Map.ofEntries(
         // ===== 归并前 admin-service AdminErrorCode（git 5f1e65dd5^，53 项）=====
@@ -194,6 +205,25 @@ class ErrorCodeContractTest {
             }
         }
         assertThat(violations).as("管理域归并前基线必须逐码保持").isEmpty();
+    }
+
+    @Test
+    @DisplayName("退役登记：归并后新增码 ROLE_API_RETIRED(10111) 已删除且码值不复用")
+    void postMergeRetiredAdminCodes_removedAndNotReused() {
+        Map<String, Integer> current = adminByName();
+        Map<Integer, String> currentByCode = current.entrySet().stream()
+            .collect(Collectors.toMap(Map.Entry::getValue, Map.Entry::getKey, (a, b) -> a));
+
+        List<String> violations = new ArrayList<>();
+        RETIRED_POST_MERGE_ADMIN.forEach((name, code) -> {
+            if (current.containsKey(name)) {
+                violations.add("退役枚举名仍存在: " + name);
+            }
+            if (currentByCode.containsKey(code)) {
+                violations.add("退役码值被复用: " + code + " -> " + currentByCode.get(code));
+            }
+        });
+        assertThat(violations).as("归并后新增退役码不得残留枚举名或复用码值").isEmpty();
     }
 
     @Test

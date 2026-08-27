@@ -10,7 +10,8 @@ import lombok.Getter;
  * 错误码分配规则（参考PROJECT_RULES.md §1.2）：
  * <ul>
  *   <li>10001-10099：用户相关错误</li>
- *   <li>10101-10199：组织相关错误；10111 为角色/授权代理接口退役错误（T-ACCESS-006，见枚举注释）</li>
+ *   <li>10101-10199：组织相关错误；10111 已退役（原角色/授权代理接口退役错误，
+ *       端点删除后码值不复用，退役登记见 ErrorCodeContractTest）</li>
  *   <li>10201-10299：菜单相关错误</li>
  *   <li>10301-10399：字典相关错误</li>
  *   <li>10401-10499：通知相关错误</li>
@@ -352,17 +353,7 @@ public enum AdminErrorCode {
     /**
      * 用户不在操作者可见范围内（权限边界校验失败）
      */
-    USER_NOT_IN_OPERATOR_VISIBLE_SCOPE(11016, "用户不在操作者可见范围内"),
-
-    /**
-     * admin 侧角色/授权代理接口退役（T-ACCESS-006）
-     * <p>
-     * 合并后角色与授权管理由 permission 域直接提供（/api/perm/abstract-role、
-     * /api/perm/user-role、/api/perm/role-resource-permission），本接口保留映射
-     * 仅为向后兼容，调用方不得依赖其成功。
-     * </p>
-     */
-    ROLE_API_RETIRED(10111, "角色与授权管理已由权限域 /api/perm/** 提供，本接口退役");
+    USER_NOT_IN_OPERATOR_VISIBLE_SCOPE(11016, "用户不在操作者可见范围内");
 
     /**
      * 错误码

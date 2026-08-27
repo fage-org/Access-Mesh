@@ -29,7 +29,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 快照基线：扫描全部 Controller 注解并与两份权威契约文档及「归并前代码路径」
  * （git 5f1e65dd5^：210 条）双向核对——归并后恰为 198 条，仅减少 12 条且全部
  * 有设计决策背书（11 条 /sync-task/*：T-ACCESS-005 退役；/audit-log/page：
- * T-ACCESS-007 确认零引用后删除）；T-PERM-043 再删 3 条 extra-roles/* 后为 195 条。
+ * T-ACCESS-007 确认零引用后删除）；T-PERM-043 再删 3 条 extra-roles/* 后为 195 条；
+ * T-ADMIN-024 再删 5 条 admin 侧角色写代理（/role/create、/role/grant-menu、
+ * /role/revoke-menu、/user-role/assign、/user-role/revoke，无存量调用方）后为 190 条。
  * </p>
  * <p>
  * 契约断言封闭口径（评审修复：堵住空 method 数组与 path()[0] 逃逸）：
@@ -220,18 +222,13 @@ class HttpApiPathSnapshotTest {
 /org/tree
 /org/update
 /org/users
-/role/create
-/role/grant-menu
 /role/list
 /role/my-info
-/role/revoke-menu
 /user-org/assign
 /user-org/list
 /user-org/remove
 /user-org/set-primary
-/user-role/assign
 /user-role/list
-/user-role/revoke
 /user/create
 /user/delete
 /user/detail
@@ -243,7 +240,7 @@ class HttpApiPathSnapshotTest {
 /user/user-menus
 """.strip().split("\n"));
 
-    /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约，195 条；T-PERM-043 删 3 条 extra-roles）。 */
+    /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约，190 条；T-ADMIN-024 删 5 条角色写代理）。 */
     private static final Set<String> EXPECTED_SIGNATURES = Set.of("""
 /api/perm/abstract-role/create|access.permission.dto.req.RoleCreateReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
 /api/perm/abstract-role/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
@@ -419,18 +416,13 @@ class HttpApiPathSnapshotTest {
 /org/tree|access.admin.dto.req.OrgQuery|common.model.PermResult<List<access.admin.dto.resp.OrgResp>>
 /org/update|access.admin.dto.req.OrgUpdateReq|common.model.PermResult<Void>
 /org/users|common.model.IdReq|common.model.PermResult<List<access.admin.dto.resp.OrgUserItemResp>>
-/role/create|access.admin.controller.AdminRoleController$CreateRoleReq|common.model.PermResult<Long>
-/role/grant-menu|access.admin.controller.AdminRoleController$RoleMenuReq|common.model.PermResult<Void>
 /role/list|access.admin.controller.AdminRoleController$RoleListQueryReq|common.model.PermResult<perm.common.dto.resp.ItemsResp<access.admin.dto.resp.RoleListItemResp>>
 /role/my-info|-|common.model.PermResult<access.admin.dto.auth.UserInfoResp>
-/role/revoke-menu|access.admin.controller.AdminRoleController$RoleMenuReq|common.model.PermResult<Void>
 /user-org/assign|access.admin.dto.req.UserOrgAssignReq|common.model.PermResult<Void>
 /user-org/list|common.model.IdReq|common.model.PermResult<List<access.admin.dto.resp.UserPageItemResp$OrgBrief>>
 /user-org/remove|access.admin.dto.req.UserOrgRemoveReq|common.model.PermResult<Void>
 /user-org/set-primary|access.admin.dto.req.UserOrgSetPrimaryReq|common.model.PermResult<Void>
-/user-role/assign|access.admin.dto.req.UserRoleAssignReq|common.model.PermResult<Void>
 /user-role/list|access.admin.dto.req.UserRoleListReq|common.model.PermResult<perm.common.dto.resp.ItemsResp<access.admin.dto.resp.UserRoleItemResp>>
-/user-role/revoke|access.admin.dto.req.UserRoleRevokeReq|common.model.PermResult<Void>
 /user/create|access.admin.dto.req.UserCreateReq|common.model.PermResult<access.admin.dto.resp.UserCreateResp>
 /user/delete|access.admin.dto.req.IdsReq|common.model.PermResult<Void>
 /user/detail|common.model.IdReq|common.model.PermResult<access.admin.dto.resp.UserResp>
@@ -454,7 +446,13 @@ class HttpApiPathSnapshotTest {
         // T-PERM-043：GROUP_ROLE 写入口删除（含读接口 list，唯一生产者 add 从未成功写入）
         "/api/perm/abstract-role/extra-roles/add",
         "/api/perm/abstract-role/extra-roles/list",
-        "/api/perm/abstract-role/extra-roles/remove"
+        "/api/perm/abstract-role/extra-roles/remove",
+        // T-ADMIN-024：admin 侧角色写代理删除（无存量调用方，不留兼容层）
+        "/role/create",
+        "/role/grant-menu",
+        "/role/revoke-menu",
+        "/user-role/assign",
+        "/user-role/revoke"
     );
 
     /** 扫描 classpath 上全部 Controller 并拼装「路径|请求类型|响应类型」签名（类级/方法级均枚举全部 path 值）。 */
@@ -515,7 +513,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("全量路径快照：Controller 映射恰为 195 条，增删必须显式更新快照")
+    @DisplayName("全量路径快照：Controller 映射恰为 190 条，增删必须显式更新快照")
     void controllerPaths_matchSnapshot() throws Exception {
         Set<String> actual = new TreeSet<>();
         scanSignatures().forEach(s -> actual.add(s.substring(0, s.indexOf('|'))));
@@ -525,7 +523,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("签名快照：路径→请求体类型|响应类型 恰为 195 条（DTO 类型级漂移检测）")
+    @DisplayName("签名快照：路径→请求体类型|响应类型 恰为 190 条（DTO 类型级漂移检测）")
     void signatures_matchSnapshot() throws Exception {
         assertThat(scanSignatures())
             .as("请求/响应 DTO 类型变更必须显式更新签名快照并记录依据")

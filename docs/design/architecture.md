@@ -198,7 +198,7 @@ last_reviewed: 2026-08-22
 | 2   | 用户管理    | ~8         | sys_user                     | 含密码、手机、邮箱等业务字段；CRUD + 启停 + 重置密码 + 个人中心 |
 | 3   | 组织管理    | ~8         | sys_org, sys_user_org        | 统一组织表(type区分)，树形结构；用户-组织多对多关联             |
 | 4   | 菜单管理    | ~6         | sys_menu                     | 菜单树CRUD + 权限标识配置                                       |
-| 5   | 角色管理    | ~4         | -（permission 域表）         | 功能角色列表经 `application.query` 跨域只读查询；角色/授权管理直接使用 permission 域接口，旧 admin 侧代理端点已恒拒绝（20045/10111） |
+| 5   | 角色管理    | ~4         | -（permission 域表）         | 功能角色列表经 `application.query` 跨域只读查询；角色/授权管理直接使用 permission 域接口，旧 admin 侧代理端点已删除（T-ADMIN-024，无映射 404） |
 | 6   | 字典管理    | ~6         | sys_dict_type, sys_dict_data | 字典类型 + 字典数据CRUD，支持缓存                              |
 | 7   | 通知管理    | ~6         | sys_notice, sys_user_notice  | 系统公告 + 站内信，含已读/未读状态                              |
 | 8   | 文件管理    | ~4         | sys_file                     | 本地磁盘上传/下载/删除（单实例约束），文件元信息持久化                          |

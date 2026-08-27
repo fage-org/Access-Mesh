@@ -260,7 +260,7 @@ user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 res
 | P0 | 补齐 `sys_user` 同步时同时创建 `resource_entity(USER)`，使用业务键定位。 |
 | P0 | 补齐 `sys_org -> resource_entity(ORG)` 与 `sys_org -> abstract_role(ORG/POSITION)` 双同步，均使用业务键定位。 |
 | P0 | 删除 `sys_user.perm_user_id`、`sys_org.perm_role_id` 字段及所有引用，改为业务键调用。 |
-| ~~P0~~ | ~~清理 `RoleProxyServiceImpl` 中 `ORG_ROLE` 旧口径~~ — **已完成（T-ACCESS-006）**：`RoleProxyServiceImpl` 已删除，admin 侧 `/role/*` 写端点退役（恒 20045/10111），组织/岗位角色由 `access.application` 组织写入事务统一维护 `abstract_role(ORG/POSITION)`；`ORG`→组织角色、`POSITION`→岗位角色映射由 `UserRoleQueryServiceImpl`/`OrgOperationCodeMapper` 承载。 |
+| ~~P0~~ | ~~清理 `RoleProxyServiceImpl` 中 `ORG_ROLE` 旧口径~~ — **已完成（T-ACCESS-006）**：`RoleProxyServiceImpl` 已删除，admin 侧 `/role/*` 写端点已删除（T-ADMIN-024，无映射 404），组织/岗位角色由 `access.application` 组织写入事务统一维护 `abstract_role(ORG/POSITION)`；`ORG`→组织角色、`POSITION`→岗位角色映射由 `UserRoleQueryServiceImpl`/`OrgOperationCodeMapper` 承载。 |
 | P0 | 补齐 `sys_user_org -> user_role` 同步和缓存失效。 |
 | P1 | 拆分用户目录、组织成员列表、添加成员候选集的查询语义。 |
 | P1 | 默认组织树切换、删除、根节点配置增加保护规则。 |

@@ -89,8 +89,6 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/user-org/remove` | `ORG` | 实例级 (orgId) | `UPDATE` | 非默认树仅删关系并回收对应 user_role; 默认树移除按身份目录高危处理 |
 | `/user-org/set-primary` | `ORG` | 实例级 (orgId) | `UPDATE` | 首期仅允许默认组织树主归属 |
 | `/user-role/list` | `USER` | 实例级 (userId) | `VIEW` | admin 代理直查; 不再额外要求 `ROLE:MANAGE` |
-| `/user-role/assign` | — | — | — | ⛔ 已退役（T-ACCESS-006）：保留映射恒抛 `10111`（`ROLE_API_RETIRED`）；角色分配走 `/api/perm/user-role/assign`（`ROLE:MANAGE` 门禁由 permission 域 enforce）|
-| `/user-role/revoke` | — | — | — | ⛔ 已退役（T-ACCESS-006）：同上，走 `/api/perm/user-role/revoke` |
 | `/role/list` | `ROLE` | 类型级 | `VIEW` | 仅功能角色 |
 
 > **默认树身份目录边界二次校验**: `/user/create`、`/user/delete`、`/user/enable`、`/user/reset-password`、`/user-org/set-primary` 在通过 `AdminPermissionValidator` 后, AppService 内部还要二次确认目标用户的默认树关系存在 (通过 `sys_user_org` 推导), 且操作者在默认树该子树下具备可见性. 不满足时抛 `BizException(ErrorCode.NOT_IN_DEFAULT_TREE_SCOPE)`. 这一层不能用 `SecurityException` 表达.
@@ -129,7 +127,6 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `/user-org/assign` | INSERT/UPDATE `sys_user_org` | 每个新增关系 `bindUserOrg` |
 | `/user-org/remove` | DELETE `sys_user_org` | `unbindUserOrg` |
 | `/user-org/set-primary` | UPDATE `sys_user_org.is_primary` | 无（`is_primary` 不映射 `user_role` 拓扑） |
-| `/user-role/assign`, `/user-role/revoke` | 恒拒绝 `10111`（已退役，无投影动作） | 角色分配/回收由 `/api/perm/user-role/*` 直接提供 |
 
 > 功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）继续走 `/user-role/*` 正式管理 API。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
 
@@ -718,7 +715,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ### 4.4 用户-角色 (`/user-role`)
 
-> **核心决策（T-ACCESS-006 修订）**: 合并后角色管理由 permission 域直接提供（`/api/perm/user-role/*`），admin 侧不再维护角色代理。`/user-role/list` 保留为读接口（经 `access.application.query` 的 `UserRoleQueryService` 聚合，POSITION 补所属组织名）；`/user-role/assign`、`/user-role/revoke` 退役——保留映射但恒抛 `10111`（`ROLE_API_RETIRED`），前端请改用 `/api/perm/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由 permission 域 enforce）。
+> **核心决策（T-ACCESS-006 修订，T-ADMIN-024 删除收口）**: 合并后角色管理由 permission 域直接提供（`/api/perm/user-role/*`），admin 侧不再维护角色代理。`/user-role/list` 保留为读接口（经 `access.application.query` 的 `UserRoleQueryService` 聚合，POSITION 补所属组织名）；原 `/user-role/assign`、`/user-role/revoke` 写代理已删除（无存量调用方，不留兼容层，无映射 404），角色分配/回收走 `/api/perm/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由 permission 域 enforce）。
 > 接口使用业务键 `(roleTypeCode, roleExternalId)` 标识角色。仅服务功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL); 排除 ORG/POSITION (后者走 /user-org/*)。
 
 #### 4.4.1 `POST /user-role/list` 🔧
@@ -759,69 +756,6 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 **验收要点**:
 - `userId` 不存在 → `BizException(USER_NOT_FOUND)`.
 - 前端通过 `(roleTypeCode, roleExternalId)` 业务键回传 assign/revoke，不再使用 roleId.
-
----
-
-#### 4.4.2 `POST /user-role/assign` ⛔ 退役
-
-> **T-ACCESS-006 退役**: 保留映射但恒抛 `10111`（`ROLE_API_RETIRED`）。角色分配由 permission 域 `/api/perm/user-role/assign` 直接提供（`ROLE:MANAGE` 门禁由 permission 域 `UserManageAppServiceImpl.assignRole` 经 `getDeniedIds(ROLE, MANAGE)` 强制）。
-
-**目的**: 给用户分配功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL).（退役前语义：admin 代理本地调用 `UserManageAppService.assignRole`）
-
-**请求 DTO**: `UserRoleAssignReq`
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `userId` | `Long` | 是 | |
-| `roleTypeCode` | `String` | 是 | 必须为 BASIC_ROLE/GROUP_ROLE/PERSONAL, 否则拒绝 |
-| `roleExternalId` | `String` | 是 | 角色业务键 |
-| `validFrom` | `LocalDateTime` | 否 | |
-| `validTo` | `LocalDateTime` | 否 | |
-
-**响应**: `PermResult<Void>`
-
-**门禁**: `ROLE:MANAGE@roleExternalId` — **由 permission 域引擎兜底**（admin 入口不做预检，P1-1 修复：admin 预检曾把 roleExternalId 当 ROLE resource_entity.code 传 auth/check，而 ROLE 权限实际挂 abstract_role.id 维度，预检语义错位会误拒；permission 域 `UserManageAppServiceImpl.assignRole` 用正确 abstract_role.id 经 `getDeniedIds(ROLE, MANAGE)` 校验）。
-
-**代理动作**:
-1. 校验 `roleTypeCode∈{BASIC_ROLE, GROUP_ROLE, PERSONAL}` (若为 ORG/POSITION → `BizException`，应走 /user-org/*).
-2. 翻译 `userId → subjectTypeCode=LOCAL_USER, subjectExternalId={userId}`; 直接用入参 `(roleTypeCode, roleExternalId)`.
-3. 本地调用 `UserManageAppService.assignRole`.
-
-**错误码段**: 10520-10549
-
-**当前差距**: 接口已由本地代理实现；保留角色类型拒绝。
-
-**验收要点**:
-- `roleTypeCode` 为 ORG/POSITION → `BizException(ROLE_TYPE_NOT_SUPPORTED)`.
-- permission 域引擎校验拒绝 → 透传错误码与 message; admin 入口不吞错（本地调用，无跨服务 HTTP）.
-
----
-
-#### 4.4.3 `POST /user-role/revoke` ⛔ 退役
-
-> **T-ACCESS-006 退役**: 保留映射但恒抛 `10111`（`ROLE_API_RETIRED`）。角色回收由 permission 域 `/api/perm/user-role/revoke` 直接提供（`ROLE:MANAGE` 门禁由 permission 域 enforce）。
-
-**目的**: 回收用户的功能角色.（退役前语义：admin 代理本地调用 `UserManageAppService.revokeRolesBatch`）
-
-**请求 DTO**: `UserRoleRevokeReq`
-
-| 字段 | 类型 | 必填 | 说明 |
-|------|------|------|------|
-| `userId` | `Long` | 是 | |
-| `roleTypeCode` | `String` | 是 | 同 assign 约束 |
-| `roleExternalId` | `String` | 是 | 角色业务键 |
-
-**响应**: `PermResult<Void>`
-
-**门禁**: `ROLE:MANAGE@roleExternalId` — **由 permission 域引擎兜底**（同 assign，P1-1 修复；permission 域 `revokeRolesBatch` 用 abstract_role.id 经 `getDeniedIds(ROLE, MANAGE)` 校验）。
-
-**代理动作**:
-1. 校验 `roleTypeCode` (同 assign).
-2. 本地调用 `UserManageAppService.revokeRolesBatch`.
-
-**错误码段**: 10550-10579
-
-**当前差距**: 接口已由本地代理实现；保留角色类型拒绝。
 
 ---
 
@@ -1003,11 +937,11 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ## 6. 验收标准
 
-Phase 2 后端实现以上 22 个接口后, 必须满足:
+Phase 2 后端实现以上 20 个接口后, 必须满足:
 
 1. **字段对齐**: 前端 `frontend/src/api/user-manage.ts` 中所有类型与本契约 record 字段名/类型一一对齐, 不允许不一致.
 2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `PermQueryEngine`; 实现不短路判断 (除自我修改豁免).
-3. **本地投影**: 所有写操作 (除 /user/reset-password, /user-org/set-primary) 在主事务内维护对应权限投影与 `permission_change_log`。`/user-role/assign|revoke` 只处理功能角色。
+3. **本地投影**: 所有写操作 (除 /user/reset-password, /user-org/set-primary) 在主事务内维护对应权限投影与 `permission_change_log`。
 4. **错误码段**: admin-service 业务错误使用 10001-19999 段, 系统错误使用 90001-99999 段; `XxxErrorCode` 枚举类不重复定义系统段.
 5. **响应壳统一**: 所有接口返回 `PermResult<T>`, 列表不直接返回数组 (由 `PermResultResponseAdvice` 强制); 现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`) 列入 Phase 2 修正项.
 6. **异常映射**: 业务拒绝抛 `BizException`; 安全拒绝抛 `SecurityException`; 技术故障抛 `SystemException`. 不允许用 `SecurityException` 表达"资源不存在".
@@ -1020,7 +954,7 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 
 | # | 决策 | 理由 |
 |---|------|------|
-| 1 | `/user-role/list` 读接口保留 admin 域聚合（跨域只读）；`/user-role/assign`/`revoke` 已退役（恒 `10111`），角色管理由 permission 域 `/api/perm/abstract-role`、`/api/perm/user-role/*` 直接提供 | 原代理方案避免业务键暴露（api-gap-analysis §4 A 方案，已归档）；T-ACCESS-006 起单服务内不再需要写代理，读聚合保留供前端组合查询 |
+| 1 | `/user-role/list` 读接口保留 admin 域聚合（跨域只读）；`/user-role/assign`/`revoke` 已删除（T-ADMIN-024，无映射 404），角色管理由 permission 域 `/api/perm/abstract-role`、`/api/perm/user-role/*` 直接提供 | 原代理方案避免业务键暴露（api-gap-analysis §4 A 方案，已归档）；T-ACCESS-006 起单服务内不再需要写代理，读聚合保留供前端组合查询 |
 | 2 | `/user/create` 一次性返回 `initialPassword` (明文) | 仅本次返回, 由前端弹窗展示给操作者; 后续无法再获取 |
 | 3 | `/user/enable` 启停一体 (`status=0/1`), 不拆 `/user/disable` | 前端 mock 已采用此形态; AppService 内部按 status 派发 ENABLE/DISABLE 门禁码 |
 | 4 | `/user-org/assign` 关系级追加, 禁止 wipe 模式 | 防止跨树意外清除 (default-org-tree §3.2); 已存在关系幂等忽略 |
@@ -1028,12 +962,12 @@ Phase 2 后端实现以上 22 个接口后, 必须满足:
 | 6 | 岗位 = 特殊组织 (`orgType=2`), 走 `/org/*` + `/user-org/*` | org-user-permission-contract.md v1.2 决策; `/user-role/*` 仅服务功能角色 |
 | 7 | 候选用户来自默认树可见范围, 新增 `/user/member-candidates` 接口与 `/user/page` 解耦 | api-gap-analysis §2（已归档）; 默认树 = 用户目录/身份池, 不暴露全租户用户 |
 | 8 | 写操作必须在同一事务内维护管理事实、本地权限投影和 permission_change_log | access-service-architecture §4；任一步失败整体回滚；缓存失效仅提交后发生 |
-| 9 | 功能角色分配/回收由 `/api/perm/user-role/assign|revoke` 提供，仅处理功能角色 | ORG/POSITION 由组织与成员关系投影产生；外部 sync 的 SYS_USER_ORG 来源一律拒绝（原 admin 代理端点已退役恒 `10111`） |
+| 9 | 功能角色分配/回收由 `/api/perm/user-role/assign|revoke` 提供，仅处理功能角色 | ORG/POSITION 由组织与成员关系投影产生；外部 sync 的 SYS_USER_ORG 来源一律拒绝（原 admin 代理端点已删除） |
 | 10 | admin 域不存储 permission 域内部 ID | 跨域统一用业务键; 业务键格式严格按 api-contract.md §6.2.2.4 |
 | 11 | `IdReq` 入参字段名为 `id` 而非 `orgId/userId` | 复用公共 record; 前端在 Phase 2 调整 mock 字段 (例如 `/org/users` 入参 `{ id }`) |
 | 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (如 `/role/list`, `/user-org/list`, `/org/users`; **`/org/tree` 已由 T-ADMIN-021 消化, P1-3**) |
 | 13 | `/user/update` 自我修改业务豁免 | 在 AppService 调用门禁前判断 `operatorId == id` 跳过门禁; 不放在门禁层 |
-| 14 | 错误码段 admin-service 子分配 | 用户域 10001-10299 / 组织域 10300-10499 / 关系域 10400-10499 / 10500 用户-角色代理（退役接口恒 10111）+ 10501-10599 文件模块（附录 B，T-ADMIN-023 起） / 其他保留 10600-19999 |
+| 14 | 错误码段 admin-service 子分配 | 用户域 10001-10299 / 组织域 10300-10499 / 关系域 10400-10499 / 10500 用户-角色代理（10111 已随端点删除退役、码值不复用）+ 10501-10599 文件模块（附录 B，T-ADMIN-023 起） / 其他保留 10600-19999 |
 
 ---
 
@@ -1133,11 +1067,9 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `POST /user-org/remove` | `removeUserOrg` | 🔧 |
 | `POST /user-org/set-primary` | `setPrimaryOrg` | 🔧 |
 | `POST /user-role/list` | `getUserRoles` | 🔧 |
-| `POST /user-role/assign` | `assignRole` | 🔧 |
-| `POST /user-role/revoke` | `revokeRole` | 🔧 |
 | `POST /role/list` | `getRoleList` | ✅ |
 
-合计: 22 项接口 (16 🔧 + 6 ✅), 与 api-gap-analysis.md "已核对接口汇总" 一致 (该清单 2026-06-21 归档至 `docs/archive/2026-06-21/`，16 个 🔧 接口已由 admin-service 实现).
+合计: 19 项接口 (13 🔧 + 6 ✅)。原 `/user-role/assign`、`/user-role/revoke` 两行已随 T-ADMIN-024 端点删除移除（前端 `assignRole`/`revokeRole` 为 mock 阶段函数，迁移 `/api/perm/user-role/*` 属前端联调任务）；api-gap-analysis.md "已核对接口汇总" 2026-06-21 归档至 `docs/archive/2026-06-21/`，16 个 🔧 接口已由 admin-service 实现.
 
 ---
 
@@ -1152,7 +1084,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | 10210-10229 | 用户密码重置 |
 | 10300-10399 | 组织 CRUD |
 | 10400-10499 | 用户-组织关系 |
-| 10500 | 用户-角色代理（退役接口恒 `10111`；`10501-10599` 文件模块：`10501` 不存在 / `10502` 上传失败 / `10503` 超限 / `10504` 类型不允许 / `10505` 删除失败（删除顺序反转后仅保留枚举，正常链路不再抛出）/ `10506` 路径非法（T-ADMIN-023）/ `10507` 读取失败（T-ADMIN-023）） |
+| 10500 | 用户-角色代理（`10111` 已随端点删除退役、码值不复用；`10501-10599` 文件模块：`10501` 不存在 / `10502` 上传失败 / `10503` 超限 / `10504` 类型不允许 / `10505` 删除失败（删除顺序反转后仅保留枚举，正常链路不再抛出）/ `10506` 路径非法（T-ADMIN-023）/ `10507` 读取失败（T-ADMIN-023）） |
 | 10600-19999 | 保留给 admin-service 后续模块 (字典/通知/任务/审计等) |
 
 具体码值由各模块的 `XxxErrorCode` 枚举类落地; 90001-99999 段 (参数校验/系统异常) 由 `common` 模块统一定义.
