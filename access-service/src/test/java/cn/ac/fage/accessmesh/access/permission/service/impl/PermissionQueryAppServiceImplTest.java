@@ -260,7 +260,7 @@ class PermissionQueryAppServiceImplTest {
 
             var req = new QueryResourcesReq(
                 "USER", "u-1", List.of("REPORT"), List.of("VIEW"),
-                null, null, null, null, null, null);
+                null, null, null, null, null);
             var resp = service.queryResources(1L, req);
 
             assertEquals(1, resp.items().size());

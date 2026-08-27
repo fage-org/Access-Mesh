@@ -20,7 +20,6 @@ import java.util.Map;
  * @param codeType           编码类型，可选
  * @param includeInherited   是否包含继承权限，可选
  * @param includeChildren    是否包含子资源，可选
- * @param treeMode           是否返回树形结构，可选
  * @param context            评估上下文，可选
  */
 public record QueryResourcesReq(
@@ -32,6 +31,5 @@ public record QueryResourcesReq(
     String codeType,
     Boolean includeInherited,
     Boolean includeChildren,
-    Boolean treeMode,
     Map<String, Object> context
 ) {}

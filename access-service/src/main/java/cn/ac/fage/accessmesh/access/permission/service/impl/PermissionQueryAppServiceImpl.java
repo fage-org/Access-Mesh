@@ -144,8 +144,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             ? new LinkedHashMap<>(r.resourceMap()) : new LinkedHashMap<>();
         Map<Long, OperationPermission> opMap = r.operationMap() != null ? r.operationMap() : Map.of();
 
-        // TODO: treeMode — 需要树结构响应 DTO 支持
-
         // Expand entries based on includeInherited / includeChildren
         List<RolePermEntry> allEntries = r.allEntries();
         if (Boolean.TRUE.equals(req.includeChildren()) || Boolean.TRUE.equals(req.includeInherited())) {

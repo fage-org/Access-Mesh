@@ -239,7 +239,7 @@ PermQueryEngine.query(PermQuery)
 | 用户能管理哪些组织 | `resourceTypeCode=ORG`、`resourceCode={sys_org.id}`         | `query-resources` 传 `resourceTypeCodes=["ORG"]`、`operationCodes=["UPDATE"]` 或其他管理操作 |
 | 用户能管理哪些用户 | `resourceTypeCode=USER`、`resourceCode={sys_user.id}`       | `query-resources` 传 `resourceTypeCodes=["USER"]`、`operationCodes=["UPDATE","DELETE","ENABLE","RESET_PASSWORD"]` |
 | 用户能管理哪些角色 | `resourceTypeCode=ROLE`、`resourceCode=role:{roleExternalId}` | `query-resources` 传 `resourceTypeCodes=["ROLE"]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
-| 用户能看到哪些菜单 | `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}`       | `query-resources` 传 `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true`  |
+| 用户能看到哪些菜单 | `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}`       | `query-resources` 传 `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`（树由调用方自建） |
 
 调用链路：
 
@@ -253,7 +253,7 @@ PermQueryEngine.query(PermQuery)
 
 - permission 域不直接查询 admin 域业务表，只返回权限事实。
 - 如果角色本身也是被管理对象，就必须把角色建模成 `resource_entity`；`abstract_role` 只表示授权主体，不等同于“可被管理的角色资源”。
-- 菜单树展示可以用 `treeMode=true` 返回 permission 域资源树，但最终排序、隐藏字段、路由元信息仍由管理域控制。
+- 菜单树展示基于 `query-resources` 平面列表由调用方自建（`treeMode` 树模式响应已于 2026-08-27 从契约移除，无真实消费方；最终排序、隐藏字段、路由元信息仍由管理域控制）。
 
 ### 10.2 example-service 查询报表范围权限
 

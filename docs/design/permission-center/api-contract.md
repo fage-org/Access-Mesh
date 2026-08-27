@@ -1180,7 +1180,6 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
   "codeType": "default",
   "includeInherited": true,
   "includeChildren": false,
-  "treeMode": false,
   "context": {
     "clientIp": "127.0.0.1",
     "timestamp": "2026-04-26T18:00:00"
@@ -1229,7 +1228,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 | 可管理组织 | 组织同步为管理资源，例如 `resourceTypeCode=ORG`、`resourceCode={sys_org.id}` | `resourceTypeCodes=["ORG"]`、`operationCodes=["UPDATE"]` 或其他管理操作 |
 | 可管理用户 | 用户同步为管理资源，例如 `resourceTypeCode=USER`、`resourceCode={sys_user.id}` | `resourceTypeCodes=["USER"]`、`operationCodes=["UPDATE","DELETE","ENABLE","RESET_PASSWORD"]` |
 | 可管理角色 | 角色同步为资源，例如 `resourceTypeCode=ROLE`、`resourceCode=role:{roleExternalId}` | `resourceTypeCodes=["ROLE"]`、`operationCodes=["MANAGE"]` 或 `["ASSIGN"]` |
-| 可见菜单   | 菜单同步为资源，例如 `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}`       | `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`、`treeMode=true`  |
+| 可见菜单   | 菜单同步为资源，例如 `resourceTypeCode=MENU`、`resourceCode=menu:{menuCode}`       | `resourceTypeCodes=["MENU"]`、`operationCodes=["VIEW"]`（树由调用方基于平面列表自建） |
 
 规则：
 
@@ -1240,7 +1239,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - `scopeMode=ALL` 的条目表示该 `resourceTypeCode` 下全量资源权限，此时 `resourceCode`、`resourceName`、`codeType` 均为 null；不展开全量范围为逐条资源实例。实例级条目（`scopeMode=INSTANCE`）按 `resourceCode + codeType` 精确表示。
 - 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType + scopeMode` 去重，并合并 `operations`、`matchedRoleIds`、`matchedPermissionIds`。
 - 条件、冲突规则、停用状态、角色继承、资源继承必须与 `auth/check` 使用同一套计算逻辑。
-- `treeMode=true` 只基于权限中心保存的资源父子关系组装树；业务排序、展示字段仍由业务服务决定。
+- `treeMode` 树模式响应已从契约移除（2026-08-27 决策，无真实消费方）：接口固定返回平面列表，树形展示由调用方基于平面列表自建；资源父子关系可经 `includeChildren` 展开获取。如未来需要服务端树响应，登记于 v3.5.1-evolution 演进方向重新评估。
 - 该接口面向运行时 SDK 查询；若要解释授权来源和变更历史，使用 `permission-view/*`。
 
 ### 6.7 范围权限运行时查询

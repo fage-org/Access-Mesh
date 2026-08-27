@@ -139,5 +139,5 @@ last_reviewed: 2026-08-22   # T-ACCESS-012 重基线：取消聚合层，直连 
 | 4 | recentChanges 按权限键过滤 | 🔧 | 完整 6 字段过滤（当前 :735 只按用户/角色取 50 条） |
 | 5 | LOCAL_USER/USER 主体语义 | 🔧 | 来源与候选查询方式 |
 | 6 | query-resources API 核对 | 🔧 | 运行时 SDK 视角，不做 UI |
-| 7 | treeMode TODO | 🔧 | §6.6 L1249 + PermissionQueryAppServiceImpl:162 |
+| 7 | ~~treeMode TODO~~ | 已收口 | 2026-08-27 评审 F-09 决策：从契约移除（无真实消费方），树由调用方自建，登记 v3.5.1-evolution |
 | 8 | permission-view/* 契约差异 | 🔧 | effective-roles/resource-users/role-permissions/effective-permission-codes/resource-tree |

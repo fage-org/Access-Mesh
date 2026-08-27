@@ -19,7 +19,7 @@
  * - explain DTO 扩展（命中条件/条件评估过程/冲突详情 + 评估上下文来源 + IP/时间条件 + 敏感值脱敏）
  * - recentChanges 按完整权限键过滤（domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode）
  * - LOCAL_USER/USER 主体来源与候选查询方式核对
- * - query-resources API 核对 + treeMode TODO + 全部 permission-view/* 契约差异
+ * - query-resources API 核对（treeMode 已于 2026-08-27 从契约移除，树由调用方自建）+ 全部 permission-view/* 契约差异
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
