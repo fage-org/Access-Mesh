@@ -715,7 +715,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ### 4.4 用户-角色 (`/user-role`)
 
-> **核心决策（T-ACCESS-006 修订，T-ADMIN-024 删除收口）**: 合并后角色管理由 permission 域直接提供（`/api/perm/user-role/*`），admin 侧不再维护角色代理。`/user-role/list` 保留为读接口（经 `access.application.query` 的 `UserRoleQueryService` 聚合，POSITION 补所属组织名）；原 `/user-role/assign`、`/user-role/revoke` 写代理已删除（无存量调用方，不留兼容层，无映射 404），角色分配/回收走 `/api/perm/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由 permission 域 enforce）。
+> **核心决策（T-ACCESS-006 修订，T-ADMIN-024 删除收口）**: 合并后角色管理由 permission 域直接提供（`/api/perm/user-role/*`），admin 侧不再维护角色代理。`/user-role/list` 保留为读接口（经 `access.application.query` 的 `UserRoleQueryService` 聚合，POSITION 补所属组织名）；原 `/user-role/assign`、`/user-role/revoke` 写代理已删除（无存量调用方，不留兼容层，无映射 404），角色分配/回收走 `/api/perm/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由 permission 域 enforce）。注：「无映射 404」为 access-service 直连语义；经 Gateway 访问的未注册路径先被接口快照按 `unregistered-policy=DENY` 拦为 403（fail-closed），前端联调对已删端点的实际观察值为 403。
 > 接口使用业务键 `(roleTypeCode, roleExternalId)` 标识角色。仅服务功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL); 排除 ORG/POSITION (后者走 /user-org/*)。
 
 #### 4.4.1 `POST /user-role/list` 🔧
@@ -937,7 +937,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 ## 6. 验收标准
 
-Phase 2 后端实现以上 20 个接口后, 必须满足:
+Phase 2 后端实现以上 19 个接口后, 必须满足:
 
 1. **字段对齐**: 前端 `frontend/src/api/user-manage.ts` 中所有类型与本契约 record 字段名/类型一一对齐, 不允许不一致.
 2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `PermQueryEngine`; 实现不短路判断 (除自我修改豁免).
@@ -1069,7 +1069,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `POST /user-role/list` | `getUserRoles` | 🔧 |
 | `POST /role/list` | `getRoleList` | ✅ |
 
-合计: 19 项接口 (13 🔧 + 6 ✅)。原 `/user-role/assign`、`/user-role/revoke` 两行已随 T-ADMIN-024 端点删除移除（前端 `assignRole`/`revokeRole` 为 mock 阶段函数，迁移 `/api/perm/user-role/*` 属前端联调任务）；api-gap-analysis.md "已核对接口汇总" 2026-06-21 归档至 `docs/archive/2026-06-21/`，16 个 🔧 接口已由 admin-service 实现.
+合计: 19 项接口 (13 🔧 + 6 ✅)。原 `/user-role/assign`、`/user-role/revoke` 两行已随 T-ADMIN-024 端点删除移除（前端 `assignRole`/`revokeRole` 为 mock 阶段函数，迁移 `/api/perm/user-role/*` 属前端联调任务）；api-gap-analysis.md "已核对接口汇总" 2026-06-21 归档至 `docs/archive/2026-06-21/`（其时点 16 个 🔧 已由 admin-service 实现，当前实数 13）.
 
 ---
 

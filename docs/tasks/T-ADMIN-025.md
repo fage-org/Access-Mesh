@@ -31,12 +31,11 @@ last_updated: 2026-08-25
 
 T-ADMIN-023 执行中用户提出文件夹粒度授权设想（"用户甲只能上传到 A 和 B 文件夹"），经决策**另立本任务**（安全加固任务不膨胀交付面）。现状（T-ADMIN-023 终态）：文件全接口已按 `ADMIN_FILE` 门禁，但 detail/page/download 为类型级 VIEW 过渡、delete 实例级 resourceCode=文件 ID——ADMIN_FILE 无投影机制，实例级授权条目实际配不出来，放行全由 scopeAll 决定。
 
-## 用户决策（2026-08-25，T-ADMIN-023 执行期确认）
+## 设计口径
 
-1. 落地任务：另立任务卡（本卡），不并入 T-ADMIN-023。
-2. 粒度贯穿：**全链路 CREATE/VIEW/DELETE**（上传、查看、下载、page 过滤、删除均按文件夹隔离）。
-3. 文件夹实例源：**预置 + 惰性登记**——bootstrap 预置 default/avatar/document/image 四文件夹投影，上传新 bizType 惰性登记，无管理界面。
-4. bizType 格式白名单（`^[A-Za-z0-9_-]{1,32}$`）已在 T-ADMIN-023 落地，是文件夹 code 合法性的既有保证。
+- 粒度贯穿：**全链路 CREATE/VIEW/DELETE**（上传、查看、下载、page 过滤、删除均按文件夹隔离）。
+- 文件夹实例源：**预置 + 惰性登记**——bootstrap 预置 default/avatar/document/image 四文件夹投影，上传新 bizType 惰性登记，无管理界面。
+- bizType 格式白名单（`^[A-Za-z0-9_-]{1,32}$`）已在 T-ADMIN-023 落地，是文件夹 code 合法性的既有保证。
 
 ## 范围
 

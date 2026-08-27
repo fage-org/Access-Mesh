@@ -599,7 +599,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("退役接口负向断言：/sync-task/*、/audit-log/page 与 extra-roles/* 无任何 Controller 映射")
+    @DisplayName("退役接口负向断言：RETIRED_PATHS 全部路径（/sync-task/*、/audit-log/page、extra-roles/*、admin 侧角色写代理 5 条）无任何 Controller 映射")
     void retiredPaths_haveNoControllerMappings() throws Exception {
         Set<String> actual = new TreeSet<>();
         scanSignatures().forEach(s -> actual.add(s.substring(0, s.indexOf('|'))));

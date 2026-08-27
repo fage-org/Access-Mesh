@@ -47,7 +47,7 @@ T-ACCESS-006 建立跨域只读查询时登记的存量 DDL-实体漂移：权�
 
 ## 完成记录（2026-08-22）
 
-### 用户决策（执行前确认）
+### 设计定案
 
 1. **ADMIN_MENU 投影维护条件**：BUTTON 移除后 DIR/MENU/EXTERNAL/IFRAME/HIDDEN **五值全量投影**（BUTTON=操作权限，不是需要维护的菜单类型；实例级管理门禁依赖投影行授权到具体菜单实例；"业务菜单=resource_type 非空"仅作为 §4.1 可见性派生在 UserMenuQueryService 读链路的回归口径）。
 2. **唯一性错误码**：新增 `MENU_PATH_EXISTS(10205)`、`MENU_RESOURCE_EXISTS(10206)`，退役 `MENU_PERM_CODE_EXISTS(10202)`（ErrorContract 测试退役清单登记，码值不复用）。
