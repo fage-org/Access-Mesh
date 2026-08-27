@@ -1,8 +1,10 @@
-# 2026-08-27 归档批次：product-vertical-slice 计划收口
+# 2026-08-27 归档批次：product-vertical-slice 计划收口 + improvement-plan 路线图归档
 
 ## 归档原因
 
 T-ACCESS-026（验证证据登记与文档状态收口）完成，`product-vertical-slice-plan` 18 项任务全部 done（里程碑 A + B 均达成），其前置依赖的 `access-post-merge-plan` 三任务（T-ACCESS-013~015）亦早已全 done——两个计划满足各自归档条件（阶段性任务完成 + 稳定结论沉淀 `docs/design/` + CI 准入前置已由 T-ACCESS-017 最小 CI 落地关闭），按 project-rules §文档治理归档。
+
+`improvement-plan.md`（项目级路线图）于同日归档：其诊断与四阶段拆分使命已完成（Phase 1 已归档、Phase 2-4 由 `docs/plans/frontend-phase2~4-plan.md` 独立承载），而 frontmatter 仍为 `status: active` 且 §2 完成度估算停留在 2026-06 时点（前端 ~5%、27 项测试），与 README 里程碑 A+B 交付状态（access-service 双轨 842 项测试）直接相反，构成对现状的误导（2026-08-27 评审 F-27）；按归档条件「计划只剩历史追溯价值」收口。痛点 #3（自动授权）/ #4（动态数据权限）暂缓决策仍有效，作为决策溯源继续被 T-PERM-035/036 的 decision_refs 引用。
 
 ## 内容定位
 
@@ -10,6 +12,7 @@ T-ACCESS-026（验证证据登记与文档状态收口）完成，`product-verti
 |------|------|
 | `product-vertical-slice-plan.md` | 产品垂直切片与试点加固计划（2026-08-22 立项 → 2026-08-27 收口，status: completed）。里程碑 A（T-ACCESS-021 BASIC_ROLE 授权垂直切片 E2E 八步全绿）与里程碑 B（试点加固 7 项 + example 接入 + 本收口）全部达成。含执行进度日志（模型收敛 → bootstrap → 前端真实登录 → E2E → 加固全程），仅作历史追溯 |
 | `access-post-merge-plan.md` | access-service 归并后续强化计划（T-ACCESS-013 OAuth2 资源服务器 / T-ACCESS-014 操作日志覆盖 / T-ACCESS-015 菜单写链路对齐，全部 done；status: completed）。原「40 项 Docker 门控 CI 准入前置」由 T-ACCESS-017 最小 CI（GitHub Actions 两 job，以退出状态判定成功）落地关闭 |
+| `improvement-plan.md` | 项目诊断与完善路线图（2026-06-06 v2.0，status: archived）。§2 完成度估算与 §3 痛点诊断为 2026-06 时点快照，不再反映现状；§3.1 痛点 #3/#4 暂缓决策（design-review §11 E4/Q7-B 对齐）仍作 T-PERM-035/036 决策溯源 |
 
 ## 归档自检清单执行记录
 

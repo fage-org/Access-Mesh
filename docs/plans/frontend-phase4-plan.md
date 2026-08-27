@@ -19,7 +19,7 @@ last_updated: 2026-08-22
 # 前端 Phase 4 — 扩展性验证 + 代码清理 + 文档
 
 > 状态：proposed
-> 来源：`docs/plans/improvement-plan.md` §4 Phase 4 拆分
+> 来源：`docs/archive/2026-08-27/improvement-plan.md` §4 Phase 4 拆分（roadmap 已归档，拆分产物即本 plan）
 > 准入：Phase 3 联调通过
 
 ## 目标
@@ -36,7 +36,7 @@ last_updated: 2026-08-22
 | T-FE-023 | SPI 策略扩展验证 + 扩展指南（`docs/design/frontend/extension-guide.md`） | frontend | 🔴 |
 | T-FE-024 | ReConditionPicker + ReConditionEditor + ChildPermissionInline 条件/子权限组件抽取（✅ done 2026-07-12；2026-07-26 权限授予页删除重做，`ReConditionPicker` / `ChildPermissionInline` 随之删除，`ReConditionEditor` / `condition-rules` 保留） | frontend | 🟡 |
 | T-ADMIN-020 | access-service admin 域 CRUD 代码清理（痛点 #6） | admin-service | 🟢 低 |
-| T-PERM-038 | 全局 TODO 收口（improvement-plan 附录 A） | permission-center | 🟡 |
+| T-PERM-038 | 全局 TODO 收口（已归档 improvement-plan 附录 A） | permission-center | 🟡 |
 | T-PERM-039 | 测试补充（access-service permission 域新增改造接口测试） | permission-center | 🟡 |
 
 > 文档更新项（api-contract / core-flows / architecture / extension-guide）随各任务 design_writeback 完成，不单列任务。
@@ -45,7 +45,7 @@ last_updated: 2026-08-22
 
 - 4 项任务 done
 - 扩展指南文档完成
-- improvement-plan §4.4 文档更新表覆盖
+- 已归档 improvement-plan §4.4 文档更新表覆盖
 
 ## 当前进度
 

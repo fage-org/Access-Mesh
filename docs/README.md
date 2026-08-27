@@ -74,7 +74,7 @@ docs/
 | ~~access-service 归并计划~~ | （已归档 2026-08-22）T-ACCESS-001~012 全部 done，见 [archive/2026-08-22/](archive/2026-08-22/) |
 | ~~access-service 归并后续强化~~ | （已归档 2026-08-27）T-ACCESS-013~015 全 done，CI 准入前置由 T-ACCESS-017 关闭，见 [archive/2026-08-27/](archive/2026-08-27/) |
 | ~~产品垂直切片与试点加固~~ | （已归档 2026-08-27）18 项任务全 done（里程碑 A E2E 八步全绿 + 里程碑 B 加固与收口），见 [archive/2026-08-27/](archive/2026-08-27/) |
-| 项目诊断与完善计划 | [plans/improvement-plan.md](plans/improvement-plan.md) |
+| ~~项目诊断与完善计划~~ | （已归档 2026-08-27）诊断与四阶段拆分使命完成（Phase 2-4 由独立 plan 承载），完成度口径截至 2026-06；痛点 #3/#4 暂缓决策溯源仍被 T-PERM-035/036 引用，见 [archive/2026-08-27/](archive/2026-08-27/) |
 | ~~组织与用户融合页实现计划~~ | （已归档 2026-06-21）P0/P1/P2 三阶段全 100%，见 [archive/2026-06-21/](archive/2026-06-21/)；权威契约以 [design/org-user-permission-contract.md](design/org-user-permission-contract.md) v1.2 + [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
 | ~~API 核对清单~~ | （已归档 2026-06-21）16 个 🔧 接口已实现，见 [archive/2026-06-21/](archive/2026-06-21/)；契约权威以 [design/services/admin-service-api-contract.md](design/services/admin-service-api-contract.md) v1.0 为准 |
 

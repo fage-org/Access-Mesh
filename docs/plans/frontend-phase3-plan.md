@@ -24,7 +24,7 @@ last_updated: 2026-08-08
 # 前端 Phase 3 — 前后端联调
 
 > 状态：proposed
-> 来源：`docs/plans/improvement-plan.md` §4 Phase 3 拆分
+> 来源：`docs/archive/2026-08-27/improvement-plan.md` §4 Phase 3 拆分（roadmap 已归档，拆分产物即本 plan）
 > 准入：Phase 1 收尾 + Phase 2 接口改造完成
 
 ## 目标

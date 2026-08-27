@@ -38,7 +38,7 @@ last_updated: 2026-08-09
 # 前端 Phase 2 — 核心功能补齐 + 后端接口改造
 
 > 状态：proposed
-> 来源：`docs/plans/improvement-plan.md` §4 Phase 2 拆分
+> 来源：`docs/archive/2026-08-27/improvement-plan.md` §4 Phase 2 拆分（roadmap 已归档，拆分产物即本 plan）
 > ⚠️ 暂缓门禁：自动授权（T-PERM-035）/ 动态数据权限（T-PERM-036）受 design-review §11 E4 / Q7-B 决策约束，近期不推进，需 PM 重申后才能重启。
 
 ## decision_refs（暂缓依据，非实现依据）

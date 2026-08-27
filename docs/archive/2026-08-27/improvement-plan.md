@@ -1,14 +1,14 @@
 ---
 doc_type: plan
 title: AccessMesh 项目诊断与完善路线图
-status: active
+status: archived
 domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/project-rules.md
 tasks: []
 acceptance: "Phase 1-4 各阶段 DoD 达成（见 §5.1）；痛点 #3/#4 与 design-review E4/B 决策对齐"
-last_updated: 2026-06-29
+last_updated: 2026-08-27
 note: |
   本计划是项目级路线图，含痛点诊断（§3）+ 4 阶段任务（§4）。
   痛点诊断结论待后续触达时沉淀至 design/；4 阶段任务已拆为独立执行 plan：
@@ -18,11 +18,18 @@ note: |
   - Phase 4 → docs/plans/frontend-phase4-plan.md（proposed，任务 T-FE-023/T-ADMIN-020/T-PERM-038/039）
   本文件 tasks:[] 保持空（roadmap 不持任务），任务清单见各 phase plan + tasks/README 看板。
   Phase 2 自动授权/动态数据权限已与 design-review E4/B 决策对齐（延后），见 §3.1 痛点 #3/#4 注记。
+  2026-08-27 归档：诊断与四阶段拆分使命完成（Phase 1 已归档、Phase 2-4 由独立 plan 承载）；
+  §2 完成度估算为 2026-06 时点快照，与当前里程碑 A+B 交付状态不再对应，仅作历史追溯；
+  痛点 #3/#4 暂缓记录仍被 T-PERM-035/036 decision_refs 引用作决策溯源。归档说明见本批次 README。
 ---
 
 # AccessMesh 项目诊断与完善计划
 
-> 版本: v2.0 | 日期: 2026-06-06 | 状态: 待审查
+> 版本: v2.0 | 日期: 2026-06-06 | 状态: **已归档（2026-08-27）**
+>
+> ⚠️ 历史文档：本文件不再作为现状或路线图依据。§2 完成度估算与 §3 痛点诊断为 2026-06 时点快照，
+> 当前项目状态以根 README「项目状态」与 docs/plans/ 各活跃 plan 为准；痛点 #3/#4 暂缓决策溯源仍有效
+> （被 T-PERM-035/036 引用，实现进入 in-progress 前须重申解除暂缓）。
 
 ## 1. 背景
 

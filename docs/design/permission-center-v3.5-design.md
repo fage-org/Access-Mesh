@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 v3.5 端到端设计（简化版）
 status: adopted
 domain: permission-center
-last_reviewed: 2026-06-27
+last_reviewed: 2026-08-27
 ---
 
 # AccessMesh 权限中心 v3.5 端到端设计（简化版）
@@ -28,6 +28,7 @@ last_reviewed: 2026-06-27
 | v3.5 初版 | 2026-06-18 | 提出三层权限模型（L1/L2/L3）+ `field_descriptor` 表 + 跨业务域告警 + 多个实施章节；R4 评审反馈 5 P0 + 7 P1（agent 推荐，未与 PM 讨论） |
 | R5 SIGN_OFF | 2026-06-18 | 三角色一致 SIGN_OFF — 但基于含未讨论项的 v3.5 修订版，**因后续 PM 决策回退而失效** |
 | **PM 决策回退** | **2026-06-18** | 本版本：删除 L3 维度 + `entry_eligible` + 跨业务域告警 + `sys_menu_ref` + §6/8/10/11/13/14/15 整章 + §4.2/§5.2 伪代码 |
+| **IR 对齐实现现状** | **2026-08-27** | IR-1.1 / IR-1.3 / IR-1.4 / §8.2 对齐引擎终态与接入架构（旧 `hasPermission()` 已随 T-PERM-042 删除、鉴权统一在 Gateway、契约禁止 body 携带 tenantId），纯口径修订、无模型变更 |
 
 ### 0.2 v3.5 范围
 
@@ -50,7 +51,7 @@ v3.5 范围外的后续增量（L3 字段维度、`sys_menu_ref` 跨业务线复
 
 ### 1.1 IR-1.1 PermQueryEngine 唯一鉴权入口（铁律）
 
-> 所有授权决策必须经过 `PermQueryEngine.hasPermission()` / `query()`。admin / 业务服务 / 前端不得旁路或封装权限语义。仅管理查询（list resources / list logs）可直查 Mapper。
+> 所有授权决策必须经过 `PermQueryEngine` 显式 API 与 `query()`（2026-08-27 对齐 T-PERM-042 引擎终态：旧 `hasPermission()` / `validateBatch()` / `getDeniedIds()` 已从引擎删除）——业务编码轨 `hasPermissionByCode()` / `getDeniedResourceCodes()`；实体轨 `hasPermissionByEntityId()` / `getDeniedEntityIds()`（仅引擎内部或已完成解析的调用方）。admin / 业务服务 / 前端不得旁路或封装权限语义，禁止绕过引擎直查 `rolePermMapper` 做权限判定。仅管理查询（list resources / list logs）可直查 Mapper。
 
 ### 1.2 IR-1.2 菜单 = UI 元素，不是权限对象
 
@@ -58,11 +59,11 @@ v3.5 范围外的后续增量（L3 字段维度、`sys_menu_ref` 跨业务线复
 
 ### 1.3 IR-1.3 业务服务零启动耦合
 
-> 业务服务（如 example-service）启动时**不向 perm-center 推送任何配置**。type_definition / OperationPermission 字典完全由 admin 后台 UI 维护。业务服务运行期通过 `PermQueryEngine.hasPermission()` 调用即可。
+> 业务服务（如 example-service）启动时**不向 perm-center 推送任何配置**。type_definition / OperationPermission 字典完全由 admin 后台 UI 维护。对外接口鉴权统一由 Gateway 快照模式执行（本地匹配 + 条件回退实时鉴权 + fail-closed），业务服务自身不感知权限引擎；perm-client（Feign 远程查询 SDK）为可选直连查询途径，按需使用、当前无默认消费者。（2026-08-27 修订：原「业务服务运行期通过 `PermQueryEngine.hasPermission()` 调用」表述已过时——该 API 已删除，且接入侧鉴权全在 Gateway。）
 
 ### 1.4 IR-1.4 多租户硬隔离
 
-所有跨服务事件 / Redis pub/sub channel / 缓存 key / 数据库索引必须以 `tenant_id` 作为第一前缀或必带参数。perm-sdk HTTP 调用强制 `X-Tenant-Id` 与 body.tenantId 一致校验。
+所有跨服务事件 / Redis pub/sub channel / 缓存 key / 数据库索引必须以 `tenant_id` 作为第一前缀或必带参数。perm-sdk HTTP 调用经 `X-Tenant-Id` 请求头传递租户上下文（2026-08-27 修订：现行 API 契约禁止请求体携带 tenantId，原「与 body.tenantId 一致校验」表述已过时）。
 
 ---
 
@@ -317,7 +318,7 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 
 ### 8.2 业务侧零启动耦合（沿用 IR-1.3）
 
-业务服务**不向 perm-center 推送任何配置**。运行期通过 `PermQueryEngine.hasPermission()` 调用即可。
+业务服务**不向 perm-center 推送任何配置**。对外接口鉴权由 Gateway 快照模式统一执行（见 IR-1.3）；需要自主查询权限事实时经 Gateway 转发调用 `/api/perm/auth/*`，或按需引入 perm-client SDK。
 
 > v3.5 不约束业务侧实施方式 — 调用方拿到 perm-center 的数据权限**事实**（对外 `scopeMode` / `items` / `condition`）后，如何应用（行裁切 / 字段裁切 / 其他维度）由调用方自决。
 

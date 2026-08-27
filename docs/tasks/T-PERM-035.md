@@ -37,11 +37,11 @@ last_updated: 2026-06-29
 > 归档文档仅作决策溯源，**不作为实现依据**，不进入 design_refs 回写范围。
 
 - `docs/archive/2026-06-17/design-review.md` §11 E4 — auto-grant 保留 TODO + 排期 Phase X（未排期）
-- `docs/plans/improvement-plan.md` §3.1 痛点 #3 — 已标暂缓（2026-06-20 审计 S-026）
+- `docs/archive/2026-08-27/improvement-plan.md` §3.1 痛点 #3 — 已标暂缓（2026-06-20 审计 S-026；计划本体已归档，暂缓决策仍有效）
 
 ## 背景
 
-自动授权是权限平台核心差异化能力：授予角色 A「查看订单」时，系统自动补全其依赖权限（「登录系统」「查看菜单」），而非管理员手动逐条授予。对应 improvement-plan §3.1 痛点 #3。
+自动授权是权限平台核心差异化能力：授予角色 A「查看订单」时，系统自动补全其依赖权限（「登录系统」「查看菜单」），而非管理员逐条手动授予。对应已归档 improvement-plan（[archive/2026-08-27/](../archive/2026-08-27/improvement-plan.md)）§3.1 痛点 #3。
 
 ## 当前状态
 
@@ -49,7 +49,7 @@ last_updated: 2026-06-29
 - `PermissionGrantAppServiceImpl` TODO：`自动授予依赖权限（autoGrantForInsert）`（L130）
 - `PermissionGrantDomainService` / Impl TODO：`自动授权解析（resolveAutoGrants）`（L13/L39）
 
-## 实现路径（improvement-plan §2.1）
+## 实现路径（已归档 improvement-plan §2.1）
 
 1. 分析 resource_dependency 表结构和现有依赖数据
 2. resolveAutoGrants：解析依赖链，计算需补全权限
