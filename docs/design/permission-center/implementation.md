@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-27   # 2026-08-27 §3.6 引擎入口映射修正（query-resources→forUserView）、§4.1 端点退役收口；此前：2026-08-23 T-ACCESS-016 定稿
+last_reviewed: 2026-08-28   # 2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）；此前：2026-08-27 §3.6 引擎入口映射修正（query-resources→forUserView）、§4.1 端点退役收口
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -337,9 +337,8 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 | ----------------------------- | -------- | ------------------------------------------------------ |
 | `PermQuery.forAuthCheck`      | 鉴权校验 | 类型+实例，scopeAll 匹配时提前返回，完整评估           |
 | `PermQuery.forInterfaceCheck` | 接口鉴权 | 类型优先+实例回退，完整评估，返回所有辅助信息          |
-| `PermQuery.forResourceQuery`  | 资源过滤 | 仅实例级查询，不评估条件/冲突，含资源和操作            |
-| `PermQuery.forResourceCheck`  | 资源检查 | 全范围+实例，完整评估条件/冲突，含资源和操作           |
 | `PermQuery.forValidate`       | 管理校验 | 类型+实例，不评估，最小输出                            |
+| `PermQuery.forValidateByEntityId` | 管理校验（entityId 轨） | 类型+实体ID，不评估，最小输出；仅限引擎内部/已完成解析的调用方 |
 | `PermQuery.forScopeQuery`     | 范围查询 | 不提前返回，不评估，返回全部辅助信息                   |
 | `PermQuery.forUserView`       | 用户视图 | 全量角色权限记录（`selectValidByRoleIds`），不按位过滤；按 `effectiveBits` 生成最终可用操作投影 |
 
@@ -347,7 +346,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 
 | 类                              | 包路径                | 职责                    |
 | ------------------------------- | --------------------- | ----------------------- |
-| `PermQuery.java`                | `dto.query`           | 入参 DTO + 8 个工厂方法 |
+| `PermQuery.java`                | `dto.query`           | 入参 DTO + 6 个工厂方法 |
 | `PermResult.java`               | `dto.query`           | 统一返回对象            |
 | `PermQueryEngine.java`          | `service.domain.impl` | 核心引擎 `query()` 方法 |
 | `OperationPermissionUtils.java` | `util`                | 位运算/批量过滤工具     |

@@ -11,7 +11,7 @@
 - **ORM**: MyBatis-Flex
 - **数据库**: PostgreSQL（多租户，软删除）
 - **缓存**: Caffeine（L1）+ Redis（L2）
-- **MQ**: RocketMQ
+- **MQ**: RocketMQ（预留未启用；缓存失效经 Redis pub/sub）
 - **认证**: Sa-Token + OAuth2
 - **JSON**: Jackson（禁止 FastJSON / fastjson2 / Hutool）
 - **日志**: SLF4J + Log4j2（禁止 Logback）

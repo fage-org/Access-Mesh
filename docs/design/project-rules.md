@@ -10,7 +10,7 @@ last_reviewed: 2026-08-12   # access-service 归并：错误码继续按管理�
 
 > 本文档是项目全体开发成员必须遵守的工程规范，覆盖报文、接口、异常、日志、依赖、工具类、对象设计、事务、安全、缓存、数据库、MQ、服务调用、Git 等方面。
 >
-> **技术栈基线：** Spring Boot 3 + Java 21 + MyBatis-Flex + Spring Cloud + RocketMQ + PostgreSQL + Redis
+> **技术栈基线：** Spring Boot 3 + Java 21 + MyBatis-Flex + Spring Cloud + RocketMQ（预留未启用）+ PostgreSQL + Redis
 
 ---
 

@@ -4,7 +4,7 @@
 
 **AccessMesh** 是基于 Spring Cloud 微服务架构的通用访问控制平台，支持 SaaS 多租户模式。
 
-- **当前阶段**：access-service 归并完成（T-ACCESS-001~012，2026-08-22 收口归档）；Phase 2 后端任务重基线后按依赖推进，前端联调待其后端任务完成
+- **当前阶段**：access-service 归并完成（T-ACCESS-001~012，2026-08-22 收口归档）；产品定位已定案（开源通用 IAM，2026-08-28），按「维护债 → 文档三档整改 → 简单页后端改造」顺序推进；Phase 2 后端任务重基线后按依赖推进，前端联调待其后端任务完成
 - **当前分支**：`feat-permission-center`
 - **文档入口**：`docs/README.md`
 
@@ -18,7 +18,7 @@
 | 数据库    | PostgreSQL（多租户，软删除）                                                    |
 | 注册/配置 | Nacos                                                                           |
 | 缓存      | Caffeine (L1) + Redis (L2)                                                      |
-| 消息队列  | RocketMQ                                                                        |
+| 消息队列  | RocketMQ（预留未启用；缓存失效经 Redis pub/sub 广播，服务间同步为同库事务/API 调用） |
 | 认证      | Sa-Token + OAuth2                                                               |
 | JSON      | Jackson（禁止 FastJSON / Hutool；DTO 优先 Java 21 Record，Lombok 按需精确使用） |
 | 日志      | SLF4J + Log4j2                                                                  |

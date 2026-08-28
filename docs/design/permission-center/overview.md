@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 概念模型
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-27   # 2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）；此前：2026-08-22 归并收口回写
+last_reviewed: 2026-08-28   # 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
 ---
 
 # Permission Center 概念模型
@@ -141,9 +141,8 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 | ----------------------------- | -------- | ----------------------------------------------- |
 | `PermQuery.forAuthCheck`      | 鉴权校验 | 类型+实例查询，scopeAll 匹配时提前返回          |
 | `PermQuery.forInterfaceCheck` | 接口鉴权 | 类型优先 + 实例回退，完整评估，返回所有辅助信息 |
-| `PermQuery.forResourceQuery`  | 资源过滤 | 仅实例级查询，不评估条件/冲突                   |
-| `PermQuery.forResourceCheck`  | 资源检查 | 全范围+实例，完整评估条件/冲突                  |
 | `PermQuery.forValidate`       | 管理校验 | 类型+实例，无评估，最小输出                     |
+| `PermQuery.forValidateByEntityId` | 管理校验（entityId 轨） | 类型+实体ID，无评估，最小输出；仅限引擎内部/已完成解析的调用方 |
 | `PermQuery.forScopeQuery`     | 范围查询 | 无提前返回，不评估，返回所有辅助信息            |
 | `PermQuery.forUserView`       | 用户视图 | 全量角色权限记录，不按位过滤；同时按 `effectiveBits` 生成最终可用操作投影 |
 

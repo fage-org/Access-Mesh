@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-27   # 2026-08-27 §6 端点退役收口、§10.1 treeMode 移除；此前：2026-08-22 归并收口回写
+last_reviewed: 2026-08-28   # 2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
@@ -148,8 +148,6 @@ PermQueryEngine.query(PermQuery)
     │      ├─ evaluateConflicts ──► PermissionConflictDomainService
     │      └─ loadAncillary ──► 批量加载 Resource/Operation/Role
     │
-    ├─ forResourceQuery ──► 仅实例查询，不评估条件/冲突
-    ├─ forResourceCheck ──► 全范围+实例，完整评估
     └─ forScopeQuery ──► 不提前返回，不评估，返回全部辅助信息
 ```
 

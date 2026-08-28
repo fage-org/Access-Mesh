@@ -1175,7 +1175,7 @@ COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUA
 COMMENT ON COLUMN role_resource_permission.grant_dep_id IS '依赖规则ID（grant_source=AUTO_DEP 时记录触发的 resource_dependency.id）';
 
 -- -----------------------------------------------------------------------------
--- 29. domain_config - 域配置表（三合一 + 子权限配置：SCOPE / RELATION / BINDING / SUB_PERM / CLASSIFY）
+-- 29. domain_config - 域配置表（SUB_PERM 子权限 / CLASSIFY 域分类；SCOPE/RELATION/BINDING 为历史设想类型，未实现）
 -- -----------------------------------------------------------------------------
 CREATE TABLE domain_config (
     id            BIGSERIAL PRIMARY KEY,

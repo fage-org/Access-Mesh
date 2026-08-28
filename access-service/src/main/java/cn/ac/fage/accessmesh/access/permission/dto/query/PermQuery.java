@@ -267,65 +267,6 @@ public class PermQuery {
     }
 
     /**
-     * 创建资源过滤查询
-     * <p>
-     * 仅实例级查询，不评估条件，包含资源和操作信息。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param userId           用户ID
-     * @param resourceTypeCodes 资源类型编码集合
-     * @param operationCodes   操作编码集合
-     * @return 权限查询实例
-     */
-    public static PermQuery forResourceQuery(Long tenantId, Long userId,
-                                              Set<String> resourceTypeCodes,
-                                              Set<String> operationCodes) {
-        PermQuery q = new PermQuery(tenantId);
-        q.userId = userId;
-        q.resourceTypeCodes = resourceTypeCodes;
-        q.operationCodes = operationCodes;
-        q.queryScopeAll = false;
-        q.queryInstance = true;
-        q.evaluateConditions = false;
-        q.evaluateConflicts = false;
-        q.evaluateMatchesBit = true;
-        q.includeResources = true;
-        q.includeOperations = true;
-        return q;
-    }
-
-    /**
-     * 创建资源检查查询
-     * <p>
-     * 全范围+实例查询，完整评估（条件/冲突/位匹配），包含资源和操作信息。
-     * 与 {@link #forResourceQuery} 相比，此方法开启条件评估和冲突评估。
-     * </p>
-     *
-     * @param tenantId          租户ID
-     * @param userId            用户ID
-     * @param resourceTypeCodes 资源类型编码集合
-     * @param operationCodes    操作编码集合
-     * @return 权限查询实例
-     */
-    public static PermQuery forResourceCheck(Long tenantId, Long userId,
-                                              Set<String> resourceTypeCodes,
-                                              Set<String> operationCodes) {
-        PermQuery q = new PermQuery(tenantId);
-        q.userId = userId;
-        q.resourceTypeCodes = resourceTypeCodes;
-        q.operationCodes = operationCodes;
-        q.queryScopeAll = true;
-        q.queryInstance = true;
-        q.evaluateConditions = true;
-        q.evaluateConflicts = true;
-        q.evaluateMatchesBit = true;
-        q.includeResources = true;
-        q.includeOperations = true;
-        return q;
-    }
-
-    /**
      * 创建管理操作验证查询
      * <p>
      * 类型+实例查询，全范围匹配时提前返回，不评估，最小输出。

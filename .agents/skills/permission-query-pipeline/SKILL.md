@@ -17,7 +17,7 @@ metadata:
 | 组件 | 职责 | 使用场景 |
 |------|------|---------|
 | `PermQueryEngine` | 统一查询入口 `query(PermQuery)` + 业务层API | 所有权限查询的唯一入口 |
-| `PermQuery` | 统一入参 DTO，8个预设工厂 | 调用方构造查询参数 |
+| `PermQuery` | 统一入参 DTO，6个预设工厂 | 调用方构造查询参数 |
 | `PermResult` | 统一返回对象 | 调用方获取结果 |
 | `OperationCodeConstants` | 操作码常量（CREATE/MANAGE/DELETE等） | 业务层权限校验参数 |
 | `ResourceTypeCode` | 资源类型常量（ROLE/USER/SERVICE等） | 业务层权限校验参数 |
@@ -64,7 +64,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 
 复杂查询使用 `PermQuery`，授权传递校验使用 `PermissionGrantDomainService`。
 
-> **主体契约**：Domain 层 API（forAuthCheck/forInterfaceCheck/forResourceQuery/forScopeQuery/forValidate/forUserView）与
+> **主体契约**：Domain 层 API（forAuthCheck/forInterfaceCheck/forScopeQuery/forValidate/forUserView）与
 > canGrant 委托链的 `userId`/`subjectId` 均指权限域投影主体（`abstract_user.id`），禁止直接传 `sys_user.id`。
 
 ```java
@@ -85,7 +85,7 @@ Set<Long> entityIds = matchApiPaths(tenantId, path, method);
 PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, "ACCESS");
 return PermResultUtils.toCheckInterfaceResp(engine.query(q), cacheTtl);
 
-// queryResources — 资源筛选（实现走 forUserView 取全量权限事实；forResourceQuery 无生产调用方，勿用于新代码）
+// queryResources — 资源筛选（实现走 forUserView 取全量权限事实）
 PermQuery q = PermQuery.forUserView(tenantId, userId);
 return PermResultUtils.toQueryResourcesResp(engine.query(q), cacheTtl);
 
@@ -112,14 +112,12 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> results =
 |---------|--------|-----------|-------------|---------|---------|---------|
 | forAuthCheck | ✅ | ✅ | ✅ | ✅ | ✅ | 无 |
 | forInterfaceCheck | ✅ | ✅ | ✅ | ✅ | ✅ | 全部 |
-| forResourceQuery | ❌ | ✅ | - | ❌ | ❌ | resource+op |
-| forResourceCheck | ✅ | ✅ | ✅ | ✅ | ✅ | resource+op |
 | forValidate | ✅ | ✅ | ✅ | ❌ | ❌ | 无 |
 | forValidateByEntityId | ✅ | ✅ | ✅ | ❌ | ❌ | 无（entityId 轨，仅引擎内部/已完成解析的调用方） |
 | forScopeQuery | ✅ | ✅ | ❌ | ❌ | ❌ | resource+op+role |
 | forUserView | ✅ | ✅ | ❌ | ✅ | ✅ | resource+op+role（用户全量视图，快照读缓存） |
 
-> 使用政策（2026-08-27 核实）：`forResourceQuery` / `forResourceCheck` 当前**零生产调用**（`query-resources` 实际走 `forUserView`），勿用于新代码；`forValidateByEntityId` 仅限引擎内部或已完成解析的调用方（资源树、API 映射、资源依赖、权限树），禁止用于 USER/ROLE 等业务对象门禁。
+> 使用政策：`forValidateByEntityId` 仅限引擎内部或已完成解析的调用方（资源树、API 映射、资源依赖、权限树），禁止用于 USER/ROLE 等业务对象门禁。`forResourceQuery` / `forResourceCheck` 已删除（2026-08-28，零生产调用；资源类查询语义由 `forUserView` / `forValidateByEntityId` 覆盖，勿重新引入）。
 
 ## Engine 内部流程
 
