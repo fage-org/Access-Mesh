@@ -70,16 +70,6 @@ public interface SyncMetadataDomainService {
                                     Long sequenceNo);
 
     /**
-     * 按业务键解析目标事实表内部 ID。
-     *
-     * @param tenantId        租户 ID
-     * @param entityKind      实体类型
-     * @param sourceService   同步来源服务
-     * @param scopeKeyHash    scopeKey 的 SHA-256 hex
-     * @param businessKeyHash businessKey 的 SHA-256 hex
-     * @return target_id（非空软删除记录），未匹配返回 {@link Optional#empty()}
-     */
-    /**
      * 只读批量预载同步元数据（写入前 STALE 预分类用；businessKeyHash -> 元数据行，
      * 不存在的 hash 不入 Map）。
      */
@@ -92,10 +82,21 @@ public interface SyncMetadataDomainService {
     /**
      * 只读版本预判：incoming (occurredAt, sequenceNo) 是否严格新于现存记录
      * （与 {@code upsertIfNewer} 的 ON CONFLICT WHERE 谓词一致：occurredAt 更大，
-     * 或相等且 sequenceNo 更大；谓词改动须两处同步）。现存为 null（新键）视为新。
+     * 或相等且 sequenceNo 更大；时间先归一到 PG TIMESTAMPTZ 微秒精度再比较，
+     * 舍入方向与库的一致性由容器测试锁定；谓词改动须两处同步）。现存为 null（新键）视为新。
      */
     boolean isNewerVersion(SyncMetadata existing, java.time.LocalDateTime occurredAt, Long sequenceNo);
 
+    /**
+     * 按业务键解析目标事实表内部 ID。
+     *
+     * @param tenantId        租户 ID
+     * @param entityKind      实体类型
+     * @param sourceService   同步来源服务
+     * @param scopeKeyHash    scopeKey 的 SHA-256 hex
+     * @param businessKeyHash businessKey 的 SHA-256 hex
+     * @return target_id（非空软删除记录），未匹配返回 {@link Optional#empty()}
+     */
     Optional<Long> resolveTargetId(Long tenantId,
                                    String entityKind,
                                    String sourceService,

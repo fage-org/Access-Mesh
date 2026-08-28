@@ -17,6 +17,22 @@ import java.util.List;
 public interface SyncMetadataMapper extends BaseMapper<SyncMetadata> {
 
     /**
+     * 按业务键哈希集合批量预载元数据（写入前版本预判用）。
+     *
+     * @param tenantId          租户 ID
+     * @param entityKind        实体类型
+     * @param sourceService     同步来源服务
+     * @param scopeKeyHash      scopeKey 的 SHA-256 hex
+     * @param businessKeyHashes businessKey 的 SHA-256 hex 集合
+     * @return 命中的元数据列表（仅 delete_flag=0），未命中的哈希不在结果中；集合为空返回空列表
+     */
+    List<SyncMetadata> selectByBusinessKeyHashes(@Param("tenantId") Long tenantId,
+                                                  @Param("entityKind") String entityKind,
+                                                  @Param("sourceService") String sourceService,
+                                                  @Param("scopeKeyHash") String scopeKeyHash,
+                                                  @Param("businessKeyHashes") java.util.Set<String> businessKeyHashes);
+
+    /**
      * 根据业务键定位元数据。
      *
      * @param tenantId        租户 ID
@@ -26,12 +42,6 @@ public interface SyncMetadataMapper extends BaseMapper<SyncMetadata> {
      * @param businessKeyHash businessKey 的 SHA-256 hex
      * @return 匹配的元数据，未找到返回 null
      */
-    List<SyncMetadata> selectByBusinessKeyHashes(@Param("tenantId") Long tenantId,
-                                                  @Param("entityKind") String entityKind,
-                                                  @Param("sourceService") String sourceService,
-                                                  @Param("scopeKeyHash") String scopeKeyHash,
-                                                  @Param("businessKeyHashes") java.util.Set<String> businessKeyHashes);
-
     SyncMetadata selectByBusinessKey(@Param("tenantId") Long tenantId,
                                      @Param("entityKind") String entityKind,
                                      @Param("sourceService") String sourceService,

@@ -205,5 +205,14 @@ class SyncMetadataDomainServiceTest {
         assertThat(service.isNewerVersion(existing, existingOccurred, 4L)).isFalse();
         // occurredAt 更小 = 旧
         assertThat(service.isNewerVersion(existing, existingOccurred.minusSeconds(1), 999L)).isFalse();
+        // 亚微秒尾差先归一到微秒（评审修复）：现存 .123457（库内微秒化）与
+        // 原值 .123456600（舍入后相等）按相等处理——序号更大即新（原实现误判旧）
+        LocalDateTime microExisting = existingOccurred.withNano(123_457_000);
+        SyncMetadata microMeta = new SyncMetadata();
+        microMeta.setLastSyncOccurredAt(microExisting);
+        microMeta.setLastSyncSequenceNo(1L);
+        assertThat(service.isNewerVersion(microMeta, existingOccurred.withNano(123_456_600), 2L)).isTrue();
+        assertThat(service.isNewerVersion(microMeta, existingOccurred.withNano(123_456_600), 1L)).isFalse();
+        assertThat(service.isNewerVersion(microMeta, existingOccurred.withNano(123_456_499), 999L)).isFalse();
     }
 }

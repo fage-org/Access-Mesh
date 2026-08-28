@@ -102,11 +102,21 @@ public class SyncMetadataDomainServiceImpl implements SyncMetadataDomainService 
         if (existing == null) {
             return true;
         }
-        int occurredCmp = occurredAt.compareTo(existing.getLastSyncOccurredAt());
+        // 库侧比较发生在 PG TIMESTAMPTZ 微秒精度上（亚微秒尾差写入时被四舍五入）：
+        // 预判须先归一到同一精度，否则「原始纳秒 < 库内微秒化值、但舍入后相等」的
+        // 合法更高序号更新会被误判为旧而丢弃（舍入方向与库的一致性由容器测试锁定）
+        int occurredCmp = roundToMicros(occurredAt).compareTo(roundToMicros(existing.getLastSyncOccurredAt()));
         if (occurredCmp > 0) {
             return true;
         }
         return occurredCmp == 0 && sequenceNo.compareTo(existing.getLastSyncSequenceNo()) > 0;
+    }
+
+    /** 四舍五入到微秒（对齐 PG TIMESTAMPTZ 精度：亚微秒 ≥500ns 进位） */
+    private static LocalDateTime roundToMicros(LocalDateTime time) {
+        int subMicroNanos = time.getNano() % 1_000;
+        LocalDateTime truncated = time.truncatedTo(java.time.temporal.ChronoUnit.MICROS);
+        return subMicroNanos >= 500 ? truncated.plusNanos(1_000) : truncated;
     }
 
     @Override

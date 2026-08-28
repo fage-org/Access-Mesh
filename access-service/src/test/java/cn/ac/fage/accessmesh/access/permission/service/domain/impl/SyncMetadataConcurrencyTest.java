@@ -302,4 +302,37 @@ class SyncMetadataConcurrencyTest {
                 TENANT_ID, ENTITY_KIND, SOURCE_SERVICE, SCOPE_KEY_HASH, BUSINESS_KEY_HASH);
         assertThat(current.getLastSyncSequenceNo()).isEqualTo(11L);
     }
+
+    /**
+     * 用例（评审修复）：只读版本预判须与库侧微秒化语义一致——亚微秒尾差经 PG TIMESTAMPTZ
+     * 落库被舍入到微秒，两条同纳秒原值事件（.123456600，seq 1/2）库内同为 .123457：
+     * 预判不得把第二条（更高序号）误判为旧；预判结论须与 applyVersion 实际结果全程等价。
+     */
+    @Test
+    void isNewerVersion_shouldMatchDatabaseMicrosecondRounding() {
+        LocalDateTime raw = LocalDateTime.of(2026, 1, 1, 0, 0, 0, 123_456_600);
+
+        // 第一条落库：APPLIED，且读回为微秒对齐（亚微秒 .6 进位为 .123457）
+        assertThat(service.applyVersion(TENANT_ID, ENTITY_KIND, SOURCE_SERVICE,
+                SCOPE_KEY_HASH, SCOPE_KEY, BUSINESS_KEY_HASH, BUSINESS_KEY, SYNC_KEY, SYNC_KEY_HASH, raw, 1L))
+                .isEqualTo(ApplyVersionResult.APPLIED);
+        SyncMetadata stored = syncMetadataMapper.selectByBusinessKey(
+                TENANT_ID, ENTITY_KIND, SOURCE_SERVICE, SCOPE_KEY_HASH, BUSINESS_KEY_HASH);
+        assertThat(stored.getLastSyncOccurredAt().getNano() % 1_000).isZero();
+        assertThat(stored.getLastSyncOccurredAt().getNano()).isEqualTo(123_457_000);
+
+        // 第二条（同原值、更高序号）：预判=新，且与 applyVersion 实际结果等价（原实现此处误判 STALE）
+        assertThat(service.isNewerVersion(stored, raw, 2L)).isTrue();
+        assertThat(service.applyVersion(TENANT_ID, ENTITY_KIND, SOURCE_SERVICE,
+                SCOPE_KEY_HASH, SCOPE_KEY, BUSINESS_KEY_HASH, BUSINESS_KEY, SYNC_KEY, SYNC_KEY_HASH, raw, 2L))
+                .isEqualTo(ApplyVersionResult.APPLIED);
+
+        // 对照（亚微秒更小 .123456499 → 微秒化 .123456 更旧）：预判=旧，与 applyVersion 等价
+        LocalDateTime slightlyOlderRaw = LocalDateTime.of(2026, 1, 1, 0, 0, 0, 123_456_499);
+        assertThat(service.isNewerVersion(stored, slightlyOlderRaw, 999L)).isFalse();
+        assertThat(service.applyVersion(TENANT_ID, ENTITY_KIND, SOURCE_SERVICE,
+                SCOPE_KEY_HASH, SCOPE_KEY, BUSINESS_KEY_HASH, BUSINESS_KEY, SYNC_KEY, SYNC_KEY_HASH,
+                slightlyOlderRaw, 999L))
+                .isEqualTo(ApplyVersionResult.STALE);
+    }
 }
