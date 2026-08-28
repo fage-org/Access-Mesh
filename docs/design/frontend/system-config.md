@@ -3,7 +3,7 @@ doc_type: design
 title: 6.2 系统配置页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-07-01
+last_reviewed: 2026-08-28   # 2026-08-28 T-PERM-024 收口：§5/§8/§9 终态化（契约要点补全、种子误报澄清、JSONB 实证+isSystem 修复、list 服务端分页）
 ---
 
 # 6.2 系统配置页 前端设计
@@ -96,7 +96,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 列表 | `POST /api/perm/system-config/list` | `{}` (EmptyReq) | `ItemsResp<SystemConfigResp>`（全量，无分页/无过滤） | 🔧 见 §8 |
+| 列表 | `POST /api/perm/system-config/list` | `{keyword?,pageNum?,pageSize?}` | `PaginatedResp<SystemConfigResp>`（服务端过滤+分页，ORDER BY configKey,id） | ✅（T-PERM-024 收口） |
 | 详情 | `POST /api/perm/system-config/detail` | `{configKey}` (SystemConfigGetReq) | `SystemConfigResp` | ✅ |
 | 保存 | `POST /api/perm/system-config/save` | `{configKey,configValue,description?}` (SystemConfigReq) | `SystemConfigResp`（upsert） | ✅ |
 
@@ -157,33 +157,19 @@ views/system/config/
 | hr（组织人事管理员） | 只读（VIEW） |
 | auditor（审计员） | 只读（VIEW） |
 
-## 8. API 核对清单（登记 T-PERM-024）
+## 8. API 核对清单（T-PERM-024，2026-08-28 收口）
 
-Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-024。
+Phase 1 登记的 🔧 项处置终态：
 
-### 🔧 需改造
-
-1. **api-contract §5.8 缺 system-config 专属字段契约**
-   - 现状：§5.8 标题实为「视图与审计」，system-config 仅 3 行表格条目（list/detail/save 路径），**无独立字段契约章节**（无字段表/请求示例）。字段由后端 DTO（`SystemConfigReq`/`SystemConfigGetReq`/`SystemConfigResp`）落地。
-   - 期望：§5.8 或新增 §5.x 补 system-config 请求/响应字段契约（configKey/configValue/description + 响应字段），与其他资源契约章节同口径。
-   - 前端可行性：✅ 本页已按后端 DTO 字段实现，契约补全后前端无需改动（字段已对齐）。
-   - 归属：T-PERM-024 🔧。
-
-2. **`SYSTEM_CONFIG` 权限种子缺失**
-   - 现状：schema 无 `INSERT` 为 `SYSTEM_CONFIG` 资源类型在 `type_definition`（resource_type）或 `operation_permission` 表预置 VIEW/MANAGE 操作位。联调真后端时权限判定可能为空，导致所有账号无权访问。
-   - 期望：租户初始化种子为 `SYSTEM_CONFIG` 资源类型预置 VIEW + MANAGE 操作位（与其他资源类型同口径）。
-   - 前端可行性：✅ Phase 1 mock 自配角色矩阵（admin/sec 全权、hr/auditor 只读）规避。后端补种子后联调验证。
-   - 归属：T-PERM-024 🔧。
-
-3. **`config_value` JSONB ↔ entity String 映射确认**
-   - 现状：schema `config_value JSONB NOT NULL DEFAULT '{}'`，entity `SystemConfig.configValue` 声明为 `String`，`SystemConfigAppServiceImpl` 直接 `setConfigValue(req.configValue())`，`JsonValidationUtils.validateJson` 校验。MyBatis-Flex + 驱动处理 JSONB↔String 序列化。
-   - 期望：确认 JSONB↔String 映射在 PostgreSQL 驱动下行为正确（写入 JSON 字符串、读出 JSON 字符串），无静默截断/转义问题。
-   - 前端可行性：✅ 本页 configValue 按 JSON 字符串提交/展示 + 前端 `JSON.parse` 预校验。后端确认映射后联调。
-   - 归属：T-PERM-024 🔧（确认型，非必改）。
+1. ✅ **api-contract §5.8 补 system-config 契约要点**：字段契约、upsert 语义、20047 命名空间校验、JSONB 规范化语义、权限门禁已写入 §5.8（前端无需改动）。
+2. ❌ **SYSTEM_CONFIG 权限种子缺失——核实不成立**：权威 DDL 的 CRUD 预置种子组（CROSS JOIN 全部 23 个 resource_type × CREATE/VIEW/UPDATE/DELETE，92 条）已覆盖 SYSTEM_CONFIG(11) 的 VIEW，扩展码组另有 MANAGE(16)——Phase 1 清单登记时未对照权威 schema，无需改动。
+3. ✅ **config_value JSONB ↔ String 映射确认**：新增 `SystemConfigJsonbPgIT`（真实 PostgreSQL 容器轨）实证——语义等价（中文/嵌套/数组/空格变体解析树相等）、读出为 DB 规范化 JSON 文本（非字节回显）、规范化幂等（展示值可直接再提交）、无截断/转义问题。**该 PgIT 同时发现并修复归并遗留生产缺陷**：upsert 新建分支未设 `is_system`（NOT NULL 列）→ API 新建配置项必然 DataIntegrityViolation 裸 99999；修复为固定 `isSystem=false`（系统内置仅走种子）+ 单测回归锁。
+4. ✅ **list 服务端过滤+分页**（§9 预期、§8 原漏登，收口补登）：`SystemConfigListReq` = `{keyword?, pageNum?, pageSize?}`（替换 EmptyReq），返回 `PaginatedResp`（keyword LIKE configKey/description、ORDER BY config_key,id）；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`）；本页 hook 已切服务端分页。
 
 ### ✅ 满足
 
-- list/detail/save 满足前端需求，请求/响应结构与 mock 对齐。save upsert 幂等覆盖新建/编辑，无需独立 create/update。
+- detail/save 满足前端需求；save upsert 幂等覆盖新建/编辑（新建路径 isSystem 缺陷已随第 3 项修复）。
+- list 已随第 4 项收口。
 
 ### 备注
 
@@ -191,9 +177,9 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-024。
 - **无删除接口**：后端 system-config 无 remove，配置项不可删除（仅可 upsert 覆盖）。这是设计约束——配置键稳定，避免误删导致系统行为回退默认。
 - **save 幂等语义**：与 §4 动词规范 `save=幂等创建或更新` 一致，前端不区分新建/编辑调用。
 
-## 9. 已知限制（Phase 1）
+## 9. 已知限制
 
-- list 为前端本地过滤+分页（后端返回全量 ItemsResp）；Phase 2 后端补 keyword/pageNum/pageSize + 返回 PaginatedResp 后切换服务端分页。
-- configValue JSON 校验为前端 `JSON.parse` 预拦截（对齐后端 `JsonValidationUtils`）；联调时后端二次校验。
-- mock 保留 `deleted` 内部标记（对齐 schema delete_flag 范式），但后端无删除接口，该标记仅预留。
-- 联调（T-FE-022）需后端先补 §8 三项 🔧（尤其权限种子，否则联调无权访问）。
+- ~~list 为前端本地过滤+分页~~ 已随 T-PERM-024 切服务端过滤+分页（2026-08-28）。
+- configValue JSON 校验为前端 `JSON.parse` 预拦截（对齐后端 `JsonValidationUtils`）；后端二次校验不变。
+- ~~mock 保留 deleted 内部标记~~ mock 随真实链路（T-FE-041）移除；后端无删除接口的设计约束不变。
+- 联调（T-FE-022）：§8 四项已收口，无阻塞项。

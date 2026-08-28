@@ -40,6 +40,30 @@ public interface SystemConfigMapper extends BaseMapper<SystemConfig> {
     List<SystemConfig> selectByTenantId(@Param("tenantId") Long tenantId);
 
     /**
+     * 按条件统计有效系统配置数量
+     *
+     * @param tenantId 租户ID
+     * @param keyword  关键字，可选（configKey/description LIKE，大小写敏感）
+     * @return 有效行数
+     */
+    long countByCondition(@Param("tenantId") Long tenantId,
+                          @Param("keyword") String keyword);
+
+    /**
+     * 按条件分页查询有效系统配置（ORDER BY config_key, id）
+     *
+     * @param tenantId 租户ID
+     * @param keyword  关键字，可选（configKey/description LIKE，大小写敏感）
+     * @param limit    每页条数
+     * @param offset   偏移量
+     * @return 系统配置列表
+     */
+    List<SystemConfig> selectPageByCondition(@Param("tenantId") Long tenantId,
+                                              @Param("keyword") String keyword,
+                                              @Param("limit") int limit,
+                                              @Param("offset") int offset);
+
+    /**
      * 批量软删除配置
      *
      * @param tenantId  租户ID

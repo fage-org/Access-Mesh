@@ -14,13 +14,15 @@
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
-import type { ItemsResp } from "./role-manage";
+import type { ItemsResp, PaginatedResp } from "./role-manage";
 
 // ========== 系统配置定义 ==========
 
 /** 系统配置响应（对齐后端 SystemConfigResp）。
  *  configValue 为 JSON 字符串（后端 schema 是 JSONB，entity 映射为 String；前端按字符串提交/展示，
- *  提交前由 JSON.parse 校验合法性）。🔧 JSONB↔String 映射登记 T-PERM-024。 */
+ *  提交前由 JSON.parse 校验合法性）。T-PERM-024 实证（SystemConfigJsonbPgIT）：JSONB 读出为
+ *  DB 规范化后的 JSON 文本——与提交值语义等价（解析树相等）但非字节回显（空白/键序规范化），
+ *  展示值可直接再提交（规范化幂等），无截断/转义问题。 */
 export type SystemConfigResp = {
   id: number;
   tenantId?: number;
@@ -34,12 +36,14 @@ export type SystemConfigResp = {
   createdAt?: string;
 };
 
-/** 系统配置列表查询参数。
- *  🔧 API 核对项（登记 T-PERM-024）：后端 list 接 EmptyReq 无参，返回租户全量 ItemsResp
- *  （无分页、无 keyword 过滤）。前端按 keyword 本地过滤 + 切片分页。
- *  Phase 2 后端补 keyword/pageNum/pageSize 参数并返回 PaginatedResp 后，前端可切回服务端分页。
- *  本类型预留以备 Phase 2 扩展，当前调用方传 {}。 */
-export type SystemConfigListQuery = Record<string, never>;
+/** 系统配置列表查询参数（T-PERM-024 收口：服务端 keyword 过滤 + 分页）。
+ *  keyword 匹配 configKey/description（LIKE，大小写敏感）；pageNum/pageSize 均不传 = 字典全量
+ *  （后端上限 200，先例 /role/list）。 */
+export type SystemConfigListQuery = {
+  keyword?: string | null;
+  pageNum?: number;
+  pageSize?: number;
+};
 
 /** 系统配置详情查询（POST /detail，SystemConfigGetReq{configKey}）。
  *  注意：按 configKey 查，非按 id（对齐后端 SystemConfigGetReq.configKey @NotNull）。 */
@@ -59,13 +63,12 @@ export type SystemConfigSaveReq = {
 // ========== API 函数 ==========
 
 /** 查询系统配置列表（POST /api/perm/system-config/list）。
- *  后端 EmptyReq 无参，返回 ItemsResp<SystemConfigResp>（租户全量，无分页/无过滤）。
- *  前端 hook 拿全量 items 后本地做 keyword 过滤 + 切片分页。
- *  🔧 后端补 keyword/pageNum/pageSize 参数 + 返回 PaginatedResp 登记于 T-PERM-024。 */
+ *  T-PERM-024 收口：服务端 keyword 过滤（configKey/description，LIKE）+ 分页，返回 PaginatedResp
+ *  （ORDER BY configKey,id）；不传分页参数 = 字典全量（上限 200）。 */
 export const getSystemConfigList = async (
   params: SystemConfigListQuery
-): Promise<ItemsResp<SystemConfigResp>> => {
-  const res = await http.request<PermResult<ItemsResp<SystemConfigResp>>>(
+): Promise<PaginatedResp<SystemConfigResp>> => {
+  const res = await http.request<PermResult<PaginatedResp<SystemConfigResp>>>(
     "post",
     "/api/perm/system-config/list",
     { data: params }

@@ -15,6 +15,26 @@
           AND delete_flag = 0
     </select>
 
+    <sql id="listCondition">
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="keyword != null and keyword != ''">
+          AND (config_key LIKE CONCAT('%', #{keyword}, '%') OR description LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <select id="countByCondition" resultType="long">
+        SELECT COUNT(*) FROM system_config
+        <include refid="listCondition"/>
+    </select>
+
+    <select id="selectPageByCondition" resultType="cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig">
+        SELECT * FROM system_config
+        <include refid="listCondition"/>
+        ORDER BY config_key, id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
     <!-- T-ACCESS-002 归并：以下语句自原 admin SysConfigMapper.xml 并入，表名统一为 system_config -->
     <update id="softDeleteBatch">
         UPDATE system_config

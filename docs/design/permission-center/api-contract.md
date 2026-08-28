@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-PERM-023 收口：typeValue 自动分配/typeCode 生成查重 20049/list 服务端过滤分页）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-PERM-023 收口：typeValue 自动分配/typeCode 生成查重 20049/list 服务端过滤分页）、§5.8 system-config 契约要点（T-PERM-024 收口：upsert/isSystem 修复/list 分页/JSONB 规范化语义）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -363,6 +363,14 @@ last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-
 | `POST /api/perm/system-config/save`                    | 保存系统配置                                           |
 
 > **system-config 错误码**：`system-config/save`（upsert）在权限校验后、触达数据前 fail-closed 校验配置键命名空间前缀（`admin.`/`permission.`/`access.`），非法键返回 **20047 `CONFIG_KEY_NAMESPACE_INVALID`**（配置键只能使用 admin./permission./access. 命名空间前缀，T-ACCESS-007）。
+
+**system-config 契约要点（T-PERM-024 收口，2026-08-28）**：
+
+- `save`（upsert）：`{configKey, configValue, description?}`——按 `configKey` 查存在则 update、不存在则 insert（新建固定 `isSystem=false` 租户自定义，系统内置仅走种子）；`configValue` 为 JSON 字符串（`JsonValidationUtils` 校验合法性）；`configKey` 命名空间前缀校验 20047（见上）。无 create/update/remove——`save` 幂等覆盖新建/编辑，配置项不可删除（键稳定，防误删回退默认）。
+- `detail`：`{configKey}`（按业务键 configKey 查询，非 id）。
+- `list`：`{keyword?, pageNum?, pageSize?}` → 分页结构（§3.3）；`keyword` 匹配 configKey/description（LIKE，大小写敏感），排序 `config_key, id`；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`）。
+- **configValue JSONB 语义（SystemConfigJsonbPgIT 实证）**：读出为 DB 规范化后的 JSON 文本——与提交值**语义等价**（解析树相等，含中文/嵌套/数组），但非字节回显（JSONB 规范化空白与键序）；展示值可直接再提交（规范化幂等），无截断/转义问题。
+- 权限门禁：`list`/`detail` 需 `SYSTEM_CONFIG:VIEW`，`save` 需 `SYSTEM_CONFIG:MANAGE`（操作位种子已由权威 DDL CRUD 预置组覆盖，租户 1）。
 
 ## 6. 核心请求契约
 

@@ -90,6 +90,9 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
             config.setConfigKey(req.configKey());
             config.setConfigValue(req.configValue());
             config.setDescription(req.description());
+            // is_system NOT NULL：API 创建固定租户自定义 false（系统内置仅走种子；
+            // 修复归并遗留缺陷——原实现未设置导致 insert 违反非空约束，T-PERM-024 PgIT 发现）
+            config.setIsSystem(false);
             LocalDateTime now = LocalDateTime.now();
             config.setCreatedAt(now);
             config.setUpdatedAt(now);
@@ -124,25 +127,54 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     }
 
     /**
-     * 查询系统配置列表
+     * 按条件统计有效系统配置数量
      * <p>
-     * 查询租户下所有系统配置。
      * 需要SYSTEM_CONFIG_VIEW权限。
      * </p>
      *
      * @param tenantId 租户ID
-     * @return 配置响应列表
-     * @throws SecurityException 无权限时抛出
+     * @param keyword  关键字，可选（configKey/description LIKE，大小写敏感）
+     * @return 有效行数
      */
     @Override
     @Transactional(readOnly = true)
-    public List<SystemConfigResp> listSystemConfigs(Long tenantId) {
+    public long countSystemConfigs(Long tenantId, String keyword) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        }
+        return systemConfigMapper.countByCondition(tenantId, normalize(keyword));
+    }
+
+    /**
+     * 按条件分页查询系统配置
+     * <p>
+     * 需要SYSTEM_CONFIG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param keyword  关键字，可选（configKey/description LIKE，大小写敏感）
+     * @param offset   偏移量
+     * @param limit    每页条数
+     * @return 配置响应列表（ORDER BY config_key, id）
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<SystemConfigResp> listSystemConfigs(Long tenantId, String keyword, int offset, int limit) {
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
-        return systemConfigMapper.selectByTenantId(tenantId).stream().map(this::toSystemConfigResp).collect(Collectors.toList());
+        return systemConfigMapper.selectPageByCondition(tenantId, normalize(keyword), limit, offset)
+            .stream().map(this::toSystemConfigResp).collect(Collectors.toList());
+    }
+
+    /**
+     * 过滤参数规整：空白串归一为 null（与 SQL <if> 判空语义一致）
+     */
+    private String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**

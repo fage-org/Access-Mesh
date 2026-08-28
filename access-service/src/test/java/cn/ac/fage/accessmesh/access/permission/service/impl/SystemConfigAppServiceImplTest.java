@@ -50,6 +50,8 @@ class SystemConfigAppServiceImplTest {
 
             assertNotNull(result);
             assertEquals("admin.key1", inserted.getConfigKey());
+            // 回归锁：is_system NOT NULL——API 新建必须显式置 false，否则 insert 违反非空约束（T-PERM-024 PgIT 发现）
+            assertEquals(Boolean.FALSE, inserted.getIsSystem());
         }
     }
 
@@ -123,6 +125,55 @@ class SystemConfigAppServiceImplTest {
             service.upsertSystemConfig(1L, new SystemConfigReq("access.baz", "{}", "desc"));
 
             verify(systemConfigMapper, times(3)).insert(any(SystemConfig.class));
+        }
+    }
+
+    @Test
+    void shouldListSystemConfigsWithNormalizedKeyword() {
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+                .thenReturn(true);
+            SystemConfig row = new SystemConfig();
+            row.setId(1L);
+            row.setTenantId(1L);
+            row.setConfigKey("admin.key1");
+            row.setConfigValue("{}");
+            when(systemConfigMapper.selectPageByCondition(eq(1L), eq("cache"), eq(10), eq(0)))
+                .thenReturn(java.util.List.of(row));
+
+            java.util.List<SystemConfigResp> result = service.listSystemConfigs(1L, " cache ", 0, 10);
+
+            assertEquals(1, result.size());
+            assertEquals("admin.key1", result.get(0).configKey());
+            verify(systemConfigMapper).selectPageByCondition(eq(1L), eq("cache"), eq(10), eq(0));
+        }
+    }
+
+    @Test
+    void shouldNormalizeBlankKeywordToNull() {
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+                .thenReturn(true);
+            when(systemConfigMapper.selectPageByCondition(eq(1L), isNull(), anyInt(), anyInt()))
+                .thenReturn(java.util.List.of());
+
+            service.listSystemConfigs(1L, "  ", 20, 200);
+
+            verify(systemConfigMapper).selectPageByCondition(eq(1L), isNull(), eq(200), eq(20));
+        }
+    }
+
+    @Test
+    void shouldCountSystemConfigsDeniedWithoutViewPermission() {
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+                .thenReturn(false);
+
+            assertThrows(SecurityException.class, () -> service.countSystemConfigs(1L, null));
+            verify(systemConfigMapper, never()).countByCondition(anyLong(), any());
         }
     }
 }

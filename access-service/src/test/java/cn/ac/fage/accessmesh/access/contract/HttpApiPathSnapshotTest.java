@@ -327,7 +327,7 @@ class HttpApiPathSnapshotTest {
 /api/perm/service-config/save|access.permission.dto.req.ServiceConfigReq|common.model.PermResult<access.permission.dto.resp.ServiceConfigResp>
 /api/perm/service-config/sync|access.permission.dto.req.ServiceConfigSyncReq|common.model.PermResult<access.permission.dto.resp.ServiceConfigSyncResp>
 /api/perm/system-config/detail|access.permission.dto.req.SystemConfigGetReq|common.model.PermResult<access.permission.dto.resp.SystemConfigResp>
-/api/perm/system-config/list|access.permission.dto.req.EmptyReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.SystemConfigResp>>
+/api/perm/system-config/list|access.permission.dto.req.SystemConfigListReq|common.model.PermResult<access.permission.dto.resp.PaginatedResp<access.permission.dto.resp.SystemConfigResp>>
 /api/perm/system-config/save|access.permission.dto.req.SystemConfigReq|common.model.PermResult<access.permission.dto.resp.SystemConfigResp>
 /api/perm/type-definition/create|access.permission.dto.req.TypeCreateReq|common.model.PermResult<access.permission.dto.resp.TypeDefinitionResp>
 /api/perm/type-definition/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.TypeDefinitionResp>

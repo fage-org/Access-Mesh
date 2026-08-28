@@ -152,6 +152,7 @@ views/system/resource-operation/
 1. **资源实体业务键切换**：`detail/update/move/remove` 均用内部主键 id，应切业务键 `(resourceTypeCode, code, codeType)`（schema `uk_resource_entity` 已保证唯一）。
 2. **操作权限业务键切换**：`detail/update/remove` 用内部 id，应切业务键 `(resourceTypeCode, code)`（`uk_operation_permission_typed` 已保证唯一）；`update` 的 `operationId` 同。
 3. **VIEW 门禁种子缺失**：后端 `list/tree`（resource-entity）与 `list`（operation-permission）未见 `RESOURCE:VIEW` / `OPERATION:VIEW` 校验，schema 无 INSERT 为该资源类型预置 VIEW 操作位，联调真后端时可能全账号 403。前端按 VIEW 门控路由可达性，login 矩阵为所有账号预置 VIEW。
+   > 2026-08-28 核实（T-PERM-024 同源项澄清）：「种子缺失」半句不成立——权威 DDL CRUD 预置组（CROSS JOIN 全部 resource_type × CREATE/VIEW/UPDATE/DELETE）已覆盖 RESOURCE(7)/OPERATION(12) 的 VIEW；「list/tree/list 未见 VIEW 校验」半句待本任务执行时核实。
 4. **resource-entity list 分页**：后端 `ResourceListReq` 有分页参数，本页以树为主不消费，保留契约对齐。
 5. **bigint 字段 63 位精度**：`operation-permission.binaryBit/inheritMask` 为 63 位 bigint 列，Jackson 默认序列化为 number，前端 `JSON.parse` 在 >2⁵³ 丢精度。T-FE-008 已用 BigInt 运算解决 32 位截断（2⁵³ 内精确，覆盖全部实际业务）；63 位彻底方案需后端 DTO 加 `@JsonSerialize(ToStringSerializer.class)` 或改 `String` 类型，前端切 BigInt 全链路 + `el-input` 文本输入（丢增减按钮体验）。作为全项目 bigint 序列化策略首例，登记 T-PERM-028。
 6. **resource_type 创建联动预置 operation_permission**：schema 注释承诺创建 resource_type 类型定义时按模板联动预置 CRUD 操作位（如 MENU/BUTTON 默认操作集），代码无实现。自 T-PERM-023 §8 第 4 条改归属（2026-08-28）——预置模板与 binaryBit 位分配依赖本任务 operation-permission 写链路同批定夺。

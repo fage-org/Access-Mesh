@@ -3,16 +3,19 @@ package cn.ac.fage.accessmesh.access.permission.controller;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.SystemConfigGetReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.SystemConfigListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.SystemConfigReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.EmptyReq;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.SystemConfigResp;
 import cn.ac.fage.accessmesh.access.permission.service.SystemConfigAppService;
+import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * 系统配置管理控制器
@@ -69,15 +72,24 @@ public class SystemConfigController {
     /**
      * 查询系统配置列表
      * <p>
-     * 返回租户下所有的系统配置项列表。
-     * 用于查看当前配置的全局参数。
+     * 支持关键字过滤（configKey/description）与服务端分页。
+     * pageNum/pageSize 均未传 = 字典全量（上限 PageUtil.MAX_PAGE_SIZE，先例 /role/list）。
      * </p>
      *
-     * @param req 空请求，用于保持接口一致性
-     * @return 系统配置列表
+     * @param req 列表查询请求，含关键字与分页参数（均可选）
+     * @return 分页系统配置列表
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<SystemConfigResp>> listSystemConfigs(@Valid @RequestBody EmptyReq req) {
-        return PermResult.success(new ItemsResp<>(systemConfigAppService.listSystemConfigs(TenantContextHolder.getTenantId())));
+    public PermResult<PaginatedResp<SystemConfigResp>> listSystemConfigs(@Valid @RequestBody SystemConfigListReq req) {
+        boolean paged = req.pageNum() != null || req.pageSize() != null;
+        int pageNum = PageUtil.pageNum(req.pageNum());
+        int pageSize = paged ? PageUtil.pageSize(req.pageSize()) : PageUtil.MAX_PAGE_SIZE;
+        int offset = PageUtil.offset(pageNum, pageSize);
+        Long tenantId = TenantContextHolder.getTenantId();
+        long total = systemConfigAppService.countSystemConfigs(tenantId, req.keyword());
+        List<SystemConfigResp> items =
+            systemConfigAppService.listSystemConfigs(tenantId, req.keyword(), offset, pageSize);
+        return PermResult.success(new PaginatedResp<>(
+            items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 }
