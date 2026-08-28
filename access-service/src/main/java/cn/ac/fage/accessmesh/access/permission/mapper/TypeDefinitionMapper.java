@@ -83,7 +83,7 @@ public interface TypeDefinitionMapper extends BaseMapper<TypeDefinition> {
      * 用于批量删除场景，避免物理删除。
      * </p>
      *
-     * @param tenantId  租户ID
+     * @param tenantId 租户ID
      * @param ids       待删除的类型定义ID列表
      * @param deletedAt 删除时间戳
      * @return 更新的行数
@@ -91,14 +91,6 @@ public interface TypeDefinitionMapper extends BaseMapper<TypeDefinition> {
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
-
-    /**
-     * 根据租户ID查询所有有效类型定义列表
-     *
-     * @param tenantId 租户ID
-     * @return 类型定义列表
-     */
-    List<TypeDefinition> selectByTenantId(@Param("tenantId") Long tenantId);
 
     /**
      * 根据租户ID和ID集合查询有效类型定义列表
@@ -119,4 +111,46 @@ public interface TypeDefinitionMapper extends BaseMapper<TypeDefinition> {
      */
     List<TypeDefinition> selectByTenantAndTypeKey(@Param("tenantId") Long tenantId,
                                                    @Param("typeKey") String typeKey);
+
+    /**
+     * 查询租户+类型键内全量行（含软删行）的 typeValue 最大值
+     * <p>
+     * 用于 typeValue 自动分配：max+1 且软删不复用（已删行的 typeValue 仍占位）。
+     * 不加 delete_flag 过滤是该方法的语义本身。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param typeKey  类型键
+     * @return 最大 typeValue，无任何行时返回 null
+     */
+    Integer selectMaxTypeValueAllRows(@Param("tenantId") Long tenantId,
+                                      @Param("typeKey") String typeKey);
+
+    /**
+     * 按条件统计有效类型定义数量
+     *
+     * @param tenantId 租户ID
+     * @param typeKey  类型键，可选（精确过滤）
+     * @param keyword  关键字，可选（name/typeCode ILIKE）
+     * @return 有效行数
+     */
+    long countByCondition(@Param("tenantId") Long tenantId,
+                          @Param("typeKey") String typeKey,
+                          @Param("keyword") String keyword);
+
+    /**
+     * 按条件分页查询有效类型定义（ORDER BY sort_order, id）
+     *
+     * @param tenantId 租户ID
+     * @param typeKey  类型键，可选（精确过滤）
+     * @param keyword  关键字，可选（name/typeCode ILIKE）
+     * @param limit    每页条数
+     * @param offset   偏移量
+     * @return 类型定义列表
+     */
+    List<TypeDefinition> selectPageByCondition(@Param("tenantId") Long tenantId,
+                                                @Param("typeKey") String typeKey,
+                                                @Param("keyword") String keyword,
+                                                @Param("limit") int limit,
+                                                @Param("offset") int offset);
 }

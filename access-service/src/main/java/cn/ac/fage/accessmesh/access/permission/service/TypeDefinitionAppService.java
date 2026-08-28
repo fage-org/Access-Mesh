@@ -34,13 +34,26 @@ public interface TypeDefinitionAppService {
     TypeDefinitionResp getType(Long tenantId, Long typeId);
 
     /**
-     * 查询类型定义列表
+     * 按条件统计有效类型定义数量
      *
-     * @param tenantId   租户ID
-     * @param domainCode 业务域编码，可选
-     * @return 类型定义列表
+     * @param tenantId 租户ID
+     * @param typeKey  类型键，可选（精确过滤）
+     * @param keyword  关键字，可选（name/typeCode ILIKE）
+     * @return 有效行数
      */
-    List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode);
+    long countTypes(Long tenantId, String typeKey, String keyword);
+
+    /**
+     * 按条件分页查询类型定义
+     *
+     * @param tenantId 租户ID
+     * @param typeKey  类型键，可选（精确过滤）
+     * @param keyword  关键字，可选（name/typeCode ILIKE）
+     * @param offset   偏移量
+     * @param limit    每页条数
+     * @return 类型定义列表（ORDER BY sort_order, id）
+     */
+    List<TypeDefinitionResp> listTypes(Long tenantId, String typeKey, String keyword, int offset, int limit);
 
     /**
      * 更新类型定义

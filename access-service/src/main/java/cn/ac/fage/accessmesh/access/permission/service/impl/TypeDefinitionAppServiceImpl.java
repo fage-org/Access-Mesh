@@ -51,20 +51,22 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     /**
      * 创建类型定义
      * <p>
-     * 创建新的类型定义实体，设置类型键、类型值、名称、描述等属性。
-     * 类型定义用于系统中的各类枚举值映射，如资源类型、角色类型、用户类型等。
+     * typeValue 由服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）；
+     * typeCode 留空时按 {@code TYPEKEY_<typeValue>} 生成，显式提供时校验 tenant+typeKey 内唯一；
+     * isSystem 固定 false——系统预置类型仅走租户初始化种子，不可由 API 创建。
      * 需要TYPE_DEFINITION_CREATE权限。
      * </p>
      *
      * @param tenantId   租户ID
-     * @param req        创建请求，包含类型键、类型值、名称等
+     * @param req        创建请求，包含类型键、名称等
      * @param operatorId 操作者ID，可选
      * @return 创建的类型定义响应
      * @throws SecurityException 无权限时抛出
+     * @throws BizException      typeCode 重复时抛出（20049）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_CREATE", targetType = "type_definition", targetId = "#result.id()", summary = "'create type definition ' + #req.typeKey() + ':' + #req.typeValue()")
+    @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_CREATE", targetType = "type_definition", targetId = "#result.id()", summary = "'create type definition ' + #req.typeKey() + ':' + #result.typeCode()")
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -72,13 +74,29 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             throw new SecurityException("Permission denied: CREATE on TYPE_DEFINITION");
         }
 
+        // typeValue 自动分配：全量行（含软删行）max+1，软删不复用（T-PERM-023，收敛 T-PERM-019 D1）
+        Integer maxTypeValue = typeDefinitionMapper.selectMaxTypeValueAllRows(tenantId, req.typeKey());
+        int typeValue = (maxTypeValue != null ? maxTypeValue : 0) + 1;
+
+        String typeCode = req.typeCode();
+        if (typeCode == null || typeCode.isBlank()) {
+            typeCode = req.typeKey().toUpperCase() + "_" + typeValue;
+        } else {
+            typeCode = typeCode.trim();
+            if (typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, req.typeKey(), typeCode) != null) {
+                throw new BizException(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
+                    "Type code already exists: " + typeCode);
+            }
+        }
+
         TypeDefinition type = new TypeDefinition();
         type.setTenantId(tenantId);
         type.setTypeKey(req.typeKey());
-        type.setTypeValue(req.typeValue());
+        type.setTypeCode(typeCode);
+        type.setTypeValue(typeValue);
         type.setName(req.name());
         type.setDescription(req.description());
-        type.setIsSystem(req.isSystem() != null ? req.isSystem() : false);
+        type.setIsSystem(false);
         type.setSortOrder(req.sortOrder() != null ? req.sortOrder() : 0);
         type.setExtra(req.extra());
         type.setCreatedBy(operatorId);
@@ -115,27 +133,55 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     }
 
     /**
-     * 查询类型定义列表
+     * 按条件统计有效类型定义数量
      * <p>
-     * 查询租户下所有活跃的类型定义。
      * 需要TYPE_DEFINITION_VIEW权限。
      * </p>
      *
-     * @param tenantId   租户ID
-     * @param domainCode 业务域编码，可选（当前未使用）
-     * @return 类型定义响应列表
-     * @throws SecurityException 无权限时抛出
+     * @param tenantId 租户ID
+     * @param typeKey  类型键，可选（精确过滤）
+     * @param keyword  关键字，可选（name/typeCode ILIKE）
+     * @return 有效行数
      */
     @Override
     @Transactional(readOnly = true)
-    public List<TypeDefinitionResp> listTypes(Long tenantId, String domainCode) {
+    public long countTypes(Long tenantId, String typeKey, String keyword) {
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
         }
+        return typeDefinitionMapper.countByCondition(tenantId, normalize(typeKey), normalize(keyword));
+    }
 
-        return typeDefinitionMapper.selectByTenantId(tenantId)
+    /**
+     * 按条件分页查询类型定义
+     * <p>
+     * 需要TYPE_DEFINITION_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param typeKey  类型键，可选（精确过滤）
+     * @param keyword  关键字，可选（name/typeCode ILIKE）
+     * @param offset   偏移量
+     * @param limit    每页条数
+     * @return 类型定义响应列表（ORDER BY sort_order, id）
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TypeDefinitionResp> listTypes(Long tenantId, String typeKey, String keyword, int offset, int limit) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
+        }
+        return typeDefinitionMapper.selectPageByCondition(tenantId, normalize(typeKey), normalize(keyword), limit, offset)
             .stream().map(this::toTypeResp).collect(Collectors.toList());
+    }
+
+    /**
+     * 过滤参数规整：空白串归一为 null（与 SQL <if> 判空语义一致）
+     */
+    private String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**

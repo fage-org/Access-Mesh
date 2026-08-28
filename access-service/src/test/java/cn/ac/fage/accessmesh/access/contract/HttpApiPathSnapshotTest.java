@@ -331,7 +331,7 @@ class HttpApiPathSnapshotTest {
 /api/perm/system-config/save|access.permission.dto.req.SystemConfigReq|common.model.PermResult<access.permission.dto.resp.SystemConfigResp>
 /api/perm/type-definition/create|access.permission.dto.req.TypeCreateReq|common.model.PermResult<access.permission.dto.resp.TypeDefinitionResp>
 /api/perm/type-definition/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.TypeDefinitionResp>
-/api/perm/type-definition/list|access.permission.dto.req.TypeListReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.TypeDefinitionResp>>
+/api/perm/type-definition/list|access.permission.dto.req.TypeListReq|common.model.PermResult<access.permission.dto.resp.PaginatedResp<access.permission.dto.resp.TypeDefinitionResp>>
 /api/perm/type-definition/remove|access.permission.dto.req.IdsReq|common.model.PermResult<Void>
 /api/perm/type-definition/update|access.permission.dto.req.TypeUpdateReq|common.model.PermResult<access.permission.dto.resp.TypeDefinitionResp>
 /api/perm/user-role/assign|access.permission.dto.req.UserAssignRoleReq|common.model.PermResult<Void>

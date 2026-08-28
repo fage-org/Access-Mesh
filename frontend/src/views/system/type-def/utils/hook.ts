@@ -14,7 +14,7 @@ import { createEmptyTypeDefForm, type TypeDefFormData } from "./types";
  * 类型定义页 hook（分页表格 + CRUD）。
  *
  * 范式对齐 user/utils/hook.ts：tableData/loading/searchForm/pagination + loadTable/分页回调。
- * 后端 list 现仅 domainCode（未生效），mock 按 typeKey/keyword 本地过滤（登记 T-PERM-023 🔧）。
+ * T-PERM-023 收口：list 服务端 typeKey/keyword 过滤 + 分页（ORDER BY sortOrder,id），前端只消费。
  */
 export function useTypeDef() {
   const tableData = ref<TypeDefResp[]>([]);
@@ -28,25 +28,14 @@ export function useTypeDef() {
   async function loadTable() {
     loading.value = true;
     try {
-      // 后端 /list 返回 ItemsResp（全量，无分页/无 typeKey 过滤，登记 T-PERM-023 🔧）。
-      // 前端本地做 typeKey/keyword 过滤 + sortOrder 排序 + 切片分页。字典表量小，每次翻页重拉全量可接受。
-      const res = await getTypeDefList({});
-      let all = res.items.slice();
-      if (searchForm.typeKey) {
-        all = all.filter(t => t.typeKey === searchForm.typeKey);
-      }
-      if (searchForm.keyword) {
-        const kw = searchForm.keyword.toLowerCase();
-        all = all.filter(
-          t =>
-            t.name.toLowerCase().includes(kw) ||
-            t.typeCode.toLowerCase().includes(kw)
-        );
-      }
-      all.sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
-      pagination.total = all.length;
-      const start = (pagination.page - 1) * pagination.size;
-      tableData.value = all.slice(start, start + pagination.size);
+      const res = await getTypeDefList({
+        typeKey: searchForm.typeKey ?? undefined,
+        keyword: searchForm.keyword || undefined,
+        pageNum: pagination.page,
+        pageSize: pagination.size
+      });
+      tableData.value = res.items;
+      pagination.total = res.total;
     } catch (e: any) {
       message(e.message || "加载类型定义失败", { type: "error" });
     } finally {

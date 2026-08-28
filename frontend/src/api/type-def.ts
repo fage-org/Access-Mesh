@@ -73,22 +73,20 @@ export type TypeDefResp = {
   updatedAt?: string;
 };
 
-/** 类型定义列表查询参数。
- *  🔧 API 核对项（登记 T-PERM-023）：后端 TypeListReq 仅 domainCode（未用），返回租户全量
- *  ItemsResp（无分页、无 typeKey/keyword 过滤）。前端按 typeKey/keyword 本地过滤 + 切片分页。
- *  Phase 2 后端补 typeKey/keyword/pageNum/pageSize 参数并返回 PaginatedResp 后，前端可切回服务端分页。 */
+/** 类型定义列表查询参数（T-PERM-023 收口：服务端 typeKey/keyword 过滤 + 分页）。
+ *  keyword 匹配 name/typeCode（ILIKE）；pageNum/pageSize 均不传 = 字典全量
+ *  （后端上限 200，先例 /role/list——授权页/冲突规则/资源操作等下拉数据源走该模式）。 */
 export type TypeDefListQuery = {
-  domainCode?: string | null;
+  typeKey?: string | null;
+  keyword?: string | null;
+  pageNum?: number;
+  pageSize?: number;
 };
 
-/** 类型定义创建请求。
- *  🔧 API 核对项（登记 T-PERM-023 / T-PERM-019 D1）：
- *  - 不含 typeValue（设计意图：服务端在 tenant+typeKey 内自动分配、软删不复用）。
- *    后端 TypeCreateReq.typeValue 当前 @NotNull（DESIGN_DRIFT），Phase 2 收敛。
- *  - 含 typeCode（对外稳定编码）。后端 TypeCreateReq 当前无 typeCode 字段（createType 未 setTypeCode，
- *    潜在 bug），Phase 2 后端补字段或服务端生成。
- *  - 不含 isSystem（schema 语义：系统预置走初始化种子，不由前端创建；后端 TypeCreateReq 现有
- *    isSystem 字段为 DESIGN_DRIFT，Phase 2 收敛——前端固定创建租户自定义项 isSystem=false）。 */
+/** 类型定义创建请求（T-PERM-023 收口，对齐后端 TypeCreateReq）：
+ *  - 不含 typeValue：服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）。
+ *  - typeCode 可选：留空则服务端按 TYPEKEY_<typeValue> 生成；显式提供时后端查重（20049）。
+ *  - 不含 isSystem：系统预置仅走租户初始化种子，API 创建固定 isSystem=false。 */
 export type TypeDefCreateReq = {
   typeKey: string;
   typeCode?: string | null;
@@ -111,13 +109,12 @@ export type TypeDefUpdateReq = {
 // ========== API 函数 ==========
 
 /** 查询类型定义列表（POST /perm/api/perm/type-definition/list）。
- *  后端 TypeListReq 现仅 domainCode（未生效），返回 ItemsResp<TypeDefinitionResp>（租户全量，
- *  无分页/无 typeKey 过滤）。前端 hook 拿全量 items 后本地做 typeKey/keyword 过滤 + 切片分页。
- *  🔧 后端补 typeKey/keyword/pageNum/pageSize 参数 + 返回 PaginatedResp 登记于 T-PERM-023。 */
+ *  T-PERM-023 收口：服务端 typeKey/keyword 过滤 + 分页，返回 PaginatedResp
+ *  （ORDER BY sortOrder,id）；不传分页参数 = 字典全量（上限 200）。 */
 export const getTypeDefList = async (
   params: TypeDefListQuery
-): Promise<ItemsResp<TypeDefResp>> => {
-  const res = await http.request<PermResult<ItemsResp<TypeDefResp>>>(
+): Promise<PaginatedResp<TypeDefResp>> => {
+  const res = await http.request<PermResult<PaginatedResp<TypeDefResp>>>(
     "post",
     "/perm/api/perm/type-definition/list",
     { data: params }

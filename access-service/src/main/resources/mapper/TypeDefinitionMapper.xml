@@ -58,12 +58,6 @@
           AND delete_flag = 0
     </select>
 
-    <select id="selectByTenantId" resultType="cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition">
-        SELECT * FROM type_definition
-        WHERE tenant_id = #{tenantId}
-          AND delete_flag = 0
-    </select>
-
     <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition">
         SELECT * FROM type_definition
         WHERE tenant_id = #{tenantId}
@@ -79,6 +73,36 @@
         WHERE tenant_id = #{tenantId}
           AND type_key = #{typeKey}
           AND delete_flag = 0
+    </select>
+
+    <!-- typeValue 自动分配：含软删行取 max（软删不复用是分配语义本身，不加 delete_flag 过滤） -->
+    <select id="selectMaxTypeValueAllRows" resultType="java.lang.Integer">
+        SELECT MAX(type_value) FROM type_definition
+        WHERE tenant_id = #{tenantId}
+          AND type_key = #{typeKey}
+    </select>
+
+    <sql id="listCondition">
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="typeKey != null">
+          AND type_key = #{typeKey}
+        </if>
+        <if test="keyword != null and keyword != ''">
+          AND (name ILIKE CONCAT('%', #{keyword}, '%') OR type_code ILIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <select id="countByCondition" resultType="long">
+        SELECT COUNT(*) FROM type_definition
+        <include refid="listCondition"/>
+    </select>
+
+    <select id="selectPageByCondition" resultType="cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition">
+        SELECT * FROM type_definition
+        <include refid="listCondition"/>
+        ORDER BY sort_order, id
+        LIMIT #{limit} OFFSET #{offset}
     </select>
 
 </mapper>

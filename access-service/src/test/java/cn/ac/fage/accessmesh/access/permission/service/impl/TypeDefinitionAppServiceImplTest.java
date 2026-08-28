@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
+import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.TypeDefinitionResp;
@@ -8,6 +10,7 @@ import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -15,11 +18,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
+import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -27,6 +34,8 @@ import static org.mockito.Mockito.when;
  * 类型定义应用服务测试类
  * <p>
  * 测试TypeDefinitionAppServiceImpl的各项功能。
+ * T-PERM-023 收口后：typeValue 服务端自动分配（软删不复用）、typeCode 可选生成+查重、
+ * list 服务端过滤分页。
  * </p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -42,15 +51,24 @@ class TypeDefinitionAppServiceImplTest {
         service = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, engine
         );
+        // list/count 走 OperatorContext（读 AccessRequestContext），绑定用户上下文
+        AccessRequestContext.bind(RequestContext.user(1L, 100L));
+    }
+
+    @AfterEach
+    void tearDown() {
+        AccessRequestContext.clear();
     }
 
     @Test
     void shouldCreateTypeWhenPermissionGranted() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(5);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "CUSTOM")).thenReturn(null);
 
         TypeCreateReq req = new TypeCreateReq(
-            "resource_type", 100, "TestType", "A test type", false, 0, null
+            "resource_type", "CUSTOM", "TestType", "A test type", 0, null
         );
 
         TypeDefinitionResp result = service.createType(1L, req, 100L);
@@ -62,8 +80,61 @@ class TypeDefinitionAppServiceImplTest {
         assertNotNull(result);
         assertEquals("TestType", result.name());
         assertEquals("resource_type", inserted.getTypeKey());
-        assertEquals(100, inserted.getTypeValue());
+        assertEquals("CUSTOM", inserted.getTypeCode());
         assertEquals(100L, inserted.getCreatedBy());
+    }
+
+    @Test
+    void shouldAllocateTypeValueFromMaxPlusOneIncludingDeletedRows() {
+        // 回归锁：typeValue 由服务端分配，且 max 查询必须含软删行（软删不复用，T-PERM-019 D1）
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(7);
+
+        TypeCreateReq req = new TypeCreateReq("resource_type", null, "AutoCode", null, null, null);
+
+        service.createType(1L, req, 100L);
+
+        ArgumentCaptor<TypeDefinition> captor = ArgumentCaptor.forClass(TypeDefinition.class);
+        verify(typeDefinitionMapper).insert(captor.capture());
+        assertEquals(8, captor.getValue().getTypeValue());
+        // typeCode 留空 → TYPEKEY_<typeValue> 生成
+        assertEquals("RESOURCE_TYPE_8", captor.getValue().getTypeCode());
+        // isSystem 固定 false：系统预置仅走种子，不可由 API 创建
+        assertEquals(false, captor.getValue().getIsSystem());
+        // 生成码不查重（typeValue 含软删行全局不重复，生成码天然唯一）
+        verify(typeDefinitionMapper, never()).selectByTypeKeyAndCode(anyLong(), any(), any());
+    }
+
+    @Test
+    void shouldAllocateTypeValueFromOneWhenNoRows() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(null);
+
+        service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null), 100L);
+
+        ArgumentCaptor<TypeDefinition> captor = ArgumentCaptor.forClass(TypeDefinition.class);
+        verify(typeDefinitionMapper).insert(captor.capture());
+        assertEquals(1, captor.getValue().getTypeValue());
+        assertEquals("GROUP_TYPE_1", captor.getValue().getTypeCode());
+    }
+
+    @Test
+    void shouldRejectDuplicateExplicitTypeCode() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(5);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "MENU"))
+            .thenReturn(new TypeDefinition());
+
+        TypeCreateReq req = new TypeCreateReq("resource_type", "MENU", "Dup", null, null, null);
+
+        BizException exception = assertThrows(BizException.class,
+            () -> service.createType(1L, req, 100L));
+
+        assertEquals(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
+        verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
     }
 
     @Test
@@ -72,10 +143,55 @@ class TypeDefinitionAppServiceImplTest {
             .thenReturn(false);
 
         TypeCreateReq req = new TypeCreateReq(
-            "resource_type", 100, "TestType", "A test type", false, 0, null
+            "resource_type", null, "TestType", "A test type", 0, null
         );
 
         assertThrows(SecurityException.class, () -> service.createType(1L, req, 100L));
+    }
+
+    @Test
+    void shouldListTypesWithNormalizedFilters() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(true);
+        TypeDefinition row = new TypeDefinition();
+        row.setId(9L);
+        row.setTenantId(1L);
+        row.setTypeKey("resource_type");
+        row.setTypeCode("MENU");
+        row.setTypeValue(1);
+        row.setName("菜单");
+        row.setSortOrder(2);
+        when(typeDefinitionMapper.selectPageByCondition(eq(1L), eq("resource_type"), eq("men"), eq(10), eq(0)))
+            .thenReturn(List.of(row));
+
+        List<TypeDefinitionResp> result =
+            service.listTypes(1L, " resource_type ", " men ", 0, 10);
+
+        // 空白规整为 null 的语义：显式传值走 trim 后过滤
+        assertEquals(1, result.size());
+        assertEquals("MENU", result.get(0).typeCode());
+        verify(typeDefinitionMapper).selectPageByCondition(eq(1L), eq("resource_type"), eq("men"), eq(10), eq(0));
+    }
+
+    @Test
+    void shouldNormalizeBlankFiltersToNull() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.selectPageByCondition(eq(1L), isNull(), isNull(), anyInt(), anyInt()))
+            .thenReturn(List.of());
+
+        service.listTypes(1L, "  ", "", 0, 200);
+
+        verify(typeDefinitionMapper).selectPageByCondition(eq(1L), isNull(), isNull(), eq(200), eq(0));
+    }
+
+    @Test
+    void shouldCountTypesWithPermission() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.countByCondition(1L, null, null)).thenReturn(42L);
+
+        assertEquals(42L, service.countTypes(1L, null, null));
     }
 
     @Test

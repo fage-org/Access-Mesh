@@ -3,7 +3,7 @@ doc_type: design
 title: 6.1 类型定义页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-06-30
+last_reviewed: 2026-08-28   # 2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）
 ---
 
 # 6.1 类型定义页 前端设计
@@ -106,9 +106,9 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），非左�
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 列表 | `POST /api/perm/type-definition/list` | `{domainCode?}` | `ItemsResp<TypeDefResp>`（全量，无分页/无 typeKey 过滤） | 🔧 见 §8 |
+| 列表 | `POST /api/perm/type-definition/list` | `{typeKey?,keyword?,pageNum?,pageSize?}` | `PaginatedResp<TypeDefResp>`（服务端过滤+分页，ORDER BY sortOrder,id） | ✅（T-PERM-023 收口） |
 | 详情 | `POST /api/perm/type-definition/detail` | `{id}` (IdReq) | `TypeDefResp` | ✅ |
-| 创建 | `POST /api/perm/type-definition/create` | `{typeKey,typeCode?,name,description?,sortOrder?,extra?}` | `TypeDefResp` | 🔧 见 §8 |
+| 创建 | `POST /api/perm/type-definition/create` | `{typeKey,typeCode?,name,description?,sortOrder?,extra?}` | `TypeDefResp` | ✅（T-PERM-023 收口） |
 | 更新 | `POST /api/perm/type-definition/update` | `{typeId,name?,description?,sortOrder?,extra?}` | `TypeDefResp` | ✅ |
 | 删除 | `POST /api/perm/type-definition/remove` | `{ids:[]}` | `Void` | ✅ |
 
@@ -162,57 +162,30 @@ views/system/type-def/
 | hr（组织人事管理员） | 只读（VIEW） |
 | auditor（审计员） | 只读（VIEW） |
 
-## 8. API 核对清单（登记 T-PERM-023）
+## 8. API 核对清单（T-PERM-023，2026-08-28 收口）
 
-Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-023。
+Phase 1 登记的 🔧 项处置终态：
 
-### 🔧 需改造
-
-1. **`typeValue` 自动分配未实现（T-PERM-019 D1 漂移）**
-   - 现状：`TypeCreateReq.typeValue` 仍 `@NotNull`，`createType` 直接用入参，无 allocator。
-   - 期望：服务端在 `tenant+typeKey` 内自动分配 `typeValue`（`max+1`，**软删不复用**——已删行的 typeValue 仍占位），`TypeCreateReq` 移除 `typeValue` 字段。
-   - 依据：schema 唯一索引 `uk_type_definition_value (tenant_id,type_key,type_value) WHERE delete_flag=0`（access-service.sql）保证未删行唯一；`type_value` 是内部计算值，不应外部入参；D1 明确软删不复用。
-   - 前端可行性：✅ 本页表单已不收集 typeValue，mock `nextTypeValue` 取全部行（含已软删）max+1。后端切换后前端无需改动。
-   - 归属：T-PERM-023 🔧（收敛 T-PERM-019 D1）。
-
-2. **`list` 返回全量 ItemsResp，无分页/无 typeKey/keyword 过滤**
-   - 现状：`TypeListReq` 仅 `domainCode`（且未生效），`/list` 返回 `ItemsResp<TypeDefinitionResp>`（全量 `items`，无 total/pageNum/pageSize）。
-   - 期望：`TypeListReq` 增加 `typeKey`/`keyword`/`pageNum`/`pageSize` 参数，`/list` 返回 `PaginatedResp<TypeDefinitionResp>`（服务端分页+过滤）。
-   - 前端可行性：✅ Phase 1 前端已适配 `ItemsResp` 全量 + 本地过滤分页（hook `loadTable`）；字典表量小可接受。后端补参数+分页结构后，前端 hook 切回服务端分页即可。
-   - 归属：T-PERM-023 🔧。
-
-3. **`create` 不接收 `typeCode`**
-   - 现状：`TypeCreateReq` 无 `typeCode` 字段，`createType` 未 `setTypeCode`（潜在 bug）。
-   - 期望：`TypeCreateReq` 增加 `typeCode`（可空，留空则服务端按规则生成），`createType` 写入。
-   - 依据：`typeCode` 是对外稳定编码，应由调用方提供以便外部系统引用，schema `uk_type_definition_code` 保证唯一。
-   - 前端可行性：✅ 本页表单 typeCode 可填或留空，mock 按规则生成。后端补字段或服务端生成。
-   - 归属：T-PERM-023 🔧。
-
-4. **`resource_type` 创建联动预置 CRUD `operation_permission` 未实现**
-   - 现状：schema:38 注释承诺创建 resource_type 时联动预置 operation_permission（如 MENU/BUTTON/API/DATA 的默认操作集），代码无实现。
-   - 期望：创建 resource_type 类型定义时，按预置模板联动创建对应 operation_permission 行。
-   - 归属：T-PERM-023 🔧/❌（需结合 T-PERM-028 资源+操作定义后端确认范围）。
-
-5. **`create` 的 `isSystem` 字段为 DESIGN_DRIFT（前端不应可创建系统预置项）**
-   - 现状：`TypeCreateReq` 含 `isSystem` 字段，允许调用方创建 `isSystem=true` 的类型。
-   - 期望：`TypeCreateReq` 移除 `isSystem` 字段（或服务端强制 false）。系统预置项只走租户初始化种子流程，不可由 API 创建——schema:47 语义 `is_system=true=预置不可删改`，若可由前端创建会立即产生不可编辑/不可删除的"锁死"行。
-   - 前端可行性：✅ 本页新建表单已不暴露 isSystem 开关、`TypeDefCreateReq` 已不含该字段、hook create 不透传。后端移除字段后前端无需改动。
-   - 归属：T-PERM-023 🔧（收敛 T-PERM-019 D 系列）。
+1. ✅ **typeValue 自动分配（收敛 T-PERM-019 D1）**：服务端在 tenant+typeKey 内按全量行（含软删行）max+1 分配，软删不复用；`TypeCreateReq` 已移除 `typeValue` 字段。
+2. ✅ **list 服务端过滤+分页**：`TypeListReq` = `{typeKey?, keyword?, pageNum?, pageSize?}`（移除从未生效的 `domainCode`），返回 `PaginatedResp`（keyword 匹配 name/typeCode ILIKE，ORDER BY sortOrder,id）；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`，供授权页/冲突规则/资源操作下拉数据源消费）；本页 hook 已切服务端分页。
+3. ✅ **create 接收 typeCode**：可选，留空服务端按 `TYPEKEY_<typeValue>` 生成；显式提供时 tenant+typeKey 内查重，重复拒绝 20049。
+4. ⏳ **resource_type 创建联动预置 operation_permission**：改归属 T-PERM-028（预置操作位模板与位掩码分配依赖 operation-permission 写链路同批定夺，见该任务 🔧 清单）。
+5. ✅ **create 移除 isSystem**：服务端固定 `isSystem=false`，系统预置仅走租户初始化种子，不可由 API 创建。
 
 ### ✅ 满足
 
-- detail/update/remove 满足前端需求，请求/响应结构与 mock 对齐。
-  - **list/create 不在此列**：list 返回全量 ItemsResp 无分页/过滤；create 缺 typeCode 入参 / typeValue 自动分配 / isSystem 应移除，见 §8 🔧 第 2-5 条（T-PERM-023）。
+- detail/update/remove 满足前端需求，请求/响应结构与实现一致。
+- list/create 已随 T-PERM-023 收口（见上）。
 
 ### 备注
 
 - **isSystem 业务约束非权限**：系统预置项（`isSystem=true`）不可删改是 schema 层业务约束，前端隐藏编辑/删除按钮，后端 `update` 拒改名 / `remove` 跳过删除。无需独立操作码。
-- **isSystem 不可由前端创建**：系统预置项只走租户初始化种子，新建表单不暴露开关、`TypeDefCreateReq` 不含该字段（见 §8 第 5 条 🔧）。后端 `TypeCreateReq.isSystem` 为 DESIGN_DRIFT，Phase 2 收敛。
+- **isSystem 不可由前端创建**：系统预置项只走租户初始化种子；`TypeCreateReq` 已无该字段（T-PERM-023 收口）。
 - **稳定编码设计**：typeKey/typeCode/typeValue 在 update 中均不可改（`TypeDefUpdateReq` 不含这些字段）——对外稳定编码改动会破坏既有引用，与角色管理页 externalId 只读同口径。
 
-## 9. 已知限制（Phase 1）
+## 9. 已知限制
 
-- list 为前端本地过滤+分页（后端返回全量 ItemsResp）；Phase 2 后端补 typeKey/keyword/pageNum/pageSize + 返回 PaginatedResp 后切换服务端分页。
-- typeValue 自动分配为 mock 层 `max+1`（含已软删行，软删不复用）；Phase 2 后端实现 D1 allocator 后联调。
-- mock 删除为软删（置 deleted=true，对齐 schema delete_flag），已删行不出现在列表/detail，但 typeValue 仍占位。
-- 联调（T-FE-022）需后端先补 §8 五项 🔧。
+- ~~list 为前端本地过滤+分页~~ 已随 T-PERM-023 切服务端过滤+分页（2026-08-28）。
+- ~~typeValue 自动分配为 mock 层 max+1~~ 已由后端 allocator 实现（含软删行 max+1，软删不复用，2026-08-28）。
+- 删除为软删：已删行不出现在列表/detail，但 typeValue 仍占位（服务端分配语义，前端无需感知）。
+- §8 第 4 项（resource_type 联动预置 operation_permission）待 T-PERM-028；联调（T-FE-022）不受该项阻塞（页面不消费该联动）。

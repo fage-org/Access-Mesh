@@ -226,7 +226,12 @@ public enum PermissionErrorCode {
      * autoGrant=true 不支持：自动授权未实现（T-PERM-035 暂缓，design-review §11 E4），
      * resource_dependency.auto_grant 为预留字段，实现前所有写入口仅接受 false（2026-08-27 设计定案）。
      */
-    AUTO_GRANT_NOT_SUPPORTED(20048, "autoGrant=true 不支持：自动授权未实现（预留字段），仅接受 false");
+    AUTO_GRANT_NOT_SUPPORTED(20048, "autoGrant=true 不支持：自动授权未实现（预留字段），仅接受 false"),
+
+    /**
+     * 类型编码在 tenant+typeKey 内已存在（uk_type_definition_code）。
+     */
+    TYPE_DEFINITION_CODE_DUPLICATE(20049, "类型编码已存在（tenant+typeKey 内唯一）");
 
     private final int code;
     private final String message;

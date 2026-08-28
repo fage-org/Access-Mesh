@@ -80,7 +80,7 @@
 | [T-PERM-020](T-PERM-020.md) | 工作单 E：清理预设能力（死工厂删除 + domain_config/RocketMQ/auto-grant 口径收口） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；architecture | — | ✅ | ✓ |
 | [T-PERM-021](T-PERM-021.md) | 工作单 F：文档准确性与代码简化（指标自动化、DTO 单源、ownership、日志链路、full-sync runbook；含冲突标记） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | ⚙️ | ⏳ |
 | T-PERM-022 | 2.2 角色管理后端 | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract §5.2/§6.10.3；implementation §2.1；design/frontend/role-manage.md §8 | T-FE-002 | ⚙️ | ⏳ |
-| T-PERM-023 | 6.1 类型定义后端 | frontend-phase2 | api-contract §5.1；implementation §2.6；design/frontend/type-definition.md §8 | T-FE-003 | ⚙️ | ⏳ |
+| T-PERM-023 | 6.1 类型定义后端（T-PERM-023 收口 2026-08-28：typeValue 自动分配软删不复用、typeCode 可选生成+查重 20049、list 服务端过滤分页、isSystem 不可 API 创建；resource_type 联动预置操作位改归属 T-PERM-028） | frontend-phase2 | api-contract §5.1；implementation §2.6；design/frontend/type-definition.md §8 | T-FE-003 | ✅ | ✓ |
 | T-PERM-024 | 6.2 系统配置后端 | frontend-phase2 | api-contract §5.8 | T-FE-004 | ⚙️ | ⏳ |
 | T-PERM-025 | 7.1 操作日志后端（见任务卡） | frontend-phase2 | api-contract §5.8/§6.10.6；implementation §2.3 | T-FE-005 | ⚙️ | ⏳ |
 | T-PERM-026 | 5.1 业务域后端 | frontend-phase2 | api-contract §5.1/§5.6；implementation §2.7 | T-FE-006 | ⚙️ | ⏳ |

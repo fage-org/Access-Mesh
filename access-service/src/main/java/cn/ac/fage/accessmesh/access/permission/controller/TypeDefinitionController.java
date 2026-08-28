@@ -7,9 +7,10 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.access.permission.service.TypeDefinitionAppService;
+import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -46,10 +47,19 @@ public class TypeDefinitionController {
     }
 
     @PostMapping("/list")
-    public PermResult<ItemsResp<TypeDefinitionResp>> listTypes(@Valid @RequestBody TypeListReq req) {
-        return PermResult.success(new ItemsResp<>(
-            typeDefinitionAppService.listTypes(TenantContextHolder.getTenantId(), req.domainCode())
-        ));
+    public PermResult<PaginatedResp<TypeDefinitionResp>> listTypes(@Valid @RequestBody TypeListReq req) {
+        // pageNum/pageSize 均未传 = 字典全量场景（授权页/冲突规则/资源操作等下拉数据源），
+        // 取 PageUtil.MAX_PAGE_SIZE 上限（先例 /role/list LIMIT 0,200）；显式分页走 PageUtil 默认值。
+        boolean paged = req.pageNum() != null || req.pageSize() != null;
+        int pageNum = PageUtil.pageNum(req.pageNum());
+        int pageSize = paged ? PageUtil.pageSize(req.pageSize()) : PageUtil.MAX_PAGE_SIZE;
+        int offset = PageUtil.offset(pageNum, pageSize);
+        Long tenantId = TenantContextHolder.getTenantId();
+        long total = typeDefinitionAppService.countTypes(tenantId, req.typeKey(), req.keyword());
+        List<TypeDefinitionResp> items =
+            typeDefinitionAppService.listTypes(tenantId, req.typeKey(), req.keyword(), offset, pageSize);
+        return PermResult.success(new PaginatedResp<>(
+            items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 
     @PostMapping("/remove")
