@@ -164,6 +164,12 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     public RoleResp getRole(Long tenantId, String roleTypeCode, String roleExternalId) {
+        // T-PERM-022 评审收口：读接口补类型级 ROLE:VIEW 门禁（与 /tree 同款；
+        // list 信息量 >= tree，不设门禁会使 tree 门禁事实可绕）
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on ROLE");
+        }
         // T-PERM-022：业务键二元组定位（uk_abstract_role_external）；
         // 未知 roleTypeCode 不抛错，与 list 的空分页口径一致（查询语义，非写入校验）
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
@@ -326,17 +332,20 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
         Set<Long> allIdsToDelete = new LinkedHashSet<>(permittedIds);
 
-        Set<Long> groupRoleIds = permittedIds.stream()
+        // 级联删除根：容器类型（GROUP_ROLE/ORG）与 BASIC_ROLE——同类型嵌套合法（T-PERM-022
+        // 评审收口），删除有 BASIC 子级的 BASIC 角色若不级联会留悬挂子树（树上不可见无法再管理）
+        Set<Long> cascadeRootIds = permittedIds.stream()
             .filter(id -> {
                 AbstractRole role = existingRoles.get(id);
                 return role != null && role.getRoleType() != null
                     && (role.getRoleType() == RoleType.GROUP_ROLE.getValue()
-                        || role.getRoleType() == RoleType.ORG.getValue());
+                        || role.getRoleType() == RoleType.ORG.getValue()
+                        || role.getRoleType() == RoleType.BASIC_ROLE.getValue());
             })
             .collect(Collectors.toSet());
 
-        if (!groupRoleIds.isEmpty()) {
-            List<Long> descendantIds = subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, groupRoleIds);
+        if (!cascadeRootIds.isEmpty()) {
+            List<Long> descendantIds = subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, cascadeRootIds);
 
             Set<Long> descendantSet = new HashSet<>(descendantIds);
             Set<String> deniedDescendantCodes = engine.getDeniedResourceCodes(
@@ -452,6 +461,11 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     public List<RoleResp> listRoles(Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword, int offset, int limit) {
+        // T-PERM-022 评审收口：读接口补类型级 ROLE:VIEW 门禁（与 /tree 同款）
+        Long viewOperatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, viewOperatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on ROLE");
+        }
         RoleTypeFilter roleTypeFilter = resolveRoleTypeFilter(tenantId, roleTypeCode, roleTypeCodes);
         boolean matchNone = roleTypeFilter.matchNone();
         if (domainCode != null && !domainCode.isBlank()) {
@@ -463,6 +477,11 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     public long countRoles(Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword) {
+        // T-PERM-022 评审收口：读接口补类型级 ROLE:VIEW 门禁（与 /tree 同款）
+        Long countOperatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, countOperatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on ROLE");
+        }
         RoleTypeFilter roleTypeFilter = resolveRoleTypeFilter(tenantId, roleTypeCode, roleTypeCodes);
         boolean matchNone = roleTypeFilter.matchNone();
         if (domainCode != null && !domainCode.isBlank()) {

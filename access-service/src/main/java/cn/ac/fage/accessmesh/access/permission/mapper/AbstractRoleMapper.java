@@ -111,7 +111,7 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
      * <p>
      * T-PERM-022：树接口默认返回 delete_flag=0 全量角色，status 仅作展示字段
      * （禁用角色须在树中可见可再启用）；enabledOnly=true 时由 SQL 过滤 status=1
-     * （授权页主体树等仅需启用态的消费方，2026-08-28 用户决策：前端入参后端过滤）。
+     * （授权页主体树等仅需启用态的消费方；T-PERM-022 设计定案：前端入参后端过滤）。
      * </p>
      *
      * @param tenantId    租户ID

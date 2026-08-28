@@ -79,6 +79,8 @@ class FullSyncResponseContractTest {
     private HttpServletRequest httpRequest;
     @Mock
     private SyncTypeGuard syncTypeGuard;
+    @Mock
+    private cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -172,7 +174,8 @@ class FullSyncResponseContractTest {
 
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                subjectDomainService);
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
                 new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", null, null,
@@ -201,7 +204,8 @@ class FullSyncResponseContractTest {
 
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                subjectDomainService);
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
                 new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", "BASIC_ROLE", "missing-parent",

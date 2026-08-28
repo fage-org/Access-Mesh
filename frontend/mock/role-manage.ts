@@ -442,9 +442,9 @@ export default defineFakeRoute([
     response: ({ body }) => {
       const { roleTypeCode, roleExternalId } = body || {};
       const node = findNodeByExternalId(mockRoleTree, roleExternalId, roleTypeCode);
-      // ROOT 是 mock 容器，非真实角色，视为不存在；真实角色（含空 externalId）正常返回
+      // 未命中 data=null 对齐契约 §5.2（后端 PermResult.success(null)，不抛错）
       if (!node || node.roleTypeCode === "ROOT") {
-        return { code: 404, message: "角色不存在", data: null };
+        return ok(null);
       }
       return ok({
         id: node.id,

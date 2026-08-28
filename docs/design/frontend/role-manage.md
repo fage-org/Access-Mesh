@@ -3,7 +3,7 @@ doc_type: design
 title: 2.2 角色管理页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-28
+last_reviewed: 2026-08-28   # 2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
 ---
 
 # 2.2 角色管理页 前端设计
@@ -161,7 +161,7 @@ views/system/role/
 | `ROLE:ASSIGN` | ASSIGN | ROLE | 分组角色添加额外基本角色（T-PERM-043 后不可达，代码保留） |
 | `ROLE:REVOKE` | REVOKE | ROLE | 分组角色移除额外基本角色（T-PERM-043 后不可达，代码保留） |
 
-> **B1 口径**：后端 `RoleManageAppServiceImpl` 的 updateRole/moveRole/deleteRoles 均以 `ROLE:MANAGE` 做门禁，无独立 UPDATE/DELETE/MOVE 操作码。前端 EDIT/DELETE/GRANT 统一映射到 `ROLE:MANAGE`（评审 P2 修正）。`ROLE_MANAGE_PERM_LIST` 用 `Set` 去重，确保路由 `meta.auths` 无冗余。
+> **B1 口径**：后端 `RoleManageAppServiceImpl` 的 updateRole/moveRole/deleteRoles 均以 `ROLE:MANAGE` 做门禁，无独立 UPDATE/DELETE/MOVE 操作码；detail/list/tree 读接口以类型级 `ROLE:VIEW` 做门禁（T-PERM-022 收口）。前端 EDIT/DELETE/GRANT 统一映射到 `ROLE:MANAGE`（评审 P2 修正）。`ROLE_MANAGE_PERM_LIST` 用 `Set` 去重，确保路由 `meta.auths` 无冗余。
 >
 > **额外角色独立门禁（评审 P1-额外角色；T-PERM-043 后接口已删）**：原后端 addExtraRole/removeExtraRole 分别校验 `ASSIGN`/`REVOKE` 的入口已删除；前端 `canAssign`/`canRevoke` 门控与 perm 串保留（面板不可达），待 role_inclusion 立项恢复接线。
 
@@ -184,12 +184,12 @@ views/system/role/
 
 ## 8. API 核对清单（登记 T-PERM-022）
 
-Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。**已收口 2026-08-28**：三项全部落地（含评审新发现的 move 环路防护与 tree enabledOnly 消费方口径，两项用户决策），处置记录见各条。
+Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。**已收口 2026-08-28**：三项全部落地（含评审新发现的 move 环路防护与 tree enabledOnly 消费方口径，均经设计定案），处置记录见各条。
 
 ### 🔧 需改造（已全部收口 2026-08-28）
 
 1. **`/detail` 用内部主键而非业务键**
-   - 现状：`RoleController.getRole` 用 `IdReq{id}`（内部主键）。
+   - 现状：`PermRoleController.getRole` 用 `IdReq{id}`（内部主键）。
    - 期望：用业务键二元组 `roleTypeCode + externalId` 定位（tenantId 走上下文，**不含 domainCode**）。
    - 依据：schema 唯一索引 `uk_abstract_role_external (tenant_id, role_type, external_id)`（access-service.sql `abstract_role` 节）已保证租户内 `(role_type, external_id)` 唯一；`abstract_role` 表无 domain 字段（编码规范 §18，bizDomainId 已删）；`external_id` 列注释明示「按 tenant_id + role_type + external_id 定位」。
    - 前端可行性：✅ 角色树 `RoleTreeNode` 已返回 `roleTypeCode` + `externalId`（RoleTreeResp.java），前端可直接取用，前提满足。
@@ -199,19 +199,19 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。**
    - **处置（2026-08-28 收口）**：`RoleDetailReq` 重写为二元组 `{roleTypeCode, roleExternalId}`（不带 domainCode），Controller/Service/Mapper 走 `selectByTypeAndExternalId`；未命中 `data=null`（未知 roleTypeCode 与 list 空分页同口径）；前端 `getRoleDetail` 封装与 mock 同步切业务键。契约见 api-contract §5.2 角色管理契约要点。
 
 2. **`/move` 缺父子类型兼容校验**
-   - 现状：`RoleManageAppServiceImpl.moveRole`（:176）仅校验父存在 + 调用方 `ROLE:MANAGE`，**不校验**父子角色类型是否一致（同类型内嵌套合法，跨类型嵌套如 BASIC_ROLE 挂到 GROUP_ROLE 下应拒绝）。
+   - 现状：`RoleManageAppServiceImpl.moveRole` 仅校验父存在 + 调用方 `ROLE:MANAGE`，**不校验**父子角色类型是否一致（同类型内嵌套合法，跨类型嵌套如 BASIC_ROLE 挂到 GROUP_ROLE 下应拒绝）。
    - 期望：move 时校验 `target.parentId` 对应父角色的 `roleTypeCode === node.roleTypeCode`，不一致则 `BizException` 拒绝。
    - 前端兜底：本页已用 `allowDrop` + `handleNodeDrop` 回滚拦截跨类型拖拽（P1-拖拽修复）；后端兜底校验为 Phase 2 缺口。
    - 归属：T-PERM-022 🔧。
-   - **处置（2026-08-28 收口）**：`moveRole` 补同类型校验（跨类型拒绝 20022，`Objects.equals` 比较父子 role_type）。**评审新发现一并修复（用户决策）**：move 原无环路防护——移到自身/子孙下 parent 链成环（环节点从树构建静默消失、祖先/子孙递归 CTE 不收敛可挂查询，admin 域组织 10108/菜单 10207 有同场景先例而角色域漏配）；复用 `resolveDescendantRoleIdsBatch` 判定 + 新错误码 **20050** `ROLE_PARENT_INVALID`。存量 GROUP_ROLE 组树为冻结读模型，跨类型装配自本任务起无 API 通道（UserRoleWriteProjectionPgIT 组树装配改 JDBC 直改 + 投影镜像，引擎语义用例不受影响）。
+   - **处置（2026-08-28 收口）**：`moveRole` 补同类型校验（跨类型拒绝 20022，`Objects.equals` 比较父子 role_type）。**评审新发现一并修复（设计定案）**：move 原无环路防护——移到自身/子孙下 parent 链成环（环节点从树构建静默消失、祖先/子孙递归 CTE 不收敛可挂查询，admin 域组织 10108/菜单 10207 有同场景先例而角色域漏配）；复用 `resolveDescendantRoleIdsBatch` 判定 + 新错误码 **20050** `ROLE_PARENT_INVALID`。存量 GROUP_ROLE 组树为冻结读模型，跨类型装配自本任务起无 API 通道（UserRoleWriteProjectionPgIT 组树装配改 JDBC 直改 + 投影镜像，引擎语义用例不受影响）。**双轨评审收口（设计定案）**：sync/full-sync 的 parent 补同款环路判定（防外部错误数据一步成自环旁路 move 防护）；detail/list 补类型级 ROLE:VIEW 门禁（与 tree 同款）；remove 级联扩展到 BASIC_ROLE 子孙（同类型嵌套合法后，删除有 BASIC 子级的父角色须级联，消除悬挂子树）。并发交叉移动的成环窗口与递归 CTE 遇环不收敛登记 **T-PERM-044**（三棵树统一加固，含 admin 域组织/菜单同构缺口）。
 
 3. **`/tree` 只返回启用角色，禁用后从树消失无法再启用**
-   - 现状：`getRoleTree`（:321）走 `selectEnabledRoleTree`，SQL `AND status = 1`（mapper xml:126），禁用角色不在树中。
+   - 现状：`getRoleTree` 走 `selectEnabledRoleTree`（已退役，见处置行），SQL 含 `AND status = 1`，禁用角色不在树中。
    - 期望：树接口返回 `delete_flag=0` 全部有效角色，`status` 只作展示字段（禁用角色仍可见、可重新启用）——新增 `selectValidRoleTree`（只过滤 `delete_flag=0`），`getRoleTree` 改用它。
    - 前端可行性：✅ 本页已有启停按钮（`handleToggleStatus`），mock 树含禁用节点（id=103 访客 status=0），前端按 status 渲染禁用标签、支持从树中重新启用。后端切换后前端无需改动。
    - 影响：Phase 1 mock 含禁用节点体验正常；Phase 3 联调（T-FE-016）真后端下禁用角色会消失，需后端先切换。
    - 归属：T-PERM-022 🔧。
-   - **处置（2026-08-28 收口）**：`selectEnabledRoleTree` 退役，新 `selectValidRoleTree`（仅过滤 `delete_flag=0`），禁用角色入树、status 为展示字段。**消费方口径（用户决策，经两轮纠偏定案：前端入参后端过滤）**：请求体新增 `enabledOnly`（默认 false 返回全部有效角色）——本页不传（需见禁用可再启用）；授权页主体树传 true（SQL 过滤，T-FE-036 既有的禁用标记渲染保留为防御展示）。契约见 api-contract §6.10.3。
+   - **处置（2026-08-28 收口）**：`selectEnabledRoleTree` 退役，新 `selectValidRoleTree`（仅过滤 `delete_flag=0`），禁用角色入树、status 为展示字段。**消费方口径（设计定案：前端入参后端过滤）**：请求体新增 `enabledOnly`（默认 false 返回全部有效角色）——本页不传（需见禁用可再启用）；授权页主体树传 true（SQL 过滤，T-FE-036 既有的禁用标记渲染保留为防御展示）。契约见 api-contract §6.10.3。
 
 ### ✅ 满足
 

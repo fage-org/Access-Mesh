@@ -11,7 +11,7 @@ package cn.ac.fage.accessmesh.access.permission.dto.req;
  * @param domainCode  业务域编码，可选，用于过滤
  * @param enabledOnly 仅返回启用角色（status=1）；null/false 返回全部有效角色
  *                   （T-PERM-022：默认含禁用——角色管理页需禁用角色可见可再启用；
- *                   授权页主体树传 true，2026-08-28 用户决策：前端入参后端过滤）
+ *                   授权页主体树传 true；T-PERM-022 设计定案：前端入参后端过滤）
  */
 public record RoleTreeReq(
     String domainCode,

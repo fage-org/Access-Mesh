@@ -45,7 +45,7 @@ last_reviewed: 2026-08-28   # 2026-08-28 §1.1 主体树 enabledOnly 口径（T-
 - 路由约定：`/perm/grant?subjectType=ROLE|ORG`（前端同一页面组件，`subjectType` 驱动主体数据源与左栏文案；`PERSONAL` 预留，首期不挂路由）。
 - 主体切换：左栏树选中即切换查看目标；**未保存变更在切换主体/离开时拦截**（§6.4）。
 - **GROUP_ROLE 展开（T-PERM-043 隐藏）**：主体树过滤仅保留 BASIC_ROLE，GROUP_ROLE 节点整棵裁掉（`extra-roles/list` 已退役，展开代码保留为不可达，待 role_inclusion 立项恢复）。
-- **树启用态过滤（T-PERM-022，2026-08-28 用户决策）**：角色入口 `getRoleTree({domainCode: null, enabledOnly: true})`——树接口默认返回全部有效角色（角色管理页需见禁用、可再启用），授权页主体树仅取启用（前端入参后端 SQL 过滤，api-contract §6.10.3）；T-FE-036 既有的节点禁用标记渲染保留为防御展示（正常链路禁用节点不达前端）。
+- **树启用态过滤（T-PERM-022，设计定案）**：角色入口 `getRoleTree({domainCode: null, enabledOnly: true})`——树接口默认返回全部有效角色（角色管理页需见禁用、可再启用），授权页主体树仅取启用（前端入参后端 SQL 过滤，api-contract §6.10.3）；T-FE-036 既有的节点禁用标记渲染保留为防御展示（正常链路禁用节点不达前端）。
 - 权限接线：各入口按 `subjectType` 映射能力门控（§10）。
 
 ### 1.2 与相邻页面分工
@@ -91,7 +91,7 @@ GrantContext = { domainCode, roleTypeCode, roleExternalId }
 | ORG  | 组织节点（orgType=ORG）      | `ORG`        | `String(节点 id)`（即 `sys_org.id`，对齐 api-contract L656 示例 `roleExternalId:"2001"`） | **恒 null**（P1-1） |
 | ORG  | 岗位节点（orgType=POSITION） | `POSITION`   | `String(节点 id)`                                                                         | 同上                |
 
-> **domainCode 统一 null（P1-1，2026-08-01 确认）**：`abstract_role` 无域列（`biz_domain_id` 已移除），`resolveRoleId`/`resolveResourceId` 对 domainCode 仅做域存在性校验、**不按域过滤**（`TypeResolutionServiceImpl` L192-198/244-250，注释明言不再按 BIZ_DOMAIN_ID 过滤）；角色按 `roleTypeCode + roleExternalId` 唯一解析（`uk_abstract_role_external`）。授权页全部请求恒传 null 即可获得全部能力（角色树/资源树 domainCode 为空=返回全部）。原"ORG/POSITION 必填，对齐 api-contract L106"为误用——L106 仅约束 assign/revoke 的用户-角色分配链路，与授权页无关，已撤销。
+> **domainCode 统一 null（P1-1，2026-08-01 确认）**：`abstract_role` 无域列（`biz_domain_id` 已移除），`resolveRoleId`/`resolveResourceId` 对 domainCode 仅做域存在性校验、**不按域过滤**（`TypeResolutionServiceImpl` 域存在性校验分支，注释明言不再按 BIZ_DOMAIN_ID 过滤）；角色按 `roleTypeCode + roleExternalId` 唯一解析（`uk_abstract_role_external`）。授权页全部请求恒传 null 即可获得全部能力（角色树/资源树 domainCode 为空=返回全部）。原"ORG/POSITION 必填，对齐 api-contract L106"为误用——L106 仅约束 assign/revoke 的用户-角色分配链路，与授权页无关，已撤销。
 
 - 资源键同步升级（P1-1）：分组键/请求中的资源维度统一为 `resourceTypeCode + resourceCode + codeType`（`codeType` 取资源树节点数据，默认 `default`；`scopeMode=ALL` 时 `resourceCode/codeType` 为 null，`scopeMode` 显式入键）。
 - 切换主体即切换 GrantContext；未保存变更拦截（§6.4）。

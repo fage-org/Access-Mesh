@@ -276,7 +276,7 @@ export type RoleDetailQuery = {
  */
 export const getRoleDetail = async (
   params: RoleDetailQuery
-): Promise<RoleResp> => {
+): Promise<RoleResp | null> => {
   const res = await http.request<PermResult<RoleResp>>(
     "post",
     "/perm/api/perm/abstract-role/detail",

@@ -69,7 +69,7 @@ async function loadTree() {
   loading.value = true;
   try {
     // T-PERM-022：树接口默认返回全部有效角色（角色管理页需见禁用可再启用），
-    // 授权页主体树仅取启用角色——前端入参后端过滤（2026-08-28 用户决策）
+    // 授权页主体树仅取启用角色——前端入参后端过滤（T-PERM-022 设计定案）
     const roots = await getRoleTree({ domainCode: null, enabledOnly: true });
     treeData.value = filterVisibleTree(roots);
   } catch (error: any) {

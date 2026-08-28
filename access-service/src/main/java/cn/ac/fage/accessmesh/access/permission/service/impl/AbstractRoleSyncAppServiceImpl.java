@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.AbstractRoleSyncAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
@@ -61,19 +62,22 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     private final ObjectMapper objectMapper;
     private final LocalProjectionGuard localProjectionGuard;
     private final SyncTypeGuard syncTypeGuard;
+    private final SubjectDomainService subjectDomainService;
 
     public AbstractRoleSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                           TypeResolutionService typeResolutionService,
                                           AbstractRoleMapper abstractRoleMapper,
                                           ObjectMapper objectMapper,
                                           LocalProjectionGuard localProjectionGuard,
-                                          SyncTypeGuard syncTypeGuard) {
+                                          SyncTypeGuard syncTypeGuard,
+                                          SubjectDomainService subjectDomainService) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.abstractRoleMapper = abstractRoleMapper;
         this.objectMapper = objectMapper;
         this.localProjectionGuard = localProjectionGuard;
         this.syncTypeGuard = syncTypeGuard;
+        this.subjectDomainService = subjectDomainService;
     }
 
     @Override
@@ -143,9 +147,15 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             return SyncResultBuilder.stale();
         }
 
-        // 7. 写目标事实表 + markStatus
-        Long targetId = applyToTarget(tenantId, roleType, req.roleExternalId(), op,
-                req.name(), parentId, req.status(), req.sortOrder(), serializeExtra(req.extra()));
+        // 7. 写目标事实表 + markStatus（预加载 existing 供环路判定复用，避免二次单查）
+        AbstractRole selfExisting = abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, req.roleExternalId());
+        if (selfExisting != null && isCyclicParent(tenantId, selfExisting.getId(), parentId)) {
+            return SyncResultBuilder.nonRetryable(
+                    "ROLE_PARENT_INVALID: " + req.parentRoleTypeCode() + ":" + req.parentRoleExternalId());
+        }
+        Long targetId = applyToTargetWithExisting(tenantId, roleType, req.roleExternalId(), op,
+                req.name(), parentId, req.status(), req.sortOrder(), serializeExtra(req.extra()),
+                selfExisting, LocalDateTime.now());
 
         String targetStatus = switch (op) {
             case OP_UPSERT -> STATUS_ACTIVE;
@@ -241,6 +251,50 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                     typeResolutionService.batchResolveRoleIds(tenantId, e.getKey(), e.getValue(), null));
         }
 
+        // ---- 阶段 B.5：parent 环路防护（T-PERM-022 评审收口，与 move 同款判定）----
+        // 自身成环零成本内检；子孙成环用并集一次批量预筛、疑似命中才逐对精查——
+        // 正常无环数据零精查查询，循环体内无数据库调用（N+1 禁令）
+        Set<Integer> cyclicItemIndexes = new HashSet<>();
+        {
+            Set<Long> seedIds = new HashSet<>();
+            List<ParentPair> pairs = new ArrayList<>();
+            for (int i = 0; i < req.items().size(); i++) {
+                AbstractRoleSyncItem item = req.items().get(i);
+                if (item.parentRoleTypeCode() == null || item.parentRoleTypeCode().isBlank()
+                        || item.parentRoleExternalId() == null || item.parentRoleExternalId().isBlank()) {
+                    continue;
+                }
+                AbstractRole existing = existingByExternalId.get(item.roleExternalId());
+                if (existing == null) {
+                    continue; // 新建角色无既有子树，天然无环
+                }
+                Map<String, Long> parentMap = parentResolvedByType.get(item.parentRoleTypeCode());
+                Long parentId = parentMap == null ? null : parentMap.get(item.parentRoleExternalId());
+                if (parentId == null) {
+                    continue; // 解析失败在阶段 C 按项以 PARENT_ROLE_NOT_FOUND 拒绝
+                }
+                if (parentId.equals(existing.getId())) {
+                    cyclicItemIndexes.add(i);
+                    continue;
+                }
+                seedIds.add(existing.getId());
+                pairs.add(new ParentPair(existing.getId(), parentId, i));
+            }
+            if (!seedIds.isEmpty()) {
+                Set<Long> unionDescendants = new HashSet<>(
+                        subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, seedIds));
+                if (!unionDescendants.isEmpty()) {
+                    for (ParentPair pair : pairs) {
+                        if (unionDescendants.contains(pair.parentId())
+                                && subjectDomainService.resolveDescendantRoleIdsBatch(
+                                        tenantId, Set.of(pair.existingId())).contains(pair.parentId())) {
+                            cyclicItemIndexes.add(pair.itemIndex());
+                        }
+                    }
+                }
+            }
+        }
+
         // ---- 阶段 C：逐项 applyVersion + upsert ----
         int applied = 0;
         int stale = 0;
@@ -249,7 +303,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         Set<String> seenBusinessKeyHashes = new HashSet<>();
         LocalDateTime now = LocalDateTime.now();
 
-        for (AbstractRoleSyncItem item : req.items()) {
+        for (int itemIndex = 0; itemIndex < req.items().size(); itemIndex++) {
+            AbstractRoleSyncItem item = req.items().get(itemIndex);
             String businessKey = SyncKeyCodec.abstractRoleBusinessKey(req.scope().roleTypeCode(), item.roleExternalId());
             String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
             seenBusinessKeyHashes.add(businessKeyHash);
@@ -270,6 +325,14 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                             "PARENT_ROLE_NOT_FOUND: " + item.parentRoleTypeCode() + ":" + item.parentRoleExternalId()));
                     continue;
                 }
+            }
+            if (cyclicItemIndexes.contains(itemIndex)) {
+                failed++;
+                itemResults.add(new SyncResultResp.ItemResult(
+                        businessKey, false, false,
+                        SyncResultBuilder.RETRY_NON_RETRYABLE,
+                        "ROLE_PARENT_INVALID: " + item.parentRoleTypeCode() + ":" + item.parentRoleExternalId()));
+                continue;
             }
 
             SyncVersionRef ver = item.syncVersion();
@@ -335,17 +398,27 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     // helpers
     // ---------------------------------------------------------------------
 
-    private Long applyToTarget(Long tenantId, Integer roleType, String externalId,
-                                String operation, String name, Long parentId,
-                                Integer statusVal, Integer sortOrder, String extra) {
-        AbstractRole existing = abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, externalId);
-        return applyToTargetWithExisting(tenantId, roleType, externalId, operation,
-                name, parentId, statusVal, sortOrder, extra, existing, LocalDateTime.now());
+    /**
+     * parent 环路判定（T-PERM-022 评审收口，与 moveRole 同款）：parentId 为角色自身或其子孙
+     * 时成环——parent 链成环后祖先/子孙递归 CTE 不收敛、环节点从树构建中静默消失。
+     * parentId=null（不调整层级）天然无环；调用方保证仅在目标角色已存在时进入。
+     */
+    private boolean isCyclicParent(Long tenantId, Long roleId, Long parentId) {
+        if (parentId == null) {
+            return false;
+        }
+        if (roleId.equals(parentId)) {
+            return true;
+        }
+        return subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, Set.of(roleId)).contains(parentId);
     }
 
+    /** 阶段 B.5 环路预筛的（目标角色, 目标父, 项下标）三元组 */
+    private record ParentPair(Long existingId, Long parentId, int itemIndex) {}
+
     /**
-     * 与 {@link #applyToTarget} 相同但接受调用方已批量加载的 {@code existing}，避免单条 select。
-     * 用于 full-sync 阶段 C。外部业务服务同步写入的行所有权保持 NULL（owner 由本地投影独占）。
+     * 写目标事实表（单条/批量共用）：{@code existing} 由调用方预加载（单条 sync 供环路判定复用，
+     * full-sync 阶段 B 批量预加载，避免循环单查）。外部业务服务同步写入的行所有权保持 NULL（owner 由本地投影独占）。
      */
     private Long applyToTargetWithExisting(Long tenantId, Integer roleType, String externalId,
                                             String operation, String name, Long parentId,

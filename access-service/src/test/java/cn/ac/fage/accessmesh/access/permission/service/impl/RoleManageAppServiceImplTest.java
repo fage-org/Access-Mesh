@@ -148,11 +148,17 @@ class RoleManageAppServiceImplTest {
         when(abstractRoleMapper.selectByTypeAndExternalId(1L, 6, "ext-1")).thenReturn(role);
         when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
 
-        cn.ac.fage.accessmesh.access.permission.dto.resp.RoleResp resp = service.getRole(1L, "BASIC_ROLE", "ext-1");
-        assertNotNull(resp);
-        assertEquals(123L, resp.id());
-        assertEquals("ext-1", resp.externalId());
-        assertEquals(0, resp.status());
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+
+            cn.ac.fage.accessmesh.access.permission.dto.resp.RoleResp resp = service.getRole(1L, "BASIC_ROLE", "ext-1");
+            assertNotNull(resp);
+            assertEquals(123L, resp.id());
+            assertEquals("ext-1", resp.externalId());
+            assertEquals(0, resp.status());
+        }
     }
 
     /** T-PERM-022：未知 roleTypeCode 与 list 空分页同口径——不抛错返回 null，不触库。 */
@@ -160,8 +166,61 @@ class RoleManageAppServiceImplTest {
     void shouldReturnNullDetailForUnknownRoleType() {
         when(typeResolutionService.resolveTypeValue(1L, "role_type", "GHOST")).thenReturn(null);
 
-        assertNull(service.getRole(1L, "GHOST", "ext-1"));
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+
+            assertNull(service.getRole(1L, "GHOST", "ext-1"));
+        }
         verifyNoInteractions(abstractRoleMapper);
+    }
+
+    /** T-PERM-022 评审收口：detail/list/count 读接口补类型级 ROLE:VIEW 门禁（与 /tree 同款，
+     * list 信息量 >= tree 不设门禁会使 tree 门禁事实可绕）。 */
+    @Test
+    void shouldRejectDetailAndListWithoutRoleViewPermission() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+
+            assertThrows(SecurityException.class, () -> service.getRole(1L, "BASIC_ROLE", "ext-1"));
+            assertThrows(SecurityException.class, () -> service.listRoles(1L, null, null, null, null, 0, 10));
+            assertThrows(SecurityException.class, () -> service.countRoles(1L, null, null, null, null));
+        }
+        verifyNoInteractions(abstractRoleMapper);
+    }
+
+    /** T-PERM-022 评审收口：删除有 BASIC 子级的 BASIC 角色级联软删子孙（悬挂子树防护）。
+     * 旧实现级联根仅 GROUP_ROLE/ORG，本用例为回归锁。 */
+    @Test
+    void shouldCascadeBasicDescendantsOnDelete() {
+        AbstractRole root = new AbstractRole();
+        root.setId(123L);
+        root.setTenantId(1L);
+        root.setRoleType(cn.ac.fage.accessmesh.access.permission.enums.RoleType.BASIC_ROLE.getValue());
+        root.setName("父角色");
+        root.setStatus(1);
+        root.setExternalId("root");
+        when(subjectDomainService.selectValidRolesByIds(1L, java.util.Set.of(123L))).thenReturn(List.of(root));
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq(java.util.Set.of("123")), eq(OperationCodeConstants.MANAGE))).thenReturn(java.util.Set.of());
+        when(subjectDomainService.resolveDescendantRoleIdsBatch(1L, java.util.Set.of(123L)))
+            .thenReturn(List.of(456L));
+        when(subjectDomainService.findUserIdsByEffectiveRoles(1L, java.util.Set.of(123L, 456L)))
+            .thenReturn(java.util.Set.of());
+        when(typeResolutionService.resolveTypeCode(1L, "role_type",
+            cn.ac.fage.accessmesh.access.permission.enums.RoleType.BASIC_ROLE.getValue())).thenReturn("BASIC_ROLE");
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            service.deleteRoles(1L, List.of(123L), 100L);
+        }
+
+        verify(subjectDomainService).softDeleteRoleBatch(1L, java.util.Set.of(123L, 456L));
+        verify(localProjectionDomainService).softDeleteRoleResources(1L, java.util.Set.of(123L, 456L));
     }
 
     /** T-ACCESS-019：createRole 同事务维护 resource_entity(ROLE) 投影（code=roleId）并登记变更日志。 */

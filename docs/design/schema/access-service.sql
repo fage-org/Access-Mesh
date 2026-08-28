@@ -781,7 +781,7 @@ CREATE UNIQUE INDEX uk_abstract_role_external ON abstract_role (tenant_id, role_
     WHERE external_id IS NOT NULL AND delete_flag = 0;
 
 COMMENT ON TABLE abstract_role IS '抽象角色，树形结构（parent_id）；GROUP_ROLE 和 BASIC_ROLE 通过 type_definition 区分。ORG/POSITION 可由外部系统同步为角色容器。删除级联：user_role + role_resource_permission';
-COMMENT ON COLUMN abstract_role.parent_id IS '父角色ID，用于树形层级；BASIC_ROLE 和 PERSONAL 不允许有子级（应用层约束）';
+COMMENT ON COLUMN abstract_role.parent_id IS '父角色ID，用于树形层级；父子角色类型一致（create/move 应用层校验，同类型内嵌套合法）';
 COMMENT ON COLUMN abstract_role.role_type IS '角色类型枚举：ORG(1)组织/POSITION(2)职位/PERSONAL(3)个人/GROUP_ROLE(5)分组角色/BASIC_ROLE(6)基本角色，来自 type_definition';
 COMMENT ON COLUMN abstract_role.external_id IS '外部业务标识；对外接口按 tenant_id + role_type + external_id 定位角色；本地投影使用 external_id = sys_org.id 等管理事实 ID';
 COMMENT ON COLUMN abstract_role.name IS '名称';

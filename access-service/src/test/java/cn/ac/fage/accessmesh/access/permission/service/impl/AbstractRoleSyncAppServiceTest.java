@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -51,6 +52,8 @@ class AbstractRoleSyncAppServiceTest {
     private HttpServletRequest httpRequest;
     @Mock
     private SyncTypeGuard syncTypeGuard;
+    @Mock
+    private cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -62,7 +65,8 @@ class AbstractRoleSyncAppServiceTest {
     void setUp() {
         service = new AbstractRoleSyncAppServiceImpl(syncMetadataDomainService,
                 typeResolutionService, abstractRoleMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                subjectDomainService);
         org.mockito.Mockito.lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
     }
@@ -187,6 +191,73 @@ class AbstractRoleSyncAppServiceTest {
                 .isEqualTo(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
         org.mockito.Mockito.verifyNoInteractions(syncMetadataDomainService);
         org.mockito.Mockito.verifyNoInteractions(abstractRoleMapper);
+    }
+
+    /** T-PERM-022 评审收口：sync 通道 parent 环路防护——parent 指向角色自身时 nonRetryable 拒绝，
+     * 不落任何事实变更（move 通道同款判定，防外部错误数据一步成自环）。 */
+    @Test
+    void shouldRejectSyncWhenParentIsRoleItself() {
+        mockHeaderMatch();
+        AbstractRole existing = new AbstractRole();
+        existing.setId(7L);
+        existing.setTenantId(TENANT_ID);
+        existing.setRoleType(2);
+        existing.setExternalId("org-200");
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(typeResolutionService.resolveRoleId(TENANT_ID, "BASIC_ROLE", "org-200", null)).thenReturn(7L);
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("ABSTRACT_ROLE"),
+                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), eq(OCCURRED_AT), eq(1L)))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        when(abstractRoleMapper.selectByTypeAndExternalId(TENANT_ID, 2, "org-200")).thenReturn(existing);
+
+        AbstractRoleSyncReq req = new AbstractRoleSyncReq("UPSERT", "BASIC_ROLE", "org-200",
+                "Org 200", "BASIC_ROLE", "org-200", "ROOT",
+                1, 0, null,
+                SOURCE_SERVICE, "org", "200",
+                new SyncVersionRef(OCCURRED_AT, 1L));
+        SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        assertThat(resp.reason()).contains("ROLE_PARENT_INVALID");
+        org.mockito.Mockito.verify(abstractRoleMapper, org.mockito.Mockito.never()).update(any(AbstractRole.class));
+    }
+
+    /** T-PERM-022 评审收口：full-sync 通道 parent 环路防护——parent 为目标角色子孙时该项
+     * nonRetryable 拒绝（并集预筛 + 精查，正常无环数据零精查查询）。 */
+    @Test
+    void shouldRejectFullSyncItemWhenParentIsDescendant() {
+        mockHeaderMatch();
+        AbstractRole existing = new AbstractRole();
+        existing.setId(7L);
+        existing.setTenantId(TENANT_ID);
+        existing.setRoleType(2);
+        existing.setExternalId("org-200");
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
+        when(abstractRoleMapper.selectByTypeAndExternalIds(eq(TENANT_ID), eq(2), any()))
+                .thenReturn(java.util.List.of(existing));
+        when(typeResolutionService.batchResolveRoleIds(eq(TENANT_ID), eq("BASIC_ROLE"), any(), isNull()))
+                .thenReturn(java.util.Map.of("org-300", 8L));
+        when(subjectDomainService.resolveDescendantRoleIdsBatch(eq(TENANT_ID), any()))
+                .thenReturn(java.util.List.of(8L));
+
+        cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleFullSyncReq req =
+                new cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleFullSyncReq(
+                        new cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleSyncScope(
+                                SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
+                        java.util.List.of(new cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleSyncItem(
+                                "org-200", "Org 200", "BASIC_ROLE", "org-300", 1, 0, null,
+                                "org", "200", new SyncVersionRef(OCCURRED_AT, 1L))));
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.accepted()).isTrue();
+        assertThat(resp.detail()).isNotNull();
+        assertThat(resp.detail().failedCount()).isEqualTo(1);
+        assertThat(resp.detail().itemResults().get(0).retryClass())
+                .isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        assertThat(resp.detail().itemResults().get(0).reason()).contains("ROLE_PARENT_INVALID");
+        org.mockito.Mockito.verify(abstractRoleMapper, org.mockito.Mockito.never()).update(any(AbstractRole.class));
     }
 
     @Test
