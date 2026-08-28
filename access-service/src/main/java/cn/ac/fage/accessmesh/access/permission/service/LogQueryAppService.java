@@ -76,26 +76,46 @@ public interface LogQueryAppService {
     // ===== OperationLog =====
 
     /**
-     * 查询操作日志列表
+     * 查询操作日志列表（多维过滤，T-PERM-025 扩展）
      *
-     * @param tenantId 租户ID
-     * @param module   模块，可选
-     * @param action   操作，可选
-     * @param offset   分页偏移量
-     * @param limit    每页条数
+     * @param tenantId   租户ID
+     * @param module     模块，可选
+     * @param action     操作，可选（精确匹配，字典见 listActionOptions）
+     * @param operatorId 操作者用户ID，可选
+     * @param since      创建时间下界（含），可选
+     * @param until      创建时间上界（含），可选
+     * @param targetType 目标类型，可选
+     * @param offset     分页偏移量
+     * @param limit      分页条数
      * @return 操作日志列表
      */
-    List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action, int offset, int limit);
+    List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action,
+                                              Long operatorId, LocalDateTime since, LocalDateTime until,
+                                              String targetType, int offset, int limit);
 
     /**
-     * 统计操作日志数量
+     * 统计操作日志数量（多维过滤，T-PERM-025 扩展）
      *
-     * @param tenantId 租户ID
-     * @param module   模块，可选
-     * @param action   操作，可选
+     * @param tenantId   租户ID
+     * @param module     模块，可选
+     * @param action     操作，可选（精确匹配）
+     * @param operatorId 操作者用户ID，可选
+     * @param since      创建时间下界（含），可选
+     * @param until      创建时间上界（含），可选
+     * @param targetType 目标类型，可选
      * @return 操作日志数量
      */
-    long countOperationLogs(Long tenantId, String module, String action);
+    long countOperationLogs(Long tenantId, String module, String action,
+                             Long operatorId, LocalDateTime since, LocalDateTime until, String targetType);
+
+    /**
+     * 查询操作日志 action 字典（当前实际存在的去重集合，T-PERM-025）
+     *
+     * @param tenantId 租户ID
+     * @param module   模块，可选过滤
+     * @return 去重 action 集合（字典序）
+     */
+    java.util.List<String> listActionOptions(Long tenantId, String module);
 
     // ===== 最近变更查询 =====
 

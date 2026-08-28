@@ -3,7 +3,7 @@ doc_type: design
 title: 7.1 操作日志页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-07-01
+last_reviewed: 2026-08-28   # 2026-08-28 T-PERM-025 收口：§5/§7/§8/§9 终态化（OPERATION_LOG:VIEW 审计分离、action 动态字典、五维筛选）
 ---
 
 # 7.1 操作日志页 前端设计
@@ -20,7 +20,7 @@ last_reviewed: 2026-07-01
 - **服务端分页**：后端 `OperationLogListReq` 支持 `pageNum/pageSize`（`@NotNull`），返回 `PaginatedResp`。**非** system-config 的全量本地过滤——前端不做本地切片。
 - **筛选仅 module/action**：后端 Req 只暴露这两个筛选维度。任务标题「筛选」按此两项实现，其余维度（操作者/时间范围/目标）登记 T-PERM-025 🔧。
 - **无 detail 接口**：后端只有 list，`OperationLogResp` 已含全部字段。详情由前端抽屉展示（无需单独 detail 接口）。
-- **复用 SYSTEM_CONFIG:VIEW 门禁**：后端 `LogQueryAppServiceImpl.listOperationLogs` 以 `SYSTEM_CONFIG:VIEW` 校验（**无独立 OPERATION_LOG 资源类型/权限码**）。本页 perms SSOT 独立，但 VIEW 值复用 `SYSTEM_CONFIG:VIEW`。
+- **独立 OPERATION_LOG:VIEW 门禁（T-PERM-025 审计分离，2026-08-28）**：后端操作日志查询（list/action-options）以独立 `OPERATION_LOG:VIEW` 校验（资源类型 OPERATION_LOG=30），不再复用 `SYSTEM_CONFIG:VIEW`。
 
 ## 2. 布局结构
 
@@ -83,7 +83,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 
 ### 4.2 详情查看
 
-- 操作列「查看」按钮（`v-if="canView"`，门禁 `SYSTEM_CONFIG:VIEW`）→ 打开 `LogDetailDrawer`。
+- 操作列「查看」按钮（`v-if="canView"`，门禁 `OPERATION_LOG:VIEW`）→ 打开 `LogDetailDrawer`。
 - 抽屉用 `el-descriptions` 展示该条日志全部字段（module/action el-tag / targetType / targetId / summary 多行 / operatorId / operatorName / ipAddress / requestId / createdAt）。
 - **无 API 调用**：纯展示 list 已返回的字段（后端无 detail 接口）。
 
@@ -95,7 +95,8 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 列表 | `POST /api/perm/log/operation/list` | `{module?,action?,pageNum,pageSize}` (OperationLogListReq) | `PaginatedResp<OperationLogResp>`（服务端分页） | 🔧 见 §8 |
+| 列表 | `POST /api/perm/log/operation/list` | `{module?,action?,operatorId?,since?,until?,targetType?,pageNum,pageSize}` | `PaginatedResp<OperationLogResp>`（服务端分页，排序 createdAt DESC） | ✅（T-PERM-025 收口） |
+| 字典 | `POST /api/perm/log/operation/action-options` | `{module?}` | `ItemsResp<String>`（action 去重集合，字典序） | ✅（T-PERM-025 新增） |
 
 > **路径说明**：后端 `LogQueryController`（`@RequestMapping("/api/perm/log")`）实际路径 = `/api/perm/log/operation/list`，**非** api-contract §5.8 表格写的 `/api/perm/operation-log/list`（契约与实现不符，登记 T-PERM-025 🔧）。前端按后端实现对接，联调时直接对真后端无需改路径。
 >
@@ -110,7 +111,7 @@ views/system/operation-log/
 │   └── LogDetailDrawer.vue    # 日志详情抽屉（el-drawer + el-descriptions 全字段展示）
 └── utils/
     ├── hook.ts                # useOperationLog（服务端分页表格加载，无写操作）
-    ├── perms.ts               # OPERATION_LOG_PERMS（SSOT，VIEW 复用 SYSTEM_CONFIG:VIEW）
+    ├── perms.ts               # OPERATION_LOG_PERMS（SSOT，独立 OPERATION_LOG:VIEW）
     └── types.ts               # OperationLogSearchForm + MODULE/ACTION_OPTIONS + 工厂
 ```
 
@@ -129,9 +130,9 @@ views/system/operation-log/
 
 | perm 串 | 操作码 | 锚点 | 控制按钮 |
 |---|---|---|---|
-| `SYSTEM_CONFIG:VIEW` | VIEW | SYSTEM_CONFIG（复用） | 「查看」按钮（详情抽屉）+ 列表数据可见（后端 listOperationLogs 校验 VIEW） |
+| `OPERATION_LOG:VIEW` | VIEW | OPERATION_LOG（独立，T-PERM-025） | 「查看」按钮（详情抽屉）+ 列表数据可见（后端 listOperationLogs/action-options 校验 VIEW） |
 
-> **复用说明**：后端 `LogQueryAppServiceImpl.listOperationLogs`（及 listChangeLogs/recentChanges）以 `SYSTEM_CONFIG:VIEW` 门禁，**无独立 OPERATION_LOG 资源类型/权限码**。本页 SSOT 独立文件，但 VIEW 值复用 `SYSTEM_CONFIG:VIEW`——与后端一致。本页为只读查询页，只有 VIEW 一项，无 SAVE/MANAGE。`OPERATION_LOG_PERM_LIST` 用 `Set` 去重确保路由 `meta.auths` 无冗余。
+> **门禁说明**：后端操作日志查询以独立 `OPERATION_LOG:VIEW` 门禁（T-PERM-025 审计分离；变更日志/权限视图仍为 SYSTEM_CONFIG:VIEW，随 T-PERM-032/033 处置）。本页为只读查询页，只有 VIEW 一项，无 SAVE/MANAGE。`OPERATION_LOG_PERM_LIST` 用 `Set` 去重确保路由 `meta.auths` 无冗余。
 
 ### 降级策略
 
@@ -141,61 +142,40 @@ views/system/operation-log/
 > - **`meta.auths` 的真实用途**：仅作为路由元信息清单（派生自 `OPERATION_LOG_PERM_LIST`），供 `hasAuth`（`router/utils.ts:366`，从当前路由 meta.auths 读）使用；本页按钮未用 `hasAuth`。即 `meta.auths` 是路由级元信息/`hasAuth` 清单，不参与本页按钮显隐。
 > 这与 role-manage.md / type-definition.md / system-config.md 同口径（既有文档同样把按钮门禁写成 auths 控制，属共性表述偏差）。
 
-- 无 `SYSTEM_CONFIG:VIEW` → **菜单仍可见、路由可达**（路由过滤基于 roles，本项目未设 roles）；进入页面后 `loadTable` 调 `/api/perm/log/operation/list` 由后端 VIEW 校验拒绝（403），前端 `message` 报错。本页 VIEW 级按钮（「查看」）隐藏（`v-if="canView"`，`hasPerms` 读登录态 permissions 判定），操作列显示「—」。
-- 有 `SYSTEM_CONFIG:VIEW` → 「查看」按钮可见，可打开详情抽屉。
+- 无 `OPERATION_LOG:VIEW` → **菜单仍可见、路由可达**（路由过滤基于 roles，本项目未设 roles）；进入页面后 `loadTable` 调 `/api/perm/log/operation/list` 由后端 VIEW 校验拒绝（403），前端 `message` 报错。本页 VIEW 级按钮（「查看」）隐藏（`v-if="canView"`，`hasPerms` 读登录态 permissions 判定），操作列显示「—」。
+- 有 `OPERATION_LOG:VIEW` → 「查看」按钮可见，可打开详情抽屉。
 
-> 🔧 `SYSTEM_CONFIG:VIEW` 复用作为日志查询门禁的审计语义问题登记 T-PERM-025：当前复用致「有系统配置 VIEW 权限即可查全部操作日志」，审计场景可能需独立 `OPERATION_LOG:VIEW`。确认型，非必改——若后端独立，前端仅需改 `OPERATION_LOG_PERMS.LOG_VIEW` 常量值 + 矩阵补串。
+> ~~🔧 `SYSTEM_CONFIG:VIEW` 复用审计语义问题~~ 已随 T-PERM-025 审计分离收口（2026-08-28 设计定案）：独立 `OPERATION_LOG:VIEW`，前端常量已切换。
 >
 > 🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user/system-config 同），若需「无 VIEW 真正路由不可达」需改 `filterNoPermissionTree` 按 `meta.auths` 过滤——影响所有页，超出 T-FE-005 范围，登记待统一立项处理。
 
-### mock 角色矩阵（`mock/login.ts`）
+### 角色矩阵（历史 mock 口径，真实链路 T-FE-041 后权限来自后端授权）
 
-| 账号 | 操作日志权限 | 说明 |
-|---|---|---|
-| admin | 可查看（VIEW） | 复用 SYSTEM_CONFIG:VIEW（admin 全权） |
-| sec（安全管理员） | 可查看（VIEW） | 复用 SYSTEM_CONFIG:VIEW（sec 有 CONFIG_SAVE 含 VIEW） |
-| hr（组织人事管理员） | 可查看（VIEW） | 复用 SYSTEM_CONFIG:VIEW（hr 有 SYSTEM_CONFIG_VIEW_PERMS） |
-| auditor（审计员） | 可查看（VIEW） | 复用 SYSTEM_CONFIG:VIEW（auditor 有 SYSTEM_CONFIG_VIEW_PERMS）——审计员必须能查日志 |
+真实链路下本页可见性由 `OPERATION_LOG:VIEW` 授权决定（bootstrap 固定图已授予管理角色；其他角色经授权页分配）。Phase 1 mock 矩阵原按「复用 SYSTEM_CONFIG:VIEW」为全部账号开放查看，审计分离后该口径作废。
 
-> **矩阵不新增权限串**：本页复用 `SYSTEM_CONFIG:VIEW`，已在前页（system-config）矩阵中分配所有账号。`mock/login.ts` 仅加注释说明，不新增 import/矩阵条目。
+## 8. API 核对清单（T-PERM-025，2026-08-28 收口）
 
-## 8. API 核对清单（登记 T-PERM-025）
+Phase 1 登记的 🔧 项处置终态：
 
-Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-025。
-
-### 🔧 需改造
-
-1. **api-contract §5.8 路径错误 + 缺 operation-log 专属字段契约**
-   - 现状：§5.8 表格写 `POST /api/perm/operation-log/list`，但后端 `LogQueryController` 实际路径 = `POST /api/perm/log/operation/list`（`@RequestMapping("/api/perm/log")` + `@PostMapping("/operation/list")`）——**契约与实现不一致**。且 operation-log 仅 1 行表格条目，**无独立字段契约章节**（无字段表/请求示例），字段由后端 DTO（`OperationLogListReq`/`OperationLogResp`）落地。
-   - 期望：§5.8 修正路径为 `/api/perm/log/operation/list`（或后端改路径对齐契约——留给后端定），并补 operation-log 请求/响应字段契约，与其他资源契约章节同口径。
-   - 前端可行性：✅ 本页已按后端实际路径 + DTO 字段实现，契约补全/路径修正后前端无需改动（路径与字段已对齐实现）。
-   - 归属：T-PERM-025 🔧。
-
-2. **筛选维度不足**
-   - 现状：`OperationLogListReq` 只支持 `module`/`action` 两个筛选维度。schema `operation_log` 有 `operator_id`/`created_at`/`target_type`/`target_id` 等可用筛选字段（且有对应索引 `idx_operation_log_operator`/`idx_operation_log_target`），但 Req 未暴露。任务标题「筛选」期望更多维度（操作者/时间范围/目标）。
-   - 期望：Req 补 `operatorId`/`createdAt` 时间范围（since/until）/`targetType` 等筛选维度。
-   - 前端可行性：✅ Phase 1 mock 仅 module/action 过滤（对齐后端 Req）。后端补维度后前端筛选表单扩展。
-   - 归属：T-PERM-025 🔧。
-
-3. **`SYSTEM_CONFIG:VIEW` 复用审计语义确认**
-   - 现状：`LogQueryAppServiceImpl.listOperationLogs`（及 listChangeLogs/recentChanges）以 `SYSTEM_CONFIG:VIEW` 门禁，**无独立 OPERATION_LOG 资源类型/权限码**。当前复用致「有系统配置 VIEW 权限即可查全部操作日志」。
-   - 期望：确认审计场景是否需独立 `OPERATION_LOG:VIEW` 权限码（审计员查日志与系统配置查看是否应分离权限）。
-   - 前端可行性：✅ Phase 1 mock 复用 SYSTEM_CONFIG:VIEW（所有账号均可查，审计员必须能查）。后端独立后前端仅需改 `OPERATION_LOG_PERMS.LOG_VIEW` 常量值 + 矩阵补串。
-   - 归属：T-PERM-025 🔧（确认型，非必改）。
+1. ✅ **契约路径与字段契约**：路径误写已于 T-ACCESS-007 第五轮修正（§5.8 现为实现路径 `/api/perm/log/operation/list`）；operation-log 契约要点（字段/多维筛选/action-options/OPERATION_LOG:VIEW 门禁）已补入 api-contract §5.8。
+2. ✅ **筛选维度扩展**：`OperationLogListReq` 补 `operatorId`/`since`/`until`（created_at 闭区间）/`targetType`，均精确匹配（等值索引友好，schema 对应 idx_operation_log_operator/idx_operation_log_target）；前端筛选表单同步扩展（操作者 ID/时间范围/目标类型）。
+3. ✅ **审计分离（设计定案 2026-08-28）**：新增独立 `OPERATION_LOG:VIEW` 权限码——type_definition 种子 OPERATION_LOG=30（CRUD 预置组自动覆盖 VIEW）、`ResourceTypeCode.OPERATION_LOG` 枚举、`LogQueryAppServiceImpl` 操作日志查询（list/count/action-options）门禁切换；bootstrap 固定图管理角色补授（§14.4 最小集第 9 项，固定图 22 条——新权限码须固定图持否则无授予起点死锁）；前端 `OPERATION_LOG_PERMS.LOG_VIEW` 切换。**边界**：变更日志（log/change/list）与权限视图（permission-view/recent-changes）门禁仍为 SYSTEM_CONFIG:VIEW，随 T-PERM-032/033 各自页面任务处置。
+4. ✅ **action 字典（任务卡主项）**：新增 `POST /api/perm/log/operation/action-options`（module 可选过滤）返回 operation_log 实际存在的 action 去重集合（非维护端枚举，避免与 @OperationLog 注解清单双轨漂移）；前端 ACTION_OPTIONS 硬编码 12 项子集移除，hook 动态拉取全量字典（label=value=code，filterable 下拉）；LogDetailDrawer action 展示改原始编码。
+5. ✅ **action 筛选语义（任务卡决策点，设计定案 2026-08-28）**：动态字典下拉 + 精确匹配——字典含全部实际存在事件码（约 102 个）检索已闭环，保持等值匹配索引语义；不做自由输入/模糊匹配（后端查询语义未改）。
 
 ### ✅ 满足
 
-- list 满足前端需求，服务端分页 + module/action 过滤，请求/响应结构与 mock 对齐。`OperationLogResp` 含全部字段，详情抽屉无需 detail 接口。
+- list 服务端分页 + module/action 过滤原已满足；T-PERM-025 扩展后五维过滤 + 动态字典。
+- 无 detail 接口：`OperationLogResp` 含全部字段，详情由前端抽屉展示。
 
 ### 备注
 
-- **只读查询页**：operation_log 由后端各 AppService 的 `@OperationLog` AOP 自动写入（见 permission-center-coding-standards §7），前端不可手动增删改。本页无写操作。
+- **只读查询页**：operation_log 由后端各 AppService 的 `@OperationLog` AOP 自动写入，前端不可手动增删改。
 - **轻量全量日志**：operation_log 记录所有写操作（简单摘要），与 permission_change_log（权限变更详情 + diff 快照）区分。变更日志页见 7.2（T-FE-012）。
-- **无 detail 接口**：后端只有 list，`OperationLogResp` 已含全部字段。详情由前端抽屉展示——避免为详情单独开接口（list 数据已是全字段）。
 
-## 9. 已知限制（Phase 1）
+## 9. 已知限制
 
-- 筛选仅 module/action 两维度（对齐后端 Req）；Phase 2 后端补 operatorId/createdAt 时间范围/targetType 后扩展（T-PERM-025）。
-- module/action 下拉选项前端本地硬编码（后端无枚举接口）；联调时若后端补枚举接口可切动态加载。
+- ~~筛选仅 module/action 两维度~~ 已随 T-PERM-025 扩展五维（2026-08-28）。
+- ~~module/action 下拉选项前端本地硬编码~~ action 已切动态字典（module 三值封闭集合保持本地）。
 - 详情抽屉纯展示 list 返回字段（无 detail 接口）；若后续需关联 permission_change_log 详情，7.2 变更日志页处理。
-- 联调（T-FE-019）需后端先确认 §8 三项 🔧（尤其路径——契约写错路径，联调时按后端实际 `/api/perm/log/operation/list`）。
+- 联调（T-FE-022）：§8 五项已收口，无阻塞项。

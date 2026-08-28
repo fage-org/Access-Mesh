@@ -5,7 +5,7 @@ import LogDetailDrawer from "./components/LogDetailDrawer.vue";
 import { PureTableBar } from "@/components/RePureTableBar";
 import { hasPerms } from "@/utils/auth";
 import { OPERATION_LOG_PERMS } from "./utils/perms";
-import { MODULE_OPTIONS, ACTION_OPTIONS } from "./utils/types";
+import { MODULE_OPTIONS } from "./utils/types";
 import type { OperationLogResp } from "@/api/operation-log";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import Search from "~icons/ep/search";
@@ -21,6 +21,7 @@ const {
   loading,
   searchForm,
   pagination,
+  actionOptions,
   loadTable,
   onSearch,
   onReset,
@@ -32,7 +33,7 @@ const tableRef = ref();
 
 // ========== 权限门控 ==========
 // 与 docs/design/frontend/operation-log.md §权限接线 对齐。
-// 后端 listOperationLogs 复用 SYSTEM_CONFIG:VIEW 门禁（无独立 OPERATION_LOG 权限码）。
+// 独立 OPERATION_LOG:VIEW 门禁（T-PERM-025 审计分离，不再复用 SYSTEM_CONFIG:VIEW）。
 // computed 包装而非顶层 const，是为了响应 store.permissions 变化（角色切换时刷新）。
 const canView = computed(() => hasPerms(OPERATION_LOG_PERMS.LOG_VIEW));
 
@@ -99,16 +100,48 @@ const columns = [
                 v-model="searchForm.action"
                 placeholder="全部"
                 clearable
-                class="w-32!"
+                filterable
+                class="w-44!"
                 @change="onSearch"
               >
                 <el-option
-                  v-for="opt in ACTION_OPTIONS"
+                  v-for="opt in actionOptions"
                   :key="opt.value"
                   :label="opt.label"
                   :value="opt.value"
                 />
               </el-select>
+            </el-form-item>
+            <el-form-item label="操作者" class="mb-0!">
+              <el-input-number
+                v-model="searchForm.operatorId"
+                :min="1"
+                :controls="false"
+                placeholder="用户 ID"
+                class="w-30!"
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="时间" class="mb-0!">
+              <el-date-picker
+                v-model="searchForm.timeRange"
+                type="datetimerange"
+                range-separator="至"
+                start-placeholder="开始"
+                end-placeholder="结束"
+                class="w-64!"
+                @change="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="目标类型" class="mb-0!">
+              <el-input
+                v-model="searchForm.targetType"
+                placeholder="如 abstract_role"
+                clearable
+                class="w-36!"
+                @keyup.enter="onSearch"
+                @clear="onSearch"
+              />
             </el-form-item>
             <el-form-item class="mb-0!">
               <el-button

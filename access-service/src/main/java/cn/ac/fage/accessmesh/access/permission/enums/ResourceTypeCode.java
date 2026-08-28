@@ -112,6 +112,14 @@ public final class ResourceTypeCode {
     public static final String SYSTEM_CONFIG = "SYSTEM_CONFIG";
 
     /**
+     * 操作日志查询门禁资源编码
+     * <p>
+     * 审计与系统配置查看权限分离（T-PERM-025 设计定案）：操作日志查询不再复用 SYSTEM_CONFIG:VIEW。
+     * </p>
+     */
+    public static final String OPERATION_LOG = "OPERATION_LOG";
+
+    /**
      * 操作权限资源编码
      * <p>
      * 用于操作权限管理的权限校验。

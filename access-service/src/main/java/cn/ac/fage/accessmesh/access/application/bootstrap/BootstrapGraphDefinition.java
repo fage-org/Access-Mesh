@@ -91,7 +91,7 @@ public final class BootstrapGraphDefinition {
     }
 
     /**
-     * 业务门禁最小集（§14.4，8 项；ROLE:MANAGE 掩码已含 VIEW，不重复授 ROLE:VIEW）。
+     * 业务门禁最小集（§14.4，9 项；ROLE:MANAGE 掩码已含 VIEW，不重复授 ROLE:VIEW）。
      */
     public static List<GrantSpec> businessGrants() {
         return List.of(
@@ -105,6 +105,8 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.VIEW, null, false),
+            // T-PERM-025 审计分离：操作日志查询独立门禁——新权限码需固定图持否则无授予起点（死锁）
+            new GrantSpec(ResourceTypeCode.OPERATION_LOG, OperationCodeConstants.VIEW, null, false),
             // T-API-001：类型级 API:ACCESS + canGrant——新接入服务接口的授权必须由首管理员完成，
             // 实例级（仅 13 个管理接口）会造成鸡生蛋（无正规入口给新接口授权）。
             // ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子），此处按契约字符串声明
@@ -123,7 +125,7 @@ public final class BootstrapGraphDefinition {
             .toList();
     }
 
-    /** 全部固定图授权（业务门禁 8 + API:ACCESS 13 = 21 条） */
+    /** 全部固定图授权（业务门禁 9 + API:ACCESS 13 = 22 条） */
     public static List<GrantSpec> allGrants() {
         return java.util.stream.Stream.concat(businessGrants().stream(), apiAccessGrants().stream()).toList();
     }

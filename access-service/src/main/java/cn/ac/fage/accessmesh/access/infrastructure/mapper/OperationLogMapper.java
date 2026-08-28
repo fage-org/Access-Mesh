@@ -5,6 +5,7 @@ import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
 import org.apache.ibatis.annotations.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -21,32 +22,58 @@ import java.util.List;
  */
 public interface OperationLogMapper extends BaseMapper<OperationLog> {
     /**
-     * 根据租户ID和可选模块/操作类型查询操作日志列表（按创建时间倒序）
+     * 按条件分页查询操作日志（按创建时间倒序）
      *
-     * @param tenantId 租户ID
-     * @param module   模块名称，可为null
-     * @param action   操作类型，可为null
-     * @param offset   分页偏移量
-     * @param limit    分页大小
+     * @param tenantId   租户ID
+     * @param module     模块，可选，精确过滤
+     * @param action     操作类型，可选，精确过滤
+     * @param operatorId 操作者用户ID，可选
+     * @param since      创建时间下界（含），可选
+     * @param until      创建时间上界（含），可选
+     * @param targetType 目标类型，可选，精确过滤
+     * @param offset     分页偏移量
+     * @param limit      分页大小
      * @return 操作日志列表
      */
-    List<OperationLog> selectByTenantModuleAction(@Param("tenantId") Long tenantId,
-                                                    @Param("module") String module,
-                                                    @Param("action") String action,
-                                                    @Param("offset") int offset,
-                                                    @Param("limit") int limit);
+    List<OperationLog> selectPageByCondition(@Param("tenantId") Long tenantId,
+                                              @Param("module") String module,
+                                              @Param("action") String action,
+                                              @Param("operatorId") Long operatorId,
+                                              @Param("since") LocalDateTime since,
+                                              @Param("until") LocalDateTime until,
+                                              @Param("targetType") String targetType,
+                                              @Param("offset") int offset,
+                                              @Param("limit") int limit);
 
     /**
-     * 根据租户ID和可选模块/操作类型统计操作日志数量
+     * 按条件统计操作日志数量
      *
-     * @param tenantId 租户ID
-     * @param module   模块名称，可为null
-     * @param action   操作类型，可为null
+     * @param tenantId   租户ID
+     * @param module     模块，可选，精确过滤
+     * @param action     操作类型，可选，精确过滤
+     * @param operatorId 操作者用户ID，可选
+     * @param since      创建时间下界（含），可选
+     * @param until      创建时间上界（含），可选
+     * @param targetType 目标类型，可选，精确过滤
      * @return 操作日志总数
      */
-    long countByTenantModuleAction(@Param("tenantId") Long tenantId,
-                                    @Param("module") String module,
-                                    @Param("action") String action);
+    long countByCondition(@Param("tenantId") Long tenantId,
+                           @Param("module") String module,
+                           @Param("action") String action,
+                           @Param("operatorId") Long operatorId,
+                           @Param("since") LocalDateTime since,
+                           @Param("until") LocalDateTime until,
+                           @Param("targetType") String targetType);
+
+    /**
+     * 查询操作日志当前实际存在的 action 去重集合（字典接口，T-PERM-025）
+     *
+     * @param tenantId 租户ID
+     * @param module   模块，可选，精确过滤
+     * @return 去重且按字典序排列的 action 集合
+     */
+    List<String> selectDistinctActions(@Param("tenantId") Long tenantId,
+                                        @Param("module") String module);
 
     /**
      * 分页查询指定租户的操作日志，按创建时间倒序排列（原 admin 审计日志页）

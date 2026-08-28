@@ -89,6 +89,7 @@ class HttpApiPathSnapshotTest {
 /api/perm/domain-config/remove
 /api/perm/domain-config/save
 /api/perm/log/change/list
+/api/perm/log/operation/action-options
 /api/perm/log/operation/list
 /api/perm/operation-permission/create
 /api/perm/operation-permission/detail
@@ -237,7 +238,7 @@ class HttpApiPathSnapshotTest {
 /user/user-menus
 """.strip().split("\n"));
 
-    /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约，185 条；T-ADMIN-024 删 5 条角色写代理、T-PERM-034 删 5 条旧写入口）。 */
+    /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约，186 条；T-ADMIN-024 删 5 条角色写代理、T-PERM-034 删 5 条旧写入口、T-PERM-025 增 action-options）。 */
     private static final Set<String> EXPECTED_SIGNATURES = Set.of("""
 /api/perm/abstract-role/create|access.permission.dto.req.RoleCreateReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
 /api/perm/abstract-role/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
@@ -278,6 +279,7 @@ class HttpApiPathSnapshotTest {
 /api/perm/domain-config/remove|access.permission.dto.req.IdsReq|common.model.PermResult<Void>
 /api/perm/domain-config/save|access.permission.dto.req.DomainConfigReq|common.model.PermResult<access.permission.dto.resp.DomainConfigResp>
 /api/perm/log/change/list|access.permission.dto.req.ChangeLogListReq|common.model.PermResult<access.permission.dto.resp.PaginatedResp<access.permission.dto.resp.ChangeLogResp>>
+/api/perm/log/operation/action-options|access.permission.dto.req.LogActionOptionsReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<String>>
 /api/perm/log/operation/list|access.permission.dto.req.OperationLogListReq|common.model.PermResult<access.permission.dto.resp.PaginatedResp<access.permission.dto.resp.OperationLogResp>>
 /api/perm/operation-permission/create|access.permission.dto.req.OperationCreateReq|common.model.PermResult<access.permission.dto.resp.OperationPermissionResp>
 /api/perm/operation-permission/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.OperationPermissionResp>

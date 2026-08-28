@@ -36,8 +36,8 @@
 --   type_definition 系统种子 31 行（user_type 3 + role_type 5 + resource_type 23；
 --     type_value 为权威数值，按 T-ACCESS-016 §13 定稿重编（T-ACCESS-018 落地）；代码不硬编码数值，
 --     运行时经 TypeResolutionService 动态解析；退役值 16/17/18/19/22/28 不复用）
---   operation_permission 117 条：23 个静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/VIEW
---     bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2，共 92 条；DDL 直接种入的类型不会触发运行时
+--   operation_permission 121 条：24 个静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/VIEW
+--     bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2，共 96 条；DDL 直接种入的类型不会触发运行时
 --     生成，必须在初始化阶段种入）+ 非预置扩展操作 13 条（ORG 六码同名同 bit 迁移自 ADMIN_ORG、
 --     USER:ENABLE bit 重分配 32、USER:RESET_PASSWORD bit 64 不变、ADMIN_ROLE:GRANT/REVOKE 零消费者
 --     删除不迁移；bit 与 CRUD 不冲突）+ 权限中心运行时必需操作 12 条（代码实际校验的
@@ -57,11 +57,12 @@
 --     管理入口类型保留清单换值 {USER, ORG, MENU}）
 --   role_type（5 行，不变）：ORG=1 / POSITION=2 / PERSONAL=3 / GROUP_ROLE=5 / BASIC_ROLE=6
 --     （role_type.ORG=1 与 resource_type.ORG=29 属不同 type_key，不冲突）
---   resource_type（终态 23 行）：MENU=1 / BUTTON=2 / API=3 / DATA=4 / ROLE=5 / USER=6 /
+--   resource_type（终态 24 行）：MENU=1 / BUTTON=2 / API=3 / DATA=4 / ROLE=5 / USER=6 /
 --     RESOURCE=7 / SERVICE=8 / DOMAIN=9 / TYPE_DEFINITION=10 / SYSTEM_CONFIG=11 /
 --     OPERATION=12 / CONDITION=13 / CONFLICT_RULE=14 / DEPENDENCY=15 / ADMIN_DICT=20 /
 --     ADMIN_DICT_DATA=21 / ADMIN_OAUTH2_CLIENT=23 / ADMIN_NOTICE=24 / ADMIN_FILE=25 /
---     ADMIN_JOB=26 / ADMIN_ORG_TREE_CONFIG=27 / ORG=29（新值，退役值 17 不复用）
+--     ADMIN_JOB=26 / ADMIN_ORG_TREE_CONFIG=27 / ORG=29（新值，退役值 17 不复用）/
+--     OPERATION_LOG=30（操作日志查询门禁，T-PERM-025 审计分离）
 --   收敛映射：ADMIN_USER(16)→USER(6)、ADMIN_ROLE(18)→ROLE(5)、ADMIN_MENU(19)→MENU(1)、
 --     ADMIN_CONFIG(22)→SYSTEM_CONFIG(11)、ADMIN_ORG(17)→ORG(29)；ADMIN_SYNC_TASK(28) 删除；
 --     退役段 16/17/18/19/22/28 不复用；ADMIN_DICT/ADMIN_DICT_DATA/ADMIN_OAUTH2_CLIENT/
@@ -678,7 +679,8 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
     (1, 'resource_type', 'ADMIN_FILE',         25,  '文件管理',     true, 25, 0, now(), now()),
     (1, 'resource_type', 'ADMIN_JOB',          26,  '定时任务',     true, 26, 0, now(), now()),
     (1, 'resource_type', 'ADMIN_ORG_TREE_CONFIG', 27, '组织树配置', true, 27, 0, now(), now()),
-    (1, 'resource_type', 'ORG',                29, '组织管理',     true, 29, 0, now(), now());
+    (1, 'resource_type', 'ORG',                29, '组织管理',     true, 29, 0, now(), now()),
+    (1, 'resource_type', 'OPERATION_LOG',      30, '操作日志',     true, 30, 0, now(), now());
 
 -- -----------------------------------------------------------------------------
 -- 18. biz_domain - 业务域表（扁平列表，无启停，引用检查拒删）

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { MODULE_OPTIONS, ACTION_OPTIONS } from "../utils/types";
+import { MODULE_OPTIONS } from "../utils/types";
 import type { OperationLogResp } from "@/api/operation-log";
 
 defineOptions({
@@ -15,16 +15,15 @@ const emit = defineEmits<{
   (e: "update:visible", val: boolean): void;
 }>();
 
-/** 模块编码 → 中文标签（用于展示，匹配不上回退原值） */
+/** 模块编码 → 中文标签（用于展示，匹配不上回退原值；三值封闭集合） */
 const moduleLabel = (code?: string | null): string => {
   if (!code) return "—";
   return MODULE_OPTIONS.find(o => o.value === code)?.label ?? code;
 };
 
-/** 动作编码 → 中文标签 */
+/** action 事件码开放增长（@OperationLog 注解维护），直接展示原始编码（T-PERM-025 动态字典口径） */
 const actionLabel = (code?: string | null): string => {
-  if (!code) return "—";
-  return ACTION_OPTIONS.find(o => o.value === code)?.label ?? code;
+  return code || "—";
 };
 
 const handleClose = () => {

@@ -2,33 +2,53 @@ import { ref, reactive, onMounted } from "vue";
 import { message } from "@/utils/message";
 import {
   getOperationLogList,
+  getOperationLogActionOptions,
   type OperationLogResp
 } from "@/api/operation-log";
 import { createEmptySearchForm } from "./types";
 
 /**
- * 操作日志页 hook（分页表格 + 服务端分页）。
+ * 操作日志页 hook（分页表格 + 服务端分页 + 动态 action 字典）。
  *
  * 范式对齐 type-def/utils/hook.ts，但本页为**服务端分页**（后端 OperationLogListReq 支持
  * pageNum/pageSize，返回 PaginatedResp），非 type-def 的全量本地过滤。
  * 只读查询页：无 handleSubmitForm/handleDelete（无写操作）。
  *
- * 🔧 后端 Req 只支持 module/action 两筛选维度（登记 T-PERM-025），前端筛选表单仅此两项。
+ * T-PERM-025 收口：筛选维度扩展（module/action/operatorId/时间范围/targetType）+
+ * action 下拉由 /log/operation/action-options 动态拉取（全量字典，含 module 过滤参数备用）。
  */
 export function useOperationLog() {
   const tableData = ref<OperationLogResp[]>([]);
   const loading = ref(false);
   const searchForm = reactive(createEmptySearchForm());
   const pagination = reactive({ page: 1, size: 15, total: 0 });
+  /** action 字典选项（后端实际存在的去重事件码，label=value=code） */
+  const actionOptions = ref<ReadonlyArray<{ label: string; value: string }>>([]);
+
+  async function loadActionOptions() {
+    try {
+      const res = await getOperationLogActionOptions();
+      actionOptions.value = res.items.map(code => ({ label: code, value: code }));
+    } catch {
+      // 字典加载失败不阻塞列表（下拉为空仍可看全量日志），下次进页重试
+      actionOptions.value = [];
+    }
+  }
 
   async function loadTable() {
     loading.value = true;
     try {
-      // 后端 /api/perm/log/operation/list 返回 PaginatedResp（服务端分页 + module/action 过滤）。
-      // 前端不做本地过滤/切片——服务端已分页。
       const res = await getOperationLogList({
         module: searchForm.module || undefined,
         action: searchForm.action || undefined,
+        operatorId: searchForm.operatorId ?? undefined,
+        since: searchForm.timeRange?.[0]
+          ? formatToLocalIso(searchForm.timeRange[0])
+          : undefined,
+        until: searchForm.timeRange?.[1]
+          ? formatToLocalIso(searchForm.timeRange[1])
+          : undefined,
+        targetType: searchForm.targetType || undefined,
         pageNum: pagination.page,
         pageSize: pagination.size
       });
@@ -41,6 +61,15 @@ export function useOperationLog() {
     }
   }
 
+  /** Date → 后端 LocalDateTime ISO 格式（YYYY-MM-DDTHH:mm:ss） */
+  function formatToLocalIso(d: Date): string {
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+      `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+    );
+  }
+
   function onSearch() {
     pagination.page = 1;
     loadTable();
@@ -49,6 +78,9 @@ export function useOperationLog() {
   function onReset() {
     searchForm.module = null;
     searchForm.action = null;
+    searchForm.operatorId = null;
+    searchForm.timeRange = null;
+    searchForm.targetType = null;
     pagination.page = 1;
     loadTable();
   }
@@ -66,6 +98,7 @@ export function useOperationLog() {
 
   onMounted(() => {
     loadTable();
+    loadActionOptions();
   });
 
   return {
@@ -73,6 +106,7 @@ export function useOperationLog() {
     loading,
     searchForm,
     pagination,
+    actionOptions,
     loadTable,
     onSearch,
     onReset,

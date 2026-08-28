@@ -203,10 +203,10 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
-    @DisplayName("种子数据：type_definition 31 行 / operation_permission 117 行 / system_config 9 行 / oauth2 3 行")
+    @DisplayName("种子数据：type_definition 32 行 / operation_permission 121 行 / system_config 9 行 / oauth2 3 行")
     void shouldHaveAllSeedRows() throws SQLException {
-        assertEquals(31, countRows("type_definition"), "type_definition 系统种子 31 行（user_type 3 + role_type 5 + resource_type 23，T-ACCESS-018 收敛）");
-        assertEquals(117, countRows("operation_permission"), "operation_permission 种子 117 行（静态类型 CRUD 92 + 非预置扩展 13 + 权限中心运行时必需 12）");
+        assertEquals(32, countRows("type_definition"), "type_definition 系统种子 32 行（user_type 3 + role_type 5 + resource_type 24，T-ACCESS-018 收敛 + T-PERM-025 OPERATION_LOG）");
+        assertEquals(121, countRows("operation_permission"), "operation_permission 种子 121 行（静态类型 CRUD 96 + 非预置扩展 13 + 权限中心运行时必需 12）");
         assertEquals(9, countRows("system_config"), "system_config 种子 9 条（T-ACCESS-007 迁移至 admin.* 前缀）");
         assertEquals(3, countRows("sys_oauth2_client"), "sys_oauth2_client 种子 3 条");
     }
@@ -326,7 +326,7 @@ class AccessServiceSchemaH2Test {
     @Test
     @DisplayName("每个静态 resource_type 均预置 CRUD 四操作（CREATE/VIEW/UPDATE/DELETE）")
     void shouldHaveCrudOperationsForEveryStaticResourceType() throws SQLException {
-        // 23 个静态 resource_type 全部有 CRUD 四操作（冗余 VIEW 已合并消除，每个类型恰好 4 条）
+        // 24 个静态 resource_type 全部有 CRUD 四操作（冗余 VIEW 已合并消除，每个类型恰好 4 条）
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
                  "SELECT td.type_code, COUNT(*) FROM type_definition td " +

@@ -3,8 +3,10 @@ package cn.ac.fage.accessmesh.access.permission.controller;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ChangeLogListReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.LogActionOptionsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationLogListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ChangeLogResp;
+import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationLogResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.access.permission.service.LogQueryAppService;
@@ -73,11 +75,11 @@ public class LogQueryController {
      * 分页查询操作日志列表
      * <p>
      * 查询用户的操作行为记录。
-     * 支持按模块和操作类型过滤。
+     * 支持按模块、操作、操作者、时间范围、目标类型过滤。
      * 用于行为追踪和合规审计。
      * </p>
      *
-     * @param req 操作日志查询请求，包含模块、操作类型、分页参数
+     * @param req 操作日志查询请求，包含过滤条件与分页参数
      * @return 分页操作日志列表结果
      */
     @PostMapping("/operation/list")
@@ -86,10 +88,28 @@ public class LogQueryController {
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
         Long tenantId = TenantContextHolder.getTenantId();
-        long total = logQueryService.countOperationLogs(tenantId, req.module(), req.action());
+        long total = logQueryService.countOperationLogs(tenantId, req.module(), req.action(),
+            req.operatorId(), req.since(), req.until(), req.targetType());
         List<OperationLogResp> items = logQueryService.listOperationLogs(
                 tenantId, req.module(), req.action(),
+                req.operatorId(), req.since(), req.until(), req.targetType(),
                 offset, pageSize);
         return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+    }
+
+    /**
+     * 查询操作日志 action 字典
+     * <p>
+     * 返回 operation_log 当前实际存在的 action 去重集合（按 module 可选过滤），
+     * 供前端筛选下拉动态拉取（T-PERM-025）。
+     * </p>
+     *
+     * @param req 字典查询请求，含可选模块过滤
+     * @return action 去重集合（字典序）
+     */
+    @PostMapping("/operation/action-options")
+    public PermResult<ItemsResp<String>> listActionOptions(@Valid @RequestBody LogActionOptionsReq req) {
+        return PermResult.success(new ItemsResp<>(
+            logQueryService.listActionOptions(TenantContextHolder.getTenantId(), req.module())));
     }
 }

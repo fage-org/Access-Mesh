@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-PERM-023 收口：typeValue 自动分配/typeCode 生成查重 20049/list 服务端过滤分页）、§5.8 system-config 契约要点（T-PERM-024 收口：upsert/isSystem 修复/list 分页/JSONB 规范化语义）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -356,7 +356,8 @@ last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-
 | `POST /api/perm/permission-view/role-permissions`      | 查询角色权限视图                                       |
 | `POST /api/perm/permission-view/explain`               | 解释单个用户或角色对某资源操作的当前权限和近期影响事件 |
 | `POST /api/perm/permission-view/recent-changes`        | 查询近期可能影响用户或角色权限的变更事件               |
-| `POST /api/perm/log/operation/list`              | 操作日志                                               |
+| `POST /api/perm/log/operation/list`              | 操作日志（路径以 LogQueryController 实现为准；历史误写已随 T-ACCESS-007 第五轮修正） |
+| `POST /api/perm/log/operation/action-options`    | 操作日志 action 字典（T-PERM-025 新增） |
 | `POST /api/perm/log/change/list`                  | 权限变更日志                                           |
 | `POST /api/perm/system-config/list`                    | 查询系统配置                                           |
 | `POST /api/perm/system-config/detail`                  | 查询系统配置详情                                       |
@@ -371,6 +372,12 @@ last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-
 - `list`：`{keyword?, pageNum?, pageSize?}` → 分页结构（§3.3）；`keyword` 匹配 configKey/description（LIKE，大小写敏感），排序 `config_key, id`；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`）。
 - **configValue JSONB 语义（SystemConfigJsonbPgIT 实证）**：读出为 DB 规范化后的 JSON 文本——与提交值**语义等价**（解析树相等，含中文/嵌套/数组），但非字节回显（JSONB 规范化空白与键序）；展示值可直接再提交（规范化幂等），无截断/转义问题。
 - 权限门禁：`list`/`detail` 需 `SYSTEM_CONFIG:VIEW`，`save` 需 `SYSTEM_CONFIG:MANAGE`（操作位种子已由权威 DDL CRUD 预置组覆盖，租户 1）。
+
+**operation-log 契约要点（T-PERM-025 收口，2026-08-28）**：
+
+- `list`：`{module?, action?, operatorId?, since?, until?, targetType?, pageNum, pageSize}` → 分页结构（§3.3，排序 `created_at DESC`）；module/action/targetType **精确匹配**（等值索引友好）；`since`/`until` 为创建时间闭区间（ISO 本地时间）。无 detail 接口——`OperationLogResp` 已含全部字段，详情由前端抽屉展示。
+- `action-options`：`{module?}` → `ItemsResp<String>`——返回 operation_log 当前实际存在的 action 去重集合（字典序），供筛选下拉动态拉取；返回实际存在值而非维护端枚举（action 由 `@OperationLog` 注解开放增长，避免双轨漂移）。
+- 权限门禁：list 与 action-options 需独立 `OPERATION_LOG:VIEW`（**审计分离**，2026-08-28 设计定案——不再复用 `SYSTEM_CONFIG:VIEW`；资源类型 OPERATION_LOG=30 权威 DDL 种子，bootstrap 固定图已授予管理角色）。变更日志（`log/change/list`）与权限视图（`permission-view/recent-changes`）的门禁仍为 `SYSTEM_CONFIG:VIEW`，随各自页面任务（T-PERM-032/033）处置。
 
 ## 6. 核心请求契约
 

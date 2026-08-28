@@ -21,7 +21,7 @@
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
-import type { PaginatedResp } from "./role-manage";
+import type { ItemsResp, PaginatedResp } from "./role-manage";
 
 // ========== 操作日志定义 ==========
 
@@ -52,24 +52,33 @@ export type OperationLogResp = {
   createdAt?: string;
 };
 
-/** 操作日志列表查询请求（对齐后端 OperationLogListReq）。
- *  module/action 可选过滤；pageNum/pageSize 必填（后端 @NotNull），服务端分页。
- *  🔧 API 核对项（登记 T-PERM-025）：后端 Req 只支持 module/action 两个筛选维度，
- *  schema 有 operator_id/created_at/target_type 等可用筛选字段未暴露。
- *  Phase 2 后端补 operatorId/createdAt 时间范围/targetType 等筛选维度。 */
+/** 操作日志列表查询请求（对齐后端 OperationLogListReq，T-PERM-025 扩展筛选维度）。
+ *  module/action/operatorId/since/until/targetType 可选过滤；pageNum/pageSize 必填（后端 @NotNull），
+ *  服务端分页；action/module/targetType 精确匹配（保持等值索引语义）。 */
 export type OperationLogListReq = {
   module?: string;
   action?: string;
+  operatorId?: number;
+  /** 创建时间下界（含），ISO 本地时间（YYYY-MM-DDTHH:mm:ss） */
+  since?: string;
+  /** 创建时间上界（含），ISO 本地时间（YYYY-MM-DDTHH:mm:ss） */
+  until?: string;
+  targetType?: string;
   pageNum: number;
   pageSize: number;
+};
+
+/** action 字典查询请求（POST /log/operation/action-options，module 可选过滤）。 */
+export type LogActionOptionsReq = {
+  module?: string;
 };
 
 // ========== API 函数 ==========
 
 /** 查询操作日志列表（POST /api/perm/log/operation/list）。
- *  后端按 module/action 过滤 + 服务端分页，返回 PaginatedResp<OperationLogResp>。
- *  权限门禁：后端 LogQueryAppServiceImpl 以 SYSTEM_CONFIG:VIEW 校验（复用系统配置 VIEW，无独立权限码）。
- *  🔧 筛选维度不足 + 契约路径错误登记于 T-PERM-025。 */
+ *  后端按 module/action/operatorId/时间范围/targetType 过滤 + 服务端分页，
+ *  返回 PaginatedResp<OperationLogResp>。
+ *  权限门禁：独立 OPERATION_LOG:VIEW（T-PERM-025 审计分离，不再复用 SYSTEM_CONFIG:VIEW）。 */
 export const getOperationLogList = async (
   params: OperationLogListReq
 ): Promise<PaginatedResp<OperationLogResp>> => {
@@ -81,4 +90,19 @@ export const getOperationLogList = async (
   return unwrap(res);
 };
 
-export { type PaginatedResp };
+/** 查询操作日志 action 字典（POST /api/perm/log/operation/action-options，T-PERM-025）。
+ *  返回 operation_log 当前实际存在的 action 去重集合（字典序），供筛选下拉动态拉取
+ *  （替代前端硬编码子集——action 由 @OperationLog 注解开放增长，返回实际存在值避免双轨漂移）。
+ *  权限门禁：OPERATION_LOG:VIEW。 */
+export const getOperationLogActionOptions = async (
+  params?: LogActionOptionsReq
+): Promise<ItemsResp<string>> => {
+  const res = await http.request<PermResult<ItemsResp<string>>>(
+    "post",
+    "/api/perm/log/operation/action-options",
+    { data: params ?? {} }
+  );
+  return unwrap(res);
+};
+
+export { type PaginatedResp, type ItemsResp };

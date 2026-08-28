@@ -227,26 +227,33 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     /**
      * 查询操作日志列表
      * <p>
-     * 查询系统的操作日志，支持按模块和操作类型过滤。
-     * 需要SYSTEM_CONFIG_VIEW权限。
+     * 查询系统的操作日志，支持按模块、操作、操作者、时间范围、目标类型过滤。
+     * 需要OPERATION_LOG_VIEW权限（T-PERM-025 审计分离：不再复用 SYSTEM_CONFIG:VIEW）。
      * </p>
      *
-     * @param tenantId 租户ID
-     * @param module   模块名称，可选过滤条件
-     * @param action   操作类型，可选过滤条件
-     * @param offset   分页偏移量
-     * @param limit    分页大小
+     * @param tenantId   租户ID
+     * @param module     模块名称，可选过滤条件
+     * @param action     操作类型，可选过滤条件（精确匹配）
+     * @param operatorId 操作者用户ID，可选
+     * @param since      创建时间下界（含），可选
+     * @param until      创建时间上界（含），可选
+     * @param targetType 目标类型，可选
+     * @param offset     分页偏移量
+     * @param limit      分页大小
      * @return 操作日志响应列表
      * @throws SecurityException 无权限时抛出
      */
     @Override
-    public List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action, int offset, int limit) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+    public List<OperationLogResp> listOperationLogs(Long tenantId, String module, String action,
+                                                     Long operatorId, LocalDateTime since, LocalDateTime until,
+                                                     String targetType, int offset, int limit) {
+        Long operatorCtxId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
         }
 
-        return operationLogMapper.selectByTenantModuleAction(tenantId, module, action, offset, limit)
+        return operationLogMapper.selectPageByCondition(tenantId, normalize(module), normalize(action),
+                operatorId, since, until, normalize(targetType), offset, limit)
             .stream().map(this::toOperationLogResp).collect(Collectors.toList());
     }
 
@@ -254,23 +261,60 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      * 统计操作日志数量
      * <p>
      * 统计符合条件的操作日志总数。
-     * 需要SYSTEM_CONFIG_VIEW权限。
+     * 需要OPERATION_LOG_VIEW权限（T-PERM-025 审计分离）。
      * </p>
      *
-     * @param tenantId 租户ID
-     * @param module   模块名称，可选过滤条件
-     * @param action   操作类型，可选过滤条件
+     * @param tenantId   租户ID
+     * @param module     模块名称，可选过滤条件
+     * @param action     操作类型，可选过滤条件
+     * @param operatorId 操作者用户ID，可选
+     * @param since      创建时间下界（含），可选
+     * @param until      创建时间上界（含），可选
+     * @param targetType 目标类型，可选
      * @return 操作日志总数
      * @throws SecurityException 无权限时抛出
      */
     @Override
-    public long countOperationLogs(Long tenantId, String module, String action) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+    public long countOperationLogs(Long tenantId, String module, String action,
+                                    Long operatorId, LocalDateTime since, LocalDateTime until, String targetType) {
+        Long operatorCtxId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
         }
 
-        return operationLogMapper.countByTenantModuleAction(tenantId, module, action);
+        return operationLogMapper.countByCondition(tenantId, normalize(module), normalize(action),
+            operatorId, since, until, normalize(targetType));
+    }
+
+    /**
+     * 查询操作日志 action 字典
+     * <p>
+     * 返回 operation_log 当前实际存在的 action 去重集合（按 module 可选过滤），
+     * 供前端筛选下拉动态拉取（T-PERM-025）。返回实际存在的事件码而非维护端枚举，
+     * 避免与 @OperationLog 注解清单双轨漂移。
+     * 需要OPERATION_LOG_VIEW权限。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param module   模块，可选过滤
+     * @return 去重 action 集合（字典序）
+     * @throws SecurityException 无权限时抛出
+     */
+    @Override
+    public List<String> listActionOptions(Long tenantId, String module) {
+        Long operatorCtxId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
+        }
+
+        return operationLogMapper.selectDistinctActions(tenantId, normalize(module));
+    }
+
+    /**
+     * 过滤参数规整：空白串归一为 null（与 SQL <if> 判空语义一致）
+     */
+    private String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     // ===== 实体转换方法 =====
