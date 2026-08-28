@@ -9,7 +9,7 @@
 - **RBAC 权限引擎**：资源-操作-角色三位一体，支持条件权限和范围权限
 - **网关级鉴权**：Spring Cloud Gateway + Sa-Token，接口级白名单模式（快照本地匹配 + 30 秒撤权边界）
 - **OAuth2 认证**：授权码+PKCE / 密码 / 客户端凭证多种模式
-- **SDK**：perm-client（Feign 远程查询 SDK，业务服务按需使用）、perm-gateway（Gateway 鉴权插件，已使用）；perm-data **未实现**（experimental/规划中，当前为空配置类，勿依赖）
+- **SDK**：perm-client（Feign 远程查询 SDK，业务服务按需使用）、perm-gateway（Gateway 鉴权插件，已使用）。数据权限参考实现（原 perm-data 设想）属演进方向，未提供模块
 - **接入示例**：example-service 单受保护接口已交付（`POST /api/example/demo/hello`，经 Gateway 鉴权 + 身份回显）；报表数据范围、动态 SQL 数据权限**未交付**（规划中，见权限中心计划）
 
 ## 技术栈

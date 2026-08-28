@@ -19,7 +19,7 @@
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>common</artifactId>
         </dependency>
-        <!-- 接口级鉴权由 Gateway 承担（规范 §2.4），业务服务不消费 perm-client/perm-data starter -->
+        <!-- 接口级鉴权由 Gateway 承担（规范 §2.4），业务服务不消费权限 SDK starter -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

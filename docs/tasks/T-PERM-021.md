@@ -22,7 +22,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-22
+last_updated: 2026-08-28
 ---
 
 # T-PERM-021 工作单 F：文档准确性与代码简化
@@ -45,6 +45,7 @@ F 来自归档设计评审 §11 的暂缓项，目标是补齐文档准确性、
 | F1.c | ownership 单源 | 若理解为删除 `resource_entity.owner_service_code` / `maintain_source` / `sync_key`，与当前 service-config/sync/resource-dependency 设计冲突（列在 access-service.sql 中保留）；新 sync/full-sync 以 `sync_metadata` 为单源 | `CONFLICT_REQUIRES_DECISION` |
 | F1.d | operation/change log 链路 | `permission_change_log.request_id` 当前可空，合并后 `operation_log.request_id` 也可空；API 契约写 `X-Request-Id` 可选且未传由 Gateway 生成，但 schema 注释又把 `request_id` 写成“请求/追踪ID(trace_id)”。需先统一 requestId/traceId 语义与生成链路，再考虑 NOT NULL | `CONFLICT_REQUIRES_DECISION` + `DESIGN_DRIFT` |
 | F1.e | full-sync runbook | 收窄为**外部业务服务** sync/full-sync 运维手册（`/api/perm/**/sync`、`/full-sync` 与 `sync_metadata` ownership 校准）；内部 admin→permission full-sync 编排已随 T-ACCESS-005 删除。默认产物 `docs/ops/runbook-full-sync.md`，落地时按该路径新建 | `NO_HARD_CONFLICT` |
+| F1.f | `PermQuery.operationPermissionIds` 无写入方扩展点 | 引擎读该字段（`PermQueryEngine` 位掩码解析分支）但全仓无任何 setter 调用方，分支不可达；HEAD 已存在（非当次变更引入，2026-08-28 双轨评审登记）。随本工作单定夺：删除字段与引擎分支，或补写入方激活 | `NO_HARD_CONFLICT` |
 
 ## 执行前确认
 

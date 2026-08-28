@@ -9,7 +9,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * Example Service 微服务的 Spring Boot 主启动类。
  * 作为权限中心的接入示例演示服务：接口级鉴权由 Gateway 承担（规范 §2.4
  * 服务内不重复鉴权），业务服务无需引入权限 SDK 即可被保护，因此本服务
- * 不依赖 perm-client / perm-data starter，也不做服务内二次鉴权。
+ * 不依赖 perm-client starter，也不做服务内二次鉴权。
  * </p>
  */
 @SpringBootApplication

@@ -3,7 +3,7 @@ doc_type: design
 title: 微服务架构设计
 status: adopted
 domain: common
-last_reviewed: 2026-08-22
+last_reviewed: 2026-08-28
 ---
 
 # 微服务架构设计
@@ -334,13 +334,12 @@ admin 域管理事实（`sys_user`/`sys_org`/`sys_menu`）与 permission 域权�
 
 ### 4.4 SDK / Starter 规划
 
-封装为独立 Maven 模块组（perm-sdk），3 个 Starter + 1 个公共模块：
+封装为独立 Maven 模块组（perm-sdk），2 个 Starter + 1 个公共模块：
 
 ```
 perm-sdk/
 ├── perm-common/                          # 公共模型、异常、工具（PermResult, PermissionContext, ConditionRule 等）
 ├── perm-client-spring-boot-starter/      # 业务服务引用
-├── perm-data-spring-boot-starter/        # 数据权限参考实现（⚠️ 未实现/规划中，无使用方；example 已随 T-API-001 移除该依赖）
 └── perm-gateway-spring-boot-starter/     # 网关引用
 ```
 
@@ -349,7 +348,8 @@ perm-sdk/
 | perm-common                      | 公共模型（PermResult/PermissionContext/ConditionRule 等）、统一异常                                                        |
 | perm-client-spring-boot-starter  | access-service 权限客户端（已实现部分）：`PermissionFeignClient` 远程查询/写方法（checkAuth、batchCheckAuth、角色/资源/授权维护等）、`@EnableFeignClients` 自动装配与 `X-Internal-Secret`/`X-Service-Code` 身份透传拦截器（`perm.client.enabled` 开关）。接口扫描/@PermResource/自动注册未实现（T-API-001 名实对齐；有真实消费者后另行评估） |
 | perm-gateway-spring-boot-starter | 网关插件：快照模式本地匹配鉴权（T-PERM-001）、条件本地评估、未覆盖场景回退 access-service 实时鉴权                        |
-| perm-data-spring-boot-starter    | 数据权限参考实现（非官方 SDK）：@DataPermission/@DataPermissions 注解、JSqlParser SQL 改写、请求级数据范围缓存 **（⚠️ 规划中，未实现 — 2026-06-20 审计 S-011：当前模块仅含空 `PermDataAutoConfiguration`，注解/拦截器/SQL 改写均未落地，待核心主线稳定后补齐）**             |
+
+> 数据权限参考实现（@DataPermission 注解、JSqlParser SQL 改写、请求级数据范围缓存——原规划的 perm-data starter）：**演进方向，未提供模块**（2026-06-20 审计 S-011 登记仅空装配类；2026-08-28 移除空模块，将来实现时重新立项）。
 
 ### 4.5 核心 API 清单
 

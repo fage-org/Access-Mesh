@@ -8,7 +8,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 027 |
+| access-service 归并（跨服务） | `T-ACCESS` | 029 |
 | permission-center | `T-PERM` | 044 |
 | admin-service | `T-ADMIN` | 026 |
 | gateway | `T-GW` | 008 |
@@ -52,6 +52,8 @@
 | [T-ACCESS-024](T-ACCESS-024.md) | 时间语义 UTC 统一（TypeHandler/JDBC/JVM） | product-vertical-slice（已归档） | project-rules；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |
 | [T-ACCESS-025](T-ACCESS-025.md) | 操作日志收敛（默认不序列化参数，裁剪覆盖要求） | product-vertical-slice（已归档） | access-service-architecture；project-rules；admin-service-api-contract | T-ACCESS-021 | ✅ | ✓ |
 | [T-ACCESS-026](T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | product-vertical-slice（已归档） | architecture；access-post-merge-plan；project-rules | T-API-001 + 里程碑 B 全部 | ✅ | ✓ |
+| [T-ACCESS-027](T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改（开源通用 IAM 定案） | [product-positioning-landing](../plans/product-positioning-landing-plan.md) | README；docs/README；design/README；architecture；access-service-architecture；permission-center overview/implementation | — | ⚙️ | ⏳ |
+| [T-ACCESS-028](T-ACCESS-028.md) | perm-data 空装配模块删除（SDK 面名实对齐） | [product-positioning-landing](../plans/product-positioning-landing-plan.md) | architecture；README；example-service | — | ✅ | ✓ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 待确认 + 前端 Phase 1/2/4 后端任务）
 
@@ -75,7 +77,7 @@
 | [T-PERM-017](T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 gateway_evaluable + 未下发回退 check-interface） | perm-cache-invalidation | design/services/gateway.md；v3.5 §7.2 | T-PERM-002, T-PERM-018 | ✅ | ✓ |
 | [T-PERM-018](T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | perm-cache-invalidation | v3.5 §5.1/§7.2；api-contract §6.x | T-PERM-002 | ✅ | ✓ |
 | [T-PERM-019](T-PERM-019.md) | 工作单 D：防呆机制（type_value 自动分配、业务键封装、AppliesTo；D4 已移除） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；admin sync | — | ⚙️ | ⏳ |
-| [T-PERM-020](T-PERM-020.md) | 工作单 E：清理预设能力（domain_config 旧配置、PermQuery 工厂、RocketMQ 脚注、auto-grant TODO；含冲突标记） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；architecture | — | ⚙️ | ⏳ |
+| [T-PERM-020](T-PERM-020.md) | 工作单 E：清理预设能力（死工厂删除 + domain_config/RocketMQ/auto-grant 口径收口） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；architecture | — | ✅ | ✓ |
 | [T-PERM-021](T-PERM-021.md) | 工作单 F：文档准确性与代码简化（指标自动化、DTO 单源、ownership、日志链路、full-sync runbook；含冲突标记） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | ⚙️ | ⏳ |
 | T-PERM-022 | 2.2 角色管理后端 | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract §5.2/§6.10.3；implementation §2.1；design/frontend/role-manage.md §8 | T-FE-002 | ⚙️ | ⏳ |
 | T-PERM-023 | 6.1 类型定义后端 | frontend-phase2 | api-contract §5.1；implementation §2.6；design/frontend/type-definition.md §8 | T-FE-003 | ⚙️ | ⏳ |
@@ -253,10 +255,10 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 6. `T-GW-006` 集成测试 ← 002（重新界定：不在项目内做集成测试，改为独立仓库测试服务）
 7. `T-PERM-008` 失效标记代码 ← T-GW-005（已完成，回到 A 链收尾）
 
-### P4 — 工作单 D/E/F（proposed，执行前确认）
+### P4 — 工作单 D/E/F（执行前确认；E 已于 2026-08-28 收口）
 
 1. `T-PERM-019` 工作单 D 防呆机制：整体无硬冲突，但 `typeValue` 外部入参描述和软删不复用保证方式存在 `DESIGN_DRIFT`，需先确认并回写设计。
-2. `T-PERM-020` 工作单 E 清理预设：`forValidate` / `forResourceCheck` 与当前管理校验和 `auth/query-resources` 的设计冲突已于 2026-08-27 消解（implementation §3.6 改为 forUserView，forResourceCheck 主代码零调用，删除无设计引用障碍）；RocketMQ 与 auto-grant 已被后续设计收敛。
+2. `T-PERM-020` 工作单 E 清理预设 — ✅ 已收口（2026-08-28）：删除零调用 `forResourceQuery`/`forResourceCheck`（`forValidate` 保留，有生产调用）；domain_config schema 表头注释、AGENTS/copilot MQ 口径同步；auto-grant 禁用态核实已收敛。完成记录见任务卡。
 3. `T-PERM-021` 工作单 F 文档准确性与代码简化：ownership 字段删除、`request_id NOT NULL` 均存在当前设计约束，且 `requestId`/`traceId` 语义需先收敛；执行前必须确认 F1.c/F1.d。
 
 ### P5 — 前端 Phase 1（archived，2026-07-12 归档）
@@ -303,6 +305,15 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 7. `T-FE-035` 扩展V2 transport（多条件+失败模拟）+失格降级+回归验证+设计回写 ← T-FE-034
 
 准入门禁：~~已关闭~~（plan 已归档取消，2026-07-26）。详见 [归档 plan](../plans/archive/2026-07/permission-grant-v2-plan.md)。v1+v2 两套页面整体删除重做，T-FE-029~034 保持 done（产出废弃）、T-FE-035 cancelled。
+
+### P9 — 产品定位落地（2026-08-28 立项，定位定案：开源通用 IAM）
+
+> 设计定案（2026-08-28）：产品定位 = 开源通用 IAM（通用多租户访问控制平台）；暂缓能力维持暂缓（自动授权写入口 20048 预留禁用、动态数据权限延后 example-service，等 PM 重申重启）。计划见 [product-positioning-landing-plan](../plans/product-positioning-landing-plan.md)。
+
+1. `T-ACCESS-028` perm-data 空装配模块删除 — ✅ done（2026-08-28）
+2. `T-ACCESS-027` 文档三档叙事整改（纯文档，无依赖可立即执行）
+
+后续节奏（2026-08-28 定案）：维护债 → 定位落地文档整改 → 简单页后端改造（`T-PERM-023/024/025/022`）；权限授予主链等复杂核心任务（`T-PERM-034` 主体、`T-PERM-040/041`、Phase 3 联调）等用户时间充足再启动。
 
 ### 不排期（待立项）
 

@@ -3,7 +3,7 @@ doc_type: design
 title: Example Service 设计
 status: adopted
 domain: example-service
-last_reviewed: 2026-06-20
+last_reviewed: 2026-08-28
 ---
 
 # Example Service 设计
@@ -51,7 +51,7 @@ last_reviewed: 2026-06-20
 
 > 本服务当前形态（T-API-001）不引入任何权限 SDK——接口级鉴权由 Gateway 承担，资源注册走内部同步 HTTP 通道（见上节）。以下为未来菜单权限、权限查询等场景的接入规划。
 
-- Spring Boot 项目（规划）：以 `perm-client-spring-boot-starter` 为核心（当前仅为 Feign 远程查询 SDK，见 architecture §4.4/§4.5.1 名实对齐口径），`perm-gateway-spring-boot-starter` 供网关使用，`perm-data` 未实现（experimental）。
+- Spring Boot 项目（规划）：以 `perm-client-spring-boot-starter` 为核心（当前仅为 Feign 远程查询 SDK，见 architecture §4.4/§4.5.1 名实对齐口径），`perm-gateway-spring-boot-starter` 供网关使用。数据权限参考实现属演进方向，未提供模块。
 - 普通 Java 项目（规划）：提供轻量 client SDK，复用稳定鉴权和权限查询契约，不依赖 Spring Boot 自动配置。
 - 其他语言项目：通过稳定 HTTP API 契约和接入文档对接，不要求依赖 Java SDK。
 

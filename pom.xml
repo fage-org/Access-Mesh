@@ -114,11 +114,6 @@
                 <artifactId>perm-gateway-spring-boot-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <dependency>
-                <groupId>cn.ac.fage.accessmesh</groupId>
-                <artifactId>perm-data-spring-boot-starter</artifactId>
-                <version>${project.version}</version>
-            </dependency>
         </dependencies>
     </dependencyManagement>
 
