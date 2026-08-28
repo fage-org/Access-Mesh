@@ -315,22 +315,22 @@ admin 域管理事实（`sys_user`/`sys_org`/`sys_menu`）与 permission 域权�
 
 作为独立微服务，演示第三方业务系统如何对接 access-service 权限能力实现权限管控。包含前后端，是开发者的**接入参考实现**。
 
-### 4.2 演示模块
+### 4.2 演示模块（三档口径标注，交付事实见 [services/example-service.md](services/example-service.md)）
 
-| #   | 模块         | 说明                                                                       |
-| --- | ------------ | -------------------------------------------------------------------------- |
-| 1   | 服务注册演示 | 启动时自动向 access-service 注册 service_config + 接口信息（resource_api_mapping） |
-| 2   | 接口权限演示 | 注解标记接口权限要求，展示网关鉴权拦截效果                                 |
-| 3   | 菜单权限演示 | 前端动态菜单渲染，基于 access-service 返回的菜单与权限结果                  |
-| 4   | 按钮权限演示 | 前端按钮级别权限控制（v-permission 指令等）                                |
-| 5   | 数据权限演示 | 查询数据时附加数据权限过滤条件（项目组 project_id 维度）                   |
-| 6   | 权限条件演示 | 展示时间范围/IP白名单条件权限的实际效果                                    |
-| 7   | 权限查询演示 | 调用 access-service 查询用户权限视图、来源追溯                             |
-| 8   | SDK 集成指南 | 提供可复用的 Starter 封装（接口注册、鉴权注解、数据权限拦截器）            |
+| 模块               | 说明                                                                                          | 档位       |
+| ------------------ | --------------------------------------------------------------------------------------------- | ---------- |
+| 服务注册与接口同步 | 业务服务经 `/api/perm/resource-entity/sync` 内部同步通道注册 API 资源（运维期，X-Internal-Secret + X-Service-Code） | 当前可用   |
+| 接口权限演示       | 单受保护接口 `POST /api/example/demo/hello` 经 Gateway 快照鉴权 + 身份回显 + HMAC 签名校验演示 | 当前可用   |
+| 菜单/按钮权限演示  | 前端动态菜单与按钮级权限控制                                                                  | 已规划     |
+| 报表范围权限演示   | `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeMode=ALL`                                        | 已规划     |
+| 权限条件演示       | 时间范围/IP 白名单条件评估效果                                                                | 已规划     |
+| 权限查询演示       | `auth/check`、`auth/query-resources`、`auth/query-scopes`                                   | 已规划     |
+| 数据权限演示       | 查询附加数据权限过滤条件（依赖动态数据权限端到端链路，延后 example 阶段）                     | 仅演进方向 |
+| SDK 注解式封装     | Starter 接口注册/鉴权注解/数据权限拦截器（perm-client 现为 Feign 远程查询 SDK，扫描/注解未实现） | 仅演进方向 |
 
 ### 4.3 数据库
 
-独立 PostgreSQL 实例，存放企业 BI 平台演示业务数据（数据源、报表、数据任务），不涉及权限数据。
+当前无数据源（T-API-001 依赖瘦身删除 PostgreSQL/MyBatis-Flex）。[schema/example-service.sql](schema/example-service.sql) 为企业 BI 演示库 DDL（数据源、报表、数据任务），暂无消费方，保留供未来演示数据场景（仅演进方向）。
 
 ### 4.4 SDK / Starter 规划
 

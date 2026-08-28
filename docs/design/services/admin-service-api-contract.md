@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-08-23
+last_reviewed: 2026-08-28   # 2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -847,7 +847,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **写链路语义**（create/update/delete 同一事务）：
 
-- 可选字符串字段（`path/icon/resourceType/resourceCode/sourceService`）收到空白字符串时**服务端规范化为 null**（空串写库会命中部分唯一索引并被读链路误判为业务菜单；update 时空白等同未提供，跳过保留原值）——用户决策 2026-08-22
+- 可选字符串字段（`path/icon/resourceType/resourceCode/sourceService`）收到空白字符串时**服务端规范化为 null**（空串写库会命中部分唯一索引并被读链路误判为业务菜单；update 时空白等同未提供，跳过保留原值）——设计定案 2026-08-22
 - `status` 仅允许 `0/1`（DTO `@Min(0) @Max(1)` 校验，违规 90001）
 - MENU 投影对 DIR/MENU/EXTERNAL/IFRAME/HIDDEN **全量维护**（无 BUTTON 短路；实例级门禁依赖投影行授权到具体菜单实例）
 - 菜单可见性由 v3.5 §4.1 派生公式在 `/auth/user-menu` 读链路决定（业务菜单 = `resource_type` 非空走资源访问事实，纯展示 `resource_type` 为空全员可见），不消费投影

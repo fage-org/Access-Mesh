@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 产品定位落地（三档叙事整改 + 名实对齐收尾）
-status: active
+status: completed
 domain: cross-service
 design_refs:
   - README.md
@@ -43,12 +43,13 @@ last_updated: 2026-08-28
 
 | 任务 | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ACCESS-027](../tasks/T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改 | ⚙️ | — |
+| [T-ACCESS-027](../tasks/T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改 | ✅ | — |
 | [T-ACCESS-028](../tasks/T-ACCESS-028.md) | perm-data 空装配模块删除 | ✅ | — |
 
 ## 当前进度
 
-- 2026-08-28：立项；定位口径定案（开源通用 IAM）；T-ACCESS-028 当日执行收口；T-ACCESS-027 待启动。
+- 2026-08-28：立项；定位口径定案（开源通用 IAM）；T-ACCESS-028 当日执行收口；T-ACCESS-027 当日执行收口（三档口径入口落位 design/README、architecture §4.2/§4.3 演示模块三档重写、决策过程标注清扫 27 处，完成记录见任务卡）。
+- 两任务全部 done，计划 completed；物理归档条件已满足，待后续归档批次执行（含归档自检）。
 
 ## 归档条件
 

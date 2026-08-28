@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-08-23
+last_reviewed: 2026-08-28   # 2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；此前：2026-08-23
 ---
 
 # access-service 目标架构与归并约束
@@ -108,11 +108,11 @@ flowchart LR
 
 - `/user/user-menus` 查询他人时需 `USER:VIEW@目标用户`，查自己豁免（方案1+2，P1-2；T-ACCESS-018 类型收敛后为 USER）：`AdminUserController.getUserMenus` 在 `req.id() != 当前登录用户` 时经 `AdminPermissionValidator.checkInstanceLevel(USER, id, VIEW)` 门禁。
 - 权限码下发门禁下放入口（方案「门禁下放入口」）：`PermissionViewAppService.buildEffectiveView` 公共管线不再设 `USER:VIEW` 门禁；permission 域独立 HTTP 入口 `/effective-permission-codes` 走 `getEffectivePermissionCodesForManage`（自查豁免 + 查他人需 `USER:VIEW`）；query 包内部调用由其入口 Controller 门禁（自查豁免 + `USER:VIEW`，P1-2）兜底；`getEffectivePermissions` 管理员视图保留原 `USER:VIEW`/`ROLE:VIEW` 门禁不动。
-- `/role/list` 保持 `LIMIT 0,200` 上限并在 `UserRoleQueryService` Javadoc 声明（P2-3，用户决策「保持 + 文档声明上限」）：功能角色面向前端下拉，超出 200 属配置异常，由组织治理收敛。
+- `/role/list` 保持 `LIMIT 0,200` 上限并在 `UserRoleQueryService` Javadoc 声明（P2-3，设计定案「保持 + 文档声明上限」）：功能角色面向前端下拉，超出 200 属配置异常，由组织治理收敛。
 - `OrgVisibilityQueryServiceImpl` 缓存读写故障旁路 DB（P2-1）：`CacheService.get/put` 异常时记 `log.warn` 并降级直查 DB，不阻断可见性计算（fail-open 至数据库层，权限判定本身仍经 engine fail-closed）。
-- 角色数据走 query 服务（P2-2，用户决策「角色走 query 服务 + 权限保留 AppService」）：`UserRoleQueryService` 经 `UserRoleQueryMapper` 直读 `user_role ⨝ abstract_role`（跨域只读），权限事实（有效权限码/资源访问）保留经 `PermissionViewAppService`。
+- 角色数据走 query 服务（P2-2，设计定案「角色走 query 服务 + 权限保留 AppService」）：`UserRoleQueryService` 经 `UserRoleQueryMapper` 直读 `user_role ⨝ abstract_role`（跨域只读），权限事实（有效权限码/资源访问）保留经 `PermissionViewAppService`。
 
-角色代理退役（T-ACCESS-006，用户决策「角色直接由 permission 管理」）：
+角色代理退役（T-ACCESS-006，设计定案「角色直接由 permission 管理」）：
 
 - `RoleProxyService`/`RoleProxyServiceImpl`、`OrgVisibilityService`/`OrgVisibilityServiceImpl`（Feign 时代遗留的 admin 接口 + application 实现代理形态）已删除，admin 域直接依赖 `application.query` 查询服务。
 - admin 侧角色写代理端点已删除（T-ADMIN-024，无存量调用方直删、无映射 404）：`/role/create`、`/role/grant-menu`、`/role/revoke-menu`、`/user-role/assign`、`/user-role/revoke`；错误码 `10111`（ROLE_API_RETIRED）随端点删除退役、码值不复用（退役登记见 ErrorCodeContractTest）；运行时观察值按入口区分——匿名直连 admin 路径族 401（RequestContextInterceptor）、带身份直连 404、经 Gateway 未注册路径 403（快照 `unregistered-policy=DENY`），无 Handler 映射的注册表证据见 HttpApiPathSnapshotTest。角色与授权管理由 permission 域直接提供（`/api/perm/abstract-role`、`/api/perm/user-role`、`/api/perm/role-resource-permission`）。
@@ -210,16 +210,16 @@ flowchart LR
 
 操作者绑定规则（T-ACCESS-004 落地；T-ACCESS-013 扩展 OAuth2 JWT 资源服务器）：`operatorId` 只在 Sa-Token 会话、签名验证通过或 OAuth2 JWT 验签通过后绑定（JWT 来源：`SaJwtUtil` HS256 + loginType + 超时校验 + `oauth2:blacklist:<jti>` 撤销检查）；内部凭证单独不授予操作者身份（SERVICE 调用 operatorId=null，管理接口权限判定 fail-closed）。服务身份绑定规则：内部凭证验证通过后 `X-Service-Code` 视为凭证持有者声明的服务身份（防无凭证外部伪造）；凭证持有者互冒充为已知限制，T-ACCESS-005/010 服务白名单收敛。**主体 ID 语义（§12 定稿）**：统一后 `operatorId` 承载的即主体 ID（`abstract_user.id` = `sys_user.id`），会话 `loginId` 与审计操作者同源，无需转换。
 
-OAuth2 资源服务器与开放路径清单（T-ACCESS-013 落地，2026-08-22 用户决策）：
+OAuth2 资源服务器与开放路径清单（T-ACCESS-013 落地，2026-08-22 设计定案）：
 
 - **开放路径白名单配置化**（`access.oauth2.resource-paths`，application.yml 静态配置、全量替换语义）：默认仅 `/auth/oauth2/userinfo`；每条规则 = path（Ant 通配允许）+ `requiredScopes` + `audience` + `clientIds`。未配置路径上 OAuth2 JWT 默认拒绝（落到会话分支 → 401）。启动防护 fail-fast（`OAuth2ResourcePathProperties.afterPropertiesSet`）：① 模式不得覆盖 `/auth/**` 会话端点（userinfo/user-menu/oauth2/authorize——有限端点集逐样本匹配即完备）与 `/api/perm/**` 内部凭证空间（无限路径集合，按静态前缀保守判定：模式第一个通配符（`*`/`?`/URI 模板变量 `{`——AntPathMatcher 段内正则支持 `{name}`/`{name:regex}`）前的静态前缀为空、为 `/api/perm` 的字符前缀、或以 `/api/perm/` 开头即拒绝——`/api/**/sync`、`/api/*`、`/**`、`/api/per?/**`、`/api/{module}/**` 等形态均拦截，防双认证机制冲突；无关节务路径的 `{var}` 模板如 `/example/{id}` 为有效配置不受影响），不得以 `/auth/oauth2/**` 通配放开；② **业务开放路径（非 userinfo 豁免路径）必须声明 `requiredScopes` 与 `audience`**——空值在运行时直接跳过两项授权门禁，属配置遗漏放行面（fail-fast 拒绝启动）。
 - **授权链**（`RequestContextInterceptor.authenticateOAuth2Jwt`）：验签 → 必填 claim（loginId/jti/client_id）→ 撤销黑名单（对全部开放路径生效，路径限定不产生绕过）→ 客户端启用动态校验（`OAuth2ClientDomainService.findActiveByClientId` 唯一索引点查，不经缓存保证禁用立即失效；客户端禁用/删除 → 401）→ 路径门禁三重校验（`clientIds` 限定 / `requiredScopes` 令牌 scope 子集校验 / `audience` 令牌 aud 匹配；不满足 → 403 授权不足）→ 绑定委托用户上下文。
-- **scope → 权限映射采用独立映射模型**（用户决策，不接入 PermQueryEngine）：scope 保持 OAuth2 标准委托范围语义（签发时空格分隔、授权时校验 ⊆ 客户端注册 scopes），授权判定即"开放路径声明所需 scope、令牌 scope 必须全部包含"；委托主体是客户端而非用户，与平台权限正交互不冲突。
-- **audience**（用户决策：客户端注册配置加列）：`sys_oauth2_client.audiences`（逗号分隔资源服务器标识）非空时签发写入 JWT `aud` claim（List 形态）；`/auth/oauth2/userinfo` 默认豁免 audience 校验（旧令牌无 aud 兼容）；其他开放路径**强制** audience 匹配（令牌 aud 缺失或不含路径声明的受众 → 403）。种子客户端 audiences=`access-service`。
+- **scope → 权限映射采用独立映射模型**（设计定案，不接入 PermQueryEngine）：scope 保持 OAuth2 标准委托范围语义（签发时空格分隔、授权时校验 ⊆ 客户端注册 scopes），授权判定即"开放路径声明所需 scope、令牌 scope 必须全部包含"；委托主体是客户端而非用户，与平台权限正交互不冲突。
+- **audience**（设计定案：客户端注册配置加列）：`sys_oauth2_client.audiences`（逗号分隔资源服务器标识）非空时签发写入 JWT `aud` claim（List 形态）；`/auth/oauth2/userinfo` 默认豁免 audience 校验（旧令牌无 aud 兼容）；其他开放路径**强制** audience 匹配（令牌 aud 缺失或不含路径声明的受众 → 403）。种子客户端 audiences=`access-service`。
 - **委托上下文第五要素**：`RequestContext` 增加 `delegatedClientId`（仅 OAuth2 JWT 分支非 null，callerType 维持 USER——operatorId=JWT loginId 委托用户身份）；审计/日志经 `AccessRequestContext.getDelegatedClientId()` 区分第三方委托调用与用户直调。
-- **Gateway 透传**（用户决策：同步支持；评审 P1 修复：仅委托 JWT 启用）：`gateway.oauth2.passthrough-paths`（外部路径口径，默认为空 = 无业务路径默认开放）命中**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时 `OAuth2PassthroughFilter`（order -79）设 skipAuth=true——跳过会话校验（否则 OAuth2 JWT 被 uuid 会话校验 401）、权限校验与身份头注入/签名，Authorization 头原样透传下游验签。**平台用户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（skipAuth 不设置）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限（评审 P1）。`/auth/**` 已由白名单覆盖（userinfo 无需重复配置）。**双侧路径口径差异部署约束**：Gateway 匹配外部路径（如 `/admin/api/**`），access-service 匹配 StripPrefix 后路径（`/api/**`），开放业务路径需双侧同步配置并人工对应；`InternalSecretFilter` 会向透传请求注入 X-Internal-Secret，因开放路径禁止位于 `/api/perm/**`（启动防护），该头在开放路径无消费者、无冲突。
+- **Gateway 透传**（设计定案：同步支持；评审 P1 修复：仅委托 JWT 启用）：`gateway.oauth2.passthrough-paths`（外部路径口径，默认为空 = 无业务路径默认开放）命中**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时 `OAuth2PassthroughFilter`（order -79）设 skipAuth=true——跳过会话校验（否则 OAuth2 JWT 被 uuid 会话校验 401）、权限校验与身份头注入/签名，Authorization 头原样透传下游验签。**平台用户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（skipAuth 不设置）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限（评审 P1）。`/auth/**` 已由白名单覆盖（userinfo 无需重复配置）。**双侧路径口径差异部署约束**：Gateway 匹配外部路径（如 `/admin/api/**`），access-service 匹配 StripPrefix 后路径（`/api/**`），开放业务路径需双侧同步配置并人工对应；`InternalSecretFilter` 会向透传请求注入 X-Internal-Secret，因开放路径禁止位于 `/api/perm/**`（启动防护），该头在开放路径无消费者、无冲突。
 
-平台用户会话只保留一套：`/auth/**` 是用户登录与会话签发入口，Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token 权威配置（T-ACCESS-003 落实）：`token-name=Authorization`、`token-style=uuid`（uuid 模式无会话密钥概念，会话有效性以共享 Redis 条目为唯一事实，Redis 清空后两端一致失效 fail-closed）、`timeout=7200`（2 小时绝对有效期）、`active-timeout=1800`（30 分钟无操作滑动续期）、`is-concurrent=true`、`is-share=false`、token-prefix 均为 `Bearer`（Gateway 配置，access 签发返回 tokenType=Bearer）；登录类型两侧均为 `StpUtil.login()` 默认 `login`（Sa-Token 无 login-type 配置键，文档口径而非配置项）。`jwt-secret-key` 仅用于 OAuth2 访问令牌签发（HS256，`SaJwtUtil`），不属于平台用户会话密钥。平台用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。两端配置一致性由部署配置约束保障，代码不实现跨进程启动校验（T-ACCESS-003 用户决策：运维部署部分不影响代码逻辑）；`jwt-secret-key` 配置无默认值（`${JWT_SECRET_KEY}`），缺失时 Spring 占位符解析失败导致启动失败。
+平台用户会话只保留一套：`/auth/**` 是用户登录与会话签发入口，Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token 权威配置（T-ACCESS-003 落实）：`token-name=Authorization`、`token-style=uuid`（uuid 模式无会话密钥概念，会话有效性以共享 Redis 条目为唯一事实，Redis 清空后两端一致失效 fail-closed）、`timeout=7200`（2 小时绝对有效期）、`active-timeout=1800`（30 分钟无操作滑动续期）、`is-concurrent=true`、`is-share=false`、token-prefix 均为 `Bearer`（Gateway 配置，access 签发返回 tokenType=Bearer）；登录类型两侧均为 `StpUtil.login()` 默认 `login`（Sa-Token 无 login-type 配置键，文档口径而非配置项）。`jwt-secret-key` 仅用于 OAuth2 访问令牌签发（HS256，`SaJwtUtil`），不属于平台用户会话密钥。平台用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。两端配置一致性由部署配置约束保障，代码不实现跨进程启动校验（T-ACCESS-003 设计定案：运维部署部分不影响代码逻辑）；`jwt-secret-key` 配置无默认值（`${JWT_SECRET_KEY}`），缺失时 Spring 占位符解析失败导致启动失败。
 
 登录响应 `LoginResp.expiresIn` 的单一权威来源为 `sa-token.timeout`（`SaManager.getConfig().getTimeout()`，即真实会话 TTL），无独立展示键——避免 Nacos 只覆盖一项配置时展示与真实会话漂移（T-ACCESS-003 评审 P2，2026-08-14）。Gateway 配置经 T-ACCESS-003 评审 P1 从 `bootstrap.yml` 迁移至 `application.yml`（Boot 3 标准 ConfigData + `spring.config.import: optional:nacos:gateway.yml`，与 access-service 同模式）；原 bootstrap.yml 在 Boot 3 默认不加载（无 starter-bootstrap），Gateway 的 sa-token/Redis/路由/Nacos 配置实际从未生效，且存在 7 个启动缺陷（WebMvc 组件冲突、Bean 名冲突、spring-webmvc 在 classpath 触发 SCG 异常、路由前缀错误等）已随迁移修复；Gateway 上下文配置测试（`GatewayApplicationConfigTest`）固化为回归保障。
 
@@ -270,10 +270,10 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 **落地实现（T-ACCESS-008，2026-08-21）**：
 
-- **快照链路 6 目录**（`perm:effective-roles`、`perm:role-perm-snapshot`、`perm:type-value`、`perm:type-code`、`perm:condition-rules`、`perm:role-mutex-rule`）L2_ONLY + 10s（用户决策①）；`OPERATION_PERMISSIONS_BY_TYPE` 不进快照内容，保持 L1_L2 60m/120m 普通缓存；`ORG_VISIBILITY` 保持 L2_ONLY 60s。`PermCacheBoundaryValidator` 启动强制有效 L2 TTL≤10s（含 YAML 覆盖）。
+- **快照链路 6 目录**（`perm:effective-roles`、`perm:role-perm-snapshot`、`perm:type-value`、`perm:type-code`、`perm:condition-rules`、`perm:role-mutex-rule`）L2_ONLY + 10s（设计定案①）；`OPERATION_PERMISSIONS_BY_TYPE` 不进快照内容，保持 L1_L2 60m/120m 普通缓存；`ORG_VISIBILITY` 保持 L2_ONLY 60s。`PermCacheBoundaryValidator` 启动强制有效 L2 TTL≤10s（含 YAML 覆盖）。
 - **剩余 TTL 回填**：`CacheService.beginRead` 令牌记录单调时钟起点（DB 读取前），`put(token,...)` 只写「读取起点 + catalog 有效 TTL」剩余 TTL、≤0 不写、批量/重试不重置；`put(..., Duration)` 单次有效 TTL 强制 cap catalog TTL。L1 层（Caffeine 固定过期）仅当 catalog L1 TTL 在预算内才写，否则跳过。
 - **普通 L1 跨实例失效**：L1_L2 目录 evict/evictAll 时经 RTopic `accessmesh:cache:l1-invalidate` 广播，各实例订阅清本地 L1；失败计 `cache.invalidate.failures` 指标，L1 TTL 兜底；回滚不失效。
-- **Gateway**：快照缓存迁统一 CacheService（L1_ONLY `gw:interface-snapshot` 15s/50000，`accessmesh.cache.catalogs` 运维覆盖）；失效粒度用户级精确（跟踪索引 + 在途回源注册表候选；索引缺失由快照 TTL 兜底）+ 租户级兜底（用户决策③）；失效先递增代际再清缓存（防旧回源复活窗口）；固定 fail-closed（fail-mode/open/stale-allow 删除）；`snapshot-load-deadline` 5s 全链路墙钟硬截止（重试共享截止、超时不写缓存 503）；`GatewayCacheBoundaryValidator` 启动强制 L1≤15s、截止≤5s。
+- **Gateway**：快照缓存迁统一 CacheService（L1_ONLY `gw:interface-snapshot` 15s/50000，`accessmesh.cache.catalogs` 运维覆盖）；失效粒度用户级精确（跟踪索引 + 在途回源注册表候选；索引缺失由快照 TTL 兜底）+ 租户级兜底（设计定案③）；失效先递增代际再清缓存（防旧回源复活窗口）；固定 fail-closed（fail-mode/open/stale-allow 删除）；`snapshot-load-deadline` 5s 全链路墙钟硬截止（重试共享截止、超时不写缓存 503）；`GatewayCacheBoundaryValidator` 启动强制 L1≤15s、截止≤5s。
 
 ## 8. 任务、异步与审计
 
@@ -287,15 +287,15 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - Redis 不承担任务正确性。
 - 仅为旧内部同步兜底的维护任务随同步子系统一起删除；外部同步仍需要的维护任务才保留。
 
-**落地实现（T-ACCESS-009，2026-08-21，7 项用户决策）**：
+**落地实现（T-ACCESS-009，2026-08-21，7 项设计定案）**：
 
 - **执行键**：`job:{jobId}:{yyyyMMdd'T'HHmmss}`（计划触发时刻秒级截断）；手动触发为 `job:{jobId}:manual:{epochMilli}-{UUID}`（独立执行，不与计划执行竞争，UUID 防同毫秒并发触发碰撞）。`JobServiceImpl` 通过 `ExecutionKeyCronTrigger` 在 Trigger 计算时捕获本轮触发时刻传入执行编排。cron 按 JVM 时区计算，JVM 默认时区由 common `UtcTimezoneEnvironmentPostProcessor` 启动即强制 UTC（§16，2026-08-25 起），**各实例天然同时区（项目约定，不做跨时区支持）**。多实例继续各自触发 Spring Scheduler；正确性全部由 `sys_task_execution` 的原子条件 SQL 承担（`SysTaskExecutionMapper.xml`：`tryClaimExecution` INSERT ... ON CONFLICT（部分唯一索引推断）+ 条件 DO UPDATE ... RETURNING，租约判定/续租/完成全部以数据库 `now()` 为基准），Redis 不参与。
 - **attempt 级 fencing**：`attempt_count` 同时是 fencing token——每次抢占原子递增并由 RETURNING 返回本次尝试号；续租与完成写回按「`lease_owner` + `attempt_count`」双条件判定。同实例接管自己的过期任务（owner 不变、attempt 递增）时旧尝试不能续租或覆盖新尝试的结果。
 - **租约生命周期**：抢占（PENDING/FAILED 或租约过期才允许，且 `attempt_count < MAX_ATTEMPTS=3`）→ **抢占成功后立即启动后台续租（每 20s，租约 60s）——覆盖执行器排队等待期，排队超过租约期不会被误接管；执行线程出队后再做一次租约校验，丢失则跳过执行** → 条件完成/失败；SUCCESS 后不可再抢占。业务失败写回 FAILED 后由扫描器按「失败后至少一次重试」语义接管重试（同一执行键，attempt+1），超限后收敛终态。执行编排位于调度层 `JobServiceImpl`（DomainService 不承担线程池/调度编排，也不横向注入其他 DomainService）。**计划触发时重读数据库任务行**：已删除/已停用任务跳过执行、新 invokeTarget 即时生效；接管重试的计划时刻由执行键反解（`parseScheduledTime`，手动键为 null），不随尝试漂移。
-- **多实例配置对账（用户决策：周期对账 + 触发时重读）**：任务 CRUD 只操作当前实例内存调度表；各实例经 `JobScheduleReconciler`（60s 周期）跨租户**单条批量查询**（`selectAllEnabledJobs`，§8.4.8 禁止按租户循环查询——启动加载同步迁移）重载启用任务并 diff 重调度。对账为**真 diff**——按已调度任务的 cron 快照跳过未变化项，不做每轮全量取消/重建；Trigger 先构造成功再取消旧调度，cron 非法时保留旧调度。**批量加载失败 = 全部状态未知**，本轮不做任何调度变更（含删除判定）——错过的计划触发不产生执行记录，接管无法补偿，临时数据库异常不得被解释成全部停用。配置漂移窗口约为对账间隔 60s + 单轮对账耗时；窗口内旧 cron 可能多触发一次（独立执行键、走完整租约/幂等治理），不引入实时广播（MQ）避免过度设计。
-- **故障接管与失败重试**：`TaskLeaseTakeoverScheduler`（每实例 30s 周期，access-service 内保留的系统维护调度任务之一）先收敛超过 MAX_ATTEMPTS 的过期执行为 FAILED，再对可重试执行（RUNNING 租约过期 / FAILED 未超限）经 `JobService.takeoverExpiredExecutions()` 原子接管重试。**任务已删除/已停用或执行键无法解析的候选立即收敛（`abandonExecution` 按候选快照 fencing——status + attempt 匹配且不碰 SUCCESS、RUNNING 候选要求租约仍过期——读取后被其他实例抢占/完成的行不受影响；attempt 拉满后退出重试候选），防止僵尸记录每轮占据接管批次（ORDER BY updated_at LIMIT 20）导致有效重试饥饿**。扫描器自身多实例并发由 PostgreSQL 会话级 advisory lock（`pg_try_advisory_lock`，单连接内加锁/解锁，抢锁失败跳过本轮）协调（用户决策）——任务卡「数据库执行键竞争同一次计划执行」由被接管的任务执行本身承载，advisory lock 仅为扫描效率优化；锁不可用（非 PostgreSQL）时所有实例都扫描，正确性不受影响。
-- **invokeTarget 真实执行（ARCH-DEBT-001 关闭）**：`JobInvokeDomainService` 反射调用 `beanName.methodName`。安全边界为 `@JobInvocable` 注解白名单（infrastructure.task，用户决策）——未标注的方法一律拒绝，防止任务配置指向任意 Bean 方法；**唯一受支持签名为单一 `TaskExecutionContext` 参数（用户决策：必须接收上下文——幂等键必有传递通道，无参签名拒绝）**（record：tenantId/jobId/executionKey/attemptCount/scheduledTime），**executionKey 即外部副作用幂等键**（手动键为 `job:{id}:manual:{epochMilli}-{UUID}`，UUID 防同毫秒并发触发碰撞），副作用方按键去重实现 at-least-once 不重复业务结果。业务异常去包装后原样传播。**代理兼容**：白名单注解与签名在 `AopProxyUtils.ultimateTargetClass` 目标类上解析（CGLIB 代理类生成的方法不携带目标方法注解，事务化任务 Bean 不能因此被误判未授权），调用经 `ClassUtils.getMostSpecificMethod` + `BridgeMethodResolver` 换回代理对象上可反射调用的方法，保留 `@Transactional` 等代理语义。
-- **异步执行治理（用户决策：专用执行器）**：任务业务执行走 `accessTaskExecutor`（有界、命名前缀 `access-task-`，容量唯一来源 `application.yml access.task.executor.*`），与审计异步 `accessAsyncExecutor` 容量隔离。**拒绝语义：拒绝处理器记告警后必须抛 `RejectedExecutionException`（ThreadPoolTaskExecutor 转 `TaskRejectedException` 通知提交方），提交方停续租并写回 FAILED**——只记日志不抛会使已启动的续租永远续下去、任务永久 RUNNING 无法接管；未超限时由接管扫描按至少一次语义重试。执行线程显式绑定 `RequestContext.task(tenantId)` TASK 可信上下文 + TenantContextHolder，finally 清理，不继承调度/请求线程 ThreadLocal。**续租专用调度器**：`taskLeaseRenewalScheduler`（单线程、`removeOnCancelPolicy`）与共享调度器隔离——续租是正确性路径，共享调度器上的对账/接管扫描会同步做数据库 IO，阻塞超过租约窗口会停摆续租、误触发接管，破坏「最多一个活动执行者」。**声明任何 TaskScheduler Bean 都会使 Boot 的 TaskSchedulingAutoConfiguration 退让（@ConditionalOnMissingBean）**——只声明续租调度器会让全容器只剩一个单线程调度器（隔离失效且 `spring.task.scheduling.pool.size` 不生效），因此显式声明共享 `taskScheduler`（Bean 名保持 `taskScheduler` 供 @Scheduled 按名解析，池大小跟随 `spring.task.scheduling.pool.size`，设 2）；拓扑由 `TaskExecutorConfigTest` 经 ApplicationContextRunner 固化（两 Bean 互异、池大小正确）。
+- **多实例配置对账（设计定案：周期对账 + 触发时重读）**：任务 CRUD 只操作当前实例内存调度表；各实例经 `JobScheduleReconciler`（60s 周期）跨租户**单条批量查询**（`selectAllEnabledJobs`，§8.4.8 禁止按租户循环查询——启动加载同步迁移）重载启用任务并 diff 重调度。对账为**真 diff**——按已调度任务的 cron 快照跳过未变化项，不做每轮全量取消/重建；Trigger 先构造成功再取消旧调度，cron 非法时保留旧调度。**批量加载失败 = 全部状态未知**，本轮不做任何调度变更（含删除判定）——错过的计划触发不产生执行记录，接管无法补偿，临时数据库异常不得被解释成全部停用。配置漂移窗口约为对账间隔 60s + 单轮对账耗时；窗口内旧 cron 可能多触发一次（独立执行键、走完整租约/幂等治理），不引入实时广播（MQ）避免过度设计。
+- **故障接管与失败重试**：`TaskLeaseTakeoverScheduler`（每实例 30s 周期，access-service 内保留的系统维护调度任务之一）先收敛超过 MAX_ATTEMPTS 的过期执行为 FAILED，再对可重试执行（RUNNING 租约过期 / FAILED 未超限）经 `JobService.takeoverExpiredExecutions()` 原子接管重试。**任务已删除/已停用或执行键无法解析的候选立即收敛（`abandonExecution` 按候选快照 fencing——status + attempt 匹配且不碰 SUCCESS、RUNNING 候选要求租约仍过期——读取后被其他实例抢占/完成的行不受影响；attempt 拉满后退出重试候选），防止僵尸记录每轮占据接管批次（ORDER BY updated_at LIMIT 20）导致有效重试饥饿**。扫描器自身多实例并发由 PostgreSQL 会话级 advisory lock（`pg_try_advisory_lock`，单连接内加锁/解锁，抢锁失败跳过本轮）协调（设计定案）——任务卡「数据库执行键竞争同一次计划执行」由被接管的任务执行本身承载，advisory lock 仅为扫描效率优化；锁不可用（非 PostgreSQL）时所有实例都扫描，正确性不受影响。
+- **invokeTarget 真实执行（ARCH-DEBT-001 关闭）**：`JobInvokeDomainService` 反射调用 `beanName.methodName`。安全边界为 `@JobInvocable` 注解白名单（infrastructure.task，设计定案）——未标注的方法一律拒绝，防止任务配置指向任意 Bean 方法；**唯一受支持签名为单一 `TaskExecutionContext` 参数（设计定案：必须接收上下文——幂等键必有传递通道，无参签名拒绝）**（record：tenantId/jobId/executionKey/attemptCount/scheduledTime），**executionKey 即外部副作用幂等键**（手动键为 `job:{id}:manual:{epochMilli}-{UUID}`，UUID 防同毫秒并发触发碰撞），副作用方按键去重实现 at-least-once 不重复业务结果。业务异常去包装后原样传播。**代理兼容**：白名单注解与签名在 `AopProxyUtils.ultimateTargetClass` 目标类上解析（CGLIB 代理类生成的方法不携带目标方法注解，事务化任务 Bean 不能因此被误判未授权），调用经 `ClassUtils.getMostSpecificMethod` + `BridgeMethodResolver` 换回代理对象上可反射调用的方法，保留 `@Transactional` 等代理语义。
+- **异步执行治理（设计定案：专用执行器）**：任务业务执行走 `accessTaskExecutor`（有界、命名前缀 `access-task-`，容量唯一来源 `application.yml access.task.executor.*`），与审计异步 `accessAsyncExecutor` 容量隔离。**拒绝语义：拒绝处理器记告警后必须抛 `RejectedExecutionException`（ThreadPoolTaskExecutor 转 `TaskRejectedException` 通知提交方），提交方停续租并写回 FAILED**——只记日志不抛会使已启动的续租永远续下去、任务永久 RUNNING 无法接管；未超限时由接管扫描按至少一次语义重试。执行线程显式绑定 `RequestContext.task(tenantId)` TASK 可信上下文 + TenantContextHolder，finally 清理，不继承调度/请求线程 ThreadLocal。**续租专用调度器**：`taskLeaseRenewalScheduler`（单线程、`removeOnCancelPolicy`）与共享调度器隔离——续租是正确性路径，共享调度器上的对账/接管扫描会同步做数据库 IO，阻塞超过租约窗口会停摆续租、误触发接管，破坏「最多一个活动执行者」。**声明任何 TaskScheduler Bean 都会使 Boot 的 TaskSchedulingAutoConfiguration 退让（@ConditionalOnMissingBean）**——只声明续租调度器会让全容器只剩一个单线程调度器（隔离失效且 `spring.task.scheduling.pool.size` 不生效），因此显式声明共享 `taskScheduler`（Bean 名保持 `taskScheduler` 供 @Scheduled 按名解析，池大小跟随 `spring.task.scheduling.pool.size`，设 2）；拓扑由 `TaskExecutorConfigTest` 经 ApplicationContextRunner 固化（两 Bean 互异、池大小正确）。
 - **收敛删除**：无使用者的 `TenantAwareScheduled` 注解（common）与 `TenantScheduledAspect` 切面（admin/config）随本任务删除——静态任务的租户调度未来经 `sys_task_execution` 统一治理后再引入；按租户循环查询改为跨租户批量后，`TenantIdProvider` 接口（common）与 `AdminTenantIdProvider`（唯一消费者消失）一并删除。内部同步兜底维护任务已随 T-ACCESS-005 删除；gateway 的 `cleanupOrphanedMarkers`（60s）保持每实例本地执行——清理的是本实例内存中的孤立失效标记，属本地缓存治理（T-ACCESS-008），加数据库租约反而错误。
 - **测试**：`TaskExecutionLeaseConcurrencyTest`（PostgreSQL Testcontainers，双实例以不同 lease_owner + 并发线程模拟；建表在 `@BeforeAll`——先于 Spring 上下文创建，因 `JobServiceImpl @PostConstruct` 会查 `sys_job`）覆盖并发抢占唯一赢家、续租仅持有者且仅当前尝试号、**同实例接管自己的过期任务被 attempt fencing 挡住**、过期接管 + 旧持有者不可覆盖、SUCCESS 不可重抢占、抢占超限阻断、FAILED 至少一次重试、**僵尸执行收敛（任务删除后 attempt 拉满不再候选）与 abandon 对并发抢占/SUCCESS 行的 fencing**、编排级幂等（同一执行键多触发只执行一次）与接管重试携带同一幂等键；单元测试覆盖拒绝与调度器拓扑（`TaskExecutorConfigTest`：拒绝转 TaskRejectedException、ApplicationContextRunner 验证共享/续租两调度器 Bean 互异且池大小正确）、对账编排（`JobServiceImplTest`：拒绝时停续租写 FAILED / 停用删除跳过 / 对账 diff 不重建 / **cron 变更替换调度** / 停用取消 / **批量加载失败保持现有调度**）、CGLIB 代理白名单解析（`JobInvokeDomainServiceTest`）、执行键构建与反解（`TaskExecutionDomainServiceImplTest`）。
 
@@ -329,11 +329,11 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - `serviceCode`、服务配置、资源映射、owner code、缓存失效载荷、日志和指标中原本代表两个旧服务的值立即统一为 `access-service`；不保留历史别名。
 - 外部业务服务自己的 `sourceService` 仍使用其已验证服务身份，不统一改成 `access-service`。
 
-**落地实现（T-ACCESS-010，2026-08-22，4 项用户决策）**：
+**落地实现（T-ACCESS-010，2026-08-22，4 项设计定案）**：
 
-- **Gateway 路由合并（用户决策①）**：`/admin/**` 与 `/perm/**` 合并为一条路由 `id=access-service`（`lb://access-service`、`StripPrefix=1`、`metadata.serviceCode=access-service`），`/auth/**` 独立路由同目标（`StripPrefix=0`）；`gateway.permission.service-url` 默认值切换为 `lb://access-service`（`GatewayProperties` 与 YAML 同步）。路由契约由 `GatewayApplicationConfigTest` 固化：3 条路由（access-service/example-service/auth-routes）、合并路由的 Path/StripPrefix/serviceCode、以及旧服务名不得出现在路由 id 或发现目标（负向断言）。
-- **perm-sdk（用户决策②③）**：`PermissionFeignClient` 的 `@FeignClient` name 切换为 `access-service`，18 个 `@PostMapping` 路径契约由新增 `PermissionFeignClientContractTest` 封闭清单固化（含 POST + 单一 `@RequestBody` 形态断言），证明切换不产生契约漂移。`SyncTaskFeignClient`（admin-service S5 内部同步调度器定制、Map 请求体、仓库内无使用者）删除；其封装的 8 个 sync/full-sync 端点对外部服务继续由服务端保留，外部服务按需经 `PermissionFeignClient` 或自行调用。`FeignInternalSyncInterceptor` 的 `perm.service-code` 去除默认值 `admin-service`（用户决策③）：配置了 `perm.internal-secret` 但未显式声明 `perm.service-code` 时 Spring 占位符解析失败启动失败（fail-fast，与 `jwt-secret-key` 同模式），防止调用方冒充已退役服务身份。
-- **旧名清理（用户决策④全量清理）**：主代码/测试的 Javadoc 与日志文本、Micrometer 指标 description（`gateway.perm.unreachable` 等 3 项）、测试 serviceCode 数据（统一中性值 `example-service`）、前端 mock/src 注释与 `serviceCode` mock 值（注册服务列表两条旧服务记录合并为一条 `access-service`）全部更新；`GatewayApplication` 侧无 `@LoadBalanced RestTemplate` 残留（无使用者的 `RestTemplateConfig` 已删除）。权威 DDL `access-service.sql` 表注释中"admin-service 事实源"更新为"access-service admin 域事实源"。**保留项**：`LocalProjectionOwner.LEGACY_ADMIN_SOURCE="admin-service"`（安全拒绝列表值，外部 sync 冒充旧来源仍被拒绝，含 `LocalProjectionGuardTest`/`AbstractUserSyncAppServiceTest.shouldRejectInternalSourceService` 负向断言）；`docs/design/services/admin-service-api-contract.md` 等真实文档路径引用（T-ACCESS-012 重基线处理）；归并历史陈述（如 `AccessServiceApplication` Javadoc）。
+- **Gateway 路由合并（设计定案①）**：`/admin/**` 与 `/perm/**` 合并为一条路由 `id=access-service`（`lb://access-service`、`StripPrefix=1`、`metadata.serviceCode=access-service`），`/auth/**` 独立路由同目标（`StripPrefix=0`）；`gateway.permission.service-url` 默认值切换为 `lb://access-service`（`GatewayProperties` 与 YAML 同步）。路由契约由 `GatewayApplicationConfigTest` 固化：3 条路由（access-service/example-service/auth-routes）、合并路由的 Path/StripPrefix/serviceCode、以及旧服务名不得出现在路由 id 或发现目标（负向断言）。
+- **perm-sdk（设计定案②③）**：`PermissionFeignClient` 的 `@FeignClient` name 切换为 `access-service`，18 个 `@PostMapping` 路径契约由新增 `PermissionFeignClientContractTest` 封闭清单固化（含 POST + 单一 `@RequestBody` 形态断言），证明切换不产生契约漂移。`SyncTaskFeignClient`（admin-service S5 内部同步调度器定制、Map 请求体、仓库内无使用者）删除；其封装的 8 个 sync/full-sync 端点对外部服务继续由服务端保留，外部服务按需经 `PermissionFeignClient` 或自行调用。`FeignInternalSyncInterceptor` 的 `perm.service-code` 去除默认值 `admin-service`（设计定案③）：配置了 `perm.internal-secret` 但未显式声明 `perm.service-code` 时 Spring 占位符解析失败启动失败（fail-fast，与 `jwt-secret-key` 同模式），防止调用方冒充已退役服务身份。
+- **旧名清理（设计定案④全量清理）**：主代码/测试的 Javadoc 与日志文本、Micrometer 指标 description（`gateway.perm.unreachable` 等 3 项）、测试 serviceCode 数据（统一中性值 `example-service`）、前端 mock/src 注释与 `serviceCode` mock 值（注册服务列表两条旧服务记录合并为一条 `access-service`）全部更新；`GatewayApplication` 侧无 `@LoadBalanced RestTemplate` 残留（无使用者的 `RestTemplateConfig` 已删除）。权威 DDL `access-service.sql` 表注释中"admin-service 事实源"更新为"access-service admin 域事实源"。**保留项**：`LocalProjectionOwner.LEGACY_ADMIN_SOURCE="admin-service"`（安全拒绝列表值，外部 sync 冒充旧来源仍被拒绝，含 `LocalProjectionGuardTest`/`AbstractUserSyncAppServiceTest.shouldRejectInternalSourceService` 负向断言）；`docs/design/services/admin-service-api-contract.md` 等真实文档路径引用（T-ACCESS-012 重基线处理）；归并历史陈述（如 `AccessServiceApplication` Javadoc）。
 - **部署单元**：根 Maven 聚合自 T-ACCESS-001 起即不含旧模块，本任务核验无旧启动类/运行配置/源码目录/docker-compose 残留（仓库无容器编排文件，AGENTS.md 基础设施命令示例不涉及服务名）；`common/GlobalErrorCode` 错误码分段注释更新为管理域/权限域措辞，分段值不变。
 
 ## 10. 验收门禁
@@ -387,7 +387,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
   2. 显式 `INSERT abstract_user(id = N, external_id = N.toString(), user_type = LOCAL_USER, ...)`（serial 列显式插值合法，`GENERATED BY DEFAULT` 语义）；
   3. `INSERT sys_user(id = N, ...)`。
 - 外部主体仅插 `abstract_user`（自增取号，`external_id` 为外部业务键），与本地用户共用同一生成源，天然不碰撞——"先创建外部主体、再创建本地用户"（T-ORG-001 验收口径）与反向顺序均不会碰撞。
-- **取舍说明**：备选方案是"用户主体专用共享序列"（新建独立 sequence，两表均显式 `nextval` 取号，插入顺序自由）。不采用的原因：多一个表外序列对象成为第三个"影子权威"，两表都要改显式取号，而其唯一收益（插入顺序自由）在单库强事务编排层（§4.2 `access.application` 同事务写链）下没有实际调用方需要。预取既有序列的代价——两表插入共用同一次取号——已由 T-ORG-001 在用户创建写链路落实：`LocalProjectionDomainService.createLocalUserSubject`（预取 + `abstract_user(id=N, external_id=N)` + USER 资源投影）先行，`UserWriteAppServiceImpl.createUser` 以同一 N 显式插 `sys_user(id=N)`，`external_id` = 主体 ID 的投影语义不变；投影缺失补建分支维持自增取号（统一后正常链路不可达，2026-08-23 用户决策）。
+- **取舍说明**：备选方案是"用户主体专用共享序列"（新建独立 sequence，两表均显式 `nextval` 取号，插入顺序自由）。不采用的原因：多一个表外序列对象成为第三个"影子权威"，两表都要改显式取号，而其唯一收益（插入顺序自由）在单库强事务编排层（§4.2 `access.application` 同事务写链）下没有实际调用方需要。预取既有序列的代价——两表插入共用同一次取号——已由 T-ORG-001 在用户创建写链路落实：`LocalProjectionDomainService.createLocalUserSubject`（预取 + `abstract_user(id=N, external_id=N)` + USER 资源投影）先行，`UserWriteAppServiceImpl.createUser` 以同一 N 显式插 `sys_user(id=N)`，`external_id` = 主体 ID 的投影语义不变；投影缺失补建分支维持自增取号（统一后正常链路不可达，2026-08-23 设计定案）。
 - 不做在线数据迁移（未上线、空库重建模式）；不引入全局对象 ID 中心、全平台共享序列或 ID 包装类型双轨。
 
 ### 12.3 业务编码语义与 `resource_entity.id` 边界
@@ -575,7 +575,7 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
   写入 `parameter.atOffset(UTC)`、读取 `atZoneSameInstant(UTC).toLocalDateTime()`，经 pgjdbc 原生
   `OffsetDateTime` 双向映射——不经 `java.sql.Timestamp` 中转（规范 §7.4 禁用，且其按 JVM 默认时区换算是
   旧漂移源）。服务器/会话时区不参与语义，连接串无需任何时区参数。
-- **JVM 默认时区强制 UTC（用户决策：代码级）**：common `UtcTimezoneEnvironmentPostProcessor` 经
+- **JVM 默认时区强制 UTC（设计定案：代码级）**：common `UtcTimezoneEnvironmentPostProcessor` 经
   `META-INF/spring.factories` 注册，环境准备阶段 `TimeZone.setDefault(UTC)`——应用启动、`@SpringBootTest`
   容器轨、E2E 子进程同源生效（测试 JVM 不经 main()，部署级 `-Duser.timezone`/`TZ` 罩不住该场景，是选
   代码级的决定性原因）。部署侧无需任何时区约定；随之统一为 UTC 的行为面：日志时间戳、cron 调度时区
@@ -585,13 +585,13 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 - **JDBC URL**：`serverTimezone=Asia/Shanghai` 残留已删（MySQL 语义参数，pgjdbc 忽略且误导）——
   access `application.yml` 与 example `bootstrap.yml` 两处。**Nacos 提示**：远端 `access-service.yml`
   若持有旧 URL 覆盖值需同步清理，否则仅误导不改行为（pgjdbc 忽略该参数）。
-- **Jackson（用户决策：文档钉死 + 防御一行）**：`LocalDateTime` 序列化 ISO-8601 无偏移字符串
+- **Jackson（设计定案：文档钉死 + 防御一行）**：`LocalDateTime` 序列化 ISO-8601 无偏移字符串
   （`"2026-04-21T10:00:00"`），契约语义=UTC 墙钟，前端展示时区转换按需另行处理；全局 ObjectMapper
   （common `cacheObjectMapper`，经 `@ConditionalOnMissingBean` 同时承担 HTTP 序列化）`setTimeZone(UTC)`
   为对未来 `Date` 等带时区类型的防御性兜底（现状全仓无此类字段，no-op）。
 - **既有开发数据卷**：切换前由非 UTC JVM（+8 开发机）写入的行，切换后读取墙钟整体偏 -8h——
   开发期标准处置 `docker compose down -v` 重建（与 T-ACCESS-021 runbook 同款）；无生产数据，不做迁移。
-- **验证**：`TimestamptzDualTimezonePgIT`（容器轨道，用户决策：测试内切换默认时区）同一 PG 上
+- **验证**：`TimestamptzDualTimezonePgIT`（容器轨道，设计定案：测试内切换默认时区）同一 PG 上
   Asia/Shanghai 与 UTC 两轮经真实 mapper 写读相同 `LocalDateTime`——轮内往返一致、跨轮读一致、
   两轮库内瞬时（绕过 handler 直读 `OffsetDateTime`）相同且等于墙钟按 UTC 解释；单测轨
   `TimestamptzLocalDateTimeTypeHandlerTest`（换算数学）+ `UtcTimezoneEnvironmentPostProcessorTest`

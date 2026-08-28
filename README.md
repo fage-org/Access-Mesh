@@ -1,6 +1,6 @@
 # AccessMesh
 
-基于 Spring Cloud 微服务架构的通用访问控制平台。
+基于 Spring Cloud 微服务架构的通用访问控制平台。定位：**开源通用 IAM**——通用多租户访问控制平台（2026-08-28 定案）；下列能力按「当前可用 / 已规划 / 仅演进方向」三档口径表述，口径定义见 [docs/design/README.md](docs/design/README.md)。
 
 ## 特性
 

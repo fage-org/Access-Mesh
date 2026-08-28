@@ -56,6 +56,7 @@ docs/
 | 主题                 | 权威文档                                                                                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | 项目工程规范         | [design/project-rules.md](design/project-rules.md)                                                                                   |
+| 产品定位与能力叙事口径 | [design/README.md](design/README.md) §产品定位与能力叙事三档口径（开源通用 IAM，2026-08-28 定案）                                 |
 | 微服务整体架构       | [design/architecture.md](design/architecture.md)                                                                                     |
 | access-service 目标架构 | [design/access-service-architecture.md](design/access-service-architecture.md)（归并拓扑、事务、数据、缓存与安全的权威约束） |
 | 空库重建 runbook      | [design/access-service-rebuild-runbook.md](design/access-service-rebuild-runbook.md)（DDL 重建 + 种子 + Redis 清理 + 主体链验证） |

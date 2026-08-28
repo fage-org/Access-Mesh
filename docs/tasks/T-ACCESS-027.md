@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-027
 title: 产品定位定稿回写与文档三档叙事整改（当前可用 / 已规划 / 仅演进方向）
-status: proposed
+status: done
 plan: docs/plans/product-positioning-landing-plan.md
 domain: cross-service
 design_refs:
@@ -22,13 +22,13 @@ acceptance:
   - "纯文档任务，不改代码、不改 schema"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-08-28
 ---
 
 # T-ACCESS-027 产品定位定稿回写与文档三档叙事整改
 
-> 状态：proposed（2026-08-28 立项，定位口径已定案：开源通用 IAM）
+> 状态：done（2026-08-28 收口）
 
 ## 背景
 
@@ -43,3 +43,11 @@ last_updated: 2026-08-28
 - 三档口径有单一权威定义入口，各文档标注与其一致。
 - 未实现能力无现在时态表述残留（关键词扫描：自动补全、数据权限 SQL、perm-data、RocketMQ、GROUP_ROLE 交付等）。
 - 设计回写完成。
+
+## 完成记录（2026-08-28）
+
+- **三档口径单一权威入口**：`docs/design/README.md` 新增「产品定位与能力叙事三档口径」节——定位声明（开源通用 IAM）+ 三档定义与等价标注映射（当前可用=已实现/已交付、已规划=任务可追溯、仅演进方向=未排期设想）+ 适用范围；`docs/README.md` 权威来源表新增指引行；根 README 定位句回写。
+- **现在时表述修正**：`architecture.md` §4.2 演示模块表整体重写为三档标注（原 8 模块现在时表述与 example 瘦身后事实不符——服务注册同步与单接口鉴权为当前可用，菜单/按钮/报表范围/条件/查询演示为已规划，数据权限演示与 SDK 注解式封装为仅演进方向，与 `services/example-service.md` 已交付章节对齐）；§4.3 数据库改为「当前无数据源（T-API-001 瘦身），演示库 DDL 暂无消费方保留」。
+- **决策过程标注清扫**（按 2026-08-27 评审登记的存量范围）：`access-service-architecture.md` 23 处、`gateway.md` 2 处、`admin-service-api-contract.md` 1 处、看板 1 处「用户决策」→「设计定案」当前口径，三文件 last_reviewed bump 2026-08-28；`project-rules.md` 2 处为规则条文本身（定义被禁词），保留；历史已完成任务卡（合并期 T-ACCESS 旧卡等）为半归档记录，不在清扫范围（边界登记）。
+- **核实无需改动**：permission-center overview/implementation（场景九禁用态声明与能力表述已合规，工厂表已随 T-PERM-020 收敛）、根 README 特性表与未交付清单（T-API-001 已对齐）、core-flows、AGENTS。
+- **验收扫描（2026-08-28）**：「用户决策」活文档残留 = project-rules 规则条文 2 处（预期保留）；自动授权/数据权限/perm-data/RocketMQ/GROUP_ROLE 关键词现在时残留 = 0。纯文档任务，无代码变更、无 schema 变更，无代码回归。

@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-08-25
+last_reviewed: 2026-08-28   # 2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-25
 ---
 
 # Gateway 服务设计
@@ -70,7 +70,7 @@ last_reviewed: 2026-08-25
 
 ### 主动失效（T-PERM-006 / T-ACCESS-008）
 
-Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径在事务提交后发布 `PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes)` JSON，Gateway 收到后经统一 `CacheService` 清理本地快照（T-ACCESS-008 用户决策：用户级精确 + 租户级兜底）：
+Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径在事务提交后发布 `PermInvalidateEvent(tenantId, roleIds, userIds, serviceCodes)` JSON，Gateway 收到后经统一 `CacheService` 清理本地快照（T-ACCESS-008 设计定案：用户级精确 + 租户级兜底）：
 
 - `userIds` 非空且 `serviceCodes`/`roleIds` 为空：按 `tenantId + userId` 精确清理该用户全部服务快照（本地跟踪索引枚举 identifier，覆盖用户角色关系变化）。
 - `serviceCodes` 非空或仅 `roleIds` 非空：按 `tenantId` 租户级 `evictAll` 安全清理——Gateway 无本地反查服务/角色影响用户集合的能力，过度失效方向安全；回源惊群由 per-key in-flight 去重缓解。
@@ -86,7 +86,7 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 
 **Per-key 回源去重**：`InterfaceSnapshotLoadRegistry` 使同一快照 key 的并发请求共享同一个 `Mono<InterfaceSnapshotResp>`；回源完成后无论成功/失败都移除 in-flight key。
 
-**跟踪索引**：失效器维护本地 `tenantId:identifier → userId` 跟踪索引（Caffeine），TTL/容量跟随 `gw:interface-snapshot` 的有效配置（经 `accessmesh.cache` 覆盖后的最终值），与主缓存同步过期。仅用于用户级失效枚举；索引缺失（毫秒级定时器偏差）的残留条目与广播丢失同等语义——由快照自身 ≤15s TTL 兜底，在 30s 安全预算内（用户决策 2026-08-21：TTL 兜底，不降级租户级清理）。用户级失效候选同时包含在途回源注册表 key（首次回源尚未登记索引时撤权，在途回源被代际作废重试）。孤立标记按 60s 周期清理。
+**跟踪索引**：失效器维护本地 `tenantId:identifier → userId` 跟踪索引（Caffeine），TTL/容量跟随 `gw:interface-snapshot` 的有效配置（经 `accessmesh.cache` 覆盖后的最终值），与主缓存同步过期。仅用于用户级失效枚举；索引缺失（毫秒级定时器偏差）的残留条目与广播丢失同等语义——由快照自身 ≤15s TTL 兜底，在 30s 安全预算内（设计定案 2026-08-21：TTL 兜底，不降级租户级清理）。用户级失效候选同时包含在途回源注册表 key（首次回源尚未登记索引时撤权，在途回源被代际作废重试）。孤立标记按 60s 周期清理。
 
 **订阅重连：重连即全量清空**：与 Redis 断线重连后，先递增 `globalEpoch`（在途回源作废重试），再执行 catalog 级跨租户 `evictAll`（`CacheService.evictAll(catalog)`，不依赖跟踪索引推导租户——索引与主缓存是独立 Caffeine，容量压力下索引会先于主缓存淘汰），后续请求按需回源。pub/sub 无持久化，断线期间事件不可追回，全量清空确保安全；惊群由 per-key in-flight 去重缓解。
 
