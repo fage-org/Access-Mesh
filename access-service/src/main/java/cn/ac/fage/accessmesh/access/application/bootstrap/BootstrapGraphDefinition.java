@@ -8,8 +8,8 @@ import java.util.List;
 /**
  * 空库 bootstrap 固定图定义（T-ACCESS-020，定稿见 access-service-architecture.md §14.2/§14.3/§14.4）。
  * <p>
- * 纯常量：固定租户 1、首管理员与管理用功能角色的稳定业务键、bootstrap 管理 API 清单（12 管理
- * 接口 + 1 目标接口）、业务门禁最小集。幂等三状态检测与单事务创建均以本定义为唯一事实源，
+ * 纯常量：固定租户 1、首管理员与管理用功能角色的稳定业务键、bootstrap 管理 API 清单
+ * （含目标接口）、业务门禁最小集。幂等三状态检测与单事务创建均以本定义为唯一事实源，
  * 禁止在检测/创建两侧各自维护清单。
  * </p>
  * <p>
@@ -70,7 +70,7 @@ public final class BootstrapGraphDefinition {
                             String resourceCode, boolean canGrant) {}
 
     /**
-     * bootstrap 管理 API 清单（§14.3，13 项 = 12 管理接口 + 1 目标接口）。
+     * bootstrap 管理 API 清单（§14.3；含目标接口，计数以清单本身为准）。
      */
     public static List<ApiRoute> apiRoutes() {
         return List.of(

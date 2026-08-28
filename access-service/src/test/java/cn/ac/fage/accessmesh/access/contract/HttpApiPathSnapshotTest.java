@@ -27,13 +27,13 @@ import static org.assertj.core.api.Assertions.assertThat;
  * HTTP 契约快照测试（T-ACCESS-011 验收 3：路径 / POST-only / 统一响应 / DTO 签名）。
  * <p>
  * 快照基线：扫描全部 Controller 注解并与两份权威契约文档及「归并前代码路径」
- * （git 5f1e65dd5^：210 条）双向核对——归并后恰为 198 条，仅减少 12 条且全部
- * 有设计决策背书（11 条 /sync-task/*：T-ACCESS-005 退役；/audit-log/page：
- * T-ACCESS-007 确认零引用后删除）；T-PERM-043 再删 3 条 extra-roles/* 后为 195 条；
- * T-ADMIN-024 再删 5 条 admin 侧角色写代理（/role/create、/role/grant-menu、
- * /role/revoke-menu、/user-role/assign、/user-role/revoke，无存量调用方）后为 190 条；
- * T-PERM-034 再删 5 条 role-resource-permission 旧写入口（save/revoke/children/
- * add-child/remove-child，2026-08-27 设计定案，apply-grant-plan 为唯一写入口；T-PERM-025 增 action-options。计数不写注释（去计数化）。
+ * （git 5f1e65dd5^）双向核对——归并后仅减少有设计决策背书的路径
+ * （/sync-task/*：T-ACCESS-005 退役；/audit-log/page：
+ * T-ACCESS-007 确认零引用后删除）；T-PERM-043 再删 extra-roles/*；
+ * T-ADMIN-024 再删 admin 侧角色写代理（/role/create、/role/grant-menu、
+ * /role/revoke-menu、/user-role/assign、/user-role/revoke，无存量调用方）；
+ * T-PERM-034 再删 role-resource-permission 旧写入口（save/revoke/children/
+ * add-child/remove-child，2026-08-27 设计定案，apply-grant-plan 为唯一写入口）；T-PERM-025 增 action-options。计数不写注释（去计数化）。
  * </p>
  * <p>
  * 契约断言封闭口径（评审修复：堵住空 method 数组与 path()[0] 逃逸）：

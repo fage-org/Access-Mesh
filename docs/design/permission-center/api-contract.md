@@ -375,7 +375,7 @@ last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-
 
 **operation-log 契约要点（T-PERM-025 收口，2026-08-28）**：
 
-- `list`：`{module?, action?, operatorId?, since?, until?, targetType?, pageNum, pageSize}` → 分页结构（§3.3，排序 `created_at DESC`）；module/action/targetType **精确匹配**（等值索引友好）；`since`/`until` 为创建时间闭区间（ISO 无偏移 UTC 墙钟——全链路 UTC §7.4，前端按表格展示的同参照系提交）。无 detail 接口——`OperationLogResp` 已含全部字段，详情由前端抽屉展示。
+- `list`：`{module?, action?, operatorId?, since?, until?, targetType?, pageNum, pageSize}` → 分页结构（§3.3，排序 `created_at DESC`）；module/action/targetType **精确匹配**（等值索引友好）；`since`/`until` 为创建时间闭区间（ISO 无偏移墙钟；后端 LocalDateTime 语义为 UTC 墙钟——全链路 UTC §7.4，前端提交数字与表格原样展示对齐）。无 detail 接口——`OperationLogResp` 已含全部字段，详情由前端抽屉展示。
 - `action-options`：`{module?}` → `ItemsResp<String>`——返回 operation_log 当前实际存在的 action 去重集合（字典序），供筛选下拉动态拉取；返回实际存在值而非维护端枚举（action 由 `@OperationLog` 注解开放增长，避免双轨漂移）。
 - 权限门禁：list 与 action-options 需独立 `OPERATION_LOG:VIEW`（**审计分离**，2026-08-28 设计定案——不再复用 `SYSTEM_CONFIG:VIEW`；资源类型 OPERATION_LOG=30 权威 DDL 种子，bootstrap 固定图已授予管理角色）。变更日志（`log/change/list`）与权限视图（`permission-view/recent-changes`）的门禁仍为 `SYSTEM_CONFIG:VIEW`，随各自页面任务（T-PERM-032/033）处置。
 

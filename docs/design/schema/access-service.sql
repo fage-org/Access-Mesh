@@ -654,8 +654,9 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
     (1, 'role_type', 'PERSONAL',   3, '个人',     true, 3, 0, now(), now()),
     (1, 'role_type', 'GROUP_ROLE', 5, '分组角色', true, 5, 0, now(), now()),
     (1, 'role_type', 'BASIC_ROLE', 6, '基本角色', true, 6, 0, now(), now()),
-    -- resource_type（T-ACCESS-016 §13.1 终态 23 个：五组管理类型已并入 USER/ROLE/MENU/
-    --   SYSTEM_CONFIG/ORG，ADMIN_SYNC_TASK 删除；退役值 16/17/18/19/22/28 不复用）
+    -- resource_type（T-ACCESS-016 §13.1 终态：五组管理类型已并入 USER/ROLE/MENU/
+    --   SYSTEM_CONFIG/ORG，ADMIN_SYNC_TASK 删除；T-PERM-025 增 OPERATION_LOG=30；
+    --   退役值 16/17/18/19/22/28 不复用；全表见文件头部终值分配表）
     (1, 'resource_type', 'MENU',                1,  '菜单',         true,  1, 0, now(), now()),
     (1, 'resource_type', 'BUTTON',              2,  '按钮',         true,  2, 0, now(), now()),
     (1, 'resource_type', 'API',                 3,  'API接口',      true,  3, 0, now(), now()),
@@ -928,7 +929,7 @@ CREATE INDEX idx_resource_entity_sync_owner ON resource_entity (tenant_id, owner
 
 COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）。用户/组织等管理对象通过既有资源类型（如 USER/ORG）建模实例级权限（T-ACCESS-018 收敛，原 ADMIN_* 管理类型已并入）；本地投影行 owner_service_code=access-service 按所有权保护（外部 sync mutation 前置拒绝，architecture §4.3）';
 COMMENT ON COLUMN resource_entity.parent_id IS '父节点ID';
-COMMENT ON COLUMN resource_entity.resource_type IS '资源类型枚举（type_definition type_value），来自 type_definition；除 MENU/BUTTON/API/DATA 等公共基础类型外，租户可通过 type_definition 扩展管理资源类型（T-ACCESS-016 §13.1 终态注册表 23 个）';
+COMMENT ON COLUMN resource_entity.resource_type IS '资源类型枚举（type_definition type_value），来自 type_definition；除 MENU/BUTTON/API/DATA 等公共基础类型外，租户可通过 type_definition 扩展管理资源类型（终态注册表见 type_definition 种子与头部终值分配表）';
 COMMENT ON COLUMN resource_entity.code IS '资源编码';
 COMMENT ON COLUMN resource_entity.code_type IS '编码类型，默认 "default"；同一资源不同编码体系用不同 code_type 区分';
 COMMENT ON COLUMN resource_entity.name IS '名称';

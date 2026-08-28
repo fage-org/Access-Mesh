@@ -18,8 +18,8 @@ last_reviewed: 2026-08-28   # 2026-08-28 T-PERM-025 收口：§5/§7/§8/§9 终
 
 - **只读查询页**：无 CRUD 写操作，仅 list 查询 + 详情查看。无新增/编辑/删除按钮。
 - **服务端分页**：后端 `OperationLogListReq` 支持 `pageNum/pageSize`（`@NotNull`），返回 `PaginatedResp`。**非** system-config 的全量本地过滤——前端不做本地切片。
-- **筛选五维（T-PERM-025 收口：module/action/操作者/时间范围/目标类型）**：后端 Req 只暴露这两个筛选维度。任务标题「筛选」按此两项实现，其余维度（操作者/时间范围/目标）登记 T-PERM-025 🔧。
-- **无 detail 接口**：后端只有 list，`OperationLogResp` 已含全部字段。详情由前端抽屉展示（无需单独 detail 接口）。
+- **筛选五维（T-PERM-025 收口）**：module/action/操作者 ID/时间范围/目标类型，全部服务端精确匹配（原仅 module/action 两维，2026-08-28 扩展）。
+- **无 detail 接口**：后端有 list 与 action-options 两端点（均无 detail），`OperationLogResp` 已含全部字段。详情由前端抽屉展示（无需单独 detail 接口）。
 - **独立 OPERATION_LOG:VIEW 门禁（T-PERM-025 审计分离，2026-08-28）**：后端操作日志查询（list/action-options）以独立 `OPERATION_LOG:VIEW` 校验（资源类型 OPERATION_LOG=30），不再复用 `SYSTEM_CONFIG:VIEW`。
 
 ## 2. 布局结构
@@ -98,7 +98,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 | 列表 | `POST /api/perm/log/operation/list` | `{module?,action?,operatorId?,since?,until?,targetType?,pageNum,pageSize}` | `PaginatedResp<OperationLogResp>`（服务端分页，排序 createdAt DESC） | ✅（T-PERM-025 收口） |
 | 字典 | `POST /api/perm/log/operation/action-options` | `{module?}` | `ItemsResp<String>`（action 去重集合，字典序） | ✅（T-PERM-025 新增） |
 
-> **路径说明**：api-contract §5.8 路径即实现路径 `/api/perm/log/operation/list`（历史误写 `/api/perm/operation-log/list` 已随 T-ACCESS-007 第五轮修正，T-PERM-025 核实无残留）。
+> **路径说明**：api-contract §5.8 路径即实现路径 `/api/perm/log/operation/list`（历史误写 `/api/perm/operation-log/list` 已随 T-ACCESS-007 评审修复（提交 371d9d009）修正，T-PERM-025 核实无残留）。
 >
 > **无 detail 接口**：后端只有 list 与 action-options，详情由前端抽屉展示 list 已返回字段。
 
@@ -157,7 +157,7 @@ views/system/operation-log/
 
 Phase 1 登记的 🔧 项处置终态：
 
-1. ✅ **契约路径与字段契约**：路径误写已于 T-ACCESS-007 第五轮修正（§5.8 现为实现路径 `/api/perm/log/operation/list`）；operation-log 契约要点（字段/多维筛选/action-options/OPERATION_LOG:VIEW 门禁）已补入 api-contract §5.8。
+1. ✅ **契约路径与字段契约**：路径误写已于 T-ACCESS-007 评审修复（提交 371d9d009）修正（§5.8 现为实现路径 `/api/perm/log/operation/list`）；operation-log 契约要点（字段/多维筛选/action-options/OPERATION_LOG:VIEW 门禁）已补入 api-contract §5.8。
 2. ✅ **筛选维度扩展**：`OperationLogListReq` 补 `operatorId`/`since`/`until`（created_at 闭区间）/`targetType`，均精确匹配（等值索引友好，schema 对应 idx_operation_log_operator/idx_operation_log_target）；前端筛选表单同步扩展（操作者 ID/时间范围/目标类型）。
 3. ✅ **审计分离（设计定案 2026-08-28）**：新增独立 `OPERATION_LOG:VIEW` 权限码——type_definition 种子 OPERATION_LOG=30（CRUD 预置组自动覆盖 VIEW）、`ResourceTypeCode.OPERATION_LOG` 枚举、`LogQueryAppServiceImpl` 操作日志查询（list/count/action-options）门禁切换；bootstrap 固定图管理角色补授（§14.4 最小集第 9 项，固定图 22 条——新权限码须固定图持否则无授予起点死锁）；前端 `OPERATION_LOG_PERMS.LOG_VIEW` 切换。**边界**：变更日志（log/change/list）与权限视图（permission-view/recent-changes）门禁仍为 SYSTEM_CONFIG:VIEW，随 T-PERM-032/033 各自页面任务处置。
 4. ✅ **action 字典（任务卡主项）**：新增 `POST /api/perm/log/operation/action-options`（module 可选过滤）返回 operation_log 实际存在的 action 去重集合（非维护端枚举，避免与 @OperationLog 注解清单双轨漂移）；前端 ACTION_OPTIONS 硬编码 12 项子集移除，hook 动态拉取全量字典（label=value=code，filterable 下拉）；LogDetailDrawer action 展示改原始编码。

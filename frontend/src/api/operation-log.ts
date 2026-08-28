@@ -52,9 +52,10 @@ export type OperationLogListReq = {
   module?: string;
   action?: string;
   operatorId?: number;
-  /** 创建时间下界（含），ISO 本地时间（YYYY-MM-DDTHH:mm:ss） */
+  /** 创建时间下界（含），ISO 无偏移墙钟（YYYY-MM-DDTHH:mm:ss）——数字与表格展示的
+   *  UTC 墙钟对齐（后端 LocalDateTime 语义为 UTC 墙钟，project-rules §7.4） */
   since?: string;
-  /** 创建时间上界（含），ISO 本地时间（YYYY-MM-DDTHH:mm:ss） */
+  /** 创建时间上界（含），同上 */
   until?: string;
   targetType?: string;
   pageNum: number;

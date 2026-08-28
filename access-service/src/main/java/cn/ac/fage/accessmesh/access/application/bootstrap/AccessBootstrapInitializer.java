@@ -208,7 +208,7 @@ public class AccessBootstrapInitializer {
                 + "' 已停用 (status=" + serviceResources.get(0).getStatus() + ")——固定图种子对象失效");
         }
 
-        // —— API 资源（13 个）——
+        // —— API 资源 ——
         Map<String, Long> apiResourceIds = new HashMap<>();
         Set<String> expectedApiCodes = BootstrapGraphDefinition.apiRoutes().stream()
             .map(route -> BootstrapGraphDefinition.apiResourceCode(route.method(), route.path()))

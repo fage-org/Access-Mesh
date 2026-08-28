@@ -412,8 +412,8 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | `ADMIN_SYNC_TASK`(28)         | —（删除）              | 内部同步子系统已退役（§4.3），类型与种子一并删除 |
 
 - **不改名**（无重复对象的类型，防止范围扩大）：`ADMIN_DICT`(20)、`ADMIN_DICT_DATA`(21)、`ADMIN_OAUTH2_CLIENT`(23)、`ADMIN_NOTICE`(24)、`ADMIN_FILE`(25)、`ADMIN_JOB`(26)、`ADMIN_ORG_TREE_CONFIG`(27)。
-- **退役 type_value 段不复用**：16、17、18、19、22、28 从种子中消失，后续新类型从 30 起顺延分配，禁止复用退役值（防新旧语义在同一 `tenant_id + type_key` 内产生隐性撞值）。
-- **终态 resource_type 全表**（23 个，`tenant_id=1`）：`MENU`(1)、`BUTTON`(2)、`API`(3)、`DATA`(4)、`ROLE`(5)、`USER`(6)、`RESOURCE`(7)、`SERVICE`(8)、`DOMAIN`(9)、`TYPE_DEFINITION`(10)、`SYSTEM_CONFIG`(11)、`OPERATION`(12)、`CONDITION`(13)、`CONFLICT_RULE`(14)、`DEPENDENCY`(15)、`ADMIN_DICT`(20)、`ADMIN_DICT_DATA`(21)、`ADMIN_OAUTH2_CLIENT`(23)、`ADMIN_NOTICE`(24)、`ADMIN_FILE`(25)、`ADMIN_JOB`(26)、`ADMIN_ORG_TREE_CONFIG`(27)、`ORG`(29)。
+- **退役 type_value 段不复用**：16、17、18、19、22、28 从种子中消失，后续新类型取现用最大值 +1 顺延分配，禁止复用退役值（防新旧语义在同一 `tenant_id + type_key` 内产生隐性撞值）。
+- **终态 resource_type 全表**（`tenant_id=1`；权威以 schema 种子为准）：`MENU`(1)、`BUTTON`(2)、`API`(3)、`DATA`(4)、`ROLE`(5)、`USER`(6)、`RESOURCE`(7)、`SERVICE`(8)、`DOMAIN`(9)、`TYPE_DEFINITION`(10)、`SYSTEM_CONFIG`(11)、`OPERATION`(12)、`CONDITION`(13)、`CONFLICT_RULE`(14)、`DEPENDENCY`(15)、`ADMIN_DICT`(20)、`ADMIN_DICT_DATA`(21)、`ADMIN_OAUTH2_CLIENT`(23)、`ADMIN_NOTICE`(24)、`ADMIN_FILE`(25)、`ADMIN_JOB`(26)、`ADMIN_ORG_TREE_CONFIG`(27)、`ORG`(29)、`OPERATION_LOG`(30)（T-PERM-025 审计分离新增）。
 
 ### 13.2 user_type 与 role_type
 
@@ -513,7 +513,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | `RESOURCE:VIEW`                        | ALL                | 授权页资源树加载门控（门禁补齐见 §14.5）                                                        |
 | `OPERATION:VIEW`                       | ALL                | 授权页操作列表加载门控（同上）                                                                   |
 | `OPERATION_LOG:VIEW`                   | ALL                | 操作日志查询门禁（T-PERM-025 审计分离：独立权限码取代复用 SYSTEM_CONFIG:VIEW；固定图持否则新码无授予起点） |
-| `API:ACCESS`（类型级）                  | ALL + `canGrant=true` | 向 BASIC_ROLE 授权任意接口（授权传递链；T-API-001 起类型级：新接入服务接口的授权必须由首管理员完成，实例级会造成鸡生蛋）；落管理角色（首管理员唯一绑定，等价仅首管理员持有，见 §14.1）。13 项管理 API 清单的实例级 `API:ACCESS` 授权保留（最小暴露面不变）。**语义强度提示**：该条 + canGrant 使首管理员等效「任意服务、任意<b>已注册</b> API 经 Gateway 放行且可转授」——即已注册接口的内置超管（§14.2 禁止 API 类型级 scopeAll 大包授权的约束下，快照装配将 API 类型级 scopeAll 展开为该服务全部 enabled 映射的 INSTANCE 条目，未注册接口维持默认拒绝），属鸡生蛋消解的必要代价 |
+| `API:ACCESS`（类型级）                  | ALL + `canGrant=true` | 向 BASIC_ROLE 授权任意接口（授权传递链；T-API-001 起类型级：新接入服务接口的授权必须由首管理员完成，实例级会造成鸡生蛋）；落管理角色（首管理员唯一绑定，等价仅首管理员持有，见 §14.1）。管理 API 清单的实例级 `API:ACCESS` 授权保留（最小暴露面不变）。**语义强度提示**：该条 + canGrant 使首管理员等效「任意服务、任意<b>已注册</b> API 经 Gateway 放行且可转授」——即已注册接口的内置超管（§14.2 禁止 API 类型级 scopeAll 大包授权的约束下，快照装配将 API 类型级 scopeAll 展开为该服务全部 enabled 映射的 INSTANCE 条目，未注册接口维持默认拒绝），属鸡生蛋消解的必要代价 |
 
 不授予 `RESOURCE:CREATE` 等 API 资源创建权限，避免无谓扩大根权限。
 
