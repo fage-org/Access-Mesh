@@ -43,6 +43,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -162,8 +163,14 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     }
 
     @Override
-    public RoleResp getRole(Long tenantId, Long roleId) {
-        AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
+    public RoleResp getRole(Long tenantId, String roleTypeCode, String roleExternalId) {
+        // T-PERM-022：业务键二元组定位（uk_abstract_role_external）；
+        // 未知 roleTypeCode 不抛错，与 list 的空分页口径一致（查询语义，非写入校验）
+        Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
+        if (roleType == null) {
+            return null;
+        }
+        AbstractRole role = abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, roleExternalId);
         return role != null ? toRoleResp(role) : null;
     }
 
@@ -230,6 +237,23 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             AbstractRole parent = subjectDomainService.selectValidRoleById(tenantId, parentId);
             if (parent == null) {
                 throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "父角色不存在: " + parentId);
+            }
+            // T-PERM-022：父子类型一致校验（同类型内嵌套合法，跨类型嵌套拒绝；
+            // 前端拖拽 allowDrop 已拦截，此处为后端兜底）
+            if (!Objects.equals(parent.getRoleType(), role.getRoleType())) {
+                throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                    "不允许跨角色类型移动（父角色须与移动角色同类型）");
+            }
+            // T-PERM-022：环路防护——目标父为自身或其子孙时 parent 链成环
+            // （环节点从树构建中静默消失、祖先/子孙递归 CTE 不收敛），对齐 admin 域先例
+            if (roleId.equals(parentId)) {
+                throw new BizException(PermissionErrorCode.ROLE_PARENT_INVALID.getCode(),
+                    "父角色不能是自身或该角色的子孙: " + parentId);
+            }
+            List<Long> descendants = subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, Set.of(roleId));
+            if (descendants.contains(parentId)) {
+                throw new BizException(PermissionErrorCode.ROLE_PARENT_INVALID.getCode(),
+                    "父角色不能是自身或该角色的子孙: " + parentId);
             }
         }
         // 旧父链成员须在树变更前反查（提交后旧链关系不可再发现）；
@@ -391,7 +415,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     }
 
     @Override
-    public List<RoleTreeResp> getRoleTree(Long tenantId, String domainCode) {
+    public List<RoleTreeResp> getRoleTree(Long tenantId, String domainCode, boolean enabledOnly) {
         // T-PERM-042：授权页角色树读门禁（architecture §14.5 终态，类型级 ROLE:VIEW）
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
@@ -402,13 +426,9 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             return List.of();
         }
 
-        List<AbstractRole> allRoles;
-        if (domainCode != null && !domainCode.isBlank()) {
-            boolean matchNone = !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE);
-            allRoles = abstractRoleMapper.selectEnabledRoleTree(tenantId);
-        } else {
-            allRoles = abstractRoleMapper.selectEnabledRoleTree(tenantId);
-        }
+        // T-PERM-022：默认返回全部有效角色（含禁用）——status 仅作展示字段，禁用角色须在树中
+        // 可见可再启用；授权页主体树等仅需启用态的消费方传 enabledOnly=true 由 SQL 过滤
+        List<AbstractRole> allRoles = abstractRoleMapper.selectValidRoleTree(tenantId, enabledOnly);
 
         TreeBuilder<AbstractRole, RoleTreeNode> treeBuilder = new TreeBuilder<>(
             AbstractRole::getId,

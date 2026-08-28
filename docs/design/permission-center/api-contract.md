@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-28   # 2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -207,6 +207,10 @@ last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-
 - `roleTypeCode` 保留单类型过滤兼容；`roleTypeCodes` 用于多类型过滤。
 - 两者同时传入时按并集去重后过滤；任一显式类型编码无法解析时返回空分页。
 - 不传 `roleTypeCode/roleTypeCodes` 时不按角色类型过滤。
+
+> **角色管理契约要点**（T-PERM-022 收口，2026-08-28）：
+> - `detail`：业务键二元组定位 `{roleTypeCode, roleExternalId}`（tenantId 走上下文，不含 domainCode；原 `IdReq{id}` 内部主键废弃）。依据唯一索引 `uk_abstract_role_external (tenant_id, role_type, external_id)`；未命中返回 `data=null`（未知 roleTypeCode 与 list 空分页同口径，不抛错）。
+> - `move`：目标父须与移动角色**同角色类型**（同类型内嵌套合法，跨类型嵌套拒绝 **20022** `ROLE_TYPE_MISMATCH`）；目标父为移动角色**自身或其子孙**拒绝 **20050** `ROLE_PARENT_INVALID`（新增错误码，perm 段顺延——parent 链成环后祖先/子孙递归 CTE 不收敛、环节点从树构建中静默消失；对齐 admin 域 `ORG_PARENT_CYCLE`/`MENU_PARENT_INVALID` 先例）。`parentId=null`（移到顶层）不受两者限制。存量 GROUP_ROLE 组树为冻结读模型，跨类型装配自本任务起无 API 通道。
 
 ### 5.3 资源与操作
 
@@ -1768,12 +1772,14 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ```json
 {
-  "domainCode": "admin"
+  "domainCode": "admin",
+  "enabledOnly": false
 }
 ```
 
 - `domainCode` 可省略或显式 `null`：返回**全部**角色树（P1-1 修正：`abstract_role` 已移除 `biz_domain_id`，不按域过滤；原"仅返回全局域角色树（biz_domain_id 为空）"为旧模型残留文字）。
-- `domainCode` 有值：仅校验域存在性（域不存在→空树），并按域分类规则判断当前域是否覆盖角色管理资源类型（`RoleManageAppServiceImpl.getRoleTree` L313-318，`DomainQueryMode.GLOBAL_PLUS`）；**不按域过滤角色**（角色树本身返回全量）。
+- `domainCode` 有值：仅校验域存在性（域不存在→空树），并按域分类规则判断当前域是否覆盖角色管理资源类型（`RoleManageAppServiceImpl.getRoleTree` 域覆盖短路分支，`DomainQueryMode.GLOBAL_PLUS`）；**不按域过滤角色**（角色树本身返回全量）。
+- `enabledOnly`（可选，默认 false，T-PERM-022）：false/null 返回**全部有效角色**（`delete_flag=0`，含禁用——status 仅作展示字段，禁用角色在树中可见、可再启用）；true 仅返回启用角色（SQL 过滤，禁用节点整棵不返回）。消费方口径：角色管理页不传（需见禁用角色），授权页主体树传 true（2026-08-28 用户决策：前端入参后端过滤）。
 
 **T-PERM-043：GROUP_ROLE 写入口收口**：
 
@@ -1781,7 +1787,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - `create`：`roleTypeCode=GROUP_ROLE` 抛 `ROLE_TYPE_MISMATCH(20022)`（首期功能角色仅 BASIC_ROLE）。
 - `update`：目标角色现行类型为 GROUP_ROLE 时抛 `ROLE_TYPE_MISMATCH(20022)`（请求体无 `roleTypeCode`，按目标类型判定）。
 - `sync`/`full-sync`：`roleTypeCode=GROUP_ROLE` 抛 `ROLE_TYPE_MISMATCH(20022)`（外部同步通道与通用入口同口径拒绝，GROUP_ROLE 生命周期冻结）。
-- `move`/`remove` 不拒绝 GROUP_ROLE：保留为存量行的清理通道。
+- `move`/`remove` 不拒绝 GROUP_ROLE：保留为存量行的清理通道（move 的同类型校验不排斥组树内部同类型移动与解挂，见 §5.2 角色管理契约要点）。
 - `user-role/assign|revoke` 对存量 GROUP_ROLE 行仍可用（运行时读模型冻结：直绑展开、有效角色解析不受本任务影响）。
 - GROUP_ROLE 枚举、role_type 种子与读模型（tree/list 过滤值、有效角色树展开）保留且冻结。
 

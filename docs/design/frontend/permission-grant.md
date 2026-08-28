@@ -3,7 +3,7 @@ doc_type: design
 title: 4.1 权限授予 前端设计（v3）
 status: adopted # T-FE-040 v3.1 已于 2026-08-09 实现并完成 S1~S8 mock 人工验收；后续进入 T-FE-018 真实接口联调
 domain: frontend
-last_reviewed: 2026-08-09
+last_reviewed: 2026-08-28   # 2026-08-28 §1.1 主体树 enabledOnly 口径（T-PERM-022）；此前：2026-08-09 T-FE-040 v3.1
 ---
 
 # 4.1 权限授予 前端设计（v3）
@@ -45,6 +45,7 @@ last_reviewed: 2026-08-09
 - 路由约定：`/perm/grant?subjectType=ROLE|ORG`（前端同一页面组件，`subjectType` 驱动主体数据源与左栏文案；`PERSONAL` 预留，首期不挂路由）。
 - 主体切换：左栏树选中即切换查看目标；**未保存变更在切换主体/离开时拦截**（§6.4）。
 - **GROUP_ROLE 展开（T-PERM-043 隐藏）**：主体树过滤仅保留 BASIC_ROLE，GROUP_ROLE 节点整棵裁掉（`extra-roles/list` 已退役，展开代码保留为不可达，待 role_inclusion 立项恢复）。
+- **树启用态过滤（T-PERM-022，2026-08-28 用户决策）**：角色入口 `getRoleTree({domainCode: null, enabledOnly: true})`——树接口默认返回全部有效角色（角色管理页需见禁用、可再启用），授权页主体树仅取启用（前端入参后端 SQL 过滤，api-contract §6.10.3）；T-FE-036 既有的节点禁用标记渲染保留为防御展示（正常链路禁用节点不达前端）。
 - 权限接线：各入口按 `subjectType` 映射能力门控（§10）。
 
 ### 1.2 与相邻页面分工

@@ -12,8 +12,8 @@ const ok = data => ({ code: 200, message: "success", data });
 /**
  * 角色树 mock（对齐 RoleTreeResp，data.items[0].root 为根节点森林）。
  *
- * 结构对齐后端 `selectEnabledRoleTree`（mapper xml:122-127，查 tenant_id +
- * delete_flag=0 + status=1 全部角色）+ `TreeBuilder` 按 parentId 组装：
+ * 结构对齐后端 `selectValidRoleTree`（mapper，查 tenant_id + delete_flag=0 全部
+ * 有效角色，含禁用——T-PERM-022 起 status 为展示字段）+ `TreeBuilder` 按 parentId 组装：
  * 根 = parentId=null 的真实角色，**无类型虚拟根**。
  *
  * 类型说明（overview §角色模型 + schema access-service.sql）：
@@ -189,6 +189,17 @@ function findNode(node, id) {
   return null;
 }
 
+/** enabledOnly=true 时递归裁掉禁用节点（ROOT 容器保留，禁用节点子树整棵不挂载） */
+function filterDisabledTree(node) {
+  if (node.roleTypeCode !== "ROOT" && node.status !== 1) {
+    return null;
+  }
+  return {
+    ...node,
+    children: (node.children || []).map(filterDisabledTree).filter(Boolean)
+  };
+}
+
 /** 在树中递归查找父节点并插入子节点 */
 function insertChild(node, parentId, newNode) {
   if (node.id === parentId) {
@@ -281,7 +292,13 @@ export default defineFakeRoute([
   {
     url: "/api/perm/abstract-role/tree",
     method: "post",
-    response: () => ok({ items: [{ root: mockRoleTree }] })
+    response: ({ body }) => {
+      // T-PERM-022：enabledOnly=true 过滤启用角色（禁用节点整棵裁掉，对齐后端
+      // SQL 行过滤 + TreeBuilder 孤儿不挂载语义）；默认返回全部有效角色
+      const { enabledOnly } = body || {};
+      const root = enabledOnly ? filterDisabledTree(mockRoleTree) : mockRoleTree;
+      return ok({ items: [{ root }] });
+    }
   },
   // 分页查询角色列表
   {
@@ -418,13 +435,13 @@ export default defineFakeRoute([
       return ok(null);
     }
   },
-  // 查询角色详情（🔧 后端现用 IdReq{id}，mock 同步）
+  // 查询角色详情（T-PERM-022：业务键二元组定位，对齐后端 RoleDetailReq）
   {
     url: "/api/perm/abstract-role/detail",
     method: "post",
     response: ({ body }) => {
-      const { id } = body || {};
-      const node = findNode(mockRoleTree, id);
+      const { roleTypeCode, roleExternalId } = body || {};
+      const node = findNodeByExternalId(mockRoleTree, roleExternalId, roleTypeCode);
       // ROOT 是 mock 容器，非真实角色，视为不存在；真实角色（含空 externalId）正常返回
       if (!node || node.roleTypeCode === "ROOT") {
         return { code: 404, message: "角色不存在", data: null };

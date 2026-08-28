@@ -92,8 +92,13 @@ export type RoleTreeNode = {
 
 /** 角色树查询参数（对齐 RoleTreeReq） */
 export type RoleTreeQuery = {
-  /** 业务域编码，可省略：仅返回全局域角色树 */
+  /** 业务域编码，可省略或 null：返回全部角色树；有值仅校验域覆盖性，不按域过滤（§6.10.3） */
   domainCode?: string | null;
+  /**
+   * 仅返回启用角色（T-PERM-022 定案）：默认 false 返回全部有效角色（含禁用，
+   * 角色管理页需禁用角色可见可再启用）；授权页主体树传 true，后端 SQL 过滤。
+   */
+  enabledOnly?: boolean | null;
 };
 
 /** 角色列表查询参数（对齐 RoleListReq） */
@@ -254,18 +259,28 @@ export const removeRoles = async (ids: number[]): Promise<void> => {
 };
 
 /**
+ * 角色详情查询参数（对齐 RoleDetailReq，T-PERM-022 定案：业务键二元组，
+ * tenantId 走上下文；依据 schema 唯一索引 uk_abstract_role_external）
+ */
+export type RoleDetailQuery = {
+  roleTypeCode: string;
+  roleExternalId: string;
+};
+
+/**
  * 查询角色详情（POST /perm/api/perm/abstract-role/detail）
  *
- * 🔧 API 核对项（登记 T-PERM-022）：后端 Controller 现用 IdReq{id}（内部主键），
- * 与 api-contract §6.10.3 / 项目铁律「调用方不应存储 access-service 内部主键」不符；
- * 已有未使用的 RoleDetailReq（业务键 domainCode+roleTypeCode+roleExternalId）待启用。
- * Phase 1 mock 阶段用树节点 id 工作正常；联调需后端切换业务键。详见 docs/design/frontend/role-manage.md。
+ * T-PERM-022 收口：业务键二元组定位（原 IdReq{id} 内部主键废弃——对齐
+ * 「调用方不应存储 access-service 内部主键」口径）；未命中 data=null。
+ * RoleTreeNode 已返回 roleTypeCode + externalId，调用方可直接取用。
  */
-export const getRoleDetail = async (id: number): Promise<RoleResp> => {
+export const getRoleDetail = async (
+  params: RoleDetailQuery
+): Promise<RoleResp> => {
   const res = await http.request<PermResult<RoleResp>>(
     "post",
     "/perm/api/perm/abstract-role/detail",
-    { data: { id } }
+    { data: params }
   );
   return unwrap(res);
 };

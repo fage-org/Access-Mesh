@@ -107,12 +107,19 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
                                             @Param("roleType") Integer roleType);
 
     /**
-     * 查询角色树（所有有效且启用的角色）
+     * 查询角色树数据（全部有效角色，含禁用）
+     * <p>
+     * T-PERM-022：树接口默认返回 delete_flag=0 全量角色，status 仅作展示字段
+     * （禁用角色须在树中可见可再启用）；enabledOnly=true 时由 SQL 过滤 status=1
+     * （授权页主体树等仅需启用态的消费方，2026-08-28 用户决策：前端入参后端过滤）。
+     * </p>
      *
-     * @param tenantId 租户ID
+     * @param tenantId    租户ID
+     * @param enabledOnly 是否仅返回启用角色
      * @return 角色列表
      */
-    List<AbstractRole> selectEnabledRoleTree(@Param("tenantId") Long tenantId);
+    List<AbstractRole> selectValidRoleTree(@Param("tenantId") Long tenantId,
+                                           @Param("enabledOnly") boolean enabledOnly);
 
     /**
      * 分页查询角色列表（带过滤条件）

@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
@@ -24,6 +25,8 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -73,7 +76,7 @@ class RoleManageAppServiceImplTest {
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
                 isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
 
-            assertEquals(List.of(), service.getRoleTree(1L, "OPS"));
+            assertEquals(List.of(), service.getRoleTree(1L, "OPS", false));
         }
         verifyNoInteractions(abstractRoleMapper);
     }
@@ -86,10 +89,79 @@ class RoleManageAppServiceImplTest {
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
                 isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
 
-            assertThrows(SecurityException.class, () -> service.getRoleTree(1L, null));
+            assertThrows(SecurityException.class, () -> service.getRoleTree(1L, null, false));
         }
         verifyNoInteractions(abstractRoleMapper);
         verifyNoInteractions(domainClassifyService);
+    }
+
+    /** T-PERM-022：树返回全部有效角色（含禁用）——status 为展示字段，禁用角色可见可再启用。 */
+    @Test
+    void shouldLoadTreeWithDisabledRoles() {
+        AbstractRole disabled = new AbstractRole();
+        disabled.setId(103L);
+        disabled.setTenantId(1L);
+        disabled.setRoleType(6);
+        disabled.setName("访客");
+        disabled.setStatus(0);
+        when(abstractRoleMapper.selectValidRoleTree(1L, false)).thenReturn(List.of(disabled));
+        when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+
+            List<cn.ac.fage.accessmesh.access.permission.dto.resp.RoleTreeResp> tree = service.getRoleTree(1L, null, false);
+            assertEquals(1, tree.size());
+            assertEquals(0, tree.get(0).root().status());
+        }
+        verify(abstractRoleMapper).selectValidRoleTree(1L, false);
+    }
+
+    /** T-PERM-022：enabledOnly=true 透传 SQL 过滤（授权页主体树，前端入参后端过滤）。 */
+    @Test
+    void shouldPassThroughEnabledOnlyToTreeQuery() {
+        when(abstractRoleMapper.selectValidRoleTree(1L, true)).thenReturn(List.of());
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+
+            assertEquals(List.of(), service.getRoleTree(1L, null, true));
+        }
+        verify(abstractRoleMapper).selectValidRoleTree(1L, true);
+    }
+
+    /** T-PERM-022：detail 用业务键二元组定位，禁用角色可查（再启用流程依赖）。 */
+    @Test
+    void shouldResolveDetailByBusinessKey() {
+        when(typeResolutionService.resolveTypeValue(1L, "role_type", "BASIC_ROLE")).thenReturn(6);
+        AbstractRole role = new AbstractRole();
+        role.setId(123L);
+        role.setTenantId(1L);
+        role.setRoleType(6);
+        role.setName("运维角色");
+        role.setStatus(0);
+        role.setExternalId("ext-1");
+        when(abstractRoleMapper.selectByTypeAndExternalId(1L, 6, "ext-1")).thenReturn(role);
+        when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
+
+        cn.ac.fage.accessmesh.access.permission.dto.resp.RoleResp resp = service.getRole(1L, "BASIC_ROLE", "ext-1");
+        assertNotNull(resp);
+        assertEquals(123L, resp.id());
+        assertEquals("ext-1", resp.externalId());
+        assertEquals(0, resp.status());
+    }
+
+    /** T-PERM-022：未知 roleTypeCode 与 list 空分页同口径——不抛错返回 null，不触库。 */
+    @Test
+    void shouldReturnNullDetailForUnknownRoleType() {
+        when(typeResolutionService.resolveTypeValue(1L, "role_type", "GHOST")).thenReturn(null);
+
+        assertNull(service.getRole(1L, "GHOST", "ext-1"));
+        verifyNoInteractions(abstractRoleMapper);
     }
 
     /** T-ACCESS-019：createRole 同事务维护 resource_entity(ROLE) 投影（code=roleId）并登记变更日志。 */
@@ -242,5 +314,65 @@ class RoleManageAppServiceImplTest {
 
         verify(localProjectionDomainService).upsertRoleResource(1L, 123L, "运维角色", 1, 200L);
         verify(auditDomainService).recordChangeLog(any(), any());
+    }
+
+    /** T-PERM-022：move 父子类型一致校验——跨类型嵌套拒绝 20022（旧实现无此校验，本用例为回归锁）。 */
+    @Test
+    void shouldRejectMoveAcrossRoleTypes() {
+        AbstractRole role = new AbstractRole();
+        role.setId(123L);
+        role.setTenantId(1L);
+        role.setRoleType(cn.ac.fage.accessmesh.access.permission.enums.RoleType.BASIC_ROLE.getValue());
+        AbstractRole parent = new AbstractRole();
+        parent.setId(200L);
+        parent.setTenantId(1L);
+        parent.setRoleType(cn.ac.fage.accessmesh.access.permission.enums.RoleType.GROUP_ROLE.getValue());
+        when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
+        when(subjectDomainService.selectValidRoleById(1L, 200L)).thenReturn(parent);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+
+        BizException ex = assertThrows(BizException.class, () -> service.moveRole(1L, 123L, 200L, 100L));
+        assertEquals(20022, ex.getErrorCode());
+        verify(abstractRoleMapper, org.mockito.Mockito.never()).update(any());
+    }
+
+    /** T-PERM-022：move 环路防护——移动到自身拒绝 20050。 */
+    @Test
+    void shouldRejectMoveToSelf() {
+        AbstractRole role = new AbstractRole();
+        role.setId(123L);
+        role.setTenantId(1L);
+        role.setRoleType(cn.ac.fage.accessmesh.access.permission.enums.RoleType.BASIC_ROLE.getValue());
+        when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+
+        BizException ex = assertThrows(BizException.class, () -> service.moveRole(1L, 123L, 123L, 100L));
+        assertEquals(20050, ex.getErrorCode());
+        verify(abstractRoleMapper, org.mockito.Mockito.never()).update(any());
+    }
+
+    /** T-PERM-022：move 环路防护——目标父为子孙节点拒绝 20050（parent 链成环后递归 CTE 不收敛）。 */
+    @Test
+    void shouldRejectMoveToDescendant() {
+        AbstractRole role = new AbstractRole();
+        role.setId(123L);
+        role.setTenantId(1L);
+        role.setRoleType(cn.ac.fage.accessmesh.access.permission.enums.RoleType.BASIC_ROLE.getValue());
+        AbstractRole parent = new AbstractRole();
+        parent.setId(300L);
+        parent.setTenantId(1L);
+        parent.setRoleType(cn.ac.fage.accessmesh.access.permission.enums.RoleType.BASIC_ROLE.getValue());
+        when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
+        when(subjectDomainService.selectValidRoleById(1L, 300L)).thenReturn(parent);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        when(subjectDomainService.resolveDescendantRoleIdsBatch(1L, java.util.Set.of(123L)))
+            .thenReturn(List.of(300L));
+
+        BizException ex = assertThrows(BizException.class, () -> service.moveRole(1L, 123L, 300L, 100L));
+        assertEquals(20050, ex.getErrorCode());
+        verify(abstractRoleMapper, org.mockito.Mockito.never()).update(any());
     }
 }

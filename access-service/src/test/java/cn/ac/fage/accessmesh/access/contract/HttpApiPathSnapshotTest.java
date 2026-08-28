@@ -241,7 +241,7 @@ class HttpApiPathSnapshotTest {
     /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约；条数与 Controller 扫描强制一致）。 */
     private static final Set<String> EXPECTED_SIGNATURES = Set.of("""
 /api/perm/abstract-role/create|access.permission.dto.req.RoleCreateReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
-/api/perm/abstract-role/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
+/api/perm/abstract-role/detail|access.permission.dto.req.RoleDetailReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
 /api/perm/abstract-role/full-sync|access.permission.dto.req.AbstractRoleFullSyncReq|common.model.PermResult<perm.common.dto.resp.SyncResultResp>
 /api/perm/abstract-role/list|access.permission.dto.req.RoleListReq|common.model.PermResult<access.permission.dto.resp.PaginatedResp<access.permission.dto.resp.RoleResp>>
 /api/perm/abstract-role/move|access.permission.dto.req.RoleMoveReq|common.model.PermResult<Void>

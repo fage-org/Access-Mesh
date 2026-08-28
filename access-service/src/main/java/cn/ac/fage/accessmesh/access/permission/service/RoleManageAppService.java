@@ -31,14 +31,17 @@ public interface RoleManageAppService {
     /**
      * 获取角色详情
      * <p>
-     * 根据角色ID查询角色实体详情。
+     * 用业务键二元组定位（T-PERM-022：原内部主键 IdReq 废弃）：
+     * roleTypeCode 解析为 role_type 值后按 (tenant, role_type, external_id)
+     * 查询有效角色；未命中返回 null。
      * </p>
      *
-     * @param tenantId 租户ID
-     * @param roleId   角色ID
-     * @return 角色详情
+     * @param tenantId       租户ID
+     * @param roleTypeCode   角色类型编码
+     * @param roleExternalId 角色外部标识
+     * @return 角色详情，未命中返回 null
      */
-    RoleResp getRole(Long tenantId, Long roleId);
+    RoleResp getRole(Long tenantId, String roleTypeCode, String roleExternalId);
 
     /**
      * 更新角色基本信息
@@ -87,13 +90,15 @@ public interface RoleManageAppService {
      * <p>
      * 获取租户的角色树结构。
       * domainCode为空或空白时返回全部角色；否则按域分类规则判断当前域是否覆盖角色管理资源类型。
+     * T-PERM-022：默认返回全部有效角色（含禁用，status 为展示字段）；enabledOnly=true 时仅启用。
      * </p>
      *
-     * @param tenantId   租户ID
-     * @param domainCode 业务域编码，可选
+     * @param tenantId    租户ID
+     * @param domainCode  业务域编码，可选
+     * @param enabledOnly 是否仅返回启用角色
      * @return 角色树响应列表
      */
-    List<RoleTreeResp> getRoleTree(Long tenantId, String domainCode);
+    List<RoleTreeResp> getRoleTree(Long tenantId, String domainCode, boolean enabledOnly);
 
     /**
      * 查询角色列表

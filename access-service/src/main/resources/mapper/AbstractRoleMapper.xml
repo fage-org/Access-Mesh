@@ -119,11 +119,15 @@
         </if>
     </select>
 
-    <select id="selectEnabledRoleTree" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">
+    <!-- T-PERM-022：树数据返回全部有效角色（含禁用，status 为展示字段；原仅启用版本随之退役）；
+         enabledOnly=true 由 SQL 过滤启用角色（授权页主体树等消费方传参，前端入参后端过滤） -->
+    <select id="selectValidRoleTree" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">
         SELECT * FROM abstract_role
         WHERE tenant_id = #{tenantId}
           AND delete_flag = 0
+        <if test="enabledOnly">
           AND status = 1
+        </if>
     </select>
 
     <select id="selectRoleListPaged" resultType="cn.ac.fage.accessmesh.access.permission.entity.AbstractRole">

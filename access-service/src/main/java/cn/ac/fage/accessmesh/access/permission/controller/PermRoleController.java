@@ -2,10 +2,10 @@ package cn.ac.fage.accessmesh.access.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleTreeReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleCreateReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.RoleDetailReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleMoveReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleUpdateReq;
@@ -66,15 +66,17 @@ public class PermRoleController {
     /**
      * 获取角色详情
      * <p>
-     * 根据角色ID查询角色的完整信息，包括名称、状态、层级等。
+     * 用业务键二元组（roleTypeCode + roleExternalId）定位角色（T-PERM-022），
+     * 未命中返回 data=null。
      * </p>
      *
-     * @param req ID请求，包含角色ID
+     * @param req 业务键请求
      * @return 角色详情信息
      */
     @PostMapping("/detail")
-    public PermResult<RoleResp> getRole(@Valid @RequestBody IdReq req) {
-        return PermResult.success(roleManageAppService.getRole(TenantContextHolder.getTenantId(), req.id()));
+    public PermResult<RoleResp> getRole(@Valid @RequestBody RoleDetailReq req) {
+        return PermResult.success(roleManageAppService.getRole(
+                TenantContextHolder.getTenantId(), req.roleTypeCode(), req.roleExternalId()));
     }
 
     /**
@@ -119,7 +121,8 @@ public class PermRoleController {
     @PostMapping("/tree")
     public PermResult<ItemsResp<RoleTreeResp>> getRoleTree(@Valid @RequestBody RoleTreeReq req) {
         return PermResult.success(new ItemsResp<>(
-            roleManageAppService.getRoleTree(TenantContextHolder.getTenantId(), req.domainCode())
+            roleManageAppService.getRoleTree(TenantContextHolder.getTenantId(), req.domainCode(),
+                Boolean.TRUE.equals(req.enabledOnly()))
         ));
     }
 

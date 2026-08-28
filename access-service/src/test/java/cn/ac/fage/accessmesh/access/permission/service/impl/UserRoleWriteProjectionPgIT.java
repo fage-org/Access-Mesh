@@ -383,7 +383,7 @@ class UserRoleWriteProjectionPgIT {
         Long groupId = insertGroupRole("t019-ext-group", "组角色");
         RoleResp basic = roleManageAppService.createRole(
             TENANT, new RoleCreateReq(null, "BASIC_ROLE", "t019-ext-group-basic", "组内基础角色", null, null), creator);
-        roleManageAppService.moveRole(TENANT, basic.id(), groupId, creator);
+        attachGroupChild(basic.id(), groupId, "组内基础角色");
 
         // 组成员（GROUP_ROLE 直绑）与组内基础角色上的授权，先于成员首次引擎调用装配
         Long member = insertSubject("t019-member", "组成员");
@@ -443,7 +443,7 @@ class UserRoleWriteProjectionPgIT {
         RoleResp leaf = roleManageAppService.createRole(
             TENANT, new RoleCreateReq(null, "BASIC_ROLE", "t019-ext-nested-leaf", "内层组基础角色", null, null), creator);
         roleManageAppService.moveRole(TENANT, innerId, outerId, creator);
-        roleManageAppService.moveRole(TENANT, leaf.id(), innerId, creator);
+        attachGroupChild(leaf.id(), innerId, "内层组基础角色");
 
         Long member = insertSubject("t019-nested-member", "嵌套组成员");
         insertGroupBinding(member, outerId);
@@ -536,6 +536,17 @@ class UserRoleWriteProjectionPgIT {
             Long.class, TENANT, ROLE_TYPE_GROUP, externalId, name);
         localProjectionDomainService.upsertRoleResource(TENANT, id, name, 1, null);
         return id;
+    }
+
+    /**
+     * T-PERM-022：moveRole 已拒绝跨类型（BASIC 挂 GROUP），组树装配改 JDBC 直改
+     * parent_id + 投影镜像（与 moveRole 生产副作用等价的数据态；组展开读模型用例，
+     * 装配先于任何引擎调用，无需缓存失效）。
+     */
+    private void attachGroupChild(Long roleId, Long parentId, String name) {
+        jdbc.update("UPDATE abstract_role SET parent_id = ? WHERE id = ? AND tenant_id = ?",
+            parentId, roleId, TENANT);
+        localProjectionDomainService.upsertRoleResource(TENANT, roleId, name, 1, parentId);
     }
 
     /** T-PERM-043：updateRole 已拒绝 GROUP_ROLE，status 经 JDBC 直改（role_type 种子 GROUP_ROLE=5）。 */
