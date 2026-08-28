@@ -11,10 +11,10 @@ import java.time.LocalDateTime;
  * </p>
  *
  * @param module     模块，可选，用于过滤（ADMIN/PERMISSION/ACCESS）
- * @param action     操作，可选，精确匹配（动态字典见 /log/action-options）
+ * @param action     操作，可选，精确匹配（动态字典见 /log/operation/action-options）
  * @param operatorId 操作者用户ID，可选
- * @param since      创建时间下界（含），可选
- * @param until      创建时间上界（含），可选
+ * @param since      创建时间下界（含），可选（ISO 无偏移 UTC 墙钟）
+ * @param until      创建时间上界（含），可选（同上）
  * @param targetType 目标类型，可选，精确匹配
  * @param pageNum    页码，必填
  * @param pageSize   每页条数，必填

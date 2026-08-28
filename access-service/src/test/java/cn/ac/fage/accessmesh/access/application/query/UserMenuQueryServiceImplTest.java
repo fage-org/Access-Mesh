@@ -68,6 +68,21 @@ class UserMenuQueryServiceImplTest {
         TenantContextHolder.clear();
     }
 
+    @Test
+    @DisplayName("perm 串下发白名单包含前端消费的独立权限码（防再犯回归锁，T-PERM-025 P0 教训）")
+    void effectivePermissionWhitelistCoversFrontendConsumedCodes() throws Exception {
+        // 新增独立权限码若漏加 EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES，前端 hasPerms 永远拿不到该串
+        //（页面按钮/路由静默消失，DB 授权真实存在也无效）——反射锁定关键成员防止再漏。
+        var field = UserMenuQueryServiceImpl.class.getDeclaredField("EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES");
+        field.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        java.util.List<String> whitelist = (java.util.List<String>) field.get(null);
+        // 前端 grep 权限串全集（2026-08-28）：任一缺失即对应页面按钮真实链路隐藏
+        org.assertj.core.api.Assertions.assertThat(whitelist).contains(
+            "ORG", "USER", "ROLE", "TYPE_DEFINITION", "RESOURCE", "OPERATION", "CONDITION",
+            "CONFLICT_RULE", "DEPENDENCY", "DOMAIN", "SERVICE", "SYSTEM_CONFIG", "OPERATION_LOG");
+    }
+
     @Nested
     @DisplayName("loadUserRolesAndPermissions")
     class LoadUserRolesAndPermissions {

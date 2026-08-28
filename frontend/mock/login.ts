@@ -56,6 +56,7 @@ import {
   RESOURCE_DEPENDENCY_VIEW_PERMS
 } from "../src/views/system/resource-dependency/utils/perms";
 import { PERMISSION_GRANT_PERM_LIST } from "../src/views/perm/grant/utils/perms";
+import { OPERATION_LOG_VIEW_PERMS } from "../src/views/system/operation-log/utils/perms";
 
 /**
  * 角色 → perm 串清单。基于 AccessMesh 平台特性 + 契约 §7 业务域委派原则，
@@ -75,9 +76,9 @@ import { PERMISSION_GRANT_PERM_LIST } from "../src/views/perm/grant/utils/perms"
  * admin 用全清单（而非 `*:*:*` 通配），便于联调时验证 perm 串拼写与矩阵覆盖度；
  * 通配测试可用其他独立账号承载。
  *
- * 7.1 操作日志页复用 `SYSTEM_CONFIG:VIEW` 门禁（后端 LogQueryAppServiceImpl 无独立 OPERATION_LOG 权限码），
- * 故本矩阵不新增权限串——admin/sec/hr/auditor 均已通过前页 SYSTEM_CONFIG 矩阵获得 VIEW，
- * 均可查看操作日志（审计员 auditor 必须能查日志，符合审计场景）。🔧 VIEW 复用审计语义登记 T-PERM-025。
+ * 7.1 操作日志页门禁为独立 `OPERATION_LOG:VIEW`（T-PERM-025 审计分离，2026-08-28）——
+ * 四账号全量补入 OPERATION_LOG_VIEW_PERMS（对齐旧复用口径下全员可查的行为；mock 模拟 UX，
+ * 不模拟最小权限；审计员 auditor 必须能查日志）。
  *
  * 7.2 权限变更日志页同样复用 SYSTEM_CONFIG:VIEW 门禁（后端 LogQueryAppServiceImpl.listChangeLogs
  *  无独立 PERMISSION_CHANGE_LOG 权限码），矩阵不新增权限串，所有账号均可查看变更日志。
@@ -117,7 +118,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...CONDITION_PERM_LIST,
     ...CONFLICT_RULE_PERM_LIST,
     ...RESOURCE_DEPENDENCY_PERM_LIST,
-    ...PERMISSION_GRANT_PERM_LIST
+    ...PERMISSION_GRANT_PERM_LIST,
+    ...OPERATION_LOG_VIEW_PERMS
   ],
   /** HR/组织人事管理员：A/B/D 全权 + C 只读（不分配功能角色）+ 2.2 只读角色 + 6.1 只读类型 + 6.2 只读配置 */
   hr: [
@@ -125,6 +127,7 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...ROLE_MANAGE_VIEW_PERMS,
     ...TYPE_DEF_VIEW_PERMS,
     ...SYSTEM_CONFIG_VIEW_PERMS,
+    ...OPERATION_LOG_VIEW_PERMS,
     P.ORG_ADD,
     P.ORG_EDIT,
     P.ORG_DELETE,
@@ -154,6 +157,7 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...ROLE_MANAGE_VIEW_PERMS,
     ...TYPE_DEF_VIEW_PERMS,
     ...SYSTEM_CONFIG_VIEW_PERMS,
+    ...OPERATION_LOG_VIEW_PERMS,
     P.USER_ROLE_ASSIGN,
     P.USER_ROLE_REVOKE,
     RP.ROLE_ADD,
@@ -202,7 +206,8 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...SERVICE_INTERFACE_VIEW_PERMS,
     ...RESOURCE_OPERATION_VIEW_PERMS,
     ...CONFLICT_RULE_VIEW_PERMS,
-    ...RESOURCE_DEPENDENCY_VIEW_PERMS
+    ...RESOURCE_DEPENDENCY_VIEW_PERMS,
+    ...OPERATION_LOG_VIEW_PERMS
   ]
 };
 

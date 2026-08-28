@@ -117,7 +117,7 @@ last_reviewed: 2026-08-22   # T-ACCESS-012 重基线：取消聚合层，直连 
 
 ## 8. 权限接线
 
-- **临时口径**：`SYSTEM_CONFIG:VIEW`（Phase 1 mock，与操作日志/变更日志同源）
+- **临时口径**：`SYSTEM_CONFIG:VIEW`（Phase 1 mock，与变更日志同源；操作日志已随 T-PERM-025 审计分离切独立 OPERATION_LOG:VIEW）
 - **T-PERM-033 定稿**：`PERMISSION_QUERY:VIEW` 全链路
 - 路由 `meta.auths`：`[...PERMISSION_QUERY_PERM_LIST]`（值 `SYSTEM_CONFIG:VIEW` 临时）
 - 路由框架不消费 `meta.auths` 隐藏菜单，页面入口必须 `hasPerms` + 整页无权状态 + hook 短路

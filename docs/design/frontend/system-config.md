@@ -162,7 +162,7 @@ views/system/config/
 Phase 1 登记的 🔧 项处置终态：
 
 1. ✅ **api-contract §5.8 补 system-config 契约要点**：字段契约、upsert 语义、20047 命名空间校验、JSONB 规范化语义、权限门禁已写入 §5.8（前端无需改动）。
-2. ❌ **SYSTEM_CONFIG 权限种子缺失——核实不成立**：权威 DDL 的 CRUD 预置种子组（CROSS JOIN 全部 23 个 resource_type × CREATE/VIEW/UPDATE/DELETE，92 条）已覆盖 SYSTEM_CONFIG(11) 的 VIEW，扩展码组另有 MANAGE(16)——Phase 1 清单登记时未对照权威 schema，无需改动。
+2. ❌ **SYSTEM_CONFIG 权限种子缺失——核实不成立**：权威 DDL 的 CRUD 预置种子组（CROSS JOIN 全部 resource_type × CREATE/VIEW/UPDATE/DELETE——核实时 23 类/92 条，T-PERM-025 增 OPERATION_LOG 后 24 类/96 条）已覆盖 SYSTEM_CONFIG(11) 的 VIEW，扩展码组另有 MANAGE(16)——Phase 1 清单登记时未对照权威 schema，无需改动。
 3. ✅ **config_value JSONB ↔ String 映射确认**：新增 `SystemConfigJsonbPgIT`（真实 PostgreSQL 容器轨）实证——语义等价（中文/嵌套/数组/空格变体解析树相等）、读出为 DB 规范化 JSON 文本（非字节回显）、规范化幂等（展示值可直接再提交）、无截断/转义问题。**该 PgIT 同时发现并修复归并遗留生产缺陷**：upsert 新建分支未设 `is_system`（NOT NULL 列）→ API 新建配置项必然 DataIntegrityViolation 裸 99999；修复为固定 `isSystem=false`（系统内置仅走种子）+ 单测回归锁。
 4. ✅ **list 服务端过滤+分页**（§9 预期、§8 原漏登，收口补登）：`SystemConfigListReq` = `{keyword?, pageNum?, pageSize?}`（替换 EmptyReq），返回 `PaginatedResp`（keyword LIKE configKey/description、ORDER BY config_key,id）；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`）；本页 hook 已切服务端分页。
 

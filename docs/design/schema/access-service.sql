@@ -30,34 +30,33 @@
 --     NULL            → 非本地管理投影（人工维护 / 外部同步，外部同步所有权以 sync_metadata 为准）
 --   resource_entity 复用既有 owner_service_code/maintain_source 字段，不复制到其他表
 --
--- 种子数据：
---   sys_oauth2_client 3 条（原样保留）
---   system_config 9 条（原 sys_config 种子，键名保持现状）
---   type_definition 系统种子 31 行（user_type 3 + role_type 5 + resource_type 23；
---     type_value 为权威数值，按 T-ACCESS-016 §13 定稿重编（T-ACCESS-018 落地）；代码不硬编码数值，
---     运行时经 TypeResolutionService 动态解析；退役值 16/17/18/19/22/28 不复用）
---   operation_permission 121 条：24 个静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/VIEW
---     bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2，共 96 条；DDL 直接种入的类型不会触发运行时
---     生成，必须在初始化阶段种入）+ 非预置扩展操作 13 条（ORG 六码同名同 bit 迁移自 ADMIN_ORG、
---     USER:ENABLE bit 重分配 32、USER:RESET_PASSWORD bit 64 不变、ADMIN_ROLE:GRANT/REVOKE 零消费者
---     删除不迁移；bit 与 CRUD 不冲突）+ 权限中心运行时必需操作 12 条（代码实际校验的
---     MANAGE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE/ACCESS，
+-- 种子数据（各组计数以 AccessServiceSchemaH2Test 断言为准，注释不复制数字——project-rules §文档治理去计数化）：
+--   sys_oauth2_client / system_config：原样保留（键名保持现状）
+--   type_definition：user_type/role_type/resource_type 三组；type_value 为权威数值，按
+--     T-ACCESS-016 §13 定稿重编（T-ACCESS-018 落地）；代码不硬编码数值，运行时经
+--     TypeResolutionService 动态解析；退役值 16/17/18/19/22/28 不复用
+--   operation_permission：三组——①全部静态 resource_type 各预置 CRUD 四操作（CREATE bit=1/
+--     VIEW bit=2/UPDATE bit=4 继承2/DELETE bit=8 继承2，CROSS JOIN 派生，DDL 直接种入的类型
+--     不会触发运行时生成必须在初始化阶段种入）；②非预置扩展操作（ORG 六码同名同 bit 迁移自
+--     ADMIN_ORG、USER:ENABLE bit 重分配 32、USER:RESET_PASSWORD bit 64 不变、
+--     ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移；bit 与 CRUD 不冲突）；③权限中心运行时必需
+--     操作（代码实际校验的 MANAGE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE/ACCESS，
 --     缺失时权限引擎 fail-closed 全量拒绝）
 --
 -- 执行：从空 PostgreSQL 一次性执行本文件即可获得完整结构；本阶段不引入 migration 框架。
 --
 -- type_value 终值分配表（T-ACCESS-016 定稿 2026-08-23，T-ACCESS-018 已落地重编；
--- 本注释是终态权威，INSERT 与本表一致，退役值不复用、后续新类型从 30 起顺延）：
---   user_type（3 行）：USER=1 / SERVICE=2 / LOCAL_USER=3（原 ADMIN_USER 更名，值不变；
+-- 本注释是终态权威，INSERT 与本表一致，退役值不复用、后续新类型取现用最大值 +1 顺延）：
+--   user_type：USER=1 / SERVICE=2 / LOCAL_USER=3（原 ADMIN_USER 更名，值不变；
 --     主体来源语义，不再兼任资源类型；subjectTypeCode 与保留业务键 subject 侧同步更名，无兼容别名。
 --     保留业务键终态（T-ACCESS-016）：subject 侧 ADMIN_USER→LOCAL_USER；role 侧 ORG|POSITION 与
 --     SYS_USER_ORG 不变；resource 侧取消类型级保留——USER/MENU 为公共基础类型，本地投影行改按
 --     所有权保护（外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置 owner=access-service 即 20045，
 --     新建撞 code 由 uk 兜底），
 --     管理入口类型保留清单换值 {USER, ORG, MENU}）
---   role_type（5 行，不变）：ORG=1 / POSITION=2 / PERSONAL=3 / GROUP_ROLE=5 / BASIC_ROLE=6
+--   role_type（不变）：ORG=1 / POSITION=2 / PERSONAL=3 / GROUP_ROLE=5 / BASIC_ROLE=6
 --     （role_type.ORG=1 与 resource_type.ORG=29 属不同 type_key，不冲突）
---   resource_type（终态 24 行）：MENU=1 / BUTTON=2 / API=3 / DATA=4 / ROLE=5 / USER=6 /
+--   resource_type（终态）：MENU=1 / BUTTON=2 / API=3 / DATA=4 / ROLE=5 / USER=6 /
 --     RESOURCE=7 / SERVICE=8 / DOMAIN=9 / TYPE_DEFINITION=10 / SYSTEM_CONFIG=11 /
 --     OPERATION=12 / CONDITION=13 / CONFLICT_RULE=14 / DEPENDENCY=15 / ADMIN_DICT=20 /
 --     ADMIN_DICT_DATA=21 / ADMIN_OAUTH2_CLIENT=23 / ADMIN_NOTICE=24 / ADMIN_FILE=25 /
@@ -824,7 +823,7 @@ COMMENT ON COLUMN operation_permission.code IS '操作编码，如 CREATE、VIEW
 COMMENT ON COLUMN operation_permission.binary_bit IS '本操作独占位（BIGINT 63 个独立操作）';
 COMMENT ON COLUMN operation_permission.inherit_mask IS '继承的位掩码，实际权限=binary_bit|inherit_mask';
 
--- 静态资源类型 CRUD 预置种子（92 条 = 23 个 resource_type × CREATE/VIEW/UPDATE/DELETE）：
+-- 静态资源类型 CRUD 预置种子（全部 resource_type × CREATE/VIEW/UPDATE/DELETE，CROSS JOIN 派生）：
 -- DDL 直接种入的 resource_type 不会触发运行时自动生成（当前应用亦无该生成逻辑），
 -- 必须在初始化阶段种入；binary_bit 1/2/4/8 与下方扩展码（16 起）不冲突。
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
@@ -839,7 +838,7 @@ CROSS JOIN (VALUES
 WHERE td.tenant_id = 1 AND td.type_key = 'resource_type' AND td.delete_flag = 0
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
--- 非预置操作码种子（13 条，按 T-ACCESS-016 §13.3 bit 终值表随类型收敛重新归属；
+-- 非预置操作码种子（按 T-ACCESS-016 §13.3 bit 终值表随类型收敛重新归属；
 -- ADMIN_ORG 六码同名同 bit 迁移 ORG(29)、ADMIN_USER 两码迁 USER(6)（ENABLE bit 16→32 重分配，
 -- USER 下 16 已被 MANAGE 占用）、ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移；
 -- binary_bit 从 16 起分配，inherit_mask 读类=0、写类继承 VIEW=2）
@@ -866,7 +865,7 @@ INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_b
     (1, 5,  'MANAGE',              '管理',           16,  2, 0, 0, 0)
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
 
--- 权限中心运行时必需操作码（12 条）：代码实际校验但 CRUD/Admin 扩展码未覆盖；
+-- 权限中心运行时必需操作码：代码实际校验但 CRUD/Admin 扩展码未覆盖；
 -- 缺失时 TypeResolutionServiceImpl 解析返回 null → PermQueryEngine fail-closed 全量拒绝。
 -- bit 16 起按类型避让，写类 mask=2（继承 VIEW），API:ACCESS 为接口鉴权专用（mask=0）。
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES

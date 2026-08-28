@@ -66,7 +66,12 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
     private static final String MENU_TYPE_IFRAME = "IFRAME";
     private static final String RESOURCE_TYPE_KEY = "resource_type";
 
-    /** 登录态 perm 串覆盖的资源类型（前端 hasPerms 消费；T-ACCESS-018 收敛后单一常量源，ROLE 去重） */
+    /**
+     * 登录态 perm 串覆盖的资源类型（前端 hasPerms 消费；T-ACCESS-018 收敛后单一常量源，ROLE 去重）。
+     * 必须覆盖前端全部消费类型（2026-08-28 T-PERM-025 评审补齐：TYPE_DEFINITION/RESOURCE/OPERATION/
+     * CONDITION/CONFLICT_RULE/DEPENDENCY/DOMAIN/SERVICE 八类缺失致对应页面按钮真实链路隐藏；
+     * OPERATION_LOG 随审计分离新增）。ADMIN_* 七类前端已零消费，暂保留（历史页面口径，移除另行决策）。
+     */
     private static final List<String> EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES = List.of(
         ResourceTypeCode.ORG,
         ResourceTypeCode.USER,
@@ -78,7 +83,16 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
         ResourceTypeCode.SYSTEM_CONFIG,
         ResourceTypeCode.ADMIN_OAUTH2_CLIENT,
         ResourceTypeCode.ADMIN_FILE,
-        ResourceTypeCode.ADMIN_ORG_TREE_CONFIG
+        ResourceTypeCode.ADMIN_ORG_TREE_CONFIG,
+        ResourceTypeCode.TYPE_DEFINITION,
+        ResourceTypeCode.RESOURCE,
+        ResourceTypeCode.OPERATION,
+        ResourceTypeCode.CONDITION,
+        ResourceTypeCode.CONFLICT_RULE,
+        ResourceTypeCode.DEPENDENCY,
+        ResourceTypeCode.DOMAIN,
+        ResourceTypeCode.SERVICE,
+        ResourceTypeCode.OPERATION_LOG
     );
 
     private final UserMenuQueryMapper userMenuQueryMapper;

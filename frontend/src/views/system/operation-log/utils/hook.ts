@@ -43,10 +43,10 @@ export function useOperationLog() {
         action: searchForm.action || undefined,
         operatorId: searchForm.operatorId ?? undefined,
         since: searchForm.timeRange?.[0]
-          ? formatToLocalIso(searchForm.timeRange[0])
+          ? formatToUtcIso(searchForm.timeRange[0])
           : undefined,
         until: searchForm.timeRange?.[1]
-          ? formatToLocalIso(searchForm.timeRange[1])
+          ? formatToUtcIso(searchForm.timeRange[1])
           : undefined,
         targetType: searchForm.targetType || undefined,
         pageNum: pagination.page,
@@ -61,12 +61,14 @@ export function useOperationLog() {
     }
   }
 
-  /** Date → 后端 LocalDateTime ISO 格式（YYYY-MM-DDTHH:mm:ss） */
-  function formatToLocalIso(d: Date): string {
+  /** Date → 后端 LocalDateTime ISO 格式（YYYY-MM-DDTHH:mm:ss，取 UTC 分量——
+   *  全链路 UTC（project-rules §7.4）：表格 createdAt 原样展示后端 UTC 串，
+   *  筛选值与展示值同参照系，用户按所见数字筛选即命中 */
+  function formatToUtcIso(d: Date): string {
     const pad = (n: number) => String(n).padStart(2, "0");
     return (
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-      `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`
+      `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}` +
+      `T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())}`
     );
   }
 

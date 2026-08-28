@@ -1,23 +1,16 @@
 /**
  * 操作日志 API
- * 经 @/utils/http 调用 access-service 端点（`/api/perm/log/operation/list`）；
- * Phase 1 由 mock/operation-log.ts（vite-plugin-fake-server）提供假数据。
+ * 经 @/utils/http 调用 access-service 端点（/api/perm/log/operation/*）。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.8（操作日志仅 1 行表格条目，
- *   且路径写为 /api/perm/operation-log/list——与后端实现不符，无独立字段契约章节。
- *   🔧 登记 T-PERM-025：Phase 2 修正契约路径 + 补字段契约）
+ * 契约依据：docs/design/permission-center/api-contract.md §5.8 operation-log 契约要点
+ *  （T-PERM-025 收口：五维筛选 + action-options 字典 + OPERATION_LOG:VIEW 审计分离门禁）。
  * 后端实现：access-service LogQueryController（@RequestMapping("/api/perm/log")）
- *   + LogQueryAppServiceImpl.listOperationLogs
+ *   + LogQueryAppServiceImpl（操作日志三方法均 OPERATION_LOG:VIEW 门禁）。
  *
- * 后端仅 1 个端点（list），无 detail——OperationLogResp 已含全部字段，
- * 详情由前端抽屉展示（无需单独 detail 接口）。
- *
- * 路径说明：后端 LogQueryController 实际路径为 /api/perm/log/operation/list
- *   （@RequestMapping("/api/perm/log") + @PostMapping("/operation/list")），
- *   非 api-contract §5.8 表格写的 /api/perm/operation-log/list。前端按后端实现对接，
- *   联调时直接对真后端无需改路径；契约路径错误登记 T-PERM-025 🔧。
+ * 端点两个：list（五维过滤服务端分页）与 action-options（动态字典）；无 detail——
+ * OperationLogResp 已含全部字段，详情由前端抽屉展示（无需单独 detail 接口）。
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";

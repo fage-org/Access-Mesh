@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
  * 幂等三状态（固定图子集匹配口径，2026-08-24 用户决策）：
  * <ol>
  *   <li><b>固定图完全不存在</b> → 本事务内创建完整固定图（首管理员主体链 + 管理用功能角色 +
- *       SERVICE/API 资源与映射 + 22 条授权）；</li>
+ *       SERVICE/API 资源与映射 + 全量固定图授权）；</li>
  *   <li><b>固定图完整匹配</b> → 整体 no-op，绝不重置密码（name/密码/邮箱等可变属性不参与匹配）；
  *       固定图之外的数据（E2E 等管理链路创建的用户/角色/授权）不构成冲突——否则 T-ACCESS-021
  *       第⑦步"重启后权限仍生效"无法通过；</li>
@@ -230,7 +230,7 @@ public class AccessBootstrapInitializer {
             conflicts.add("API 资源部分存在，缺失: " + missing);
         }
 
-        // —— 映射（12 个管理接口；目标接口无映射） ——
+        // —— 映射（管理 API 清单中有映射的接口；目标接口无映射） ——
         if (!apiResourceIds.isEmpty()) {
             List<BootstrapGraphDefinition.ApiRoute> mappedRoutes = BootstrapGraphDefinition.apiRoutes().stream()
                 .filter(BootstrapGraphDefinition.ApiRoute::withMapping)
@@ -259,7 +259,7 @@ public class AccessBootstrapInitializer {
             }
         }
 
-        // —— 授权（22 条，子集匹配：固定图条目齐全即可，角色上的多余授权不冲突） ——
+        // —— 授权（固定图全量，子集匹配：固定图条目齐全即可，角色上的多余授权不冲突） ——
         if (rolePresent && roleId != null) {
             Set<GrantKey> existing = seedWriter.findValidGrants(tenantId, roleId).stream()
                 .map(GrantKey::of)
@@ -351,7 +351,7 @@ public class AccessBootstrapInitializer {
             }
         }
 
-        // 授权（22 条：业务门禁 9（全 scopeAll，含 SERVICE:MANAGE_API_MAPPING、API:ACCESS 与 OPERATION_LOG:VIEW）+ 实例级 API:ACCESS 13）
+        // 授权（业务门禁全 scopeAll + 实例级 API:ACCESS；清单见 BootstrapGraphDefinition，计数以 AccessBootstrapPgIT 断言为准）
         List<RoleResourcePermission> grants = buildExpectedGrants(
             tenantId, roleId, resourceTypes, operationBits, apiResourceIds, serviceResourceId);
         seedWriter.insertGrants(tenantId, roleId, grants);
@@ -451,7 +451,7 @@ public class AccessBootstrapInitializer {
         return value;
     }
 
-    /** 固定图 22 条授权所需操作位（resourceTypeCode:operationCode → binary_bit，缺失 fail-fast）。 */
+    /** 固定图全部授权所需操作位（resourceTypeCode:operationCode → binary_bit，缺失 fail-fast）。 */
     private Map<String, Long> loadOperationBits(Long tenantId, Map<String, Integer> resourceTypes) {
         Set<Integer> typeValues = new HashSet<>(resourceTypes.values());
         Set<String> operationCodes = BootstrapGraphDefinition.allGrants().stream()

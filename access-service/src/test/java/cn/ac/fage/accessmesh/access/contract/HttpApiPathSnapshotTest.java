@@ -33,7 +33,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * T-ADMIN-024 再删 5 条 admin 侧角色写代理（/role/create、/role/grant-menu、
  * /role/revoke-menu、/user-role/assign、/user-role/revoke，无存量调用方）后为 190 条；
  * T-PERM-034 再删 5 条 role-resource-permission 旧写入口（save/revoke/children/
- * add-child/remove-child，2026-08-27 设计定案，apply-grant-plan 为唯一写入口）后为 185 条。
+ * add-child/remove-child，2026-08-27 设计定案，apply-grant-plan 为唯一写入口；T-PERM-025 增 action-options。计数不写注释（去计数化）。
  * </p>
  * <p>
  * 契约断言封闭口径（评审修复：堵住空 method 数组与 path()[0] 逃逸）：
@@ -238,7 +238,7 @@ class HttpApiPathSnapshotTest {
 /user/user-menus
 """.strip().split("\n"));
 
-    /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约，186 条；T-ADMIN-024 删 5 条角色写代理、T-PERM-034 删 5 条旧写入口、T-PERM-025 增 action-options）。 */
+    /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约；条数与 Controller 扫描强制一致）。 */
     private static final Set<String> EXPECTED_SIGNATURES = Set.of("""
 /api/perm/abstract-role/create|access.permission.dto.req.RoleCreateReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
 /api/perm/abstract-role/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.RoleResp>
@@ -514,7 +514,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("全量路径快照：Controller 映射恰为 185 条，增删必须显式更新快照")
+    @DisplayName("全量路径快照：Controller 映射与 Controller 扫描一致，增删必须显式更新快照")
     void controllerPaths_matchSnapshot() throws Exception {
         Set<String> actual = new TreeSet<>();
         scanSignatures().forEach(s -> actual.add(s.substring(0, s.indexOf('|'))));
@@ -524,7 +524,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("签名快照：路径→请求体类型|响应类型 恰为 185 条（DTO 类型级漂移检测）")
+    @DisplayName("签名快照：路径→请求体类型|响应类型 与 Controller 扫描一致（DTO 类型级漂移检测）")
     void signatures_matchSnapshot() throws Exception {
         assertThat(scanSignatures())
             .as("请求/响应 DTO 类型变更必须显式更新签名快照并记录依据")

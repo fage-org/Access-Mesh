@@ -115,7 +115,7 @@ public interface LogQueryAppService {
      * @param module   模块，可选过滤
      * @return 去重 action 集合（字典序）
      */
-    java.util.List<String> listActionOptions(Long tenantId, String module);
+    List<String> listActionOptions(Long tenantId, String module);
 
     // ===== 最近变更查询 =====
 

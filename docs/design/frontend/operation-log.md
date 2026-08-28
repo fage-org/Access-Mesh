@@ -9,7 +9,7 @@ last_reviewed: 2026-08-28   # 2026-08-28 T-PERM-025 收口：§5/§7/§8/§9 终
 # 7.1 操作日志页 前端设计
 
 > 任务：T-FE-005（Phase 1，mock 驱动，第 1 批末页）
-> 后端契约：`docs/design/permission-center/api-contract.md` §5.8（操作日志仅 1 行表格条目，路径写错且无独立字段契约章节——🔧 登记 T-PERM-025）
+> 后端契约：`docs/design/permission-center/api-contract.md` §5.8（T-PERM-025 收口：两行条目 + operation-log 契约要点，路径为实现路径）
 > 参照范式：6.1 类型定义页 / 6.2 系统配置页（`type-definition.md` / `system-config.md`，PureTableBar 表格列表范式 + SSOT/降级/核对清单结构）
 
 ## 1. 页面定位
@@ -18,7 +18,7 @@ last_reviewed: 2026-08-28   # 2026-08-28 T-PERM-025 收口：§5/§7/§8/§9 终
 
 - **只读查询页**：无 CRUD 写操作，仅 list 查询 + 详情查看。无新增/编辑/删除按钮。
 - **服务端分页**：后端 `OperationLogListReq` 支持 `pageNum/pageSize`（`@NotNull`），返回 `PaginatedResp`。**非** system-config 的全量本地过滤——前端不做本地切片。
-- **筛选仅 module/action**：后端 Req 只暴露这两个筛选维度。任务标题「筛选」按此两项实现，其余维度（操作者/时间范围/目标）登记 T-PERM-025 🔧。
+- **筛选五维（T-PERM-025 收口：module/action/操作者/时间范围/目标类型）**：后端 Req 只暴露这两个筛选维度。任务标题「筛选」按此两项实现，其余维度（操作者/时间范围/目标）登记 T-PERM-025 🔧。
 - **无 detail 接口**：后端只有 list，`OperationLogResp` 已含全部字段。详情由前端抽屉展示（无需单独 detail 接口）。
 - **独立 OPERATION_LOG:VIEW 门禁（T-PERM-025 审计分离，2026-08-28）**：后端操作日志查询（list/action-options）以独立 `OPERATION_LOG:VIEW` 校验（资源类型 OPERATION_LOG=30），不再复用 `SYSTEM_CONFIG:VIEW`。
 
@@ -77,8 +77,8 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 
 ### 4.1 列表加载与筛选
 
-- **加载**：进入页面 `getOperationLogList({ module, action, pageNum, pageSize })` → 后端返回 `PaginatedResp`（服务端分页 + module/action 过滤）→ `tableData = res.items` / `pagination.total = res.total`。
-- **module/action 筛选**：下拉 `@change` 触发 `onSearch`（重置 page=1 后 loadTable）。后端按 module/action 精确过滤。
+- **加载**：进入页面 `getOperationLogList({ module, action, operatorId, since, until, targetType, pageNum, pageSize })` → 后端返回 `PaginatedResp`（服务端五维过滤分页）→ `tableData = res.items` / `pagination.total = res.total`；同时 `loadActionOptions` 拉取动态 action 字典（失败降级为空下拉，不阻塞列表）。
+- **筛选**：module/action 下拉与 targetType/operatorId 输入 `@change`/回车触发 `onSearch`（重置 page=1 后 loadTable）；时间范围 datetimerange 序列化为 since/until（UTC 墙钟，与 createdAt 展示同参照系）。后端全部精确匹配。
 - **分页**：`onPageChange` / `onPageSizeChange`，服务端分页（非本地切片）。`pagination.total` = 后端返回 total。
 
 ### 4.2 详情查看
@@ -98,9 +98,9 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 | 列表 | `POST /api/perm/log/operation/list` | `{module?,action?,operatorId?,since?,until?,targetType?,pageNum,pageSize}` | `PaginatedResp<OperationLogResp>`（服务端分页，排序 createdAt DESC） | ✅（T-PERM-025 收口） |
 | 字典 | `POST /api/perm/log/operation/action-options` | `{module?}` | `ItemsResp<String>`（action 去重集合，字典序） | ✅（T-PERM-025 新增） |
 
-> **路径说明**：后端 `LogQueryController`（`@RequestMapping("/api/perm/log")`）实际路径 = `/api/perm/log/operation/list`，**非** api-contract §5.8 表格写的 `/api/perm/operation-log/list`（契约与实现不符，登记 T-PERM-025 🔧）。前端按后端实现对接，联调时直接对真后端无需改路径。
+> **路径说明**：api-contract §5.8 路径即实现路径 `/api/perm/log/operation/list`（历史误写 `/api/perm/operation-log/list` 已随 T-ACCESS-007 第五轮修正，T-PERM-025 核实无残留）。
 >
-> **无 detail 接口**：后端只有 list，详情由前端抽屉展示 list 已返回字段。
+> **无 detail 接口**：后端只有 list 与 action-options，详情由前端抽屉展示 list 已返回字段。
 
 ## 6. 组件结构
 
@@ -110,9 +110,9 @@ views/system/operation-log/
 ├── components/
 │   └── LogDetailDrawer.vue    # 日志详情抽屉（el-drawer + el-descriptions 全字段展示）
 └── utils/
-    ├── hook.ts                # useOperationLog（服务端分页表格加载，无写操作）
+    ├── hook.ts                # useOperationLog（服务端分页 + action 动态字典加载，无写操作）
     ├── perms.ts               # OPERATION_LOG_PERMS（SSOT，独立 OPERATION_LOG:VIEW）
-    └── types.ts               # OperationLogSearchForm + MODULE/ACTION_OPTIONS + 工厂
+    └── types.ts               # OperationLogSearchForm（五维）+ MODULE_OPTIONS + 工厂
 ```
 
 ### Step 1.5 组件识别（登记 T-FE-001 组件池）
