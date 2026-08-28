@@ -26,6 +26,12 @@ public interface SyncMetadataMapper extends BaseMapper<SyncMetadata> {
      * @param businessKeyHash businessKey 的 SHA-256 hex
      * @return 匹配的元数据，未找到返回 null
      */
+    List<SyncMetadata> selectByBusinessKeyHashes(@Param("tenantId") Long tenantId,
+                                                  @Param("entityKind") String entityKind,
+                                                  @Param("sourceService") String sourceService,
+                                                  @Param("scopeKeyHash") String scopeKeyHash,
+                                                  @Param("businessKeyHashes") java.util.Set<String> businessKeyHashes);
+
     SyncMetadata selectByBusinessKey(@Param("tenantId") Long tenantId,
                                      @Param("entityKind") String entityKind,
                                      @Param("sourceService") String sourceService,

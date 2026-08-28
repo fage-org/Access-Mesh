@@ -25,6 +25,19 @@
         <result column="delete_flag" property="deleteFlag"/>
     </resultMap>
 
+    <select id="selectByBusinessKeyHashes" resultMap="SyncMetadataMap">
+        SELECT * FROM sync_metadata
+        WHERE tenant_id = #{tenantId}
+          AND entity_kind = #{entityKind}
+          AND source_service = #{sourceService}
+          AND scope_key_hash = #{scopeKeyHash}
+          AND delete_flag = 0
+          AND business_key_hash IN
+        <foreach collection="businessKeyHashes" item="h" open="(" separator="," close=")">
+            #{h}
+        </foreach>
+    </select>
+
     <select id="selectByBusinessKey" resultMap="SyncMetadataMap">
         SELECT * FROM sync_metadata
         WHERE tenant_id = #{tenantId}

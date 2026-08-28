@@ -114,7 +114,25 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             return SyncResultBuilder.nonRetryable("Unknown roleTypeCode: " + req.roleTypeCode());
         }
 
-        // 4. 父角色解析（UPSERT 且 parent 信息齐全时必须找到）
+        // 4. 计算 keys（版本预判需 businessKeyHash/scopeKeyHash，前移）
+        String businessKey = SyncKeyCodec.abstractRoleBusinessKey(req.roleTypeCode(), req.roleExternalId());
+        String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
+        String scopeKey = SyncKeyCodec.abstractRoleScopeKey(req.roleTypeCode(), req.treeRootExternalId());
+        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
+        String syncKey = req.sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
+        String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
+
+        // 4.5 版本预判（只读）：旧版本无条件按 STALE 钝化（契约：成功 no-op，调度器置
+        // SUCCESS 不重试），先于父解析/判环——旧事件的数据缺陷不应改变响应分类；
+        // 真正的写入仍由 applyVersion 原子判定（预判与写入间的并发交错由其 STALE 分支兜底）
+        SyncMetadata selfMeta = syncMetadataDomainService.mapByBusinessKeyHash(
+                tenantId, ENTITY_KIND, req.sourceService(), scopeKeyHash, Set.of(businessKeyHash))
+                .get(businessKeyHash);
+        if (!syncMetadataDomainService.isNewerVersion(selfMeta, req.syncVersion().occurredAt(), req.syncVersion().sequenceNo())) {
+            return SyncResultBuilder.stale();
+        }
+
+        // 5. 父角色解析（UPSERT 且 parent 信息齐全时必须找到）
         Long parentId = null;
         if (OP_UPSERT.equals(op)
                 && req.parentRoleTypeCode() != null && !req.parentRoleTypeCode().isBlank()
@@ -127,22 +145,14 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             }
         }
 
-        // 4.5 parent 环路防护（T-PERM-022 评审收口）：与 move 同款判定（自身/子孙拒绝），
+        // 5.5 parent 环路防护（T-PERM-022 评审收口）：与 move 同款判定（自身/子孙拒绝），
         // 且先于 applyVersion——拒绝路径不推进同步版本，上游修正后同版本重试不被判 STALE；
-        // existing 预加载供步骤 7 复用避免二次单查；新建角色无既有子树天然无环
+        // existing 预加载供写入步骤复用避免二次单查；新建角色无既有子树天然无环
         AbstractRole selfExisting = abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, req.roleExternalId());
         if (selfExisting != null && isCyclicParent(tenantId, selfExisting.getId(), parentId)) {
             return SyncResultBuilder.nonRetryable(
                     "ROLE_PARENT_INVALID: " + req.parentRoleTypeCode() + ":" + req.parentRoleExternalId());
         }
-
-        // 5. 计算 keys
-        String businessKey = SyncKeyCodec.abstractRoleBusinessKey(req.roleTypeCode(), req.roleExternalId());
-        String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
-        String scopeKey = SyncKeyCodec.abstractRoleScopeKey(req.roleTypeCode(), req.treeRootExternalId());
-        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
-        String syncKey = req.sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
-        String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
 
         // 6. applyVersion
         SyncMetadataDomainService.ApplyVersionResult ver = syncMetadataDomainService.applyVersion(
@@ -231,8 +241,11 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         Set<String> selfExternalIds = new HashSet<>(req.items().size());
         // parentTypeCode -> Set<parentExternalId>
         Map<String, Set<String>> parentExternalIdsByType = new LinkedHashMap<>();
+        Set<String> itemBusinessKeyHashes = new HashSet<>(req.items().size());
         for (AbstractRoleSyncItem item : req.items()) {
             selfExternalIds.add(item.roleExternalId());
+            itemBusinessKeyHashes.add(SyncKeyCodec.sha256Hex(
+                    SyncKeyCodec.abstractRoleBusinessKey(req.scope().roleTypeCode(), item.roleExternalId())));
             if (item.parentRoleExternalId() != null && !item.parentRoleExternalId().isBlank()) {
                 parentExternalIdsByType
                         .computeIfAbsent(effectiveParentTypeCode(item, req.scope().roleTypeCode()), k -> new HashSet<>())
@@ -253,6 +266,11 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             parentResolvedByType.put(e.getKey(),
                     typeResolutionService.batchResolveRoleIds(tenantId, e.getKey(), e.getValue(), null));
         }
+
+        // ---- 阶段 B.4：版本预判只读批量预载（旧版本无条件按 STALE 钝化，先于父解析/判环，
+        // 旧事件的数据缺陷不改变响应分类；一次批量查询，循环体内无数据库调用）----
+        Map<String, SyncMetadata> syncMetaByHash = syncMetadataDomainService.mapByBusinessKeyHash(
+                tenantId, ENTITY_KIND, req.scope().sourceService(), scopeKeyHash, itemBusinessKeyHashes);
 
         // ---- 阶段 B.5：全量父子关系内存图（写入前逐项判环用；无父项批次跳过加载）----
         Map<Long, Long> parentGraphById = null;
@@ -283,6 +301,17 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                 itemResults.add(new SyncResultResp.ItemResult(
                         businessKey, false, false,
                         SyncResultBuilder.RETRY_NON_RETRYABLE, "DUPLICATE_BUSINESS_KEY"));
+                continue;
+            }
+            // 版本预判（只读预载）：旧版本无条件按 STALE 钝化（契约：成功 no-op，调度器置
+            // SUCCESS 不重试）——先于父解析/判环，旧事件携带的非法父边不改变响应分类；
+            // 预判与 applyVersion 间的并发交错由其 STALE 分支兜底
+            if (!syncMetadataDomainService.isNewerVersion(syncMetaByHash.get(businessKeyHash),
+                    item.syncVersion().occurredAt(), item.syncVersion().sequenceNo())) {
+                stale++;
+                itemResults.add(new SyncResultResp.ItemResult(
+                        businessKey, false, true,
+                        SyncResultBuilder.RETRY_STALE_VERSION, SyncResultBuilder.REASON_STALE));
                 continue;
             }
             String syncKey = req.scope().sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
@@ -335,7 +364,10 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             Long itemTargetId = applyToTargetWithExisting(tenantId, roleType, item.roleExternalId(), OP_UPSERT,
                     item.name(), parentId, item.status(), item.sortOrder(), serializeExtra(item.extra()),
                     existing, now);
-            if (parentGraphById != null && itemTargetId != null) {
+            // 内存图镜像写入语义：已有角色 parentId=null 不改父（applyToTargetWithExisting
+            // 仅 parentId!=null 才写），图须保留旧边——否则后续项按被误清的图判环可落环
+            //（评审修复：名称-only 更新后内存图错置 null 的分叉场景）
+            if (parentGraphById != null && itemTargetId != null && parentId != null) {
                 parentGraphById.put(itemTargetId, parentId);
             }
             if (existing == null && itemTargetId != null) {

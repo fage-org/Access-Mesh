@@ -184,4 +184,26 @@ class SyncMetadataDomainServiceTest {
         verify(syncMetadataMapper, never()).selectByBusinessKey(any(), anyString(), anyString(), anyString(), anyString());
         verify(syncMetadataMapper, never()).upsert(any());
     }
+
+    /** T-PERM-022 评审修复：只读版本预判须与 upsertIfNewer 冲突谓词一致
+     * （occurredAt 更大，或相等且 sequenceNo 更大；无现存记录=新）。 */
+    @Test
+    void isNewerVersionMirrorsUpsertIfNewerPredicate() {
+        LocalDateTime existingOccurred = LocalDateTime.of(2026, 1, 1, 0, 0);
+        SyncMetadata existing = new SyncMetadata();
+        existing.setLastSyncOccurredAt(existingOccurred);
+        existing.setLastSyncSequenceNo(5L);
+
+        // 无现存记录 = 新
+        assertThat(service.isNewerVersion(null, existingOccurred.minusSeconds(1), 1L)).isTrue();
+        // occurredAt 更大 = 新（sequenceNo 无关）
+        assertThat(service.isNewerVersion(existing, existingOccurred.plusSeconds(1), 1L)).isTrue();
+        // occurredAt 相等且 sequenceNo 更大 = 新
+        assertThat(service.isNewerVersion(existing, existingOccurred, 6L)).isTrue();
+        // occurredAt 相等且 sequenceNo 相等/更小 = 旧
+        assertThat(service.isNewerVersion(existing, existingOccurred, 5L)).isFalse();
+        assertThat(service.isNewerVersion(existing, existingOccurred, 4L)).isFalse();
+        // occurredAt 更小 = 旧
+        assertThat(service.isNewerVersion(existing, existingOccurred.minusSeconds(1), 999L)).isFalse();
+    }
 }

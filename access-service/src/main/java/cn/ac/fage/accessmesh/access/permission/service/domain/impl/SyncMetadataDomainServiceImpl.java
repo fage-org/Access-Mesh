@@ -9,8 +9,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * {@link SyncMetadataDomainService} 实现。
@@ -78,6 +80,33 @@ public class SyncMetadataDomainServiceImpl implements SyncMetadataDomainService 
         // 受影响行数=0 表示版本未严格新于现存记录（含相等情形），视为 STALE。
         int affected = syncMetadataMapper.upsertIfNewer(record);
         return affected > 0 ? ApplyVersionResult.APPLIED : ApplyVersionResult.STALE;
+    }
+
+    @Override
+    public Map<String, SyncMetadata> mapByBusinessKeyHash(Long tenantId,
+                                                          String entityKind,
+                                                          String sourceService,
+                                                          String scopeKeyHash,
+                                                          Set<String> businessKeyHashes) {
+        if (businessKeyHashes == null || businessKeyHashes.isEmpty()) {
+            return Map.of();
+        }
+        return syncMetadataMapper.selectByBusinessKeyHashes(
+                        tenantId, entityKind, sourceService, scopeKeyHash, businessKeyHashes)
+                .stream()
+                .collect(Collectors.toMap(SyncMetadata::getBusinessKeyHash, m -> m, (a, b) -> a));
+    }
+
+    @Override
+    public boolean isNewerVersion(SyncMetadata existing, LocalDateTime occurredAt, Long sequenceNo) {
+        if (existing == null) {
+            return true;
+        }
+        int occurredCmp = occurredAt.compareTo(existing.getLastSyncOccurredAt());
+        if (occurredCmp > 0) {
+            return true;
+        }
+        return occurredCmp == 0 && sequenceNo.compareTo(existing.getLastSyncSequenceNo()) > 0;
     }
 
     @Override

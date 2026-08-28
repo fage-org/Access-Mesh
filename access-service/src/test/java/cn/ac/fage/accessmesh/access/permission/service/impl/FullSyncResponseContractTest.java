@@ -172,6 +172,9 @@ class FullSyncResponseContractTest {
         lenient().when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
                 .thenReturn(Collections.emptyList());
 
+        org.mockito.Mockito.lenient().when(syncMetadataDomainService.isNewerVersion(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
@@ -202,6 +205,9 @@ class FullSyncResponseContractTest {
         lenient().when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
                 .thenReturn(Collections.emptyList());
 
+        org.mockito.Mockito.lenient().when(syncMetadataDomainService.isNewerVersion(
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.any())).thenReturn(true);
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
