@@ -233,10 +233,9 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         Map<String, Set<String>> parentExternalIdsByType = new LinkedHashMap<>();
         for (AbstractRoleSyncItem item : req.items()) {
             selfExternalIds.add(item.roleExternalId());
-            if (item.parentRoleTypeCode() != null && !item.parentRoleTypeCode().isBlank()
-                    && item.parentRoleExternalId() != null && !item.parentRoleExternalId().isBlank()) {
+            if (item.parentRoleExternalId() != null && !item.parentRoleExternalId().isBlank()) {
                 parentExternalIdsByType
-                        .computeIfAbsent(item.parentRoleTypeCode(), k -> new HashSet<>())
+                        .computeIfAbsent(effectiveParentTypeCode(item, req.scope().roleTypeCode()), k -> new HashSet<>())
                         .add(item.parentRoleExternalId());
             }
         }
@@ -255,63 +254,14 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                     typeResolutionService.batchResolveRoleIds(tenantId, e.getKey(), e.getValue(), null));
         }
 
-        // ---- 阶段 B.5：parent 环路防护（T-PERM-022 评审收口，与 move 同款判定语义）----
-        // 按「现有关系 + 本批次待更新关系」组成的最终图统一判环（含同批次 A→B、B→A
-        // 共同成环与批内边/库内边混合成环）：一次加载全部有效角色父子关系后内存上溯，
-        // 批内边优先于库内边，上溯遇重复节点即环；环上全部批内边属主项按 nonRetryable
-        // 拒绝。全程仅一次查询，循环体内无数据库调用（N+1 禁令）
-        Set<Integer> cyclicItemIndexes = new HashSet<>();
-        {
-            Map<Long, Long> batchEdgeByChild = new LinkedHashMap<>();
-            Map<Long, Integer> itemIndexByChild = new HashMap<>();
-            for (int i = 0; i < req.items().size(); i++) {
-                AbstractRoleSyncItem item = req.items().get(i);
-                if (item.parentRoleTypeCode() == null || item.parentRoleTypeCode().isBlank()
-                        || item.parentRoleExternalId() == null || item.parentRoleExternalId().isBlank()) {
-                    continue;
-                }
-                AbstractRole existing = existingByExternalId.get(item.roleExternalId());
-                if (existing == null) {
-                    continue; // 新建角色无既有子树，天然无环
-                }
-                Map<String, Long> parentMap = parentResolvedByType.get(item.parentRoleTypeCode());
-                Long parentId = parentMap == null ? null : parentMap.get(item.parentRoleExternalId());
-                if (parentId == null) {
-                    continue; // 解析失败在阶段 C 按项以 PARENT_ROLE_NOT_FOUND 拒绝
-                }
-                // 重复业务键仅首条落库（后续经 applyVersion 判 STALE），判环取首条边
-                batchEdgeByChild.putIfAbsent(existing.getId(), parentId);
-                itemIndexByChild.putIfAbsent(existing.getId(), i);
-            }
-            if (!batchEdgeByChild.isEmpty()) {
-                Map<Long, Long> dbParentById = new HashMap<>();
-                for (AbstractRole r : abstractRoleMapper.selectValidRoleTree(tenantId, false)) {
-                    dbParentById.put(r.getId(), r.getParentId());
-                }
-                for (Map.Entry<Long, Long> edge : batchEdgeByChild.entrySet()) {
-                    List<Long> walkEdgeOwners = new ArrayList<>();
-                    Set<Long> visited = new HashSet<>();
-                    Long cur = edge.getKey();
-                    boolean cyclic = false;
-                    while (cur != null) {
-                        if (!visited.add(cur)) {
-                            cyclic = true;
-                            break;
-                        }
-                        Long next = batchEdgeByChild.get(cur);
-                        if (next != null) {
-                            walkEdgeOwners.add(cur);
-                        } else {
-                            next = dbParentById.get(cur);
-                        }
-                        cur = next;
-                    }
-                    if (cyclic) {
-                        for (Long owner : walkEdgeOwners) {
-                            cyclicItemIndexes.add(itemIndexByChild.get(owner));
-                        }
-                    }
-                }
+        // ---- 阶段 B.5：全量父子关系内存图（写入前逐项判环用；无父项批次跳过加载）----
+        Map<Long, Long> parentGraphById = null;
+        boolean hasParentedItem = req.items().stream().anyMatch(item ->
+                item.parentRoleExternalId() != null && !item.parentRoleExternalId().isBlank());
+        if (hasParentedItem) {
+            parentGraphById = new HashMap<>();
+            for (AbstractRole r : abstractRoleMapper.selectValidRoleTree(tenantId, false)) {
+                parentGraphById.put(r.getId(), r.getParentId());
             }
         }
 
@@ -323,36 +273,49 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         Set<String> seenBusinessKeyHashes = new HashSet<>();
         LocalDateTime now = LocalDateTime.now();
 
-        for (int itemIndex = 0; itemIndex < req.items().size(); itemIndex++) {
-            AbstractRoleSyncItem item = req.items().get(itemIndex);
+        for (AbstractRoleSyncItem item : req.items()) {
             String businessKey = SyncKeyCodec.abstractRoleBusinessKey(req.scope().roleTypeCode(), item.roleExternalId());
             String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
-            seenBusinessKeyHashes.add(businessKeyHash);
+            // 同批重复 businessKey 写入前拒绝（对齐 user-role/full-sync 先例，用户决策 2026-08-28；
+            // add 恒执行，尾部差异校准的「已出现键不钝化」语义不变）
+            if (!seenBusinessKeyHashes.add(businessKeyHash)) {
+                failed++;
+                itemResults.add(new SyncResultResp.ItemResult(
+                        businessKey, false, false,
+                        SyncResultBuilder.RETRY_NON_RETRYABLE, "DUPLICATE_BUSINESS_KEY"));
+                continue;
+            }
             String syncKey = req.scope().sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
             String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
 
-            // 父角色解析（命中阶段 B 预加载结果）
+            // 父角色解析（命中阶段 B 预加载结果；契约 §6.2.2.4：parentRoleTypeCode 缺省 = scope.roleTypeCode）
             Long parentId = null;
-            if (item.parentRoleTypeCode() != null && !item.parentRoleTypeCode().isBlank()
-                    && item.parentRoleExternalId() != null && !item.parentRoleExternalId().isBlank()) {
-                Map<String, Long> parentMap = parentResolvedByType.get(item.parentRoleTypeCode());
+            String itemParentTypeCode = effectiveParentTypeCode(item, req.scope().roleTypeCode());
+            AbstractRole existing = existingByExternalId.get(item.roleExternalId());
+            if (item.parentRoleExternalId() != null && !item.parentRoleExternalId().isBlank()) {
+                Map<String, Long> parentMap = parentResolvedByType.get(itemParentTypeCode);
                 parentId = parentMap == null ? null : parentMap.get(item.parentRoleExternalId());
                 if (parentId == null) {
                     failed++;
                     itemResults.add(new SyncResultResp.ItemResult(
                             businessKey, false, false,
                             SyncResultBuilder.RETRY_DEPENDENCY_MISSING,
-                            "PARENT_ROLE_NOT_FOUND: " + item.parentRoleTypeCode() + ":" + item.parentRoleExternalId()));
+                            "PARENT_ROLE_NOT_FOUND: " + itemParentTypeCode + ":" + item.parentRoleExternalId()));
                     continue;
                 }
-            }
-            if (cyclicItemIndexes.contains(itemIndex)) {
-                failed++;
-                itemResults.add(new SyncResultResp.ItemResult(
-                        businessKey, false, false,
-                        SyncResultBuilder.RETRY_NON_RETRYABLE,
-                        "ROLE_PARENT_INVALID: " + item.parentRoleTypeCode() + ":" + item.parentRoleExternalId()));
-                continue;
+                // 环路防护（写入前逐项判定，先于 applyVersion——拒绝不推进版本）：当前生效图 =
+                // 库内既有关系 + 本事务已应用项的边；STALE 项不落边、天然保持旧边，无需预判
+                // 版本胜负；仅拒绝真正闭合环的本项，指向环的前缀安全项放行；新建角色无既有
+                // 子树天然无环。内存图判定，循环体内无数据库调用（N+1 禁令）
+                if (existing != null && parentGraphById != null
+                        && wouldCreateCycle(parentGraphById, existing.getId(), parentId)) {
+                    failed++;
+                    itemResults.add(new SyncResultResp.ItemResult(
+                            businessKey, false, false,
+                            SyncResultBuilder.RETRY_NON_RETRYABLE,
+                            "ROLE_PARENT_INVALID: " + itemParentTypeCode + ":" + item.parentRoleExternalId()));
+                    continue;
+                }
             }
 
             SyncVersionRef ver = item.syncVersion();
@@ -369,10 +332,12 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                 continue;
             }
 
-            AbstractRole existing = existingByExternalId.get(item.roleExternalId());
             Long itemTargetId = applyToTargetWithExisting(tenantId, roleType, item.roleExternalId(), OP_UPSERT,
                     item.name(), parentId, item.status(), item.sortOrder(), serializeExtra(item.extra()),
                     existing, now);
+            if (parentGraphById != null && itemTargetId != null) {
+                parentGraphById.put(itemTargetId, parentId);
+            }
             if (existing == null && itemTargetId != null) {
                 AbstractRole fresh = new AbstractRole();
                 fresh.setId(itemTargetId);
@@ -417,6 +382,34 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     // ---------------------------------------------------------------------
     // helpers
     // ---------------------------------------------------------------------
+
+    /** 契约 §6.2.2.4：full-sync item 的父角色类型缺省 = scope.roleTypeCode（跨类型须显式传） */
+    private String effectiveParentTypeCode(AbstractRoleSyncItem item, String scopeRoleTypeCode) {
+        return (item.parentRoleTypeCode() == null || item.parentRoleTypeCode().isBlank())
+                ? scopeRoleTypeCode : item.parentRoleTypeCode();
+    }
+
+    /**
+     * 环路判定（内存图）：parentId 为 roleId 自身，或 roleId 在 parentId 的祖先链上即成环。
+     * visited 防既有环上溯不终止（防御，正常数据不触发）；祖先不在图内（软删/缺失）视为到顶。
+     */
+    private boolean wouldCreateCycle(Map<Long, Long> parentById, Long roleId, Long parentId) {
+        if (roleId.equals(parentId)) {
+            return true;
+        }
+        Set<Long> visited = new HashSet<>();
+        Long cur = parentId;
+        while (cur != null) {
+            if (cur.equals(roleId)) {
+                return true;
+            }
+            if (!visited.add(cur)) {
+                return true;
+            }
+            cur = parentById.get(cur);
+        }
+        return false;
+    }
 
     /**
      * parent 环路判定（T-PERM-022 评审收口，与 moveRole 同款）：parentId 为角色自身或其子孙
