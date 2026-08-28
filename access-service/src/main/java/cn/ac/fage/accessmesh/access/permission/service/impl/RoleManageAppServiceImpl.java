@@ -39,7 +39,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -345,20 +344,12 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             .collect(Collectors.toSet());
 
         if (!cascadeRootIds.isEmpty()) {
+            // 级联子孙整体入删（项目规则「父级有权限子级即有权限」，2026-08-28 设计定案）：
+            // 级联根有权即整棵子树可删，不对子孙做独立权限过滤——实例级授权不自动继承子级
+            // 的引擎级统一收口登记 T-PERM-045；悬挂子树防护由此成立（根删则整棵同删，
+            // 不存在删父留子的部分删除）
             List<Long> descendantIds = subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, cascadeRootIds);
-
-            Set<Long> descendantSet = new HashSet<>(descendantIds);
-            Set<String> deniedDescendantCodes = engine.getDeniedResourceCodes(
-                tenantId, operatorId, ResourceTypeCode.ROLE,
-                descendantSet.stream().map(String::valueOf).collect(Collectors.toSet()),
-                OperationCodeConstants.MANAGE);
-            for (Long descId : descendantIds) {
-                if (!deniedDescendantCodes.contains(String.valueOf(descId))) {
-                    allIdsToDelete.add(descId);
-                } else {
-                    log.info("操作者{}无权删除子孙角色: {}", operatorId, descId);
-                }
-            }
+            allIdsToDelete.addAll(descendantIds);
         }
 
         // 受影响用户须在软删前反查（提交后已删角色不可作组展开递归起点）

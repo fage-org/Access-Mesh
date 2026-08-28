@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-28   # 2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 环路判定/remove 级联扩 BASIC）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-28   # 2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -213,7 +213,8 @@ last_reviewed: 2026-08-28   # 2026-08-28 §5.2 角色管理契约要点 + §6.10
 - `detail`：业务键二元组定位 `{roleTypeCode, roleExternalId}`（tenantId 走上下文，不含 domainCode；原 `IdReq{id}` 内部主键废弃）。依据唯一索引 `uk_abstract_role_external (tenant_id, role_type, external_id)`（`external_id` 非空部分索引——`externalId` 为空的角色不可经本接口定位，管理端新建表单已强制必填）；未命中返回 `data=null`（未知 roleTypeCode 与 list 空分页同口径，不抛错）。
 - `move`：目标父须与移动角色**同角色类型**（同类型内嵌套合法，跨类型嵌套拒绝 **20022** `ROLE_TYPE_MISMATCH`）；目标父为移动角色**自身或其子孙**拒绝 **20050** `ROLE_PARENT_INVALID`（新增错误码，perm 段顺延——parent 链成环后祖先/子孙递归 CTE 不收敛、环节点从树构建中静默消失；对齐 admin 域 `ORG_PARENT_CYCLE`/`MENU_PARENT_INVALID` 先例）。`parentId=null`（移到顶层）不受两者限制。存量 GROUP_ROLE 组树为冻结读模型，跨类型装配自本任务起无 API 通道。已知限制（登记 T-PERM-044）：校验为 check-then-update 非串行，并发交叉移动仍可成环；环落库后递归 CTE 不收敛，随三棵树（角色/组织/菜单）统一加固。
 - `list`/`detail` 读门禁：类型级 `ROLE:VIEW`（评审收口补齐，与 `tree` 同款——`list` 信息量不低于 `tree`，不设门禁会使 tree 门禁事实可绕；无权抛 SecurityException）。
-- `sync`/`full-sync` 的 parent 同款环路判定（评审收口补齐）：parent 为目标角色自身或其子孙时拒绝（单条 nonRetryable、批量该项 failed + `ROLE_PARENT_INVALID`），防外部同步错误数据一步成自环旁路 move 防护；`remove` 级联覆盖 BASIC_ROLE 子孙（容器类型 GROUP_ROLE/ORG 之外，同类型嵌套合法后删除父级联子孙，消除悬挂子树）。
+- `sync`/`full-sync` 的 parent 同款环路判定（评审收口补齐）：parent 为目标角色自身或其子孙时拒绝（单条 nonRetryable、批量该项 failed + `ROLE_PARENT_INVALID`）；判环先于版本推进（拒绝不消耗同步版本，上游修正后同版本重试不被判 STALE），full-sync 按「现有关系 + 本批次待更新边」组成的最终图统一判定（含同批次多边共同成环与批内/库内混合成环），防外部同步错误数据旁路 move 防护。
+- `remove` 级联覆盖 BASIC_ROLE 子孙（容器类型 GROUP_ROLE/ORG 之外）；级联根有权即整棵子树可删、不对子孙做独立权限过滤（项目规则「父级有权限子级即有权限」，2026-08-28 设计定案——内部门禁引擎级统一启用子级继承登记 T-PERM-045）。
 
 ### 5.3 资源与操作
 

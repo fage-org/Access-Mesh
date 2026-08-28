@@ -221,6 +221,10 @@ class RoleManageAppServiceImplTest {
 
         verify(subjectDomainService).softDeleteRoleBatch(1L, java.util.Set.of(123L, 456L));
         verify(localProjectionDomainService).softDeleteRoleResources(1L, java.util.Set.of(123L, 456L));
+        // 项目规则「父有权子有权」（设计定案）：仅根做一次 MANAGE 检查，子孙不做独立权限过滤
+        // （旧实现对子孙集合二次检查，本断言为回归锁）
+        verify(engine, org.mockito.Mockito.times(1)).getDeniedResourceCodes(
+            eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), any(), eq(OperationCodeConstants.MANAGE));
     }
 
     /** T-ACCESS-019：createRole 同事务维护 resource_entity(ROLE) 投影（code=roleId）并登记变更日志。 */

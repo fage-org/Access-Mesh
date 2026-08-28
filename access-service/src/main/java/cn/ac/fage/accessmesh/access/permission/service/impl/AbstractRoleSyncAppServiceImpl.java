@@ -127,6 +127,15 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             }
         }
 
+        // 4.5 parent 环路防护（T-PERM-022 评审收口）：与 move 同款判定（自身/子孙拒绝），
+        // 且先于 applyVersion——拒绝路径不推进同步版本，上游修正后同版本重试不被判 STALE；
+        // existing 预加载供步骤 7 复用避免二次单查；新建角色无既有子树天然无环
+        AbstractRole selfExisting = abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, req.roleExternalId());
+        if (selfExisting != null && isCyclicParent(tenantId, selfExisting.getId(), parentId)) {
+            return SyncResultBuilder.nonRetryable(
+                    "ROLE_PARENT_INVALID: " + req.parentRoleTypeCode() + ":" + req.parentRoleExternalId());
+        }
+
         // 5. 计算 keys
         String businessKey = SyncKeyCodec.abstractRoleBusinessKey(req.roleTypeCode(), req.roleExternalId());
         String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
@@ -147,12 +156,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             return SyncResultBuilder.stale();
         }
 
-        // 7. 写目标事实表 + markStatus（预加载 existing 供环路判定复用，避免二次单查）
-        AbstractRole selfExisting = abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, req.roleExternalId());
-        if (selfExisting != null && isCyclicParent(tenantId, selfExisting.getId(), parentId)) {
-            return SyncResultBuilder.nonRetryable(
-                    "ROLE_PARENT_INVALID: " + req.parentRoleTypeCode() + ":" + req.parentRoleExternalId());
-        }
+        // 7. 写目标事实表 + markStatus
         Long targetId = applyToTargetWithExisting(tenantId, roleType, req.roleExternalId(), op,
                 req.name(), parentId, req.status(), req.sortOrder(), serializeExtra(req.extra()),
                 selfExisting, LocalDateTime.now());
@@ -251,13 +255,15 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                     typeResolutionService.batchResolveRoleIds(tenantId, e.getKey(), e.getValue(), null));
         }
 
-        // ---- 阶段 B.5：parent 环路防护（T-PERM-022 评审收口，与 move 同款判定）----
-        // 自身成环零成本内检；子孙成环用并集一次批量预筛、疑似命中才逐对精查——
-        // 正常无环数据零精查查询，循环体内无数据库调用（N+1 禁令）
+        // ---- 阶段 B.5：parent 环路防护（T-PERM-022 评审收口，与 move 同款判定语义）----
+        // 按「现有关系 + 本批次待更新关系」组成的最终图统一判环（含同批次 A→B、B→A
+        // 共同成环与批内边/库内边混合成环）：一次加载全部有效角色父子关系后内存上溯，
+        // 批内边优先于库内边，上溯遇重复节点即环；环上全部批内边属主项按 nonRetryable
+        // 拒绝。全程仅一次查询，循环体内无数据库调用（N+1 禁令）
         Set<Integer> cyclicItemIndexes = new HashSet<>();
         {
-            Set<Long> seedIds = new HashSet<>();
-            List<ParentPair> pairs = new ArrayList<>();
+            Map<Long, Long> batchEdgeByChild = new LinkedHashMap<>();
+            Map<Long, Integer> itemIndexByChild = new HashMap<>();
             for (int i = 0; i < req.items().size(); i++) {
                 AbstractRoleSyncItem item = req.items().get(i);
                 if (item.parentRoleTypeCode() == null || item.parentRoleTypeCode().isBlank()
@@ -273,22 +279,36 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                 if (parentId == null) {
                     continue; // 解析失败在阶段 C 按项以 PARENT_ROLE_NOT_FOUND 拒绝
                 }
-                if (parentId.equals(existing.getId())) {
-                    cyclicItemIndexes.add(i);
-                    continue;
-                }
-                seedIds.add(existing.getId());
-                pairs.add(new ParentPair(existing.getId(), parentId, i));
+                // 重复业务键仅首条落库（后续经 applyVersion 判 STALE），判环取首条边
+                batchEdgeByChild.putIfAbsent(existing.getId(), parentId);
+                itemIndexByChild.putIfAbsent(existing.getId(), i);
             }
-            if (!seedIds.isEmpty()) {
-                Set<Long> unionDescendants = new HashSet<>(
-                        subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, seedIds));
-                if (!unionDescendants.isEmpty()) {
-                    for (ParentPair pair : pairs) {
-                        if (unionDescendants.contains(pair.parentId())
-                                && subjectDomainService.resolveDescendantRoleIdsBatch(
-                                        tenantId, Set.of(pair.existingId())).contains(pair.parentId())) {
-                            cyclicItemIndexes.add(pair.itemIndex());
+            if (!batchEdgeByChild.isEmpty()) {
+                Map<Long, Long> dbParentById = new HashMap<>();
+                for (AbstractRole r : abstractRoleMapper.selectValidRoleTree(tenantId, false)) {
+                    dbParentById.put(r.getId(), r.getParentId());
+                }
+                for (Map.Entry<Long, Long> edge : batchEdgeByChild.entrySet()) {
+                    List<Long> walkEdgeOwners = new ArrayList<>();
+                    Set<Long> visited = new HashSet<>();
+                    Long cur = edge.getKey();
+                    boolean cyclic = false;
+                    while (cur != null) {
+                        if (!visited.add(cur)) {
+                            cyclic = true;
+                            break;
+                        }
+                        Long next = batchEdgeByChild.get(cur);
+                        if (next != null) {
+                            walkEdgeOwners.add(cur);
+                        } else {
+                            next = dbParentById.get(cur);
+                        }
+                        cur = next;
+                    }
+                    if (cyclic) {
+                        for (Long owner : walkEdgeOwners) {
+                            cyclicItemIndexes.add(itemIndexByChild.get(owner));
                         }
                     }
                 }
@@ -412,9 +432,6 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         }
         return subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, Set.of(roleId)).contains(parentId);
     }
-
-    /** 阶段 B.5 环路预筛的（目标角色, 目标父, 项下标）三元组 */
-    private record ParentPair(Long existingId, Long parentId, int itemIndex) {}
 
     /**
      * 写目标事实表（单条/批量共用）：{@code existing} 由调用方预加载（单条 sync 供环路判定复用，
