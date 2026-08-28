@@ -17,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.util.List;
 
@@ -102,7 +103,7 @@ class TypeDefinitionAppServiceImplTest {
         assertEquals("RESOURCE_TYPE_8", captor.getValue().getTypeCode());
         // isSystem 固定 false：系统预置仅走种子，不可由 API 创建
         assertEquals(false, captor.getValue().getIsSystem());
-        // 生成码不查重（typeValue 含软删行全局不重复，生成码天然唯一）
+        // 生成路径不查重：显式码抢占未来生成码的场景由 DB uk_type_definition_code 兜底映射 20049（见 DIVE 用例）
         verify(typeDefinitionMapper, never()).selectByTypeKeyAndCode(anyLong(), any(), any());
     }
 
@@ -135,6 +136,54 @@ class TypeDefinitionAppServiceImplTest {
 
         assertEquals(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldMapCodeUniqueViolationTo20049() {
+        // 回归锁：显式码可抢占未来生成码（如先显式建 GROUP_TYPE_5，第 5 次留空创建生成同码）——
+        // 生成路径不查重，DB uk_type_definition_code 兜底须映射 20049 而非裸 99999（重试永久失败场景）
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(4);
+        when(typeDefinitionMapper.insert(any(TypeDefinition.class)))
+            .thenThrow(new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"uk_type_definition_code\""));
+
+        TypeCreateReq req = new TypeCreateReq("group_type", null, "Auto", null, null, null);
+
+        BizException exception = assertThrows(BizException.class, () -> service.createType(1L, req, 100L));
+        assertEquals(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
+    }
+
+    @Test
+    void shouldMapConcurrentValueViolationTo20049() {
+        // 并发 max+1 撞值（两个并发 create 同 typeKey 同读 max）：uk_type_definition_value 兜底映射 20049，
+        // 先提交方落库后重试即成功（瞬态，与码抢占的持久失败不同）
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(4);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "group_type", "EXPLICIT")).thenReturn(null);
+        when(typeDefinitionMapper.insert(any(TypeDefinition.class)))
+            .thenThrow(new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"uk_type_definition_value\""));
+
+        TypeCreateReq req = new TypeCreateReq("group_type", "EXPLICIT", "Concurrent", null, null, null);
+
+        BizException exception = assertThrows(BizException.class, () -> service.createType(1L, req, 100L));
+        assertEquals(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
+    }
+
+    @Test
+    void shouldRethrowNonUniqueViolationDive() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(null);
+        when(typeDefinitionMapper.insert(any(TypeDefinition.class)))
+            .thenThrow(new DataIntegrityViolationException("some other constraint"));
+
+        TypeCreateReq req = new TypeCreateReq("group_type", null, "First", null, null, null);
+
+        assertThrows(DataIntegrityViolationException.class, () -> service.createType(1L, req, 100L));
     }
 
     @Test

@@ -74,7 +74,7 @@ export type TypeDefResp = {
 };
 
 /** 类型定义列表查询参数（T-PERM-023 收口：服务端 typeKey/keyword 过滤 + 分页）。
- *  keyword 匹配 name/typeCode（ILIKE）；pageNum/pageSize 均不传 = 字典全量
+ *  keyword 匹配 name/typeCode（LIKE，大小写敏感）；pageNum/pageSize 均不传 = 字典全量
  *  （后端上限 200，先例 /role/list——授权页/冲突规则/资源操作等下拉数据源走该模式）。 */
 export type TypeDefListQuery = {
   typeKey?: string | null;

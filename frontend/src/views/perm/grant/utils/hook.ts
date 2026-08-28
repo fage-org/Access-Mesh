@@ -125,7 +125,7 @@ export function usePermissionGrant() {
     depsLoading.value = true;
     try {
       const [typeResp, treeResp, opResp, conditionResp] = await Promise.all([
-        getTypeDefList({}),
+        getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE }),
         // 门控说明（T-ACCESS-021 GUI 段缺陷修复）：资源树/操作列不做前端 capability 前置——
         // /auth/user-menu 权限串按 admin 域类型白名单派生，不含 RESOURCE/OPERATION 类型码，
         // 前置判定恒 false 会使矩阵恒空；访问控制由后端类型级 VIEW 门禁（T-PERM-042）承担，

@@ -8,7 +8,7 @@ package cn.ac.fage.accessmesh.access.permission.dto.req;
  * </p>
  *
  * @param typeKey  类型键，可选，精确过滤
- * @param keyword  关键字，可选，匹配 name/typeCode（ILIKE）
+ * @param keyword  关键字，可选，匹配 name/typeCode（LIKE，大小写敏感，与全仓关键字过滤先例一致）
  * @param pageNum  页码，可选，默认 1
  * @param pageSize 每页条数，可选，默认 10；pageNum/pageSize 均未传时取上限全量
  */

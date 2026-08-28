@@ -54,7 +54,7 @@ export function useResourceOperation() {
 
   async function loadResourceTypes() {
     try {
-      const res = await getTypeDefList({});
+      const res = await getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE });
       resourceTypes.value = res.items
         .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);

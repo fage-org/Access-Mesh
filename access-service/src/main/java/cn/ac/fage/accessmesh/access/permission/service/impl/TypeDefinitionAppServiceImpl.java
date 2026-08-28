@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContex
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -62,7 +63,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * @param operatorId 操作者ID，可选
      * @return 创建的类型定义响应
      * @throws SecurityException 无权限时抛出
-     * @throws BizException      typeCode 重复时抛出（20049）
+     * @throws BizException      typeCode 重复、显式码抢占生成码、并发分配撞值时抛出（均 20049，DB 唯一索引兜底）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -104,8 +105,37 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         type.setCreatedAt(now);
         type.setUpdatedAt(now);
         type.setDeleteFlag(0L);
-        typeDefinitionMapper.insert(type);
+        try {
+            typeDefinitionMapper.insert(type);
+        } catch (DataIntegrityViolationException e) {
+            // DB 唯一索引兜底（ConflictRule 同模式）：显式码抢占未来生成码（生成路径不查重）、
+            // check-then-insert 并发窗口、max+1 并发撞值——均映射 20049 而非裸 99999
+            if (isUniqueViolationOn(e, "uk_type_definition_code")) {
+                throw new BizException(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
+                    "Type code already exists: " + typeCode);
+            }
+            if (isUniqueViolationOn(e, "uk_type_definition_value")) {
+                throw new BizException(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
+                    "类型值分配冲突（并发创建），请重试");
+            }
+            throw e;
+        }
         return toTypeResp(type);
+    }
+
+    /**
+     * PG 唯一约束违反消息含约束名，沿 cause 链匹配（ConflictRule 同模式）
+     */
+    private boolean isUniqueViolationOn(DataIntegrityViolationException e, String constraintName) {
+        Throwable cause = e;
+        while (cause != null) {
+            String msg = cause.getMessage();
+            if (msg != null && msg.contains(constraintName)) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 
     /**
@@ -140,7 +170,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      *
      * @param tenantId 租户ID
      * @param typeKey  类型键，可选（精确过滤）
-     * @param keyword  关键字，可选（name/typeCode ILIKE）
+     * @param keyword  关键字，可选（name/typeCode LIKE，大小写敏感）
      * @return 有效行数
      */
     @Override
@@ -161,7 +191,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      *
      * @param tenantId 租户ID
      * @param typeKey  类型键，可选（精确过滤）
-     * @param keyword  关键字，可选（name/typeCode ILIKE）
+     * @param keyword  关键字，可选（name/typeCode LIKE，大小写敏感）
      * @param offset   偏移量
      * @param limit    每页条数
      * @return 类型定义响应列表（ORDER BY sort_order, id）

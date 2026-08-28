@@ -90,7 +90,7 @@ export function useConflictRule() {
           pageSize: 200
         }),
         getOperationList({}),
-        getTypeDefList({})
+        getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE })
       ]);
       roleMap.value = new Map(roleRes.items.map(r => [r.id, r]));
       operationMap.value = new Map(opRes.items.map(o => [o.id, o]));

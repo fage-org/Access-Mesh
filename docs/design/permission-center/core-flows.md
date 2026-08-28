@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-28   # 2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+last_reviewed: 2026-08-28   # 2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
@@ -45,7 +45,7 @@ flowchart LR
 
 | 步骤 | 接口                                         | 关键入参                                     | 结果                                   |
 | ---- | -------------------------------------------- | -------------------------------------------- | -------------------------------------- |
-| 1    | `POST /api/perm/type-definition/create`      | `typeKey + typeCode + typeValue`             | 建立用户、角色、资源类型               |
+| 1    | `POST /api/perm/type-definition/create`      | `typeKey + typeCode`（typeValue 服务端自动分配） | 建立用户、角色、资源类型               |
 | 2    | `POST /api/perm/biz-domain/create`           | `code=admin`                                 | 建立业务域                             |
 | 3    | `POST /api/perm/operation-permission/create` | `resourceTypeCode + operationCode`           | 建立 VIEW/EDIT/ACCESS/DATA_READ 等操作 |
 | 4    | `POST /api/perm/domain-config/save`          | `configType=SUB_PERM/CLASSIFY`（仅此两类已实现，写入白名单校验拒绝其余值） | 约束域内允许的子权限策略与资源类型分类 |

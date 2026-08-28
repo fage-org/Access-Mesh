@@ -131,7 +131,7 @@ public interface TypeDefinitionMapper extends BaseMapper<TypeDefinition> {
      *
      * @param tenantId 租户ID
      * @param typeKey  类型键，可选（精确过滤）
-     * @param keyword  关键字，可选（name/typeCode ILIKE）
+     * @param keyword  关键字，可选（name/typeCode LIKE，大小写敏感）
      * @return 有效行数
      */
     long countByCondition(@Param("tenantId") Long tenantId,
@@ -143,7 +143,7 @@ public interface TypeDefinitionMapper extends BaseMapper<TypeDefinition> {
      *
      * @param tenantId 租户ID
      * @param typeKey  类型键，可选（精确过滤）
-     * @param keyword  关键字，可选（name/typeCode ILIKE）
+     * @param keyword  关键字，可选（name/typeCode LIKE，大小写敏感）
      * @param limit    每页条数
      * @param offset   偏移量
      * @return 类型定义列表

@@ -3,7 +3,7 @@ doc_type: design
 title: 资源与操作定义 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-07-11
+last_reviewed: 2026-08-28   # 2026-08-28 §8 增补第 6 项：resource_type 联动预置操作位自 T-PERM-023 改归属登记
 ---
 
 # 资源与操作定义 前端设计
@@ -154,6 +154,7 @@ views/system/resource-operation/
 3. **VIEW 门禁种子缺失**：后端 `list/tree`（resource-entity）与 `list`（operation-permission）未见 `RESOURCE:VIEW` / `OPERATION:VIEW` 校验，schema 无 INSERT 为该资源类型预置 VIEW 操作位，联调真后端时可能全账号 403。前端按 VIEW 门控路由可达性，login 矩阵为所有账号预置 VIEW。
 4. **resource-entity list 分页**：后端 `ResourceListReq` 有分页参数，本页以树为主不消费，保留契约对齐。
 5. **bigint 字段 63 位精度**：`operation-permission.binaryBit/inheritMask` 为 63 位 bigint 列，Jackson 默认序列化为 number，前端 `JSON.parse` 在 >2⁵³ 丢精度。T-FE-008 已用 BigInt 运算解决 32 位截断（2⁵³ 内精确，覆盖全部实际业务）；63 位彻底方案需后端 DTO 加 `@JsonSerialize(ToStringSerializer.class)` 或改 `String` 类型，前端切 BigInt 全链路 + `el-input` 文本输入（丢增减按钮体验）。作为全项目 bigint 序列化策略首例，登记 T-PERM-028。
+6. **resource_type 创建联动预置 operation_permission**：schema 注释承诺创建 resource_type 类型定义时按模板联动预置 CRUD 操作位（如 MENU/BUTTON 默认操作集），代码无实现。自 T-PERM-023 §8 第 4 条改归属（2026-08-28）——预置模板与 binaryBit 位分配依赖本任务 operation-permission 写链路同批定夺。
 
 ### ✅ 满足
 

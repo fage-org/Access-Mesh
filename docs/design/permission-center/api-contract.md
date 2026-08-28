@@ -160,8 +160,8 @@ last_reviewed: 2026-08-28   # 2026-08-28 §5.1 type-definition 契约要点（T-
 
 **type-definition 契约要点（T-PERM-023 收口，2026-08-28）**：
 
-- `create`：`{typeKey, typeCode?, name, description?, sortOrder?, extra?}`——`typeValue` 由服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）；`typeCode` 留空按 `TYPEKEY_<typeValue>` 生成，显式提供时查重（重复 20049）；`isSystem` 不可由 API 创建（固定 false，系统预置仅走租户初始化种子）。
-- `list`：`{typeKey?, keyword?, pageNum?, pageSize?}` → 分页结构（§3.3）；`keyword` 匹配 name/typeCode（ILIKE），排序 `sort_order, id`；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`），供下拉数据源消费。
+- `create`：`{typeKey, typeCode?, name, description?, sortOrder?, extra?}`——`typeValue` 由服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）；`typeCode` 留空按 `TYPEKEY_<typeValue>` 生成，显式提供时查重（重复 20049；DB 唯一索引对并发窗口与生成码被显式码抢占的场景兜底，同映射 20049）；`isSystem` 不可由 API 创建（固定 false，系统预置仅走租户初始化种子）。
+- `list`：`{typeKey?, keyword?, pageNum?, pageSize?}` → 分页结构（§3.3）；`keyword` 匹配 name/typeCode（LIKE，大小写敏感），排序 `sort_order, id`；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`），供下拉数据源消费。
 
 ### 5.2 主体与角色
 

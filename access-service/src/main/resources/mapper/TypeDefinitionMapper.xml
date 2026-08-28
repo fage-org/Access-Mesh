@@ -89,7 +89,7 @@
           AND type_key = #{typeKey}
         </if>
         <if test="keyword != null and keyword != ''">
-          AND (name ILIKE CONCAT('%', #{keyword}, '%') OR type_code ILIKE CONCAT('%', #{keyword}, '%'))
+          AND (name LIKE CONCAT('%', #{keyword}, '%') OR type_code LIKE CONCAT('%', #{keyword}, '%'))
         </if>
     </sql>
 
