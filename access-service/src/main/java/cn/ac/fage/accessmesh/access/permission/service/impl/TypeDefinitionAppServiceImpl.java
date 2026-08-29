@@ -151,6 +151,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             {"UPDATE", "更新", "4", "2"},
             {"DELETE", "删除", "8", "2"}
         };
+        List<OperationPermission> toInsert = new java.util.ArrayList<>(preset.length);
         for (String[] row : preset) {
             OperationPermission op = new OperationPermission();
             op.setTenantId(tenantId);
@@ -163,8 +164,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             op.setCreatedAt(now);
             op.setUpdatedAt(now);
             op.setDeleteFlag(0L);
-            operationPermissionMapper.insert(op);
+            toInsert.add(op);
         }
+        operationPermissionMapper.insertBatch(toInsert);
     }
 
     /**

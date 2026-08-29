@@ -141,9 +141,11 @@ export function useResourceOperation() {
         resourceTypeCode: selectedResourceTypeCode.value
       });
       // binaryBit 为十进制字符串（63 位 bigint 线格式），BigInt 比较防 >2^53 丢序
-      operations.value = res.items
-        .slice()
-        .sort((a, b) => (BigInt(a.binaryBit) < BigInt(b.binaryBit) ? -1 : 1));
+      operations.value = res.items.slice().sort((a, b) => {
+        const x = BigInt(a.binaryBit);
+        const y = BigInt(b.binaryBit);
+        return x < y ? -1 : x > y ? 1 : 0;
+      });
     } catch (e: any) {
       message(e.message || "加载操作权限失败", { type: "error" });
     } finally {

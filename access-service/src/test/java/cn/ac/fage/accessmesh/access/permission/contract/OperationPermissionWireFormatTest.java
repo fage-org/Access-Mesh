@@ -39,15 +39,17 @@ class OperationPermissionWireFormatTest {
     }
 
     @Test
-    @DisplayName("请求字符串位值宽容反序列化为 Long（前端线格式统一 string）")
+    @DisplayName("请求字符串位值宽容反序列化为 Long 组件（前端线格式统一 string）")
     void shouldDeserializeStringBitsIntoLong() throws Exception {
         String json = """
             {"resourceTypeCode":"ROLE","code":"MANAGE","name":"管理","binaryBit":"8","inheritMask":"2"}
             """;
 
-        JsonNode node = objectMapper.readTree(json);
+        cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq req =
+            objectMapper.readValue(json, cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq.class);
 
-        assertEquals(8L, node.get("binaryBit").asLong());
-        assertEquals(2L, node.get("inheritMask").asLong());
+        assertEquals(Long.valueOf(8L), req.binaryBit());
+        assertEquals(Long.valueOf(2L), req.inheritMask());
+        assertEquals("MANAGE", req.code());
     }
 }

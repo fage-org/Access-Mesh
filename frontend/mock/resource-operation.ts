@@ -399,7 +399,7 @@ function findResourceByKey(key: {
   code?: string | null;
   codeType?: string | null;
 }): InternalResource | undefined {
-  const codeType = key.codeType || "default";
+  const codeType = (key.codeType ?? "").trim() || "default";
   return resources.find(
     r =>
       !r.deleted &&
@@ -414,7 +414,8 @@ function findOperationByKey(key: {
   resourceTypeCode?: string | null;
   code?: string | null;
 }): OperationPermissionResp | undefined {
-  const isGlobal = key.resourceTypeCode == null || key.resourceTypeCode === "";
+  const isGlobal =
+    key.resourceTypeCode == null || key.resourceTypeCode.trim() === "";
   return operations.find(
     op =>
       op.code === key.code &&
@@ -694,15 +695,13 @@ export default defineFakeRoute([
       for (const r of targets) {
         for (const did of collectDescendantIds(r.id)) toDelete.add(did);
       }
-      let count = 0;
       for (const r of resources) {
         if (toDelete.has(r.id) && !r.deleted) {
           r.deleted = true;
           r.updatedAt = now();
-          count += 1;
         }
       }
-      return ok({ removed: count });
+      return ok(null);
     }
   },
 
@@ -720,9 +719,11 @@ export default defineFakeRoute([
           const globals = operations
             .filter(op => op.resourceTypeCode === null)
             .slice()
-            .sort((a, b) =>
-              BigInt(a.binaryBit) < BigInt(b.binaryBit) ? -1 : 1
-            );
+            .sort((a, b) => {
+              const x = BigInt(a.binaryBit);
+              const y = BigInt(b.binaryBit);
+              return x < y ? -1 : x > y ? 1 : 0;
+            });
           return ok({ items: globals });
         }
         const typed = operations.filter(
@@ -734,7 +735,11 @@ export default defineFakeRoute([
           ...operations.filter(
             op => op.resourceTypeCode === null && !typedCodes.has(op.code)
           )
-        ].sort((a, b) => (BigInt(a.binaryBit) < BigInt(b.binaryBit) ? -1 : 1));
+        ].sort((a, b) => {
+          const x = BigInt(a.binaryBit);
+          const y = BigInt(b.binaryBit);
+          return x < y ? -1 : x > y ? 1 : 0;
+        });
         return ok({ items: merged });
       }
       // 兼容现状：有类型过滤返回该类型专属定义；无类型返回全量原始定义
@@ -743,7 +748,11 @@ export default defineFakeRoute([
           resourceTypeCode ? op.resourceTypeCode === resourceTypeCode : true
         )
         .slice()
-        .sort((a, b) => (BigInt(a.binaryBit) < BigInt(b.binaryBit) ? -1 : 1));
+        .sort((a, b) => {
+          const x = BigInt(a.binaryBit);
+          const y = BigInt(b.binaryBit);
+          return x < y ? -1 : x > y ? 1 : 0;
+        });
       return ok({ items });
     }
   },
@@ -837,7 +846,6 @@ export default defineFakeRoute([
         code: string;
       }> = Array.isArray(body?.items) ? body.items : [];
       if (items.length === 0) return error(400, "items 不能为空");
-      let count = 0;
       for (let i = operations.length - 1; i >= 0; i -= 1) {
         const hit = items.some(item =>
           item.code === operations[i].code
@@ -848,10 +856,9 @@ export default defineFakeRoute([
         );
         if (hit) {
           operations.splice(i, 1);
-          count += 1;
         }
       }
-      return ok({ removed: count });
+      return ok(null);
     }
   }
 ]);

@@ -147,7 +147,7 @@ views/system/resource-operation/
 
 ## 8. API 核对清单（登记 T-PERM-028）
 
-### 🔧 需改造（Phase 2 后端）
+### 🔧 需改造（Phase 2 后端）——六项已全数收口（T-PERM-028，2026-08-29）
 
 1. ~~**资源实体业务键切换**~~ **已收口（T-PERM-028）**：`detail/update/move/remove` 已切业务键 `(resourceTypeCode, code, codeType)`（codeType 缺省归一 default）；update 的 code 可更新字段已删（业务键不可变），extraClear 显式清空 extra，move 补跨类型/防环 20053（原内部 id 实现缺两项校验）。
 2. ~~**操作权限业务键切换**~~ **已收口（T-PERM-028）**：`detail/update/remove` 已切业务键 `(resourceTypeCode, code)`（resourceTypeCode 可空=全局操作，走 `selectGlobalByCode` 轨）。

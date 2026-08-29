@@ -828,8 +828,9 @@ COMMENT ON COLUMN operation_permission.binary_bit IS '本操作独占位（BIGIN
 COMMENT ON COLUMN operation_permission.inherit_mask IS '继承的位掩码，实际权限=binary_bit|inherit_mask';
 
 -- 静态资源类型 CRUD 预置种子（全部 resource_type × CREATE/VIEW/UPDATE/DELETE，CROSS JOIN 派生）：
--- DDL 直接种入的 resource_type 不会触发运行时自动生成（当前应用亦无该生成逻辑），
--- 必须在初始化阶段种入；binary_bit 1/2/4/8 与下方扩展码（16 起）不冲突。
+-- DDL 直接种入的 resource_type 不会触发运行时自动生成（运行时联动预置仅覆盖经
+-- type-definition/create 新建的类型，见 TypeDefinitionAppServiceImpl——T-PERM-028），
+-- 初始化阶段种入的类型必须在此预置；binary_bit 1/2/4/8 与下方扩展码（16 起）不冲突。
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag)
 SELECT 1, td.type_value, ops.code, ops.name, ops.binary_bit, ops.inherit_mask, 0, 0, 0
 FROM type_definition td

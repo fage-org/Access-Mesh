@@ -209,10 +209,10 @@ class TypeDefinitionAppServiceImplTest {
 
         service.createType(1L, new TypeCreateReq("resource_type", null, "NewRes", null, null, null), 100L);
 
-        ArgumentCaptor<cn.ac.fage.accessmesh.access.permission.entity.OperationPermission> opCaptor =
-            ArgumentCaptor.forClass(cn.ac.fage.accessmesh.access.permission.entity.OperationPermission.class);
-        verify(operationPermissionMapper, times(4)).insert(opCaptor.capture());
-        List<cn.ac.fage.accessmesh.access.permission.entity.OperationPermission> preset = opCaptor.getAllValues();
+        ArgumentCaptor<List<cn.ac.fage.accessmesh.access.permission.entity.OperationPermission>> opCaptor =
+            ArgumentCaptor.forClass(List.class);
+        verify(operationPermissionMapper).insertBatch(opCaptor.capture());
+        List<cn.ac.fage.accessmesh.access.permission.entity.OperationPermission> preset = opCaptor.getValue();
         // 模板对齐 DDL 预置组：CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)，resource_type=新 typeValue
         String[][] expected = {{"CREATE", "1", "0"}, {"VIEW", "2", "0"}, {"UPDATE", "4", "2"}, {"DELETE", "8", "2"}};
         for (int i = 0; i < 4; i++) {
@@ -232,7 +232,7 @@ class TypeDefinitionAppServiceImplTest {
 
         service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null), 100L);
 
-        verify(operationPermissionMapper, never()).insert(any(cn.ac.fage.accessmesh.access.permission.entity.OperationPermission.class));
+        verify(operationPermissionMapper, never()).insertBatch(any());
     }
 
     @Test

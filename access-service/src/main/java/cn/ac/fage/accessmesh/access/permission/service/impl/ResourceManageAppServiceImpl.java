@@ -187,7 +187,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         }
         entity.setResourceType(resourceType);
         entity.setCode(req.code());
-        entity.setCodeType(req.codeType());
+        entity.setCodeType(normalizedCodeType(req.codeType()));
         entity.setName(req.name());
         entity.setPath(req.path());
         entity.setStatus(req.status() != null ? req.status() : 1);
@@ -284,7 +284,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             entity.setParentId(parentId);
             entity.setResourceType(resourceType);
             entity.setCode(req.code());
-            entity.setCodeType(req.codeType());
+            entity.setCodeType(normalizedCodeType(req.codeType()));
             entity.setName(req.name());
             entity.setPath(req.path());
             entity.setStatus(req.status() != null ? req.status() : 1);
@@ -318,6 +318,14 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             throw new SecurityException("Permission denied: VIEW on RESOURCE");
         }
         return toResourceResp(selectResourceByBusinessKey(tenantId, key));
+    }
+
+    /**
+     * codeType 归一：null/空白 → default，去首尾空白（与 ResourceKeyReq.normalizedCodeType 同款；
+     * create 侧同样归一，否则带空白 codeType 的行创建后无法经业务键寻址——双轨评审 P2）
+     */
+    private static String normalizedCodeType(String codeType) {
+        return codeType == null || codeType.isBlank() ? ResourceKeyReq.CODE_TYPE_DEFAULT : codeType.trim();
     }
 
     /**

@@ -103,6 +103,29 @@ class ResourceManageAppServiceImplTest {
     }
 
     @Test
+    @DisplayName("create 落库前归一 codeType：空白→default、去首尾空白（键路径 trim 对称，双轨评审 P2 回归锁）")
+    void shouldNormalizeCodeTypeOnCreate() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        // API 为非保留类型（USER/ORG/MENU/ROLE 保留给管理事实链路，create 被 guard 拒绝）
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(3);
+
+        // 带空白 codeType：落库前 trim，否则该行无法经业务键（归一 trim）寻址
+        service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+            null, null, null, null, null, "API", "res-a", " X ", "资源A", null, null, null, null), 100L);
+        org.mockito.ArgumentCaptor<ResourceEntity> captor1 = org.mockito.ArgumentCaptor.forClass(ResourceEntity.class);
+        verify(resourceEntityMapper, org.mockito.Mockito.times(1)).insert(captor1.capture());
+        assertEquals("X", captor1.getValue().getCodeType());
+
+        // null codeType：落库 default
+        service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+            null, null, null, null, null, "API", "res-b", null, "资源B", null, null, null, null), 100L);
+        org.mockito.ArgumentCaptor<ResourceEntity> captor2 = org.mockito.ArgumentCaptor.forClass(ResourceEntity.class);
+        verify(resourceEntityMapper, org.mockito.Mockito.times(2)).insert(captor2.capture());
+        assertEquals("default", captor2.getAllValues().get(1).getCodeType());
+    }
+
+    @Test
     @DisplayName("detail 无 RESOURCE:VIEW → SecurityException，不触碰查询")
     void shouldRejectResourceDetailWithoutResourceViewPermission() {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
