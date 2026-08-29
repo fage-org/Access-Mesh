@@ -29,11 +29,11 @@ import {
  * - 主表 BizDomain：分页表格 + CRUD（独立 create/update/remove，非 system-config 的纯 save upsert）。
  * - 子表 DomainConfig：选中域后加载该域配置列表（save upsert + remove，同 system-config 范式）。
  *
- * 后端 biz-domain list 接 EmptyReq 返回全量 ItemsResp（无分页，登记 T-PERM-026 🔧），
- * 前端本地做 keyword 过滤 + 切片分页。
+ * T-PERM-026 收口：biz-domain list 服务端 keyword 过滤（code/name/description）+ 分页
+ * （ORDER BY code,id），前端只消费（同 system-config 范式）。
  *
  * 主表 CRUD 区别于 system-config：biz-domain 有独立 create/update/remove 接口，
- * 故 handleSubmitBizDomain 区分 create/edit + handleDeleteBizDomain。
+ * 故 handleSubmitBizDomain 区分 create/edit + handleDeleteBizDomain；edit 以业务键 code 定位。
  */
 export function useBizDomain() {
   // ========== 主表：BizDomain ==========
@@ -52,23 +52,14 @@ export function useBizDomain() {
   async function loadTable() {
     loading.value = true;
     try {
-      // 后端 /list 返回 ItemsResp（全量，无分页/无过滤，登记 T-PERM-026 🔧）。
-      // 前端本地做 keyword 过滤 + 按 code 排序 + 切片分页。业务域量小，每次翻页重拉全量可接受。
-      const res = await getBizDomainList();
-      let all = res.items.slice();
-      if (searchForm.keyword) {
-        const kw = searchForm.keyword.toLowerCase();
-        all = all.filter(
-          d =>
-            d.code.toLowerCase().includes(kw) ||
-            d.name.toLowerCase().includes(kw) ||
-            (d.description ?? "").toLowerCase().includes(kw)
-        );
-      }
-      all.sort((a, b) => a.code.localeCompare(b.code));
-      pagination.total = all.length;
-      const start = (pagination.page - 1) * pagination.size;
-      tableData.value = all.slice(start, start + pagination.size);
+      // T-PERM-026 收口：服务端 keyword 过滤（code/name/description，LIKE）+ 分页，前端只消费。
+      const res = await getBizDomainList({
+        keyword: searchForm.keyword || undefined,
+        pageNum: pagination.page,
+        pageSize: pagination.size
+      });
+      tableData.value = res.items;
+      pagination.total = res.total;
     } catch (e: any) {
       message(e.message || "加载业务域失败", { type: "error" });
     } finally {
@@ -130,12 +121,13 @@ export function useBizDomain() {
   }
 
   /** 提交业务域表单（create/edit 区分——biz-domain 有独立 create/update 接口）。
-   *  edit 态需 domainId（🔧 后端用内部主键，应切业务键 code，登记 T-PERM-026）。
+   *  edit 态以业务键 code 定位（T-PERM-026 收口）；name/description 总是携带表单当前值
+   *  （description 空串=显式清空，后端仅 null 表示不更新）。
    *  返回 true 表示提交成功（弹窗可关闭）。 */
   async function handleSubmitBizDomain(
     mode: "create" | "edit",
     form: BizDomainFormData,
-    domainId?: number
+    domainCode?: string
   ): Promise<boolean> {
     try {
       if (mode === "create") {
@@ -146,18 +138,18 @@ export function useBizDomain() {
         });
         message("创建成功", { type: "success" });
       } else {
-        if (domainId == null) {
-          message("缺少业务域 ID", { type: "error" });
+        if (!domainCode) {
+          message("缺少业务域编码", { type: "error" });
           return false;
         }
         await updateBizDomain({
-          domainId,
-          name: form.name || null,
-          description: form.description || null
+          domainCode,
+          name: form.name,
+          description: form.description
         });
         message("保存成功", { type: "success" });
         // 若编辑的是当前选中域，同步刷新标题
-        if (currentDomain.value?.id === domainId) {
+        if (currentDomain.value?.code === domainCode) {
           currentDomain.value = { ...currentDomain.value, name: form.name };
         }
       }
@@ -171,13 +163,13 @@ export function useBizDomain() {
     }
   }
 
-  /** 删除业务域（批量软删）。全局域不可删（后端校验 global，前端无 global 字段无法预判，
-   *  🔧 Resp 缺 global 登记 T-PERM-026；mock 已校验全局域不可删）。
+  /** 删除业务域（批量软删）。删除保护（T-PERM-026，20051）：全局域不可删（Resp.global=true
+   *  的行由 index.vue 禁用删除按钮预判）；域下仍存在有效域配置时后端拒绝（需先删配置）。
    *  删除前 ElMessageBox.confirm 二次确认（对齐 role/type-def 范式，业务域为持久配置类资源）。 */
   async function handleDeleteBizDomain(ids: number[]): Promise<boolean> {
     try {
       await ElMessageBox.confirm(
-        `确认删除选中的 ${ids.length} 个业务域？删除后其下域配置将一并处理。`,
+        `确认删除选中的 ${ids.length} 个业务域？域下仍存在域配置时将被拒绝（请先删除其配置）。`,
         "删除确认",
         {
           confirmButtonText: "确定删除",

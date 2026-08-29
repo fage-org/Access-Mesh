@@ -106,4 +106,19 @@ class DomainConfigAppServiceImplTest {
             assertFalse(violations.isEmpty(), rejected + " 应被白名单校验拒绝");
         }
     }
+
+    @Test
+    void shouldRejectInvalidExtraJsonOnSave() {
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+                .thenReturn(true);
+
+            // 非法 JSON 在权限校验后、触达数据前 fail-closed（system-config configValue 同范式，
+            // T-PERM-026 补齐；否则打到 PG JSONB 解析错误裸 99999）
+            assertThrows(IllegalArgumentException.class,
+                () -> service.upsertDomainConfig(1L, new DomainConfigReq("HR", "CLASSIFY", "{not-json")));
+            verify(domainConfigMapper, never()).insert(any(DomainConfig.class));
+        }
+    }
 }

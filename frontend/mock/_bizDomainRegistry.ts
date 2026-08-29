@@ -14,7 +14,8 @@
  */
 
 /** 业务域注册表项（对齐 src/api/biz-domain.ts 的 BizDomainResp / 后端 entity）。
- *  global/deleted 为注册表内部字段（后端 Resp 不返回 global，🔧 登记 T-PERM-026）。 */
+ *  T-PERM-026 起 Resp 返回 global（全局域标识，前端禁删预判）；deleted 仍为注册表内部
+ *  软删标记（对齐 schema delete_flag），不出现在真实响应中。 */
 export type BizDomainRecord = {
   id: number;
   tenantId?: number;
@@ -108,6 +109,11 @@ export function findDomainById(id: number): BizDomainRecord | undefined {
   return registry.find(d => d.id === id);
 }
 
+/** 按 code 查有效域（T-PERM-026 起 detail/update 切业务键 code 定位）。 */
+export function findDomainByCode(code: string): BizDomainRecord | undefined {
+  return registry.find(d => d.code === code && !d.deleted);
+}
+
 /**
  * 按 code 解析 bizDomainId（后端 typeResolutionService.resolveDomainId 等价）。
  * 仅匹配未软删的域。找不到返回 undefined。
@@ -137,13 +143,15 @@ export function registerDomain(
   return record;
 }
 
-/** 更新业务域（biz-domain mock update 调用）。返回更新后的记录或 undefined。 */
+/** 更新业务域（biz-domain mock update 调用，按业务键 code 定位——T-PERM-026 起）。
+ *  name/description 为 null 表示不更新，description 空串表示显式清空（后端同语义）。
+ *  返回更新后的记录或 undefined（域不存在）。 */
 export function updateDomain(
-  id: number,
+  code: string,
   name?: string | null,
   description?: string | null
 ): BizDomainRecord | undefined {
-  const found = registry.find(d => d.id === id && !d.deleted);
+  const found = findDomainByCode(code);
   if (!found) return undefined;
   if (name != null) found.name = name;
   if (description != null) found.description = description;

@@ -68,4 +68,14 @@ public interface DomainConfigMapper extends BaseMapper<DomainConfig> {
      */
     List<DomainConfig> selectValidByIds(@Param("tenantId") Long tenantId,
                                          @Param("ids") java.util.Set<Long> ids);
+
+    /**
+     * 批量查询业务域下是否存在有效域配置（业务域删除前引用检查，一次批量查询）
+     *
+     * @param tenantId    租户ID
+     * @param domainIds   业务域ID集合
+     * @return 存在有效配置的域配置列表（非空即存在引用）
+     */
+    List<DomainConfig> selectValidByDomainIds(@Param("tenantId") Long tenantId,
+                                               @Param("domainIds") java.util.Set<Long> domainIds);
 }

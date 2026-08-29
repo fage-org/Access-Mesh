@@ -237,7 +237,19 @@ public enum PermissionErrorCode {
      * 父角色非法：不能是被移动角色自身或其子孙（parent 链成环后祖先链遍历与递归 CTE 均不收敛，
      * 环节点从树构建中静默消失；对齐 admin 域同场景先例 ORG_PARENT_CYCLE/MENU_PARENT_INVALID）。
      */
-    ROLE_PARENT_INVALID(20050, "父角色不能是自身或该角色的子孙");
+    ROLE_PARENT_INVALID(20050, "父角色不能是自身或该角色的子孙"),
+
+    /**
+     * 业务域删除冲突：目标域为全局域（global=true，每租户唯一，范围隐式包含未被认领的资源类型），
+     * 或域下仍存在有效域配置（domain_config 引用检查拒删，schema 表注释约定）。
+     * 同一删除被拒语义承载两类原因，message 区分具体原因（T-PERM-026 设计定案）。
+     */
+    DOMAIN_DELETE_CONFLICT(20051, "业务域不可删除：全局域或域下存在域配置"),
+
+    /**
+     * 业务域编码在租户内已存在（uk_biz_domain，软删行不占用）。
+     */
+    DOMAIN_CODE_DUPLICATE(20052, "业务域编码已存在（租户内唯一）");
 
     private final int code;
     private final String message;

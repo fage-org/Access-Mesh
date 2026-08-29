@@ -16,14 +16,14 @@
     <select id="selectByCode" resultType="cn.ac.fage.accessmesh.access.permission.entity.BizDomain">
         SELECT * FROM biz_domain
         WHERE tenant_id = #{tenantId}
-          AND domain_code = #{domainCode}
+          AND code = #{domainCode}
           AND delete_flag = 0
     </select>
 
     <select id="selectByCodes" resultType="cn.ac.fage.accessmesh.access.permission.entity.BizDomain">
         SELECT * FROM biz_domain
         WHERE tenant_id = #{tenantId}
-          AND domain_code IN
+          AND code IN
         <foreach collection="domainCodes" item="code" open="(" separator="," close=")">
             #{code}
         </foreach>
@@ -47,10 +47,25 @@
           AND delete_flag = 0
     </select>
 
-    <select id="selectByTenantId" resultType="cn.ac.fage.accessmesh.access.permission.entity.BizDomain">
-        SELECT * FROM biz_domain
+    <sql id="listCondition">
         WHERE tenant_id = #{tenantId}
           AND delete_flag = 0
+        <if test="keyword != null and keyword != ''">
+          AND (code LIKE CONCAT('%', #{keyword}, '%') OR name LIKE CONCAT('%', #{keyword}, '%')
+               OR description LIKE CONCAT('%', #{keyword}, '%'))
+        </if>
+    </sql>
+
+    <select id="countByCondition" resultType="long">
+        SELECT COUNT(*) FROM biz_domain
+        <include refid="listCondition"/>
+    </select>
+
+    <select id="selectPageByCondition" resultType="cn.ac.fage.accessmesh.access.permission.entity.BizDomain">
+        SELECT * FROM biz_domain
+        <include refid="listCondition"/>
+        ORDER BY code, id
+        LIMIT #{limit} OFFSET #{offset}
     </select>
 
     <select id="selectNonGlobalByTenant" resultType="cn.ac.fage.accessmesh.access.permission.entity.BizDomain">

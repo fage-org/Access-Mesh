@@ -107,10 +107,11 @@ function openBizDomainForm(mode: "create" | "edit", row?: BizDomainResp) {
         return;
       }
       const formData = formRef.getFormData();
+      // edit 以业务键 code 定位（T-PERM-026 收口，原内部主键 id 退役）
       const ok = await handleSubmitBizDomain(
         mode,
         formData,
-        mode === "edit" ? row?.id : undefined
+        mode === "edit" ? row?.code : undefined
       );
       if (ok) done();
       else closeLoading();
@@ -188,10 +189,10 @@ function onDeleteDomainConfig(row: DomainConfigRow) {
             :model="searchForm"
             class="search-form-inline"
           >
-            <el-form-item label="编码/名称" class="mb-0!">
+            <el-form-item label="关键字" class="mb-0!">
               <el-input
                 v-model="searchForm.keyword"
-                placeholder="请输入域编码或名称"
+                placeholder="请输入域编码/名称/描述"
                 clearable
                 class="w-50!"
                 @keyup.enter="onSearch"
@@ -246,6 +247,10 @@ function onDeleteDomainConfig(row: DomainConfigRow) {
           >
             <template #code="{ row }">
               <span class="font-mono text-sm">{{ row.code }}</span>
+              <!-- 全域名标识（Resp.global，T-PERM-026 起 Resp 返回） -->
+              <el-tag v-if="row.global" size="small" effect="plain" class="ml-2">
+                全局
+              </el-tag>
             </template>
             <template #operation="{ row }">
               <el-button
@@ -265,6 +270,7 @@ function onDeleteDomainConfig(row: DomainConfigRow) {
                 link
                 type="danger"
                 :size="size"
+                :disabled="row.global === true"
                 :icon="useRenderIcon(Delete)"
                 @click="onDeleteBizDomain(row)"
               >

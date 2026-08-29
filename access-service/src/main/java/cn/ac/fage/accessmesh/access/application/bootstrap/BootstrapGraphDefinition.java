@@ -109,6 +109,9 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.OPERATION_LOG, OperationCodeConstants.VIEW, null, false),
             // T-PERM-032 审计分离：变更日志页查询门禁（对齐 OPERATION_LOG 先例）
             new GrantSpec(ResourceTypeCode.PERMISSION_CHANGE_LOG, OperationCodeConstants.VIEW, null, false),
+            // T-PERM-026：业务域页读门禁——checkCanGrant 要求操作者先持有才能转授，
+            // 固定图不持 DOMAIN:VIEW 则空库上业务域页读路径无授予起点（死锁，同 OPERATION_LOG 先例）
+            new GrantSpec(ResourceTypeCode.DOMAIN, OperationCodeConstants.VIEW, null, false),
             // T-API-001：类型级 API:ACCESS + canGrant——新接入服务接口的授权必须由首管理员完成，
             // 实例级（仅清单内管理接口）会造成鸡生蛋（无正规入口给新接口授权）。
             // ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子），此处按契约字符串声明

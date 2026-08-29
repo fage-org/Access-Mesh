@@ -264,8 +264,8 @@ class HttpApiPathSnapshotTest {
 /api/perm/auth/query-resources|access.permission.dto.req.QueryResourcesReq|common.model.PermResult<access.permission.dto.resp.QueryResourcesResp>
 /api/perm/auth/query-scopes|access.permission.dto.req.QueryScopesReq|common.model.PermResult<access.permission.dto.resp.QueryScopesResp>
 /api/perm/biz-domain/create|access.permission.dto.req.BizDomainCreateReq|common.model.PermResult<access.permission.dto.resp.BizDomainResp>
-/api/perm/biz-domain/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.BizDomainResp>
-/api/perm/biz-domain/list|access.permission.dto.req.EmptyReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.BizDomainResp>>
+/api/perm/biz-domain/detail|access.permission.dto.req.BizDomainDetailReq|common.model.PermResult<access.permission.dto.resp.BizDomainResp>
+/api/perm/biz-domain/list|access.permission.dto.req.BizDomainListReq|common.model.PermResult<access.permission.dto.resp.PaginatedResp<access.permission.dto.resp.BizDomainResp>>
 /api/perm/biz-domain/remove|access.permission.dto.req.IdsReq|common.model.PermResult<Void>
 /api/perm/biz-domain/update|access.permission.dto.req.BizDomainUpdateReq|common.model.PermResult<access.permission.dto.resp.BizDomainResp>
 /api/perm/conflict-rule/create|access.permission.dto.req.ConflictRuleReq|common.model.PermResult<access.permission.dto.resp.ConflictRuleResp>

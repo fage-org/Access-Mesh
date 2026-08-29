@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.permission.service.DomainConfigAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import org.springframework.stereotype.Service;
@@ -57,14 +58,17 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
      * <p>
      * 根据域编码和配置类型，创建新配置或更新已有配置。
         * 当前支持的配置类型包括CLASSIFY（资源类型分类）和SUB_PERM（子权限配置）。
+     * extra 为 JSON 字符串，写入前经 {@link JsonValidationUtils} 语法校验
+     * （非法 JSON 拒绝，system-config configValue 同范式，T-PERM-026 补齐）。
      * 需要SYSTEM_CONFIG_MANAGE权限。
      * </p>
      *
      * @param tenantId 租户ID
      * @param req      配置请求，包含域编码、配置类型、扩展JSON
      * @return 配置响应
-     * @throws SecurityException  无权限时抛出
-     * @throws BizException       域不存在时抛出
+     * @throws SecurityException       无权限时抛出
+     * @throws BizException            域不存在时抛出
+     * @throws IllegalArgumentException extra 非法 JSON 时抛出（统一异常处理映射校验失败）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -74,6 +78,8 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("No permission to manage domain config");
         }
+
+        JsonValidationUtils.validateJson(req.extra());
 
         Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
         if (bizDomainId == null) {

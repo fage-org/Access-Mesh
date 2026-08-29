@@ -3,13 +3,14 @@ package cn.ac.fage.accessmesh.access.permission.controller;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainCreateReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainDetailReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.EmptyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.BizDomainResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.access.permission.service.BizDomainAppService;
+import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -59,37 +60,46 @@ public class BizDomainController {
     /**
      * 获取业务域详情
      * <p>
-     * 根据业务域ID查询域的完整信息。
+     * 按业务键 code 查询域的完整信息（T-PERM-026 切业务键，uk_biz_domain 保证租户内唯一）；
+     * 未知编码返回 data=null 不抛错。
      * </p>
      *
-     * @param req ID请求，包含业务域ID
+     * @param req 详情请求，包含业务域编码
      * @return 业务域详情信息
      */
     @PostMapping("/detail")
-    public PermResult<BizDomainResp> getBizDomain(@Valid @RequestBody IdReq req) {
-        return PermResult.success(bizDomainAppService.getBizDomain(TenantContextHolder.getTenantId(), req.id()));
+    public PermResult<BizDomainResp> getBizDomain(@Valid @RequestBody BizDomainDetailReq req) {
+        return PermResult.success(bizDomainAppService.getBizDomain(TenantContextHolder.getTenantId(), req.domainCode()));
     }
 
     /**
      * 查询业务域列表
      * <p>
-     * 返回租户下所有的业务域列表，无过滤条件。
+     * 支持关键字过滤（code/name/description）与服务端分页（T-PERM-026 收口，system-config 同范式）。
+     * pageNum/pageSize 均未传 = 字典全量（上限 PageUtil.MAX_PAGE_SIZE，先例 /role/list）。
      * </p>
      *
-     * @param req 空请求，用于保持接口一致性
-     * @return 业务域列表
+     * @param req 列表查询请求，含关键字与分页参数（均可选）
+     * @return 分页业务域列表
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<BizDomainResp>> listBizDomains(@Valid @RequestBody EmptyReq req) {
-        return PermResult.success(new ItemsResp<>(
-            bizDomainAppService.listBizDomains(TenantContextHolder.getTenantId())
-        ));
+    public PermResult<PaginatedResp<BizDomainResp>> listBizDomains(@Valid @RequestBody BizDomainListReq req) {
+        boolean paged = req.pageNum() != null || req.pageSize() != null;
+        int pageNum = PageUtil.pageNum(req.pageNum());
+        int pageSize = paged ? PageUtil.pageSize(req.pageSize()) : PageUtil.MAX_PAGE_SIZE;
+        int offset = PageUtil.offset(pageNum, pageSize);
+        Long tenantId = TenantContextHolder.getTenantId();
+        long total = bizDomainAppService.countBizDomains(tenantId, req.keyword());
+        List<BizDomainResp> items =
+            bizDomainAppService.listBizDomains(tenantId, req.keyword(), offset, pageSize);
+        return PermResult.success(new PaginatedResp<>(
+            items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 
     /**
      * 删除业务域
      * <p>
-     * 批量删除业务域，会同时处理域下的资源配置。
+     * 批量软删除业务域。删除保护：全局域不可删、域下存在有效域配置时拒删（20051）。
      * </p>
      *
      * @param req ID集合请求，包含待删除的业务域ID列表

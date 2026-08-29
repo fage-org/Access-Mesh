@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-29   # 2026-08-29 §6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-29   # 2026-08-29 §5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -162,6 +162,15 @@ last_reviewed: 2026-08-29   # 2026-08-29 §6.8 explain 契约扩展 + §6.7/§6.
 
 - `create`：`{typeKey, typeCode?, name, description?, sortOrder?, extra?}`——`typeValue` 由服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）；`typeCode` 留空按 `TYPEKEY_<typeValue>` 生成，显式提供时查重（重复 20049；DB 唯一索引对并发窗口与生成码被显式码抢占的场景兜底，同映射 20049）；`isSystem` 不可由 API 创建（固定 false，系统预置仅走租户初始化种子）。
 - `list`：`{typeKey?, keyword?, pageNum?, pageSize?}` → 分页结构（§3.3）；`keyword` 匹配 name/typeCode（LIKE，大小写敏感），排序 `sort_order, id`；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`），供下拉数据源消费。
+
+**biz-domain 契约要点（T-PERM-026 收口，2026-08-29）**：
+
+- `detail`/`update` 切业务键 `code` 定位（`uk_biz_domain(tenant_id, code)`，软删行不占用；原内部主键 `id`/`domainId` 退役）：`detail` 请求 `{domainCode}`，未知编码返回 `data=null` 不抛错（role detail 先例）；`update` 请求 `{domainCode, name?, description?}`——`code` 不可改（改 code 等于新建新域），`name/description` 为 null 表示不更新、`description` 传空串表示显式清空；未命中 **20017** `DOMAIN_NOT_FOUND`。
+- `list`：`{keyword?, pageNum?, pageSize?}` → 分页结构（§3.3）；`keyword` 匹配 code/name/description（LIKE，大小写敏感），排序 `code, id`；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`、`/system-config/list`）。门禁 DOMAIN:VIEW 类型级（与 detail 同级，先于查询避免存在性泄露）。
+- `create`：`{code, name, description?}`——编码重复拒绝 **20052** `DOMAIN_CODE_DUPLICATE`（预查 + `uk_biz_domain` 唯一索引 DIVE 兜底同映射，TypeDefinition 先例）；API 创建固定普通域（`global=false`，全局域不在此入口创建）。
+- `remove` 删除保护（**20051** `DOMAIN_DELETE_CONFLICT`，message 区分原因）：全局域（`global=true`，每租户唯一）不可删；域下仍存在有效 `domain_config` 行时引用检查拒删（schema「删除前检查引用」落地，需先删除该域下配置）；整批校验失败则整批不变更。
+- `BizDomainResp` 含 `global` 字段（是否全局域，前端预判禁删）；`create`/`update` 请求体字段长度与格式校验对齐 schema 列宽（code 64 大写字母开头+大写/数字/下划线、name 128、description 512）。
+- 权限门禁：读（list/detail）`DOMAIN:VIEW`；写（create/update/remove）`SYSTEM_CONFIG:MANAGE`。DOMAIN:VIEW 已补入空库 bootstrap 固定图（无授予起点死锁防护，OPERATION_LOG:VIEW 先例）。
 
 ### 5.2 主体与角色
 
@@ -341,6 +350,14 @@ last_reviewed: 2026-08-29   # 2026-08-29 §6.8 explain 契约扩展 + §6.7/§6.
 | `POST /api/perm/conflict-rule/update`           | 更新冲突规则           |
 | `POST /api/perm/conflict-rule/remove`           | 删除冲突规则，支持批量 |
 | `POST /api/perm/conflict-rule/detect`           | 冲突检测               |
+
+**domain-config 契约要点（T-PERM-026 收口，2026-08-29）**：
+
+- `save`（upsert）：`{domainCode, configType, extra}`——按 `domainCode+configType` 查存在则 update `extra`、不存在则 insert（新建/编辑统一走 save）；`configType` 白名单仅接受 `SUB_PERM/CLASSIFY`（历史设想类型 SCOPE/RELATION/BINDING 未实现，写入校验拒绝）；`extra` 为 JSON 字符串，写入前经 `JsonValidationUtils` 语法校验（非法 JSON fail-closed，system-config `configValue` 同范式）；未知 domainCode 拒绝 **20017** `DOMAIN_NOT_FOUND`。
+- `detail`：`{domainCode, configType}` 业务键二元组，未命中 `data=null` 不抛错。
+- `list`：`{domainCode?}` 过滤（不传全量），量小不分页（每域至多 SUB_PERM/CLASSIFY 两条）。
+- `extra` JSONB↔String 映射已确认（`JsonbStringTypeHandler`，BizDomainConfigPgIT 真库锁定）：读出为 DB 规范化 JSON 文本，语义等价、可直接再提交。
+- 权限门禁：读（list/detail）`SYSTEM_CONFIG:VIEW`；写（save/remove）`SYSTEM_CONFIG:MANAGE`。
 
 ### 5.7 运行时鉴权与权限查询
 

@@ -3,12 +3,12 @@ doc_type: design
 title: 5.1 业务域页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-07-01
+last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-026 后端收口终态化（业务键/分页/global/删除保护/JSON 校验/JSONB 确认）；原文 2026-07-01 Phase 1 前端设计定稿
 ---
 
 # 5.1 业务域页 前端设计
 
-> 任务：T-FE-006（Phase 1，mock 驱动）
+> 任务：T-FE-006（Phase 1，mock 驱动）；后端收口：T-PERM-026（2026-08-29，契约要点见 api-contract §5.1/§5.6）
 > 后端契约：`docs/design/permission-center/api-contract.md` §5.1（类型与域）/ §5.6（高级能力）
 > 参照范式：6.2 系统配置页（`system-config.md`，PureTableBar 表格列表范式 + SSOT/降级/核对清单结构）
 
@@ -24,9 +24,9 @@ last_reviewed: 2026-07-01
 - **主从布局**：上区 BizDomain 表格（CRUD），选中域后下区展示该域的 DomainConfig 列表。
 - **BizDomain 有独立 create/update/remove**（非 system-config 的纯 save upsert）：主表 hook 区分 create/edit + handleDelete。
 - **DomainConfig save upsert 幂等**（同 system-config 范式）：按 domainCode+configType upsert（存在则 update extra，不存在则 insert），新建/编辑统一走 save。
-- **全局域不可删**：`biz_domain.global` 字段（每租户仅一个全局域，隐式包含未认领类型），但 `BizDomainResp` **不返回 global**（🔧 T-PERM-026）——前端无法区分全局域、无法预判删除。mock 内部保留 global 做「全局域不可删」校验，后端需有此校验。
-- **biz-domain list 无分页**：返回全量 `ItemsResp`（同 system-config），前端本地过滤+分页。
-- **extra 是 JSON**：`domain_config.extra` schema 是 JSONB，前端按 JSON 字符串编辑 + 提交前 `JSON.parse` 校验（同 system-config configValue 范式）。
+- **全局域不可删**：`biz_domain.global` 字段（每租户仅一个全局域，隐式包含未认领类型）。T-PERM-026 起 `BizDomainResp` 返回 global——前端以「全局」tag 标识并禁用删除按钮预判，后端 remove 删除保护兜底（全局域或域下存在配置拒绝 20051）。
+- **biz-domain list 服务端过滤+分页**（T-PERM-026 收口）：`{keyword, pageNum, pageSize}` → `PaginatedResp`（keyword LIKE code/name/description、ORDER BY code,id、均不传=字典全量上限 200），同 system-config 范式。
+- **extra 是 JSON**：`domain_config.extra` schema 是 JSONB，前端按 JSON 字符串编辑 + 提交前 `JSON.parse` 校验；后端 save 亦经 `JsonValidationUtils` 校验（T-PERM-026 补齐），JSONB↔String 映射已真库确认（语义等价、可直接再提交）。
 
 ## 2. 布局结构
 
@@ -67,9 +67,8 @@ last_reviewed: 2026-07-01
 | code | string | 业务域编码（租户内唯一，`uk_biz_domain`，如 HR / ORDER / GLOBAL） |
 | name | string | 业务域名称 |
 | description | string \| null | 描述（可空） |
+| global | boolean? | 是否全局域（每租户仅一个；T-PERM-026 起 Resp 返回，前端标识+禁删预判） |
 | createdAt | string? | 创建时间 |
-
-> 🔧 **缺 global 字段**：entity/schema 有 `global`（全局域语义关键），Resp 不返回。前端无法区分全局域与普通域、无法阻止删除全局域（登记 T-PERM-026）。
 
 ### 3.2 域配置响应（DomainConfigResp，对齐后端 DomainConfigResp）
 
@@ -79,7 +78,7 @@ last_reviewed: 2026-07-01
 | tenantId | number? | 租户 ID |
 | bizDomainId | number | 所属业务域 ID（save 时由 domainCode 解析） |
 | configType | string | 配置类型（仅 SUB_PERM / CLASSIFY 已实现，2026-08-27 起写入白名单校验拒绝其余历史类型） |
-| extra | string | 配置值（JSON 字符串，schema 是 JSONB） |
+| extra | string | 配置值（JSON 字符串，schema 是 JSONB；读出为 DB 规范化文本，可直接再提交） |
 | updatedAt | string? | 更新时间 |
 
 ### 3.3 业务域表单（BizDomainFormData）
@@ -110,10 +109,9 @@ last_reviewed: 2026-07-01
 
 ### 4.1 主表：列表加载与过滤
 
-- **加载**：进入页面 `getBizDomainList()` → 后端返回 `ItemsResp`（全量，无分页/无过滤，见 §8 🔧 第 4 条）→ hook `loadTable` 本地做 keyword 过滤 + code 排序 + 切片分页。
-- **keyword 搜索**：hook 本地按 code / name / description 模糊匹配。
-- **分页**：`onPageChange` / `onPageSizeChange`，`pagination.total` = 本地过滤后长度，`tableData` = 切片后的当前页。
-- **业务域量小**：每次翻页重拉全量可接受；Phase 2 后端补 keyword/pageNum/pageSize 参数 + 返回 PaginatedResp 后（T-PERM-026）可切回服务端分页。
+- **加载**（T-PERM-026 收口：服务端过滤+分页）：`getBizDomainList({keyword, pageNum, pageSize})` → 后端返回 `PaginatedResp`（keyword LIKE code/name/description、ORDER BY code,id），前端只消费。
+- **keyword 搜索**：`onSearch` 重置页码后重拉；`onReset` 清空重拉。
+- **分页**：`onPageChange` / `onPageSizeChange` 透传服务端，`pagination.total` = 响应 total。
 
 ### 4.2 主表：新增业务域
 
@@ -124,12 +122,12 @@ last_reviewed: 2026-07-01
 
 - 操作列「编辑」按钮（`v-if="canManage"`，门禁 `SYSTEM_CONFIG:MANAGE`）→ BizDomainForm 弹窗。
 - 编辑态：code 只读（唯一键稳定），name/description 可改。
-- 提交 → `updateBizDomain`（domainId + name + description）→ mock 按 domainId 更新 → 成功 `loadTable`。若编辑的是当前选中域，同步刷新子表标题。
+- 提交 → `updateBizDomain`（domainCode + name + description，T-PERM-026 切业务键 code）→ 成功 `loadTable`。若编辑的是当前选中域，同步刷新子表标题。name/description 总是携带表单当前值（description 空串=显式清空，后端仅 null 表示不更新）；未知编码后端拒绝 20017。
 
 ### 4.4 主表：删除业务域
 
-- 操作列「删除」按钮（`v-if="canManage"`，门禁 `SYSTEM_CONFIG:MANAGE`）→ `handleDeleteBizDomain([id])` 内前置 `ElMessageBox.confirm` 二次确认（对齐 role/type-def 范式，业务域为持久配置类资源）→ 确认后 `removeBizDomain([id])` 批量软删。
-- **全局域不可删**：mock 校验 `global=true` 拒绝返回 400（🔧 Resp 不返回 global，前端无法预判，后端需有此校验，登记 T-PERM-026）。
+- 操作列「删除」按钮（`v-if="canManage"`，门禁 `SYSTEM_CONFIG:MANAGE`；`row.global=true` 的行禁用按钮预判）→ `handleDeleteBizDomain([id])` 内前置 `ElMessageBox.confirm` 二次确认（对齐 role/type-def 范式，业务域为持久配置类资源）→ 确认后 `removeBizDomain([id])` 批量软删。
+- **删除保护（T-PERM-026，后端 20051 兜底）**：全局域不可删（Resp.global 前端预判禁用按钮）；域下仍存在有效域配置时整批拒绝（需先删除该域下配置），确认文案已注明。
 - 若删除了当前选中域，清空子表。
 
 ### 4.5 主从联动：选中域 → 加载子表
@@ -158,17 +156,17 @@ last_reviewed: 2026-07-01
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 域列表 | `POST /api/perm/biz-domain/list` | `{}` (EmptyReq) | `ItemsResp<BizDomainResp>`（全量，无分页） | 🔧 见 §8 第 4 条 |
-| 域详情 | `POST /api/perm/biz-domain/detail` | `{id}` (IdReq) | `BizDomainResp` | 🔧 见 §8 第 3 条（切业务键 code） |
-| 域创建 | `POST /api/perm/biz-domain/create` | `{code,name,description?}` | `BizDomainResp` | ✅ |
-| 域更新 | `POST /api/perm/biz-domain/update` | `{domainId,name?,description?}` | `BizDomainResp` | 🔧 见 §8 第 3 条（切业务键 code） |
-| 域删除 | `POST /api/perm/biz-domain/remove` | `{ids}` (IdsReq) | `void`（批量软删） | ✅（全局域不可删待后端校验，见 §8 第 2 条） |
+| 域列表 | `POST /api/perm/biz-domain/list` | `{keyword?,pageNum?,pageSize?}` | `PaginatedResp<BizDomainResp>` | ✅（T-PERM-026 服务端过滤+分页） |
+| 域详情 | `POST /api/perm/biz-domain/detail` | `{domainCode}` | `BizDomainResp`（未命中 data=null） | ✅（T-PERM-026 切业务键） |
+| 域创建 | `POST /api/perm/biz-domain/create` | `{code,name,description?}` | `BizDomainResp` | ✅（重复 20052） |
+| 域更新 | `POST /api/perm/biz-domain/update` | `{domainCode,name?,description?}` | `BizDomainResp` | ✅（T-PERM-026 切业务键；空串清空 description） |
+| 域删除 | `POST /api/perm/biz-domain/remove` | `{ids}` (IdsReq) | `void`（批量软删） | ✅（删除保护 20051：全局域/域下有配置） |
 | 配置列表 | `POST /api/perm/domain-config/list` | `{domainCode?}` | `ItemsResp<DomainConfigResp>` | ✅ |
 | 配置详情 | `POST /api/perm/domain-config/detail` | `{domainCode,configType}` | `DomainConfigResp` | ✅（业务键二元组） |
 | 配置保存 | `POST /api/perm/domain-config/save` | `{domainCode,configType,extra}` | `DomainConfigResp`（upsert） | ✅ |
 | 配置删除 | `POST /api/perm/domain-config/remove` | `{ids}` (IdsReq) | `void`（批量软删） | ✅ |
 
-> 契约 §5.1/§5.6 路径与后端实现**一致**（无路径错误，与 operation-log 不同）。
+> 契约 §5.1/§5.6 路径与后端实现**一致**（无路径错误，与 operation-log 不同）。T-PERM-026 契约要点已回写 api-contract §5.1（biz-domain）/§5.6（domain-config）。
 
 ## 6. 组件结构
 
@@ -184,7 +182,7 @@ views/system/biz-domain/
     └── types.ts               # 表单类型 + 工厂 + CONFIG_TYPE_OPTIONS 2 项（SUB_PERM/CLASSIFY） + parseExtra
 ```
 
-> **mock 共享注册表**：`mock/_bizDomainRegistry.ts` 持有业务域内存数据（唯一权威源），`mock/biz-domain.ts`（CRUD）与 `mock/domain-config.ts`（save 解析 domainCode→bizDomainId）共用同一份。使运行时新建/删除的业务域能被 domain-config save 实时感知（后端等价 `typeResolutionService.resolveDomainId`）。零 src 依赖（仅 mock 间共享，不 import @/api/*）。
+> **mock 共享注册表**：`mock/_bizDomainRegistry.ts` 持有业务域内存数据（唯一权威源），`mock/biz-domain.ts`（CRUD）与 `mock/domain-config.ts`（save 解析 domainCode→bizDomainId）共用同一份。使运行时新建/删除的业务域能被 domain-config save 实时感知（后端等价 `typeResolutionService.resolveDomainId`）。域配置数据同范式下沉 `mock/_domainConfigRegistry.ts`（T-PERM-026 起）——biz-domain mock remove 的「域下存在配置拒删」引用检查需要两份运行时数据一致。零 src 依赖（仅 mock 间共享，不 import @/api/*）。
 
 ### Step 1.5 组件识别（登记 T-FE-001 组件池）
 
@@ -211,7 +209,7 @@ views/system/biz-domain/
 > - domain-config save/remove → `SYSTEM_CONFIG:MANAGE`（后端 upsertDomainConfig/deleteDomainConfigsByIds）
 > - domain-config list/detail → `SYSTEM_CONFIG:VIEW`（后端 listDomainConfigs/getDomainConfig）
 >
-> **DOMAIN:VIEW 是新增权限串**：后端用 DOMAIN:VIEW，但 login 矩阵此前无 DOMAIN 串。本页新增 DOMAIN_VIEW，login 矩阵为所有账号预置 DOMAIN:VIEW（业务域基础设施各角色均可见）。🔧 DOMAIN 权限种子缺失登记 T-PERM-026。
+> **DOMAIN:VIEW 接入收口（T-PERM-026）**：原 🔧「DOMAIN 权限种子缺失」经核实**不成立**——权威 DDL CRUD 预置组（全部 resource_type × CREATE/VIEW/UPDATE/DELETE CROSS JOIN 派生）已覆盖 DOMAIN(9) VIEW 操作位（同 T-PERM-024 SYSTEM_CONFIG 误报先例）。真正缺口是空库 bootstrap 固定图未持 DOMAIN:VIEW（checkCanGrant 要求操作者先持有才能转授，无授予起点死锁）——已补入 businessGrants + GRANT_RESOURCE_TYPES（OPERATION_LOG:VIEW 先例，AccessBootstrapPgIT 计数锁定）。前端 DOMAIN_VIEW 常量与 login 矩阵预置保持既有实现。
 
 ### 降级策略
 
@@ -236,44 +234,24 @@ views/system/biz-domain/
 | hr（组织人事管理员） | 只读（DOMAIN:VIEW + SYSTEM_CONFIG:VIEW） |
 | auditor（审计员） | 只读（DOMAIN:VIEW + SYSTEM_CONFIG:VIEW） |
 
-## 8. API 核对清单（登记 T-PERM-026）
+## 8. API 核对清单（T-PERM-026 已收口，2026-08-29）
 
-Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026。
+Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026；以下为收口终态（原文划线保留核对轨迹）。
 
 ### 🔧 需改造
 
-1. **DOMAIN 权限种子缺失**
-   - 现状：schema 无 `INSERT` 为 `DOMAIN` 资源类型预置 VIEW 操作位；login 矩阵此前也无 DOMAIN 串。联调真后端时 biz-domain list/detail 可能全账号无权（403）。
-   - 期望：租户初始化种子为 `DOMAIN` 资源类型预置 VIEW 操作位（与其他资源类型同口径）。
-   - 前端可行性：✅ Phase 1 mock 自配角色矩阵（admin/sec/hr/auditor 均预置 DOMAIN:VIEW）规避。后端补种子后联调验证。
-   - 归属：T-PERM-026 🔧。
+1. ~~**DOMAIN 权限种子缺失**~~（已收口反转，2026-08-29）：DDL CRUD 预置组已覆盖 DOMAIN VIEW 操作位（误报，同 T-PERM-024 SYSTEM_CONFIG 先例）；真实缺口为 bootstrap 固定图未持 DOMAIN:VIEW（无授予起点死锁），已补入 businessGrants + GRANT_RESOURCE_TYPES（见 §7）。
 
-2. **BizDomainResp 缺 global 字段**
-   - 现状：entity/schema `biz_domain.global`（每租户仅一个全局域，隐式包含未认领类型），但 `BizDomainResp` 不返回 global。前端无法区分全局域与普通域、无法阻止删除全局域。
-   - 期望：Resp 补 global 字段，前端可标识全局域并禁用其删除按钮。
-   - 前端可行性：✅ mock 内部保留 global 做「全局域不可删」校验（响应 clone 时剔除对齐后端现状）；后端补字段后前端可显式禁用。
-   - 归属：T-PERM-026 🔧。
+2. ~~**BizDomainResp 缺 global 字段**~~（已收口，2026-08-29）：Resp 补 global 字段；前端「全局」tag 标识 + 禁用删除按钮预判；后端 remove 删除保护兜底（全局域或域下存在配置拒绝 20051，schema「引用检查拒删」落地——原前端确认文案「域配置将一并处理」的歧义随之收口为「先删配置再删域」）。
 
-3. **biz-domain detail/update 用内部主键**
-   - 现状：detail 接 `IdReq{id}`、update 接 `BizDomainUpdateReq{domainId}`，均用内部主键。与 T-FE-002 角色 detail 同类 🔧。
-   - 期望：切业务键 code（schema `uk_biz_domain(tenant_id,code)` 已保证租户内唯一）。
-   - 前端可行性：✅ 前端 list 已返回 code+id，切业务键后前端 detail/update 改传 code 即可。
-   - 归属：T-PERM-026 🔧。
+3. ~~**biz-domain detail/update 用内部主键**~~（已收口，2026-08-29）：detail 接 `BizDomainDetailReq{domainCode}`（未命中 data=null，role detail 先例）、update 接 `{domainCode, name?, description?}`（description 空串=显式清空）；前端与 mock 同步切业务键。
 
-4. **biz-domain list 无分页**
-   - 现状：list 接 `EmptyReq` 无参，返回全量 `ItemsResp`（无 keyword/pageNum/pageSize）。
-   - 期望：补 keyword/pageNum/pageSize 参数 + 返回 PaginatedResp。
-   - 前端可行性：✅ 本页本地过滤+分页（业务域量小可接受）；后端补参数后切回服务端分页。
-   - 归属：T-PERM-026 🔧。
+4. ~~**biz-domain list 无分页**~~（已收口，2026-08-29）：list 接 `BizDomainListReq{keyword?, pageNum?, pageSize?}` 返回 `PaginatedResp`（keyword LIKE code/name/description、ORDER BY code,id、均不传=字典全量上限 200，system-config 范式）；前端 hook 切服务端过滤分页。
 
 5. ~~**AppServiceImpl configType 注释不全**~~（已收口反转，2026-08-27）
    - 原 🔧 登记的"schema 注释列 5 种 vs 后端只提两类"漂移已按两类收口定案：SUB_PERM/CLASSIFY 为唯一实现范围（DDL 注释、后端注释、`DomainConfigReq` 白名单、前端下拉四处同源），SCOPE/RELATION/BINDING 为历史设想类型不再提供；原"前端列全 5 种"已被收窄取代。
 
-6. **domain-config save 的 extra JSONB↔String 映射确认**
-   - 现状：schema `extra JSONB NOT NULL DEFAULT '{}'`，entity `DomainConfig.extra` 声明为 `String`，AppServiceImpl 直接 `setExtra(req.extra())`。MyBatis-Flex + 驱动处理 JSONB↔String 序列化。
-   - 期望：确认 JSONB↔String 映射行为正确（同 system-config configValue，登记 T-PERM-024 同类）。
-   - 前端可行性：✅ 本页 extra 按 JSON 字符串提交/展示 + 前端 `JSON.parse` 预校验。
-   - 归属：T-PERM-026 🔧（确认型，非必改）。
+6. ~~**domain-config save 的 extra JSONB↔String 映射确认**~~（已收口确认，2026-08-29）：`BizDomainConfigPgIT` 真库锁定——`JsonbStringTypeHandler` 映射语义等价（读出为 DB 规范化 JSON 文本、可直接再提交，SystemConfigJsonbPgIT 同范式同结论）；随任务新发现并补齐：save 原缺 `JsonValidationUtils` 前置校验（非法 JSON 会打到 PG 解析错误裸 99999），已补（system-config/condition 同范式）。附带修复 **P0 隐患**：`BizDomainMapper.selectByCode/selectByCodes` XML 列名误写 `domain_code`（DDL 列为 `code`），真库必报 42703——该查询是 `resolveDomainId` 底层（domain-config save/list/detail、DomainClassifyService、checkCanGrant 批量解析共同消费），单测 mock mapper 掩盖，PgIT 回归锁锁定。
 
 ### ✅ 满足
 
@@ -285,12 +263,12 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026。
 - **主从布局非单表**：本页是主从两表联动（BizDomain 主 + DomainConfig 从），与其他单表页（system-config/type-def）不同。主表有独立 create/update/remove（非 upsert），子表 save upsert。
 - **全局域语义**：每租户仅一个全局域（`uk_biz_domain_global`），其范围隐式包含未被其他域认领的资源类型（DomainClassifyService 全局域语义）。前端不直接管理全局域创建（由系统初始化），仅展示 + 禁删。
 
-## 9. 已知限制（Phase 1）
+## 9. 已知限制与收口状态（T-PERM-026 后）
 
-- biz-domain list 为前端本地过滤+分页（后端返回全量 ItemsResp）；Phase 2 后端补 keyword/pageNum/pageSize + 返回 PaginatedResp 后切换服务端分页。
-- extra JSON 校验为前端 `JSON.parse` 预拦截（对齐后端 `JsonValidationUtils`）；联调时后端二次校验。
-- mock 保留 `global`/`deleted` 内部字段（对齐 schema delete_flag 范式 + 全局域不可删校验），但响应 clone 时剔除以对齐后端 Resp 现状。`domainCode` 为 domain-config mock 内部冗余字段（便于按域过滤），响应 clone 时剔除。
-- **mock 共享注册表**：`mock/_bizDomainRegistry.ts` 持有业务域内存数据，biz-domain 与 domain-config mock 共用同一份——运行时新建/删除的域对 domain-config save 的 `resolveDomainId(code)` 实时可见（修复「新建业务域后无法新增域配置」）。
-- 全局域不可删靠 mock 校验（后端 Resp 不返回 global，前端无法预判）；联调（T-FE-021）需后端先补 §8 第 1/2 项（DOMAIN 权限种子 + Resp global 字段），否则联调无权访问或误删全局域。
+- ~~biz-domain list 前端本地过滤+分页~~ → 已切服务端过滤+分页（2026-08-29）。
+- extra JSON 校验：前端 `JSON.parse` 预拦截 + 后端 `JsonValidationUtils` 二次校验（T-PERM-026 补齐双层）。
+- mock 保留 `deleted` 内部字段（对齐 schema delete_flag 范式），响应 clone 时剔除；`global` 随 Resp 收口改为下发（对齐后端终态）。`domainCode` 为 domain-config mock 内部冗余字段（便于按域过滤），响应 clone 时剔除。
+- **mock 共享注册表**：`mock/_bizDomainRegistry.ts` 持有业务域内存数据，biz-domain 与 domain-config mock 共用同一份——运行时新建/删除的域对 domain-config save 的 `resolveDomainId(code)` 实时可见；域配置数据同范式下沉 `mock/_domainConfigRegistry.ts`（biz-domain remove 引用检查需要）。
+- ~~全局域不可删靠 mock 校验~~ → Resp 返回 global 后前端预判禁用删除按钮 + 后端 remove 删除保护（20051）双层兜底；bootstrap 固定图已补 DOMAIN:VIEW（空库可访问，§7）。
 - **删除二次确认**：业务域/域配置删除均在 hook `handleDelete*` 内前置 `ElMessageBox.confirm`（对齐 role/type-def 范式，持久配置类资源防误删）。
 - **子表权限守卫**：「配置」按钮 `v-if="canViewConfig"` 隐藏无权入口；`selectDomain(row, canViewConfig)` 双保险守卫，无 `SYSTEM_CONFIG:VIEW` 时只选中域不发 /list 请求，避免可避免的 403。

@@ -75,12 +75,28 @@ public interface BizDomainMapper extends BaseMapper<BizDomain> {
                                @Param("tenantId") Long tenantId);
 
     /**
-     * 根据租户ID查询所有有效业务域列表
+     * 按条件统计有效业务域数量（T-PERM-026 list 分页）
      *
      * @param tenantId 租户ID
+     * @param keyword  关键字，可选（code/name/description LIKE，大小写敏感；空白规整为 null）
+     * @return 有效行数
+     */
+    long countByCondition(@Param("tenantId") Long tenantId,
+                          @Param("keyword") String keyword);
+
+    /**
+     * 按条件分页查询有效业务域（ORDER BY code, id）
+     *
+     * @param tenantId 租户ID
+     * @param keyword  关键字，可选
+     * @param limit    每页条数
+     * @param offset   偏移量
      * @return 业务域列表
      */
-    List<BizDomain> selectByTenantId(@Param("tenantId") Long tenantId);
+    List<BizDomain> selectPageByCondition(@Param("tenantId") Long tenantId,
+                                          @Param("keyword") String keyword,
+                                          @Param("limit") int limit,
+                                          @Param("offset") int offset);
 
     /**
      * 查询租户下所有非全局的有效业务域

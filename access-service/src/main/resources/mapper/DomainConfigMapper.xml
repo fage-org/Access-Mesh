@@ -44,4 +44,14 @@
         </foreach>
     </select>
 
+    <select id="selectValidByDomainIds" resultType="cn.ac.fage.accessmesh.access.permission.entity.DomainConfig">
+        SELECT * FROM domain_config
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND biz_domain_id IN
+        <foreach collection="domainIds" item="domainId" open="(" separator="," close=")">
+            #{domainId}
+        </foreach>
+    </select>
+
 </mapper>
