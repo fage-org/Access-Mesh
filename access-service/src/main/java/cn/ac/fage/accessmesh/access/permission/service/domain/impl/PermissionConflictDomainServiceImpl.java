@@ -254,12 +254,20 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             return granted != null && conflictingOpIds.contains(granted.getId());
         }
 
-        /** 命中含指定冲突操作的第一条互斥规则（找不到返回 null） */
+        /** 命中含指定冲突操作的第一条**已触发**互斥规则（两侧操作均被条目覆盖才算触发，找不到返回 null） */
         PermissionConflictRule firedRule(Long conflictingOpId) {
             return rules.stream()
+                .filter(this::isFired)
                 .filter(r -> conflictingOpId.equals(r.getFirstOperationPermissionId())
                     || conflictingOpId.equals(r.getSecondOperationPermissionId()))
                 .findFirst().orElse(null);
+        }
+
+        /** 规则是否真正触发（两侧操作权限均出现在条目覆盖的操作ID集合中） */
+        private boolean isFired(PermissionConflictRule rule) {
+            return rule.getFirstOperationPermissionId() != null && rule.getSecondOperationPermissionId() != null
+                && opIds.contains(rule.getFirstOperationPermissionId())
+                && opIds.contains(rule.getSecondOperationPermissionId());
         }
 
         /** 操作权限ID → 操作码（未解析返回 null） */

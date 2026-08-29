@@ -248,6 +248,10 @@ class PermissionViewAppServiceImplTest {
         for (PermQuery q : captor.getAllValues()) {
             assertEquals("10.1.2.3", q.context().get("clientIp"));
         }
+        // 候选查询（第二次）只消费 allEntries，不加载辅助实体
+        assertFalse(captor.getAllValues().get(1).includeResources());
+        assertFalse(captor.getAllValues().get(1).includeOperations());
+        assertFalse(captor.getAllValues().get(1).includeRoles());
     }
 
     @Test
@@ -365,8 +369,13 @@ class PermissionViewAppServiceImplTest {
             {"eventType":"USER_ROLE_CHANGE","items":[
               {"changeType":"REMOVE","role":{"roleExternalId":"role-x","roleName":"角色X"}}]}
             """);
+        // log-4：权限键匹配但 domainCode 不同（req.domainCode=admin）→ 排除（T-PERM-033 评审补锁）
+        PermissionChangeLog log4 = changeLog(94L, """
+            {"eventType":"ROLE_PERMISSION_CHANGE","items":[
+              {"changeType":"REMOVE","permission":{"domainCode":"other","resourceTypeCode":"MENU","resourceCode":"sys:user","codeType":"default","operationCode":"VIEW","scopeMode":"INSTANCE"}}]}
+            """);
         when(auditDomainService.queryRecentChanges(eq(1L), eq(1002L), eq(null), any(), any(), eq(null), eq(0), eq(200)))
-            .thenReturn(List.of(log1, log2, log3));
+            .thenReturn(List.of(log1, log2, log3, log4));
 
         PermissionExplainReq req = new PermissionExplainReq(
             PermConstants.TargetType.USER, "USER", "u-2", null, null, "admin",

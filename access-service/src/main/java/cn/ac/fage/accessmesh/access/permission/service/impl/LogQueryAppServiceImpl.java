@@ -91,8 +91,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
                                        Long affectedUserId, Long affectedRoleId,
                                        LocalDateTime since, LocalDateTime until,
                                        int offset, int limit) {
-        // T-PERM-032 审计分离：变更日志页切独立 PERMISSION_CHANGE_LOG:VIEW（对齐 OPERATION_LOG
-        // 先例；recent-changes 的门禁仍为 SYSTEM_CONFIG:VIEW，随 T-PERM-033 处置）
+        // T-PERM-032 审计分离：变更日志页切独立 PERMISSION_CHANGE_LOG:VIEW（对齐 OPERATION_LOG 先例）
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.PERMISSION_CHANGE_LOG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on PERMISSION_CHANGE_LOG");
@@ -102,9 +101,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
                 affectedUserId, affectedRoleId, since, until,
                 toEventTypeList(eventType), normalize(changeSource), offset, limit)
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
-    }
-
-    /**
+    }    /**
      * 统计变更日志数量（条件与 {@link #listChangeLogs} 一致）
      *
      * @return 变更日志数量
@@ -188,7 +185,8 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         }
 
-        // 门禁：目标实例 VIEW（USER 未解析不检查、返回空；ROLE 未解析类型级兜底）
+        // 门禁：目标实例 VIEW（USER 未解析不检查、返回空；ROLE 未解析类型级兜底；
+        // 非 USER/ROLE 的 targetType 一律拒绝——fail-closed，防止绕过目标过滤拉取全租户日志）
         if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType())) {
             if (userId != null
                 && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
@@ -202,6 +200,8 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on ROLE");
             }
+        } else {
+            throw new SecurityException("Permission denied: invalid targetType " + req.targetType());
         }
 
         int pageNum = PageUtil.pageNum(req.pageNum());

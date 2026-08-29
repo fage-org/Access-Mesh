@@ -32,7 +32,7 @@ tasks:
   - T-FE-040
   - T-ADMIN-021
 acceptance: "13 页后端接口改造完成（T-PERM-022~034 逐页实现）；跨页共性接口改造 + api-contract 回写完成（T-PERM-037）；自动授权实现 + 测试通过（T-PERM-035）；动态数据权限链路验证通过（T-PERM-036）；T-FE-036 前端权限授予页（mock 驱动）实现完成（本 plan 关联的前端部分，见正文前端重建任务节；含 DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机）；单类型矩阵上下文完成（T-FE-038 前端 + T-PERM-040 后端，2026-08-03 定稿，2026-08-05 扩展 list 类型过滤 + 嵌套 20008）；条件权限不可转授完成（T-PERM-041，20041 + **20042 条件启用状态** + 主权限 DDL CHECK）；矩阵图标正交模型完成（T-FE-039）；**授权弹窗 v3.1 记录级聚焦编辑完成（T-FE-040，mock-first，包含：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要/20042-20043 提示，联调见 T-FE-018）**；T-ADMIN-021 org-tree includePositions **二期**（首期只角色入口）。注：T-PERM-035/036 受 design-review §11 暂缓门禁约束，需 PM 重申后才能进入 in-progress。"
-last_updated: 2026-08-09
+last_updated: 2026-08-29
 ---
 
 # 前端 Phase 2 — 核心功能补齐 + 后端接口改造
@@ -131,4 +131,4 @@ last_updated: 2026-08-09
 - 2026-08-05：**图标映射定稿**——条纹=有条件、粗黑边框=可转授 canGrant、红/淡红=撤销（旧映射已废弃，T-FE-039 已同步）；子权限分叉精确投影规则（仅直接主权限记录、继承格不复制、级联撤销附红图标）；条件转授前端行为（选条件清 canGrant、20041 提示）并入 T-FE-039；T-FE-018 补充 T-FE-039/T-PERM-041 依赖；T-PERM-041 范围限定为仅最终态建表 DDL（不考虑历史数据，用户确认）；任务行治理精简。
 - 2026-08-09：**T-FE-040 授权弹窗 v3.1 记录级聚焦编辑完成**（mock-first：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要；S1~S8 mock 人工验收 + 纯 reducer 单测 206 tests 全过，design 回写 done）。本 plan 前端部分剩余 T-ADMIN-021（二期）；后端任务 T-PERM-022~034/037/040/041 全部 ⚙️ 待启动（T-FE-040 blocks 的 T-FE-018 联调依赖 T-PERM-034/040/041）。
 - 2026-08-27：T-PERM-034 第 5 项（旧写入口端点退役）已独立收口（save/revoke/children/add-child/remove-child 五端点删除，apply-grant-plan 为唯一写入口）；其余六项待 T-PERM-031 完成后推进，见任务卡完成记录。
-- 2026-08-29：**T-PERM-033 权限查询后端收口**——门禁设计定案：不引入独立排查码（原预案 PERMISSION_QUERY:VIEW 否决，权限码结构为「资源:操作」），explain/recent-changes 门禁切被查目标实例 USER:VIEW/ROLE:VIEW，query-scopes 维持运行时语义（§6.7 登记）；explain 契约扩展（评估上下文两态/条件评估明细脱敏/互斥丢弃明细）+ recentChanges 按权限键 6 字段过滤；四项核对完成（LOCAL_USER 语义/query-resources 字段一致/permission-view 唯一差异 resource-users 登记）；前端 perms 常量切 USER:VIEW/ROLE:VIEW。剩余逐页任务：T-PERM-026~031/034/037。
+- 2026-08-29：**T-PERM-033 权限查询后端收口**——门禁设计定案：不引入独立排查码（原预案 PERMISSION_QUERY:VIEW 否决，权限码结构为「资源:操作」），explain/recent-changes 门禁切被查目标实例 USER:VIEW/ROLE:VIEW，query-scopes 维持运行时语义（§6.7 登记）；explain 契约扩展（评估上下文两态/条件评估明细脱敏/互斥丢弃明细）+ recentChanges 按权限键 6 字段过滤；核对完成（LOCAL_USER 语义/query-resources 字段一致/permission-view 唯一差异 resource-users 登记）；前端 perms 常量切 USER:VIEW/ROLE:VIEW。剩余逐页任务：T-PERM-026~031/034/037。

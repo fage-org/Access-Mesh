@@ -195,7 +195,7 @@ export default {
         icon: "ep/key",
         title: "权限排查",
         // 单一事实源派生：见 views/system/permission-query/utils/perms.ts
-        // 临时复用 SYSTEM_CONFIG:VIEW（T-PERM-033 后切换 PERMISSION_QUERY:VIEW 全链路）
+        // T-PERM-033 设计定案：无独立排查码，页面门 = USER:VIEW 或 ROLE:VIEW 任一命中（SSOT 见 utils/perms.ts）
         auths: [...PERMISSION_QUERY_PERM_LIST]
       }
     }

@@ -69,4 +69,5 @@ T-FE-013 权限排查页前端已实现（Phase 1 mock 驱动，mock 路径 `/pe
 
 ## 完成记录
 
-- 2026-08-29 收口：门禁设计定案（无独立排查码）+ explain DTO 扩展（评估上下文两态/条件明细脱敏/互斥丢弃）+ recentChanges 权限键过滤 + 四项核对登记；新增领域两方法与 explain/recent-changes 门禁、明细、过滤的单元测试，回归 access-service mvn test 全绿，前端 typecheck 干净 + vitest 全绿。
+- 2026-08-29 收口：门禁设计定案（无独立排查码）+ explain DTO 扩展（评估上下文两态/条件明细脱敏/互斥丢弃）+ recentChanges 权限键过滤 + LOCAL_USER 语义/query-resources/permission-view 核对登记；新增领域两方法与 explain/recent-changes 门禁、明细、过滤的单元测试，回归 access-service mvn test 全绿，前端 typecheck 干净 + vitest 全绿。
+- 2026-08-29 双轨评审收口：P0 recent-changes 非 USER/ROLE targetType 绕过目标过滤拉全租户日志（服务层 fail-closed 兜底 + 请求 DTO `@Pattern` 早拒，回归锁）；条件域空 items 恢复旧运行时语义（AND 空数组=无条件满足放行、OR=拒绝、节点缺失=拒绝，与重构前逐分支一致；写入口未拦空数组登记 rebuild-runbook）；互斥丢弃归因限定已触发规则（未触发规则不再作为 ruleId 返回）；权限键过滤补 domainCode 非空精确匹配；maskCidr 对 IPv4-mapped IPv6 整体 MASKED；explain 候选查询关闭辅助实体批量加载；ROLE 目标 recentChanges 在生产方对齐 `items[].permission` 前为空（契约现状登记）。

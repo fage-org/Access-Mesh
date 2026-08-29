@@ -200,4 +200,18 @@ class LogQueryAppServiceImplChangeLogTest {
         }
         verifyNoInteractions(changeLogMapper);
     }
+
+    /** 非 USER/ROLE 的 targetType 一律拒绝（P0 回归锁：旧门禁重构后若无兜底，
+     * 非法值会绕过目标过滤拉取全租户变更日志）。 */
+    @Test
+    void shouldRejectRecentChangesWithInvalidTargetType() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            assertThrows(SecurityException.class, () -> service.getRecentChanges(TENANT,
+                new PermissionRecentChangesReq("FOO", null, null, null, null, null,
+                    null, null, null, 1, 20)));
+        }
+        verifyNoInteractions(changeLogMapper);
+    }
 }

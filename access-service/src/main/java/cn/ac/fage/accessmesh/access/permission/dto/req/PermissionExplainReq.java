@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.dto.req;
 
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
 /**
  * 权限解释查询请求体
@@ -10,7 +11,7 @@ import jakarta.validation.constraints.NotBlank;
  * 支持用户和角色两种目标类型。
  * </p>
  *
- * @param targetType         目标类型，必填（USER/ROLE）
+ * @param targetType         目标类型，必填（USER/ROLE；非法值 400 早拒，服务层按 USER 分支 fail-closed）
  * @param subjectTypeCode    用户类型编码，目标类型为USER时必填
  * @param subjectExternalId  用户外部标识，目标类型为USER时必填
  * @param roleTypeCode       角色类型编码，目标类型为ROLE时必填
@@ -29,7 +30,7 @@ import jakarta.validation.constraints.NotBlank;
  *                           日期/时间类条件按服务进程系统时钟评估，不可模拟。
  */
 public record PermissionExplainReq(
-    @NotBlank String targetType,
+    @NotBlank @Pattern(regexp = "USER|ROLE", message = "targetType 仅支持 USER/ROLE") String targetType,
     String subjectTypeCode,
     String subjectExternalId,
     String roleTypeCode,

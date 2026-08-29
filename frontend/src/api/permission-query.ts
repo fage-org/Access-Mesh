@@ -14,12 +14,14 @@
  *   - USER：subjectTypeCode（LOCAL_USER/USER）+ subjectExternalId
  *   - ROLE：roleTypeCode（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE）+ roleExternalId + domainCode
  *
- * 🔧 T-PERM-033 登记项（详见 docs/tasks/T-PERM-033.md）：
- * - 统一门禁 PERMISSION_QUERY:VIEW 全链路（资源类型常量+种子+默认角色授权+权限码下发白名单 UserMenuQueryServiceImpl；聚合层已取消）
- * - explain DTO 扩展（命中条件/条件评估过程/冲突详情 + 评估上下文来源 + IP/时间条件 + 敏感值脱敏）
- * - recentChanges 按完整权限键过滤（domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode）
- * - LOCAL_USER/USER 主体来源与候选查询方式核对
- * - query-resources API 核对（treeMode 已于 2026-08-27 从契约移除，树由调用方自建）+ 全部 permission-view/* 契约差异
+ * T-PERM-033 收口（2026-08-29，详见 docs/tasks/T-PERM-033.md 与 design/frontend/permission-query.md §8-9）：
+ * - 门禁设计定案：无独立排查码（原预案 PERMISSION_QUERY:VIEW 否决），explain/recent-changes 门禁
+ *   = 被查目标实例 USER:VIEW/ROLE:VIEW；query-scopes 维持运行时语义无排查门禁
+ * - explain DTO 扩展已实现：context.clientIp 输入（缺省回退当前请求）+ evaluationContextSource/
+ *   evaluatedClientIp/conditionEvaluations（IP 掩码脱敏）/conflictDrops，展示随 T-FE-019 联调
+ * - recentChanges 按权限键 6 字段过滤（USER 目标保留角色分配/回收事件）
+ * - LOCAL_USER external_id=sys_user.id 字符串（本地投影同源）；query-resources 字段与契约一致；
+ *   permission-view/* 唯一差异 resource-users 已登记
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
@@ -240,7 +242,8 @@ export interface ConditionEvaluation {
   roleId: number | null;
   /** 条件加载状态：OK | DISABLED | NOT_FOUND | INVALID（非 OK 恒 fail-close） */
   status: "OK" | "DISABLED" | "NOT_FOUND" | "INVALID";
-  logic: "AND" | "OR" | null;
+  /** 条件逻辑；脏数据时后端原样回传非法值（fail-close 拒绝但保留排查线索），故不限枚举 */
+  logic: string | null;
   passed: boolean;
   items: ConditionItemEvaluation[];
 }

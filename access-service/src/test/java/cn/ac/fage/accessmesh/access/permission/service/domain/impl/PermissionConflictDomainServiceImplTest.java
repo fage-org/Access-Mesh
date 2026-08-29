@@ -151,4 +151,35 @@ class PermissionConflictDomainServiceImplTest {
 
         assertEquals(filtered, detailed.survivors());
     }
+
+    /** 归因准确性：丢弃条目须归因到**已触发**的规则——未触发规则（另一侧操作无条目覆盖）
+     * 即使包含该操作也不得作为 ruleId 返回（T-PERM-033 评审修复锁） */
+    @Test
+    void shouldAttributeDropToFiredRuleOnly() {
+        // R1=(VIEW,MANAGE) 未触发（MANAGE 无条目）；R2=(VIEW,SYNC) 已触发（两侧均有条目）
+        PermissionConflictRule unfired = new PermissionConflictRule();
+        unfired.setId(31L);
+        unfired.setConflictType(ConflictType.PERM_MUTEX.getValue());
+        unfired.setFirstOperationPermissionId(11L);
+        unfired.setSecondOperationPermissionId(12L);
+        PermissionConflictRule fired = new PermissionConflictRule();
+        fired.setId(32L);
+        fired.setConflictType(ConflictType.PERM_MUTEX.getValue());
+        fired.setFirstOperationPermissionId(11L);
+        fired.setSecondOperationPermissionId(13L);
+        when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
+            .thenReturn(List.of(unfired, fired));
+        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, 1))
+            .thenReturn(List.of(op(11L, 1, 1L, "VIEW"), op(12L, 1, 2L, "MANAGE"), op(13L, 1, 4L, "SYNC")));
+
+        MutexFilterResult result = service.filterPermMutexWithDrops(TENANT,
+            List.of(entry(501L, 20L, 1L), entry(503L, 22L, 4L)));
+
+        assertEquals(2, result.drops().size());
+        for (MutexFilterResult.MutexDrop drop : result.drops()) {
+            assertEquals(32L, drop.ruleId());
+            assertEquals("VIEW", drop.firstOperationCode());
+            assertEquals("SYNC", drop.secondOperationCode());
+        }
+    }
 }

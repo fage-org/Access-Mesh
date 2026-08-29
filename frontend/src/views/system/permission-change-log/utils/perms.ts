@@ -9,7 +9,7 @@
  * 后端 `LogQueryAppServiceImpl.listChangeLogs/countChangeLogs` 以独立
  * `PERMISSION_CHANGE_LOG:VIEW` 门禁（资源类型 PERMISSION_CHANGE_LOG=31 + VIEW，
  * 对齐操作日志 OPERATION_LOG:VIEW 先例，2026-08-29 五步清单全链路落地）。
- * 边界：recent-changes（permission-view）门禁仍为 SYSTEM_CONFIG:VIEW，随 T-PERM-033 处置。
+ * 边界：排查视图 recent-changes（permission-view）已随 T-PERM-033 切被查目标实例 USER:VIEW/ROLE:VIEW。
  *
  * 本页为只读查询页（无 CRUD 写操作），故只有 VIEW 一项，无 SAVE/MANAGE。
  *

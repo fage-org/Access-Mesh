@@ -513,7 +513,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | `RESOURCE:VIEW`                        | ALL                | 授权页资源树加载门控（门禁补齐见 §14.5）                                                        |
 | `OPERATION:VIEW`                       | ALL                | 授权页操作列表加载门控（同上）                                                                   |
 | `OPERATION_LOG:VIEW`                   | ALL                | 操作日志查询门禁（T-PERM-025 审计分离：独立权限码取代复用 SYSTEM_CONFIG:VIEW；固定图持否则新码无授予起点） |
-| `PERMISSION_CHANGE_LOG:VIEW`           | ALL                | 权限变更日志查询门禁（T-PERM-032 审计分离：对齐 OPERATION_LOG 先例；recent-changes 仍 SYSTEM_CONFIG:VIEW 随 T-PERM-033） |
+| `PERMISSION_CHANGE_LOG:VIEW`           | ALL                | 权限变更日志查询门禁（T-PERM-032 审计分离：对齐 OPERATION_LOG 先例；排查视图 explain/recent-changes 已随 T-PERM-033 切被查目标实例 USER:VIEW/ROLE:VIEW，无独立排查码） |
 | `API:ACCESS`（类型级）                  | ALL + `canGrant=true` | 向 BASIC_ROLE 授权任意接口（授权传递链；T-API-001 起类型级：新接入服务接口的授权必须由首管理员完成，实例级会造成鸡生蛋）；落管理角色（首管理员唯一绑定，等价仅首管理员持有，见 §14.1）。管理 API 清单的实例级 `API:ACCESS` 授权保留（最小暴露面不变）。**语义强度提示**：该条 + canGrant 使首管理员等效「任意服务、任意<b>已注册</b> API 经 Gateway 放行且可转授」——即已注册接口的内置超管（§14.2 禁止 API 类型级 scopeAll 大包授权的约束下，快照装配将 API 类型级 scopeAll 展开为该服务全部 enabled 映射的 INSTANCE 条目，未注册接口维持默认拒绝），属鸡生蛋消解的必要代价 |
 
 不授予 `RESOURCE:CREATE` 等 API 资源创建权限，避免无谓扩大根权限。

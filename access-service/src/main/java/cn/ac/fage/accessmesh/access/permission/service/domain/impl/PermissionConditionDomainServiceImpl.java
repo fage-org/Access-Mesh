@@ -202,8 +202,10 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
                 logic, ConditionEvalUtils.VALID_LOGIC, conditionId);
         }
         JsonNode items = rules.get("items");
-        if (items == null || !items.isArray()) {
-            return new RulesEvaluation(logic, logicValid, List.of());
+        // items 节点缺失/非数组与空数组语义不同（旧实现：前者恒拒绝、后者 AND 视为无条件满足）
+        boolean itemsArrayPresent = items != null && items.isArray();
+        if (!itemsArrayPresent) {
+            return new RulesEvaluation(logic, logicValid, false, List.of());
         }
         List<ConditionEvaluationDetail.ItemDetail> details = new ArrayList<>();
         for (JsonNode item : items) {
@@ -211,14 +213,16 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             boolean matched = evaluateItem(item, context);
             details.add(new ConditionEvaluationDetail.ItemDetail(type, maskParams(type, item), matched));
         }
-        return new RulesEvaluation(logic, logicValid, details);
+        return new RulesEvaluation(logic, logicValid, true, details);
     }
 
     /**
-     * 按 logic（AND/OR）聚合逐项结果，与运行时判定语义一致（缺省 AND、空项/非法 logic 拒绝）
+     * 按 logic（AND/OR）聚合逐项结果，与重构前运行时判定逐分支一致：
+     * 非法 logic 拒绝；items 节点缺失/非数组拒绝；空 items 数组维持旧语义
+     * （AND=无条件满足放行、OR=无可满足项拒绝）。
      */
     private boolean aggregate(RulesEvaluation evaluation) {
-        if (!evaluation.logicValid() || evaluation.items().isEmpty()) {
+        if (!evaluation.logicValid() || !evaluation.itemsArrayPresent()) {
             return false;
         }
         boolean allMatch = PermConstants.ConditionLogic.AND.equals(evaluation.logic());
@@ -263,13 +267,18 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     }
 
     /**
-     * IPv4 CIDR 掩码：保留前两段与前缀长度（如 192.168.1.0/24 → 192.168.*.*\/24）
+     * IPv4 CIDR 掩码：保留前两段与前缀长度（如 192.168.1.0/24 → 192.168.*.*\/24）；
+     * IPv6（含 IPv4-mapped 形态）与非常规形式整体 MASKED
      */
     private String maskCidr(String cidr) {
         if (cidr == null) {
             return "MASKED";
         }
         String[] parts = cidr.split("/", 2);
+        // IPv4-mapped IPv6（::ffff:192.168.1.0）按点分段也是 4 段，需先排除含冒号形态
+        if (parts[0].indexOf(':') >= 0) {
+            return "MASKED";
+        }
         String[] octets = parts[0].split("\\.");
         if (octets.length == 4) {
             return octets[0] + "." + octets[1] + ".*.*" + (parts.length == 2 ? "/" + parts[1] : "");
@@ -280,8 +289,8 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     /** 规则加载结果（状态 + 规则树，非 OK 状态时规则为 null） */
     private record LoadedRules(String status, JsonNode rules) {}
 
-    /** 逐项评估中间结果（logic + 合法性 + 脱敏明细） */
-    private record RulesEvaluation(String logic, boolean logicValid,
+    /** 逐项评估中间结果（logic + 合法性 + items 节点形态 + 脱敏明细） */
+    private record RulesEvaluation(String logic, boolean logicValid, boolean itemsArrayPresent,
                                    List<ConditionEvaluationDetail.ItemDetail> items) {}
 
     /**

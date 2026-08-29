@@ -780,6 +780,10 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 scopeAll, queryResourceCode, queryCodeType, evalContext);
             rawQuery.setEvaluateConditions(false);
             rawQuery.setEvaluateConflicts(false);
+            // 候选查询只消费 allEntries，关闭辅助实体批量加载（资源/操作/角色映射）
+            rawQuery.setIncludeResources(false);
+            rawQuery.setIncludeOperations(false);
+            rawQuery.setIncludeRoles(false);
             List<RolePermEntry> rawCandidates = engine.query(rawQuery).allEntries();
 
             conditionDetails = conditionDomainService.evaluateDetailed(tenantId, rawCandidates, evalContext);
@@ -913,11 +917,17 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     }
 
     /**
-     * 快照 permission 节点与 explain 请求权限键的 6 字段匹配（null 请求字段通配）
+     * 快照 permission 节点与 explain 请求权限键的 6 字段匹配（null 请求字段通配）：
+     * resourceTypeCode/operationCode 精确；domainCode/resourceCode/codeType 请求侧
+     * 为 null 时通配、非 null 时精确；scopeMode 请求侧必传（入口已校验）。
      */
     private boolean matchesPermissionKey(JsonNode permission, PermissionExplainReq req) {
         if (!Objects.equals(nodeText(permission, "resourceTypeCode"), req.resourceTypeCode())
             || !Objects.equals(nodeText(permission, "operationCode"), req.operationCode())) {
+            return false;
+        }
+        if (req.domainCode() != null
+            && !Objects.equals(nodeText(permission, "domainCode"), req.domainCode())) {
             return false;
         }
         ScopeMode snapshotMode = ScopeModeSupport.fromSnapshot(

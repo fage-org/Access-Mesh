@@ -149,6 +149,63 @@ class PermissionConditionDomainServiceImplTest {
         assertFalse(details.get(0).passed());
     }
 
+    /** 空 items 数组维持旧运行时语义（T-PERM-033 评审定案）：AND=无条件满足放行、OR=无可满足项拒绝；
+     * items 节点缺失/非数组恒拒绝——三态与重构前 evaluateCondition 逐分支一致 */
+    @Test
+    void shouldKeepLegacySemanticsForEmptyItems() {
+        assertEmptyItemsPassed("AND", true);
+        assertEmptyItemsPassed("OR", false);
+        assertEmptyItemsPassed(null, true); // logic 缺省按 AND
+
+        // items 节点缺失 → 恒拒绝（与空数组区分）
+        PermissionCondition missingItems = condition(83L, "{\"logic\":\"AND\"}");
+        when(cacheService.get(PermCacheCatalog.CONDITION_RULES, TENANT, 83L)).thenReturn(null);
+        when(conditionMapper.selectOneById(83L)).thenReturn(missingItems);
+        List<ConditionEvaluationDetail> missing = service.evaluateDetailed(TENANT,
+            List.of(entry(507L, 26L, 83L, true)), Map.of());
+        assertFalse(missing.get(0).passed());
+    }
+
+    private void assertEmptyItemsPassed(String logic, boolean expectedPassed) {
+        long conditionId = logic == null ? 84L : 85L;
+        String rules = logic == null
+            ? "{\"items\":[]}"
+            : "{\"logic\":\"" + logic + "\",\"items\":[]}";
+        when(cacheService.get(PermCacheCatalog.CONDITION_RULES, TENANT, conditionId)).thenReturn(null);
+        when(conditionMapper.selectOneById(conditionId)).thenReturn(condition(conditionId, rules));
+
+        List<ConditionEvaluationDetail> details = service.evaluateDetailed(TENANT,
+            List.of(entry(508L, 27L, conditionId, true)), Map.of());
+
+        assertEquals(expectedPassed, details.get(0).passed());
+        assertTrue(details.get(0).items().isEmpty());
+    }
+
+    /** IPv4-mapped IPv6（::ffff:x.x.x.x）按点分段也是 4 段，须整体 MASKED（不泄露内嵌 IPv4） */
+    @Test
+    void shouldMaskIpv4MappedIpv6CidrAsWhole() {
+        PermissionCondition condition = condition(86L, """
+            {"logic":"AND","items":[
+              {"type":"IP_WHITELIST","params":{"cidrs":["::ffff:192.168.1.0/120","2001:db8::/32"]}}]}
+            """);
+        when(cacheService.get(PermCacheCatalog.CONDITION_RULES, TENANT, 86L)).thenReturn(null);
+        when(conditionMapper.selectOneById(86L)).thenReturn(condition);
+
+        List<ConditionEvaluationDetail> details = service.evaluateDetailed(TENANT,
+            List.of(entry(509L, 28L, 86L, true)), Map.of("clientIp", "192.168.1.55"));
+
+        assertEquals("MASKED, MASKED", details.get(0).items().get(0).maskedParams());
+    }
+
+    private PermissionCondition condition(Long id, String rules) {
+        PermissionCondition condition = new PermissionCondition();
+        condition.setId(id);
+        condition.setTenantId(TENANT);
+        condition.setEnabled(true);
+        condition.setConditionRules(rules);
+        return condition;
+    }
+
     /** 缓存命中：不查 DB、不回填（与 evaluate 共用加载路径） */
     @Test
     void shouldReuseCachedRulesWithoutDbHit() throws Exception {

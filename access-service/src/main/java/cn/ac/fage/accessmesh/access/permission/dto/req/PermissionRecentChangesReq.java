@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import java.util.List;
 
 /**
@@ -10,7 +11,7 @@ import java.util.List;
  * 支持按时间范围和事件类型过滤。
  * </p>
  *
- * @param targetType        目标类型，必填（USER/ROLE）
+ * @param targetType        目标类型，必填（USER/ROLE；非法值 400 早拒 + 服务层 fail-closed 兜底）
  * @param subjectTypeCode   用户类型编码，目标类型为USER时使用
  * @param subjectExternalId 用户外部标识，目标类型为USER时使用
  * @param roleTypeCode      角色类型编码，目标类型为ROLE时使用
@@ -23,7 +24,7 @@ import java.util.List;
  * @param pageSize          每页条数，可选
  */
 public record PermissionRecentChangesReq(
-    @NotBlank String targetType,
+    @NotBlank @Pattern(regexp = "USER|ROLE", message = "targetType 仅支持 USER/ROLE") String targetType,
     String subjectTypeCode,
     String subjectExternalId,
     String roleTypeCode,
