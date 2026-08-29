@@ -195,7 +195,7 @@ class PermissionConditionDomainServiceImplTest {
     }
 
     /** IPv4-mapped IPv6（::ffff:x.x.x.x）按点分段也是 4 段，须整体 MASKED（不泄露内嵌 IPv4）；
-     * 非数字八位组（主机名样串）同样整体 MASKED（不泄露前两段） */
+     * 主机名样串同样整体 MASKED（不泄露前两段）——两用例各不超过展示截断上限 */
     @Test
     void shouldMaskIpv6AndIrregularCidrAsWhole() {
         stubDbLoad(condition(86L, """
@@ -207,6 +207,21 @@ class PermissionConditionDomainServiceImplTest {
             List.of(entry(509L, 28L, 86L, true)), Map.of("clientIp", "192.168.1.55"));
 
         assertEquals("MASKED, MASKED, MASKED", details.get(0).items().get(0).maskedParams());
+    }
+
+    /** 数值边界同样整体 MASKED：八位组超 255（999.168.1.1）、前缀位非数字夹带任意串
+     * （192.168.1.1/customer-secret）——前缀未经校验直接回显会泄露任意内容 */
+    @Test
+    void shouldMaskOutOfRangeOctetAndNonNumericPrefixAsWhole() {
+        stubDbLoad(condition(89L, """
+            {"logic":"AND","items":[
+              {"type":"IP_WHITELIST","params":{"cidrs":["999.168.1.1/24","192.168.1.1/customer-secret"]}}]}
+            """));
+
+        List<ConditionEvaluationDetail> details = service.evaluateDetailed(TENANT,
+            List.of(entry(513L, 32L, 89L, true)), Map.of("clientIp", "192.168.1.55"));
+
+        assertEquals("MASKED, MASKED", details.get(0).items().get(0).maskedParams());
     }
 
     /** 缓存全命中：不查库、不回填（批量加载复用缓存路径） */

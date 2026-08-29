@@ -328,7 +328,8 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
 
     /**
      * IPv4 CIDR 掩码：保留前两段与前缀长度（如 192.168.1.0/24 → 192.168.*.*\/24）；
-     * IPv6（含 IPv4-mapped 形态）与非常规形式（八位组非数字，如主机名样串）整体 MASKED
+     * IPv6（含 IPv4-mapped 形态）与非常规形式（八位组非 0-255 数字、前缀非 0-128 数字，
+     * 如主机名样串/超范围值/前缀位夹带任意串）整体 MASKED——回显前所有片段均须通过校验
      */
     private String maskCidr(String cidr) {
         if (cidr == null) {
@@ -340,23 +341,41 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             return "MASKED";
         }
         String[] octets = parts[0].split("\\.");
-        if (octets.length == 4 && isValidOctets(octets)) {
+        if (octets.length == 4 && isValidOctets(octets)
+            && (parts.length == 1 || isValidPrefix(parts[1]))) {
             return octets[0] + "." + octets[1] + ".*.*" + (parts.length == 2 ? "/" + parts[1] : "");
         }
         return "MASKED";
     }
 
     /**
-     * IPv4 八位组合法性：每段 1-3 位纯数字
+     * IPv4 八位组合法性：每段 1-3 位纯数字且值在 0-255
      */
     private boolean isValidOctets(String[] octets) {
         for (String octet : octets) {
-            if (octet.isEmpty() || octet.length() > 3
-                || !octet.chars().allMatch(Character::isDigit)) {
+            if (!isDigitsInRange(octet, 255)) {
                 return false;
             }
         }
         return true;
+    }
+
+    /**
+     * CIDR 前缀合法性：1-3 位纯数字且值在 0-128
+     */
+    private boolean isValidPrefix(String prefix) {
+        return isDigitsInRange(prefix, 128);
+    }
+
+    /**
+     * 数字片段校验：1-3 位纯数字且值不超过 max（已限 3 位，parseInt 无溢出）
+     */
+    private boolean isDigitsInRange(String value, int max) {
+        if (value.isEmpty() || value.length() > 3
+            || !value.chars().allMatch(Character::isDigit)) {
+            return false;
+        }
+        return Integer.parseInt(value) <= max;
     }
 
     /** 规则加载结果（状态 + 规则树，非 OK 状态时规则为 null） */

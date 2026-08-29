@@ -374,8 +374,13 @@ class PermissionViewAppServiceImplTest {
             {"eventType":"ROLE_PERMISSION_CHANGE","items":[
               {"changeType":"REMOVE","permission":{"domainCode":"other","resourceTypeCode":"MENU","resourceCode":"sys:user","codeType":"default","operationCode":"VIEW","scopeMode":"INSTANCE"}}]}
             """);
+        // log-5：权限键匹配但快照缺 codeType（req.codeType=default 非空须精确匹配）→ 排除（负例回归锁）
+        PermissionChangeLog log5 = changeLog(95L, """
+            {"eventType":"ROLE_PERMISSION_CHANGE","items":[
+              {"changeType":"REMOVE","permission":{"domainCode":"admin","resourceTypeCode":"MENU","resourceCode":"sys:user","operationCode":"VIEW","scopeMode":"INSTANCE"}}]}
+            """);
         when(auditDomainService.queryRecentChanges(eq(1L), eq(1002L), eq(null), any(), any(), eq(null), eq(0), eq(200)))
-            .thenReturn(List.of(log1, log2, log3, log4));
+            .thenReturn(List.of(log1, log2, log3, log4, log5));
 
         PermissionExplainReq req = new PermissionExplainReq(
             PermConstants.TargetType.USER, "USER", "u-2", null, null, "admin",
