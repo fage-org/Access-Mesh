@@ -265,4 +265,30 @@ class ServiceConfigCascadePgIT {
             assertThat(resp.maintainSource()).isEqualTo("SERVICE_SYNC");
         }
     }
+
+    /**
+     * 双轨评审 P1 回归锁：updateApiMapping 首查曾把 selectValidById 实参顺序颠倒
+     * （(tenantId, mappingId) vs 签名 (id, tenantId)），单测 mock mapper 无法暴露——
+     * 真库上除 mappingId==tenantId 巧合外必 RESOURCE_NOT_FOUND，更新端点端到端不可用。
+     */
+    @Test
+    @DisplayName("updateApiMapping 首查参数序在真实库走通（换参修复回归锁）")
+    void shouldUpdateMappingWithCorrectArgumentOrderOnRealPostgres() {
+        insertService("PGIT27SVC_D");
+        ResourceEntity resource = insertApiResource("PGIT27_RESD", "PGIT27SVC_D", "MANUAL");
+        ResourceApiMapping mapping = insertMapping(resource.getId(), "PGIT27SVC_D", "/pgit27/d/1");
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            ResourceManageAppService manageService = newResourceManageAppService(permitAllEngine());
+
+            var resp = manageService.updateApiMapping(TENANT, new cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingUpdateReq(
+                resource.getId(), mapping.getId(), "PUT", "/pgit27/d/1-v2", 5, true, null));
+
+            assertThat(resp.httpMethod()).isEqualTo("PUT");
+            assertThat(resp.pathPattern()).isEqualTo("/pgit27/d/1-v2");
+            assertThat(resp.matchOrder()).isEqualTo(5);
+            assertThat(resp.resourceCode()).isEqualTo("PGIT27_RESD");
+        }
+    }
 }

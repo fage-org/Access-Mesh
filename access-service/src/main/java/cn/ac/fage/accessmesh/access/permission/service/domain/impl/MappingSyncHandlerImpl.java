@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
  * API映射同步处理器实现类
  * <p>
  * 处理API映射的同步逻辑，将服务配置中的API映射关系持久化到数据库。
- * 支持增量同步和过期清理。
+ * 支持 upsert 与过期清理（FULL-only，权威契约 §6.3）。
  * </p>
  */
 @Service

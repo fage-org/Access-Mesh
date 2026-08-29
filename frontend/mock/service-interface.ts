@@ -437,7 +437,8 @@ export default defineFakeRoute([
       }
       const resolvedBasePath = basePath || service.basePath || "/";
       service.basePath = resolvedBasePath;
-      service.updatedAt = now();
+      // 后端 prepareServiceConfig 仅在请求携带 basePath 时回写并刷新 updated_at，mock 对齐
+      if (basePath) service.updatedAt = now();
 
       const incomingKeys = new Set<string>();
       let createdResources = 0;

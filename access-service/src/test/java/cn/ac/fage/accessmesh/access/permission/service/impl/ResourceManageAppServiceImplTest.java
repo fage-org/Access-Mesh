@@ -32,6 +32,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -185,6 +186,24 @@ class ResourceManageAppServiceImplTest {
             assertEquals(1, result.size());
             assertEquals(null, result.get(0).resourceCode());
             assertEquals(null, result.get(0).maintainSource());
+        }
+    }
+
+    @Test
+    @DisplayName("空白 serviceCode 与 null 同义：类型级门禁 + 不过滤查询（门禁与 SQL 语义不分叉）")
+    void shouldTreatBlankServiceCodeAsUnfiltered() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.SERVICE),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+            when(apiMappingMapper.selectValidList(eq(1L), isNull(), isNull()))
+                .thenReturn(List.of());
+
+            var result = service.listApiMappings(1L, null, " ");
+
+            assertEquals(0, result.size());
+            // 规整后 mapper 收到 null 而非字面 " "（旧实现直传 " " 会被 SQL 当过滤条件）
+            verify(apiMappingMapper).selectValidList(eq(1L), isNull(), isNull());
         }
     }
 

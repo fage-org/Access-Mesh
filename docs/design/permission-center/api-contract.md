@@ -296,7 +296,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.4 service-config/resource-api-mappi
 | `POST /api/perm/service-config/save`         | 幂等保存服务                      |
 | `POST /api/perm/service-config/remove`       | 删除服务，支持批量                |
 | `POST /api/perm/service-config/sync`         | 全量同步服务接口，权限中心做 diff |
-| `POST /api/perm/service-config/apis`         | 查询服务接口资源树                |
+| `POST /api/perm/service-config/apis`         | 查询服务接口映射列表（扁平）      |
 | `POST /api/perm/resource-api-mapping/list`   | 查询接口映射                      |
 | `POST /api/perm/resource-api-mapping/create` | 创建接口映射                      |
 | `POST /api/perm/resource-api-mapping/update` | 更新接口映射                      |
@@ -307,7 +307,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.4 service-config/resource-api-mappi
 - `list` 维持 `{}` 全量返回（设计定案：服务登记数量有界——租户内微服务个数，页面左栏目录面板本地过滤，无分页参数与分页响应）；门禁 SERVICE:VIEW 类型级。
 - `save` 幂等（`{serviceCode, name, basePath?, description?, status?, extra?}`，按 `uk_service_config(tenant_id, service_code)` 定位，null 字段不更新）；`extra.syncTypes` 结构校验见 §6.3.1。`ServiceConfigResp` 含 `updatedAt`（保存与 FULL 同步回写 basePath 时刷新；`lastSyncedAt` 不设——无现成列且聚合推导语义模糊，登记不做）。
 - `remove` 级联清理（设计定案）：同事务软删该服务**全部** API 映射（含 MANUAL 维护来源——服务已删则其路由不再存在，映射即死路径）+ 该服务 SERVICE_SYNC 自动维护的孤立 API 资源（FULL diff 同清理边界，§6.3；被其他服务跨服务手工映射引用的资源保留），事务提交后广播 Gateway 本地快照失效（受影响 serviceCodes）；整批失败整批不变更。
-- `sync` 仅接受 `syncMode=FULL`（§6.3）：DTO 校验层 `@Pattern("FULL")` 拒绝其他值（统一异常通道 `code=400` 参数错误），增量策略已删除（全仓零生产调用）。门禁 SERVICE:SYNC_INTERFACE 实例级（serviceCode）。
+- `sync` 仅接受 `syncMode=FULL`（§6.3）：DTO 校验层 `@Pattern("FULL")` 拒绝其他值（`MethodArgumentNotValidException` → HTTP 400，body `code=90001` 参数校验失败），增量策略已删除（全仓零生产调用）。门禁 SERVICE:SYNC_INTERFACE 实例级（serviceCode）。
 - `apis` 与 `resource-api-mapping/list` 返回的 `ApiMappingResp` 含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode/maintainSource`（批量补全；资源已软删时为 null，前端回退展示内部 `resourceEntityId`）——`apis` 实现委托 `list`（同层复用，门禁与补全单点）。`list` 门禁（补齐）：请求带 `serviceCode` 按该服务实例 VIEW 校验；不带（管理全量列表）类型级 VIEW + 结果按服务维裁剪（拒绝服务的映射不出现在结果中）。
 - `resource-api-mapping/create`/`update` 仍以内部 `resourceId` 绑定资源（§6.10.4 单条响应）；资源树/业务键稳定定位（`resourceTypeCode + resourceCode + codeType`）与前端资源选择器属 **T-PERM-028** 联动范围（登记，未实现）。
 - 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（无授予起点死锁防护，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例；三条均类型级 scopeAll）。

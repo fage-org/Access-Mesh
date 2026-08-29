@@ -23,6 +23,8 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionServ
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +43,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
+
+    private static final Logger log = LoggerFactory.getLogger(ServiceConfigAppServiceImpl.class);
 
     private final ServiceConfigMapper serviceConfigMapper;
     private final PermQueryEngine engine;
@@ -252,11 +256,17 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         }
 
         // 级联②：软删该服务 SERVICE_SYNC 自动维护的孤立 API 资源（FULL diff 同边界；
-        // 被其他服务手工映射引用的资源保留）
+        // 被其他服务手工映射引用的资源保留）。API 类型值缺失（type_definition 种子异常）时
+        // 不阻断删除但留痕——残留孤儿资源属惰性数据，种子事故需可观测
         Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", ResourceTypeCode.API);
-        int deletedResources = apiType != null
-            ? resourceSyncHandler.cleanupServiceOwnedResources(tenantId, serviceCodes, apiType)
-            : 0;
+        int deletedResources;
+        if (apiType != null) {
+            deletedResources = resourceSyncHandler.cleanupServiceOwnedResources(tenantId, serviceCodes, apiType);
+        } else {
+            log.warn("service remove cascade skipped resource cleanup: resource_type API not found, tenantId={}, serviceCodes={}",
+                tenantId, serviceCodes);
+            deletedResources = 0;
+        }
 
         // 级联③：Gateway 本地快照失效广播（映射已变，perm 未变不 markRoles）
         PermissionChangeContext.markServiceCodes(tenantId, serviceCodes);

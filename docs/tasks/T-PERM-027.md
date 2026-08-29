@@ -17,7 +17,7 @@ acceptance:
   - "服务删除级联清理：deleteServiceConfigsByIds 同事务软删该服务全部 resource_api_mapping（含 MANUAL）+ 该服务 SERVICE_SYNC 自动维护的孤立 API 资源（复用 ResourceSyncHandler 新增 cleanupServiceOwnedResources，FULL diff 同清理边界；被其他服务跨服务手工映射引用的资源保留）+ markServiceCodes 广播 Gateway 快照失效——§7 第 2 项（Controller 注释漂移一并收口）"
   - "ApiMappingResp 补关联资源业务字段 resourceCode/resourceName/resourceTypeCode/maintainSource（批量补全防 N+1；资源已软删为 null）——§7 第 3 项"
   - "listApiMappings 补 SERVICE:VIEW 门禁：带 serviceCode 按实例校验、不带按类型级校验 + getDeniedResourceCodes 服务维结果裁剪；service-config/apis 委托同一实现（门禁与补全单点）——§7 第 5 项"
-  - "syncMode FULL-only：ServiceConfigSyncReq @Pattern(\"FULL\") 校验层拒绝其他值（400 参数错误），删除零调用的 IncrementalSyncStrategy——§7 第 4 项"
+  - "syncMode FULL-only：ServiceConfigSyncReq @Pattern(\"FULL\") 校验层拒绝其他值（HTTP 400，body code=90001 参数校验失败），删除零调用的 IncrementalSyncStrategy——§7 第 4 项"
   - "ServiceConfigResp 补 updatedAt（列已有）；lastSyncedAt 登记不做（无现成列、聚合推导语义模糊）——§7 第 7 项"
   - "list 维持 {} 全量返回收口为设计定案（服务数量有界/目录面板无分页 UI/本地过滤已可用）——§7 第 1 项"
   - "手工映射内部 resourceId 绑定维持，资源树/业务键稳定定位与前端资源选择器登记 T-PERM-028——§7 第 6 项"
@@ -58,9 +58,15 @@ T-FE-007 前端服务+接口映射页（左服务目录 + 右接口映射）在 
 ## 验收对照
 
 - design_refs：api-contract §5.4 契约要点 + §6.3 FULL-only 执行口径 + §6.10.4 字段口径已回写；service-interface-mapping.md §4 核对表 ✅ 化、§7 七项划线收口。
-- 测试：ServiceConfigAppServiceImplTest 7→11（级联批量软删断言、apiType 缺失跳过资源清理、apis 委托、updatedAt 透出）；ResourceManageAppServiceImplTest 2→7（实例/类型级门禁、服务维裁剪、资源字段补全、资源已删置 null）；ServiceSyncAppServiceImplTest 2→3（@Pattern 校验层锁定 FULL 通过/INCREMENTAL、PARTIAL、full、空串拒绝）；AccessBootstrapPgIT 计数 27/14；新增 ServiceConfigCascadePgIT（真库：级联清理边界——A 服务映射全删/B 服务与跨服务引用保留/SERVICE_SYNC 孤立资源删除 + 映射响应资源业务字段含 resolveTypeCode 真实解析）。
+- 测试：ServiceConfigAppServiceImplTest 8→11（级联批量软删断言、apiType 缺失跳过资源清理、apis 委托、updatedAt 透出）；ResourceManageAppServiceImplTest 2→7（实例/类型级门禁、服务维裁剪、资源字段补全、资源已删置 null）；ServiceSyncAppServiceImplTest 2→3（@Pattern 校验层锁定 FULL 通过/INCREMENTAL、PARTIAL、full、空串拒绝）；AccessBootstrapPgIT 计数 27/14；新增 ServiceConfigCascadePgIT（真库：级联清理边界——A 服务映射全删/B 服务与跨服务引用保留/SERVICE_SYNC 孤立资源删除 + 映射响应资源业务字段含 resolveTypeCode 真实解析 + updateApiMapping 首查参数序回归锁）。
 - 回归：access-service mvn test 全绿；前端 typecheck 干净 + vitest 216 项全绿 + 变更文件 eslint 干净。
+
+## 已知限制
+
+- **删除级联并发窗口**：服务删除事务进行中，并发 FULL sync/手工加映射可在级联查询之后插入、留下引用已软删服务的残留有效行（惰性死路径，无安全影响；删除提交后的 sync 正确 404、服务已删无法再 sync 自愈）。窗口窄、失败模式惰性，不加锁（双轨评审存疑项，2026-08-29 用户决策按本卡轻量登记）。
+- `SERVICE:MANAGE`（删除服务）级联删映射与 `SERVICE:MANAGE_API_MAPPING`（直接删映射）的不对称为设计口径：删服务是严格更强的破坏性操作，门禁按操作破坏性上界分配；api-contract §5.4 已记载。
 
 ## 完成记录
 
 - 2026-08-29 收口：七项 🔧 全处置（第 1/3/4/5/7 项实现收口、第 2 项级联清理落地、第 6 项登记 T-PERM-028）+ 四项设计定案（级联边界、FULL-only、list 维持全量、只补 updatedAt）+ bootstrap SERVICE 三授权；§7.6 资源选择器联动登记随 T-PERM-028 资源树后端一并落地。
+- 2026-08-29 双轨评审收口（代码轨+文档轨）：P1 updateApiMapping 首查换参修复（既有缺陷，真库必 RESOURCE_NOT_FOUND，PgIT 锁）+ @Transactional(readOnly)/apiType 缺失 warn/空白 serviceCode 规整/两处「支持增量同步」Javadoc 残留/mock updatedAt 条件刷新；project-rules §3.3 异常表按代码对齐（用户决策）、access-service-architecture §14.4 补 DOMAIN:VIEW 与 SERVICE 三行+权威指针注（用户决策）、「资源树」措辞×3 收口为映射列表、错误通道措辞订正（HTTP 400 + body 90001）、测试计数订正（8→11/+11）；拒绝项：resolveTypeCode 批量化（toResourceResp 既有同款缓存范式）、@PermissionChange 反射存在性断言与事务原子性 PgIT 锁（全仓无先例，新机制属过度设计）。

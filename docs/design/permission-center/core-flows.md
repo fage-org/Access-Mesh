@@ -67,7 +67,7 @@ flowchart LR
 | ---- | ------------------------------------------ | --------------------------------- | ------------------ |
 | 1    | `POST /api/perm/service-config/save`       | `serviceCode + basePath + name`   | 注册或更新服务     |
 | 2    | `POST /api/perm/service-config/sync`       | `syncMode=FULL + groups[].apis[]` | 全量同步服务接口   |
-| 3    | `POST /api/perm/service-config/apis`       | `serviceCode`                     | 查看服务接口资源树 |
+| 3    | `POST /api/perm/service-config/apis`       | `serviceCode`                     | 查看服务接口映射列表 |
 | 4    | `POST /api/perm/resource-api-mapping/list` | `serviceCode` 或 `resourceId`     | 查看接口映射       |
 
 关键逻辑：
@@ -296,7 +296,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 2    | 自动处理                             | 新接口创建 API 资源和映射      | 可被授权               |
 | 3    | 自动处理                             | 删除接口软删映射和自动创建资源 | Gateway 不再匹配旧接口 |
 | 4    | 自动处理                             | 影响 API mapping / API 资源的 serviceCode | 广播 `PermInvalidateEvent.serviceCodes`，Gateway 清本地快照 |
-| 5    | `POST /api/perm/service-config/apis` | `serviceCode`                  | 验证最新接口资源树     |
+| 5    | `POST /api/perm/service-config/apis` | `serviceCode`                  | 验证最新接口映射列表     |
 
 关键逻辑：
 

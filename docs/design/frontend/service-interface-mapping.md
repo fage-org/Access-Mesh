@@ -30,7 +30,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-027 后端收口终态化（删�
 ┌─ 服务 [n] ── 登记 ┐┌─ {serviceCode} · {name} · 状态 · 基础路径 ─ 编辑/删除 ┐
 │ [搜索]            ││ ─ 接口映射 ─────────────── 同步接口 / 新增映射 ──────┤
 │ ▎接入服务  ●     ││ 路径/资源 | 方法 | 状态 | 重置                       │
-│   access-svc 3/5 ││ HTTP 方法 | Gateway 路径 | 资源实体 | 顺序 | 状态 | 操作│
+│   access-svc 3/5 ││ HTTP 方法 | Gateway 路径 | 资源 | 顺序 | 状态 | 操作│
 │   example-svc 2/2││ ...                                                  │
 │                  ││                                                      │
 └──────────────────┘└──────────────────────────────────────────────────────┘
@@ -119,7 +119,7 @@ Phase 1 不修改后端；以下项目登记到 T-PERM-027 并已随其收口（
 1. ~~**服务列表缺少分页与筛选**~~（已收口为设计定案，2026-08-29）：`list` 维持 `{}` 全量返回——服务登记数量有界（租户内微服务个数），左栏目录面板无分页 UI、本地过滤已可用，补无人消费的分页参数属死契约面；契约口径见 api-contract §5.4。
 2. ~~**服务删除未级联处理映射**~~（已收口，2026-08-29）：`deleteServiceConfigsByIds` 同事务级联软删该服务全部映射（含 MANUAL）+ 该服务 SERVICE_SYNC 自动维护的孤立 API 资源（FULL diff 同清理边界；被其他服务跨服务手工映射引用的资源保留），并 `markServiceCodes` 广播 Gateway 快照失效；Controller 注释与实现一致。ServiceConfigCascadePgIT 真库锁定。
 3. ~~**`service-config/apis` 并非资源树**~~（已收口，2026-08-29）：维持扁平 `ApiMappingResp`（页面形态即扁平映射表，无树形诉求），但补齐 `resourceCode/resourceName/resourceTypeCode/maintainSource` 资源业务字段（批量补全，资源已删为 null，前端回退展示 `#实体ID`）；映射表「资源实体」列升级为「资源」列展示业务编码。
-4. ~~**同步模式设计与 DTO 漂移**~~（已收口，2026-08-29）：`ServiceConfigSyncReq.syncMode` 校验层 `@Pattern("FULL")` 拒绝其他值（400 参数错误），零调用的 `IncrementalSyncStrategy` 删除；后端与权威契约 §6.3、前端与 mock 三方一致。
+4. ~~**同步模式设计与 DTO 漂移**~~（已收口，2026-08-29）：`ServiceConfigSyncReq.syncMode` 校验层 `@Pattern("FULL")` 拒绝其他值（HTTP 400，body `code=90001` 参数校验失败），零调用的 `IncrementalSyncStrategy` 删除；后端与权威契约 §6.3、前端与 mock 三方一致。
 5. ~~**映射列表缺少权限校验**~~（已收口，2026-08-29）：`listApiMappings` 补 SERVICE:VIEW 门禁——带 `serviceCode` 按该服务实例校验，不带按类型级校验并对结果做服务维裁剪（`getDeniedResourceCodes` 批量判权，拒绝服务的映射不外泄）；`service-config/apis` 委托同一实现（门禁与补全单点）。
 6. ~~**手工映射使用内部资源 ID**~~（登记 T-PERM-028，2026-08-29）：create/update 仍以 `resourceId` 内部主键绑定；按 `resourceTypeCode + resourceCode + codeType` 的稳定定位能力与前端资源选择器随 T-PERM-028 资源树后端一并落地后替换 ID 输入框。
 7. ~~**同步状态不可追溯**~~（已收口，2026-08-29）：`ServiceConfigResp` 补 `updatedAt`（列已有，保存与 FULL 同步回写 basePath 时刷新），服务信息条展示「更新于」；`lastSyncedAt` 不设——无现成列且按映射 MAX(updated_at) 聚合推导语义模糊（行更新≠最近一次成功同步），登记不做。

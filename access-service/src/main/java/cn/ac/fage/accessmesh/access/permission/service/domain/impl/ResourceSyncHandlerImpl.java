@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
  * 资源同步处理器实现类
  * <p>
  * 处理资源实体的同步逻辑，将服务配置中的API资源持久化到数据库。
- * 支持增量同步和孤立资源清理。
+ * 支持 upsert 与孤立资源清理（FULL-only，权威契约 §6.3）；服务删除级联清理见 cleanupServiceOwnedResources。
  * </p>
  */
 @Service

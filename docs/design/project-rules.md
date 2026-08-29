@@ -220,18 +220,24 @@ RuntimeException
 
 ### 3.3 全局 ExceptionHandler 处理顺序
 
+> 表值与 `common` 模块 `GlobalExceptionHandler` 实际实现一致（2026-08-29 双轨评审收口：原表「统一 200」与代码的 400/403/500 长期分歧，按代码对齐）。
+
 | 异常类型                          | HTTP 状态码 | code       | 日志级别 | 堆栈 |
 | --------------------------------- | ----------- | ---------- | -------- | ---- |
 | `BizException`                    | 200         | 业务错误码 | WARN     | 否   |
-| `MethodArgumentNotValidException` | 200         | `90001`    | WARN     | 否   |
-| `ConstraintViolationException`    | 200         | `90001`    | WARN     | 否   |
 | `SystemException`                 | 200         | 系统错误码 | ERROR    | 是   |
-| `Exception`（兜底）               | 200         | `99999`    | ERROR    | 是   |
+| `SecurityException`               | 403         | `403`      | WARN     | 否   |
+| `MethodArgumentNotValidException` | 400         | `90001`    | WARN     | 否   |
+| `ConstraintViolationException`    | 400         | `90001`    | WARN     | 否   |
+| `IllegalArgumentException`        | 400         | `400`      | WARN     | 否   |
+| `HttpMessageNotReadableException` | 400         | `90001`    | WARN     | 否   |
+| `Exception`（兜底）               | 500         | `99999`    | ERROR    | 是   |
 
-> HTTP 状态码统一返回 200，由 `success` + `code` 区分业务成功与失败，降低前端复杂度。
+> 业务异常（`BizException`/`SystemException`）HTTP 200，由 `success` + `code` 区分业务成功与失败；
+> 安全拒绝与参数/请求体类错误使用语义化真实状态码（403/400），兜底异常 500——不向客户端暴露堆栈。
 >
-> **例外**：Gateway 对外响应使用真实 HTTP 状态码（401 未认证、403 鉴权拒绝、502 上游异常、503 服务不可用等），
-> 前端需根据 HTTP 状态码做差异化处理。内部服务间调用（OpenFeign）仍遵循统一 200 约定。
+> **Gateway 对外响应**使用真实 HTTP 状态码（401 未认证、403 鉴权拒绝、502 上游异常、503 服务不可用等），
+> 前端需根据 HTTP 状态码做差异化处理。内部服务间调用（OpenFeign）业务语义仍以 body `code` 为准。
 
 ### 3.4 注意事项
 

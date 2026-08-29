@@ -615,21 +615,24 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<ApiMappingResp> listApiMappings(Long tenantId, Long resourceId, String serviceCode) {
         Long operatorId = OperatorContext.getOperatorId();
 
         // T-PERM-027（§7.5）：映射列表补 SERVICE:VIEW 门禁——指定 serviceCode 按实例校验，
-        // 未指定（管理全量列表）按类型级校验并对结果做服务维裁剪，避免暴露跨服务 API 路径
-        boolean filteredByService = serviceCode != null && !serviceCode.isBlank();
+        // 未指定（管理全量列表）按类型级校验并对结果做服务维裁剪，避免暴露跨服务 API 路径。
+        // 空白 serviceCode 与 null 同义（与 selectValidList 的过滤判定对齐，避免门禁与 SQL 语义分叉）
+        String normalizedServiceCode = serviceCode == null || serviceCode.isBlank() ? null : serviceCode;
+        boolean filteredByService = normalizedServiceCode != null;
         if (filteredByService) {
-            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
-                throw new SecurityException("Permission denied: VIEW on SERVICE:" + serviceCode);
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, normalizedServiceCode, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on SERVICE:" + normalizedServiceCode);
             }
         } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE");
         }
 
-        List<ResourceApiMapping> mappings = new ArrayList<>(apiMappingMapper.selectValidList(tenantId, resourceId, serviceCode));
+        List<ResourceApiMapping> mappings = new ArrayList<>(apiMappingMapper.selectValidList(tenantId, resourceId, normalizedServiceCode));
 
         if (!filteredByService && !mappings.isEmpty()) {
             Set<String> mappingServiceCodes = mappings.stream()
@@ -657,7 +660,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     public ApiMappingResp updateApiMapping(Long tenantId, ApiMappingUpdateReq req) {
         Long operatorId = OperatorContext.getOperatorId();
 
-        ResourceApiMapping mapping = apiMappingMapper.selectValidById(tenantId, req.mappingId());
+        ResourceApiMapping mapping = apiMappingMapper.selectValidById(req.mappingId(), tenantId);
         if (mapping == null || !Objects.equals(mapping.getResourceEntityId(), req.resourceId())) {
             throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "API映射不存在: " + req.mappingId());
         }
