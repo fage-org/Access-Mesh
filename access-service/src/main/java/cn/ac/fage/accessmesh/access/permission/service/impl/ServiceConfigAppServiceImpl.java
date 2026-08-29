@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
@@ -7,13 +9,17 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ServiceConfigResp;
+import cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper;
+import cn.ac.fage.accessmesh.access.permission.service.ResourceManageAppService;
 import cn.ac.fage.accessmesh.access.permission.service.ServiceConfigAppService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard;
+import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
@@ -21,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,6 +46,9 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     private final PermQueryEngine engine;
     private final ResourceApiMappingMapper resourceApiMappingMapper;
     private final SyncTypeGuard syncTypeGuard;
+    private final ResourceSyncHandler resourceSyncHandler;
+    private final TypeResolutionService typeResolutionService;
+    private final ResourceManageAppService resourceManageAppService;
 
     /**
      * 构造函数注入依赖
@@ -47,15 +57,24 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
      * @param engine                   权限查询引擎
      * @param resourceApiMappingMapper 资源API映射数据访问层
      * @param syncTypeGuard            同步类型白名单守卫（保存边界校验 extra.syncTypes 结构）
+     * @param resourceSyncHandler      资源同步处理器（服务删除级联清理 SERVICE_SYNC 资源）
+     * @param typeResolutionService    类型解析服务（级联清理解析 API 资源类型值）
+     * @param resourceManageAppService 资源管理应用服务（apis 复用映射列表的门禁与资源字段补全）
      */
     public ServiceConfigAppServiceImpl(ServiceConfigMapper serviceConfigMapper,
                                         PermQueryEngine engine,
                                         ResourceApiMappingMapper resourceApiMappingMapper,
-                                        SyncTypeGuard syncTypeGuard) {
+                                        SyncTypeGuard syncTypeGuard,
+                                        ResourceSyncHandler resourceSyncHandler,
+                                        TypeResolutionService typeResolutionService,
+                                        ResourceManageAppService resourceManageAppService) {
         this.serviceConfigMapper = serviceConfigMapper;
         this.engine = engine;
         this.resourceApiMappingMapper = resourceApiMappingMapper;
         this.syncTypeGuard = syncTypeGuard;
+        this.resourceSyncHandler = resourceSyncHandler;
+        this.typeResolutionService = typeResolutionService;
+        this.resourceManageAppService = resourceManageAppService;
     }
 
     /**
@@ -168,7 +187,10 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     /**
      * 批量删除服务配置
      * <p>
-     * 批量软删除服务配置。
+     * 批量软删除服务配置，并级联清理该服务的关联数据（T-PERM-027，§7.2 设计定案）：
+     * 同事务内软删该服务全部 API 映射（含 MANUAL 维护来源）与该服务 SERVICE_SYNC
+     * 自动维护的孤立 API 资源（跨服务手工映射引用的资源保留），事务提交后经
+     * {@code markServiceCodes} 广播 Gateway 本地快照失效。整批失败整批不变更。
      * 使用批量查询和批量软删除避免N+1问题。
      * 需要SERVICE_MANAGE权限。
      * </p>
@@ -180,6 +202,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "SERVICE_CONFIG_REMOVE", targetType = "service_config", targetId = "", summary = "'batch remove service configs'")
     public void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -212,10 +235,34 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         Set<Long> validIds = entities.stream()
             .map(ServiceConfig::getId)
             .collect(Collectors.toSet());
+        Set<String> serviceCodes = entities.stream()
+            .map(ServiceConfig::getServiceCode)
+            .collect(Collectors.toSet());
 
         LocalDateTime now = LocalDateTime.now();
-        serviceConfigMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
-        OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " service_config row(s)");
+        serviceConfigMapper.softDeleteBatch(tenantId, new ArrayList<>(validIds), now);
+
+        // 级联①：软删该服务全部映射（含 MANUAL；服务已删，其路由不再存在，映射即死路径）
+        List<ResourceApiMapping> mappings = resourceApiMappingMapper.selectValidByServiceCodes(tenantId, serviceCodes);
+        List<Long> mappingIds = mappings.stream()
+            .map(ResourceApiMapping::getId)
+            .collect(Collectors.toList());
+        if (!mappingIds.isEmpty()) {
+            resourceApiMappingMapper.softDeleteBatch(tenantId, mappingIds, now);
+        }
+
+        // 级联②：软删该服务 SERVICE_SYNC 自动维护的孤立 API 资源（FULL diff 同边界；
+        // 被其他服务手工映射引用的资源保留）
+        Integer apiType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", ResourceTypeCode.API);
+        int deletedResources = apiType != null
+            ? resourceSyncHandler.cleanupServiceOwnedResources(tenantId, serviceCodes, apiType)
+            : 0;
+
+        // 级联③：Gateway 本地快照失效广播（映射已变，perm 未变不 markRoles）
+        PermissionChangeContext.markServiceCodes(tenantId, serviceCodes);
+
+        OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " service_config row(s), "
+            + mappingIds.size() + " api mapping(s), " + deletedResources + " synced api resource(s)");
     }
 
     /**
@@ -223,7 +270,9 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
      * <p>
      * 查询指定服务下已注册的API接口映射。
      * API映射用于接口级权限校验，定义HTTP方法、路径模式与资源实体的关联。
-     * 需要SERVICE_VIEW权限。
+     * 需要该服务的SERVICE_VIEW权限。
+     * T-PERM-027：委托 {@link ResourceManageAppService#listApiMappings}（同层复用），
+     * 统一 SERVICE:VIEW 实例门禁与响应的资源业务字段补全。
      * </p>
      *
      * @param tenantId    租户ID
@@ -234,23 +283,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @Override
     @Transactional(readOnly = true)
     public List<ApiMappingResp> listServiceApis(Long tenantId, String serviceCode) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SERVICE:" + serviceCode);
-        }
-        return resourceApiMappingMapper.selectByTenantAndServiceCode(tenantId, serviceCode).stream().map(mapping -> new ApiMappingResp(
-            mapping.getId(),
-            mapping.getTenantId(),
-            mapping.getResourceEntityId(),
-            mapping.getServiceCode(),
-            mapping.getHttpMethod(),
-            mapping.getPathPattern(),
-            mapping.getMatchOrder(),
-            mapping.getEnabled(),
-            mapping.getExtra(),
-            mapping.getCreatedAt(),
-            mapping.getUpdatedAt()
-        )).collect(Collectors.toList());
+        return resourceManageAppService.listApiMappings(tenantId, null, serviceCode);
     }
 
     /**
@@ -263,7 +296,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         return new ServiceConfigResp(
             c.getId(), c.getTenantId(), c.getServiceCode(),
             c.getName(), c.getBasePath(), c.getDescription(),
-            c.getStatus(), c.getExtra(), c.getCreatedAt()
+            c.getStatus(), c.getExtra(), c.getCreatedAt(), c.getUpdatedAt()
         );
     }
 }

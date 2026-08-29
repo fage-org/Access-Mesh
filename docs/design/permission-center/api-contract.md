@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-29   # 2026-08-29 §5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-29   # 2026-08-29 §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -301,6 +301,16 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.1 biz-domain 契约要点 + §5.6 d
 | `POST /api/perm/resource-api-mapping/create` | 创建接口映射                      |
 | `POST /api/perm/resource-api-mapping/update` | 更新接口映射                      |
 | `POST /api/perm/resource-api-mapping/remove` | 删除接口映射，支持批量            |
+
+**service-config / resource-api-mapping 契约要点（T-PERM-027 收口，2026-08-29）**：
+
+- `list` 维持 `{}` 全量返回（设计定案：服务登记数量有界——租户内微服务个数，页面左栏目录面板本地过滤，无分页参数与分页响应）；门禁 SERVICE:VIEW 类型级。
+- `save` 幂等（`{serviceCode, name, basePath?, description?, status?, extra?}`，按 `uk_service_config(tenant_id, service_code)` 定位，null 字段不更新）；`extra.syncTypes` 结构校验见 §6.3.1。`ServiceConfigResp` 含 `updatedAt`（保存与 FULL 同步回写 basePath 时刷新；`lastSyncedAt` 不设——无现成列且聚合推导语义模糊，登记不做）。
+- `remove` 级联清理（设计定案）：同事务软删该服务**全部** API 映射（含 MANUAL 维护来源——服务已删则其路由不再存在，映射即死路径）+ 该服务 SERVICE_SYNC 自动维护的孤立 API 资源（FULL diff 同清理边界，§6.3；被其他服务跨服务手工映射引用的资源保留），事务提交后广播 Gateway 本地快照失效（受影响 serviceCodes）；整批失败整批不变更。
+- `sync` 仅接受 `syncMode=FULL`（§6.3）：DTO 校验层 `@Pattern("FULL")` 拒绝其他值（统一异常通道 `code=400` 参数错误），增量策略已删除（全仓零生产调用）。门禁 SERVICE:SYNC_INTERFACE 实例级（serviceCode）。
+- `apis` 与 `resource-api-mapping/list` 返回的 `ApiMappingResp` 含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode/maintainSource`（批量补全；资源已软删时为 null，前端回退展示内部 `resourceEntityId`）——`apis` 实现委托 `list`（同层复用，门禁与补全单点）。`list` 门禁（补齐）：请求带 `serviceCode` 按该服务实例 VIEW 校验；不带（管理全量列表）类型级 VIEW + 结果按服务维裁剪（拒绝服务的映射不出现在结果中）。
+- `resource-api-mapping/create`/`update` 仍以内部 `resourceId` 绑定资源（§6.10.4 单条响应）；资源树/业务键稳定定位（`resourceTypeCode + resourceCode + codeType`）与前端资源选择器属 **T-PERM-028** 联动范围（登记，未实现）。
+- 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（无授予起点死锁防护，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例；三条均类型级 scopeAll）。
 
 ### 5.5 授权关系
 
@@ -1002,7 +1012,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 规则：
 
-- 首期只支持 `syncMode=FULL`。FULL 模式下，以本次上报内容作为该 `serviceCode` 的完整事实来源。
+- 首期只支持 `syncMode=FULL`。FULL 模式下，以本次上报内容作为该 `serviceCode` 的完整事实来源。（T-PERM-027 收口：`ServiceConfigSyncReq.syncMode` 校验层 `@Pattern("FULL")` 拒绝其他值，增量策略已删除。）
 - 权限中心自动拼接 `basePath + path` 得到 Gateway 原始路径。
 - 新接口自动创建 API 类型 `resource_entity` 和 `resource_api_mapping`。
 - `service-config/sync` 自动创建的 API 资源必须写入 `resource_entity.ownerServiceCode=serviceCode`、`maintainSource=SERVICE_SYNC`、`syncKey`。
@@ -1859,6 +1869,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 #### 6.10.4 `resource-api-mapping/create` 与 `update` 响应
 
 - `create`、`update` 成功后响应 `data` 为**单条**映射对象（与列表项结构一致），至少包含映射主键 `id` 及 `serviceCode`、`httpMethod`、`pathPattern` 等关键字段，便于调用方无需再发 `list` 即可确认结果。
+- T-PERM-027：`ApiMappingResp`（`list`/`service-config/apis`/`create`/`update` 共用）另含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode/maintainSource`（资源已软删时为 null）。
 
 #### 6.10.5 `permission-view/explain` 在 `targetType=ROLE` 时的语义
 

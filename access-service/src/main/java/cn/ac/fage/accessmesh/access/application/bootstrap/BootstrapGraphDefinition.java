@@ -102,6 +102,12 @@ public final class BootstrapGraphDefinition {
             // 创建必须由首管理员完成，实例级会造成鸡生蛋（无正规入口补授新服务实例）
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.MANAGE_API_MAPPING,
                 null, false),
+            // T-PERM-027：服务与接口映射页门禁——checkCanGrant 要求操作者先持有才能转授，
+            // 固定图不持 SERVICE:VIEW/MANAGE/SYNC_INTERFACE 则空库上该页读写路径无授予起点
+            // （死锁，同 DOMAIN:VIEW 先例）；三条均类型级，实例粒度由租户后续自行收紧
+            new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.MANAGE, null, false),
+            new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.SYNC_INTERFACE, null, false),
             new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.VIEW, null, false),

@@ -23,6 +23,8 @@ export type ServiceConfigResp = {
   status: number;
   extra?: string | null;
   createdAt?: string;
+  /** 最近更新（保存与 FULL 同步回写 basePath 时刷新，T-PERM-027） */
+  updatedAt?: string;
 };
 
 export type ServiceConfigSaveReq = {
@@ -46,6 +48,14 @@ export type ApiMappingResp = {
   extra?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  /** 关联资源业务编码（T-PERM-027；资源已删时为 null，回退展示 #id） */
+  resourceCode?: string | null;
+  /** 关联资源名称 */
+  resourceName?: string | null;
+  /** 关联资源类型编码（如 "API"） */
+  resourceTypeCode?: string | null;
+  /** 关联资源维护来源 MANUAL/SERVICE_SYNC */
+  maintainSource?: string | null;
 };
 
 export type ApiMappingCreateReq = {

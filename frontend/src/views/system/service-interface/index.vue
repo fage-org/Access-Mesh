@@ -74,9 +74,9 @@ const mappingColumns = [
     slot: "path"
   },
   {
-    label: "资源实体",
-    prop: "resourceEntityId",
-    width: 92,
+    label: "资源",
+    prop: "resourceCode",
+    width: 168,
     slot: "resource"
   },
   { label: "顺序", prop: "matchOrder", width: 58 },
@@ -327,6 +327,9 @@ function openSyncForm() {
                   currentService.basePath || "/"
                 }}</span>
               </span>
+              <span v-if="currentService.updatedAt" class="service-path">
+                更新于 {{ currentService.updatedAt }}
+              </span>
             </div>
             <div class="service-actions">
               <el-button
@@ -453,9 +456,21 @@ function openSyncForm() {
                     </el-tooltip>
                   </template>
                   <template #resource="{ row }">
-                    <span class="resource-cell"
-                      >#{{ row.resourceEntityId }}</span
+                    <el-tooltip
+                      :content="
+                        row.resourceCode
+                          ? `${row.resourceCode}${
+                              row.resourceName ? ` · ${row.resourceName}` : ''
+                            } · #${row.resourceEntityId}`
+                          : `#${row.resourceEntityId}`
+                      "
+                      placement="top"
+                      :show-after="300"
                     >
+                      <span class="resource-cell font-mono">{{
+                        row.resourceCode || `#${row.resourceEntityId}`
+                      }}</span>
+                    </el-tooltip>
                   </template>
                   <template #enabled="{ row }">
                     <el-tag

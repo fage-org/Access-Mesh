@@ -71,8 +71,8 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
     /**
      * 同步服务接口与资源API映射
      * <p>
-     * 根据同步模式（FULL/INCREMENTAL）同步服务接口定义与资源API映射关系。
-     * 使用策略模式处理不同同步模式的具体逻辑。
+     * 以 FULL 模式同步服务接口定义与资源API映射关系（权威契约 §6.3 首期仅允许 FULL，
+     * T-PERM-027 收口：DTO 校验层拒绝其他值）。使用策略模式处理同步模式的具体逻辑。
      * 需要SERVICE_SYNC_INTERFACE权限。
      * </p>
      *

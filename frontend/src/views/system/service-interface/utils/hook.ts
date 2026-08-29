@@ -69,6 +69,7 @@ export function useServiceInterface() {
       const matchesKeyword =
         !keyword ||
         mapping.pathPattern.toLowerCase().includes(keyword) ||
+        (mapping.resourceCode || "").toLowerCase().includes(keyword) ||
         String(mapping.resourceEntityId).includes(keyword);
       const matchesMethod =
         !mappingSearch.method || mapping.httpMethod === mappingSearch.method;

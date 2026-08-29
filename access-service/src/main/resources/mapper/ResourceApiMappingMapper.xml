@@ -88,6 +88,18 @@
           AND delete_flag = 0
     </select>
 
+    <!-- T-PERM-027 服务删除级联：按服务编码集合批量取全部有效映射（不限维护来源） -->
+    <select id="selectValidByServiceCodes" resultType="cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping">
+        SELECT * FROM resource_api_mapping
+        WHERE tenant_id = #{tenantId}
+          AND service_code IN
+        <foreach collection="serviceCodes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+
     <select id="selectByUniqueKey" resultType="cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping">
         SELECT * FROM resource_api_mapping
         WHERE tenant_id = #{tenantId}

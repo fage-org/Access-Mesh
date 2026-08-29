@@ -16,13 +16,16 @@ import java.util.List;
  *
  * @param serviceCode 服务编码，必填
  * @param basePath    服务基础路径，可选
- * @param syncMode    同步模式，必填（FULL/PARTIAL）
+ * @param syncMode    同步模式，必填。权威契约 §6.3 首期仅允许 FULL
+ *                    （T-PERM-027 收口：校验层拒绝其他值，IncrementalSyncStrategy 已删除）
  * @param groups      API分组列表，必填且不能为空
  */
 public record ServiceConfigSyncReq(
     @NotBlank String serviceCode,
     String basePath,
-    @NotBlank String syncMode,
+    @NotBlank(message = "syncMode cannot be blank")
+    @Pattern(regexp = "FULL", message = "syncMode only supports FULL")
+    String syncMode,
     @NotNull List<@Valid GroupItem> groups
 ) {
     /**

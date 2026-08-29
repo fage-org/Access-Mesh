@@ -7,8 +7,8 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.MappingSyncHandler
  * 同步模式策略接口
  * <p>
  * 定义不同同步模式的执行策略。
- * 支持全量同步（FULL）和增量同步（INCREMENTAL）两种模式。
- * 策略模式允许灵活切换同步算法。
+ * 权威契约 §6.3 首期仅支持全量同步（FULL）一种模式（T-PERM-027 收口）。
+ * 策略模式保留以便后续扩展新模式。
  * </p>
  */
 public interface SyncModeStrategy {
@@ -26,7 +26,7 @@ public interface SyncModeStrategy {
     /**
      * 返回策略名称
      *
-     * @return 策略名称（如"FULL"、"INCREMENTAL")
+     * @return 策略名称（"FULL"）
      */
     String getName();
 }

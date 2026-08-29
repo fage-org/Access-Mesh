@@ -13,6 +13,8 @@ type ServiceConfigResp = {
   status: number;
   extra: string | null;
   createdAt: string;
+  /** T-PERM-027：最近更新（保存与 FULL 同步回写 basePath 时刷新） */
+  updatedAt: string;
 };
 
 type ApiMappingResp = {
@@ -27,11 +29,16 @@ type ApiMappingResp = {
   extra: string | null;
   createdAt: string;
   updatedAt: string;
+  /** T-PERM-027：关联资源业务字段（对齐后端 ApiMappingResp 补全口径） */
+  resourceCode: string;
+  resourceName: string;
+  resourceTypeCode: string;
+  maintainSource: "SERVICE_SYNC" | "MANUAL";
 };
 
+/** 内部仅额外持有 source（= maintainSource 的同义内部标记，供 FULL diff 清理边界判定） */
 type InternalMapping = ApiMappingResp & {
   source: "SERVICE_SYNC" | "MANUAL";
-  resourceCode: string;
 };
 
 type SyncApiItem = {
@@ -72,7 +79,8 @@ const services: ServiceConfigResp[] = [
       "组织、用户、菜单、认证与权限管理（admin/perm 归并后唯一部署单元）",
     status: 1,
     extra: '{"owner":"identity"}',
-    createdAt: "2026-06-18 09:30:00"
+    createdAt: "2026-06-18 09:30:00",
+    updatedAt: "2026-06-21 11:20:00"
   },
   {
     id: 103,
@@ -83,7 +91,8 @@ const services: ServiceConfigResp[] = [
     description: "接入方接口与范围权限演示",
     status: 0,
     extra: null,
-    createdAt: "2026-06-18 09:40:00"
+    createdAt: "2026-06-18 09:40:00",
+    updatedAt: "2026-06-24 14:00:00"
   }
 ];
 
@@ -101,7 +110,10 @@ let mappings: InternalMapping[] = [
     createdAt: "2026-06-21 11:20:00",
     updatedAt: "2026-06-21 11:20:00",
     source: "SERVICE_SYNC",
-    resourceCode: "admin:user:list"
+    resourceCode: "admin:user:list",
+    resourceName: "用户列表查询",
+    resourceTypeCode: "API",
+    maintainSource: "SERVICE_SYNC"
   },
   {
     id: 302,
@@ -116,7 +128,10 @@ let mappings: InternalMapping[] = [
     createdAt: "2026-06-21 11:20:00",
     updatedAt: "2026-06-21 11:20:00",
     source: "SERVICE_SYNC",
-    resourceCode: "admin:org:tree"
+    resourceCode: "admin:org:tree",
+    resourceName: "组织树查询",
+    resourceTypeCode: "API",
+    maintainSource: "SERVICE_SYNC"
   },
   {
     id: 303,
@@ -131,7 +146,10 @@ let mappings: InternalMapping[] = [
     createdAt: "2026-06-23 16:10:00",
     updatedAt: "2026-06-23 16:10:00",
     source: "SERVICE_SYNC",
-    resourceCode: "perm:auth:check"
+    resourceCode: "perm:auth:check",
+    resourceName: "运行时鉴权检查",
+    resourceTypeCode: "API",
+    maintainSource: "SERVICE_SYNC"
   },
   {
     id: 304,
@@ -146,7 +164,10 @@ let mappings: InternalMapping[] = [
     createdAt: "2026-06-23 16:12:00",
     updatedAt: "2026-06-28 10:00:00",
     source: "MANUAL",
-    resourceCode: "perm:permission:explain"
+    resourceCode: "perm:permission:explain",
+    resourceName: "权限排查视图说明",
+    resourceTypeCode: "API",
+    maintainSource: "MANUAL"
   },
   {
     id: 305,
@@ -161,7 +182,10 @@ let mappings: InternalMapping[] = [
     createdAt: "2026-06-24 14:00:00",
     updatedAt: "2026-06-24 14:00:00",
     source: "SERVICE_SYNC",
-    resourceCode: "example:report:list"
+    resourceCode: "example:report:list",
+    resourceName: "报表列表查询",
+    resourceTypeCode: "API",
+    maintainSource: "SERVICE_SYNC"
   }
 ];
 
@@ -170,7 +194,7 @@ function cloneService(service: ServiceConfigResp): ServiceConfigResp {
 }
 
 function cloneMapping(mapping: InternalMapping): ApiMappingResp {
-  const { source: _source, resourceCode: _resourceCode, ...response } = mapping;
+  const { source: _source, ...response } = mapping;
   return { ...response };
 }
 
@@ -232,6 +256,7 @@ export default defineFakeRoute([
         existed.description = description ?? null;
         existed.status = status ?? existed.status;
         existed.extra = extra ?? null;
+        existed.updatedAt = now();
         return ok(cloneService(existed));
       }
       const created: ServiceConfigResp = {
@@ -243,7 +268,8 @@ export default defineFakeRoute([
         description: description ?? null,
         status: status ?? 1,
         extra: extra ?? null,
-        createdAt: now()
+        createdAt: now(),
+        updatedAt: now()
       };
       services.push(created);
       return ok(cloneService(created));
@@ -332,6 +358,7 @@ export default defineFakeRoute([
         return error(409, "该资源与接口的映射已存在");
       }
       const createdAt = now();
+      const manualCode = `manual:resource:${resourceId}`;
       const created: InternalMapping = {
         id: nextMappingId++,
         tenantId: 1,
@@ -345,7 +372,10 @@ export default defineFakeRoute([
         createdAt,
         updatedAt: createdAt,
         source: "MANUAL",
-        resourceCode: `manual:resource:${resourceId}`
+        resourceCode: manualCode,
+        resourceName: manualCode,
+        resourceTypeCode: "API",
+        maintainSource: "MANUAL"
       };
       mappings.push(created);
       return ok(cloneMapping(created));
@@ -407,6 +437,7 @@ export default defineFakeRoute([
       }
       const resolvedBasePath = basePath || service.basePath || "/";
       service.basePath = resolvedBasePath;
+      service.updatedAt = now();
 
       const incomingKeys = new Set<string>();
       let createdResources = 0;
@@ -449,7 +480,10 @@ export default defineFakeRoute([
             createdAt,
             updatedAt: createdAt,
             source: "SERVICE_SYNC",
-            resourceCode
+            resourceCode,
+            resourceName: String(api.name ?? resourceCode),
+            resourceTypeCode: "API",
+            maintainSource: "SERVICE_SYNC"
           });
           createdResources += 1;
           createdMappings += 1;

@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
  * @param status      服务状态，0=禁用，1=启用
  * @param extra       扩展属性JSON
  * @param createdAt   创建时间
+ * @param updatedAt   更新时间（T-PERM-027：保存与 FULL 同步回写 basePath 时刷新）
  */
 public record ServiceConfigResp(
     Long id,
@@ -28,5 +29,6 @@ public record ServiceConfigResp(
     String description,
     Integer status,
     String extra,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    LocalDateTime updatedAt
 ) {}

@@ -117,6 +117,21 @@ public interface ResourceApiMappingMapper extends BaseMapper<ResourceApiMapping>
                                                             @Param("serviceCode") String serviceCode);
 
     /**
+     * 按服务编码集合批量查询全部有效映射（不限维护来源）
+     * <p>
+     * T-PERM-027 服务删除级联使用：一次批量取回被删服务的全部映射（含 MANUAL），
+     * 避免按服务逐个查询的 N+1。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param serviceCodes 服务编码集合
+     * @return 资源API映射列表
+     */
+    List<ResourceApiMapping> selectValidByServiceCodes(@Param("tenantId") Long tenantId,
+                                                        @Param("serviceCodes") Set<String> serviceCodes);
+
+
+    /**
      * 根据租户ID、资源实体ID、服务编码、HTTP方法和路径模式查询有效映射
      *
      * @param tenantId        租户ID

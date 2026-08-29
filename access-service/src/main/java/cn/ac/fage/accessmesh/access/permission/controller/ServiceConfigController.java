@@ -92,7 +92,9 @@ public class ServiceConfigController {
     /**
      * 删除服务配置
      * <p>
-     * 批量删除服务配置，会同时处理服务的API映射关系。
+     * 批量删除服务配置，同事务级联软删该服务全部接口映射（含手工映射）与
+     * 该服务 SERVICE_SYNC 自动维护的孤立 API 资源，并广播 Gateway 快照失效
+     * （T-PERM-027 级联清理）。
      * </p>
      *
      * @param req ID集合请求，包含待删除的服务配置ID列表

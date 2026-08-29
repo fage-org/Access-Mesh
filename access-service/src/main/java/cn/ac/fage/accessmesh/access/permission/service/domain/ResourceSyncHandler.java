@@ -42,4 +42,20 @@ public interface ResourceSyncHandler {
      * @return 删除的资源数量
      */
     int cleanupOrphanedResources(Long tenantId, String serviceCode, Integer apiType, Set<Long> activeResourceIds);
+
+    /**
+     * 清理服务归属的同步维护资源（服务删除级联）
+     * <p>
+     * T-PERM-027：软删 owner_service_code ∈ serviceCodes 且 maintainSource=SERVICE_SYNC
+     * 的 API 资源中已无任何剩余有效映射的孤立资源（调用前已删除被删服务自身的全部映射，
+     * 剩余映射只可能来自其他服务的跨服务手工映射——此类资源保留，避免悬挂他服务映射）。
+     * 与 {@link #cleanupOrphanedResources} 的 FULL diff 清理边界一致，仅作用范围为服务集合。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param serviceCodes 被删除服务的编码集合
+     * @param apiType      API资源类型值
+     * @return 删除的资源数量
+     */
+    int cleanupServiceOwnedResources(Long tenantId, Set<String> serviceCodes, Integer apiType);
 }

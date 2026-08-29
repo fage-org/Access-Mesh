@@ -20,6 +20,10 @@ import java.time.LocalDateTime;
  * @param extra            扩展属性JSON
  * @param createdAt        创建时间
  * @param updatedAt        更新时间
+ * @param resourceCode     资源业务编码（T-PERM-027：关联 resource_entity 的展示字段，资源已软删时为 null）
+ * @param resourceName     资源名称（同上）
+ * @param resourceTypeCode 资源类型编码（同上）
+ * @param maintainSource   资源维护来源 MANUAL/SERVICE_SYNC（同上）
  */
 public record ApiMappingResp(
     Long id,
@@ -32,5 +36,9 @@ public record ApiMappingResp(
     Boolean enabled,
     String extra,
     LocalDateTime createdAt,
-    LocalDateTime updatedAt
+    LocalDateTime updatedAt,
+    String resourceCode,
+    String resourceName,
+    String resourceTypeCode,
+    String maintainSource
 ) {}

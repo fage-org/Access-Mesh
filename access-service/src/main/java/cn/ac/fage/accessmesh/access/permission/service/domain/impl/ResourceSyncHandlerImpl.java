@@ -179,6 +179,60 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
     }
 
     /**
+     * 清理服务归属的同步维护资源（服务删除级联，T-PERM-027）
+     * <p>
+     * 删除 owner_service_code ∈ serviceCodes 且 maintainSource=SERVICE_SYNC 的
+     * API 资源中已无剩余有效映射的孤立资源。调用前已删除被删服务自身的全部映射，
+     * 剩余映射只可能来自其他服务的跨服务手工映射——此类资源保留。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param serviceCodes 被删除服务的编码集合
+     * @param apiType      API资源类型
+     * @return 删除数量
+     */
+    @Override
+    public int cleanupServiceOwnedResources(Long tenantId, Set<String> serviceCodes, Integer apiType) {
+        if (serviceCodes == null || serviceCodes.isEmpty()) {
+            return 0;
+        }
+
+        List<ResourceEntity> apiResources = resourceEntityMapper.selectApiResourcesByType(tenantId, apiType);
+
+        List<ResourceEntity> ownedResources = apiResources.stream()
+            .filter(resource -> PermConstants.MaintainSource.SERVICE_SYNC.equals(resource.getMaintainSource())
+                && resource.getOwnerServiceCode() != null
+                && serviceCodes.contains(resource.getOwnerServiceCode()))
+            .toList();
+
+        if (ownedResources.isEmpty()) {
+            return 0;
+        }
+
+        // 批量加载映射以避免N+1问题；有剩余映射（跨服务手工映射）的资源保留
+        Set<Long> ownedResourceIds = ownedResources.stream()
+            .map(ResourceEntity::getId)
+            .filter(id -> id != null)
+            .collect(Collectors.toSet());
+
+        Set<Long> referencedResourceIds = resourceApiMappingMapper.selectByResourceEntityIds(tenantId, ownedResourceIds)
+            .stream()
+            .map(ResourceApiMapping::getResourceEntityId)
+            .collect(Collectors.toSet());
+
+        List<Long> idsToDelete = ownedResources.stream()
+            .map(ResourceEntity::getId)
+            .filter(id -> id != null && !referencedResourceIds.contains(id))
+            .collect(Collectors.toList());
+        if (idsToDelete.isEmpty()) {
+            return 0;
+        }
+
+        resourceEntityMapper.softDeleteBatch(tenantId, idsToDelete, LocalDateTime.now());
+        return idsToDelete.size();
+    }
+
+    /**
      * 合并基础路径和路径形成完整路径
      *
      * @param basePath 基础路径

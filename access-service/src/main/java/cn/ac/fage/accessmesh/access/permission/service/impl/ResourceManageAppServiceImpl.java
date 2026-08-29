@@ -553,7 +553,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         apiMappingMapper.insert(mapping);
         // API mapping 变更不影响 ROLE_PERM_SNAPSHOT（perm 记录未变），仅影响 Gateway 本地快照 → 广播 serviceCodes
         PermissionChangeContext.markServiceCodes(tenantId, req.serviceCode());
-        return toApiMappingResp(mapping);
+        return toApiMappingResp(mapping, entity);
     }
 
     @Override
@@ -616,8 +616,38 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     public List<ApiMappingResp> listApiMappings(Long tenantId, Long resourceId, String serviceCode) {
-        return apiMappingMapper.selectValidList(tenantId, resourceId, serviceCode)
-            .stream().map(this::toApiMappingResp).collect(Collectors.toList());
+        Long operatorId = OperatorContext.getOperatorId();
+
+        // T-PERM-027（§7.5）：映射列表补 SERVICE:VIEW 门禁——指定 serviceCode 按实例校验，
+        // 未指定（管理全量列表）按类型级校验并对结果做服务维裁剪，避免暴露跨服务 API 路径
+        boolean filteredByService = serviceCode != null && !serviceCode.isBlank();
+        if (filteredByService) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on SERVICE:" + serviceCode);
+            }
+        } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on SERVICE");
+        }
+
+        List<ResourceApiMapping> mappings = new ArrayList<>(apiMappingMapper.selectValidList(tenantId, resourceId, serviceCode));
+
+        if (!filteredByService && !mappings.isEmpty()) {
+            Set<String> mappingServiceCodes = mappings.stream()
+                .map(ResourceApiMapping::getServiceCode)
+                .filter(code -> code != null && !code.isBlank())
+                .collect(Collectors.toSet());
+            if (!mappingServiceCodes.isEmpty()) {
+                Set<String> denied = engine.getDeniedResourceCodes(
+                    tenantId, operatorId, ResourceTypeCode.SERVICE, mappingServiceCodes, OperationCodeConstants.VIEW);
+                if (!denied.isEmpty()) {
+                    mappings = mappings.stream()
+                        .filter(mapping -> !denied.contains(mapping.getServiceCode()))
+                        .collect(Collectors.toList());
+                }
+            }
+        }
+
+        return toEnrichedApiMappingResps(tenantId, mappings);
     }
 
     @Override
@@ -658,7 +688,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         PermissionChangeContext.markServiceCodes(tenantId, mapping.getServiceCode());
 
         ResourceApiMapping updated = apiMappingMapper.selectValidById(req.mappingId(), tenantId);
-        return toApiMappingResp(updated);
+        ResourceEntity updatedResource = resourceEntityDomainService.selectValidById(tenantId, updated.getResourceEntityId());
+        return toApiMappingResp(updated, updatedResource);
     }
 
     private Long resolveParentId(Long tenantId, ResourceCreateReq req) {
@@ -717,12 +748,44 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     }
 
     private ApiMappingResp toApiMappingResp(ResourceApiMapping mapping) {
+        return toApiMappingResp(mapping, null);
+    }
+
+    /**
+     * 映射实体转响应，冗余关联资源的业务展示字段（T-PERM-027 §7.3）
+     *
+     * @param mapping  映射实体
+     * @param resource 关联资源实体，可为 null（资源已软删时字段置 null）
+     */
+    private ApiMappingResp toApiMappingResp(ResourceApiMapping mapping, ResourceEntity resource) {
         return new ApiMappingResp(
             mapping.getId(), mapping.getTenantId(),
             mapping.getResourceEntityId(), mapping.getServiceCode(),
             mapping.getHttpMethod(), mapping.getPathPattern(),
             mapping.getMatchOrder(), mapping.getEnabled(),
-            mapping.getExtra(), mapping.getCreatedAt(), mapping.getUpdatedAt()
+            mapping.getExtra(), mapping.getCreatedAt(), mapping.getUpdatedAt(),
+            resource != null ? resource.getCode() : null,
+            resource != null ? resource.getName() : null,
+            resource != null && resource.getResourceType() != null
+                ? typeResolutionService.resolveTypeCode(mapping.getTenantId(), "resource_type", resource.getResourceType())
+                : null,
+            resource != null ? resource.getMaintainSource() : null
         );
+    }
+
+    /**
+     * 批量转换并补全资源业务字段（一次批量查询避免 N+1）
+     */
+    private List<ApiMappingResp> toEnrichedApiMappingResps(Long tenantId, List<ResourceApiMapping> mappings) {
+        Set<Long> resourceIds = mappings.stream()
+            .map(ResourceApiMapping::getResourceEntityId)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Long, ResourceEntity> resourceMap = resourceIds.isEmpty() ? Map.of()
+            : resourceEntityMapper.selectValidByIds(tenantId, resourceIds).stream()
+                .collect(Collectors.toMap(ResourceEntity::getId, r -> r));
+        return mappings.stream()
+            .map(mapping -> toApiMappingResp(mapping, resourceMap.get(mapping.getResourceEntityId())))
+            .collect(Collectors.toList());
     }
 }

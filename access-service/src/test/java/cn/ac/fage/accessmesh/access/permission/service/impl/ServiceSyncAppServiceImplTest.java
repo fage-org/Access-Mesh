@@ -78,4 +78,25 @@ class ServiceSyncAppServiceImplTest {
             assertEquals(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), exception.getErrorCode());
         }
     }
+
+    /**
+     * T-PERM-027（§7.4 设计定案）：权威契约 §6.3 首期仅允许 syncMode=FULL。
+     * 校验层 @Pattern 拒绝其他值（INCREMENTAL 已随策略删除，防止入口重新放开）。
+     */
+    @Test
+    void shouldRejectNonFullSyncModeAtValidationLayer() {
+        jakarta.validation.Validator validator = jakarta.validation.Validation
+            .buildDefaultValidatorFactory().getValidator();
+
+        ServiceConfigSyncReq fullReq = new ServiceConfigSyncReq("my-svc", null, "FULL",
+            List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of())));
+        assertTrue(validator.validate(fullReq).isEmpty(), "FULL 必须通过校验");
+
+        for (String illegal : new String[] {"INCREMENTAL", "PARTIAL", "full", ""}) {
+            ServiceConfigSyncReq req = new ServiceConfigSyncReq("my-svc", null, illegal,
+                List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of())));
+            assertFalse(validator.validate(req).isEmpty(),
+                "syncMode=" + illegal + " 必须被校验层拒绝");
+        }
+    }
 }
