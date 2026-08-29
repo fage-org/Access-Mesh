@@ -3,7 +3,7 @@ doc_type: design
 title: 资源与操作定义 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-28   # 2026-08-28 §8 增补第 6 项：resource_type 联动预置操作位自 T-PERM-023 改归属登记
+last_reviewed: 2026-08-29   # 2026-08-29 §5/§8 全量收口（T-PERM-028 落地：业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁补齐/resource_type 联动预置）；2026-08-28 §8 增补第 6 项：resource_type 联动预置操作位自 T-PERM-023 改归属登记
 ---
 
 # 资源与操作定义 前端设计
@@ -94,18 +94,18 @@ last_reviewed: 2026-08-28   # 2026-08-28 §8 增补第 6 项：resource_type 联
 | 接口 | 用途 | 核对 |
 |---|---|---|
 | `POST /api/perm/resource-entity/tree` | 资源树（按 resourceTypeCode 过滤） | ✅ |
-| `POST /api/perm/resource-entity/detail` | 资源详情（编辑态拉 extra） | 🔧 用内部 id |
+| `POST /api/perm/resource-entity/detail` | 资源详情（编辑态拉 extra） | ✅ 业务键（T-PERM-028） |
 | `POST /api/perm/resource-entity/create` | 创建资源 | ✅ |
-| `POST /api/perm/resource-entity/update` | 更新资源 | 🔧 用内部 id |
-| `POST /api/perm/resource-entity/move` | 移动资源 | 🔧 resourceId/parentId 均内部 id |
-| `POST /api/perm/resource-entity/remove` | 删除资源（批量） | 🔧 用内部 id |
-| `POST /api/perm/resource-entity/list` | 资源列表（分页） | ✅（本页不消费） |
+| `POST /api/perm/resource-entity/update` | 更新资源 | ✅ 业务键 + extraClear（T-PERM-028） |
+| `POST /api/perm/resource-entity/move` | 移动资源 | ✅ 业务键对 {resource, parent\|null}（T-PERM-028） |
+| `POST /api/perm/resource-entity/remove` | 删除资源（批量） | ✅ {items:[业务键]}（T-PERM-028） |
+| `POST /api/perm/resource-entity/list` | 资源列表（分页） | ✅（本页不消费；已补 RESOURCE:VIEW 门禁） |
 | `POST /api/perm/resource-entity/batch-create` | 批量创建 | ✅（本页不消费） |
 | `POST /api/perm/operation-permission/list` | 操作权限列表 | ✅（无分页，前端本地处理） |
-| `POST /api/perm/operation-permission/detail` | 操作详情 | 🔧 用内部 id |
-| `POST /api/perm/operation-permission/create` | 创建操作 | ✅ |
-| `POST /api/perm/operation-permission/update` | 更新操作 | 🔧 operationId 内部 id；code/type 不可改 |
-| `POST /api/perm/operation-permission/remove` | 删除操作（批量） | 🔧 用内部 id |
+| `POST /api/perm/operation-permission/detail` | 操作详情 | ✅ 业务键（resourceTypeCode 可空=全局操作，T-PERM-028） |
+| `POST /api/perm/operation-permission/create` | 创建操作 | ✅ 位字段十进制字符串（T-PERM-028） |
+| `POST /api/perm/operation-permission/update` | 更新操作 | ✅ 业务键；code/type 不可改（T-PERM-028） |
+| `POST /api/perm/operation-permission/remove` | 删除操作（批量） | ✅ {items:[业务键]}（T-PERM-028） |
 
 ## 6. 组件结构
 
@@ -149,13 +149,12 @@ views/system/resource-operation/
 
 ### 🔧 需改造（Phase 2 后端）
 
-1. **资源实体业务键切换**：`detail/update/move/remove` 均用内部主键 id，应切业务键 `(resourceTypeCode, code, codeType)`（schema `uk_resource_entity` 已保证唯一）。
-2. **操作权限业务键切换**：`detail/update/remove` 用内部 id，应切业务键 `(resourceTypeCode, code)`（`uk_operation_permission_typed` 已保证唯一）；`update` 的 `operationId` 同。
-3. **VIEW 门禁种子缺失**：后端 `list/tree`（resource-entity）与 `list`（operation-permission）未见 `RESOURCE:VIEW` / `OPERATION:VIEW` 校验，schema 无 INSERT 为该资源类型预置 VIEW 操作位，联调真后端时可能全账号 403。前端按 VIEW 门控路由可达性，login 矩阵为所有账号预置 VIEW。
-   > 2026-08-28 核实（T-PERM-024 同源项澄清）：「种子缺失」半句不成立——权威 DDL CRUD 预置组（CROSS JOIN 全部 resource_type × CREATE/VIEW/UPDATE/DELETE）已覆盖 RESOURCE(7)/OPERATION(12) 的 VIEW；「list/tree/list 未见 VIEW 校验」半句待本任务执行时核实。
+1. ~~**资源实体业务键切换**~~ **已收口（T-PERM-028）**：`detail/update/move/remove` 已切业务键 `(resourceTypeCode, code, codeType)`（codeType 缺省归一 default）；update 的 code 可更新字段已删（业务键不可变），extraClear 显式清空 extra，move 补跨类型/防环 20053（原内部 id 实现缺两项校验）。
+2. ~~**操作权限业务键切换**~~ **已收口（T-PERM-028）**：`detail/update/remove` 已切业务键 `(resourceTypeCode, code)`（resourceTypeCode 可空=全局操作，走 `selectGlobalByCode` 轨）。
+3. ~~**VIEW 门禁种子缺失**~~ **已收口（T-PERM-028）**：核实结论——tree 与 operation list 门禁 T-PERM-042 已补；真正缺的 `resource-entity/list`、`resource-entity/detail`、`operation-permission/detail` 三处已补类型级 VIEW（2026-08-29 用户决策全补）；种子由 DDL CRUD 预置组覆盖（2026-08-28 核实，半句不成立）。
 4. **resource-entity list 分页**：后端 `ResourceListReq` 有分页参数，本页以树为主不消费，保留契约对齐。
-5. **bigint 字段 63 位精度**：`operation-permission.binaryBit/inheritMask` 为 63 位 bigint 列，Jackson 默认序列化为 number，前端 `JSON.parse` 在 >2⁵³ 丢精度。T-FE-008 已用 BigInt 运算解决 32 位截断（2⁵³ 内精确，覆盖全部实际业务）；63 位彻底方案需后端 DTO 加 `@JsonSerialize(ToStringSerializer.class)` 或改 `String` 类型，前端切 BigInt 全链路 + `el-input` 文本输入（丢增减按钮体验）。作为全项目 bigint 序列化策略首例，登记 T-PERM-028。
-6. **resource_type 创建联动预置 operation_permission**：schema 注释承诺创建 resource_type 类型定义时按模板联动预置 CRUD 操作位（如 MENU/BUTTON 默认操作集），代码无实现。自 T-PERM-023 §8 第 4 条改归属（2026-08-28）——预置模板与 binaryBit 位分配依赖本任务 operation-permission 写链路同批定夺。
+5. ~~**bigint 字段 63 位精度**~~ **已收口（T-PERM-028）**：响应 DTO 加 `@JsonSerialize(ToStringSerializer.class)`（全项目 bigint 序列化策略首例），请求侧 Long 组件由 Jackson 宽容接受十进制字符串；前端线格式全切 string，显示/运算/排序全 BigInt 无损。表单内部保留 el-input-number 数值控件、提交转字符串（2026-08-29 用户决策：2⁵³ 内输入精确，保留增减按钮体验；>2⁵³ 位值经 API 写入后显示/运算仍无损）。
+6. ~~**resource_type 创建联动预置 operation_permission**~~ **已收口（T-PERM-028，2026-08-29 用户决策实现）**：`type-definition/create` 在 typeKey=resource_type 时同事务预置 CRUD 四操作位 CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)（DDL 预置组模板同款，新类型位段空闲无 uk 冲突；跨域写入先例 ServiceConfig 级联）。
 
 ### ✅ 满足
 

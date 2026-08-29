@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-29   # 2026-08-29 §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-29   # 2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -245,6 +245,38 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.4 service-config/resource-api-mappi
 | `POST /api/perm/resource-entity/sync`         | 资源实体专用幂等同步 |
 | `POST /api/perm/resource-entity/full-sync`    | 按 scope 全量校准资源 |
 
+**业务键定位（T-PERM-028 定稿）**：`resource-entity` 的 `detail/update/move/remove` 与 `operation-permission` 的 `detail/update/remove` 以业务键定位，不再接受内部 id（schema `uk_resource_entity` / `uk_operation_permission_typed` / `uk_operation_permission_global` 保证唯一；混合形态——detail/update 键字段平铺、move 嵌套、remove items 数组）：
+
+```json
+// resource-entity/detail（ResourceKeyReq 平铺）
+{ "resourceTypeCode": "MENU", "code": "sys-mgmt", "codeType": "default" }
+// resource-entity/update（ResourceUpdateReq：键平铺 + 可编辑字段；code 为业务键不可更新）
+{ "resourceTypeCode": "MENU", "code": "sys-mgmt", "codeType": "default",
+  "name": "系统管理", "path": null, "status": 1, "sortOrder": 10,
+  "extra": "{\"k\":1}", "extraClear": false }
+// resource-entity/move（ResourceMoveReq 嵌套；parent null=移动到顶层）
+{ "resource": { "resourceTypeCode": "MENU", "code": "sys-mgmt", "codeType": "default" },
+  "parent": null }
+// resource-entity/remove（ResourceKeysReq）
+{ "items": [ { "resourceTypeCode": "MENU", "code": "sys-mgmt", "codeType": "default" } ] }
+// operation-permission/detail|update（OperationKeyReq / OperationUpdateReq：resourceTypeCode 可空=全局操作）
+{ "resourceTypeCode": "USER", "code": "VIEW" }
+// operation-permission/remove（OperationKeysReq）
+{ "items": [ { "resourceTypeCode": "USER", "code": "VIEW" }, { "code": "MANAGE" } ] }
+```
+
+| 规则 | 口径 |
+|---|---|
+| codeType | 可选，null/缺省归一为 `default`（DDL 默认值） |
+| 业务键查不到 | detail 抛 20004/20005；update/move 同（原 `data:null` 宽松形态已删除） |
+| extraClear | boolean 可选；true=清空 extra 为 null，优先于 extra（JSON null 无法区分「未传」与「清空」） |
+| move 校验 | 跨资源类型 / 目标父为自身或子孙 → 20053 RESOURCE_PARENT_INVALID（一类码两因，message 区分） |
+| remove 未命中键 | 静默跳过（对齐原 ids 批删语义），级联软删子孙 |
+
+**读门禁（T-PERM-028 补齐，类型级）**：`resource-entity/list`、`resource-entity/detail` 补 `RESOURCE:VIEW`，`operation-permission/detail` 补 `OPERATION:VIEW`（与既有 tree/list 门禁同口径；bootstrap §14.4 最小集已持有，不阻断首管理员）。
+
+**resource_type 创建联动预置（T-PERM-028 实现定案）**：`type-definition/create` 在 `typeKey=resource_type` 时同事务预置 CRUD 四操作位 `CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)`（DDL CROSS JOIN 预置组模板同款；新类型位段空闲无 uk 冲突）；非 resource_type 类型不预置。
+
 **请求（类型查询参数，🔧 T-PERM-040）**：
 
 ```json
@@ -270,7 +302,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.4 service-config/resource-api-mappi
 - **操作继承语义随合并固化**：调用方使用合并结果中每条定义的 `binaryBit`/`inheritMask` 做覆盖计算，禁止跨类型混用其他类型同码位定义。
 - 如调用方自行合并（`includeGlobalFallback=false` 或未传），后端返回原始定义集合（含当前类型专属 + 全局操作），调用方按上述同一规则合并；响应每项均含明确 `resourceTypeCode` 与十进制字符串 `binaryBit/inheritMask`。
 
-`operation-permission/list` 响应 `data.items[]`，每项为 `OperationPermissionResp`（**字段精确对齐 DTO**，P1-4 修正；🔧 binaryBit/inheritMask 线格式修订归 **T-PERM-028**，T-FE-036 前置验收点）：
+`operation-permission/list` 响应 `data.items[]`，每项为 `OperationPermissionResp`（**字段精确对齐 DTO**，P1-4 修正；binaryBit/inheritMask 线格式已落地 **T-PERM-028**，T-FE-036 前置验收点）：
 
 | 字段 | 类型 | 口径 |
 |---|---|---|
@@ -280,12 +312,12 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.4 service-config/resource-api-mappi
 | resourceTypeName | string\|null | 资源类型名称 |
 | code | string | 操作编码（**注意：字段名是 `code` 而非 `operationCode`**，T-FE-036 mock/前端类型按 `code` 建模） |
 | name | string | 操作名称（**不是 `operationName`**） |
-| binaryBit | string | 操作位，**十进制字符串**（如 `"8"`）；63 位 bigint 列，Jackson 序列化为 string 防 >2^53 丢精度（当前后端为 Long/number 待改）；前端 BigInt 解析 |
+| binaryBit | string | 操作位，**十进制字符串**（如 `"8"`）；63 位 bigint 列，Jackson 序列化为 string 防 >2^53 丢精度（T-PERM-028 已落地：DTO `@JsonSerialize(ToStringSerializer)`，全项目 bigint 序列化策略首例）；前端 BigInt 解析 |
 | inheritMask | string | 继承掩码，**十进制字符串**（同 binaryBit 线格式）；covers 判定 `(effectiveBits & target.binaryBit) != 0` |
 | createdAt | string | 创建时间 |
 | updatedAt | string | 更新时间 |
 
-前端来源链计算（permission-grant.md §3.5）依赖 binaryBit/inheritMask 做 BigInt 位运算。**⚠️ 联调门禁**：T-PERM-028 落地前若仍为 number 序列化，>2^53 的位值在 JSON 解析即丢精度、BigInt 无法补救——binaryBit/inheritMask 十进制字符串线格式列为 **T-FE-018 联调门禁项**（未落地不得切真实接口）。
+前端来源链计算（permission-grant.md §3.5）依赖 binaryBit/inheritMask 做 BigInt 位运算。~~联调门禁~~ **T-PERM-028 已落地**：binaryBit/inheritMask 十进制字符串线格式（含 2^62 位值）已由 `OperationPermissionWireFormatTest` + `ResourceOperationKeyPgIT` 锁定，T-FE-018 可切真实接口；请求侧 Long 组件由 Jackson 宽容接受十进制字符串。
 
 ### 5.4 服务与接口映射
 
@@ -309,7 +341,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.4 service-config/resource-api-mappi
 - `remove` 级联清理（设计定案）：同事务软删该服务**全部** API 映射（含 MANUAL 维护来源——服务已删则其路由不再存在，映射即死路径）+ 该服务 SERVICE_SYNC 自动维护的孤立 API 资源（FULL diff 同清理边界，§6.3；被其他服务跨服务手工映射引用的资源保留），事务提交后广播 Gateway 本地快照失效（受影响 serviceCodes）；整批失败整批不变更。
 - `sync` 仅接受 `syncMode=FULL`（§6.3）：DTO 校验层 `@Pattern("FULL")` 拒绝其他值（`MethodArgumentNotValidException` → HTTP 400，body `code=90001` 参数校验失败），增量策略已删除（全仓零生产调用）。门禁 SERVICE:SYNC_INTERFACE 实例级（serviceCode）。
 - `apis` 与 `resource-api-mapping/list` 返回的 `ApiMappingResp` 含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode/maintainSource`（批量补全；资源已软删时为 null，前端回退展示内部 `resourceEntityId`）——`apis` 实现委托 `list`（同层复用，门禁与补全单点）。`list` 门禁（补齐）：请求带 `serviceCode` 按该服务实例 VIEW 校验；不带（管理全量列表）类型级 VIEW + 结果按服务维裁剪（拒绝服务的映射不出现在结果中）。
-- `resource-api-mapping/create`/`update` 仍以内部 `resourceId` 绑定资源（§6.10.4 单条响应）；资源树/业务键稳定定位（`resourceTypeCode + resourceCode + codeType`）与前端资源选择器属 **T-PERM-028** 联动范围（登记，未实现）。
+- `resource-api-mapping/create`/`update` 仍以内部 `resourceId` 绑定资源（§6.10.4 单条响应，§5.4 定案不随业务键切换）；前端资源选择器已随 **T-PERM-028** 落地（类型下拉 + 资源树选择，选中取节点内部 id 提交，数据源 `resource-entity/tree`），裸数字输入形态已删除。
 - 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（死锁防护=持有解锁首管理员页面读写，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例；三条均类型级 scopeAll 且**不可转授**——业务门禁统一口径，转授链仅 API:ACCESS，首管理员不能把 SERVICE 权限授予其他角色）。
 
 ### 5.5 授权关系

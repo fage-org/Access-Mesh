@@ -13,6 +13,10 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingUpdateReq;
 
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq;
 
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq;
+
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq;
+
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
@@ -307,90 +311,141 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     }
 
     @Override
-    public ResourceResp getResource(Long tenantId, Long resourceId) {
-        ResourceEntity entity = resourceEntityMapper.selectValidById(resourceId, tenantId);
-        return entity != null ? toResourceResp(entity) : null;
+    public ResourceResp getResource(Long tenantId, ResourceKeyReq key) {
+        // T-PERM-028：详情读门禁（类型级 RESOURCE:VIEW，对齐 tree 门禁先例）
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on RESOURCE");
+        }
+        return toResourceResp(selectResourceByBusinessKey(tenantId, key));
+    }
+
+    /**
+     * 以业务键 (resourceTypeCode, code, codeType) 定位有效资源实体
+     *
+     * @param tenantId 租户ID
+     * @param key      资源业务键
+     * @return 资源实体
+     * @throws BizException 资源类型不存在（20021）或资源不存在（20004）时抛出
+     */
+    private ResourceEntity selectResourceByBusinessKey(Long tenantId, ResourceKeyReq key) {
+        Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", key.resourceTypeCode());
+        if (resourceType == null) {
+            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + key.resourceTypeCode());
+        }
+        ResourceEntity entity = resourceEntityMapper.selectByTypeCodeAndCodeType(tenantId, resourceType, key.code(), key.normalizedCodeType());
+        if (entity == null) {
+            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(),
+                "Resource not found: " + key.resourceTypeCode() + ":" + key.code() + "/" + key.normalizedCodeType());
+        }
+        return entity;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_UPDATE", targetType = "resource_entity", targetId = "#req.id()", summary = "'update resource ' + #req.id()")
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_UPDATE", targetType = "resource_entity", targetId = "#req.code()", summary = "'update resource ' + #req.resourceTypeCode() + ':' + #req.code()")
     public ResourceResp updateResource(Long tenantId, ResourceUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, req.id());
-        if (entity == null) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在: " + req.id());
-        }
+        ResourceEntity entity = selectResourceByBusinessKey(tenantId,
+            new ResourceKeyReq(req.resourceTypeCode(), req.code(), req.codeType()));
         localProjectionGuard.rejectIfLocalResource(entity);
 
         // T-PERM-042：资源实体管理链路按 resource_entity.id 门禁（entityId 轨，§12.3 边界）
-        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, req.id(), OperationCodeConstants.MANAGE)) {
-            throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + req.id());
+        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, entity.getId(), OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + entity.getId());
         }
 
-        if (req.code() != null) entity.setCode(req.code());
         if (req.name() != null) entity.setName(req.name());
         if (req.path() != null) entity.setPath(req.path());
         if (req.status() != null) entity.setStatus(req.status());
         if (req.sortOrder() != null) entity.setSortOrder(req.sortOrder());
-        if (req.extra() != null) entity.setExtra(req.extra());
         entity.setUpdatedAt(LocalDateTime.now());
         entity.setUpdatedBy(operatorId);
-        resourceEntityMapper.update(entity);
+        // T-PERM-028：extraClear 显式清空（JSON null 无法区分「未传」与「清空」），优先于 extra。
+        // extra 置 null 须强制写列：BaseMapper.update(entity) 默认忽略 null 字段，
+        // UpdateEntity 代理记录 set 调用（含 null 入参）为显式更新列（mybatis-flex 标准方式）
+        if (Boolean.TRUE.equals(req.extraClear())) {
+            entity.setExtra(null);
+            ResourceEntity patch = com.mybatisflex.core.util.UpdateEntity.of(ResourceEntity.class);
+            patch.setId(entity.getId());
+            patch.setName(entity.getName());
+            patch.setPath(entity.getPath());
+            patch.setStatus(entity.getStatus());
+            patch.setSortOrder(entity.getSortOrder());
+            patch.setExtra(null);
+            patch.setUpdatedAt(entity.getUpdatedAt());
+            patch.setUpdatedBy(entity.getUpdatedBy());
+            resourceEntityMapper.update(patch);
+        } else {
+            if (req.extra() != null) entity.setExtra(req.extra());
+            resourceEntityMapper.update(entity);
+        }
         return toResourceResp(entity);
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_MOVE", targetType = "resource_entity", targetId = "#resourceId", summary = "'move resource ' + #resourceId + ' to ' + #parentId")
-    public void moveResource(Long tenantId, Long resourceId, Long parentId, Long operatorId) {
+    @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_MOVE", targetType = "resource_entity", targetId = "#req.resource.code()", summary = "'move resource ' + #req.resource.resourceTypeCode() + ':' + #req.resource.code()")
+    public void moveResource(Long tenantId, ResourceMoveReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, resourceId);
-        if (entity == null) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在: " + resourceId);
-        }
+        ResourceEntity entity = selectResourceByBusinessKey(tenantId, req.resource());
         localProjectionGuard.rejectIfLocalResource(entity);
 
         // T-PERM-042：资源实体管理链路按 resource_entity.id 门禁（entityId 轨，§12.3 边界）
-        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, resourceId, OperationCodeConstants.MANAGE)) {
-            throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + resourceId);
+        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, entity.getId(), OperationCodeConstants.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + entity.getId());
         }
 
-        if (parentId != null) {
-            ResourceEntity parent = resourceEntityDomainService.selectValidById(tenantId, parentId);
-            if (parent == null) {
-                throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "父资源不存在: " + parentId);
+        Long newParentId = null;
+        if (req.parent() != null) {
+            ResourceEntity parent = selectResourceByBusinessKey(tenantId, req.parent());
+            // T-PERM-028：跨类型拦截 + 防环（目标父不得是自身或其子孙；原内部 id 实现缺失两项校验，
+            // 对齐前端设计 §4 与 mock 语义，环会使树构建不收敛——先例 ROLE_PARENT_INVALID）
+            if (!parent.getResourceType().equals(entity.getResourceType())) {
+                throw new BizException(PermissionErrorCode.RESOURCE_PARENT_INVALID.getCode(),
+                    "不可跨资源类型移动: " + req.parent().resourceTypeCode() + " -> " + req.resource().resourceTypeCode());
             }
+            if (parent.getId().equals(entity.getId())
+                || resourceEntityDomainService.batchGetDescendantIds(tenantId, Set.of(entity.getId()))
+                    .getOrDefault(entity.getId(), List.of()).contains(parent.getId())) {
+                throw new BizException(PermissionErrorCode.RESOURCE_PARENT_INVALID.getCode(),
+                    "目标父资源不能是自身或其子孙节点: " + req.parent().code());
+            }
+            newParentId = parent.getId();
         }
-        entity.setParentId(parentId);
+        entity.setParentId(newParentId);
         entity.setUpdatedBy(operatorId);
         entity.setUpdatedAt(LocalDateTime.now());
-        resourceEntityMapper.update(entity);
+        // parentId 置 null（移到顶层）须强制写列：UpdateEntity 显式更新列（同 extraClear）
+        if (newParentId == null) {
+            ResourceEntity patch = com.mybatisflex.core.util.UpdateEntity.of(ResourceEntity.class);
+            patch.setId(entity.getId());
+            patch.setParentId(null);
+            patch.setUpdatedAt(entity.getUpdatedAt());
+            patch.setUpdatedBy(entity.getUpdatedBy());
+            resourceEntityMapper.update(patch);
+        } else {
+            resourceEntityMapper.update(entity);
+        }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
     @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_REMOVE", targetType = "resource_entity", targetId = "", summary = "'batch remove resources'")
-    public void deleteResources(Long tenantId, List<Long> resourceIds, Long operatorId) {
+    public void deleteResources(Long tenantId, List<ResourceKeyReq> keys, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (resourceIds == null || resourceIds.isEmpty()) {
+        if (keys == null || keys.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
         }
 
-        Set<Long> validResourceIds = resourceIds.stream()
-            .filter(id -> id != null)
-            .collect(Collectors.toSet());
-        if (validResourceIds.isEmpty()) {
-            OperationLogRuntimeContext.markSkip();
-            return;
-        }
-
-        List<ResourceEntity> entities = resourceEntityDomainService.selectValidByIds(tenantId, validResourceIds);
+        // T-PERM-028：业务键批量解析为实体（按 resourceTypeCode 分组批量查询，避免N+1；
+        // 未命中的键静默跳过，对齐原 ids 批删语义）
+        List<ResourceEntity> entities = resolveResourcesByKeys(tenantId, keys);
         if (entities.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
@@ -451,6 +506,47 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         );
     }
 
+    /**
+     * 批量解析业务键为有效资源实体（按 resourceTypeCode 分组批量查询，避免N+1）
+     * <p>
+     * 复用既有 selectByTypeAndCodesAndCodeTypes（笛卡尔命中后按 (code, codeType) 对过滤精确行）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param keys     资源业务键列表
+     * @return 命中的有效实体列表（未命中的键静默跳过，对齐原 ids 批删语义）
+     */
+    private List<ResourceEntity> resolveResourcesByKeys(Long tenantId, List<ResourceKeyReq> keys) {
+        // resourceTypeCode → (code → codeType 集合)
+        Map<String, Map<String, Set<String>>> grouped = new HashMap<>();
+        for (ResourceKeyReq key : keys) {
+            if (key == null || key.resourceTypeCode() == null || key.resourceTypeCode().isBlank()
+                || key.code() == null || key.code().isBlank()) {
+                continue;
+            }
+            grouped.computeIfAbsent(key.resourceTypeCode(), k -> new HashMap<>())
+                .computeIfAbsent(key.code(), k -> new HashSet<>())
+                .add(key.normalizedCodeType());
+        }
+
+        List<ResourceEntity> entities = new ArrayList<>();
+        for (Map.Entry<String, Map<String, Set<String>>> entry : grouped.entrySet()) {
+            Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", entry.getKey());
+            if (resourceType == null) {
+                continue;
+            }
+            Set<String> codes = entry.getValue().keySet();
+            Set<String> codeTypes = entry.getValue().values().stream()
+                .flatMap(Set::stream).collect(Collectors.toSet());
+            for (ResourceEntity entity : resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(tenantId, resourceType, codes, codeTypes)) {
+                if (entry.getValue().getOrDefault(entity.getCode(), Set.of()).contains(entity.getCodeType())) {
+                    entities.add(entity);
+                }
+            }
+        }
+        return entities;
+    }
+
     @Override
     public List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode, String domainCode) {
         // T-PERM-042：授权页资源树读门禁（architecture §14.5 终态，类型级 RESOURCE:VIEW）
@@ -492,6 +588,11 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     public List<ResourceResp> listResources(Long tenantId, String resourceTypeCode, String domainCode, int offset, int limit) {
+        // T-PERM-028：列表读门禁（类型级 RESOURCE:VIEW，对齐 tree 门禁先例）
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on RESOURCE");
+        }
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
@@ -508,6 +609,11 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     public long countResources(Long tenantId, String resourceTypeCode, String domainCode) {
+        // T-PERM-028：列表读门禁（类型级 RESOURCE:VIEW，与 listResources 同口径；list 端点先调本方法）
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on RESOURCE");
+        }
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);

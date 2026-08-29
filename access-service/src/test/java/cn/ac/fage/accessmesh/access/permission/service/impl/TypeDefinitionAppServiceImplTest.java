@@ -28,6 +28,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -43,6 +44,7 @@ import static org.mockito.Mockito.when;
 class TypeDefinitionAppServiceImplTest {
 
     @Mock private TypeDefinitionMapper typeDefinitionMapper;
+    @Mock private cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper operationPermissionMapper;
     @Mock private PermQueryEngine engine;
 
     private TypeDefinitionAppServiceImpl service;
@@ -50,7 +52,7 @@ class TypeDefinitionAppServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new TypeDefinitionAppServiceImpl(
-            typeDefinitionMapper, engine
+            typeDefinitionMapper, operationPermissionMapper, engine
         );
         // list/count 走 OperatorContext（读 AccessRequestContext），绑定用户上下文
         AccessRequestContext.bind(RequestContext.user(1L, 100L));
@@ -196,6 +198,41 @@ class TypeDefinitionAppServiceImplTest {
         );
 
         assertThrows(SecurityException.class, () -> service.createType(1L, req, 100L));
+    }
+
+    @Test
+    void shouldPresetCrudOperationsWhenCreatingResourceType() {
+        // T-PERM-028：resource_type 新类型联动预置 CRUD 四操作位（DDL 预置组模板同款）
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(9);
+
+        service.createType(1L, new TypeCreateReq("resource_type", null, "NewRes", null, null, null), 100L);
+
+        ArgumentCaptor<cn.ac.fage.accessmesh.access.permission.entity.OperationPermission> opCaptor =
+            ArgumentCaptor.forClass(cn.ac.fage.accessmesh.access.permission.entity.OperationPermission.class);
+        verify(operationPermissionMapper, times(4)).insert(opCaptor.capture());
+        List<cn.ac.fage.accessmesh.access.permission.entity.OperationPermission> preset = opCaptor.getAllValues();
+        // 模板对齐 DDL 预置组：CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)，resource_type=新 typeValue
+        String[][] expected = {{"CREATE", "1", "0"}, {"VIEW", "2", "0"}, {"UPDATE", "4", "2"}, {"DELETE", "8", "2"}};
+        for (int i = 0; i < 4; i++) {
+            assertEquals(expected[i][0], preset.get(i).getCode(), "第 " + i + " 条操作码");
+            assertEquals(Long.parseLong(expected[i][1]), preset.get(i).getBinaryBit());
+            assertEquals(Long.parseLong(expected[i][2]), preset.get(i).getInheritMask());
+            assertEquals(10, preset.get(i).getResourceType());
+            assertEquals(1L, preset.get(i).getTenantId());
+        }
+    }
+
+    @Test
+    void shouldNotPresetOperationsForNonResourceTypeKey() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(null);
+
+        service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null), 100L);
+
+        verify(operationPermissionMapper, never()).insert(any(cn.ac.fage.accessmesh.access.permission.entity.OperationPermission.class));
     }
 
     @Test

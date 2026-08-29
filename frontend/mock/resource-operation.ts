@@ -2,6 +2,12 @@
 // 对齐 access-service 权限域的 resource-entity / operation-permission 管理接口；
 // 树形资源 CRUD + 移动，操作权限按资源类型维度 CRUD。
 //
+// T-PERM-028 收口：
+// - detail/update/move/remove 切业务键定位（resource: resourceTypeCode+code+codeType[缺省 default]；
+//   operation: resourceTypeCode[可空=全局]+code），不再接受内部 id；
+// - binaryBit/inheritMask 线格式为十进制字符串（63 位 bigint）；
+// - update 支持 extraClear 显式清空 extra。
+//
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
@@ -44,8 +50,9 @@ export type OperationPermissionResp = {
   resourceTypeName: string | null;
   code: string;
   name: string;
-  binaryBit: number;
-  inheritMask: number;
+  /** 十进制字符串（63 位 bigint 线格式，T-PERM-028） */
+  binaryBit: string;
+  inheritMask: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -323,10 +330,10 @@ function generateReportResources(): InternalResource[] {
 
 // 操作权限种子：每个资源类型预置 CRUD 四操作（schema 注释 CREATE(1,0) VIEW(2,0) UPDATE(4,2) DELETE(8,2)）
 const CRUD_OPS = [
-  { code: "CREATE", name: "创建", binaryBit: 1, inheritMask: 0 },
-  { code: "VIEW", name: "查看", binaryBit: 2, inheritMask: 0 },
-  { code: "UPDATE", name: "更新", binaryBit: 4, inheritMask: 2 },
-  { code: "DELETE", name: "删除", binaryBit: 8, inheritMask: 2 }
+  { code: "CREATE", name: "创建", binaryBit: "1", inheritMask: "0" },
+  { code: "VIEW", name: "查看", binaryBit: "2", inheritMask: "0" },
+  { code: "UPDATE", name: "更新", binaryBit: "4", inheritMask: "2" },
+  { code: "DELETE", name: "删除", binaryBit: "8", inheritMask: "2" }
 ] as const;
 
 export const operations: OperationPermissionResp[] = [];
@@ -354,17 +361,67 @@ operations.push({
   resourceTypeName: "全局",
   code: "MANAGE",
   name: "管理",
-  binaryBit: 16,
-  inheritMask: 0,
+  binaryBit: "16",
+  inheritMask: "0",
   createdAt: BASE_TIME,
   updatedAt: BASE_TIME
 });
+
+/** T-PERM-028：为新建 resource_type 联动预置 CRUD 四操作位（type-definition/create 调用，
+ * 对齐后端 TypeDefinitionAppServiceImpl 同事务预置语义；DDL CROSS JOIN 预置组模板同款） */
+export function presetOperationsForType(typeCode: string): void {
+  for (const op of CRUD_OPS) {
+    operations.push({
+      id: nextOperationId++,
+      tenantId: 1,
+      resourceTypeCode: typeCode,
+      resourceTypeName: null,
+      code: op.code,
+      name: op.name,
+      binaryBit: op.binaryBit,
+      inheritMask: op.inheritMask,
+      createdAt: now(),
+      updatedAt: now()
+    });
+  }
+}
 
 // ========== 工具函数 ==========
 
 function cloneResource(r: InternalResource): ResourceResp {
   const { deleted: _deleted, ...resp } = r;
   return { ...resp };
+}
+
+/** 业务键定位资源（codeType 缺省归一 default，对齐后端 ResourceKeyReq.normalizedCodeType） */
+function findResourceByKey(key: {
+  resourceTypeCode?: string | null;
+  code?: string | null;
+  codeType?: string | null;
+}): InternalResource | undefined {
+  const codeType = key.codeType || "default";
+  return resources.find(
+    r =>
+      !r.deleted &&
+      r.resourceTypeCode === key.resourceTypeCode &&
+      r.code === key.code &&
+      r.codeType === codeType
+  );
+}
+
+/** 业务键定位操作（resourceTypeCode null/缺省 = 全局操作） */
+function findOperationByKey(key: {
+  resourceTypeCode?: string | null;
+  code?: string | null;
+}): OperationPermissionResp | undefined {
+  const isGlobal = key.resourceTypeCode == null || key.resourceTypeCode === "";
+  return operations.find(
+    op =>
+      op.code === key.code &&
+      (isGlobal
+        ? op.resourceTypeCode == null
+        : op.resourceTypeCode === key.resourceTypeCode)
+  );
 }
 
 function toTreeNode(r: InternalResource): ResourceTreeNode {
@@ -416,10 +473,13 @@ function collectDescendantIds(id: number): number[] {
 /** 判断 n 是否为 2 的幂次（BigInt 实现，兼容 63 位 bigint 列）。
  *  JS `&` 强转 32 位，>2^31 误判（如 4294967297 截断为 1）。
  *  mock 禁 import src，故本地实现（与 utils/types.ts 同源）。 */
-function isPowerOfTwo(n: number): boolean {
-  if (!Number.isInteger(n) || n <= 0) return false;
-  const bn = BigInt(n);
-  return (bn & (bn - 1n)) === 0n;
+function isPowerOfTwo(n: string | number): boolean {
+  try {
+    const bn = BigInt(n);
+    return bn > 0n && (bn & (bn - 1n)) === 0n;
+  } catch {
+    return false;
+  }
 }
 
 /** 校验资源业务键唯一（tenant+resourceType+code+codeType） */
@@ -453,17 +513,18 @@ function isDuplicateOperation(
   );
 }
 
-/** 校验同资源类型下 binaryBit 唯一（uk_operation_permission_typed_bit） */
+/** 校验同资源类型下 binaryBit 唯一（uk_operation_permission_typed_bit；十进制字符串 BigInt 比较） */
 function isDuplicateBit(
   typeCode: string | null,
-  bit: number,
+  bit: string,
   excludeId?: number
 ): boolean {
+  const target = BigInt(bit);
   return operations.some(
     op =>
       op.id !== excludeId &&
       op.resourceTypeCode === typeCode &&
-      op.binaryBit === bit
+      BigInt(op.binaryBit) === target
   );
 }
 
@@ -511,8 +572,8 @@ export default defineFakeRoute([
     url: "/api/perm/resource-entity/detail",
     method: "post",
     response: ({ body }) => {
-      const r = resources.find(item => item.id === body?.id && !item.deleted);
-      return r ? ok(cloneResource(r)) : error(404, "资源不存在");
+      const r = findResourceByKey(body ?? {});
+      return r ? ok(cloneResource(r)) : error(20004, "资源不存在");
     }
   },
 
@@ -572,20 +633,16 @@ export default defineFakeRoute([
     url: "/api/perm/resource-entity/update",
     method: "post",
     response: ({ body }) => {
-      const { id, code, name, path, status, sortOrder, extra } = body || {};
-      const r = resources.find(item => item.id === id && !item.deleted);
-      if (!r) return error(404, "资源不存在");
-      if (code != null && code !== r.code) {
-        return error(
-          400,
-          "资源编码为业务键，不可修改（Phase 2 切业务键后另议）"
-        );
-      }
+      const { name, path, status, sortOrder, extra, extraClear } = body || {};
+      const r = findResourceByKey(body ?? {});
+      if (!r) return error(20004, "资源不存在");
       if (name != null) r.name = name;
       if (path != null) r.path = path;
       if (status != null) r.status = status;
       if (sortOrder != null) r.sortOrder = sortOrder;
-      if (extra != null) r.extra = extra;
+      // extraClear 显式清空（优先于 extra；JSON null 无法区分「未传」与「清空」）
+      if (extraClear === true) r.extra = null;
+      else if (extra != null) r.extra = extra;
       r.updatedAt = now();
       return ok(cloneResource(r));
     }
@@ -595,24 +652,24 @@ export default defineFakeRoute([
     url: "/api/perm/resource-entity/move",
     method: "post",
     response: ({ body }) => {
-      const { resourceId, parentId } = body || {};
-      const r = resources.find(item => item.id === resourceId && !item.deleted);
-      if (!r) return error(404, "资源不存在");
+      const { resource, parent } = body || {};
+      const r = findResourceByKey(resource ?? {});
+      if (!r) return error(20004, "资源不存在");
       // 不允许移动到自身或自身子孙下（防环）
-      const descendantIds = new Set(collectDescendantIds(resourceId));
-      if (parentId != null) {
-        if (descendantIds.has(parentId)) {
-          return error(400, "不能移动到自身或其子孙节点下");
+      const descendantIds = new Set(collectDescendantIds(r.id));
+      if (parent != null) {
+        const target = findResourceByKey(parent);
+        if (!target) return error(20004, "目标父资源不存在");
+        if (descendantIds.has(target.id) || target.id === r.id) {
+          return error(20053, "目标父资源不能是自身或其子孙节点");
         }
-        const parent = resources.find(
-          item => item.id === parentId && !item.deleted
-        );
-        if (!parent) return error(404, "目标父资源不存在");
-        if (parent.resourceTypeCode !== r.resourceTypeCode) {
-          return error(400, "不可跨资源类型移动");
+        if (target.resourceTypeCode !== r.resourceTypeCode) {
+          return error(20053, "不可跨资源类型移动");
         }
+        r.parentId = target.id;
+      } else {
+        r.parentId = null;
       }
-      r.parentId = parentId ?? null;
       r.updatedAt = now();
       return ok(null);
     }
@@ -622,12 +679,20 @@ export default defineFakeRoute([
     url: "/api/perm/resource-entity/remove",
     method: "post",
     response: ({ body }) => {
-      const ids: number[] = Array.isArray(body?.ids) ? body.ids : [];
-      if (ids.length === 0) return error(400, "ids 不能为空");
+      const items: Array<{
+        resourceTypeCode: string;
+        code: string;
+        codeType?: string | null;
+      }> = Array.isArray(body?.items) ? body.items : [];
+      if (items.length === 0) return error(400, "items 不能为空");
+      // 业务键解析（未命中的键静默跳过，对齐后端语义）
+      const targets = items
+        .map(item => findResourceByKey(item))
+        .filter((r): r is InternalResource => r != null);
       // 级联软删子孙
       const toDelete = new Set<number>();
-      for (const id of ids) {
-        for (const did of collectDescendantIds(id)) toDelete.add(did);
+      for (const r of targets) {
+        for (const did of collectDescendantIds(r.id)) toDelete.add(did);
       }
       let count = 0;
       for (const r of resources) {
@@ -655,7 +720,9 @@ export default defineFakeRoute([
           const globals = operations
             .filter(op => op.resourceTypeCode === null)
             .slice()
-            .sort((a, b) => a.binaryBit - b.binaryBit);
+            .sort((a, b) =>
+              BigInt(a.binaryBit) < BigInt(b.binaryBit) ? -1 : 1
+            );
           return ok({ items: globals });
         }
         const typed = operations.filter(
@@ -667,7 +734,7 @@ export default defineFakeRoute([
           ...operations.filter(
             op => op.resourceTypeCode === null && !typedCodes.has(op.code)
           )
-        ].sort((a, b) => a.binaryBit - b.binaryBit);
+        ].sort((a, b) => (BigInt(a.binaryBit) < BigInt(b.binaryBit) ? -1 : 1));
         return ok({ items: merged });
       }
       // 兼容现状：有类型过滤返回该类型专属定义；无类型返回全量原始定义
@@ -676,7 +743,7 @@ export default defineFakeRoute([
           resourceTypeCode ? op.resourceTypeCode === resourceTypeCode : true
         )
         .slice()
-        .sort((a, b) => a.binaryBit - b.binaryBit);
+        .sort((a, b) => (BigInt(a.binaryBit) < BigInt(b.binaryBit) ? -1 : 1));
       return ok({ items });
     }
   },
@@ -685,8 +752,8 @@ export default defineFakeRoute([
     url: "/api/perm/operation-permission/detail",
     method: "post",
     response: ({ body }) => {
-      const op = operations.find(item => item.id === body?.id);
-      return op ? ok({ ...op }) : error(404, "操作权限不存在");
+      const op = findOperationByKey(body ?? {});
+      return op ? ok({ ...op }) : error(20005, "操作权限不存在");
     }
   },
 
@@ -699,16 +766,18 @@ export default defineFakeRoute([
       if (!resourceTypeCode || !code || !name || binaryBit == null) {
         return error(400, "资源类型、操作编码、名称、二进制位不能为空");
       }
-      if (!Number.isInteger(binaryBit) || binaryBit <= 0) {
+      // 位字段为十进制字符串线格式（63 位 bigint），BigInt 解析校验
+      const bit = String(binaryBit);
+      if (!/^-?\d+$/.test(bit) || BigInt(bit) <= 0n) {
         return error(400, "二进制位必须为正整数（2 的幂次）");
       }
-      if (!isPowerOfTwo(binaryBit)) {
+      if (!isPowerOfTwo(bit)) {
         return error(400, "二进制位必须为 2 的幂次（1/2/4/8/16…）");
       }
       if (isDuplicateOperation(resourceTypeCode, code)) {
         return error(409, "同资源类型下该操作编码已存在");
       }
-      if (isDuplicateBit(resourceTypeCode, binaryBit)) {
+      if (isDuplicateBit(resourceTypeCode, bit)) {
         return error(
           409,
           "同资源类型下该二进制位已被占用（uk_operation_permission_typed_bit）"
@@ -722,8 +791,8 @@ export default defineFakeRoute([
         resourceTypeName: RESOURCE_TYPE_LABEL[resourceTypeCode] ?? null,
         code,
         name,
-        binaryBit,
-        inheritMask: inheritMask ?? 0,
+        binaryBit: bit,
+        inheritMask: String(inheritMask ?? 0),
         createdAt: ts,
         updatedAt: ts
       };
@@ -736,23 +805,24 @@ export default defineFakeRoute([
     url: "/api/perm/operation-permission/update",
     method: "post",
     response: ({ body }) => {
-      const { operationId, name, binaryBit, inheritMask } = body || {};
-      const op = operations.find(item => item.id === operationId);
-      if (!op) return error(404, "操作权限不存在");
+      const { name, binaryBit, inheritMask } = body || {};
+      const op = findOperationByKey(body ?? {});
+      if (!op) return error(20005, "操作权限不存在");
       if (binaryBit != null) {
-        if (!Number.isInteger(binaryBit) || binaryBit <= 0) {
+        const bit = String(binaryBit);
+        if (!/^-?\d+$/.test(bit) || BigInt(bit) <= 0n) {
           return error(400, "二进制位必须为正整数（2 的幂次）");
         }
-        if (!isPowerOfTwo(binaryBit)) {
+        if (!isPowerOfTwo(bit)) {
           return error(400, "二进制位必须为 2 的幂次（1/2/4/8/16…）");
         }
-        if (isDuplicateBit(op.resourceTypeCode, binaryBit, op.id)) {
+        if (isDuplicateBit(op.resourceTypeCode, bit, op.id)) {
           return error(409, "同资源类型下该二进制位已被占用");
         }
-        op.binaryBit = binaryBit;
+        op.binaryBit = bit;
       }
       if (name != null) op.name = name;
-      if (inheritMask != null) op.inheritMask = inheritMask;
+      if (inheritMask != null) op.inheritMask = String(inheritMask);
       op.updatedAt = now();
       return ok({ ...op });
     }
@@ -762,11 +832,21 @@ export default defineFakeRoute([
     url: "/api/perm/operation-permission/remove",
     method: "post",
     response: ({ body }) => {
-      const ids: number[] = Array.isArray(body?.ids) ? body.ids : [];
-      if (ids.length === 0) return error(400, "ids 不能为空");
+      const items: Array<{
+        resourceTypeCode?: string | null;
+        code: string;
+      }> = Array.isArray(body?.items) ? body.items : [];
+      if (items.length === 0) return error(400, "items 不能为空");
       let count = 0;
       for (let i = operations.length - 1; i >= 0; i -= 1) {
-        if (ids.includes(operations[i].id)) {
+        const hit = items.some(item =>
+          item.code === operations[i].code
+            ? item.resourceTypeCode == null || item.resourceTypeCode === ""
+              ? operations[i].resourceTypeCode == null
+              : operations[i].resourceTypeCode === item.resourceTypeCode
+            : false
+        );
+        if (hit) {
           operations.splice(i, 1);
           count += 1;
         }

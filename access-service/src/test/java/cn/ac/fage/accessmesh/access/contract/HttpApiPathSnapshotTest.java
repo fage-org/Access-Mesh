@@ -282,9 +282,9 @@ class HttpApiPathSnapshotTest {
 /api/perm/log/operation/action-options|access.permission.dto.req.LogActionOptionsReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<String>>
 /api/perm/log/operation/list|access.permission.dto.req.OperationLogListReq|common.model.PermResult<access.permission.dto.resp.PaginatedResp<access.permission.dto.resp.OperationLogResp>>
 /api/perm/operation-permission/create|access.permission.dto.req.OperationCreateReq|common.model.PermResult<access.permission.dto.resp.OperationPermissionResp>
-/api/perm/operation-permission/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.OperationPermissionResp>
+/api/perm/operation-permission/detail|access.permission.dto.req.OperationKeyReq|common.model.PermResult<access.permission.dto.resp.OperationPermissionResp>
 /api/perm/operation-permission/list|access.permission.dto.req.OperationListReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.OperationPermissionResp>>
-/api/perm/operation-permission/remove|access.permission.dto.req.IdsReq|common.model.PermResult<Void>
+/api/perm/operation-permission/remove|access.permission.dto.req.OperationKeysReq|common.model.PermResult<Void>
 /api/perm/operation-permission/update|access.permission.dto.req.OperationUpdateReq|common.model.PermResult<access.permission.dto.resp.OperationPermissionResp>
 /api/perm/permission-condition/create|access.permission.dto.req.ConditionCreateReq|common.model.PermResult<access.permission.dto.resp.ConditionResp>
 /api/perm/permission-condition/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.ConditionResp>
@@ -312,11 +312,11 @@ class HttpApiPathSnapshotTest {
 /api/perm/resource-dependency/update|access.permission.dto.req.ResourceDependencyUpdateReq|common.model.PermResult<access.permission.dto.resp.ResourceDependencyResp>
 /api/perm/resource-entity/batch-create|access.permission.dto.req.ResourceBatchCreateReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.ResourceResp>>
 /api/perm/resource-entity/create|access.permission.dto.req.ResourceCreateReq|common.model.PermResult<access.permission.dto.resp.ResourceResp>
-/api/perm/resource-entity/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.ResourceResp>
+/api/perm/resource-entity/detail|access.permission.dto.req.ResourceKeyReq|common.model.PermResult<access.permission.dto.resp.ResourceResp>
 /api/perm/resource-entity/full-sync|access.permission.dto.req.ResourceEntityFullSyncReq|common.model.PermResult<perm.common.dto.resp.SyncResultResp>
 /api/perm/resource-entity/list|access.permission.dto.req.ResourceListReq|common.model.PermResult<access.permission.dto.resp.PaginatedResp<access.permission.dto.resp.ResourceResp>>
 /api/perm/resource-entity/move|access.permission.dto.req.ResourceMoveReq|common.model.PermResult<Void>
-/api/perm/resource-entity/remove|access.permission.dto.req.IdsReq|common.model.PermResult<Void>
+/api/perm/resource-entity/remove|access.permission.dto.req.ResourceKeysReq|common.model.PermResult<Void>
 /api/perm/resource-entity/sync|access.permission.dto.req.ResourceEntitySyncReq|common.model.PermResult<perm.common.dto.resp.SyncResultResp>
 /api/perm/resource-entity/tree|access.permission.dto.req.ResourceTreeReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.ResourceTreeResp>>
 /api/perm/resource-entity/update|access.permission.dto.req.ResourceUpdateReq|common.model.PermResult<access.permission.dto.resp.ResourceResp>

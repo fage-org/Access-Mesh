@@ -66,12 +66,14 @@ const rules = computed<FormRules>(() => ({
 
 function initFormData() {
   if (props.mode === "edit" && props.initialData) {
+    // 位字段为十进制字符串线格式（T-PERM-028）；表单内部数值控件（2^53 内精确），
+    // 提交时由 hook 转回字符串
     Object.assign(formData, {
       resourceTypeCode: props.initialData.resourceTypeCode ?? "",
       code: props.initialData.code,
       name: props.initialData.name,
-      binaryBit: props.initialData.binaryBit,
-      inheritMask: props.initialData.inheritMask
+      binaryBit: Number(props.initialData.binaryBit),
+      inheritMask: Number(props.initialData.inheritMask)
     });
   } else {
     Object.assign(formData, defaultFormData());

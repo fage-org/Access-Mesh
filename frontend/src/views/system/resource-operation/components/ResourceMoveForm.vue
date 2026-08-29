@@ -13,9 +13,18 @@ const props = defineProps<{
   resourceTree: ResourceTreeNode[];
 }>();
 
+/** 树节点 → 业务键（codeType 缺省 default 与后端归一一致） */
+function keyOf(node: ResourceTreeNode) {
+  return {
+    resourceTypeCode: node.resourceTypeCode,
+    code: node.code,
+    codeType: node.codeType || "default"
+  };
+}
+
 const formData = reactive<ResourceMoveFormData>({
-  resourceId: props.currentNode.id,
-  parentId: props.currentNode.parentId
+  resource: keyOf(props.currentNode),
+  parent: null
 });
 
 const showParentTree = ref(false);
@@ -40,25 +49,10 @@ const parentTreeData = computed(() => {
 });
 
 const parentDisplay = computed(() => {
-  if (formData.parentId === null) return "（顶层）";
+  if (formData.parent === null) return "（顶层）";
   if (selectedParentName.value) return selectedParentName.value;
-  const parent = findNodeById(props.resourceTree, formData.parentId);
-  return parent?.name ?? "（顶层）";
+  return formData.parent.code;
 });
-
-function findNodeById(
-  nodes: ResourceTreeNode[],
-  id: number
-): ResourceTreeNode | null {
-  for (const node of nodes) {
-    if (node.id === id) return node;
-    if (node.children) {
-      const found = findNodeById(node.children, id);
-      if (found) return found;
-    }
-  }
-  return null;
-}
 
 function filterTreeNode(value: string, data: any) {
   if (!value) return true;
@@ -67,21 +61,21 @@ function filterTreeNode(value: string, data: any) {
 
 function onParentTreeNodeClick(node: ResourceTreeNode) {
   selectedParentName.value = node.name;
-  formData.parentId = node.id;
+  formData.parent = keyOf(node);
   showParentTree.value = false;
 }
 
 function setParentToTop() {
   selectedParentName.value = "";
-  formData.parentId = null;
+  formData.parent = null;
   showParentTree.value = false;
 }
 
 function getFormData(): ResourceMoveFormData {
-  return { ...formData };
+  return { ...formData, resource: { ...formData.resource } };
 }
 
-/** parentId 可空（顶层合法），选择范围已由 filterParentTree 保证合法 */
+/** parent 可空（顶层合法），选择范围已由 filterParentTree 保证合法 */
 async function validate(): Promise<boolean> {
   return true;
 }
@@ -89,8 +83,8 @@ async function validate(): Promise<boolean> {
 watch(
   () => props.currentNode,
   node => {
-    formData.resourceId = node.id;
-    formData.parentId = node.parentId;
+    formData.resource = keyOf(node);
+    formData.parent = null;
     selectedParentName.value = "";
   },
   { immediate: true }

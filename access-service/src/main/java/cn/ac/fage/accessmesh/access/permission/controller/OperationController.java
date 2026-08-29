@@ -2,8 +2,8 @@ package cn.ac.fage.accessmesh.access.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeysReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq;
@@ -61,15 +61,16 @@ public class OperationController {
     /**
      * 获取操作权限详情
      * <p>
-     * 根据操作权限ID查询操作的完整信息，包括编码、名称、二进制位等。
+     * 以业务键 (resourceTypeCode, code) 查询操作的完整信息（T-PERM-028；
+     * resourceTypeCode 为 null/空白表示全局操作）。
      * </p>
      *
-     * @param req ID请求，包含操作权限ID
+     * @param req 操作业务键请求
      * @return 操作权限详情信息
      */
     @PostMapping("/detail")
-    public PermResult<OperationPermissionResp> getOperation(@Valid @RequestBody IdReq req) {
-        return PermResult.success(operationAppService.getOperation(TenantContextHolder.getTenantId(), req.id()));
+    public PermResult<OperationPermissionResp> getOperation(@Valid @RequestBody OperationKeyReq req) {
+        return PermResult.success(operationAppService.getOperation(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -93,30 +94,29 @@ public class OperationController {
     /**
      * 更新操作权限信息
      * <p>
-     * 更新操作权限的名称、二进制位、继承掩码等属性。
+     * 以业务键定位后更新操作的名称、二进制位、继承掩码等属性（编码为业务键不可更新）。
      * </p>
      *
-     * @param req 操作更新请求，包含操作权限ID和新属性值
+     * @param req 操作更新请求，包含业务键和新属性值
      * @return 更新后的操作权限详情
      */
     @PostMapping("/update")
     public PermResult<OperationPermissionResp> updateOperation(@Valid @RequestBody OperationUpdateReq req) {
-        return PermResult.success(operationAppService.updateOperation(
-                TenantContextHolder.getTenantId(), req.operationId(), req.name(), req.binaryBit(), req.inheritMask(), null));
+        return PermResult.success(operationAppService.updateOperation(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
      * 删除操作权限
      * <p>
-     * 批量软删除操作权限，会同时处理操作权限关联的数据。
+     * 以业务键批量软删除操作权限，会同时处理操作权限关联的数据。
      * </p>
      *
-     * @param req ID集合请求，包含待删除的操作权限ID列表
+     * @param req 业务键集合请求，包含待删除的操作权限业务键列表
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteOperation(@Valid @RequestBody IdsReq req) {
-        operationAppService.deleteOperations(TenantContextHolder.getTenantId(), req.ids(), null);
+    public PermResult<Void> deleteOperation(@Valid @RequestBody OperationKeysReq req) {
+        operationAppService.deleteOperations(TenantContextHolder.getTenantId(), req.items(), null);
         return PermResult.success();
     }
 }

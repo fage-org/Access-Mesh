@@ -60,6 +60,9 @@ class OperationLogRuntimeContextAppServiceTest {
     private TypeDefinitionMapper typeDefinitionMapper;
 
     @Mock
+    private cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper operationPermissionMapper;
+
+    @Mock
     private ResourceEntityMapper resourceEntityMapper;
 
     @Mock
@@ -109,7 +112,7 @@ class OperationLogRuntimeContextAppServiceTest {
 
     @Test
     void shouldRecordActualSummaryForTypeDefinitionBatchDelete() {
-        TypeDefinitionAppServiceImpl service = new TypeDefinitionAppServiceImpl(typeDefinitionMapper, engine);
+        TypeDefinitionAppServiceImpl service = new TypeDefinitionAppServiceImpl(typeDefinitionMapper, operationPermissionMapper, engine);
 
         TypeDefinition first = new TypeDefinition();
         first.setId(1L);
@@ -143,14 +146,24 @@ class OperationLogRuntimeContextAppServiceTest {
 
         ResourceEntity first = new ResourceEntity();
         first.setId(10L);
+        first.setResourceType(1);
+        first.setCode("a");
+        first.setCodeType("default");
         ResourceEntity second = new ResourceEntity();
         second.setId(20L);
+        second.setResourceType(1);
+        second.setCode("b");
+        second.setCodeType("default");
 
-        when(resourceEntityDomainService.selectValidByIds(1L, Set.of(10L, 20L))).thenReturn(List.of(first, second));
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(eq(1L), eq(1), anySet(), anySet()))
+            .thenReturn(List.of(first, second));
         when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L, 20L), OperationCodeConstants.MANAGE))
             .thenReturn(Set.of(10L, 20L));
 
-        service.deleteResources(1L, List.of(10L, 20L), 99L);
+        service.deleteResources(1L, List.of(
+            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "a", null),
+            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "b", null)), 99L);
 
         OperationLogRuntimeContext.Snapshot snapshot = OperationLogRuntimeContext.snapshot();
         assertTrue(snapshot.skip());

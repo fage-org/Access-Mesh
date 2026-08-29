@@ -3,23 +3,38 @@
  * 经 @/utils/http 调用 Gateway 外部路径
  * （`/perm/api/perm/resource-entity/*` + `/perm/api/perm/operation-permission/*`，
  * Gateway StripPrefix=1 后到 access-service `/api/perm/...`）。
- * T-FE-041 切换真实链路后，mock/resource-operation.ts 的旧 `/api/perm/**` 路径已自然失配。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.3
  * 后端实现：access-service ResourceController + OperationController
  *
- * 🔧 API 核对项（登记 T-PERM-028）：
- * - resource-entity detail/update/move/remove 与 operation-permission detail/update/remove 均用内部主键 id，
- *   应切业务键（resource: resourceTypeCode+code+codeType；operation: resourceTypeCode+code）。
- *   schema uk_resource_entity / uk_operation_permission_typed 已保证唯一，Phase 2 后端收敛。
- * - resource-entity list/tree 与 operation-permission list 未见 RESOURCE:VIEW / OPERATION:VIEW 门禁校验，
- *   种子可能缺失，联调真后端时可能全账号 403--前端仍按 VIEW 门控路由可达性。
+ * T-PERM-028 收口：
+ * - detail/update/move/remove 均切业务键定位（resource: resourceTypeCode+code+codeType，
+ *   codeType 缺省 default；operation: resourceTypeCode(可空=全局操作)+code），不再接受内部 id。
+ * - binaryBit/inheritMask 线格式为十进制字符串（63 位 bigint 防 JSON number >2^53 丢精度，
+ *   契约 §5.3 定稿）；表单内部可用数值控件，提交时转字符串。
+ * - update 支持 extraClear 显式清空 extra（JSON null 无法区分「未传」与「清空」）。
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
 import type { ItemsResp, PaginatedResp } from "./role-manage";
+
+// ========== 业务键 ==========
+
+/** 资源实体业务键（uk_resource_entity: tenant+resourceType+code+codeType） */
+export type ResourceKey = {
+  resourceTypeCode: string;
+  code: string;
+  /** 可选，缺省 "default" */
+  codeType?: string | null;
+};
+
+/** 操作权限业务键（uk_operation_permission_typed / _global；resourceTypeCode null=全局操作） */
+export type OperationKey = {
+  resourceTypeCode?: string | null;
+  code: string;
+};
 
 // ========== 资源实体 ==========
 
@@ -88,26 +103,29 @@ export type ResourceCreateReq = {
   extra?: string | null;
 };
 
-/** 资源更新请求（对齐 ResourceUpdateReq） */
+/** 资源更新请求（对齐 ResourceUpdateReq；业务键定位 + 可编辑字段） */
 export type ResourceUpdateReq = {
-  id: number;
-  code?: string;
+  resourceTypeCode: string;
+  code: string;
+  codeType?: string | null;
   name?: string;
   path?: string | null;
   status?: number;
   sortOrder?: number;
   extra?: string | null;
+  /** true=清空 extra 为 null（优先于 extra；JSON null 无法区分「未传」与「清空」） */
+  extraClear?: boolean;
 };
 
-/** 资源移动请求（对齐 ResourceMoveReq） */
+/** 资源移动请求（对齐 ResourceMoveReq；parent null=移动到顶层） */
 export type ResourceMoveReq = {
-  resourceId: number;
-  parentId: number | null;
+  resource: ResourceKey;
+  parent: ResourceKey | null;
 };
 
 // ========== 操作权限 ==========
 
-/** 操作权限响应（对齐后端 OperationPermissionResp） */
+/** 操作权限响应（对齐后端 OperationPermissionResp；位字段为十进制字符串） */
 export type OperationPermissionResp = {
   id: number;
   tenantId: number;
@@ -116,10 +134,10 @@ export type OperationPermissionResp = {
   resourceTypeName: string | null;
   code: string;
   name: string;
-  /** 本操作独占位（2 的幂次） */
-  binaryBit: number;
-  /** 继承掩码，实际权限 = binaryBit | inheritMask */
-  inheritMask: number;
+  /** 本操作独占位（2 的幂次），十进制字符串（63 位 bigint 线格式） */
+  binaryBit: string;
+  /** 继承掩码，实际权限 = binaryBit | inheritMask，十进制字符串 */
+  inheritMask: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -137,21 +155,22 @@ export type OperationListQuery = {
   includeGlobalFallback?: boolean;
 };
 
-/** 操作权限创建请求（对齐 OperationCreateReq） */
+/** 操作权限创建请求（对齐 OperationCreateReq；位字段十进制字符串） */
 export type OperationCreateReq = {
   resourceTypeCode: string;
   code: string;
   name: string;
-  binaryBit: number;
-  inheritMask?: number;
+  binaryBit: string;
+  inheritMask?: string;
 };
 
-/** 操作权限更新请求（对齐 OperationUpdateReq；code/resourceType 不可改--稳定编码） */
+/** 操作权限更新请求（对齐 OperationUpdateReq；业务键定位，code/resourceType 不可改） */
 export type OperationUpdateReq = {
-  operationId: number;
+  resourceTypeCode?: string | null;
+  code: string;
   name?: string;
-  binaryBit?: number;
-  inheritMask?: number;
+  binaryBit?: string;
+  inheritMask?: string;
 };
 
 // ========== API 函数 ==========
@@ -183,13 +202,14 @@ export const getResourceList = async (
   return unwrap(res);
 };
 
-/** 查询资源详情（POST /perm/api/perm/resource-entity/detail，IdReq{id}）。
- *  🔧 用内部主键 id，Phase 2 切业务键（T-PERM-028）。 */
-export const getResourceDetail = async (id: number): Promise<ResourceResp> => {
+/** 查询资源详情（POST /perm/api/perm/resource-entity/detail，业务键定位）。 */
+export const getResourceDetail = async (
+  key: ResourceKey
+): Promise<ResourceResp> => {
   const res = await http.request<PermResult<ResourceResp>>(
     "post",
     "/perm/api/perm/resource-entity/detail",
-    { data: { id } }
+    { data: key }
   );
   return unwrap(res);
 };
@@ -206,8 +226,7 @@ export const createResource = async (
   return unwrap(res);
 };
 
-/** 更新资源（POST /perm/api/perm/resource-entity/update）。
- *  🔧 用内部 id，Phase 2 切业务键（T-PERM-028）。 */
+/** 更新资源（POST /perm/api/perm/resource-entity/update，业务键定位）。 */
 export const updateResource = async (
   data: ResourceUpdateReq
 ): Promise<ResourceResp> => {
@@ -219,8 +238,8 @@ export const updateResource = async (
   return unwrap(res);
 };
 
-/** 移动资源（POST /perm/api/perm/resource-entity/move）。
- *  🔧 resourceId/parentId 均为内部 id，Phase 2 切业务键（T-PERM-028）。 */
+/** 移动资源（POST /perm/api/perm/resource-entity/move，业务键对定位）。
+ *  parent 为 null 表示移动到顶层。 */
 export const moveResource = async (data: ResourceMoveReq): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
@@ -231,14 +250,13 @@ export const moveResource = async (data: ResourceMoveReq): Promise<void> => {
   );
 };
 
-/** 删除资源，支持批量（POST /perm/api/perm/resource-entity/remove，IdsReq{ids}）。
- *  🔧 用内部 id，Phase 2 切业务键（T-PERM-028）。 */
-export const removeResources = async (ids: number[]): Promise<void> => {
+/** 删除资源，支持批量（POST /perm/api/perm/resource-entity/remove，业务键集合）。 */
+export const removeResources = async (keys: ResourceKey[]): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
       "post",
       "/perm/api/perm/resource-entity/remove",
-      { data: { ids } }
+      { data: { items: keys } }
     )
   );
 };
@@ -254,15 +272,15 @@ export const getOperationList = async (
   return unwrap(res);
 };
 
-/** 查询操作权限详情（POST /perm/api/perm/operation-permission/detail，IdReq{id}）。
- *  🔧 用内部 id，Phase 2 切业务键（T-PERM-028）。 */
+/** 查询操作权限详情（POST /perm/api/perm/operation-permission/detail，业务键定位）。
+ *  resourceTypeCode 缺省表示全局操作。 */
 export const getOperationDetail = async (
-  id: number
+  key: OperationKey
 ): Promise<OperationPermissionResp> => {
   const res = await http.request<PermResult<OperationPermissionResp>>(
     "post",
     "/perm/api/perm/operation-permission/detail",
-    { data: { id } }
+    { data: key }
   );
   return unwrap(res);
 };
@@ -279,8 +297,7 @@ export const createOperation = async (
   return unwrap(res);
 };
 
-/** 更新操作权限（POST /perm/api/perm/operation-permission/update）。
- *  🔧 operationId 为内部 id；code/resourceType 不可改（稳定编码），Phase 2 切业务键（T-PERM-028）。 */
+/** 更新操作权限（POST /perm/api/perm/operation-permission/update，业务键定位）。 */
 export const updateOperation = async (
   data: OperationUpdateReq
 ): Promise<OperationPermissionResp> => {
@@ -292,14 +309,13 @@ export const updateOperation = async (
   return unwrap(res);
 };
 
-/** 删除操作权限，支持批量（POST /perm/api/perm/operation-permission/remove，IdsReq{ids}）。
- *  🔧 用内部 id，Phase 2 切业务键（T-PERM-028）。 */
-export const removeOperations = async (ids: number[]): Promise<void> => {
+/** 删除操作权限，支持批量（POST /perm/api/perm/operation-permission/remove，业务键集合）。 */
+export const removeOperations = async (keys: OperationKey[]): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
       "post",
       "/perm/api/perm/operation-permission/remove",
-      { data: { ids } }
+      { data: { items: keys } }
     )
   );
 };

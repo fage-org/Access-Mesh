@@ -69,10 +69,14 @@ class ResourceDeletePermChangeRegistrationTest {
 
     @Test
     void shouldMarkRolesAndServiceCodesBeforeSoftDeletePerm() {
-        // 资源 10 + 后代 11 待删
+        // 资源 10 + 后代 11 待删（业务键 MENU:x/default 定位，T-PERM-028）
         ResourceEntity root = new ResourceEntity();
         root.setId(10L);
-        when(resourceEntityDomainService.selectValidByIds(1L, Set.of(10L)))
+        root.setResourceType(1);
+        root.setCode("x");
+        root.setCodeType("default");
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(eq(1L), eq(1), anySet(), anySet()))
             .thenReturn(List.of(root));
         when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
             .thenReturn(Set.of());
@@ -94,7 +98,7 @@ class ResourceDeletePermChangeRegistrationTest {
         when(rolePermMapper.selectValidPermIdsByResourceIds(eq(1L), anyList()))
             .thenReturn(List.of(501L, 502L));
 
-        service.deleteResources(1L, List.of(10L), 99L);
+        service.deleteResources(1L, List.of(new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "x", null)), 99L);
 
         // 双重登记已落入 ThreadLocal accumulator
         PermissionChangeContext.Accumulator acc = PermissionChangeContext.snapshot();
@@ -108,7 +112,11 @@ class ResourceDeletePermChangeRegistrationTest {
     void shouldNotMarkWhenNoAffectedRolesOrMappings() {
         ResourceEntity root = new ResourceEntity();
         root.setId(10L);
-        when(resourceEntityDomainService.selectValidByIds(1L, Set.of(10L)))
+        root.setResourceType(1);
+        root.setCode("x");
+        root.setCodeType("default");
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(eq(1L), eq(1), anySet(), anySet()))
             .thenReturn(List.of(root));
         when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
             .thenReturn(Set.of());
@@ -119,7 +127,7 @@ class ResourceDeletePermChangeRegistrationTest {
         when(apiMappingMapper.selectByResourceEntityIds(eq(1L), anySet())).thenReturn(List.of());
         when(rolePermMapper.selectValidPermIdsByResourceIds(eq(1L), anyList())).thenReturn(List.of());
 
-        service.deleteResources(1L, List.of(10L), 99L);
+        service.deleteResources(1L, List.of(new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "x", null)), 99L);
 
         PermissionChangeContext.Accumulator acc = PermissionChangeContext.snapshot();
         org.junit.jupiter.api.Assertions.assertTrue(acc.roleIds().isEmpty());

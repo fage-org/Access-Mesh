@@ -438,6 +438,7 @@ private LocalDateTime deletedAt;
 - **禁止**使用 `java.util.Date`、`java.sql.Timestamp`、`java.sql.Date`。
 - **时间语义全链路 UTC（T-ACCESS-024）**：JVM 默认时区由 common `UtcTimezoneEnvironmentPostProcessor` 启动即强制 UTC（代码级，应用与 `@SpringBootTest` 同源生效，部署无需 `-Duser.timezone`/`TZ`）；`LocalDateTime` ↔ TIMESTAMPTZ 由全局 `TimestamptzLocalDateTimeTypeHandler` 显式按 UTC 换算（经 `OffsetDateTime`，不经 `java.sql.Timestamp`/JVM 时区漂移；handler 落位 access-service、经 `MybatisFlexTypeHandlerConfig` 全局注册，新服务模块引入 DB 实体时须复制同等 handler——不上提 common 以免引入 ORM 依赖）；JDBC URL 禁止携带 `serverTimezone`（MySQL 语义参数，pgjdbc 忽略且误导）。未来多时区部署另立任务，本项目不做跨时区支持。
 - Jackson 序列化配置：`LocalDateTime` 序列化为 ISO-8601 字符串（`"2026-04-21T10:00:00"`，无偏移，语义=UTC 墙钟）；全局 ObjectMapper（common `cacheObjectMapper`）时区固定 UTC。前端展示时区转换按需另行处理，服务端不做「应用层转本地时区」。
+- **63 位 bigint 列 JSON 序列化为十进制字符串（T-PERM-028 定策略，首例 `OperationPermissionResp.binaryBit/inheritMask`）**：JSON number 在 >2^53 丢精度，暴露该类列的响应 DTO 字段加 `@JsonSerialize(using = ToStringSerializer.class)`（内部类型保持 `Long`）；请求侧 `Long` 组件由 Jackson 宽容接受十进制字符串，前端线格式统一 string、位运算用 BigInt。新增暴露 bigint 位值/大数列的 DTO 沿用此策略。
 
 ### 7.5 Record 使用规范
 

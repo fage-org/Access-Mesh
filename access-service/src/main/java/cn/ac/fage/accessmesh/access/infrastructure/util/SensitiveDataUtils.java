@@ -54,7 +54,7 @@ public final class SensitiveDataUtils {
     /** 精确字段名敏感集合（小写、去下划线后整体相等匹配，而非 contains）。
      * 仅保留 {@code codeverifier}（PKCE 验证器，全局唯一无业务碰撞）。
      * {@code code}（OAuth2 授权码）不在此全局集合——「code」同名业务字段（组织/资源编码
-     * {@code OrgUpdateReq.code} / {@code ResourceUpdateReq.code} 等）会被误掩码为 {@code ***}，
+     * {@code OrgUpdateReq.code} / {@code ResourceCreateReq.code} 等）会被误掩码为 {@code ***}，
      * 降低审计追溯价值。原「按调用作用域并入精确匹配」机制（经运行时上下文登记）
      * 已随 T-ACCESS-025 操作日志参数序列化收敛移除；本工具冻结保留 {@code extraPreciseFields}
      * 参数形态不变。 */

@@ -4,6 +4,9 @@
 // 契约依据：docs/design/permission-center/api-contract.md §5.1
 // 表结构：docs/design/schema/access-service.sql
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
+// T-PERM-028：resource_type 创建联动预置 CRUD 操作位（对齐后端 TypeDefinitionAppServiceImpl
+// 同事务预置语义）；mock→mock 导入无 src/api 链风险
+import { presetOperationsForType } from "./resource-operation";
 
 /**
  * 本地声明 type_key 常量与类型（不 import src/api/type-def，避免 fake-server 经
@@ -337,6 +340,10 @@ export default defineFakeRoute([
         createdAt: "2026-06-30 00:00:00"
       };
       mockTypeDefs.push(newDef);
+      // T-PERM-028：resource_type 新类型联动预置 CRUD 四操作位（DDL 预置组模板同款）
+      if (typeKey === TYPE_KEY.RESOURCE_TYPE) {
+        presetOperationsForType(resolvedCode);
+      }
       return ok(clone(newDef));
     }
   },

@@ -19,6 +19,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mockStatic;
@@ -121,5 +122,110 @@ class OperationAppServiceImplTest {
                 .stream().map(r -> r.code()).toList();
             assertEquals(List.of("VIEW", "SYNC"), codes);
         }
+    }
+
+    // ========== T-PERM-028：业务键定位 + detail 门禁 + bigint 字符串线格式 ==========
+
+    @Test
+    @DisplayName("detail 无 OPERATION:VIEW → SecurityException，不查询")
+    void shouldRejectOperationDetailWithoutOperationViewPermission() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+
+            assertThrows(SecurityException.class,
+                () -> service.getOperation(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("ROLE", "VIEW")));
+        }
+        verifyNoInteractions(operationPermissionMapper);
+    }
+
+    @Test
+    @DisplayName("detail 按业务键查询专属操作 → selectByResourceTypeAndCode")
+    void shouldGetTypedOperationByBusinessKey() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+            when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ROLE")).thenReturn(5);
+            OperationPermission entity = op(5, "VIEW");
+            when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 5, "VIEW")).thenReturn(entity);
+
+            assertEquals("VIEW", service.getOperation(1L,
+                new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("ROLE", "VIEW")).code());
+        }
+    }
+
+    @Test
+    @DisplayName("detail 业务键 resourceTypeCode 缺省 → 全局操作轨 selectGlobalByCode")
+    void shouldGetGlobalOperationWhenTypeCodeMissing() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+            when(operationPermissionMapper.selectGlobalByCode(1L, "SYNC")).thenReturn(op(null, "SYNC"));
+
+            assertEquals("SYNC", service.getOperation(1L,
+                new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq(null, "SYNC")).code());
+        }
+    }
+
+    @Test
+    @DisplayName("detail 业务键查不到 → 20005 OPERATION_NOT_FOUND")
+    void shouldThrowOperationNotFoundForMissingBusinessKey() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+            when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ROLE")).thenReturn(5);
+            when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 5, "VIEW")).thenReturn(null);
+
+            cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+                cn.ac.fage.accessmesh.common.exception.BizException.class,
+                () -> service.getOperation(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("ROLE", "VIEW")));
+            assertEquals(20005, ex.getErrorCode());
+        }
+    }
+
+    @Test
+    @DisplayName("update 按业务键定位更新（operationId 形态已删除）")
+    void shouldUpdateOperationByBusinessKey() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ROLE")).thenReturn(5);
+        OperationPermission entity = op(5, "MANAGE");
+        when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 5, "MANAGE")).thenReturn(entity);
+
+        cn.ac.fage.accessmesh.access.permission.dto.resp.OperationPermissionResp resp = service.updateOperation(1L,
+            new cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq("ROLE", "MANAGE", "管理", 16L, 2L), 100L);
+
+        assertEquals("管理", resp.name());
+        assertEquals(16L, resp.binaryBit());
+        assertEquals(2L, resp.inheritMask());
+        verify(operationPermissionMapper).update(entity);
+    }
+
+    @Test
+    @DisplayName("remove 按业务键批量解析（专属分组 + 全局轨），未命中键静默跳过")
+    void shouldDeleteOperationsByBusinessKeys() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ROLE")).thenReturn(5);
+        OperationPermission typed = op(5, "VIEW");
+        typed.setId(11L);
+        OperationPermission global = op(null, "SYNC");
+        global.setId(22L);
+        when(operationPermissionMapper.selectByResourceTypeAndCodes(1L, 5, java.util.Set.of("VIEW", "MISSING")))
+            .thenReturn(List.of(typed));
+        when(operationPermissionMapper.selectGlobalByCodes(1L, java.util.Set.of("SYNC")))
+            .thenReturn(List.of(global));
+
+        service.deleteOperations(1L, List.of(
+            new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("ROLE", "VIEW"),
+            new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq(null, "SYNC"),
+            new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("ROLE", "MISSING")), 100L);
+
+        verify(operationPermissionMapper).softDeleteBatch(eq(1L), org.mockito.ArgumentMatchers.argThat(
+            ids -> ids != null && ids.size() == 2 && ids.containsAll(List.of(11L, 22L))), any());
     }
 }

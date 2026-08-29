@@ -10,7 +10,6 @@ import OperationForm from "./components/OperationForm.vue";
 import ResourceMoveForm from "./components/ResourceMoveForm.vue";
 import { useResourceOperation } from "./utils/hook";
 import { RESOURCE_OPERATION_PERMS } from "./utils/perms";
-import { bitOr } from "./utils/types";
 import {
   type ResourceFormData,
   type OperationFormData,
@@ -159,10 +158,14 @@ function openCreateResource(parentNode?: ResourceTreeNode | null) {
 async function openEditResource() {
   const node = selectedNode.value;
   if (!node) return;
-  // 树节点不含 extra，编辑需完整数据 -> 调 detail 拉取
+  // 树节点不含 extra，编辑需完整数据 -> 调 detail 拉取（业务键定位）
   let detail: ResourceResp;
   try {
-    detail = await getResourceDetail(node.id);
+    detail = await getResourceDetail({
+      resourceTypeCode: node.resourceTypeCode,
+      code: node.code,
+      codeType: node.codeType || "default"
+    });
   } catch (e: any) {
     message(e.message || "加载资源详情失败", { type: "error" });
     return;
@@ -185,11 +188,7 @@ async function openEditResource() {
         closeLoading();
         return;
       }
-      const saved = await submitResource(
-        formRef.getFormData(),
-        "edit",
-        detail.id
-      );
+      const saved = await submitResource(formRef.getFormData(), "edit", detail);
       if (saved) done();
       else closeLoading();
     }
@@ -256,7 +255,7 @@ function openOperationForm(
         closeLoading();
         return;
       }
-      const saved = await submitOperation(formRef.getFormData(), mode, row?.id);
+      const saved = await submitOperation(formRef.getFormData(), mode, row);
       if (saved) done();
       else closeLoading();
     }
@@ -274,9 +273,10 @@ function filterTreeNode(value: string, data: ResourceTreeNode) {
 }
 
 /** 有效位 = 独占位 | 继承掩码。
- *  BigInt 位或（兼容 63 位 schema）；JS `|` 强转 32 位，>2^31 截断。 */
-function effectiveBits(row: OperationPermissionResp): number {
-  return bitOr(row.binaryBit, row.inheritMask);
+ *  BigInt 位或（兼容 63 位 schema）；JS `|` 强转 32 位，>2^31 截断。
+ *  位字段为十进制字符串线格式（T-PERM-028），结果转字符串显示防 >2^53 丢精度。 */
+function effectiveBits(row: OperationPermissionResp): string {
+  return (BigInt(row.binaryBit) | BigInt(row.inheritMask)).toString();
 }
 
 watch(resourceSearch, val => {

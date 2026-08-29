@@ -2,6 +2,11 @@
 import { computed, reactive, ref, watch } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
 import type { ApiMappingResp } from "@/api/service-interface";
+import { getTypeDefList, TYPE_KEY, type TypeDefResp } from "@/api/type-def";
+import {
+  getResourceTree,
+  type ResourceTreeNode
+} from "@/api/resource-operation";
 import {
   createEmptyMappingForm,
   mappingToForm,
@@ -21,6 +26,74 @@ const props = defineProps<{
 const formRef = ref<FormInstance>();
 const formData = reactive<MappingFormData>(createEmptyMappingForm());
 const isEdit = computed(() => props.mode === "edit");
+
+// ========== 资源选择器（T-PERM-027 §7.6 / T-PERM-028 联动落地） ==========
+// 映射 create/update 仍以内部 resourceId 提交（api-contract §5.4 定案）；
+// 选取 UI 从裸数字输入升级为「类型下拉 + 资源树选择」，数据源 resource-entity/tree。
+
+type TreeSelectNode = {
+  value: number;
+  label: string;
+  children?: TreeSelectNode[];
+};
+
+const resourceTypes = ref<TypeDefResp[]>([]);
+const selectedResourceTypeCode = ref<string | null>(null);
+const resourceTreeOptions = ref<TreeSelectNode[]>([]);
+const resourceTreeLoading = ref(false);
+
+function toTreeSelectNodes(nodes: ResourceTreeNode[]): TreeSelectNode[] {
+  return nodes.map(node => ({
+    value: node.id,
+    label: node.code === node.name ? node.name : `${node.name}（${node.code}）`,
+    children: node.children?.length
+      ? toTreeSelectNodes(node.children)
+      : undefined
+  }));
+}
+
+async function loadResourceTypes() {
+  try {
+    const res = await getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE });
+    resourceTypes.value = res.items
+      .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
+  } catch {
+    resourceTypes.value = [];
+  }
+}
+
+async function loadResourceTree(typeCode: string) {
+  resourceTreeLoading.value = true;
+  try {
+    const res = await getResourceTree({ resourceTypeCode: typeCode });
+    resourceTreeOptions.value = toTreeSelectNodes(
+      res.items.map(i => i.root).filter((n): n is ResourceTreeNode => n != null)
+    );
+  } catch {
+    resourceTreeOptions.value = [];
+  } finally {
+    resourceTreeLoading.value = false;
+  }
+}
+
+function onResourceTypeChange(typeCode: string) {
+  // 切换类型后原选中资源不再属于该类型，清空重选
+  formData.resourceEntityId = null;
+  loadResourceTree(typeCode);
+}
+
+/** 编辑态资源展示（树节点不含 extra 之外的展示问题——直接用映射行的资源业务字段） */
+const editingResourceDisplay = computed(() => {
+  const row = props.initialData;
+  if (!row) return "";
+  if (row.resourceCode) {
+    return row.resourceName
+      ? `${row.resourceName}（${row.resourceCode}）`
+      : row.resourceCode;
+  }
+  return `#${row.resourceEntityId}`;
+});
 
 const rules = computed<FormRules>(() => ({
   resourceEntityId: [
@@ -83,6 +156,9 @@ function initForm() {
       ? mappingToForm(props.initialData)
       : createEmptyMappingForm()
   );
+  if (props.mode === "create") {
+    loadResourceTypes();
+  }
 }
 
 async function validate(): Promise<boolean> {
@@ -115,18 +191,46 @@ defineExpose({ validate, getFormData });
     <el-form-item label="所属服务">
       <el-input :model-value="serviceCode" readonly class="font-mono" />
     </el-form-item>
-    <el-form-item label="资源实体 ID" prop="resourceEntityId">
-      <!-- 当前映射接口以 resourceId 内部主键定位；Phase 2 将接入资源选择器。 -->
-      <el-input-number
-        v-model="formData.resourceEntityId"
-        :min="1"
-        :precision="0"
-        :controls="false"
-        placeholder="例如 10001"
+    <template v-if="!isEdit">
+      <el-form-item label="资源类型">
+        <el-select
+          v-model="selectedResourceTypeCode"
+          placeholder="选择资源类型"
+          class="w-full!"
+          @change="onResourceTypeChange"
+        >
+          <el-option
+            v-for="t in resourceTypes"
+            :key="t.typeCode"
+            :label="t.name"
+            :value="t.typeCode"
+          />
+        </el-select>
+      </el-form-item>
+      <el-form-item label="关联资源" prop="resourceEntityId">
+        <!-- 映射接口仍以 resourceId 内部主键提交（api-contract §5.4 定案）；
+             选取 UI 为资源树选择（T-PERM-027 §7.6 / T-PERM-028 联动）。 -->
+        <el-tree-select
+          v-model="formData.resourceEntityId"
+          :data="resourceTreeOptions"
+          :loading="resourceTreeLoading"
+          check-strictly
+          :render-after-expand="false"
+          default-expand-all
+          clearable
+          placeholder="先选资源类型，再选资源"
+          class="w-full!"
+          :disabled="!selectedResourceTypeCode"
+        />
+        <div class="form-help">与资源实体建立接口级鉴权关联</div>
+      </el-form-item>
+    </template>
+    <el-form-item v-else label="关联资源">
+      <el-input
+        :model-value="editingResourceDisplay"
+        readonly
         class="w-full!"
-        :disabled="isEdit"
       />
-      <div class="form-help">与资源实体建立接口级鉴权关联</div>
     </el-form-item>
     <el-form-item label="请求方法" prop="httpMethod">
       <el-select v-model="formData.httpMethod" class="w-full!">

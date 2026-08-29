@@ -3,7 +3,7 @@ doc_type: design
 title: 5.2 服务与接口映射页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-027 后端收口终态化（删除级联/资源业务字段/FULL-only/mapping list 门禁/updatedAt/bootstrap SERVICE 授权；§7 七项收口标注）；原文 2026-07-11 Phase 1 前端设计定稿
+last_reviewed: 2026-08-29   # 2026-08-29 §7.6 资源选择器收口（T-PERM-028：类型下拉+树选落地、裸 ID 输入删除）；同日 T-PERM-027 后端收口终态化（删除级联/资源业务字段/FULL-only/mapping list 门禁/updatedAt/bootstrap SERVICE 授权；§7 七项收口标注）；原文 2026-07-11 Phase 1 前端设计定稿
 ---
 
 # 5.2 服务与接口映射页 前端设计
@@ -60,7 +60,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-027 后端收口终态化（删�
 
 - 映射表显示 HTTP 方法、Gateway 路径、资源业务编码（`resourceCode`，T-PERM-027 已补；资源已删时回退 `#资源实体ID`）、匹配顺序、状态和更新时间，支持路径/资源、方法、状态三维过滤（资源过滤同时匹配 resourceCode 与实体 ID）。
 - 新增和编辑用独立表单：路径以 `/` 开头，顺序为非负整数，`extra` 若填写必须为合法 JSON。
-- 当前后端以 `resourceId` 内部主键绑定映射，故表单仍显式输入资源实体 ID；资源树/业务键选择器属 T-PERM-028 联动范围（T-PERM-027 §7.6 登记，见 §7）。
+- 映射 create/update 以 `resourceId` 内部主键提交（api-contract §5.4 定案不随业务键切换）；表单资源选取已升级为「类型下拉 + 资源树选择」（T-PERM-028 联动落地，选中取树节点内部 id，数据源 `resource-entity/tree`），裸数字输入形态已删除（见 §7.6）。
 - 创建、编辑、移除仅在拥有 `SERVICE:MANAGE_API_MAPPING` 时展示；无写权限时表格保留只读状态，不发送写请求。
 
 ## 4. 数据与 API 依赖
@@ -121,7 +121,7 @@ Phase 1 不修改后端；以下项目登记到 T-PERM-027 并已随其收口（
 3. ~~**`service-config/apis` 并非资源树**~~（已收口，2026-08-29）：维持扁平 `ApiMappingResp`（页面形态即扁平映射表，无树形诉求），但补齐 `resourceCode/resourceName/resourceTypeCode/maintainSource` 资源业务字段（批量补全，资源已删为 null，前端回退展示 `#实体ID`）；映射表「资源实体」列升级为「资源」列展示业务编码。
 4. ~~**同步模式设计与 DTO 漂移**~~（已收口，2026-08-29）：`ServiceConfigSyncReq.syncMode` 校验层 `@Pattern("FULL")` 拒绝其他值（HTTP 400，body `code=90001` 参数校验失败），零调用的 `IncrementalSyncStrategy` 删除；后端与权威契约 §6.3、前端与 mock 三方一致。
 5. ~~**映射列表缺少权限校验**~~（已收口，2026-08-29）：`listApiMappings` 补 SERVICE:VIEW 门禁——带 `serviceCode` 按该服务实例校验，不带按类型级校验并对结果做服务维裁剪（`getDeniedResourceCodes` 批量判权，拒绝服务的映射不外泄）；`service-config/apis` 委托同一实现（门禁与补全单点）。
-6. ~~**手工映射使用内部资源 ID**~~（登记 T-PERM-028，2026-08-29）：create/update 仍以 `resourceId` 内部主键绑定；按 `resourceTypeCode + resourceCode + codeType` 的稳定定位能力与前端资源选择器随 T-PERM-028 资源树后端一并落地后替换 ID 输入框。
+6. ~~**手工映射使用内部资源 ID**~~ **已收口（T-PERM-028，2026-08-29 用户决策实现）**：create/update 仍以 `resourceId` 内部主键提交（api-contract §5.4 定案）；前端资源选择器已落地——MappingForm 裸「资源实体 ID」数字输入替换为「资源类型下拉 + el-tree-select 资源树选择」，选中取节点内部 id 提交，编辑态只读展示行内资源业务字段（`resourceCode·resourceName`）。
 7. ~~**同步状态不可追溯**~~（已收口，2026-08-29）：`ServiceConfigResp` 补 `updatedAt`（列已有，保存与 FULL 同步回写 basePath 时刷新），服务信息条展示「更新于」；`lastSyncedAt` 不设——无现成列且按映射 MAX(updated_at) 聚合推导语义模糊（行更新≠最近一次成功同步），登记不做。
 
 ## 8. 验收记录

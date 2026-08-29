@@ -5,9 +5,11 @@ import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.TypeDefinitionResp;
+import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.TypeDefinitionAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
@@ -35,17 +37,21 @@ import java.util.stream.Collectors;
 public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
     private final TypeDefinitionMapper typeDefinitionMapper;
+    private final OperationPermissionMapper operationPermissionMapper;
     private final PermQueryEngine engine;
 
     /**
      * 构造函数注入依赖
      *
-     * @param typeDefinitionMapper 类型定义数据访问层
-     * @param engine               权限查询引擎
+     * @param typeDefinitionMapper      类型定义数据访问层
+     * @param operationPermissionMapper 操作权限数据访问层（resource_type 联动预置写入，T-PERM-028）
+     * @param engine                    权限查询引擎
      */
     public TypeDefinitionAppServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
+                                         OperationPermissionMapper operationPermissionMapper,
                                          PermQueryEngine engine) {
         this.typeDefinitionMapper = typeDefinitionMapper;
+        this.operationPermissionMapper = operationPermissionMapper;
         this.engine = engine;
     }
 
@@ -120,7 +126,45 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             }
             throw e;
         }
+        // T-PERM-028：resource_type 新类型联动预置 CRUD 操作位（同事务；schema 表注释承诺、
+        // 原 DDL CROSS JOIN 预置仅覆盖建库时既有类型）。模板对齐 DDL 预置组：
+        // CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)；新类型位段空闲无 uk_typed_bit 冲突。
+        // 跨域写入先例：ServiceConfig 删除级联直写 apiMappingMapper（T-PERM-027）。
+        if ("resource_type".equals(req.typeKey())) {
+            insertPresetOperations(tenantId, typeValue, operatorId, now);
+        }
         return toTypeResp(type);
+    }
+
+    /**
+     * 为新 resource_type 预置 CRUD 四操作位
+     *
+     * @param tenantId   租户ID
+     * @param typeValue  新类型的内部值（operation_permission.resource_type）
+     * @param operatorId 操作者ID（created_by）
+     * @param now        创建时间（与类型定义行同时刻）
+     */
+    private void insertPresetOperations(Long tenantId, int typeValue, Long operatorId, LocalDateTime now) {
+        String[][] preset = {
+            {"CREATE", "创建", "1", "0"},
+            {"VIEW", "查看", "2", "0"},
+            {"UPDATE", "更新", "4", "2"},
+            {"DELETE", "删除", "8", "2"}
+        };
+        for (String[] row : preset) {
+            OperationPermission op = new OperationPermission();
+            op.setTenantId(tenantId);
+            op.setResourceType(typeValue);
+            op.setCode(row[0]);
+            op.setName(row[1]);
+            op.setBinaryBit(Long.parseLong(row[2]));
+            op.setInheritMask(Long.parseLong(row[3]));
+            op.setCreatedBy(operatorId);
+            op.setCreatedAt(now);
+            op.setUpdatedAt(now);
+            op.setDeleteFlag(0L);
+            operationPermissionMapper.insert(op);
+        }
     }
 
     /**

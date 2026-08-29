@@ -1,5 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service;
 
+import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationPermissionResp;
 
 import java.util.List;
@@ -29,12 +31,17 @@ public interface OperationAppService {
 
     /**
      * 获取操作权限详情
+     * <p>
+     * 以业务键 (resourceTypeCode, code) 查询操作权限详情（T-PERM-028；
+     * resourceTypeCode 为 null/空白表示全局操作）。
+     * 类型级 OPERATION:VIEW 门禁；业务键查不到抛 20005。
+     * </p>
      *
-     * @param tenantId   租户ID
-     * @param operationId 操作权限ID
+     * @param tenantId 租户ID
+     * @param key      操作权限业务键
      * @return 操作权限详情
      */
-    OperationPermissionResp getOperation(Long tenantId, Long operationId);
+    OperationPermissionResp getOperation(Long tenantId, OperationKeyReq key);
 
     /**
      * 查询操作权限列表
@@ -49,23 +56,27 @@ public interface OperationAppService {
 
     /**
      * 更新操作权限
+     * <p>
+     * 以业务键 (resourceTypeCode, code) 定位后更新名称、二进制位、继承掩码。
+     * 业务键字段不可更新（T-PERM-028）。
+     * </p>
      *
      * @param tenantId   租户ID
-     * @param operationId 操作权限ID
-     * @param name       操作权限名称
-     * @param binaryBit  二进制位
-     * @param inheritMask 继承掩码
+     * @param req        操作更新请求（业务键 + 可编辑字段）
      * @param operatorId 操作者ID
      * @return 更新后的操作权限详情
      */
-    OperationPermissionResp updateOperation(Long tenantId, Long operationId, String name, Long binaryBit, Long inheritMask, Long operatorId);
+    OperationPermissionResp updateOperation(Long tenantId, OperationUpdateReq req, Long operatorId);
 
     /**
      * 批量删除操作权限
+     * <p>
+     * 以业务键批量定位后批量软删除（T-PERM-028）。
+     * </p>
      *
-     * @param tenantId    租户ID
-     * @param operationIds 操作权限ID列表
-     * @param operatorId  操作者ID
+     * @param tenantId   租户ID
+     * @param keys       操作权限业务键列表
+     * @param operatorId 操作者ID
      */
-    void deleteOperations(Long tenantId, List<Long> operationIds, Long operatorId);
+    void deleteOperations(Long tenantId, List<OperationKeyReq> keys, Long operatorId);
 }

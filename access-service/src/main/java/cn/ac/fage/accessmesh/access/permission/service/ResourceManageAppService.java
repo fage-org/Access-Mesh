@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.access.permission.service;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourceResp;
@@ -48,23 +50,25 @@ public interface ResourceManageAppService {
     /**
      * 获取资源详情
      * <p>
-     * 根据资源ID查询资源实体详情。
+     * 以业务键 (resourceTypeCode, code, codeType) 查询资源实体详情（T-PERM-028）。
+     * 类型级 RESOURCE:VIEW 门禁；业务键查不到抛 20004。
      * </p>
      *
-     * @param tenantId   租户ID
-     * @param resourceId 资源ID
+     * @param tenantId 租户ID
+     * @param key      资源业务键
      * @return 资源详情
      */
-    ResourceResp getResource(Long tenantId, Long resourceId);
+    ResourceResp getResource(Long tenantId, ResourceKeyReq key);
 
     /**
      * 更新资源
      * <p>
-     * 更新资源实体的基本信息。
+     * 以业务键定位后更新资源实体的可编辑字段（name/path/status/sortOrder/extra）。
+     * 业务键字段不可更新；extraClear=true 显式清空 extra（T-PERM-028）。
      * </p>
      *
      * @param tenantId   租户ID
-     * @param req        资源更新请求
+     * @param req        资源更新请求（业务键 + 可编辑字段）
      * @param operatorId 操作者ID
      * @return 更新后的资源详情
      */
@@ -73,27 +77,27 @@ public interface ResourceManageAppService {
     /**
      * 移动资源
      * <p>
-     * 将资源移动到新的父节点下，调整资源的层级位置。
+     * 以业务键定位被移动资源与目标父资源，调整资源的层级位置。
+     * parent 为 null 移动到顶层；跨类型与自身/子孙目标抛 20053（T-PERM-028）。
      * </p>
      *
      * @param tenantId   租户ID
-     * @param resourceId 资源ID
-     * @param parentId   新父节点ID
+     * @param req        资源移动请求（业务键对）
      * @param operatorId 操作者ID
      */
-    void moveResource(Long tenantId, Long resourceId, Long parentId, Long operatorId);
+    void moveResource(Long tenantId, ResourceMoveReq req, Long operatorId);
 
     /**
      * 批量删除资源
      * <p>
-     * 批量软删除多个资源实体。
+     * 以业务键批量定位后软删除资源实体（级联子孙与关联权限，T-PERM-028）。
      * </p>
      *
-     * @param tenantId    租户ID
-     * @param resourceIds 资源ID列表
-     * @param operatorId  操作者ID
+     * @param tenantId   租户ID
+     * @param keys       资源业务键列表
+     * @param operatorId 操作者ID
      */
-    void deleteResources(Long tenantId, List<Long> resourceIds, Long operatorId);
+    void deleteResources(Long tenantId, List<ResourceKeyReq> keys, Long operatorId);
 
     /**
      * 获取资源树

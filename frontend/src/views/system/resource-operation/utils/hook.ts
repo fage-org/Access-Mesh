@@ -12,7 +12,10 @@ import {
   createOperation,
   updateOperation,
   removeOperations,
+  type ResourceKey,
+  type OperationKey,
   type ResourceTreeNode,
+  type ResourceResp,
   type OperationPermissionResp
 } from "@/api/resource-operation";
 import { getTypeDefList, TYPE_KEY, type TypeDefResp } from "@/api/type-def";
@@ -137,9 +140,10 @@ export function useResourceOperation() {
       const res = await getOperationList({
         resourceTypeCode: selectedResourceTypeCode.value
       });
+      // binaryBit 为十进制字符串（63 位 bigint 线格式），BigInt 比较防 >2^53 丢序
       operations.value = res.items
         .slice()
-        .sort((a, b) => a.binaryBit - b.binaryBit);
+        .sort((a, b) => (BigInt(a.binaryBit) < BigInt(b.binaryBit) ? -1 : 1));
     } catch (e: any) {
       message(e.message || "加载操作权限失败", { type: "error" });
     } finally {
@@ -161,10 +165,20 @@ export function useResourceOperation() {
   }
 
   // ========== 资源 CRUD ==========
+
+  /** 树节点 → 业务键（codeType 缺省 default 与后端归一一致） */
+  function keyOfNode(node: ResourceTreeNode): ResourceKey {
+    return {
+      resourceTypeCode: node.resourceTypeCode,
+      code: node.code,
+      codeType: node.codeType || "default"
+    };
+  }
+
   async function submitResource(
     form: ResourceFormData,
     mode: "create" | "edit",
-    editingId?: number
+    editing?: ResourceResp
   ): Promise<boolean> {
     try {
       if (mode === "create") {
@@ -179,13 +193,17 @@ export function useResourceOperation() {
           extra: form.extra || null
         });
         message("资源创建成功", { type: "success" });
-      } else if (editingId) {
+      } else if (editing) {
         await updateResource({
-          id: editingId,
+          resourceTypeCode: editing.resourceTypeCode,
+          code: editing.code,
+          codeType: editing.codeType,
           name: form.name,
           status: form.status,
           sortOrder: form.sortOrder,
-          extra: form.extra || null
+          // 原有 extra 被清空 → extraClear 显式清空（JSON null 无法区分「未传」与「清空」）
+          extra: form.extra || null,
+          extraClear: editing.extra != null && !form.extra
         });
         message("资源更新成功", { type: "success" });
       }
@@ -212,7 +230,7 @@ export function useResourceOperation() {
       return false;
     }
     try {
-      await removeResources([node.id]);
+      await removeResources([keyOfNode(node)]);
       message("资源已删除", { type: "success" });
       if (selectedNode.value?.id === node.id) selectedNode.value = null;
       await loadTree();
@@ -226,8 +244,8 @@ export function useResourceOperation() {
   async function submitMove(form: ResourceMoveFormData): Promise<boolean> {
     try {
       await moveResource({
-        resourceId: form.resourceId,
-        parentId: form.parentId
+        resource: form.resource,
+        parent: form.parent
       });
       message("资源已移动", { type: "success" });
       await loadTree();
@@ -242,7 +260,7 @@ export function useResourceOperation() {
   async function submitOperation(
     form: OperationFormData,
     mode: "create" | "edit",
-    editingId?: number
+    editing?: OperationPermissionResp
   ): Promise<boolean> {
     try {
       if (mode === "create") {
@@ -250,16 +268,17 @@ export function useResourceOperation() {
           resourceTypeCode: form.resourceTypeCode,
           code: form.code,
           name: form.name,
-          binaryBit: form.binaryBit,
-          inheritMask: form.inheritMask
+          binaryBit: String(form.binaryBit),
+          inheritMask: String(form.inheritMask ?? 0)
         });
         message("操作权限创建成功", { type: "success" });
-      } else if (editingId) {
+      } else if (editing) {
         await updateOperation({
-          operationId: editingId,
+          resourceTypeCode: editing.resourceTypeCode,
+          code: editing.code,
           name: form.name,
-          binaryBit: form.binaryBit,
-          inheritMask: form.inheritMask
+          binaryBit: String(form.binaryBit),
+          inheritMask: String(form.inheritMask ?? 0)
         });
         message("操作权限更新成功", { type: "success" });
       }
@@ -288,7 +307,11 @@ export function useResourceOperation() {
       return false;
     }
     try {
-      await removeOperations([row.id]);
+      const key: OperationKey = {
+        resourceTypeCode: row.resourceTypeCode,
+        code: row.code
+      };
+      await removeOperations([key]);
       message("操作权限已删除", { type: "success" });
       await loadOperations();
       return true;

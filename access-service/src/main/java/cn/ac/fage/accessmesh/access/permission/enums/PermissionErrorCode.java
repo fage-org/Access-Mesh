@@ -249,7 +249,13 @@ public enum PermissionErrorCode {
     /**
      * 业务域编码在租户内已存在（uk_biz_domain，软删行不占用）。
      */
-    DOMAIN_CODE_DUPLICATE(20052, "业务域编码已存在（租户内唯一）");
+    DOMAIN_CODE_DUPLICATE(20052, "业务域编码已存在（租户内唯一）"),
+
+    /**
+     * 资源移动目标父非法：跨资源类型，或是被移动资源自身/其子孙（parent 链成环后树构建不收敛，
+     * 对齐 ROLE_PARENT_INVALID / DOMAIN_DELETE_CONFLICT 先例：同一码承载两类原因，message 区分）。
+     */
+    RESOURCE_PARENT_INVALID(20053, "目标父资源非法：跨资源类型或为自身/子孙节点");
 
     private final int code;
     private final String message;

@@ -74,24 +74,24 @@ public class ResourceController {
     /**
      * 获取资源详情
      * <p>
-     * 根据资源ID查询资源的完整信息。
+     * 以业务键 (resourceTypeCode, code, codeType) 查询资源的完整信息（T-PERM-028）。
      * </p>
      *
-     * @param req ID请求，包含资源ID
+     * @param req 资源业务键请求
      * @return 资源详情信息
      */
     @PostMapping("/detail")
-    public PermResult<ResourceResp> getResource(@Valid @RequestBody IdReq req) {
-        return PermResult.success(resourceManageAppService.getResource(TenantContextHolder.getTenantId(), req.id()));
+    public PermResult<ResourceResp> getResource(@Valid @RequestBody ResourceKeyReq req) {
+        return PermResult.success(resourceManageAppService.getResource(TenantContextHolder.getTenantId(), req));
     }
 
     /**
      * 更新资源信息
      * <p>
-     * 更新资源的名称、编码、状态等属性。
+     * 以业务键定位后更新资源的名称、状态等可编辑属性（编码为业务键不可更新）。
      * </p>
      *
-     * @param req 资源更新请求，包含待更新的资源ID和新属性值
+     * @param req 资源更新请求，包含业务键和新属性值
      * @return 更新后的资源详情
      */
     @PostMapping("/update")
@@ -102,30 +102,30 @@ public class ResourceController {
     /**
      * 移动资源
      * <p>
-     * 将资源移动到新的父资源下，调整资源在树结构中的位置。
+     * 以业务键定位资源与目标父资源，调整资源在树结构中的位置。
      * </p>
      *
-     * @param req 资源移动请求，包含资源ID和目标父资源ID
+     * @param req 资源移动请求，包含业务键对（parent 为 null 移动到顶层）
      * @return 操作成功结果
      */
     @PostMapping("/move")
     public PermResult<Void> moveResource(@Valid @RequestBody ResourceMoveReq req) {
-        resourceManageAppService.moveResource(TenantContextHolder.getTenantId(), req.resourceId(), req.parentId(), null);
+        resourceManageAppService.moveResource(TenantContextHolder.getTenantId(), req, null);
         return PermResult.success();
     }
 
     /**
      * 删除资源
      * <p>
-     * 批量删除资源实体，会同时处理资源下的权限配置。
+     * 以业务键批量删除资源实体，会同时处理资源下的权限配置。
      * </p>
      *
-     * @param req ID集合请求，包含待删除的资源ID列表
+     * @param req 业务键集合请求，包含待删除的资源业务键列表
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteResource(@Valid @RequestBody IdsReq req) {
-        resourceManageAppService.deleteResources(TenantContextHolder.getTenantId(), req.ids(), null);
+    public PermResult<Void> deleteResource(@Valid @RequestBody ResourceKeysReq req) {
+        resourceManageAppService.deleteResources(TenantContextHolder.getTenantId(), req.items(), null);
         return PermResult.success();
     }
 

@@ -3,7 +3,7 @@ doc_type: design
 title: 6.1 类型定义页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-28   # 2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）
+last_reviewed: 2026-08-28   # 2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）   # 2026-08-29 §8 第 4 项收口（T-PERM-028：resource_type 创建联动预置已实现）
 ---
 
 # 6.1 类型定义页 前端设计
@@ -169,7 +169,7 @@ Phase 1 登记的 🔧 项处置终态：
 1. ✅ **typeValue 自动分配（收敛 T-PERM-019 D1）**：服务端在 tenant+typeKey 内按全量行（含软删行）max+1 分配，软删不复用；`TypeCreateReq` 已移除 `typeValue` 字段。
 2. ✅ **list 服务端过滤+分页**：`TypeListReq` = `{typeKey?, keyword?, pageNum?, pageSize?}`（移除从未生效的 `domainCode`），返回 `PaginatedResp`（keyword 匹配 name/typeCode LIKE——大小写敏感，对齐全仓关键字过滤先例；ORDER BY sortOrder,id）；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`，供授权页/冲突规则/资源操作下拉数据源消费——三处已传 `typeKey` 服务端过滤）；本页 hook 已切服务端分页。
 3. ✅ **create 接收 typeCode**：可选，留空服务端按 `TYPEKEY_<typeValue>` 生成；显式提供时 tenant+typeKey 内查重，重复拒绝 20049。
-4. ⏳ **resource_type 创建联动预置 operation_permission**：改归属 T-PERM-028（预置操作位模板与位掩码分配依赖 operation-permission 写链路同批定夺，见该任务 🔧 清单）。
+4. ✅ **resource_type 创建联动预置 operation_permission**：已随 T-PERM-028 落地（2026-08-29 用户决策实现）——createType 在 typeKey=resource_type 时同事务预置 CRUD 四操作位 CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)，DDL 预置组模板同款。
 5. ✅ **create 移除 isSystem**：服务端固定 `isSystem=false`，系统预置仅走租户初始化种子，不可由 API 创建。
 
 ### ✅ 满足
@@ -188,4 +188,4 @@ Phase 1 登记的 🔧 项处置终态：
 - ~~list 为前端本地过滤+分页~~ 已随 T-PERM-023 切服务端过滤+分页（2026-08-28）。
 - ~~typeValue 自动分配为 mock 层 max+1~~ 已由后端 allocator 实现（含软删行 max+1，软删不复用，2026-08-28）。
 - 删除为软删：已删行不出现在列表/detail，但 typeValue 仍占位（服务端分配语义，前端无需感知）。
-- §8 第 4 项（resource_type 联动预置 operation_permission）待 T-PERM-028；联调（T-FE-022）不受该项阻塞（页面不消费该联动）。
+- §8 第 4 项（resource_type 联动预置 operation_permission）已随 T-PERM-028 落地（前端页面不消费该联动，仅类型定义创建时后端同事务写入）。

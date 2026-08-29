@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
@@ -20,6 +22,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngi
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -110,17 +113,50 @@ public class OperationAppServiceImpl implements OperationAppService {
     /**
      * 获取操作权限详情
      * <p>
-     * 根据操作权限ID查询操作权限的完整信息。
+     * 以业务键 (resourceTypeCode, code) 查询操作权限完整信息（T-PERM-028；
+     * resourceTypeCode null/空白 = 全局操作）。类型级 OPERATION:VIEW 门禁。
      * </p>
      *
-     * @param tenantId   租户ID
-     * @param operationId 操作权限ID
-     * @return 操作权限响应，不存在返回null
+     * @param tenantId 租户ID
+     * @param key      操作权限业务键
+     * @return 操作权限响应
+     * @throws SecurityException 无 VIEW 权限时抛出
+     * @throws BizException      业务键查不到（20005）或资源类型不存在（20021）时抛出
      */
     @Override
-    public OperationPermissionResp getOperation(Long tenantId, Long operationId) {
-        OperationPermission op = operationPermissionMapper.selectValidById(operationId, tenantId);
-        return op != null ? toResp(op) : null;
+    public OperationPermissionResp getOperation(Long tenantId, OperationKeyReq key) {
+        // T-PERM-028：详情读门禁（类型级 OPERATION:VIEW，对齐 list 门禁先例）
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on OPERATION");
+        }
+        return toResp(selectOperationByBusinessKey(tenantId, key));
+    }
+
+    /**
+     * 以业务键定位有效操作权限（专属/全局两轨）
+     *
+     * @param tenantId 租户ID
+     * @param key      操作权限业务键
+     * @return 操作权限实体
+     * @throws BizException 资源类型不存在（20021）或操作不存在（20005）时抛出
+     */
+    private OperationPermission selectOperationByBusinessKey(Long tenantId, OperationKeyReq key) {
+        OperationPermission op;
+        if (key.isGlobal()) {
+            op = operationPermissionMapper.selectGlobalByCode(tenantId, key.code());
+        } else {
+            Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", key.resourceTypeCode());
+            if (resourceType == null) {
+                throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + key.resourceTypeCode());
+            }
+            op = operationPermissionMapper.selectByResourceTypeAndCode(tenantId, resourceType, key.code());
+        }
+        if (op == null) {
+            throw new BizException(PermissionErrorCode.OPERATION_NOT_FOUND.getCode(),
+                "Operation not found: " + (key.isGlobal() ? "<global>" : key.resourceTypeCode()) + ":" + key.code());
+        }
+        return op;
     }
 
     /**
@@ -163,24 +199,21 @@ public class OperationAppServiceImpl implements OperationAppService {
     /**
      * 更新操作权限
      * <p>
-     * 更新操作权限的名称、二进制位、继承掩码等属性。
-     * 需要OPERATION_MANAGE权限。
+     * 以业务键 (resourceTypeCode, code) 定位后更新名称、二进制位、继承掩码。
+     * 需要OPERATION_MANAGE权限（T-PERM-028：业务键定位，编码/类型不可更新）。
      * </p>
      *
      * @param tenantId   租户ID
-     * @param operationId 操作权限ID
-     * @param name       操作名称，可选
-     * @param binaryBit  二进制位，可选
-     * @param inheritMask 继承掩码，可选
+     * @param req        操作更新请求（业务键 + 可编辑字段）
      * @param operatorId 操作者ID，可选
      * @return 更新后的操作权限响应
-     * @throws SecurityException     无权限时抛出
-     * @throws IllegalArgumentException 操作权限不存在时抛出
+     * @throws SecurityException 无权限时抛出
+     * @throws BizException      业务键查不到或资源类型不存在时抛出
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_UPDATE", targetType = "operation_permission", targetId = "#operationId", summary = "'update operation permission ' + #operationId")
-    public OperationPermissionResp updateOperation(Long tenantId, Long operationId, String name, Long binaryBit, Long inheritMask, Long operatorId) {
+    @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_UPDATE", targetType = "operation_permission", targetId = "#req.code()", summary = "'update operation permission ' + (#req.resourceTypeCode != null ? #req.resourceTypeCode : '<global>') + ':' + #req.code()")
+    public OperationPermissionResp updateOperation(Long tenantId, OperationUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // 权限校验
@@ -188,13 +221,10 @@ public class OperationAppServiceImpl implements OperationAppService {
             throw new SecurityException("No permission to update operation");
         }
 
-        OperationPermission op = operationPermissionMapper.selectOneById(operationId);
-        if (op == null || op.getDeleteFlag() != 0L || !op.getTenantId().equals(tenantId)) {
-            throw new BizException(PermissionErrorCode.OPERATION_NOT_FOUND.getCode(), "Operation not found: " + operationId);
-        }
-        if (name != null) op.setName(name);
-        if (binaryBit != null) op.setBinaryBit(binaryBit);
-        if (inheritMask != null) op.setInheritMask(inheritMask);
+        OperationPermission op = selectOperationByBusinessKey(tenantId, new OperationKeyReq(req.resourceTypeCode(), req.code()));
+        if (req.name() != null) op.setName(req.name());
+        if (req.binaryBit() != null) op.setBinaryBit(req.binaryBit());
+        if (req.inheritMask() != null) op.setInheritMask(req.inheritMask());
         op.setUpdatedAt(LocalDateTime.now());
         op.setUpdatedBy(operatorId);
         operationPermissionMapper.update(op);
@@ -204,19 +234,19 @@ public class OperationAppServiceImpl implements OperationAppService {
     /**
      * 批量删除操作权限
      * <p>
-     * 批量软删除操作权限。使用批量查询和批量软删除避免N+1问题。
-     * 需要OPERATION_MANAGE权限。
+     * 以业务键批量定位后批量软删除（T-PERM-028）。按 resourceTypeCode 分组批量解析，
+     * 避免N+1问题。需要OPERATION_MANAGE权限。
      * </p>
      *
-     * @param tenantId     租户ID
-     * @param operationIds 操作权限ID列表
-     * @param operatorId   操作者ID，可选
+     * @param tenantId   租户ID
+     * @param keys       操作权限业务键列表
+     * @param operatorId 操作者ID，可选
      * @throws SecurityException 无权限时抛出
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_REMOVE", targetType = "operation_permission", targetId = "", summary = "'batch remove operation permissions'")
-    public void deleteOperations(Long tenantId, List<Long> operationIds, Long operatorId) {
+    public void deleteOperations(Long tenantId, List<OperationKeyReq> keys, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // 权限校验
@@ -224,23 +254,13 @@ public class OperationAppServiceImpl implements OperationAppService {
             throw new SecurityException("No permission to delete operations");
         }
 
-        if (operationIds == null || operationIds.isEmpty()) {
+        if (keys == null || keys.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
         }
 
-        // 过滤null值ID
-        Set<Long> validInputIds = operationIds.stream()
-            .filter(id -> id != null)
-            .collect(Collectors.toSet());
-
-        if (validInputIds.isEmpty()) {
-            OperationLogRuntimeContext.markSkip();
-            return;
-        }
-
-        // 批量查询（避免N+1）
-        List<OperationPermission> entities = operationPermissionMapper.selectValidByIds(tenantId, validInputIds);
+        // 业务键解析为实体：专属按 resourceTypeCode 分组批量查询，全局单独批量（避免N+1）
+        List<OperationPermission> entities = resolveOperationsByKeys(tenantId, keys);
 
         if (entities.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -256,6 +276,41 @@ public class OperationAppServiceImpl implements OperationAppService {
         LocalDateTime now = LocalDateTime.now();
         operationPermissionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " operation_permission row(s)");
+    }
+
+    /**
+     * 批量解析业务键为有效操作权限实体（专属/全局两轨分组批量查询）
+     *
+     * @param tenantId 租户ID
+     * @param keys     操作权限业务键列表
+     * @return 命中的有效实体列表（未命中的键静默跳过，对齐原 ids 批删语义）
+     */
+    private List<OperationPermission> resolveOperationsByKeys(Long tenantId, List<OperationKeyReq> keys) {
+        Map<String, Set<String>> typedCodesByKey = new java.util.LinkedHashMap<>();
+        Set<String> globalCodes = new java.util.LinkedHashSet<>();
+        for (OperationKeyReq key : keys) {
+            if (key == null || key.code() == null || key.code().isBlank()) {
+                continue;
+            }
+            if (key.isGlobal()) {
+                globalCodes.add(key.code());
+            } else {
+                typedCodesByKey.computeIfAbsent(key.resourceTypeCode(), k -> new java.util.LinkedHashSet<>()).add(key.code());
+            }
+        }
+
+        List<OperationPermission> entities = new java.util.ArrayList<>();
+        for (Map.Entry<String, Set<String>> entry : typedCodesByKey.entrySet()) {
+            Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", entry.getKey());
+            if (resourceType == null) {
+                continue;
+            }
+            entities.addAll(operationPermissionMapper.selectByResourceTypeAndCodes(tenantId, resourceType, entry.getValue()));
+        }
+        if (!globalCodes.isEmpty()) {
+            entities.addAll(operationPermissionMapper.selectGlobalByCodes(tenantId, globalCodes));
+        }
+        return entities;
     }
 
     /**

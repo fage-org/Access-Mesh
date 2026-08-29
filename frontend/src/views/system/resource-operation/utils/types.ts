@@ -44,10 +44,18 @@ export type OperationFormData = {
   inheritMask: number;
 };
 
-/** 资源移动表单数据 */
+/** 资源移动表单数据（即 ResourceMoveReq 请求体：业务键对定位，parent null=顶层） */
 export type ResourceMoveFormData = {
-  resourceId: number;
-  parentId: number | null;
+  resource: {
+    resourceTypeCode: string;
+    code: string;
+    codeType?: string | null;
+  };
+  parent: {
+    resourceTypeCode: string;
+    code: string;
+    codeType?: string | null;
+  } | null;
 };
 
 /** 资源表单空值工厂（新建用） */

@@ -96,6 +96,167 @@ class ResourceManageAppServiceImplTest {
         }
     }
 
+    // ========== T-PERM-028：业务键定位 + 读门禁补齐 + extraClear + move 校验 ==========
+
+    private static cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq key(String code) {
+        return new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", code, null);
+    }
+
+    @Test
+    @DisplayName("detail 无 RESOURCE:VIEW → SecurityException，不触碰查询")
+    void shouldRejectResourceDetailWithoutResourceViewPermission() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+
+            assertThrows(SecurityException.class, () -> service.getResource(1L, key("x")));
+        }
+        verifyNoInteractions(resourceEntityMapper);
+        verifyNoInteractions(typeResolutionService);
+    }
+
+    @Test
+    @DisplayName("detail 按业务键查询（codeType 缺省归一 default），查不到 → 20004")
+    void shouldGetResourceByBusinessKeyAndThrowWhenMissing() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+            when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+            when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default"))
+                .thenReturn(resourceWithKey(10L));
+
+            assertEquals("res:x", service.getResource(1L, key("x")).code());
+
+            when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "y", "default")).thenReturn(null);
+            cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+                cn.ac.fage.accessmesh.common.exception.BizException.class, () -> service.getResource(1L, key("y")));
+            assertEquals(20004, ex.getErrorCode());
+        }
+    }
+
+    @Test
+    @DisplayName("list 无 RESOURCE:VIEW → SecurityException（分页列表与树同口径门禁）")
+    void shouldRejectResourceListWithoutResourceViewPermission() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+
+            assertThrows(SecurityException.class, () -> service.listResources(1L, null, null, 0, 10));
+            assertThrows(SecurityException.class, () -> service.countResources(1L, null, null));
+        }
+        verifyNoInteractions(resourceEntityMapper);
+    }
+
+    @Test
+    @DisplayName("update 按业务键定位 + extraClear=true 清空 extra（null 与「未传」区分）")
+    void shouldClearExtraWhenExtraClearTrue() {
+        ResourceEntity entity = resourceWithKey(10L);
+        entity.setExtra("{\"k\":1}");
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
+        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+            .thenReturn(true);
+
+        var resp = service.updateResource(1L,
+            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq(
+                "MENU", "x", null, null, null, null, null, null, Boolean.TRUE), 100L);
+
+        assertEquals(null, resp.extra());
+        // 置 null 走 UpdateEntity 显式更新列（BaseMapper.update 忽略 null 字段）
+        verify(resourceEntityMapper).update(any(ResourceEntity.class));
+    }
+
+    @Test
+    @DisplayName("update extra=null 且未传 extraClear → 不更新 extra（维持原值）")
+    void shouldKeepExtraWhenNullWithoutClearFlag() {
+        ResourceEntity entity = resourceWithKey(10L);
+        entity.setExtra("{\"k\":1}");
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
+        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+            .thenReturn(true);
+
+        var resp = service.updateResource(1L,
+            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq(
+                "MENU", "x", null, "新名称", null, null, null, null, null), 100L);
+
+        assertEquals("{\"k\":1}", resp.extra());
+        assertEquals("新名称", resp.name());
+    }
+
+    @Test
+    @DisplayName("move 跨资源类型 → 20053 拒绝")
+    void shouldRejectCrossTypeMove() {
+        ResourceEntity entity = resourceWithKey(10L);
+        ResourceEntity parent = resourceWithKey(20L);
+        parent.setResourceType(2);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "BUTTON")).thenReturn(2);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 2, "y", "default")).thenReturn(parent);
+        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+            .thenReturn(true);
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.moveResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq(
+                key("x"), new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("BUTTON", "y", null)), 100L));
+        assertEquals(20053, ex.getErrorCode());
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
+    }
+
+    @Test
+    @DisplayName("move 目标父为子孙节点 → 20053 拒绝（防环）")
+    void shouldRejectMoveToOwnDescendant() {
+        ResourceEntity entity = resourceWithKey(10L);
+        ResourceEntity descendant = resourceWithKey(11L);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "child", "default")).thenReturn(descendant);
+        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+            .thenReturn(true);
+        when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
+            .thenReturn(java.util.Map.of(10L, List.of(11L)));
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.moveResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq(
+                key("x"), key("child")), 100L));
+        assertEquals(20053, ex.getErrorCode());
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
+    }
+
+    @Test
+    @DisplayName("move parent=null → 移动到顶层（parentId 置 null）")
+    void shouldMoveToTopLevelWhenParentNull() {
+        ResourceEntity entity = resourceWithKey(10L);
+        entity.setParentId(20L);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
+        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+            .thenReturn(true);
+
+        service.moveResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq(
+            key("x"), null), 100L);
+
+        assertEquals(null, entity.getParentId());
+        verify(resourceEntityMapper).update(any(ResourceEntity.class));
+    }
+
+    private ResourceEntity resourceWithKey(Long id) {
+        ResourceEntity entity = new ResourceEntity();
+        entity.setId(id);
+        entity.setTenantId(1L);
+        entity.setResourceType(1);
+        entity.setCode("res:x");
+        entity.setCodeType("default");
+        entity.setName("资源X");
+        return entity;
+    }
+
     // ========== T-PERM-027 §7.5：API 映射列表 SERVICE:VIEW 门禁与结果裁剪 ==========
 
     @Test
