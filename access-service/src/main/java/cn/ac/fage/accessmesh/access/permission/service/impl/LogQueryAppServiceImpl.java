@@ -31,8 +31,8 @@ import java.util.stream.Collectors;
  * <p>
  * 提供变更日志和操作日志的只读查询功能。
  * 门禁（审计分离）：变更日志页 listChangeLogs/countChangeLogs 需 PERMISSION_CHANGE_LOG:VIEW
- * （T-PERM-032），操作日志需 OPERATION_LOG:VIEW（T-PERM-025）；recent-changes 仍需
- * SYSTEM_CONFIG:VIEW（随 T-PERM-033 处置）。
+ * （T-PERM-032），操作日志需 OPERATION_LOG:VIEW（T-PERM-025）；recent-changes 为被查目标
+ * 实例 USER:VIEW/ROLE:VIEW（T-PERM-033 设计定案）。
  * 支持按实体、用户、角色、时间范围、事件类型、变更来源等多维度过滤查询。
  * </p>
  */
@@ -126,62 +126,35 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     }
 
     /**
-     * 查询变更日志列表（支持多条件过滤）
-     * <p>
-     * 支持按用户、角色、时间范围、事件类型等多维度过滤查询。
-     * 需要SYSTEM_CONFIG_VIEW权限。
-     * </p>
+     * 筛选查询变更日志列表（getRecentChanges 内部复用，无独立门禁——
+     * 门禁由 {@link #getRecentChanges} 的目标实例 VIEW 检查承担）。
      *
      * @param tenantId   租户ID
-     * @param userId     用户ID，可选过滤条件
-     * @param roleId     角色ID，可选过滤条件
+     * @param userId     受影响的用户ID，可选
+     * @param roleId     涉及的角色ID，可选
      * @param since      开始时间，可选
      * @param until      结束时间，可选
-     * @param eventTypes 事件类型列表，可选过滤条件
+     * @param eventTypes 事件类型列表，可选
      * @param offset     分页偏移量
-     * @param limit      分页大小
-     * @return 变更日志响应列表
-     * @throws SecurityException 无权限时抛出
+     * @param limit      分页条数
+     * @return 变更日志列表
      */
-    @Override
-    public List<ChangeLogResp> listChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
+    private List<ChangeLogResp> listChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
                                                        LocalDateTime since, LocalDateTime until,
                                                        List<String> eventTypes, int offset, int limit) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
-        }
-
         return changeLogMapper.selectPageByCondition(tenantId, null, null, userId, roleId,
                         since, until, eventTypes, null, offset, limit)
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
     /**
-     * 统计变更日志数量（支持多条件过滤）
-     * <p>
-     * 统计符合条件的变更日志总数。
-     * 需要SYSTEM_CONFIG_VIEW权限。
-     * </p>
+     * 筛选统计变更日志数量（getRecentChanges 内部复用，无独立门禁）。
      *
-     * @param tenantId   租户ID
-     * @param userId     用户ID，可选过滤条件
-     * @param roleId     角色ID，可选过滤条件
-     * @param since      开始时间，可选
-     * @param until      结束时间，可选
-     * @param eventTypes 事件类型列表，可选过滤条件
-     * @return 变更日志总数
-     * @throws SecurityException 无权限时抛出
+     * @return 变更日志数量
      */
-    @Override
-    public long countChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
+    private long countChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
                                          LocalDateTime since, LocalDateTime until,
                                          List<String> eventTypes) {
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
-        }
-
         return changeLogMapper.countByCondition(tenantId, null, null, userId, roleId,
                 since, until, eventTypes, null);
     }
@@ -189,24 +162,23 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     // ===== 最近变更查询 =====
 
     /**
-     * 查询最近变更
+     * 查询最近变更（permission-view/recent-changes 端点）
      * <p>
      * 查询用户或角色的最近权限变更记录。
      * 支持按目标类型（USER/ROLE）、时间范围、事件类型过滤。
-     * 需要SYSTEM_CONFIG_VIEW权限。
+     * 门禁（T-PERM-033 设计定案）：被查目标实例 USER:VIEW / ROLE:VIEW
+     * （查谁就要对谁有 VIEW；ROLE 未解析时类型级兜底，USER 未解析返回空）——
+     * 从 SYSTEM_CONFIG:VIEW 切换，与 explain/effective-permissions 同款目标检查。
      * </p>
      *
      * @param tenantId 租户ID
      * @param req      最近变更查询请求
      * @return 最近变更响应，包含变更列表和分页信息
-     * @throws SecurityException 无权限时抛出
+     * @throws SecurityException 无目标 VIEW 权限时抛出
      */
     @Override
     public PermissionRecentChangesResp getRecentChanges(Long tenantId, PermissionRecentChangesReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
-        }
 
         Long userId = null;
         Long roleId = null;
@@ -215,6 +187,23 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
         } else if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType()) && req.roleTypeCode() != null && req.roleExternalId() != null) {
             roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         }
+
+        // 门禁：目标实例 VIEW（USER 未解析不检查、返回空；ROLE 未解析类型级兜底）
+        if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType())) {
+            if (userId != null
+                && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on USER:" + userId);
+            }
+        } else if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType())) {
+            if (roleId != null) {
+                if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.VIEW)) {
+                    throw new SecurityException("Permission denied: VIEW on ROLE:" + roleId);
+                }
+            } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on ROLE");
+            }
+        }
+
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = Math.max((pageNum - 1) * pageSize, 0);

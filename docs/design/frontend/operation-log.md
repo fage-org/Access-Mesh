@@ -132,7 +132,7 @@ views/system/operation-log/
 |---|---|---|---|
 | `OPERATION_LOG:VIEW` | VIEW | OPERATION_LOG（独立，T-PERM-025） | 「查看」按钮（详情抽屉）+ 列表数据可见（后端 listOperationLogs/action-options 校验 VIEW） |
 
-> **门禁说明**：后端操作日志查询以独立 `OPERATION_LOG:VIEW` 门禁（T-PERM-025 审计分离；变更日志已随 T-PERM-032 切独立 `PERMISSION_CHANGE_LOG:VIEW`，权限视图随 T-PERM-033 处置）。本页为只读查询页，只有 VIEW 一项，无 SAVE/MANAGE。`OPERATION_LOG_PERM_LIST` 用 `Set` 去重确保路由 `meta.auths` 无冗余。
+> **门禁说明**：后端操作日志查询以独立 `OPERATION_LOG:VIEW` 门禁（T-PERM-025 审计分离；变更日志已随 T-PERM-032 切独立 `PERMISSION_CHANGE_LOG:VIEW`；权限排查视图已随 T-PERM-033 切被查目标实例 `USER:VIEW`/`ROLE:VIEW`，无独立排查码）。本页为只读查询页，只有 VIEW 一项，无 SAVE/MANAGE。`OPERATION_LOG_PERM_LIST` 用 `Set` 去重确保路由 `meta.auths` 无冗余。
 
 ### 降级策略
 
@@ -159,7 +159,7 @@ Phase 1 登记的 🔧 项处置终态：
 
 1. ✅ **契约路径与字段契约**：路径误写已于 T-ACCESS-007 评审修复（提交 371d9d009）修正（§5.8 现为实现路径 `/api/perm/log/operation/list`）；operation-log 契约要点（字段/多维筛选/action-options/OPERATION_LOG:VIEW 门禁）已补入 api-contract §5.8。
 2. ✅ **筛选维度扩展**：`OperationLogListReq` 补 `operatorId`/`since`/`until`（created_at 闭区间）/`targetType`，均精确匹配（等值索引友好，schema 对应 idx_operation_log_operator/idx_operation_log_target）；前端筛选表单同步扩展（操作者 ID/时间范围/目标类型）。
-3. ✅ **审计分离（设计定案 2026-08-28）**：新增独立 `OPERATION_LOG:VIEW` 权限码——type_definition 种子 OPERATION_LOG=30（CRUD 预置组自动覆盖 VIEW）、`ResourceTypeCode.OPERATION_LOG` 枚举、`LogQueryAppServiceImpl` 操作日志查询（list/count/action-options）门禁切换；bootstrap 固定图管理角色补授（§14.4 最小集第 9 项，固定图 22 条——新权限码须固定图持否则无授予起点死锁）；前端 `OPERATION_LOG_PERMS.LOG_VIEW` 切换。**边界**：变更日志（log/change/list）已随 T-PERM-032 切独立 `PERMISSION_CHANGE_LOG:VIEW`；权限视图（permission-view/recent-changes）门禁仍为 SYSTEM_CONFIG:VIEW，随 T-PERM-033 处置。
+3. ✅ **审计分离（设计定案 2026-08-28）**：新增独立 `OPERATION_LOG:VIEW` 权限码——type_definition 种子 OPERATION_LOG=30（CRUD 预置组自动覆盖 VIEW）、`ResourceTypeCode.OPERATION_LOG` 枚举、`LogQueryAppServiceImpl` 操作日志查询（list/count/action-options）门禁切换；bootstrap 固定图管理角色补授（§14.4 最小集第 9 项，固定图 22 条——新权限码须固定图持否则无授予起点死锁）；前端 `OPERATION_LOG_PERMS.LOG_VIEW` 切换。**边界**：变更日志（log/change/list）已随 T-PERM-032 切独立 `PERMISSION_CHANGE_LOG:VIEW`；权限排查视图（permission-view/explain/recent-changes）已随 T-PERM-033 切被查目标实例 `USER:VIEW`/`ROLE:VIEW`（设计定案：不引入独立排查码）。
 4. ✅ **action 字典（任务卡主项）**：新增 `POST /api/perm/log/operation/action-options`（module 可选过滤）返回 operation_log 实际存在的 action 去重集合（非维护端枚举，避免与 @OperationLog 注解清单双轨漂移）；前端 ACTION_OPTIONS 硬编码 12 项子集移除，hook 动态拉取全量字典（label=value=code，filterable 下拉）；LogDetailDrawer action 展示改原始编码。
 5. ✅ **action 筛选语义（任务卡决策点，设计定案 2026-08-28）**：动态字典下拉 + 精确匹配——字典含全部实际存在事件码（约 102 个）检索已闭环，保持等值匹配索引语义；不做自由输入/模糊匹配（后端查询语义未改）。
 

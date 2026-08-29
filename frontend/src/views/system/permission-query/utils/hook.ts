@@ -49,7 +49,13 @@ function isDomainRequired(roleTypeCode: string): boolean {
 // ========== 公共：权限门控 + 三 Tab 汇总 ==========
 
 export function usePermissionQuery() {
-  const canQuery = computed(() => hasPerms(PERMISSION_QUERY_PERMS.QUERY_VIEW));
+  // 页面级 UI 门 = 任一目标类型可查（T-PERM-033 设计定案：无独立排查码，
+  // API 层按被查目标实例 USER:VIEW/ROLE:VIEW 逐一校验）
+  const canQuery = computed(
+    () =>
+      hasPerms(PERMISSION_QUERY_PERMS.USER_VIEW) ||
+      hasPerms(PERMISSION_QUERY_PERMS.ROLE_VIEW)
+  );
   const tab1 = useEffectivePermissionsTab(() => canQuery.value);
   const tab2 = useQueryScopesTab(() => canQuery.value);
   const tab3 = useExplainTab(() => canQuery.value);

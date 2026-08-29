@@ -24,6 +24,9 @@ import jakarta.validation.constraints.NotBlank;
  * @param includeSourceRoles 是否包含来源角色，可选
  * @param includeRecentChanges 是否包含最近变更，可选
  * @param recentDays         最近变更天数，可选
+ * @param context            条件评估上下文（T-PERM-033），可选：管理员输入的模拟 clientIp；
+ *                           未提供时回退当前请求环境（评估上下文来源在响应标注）。
+ *                           日期/时间类条件按服务进程系统时钟评估，不可模拟。
  */
 public record PermissionExplainReq(
     @NotBlank String targetType,
@@ -39,5 +42,16 @@ public record PermissionExplainReq(
     ScopeMode scopeMode,
     Boolean includeSourceRoles,
     Boolean includeRecentChanges,
-    Integer recentDays
-) {}
+    Integer recentDays,
+    ExplainContext context
+) {
+
+    /**
+     * explain 条件评估上下文（T-PERM-033）
+     *
+     * @param clientIp 模拟的客户端 IP，用于 IP 黑白名单条件评估；空白视为未提供
+     */
+    public record ExplainContext(
+        String clientIp
+    ) {}
+}

@@ -6,6 +6,12 @@
 // 契约依据：docs/design/permission-center/api-contract.md §6.6-6.8
 // 主体模型：effective-permissions/explain 支持 USER/ROLE；query-scopes 仅 USER
 //
+// T-PERM-033 设计定案（2026-08-29）：不引入独立排查权限码——API 门禁为被查目标实例
+// USER:VIEW/ROLE:VIEW（query-scopes 维持运行时语义无排查门禁）；explain 响应新增
+// evaluationContextSource/evaluatedClientIp/conditionEvaluations/conflictDrops 与
+// recentChanges 权限键过滤为后端契约终态，本 mock 仍按 Phase 1 形状返回（新字段可选，
+// 展示随 T-FE-019 联调接线），impactLevel 枚举对齐契约 DIRECT/POSSIBLE。
+//
 // 单一事实源（评审 P1 修复）：PermissionGrant 统一授权事实表派生 effective-permissions + explain，
 // 消除列表(explain 判定)与事实表的双源漂移。
 // - USER explain 复用 auth/check 语义：ALL 授权覆盖 INSTANCE 查询（§6.8 L1515）

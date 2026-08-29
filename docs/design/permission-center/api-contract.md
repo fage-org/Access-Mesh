@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-29   # 2026-08-29 §5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-29   # 2026-08-29 §6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -1371,6 +1371,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - 如果主操作和范围操作不是同名关系，应通过域配置声明映射规则；未配置映射时，默认只做同名操作匹配。
 - `scopeMode=ALL` 表示该格 `resourceTypeCode + operationCode` 下全量范围权限，实现不应展开返回全部实例明细。
 - 权限中心只返回范围权限事实，不生成 SQL、不解释业务字段；业务服务自行按 `scopeMode` 决定是否发 SQL 及如何把 `items[].resourceCode` 映射为查询条件。
+- **管理端排查复用（T-PERM-033 设计定案，2026-08-29）**：权限排查页 Tab2 复用本接口，但本接口**维持运行时语义、不加排查门禁**（业务服务按主体查询不要求调用者持排查码；未来业务方合法的非自查查询不应被拒）。排查页仅靠页面级 UI 门（`USER:VIEW` 或 `ROLE:VIEW` 任一）控制入口；API 层为租户内只读暴露面，按演进需要再评估收紧。
 - 已删除字段：`allowed`（合并进 `scopeMode`）、`mergeMode`（分类模型下每格独立，不再需要 UNION 标记）、顶层 `items[]`/`ScopeEntry`（改为 `scopeGroups[].items[]`）。`permissionVersion` 字段已于 T-PERM-018（缓存下沉）移除。
 
 ### 6.8 权限排查视图与近期变更
@@ -1503,7 +1504,10 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
   "scopeMode": "INSTANCE",
   "includeSourceRoles": true,
   "includeRecentChanges": true,
-  "recentDays": 30
+  "recentDays": 30,
+  "context": {
+    "clientIp": "10.20.30.40"
+  }
 }
 ```
 
@@ -1533,6 +1537,31 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "message": "角色 报表编辑员 删除了销售报表 DATA_EDIT 权限，可能影响该用户",
       "createdAt": "2026-04-20T10:30:00"
     }
+  ],
+  "evaluationContextSource": "ADMIN_INPUT",
+  "evaluatedClientIp": "10.20.30.40",
+  "conditionEvaluations": [
+    {
+      "conditionId": 77,
+      "permissionId": 501,
+      "roleId": 20,
+      "status": "OK",
+      "logic": "AND",
+      "passed": false,
+      "items": [
+        { "type": "IP_WHITELIST", "maskedParams": "192.168.*.*/24, 10.20.*.*", "matched": false },
+        { "type": "TIME_RANGE", "maskedParams": "09:00:00~18:00:00", "matched": true }
+      ]
+    }
+  ],
+  "conflictDrops": [
+    {
+      "permissionId": 502,
+      "roleId": 21,
+      "ruleId": 9,
+      "firstOperationCode": "VIEW",
+      "secondOperationCode": "MANAGE"
+    }
   ]
 }
 ```
@@ -1540,10 +1569,14 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 规则：
 
 - `explain` 只解释一个资源和一个操作，不返回权限列表。
+- **门禁（T-PERM-033 设计定案，2026-08-29）**：`explain` 门禁为**被查目标实例 `USER:VIEW` / `ROLE:VIEW`**（查谁就要对谁有 VIEW，与 `effective-permissions` 同款；ROLE 目标未解析时类型级 `ROLE:VIEW` 兜底，USER 目标未解析不检查、返回 `USER_NOT_FOUND`）。不引入独立排查权限码（原预案 `PERMISSION_QUERY:VIEW` 否决：权限码结构为「资源:操作」，`PERMISSION_QUERY` 是操作描述而非资源）。
 - 请求侧 `scopeMode` 只允许 `INSTANCE` / `ALL`：`INSTANCE` 表示解释具体实例权限，必须传 `resourceCode/codeType`；`ALL` 表示解释 `resourceTypeCode + operationCode` 下的全量范围权限，不传 `resourceCode/codeType`。
-- `allowed/reason` 应复用 `auth/check` 的主体、角色、资源、操作、条件、冲突计算逻辑。
+- `allowed/reason` 复用 `auth/check` 的主体、角色、资源、操作、条件、冲突计算逻辑（判定查询与运行时同一引擎语义）。
 - 用户视角需要返回命中的来源角色；未命中时返回拒绝原因和相关近期影响事件。
-- `includeRecentChanges=true` 时，只返回与目标权限键相关的近期事件；默认窗口为 30 天，服务端可限制最大窗口。
+- **条件评估上下文（T-PERM-033）**：请求 `context.clientIp` 为管理员输入的模拟客户端 IP；未提供时回退**当前请求环境**（操作者 IP），响应 `evaluationContextSource` 标注实际来源（`ADMIN_INPUT` / `CURRENT_REQUEST`）。日期/时间类条件按服务进程系统时钟评估（与运行时判定一致，不可模拟）；IP 类条件按上述上下文评估。
+- **条件评估明细（T-PERM-033）**：`conditionEvaluations` 覆盖候选命中条目（条件/互斥过滤前）中挂条件的条目，逐项给出类型、脱敏参数摘要与是否满足；`status` 区分 `OK/DISABLED/NOT_FOUND/INVALID`，非 `OK` 恒 fail-close（`passed=false`）。**敏感条件值脱敏**：IP 黑白名单掩码主机段（如 `192.168.1.0/24 → 192.168.*.*\/24`，IPv6/非常规整体 `MASKED`）；日期/时间范围为非敏感值原样回传。
+- **互斥丢弃明细（T-PERM-033）**：`conflictDrops` 列出候选命中中被权限互斥规则丢弃的条目及命中规则（规则ID + 两侧操作码），解释「本可命中但被互斥移除」。角色级互斥（ROLE_MUTEX）不在此明细范围。
+- `includeRecentChanges=true` 时，`recentChanges` **按完整权限键过滤**：含 `permission` 键的事件按 6 字段匹配（`resourceTypeCode/operationCode/scopeMode` 精确相等；`domainCode/resourceCode/codeType` 请求侧为 null 时通配），返回与目标权限键相关的事件；USER 目标额外保留该用户的 `USER_ROLE_CHANGE`（角色分配/回收，`impactLevel=DIRECT`），含权限键事件对 USER 目标标 `POSSIBLE`、对 ROLE 目标标 `DIRECT`。默认窗口为 30 天，服务端可限制最大窗口。
 - 范围权限排查应使用主资源权限 + `auth/query-scopes` 或后续扩展 `explain` 的 scope 参数，不应让本接口隐式展开全部范围。
 
 #### 查询近期影响事件
@@ -1610,6 +1643,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 规则：
 
 - `recent-changes` 返回的是“可能影响目标权限的变更事件”，不是目标有效权限的精确历史 diff。
+- **门禁（T-PERM-033 设计定案）**：被查目标实例 `USER:VIEW` / `ROLE:VIEW`（与 `explain` 同款；ROLE 未解析时类型级兜底，USER 未解析返回空）——从 `SYSTEM_CONFIG:VIEW` 切换。
 - 查询对象为用户时，事件来源包括用户角色分配/回收、命中角色的权限增删改、角色启停、资源启停、条件变更、分组角色包含关系变化。
 - 查询对象为角色时，只返回该角色自身权限、状态、条件、依赖规则等相关变更。
 - 如果同一权限来自多个角色，某个角色删除权限不代表用户一定失去该权限；响应应使用 `impactLevel=POSSIBLE` 或解释性文案表达“可能影响”。

@@ -192,6 +192,9 @@ export interface ExplainReq {
   includeRecentChanges?: boolean;
   /** 近期事件窗口天数（默认 30） */
   recentDays?: number;
+  /** 条件评估上下文（T-PERM-033）：管理员输入的模拟 clientIp，未传时后端回退当前请求；
+   *  响应 evaluationContextSource 标注实际来源；日期/时间类条件按服务时钟评估不可模拟 */
+  context?: { clientIp?: string | null };
 }
 
 /** explain 权限键 */
@@ -209,8 +212,8 @@ export interface RecentChange {
   changeLogId: number;
   eventType: string;
   changeType: string;
-  /** 影响级别：POSSIBLE=可能影响 | CONFIRMED=确认影响 | NONE=无影响 */
-  impactLevel: string;
+  /** 影响级别（契约 §6.8 固定枚举）：DIRECT=直接命中查询对象 | POSSIBLE=间接可能影响 */
+  impactLevel: "DIRECT" | "POSSIBLE";
   message: string;
   permission?: ExplainPermission;
   sourceRole?: SourceRole;
@@ -218,6 +221,37 @@ export interface RecentChange {
   operatorName: string | null;
   changeReason: string | null;
   createdAt: string;
+}
+
+/** explain 条件项评估结果（T-PERM-033；值已脱敏：IP 掩码主机段、日期/时间原样） */
+export interface ConditionItemEvaluation {
+  /** IP_WHITELIST | IP_BLACKLIST | DATE_RANGE | TIME_RANGE */
+  type: string;
+  /** 脱敏后的参数摘要 */
+  maskedParams: string | null;
+  /** 该项在评估上下文下是否满足 */
+  matched: boolean;
+}
+
+/** explain 条件评估明细（T-PERM-033） */
+export interface ConditionEvaluation {
+  conditionId: number;
+  permissionId: number | null;
+  roleId: number | null;
+  /** 条件加载状态：OK | DISABLED | NOT_FOUND | INVALID（非 OK 恒 fail-close） */
+  status: "OK" | "DISABLED" | "NOT_FOUND" | "INVALID";
+  logic: "AND" | "OR" | null;
+  passed: boolean;
+  items: ConditionItemEvaluation[];
+}
+
+/** explain 被权限互斥规则丢弃的候选命中条目（T-PERM-033） */
+export interface ConflictDrop {
+  permissionId: number | null;
+  roleId: number | null;
+  ruleId: number | null;
+  firstOperationCode: string | null;
+  secondOperationCode: string | null;
 }
 
 /** explain 响应 */
@@ -229,7 +263,16 @@ export interface ExplainResp {
   permission: ExplainPermission;
   sourceRoles: SourceRole[];
   matchedPermissionIds: number[];
+  /** 近期影响事件：按权限键过滤（USER 目标保留角色分配/回收） */
   recentChanges: RecentChange[];
+  /** 条件评估上下文来源（T-PERM-033）：ADMIN_INPUT=管理员输入 | CURRENT_REQUEST=回退当前请求 */
+  evaluationContextSource?: "ADMIN_INPUT" | "CURRENT_REQUEST";
+  /** 实际参与 IP 类条件评估的客户端 IP（无 IP 条件上下文时 null） */
+  evaluatedClientIp?: string | null;
+  /** 条件评估明细（候选命中条目中挂条件的逐项评估过程） */
+  conditionEvaluations?: ConditionEvaluation[];
+  /** 被权限互斥规则丢弃的候选命中条目及命中规则 */
+  conflictDrops?: ConflictDrop[];
 }
 
 // ========== API 函数 ==========

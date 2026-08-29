@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService;
+import cn.ac.fage.accessmesh.access.permission.vo.ConditionEvaluationDetail;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,6 +16,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,6 +34,9 @@ import java.util.stream.Collectors;
 public class PermissionConditionDomainServiceImpl implements PermissionConditionDomainService {
 
     private static final Logger log = LoggerFactory.getLogger(PermissionConditionDomainServiceImpl.class);
+
+    /** 明细展示的 CIDR 掩码条数上限（超出以 … 截断） */
+    private static final int MAX_MASKED_IP_SHOWN = 3;
 
     private final PermissionConditionMapper conditionMapper;
     private final ObjectMapper objectMapper;
@@ -81,6 +86,49 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     }
 
     /**
+     * 逐项评估权限条目条件并返回评估明细（T-PERM-033 explain DTO 扩展）。
+     * <p>
+     * 与 {@link #evaluate} 共用规则加载与逐项评估逻辑，不丢弃条目；
+     * 条件值按脱敏规则回传（IP 掩码主机段、日期/时间原样）。
+     * </p>
+     */
+    @Override
+    public List<ConditionEvaluationDetail> evaluateDetailed(Long tenantId, List<RolePermEntry> entries,
+                                                            Map<String, Object> context) {
+        Map<String, Object> ctx = context == null ? Map.of() : context;
+        List<ConditionEvaluationDetail> details = new ArrayList<>();
+        for (RolePermEntry entry : entries) {
+            if (entry.conditionId() == null || !entry.hasCondition()) {
+                continue;
+            }
+            details.add(evaluateOneDetailed(tenantId, entry, ctx));
+        }
+        return details;
+    }
+
+    /**
+     * 单条挂条件条目的评估明细
+     */
+    private ConditionEvaluationDetail evaluateOneDetailed(Long tenantId, RolePermEntry entry,
+                                                          Map<String, Object> context) {
+        LoadedRules loaded = loadRules(tenantId, entry.conditionId());
+        if (!ConditionEvaluationDetail.STATUS_OK.equals(loaded.status()) || loaded.rules() == null) {
+            return new ConditionEvaluationDetail(entry.conditionId(), entry.permissionId(), entry.roleId(),
+                loaded.status(), null, false, List.of());
+        }
+        try {
+            RulesEvaluation evaluation = evalRules(entry.conditionId(), loaded.rules(), context);
+            boolean passed = aggregate(evaluation);
+            return new ConditionEvaluationDetail(entry.conditionId(), entry.permissionId(), entry.roleId(),
+                ConditionEvaluationDetail.STATUS_OK, evaluation.logic(), passed, evaluation.items());
+        } catch (Exception e) {
+            log.error("CRITICAL: Unexpected error evaluating condition, conditionId: {}", entry.conditionId(), e);
+            return new ConditionEvaluationDetail(entry.conditionId(), entry.permissionId(), entry.roleId(),
+                ConditionEvaluationDetail.STATUS_INVALID, null, false, List.of());
+        }
+    }
+
+    /**
      * 评估单个条件
      * <p>
      * 从缓存或数据库加载条件规则，并根据逻辑类型（AND/OR）评估各项条件。
@@ -93,58 +141,148 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      * @return 条件评估结果，true表示条件满足
      */
     private boolean evaluateCondition(Long tenantId, Long conditionId, Map<String, Object> context) {
-        // ① 查缓存（null = miss）
-        JsonNode rules = cacheService.get(PermCacheCatalog.CONDITION_RULES, tenantId, conditionId);
-
-        // ② miss 后查 DB（T-ACCESS-008：DB 读取前记录读取起点，回填只写剩余 TTL）
-        if (rules == null) {
-            CacheReadToken<JsonNode> readToken = cacheService.beginRead(PermCacheCatalog.CONDITION_RULES);
-            PermissionCondition condition = conditionMapper.selectOneById(conditionId);
-            if (condition == null || !Boolean.TRUE.equals(condition.getEnabled())
-                || !tenantId.equals(condition.getTenantId())) {
-                return false;
-            }
-
-            try {
-                rules = objectMapper.readTree(condition.getConditionRules());
-                // ③ 回填缓存（剩余 TTL）
-                if (rules != null) {
-                    cacheService.put(readToken, tenantId, conditionId, rules);
-                }
-            } catch (Exception e) {
-                log.error("CRITICAL: Failed to parse conditionRules JSON, conditionId: {}", conditionId, e);
-                return false;
-            }
-        }
-
-        // 如果规则为空（条件不存在、禁用或解析失败），返回false
-        if (rules == null) {
+        LoadedRules loaded = loadRules(tenantId, conditionId);
+        if (!ConditionEvaluationDetail.STATUS_OK.equals(loaded.status()) || loaded.rules() == null) {
             return false;
         }
-
         try {
-            String logic = rules.has("logic") ? rules.get("logic").asText() : PermConstants.ConditionLogic.AND;
-            // T-PERM-017 P2-B：logic 显式声明且非 AND/OR → fail-close 拒绝（防御已通过写入门禁的存量脏数据）
-            if (!ConditionEvalUtils.VALID_LOGIC.contains(logic)) {
-                log.warn("conditionRules.logic 非法 '{}' (允许值: {})，fail-close 拒绝，conditionId: {}",
-                    logic, ConditionEvalUtils.VALID_LOGIC, conditionId);
-                return false;
-            }
-            JsonNode items = rules.get("items");
-            if (items == null || !items.isArray()) return false;
-
-            boolean allMatch = logic.equals(PermConstants.ConditionLogic.AND);
-            for (JsonNode item : items) {
-                boolean matched = evaluateItem(item, context);
-                if (allMatch && !matched) return false;
-                if (!allMatch && matched) return true;
-            }
-            return allMatch;
+            return aggregate(evalRules(conditionId, loaded.rules(), context));
         } catch (Exception e) {
             log.error("CRITICAL: Unexpected error evaluating condition, conditionId: {}", conditionId, e);
             return false;
         }
     }
+
+    /**
+     * 加载条件规则（缓存优先，miss 后查 DB 并按剩余 TTL 回填）。
+     * <p>
+     * 命中缓存视为 OK（禁用/删除条件经写路径 evict 缓存）；miss 时按实体状态区分
+     * NOT_FOUND / DISABLED / INVALID（解析失败），供明细评估展示加载状态。
+     * </p>
+     */
+    private LoadedRules loadRules(Long tenantId, Long conditionId) {
+        // ① 查缓存（null = miss）
+        JsonNode rules = cacheService.get(PermCacheCatalog.CONDITION_RULES, tenantId, conditionId);
+        if (rules != null) {
+            return new LoadedRules(ConditionEvaluationDetail.STATUS_OK, rules);
+        }
+
+        // ② miss 后查 DB（T-ACCESS-008：DB 读取前记录读取起点，回填只写剩余 TTL）
+        CacheReadToken<JsonNode> readToken = cacheService.beginRead(PermCacheCatalog.CONDITION_RULES);
+        PermissionCondition condition = conditionMapper.selectOneById(conditionId);
+        if (condition == null || !tenantId.equals(condition.getTenantId())) {
+            return new LoadedRules(ConditionEvaluationDetail.STATUS_NOT_FOUND, null);
+        }
+        if (!Boolean.TRUE.equals(condition.getEnabled())) {
+            return new LoadedRules(ConditionEvaluationDetail.STATUS_DISABLED, null);
+        }
+
+        try {
+            rules = objectMapper.readTree(condition.getConditionRules());
+            // ③ 回填缓存（剩余 TTL）
+            if (rules != null) {
+                cacheService.put(readToken, tenantId, conditionId, rules);
+            }
+            return new LoadedRules(ConditionEvaluationDetail.STATUS_OK, rules);
+        } catch (Exception e) {
+            log.error("CRITICAL: Failed to parse conditionRules JSON, conditionId: {}", conditionId, e);
+            return new LoadedRules(ConditionEvaluationDetail.STATUS_INVALID, null);
+        }
+    }
+
+    /**
+     * 逐项评估条件规则，产出脱敏明细
+     */
+    private RulesEvaluation evalRules(Long conditionId, JsonNode rules, Map<String, Object> context) {
+        String logic = rules.has("logic") ? rules.get("logic").asText() : PermConstants.ConditionLogic.AND;
+        // T-PERM-017 P2-B：logic 显式声明且非 AND/OR → fail-close 拒绝（防御已通过写入门禁的存量脏数据）
+        boolean logicValid = ConditionEvalUtils.VALID_LOGIC.contains(logic);
+        if (!logicValid) {
+            log.warn("conditionRules.logic 非法 '{}' (允许值: {})，fail-close 拒绝，conditionId: {}",
+                logic, ConditionEvalUtils.VALID_LOGIC, conditionId);
+        }
+        JsonNode items = rules.get("items");
+        if (items == null || !items.isArray()) {
+            return new RulesEvaluation(logic, logicValid, List.of());
+        }
+        List<ConditionEvaluationDetail.ItemDetail> details = new ArrayList<>();
+        for (JsonNode item : items) {
+            String type = item != null && item.has("type") ? item.get("type").asText() : "";
+            boolean matched = evaluateItem(item, context);
+            details.add(new ConditionEvaluationDetail.ItemDetail(type, maskParams(type, item), matched));
+        }
+        return new RulesEvaluation(logic, logicValid, details);
+    }
+
+    /**
+     * 按 logic（AND/OR）聚合逐项结果，与运行时判定语义一致（缺省 AND、空项/非法 logic 拒绝）
+     */
+    private boolean aggregate(RulesEvaluation evaluation) {
+        if (!evaluation.logicValid() || evaluation.items().isEmpty()) {
+            return false;
+        }
+        boolean allMatch = PermConstants.ConditionLogic.AND.equals(evaluation.logic());
+        for (ConditionEvaluationDetail.ItemDetail item : evaluation.items()) {
+            if (allMatch && !item.matched()) return false;
+            if (!allMatch && item.matched()) return true;
+        }
+        return allMatch;
+    }
+
+    /**
+     * 条件参数脱敏摘要（T-PERM-033）：
+     * IP 黑白名单掩码主机段（保留前两段与前缀长度，IPv6/非常规整体 MASKED）；
+     * 日期/时间为非敏感值原样回传；未知类型整体 MASKED。
+     */
+    private String maskParams(String type, JsonNode item) {
+        JsonNode params = item == null ? null : item.get("params");
+        if (params == null || params.isNull()) {
+            return null;
+        }
+        if (PermConstants.ConditionType.IP_WHITELIST.equals(type)
+            || PermConstants.ConditionType.IP_BLACKLIST.equals(type)) {
+            JsonNode cidrs = params.get("cidrs");
+            if (cidrs == null || !cidrs.isArray() || cidrs.isEmpty()) {
+                return null;
+            }
+            List<String> masked = new ArrayList<>();
+            for (JsonNode cidr : cidrs) {
+                masked.add(maskCidr(cidr.asText()));
+            }
+            String shown = String.join(", ", masked.size() > MAX_MASKED_IP_SHOWN
+                ? masked.subList(0, MAX_MASKED_IP_SHOWN) : masked);
+            return masked.size() > MAX_MASKED_IP_SHOWN ? shown + ", …" : shown;
+        }
+        if (PermConstants.ConditionType.DATE_RANGE.equals(type)
+            || PermConstants.ConditionType.TIME_RANGE.equals(type)) {
+            String start = params.has("start") ? params.get("start").asText() : null;
+            String end = params.has("end") ? params.get("end").asText() : null;
+            return start == null || end == null ? null : start + "~" + end;
+        }
+        return "MASKED";
+    }
+
+    /**
+     * IPv4 CIDR 掩码：保留前两段与前缀长度（如 192.168.1.0/24 → 192.168.*.*\/24）
+     */
+    private String maskCidr(String cidr) {
+        if (cidr == null) {
+            return "MASKED";
+        }
+        String[] parts = cidr.split("/", 2);
+        String[] octets = parts[0].split("\\.");
+        if (octets.length == 4) {
+            return octets[0] + "." + octets[1] + ".*.*" + (parts.length == 2 ? "/" + parts[1] : "");
+        }
+        return "MASKED";
+    }
+
+    /** 规则加载结果（状态 + 规则树，非 OK 状态时规则为 null） */
+    private record LoadedRules(String status, JsonNode rules) {}
+
+    /** 逐项评估中间结果（logic + 合法性 + 脱敏明细） */
+    private record RulesEvaluation(String logic, boolean logicValid,
+                                   List<ConditionEvaluationDetail.ItemDetail> items) {}
 
     /**
      * 评估单个条件项

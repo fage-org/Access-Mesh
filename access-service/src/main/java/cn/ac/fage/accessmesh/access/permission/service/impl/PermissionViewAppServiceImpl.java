@@ -6,6 +6,8 @@ import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
@@ -28,6 +30,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.*;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionViewAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
 import cn.ac.fage.accessmesh.access.permission.util.PermResultUtils;
@@ -35,6 +38,8 @@ import cn.ac.fage.accessmesh.access.permission.util.PermViewAssembler;
 import cn.ac.fage.accessmesh.access.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.ScopeModeSupport;
+import cn.ac.fage.accessmesh.access.permission.vo.ConditionEvaluationDetail;
+import cn.ac.fage.accessmesh.access.permission.vo.MutexFilterResult;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,12 +56,25 @@ import java.util.stream.Collectors;
  * 提供用户权限视图、角色权限视图、资源权限视图、权限解释等功能。
  * 所有查询均通过 PermQueryEngine 进行权限校验。
  * 用户视图使用 forUserView 查询管线 + PermViewAssembler 过滤分页。
- * recentChanges 已迁移至 LogQueryAppService，不在此服务中。
+ * explain（T-PERM-033）：门禁为被查目标实例 VIEW；条件评估明细/互斥丢弃明细/
+ * 按权限键过滤的 recentChanges 内嵌返回；独立 recent-changes 端点在 LogQueryAppService。
  * </p>
  */
 @Service
 @Transactional(readOnly = true)
 public class PermissionViewAppServiceImpl implements PermissionViewAppService {
+
+    /** explain 评估上下文来源：管理员输入 */
+    private static final String CONTEXT_SOURCE_ADMIN_INPUT = "ADMIN_INPUT";
+
+    /** explain 评估上下文来源：回退当前请求环境 */
+    private static final String CONTEXT_SOURCE_CURRENT_REQUEST = "CURRENT_REQUEST";
+
+    /** explain recentChanges 候选池上限（按目标 + 窗口取最近 N 条再做权限键过滤） */
+    private static final int RECENT_CANDIDATE_LIMIT = 200;
+
+    /** explain recentChanges 过滤后返回上限 */
+    private static final int RECENT_RESULT_LIMIT = 50;
 
     private final AbstractRoleMapper abstractRoleMapper;
     private final ResourceEntityMapper resourceEntityMapper;
@@ -68,6 +86,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     private final ObjectMapper objectMapper;
     private final PermQueryEngine engine;
     private final PermViewAssembler permViewAssembler;
+    private final PermissionConditionDomainService conditionDomainService;
+    private final PermissionConflictDomainService conflictDomainService;
 
     /**
      * 构造函数注入依赖
@@ -82,6 +102,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      * @param objectMapper              JSON解析器
      * @param engine                    权限查询引擎
      * @param permViewAssembler         权限视图装配器
+     * @param conditionDomainService    权限条件领域服务（explain 条件评估明细）
+     * @param conflictDomainService     权限冲突领域服务（explain 互斥丢弃明细）
      */
     public PermissionViewAppServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                          ResourceEntityMapper resourceEntityMapper,
@@ -92,7 +114,9 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                                          AuditDomainService auditDomainService,
                                          ObjectMapper objectMapper,
                                          PermQueryEngine engine,
-                                         PermViewAssembler permViewAssembler) {
+                                         PermViewAssembler permViewAssembler,
+                                         PermissionConditionDomainService conditionDomainService,
+                                         PermissionConflictDomainService conflictDomainService) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.operationPermissionMapper = operationPermissionMapper;
@@ -103,6 +127,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         this.objectMapper = objectMapper;
         this.engine = engine;
         this.permViewAssembler = permViewAssembler;
+        this.conditionDomainService = conditionDomainService;
+        this.conflictDomainService = conflictDomainService;
     }
 
     /**
@@ -649,9 +675,14 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     /**
      * 解释权限判定结果
      * <p>
-     * 对指定用户或角色进行权限判定，并返回详细的解释信息。
-     * 解释包含：判定结果、匹配的角色、匹配的权限ID、可选的最近变更记录。
-     * 需要SYSTEM_CONFIG_VIEW权限。
+     * 对指定用户或角色进行权限判定，并返回详细的解释信息：
+     * 判定结果、命中的角色、匹配的权限ID、候选命中条目的条件评估明细（脱敏）、
+     * 被互斥规则丢弃的条目、可选的按权限键过滤的最近变更记录。
+     * 门禁（T-PERM-033 设计定案）：与 {@link #getEffectivePermissions} 同款目标实例
+     * VIEW 检查——查谁就要对谁有 VIEW（ROLE 未解析时类型级兜底；USER 未解析不检查，
+     * 返回 USER_NOT_FOUND）。
+     * 条件评估上下文：管理员输入（req.context.clientIp）优先，缺省回退当前请求环境；
+     * 日期/时间类条件按服务进程系统时钟评估（与运行时判定一致，不可模拟）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -662,54 +693,62 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     @Override
     public PermissionExplainResp explain(Long tenantId, PermissionExplainReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        boolean roleTarget = PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType());
+
+        // 预解析目标（门禁 + 查询共用，避免重复解析）
+        Long targetRoleId = roleTarget
+            ? typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode())
+            : null;
+        Long userId = roleTarget
+            ? null
+            : typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
+
+        // 门禁：目标实例 VIEW（T-PERM-033 设计定案，与 effective-permissions 同款）
+        if (roleTarget) {
+            if (targetRoleId != null) {
+                if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(targetRoleId), OperationCodeConstants.VIEW)) {
+                    throw new SecurityException("Permission denied: VIEW on ROLE:" + targetRoleId);
+                }
+            } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
+                throw new SecurityException("Permission denied: VIEW on ROLE");
+            }
+        } else if (userId != null
+            && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on USER:" + userId);
         }
+
+        // 条件评估上下文：管理员输入优先，缺省回退当前请求（T-PERM-033）
+        String evaluatedClientIp;
+        String contextSource;
+        if (req.context() != null && req.context().clientIp() != null && !req.context().clientIp().isBlank()) {
+            evaluatedClientIp = req.context().clientIp().trim();
+            contextSource = CONTEXT_SOURCE_ADMIN_INPUT;
+        } else {
+            evaluatedClientIp = HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest());
+            contextSource = CONTEXT_SOURCE_CURRENT_REQUEST;
+        }
+        Map<String, Object> evalContext = evaluatedClientIp == null
+            ? Map.<String, Object>of() : Map.of("clientIp", evaluatedClientIp);
+
         boolean scopeAll = ScopeModeSupport.toScopeAllForGrant(req.scopeMode(), req.resourceCode(), req.codeType());
         String queryResourceCode = scopeAll ? null : req.resourceCode();
         String queryCodeType = scopeAll ? null : req.codeType();
 
-        // 预先解析 roleId（ROLE 目标），避免在权限检查和 includeSourceRoles 中重复解析
-        Long targetRoleId = PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType())
-            ? typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode())
-            : null;
-
+        // 判定查询（allowed/reason/matchedPermissionIds 由引擎完整评估得出）
         AuthCheckResp checkResp;
-        if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType())) {
-            if (targetRoleId == null) {
-                checkResp = AuthCheckResp.deny("ROLE_NOT_FOUND");
-            } else {
-                PermQuery q = PermQuery.forScopeQuery(tenantId, null,
-                    Set.of(req.resourceTypeCode()), Set.of(req.operationCode()));
-                q.setRoleIds(Set.of(targetRoleId));
-                q.setResourceCodes(scopeAll ? null : Set.of(queryResourceCode));
-                q.setCodeType(queryCodeType);
-                q.setDomainCode(req.domainCode());
-                q.setQueryScopeAll(scopeAll);
-                q.setQueryInstance(!scopeAll);
-                q.setEvaluateConditions(true);
-                q.setEvaluateConflicts(true);
-                q.setEvaluateMatchesBit(true);
-                q.setContext(Map.of());
-                checkResp = PermResultUtils.toAuthCheckResp(engine.query(q));
-            }
+        if (roleTarget && targetRoleId == null) {
+            checkResp = AuthCheckResp.deny("ROLE_NOT_FOUND");
+        } else if (!roleTarget && userId == null) {
+            checkResp = AuthCheckResp.deny("USER_NOT_FOUND");
         } else {
-            // USER 分支：直接调引擎，与 ROLE 分支保持一致
-            Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-            if (userId == null) {
-                checkResp = AuthCheckResp.deny("USER_NOT_FOUND");
-            } else {
-                PermQuery q = PermQuery.forAuthCheck(tenantId, userId,
-                    req.resourceTypeCode(), queryResourceCode, req.operationCode());
-                q.setCodeType(queryCodeType);
-                q.setContext(Map.of());
-                checkResp = PermResultUtils.toAuthCheckResp(engine.query(q));
-            }
+            PermQuery q = buildExplainPermQuery(tenantId, req, roleTarget, targetRoleId, userId,
+                scopeAll, queryResourceCode, queryCodeType, evalContext);
+            checkResp = PermResultUtils.toAuthCheckResp(engine.query(q));
         }
 
         List<PermissionExplainResp.SourceRole> sourceRoles = List.of();
         if (Boolean.TRUE.equals(req.includeSourceRoles())) {
-            if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType())) {
+            if (roleTarget) {
                 if (targetRoleId != null) {
                     AbstractRole r = abstractRoleMapper.selectValidById(targetRoleId, tenantId);
                     if (r != null) {
@@ -732,26 +771,41 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             }
         }
 
+        // 解释明细：候选命中（条件/互斥过滤前）→ 条件逐项评估 → 互斥丢弃
+        List<ConditionEvaluationDetail> conditionDetails = List.of();
+        List<PermissionExplainResp.ConflictDrop> conflictDrops = List.of();
+        boolean targetResolved = roleTarget ? targetRoleId != null : userId != null;
+        if (targetResolved) {
+            PermQuery rawQuery = buildExplainPermQuery(tenantId, req, roleTarget, targetRoleId, userId,
+                scopeAll, queryResourceCode, queryCodeType, evalContext);
+            rawQuery.setEvaluateConditions(false);
+            rawQuery.setEvaluateConflicts(false);
+            List<RolePermEntry> rawCandidates = engine.query(rawQuery).allEntries();
+
+            conditionDetails = conditionDomainService.evaluateDetailed(tenantId, rawCandidates, evalContext);
+            List<RolePermEntry> conditionPassed = applyConditionResults(rawCandidates, conditionDetails);
+            MutexFilterResult mutex = conflictDomainService.filterPermMutexWithDrops(tenantId, conditionPassed);
+            conflictDrops = mutex.drops().stream()
+                .map(drop -> new PermissionExplainResp.ConflictDrop(
+                    drop.entry().permissionId(), drop.entry().roleId(),
+                    drop.ruleId(), drop.firstOperationCode(), drop.secondOperationCode()))
+                .toList();
+        }
+
+        // 最近变更：按权限键过滤（USER 目标保留角色分配/回收事件，T-PERM-033 设计定案）
         List<RecentChangeResp> recentChanges = List.of();
-        if (Boolean.TRUE.equals(req.includeRecentChanges())) {
+        if (Boolean.TRUE.equals(req.includeRecentChanges()) && targetResolved) {
             int recentDays = req.recentDays() == null ? 30 : Math.max(req.recentDays(), 1);
             LocalDateTime now = LocalDateTime.now();
             LocalDateTime since = now.minusDays(recentDays);
-
-            Long changeUserId = null;
-            Long changeRoleId = null;
-            if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType()) && req.subjectTypeCode() != null && req.subjectExternalId() != null) {
-                changeUserId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-            } else if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType()) && req.roleTypeCode() != null && req.roleExternalId() != null) {
-                changeRoleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
-            }
-            if (changeUserId != null || changeRoleId != null) {
-                List<PermissionChangeLog> recentLogs = auditDomainService.queryRecentChanges(
-                    tenantId, changeUserId, changeRoleId, since, now, null, 0, 50);
-                recentChanges = recentLogs.stream()
-                    .map(this::toRecentChange)
-                    .toList();
-            }
+            List<PermissionChangeLog> candidates = auditDomainService.queryRecentChanges(
+                tenantId, roleTarget ? null : userId, roleTarget ? targetRoleId : null,
+                since, now, null, 0, RECENT_CANDIDATE_LIMIT);
+            recentChanges = candidates.stream()
+                .map(log -> toRelatedRecentChange(log, req, roleTarget))
+                .filter(Objects::nonNull)
+                .limit(RECENT_RESULT_LIMIT)
+                .toList();
         }
 
         return new PermissionExplainResp(
@@ -763,8 +817,195 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             ),
             sourceRoles,
             checkResp.matchedPermissionIds(),
-            recentChanges
+            recentChanges,
+            contextSource,
+            evaluatedClientIp,
+            conditionDetails.stream()
+                .map(d -> new PermissionExplainResp.ConditionEvaluation(
+                    d.conditionId(), d.permissionId(), d.roleId(), d.status(), d.logic(), d.passed(),
+                    d.items().stream()
+                        .map(i -> new PermissionExplainResp.ConditionItem(i.type(), i.maskedParams(), i.matched()))
+                        .toList()))
+                .toList(),
+            conflictDrops
         );
+    }
+
+    /**
+     * 构建 explain 判定查询（USER 分支 forAuthCheck / ROLE 分支 forScopeQuery，
+     * 形状与判定语义和历史实现一致；上下文为条件评估所用）
+     */
+    private PermQuery buildExplainPermQuery(Long tenantId, PermissionExplainReq req, boolean roleTarget,
+                                            Long targetRoleId, Long userId, boolean scopeAll,
+                                            String queryResourceCode, String queryCodeType,
+                                            Map<String, Object> evalContext) {
+        PermQuery q;
+        if (roleTarget) {
+            q = PermQuery.forScopeQuery(tenantId, null,
+                Set.of(req.resourceTypeCode()), Set.of(req.operationCode()));
+            q.setRoleIds(Set.of(targetRoleId));
+            q.setResourceCodes(scopeAll ? null : Set.of(queryResourceCode));
+            q.setCodeType(queryCodeType);
+            q.setDomainCode(req.domainCode());
+            q.setQueryScopeAll(scopeAll);
+            q.setQueryInstance(!scopeAll);
+            q.setEvaluateConditions(true);
+            q.setEvaluateConflicts(true);
+            q.setEvaluateMatchesBit(true);
+        } else {
+            q = PermQuery.forAuthCheck(tenantId, userId,
+                req.resourceTypeCode(), queryResourceCode, req.operationCode());
+            q.setCodeType(queryCodeType);
+        }
+        q.setContext(evalContext);
+        return q;
+    }
+
+    /**
+     * 按评估明细还原条件通过的条目（无条件条目直接通过；挂条件条目按明细 passed 判定）
+     */
+    private List<RolePermEntry> applyConditionResults(List<RolePermEntry> rawCandidates,
+                                                      List<ConditionEvaluationDetail> details) {
+        List<RolePermEntry> passed = new ArrayList<>();
+        int detailIndex = 0;
+        for (RolePermEntry entry : rawCandidates) {
+            if (entry.conditionId() == null || !entry.hasCondition()) {
+                passed.add(entry);
+                continue;
+            }
+            ConditionEvaluationDetail detail = detailIndex < details.size() ? details.get(detailIndex++) : null;
+            if (detail == null || detail.passed()) {
+                passed.add(entry);
+            }
+        }
+        return passed;
+    }
+
+    /**
+     * 变更日志 → 与目标权限键相关的最近变更（不相关返回 null）。
+     * <p>
+     * 匹配规则（T-PERM-033 设计定案）：
+     * 含 permission 键的事件按 6 字段匹配（resourceTypeCode/operationCode/scopeMode 精确，
+     * domainCode/resourceCode/codeType 请求侧为 null 时通配），并取首个匹配 item 的摘要；
+     * USER 目标额外保留 USER_ROLE_CHANGE（角色分配/回收直接回答"为什么有/没有"）。
+     * </p>
+     */
+    private RecentChangeResp toRelatedRecentChange(PermissionChangeLog log, PermissionExplainReq req, boolean roleTarget) {
+        JsonNode root = parseTree(log.getDiffSnapshot());
+        if (root == null) {
+            return null;
+        }
+        JsonNode items = root.get("items");
+        if (items == null || !items.isArray() || items.isEmpty()) {
+            return null;
+        }
+        String eventType = nodeText(root, "eventType");
+        if (!roleTarget && "USER_ROLE_CHANGE".equals(eventType)) {
+            return buildRecentChange(log, root, items.get(0), "DIRECT");
+        }
+        for (JsonNode item : items) {
+            JsonNode permission = item.get("permission");
+            if (permission != null && matchesPermissionKey(permission, req)) {
+                return buildRecentChange(log, root, item, roleTarget ? "DIRECT" : "POSSIBLE");
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 快照 permission 节点与 explain 请求权限键的 6 字段匹配（null 请求字段通配）
+     */
+    private boolean matchesPermissionKey(JsonNode permission, PermissionExplainReq req) {
+        if (!Objects.equals(nodeText(permission, "resourceTypeCode"), req.resourceTypeCode())
+            || !Objects.equals(nodeText(permission, "operationCode"), req.operationCode())) {
+            return false;
+        }
+        ScopeMode snapshotMode = ScopeModeSupport.fromSnapshot(
+            nodeText(permission, "scopeMode"), nodeBoolean(permission, "scopeAll"));
+        if (snapshotMode != req.scopeMode()) {
+            return false;
+        }
+        if (ScopeMode.ALL.equals(req.scopeMode())) {
+            // ALL 键：快照不应携带具体实例编码
+            return nodeText(permission, "resourceCode") == null;
+        }
+        // INSTANCE 键：resourceCode/codeType 请求侧为 null 时通配
+        String snapshotResourceCode = nodeText(permission, "resourceCode");
+        if (req.resourceCode() != null && !Objects.equals(snapshotResourceCode, req.resourceCode())) {
+            return false;
+        }
+        String snapshotCodeType = nodeText(permission, "codeType");
+        return req.codeType() == null || Objects.equals(snapshotCodeType, req.codeType())
+            || (snapshotCodeType == null && PermConstants.CodeType.DEFAULT.equals(req.codeType()));
+    }
+
+    /**
+     * 从匹配 item 构建最近变更响应（impactLevel：DIRECT=直接命中查询对象 / POSSIBLE=间接影响）
+     */
+    private RecentChangeResp buildRecentChange(PermissionChangeLog log, JsonNode root, JsonNode item, String impactLevel) {
+        JsonNode permission = item.get("permission");
+        JsonNode role = item.get("role");
+        return new RecentChangeResp(
+            log.getId(),
+            nodeText(root, "eventType"),
+            nodeText(item, "changeType"),
+            impactLevel,
+            nodeText(item, "message"),
+            new RecentChangeResp.PermissionKey(
+                nodeText(permission, "domainCode"),
+                nodeText(permission, "resourceTypeCode"),
+                nodeText(permission, "resourceCode"),
+                nodeText(permission, "codeType"),
+                nodeText(permission, "operationCode"),
+                ScopeModeSupport.fromSnapshot(
+                    nodeText(permission, "scopeMode"), nodeBoolean(permission, "scopeAll"))
+            ),
+            new RecentChangeResp.SourceRole(
+                nodeText(role, "roleTypeCode"),
+                nodeText(role, "roleExternalId"),
+                nodeText(role, "roleName")
+            ),
+            null,
+            null,
+            log.getChangeReason(),
+            log.getCreatedAt()
+        );
+    }
+
+    /**
+     * 解析 JSON 字符串为树（空白/解析失败返回 null）
+     */
+    private JsonNode parseTree(String json) {
+        if (json == null || json.isBlank()) {
+            return null;
+        }
+        try {
+            return objectMapper.readTree(json);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * 节点字段文本值（缺失/null 返回 null）
+     */
+    private String nodeText(JsonNode node, String field) {
+        if (node == null) {
+            return null;
+        }
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? null : value.asText();
+    }
+
+    /**
+     * 节点字段布尔值（缺失/null 返回 null）
+     */
+    private Boolean nodeBoolean(JsonNode node, String field) {
+        if (node == null) {
+            return null;
+        }
+        JsonNode value = node.get(field);
+        return value == null || value.isNull() ? null : value.asBoolean();
     }
 
     /**
@@ -808,81 +1049,6 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     }
 
     // ===== 私有辅助方法 =====
-
-    /**
-     * 将变更日志转换为最近变更响应
-     *
-     * @param log 权限变更日志实体
-     * @return 最近变更响应对象
-     */
-    private RecentChangeResp toRecentChange(PermissionChangeLog log) {
-        return new RecentChangeResp(
-            log.getId(),
-            parseText(log.getDiffSnapshot(), "eventType"),
-            parseText(log.getDiffSnapshot(), "items[0].changeType"),
-            "POSSIBLE",
-            parseText(log.getDiffSnapshot(), "items[0].message"),
-            new RecentChangeResp.PermissionKey(
-                parseText(log.getDiffSnapshot(), "items[0].permission.domainCode"),
-                parseText(log.getDiffSnapshot(), "items[0].permission.resourceTypeCode"),
-                parseText(log.getDiffSnapshot(), "items[0].permission.resourceCode"),
-                parseText(log.getDiffSnapshot(), "items[0].permission.codeType"),
-                parseText(log.getDiffSnapshot(), "items[0].permission.operationCode"),
-                ScopeModeSupport.fromSnapshot(
-                    parseText(log.getDiffSnapshot(), "items[0].permission.scopeMode"),
-                    parseBoolean(log.getDiffSnapshot(), "items[0].permission.scopeAll")
-                )
-            ),
-            new RecentChangeResp.SourceRole(
-                parseText(log.getDiffSnapshot(), "items[0].role.roleTypeCode"),
-                parseText(log.getDiffSnapshot(), "items[0].role.roleExternalId"),
-                parseText(log.getDiffSnapshot(), "items[0].role.roleName")
-            ),
-            null,
-            null,
-            log.getChangeReason(),
-            log.getCreatedAt()
-        );
-    }
-
-    private String parseText(String json, String path) {
-        JsonNode node = parsePath(json, path);
-        return node == null || node.isNull() ? null : node.asText();
-    }
-
-    private Boolean parseBoolean(String json, String path) {
-        JsonNode node = parsePath(json, path);
-        return node == null || node.isNull() ? null : node.asBoolean();
-    }
-
-    private JsonNode parsePath(String json, String path) {
-        if (json == null || json.isBlank() || path == null || path.isBlank()) {
-            return null;
-        }
-        try {
-            JsonNode current = objectMapper.readTree(json);
-            String[] segments = path.split("\\.");
-            for (String segment : segments) {
-                if (segment.endsWith("]") && segment.contains("[")) {
-                    String field = segment.substring(0, segment.indexOf('['));
-                    int idx = Integer.parseInt(segment.substring(segment.indexOf('[') + 1, segment.length() - 1));
-                    current = current.path(field);
-                    if (!current.isArray() || current.size() <= idx) {
-                        return null;
-                    }
-                    current = current.get(idx);
-                } else {
-                    current = current.path(segment);
-                }
-                if (current.isMissingNode()) {
-                    return null;
-                }
-            }
-            return current;
-        } catch (Exception e) {
-            return null;
-        }
-    }
 
     /**
      * 查询用户的资源权限树

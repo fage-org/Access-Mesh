@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain;
 
+import cn.ac.fage.accessmesh.access.permission.vo.ConditionEvaluationDetail;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 
 import java.util.List;
@@ -30,4 +31,24 @@ public interface PermissionConditionDomainService {
      */
     List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries,
                                                    Map<String, Object> context);
+
+    /**
+     * 逐项评估权限条件并返回评估明细（T-PERM-033 explain DTO 扩展）。
+     * <p>
+     * 与 {@link #evaluate} 使用同一套条件加载（缓存优先）与逐项评估逻辑，
+     * 但不丢弃条目，而是返回每个挂条件条目的逐项评估过程：
+     * 条件加载状态（OK/DISABLED/NOT_FOUND/INVALID）、logic、每项类型/脱敏参数/是否满足、
+     * 整体是否通过。仅处理 {@code conditionId != null && hasCondition} 的条目，
+     * 其余条目不产生明细（无条件即无评估过程）。
+     * 日期/时间类条件按服务进程系统时钟评估（与运行时判定一致，不可模拟）；
+     * IP 类条件按 context 中的 clientIp 评估。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param entries  待评估的权限条目列表（条件过滤前的候选命中条目）
+     * @param context  评估上下文（clientIp）
+     * @return 挂条件条目的评估明细列表（与入参条目顺序一致，无条件条目跳过）
+     */
+    List<ConditionEvaluationDetail> evaluateDetailed(Long tenantId, List<RolePermEntry> entries,
+                                                     Map<String, Object> context);
 }

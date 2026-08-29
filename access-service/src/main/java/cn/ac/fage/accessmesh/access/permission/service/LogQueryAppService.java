@@ -53,38 +53,6 @@ public interface LogQueryAppService {
                          Long affectedUserId, Long affectedRoleId,
                          LocalDateTime since, LocalDateTime until);
 
-    /**
-     * 筛选查询变更日志列表
-     *
-     * @param tenantId   租户ID
-     * @param userId     受影响的用户ID，可选
-     * @param roleId     涉及的角色ID，可选
-     * @param since      开始时间，可选
-     * @param until      结束时间，可选
-     * @param eventTypes 事件类型列表，可选
-     * @param offset     分页偏移量
-     * @param limit      每页条数
-     * @return 变更日志列表
-     */
-    List<ChangeLogResp> listChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
-                                                LocalDateTime since, LocalDateTime until,
-                                                List<String> eventTypes, int offset, int limit);
-
-    /**
-     * 筛选统计变更日志数量
-     *
-     * @param tenantId   租户ID
-     * @param userId     受影响的用户ID，可选
-     * @param roleId     涉及的角色ID，可选
-     * @param since      开始时间，可选
-     * @param until      结束时间，可选
-     * @param eventTypes 事件类型列表，可选
-     * @return 变更日志数量
-     */
-    long countChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
-                                  LocalDateTime since, LocalDateTime until,
-                                  List<String> eventTypes);
-
     // ===== OperationLog =====
 
     /**
@@ -132,7 +100,11 @@ public interface LogQueryAppService {
     // ===== 最近变更查询 =====
 
     /**
-     * 获取权限最近变更列表（含权限校验和ID解析）
+     * 获取权限最近变更列表（permission-view/recent-changes 端点）
+     * <p>
+     * 门禁（T-PERM-033 设计定案）：被查目标实例 USER:VIEW / ROLE:VIEW——
+     * 查谁就要对谁有 VIEW（ROLE 未解析时类型级兜底；USER 未解析返回空）。
+     * </p>
      *
      * @param tenantId 租户ID
      * @param req      最近变更查询请求

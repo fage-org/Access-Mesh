@@ -3,7 +3,7 @@ doc_type: design
 title: 权限排查 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-22   # T-ACCESS-012 重基线：取消聚合层，直连 /api/perm/* 契约端点
+last_reviewed: 2026-08-29   # T-PERM-033 收口：门禁设计定案（无独立排查码，目标实例 USER:VIEW/ROLE:VIEW）+ explain 契约扩展 + API 核对清单收口
 ---
 
 # 权限排查 前端设计
@@ -65,6 +65,8 @@ last_reviewed: 2026-08-22   # T-ACCESS-012 重基线：取消聚合层，直连 
 
 **用户类型码**：`LOCAL_USER`（AccessMesh 管理端用户/本地访问主体，原 ADMIN_USER 更名）/ `USER`（外部人员）
 
+**主体语义核对（T-PERM-033 收口）**：`resolveUserId` 统一经 `type_definition.user_type` 解析类型值（USER=1/SERVICE=2/LOCAL_USER=3）后按 `abstract_user(tenant_id, user_type, external_id)` 定位主体。`LOCAL_USER` 主体的 `external_id` 由本地投影写为 **`sys_user.id` 字符串**（`LocalProjectionDomainServiceImpl`，主体 ID 同源 T-ORG-001）——排查页选 `LOCAL_USER` 时 `subjectExternalId` 填管理端用户 ID 字符串；`USER` 为外部同步主体，`subjectExternalId` 为外部系统业务键。
+
 ## 4. 字段定义
 
 ### Tab1 effective-permissions
@@ -115,29 +117,39 @@ last_reviewed: 2026-08-22   # T-ACCESS-012 重基线：取消聚合层，直连 
 - **SubjectInputBar**：USER/ROLE 主体输入，候选登记
 - **treeMode 结果树**：已从契约移除（2026-08-27，树由调用方自建，见 v3.5.1-evolution）；query-permission-tree 为独立接口不受影响，本页不做 UI
 
-## 8. 权限接线
+## 8. 权限接线（T-PERM-033 设计定案，2026-08-29）
 
-- **临时口径**：`SYSTEM_CONFIG:VIEW`（Phase 1 mock；操作日志/变更日志已分别随 T-PERM-025/032 审计分离切独立权限码）
-- **T-PERM-033 定稿**：`PERMISSION_QUERY:VIEW` 全链路
-- 路由 `meta.auths`：`[...PERMISSION_QUERY_PERM_LIST]`（值 `SYSTEM_CONFIG:VIEW` 临时）
+- **设计定案**：**不引入独立排查权限码**（原预案 `PERMISSION_QUERY:VIEW` 否决——权限码结构为「资源:操作」，`PERMISSION_QUERY` 是操作描述而非资源；排查能力随目标数据可见性走）
+- **API 门禁**：`explain` / `effective-permissions` / `recent-changes` = **被查目标实例 `USER:VIEW` / `ROLE:VIEW`**（查谁就要对谁有 VIEW；ROLE 未解析时类型级兜底、USER 未解析返回空/NOT_FOUND），`explain`/`recent-changes` 从临时口径 `SYSTEM_CONFIG:VIEW` 切换
+- **query-scopes**：维持契约 §6.7 运行时语义，**不加排查门禁**（设计定案登记；页面级 UI 门控制入口）
+- **页面级 UI 门** = `USER:VIEW` 或 `ROLE:VIEW` 任一命中（`canQuery`，hook 层短路）；API 层仍按目标实例逐一校验
+- 路由 `meta.auths`：`[...PERMISSION_QUERY_PERM_LIST]`（值 `USER:VIEW`、`ROLE:VIEW`；仅声明，不被路由框架消费）
 - 路由框架不消费 `meta.auths` 隐藏菜单，页面入口必须 `hasPerms` + 整页无权状态 + hook 短路
 
-### 门禁现状（核实 permission 域）
-- explain：`SYSTEM_CONFIG:VIEW`（`PermissionViewAppServiceImpl:665`）
-- effective-permissions：目标实例 `USER:VIEW`/`ROLE:VIEW`（`:134/153`）
-- query-resources/query-scopes：运行时接口，无排查门禁
+### 门禁矩阵（能力边界）
 
-前端单独 `SYSTEM_CONFIG:VIEW` 不能形成安全闭环（effective-permissions 还需目标实例 VIEW）。T-PERM-033 统一门禁方案 A/B（见任务文件）。
+| 操作者权限 | 结果 |
+|---|---|
+| 对目标用户有 `USER:VIEW`（或目标角色 `ROLE:VIEW`） | 可查该目标的权限事实 |
+| 仅有其他目标的 VIEW | 查该目标被拒（SecurityException） |
+| 无任何 USER:VIEW/ROLE:VIEW | 页面整页无权状态（API 全拒） |
 
-## 9. API 核对清单（登记 T-PERM-033）
+### explain 契约扩展（后端已实现，前端展示随 T-FE-019 联调接线）
+
+- 请求增可选 `context.clientIp`（管理员模拟输入；缺省回退当前请求，响应 `evaluationContextSource` 标注 `ADMIN_INPUT`/`CURRENT_REQUEST`）
+- 响应增 `evaluatedClientIp` / `conditionEvaluations`（逐项评估 + IP 掩码脱敏 + `OK/DISABLED/NOT_FOUND/INVALID` fail-close）/ `conflictDrops`（互斥丢弃条目 + 命中规则）
+- `recentChanges` 按权限键 6 字段过滤（USER 目标保留 `USER_ROLE_CHANGE`，`impactLevel` 对齐 `DIRECT`/`POSSIBLE`）
+- 日期/时间类条件按服务进程时钟评估，不可模拟
+
+## 9. API 核对清单（T-PERM-033 收口，2026-08-29）
 
 | # | 项 | 状态 | 说明 |
 |---|---|---|---|
 | 1 | 聚合层取消 | ✅ | T-ACCESS-012 决策：不新增聚合层/路由，页面直连 `/api/perm/*` 契约端点；mock 路径联调时切换 |
-| 2 | 统一门禁 PERMISSION_QUERY:VIEW | 🔧 | 方案 A/B + 全链路（资源类型/种子/默认角色/白名单） |
-| 3 | explain DTO 扩展 | 🔧 | 命中条件/条件评估/冲突详情 + 评估上下文 + 脱敏 |
-| 4 | recentChanges 按权限键过滤 | 🔧 | 完整 6 字段过滤（当前 :735 只按用户/角色取 50 条） |
-| 5 | LOCAL_USER/USER 主体语义 | 🔧 | 来源与候选查询方式 |
-| 6 | query-resources API 核对 | 🔧 | 运行时 SDK 视角，不做 UI |
+| 2 | 统一门禁 | ✅ | 设计定案：无独立排查码——explain/recent-changes 门禁切被查目标实例 `USER:VIEW`/`ROLE:VIEW`（effective-permissions 原样保留同款检查）；页面 UI 门 = USER:VIEW 或 ROLE:VIEW |
+| 3 | explain DTO 扩展 | ✅ | `context.clientIp` 输入 + `evaluationContextSource`（ADMIN_INPUT/CURRENT_REQUEST 回退）+ 条件评估明细（IP 掩码脱敏、日期/时间原样）+ 互斥丢弃明细；前端展示随 T-FE-019 |
+| 4 | recentChanges 按权限键过滤 | ✅ | 6 字段匹配（null 请求字段通配）+ USER 目标保留 `USER_ROLE_CHANGE`；候选池 200 / 返回上限 50；`impactLevel` 对齐 DIRECT/POSSIBLE |
+| 5 | LOCAL_USER/USER 主体语义 | ✅ | 核对结论见 §3 核对补记；`resolveUserId` = type_definition user_type 解析 + `abstract_user(tenant, type, externalId)` |
+| 6 | query-resources API 核对 | ✅ | §6.6 实现（`PermissionQueryAppServiceImpl.queryResources`）响应字段名与契约逐项一致（resourceTypeCode/resourceCode/codeType/resourceName/canGrant/scopeMode/operations/matchedRoleIds/matchedPermissionIds/grantSources），treeMode 已移除、includeChildren/includeInherited 已实现；无差异登记 |
 | 7 | ~~treeMode TODO~~ | 已收口 | 2026-08-27 设计定案：从契约移除（无真实消费方），树由调用方自建，登记 v3.5.1-evolution |
-| 8 | permission-view/* 契约差异 | 🔧 | effective-roles/resource-users/role-permissions/effective-permission-codes/resource-tree |
+| 8 | permission-view/* 契约差异 | ✅ | 核对结论：effective-roles/resource-tree 门禁=目标用户 `USER:VIEW`（实现一致）；role-permissions/effective-permission-codes 门禁与实现一致；**唯一差异**：`resource-users` 契约 §5.8 端点表写「查询拥有资源权限的**用户**」，实现（`getResourcePermissions`）返回的是该资源上的**角色**授予分布（RoleGrantInfo）——登记差异待该端点有消费方时二选一收口（改实现聚合用户维度 or 契约表述对齐角色维度），当前无消费方 |

@@ -8,6 +8,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConflictRuleMapp
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
+import cn.ac.fage.accessmesh.access.permission.vo.MutexFilterResult;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
@@ -152,6 +153,50 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      */
     @Override
     public List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries) {
+        PermMutexContext context = computeMutexContext(tenantId, passedEntries);
+
+        // 检测到权限冲突时触发异步通知
+        if (!context.conflictingOpIds().isEmpty()) {
+            notifyPermConflict(tenantId, context.conflictingOpIds(), context.rules());
+        }
+        return passedEntries.stream()
+            .filter(entry -> !context.isConflicting(entry))
+            .collect(Collectors.toList());
+    }
+
+    /**
+     * 权限互斥过滤（带丢弃明细，T-PERM-033 explain DTO 扩展）。
+     * <p>
+     * 过滤语义与 {@link #filterPermMutex} 一致（共用互斥上下文计算），
+     * 但不触发冲突通知，并保留被丢弃条目及其命中规则。
+     * </p>
+     */
+    @Override
+    public MutexFilterResult filterPermMutexWithDrops(Long tenantId, List<RolePermEntry> passedEntries) {
+        PermMutexContext context = computeMutexContext(tenantId, passedEntries);
+
+        List<RolePermEntry> survivors = new ArrayList<>();
+        List<MutexFilterResult.MutexDrop> drops = new ArrayList<>();
+        for (RolePermEntry entry : passedEntries) {
+            OperationPermission granted = context.grantedOperation(entry);
+            if (granted == null || !context.conflictingOpIds().contains(granted.getId())) {
+                survivors.add(entry);
+                continue;
+            }
+            PermissionConflictRule firedRule = context.firedRule(granted.getId());
+            drops.add(new MutexFilterResult.MutexDrop(
+                entry,
+                firedRule != null ? firedRule.getId() : null,
+                firedRule != null ? context.codeOf(firedRule.getFirstOperationPermissionId()) : null,
+                firedRule != null ? context.codeOf(firedRule.getSecondOperationPermissionId()) : null));
+        }
+        return new MutexFilterResult(survivors, drops);
+    }
+
+    /**
+     * 计算权限互斥上下文：操作索引、条目覆盖的操作ID集合、命中的互斥规则与冲突操作ID集合
+     */
+    private PermMutexContext computeMutexContext(Long tenantId, List<RolePermEntry> passedEntries) {
         List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
             tenantId, ConflictType.PERM_MUTEX.getValue());
 
@@ -164,6 +209,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             .flatMap(resourceType -> operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType).stream())
             .toList();
         Map<String, OperationPermission> opByTypeAndBit = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(allOps);
+        Map<Long, OperationPermission> opById = allOps.stream()
+            .collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
 
         Set<Long> opIds = passedEntries.stream()
             .map(entry -> OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
@@ -184,21 +231,42 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 }
             }
         }
+        return new PermMutexContext(rules, opByTypeAndBit, opById, opIds, conflictingOpIds);
+    }
 
-        // 检测到权限冲突时触发异步通知
-        if (!conflictingOpIds.isEmpty()) {
-            notifyPermConflict(tenantId, conflictingOpIds, rules);
+    /**
+     * 权限互斥上下文（规则 + 操作索引 + 冲突操作ID集合）
+     */
+    private record PermMutexContext(
+        List<PermissionConflictRule> rules,
+        Map<String, OperationPermission> opByTypeAndBit,
+        Map<Long, OperationPermission> opById,
+        Set<Long> opIds,
+        Set<Long> conflictingOpIds
+    ) {
+        OperationPermission grantedOperation(RolePermEntry entry) {
+            return OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                opByTypeAndBit, entry.resourceType(), entry.grantedBits());
         }
-        return passedEntries.stream()
-            .filter(entry -> {
-                OperationPermission granted = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
-                    opByTypeAndBit,
-                    entry.resourceType(),
-                    entry.grantedBits()
-                );
-                return granted == null || !conflictingOpIds.contains(granted.getId());
-            })
-            .collect(Collectors.toList());
+
+        boolean isConflicting(RolePermEntry entry) {
+            OperationPermission granted = grantedOperation(entry);
+            return granted != null && conflictingOpIds.contains(granted.getId());
+        }
+
+        /** 命中含指定冲突操作的第一条互斥规则（找不到返回 null） */
+        PermissionConflictRule firedRule(Long conflictingOpId) {
+            return rules.stream()
+                .filter(r -> conflictingOpId.equals(r.getFirstOperationPermissionId())
+                    || conflictingOpId.equals(r.getSecondOperationPermissionId()))
+                .findFirst().orElse(null);
+        }
+
+        /** 操作权限ID → 操作码（未解析返回 null） */
+        String codeOf(Long operationPermissionId) {
+            OperationPermission op = operationPermissionId == null ? null : opById.get(operationPermissionId);
+            return op != null ? op.getCode() : null;
+        }
     }
 
     /**
