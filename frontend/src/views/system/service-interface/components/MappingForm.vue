@@ -63,17 +63,26 @@ async function loadResourceTypes() {
   }
 }
 
+/** 请求序号守卫：快速切换类型时丢弃过期响应（旧请求后返回不得覆盖当前类型的树，
+ *  否则用户可能为 B 类型选中实际属于 A 的资源——T-PERM-028 复评 P2） */
+let treeRequestSeq = 0;
+
 async function loadResourceTree(typeCode: string) {
+  const seq = ++treeRequestSeq;
   resourceTreeLoading.value = true;
   try {
     const res = await getResourceTree({ resourceTypeCode: typeCode });
+    if (seq !== treeRequestSeq) return;
     resourceTreeOptions.value = toTreeSelectNodes(
       res.items.map(i => i.root).filter((n): n is ResourceTreeNode => n != null)
     );
   } catch {
+    if (seq !== treeRequestSeq) return;
     resourceTreeOptions.value = [];
   } finally {
-    resourceTreeLoading.value = false;
+    if (seq === treeRequestSeq) {
+      resourceTreeLoading.value = false;
+    }
   }
 }
 

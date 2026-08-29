@@ -50,7 +50,16 @@ const rules = computed<FormRules>(() => ({
   binaryBit: [
     { required: true, message: "请输入二进制位", trigger: "blur" },
     {
-      validator: (_rule: any, value: number, cb: (e?: Error) => void) => {
+      validator: (
+        _rule: any,
+        value: number | string,
+        cb: (e?: Error) => void
+      ) => {
+        // 超精度只读字符串为后端既有合法值，跳过数值控件校验
+        if (typeof value === "string") {
+          cb();
+          return;
+        }
         if (!Number.isInteger(value) || value <= 0) {
           cb(new Error("必须为正整数"));
         } else if (!isPowerOfTwo(value)) {
@@ -64,16 +73,23 @@ const rules = computed<FormRules>(() => ({
   ]
 }));
 
+/** 安全值（≤2^53）转数值控件可编辑；超精度高位值保留原始字符串只读展示
+ *  （Number 往返会改写 2^62 级位值——4611686018427387904 → 4611686018427388000，
+ *  T-PERM-028 复评 P1：只改名称的编辑也不得静默写坏位字段）。 */
+function toEditableBit(value: string): number | string {
+  const n = Number(value);
+  return Number.isSafeInteger(n) ? n : value;
+}
+
 function initFormData() {
   if (props.mode === "edit" && props.initialData) {
-    // 位字段为十进制字符串线格式（T-PERM-028）；表单内部数值控件（2^53 内精确），
-    // 提交时由 hook 转回字符串
+    // 位字段为十进制字符串线格式（T-PERM-028）；安全值转数值控件编辑
     Object.assign(formData, {
       resourceTypeCode: props.initialData.resourceTypeCode ?? "",
       code: props.initialData.code,
       name: props.initialData.name,
-      binaryBit: Number(props.initialData.binaryBit),
-      inheritMask: Number(props.initialData.inheritMask)
+      binaryBit: toEditableBit(props.initialData.binaryBit),
+      inheritMask: toEditableBit(props.initialData.inheritMask)
     });
   } else {
     Object.assign(formData, defaultFormData());
@@ -147,22 +163,41 @@ defineExpose({ validate, getFormData });
 
     <el-form-item label="二进制位" prop="binaryBit">
       <el-input-number
+        v-if="typeof formData.binaryBit === 'number'"
         v-model="formData.binaryBit"
         :min="1"
         controls-position="right"
         class="w-full!"
       />
+      <!-- 超精度高位值（>2^53）只读精确展示：数值控件往返会丢精度（T-PERM-028 复评 P1） -->
+      <el-input
+        v-else
+        :model-value="String(formData.binaryBit)"
+        readonly
+        class="w-full! font-mono"
+      />
       <div class="field-tip">
         独占位，2 的幂次（1/2/4/8/16…）。同资源类型内不可重复。
+        <template v-if="typeof formData.binaryBit === 'string'">
+          当前为超过 2^53 的高位值（只读保护），如需修改请经 API
+          提交十进制字符串。
+        </template>
       </div>
     </el-form-item>
 
     <el-form-item label="继承掩码" prop="inheritMask">
       <el-input-number
+        v-if="typeof formData.inheritMask === 'number'"
         v-model="formData.inheritMask"
         :min="0"
         controls-position="right"
         class="w-full!"
+      />
+      <el-input
+        v-else
+        :model-value="String(formData.inheritMask)"
+        readonly
+        class="w-full! font-mono"
       />
       <div class="field-tip">
         所继承操作的 binaryBit 之和。实际权限 = binaryBit | inheritMask。

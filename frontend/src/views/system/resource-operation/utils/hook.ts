@@ -275,12 +275,17 @@ export function useResourceOperation() {
         });
         message("操作权限创建成功", { type: "success" });
       } else if (editing) {
+        // 位字段脏检查：与原值一致则不提交（后端 null=不更新）——防止只改名称等场景
+        // 经 Number 往返丢精度静默改写高位位值（T-PERM-028 复评 P1）
+        const bitChanged = String(form.binaryBit) !== editing.binaryBit;
+        const maskChanged =
+          String(form.inheritMask ?? 0) !== editing.inheritMask;
         await updateOperation({
           resourceTypeCode: editing.resourceTypeCode,
           code: editing.code,
           name: form.name,
-          binaryBit: String(form.binaryBit),
-          inheritMask: String(form.inheritMask ?? 0)
+          ...(bitChanged ? { binaryBit: String(form.binaryBit) } : {}),
+          ...(maskChanged ? { inheritMask: String(form.inheritMask) } : {})
         });
         message("操作权限更新成功", { type: "success" });
       }

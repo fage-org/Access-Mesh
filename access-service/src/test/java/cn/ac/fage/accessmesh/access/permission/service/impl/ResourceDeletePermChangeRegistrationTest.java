@@ -75,8 +75,9 @@ class ResourceDeletePermChangeRegistrationTest {
         root.setResourceType(1);
         root.setCode("x");
         root.setCodeType("default");
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
-        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(eq(1L), eq(1), anySet(), anySet()))
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(java.util.Map.of("MENU", 1));
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(1)), anySet(), anySet()))
             .thenReturn(List.of(root));
         when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
             .thenReturn(Set.of());
@@ -115,8 +116,9 @@ class ResourceDeletePermChangeRegistrationTest {
         root.setResourceType(1);
         root.setCode("x");
         root.setCodeType("default");
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
-        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(eq(1L), eq(1), anySet(), anySet()))
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(java.util.Map.of("MENU", 1));
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(1)), anySet(), anySet()))
             .thenReturn(List.of(root));
         when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
             .thenReturn(Set.of());

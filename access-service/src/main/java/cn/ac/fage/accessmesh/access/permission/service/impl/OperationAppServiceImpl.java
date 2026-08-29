@@ -23,6 +23,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngi
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -279,14 +280,21 @@ public class OperationAppServiceImpl implements OperationAppService {
     }
 
     /**
-     * 批量解析业务键为有效操作权限实体（专属/全局两轨分组批量查询）
+     * 批量解析业务键为有效操作权限实体（固定两次批量查询，T-PERM-028 复评 P2 收口）
+     * <p>
+     * 一次 batchResolveTypeValues 解析全部类型 + 一次跨类型
+     * selectByTenantResourceTypesAndOpCodes 查询，再按 (resourceType, code) 二元组内存
+     * 精确过滤；全局轨单独一次——查询次数不随请求内资源类型数增长
+     * （循环内禁止单条数据库查询，project-rules §8.4.8）。
+     * </p>
      *
      * @param tenantId 租户ID
      * @param keys     操作权限业务键列表
      * @return 命中的有效实体列表（未命中的键静默跳过，对齐原 ids 批删语义）
      */
     private List<OperationPermission> resolveOperationsByKeys(Long tenantId, List<OperationKeyReq> keys) {
-        Map<String, Set<String>> typedCodesByKey = new java.util.LinkedHashMap<>();
+        Set<String> typeCodes = new java.util.LinkedHashSet<>();
+        Set<String> typedCodes = new java.util.LinkedHashSet<>();
         Set<String> globalCodes = new java.util.LinkedHashSet<>();
         for (OperationKeyReq key : keys) {
             if (key == null || key.code() == null || key.code().isBlank()) {
@@ -295,17 +303,33 @@ public class OperationAppServiceImpl implements OperationAppService {
             if (key.isGlobal()) {
                 globalCodes.add(key.code());
             } else {
-                typedCodesByKey.computeIfAbsent(key.resourceTypeCode(), k -> new java.util.LinkedHashSet<>()).add(key.code());
+                typeCodes.add(key.resourceTypeCode());
+                typedCodes.add(key.code());
             }
+        }
+        if (typedCodes.isEmpty() && globalCodes.isEmpty()) {
+            return List.of();
         }
 
         List<OperationPermission> entities = new java.util.ArrayList<>();
-        for (Map.Entry<String, Set<String>> entry : typedCodesByKey.entrySet()) {
-            Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", entry.getKey());
-            if (resourceType == null) {
-                continue;
+        if (!typedCodes.isEmpty()) {
+            Map<String, Integer> typeValues = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", typeCodes);
+            Set<Integer> resolvedTypes = typeValues.values().stream()
+                .filter(Objects::nonNull).collect(Collectors.toSet());
+            if (!resolvedTypes.isEmpty()) {
+                // 请求二元组集合（typeValue:code），未知类型码的键静默跳过
+                Set<String> pairs = new java.util.HashSet<>();
+                for (Map.Entry<String, Integer> entry : typeValues.entrySet()) {
+                    for (String code : typedCodes) {
+                        pairs.add(entry.getValue() + ":" + code);
+                    }
+                }
+                for (OperationPermission op : operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(tenantId, resolvedTypes, typedCodes)) {
+                    if (pairs.contains(op.getResourceType() + ":" + op.getCode())) {
+                        entities.add(op);
+                    }
+                }
             }
-            entities.addAll(operationPermissionMapper.selectByResourceTypeAndCodes(tenantId, resourceType, entry.getValue()));
         }
         if (!globalCodes.isEmpty()) {
             entities.addAll(operationPermissionMapper.selectGlobalByCodes(tenantId, globalCodes));

@@ -35,13 +35,15 @@ export type ResourceFormData = {
   extra: string;
 };
 
-/** 操作权限新增/编辑表单数据 */
+/** 操作权限新增/编辑表单数据。
+ *  位字段 number | string：安全值（≤2^53）用数值控件编辑；超精度高位值保留原始
+ *  十进制字符串只读展示（Number 往返丢精度，T-PERM-028 复评 P1 收口）。 */
 export type OperationFormData = {
   resourceTypeCode: string;
   code: string;
   name: string;
-  binaryBit: number;
-  inheritMask: number;
+  binaryBit: number | string;
+  inheritMask: number | string;
 };
 
 /** 资源移动表单数据（即 ResourceMoveReq 请求体：业务键对定位，parent null=顶层） */

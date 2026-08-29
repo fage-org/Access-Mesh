@@ -515,9 +515,11 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     }
 
     /**
-     * 批量解析业务键为有效资源实体（按 resourceTypeCode 分组批量查询，避免N+1）
+     * 批量解析业务键为有效资源实体（固定两次批量查询，T-PERM-028 复评 P2 收口）
      * <p>
-     * 复用既有 selectByTypeAndCodesAndCodeTypes（笛卡尔命中后按 (code, codeType) 对过滤精确行）。
+     * 一次 batchResolveTypeValues 解析全部类型 + 一次跨类型 selectByTypesAndCodesAndCodeTypes
+     * 查询（笛卡尔命中超集），再按 (resourceType, code, codeType) 三元组内存精确过滤——
+     * 查询次数不随请求内资源类型数增长（循环内禁止单条数据库查询，project-rules §8.4.8）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -536,20 +538,37 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 .computeIfAbsent(key.code(), k -> new HashSet<>())
                 .add(key.normalizedCodeType());
         }
+        if (grouped.isEmpty()) {
+            return List.of();
+        }
+
+        Map<String, Integer> typeValues = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", grouped.keySet());
+        Set<Integer> resolvedTypes = typeValues.values().stream()
+            .filter(Objects::nonNull).collect(Collectors.toSet());
+        if (resolvedTypes.isEmpty()) {
+            return List.of();
+        }
+
+        // 请求三元组集合（typeValue:code:codeType），未知类型码的键静默跳过
+        Set<String> triples = new HashSet<>();
+        for (Map.Entry<String, Integer> entry : typeValues.entrySet()) {
+            Map<String, Set<String>> codes = grouped.getOrDefault(entry.getKey(), Map.of());
+            for (Map.Entry<String, Set<String>> codeEntry : codes.entrySet()) {
+                for (String codeType : codeEntry.getValue()) {
+                    triples.add(entry.getValue() + ":" + codeEntry.getKey() + ":" + codeType);
+                }
+            }
+        }
+
+        Set<String> allCodes = grouped.values().stream()
+            .flatMap(m -> m.keySet().stream()).collect(Collectors.toSet());
+        Set<String> allCodeTypes = grouped.values().stream()
+            .flatMap(m -> m.values().stream().flatMap(Set::stream)).collect(Collectors.toSet());
 
         List<ResourceEntity> entities = new ArrayList<>();
-        for (Map.Entry<String, Map<String, Set<String>>> entry : grouped.entrySet()) {
-            Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", entry.getKey());
-            if (resourceType == null) {
-                continue;
-            }
-            Set<String> codes = entry.getValue().keySet();
-            Set<String> codeTypes = entry.getValue().values().stream()
-                .flatMap(Set::stream).collect(Collectors.toSet());
-            for (ResourceEntity entity : resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(tenantId, resourceType, codes, codeTypes)) {
-                if (entry.getValue().getOrDefault(entity.getCode(), Set.of()).contains(entity.getCodeType())) {
-                    entities.add(entity);
-                }
+        for (ResourceEntity entity : resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(tenantId, resolvedTypes, allCodes, allCodeTypes)) {
+            if (triples.contains(entity.getResourceType() + ":" + entity.getCode() + ":" + entity.getCodeType())) {
+                entities.add(entity);
             }
         }
         return entities;

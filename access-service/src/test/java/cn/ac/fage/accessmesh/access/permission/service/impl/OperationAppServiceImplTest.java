@@ -210,13 +210,18 @@ class OperationAppServiceImplTest {
     void shouldDeleteOperationsByBusinessKeys() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ROLE")).thenReturn(5);
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", java.util.Set.of("ROLE")))
+            .thenReturn(java.util.Map.of("ROLE", 5));
         OperationPermission typed = op(5, "VIEW");
         typed.setId(11L);
         OperationPermission global = op(null, "SYNC");
         global.setId(22L);
-        when(operationPermissionMapper.selectByResourceTypeAndCodes(1L, 5, java.util.Set.of("VIEW", "MISSING")))
-            .thenReturn(List.of(typed));
+        // 跨类型单查返回超集（含未请求的类型/码组合），由 (resourceType, code) 二元组内存过滤
+        OperationPermission other = op(6, "VIEW");
+        other.setId(33L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
+            1L, java.util.Set.of(5), java.util.Set.of("VIEW", "MISSING")))
+            .thenReturn(List.of(typed, other));
         when(operationPermissionMapper.selectGlobalByCodes(1L, java.util.Set.of("SYNC")))
             .thenReturn(List.of(global));
 
@@ -225,7 +230,8 @@ class OperationAppServiceImplTest {
             new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq(null, "SYNC"),
             new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("ROLE", "MISSING")), 100L);
 
+        // 删除集合恰为请求键命中的两行；超集行（USER:VIEW 未在请求键内）不得混入
         verify(operationPermissionMapper).softDeleteBatch(eq(1L), org.mockito.ArgumentMatchers.argThat(
-            ids -> ids != null && ids.size() == 2 && ids.containsAll(List.of(11L, 22L))), any());
+            ids -> ids != null && ids.size() == 2 && ids.containsAll(List.of(11L, 22L)) && !ids.contains(33L)), any());
     }
 }

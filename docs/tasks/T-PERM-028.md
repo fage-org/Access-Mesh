@@ -62,7 +62,8 @@ T-FE-008 前端资源与操作定义页在 API 核对中登记 6 项 🔧（reso
 
 - **operation 更新位值不预检 uk_typed_bit 冲突**：靠 DB 唯一索引兜底（create 同现状），冲突时报系统错误码——位值管理页低频操作，维持现状不加预检（避免过度设计）。
 - **remove 未命中键静默跳过**：对齐原 ids 批删语义（不部分失败）；批量调用方以返回行数/事后查询核对。
-- **表单数值控件输入上限 2^53**：bit 54~63 无法经表单直接输入（可经 API 写入，显示/运算无损）——用户决策接受的务实边界。
+- **表单数值控件输入上限 2^53**：bit 54~63 无法经表单直接输入（可经 API 写入）；超精度高位值在编辑表单中只读精确展示（数值控件往返丢精度——复评 P1 收口：脏检查提交 + 只读字符串展示，只改名称等编辑不再改写位字段）。
+- **resource_entity move 并发成环窗口（登记 T-PERM-044 扩入，2026-08-30 用户决策）**：moveResource 防环校验为 check-then-act 无锁，并发交叉移动（A→B 同时 B→A）可双双通过校验成环；子孙查询同 UNION ALL 递归 CTE，与三棵树后果同构，随 T-PERM-044 四树统一加固（行锁/advisory lock 或 UNION 去重二选一）。
 - **操作定义缓存失效缺口（既有，登记 T-PERM-047）**：OPERATION_PERMISSIONS_BY_TYPE（L1 60m/L2 120m）在 create/update/deleteOperation 后无 evict，引擎最长 1-2 小时按旧位值判定；目录注释承诺的「跨实例 L1 失效广播」写路径从未接线（旧 id 版同样缺失，非本批引入）。2026-08-29 双轨评审 P2 登记，用户决策立独立任务（evictAfterCommit 接线，键粒度需按 type 维度定夺）。
 
 ## 验收对照
@@ -74,4 +75,5 @@ T-FE-008 前端资源与操作定义页在 API 核对中登记 6 项 🔧（reso
 ## 完成记录
 
 - 2026-08-29 收口：五项用户决策（键形态/门禁三补/选择器+预置都做/线 string+数值控件/[update 删 code 字段等修法唯一项直接修]）全落地；执行中发现并修复两处既有缺陷（selectByResourceTypeAndCode XML 参数名错配、BaseMapper.update 忽略 null 致 extraClear/移顶层失效——后者原实现同病，均由 PgIT 真库暴露）；move 防环/跨类型校验为原实现缺失项（mock 与前端设计早有，属事实性补齐）。
+- 2026-08-30 外部复评收口（1P1+3P2 全属实全处置）：P1 编辑高位操作权限静默改写位字段（Number 往返 2^62→4611686018427388000 且 edit 无条件重提交）——hook 位字段脏检查（null=不更新）+ OperationForm 超精度值只读字符串展示（安全值仍数值控件）；P2 批量业务键解析按类型循环查询——两处改「batchResolveTypeValues 一次 + 跨类型单查 + 复合键内存过滤」（操作侧复用既有 selectByTenantResourceTypesAndOpCodes，资源侧新增镜像 selectByTypesAndCodesAndCodeTypes），测试适配并补超集行不混入断言；P2 MappingForm 资源树异步竞态——请求序号守卫丢弃过期响应；P2 resource_entity move 并发成环窗口——用户决策扩入 T-PERM-044 四树统一加固（任务卡已知限制同步登记）。
 - 2026-08-29 双轨评审收口（代码轨+文档轨，逐条核实后处置）：P2①create 侧 codeType 归一对称修复（带空白 codeType 的行此前创建后无法经业务键寻址；mock 同步 trim 归一，回归锁用例）+缓存失效缺口登记 T-PERM-047（用户决策立独立任务）；文档轨 P1：权威 DDL 预置注释「当前应用亦无该生成逻辑」已被本实现证伪，删改；P2：api-contract last_reviewed 编辑事故重复段去重、type-definition.md last_reviewed 日期未升级修正；P3：WireFormat 请求用例改真绑定 DTO（原 readTree+asLong 恒真）、BigInt 排序比较器补相等 0（mock 全量口径跨类型同位值稳定序）、hasBit 非十进制字符串宽容守卫、mock remove data 形状对齐 PermResult<Void>（null）、预置 4 条改 insertBatch 对齐仓库先例、任务卡计数表述与 §14.5 措辞收窄、resource-operation §8 小节标题收口态、AGENTS.md 待做补列 040/041。拒绝项：update/move 先键解析后门禁（既有次序+写操作语义，错误差异探测面有限）、本页补 spec（Phase 1 起零覆盖，独立测试债非本批回归面）。

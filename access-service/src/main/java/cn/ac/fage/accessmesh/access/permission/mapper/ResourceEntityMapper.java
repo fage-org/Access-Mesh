@@ -95,6 +95,24 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
                                                           @Param("codeTypes") Set<String> codeTypes);
 
     /**
+     * 跨资源类型批量查询（selectByTypeAndCodesAndCodeTypes 的多类型变体，T-PERM-028 复评 P2）
+     * <p>
+     * 业务键批量解析用：一次查询覆盖请求中的全部资源类型，调用方按 (resourceType, code, codeType)
+     * 三元组在内存精确过滤，避免按类型循环查询。
+     * </p>
+     *
+     * @param tenantId      租户ID
+     * @param resourceTypes 资源类型值集合
+     * @param codes         编码集合
+     * @param codeTypes     编码类型集合
+     * @return 资源列表（笛卡尔命中超集；调用方按三元组过滤）
+     */
+    List<ResourceEntity> selectByTypesAndCodesAndCodeTypes(@Param("tenantId") Long tenantId,
+                                                           @Param("resourceTypes") Set<Integer> resourceTypes,
+                                                           @Param("codes") Set<String> codes,
+                                                           @Param("codeTypes") Set<String> codeTypes);
+
+    /**
      * 查询指定租户和类型的所有API资源
      *
      * @param tenantId     租户ID

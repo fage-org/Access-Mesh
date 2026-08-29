@@ -153,7 +153,7 @@ views/system/resource-operation/
 2. ~~**操作权限业务键切换**~~ **已收口（T-PERM-028）**：`detail/update/remove` 已切业务键 `(resourceTypeCode, code)`（resourceTypeCode 可空=全局操作，走 `selectGlobalByCode` 轨）。
 3. ~~**VIEW 门禁种子缺失**~~ **已收口（T-PERM-028）**：核实结论——tree 与 operation list 门禁 T-PERM-042 已补；真正缺的 `resource-entity/list`、`resource-entity/detail`、`operation-permission/detail` 三处已补类型级 VIEW（2026-08-29 用户决策全补）；种子由 DDL CRUD 预置组覆盖（2026-08-28 核实，半句不成立）。
 4. **resource-entity list 分页**：后端 `ResourceListReq` 有分页参数，本页以树为主不消费，保留契约对齐。
-5. ~~**bigint 字段 63 位精度**~~ **已收口（T-PERM-028）**：响应 DTO 加 `@JsonSerialize(ToStringSerializer.class)`（全项目 bigint 序列化策略首例），请求侧 Long 组件由 Jackson 宽容接受十进制字符串；前端线格式全切 string，显示/运算/排序全 BigInt 无损。表单内部保留 el-input-number 数值控件、提交转字符串（2026-08-29 用户决策：2⁵³ 内输入精确，保留增减按钮体验；>2⁵³ 位值经 API 写入后显示/运算仍无损）。
+5. ~~**bigint 字段 63 位精度**~~ **已收口（T-PERM-028）**：响应 DTO 加 `@JsonSerialize(ToStringSerializer.class)`（全项目 bigint 序列化策略首例），请求侧 Long 组件由 Jackson 宽容接受十进制字符串；前端线格式全切 string，显示/运算/排序全 BigInt 无损。表单内部保留 el-input-number 数值控件、提交转字符串（2026-08-29 用户决策：2⁵³ 内输入精确，保留增减按钮体验）；复评 P1 收口（2026-08-30）：编辑态位字段脏检查（未变更不重提交）+ 超精度高位值（>2⁵³）只读字符串精确展示，杜绝 Number 往返静默改写存储位值。
 6. ~~**resource_type 创建联动预置 operation_permission**~~ **已收口（T-PERM-028，2026-08-29 用户决策实现）**：`type-definition/create` 在 typeKey=resource_type 时同事务预置 CRUD 四操作位 CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)（DDL 预置组模板同款，新类型位段空闲无 uk 冲突；跨域写入先例 ServiceConfig 级联）。
 
 ### ✅ 满足

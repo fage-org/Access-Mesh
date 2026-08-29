@@ -155,8 +155,9 @@ class OperationLogRuntimeContextAppServiceTest {
         second.setCode("b");
         second.setCodeType("default");
 
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
-        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(eq(1L), eq(1), anySet(), anySet()))
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(1)), anySet(), anySet()))
             .thenReturn(List.of(first, second));
         when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L, 20L), OperationCodeConstants.MANAGE))
             .thenReturn(Set.of(10L, 20L));
