@@ -104,7 +104,8 @@ public final class BootstrapGraphDefinition {
                 null, false),
             // T-PERM-027：服务与接口映射页门禁——checkCanGrant 要求操作者先持有才能转授，
             // 固定图不持 SERVICE:VIEW/MANAGE/SYNC_INTERFACE 则空库上该页读写路径无授予起点
-            // （死锁，同 DOMAIN:VIEW 先例）；三条均类型级，实例粒度由租户后续自行收紧
+            // （死锁，同 DOMAIN:VIEW 先例）。死锁防护=持有解锁首管理员页面读写；三条与全部
+            // 业务门禁同口径不可转授（转授链仅 API:ACCESS），实例粒度由租户后续自行收紧
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.MANAGE, null, false),
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.SYNC_INTERFACE, null, false),

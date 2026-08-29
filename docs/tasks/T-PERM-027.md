@@ -21,7 +21,7 @@ acceptance:
   - "ServiceConfigResp 补 updatedAt（列已有）；lastSyncedAt 登记不做（无现成列、聚合推导语义模糊）——§7 第 7 项"
   - "list 维持 {} 全量返回收口为设计定案（服务数量有界/目录面板无分页 UI/本地过滤已可用）——§7 第 1 项"
   - "手工映射内部 resourceId 绑定维持，资源树/业务键稳定定位与前端资源选择器登记 T-PERM-028——§7 第 6 项"
-  - "SERVICE:VIEW/MANAGE/SYNC_INTERFACE 补入空库 bootstrap 固定图（无授予起点死锁防护，DOMAIN:VIEW 先例；MANAGE_API_MAPPING 原已持有）"
+  - "SERVICE:VIEW/MANAGE/SYNC_INTERFACE 补入空库 bootstrap 固定图（死锁防护=持有解锁首管理员页面读写，DOMAIN:VIEW 先例；不可转授——业务门禁统一口径，转授链仅 API:ACCESS；MANAGE_API_MAPPING 原已持有）"
   - "前端与 mock 对齐：ApiMappingResp/ServiceConfigResp 类型扩展、映射表资源列展示业务编码（回退 #id）、服务信息条「更新于」、mock 透出资源字段与 updatedAt"
   - "design_writeback：api-contract §5.4 契约要点 + §6.3/§6.10.4 口径句、service-interface-mapping.md §4/§7 终态化、看板行 ✅"
 design_writeback:
@@ -63,6 +63,7 @@ T-FE-007 前端服务+接口映射页（左服务目录 + 右接口映射）在 
 
 ## 已知限制
 
+- **业务门禁不可转授（系统性现状，非本任务引入）**：checkCanGrant 要求操作者持有 `canGrant=true` 的匹配授权才可转授（否则 20040），bootstrap 固定图全部业务门禁（含本任务三条 SERVICE 授权）均为 `canGrant=false`——首管理员可使用页面但**不能把 SERVICE 权限授予其他角色**，转授链仅 API:ACCESS（T-API-001 以来统一口径；外部复评 P1 经核实机制属实、定性为系统性设计现状，2026-08-29 用户决策维持现状+措辞收窄，如需放开属安全模型变更单独立项）。
 - **删除级联并发窗口**：服务删除事务进行中，并发 FULL sync/手工加映射可在级联查询之后插入、留下引用已软删服务的残留有效行（惰性死路径，无安全影响；删除提交后的 sync 正确 404、服务已删无法再 sync 自愈）。窗口窄、失败模式惰性，不加锁（双轨评审存疑项，2026-08-29 用户决策按本卡轻量登记）。
 - `SERVICE:MANAGE`（删除服务）级联删映射与 `SERVICE:MANAGE_API_MAPPING`（直接删映射）的不对称为设计口径：删服务是严格更强的破坏性操作，门禁按操作破坏性上界分配；api-contract §5.4 已记载。
 
@@ -70,3 +71,4 @@ T-FE-007 前端服务+接口映射页（左服务目录 + 右接口映射）在 
 
 - 2026-08-29 收口：七项 🔧 全处置（第 1/3/4/5/7 项实现收口、第 2 项级联清理落地、第 6 项登记 T-PERM-028）+ 四项设计定案（级联边界、FULL-only、list 维持全量、只补 updatedAt）+ bootstrap SERVICE 三授权；§7.6 资源选择器联动登记随 T-PERM-028 资源树后端一并落地。
 - 2026-08-29 双轨评审收口（代码轨+文档轨）：P1 updateApiMapping 首查换参修复（既有缺陷，真库必 RESOURCE_NOT_FOUND，PgIT 锁）+ @Transactional(readOnly)/apiType 缺失 warn/空白 serviceCode 规整/两处「支持增量同步」Javadoc 残留/mock updatedAt 条件刷新；project-rules §3.3 异常表按代码对齐（用户决策）、access-service-architecture §14.4 补 DOMAIN:VIEW 与 SERVICE 三行+权威指针注（用户决策）、「资源树」措辞×3 收口为映射列表、错误通道措辞订正（HTTP 400 + body 90001）、测试计数订正（8→11/+11）；拒绝项：resolveTypeCode 批量化（toResourceResp 既有同款缓存范式）、@PermissionChange 反射存在性断言与事务原子性 PgIT 锁（全仓无先例，新机制属过度设计）。
+- 2026-08-29 外部复评收口：P1 转授轴定性为系统性设计现状（用户决策维持现状+措辞收窄四处：bootstrap 注释/api-contract §5.4/§14.4 SERVICE 行/本卡 acceptance 与已知限制）；P3 mock FULL 同步补资源名称刷新与 updatedResources 计数（对齐后端 syncResources 已有资源更新）、删除无调用点的单参 toApiMappingResp 死方法。

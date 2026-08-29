@@ -511,7 +511,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | `ROLE:CREATE`                          | ALL                | 创建 BASIC_ROLE                                                                                  |
 | `ROLE:MANAGE`                          | ALL                | 管理新建角色与为用户分配角色；继承掩码已含 VIEW，角色树 `ROLE:VIEW`、授权列表与 sub-perm 查询的 `ROLE:VIEW@目标角色` 均被覆盖，不重复授 `ROLE:VIEW` |
 | `SERVICE:MANAGE_API_MAPPING`           | ALL                | 管理任意接入服务的 API 映射（T-API-001 起类型级：新接入服务的首条映射必须由首管理员创建，实例级会造成无正规入口的鸡生蛋） |
-| `SERVICE:VIEW` / `SERVICE:MANAGE` / `SERVICE:SYNC_INTERFACE` | ALL | 服务与接口映射页读写门禁（T-PERM-027：固定图不持则空库上该页读写路径无授予起点死锁；三条均类型级，实例粒度由租户自行收紧） |
+| `SERVICE:VIEW` / `SERVICE:MANAGE` / `SERVICE:SYNC_INTERFACE` | ALL | 服务与接口映射页读写门禁（T-PERM-027：死锁防护=持有解锁首管理员页面读写；三条均类型级、与全部业务门禁同口径不可转授（转授链仅 API:ACCESS），实例粒度由租户自行收紧） |
 | `TYPE_DEFINITION:VIEW`                 | ALL                | 授权页无条件加载类型列表且后端 `listTypes` 强制门禁                                              |
 | `RESOURCE:VIEW`                        | ALL                | 授权页资源树加载门控（门禁补齐见 §14.5）                                                        |
 | `OPERATION:VIEW`                       | ALL                | 授权页操作列表加载门控（同上）                                                                   |

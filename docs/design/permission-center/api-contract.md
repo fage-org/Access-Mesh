@@ -310,7 +310,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.4 service-config/resource-api-mappi
 - `sync` 仅接受 `syncMode=FULL`（§6.3）：DTO 校验层 `@Pattern("FULL")` 拒绝其他值（`MethodArgumentNotValidException` → HTTP 400，body `code=90001` 参数校验失败），增量策略已删除（全仓零生产调用）。门禁 SERVICE:SYNC_INTERFACE 实例级（serviceCode）。
 - `apis` 与 `resource-api-mapping/list` 返回的 `ApiMappingResp` 含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode/maintainSource`（批量补全；资源已软删时为 null，前端回退展示内部 `resourceEntityId`）——`apis` 实现委托 `list`（同层复用，门禁与补全单点）。`list` 门禁（补齐）：请求带 `serviceCode` 按该服务实例 VIEW 校验；不带（管理全量列表）类型级 VIEW + 结果按服务维裁剪（拒绝服务的映射不出现在结果中）。
 - `resource-api-mapping/create`/`update` 仍以内部 `resourceId` 绑定资源（§6.10.4 单条响应）；资源树/业务键稳定定位（`resourceTypeCode + resourceCode + codeType`）与前端资源选择器属 **T-PERM-028** 联动范围（登记，未实现）。
-- 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（无授予起点死锁防护，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例；三条均类型级 scopeAll）。
+- 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（死锁防护=持有解锁首管理员页面读写，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例；三条均类型级 scopeAll 且**不可转授**——业务门禁统一口径，转授链仅 API:ACCESS，首管理员不能把 SERVICE 权限授予其他角色）。
 
 ### 5.5 授权关系
 

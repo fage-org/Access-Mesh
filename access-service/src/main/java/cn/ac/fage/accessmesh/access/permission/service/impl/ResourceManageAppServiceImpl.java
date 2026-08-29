@@ -750,10 +750,6 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         );
     }
 
-    private ApiMappingResp toApiMappingResp(ResourceApiMapping mapping) {
-        return toApiMappingResp(mapping, null);
-    }
-
     /**
      * 映射实体转响应，冗余关联资源的业务展示字段（T-PERM-027 §7.3）
      *

@@ -442,6 +442,7 @@ export default defineFakeRoute([
 
       const incomingKeys = new Set<string>();
       let createdResources = 0;
+      let updatedResources = 0;
       let createdMappings = 0;
       let updatedMappings = 0;
       for (const group of groups as SyncGroup[]) {
@@ -461,6 +462,10 @@ export default defineFakeRoute([
           if (existed) {
             existed.enabled = true;
             existed.updatedAt = now();
+            // 后端 syncResources 对已有资源更新 name/path 并计入 updatedResources，
+            // mock 同步刷新资源名称（路径已参与映射键匹配，命中即未变）
+            existed.resourceName = String(api.name ?? existed.resourceName);
+            updatedResources += 1;
             updatedMappings += 1;
             continue;
           }
@@ -506,7 +511,7 @@ export default defineFakeRoute([
       });
       return ok({
         createdResources,
-        updatedResources: 0,
+        updatedResources,
         createdMappings,
         updatedMappings,
         deletedResources: deletedMappings,
