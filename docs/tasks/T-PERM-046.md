@@ -15,7 +15,7 @@ blocks: []
 acceptance:
   - "全局域创建入口：DDL 注释称「全局域由管理 API 创建」但 create 固定 global=false，真库无任何入口能创建 global=true 域（mock 有 GLOBAL 种子、真库无 biz_domain 种子）——uk_biz_domain_global 与「全局域不可删」保护在真库形同虚设；需设计受控入口（特权 API vs 运维 SQL vs 种子，含「谁能建全局域」门禁权衡），或修订 DDL 注释对齐现状"
   - "domain_config upsert 并发兜底：唯一无唯一键的 upsert 表（仅普通索引 idx_domain_config_domain），save check-then-insert 并发窗口可双插同键两行；对齐 biz_domain（uk+DIVE）/system_config（uk_system_config）先例补部分唯一索引 (tenant_id,biz_domain_id,config_type) WHERE delete_flag=0 + save DIVE 映射（并发双插→重试提示）+ PgIT 验证"
-  - "删除保护与 save 的并发窗口：biz-domain remove 的引用检查与软删是两条无锁 READ COMMITTED 语句、domain-config save 的域解析也无锁——并发 save 可在检查后插入配置，留下指向已软删域的有效配置行（孤儿死数据：resolveDomainId 对软删域返 null，配置不可达，非越权非损坏）；需 remove 引用查询与 save 域解析共用域行锁（SELECT FOR UPDATE）或等价串行化机制 + PG 并发回归（外部复评 P2 登记，2026-08-29 设计定案：并入本任务统一处置，与 T-PERM-044 三棵树 check-then-act 窗口同类）"
+  - "删除保护与 save 的并发窗口：biz-domain remove 的引用检查与软删是两条无锁 READ COMMITTED 语句、domain-config save 的域解析也无锁——并发 save 可在检查后插入配置，留下指向已软删域的有效配置行（孤儿死数据：resolveDomainId 对软删域返 null，配置不可达，非越权非损坏）；需 remove 引用查询与 save 域解析共用域行锁（SELECT FOR UPDATE）或等价串行化机制 + PG 并发回归（外部复评 P2 登记，2026-08-29 设计定案：并入本任务统一处置，与 T-PERM-044 四棵树 check-then-act 窗口同类）"
   - "三项均低风险（DomainClassifyService 对全局域缺失容忍；每域至多 2 条配置低并发；管理页低并发窗口极窄），T-PERM-026 评审登记（2026-08-29 设计定案：登记后续任务，不在 T-PERM-026 轮内处理）"
 design_writeback:
   required: true

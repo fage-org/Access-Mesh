@@ -234,4 +234,36 @@ class OperationAppServiceImplTest {
         verify(operationPermissionMapper).softDeleteBatch(eq(1L), org.mockito.ArgumentMatchers.argThat(
             ids -> ids != null && ids.size() == 2 && ids.containsAll(List.of(11L, 22L)) && !ids.contains(33L)), any());
     }
+
+    @Test
+    @DisplayName("remove 多类型稀疏组合：仅删请求的 (type, code) 对，笛卡尔超集行（ROLE:DELETE/USER:VIEW）不误删（复评 P1 回归锁）")
+    void shouldNotDeleteCartesianSupersetRowsForSparseMultiTypeKeys() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", java.util.Set.of("ROLE", "USER")))
+            .thenReturn(java.util.Map.of("ROLE", 5, "USER", 6));
+        // 跨类型 SQL 笛卡尔命中四行（ROLE:VIEW 请求、ROLE:DELETE 未请求、USER:VIEW 未请求、USER:DELETE 请求）
+        OperationPermission roleView = op(5, "VIEW");
+        roleView.setId(11L);
+        OperationPermission roleDelete = op(5, "DELETE");
+        roleDelete.setId(12L);
+        OperationPermission userView = op(6, "VIEW");
+        userView.setId(21L);
+        OperationPermission userDelete = op(6, "DELETE");
+        userDelete.setId(22L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
+            1L, java.util.Set.of(5, 6), java.util.Set.of("VIEW", "DELETE")))
+            .thenReturn(List.of(roleView, roleDelete, userView, userDelete));
+
+        // 仅请求 ROLE:VIEW 与 USER:DELETE
+        service.deleteOperations(1L, List.of(
+            new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("ROLE", "VIEW"),
+            new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("USER", "DELETE")), 100L);
+
+        // 误删即旧实现行为：笛卡尔二元组会把 ROLE:DELETE(12)/USER:VIEW(21) 一并软删
+        verify(operationPermissionMapper).softDeleteBatch(eq(1L), org.mockito.ArgumentMatchers.argThat(
+            ids -> ids != null && ids.size() == 2
+                && ids.containsAll(List.of(11L, 22L))
+                && !ids.contains(12L) && !ids.contains(21L)), any());
+    }
 }

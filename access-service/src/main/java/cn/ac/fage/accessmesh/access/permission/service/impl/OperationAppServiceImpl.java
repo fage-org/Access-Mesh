@@ -293,8 +293,9 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @return 命中的有效实体列表（未命中的键静默跳过，对齐原 ids 批删语义）
      */
     private List<OperationPermission> resolveOperationsByKeys(Long tenantId, List<OperationKeyReq> keys) {
-        Set<String> typeCodes = new java.util.LinkedHashSet<>();
-        Set<String> typedCodes = new java.util.LinkedHashSet<>();
+        // 保留 typeCode → codes 分组（二元组必须按原始请求构造，拍平成两个集合再做笛卡尔
+        // 会误命中 ROLE:DELETE / USER:VIEW 等未请求组合——复评 P1 回归修复）
+        Map<String, Set<String>> typedByTypeCode = new java.util.LinkedHashMap<>();
         Set<String> globalCodes = new java.util.LinkedHashSet<>();
         for (OperationKeyReq key : keys) {
             if (key == null || key.code() == null || key.code().isBlank()) {
@@ -303,28 +304,34 @@ public class OperationAppServiceImpl implements OperationAppService {
             if (key.isGlobal()) {
                 globalCodes.add(key.code());
             } else {
-                typeCodes.add(key.resourceTypeCode());
-                typedCodes.add(key.code());
+                typedByTypeCode.computeIfAbsent(key.resourceTypeCode(), k -> new java.util.LinkedHashSet<>()).add(key.code());
             }
         }
-        if (typedCodes.isEmpty() && globalCodes.isEmpty()) {
+        if (typedByTypeCode.isEmpty() && globalCodes.isEmpty()) {
             return List.of();
         }
 
         List<OperationPermission> entities = new java.util.ArrayList<>();
-        if (!typedCodes.isEmpty()) {
-            Map<String, Integer> typeValues = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", typeCodes);
+        if (!typedByTypeCode.isEmpty()) {
+            Map<String, Integer> typeValues = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", typedByTypeCode.keySet());
             Set<Integer> resolvedTypes = typeValues.values().stream()
                 .filter(Objects::nonNull).collect(Collectors.toSet());
             if (!resolvedTypes.isEmpty()) {
-                // 请求二元组集合（typeValue:code），未知类型码的键静默跳过
+                // 请求二元组集合（typeValue:code）：仅由「已解析类型 × 该类型实际请求的码」构造，
+                // 未知类型码的键静默跳过；跨类型 SQL 的笛卡尔超集行由此精确过滤
                 Set<String> pairs = new java.util.HashSet<>();
-                for (Map.Entry<String, Integer> entry : typeValues.entrySet()) {
-                    for (String code : typedCodes) {
-                        pairs.add(entry.getValue() + ":" + code);
+                for (Map.Entry<String, Set<String>> entry : typedByTypeCode.entrySet()) {
+                    Integer typeValue = typeValues.get(entry.getKey());
+                    if (typeValue == null) {
+                        continue;
+                    }
+                    for (String code : entry.getValue()) {
+                        pairs.add(typeValue + ":" + code);
                     }
                 }
-                for (OperationPermission op : operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(tenantId, resolvedTypes, typedCodes)) {
+                Set<String> allTypedCodes = typedByTypeCode.values().stream()
+                    .flatMap(Set::stream).collect(Collectors.toSet());
+                for (OperationPermission op : operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(tenantId, resolvedTypes, allTypedCodes)) {
                     if (pairs.contains(op.getResourceType() + ":" + op.getCode())) {
                         entities.add(op);
                     }
