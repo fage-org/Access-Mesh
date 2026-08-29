@@ -35,11 +35,12 @@ public interface PermissionConditionDomainService {
     /**
      * 逐项评估权限条件并返回评估明细（T-PERM-033 explain DTO 扩展）。
      * <p>
-     * 与 {@link #evaluate} 使用同一套条件加载（缓存优先）与逐项评估逻辑，
-     * 但不丢弃条目，而是返回每个挂条件条目的逐项评估过程：
-     * 条件加载状态（OK/DISABLED/NOT_FOUND/INVALID）、logic、每项类型/脱敏参数/是否满足、
+     * 与 {@link #evaluate} 使用同一套逐项评估逻辑，但不丢弃条目，而是返回每个挂条件条目的
+     * 逐项评估过程：条件加载状态（OK/DISABLED/NOT_FOUND/INVALID）、logic、每项类型/脱敏参数/是否满足、
      * 整体是否通过。仅处理 {@code conditionId != null && hasCondition} 的条目，
      * 其余条目不产生明细（无条件即无评估过程）。
+     * 条件加载为批量路径（缓存 getBatch → miss 一次批量查库 → putBatch 回填剩余 TTL），
+     * 多条目共享同一条件时同一 ID 只加载一次，满足循环查询禁止规范。
      * 日期/时间类条件按服务进程系统时钟评估（与运行时判定一致，不可模拟）；
      * IP 类条件按 context 中的 clientIp 评估。
      * </p>

@@ -939,14 +939,12 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             // ALL 键：快照不应携带具体实例编码
             return nodeText(permission, "resourceCode") == null;
         }
-        // INSTANCE 键：resourceCode/codeType 请求侧为 null 时通配
+        // INSTANCE 键：resourceCode/codeType 请求侧为 null 时通配，非 null 时精确匹配
         String snapshotResourceCode = nodeText(permission, "resourceCode");
         if (req.resourceCode() != null && !Objects.equals(snapshotResourceCode, req.resourceCode())) {
             return false;
         }
-        String snapshotCodeType = nodeText(permission, "codeType");
-        return req.codeType() == null || Objects.equals(snapshotCodeType, req.codeType())
-            || (snapshotCodeType == null && PermConstants.CodeType.DEFAULT.equals(req.codeType()));
+        return req.codeType() == null || Objects.equals(nodeText(permission, "codeType"), req.codeType());
     }
 
     /**

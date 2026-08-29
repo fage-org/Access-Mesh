@@ -17,7 +17,7 @@ blocks: []
 acceptance:
   - "门禁设计定案（2026-08-29）：不引入独立排查权限码（原预案 PERMISSION_QUERY:VIEW 否决——权限码结构为「资源:操作」，PERMISSION_QUERY 是操作描述而非资源）；explain/recent-changes 门禁从 SYSTEM_CONFIG:VIEW 切换为被查目标实例 USER:VIEW/ROLE:VIEW（与 effective-permissions 同款：ROLE 未解析类型级兜底、USER 未解析返回空/NOT_FOUND）；query-scopes 维持运行时语义不加门禁（契约 §6.7 登记管理端排查复用）"
   - "explain 响应扩展：conditionEvaluations（逐项评估过程 + status OK/DISABLED/NOT_FOUND/INVALID fail-close）+ conflictDrops（互斥丢弃条目 + 命中规则）+ evaluationContextSource（ADMIN_INPUT/CURRENT_REQUEST）+ evaluatedClientIp；请求增可选 context.clientIp（缺省回退当前请求）；日期/时间条件按服务进程时钟评估不可模拟；敏感条件值脱敏（IP 掩码主机段，日期/时间原样）"
-  - "recentChanges 按完整权限键 6 字段过滤（resourceTypeCode/operationCode/scopeMode 精确，domainCode/resourceCode/codeType 请求侧 null 通配）+ USER 目标保留 USER_ROLE_CHANGE；impactLevel 对齐 DIRECT/POSSIBLE"
+  - "recentChanges 按完整权限键 6 字段过滤（resourceTypeCode/operationCode/scopeMode 精确，domainCode/resourceCode/codeType 请求侧非 null 精确匹配）+ USER 目标保留 USER_ROLE_CHANGE；impactLevel 对齐 DIRECT/POSSIBLE；ROLE 目标依赖生产方对齐契约 items[].permission 形状（apply-grant-plan 现写旧形状，显式登记 T-PERM-034 范围 4/验收，2026-08-29 定案）"
   - "LOCAL_USER/USER 主体语义核对完成：resolveUserId 走 type_definition user_type + abstract_user(tenant,type,externalId)；LOCAL_USER external_id=sys_user.id 字符串（本地投影 T-ORG-001 同源）"
   - "query-resources / permission-view/* 契约核对完成：query-resources 字段名与 §6.6 逐项一致；唯一差异 resource-users（契约写「用户」实现返回角色授予分布）已登记 permission-query.md §9"
   - "前端 perms 常量切换完成：QUERY_VIEW(SYSTEM_CONFIG:VIEW) → USER_VIEW/ROLE_VIEW 任一命中（canQuery）；契约路径切换在 T-FE-019 联调执行"
@@ -70,4 +70,5 @@ T-FE-013 权限排查页前端已实现（Phase 1 mock 驱动，mock 路径 `/pe
 ## 完成记录
 
 - 2026-08-29 收口：门禁设计定案（无独立排查码）+ explain DTO 扩展（评估上下文两态/条件明细脱敏/互斥丢弃）+ recentChanges 权限键过滤 + LOCAL_USER 语义/query-resources/permission-view 核对登记；新增领域两方法与 explain/recent-changes 门禁、明细、过滤的单元测试，回归 access-service mvn test 全绿，前端 typecheck 干净 + vitest 全绿。
+- 2026-08-29 外部评审收口：条件明细加载批量化（缓存 getBatch → miss 一次批量查库 → putBatch 回填剩余 TTL，同 ID 去重，满足循环查询禁止规范；evaluate() 运行时路径查询模式不变未动）；权限键 codeType 匹配收紧为非 null 精确（删 null≈default 折算）；maskCidr 八位组数字校验（主机名样串整体 MASKED）；ROLE 目标 recentChanges 数据源缺失定案=显式登记 T-PERM-034（范围 4/验收补 diff_snapshot 契约形状对齐，本任务不动 T-PERM-034 未完成主体的写路径）。
 - 2026-08-29 双轨评审收口：P0 recent-changes 非 USER/ROLE targetType 绕过目标过滤拉全租户日志（服务层 fail-closed 兜底 + 请求 DTO `@Pattern` 早拒，回归锁）；条件域空 items 恢复旧运行时语义（AND 空数组=无条件满足放行、OR=拒绝、节点缺失=拒绝，与重构前逐分支一致；写入口未拦空数组登记 rebuild-runbook）；互斥丢弃归因限定已触发规则（未触发规则不再作为 ruleId 返回）；权限键过滤补 domainCode 非空精确匹配；maskCidr 对 IPv4-mapped IPv6 整体 MASKED；explain 候选查询关闭辅助实体批量加载；ROLE 目标 recentChanges 在生产方对齐 `items[].permission` 前为空（契约现状登记）。

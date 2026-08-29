@@ -29,6 +29,7 @@ acceptance:
   - "**无幂等中间件（已定案）**：幂等中间件实现取消（未登记看板）；clientRequestId/@Idempotent 从契约移除；前端 saving 期间按钮 disabled 防重复点击，超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言保证不重复/不部分成功"
   - "**SUB_PERM fail-closed + 父域 resource_type 直查**：配置缺失/extra 空/格式错误 -> 20011 拒绝；extra=* 显式通配；父域解析直接读 role_resource_permission.resource_type（废弃 resource_entity_id 反查）；INSTANCE/ALL × 具体域/全局域四格测试；上线前核对配置种子覆盖率"
   - "**写入口五项清单（已定案）**：applyGrantPlan 必须齐全--① @Transactional(rollbackFor=Exception.class) ② @OperationLog ③ @PermissionChange ④ auditDomainService.recordChangeLog（同事务一条聚合 permission_change_log）⑤ PermissionChangeContext.markRoles；缺任一项导致审计缺失或缓存失效遗漏"
+  - "**diff_snapshot 契约形状（T-PERM-033 依赖登记）**：apply-grant-plan 变更日志写 §6.8 items[].permission 聚合形状（eventType=ROLE_PERMISSION_CHANGE、6 字段业务键、role 摘要），permission-view/explain 的 ROLE 目标 recentChanges 端到端可用并有测试锁定"
   - "**端到端场景 1（成功提交）**：权限事实落库 + 恰好一条聚合 permission_change_log + 提交后缓存失效及 PermInvalidateEvent 广播发生"
   - "**端到端场景 2（执行失败）**：权限事实与变更日志全部回滚（无部分状态）+ 不触发缓存失效及广播"
   - "wire DTO 通过 api-contract 字段对齐（mock 与真实响应均按 api-contract，nullable/统一响应壳/BigInt 字符串格式由契约固化）"
@@ -42,7 +43,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-27
+last_updated: 2026-08-29   # T-PERM-033 依赖登记：diff_snapshot 契约形状对齐入范围 4/验收
 ---
 
 # T-PERM-034 4.1 权限授予后端改造
@@ -62,7 +63,7 @@ v3 权限授予页（T-FE-036）需要后端补齐授权写链路能力。2026-0
 1. `RolePermissionItemResp` 暴露 `grantSource`（MANUAL/AUTO_DEP）+ `grantedBits`（63 位位图，十进制字符串，前端 BigInt）
 2. `list` 加 `includeChildren` 参数（默认 true 兼容；**v3.1：baseline=true 一次取全量主+子，来源链过滤 dependOn==null；false 仅辅助查询**）；**响应不含 revision**（CAS 砍，无乐观锁基线）
 3. `RolePermissionItemResp` 增补 `createdAt`/`childCount`（list 时按 depend_on 分组 COUNT 一次返回）
-4. 新增 `apply-grant-plan` 聚合接口（api-contract §6.5.1）：记录级 `plan{creates/updates/removes}`（子权限用 parentPermissionId 挂父；替换 = removes+creates 原子、子权限不迁移）+ **单事务原子执行**（任一失败整体回滚）+ 受影响行数断言；**唯一写入口**；**砍 expectedRevision CAS + grant_revision 列 + 幂等表 + 20037/20039 + clientRequestId/@Idempotent（幂等中间件实现取消（未登记看板））**
+4. 新增 `apply-grant-plan` 聚合接口（api-contract §6.5.1）：记录级 `plan{creates/updates/removes}`（子权限用 parentPermissionId 挂父；替换 = removes+creates 原子、子权限不迁移）+ **单事务原子执行**（任一失败整体回滚）+ 受影响行数断言；**唯一写入口**；**diff_snapshot 对齐契约 §6.8 轻量规范（T-PERM-033 依赖登记，2026-08-29）**：变更日志从现行 `{creates,updates,removes}` ID 列表旧形状改为 `{eventType:ROLE_PERMISSION_CHANGE, items:[{changeType, permission:{6字段业务键}, role:{...}}]}` 聚合一条（写路径补权限行+资源实体+类型解析的业务键装配），解锁 permission-view/explain 的 ROLE 目标 recentChanges；**砍 expectedRevision CAS + grant_revision 列 + 幂等表 + 20037/20039 + clientRequestId/@Idempotent（幂等中间件实现取消（未登记看板））**
 5. 移除旧写入口（**随本任务统一删除**）：已实现端点（save/revoke/children/add-child/remove-child）从 PermissionGrantController 删除；计划中接口（update-child/children-save/rebuild）不实现；**兼容期（迁移完成前）add-child 强制复用子权限属性不变量 20043 校验，不得成为绕过路径**；**全链路迁移简化**（CAS 砍后无 revision/无 20037 重试）：perm-common `RoleGrantReq`/`BatchRevokeReq` 移除、perm-client `PermissionFeignClient.batchGrant/batchRevoke` 移除——两者属对外 SDK/HTTP 契约面，执行时确认仓库外无外部消费者后删除（T-ACCESS-012 重基线：保留该删除断任务）；原 admin-service `RoleProxyServiceImpl` 改造与测试重写子项已失效——类已随 T-ACCESS-006 删除，admin 侧菜单授权端点已删除（T-ADMIN-024，无映射 404），授权统一走 permission 域 apply-grant-plan
 6. 统一预检与错误码：prevalidateGrantPlan 唯一预检（不变量集，去幂等键格式）；完整持久化键冲突 + 20033（**conditionCode/canGrant 不参与身份，移除条件维度**）；AUTO_DEP 只读 + 20034；全集预校验 + 20036；SUB_PERM fail-closed + 20011（父域解析改 resource_type 直查）；checkCanGrant 批量收口（一次 selectByTenantAndResourceTypes 内存分组）；委托失败 20040；**子权限属性系统不变量 20043（create 非 null/false 或 update 目标为子权限一律拒绝；错误优先级先于主权限不变量）**；**20041/20042 校验实现与测试归 T-PERM-041**；**砍 20037 VERSION_CONFLICT / 20039 IDEMPOTENCY_OPERATOR_MISMATCH**
 7. **无幂等中间件**（已定案：幂等中间件实现取消（未登记看板），clientRequestId/@Idempotent 从契约移除；前端按钮 disabled 防重复点击，后端单事务+uk+行数断言）
