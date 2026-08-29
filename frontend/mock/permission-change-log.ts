@@ -1,8 +1,8 @@
 // 权限变更日志 Mock（Phase 1）
 // 经 vite-plugin-fake-server 拦截，统一返回后端 PermResult 信封：{ code, message, data }
 // 字段已对齐 access-service 权限域的 ChangeLogResp
-// 契约依据：docs/design/permission-center/api-contract.md §5.8（变更日志仅 1 行表格条目，路径写错且无独立字段契约章节）
-//           §6.8 diff_snapshot 轻量规范（L1590-1671）
+// 契约依据：docs/design/permission-center/api-contract.md §5.8 permission-change-log 契约要点
+//           （T-PERM-032 收口）+ §6.8 diff_snapshot 规范（7 枚举）
 // 表结构：docs/design/schema/access-service.sql
 // 后端实现：LogQueryController（@RequestMapping("/api/perm/log")）+ LogQueryAppServiceImpl.listChangeLogs
 import { defineFakeRoute } from "vite-plugin-fake-server/client";

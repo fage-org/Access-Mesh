@@ -81,9 +81,9 @@ import { PERMISSION_CHANGE_LOG_VIEW_PERMS } from "../src/views/system/permission
  * 四账号全量补入 OPERATION_LOG_VIEW_PERMS（对齐旧复用口径下全员可查的行为；mock 模拟 UX，
  * 不模拟最小权限；审计员 auditor 必须能查日志）。
  *
- * 7.2 权限变更日志页同样复用 SYSTEM_CONFIG:VIEW 门禁（后端 LogQueryAppServiceImpl.listChangeLogs
- *  无独立 PERMISSION_CHANGE_LOG 权限码），矩阵不新增权限串，所有账号均可查看变更日志。
- *  🔧 VIEW 复用审计语义登记 T-PERM-032。
+ * 7.2 权限变更日志页独立 PERMISSION_CHANGE_LOG:VIEW 门禁（T-PERM-032 审计分离，2026-08-29）——
+ * 四账号全量补入 PERMISSION_CHANGE_LOG_VIEW_PERMS（对齐旧复用口径下全员可查的行为；mock 模拟 UX，
+ * 不模拟最小权限；审计员 auditor 必须能查日志）。
  *
  * 5.1 业务域页涉及**两个资源类型**门禁：
  * - biz-domain list/detail 门禁 `DOMAIN:VIEW`（独立资源类型 DOMAIN，后端 listBizDomains/getBizDomain 校验）。

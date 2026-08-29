@@ -319,4 +319,34 @@ class AccessServiceSchemaPostgresTest {
             }
         }
     }
+
+    /**
+     * eventType 筛选命中表达式索引（T-PERM-032 评审修复）：查询表达式必须与 DDL
+     * idx_change_log_event_time 的 (diff_snapshot->>'eventType') 同形——jsonb_extract_path_text
+     * 形式经 EXPLAIN 实证只走顺序扫描（「表达式等价可命中」的既有结论已被实证推翻）。
+     * SET LOCAL 随测试回滚蒸发，不污染共享连接的后续测试。
+     */
+    @Test
+    @org.junit.jupiter.api.DisplayName("eventType 筛选命中 idx_change_log_event_time 表达式索引")
+    void eventTypeFilterShouldUseExpressionIndex() throws SQLException {
+        try (java.sql.Statement st = conn.createStatement()) {
+            st.execute("SET LOCAL enable_seqscan = off");
+            st.executeUpdate("INSERT INTO permission_change_log "
+                    + "(tenant_id, entity_type, operation, change_source, diff_snapshot) "
+                    + "SELECT 1, 'user_role', 'INSERT', 'MANUAL', "
+                    + "jsonb_build_object('eventType', 'USER_ROLE_CHANGE', 'items', '[]'::jsonb) "
+                    + "FROM generate_series(1, 50)");
+            StringBuilder plan = new StringBuilder();
+            try (java.sql.ResultSet rs = st.executeQuery(
+                    "EXPLAIN SELECT count(*) FROM permission_change_log WHERE tenant_id = 1 "
+                    + "AND diff_snapshot IS NOT NULL "
+                    + "AND (diff_snapshot ->> 'eventType') IN ('USER_ROLE_CHANGE')")) {
+                while (rs.next()) {
+                    plan.append(rs.getString(1)).append(' ');
+                }
+            }
+            org.assertj.core.api.Assertions.assertThat(plan.toString())
+                    .contains("idx_change_log_event_time");
+        }
+    }
 }

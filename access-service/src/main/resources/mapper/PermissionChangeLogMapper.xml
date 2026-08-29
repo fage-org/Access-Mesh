@@ -26,8 +26,11 @@
             AND created_at &lt;= #{until}
         </if>
         <if test="eventTypes != null and eventTypes.size() &gt; 0">
+            <!-- 表达式必须与 DDL 索引 idx_change_log_event_time 的 (diff_snapshot->>'eventType')
+                 逐字同形：jsonb_extract_path_text 形式经 EXPLAIN 实证不命中该表达式索引（顺序扫描）；
+                 ->> 形式的索引命中由 AccessServiceSchemaPostgresTest 锁定，本处改表达式须保持同形 -->
             AND diff_snapshot IS NOT NULL
-            AND jsonb_extract_path_text(diff_snapshot::jsonb, 'eventType') IN
+            AND (diff_snapshot ->> 'eventType') IN
             <foreach collection="eventTypes" item="et" open="(" separator="," close=")">
                 #{et}
             </foreach>

@@ -69,26 +69,28 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     // ===== 变更日志查询 =====
 
     /**
-     * 查询变更日志列表
-     * <p>
-     * 查询指定实体类型的变更日志。
-     * 需要PERMISSION_CHANGE_LOG_VIEW权限（T-PERM-032 审计分离）。
-     * </p>
+     * 查询变更日志列表（变更日志页，T-PERM-032 筛选全集）
      *
-     * @param tenantId   租户ID
-     * @param entityType 实体类型
-     * @param entityId   实体ID
-     * @param offset     分页偏移量
-     * @param limit      分页大小
-     * @return 变更日志响应列表
-     * @throws SecurityException 无权限时抛出
+     * @param tenantId       租户ID
+     * @param entityType     实体类型，可选
+     * @param entityId       实体ID，可选
+     * @param eventType      diff_snapshot.eventType，可选（单选）
+     * @param changeSource   变更来源（MANUAL/SERVICE_SYNC），可选
+     * @param affectedUserId 受影响用户ID，可选
+     * @param affectedRoleId 受影响角色ID，可选
+     * @param since          创建时间下界（含），可选
+     * @param until          创建时间上界（含），可选
+     * @param offset         分页偏移量
+     * @param limit          分页大小
+     * @return 变更日志列表
+     * @throws SecurityException 无 PERMISSION_CHANGE_LOG:VIEW 权限时抛出
      */
     @Override
     public List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId,
-                                              String eventType, String changeSource,
-                                              Long affectedUserId, Long affectedRoleId,
-                                              LocalDateTime since, LocalDateTime until,
-                                              int offset, int limit) {
+                                       String eventType, String changeSource,
+                                       Long affectedUserId, Long affectedRoleId,
+                                       LocalDateTime since, LocalDateTime until,
+                                       int offset, int limit) {
         // T-PERM-032 审计分离：变更日志页切独立 PERMISSION_CHANGE_LOG:VIEW（对齐 OPERATION_LOG
         // 先例；recent-changes 的门禁仍为 SYSTEM_CONFIG:VIEW，随 T-PERM-033 处置）
         Long operatorId = OperatorContext.getOperatorId();
@@ -103,23 +105,16 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     }
 
     /**
-     * 统计变更日志数量
-     * <p>
-     * 统计指定实体类型的变更日志总数。
-     * 需要PERMISSION_CHANGE_LOG_VIEW权限（T-PERM-032 审计分离）。
-     * </p>
+     * 统计变更日志数量（条件与 {@link #listChangeLogs} 一致）
      *
-     * @param tenantId   租户ID
-     * @param entityType 实体类型
-     * @param entityId   实体ID
-     * @return 变更日志总数
-     * @throws SecurityException 无权限时抛出
+     * @return 变更日志数量
+     * @throws SecurityException 无 PERMISSION_CHANGE_LOG:VIEW 权限时抛出
      */
     @Override
     public long countChangeLogs(Long tenantId, String entityType, Long entityId,
-                                 String eventType, String changeSource,
-                                 Long affectedUserId, Long affectedRoleId,
-                                 LocalDateTime since, LocalDateTime until) {
+                         String eventType, String changeSource,
+                         Long affectedUserId, Long affectedRoleId,
+                         LocalDateTime since, LocalDateTime until) {
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.PERMISSION_CHANGE_LOG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on PERMISSION_CHANGE_LOG");
@@ -336,17 +331,17 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
 
     // ===== 实体转换方法 =====
 
+    /** 页面单选 eventType 规整为单元素集合（空白归 null 不过滤） */
+    private List<String> toEventTypeList(String eventType) {
+        return eventType != null && !eventType.isBlank() ? List.of(eventType.trim()) : null;
+    }
+
     /**
      * 将PermissionChangeLog实体转换为响应对象
      *
      * @param c 权限变更日志实体
      * @return 变更日志响应对象
      */
-    /** 页面单选 eventType 规整为单元素集合（空白归 null 不过滤） */
-    private List<String> toEventTypeList(String eventType) {
-        return eventType != null && !eventType.isBlank() ? List.of(eventType.trim()) : null;
-    }
-
     private ChangeLogResp toChangeLogResp(PermissionChangeLog c) {
         return new ChangeLogResp(
             c.getId(), c.getTenantId(), c.getEntityType(),
