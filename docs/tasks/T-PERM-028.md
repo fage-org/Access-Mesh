@@ -29,7 +29,7 @@ acceptance:
 design_writeback:
   required: true
   status: done
-last_updated: 2026-08-29
+last_updated: 2026-08-30
 ---
 
 # T-PERM-028 3.1 资源+操作定义后端——业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁补齐/类型联动预置
@@ -55,7 +55,7 @@ T-FE-008 前端资源与操作定义页在 API 核对中登记 6 项 🔧（reso
 - 服务与实现：getResource/getOperation 业务键 + 类型级 VIEW 门禁 + 404 抛错；updateResource/moveResource/updateOperation 业务键定位；deleteResources/deleteOperations 分组批量键解析（resource 按 resourceTypeCode 分组复用 selectByTypeAndCodesAndCodeTypes + (code,codeType) 对过滤；operation 专属/全局两轨）；move 跨类型+防环 20053；listResources/countResources 补 VIEW 门禁。
 - 强制置空：UpdateEntity.of 显式更新列（extraClear 与 move 顶层两处；BaseMapper.update 忽略 null 字段，PgIT 抓出后从 UpdateChain 改用 UpdateEntity——mock mapper 无法解析实体类）。
 - TypeDefinition 预置：createType 尾部 typeKey=resource_type 分支同事务插四条操作位。
-- 测试：ResourceManageAppServiceImplTest 8→16（门禁/键定位/extraClear/move 三态）；OperationAppServiceImplTest 4→10（detail 门禁/专属全局轨/键批删）；TypeDefinitionAppServiceImplTest 12→14（预置正反）；HttpApiPathSnapshotTest 快照 4 处 DTO 名；新增 OperationPermissionWireFormatTest（2^62 位值字符串断言 + 请求宽容解析）与 ResourceOperationKeyPgIT（3 用例真库：资源键全链路含级联/操作键两轨/预置模板）。
+- 测试：ResourceManageAppServiceImplTest 8→17（门禁/键定位/extraClear/move 三态/create codeType 归一）；OperationAppServiceImplTest 4→11（detail 门禁/专属全局轨/键批删/多类型稀疏组合防笛卡尔误删）；TypeDefinitionAppServiceImplTest 12→14（预置正反）；HttpApiPathSnapshotTest 快照 4 处 DTO 名；新增 OperationPermissionWireFormatTest（2^62 位值字符串断言 + 请求宽容解析）与 ResourceOperationKeyPgIT（3 用例真库：资源键全链路含级联/操作键两轨/预置模板）。
 - 前端：api/resource-operation.ts 重写（键类型/字符串位值）；hook 业务键提交与 BigInt 排序；ResourceMoveForm 键化；OperationForm 编辑态 string→number；index.vue detail 键定位 + effectiveBits 字符串化；bit-ops 签名放宽 string；mock 全对齐（键定位/extraClear/20053/字符串位值/type-def 联动）；MappingForm 资源选择器。
 
 ## 已知限制
@@ -69,7 +69,7 @@ T-FE-008 前端资源与操作定义页在 API 核对中登记 6 项 🔧（reso
 ## 验收对照
 
 - design_refs：api-contract §5.3 业务键定稿块 + 位字段口径 + 联调门禁收口 + §5.4 选择器登记收口；resource-operation.md §5 表 ✅ 化 + §8 六项全收口；type-definition.md §8 第 4 项 ✅；service-interface-mapping.md §7.6 ✅；project-rules §7.4 bigint 序列化策略。
-- 测试：后端受影响单测 45 项（16+10+14+3+2）+ 快照 7 项 + WireFormat 2 项（合计 54）+ PgIT 3 项全绿；前端 vue-tsc 干净 + vitest 216 项全绿 + 变更文件 eslint 干净。
+- 测试：后端受影响单测 47 项（17+11+14+3+2）+ 快照 7 项 + WireFormat 2 项（合计 56）+ PgIT 3 项全绿；前端 vue-tsc 干净 + vitest 216 项全绿 + 变更文件 eslint 干净。
 - 回归：access-service mvn test 全量绿；git diff --check 干净。
 
 ## 完成记录
