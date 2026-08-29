@@ -72,7 +72,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      * 查询变更日志列表
      * <p>
      * 查询指定实体类型的变更日志。
-     * 需要SYSTEM_CONFIG_VIEW权限。
+     * 需要PERMISSION_CHANGE_LOG_VIEW权限（T-PERM-032 审计分离）。
      * </p>
      *
      * @param tenantId   租户ID
@@ -106,7 +106,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      * 统计变更日志数量
      * <p>
      * 统计指定实体类型的变更日志总数。
-     * 需要SYSTEM_CONFIG_VIEW权限。
+     * 需要PERMISSION_CHANGE_LOG_VIEW权限（T-PERM-032 审计分离）。
      * </p>
      *
      * @param tenantId   租户ID

@@ -27,9 +27,9 @@ type ChangeLogResp = {
   affectedAbstractUserIds?: number[] | null;
   affectedAbstractRoleIds?: number[] | null;
   changeReason?: string | null;
-  changeSource?: string | null;
+  changeSource?: string | null; // MANUAL/SERVICE_SYNC（后端复用 MaintainSource）
   /** 操作人 ID（T-PERM-032 暴露） */
-  createdBy?: number | null; // MANUAL/SERVICE_SYNC（后端复用 MaintainSource）
+  createdBy?: number | null;
   requestId?: string | null;
   createdAt?: string;
 };
@@ -55,8 +55,8 @@ const ok = data => ({ code: 200, message: "success", data });
  * - user_role / role_resource_permission / abstract_user / abstract_role / resource_entity 等
  * operation 取值对齐 schema 注释（access-service.sql）：INSERT/UPDATE/DELETE
  * changeSource 取值对齐后端代码实际（PermConstants.MaintainSource 复用）：MANUAL/SERVICE_SYNC
- *   🔧 schema L631 注释写 ADMIN/SYNC/API/SYSTEM 与代码不符，登记 T-PERM-032。
- * diffSnapshot 遵循 §6.8 L1590-1671 规范：eventType（7 枚举）+ items[]（changeType ADD/REMOVE/UPDATE）。
+ *   （schema 注释已随 T-PERM-032 修正）。
+ * diffSnapshot 遵循 api-contract §6.8 规范：eventType（7 枚举，含 T-PERM-032 增补 ROLE_BATCH_DELETE）+ items[]（changeType ADD/REMOVE/UPDATE）。
  *
  * 覆盖全部 7 种 eventType，验证 diff 面板结构化渲染能力（permission/role/resource/before-after 组合）。
  * createdAt 固定字符串（脚本禁用 Date.now），按 DESC 排序验证分页。
@@ -435,7 +435,7 @@ const mockLogs: ChangeLogResp[] = [
     oldSnapshot: null,
     newSnapshot: null,
     diffSnapshot: JSON.stringify({
-      // 后端实际写 "ROLE_BATCH_DELETE"（超出 §6.8 7 枚举），前端 EVENT_TYPE_META fallback 显示原值不崩溃
+      // 批量删除角色聚合事件（entityId=0 + operation=BATCH_DELETE；T-PERM-032 契约第 7 枚举）
       eventType: "ROLE_BATCH_DELETE",
       items: [
         {

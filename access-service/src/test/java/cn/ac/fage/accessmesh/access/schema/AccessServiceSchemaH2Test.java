@@ -203,7 +203,7 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
-    @DisplayName("种子数据：type_definition 32 行 / operation_permission 121 行 / system_config 9 行 / oauth2 3 行")
+    @DisplayName("种子数据：type_definition 33 行 / operation_permission 125 行 / system_config 9 行 / oauth2 3 行")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(33, countRows("type_definition"), "type_definition 系统种子 33 行（user_type 3 + role_type 5 + resource_type 25，T-ACCESS-018 收敛 + T-PERM-025 OPERATION_LOG + T-PERM-032 PERMISSION_CHANGE_LOG）");
         assertEquals(125, countRows("operation_permission"), "operation_permission 种子 125 行（静态类型 CRUD 100 + 非预置扩展 13 + 权限中心运行时必需 12）");

@@ -20,14 +20,21 @@ public interface LogQueryAppService {
     // ===== ChangeLog =====
 
     /**
-     * 查询变更日志列表
+     * 查询变更日志列表（变更日志页，T-PERM-032 筛选全集）
      *
-     * @param tenantId   租户ID
-     * @param entityType 实体类型，可选
-     * @param entityId   实体ID，可选
-     * @param offset     分页偏移量
-     * @param limit      每页条数
+     * @param tenantId       租户ID
+     * @param entityType     实体类型，可选
+     * @param entityId       实体ID，可选
+     * @param eventType      diff_snapshot.eventType，可选（单选）
+     * @param changeSource   变更来源（MANUAL/SERVICE_SYNC），可选
+     * @param affectedUserId 受影响用户ID，可选
+     * @param affectedRoleId 受影响角色ID，可选
+     * @param since          创建时间下界（含），可选
+     * @param until          创建时间上界（含），可选
+     * @param offset         分页偏移量
+     * @param limit          分页大小
      * @return 变更日志列表
+     * @throws SecurityException 无 PERMISSION_CHANGE_LOG:VIEW 权限时抛出
      */
     List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId,
                                        String eventType, String changeSource,
@@ -36,12 +43,10 @@ public interface LogQueryAppService {
                                        int offset, int limit);
 
     /**
-     * 统计变更日志数量
+     * 统计变更日志数量（条件与 {@link #listChangeLogs} 一致）
      *
-     * @param tenantId   租户ID
-     * @param entityType 实体类型，可选
-     * @param entityId   实体ID，可选
      * @return 变更日志数量
+     * @throws SecurityException 无 PERMISSION_CHANGE_LOG:VIEW 权限时抛出
      */
     long countChangeLogs(Long tenantId, String entityType, Long entityId,
                          String eventType, String changeSource,

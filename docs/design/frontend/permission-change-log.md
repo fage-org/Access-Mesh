@@ -83,9 +83,9 @@ last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-032 收口：§3/§4/§5/§7 终
 |---|---|---|
 | id | number | 日志 ID |
 | tenantId | number | 租户 ID |
-| entityType | string | 变更实体类型（schema L626） |
+| entityType | string | 变更实体类型（schema entity_type 列注释） |
 | entityId | number? | 变更实体 ID |
-| operation | string | 实体层操作：INSERT/UPDATE/DELETE（schema L627，区别于 diff changeType） |
+| operation | string | 实体层操作：INSERT/UPDATE/DELETE/BATCH_DELETE/BATCH_REMOVE（schema operation 列注释，区别于 diff changeType） |
 | oldSnapshot | string? | 变更前快照 JSON 字符串 |
 | newSnapshot | string? | 变更后快照 JSON 字符串 |
 | diffSnapshot | string? | 结构化变更摘要 JSON 字符串（§6.8 规范） |
@@ -97,9 +97,9 @@ last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-032 收口：§3/§4/§5/§7 终
 | requestId | string? | 请求/追踪 ID |
 | createdAt | string | 创建时间 |
 
-### diff_snapshot 规范（api-contract §6.8 L1590-1671）
+### diff_snapshot 规范（api-contract §6.8）
 
-顶层：`eventType`（6 枚举；T-PERM-043 移除 `GROUP_ROLE_CHANGE`，该值自登记起无任何生产方）+ `items[]`
+顶层：`eventType`（7 枚举；T-PERM-043 移除 `GROUP_ROLE_CHANGE`，T-PERM-032 增补 `ROLE_BATCH_DELETE`）+ `items[]`
 
 | eventType | 含义 | items 典型字段 |
 |---|---|---|
@@ -109,6 +109,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-032 收口：§3/§4/§5/§7 终
 | RESOURCE_STATUS_CHANGE | 资源状态变更 | resource + before/after |
 | CONDITION_CHANGE | 条件变更 | before/after |
 | RESOURCE_DEPENDENCY_CHANGE | 资源依赖变更 | resource + message |
+| ROLE_BATCH_DELETE | 批量删除角色的聚合事件（T-PERM-032 增补） | role（items[] 逐角色；entityId=0 + operation=BATCH_DELETE） |
 
 `items[].changeType`：ADD / REMOVE / UPDATE
 
@@ -132,7 +133,7 @@ export const PERMISSION_CHANGE_LOG_PERMS = {
 
 ### 门控
 
-- 路由 `meta.auths = [...PERMISSION_CHANGE_LOG_PERM_LIST]`（单元素 `SYSTEM_CONFIG:VIEW`）
+- 路由 `meta.auths = [...PERMISSION_CHANGE_LOG_PERM_LIST]`（单元素 `PERMISSION_CHANGE_LOG:VIEW`）
 - 表格「查看」按钮 `canView = computed(() => hasPerms(PERMISSION_CHANGE_LOG_PERMS.LOG_VIEW))`
 - 无写操作（只读查询页），无 CREATE/UPDATE/DELETE/MANAGE
 
@@ -167,7 +168,7 @@ T-PERM-032 起独立 `PERMISSION_CHANGE_LOG:VIEW`，mock/login.ts 四账号按�
 
 `mock/permission-change-log.ts`（零 src 依赖，本地声明类型，对齐 operation-log.ts 范式）：
 
-- 13 条变更日志（T-PERM-043 删 GROUP_ROLE_CHANGE 条目后），覆盖全部 6 种 eventType + 1 种超枚举（ROLE_BATCH_DELETE，验证 fallback）
+- 变更日志（T-PERM-043 删 GROUP_ROLE_CHANGE 条目后）覆盖全部 7 种 eventType（含 T-PERM-032 收编的 ROLE_BATCH_DELETE；未知值仍验证 fallback 渲染）
 - 覆盖 entityType：role_resource_permission / user_role / resource_entity / abstract_role / permission_condition / resource_dependency
 - 覆盖 operation：INSERT / UPDATE / DELETE / BATCH_DELETE / BATCH_REMOVE（后两者为 entityId=0 批量聚合日志，对齐后端 RoleManageAppServiceImpl 批量删除 / UserManageAppServiceImpl 批量撤销的聚合日志写入）
 - 覆盖 entityId=0 批量聚合场景：抽象角色批量删除 + 用户角色批量撤销

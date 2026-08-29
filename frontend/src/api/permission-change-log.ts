@@ -5,27 +5,22 @@
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.8（变更日志仅 1 行表格条目，
- *   路径写为 /api/perm/permission-change-log/list --与后端实现不符，无独立字段契约章节。
- *   🔧 登记 T-PERM-032：Phase 2 修正契约路径 + 补字段契约）
- * 后端实现：access-service LogQueryController（@RequestMapping("/api/perm/log")）
- *   + LogQueryAppServiceImpl.listChangeLogs
+ * 契约依据：docs/design/permission-center/api-contract.md §5.8 permission-change-log 契约要点
+ *   （T-PERM-032 收口：端点 /api/perm/log/change/list/筛选全集/createdBy/独立
+ *   PERMISSION_CHANGE_LOG:VIEW 门禁）+ §6.8 diff_snapshot 规范。
+ * 后端实现：access-service LogQueryController（@RequestMapping("/api/perm/log")
+ *   + @PostMapping("/change/list")）+ LogQueryAppServiceImpl.listChangeLogs。
  *
  * 后端仅 1 个端点（list），无 detail--ChangeLogResp 已含全部字段（含 diffSnapshot/oldSnapshot/newSnapshot），
  * 详情由前端抽屉展示（无需单独 detail 接口）。
- *
- * 路径说明：后端 LogQueryController 实际路径为 /api/perm/log/change/list
- *   （@RequestMapping("/api/perm/log") + @PostMapping("/change/list")），
- *   非 api-contract §5.8 表格写的 /api/perm/permission-change-log/list。前端按后端实现对接，
- *   联调时直接对真后端无需改路径；契约路径错误登记 T-PERM-032 🔧。
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
 import type { PaginatedResp } from "./role-manage";
 
-// ========== diff_snapshot 结构化类型（对齐 api-contract §6.8 L1590-1671） ==========
+// ========== diff_snapshot 结构化类型（对齐 api-contract api-contract §6.8） ==========
 
-/** 事件类型固定枚举（§6.8 L1666） */
+/** 事件类型固定枚举（api-contract §6.8） */
 export type DiffEventType =
   | "USER_ROLE_CHANGE"
   | "ROLE_PERMISSION_CHANGE"
@@ -36,7 +31,7 @@ export type DiffEventType =
   /** 批量删除角色的聚合事件（entityId=0 + operation=BATCH_DELETE；T-PERM-032 契约收口补枚举） */
   | "ROLE_BATCH_DELETE";
 
-/** 变更类型固定枚举（§6.8 L1667） */
+/** 变更类型固定枚举（api-contract §6.8） */
 export type DiffChangeType = "ADD" | "REMOVE" | "UPDATE";
 
 /** 权限项业务键（§6.8 L1669：domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode） */
@@ -150,7 +145,7 @@ export const getChangeLogList = async (
   return unwrap(res);
 };
 
-/** diff items[].changeType 合法枚举（§6.8 L1667），超出此集合的元素视为非法并过滤 */
+/** diff items[].changeType 合法枚举（api-contract §6.8），超出此集合的元素视为非法并过滤 */
 const VALID_CHANGE_TYPES: ReadonlySet<string> = new Set([
   "ADD",
   "REMOVE",
@@ -161,7 +156,7 @@ const VALID_CHANGE_TYPES: ReadonlySet<string> = new Set([
  *  逐项校验 items：仅保留非空对象且 changeType 属于 ADD/REMOVE/UPDATE 的元素，
  *  避免历史/异常数据（如 items:[null]）在 DiffSnapshotPanel 渲染时访问 item.changeType 抛错。
  *  eventType 仅校验为 string（不限制枚举值）--后端批量删除角色实际写 "ROLE_BATCH_DELETE"
- *  超出 §6.8 6 枚举（T-PERM-043 后），前端 EVENT_TYPE_META fallback 显示原值不崩溃。 */
+ *  契约 §6.8 七枚举之一（T-PERM-032 增补），EVENT_TYPE_META 有正式条目；未知值仍 fallback 显示原值。 */
 export function parseDiffSnapshot(
   raw: string | null | undefined
 ): DiffSnapshot | null {

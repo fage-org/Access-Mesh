@@ -191,8 +191,8 @@ const columns = [
                 start-placeholder="开始时间"
                 end-placeholder="结束时间"
                 format="YYYY-MM-DD HH:mm:ss"
-                value-format="YYYY-MM-DDTHH:mm:ss"
                 class="w-72!"
+                @change="onSearch"
               />
             </el-form-item>
             <el-form-item class="mb-0!">

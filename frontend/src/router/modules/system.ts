@@ -92,7 +92,7 @@ export default {
         icon: "ep/document",
         title: "操作日志",
         // 单一事实源派生：见 views/system/operation-log/utils/perms.ts
-        // 操作日志复用 SYSTEM_CONFIG:VIEW 门禁（后端无独立 OPERATION_LOG 权限码）
+        // 操作日志独立 OPERATION_LOG:VIEW 门禁（T-PERM-025 审计分离）
         auths: [...OPERATION_LOG_PERM_LIST]
       }
     },
@@ -182,7 +182,7 @@ export default {
         icon: "ep/history",
         title: "权限变更日志",
         // 单一事实源派生：见 views/system/permission-change-log/utils/perms.ts
-        // 变更日志复用 SYSTEM_CONFIG:VIEW 门禁（后端无独立 PERMISSION_CHANGE_LOG 权限码）
+        // 变更日志独立 PERMISSION_CHANGE_LOG:VIEW 门禁（T-PERM-032 审计分离）
         auths: [...PERMISSION_CHANGE_LOG_PERM_LIST]
       }
     },

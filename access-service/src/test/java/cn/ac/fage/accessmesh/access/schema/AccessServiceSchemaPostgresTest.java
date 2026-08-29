@@ -119,7 +119,7 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("种子数据齐备（type_definition 32 / operation_permission 121 / system_config 9 / oauth2 3）")
+    @DisplayName("种子数据齐备（type_definition 33 / operation_permission 125 / system_config 9 / oauth2 3）")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(33, countRows("type_definition"));
         assertEquals(125, countRows("operation_permission"));

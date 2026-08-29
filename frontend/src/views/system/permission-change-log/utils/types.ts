@@ -71,8 +71,8 @@ export const OPERATION_OPTIONS: ReadonlyArray<{
 
 /**
  * changeSource（变更来源）标签选项（前端本地硬编码）。
- * 取值对齐后端代码实际（PermConstants.MaintainSource 复用）：MANUAL/SERVICE_SYNC。
- * 🔧 schema L631 注释写 ADMIN/SYNC/API/SYSTEM 与代码不符，登记 T-PERM-032。
+ * 取值对齐后端代码实际（PermConstants.MaintainSource 复用）：MANUAL/SERVICE_SYNC
+ * （schema 注释已随 T-PERM-032 修正）。
  */
 export const CHANGE_SOURCE_OPTIONS: ReadonlyArray<{
   label: string;
@@ -83,7 +83,7 @@ export const CHANGE_SOURCE_OPTIONS: ReadonlyArray<{
 ];
 
 /**
- * eventType（diff_snapshot 事件类型）标签映射（§6.8 L1666 固定枚举）。
+ * eventType（diff_snapshot 事件类型）标签映射（api-contract §6.8 固定枚举）。
  * 用于表格/详情展示事件类型中文标签 + tag 颜色。
  */
 export const EVENT_TYPE_META: Record<

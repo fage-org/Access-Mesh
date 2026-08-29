@@ -70,6 +70,10 @@ class LogQueryAppServiceImplChangeLogTest {
     void shouldRejectChangeLogListWithoutPermissionChangeLogView() {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            // 旧实现走 SYSTEM_CONFIG 校验：显式放行使旧实现越过其门禁后在断言处失败，
+            // 回归锁不依赖 Mockito 严格桩行为
+            org.mockito.Mockito.lenient().when(engine.hasPermissionByCode(eq(TENANT), eq(100L),
+                eq(ResourceTypeCode.SYSTEM_CONFIG), isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
             when(engine.hasPermissionByCode(eq(TENANT), eq(100L), eq(ResourceTypeCode.PERMISSION_CHANGE_LOG),
                 isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
 

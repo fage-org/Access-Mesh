@@ -342,8 +342,8 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 角色权限     | `POST /api/perm/permission-view/role-permissions`      | 角色维度排查                                     |
 | 单权限解释   | `POST /api/perm/permission-view/explain`               | 解释某个具体权限当前是否拥有、来源和近期影响事件 |
 | 近期变更     | `POST /api/perm/permission-view/recent-changes`        | 查询近期可能影响用户或角色权限的变更事件         |
-| 操作日志     | `POST /api/perm/operation-log/list`                    | 所有写操作轻量审计                               |
-| 权限变更日志 | `POST /api/perm/permission-change-log/list`            | 权限 diff 审计                                   |
+| 操作日志     | `POST /api/perm/log/operation/list`                    | 所有写操作轻量审计                               |
+| 权限变更日志 | `POST /api/perm/log/change/list`            | 权限 diff 审计                                   |
 
 ### 13.1 操作日志记录机制
 
@@ -366,7 +366,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 2    | `POST /api/perm/permission-view/explain`               | 针对用户反馈的具体资源和操作，解释当前是否拥有、来源角色和未命中原因 |
 | 3    | `POST /api/perm/permission-view/recent-changes`        | 查询最近 30 天可能影响该用户权限的变更事件                           |
 | 4    | `POST /api/perm/permission-view/effective-permissions` | 需要浏览当前权限清单时，按资源类型、操作、关键词分页筛选             |
-| 5    | `POST /api/perm/permission-change-log/list`            | 必要时查看原始 before/after/diff 审计详情                            |
+| 5    | `POST /api/perm/log/change/list`            | 必要时查看原始 before/after/diff 审计详情                            |
 
 展示建议：
 
@@ -398,7 +398,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 1    | `POST /api/perm/permission-view/role-permissions` | 查询角色当前权限配置                         |
 | 2    | `POST /api/perm/permission-view/explain`          | 针对某个资源和操作解释该角色当前是否拥有权限 |
 | 3    | `POST /api/perm/permission-view/recent-changes`   | 查询该角色最近权限增删改、状态变更、依赖变更 |
-| 4    | `POST /api/perm/permission-change-log/list`       | 查看原始审计记录                             |
+| 4    | `POST /api/perm/log/change/list`       | 查看原始审计记录                             |
 
 关键逻辑：
 
