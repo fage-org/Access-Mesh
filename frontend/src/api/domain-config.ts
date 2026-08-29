@@ -75,8 +75,8 @@ export const getDomainConfigList = async (
 export const getDomainConfigDetail = async (
   domainCode: string,
   configType: string
-): Promise<DomainConfigResp> => {
-  const res = await http.request<PermResult<DomainConfigResp>>(
+): Promise<DomainConfigResp | null> => {
+  const res = await http.request<PermResult<DomainConfigResp | null>>(
     "post",
     "/api/perm/domain-config/detail",
     { data: { domainCode, configType } satisfies DomainConfigGetReq }

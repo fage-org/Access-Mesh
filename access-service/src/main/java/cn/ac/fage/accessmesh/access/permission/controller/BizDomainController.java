@@ -114,10 +114,11 @@ public class BizDomainController {
     /**
      * 更新业务域信息
      * <p>
-     * 更新业务域的名称、编码、描述等属性。
+     * 按业务键 code 定位，更新业务域的名称、描述（T-PERM-026：code 不可改，改 code 等于新建新域；
+     * name/description 为 null 表示不更新，description 空串表示显式清空）。
      * </p>
      *
-     * @param req 业务域更新请求，包含业务域ID和新属性值
+     * @param req 业务域更新请求，包含业务域编码 domainCode 和要更新的属性
      * @return 更新后的业务域详情
      */
     @PostMapping("/update")

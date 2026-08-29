@@ -31,8 +31,8 @@ export type BizDomainResp = {
   name: string;
   /** 描述（可空） */
   description?: string | null;
-  /** 是否全局域（每租户仅一个，范围隐式包含未被其他域认领的资源类型；全局域不可删） */
-  global?: boolean | null;
+  /** 是否全局域（每租户仅一个，范围隐式包含未被其他域认领的资源类型；全局域不可删；后端保证非空） */
+  global: boolean;
   createdAt?: string;
 };
 
@@ -78,11 +78,12 @@ export const getBizDomainList = async (
 };
 
 /** 查询业务域详情（POST /api/perm/biz-domain/detail，BizDomainDetailReq{domainCode}）。
- *  T-PERM-026 切业务键 code；未知编码返回 data=null 不抛错（role detail 先例）。 */
+ *  T-PERM-026 切业务键 code；未知编码返回成功信封 data=null 不抛错（role detail 先例），
+ *  故返回类型含 null。 */
 export const getBizDomainDetail = async (
   domainCode: string
-): Promise<BizDomainResp> => {
-  const res = await http.request<PermResult<BizDomainResp>>(
+): Promise<BizDomainResp | null> => {
+  const res = await http.request<PermResult<BizDomainResp | null>>(
     "post",
     "/api/perm/biz-domain/detail",
     { data: { domainCode } }

@@ -274,3 +274,4 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026；�
 - **子表权限守卫**：「配置」按钮 `v-if="canViewConfig"` 隐藏无权入口；`selectDomain(row, canViewConfig)` 双保险守卫，无 `SYSTEM_CONFIG:VIEW` 时只选中域不发 /list 请求，避免可避免的 403。
 - **全局域创建入口缺失（登记 T-PERM-046）**：DDL 注释称「全局域由管理 API 创建」，但 create 固定 global=false，真库无任何入口能创建 global=true 域（mock 有 GLOBAL 种子、真库无）——uk_biz_domain_global 与「全局域不可删」保护在真库形同虚设；DomainClassifyService 对全局域缺失容忍（语义退化但不报错）。
 - **domain_config 并发双插已知限制（登记 T-PERM-046）**：save 的 check-then-insert 在并发窗口可双插同键两行（表无唯一键，仅普通索引）；每域至多 2 条配置、管理页低并发，实际风险极低，契约 §5.6 已标注。
+- **删除保护并发窗口（登记 T-PERM-046）**：remove 引用检查与软删两条无锁语句间、save 域解析后 insert——并发交错可留指向已软删域的孤儿配置（不可达死数据，非越权）；管理页低并发窗口极窄，锁策略设计并入 T-PERM-046 统一处置。

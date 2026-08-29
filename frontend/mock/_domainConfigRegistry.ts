@@ -46,7 +46,7 @@ const registry: DomainConfigRecord[] = [
     bizDomainId: 2,
     domainCode: "HR",
     configType: "CLASSIFY",
-    extra: '{"typeCodes":["USER","ORG","POSITION"]}',
+    extra: '{"resourceTypeCodes":["USER","ORG","POSITION"]}',
     updatedAt: "2026-01-02 10:00:00"
   },
   {
@@ -64,7 +64,7 @@ const registry: DomainConfigRecord[] = [
     bizDomainId: 3,
     domainCode: "ORDER",
     configType: "CLASSIFY",
-    extra: '{"typeCodes":["ORDER","ORDER_ITEM"]}',
+    extra: '{"resourceTypeCodes":["ORDER","ORDER_ITEM"]}',
     updatedAt: "2026-01-03 10:00:00"
   },
   {
@@ -82,7 +82,7 @@ const registry: DomainConfigRecord[] = [
     bizDomainId: 4,
     domainCode: "CRM",
     configType: "CLASSIFY",
-    extra: '{"typeCodes":["CUSTOMER","CONTACT"]}',
+    extra: '{"resourceTypeCodes":["CUSTOMER","CONTACT"]}',
     updatedAt: "2026-01-04 10:00:00"
   },
   {
@@ -100,7 +100,7 @@ const registry: DomainConfigRecord[] = [
     bizDomainId: 5,
     domainCode: "ASSET",
     configType: "CLASSIFY",
-    extra: '{"typeCodes":["ASSET","LICENSE"]}',
+    extra: '{"resourceTypeCodes":["ASSET","LICENSE"]}',
     updatedAt: "2026-01-05 10:00:00"
   }
 ];
@@ -127,9 +127,7 @@ export function findValidConfig(
 ): DomainConfigRecord | undefined {
   return registry.find(
     c =>
-      c.bizDomainId === bizDomainId &&
-      c.configType === configType &&
-      !c.deleted
+      c.bizDomainId === bizDomainId && c.configType === configType && !c.deleted
   );
 }
 

@@ -59,4 +59,4 @@ T-FE-006 前端业务域页（主从：BizDomain CRUD 主表 + DomainConfig 子�
 
 ## 完成记录
 
-- 2026-08-29 收口：P0 列名隐患修复 + 六项 🔧 全处置（第 1 项误报反转、第 5 项先期已收口）+ 两项设计定案（DOMAIN:VIEW 固定图、错误码 20051/20052）+ 前端与 mock 双注册表对齐；后端单测/PgIT/快照/bootstrap 计数全绿，前端 typecheck+vitest 全绿。评审登记两项模型层已知限制归 T-PERM-046（全局域创建入口缺失、domain_config 并发双插无唯一键兜底）。
+- 2026-08-29 收口：P0 列名隐患修复 + 六项 🔧 全处置（第 1 项误报反转、第 5 项先期已收口）+ 两项设计定案（DOMAIN:VIEW 固定图、错误码 20051/20052）+ 前端与 mock 双注册表对齐；后端单测/PgIT/快照/bootstrap 计数全绿，前端 typecheck+vitest 全绿。评审登记模型层已知限制归 T-PERM-046（全局域创建入口缺失、domain_config 并发双插无唯一键兜底、删除保护与 save 并发窗口孤儿配置）。

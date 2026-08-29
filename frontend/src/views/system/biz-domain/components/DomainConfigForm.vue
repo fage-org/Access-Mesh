@@ -160,7 +160,7 @@ defineExpose({
         v-model="formData.extra"
         type="textarea"
         :rows="5"
-        placeholder='JSON 格式，如 {"typeCodes":["USER","ORG"]}'
+        placeholder='CLASSIFY 如 {"resourceTypeCodes":["USER","ORG"]}；SUB_PERM 如 {"allowed":[{"parent_type":"USER","child_types":["POSITION"]}]}'
       />
     </el-form-item>
   </el-form>

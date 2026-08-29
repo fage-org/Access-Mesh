@@ -357,8 +357,9 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.1 biz-domain 契约要点 + §5.6 d
 - `detail`：`{domainCode, configType}` 业务键二元组，未命中 `data=null` 不抛错。
 - `list`：`{domainCode?}` 过滤（不传全量），量小不分页（每域至多 SUB_PERM/CLASSIFY 两条）。
 - `extra` JSONB↔String 映射已确认（`JsonbStringTypeHandler`，BizDomainConfigPgIT 真库锁定）：读出为 DB 规范化 JSON 文本，语义等价、可直接再提交。
+- `extra` 字段名口径（save 仅校验 JSON 语法不校验 schema，字段名以消费方为准，PgIT 跨层锁锁定）：CLASSIFY 用 `{"resourceTypeCodes":["ORG","USER"]}`（`DomainClassifyService` 消费）；SUB_PERM 用 `{"allowed":[{"parent_type":"USER","child_types":["POSITION"]}]}`（授权链路 `assertSubPermissionAllowed` 消费，`*` 通配）。
 - 权限门禁：读（list/detail）`SYSTEM_CONFIG:VIEW`；写（save/remove）`SYSTEM_CONFIG:MANAGE`。
-- 已知限制（登记 T-PERM-046）：表无唯一键，save 的 check-then-insert 在并发窗口可对同 domainCode+configType 双插两行（每域至多 2 条配置、管理页低并发，实际风险极低）。
+- 已知限制（登记 T-PERM-046）：①表无唯一键，save 的 check-then-insert 在并发窗口可对同 domainCode+configType 双插两行（每域至多 2 条配置、管理页低并发，实际风险极低）；②biz-domain remove 的引用检查与软删、save 的域解析均为无锁语句，并发交错可留指向已软删域的孤儿配置行（不可达死数据，非越权）——锁策略统一加固归 T-PERM-046。
 
 ### 5.7 运行时鉴权与权限查询
 

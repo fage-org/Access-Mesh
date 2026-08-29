@@ -248,7 +248,12 @@ function onDeleteDomainConfig(row: DomainConfigRow) {
             <template #code="{ row }">
               <span class="font-mono text-sm">{{ row.code }}</span>
               <!-- 全域名标识（Resp.global，T-PERM-026 起 Resp 返回） -->
-              <el-tag v-if="row.global" size="small" effect="plain" class="ml-2">
+              <el-tag
+                v-if="row.global"
+                size="small"
+                effect="plain"
+                class="ml-2"
+              >
                 全局
               </el-tag>
             </template>

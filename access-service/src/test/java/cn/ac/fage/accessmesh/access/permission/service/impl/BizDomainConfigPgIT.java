@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.access.permission.entity.BizDomain;
 import cn.ac.fage.accessmesh.access.permission.entity.DomainConfig;
 import cn.ac.fage.accessmesh.access.permission.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.DomainConfigMapper;
+import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
@@ -111,6 +112,9 @@ class BizDomainConfigPgIT {
     @Autowired
     private TypeResolutionService typeResolutionService;
 
+    @Autowired
+    private DomainClassifyService domainClassifyService;
+
     private BizDomain insertDomain(String code, boolean global) {
         BizDomain domain = new BizDomain();
         domain.setTenantId(TENANT);
@@ -167,6 +171,12 @@ class BizDomainConfigPgIT {
         // 子表列表查询与删除保护引用检查查询
         assertThat(domainConfigMapper.selectByTenantAndDomainId(TENANT, domain.getId())).hasSize(1);
         assertThat(domainConfigMapper.selectValidByDomainIds(TENANT, Set.of(domain.getId()))).hasSize(1);
+
+        // 跨层字段名契约锁（P1 回归）：CLASSIFY extra 的资源类型字段为 resourceTypeCodes——
+        // DomainClassifyService.parseResourceTypeCodes 只读取该字段，typeCodes 等变体会静默
+        // 保存成功但分类结果为空（save 仅校验 JSON 语法不校验 schema）
+        assertThat(domainClassifyService.getClassifiedTypeCodes(TENANT, "PGIT_JSON"))
+            .contains("ORG", "用户");
 
         domainConfigMapper.softDeleteBatch(TENANT, List.of(read.getId()), LocalDateTime.now());
         assertThat(domainConfigMapper.selectValidByDomainIds(TENANT, Set.of(domain.getId()))).isEmpty();

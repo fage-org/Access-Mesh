@@ -155,10 +155,7 @@ export default defineFakeRoute([
       }
       const referenced = findValidConfigsByDomainIds(targets.map(d => d.id));
       if (referenced.length > 0) {
-        return err(
-          20051,
-          "业务域不可删除：域下存在域配置，请先删除其配置"
-        );
+        return err(20051, "业务域不可删除：域下存在域配置，请先删除其配置");
       }
       softDeleteDomains(ids);
       return ok(null);

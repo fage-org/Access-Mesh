@@ -64,7 +64,7 @@ class DomainConfigAppServiceImplTest {
             when(typeResolutionService.resolveDomainId(1L, "HR")).thenReturn(10L);
             when(domainConfigMapper.selectValidByTypeString(1L, 10L, "CLASSIFY")).thenReturn(null);
 
-            DomainConfigReq req = new DomainConfigReq("HR", "CLASSIFY", "{\"typeCodes\":[\"USER\"]}");
+            DomainConfigReq req = new DomainConfigReq("HR", "CLASSIFY", "{\"resourceTypeCodes\":[\"USER\"]}");
             DomainConfigResp result = service.upsertDomainConfig(1L, req);
 
             ArgumentCaptor<DomainConfig> captor = ArgumentCaptor.forClass(DomainConfig.class);
