@@ -1,3 +1,11 @@
+---
+doc_type: design
+title: 7.2 权限变更日志页 前端设计
+status: adopted
+domain: frontend
+last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-032 收口：§3/§4/§5/§7 终态化（独立 PERMISSION_CHANGE_LOG:VIEW/筛选全集/createdBy/ROLE_BATCH_DELETE 补枚举）
+---
+
 # 7.2 权限变更日志页设计
 
 > 状态：adopted（T-FE-012 实现产出回写）
@@ -51,7 +59,7 @@
 | 项 | 值 | 说明 |
 |---|---|---|
 | 路径 | `POST /api/perm/log/change/list` | 后端 `LogQueryController` `@RequestMapping("/api/perm/log")` + `@PostMapping("/change/list")` |
-| 权限 | `SYSTEM_CONFIG:VIEW` 复用 | `LogQueryAppServiceImpl.listChangeLogs:87`，无独立权限码 |
+| 权限 | 独立 `PERMISSION_CHANGE_LOG:VIEW` | T-PERM-032 审计分离（对齐操作日志先例），页面 list/count 门禁；recent-changes 仍 `SYSTEM_CONFIG:VIEW` 随 T-PERM-033 |
 | 分页 | 服务端分页 | `PaginatedResp<ChangeLogResp>` |
 | detail | 无独立接口 | `ChangeLogResp` 已含全字段（含 diffSnapshot），前端抽屉展示 |
 
@@ -61,6 +69,11 @@
 |---|---|---|---|
 | entityType | string | 否 | 实体类型过滤（user_role/role_resource_permission/abstract_user/abstract_role 等） |
 | entityId | number | 否 | 实体 ID 过滤 |
+| eventType | string | 否 | diff_snapshot.eventType 过滤（单选，T-PERM-032 补） |
+| changeSource | string | 否 | 变更来源过滤（MANUAL/SERVICE_SYNC，T-PERM-032 补） |
+| affectedUserId | number | 否 | 受影响用户 ID（GIN 包含匹配，T-PERM-032 补） |
+| affectedRoleId | number | 否 | 受影响角色 ID（GIN 包含匹配，T-PERM-032 补） |
+| since/until | string | 否 | 创建时间闭区间（ISO 无偏移墙钟，数字对齐展示；T-PERM-032 补） |
 | pageNum | number | 是 | 页码 |
 | pageSize | number | 是 | 每页条数 |
 
@@ -79,7 +92,8 @@
 | affectedAbstractUserIds | number[]? | 受影响用户 ID 数组 |
 | affectedAbstractRoleIds | number[]? | 受影响角色 ID 数组 |
 | changeReason | string? | 变更原因 |
-| changeSource | string? | 变更来源：MANUAL/SERVICE_SYNC（后端复用 `PermConstants.MaintainSource`） |
+| changeSource | string? | 变更来源：MANUAL/SERVICE_SYNC（后端复用 `PermConstants.MaintainSource`；schema 注释已随 T-PERM-032 修正） |
+| createdBy | number? | 操作人 ID（表 created_by，T-PERM-032 暴露；名称解析归前端展示层） |
 | requestId | string? | 请求/追踪 ID |
 | createdAt | string | 创建时间 |
 
@@ -112,7 +126,7 @@
 
 ```typescript
 export const PERMISSION_CHANGE_LOG_PERMS = {
-  LOG_VIEW: "SYSTEM_CONFIG:VIEW" // 复用后端，无独立权限码
+  LOG_VIEW: "PERMISSION_CHANGE_LOG:VIEW" // T-PERM-032 审计分离：独立权限码
 } as const;
 ```
 
@@ -124,22 +138,22 @@ export const PERMISSION_CHANGE_LOG_PERMS = {
 
 ### 角色矩阵（mock/login.ts）
 
-复用 `SYSTEM_CONFIG:VIEW`，矩阵不新增权限串。admin/sec/hr/auditor 均已通过前页 SYSTEM_CONFIG 矩阵获得 VIEW，均可查看变更日志（审计员 auditor 必须能查，符合审计场景）。
+T-PERM-032 起独立 `PERMISSION_CHANGE_LOG:VIEW`，mock/login.ts 四账号按旧复用口径全员补入（对齐操作日志先例——mock 模拟 UX 不模拟最小权限；审计员 auditor 必须能查，符合审计场景）。
 
 ## 5. API 核对清单（-> T-PERM-032）
 
 | # | 项 | 状态 | 说明 |
 |---|---|---|---|
-| 1 | 端点路径 | 🔧 | api-contract §5.8 写 `/api/perm/permission-change-log/list`，后端实际 `/api/perm/log/change/list`。契约路径错误，Phase 2 修正 |
-| 2 | 字段契约章节 | 🔧 | api-contract 无独立 §6.x 变更日志字段契约章节（仅 §5.8 表格 1 行 + §6.8 diff_snapshot 规范）。Phase 2 补 |
-| 3 | 筛选维度 | 🔧 | 后端 Req 只支持 entityType/entityId；schema 有 affected_*_ids/created_at/diff_snapshot.eventType 等可用筛选未暴露。Phase 2 补 eventType/changeSource/时间范围/affected user·role 筛选 |
-| 4 | 操作人字段 | 🔧 | ChangeLogResp 缺操作人（实体有 createdBy 未暴露，无 operatorName）。Phase 2 补 |
-| 5 | changeSource 枚举 | 🔧 | schema L631 注释写 ADMIN/SYNC/API/SYSTEM，后端代码实际用 MANUAL/SERVICE_SYNC（复用 PermConstants.MaintainSource）。schema 注释修正 |
-| 6 | 独立权限码 | 🔧 | 复用 SYSTEM_CONFIG:VIEW 做审计查询门禁，审计语义混淆。Phase 2 评估独立 PERMISSION_CHANGE_LOG:VIEW |
+| 1 | 端点路径 | ✅ | 核实已随 T-ACCESS-007 评审修正（§5.8 表现即实际路径），本任务在 §5.8 契约要点补记 |
+| 2 | 字段契约章节 | ✅ | T-PERM-032 补 §5.8 permission-change-log 契约要点（端点/筛选全集/createdBy/门禁） |
+| 3 | 筛选维度 | ✅ | T-PERM-032 全集落地（设计定案）：eventType/changeSource/受影响 user·role/时间范围全部暴露，维度对齐 schema 索引；页面与 recent-changes 统一条件组（原两套查询合并） |
+| 4 | 操作人字段 | ✅ | `ChangeLogResp` 暴露 `createdBy`（表 created_by；名称解析归前端展示层），抽屉展示 |
+| 5 | changeSource 枚举 | ✅ | schema 注释修正为 MANUAL/SERVICE_SYNC（复用 PermConstants.MaintainSource）；operation 注释同步补 BATCH_DELETE/BATCH_REMOVE |
+| 6 | 独立权限码 | ✅ | 设计定案（2026-08-29）：独立 `PERMISSION_CHANGE_LOG:VIEW`，五步清单全链路（枚举/DDL 种子=31/bootstrap 固定图/下发白名单/前端常量+mock 矩阵）；recent-changes 仍 SYSTEM_CONFIG:VIEW 随 T-PERM-033 |
 | 7 | list 端点 | ✅ | `/api/perm/log/change/list` 分页查询可用，返回 PaginatedResp |
-| 8 | diff_snapshot 规范 | ✅ | §6.8 完整规范，6 种 eventType（T-PERM-043 后）+ 3 种 changeType 固定枚举 |
+| 8 | diff_snapshot 规范 | ✅ | §6.8 完整规范，7 种 eventType（T-PERM-043 后 6 种 + T-PERM-032 增 ROLE_BATCH_DELETE）+ 3 种 changeType 固定枚举 |
 | 9 | detail 端点 | ✅ | 无需独立 detail（Resp 含全字段 + diffSnapshot），设计合理 |
-| 10 | eventType 枚举一致性 | 🔧 | 后端批量删除角色 `diffSnapshot.eventType` 写 `"ROLE_BATCH_DELETE"`（`RoleManageAppServiceImpl` 批量删除聚合日志，eventType 写入处），超出 §6.8 定义的 6 枚举（T-PERM-043 后）。前端 `EVENT_TYPE_META` fallback 显示原值不崩溃，但枚举不一致需后端收敛或契约补枚举 |
+| 10 | eventType 枚举一致性 | ✅ | 设计定案：契约 §6.8 增补第 7 枚举 `ROLE_BATCH_DELETE`（批量删除聚合事件，entityId=0 + operation=BATCH_DELETE——原 6 枚举无一语义覆盖）；前端 `DiffEventType`/`EVENT_TYPE_META` 同步 |
 
 ## 6. 组件识别（Step 1.5 -> T-FE-001 组件池）
 
@@ -160,4 +174,4 @@ export const PERMISSION_CHANGE_LOG_PERMS = {
 - 覆盖 changeSource：MANUAL / SERVICE_SYNC
 - diff_snapshot 含 permission/role/resource/before-after 组合，验证 diff 面板结构化渲染
 - createdAt 固定字符串（脚本禁用 Date.now），按 DESC 排序验证分页
-- 服务端分页 + entityType/entityId 过滤（对齐后端 Req）
+- 服务端分页 + 全维度过滤（T-PERM-032 筛选全集，对齐后端 Req；时间闭区间字符串可比）+ 全条目补 createdBy

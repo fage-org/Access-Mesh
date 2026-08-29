@@ -29,7 +29,11 @@ public interface LogQueryAppService {
      * @param limit      每页条数
      * @return 变更日志列表
      */
-    List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId, int offset, int limit);
+    List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId,
+                                       String eventType, String changeSource,
+                                       Long affectedUserId, Long affectedRoleId,
+                                       LocalDateTime since, LocalDateTime until,
+                                       int offset, int limit);
 
     /**
      * 统计变更日志数量
@@ -39,7 +43,10 @@ public interface LogQueryAppService {
      * @param entityId   实体ID，可选
      * @return 变更日志数量
      */
-    long countChangeLogs(Long tenantId, String entityType, Long entityId);
+    long countChangeLogs(Long tenantId, String entityType, Long entityId,
+                         String eventType, String changeSource,
+                         Long affectedUserId, Long affectedRoleId,
+                         LocalDateTime since, LocalDateTime until);
 
     /**
      * 筛选查询变更日志列表

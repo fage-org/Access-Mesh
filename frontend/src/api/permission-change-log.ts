@@ -32,7 +32,9 @@ export type DiffEventType =
   | "ROLE_STATUS_CHANGE"
   | "RESOURCE_STATUS_CHANGE"
   | "CONDITION_CHANGE"
-  | "RESOURCE_DEPENDENCY_CHANGE";
+  | "RESOURCE_DEPENDENCY_CHANGE"
+  /** 批量删除角色的聚合事件（entityId=0 + operation=BATCH_DELETE；T-PERM-032 契约收口补枚举） */
+  | "ROLE_BATCH_DELETE";
 
 /** 变更类型固定枚举（§6.8 L1667） */
 export type DiffChangeType = "ADD" | "REMOVE" | "UPDATE";
@@ -105,32 +107,38 @@ export type ChangeLogResp = {
   affectedAbstractRoleIds?: number[] | null;
   /** 变更原因（可空） */
   changeReason?: string | null;
-  /** 变更来源：MANUAL/SERVICE_SYNC（后端复用 PermConstants.MaintainSource 常量；schema 注释 ADMIN/SYNC/API/SYSTEM 不符 🔧 T-PERM-032） */
+  /** 变更来源：MANUAL/SERVICE_SYNC（后端复用 PermConstants.MaintainSource；schema 注释已随 T-PERM-032 修正） */
   changeSource?: string | null;
+  /** 操作人 ID（表 created_by，抽象用户 ID；T-PERM-032 暴露） */
+  createdBy?: number | null;
   /** 请求/追踪 ID（可空） */
   requestId?: string | null;
   /** 创建时间（对齐后端 LocalDateTime createdAt） */
   createdAt?: string;
 };
 
-/** 变更日志列表查询请求（对齐后端 ChangeLogListReq）。
- *  entityType/entityId 可选过滤；pageNum/pageSize 必填（后端 @NotNull），服务端分页。
- *  🔧 API 核对项（登记 T-PERM-032）：后端 Req 只支持 entityType/entityId 两个筛选维度，
- *  schema 有 affected_*_ids/created_at/diff_snapshot.eventType 等可用筛选字段未暴露。
- *  Phase 2 后端补 eventType/changeSource/时间范围/affected user·role 等筛选维度。 */
+/** 变更日志列表查询请求（对齐后端 ChangeLogListReq，T-PERM-032 收口：筛选全集）。
+ *  全部过滤维度可选；pageNum/pageSize 必填（后端 @NotNull），服务端分页。
+ *  维度对齐 schema 索引：eventType（diff_snapshot 表达式索引）/affectedUser·Role（GIN 包含）/
+ *  since·until（时间索引，ISO 无偏移墙钟字符串，数字对齐展示）；changeSource 精确匹配。 */
 export type ChangeLogListReq = {
   entityType?: string;
   entityId?: number;
+  eventType?: string;
+  changeSource?: string;
+  affectedUserId?: number;
+  affectedRoleId?: number;
+  since?: string;
+  until?: string;
   pageNum: number;
   pageSize: number;
 };
 
 // ========== API 函数 ==========
 
-/** 查询权限变更日志列表（POST /api/perm/log/change/list）。
- *  后端按 entityType/entityId 过滤 + 服务端分页，返回 PaginatedResp<ChangeLogResp>。
- *  权限门禁：后端 LogQueryAppServiceImpl 以 SYSTEM_CONFIG:VIEW 校验（复用系统配置 VIEW，无独立权限码）。
- *  🔧 筛选维度不足 + 契约路径错误 + Resp 缺操作人 + changeSource 枚举 schema 不符，登记于 T-PERM-032。 */
+/** 查询权限变更日志列表（POST /api/perm/log/change/list，契约路径已随 T-PERM-032 修正）。
+ *  多维度过滤 + 服务端分页，返回 PaginatedResp<ChangeLogResp>。
+ *  权限门禁：独立 PERMISSION_CHANGE_LOG:VIEW（T-PERM-032 审计分离，对齐操作日志 OPERATION_LOG:VIEW 先例）。 */
 export const getChangeLogList = async (
   params: ChangeLogListReq
 ): Promise<PaginatedResp<ChangeLogResp>> => {

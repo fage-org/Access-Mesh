@@ -80,7 +80,8 @@ class UserMenuQueryServiceImplTest {
         // 前端 grep 权限串全集（2026-08-28）：任一缺失即对应页面按钮真实链路隐藏
         org.assertj.core.api.Assertions.assertThat(whitelist).contains(
             "ORG", "USER", "ROLE", "TYPE_DEFINITION", "RESOURCE", "OPERATION", "CONDITION",
-            "CONFLICT_RULE", "DEPENDENCY", "DOMAIN", "SERVICE", "SYSTEM_CONFIG", "OPERATION_LOG");
+            "CONFLICT_RULE", "DEPENDENCY", "DOMAIN", "SERVICE", "SYSTEM_CONFIG", "OPERATION_LOG",
+            "PERMISSION_CHANGE_LOG");
     }
 
     @Nested

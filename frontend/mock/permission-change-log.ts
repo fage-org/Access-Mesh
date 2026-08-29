@@ -27,7 +27,9 @@ type ChangeLogResp = {
   affectedAbstractUserIds?: number[] | null;
   affectedAbstractRoleIds?: number[] | null;
   changeReason?: string | null;
-  changeSource?: string | null; // MANUAL/SERVICE_SYNC（后端复用 MaintainSource）
+  changeSource?: string | null;
+  /** 操作人 ID（T-PERM-032 暴露） */
+  createdBy?: number | null; // MANUAL/SERVICE_SYNC（后端复用 MaintainSource）
   requestId?: string | null;
   createdAt?: string;
 };
@@ -94,6 +96,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [101],
     changeReason: "回收报表编辑员对销售报表的编辑权限",
     changeSource: "MANUAL",
+    createdBy: 100,
     requestId: "req-cl-001",
     createdAt: "2026-07-11 09:30:00"
   },
@@ -123,6 +126,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [102],
     changeReason: "用户移出财务主管角色",
     changeSource: "MANUAL",
+    createdBy: 200,
     requestId: "req-cl-002",
     createdAt: "2026-07-11 10:15:00"
   },
@@ -154,6 +158,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [101, 103],
     changeReason: "销售报表资源停用",
     changeSource: "MANUAL",
+    createdBy: 100,
     requestId: "req-cl-003",
     createdAt: "2026-07-10 14:20:00"
   },
@@ -184,6 +189,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [101],
     changeReason: "报表编辑员角色停用",
     changeSource: "MANUAL",
+    createdBy: 200,
     requestId: "req-cl-004",
     createdAt: "2026-07-10 16:45:00"
   },
@@ -221,6 +227,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [103],
     changeReason: "为财务查看员授予财务报表读取权限（含时间条件）",
     changeSource: "MANUAL",
+    createdBy: 100,
     requestId: "req-cl-005",
     createdAt: "2026-07-09 11:00:00"
   },
@@ -248,6 +255,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [103],
     changeReason: "调整工作时间条件范围",
     changeSource: "MANUAL",
+    createdBy: 200,
     requestId: "req-cl-006",
     createdAt: "2026-07-09 13:30:00"
   },
@@ -279,6 +287,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [],
     changeReason: "配置销售报表->查询接口的自动授权依赖",
     changeSource: "MANUAL",
+    createdBy: 100,
     requestId: "req-cl-008",
     createdAt: "2026-07-08 15:25:00"
   },
@@ -310,6 +319,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [],
     changeReason: "服务同步新增接口资源",
     changeSource: "SERVICE_SYNC",
+    createdBy: 200,
     requestId: "req-cl-009",
     createdAt: "2026-07-07 10:00:00"
   },
@@ -339,6 +349,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [104],
     changeReason: "为用户分配岗位工程师角色",
     changeSource: "MANUAL",
+    createdBy: 100,
     requestId: "req-cl-010",
     createdAt: "2026-07-07 14:40:00"
   },
@@ -379,6 +390,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [104],
     changeReason: "为岗位工程师的报表读取权限绑定工作时间条件",
     changeSource: "MANUAL",
+    createdBy: 200,
     requestId: "req-cl-011",
     createdAt: "2026-07-06 11:20:00"
   },
@@ -408,6 +420,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [105],
     changeReason: "删除临时角色（软删除，关联用户角色关系同步清理）",
     changeSource: "MANUAL",
+    createdBy: 100,
     requestId: "req-cl-012",
     createdAt: "2026-07-06 16:50:00"
   },
@@ -447,6 +460,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [106, 107],
     changeReason: "批量删除临时角色（聚合日志，entityId=0）",
     changeSource: "MANUAL",
+    createdBy: 200,
     requestId: "req-cl-013",
     createdAt: "2026-07-06 09:00:00"
   },
@@ -476,6 +490,7 @@ const mockLogs: ChangeLogResp[] = [
     affectedAbstractRoleIds: [104],
     changeReason: "批量撤销用户岗位工程师角色（聚合日志，entityId=0）",
     changeSource: "MANUAL",
+    createdBy: 100,
     requestId: "req-cl-014",
     createdAt: "2026-07-05 15:30:00"
   }
@@ -494,7 +509,18 @@ export default defineFakeRoute([
     url: "/api/perm/log/change/list",
     method: "post",
     response: ({ body }) => {
-      const { entityType, entityId, pageNum, pageSize } = body || {};
+      const {
+        entityType,
+        entityId,
+        eventType,
+        changeSource,
+        affectedUserId,
+        affectedRoleId,
+        since,
+        until,
+        pageNum,
+        pageSize
+      } = body || {};
       const page = pageNum && pageNum > 0 ? pageNum : 1;
       const size = pageSize && pageSize > 0 ? pageSize : 15;
       // 按 createdAt DESC 排序（字符串可比，格式 yyyy-MM-dd HH:mm:ss）
@@ -503,12 +529,41 @@ export default defineFakeRoute([
         const tb = b.createdAt || "";
         return tb.localeCompare(ta);
       });
-      // entityType/entityId 过滤（null/空不过滤）
+      // 全维度过滤（T-PERM-032 筛选全集；null/空不过滤；时间闭区间字符串可比）
       if (entityType) {
         list = list.filter(l => l.entityType === entityType);
       }
       if (entityId != null && entityId !== "") {
         list = list.filter(l => l.entityId === entityId);
+      }
+      if (eventType) {
+        list = list.filter(l => {
+          if (!l.diffSnapshot) return false;
+          try {
+            return JSON.parse(l.diffSnapshot).eventType === eventType;
+          } catch {
+            return false;
+          }
+        });
+      }
+      if (changeSource) {
+        list = list.filter(l => l.changeSource === changeSource);
+      }
+      if (affectedUserId != null) {
+        list = list.filter(
+          l => (l.affectedAbstractUserIds || []).includes(affectedUserId)
+        );
+      }
+      if (affectedRoleId != null) {
+        list = list.filter(
+          l => (l.affectedAbstractRoleIds || []).includes(affectedRoleId)
+        );
+      }
+      if (since) {
+        list = list.filter(l => (l.createdAt || "") >= since.replace("T", " "));
+      }
+      if (until) {
+        list = list.filter(l => (l.createdAt || "") <= until.replace("T", " "));
       }
       const total = list.length;
       const offset = (page - 1) * size;

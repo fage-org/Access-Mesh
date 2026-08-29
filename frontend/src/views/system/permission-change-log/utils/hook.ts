@@ -5,6 +5,7 @@ import {
   type ChangeLogResp
 } from "@/api/permission-change-log";
 import { createEmptySearchForm } from "./types";
+import { formatToWallClockIso } from "@/utils/wall-clock";
 
 /**
  * 权限变更日志页 hook（分页表格 + 服务端分页）。
@@ -13,7 +14,8 @@ import { createEmptySearchForm } from "./types";
  * pageNum/pageSize，返回 PaginatedResp）。
  * 只读查询页：无 handleSubmitForm/handleDelete（无写操作）。
  *
- * 🔧 后端 Req 只支持 entityType/entityId 两筛选维度（登记 T-PERM-032），前端筛选表单仅此两项。
+ * T-PERM-032 收口：筛选全集（entityType/entityId/eventType/changeSource/受影响 user·role/
+ * 时间范围），维度对齐 schema 索引；时间序列化取墙钟分量对齐表格展示数字。
  */
 export function usePermissionChangeLog() {
   const tableData = ref<ChangeLogResp[]>([]);
@@ -29,11 +31,21 @@ export function usePermissionChangeLog() {
     const seq = ++reqSeq;
     loading.value = true;
     try {
-      // 后端 /api/perm/log/change/list 返回 PaginatedResp（服务端分页 + entityType/entityId 过滤）。
+      // 后端 /api/perm/log/change/list 返回 PaginatedResp（服务端分页 + 全维度过滤）。
       // 前端不做本地过滤/切片--服务端已分页。
       const res = await getChangeLogList({
         entityType: searchForm.entityType || undefined,
         entityId: searchForm.entityId ?? undefined,
+        eventType: searchForm.eventType || undefined,
+        changeSource: searchForm.changeSource || undefined,
+        affectedUserId: searchForm.affectedUserId ?? undefined,
+        affectedRoleId: searchForm.affectedRoleId ?? undefined,
+        since: searchForm.timeRange?.[0]
+          ? formatToWallClockIso(searchForm.timeRange[0])
+          : undefined,
+        until: searchForm.timeRange?.[1]
+          ? formatToWallClockIso(searchForm.timeRange[1])
+          : undefined,
         pageNum: pagination.page,
         pageSize: pagination.size
       });
@@ -62,6 +74,11 @@ export function usePermissionChangeLog() {
   function onReset() {
     searchForm.entityType = null;
     searchForm.entityId = null;
+    searchForm.eventType = null;
+    searchForm.changeSource = null;
+    searchForm.affectedUserId = null;
+    searchForm.affectedRoleId = null;
+    searchForm.timeRange = null;
     pagination.page = 1;
     loadTable();
   }

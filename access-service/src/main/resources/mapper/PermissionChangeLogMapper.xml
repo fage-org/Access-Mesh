@@ -3,8 +3,16 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.permission.mapper.PermissionChangeLogMapper">
 
-    <sql id="FilteredWhere">
+    <!-- T-PERM-032：页面查询与 recent-changes 统一条件组（对齐 schema 索引：user/role GIN 包含、
+         eventType 表达式索引、时间/实体普通索引；changeSource 低基数无索引） -->
+    <sql id="listCondition">
         WHERE tenant_id = #{tenantId}
+        <if test="entityType != null">
+            AND entity_type = #{entityType}
+        </if>
+        <if test="entityId != null">
+            AND entity_id = #{entityId}
+        </if>
         <if test="userId != null">
             AND affected_abstract_user_ids @> ARRAY[#{userId}]::bigint[]
         </if>
@@ -24,42 +32,21 @@
                 #{et}
             </foreach>
         </if>
+        <if test="changeSource != null">
+            AND change_source = #{changeSource}
+        </if>
     </sql>
 
-    <select id="selectFiltered" resultType="cn.ac.fage.accessmesh.access.permission.entity.PermissionChangeLog">
+    <select id="selectPageByCondition" resultType="cn.ac.fage.accessmesh.access.permission.entity.PermissionChangeLog">
         SELECT * FROM permission_change_log
-        <include refid="FilteredWhere"/>
+        <include refid="listCondition"/>
         ORDER BY created_at DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
-    <select id="countFiltered" resultType="long">
+    <select id="countByCondition" resultType="long">
         SELECT COUNT(*) FROM permission_change_log
-        <include refid="FilteredWhere"/>
-    </select>
-
-    <select id="selectByTenantEntityTypeEntityId" resultType="cn.ac.fage.accessmesh.access.permission.entity.PermissionChangeLog">
-        SELECT * FROM permission_change_log
-        WHERE tenant_id = #{tenantId}
-        <if test="entityType != null">
-          AND entity_type = #{entityType}
-        </if>
-        <if test="entityId != null">
-          AND entity_id = #{entityId}
-        </if>
-        ORDER BY created_at DESC
-        LIMIT #{limit} OFFSET #{offset}
-    </select>
-
-    <select id="countByTenantEntityTypeEntityId" resultType="long">
-        SELECT COUNT(*) FROM permission_change_log
-        WHERE tenant_id = #{tenantId}
-        <if test="entityType != null">
-          AND entity_type = #{entityType}
-        </if>
-        <if test="entityId != null">
-          AND entity_id = #{entityId}
-        </if>
+        <include refid="listCondition"/>
     </select>
 
 </mapper>

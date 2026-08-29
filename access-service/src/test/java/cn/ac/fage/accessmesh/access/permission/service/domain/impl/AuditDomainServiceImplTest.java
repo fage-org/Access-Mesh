@@ -18,6 +18,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -82,8 +83,8 @@ class AuditDomainServiceImplTest {
         log.setEntityType("role_resource_permission");
         log.setOperation("INSERT");
         log.setTenantId(1L);
-        when(changeLogMapper.selectFiltered(
-            eq(1L), eq(100L), eq(20L), any(), any(), any(), eq(0), eq(10)))
+        when(changeLogMapper.selectPageByCondition(
+            eq(1L), isNull(), isNull(), eq(100L), eq(20L), any(), any(), any(), isNull(), eq(0), eq(10)))
             .thenReturn(List.of(log));
 
         List<PermissionChangeLog> results = service.queryRecentChanges(1L, 100L, 20L,
@@ -95,8 +96,8 @@ class AuditDomainServiceImplTest {
 
     @Test
     void shouldCountRecentChanges() {
-        when(changeLogMapper.countFiltered(
-            eq(1L), eq(100L), eq(20L), any(), any(), any()))
+        when(changeLogMapper.countByCondition(
+            eq(1L), isNull(), isNull(), eq(100L), eq(20L), any(), any(), any(), isNull()))
             .thenReturn(5L);
 
         long count = service.countRecentChanges(1L, 100L, 20L,

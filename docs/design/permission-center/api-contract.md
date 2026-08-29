@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-28   # 2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-29   # 2026-08-29 §5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；此前：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -385,7 +385,15 @@ last_reviewed: 2026-08-28   # 2026-08-28 §5.2 角色管理契约要点 + §6.10
 
 - `list`：`{module?, action?, operatorId?, since?, until?, targetType?, pageNum, pageSize}` → 分页结构（§3.3，排序 `created_at DESC`）；module/action/targetType **精确匹配**（等值索引友好）；`since`/`until` 为创建时间闭区间（ISO 无偏移墙钟；后端 LocalDateTime 语义为 UTC 墙钟——全链路 UTC §7.4，前端提交数字与表格原样展示对齐）。无 detail 接口——`OperationLogResp` 已含全部字段，详情由前端抽屉展示。
 - `action-options`：`{module?}` → `ItemsResp<String>`——返回 operation_log 当前实际存在的 action 去重集合（字典序），供筛选下拉动态拉取；返回实际存在值而非维护端枚举（action 由 `@OperationLog` 注解开放增长，避免双轨漂移）。
-- 权限门禁：list 与 action-options 需独立 `OPERATION_LOG:VIEW`（**审计分离**，2026-08-28 设计定案——不再复用 `SYSTEM_CONFIG:VIEW`；资源类型 OPERATION_LOG=30 权威 DDL 种子，bootstrap 固定图已授予管理角色）。变更日志（`log/change/list`）与权限视图（`permission-view/recent-changes`）的门禁仍为 `SYSTEM_CONFIG:VIEW`，随各自页面任务（T-PERM-032/033）处置。
+- 权限门禁：list 与 action-options 需独立 `OPERATION_LOG:VIEW`（**审计分离**，2026-08-28 设计定案——不再复用 `SYSTEM_CONFIG:VIEW`；资源类型 OPERATION_LOG=30 权威 DDL 种子，bootstrap 固定图已授予管理角色）。权限视图（`permission-view/recent-changes`）的门禁仍为 `SYSTEM_CONFIG:VIEW`，随 T-PERM-033 处置。
+
+**permission-change-log 契约要点（T-PERM-032 收口，2026-08-29）**：
+
+- 端点为 `POST /api/perm/log/change/list`（原 §5.8 表格误写 `/api/perm/permission-change-log/list`，已随 T-ACCESS-007 评审修正，此处补记）；无独立 detail——`ChangeLogResp` 含全字段（含 diffSnapshot），前端抽屉展示。
+- 筛选全集（维度对齐 schema 索引，2026-08-29 设计定案）：`entityType/entityId`（实体索引）、`eventType`（diff_snapshot.eventType 表达式索引，单选）、`affectedUserId/affectedRoleId`（affected_*_ids GIN 包含匹配）、`since/until`（created_at 闭区间，时间索引；ISO 无偏移墙钟字符串，同操作日志数字对齐口径）、`changeSource`（MANUAL/SERVICE_SYNC 精确匹配，低基数无索引）。服务端分页；页面与 recent-changes 统一条件组。
+- `ChangeLogResp` 暴露 `createdBy`（表 created_by，抽象用户 ID；名称解析归前端展示层）。
+- 权限门禁：独立 `PERMISSION_CHANGE_LOG:VIEW`（**审计分离**，2026-08-29 设计定案，对齐 OPERATION_LOG 先例；资源类型 PERMISSION_CHANGE_LOG=31 权威 DDL 种子，bootstrap 固定图已授予管理角色）。
+- `diff_snapshot.eventType` 增补第 7 枚举 `ROLE_BATCH_DELETE`（批量删除角色的聚合事件：entityId=0 + operation=BATCH_DELETE，items[] 逐角色列出；§6.8 同步），`operation` 列含 `BATCH_DELETE/BATCH_REMOVE`（批量聚合行专用，schema 注释已修正）。
 
 ## 6. 核心请求契约
 
@@ -1684,7 +1692,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 `diff_snapshot` 字段约束：
 
 - 顶层必须包含 `eventType` 和 `items[]`。
-- `eventType` 固定枚举：`USER_ROLE_CHANGE`、`ROLE_PERMISSION_CHANGE`、`ROLE_STATUS_CHANGE`、`RESOURCE_STATUS_CHANGE`、`CONDITION_CHANGE`、`RESOURCE_DEPENDENCY_CHANGE`（`GROUP_ROLE_CHANGE` 随 T-PERM-043 extra-roles 写入口删除移除——该事件类型自登记起无任何生产方）。
+- `eventType` 固定枚举：`USER_ROLE_CHANGE`、`ROLE_PERMISSION_CHANGE`、`ROLE_STATUS_CHANGE`、`RESOURCE_STATUS_CHANGE`、`CONDITION_CHANGE`、`RESOURCE_DEPENDENCY_CHANGE`、`ROLE_BATCH_DELETE`（批量删除角色的聚合事件，entityId=0 + operation=BATCH_DELETE，T-PERM-032 增补——原 6 枚举无一语义覆盖批量删除聚合；`GROUP_ROLE_CHANGE` 随 T-PERM-043 extra-roles 写入口删除移除——该事件类型自登记起无任何生产方）。
 - `items[].changeType` 固定枚举：`ADD`、`REMOVE`、`UPDATE`。
 - `recent-changes` 响应中的 `impactLevel` 固定枚举：`DIRECT` 表示直接命中查询对象，`POSSIBLE` 表示通过角色、资源、条件、分组等间接关系可能影响查询对象。
 - 权限项使用稳定业务键：`domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode`。

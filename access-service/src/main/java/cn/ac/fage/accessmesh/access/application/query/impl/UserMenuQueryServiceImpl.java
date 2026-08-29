@@ -92,7 +92,8 @@ public class UserMenuQueryServiceImpl implements UserMenuQueryService {
         ResourceTypeCode.DEPENDENCY,
         ResourceTypeCode.DOMAIN,
         ResourceTypeCode.SERVICE,
-        ResourceTypeCode.OPERATION_LOG
+        ResourceTypeCode.OPERATION_LOG,
+        ResourceTypeCode.PERMISSION_CHANGE_LOG
     );
 
     private final UserMenuQueryMapper userMenuQueryMapper;

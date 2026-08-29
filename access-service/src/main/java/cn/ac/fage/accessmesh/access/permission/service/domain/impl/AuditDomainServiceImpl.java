@@ -155,7 +155,8 @@ public class AuditDomainServiceImpl implements AuditDomainService {
     public List<PermissionChangeLog> queryRecentChanges(Long tenantId, Long userId, Long roleId,
                                                           LocalDateTime since, LocalDateTime until,
                                                           List<String> eventTypes, int offset, int limit) {
-        return changeLogMapper.selectFiltered(tenantId, userId, roleId, since, until, eventTypes, offset, limit);
+        return changeLogMapper.selectPageByCondition(tenantId, null, null, userId, roleId,
+                since, until, eventTypes, null, offset, limit);
     }
 
     /**
@@ -165,6 +166,7 @@ public class AuditDomainServiceImpl implements AuditDomainService {
     public long countRecentChanges(Long tenantId, Long userId, Long roleId,
                                     LocalDateTime since, LocalDateTime until,
                                     List<String> eventTypes) {
-        return changeLogMapper.countFiltered(tenantId, userId, roleId, since, until, eventTypes);
+        return changeLogMapper.countByCondition(tenantId, null, null, userId, roleId,
+                since, until, eventTypes, null);
     }
 }

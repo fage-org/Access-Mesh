@@ -10,6 +10,7 @@ import {
   entityTypeLabel,
   operationLabel,
   changeSourceLabel,
+  CHANGE_SOURCE_OPTIONS,
   EVENT_TYPE_META
 } from "./utils/types";
 import {
@@ -41,7 +42,7 @@ const tableRef = ref();
 
 // ========== 权限门控 ==========
 // 与 docs/design/frontend/permission-change-log.md §权限接线 对齐。
-// 后端 listChangeLogs 复用 SYSTEM_CONFIG:VIEW 门禁（无独立 PERMISSION_CHANGE_LOG 权限码）。
+// 后端独立 PERMISSION_CHANGE_LOG:VIEW 门禁（T-PERM-032 审计分离，对齐操作日志先例）。
 // computed 包装而非顶层 const，是为了响应 store.permissions 变化（角色切换时刷新）。
 const canView = computed(() => hasPerms(PERMISSION_CHANGE_LOG_PERMS.LOG_VIEW));
 
@@ -127,6 +128,71 @@ const columns = [
                 placeholder="精确匹配"
                 class="w-36!"
                 @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="事件类型" class="mb-0!">
+              <el-select
+                v-model="searchForm.eventType"
+                placeholder="全部"
+                clearable
+                filterable
+                class="w-44!"
+                @change="onSearch"
+              >
+                <el-option
+                  v-for="(meta, key) in EVENT_TYPE_META"
+                  :key="key"
+                  :label="meta.label"
+                  :value="key"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="变更来源" class="mb-0!">
+              <el-select
+                v-model="searchForm.changeSource"
+                placeholder="全部"
+                clearable
+                class="w-36!"
+                @change="onSearch"
+              >
+                <el-option
+                  v-for="opt in CHANGE_SOURCE_OPTIONS"
+                  :key="opt.value"
+                  :label="opt.label"
+                  :value="opt.value"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="受影响用户" class="mb-0!">
+              <el-input-number
+                v-model="searchForm.affectedUserId"
+                :controls="false"
+                :min="0"
+                placeholder="用户 ID"
+                class="w-36!"
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="受影响角色" class="mb-0!">
+              <el-input-number
+                v-model="searchForm.affectedRoleId"
+                :controls="false"
+                :min="0"
+                placeholder="角色 ID"
+                class="w-36!"
+                @keyup.enter="onSearch"
+              />
+            </el-form-item>
+            <el-form-item label="时间范围" class="mb-0!">
+              <el-date-picker
+                v-model="searchForm.timeRange"
+                type="datetimerange"
+                range-separator="至"
+                start-placeholder="开始时间"
+                end-placeholder="结束时间"
+                format="YYYY-MM-DD HH:mm:ss"
+                value-format="YYYY-MM-DDTHH:mm:ss"
+                class="w-72!"
               />
             </el-form-item>
             <el-form-item class="mb-0!">

@@ -62,10 +62,13 @@ public class LogQueryController {
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
         Long tenantId = TenantContextHolder.getTenantId();
-        long total = logQueryService.countChangeLogs(tenantId, req.entityType(), req.entityId());
+        long total = logQueryService.countChangeLogs(tenantId, req.entityType(), req.entityId(),
+                req.eventType(), req.changeSource(), req.affectedUserId(), req.affectedRoleId(),
+                req.since(), req.until());
         List<ChangeLogResp> items = logQueryService.listChangeLogs(
                 tenantId, req.entityType(), req.entityId(),
-                offset, pageSize);
+                req.eventType(), req.changeSource(), req.affectedUserId(), req.affectedRoleId(),
+                req.since(), req.until(), offset, pageSize);
         return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 

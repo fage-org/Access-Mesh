@@ -57,6 +57,7 @@ import {
 } from "../src/views/system/resource-dependency/utils/perms";
 import { PERMISSION_GRANT_PERM_LIST } from "../src/views/perm/grant/utils/perms";
 import { OPERATION_LOG_VIEW_PERMS } from "../src/views/system/operation-log/utils/perms";
+import { PERMISSION_CHANGE_LOG_VIEW_PERMS } from "../src/views/system/permission-change-log/utils/perms";
 
 /**
  * 角色 → perm 串清单。基于 AccessMesh 平台特性 + 契约 §7 业务域委派原则，
@@ -119,7 +120,9 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...CONFLICT_RULE_PERM_LIST,
     ...RESOURCE_DEPENDENCY_PERM_LIST,
     ...PERMISSION_GRANT_PERM_LIST,
-    ...OPERATION_LOG_VIEW_PERMS
+    ...OPERATION_LOG_VIEW_PERMS,
+    ...PERMISSION_CHANGE_LOG_VIEW_PERMS,
+    ...PERMISSION_CHANGE_LOG_VIEW_PERMS
   ],
   /** HR/组织人事管理员：A/B/D 全权 + C 只读（不分配功能角色）+ 2.2 只读角色 + 6.1 只读类型 + 6.2 只读配置 */
   hr: [
@@ -128,6 +131,7 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...TYPE_DEF_VIEW_PERMS,
     ...SYSTEM_CONFIG_VIEW_PERMS,
     ...OPERATION_LOG_VIEW_PERMS,
+    ...PERMISSION_CHANGE_LOG_VIEW_PERMS,
     P.ORG_ADD,
     P.ORG_EDIT,
     P.ORG_DELETE,
@@ -158,6 +162,7 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...TYPE_DEF_VIEW_PERMS,
     ...SYSTEM_CONFIG_VIEW_PERMS,
     ...OPERATION_LOG_VIEW_PERMS,
+    ...PERMISSION_CHANGE_LOG_VIEW_PERMS,
     P.USER_ROLE_ASSIGN,
     P.USER_ROLE_REVOKE,
     RP.ROLE_ADD,
@@ -207,7 +212,9 @@ const ROLE_PERM_MATRIX: Record<string, readonly string[]> = {
     ...RESOURCE_OPERATION_VIEW_PERMS,
     ...CONFLICT_RULE_VIEW_PERMS,
     ...RESOURCE_DEPENDENCY_VIEW_PERMS,
-    ...OPERATION_LOG_VIEW_PERMS
+    ...OPERATION_LOG_VIEW_PERMS,
+    ...PERMISSION_CHANGE_LOG_VIEW_PERMS,
+    ...PERMISSION_CHANGE_LOG_VIEW_PERMS
   ]
 };
 

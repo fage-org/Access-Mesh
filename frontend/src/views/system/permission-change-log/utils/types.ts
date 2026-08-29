@@ -3,21 +3,34 @@ import type {
   DiffChangeType
 } from "@/api/permission-change-log";
 
-/** 变更日志筛选表单（对齐后端 ChangeLogListReq 的可选过滤维度）。
- *  仅 entityType/entityId 两项--后端 Req 只支持这两个筛选维度。
- *  🔧 其余维度（eventType/changeSource/时间范围/affected user·role）登记 T-PERM-032 后端补。 */
+/** 变更日志筛选表单（对齐后端 ChangeLogListReq 的可选过滤维度，T-PERM-032 收口：筛选全集）。 */
 export interface ChangeLogSearchForm {
   /** 实体类型筛选（null=全部） */
   entityType: string | null;
   /** 实体 ID 筛选（null=全部） */
   entityId: number | null;
+  /** 事件类型筛选（diff_snapshot.eventType，null=全部） */
+  eventType: DiffEventType | null;
+  /** 变更来源筛选（MANUAL/SERVICE_SYNC，null=全部） */
+  changeSource: string | null;
+  /** 受影响用户 ID 筛选（null=全部） */
+  affectedUserId: number | null;
+  /** 受影响角色 ID 筛选（null=全部） */
+  affectedRoleId: number | null;
+  /** 创建时间范围（datetimerange；序列化取墙钟分量对齐展示数字） */
+  timeRange: [Date, Date] | null;
 }
 
-/** 空筛选表单工厂（entityType/entityId 均 null=全部） */
+/** 空筛选表单工厂（全部维度 null=不过滤） */
 export function createEmptySearchForm(): ChangeLogSearchForm {
   return {
     entityType: null,
-    entityId: null
+    entityId: null,
+    eventType: null,
+    changeSource: null,
+    affectedUserId: null,
+    affectedRoleId: null,
+    timeRange: null
   };
 }
 
@@ -50,7 +63,10 @@ export const OPERATION_OPTIONS: ReadonlyArray<{
 }> = [
   { label: "新增", value: "INSERT" },
   { label: "更新", value: "UPDATE" },
-  { label: "删除", value: "DELETE" }
+  { label: "删除", value: "DELETE" },
+  /** entityId=0 批量聚合行专用（T-PERM-032 对齐后端写入值与 schema 注释） */
+  { label: "批量删除", value: "BATCH_DELETE" },
+  { label: "批量移除", value: "BATCH_REMOVE" }
 ];
 
 /**
@@ -79,7 +95,9 @@ export const EVENT_TYPE_META: Record<
   ROLE_STATUS_CHANGE: { label: "角色状态变更", type: "info" },
   RESOURCE_STATUS_CHANGE: { label: "资源状态变更", type: "info" },
   CONDITION_CHANGE: { label: "条件变更", type: "primary" },
-  RESOURCE_DEPENDENCY_CHANGE: { label: "资源依赖变更", type: "warning" }
+  RESOURCE_DEPENDENCY_CHANGE: { label: "资源依赖变更", type: "warning" },
+  /** 批量删除角色的聚合事件（entityId=0 + operation=BATCH_DELETE；T-PERM-032 契约收口补枚举） */
+  ROLE_BATCH_DELETE: { label: "角色批量删除", type: "danger" }
 };
 
 /**

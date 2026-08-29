@@ -89,7 +89,7 @@
 | T-PERM-029 | 3.2 权限条件后端 | frontend-phase2 | api-contract §5.6；implementation §2.5 | T-FE-009 | ⚙️ | ⏳ |
 | T-PERM-030 | 3.3 冲突规则后端 | frontend-phase2 | api-contract §5.6；implementation §2.4；design/frontend/conflict-rule.md §4 | T-FE-010 | ⚙️ | ⏳ |
 | T-PERM-031 | 3.4 资源依赖后端 | frontend-phase2 | api-contract §5.6/§6.9；core-flows §12 | T-FE-011 | ⚙️ | ⏳ |
-| T-PERM-032 | 7.2 变更日志后端 | frontend-phase2 | api-contract §5.8/§6.8；implementation §2.3 | T-FE-012 | ⚙️ | ⏳ |
+| T-PERM-032 | 7.2 变更日志后端（已收口 2026-08-29，终态见 design/frontend/permission-change-log.md §5） | frontend-phase2 | api-contract §5.8/§6.8；implementation §2.3 | T-FE-012 | ✅ | ✓ |
 | T-PERM-033 | 4.2 权限查询后端（门禁统一 + DTO 扩展；聚合层已取消，直连 /api/perm/*） | frontend-phase2 | api-contract §6.6-§6.8；implementation；design/frontend/permission-query.md | T-FE-013 | ⚙️ | ⏳ |
 | [T-PERM-034](T-PERM-034.md) | 4.1 权限授予后端（见任务卡；第 5 项旧端点退役已随 2026-08-27 端点退役收口） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；permission-grant.md §12；access-service.sql | T-PERM-031 | ⚙️ | ⏳ |
 | [T-PERM-035](T-PERM-035.md) | 自动授权（resolveAutoGrants + autoGrantForInsert + 循环依赖检测）— ⚠️ design-review §11 E4 暂缓未排期 | [frontend-phase2](../plans/frontend-phase2-plan.md) | core-flows §12；implementation §4；api-contract | T-PERM-034 | ⚙️ | ⏳ |

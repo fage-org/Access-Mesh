@@ -142,7 +142,7 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(1)
-    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+13API 资源/12 映射/21 授权）")
+    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+13API 资源/12 映射/23 授权）")
     void createsFullGraphOnEmptyDatabase() {
         initializer.initialize(BOOTSTRAP_PASSWORD);
 
@@ -209,17 +209,17 @@ class AccessBootstrapPgIT {
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 AND re.code = 'POST:/admin/role/my-info'",
             Long.class, TENANT)).isEqualTo(0L);
 
-        // 22 条授权（T-API-001 + T-PERM-025）：9 条业务门禁 scopeAll（含 SERVICE:MANAGE_API_MAPPING 类型级
-        // 与 API:ACCESS 类型级+canGrant、OPERATION_LOG:VIEW）+ 13 条实例（13 API:ACCESS）；canGrant=true 共 2 条
-        // （目标 API 实例 + API:ACCESS 类型级）
+        // 23 条授权（T-API-001 + T-PERM-025/032）：10 条业务门禁 scopeAll（含 SERVICE:MANAGE_API_MAPPING
+        // 类型级与 API:ACCESS 类型级+canGrant、OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW）
+        // + 13 条实例（13 API:ACCESS）；canGrant=true 共 2 条（目标 API 实例 + API:ACCESS 类型级）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(22L);
+            Long.class, TENANT, roleId)).isEqualTo(23L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
-            Long.class, TENANT, roleId)).isEqualTo(9L);
+            Long.class, TENANT, roleId)).isEqualTo(10L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND can_grant = true",

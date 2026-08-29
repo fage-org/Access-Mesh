@@ -61,7 +61,8 @@
 --     OPERATION=12 / CONDITION=13 / CONFLICT_RULE=14 / DEPENDENCY=15 / ADMIN_DICT=20 /
 --     ADMIN_DICT_DATA=21 / ADMIN_OAUTH2_CLIENT=23 / ADMIN_NOTICE=24 / ADMIN_FILE=25 /
 --     ADMIN_JOB=26 / ADMIN_ORG_TREE_CONFIG=27 / ORG=29（新值，退役值 17 不复用）/
---     OPERATION_LOG=30（操作日志查询门禁，T-PERM-025 审计分离）
+--     OPERATION_LOG=30（操作日志查询门禁，T-PERM-025 审计分离）、
+--     PERMISSION_CHANGE_LOG=31（权限变更日志查询门禁，T-PERM-032 审计分离）
 --   收敛映射：ADMIN_USER(16)→USER(6)、ADMIN_ROLE(18)→ROLE(5)、ADMIN_MENU(19)→MENU(1)、
 --     ADMIN_CONFIG(22)→SYSTEM_CONFIG(11)、ADMIN_ORG(17)→ORG(29)；ADMIN_SYNC_TASK(28) 删除；
 --     退役段 16/17/18/19/22/28 不复用；ADMIN_DICT/ADMIN_DICT_DATA/ADMIN_OAUTH2_CLIENT/
@@ -655,7 +656,8 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
     (1, 'role_type', 'GROUP_ROLE', 5, '分组角色', true, 5, 0, now(), now()),
     (1, 'role_type', 'BASIC_ROLE', 6, '基本角色', true, 6, 0, now(), now()),
     -- resource_type（T-ACCESS-016 §13.1 终态：五组管理类型已并入 USER/ROLE/MENU/
-    --   SYSTEM_CONFIG/ORG，ADMIN_SYNC_TASK 删除；T-PERM-025 增 OPERATION_LOG=30；
+    --   SYSTEM_CONFIG/ORG，ADMIN_SYNC_TASK 删除；T-PERM-025 增 OPERATION_LOG=30、
+--   T-PERM-032 增 PERMISSION_CHANGE_LOG=31；
     --   退役值 16/17/18/19/22/28 不复用；全表见文件头部终值分配表）
     (1, 'resource_type', 'MENU',                1,  '菜单',         true,  1, 0, now(), now()),
     (1, 'resource_type', 'BUTTON',              2,  '按钮',         true,  2, 0, now(), now()),
@@ -680,7 +682,8 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
     (1, 'resource_type', 'ADMIN_JOB',          26,  '定时任务',     true, 26, 0, now(), now()),
     (1, 'resource_type', 'ADMIN_ORG_TREE_CONFIG', 27, '组织树配置', true, 27, 0, now(), now()),
     (1, 'resource_type', 'ORG',                29, '组织管理',     true, 29, 0, now(), now()),
-    (1, 'resource_type', 'OPERATION_LOG',      30, '操作日志',     true, 30, 0, now(), now());
+    (1, 'resource_type', 'OPERATION_LOG',      30, '操作日志',     true, 30, 0, now(), now()),
+    (1, 'resource_type', 'PERMISSION_CHANGE_LOG', 31, '权限变更日志', true, 31, 0, now(), now());
 
 -- -----------------------------------------------------------------------------
 -- 18. biz_domain - 业务域表（扁平列表，无启停，引用检查拒删）
@@ -1305,11 +1308,11 @@ CREATE INDEX idx_change_log_event_time ON permission_change_log (tenant_id, (dif
 
 COMMENT ON TABLE permission_change_log IS '权限变更记录：详细记录权限相关变更的 before/after/diff，方便排查用户因配置问题导致权限失效';
 COMMENT ON COLUMN permission_change_log.entity_type IS '变更实体类型：user_role/role_resource_permission/abstract_user/abstract_role 等';
-COMMENT ON COLUMN permission_change_log.operation IS '操作：INSERT/UPDATE/DELETE';
+COMMENT ON COLUMN permission_change_log.operation IS '操作：INSERT/UPDATE/DELETE/BATCH_DELETE/BATCH_REMOVE（后两者为 entityId=0 批量聚合行专用）';
 COMMENT ON COLUMN permission_change_log.old_snapshot IS '变更前快照(JSON)';
 COMMENT ON COLUMN permission_change_log.new_snapshot IS '变更后快照(JSON)';
 COMMENT ON COLUMN permission_change_log.diff_snapshot IS '结构化变更摘要(JSON)，用于权限排查展示和筛选。顶层包含 eventType + items[]，eventType/changeType 使用契约固定枚举；只描述本次写操作直接改变了什么，不计算用户最终有效权限 diff';
-COMMENT ON COLUMN permission_change_log.change_source IS '变更来源：ADMIN/SYNC/API/SYSTEM';
+COMMENT ON COLUMN permission_change_log.change_source IS '变更来源：MANUAL/SERVICE_SYNC（复用 PermConstants.MaintainSource）';
 COMMENT ON COLUMN permission_change_log.request_id IS '请求/追踪ID(trace_id)，同一次操作的多条记录通过此关联';
 
 -- -----------------------------------------------------------------------------

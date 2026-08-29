@@ -62,7 +62,7 @@ public class AccessBootstrapInitializer {
     private static final Set<String> GRANT_RESOURCE_TYPES = Set.of(
         ResourceTypeCode.API, ResourceTypeCode.SERVICE, ResourceTypeCode.USER, ResourceTypeCode.ROLE,
         ResourceTypeCode.TYPE_DEFINITION, ResourceTypeCode.RESOURCE, ResourceTypeCode.OPERATION,
-        ResourceTypeCode.OPERATION_LOG);
+        ResourceTypeCode.OPERATION_LOG, ResourceTypeCode.PERMISSION_CHANGE_LOG);
 
     /** sys_user.user_type：本地用户管理展示值（与 createUser 链一致；权限域类型由投影链解析） */
     private static final int SYS_USER_TYPE_PERSON = 1;

@@ -30,8 +30,10 @@ import java.util.stream.Collectors;
  * 日志查询服务实现类
  * <p>
  * 提供变更日志和操作日志的只读查询功能。
- * 所有查询均需要SYSTEM_CONFIG_VIEW权限。
- * 支持按实体类型、用户、角色、时间范围、事件类型等多维度过滤查询。
+ * 门禁（审计分离）：变更日志页 listChangeLogs/countChangeLogs 需 PERMISSION_CHANGE_LOG:VIEW
+ * （T-PERM-032），操作日志需 OPERATION_LOG:VIEW（T-PERM-025）；recent-changes 仍需
+ * SYSTEM_CONFIG:VIEW（随 T-PERM-033 处置）。
+ * 支持按实体、用户、角色、时间范围、事件类型、变更来源等多维度过滤查询。
  * </p>
  */
 @Service
@@ -82,13 +84,21 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      * @throws SecurityException 无权限时抛出
      */
     @Override
-    public List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId, int offset, int limit) {
+    public List<ChangeLogResp> listChangeLogs(Long tenantId, String entityType, Long entityId,
+                                              String eventType, String changeSource,
+                                              Long affectedUserId, Long affectedRoleId,
+                                              LocalDateTime since, LocalDateTime until,
+                                              int offset, int limit) {
+        // T-PERM-032 审计分离：变更日志页切独立 PERMISSION_CHANGE_LOG:VIEW（对齐 OPERATION_LOG
+        // 先例；recent-changes 的门禁仍为 SYSTEM_CONFIG:VIEW，随 T-PERM-033 处置）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.PERMISSION_CHANGE_LOG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on PERMISSION_CHANGE_LOG");
         }
 
-        return changeLogMapper.selectByTenantEntityTypeEntityId(tenantId, entityType, entityId, offset, limit)
+        return changeLogMapper.selectPageByCondition(tenantId, normalize(entityType), entityId,
+                affectedUserId, affectedRoleId, since, until,
+                toEventTypeList(eventType), normalize(changeSource), offset, limit)
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
@@ -106,13 +116,18 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      * @throws SecurityException 无权限时抛出
      */
     @Override
-    public long countChangeLogs(Long tenantId, String entityType, Long entityId) {
+    public long countChangeLogs(Long tenantId, String entityType, Long entityId,
+                                 String eventType, String changeSource,
+                                 Long affectedUserId, Long affectedRoleId,
+                                 LocalDateTime since, LocalDateTime until) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.PERMISSION_CHANGE_LOG, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on PERMISSION_CHANGE_LOG");
         }
 
-        return changeLogMapper.countByTenantEntityTypeEntityId(tenantId, entityType, entityId);
+        return changeLogMapper.countByCondition(tenantId, normalize(entityType), entityId,
+                affectedUserId, affectedRoleId, since, until,
+                toEventTypeList(eventType), normalize(changeSource));
     }
 
     /**
@@ -142,7 +157,8 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
-        return changeLogMapper.selectFiltered(tenantId, userId, roleId, since, until, eventTypes, offset, limit)
+        return changeLogMapper.selectPageByCondition(tenantId, null, null, userId, roleId,
+                        since, until, eventTypes, null, offset, limit)
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }
 
@@ -171,7 +187,8 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
-        return changeLogMapper.countFiltered(tenantId, userId, roleId, since, until, eventTypes);
+        return changeLogMapper.countByCondition(tenantId, null, null, userId, roleId,
+                since, until, eventTypes, null);
     }
 
     // ===== 最近变更查询 =====
@@ -325,12 +342,17 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      * @param c 权限变更日志实体
      * @return 变更日志响应对象
      */
+    /** 页面单选 eventType 规整为单元素集合（空白归 null 不过滤） */
+    private List<String> toEventTypeList(String eventType) {
+        return eventType != null && !eventType.isBlank() ? List.of(eventType.trim()) : null;
+    }
+
     private ChangeLogResp toChangeLogResp(PermissionChangeLog c) {
         return new ChangeLogResp(
             c.getId(), c.getTenantId(), c.getEntityType(),
             c.getEntityId(), c.getOperation(), c.getOldSnapshot(), c.getNewSnapshot(),
             c.getDiffSnapshot(), c.getAffectedAbstractUserIds(), c.getAffectedAbstractRoleIds(),
-            c.getChangeReason(), c.getChangeSource(), c.getRequestId(), c.getCreatedAt()
+            c.getChangeReason(), c.getChangeSource(), c.getCreatedBy(), c.getRequestId(), c.getCreatedAt()
         );
     }
 

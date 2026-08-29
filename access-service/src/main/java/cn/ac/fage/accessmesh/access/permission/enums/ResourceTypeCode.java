@@ -119,6 +119,9 @@ public final class ResourceTypeCode {
      */
     public static final String OPERATION_LOG = "OPERATION_LOG";
 
+    /** 权限变更日志（T-PERM-032 审计分离：变更日志页查询门禁，对齐 OPERATION_LOG 先例） */
+    public static final String PERMISSION_CHANGE_LOG = "PERMISSION_CHANGE_LOG";
+
     /**
      * 操作权限资源编码
      * <p>

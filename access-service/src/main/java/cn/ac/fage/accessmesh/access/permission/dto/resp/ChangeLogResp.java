@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
  * @param affectedAbstractRoleIds 受影响的角色ID数组
  * @param changeReason         变更原因
  * @param changeSource         变更来源编码
+ * @param createdBy  操作人 ID（表 created_by，抽象用户 ID；名称解析归前端展示层）
  * @param requestId            请求ID，用于关联追踪
  * @param createdAt            创建时间
  */
@@ -37,6 +38,7 @@ public record ChangeLogResp(
     Long[] affectedAbstractRoleIds,
     String changeReason,
     String changeSource,
+    Long createdBy,
     String requestId,
     LocalDateTime createdAt
 ) {}

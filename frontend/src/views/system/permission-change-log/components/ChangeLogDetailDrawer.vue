@@ -79,6 +79,9 @@ const handleClose = () => {
         <el-descriptions-item label="变更原因">
           <span class="summary-text">{{ log.changeReason || "-" }}</span>
         </el-descriptions-item>
+        <el-descriptions-item label="操作人 ID">
+          <span class="font-mono">{{ log.createdBy ?? "-" }}</span>
+        </el-descriptions-item>
         <el-descriptions-item label="请求 ID">
           <span class="font-mono">{{ log.requestId || "-" }}</span>
         </el-descriptions-item>
