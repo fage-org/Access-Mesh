@@ -116,7 +116,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-026 后端收口终态化（业�
 ### 4.2 主表：新增业务域
 
 - 顶部「新增业务域」按钮（门禁 `SYSTEM_CONFIG:MANAGE`，即 CONFIG_SAVE）→ BizDomainForm 弹窗。
-- 表单：code 可填、name、description。提交 → `createBizDomain`（code+name+description）→ mock 校验 code 唯一后 insert（自动分配 id+时间戳）→ 成功 `loadTable`。
+- 表单：code 可填、name、description。提交 → `createBizDomain`（code+name+description）→ 后端查重（重复 20052，uk_biz_domain 兜底）后落库 → 成功 `loadTable`。
 
 ### 4.3 主表：编辑业务域
 
@@ -140,13 +140,13 @@ last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-026 后端收口终态化（业�
 
 - 下区「新增配置」按钮（`v-if="canManage && currentDomain"`，门禁 `SYSTEM_CONFIG:MANAGE`）→ DomainConfigForm 弹窗。
 - 表单：domainCode（只读展示当前域）、configType 下拉 2 选 1（SUB_PERM/CLASSIFY）、extra textarea（默认 `{}`）。提交前 `JSON.parse` 校验 extra。
-- 提交 → `saveDomainConfig`（domainCode + configType + extra）→ mock upsert（不存在则 insert，自动分配 id+时间戳）→ 成功 `loadConfigs`。
+- 提交 → `saveDomainConfig`（domainCode + configType + extra）→ 后端 upsert（JSON 校验 + 白名单 + 按 domainCode+configType 幂等）→ 成功 `loadConfigs`。
 
 ### 4.7 子表：编辑域配置
 
 - 子表操作列「编辑」按钮（`v-if="canManage"`，门禁 `SYSTEM_CONFIG:MANAGE`）→ DomainConfigForm 弹窗。
 - 编辑态：configType 只读（upsert 键稳定），extra 可改。提交前 `JSON.parse` 校验。
-- 提交 → `saveDomainConfig`（同 domainCode+configType 覆盖，upsert update 分支）→ mock 更新 extra/updatedAt → 成功 `loadConfigs`。
+- 提交 → `saveDomainConfig`（同 domainCode+configType 覆盖，upsert update 分支）→ 后端更新 extra/updatedAt → 成功 `loadConfigs`。
 
 ### 4.8 子表：删除域配置
 
@@ -272,3 +272,5 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026；�
 - ~~全局域不可删靠 mock 校验~~ → Resp 返回 global 后前端预判禁用删除按钮 + 后端 remove 删除保护（20051）双层兜底；bootstrap 固定图已补 DOMAIN:VIEW（空库可访问，§7）。
 - **删除二次确认**：业务域/域配置删除均在 hook `handleDelete*` 内前置 `ElMessageBox.confirm`（对齐 role/type-def 范式，持久配置类资源防误删）。
 - **子表权限守卫**：「配置」按钮 `v-if="canViewConfig"` 隐藏无权入口；`selectDomain(row, canViewConfig)` 双保险守卫，无 `SYSTEM_CONFIG:VIEW` 时只选中域不发 /list 请求，避免可避免的 403。
+- **全局域创建入口缺失（登记 T-PERM-046）**：DDL 注释称「全局域由管理 API 创建」，但 create 固定 global=false，真库无任何入口能创建 global=true 域（mock 有 GLOBAL 种子、真库无）——uk_biz_domain_global 与「全局域不可删」保护在真库形同虚设；DomainClassifyService 对全局域缺失容忍（语义退化但不报错）。
+- **domain_config 并发双插已知限制（登记 T-PERM-046）**：save 的 check-then-insert 在并发窗口可双插同键两行（表无唯一键，仅普通索引）；每域至多 2 条配置、管理页低并发，实际风险极低，契约 §5.6 已标注。

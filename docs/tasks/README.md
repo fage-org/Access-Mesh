@@ -9,7 +9,7 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 029 |
-| permission-center | `T-PERM` | 046 |
+| permission-center | `T-PERM` | 047 |
 | admin-service | `T-ADMIN` | 026 |
 | gateway | `T-GW` | 008 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
@@ -103,6 +103,7 @@
 | [T-PERM-043](T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | product-vertical-slice（已归档） | api-contract；implementation；frontend/role-manage；frontend/permission-grant | T-ACCESS-019, T-ACCESS-021 | ✅ | ✓ |
 | [T-PERM-044](T-PERM-044.md) | 三棵树 move 并发成环窗口与递归 CTE 遇环不收敛统一加固 | — | [T-PERM-044](T-PERM-044.md) | — | ⚙️ | ⏳ |
 | [T-PERM-045](T-PERM-045.md) | 内部管理门禁统一启用子级继承（父有权子有权） | — | [T-PERM-045](T-PERM-045.md) | — | ⚙️ | ⏳ |
+| [T-PERM-046](T-PERM-046.md) | 业务域后端两项加固（全局域创建入口设计 + domain_config 唯一键兜底；T-PERM-026 双轨评审登记） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 

@@ -174,6 +174,30 @@ class BizDomainConfigPgIT {
     }
 
     @Test
+    @DisplayName("写链路真库锁：insert 落库（global=false）+ update 空串清空落库 / null 列忽略")
+    void shouldPersistCreateAndUpdateSemanticsOnRealPostgres() {
+        BizDomain domain = insertDomain("PGITWRI", false);
+
+        // create 落库：global 列 NOT NULL DEFAULT false，显式 setGlobal(false) 必须真实落库
+        BizDomain inserted = bizDomainMapper.selectByCode(TENANT, "PGITWRI");
+        assertThat(inserted).isNotNull();
+        assertThat(inserted.getGlobal()).isFalse();
+        assertThat(inserted.getName()).isEqualTo("PGITWRI 域");
+
+        // update：description 空串=显式清空（空串列被写入）
+        inserted.setDescription("");
+        inserted.setUpdatedAt(LocalDateTime.now());
+        bizDomainMapper.update(inserted);
+        assertThat(bizDomainMapper.selectByCode(TENANT, "PGITWRI").getDescription()).isEmpty();
+
+        // update：字段 null=列被忽略不置 NULL（MyBatis-Flex 默认 ignore-nulls；name 不更新）
+        inserted.setDescription(null);
+        inserted.setUpdatedAt(LocalDateTime.now());
+        bizDomainMapper.update(inserted);
+        assertThat(bizDomainMapper.selectByCode(TENANT, "PGITWRI").getDescription()).isEmpty();
+    }
+
+    @Test
     @DisplayName("list keyword 过滤与 ORDER BY code, id 分页")
     void shouldFilterAndPageBizDomainsOnRealPostgres() {
         insertDomain("PGITPAGEAALPHA", false);

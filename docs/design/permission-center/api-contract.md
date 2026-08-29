@@ -165,7 +165,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.1 biz-domain 契约要点 + §5.6 d
 
 **biz-domain 契约要点（T-PERM-026 收口，2026-08-29）**：
 
-- `detail`/`update` 切业务键 `code` 定位（`uk_biz_domain(tenant_id, code)`，软删行不占用；原内部主键 `id`/`domainId` 退役）：`detail` 请求 `{domainCode}`，未知编码返回 `data=null` 不抛错（role detail 先例）；`update` 请求 `{domainCode, name?, description?}`——`code` 不可改（改 code 等于新建新域），`name/description` 为 null 表示不更新、`description` 传空串表示显式清空；未命中 **20017** `DOMAIN_NOT_FOUND`。
+- `detail`/`update` 切业务键 `code` 定位（`uk_biz_domain(tenant_id, code)`，软删行不占用；detail/update 的定位键由内部主键退役——`remove` 仍收 `{ids}` 批量软删、`BizDomainResp` 保留 `id`，type-definition 先例）：`detail` 请求 `{domainCode}`，未知编码返回 `data=null` 不抛错（role detail 先例）；`update` 请求 `{domainCode, name?, description?}`——`code` 不可改（改 code 等于新建新域），`name/description` 为 null 表示不更新、`description` 传空串表示显式清空；未命中 **20017** `DOMAIN_NOT_FOUND`。
 - `list`：`{keyword?, pageNum?, pageSize?}` → 分页结构（§3.3）；`keyword` 匹配 code/name/description（LIKE，大小写敏感），排序 `code, id`；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`、`/system-config/list`）。门禁 DOMAIN:VIEW 类型级（与 detail 同级，先于查询避免存在性泄露）。
 - `create`：`{code, name, description?}`——编码重复拒绝 **20052** `DOMAIN_CODE_DUPLICATE`（预查 + `uk_biz_domain` 唯一索引 DIVE 兜底同映射，TypeDefinition 先例）；API 创建固定普通域（`global=false`，全局域不在此入口创建）。
 - `remove` 删除保护（**20051** `DOMAIN_DELETE_CONFLICT`，message 区分原因）：全局域（`global=true`，每租户唯一）不可删；域下仍存在有效 `domain_config` 行时引用检查拒删（schema「删除前检查引用」落地，需先删除该域下配置）；整批校验失败则整批不变更。
@@ -353,11 +353,12 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.1 biz-domain 契约要点 + §5.6 d
 
 **domain-config 契约要点（T-PERM-026 收口，2026-08-29）**：
 
-- `save`（upsert）：`{domainCode, configType, extra}`——按 `domainCode+configType` 查存在则 update `extra`、不存在则 insert（新建/编辑统一走 save）；`configType` 白名单仅接受 `SUB_PERM/CLASSIFY`（历史设想类型 SCOPE/RELATION/BINDING 未实现，写入校验拒绝）；`extra` 为 JSON 字符串，写入前经 `JsonValidationUtils` 语法校验（非法 JSON fail-closed，system-config `configValue` 同范式）；未知 domainCode 拒绝 **20017** `DOMAIN_NOT_FOUND`。
+- `save`（upsert）：`{domainCode, configType, extra}`——按 `domainCode+configType` 查存在则 update `extra`、不存在则 insert（新建/编辑统一走 save）；`configType` 白名单仅接受 `SUB_PERM/CLASSIFY`（历史设想类型 SCOPE/RELATION/BINDING 未实现，写入校验拒绝）；`extra` 为 JSON 字符串，写入前经 `JsonValidationUtils` 语法校验（非法 JSON fail-closed，统一异常通道返回 `code=400` 参数错误，system-config `configValue` 同款）；未知 domainCode 拒绝 **20017** `DOMAIN_NOT_FOUND`。
 - `detail`：`{domainCode, configType}` 业务键二元组，未命中 `data=null` 不抛错。
 - `list`：`{domainCode?}` 过滤（不传全量），量小不分页（每域至多 SUB_PERM/CLASSIFY 两条）。
 - `extra` JSONB↔String 映射已确认（`JsonbStringTypeHandler`，BizDomainConfigPgIT 真库锁定）：读出为 DB 规范化 JSON 文本，语义等价、可直接再提交。
 - 权限门禁：读（list/detail）`SYSTEM_CONFIG:VIEW`；写（save/remove）`SYSTEM_CONFIG:MANAGE`。
+- 已知限制（登记 T-PERM-046）：表无唯一键，save 的 check-then-insert 在并发窗口可对同 domainCode+configType 双插两行（每域至多 2 条配置、管理页低并发，实际风险极低）。
 
 ### 5.7 运行时鉴权与权限查询
 

@@ -39,7 +39,7 @@ last_updated: 2026-08-29
 
 T-FE-006 前端业务域页（主从：BizDomain CRUD 主表 + DomainConfig 子表）在 API 核对中登记 6 项 🔧（biz-domain.md §8）：DOMAIN 权限种子、Resp 缺 global、detail/update 内部主键、list 无分页、configType 注释（已先期收口）、extra JSONB 映射确认。
 
-## 设计定案（2026-08-29，两项用户决策）
+## 设计定案（2026-08-29）
 
 1. **DOMAIN:VIEW 补入 bootstrap 固定图**：checkCanGrant 要求操作者先持有才能转授，固定图不持则空库上业务域页读路径无授予起点（死锁）——对齐 T-PERM-025 OPERATION_LOG:VIEW / T-PERM-032 PERMISSION_CHANGE_LOG:VIEW 先例；businessGrants + GRANT_RESOURCE_TYPES 同步，AccessBootstrapPgIT 计数 23→24 / scopeAll 10→11。
 2. **错误码承载**：20051 DOMAIN_DELETE_CONFLICT（全局域不可删 + 域配置引用拒删，同一删除被拒语义、message 区分两类原因）+ 20052 DOMAIN_CODE_DUPLICATE（create 编码重复）；对齐「每类拒绝语义一码」惯例（20049/20050 先例）。
@@ -59,4 +59,4 @@ T-FE-006 前端业务域页（主从：BizDomain CRUD 主表 + DomainConfig 子�
 
 ## 完成记录
 
-- 2026-08-29 收口：P0 列名隐患修复 + 六项 🔧 全处置（第 1 项误报反转、第 5 项先期已收口）+ 两项设计定案（DOMAIN:VIEW 固定图、错误码 20051/20052）+ 前端与 mock 双注册表对齐；后端单测/PgIT/快照/bootstrap 计数全绿，前端 typecheck+vitest 全绿。
+- 2026-08-29 收口：P0 列名隐患修复 + 六项 🔧 全处置（第 1 项误报反转、第 5 项先期已收口）+ 两项设计定案（DOMAIN:VIEW 固定图、错误码 20051/20052）+ 前端与 mock 双注册表对齐；后端单测/PgIT/快照/bootstrap 计数全绿，前端 typecheck+vitest 全绿。评审登记两项模型层已知限制归 T-PERM-046（全局域创建入口缺失、domain_config 并发双插无唯一键兜底）。

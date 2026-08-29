@@ -133,6 +133,22 @@ class BizDomainAppServiceImplTest {
             () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null), 100L));
     }
 
+    @Test
+    void shouldNotMapGlobalUniqueIndexViolationTo20052() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(true);
+        when(bizDomainMapper.selectByCode(1L, "HR")).thenReturn(null);
+        // uk_biz_domain 是 uk_biz_domain_global 的前缀：裸子串匹配会误吞全局域唯一索引违例
+        // 映射成 20052「编码重复」，带引号精确匹配下应原样重抛（当前 create 固定 global=false
+        // 不可达，防御性回归锁——旧实现下本用例失败）
+        when(bizDomainMapper.insert(any(BizDomain.class)))
+            .thenThrow(new DataIntegrityViolationException(
+                "duplicate key value violates unique constraint \"uk_biz_domain_global\""));
+
+        assertThrows(DataIntegrityViolationException.class,
+            () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null), 100L));
+    }
+
     // ===== detail（业务键 code + 类型级 DOMAIN:VIEW 门禁）=====
 
     @Test

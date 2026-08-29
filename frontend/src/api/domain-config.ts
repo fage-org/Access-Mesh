@@ -13,7 +13,7 @@
  * - detail 按 domainCode + configType 业务键二元组查（非内部主键，与 biz-domain detail 不同）。
  * - list 按 domainCode 过滤（不传则全量）。
  * - extra 为 JSON 字符串（schema 是 JSONB，entity 映射为 String；前端按字符串编辑 + JSON.parse 校验，
- *   🔧 JSONB↔String 映射确认登记 T-PERM-026）。
+ *   后端 save 亦经 JsonValidationUtils 校验；JSONB↔String 映射已随 T-PERM-026 PgIT 确认语义等价）。
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";

@@ -93,7 +93,8 @@ import { PERMISSION_CHANGE_LOG_VIEW_PERMS } from "../src/views/system/permission
  *
  * 5.1 业务域页涉及**两个资源类型**门禁：
  * - biz-domain list/detail 门禁 `DOMAIN:VIEW`（独立资源类型 DOMAIN，后端 listBizDomains/getBizDomain 校验）。
- *   🔧 DOMAIN 权限种子缺失（schema 无 INSERT 为 DOMAIN 预置 VIEW 操作位），登记 T-PERM-026。
+ *   种子接入已收口（T-PERM-026）：DDL CRUD 预置组已覆盖 DOMAIN VIEW（原「种子缺失」为误报），
+ *   真实缺口 bootstrap 固定图已补 DOMAIN:VIEW。
  *   本矩阵为所有账号预置 DOMAIN:VIEW（业务域是基础设施，各角色均可见列表）。
  * - biz-domain create/update/remove + domain-config save/remove 门禁 `SYSTEM_CONFIG:MANAGE`（复用，与 6.2 同源）。
  * - domain-config list/detail 门禁 `SYSTEM_CONFIG:VIEW`（复用）。

@@ -68,7 +68,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
      * @return 配置响应
      * @throws SecurityException       无权限时抛出
      * @throws BizException            域不存在时抛出
-     * @throws IllegalArgumentException extra 非法 JSON 时抛出（统一异常处理映射校验失败）
+     * @throws IllegalArgumentException extra 非法 JSON 时抛出（统一异常处理映射 code=400 参数错误）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)

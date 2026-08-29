@@ -104,8 +104,10 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         try {
             bizDomainMapper.insert(domain);
         } catch (DataIntegrityViolationException e) {
-            // DB 唯一索引兜底（TypeDefinition/ConflictRule 同模式）：并发窗口重复编码映射 20052 而非裸 99999
-            if (isUniqueViolationOn(e, "uk_biz_domain")) {
+            // DB 唯一索引兜底（TypeDefinition/ConflictRule 同模式）：并发窗口重复编码映射 20052 而非裸 99999。
+            // 约束名带引号精确匹配——uk_biz_domain 是 uk_biz_domain_global 的前缀，裸子串匹配会误吞
+            // 全局域唯一索引违例（当前 create 固定 global=false 不可达，防御性收紧）
+            if (isUniqueViolationOn(e, "\"uk_biz_domain\"")) {
                 throw new BizException(PermissionErrorCode.DOMAIN_CODE_DUPLICATE.getCode(),
                     "Biz domain code already exists: " + req.code());
             }
@@ -279,11 +281,16 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
             .collect(Collectors.toSet());
         List<DomainConfig> referencedConfigs = domainConfigMapper.selectValidByDomainIds(tenantId, validIds);
         if (!referencedConfigs.isEmpty()) {
-            Set<String> referencedDomainCodes = entities.stream()
-                .map(BizDomain::getCode)
+            Set<Long> referencedDomainIds = referencedConfigs.stream()
+                .map(DomainConfig::getBizDomainId)
                 .collect(Collectors.toSet());
+            String referencedDomainCodes = entities.stream()
+                .filter(d -> referencedDomainIds.contains(d.getId()))
+                .map(BizDomain::getCode)
+                .sorted()
+                .collect(Collectors.joining(","));
             throw new BizException(PermissionErrorCode.DOMAIN_DELETE_CONFLICT.getCode(),
-                "Biz domain has domain configs, remove them first: " + String.join(",", referencedDomainCodes));
+                "Biz domain has domain configs, remove them first: " + referencedDomainCodes);
         }
 
         LocalDateTime now = LocalDateTime.now();

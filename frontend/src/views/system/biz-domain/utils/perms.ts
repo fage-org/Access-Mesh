@@ -10,11 +10,11 @@
  *
  * 本页涉及**两个资源类型**的门禁（与 system-config 单一 SYSTEM_CONFIG 不同）：
  *
- * - `DOMAIN:VIEW`（资源类型 DOMAIN，独立）—— biz-domain **list/detail** 门禁。
+ * - `DOMAIN:VIEW`（资源类型 DOMAIN，独立）—— biz-domain **list/detail** 门禁（类型级）。
  *   后端 `listBizDomains`/`getBizDomain` 以 `DOMAIN:VIEW` 校验（ResourceTypeCode.DOMAIN）。
- *   🔧 DOMAIN 权限种子缺失：schema 无 INSERT 为 DOMAIN 资源类型预置 VIEW 操作位，login 矩阵此前也无 DOMAIN 串，
- *   联调真后端时 biz-domain list/detail 可能全账号 403——本页新增 DOMAIN_VIEW，login 矩阵为所有账号预置 DOMAIN:VIEW
- *   （业务域基础设施各角色均可见列表），登记 T-PERM-026。
+ *   种子接入已收口（T-PERM-026）：原「DOMAIN 权限种子缺失」经核实为误报——权威 DDL CRUD 预置组
+ *   （全部 resource_type CROSS JOIN）已覆盖 DOMAIN VIEW 操作位；真实缺口为空库 bootstrap 固定图
+ *   未持 DOMAIN:VIEW（无授予起点死锁），已补入 businessGrants（OPERATION_LOG:VIEW 先例）。
  *
  * - `SYSTEM_CONFIG:VIEW` / `SYSTEM_CONFIG:MANAGE`（资源类型 SYSTEM_CONFIG，复用）—— domain-config 子区 +
  *   biz-domain 写操作门禁：
