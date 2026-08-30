@@ -37,7 +37,9 @@ import java.util.stream.Collectors;
  * 权限条件定义了权限生效的附加约束规则，如时间范围、数据属性等。
  * 条件规则存储为JSON格式，支持复杂的条件表达式。
  * 读取（list/detail）无门禁（2026-08-08 产品确认：条件规则全租户开放、非敏感）；
- * 写操作经PermQueryEngine做CONDITION域实例级门禁（CREATE 类型级 / UPDATE、DELETE 实例级）。
+ * 写操作经PermQueryEngine做CONDITION域类型级门禁（CREATE/UPDATE/DELETE 三档，scope_all；
+ * CONDITION 为权限定义元数据，同 OPERATION 无 resource_entity 实例投影，实例级授权无从
+ * 配置——2026-08-30 口径收窄，原「实例级」声称系 ID 空间错位已废弃；实例投影登记 T-PERM-048）。
  * 缓存失效操作在事务提交后执行，防止缓存被回滚数据污染。
  * 批量删除采用批量软删除策略，避免N+1查询问题。
  * 管理端点定位一律使用业务键 code（uk tenant+code，T-PERM-029 从内部主键切换）。
@@ -162,7 +164,10 @@ public class ConditionAppServiceImpl implements ConditionAppService {
             throw new BizException(PermissionErrorCode.CONDITION_NOT_FOUND.getCode(), "Condition not found: " + req.code());
         }
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.CONDITION, condition.getId(), OperationCodeConstants.UPDATE)) {
+        // 类型级门禁（2026-08-30 口径收窄）：CONDITION 无 resource_entity 实例投影，
+        // 实例级授权无从配置（role_resource_permission.resource_entity_id 引用 resource_entity.id 空间），
+        // 与 OPERATION/SYSTEM_CONFIG 同款类型级 scope_all；实例投影登记 T-PERM-048
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.code());
         }
 
@@ -212,7 +217,8 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      * 按业务键批量删除权限条件
      * <p>
      * 按条件编码集合批量软删除（T-PERM-029 从内部主键 ids 切换）。
-     * 先批量解析编码为实体（一次 SQL），再对实体 id 集合做批量实例级 DELETE 门禁，
+     * 先批量解析编码为实体（一次 SQL，确定删除范围与缓存登记对象），再做类型级
+     * DELETE 门禁（CONDITION 无实例投影，实例级授权无从配置，口径见 T-PERM-048 登记），
      * 最后批量软删除，避免N+1问题。
      * 请求中不存在或已删除的编码静默跳过（幂等语义，与 resource-entity/remove 一致）。
      * 删除完成后在事务提交后批量失效相关缓存。
@@ -221,7 +227,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      * @param tenantId   租户ID
      * @param codes      条件编码列表
      * @param operatorId 操作者ID，可选
-     * @throws SecurityException 任一存在实体的编码无 DELETE 权限时抛出（fail-closed 整批不变更）
+     * @throws SecurityException 无类型级 CONDITION:DELETE 权限时抛出（全有或全无，整批不变更）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -251,11 +257,9 @@ public class ConditionAppServiceImpl implements ConditionAppService {
 
         Set<Long> validIds = entities.stream().map(PermissionCondition::getId).collect(Collectors.toSet());
 
-        // T-PERM-042：引擎纯查询，拒绝时由调用方显式抛出
-        Set<Long> deniedIds = engine.getDeniedEntityIds(
-            tenantId, operatorId, ResourceTypeCode.CONDITION, validIds, OperationCodeConstants.DELETE);
-        if (!deniedIds.isEmpty()) {
-            throw new SecurityException("Permission denied: DELETE on CONDITION:" + deniedIds);
+        // 类型级门禁（2026-08-30 口径收窄，updateCondition 同款理由）：T-PERM-042 引擎纯查询，拒绝由调用方显式抛出
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.DELETE)) {
+            throw new SecurityException("Permission denied: DELETE on CONDITION");
         }
 
         LocalDateTime now = LocalDateTime.now();

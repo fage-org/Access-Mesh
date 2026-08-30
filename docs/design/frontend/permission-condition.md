@@ -3,7 +3,7 @@ doc_type: design
 title: 权限条件 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-30   # 2026-08-30 §8 全量收口 + 字段/API 表对齐（T-PERM-029 落地：detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案、ConditionResp 补 updatedAt、remove 幂等静默跳过）；此前 2026-08-08 产品确认移除 CONDITION:VIEW 读取门禁
+last_reviewed: 2026-08-30   # 2026-08-30 §8 全量收口 + 字段/API 表对齐（T-PERM-029 落地：detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案、ConditionResp 补 updatedAt、remove 幂等静默跳过）+ 写门禁口径收窄为类型级（CONDITION 无实例投影，实例级原声称系 ID 空间错位废弃；实例投影与条件双轨制登记 T-PERM-048）；此前 2026-08-08 产品确认移除 CONDITION:VIEW 读取门禁
 ---
 
 # 3.2 权限条件 前端设计
@@ -108,8 +108,8 @@ code / name / enabled（开关）/ gatewayEvaluable（开关）/ description（t
 | /api/perm/permission-condition/list | POST | EmptyReq | ItemsResp<ConditionResp> | 无读取门禁（产品确认，全租户开放） |
 | /api/perm/permission-condition/detail | POST | ConditionDetailReq{conditionCode} | ConditionResp | 无读取门禁；查不到 20006（T-PERM-029） |
 | /api/perm/permission-condition/create | POST | ConditionCreateReq | ConditionResp | CONDITION:CREATE |
-| /api/perm/permission-condition/update | POST | ConditionUpdateReq{code,...} | ConditionResp | CONDITION:UPDATE（实例级） |
-| /api/perm/permission-condition/remove | POST | ConditionRemoveReq{codes} | Void | CONDITION:DELETE（实例级，fail-closed） |
+| /api/perm/permission-condition/update | POST | ConditionUpdateReq{code,...} | ConditionResp | CONDITION:UPDATE（类型级，2026-08-30 口径收窄） |
+| /api/perm/permission-condition/remove | POST | ConditionRemoveReq{codes} | Void | CONDITION:DELETE（类型级全有或全无） |
 
 后端实现：ConditionController + ConditionAppServiceImpl。
 conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 access-service permission 域共享）。

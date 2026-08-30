@@ -105,6 +105,7 @@
 | [T-PERM-045](T-PERM-045.md) | 内部管理门禁统一启用子级继承（父有权子有权） | — | [T-PERM-045](T-PERM-045.md) | — | ⚙️ | ⏳ |
 | [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（全局域创建入口设计 + domain_config 唯一键兜底 + 删除保护并发窗口；T-PERM-026 评审登记） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ⚙️ | ⏳ |
 | [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 评审登记） | — | implementation §5；dual-layer-cache-framework | — | ⚙️ | ⏳ |
+| [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（来源字段+resource_entity 投影+UI；T-PERM-029 评审登记，写门禁已先收窄类型级） | — | api-contract §5.6；access-service.sql | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 

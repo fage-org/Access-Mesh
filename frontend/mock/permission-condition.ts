@@ -85,7 +85,9 @@ function validateRules(
   rulesJson: string,
   gatewayEvaluable: boolean
 ): string | null {
-  if (!rulesJson || !rulesJson.trim()) return "conditionRules 不能为空";
+  // 运行时请求体不受 TS 类型保护（畸形输入须返回校验错误而非抛 TypeError，同 invalidCode 防御方式）
+  if (typeof rulesJson !== "string" || !rulesJson.trim())
+    return "conditionRules 不能为空";
   let tree: any;
   try {
     tree = JSON.parse(rulesJson);
@@ -247,10 +249,10 @@ export default defineFakeRoute([
     response: ({ body }) => {
       syncMockConditionsFromStorage();
       const codes: string[] = Array.isArray(body?.codes) ? body.codes : [];
-      // 对齐后端 ConditionRemoveReq 元素级校验（@NotBlank @Size(64)）：空数组/空白/超长元素整批 400
+      // 对齐后端 ConditionRemoveReq 元素级校验（@NotBlank @Size(64)）：空数组/空白/超长/非字符串元素整批 400
       if (
         codes.length === 0 ||
-        codes.some(c => !c || !c.trim() || c.length > 64)
+        codes.some(c => typeof c !== "string" || !c.trim() || c.length > 64)
       ) {
         return error(400, "codes 不能为空且每项须为 1-64 字符的非空白编码");
       }
