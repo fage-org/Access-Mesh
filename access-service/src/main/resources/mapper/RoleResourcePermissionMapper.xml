@@ -23,6 +23,15 @@
         AND delete_flag = 0 AND tenant_id = #{tenantId}
     </update>
 
+    <select id="selectValidByDependOns" resultType="cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE depend_on IN
+        <foreach collection="dependOns" item="did" open="(" separator="," close=")">
+            #{did}
+        </foreach>
+        AND delete_flag = 0 AND tenant_id = #{tenantId}
+    </select>
+
     <update id="updateGrantAttributes">
         UPDATE role_resource_permission
         SET can_grant = #{canGrant},

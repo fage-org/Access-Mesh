@@ -37,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -104,9 +105,10 @@ class PermQueryEngineTest {
         when(operationPermissionMapper.selectValidByIds(1L, Set.of(101L))).thenReturn(List.of(viewOp));
         when(operationPermissionMapper.selectByTenantAndResourceType(1L, 1)).thenReturn(List.of(viewOp, manageOp));
 
-        // Mock cacheService.get() to return operation permissions map for ID index
+        // Mock cacheService.getBatch() to return operation permissions map for ID index
         Map<Long, OperationPermission> opMap = Map.of(101L, viewOp, 102L, manageOp);
-        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:1"))).thenReturn(opMap);
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1"))))
+            .thenReturn(Map.of("op_perm:1", opMap));
 
         RoleResourcePermission grantedPerm = new RoleResourcePermission();
         grantedPerm.setId(501L);
@@ -161,8 +163,8 @@ class PermQueryEngineTest {
 
         OperationPermission viewOp = operation(901L, 8, "VIEW", 2L, 0L);
         when(operationPermissionMapper.selectValidByIds(1L, Set.of(901L))).thenReturn(List.of(viewOp));
-        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:8")))
-            .thenReturn(Map.of(901L, viewOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:8"))))
+            .thenReturn(Map.of("op_perm:8", Map.of(901L, viewOp)));
 
         // scope_all=true 的授权行：resource_entity_id 必须为 null（DDL CHECK 约束）
         RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
@@ -201,8 +203,8 @@ class PermQueryEngineTest {
 
         OperationPermission viewOp = operation(901L, 8, "VIEW", 2L, 0L);
         when(operationPermissionMapper.selectValidByIds(1L, Set.of(901L))).thenReturn(List.of(viewOp));
-        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:8")))
-            .thenReturn(Map.of(901L, viewOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:8"))))
+            .thenReturn(Map.of("op_perm:8", Map.of(901L, viewOp)));
 
         RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
         scopeAllPerm.setId(501L);
@@ -457,8 +459,8 @@ class PermQueryEngineTest {
 
         OperationPermission manageOp = operation(601L, 6, "MANAGE", 16L, 2L);
         when(operationPermissionMapper.selectValidByIds(1L, Set.of(601L))).thenReturn(List.of(manageOp));
-        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:6")))
-            .thenReturn(Map.of(601L, manageOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:6"))))
+            .thenReturn(Map.of("op_perm:6", Map.of(601L, manageOp)));
 
         // scopeAll 未命中
         when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
@@ -517,8 +519,8 @@ class PermQueryEngineTest {
 
         OperationPermission manageOp = operation(601L, 6, "MANAGE", 16L, 2L);
         when(operationPermissionMapper.selectValidByIds(1L, Set.of(601L))).thenReturn(List.of(manageOp));
-        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:6")))
-            .thenReturn(Map.of(601L, manageOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:6"))))
+            .thenReturn(Map.of("op_perm:6", Map.of(601L, manageOp)));
 
         RoleResourcePermission scopeAllPerm = new RoleResourcePermission();
         scopeAllPerm.setId(501L);
@@ -556,8 +558,8 @@ class PermQueryEngineTest {
 
         OperationPermission manageOp = operation(701L, 7, "MANAGE", 16L, 2L);
         when(operationPermissionMapper.selectValidByIds(1L, Set.of(701L))).thenReturn(List.of(manageOp));
-        when(cacheService.get(any(CacheCatalogEntry.class), eq(1L), eq("op_perm:7")))
-            .thenReturn(Map.of(701L, manageOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:7"))))
+            .thenReturn(Map.of("op_perm:7", Map.of(701L, manageOp)));
 
         when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
             .thenReturn(List.of());
@@ -576,6 +578,97 @@ class PermQueryEngineTest {
         // entityId 轨零 code 解析
         verify(typeResolutionService, never()).batchResolveResourceIds(any(), any());
         verify(rolePermMapper).selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), any());
+    }
+
+    /**
+     * T-PERM-034 复评 P1：多类型查询中全局目标操作的位值不得套用到「同码专属定义已取代全局」
+     * 的类型上——uk_operation_permission_typed_bit 按 tenant+resource_type 隔离位值，全局 bit
+     * 与专属 bit 属不同位空间；目标位须按该类型合并结果中同码实际生效定义取值，否则
+     * POLLUTE（bit 4，inheritMask 数值上覆盖全局 bit 1）会被计入 VIEW 掩码形成越权。
+     */
+    @Test
+    void resolveBitMasksShouldResolveTargetBitFromMergedDefinitionWhenSpecificOverridesGlobal() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("ATYPE", "BTYPE")))
+            .thenReturn(Map.of("ATYPE", 1, "BTYPE", 2));
+        when(typeResolutionService.batchResolveOperationIds(1L, "ATYPE", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 900L));
+        when(typeResolutionService.batchResolveOperationIds(1L, "BTYPE", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 901L));
+
+        OperationPermission globalView = operation(900L, null, "VIEW", 1L, 0L);
+        OperationPermission bSpecificView = operation(901L, 2, "VIEW", 2L, 0L);
+        OperationPermission bPollute = operation(902L, 2, "POLLUTE", 4L, 1L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(900L, 901L)))
+            .thenReturn(List.of(globalView, bSpecificView));
+        // 冷缓存：getBatch miss → 1 次全局 + 1 次批量专属回源
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1", "op_perm:2"))))
+            .thenReturn(Map.of());
+        when(operationPermissionMapper.selectGlobal(1L)).thenReturn(List.of(globalView));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1, 2)))
+            .thenReturn(List.of(bSpecificView, bPollute));
+
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of());
+        when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(300L)), any()))
+            .thenReturn(List.of());
+
+        PermQuery query = PermQuery.forScopeQuery(1L, 10L, Set.of("ATYPE", "BTYPE"), Set.of("VIEW"));
+        query.setResourceEntityIds(Set.of(300L));
+        engine.query(query);
+
+        org.mockito.ArgumentCaptor<List<BitMaskEntry>> captor =
+            org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(rolePermMapper).selectInstancePermsByBitsBatch(
+            eq(1L), eq(Set.of(20L)), eq(Set.of(300L)), captor.capture());
+        Map<Integer, Long> masks = captor.getValue().stream()
+            .collect(java.util.stream.Collectors.toMap(BitMaskEntry::resourceType, BitMaskEntry::bitMask));
+        // ATYPE 无专属 VIEW：合并保留全局定义，按全局 bit 1 计算
+        assertEquals(1L, masks.get(1));
+        // BTYPE 同码专属取代全局：按专属 bit 2 计算；POLLUTE(bit 4) 不得计入（旧实现掩码为 6）
+        assertEquals(2L, masks.get(2));
+    }
+
+    /**
+     * T-PERM-034 复评 P2：操作定义冷缓存回源为批量口径——getBatch 收集 miss 类型后
+     * 仅 1 次全局 SQL + 1 次批量专属 SQL（IN），putBatch 分组回填；已命中类型不重复回源。
+     */
+    @Test
+    void resolveBitMasksShouldLoadColdCacheWithSingleBatchedRoundTrip() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("ATYPE", "BTYPE", "CTYPE")))
+            .thenReturn(Map.of("ATYPE", 1, "BTYPE", 2, "CTYPE", 3));
+        when(typeResolutionService.batchResolveOperationIds(1L, "ATYPE", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 900L));
+        when(typeResolutionService.batchResolveOperationIds(1L, "BTYPE", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 900L));
+        when(typeResolutionService.batchResolveOperationIds(1L, "CTYPE", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 900L));
+
+        OperationPermission globalView = operation(900L, null, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(900L))).thenReturn(List.of(globalView));
+        // op_perm:2 已缓存，仅 {1,3} 回源
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L),
+                eq(Set.of("op_perm:1", "op_perm:2", "op_perm:3"))))
+            .thenReturn(Map.of("op_perm:2", Map.of(900L, globalView)));
+        when(operationPermissionMapper.selectGlobal(1L)).thenReturn(List.of(globalView));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1, 3)))
+            .thenReturn(List.of());
+
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of());
+
+        engine.query(PermQuery.forScopeQuery(1L, 10L, Set.of("ATYPE", "BTYPE", "CTYPE"), Set.of("VIEW")));
+
+        // 1 次全局 SQL（不随类型数重复执行）、miss 集合一次批量专属查询、零逐类型查询
+        verify(operationPermissionMapper, times(1)).selectGlobal(1L);
+        verify(operationPermissionMapper).selectByTenantAndResourceTypes(1L, Set.of(1, 3));
+        verify(operationPermissionMapper, never()).selectByTenantAndResourceType(eq(1L), any());
+        // miss 类型分组回填（命中类型不回写）
+        org.mockito.ArgumentCaptor<Map<String, Map<Long, OperationPermission>>> putCaptor =
+            org.mockito.ArgumentCaptor.forClass(Map.class);
+        verify(cacheService).putBatch(any(CacheCatalogEntry.class), eq(1L), putCaptor.capture());
+        assertEquals(Set.of("op_perm:1", "op_perm:3"), putCaptor.getValue().keySet());
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

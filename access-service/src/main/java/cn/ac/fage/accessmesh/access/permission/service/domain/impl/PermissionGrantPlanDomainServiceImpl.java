@@ -245,6 +245,13 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
 
         validateSubPermissions(tenantId, preparedCreates, existingById, typeValues);
 
+        // 级联删除的子权限：apply 随主权限一并软删 depend_on 命中的行（租户口径，
+        // 与 cascadeSoftDeleteChildren 一致），预检期快照其业务键；显式删除项去重
+        List<RoleResourcePermission> cascadedChildren = removeIdSet.isEmpty() ? List.of()
+            : rolePermissionMapper.selectValidByDependOns(tenantId, removeIdSet).stream()
+                .filter(child -> !removeIdSet.contains(child.getId()))
+                .toList();
+
         Set<Integer> updateTypeValues = updateItems.stream()
             .map(item -> existingById.get(item.id()).getResourceType())
             .filter(Objects::nonNull).collect(Collectors.toSet());
@@ -252,6 +259,11 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             Integer removeType = existingById.get(removeId).getResourceType();
             if (removeType != null) {
                 updateTypeValues.add(removeType);
+            }
+        }
+        for (RoleResourcePermission child : cascadedChildren) {
+            if (child.getResourceType() != null) {
+                updateTypeValues.add(child.getResourceType());
             }
         }
         Map<Integer, String> updateTypeCodes = typeResolutionService.batchResolveTypeCodes(
@@ -263,6 +275,11 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             Long removeResourceId = existingById.get(removeId).getResourceEntityId();
             if (removeResourceId != null) {
                 updateResourceIds.add(removeResourceId);
+            }
+        }
+        for (RoleResourcePermission child : cascadedChildren) {
+            if (child.getResourceEntityId() != null) {
+                updateResourceIds.add(child.getResourceEntityId());
             }
         }
         Map<Long, ResourceEntity> updateResources = updateResourceIds.isEmpty() ? Map.of()
@@ -313,17 +330,12 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         // 悬挂引用（资源实体/操作定义已不存在）降级为 null 键字段：删除不得被
         // 死引用阻塞（清理死引用正是删除的合法场景），update 路径维持既有严格判定
         for (Long removeId : removeIds) {
-            RoleResourcePermission permission = existingById.get(removeId);
-            ResourceEntity resource = permission.getResourceEntityId() == null ? null
-                : updateResources.get(permission.getResourceEntityId());
-            OperationPermission operation = resolveOperationByBit(
-                allOperations, permission.getResourceType(), permission.getGrantedBits());
-            String resourceTypeCode = updateTypeCodes.get(permission.getResourceType());
-            auditKeys.add(new PermissionGrantPlanDomainService.AuditPermissionKey("REMOVE",
-                resourceTypeCode, resource == null ? null : resource.getCode(),
-                resource == null ? null : resource.getCodeType(),
-                operation == null ? null : operation.getCode(),
-                Boolean.TRUE.equals(permission.getScopeAll()) ? ScopeMode.ALL : ScopeMode.INSTANCE));
+            auditKeys.add(buildRemoveAuditKey(
+                existingById.get(removeId), updateResources, updateTypeCodes, allOperations));
+        }
+        // 级联删除的子权限同记 REMOVE（实际被删除的行都要能按业务键检索到本次变更）
+        for (RoleResourcePermission child : cascadedChildren) {
+            auditKeys.add(buildRemoveAuditKey(child, updateResources, updateTypeCodes, allOperations));
         }
 
         verifyDelegation(tenantId, subjectId, domainCode, delegationKeys);
@@ -664,6 +676,24 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         return new PermissionGrantPlanDomainService.AuditPermissionKey(changeType,
             key.resourceTypeCode(), key.resourceCode(), key.codeType(),
             key.operationCode(), key.scopeMode());
+    }
+
+    /** 被删除行（显式 removes 与级联子权限共用）→ 变更日志业务键快照（REMOVE，悬挂引用降级 null 键字段） */
+    private PermissionGrantPlanDomainService.AuditPermissionKey buildRemoveAuditKey(
+            RoleResourcePermission permission,
+            Map<Long, ResourceEntity> updateResources,
+            Map<Integer, String> updateTypeCodes,
+            List<OperationPermission> allOperations) {
+        ResourceEntity resource = permission.getResourceEntityId() == null ? null
+            : updateResources.get(permission.getResourceEntityId());
+        OperationPermission operation = resolveOperationByBit(
+            allOperations, permission.getResourceType(), permission.getGrantedBits());
+        String resourceTypeCode = updateTypeCodes.get(permission.getResourceType());
+        return new PermissionGrantPlanDomainService.AuditPermissionKey("REMOVE",
+            resourceTypeCode, resource == null ? null : resource.getCode(),
+            resource == null ? null : resource.getCodeType(),
+            operation == null ? null : operation.getCode(),
+            Boolean.TRUE.equals(permission.getScopeAll()) ? ScopeMode.ALL : ScopeMode.INSTANCE);
     }
 
     private PermissionGrantDomainService.GrantCheckKey toGrantCheckKey(

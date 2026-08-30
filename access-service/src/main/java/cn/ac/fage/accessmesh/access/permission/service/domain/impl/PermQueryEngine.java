@@ -702,40 +702,61 @@ public class PermQueryEngine {
             return Map.of();
         }
 
-        Map<Integer, Long> result = new LinkedHashMap<>();
+        // 冷缓存批量回源：getBatch 收集 miss 类型后 1 次全局 + 1 次批量专属查询（IN），
+        // 再 putBatch 分组回填——消除逐类型重复执行同一全局 SQL 的循环内单条查询。
+        // 缓存内容为按 ID 索引的「专属 + 全局按码合并」结果（同码专属优先），
+        // 与写链路 mergeGlobalFallback 同一语义；GoldenFixturePgIT（T-PERM-034）抓出的
+        // 分歧修复：全局操作位此前不参与掩码计算，授权侧允许的全局位（如 EXPORT）运行时被引擎忽略
+        Set<String> cacheKeys = new LinkedHashSet<>();
         for (Integer resourceType : resourceTypes) {
-            // 内联缓存逻辑：查询并缓存该资源类型的最终可用操作（按ID索引）——
-            // 专属 + 全局按码合并（同码专属优先），与写链路 mergeGlobalFallback 同一语义；
-            // GoldenFixturePgIT（T-PERM-034）抓出的分歧修复：全局操作位此前不参与
-            // 掩码计算，授权侧允许的全局位（如 EXPORT）运行时被引擎忽略
-            String cacheKey = "op_perm:" + resourceType;
-            Map<Long, OperationPermission> opMap = cacheService.get(
-                PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKey);
-            if (opMap == null) {
-                Map<String, OperationPermission> mergedByCode = new LinkedHashMap<>();
-                for (OperationPermission global : operationPermissionMapper.selectGlobal(tenantId)) {
-                    if (global.getCode() != null) {
-                        mergedByCode.put(
-                            cn.ac.fage.accessmesh.access.permission.service.domain.OperationResolutionDomainService
-                                .normalizeCode(global.getCode()), global);
-                    }
+            cacheKeys.add("op_perm:" + resourceType);
+        }
+        Map<String, Map<Long, OperationPermission>> opMapsByCacheKey = new LinkedHashMap<>(cacheService.getBatch(
+            PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKeys));
+        List<Integer> missTypes = new ArrayList<>();
+        for (Integer resourceType : resourceTypes) {
+            if (!opMapsByCacheKey.containsKey("op_perm:" + resourceType)) {
+                missTypes.add(resourceType);
+            }
+        }
+        if (!missTypes.isEmpty()) {
+            Map<String, OperationPermission> globalByCode = new LinkedHashMap<>();
+            for (OperationPermission global : operationPermissionMapper.selectGlobal(tenantId)) {
+                if (global.getCode() != null) {
+                    globalByCode.put(OperationResolutionDomainService.normalizeCode(global.getCode()), global);
                 }
-                for (OperationPermission specific : operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)) {
-                    if (specific.getCode() != null) {
-                        mergedByCode.put(
-                            cn.ac.fage.accessmesh.access.permission.service.domain.OperationResolutionDomainService
-                                .normalizeCode(specific.getCode()), specific);
-                    }
+            }
+            Map<Integer, Map<String, OperationPermission>> mergedByCodeByType = new LinkedHashMap<>();
+            for (Integer missType : missTypes) {
+                mergedByCodeByType.put(missType, new LinkedHashMap<>(globalByCode));
+            }
+            for (OperationPermission specific : operationPermissionMapper.selectByTenantAndResourceTypes(
+                tenantId, new LinkedHashSet<>(missTypes))) {
+                Map<String, OperationPermission> byCode = mergedByCodeByType.get(specific.getResourceType());
+                if (byCode != null && specific.getCode() != null) {
+                    byCode.put(OperationResolutionDomainService.normalizeCode(specific.getCode()), specific);
                 }
-                opMap = new LinkedHashMap<>();
-                for (OperationPermission merged : mergedByCode.values()) {
+            }
+            Map<String, Map<Long, OperationPermission>> toPut = new LinkedHashMap<>();
+            for (Integer missType : missTypes) {
+                Map<Long, OperationPermission> opMap = new LinkedHashMap<>();
+                for (OperationPermission merged : mergedByCodeByType.get(missType).values()) {
                     opMap.put(merged.getId(), merged);
                 }
                 if (!opMap.isEmpty()) {
-                    cacheService.put(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKey, opMap);
+                    toPut.put("op_perm:" + missType, opMap);
                 }
             }
-            if (opMap.isEmpty()) {
+            if (!toPut.isEmpty()) {
+                cacheService.putBatch(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, toPut);
+            }
+            opMapsByCacheKey.putAll(toPut);
+        }
+
+        Map<Integer, Long> result = new LinkedHashMap<>();
+        for (Integer resourceType : resourceTypes) {
+            Map<Long, OperationPermission> opMap = opMapsByCacheKey.get("op_perm:" + resourceType);
+            if (opMap == null || opMap.isEmpty()) {
                 continue;
             }
 
@@ -746,14 +767,32 @@ public class PermQueryEngine {
                     && !Objects.equals(resourceType, targetOp.getResourceType())) {
                     continue;
                 }
-                // 计算覆盖目标操作的位掩码
-                mask |= OperationPermissionUtils.computeCoveringBitMask(opMap.values(), targetOp.getBinaryBit());
+                // 目标位按该类型合并结果中同码实际生效的定义取值（专属优先、全局回退）：
+                // 同码专属定义取代全局定义后，全局定义的 binaryBit 属于另一位空间
+                // （uk_operation_permission_typed_bit 按 tenant+resource_type 隔离位值），
+                // 沿用会把无关位计入目标操作掩码（越权）或漏掉该类型的真实授权
+                OperationPermission effective = targetOp.getCode() == null ? null : findByCode(opMap, targetOp);
+                if (effective == null) {
+                    continue;
+                }
+                mask |= OperationPermissionUtils.computeCoveringBitMask(opMap.values(), effective.getBinaryBit());
             }
             if (mask != 0L) {
                 result.put(resourceType, mask);
             }
         }
         return result;
+    }
+
+    private OperationPermission findByCode(Map<Long, OperationPermission> opMap, OperationPermission targetOp) {
+        String targetCode = OperationResolutionDomainService.normalizeCode(targetOp.getCode());
+        for (OperationPermission candidate : opMap.values()) {
+            if (candidate.getCode() != null
+                && targetCode.equals(OperationResolutionDomainService.normalizeCode(candidate.getCode()))) {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     // ===== 私有批量加载方法（替代 EntityBatchLoadDomainService） =====

@@ -99,6 +99,15 @@ class PermissionGrantPlanDomainServiceImplTest {
         return permission;
     }
 
+    private static ResourceEntity resource(long id, String code) {
+        ResourceEntity entity = new ResourceEntity();
+        entity.setId(id);
+        entity.setTenantId(TENANT);
+        entity.setCode(code);
+        entity.setCodeType("default");
+        return entity;
+    }
+
     private void stubCreateBase() {
         when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of());
         when(typeResolutionService.batchResolveTypeValues(TENANT, "resource_type", java.util.Set.of("DATA")))
@@ -272,6 +281,60 @@ class PermissionGrantPlanDomainServiceImplTest {
             assertEquals("REMOVE", prepared.auditKeys().get(0).changeType());
             assertEquals("report:sales", prepared.auditKeys().get(0).resourceCode());
             assertEquals("VIEW", prepared.auditKeys().get(0).operationCode());
+        }
+
+        @Test
+        void shouldSnapshotCascadedChildrenOnMainPermissionRemove() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "MANUAL")));
+            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of("DATA", 4));
+            when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of(4, "DATA"));
+            when(resourceEntityMapper.selectValidByIds(eq(TENANT), anySet()))
+                .thenReturn(List.of(resource(101L, "report:sales"), resource(102L, "city:shanghai")));
+            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+                .thenReturn(List.of(globalView()));
+            RoleResourcePermission cascadedChild = existing(6L, 5L, "MANUAL");
+            cascadedChild.setResourceEntityId(102L);
+            when(rolePermissionMapper.selectValidByDependOns(TENANT, java.util.Set.of(5L)))
+                .thenReturn(List.of(cascadedChild));
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(5L)));
+
+            assertEquals(List.of(5L), prepared.removes());
+            // 主权限 + 级联删除的子权限都进 diff_snapshot（实际被删除的行可按业务键检索本次变更）
+            assertEquals(2, prepared.auditKeys().size());
+            assertTrue(prepared.auditKeys().stream().allMatch(key -> "REMOVE".equals(key.changeType())));
+            assertTrue(prepared.auditKeys().stream().anyMatch(key -> "report:sales".equals(key.resourceCode())));
+            assertTrue(prepared.auditKeys().stream().anyMatch(key -> "city:shanghai".equals(key.resourceCode())));
+            verify(rolePermissionMapper).selectValidByDependOns(TENANT, java.util.Set.of(5L));
+        }
+
+        @Test
+        void shouldNotDuplicateChildAlreadyRemovedExplicitly() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "MANUAL"), existing(6L, 5L, "MANUAL")));
+            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of("DATA", 4));
+            when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of(4, "DATA"));
+            when(resourceEntityMapper.selectValidByIds(eq(TENANT), anySet()))
+                .thenReturn(List.of(resource(101L, "report:sales")));
+            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+                .thenReturn(List.of(globalView()));
+            // 级联查询同样命中子权限 6（depend_on=5），但其已在显式 removes 中：业务键只快照一次
+            when(rolePermissionMapper.selectValidByDependOns(TENANT, java.util.Set.of(5L, 6L)))
+                .thenReturn(List.of(existing(6L, 5L, "MANUAL")));
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(5L, 6L)));
+
+            assertEquals(2, prepared.auditKeys().size());
+            assertTrue(prepared.auditKeys().stream().allMatch(key -> "REMOVE".equals(key.changeType())));
         }
 
         @Test

@@ -113,6 +113,19 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                    @Param("deletedAt") LocalDateTime deletedAt);
 
     /**
+     * 按租户查询 depend_on 命中指定主权限的有效子权限行
+     * <p>
+     * 与 {@link #cascadeSoftDeleteChildren} 同一租户口径（不限角色），
+     * 供 apply-grant-plan 预检期快照级联删除子权限的业务键。
+     *
+     * @param tenantId 租户ID
+     * @param dependOns 主权限ID集合
+     * @return 权限记录列表
+     */
+    List<RoleResourcePermission> selectValidByDependOns(@Param("tenantId") Long tenantId,
+                                                         @Param("dependOns") Set<Long> dependOns);
+
+    /**
      * 按租户、角色和记录ID更新授权可变属性；conditionId 允许显式写 null。
      */
     int updateGrantAttributes(@Param("tenantId") Long tenantId,
