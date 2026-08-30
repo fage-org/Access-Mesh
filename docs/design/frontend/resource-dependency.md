@@ -121,7 +121,7 @@
 
 ## 5. 权限接线
 
-资源类型 `DEPENDENCY`，写权限 CREATE/UPDATE/DELETE **三档独立**（非 MANAGE，对齐后端 DependencyAppServiceImpl），另含 SYNC（batch-sync 专用）：
+资源类型 `DEPENDENCY`，门禁五档类型级（读 VIEW + 写 CREATE/UPDATE/DELETE 三档独立非 MANAGE + SYNC batch-sync 专用，T-PERM-031 收口口径，对齐后端 DependencyAppServiceImpl）：
 
 | perm 串 | 门控 | 后端校验 |
 |---------|------|----------|
@@ -134,7 +134,7 @@
 - SSOT：`views/system/resource-dependency/utils/perms.ts`（RESOURCE_DEPENDENCY_PERMS / PERM_LIST / VIEW_PERMS）
 - 路由 `meta.auths`：`[...RESOURCE_DEPENDENCY_PERM_LIST]`
 - mock 角色矩阵：admin 全权；sec（安全管理员）VIEW+CREATE+UPDATE+DELETE+SYNC；hr/auditor 只读 VIEW
-- 环检测/依赖图按钮复用 VIEW 门控（后端 check/graph 无独立权限校验）
+- 环检测/依赖图按钮复用 VIEW 门控（后端 check/graph 已补类型级 VIEW 校验，T-PERM-031）
 
 ## 6. 组件
 
@@ -177,11 +177,11 @@
 |---|--------|------|
 | 1 | P0 骨架（路由/标题/表格+表单弹窗+环检测对话框+依赖图抽屉） | ✅ |
 | 2 | Step 1.5 组件识别（资源选择器内聚，不抽取共享） | ✅ |
-| 3 | API 核对（7 端点，🔧/❌ 登记T-PERM-031，batch-sync P0 标 TODO） | ✅ |
+| 3 | API 核对（7 端点，🔧 八项已随 T-PERM-031 全收口 2026-08-30，见 §4；batch-sync P0 标 TODO） | ✅ |
 | 4 | P2 权限接线（hasPerms + 无权降级 el-empty） | ✅ |
 | 5 | design_writeback（本文件 status: adopted） | ✅ |
-| 6 | bits->操作码映射（bitToOp 位运算拆解，应对 Resp 缺操作码） | ✅ |
-| 7 | 资源名称/类型映射（resourceMap 反查，应对 Resp 缺 name/typeCode） | ✅ |
+| 6 | bits->操作码映射（bitToOp BigInt 位运算拆解；Resp 已补静态字段，映射保留为冗余快路径） | ✅ |
+| 7 | 资源名称/类型映射（resourceMap 反查；Resp 已补 typeCode/name，映射保留为冗余快路径） | ✅ |
 | 8 | 依赖图可视化（echarts graph 力导向布局，注册 GraphChart） | ✅ |
-| 9 | 编辑表单资源对可改（全量替换契约 Q3=B，mock 支持，真后端 🔧） | ✅ |
+| 9 | 编辑表单资源对可改（全量替换契约 Q3=B，后端已落地 PUT 语义） | ✅ |
 | 10 | batch-sync 标 TODO（Q5=B，不实现 UI 与 mock） | ✅ |

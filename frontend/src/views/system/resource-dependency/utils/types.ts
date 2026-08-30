@@ -6,8 +6,8 @@
  * - 资源用业务键标识：resourceTypeCode + code + codeType
  * - 前端表单以 resourceEntityId 选择（下拉），提交时由 hook 反查业务键构造请求
  *
- * maintainSource 枚举对齐 schema（ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC），
- * 🔧 DTO 注释（SERVICE/MANUAL）与 schema 不一致，登记 T-PERM-031。
+ * maintainSource 枚举对齐 schema（ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC，
+ * 后端 DTO 注释已随 T-PERM-031 收口为四值白名单）。
  */
 
 /** 资源依赖新增/编辑表单数据。

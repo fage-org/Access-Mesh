@@ -9,10 +9,10 @@
  * ## 权限锚点（对齐后端 DependencyAppServiceImpl）
  *
  * 资源类型 DEPENDENCY，操作码 CREATE/UPDATE/DELETE/SYNC + VIEW：
- * - `DEPENDENCY:VIEW` - 查看依赖列表（前端路由门控；后端 list/graph/check 未校验 VIEW，🔧 种子缺失登记 T-PERM-031）
+ * - `DEPENDENCY:VIEW` - 查看依赖列表（前端路由门控；后端 list/graph/check 已补类型级 VIEW，bootstrap 种子已随 T-PERM-031 补齐）
  * - `DEPENDENCY:CREATE` - 创建依赖（后端 createDependency 校验 DEPENDENCY:CREATE）
  * - `DEPENDENCY:UPDATE` - 编辑依赖（后端 updateDependency 校验 DEPENDENCY:UPDATE）
- * - `DEPENDENCY:DELETE` - 删除依赖（后端 deleteDependencies 校验 DEPENDENCY:DELETE，validateBatch）
+ * - `DEPENDENCY:DELETE` - 删除依赖（后端 deleteDependencies 类型级全有或全无校验，T-PERM-031 收窄）
  * - `DEPENDENCY:SYNC` - 批量同步（后端 batchSyncDependencies 校验 DEPENDENCY:SYNC；P0 标 TODO，本页不暴露按钮）
  *
  * 即：CREATE/UPDATE/DELETE 三档独立（非 MANAGE），另含 SYNC（batch-sync 专用）。

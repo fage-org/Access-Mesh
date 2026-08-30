@@ -267,7 +267,17 @@ function validateBody(body: any): string | null {
   return null;
 }
 
-/** 解析资源对 + 自依赖/未知操作码预检（对齐后端 20004/20044/20005 顺序）。
+/** 判定码列表是否非空但全为空白元素（混合空白不算） */
+function isAllBlankCodes(codes: unknown): boolean {
+  return (
+    Array.isArray(codes) &&
+    codes.length > 0 &&
+    codes.every(c => !c || !String(c).trim())
+  );
+}
+
+/** 解析资源对 + 自依赖/空白码/未知操作码预检（对齐后端 20004/20044/20005 顺序；
+ *  空白码三入口统一口径：混合空白忽略、全空白 20044）。
  *  返回 [sourceId, targetId] 或错误响应。 */
 function resolvePair(body: any): [number, number] | ReturnType<typeof error> {
   const sourceId = resolveResourceId(
@@ -294,6 +304,13 @@ function resolvePair(body: any): [number, number] | ReturnType<typeof error> {
   }
   if (sourceId === targetId) {
     return error(20044, "源资源与目标资源不能相同（自依赖成环）");
+  }
+  if (
+    isAllBlankCodes(body.sourceOperationCodes) ||
+    isAllBlankCodes(body.requiredOperationCodes)
+  ) {
+    // 全空白码列表畸形参数（三入口统一 20044；混合空白由下方未知码检查忽略）
+    return error(20044, "operationCodes 不能为全空白元素");
   }
   const unknown = [
     ...collectUnknownCodes(

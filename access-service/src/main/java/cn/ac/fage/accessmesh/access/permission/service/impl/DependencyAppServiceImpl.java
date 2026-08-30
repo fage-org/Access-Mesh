@@ -638,45 +638,68 @@ public class DependencyAppServiceImpl implements DependencyAppService {
 
     /**
      * 构建操作位索引（资源类型编码 -> 操作码 -> binaryBit），循环外按类型批量解析。
-     * 未知操作码 fail-closed 20005（T-PERM-031 设计定案：静默丢弃会写出语义错误规则）。
+     * 收集时过滤空白元素（与单条入口 resolveOperationBits 口径一致：混合空白忽略、
+     * 全空白由 bitsOf 拒 20044）；未知操作码 fail-closed 20005（T-PERM-031 设计定案：
+     * 静默丢弃会写出语义错误规则）。
      */
     private Map<String, Map<String, Long>> buildOperationBitIndex(Long tenantId, List<DependencyBatchSyncReq.DependencySyncItem> items) {
         Map<String, Set<String>> codesByType = new HashMap<>();
         for (DependencyBatchSyncReq.DependencySyncItem item : items) {
             if (hasCodes(item.sourceOperationCodes())) {
                 codesByType.computeIfAbsent(item.sourceResourceTypeCode(), k -> new HashSet<>())
-                    .addAll(item.sourceOperationCodes());
+                    .addAll(nonBlankCodes(item.sourceOperationCodes()));
             }
             if (hasCodes(item.requiredOperationCodes())) {
                 codesByType.computeIfAbsent(item.targetResourceTypeCode(), k -> new HashSet<>())
-                    .addAll(item.requiredOperationCodes());
+                    .addAll(nonBlankCodes(item.requiredOperationCodes()));
             }
         }
         Map<String, Map<String, Long>> index = new HashMap<>();
         for (Map.Entry<String, Set<String>> entry : codesByType.entrySet()) {
+            if (entry.getValue().isEmpty()) {
+                index.put(entry.getKey(), Map.of());
+                continue;
+            }
             index.put(entry.getKey(), resolveCodeBits(tenantId, entry.getKey(), entry.getValue()));
         }
         return index;
+    }
+
+    private static Set<String> nonBlankCodes(List<String> codes) {
+        return codes.stream()
+            .filter(code -> code != null && !code.isBlank())
+            .collect(Collectors.toSet());
     }
 
     private static boolean hasCodes(List<String> codes) {
         return codes != null && !codes.isEmpty();
     }
 
-    /** 从预解析索引取操作位（索引构建时已 fail-closed 校验，此处空码跳过） */
+    /** 全空白码列表拒绝 20044（三入口统一口径：混合空白忽略、全空白畸形参数） */
+    private static void rejectBlankOnlyCodes(String resourceTypeCode) {
+        throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+            "operationCodes 不能为全空白元素 (resourceType=" + resourceTypeCode + ")");
+    }
+
+    /** 从预解析索引取操作位（索引构建时已 fail-closed 校验；空白元素跳过，全空白拒 20044） */
     private static Long bitsOf(List<String> operationCodes, String resourceTypeCode,
                                Map<String, Map<String, Long>> opBitIndex) {
         if (!hasCodes(operationCodes)) return null;
         Map<String, Long> codeToBit = opBitIndex.getOrDefault(resourceTypeCode, Map.of());
         long bits = 0L;
+        boolean anyCode = false;
         for (String code : operationCodes) {
             if (code == null || code.isBlank()) continue;
+            anyCode = true;
             Long bit = codeToBit.get(code);
             if (bit == null) {
                 throw new BizException(PermissionErrorCode.OPERATION_NOT_FOUND.getCode(),
                     "Operation permission not found: " + code + " (resourceType=" + resourceTypeCode + ")");
             }
             bits |= bit;
+        }
+        if (!anyCode) {
+            rejectBlankOnlyCodes(resourceTypeCode);
         }
         return bits;
     }
@@ -698,13 +721,10 @@ public class DependencyAppServiceImpl implements DependencyAppService {
      */
     private Long resolveOperationBits(Long tenantId, List<String> operationCodes, String resourceTypeCode) {
         if (!hasCodes(operationCodes)) return null;
-        Set<String> codeSet = operationCodes.stream()
-            .filter(code -> code != null && !code.isBlank())
-            .collect(Collectors.toSet());
+        Set<String> codeSet = nonBlankCodes(operationCodes);
         if (codeSet.isEmpty()) {
             // 全空白码列表视为畸形参数（required 侧 NOT NULL、source 侧语义未定义），显式拒绝
-            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                "operationCodes 不能为全空白元素 (resourceType=" + resourceTypeCode + ")");
+            rejectBlankOnlyCodes(resourceTypeCode);
         }
         return mergeBits(resolveCodeBits(tenantId, resourceTypeCode, codeSet));
     }

@@ -46,7 +46,7 @@ const {
 // 与 docs/design/frontend/resource-dependency.md §权限接线 对齐。
 // DEPENDENCY:VIEW 门控路由可达性；CREATE/UPDATE/DELETE 三档独立门控写按钮（非 MANAGE，对齐后端）。
 // SYNC 权限码已定义但 batch-sync P0 标 TODO，不暴露按钮。
-// 环检测/依赖图复用 VIEW 门控（后端 check/graph 无独立权限校验，🔧 登记同 T-PERM-031）。
+// 环检测/依赖图复用 VIEW 门控（后端 check/graph 已补类型级 VIEW 校验，T-PERM-031 收口）。
 
 // ========== 列定义 ==========
 const columns = [

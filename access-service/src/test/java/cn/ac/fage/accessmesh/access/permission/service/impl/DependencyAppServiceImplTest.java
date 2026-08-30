@@ -35,6 +35,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -645,6 +646,52 @@ class DependencyAppServiceImplTest {
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
                     .isEqualTo(PermissionErrorCode.INVALID_PARAM.getCode()));
+        }
+
+        @Test
+        void shouldThrow20044WhenSyncItemAllOperationCodesBlank() {
+            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            ResourceResolveKey sourceKey = new ResourceResolveKey("MENU", "menu:sys", null, null);
+            ResourceResolveKey targetKey = new ResourceResolveKey("API", "api:hello", null, null);
+            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
+                .thenReturn(Map.of(sourceKey, SOURCE_ID, targetKey, TARGET_ID));
+            when(typeResolutionService.batchResolveOperationIds(eq(TENANT), eq("API"), anySet()))
+                .thenReturn(Map.of("ACCESS", 41L));
+            when(operationPermissionMapper.selectValidByIds(eq(TENANT), anySet()))
+                .thenReturn(List.of(opOf(41L, 4L)));
+
+            // 全空白码与单条入口同码拒绝（T-PERM-031 评审收口：三入口统一 20044，
+            // 原同步路径空白码进 fail-closed 校验抛 20005）
+            assertThatThrownBy(() -> service.batchSyncDependencies(TENANT, new DependencyBatchSyncReq(
+                "example-service", "SERVICE_SYNC", null,
+                List.of(item("menu:sys", List.of(" "), List.of("ACCESS")))), OPERATOR))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                    .isEqualTo(PermissionErrorCode.INVALID_PARAM.getCode()));
+            verify(dependencyMapper, never()).insertBatch(anyList());
+        }
+
+        @Test
+        void shouldIgnoreBlankElementsInSyncItemCodes() {
+            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            ResourceResolveKey sourceKey = new ResourceResolveKey("MENU", "menu:sys", null, null);
+            ResourceResolveKey targetKey = new ResourceResolveKey("API", "api:hello", null, null);
+            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
+                .thenReturn(Map.of(sourceKey, SOURCE_ID, targetKey, TARGET_ID));
+            when(typeResolutionService.batchResolveOperationIds(eq(TENANT), eq("MENU"), anySet()))
+                .thenReturn(Map.of("VIEW", 31L));
+            when(typeResolutionService.batchResolveOperationIds(eq(TENANT), eq("API"), anySet()))
+                .thenReturn(Map.of("ACCESS", 41L));
+            when(operationPermissionMapper.selectValidByIds(eq(TENANT), anySet()))
+                .thenReturn(List.of(opOf(31L, 2L), opOf(41L, 4L)));
+            when(dependencyMapper.selectBySourceAndTargetIds(eq(TENANT), anySet(), anySet()))
+                .thenReturn(List.of());
+
+            // 混合空白元素忽略（与单条入口一致），空白码不参与 fail-closed 校验
+            service.batchSyncDependencies(TENANT, new DependencyBatchSyncReq("example-service", "SERVICE_SYNC",
+                null, List.of(item("menu:sys", List.of("VIEW", " "), List.of("ACCESS")))), OPERATOR);
+
+            verify(typeResolutionService, never()).batchResolveOperationIds(eq(TENANT), eq("MENU"), eq(Set.of(" ")));
         }
     }
 

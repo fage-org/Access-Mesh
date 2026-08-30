@@ -35,7 +35,7 @@ acceptance:
   - "wire DTO 通过 api-contract 字段对齐（mock 与真实响应均按 api-contract，nullable/统一响应壳/BigInt 字符串格式由契约固化）"
   - "数据库异常统一转换为业务错误码（uk 冲突->20033 等，不暴露数据库异常）"
   - "**超时/重复提交处理**：前端 saving 期间按钮 disabled 防重复提交；超时 -> 提示刷新确认（不做重放/不做幂等表）；执行顺序：① 认证 + 目标角色 ROLE:MANAGE 门禁（hasPermission 显式判断 false 抛 SecurityException）-> ② prevalidateGrantPlan -> ③ 单事务执行（creates/updates/removes）+ 受影响行数断言"
-  - "GoldenFixtureTest 通过：**6 用例精简**（全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）输出权威结果；全局操作 fixture 由 T-PERM-031 阶段 2-4 完成后生产（本任务依赖 T-PERM-031）"
+  - "GoldenFixtureTest 通过：**6 用例精简**（全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）输出权威结果；全局操作解析链路已落地（TypeResolutionService 专属优先+全局 fallback、T-PERM-028 全局轨、T-PERM-040 list 类型合并），所需 fixture 随本任务测试自建（原「T-PERM-031 阶段 2-4 生产」划分已随该范围被吸收而废止，2026-08-30 清扫）"
   - "**grant_revision DDL 砍**：abstract_role 不新增 grant_revision 列（CAS 移除）；list 响应不含 revision；apply-grant-plan 请求不含 expectedRevision/clientRequestId、响应不含 revision/currentRevision/replayed；**受影响行数断言**：updates/removes 实际影响行数 ≠ 预期 -> 20036 整体回滚"
   - "**schema DDL：子权限属性系统不变量 CHECK**：access-service.sql 补 `CHECK (depend_on IS NULL OR (condition_id IS NULL AND can_grant = false))`（子权限不变量 DDL 兜底，2026-08-08 产品确认，与 20043 同口径；仅最终态建表 DDL，项目未上线不考虑历史数据）"
   - "**SUB_PERM 共享策略对象 + 只读接口（v3.1）**：从 `assertSubPermissionAllowed` 抽取不可变策略对象 `SubPermissionPolicy { mode, reason, allowedTypeCodes, allows(childTypeCode) }`，**唯一公开解析入口 `PermissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, parentResourceTypeCode)`**（顶层通配、**全量结构校验（任一 allowed 项缺 parent_type/child_types 非数组 -> CONFIG_INVALID）**、并集去重、大小写不敏感、错误原因统一组装）；新增 `POST role-resource-permission/sub-perm-allowed-types`（api-contract §6.5.2：ROLE:VIEW 门禁但失败响应不同——角色定位失败 20001、无 VIEW 抛 SecurityException、parentResourceTypeCode 无效 20007；reason 枚举 CONFIG_MISSING/EMPTY/INVALID/PARENT_NOT_CONFIGURED/**CHILD_TYPES_EMPTY**）；读接口由 AppService 映射 `resolveSubPermissionPolicy` 结果直接序列化，写链路 prevalidate 复用同一解析器调 `policy.allows(childTypeCode)`，**禁止在 AppService/Controller 另行编写 SUB_PERM 判断（读写同源）**；前端不硬编码允许集"
@@ -49,7 +49,7 @@ last_updated: 2026-08-29   # T-PERM-033 依赖登记：diff_snapshot 契约形�
 # T-PERM-034 4.1 权限授予后端改造
 
 > 状态：proposed（2026-08-02 收窄：砍 CAS + grant_revision 列 + 幂等表 + 20037/20039 + 重试 machinery + clientRequestId/@Idempotent（幂等中间件实现取消（未登记看板））；全链路迁移简化为 Feign+DTO+测试替换；schema 删除，契约回归 api-contract）
-> 依赖：T-PERM-031（全局操作 fixture 生产）
+> 依赖：T-PERM-031（已 done：本任务前置的资源依赖后端已收口；原「全局操作 fixture 生产」括注已废止——范围被 T-PERM-028/040 覆盖）
 > 前置验收：见 acceptance（DoD 门禁）
 
 ## 背景

@@ -26,7 +26,7 @@ import { hasBit } from "@/utils/bit-ops";
 /**
  * 资源依赖页组合式逻辑。
  *
- * 引用数据映射（应对后端 Resp 字段不全，🔧 T-PERM-031）：
+ * 引用数据映射（Resp 已随 T-PERM-031 补静态字段，映射保留为冗余快路径）：
  * - resourceMap：getResourceTree 扁平化 -> id->{name, resourceTypeCode, code, codeType}
  * - operationList：getOperationList 全量操作；bitsToOpCodes(bits, typeCode) 按资源类型
  *   + 全局操作过滤，hasBit（BigInt）位与拆解（P1 修复：typeCode 隔离跨类型同 bit 误匹配，
