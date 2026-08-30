@@ -287,7 +287,7 @@ export default defineFakeRoute([
       if (isDuplicate(merged, r.id)) {
         return error(20032, "等价冲突规则已存在（双向匹配）");
       }
-      // 全量覆盖（对齐后端 UpdateChain）：按 conflictType 写入对应字段集（规范化顺序），
+      // 全量覆盖（对齐后端 UpdateEntity 强制写列）：按 conflictType 写入对应字段集（规范化顺序），
       // 对侧强制 null；PERM_MUTEX 下 resourceTypeValue 直接覆盖（null=全部，可清空）。
       r.conflictType = merged.conflictType;
       if (merged.conflictType === "ROLE_MUTEX") {

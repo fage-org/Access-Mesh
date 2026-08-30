@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConflictRuleDetectReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConflictRuleReq;
@@ -29,6 +30,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -355,6 +357,16 @@ class ConflictRuleAppServiceImplTest {
             assertThat(patch.getUpdatedBy()).isEqualTo(OPERATOR_ID);
             assertThat(patch.getUpdatedAt()).isNotNull();
             assertThat(patch.getDescription()).isEqualTo("switched");
+            // 强制写列锁定：UpdateEntity 代理的 updates map 须含对侧字段的显式 null 列
+            // （getter 无法区分显式 set(null) 与未 set——删掉 set(null) 行本断言才失败）
+            @SuppressWarnings("unchecked")
+            Map<String, Object> updates =
+                ((com.mybatisflex.core.update.UpdateWrapper<PermissionConflictRule>) patch).getUpdates();
+            assertThat(updates).containsKey("firstOperationPermissionId");
+            assertThat(updates).containsKey("secondOperationPermissionId");
+            assertThat(updates).containsKey("resourceTypeValue");
+            assertThat(updates.get("firstOperationPermissionId")).isNull();
+            assertThat(updates.get("resourceTypeValue")).isNull();
         }
 
         @Test
@@ -373,6 +385,12 @@ class ConflictRuleAppServiceImplTest {
             ArgumentCaptor<PermissionConflictRule> captor = ArgumentCaptor.forClass(PermissionConflictRule.class);
             verify(conflictRuleMapper).update(captor.capture());
             assertThat(captor.getValue().getResourceTypeValue()).isNull();
+            // 强制写列锁定：rtv=null 须为显式 set 列（非依赖 BaseMapper 忽略 null 的默认行为）
+            @SuppressWarnings("unchecked")
+            Map<String, Object> updates =
+                ((com.mybatisflex.core.update.UpdateWrapper<PermissionConflictRule>) captor.getValue()).getUpdates();
+            assertThat(updates).containsKey("resourceTypeValue");
+            assertThat(updates.get("resourceTypeValue")).isNull();
         }
 
         @Test
@@ -389,6 +407,24 @@ class ConflictRuleAppServiceImplTest {
                     .isEqualTo(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode()));
             verify(engine, never()).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
             verify(conflictRuleMapper, never()).update(any(PermissionConflictRule.class));
+        }
+
+        @Test
+        void shouldThrow20020_whenReselectReturnsNullAfterUpdate() {
+            // 极小并发窗口：更新成功后 re-select 为 null（窗口内被并发软删）→ 20020 收口而非 NPE
+            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID))
+                .thenReturn(newRoleRule(RULE_ID, 101L, 102L))
+                .thenReturn(null);
+            when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of());
+
+            ConflictRuleUpdateReq req = new ConflictRuleUpdateReq(RULE_ID, "ROLE_MUTEX",
+                null, null, null, 101L, 102L, null);
+
+            assertThatThrownBy(() -> service.updateConflictRule(TENANT_ID, req, OPERATOR_ID))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                    .isEqualTo(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode()));
         }
 
         @Test
@@ -466,21 +502,26 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldMarkSkip_whenAllIdsGhost() {
+            OperationLogRuntimeContext.clear();
             when(conflictRuleMapper.selectValidByIds(eq(TENANT_ID), anySet())).thenReturn(List.of());
 
             service.deleteConflictRulesByIds(TENANT_ID, List.of(999L), OPERATOR_ID);
 
             verify(engine, never()).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
             verify(conflictRuleMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
+            // markSkip 分支行为锁定（否则删掉 markSkip 调用测试仍绿）
+            assertThat(OperationLogRuntimeContext.snapshot().skip()).isTrue();
         }
 
         @Test
         void shouldMarkSkip_whenIdsNullOrEmpty() {
+            OperationLogRuntimeContext.clear();
             service.deleteConflictRulesByIds(TENANT_ID, null, OPERATOR_ID);
             service.deleteConflictRulesByIds(TENANT_ID, List.of(), OPERATOR_ID);
 
             verify(conflictRuleMapper, never()).selectValidByIds(anyLong(), anySet());
             verify(conflictRuleMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
+            assertThat(OperationLogRuntimeContext.snapshot().skip()).isTrue();
         }
     }
 

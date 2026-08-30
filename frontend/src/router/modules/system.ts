@@ -155,7 +155,7 @@ export default {
         icon: "ep/warn-triangle-filled",
         title: "冲突规则",
         // 单一事实源派生：见 views/system/conflict-rule/utils/perms.ts
-        // 冲突规则 CRUD 门禁 CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE（三档独立，非 MANAGE，对齐后端）
+        // 冲突规则门禁 CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE（读 VIEW + 写三档独立，非 MANAGE，T-PERM-030 收口口径）
         auths: [...CONFLICT_RULE_PERM_LIST]
       }
     },

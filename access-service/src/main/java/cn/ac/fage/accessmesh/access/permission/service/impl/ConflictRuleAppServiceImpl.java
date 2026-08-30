@@ -207,7 +207,8 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             req.firstAbstractRoleId(), req.secondAbstractRoleId());
 
         if (isDuplicate(tenantId, req.conflictType(), req.firstOperationPermissionId(), req.secondOperationPermissionId(),
-            req.firstAbstractRoleId(), req.secondAbstractRoleId(), req.resourceTypeValue(), null)) {
+            req.firstAbstractRoleId(), req.secondAbstractRoleId(),
+            ROLE_MUTEX.equals(req.conflictType()) ? null : req.resourceTypeValue(), null)) {
             throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
         }
 
@@ -314,7 +315,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "PERMISSION", action = "CONFLICT_RULE_UPDATE", targetType = "permission_conflict_rule", targetId = "#req.id()", summary = "'update conflict rule ' + #req.id()")
     public ConflictRuleResp updateConflictRule(Long tenantId, ConflictRuleUpdateReq req, Long operatorId) {
-        // 先解析后门禁（T-PERM-028/029 模式：未知键 20020 优先于权限拒绝，零副作用）
+        // 先解析后门禁（T-PERM-029 模式：未知键 20020 优先于权限拒绝，零副作用）
         PermissionConflictRule rule = conflictRuleMapper.selectValidById(req.id(), tenantId);
         if (rule == null) {
             throw new BizException(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
@@ -339,7 +340,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         validateFields(conflictType, firstOp, secondOp, firstRole, secondRole);
 
         if (isDuplicate(tenantId, conflictType, firstOp, secondOp, firstRole, secondRole,
-            req.resourceTypeValue(), req.id())) {
+            ROLE_MUTEX.equals(conflictType) ? null : req.resourceTypeValue(), req.id())) {
             throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
         }
 
@@ -379,7 +380,13 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             throw e;
         }
 
-        return toConflictRuleResp(conflictRuleMapper.selectValidById(req.id(), tenantId));
+        // 极小并发窗口内（本事务外）规则被并发软删时 re-select 可为 null——按 20020 收口而非 NPE 500
+        PermissionConflictRule updated = conflictRuleMapper.selectValidById(req.id(), tenantId);
+        if (updated == null) {
+            throw new BizException(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
+                "Conflict rule not found: " + req.id());
+        }
+        return toConflictRuleResp(updated);
     }
 
     /**

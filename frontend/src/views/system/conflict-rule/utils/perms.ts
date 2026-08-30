@@ -16,7 +16,7 @@
  *   单删方法已随 T-PERM-030 删除）
  *
  * 即：读 VIEW + 写三档；类型级门禁（CONFLICT_RULE 无 resource_entity 实例投影，T-PERM-030 口径）。
- * sec（安全管理员）负责冲突规则定义，拥有 CREATE+UPDATE+DELETE；admin 全权；hr/auditor 只读 VIEW。
+ * sec（安全管理员）负责冲突规则定义，拥有 VIEW+CREATE+UPDATE+DELETE；admin 全权；hr/auditor 只读 VIEW。
  *
  * 详见 `docs/design/frontend/conflict-rule.md` §权限接线。
  */

@@ -142,7 +142,7 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(1)
-    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+13API 资源/12 映射/23 授权）")
+    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+13API 资源/12 映射/34 授权）")
     void createsFullGraphOnEmptyDatabase() {
         initializer.initialize(BOOTSTRAP_PASSWORD);
 
