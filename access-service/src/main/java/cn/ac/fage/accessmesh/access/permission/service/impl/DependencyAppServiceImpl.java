@@ -490,10 +490,15 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         int deletedCount = 0;
         int updatedCount = 0;
 
-        // autoGrant=true 逐项预检：在任何写操作（FULL diff 删除/更新/插入）之前统一拦截，
-        // 避免「先执行删除再回滚」的事务补偿路径
+        // 清单级预检（畸形清单零副作用，先于资源解析与 FULL diff 全部写操作）：
+        // autoGrant=true 拒绝 + requiredOperationCodes 必填非空非全空白——原必检查位于
+        // 「资源未解析条目跳过」之后，畸形条目会绕过 20044 且 FULL 仍照常执行差异删除
         for (DependencyBatchSyncReq.DependencySyncItem item : items) {
             rejectAutoGrantTrue(item.autoGrant());
+            if (!hasCodes(item.requiredOperationCodes()) || nonBlankCodes(item.requiredOperationCodes()).isEmpty()) {
+                throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+                    "sync item missing requiredOperationCodes: " + item.sourceResourceCode() + " -> " + item.targetResourceCode());
+            }
         }
 
         // ===== 循环外批量预解析（资源 ID + 操作位索引，消解逐项解析的 N+1） =====
@@ -508,7 +513,8 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         Map<ResourceResolveKey, Long> resourceIdMap = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);
         Map<String, Map<String, Long>> opBitIndex = buildOperationBitIndex(tenantId, items);
 
-        // 预解析条目：资源未解析的条目静默跳过（同步清单漂移由对账兜底）
+        // 预解析条目：资源未解析的条目静默跳过（同步清单漂移由对账兜底）；
+        // 必填操作码已在清单级预检拒绝，此处 requiredBits 不可能为 null
         List<ResolvedSyncItem> resolvedItems = new ArrayList<>();
         for (DependencyBatchSyncReq.DependencySyncItem item : items) {
             Long sourceResourceId = resourceIdMap.get(new ResourceResolveKey(
@@ -517,11 +523,6 @@ public class DependencyAppServiceImpl implements DependencyAppService {
                 item.targetResourceTypeCode(), item.targetResourceCode(), item.targetCodeType(), null));
             if (sourceResourceId == null || targetResourceId == null) continue;
             Long requiredBits = bitsOf(item.requiredOperationCodes(), item.targetResourceTypeCode(), opBitIndex);
-            if (requiredBits == null) {
-                // required_operation_bits 列 NOT NULL：缺失即畸形清单，显式拒绝而非 DB 非空约束 500
-                throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                    "sync item missing requiredOperationCodes: " + item.sourceResourceCode() + " -> " + item.targetResourceCode());
-            }
             resolvedItems.add(new ResolvedSyncItem(sourceResourceId, targetResourceId,
                 bitsOf(item.sourceOperationCodes(), item.sourceResourceTypeCode(), opBitIndex),
                 requiredBits, item));
@@ -742,9 +743,13 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         Map<String, Long> codeToBit = new HashMap<>();
         for (Map.Entry<String, Long> entry : codeToIdMap.entrySet()) {
             OperationPermission op = opMap.get(entry.getValue());
-            if (op != null && op.getBinaryBit() != null) {
-                codeToBit.put(entry.getKey(), op.getBinaryBit());
+            if (op == null || op.getBinaryBit() == null) {
+                // 二次加载同样 fail-closed：code→id 解析与按 id 加载两查询间隙并发软删时拒绝，
+                // 不得静默丢位（否则 create/update 会写入部分位或 0，重现要消除的语义降级）
+                throw new BizException(PermissionErrorCode.OPERATION_NOT_FOUND.getCode(),
+                    "Operation permission not found: " + entry.getKey() + " (resourceType=" + resourceTypeCode + ")");
             }
+            codeToBit.put(entry.getKey(), op.getBinaryBit());
         }
         return codeToBit;
     }

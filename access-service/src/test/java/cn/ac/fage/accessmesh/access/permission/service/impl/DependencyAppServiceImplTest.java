@@ -449,6 +449,24 @@ class DependencyAppServiceImplTest {
     class CreateValidation {
 
         @Test
+        void shouldThrow20005WhenOperationMissingOnSecondLoad() {
+            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
+            when(typeResolutionService.resolveResourceId(TENANT, "API", "api:hello", null, null)).thenReturn(TARGET_ID);
+            // code→id 解析成功，但按 id 二次加载落空（两查询间隙并发软删）：
+            // 同样 fail-closed 20005，不得静默丢位写入部分位或 0
+            when(typeResolutionService.batchResolveOperationIds(eq(TENANT), eq("API"), anySet()))
+                .thenReturn(Map.of("ACCESS", 41L));
+            when(operationPermissionMapper.selectValidByIds(eq(TENANT), anySet())).thenReturn(List.of());
+
+            assertThatThrownBy(() -> service.createDependency(TENANT, createReq(null, List.of("ACCESS"), null), OPERATOR))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                    .isEqualTo(PermissionErrorCode.OPERATION_NOT_FOUND.getCode()));
+            verify(dependencyMapper, never()).insert(any(ResourceDependency.class));
+        }
+
+        @Test
         void shouldThrow20054WhenDuplicatePrecheckHits() {
             stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
             when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
@@ -634,18 +652,32 @@ class DependencyAppServiceImplTest {
         @Test
         void shouldThrow20044WhenSyncItemMissingRequiredOperationCodes() {
             stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
-            ResourceResolveKey sourceKey = new ResourceResolveKey("MENU", "menu:sys", null, null);
-            ResourceResolveKey targetKey = new ResourceResolveKey("API", "api:hello", null, null);
-            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
-                .thenReturn(Map.of(sourceKey, SOURCE_ID, targetKey, TARGET_ID));
 
-            // required_operation_bits 列 NOT NULL：缺失即畸形清单，显式 20044 而非 DB 约束 500
+            // 清单级预检先于资源解析与 FULL diff（P1 修复锁定）：资源未解析的畸形条目
+            // 不得绕过 20044，FULL 差异删除亦不得执行——旧实现 continue 在必检查之前
             assertThatThrownBy(() -> service.batchSyncDependencies(TENANT, new DependencyBatchSyncReq(
-                "example-service", "SERVICE_SYNC", null,
+                "example-service", "SERVICE_SYNC", "FULL",
                 List.of(item("menu:sys", null, null))), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
                     .isEqualTo(PermissionErrorCode.INVALID_PARAM.getCode()));
+            verify(typeResolutionService, never()).batchResolveResourceIds(anyLong(), anyList());
+            verify(dependencyMapper, never()).selectByOwnerService(anyLong(), anyString(), anyString());
+            verify(dependencyMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
+        }
+
+        @Test
+        void shouldThrow20044WhenSyncItemRequiredCodesAllBlankBeforeResolution() {
+            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+
+            // 全空白 required 码与缺失同档，同样在清单级预检拒绝（先于资源解析）
+            assertThatThrownBy(() -> service.batchSyncDependencies(TENANT, new DependencyBatchSyncReq(
+                "example-service", "SERVICE_SYNC", null,
+                List.of(item("menu:sys", null, List.of(" ")))), OPERATOR))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                    .isEqualTo(PermissionErrorCode.INVALID_PARAM.getCode()));
+            verify(typeResolutionService, never()).batchResolveResourceIds(anyLong(), anyList());
         }
 
         @Test
@@ -728,6 +760,25 @@ class DependencyAppServiceImplTest {
 
             assertThat(validator.validate(new DependencyBatchSyncReq(
                 "example-service", "MANIFEST", null, null))).isEmpty();
+        }
+
+        @Test
+        void shouldCascadeValidationIntoSyncItems() {
+            // items 级联校验（@Valid + @NotNull，ApplyGrantPlanReq 同款）：嵌套条目的
+            // @NotBlank/@Size 由父级校验触发，null 元素拒绝——旧实现无级联，空条目
+            // 会在服务层 NPE、超长描述直达持久层
+            var violations = validator.validate(new DependencyBatchSyncReq(
+                "example-service", "MANIFEST", null,
+                java.util.Arrays.asList(
+                    null,
+                    new DependencyBatchSyncReq.DependencySyncItem(
+                        " ", null, null, null, " ", null, null, null, null, "x".repeat(513)))));
+            assertThat(violations).hasSize(6);
+            assertThat(violations).extracting(v -> v.getPropertyPath().toString())
+                .contains("items[0].<list element>",
+                    "items[1].sourceResourceTypeCode", "items[1].sourceResourceCode",
+                    "items[1].targetResourceTypeCode", "items[1].targetResourceCode",
+                    "items[1].description");
         }
 
         @Test

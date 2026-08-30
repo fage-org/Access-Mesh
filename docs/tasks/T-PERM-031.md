@@ -21,10 +21,10 @@ acceptance:
   - "update PUT 全量覆盖语义（Q3=B 前端契约收口）：UpdateReq 补齐资源对业务键四字段（原 DTO 缺失导致前端「改资源对」提交被静默丢弃）、先解析后门禁、UpdateEntity 显式写列（sourceOperationCodes null=任意触发可达、description null=清空可达）、updatedBy 审计补齐、maintainSource/ownerServiceCode 来源归属不随管理端编辑改写；re-select 空窗口 20019 收口防 NPE 500（030 同款）"
   - "自依赖拒绝：source==target（即成环）create/update 拒绝 20044（前端表单已校验后端兜底；check 端点同判定返回 hasCycle=true）"
   - "maintainSource 四值白名单收口（schema 口径）：DTO @Pattern 拒绝四值外（原注释 SERVICE/MANUAL 系漂移）、实体注释对齐、管理端创建行显式落 ADMIN_UI+ownerServiceCode=null；description @Size(512)（create/update/sync item 三处）"
-  - "batch-sync 修正：FULL diff 匹配键改三元组（源+目标+COALESCE(source_bits,0)，原仅按资源对匹配——同资源对不同触发操作是不同规则，漏删且 upsert 定位错行，🔧8 收口）；upsert 键同步三元组；资源 ID 与操作位循环外按类型批量预解析（消解逐条目 resolveOperationBits 的 N+1，§8.4.8 红线）；条目缺 requiredOperationCodes 拒绝 20044（列 NOT NULL，原为 DB 约束 500）；autoGrant 预检保持先于全部写操作"
+  - "batch-sync 修正：FULL diff 匹配键改三元组（源+目标+COALESCE(source_bits,0)，原仅按资源对匹配——同资源对不同触发操作是不同规则，漏删且 upsert 定位错行，🔧8 收口）；upsert 键同步三元组；资源 ID 与操作位循环外按类型批量预解析（消解逐条目 resolveOperationBits 的 N+1，§8.4.8 红线）；清单级预检（autoGrant + 必填操作码缺失/全空白拒 20044）先于资源解析与全部写操作——畸形清单零副作用，不因条目资源未解析而绕过；items 级联校验 @Valid+@NotNull；操作位两段解析均 fail-closed"
   - "list 维持全量不分页 + resourceEntityId 内部过滤保留、graph 维持扁平列表（设计定案成文，029/030 同款量小非流水表口径）；batch-sync 前端 P0 维持 TODO（Q5=B），后端端点本批收口"
   - "bootstrap 固定图补授（空库死锁防护，025/026/027/030/032 逐任务补齐模式）：DEPENDENCY:VIEW/CREATE/UPDATE/DELETE/SYNC 五条类型级不可转授（SYNC 随四档同补——端点存在且门禁为 SYNC，前端 P0 未接入不改变端点事实）；GRANT_RESOURCE_TYPES 同步补 DEPENDENCY（缺项会操作位 fail-fast 级联）"
-  - "测试：DependencyAppServiceImplTest 重写扩充 32 项（原 5 项 autoGuard 用例保留：门禁五档+20019 先解析后门禁+PUT 全量覆盖 UpdateWrapper.getUpdates 显式 null 断言+20054 预查/DIVE 转译+20005/20044+FULL diff 三元组+N+1 times 锁定+空白码统一两用例+DTO Bean Validation）；AccessBootstrapPgIT 授权计数 34→39/scopeAll 21→26"
+  - "测试：DependencyAppServiceImplTest 重写扩充 35 项（原 5 项 autoGuard 用例保留：门禁五档+20019 先解析后门禁+PUT 全量覆盖 UpdateWrapper.getUpdates 显式 null 断言+20054 预查/DIVE 转译+20005/20044+FULL diff 三元组+N+1 times 锁定+空白码统一/清单级必填预检/级联校验/二次加载 fail-closed 用例+DTO Bean Validation）；AccessBootstrapPgIT 授权计数 34→39/scopeAll 21→26"
   - "前端与 mock 对齐：api Resp 类型补新字段+bits 字符串、🔧 注释收口口径；mock 新字段+类型/名称活状态反查、409→20054、资源 404→20004、update 404→20019、未知操作码 20005、自依赖 20044、remove ok(null)、autoGrant 20048 预检顺序对齐（最先）；设计文档 §4 八项收口+§5 权限表+last_reviewed"
 design_writeback:
   required: true
@@ -56,7 +56,8 @@ T-FE-011（资源依赖页）在 API 核对中登记 🔧 清单 8 项，归本�
 
 - 后端：PermissionErrorCode +20054；ResourceDependencyResp 重写（18 字段 + bits ToStringSerializer）；UpdateReq 重写（11 字段 PUT）；CreateReq/BatchSyncReq 校验补齐（@Size 512/maintainSource @Pattern 四值）；DependencyAppServiceImpl 核心方法重写（门禁/预查/PUT/batch-sync 三元组+预聚合）；bootstrap 五条 + GRANT_RESOURCE_TYPES；实体 maintainSource 注释对齐。
 - 空白码三入口统一：batch-sync 路径收集时过滤空白元素、全空白码列表拒 20044（原同步路径空白码进 fail-closed 校验抛 20005，与单条入口及契约句不符）。
-- 测试：DependencyAppServiceImplTest 32 项全绿（七组：AutoGrantGuard 5 / ReadEndpointsViewGate 4 / UpdateSemantics 8 / CreateValidation 4 / RemoveSemantics 2 / BatchSync 6 / DtoBeanValidation 3）；AccessBootstrapPgIT 39/26 计数锁定。
+- 测试：DependencyAppServiceImplTest 35 项全绿（七组：AutoGrantGuard 5 / ReadEndpointsViewGate 4 / UpdateSemantics 8 / CreateValidation 5 / RemoveSemantics 2 / BatchSync 7 / DtoBeanValidation 4）；AccessBootstrapPgIT 39/26 计数锁定。
+- 外部复评收口（同日，1P1+3P2+1P3 全属实）：①清单级必填预检先于资源解析与 FULL diff（原必检查位于资源跳过之后——资源未解析的畸形条目绕过 20044 且 FULL 照常删除）；②`items` 补 `@Valid + @NotNull` 级联（嵌套约束生效，防 null 元素 NPE 与超长描述直达持久层，apply-grant-plan 同款）；③操作位二次加载 fail-closed（两查询间隙并发软删时 20005，不静默丢位）；④mock bits 内部全程十进制字符串（原 BigInt 位或后收窄 Number 再转字符串，≥2^53 丢精度——实际种子位值未触发，保真度修正）；⑤四处文档残留清扫（resource-dependency.md §3 两处/看板 T-FE-011 行/plan 计数）。
 - 前端：api 类型+注释收口；mock 对齐（错误码同码、新字段、bits 字符串、remove data=null、全空白码 20044）；vue-tsc 干净 + vitest 216 全绿 + eslint 干净。
 - 文档：api-contract §5.6 契约要点块 + §6.9 规则（含接管/连带删除两条设计定案成文）+ last_reviewed；core-flows §12 FULL diff 三元组句；resource-dependency.md §3/§4/§5/§8 + last_reviewed；看板 031/T-FE-011 行；plan 进度行；AGENTS.md 阶段句；「全局操作阶段 2-4」悬空引用清扫（T-PERM-034/T-FE-018/看板共五处，范围已被 T-PERM-028 全局轨与 T-PERM-040 list 合并覆盖）。
 

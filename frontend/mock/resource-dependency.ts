@@ -52,7 +52,8 @@ type ResourceDependencyResp = {
   updatedAt: string;
 };
 
-/** 内部存储形态：bits 用 number（BigInt 位或后收窄），序列化时转字符串线格式 */
+/** 内部存储形态：bits 用十进制字符串（BigInt 位或后 toString，全程不收窄为
+ *  Number——2^53 以上低位会在序列化前丢失，违背字符串线格式目的） */
 type InternalDep = {
   id: number;
   tenantId: number;
@@ -60,8 +61,8 @@ type InternalDep = {
   sourceResourceCode: string;
   dependsOnResourceEntityId: number;
   depResourceCode: string;
-  sourceOperationBits: number | null;
-  requiredOperationBits: number;
+  sourceOperationBits: string | null;
+  requiredOperationBits: string;
   autoGrant: boolean;
   description: string | null;
   ownerServiceCode: string | null;
@@ -96,8 +97,8 @@ const deps: InternalDep[] = [
     sourceResourceCode: "role",
     dependsOnResourceEntityId: 221,
     depResourceCode: "auth-check",
-    sourceOperationBits: 2,
-    requiredOperationBits: 2,
+    sourceOperationBits: "2",
+    requiredOperationBits: "2",
     autoGrant: false,
     description: "访问角色管理需先通过鉴权校验",
     ownerServiceCode: null,
@@ -113,8 +114,8 @@ const deps: InternalDep[] = [
     sourceResourceCode: "res-op",
     dependsOnResourceEntityId: 222,
     depResourceCode: "res-tree",
-    sourceOperationBits: 2,
-    requiredOperationBits: 2,
+    sourceOperationBits: "2",
+    requiredOperationBits: "2",
     autoGrant: false,
     description: "资源与操作页需资源树查询接口",
     ownerServiceCode: null,
@@ -130,8 +131,8 @@ const deps: InternalDep[] = [
     sourceResourceCode: "user",
     dependsOnResourceEntityId: 231,
     depResourceCode: "dept-data",
-    sourceOperationBits: 2,
-    requiredOperationBits: 2,
+    sourceOperationBits: "2",
+    requiredOperationBits: "2",
     autoGrant: false,
     description: "组织与用户页依赖部门数据",
     ownerServiceCode: null,
@@ -147,8 +148,8 @@ const deps: InternalDep[] = [
     sourceResourceCode: "btn-edit",
     dependsOnResourceEntityId: 232,
     depResourceCode: "role-data",
-    sourceOperationBits: 4,
-    requiredOperationBits: 2,
+    sourceOperationBits: "4",
+    requiredOperationBits: "2",
     autoGrant: false,
     description: "编辑按钮依赖角色数据查看（手动补全）",
     ownerServiceCode: null,
@@ -176,9 +177,8 @@ function clone(d: InternalDep): ResourceDependencyResp {
     depResourceCode: d.depResourceCode,
     targetResourceTypeCode: tgt?.resourceTypeCode ?? null,
     targetResourceName: tgt?.name ?? null,
-    sourceOperationBits:
-      d.sourceOperationBits == null ? null : String(d.sourceOperationBits),
-    requiredOperationBits: String(d.requiredOperationBits),
+    sourceOperationBits: d.sourceOperationBits,
+    requiredOperationBits: d.requiredOperationBits,
     autoGrant: d.autoGrant,
     description: d.description,
     ownerServiceCode: d.ownerServiceCode,
@@ -236,7 +236,7 @@ function collectUnknownCodes(
 function codesToBits(
   codes: string[] | null | undefined,
   resourceTypeCode: string
-): number | null {
+): string | null {
   if (!codes || codes.length === 0) return null;
   let bits = 0n;
   for (const c of codes) {
@@ -248,7 +248,7 @@ function codesToBits(
     );
     if (op) bits |= BigInt(op.binaryBit);
   }
-  return Number(bits);
+  return bits.toString();
 }
 
 /** 校验创建/更新请求字段（对齐后端 ResourceDependencyCreateReq 必填约束） */
@@ -348,8 +348,8 @@ function isDuplicate(
       d.dependsOnResourceEntityId !== targetId
     )
       return false;
-    const dBits = d.sourceOperationBits ?? 0;
-    return dBits === (bits ?? 0);
+    const dBits = d.sourceOperationBits ?? "0";
+    return dBits === (bits ?? "0");
   });
 }
 
@@ -452,7 +452,7 @@ export default defineFakeRoute([
           codesToBits(
             body.requiredOperationCodes,
             body.targetResourceTypeCode
-          ) ?? 0,
+          ) ?? "0",
         autoGrant: false,
         description: body.description ?? null,
         ownerServiceCode: null,
@@ -506,7 +506,7 @@ export default defineFakeRoute([
       );
       d.requiredOperationBits =
         codesToBits(body.requiredOperationCodes, body.targetResourceTypeCode) ??
-        0;
+        "0";
       d.autoGrant = false;
       d.description = body.description ?? null;
       d.updatedAt = now();

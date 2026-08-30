@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.access.permission.dto.req;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
@@ -21,7 +23,7 @@ public record DependencyBatchSyncReq(
     @NotBlank @Pattern(regexp = "ADMIN_UI|SDK_SCAN|MANIFEST|SERVICE_SYNC",
         message = "maintainSource 仅接受 ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC") String maintainSource,
     String syncMode,
-    List<DependencySyncItem> items
+    @Valid List<@NotNull DependencySyncItem> items
 ) {
     /**
      * 依赖同步条目

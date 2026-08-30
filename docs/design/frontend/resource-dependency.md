@@ -61,7 +61,7 @@
 - `getOperationList` 返回每个操作的 `binaryBit`（2 的幂次，字符串线格式）
 - hook 建 `bitToOp: Map<binaryBit, {code, name}>`，对 `sourceOperationBits`/`requiredOperationBits`（字符串线格式）做 BigInt 位运算拆解（hasBit，63 位安全）
 
-**资源名称/类型映射**（应对后端 Resp 缺 name/typeCode）：
+**资源名称/类型映射**（Resp 已随 T-PERM-031 补 typeCode/name，映射保留为冗余快路径）：
 - `getResourceTree` 扁平化建 `resourceMap: Map<id, {name, resourceTypeCode, code, codeType}>`
 - Resp 返回 `resourceEntityId`/`dependsOnResourceEntityId`，反查映射得名称和类型
 
@@ -74,7 +74,7 @@
 - autoGrant 开关（**默认 false 且禁用**——预留字段，自动授权未实现（T-PERM-035 暂缓），后端拒绝保存 true 返回 20048；T-PERM-035 实现后放开）
 - 描述文本域（可空，maxlength 512）
 - 校验：源/目标资源必选 + 不能相同 + 要求操作必填非空
-- 编辑模式资源对可改（全量替换契约，Q3=B）：mock 支持完整字段覆盖；真后端 🔧 补全 update DTO
+- 编辑模式资源对可改（全量替换契约，Q3=B）：后端 UpdateReq 已补资源对业务键字段，PUT 全量覆盖已落地（T-PERM-031）
 
 **资源选择器交互**（Q4=A）：资源类型下拉 + 资源下拉联动，与 conflict-rule 操作权限选择器范式一致。类型切换时清空资源 ID 和操作码。
 
