@@ -33,7 +33,8 @@ import java.util.Set;
  * 写入语义对齐现有链路：资源/映射与 RESOURCE_SYNC 链路同款唯一键定位语义但走 MANUAL
  * 维护来源（bootstrap 是内部种子而非服务同步）；绑定与管理链路 assignRole 直插形态一致；
  * 授权复用 {@link PermissionGrantPlanDomainService#apply} 的 MANUAL 落库管线（单操作位
- * CHECK、子权限级联等不变量全部生效）。
+ * CHECK、子权限级联等不变量全部生效；注意 apply 不经 prevalidate，20042 条件启用校验
+ * 不在本路径——固定图从不携带条件授权，无适用面）。
  * </p>
  */
 @Component

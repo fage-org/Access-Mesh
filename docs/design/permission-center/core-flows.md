@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-28   # 2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+last_reviewed: 2026-08-30   # 2026-08-30 §6 L127 20042 口径补限定（T-PERM-041 复评审收口：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
@@ -124,7 +124,7 @@ flowchart LR
 - **统一预检**：所有规则（记录存在及角色/父归属、段间互斥、AUTO_DEP 只读 20034、canGrant 授权传递、SUB_PERM fail-closed 20011（父域解析走记录自身 resource_type）、MANUAL 单直接授权唯一性 20033、scopeMode/资源兼容、**主权限条件不变量 20041/20042（复审：仅主权限）**、**子权限属性系统不变量 20043（两种 create 形态非 null/false 拒绝、update 目标为子权限拒绝；优先级先于 20041/20042，见 api-contract §6.5.1）**）经 `prevalidateGrantPlan` 唯一预检入口执行。
 - **受影响行数断言**：updates/removes 实际影响行数 ≠ 预期（并发删除/修改）-> 20036 整体回滚；plan 至少含一项变更，update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
 - **无 CAS/无幂等表/无 clientRequestId**（收窄）：前端 saving 期间按钮 disabled 防重复点击；超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言。
-- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；`operationCode` 必填并按类型专属定义校验适用性（全局操作已退役），不匹配 -> **20008**；MANUAL 新授权一行只写一个操作位，不接受组合位。同一角色 + 资源/范围 + 操作 + 父权限最多一条 MANUAL 直接授权，`conditionCode/canGrant` 作为该记录的可变属性直接更新，重复 create -> **20033**（conditionCode/canGrant 不参与身份）。**属性不变量按主/子记录分类（复审）**：**主权限**条件不可转授（`conditionCode != null` -> `canGrant=false`，creates 主权限 + updates 结果态，违反 -> **20041**）且条件必须启用（**20042**）；**子权限**不承载条件/再授予（create 的 `conditionCode` 必须 null、`canGrant` 必须 false，违反 -> **20043**；update 目标为子权限一律 **20043**）。条件可选，填写 `conditionCode` 时必须存在且启用。
+- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；`operationCode` 必填并按类型专属定义校验适用性（全局操作已退役），不匹配 -> **20008**；MANUAL 新授权一行只写一个操作位，不接受组合位。同一角色 + 资源/范围 + 操作 + 父权限最多一条 MANUAL 直接授权，`conditionCode/canGrant` 作为该记录的可变属性直接更新，重复 create -> **20033**（conditionCode/canGrant 不参与身份）。**属性不变量按主/子记录分类（复审）**：**主权限**条件不可转授（`conditionCode != null` -> `canGrant=false`，creates 主权限 + updates 结果态，违反 -> **20041**）且条件启用状态合规（**20042**，仅新写入/变更时校验——update 同 id 重写=存量保留豁免，见 api-contract §6.5.1）；**子权限**不承载条件/再授予（create 的 `conditionCode` 必须 null、`canGrant` 必须 false，违反 -> **20043**；update 目标为子权限一律 **20043**）。条件可选，create 填写 `conditionCode` 时必须存在且启用，update 变更到的新条件必须启用（同 id 重写豁免）。
 - 写入后记录 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效相关缓存（afterCommit）。（**已删除 `permission_version` 递增**，2026-06-20 审计 S-001/S-018；收窄：apply-grant-plan 单事务原子 + 受影响行数断言，无 CAS/幂等表）
 
 ## 7. 权限查询引擎（PermQueryEngine）

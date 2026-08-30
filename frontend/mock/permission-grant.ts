@@ -535,7 +535,10 @@ export default defineFakeRoute([
         }
         // 20042 条件启用状态（v3.1）：仅 conditionCode 新写入或变更时目标必须启用中；
         // 存量绑定（update 未变更 conditionCode）允许保留并回显标注（T-PERM-041 acceptance）；
-        // 仅对存在的条件判停用（不存在的条件落入 20006）
+        // 仅对存在的条件判停用（不存在的条件落入 20006）。
+        // 「未变更」mock 按 code 字符串比对；后端按解析后条件 id 比对（api-contract §6.5.1
+        // 权威口径）——条件软删后同 code 重建的极端场景后端判变更（新 id）、mock 判未变更，
+        // 联调以真实后端行为为准
         if (
           nextCondition != null &&
           nextCondition !== target.conditionCode &&

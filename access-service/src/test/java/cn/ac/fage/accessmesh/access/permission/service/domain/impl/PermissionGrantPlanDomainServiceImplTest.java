@@ -671,6 +671,25 @@ class PermissionGrantPlanDomainServiceImplTest {
         }
 
         @Test
+        void shouldAllowUpdateRebindingFromDisabledToEnabledCondition() {
+            // 停用绑定改绑到启用条件：跨 id 变更、目标启用 -> 放行（正向锁，防豁免条件被写反）
+            RoleResourcePermission current = existing(5L, null, "MANUAL");
+            current.setConditionId(30L);
+            stubUpdateRemoveBase(current);
+            stubConditions(condition("biz-hours", 30L, false), condition("work-time", 31L, true));
+            callRealGrantAttributes();
+            stubDelegationAllowed();
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "work-time")), List.of()));
+
+            assertEquals(1, prepared.updates().size());
+            assertEquals(31L, prepared.updates().get(0).getConditionId());
+        }
+
+        @Test
         void shouldAllowUpdateLeavingDisabledBindingUntouched() {
             // 存量停用绑定未改 conditionCode：只改 canGrant 合法（计划不携带 conditionCode，条件不加载）
             RoleResourcePermission current = existing(5L, null, "MANUAL");
