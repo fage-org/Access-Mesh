@@ -288,6 +288,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 throw validation("An update must change canGrant or conditionCode");
             }
             RoleResourcePermission permission = existingById.get(update.id());
+            Long originalConditionId = permission.getConditionId();
             if (update.canGrant() != null) {
                 permission.setCanGrant(update.canGrant());
             }
@@ -296,6 +297,15 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                     ? null : conditionsByCode.get(update.conditionCode()).getId());
             }
             permissionGrantDomainService.validateGrantAttributes(permission);
+            // 20042 条件启用状态（T-PERM-041）：仅 conditionCode 变更时校验——新条件 id
+            // 与改前绑定一致视为存量保留（2026-08-30 设计定案：同 id 重写豁免，
+            // 与前端 v3.1「未修改 conditionCode 允许保留」同口径）；清除与缺省不触发
+            if (update.conditionCode() != null && !update.conditionCode().isBlank()) {
+                PermissionCondition changedCondition = conditionsByCode.get(update.conditionCode());
+                if (!Objects.equals(changedCondition.getId(), originalConditionId)) {
+                    assertConditionEnabled(changedCondition, update.conditionCode());
+                }
+            }
             permission.setUpdatedAt(now);
             preparedUpdates.add(permission);
 
@@ -408,6 +418,11 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         permission.setUpdatedAt(now);
         permission.setDeleteFlag(0L);
         permissionGrantDomainService.validateGrantAttributes(permission);
+        // 20042 条件启用状态（T-PERM-041）：create 新写入的 conditionCode 必须启用中
+        // （子权限带条件已被 20043 先行拦截，能携带条件到此处的均为主权限）
+        if (key.conditionCode() != null) {
+            assertConditionEnabled(conditionsByCode.get(key.conditionCode()), key.conditionCode());
+        }
         return permission;
     }
 
@@ -619,6 +634,14 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             throw new BizException(PermissionErrorCode.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED.getCode(),
                 "Child permission does not carry conditionCode/canGrant: "
                     + key.resourceTypeCode() + "/" + key.operationCode());
+        }
+    }
+
+    /** 20042 条件启用状态：写入/变更的目标条件必须 enabled=true（存量保留豁免由调用方判定） */
+    private static void assertConditionEnabled(PermissionCondition condition, String conditionCode) {
+        if (!Boolean.TRUE.equals(condition.getEnabled())) {
+            throw new BizException(PermissionErrorCode.CONDITION_DISABLED.getCode(),
+                "conditionCode is disabled: " + conditionCode);
         }
     }
 

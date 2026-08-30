@@ -89,7 +89,7 @@ last_updated: 2026-08-30
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
 | [T-PERM-040](../tasks/T-PERM-040.md) | 4.1 权限授予单资源类型后端支持 | ⚙️ | T-PERM-028, T-PERM-034 |
-| [T-PERM-041](../tasks/T-PERM-041.md) | 主权限条件不变量（20041 不可转授 + 20042 启用状态） | ⚙️ | T-PERM-034 |
+| [T-PERM-041](../tasks/T-PERM-041.md) | 主权限条件不变量（20041 不可转授 + 20042 启用状态） | ✅ | T-PERM-034 |
 
 ### 前端重建任务（T-FE-036/T-FE-038/T-FE-039，本 plan 关联的前端部分）
 
@@ -139,3 +139,4 @@ last_updated: 2026-08-30
 - 2026-08-30：**T-PERM-030 冲突规则后端收口**——六项 🔧 全处置（定位键维持内部 id 评估定案/读三端点 list/detail/detect 补类型级 VIEW/Resp 补 updatedAt/ConflictRuleDetailReq 死代码删除/实体注释对齐/detect 补 VIEW），另 detail 查不到 20020 收紧；写门禁类型级收窄（CONFLICT_RULE 同 CONDITION 口径，T-PERM-048）；bootstrap 固定图补 CONFLICT_RULE 四档 + 顺带补 CONDITION 写三档（029 遗漏的空库死锁缺口，checkCanGrant 无授予起点）；update UpdateChain→UpdateEntity 对齐 028 标准；新建 ConflictRuleAppServiceImplTest 33 项（此前零单测）；四项设计定案经用户决策。剩余逐页任务：T-PERM-031/034/037。
 - 2026-08-30：**T-PERM-031 资源依赖后端收口**——八项 🔧 全处置：门禁五档类型级（读 list/graph/check 补 VIEW + update/remove 从 ID 空间错位的实例级收窄）、update PUT 全量替换+资源对业务键补全（Q3=B 前端契约，原静默丢弃资源对字段）、Resp 补静态字段+操作位字符串线格式（operationCodes 反解经决策不做）、maintainSource 四值白名单（schema 口径收口）、batch-sync FULL diff 三元组匹配（源+目标+触发位，对齐 uk 语义）+ 循环外批量预解析消解 N+1；另等价重复业务预查新增 20054、操作码 fail-closed 20005（原静默丢弃落 0 写出语义错误规则）、自依赖 20044、updatedBy 审计、bootstrap 五条补授（含 SYNC）+ GRANT_RESOURCE_TYPES 同步；DependencyAppServiceImplTest 35 项（含内外部复评收口用例：空白码统一/清单级必填预检/级联校验/二次加载 fail-closed）+ AccessBootstrapPgIT 39/26；三项设计定案经用户决策。剩余逐页任务：T-PERM-034/037。
 - 2026-08-30：**T-PERM-034 权限授予后端收口（四缺口推进，经决策）**——已完成项核对登记不重做（Resp 四字段/错误码族/DDL CHECK/prevalidate 主体/写入口五项清单均先行存在）；实施：①20043 子权限属性系统不变量（两 create 形态+update 子目标，先于 20041，+「向 AUTO_DEP 父挂子权限 20034」补齐）②SubPermissionPolicy 抽取+resolveSubPermissionPolicy 唯一公开入口+sub-perm-allowed-types 端点（§6.5.2 全套，读写同源）③diff_snapshot §6.8 聚合形状（AuditPermissionKey 预检期快照+一条聚合日志，T-PERM-033 读侧依赖解锁）④GoldenFixturePgIT 引擎级比对（6 用例真库种数据逐格等价）——比对首跑抓出引擎实质分歧并修复：resolveBitMasks 不计全局操作位（授权允许的全局位运行时被忽略），改按类型合并专属+全局；测试 4→35+5+1+3（含端到端成功/失败两场景）。剩余逐页任务：T-PERM-037/040/041（040/041 为授予链配套）。
+- 2026-08-30：**T-PERM-041 主权限条件不变量收口**——调研核实先行交付不重做（20041 枚举+prevalidate 最终态判定、`ck_role_resource_permission_condition_can_grant` DDL CHECK、api-contract/core-flows/permission-grant.md 契约文字均已存在），实际缺口仅 20042 后端校验与计划级测试：`CONDITION_DISABLED(20042)` 枚举建立（沿用预留编号）+ prevalidate 两处校验（creates 主权限新写入条件必须启用；updates 仅变更时校验——同 id 重写=存量保留按条件 id 比对豁免，清除/缺省不触发；均紧随 20041 之后符合 §6.5.1 优先级）；20006 存在性批量预检先于 20041/20042 维持既有顺序（设计定案：极端组合下与 mock 错误码不同但均为拒绝，不重排）；计划级测试 12 用例（doCallRealMethod 走真实 20041）+ H2 CHECK 用例。剩余逐页任务：T-PERM-037/040（040 为授予链配套）。

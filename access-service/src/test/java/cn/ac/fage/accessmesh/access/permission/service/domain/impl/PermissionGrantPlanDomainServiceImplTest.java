@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.permission.entity.DomainConfig;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
+import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.permission.mapper.DomainConfigMapper;
@@ -31,21 +32,23 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * T-PERM-034 授权计划预检测试矩阵（非笛卡尔积，按适用命令覆盖）：
- * 成功路径 6 / 子权限属性反例（20043）/ 不变量反例（互斥/重复/存在性/AUTO_DEP 只读/
- * 父归属）/ SUB_PERM 四格（INSTANCE/ALL × 具体域/全局域）/ 查询次数断言 /
- * SubPermissionPolicy 判定优先级 0-6。
+ * T-PERM-034 授权计划预检测试矩阵（非笛卡尔积，按适用命令覆盖）：成功路径 6 / 子权限属性反例（20043）/
+ * 主权限条件不变量（20041 最终态 + 20042 启用状态，T-PERM-041）/
+ * 不变量反例（互斥/重复/存在性/AUTO_DEP 只读/父归属）/ SUB_PERM 四格（INSTANCE/ALL × 具体域/全局域）/
+ * 查询次数断言 / SubPermissionPolicy 判定优先级 0-6。
  */
 @ExtendWith(MockitoExtension.class)
 class PermissionGrantPlanDomainServiceImplTest {
@@ -56,7 +59,9 @@ class PermissionGrantPlanDomainServiceImplTest {
 
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
-    @Mock private PermissionGrantDomainService permissionGrantDomainService;
+    // 具体实现类 mock：主权限条件不变量用例经 doCallRealMethod 执行真实 20041 校验
+    // （validateGrantAttributes 不触达实例字段，安全）；其余方法保持默认 no-op stub
+    @Mock private PermissionGrantDomainServiceImpl permissionGrantDomainService;
     @Mock private RoleResourcePermissionMapper rolePermissionMapper;
     @Mock private ResourceEntityMapper resourceEntityMapper;
     @Mock private OperationPermissionMapper operationPermissionMapper;
@@ -457,6 +462,229 @@ class PermissionGrantPlanDomainServiceImplTest {
                     List.of(new ApplyGrantPlanReq.UpdateItem(6L, null, "cond-1")), List.of())));
 
             assertEquals(20043, exception.getErrorCode());
+        }
+    }
+
+    // ========== 主权限条件不变量（T-PERM-041：20041 最终态 + 20042 启用状态） ==========
+
+    @Nested
+    class MainPermissionConditionInvariants {
+
+        /** 计划级用例走真实 validateGrantAttributes（20041），不再依赖被 mock 的 no-op stub */
+        private void callRealGrantAttributes() {
+            doCallRealMethod().when(permissionGrantDomainService).validateGrantAttributes(any());
+        }
+
+        private static PermissionCondition condition(String code, long id, boolean enabled) {
+            PermissionCondition item = new PermissionCondition();
+            item.setId(id);
+            item.setTenantId(TENANT);
+            item.setCode(code);
+            item.setEnabled(enabled);
+            return item;
+        }
+
+        private void stubConditions(PermissionCondition... items) {
+            when(permissionConditionMapper.selectValidByCodes(eq(TENANT), anySet()))
+                .thenReturn(List.of(items));
+        }
+
+        @Test
+        void shouldRejectMainCreateWithConditionAndCanGrantTrue() {
+            stubCreateBase();
+            stubConditions(condition("work-time", 31L, true));
+            callRealGrantAttributes();
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("report:sales", ScopeMode.INSTANCE, "work-time", true), null, List.of())),
+                    List.of(), List.of())));
+
+            assertEquals(20041, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectUpdateChangingConditionAndCanGrantTogether() {
+            stubUpdateRemoveBase(existing(5L, null, "MANUAL"));
+            stubConditions(condition("work-time", 31L, true));
+            callRealGrantAttributes();
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, "work-time")), List.of())));
+
+            assertEquals(20041, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectUpdateConditionOnlyWhenRecordAlreadyCanGrant() {
+            // 只改 conditionCode：覆盖到当前 canGrant=true 的记录，最终态仍拒绝
+            RoleResourcePermission current = existing(5L, null, "MANUAL");
+            current.setCanGrant(true);
+            stubUpdateRemoveBase(current);
+            stubConditions(condition("work-time", 31L, true));
+            callRealGrantAttributes();
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "work-time")), List.of())));
+
+            assertEquals(20041, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectUpdateCanGrantOnlyWhenRecordAlreadyHasCondition() {
+            // 只改 canGrant=true：已有条件的记录变为可转授，最终态拒绝（计划不携带 conditionCode，条件不加载）
+            RoleResourcePermission current = existing(5L, null, "MANUAL");
+            current.setConditionId(31L);
+            stubUpdateRemoveBase(current);
+            callRealGrantAttributes();
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null)), List.of())));
+
+            assertEquals(20041, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldPrefer20041WhenBothInvariantsViolated() {
+            // 契约优先级（api-contract §6.5.1）：20041 -> 20042，停用条件 + canGrant=true 首个命中 20041
+            stubCreateBase();
+            stubConditions(condition("biz-hours", 30L, false));
+            callRealGrantAttributes();
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("report:sales", ScopeMode.INSTANCE, "biz-hours", true), null, List.of())),
+                    List.of(), List.of())));
+
+            assertEquals(20041, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldAllowMainCreateWithConditionAndCanGrantFalse() {
+            stubCreateBase();
+            stubConditions(condition("work-time", 31L, true));
+            callRealGrantAttributes();
+            stubDelegationAllowed();
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("report:sales", ScopeMode.INSTANCE, "work-time", false), null, List.of())),
+                    List.of(), List.of()));
+
+            assertEquals(1, prepared.creates().size());
+            assertEquals(31L, prepared.creates().get(0).permission().getConditionId());
+        }
+
+        @Test
+        void shouldAllowUpdateClearingConditionOnCanGrantRecord() {
+            // 清条件（conditionCode=""）后最终态无条件：canGrant=true 不再违反 20041
+            RoleResourcePermission current = existing(5L, null, "MANUAL");
+            current.setCanGrant(true);
+            current.setConditionId(31L);
+            stubUpdateRemoveBase(current);
+            callRealGrantAttributes();
+            stubDelegationAllowed();
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "")), List.of()));
+
+            assertEquals(1, prepared.updates().size());
+            assertNull(prepared.updates().get(0).getConditionId());
+        }
+
+        @Test
+        void shouldAllowUpdateCanGrantFalseWithExistingCondition() {
+            RoleResourcePermission current = existing(5L, null, "MANUAL");
+            current.setCanGrant(true);
+            current.setConditionId(31L);
+            stubUpdateRemoveBase(current);
+            callRealGrantAttributes();
+            stubDelegationAllowed();
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.FALSE, null)), List.of()));
+
+            assertEquals(1, prepared.updates().size());
+            assertEquals(Boolean.FALSE, prepared.updates().get(0).getCanGrant());
+        }
+
+        @Test
+        void shouldRejectMainCreateWithDisabledCondition() {
+            stubCreateBase();
+            stubConditions(condition("biz-hours", 30L, false));
+            callRealGrantAttributes();
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("report:sales", ScopeMode.INSTANCE, "biz-hours", false), null, List.of())),
+                    List.of(), List.of())));
+
+            assertEquals(20042, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectUpdateChangingToDisabledCondition() {
+            // 当前无条件，变更到停用条件（canGrant 不变 false，不撞 20041）
+            stubUpdateRemoveBase(existing(5L, null, "MANUAL"));
+            stubConditions(condition("biz-hours", 30L, false));
+            callRealGrantAttributes();
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "biz-hours")), List.of())));
+
+            assertEquals(20042, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldAllowUpdateRewritingSameDisabledCondition() {
+            // 同 id 重写 = 存量保留（2026-08-30 设计定案：按条件 id 比对豁免 20042）
+            RoleResourcePermission current = existing(5L, null, "MANUAL");
+            current.setConditionId(30L);
+            stubUpdateRemoveBase(current);
+            stubConditions(condition("biz-hours", 30L, false));
+            callRealGrantAttributes();
+            stubDelegationAllowed();
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.FALSE, "biz-hours")), List.of()));
+
+            assertEquals(1, prepared.updates().size());
+            assertEquals(30L, prepared.updates().get(0).getConditionId());
+        }
+
+        @Test
+        void shouldAllowUpdateLeavingDisabledBindingUntouched() {
+            // 存量停用绑定未改 conditionCode：只改 canGrant 合法（计划不携带 conditionCode，条件不加载）
+            RoleResourcePermission current = existing(5L, null, "MANUAL");
+            current.setConditionId(30L);
+            stubUpdateRemoveBase(current);
+            callRealGrantAttributes();
+            stubDelegationAllowed();
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.FALSE, null)), List.of()));
+
+            assertEquals(1, prepared.updates().size());
         }
     }
 

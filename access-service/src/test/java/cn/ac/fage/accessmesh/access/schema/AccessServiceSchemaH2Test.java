@@ -440,6 +440,18 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
+    @DisplayName("role_resource_permission CHECK：主权限带条件时 can_grant 必须 false（20041 DDL 兜底，T-PERM-041）")
+    void shouldEnforceConditionCanGrantCheck() {
+        assertThrows(SQLException.class, () -> {
+            try (Statement s = conn.createStatement()) {
+                s.execute("INSERT INTO role_resource_permission " +
+                    "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, condition_id, can_grant) " +
+                    "VALUES (1, 1, 101, 1, 1, 30, TRUE)");
+            }
+        }, "ck_role_resource_permission_condition_can_grant 应拒绝 condition_id 非 NULL 且 can_grant=true 的记录");
+    }
+
+    @Test
     @DisplayName("sys_task_execution 表与执行键唯一约束")
     void shouldHaveTaskExecutionTable() throws SQLException {
         assertTrue(tableExists("sys_task_execution"), "sys_task_execution 应存在（T-ACCESS-009 预建）");

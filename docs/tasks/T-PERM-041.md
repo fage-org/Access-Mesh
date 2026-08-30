@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-041
 title: 主权限条件不变量（20041 不可转授 + 20042 启用状态 + 主权限 DDL CHECK + 全形态校验 + 测试）
-status: proposed
+status: done
 plan: docs/plans/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
@@ -23,13 +23,13 @@ acceptance:
   - "design_writeback：api-contract §6.5.1（校验规则 + 结构约束 + 错误码枚举）、access-service.sql（role_resource_permission DDL CHECK）、permission-grant.md §4（前端行为）、core-flows.md §6（写链路流程）核对一致"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-08-22
+  status: done
+last_updated: 2026-08-30
 ---
 
 # T-PERM-041 主权限条件不变量（20041 不可转授 + 20042 启用状态）
 
-> 状态：proposed（2026-08-05 评审确认：条件权限不可转授使用错误码 20041；**2026-08-08 补充：20042 条件启用状态并入本任务**）
+> 状态：done（2026-08-30 收口；2026-08-05 评审确认：条件权限不可转授使用错误码 20041；**2026-08-08 补充：20042 条件启用状态并入本任务**）
 > 依赖：T-PERM-034（`prevalidate` 唯一预检入口基线；流程名 prevalidateGrantPlan，Java 方法名 = `PermissionGrantPlanDomainService.prevalidate`）
 > 前置验收：见 acceptance
 
@@ -49,4 +49,13 @@ last_updated: 2026-08-22
 
 ## 完成记录
 
-（待实现后填写）
+**2026-08-30 收口**。调研核实：acceptance 五项中 20041（枚举 + `validateGrantAttributes` creates/updates 最终态判定）、主权限 DDL CHECK（`ck_role_resource_permission_condition_can_grant`）与 api-contract/core-flows/permission-grant.md 契约文字均**先行存在**（设计先行回写），实际缺口为 20042 后端校验与计划级测试矩阵：
+
+- **枚举**：`PermissionErrorCode` 新增 `CONDITION_DISABLED(20042, "权限条件已停用")`（沿用枚举预留编号与 api-contract §6.5.1 既定登记；LOCAL_PROJECTION_IMMUTABLE javadoc 的预留说明同步收口为"已由 CONDITION_DISABLED 承载"）。
+- **20042 校验**（`prevalidateGrantPlan` 两处，均紧随 20041 之后，符合 §6.5.1 错误优先级 20041 → 20042 → 20033 → 其他）：
+  - creates 主权限：`conditionCode != null` 时目标条件必须 enabled=true（子权限带条件已被 20043 先行拦截，能携带条件到判定处的均为主权限）；
+  - updates：`conditionCode` 非空且**变更**时（新条件 id ≠ 改前 `conditionId`，**2026-08-30 设计定案：按解析后条件 id 比对，同 id 重写视同存量保留豁免**，与前端 v3.1「未修改 conditionCode 允许保留」同口径）目标条件必须 enabled=true；清除（`""`）与缺省（`null`）不触发。
+- **20006 存在性批量预检先于 20041/20042 维持既有顺序**（2026-08-30 设计定案：极端组合下与 mock 演练顺序错误码不同但均为拒绝，正常 UI 不可达该组合，不重排 prevalidate 结构）。
+- **测试**：`PermissionGrantPlanDomainServiceImplTest` 新增 `MainPermissionConditionInvariants` 12 用例（20041：create 组合违反/updates 三态合并/只改 conditionCode/只改 canGrant=true/优先级 20041→20042；合法：清条件、canGrant=false、create 条件+canGrant=false；20042：create 写入停用条件/update 变更到停用条件（旧实现下必败，锁住修复）/同 id 重写豁免/存量停用绑定不动合法——计划级经 `doCallRealMethod` 执行真实 `validateGrantAttributes`）；`AccessServiceSchemaH2Test` 补 `ck_role_resource_permission_condition_can_grant` CHECK 拒绝用例（15/15）。
+- **文档回写核对**：api-contract §6.5.1 共用不变量块与 20042 规则标已落地 + "未变更"比对口径成文；permission-grant.md §4 停用条件规则补后端落地与比对口径、§11 S11/§12 决策 15 标后端已落地；core-flows §6/implementation/access-service.sql 表述已是事实性陈述无需改；前端无代码改动（20042 错误码映射与停用条件交互 T-FE-040 先行落地）。
+- **回归**：access-service `mvn test` 全量通过（surefire 双轨：单元轨 977 + 容器轨 115，0 失败 0 错误）。
