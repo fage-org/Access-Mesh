@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionCreateReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionDetailReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionRemoveReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConditionResp;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
@@ -11,7 +13,13 @@ import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -26,6 +34,8 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -56,6 +66,20 @@ class ConditionAppServiceImplTest {
     @Mock private PermissionConditionMapper conditionMapper;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
     @Mock private PermQueryEngine engine;
+
+    private static ValidatorFactory validatorFactory;
+
+    @BeforeAll
+    static void initValidator() {
+        validatorFactory = Validation.buildDefaultValidatorFactory();
+    }
+
+    @AfterAll
+    static void closeValidator() {
+        if (validatorFactory != null) {
+            validatorFactory.close();
+        }
+    }
 
     private ConditionAppServiceImpl service;
 
@@ -146,7 +170,7 @@ class ConditionAppServiceImplTest {
             PermissionCondition existing = newCondition(false,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"ORG_SCOPE\",\"params\":{}}]}");
             when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
-            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
+            when(engine.hasPermissionByEntityId(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
                 .thenReturn(true);
 
             ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, null, null, true, null);
@@ -162,7 +186,7 @@ class ConditionAppServiceImplTest {
             PermissionCondition existing = newCondition(false,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
             when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
-            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
+            when(engine.hasPermissionByEntityId(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
                 .thenReturn(true);
 
             ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, null, null, true, null);
@@ -177,7 +201,7 @@ class ConditionAppServiceImplTest {
             PermissionCondition existing = newCondition(true,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
             when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
-            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
+            when(engine.hasPermissionByEntityId(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
                 .thenReturn(true);
 
             String newRules = "{\"logic\":\"AND\",\"items\":[{\"type\":\"ORG_SCOPE\",\"params\":{}}]}";
@@ -297,7 +321,7 @@ class ConditionAppServiceImplTest {
             PermissionCondition existing = newCondition(true,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
             when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
-            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
+            when(engine.hasPermissionByEntityId(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
                 .thenReturn(true);
             when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))
                 .thenReturn(Set.of("svc-a", "svc-b"));
@@ -331,7 +355,7 @@ class ConditionAppServiceImplTest {
             PermissionCondition existing = newCondition(false,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
             when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
-            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
+            when(engine.hasPermissionByEntityId(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(CONDITION_ID), any()))
                 .thenReturn(true);
             when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))
                 .thenReturn(Set.of());
@@ -383,7 +407,7 @@ class ConditionAppServiceImplTest {
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
                     .isEqualTo(PermissionErrorCode.CONDITION_NOT_FOUND.getCode()));
-            verify(engine, never()).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
+            verify(engine, never()).hasPermissionByEntityId(anyLong(), anyLong(), any(), any(), any());
             verify(conditionMapper, never()).update(any(PermissionCondition.class));
         }
 
@@ -440,6 +464,45 @@ class ConditionAppServiceImplTest {
             service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE, "ghost"), OPERATOR_ID);
 
             verify(engine).getDeniedEntityIds(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(Set.of(CONDITION_ID)), any());
+        }
+    }
+
+    @Nested
+    class DtoBeanValidation {
+
+        // codex 外部评审 P3：本批新增的 @Size 列宽与 remove 元素级校验须有 Bean Validation 层锁定
+        //（HTTP 层 @Valid 触发 400；先例 DomainConfigAppServiceImplTest 白名单校验用例）
+        @Test
+        void shouldEnforceLengthAndElementConstraints() {
+            Validator validator = validatorFactory.getValidator();
+
+            // 合法形态：四个请求 DTO 全部通过
+            assertTrue(validator.validate(new ConditionCreateReq("c-1", "n", "{}", true, false, "d")).isEmpty());
+            assertTrue(validator.validate(new ConditionUpdateReq("c-1", "n", "{}", true, false, "d")).isEmpty());
+            assertTrue(validator.validate(new ConditionRemoveReq(List.of("c-1", "c-2"))).isEmpty());
+            assertTrue(validator.validate(new ConditionDetailReq("c-1")).isEmpty());
+
+            String over64 = "c".repeat(65);
+            String over128 = "n".repeat(129);
+            String over512 = "d".repeat(513);
+
+            // code 列宽/空白（create/update/detail 三 DTO + create 必填）
+            assertFalse(validator.validate(new ConditionCreateReq(over64, "n", "{}", null, null, null)).isEmpty());
+            assertFalse(validator.validate(new ConditionCreateReq(" ", "n", "{}", null, null, null)).isEmpty());
+            assertFalse(validator.validate(new ConditionUpdateReq(over64, null, null, null, null, null)).isEmpty());
+            assertFalse(validator.validate(new ConditionUpdateReq(" ", null, null, null, null, null)).isEmpty());
+            assertFalse(validator.validate(new ConditionDetailReq(over64)).isEmpty());
+
+            // name/description 列宽（本批评审补齐，超长应在 400 而非 DB 500）
+            assertFalse(validator.validate(new ConditionCreateReq("c-1", over128, "{}", null, null, null)).isEmpty());
+            assertFalse(validator.validate(new ConditionCreateReq("c-1", "n", "{}", null, null, over512)).isEmpty());
+            assertFalse(validator.validate(new ConditionUpdateReq("c-1", over128, null, null, null, null)).isEmpty());
+            assertFalse(validator.validate(new ConditionUpdateReq("c-1", null, null, null, null, over512)).isEmpty());
+
+            // remove 元素级：空列表/空白元素/超长元素整批拒绝
+            assertFalse(validator.validate(new ConditionRemoveReq(List.of())).isEmpty());
+            assertFalse(validator.validate(new ConditionRemoveReq(List.of(" ", "c-1"))).isEmpty());
+            assertFalse(validator.validate(new ConditionRemoveReq(List.of(over64))).isEmpty());
         }
     }
 

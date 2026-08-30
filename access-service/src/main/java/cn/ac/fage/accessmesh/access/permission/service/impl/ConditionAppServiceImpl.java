@@ -162,7 +162,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
             throw new BizException(PermissionErrorCode.CONDITION_NOT_FOUND.getCode(), "Condition not found: " + req.code());
         }
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, String.valueOf(condition.getId()), OperationCodeConstants.UPDATE)) {
+        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.CONDITION, condition.getId(), OperationCodeConstants.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.code());
         }
 

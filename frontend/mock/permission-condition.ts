@@ -67,6 +67,16 @@ function isDuplicateCode(code: string): boolean {
   return conditions.some(c => !c.deleted && c.code === code);
 }
 
+/** 对齐后端 Bean Validation 列宽（Condition*Req @NotBlank @Size）：空白/超长 400 */
+const invalidCode = (v: unknown) =>
+  typeof v !== "string" || !v.trim() || v.length > 64;
+const invalidName = (v: unknown, required: boolean) =>
+  required
+    ? typeof v !== "string" || !v.trim() || v.length > 128
+    : v != null && (typeof v !== "string" || v.length > 128);
+const invalidDescription = (v: unknown) =>
+  v != null && (typeof v !== "string" || v.length > 512);
+
 /** 校验 conditionRules（对齐后端 JsonValidationUtils + ConditionEvalUtils.isGatewayPushable）。
  *  - 始终校验 JSON 语法 + 对象结构。
  *  - gatewayEvaluable=true 时追加 isGatewayPushable 全部规则
@@ -125,8 +135,12 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       syncMockConditionsFromStorage();
+      const { conditionCode } = body || {};
+      if (invalidCode(conditionCode)) {
+        return error(400, "conditionCode 不能为空白且不超过 64 字符");
+      }
       const c = conditions.find(
-        item => item.code === body?.conditionCode && !item.deleted
+        item => item.code === conditionCode && !item.deleted
       );
       return c ? ok(clone(c)) : error(CONDITION_NOT_FOUND, "权限条件不存在");
     }
@@ -145,8 +159,16 @@ export default defineFakeRoute([
         gatewayEvaluable,
         description
       } = body || {};
-      if (!code || !name || !conditionRules) {
-        return error(400, "编码、名称、条件规则不能为空");
+      if (
+        invalidCode(code) ||
+        invalidName(name, true) ||
+        !conditionRules ||
+        invalidDescription(description)
+      ) {
+        return error(
+          400,
+          "编码/名称/条件规则不能为空（编码≤64、名称≤128、描述≤512 字符）"
+        );
       }
       if (isDuplicateCode(code)) {
         return error(409, "条件编码已存在（uk tenant+code）");
@@ -187,6 +209,17 @@ export default defineFakeRoute([
         gatewayEvaluable,
         description
       } = body || {};
+      // 对齐后端 Bean Validation：code 空白/超长与 name/description 超长先 400，再走业务键定位
+      if (
+        invalidCode(code) ||
+        invalidName(name, false) ||
+        invalidDescription(description)
+      ) {
+        return error(
+          400,
+          "code 不能为空白且不超过 64 字符（名称≤128、描述≤512）"
+        );
+      }
       const c = conditions.find(item => item.code === code && !item.deleted);
       if (!c) return error(CONDITION_NOT_FOUND, "权限条件不存在");
       // 取最终状态做联合校验（对齐后端 ConditionAppServiceImpl.updateCondition：
