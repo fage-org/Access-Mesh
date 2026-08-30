@@ -22,8 +22,9 @@ import { serializeRules, type ConditionFormData } from "./types";
  *   无读取门禁，列表始终可读；CONDITION:VIEW 不再参与前端门控（后端 list/detail 亦无校验）。
  * - CONDITION:CREATE/UPDATE/DELETE 门控写操作，三档独立（非 MANAGE，对齐后端）。
  *
- * 范式对齐 type-def/utils/hook.ts（扁平表格 CRUD）。后端 list 无分页无筛选，
- * 前端本地过滤（keyword + enabled）。
+ * 范式对齐 type-def/utils/hook.ts（扁平表格 CRUD）。后端 list 全量不分页（T-PERM-029 定案：
+ * 条件模板数量有界，与 domain-config/service-config 同款），前端本地过滤（keyword + enabled）；
+ * detail/update/remove 均以业务键 code 定位（T-PERM-029）。
  */
 export function usePermissionCondition() {
   // ========== 权限门控 ==========
@@ -77,7 +78,7 @@ export function usePermissionCondition() {
   async function submitCondition(
     form: ConditionFormData,
     mode: "create" | "edit",
-    editingId?: number
+    editingCode?: string
   ): Promise<boolean> {
     try {
       const conditionRules = serializeRules(form.rules);
@@ -91,9 +92,9 @@ export function usePermissionCondition() {
           description: form.description
         });
         message("条件创建成功", { type: "success" });
-      } else if (editingId) {
+      } else if (editingCode) {
         await updateCondition({
-          conditionId: editingId,
+          code: editingCode,
           name: form.name,
           conditionRules,
           enabled: form.enabled,
@@ -125,7 +126,7 @@ export function usePermissionCondition() {
       return false;
     }
     try {
-      await removeConditions([row.id]);
+      await removeConditions([row.code]);
       message("条件已删除", { type: "success" });
       await loadList();
       return true;

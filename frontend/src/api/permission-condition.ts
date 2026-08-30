@@ -5,16 +5,9 @@
  * T-FE-041 切换真实链路后，mock/permission-condition.ts 的旧 `/api/perm/**` 路径已自然失配。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.6
- * 后端实现：access-service ConditionController + ConditionAppServiceImpl
- *
- * 🔧 API 核对项（登记 T-PERM-029）：
- * - detail/update/remove 均用内部主键 id（IdReq/IdsReq），应切业务键 code。
- *   schema uk_permission_condition(tenant_id, code) 已保证唯一，Phase 2 后端收敛。
- * - list 用 EmptyReq 无分页无筛选，应补 keyword/enabled/pageNum/pageSize（ConditionListReq 缺失）。
- * - list/detail 未见 CONDITION:VIEW 校验，种子可能缺失，联调真后端时可能全账号 403--
- *   前端仍按 VIEW 门控路由可达性。
- * - ConditionResp 缺 updatedAt（entity 有但 Resp 不返回，表格仅展示 createdAt）。
+ * 契约依据：docs/design/permission-center/api-contract.md §5.6（T-PERM-029 收口：detail/update/remove
+ * 均以业务键 code 定位，uk tenant+code；ConditionResp 含 updatedAt；detail 查不到抛 20006）。
+ * 后端实现：access-service ConditionController + ConditionAppServiceImpl。
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
@@ -22,9 +15,10 @@ import type { ItemsResp } from "./role-manage";
 
 /** 权限条件响应（对齐后端 ConditionResp） */
 export type ConditionResp = {
+  /** 内部主键（授权链路 conditionId 引用；管理端点定位一律用 code） */
   id: number;
   tenantId: number;
-  /** 条件编码（业务键，uk tenant+code） */
+  /** 条件编码（业务键，uk tenant+code，创建后不可改） */
   code: string;
   /** 条件名称 */
   name: string;
@@ -36,8 +30,10 @@ export type ConditionResp = {
   gatewayEvaluable: boolean;
   /** 条件描述 */
   description: string | null;
-  /** 创建时间（后端 Resp 无 updatedAt） */
+  /** 创建时间 */
   createdAt: string;
+  /** 更新时间（T-PERM-029 补齐） */
+  updatedAt: string;
 };
 
 /** 条件创建请求（对齐 ConditionCreateReq） */
@@ -51,10 +47,9 @@ export type ConditionCreateReq = {
   description?: string;
 };
 
-/** 条件更新请求（对齐 ConditionUpdateReq；code 不可改--业务键） */
+/** 条件更新请求（对齐 ConditionUpdateReq；code 为定位键，业务键本身不可改） */
 export type ConditionUpdateReq = {
-  /** 🔧 内部主键，Phase 2 切业务键 code（T-PERM-029） */
-  conditionId: number;
+  code: string;
   name?: string;
   conditionRules?: string;
   enabled?: boolean;
@@ -62,9 +57,9 @@ export type ConditionUpdateReq = {
   description?: string;
 };
 
-/** 查询条件列表（POST /perm/api/perm/permission-condition/list，EmptyReq）。
- *  后端返回 ItemsResp<ConditionResp>（无分页无筛选），前端本地过滤。
- *  🔧 Phase 2 补 ConditionListReq（keyword/enabled/pageNum/pageSize），登记 T-PERM-029。 */
+/** 查询条件列表（POST /perm/api/perm/permission-condition/list）。
+ *  后端返回 ItemsResp<ConditionResp> 全量不分页（T-PERM-029 设计定案：条件模板数量有界，
+ *  与 domain-config/service-config 同款；keyword/enabled 过滤由前端本地完成）。 */
 export const getConditionList = async (): Promise<ItemsResp<ConditionResp>> => {
   const res = await http.request<PermResult<ItemsResp<ConditionResp>>>(
     "post",
@@ -74,15 +69,15 @@ export const getConditionList = async (): Promise<ItemsResp<ConditionResp>> => {
   return unwrap(res);
 };
 
-/** 查询条件详情（POST /perm/api/perm/permission-condition/detail，IdReq{id}）。
- *  🔧 用内部主键 id，Phase 2 切业务键 code（T-PERM-029）。 */
+/** 查询条件详情（POST /perm/api/perm/permission-condition/detail，ConditionDetailReq{conditionCode}）。
+ *  读取无门禁（2026-08-08 产品确认：条件规则全租户开放）；查不到抛 20006 CONDITION_NOT_FOUND。 */
 export const getConditionDetail = async (
-  id: number
+  conditionCode: string
 ): Promise<ConditionResp> => {
   const res = await http.request<PermResult<ConditionResp>>(
     "post",
     "/perm/api/perm/permission-condition/detail",
-    { data: { id } }
+    { data: { conditionCode } }
   );
   return unwrap(res);
 };
@@ -100,7 +95,7 @@ export const createCondition = async (
 };
 
 /** 更新条件（POST /perm/api/perm/permission-condition/update）。
- *  🔧 conditionId 为内部 id，Phase 2 切业务键 code（T-PERM-029）。 */
+ *  以业务键 code 定位（创建后不可改）。 */
 export const updateCondition = async (
   data: ConditionUpdateReq
 ): Promise<ConditionResp> => {
@@ -112,14 +107,14 @@ export const updateCondition = async (
   return unwrap(res);
 };
 
-/** 删除条件，支持批量（POST /perm/api/perm/permission-condition/remove，IdsReq{ids}）。
- *  🔧 用内部 id，Phase 2 切业务键 code（T-PERM-029）。 */
-export const removeConditions = async (ids: number[]): Promise<void> => {
+/** 按业务键删除条件，支持批量（POST /perm/api/perm/permission-condition/remove，ConditionRemoveReq{codes}）。
+ *  请求中不存在的 code 静默跳过（幂等语义）。 */
+export const removeConditions = async (codes: string[]): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
       "post",
       "/perm/api/perm/permission-condition/remove",
-      { data: { ids } }
+      { data: { codes } }
     )
   );
 };

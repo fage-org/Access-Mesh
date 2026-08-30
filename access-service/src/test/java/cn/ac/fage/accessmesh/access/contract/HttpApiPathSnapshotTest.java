@@ -287,9 +287,9 @@ class HttpApiPathSnapshotTest {
 /api/perm/operation-permission/remove|access.permission.dto.req.OperationKeysReq|common.model.PermResult<Void>
 /api/perm/operation-permission/update|access.permission.dto.req.OperationUpdateReq|common.model.PermResult<access.permission.dto.resp.OperationPermissionResp>
 /api/perm/permission-condition/create|access.permission.dto.req.ConditionCreateReq|common.model.PermResult<access.permission.dto.resp.ConditionResp>
-/api/perm/permission-condition/detail|access.permission.dto.req.IdReq|common.model.PermResult<access.permission.dto.resp.ConditionResp>
+/api/perm/permission-condition/detail|access.permission.dto.req.ConditionDetailReq|common.model.PermResult<access.permission.dto.resp.ConditionResp>
 /api/perm/permission-condition/list|access.permission.dto.req.EmptyReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.ConditionResp>>
-/api/perm/permission-condition/remove|access.permission.dto.req.IdsReq|common.model.PermResult<Void>
+/api/perm/permission-condition/remove|access.permission.dto.req.ConditionRemoveReq|common.model.PermResult<Void>
 /api/perm/permission-condition/update|access.permission.dto.req.ConditionUpdateReq|common.model.PermResult<access.permission.dto.resp.ConditionResp>
 /api/perm/permission-view/effective-permission-codes|perm.common.dto.req.UserEffectivePermissionCodesReq|common.model.PermResult<perm.common.dto.resp.UserEffectivePermissionCodesResp>
 /api/perm/permission-view/effective-permissions|access.permission.dto.req.UserPermissionViewReq|common.model.PermResult<access.permission.dto.resp.PermissionEffectivePermissionsResp>

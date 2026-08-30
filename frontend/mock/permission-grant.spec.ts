@@ -108,7 +108,7 @@ describe("permission-grant mock 契约", () => {
 
   it("条件 CRUD 与授权校验同源：条件停用后新写入返回 20042", () => {
     const updateResponse = updateConditionRoute.response({
-      body: { conditionId: 601, enabled: false }
+      body: { code: "office-hours", enabled: false }
     });
     expect(updateResponse).toMatchObject({
       code: 200,
@@ -145,7 +145,7 @@ describe("permission-grant mock 契约", () => {
     persistMockConditions();
 
     const updateResponse = updateConditionRoute.response({
-      body: { conditionId: 601, enabled: false }
+      body: { code: "office-hours", enabled: false }
     });
     expect(updateResponse).toMatchObject({ code: 200 });
 

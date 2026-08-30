@@ -3,9 +3,9 @@ package cn.ac.fage.accessmesh.access.permission.controller;
 import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionCreateReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionDetailReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionRemoveReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.EmptyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConditionResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
@@ -58,15 +58,17 @@ public class ConditionController {
     /**
      * 获取权限条件详情
      * <p>
-     * 根据条件ID查询条件的完整信息，包括规则配置和评估逻辑。
+     * 根据条件编码（业务键，T-PERM-029 从内部主键切换）查询条件的完整信息，
+     * 包括规则配置和评估逻辑。读取无门禁（条件规则全租户开放、非敏感）。
+     * 条件不存在抛 20006。
      * </p>
      *
-     * @param req ID请求，包含条件ID
+     * @param req 详情请求，包含条件编码
      * @return 条件详情信息
      */
     @PostMapping("/detail")
-    public PermResult<ConditionResp> getCondition(@Valid @RequestBody IdReq req) {
-        return PermResult.success(conditionAppService.getCondition(TenantContextHolder.getTenantId(), req.id()));
+    public PermResult<ConditionResp> getCondition(@Valid @RequestBody ConditionDetailReq req) {
+        return PermResult.success(conditionAppService.getCondition(TenantContextHolder.getTenantId(), req.conditionCode()));
     }
 
     /**
@@ -89,15 +91,16 @@ public class ConditionController {
     /**
      * 删除权限条件
      * <p>
-     * 批量删除权限条件，会同时处理条件关联的数据。
+     * 按条件编码集合（业务键，T-PERM-029 从内部主键切换）批量软删除，
+     * 会同时处理条件关联的数据；请求中不存在的编码静默跳过。
      * </p>
      *
-     * @param req ID集合请求，包含待删除的条件ID列表
+     * @param req 条件编码集合请求，包含待删除的条件编码列表
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteCondition(@Valid @RequestBody IdsReq req) {
-        conditionAppService.deleteConditionsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
+    public PermResult<Void> deleteCondition(@Valid @RequestBody ConditionRemoveReq req) {
+        conditionAppService.deleteConditionsByCodes(TenantContextHolder.getTenantId(), req.codes(), null);
         return PermResult.success();
     }
 

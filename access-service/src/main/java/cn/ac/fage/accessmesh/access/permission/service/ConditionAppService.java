@@ -11,6 +11,8 @@ import java.util.List;
  * <p>
  * 提供权限条件的CRUD操作。
  * 权限条件用于限定权限的生效范围，如时间范围、数据属性等。
+ * 管理端点定位一律使用业务键 code（uk tenant+code，T-PERM-029 从内部主键切换）；
+ * 内部主键 id 仅在授权链路（role_resource_permission.condition_id）中引用。
  * </p>
  */
 public interface ConditionAppService {
@@ -31,19 +33,20 @@ public interface ConditionAppService {
     /**
      * 获取权限条件详情
      * <p>
-     * 根据条件ID查询权限条件详情。
+     * 根据条件编码查询权限条件详情。
      * </p>
      *
-     * @param tenantId    租户ID
-     * @param conditionId 条件ID
+     * @param tenantId       租户ID
+     * @param conditionCode  条件编码（业务键）
      * @return 条件详情
+     * @throws cn.ac.fage.accessmesh.common.exception.BizException 条件不存在（20006）
      */
-    ConditionResp getCondition(Long tenantId, Long conditionId);
+    ConditionResp getCondition(Long tenantId, String conditionCode);
 
     /**
      * 更新权限条件
      * <p>
-     * 更新权限条件的基本信息和规则。
+     * 以业务键 code 定位并更新权限条件的基本信息和规则（code 本身不可更新）。
      * </p>
      *
      * @param tenantId   租户ID
@@ -56,7 +59,8 @@ public interface ConditionAppService {
     /**
      * 查询权限条件列表
      * <p>
-     * 获取租户的所有权限条件列表。
+     * 获取租户的所有权限条件列表（条件模板数量有界，全量返回不分页，
+     * 与 domain-config/service-config 同款定案）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -65,26 +69,14 @@ public interface ConditionAppService {
     List<ConditionResp> listConditions(Long tenantId);
 
     /**
-     * 删除权限条件
+     * 按业务键批量删除权限条件
      * <p>
-     * 删除指定的权限条件实体。
-     * </p>
-     *
-     * @param tenantId    租户ID
-     * @param conditionId 条件ID
-     * @param operatorId  操作者ID
-     */
-    void deleteCondition(Long tenantId, Long conditionId, Long operatorId);
-
-    /**
-     * 批量删除权限条件
-     * <p>
-     * 批量删除多个权限条件实体。
+     * 按条件编码集合批量软删除权限条件；请求中不存在的编码静默跳过（幂等语义）。
      * </p>
      *
      * @param tenantId   租户ID
-     * @param ids        条件ID列表
+     * @param codes      条件编码列表
      * @param operatorId 操作者ID
      */
-    void deleteConditionsByIds(Long tenantId, List<Long> ids, Long operatorId);
+    void deleteConditionsByCodes(Long tenantId, List<String> codes, Long operatorId);
 }

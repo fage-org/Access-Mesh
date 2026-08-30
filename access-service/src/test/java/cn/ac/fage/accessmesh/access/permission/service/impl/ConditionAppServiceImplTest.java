@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionUpdateReq;
+import cn.ac.fage.accessmesh.access.permission.dto.resp.ConditionResp;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
@@ -18,14 +19,18 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -37,6 +42,7 @@ import static org.mockito.Mockito.when;
  * {@link ConditionAppServiceImpl} 单元测试
  * <p>
  * T-PERM-017 C2.5：聚焦 {@code gatewayEvaluable=true} 时规则类型白名单校验。
+ * T-PERM-029：管理端点业务键 code 切换回归锁（detail 20006 / update 定位 / remove 按编码批量）。
  * </p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +51,7 @@ class ConditionAppServiceImplTest {
     private static final long TENANT_ID = 1L;
     private static final long OPERATOR_ID = 100L;
     private static final long CONDITION_ID = 9L;
+    private static final String CONDITION_CODE = "test";
 
     @Mock private PermissionConditionMapper conditionMapper;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
@@ -138,11 +145,11 @@ class ConditionAppServiceImplTest {
             // 老条件：gatewayEvaluable=false + 规则含未知类型；用户只切 flag → 不改 rules
             PermissionCondition existing = newCondition(false,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"ORG_SCOPE\",\"params\":{}}]}");
+            when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
             when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
-            when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
 
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_ID, null, null, null, true, null);
+            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, null, null, true, null);
 
             assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
@@ -154,11 +161,11 @@ class ConditionAppServiceImplTest {
         void shouldAcceptFlipToTrue_whenExistingRulesArePushable() {
             PermissionCondition existing = newCondition(false,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+            when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
             when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
-            when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
 
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_ID, null, null, null, true, null);
+            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, null, null, true, null);
 
             assertThatCode(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .doesNotThrowAnyException();
@@ -169,12 +176,12 @@ class ConditionAppServiceImplTest {
             // 老条件：gatewayEvaluable=true；用户只改 rules 不改 flag → 用新 rules 校验
             PermissionCondition existing = newCondition(true,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+            when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
             when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
-            when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
 
             String newRules = "{\"logic\":\"AND\",\"items\":[{\"type\":\"ORG_SCOPE\",\"params\":{}}]}";
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_ID, null, newRules, null, null, null);
+            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, null, newRules, null, null, null);
 
             assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
@@ -289,30 +296,32 @@ class ConditionAppServiceImplTest {
             // T-PERM-017 P2-A：update 反查 serviceCodes 并 markServiceCodes
             PermissionCondition existing = newCondition(true,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+            when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
             when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
-            when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
             when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))
                 .thenReturn(Set.of("svc-a", "svc-b"));
 
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_ID, "rename", null, null, null, null);
+            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null);
             service.updateCondition(TENANT_ID, req, OPERATOR_ID);
 
             verify(rolePermMapper).selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID)));
         }
 
         @Test
-        void shouldMarkServiceCodes_whenDeleteCondition() {
+        void shouldMarkServiceCodes_whenDeleteConditionsByCodes() {
+            // 原 shouldMarkServiceCodes_whenDeleteCondition（单删孤儿方法已随 T-PERM-029 删除），覆盖迁移批量版
             PermissionCondition existing = newCondition(true,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\"2026-01-01\",\"end\":\"2026-12-31\"}}]}");
-            when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
-                .thenReturn(true);
-            when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
+            when(conditionMapper.selectValidByCodes(eq(TENANT_ID), anySet())).thenReturn(List.of(existing));
+            when(engine.getDeniedEntityIds(eq(TENANT_ID), eq(OPERATOR_ID), any(), anySet(), any()))
+                .thenReturn(Set.of());
             when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))
                 .thenReturn(Set.of("svc-c"));
 
-            service.deleteCondition(TENANT_ID, CONDITION_ID, OPERATOR_ID);
+            service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE), OPERATOR_ID);
 
+            verify(conditionMapper).softDeleteBatch(eq(TENANT_ID), eq(List.of(CONDITION_ID)), any());
             verify(rolePermMapper).selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID)));
         }
 
@@ -321,13 +330,13 @@ class ConditionAppServiceImplTest {
             // 条件未被任何 grant 引用 → selectServiceCodesByConditionIds 返回空集合 → no-op
             PermissionCondition existing = newCondition(false,
                 "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+            when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
             when(engine.hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(String.valueOf(CONDITION_ID)), any()))
                 .thenReturn(true);
-            when(conditionMapper.selectOneById(CONDITION_ID)).thenReturn(existing);
             when(rolePermMapper.selectServiceCodesByConditionIds(eq(TENANT_ID), eq(Set.of(CONDITION_ID))))
                 .thenReturn(Set.of());
 
-            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_ID, "rename", null, null, null, null);
+            ConditionUpdateReq req = new ConditionUpdateReq(CONDITION_CODE, "rename", null, null, null, null);
 
             assertThatCode(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .doesNotThrowAnyException();
@@ -335,16 +344,116 @@ class ConditionAppServiceImplTest {
         }
     }
 
+    @Nested
+    class BusinessKeyEndpoints {
+
+        @Test
+        void shouldReturnConditionWithUpdatedAt_whenGetByCode() {
+            // T-PERM-029：detail 按业务键 code 命中，Resp 透出 updatedAt
+            PermissionCondition existing = newCondition(true,
+                "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+            when(conditionMapper.selectValidByCode(TENANT_ID, CONDITION_CODE)).thenReturn(existing);
+
+            ConditionResp resp = service.getCondition(TENANT_ID, CONDITION_CODE);
+
+            assertThat(resp.code()).isEqualTo(CONDITION_CODE);
+            assertThat(resp.id()).isEqualTo(CONDITION_ID);
+            assertThat(resp.updatedAt()).isEqualTo(existing.getUpdatedAt());
+        }
+
+        @Test
+        void shouldThrow20006_whenGetByUnknownCode() {
+            // T-PERM-029：原 data=null 宽松语义删除，查不到抛 20006（对齐 resource-entity/detail 收紧定案）
+            when(conditionMapper.selectValidByCode(TENANT_ID, "ghost")).thenReturn(null);
+
+            assertThatThrownBy(() -> service.getCondition(TENANT_ID, "ghost"))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                    .isEqualTo(PermissionErrorCode.CONDITION_NOT_FOUND.getCode()));
+        }
+
+        @Test
+        void shouldThrow20006_whenUpdateUnknownCode_andNoSideEffects() {
+            // T-PERM-029：update 按业务键定位，未知 code 20006 且零副作用（不触达门禁/不写库）
+            when(conditionMapper.selectValidByCode(TENANT_ID, "ghost")).thenReturn(null);
+
+            ConditionUpdateReq req = new ConditionUpdateReq("ghost", "rename", null, null, null, null);
+
+            assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
+                .isInstanceOf(BizException.class)
+                .satisfies(e -> assertThat(((BizException) e).getErrorCode())
+                    .isEqualTo(PermissionErrorCode.CONDITION_NOT_FOUND.getCode()));
+            verify(engine, never()).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
+            verify(conditionMapper, never()).update(any(PermissionCondition.class));
+        }
+
+        @Test
+        void shouldSkipUnknownCodes_andSoftDeleteResolvedOnesOnly() {
+            // T-PERM-029：remove 按编码批量，幽灵编码静默跳过（幂等语义，对齐 resource-entity/remove）；
+            // 门禁只对解析出的实体 id 做（幽灵编码不再触发 fail-closed）
+            PermissionCondition existing = newCondition(true,
+                "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+            when(conditionMapper.selectValidByCodes(eq(TENANT_ID), argThat((Set<String> codes) -> codes.containsAll(List.of(CONDITION_CODE, "ghost")))))
+                .thenReturn(List.of(existing));
+            when(engine.getDeniedEntityIds(eq(TENANT_ID), eq(OPERATOR_ID), any(), anySet(), any()))
+                .thenReturn(Set.of());
+
+            service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE, "ghost"), OPERATOR_ID);
+
+            verify(conditionMapper).softDeleteBatch(eq(TENANT_ID),
+                argThat((List<Long> ids) -> ids.size() == 1 && ids.contains(CONDITION_ID)), any());
+        }
+
+        @Test
+        void shouldRejectWholeBatch_whenAnyResolvedConditionDenied() {
+            // fail-closed：任一存在实体的编码无 DELETE 权限 → 整批抛 SecurityException，零删除
+            PermissionCondition existing = newCondition(true,
+                "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+            when(conditionMapper.selectValidByCodes(eq(TENANT_ID), anySet())).thenReturn(List.of(existing));
+            when(engine.getDeniedEntityIds(eq(TENANT_ID), eq(OPERATOR_ID), any(), anySet(), any()))
+                .thenReturn(Set.of(CONDITION_ID));
+
+            assertThatThrownBy(() -> service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE), OPERATOR_ID))
+                .isInstanceOf(SecurityException.class);
+            verify(conditionMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
+            verify(rolePermMapper, never()).selectServiceCodesByConditionIds(anyLong(), anySet());
+        }
+
+        @Test
+        void shouldSkipAll_whenCodesAreBlankOnly() {
+            // 全空白编码清洗后为空 → markSkip 返回，不触达任何查询
+            service.deleteConditionsByCodes(TENANT_ID, List.of(" ", ""), OPERATOR_ID);
+
+            verify(conditionMapper, never()).selectValidByCodes(anyLong(), anySet());
+            verify(conditionMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
+        }
+
+        @Test
+        void shouldSoftDeleteResolvedEntities_whenGetDeniedEmpty() {
+            // 门禁解析键核对：getDeniedEntityIds 收到的应为解析出的实体 id 集合（非原始编码数）
+            PermissionCondition existing = newCondition(true,
+                "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}");
+            when(conditionMapper.selectValidByCodes(eq(TENANT_ID), anySet())).thenReturn(List.of(existing));
+            when(engine.getDeniedEntityIds(eq(TENANT_ID), eq(OPERATOR_ID), any(),
+                eq(Set.of(CONDITION_ID)), any())).thenReturn(Set.of());
+
+            service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE, "ghost"), OPERATOR_ID);
+
+            verify(engine).getDeniedEntityIds(eq(TENANT_ID), eq(OPERATOR_ID), any(), eq(Set.of(CONDITION_ID)), any());
+        }
+    }
+
     private PermissionCondition newCondition(boolean gatewayEvaluable, String rules) {
         PermissionCondition c = new PermissionCondition();
         c.setId(CONDITION_ID);
         c.setTenantId(TENANT_ID);
-        c.setCode("test");
+        c.setCode(CONDITION_CODE);
         c.setName("test");
         c.setConditionRules(rules);
         c.setEnabled(true);
         c.setGatewayEvaluable(gatewayEvaluable);
         c.setDeleteFlag(0L);
+        c.setUpdatedAt(LocalDateTime.of(2026, 8, 30, 12, 0));
         return c;
     }
 }

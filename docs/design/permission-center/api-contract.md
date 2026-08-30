@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-29   # 2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-30   # 2026-08-30 §5.6 permission-condition 契约要点（T-PERM-029 收口：detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案（🔧3 分页登记反转）、ConditionResp 补 updatedAt、读取无门禁+写三档独立门禁口径、gatewayEvaluable 联合校验/remove 幂等语义成文）；2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -371,10 +371,10 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.3 资源与操作业务键定稿（
 | 接口                                            | 说明                   |
 | ----------------------------------------------- | ---------------------- |
 | `POST /api/perm/permission-condition/list`      | 查询权限条件（**无读取门禁，2026-08-08 产品确认：条件规则全租户开放、非敏感**） |
-| `POST /api/perm/permission-condition/detail`    | 查询条件详情（**同上：无读取门禁**） |
+| `POST /api/perm/permission-condition/detail`    | 查询条件详情（**同上：无读取门禁**；业务键 code 定位，查不到 20006） |
 | `POST /api/perm/permission-condition/create`    | 创建条件               |
-| `POST /api/perm/permission-condition/update`    | 更新条件               |
-| `POST /api/perm/permission-condition/remove`    | 删除条件，支持批量     |
+| `POST /api/perm/permission-condition/update`    | 更新条件（业务键 code 定位） |
+| `POST /api/perm/permission-condition/remove`    | 按条件编码批量删除     |
 | `POST /api/perm/domain-config/list`             | 查询域配置             |
 | `POST /api/perm/domain-config/detail`           | 查询单条域配置         |
 | `POST /api/perm/domain-config/save`             | 幂等保存域配置         |
@@ -392,6 +392,17 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5.3 资源与操作业务键定稿（
 | `POST /api/perm/conflict-rule/update`           | 更新冲突规则           |
 | `POST /api/perm/conflict-rule/remove`           | 删除冲突规则，支持批量 |
 | `POST /api/perm/conflict-rule/detect`           | 冲突检测               |
+
+**permission-condition 契约要点（T-PERM-029 收口，2026-08-30）**：
+
+- **业务键**：管理端点 `detail`/`update`/`remove` 一律以 `code` 定位（`uk_permission_condition(tenant_id, code) WHERE delete_flag=0`，从内部主键 id/conditionId 切换；内部 id 仅保留在 Resp 与授权链路 `role_resource_permission.condition_id` 引用中）。`detail` 请求 `{conditionCode}`（ConditionDetailReq）；`update` 请求 `{code, name?, conditionRules?, enabled?, gatewayEvaluable?, description?}`（code 为定位键不可改，null 字段不更新）；`remove` 请求 `{codes:[...]}`（ConditionRemoveReq，批量软删）。
+- **detail 收紧**：查不到抛 **20006** `CONDITION_NOT_FOUND`（原 `data:null` 宽松语义删除，对齐 resource-entity/detail 收紧定案与授权链路 apply-grant-plan 未知 conditionCode 同码）。
+- **list 全量不分页**（设计定案）：`{}` 返回全量 `ItemsResp<ConditionResp>`——条件模板数量有界（租户内几十个量级，非流水表），与 domain-config/service-config「量小不分页」同款；keyword/enabled 过滤由前端本地完成（前端设计文档 §8 🔧3 登记的 ConditionListReq 分页方案据此反转）。
+- **ConditionResp**：`{id, tenantId, code, name, conditionRules, enabled, gatewayEvaluable, description, createdAt, updatedAt}`——`updatedAt` 为本次补齐（entity 有列但 Resp 此前不返回）；`conditionRules` 为 JSONB 读出的规范化 JSON 文本（`{logic, items[]}`，4 预置类型 DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST），语义等价可直接再提交。
+- **权限门禁**：读（list/detail）无门禁（2026-08-08 产品确认：条件规则全租户开放、非敏感）；写 create = CONDITION:CREATE 类型级、update/remove = CONDITION:UPDATE/DELETE 实例级（先按 code 解析实体再按 entityId 门禁；remove 对解析出的实体集合批量校验，任一拒绝整批 fail-closed）。CONDITION 的 CREATE/UPDATE/DELETE 三档独立，非 MANAGE 聚合（与 RESOURCE/OPERATION 的 CREATE+MANAGE 两档不同）。
+- **gatewayEvaluable 联合校验**（T-PERM-017 C2.5）：create/update 取「最终状态」校验——只切 flag 不改 rules 用 DB 老 rules、同改用新 rules、已 true 改 rules 用新 rules；`gatewayEvaluable=true` 要求 `logic ∈ {AND, OR}`（缺省 AND）且 `items[].type` 全在 `ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES` 白名单，不通过 20031 `CONDITION_RULES_INVALID`。update/delete 后经 `@PermissionChange` 反查受影响 serviceCodes 广播 Gateway 接口快照失效。
+- **remove 幂等语义**：请求中不存在或已删除的 code 静默跳过（与 resource-entity/remove 一致）；重复 code 去重。
+- **create 重复 code**：无预查友好码，由 uk 兜底拒绝（系统错误通道），与 resource/type-def create 同款。
 
 **domain-config 契约要点（T-PERM-026 收口，2026-08-29）**：
 

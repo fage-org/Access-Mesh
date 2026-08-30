@@ -1,6 +1,8 @@
-// 权限条件 Mock（T-FE-009）。
+// 权限条件 Mock（T-FE-009；T-PERM-029 业务键对齐）。
 // 对齐 access-service 权限域的 permission-condition 管理接口；
 // 扁平条件模板 CRUD，conditionRules 为 {logic, items[]} JSON 字符串。
+// detail/update/remove 均以业务键 code 定位（uk tenant+code）；detail 查不到 20006；
+// Resp 含 updatedAt；remove 幂等静默跳过未知编码、返回 data=null。
 //
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
@@ -24,6 +26,7 @@ type ConditionResp = {
   gatewayEvaluable: boolean;
   description: string | null;
   createdAt: string;
+  updatedAt: string;
 };
 
 type InternalCondition = MockCondition;
@@ -37,6 +40,9 @@ const error = (code: number, message: string) => ({
   message,
   data: null
 });
+
+/** 对齐 PermissionErrorCode.CONDITION_NOT_FOUND（detail/update 查不到统一 20006） */
+const CONDITION_NOT_FOUND = 20006;
 
 /** 对齐 ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES */
 const GATEWAY_PUSHABLE_TYPES = new Set([
@@ -57,9 +63,9 @@ function clone(c: InternalCondition): ConditionResp {
   return { ...resp };
 }
 
-function isDuplicateCode(code: string, excludeId?: number): boolean {
+function isDuplicateCode(code: string, excludeCode?: string): boolean {
   return conditions.some(
-    c => !c.deleted && c.id !== excludeId && c.code === code
+    c => !c.deleted && c.code !== excludeCode && c.code === code
   );
 }
 
@@ -121,8 +127,10 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       syncMockConditionsFromStorage();
-      const c = conditions.find(item => item.id === body?.id && !item.deleted);
-      return c ? ok(clone(c)) : error(404, "条件不存在");
+      const c = conditions.find(
+        item => item.code === body?.conditionCode && !item.deleted
+      );
+      return c ? ok(clone(c)) : error(CONDITION_NOT_FOUND, "权限条件不存在");
     }
   },
 
@@ -148,6 +156,7 @@ export default defineFakeRoute([
       const ge = gatewayEvaluable ?? false;
       const err = validateRules(conditionRules, ge);
       if (err) return error(400, err);
+      const ts = now();
       const created: InternalCondition = {
         id: allocateMockConditionId(),
         tenantId: 1,
@@ -157,7 +166,8 @@ export default defineFakeRoute([
         enabled: enabled ?? true,
         gatewayEvaluable: ge,
         description: description ?? null,
-        createdAt: now(),
+        createdAt: ts,
+        updatedAt: ts,
         deleted: false
       };
       conditions.push(created);
@@ -172,17 +182,15 @@ export default defineFakeRoute([
     response: ({ body }) => {
       syncMockConditionsFromStorage();
       const {
-        conditionId,
+        code,
         name,
         conditionRules,
         enabled,
         gatewayEvaluable,
         description
       } = body || {};
-      const c = conditions.find(
-        item => item.id === conditionId && !item.deleted
-      );
-      if (!c) return error(404, "条件不存在");
+      const c = conditions.find(item => item.code === code && !item.deleted);
+      if (!c) return error(CONDITION_NOT_FOUND, "权限条件不存在");
       // 取最终状态做联合校验（对齐后端 ConditionAppServiceImpl.validateGatewayPushable）：
       // 只切 flag 不改 rules 时需重读 DB 老 rules 校验；同时改 rules+flag 用新 rules。
       const finalRules = conditionRules ?? c.conditionRules;
@@ -199,6 +207,7 @@ export default defineFakeRoute([
       if (enabled != null) c.enabled = enabled;
       if (gatewayEvaluable != null) c.gatewayEvaluable = gatewayEvaluable;
       if (description != null) c.description = description;
+      c.updatedAt = now();
       persistMockConditions();
       return ok(clone(c));
     }
@@ -209,17 +218,16 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       syncMockConditionsFromStorage();
-      const ids: number[] = Array.isArray(body?.ids) ? body.ids : [];
-      if (ids.length === 0) return error(400, "ids 不能为空");
-      let count = 0;
+      const codes: string[] = Array.isArray(body?.codes) ? body.codes : [];
+      if (codes.length === 0) return error(400, "codes 不能为空");
+      // 幂等语义：不存在的编码静默跳过（对齐后端 deleteConditionsByCodes / resource-entity remove）
       for (const c of conditions) {
-        if (ids.includes(c.id) && !c.deleted) {
+        if (codes.includes(c.code) && !c.deleted) {
           c.deleted = true;
-          count += 1;
         }
       }
       persistMockConditions();
-      return ok({ removed: count });
+      return ok(null);
     }
   }
 ]);

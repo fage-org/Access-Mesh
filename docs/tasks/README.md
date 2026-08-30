@@ -86,7 +86,7 @@
 | T-PERM-026 | 5.1 业务域后端（已收口 2026-08-29，终态见 api-contract §5.1/§5.6 契约要点） | frontend-phase2 | api-contract §5.1/§5.6；implementation §2.7；design/frontend/biz-domain.md §8 | T-FE-006 | ✅ | ✓ |
 | [T-PERM-027](T-PERM-027.md) | 5.2 服务+接口映射后端（已收口 2026-08-29，终态见 api-contract §5.4 契约要点） | frontend-phase2 | api-contract §5.4/§6.3/§6.10.4；design/frontend/service-interface-mapping.md §7 | T-FE-007 | ✅ | ✓ |
 | T-PERM-028 | 3.1 资源+操作定义后端（业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁三处补齐/resource_type 联动预置/T-PERM-027 §7.6 资源选择器落地——五项设计定案见任务卡） | frontend-phase2 | api-contract §5.3/§6.2.2；implementation §2.9；design/frontend/resource-operation.md §8 | T-FE-008 | ✅ | ✓ |
-| T-PERM-029 | 3.2 权限条件后端 | frontend-phase2 | api-contract §5.6；implementation §2.5 | T-FE-009 | ⚙️ | ⏳ |
+| [T-PERM-029](T-PERM-029.md) | 3.2 权限条件后端（已收口 2026-08-30，终态见 api-contract §5.6 permission-condition 契约要点：业务键 code/detail 20006/list 全量不分页定案/updatedAt） | frontend-phase2 | api-contract §5.6；implementation §2.5；design/frontend/permission-condition.md §8 | T-FE-009 | ✅ | ✓ |
 | T-PERM-030 | 3.3 冲突规则后端 | frontend-phase2 | api-contract §5.6；implementation §2.4；design/frontend/conflict-rule.md §4 | T-FE-010 | ⚙️ | ⏳ |
 | T-PERM-031 | 3.4 资源依赖后端 | frontend-phase2 | api-contract §5.6/§6.9；core-flows §12 | T-FE-011 | ⚙️ | ⏳ |
 | T-PERM-032 | 7.2 变更日志后端（已收口 2026-08-29，终态见 design/frontend/permission-change-log.md §5） | frontend-phase2 | api-contract §5.8/§6.8；implementation §2.3 | T-FE-012 | ✅ | ✓ |

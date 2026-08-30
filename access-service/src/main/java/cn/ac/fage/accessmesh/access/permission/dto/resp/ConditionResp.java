@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
  * 用于权限条件查询接口的响应。
  * </p>
  *
- * @param id               条件ID
+ * @param id               条件ID（内部主键，授权链路 conditionId 引用；管理端点定位一律用业务键 code）
  * @param tenantId         租户ID
  * @param code             条件编码，唯一标识
  * @param name             条件名称，用于显示
@@ -18,6 +18,7 @@ import java.time.LocalDateTime;
  * @param gatewayEvaluable 是否可下发 Gateway 评估（T-PERM-017）。true 时规则随接口快照内联到 Gateway 本地重评
  * @param description      条件描述
  * @param createdAt        创建时间
+ * @param updatedAt        更新时间（T-PERM-029 补齐，此前 Resp 不返回）
  */
 public record ConditionResp(
     Long id,
@@ -28,5 +29,6 @@ public record ConditionResp(
     Boolean enabled,
     Boolean gatewayEvaluable,
     String description,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    LocalDateTime updatedAt
 ) {}

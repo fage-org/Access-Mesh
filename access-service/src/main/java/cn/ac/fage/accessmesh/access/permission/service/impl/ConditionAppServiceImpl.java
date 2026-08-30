@@ -25,6 +25,7 @@ import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -35,9 +36,11 @@ import java.util.stream.Collectors;
  * 提供权限条件（PermissionCondition）的CRUD操作。
  * 权限条件定义了权限生效的附加约束规则，如时间范围、数据属性等。
  * 条件规则存储为JSON格式，支持复杂的条件表达式。
- * 所有操作均通过PermQueryEngine进行权限校验，确保操作安全。
+ * 读取（list/detail）无门禁（2026-08-08 产品确认：条件规则全租户开放、非敏感）；
+ * 写操作经PermQueryEngine做CONDITION域实例级门禁（CREATE 类型级 / UPDATE、DELETE 实例级）。
  * 缓存失效操作在事务提交后执行，防止缓存被回滚数据污染。
  * 批量删除采用批量软删除策略，避免N+1查询问题。
+ * 管理端点定位一律使用业务键 code（uk tenant+code，T-PERM-029 从内部主键切换）。
  * </p>
  */
 @Service
@@ -114,17 +117,23 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     /**
      * 获取权限条件详情
      * <p>
-     * 根据条件ID查询权限条件的完整信息。
+     * 根据条件编码（业务键，T-PERM-029 从内部主键切换）查询权限条件的完整信息。
+     * 读取无门禁（2026-08-08 产品确认：条件规则全租户开放、非敏感）。
      * </p>
      *
-     * @param tenantId   租户ID
-     * @param conditionId 条件ID
-     * @return 条件响应，不存在返回null
+     * @param tenantId      租户ID
+     * @param conditionCode 条件编码
+     * @return 条件响应
+     * @throws BizException 条件不存在（20006 CONDITION_NOT_FOUND，原 data=null 宽松语义已删除）
      */
     @Override
-    public ConditionResp getCondition(Long tenantId, Long conditionId) {
-        PermissionCondition condition = conditionMapper.selectValidById(conditionId, tenantId);
-        return condition != null ? toConditionResp(condition) : null;
+    public ConditionResp getCondition(Long tenantId, String conditionCode) {
+        PermissionCondition condition = conditionMapper.selectValidByCode(tenantId, conditionCode);
+        if (condition == null) {
+            throw new BizException(PermissionErrorCode.CONDITION_NOT_FOUND.getCode(),
+                "Condition not found: " + conditionCode);
+        }
+        return toConditionResp(condition);
     }
 
     /**
@@ -144,18 +153,19 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_UPDATE", targetType = "permission_condition", targetId = "#req.conditionId()", summary = "'update permission condition ' + #req.conditionId()")
+    @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_UPDATE", targetType = "permission_condition", targetId = "#req.code()", summary = "'update permission condition ' + #req.code()")
     @PermissionChange
     public ConditionResp updateCondition(Long tenantId, ConditionUpdateReq req, Long operatorId) {
+        // 业务键 code 定位（T-PERM-029 从内部主键切换；selectValidByCode 已含租户 + delete_flag=0 过滤）
+        PermissionCondition condition = conditionMapper.selectValidByCode(tenantId, req.code());
+        if (condition == null) {
+            throw new BizException(PermissionErrorCode.CONDITION_NOT_FOUND.getCode(), "Condition not found: " + req.code());
+        }
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, String.valueOf(req.conditionId()), OperationCodeConstants.UPDATE)) {
-            throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.conditionId());
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, String.valueOf(condition.getId()), OperationCodeConstants.UPDATE)) {
+            throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.code());
         }
 
-        PermissionCondition condition = conditionMapper.selectOneById(req.conditionId());
-        if (condition == null || condition.getDeleteFlag() != 0L || !tenantId.equals(condition.getTenantId())) {
-            throw new BizException(PermissionErrorCode.CONDITION_NOT_FOUND.getCode(), "Condition not found: " + req.conditionId());
-        }
         if (req.name() != null) condition.setName(req.name());
         if (req.conditionRules() != null) {
             JsonValidationUtils.validateJson(req.conditionRules());
@@ -178,8 +188,8 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         // T-PERM-017 P2-A：条件规则变更需同步失效 Gateway 已下发的内联 conditionRules 接口快照。
         // 反查 condition_id 引用的 resource_entity_id 对应 serviceCodes，调 markServiceCodes
         // 进入广播事件载荷（Gateway 订阅侧按 tenant+serviceCodes 清本地 interfaceSnapshotCache，T-PERM-006 落地后生效）。
-        PermissionChangeContext.markConditions(tenantId, Set.of(req.conditionId()));
-        markServiceCodesForConditions(tenantId, Set.of(req.conditionId()));
+        PermissionChangeContext.markConditions(tenantId, Set.of(condition.getId()));
+        markServiceCodesForConditions(tenantId, Set.of(condition.getId()));
         return toConditionResp(condition);
     }
 
@@ -198,92 +208,55 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     }
 
     /**
-     * 删除单个权限条件
+     * 按业务键批量删除权限条件
      * <p>
-     * 软删除指定的权限条件。
-     * 需要CONDITION_DELETE权限。
-     * 删除完成后在事务提交后失效相关缓存。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param conditionId 条件ID
-     * @param operatorId  操作者ID，可选
-     * @throws SecurityException 无权限时抛出
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_REMOVE", targetType = "permission_condition", targetId = "#conditionId", summary = "'remove permission condition ' + #conditionId")
-    @PermissionChange
-    public void deleteCondition(Long tenantId, Long conditionId, Long operatorId) {
-        operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, String.valueOf(conditionId), OperationCodeConstants.DELETE)) {
-            throw new SecurityException("Permission denied: DELETE on CONDITION:" + conditionId);
-        }
-
-        PermissionCondition condition = conditionMapper.selectOneById(conditionId);
-        if (condition == null || condition.getDeleteFlag() != 0L || !condition.getTenantId().equals(tenantId)) {
-            OperationLogRuntimeContext.markSkip();
-            return;
-        }
-
-        condition.setDeleteFlag(condition.getId());
-        condition.setDeletedAt(LocalDateTime.now());
-        conditionMapper.update(condition);
-
-        // 登记受影响条件，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
-        // T-PERM-017 P2-A：删除前反查 serviceCodes 触发 Gateway 本地快照失效。
-        // 注：必须在 markServiceCodes 之前查（因为是按 conditionId 反查 grants，
-        // 软删 condition 本身不会动 role_resource_permission；JOIN 仍能命中）。
-        PermissionChangeContext.markConditions(tenantId, Set.of(conditionId));
-        markServiceCodesForConditions(tenantId, Set.of(conditionId));
-    }
-
-    /**
-     * 批量删除权限条件
-     * <p>
-     * 批量软删除权限条件。
-     * 使用批量查询和批量软删除避免N+1问题。
-     * 需要CONDITION_DELETE权限。
+     * 按条件编码集合批量软删除（T-PERM-029 从内部主键 ids 切换）。
+     * 先批量解析编码为实体（一次 SQL），再对实体 id 集合做批量实例级 DELETE 门禁，
+     * 最后批量软删除，避免N+1问题。
+     * 请求中不存在或已删除的编码静默跳过（幂等语义，与 resource-entity/remove 一致）。
      * 删除完成后在事务提交后批量失效相关缓存。
      * </p>
      *
      * @param tenantId   租户ID
-     * @param ids        条件ID列表
+     * @param codes      条件编码列表
      * @param operatorId 操作者ID，可选
-     * @throws SecurityException 无权限时抛出
+     * @throws SecurityException 任一存在实体的编码无 DELETE 权限时抛出（fail-closed 整批不变更）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_REMOVE", targetType = "permission_condition", targetId = "", summary = "'batch remove permission conditions'")
+    @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_REMOVE", targetType = "permission_condition", targetId = "", summary = "'batch remove permission conditions by code'")
     @PermissionChange
-    public void deleteConditionsByIds(Long tenantId, List<Long> ids, Long operatorId) {
+    public void deleteConditionsByCodes(Long tenantId, List<String> codes, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (ids == null || ids.isEmpty()) {
+        if (codes == null || codes.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
         }
 
-        Set<Long> validInputIds = ids.stream().filter(id -> id != null).collect(Collectors.toSet());
-        if (validInputIds.isEmpty()) {
+        Set<String> validInputCodes = codes.stream()
+            .filter(code -> code != null && !code.isBlank())
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (validInputCodes.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
         }
 
-        // T-PERM-042：引擎纯查询，拒绝时由调用方显式抛出
-        Set<Long> deniedIds = engine.getDeniedEntityIds(
-            tenantId, operatorId, ResourceTypeCode.CONDITION, validInputIds, OperationCodeConstants.DELETE);
-        if (!deniedIds.isEmpty()) {
-            throw new SecurityException("Permission denied: DELETE on CONDITION:" + deniedIds);
-        }
-
-        List<PermissionCondition> entities = conditionMapper.selectValidByIds(tenantId, validInputIds);
+        List<PermissionCondition> entities = conditionMapper.selectValidByCodes(tenantId, validInputCodes);
         if (entities.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
         }
 
         Set<Long> validIds = entities.stream().map(PermissionCondition::getId).collect(Collectors.toSet());
+
+        // T-PERM-042：引擎纯查询，拒绝时由调用方显式抛出
+        Set<Long> deniedIds = engine.getDeniedEntityIds(
+            tenantId, operatorId, ResourceTypeCode.CONDITION, validIds, OperationCodeConstants.DELETE);
+        if (!deniedIds.isEmpty()) {
+            throw new SecurityException("Permission denied: DELETE on CONDITION:" + deniedIds);
+        }
+
         LocalDateTime now = LocalDateTime.now();
         conditionMapper.softDeleteBatch(tenantId, validIds.stream().toList(), now);
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " permission_condition row(s)");
@@ -328,7 +301,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
             c.getId(), c.getTenantId(), c.getCode(), c.getName(),
             c.getConditionRules(), c.getEnabled(),
             c.getGatewayEvaluable() != null ? c.getGatewayEvaluable() : false,
-            c.getDescription(), c.getCreatedAt()
+            c.getDescription(), c.getCreatedAt(), c.getUpdatedAt()
         );
     }
 

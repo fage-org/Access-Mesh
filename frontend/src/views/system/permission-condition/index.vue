@@ -123,7 +123,7 @@ function openEdit(row: ConditionResp) {
       const saved = await submitCondition(
         formRef.getFormData(),
         "edit",
-        row.id
+        row.code
       );
       if (saved) done();
       else closeLoading();

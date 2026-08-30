@@ -8,6 +8,8 @@ export type MockCondition = {
   gatewayEvaluable: boolean;
   description: string | null;
   createdAt: string;
+  /** T-PERM-029：对齐后端 ConditionResp.updatedAt（此前 mock/Resp 均无该字段） */
+  updatedAt: string;
   deleted: boolean;
 };
 
@@ -28,6 +30,7 @@ const initialMockConditions: MockCondition[] = [
     gatewayEvaluable: true,
     description: "仅工作时间段可访问",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   },
   {
@@ -41,6 +44,7 @@ const initialMockConditions: MockCondition[] = [
     gatewayEvaluable: true,
     description: "仅公司内网 IP 可访问",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   },
   {
@@ -54,6 +58,7 @@ const initialMockConditions: MockCondition[] = [
     gatewayEvaluable: true,
     description: "2026 年 7 月工作日时间窗（当前停用）",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   },
   {
@@ -67,6 +72,7 @@ const initialMockConditions: MockCondition[] = [
     gatewayEvaluable: false,
     description: "封禁已知 VPN 出口（走实时鉴权）",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   }
 ];
@@ -100,6 +106,7 @@ function isStoredCondition(value: unknown): value is MockCondition {
     typeof item.gatewayEvaluable === "boolean" &&
     (typeof item.description === "string" || item.description === null) &&
     typeof item.createdAt === "string" &&
+    typeof item.updatedAt === "string" &&
     typeof item.deleted === "boolean"
   );
 }

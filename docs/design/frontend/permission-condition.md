@@ -3,14 +3,14 @@ doc_type: design
 title: 权限条件 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-08
+last_reviewed: 2026-08-30   # 2026-08-30 §8 全量收口 + 字段/API 表对齐（T-PERM-029 落地：detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案、ConditionResp 补 updatedAt、remove 幂等静默跳过）；此前 2026-08-08 产品确认移除 CONDITION:VIEW 读取门禁
 ---
 
 # 3.2 权限条件 前端设计
 
 > 任务：T-FE-009（第 2 批末项，mock 驱动）
-> 后端契约：api-contract.md §5.6（端点总览，字段契约缺失 🔧 登记T-PERM-029）
-> 后端任务：T-PERM-029（permission-condition/*，Phase 2）
+> 后端契约：api-contract.md §5.6（含 permission-condition 契约要点，T-PERM-029 收口）
+> 后端任务：T-PERM-029（permission-condition/*，Phase 2，已收口 2026-08-30）
 
 ## 布局结构
 
@@ -38,14 +38,15 @@ last_reviewed: 2026-08-08
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
-| id | number | 内部主键（🔧 Phase 2 切业务键 code） |
+| id | number | 内部主键（授权链路 conditionId 引用；管理端点定位已切业务键 code，T-PERM-029） |
 | code | string | 条件编码（业务键，uk tenant+code，创建后不可改） |
 | name | string | 条件名称 |
 | conditionRules | string | 条件规则 JSON 字符串，结构 {logic, items[]} |
 | enabled | boolean | 是否启用 |
 | gatewayEvaluable | boolean | 是否可下发 Gateway 评估（T-PERM-017） |
 | description | string\|null | 条件描述 |
-| createdAt | string | 创建时间（后端 Resp 无 updatedAt 🔧） |
+| createdAt | string | 创建时间 |
+| updatedAt | string | 更新时间（T-PERM-029 补齐） |
 
 ### conditionRules JSON 结构（对齐 ConditionEvalUtils）
 
@@ -92,7 +93,7 @@ code / name / enabled（开关）/ gatewayEvaluable（开关）/ description（t
 
 ### 删除
 
-- ElMessageBox 确认 -> removeConditions([id]) -> loadList。
+- ElMessageBox 确认 -> removeConditions([row.code]) -> loadList（T-PERM-029：按业务键批量，不存在的 code 静默跳过）。
 
 ### 规则摘要列
 
@@ -103,11 +104,11 @@ code / name / enabled（开关）/ gatewayEvaluable（开关）/ description（t
 
 | 接口 | 方法 | 请求 | 响应 | 权限 |
 |---|---|---|---|---|
-| /api/perm/permission-condition/list | POST | EmptyReq | ItemsResp<ConditionResp> | 🔧 无 VIEW 校验 |
-| /api/perm/permission-condition/detail | POST | IdReq{id} | ConditionResp | 🔧 无校验 |
+| /api/perm/permission-condition/list | POST | EmptyReq | ItemsResp<ConditionResp> | 无读取门禁（产品确认，全租户开放） |
+| /api/perm/permission-condition/detail | POST | ConditionDetailReq{conditionCode} | ConditionResp | 无读取门禁；查不到 20006（T-PERM-029） |
 | /api/perm/permission-condition/create | POST | ConditionCreateReq | ConditionResp | CONDITION:CREATE |
-| /api/perm/permission-condition/update | POST | ConditionUpdateReq | ConditionResp | CONDITION:UPDATE |
-| /api/perm/permission-condition/remove | POST | IdsReq{ids} | Void | CONDITION:DELETE |
+| /api/perm/permission-condition/update | POST | ConditionUpdateReq{code,...} | ConditionResp | CONDITION:UPDATE（实例级） |
+| /api/perm/permission-condition/remove | POST | ConditionRemoveReq{codes} | Void | CONDITION:DELETE（实例级，fail-closed） |
 
 后端实现：ConditionController + ConditionAppServiceImpl。
 conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 access-service permission 域共享）。
@@ -150,15 +151,15 @@ conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 access-se
 
 sec 负责条件定义（与 RESOURCE/OPERATION 同源），拥有 CREATE+UPDATE+DELETE；admin 全权；hr/auditor 无写权限（列表读取全租户开放，不再由 VIEW 列控制）。
 
-## §8 核对清单（🔧 登记T-PERM-029）
+## §8 核对清单（原登记 T-PERM-029）——已全数收口（T-PERM-029，2026-08-30）
 
-| # | 项 | 现状 | 改造 |
+| # | 项 | 原登记改造 | 收口结论 |
 |---|---|---|---|
-| 1 | detail 用内部主键 id | IdReq{id} | 切业务键 code（ConditionDetailReq 已定义 conditionCode 但 Controller 没用，schema uk 保证唯一） |
-| 2 | update/remove 用内部主键 | conditionId/ids | 切业务键 code（批量按 code 列表） |
-| 3 | list 无分页无筛选 | EmptyReq 全量 | 补 ConditionListReq（keyword/enabled/pageNum/pageSize） |
-| 4 | list/detail 无 VIEW 校验 | 无 hasPermission | ~~补 CONDITION:VIEW 校验 + schema 种子预置 VIEW 操作位~~ **❌ 2026-08-08 产品确认取消：条件查看全租户开放（非敏感信息，用户自查询权限亦会涉及），无读取门禁；后端 list/detail 保持无 VIEW 校验，管理页 VIEW 门禁/角色矩阵 VIEW 列/loadList 短路一并移除（见上文）** |
-| 5 | ConditionResp 缺 updatedAt | entity 有但 Resp 不返回 | 补 updatedAt 字段 |
-| 6 | api-contract §5.6 缺字段契约 | 仅端点总览 | 补 ConditionResp/CreateReq/UpdateReq 字段表与请求示例 |
+| 1 | detail 用内部主键 id | 切业务键 code | ✅ 已收口：`ConditionDetailReq{conditionCode}` 接线（DTO 早已定义未用），查不到 20006（原 data=null 宽松语义删除，对齐 resource-entity/detail 收紧定案） |
+| 2 | update/remove 用内部主键 | 切业务键 code（批量按 code 列表） | ✅ 已收口：update `{code,...}`（定位键不可改）；remove `{codes:[...]}` 批量，不存在的 code 静默跳过（幂等，对齐 resource-entity/remove）；孤儿方法 deleteCondition（单删）无调用方已删除（T-PERM-034 revokePermissions 先例） |
+| 3 | list 无分页无筛选 | 补 ConditionListReq（keyword/enabled/pageNum/pageSize） | **设计定案反转：全量不分页**——条件模板数量有界（租户内几十个量级，非流水表），与 T-PERM-026 domain-config / T-PERM-027 service-config「量小不分页」双先例一致；keyword/enabled 过滤由前端本地完成（本页已实现），后端零改动 |
+| 4 | list/detail 无 VIEW 校验 | ~~补 CONDITION:VIEW~~ | ❌ 2026-08-08 产品确认取消（读取全租户开放），维持无门禁（见上文） |
+| 5 | ConditionResp 缺 updatedAt | 补 updatedAt 字段 | ✅ 已收口：Resp/前端类型/mock 均补齐（entity 列本就存在） |
+| 6 | api-contract §5.6 缺字段契约 | 补字段表与请求示例 | ✅ 已收口：§5.6 增 permission-condition 契约要点块（业务键/20006/门禁/gatewayEvaluable 联合校验/幂等语义） |
 
-前端按现状（id 主键 + 本地过滤）实现，🔧 项归 T-PERM-029 Phase 2 后端收敛。
+前端已随 T-PERM-029 同步切业务键（api/hook/index/mock + 授权页契约 spec 两用例订正），Phase 3 联调（T-FE-020）无需再动本页接口层。
