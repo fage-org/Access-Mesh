@@ -102,7 +102,7 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5/§8 全量收口（T-PERM-028 落�
 | `POST /api/perm/resource-entity/list` | 资源列表（分页） | ✅（本页不消费；已补 RESOURCE:VIEW 门禁） |
 | `POST /api/perm/resource-entity/batch-create` | 批量创建 | ✅（本页不消费） |
 | `POST /api/perm/operation-permission/list` | 操作权限列表 | ✅（无分页，前端本地处理） |
-| `POST /api/perm/operation-permission/detail` | 操作详情 | ✅ 业务键（resourceTypeCode 可空=全局操作，T-PERM-028） |
+| `POST /api/perm/operation-permission/detail` | 操作详情 | ✅ 业务键（resourceTypeCode 必填；全局操作概念已退役，T-PERM-028） |
 | `POST /api/perm/operation-permission/create` | 创建操作 | ✅ 位字段十进制字符串（T-PERM-028） |
 | `POST /api/perm/operation-permission/update` | 更新操作 | ✅ 业务键；code/type 不可改（T-PERM-028） |
 | `POST /api/perm/operation-permission/remove` | 删除操作（批量） | ✅ {items:[业务键]}（T-PERM-028） |
@@ -150,7 +150,7 @@ views/system/resource-operation/
 ### 🔧 需改造（Phase 2 后端）——六项已全数收口（T-PERM-028，2026-08-29）
 
 1. ~~**资源实体业务键切换**~~ **已收口（T-PERM-028）**：`detail/update/move/remove` 已切业务键 `(resourceTypeCode, code, codeType)`（codeType 缺省归一 default）；update 的 code 可更新字段已删（业务键不可变），extraClear 显式清空 extra，move 补跨类型/防环 20053（原内部 id 实现缺两项校验）。
-2. ~~**操作权限业务键切换**~~ **已收口（T-PERM-028）**：`detail/update/remove` 已切业务键 `(resourceTypeCode, code)`（resourceTypeCode 可空=全局操作，走 `selectGlobalByCode` 轨）。
+2. ~~**操作权限业务键切换**~~ **已收口（T-PERM-028）**：`detail/update/remove` 已切业务键 `(resourceTypeCode, code)`（原 resourceTypeCode 可空=全局操作轨已随全局操作概念退役删除，2026-08-30，resourceTypeCode 必填）。
 3. ~~**VIEW 门禁种子缺失**~~ **已收口（T-PERM-028）**：核实结论——tree 与 operation list 门禁 T-PERM-042 已补；真正缺的 `resource-entity/list`、`resource-entity/detail`、`operation-permission/detail` 三处已补类型级 VIEW（2026-08-29 用户决策全补）；种子由 DDL CRUD 预置组覆盖（2026-08-28 核实，半句不成立）。
 4. **resource-entity list 分页**：后端 `ResourceListReq` 有分页参数，本页以树为主不消费，保留契约对齐。
 5. ~~**bigint 字段 63 位精度**~~ **已收口（T-PERM-028）**：响应 DTO 加 `@JsonSerialize(ToStringSerializer.class)`（全项目 bigint 序列化策略首例），请求侧 Long 组件由 Jackson 宽容接受十进制字符串；前端线格式全切 string，显示/运算/排序全 BigInt 无损。表单内部保留 el-input-number 数值控件、提交转字符串（2026-08-29 用户决策：2⁵³ 内输入精确，保留增减按钮体验）；复评 P1 收口（2026-08-30）：编辑态位字段脏检查（未变更不重提交）+ 超精度高位值（>2⁵³）只读字符串精确展示，杜绝 Number 往返静默改写存储位值。

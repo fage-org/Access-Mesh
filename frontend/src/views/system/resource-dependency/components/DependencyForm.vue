@@ -309,7 +309,10 @@ defineExpose({ validate, getFormData });
 
     <el-form-item label="自动授权">
       <el-switch v-model="formData.autoGrant" disabled />
-      <span class="form-tip">未实现（预留字段）：自动补全依赖授权暂缓（T-PERM-035），后端拒绝保存 true（20048）</span>
+      <span class="form-tip"
+        >未实现（预留字段）：自动补全依赖授权暂缓（T-PERM-035），后端拒绝保存
+        true（20048）</span
+      >
     </el-form-item>
 
     <el-form-item label="描述">

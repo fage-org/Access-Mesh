@@ -1,80 +1,13 @@
 {
   "version": 1,
-  "description": "来源链 Golden Fixture（6 用例精简，第十四轮）：全局回退/组合位/ALL/资源继承/操作继承/两段组合来源。前端 source-chain.ts 与后端 GoldenFixtureTest（T-PERM-034）同用例集比对——本文件为权威用例源，后端落地时移植对齐（docs/design/frontend/permission-grant.md §12 工程加固方案三）。位值均为十进制字符串（T-PERM-028 线格式）。",
+  "description": "来源链 Golden Fixture（5 用例，全局操作概念退役后第十四轮修订）：组合位/ALL/资源继承/操作继承/两段组合来源。前端 source-chain.ts 与后端 GoldenFixturePgIT（T-PERM-034）同用例集比对——本文件为权威用例源，后端落地时移植对齐（docs/design/frontend/permission-grant.md §12 工程加固方案三）。位值均为十进制字符串（T-PERM-028 线格式）。",
   "semantics": {
     "coveredSet": "coveredSet = ⋃_{bit ∈ 定义位(grantedBits)} (bit.binaryBit | bit.inheritMask)",
     "covers": "(effectiveBits(A) & B.binaryBit) != 0，effectiveBits = binaryBit | inheritMask",
     "nodeClosure": "descendants(r) ∪ {r}（collectDescendants 不含源节点，显式并入）",
-    "mergeRule": "专属优先、全局回退：同 code 存在专属定义用专属，否则用全局"
+    "mergeRule": "操作定义按类型完全隔离（全局操作概念已退役，2026-08-30 设计定案）"
   },
   "cases": [
-    {
-      "name": "global-fallback",
-      "title": "全局回退：REPORT 类型无 EXPORT 专属定义，列由全局操作回退提供，来源标注全局操作",
-      "operations": [
-        {
-          "code": "VIEW",
-          "name": "查看",
-          "resourceTypeCode": "REPORT",
-          "binaryBit": "2",
-          "inheritMask": "0"
-        },
-        {
-          "code": "EXPORT",
-          "name": "导出",
-          "resourceTypeCode": null,
-          "binaryBit": "16",
-          "inheritMask": "0"
-        }
-      ],
-      "resources": [
-        {
-          "id": 1,
-          "parentId": null,
-          "resourceTypeCode": "REPORT",
-          "code": "rpt:sales",
-          "codeType": "default",
-          "name": "销售报表"
-        }
-      ],
-      "records": [
-        {
-          "id": 100,
-          "resourceTypeCode": "REPORT",
-          "resourceCode": "rpt:sales",
-          "codeType": "default",
-          "operationCode": "EXPORT",
-          "canGrant": false,
-          "conditionCode": null,
-          "scopeMode": "INSTANCE",
-          "grantSource": "MANUAL",
-          "grantedBits": "16"
-        }
-      ],
-      "expected": {
-        "columns": { "REPORT": ["VIEW", "EXPORT"] },
-        "cells": [
-          {
-            "row": "RES:REPORT:rpt:sales:default",
-            "column": "EXPORT",
-            "sources": [
-              {
-                "recordId": 100,
-                "grantSource": "MANUAL",
-                "nodeInheritFromCode": null,
-                "opInheritFromCode": null,
-                "combinationBit": false,
-                "globalOperation": true,
-                "conditionCode": null,
-                "canGrant": false,
-                "scopeMode": "INSTANCE"
-              }
-            ]
-          }
-        ],
-        "undefinedBits": {}
-      }
-    },
     {
       "name": "combination-bits",
       "title": "组合位：operationCode=null 记录按 grantedBits 逐位拆解，命中多列同时点亮并标注组合位；继承掩码覆盖列标注操作段",
@@ -150,7 +83,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": null,
                 "combinationBit": true,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": false,
                 "scopeMode": "INSTANCE"
@@ -161,7 +93,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": null,
                 "combinationBit": true,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": true,
                 "scopeMode": "INSTANCE"
@@ -178,7 +109,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": null,
                 "combinationBit": true,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": false,
                 "scopeMode": "INSTANCE"
@@ -189,7 +119,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": "DELETE",
                 "combinationBit": true,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": true,
                 "scopeMode": "INSTANCE"
@@ -206,7 +135,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": null,
                 "combinationBit": true,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": true,
                 "scopeMode": "INSTANCE"
@@ -273,7 +201,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": null,
                 "combinationBit": false,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": false,
                 "scopeMode": "ALL"
@@ -290,7 +217,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": "MANAGE",
                 "combinationBit": false,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": false,
                 "scopeMode": "ALL"
@@ -365,7 +291,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": null,
                 "combinationBit": false,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": false,
                 "scopeMode": "INSTANCE"
@@ -382,7 +307,6 @@
                 "nodeInheritFromCode": "rpt:dept",
                 "opInheritFromCode": null,
                 "combinationBit": false,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": false,
                 "scopeMode": "INSTANCE"
@@ -449,7 +373,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": null,
                 "combinationBit": false,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": true,
                 "scopeMode": "INSTANCE"
@@ -466,7 +389,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": "MANAGE",
                 "combinationBit": false,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": true,
                 "scopeMode": "INSTANCE"
@@ -541,7 +463,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": null,
                 "combinationBit": false,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": false,
                 "scopeMode": "INSTANCE"
@@ -558,7 +479,6 @@
                 "nodeInheritFromCode": null,
                 "opInheritFromCode": "MANAGE",
                 "combinationBit": false,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": false,
                 "scopeMode": "INSTANCE"
@@ -575,7 +495,6 @@
                 "nodeInheritFromCode": "rpt:dept",
                 "opInheritFromCode": null,
                 "combinationBit": false,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": false,
                 "scopeMode": "INSTANCE"
@@ -592,7 +511,6 @@
                 "nodeInheritFromCode": "rpt:dept",
                 "opInheritFromCode": "MANAGE",
                 "combinationBit": false,
-                "globalOperation": false,
                 "conditionCode": null,
                 "canGrant": false,
                 "scopeMode": "INSTANCE"

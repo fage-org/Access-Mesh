@@ -43,7 +43,6 @@ public class OperationAppServiceImpl implements OperationAppService {
     private final OperationPermissionMapper operationPermissionMapper;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
-    private final cn.ac.fage.accessmesh.access.permission.service.domain.OperationResolutionDomainService operationResolution;
 
     /**
      * 构造函数注入依赖
@@ -54,12 +53,10 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     public OperationAppServiceImpl(OperationPermissionMapper operationPermissionMapper,
                                       TypeResolutionService typeResolutionService,
-                                      PermQueryEngine engine,
-                                      cn.ac.fage.accessmesh.access.permission.service.domain.OperationResolutionDomainService operationResolution) {
+                                      PermQueryEngine engine) {
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
-        this.operationResolution = operationResolution;
     }
 
     /**
@@ -115,7 +112,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      * 获取操作权限详情
      * <p>
      * 以业务键 (resourceTypeCode, code) 查询操作权限完整信息（T-PERM-028；
-     * resourceTypeCode null/空白 = 全局操作）。类型级 OPERATION:VIEW 门禁。
+     * 全局操作概念已退役，resourceTypeCode 必填）。类型级 OPERATION:VIEW 门禁。
      * </p>
      *
      * @param tenantId 租户ID
@@ -135,7 +132,7 @@ public class OperationAppServiceImpl implements OperationAppService {
     }
 
     /**
-     * 以业务键定位有效操作权限（专属/全局两轨）
+     * 以业务键定位有效操作权限（全局操作已退役：resourceTypeCode 必填）
      *
      * @param tenantId 租户ID
      * @param key      操作权限业务键
@@ -143,19 +140,14 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @throws BizException 资源类型不存在（20021）或操作不存在（20005）时抛出
      */
     private OperationPermission selectOperationByBusinessKey(Long tenantId, OperationKeyReq key) {
-        OperationPermission op;
-        if (key.isGlobal()) {
-            op = operationPermissionMapper.selectGlobalByCode(tenantId, key.code());
-        } else {
-            Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", key.resourceTypeCode());
-            if (resourceType == null) {
-                throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + key.resourceTypeCode());
-            }
-            op = operationPermissionMapper.selectByResourceTypeAndCode(tenantId, resourceType, key.code());
+        Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", key.resourceTypeCode());
+        if (resourceType == null) {
+            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + key.resourceTypeCode());
         }
+        OperationPermission op = operationPermissionMapper.selectByResourceTypeAndCode(tenantId, resourceType, key.code());
         if (op == null) {
             throw new BizException(PermissionErrorCode.OPERATION_NOT_FOUND.getCode(),
-                "Operation not found: " + (key.isGlobal() ? "<global>" : key.resourceTypeCode()) + ":" + key.code());
+                "Operation not found: " + key.resourceTypeCode() + ":" + key.code());
         }
         return op;
     }
@@ -173,8 +165,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @return 操作权限响应列表
      */
     @Override
-    public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode,
-                                                        Boolean includeGlobalFallback) {
+    public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode) {
         // T-PERM-042：授权页操作列表读门禁（architecture §14.5 终态，类型级 OPERATION:VIEW）
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.VIEW)) {
@@ -184,16 +175,9 @@ public class OperationAppServiceImpl implements OperationAppService {
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         }
-        // T-ACCESS-021 补齐 api-contract §5.3（T-PERM-040 定稿、mock 已按契约实现）：false/缺省维持
-        // 现状（resourceType=null → 全量原始定义；指定类型 → 仅专属定义）
-        if (!Boolean.TRUE.equals(includeGlobalFallback)) {
-            return operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)
-                .stream().map(this::toResp).collect(Collectors.toList());
-        }
-        // true：「专属优先、全局回退」合并——经共享解析器（与授权计划 operationCode 适用性校验
-        // 同一实现，契约禁止两套逻辑；resourceTypeCode=null/缺省时无专属侧仅全局集合）
-        return operationResolution.mergeGlobalFallback(
-                operationPermissionMapper.selectByTenantAndResourceType(tenantId, null), resourceType)
+        // 全局操作概念已退役（2026-08-30 设计定案）：操作定义仅按类型返回，
+        // 原 includeGlobalFallback 合并参数随概念一并退役
+        return operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)
             .stream().map(this::toResp).collect(Collectors.toList());
     }
 
@@ -213,7 +197,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_UPDATE", targetType = "operation_permission", targetId = "#req.code()", summary = "'update operation permission ' + (#req.resourceTypeCode != null ? #req.resourceTypeCode : '<global>') + ':' + #req.code()")
+    @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_UPDATE", targetType = "operation_permission", targetId = "#req.code()", summary = "'update operation permission ' + #req.resourceTypeCode + ':' + #req.code()")
     public OperationPermissionResp updateOperation(Long tenantId, OperationUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
@@ -280,11 +264,12 @@ public class OperationAppServiceImpl implements OperationAppService {
     }
 
     /**
-     * 批量解析业务键为有效操作权限实体（固定两次批量查询，T-PERM-028 复评 P2 收口）
+     * 批量解析业务键为有效操作权限实体（固定一次跨类型批量查询，T-PERM-028 复评 P2 收口；
+     * 全局轨已随概念退役移除）
      * <p>
      * 一次 batchResolveTypeValues 解析全部类型 + 一次跨类型
      * selectByTenantResourceTypesAndOpCodes 查询，再按 (resourceType, code) 二元组内存
-     * 精确过滤；全局轨单独一次——查询次数不随请求内资源类型数增长
+     * 精确过滤——查询次数不随请求内资源类型数增长
      * （循环内禁止单条数据库查询，project-rules §8.4.8）。
      * </p>
      *
@@ -296,50 +281,42 @@ public class OperationAppServiceImpl implements OperationAppService {
         // 保留 typeCode → codes 分组（二元组必须按原始请求构造，拍平成两个集合再做笛卡尔
         // 会误命中 ROLE:DELETE / USER:VIEW 等未请求组合——复评 P1 回归修复）
         Map<String, Set<String>> typedByTypeCode = new java.util.LinkedHashMap<>();
-        Set<String> globalCodes = new java.util.LinkedHashSet<>();
         for (OperationKeyReq key : keys) {
-            if (key == null || key.code() == null || key.code().isBlank()) {
+            if (key == null || key.code() == null || key.code().isBlank()
+                || key.resourceTypeCode() == null || key.resourceTypeCode().isBlank()) {
                 continue;
             }
-            if (key.isGlobal()) {
-                globalCodes.add(key.code());
-            } else {
-                typedByTypeCode.computeIfAbsent(key.resourceTypeCode(), k -> new java.util.LinkedHashSet<>()).add(key.code());
-            }
+            typedByTypeCode.computeIfAbsent(key.resourceTypeCode(), k -> new java.util.LinkedHashSet<>()).add(key.code());
         }
-        if (typedByTypeCode.isEmpty() && globalCodes.isEmpty()) {
+        if (typedByTypeCode.isEmpty()) {
             return List.of();
         }
 
-        List<OperationPermission> entities = new java.util.ArrayList<>();
-        if (!typedByTypeCode.isEmpty()) {
-            Map<String, Integer> typeValues = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", typedByTypeCode.keySet());
-            Set<Integer> resolvedTypes = typeValues.values().stream()
-                .filter(Objects::nonNull).collect(Collectors.toSet());
-            if (!resolvedTypes.isEmpty()) {
-                // 请求二元组集合（typeValue:code）：仅由「已解析类型 × 该类型实际请求的码」构造，
-                // 未知类型码的键静默跳过；跨类型 SQL 的笛卡尔超集行由此精确过滤
-                Set<String> pairs = new java.util.HashSet<>();
-                for (Map.Entry<String, Set<String>> entry : typedByTypeCode.entrySet()) {
-                    Integer typeValue = typeValues.get(entry.getKey());
-                    if (typeValue == null) {
-                        continue;
-                    }
-                    for (String code : entry.getValue()) {
-                        pairs.add(typeValue + ":" + code);
-                    }
-                }
-                Set<String> allTypedCodes = typedByTypeCode.values().stream()
-                    .flatMap(Set::stream).collect(Collectors.toSet());
-                for (OperationPermission op : operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(tenantId, resolvedTypes, allTypedCodes)) {
-                    if (pairs.contains(op.getResourceType() + ":" + op.getCode())) {
-                        entities.add(op);
-                    }
-                }
+        Map<String, Integer> typeValues = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", typedByTypeCode.keySet());
+        Set<Integer> resolvedTypes = typeValues.values().stream()
+            .filter(Objects::nonNull).collect(Collectors.toSet());
+        if (resolvedTypes.isEmpty()) {
+            return List.of();
+        }
+        // 请求二元组集合（typeValue:code）：仅由「已解析类型 × 该类型实际请求的码」构造，
+        // 未知类型码的键静默跳过；跨类型 SQL 的笛卡尔超集行由此精确过滤
+        Set<String> pairs = new java.util.HashSet<>();
+        for (Map.Entry<String, Set<String>> entry : typedByTypeCode.entrySet()) {
+            Integer typeValue = typeValues.get(entry.getKey());
+            if (typeValue == null) {
+                continue;
+            }
+            for (String code : entry.getValue()) {
+                pairs.add(typeValue + ":" + code);
             }
         }
-        if (!globalCodes.isEmpty()) {
-            entities.addAll(operationPermissionMapper.selectGlobalByCodes(tenantId, globalCodes));
+        Set<String> allTypedCodes = typedByTypeCode.values().stream()
+            .flatMap(Set::stream).collect(Collectors.toSet());
+        List<OperationPermission> entities = new java.util.ArrayList<>();
+        for (OperationPermission op : operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(tenantId, resolvedTypes, allTypedCodes)) {
+            if (pairs.contains(op.getResourceType() + ":" + op.getCode())) {
+                entities.add(op);
+            }
         }
         return entities;
     }

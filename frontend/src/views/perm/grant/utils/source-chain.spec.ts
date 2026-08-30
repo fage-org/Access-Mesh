@@ -1,8 +1,8 @@
 /**
  * 来源链纯函数测试（DoD-2，引擎双写消除方案三）。
  *
- * Golden Fixture 6 用例（source-chain.fixtures.json）与后端 GoldenFixtureTest（T-PERM-034）
- * 同用例集：全局回退/组合位/ALL/资源继承/操作继承/两段组合来源。
+ * Golden Fixture 5 用例（source-chain.fixtures.json）与后端 GoldenFixturePgIT（T-PERM-034）
+ * 同用例集：组合位/ALL/资源继承/操作继承/两段组合来源（全局操作概念已退役）。
  * 后端落地时移植同一 fixtures 比对，前端本测试逐例全字段断言（CI 失败即阻断）。
  *
  * 其余用例（AUTO_DEP 并列/未定义位/继承开关/操作授权覆盖）为前端补充覆盖，非 golden 集合。
@@ -11,8 +11,6 @@ import { describe, it, expect } from "vitest";
 import fixtures from "./source-chain.fixtures.json";
 import {
   computeSourceChain,
-  mergeOperationsByType,
-  mergeOperationsForType,
   collectOperationGrants,
   getCellState,
   allRowKey,
@@ -28,7 +26,6 @@ type ExpectedSource = {
   nodeInheritFromCode: string | null;
   opInheritFromCode: string | null;
   combinationBit: boolean;
-  globalOperation: boolean;
   conditionCode: string | null;
   canGrant: boolean;
   scopeMode: string;
@@ -42,7 +39,7 @@ type FixtureCase = {
   operations: Array<{
     code: string;
     name: string;
-    resourceTypeCode: string | null;
+    resourceTypeCode: string;
     binaryBit: string;
     inheritMask: string;
   }>;
@@ -84,7 +81,6 @@ function normalize(result: ReturnType<typeof computeSourceChain>): {
           nodeInheritFromCode: s.nodeInheritFromCode,
           opInheritFromCode: s.opInheritFromCode,
           combinationBit: s.combinationBit,
-          globalOperation: s.globalOperation,
           conditionCode: s.conditionCode,
           canGrant: s.canGrant,
           scopeMode: s.scopeMode
@@ -357,39 +353,6 @@ describe("source-chain 前端补充覆盖（非 golden 集）", () => {
     expect(cell?.sources).toHaveLength(1);
   });
 
-  it("mergeOperationsByType：专属优先（同 code 专属定义压制全局）", () => {
-    const ops = [
-      {
-        code: "VIEW",
-        name: "全局查看",
-        resourceTypeCode: null,
-        binaryBit: "2",
-        inheritMask: "0"
-      },
-      {
-        code: "VIEW",
-        name: "专属查看",
-        resourceTypeCode: "REPORT",
-        binaryBit: "2",
-        inheritMask: "0"
-      },
-      {
-        code: "EXPORT",
-        name: "导出",
-        resourceTypeCode: null,
-        binaryBit: "16",
-        inheritMask: "0"
-      }
-    ];
-    const merged = mergeOperationsByType(ops).get("REPORT")!;
-    expect(merged).toHaveLength(2);
-    const view = merged.find(op => op.code === "VIEW")!;
-    expect(view.name).toBe("专属查看");
-    expect(view.globalFallback).toBe(false);
-    const exp = merged.find(op => op.code === "EXPORT")!;
-    expect(exp.globalFallback).toBe(true);
-  });
-
   it("collectOperationGrants：覆盖位集展开命中（非裸 grantedBits & binaryBit），组合位标注", () => {
     const records: SourceRecordInput[] = [
       {
@@ -449,16 +412,9 @@ describe("source-chain 前端补充覆盖（非 golden 集）", () => {
     expect(manageHits.map(h => h.record.id).sort()).toEqual([100, 101]);
   });
 
-  it("collectOperationGrants：专属操作只统计同类型记录；全局操作跨类型按自身列集判定", () => {
+  it("collectOperationGrants：操作按类型隔离，只统计同类型记录", () => {
     const ops = [
       ...OPS,
-      {
-        code: "EXPORT",
-        name: "导出",
-        resourceTypeCode: null,
-        binaryBit: "16",
-        inheritMask: "0"
-      },
       {
         code: "VIEW",
         name: "查看",
@@ -485,135 +441,32 @@ describe("source-chain 前端补充覆盖（非 golden 集）", () => {
         resourceTypeCode: "REPORT",
         resourceCode: "rpt:p",
         codeType: "default",
-        operationCode: "EXPORT",
+        operationCode: "VIEW",
         canGrant: false,
         conditionCode: null,
         scopeMode: "INSTANCE",
         grantSource: "MANUAL",
-        grantedBits: "16"
+        grantedBits: "2"
       }
     ];
-    const typedHits = collectOperationGrants({
+    const dataHits = collectOperationGrants({
+      records,
+      operations: ops,
+      target: { resourceTypeCode: "DATA", code: "VIEW" }
+    });
+    expect(dataHits.map(h => h.record.id)).toEqual([100]);
+    const reportHits = collectOperationGrants({
       records,
       operations: ops,
       target: { resourceTypeCode: "REPORT", code: "VIEW" }
     });
-    expect(typedHits).toHaveLength(0); // DATA 的 VIEW 不计入 REPORT/VIEW 现状
-    const globalHits = collectOperationGrants({
-      records,
-      operations: ops,
-      target: { resourceTypeCode: null, code: "EXPORT" }
-    });
-    expect(globalHits.map(h => h.record.id)).toEqual([101]);
+    expect(reportHits.map(h => h.record.id)).toEqual([101]);
   });
 
   it("ALL 虚拟行键与实例行键互斥", () => {
     expect(allRowKey("REPORT")).not.toBe(
       instanceRowKey("REPORT", "rpt:p", "default")
     );
-  });
-
-  // ---- 问题 7：纯全局操作类型可成列（专属优先、全局回退） ----
-
-  it("mergeOperationsForType：纯全局操作类型（无专属定义）仍生成全局列（问题 7）", () => {
-    const ops = [
-      {
-        code: "MANAGE",
-        name: "管理",
-        resourceTypeCode: null,
-        binaryBit: "16",
-        inheritMask: "0"
-      }
-    ];
-    const merged = mergeOperationsForType(ops, "WIDGET");
-    expect(merged).toHaveLength(1);
-    expect(merged[0].code).toBe("MANAGE");
-    expect(merged[0].globalFallback).toBe(true);
-  });
-
-  it("mergeOperationsForType：同码专属覆盖全局；无专属时回退全局（问题 7）", () => {
-    const ops = [
-      {
-        code: "VIEW",
-        name: "全局查看",
-        resourceTypeCode: null,
-        binaryBit: "2",
-        inheritMask: "0"
-      },
-      {
-        code: "VIEW",
-        name: "专属查看",
-        resourceTypeCode: "REPORT",
-        binaryBit: "2",
-        inheritMask: "0"
-      },
-      {
-        code: "EXPORT",
-        name: "导出",
-        resourceTypeCode: null,
-        binaryBit: "16",
-        inheritMask: "0"
-      }
-    ];
-    const merged = mergeOperationsForType(ops, "REPORT");
-    expect(merged).toHaveLength(2);
-    const view = merged.find(op => op.code === "VIEW")!;
-    expect(view.name).toBe("专属查看");
-    expect(view.globalFallback).toBe(false);
-    const exp = merged.find(op => op.code === "EXPORT")!;
-    expect(exp.globalFallback).toBe(true);
-  });
-
-  it("computeSourceChain：纯全局操作类型记录能进入矩阵并成列（问题 7）", () => {
-    const ops = [
-      {
-        code: "MANAGE",
-        name: "管理",
-        resourceTypeCode: null,
-        binaryBit: "16",
-        inheritMask: "0"
-      }
-    ];
-    const tree = [
-      {
-        id: 1,
-        parentId: null,
-        resourceTypeCode: "WIDGET",
-        code: "w1",
-        codeType: "default",
-        name: "挂件1",
-        children: []
-      }
-    ];
-    const records: SourceRecordInput[] = [
-      {
-        id: 100,
-        resourceTypeCode: "WIDGET",
-        resourceCode: "w1",
-        codeType: "default",
-        operationCode: "MANAGE",
-        canGrant: false,
-        conditionCode: null,
-        scopeMode: "INSTANCE",
-        grantSource: "MANUAL",
-        grantedBits: "16"
-      }
-    ];
-    const result = computeSourceChain({
-      records,
-      resources: tree,
-      operations: ops
-    });
-    expect(result.columnsByType.get("WIDGET")?.map(op => op.code)).toEqual([
-      "MANAGE"
-    ]);
-    const cell = getCellState(
-      result,
-      instanceRowKey("WIDGET", "w1", "default"),
-      "MANAGE"
-    );
-    expect(cell?.sources).toHaveLength(1);
-    expect(cell?.sources[0].globalOperation).toBe(true);
   });
 
   it("computeSourceChain：兼容旧响应缺少 grantedBits 时按 operationCode 回退", () => {

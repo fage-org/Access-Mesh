@@ -20,7 +20,6 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyServ
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.impl.OperationResolutionDomainServiceImpl;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -63,8 +62,9 @@ import static org.mockito.Mockito.mockStatic;
  *     定位走通真实 SQL（selectByTypeCodeAndCodeType / selectByTypeAndCodesAndCodeTypes）；
  *     codeType 缺省归一 default；extraClear 清空；move 跨类型/子孙目标 20053 拒绝；
  *     remove 按键级联软删子孙（真实递归 CTE）。</li>
- * <li><b>操作权限业务键链路</b>：detail/update/remove 以 (resourceTypeCode, code) 定位，
- *     全局操作（resourceTypeCode=null）走 selectGlobalByCode 轨。</li>
+ * <li><b>操作权限业务键链路</b>：detail/update/remove 以 (resourceTypeCode, code) 定位；
+ *     全局操作概念已退役（2026-08-30 设计定案），DDL CHECK 强制 resource_type 非空，
+ *     全局行在数据层被拒（本测试真库断言）。</li>
  * <li><b>resource_type 创建联动预置</b>：createType 同事务插入 CRUD 四操作位，
  *     位值对齐 DDL 预置组模板，真实 uk_operation_permission_typed/_typed_bit 约束生效。</li>
  * </ol>
@@ -160,8 +160,7 @@ class ResourceOperationKeyPgIT {
     }
 
     private OperationAppServiceImpl newOperationAppService(PermQueryEngine engine) {
-        return new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine,
-            new OperationResolutionDomainServiceImpl());
+        return new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine);
     }
 
     @BeforeEach
@@ -268,21 +267,21 @@ class ResourceOperationKeyPgIT {
     }
 
     @Test
-    @DisplayName("操作权限业务键链路：专属/全局 detail → update → remove（真实 uk 约束）")
-    void shouldWalkOperationBusinessKeyChainOnRealPostgres() {
+    @DisplayName("操作权限业务键链路：双类型 detail → update → remove（真实 uk 约束）+ 全局行被 CHECK 拒绝")
+    void shouldWalkOperationBusinessKeyChainOnRealPostgres() throws Exception {
         OperationPermission typed = insertOperation(5, "PGIT28_OP_T", 1024L, 0L);
-        OperationPermission global = insertOperation(null, "PGIT28_OP_G", 2048L, 0L);
+        OperationPermission userScoped = insertOperation(6, "PGIT28_OP_U", 2048L, 0L);
 
         OperationAppServiceImpl service = newOperationAppService(permitAllEngine());
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
-            // detail：专属轨 + 全局轨（resourceTypeCode 缺省）
+            // detail：两类型各自按业务键命中
             assertThat(service.getOperation(TENANT, new OperationKeyReq("ROLE", "PGIT28_OP_T")).id())
                 .isEqualTo(typed.getId());
-            assertThat(service.getOperation(TENANT, new OperationKeyReq(null, "PGIT28_OP_G")).id())
-                .isEqualTo(global.getId());
+            assertThat(service.getOperation(TENANT, new OperationKeyReq("USER", "PGIT28_OP_U")).id())
+                .isEqualTo(userScoped.getId());
 
             // update：业务键定位更新位值
             service.updateOperation(TENANT, new OperationUpdateReq("ROLE", "PGIT28_OP_T", "改名", 4096L, 2L), 100L);
@@ -292,12 +291,25 @@ class ResourceOperationKeyPgIT {
             assertThat(updated.getInheritMask()).isEqualTo(2L);
         }
 
-        // remove：按键批量（专属 + 全局混排）
+        // remove：按键批量（双类型混排）
         service.deleteOperations(TENANT, List.of(
             new OperationKeyReq("ROLE", "PGIT28_OP_T"),
-            new OperationKeyReq(null, "PGIT28_OP_G")), 100L);
+            new OperationKeyReq("USER", "PGIT28_OP_U")), 100L);
         assertThat(operationPermissionMapper.selectValidById(typed.getId(), TENANT)).isNull();
-        assertThat(operationPermissionMapper.selectValidById(global.getId(), TENANT)).isNull();
+        assertThat(operationPermissionMapper.selectValidById(userScoped.getId(), TENANT)).isNull();
+
+        // 全局操作概念退役：DDL CHECK 强制 resource_type 非空，全局行在数据层被拒
+        // （授权行只存 resource_type + granted_bits，全局位与专属位同值时授权身份不可区分）
+        try (var conn = java.sql.DriverManager.getConnection(
+                postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
+             var ps = conn.prepareStatement(
+                "INSERT INTO operation_permission (tenant_id, resource_type, code, name, "
+                    + "binary_bit, inherit_mask, delete_flag) VALUES (?, NULL, 'PGIT28_OP_GLOBAL', 'x', 4096, 0, 0)")) {
+            ps.setLong(1, TENANT);
+            assertThatThrownBy(ps::executeUpdate)
+                .isInstanceOf(java.sql.SQLException.class)
+                .hasMessageContaining("ck_operation_permission_resource_type_required");
+        }
     }
 
     @Test

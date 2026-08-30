@@ -115,37 +115,6 @@ class PermissionGrantDomainServiceImplTest {
     }
 
     @Test
-    void canGrantPermissionShouldUseGlobalOperationFallback() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
-        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
-            .thenReturn(Map.of("MENU", 1));
-
-        OperationPermission globalView = operation(101L, null, "VIEW", 1L, 0L);
-        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
-            1L, Set.of(1), Set.of("VIEW"))).thenReturn(List.of());
-        when(operationPermissionMapper.selectGlobalByCodes(1L, Set.of("VIEW")))
-            .thenReturn(List.of(globalView));
-        when(operationPermissionMapper.selectByTenantAndResourceType(1L, null))
-            .thenReturn(List.of(globalView));
-        when(typeResolutionService.batchResolveResourceIds(any(), any()))
-            .thenReturn(Map.of(new ResourceResolveKey(
-                "MENU", "sys:user", PermConstants.CodeType.DEFAULT, null), 100L));
-
-        RoleResourcePermission permission = new RoleResourcePermission();
-        permission.setAbstractRoleId(20L);
-        permission.setResourceEntityId(100L);
-        permission.setResourceType(1);
-        permission.setGrantedBits(1L);
-        permission.setCanGrant(true);
-        permission.setScopeAll(false);
-        when(roleResourcePermissionMapper.selectValidByRoleIds(1L, Set.of(20L)))
-            .thenReturn(List.of(permission));
-
-        assertTrue(service.canGrantPermission(1L, 10L, "MENU", "sys:user",
-            PermConstants.CodeType.DEFAULT, "VIEW", false, null));
-    }
-
-    @Test
     void shouldRejectSecondManualGrantEvenWhenConditionDiffers() {
         RoleResourcePermission existing = permission(501L, "MANUAL", null, 2L);
         RoleResourcePermission candidate = permission(null, "MANUAL", 99L, 2L);

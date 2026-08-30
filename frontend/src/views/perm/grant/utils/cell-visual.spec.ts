@@ -22,7 +22,6 @@ function source(
     nodeInheritFromName: null,
     opInheritFromCode: null,
     combinationBit: false,
-    globalOperation: false,
     conditionCode: null,
     canGrant: false,
     scopeMode: "INSTANCE",

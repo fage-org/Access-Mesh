@@ -182,22 +182,13 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         }
         List<OperationPermission> specificTargetOperations = operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
             tenantId, resourceTypeValues, operationCodes);
-        List<OperationPermission> globalTargetOperations = operationPermissionMapper
-            .selectGlobalByCodes(tenantId, operationCodes);
 
         Map<String, OperationPermission> opPermByKey = new HashMap<>();
         Map<Integer, List<OperationPermission>> targetOpsByType = new LinkedHashMap<>();
         for (Integer resourceTypeValue : resourceTypeValues) {
-            Map<String, OperationPermission> specificByCode = specificTargetOperations.stream()
+            List<OperationPermission> merged = specificTargetOperations.stream()
                 .filter(operation -> Objects.equals(operation.getResourceType(), resourceTypeValue))
-                .collect(Collectors.toMap(operation -> operation.getCode().toUpperCase(),
-                    Function.identity(), (left, right) -> left, LinkedHashMap::new));
-            List<OperationPermission> merged = new ArrayList<>(specificByCode.values());
-            for (OperationPermission globalOperation : globalTargetOperations) {
-                if (!specificByCode.containsKey(globalOperation.getCode().toUpperCase())) {
-                    merged.add(globalOperation);
-                }
-            }
+                .collect(Collectors.toList());
             targetOpsByType.put(resourceTypeValue, merged);
             for (OperationPermission operation : merged) {
                 opPermByKey.put(resourceTypeValue + ":" + operation.getCode().toUpperCase(), operation);
@@ -390,22 +381,12 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
     private Map<String, OperationPermission> buildOperationIndex(
             List<OperationPermission> operations, Set<Integer> resourceTypes) {
-        List<OperationPermission> globalOperations = operations.stream()
-            .filter(operation -> operation.getResourceType() == null)
-            .toList();
         Map<String, OperationPermission> result = new HashMap<>();
         for (Integer resourceType : resourceTypes) {
-            Map<String, OperationPermission> specificByCode = operations.stream()
-                .filter(operation -> Objects.equals(operation.getResourceType(), resourceType))
-                .collect(Collectors.toMap(operation -> operation.getCode().toUpperCase(),
-                    Function.identity(), (left, right) -> left));
-            for (OperationPermission operation : specificByCode.values()) {
+            for (OperationPermission operation : operations.stream()
+                    .filter(op -> Objects.equals(op.getResourceType(), resourceType))
+                    .toList()) {
                 result.put(operationIndexKey(resourceType, operation.getBinaryBit()), operation);
-            }
-            for (OperationPermission operation : globalOperations) {
-                if (!specificByCode.containsKey(operation.getCode().toUpperCase())) {
-                    result.put(operationIndexKey(resourceType, operation.getBinaryBit()), operation);
-                }
             }
         }
         return result;

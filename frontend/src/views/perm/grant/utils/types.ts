@@ -64,8 +64,8 @@ export type SubjectTreeNode = {
 export type OperationDef = {
   code: string;
   name: string;
-  /** null = 全局操作（适用所有资源类型） */
-  resourceTypeCode: string | null;
+  /** 操作定义必属某类型（全局操作概念已退役） */
+  resourceTypeCode: string;
   binaryBit: bigint;
   inheritMask: bigint;
 };

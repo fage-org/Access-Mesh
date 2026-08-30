@@ -702,11 +702,10 @@ public class PermQueryEngine {
             return Map.of();
         }
 
-        // 冷缓存批量回源：getBatch 收集 miss 类型后 1 次全局 + 1 次批量专属查询（IN），
-        // 再 putBatch 分组回填——消除逐类型重复执行同一全局 SQL 的循环内单条查询。
-        // 缓存内容为按 ID 索引的「专属 + 全局按码合并」结果（同码专属优先），
-        // 与写链路 mergeGlobalFallback 同一语义；GoldenFixturePgIT（T-PERM-034）抓出的
-        // 分歧修复：全局操作位此前不参与掩码计算，授权侧允许的全局位（如 EXPORT）运行时被引擎忽略
+        // 操作位空间按类型完全隔离（全局操作概念已退役，2026-08-30 设计定案）：
+        // 每类型有效操作集 = 该类型专属操作，uk_operation_permission_typed_bit 保证
+        // 同类型同位不异码。冷缓存批量回源：getBatch 收集 miss 类型后一次批量专属
+        // 查询（IN），putBatch 分组回填——不逐类型单查。
         Set<String> cacheKeys = new LinkedHashSet<>();
         for (Integer resourceType : resourceTypes) {
             cacheKeys.add("op_perm:" + resourceType);
@@ -720,32 +719,15 @@ public class PermQueryEngine {
             }
         }
         if (!missTypes.isEmpty()) {
-            Map<String, OperationPermission> globalByCode = new LinkedHashMap<>();
-            for (OperationPermission global : operationPermissionMapper.selectGlobal(tenantId)) {
-                if (global.getCode() != null) {
-                    globalByCode.put(OperationResolutionDomainService.normalizeCode(global.getCode()), global);
-                }
-            }
-            Map<Integer, Map<String, OperationPermission>> mergedByCodeByType = new LinkedHashMap<>();
-            for (Integer missType : missTypes) {
-                mergedByCodeByType.put(missType, new LinkedHashMap<>(globalByCode));
-            }
+            Map<String, Map<Long, OperationPermission>> toPut = new LinkedHashMap<>();
             for (OperationPermission specific : operationPermissionMapper.selectByTenantAndResourceTypes(
                 tenantId, new LinkedHashSet<>(missTypes))) {
-                Map<String, OperationPermission> byCode = mergedByCodeByType.get(specific.getResourceType());
-                if (byCode != null && specific.getCode() != null) {
-                    byCode.put(OperationResolutionDomainService.normalizeCode(specific.getCode()), specific);
+                if (specific.getResourceType() == null) {
+                    continue;
                 }
-            }
-            Map<String, Map<Long, OperationPermission>> toPut = new LinkedHashMap<>();
-            for (Integer missType : missTypes) {
-                Map<Long, OperationPermission> opMap = new LinkedHashMap<>();
-                for (OperationPermission merged : mergedByCodeByType.get(missType).values()) {
-                    opMap.put(merged.getId(), merged);
-                }
-                if (!opMap.isEmpty()) {
-                    toPut.put("op_perm:" + missType, opMap);
-                }
+                toPut.computeIfAbsent("op_perm:" + specific.getResourceType(),
+                        key -> new LinkedHashMap<>())
+                    .put(specific.getId(), specific);
             }
             if (!toPut.isEmpty()) {
                 cacheService.putBatch(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, toPut);
@@ -762,37 +744,18 @@ public class PermQueryEngine {
 
             long mask = 0L;
             for (OperationPermission targetOp : targetOps.values()) {
-                // 全局目标操作（resourceType=null）在任意类型上参与判定（全局回退）
+                // 目标操作只在本类型位空间参与判定（多类型查询跳过其他类型的专属操作）
                 if (targetOp.getResourceType() != null
                     && !Objects.equals(resourceType, targetOp.getResourceType())) {
                     continue;
                 }
-                // 目标位按该类型合并结果中同码实际生效的定义取值（专属优先、全局回退）：
-                // 同码专属定义取代全局定义后，全局定义的 binaryBit 属于另一位空间
-                // （uk_operation_permission_typed_bit 按 tenant+resource_type 隔离位值），
-                // 沿用会把无关位计入目标操作掩码（越权）或漏掉该类型的真实授权
-                OperationPermission effective = targetOp.getCode() == null ? null : findByCode(opMap, targetOp);
-                if (effective == null) {
-                    continue;
-                }
-                mask |= OperationPermissionUtils.computeCoveringBitMask(opMap.values(), effective.getBinaryBit());
+                mask |= OperationPermissionUtils.computeCoveringBitMask(opMap.values(), targetOp.getBinaryBit());
             }
             if (mask != 0L) {
                 result.put(resourceType, mask);
             }
         }
         return result;
-    }
-
-    private OperationPermission findByCode(Map<Long, OperationPermission> opMap, OperationPermission targetOp) {
-        String targetCode = OperationResolutionDomainService.normalizeCode(targetOp.getCode());
-        for (OperationPermission candidate : opMap.values()) {
-            if (candidate.getCode() != null
-                && targetCode.equals(OperationResolutionDomainService.normalizeCode(candidate.getCode()))) {
-                return candidate;
-            }
-        }
-        return null;
     }
 
     // ===== 私有批量加载方法（替代 EntityBatchLoadDomainService） =====

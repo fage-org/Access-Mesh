@@ -206,23 +206,21 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
 
     /**
      * 解析操作编码到内部操作ID
+     * <p>
+     * 操作位空间按类型完全隔离（全局操作概念已退役，2026-08-30 设计定案）：
+     * 仅解析目标类型的专属操作，查不到返回 null（调用方 fail-closed）。
+     * </p>
      */
     @Override
     public Long resolveOperationId(Long tenantId, String operationCode, String resourceTypeCode) {
-        // resourceTypeCode 非空：必须解析出 resourceType，否则返回 null（不降级跨类型任取）
-        if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
-            Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
-            if (resourceType == null) return null;
-            // 专属操作优先
-            OperationPermission op = operationPermissionMapper.selectByResourceTypeAndCode(tenantId, resourceType, operationCode);
-            if (op != null) return op.getId();
-            // fallback 全局操作（resource_type IS NULL，适用所有资源类型）
-            OperationPermission global = operationPermissionMapper.selectGlobalByCode(tenantId, operationCode);
-            return global != null ? global.getId() : null;
+        // 无类型上下文无从解析（不降级跨类型任取）
+        if (resourceTypeCode == null || resourceTypeCode.isBlank()) {
+            return null;
         }
-        // resourceTypeCode 为空：仅查全局操作（不降级跨类型任取）
-        OperationPermission global = operationPermissionMapper.selectGlobalByCode(tenantId, operationCode);
-        return global != null ? global.getId() : null;
+        Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+        if (resourceType == null) return null;
+        OperationPermission op = operationPermissionMapper.selectByResourceTypeAndCode(tenantId, resourceType, operationCode);
+        return op != null ? op.getId() : null;
     }
 
     /**
@@ -295,34 +293,17 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         if (validCodes.isEmpty()) {
             return Collections.emptyMap();
         }
-        // resourceTypeCode 非空：必须解析出 resourceType，否则返回空（不降级跨类型任取）
-        if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
-            Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
-            if (resourceType == null) return Collections.emptyMap();
-            // 专属操作优先
-            Map<String, Long> result = new HashMap<>();
-            Set<String> resolvedCodes = new HashSet<>();
-            for (OperationPermission op : operationPermissionMapper.selectByResourceTypeAndCodes(tenantId, resourceType, validCodes)) {
-                result.put(op.getCode(), op.getId());
-                resolvedCodes.add(op.getCode());
-            }
-            // fallback 全局操作（仅专属未解析的 code，专属优先）
-            Set<String> remaining = new HashSet<>(validCodes);
-            remaining.removeAll(resolvedCodes);
-            if (!remaining.isEmpty()) {
-                for (OperationPermission global : operationPermissionMapper.selectGlobalByCodes(tenantId, remaining)) {
-                    result.putIfAbsent(global.getCode(), global.getId());
-                }
-            }
-            return result;
+        // 无类型上下文无从解析（全局操作已退役，不降级跨类型任取）
+        if (resourceTypeCode == null || resourceTypeCode.isBlank()) {
+            return Collections.emptyMap();
         }
-        // resourceTypeCode 为空：仅查全局操作
-        return operationPermissionMapper.selectGlobalByCodes(tenantId, validCodes)
-            .stream().collect(Collectors.toMap(
-                OperationPermission::getCode,
-                OperationPermission::getId,
-                (a, b) -> a
-            ));
+        Integer resourceType = resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+        if (resourceType == null) return Collections.emptyMap();
+        Map<String, Long> result = new HashMap<>();
+        for (OperationPermission op : operationPermissionMapper.selectByResourceTypeAndCodes(tenantId, resourceType, validCodes)) {
+            result.put(op.getCode(), op.getId());
+        }
+        return result;
     }
 
     /**

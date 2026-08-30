@@ -3,7 +3,7 @@ doc_type: design
 title: 4.1 权限授予 前端设计（v3）
 status: adopted # T-FE-040 v3.1 已于 2026-08-09 实现并完成 S1~S8 mock 人工验收；后续进入 T-FE-018 真实接口联调
 domain: frontend
-last_reviewed: 2026-08-30   # 2026-08-30 T-PERM-034 后端收口回写：§12 决策 16（sub-perm-allowed-types）与 17（20043 不变量）后端落地、工程加固 GoldenFixturePgIT 落地（引擎级比对）；此前：2026-08-28 §1.1 主体树 enabledOnly 口径（T-PERM-022）；2026-08-09 T-FE-040 v3.1
+last_reviewed: 2026-08-30   # 2026-08-30 全局操作概念整体退役回写（T-PERM-049）：§3.2/§7.1 操作列与注记改按类型隔离口径、§8 紧凑类型选择器与子权限操作集合收口、§12 fixtures 6→5 例（global-fallback 移除）；同日 T-PERM-034 后端收口回写：§12 决策 16（sub-perm-allowed-types）与 17（20043 不变量）后端落地、工程加固 GoldenFixturePgIT 落地（引擎级比对）；此前：2026-08-28 §1.1 主体树 enabledOnly 口径（T-PERM-022）；2026-08-09 T-FE-040 v3.1
 ---
 
 # 4.1 权限授予 前端设计（v3）
@@ -131,9 +131,8 @@ interface MatrixContext {
 
 ### 3.2 列：操作列可配置
 
-- 操作列 = **当前 `resourceTypeCode` 的有效操作集合**（T-FE-038 done）：调用 `operation-permission/list` 携带 `resourceTypeCode + includeGlobalFallback=true`（契约见 api-contract §5.3，**后端完成合并**），响应即当前类型最终可用操作——**切换 `resourceTypeCode` 时必须重新查询，禁止复用上一类型的操作列**（上一类型独有操作不得残留）。
-- 有效操作集合语义：当前类型专属操作 ∪ 没有同码专属定义时适用的全局操作（`resourceTypeCode=null`）；同一 `operationCode` 专属定义与全局定义并存时**专属优先**（合并剔除全局）。
-- **操作继承位定义绑定当前类型**：单元格覆盖判定（§3.5 coveredSet）与操作继承展开一律使用**当前类型最终生效定义**的 `binaryBit/inheritMask`，禁止使用其他类型同 `operationCode` 的位定义参与计算；来源链对全局操作标注"全局操作"。
+- 操作列 = **当前 `resourceTypeCode` 的操作定义**（T-FE-038 done；全局操作概念已退役 2026-08-30，操作定义按类型完全隔离）：调用 `operation-permission/list` 携带 `resourceTypeCode`（契约见 api-contract §5.3），响应即当前类型操作定义——**切换 `resourceTypeCode` 时必须重新查询，禁止复用上一类型的操作列**（上一类型独有操作不得残留）。
+- **操作继承位定义绑定当前类型**：单元格覆盖判定（§3.5 coveredSet）与操作继承展开一律使用**当前类型定义**的 `binaryBit/inheritMask`，禁止使用其他类型同 `operationCode` 的位定义参与计算。
 - 默认展示：常用操作列（前端按 `inheritMask=0` 且使用频次排序，或全部显示，实现时定）；用户可**增删列**（配置面板勾选操作权限），配置保存在前端本地（localStorage）。（**🔧 T-FE-038 实现确认**：默认**全部显示**，按 `binaryBit` 升序，§13.2 决策 7）
 - **操作列显示配置按类型隔离（T-FE-038 done）**：存储键 = `permission-grant:hidden-columns:{resourceTypeCode}`（隐藏列集合），**禁止使用所有类型共享的隐藏列配置**；类型切换后读取/写入对应键。当操作定义被删除或调整时（`operation-permission` 变更），清理当前类型配置中已不存在的操作码（按 `code` 比对）。（**实现注记，2026-08-07**：清理时机 = 每次类型数据加载成功后（新操作列就绪即比对），隐藏列与当前类型最终可用操作码求交集后写回；原按 subjectType 隔离的 `perm-grant:columns:{subjectType}` 键不再读取，历史残留键不迁移）
 - 操作继承开启时，被继承覆盖的操作列仍可显示（列上角标提示"通常由高级操作继承，可隐藏"）。
@@ -193,9 +192,9 @@ interface MatrixContext {
 
 - `list` 直接授权记录（**baseline 一次取全量 `includeChildren=true`，过滤 `dependOn==null` 取主权限**，§6.1 加载口径；**按当前 `resourceTypeCode` 过滤**，🔧 T-FE-038）
 - 资源树（`resource-entity/tree`，含 parentId 结构；**按当前 `resourceTypeCode` 过滤**）
-- 操作定义（`operation-permission/list` 携带 `resourceTypeCode + includeGlobalFallback=true`，**当前类型最终可用集合**，含 binaryBit + inheritMask + resourceTypeCode；**binaryBit/inheritMask 为十进制字符串线格式**，T-PERM-028 修订，前端 BigInt 解析，P1-3）——**操作继承计算只用当前类型最终生效定义的 `binaryBit/inheritMask`**，禁止使用其他类型同码定义参与计算（T-FE-038 done）
+- 操作定义（`operation-permission/list` 携带 `resourceTypeCode`，**当前类型操作定义**，含 binaryBit + inheritMask + resourceTypeCode；**binaryBit/inheritMask 为十进制字符串线格式**，T-PERM-028 修订，前端 BigInt 解析，P1-3）——**操作继承计算只用当前类型定义的 `binaryBit/inheritMask`**，禁止使用其他类型同码定义参与计算（T-FE-038 done）
 
-> **实现注记（T-FE-038，2026-08-07）**：页面层操作数据源 = `operation-permission/list` + `includeGlobalFallback=true` 的响应（后端完成"专属优先、全局回退"合并，前端不再自行实现合并领域规则，§12-14）；`computeSourceChain` 输入（records/resources/operations）全部为**当前类型**数据（基线/树/操作均按类型加载），内部合并对"已合并结果"幂等（专属条目 resourceTypeCode=当前类型、全局回退条目保持 null 并标注"全局操作"），故纯函数与 Golden fixtures 无需改动；mock 端按 §5.3 语义模拟合并（`includeGlobalFallback=true`：专属 ∪ 无同码专属的全局，按 binaryBit 升序；`resourceTypeCode=null`+true = 仅全局集合，禁止全量口径）。授权弹窗子权限配置器与只读详情层保留**全量**资源树/操作定义依赖（子权限可跨类型，2026-08-07 评审确认）。
+> **实现注记（T-FE-038，2026-08-07；全局操作退役后修订 2026-08-30）**：页面层操作数据源 = `operation-permission/list` 按类型查询的响应（全局操作概念已退役，无合并语义）；`computeSourceChain` 输入（records/resources/operations）全部为**当前类型**数据（基线/树/操作均按类型加载），操作列集 = 该类型专属定义；授权弹窗子权限配置器与只读详情层保留**全量**资源树/操作定义依赖（子权限可跨类型，2026-08-07 评审确认）。
 
 算法（对齐 `PermQueryEngine` / `OperationPermissionUtils`）：
 
@@ -226,7 +225,7 @@ interface MatrixContext {
 2. **清空旧数据**：清空旧矩阵（资源行 + ALL 虚拟行 + 单元格状态）与旧操作列。
 3. **并行查询三类数据**（`Promise.all`）：
    - 当前类型资源树（`resource-entity/tree` + `resourceTypeCode`）；
-   - 当前类型操作权限（`operation-permission/list` + `resourceTypeCode + includeGlobalFallback=true`，§3.2）；
+   - 当前类型操作权限（`operation-permission/list` + `resourceTypeCode`，§3.2）；
    - 当前类型角色权限记录（`role-resource-permission/list` 按当前类型过滤，含 `scopeMode=ALL` 记录）。
 4. **全部完成后构建**：三类数据齐备后一次构建来源链（§3.5）与矩阵（含 ALL 虚拟行），再渲染。
 5. **加载期间显示统一骨架屏**（中栏矩阵区 `el-skeleton`），不渲染半成品矩阵。
@@ -272,12 +271,12 @@ interface MatrixContext {
   - 新勾选资源固定默认值：`conditionCode=null`、`canGrant=false`、`children=[]`——不继承设置区当前显示值，聚焦后可独立修改；
   - 修改聚焦记录的条件/再授予只产生该记录自己的 update 草稿，不产生任何其他记录的变更；
   - **ALL 焦点迁移**：选择 ALL → 自动聚焦当前类型 ALL 槽位（可独立配置条件/再授予/子权限）；取消 ALL 回 INSTANCE → 焦点清空（重新点击行聚焦）。
-- **全量选择**：INSTANCE/ALL 不再使用占位较大的 Tab/Radio；资源树右上角“全量”复选按钮表示当前类型 ALL。已有 ALL 取消选择时，由 `applyDialogResultsToDraft` 按顺序先生成该类型 ALL 撤销，再应用 INSTANCE 树最终集合；全局操作在多类型树场景显示紧凑类型选择器。
+- **全量选择**：INSTANCE/ALL 不再使用占位较大的 Tab/Radio；资源树右上角“全量”复选按钮表示当前类型 ALL。已有 ALL 取消选择时，由 `applyDialogResultsToDraft` 按顺序先生成该类型 ALL 撤销，再应用 INSTANCE 树最终集合（全局操作的紧凑类型选择器已随概念退役移除）。
 - **有效来源提示（v3.1，措辞限定）**：聚焦记录带条件时，若**当前角色已加载来源**（当前角色的 MANUAL / AUTO_DEP / 继承投影 / ALL，即弹窗与矩阵同源的 records）中存在其他无条件来源，设置区展示提示"该资源在当前角色已加载来源中仍有无条件 VIEW 来源；当前条件不会收紧当前角色的有效权限"。不声称掌握用户级最终权限（用户可经其他角色获得权限）——用户级最终结果引导到权限查询页核验。
 - **显式复制（v3.1，替代批量覆盖）**：设置区提供"复制当前设置到…"入口——**启用条件：焦点为有效 MANUAL 记录或待新增 MANUAL 草稿**（未授权聚焦 / 仅 AUTO_DEP 槽位时不启用）；**源 = 聚焦记录（或待新增草稿）的条件 + 再授予**；弹出目标选择（当前已勾选的 MANUAL 主记录列表，可多选），确认摘要展示目标数量与目标值；覆盖提示：目标已有异构设置（条件/再授予不同）时明确标注将被覆盖；条件非空时目标 `canGrant` 自动为 false（对齐 20041 不变量）；**默认不复制子权限**（子权限按父记录独立配置，避免复制歧义）；AUTO_DEP 与继承来源不在目标范围（只读）；复制为独立动作，不改变焦点；不产生任何隐式覆盖。**草稿合并规则**：①目标排除源记录自身；②目标值与源完全相同时跳过（不生成变更）；③目标为本次新增（add 草稿）时**就地修改该 add 的属性为复制值**，不新建记录；④目标已有 update 草稿时**合并到同一条 change 的 after**；⑤**同一持久化 id 只允许一条 update 草稿**——复制不得为同一 id 追加第二条 update（后端 apply-grant-plan 拒绝重复 update ID，api-contract §6.5.1）；⑥**合并后归一化**：合并结果与 baseline 无差异（after==before）时删除该 update（复用 `applyDialogResultToDraft` 现有无差异清理逻辑，新增复制纯函数共用同一归一化步骤，避免"变更清单存在、最终 plan 无 update"的幽灵变更）。**条件门禁**：条件选择与复制不受 CONDITION:VIEW 限制（2026-08-08 产品确认：条件规则全租户开放、非敏感，见 §10 权限接线与 permission-condition.md）。**停用条件规则（v3.1，与后端 20042 同口径）**：①**新选限启用**——条件选择器仅允许选择启用条件，停用条件灰显不可选；②**存量停用绑定允许保留**——已绑定后停用的条件回显并标注"条件已停用"，保存时未修改 `conditionCode` 允许保留；③**源条件停用时复制入口禁用**（"复制不携带条件"会隐式清空目标条件、把受限/失效权限放宽为无条件，因此禁用整个复制入口并提示"请先选择启用条件或清除条件后再复制"）；④修改 `conditionCode` 时新值必须为启用状态（后端预检 20042 `CONDITION_DISABLED`，api-contract §6.5.1）。
 - **最小提示**：移除 1/2/3/4 步骤编号、独立现状表格与范围切换说明，只保留“选择操作后可编辑”“勾选授权/取消撤销”“父节点覆盖子孙”“点击资源行编辑该授权属性”等必要语义。
 - **节点紧凑摘要（v3.1，评审复审采纳）**：对**已勾选 MANUAL 节点**与 **baseline MANUAL 标记 remove（待撤销）的节点**在行内展示紧凑摘要——条件名称（有条件时；**无条件记录显示浅色[无条件]**，便于直接比较）、再授予状态、子权限数量、草稿状态（待更新/待撤销，remove 节点显示红色"待撤销"）；形态与矩阵图例一致（条件=标签、再授予=粗边框、子权限=蓝色数量）；**除 baseline MANUAL 待撤销节点外，其他未勾选节点不显示摘要**（仅 AUTO_DEP 来源节点同样不显示），避免噪音；用途：树内直接比较不同资源的属性差异，无需逐行聚焦。
-- **配置子权限（v3.1 记录级入口）**：子权限入口位于授权设置区，标题明确展示挂载目标（"配置当前授权的子权限 / 挂载到：A资源 · VIEW · 条件 C"）；点击后进入该聚焦记录的子权限配置，**单父记录上下文，不再提供父记录下拉列表**；**启用条件：焦点为有效 MANUAL 记录或待新增 MANUAL add 草稿**（与显式复制入口统一；未聚焦 / 未授权聚焦 / 仅 AUTO_DEP 槽位时保持展示但禁用）。子权限沿用主权限的资源树编辑方式，同时保留独立的资源类型选择：先选资源类型，再从该类型“专属优先、全局回退”的操作集合中选择操作，树上勾选=授权、取消=撤销，ALL 位于资源区右上角。资源类型、操作、资源树与 ALL 首次进入即全部展示；未完成前置选择时显示空树或禁用态。弹窗一次只渲染一个类型且树默认只展开根层。**资源类型选择器按 SUB_PERM 允许集过滤（v3.1）**：通过授权专用只读契约 `role-resource-permission/sub-perm-allowed-types`（api-contract §6.5.2）按聚焦父记录的资源类型查询允许的子资源类型——`ALLOW_ALL`（顶层或嵌套 `"*"` 通配）不限制、`ALLOW_LIST` 仅允许列表内类型（其余禁用）、`ALLOW_NONE` **按 `reason` 区分展示**：`PARENT_NOT_CONFIGURED` / `CHILD_TYPES_EMPTY`（业务不允许，展示"该资源类型不允许配置子权限"）、`CONFIG_MISSING` / `CONFIG_EMPTY` / `CONFIG_INVALID`（配置异常，展示"子权限配置缺失/格式错误，请联系管理员"）；**`ALLOW_LIST` 允许集与实际类型候选交集为空时**区分展示三态：候选已成功加载且交集为空 -> 配置/数据不一致（"当前无可配置的子权限类型"）；候选**加载失败或无 TYPE_DEFINITION:VIEW** -> 显示加载失败/权限不足并允许重试（不得误报为 SUB_PERM 配置错误）；候选**加载中** -> 显示 loading；不允许通过前端硬编码允许集。同一父权限下，相同资源/范围 + 操作最多一条 MANUAL 子权限。**子权限不承载条件权限与再授予设置是系统不变量而非 UI 限制（2026-08-08 产品确认）**：新建键固定 `conditionCode=null`、`canGrant=false`（两种 create 形态——`creates[].children[]` 嵌套与 `parentPermissionId` 挂父——后端均强制，违反 20043）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；**历史异常记录（已存在带条件/可再授予的子权限）只兼容读取与删除，不在界面隐式迁移、不允许继续属性编辑**；api-contract §6.5.1。所有调整只修改弹窗本地草稿，取消弹窗不写入页面；最终确认后主子权限一起进入页面变更清单。
+- **配置子权限（v3.1 记录级入口）**：子权限入口位于授权设置区，标题明确展示挂载目标（"配置当前授权的子权限 / 挂载到：A资源 · VIEW · 条件 C"）；点击后进入该聚焦记录的子权限配置，**单父记录上下文，不再提供父记录下拉列表**；**启用条件：焦点为有效 MANUAL 记录或待新增 MANUAL add 草稿**（与显式复制入口统一；未聚焦 / 未授权聚焦 / 仅 AUTO_DEP 槽位时保持展示但禁用）。子权限沿用主权限的资源树编辑方式，同时保留独立的资源类型选择：先选资源类型，再从该类型的操作集合中选择操作（全局操作已退役），树上勾选=授权、取消=撤销，ALL 位于资源区右上角。资源类型、操作、资源树与 ALL 首次进入即全部展示；未完成前置选择时显示空树或禁用态。弹窗一次只渲染一个类型且树默认只展开根层。**资源类型选择器按 SUB_PERM 允许集过滤（v3.1）**：通过授权专用只读契约 `role-resource-permission/sub-perm-allowed-types`（api-contract §6.5.2）按聚焦父记录的资源类型查询允许的子资源类型——`ALLOW_ALL`（顶层或嵌套 `"*"` 通配）不限制、`ALLOW_LIST` 仅允许列表内类型（其余禁用）、`ALLOW_NONE` **按 `reason` 区分展示**：`PARENT_NOT_CONFIGURED` / `CHILD_TYPES_EMPTY`（业务不允许，展示"该资源类型不允许配置子权限"）、`CONFIG_MISSING` / `CONFIG_EMPTY` / `CONFIG_INVALID`（配置异常，展示"子权限配置缺失/格式错误，请联系管理员"）；**`ALLOW_LIST` 允许集与实际类型候选交集为空时**区分展示三态：候选已成功加载且交集为空 -> 配置/数据不一致（"当前无可配置的子权限类型"）；候选**加载失败或无 TYPE_DEFINITION:VIEW** -> 显示加载失败/权限不足并允许重试（不得误报为 SUB_PERM 配置错误）；候选**加载中** -> 显示 loading；不允许通过前端硬编码允许集。同一父权限下，相同资源/范围 + 操作最多一条 MANUAL 子权限。**子权限不承载条件权限与再授予设置是系统不变量而非 UI 限制（2026-08-08 产品确认）**：新建键固定 `conditionCode=null`、`canGrant=false`（两种 create 形态——`creates[].children[]` 嵌套与 `parentPermissionId` 挂父——后端均强制，违反 20043）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；**历史异常记录（已存在带条件/可再授予的子权限）只兼容读取与删除，不在界面隐式迁移、不允许继续属性编辑**；api-contract §6.5.1。所有调整只修改弹窗本地草稿，取消弹窗不写入页面；最终确认后主子权限一起进入页面变更清单。
 - **返回保护**：子权限已有调整时返回修改主权限必须明确确认，确认后仅丢弃本次子权限调整并保留主权限选择，不静默丢失。
 - **确定语义**（单直接授权模型）：
   - **直接授权键** = (resourceTypeCode, resourceCode, codeType, **operationKey**, scopeMode, parentPermissionId)（资源维度来自 GrantContext 资源键 §2.1，ALL 时 resourceCode/codeType=null；主权限 parentPermissionId=null）；**operationKey = operationCode ?? "bits:"+grantedBits** 仅用于读取异常/内部组合位记录的防御性展示，MANUAL 新授权必须是单 operationCode；**持久化 id** = 后端记录 id。conditionCode/canGrant 不参与身份。
@@ -450,8 +449,8 @@ interface MatrixContext {
   1. 切换 `resourceTypeCode` 后，操作列同步变化（重新查询，非复用旧列）。
   2. 上一类型独有操作不得残留（旧矩阵/旧操作列/旧 ALL 虚拟行全部清空）。
   3. 相同 `operationCode` 在不同类型具有不同位定义时，分别使用各自定义（覆盖判定/继承展开正确）。
-  4. 专属操作覆盖同码全局操作（操作列与来源标注一致）。
-  5. 没有专属操作时正确回退全局操作（列存在且来源链标注"全局操作"）。
+  4. ~~专属操作覆盖同码全局操作~~（全局操作概念退役后失效，2026-08-30）。
+  5. ~~没有专属操作时正确回退全局操作~~（同上失效）。
   6. 操作继承只使用当前类型的 `inheritMask`（跨类型同码位定义不参与计算）。
   7. 操作列隐藏配置按 `resourceTypeCode` 隔离（`permission-grant:hidden-columns:{resourceTypeCode}`；类型 A 隐藏列不影响类型 B；操作定义删除后清理残留操作码）。
   8. 并发切换类型时不会显示旧请求结果（快速连续切换 A→B→C，最终矩阵 = C 数据，A/B 迟到响应被丢弃）。
@@ -477,7 +476,7 @@ interface MatrixContext {
 11. ~~新增 rebuild~~（已移除）：跨键替换 = apply-grant-plan 内 removes 旧 + creates 新（同事务原子，子权限不迁移）；原子性由单事务保证，不使用 clientRequestId 或幂等表。
 12. ~~checkCanGrant 匹配键扩展 condition 维度~~：被 T-PERM-041“条件权限不可转授”取代。可转授来源必为无条件记录，`GrantCheckKey` 无需纳入 conditionCode；直接授权的 conditionCode 由 update 修改而非新增并行分支。
 13. **授权页面唯一写入口 `apply-grant-plan`**：记录级 plan = creates（主权限可带 children 一次性建树/子权限 parentPermissionId 挂父）+ updates（现有记录微变更）+ removes（主权限级联删子/子权限单条删），单事务原子执行（任一失败整体回滚）；不使用 clientRequestId/@Idempotent、`expectedRevision` CAS、`grant_revision` 列、幂等表 `grant_plan_idempotency` 或 20037/20039；返回完整持久化结果（契约见 api-contract §6.5.1）。
-14. **单类型矩阵后端支持（🔧 T-PERM-040，单类型上下文定稿）**：① `operation-permission/list` 增加 `resourceTypeCode + includeGlobalFallback` 参数（默认 false 兼容；true 时 `resourceTypeCode=null/缺省` = 仅全局操作集合，禁止全量口径合并），true 时后端完成"专属优先、全局回退"合并，响应即当前类型最终可用操作集合（契约见 api-contract §5.3）；② **`role-resource-permission/list` 增加 `resourceTypeCode`**（矩阵调用必填，按类型过滤主权限；`includeChildren=true` 返回该类型主权限及其全部子权限，子权限跨类型按 `depend_on` 挂父返回，契约见 api-contract §6.4）；③ `apply-grant-plan` creates 逐项校验必填 `operationCode` 适用于记录的资源类型（**覆盖 recordKey 主权限、`children[]` 嵌套子权限、`parentPermissionId` 挂父三种形态**），复用与 list 相同的合并规则（单一解析实现，判定基于有效定义），不匹配 -> **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`。MANUAL 新授权必须是单 operationCode，不接受 `operationCode=null` 或组合位。本页（T-FE-038）操作列一律走 includeGlobalFallback=true，**前端不再自行实现合并领域规则**。
+14. **单类型矩阵后端支持（🔧 T-PERM-040，单类型上下文定稿）**：① `operation-permission/list` 增加 `resourceTypeCode + includeGlobalFallback` 参数（默认 false 兼容；true 时 `resourceTypeCode=null/缺省` = 仅全局操作集合，禁止全量口径合并），true 时后端完成"专属优先、全局回退"合并，响应即当前类型最终可用操作集合（契约见 api-contract §5.3）；② **`role-resource-permission/list` 增加 `resourceTypeCode`**（矩阵调用必填，按类型过滤主权限；`includeChildren=true` 返回该类型主权限及其全部子权限，子权限跨类型按 `depend_on` 挂父返回，契约见 api-contract §6.4）；③ `apply-grant-plan` creates 逐项校验必填 `operationCode` 适用于记录的资源类型（**覆盖 recordKey 主权限、`children[]` 嵌套子权限、`parentPermissionId` 挂父三种形态**），复用与 list 相同的合并规则（单一解析实现，判定基于有效定义），不匹配 -> **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`。MANUAL 新授权必须是单 operationCode，不接受 `operationCode=null` 或组合位。本页（T-FE-038）操作列原走 includeGlobalFallback=true（该参数已随全局操作概念退役删除，2026-08-30——操作定义按类型隔离后无合并领域规则）。
 15. **条件权限不可转授（🔧 T-PERM-041，2026-08-05 确认；仅主权限）**：**主权限** `conditionCode != null` 时 `canGrant` 必须为 `false`——creates 主权限 + updates 结果态统一校验，违反 -> **20041** `CONDITIONAL_PERMISSION_CANNOT_DELEGATE`；**子权限不适用**（子权限不承载条件/再授予 -> 20043，见决策 17）；schema 增加 `CHECK (condition_id IS NULL OR can_grant = false)`（契约见 api-contract §6.5.1，DDL 见 access-service.sql）；本页授权弹窗选择条件后自动关闭并清除 canGrant（§4）。
 16. **子权限类型只读契约（🔧 v3.1，D5；后端已随 T-PERM-034 落地 2026-08-30）**：新增 `role-resource-permission/sub-perm-allowed-types` 只读接口（契约见 api-contract §6.5.2），按父资源类型返回 SUB_PERM 允许的子资源类型，授权弹窗子权限配置器的资源类型选择器按允许集过滤（ALLOW_ALL / ALLOW_LIST / ALLOW_NONE）；判定口径与 `PermissionGrantPlanDomainService.prevalidate` 的 SUB_PERM fail-closed 校验一致（`resolveSubPermissionPolicy` 唯一解析入口，读写同源），前端不硬编码允许集。
 17. **子权限属性系统不变量（🔧 v3.1，2026-08-08 产品确认；后端已随 T-PERM-034 落地 2026-08-30——20043 预检先于 20041，DDL CHECK 兜底）**：子权限不承载条件与再授予是**系统不变量而非 UI 限制**——两种子权限 create 形态（`creates[].children[]` 嵌套与 `parentPermissionId` 挂父）的 `conditionCode` 必须为 null、`canGrant` 必须为 false（违反 -> **20043** `SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED`）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；历史异常记录只兼容读取与删除，不允许继续属性编辑；20041/20042 仅校验主权限（错误优先级见 api-contract §6.5.1）。
@@ -485,7 +484,7 @@ interface MatrixContext {
 ### 工程加固（2026-08-01 分析评审后，随 T-PERM-034/T-FE-036/T-FE-018 落地）
 
 - **Mutation Policy（方案二）**：`PermissionGrantPlanDomainService` 提供唯一预检入口 `prevalidate(plan)`——不变量集（记录存在及角色/父归属、update/remove 互斥、AUTO_DEP 只读、canGrant 授权传递、**主权限条件不变量 20041/20042（T-PERM-041）**、**子权限属性系统不变量 20043（T-PERM-034）**、SUB_PERM 约束、MANUAL 单直接授权唯一性、scopeMode/资源/单操作兼容性；**PlanDomainService 组合 GrantDomainService 校验能力（2026-08-22 起同层调用全局放开，无域限定）**）；**apply-grant-plan 授权页面唯一写入口强制调用**，AppService 只负责角色门禁、事务与审计。
-- **引擎双写消除（方案三）**：后端 `GoldenFixtureTest` 使用 6 个用例（全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）输出权威结果；前端读同一 fixtures 逐例比对（CI 失败）；配置读模型（后端视图聚合接口）记为**演进方向**，当前不实现。**fixtures 载体（T-FE-036 落地注记，2026-08-02）**：立项时后端 GoldenFixtureTest 尚未启动，6 用例由 T-FE-036 按 §3.5 语义先行定义于 **`frontend/src/views/perm/grant/utils/source-chain.fixtures.json`**（权威用例源，含语义说明与期望输出全字段），前端 `source-chain.spec.ts` 逐例全字段断言；**后端已随 T-PERM-034 落地（2026-08-30）**：`GoldenFixturePgIT`（真库容器）把 6 用例种入 PostgreSQL 后用运行时引擎逐（资源×操作）评估、与 expected.cells 等价比对（nodeClosure 语义映射为 {资源}∪祖先链逐点判定取或——引擎实例判定按查询实体精确加载、继承展开为展示性克隆，见 core-flows §资源继承展开）。比对过程抓出并修复一处引擎缺口：全局操作位此前不参与掩码计算（授权侧允许的全局位运行时被忽略），已按「专属优先、全局回退」合并修复。
+- **引擎双写消除（方案三）**：后端 `GoldenFixturePgIT` 使用同一 fixtures 用例集输出权威结果；前端读同一 fixtures 逐例比对（CI 失败）；用例集现为 5 例（组合位/ALL/资源继承/操作继承/两段组合来源——`global-fallback` 用例随全局操作概念退役移除，2026-08-30）；配置读模型（后端视图聚合接口）记为**演进方向**，当前不实现。**fixtures 载体（T-FE-036 落地注记，2026-08-02）**：立项时后端 GoldenFixtureTest 尚未启动，用例集（原 6 例，现 5 例——global-fallback 随全局操作概念退役移除）由 T-FE-036 按 §3.5 语义先行定义于 **`frontend/src/views/perm/grant/utils/source-chain.fixtures.json`**（权威用例源，含语义说明与期望输出全字段），前端 `source-chain.spec.ts` 逐例全字段断言；**后端已随 T-PERM-034 落地（2026-08-30）**：`GoldenFixturePgIT`（真库容器）把用例集种入 PostgreSQL 后用运行时引擎逐（资源×操作）评估、与 expected.cells 等价比对（nodeClosure 语义映射为 {资源}∪祖先链逐点判定取或——引擎实例判定按查询实体精确加载、继承展开为展示性克隆，见 core-flows §资源继承展开）。比对过程曾抓出并修复一处引擎缺口：全局操作位此前不参与掩码计算（后随全局操作概念退役整体移除，2026-08-30 T-PERM-049）。
 - **端点契约（方案四）**：`docs/contracts/perm-grant.schema.json` 已删除，不做说明性机器校验；报文契约回归 `api-contract.md §6.4/§6.5/§6.5.1/§6.5.2` 单一来源，补结构约束（统一响应壳/跨字段 INSTANCE-ALL 约束/local-date-time/grantedBits 十进制字符串/错误码枚举（含 20041/20042/20043）/plan 结构/无 clientRequestId）；结构校验由后端 `prevalidateGrantPlan` 运行时执行；Java DTO 手工对齐 api-contract。
 
 > 注（P1-4）：个人入口（PERSONAL）首期移除；个人 `abstract_role` 生命周期（用户同步 upsert/删除 `PERSONAL_{external_id}`）另立后端任务，落地后恢复个人入口与 S1 个人分支验收。
@@ -504,7 +503,7 @@ interface MatrixContext {
 | 编排      | `frontend/src/views/perm/grant/utils/hook.ts`                                                                                                                                                                                     | 依赖加载 / 门控 / 生效视图 / 事件编排 / 离开保护                 |
 | 状态机    | `frontend/src/views/perm/grant/utils/grant-store.ts`                                                                                                                                                                              | Pinia 四态 discriminated union（DoD-3）                          |
 | 纯函数    | `utils/source-chain.ts`（来源链，DoD-2）/ `utils/grant-plan.ts`（直接授权键 diff + plan 构建）/ `utils/bits.ts`（BigInt 位运算）/ `utils/cell-visual.ts`（🔧 T-FE-039 颜色无关图标聚合/三态拆分/子权限数量投影，§3.3）          | 纯函数可测                                                       |
-| fixtures  | `utils/source-chain.fixtures.json` + `source-chain.spec.ts`                                                                                                                                                                       | Golden 6 用例（§12 方案三）                                      |
+| fixtures  | `utils/source-chain.fixtures.json` + `source-chain.spec.ts`                                                                                                                                                                       | Golden 用例集（5 例，§12 方案三）                                |
 | API       | `frontend/src/api/permission-grant.ts`                                                                                                                                                                                            | list + apply-grant-plan（契约 §6.4/§6.5.1）+ 错误码映射（DoD-1） |
 | mock      | `frontend/mock/permission-grant.ts`（list / apply-grant-plan 全量预校验 + 单事务模拟 + 错误码演练）+ `mock/resource-operation.ts`（+REPORT 625 节点大树，additive）+ `mock/login.ts`（权限矩阵接线）                              | mock 驱动，DoD-4                                                 |
 | 路由      | `frontend/src/router/modules/perm.ts`                                                                                                                                                                                             | `/perm/grant`（showLink: false；keepAlive）                      |
@@ -514,7 +513,7 @@ interface MatrixContext {
 ### 13.2 评审决策落地（2026-08-02）
 
 1. **矩阵选型 = el-table-v2 虚拟滚动**（S7 验收驱动；§2 已回写）。
-2. **弹窗取消勾选 = 撤权（方案二）** + 删除红色醒目提示（§4 已回写）；严格勾选 + ALL 全局操作选类型（§4 已回写）。
+2. **弹窗取消勾选 = 撤权（方案二）** + 删除红色醒目提示（§4 已回写）；严格勾选 + ALL 全局操作选类型（§4 已回写；该选择器已随全局操作概念退役移除，2026-08-30）。
 3. **Golden fixtures 载体 = 前端 JSON**（§12 方案三已回写）。
 4. **路由 = 新建 /perm 模块 + 角色页入口恢复**（§1.1 路由约定落地；组织入口二期占位 `el-result` 提示，未实现组织树适配器与 org-tree mock）。
 5. **操作位线格式 = 页面层宽容解析**（`bits.ts` `toBigIntBits`：string|number → BigInt；共享 `mock/resource-operation.ts` number 格式与 3.1 页不受影响；本页 `grantedBits` 严格按契约十进制字符串，DoD-1）。
@@ -524,7 +523,7 @@ interface MatrixContext {
 
 ### 13.3 验证证据
 
-- 单测 61 全过：`source-chain.spec.ts`（Golden 6 用例全字段断言 + 前端补充覆盖）/ `grant-plan.spec.ts`（plan 构建 + 方案二弹窗 diff）/ `grant-store.spec.ts`（四态迁移 + baseline 迁移 + 失败保留重试）+ 既有 `condition-rules.spec.ts`。
+- 单测 61 全过：`source-chain.spec.ts`（Golden 用例集全字段断言 + 前端补充覆盖；历史计数，用例集现为 5 例）/ `grant-plan.spec.ts`（plan 构建 + 方案二弹窗 diff）/ `grant-store.spec.ts`（四态迁移 + baseline 迁移 + 失败保留重试）+ 既有 `condition-rules.spec.ts`。
 - `vue-tsc --noEmit` / `eslint` / `vite build` 全过。
 - mock 端点运行时冒烟：list（includeChildren 两态 + childCount）/ apply-grant-plan（creates 带 children 建树 / updates 三态 / removes 级联 / 错误码 20033/20034/20036/20011/20010/20040 演练）/ REPORT 625 节点树。
 - S1~S7 交互验收（DoD-4）以 mock 环境人工验收为准。
@@ -543,7 +542,7 @@ interface MatrixContext {
 | 类型候选全集     | `type-definition/list` 筛选 `type_key=resource_type`，sortOrder 排序，loadDeps 一次性加载                                                                          |
 | 当前类型         | hook `currentTypeCode` ref；默认 = 上次选择（`perm-grant:last-type:{subjectType}`）或候选第一个；主体切换时按 subjectType 重新解析                                 |
 | 已有权限类型标记 | 主体切换时一次全量主权限查询（不带 `resourceTypeCode`，includeChildren=false），仅下拉标记/排序                                                                    |
-| 操作列           | `operation-permission/list` + `resourceTypeCode + includeGlobalFallback=true`，切换类型必须重新查询（hook `loadMatrixForType`）                                    |
+| 操作列           | `operation-permission/list` + `resourceTypeCode`，切换类型必须重新查询（hook `loadMatrixForType`；全局操作概念已退役）                                              |
 | 隐藏列配置       | `permission-grant:hidden-columns:{resourceTypeCode}` 按类型读写；操作集合加载成功后清理不存在的操作码                                                              |
 | 类型切换管线     | 确认放弃 → store `switchMatrixType`（立即清空 baseline/草稿）→ 并行三类查询 → `matrixToken` 序号守卫 → 齐备渲染；骨架屏 `el-skeleton`；失败不回滚（空态 + 可重试） |
 | 单类型行模型     | ALL 虚拟行 + 当前类型实例树（无类型分组行）；实例树默认收起至第一层                                                                                                |

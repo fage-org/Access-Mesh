@@ -24,7 +24,7 @@ depends_on:
   - T-PERM-034
 blocks: []
 acceptance:
-  - "查询/展示投影轨全局操作位合并（T-PERM-034 评审登记，2026-08-30）：effective-permissions/query-resources/forUserView 的候选装配（buildEffectiveOperationEntries/findByResourceTypeAndBinaryBit/coveredOperations 三处）改用「专属优先、全局回退」合并集，消除「hasPermission 判定 allowed 而 §6.6 列表投影看不到」的同族分歧（判定轨已随 T-PERM-034 修复，见 api-contract §6.6 现状登记）
+  - ~~"查询/展示投影轨全局操作位合并（T-PERM-034 评审登记，2026-08-30）"~~ **已失效（2026-08-30 全局操作概念退役，T-PERM-049）**：判定/投影两侧均回归类型专属操作，无投影轨缺口，本条不再实施
   - "处理跨页共用的接口改造（多页共用同一接口时，统一调整一次，不重复逐页改）"
   - "核对 T-PERM-022~034 逐页改造是否覆盖各页 API 核对清单的 🔧❌ 项，补漏缺失项"
   - "改造完成后回写各 Phase 1 前端任务的 API 核对状态（✅）"

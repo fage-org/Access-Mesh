@@ -11,7 +11,7 @@
  *
  * T-PERM-028 收口：
  * - detail/update/move/remove 均切业务键定位（resource: resourceTypeCode+code+codeType，
- *   codeType 缺省 default；operation: resourceTypeCode(可空=全局操作)+code），不再接受内部 id。
+ *   codeType 缺省 default；operation: resourceTypeCode+code），不再接受内部 id。
  * - binaryBit/inheritMask 线格式为十进制字符串（63 位 bigint 防 JSON number >2^53 丢精度，
  *   契约 §5.3 定稿）；表单内部可用数值控件，提交时转字符串。
  * - update 支持 extraClear 显式清空 extra（JSON null 无法区分「未传」与「清空」）。
@@ -30,9 +30,9 @@ export type ResourceKey = {
   codeType?: string | null;
 };
 
-/** 操作权限业务键（uk_operation_permission_typed / _global；resourceTypeCode null=全局操作） */
+/** 操作权限业务键（uk_operation_permission_typed；全局操作概念已退役，resourceTypeCode 必填） */
 export type OperationKey = {
-  resourceTypeCode?: string | null;
+  resourceTypeCode: string;
   code: string;
 };
 
@@ -142,17 +142,10 @@ export type OperationPermissionResp = {
   updatedAt: string;
 };
 
-/** 操作权限列表查询参数（对齐 OperationListReq；无分页；🔧 T-PERM-040 增加 includeGlobalFallback） */
+/** 操作权限列表查询参数（对齐 OperationListReq；无分页；全局操作概念已退役，操作定义按类型返回） */
 export type OperationListQuery = {
   resourceTypeCode?: string | null;
   domainCode?: string | null;
-  /**
-   * 可选，默认 false；true 时后端完成"专属优先、全局回退"合并，响应直接返回
-   * 当前 resourceTypeCode 最终可用的操作集合（前端不再重复领域规则）。
-   * resourceTypeCode=null/缺省 + true = 仅全局操作集合。
-   * T-FE-038 本页矩阵操作列一律走 includeGlobalFallback=true。
-   */
-  includeGlobalFallback?: boolean;
 };
 
 /** 操作权限创建请求（对齐 OperationCreateReq；位字段十进制字符串） */
@@ -164,9 +157,9 @@ export type OperationCreateReq = {
   inheritMask?: string;
 };
 
-/** 操作权限更新请求（对齐 OperationUpdateReq；业务键定位，code/resourceType 不可改） */
+/** 操作权限更新请求（对齐 OperationUpdateReq；业务键定位，code/resourceType 不可改且必填） */
 export type OperationUpdateReq = {
-  resourceTypeCode?: string | null;
+  resourceTypeCode: string;
   code: string;
   name?: string;
   binaryBit?: string;
@@ -273,7 +266,7 @@ export const getOperationList = async (
 };
 
 /** 查询操作权限详情（POST /perm/api/perm/operation-permission/detail，业务键定位）。
- *  resourceTypeCode 缺省表示全局操作。 */
+ *  resourceTypeCode 必填（全局操作概念已退役）。 */
 export const getOperationDetail = async (
   key: OperationKey
 ): Promise<OperationPermissionResp> => {

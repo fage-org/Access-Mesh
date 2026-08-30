@@ -639,16 +639,7 @@ describe("applyDialogResultToDraft（弹窗确定语义，匹配仅限 MANUAL）
 
 // ========== 问题 2：全局 ALL/INSTANCE 跨类型撤权边界 ==========
 
-describe("applyDialogResultToDraft 跨类型撤权边界（问题 2）", () => {
-  const GLOBAL_OPS = [
-    {
-      code: "MANAGE",
-      name: "管理",
-      resourceTypeCode: null,
-      binaryBit: "16",
-      inheritMask: "0"
-    }
-  ];
+describe("applyDialogResultToDraft 类型隔离边界（问题 2；全局操作概念已退役，仅类型内边界）", () => {
   const TYPED_OPS = [
     {
       code: "VIEW",
@@ -665,174 +656,6 @@ describe("applyDialogResultToDraft 跨类型撤权边界（问题 2）", () => {
       inheritMask: "0"
     }
   ];
-
-  it("全局 ALL 选类型 A：不修改类型 B 的 ALL 授权（问题 2）", () => {
-    const dataAll = makeRecord({
-      id: 7100,
-      resourceTypeCode: "DATA",
-      resourceCode: null,
-      codeType: null,
-      operationCode: "MANAGE",
-      scopeMode: "ALL",
-      grantedBits: "16"
-    });
-    const menuAll = makeRecord({
-      id: 7101,
-      resourceTypeCode: "MENU",
-      resourceCode: null,
-      codeType: null,
-      operationCode: "MANAGE",
-      scopeMode: "ALL",
-      grantedBits: "16"
-    });
-    const result = applyDialogResultToDraft({
-      baseline: [dataAll, menuAll],
-      changes: [],
-      dialog: {
-        operation: { code: "MANAGE", resourceTypeCode: null },
-        scopeMode: "ALL",
-        resources: [
-          {
-            resourceTypeCode: "DATA",
-            resourceCode: null,
-            codeType: null,
-            name: "全部资源（DATA）"
-          }
-        ],
-        conditionCode: null,
-        canGrant: false
-      },
-      operations: GLOBAL_OPS
-    });
-    const removes = result.changes.filter(c => c.kind === "remove");
-    expect(removes).toHaveLength(0); // DATA 保留（同键同条件），MENU 不在比对集
-  });
-
-  it("全局 ALL 空集合按目标类型撤销，不影响其他类型", () => {
-    const dataAll = makeRecord({
-      id: 7150,
-      resourceTypeCode: "DATA",
-      resourceCode: null,
-      codeType: null,
-      operationCode: "MANAGE",
-      scopeMode: "ALL",
-      grantedBits: "16"
-    });
-    const menuAll = makeRecord({
-      id: 7151,
-      resourceTypeCode: "MENU",
-      resourceCode: null,
-      codeType: null,
-      operationCode: "MANAGE",
-      scopeMode: "ALL",
-      grantedBits: "16"
-    });
-    const result = applyDialogResultToDraft({
-      baseline: [dataAll, menuAll],
-      changes: [],
-      dialog: {
-        operation: { code: "MANAGE", resourceTypeCode: null },
-        scopeMode: "ALL",
-        targetResourceTypeCode: "DATA",
-        resources: [],
-        conditionCode: null,
-        canGrant: false
-      },
-      operations: GLOBAL_OPS
-    });
-    const removes = result.changes.filter(c => c.kind === "remove");
-    expect(removes).toHaveLength(1);
-    expect(
-      (removes[0] as Extract<DraftChange, { kind: "remove" }>).records.map(
-        record => record.id
-      )
-    ).toEqual([7150]);
-  });
-
-  it("全局 INSTANCE 只保留类型 A：类型 B 未勾选产生 remove（问题 2）", () => {
-    const dataInst = makeRecord({
-      id: 7200,
-      resourceTypeCode: "DATA",
-      resourceCode: "data:r1",
-      codeType: "default",
-      operationCode: "MANAGE",
-      scopeMode: "INSTANCE",
-      grantedBits: "16"
-    });
-    const menuInst = makeRecord({
-      id: 7201,
-      resourceTypeCode: "MENU",
-      resourceCode: "menu:m1",
-      codeType: "default",
-      operationCode: "MANAGE",
-      scopeMode: "INSTANCE",
-      grantedBits: "16"
-    });
-    const result = applyDialogResultToDraft({
-      baseline: [dataInst, menuInst],
-      changes: [],
-      dialog: {
-        operation: { code: "MANAGE", resourceTypeCode: null },
-        scopeMode: "INSTANCE",
-        resources: [
-          {
-            resourceTypeCode: "DATA",
-            resourceCode: "data:r1",
-            codeType: "default",
-            name: "数据一"
-          }
-        ],
-        conditionCode: null,
-        canGrant: false
-      },
-      operations: GLOBAL_OPS
-    });
-    const removes = result.changes.filter(c => c.kind === "remove");
-    expect(removes).toHaveLength(1);
-    const removedIds = (
-      removes[0] as Extract<DraftChange, { kind: "remove" }>
-    ).records.map(r => r.id);
-    expect(removedIds).toEqual([7201]); // MENU 未勾选 -> 撤权
-  });
-
-  it("全局 INSTANCE 空集合：撤销所有类型的该操作实例授权（问题 2）", () => {
-    const dataInst = makeRecord({
-      id: 7300,
-      resourceTypeCode: "DATA",
-      resourceCode: "data:r1",
-      codeType: "default",
-      operationCode: "MANAGE",
-      scopeMode: "INSTANCE",
-      grantedBits: "16"
-    });
-    const menuInst = makeRecord({
-      id: 7301,
-      resourceTypeCode: "MENU",
-      resourceCode: "menu:m1",
-      codeType: "default",
-      operationCode: "MANAGE",
-      scopeMode: "INSTANCE",
-      grantedBits: "16"
-    });
-    const result = applyDialogResultToDraft({
-      baseline: [dataInst, menuInst],
-      changes: [],
-      dialog: {
-        operation: { code: "MANAGE", resourceTypeCode: null },
-        scopeMode: "INSTANCE",
-        resources: [],
-        conditionCode: null,
-        canGrant: false
-      },
-      operations: GLOBAL_OPS
-    });
-    const removes = result.changes.filter(c => c.kind === "remove");
-    expect(removes).toHaveLength(2); // 两个不同资源 resKey -> 两个 remove
-    const allRemovedIds = removes.flatMap(r =>
-      (r as Extract<DraftChange, { kind: "remove" }>).records.map(rec => rec.id)
-    );
-    expect(allRemovedIds.sort()).toEqual([7300, 7301]); // 全部撤权
-  });
 
   it("专属操作始终只影响其所属资源类型（问题 2）", () => {
     const dataView = makeRecord({
@@ -904,7 +727,6 @@ describe("applyDialogResultToDraft 跨类型撤权边界（问题 2）", () => {
         {
           operation: { code: "VIEW", resourceTypeCode: "DATA" },
           scopeMode: "ALL",
-          targetResourceTypeCode: "DATA",
           resources: [],
           conditionCode: null,
           canGrant: false
@@ -1048,34 +870,9 @@ describe("cellDraftMark（§6.2 部分移除与整格移除标记区分）", () 
   });
 });
 
-// ========== resolveGrantedBits（问题 7：纯全局操作类型解析） ==========
+// ========== resolveGrantedBits（旧响应缺 grantedBits 的回退解析） ==========
 
-describe("resolveGrantedBits（问题 7：纯全局操作类型 grantedBits 解析）", () => {
-  it("纯全局操作类型能解析 grantedBits（无专属定义回退全局）", () => {
-    const ops = [
-      {
-        code: "MANAGE",
-        name: "管理",
-        resourceTypeCode: null,
-        binaryBit: "16",
-        inheritMask: "0"
-      }
-    ];
-    const bits = resolveGrantedBits(
-      {
-        resourceTypeCode: "WIDGET",
-        resourceCode: "w1",
-        codeType: "default",
-        operationCode: "MANAGE",
-        scopeMode: "INSTANCE",
-        conditionCode: null,
-        canGrant: false
-      },
-      ops
-    );
-    expect(bits).toBe("16");
-  });
-
+describe("resolveGrantedBits（旧响应缺 grantedBits 的回退解析）", () => {
   it("operationCode 为 null -> 0（组合位不解析）", () => {
     expect(
       resolveGrantedBits(
@@ -1091,38 +888,6 @@ describe("resolveGrantedBits（问题 7：纯全局操作类型 grantedBits 解�
         []
       )
     ).toBe("0");
-  });
-
-  it("专属优先：同 code 专属定义覆盖全局定义的 binaryBit", () => {
-    const ops = [
-      {
-        code: "VIEW",
-        name: "全局查看",
-        resourceTypeCode: null,
-        binaryBit: "32",
-        inheritMask: "0"
-      },
-      {
-        code: "VIEW",
-        name: "专属查看",
-        resourceTypeCode: "DATA",
-        binaryBit: "2",
-        inheritMask: "0"
-      }
-    ];
-    const bits = resolveGrantedBits(
-      {
-        resourceTypeCode: "DATA",
-        resourceCode: "d1",
-        codeType: "default",
-        operationCode: "VIEW",
-        scopeMode: "INSTANCE",
-        conditionCode: null,
-        canGrant: false
-      },
-      ops
-    );
-    expect(bits).toBe("2"); // 专属 binaryBit=2，非全局 32
   });
 });
 
@@ -1272,30 +1037,6 @@ describe("computePreset（评审问题 1）", () => {
       records
     });
     expect([...preset.checkedTripleKeys]).toEqual(["DATA:data:r1:default"]);
-  });
-
-  it("全局操作不限类型：所有类型 INSTANCE 记录勾选", () => {
-    const records = [
-      makeEff({
-        resourceTypeCode: "DATA",
-        resourceCode: "data:r1",
-        codeType: "default",
-        operationCode: "GLOBAL_OP",
-        scopeMode: "INSTANCE"
-      }),
-      makeEff({
-        resourceTypeCode: "OTHER",
-        resourceCode: "o:r1",
-        codeType: "default",
-        operationCode: "GLOBAL_OP",
-        scopeMode: "INSTANCE"
-      })
-    ];
-    const preset = computePreset({
-      op: { code: "GLOBAL_OP", resourceTypeCode: null },
-      records
-    });
-    expect(preset.checkedTripleKeys.size).toBe(2);
   });
 });
 

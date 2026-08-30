@@ -37,7 +37,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -581,57 +580,10 @@ class PermQueryEngineTest {
     }
 
     /**
-     * T-PERM-034 复评 P1：多类型查询中全局目标操作的位值不得套用到「同码专属定义已取代全局」
-     * 的类型上——uk_operation_permission_typed_bit 按 tenant+resource_type 隔离位值，全局 bit
-     * 与专属 bit 属不同位空间；目标位须按该类型合并结果中同码实际生效定义取值，否则
-     * POLLUTE（bit 4，inheritMask 数值上覆盖全局 bit 1）会被计入 VIEW 掩码形成越权。
-     */
-    @Test
-    void resolveBitMasksShouldResolveTargetBitFromMergedDefinitionWhenSpecificOverridesGlobal() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
-        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("ATYPE", "BTYPE")))
-            .thenReturn(Map.of("ATYPE", 1, "BTYPE", 2));
-        when(typeResolutionService.batchResolveOperationIds(1L, "ATYPE", Set.of("VIEW")))
-            .thenReturn(Map.of("VIEW", 900L));
-        when(typeResolutionService.batchResolveOperationIds(1L, "BTYPE", Set.of("VIEW")))
-            .thenReturn(Map.of("VIEW", 901L));
-
-        OperationPermission globalView = operation(900L, null, "VIEW", 1L, 0L);
-        OperationPermission bSpecificView = operation(901L, 2, "VIEW", 2L, 0L);
-        OperationPermission bPollute = operation(902L, 2, "POLLUTE", 4L, 1L);
-        when(operationPermissionMapper.selectValidByIds(1L, Set.of(900L, 901L)))
-            .thenReturn(List.of(globalView, bSpecificView));
-        // 冷缓存：getBatch miss → 1 次全局 + 1 次批量专属回源
-        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1", "op_perm:2"))))
-            .thenReturn(Map.of());
-        when(operationPermissionMapper.selectGlobal(1L)).thenReturn(List.of(globalView));
-        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1, 2)))
-            .thenReturn(List.of(bSpecificView, bPollute));
-
-        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
-            .thenReturn(List.of());
-        when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(300L)), any()))
-            .thenReturn(List.of());
-
-        PermQuery query = PermQuery.forScopeQuery(1L, 10L, Set.of("ATYPE", "BTYPE"), Set.of("VIEW"));
-        query.setResourceEntityIds(Set.of(300L));
-        engine.query(query);
-
-        org.mockito.ArgumentCaptor<List<BitMaskEntry>> captor =
-            org.mockito.ArgumentCaptor.forClass(List.class);
-        verify(rolePermMapper).selectInstancePermsByBitsBatch(
-            eq(1L), eq(Set.of(20L)), eq(Set.of(300L)), captor.capture());
-        Map<Integer, Long> masks = captor.getValue().stream()
-            .collect(java.util.stream.Collectors.toMap(BitMaskEntry::resourceType, BitMaskEntry::bitMask));
-        // ATYPE 无专属 VIEW：合并保留全局定义，按全局 bit 1 计算
-        assertEquals(1L, masks.get(1));
-        // BTYPE 同码专属取代全局：按专属 bit 2 计算；POLLUTE(bit 4) 不得计入（旧实现掩码为 6）
-        assertEquals(2L, masks.get(2));
-    }
-
-    /**
      * T-PERM-034 复评 P2：操作定义冷缓存回源为批量口径——getBatch 收集 miss 类型后
-     * 仅 1 次全局 SQL + 1 次批量专属 SQL（IN），putBatch 分组回填；已命中类型不重复回源。
+     * 仅 1 次批量专属 SQL（IN），putBatch 分组回填；已命中类型不重复回源。
+     * 全局操作概念已退役（2026-08-30 设计定案）：目标操作与缓存内容均为类型专属定义，
+     * 位空间按类型隔离、uk_operation_permission_typed_bit 保证同位不异码。
      */
     @Test
     void resolveBitMasksShouldLoadColdCacheWithSingleBatchedRoundTrip() {
@@ -639,29 +591,30 @@ class PermQueryEngineTest {
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("ATYPE", "BTYPE", "CTYPE")))
             .thenReturn(Map.of("ATYPE", 1, "BTYPE", 2, "CTYPE", 3));
         when(typeResolutionService.batchResolveOperationIds(1L, "ATYPE", Set.of("VIEW")))
-            .thenReturn(Map.of("VIEW", 900L));
+            .thenReturn(Map.of("VIEW", 901L));
         when(typeResolutionService.batchResolveOperationIds(1L, "BTYPE", Set.of("VIEW")))
-            .thenReturn(Map.of("VIEW", 900L));
+            .thenReturn(Map.of("VIEW", 902L));
         when(typeResolutionService.batchResolveOperationIds(1L, "CTYPE", Set.of("VIEW")))
-            .thenReturn(Map.of("VIEW", 900L));
+            .thenReturn(Map.of("VIEW", 903L));
 
-        OperationPermission globalView = operation(900L, null, "VIEW", 1L, 0L);
-        when(operationPermissionMapper.selectValidByIds(1L, Set.of(900L))).thenReturn(List.of(globalView));
+        OperationPermission aView = operation(901L, 1, "VIEW", 1L, 0L);
+        OperationPermission bView = operation(902L, 2, "VIEW", 1L, 0L);
+        OperationPermission cView = operation(903L, 3, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(901L, 902L, 903L)))
+            .thenReturn(List.of(aView, bView, cView));
         // op_perm:2 已缓存，仅 {1,3} 回源
         when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L),
                 eq(Set.of("op_perm:1", "op_perm:2", "op_perm:3"))))
-            .thenReturn(Map.of("op_perm:2", Map.of(900L, globalView)));
-        when(operationPermissionMapper.selectGlobal(1L)).thenReturn(List.of(globalView));
+            .thenReturn(Map.of("op_perm:2", Map.of(902L, bView)));
         when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(1, 3)))
-            .thenReturn(List.of());
+            .thenReturn(List.of(aView, cView));
 
         when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
             .thenReturn(List.of());
 
         engine.query(PermQuery.forScopeQuery(1L, 10L, Set.of("ATYPE", "BTYPE", "CTYPE"), Set.of("VIEW")));
 
-        // 1 次全局 SQL（不随类型数重复执行）、miss 集合一次批量专属查询、零逐类型查询
-        verify(operationPermissionMapper, times(1)).selectGlobal(1L);
+        // miss 集合一次批量专属查询、零逐类型查询
         verify(operationPermissionMapper).selectByTenantAndResourceTypes(1L, Set.of(1, 3));
         verify(operationPermissionMapper, never()).selectByTenantAndResourceType(eq(1L), any());
         // miss 类型分组回填（命中类型不回写）

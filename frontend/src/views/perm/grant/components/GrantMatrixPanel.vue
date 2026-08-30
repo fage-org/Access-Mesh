@@ -21,7 +21,7 @@ import type { CellSource } from "../utils/source-chain";
 import MatrixCell from "./MatrixCell.vue";
 import PermissionIconLegend from "./PermissionIconLegend.vue";
 
-type UnionColumn = { code: string; name: string; globalFallback: boolean };
+type UnionColumn = { code: string; name: string };
 
 const props = defineProps<{
   sourceChain: SourceChainResult;
@@ -477,7 +477,7 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
               v-for="col in unionColumns"
               :key="col.code"
               :model-value="!hiddenColumnCodes.includes(col.code)"
-              :label="`${col.name}（${col.code}）${col.globalFallback ? ' · 全局' : ''}`"
+              :label="`${col.name}（${col.code}）`"
               @update:model-value="val => toggleColumn(col.code, !!val)"
             />
           </div>

@@ -86,8 +86,7 @@ public class OperationController {
     @PostMapping("/list")
     public PermResult<ItemsResp<OperationPermissionResp>> listOperations(@Valid @RequestBody OperationListReq req) {
         return PermResult.success(new ItemsResp<>(
-            operationAppService.listOperations(TenantContextHolder.getTenantId(), req.resourceTypeCode(), req.domainCode(),
-                req.includeGlobalFallback())
+            operationAppService.listOperations(TenantContextHolder.getTenantId(), req.resourceTypeCode(), req.domainCode())
         ));
     }
 

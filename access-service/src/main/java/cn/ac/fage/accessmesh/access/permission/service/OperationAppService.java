@@ -51,8 +51,7 @@ public interface OperationAppService {
      * @param domainCode       业务域编码，可选
      * @return 操作权限列表
      */
-    List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode,
-        Boolean includeGlobalFallback);
+    List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode);
 
     /**
      * 更新操作权限

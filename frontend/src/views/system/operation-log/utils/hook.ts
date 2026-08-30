@@ -24,12 +24,17 @@ export function useOperationLog() {
   const searchForm = reactive(createEmptySearchForm());
   const pagination = reactive({ page: 1, size: 15, total: 0 });
   /** action 字典选项（后端实际存在的去重事件码，label=value=code） */
-  const actionOptions = ref<ReadonlyArray<{ label: string; value: string }>>([]);
+  const actionOptions = ref<ReadonlyArray<{ label: string; value: string }>>(
+    []
+  );
 
   async function loadActionOptions() {
     try {
       const res = await getOperationLogActionOptions();
-      actionOptions.value = res.items.map(code => ({ label: code, value: code }));
+      actionOptions.value = res.items.map(code => ({
+        label: code,
+        value: code
+      }));
     } catch {
       // 字典加载失败不阻塞列表（下拉为空仍可看全量日志），下次进页重试
       actionOptions.value = [];

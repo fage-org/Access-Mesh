@@ -250,17 +250,23 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("软删部分唯一索引保留完整语义：uk_operation_permission_global 只约束 resource_type IS NULL 行")
+    @DisplayName("操作定义索引与 CHECK 语义：typed_bit 同类型同位不异码 + 全局行被拒（T-PERM-049 概念退役）")
     void shouldKeepPartialUniqueIndexSemantics() throws SQLException {
-        // 部分唯一索引存在
-        assertTrue(indexExists("uk_operation_permission_global"), "uk_operation_permission_global 应存在");
-        // 语义验证：resource_type 非 NULL 的行可重复 'VIEW' 码（不受 global 索引约束）
+        // 部分唯一索引存在（uk_operation_permission_global 已随全局操作概念退役删除）
+        assertTrue(indexExists("uk_operation_permission_typed_bit"), "uk_operation_permission_typed_bit 应存在");
         try (Statement s = conn.createStatement()) {
+            // 跨类型同 code/同位互不影响（位空间按类型完全隔离）
             s.execute("INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, delete_flag) VALUES (1, 100, 'VIEW', '测试A', 1024, 0)");
             s.execute("INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, delete_flag) VALUES (1, 101, 'VIEW', '测试B', 1024, 0)");
             // 同租户同 resource_type 同 code 受 typed 索引约束
             assertThrows(SQLException.class, () -> s.execute(
                 "INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, delete_flag) VALUES (1, 100, 'VIEW', '测试C', 1024, 0)"));
+            // 同类型同位异码受 typed_bit 索引约束（同位不异码——授权行按位存取、身份可区分的根基）
+            assertThrows(SQLException.class, () -> s.execute(
+                "INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, delete_flag) VALUES (1, 100, 'EXPORT', '测试D', 1024, 0)"));
+            // 全局行被 ck_operation_permission_resource_type_required CHECK 拒绝（数据层焊死）
+            assertThrows(SQLException.class, () -> s.execute(
+                "INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, delete_flag) VALUES (1, NULL, 'VIEW', '测试E', 1024, 0)"));
         }
     }
 

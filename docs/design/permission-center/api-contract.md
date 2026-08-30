@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-30   # 2026-08-30 T-PERM-034 外部复评二轮收口：§6.8 apply-grant-plan 写侧快照补录级联删除子权限（depend_on 命中 removes 同记 REMOVE、与显式删除去重）；同日 T-PERM-034 收口：§5.5 sub-perm-allowed-types 落地标注、§6.5.2 落地状态注记、§6.8 增补 apply-grant-plan 写侧聚合形状落地（20043 预检/diff_snapshot §6.8/GoldenFixturePgIT 引擎级比对/引擎全局操作位掩码修复；此前同日 §5.6 resource-dependency 契约要点（T-PERM-031 收口：读三端点 list/graph/check 补类型级 DEPENDENCY:VIEW + 写三档类型级收窄（update 原「编码轨传内部 id」/remove 原实例级 entityId 轨均为 ID 空间错位废弃）、update PUT 全量覆盖 + 资源对业务键补全（Q3=B 前端契约收口）、等价重复业务预查 20054 新增、操作码 fail-closed 20005（原静默丢弃）、自依赖 20044、Resp 补静态字段 + 操作位字符串线格式、maintainSource 四值白名单、bootstrap 补 DEPENDENCY 五档）+ §6.9 同步；同日 §5.6 conflict-rule 契约要点（T-PERM-030 收口：读三端点 list/detail/detect 补类型级 CONFLICT_RULE:VIEW + 写三档类型级收窄（原「编码轨传内部 id」实例级声称系 ID 空间错位废弃，同 CONDITION 口径/实例投影登记 T-PERM-048）、detail 查不到 20020、list 全量不分页、定位键维持内部 id 评估定案（无业务键）、Resp 补 updatedAt、description ≤512、bootstrap 补 CONFLICT_RULE 四档 + CONDITION 写三档（029 遗漏死锁缺口）；同日更早 §5.6 permission-condition 契约要点（T-PERM-029 收口：写门禁口径收窄为类型级（原「实例级」声称系 ID 空间错位废弃，实例投影登记 T-PERM-048）、detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案（🔧3 分页登记反转）、ConditionResp 补 updatedAt、读取无门禁+写三档独立门禁口径、gatewayEvaluable 联合校验/remove 幂等语义成文）；2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-30   # 2026-08-30 全局操作概念整体退役（T-PERM-049，外部复审三轮触发的设计定案）：§5.3 includeGlobalFallback 合并参数与「专属优先、全局回退」合并语义退役、resourceTypeCode 可空=全局操作键轨退役（detail/update/remove 必填）、§6.5.1 operationCode 适用性校验收窄为类型专属定义、§6.6 投影轨全局位分歧登记随概念失效；同日 T-PERM-034 外部复评二轮收口：§6.8 apply-grant-plan 写侧快照补录级联删除子权限（depend_on 命中 removes 同记 REMOVE、与显式删除去重）；同日 T-PERM-034 收口：§5.5 sub-perm-allowed-types 落地标注、§6.5.2 落地状态注记、§6.8 增补 apply-grant-plan 写侧聚合形状落地（20043 预检/diff_snapshot §6.8/GoldenFixturePgIT 引擎级比对/引擎全局操作位掩码修复；此前同日 §5.6 resource-dependency 契约要点（T-PERM-031 收口：读三端点 list/graph/check 补类型级 DEPENDENCY:VIEW + 写三档类型级收窄（update 原「编码轨传内部 id」/remove 原实例级 entityId 轨均为 ID 空间错位废弃）、update PUT 全量覆盖 + 资源对业务键补全（Q3=B 前端契约收口）、等价重复业务预查 20054 新增、操作码 fail-closed 20005（原静默丢弃）、自依赖 20044、Resp 补静态字段 + 操作位字符串线格式、maintainSource 四值白名单、bootstrap 补 DEPENDENCY 五档）+ §6.9 同步；同日 §5.6 conflict-rule 契约要点（T-PERM-030 收口：读三端点 list/detail/detect 补类型级 CONFLICT_RULE:VIEW + 写三档类型级收窄（原「编码轨传内部 id」实例级声称系 ID 空间错位废弃，同 CONDITION 口径/实例投影登记 T-PERM-048）、detail 查不到 20020、list 全量不分页、定位键维持内部 id 评估定案（无业务键）、Resp 补 updatedAt、description ≤512、bootstrap 补 CONFLICT_RULE 四档 + CONDITION 写三档（029 遗漏死锁缺口）；同日更早 §5.6 permission-condition 契约要点（T-PERM-029 收口：写门禁口径收窄为类型级（原「实例级」声称系 ID 空间错位废弃，实例投影登记 T-PERM-048）、detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案（🔧3 分页登记反转）、ConditionResp 补 updatedAt、读取无门禁+写三档独立门禁口径、gatewayEvaluable 联合校验/remove 幂等语义成文）；2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -106,7 +106,7 @@ last_reviewed: 2026-08-30   # 2026-08-30 T-PERM-034 外部复评二轮收口：�
 > **跨字段校验（assign/revoke，2026-06-15 M2 落地）**：`domainCode` 可空仅对**功能角色**（BASIC_ROLE / GROUP_ROLE / PERSONAL）成立——为空表示全局域。对 `roleTypeCode ∈ {ORG, POSITION}` 的组织/岗位角色，`domainCode` **必填**（标识所属业务域）。服务端 `UserManageAppServiceImpl.assignRole/assignRolesBatch/revokeRolesBatch` 通过 Feature flag `permission.assign.strict-domain-check`（默认 `true`）强制：`strict-domain-check=true` 时违反上述约束抛 `BizException`；`false` 时仅兜底为空串放行（上线灰度用）。
 
 | 资源      | `domainCode` + `resourceTypeCode` + `resourceCode` + `codeType` | `codeType` 默认 `default`                                                |
-| 操作      | `operationCode`                                                 | 在 `resourceTypeCode` 范围内解析；全局操作允许不绑定资源类型             |
+| 操作      | `operationCode`                                                 | 在 `resourceTypeCode` 范围内解析（操作定义按类型隔离，全局操作已退役）      |
 | 条件      | `conditionCode`                                                 | 可空                                                                     |
 | 明细记录  | `id` 或 `ids`                                                   | 仅用于更新/删除权限关系、日志详情等权限中心已返回的记录                  |
 
@@ -259,10 +259,10 @@ last_reviewed: 2026-08-30   # 2026-08-30 T-PERM-034 外部复评二轮收口：�
   "parent": null }
 // resource-entity/remove（ResourceKeysReq）
 { "items": [ { "resourceTypeCode": "MENU", "code": "sys-mgmt", "codeType": "default" } ] }
-// operation-permission/detail|update（OperationKeyReq / OperationUpdateReq：resourceTypeCode 可空=全局操作）
+// operation-permission/detail|update（OperationKeyReq / OperationUpdateReq：resourceTypeCode 必填）
 { "resourceTypeCode": "USER", "code": "VIEW" }
 // operation-permission/remove（OperationKeysReq）
-{ "items": [ { "resourceTypeCode": "USER", "code": "VIEW" }, { "code": "MANAGE" } ] }
+{ "items": [ { "resourceTypeCode": "USER", "code": "VIEW" }, { "resourceTypeCode": "USER", "code": "MANAGE" } ] }
 ```
 
 | 规则 | 口径 |
@@ -277,30 +277,23 @@ last_reviewed: 2026-08-30   # 2026-08-30 T-PERM-034 外部复评二轮收口：�
 
 **resource_type 创建联动预置（T-PERM-028 实现定案）**：`type-definition/create` 在 `typeKey=resource_type` 时同事务预置 CRUD 四操作位 `CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)`（DDL CROSS JOIN 预置组模板同款；新类型位段空闲无 uk 冲突）；非 resource_type 类型不预置。
 
-**请求（类型查询参数，🔧 T-PERM-040）**：
+**请求（类型查询参数）**：
 
 ```json
 {
-  "resourceTypeCode": "ORG",
-  "includeGlobalFallback": true
+  "resourceTypeCode": "ORG"
 }
 ```
 
 | 参数 | 类型 | 口径 |
 |---|---|---|
-| resourceTypeCode | string\|null | 可选；**includeGlobalFallback=false/缺省时**：null/缺省 = 不过滤，返回全量原始定义（兼容现状）；**includeGlobalFallback=true 时**：null/缺省 等价于显式 null，仅返回全局操作集合（无专属侧，见合并语义） |
-| includeGlobalFallback | boolean | 可选，默认 false；true 时后端完成"**专属优先、全局回退**"合并，响应直接返回当前 `resourceTypeCode` 最终可用的操作集合（前端不再重复领域规则） |
+| resourceTypeCode | string\|null | 可选；null/缺省 = 不过滤，返回全量操作定义；指定类型 = 仅该类型操作定义 |
 
-> **调用方门禁**：本参数不引入新门禁；接口鉴权维持现状（`OPERATION:VIEW` 等既有接线），矩阵页消费方仍以既有页面门禁控制可见性。
+> **全局操作概念退役（2026-08-30 设计定案，T-PERM-049）**：`operation_permission.resource_type` 由 DDL CHECK 强制非空——每个资源类型的操作定义完全独立，位空间按类型隔离（`uk_operation_permission_typed_bit` 保证同类型同位不异码）。原 `includeGlobalFallback` 合并参数、`resourceTypeCode 可空=全局操作` 键轨与「专属优先、全局回退」合并语义随概念一并退役（存量种子无全局行，无迁移成本；退役动机：授权行只存 `resource_type + granted_bits` 不存操作 ID，全局位与专属位同值时授权身份不可区分——同位异码互相越权）。
 
-**合并语义（includeGlobalFallback=true）**：
+> **调用方门禁**：接口鉴权维持现状（`OPERATION:VIEW` 等既有接线），矩阵页消费方仍以既有页面门禁控制可见性。
 
-- 有效操作集合 = 当前 `resourceTypeCode` 的专属操作 ∪ 没有同码专属定义时适用的全局操作（`resourceTypeCode=null`）。
-- `resourceTypeCode=null/缺省 + includeGlobalFallback=true`：无专属侧，结果 = **仅全局操作集合**（不返回其他类型的专属定义；禁止在全量口径下合并，否则专属优先会错误剔除全局定义并跨类型暴露位定义）。
-- 同一 `operationCode` 同时存在专属定义与全局定义时**专属优先**（全局定义被合并剔除）。
-- 合并结果中，被采用的专属定义条目 `resourceTypeCode` 为当前类型；被采用的全局条目 `resourceTypeCode` 保持 `null`（前端来源链据此标注"全局操作"）。
-- **操作继承语义随合并固化**：调用方使用合并结果中每条定义的 `binaryBit`/`inheritMask` 做覆盖计算，禁止跨类型混用其他类型同码位定义。
-- 如调用方自行合并（`includeGlobalFallback=false` 或未传），后端返回原始定义集合（含当前类型专属 + 全局操作），调用方按上述同一规则合并；响应每项均含明确 `resourceTypeCode` 与十进制字符串 `binaryBit/inheritMask`。
+- **操作继承语义**：调用方使用各类型自身定义的 `binaryBit`/`inheritMask` 做覆盖计算，禁止跨类型混用其他类型同码位定义；响应每项均含明确 `resourceTypeCode` 与十进制字符串 `binaryBit/inheritMask`。
 
 `operation-permission/list` 响应 `data.items[]`，每项为 `OperationPermissionResp`（**字段精确对齐 DTO**，P1-4 修正；binaryBit/inheritMask 线格式已落地 **T-PERM-028**，T-FE-036 前置验收点）：
 
@@ -308,7 +301,7 @@ last_reviewed: 2026-08-30   # 2026-08-30 T-PERM-034 外部复评二轮收口：�
 |---|---|---|
 | id | number | 操作 id |
 | tenantId | number | 租户 id |
-| resourceTypeCode | string\|null | 专属操作的资源类型；全局操作（适用所有类型）为 null |
+| resourceTypeCode | string | 操作定义所属资源类型（全局操作概念已退役，恒非空） |
 | resourceTypeName | string\|null | 资源类型名称 |
 | code | string | 操作编码（**注意：字段名是 `code` 而非 `operationCode`**，T-FE-036 mock/前端类型按 `code` 建模） |
 | name | string | 操作名称（**不是 `operationName`**） |
@@ -1237,7 +1230,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **creates**：
   - **单直接授权唯一性**：主权限及子权限均按 `(role, resource/范围, operation, parentPermission)` 唯一；同键已存在 MANUAL 记录 -> **20033** `DIRECT_PERMISSION_CONFLICT`（conditionCode/canGrant 不参与身份；查重基于本请求 removes 软删生效后状态，合法"先删后同键重加"不误判；AUTO_DEP 并列允许）。主权限（`parentPermissionId` 缺省）可带 children 一次性建树；`canGrant` 缺省 false。
   - 子权限（`parentPermissionId` 非空）：父不存在 -> **20009**；父非主权限 -> **20010**；不得再带 children；**属性系统不变量（复审产品确认）**：`conditionCode` 必须为 null/空、`canGrant` 必须为 false（与主权限无关，子权限不承载条件/再授予），违反 -> **20043** `SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED`；历史异常记录（已存在带条件/可再授予的子权限）只兼容读取与删除，不允许继续属性编辑。
-  - **operationCode 适用性校验（🔧 T-PERM-040）**：逐项校验必填的 `operationCode` 是否适用于 `recordKey.resourceTypeCode`——**必须复用 operation-permission/list 的"专属优先、全局回退"规则**（同一解析实现，禁止两套逻辑），判定基于**有效（未停用）操作定义**：该类型存在同码专属定义时校验通过；无专属定义时全局操作（`resourceTypeCode=null`）可用；同码专属+全局并存时以专属定义为准（全局定义不构成该校验的适用依据）；不匹配 -> **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`（错误码已存在，复用）。MANUAL 新授权不接受 `operationCode=null` 或组合位。**覆盖全部新记录形态**：`creates[].key`（主权限）、`creates[].children[]` 嵌套子权限、`parentPermissionId` 挂已有父记录的 create——不允许通过子权限形态绕过。
+  - **operationCode 适用性校验（🔧 T-PERM-040；全局操作退役后收窄）**：逐项校验必填的 `operationCode` 是否适用于 `recordKey.resourceTypeCode`——判定基于**有效（未停用）操作定义**：该类型存在同码专属定义时校验通过（全局操作概念已退役，无回退轨）；不匹配 -> **20008** `RESOURCE_TYPE_OPERATION_MISMATCH`（错误码已存在，复用）。MANUAL 新授权不接受 `operationCode=null` 或组合位。**覆盖全部新记录形态**：`creates[].key`（主权限）、`creates[].children[]` 嵌套子权限、`parentPermissionId` 挂已有父记录的 create——不允许通过子权限形态绕过。
   - **条件不可转授 -> 20041**：见上方 **creates/updates 共用不变量**（2026-08-06 评审移置，此处不再重复）。
   - 逐项 `checkCanGrant`（资源/范围/操作结构键；操作者可转授记录按 T-PERM-041 必为无条件，因此 conditionCode 不参与授权传递身份）；不满足 -> **20040** `GRANT_CANNOT_DELEGATE`；SUB_PERM 约束（fail-closed，父域 resource_type 直查，§6.5）；`scopeMode`/资源兼容。
 - **updates**：目标 id 必须存在且属于目标角色 -> 否则 **20036**；AUTO_DEP -> **20034**；**目标为子权限（depend_on 非空）-> 20043**（子权限属性为系统不变量，不承载条件/再授予，仅可删除）；与 removes 互斥；**条件不可转授按最终状态判定（creates/updates 共用不变量，违反 -> 20041，见上）**；`canGrant` 或 `conditionCode` 有变更 -> `canGrantPermission`；conditionCode/canGrant 直接更新原记录，不创建新记录；**实际影响行数 ≠ 预期 -> 20036 整体回滚**；update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
@@ -1298,7 +1291,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ### 6.6 通用资源权限查询
 
-> **现状登记（2026-08-30，T-PERM-034 评审）**：判定轨（`auth/check`/`hasPermission`）已按「专属优先、全局回退」合并全局操作位；本节查询/展示投影（`query-resources`/`effective-permissions`/forUserView）的候选装配仍仅取类型专属操作——全局操作位授权在列表投影中不出现（`hasPermission` 判定 allowed 而列表看不到）。展示轨非判定轨（无越权面），修复登记 T-PERM-037。
+> **原登记失效（2026-08-30 全局操作概念退役，T-PERM-049）**：曾登记的「判定轨合并全局操作位 vs 展示投影轨仅取类型专属」分歧随概念退役自动消解——两侧现均为类型专属操作，无投影轨缺口。
 
 `POST /api/perm/auth/query-resources`
 

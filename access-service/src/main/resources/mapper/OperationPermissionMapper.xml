@@ -84,32 +84,4 @@
           AND delete_flag = 0
     </select>
 
-    <select id="selectGlobalByCode" resultType="cn.ac.fage.accessmesh.access.permission.entity.OperationPermission">
-        SELECT * FROM operation_permission
-        WHERE tenant_id = #{tenantId}
-          AND resource_type IS NULL
-          AND code = #{code}
-          AND delete_flag = 0
-        LIMIT 1
-    </select>
-
-    <select id="selectGlobal" resultType="cn.ac.fage.accessmesh.access.permission.entity.OperationPermission">
-        SELECT * FROM operation_permission
-        WHERE tenant_id = #{tenantId}
-          AND resource_type IS NULL
-          AND delete_flag = 0
-        ORDER BY id
-    </select>
-
-    <select id="selectGlobalByCodes" resultType="cn.ac.fage.accessmesh.access.permission.entity.OperationPermission">
-        SELECT * FROM operation_permission
-        WHERE tenant_id = #{tenantId}
-          AND resource_type IS NULL
-          AND code IN
-        <foreach collection="codes" item="code" open="(" separator="," close=")">
-            #{code}
-        </foreach>
-          AND delete_flag = 0
-    </select>
-
 </mapper>

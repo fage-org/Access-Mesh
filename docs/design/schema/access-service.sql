@@ -817,12 +817,16 @@ CREATE TABLE operation_permission (
 );
 
 CREATE UNIQUE INDEX uk_operation_permission_typed ON operation_permission (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0;
-CREATE UNIQUE INDEX uk_operation_permission_global ON operation_permission (tenant_id, code) WHERE resource_type IS NULL AND delete_flag = 0;
 -- 同 (tenant, resource_type, binary_bit) 下只能有一个有效 code，阻止「同 bit 多 code」反查歧义
 CREATE UNIQUE INDEX uk_operation_permission_typed_bit ON operation_permission (tenant_id, resource_type, binary_bit) WHERE resource_type IS NOT NULL AND delete_flag = 0;
+-- 全局操作概念退役（2026-08-30 设计定案）：操作位空间按类型完全隔离，resource_type 强制非空。
+-- 原 uk_operation_permission_global / 全局回退合并语义（T-PERM-040 includeGlobalFallback）随概念一并退役；
+-- 退役动机：授权行只存 resource_type + granted_bits（不存操作 ID），全局位与专属位同值时
+-- 授权身份不可区分（同位异码互相越权），CHECK 在数据层焊死该形态。种子数据本就无全局行，无迁移成本。
+ALTER TABLE operation_permission ADD CONSTRAINT ck_operation_permission_resource_type_required CHECK (resource_type IS NOT NULL);
 
 COMMENT ON TABLE operation_permission IS '操作权限；effective = binary_bit | inherit_mask；预置CRUD：CREATE(1,0) VIEW(2,0) UPDATE(4,2) DELETE(8,2)';
-COMMENT ON COLUMN operation_permission.resource_type IS '适用的资源类型枚举值（type_definition type_value），NULL 表示适用所有';
+COMMENT ON COLUMN operation_permission.resource_type IS '适用的资源类型枚举值（type_definition type_value）；全局操作（NULL=适用所有）概念已退役（2026-08-30 设计定案），CHECK 强制非空';
 COMMENT ON COLUMN operation_permission.code IS '操作编码，如 CREATE、VIEW、UPDATE、DELETE（v1.4 起统一用 VIEW，原 READ 为历史命名）';
 COMMENT ON COLUMN operation_permission.binary_bit IS '本操作独占位（BIGINT 63 个独立操作）';
 COMMENT ON COLUMN operation_permission.inherit_mask IS '继承的位掩码，实际权限=binary_bit|inherit_mask';

@@ -120,16 +120,16 @@ class GoldenFixturePgIT {
     private long nextSubjectId = SUBJECT_ID_BASE;
 
     @Test
-    @DisplayName("Golden fixtures 6 用例：引擎逐（资源×操作）评估与 expected.cells 等价（全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）")
+    @DisplayName("Golden fixtures 5 用例：引擎逐（资源×操作）评估与 expected.cells 等价（组合位/ALL/资源继承/操作继承/两段组合来源）")
     void engineEvaluationShouldMatchGoldenFixtures() throws Exception {
         JsonNode fixtures = objectMapper.readTree(Files.readString(FIXTURES_PATH, StandardCharsets.UTF_8));
         JsonNode cases = fixtures.path("cases");
-        assertThat(cases.size()).isEqualTo(6);
+        assertThat(cases.size()).isEqualTo(5);
 
         List<String> caseNames = new ArrayList<>();
         cases.forEach(caseNode -> caseNames.add(caseNode.path("name").asText()));
         assertThat(caseNames).containsExactly(
-            "global-fallback", "combination-bits", "all-scope",
+            "combination-bits", "all-scope",
             "resource-inherit", "operation-inherit", "two-segment-chain");
 
         // 预种全部用例的类型与操作：引擎 OPERATION_PERMISSIONS_BY_TYPE 缓存在首次按类型
@@ -147,12 +147,10 @@ class GoldenFixturePgIT {
     private Map<String, Integer> seedTypesAndOperations(JsonNode caseNode) {
         Map<String, Integer> typeValuesByCode = new HashMap<>();
         for (JsonNode operation : caseNode.path("operations")) {
-            String typeCode = operation.path("resourceTypeCode").isNull() ? null
-                : operation.path("resourceTypeCode").asText();
-            Integer typeValue = typeCode == null ? null : ensureResourceType(typeCode);
-            if (typeCode != null) {
-                typeValuesByCode.put(typeCode, typeValue);
-            }
+            // 全局操作概念已退役：操作定义必属某类型（fixtures 权威用例集已同步收口）
+            String typeCode = operation.path("resourceTypeCode").asText();
+            Integer typeValue = ensureResourceType(typeCode);
+            typeValuesByCode.put(typeCode, typeValue);
             ensureOperation(typeValue, operation.path("code").asText(),
                 operation.path("binaryBit").asLong(), operation.path("inheritMask").asLong());
         }

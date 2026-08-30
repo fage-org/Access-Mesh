@@ -452,10 +452,9 @@ export function buildReplaceChange(input: {
 
 /** 授权弹窗单个范围结果（一次确认可顺序包含 ALL 撤销 + INSTANCE 最终集合）。 */
 export type DialogResult = {
-  operation: { code: string; resourceTypeCode: string | null };
+  /** 操作定义必属某类型（全局操作概念已退役） */
+  operation: { code: string; resourceTypeCode: string };
   scopeMode: "INSTANCE" | "ALL";
-  /** ALL 空集合撤销时仍需保留目标类型；非 ALL 可缺省。 */
-  targetResourceTypeCode?: string;
   /** INSTANCE：勾选资源集合；ALL：单元素（resourceTypeCode 目标类型，resourceCode/codeType 为 null） */
   resources: Array<{
     resourceTypeCode: string;
@@ -513,24 +512,14 @@ export function applyDialogResultToDraft(input: {
   const view = applyDraftToRecords({ baseline, changes, operations });
 
   // 本弹窗比对集（问题 2）：MANUAL 主权限 + 同操作码 + 同范围 + 类型限定
-  // - 专属操作：限所属类型
-  // - 全局 ALL：限 dialog.resources[0] 目标类型（一次只编辑一个类型，其他类型不受影响）
-  // - 全局 INSTANCE：不限类型（全类型最终实例授权集合，取消勾选=撤权）
-  // remove 标记视同不存在
+  // （操作定义按类型隔离——全局操作概念已退役，一律限所属类型；
+  // remove 标记视同不存在）
   const comparable = view.mains.filter(record => {
     if (record.grantSource !== "MANUAL") return false;
     if (record.draftMark === "remove") return false;
     if (record.operationCode !== dialog.operation.code) return false;
     if (record.scopeMode !== dialog.scopeMode) return false;
-    if (dialog.operation.resourceTypeCode != null) {
-      return record.resourceTypeCode === dialog.operation.resourceTypeCode;
-    }
-    if (dialog.scopeMode === "ALL") {
-      const targetType =
-        dialog.targetResourceTypeCode ?? dialog.resources[0]?.resourceTypeCode;
-      return record.resourceTypeCode === targetType;
-    }
-    return true;
+    return record.resourceTypeCode === dialog.operation.resourceTypeCode;
   });
   const byResource = new Map<string, EffectiveRecord[]>();
   for (const record of comparable) {
@@ -819,10 +808,10 @@ export function cellDraftMark(input: {
  * - INSTANCE 记录 -> checkedTripleKeys（树勾选）
  * - ALL 记录存在 -> 默认 scopeMode=ALL（hasAll 优先）
  * - AUTO_DEP / draftMark=remove 忽略
- * - 专属操作限本类型（全局操作不限）
+ * - 操作限本类型（全局操作概念已退役，操作定义按类型隔离）
  */
 export function computePreset(args: {
-  op: { code: string; resourceTypeCode: string | null } | null;
+  op: { code: string; resourceTypeCode: string } | null;
   records: EffectiveRecord[];
 }): { scopeMode: "INSTANCE" | "ALL"; checkedTripleKeys: Set<string> } {
   const { op, records } = args;
@@ -835,12 +824,7 @@ export function computePreset(args: {
     if (record.grantSource !== "MANUAL") continue;
     if (record.draftMark === "remove") continue;
     if (record.operationCode !== op.code) continue;
-    if (
-      op.resourceTypeCode != null &&
-      record.resourceTypeCode !== op.resourceTypeCode
-    ) {
-      continue;
-    }
+    if (record.resourceTypeCode !== op.resourceTypeCode) continue;
     if (record.scopeMode === "ALL") {
       hasAll = true;
     } else if (record.scopeMode === "INSTANCE" && record.resourceCode) {

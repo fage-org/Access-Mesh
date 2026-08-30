@@ -136,7 +136,6 @@ function sourceLabel(s: CellSource): string {
     parts.push(`操作继承自 ${s.opInheritFromCode}`);
   }
   if (s.combinationBit) parts.push("组合位");
-  if (s.globalOperation) parts.push("全局操作");
   return parts.join("；") || "直接授权";
 }
 

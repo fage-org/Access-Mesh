@@ -70,8 +70,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         service = new PermissionGrantPlanDomainServiceImpl(
             typeResolutionService, domainClassifyService, permissionGrantDomainService,
             rolePermissionMapper, resourceEntityMapper, operationPermissionMapper,
-            permissionConditionMapper, domainConfigMapper, new ObjectMapper(),
-            new OperationResolutionDomainServiceImpl());
+            permissionConditionMapper, domainConfigMapper, new ObjectMapper());
     }
 
     // ========== 辅助 ==========
@@ -117,17 +116,18 @@ class PermissionGrantPlanDomainServiceImplTest {
                 new ResourceResolveKey("DATA", "report:sales", "default", null), 101L,
                 new ResourceResolveKey("DATA", "city:shanghai", "default", null), 102L));
         when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
-            .thenReturn(List.of(globalView()));
+            .thenReturn(List.of(dataView()));
     }
 
-    private static OperationPermission globalView() {
-        OperationPermission globalView = new OperationPermission();
-        globalView.setId(9L);
-        globalView.setResourceType(null);
-        globalView.setCode("VIEW");
-        globalView.setBinaryBit(2L);
-        globalView.setInheritMask(0L);
-        return globalView;
+    /** DATA(4) 类型的 VIEW 专属操作定义（全局操作概念已退役，类型轨唯一形态） */
+    private static OperationPermission dataView() {
+        OperationPermission view = new OperationPermission();
+        view.setId(9L);
+        view.setResourceType(4);
+        view.setCode("VIEW");
+        view.setBinaryBit(2L);
+        view.setInheritMask(0L);
+        return view;
     }
 
     private void stubDelegationAllowed() {
@@ -163,7 +163,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         when(resourceEntityMapper.selectValidByIds(eq(TENANT), anySet()))
             .thenReturn(List.of(resource));
         when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
-            .thenReturn(List.of(globalView()));
+            .thenReturn(List.of(dataView()));
     }
 
     private void stubSubPermConfig(String extra, Long domainId) {
@@ -234,7 +234,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), any()))
                 .thenReturn(Map.of(new ResourceResolveKey("DATA", "city:shanghai", "default", null), 102L));
             when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
-                .thenReturn(List.of(globalView()));
+                .thenReturn(List.of(dataView()));
             stubDelegationAllowed();
             stubSubPermConfig("*", 7L);
 
@@ -294,7 +294,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             when(resourceEntityMapper.selectValidByIds(eq(TENANT), anySet()))
                 .thenReturn(List.of(resource(101L, "report:sales"), resource(102L, "city:shanghai")));
             when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
-                .thenReturn(List.of(globalView()));
+                .thenReturn(List.of(dataView()));
             RoleResourcePermission cascadedChild = existing(6L, 5L, "MANUAL");
             cascadedChild.setResourceEntityId(102L);
             when(rolePermissionMapper.selectValidByDependOns(TENANT, java.util.Set.of(5L)))
@@ -324,7 +324,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             when(resourceEntityMapper.selectValidByIds(eq(TENANT), anySet()))
                 .thenReturn(List.of(resource(101L, "report:sales")));
             when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
-                .thenReturn(List.of(globalView()));
+                .thenReturn(List.of(dataView()));
             // 级联查询同样命中子权限 6（depend_on=5），但其已在显式 removes 中：业务键只快照一次
             when(rolePermissionMapper.selectValidByDependOns(TENANT, java.util.Set.of(5L, 6L)))
                 .thenReturn(List.of(existing(6L, 5L, "MANUAL")));

@@ -99,35 +99,27 @@ type OpOption = {
   key: string;
   code: string;
   name: string;
-  resourceTypeCode: string | null;
+  resourceTypeCode: string;
 };
 
 const opGroups = computed(() => {
+  // 全局操作概念已退役：操作定义必属某类型，按类型分组（无"全局操作"组）
   const byType = new Map<string, OpOption[]>();
-  const globalOps: OpOption[] = [];
   for (const op of props.operations) {
     const option: OpOption = {
-      key: `${op.resourceTypeCode ?? "GLOBAL"}:${op.code}`,
+      key: `${op.resourceTypeCode}:${op.code}`,
       code: op.code,
       name: op.name,
       resourceTypeCode: op.resourceTypeCode
     };
-    if (op.resourceTypeCode == null) {
-      globalOps.push(option);
-    } else {
-      const list = byType.get(op.resourceTypeCode) ?? [];
-      list.push(option);
-      byType.set(op.resourceTypeCode, list);
-    }
+    const list = byType.get(op.resourceTypeCode) ?? [];
+    list.push(option);
+    byType.set(op.resourceTypeCode, list);
   }
-  const groups = [...byType.entries()].map(([typeCode, options]) => ({
+  return [...byType.entries()].map(([typeCode, options]) => ({
     label: `资源类型 ${typeCode}`,
     options
   }));
-  if (globalOps.length) {
-    groups.push({ label: "全局操作", options: globalOps });
-  }
-  return groups;
 });
 
 const selectedOpKey = ref<string | null>(null);
@@ -144,7 +136,6 @@ const selectedOp = computed<OpOption | null>(() => {
 
 const scopeMode = ref<"INSTANCE" | "ALL">("INSTANCE");
 const treeRef = ref();
-const allScopeType = ref<string | null>(null);
 
 /** 资源树节点 key（类型:编码:编码类型） */
 function nodeKeyOf(node: ResourceTreeNode): string {
@@ -177,11 +168,9 @@ const selectableTypes = computed(() => {
   return [...types].sort();
 });
 
-/** ALL 范围目标类型：专属操作固定类型；全局操作使用当前树类型。 */
+/** ALL 范围目标类型：操作定义按类型隔离（全局操作概念已退役），ALL 固定用操作自身类型。 */
 const effectiveAllType = computed(() => {
-  const op = selectedOp.value;
-  if (!op) return null;
-  return op.resourceTypeCode ?? allScopeType.value;
+  return selectedOp.value?.resourceTypeCode ?? null;
 });
 
 const currentAllResourceKey = computed(() => {
@@ -243,52 +232,6 @@ const allScopeSelected = computed({
       focusOn(null);
     }
   }
-});
-
-/**
- * P1-1 修复：全局操作（op.resourceTypeCode == null）下已勾选 ALL 时切换 allScopeType ——
- * 撤销旧类型 ALL（若存在）→ 恢复新类型 ALL → 重新聚焦（避免旧类型 ALL 残留 + 新类型未授权）。
- */
-watch(allScopeType, (newType, oldType) => {
-  const op = selectedOp.value;
-  if (
-    scopeMode.value !== "ALL" ||
-    !op ||
-    newType == null ||
-    newType === oldType
-  ) {
-    return;
-  }
-  if (oldType != null) {
-    const oldSlot: FocusSlot = {
-      resourceTypeCode: oldType,
-      resourceCode: null,
-      codeType: null,
-      operationCode: op.code,
-      scopeMode: "ALL"
-    };
-    if (findSlotRecord(localView.value, oldSlot)) {
-      slotDraft.value = uncheckSlot(slotDraft.value, {
-        slot: oldSlot,
-        view: localView.value
-      });
-    }
-  }
-  const newSlot: FocusSlot = {
-    resourceTypeCode: newType,
-    resourceCode: null,
-    codeType: null,
-    operationCode: op.code,
-    scopeMode: "ALL"
-  };
-  slotDraft.value = resumeSlot(slotDraft.value, {
-    slot: newSlot,
-    view: localView.value,
-    baseline: props.baseline,
-    operations: props.allOperations
-  });
-  localChanges.value = slotDraft.value.changes;
-  focusOn(newSlot);
 });
 
 const resourceSelectionDisabled = computed(
@@ -671,23 +614,6 @@ const originalAllResourceKeys = computed(() => {
   );
 });
 
-/** 切换操作时记录当前选中集合，并选定 ALL 的默认目标类型。 */
-function captureOriginalSelections(op: OpOption | null) {
-  if (!op) {
-    allScopeType.value = null;
-    return;
-  }
-  const records = currentManualRecords(op);
-  const allRecords = records.filter(record => record.scopeMode === "ALL");
-  const visibleTypes = new Set(selectableTypes.value);
-  const existingAllType = allRecords.find(
-    record =>
-      visibleTypes.size === 0 || visibleTypes.has(record.resourceTypeCode)
-  )?.resourceTypeCode;
-  allScopeType.value =
-    op.resourceTypeCode ?? existingAllType ?? selectableTypes.value[0] ?? null;
-}
-
 function originalAllSelectedForCurrentType(): boolean {
   const key = currentAllResourceKey.value;
   return key != null && originalAllResourceKeys.value.has(key);
@@ -701,7 +627,6 @@ function originalAllSelectedForCurrentType(): boolean {
  */
 async function applyOpenPreset(op: OpOption | null) {
   const initial = props.initial;
-  captureOriginalSelections(op);
   if (!op) {
     scopeMode.value = "INSTANCE";
     presetExtra.value = new Set();
@@ -718,7 +643,6 @@ async function applyOpenPreset(op: OpOption | null) {
       resourceTypeCode:
         initial.resourceTypeCode ??
         op.resourceTypeCode ??
-        allScopeType.value ??
         selectableTypes.value[0] ??
         "",
       resourceCode: null,
@@ -745,7 +669,6 @@ async function applyOpenPreset(op: OpOption | null) {
  * 弹窗内手动切换操作预填（不含 initial，评审问题 1+2）。
  */
 async function applySwitchPreset(op: OpOption | null) {
-  captureOriginalSelections(op);
   if (!op) {
     scopeMode.value = "INSTANCE";
     presetExtra.value = new Set();
@@ -774,7 +697,6 @@ watch(
       focusSlotKey: null
     };
     focusOn(null);
-    allScopeType.value = null;
     presetExtra.value = new Set();
     const initial = props.initial;
     let opKey = null;
@@ -1132,23 +1054,6 @@ function handleClose() {
             <span class="resource-hint">{{ resourceHint }}</span>
           </div>
           <div class="resource-actions">
-            <el-select
-              v-if="
-                selectedOp?.resourceTypeCode == null &&
-                selectableTypes.length > 1
-              "
-              v-model="allScopeType"
-              size="small"
-              class="all-type-select"
-              placeholder="资源类型"
-            >
-              <el-option
-                v-for="typeCode in selectableTypes"
-                :key="typeCode"
-                :value="typeCode"
-                :label="typeCode"
-              />
-            </el-select>
             <el-checkbox
               v-model="allScopeSelected"
               border

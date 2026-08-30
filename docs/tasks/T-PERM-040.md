@@ -29,6 +29,8 @@ design_writeback:
 last_updated: 2026-08-05
 ---
 
+> **退役注记（2026-08-30，T-PERM-049）**：本任务的 `includeGlobalFallback` 合并参数与「专属优先、全局回退」语义已随全局操作概念整体退役删除（外部复审 P1 越权结论触发的设计定案——授权行只存 resource_type+granted_bits，全局位与专属位同值时授权身份不可区分）；`resourceTypeCode` 类型过滤与 role-resource-permission/list 类型过滤等其余交付物不受影响。
+
 # T-PERM-040 权限授予单资源类型后端支持
 
 > 状态：proposed（2026-08-03 单类型矩阵上下文定稿立项，2026-08-03 评审扩展：+role-resource-permission/list 类型过滤 + 嵌套子权限 20008 全覆盖；ID 040 原口头引用为"幂等中间件实现任务"，随第十四轮收窄取消、从未在看板登记，本任务复用该 ID，相关历史措辞已改为"幂等中间件实现取消（未登记看板）"）

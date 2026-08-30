@@ -14,8 +14,8 @@
  *   无法匹配任何定义位的余位归入 undefinedBitsByRecord（详情层"未定义位"展示）。
  *
  * 本计算为展示口径，不代表运行时判定（运行时以 PermQueryEngine 为准）。
- * 引擎双写消除（方案三）：本模块与后端 GoldenFixtureTest 同用例集比对，
- * fixtures 见 source-chain.fixtures.json（6 用例精简：全局回退/组合位/ALL/资源继承/操作继承/两段组合来源）。
+ * 引擎双写消除（方案三）：本模块与后端 GoldenFixturePgIT 同用例集比对，
+ * fixtures 见 source-chain.fixtures.json（5 用例：组合位/ALL/资源继承/操作继承/两段组合来源）。
  */
 import type { GrantScopeMode, GrantSource } from "@/api/permission-grant";
 import { effectiveBits, toBigIntBits } from "./bits";
@@ -26,8 +26,8 @@ import { effectiveBits, toBigIntBits } from "./bits";
 export type OperationDefInput = {
   code: string;
   name: string;
-  /** null = 全局操作 */
-  resourceTypeCode: string | null;
+  /** 操作定义必属某类型（全局操作概念已退役，2026-08-30 设计定案） */
+  resourceTypeCode: string;
   binaryBit: string | number;
   inheritMask: string | number;
 };
@@ -63,15 +63,13 @@ export type SourceRecordInput = {
 
 // ========== 输出模型 ==========
 
-/** 合并后操作列（专属优先、全局回退，§3.2） */
+/** 操作列（按类型隔离，§3.2；全局操作概念已退役——每类型列集 = 该类型专属定义） */
 export type MergedOperation = {
   code: string;
   name: string;
-  resourceTypeCode: string | null;
+  resourceTypeCode: string;
   binaryBit: bigint;
   inheritMask: bigint;
-  /** true = 该列由全局操作回退提供（无同 code 专属定义），来源标注"全局操作" */
-  globalFallback: boolean;
 };
 
 /** 兼容旧列表响应：缺少 grantedBits 时，单操作记录按 operationCode 定位定义位。 */
@@ -103,8 +101,6 @@ export type CellSource = {
   opInheritFromCode: string | null;
   /** 组合位记录（operationCode=null 按位拆解命中，来源标注"组合位"） */
   combinationBit: boolean;
-  /** 全局操作列（合并后来自全局定义，标注"全局操作"） */
-  globalOperation: boolean;
   conditionCode: string | null;
   canGrant: boolean;
   scopeMode: GrantScopeMode;
@@ -142,49 +138,25 @@ export function instanceRowKey(
   return `RES:${resourceTypeCode}:${resourceCode}:${codeType}`;
 }
 
-// ========== 操作列合并（专属优先、全局回退，§3.2 P1-4 第九轮） ==========
+// ========== 操作列（按类型隔离，§3.2） ==========
 
 /**
- * 单类型操作合并（专属优先、全局回退，§3.2）。
- *
- * 专属定义（resourceTypeCode 匹配）覆盖同 code 全局定义；无专属时回退全局。
- * 即使该类型无任何专属定义，也返回全部适用全局操作--纯全局操作类型可成列（问题 7）。
+ * 单类型操作列（全局操作概念已退役：列集 = 该类型专属定义）。
  * 列按 binaryBit 升序稳定排序。
  */
 export function mergeOperationsForType(
   operations: OperationDefInput[],
   resourceTypeCode: string
 ): MergedOperation[] {
-  const typed: OperationDefInput[] = [];
-  const globals: OperationDefInput[] = [];
-  for (const op of operations) {
-    if (op.resourceTypeCode == null) {
-      globals.push(op);
-    } else if (op.resourceTypeCode === resourceTypeCode) {
-      typed.push(op);
-    }
-  }
-  const typedCodes = new Set(typed.map(op => op.code));
-  const merged: MergedOperation[] = [
-    ...typed.map(op => ({
+  const merged: MergedOperation[] = operations
+    .filter(op => op.resourceTypeCode === resourceTypeCode)
+    .map(op => ({
       code: op.code,
       name: op.name,
       resourceTypeCode: op.resourceTypeCode,
       binaryBit: toBigIntBits(op.binaryBit),
-      inheritMask: toBigIntBits(op.inheritMask),
-      globalFallback: false
-    })),
-    ...globals
-      .filter(op => !typedCodes.has(op.code))
-      .map(op => ({
-        code: op.code,
-        name: op.name,
-        resourceTypeCode: op.resourceTypeCode,
-        binaryBit: toBigIntBits(op.binaryBit),
-        inheritMask: toBigIntBits(op.inheritMask),
-        globalFallback: true
-      }))
-  ];
+      inheritMask: toBigIntBits(op.inheritMask)
+    }));
   merged.sort((a, b) =>
     a.binaryBit < b.binaryBit ? -1 : a.binaryBit > b.binaryBit ? 1 : 0
   );
@@ -192,11 +164,9 @@ export function mergeOperationsForType(
 }
 
 /**
- * 多类型操作合并 Map（专属优先、全局回退，§3.2）。
- *
- * typeCodes 由外部驱动（资源树类型 ∪ 当前有效记录类型，§3.1），
- * 确保"仅配置全局操作、无专属定义"的资源类型也能成列（问题 7）。
- * 不传 typeCodes 时回退专属操作定义类型（仅兼容旧调用，新代码应显式传类型全集）。
+ * 多类型操作列 Map（按类型隔离，§3.2）。
+ * typeCodes 由外部驱动（资源树类型 ∪ 当前有效记录类型，§3.1）。
+ * 不传 typeCodes 时回退操作定义自身类型。
  */
 export function mergeOperationsByType(
   operations: OperationDefInput[],
@@ -205,11 +175,7 @@ export function mergeOperationsByType(
   const codes =
     typeCodes != null
       ? new Set(typeCodes)
-      : new Set(
-          operations
-            .filter(op => op.resourceTypeCode != null)
-            .map(op => op.resourceTypeCode as string)
-        );
+      : new Set(operations.map(op => op.resourceTypeCode));
   const result = new Map<string, MergedOperation[]>();
   for (const code of codes) {
     result.set(code, mergeOperationsForType(operations, code));
@@ -217,7 +183,7 @@ export function mergeOperationsByType(
   return result;
 }
 
-/** 取某资源类型的合并操作列（无专属定义时回退纯全局列集合） */
+/** 取某资源类型的操作列 */
 export function getMergedColumns(
   columnsByType: Map<string, MergedOperation[]>,
   resourceTypeCode: string
@@ -306,8 +272,7 @@ export function computeSourceChain(input: {
   const includeOpInherit = input.includeOpInherit !== false;
 
   const flat = flattenResources(input.resources);
-  // 类型全集 = 资源树类型 ∪ 当前有效记录类型（§3.1），
-  // 确保「仅配置全局操作、无专属定义」的资源类型也能成列（问题 7）
+  // 类型全集 = 资源树类型 ∪ 当前有效记录类型（§3.1）
   const allTypeCodes = new Set<string>();
   for (const node of flat) allTypeCodes.add(node.resourceTypeCode);
   for (const record of input.records) allTypeCodes.add(record.resourceTypeCode);
@@ -424,7 +389,6 @@ export function computeSourceChain(input: {
           nodeInheritFromName: target.inheritFromName,
           opInheritFromCode,
           combinationBit: record.operationCode === null,
-          globalOperation: col.globalFallback,
           conditionCode: record.conditionCode,
           canGrant: record.canGrant,
           scopeMode: record.scopeMode,
@@ -461,22 +425,16 @@ export type OperationGrantHit = {
  * 对每条记录先求覆盖位集 coveredSet = ⋃(bit.binaryBit | bit.inheritMask)，
  * 判定 (coveredSet & 当前操作 binaryBit) != 0——不是裸 grantedBits & binaryBit
  * （MANAGE 覆盖 VIEW 来自 inheritMask，裸比较会误报未授权）；不做 operationCode 等值比较
- * （等值会漏掉组合位记录）。
- *
- * 目标列为专属操作时只统计同资源类型记录；为全局操作（resourceTypeCode=null）时
- * 各类型记录按自身合并列集判定（全局操作对每类型回退成列）。
+ * （等值会漏掉组合位记录）。目标列与记录同资源类型（操作位空间按类型隔离）。
  */
 export function collectOperationGrants(input: {
   records: SourceRecordInput[];
   operations: OperationDefInput[];
-  target: { resourceTypeCode: string | null; code: string };
+  target: { resourceTypeCode: string; code: string };
 }): OperationGrantHit[] {
   const result: OperationGrantHit[] = [];
   for (const record of input.records) {
-    if (
-      input.target.resourceTypeCode != null &&
-      record.resourceTypeCode !== input.target.resourceTypeCode
-    ) {
+    if (record.resourceTypeCode !== input.target.resourceTypeCode) {
       continue;
     }
     const merged = mergeOperationsForType(

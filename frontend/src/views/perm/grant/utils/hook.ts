@@ -87,9 +87,9 @@ export function usePermissionGrant() {
   /** 当前矩阵类型资源树（§3.6 按类型查询；驱动矩阵行/ALL 虚拟行/授权弹窗资源树） */
   const resourceForest = ref<ResourceTreeNode[]>([]);
   /**
-   * 当前矩阵类型最终可用操作集合（operation-permission/list 携带
-   * resourceTypeCode + includeGlobalFallback=true，后端完成"专属优先、全局回退"合并，
-   * §3.2；前端不再自行实现合并领域规则，§12-14）。切换类型必须重新查询，禁止复用上一类型。
+   * 当前矩阵类型操作定义（operation-permission/list 携带 resourceTypeCode；
+   * 全局操作概念已退役，操作定义按类型完全隔离，§3.2）。
+   * 切换类型必须重新查询，禁止复用上一类型。
    */
   const operationDefs = ref<OperationDefInput[]>([]);
   /** 当前矩阵类型（MatrixContext，§2.2：资源树/操作列/主权限记录/ALL 行/继承计算/列配置全部绑定） */
@@ -259,15 +259,13 @@ export function usePermissionGrant() {
   );
 
   /**
-   * 操作列 = 当前类型最终可用操作集合（operationDefs 即 operation-permission/list
-   * includeGlobalFallback=true 的响应；全局回退条目 resourceTypeCode=null，
-   * 来源标注"全局操作"，§3.2）。单类型矩阵上下文不再跨类型 union。
+   * 操作列 = 当前类型操作定义（operationDefs 即 operation-permission/list 按类型的
+   * 响应；全局操作概念已退役）。单类型矩阵上下文不跨类型 union。
    */
   const unionColumns = computed(() =>
     operationDefs.value.map(op => ({
       code: op.code,
-      name: op.name,
-      globalFallback: op.resourceTypeCode == null
+      name: op.name
     }))
   );
 
@@ -452,10 +450,7 @@ export function usePermissionGrant() {
         // 杜绝"树/操作/标记失败但主体已切换"的部分提交
         const [treeResp, opResp, markResp, baselineItems] = await Promise.all([
           getResourceTree({ resourceTypeCode: opts.typeCode }),
-          getOperationList({
-            resourceTypeCode: opts.typeCode,
-            includeGlobalFallback: true
-          }),
+          getOperationList({ resourceTypeCode: opts.typeCode }),
           // 全量主权限查询一次 → "已有权限类型"标记（§2.2 标记/排序；
           // 缺省 resourceTypeCode 返回全量，兼容契约 §6.4）
           getRolePermissionList({
@@ -495,10 +490,7 @@ export function usePermissionGrant() {
       const [storeOk, treeResp, opResp] = await Promise.all([
         grantStore.switchMatrixType(opts.typeCode),
         getResourceTree({ resourceTypeCode: opts.typeCode }),
-        getOperationList({
-          resourceTypeCode: opts.typeCode,
-          includeGlobalFallback: true
-        })
+        getOperationList({ resourceTypeCode: opts.typeCode })
       ]);
       // 序号守卫：过期请求不写任何状态
       if (token !== matrixToken) return false;
