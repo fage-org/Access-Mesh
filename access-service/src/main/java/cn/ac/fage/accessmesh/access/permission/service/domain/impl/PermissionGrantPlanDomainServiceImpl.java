@@ -194,10 +194,12 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             .collect(Collectors.toSet());
 
         Set<String> conditionCodes = new LinkedHashSet<>();
+        // 空白串按非空收集：仅精确空串表示清除（契约三态），空白串走 20006 存在性预检
+        // fail-closed（create 轨同口径——validateKeyShapes 拒空白，不静默清除）
         allKeys.stream().map(ApplyGrantPlanReq.GrantRecordKey::conditionCode)
-            .filter(code -> code != null && !code.isBlank()).forEach(conditionCodes::add);
+            .filter(code -> code != null && !code.isEmpty()).forEach(conditionCodes::add);
         updateItems.stream().map(ApplyGrantPlanReq.UpdateItem::conditionCode)
-            .filter(code -> code != null && !code.isBlank()).forEach(conditionCodes::add);
+            .filter(code -> code != null && !code.isEmpty()).forEach(conditionCodes::add);
         Map<String, PermissionCondition> conditionsByCode = conditionCodes.isEmpty() ? Map.of()
             : permissionConditionMapper.selectValidByCodes(tenantId, conditionCodes).stream()
                 .collect(Collectors.toMap(PermissionCondition::getCode, Function.identity()));
@@ -293,14 +295,14 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 permission.setCanGrant(update.canGrant());
             }
             if (update.conditionCode() != null) {
-                permission.setConditionId(update.conditionCode().isBlank()
+                permission.setConditionId(update.conditionCode().isEmpty()
                     ? null : conditionsByCode.get(update.conditionCode()).getId());
             }
             permissionGrantDomainService.validateGrantAttributes(permission);
             // 20042 条件启用状态（T-PERM-041）：仅 conditionCode 变更时校验——新条件 id
             // 与改前绑定一致视为存量保留（2026-08-30 设计定案：同 id 重写豁免，
             // 与前端 v3.1「未修改 conditionCode 允许保留」同口径）；清除与缺省不触发
-            if (update.conditionCode() != null && !update.conditionCode().isBlank()) {
+            if (update.conditionCode() != null && !update.conditionCode().isEmpty()) {
                 PermissionCondition changedCondition = conditionsByCode.get(update.conditionCode());
                 if (!Objects.equals(changedCondition.getId(), originalConditionId)) {
                     assertConditionEnabled(changedCondition, update.conditionCode());

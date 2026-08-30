@@ -652,6 +652,27 @@ class PermissionGrantPlanDomainServiceImplTest {
         }
 
         @Test
+        void shouldRejectUpdateWithBlankConditionCodeAsNotFound() {
+            // 契约三态仅精确空串=清除；全空白串按非空处理，落入 20006 fail-closed
+            // （旧实现误按清除静默解绑条件，权限放宽为无条件——本用例锁住该修复）
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "MANUAL")));
+            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of("DATA", 4));
+            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+                .thenReturn(List.of(dataView()));
+            when(permissionConditionMapper.selectValidByCodes(eq(TENANT), anySet()))
+                .thenReturn(List.of());
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "   ")), List.of())));
+
+            assertEquals(20006, exception.getErrorCode());
+        }
+
+        @Test
         void shouldAllowUpdateRewritingSameDisabledCondition() {
             // 同 id 重写 = 存量保留（2026-08-30 设计定案：按条件 id 比对豁免 20042）
             RoleResourcePermission current = existing(5L, null, "MANUAL");
