@@ -550,13 +550,13 @@ export default defineFakeRoute([
         list = list.filter(l => l.changeSource === changeSource);
       }
       if (affectedUserId != null) {
-        list = list.filter(
-          l => (l.affectedAbstractUserIds || []).includes(affectedUserId)
+        list = list.filter(l =>
+          (l.affectedAbstractUserIds || []).includes(affectedUserId)
         );
       }
       if (affectedRoleId != null) {
-        list = list.filter(
-          l => (l.affectedAbstractRoleIds || []).includes(affectedRoleId)
+        list = list.filter(l =>
+          (l.affectedAbstractRoleIds || []).includes(affectedRoleId)
         );
       }
       if (since) {

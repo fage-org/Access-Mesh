@@ -79,7 +79,7 @@ export function useResourceDependency() {
     return `${node.name}（${node.code}）`;
   }
 
-  /** 操作位 -> 操作码列表（按资源类型拆解，含全局操作；BigInt 位与兼容 63 位）。
+  /** 操作位 -> 操作码列表（按资源类型拆解，操作定义按类型隔离；BigInt 位与兼容 63 位）。
    *  P1 修复：typeCode 隔离避免跨类型同 bit 误匹配；hasBit 避免 32 位截断。 */
   function bitsToOpCodes(
     bits: number | string | null,
@@ -89,9 +89,8 @@ export function useResourceDependency() {
     const codes: string[] = [];
     for (const op of operationList.value) {
       if (op.binaryBit == null) continue;
-      // 只匹配该资源类型 + 全局操作（resourceTypeCode=null），避免跨类型同 bit 误匹配
-      if (op.resourceTypeCode !== typeCode && op.resourceTypeCode != null)
-        continue;
+      // 只匹配该资源类型，避免跨类型同 bit 误匹配
+      if (op.resourceTypeCode !== typeCode) continue;
       if (hasBit(bits, op.binaryBit)) codes.push(op.code);
     }
     return codes;
@@ -108,8 +107,7 @@ export function useResourceDependency() {
     const names: string[] = [];
     for (const op of operationList.value) {
       if (op.binaryBit == null) continue;
-      if (op.resourceTypeCode !== typeCode && op.resourceTypeCode != null)
-        continue;
+      if (op.resourceTypeCode !== typeCode) continue;
       if (hasBit(bits, op.binaryBit)) names.push(op.name);
     }
     return names.length === 0 ? "-" : names.join("、");
@@ -126,14 +124,12 @@ export function useResourceDependency() {
       .sort((a, b) => a.id - b.id);
   }
 
-  /** 按资源类型过滤的操作选项（含全局操作 resourceTypeCode=null） */
+  /** 按资源类型过滤的操作选项（操作定义按类型隔离） */
   function operationsForType(
     typeCode: string | null
   ): OperationPermissionResp[] {
     if (!typeCode) return [];
-    return operationList.value.filter(
-      op => op.resourceTypeCode === typeCode || op.resourceTypeCode == null
-    );
+    return operationList.value.filter(op => op.resourceTypeCode === typeCode);
   }
 
   // ========== 请求构造 ==========

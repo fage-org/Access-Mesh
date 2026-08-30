@@ -353,20 +353,6 @@ for (const [typeCode, typeName] of Object.entries(RESOURCE_TYPE_LABEL)) {
     });
   }
 }
-// 全局操作（resourceTypeCode=null，适用所有资源类型）
-operations.push({
-  id: nextOperationId++,
-  tenantId: 1,
-  resourceTypeCode: null,
-  resourceTypeName: "全局",
-  code: "MANAGE",
-  name: "管理",
-  binaryBit: "16",
-  inheritMask: "0",
-  createdAt: BASE_TIME,
-  updatedAt: BASE_TIME
-});
-
 /** T-PERM-028：为新建 resource_type 联动预置 CRUD 四操作位（type-definition/create 调用，
  * 对齐后端 TypeDefinitionAppServiceImpl 同事务预置语义；DDL CROSS JOIN 预置组模板同款） */
 export function presetOperationsForType(typeCode: string): void {
@@ -414,14 +400,12 @@ function findOperationByKey(key: {
   resourceTypeCode?: string | null;
   code?: string | null;
 }): OperationPermissionResp | undefined {
-  const isGlobal =
-    key.resourceTypeCode == null || key.resourceTypeCode.trim() === "";
+  // 全局操作概念已退役：resourceTypeCode 必填，仅按类型+码定位
+  if (key.resourceTypeCode == null || key.resourceTypeCode.trim() === "") {
+    return undefined;
+  }
   return operations.find(
-    op =>
-      op.code === key.code &&
-      (isGlobal
-        ? op.resourceTypeCode == null
-        : op.resourceTypeCode === key.resourceTypeCode)
+    op => op.code === key.code && op.resourceTypeCode === key.resourceTypeCode
   );
 }
 
@@ -711,38 +695,8 @@ export default defineFakeRoute([
     url: "/api/perm/operation-permission/list",
     method: "post",
     response: ({ body }) => {
-      const { resourceTypeCode, includeGlobalFallback } = body || {};
-      // includeGlobalFallback=true：后端完成"专属优先、全局回退"合并（T-PERM-040 契约 §5.3 模拟）
-      if (includeGlobalFallback === true) {
-        // resourceTypeCode=null/缺省 + true = 仅全局操作集合（禁止全量口径合并）
-        if (resourceTypeCode == null) {
-          const globals = operations
-            .filter(op => op.resourceTypeCode === null)
-            .slice()
-            .sort((a, b) => {
-              const x = BigInt(a.binaryBit);
-              const y = BigInt(b.binaryBit);
-              return x < y ? -1 : x > y ? 1 : 0;
-            });
-          return ok({ items: globals });
-        }
-        const typed = operations.filter(
-          op => op.resourceTypeCode === resourceTypeCode
-        );
-        const typedCodes = new Set(typed.map(op => op.code));
-        const merged = [
-          ...typed,
-          ...operations.filter(
-            op => op.resourceTypeCode === null && !typedCodes.has(op.code)
-          )
-        ].sort((a, b) => {
-          const x = BigInt(a.binaryBit);
-          const y = BigInt(b.binaryBit);
-          return x < y ? -1 : x > y ? 1 : 0;
-        });
-        return ok({ items: merged });
-      }
-      // 兼容现状：有类型过滤返回该类型专属定义；无类型返回全量原始定义
+      const { resourceTypeCode } = body || {};
+      // 全局操作概念已退役：有类型过滤返回该类型定义；无类型返回全量定义
       const items = operations
         .filter(op =>
           resourceTypeCode ? op.resourceTypeCode === resourceTypeCode : true
@@ -847,12 +801,10 @@ export default defineFakeRoute([
       }> = Array.isArray(body?.items) ? body.items : [];
       if (items.length === 0) return error(400, "items 不能为空");
       for (let i = operations.length - 1; i >= 0; i -= 1) {
-        const hit = items.some(item =>
-          item.code === operations[i].code
-            ? item.resourceTypeCode == null || item.resourceTypeCode === ""
-              ? operations[i].resourceTypeCode == null
-              : operations[i].resourceTypeCode === item.resourceTypeCode
-            : false
+        const hit = items.some(
+          item =>
+            item.code === operations[i].code &&
+            item.resourceTypeCode === operations[i].resourceTypeCode
         );
         if (hit) {
           operations.splice(i, 1);

@@ -220,10 +220,7 @@ function collectUnknownCodes(
   for (const c of codes) {
     if (!c || !c.trim()) continue;
     const op = operations.find(
-      o =>
-        (o.resourceTypeCode === resourceTypeCode ||
-          o.resourceTypeCode == null) &&
-        o.code === c
+      o => o.resourceTypeCode === resourceTypeCode && o.code === c
     );
     if (!op) unknown.push(c);
   }
@@ -241,10 +238,7 @@ function codesToBits(
   let bits = 0n;
   for (const c of codes) {
     const op = operations.find(
-      o =>
-        (o.resourceTypeCode === resourceTypeCode ||
-          o.resourceTypeCode == null) &&
-        o.code === c
+      o => o.resourceTypeCode === resourceTypeCode && o.code === c
     );
     if (op) bits |= BigInt(op.binaryBit);
   }

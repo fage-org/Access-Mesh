@@ -375,18 +375,14 @@ function toItem(
   };
 }
 
-/** 解析操作定义（专属优先、全局回退）；返回 binaryBit 十进制字符串，未命中 null */
+/** 解析操作定义（操作定义按类型隔离，全局操作概念已退役）；返回 binaryBit 十进制字符串，未命中 null */
 function resolveOperationBits(
   resourceTypeCode: string,
   operationCode: string
 ): string | null {
-  const typed = operations.find(
+  const hit = operations.find(
     op => op.resourceTypeCode === resourceTypeCode && op.code === operationCode
   );
-  const global = operations.find(
-    op => op.resourceTypeCode === null && op.code === operationCode
-  );
-  const hit = typed ?? global;
   return hit ? String(hit.binaryBit) : null;
 }
 

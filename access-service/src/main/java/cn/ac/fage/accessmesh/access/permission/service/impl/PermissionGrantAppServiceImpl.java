@@ -268,7 +268,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     }
 
     /**
-     * 一次加载租户操作定义，并按“类型专属优先、全局定义回退”建立类型+位索引。
+     * 一次加载租户操作定义，并按类型+位建立索引（操作位空间按类型完全隔离，
+     * 全局操作概念已退役——2026-08-30 设计定案）。
      */
     private Map<String, OperationPermission> buildOperationIndex(Long tenantId, Set<Integer> resourceTypes) {
         if (resourceTypes == null || resourceTypes.isEmpty()) {
@@ -276,22 +277,12 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         }
         List<OperationPermission> allOperations = operationPermissionMapper
             .selectByTenantAndResourceType(tenantId, null);
-        List<OperationPermission> globalOperations = allOperations.stream()
-            .filter(operation -> operation.getResourceType() == null)
-            .toList();
         Map<String, OperationPermission> result = new LinkedHashMap<>();
         for (Integer resourceType : resourceTypes) {
-            Map<String, OperationPermission> specificByCode = allOperations.stream()
-                .filter(operation -> Objects.equals(operation.getResourceType(), resourceType))
-                .collect(Collectors.toMap(operation -> operation.getCode().toUpperCase(),
-                    Function.identity(), (left, right) -> left, LinkedHashMap::new));
-            for (OperationPermission operation : specificByCode.values()) {
+            for (OperationPermission operation : allOperations.stream()
+                    .filter(op -> Objects.equals(op.getResourceType(), resourceType))
+                    .toList()) {
                 result.put(operationIndexKey(resourceType, operation.getBinaryBit()), operation);
-            }
-            for (OperationPermission operation : globalOperations) {
-                if (!specificByCode.containsKey(operation.getCode().toUpperCase())) {
-                    result.put(operationIndexKey(resourceType, operation.getBinaryBit()), operation);
-                }
             }
         }
         return result;

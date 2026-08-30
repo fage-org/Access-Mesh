@@ -43,6 +43,13 @@ last_updated: 2026-08-30
 - 前端：vue-tsc 0 错 / vitest 204 全过 / eslint 0 问题（授权页 utils 六文件 + 组件两件 + api + fixtures + 三 spec）。
 - 回归：全仓 mvn test BUILD SUCCESS（计数见提交信息），GoldenFixturePgIT/ResourceOperationKeyPgIT/AuthorizationChangeInvalidationPgIT 定向全绿。
 
+## 外部复评四轮收口（同日，1P2+2P3 全属实全处置——退役收尾）
+
+- **P2 mock 退役遗漏**：开发 fake server 三处仍运行旧权限模型——mock/resource-operation.ts 删全局 MANAGE 种子、list 处理器删 includeGlobalFallback 分支（回归「有类型过滤=该类型定义；无类型=全量」）、findOperationByKey/remove 匹配器删「空类型=全局轨」（空键不命中）；mock/permission-grant.ts resolveOperationBits 删 typed ?? global 回退；mock/resource-dependency.ts 两处操作匹配器删 `resourceTypeCode == null` 并集。联调/demo 环境不再可复现位身份歧义。
+- **P3 响应模型与死分支**：api OperationPermissionResp.resourceTypeCode 收窄 `string | null` → `string`（契约恒非空）；GrantDialog 四处 `!= null` 死分支简化（selectableForest/currentManualRecords×2/比对过滤）+ initial 匹配删 `o.resourceTypeCode == null` 不可达项；资源依赖 hook 与 DependencyForm 的 bitsToOpCodes/bitsToOpNames/operationsForType/源目标操作过滤全部收窄类型精确匹配（删「含全局操作」并集）。
+- **P3 后端遗漏**：PermissionGrantAppServiceImpl.buildOperationIndex 第二份「专属优先全局回退」索引构建收窄类型专属（上轮只清了 DomainServiceImpl 份）；OperationAppService/OperationController 的 getOperation Javadoc「空类型=全局操作」改「必填」。
+- 回归：后端定向 55/0（AppServiceImpl/PlanDomain/OperationApp/操作日志覆盖）；前端 vue-tsc 0 错、vitest 204 全过、eslint src+mock 0 问题；全量回归见提交信息。
+
 ## 关联修订
 
 - T-PERM-040 的 includeGlobalFallback 交付物被本任务推翻（卡片加退役注记，其余交付物不受影响）。

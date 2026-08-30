@@ -150,16 +150,13 @@ function nodeResourceKeyOf(node: ResourceTreeNode): string {
   });
 }
 
-/** 未选操作也展示当前资源树；专属操作选中后仅保留其类型。 */
+/** 未选操作也展示当前资源树；选中操作后仅保留其类型（操作定义按类型隔离）。 */
 const selectableForest = computed(() => {
   const op = selectedOp.value;
   if (!op) return props.resourceForest;
-  if (op.resourceTypeCode != null) {
-    return props.resourceForest.filter(
-      root => root.resourceTypeCode === op.resourceTypeCode
-    );
-  }
-  return props.resourceForest;
+  return props.resourceForest.filter(
+    root => root.resourceTypeCode === op.resourceTypeCode
+  );
 });
 
 const selectableTypes = computed(() => {
@@ -386,12 +383,7 @@ const copyCandidates = computed(() => {
   return localView.value.mains.filter(m => {
     if (m.grantSource !== "MANUAL" || m.draftMark === "remove") return false;
     if (m.operationCode !== op.code) return false;
-    if (
-      op.resourceTypeCode != null &&
-      m.resourceTypeCode !== op.resourceTypeCode
-    ) {
-      return false;
-    }
+    if (m.resourceTypeCode !== op.resourceTypeCode) return false;
     if (m.scopeMode !== "INSTANCE") return false;
     if (
       slotDraft.value.suspended.has(
@@ -549,10 +541,7 @@ function originalManualRecords(op: OpOption): EffectiveRecord[] {
     if (record.grantSource !== "MANUAL") return false;
     if (record.draftMark === "add") return false;
     if (record.operationCode !== op.code) return false;
-    return (
-      op.resourceTypeCode == null ||
-      record.resourceTypeCode === op.resourceTypeCode
-    );
+    return record.resourceTypeCode === op.resourceTypeCode;
   });
 }
 
@@ -566,12 +555,7 @@ function currentManualRecords(op: OpOption): EffectiveRecord[] {
     if (record.grantSource !== "MANUAL") return false;
     if (record.draftMark === "remove") return false;
     if (record.operationCode !== op.code) return false;
-    if (
-      op.resourceTypeCode != null &&
-      record.resourceTypeCode !== op.resourceTypeCode
-    ) {
-      return false;
-    }
+    if (record.resourceTypeCode !== op.resourceTypeCode) return false;
     // P1：待撤销（suspended）槽位的记录不属于当前选中状态
     if (
       suspendedSlots.has(
@@ -708,8 +692,7 @@ watch(
             o =>
               o.code === initial.operationCode &&
               (initial.resourceTypeCode == null ||
-                o.resourceTypeCode === initial.resourceTypeCode ||
-                o.resourceTypeCode == null)
+                o.resourceTypeCode === initial.resourceTypeCode)
           ) ?? null;
       opKey = match?.key ?? null;
     }

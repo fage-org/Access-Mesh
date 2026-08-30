@@ -129,8 +129,8 @@ export type ResourceMoveReq = {
 export type OperationPermissionResp = {
   id: number;
   tenantId: number;
-  /** 资源类型编码（null 表示适用所有资源类型） */
-  resourceTypeCode: string | null;
+  /** 资源类型编码（全局操作概念已退役，恒非空） */
+  resourceTypeCode: string;
   resourceTypeName: string | null;
   code: string;
   name: string;

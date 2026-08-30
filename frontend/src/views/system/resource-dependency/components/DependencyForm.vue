@@ -44,7 +44,7 @@ const resourceTypeById = computed(() => {
   return map;
 });
 
-/** 操作位 -> 操作码列表（按资源类型拆解，含全局操作；BigInt 位与兼容 63 位）。
+/** 操作位 -> 操作码列表（按资源类型拆解，操作定义按类型隔离；BigInt 位与兼容 63 位）。
  *  P1 修复：typeCode 隔离避免跨类型同 bit 误匹配；hasBit 避免 32 位截断。 */
 function bitsToOpCodes(
   bits: number | string | null,
@@ -54,8 +54,7 @@ function bitsToOpCodes(
   const codes: string[] = [];
   for (const op of props.operationList) {
     if (op.binaryBit == null) continue;
-    if (op.resourceTypeCode !== typeCode && op.resourceTypeCode != null)
-      continue;
+    if (op.resourceTypeCode !== typeCode) continue;
     if (hasBit(bits, op.binaryBit)) codes.push(op.code);
   }
   return codes;
@@ -75,21 +74,17 @@ const targetResourceOptions = computed(() =>
     .map(r => ({ id: r.id, name: r.name, code: r.code }))
 );
 
-/** 按源资源类型过滤的操作（含全局操作 resourceTypeCode=null） */
+/** 按源资源类型过滤的操作（操作定义按类型隔离） */
 const sourceOperationOptions = computed(() =>
   props.operationList.filter(
-    op =>
-      op.resourceTypeCode === formData.sourceResourceTypeCode ||
-      op.resourceTypeCode == null
+    op => op.resourceTypeCode === formData.sourceResourceTypeCode
   )
 );
 
-/** 按目标资源类型过滤的操作（含全局操作） */
+/** 按目标资源类型过滤的操作（操作定义按类型隔离） */
 const targetOperationOptions = computed(() =>
   props.operationList.filter(
-    op =>
-      op.resourceTypeCode === formData.targetResourceTypeCode ||
-      op.resourceTypeCode == null
+    op => op.resourceTypeCode === formData.targetResourceTypeCode
   )
 );
 

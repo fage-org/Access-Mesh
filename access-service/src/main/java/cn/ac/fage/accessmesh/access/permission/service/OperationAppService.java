@@ -33,7 +33,7 @@ public interface OperationAppService {
      * 获取操作权限详情
      * <p>
      * 以业务键 (resourceTypeCode, code) 查询操作权限详情（T-PERM-028；
-     * resourceTypeCode 为 null/空白表示全局操作）。
+     * 全局操作概念已退役，resourceTypeCode 必填）。
      * 类型级 OPERATION:VIEW 门禁；业务键查不到抛 20005。
      * </p>
      *

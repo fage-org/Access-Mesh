@@ -296,7 +296,9 @@ export default defineFakeRoute([
       // T-PERM-022：enabledOnly=true 过滤启用角色（禁用节点整棵裁掉，对齐后端
       // SQL 行过滤 + TreeBuilder 孤儿不挂载语义）；默认返回全部有效角色
       const { enabledOnly } = body || {};
-      const root = enabledOnly ? filterDisabledTree(mockRoleTree) : mockRoleTree;
+      const root = enabledOnly
+        ? filterDisabledTree(mockRoleTree)
+        : mockRoleTree;
       return ok({ items: [{ root }] });
     }
   },
@@ -441,7 +443,11 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       const { roleTypeCode, roleExternalId } = body || {};
-      const node = findNodeByExternalId(mockRoleTree, roleExternalId, roleTypeCode);
+      const node = findNodeByExternalId(
+        mockRoleTree,
+        roleExternalId,
+        roleTypeCode
+      );
       // 未命中 data=null 对齐契约 §5.2（后端 PermResult.success(null)，不抛错）
       if (!node || node.roleTypeCode === "ROOT") {
         return ok(null);
