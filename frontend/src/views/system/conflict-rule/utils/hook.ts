@@ -28,7 +28,8 @@ import type { ConflictFormData } from "./types";
  * 布局：单表格（扁平冲突规则 CRUD）+ 表单弹窗 + 检测对话框。
  *
  * 权限（设计 §权限接线）：
- * - CONFLICT_RULE:VIEW 门控列表加载与路由可达性（后端 list/detail 无校验，🔧 登记同 T-PERM-030）。
+ * - CONFLICT_RULE:VIEW 门控列表加载与路由可达性（后端读三端点 list/detail/detect 已补类型级
+ *   VIEW 校验，T-PERM-030 收口）。
  * - CONFLICT_RULE:CREATE/UPDATE/DELETE 门控写操作，三档独立（非 MANAGE，对齐后端）。
  * - loadList 内置 VIEW 短路，无权限直接清空返回。
  *

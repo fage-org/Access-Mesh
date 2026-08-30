@@ -19,6 +19,7 @@ import java.time.LocalDateTime;
  * @param secondAbstractRoleId     第二个角色ID
  * @param description              规则描述
  * @param createdAt                创建时间
+ * @param updatedAt                最后更新时间（T-PERM-030 补齐，entity 列本就存在）
  */
 public record ConflictRuleResp(
     Long id,
@@ -30,5 +31,6 @@ public record ConflictRuleResp(
     Long firstAbstractRoleId,
     Long secondAbstractRoleId,
     String description,
-    LocalDateTime createdAt
+    LocalDateTime createdAt,
+    LocalDateTime updatedAt
 ) {}

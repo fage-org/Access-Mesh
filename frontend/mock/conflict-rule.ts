@@ -9,12 +9,15 @@
 // - 操作权限：501 MENU:CREATE / 502 MENU:VIEW / 504 MENU:DELETE / 509 API:CREATE / 512 API:DELETE
 // - 资源类型 typeValue：1 MENU / 3 API
 //
-// 对齐后端 ConflictRuleAppServiceImpl（T-PERM-030 修复）：
+// 对齐后端 ConflictRuleAppServiceImpl（T-PERM-030 修复 + 收口）：
 // - create/update 写库前规范化 first<second（对齐 schema 注释「存库时 first_id < second_id」）
-// - update 全量覆盖（对齐后端 UpdateChain）：按 conflictType 写入对应字段集，对侧强制 null；
+// - update 全量覆盖（对齐后端 UpdateEntity 强制写列）：按 conflictType 写入对应字段集，对侧强制 null；
 //   PERM_MUTEX 下 resourceTypeValue 直接用 body 值（null=清空"全部"，可清空）
 // - detect 全局规则（resourceTypeValue=null）匹配任意资源类型（对齐 schema「NULL=所有」语义）
 // - isDuplicate 双向匹配 + resourceTypeValue 区分（对齐后端 isDuplicate 业务去重；schema uk_conflict_rule_perm 含 rtv 列）
+// - T-PERM-030 收口对齐：detail/update 查不到 20020（CONFLICT_RULE_NOT_FOUND）、
+//   重复 20032（CONFLICT_RULE_DUPLICATE，与后端业务去重同码）、remove 返 data=null（后端 Void）、
+//   Resp 维护 updatedAt（create=createdAt、update 刷新）
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 
 // ========== 本地类型（对齐后端 DTO，api-contract.md §5.6） ==========
@@ -30,6 +33,7 @@ type ConflictRuleResp = {
   secondAbstractRoleId: number | null;
   description: string | null;
   createdAt: string;
+  updatedAt: string;
 };
 
 type InternalRule = ConflictRuleResp & { deleted: boolean };
@@ -61,6 +65,7 @@ const rules: InternalRule[] = [
     secondAbstractRoleId: 102,
     description: "基础用户与高级用户互斥（同一用户不可兼具）",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   },
   {
@@ -74,6 +79,7 @@ const rules: InternalRule[] = [
     secondAbstractRoleId: 202,
     description: "核心开发组与运维保障组互斥（职责分离）",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   },
   {
@@ -87,6 +93,7 @@ const rules: InternalRule[] = [
     secondAbstractRoleId: null,
     description: "MENU 资源：创建与删除操作互斥",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   },
   {
@@ -100,6 +107,7 @@ const rules: InternalRule[] = [
     secondAbstractRoleId: null,
     description: "API 资源：创建与删除操作互斥",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   }
 ];
@@ -196,7 +204,7 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       const r = rules.find(item => item.id === body?.id && !item.deleted);
-      return r ? ok(clone(r)) : error(404, "冲突规则不存在");
+      return r ? ok(clone(r)) : error(20020, "冲突规则不存在");
     }
   },
 
@@ -207,7 +215,8 @@ export default defineFakeRoute([
       const err = validateRule(body);
       if (err) return error(400, err);
       if (isDuplicate(body)) {
-        return error(409, "等价冲突规则已存在（双向匹配）");
+        // 20032 CONFLICT_RULE_DUPLICATE——与后端业务去重同码（T-PERM-030 对齐）
+        return error(20032, "等价冲突规则已存在（双向匹配）");
       }
       // 按类型填字段 + 规范化 first<second（对齐后端 createConflictRule）
       const created: InternalRule = {
@@ -221,6 +230,7 @@ export default defineFakeRoute([
         secondAbstractRoleId: null,
         description: body.description ?? null,
         createdAt: now(),
+        updatedAt: now(),
         deleted: false
       };
       if (body.conflictType === "ROLE_MUTEX") {
@@ -249,7 +259,7 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       const r = rules.find(item => item.id === body?.id && !item.deleted);
-      if (!r) return error(404, "冲突规则不存在");
+      if (!r) return error(20020, "冲突规则不存在");
       // 合并最终状态（op/role 未传保留原值；rtv 直接用 body，null=清空"全部"，
       // 对齐后端 updateConflictRule 的 PERM_MUTEX rtv 全量覆盖契约）
       const merged = {
@@ -275,7 +285,7 @@ export default defineFakeRoute([
       const err = validateRule(merged);
       if (err) return error(400, err);
       if (isDuplicate(merged, r.id)) {
-        return error(409, "等价冲突规则已存在（双向匹配）");
+        return error(20032, "等价冲突规则已存在（双向匹配）");
       }
       // 全量覆盖（对齐后端 UpdateChain）：按 conflictType 写入对应字段集（规范化顺序），
       // 对侧强制 null；PERM_MUTEX 下 resourceTypeValue 直接覆盖（null=全部，可清空）。
@@ -302,6 +312,7 @@ export default defineFakeRoute([
         r.secondAbstractRoleId = null;
       }
       if (body.description != null) r.description = body.description;
+      r.updatedAt = now();
       return ok(clone(r));
     }
   },
@@ -312,14 +323,13 @@ export default defineFakeRoute([
     response: ({ body }) => {
       const ids: number[] = Array.isArray(body?.ids) ? body.ids : [];
       if (ids.length === 0) return error(400, "ids 不能为空");
-      let count = 0;
+      // 对齐后端 Void：data=null，幽灵 id 幂等静默跳过（T-PERM-030）
       for (const r of rules) {
         if (ids.includes(r.id) && !r.deleted) {
           r.deleted = true;
-          count += 1;
         }
       }
-      return ok({ removed: count });
+      return ok(null);
     }
   },
 

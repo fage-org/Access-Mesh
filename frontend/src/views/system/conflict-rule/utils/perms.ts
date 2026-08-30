@@ -8,13 +8,14 @@
  *
  * ## 权限锚点（对齐后端 ConflictRuleAppServiceImpl）
  *
- * 资源类型 CONFLICT_RULE，写权限为 CREATE/UPDATE/DELETE **三档独立**（非 CREATE+MANAGE）：
- * - `CONFLICT_RULE:VIEW` - 查看冲突规则列表（前端路由门控；后端 list/detail 未见 VIEW 校验，🔧 种子缺失登记 T-PERM-030）
+ * 资源类型 CONFLICT_RULE，读 VIEW + 写 CREATE/UPDATE/DELETE **四档独立**（T-PERM-030 收口口径）：
+ * - `CONFLICT_RULE:VIEW` - 查看冲突规则（后端读三端点 list/detail/detect 类型级校验，T-PERM-030 补齐）
  * - `CONFLICT_RULE:CREATE` - 创建冲突规则（后端 createConflictRule 校验 CONFLICT_RULE:CREATE）
  * - `CONFLICT_RULE:UPDATE` - 编辑冲突规则（后端 updateConflictRule 校验 CONFLICT_RULE:UPDATE）
- * - `CONFLICT_RULE:DELETE` - 删除冲突规则（后端 deleteConflictRule/deleteConflictRulesByIds 校验 CONFLICT_RULE:DELETE）
+ * - `CONFLICT_RULE:DELETE` - 删除冲突规则（后端 deleteConflictRulesByIds 校验 CONFLICT_RULE:DELETE，
+ *   单删方法已随 T-PERM-030 删除）
  *
- * 即：与 CONDITION 一样是 CREATE/UPDATE/DELETE 三档。
+ * 即：读 VIEW + 写三档；类型级门禁（CONFLICT_RULE 无 resource_entity 实例投影，T-PERM-030 口径）。
  * sec（安全管理员）负责冲突规则定义，拥有 CREATE+UPDATE+DELETE；admin 全权；hr/auditor 只读 VIEW。
  *
  * 详见 `docs/design/frontend/conflict-rule.md` §权限接线。

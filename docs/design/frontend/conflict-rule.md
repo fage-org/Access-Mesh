@@ -2,8 +2,9 @@
 
 > status: adopted
 > 任务：T-FE-010（mock 驱动）
-> 后端契约：api-contract.md §5.6（`conflict-rule/*` 含 detect）
-> 后端任务：T-PERM-030（depends_on 本任务）
+> 后端契约：api-contract.md §5.6（`conflict-rule/*` 含 detect；T-PERM-030 收口契约要点）
+> 后端任务：T-PERM-030（depends_on 本任务，已收口 2026-08-30）
+> last_reviewed: 2026-08-30（§4 🔧 六项全收口 + §5 权限接线四档类型级口径）
 
 ## 1. 背景
 
@@ -69,21 +70,23 @@
 
 | 端点 | 请求 | 响应 | 状态 |
 |------|------|------|------|
-| `POST /conflict-rule/list` | EmptyReq | ItemsResp<ConflictRuleResp> | ✅ |
-| `POST /conflict-rule/detail` | IdReq{id} | ConflictRuleResp | ✅ |
-| `POST /conflict-rule/create` | ConflictRuleReq | ConflictRuleResp | ✅ |
-| `POST /conflict-rule/update` | ConflictRuleUpdateReq{id,...} | ConflictRuleResp | ✅ |
-| `POST /conflict-rule/remove` | IdsReq{ids} | Void | ✅ |
-| `POST /conflict-rule/detect` | ConflictRuleDetectReq | ConflictDetectResp | ✅ |
+| `POST /conflict-rule/list` | EmptyReq | ItemsResp<ConflictRuleResp> | ✅（后端补类型级 VIEW 门禁 + Resp 补 updatedAt，T-PERM-030） |
+| `POST /conflict-rule/detail` | IdReq{id} | ConflictRuleResp | ✅（后端补 VIEW 门禁；查不到 20020，T-PERM-030） |
+| `POST /conflict-rule/create` | ConflictRuleReq | ConflictRuleResp | ✅（description ≤512 校验补齐，T-PERM-030） |
+| `POST /conflict-rule/update` | ConflictRuleUpdateReq{id,...} | ConflictRuleResp | ✅（updatedBy 审计补齐，T-PERM-030） |
+| `POST /conflict-rule/remove` | IdsReq{ids} | Void | ✅（响应 data=null；类型级 DELETE 全有或全无 + 幽灵 id 幂等跳过，T-PERM-030） |
+| `POST /conflict-rule/detect` | ConflictRuleDetectReq | ConflictDetectResp | ✅（后端补类型级 VIEW 门禁，T-PERM-030） |
 
-### 🔧 登记T-PERM-030
+### 🔧 登记T-PERM-030（六项全收口，2026-08-30）
 
-- detail/update/remove 用内部主键 id（冲突规则无业务键如 code，id 即唯一标识；与 resource/operation/condition 不同，切业务键诉求弱，登记后端评估）
-- list 无分页无筛选（全量），后端 listConflictRules 无 VIEW 校验，种子可能缺失
-- Resp 缺 updatedAt（只有 createdAt），🔧 后端补齐
-- `ConflictRuleDetailReq`（conflictRuleId）为死代码，Controller 实际用 IdReq{id}，❌ 后端清理
-- conflictType 实体注释（MUTEX_OP/MUTEX_ROLE）与 enum（ROLE_MUTEX/PERM_MUTEX）不一致，🔧 后端修正注释
-- detect 无权限校验（public 方法），🔧 后端评估是否补 VIEW 校验
+- detail/update/remove 用内部主键 id —— **评估定案维持 id**：冲突规则无业务键（type+对象对+rtv 为复合语义身份，无单列 code 可切，与 resource/operation/condition 不同；造 code 列属过度设计）
+- list 无分页无筛选（全量），后端 listConflictRules 无 VIEW 校验 —— **已补**：读三端点（list/detail/detect）类型级 CONFLICT_RULE:VIEW 门禁（经决策；CONDITION「读不设门禁」定案依据是授权页依赖条件列表，冲突规则无此跨页依赖）；list 维持全量不分页（量小定案）；bootstrap 固定图补 CONFLICT_RULE 四档 + CONDITION 写三档（空库死锁防护，CONDITION 为 T-PERM-029 遗漏同款缺口顺带补）
+- Resp 缺 updatedAt —— **已补**（create=createdAt、update 刷新；update 同步补 updatedBy 审计）
+- `ConflictRuleDetailReq`（conflictRuleId）死代码 —— **已删除**（Controller 用 IdReq{id}）
+- conflictType 实体注释（MUTEX_OP/MUTEX_ROLE）与 enum 不一致 —— **已修正**（对齐 ROLE_MUTEX/PERM_MUTEX）
+- detect 无权限校验 —— **已补类型级 VIEW**（matchedRules 透出完整规则数据，与 list 同级敏感；经决策）
+
+另随 T-PERM-030：写门禁从「编码轨传内部 id 的实例级」收窄为类型级（CONFLICT_RULE 无实例投影，ID 空间错位废弃，同 T-PERM-029 CONDITION 口径，实例投影登记 T-PERM-048）；detail 查不到从 data:null 收紧为 20020；update 从 UpdateChain 改 UpdateEntity 强制写列（T-PERM-028 extraClear 同款标准方式，语义不变）；mock 对齐后端错误码（404→20020、409→20032、remove 返 data=null）。
 
 ### ✅ 本次修复（T-PERM-030 P1，2026-07-11）
 
@@ -97,19 +100,20 @@
 
 ## 5. 权限接线
 
-资源类型 `CONFLICT_RULE`，写权限 CREATE/UPDATE/DELETE **三档独立**（非 CREATE+MANAGE，对齐后端 ConflictRuleAppServiceImpl）：
+资源类型 `CONFLICT_RULE`，读 VIEW + 写 CREATE/UPDATE/DELETE **四档独立**（非 CREATE+MANAGE，对齐后端；T-PERM-030 收口口径——读三端点 list/detail/detect 与写三档均为类型级）：
 
 | perm 串 | 门控 | 后端校验 |
 |---------|------|----------|
-| `CONFLICT_RULE:VIEW` | 路由可达性 + 列表加载 | 🔧 无（list/detail 未校验，登记 T-PERM-030） |
-| `CONFLICT_RULE:CREATE` | 新增按钮 | createConflictRule 校验 |
-| `CONFLICT_RULE:UPDATE` | 编辑按钮 | updateConflictRule 校验 |
-| `CONFLICT_RULE:DELETE` | 删除按钮 | deleteConflictRule/deleteConflictRulesByIds 校验 |
+| `CONFLICT_RULE:VIEW` | 路由可达性 + 列表加载 | ✅ 类型级（list/detail/detect，T-PERM-030 补齐） |
+| `CONFLICT_RULE:CREATE` | 新增按钮 | createConflictRule 校验（类型级） |
+| `CONFLICT_RULE:UPDATE` | 编辑按钮 | updateConflictRule 校验（类型级，T-PERM-030 收窄） |
+| `CONFLICT_RULE:DELETE` | 删除按钮 | deleteConflictRulesByIds 校验（类型级全有或全无，T-PERM-030 收窄） |
 
 - SSOT：`views/system/conflict-rule/utils/perms.ts`（CONFLICT_RULE_PERMS / CONFLICT_RULE_PERM_LIST / CONFLICT_RULE_VIEW_PERMS）
 - 路由 `meta.auths`：`[...CONFLICT_RULE_PERM_LIST]`
-- mock 角色矩阵：admin 全权；sec（安全管理员）CREATE+UPDATE+DELETE；hr/auditor 只读 VIEW
-- detect 按钮复用 VIEW 门控（后端 detect 无独立权限校验）
+- mock 角色矩阵：admin 全权；sec（安全管理员）VIEW+CREATE+UPDATE+DELETE；hr/auditor 只读 VIEW
+- detect 按钮复用 VIEW 门控（后端 detect 已补同款类型级 VIEW 校验，T-PERM-030）
+- bootstrap 固定图持 CONFLICT_RULE 四档类型级不可转授（空库授予起点，T-PERM-030 补入）
 
 ## 6. 组件
 
@@ -147,7 +151,7 @@
 |---|--------|------|
 | 1 | P0 骨架（路由/标题/表格+表单弹窗+检测对话框） | ✅ |
 | 2 | Step 1.5 组件识别（Diff 面板不适用，分组选择器内聚） | ✅ |
-| 3 | API 核对（6 端点 ✅，🔧/❌ 登记T-PERM-030） | ✅ |
+| 3 | API 核对（6 端点 ✅，🔧 六项已随 T-PERM-030 全收口，见 §4） | ✅ |
 | 4 | P2 权限接线（hasPerms + 无权降级 el-empty） | ✅ |
 | 5 | design_writeback（本文件 status: adopted） | ✅ |
 | 6 | resourceTypeValue 映射（getTypeDefList 筛 resource_type，设计 §Q1） | ✅ |

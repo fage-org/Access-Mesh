@@ -10,14 +10,14 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ConflictRuleUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConflictDetectResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConflictRuleResp;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionConflictRule;
-import cn.ac.fage.accessmesh.access.permission.entity.table.PermissionConflictRuleTableDef;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.ConflictRuleAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
-import com.mybatisflex.core.update.UpdateChain;
+import com.mybatisflex.core.util.UpdateEntity;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,8 +35,14 @@ import java.util.stream.Collectors;
  * 权限冲突规则定义了哪些操作权限组合被视为冲突，
  * 用于权限分配时检测和预警潜在的权限冲突。
  * 冲突检测支持双向匹配（A-B和B-A都视为冲突）。
- * 所有操作均通过PermQueryEngine进行权限校验，确保操作安全。
  * 批量删除采用批量软删除策略，避免N+1查询问题。
+ * </p>
+ * <p>
+ * 门禁语义（T-PERM-030 口径）：读 list/detail/detect 与写 create/update/remove 均为
+ * CONFLICT_RULE 类型级（scope_all）——CONFLICT_RULE 无 resource_entity 实例投影，
+ * 实例级授权无从配置（role_resource_permission.resource_entity_id 引用 resource_entity.id
+ * 空间），原「编码轨传内部 id」的实例级声称系 ID 空间错位已废弃（与 T-PERM-029 CONDITION
+ * 同口径，实例投影登记 T-PERM-048）。remove 类型级全有或全无；幽灵 id 静默跳过不进入门禁。
  * </p>
  * <p>
  * ID 顺序规范化：create/update 写库时保证 first_id &lt; second_id
@@ -44,7 +50,7 @@ import java.util.stream.Collectors;
  * uk_conflict_rule_perm/role 正确去重，并简化双向匹配语义。
  * </p>
  * <p>
- * update 全量覆盖：按 conflictType 用 UpdateChain 显式写入对应字段集
+ * update 全量覆盖：按 conflictType 用 UpdateEntity 显式写入对应字段集
  * （对侧强制 null、resourceTypeValue 可清空），解决 if(field!=null) 语义
  * 无法清空字段的问题（类型切换脏数据 / 资源类型清空无效）。
  * </p>
@@ -177,7 +183,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      * 创建新的权限冲突规则定义。
      * 冲突规则指定两个操作权限的组合被视为冲突，
      * 可限定于特定资源类型或角色。
-     * 需要CONFLICT_RULE_CREATE权限。
+     * 类型级 CONFLICT_RULE:CREATE 门禁。
      * 对象对写入前规范化为 first&lt;second 顺序。
      * </p>
      *
@@ -186,7 +192,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      * @param operatorId 操作者ID，可选
      * @return 创建的冲突规则响应
      * @throws SecurityException 无权限时抛出
-     * @throws BizException      字段校验失败时抛出
+     * @throws BizException      字段校验失败或等价规则已存在（20032）时抛出
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -239,40 +245,62 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      * 获取权限冲突规则详情
      * <p>
      * 根据规则ID查询权限冲突规则的完整信息。
+     * 类型级 CONFLICT_RULE:VIEW 门禁（T-PERM-030）。
+     * 查不到抛 20020（T-PERM-030 收紧，原 data=null 宽松语义删除，
+     * 对齐 T-PERM-028 resource-entity/detail 与 T-PERM-029 condition/detail 定案）。
      * </p>
      *
      * @param tenantId 租户ID
      * @param ruleId   冲突规则ID
-     * @return 冲突规则响应，不存在返回null
+     * @return 冲突规则响应
+     * @throws SecurityException 无 VIEW 权限时抛出
+     * @throws BizException      规则不存在（20020）时抛出
      */
     @Override
     public ConflictRuleResp getConflictRule(Long tenantId, Long ruleId) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on CONFLICT_RULE");
+        }
         PermissionConflictRule rule = conflictRuleMapper.selectValidById(ruleId, tenantId);
-        return rule != null ? toConflictRuleResp(rule) : null;
+        if (rule == null) {
+            throw new BizException(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
+                "Conflict rule not found: " + ruleId);
+        }
+        return toConflictRuleResp(rule);
     }
 
     /**
      * 查询权限冲突规则列表
      * <p>
-     * 查询租户下所有活跃的权限冲突规则。
+     * 查询租户下所有活跃的权限冲突规则。全量不分页（量小，非流水表，
+     * 对齐 T-PERM-029 condition / T-PERM-026 domain-config「量小不分页」定案），
+     * 类型/关键词过滤由前端本地完成。
+     * 类型级 CONFLICT_RULE:VIEW 门禁（T-PERM-030）。
      * </p>
      *
      * @param tenantId 租户ID
      * @return 冲突规则响应列表
+     * @throws SecurityException 无 VIEW 权限时抛出
      */
     @Override
     public List<ConflictRuleResp> listConflictRules(Long tenantId) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on CONFLICT_RULE");
+        }
         return conflictRuleMapper.selectByTenantId(tenantId).stream().map(this::toConflictRuleResp).collect(Collectors.toList());
     }
 
     /**
      * 更新权限冲突规则
      * <p>
-     * 按 conflictType 全量覆盖对应字段集（UpdateChain 显式 set）：
+     * 先按 id 解析规则（selectValidById 已含租户 + delete_flag=0 过滤，
+     * 查不到抛 20020），再做类型级 CONFLICT_RULE:UPDATE 门禁。
+     * 按 conflictType 全量覆盖对应字段集（UpdateEntity 显式 set）：
      * 对侧字段强制 null，resourceTypeValue 在 PERM_MUTEX 下直接覆盖（null=全部，可清空）。
      * 解决原 if(field!=null) 语义无法清空字段的问题（类型切换脏数据 / 资源类型清空无效）。
-     * 对象对写入前规范化为 first&lt;second 顺序。
-     * 需要CONFLICT_RULE_UPDATE权限。
+     * 对象对写入前规范化为 first&lt;second 顺序，updatedBy/updatedAt 随写。
      * </p>
      *
      * @param tenantId   租户ID
@@ -280,20 +308,23 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      * @param operatorId 操作者ID，可选
      * @return 更新后的冲突规则响应
      * @throws SecurityException 无权限时抛出
-     * @throws BizException      规则不存在或字段校验失败时抛出
+     * @throws BizException      规则不存在（20020）、字段校验失败或等价规则已存在（20032）时抛出
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "PERMISSION", action = "CONFLICT_RULE_UPDATE", targetType = "permission_conflict_rule", targetId = "#req.id()", summary = "'update conflict rule ' + #req.id()")
     public ConflictRuleResp updateConflictRule(Long tenantId, ConflictRuleUpdateReq req, Long operatorId) {
-        operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, String.valueOf(req.id()), OperationCodeConstants.UPDATE)) {
-            throw new SecurityException("Permission denied: UPDATE on CONFLICT_RULE:" + req.id());
+        // 先解析后门禁（T-PERM-028/029 模式：未知键 20020 优先于权限拒绝，零副作用）
+        PermissionConflictRule rule = conflictRuleMapper.selectValidById(req.id(), tenantId);
+        if (rule == null) {
+            throw new BizException(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
+                "Conflict rule not found: " + req.id());
         }
-
-        PermissionConflictRule rule = conflictRuleMapper.selectOneById(req.id());
-        if (rule == null || rule.getDeleteFlag() != 0L || !tenantId.equals(rule.getTenantId())) {
-            throw new BizException(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(), "Conflict rule not found: " + req.id());
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        // 类型级门禁（T-PERM-030 口径收窄，同 T-PERM-029 CONDITION）：CONFLICT_RULE 无
+        // resource_entity 实例投影，实例级授权无从配置，与 OPERATION/CONDITION 同款类型级
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.UPDATE)) {
+            throw new SecurityException("Permission denied: UPDATE on CONFLICT_RULE:" + req.id());
         }
 
         // 合并出最终状态（op/role 未传字段保留原值，支持部分更新），校验 + 规范化。
@@ -312,36 +343,35 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
         }
 
-        // UpdateChain 全量覆盖：按 conflictType 写入对应字段集（规范化顺序），对侧强制 null。
+        // UpdateEntity 全量覆盖（T-PERM-030 从 UpdateChain 对齐 T-PERM-028 extraClear 标准方式）：
+        // 按 conflictType 写入对应字段集（规范化顺序），对侧强制 null。
         // PERM_MUTEX 下 resourceTypeValue 直接用 req 值（null=全部，可清空）。
-        PermissionConflictRuleTableDef t = PermissionConflictRuleTableDef.PERMISSION_CONFLICT_RULE;
-        UpdateChain<PermissionConflictRule> chain = UpdateChain.of(conflictRuleMapper)
-            .set(t.CONFLICT_TYPE, conflictType, true)
-            .set(t.UPDATED_AT, LocalDateTime.now(), true);
-
+        PermissionConflictRule patch = UpdateEntity.of(PermissionConflictRule.class);
+        patch.setId(req.id());
+        patch.setConflictType(conflictType);
+        patch.setUpdatedAt(LocalDateTime.now());
+        patch.setUpdatedBy(operatorId);
         if (ROLE_MUTEX.equals(conflictType)) {
             long[] pair = normalizePair(firstRole, secondRole);
-            chain.set(t.FIRST_ABSTRACT_ROLE_ID, pair[0], true)
-                .set(t.SECOND_ABSTRACT_ROLE_ID, pair[1], true)
-                .set(t.FIRST_OPERATION_PERMISSION_ID, null, true)
-                .set(t.SECOND_OPERATION_PERMISSION_ID, null, true)
-                .set(t.RESOURCE_TYPE_VALUE, null, true);
+            patch.setFirstAbstractRoleId(pair[0]);
+            patch.setSecondAbstractRoleId(pair[1]);
+            patch.setFirstOperationPermissionId(null);
+            patch.setSecondOperationPermissionId(null);
+            patch.setResourceTypeValue(null);
         } else {
             long[] pair = normalizePair(firstOp, secondOp);
-            chain.set(t.FIRST_OPERATION_PERMISSION_ID, pair[0], true)
-                .set(t.SECOND_OPERATION_PERMISSION_ID, pair[1], true)
-                .set(t.RESOURCE_TYPE_VALUE, req.resourceTypeValue(), true)
-                .set(t.FIRST_ABSTRACT_ROLE_ID, null, true)
-                .set(t.SECOND_ABSTRACT_ROLE_ID, null, true);
+            patch.setFirstOperationPermissionId(pair[0]);
+            patch.setSecondOperationPermissionId(pair[1]);
+            patch.setResourceTypeValue(req.resourceTypeValue());
+            patch.setFirstAbstractRoleId(null);
+            patch.setSecondAbstractRoleId(null);
         }
         if (req.description() != null) {
-            chain.set(t.DESCRIPTION, req.description(), true);
+            patch.setDescription(req.description());
         }
 
         try {
-            chain.where(t.ID.eq(req.id()))
-                .and(t.TENANT_ID.eq(tenantId))
-                .update();
+            conflictRuleMapper.update(patch);
         } catch (DataIntegrityViolationException e) {
             if (isConflictRuleUniqueViolation(e)) {
                 throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
@@ -359,14 +389,20 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      * 支持双向匹配：如果规则定义了(A,B)冲突，则(A,B)和(B,A)都视为冲突。
      * 可按资源类型过滤冲突规则；resource_type_value IS NULL 的全局规则
      * 始终参与匹配（对齐 schema「NULL=所有」语义，由 Mapper SQL 保证）。
+     * 类型级 CONFLICT_RULE:VIEW 门禁（T-PERM-030，matchedRules 同样透出规则数据）。
      * </p>
      *
      * @param tenantId 租户ID
      * @param req      冲突检测请求，包含两个操作权限ID和可选的资源类型
      * @return 冲突检测结果，包含是否冲突和匹配的冲突规则列表
+     * @throws SecurityException 无 VIEW 权限时抛出
      */
     @Override
     public ConflictDetectResp detectConflictRule(Long tenantId, ConflictRuleDetectReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on CONFLICT_RULE");
+        }
         Integer resourceTypeValue = req.resourceTypeValue();
         List<PermissionConflictRule> rules = conflictRuleMapper.selectByTenantAndResourceType(tenantId, resourceTypeValue);
         List<ConflictRuleResp> matched = rules.stream().filter(rule ->
@@ -379,49 +415,18 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     }
 
     /**
-     * 删除单个权限冲突规则
-     * <p>
-     * 软删除指定的权限冲突规则。
-     * 需要CONFLICT_RULE_DELETE权限。
-     * </p>
-     *
-     * @param tenantId   租户ID
-     * @param ruleId     冲突规则ID
-     * @param operatorId 操作者ID，可选
-     * @throws SecurityException 无权限时抛出
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    @OperationLog(module = "PERMISSION", action = "CONFLICT_RULE_REMOVE", targetType = "permission_conflict_rule", targetId = "#ruleId", summary = "'remove conflict rule ' + #ruleId")
-    public void deleteConflictRule(Long tenantId, Long ruleId, Long operatorId) {
-        operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, String.valueOf(ruleId), OperationCodeConstants.DELETE)) {
-            throw new SecurityException("Permission denied: DELETE on CONFLICT_RULE:" + ruleId);
-        }
-
-        PermissionConflictRule rule = conflictRuleMapper.selectOneById(ruleId);
-        if (rule == null || rule.getDeleteFlag() != 0L || !tenantId.equals(rule.getTenantId())) {
-            OperationLogRuntimeContext.markSkip();
-            return;
-        }
-
-        rule.setDeleteFlag(rule.getId());
-        rule.setDeletedAt(LocalDateTime.now());
-        conflictRuleMapper.update(rule);
-    }
-
-    /**
      * 批量删除权限冲突规则
      * <p>
-     * 批量软删除权限冲突规则。
-     * 使用批量查询和批量软删除避免N+1问题。
-     * 需要CONFLICT_RULE_DELETE权限。
+     * 按规则ID集合批量软删除（T-PERM-030：单删孤儿方法已删除，Controller 仅调本批量版）。
+     * 先批量解析有效实体（一次 SQL），不存在/已删除的 id 静默跳过（幂等语义，
+     * 与 resource-entity/remove、condition/remove 一致），再对整批做类型级
+     * CONFLICT_RULE:DELETE 门禁（全有或全无），最后批量软删除。
      * </p>
      *
      * @param tenantId   租户ID
      * @param ids        冲突规则ID列表
      * @param operatorId 操作者ID，可选
-     * @throws SecurityException 无权限时抛出
+     * @throws SecurityException 无类型级 DELETE 权限时抛出（fail-closed 整批不变更）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -440,13 +445,6 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             return;
         }
 
-        // T-PERM-042：引擎纯查询，拒绝时由调用方显式抛出
-        Set<Long> deniedIds = engine.getDeniedEntityIds(
-            tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, validInputIds, OperationCodeConstants.DELETE);
-        if (!deniedIds.isEmpty()) {
-            throw new SecurityException("Permission denied: DELETE on CONFLICT_RULE:" + deniedIds);
-        }
-
         List<PermissionConflictRule> entities = conflictRuleMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -454,6 +452,13 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         }
 
         Set<Long> validIds = entities.stream().map(PermissionConflictRule::getId).collect(Collectors.toSet());
+
+        // 类型级门禁（T-PERM-030 口径收窄，同 T-PERM-029 CONDITION）：CONFLICT_RULE 无实例投影，
+        // 类型级全有或全无——幽灵 id 已在解析阶段静默跳过，不进入门禁
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.DELETE)) {
+            throw new SecurityException("Permission denied: DELETE on CONFLICT_RULE:" + validIds);
+        }
+
         // 批量软删除（性能优化：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         conflictRuleMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
@@ -471,7 +476,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             r.getId(), r.getTenantId(), r.getConflictType(),
             r.getFirstOperationPermissionId(), r.getSecondOperationPermissionId(),
             r.getResourceTypeValue(), r.getFirstAbstractRoleId(), r.getSecondAbstractRoleId(),
-            r.getDescription(), r.getCreatedAt()
+            r.getDescription(), r.getCreatedAt(), r.getUpdatedAt()
         );
     }
 }

@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 冲突规则更新请求体
@@ -24,7 +25,7 @@ import jakarta.validation.constraints.NotNull;
  * @param resourceTypeValue         资源类型值，PERM_MUTEX 显式传（null=全部资源类型）
  * @param firstAbstractRoleId       第一个角色ID（ROLE_MUTEX 必填）
  * @param secondAbstractRoleId      第二个角色ID（ROLE_MUTEX 必填）
- * @param description               规则描述，可选
+ * @param description               规则描述，可选，≤512
  */
 public record ConflictRuleUpdateReq(
     @NotNull Long id,
@@ -34,5 +35,5 @@ public record ConflictRuleUpdateReq(
     Integer resourceTypeValue,
     Long firstAbstractRoleId,
     Long secondAbstractRoleId,
-    String description
+    @Size(max = 512) String description
 ) {}

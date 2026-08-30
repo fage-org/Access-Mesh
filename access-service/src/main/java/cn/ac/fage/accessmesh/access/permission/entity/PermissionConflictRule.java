@@ -36,7 +36,7 @@ public class PermissionConflictRule {
     private Long tenantId;
 
     /**
-     * 冲突类型（MUTEX_OP=操作互斥，MUTEX_ROLE=角色互斥）
+     * 冲突类型（ROLE_MUTEX=角色互斥，PERM_MUTEX=权限互斥，对齐 ConflictType 枚举与 DDL 注释）
      */
     private String conflictType;
 

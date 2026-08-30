@@ -209,18 +209,19 @@ class AccessBootstrapPgIT {
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 AND re.code = 'POST:/admin/role/my-info'",
             Long.class, TENANT)).isEqualTo(0L);
 
-        // 27 条授权（T-API-001 + T-PERM-025/032/026/027）：14 条业务门禁 scopeAll（含 SERVICE
+        // 34 条授权（T-API-001 + T-PERM-025/032/026/027/030）：21 条业务门禁 scopeAll（含 SERVICE
         // 四操作类型级 VIEW/MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE 与 API:ACCESS 类型级+canGrant、
-        // OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW、DOMAIN:VIEW）
+        // OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW、DOMAIN:VIEW、T-PERM-030 补
+        // CONFLICT_RULE 四档与 CONDITION 写三档）
         // + 13 条实例（13 API:ACCESS）；canGrant=true 共 2 条（目标 API 实例 + API:ACCESS 类型级）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(27L);
+            Long.class, TENANT, roleId)).isEqualTo(34L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
-            Long.class, TENANT, roleId)).isEqualTo(14L);
+            Long.class, TENANT, roleId)).isEqualTo(21L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND can_grant = true",

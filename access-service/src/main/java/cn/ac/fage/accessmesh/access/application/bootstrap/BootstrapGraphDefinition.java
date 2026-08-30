@@ -119,6 +119,19 @@ public final class BootstrapGraphDefinition {
             // T-PERM-026：业务域页读门禁——checkCanGrant 要求操作者先持有才能转授，
             // 固定图不持 DOMAIN:VIEW 则空库上业务域页读路径无授予起点（死锁，同 OPERATION_LOG 先例）
             new GrantSpec(ResourceTypeCode.DOMAIN, OperationCodeConstants.VIEW, null, false),
+            // T-PERM-030：冲突规则页读写四档——固定图不持则空库上该页读写路径无授予起点
+            // （死锁，同 DOMAIN 先例）。读取（list/detail/detect）亦有 VIEW 门禁，
+            // 故 VIEW 与写三档同补；不可转授与全部业务门禁同口径
+            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCodeConstants.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCodeConstants.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCodeConstants.DELETE, null, false),
+            // T-PERM-030 顺带补授（T-PERM-029 遗漏）：条件页写门禁三档类型级——固定图不持则
+            // 空库上条件页写路径与 CONDITION:* 转授无授予起点（死锁，同款机制）。
+            // 读取无门禁（2026-08-08 产品确认条件全租户开放），故无 VIEW 条目
+            new GrantSpec(ResourceTypeCode.CONDITION, OperationCodeConstants.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.CONDITION, OperationCodeConstants.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.CONDITION, OperationCodeConstants.DELETE, null, false),
             // T-API-001：类型级 API:ACCESS + canGrant——新接入服务接口的授权必须由首管理员完成，
             // 实例级（仅清单内管理接口）会造成鸡生蛋（无正规入口给新接口授权）。
             // ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子），此处按契约字符串声明

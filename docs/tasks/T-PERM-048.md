@@ -14,11 +14,11 @@ acceptance:
   - "CONDITION 无 resource_entity 实例投影、role_resource_permission.resource_entity_id 引用 resource_entity.id 空间——实例级授权无从配置（授权页选不到、DB 配不进）；T-PERM-029 期间（2026-08-30 设计定案）写门禁先收窄为类型级（scope_all，与 OPERATION/SYSTEM_CONFIG 同款），实例投影为目标态、时机另定（本任务）"
   - "条件双轨制（2026-08-30 产品构想，原样登记）：条件分两类——①权限条件页面管理的条件：只能在权限条件页面管理，授权页面只能**引用**；②授权页面配置的条件：在权限条件页面**查不到也不能管理**，只能在授权页面更改。permission_condition 表需新增来源字段区分两类；两页 UI 交互同步更新（权限条件页按来源过滤，授权页支持内联条件的创建/更改）"
   - "CONDITION→resource_entity 实例投影链路：条件创建/删除同步登记/清理 resource_entity 行（resourceType=CONDITION），授权页资源选择器按双轨规则纳入可引用条件；投影落地后评估 CONDITION 写门禁是否从类型级升级实例级（含既有 scope_all 授权兼容）"
-  - "CONFLICT_RULE 域同款门禁 ID 空间错位（ConflictRuleAppServiceImpl 编码轨传内部 id，实例级同样无从配置）随本任务或 T-PERM-030 对齐收口（同口径定案：类型级或投影）"
+  - "CONFLICT_RULE 域同款门禁 ID 空间错位（ConflictRuleAppServiceImpl 编码轨传内部 id，实例级同样无从配置）已随 T-PERM-030 于 2026-08-30 同口径收口（类型级，bootstrap 固定图同步补 CONFLICT_RULE 四档）；CONDITION 侧剩余范围为实例投影与双轨制本体"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-30
+last_updated: 2026-08-30（T-PERM-030 关联更新：CONFLICT_RULE 错位已收口）
 ---
 
 # T-PERM-048 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件
@@ -46,4 +46,4 @@ T-PERM-029 收口期间发现 CONDITION 写门禁的「实例级」声称系 ID 
 ## 关联
 
 - T-PERM-029（本任务起因，门禁口径收窄为类型级）
-- T-PERM-030（CONFLICT_RULE 同款门禁错位，待同口径收口）
+- T-PERM-030（CONFLICT_RULE 同款门禁错位，已随其 2026-08-30 收口为类型级；CONDITION 实例投影与双轨制仍归本任务）

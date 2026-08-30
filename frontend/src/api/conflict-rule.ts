@@ -5,18 +5,17 @@
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.6
+ * 契约依据：docs/design/permission-center/api-contract.md §5.6（T-PERM-030 收口契约要点）
  * 后端实现：access-service ConflictRuleController + ConflictRuleAppService
  *
- * 🔧 API 核对项（登记 T-PERM-030）：
- * - detail/update/remove 用内部主键 id。冲突规则无业务键（无 code 字段），id 即唯一标识，
- *   与 resource/operation/condition（有 code）不同，切业务键诉求弱，可接受--仍登记后端评估。
- * - list 无分页无筛选（全量），后端 listConflictRules 无 VIEW 校验，种子可能缺失--
- *   前端按 CONFLICT_RULE:VIEW 门控路由可达性。
- * - Resp 缺 updatedAt（只有 createdAt），🔧 登记后端补齐。
- * - ConflictRuleDetailReq（conflictRuleId）为死代码，Controller 实际用 IdReq{id}，❌ 登记后端清理。
- * - conflictType 实体注释（MUTEX_OP/MUTEX_ROLE）与 enum（ROLE_MUTEX/PERM_MUTEX）不一致，🔧 登记后端修正注释。
- * - detect 无权限校验（public 方法），🔧 登记后端评估是否补 VIEW 校验。
+ * T-PERM-030 收口（原 🔧 登记全部处置）：
+ * - detail/update/remove 维持内部主键 id（评估定案：冲突规则无业务键，type+对象对+rtv 为
+ *   复合语义身份，无单列 code 可切，与 resource/operation/condition 不同）。
+ * - list 全量不分页（量小非流水表，对齐 condition/domain-config 定案）；后端读端点
+ *   （list/detail/detect）已补类型级 CONFLICT_RULE:VIEW 门禁。
+ * - Resp 已补 updatedAt；detail 查不到抛 20020（CONFLICT_RULE_NOT_FOUND）。
+ * - ConflictRuleDetailReq 死代码已删除（Controller 用 IdReq{id}）。
+ * - conflictType 实体注释已对齐枚举（ROLE_MUTEX/PERM_MUTEX）。
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
@@ -63,6 +62,8 @@ export type ConflictRuleResp = {
   secondAbstractRoleId: number | null;
   description: string | null;
   createdAt: string;
+  /** 最后更新时间（T-PERM-030 后端补齐） */
+  updatedAt: string;
 };
 
 /** 冲突规则字段集（按 conflictType 区分，create/update 共用）。
@@ -125,7 +126,7 @@ export const getConflictRuleList = async (): Promise<
 };
 
 /** 查询冲突规则详情（POST /api/perm/conflict-rule/detail，IdReq{id}）。
- *  🔧 用内部主键 id（冲突规则无业务键，登记 T-PERM-030）。 */
+ *  内部主键 id 定位（T-PERM-030 评估定案：冲突规则无业务键）；查不到抛 20020。 */
 export const getConflictRuleDetail = async (
   id: number
 ): Promise<ConflictRuleResp> => {
@@ -151,7 +152,7 @@ export const createConflictRule = async (
 
 /** 更新冲突规则（POST /api/perm/conflict-rule/update）。
  *  全量替换语义（PUT）：须传完整字段集（按 conflictType），rtv 显式传（null=清空"全部"）。
- *  🔧 用内部 id（登记 T-PERM-030）。 */
+ *  内部主键 id 定位（T-PERM-030 评估定案）；查不到抛 20020。 */
 export const updateConflictRule = async (
   data: ConflictRuleUpdateReq
 ): Promise<ConflictRuleResp> => {
@@ -164,7 +165,7 @@ export const updateConflictRule = async (
 };
 
 /** 删除冲突规则，支持批量（POST /api/perm/conflict-rule/remove，IdsReq{ids}）。
- *  🔧 用内部 id（登记 T-PERM-030）。 */
+ *  幂等：幽灵 id 静默跳过；无类型级 DELETE 权限整批拒绝。 */
 export const removeConflictRules = async (ids: number[]): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
@@ -177,7 +178,7 @@ export const removeConflictRules = async (ids: number[]): Promise<void> => {
 
 /** 冲突检测（POST /api/perm/conflict-rule/detect）。
  *  仅检测操作权限对（PERM_MUTEX 场景），双向匹配（A-B 和 B-A 都算）。
- *  🔧 后端 detect 无权限校验（登记 T-PERM-030）。 */
+ *  T-PERM-030：后端已补类型级 CONFLICT_RULE:VIEW 门禁（与 list/detail 同款）。 */
 export const detectConflictRule = async (
   data: ConflictDetectReq
 ): Promise<ConflictDetectResp> => {
