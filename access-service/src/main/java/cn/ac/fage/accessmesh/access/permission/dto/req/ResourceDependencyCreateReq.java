@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /**
@@ -20,7 +21,7 @@ import java.util.List;
  * @param targetCodeType         目标编码类型，可选
  * @param requiredOperationCodes 要求操作编码列表，必填且不能为空
  * @param autoGrant              预留未实现：自动授权暂缓（T-PERM-035），仅接受 false/省略，传 true 返回 20048
- * @param description            依赖描述，可选
+ * @param description            依赖描述，可选（≤512）
  */
 public record ResourceDependencyCreateReq(
     @NotBlank String sourceResourceTypeCode,
@@ -32,5 +33,5 @@ public record ResourceDependencyCreateReq(
     String targetCodeType,
     @NotEmpty List<String> requiredOperationCodes,
     Boolean autoGrant,
-    String description
+    @Size(max = 512) String description
 ) {}

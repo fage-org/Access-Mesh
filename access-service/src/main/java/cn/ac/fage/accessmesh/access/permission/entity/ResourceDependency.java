@@ -71,7 +71,7 @@ public class ResourceDependency {
     private String ownerServiceCode;
 
     /**
-     * 维护来源（MANUAL/SYNC）
+     * 维护来源（schema 四值：ADMIN_UI=管理端维护/SDK_SCAN/MANIFEST/SERVICE_SYNC）
      */
     private String maintainSource;
 

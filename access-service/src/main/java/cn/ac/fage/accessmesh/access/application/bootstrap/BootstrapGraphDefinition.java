@@ -132,6 +132,15 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.CONDITION, OperationCodeConstants.CREATE, null, false),
             new GrantSpec(ResourceTypeCode.CONDITION, OperationCodeConstants.UPDATE, null, false),
             new GrantSpec(ResourceTypeCode.CONDITION, OperationCodeConstants.DELETE, null, false),
+            // T-PERM-031：资源依赖页读写五档（VIEW/CREATE/UPDATE/DELETE/SYNC）——固定图不持则
+            // 空库上该页读写路径无授予起点（死锁，同 DOMAIN/CONFLICT_RULE 先例）。
+            // SYNC 随四档同补：batch-sync 端点存在且门禁为 SYNC，前端 P0 未接入不改变端点门禁事实；
+            // 不可转授与全部业务门禁同口径（转授链仅 API:ACCESS）
+            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.DELETE, null, false),
+            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.SYNC, null, false),
             // T-API-001：类型级 API:ACCESS + canGrant——新接入服务接口的授权必须由首管理员完成，
             // 实例级（仅清单内管理接口）会造成鸡生蛋（无正规入口给新接口授权）。
             // ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子），此处按契约字符串声明

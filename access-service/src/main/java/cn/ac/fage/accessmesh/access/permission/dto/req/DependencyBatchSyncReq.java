@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.access.permission.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /**
@@ -9,14 +11,15 @@ import java.util.List;
  * 用于批量同步资源依赖关系，支持服务级同步和多种同步模式。
  * </p>
  *
- * @param serviceCode   服务编码，必填
- * @param maintainSource 维护来源，必填（SERVICE/MANUAL）
- * @param syncMode      同步模式，可选（FULL/PARTIAL）
- * @param items         依赖同步条目列表
+ * @param serviceCode    服务编码，必填
+ * @param maintainSource 维护来源，必填（schema 四值白名单：ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC）
+ * @param syncMode       同步模式，可选（FULL=全量 diff；非 FULL 走增量 upsert）
+ * @param items          依赖同步条目列表
  */
 public record DependencyBatchSyncReq(
     @NotBlank String serviceCode,
-    @NotBlank String maintainSource,
+    @NotBlank @Pattern(regexp = "ADMIN_UI|SDK_SCAN|MANIFEST|SERVICE_SYNC",
+        message = "maintainSource 仅接受 ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC") String maintainSource,
     String syncMode,
     List<DependencySyncItem> items
 ) {
@@ -35,7 +38,7 @@ public record DependencyBatchSyncReq(
      * @param targetCodeType         目标编码类型，可选
      * @param requiredOperationCodes 要求操作编码列表，可选
      * @param autoGrant              预留未实现：自动授权暂缓（T-PERM-035），仅接受 false/省略，传 true 返回 20048
-     * @param description            依赖描述，可选
+     * @param description            依赖描述，可选（≤512）
      */
     public record DependencySyncItem(
         @NotBlank String sourceResourceTypeCode,
@@ -47,6 +50,6 @@ public record DependencyBatchSyncReq(
         String targetCodeType,
         List<String> requiredOperationCodes,
         Boolean autoGrant,
-        String description
+        @Size(max = 512) String description
     ) {}
 }

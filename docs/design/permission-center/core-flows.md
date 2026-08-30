@@ -324,7 +324,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - `resource_dependency.resource_entity_id` 是源资源/被授权资源；`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
 - 授权源资源时，自动补全查询条件必须是 `resource_dependency.resource_entity_id = 授权资源ID`。
 - 同一源资源和依赖资源可以按不同 `source_operation_bits` 配置多条依赖规则。
-- `resource-dependency/batch-sync` 的 FULL diff 只能清理同一 `ownerServiceCode + maintainSource` 范围内缺失的规则，不能清理其他服务或其他维护来源的规则。
+- `resource-dependency/batch-sync` 的 FULL diff 只能清理同一 `ownerServiceCode + maintainSource` 范围内缺失的规则，不能清理其他服务或其他维护来源的规则；匹配键为「源资源 + 目标资源 + COALESCE(source_operation_bits, 0)」三元组（对齐 uk_resource_dependency 唯一语义——同资源对不同触发操作是不同规则，仅按资源对匹配会漏删，T-PERM-031 修正）。
 - 依赖规则变更时按 `grantDepId` 精准清理自动补全记录。
 - 自动补全同样需要记录变更日志，并通过 `PermissionChangeContext.markRoles/markServiceCodes` 在 afterCommit 阶段失效 `ROLE_PERM_SNAPSHOT`、用户有效角色缓存并广播。
 - **注意**：`auto-grant` 自动补全功能标记为 TODO，Phase 1-5 未完整实现（T-PERM-035 暂缓；当前写入口拒绝 `autoGrant=true` 返回 20048，见本节开头状态声明）。撤销走 `apply-grant-plan` 的 removes（软删+级联+行数断言 20036 fail-closed）；缓存失效与广播由调用方通过 `PermissionChangeContext` + `@PermissionChange` afterCommit 统一处理。

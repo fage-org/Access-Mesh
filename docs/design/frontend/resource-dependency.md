@@ -3,7 +3,8 @@
 > status: adopted
 > 任务：T-FE-011（mock 驱动）
 > 后端契约：api-contract.md §5.6（`resource-dependency/*`）/ §6.9（batch-sync）
-> 后端任务：T-PERM-031（depends_on 本任务）
+> 后端任务：T-PERM-031（depends_on 本任务；已收口 2026-08-30，终态见 api-contract §5.6 resource-dependency 契约要点）
+> last_reviewed: 2026-08-30（T-PERM-031 收口回写：🔧 清单 8 项处置、门禁五档类型级、Resp 补静态字段+bits 字符串线格式、PUT 全量替换落地）
 
 ## 1. 背景
 
@@ -56,10 +57,9 @@
 | 创建时间 | createdAt | 等宽字体 |
 | 操作 | operation | 编辑 / 删除（权限门控） |
 
-**bits->操作码反向映射**（应对后端 Resp 缺操作码字段，🔧 T-PERM-031）：
-- `getOperationList` 返回每个操作的 `binaryBit`（2 的幂次）
-- hook 建 `bitToOp: Map<binaryBit, {code, name}>`，对 `sourceOperationBits`/`requiredOperationBits` 做位运算拆解 `(bits & bit) === bit`
-- mock 阶段 bits 在 2^16 内安全（63 位 bigint 精度问题同 T-PERM-028）
+**bits->操作码反向映射**（T-PERM-031 设计定案维持：后端不做 operationCodes 反解，前端建映射拆解）：
+- `getOperationList` 返回每个操作的 `binaryBit`（2 的幂次，字符串线格式）
+- hook 建 `bitToOp: Map<binaryBit, {code, name}>`，对 `sourceOperationBits`/`requiredOperationBits`（字符串线格式）做 BigInt 位运算拆解（hasBit，63 位安全）
 
 **资源名称/类型映射**（应对后端 Resp 缺 name/typeCode）：
 - `getResourceTree` 扁平化建 `resourceMap: Map<id, {name, resourceTypeCode, code, codeType}>`
@@ -95,29 +95,29 @@
 - 颜色：从 CSS 变量取色（`getComputedStyle`），深色模式自适应
 - 空数据显示 el-empty
 
-## 4. API 核对（基线：mock 请求/响应）
+## 4. API 核对（基线：mock 请求/响应；T-PERM-031 已收口 2026-08-30）
 
 | 端点 | 请求 | 响应 | 状态 |
 |------|------|------|------|
-| `POST /resource-dependency/list` | `DependencyListReq{resourceEntityId?}` | `ItemsResp<ResourceDependencyResp>` | 🔧 |
-| `POST /resource-dependency/create` | `ResourceDependencyCreateReq`（业务键） | `ResourceDependencyResp` | ✅ |
-| `POST /resource-dependency/update` | `ResourceDependencyUpdateReq{id,...}` | `ResourceDependencyResp` | 🔧 |
-| `POST /resource-dependency/remove` | `IdsReq{ids}` | `Void` | ✅ |
-| `POST /resource-dependency/graph` | `DependencyListReq{resourceEntityId?}` | `ItemsResp<ResourceDependencyResp>` | 🔧 |
-| `POST /resource-dependency/check` | `ResourceDependencyCheckReq`（业务键） | `DependencyCycleCheckResp` | 🔧 |
-| `POST /resource-dependency/batch-sync` | `DependencyBatchSyncReq` | `Void` | 🔧（P0 标 TODO） |
+| `POST /resource-dependency/list` | `DependencyListReq{resourceEntityId?}` | `ItemsResp<ResourceDependencyResp>` | ✅（VIEW 门禁补齐；全量不分页定案维持） |
+| `POST /resource-dependency/create` | `ResourceDependencyCreateReq`（业务键） | `ResourceDependencyResp` | ✅（+20054/20005/20044 预查） |
+| `POST /resource-dependency/update` | `ResourceDependencyUpdateReq{id,...}` | `ResourceDependencyResp` | ✅（资源对业务键补全，PUT 全量覆盖） |
+| `POST /resource-dependency/remove` | `IdsReq{ids}` | `Void` | ✅（类型级全有或全无） |
+| `POST /resource-dependency/graph` | `DependencyListReq{resourceEntityId?}` | `ItemsResp<ResourceDependencyResp>` | ✅（VIEW 门禁补齐；扁平结构维持定案） |
+| `POST /resource-dependency/check` | `ResourceDependencyCheckReq`（业务键） | `DependencyCycleCheckResp` | ✅（VIEW 门禁补齐） |
+| `POST /resource-dependency/batch-sync` | `DependencyBatchSyncReq` | `Void` | 后端已收口（FULL diff 三元组匹配等）；前端 P0 维持 TODO（Q5=B） |
 
-### 🔧 登记T-PERM-031
+### 🔧 登记T-PERM-031（已随 T-PERM-031 全收口 2026-08-30）
 
-- **ResourceDependencyResp 字段不全**：缺 `sourceResourceTypeCode`/`targetResourceTypeCode`（资源类型）、资源 `name`（只有 code）、`sourceOperationCodes`/`requiredOperationCodes`（只有 bits）、`ownerServiceCode`/`maintainSource`/`updatedAt`。前端通过 `getResourceTree` + `getOperationList` 建映射补全（bits->操作码、id->资源名称/类型）。
-- **ResourceDependencyUpdateReq 字段不全**：缺 `sourceResourceCode`/`targetResourceCode`/`sourceCodeType`/`targetCodeType`，无法切换资源对；前端按全量替换契约提交完整字段（对齐 conflict-rule 范式），mock 支持，真后端 🔧 补全 update DTO。
-- **list/graph/check 三端点无权限校验**（public 方法，无 `engine.hasPermission`）。
-- **list 无分页、仅按内部主键 resourceEntityId 过滤**（前端无法用业务键过滤，本地过滤分页）。
-- **graph 返回扁平列表非图结构**（无 nodes/edges），前端自行建图。
-- **DEPENDENCY 权限种子缺失**（schema 无 INSERT 预置 VIEW/CREATE/UPDATE/DELETE/SYNC 操作位，联调全账号 403，与 RESOURCE/OPERATION/CONFLICT_RULE/DOMAIN 同类）。
-- **maintainSource 枚举不一致**：DTO 注释 `SERVICE/MANUAL` vs schema `ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC`，前端按 schema 4 种值。
-- **batch-sync FULL diff 匹配只比 sourceCode+targetCode**，未比 sourceOperationCodes，同资源对不同触发操作可能误删。
-- **batch-sync P0 标 TODO**（Q5=B）：本任务不实现 batch-sync UI 与 mock，待后续阶段。
+- **ResourceDependencyResp 字段不全**：~~缺 `sourceResourceTypeCode`/`targetResourceTypeCode`（资源类型）、资源 `name`（只有 code）、`sourceOperationCodes`/`requiredOperationCodes`（只有 bits）、`ownerServiceCode`/`maintainSource`/`updatedAt`~~ **已补静态字段**（类型/名称/updatedAt/来源归属）；操作位改**字符串线格式**（63 位 bigint 位值列，T-PERM-028 同款）。operationCodes 数组经设计决策**不反解**（前端 bitToOp 映射维持——操作软删后残留位反解有歧义）。前端 `getResourceTree`+`getOperationList` 映射作为冗余快路径保留。
+- **ResourceDependencyUpdateReq 字段不全**：~~缺 `sourceResourceCode`/`targetResourceCode`/`sourceCodeType`/`targetCodeType`，无法切换资源对~~ **已补全**（PUT 全量覆盖契约落地，前端全量提交不再被静默丢弃）。
+- **list/graph/check 三端点无权限校验**：**已补类型级 DEPENDENCY:VIEW**。
+- **list 无分页、仅按内部主键 resourceEntityId 过滤**：**维持定案**（量小非流水表，029/030 同款；关键词过滤前端本地完成）。
+- **graph 返回扁平列表非图结构**：**维持定案**（前端建 nodes/edges）。
+- **DEPENDENCY 权限种子缺失**：**bootstrap 固定图已补五条**（VIEW/CREATE/UPDATE/DELETE/SYNC 类型级不可转授，空库死锁防护）。
+- **maintainSource 枚举不一致**：**已收口** schema 四值白名单（ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC，DTO @Pattern 校验；UI 创建行落 ADMIN_UI）。
+- **batch-sync FULL diff 匹配只比 sourceCode+targetCode**：**已修**（三元组匹配：源+目标+COALESCE(source_bits,0)，对齐 uk 语义）。
+- **batch-sync P0 标 TODO**（Q5=B）：前端不实现 UI 与 mock（后端端点已收口），维持后续阶段。
 
 ## 5. 权限接线
 
@@ -125,11 +125,11 @@
 
 | perm 串 | 门控 | 后端校验 |
 |---------|------|----------|
-| `DEPENDENCY:VIEW` | 路由可达性 + 列表加载 + 环检测/依赖图按钮 | 🔧 无（list/graph/check 未校验，登记 T-PERM-031） |
-| `DEPENDENCY:CREATE` | 新增按钮 | createDependency 校验 |
-| `DEPENDENCY:UPDATE` | 编辑按钮 | updateDependency 校验 |
-| `DEPENDENCY:DELETE` | 删除按钮 | deleteDependencies（validateBatch）校验 |
-| `DEPENDENCY:SYNC` | （P0 不暴露按钮，batch-sync 标 TODO） | batchSyncDependencies 校验 |
+| `DEPENDENCY:VIEW` | 路由可达性 + 列表加载 + 环检测/依赖图按钮 | ✅ 类型级（list/graph/check 已补齐，T-PERM-031） |
+| `DEPENDENCY:CREATE` | 新增按钮 | createDependency 类型级校验 |
+| `DEPENDENCY:UPDATE` | 编辑按钮 | updateDependency 类型级校验（T-PERM-031 收窄，原实例级系 ID 空间错位） |
+| `DEPENDENCY:DELETE` | 删除按钮 | deleteDependencies 类型级全有或全无（T-PERM-031 收窄） |
+| `DEPENDENCY:SYNC` | （P0 不暴露按钮，batch-sync 标 TODO） | batchSyncDependencies 类型级校验 |
 
 - SSOT：`views/system/resource-dependency/utils/perms.ts`（RESOURCE_DEPENDENCY_PERMS / PERM_LIST / VIEW_PERMS）
 - 路由 `meta.auths`：`[...RESOURCE_DEPENDENCY_PERM_LIST]`

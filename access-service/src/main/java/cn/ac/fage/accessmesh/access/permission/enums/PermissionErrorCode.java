@@ -255,7 +255,13 @@ public enum PermissionErrorCode {
      * 资源移动目标父非法：跨资源类型，或是被移动资源自身/其子孙（parent 链成环后树构建不收敛，
      * 对齐 ROLE_PARENT_INVALID / DOMAIN_DELETE_CONFLICT 先例：同一码承载两类原因，message 区分）。
      */
-    RESOURCE_PARENT_INVALID(20053, "目标父资源非法：跨资源类型或为自身/子孙节点");
+    RESOURCE_PARENT_INVALID(20053, "目标父资源非法：跨资源类型或为自身/子孙节点"),
+
+    /**
+     * 等价依赖规则已存在（uk_resource_dependency：tenant + 源资源 + 目标资源 + COALESCE(source_operation_bits,0)）。
+     * 业务层预查命中返回（对齐 CONFLICT_RULE_DUPLICATE 先例），并发窗口由 DB 唯一索引兜底转同码。
+     */
+    DEPENDENCY_DUPLICATE(20054, "等价依赖规则已存在（同源/目标资源对 + 同触发操作位）");
 
     private final int code;
     private final String message;

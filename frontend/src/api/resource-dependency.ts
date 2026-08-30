@@ -9,21 +9,21 @@
  * 契约依据：docs/design/permission-center/api-contract.md §5.6 / §6.9
  * 后端实现：access-service ResourceDependencyController + DependencyAppServiceImpl
  *
- * 🔧 API 核对项（登记 T-PERM-031）：
- * - ResourceDependencyResp 字段不全：缺 sourceResourceTypeCode/targetResourceTypeCode（资源类型）、
- *   资源 name（只有 code）、sourceOperationCodes/requiredOperationCodes（只有 bits）、
- *   ownerServiceCode/maintainSource/updatedAt。前端通过 getResourceTree + getOperationList
- *   建映射补全（bits->操作码、id->资源名称/类型）。
- * - ResourceDependencyUpdateReq 缺 sourceResourceCode/targetResourceCode/sourceCodeType/targetCodeType，
- *   无法切换资源对；前端按全量替换契约提交完整字段（对齐 conflict-rule 范式），mock 支持，
- *   真后端 🔧 补全 update DTO。
- * - list/graph/check 三端点无权限校验（public 方法）；DEPENDENCY 权限种子缺失
- *   （schema 无 INSERT 预置操作位），联调全账号 403。
- * - list 无分页、仅按内部主键 resourceEntityId 过滤；graph 返回扁平列表非图结构（前端建图）。
- * - maintainSource 枚举不一致（DTO 注释 SERVICE/MANUAL vs schema ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC），
- *   前端按 schema 4 种值。
- * - batch-sync FULL diff 匹配只比 sourceCode+targetCode，未比 sourceOperationCodes，同资源对不同触发操作可能误删。
- * - batch-sync 端点本任务 P0 标 TODO（Q5=B），前端不调用，mock 不实现。
+ * T-PERM-031 收口（2026-08-30，原 🔧 清单 8 项处置）：
+ * - Resp 补静态字段：sourceResourceTypeCode/targetResourceTypeCode、source/targetResourceName、
+ *   ownerServiceCode/maintainSource/updatedAt；操作位改字符串线格式（63 位 bigint 位值列，
+ *   T-PERM-028 binaryBit 同款）。operationCodes 数组不反解（前端经操作列表建 bit 映射拆解）。
+ * - update 补全资源对业务键字段（PUT 全量覆盖契约，Q3=B）：资源对可改，
+ *   sourceOperationCodes=null/空=任意触发，description=null 清空。
+ * - 门禁五档类型级：读 list/graph/check = DEPENDENCY:VIEW、写三档 + SYNC；
+ *   bootstrap 固定图已补五条（空库死锁防护）。
+ * - list 维持全量不分页（量小非流水表，029/030 同款定案），resourceEntityId 内部过滤保留，
+ *   关键词过滤由前端本地完成；graph 维持扁平列表（前端建图）。
+ * - 业务错误码：等价重复 20054 / 依赖不存在 20019 / 资源不存在 20004 / 操作码不存在 20005（fail-closed，
+ *   不再静默丢弃）/ 自依赖 20044 / autoGrant=true 20048。
+ * - maintainSource 四值白名单（ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC，batch-sync 请求校验）；
+ *   batch-sync FULL diff 按三元组（源+目标+触发位）匹配。
+ * - batch-sync 端点 P0 标 TODO（Q5=B），前端不调用，mock 不实现。
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
@@ -31,9 +31,9 @@ import type { ItemsResp } from "./role-manage";
 
 // ========== 响应类型 ==========
 
-/** 资源依赖响应（对齐后端 ResourceDependencyResp）。
- *  🔧 后端 Resp 缺 sourceResourceTypeCode/targetResourceTypeCode/资源 name/operationCodes/
- *  ownerServiceCode/maintainSource/updatedAt，前端通过引用数据映射补全（见 hook.ts）。 */
+/** 资源依赖响应（对齐后端 ResourceDependencyResp，T-PERM-031 已补全静态字段）。
+ *  操作位为 63 位 bigint 位值列，后端按字符串线格式下发（避免 JS Number 丢精度）；
+ *  操作码数组不反解——bitsToOpCodes(bits, typeCode) 经操作列表 bit 映射拆解（见 hook.ts）。 */
 export type ResourceDependencyResp = {
   id: number;
   tenantId: number;
@@ -41,18 +41,32 @@ export type ResourceDependencyResp = {
   resourceEntityId: number;
   /** 源资源编码 */
   sourceResourceCode: string;
+  /** 源资源类型编码（T-PERM-031 补） */
+  sourceResourceTypeCode: string | null;
+  /** 源资源名称（T-PERM-031 补） */
+  sourceResourceName: string | null;
   /** 被依赖资源实体 ID（自动补全目标，对应 resource_dependency.depends_on_resource_entity_id） */
   dependsOnResourceEntityId: number;
   /** 被依赖资源编码 */
   depResourceCode: string;
-  /** 源操作位（触发条件，null=任意操作触发） */
-  sourceOperationBits: number | null;
-  /** 要求操作位（目标资源需补全的操作） */
-  requiredOperationBits: number;
-  /** 是否自动授权 */
+  /** 目标资源类型编码（T-PERM-031 补） */
+  targetResourceTypeCode: string | null;
+  /** 目标资源名称（T-PERM-031 补） */
+  targetResourceName: string | null;
+  /** 源操作位（触发条件，字符串线格式；null=任意操作触发） */
+  sourceOperationBits: string | null;
+  /** 要求操作位（目标资源需补全的操作，字符串线格式） */
+  requiredOperationBits: string;
+  /** 是否自动授权（预留禁用，恒 false） */
   autoGrant: boolean;
   description: string | null;
+  /** 维护方服务编码（UI 创建行为 null；T-PERM-031 补） */
+  ownerServiceCode: string | null;
+  /** 维护来源（ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC；T-PERM-031 补） */
+  maintainSource: string | null;
   createdAt: string;
+  /** 最后更新时间（T-PERM-031 补） */
+  updatedAt: string;
 };
 
 /** 依赖循环检测结果（对齐后端 DependencyCycleCheckResp） */
@@ -66,7 +80,7 @@ export type DependencyCycleCheckResp = {
 
 // ========== 请求类型 ==========
 
-/** 资源依赖创建请求（对齐 ResourceDependencyCreateReq，业务键） */
+/** 资源依赖创建请求（对齐 ResourceDependencyCreateReq，业务键；description ≤512） */
 export type ResourceDependencyCreateReq = {
   sourceResourceTypeCode: string;
   sourceResourceCode: string;
@@ -80,9 +94,9 @@ export type ResourceDependencyCreateReq = {
   description?: string | null;
 };
 
-/** 资源依赖更新请求（全量替换契约，对齐 conflict-rule UpdateReq 范式）。
- *  🔧 后端 DTO 缺 sourceResourceCode/targetResourceCode/sourceCodeType/targetCodeType，
- *  无法切换资源对；前端按全量替换提交完整字段，mock 支持，真后端 🔧 补全（T-PERM-031）。 */
+/** 资源依赖更新请求（对齐 ResourceDependencyUpdateReq，PUT 全量替换契约）。
+ *  T-PERM-031 后端已补全资源对业务键字段：资源对可改、全部字段按提交值覆盖；
+ *  sourceOperationCodes 空=清空为"任意操作触发"，description null=清空。 */
 export type ResourceDependencyUpdateReq = {
   id: number;
   sourceResourceTypeCode: string;
@@ -108,7 +122,7 @@ export type ResourceDependencyCheckReq = {
 };
 
 /** 依赖列表查询请求（对齐 DependencyListReq）。
- *  🔧 仅按内部主键 resourceEntityId 过滤，前端本地过滤分页。 */
+ *  维持全量不分页定案（029/030 同款），resourceEntityId 为内部主键可选过滤。 */
 export type DependencyListReq = {
   resourceEntityId?: number | null;
 };
@@ -119,7 +133,7 @@ export type DependencyGraphReq = DependencyListReq;
 // ========== API 函数 ==========
 
 /** 查询资源依赖列表（POST /api/perm/resource-dependency/list）。
- *  🔧 无分页、无 VIEW 校验、仅按 resourceEntityId 过滤（T-PERM-031）。 */
+ *  门禁 DEPENDENCY:VIEW 类型级；全量不分页（关键词过滤前端本地完成）。 */
 export const getDependencyList = async (
   params: DependencyListReq = {}
 ): Promise<ItemsResp<ResourceDependencyResp>> => {
@@ -131,7 +145,9 @@ export const getDependencyList = async (
   return unwrap(res);
 };
 
-/** 创建资源依赖（POST /api/perm/resource-dependency/create，业务键） */
+/** 创建资源依赖（POST /api/perm/resource-dependency/create，业务键）。
+ *  错误码：20004 资源不存在 / 20005 操作码不存在（fail-closed）/ 20044 自依赖 /
+ *  20054 等价重复 / 20048 autoGrant=true。 */
 export const createDependency = async (
   data: ResourceDependencyCreateReq
 ): Promise<ResourceDependencyResp> => {
@@ -143,8 +159,8 @@ export const createDependency = async (
   return unwrap(res);
 };
 
-/** 更新资源依赖（POST /api/perm/resource-dependency/update，全量替换）。
- *  🔧 后端 update DTO 缺资源对字段，真后端会忽略 sourceResourceCode/targetResourceCode（T-PERM-031）。 */
+/** 更新资源依赖（POST /api/perm/resource-dependency/update，PUT 全量替换）。
+ *  错误码：20019 依赖不存在（先解析后门禁）/ 20004/20005/20044/20054/20048 同 create。 */
 export const updateDependency = async (
   data: ResourceDependencyUpdateReq
 ): Promise<ResourceDependencyResp> => {
@@ -156,7 +172,8 @@ export const updateDependency = async (
   return unwrap(res);
 };
 
-/** 删除资源依赖，支持批量（POST /api/perm/resource-dependency/remove，IdsReq{ids}） */
+/** 删除资源依赖，支持批量（POST /api/perm/resource-dependency/remove，IdsReq{ids}）。
+ *  类型级 DELETE 全有或全无；幽灵 id 幂等跳过，响应 data=null 无行数。 */
 export const removeDependencies = async (ids: number[]): Promise<void> => {
   unwrap(
     await http.request<PermResult<void>>(
@@ -168,8 +185,7 @@ export const removeDependencies = async (ids: number[]): Promise<void> => {
 };
 
 /** 查询依赖图（POST /api/perm/resource-dependency/graph）。
- *  返回扁平依赖列表，前端自行构建 nodes/edges。
- *  🔧 无权限校验、返回非图结构（T-PERM-031）。 */
+ *  门禁 DEPENDENCY:VIEW；返回扁平依赖列表，前端自行构建 nodes/edges（设计定案维持）。 */
 export const getDependencyGraph = async (
   params: DependencyGraphReq = {}
 ): Promise<ItemsResp<ResourceDependencyResp>> => {
@@ -182,7 +198,7 @@ export const getDependencyGraph = async (
 };
 
 /** 检测循环依赖（POST /api/perm/resource-dependency/check，业务键）。
- *  🔧 无权限校验（T-PERM-031）。 */
+ *  门禁 DEPENDENCY:VIEW；资源不存在 20004。 */
 export const checkDependencyCycle = async (
   data: ResourceDependencyCheckReq
 ): Promise<DependencyCycleCheckResp> => {

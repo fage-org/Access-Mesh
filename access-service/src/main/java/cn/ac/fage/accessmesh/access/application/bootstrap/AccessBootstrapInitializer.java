@@ -64,7 +64,7 @@ public class AccessBootstrapInitializer {
         ResourceTypeCode.API, ResourceTypeCode.SERVICE, ResourceTypeCode.USER, ResourceTypeCode.ROLE,
         ResourceTypeCode.TYPE_DEFINITION, ResourceTypeCode.RESOURCE, ResourceTypeCode.OPERATION,
         ResourceTypeCode.OPERATION_LOG, ResourceTypeCode.PERMISSION_CHANGE_LOG, ResourceTypeCode.DOMAIN,
-        ResourceTypeCode.CONFLICT_RULE, ResourceTypeCode.CONDITION);
+        ResourceTypeCode.CONFLICT_RULE, ResourceTypeCode.CONDITION, ResourceTypeCode.DEPENDENCY);
 
     /** sys_user.user_type：本地用户管理展示值（与 createUser 链一致；权限域类型由投影链解析） */
     private static final int SYS_USER_TYPE_PERSON = 1;

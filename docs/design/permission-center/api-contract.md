@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-30   # 2026-08-30 §5.6 conflict-rule 契约要点（T-PERM-030 收口：读三端点 list/detail/detect 补类型级 CONFLICT_RULE:VIEW + 写三档类型级收窄（原「编码轨传内部 id」实例级声称系 ID 空间错位废弃，同 CONDITION 口径/实例投影登记 T-PERM-048）、detail 查不到 20020、list 全量不分页、定位键维持内部 id 评估定案（无业务键）、Resp 补 updatedAt、description ≤512、bootstrap 补 CONFLICT_RULE 四档 + CONDITION 写三档（029 遗漏死锁缺口）；同日更早 §5.6 permission-condition 契约要点（T-PERM-029 收口：写门禁口径收窄为类型级（原「实例级」声称系 ID 空间错位废弃，实例投影登记 T-PERM-048）、detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案（🔧3 分页登记反转）、ConditionResp 补 updatedAt、读取无门禁+写三档独立门禁口径、gatewayEvaluable 联合校验/remove 幂等语义成文）；2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-08-30   # 2026-08-30 §5.6 resource-dependency 契约要点（T-PERM-031 收口：读三端点 list/graph/check 补类型级 DEPENDENCY:VIEW + 写三档类型级收窄（update 原「编码轨传内部 id」/remove 原实例级 entityId 轨均为 ID 空间错位废弃）、update PUT 全量覆盖 + 资源对业务键补全（Q3=B 前端契约收口）、等价重复业务预查 20054 新增、操作码 fail-closed 20005（原静默丢弃）、自依赖 20044、Resp 补静态字段 + 操作位字符串线格式、maintainSource 四值白名单、bootstrap 补 DEPENDENCY 五档）+ §6.9 同步；同日 §5.6 conflict-rule 契约要点（T-PERM-030 收口：读三端点 list/detail/detect 补类型级 CONFLICT_RULE:VIEW + 写三档类型级收窄（原「编码轨传内部 id」实例级声称系 ID 空间错位废弃，同 CONDITION 口径/实例投影登记 T-PERM-048）、detail 查不到 20020、list 全量不分页、定位键维持内部 id 评估定案（无业务键）、Resp 补 updatedAt、description ≤512、bootstrap 补 CONFLICT_RULE 四档 + CONDITION 写三档（029 遗漏死锁缺口）；同日更早 §5.6 permission-condition 契约要点（T-PERM-029 收口：写门禁口径收窄为类型级（原「实例级」声称系 ID 空间错位废弃，实例投影登记 T-PERM-048）、detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案（🔧3 分页登记反转）、ConditionResp 补 updatedAt、读取无门禁+写三档独立门禁口径、gatewayEvaluable 联合校验/remove 幂等语义成文）；2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -414,6 +414,19 @@ last_reviewed: 2026-08-30   # 2026-08-30 §5.6 conflict-rule 契约要点（T-PE
 - **detect**：仅操作权限对（PERM_MUTEX 场景），双向匹配（规则 (A,B) 对请求 (A,B)/(B,A) 均命中）；`resourceTypeValue` 可空过滤，`resource_type_value IS NULL` 的全局规则始终参与（schema「NULL=所有」语义，SQL 层保证）；响应 `{conflictDetected, matchedRules[]}`，纯查询无副作用。
 - **ConflictRuleResp**：`{id, tenantId, conflictType, firstOperationPermissionId, secondOperationPermissionId, resourceTypeValue, firstAbstractRoleId, secondAbstractRoleId, description, createdAt, updatedAt}`——`updatedAt` 为本次补齐（entity 列本就存在）；description ≤512 列宽校验（create/update）。
 - **bootstrap 固定图**：CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE 四条类型级不可转授随本批补入（空库无授予起点死锁防护，同 DOMAIN/SERVICE 先例）；顺带补 CONDITION:CREATE/UPDATE/DELETE 三条（T-PERM-029 遗漏的同款缺口，读取无门禁故无 VIEW 条目）。
+
+**resource-dependency 契约要点（T-PERM-031 收口，2026-08-30）**：
+
+- **门禁五档类型级**（DEPENDENCY 无 resource_entity 实例投影，实例级授权无从配置，同 CONDITION/CONFLICT_RULE 口径）：读 list/graph/check = DEPENDENCY:VIEW（原三读端点无门禁，本批补齐——graph/check 透出全租户依赖图数据）；写 create/update/remove = DEPENDENCY:CREATE/UPDATE/DELETE；batch-sync = DEPENDENCY:SYNC。remove 类型级全有或全无，幽灵 id 解析阶段静默跳过（幂等，响应 Void 无行数）；update 先解析后门禁（未知 id 优先 **20019** DEPENDENCY_NOT_FOUND 且零副作用，T-PERM-029 模式）。
+- **update PUT 全量覆盖语义**（Q3=B 前端契约收口）：UpdateReq 补齐资源对业务键四字段（source/targetResourceTypeCode+Code 必填 + codeType 可选）——原 DTO 缺资源对字段导致前端「改资源对」提交被静默丢弃；全部字段按提交值覆盖（UpdateEntity 显式写列），`sourceOperationCodes` null/空=清空为「任意操作触发」、`description` null=清空；`maintainSource`/`ownerServiceCode` 来源归属不随管理端编辑改写（仅批量同步侧变更）。
+- **等价重复预查**：同源资源+同目标资源+同 `COALESCE(source_operation_bits,0)`（uk_resource_dependency 唯一语义，NULL 与 0 同档）命中拒绝 **20054** DEPENDENCY_DUPLICATE（本批新增错误码，业务层预查 + DB uk 兜底转同码，对齐 conflict-rule 20032 先例）。
+- **操作码 fail-closed**：create/update/batch-sync 收到解析不到的 `operationCodes` 拒绝 **20005** OPERATION_NOT_FOUND（原实现静默丢弃——部分丢弃合并已知位、全 miss 落 0，会写出语义错误规则且无报错）；全空白码列表拒绝 20044。
+- **自依赖拒绝**：source==target（即成环）写入口拒绝 20044 INVALID_PARAM（前端表单已校验，后端兜底；check 端点同判定返回 hasCycle=true）。
+- **list 全量不分页**（设计定案，对齐 condition/conflict-rule：量小非流水表）；`resourceEntityId` 内部主键可选过滤保留，关键词过滤由前端本地完成。**graph 维持扁平列表**（非 nodes/edges 图结构，设计定案，前端建图）。
+- **ResourceDependencyResp**：`{id, tenantId, resourceEntityId, sourceResourceCode, sourceResourceTypeCode, sourceResourceName, dependsOnResourceEntityId, depResourceCode, targetResourceTypeCode, targetResourceName, sourceOperationBits, requiredOperationBits, autoGrant, description, ownerServiceCode, maintainSource, createdAt, updatedAt}`——本批补静态字段（类型编码经 type_definition 反查、名称取资源实体、updatedAt/来源归属字段）；`sourceOperationBits`/`requiredOperationBits` 为 63 位 bigint 位值列，改**字符串线格式**下发（T-PERM-028 binaryBit 同款，JS Number ≥2^53 丢精度）；操作码数组不反解（前端经操作列表建 bit 映射拆解，操作软删后残留位反解有歧义）。description ≤512（create/update/sync item）。
+- **maintainSource 四值白名单**：ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC（schema 口径收口，DTO @Pattern 拒绝其他值——原注释 SERVICE/MANUAL 系漂移）；管理端创建行显式落 `ADMIN_UI`+`ownerServiceCode=null`。
+- **batch-sync**（§6.9）：FULL diff 匹配键为「源+目标+COALESCE(source_bits,0)」三元组（原仅按资源对匹配——同资源对不同触发操作是不同规则，漏删且 upsert 错行，本批修正）；资源 ID 与操作位在循环外按类型批量预解析（消解逐条目解析的 N+1）；条目缺 `requiredOperationCodes` 拒绝 20044（列 NOT NULL，原为 DB 约束 500）。
+- **bootstrap 固定图**：DEPENDENCY:VIEW/CREATE/UPDATE/DELETE/SYNC 五条类型级不可转授随本批补入（空库无授予起点死锁防护，同 DOMAIN/CONFLICT_RULE 先例；SYNC 随四档同补——端点存在且门禁为 SYNC，前端 P0 未接入不改变端点事实）。
 
 **domain-config 契约要点（T-PERM-026 收口，2026-08-29）**：
 
@@ -1846,12 +1859,13 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 - `source*` 表示源资源，即被授权后会触发依赖补全的资源，对应 `resource_dependency.resource_entity_id`。
 - `target*` 表示被源资源依赖、需要自动补全的目标资源，对应 `resource_dependency.depends_on_resource_entity_id`。
+- `maintainSource` 四值白名单：`ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC`（schema 口径，DTO `@Pattern` 拒绝其他值；T-PERM-031 收口，原注释 SERVICE/MANUAL 系漂移）。
 - **`autoGrant` 预留未实现（2026-08-27 设计定案）**：自动授权暂缓（T-PERM-035，design-review §11 E4），create / update / batch-sync 全部写入口拒绝 `true`（错误码 **20048** `AUTO_GRANT_NOT_SUPPORTED`），仅接受 `false`/省略；表列默认 `false`。依赖补全当前不生效，规则中的「触发依赖补全」语义为 T-PERM-035 实现后的目标态。
 - 授权源资源时，自动补全查询条件必须是 `resource_dependency.resource_entity_id = sourceResourceId`，不能反向使用 `depends_on_resource_entity_id` 查询。
-- `sourceOperationCodes` 转为 `source_operation_bits`；为空表示任意源操作触发。
-- `requiredOperationCodes` 转为 `required_operation_bits`，表示目标资源需要自动补全的操作。
-- FULL diff 只清理同一 `ownerServiceCode=serviceCode + maintainSource` 范围内本次缺失的依赖规则，不清理其他服务或其他维护来源的规则。
-- 同一语义依赖仍受 `tenant_id + resource_entity_id + depends_on_resource_entity_id + source_operation_bits` 唯一约束保护，避免不同来源重复创建同一条依赖。
+- `sourceOperationCodes` 转为 `source_operation_bits`；为空表示任意源操作触发。`requiredOperationCodes` 转为 `required_operation_bits`，表示目标资源需要自动补全的操作；条目缺失该字段拒绝 20044（列 NOT NULL）。任一操作码解析不到拒绝 **20005** OPERATION_NOT_FOUND（fail-closed，不静默丢弃——T-PERM-031 定案）。
+- FULL diff 只清理同一 `ownerServiceCode=serviceCode + maintainSource` 范围内本次缺失的依赖规则，不清理其他服务或其他维护来源的规则；匹配键为「源资源 + 目标资源 + `COALESCE(source_operation_bits, 0)`」三元组（T-PERM-031 修正：同资源对不同触发操作是不同规则，仅按资源对匹配会漏删且 upsert 定位错行）。
+- 同一语义依赖仍受 `tenant_id + resource_entity_id + depends_on_resource_entity_id + source_operation_bits` 唯一约束保护，避免不同来源重复创建同一条依赖；业务层等价预查命中返回 **20054** DEPENDENCY_DUPLICATE，并发窗口由该约束兜底转同码。
+- 资源 ID 与操作位在循环外按资源类型批量预解析（消解逐条目解析的 N+1）；资源无法解析的条目静默跳过（同步清单漂移由对账兜底，与单条写入口 20004 fail-closed 不同）。
 
 ### 6.10 管理接口补充契约（实现约定）
 

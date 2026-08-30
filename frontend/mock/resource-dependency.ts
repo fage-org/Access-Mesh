@@ -8,12 +8,17 @@
 // - 资源：201-204 MENU / 211-212 BUTTON / 221-222 API / 231-232 DATA（见 mock/resource-operation.ts）
 // - 操作位：CREATE=1 VIEW=2 UPDATE=4 DELETE=8 MANAGE=16（见 mock/resource-operation.ts CRUD_OPS）
 //
-// 对齐后端 DependencyAppServiceImpl（T-PERM-031 核对）：
+// 对齐后端 DependencyAppServiceImpl（T-PERM-031 收口，2026-08-30）：
 // - create/update 用业务键（sourceResourceTypeCode+sourceResourceCode+...），mock 内部解析为资源 ID
-// - update 全量替换（对齐 conflict-rule 范式，Q3=B）：资源对可改，mock 支持完整字段覆盖
+// - 错误码与后端同码：autoGrant=true 20048（最先预检）→ 资源不存在 20004 → 自依赖 20044 →
+//   未知操作码 20005（fail-closed，不再静默丢弃）→ 等价重复 20054；update 未知 id 20019
+// - update 全量替换（Q3=B）：资源对可改，完整字段覆盖；maintainSource/ownerServiceCode 来源归属不变
 // - check 循环检测：DFS 从 target 反查是否能到达 source（对齐后端 hasDependencyCycle.canReach）
 // - graph 返回扁平依赖列表（对齐后端 graph，前端建 nodes/edges）
-// - list 仅按 resourceEntityId 过滤（对齐后端 DependencyListReq）
+// - list 仅按 resourceEntityId 过滤（对齐后端 DependencyListReq；全量不分页定案）
+// - Resp 补静态字段（类型/名称/updatedAt/maintainSource/ownerServiceCode），操作位字符串线格式
+//   （63 位 bigint 位值列，T-PERM-028 同款）；operationCodes 数组不反解
+// - remove 幂等跳过幽灵 id，响应 data=null 无行数（对齐后端）
 // - batch-sync 端点 P0 标 TODO（Q5=B），不实现
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 import {
@@ -29,16 +34,42 @@ type ResourceDependencyResp = {
   tenantId: number;
   resourceEntityId: number;
   sourceResourceCode: string;
+  sourceResourceTypeCode: string | null;
+  sourceResourceName: string | null;
+  dependsOnResourceEntityId: number;
+  depResourceCode: string;
+  targetResourceTypeCode: string | null;
+  targetResourceName: string | null;
+  /** 源操作位（字符串线格式，null=任意操作触发） */
+  sourceOperationBits: string | null;
+  /** 要求操作位（字符串线格式） */
+  requiredOperationBits: string;
+  autoGrant: boolean;
+  description: string | null;
+  ownerServiceCode: string | null;
+  maintainSource: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/** 内部存储形态：bits 用 number（BigInt 位或后收窄），序列化时转字符串线格式 */
+type InternalDep = {
+  id: number;
+  tenantId: number;
+  resourceEntityId: number;
+  sourceResourceCode: string;
   dependsOnResourceEntityId: number;
   depResourceCode: string;
   sourceOperationBits: number | null;
   requiredOperationBits: number;
   autoGrant: boolean;
   description: string | null;
+  ownerServiceCode: string | null;
+  maintainSource: string;
   createdAt: string;
+  updatedAt: string;
+  deleted: boolean;
 };
-
-type InternalDep = ResourceDependencyResp & { deleted: boolean };
 
 // 资源/操作状态共享自 mock/resource-operation.ts（P2 修复：跨页 CRUD 一致）。
 // resources 为动态数组（软删 deleted 标记），operations 为动态数组（splice 物理移除）。
@@ -69,7 +100,10 @@ const deps: InternalDep[] = [
     requiredOperationBits: 2,
     autoGrant: false,
     description: "访问角色管理需先通过鉴权校验",
+    ownerServiceCode: null,
+    maintainSource: "ADMIN_UI",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   },
   {
@@ -83,7 +117,10 @@ const deps: InternalDep[] = [
     requiredOperationBits: 2,
     autoGrant: false,
     description: "资源与操作页需资源树查询接口",
+    ownerServiceCode: null,
+    maintainSource: "ADMIN_UI",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   },
   {
@@ -97,7 +134,10 @@ const deps: InternalDep[] = [
     requiredOperationBits: 2,
     autoGrant: false,
     description: "组织与用户页依赖部门数据",
+    ownerServiceCode: null,
+    maintainSource: "ADMIN_UI",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   },
   {
@@ -111,16 +151,41 @@ const deps: InternalDep[] = [
     requiredOperationBits: 2,
     autoGrant: false,
     description: "编辑按钮依赖角色数据查看（手动补全）",
+    ownerServiceCode: null,
+    maintainSource: "ADMIN_UI",
     createdAt: BASE_TIME,
+    updatedAt: BASE_TIME,
     deleted: false
   }
 ];
 
 // ========== 工具函数 ==========
 
+/** 序列化：补类型/名称（引用资源活状态）、操作位转字符串线格式 */
 function clone(d: InternalDep): ResourceDependencyResp {
-  const { deleted: _d, ...resp } = d;
-  return { ...resp };
+  const src = getResourceRef(d.resourceEntityId);
+  const tgt = getResourceRef(d.dependsOnResourceEntityId);
+  return {
+    id: d.id,
+    tenantId: d.tenantId,
+    resourceEntityId: d.resourceEntityId,
+    sourceResourceCode: d.sourceResourceCode,
+    sourceResourceTypeCode: src?.resourceTypeCode ?? null,
+    sourceResourceName: src?.name ?? null,
+    dependsOnResourceEntityId: d.dependsOnResourceEntityId,
+    depResourceCode: d.depResourceCode,
+    targetResourceTypeCode: tgt?.resourceTypeCode ?? null,
+    targetResourceName: tgt?.name ?? null,
+    sourceOperationBits:
+      d.sourceOperationBits == null ? null : String(d.sourceOperationBits),
+    requiredOperationBits: String(d.requiredOperationBits),
+    autoGrant: d.autoGrant,
+    description: d.description,
+    ownerServiceCode: d.ownerServiceCode,
+    maintainSource: d.maintainSource,
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt
+  };
 }
 
 /** 按业务键解析资源 ID（对齐后端 typeResolutionService.resolveResourceId）。
@@ -145,7 +210,27 @@ function getResourceRef(id: number): InternalResource | undefined {
   return resources.find(r => !r.deleted && r.id === id);
 }
 
-/** 操作码列表 -> 操作位掩码（对齐后端 resolveOperationBits）。
+/** 收集解析不到的操作码（对齐后端 fail-closed 20005：静默丢弃会写出语义错误规则） */
+function collectUnknownCodes(
+  codes: string[] | null | undefined,
+  resourceTypeCode: string
+): string[] {
+  if (!codes || codes.length === 0) return [];
+  const unknown: string[] = [];
+  for (const c of codes) {
+    if (!c || !c.trim()) continue;
+    const op = operations.find(
+      o =>
+        (o.resourceTypeCode === resourceTypeCode ||
+          o.resourceTypeCode == null) &&
+        o.code === c
+    );
+    if (!op) unknown.push(c);
+  }
+  return unknown;
+}
+
+/** 操作码列表 -> 操作位掩码（对齐后端 resolveOperationBits；调用前已经 20005 校验）。
  *  按资源类型解析（当前类型 + 全局操作 resourceTypeCode=null），空列表返回 null（=任意操作触发）。
  *  BigInt 位或，兼容 63 位 bigint 列（JS |= 截断 32 位，P1 修复）。 */
 function codesToBits(
@@ -180,6 +265,50 @@ function validateBody(body: any): string | null {
     return "要求操作码列表必填且不能为空";
   }
   return null;
+}
+
+/** 解析资源对 + 自依赖/未知操作码预检（对齐后端 20004/20044/20005 顺序）。
+ *  返回 [sourceId, targetId] 或错误响应。 */
+function resolvePair(body: any): [number, number] | ReturnType<typeof error> {
+  const sourceId = resolveResourceId(
+    body.sourceResourceTypeCode,
+    body.sourceResourceCode,
+    body.sourceCodeType
+  );
+  if (sourceId == null) {
+    return error(
+      20004,
+      `源资源不存在: ${body.sourceResourceTypeCode}/${body.sourceResourceCode}`
+    );
+  }
+  const targetId = resolveResourceId(
+    body.targetResourceTypeCode,
+    body.targetResourceCode,
+    body.targetCodeType
+  );
+  if (targetId == null) {
+    return error(
+      20004,
+      `目标资源不存在: ${body.targetResourceTypeCode}/${body.targetResourceCode}`
+    );
+  }
+  if (sourceId === targetId) {
+    return error(20044, "源资源与目标资源不能相同（自依赖成环）");
+  }
+  const unknown = [
+    ...collectUnknownCodes(
+      body.sourceOperationCodes,
+      body.sourceResourceTypeCode
+    ),
+    ...collectUnknownCodes(
+      body.requiredOperationCodes,
+      body.targetResourceTypeCode
+    )
+  ];
+  if (unknown.length > 0) {
+    return error(20005, `操作权限不存在: ${unknown.join(", ")}`);
+  }
+  return [sourceId, targetId];
 }
 
 /** 判定两条依赖是否语义等价（同源资源对 + 同 sourceOperationBits）。
@@ -243,7 +372,7 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       let items = deps.filter(d => !d.deleted);
-      // 🔧 仅按 resourceEntityId 过滤（对齐后端 DependencyListReq）
+      // 仅按 resourceEntityId 过滤（对齐后端 DependencyListReq；全量不分页定案）
       if (body?.resourceEntityId != null) {
         items = items.filter(d => d.resourceEntityId === body.resourceEntityId);
       }
@@ -271,41 +400,26 @@ export default defineFakeRoute([
       const err = validateBody(body);
       if (err) return error(400, err);
 
-      const sourceId = resolveResourceId(
-        body.sourceResourceTypeCode,
-        body.sourceResourceCode,
-        body.sourceCodeType
-      );
-      if (sourceId == null) {
-        return error(
-          404,
-          `源资源不存在: ${body.sourceResourceTypeCode}/${body.sourceResourceCode}`
-        );
-      }
-      const targetId = resolveResourceId(
-        body.targetResourceTypeCode,
-        body.targetResourceCode,
-        body.targetCodeType
-      );
-      if (targetId == null) {
-        return error(
-          404,
-          `目标资源不存在: ${body.targetResourceTypeCode}/${body.targetResourceCode}`
-        );
-      }
-      if (isDuplicate(body, sourceId, targetId)) {
-        return error(409, "等价依赖规则已存在（同源/目标资源对 + 同触发操作）");
-      }
-
-      const sourceRef = getResourceRef(sourceId)!;
-      const targetRef = getResourceRef(targetId)!;
-      // 对齐后端（2026-08-27）：autoGrant 仅接受 false/省略，true 返回 20048
+      // 对齐后端（2026-08-27 定案 + T-PERM-031 顺序）：autoGrant 预检最先，仅接受 false/省略
       if (body.autoGrant === true) {
         return error(
           20048,
           "autoGrant=true 不支持：自动授权未实现（预留字段），仅接受 false"
         );
       }
+      const pair = resolvePair(body);
+      if (!Array.isArray(pair)) return pair;
+      const [sourceId, targetId] = pair;
+      if (isDuplicate(body, sourceId, targetId)) {
+        return error(
+          20054,
+          "等价依赖规则已存在（同源/目标资源对 + 同触发操作位）"
+        );
+      }
+
+      const sourceRef = getResourceRef(sourceId)!;
+      const targetRef = getResourceRef(targetId)!;
+      const createdAt = now();
       const created: InternalDep = {
         id: nextId++,
         tenantId: 1,
@@ -324,7 +438,10 @@ export default defineFakeRoute([
           ) ?? 0,
         autoGrant: false,
         description: body.description ?? null,
-        createdAt: now(),
+        ownerServiceCode: null,
+        maintainSource: "ADMIN_UI",
+        createdAt,
+        updatedAt: createdAt,
         deleted: false
       };
       deps.push(created);
@@ -337,45 +454,29 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       const d = deps.find(item => item.id === body?.id && !item.deleted);
-      if (!d) return error(404, "资源依赖不存在");
+      if (!d) return error(20019, "资源依赖不存在");
 
       const err = validateBody(body);
       if (err) return error(400, err);
 
-      const sourceId = resolveResourceId(
-        body.sourceResourceTypeCode,
-        body.sourceResourceCode,
-        body.sourceCodeType
-      );
-      if (sourceId == null) {
-        return error(
-          404,
-          `源资源不存在: ${body.sourceResourceTypeCode}/${body.sourceResourceCode}`
-        );
-      }
-      const targetId = resolveResourceId(
-        body.targetResourceTypeCode,
-        body.targetResourceCode,
-        body.targetCodeType
-      );
-      if (targetId == null) {
-        return error(
-          404,
-          `目标资源不存在: ${body.targetResourceTypeCode}/${body.targetResourceCode}`
-        );
-      }
-      if (isDuplicate(body, sourceId, targetId, d.id)) {
-        return error(409, "等价依赖规则已存在（同源/目标资源对 + 同触发操作）");
-      }
-
-      // 对齐后端（2026-08-27）：autoGrant 仅接受 false/省略，true 返回 20048
       if (body.autoGrant === true) {
         return error(
           20048,
           "autoGrant=true 不支持：自动授权未实现（预留字段），仅接受 false"
         );
       }
-      // 全量替换（对齐 conflict-rule UpdateReq 范式，Q3=B）：资源对可改，完整字段覆盖
+      const pair = resolvePair(body);
+      if (!Array.isArray(pair)) return pair;
+      const [sourceId, targetId] = pair;
+      if (isDuplicate(body, sourceId, targetId, d.id)) {
+        return error(
+          20054,
+          "等价依赖规则已存在（同源/目标资源对 + 同触发操作位）"
+        );
+      }
+
+      // 全量替换（Q3=B）：资源对可改，完整字段覆盖；
+      // maintainSource/ownerServiceCode 来源归属不变（对齐后端，仅同步侧可变更）
       const sourceRef = getResourceRef(sourceId)!;
       const targetRef = getResourceRef(targetId)!;
       d.resourceEntityId = sourceId;
@@ -391,6 +492,7 @@ export default defineFakeRoute([
         0;
       d.autoGrant = false;
       d.description = body.description ?? null;
+      d.updatedAt = now();
       return ok(clone(d));
     }
   },
@@ -401,14 +503,13 @@ export default defineFakeRoute([
     response: ({ body }) => {
       const ids: number[] = Array.isArray(body?.ids) ? body.ids : [];
       if (ids.length === 0) return error(400, "ids 不能为空");
-      let count = 0;
       for (const d of deps) {
         if (ids.includes(d.id) && !d.deleted) {
           d.deleted = true;
-          count += 1;
         }
       }
-      return ok({ removed: count });
+      // 对齐后端：幂等跳过幽灵 id，响应 data=null 无行数（调用方以事后查询核对）
+      return ok(null);
     }
   },
 
@@ -429,7 +530,7 @@ export default defineFakeRoute([
       );
       if (sourceId == null) {
         return error(
-          404,
+          20004,
           `源资源不存在: ${body.sourceResourceTypeCode}/${body.sourceResourceCode}`
         );
       }
@@ -440,7 +541,7 @@ export default defineFakeRoute([
       );
       if (targetId == null) {
         return error(
-          404,
+          20004,
           `目标资源不存在: ${body.targetResourceTypeCode}/${body.targetResourceCode}`
         );
       }
