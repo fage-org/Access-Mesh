@@ -715,12 +715,16 @@ public class PermQueryEngine {
                 Map<String, OperationPermission> mergedByCode = new LinkedHashMap<>();
                 for (OperationPermission global : operationPermissionMapper.selectGlobal(tenantId)) {
                     if (global.getCode() != null) {
-                        mergedByCode.put(global.getCode().toUpperCase(), global);
+                        mergedByCode.put(
+                            cn.ac.fage.accessmesh.access.permission.service.domain.OperationResolutionDomainService
+                                .normalizeCode(global.getCode()), global);
                     }
                 }
                 for (OperationPermission specific : operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)) {
                     if (specific.getCode() != null) {
-                        mergedByCode.put(specific.getCode().toUpperCase(), specific);
+                        mergedByCode.put(
+                            cn.ac.fage.accessmesh.access.permission.service.domain.OperationResolutionDomainService
+                                .normalizeCode(specific.getCode()), specific);
                     }
                 }
                 opMap = new LinkedHashMap<>();

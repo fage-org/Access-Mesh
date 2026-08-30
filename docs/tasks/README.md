@@ -293,7 +293,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 3. `T-FE-026` 授权弹窗（批量授权任务）← T-FE-024, T-FE-025
 4. `T-FE-028` 右栏本次变更记录 ← T-FE-026
 5. `T-FE-027` 三栏状态整合、回归与设计回写 ← T-FE-025, T-FE-026, T-FE-028
-6. `T-FE-018` 真接口联调 ← T-FE-027, T-PERM-034（**被 2026-08-01 重设计决策取代**：T-FE-018 已按 v3 恢复，实际依赖 = T-FE-036 + T-PERM-034 + T-PERM-022/028/029/031；组织二期 T-FE-037 另依赖 T-ADMIN-021，见 phase3-plan；T-PERM-031 已 done——原「全局操作阶段 2-4」划分被 T-PERM-028/040 覆盖，2026-08-30 清扫）
+6. `T-FE-018` 真接口联调 ← T-FE-027, T-PERM-034（**被 2026-08-01 重设计决策取代**：T-FE-018 已按 v3 恢复，实际依赖 = T-FE-036 + T-PERM-034（已 done，2026-08-30）+ T-PERM-022/028/029/031；组织二期 T-FE-037 另依赖 T-ADMIN-021，见 phase3-plan；T-PERM-031 已 done——原「全局操作阶段 2-4」划分被 T-PERM-028/040 覆盖，2026-08-30 清扫）
 
 准入门禁：~~`design/frontend/permission-grant.md` §16.8 R1~R11~~（设计文档已归档至 `docs/archive/2026-07-26/`）。plan 已归档取消（2026-07-26），T-FE-024~028 随页面删除废弃/取消。
 
@@ -349,7 +349,7 @@ _（暂无）_
 | `design/services/admin-service-api-contract.md` §3、§4 各写接口同步动作/当前差距及 §6/§7 的 `sys_sync_task` 契约被 `design/access-service-architecture.md` §4 取代（2026-08-10） | T-ACCESS-005、T-ACCESS-011 | ✅ 已收口（T-ACCESS-005 已回写 2026-08-15；T-ACCESS-011 已验收（容器部分待 CI）） | T-ACCESS-005 已改为同事务本地权限投影并退役 `/admin/sync-task/*`；T-ACCESS-011 对其余外部 API 做兼容回归并对退役接口做不存在负向验收。 |
 | `design/cross-service/admin-permission-sync.md` 被 `design/access-service-architecture.md` 取代（2026-08-10） | T-PERM-019、T-PERM-021 | ✅ 已重基线（2026-08-22，T-ACCESS-012：T-PERM-019 移除 D4、design_refs 改指 access-service-architecture；T-PERM-021 design_refs 同步替换、F1.e 收窄为外部 sync runbook） | 旧内部同步、SyncHandler/ownership/full-sync runbook 范围不得继续实施（已达成） |
 | `design/frontend/permission-grant.md` §16 取代中栏矩阵直接编辑和右栏双 Tab（2026-07-12） | T-FE-014 | 历史基线已核对 | T-FE-014 保持 done，§15 保留其验收与实现记录，不重新打开任务 |
-| 同上 | T-FE-018 | ~~已重连，执行前待确认~~ **被 2026-08-01 重设计决策取代** | ~~`depends_on` 已增加 T-FE-027；联调验收必须以 §16 新交互为准，不得回退旧矩阵~~（v3 重设计后 T-FE-018 恢复待排期，实际依赖 = T-FE-036 + T-PERM-034 + T-PERM-022/028/029/031；组织二期 T-FE-037 另依赖 T-ADMIN-021，见 phase3-plan；§16 为 v1 旧章节，已归档） |
+| 同上 | T-FE-018 | ~~已重连，执行前待确认~~ **被 2026-08-01 重设计决策取代** | ~~`depends_on` 已增加 T-FE-027；联调验收必须以 §16 新交互为准，不得回退旧矩阵~~（v3 重设计后 T-FE-018 恢复待排期，实际依赖 = T-FE-036 + T-PERM-034（已 done，2026-08-30）+ T-PERM-022/028/029/031；组织二期 T-FE-037 另依赖 T-ADMIN-021，见 phase3-plan；§16 为 v1 旧章节，已归档） |
 | 同上 | T-FE-024 | 已确认 | T-FE-024 先于 T-FE-026；`AdditionalSettingDialog` 组件抽取 + `ChildPermissionDrawer` 内联化归 T-FE-024，授权弹窗编排归 T-FE-026 |
 | 同上 | T-FE-025~028 | 已确认 | §16.8 R1~R11 全部已确认；R10 子权限逐项配置、R11 重叠语义已回写；plan 已 active |
 | `design/frontend/permission-grant.md` 及三份补充整体归档（2026-07-26） | T-FE-014/018/024~028/029~035 | 已废弃 | 页面交互不满意，v1+v2 两套删除重做；设计文档归档至 `archive/2026-07-26/`，plan 归档；done 任务保持历史事实，未 done 任务 cancelled。详见"前端"段废弃说明 |

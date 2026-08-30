@@ -337,8 +337,39 @@ class PermissionGrantPlanDomainServiceImplTest {
         }
 
         @Test
+        void shouldRejectUpdateTargetingChildPermissionEvenWhenChangeIsEmpty() {
+            // 契约「子权限 update 一律 20043」：空变更（canGrant/conditionCode 均 null）
+            // 亦不得被 VALIDATION_FAILED 抢占——20043 判定已前置于预检循环
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(6L, 5L, "MANUAL")));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, null, null)), List.of())));
+
+            assertEquals(20043, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectUpdateTargetingChildPermissionWhoseParentIsRemovedInSamePlan() {
+            // 同款：父在 removes 中的子权限 update，20043 先于「父被删」拒绝路径
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "MANUAL"), existing(6L, 5L, "MANUAL")));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, Boolean.TRUE, null)), List.of(5L))));
+
+            assertEquals(20043, exception.getErrorCode());
+        }
+
+        @Test
         void shouldRejectUpdateTargetingChildPermissionCanGrantOnly() {
-            stubUpdateRemoveBase(existing(6L, 5L, "MANUAL"));
+            // 20043 已前置于预检循环，类型/资源解析不再触达——最小 stub
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(6L, 5L, "MANUAL")));
 
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
@@ -350,13 +381,12 @@ class PermissionGrantPlanDomainServiceImplTest {
 
         @Test
         void shouldRejectUpdateTargetingChildPermissionConditionOnly() {
-            stubUpdateRemoveBase(existing(6L, 5L, "MANUAL"));
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(6L, 5L, "MANUAL")));
             cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition condition =
                 new cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition();
             condition.setId(3L);
             condition.setCode("cond-1");
-            when(permissionConditionMapper.selectValidByCodes(TENANT, java.util.Set.of("cond-1")))
-                .thenReturn(List.of(condition));
 
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
@@ -592,6 +622,21 @@ class PermissionGrantPlanDomainServiceImplTest {
             var policy = resolve(config);
             assertEquals(PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_ALL, policy.mode());
             assertTrue(policy.allows("ANY_TYPE"));
+        }
+
+        @Test
+        void shouldReturnConfigInvalidForNonStringParentTypeScalar() {
+            DomainConfig config = new DomainConfig();
+            config.setExtra("{\"allowed\":[{\"parent_type\":5,\"child_types\":[\"BUTTON\"]}]}");
+            // 数字标量经 asText 会收编为 "5"——契约要求非字符串结构非法，落 CONFIG_INVALID
+            assertEquals("CONFIG_INVALID", resolve(config).reason());
+        }
+
+        @Test
+        void shouldReturnConfigInvalidForNonStringChildTypeScalar() {
+            DomainConfig config = new DomainConfig();
+            config.setExtra("{\"allowed\":[{\"parent_type\":\"MENU\",\"child_types\":[5]}]}");
+            assertEquals("CONFIG_INVALID", resolve(config).reason());
         }
 
         @Test

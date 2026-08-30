@@ -128,8 +128,10 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         for (Long id : updateIds) {
             assertMutable(existingById.get(id));
             RoleResourcePermission permission = existingById.get(id);
-            if (permission.getDependOn() != null && removeIdSet.contains(permission.getDependOn())) {
-                throw validation("Cannot update a child permission while removing its parent");
+            // 子权限 update 一律 20043（§6.5.1 错误优先级②：先于空变更/父被删等其余拒绝路径）
+            if (permission.getDependOn() != null) {
+                throw biz(PermissionErrorCode.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED,
+                    "Cannot update a child permission: " + id);
             }
         }
         for (Long id : removeIdSet) {
@@ -273,11 +275,6 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 throw validation("An update must change canGrant or conditionCode");
             }
             RoleResourcePermission permission = existingById.get(update.id());
-            // 子权限属性系统不变量（先于主权限 20041 判定）：update 目标为子权限一律 20043，仅可删除
-            if (permission.getDependOn() != null) {
-                throw biz(PermissionErrorCode.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED,
-                    "Cannot update a child permission: " + update.id());
-            }
             if (update.canGrant() != null) {
                 permission.setCanGrant(update.canGrant());
             }
@@ -553,13 +550,21 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 throw new IllegalArgumentException("allowed must be an array");
             }
             for (JsonNode item : allowed) {
-                // 全量结构校验：非匹配项不容错（无法证明属于其他父类型，属全局结构错误）
-                String configuredParent = item.path("parent_type").asText(null);
+                // 全量结构校验：非匹配项不容错（无法证明属于其他父类型，属全局结构错误）；
+                // parent_type 必须为非空字符串、child_types 必须为字符串数组（数字/布尔等
+                // 非字符串标量按 §6.5.2 优先级 2 落 CONFIG_INVALID，不 asText 容错收编）
+                JsonNode parentNode = item.path("parent_type");
                 JsonNode childTypes = item.get("child_types");
-                if (configuredParent == null || configuredParent.isBlank()
+                if (!parentNode.isTextual() || parentNode.asText().isBlank()
                     || childTypes == null || !childTypes.isArray()) {
                     throw new IllegalArgumentException("invalid allowed item");
                 }
+                for (JsonNode childType : childTypes) {
+                    if (!childType.isTextual()) {
+                        throw new IllegalArgumentException("invalid allowed child_type");
+                    }
+                }
+                String configuredParent = parentNode.asText();
                 if (!configuredParent.equalsIgnoreCase(parentTypeCode)) {
                     continue;
                 }

@@ -64,7 +64,7 @@ export const GRANT_ERROR_CODE = {
   /** 🔧 T-FE-040 v3.1：条件已停用（主权限 conditionCode 新写入或变更时必须 enabled=true，api-contract §6.5.1 20042） */
   CONDITION_DISABLED: 20042,
   /** 🔧 T-FE-040 v3.1：子权限属性系统不变量（conditionCode 必须 null、canGrant 必须 false；子权限 update 不支持），错误优先级先于 20041/20042（api-contract §6.5.1 20043） */
-  SUB_PERMISSION_ATTRIBUTE_INVALID: 20043
+  SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED: 20043
 } as const;
 
 export type GrantErrorCode =
@@ -97,7 +97,7 @@ export const GRANT_ERROR_MESSAGES: Readonly<Record<number, string>> = {
     "条件权限不可转授：带条件的权限不能设置可再授予，请先清除条件后重试",
   [GRANT_ERROR_CODE.CONDITION_DISABLED]:
     "该权限条件已停用，请重新选择启用中的条件后重试",
-  [GRANT_ERROR_CODE.SUB_PERMISSION_ATTRIBUTE_INVALID]:
+  [GRANT_ERROR_CODE.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED]:
     "子权限不承载条件与再授予属性（系统不变量），仅可删除，请修正后重试"
 };
 
@@ -284,9 +284,8 @@ export type SubPermAllowedTypesReq = {
  * 查询子权限允许类型（POST /perm/api/perm/role-resource-permission/sub-perm-allowed-types）。
  * 只读契约：判定口径与 §6.5 SUB_PERM fail-closed 写校验同一策略解析函数。
  *
- * ⚠️ 后端未实现（api-contract §6.5.2 契约已定稿、PermissionGrantController 无此端点，
- * T-FE-041 真实路径切换后由 mock 显性化为 404）：子权限配置区在真实环境暂不可用，
- * 归后端补齐（见 docs/tasks/T-FE-041.md 遗留登记）；不阻断主权限授予场景。
+ * 后端已随 T-PERM-034 落地（2026-08-30，PermissionGrantController 已有该端点），联调验证归 T-FE-018
+ * （原 T-FE-041 遗留登记已解除，见该卡 2026-08-30 更新注记）。
  */
 export const getSubPermAllowedTypes = async (
   params: SubPermAllowedTypesReq

@@ -1183,7 +1183,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - 子权限写入、删除都必须记录 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效父角色缓存（afterCommit）。
 - 运行时不要通过 `auth/check` 承载范围集合：`auth/check` 只做主权限布尔判定；业务需要范围权限集合时调用 `POST /api/perm/auth/query-scopes`。
 
-### 6.5.1 聚合授权提交 apply-grant-plan（🔧 T-PERM-034，收敛为唯一写入口，收窄）
+### 6.5.1 聚合授权提交 apply-grant-plan（T-PERM-034 已落地 2026-08-30，收敛为唯一写入口，收窄）
 
 **（2026-08-02）收窄**：砍 expectedRevision CAS + grant_revision 列 + 幂等表 grant_plan_idempotency + 20037/20039 + hash canonical + replayed/currentRevision（Stripe 式重幂等对低频内部管理页错配）；单事务原子 + 受影响行数断言；clientRequestId/@Idempotent/幂等表全删（幂等中间件实现取消（未登记看板））；schema 文件删除，本节为唯一权威契约（补结构约束）。
 
@@ -1248,7 +1248,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 **错误码枚举（apply-grant-plan 链路，精简）**：20001 ROLE_NOT_FOUND / 20003 ROLE_DISABLED / 20004 RESOURCE_NOT_FOUND / 20005 OPERATION_NOT_FOUND / 20006 CONDITION_NOT_FOUND / 20007 RESOURCE_TYPE_NOT_FOUND / 20008 RESOURCE_TYPE_OPERATION_MISMATCH / 20009 PARENT_PERMISSION_NOT_FOUND / 20010 PARENT_PERMISSION_NOT_TOP_LEVEL / 20011 SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED / 20012 RESOURCE_CODE_REQUIRED（INSTANCE 缺 resourceCode 服务端兜底）/ **20033 DIRECT_PERMISSION_CONFLICT（同角色+资源/范围+操作+父权限的 MANUAL 直接授权已存在）** / 20034 AUTO_DEP_READONLY / 20036 PERMISSION_NOT_FOUND / 20040 GRANT_CANNOT_DELEGATE / **20041 CONDITIONAL_PERMISSION_CANNOT_DELEGATE（条件权限不可转授）** / **20042 CONDITION_DISABLED（🔧 2026-08-08 产品确认：新写入/变更的主权限 conditionCode 必须为启用状态）** / **20043 SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED（🔧 2026-08-08 复审产品确认：子权限不承载条件/再授予——create 非 null/false 或 update 目标为子权限均拒绝，系统不变量）**；**砍 20037/20039**；20013/20014/20035 随旧子权限接口移除；20038 随同键重建语义废弃。
 
-### 6.5.2 子权限类型只读查询（sub-perm-allowed-types，🔧 v3.1，评审复审修订）
+### 6.5.2 子权限类型只读查询（sub-perm-allowed-types，v3.1，已随 T-PERM-034 落地 2026-08-30，评审复审修订）
 
 `POST /api/perm/role-resource-permission/sub-perm-allowed-types`
 
@@ -1297,6 +1297,8 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 > **落地状态（T-PERM-034 收口，2026-08-30）**：端点/策略对象/判定优先级已按上文逐条实现（`resolveSubPermissionPolicy` 唯一公开入口，读接口经 ROLE:VIEW 实例门禁直接序列化，写链路复用 `allows()`）；单测覆盖判定表全分支（CONFIG_MISSING/EMPTY/INVALID×2/PARENT_NOT_CONFIGURED/嵌套通配/并集去重/CHILD_TYPES_EMPTY/20007）与门禁（20001/SecurityException）。
 
 ### 6.6 通用资源权限查询
+
+> **现状登记（2026-08-30，T-PERM-034 评审）**：判定轨（`auth/check`/`hasPermission`）已按「专属优先、全局回退」合并全局操作位；本节查询/展示投影（`query-resources`/`effective-permissions`/forUserView）的候选装配仍仅取类型专属操作——全局操作位授权在列表投影中不出现（`hasPermission` 判定 allowed 而列表看不到）。展示轨非判定轨（无越权面），修复登记 T-PERM-037。
 
 `POST /api/perm/auth/query-resources`
 
@@ -1674,7 +1676,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **条件评估上下文（T-PERM-033）**：请求 `context.clientIp` 为管理员输入的模拟客户端 IP；未提供时回退**当前请求环境**（操作者 IP），响应 `evaluationContextSource` 标注实际来源（`ADMIN_INPUT` / `CURRENT_REQUEST`）。日期/时间类条件按服务进程系统时钟评估（与运行时判定一致，不可模拟）；IP 类条件按上述上下文评估。
 - **条件评估明细（T-PERM-033）**：`conditionEvaluations` 覆盖候选命中条目（条件/互斥过滤前）中挂条件的条目，逐项给出类型、脱敏参数摘要与是否满足；`status` 区分 `OK/DISABLED/NOT_FOUND/INVALID`，非 `OK` 恒 fail-close（`passed=false`）。**敏感条件值脱敏**：IP 黑白名单掩码主机段（如 `192.168.1.0/24 → 192.168.*.*\/24`，IPv6/非常规整体 `MASKED`，超过三条以 `…` 截断）；日期/时间范围为非敏感值原样回传。
 - **互斥丢弃明细（T-PERM-033）**：`conflictDrops` 列出候选命中中被权限互斥规则丢弃的条目及命中规则（规则ID + 两侧操作码），解释「本可命中但被互斥移除」。角色级互斥（ROLE_MUTEX）不在此明细范围。
-- `includeRecentChanges=true` 时，`recentChanges` **按完整权限键过滤**：含 `permission` 键的事件按 6 字段匹配（`resourceTypeCode/operationCode/scopeMode` 精确相等；`domainCode/resourceCode/codeType` 请求侧为 null 时通配），返回与目标权限键相关的事件；USER 目标额外保留该用户的 `USER_ROLE_CHANGE`（角色分配/回收，`impactLevel=DIRECT`），含权限键事件对 USER 目标标 `POSSIBLE`、对 ROLE 目标标 `DIRECT`。默认窗口为 30 天，服务端可限制最大窗口。**现状登记**：ROLE 目标在事件生产方按本规范 `diff_snapshot` 写入 `items[].permission` 前结果为空——当前仓内 `apply-grant-plan` 仍写 `creates/updates/removes` 旧形状（随 T-PERM-034 主体对齐），`ROLE_BATCH_DELETE`/`USER_ROLE_CHANGE` 的 items 无 permission 键。
+- `includeRecentChanges=true` 时，`recentChanges` **按完整权限键过滤**：含 `permission` 键的事件按 6 字段匹配（`resourceTypeCode/operationCode/scopeMode` 精确相等；`domainCode/resourceCode/codeType` 请求侧为 null 时通配），返回与目标权限键相关的事件；USER 目标额外保留该用户的 `USER_ROLE_CHANGE`（角色分配/回收，`impactLevel=DIRECT`），含权限键事件对 USER 目标标 `POSSIBLE`、对 ROLE 目标标 `DIRECT`。默认窗口为 30 天，服务端可限制最大窗口。**现状登记（T-PERM-034 收口后更新，2026-08-30）**：`apply-grant-plan` 已按本规范写入 `items[].permission` 聚合形状（ROLE 目标 recentChanges 端到端可用）；`ROLE_BATCH_DELETE`/`USER_ROLE_CHANGE` 的 items 无 permission 键（按事件类型本就无该键，非缺口）。
 - 范围权限排查应使用主资源权限 + `auth/query-scopes` 或后续扩展 `explain` 的 scope 参数，不应让本接口隐式展开全部范围。
 
 #### 查询近期影响事件
