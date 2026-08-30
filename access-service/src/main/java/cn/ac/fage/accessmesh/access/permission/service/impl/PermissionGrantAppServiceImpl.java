@@ -6,6 +6,8 @@ import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.access.permission.dto.req.SubPermAllowedTypesReq;
+import cn.ac.fage.accessmesh.access.permission.dto.resp.SubPermAllowedTypesResp;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RolePermissionListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RolePermissionItemResp;
@@ -31,6 +33,9 @@ import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.permission.util.ScopeModeSupport;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -48,11 +53,6 @@ import java.util.stream.Collectors;
  * 使用批量解析优化性能，避免N+1查询问题。
  * 通过 @PermissionChange afterCommit 统一执行缓存失效和失效广播，确保数据一致性。
  * </p>
- * <p>
- * TODO: 构造函数依赖过多(14个)，违反单一职责原则
- * 建议：拆分为GrantValidationService/GrantExecutionService/GrantCascadeService
- * 优先级：P2（非阻塞，建议在下次大版本重构时处理）
- * </p>
  */
 @Service
 public class PermissionGrantAppServiceImpl implements PermissionGrantAppService {
@@ -68,6 +68,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private final AuditDomainService auditDomainService;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
+    private final ObjectMapper objectMapper;
 
     public PermissionGrantAppServiceImpl(AbstractRoleMapper abstractRoleMapper,
                                       ResourceEntityMapper resourceEntityMapper,
@@ -77,7 +78,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                                       PermissionGrantPlanDomainService permissionGrantPlanDomainService,
                                       AuditDomainService auditDomainService,
                                       TypeResolutionService typeResolutionService,
-                                      PermQueryEngine engine) {
+                                      PermQueryEngine engine,
+                                      ObjectMapper objectMapper) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.operationPermissionMapper = operationPermissionMapper;
@@ -87,6 +89,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         this.auditDomainService = auditDomainService;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -120,7 +123,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         permissionGrantPlanDomainService.apply(prepared);
         PermissionChangeContext.markRoles(tenantId, roleId);
-        recordGrantPlanChanges(tenantId, operatorId, roleId, prepared);
+        recordGrantPlanChanges(tenantId, operatorId, req, role, prepared);
 
         List<RoleResourcePermission> allPermissions = rolePermMapper
             .selectValidByRoleId(tenantId, roleId);
@@ -301,27 +304,72 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private void recordGrantPlanChanges(
             Long tenantId,
             Long operatorId,
-            Long roleId,
+            ApplyGrantPlanReq req,
+            AbstractRole role,
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared) {
-        List<Long> createdIds = new ArrayList<>();
-        for (PermissionGrantPlanDomainService.PreparedCreate create : prepared.creates()) {
-            createdIds.add(create.permission().getId());
-            for (RoleResourcePermission child : create.children()) {
-                createdIds.add(child.getId());
-            }
+        // §6.8 聚合形状（T-PERM-034 收口）：eventType=ROLE_PERMISSION_CHANGE +
+        // items[]{changeType, permission(6 字段业务键), role 摘要}，一条聚合日志；
+        // 业务键快照由 prevalidate 期装配（removes 行随后被软删，事后不可回查），
+        // 读侧 permission-view/recent-changes 与 change-log 列表按 items[].permission 解析
+        if (prepared.auditKeys().isEmpty()) {
+            return;
         }
-        List<Long> updatedIds = prepared.updates().stream()
-            .map(RoleResourcePermission::getId).toList();
-        if (!createdIds.isEmpty() || !updatedIds.isEmpty() || !prepared.removes().isEmpty()) {
-            String diffSnapshot = String.format(
-                "{\"creates\":%s,\"updates\":%s,\"removes\":%s}",
-                createdIds, updatedIds, prepared.removes());
-            auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL,
-                "apply-grant-plan"), List.of(new AuditDomainService.ChangeLogEntry(
-                    "role_resource_permission", roleId, "APPLY_GRANT_PLAN",
-                    null, null, diffSnapshot, null, new Long[]{roleId})));
+        ObjectNode snapshot = objectMapper.createObjectNode();
+        snapshot.put("eventType", "ROLE_PERMISSION_CHANGE");
+        ArrayNode items = snapshot.putArray("items");
+        for (PermissionGrantPlanDomainService.AuditPermissionKey key : prepared.auditKeys()) {
+            ObjectNode item = items.addObject();
+            item.put("changeType", key.changeType());
+            ObjectNode permission = item.putObject("permission");
+            permission.put("domainCode", req.domainCode());
+            permission.put("resourceTypeCode", key.resourceTypeCode());
+            permission.put("resourceCode", key.resourceCode());
+            permission.put("codeType", key.codeType());
+            permission.put("operationCode", key.operationCode());
+            permission.put("scopeMode", key.scopeMode() == null ? null : key.scopeMode().name());
+            ObjectNode roleSummary = item.putObject("role");
+            roleSummary.put("roleTypeCode", req.roleTypeCode());
+            roleSummary.put("roleExternalId", req.roleExternalId());
+            roleSummary.put("roleName", role.getName());
         }
+        auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
+            tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL,
+            "apply-grant-plan"), List.of(new AuditDomainService.ChangeLogEntry(
+            "role_resource_permission", role.getId(), "APPLY_GRANT_PLAN",
+            null, null, snapshot.toString(), null, new Long[]{role.getId()})));
+    }
+
+    /**
+     * 子权限允许类型只读查询（api-contract §6.5.2）
+     * <p>
+     * 门禁：目标角色 ROLE:VIEW 实例级——resolveRoleId 失败明确抛 20001（本接口无
+     * 「空列表即自然结果」语义，避免前端把角色不存在误判为 ALLOW_NONE）；无 VIEW
+     * 抛 SecurityException 走统一访问拒绝（区别于 §6.4 list 的失败返回空列表）。
+     * 策略结果由 {@code resolveSubPermissionPolicy} 直接映射（读写同源，禁止本层
+     * 另行编写 SUB_PERM 判断）。
+     * </p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public SubPermAllowedTypesResp subPermAllowedTypes(Long tenantId, SubPermAllowedTypesReq req) {
+        Long roleId = typeResolutionService.resolveRoleId(
+            tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
+        if (roleId == null) {
+            throw biz(PermissionErrorCode.ROLE_NOT_FOUND);
+        }
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
+            String.valueOf(roleId), OperationCodeConstants.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on ROLE:" + roleId);
+        }
+        PermissionGrantPlanDomainService.SubPermissionPolicy policy =
+            permissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, req.parentResourceTypeCode());
+        return new SubPermAllowedTypesResp(
+            req.parentResourceTypeCode(),
+            policy.mode().name(),
+            policy.reason(),
+            policy.mode() == PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_LIST
+                ? policy.allowedTypeCodes() : List.of());
     }
 
     private BizException biz(PermissionErrorCode errorCode) {

@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainServi
 import cn.ac.fage.accessmesh.access.permission.service.PermissionGrantAppService;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -186,6 +187,159 @@ class AuthorizationChangeInvalidationPgIT {
             .extracting(RolePermEntry::permissionId)
             .containsExactlyInAnyOrder(keptPermId)
             .doesNotContain(revokedPermId);
+    }
+
+    @Test
+    @DisplayName("端到端场景 1（成功提交）：权限事实落库 + 恰好一条 §6.8 聚合 permission_change_log + 缓存失效")
+    void applyGrantPlanSuccessShouldPersistFactsAndSingleAggregateChangeLog() throws Exception {
+        Long operatorSubject = insertAbstractUserWithId(920011L, "特征测试-成功提交操作者");
+        Long operatorRole = insertAbstractRole("op-role-920111", "特征测试-成功提交操作者角色");
+        insertUserRole(operatorSubject, "ROLE", operatorRole);
+        // 操作者持 ROLE:MANAGE scopeAll 可转授 + SERVICE:VIEW scopeAll 可转授（update 委托需要）
+        jdbc.update("UPDATE role_resource_permission SET can_grant = true WHERE id = ?",
+            insertRolePerm(operatorRole, RESOURCE_TYPE_ROLE, ROLE_MANAGE_BIT, true, null));
+        jdbc.update("UPDATE role_resource_permission SET can_grant = true WHERE id = ?",
+            insertRolePerm(operatorRole, RESOURCE_TYPE_SERVICE, SERVICE_VIEW_BIT, true, null));
+
+        Long affectedUser = insertAbstractUser("920012", "特征测试-成功提交受影响用户");
+        Long targetRole = insertAbstractRole("target-role-920211", "特征测试-成功提交目标角色");
+        insertUserRole(affectedUser, "ROLE", targetRole);
+        // update 路径按严格口径解析权限业务键，被更新行必须引用真实资源实体
+        jdbc.update("INSERT INTO resource_entity (id, tenant_id, resource_type, code, code_type, name, status) "
+            + "VALUES (929011, ?, ?, 'svc-929011', 'default', '特征测试-成功提交资源', 1)", TENANT, RESOURCE_TYPE_SERVICE);
+        Long updatedPermId = insertRolePerm(targetRole, RESOURCE_TYPE_SERVICE, SERVICE_VIEW_BIT, false, 929011L);
+
+        // 预热缓存（afterCommit 失效断言用）
+        assertThat(subjectDomainService.resolveEffectiveRoles(TENANT, affectedUser))
+            .containsExactlyInAnyOrder(targetRole);
+        assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+            .containsKey(affectedUser);
+
+        AccessRequestContext.bind(RequestContext.user(TENANT, 920011L));
+        try {
+            permissionGrantAppService.applyGrantPlan(TENANT, new ApplyGrantPlanReq(
+                null, "BASIC_ROLE", "target-role-920211",
+                new ApplyGrantPlanReq.GrantPlan(
+                    List.of(new ApplyGrantPlanReq.CreateItem(
+                        new ApplyGrantPlanReq.GrantRecordKey(
+                            "ROLE", null, null, "MANAGE", ScopeMode.ALL, null, false),
+                        null, List.of())),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(updatedPermId, Boolean.TRUE, null)),
+                    List.of())));
+        } finally {
+            AccessRequestContext.clear();
+        }
+
+        // 权限事实落库：create（ROLE ALL MANAGE）+ update（canGrant=true）
+        Integer createdCount = jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
+                + "AND delete_flag = 0 AND resource_type = ? AND scope_all = true",
+            Integer.class, TENANT, targetRole, RESOURCE_TYPE_ROLE);
+        assertThat(createdCount).isEqualTo(1);
+        Boolean updatedCanGrant = jdbc.queryForObject(
+            "SELECT can_grant FROM role_resource_permission WHERE id = ?", Boolean.class, updatedPermId);
+        assertThat(updatedCanGrant).isTrue();
+
+        // 恰好一条 §6.8 聚合 permission_change_log（eventType + items[].permission/role）
+        Integer logCount = jdbc.queryForObject(
+            "SELECT count(*) FROM permission_change_log WHERE tenant_id = ? AND entity_id = ?",
+            Integer.class, TENANT, targetRole);
+        assertThat(logCount).isEqualTo(1);
+        String diff = jdbc.queryForObject(
+            "SELECT diff_snapshot FROM permission_change_log WHERE tenant_id = ? AND entity_id = ?",
+            String.class, TENANT, targetRole);
+        com.fasterxml.jackson.databind.JsonNode snapshot =
+            new com.fasterxml.jackson.databind.ObjectMapper().readTree(diff);
+        assertThat(snapshot.path("eventType").asText()).isEqualTo("ROLE_PERMISSION_CHANGE");
+        assertThat(snapshot.path("items").size()).isEqualTo(2);
+        assertThat(snapshot.path("items")).anyMatch(item ->
+            "ADD".equals(item.path("changeType").asText())
+                && "ROLE".equals(item.path("permission").path("resourceTypeCode").asText())
+                && "ALL".equals(item.path("permission").path("scopeMode").asText()));
+        assertThat(snapshot.path("items")).anyMatch(item ->
+            "UPDATE".equals(item.path("changeType").asText())
+                && "target-role-920211".equals(item.path("role").path("roleExternalId").asText()));
+
+        // afterCommit 缓存失效
+        assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+            .doesNotContainKey(affectedUser);
+        assertThat(cacheService.getBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, Set.of(targetRole)))
+            .doesNotContainKey(targetRole);
+    }
+
+    @Test
+    @DisplayName("端到端场景 2（执行失败）：已完成写入后异常 → 事实与变更日志全部回滚 + 不触发缓存失效")
+    void applyGrantPlanFailureShouldRollbackFactsAndSkipChangeLogAndInvalidation() {
+        Long operatorSubject = insertAbstractUserWithId(920021L, "特征测试-失败回滚操作者");
+        Long operatorRole = insertAbstractRole("op-role-920121", "特征测试-失败回滚操作者角色");
+        insertUserRole(operatorSubject, "ROLE", operatorRole);
+        jdbc.update("UPDATE role_resource_permission SET can_grant = true WHERE id = ?",
+            insertRolePerm(operatorRole, RESOURCE_TYPE_ROLE, ROLE_MANAGE_BIT, true, null));
+        // 操作者补持触发位操作的可转授权限（否则预检 20040 先拒绝，到不了写入阶段）
+        jdbc.update("INSERT INTO operation_permission "
+            + "(tenant_id, resource_type, code, name, binary_bit, inherit_mask, delete_flag) "
+            + "VALUES (?, ?, 'TRIGGER_OP', '触发位', 16384, 0, 0)", TENANT, RESOURCE_TYPE_ROLE);
+        jdbc.update("UPDATE role_resource_permission SET can_grant = true WHERE id = ?",
+            insertRolePerm(operatorRole, RESOURCE_TYPE_ROLE, 16384L, true, null));
+
+        // 故障注入（在操作者权限种子落库之后建触发器，避免误伤种子自身）：
+        // granted_bits=16384 的插入触发 DB 异常（第二笔 create 落库时炸）
+        jdbc.update("CREATE OR REPLACE FUNCTION golden_fail_insert() RETURNS trigger AS $$ "
+            + "BEGIN RAISE EXCEPTION 'injected failure'; END $$ LANGUAGE plpgsql");
+        jdbc.update("CREATE TRIGGER trg_golden_fail BEFORE INSERT ON role_resource_permission "
+            + "FOR EACH ROW WHEN (NEW.granted_bits = 16384) EXECUTE FUNCTION golden_fail_insert()");
+        try {
+            Long affectedUser = insertAbstractUser("920022", "特征测试-失败回滚受影响用户");
+            Long targetRole = insertAbstractRole("target-role-920221", "特征测试-失败回滚目标角色");
+            insertUserRole(affectedUser, "ROLE", targetRole);
+            Integer rowsBefore = jdbc.queryForObject(
+                "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
+                    + "AND delete_flag = 0", Integer.class, TENANT, targetRole);
+
+            // 预热缓存（失败不得失效）
+            assertThat(subjectDomainService.resolveEffectiveRoles(TENANT, affectedUser))
+                .containsExactlyInAnyOrder(targetRole);
+            assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+                .containsKey(affectedUser);
+
+            AccessRequestContext.bind(RequestContext.user(TENANT, 920021L));
+            try {
+                Throwable thrown = org.assertj.core.api.Assertions.catchThrowable(() ->
+                    permissionGrantAppService.applyGrantPlan(TENANT, new ApplyGrantPlanReq(
+                        null, "BASIC_ROLE", "target-role-920221",
+                        new ApplyGrantPlanReq.GrantPlan(List.of(
+                            new ApplyGrantPlanReq.CreateItem(new ApplyGrantPlanReq.GrantRecordKey(
+                                "ROLE", null, null, "MANAGE", ScopeMode.ALL, null, false), null, List.of()),
+                            new ApplyGrantPlanReq.CreateItem(new ApplyGrantPlanReq.GrantRecordKey(
+                                "ROLE", null, null, "TRIGGER_OP", ScopeMode.ALL, null, false), null, List.of())),
+                            List.of(), List.of()))));
+                // 锁定故障来自注入的触发器（第二笔 create 落库时炸），而非预检拒绝
+                Throwable root = thrown;
+                while (root.getCause() != null) {
+                    root = root.getCause();
+                }
+                assertThat(root.getMessage()).contains("injected failure");
+            } finally {
+                AccessRequestContext.clear();
+            }
+
+            // 事实表回滚：第一笔 create 未残留（行数与调用前一致）
+            Integer rowsAfter = jdbc.queryForObject(
+                "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
+                    + "AND delete_flag = 0", Integer.class, TENANT, targetRole);
+            assertThat(rowsAfter).isEqualTo(rowsBefore);
+            // 审计表无部分状态
+            Integer logCount = jdbc.queryForObject(
+                "SELECT count(*) FROM permission_change_log WHERE tenant_id = ? AND entity_id = ?",
+                Integer.class, TENANT, targetRole);
+            assertThat(logCount).isZero();
+            // 失败不触发缓存失效（仍命中预热值）
+            assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+                .containsKey(affectedUser);
+        } finally {
+            jdbc.update("DROP TRIGGER IF EXISTS trg_golden_fail ON role_resource_permission");
+            jdbc.update("DROP FUNCTION IF EXISTS golden_fail_insert()");
+        }
     }
 
     // ===== 数据装配 =====

@@ -438,6 +438,8 @@ PermQueryEngine.query(PermQuery q)
 
 **SUB_PERM 共享策略对象（复审实现建议采纳，复审补公开入口）**：从 `assertSubPermissionAllowed` 抽取不可变策略对象 `SubPermissionPolicy { mode, reason, allowedTypeCodes, allows(childTypeCode) }`，**唯一公开解析入口 `PermissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, parentResourceTypeCode)`**——读接口（`sub-perm-allowed-types`）由 AppService 映射其结果直接序列化；写链路 `prevalidate` 内部复用同一解析器（`policy.allows(childTypeCode)`），**禁止在 AppService/Controller 另行编写 SUB_PERM 判断（读写同源）**；顶层通配、全量结构校验（任一 allowed 项非法 -> CONFIG_INVALID）、并集去重、大小写不敏感与错误原因均在策略内统一组装，读写不再各自编排判断。**校验顺序**：先按主/子记录分类（子权限 create 非 null/false -> 20043、子权限 update -> 20043），主权限再评估 20041（条件不可转授）→ 20042（条件启用状态）→ 20033 → 其他。
 
+> **落地状态（T-PERM-034 收口，2026-08-30）**：策略对象/端点/校验顺序均已实现（判定优先级 0-6 单测全分支覆盖）；20043 预检先于 20041（update 目标为子权限与两种 create 形态均拒），并补齐「向 AUTO_DEP 父挂子权限 → 20034」遗漏不变量；diff_snapshot 按 §6.8 聚合形状写侧落地；`GoldenFixturePgIT`（真库引擎级比对）落地并顺带修复引擎缺口——`resolveBitMasks` 此前不计全局操作位（授权侧允许的全局位运行时被忽略），已改为按类型合并「专属优先、全局回退」（`selectGlobal` mapper + OPERATION_PERMISSIONS_BY_TYPE 缓存合并，与写链路 mergeGlobalFallback 同源）。
+
 | 接口         | 路径                                                             | 说明                                             |
 | ------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
 | 查询角色权限 | `POST /api/perm/role-resource-permission/list`                   | 查询角色已有权限列表（含子权限展开）             |
@@ -541,14 +543,16 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         //    updates/removes 实际影响行数 ≠ 预期（记录被并发删除/修改）-> 20036 抛出整体回滚
         permissionGrantPlanDomainService.apply(prepared);
 
-        // ④ 变更审计：同事务内写一条聚合 permission_change_log（diff_snapshot.items 覆盖 creates/updates/removes，含权限记录 ID）
+        // ④ 变更审计：同事务内写一条聚合 permission_change_log（§6.8 形状——T-PERM-034 落地：
+        //    eventType=ROLE_PERMISSION_CHANGE + items[]{changeType, permission 6 字段业务键, role 摘要}，
+        //    业务键快照由 prevalidate 期 AuditPermissionKey 装配，removes 悬挂引用降级 null 键字段）
         //    回滚随事务消失，不写日志
         String requestId = null; // 当前无统一 RequestIdContext，与现有审计调用一致
         auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
             tenantId, operatorId, requestId, PermConstants.MaintainSource.MANUAL, "apply-grant-plan"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "role_resource_permission", roleId, "APPLY_GRANT_PLAN", null, null,
-                buildDiffSnapshot(prepared),  // diff_snapshot 含 creates/updates/removes 记录 ID
+                buildDiffSnapshot(req, role, prepared),  // §6.8 聚合形状（旧「记录 ID 列表」形状已废弃）
                 new Long[0],               // affectedUserIds
                 new Long[]{roleId})));      // affectedRoleIds
 

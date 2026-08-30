@@ -202,11 +202,18 @@ public enum PermissionErrorCode {
     CONDITIONAL_PERMISSION_CANNOT_DELEGATE(20041, "条件权限不可转授"),
 
     /**
+     * 子权限属性系统不变量（2026-08-08 复审产品确认，api-contract §6.5.1）：
+     * 子权限不承载条件与再授予——create 的 conditionCode 非 null / canGrant 非 false、
+     * 或 update 目标为子权限，一律拒绝（先于主权限 20041/20042 判定）。
+     */
+    SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED(20043, "子权限不承载条件与再授予（系统不变量）"),
+
+    /**
      * 禁止通过权限管理入口或外部同步直接修改 access-service 本地投影。
      * <p>
-     * 编号 20045/20046 段：20042/20043 已被授权链路 CONDITION_DISABLED /
-     * SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED 占用（api-contract §6.5.1），
-     * 统一响应只暴露数字码，同一编号不得承载两种业务含义。
+     * 编号 20045/20046 段：20042 已被授权链路 CONDITION_DISABLED 预留（api-contract
+     * §6.5.1，枚举建立与校验实现归 T-PERM-041），统一响应只暴露数字码，
+     * 同一编号不得承载两种业务含义。
      * </p>
      */
     LOCAL_PROJECTION_IMMUTABLE(20045, "禁止直接修改 access-service 本地权限投影"),

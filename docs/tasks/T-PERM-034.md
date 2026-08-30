@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-034
 title: 4.1 权限授予后端改造（七项 + 工程加固收窄 + 全链路迁移简化）
-status: proposed
+status: done
 plan: docs/plans/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
@@ -42,13 +42,13 @@ acceptance:
   - "design_writeback（权威文档全量同步门禁，人工清单核对）：api-contract §6.4/§6.5/§6.5.1/§6.5.2 契约实现状态标注（砍 CAS/幂等/revision 字段、补结构约束、20041/20042 仅主权限、20043 子权限不变量、错误优先级、sub-perm-allowed-types）、access-service.sql（role_resource_permission 节：**删 grant_revision 列 + 删 grant_plan_idempotency 表** + 表注释同步）、core-flows.md §6 + §8/§12/§14 场景（apply-grant-plan 主通道，无 CAS/幂等）、implementation.md §4 全章（接口/DTO/时序图/伪代码，收窄重写 + SubPermissionPolicy）、permission-grant.md status draft -> adopted、任务验收描述--逐项人工核对，任一不同步不通过"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-08-29   # T-PERM-033 依赖登记：diff_snapshot 契约形状对齐入范围 4/验收
+  status: done
+last_updated: 2026-08-30   # 收口：四缺口推进（经决策）+ 已完成项核对登记；两项引擎级发现随 Golden 比对修复
 ---
 
 # T-PERM-034 4.1 权限授予后端改造
 
-> 状态：proposed（2026-08-02 收窄：砍 CAS + grant_revision 列 + 幂等表 + 20037/20039 + 重试 machinery + clientRequestId/@Idempotent（幂等中间件实现取消（未登记看板））；全链路迁移简化为 Feign+DTO+测试替换；schema 删除，契约回归 api-contract）
+> 状态：done（2026-08-30 收口，终态见 api-contract §6.5.1/§6.5.2 落地注记与完成记录；2026-08-02 收窄：砍 CAS + grant_revision 列 + 幂等表 + 20037/20039 + 重试 machinery + clientRequestId/@Idempotent（幂等中间件实现取消（未登记看板））；全链路迁移简化为 Feign+DTO+测试替换；schema 删除，契约回归 api-contract）
 > 依赖：T-PERM-031（已 done：本任务前置的资源依赖后端已收口；原「全局操作 fixture 生产」括注已废止——范围被 T-PERM-028/040 覆盖）
 > 前置验收：见 acceptance（DoD 门禁）
 
@@ -76,4 +76,12 @@ v3 权限授予页（T-FE-036）需要后端补齐授权写链路能力。2026-0
 
 ## 完成记录
 
+- **2026-08-30 主体收口（四缺口推进，经决策——已完成项不重做，仅登记核对结论）**。执行前逐项核对代码现状，确认下列验收项**已存在**（多为 T-PERM-040/041/028 与端点退役批次先行落地，经多轮回归）：Resp 四字段（grantSource/grantedBits/includeChildren/createdAt/childCount）、错误码族（20011/20033/20034/20036/20040/20041）、schema CHECK 约束、prevalidate 主体不变量（互斥/重复/存在性/父归属/AUTO_DEP 只读/SUB_PERM fail-closed/checkCanGrant 批量固定查询/父域 resource_type 直查）、写入口五项清单（事务/操作日志/@PermissionChange/recordChangeLog/markRoles）、apply-grant-plan 唯一写入口与行数断言。本批实施四个真缺口：
+  1. **20043 子权限属性系统不变量**：枚举建立（SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED）+ 预检（children 嵌套与 parentPermissionId 挂父两形态 create 的 conditionCode/canGrant 检查、update 目标为子权限一律拒绝，错误优先级先于 20041）；顺带补齐验收不变量族遗漏的「向 AUTO_DEP 父挂子权限 → 20034」。
+  2. **SubPermissionPolicy + sub-perm-allowed-types（§6.5.2 全套）**：从 assertSubPermissionAllowed 抽取不可变策略对象（mode/reason/allowedTypeCodes/allows），唯一公开入口 resolveSubPermissionPolicy（20007 类型校验+域定位+优先级 0-6 解析）；新端点（ROLE:VIEW 实例门禁、resolveRoleId 失败 20001、无 VIEW 抛 SecurityException、策略直接序列化）；快照 +1 端点；写链路复用同一解析器（读写同源）。
+  3. **diff_snapshot §6.8 聚合形状**（T-PERM-033 登记的读侧依赖解锁）：PreparedGrantPlan 增 AuditPermissionKey 快照（creates 取请求键、updates/removes 预检期反查业务键——removes 行软删后不可回查；悬挂引用降级 null 键字段，删除不被死引用阻塞），AppService 装配 eventType/items[]{changeType,permission 6 字段业务键,role 摘要} 一条聚合日志（ObjectNode 序列化）。
+  4. **GoldenFixturePgIT（经决策选型：PgIT 引擎级比对）**：读前端权威 fixtures（6 用例），真库种类型/操作/资源/主体/权限行，运行时引擎逐（资源×操作）评估与 expected.cells 等价比对（nodeClosure 语义映射为 {资源}∪祖先链逐点判定取或）；组合位记录以 AUTO_DEP 落库（MANUAL 单位 CHECK 约束，组合位属防御性展示语义）；预种全部操作后再评估（OPERATION_PERMISSIONS_BY_TYPE 缓存首载合并快照——T-PERM-047 写路径失效未接线的中途补种会读到陈旧缓存）。
+- **两项引擎级发现（Golden 比对首跑即抓出，均已修复）**：①`PermQueryEngine.resolveBitMasks` 此前不计全局操作位——授权侧经 mergeGlobalFallback 允许授全局操作（如 EXPORT），运行时引擎却忽略该位（前端自算==引擎语义的实质分歧）；修复为按类型合并「专属优先、全局回退」（新增 selectGlobal mapper，OPERATION_PERMISSIONS_BY_TYPE 缓存内容改为合并后最终可用集，单生产者无一致性风险）。②`expandByInheritMode` 的继承展开语义为对已加载条目的展示性克隆（core-flows §资源继承展开如实描述），实例判定按查询实体精确加载——非缺陷，测试按此映射（祖先链 OR）。
+- **测试**：PermissionGrantPlanDomainServiceImplTest 4→35（成功路径 6/20043 反例 5/不变量反例 10/SUB_PERM 四格 3/Policy 判定表 11）；新建 PermissionGrantAppServiceImplTest 5（sub-perm 门禁 3+策略映射 2... 实为门禁/映射 4 + diff_snapshot 聚合形状捕获 1）；GoldenFixturePgIT 1（6 用例）；AuthorizationChangeInvalidationPgIT 1→3（+端到端场景 1：成功提交恰好一条聚合日志+缓存失效；+端到端场景 2：DB 触发器注入第二笔 create 失败→事实/日志全回滚+不触发失效，断言根因为注入异常防委托失败假阳性）；HttpApiPathSnapshotTest +sub-perm-allowed-types。过程修复测试基建：insertRolePerm 未写 can_grant 列（操作者「可转授」实际落库 false——batchRevoke 因 removes 无委托键侥幸通过）。
+- **文档**：api-contract（§5.5 行收口/§6.5.2 落地注记/§6.8 写侧落地增补/last_reviewed）、implementation §4（落地注记+伪代码 diff_snapshot 形状订正）、permission-grant.md（last_reviewed+决策 16/17 收口+Golden 落地注记）、看板行 ✅、plan 进度行、AGENTS 阶段句。
 - **2026-08-27 范围第 5 项（端点退役）独立收口（设计定案）**：`save/revoke/children/add-child/remove-child` 五端点从 PermissionGrantController 删除（无存量调用方，AppService 五方法、五个请求 DTO、死私有方法一并清除）；SDK 面 perm-common `RoleGrantReq`/`BatchRevokeReq` 与 perm-client `PermissionFeignClient.batchGrant/batchRevoke` 同步移除；快照 190→185 + RETIRED_PATHS 登记；新增 RetiredGrantApiContractTest（五端点 404 + 存活端点委托）；AuthorizationChangeInvalidationPgIT 撤销场景改走 applyGrantPlan removes。任务其余六项（grantSource/grantedBits、includeChildren、createdAt/childCount、sub-perm-allowed-types、prevalidate 不变量族、测试矩阵）待 T-PERM-031 完成后推进，任务整体不置 done。

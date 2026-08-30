@@ -4,8 +4,10 @@ import cn.ac.fage.accessmesh.common.model.PermResult;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RolePermissionListReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.SubPermAllowedTypesReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RolePermissionItemResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RolePermissionItemsResp;
+import cn.ac.fage.accessmesh.access.permission.dto.resp.SubPermAllowedTypesResp;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionGrantAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -64,5 +66,19 @@ public class PermissionGrantController {
     public PermResult<RolePermissionItemsResp> list(@Valid @RequestBody RolePermissionListReq req) {
         List<RolePermissionItemResp> items = permissionGrantService.listPermissions(TenantContextHolder.getTenantId(), req);
         return PermResult.success(new RolePermissionItemsResp(items));
+    }
+
+    /**
+     * 子权限允许类型只读查询（api-contract §6.5.2）
+     * <p>
+     * 按父资源类型返回 SUB_PERM 允许的子资源类型（授权弹窗子权限配置器数据源）；
+     * 判定口径与写链路 SUB_PERM fail-closed 校验同源（resolveSubPermissionPolicy）。
+     * </p>
+     */
+    @PostMapping("/sub-perm-allowed-types")
+    public PermResult<SubPermAllowedTypesResp> subPermAllowedTypes(
+            @Valid @RequestBody SubPermAllowedTypesReq req) {
+        return PermResult.success(permissionGrantService.subPermAllowedTypes(
+            TenantContextHolder.getTenantId(), req));
     }
 }

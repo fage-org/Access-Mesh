@@ -174,6 +174,6 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
             .map(grant -> new PermissionGrantPlanDomainService.PreparedCreate(grant, List.of()))
             .toList();
         permissionGrantPlanDomainService.apply(new PermissionGrantPlanDomainService.PreparedGrantPlan(
-            tenantId, roleId, creates, List.of(), List.of(), Set.of()));
+            tenantId, roleId, creates, List.of(), List.of(), Set.of(), List.of()));
     }
 }

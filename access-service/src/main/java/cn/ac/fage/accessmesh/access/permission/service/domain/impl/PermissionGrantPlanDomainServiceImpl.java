@@ -24,6 +24,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionGrantPla
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.util.DatabaseExceptionSupport;
 import cn.ac.fage.accessmesh.access.permission.util.ScopeModeSupport;
+import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -149,6 +150,16 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                     throw biz(PermissionErrorCode.PARENT_PERMISSION_NOT_FOUND,
                         "Cannot add a child to a removed parent permission");
                 }
+                // 向 AUTO_DEP 父挂子权限同属 AUTO_DEP 只读边界（自动补全记录不承载手动子权限）
+                assertMutable(parent);
+            }
+            // 子权限属性系统不变量（先于 toPermission 内主权限 20041 判定）：
+            // 两种子权限 create 形态的 conditionCode 必须 null、canGrant 必须 false
+            if (create.parentPermissionId() != null) {
+                assertChildKeyAttributes(create.key());
+            }
+            for (ApplyGrantPlanReq.GrantRecordKey childKey : create.childItems()) {
+                assertChildKeyAttributes(childKey);
             }
             allKeys.add(create.key());
             allKeys.addAll(create.childItems());
@@ -202,6 +213,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         List<PreparedCreate> preparedCreates = new ArrayList<>();
         List<RoleResourcePermission> directCreates = new ArrayList<>();
         Set<PermissionGrantDomainService.GrantCheckKey> delegationKeys = new LinkedHashSet<>();
+        List<PermissionGrantPlanDomainService.AuditPermissionKey> auditKeys = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
         for (ApplyGrantPlanReq.CreateItem create : createItems) {
             RoleResourcePermission permission = toPermission(tenantId, roleId, domainCode,
@@ -216,6 +228,8 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             directCreates.add(permission);
             delegationKeys.add(toGrantCheckKey(create.key()));
             create.childItems().stream().map(this::toGrantCheckKey).forEach(delegationKeys::add);
+            auditKeys.add(toAuditKey("ADD", create.key()));
+            create.childItems().forEach(key -> auditKeys.add(toAuditKey("ADD", key)));
         }
 
         permissionGrantDomainService.validateSingleManualGrants(
@@ -232,11 +246,23 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         Set<Integer> updateTypeValues = updateItems.stream()
             .map(item -> existingById.get(item.id()).getResourceType())
             .filter(Objects::nonNull).collect(Collectors.toSet());
+        for (Long removeId : removeIdSet) {
+            Integer removeType = existingById.get(removeId).getResourceType();
+            if (removeType != null) {
+                updateTypeValues.add(removeType);
+            }
+        }
         Map<Integer, String> updateTypeCodes = typeResolutionService.batchResolveTypeCodes(
             tenantId, "resource_type", updateTypeValues);
         Set<Long> updateResourceIds = updateItems.stream()
             .map(item -> existingById.get(item.id()).getResourceEntityId())
             .filter(Objects::nonNull).collect(Collectors.toSet());
+        for (Long removeId : removeIdSet) {
+            Long removeResourceId = existingById.get(removeId).getResourceEntityId();
+            if (removeResourceId != null) {
+                updateResourceIds.add(removeResourceId);
+            }
+        }
         Map<Long, ResourceEntity> updateResources = updateResourceIds.isEmpty() ? Map.of()
             : resourceEntityMapper.selectValidByIds(tenantId, updateResourceIds).stream()
                 .collect(Collectors.toMap(ResourceEntity::getId, Function.identity()));
@@ -247,6 +273,11 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 throw validation("An update must change canGrant or conditionCode");
             }
             RoleResourcePermission permission = existingById.get(update.id());
+            // 子权限属性系统不变量（先于主权限 20041 判定）：update 目标为子权限一律 20043，仅可删除
+            if (permission.getDependOn() != null) {
+                throw biz(PermissionErrorCode.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED,
+                    "Cannot update a child permission: " + update.id());
+            }
             if (update.canGrant() != null) {
                 permission.setCanGrant(update.canGrant());
             }
@@ -275,11 +306,32 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 operation.getCode(),
                 Boolean.TRUE.equals(permission.getScopeAll())
             ));
+            auditKeys.add(new PermissionGrantPlanDomainService.AuditPermissionKey("UPDATE",
+                resourceTypeCode, resource == null ? null : resource.getCode(),
+                resource == null ? null : resource.getCodeType(), operation.getCode(),
+                Boolean.TRUE.equals(permission.getScopeAll()) ? ScopeMode.ALL : ScopeMode.INSTANCE));
+        }
+
+        // removes 业务键快照（行随后被软删，事后不可回查；§6.8 聚合形状装配）。
+        // 悬挂引用（资源实体/操作定义已不存在）降级为 null 键字段：删除不得被
+        // 死引用阻塞（清理死引用正是删除的合法场景），update 路径维持既有严格判定
+        for (Long removeId : removeIds) {
+            RoleResourcePermission permission = existingById.get(removeId);
+            ResourceEntity resource = permission.getResourceEntityId() == null ? null
+                : updateResources.get(permission.getResourceEntityId());
+            OperationPermission operation = resolveOperationByBit(
+                allOperations, permission.getResourceType(), permission.getGrantedBits());
+            String resourceTypeCode = updateTypeCodes.get(permission.getResourceType());
+            auditKeys.add(new PermissionGrantPlanDomainService.AuditPermissionKey("REMOVE",
+                resourceTypeCode, resource == null ? null : resource.getCode(),
+                resource == null ? null : resource.getCodeType(),
+                operation == null ? null : operation.getCode(),
+                Boolean.TRUE.equals(permission.getScopeAll()) ? ScopeMode.ALL : ScopeMode.INSTANCE));
         }
 
         verifyDelegation(tenantId, subjectId, domainCode, delegationKeys);
         return new PreparedGrantPlan(tenantId, roleId, preparedCreates,
-            preparedUpdates, List.copyOf(removeIds), Set.copyOf(delegationKeys));
+            preparedUpdates, List.copyOf(removeIds), Set.copyOf(delegationKeys), List.copyOf(auditKeys));
     }
 
     @Override
@@ -433,48 +485,128 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
 
     private void assertSubPermissionAllowed(DomainConfig config, String parentTypeCode,
                                             String childTypeCode) {
-        if (config == null) {
+        // 写链路复用读接口同一策略解析器（读写同源，§6.5.2 实现约束）
+        SubPermissionPolicy policy = parseSubPermissionPolicy(config, parentTypeCode);
+        if (!policy.allows(childTypeCode)) {
             throw biz(PermissionErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
-                "SUB_PERM config is missing for parent type " + parentTypeCode);
+                "Child type " + childTypeCode + " is not allowed for parent type " + parentTypeCode
+                    + " (" + policy.mode() + (policy.reason() == null ? "" : "/" + policy.reason()) + ")");
+        }
+    }
+
+    /**
+     * SUB_PERM 策略唯一解析入口（读接口直接序列化，写链路 prevalidate 复用 allows()）。
+     * <p>
+     * 判定优先级固定（§6.5.2）：0 配置存在性（CONFIG_MISSING/CONFIG_EMPTY）→
+     * 1 顶层通配 "*" → ALLOW_ALL；2 全量结构校验（JSON 失败或任一 allowed 项
+     * parent_type 非非空字符串 / child_types 非数组 → CONFIG_INVALID）→
+     * 3 无匹配 parent_type → PARENT_NOT_CONFIGURED；4 匹配项 child_types 含 "*" →
+     * ALLOW_ALL；5 并集去重非空 → ALLOW_LIST（配置原文，不做码转换）；
+     * 6 并集为空 → CHILD_TYPES_EMPTY。比较均大小写不敏感。
+     * </p>
+     *
+     * @throws BizException parentResourceTypeCode 资源类型不存在（20007）
+     */
+    @Override
+    public SubPermissionPolicy resolveSubPermissionPolicy(Long tenantId, String parentResourceTypeCode) {
+        if (typeResolutionService.resolveTypeValue(tenantId, "resource_type", parentResourceTypeCode) == null) {
+            throw biz(PermissionErrorCode.RESOURCE_TYPE_NOT_FOUND,
+                "parentResourceTypeCode not found: " + parentResourceTypeCode);
+        }
+        DomainConfig config = findSubPermConfigForParentType(tenantId, parentResourceTypeCode);
+        return parseSubPermissionPolicy(config, parentResourceTypeCode);
+    }
+
+    /** 按父资源类型定位其所属域的 SUB_PERM 配置（域分类 + 全局域兜底口径同写链路批量路径） */
+    private DomainConfig findSubPermConfigForParentType(Long tenantId, String parentTypeCode) {
+        Map<String, Long> domainIds = domainClassifyService.findDomainIdsByTypeCodes(
+            tenantId, Set.of(parentTypeCode));
+        Long domainId = domainIds.get(parentTypeCode);
+        if (domainId == null) {
+            return null;
+        }
+        return domainConfigMapper.selectByTenantId(tenantId).stream()
+            .filter(existing -> ConfigType.SUB_PERM.getValue().equals(existing.getConfigType()))
+            .filter(existing -> domainId.equals(existing.getBizDomainId()))
+            .findFirst().orElse(null);
+    }
+
+    /** 从单条 SUB_PERM 配置解析策略（§6.5.2 优先级 0-6；读写同源；包内可见供同包单测直测判定表） */
+    SubPermissionPolicy parseSubPermissionPolicy(DomainConfig config, String parentTypeCode) {
+        if (config == null) {
+            return new SubPermissionPolicy(SubPermissionPolicy.Mode.ALLOW_NONE,
+                "CONFIG_MISSING", List.of());
         }
         String extra = config.getExtra();
         if (extra == null || extra.isBlank()) {
-            throw biz(PermissionErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
-                "SUB_PERM config is empty for parent type " + parentTypeCode);
+            return new SubPermissionPolicy(SubPermissionPolicy.Mode.ALLOW_NONE,
+                "CONFIG_EMPTY", List.of());
         }
         if ("*".equals(extra.trim())) {
-            return;
+            return new SubPermissionPolicy(SubPermissionPolicy.Mode.ALLOW_ALL, null, List.of());
         }
+        List<String> matchedChildTypes = new ArrayList<>();
+        boolean parentMatched = false;
         try {
             JsonNode allowed = objectMapper.readTree(extra).get("allowed");
             if (allowed == null || !allowed.isArray()) {
                 throw new IllegalArgumentException("allowed must be an array");
             }
             for (JsonNode item : allowed) {
+                // 全量结构校验：非匹配项不容错（无法证明属于其他父类型，属全局结构错误）
                 String configuredParent = item.path("parent_type").asText(null);
                 JsonNode childTypes = item.get("child_types");
-                if (configuredParent == null || childTypes == null || !childTypes.isArray()) {
+                if (configuredParent == null || configuredParent.isBlank()
+                    || childTypes == null || !childTypes.isArray()) {
                     throw new IllegalArgumentException("invalid allowed item");
                 }
                 if (!configuredParent.equalsIgnoreCase(parentTypeCode)) {
                     continue;
                 }
+                parentMatched = true;
                 for (JsonNode childType : childTypes) {
-                    String configuredChild = childType.asText();
-                    if ("*".equals(configuredChild)
-                        || configuredChild.equalsIgnoreCase(childTypeCode)) {
-                        return;
-                    }
+                    matchedChildTypes.add(childType.asText());
                 }
             }
-        } catch (BizException exception) {
-            throw exception;
+        } catch (IllegalArgumentException exception) {
+            return new SubPermissionPolicy(SubPermissionPolicy.Mode.ALLOW_NONE,
+                "CONFIG_INVALID", List.of());
         } catch (Exception exception) {
-            throw biz(PermissionErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
-                "SUB_PERM config format is invalid for parent type " + parentTypeCode);
+            return new SubPermissionPolicy(SubPermissionPolicy.Mode.ALLOW_NONE,
+                "CONFIG_INVALID", List.of());
         }
-        throw biz(PermissionErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
-            "Child type " + childTypeCode + " is not allowed for parent type " + parentTypeCode);
+        if (!parentMatched) {
+            return new SubPermissionPolicy(SubPermissionPolicy.Mode.ALLOW_NONE,
+                "PARENT_NOT_CONFIGURED", List.of());
+        }
+        if (matchedChildTypes.stream().anyMatch("*"::equals)) {
+            return new SubPermissionPolicy(SubPermissionPolicy.Mode.ALLOW_ALL, null, List.of());
+        }
+        // 并集去重（大小写不敏感，保留配置原文首次出现顺序）
+        List<String> union = new ArrayList<>();
+        for (String childType : matchedChildTypes) {
+            if (childType == null || childType.isBlank()) {
+                continue;
+            }
+            boolean duplicated = union.stream().anyMatch(existing -> existing.equalsIgnoreCase(childType));
+            if (!duplicated) {
+                union.add(childType);
+            }
+        }
+        if (union.isEmpty()) {
+            return new SubPermissionPolicy(SubPermissionPolicy.Mode.ALLOW_NONE,
+                "CHILD_TYPES_EMPTY", List.of());
+        }
+        return new SubPermissionPolicy(SubPermissionPolicy.Mode.ALLOW_LIST, null, List.copyOf(union));
+    }
+
+    /** 子权限属性系统不变量（2026-08-08 产品确认）：create 形态的 conditionCode 必须 null、canGrant 必须 false */
+    private static void assertChildKeyAttributes(ApplyGrantPlanReq.GrantRecordKey key) {
+        if (key.conditionCode() != null || Boolean.TRUE.equals(key.canGrant())) {
+            throw new BizException(PermissionErrorCode.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED.getCode(),
+                "Child permission does not carry conditionCode/canGrant: "
+                    + key.resourceTypeCode() + "/" + key.operationCode());
+        }
     }
 
     private OperationPermission resolveOperation(List<OperationPermission> operations,
@@ -519,6 +651,14 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             .filter(operation -> Objects.equals(operation.getBinaryBit(), grantedBits))
             .filter(operation -> !specificCodes.contains(normalize(operation.getCode())))
             .findFirst().orElse(null);
+    }
+
+    /** create 请求键 → 变更日志业务键快照（ADD） */
+    private static PermissionGrantPlanDomainService.AuditPermissionKey toAuditKey(
+            String changeType, ApplyGrantPlanReq.GrantRecordKey key) {
+        return new PermissionGrantPlanDomainService.AuditPermissionKey(changeType,
+            key.resourceTypeCode(), key.resourceCode(), key.codeType(),
+            key.operationCode(), key.scopeMode());
     }
 
     private PermissionGrantDomainService.GrantCheckKey toGrantCheckKey(

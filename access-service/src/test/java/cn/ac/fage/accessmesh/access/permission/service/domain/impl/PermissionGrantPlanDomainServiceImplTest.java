@@ -5,6 +5,8 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.permission.entity.DomainConfig;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
+import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
+import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.permission.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
@@ -17,6 +19,8 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionServ
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -26,13 +30,29 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * T-PERM-034 授权计划预检测试矩阵（非笛卡尔积，按适用命令覆盖）：
+ * 成功路径 6 / 子权限属性反例（20043）/ 不变量反例（互斥/重复/存在性/AUTO_DEP 只读/
+ * 父归属）/ SUB_PERM 四格（INSTANCE/ALL × 具体域/全局域）/ 查询次数断言 /
+ * SubPermissionPolicy 判定优先级 0-6。
+ */
 @ExtendWith(MockitoExtension.class)
 class PermissionGrantPlanDomainServiceImplTest {
+
+    private static final Long TENANT = 1L;
+    private static final Long SUBJECT = 10L;
+    private static final Long ROLE = 20L;
 
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
@@ -54,116 +74,602 @@ class PermissionGrantPlanDomainServiceImplTest {
             new OperationResolutionDomainServiceImpl());
     }
 
-    @Test
-    void shouldPrepareNestedChildWithExplicitWildcardSubPermConfig() {
-        stubNestedCreateBase();
-        stubDelegationAllowed();
-        DomainConfig subPerm = new DomainConfig();
-        subPerm.setBizDomainId(7L);
-        subPerm.setConfigType("SUB_PERM");
-        subPerm.setExtra("*");
-        when(domainClassifyService.findDomainIdsByTypeCodes(1L, java.util.Set.of("DATA")))
-            .thenReturn(Map.of("DATA", 7L));
-        when(domainConfigMapper.selectByTenantId(1L)).thenReturn(List.of(subPerm));
+    // ========== 辅助 ==========
 
-        PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
-            1L, 10L, 20L, null, nestedCreatePlan());
-
-        assertEquals(1, prepared.creates().size());
-        assertEquals(1, prepared.creates().get(0).children().size());
-        assertEquals(2, prepared.delegationKeys().size());
+    private static ApplyGrantPlanReq.GrantRecordKey key(String resourceCode, ScopeMode scopeMode,
+                                                        String conditionCode, Boolean canGrant) {
+        return new ApplyGrantPlanReq.GrantRecordKey(
+            "DATA", resourceCode, scopeMode == ScopeMode.ALL ? null : "default",
+            "VIEW", scopeMode, conditionCode, canGrant);
     }
 
-    @Test
-    void shouldFailClosedWhenSubPermConfigIsMissing() {
-        stubNestedCreateBase();
-        when(domainClassifyService.findDomainIdsByTypeCodes(1L, java.util.Set.of("DATA")))
-            .thenReturn(Map.of("DATA", 7L));
-        when(domainConfigMapper.selectByTenantId(1L)).thenReturn(List.of());
-
-        BizException exception = assertThrows(BizException.class, () ->
-            service.prevalidate(1L, 10L, 20L, null, nestedCreatePlan()));
-
-        assertEquals(20011, exception.getErrorCode());
+    private static RoleResourcePermission existing(long id, Long dependOn, String grantSource) {
+        RoleResourcePermission permission = new RoleResourcePermission();
+        permission.setId(id);
+        permission.setTenantId(TENANT);
+        permission.setAbstractRoleId(ROLE);
+        permission.setResourceType(4);
+        permission.setResourceEntityId(101L);
+        permission.setGrantedBits(2L);
+        permission.setScopeAll(false);
+        permission.setDependOn(dependOn);
+        permission.setGrantSource(grantSource);
+        permission.setCanGrant(false);
+        permission.setDeleteFlag(0L);
+        return permission;
     }
 
-    @Test
-    void shouldRejectRemoveWhenAffectedRowCountChanges() {
-        PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
-            new PermissionGrantPlanDomainService.PreparedGrantPlan(
-                1L, 20L, List.of(), List.of(), List.of(99L), java.util.Set.of());
-        when(rolePermissionMapper.softDeleteBatch(eq(1L), eq(List.of(99L)), any()))
-            .thenReturn(0);
-
-        BizException exception = assertThrows(BizException.class, () -> service.apply(prepared));
-
-        assertEquals(20036, exception.getErrorCode());
-    }
-
-    @Test
-    void shouldRejectPlanWhenOperatorCannotDelegate() {
-        stubNestedCreateBase();
-        DomainConfig subPerm = new DomainConfig();
-        subPerm.setBizDomainId(7L);
-        subPerm.setConfigType("SUB_PERM");
-        subPerm.setExtra("*");
-        when(domainClassifyService.findDomainIdsByTypeCodes(1L, java.util.Set.of("DATA")))
-            .thenReturn(Map.of("DATA", 7L));
-        when(domainConfigMapper.selectByTenantId(1L)).thenReturn(List.of(subPerm));
-        when(permissionGrantDomainService.checkCanGrant(eq(1L), eq(10L), any(), eq(null)))
-            .thenAnswer(invocation -> {
-                java.util.Set<PermissionGrantDomainService.GrantCheckKey> keys = invocation.getArgument(2);
-                return keys.stream().collect(java.util.stream.Collectors.toMap(
-                    key -> String.format("%s:%s:%s:%s:%s",
-                        key.resourceTypeCode(), key.resourceCode(), key.codeType(),
-                        key.operationCode(), key.scopeAll() ? "ALL" : "SPECIFIC"),
-                    key -> new PermissionGrantDomainService.GrantCheckResult(false, "NO_DELEGABLE_PERMISSION")));
-            });
-
-        BizException exception = assertThrows(BizException.class, () ->
-            service.prevalidate(1L, 10L, 20L, null, nestedCreatePlan()));
-
-        assertEquals(20040, exception.getErrorCode());
-    }
-
-    private void stubNestedCreateBase() {
-        when(rolePermissionMapper.selectValidByRoleId(1L, 20L)).thenReturn(List.of());
-        when(typeResolutionService.batchResolveTypeValues(
-            1L, "resource_type", java.util.Set.of("DATA")))
+    private void stubCreateBase() {
+        when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of());
+        when(typeResolutionService.batchResolveTypeValues(TENANT, "resource_type", java.util.Set.of("DATA")))
             .thenReturn(Map.of("DATA", 4));
-        when(typeResolutionService.batchResolveResourceIds(eq(1L), any()))
+        when(typeResolutionService.batchResolveResourceIds(eq(TENANT), any()))
             .thenReturn(Map.of(
                 new ResourceResolveKey("DATA", "report:sales", "default", null), 101L,
                 new ResourceResolveKey("DATA", "city:shanghai", "default", null), 102L));
+        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+            .thenReturn(List.of(globalView()));
+    }
+
+    private static OperationPermission globalView() {
         OperationPermission globalView = new OperationPermission();
         globalView.setId(9L);
         globalView.setResourceType(null);
         globalView.setCode("VIEW");
         globalView.setBinaryBit(2L);
         globalView.setInheritMask(0L);
-        when(operationPermissionMapper.selectByTenantAndResourceType(1L, null))
-            .thenReturn(List.of(globalView));
+        return globalView;
     }
 
     private void stubDelegationAllowed() {
-        when(permissionGrantDomainService.checkCanGrant(eq(1L), eq(10L), any(), eq(null)))
+        when(permissionGrantDomainService.checkCanGrant(eq(TENANT), eq(SUBJECT), any(), eq(null)))
             .thenAnswer(invocation -> {
                 java.util.Set<PermissionGrantDomainService.GrantCheckKey> keys = invocation.getArgument(2);
                 return keys.stream().collect(java.util.stream.Collectors.toMap(
-                    key -> String.format("%s:%s:%s:%s:%s",
-                        key.resourceTypeCode(), key.resourceCode(), key.codeType(),
-                        key.operationCode(), key.scopeAll() ? "ALL" : "SPECIFIC"),
-                    key -> new PermissionGrantDomainService.GrantCheckResult(true, null)));
+                    this::grantKey,
+                    k -> new PermissionGrantDomainService.GrantCheckResult(true, null)));
             });
     }
 
+    private String grantKey(PermissionGrantDomainService.GrantCheckKey key) {
+        return String.format("%s:%s:%s:%s:%s",
+            key.resourceTypeCode(),
+            key.resourceCode() == null ? "*" : key.resourceCode(),
+            key.codeType() == null ? "*" : key.codeType(),
+            key.operationCode(),
+            key.scopeAll() ? "ALL" : "SPECIFIC");
+    }
+
+    private void stubUpdateRemoveBase(RoleResourcePermission... existingRows) {
+        when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of(existingRows));
+        when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
+            .thenReturn(Map.of("DATA", 4));
+        when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
+            .thenReturn(Map.of(4, "DATA"));
+        ResourceEntity resource = new ResourceEntity();
+        resource.setId(101L);
+        resource.setTenantId(TENANT);
+        resource.setCode("report:sales");
+        resource.setCodeType("default");
+        when(resourceEntityMapper.selectValidByIds(eq(TENANT), anySet()))
+            .thenReturn(List.of(resource));
+        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+            .thenReturn(List.of(globalView()));
+    }
+
+    private void stubSubPermConfig(String extra, Long domainId) {
+        DomainConfig subPerm = new DomainConfig();
+        subPerm.setBizDomainId(domainId);
+        subPerm.setConfigType("SUB_PERM");
+        subPerm.setExtra(extra);
+        when(domainClassifyService.findDomainIdsByTypeCodes(TENANT, java.util.Set.of("DATA")))
+            .thenReturn(Map.of("DATA", domainId));
+        when(domainConfigMapper.selectByTenantId(TENANT)).thenReturn(List.of(subPerm));
+    }
+
     private ApplyGrantPlanReq.GrantPlan nestedCreatePlan() {
-        ApplyGrantPlanReq.GrantRecordKey parent = new ApplyGrantPlanReq.GrantRecordKey(
-            "DATA", "report:sales", "default", "VIEW", ScopeMode.INSTANCE, null, false);
-        ApplyGrantPlanReq.GrantRecordKey child = new ApplyGrantPlanReq.GrantRecordKey(
-            "DATA", "city:shanghai", "default", "VIEW", ScopeMode.INSTANCE, null, false);
         return new ApplyGrantPlanReq.GrantPlan(
-            List.of(new ApplyGrantPlanReq.CreateItem(parent, null, List.of(child))),
+            List.of(new ApplyGrantPlanReq.CreateItem(
+                key("report:sales", ScopeMode.INSTANCE, null, false), null,
+                List.of(key("city:shanghai", ScopeMode.INSTANCE, null, false)))),
             List.of(), List.of());
+    }
+
+    // ========== 成功路径 ==========
+
+    @Nested
+    class SuccessPaths {
+
+        @Test
+        void shouldPrepareMainPermissionCreate() {
+            stubCreateBase();
+            stubDelegationAllowed();
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("report:sales", ScopeMode.INSTANCE, null, false), null, List.of())),
+                    List.of(), List.of()));
+
+            assertEquals(1, prepared.creates().size());
+            assertTrue(prepared.creates().get(0).children().isEmpty());
+            assertEquals(1, prepared.auditKeys().size());
+            assertEquals("ADD", prepared.auditKeys().get(0).changeType());
+            assertEquals("report:sales", prepared.auditKeys().get(0).resourceCode());
+            assertEquals(ScopeMode.INSTANCE, prepared.auditKeys().get(0).scopeMode());
+        }
+
+        @Test
+        void shouldPrepareNestedChildWithExplicitWildcardSubPermConfig() {
+            stubCreateBase();
+            stubDelegationAllowed();
+            stubSubPermConfig("*", 7L);
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null, nestedCreatePlan());
+
+            assertEquals(1, prepared.creates().size());
+            assertEquals(1, prepared.creates().get(0).children().size());
+            assertEquals(2, prepared.delegationKeys().size());
+            assertEquals(2, prepared.auditKeys().size());
+        }
+
+        @Test
+        void shouldPrepareChildCreateReferencingExistingParent() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "MANUAL")));
+            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of("DATA", 4));
+            when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
+                .thenReturn(Map.of(4, "DATA"));
+            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), any()))
+                .thenReturn(Map.of(new ResourceResolveKey("DATA", "city:shanghai", "default", null), 102L));
+            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+                .thenReturn(List.of(globalView()));
+            stubDelegationAllowed();
+            stubSubPermConfig("*", 7L);
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("city:shanghai", ScopeMode.INSTANCE, null, false), 5L, List.of())),
+                    List.of(), List.of()));
+
+            assertEquals(5L, prepared.creates().get(0).permission().getDependOn());
+            assertEquals(1, prepared.auditKeys().size());
+            assertEquals("ADD", prepared.auditKeys().get(0).changeType());
+        }
+
+        @Test
+        void shouldPrepareMainPermissionUpdateWithCanGrantChange() {
+            stubUpdateRemoveBase(existing(5L, null, "MANUAL"));
+            stubDelegationAllowed();
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null)), List.of()));
+
+            assertEquals(1, prepared.updates().size());
+            assertEquals(1, prepared.auditKeys().size());
+            assertEquals("UPDATE", prepared.auditKeys().get(0).changeType());
+            assertEquals("DATA", prepared.auditKeys().get(0).resourceTypeCode());
+            assertEquals("report:sales", prepared.auditKeys().get(0).resourceCode());
+            assertEquals("VIEW", prepared.auditKeys().get(0).operationCode());
+        }
+
+        @Test
+        void shouldPrepareChildRemoveWithBusinessKeySnapshot() {
+            stubUpdateRemoveBase(existing(6L, 5L, "MANUAL"));
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(6L)));
+
+            assertEquals(List.of(6L), prepared.removes());
+            assertEquals(1, prepared.auditKeys().size());
+            // removes 业务键快照在预检期装配（行随后被软删，事后不可回查）
+            assertEquals("REMOVE", prepared.auditKeys().get(0).changeType());
+            assertEquals("report:sales", prepared.auditKeys().get(0).resourceCode());
+            assertEquals("VIEW", prepared.auditKeys().get(0).operationCode());
+        }
+
+        @Test
+        void shouldCascadeSoftDeleteChildrenOnMainPermissionRemove() {
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
+                new PermissionGrantPlanDomainService.PreparedGrantPlan(
+                    TENANT, ROLE, List.of(), List.of(), List.of(5L), java.util.Set.of(), List.of());
+            when(rolePermissionMapper.softDeleteBatch(eq(TENANT), eq(List.of(5L)), any()))
+                .thenReturn(1);
+
+            service.apply(prepared);
+
+            verify(rolePermissionMapper).cascadeSoftDeleteChildren(eq(TENANT), eq(List.of(5L)), any());
+        }
+    }
+
+    // ========== 子权限属性系统不变量（20043，先于 20041） ==========
+
+    @Nested
+    class ChildAttributeInvariant {
+
+        @Test
+        void shouldRejectNestedChildCreateWithConditionCode() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of());
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("report:sales", ScopeMode.INSTANCE, null, false), null,
+                    List.of(key("city:shanghai", ScopeMode.INSTANCE, "cond-1", false)))),
+                    List.of(), List.of())));
+
+            assertEquals(20043, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectNestedChildCreateWithCanGrantTrue() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of());
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("report:sales", ScopeMode.INSTANCE, null, false), null,
+                    List.of(key("city:shanghai", ScopeMode.INSTANCE, null, true)))),
+                    List.of(), List.of())));
+
+            assertEquals(20043, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectParentAttachedChildCreateWithConditionCodeBeforeMainInvariant() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "MANUAL")));
+
+            // 同时携带 conditionCode + canGrant=true：子权限分类先行 -> 20043（而非主权限 20041）
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("city:shanghai", ScopeMode.INSTANCE, "cond-1", true), 5L, List.of())),
+                    List.of(), List.of())));
+
+            assertEquals(20043, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectUpdateTargetingChildPermissionCanGrantOnly() {
+            stubUpdateRemoveBase(existing(6L, 5L, "MANUAL"));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, Boolean.TRUE, null)), List.of())));
+
+            assertEquals(20043, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectUpdateTargetingChildPermissionConditionOnly() {
+            stubUpdateRemoveBase(existing(6L, 5L, "MANUAL"));
+            cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition condition =
+                new cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition();
+            condition.setId(3L);
+            condition.setCode("cond-1");
+            when(permissionConditionMapper.selectValidByCodes(TENANT, java.util.Set.of("cond-1")))
+                .thenReturn(List.of(condition));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, null, "cond-1")), List.of())));
+
+            assertEquals(20043, exception.getErrorCode());
+        }
+    }
+
+    // ========== 不变量反例 ==========
+
+    @Nested
+    class InvariantViolations {
+
+        @Test
+        void shouldRejectUpdateAndRemoveOnSameId() {
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null)), List.of(5L))));
+
+            assertEquals(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode
+                .VALIDATION_FAILED.getCode(), exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectDuplicateRemoveIds() {
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(5L, 5L))));
+
+            assertEquals(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode
+                .VALIDATION_FAILED.getCode(), exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectUpdateWhenPermissionMissing() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of());
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(99L, Boolean.TRUE, null)), List.of())));
+
+            assertEquals(20036, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectChildCreateWhenParentMissing() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of());
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("city:shanghai", ScopeMode.INSTANCE, null, false), 99L, List.of())),
+                    List.of(), List.of())));
+
+            assertEquals(20009, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectUpdateOnAutoDepRecord() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "AUTO_DEP")));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null)), List.of())));
+
+            assertEquals(20034, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectRemoveOnAutoDepRecord() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "AUTO_DEP")));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(5L))));
+
+            assertEquals(20034, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectChildCreateUnderAutoDepParent() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "AUTO_DEP")));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("city:shanghai", ScopeMode.INSTANCE, null, false), 5L, List.of())),
+                    List.of(), List.of())));
+
+            assertEquals(20034, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectRemoveWhenAffectedRowCountChanges() {
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
+                new PermissionGrantPlanDomainService.PreparedGrantPlan(
+                    TENANT, ROLE, List.of(), List.of(), List.of(99L), java.util.Set.of(), List.of());
+            when(rolePermissionMapper.softDeleteBatch(eq(TENANT), eq(List.of(99L)), any()))
+                .thenReturn(0);
+
+            BizException exception = assertThrows(BizException.class, () -> service.apply(prepared));
+
+            assertEquals(20036, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectPlanWhenOperatorCannotDelegate() {
+            stubCreateBase();
+            DomainConfig subPerm = new DomainConfig();
+            subPerm.setBizDomainId(7L);
+            subPerm.setConfigType("SUB_PERM");
+            subPerm.setExtra("*");
+            when(domainClassifyService.findDomainIdsByTypeCodes(TENANT, java.util.Set.of("DATA")))
+                .thenReturn(Map.of("DATA", 7L));
+            when(domainConfigMapper.selectByTenantId(TENANT)).thenReturn(List.of(subPerm));
+            when(permissionGrantDomainService.checkCanGrant(eq(TENANT), eq(SUBJECT), any(), eq(null)))
+                .thenAnswer(invocation -> {
+                    java.util.Set<PermissionGrantDomainService.GrantCheckKey> keys = invocation.getArgument(2);
+                    return keys.stream().collect(java.util.stream.Collectors.toMap(
+                        key -> String.format("%s:%s:%s:%s:%s",
+                            key.resourceTypeCode(), key.resourceCode(), key.codeType(),
+                            key.operationCode(), key.scopeAll() ? "ALL" : "SPECIFIC"),
+                        key -> new PermissionGrantDomainService.GrantCheckResult(false, "NO_DELEGABLE_PERMISSION")));
+                });
+
+            BizException exception = assertThrows(BizException.class, () ->
+                service.prevalidate(TENANT, SUBJECT, ROLE, null, nestedCreatePlan()));
+
+            assertEquals(20040, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldLoadOperationsOnceAndDelegateOncePerPlan() {
+            // 固定批次数断言：整计划一次操作全量加载 + 一次委托批量校验（与类型数无关）
+            stubCreateBase();
+            stubDelegationAllowed();
+            stubSubPermConfig("*", 7L);
+
+            service.prevalidate(TENANT, SUBJECT, ROLE, null, nestedCreatePlan());
+
+            verify(operationPermissionMapper, times(1)).selectByTenantAndResourceType(TENANT, null);
+            verify(permissionGrantDomainService, times(1)).checkCanGrant(eq(TENANT), eq(SUBJECT), any(), eq(null));
+        }
+    }
+
+    // ========== SUB_PERM 四格（INSTANCE/ALL × 具体域/全局域） ==========
+
+    @Nested
+    class SubPermFourGrid {
+
+        @Test
+        void shouldAllowChildCreateForAllScopeChildInSpecificDomain() {
+            stubCreateBase();
+            stubDelegationAllowed();
+            stubSubPermConfig("*", 7L);
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("report:sales", ScopeMode.INSTANCE, null, false), null,
+                    List.of(key(null, ScopeMode.ALL, null, false)))),
+                    List.of(), List.of()));
+
+            assertEquals(1, prepared.creates().get(0).children().size());
+            assertEquals(ScopeMode.ALL, prepared.auditKeys().get(1).scopeMode());
+        }
+
+        @Test
+        void shouldAllowChildCreateForInstanceChildInGlobalDomain() {
+            stubCreateBase();
+            stubDelegationAllowed();
+            // 全局域：父类型未被具体域认领 -> 域分类回退全局域（findDomainIds 语义）
+            stubSubPermConfig("*", 99L);
+
+            PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
+                TENANT, SUBJECT, ROLE, null, nestedCreatePlan());
+
+            assertEquals(1, prepared.creates().get(0).children().size());
+        }
+
+        @Test
+        void shouldFailClosedWhenSubPermConfigIsMissing() {
+            stubCreateBase();
+            when(domainClassifyService.findDomainIdsByTypeCodes(TENANT, java.util.Set.of("DATA")))
+                .thenReturn(Map.of("DATA", 7L));
+            when(domainConfigMapper.selectByTenantId(TENANT)).thenReturn(List.of());
+
+            BizException exception = assertThrows(BizException.class, () ->
+                service.prevalidate(TENANT, SUBJECT, ROLE, null, nestedCreatePlan()));
+
+            assertEquals(20011, exception.getErrorCode());
+        }
+    }
+
+    // ========== SubPermissionPolicy 判定优先级（§6.5.2 读写同源） ==========
+
+    @Nested
+    class SubPermissionPolicyResolution {
+
+        private PermissionGrantPlanDomainService.SubPermissionPolicy resolve(DomainConfig config) {
+            return service.parseSubPermissionPolicy(config, "MENU");
+        }
+
+        @Test
+        void shouldReturnConfigMissingWhenConfigAbsent() {
+            var policy = resolve(null);
+            assertEquals(PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_NONE, policy.mode());
+            assertEquals("CONFIG_MISSING", policy.reason());
+            assertFalse(policy.allows("BUTTON"));
+        }
+
+        @Test
+        void shouldReturnConfigEmptyWhenExtraBlank() {
+            DomainConfig config = new DomainConfig();
+            config.setExtra("   ");
+            var policy = resolve(config);
+            assertEquals("CONFIG_EMPTY", policy.reason());
+        }
+
+        @Test
+        void shouldReturnAllowAllForTopLevelWildcard() {
+            DomainConfig config = new DomainConfig();
+            config.setExtra(" * ");
+            var policy = resolve(config);
+            assertEquals(PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_ALL, policy.mode());
+            assertTrue(policy.allows("ANY_TYPE"));
+        }
+
+        @Test
+        void shouldReturnConfigInvalidForBrokenJson() {
+            DomainConfig config = new DomainConfig();
+            config.setExtra("{not-json");
+            assertEquals("CONFIG_INVALID", resolve(config).reason());
+        }
+
+        @Test
+        void shouldReturnConfigInvalidForMalformedItemEvenIfUnmatched() {
+            DomainConfig config = new DomainConfig();
+            config.setExtra("{\"allowed\":[{\"parent_type\":\"API\",\"child_types\":[\"X\"]},{\"child_types\":[]}]}");
+            // 非匹配项结构非法同样 CONFIG_INVALID（无法证明属于其他父类型，全局结构错误）
+            assertEquals("CONFIG_INVALID", resolve(config).reason());
+        }
+
+        @Test
+        void shouldReturnParentNotConfiguredWhenNoMatch() {
+            DomainConfig config = new DomainConfig();
+            config.setExtra("{\"allowed\":[{\"parent_type\":\"API\",\"child_types\":[\"X\"]}]}");
+            assertEquals("PARENT_NOT_CONFIGURED", resolve(config).reason());
+        }
+
+        @Test
+        void shouldReturnAllowAllForNestedWildcard() {
+            DomainConfig config = new DomainConfig();
+            config.setExtra("{\"allowed\":[{\"parent_type\":\"MENU\",\"child_types\":[\"*\"]}]}");
+            var policy = resolve(config);
+            assertEquals(PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_ALL, policy.mode());
+        }
+
+        @Test
+        void shouldReturnUnionDedupedList() {
+            DomainConfig config = new DomainConfig();
+            config.setExtra("{\"allowed\":[{\"parent_type\":\"MENU\",\"child_types\":[\"BUTTON\"]},"
+                + "{\"parent_type\":\"menu\",\"child_types\":[\"DATA\",\"button\"]},{\"parent_type\":\"MENU\",\"child_types\":[]}]}");
+            var policy = resolve(config);
+            assertEquals(PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_LIST, policy.mode());
+            assertEquals(List.of("BUTTON", "DATA"), policy.allowedTypeCodes());
+            assertTrue(policy.allows("button"));
+            assertFalse(policy.allows("API"));
+        }
+
+        @Test
+        void shouldReturnChildTypesEmptyWhenAllMatchesEmpty() {
+            DomainConfig config = new DomainConfig();
+            config.setExtra("{\"allowed\":[{\"parent_type\":\"MENU\",\"child_types\":[]}]}");
+            assertEquals("CHILD_TYPES_EMPTY", resolve(config).reason());
+        }
+
+        @Test
+        void shouldThrow20007ForUnknownParentType() {
+            when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "MENU"))
+                .thenReturn(null);
+
+            BizException exception = assertThrows(BizException.class,
+                () -> service.resolveSubPermissionPolicy(TENANT, "MENU"));
+
+            assertEquals(20007, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldResolvePolicyThroughPublicEntryPoint() {
+            when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "MENU"))
+                .thenReturn(4);
+            DomainConfig config = new DomainConfig();
+            config.setBizDomainId(7L);
+            config.setConfigType("SUB_PERM");
+            config.setExtra("{\"allowed\":[{\"parent_type\":\"MENU\",\"child_types\":[\"BUTTON\"]}]}");
+            when(domainClassifyService.findDomainIdsByTypeCodes(TENANT, java.util.Set.of("MENU")))
+                .thenReturn(Map.of("MENU", 7L));
+            when(domainConfigMapper.selectByTenantId(TENANT)).thenReturn(List.of(config));
+
+            var policy = service.resolveSubPermissionPolicy(TENANT, "MENU");
+
+            assertEquals(PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_LIST, policy.mode());
+            assertEquals(List.of("BUTTON"), policy.allowedTypeCodes());
+        }
     }
 }

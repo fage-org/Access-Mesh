@@ -704,14 +704,29 @@ public class PermQueryEngine {
 
         Map<Integer, Long> result = new LinkedHashMap<>();
         for (Integer resourceType : resourceTypes) {
-            // 内联缓存逻辑：查询并缓存该资源类型的所有操作权限（按ID索引）
+            // 内联缓存逻辑：查询并缓存该资源类型的最终可用操作（按ID索引）——
+            // 专属 + 全局按码合并（同码专属优先），与写链路 mergeGlobalFallback 同一语义；
+            // GoldenFixturePgIT（T-PERM-034）抓出的分歧修复：全局操作位此前不参与
+            // 掩码计算，授权侧允许的全局位（如 EXPORT）运行时被引擎忽略
             String cacheKey = "op_perm:" + resourceType;
             Map<Long, OperationPermission> opMap = cacheService.get(
                 PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKey);
             if (opMap == null) {
-                List<OperationPermission> ops = operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType);
-                opMap = ops.stream()
-                    .collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
+                Map<String, OperationPermission> mergedByCode = new LinkedHashMap<>();
+                for (OperationPermission global : operationPermissionMapper.selectGlobal(tenantId)) {
+                    if (global.getCode() != null) {
+                        mergedByCode.put(global.getCode().toUpperCase(), global);
+                    }
+                }
+                for (OperationPermission specific : operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)) {
+                    if (specific.getCode() != null) {
+                        mergedByCode.put(specific.getCode().toUpperCase(), specific);
+                    }
+                }
+                opMap = new LinkedHashMap<>();
+                for (OperationPermission merged : mergedByCode.values()) {
+                    opMap.put(merged.getId(), merged);
+                }
                 if (!opMap.isEmpty()) {
                     cacheService.put(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKey, opMap);
                 }
@@ -722,7 +737,9 @@ public class PermQueryEngine {
 
             long mask = 0L;
             for (OperationPermission targetOp : targetOps.values()) {
-                if (!Objects.equals(resourceType, targetOp.getResourceType())) {
+                // 全局目标操作（resourceType=null）在任意类型上参与判定（全局回退）
+                if (targetOp.getResourceType() != null
+                    && !Objects.equals(resourceType, targetOp.getResourceType())) {
                     continue;
                 }
                 // 计算覆盖目标操作的位掩码

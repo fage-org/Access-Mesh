@@ -132,6 +132,7 @@ class HttpApiPathSnapshotTest {
 /api/perm/resource-entity/update
 /api/perm/role-resource-permission/apply-grant-plan
 /api/perm/role-resource-permission/list
+/api/perm/role-resource-permission/sub-perm-allowed-types
 /api/perm/service-config/apis
 /api/perm/service-config/detail
 /api/perm/service-config/list
@@ -322,6 +323,7 @@ class HttpApiPathSnapshotTest {
 /api/perm/resource-entity/update|access.permission.dto.req.ResourceUpdateReq|common.model.PermResult<access.permission.dto.resp.ResourceResp>
 /api/perm/role-resource-permission/apply-grant-plan|access.permission.dto.req.ApplyGrantPlanReq|common.model.PermResult<access.permission.dto.resp.RolePermissionItemsResp>
 /api/perm/role-resource-permission/list|access.permission.dto.req.RolePermissionListReq|common.model.PermResult<access.permission.dto.resp.RolePermissionItemsResp>
+/api/perm/role-resource-permission/sub-perm-allowed-types|access.permission.dto.req.SubPermAllowedTypesReq|common.model.PermResult<access.permission.dto.resp.SubPermAllowedTypesResp>
 /api/perm/service-config/apis|access.permission.dto.req.ServiceConfigApisReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.ApiMappingResp>>
 /api/perm/service-config/detail|access.permission.dto.req.ServiceConfigGetReq|common.model.PermResult<access.permission.dto.resp.ServiceConfigResp>
 /api/perm/service-config/list|access.permission.dto.req.EmptyReq|common.model.PermResult<access.permission.dto.resp.ItemsResp<access.permission.dto.resp.ServiceConfigResp>>

@@ -141,4 +141,13 @@ public interface OperationPermissionMapper extends BaseMapper<OperationPermissio
      */
     List<OperationPermission> selectGlobalByCodes(@Param("tenantId") Long tenantId,
                                                    @Param("codes") Set<String> codes);
+
+    /**
+     * 查询租户全部全局操作权限（resource_type IS NULL）——引擎按类型合并
+     * 「专属优先、全局回退」最终可用集用（与写链路 mergeGlobalFallback 同一语义）
+     *
+     * @param tenantId 租户ID
+     * @return 全局操作权限列表
+     */
+    List<OperationPermission> selectGlobal(@Param("tenantId") Long tenantId);
 }

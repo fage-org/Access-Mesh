@@ -2,7 +2,9 @@ package cn.ac.fage.accessmesh.access.permission.service;
 
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RolePermissionListReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.SubPermAllowedTypesReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RolePermissionItemResp;
+import cn.ac.fage.accessmesh.access.permission.dto.resp.SubPermAllowedTypesResp;
 import java.util.List;
 
 /**
@@ -32,4 +34,14 @@ public interface PermissionGrantAppService {
      * @return 权限项列表
      */
     List<RolePermissionItemResp> listPermissions(Long tenantId, RolePermissionListReq req);
+
+    /**
+     * 子权限允许类型只读查询（api-contract §6.5.2）
+     * <p>
+     * 门禁：目标角色 ROLE:VIEW 实例级（resolveRoleId 失败 20001，无 VIEW 抛
+     * SecurityException——不采用空结果掩盖鉴权失败）；策略结果由
+     * {@code resolveSubPermissionPolicy} 直接映射（读写同源）。
+     * </p>
+     */
+    SubPermAllowedTypesResp subPermAllowedTypes(Long tenantId, SubPermAllowedTypesReq req);
 }
