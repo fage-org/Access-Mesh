@@ -16,7 +16,7 @@
  *   不再参与路由门控与角色矩阵登记）
  * - `CONDITION:CREATE` - 创建条件（后端 createCondition 校验 CONDITION:CREATE）
  * - `CONDITION:UPDATE` - 编辑条件（后端 updateCondition 校验 CONDITION:UPDATE）
- * - `CONDITION:DELETE` - 删除条件（后端 deleteCondition/deleteConditionsByIds 校验 CONDITION:DELETE）
+ * - `CONDITION:DELETE` - 删除条件（后端 deleteConditionsByCodes 校验 CONDITION:DELETE）
  *
  * 即：与 RESOURCE/OPERATION 的 CREATE+MANAGE 两档不同，CONDITION 是 CREATE/UPDATE/DELETE 三档。
  * sec（安全管理员）负责条件定义，拥有 CREATE+UPDATE+DELETE；admin 全权；hr/auditor 无写权限

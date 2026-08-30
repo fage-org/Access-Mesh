@@ -21,9 +21,9 @@ import jakarta.validation.constraints.Size;
  */
 public record ConditionUpdateReq(
     @NotBlank @Size(max = 64) String code,
-    String name,
+    @Size(max = 128) String name,
     String conditionRules,
     Boolean enabled,
     Boolean gatewayEvaluable,
-    String description
+    @Size(max = 512) String description
 ) {}

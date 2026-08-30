@@ -395,13 +395,13 @@ last_reviewed: 2026-08-30   # 2026-08-30 §5.6 permission-condition 契约要点
 
 **permission-condition 契约要点（T-PERM-029 收口，2026-08-30）**：
 
-- **业务键**：管理端点 `detail`/`update`/`remove` 一律以 `code` 定位（`uk_permission_condition(tenant_id, code) WHERE delete_flag=0`，从内部主键 id/conditionId 切换；内部 id 仅保留在 Resp 与授权链路 `role_resource_permission.condition_id` 引用中）。`detail` 请求 `{conditionCode}`（ConditionDetailReq）；`update` 请求 `{code, name?, conditionRules?, enabled?, gatewayEvaluable?, description?}`（code 为定位键不可改，null 字段不更新）；`remove` 请求 `{codes:[...]}`（ConditionRemoveReq，批量软删）。
+- **业务键**：管理端点 `detail`/`update`/`remove` 一律以 `code` 定位（`uk_permission_condition(tenant_id, code) WHERE delete_flag=0`，从内部主键 id/conditionId 切换；管理端点请求体不再使用内部 id——id 仅见于 Resp、授权链路 `role_resource_permission.condition_id` 引用及 explain 排查明细 `conditionEvaluations[].conditionId`）。`detail` 请求 `{conditionCode}`（ConditionDetailReq）；`update` 请求 `{code, name?, conditionRules?, enabled?, gatewayEvaluable?, description?}`（code 为定位键不可改，null 字段不更新，name≤128/description≤512 列宽校验）；`remove` 请求 `{codes:[...]}`（ConditionRemoveReq，元素 1-64 字符非空白，批量软删）。
 - **detail 收紧**：查不到抛 **20006** `CONDITION_NOT_FOUND`（原 `data:null` 宽松语义删除，对齐 resource-entity/detail 收紧定案与授权链路 apply-grant-plan 未知 conditionCode 同码）。
 - **list 全量不分页**（设计定案）：`{}` 返回全量 `ItemsResp<ConditionResp>`——条件模板数量有界（租户内几十个量级，非流水表），与 domain-config/service-config「量小不分页」同款；keyword/enabled 过滤由前端本地完成（前端设计文档 §8 🔧3 登记的 ConditionListReq 分页方案据此反转）。
 - **ConditionResp**：`{id, tenantId, code, name, conditionRules, enabled, gatewayEvaluable, description, createdAt, updatedAt}`——`updatedAt` 为本次补齐（entity 有列但 Resp 此前不返回）；`conditionRules` 为 JSONB 读出的规范化 JSON 文本（`{logic, items[]}`，4 预置类型 DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST），语义等价可直接再提交。
 - **权限门禁**：读（list/detail）无门禁（2026-08-08 产品确认：条件规则全租户开放、非敏感）；写 create = CONDITION:CREATE 类型级、update/remove = CONDITION:UPDATE/DELETE 实例级（先按 code 解析实体再按 entityId 门禁；remove 对解析出的实体集合批量校验，任一拒绝整批 fail-closed）。CONDITION 的 CREATE/UPDATE/DELETE 三档独立，非 MANAGE 聚合（与 RESOURCE/OPERATION 的 CREATE+MANAGE 两档不同）。
 - **gatewayEvaluable 联合校验**（T-PERM-017 C2.5）：create/update 取「最终状态」校验——只切 flag 不改 rules 用 DB 老 rules、同改用新 rules、已 true 改 rules 用新 rules；`gatewayEvaluable=true` 要求 `logic ∈ {AND, OR}`（缺省 AND）且 `items[].type` 全在 `ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES` 白名单，不通过 20031 `CONDITION_RULES_INVALID`。update/delete 后经 `@PermissionChange` 反查受影响 serviceCodes 广播 Gateway 接口快照失效。
-- **remove 幂等语义**：请求中不存在或已删除的 code 静默跳过（与 resource-entity/remove 一致）；重复 code 去重。
+- **remove 幂等语义**：请求中不存在或已删除的 code 静默跳过、重复 code 去重（幽灵键幂等语义与 resource-entity/remove 一致；**拒绝语义不同**——本域任一存在实体被拒即整批 fail-closed 抛 SecurityException，resource-entity 为删有权部分、全拒时静默跳过）；remove 响应 Void 无行数，调用方以事后查询核对。
 - **create 重复 code**：无预查友好码，由 uk 兜底拒绝（系统错误通道），与 resource/type-def create 同款。
 
 **domain-config 契约要点（T-PERM-026 收口，2026-08-29）**：

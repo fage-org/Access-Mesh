@@ -110,7 +110,7 @@ public class ConditionController {
      * 更新条件的名称、规则配置等属性。
      * </p>
      *
-     * @param req 条件更新请求，包含条件ID和新属性值
+     * @param req 条件更新请求，以业务键 code 定位，包含要更新的属性值
      * @return 更新后的条件详情
      */
     @PostMapping("/update")

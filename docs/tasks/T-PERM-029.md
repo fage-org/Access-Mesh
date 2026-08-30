@@ -68,3 +68,4 @@ T-FE-009 前端权限条件页在 API 核对中登记 6 项 🔧（permission-co
 ## 完成记录
 
 - 2026-08-30 收口：三项设计定案全落地；实现中对齐 028 模式（先解析后门禁、请求体不留 id 兼容、Resp 保留 id）；切键同时发现并消除一处门禁语义毛刺（原批量删按原始输入 ids 门禁，幽灵 id 触发 fail-closed；新实现只对解析实体门禁，幽灵码静默跳过——用例锁定）；授权页契约 spec 直调条件 update 的两用例随契约同步订正。
+- 2026-08-30 双轨内部评审收口（代码轨 0P1+0P2+8P3、文档轨 0P1+0P2+6P3，逐条核实后处置，12 项 P3 全部最小修正）：updateCondition 补 setUpdatedBy 审计（预存在缺口，028 同款模式）；name/description 补 @Size(128/512) 列宽（T-PERM-023 先例，create/update 两 DTO）；javadoc 三处与前端 perms.ts 注释订正（条件ID→业务键 code、@throws 类型）；api-contract remove 拒绝语义措辞收窄（幽灵键幂等一致但本域 fail-closed 整批 ≠ resource-entity 部分成功，分叉成文）与内部 id 出现处收窄（补 explain 排查明细）；mock 三项对齐（update 联合校验触发=最终态复验对齐后端、remove 空白/超长元素 400 对齐元素级校验、isDuplicateCode 死参删除）；permission-condition.md 字段表补 tenantId；看板 T-FE-009 行 🔧 尾注收口标注；implementation §2.5 补 evaluateDetailed 签名（T-PERM-033 文档滞后顺访）。维持现状：selectValidById 零调用知情保留（上文范围节已登记）；CONDITION 实例门禁经引擎 scopeAll 优先逻辑核实实际等价类型级（CONDITION 无 resource_entity 实例投影，无安全回退，设计现状非缺陷，不另立任务）。

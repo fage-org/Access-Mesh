@@ -145,11 +145,11 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      * </p>
      *
      * @param tenantId   租户ID
-     * @param req        更新请求，包含条件ID和要更新的属性
+     * @param req        更新请求，以业务键 code 定位（不可改），包含要更新的属性
      * @param operatorId 操作者ID，可选
      * @return 更新后的条件响应
      * @throws SecurityException     无权限时抛出
-     * @throws IllegalArgumentException 条件不存在时抛出
+     * @throws BizException 条件不存在（20006 CONDITION_NOT_FOUND）或规则不可下发（20031）时抛出
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -181,6 +181,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         if (Boolean.TRUE.equals(condition.getGatewayEvaluable())) {
             validateGatewayPushable(condition.getConditionRules());
         }
+        condition.setUpdatedBy(operatorId);
         condition.setUpdatedAt(LocalDateTime.now());
         conditionMapper.update(condition);
 

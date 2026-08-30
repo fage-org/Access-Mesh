@@ -63,10 +63,8 @@ function clone(c: InternalCondition): ConditionResp {
   return { ...resp };
 }
 
-function isDuplicateCode(code: string, excludeCode?: string): boolean {
-  return conditions.some(
-    c => !c.deleted && c.code !== excludeCode && c.code === code
-  );
+function isDuplicateCode(code: string): boolean {
+  return conditions.some(c => !c.deleted && c.code === code);
 }
 
 /** 校验 conditionRules（对齐后端 JsonValidationUtils + ConditionEvalUtils.isGatewayPushable）。
@@ -191,15 +189,12 @@ export default defineFakeRoute([
       } = body || {};
       const c = conditions.find(item => item.code === code && !item.deleted);
       if (!c) return error(CONDITION_NOT_FOUND, "权限条件不存在");
-      // 取最终状态做联合校验（对齐后端 ConditionAppServiceImpl.validateGatewayPushable）：
-      // 只切 flag 不改 rules 时需重读 DB 老 rules 校验；同时改 rules+flag 用新 rules。
+      // 取最终状态做联合校验（对齐后端 ConditionAppServiceImpl.updateCondition：
+      // 合并后 gatewayEvaluable=true 即复验规则——含只改 name 不动 rules/flag 的场景）
       const finalRules = conditionRules ?? c.conditionRules;
       const finalGe = gatewayEvaluable ?? c.gatewayEvaluable;
-      if (conditionRules != null) {
-        const err = validateRules(finalRules, finalGe);
-        if (err) return error(400, err);
-      } else if (gatewayEvaluable != null && finalGe) {
-        const err = validateRules(finalRules, finalGe);
+      if (finalGe) {
+        const err = validateRules(finalRules, true);
         if (err) return error(400, err);
       }
       if (name != null) c.name = name;
@@ -219,7 +214,13 @@ export default defineFakeRoute([
     response: ({ body }) => {
       syncMockConditionsFromStorage();
       const codes: string[] = Array.isArray(body?.codes) ? body.codes : [];
-      if (codes.length === 0) return error(400, "codes 不能为空");
+      // 对齐后端 ConditionRemoveReq 元素级校验（@NotBlank @Size(64)）：空数组/空白/超长元素整批 400
+      if (
+        codes.length === 0 ||
+        codes.some(c => !c || !c.trim() || c.length > 64)
+      ) {
+        return error(400, "codes 不能为空且每项须为 1-64 字符的非空白编码");
+      }
       // 幂等语义：不存在的编码静默跳过（对齐后端 deleteConditionsByCodes / resource-entity remove）
       for (const c of conditions) {
         if (codes.includes(c.code) && !c.deleted) {

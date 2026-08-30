@@ -39,6 +39,7 @@ last_reviewed: 2026-08-30   # 2026-08-30 §8 全量收口 + 字段/API 表对齐
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | id | number | 内部主键（授权链路 conditionId 引用；管理端点定位已切业务键 code，T-PERM-029） |
+| tenantId | number | 租户 ID |
 | code | string | 条件编码（业务键，uk tenant+code，创建后不可改） |
 | name | string | 条件名称 |
 | conditionRules | string | 条件规则 JSON 字符串，结构 {logic, items[]} |

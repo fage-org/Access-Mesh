@@ -225,6 +225,8 @@ public interface PermissionConflictDomainService {
 ```java
 public interface PermissionConditionDomainService {
     List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries, Map<String, Object> context);
+    // explain 排查明细（T-PERM-033）：返回挂条件条目的评估明细（含脱敏规则），无条件条目跳过
+    List<ConditionEvaluationDetail> evaluateDetailed(Long tenantId, List<RolePermEntry> entries, Map<String, Object> context);
 }
 ```
 
