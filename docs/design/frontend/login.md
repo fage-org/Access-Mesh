@@ -69,4 +69,4 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 ## mock 与动态路由口径（T-FE-041 决策）
 
 - `mock/login.ts` 由 `VITE_MOCK_LOGIN`（.env.development，默认 **false**）控制注册；开启时注册 `/auth/captcha`（SVG 占位图）+ `/auth/login` + `/auth/user-menu`，响应壳已对齐 PermResult，前端代码零分支（开关经 wrapperEnv 写回 `process.env` 生效，已端到端验证：后端未启动时三端点全走 mock；关闭时请求穿透 vite 代理）。生产构建 mock 由 `VITE_ENABLE_PROD_MOCK=false` 关闭。
-- 纯静态路由：`initRouter` 不再请求 `/get-async-routes`（`src/api/routes.ts` 已删除），菜单完全由 `router/modules/*.ts` + `meta.showLink` 控制；`/auth/user-menu` 的 menus 树存 user store（Phase 3 接线消费）。
+- 纯静态路由：`initRouter` 不再请求 `/get-async-routes`（`src/api/routes.ts` 已删除），菜单完全由 `router/modules/*.ts` + `meta.showLink` 控制；`/auth/user-menu` 的 menus 树存 user store（Phase 3 联调 T-FE-015 接线消费，T-PERM-037 收口归入 2026-08-31）。

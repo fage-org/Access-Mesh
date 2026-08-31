@@ -146,7 +146,7 @@ views/system/config/
 - 无 `SYSTEM_CONFIG:VIEW` → **菜单仍可见、路由可达**（路由过滤基于 roles，本项目未设 roles）；进入页面后 `loadTable` 调 `/list` 由后端 VIEW 校验拒绝（403），前端 `message` 报错。本页无 VIEW 级按钮（VIEW 只决定列表数据可见性，由后端兜底）。
 - 无 `SYSTEM_CONFIG:MANAGE` → 隐藏「新增配置」和「编辑」按钮（`v-if="canSave"`，`hasPerms` 读登录态 permissions 判定），操作列显示「—」。
 
-> 🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user 同），若需「无 VIEW 真正路由不可达」需改 `filterNoPermissionTree` 按 `meta.auths` 过滤——影响所有页，超出 T-FE-004 范围，登记待统一立项处理。
+> ~~🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user 同）~~ **已收口（2026-08-31 设计定案，T-PERM-037）**：菜单可见性 v3.5 §4.1 ∃op 派生方案后端已实现（`/auth/user-menu` 双轨下发按权限过滤后的 menus 树），前端接线归入 Phase 3 联调 T-FE-015（登录链路切真实接口时菜单栏从本地静态路由切后端派生 menus 树，无 VIEW 页面随之菜单不可见）；不改 `filterNoPermissionTree` 按 `meta.auths` 过滤（与后端派生方案重复，且 auths 为前端静态声明可绕过）。联调前维持「菜单可见、路由可达、后端 VIEW 403 兜底」。
 
 ### mock 角色矩阵（`mock/login.ts`）
 

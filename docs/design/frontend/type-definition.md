@@ -167,7 +167,7 @@ views/system/type-def/
 Phase 1 登记的 🔧 项处置终态：
 
 1. ✅ **typeValue 自动分配（收敛 T-PERM-019 D1）**：服务端在 tenant+typeKey 内按全量行（含软删行）max+1 分配，软删不复用；`TypeCreateReq` 已移除 `typeValue` 字段。
-2. ✅ **list 服务端过滤+分页**：`TypeListReq` = `{typeKey?, keyword?, pageNum?, pageSize?}`（移除从未生效的 `domainCode`），返回 `PaginatedResp`（keyword 匹配 name/typeCode LIKE——大小写敏感，对齐全仓关键字过滤先例；ORDER BY sortOrder,id）；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`，供授权页/冲突规则/资源操作下拉数据源消费——三处已传 `typeKey` 服务端过滤）；本页 hook 已切服务端分页。
+2. ✅ **list 服务端过滤+分页**：`TypeListReq` = `{typeKey?, keyword?, pageNum?, pageSize?}`（移除从未生效的 `domainCode`），返回 `PaginatedResp`（keyword 匹配 name/typeCode LIKE——大小写敏感，对齐全仓关键字过滤先例；ORDER BY sortOrder,id）；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`，供授权页/冲突规则/资源操作下拉数据源消费——四处消费均传 `typeKey` 服务端过滤（授权页/冲突规则/资源操作/服务接口映射 MappingForm，T-PERM-037 核对订正））；本页 hook 已切服务端分页。
 3. ✅ **create 接收 typeCode**：可选，留空服务端按 `TYPEKEY_<typeValue>` 生成；显式提供时 tenant+typeKey 内查重，重复拒绝 20049。
 4. ✅ **resource_type 创建联动预置 operation_permission**：已随 T-PERM-028 落地（2026-08-29 用户决策实现）——createType 在 typeKey=resource_type 时同事务预置 CRUD 四操作位 CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)，DDL 预置组模板同款。
 5. ✅ **create 移除 isSystem**：服务端固定 `isSystem=false`，系统预置仅走租户初始化种子，不可由 API 创建。

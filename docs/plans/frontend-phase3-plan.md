@@ -18,7 +18,7 @@ tasks:
   - T-FE-021
   - T-FE-022
 acceptance: "9 个有效联调任务 mock -> 真实接口替换完成（T-FE-018 角色联调首期 + T-FE-037 组织联调二期，首期/二期拆分定稿；T-FE-018 角色联调依赖 T-FE-036 + T-FE-038 + T-FE-039 + **T-FE-040** + T-PERM-040 + T-PERM-041 + T-PERM-034 + T-PERM-022/028/029/031（2026-08-05 评审：T-FE-038 mock 先行，T-FE-018 汇合单类型矩阵/图标模型/条件转授链路；2026-08-08 补记录级聚焦编辑 T-FE-040），T-ADMIN-021 不阻塞首期；T-FE-037 组织联调二期依赖 T-FE-018 + T-ADMIN-021；统一提交主通道 = apply-grant-plan，无 CAS/幂等表/clientRequestId），核心流程联调通过，异常场景提示正确，页面间跳转/状态保持正确。"
-last_updated: 2026-08-28
+last_updated: 2026-08-31
 ---
 
 # 前端 Phase 3 — 前后端联调
@@ -37,7 +37,7 @@ last_updated: 2026-08-28
 
 | ID | 联调范围 | depends_on |
 |---|---|---|
-| T-FE-015 | 组织与用户（已实现 2.1） | T-PERM-037 |
+| T-FE-015 | 组织与用户（已实现 2.1；含 user-menu menus 轨道前端接线——登录链路切真实接口后菜单可见性切 v3.5 §4.1 ∃op 派生，T-PERM-037 收口归入 2026-08-31） | T-PERM-037 |
 | T-FE-016 | 角色管理（2.2） | T-FE-002, T-PERM-022 |
 | T-FE-017 | 资源/操作定义（3.1） | T-FE-008, T-PERM-028 |
 | T-FE-018 | 权限授予（4.1）- 角色联调（首期） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022, T-PERM-028, T-PERM-029, T-PERM-031 |
@@ -67,3 +67,4 @@ last_updated: 2026-08-28
 - 2026-08-01：v3 设计定稿（`permission-grant.md`）后 **T-FE-018 恢复待排期**（依赖 T-FE-036 + T-PERM-034 完成后启动），本 plan 有效联调任务由 7 个恢复为 8 个；frontmatter acceptance/归档条件同步更新。
 - 2026-08-05：**评审方案 B 落地**——T-FE-018 依赖补 T-FE-038 + T-PERM-040（单类型矩阵链路汇合点）；T-FE-038 mock 先行、T-PERM-040 非前置；联调验收补多类型矩阵场景（类型切换/操作列隔离/list 类型过滤/20008 含嵌套反例）。
 - 2026-08-05（评审）：**T-FE-018 再补 T-FE-039 + T-PERM-041 依赖**（汇合图标正交模型与条件转授 20041 链路）；联调验收补图标映射真实数据验证与条件+canGrant 场景（前端阻止 + 20041 兜底）。
+- 2026-08-31：**T-PERM-037 收口将 user-menu menus 轨道前端接线归入 T-FE-015**（设计定案，经用户决策）：菜单可见性 v3.5 ∃op 派生方案后端已实现（`/auth/user-menu` 双轨下发过滤后 menus 树），前端 T-FE-041 纯静态路由模式未接线（menus 存 user store 备用，`initRouter` 传空数组）；T-FE-015 作为首个联调任务在登录链路切真实 user-menu 时完成菜单栏接线（从本地静态路由/mock 角色矩阵切后端派生 menus 树）；不立独立任务、不改 `filterNoPermissionTree`（三处页设文档 🔧 登记同步收口）。同时 T-PERM-037 done 解锁本 plan 全部联调任务的最后依赖。

@@ -223,7 +223,7 @@ views/system/biz-domain/
 - 无 `SYSTEM_CONFIG:MANAGE` → 隐藏「新增业务域」/「编辑」/「删除」及子表「新增配置」/「编辑」/「删除」按钮（`v-if="canManage"`），操作列显示「—」。
 - 无 `SYSTEM_CONFIG:VIEW` → 子表区显示 `el-empty`「无权查看域配置」（`v-else-if="!canViewConfig"`）。
 
-> 🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user/config/operation-log 同），登记待统一立项处理。
+> ~~🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user/config/operation-log 同）~~ **已收口（2026-08-31 设计定案，T-PERM-037）**：菜单可见性 v3.5 §4.1 ∃op 派生方案后端已实现（`/auth/user-menu` 双轨下发按权限过滤后的 menus 树），前端接线归入 Phase 3 联调 T-FE-015（登录链路切真实接口时菜单栏从本地静态路由切后端派生 menus 树）；不改 `filterNoPermissionTree` 按 `meta.auths` 过滤（与后端派生方案重复，且 auths 为前端静态声明可绕过）。联调前维持「菜单可见、路由可达、后端 VIEW 403 兜底」。
 
 ### mock 角色矩阵（`mock/login.ts`）
 
