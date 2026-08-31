@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
@@ -20,9 +21,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mockStatic;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -94,7 +97,7 @@ class OperationAppServiceImplTest {
     }
 
     @Test
-    @DisplayName("resourceTypeCode 已知 → 解析为内部值后下发 Mapper 过滤")
+    @DisplayName("resourceTypeCode 已知 → 解析为内部值后下发 Mapper 过滤，类型码批量反解零逐项解析")
     void shouldResolveTypeAndDelegateFilterToMapper() {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
@@ -103,10 +106,17 @@ class OperationAppServiceImplTest {
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
             when(operationPermissionMapper.selectByTenantAndResourceType(eq(1L), eq(7)))
                 .thenReturn(List.of(op(7, "VIEW")));
-            when(typeResolutionService.resolveTypeCode(1L, "resource_type", 7)).thenReturn("USER");
+            when(typeResolutionService.batchResolveTypeCodes(1L, "resource_type", java.util.Set.of(7)))
+                .thenReturn(java.util.Map.of(7, "USER"));
 
-            assertEquals(1, service.listOperations(1L, "USER").size());
+            List<OperationPermissionResp> resp = service.listOperations(1L, "USER");
+
+            assertEquals(1, resp.size());
+            assertEquals("USER", resp.get(0).resourceTypeCode());
             verify(operationPermissionMapper).selectByTenantAndResourceType(eq(1L), eq(7));
+            // N+1 锁定：列表路径类型码走批量反解，禁止逐项 resolveTypeCode（冷缓存单查）
+            verify(typeResolutionService).batchResolveTypeCodes(eq(1L), eq("resource_type"), anySet());
+            verify(typeResolutionService, never()).resolveTypeCode(any(), any(), any());
         }
     }
 

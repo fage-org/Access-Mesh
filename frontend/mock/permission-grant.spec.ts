@@ -30,6 +30,10 @@ const updateConditionRoute = routeOf(
   conditionRoutes,
   "/api/perm/permission-condition/update"
 );
+const listRoute = routeOf(
+  grantRoutes,
+  "/api/perm/role-resource-permission/list"
+);
 
 function roleBody(extra: Record<string, any> = {}) {
   return {
@@ -205,5 +209,16 @@ describe("permission-grant mock 契约", () => {
       })
     });
     expect(response).toMatchObject({ code: 20043 });
+  });
+
+  it("list：空白串 resourceTypeCode 视同缺省不过滤（契约 §6.4，与后端 isBlank 同口径）", () => {
+    const unfiltered = listRoute.response({ body: roleBody() });
+    const blank = listRoute.response({
+      body: roleBody({ resourceTypeCode: "   " })
+    });
+
+    expect(blank.code).toBe(200);
+    expect(unfiltered.data.items.length).toBeGreaterThan(0);
+    expect(blank.data.items.length).toBe(unfiltered.data.items.length);
   });
 });

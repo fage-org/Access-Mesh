@@ -255,7 +255,7 @@ class PermissionGrantAppServiceImplTest {
         when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "ORG")).thenReturn(7);
         when(rolePermMapper.selectValidMainByRoleIdAndResourceType(TENANT, ROLE_ID, 7))
             .thenReturn(List.of(perm(1L, 7, null, 2L)));
-        when(rolePermMapper.selectValidByRoleIdAndDependIds(eq(TENANT), eq(ROLE_ID), any()))
+        when(rolePermMapper.selectValidByRoleIdAndDependIds(eq(TENANT), eq(ROLE_ID), eq(java.util.Set.of(1L))))
             .thenReturn(List.of(perm(2L, 9, 1L, 4L)));
         when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
             .thenReturn(java.util.Map.of(7, "ORG", 9, "BUTTON"));
@@ -308,7 +308,7 @@ class PermissionGrantAppServiceImplTest {
         when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "ORG")).thenReturn(7);
         when(rolePermMapper.selectValidMainByRoleIdAndResourceType(TENANT, ROLE_ID, 7))
             .thenReturn(List.of(perm(1L, 7, null, 2L)));
-        when(rolePermMapper.selectValidByRoleIdAndDependIds(eq(TENANT), eq(ROLE_ID), any()))
+        when(rolePermMapper.selectValidByRoleIdAndDependIds(eq(TENANT), eq(ROLE_ID), eq(java.util.Set.of(1L))))
             .thenReturn(List.of(perm(2L, 9, 1L, 4L), perm(3L, 9, 1L, 8L)));
         when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
             .thenReturn(java.util.Map.of(7, "ORG"));

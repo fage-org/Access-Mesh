@@ -433,12 +433,12 @@ export default defineFakeRoute([
       // resourceTypeCode 过滤只作用于主权限（depend_on IS NULL 且类型匹配，契约 §6.4 T-PERM-040）；
       // 子权限按 depend_on 挂在其父主权限下返回，子权限自身可跨类型（不按子记录类型过滤），
       // 双重约束：depend_on ∈ 主权限集合 且属于目标角色。
-      // 口径差异登记（T-PERM-040）：空白串后端 isBlank 跳过过滤返回全量、mock 按 truthy
-      // 当过滤值返回空列表——类型下拉来自类型定义页，联调以真实后端为准
+      // 空白串视同缺省不过滤（契约 §6.4，与后端 isBlank 同口径）
+      const typeFilter = resourceTypeCode?.trim() || null;
       const mains = all.filter(
         r =>
           r.dependOn == null &&
-          (!resourceTypeCode || r.resourceTypeCode === resourceTypeCode)
+          (!typeFilter || r.resourceTypeCode === typeFilter)
       );
       const mainIds = new Set(mains.map(r => r.id));
       const items = (

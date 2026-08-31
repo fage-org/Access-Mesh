@@ -4,7 +4,7 @@
 //
 // T-PERM-028 收口：
 // - detail/update/move/remove 切业务键定位（resource: resourceTypeCode+code+codeType[缺省 default]；
-//   operation: resourceTypeCode[可空=全局]+code），不再接受内部 id；
+//   operation: resourceTypeCode[必填，全局操作概念已退役]+code），不再接受内部 id；
 // - binaryBit/inheritMask 线格式为十进制字符串（63 位 bigint）；
 // - update 支持 extraClear 显式清空 extra。
 //
@@ -46,7 +46,8 @@ type ResourceTreeNode = {
 export type OperationPermissionResp = {
   id: number;
   tenantId: number;
-  resourceTypeCode: string | null;
+  /** 恒非空（全局操作概念已退役，对齐 api/ 契约类型 string） */
+  resourceTypeCode: string;
   resourceTypeName: string | null;
   code: string;
   name: string;
@@ -697,13 +698,11 @@ export default defineFakeRoute([
     response: ({ body }) => {
       const { resourceTypeCode } = body || {};
       // 全局操作概念已退役：有类型过滤返回该类型定义；无类型返回全量定义。
-      // 口径差异登记（T-PERM-040）：空白串（如 " "）后端 isBlank 跳过过滤返回全量、
-      // mock 按 truthy 当过滤值返回空列表；排序后端 ORDER BY id（插入序）、mock 按
-      // binaryBit 升序——契约无排序承诺，类型下拉来自类型定义页，联调以真实后端为准
+      // 空白串视同缺省不过滤（契约 §5.3，与后端 isBlank 同口径）；矩阵列序由前端
+      // 按 binaryBit 升序归一（permission-grant.md §3.2 实现确认），后端 ORDER BY id 顺序对展示无关
+      const typeFilter = resourceTypeCode?.trim() || null;
       const items = operations
-        .filter(op =>
-          resourceTypeCode ? op.resourceTypeCode === resourceTypeCode : true
-        )
+        .filter(op => (typeFilter ? op.resourceTypeCode === typeFilter : true))
         .slice()
         .sort((a, b) => {
           const x = BigInt(a.binaryBit);

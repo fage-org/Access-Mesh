@@ -49,8 +49,8 @@ last_updated: 2026-08-31
 
 ## 范围
 
-1. `OperationPermissionAppService`（或等价服务）list 支持 `resourceTypeCode + includeGlobalFallback` 参数：includeGlobalFallback=true 时按"专属优先、全局回退"合并（同 `operationCode` 专属定义优先，被覆盖的全局定义剔除；无专属时全局定义保留）；响应结构不变（OperationPermissionResp items）。~~（已随 T-PERM-049 退役）~~
-2. 合并规则抽为单一解析方法（如 `resolveEffectiveOperations(tenantId, resourceTypeCode)`），**list 合并与 apply-grant-plan 校验共用**。~~（已随 T-PERM-049 退役；两处共用同一份类型专属定义数据源）~~
+1. ~~`OperationPermissionAppService`（或等价服务）list 支持 `resourceTypeCode + includeGlobalFallback` 参数：includeGlobalFallback=true 时按"专属优先、全局回退"合并（同 `operationCode` 专属定义优先，被覆盖的全局定义剔除；无专属时全局定义保留）；响应结构不变（OperationPermissionResp items）。~~ **已随 T-PERM-049 退役（2026-08-30）**；实际落地 = `resourceTypeCode` 可选过滤（未知类型空列表 fail-closed，见 acceptance 第 1 条收口）
+2. ~~合并规则抽为单一解析方法（如 `resolveEffectiveOperations(tenantId, resourceTypeCode)`），**list 合并与 apply-grant-plan 校验共用**。~~ **已随 T-PERM-049 退役（2026-08-30）**；两处实际共用同一份类型专属定义数据源（`selectByTenantAndResourceType`）
 3. `role-resource-permission/list` 支持 `resourceTypeCode` 过滤（主权限按 `depend_on IS NULL + resource_type` 过滤）；`includeChildren=true` 时子权限按 `depend_on` 挂在该类型主权限下返回（子权限跨类型不按自身类型过滤）；对应 Mapper 批量查询（按类型过滤主权限，避免 N+1）。
 4. `prevalidateGrantPlan` creates 段补 operationCode 适用性校验：**覆盖主权限 key、children[] 嵌套、parentPermissionId 挂父三种形态**（不匹配 → 20008，~~组合位按位集校验~~——已失效，见 acceptance 第 4 条订正：operationCode 必填非空白，组合位 create 形态不存在）。
 5. 测试覆盖（见 acceptance 第 5 条）。
@@ -65,10 +65,12 @@ last_updated: 2026-08-31
 2. **类型过滤下沉专用 Mapper 查询**：验收字面要求「对应 Mapper 批量查询」，原内存过滤虽无 N+1 但经定案按字面落地——新增 `selectValidMainByRoleIdAndResourceType`（tenant + role + depend_on IS NULL + resource_type + delete_flag=0），子权限复用既有 `selectValidByRoleIdAndDependIds`（双重约束 SQL 层满足）；childCount 计数源 = 主权限 + 全部直接子权限，includeChildren=false 时计数仍真实。
 3. **`OperationListReq.domainCode` 死参数删除**：DTO 注释声称「用于过滤」但实现从未使用、契约 §5.3 参数表未登记、前端全部调用点零传参——删除（DTO 字段 + Service 签名 + Controller + 前端 `OperationListQuery` 类型同步）。
 
-**测试补齐**：`PermissionGrantPlanDomainServiceImplTest` 新增 `OperationApplicabilityValidation` 四用例（主 key / children[] 嵌套 / parentPermissionId 挂父三种形态 20008 + 未知码 20005 区分锁定——旧实现若误把异类型码当未知码或放行均失败）；`PermissionGrantAppServiceImplTest` 新增五用例（类型命中含跨类型子权限挂父 + 专用 SQL 调用断言 / 未知类型空列表零查询 / includeChildren=false 仅主权限但 childCount 真实 / 类型无命中不查子 / null 兼容全量不走专用 SQL）；`OperationAppServiceImplTest` 两用例收口（未知类型空列表——修复前该用例因回退全量必然失败、已知类型解析后下发 Mapper）+ 既有两用例签名同步。
+**收口补强（2026-08-31，外部评审核实后落地）**：`listOperations` 类型码反解改走 `batchResolveTypeCodes` 批量（原逐项 `resolveTypeCode` 属循环内类型解析禁止模式——冷缓存逐类型单查；N+1 锁并入既有已知类型用例：断言批量调用一次且逐项解析零调用）+ 补 `@Transactional(readOnly = true)`（`getOperation` 同步补齐）；前端矩阵操作列排序归一到 `hook.ts` 共用函数按 `binaryBit` 升序（§3.2 实现确认的既定要求，此前仅靠 mock 排序承载——真实后端 ORDER BY id 时列序不达设计）；两个 mock list 处理器空白串归一为视同缺省不过滤（对齐契约 §5.3/§6.4 成文口径）+ mock `OperationPermissionResp.resourceTypeCode` 类型收窄 `string|null`→`string`（全局操作已退役，对齐 api 契约类型）。
+
+**测试补齐**：`PermissionGrantPlanDomainServiceImplTest` 新增 `OperationApplicabilityValidation` 四用例（主 key / children[] 嵌套 / parentPermissionId 挂父三种形态 20008 + 未知码 20005 区分锁定——旧实现若误把异类型码当未知码或放行均失败）；`PermissionGrantAppServiceImplTest` 新增五用例（类型命中含跨类型子权限挂父 + 专用 SQL 调用与父 ID 集合精确断言 / 未知类型空列表零查询 / includeChildren=false 仅主权限但 childCount 真实 / 类型无命中不查子 / null 兼容全量不走专用 SQL）；`OperationAppServiceImplTest` 两用例收口（未知类型空列表——修复前该用例因回退全量必然失败、已知类型解析后下发 Mapper + 类型码批量反解零逐项解析锁定）+ 既有两用例签名同步；前端 mock 契约用例新增（permission-grant list 空白串视同缺省 + resource-operation list 空白串/已知类型过滤/未知类型空列表）。
 
 **文档回写**：见 acceptance 第 6 条。
 
-**回归**：access-service 双轨全绿（单元轨 990 + 容器轨 115，0 失败 0 错误；单元轨 +11 为本任务新增用例）；前端 vue-tsc 0 错 / vitest 204 全过 / eslint 0 问题（含改动文件）。
+**回归**：access-service 双轨全绿（单元轨 990 + 容器轨 115，0 失败 0 错误；容器轨含 TaskExecutionLeaseConcurrencyTest 两轮不同用例抖动，隔离重跑 10/10 绿——029 已知遗留与本任务零关联）；前端 vue-tsc 0 错 / vitest 208 全过（+4 为 mock 契约用例）/ eslint 0 问题。
 
 **解锁**：T-FE-018（权限授予页联调首期）全部后端依赖就绪。

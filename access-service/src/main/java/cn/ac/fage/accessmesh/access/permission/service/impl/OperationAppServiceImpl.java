@@ -122,6 +122,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @throws BizException      业务键查不到（20005）或资源类型不存在（20021）时抛出
      */
     @Override
+    @Transactional(readOnly = true)
     public OperationPermissionResp getOperation(Long tenantId, OperationKeyReq key) {
         // T-PERM-028：详情读门禁（类型级 OPERATION:VIEW，对齐 list 门禁先例）
         Long operatorId = OperatorContext.getOperatorId();
@@ -164,6 +165,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @return 操作权限响应列表
      */
     @Override
+    @Transactional(readOnly = true)
     public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode) {
         // T-PERM-042：授权页操作列表读门禁（architecture §14.5 终态，类型级 OPERATION:VIEW）
         Long operatorId = OperatorContext.getOperatorId();
@@ -180,8 +182,21 @@ public class OperationAppServiceImpl implements OperationAppService {
         }
         // 全局操作概念已退役（2026-08-30 设计定案）：操作定义仅按类型返回，
         // 原 includeGlobalFallback 合并参数随概念一并退役
-        return operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType)
-            .stream().map(this::toResp).collect(Collectors.toList());
+        List<OperationPermission> operations = operationPermissionMapper
+            .selectByTenantAndResourceType(tenantId, resourceType);
+        if (operations.isEmpty()) {
+            return List.of();
+        }
+        // 类型反解走批量（逐项 resolveTypeCode 为循环内类型解析禁止模式——冷缓存 N+1）
+        Set<Integer> typeValues = operations.stream()
+            .map(OperationPermission::getResourceType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toSet());
+        Map<Integer, String> typeCodes = typeResolutionService
+            .batchResolveTypeCodes(tenantId, "resource_type", typeValues);
+        return operations.stream()
+            .map(op -> toResp(op, typeCodes))
+            .collect(Collectors.toList());
     }
 
     /**
@@ -334,10 +349,19 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @return 操作权限响应对象
      */
     private OperationPermissionResp toResp(OperationPermission op) {
+        return toResp(op, Map.of());
+    }
+
+    /** 列表路径：类型码来自批量反解结果（单项路径沿用无缓存 Map 的 toResp） */
+    private OperationPermissionResp toResp(OperationPermission op, Map<Integer, String> typeCodeByValue) {
         String resourceTypeName = ResourceType.safeGetLabel(op.getResourceType());
 
         return new OperationPermissionResp(
-            op.getId(), op.getTenantId(), typeResolutionService.resolveTypeCode(op.getTenantId(), "resource_type", op.getResourceType()), resourceTypeName,
+            op.getId(), op.getTenantId(),
+            typeCodeByValue.containsKey(op.getResourceType())
+                ? typeCodeByValue.get(op.getResourceType())
+                : typeResolutionService.resolveTypeCode(op.getTenantId(), "resource_type", op.getResourceType()),
+            resourceTypeName,
             op.getCode(), op.getName(), op.getBinaryBit(), op.getInheritMask(),
             op.getCreatedAt(), op.getUpdatedAt()
         );
