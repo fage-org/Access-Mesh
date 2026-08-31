@@ -24,7 +24,7 @@ public record OrgQuery(
     Integer orgType,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（1=启用，0=停用——全系统统一口径，DDL DEFAULT 1 同源；T-FE-015 联调订正笔误）
      */
     Integer status,
 

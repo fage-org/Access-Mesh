@@ -350,9 +350,25 @@ export default defineFakeRoute(
               code: 200,
               message: "ok",
               data: {
-                // mock 暂不下发菜单树（纯静态路由模式下菜单由本地 modules 渲染）；
-                // 真后端此处会返回完整 DIR/MENU 树
-                menus: [],
+                // T-FE-015 起侧栏唯一数据源是本接口 menus 树（后端树直接渲染），
+                // 空数组会渲染为「菜单加载失败」占位——mock 下发最小可用树
+                // （welcome 纯展示，对齐 bootstrap 种子形态）；真后端返回完整 DIR/MENU 树
+                menus: [
+                  {
+                    path: "/welcome",
+                    name: "welcome",
+                    component: null,
+                    redirect: null,
+                    meta: {
+                      title: "首页",
+                      icon: "ep/home-filled",
+                      rank: 0,
+                      showLink: true,
+                      keepAlive: false
+                    },
+                    children: []
+                  }
+                ],
                 roles: [profile.nickname ?? username],
                 permissions
               }

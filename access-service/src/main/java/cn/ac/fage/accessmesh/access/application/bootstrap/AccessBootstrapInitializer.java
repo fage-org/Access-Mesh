@@ -467,7 +467,11 @@ public class AccessBootstrapInitializer {
         for (BootstrapGraphDefinition.MenuSeed seed : BootstrapGraphDefinition.menuSeeds()) {
             SysMenu menu = new SysMenu();
             menu.setTenantId(tenantId);
-            menu.setParentId(seed.parentPath() == null ? null : seedMenuIds.get(seed.parentPath()));
+            // 种子清单「先父后子」排序的创建期断言：父行缺失（清单排序被破坏）立即失败，
+            // 不静默插成顶级菜单（静默错插只能等下次重启 inspect 才暴露）
+            menu.setParentId(seed.parentPath() == null ? null
+                : Objects.requireNonNull(seedMenuIds.get(seed.parentPath()),
+                    "menuSeeds 排序破坏: '" + seed.path() + "' 的父级 '" + seed.parentPath() + "' 未先建"));
             menu.setDisplayName(seed.displayName());
             menu.setPath(seed.path());
             menu.setIcon(seed.icon());

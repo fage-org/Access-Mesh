@@ -1071,7 +1071,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `POST /user-role/list` | `getUserRoles` | 🔧 |
 | `POST /role/list` | `getRoleList` | ✅ |
 
-合计: 19 项接口 (13 🔧 + 6 ✅)。原 `/user-role/assign`、`/user-role/revoke` 两行已随 T-ADMIN-024 端点删除移除（前端 `assignRole`/`revokeRole` 为 mock 阶段函数，迁移 `/api/perm/user-role/*` 属前端联调任务）；api-gap-analysis.md "已核对接口汇总" 2026-06-21 归档至 `docs/archive/2026-06-21/`（其时点 16 个 🔧 已由 admin-service 实现，当前实数 13）.
+合计: 19 项接口 (13 🔧 + 6 ✅)。原 `/user-role/assign`、`/user-role/revoke` 两行已随 T-ADMIN-024 端点删除移除（前端 `assignRole`/`revokeRole` 已随 T-FE-015 联调 2026-08-31 切换至 `/perm/api/perm/user-role/assign|revoke` items[] 契约）；api-gap-analysis.md "已核对接口汇总" 2026-06-21 归档至 `docs/archive/2026-06-21/`（其时点 16 个 🔧 已由 admin-service 实现，当前实数 13）. 另：后端 `OrgTreeConfigController` 存在 `/org-tree-config/{page,create,update,detail,delete,set-default}` 六端点（前端仅消费 `page`，已随 T-FE-015 注册 Gateway），本契约未展开登记——待树配置管理 UI 立项时补 §4.2.x 契约段（登记项，T-FE-015 联调发现）.
 
 ---
 

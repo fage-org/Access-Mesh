@@ -13,6 +13,8 @@
 >   （[T-ACCESS-020](../tasks/T-ACCESS-020.md) 已交付，`access.bootstrap.enabled` 默认关闭）——
 >   重建后以 enabled=true 重启 access-service 即自动种子 `admin` 首管理员与管理用功能角色
 >   （幂等三状态：全图不存在单事务创建 / 完整匹配 no-op / 部分存在 fail-fast，见 architecture §14.2）。
+>   2026-08-31（T-FE-015）起固定图同时种子：业务门禁 17 条、sys_menu 菜单 15 行（含 MENU 投影）、
+>   Gateway 管理 API 清单 33 端点、默认组织树（根组织 `root` + 默认树配置 + admin 挂根组织）。
 
 ## 1. 重建步骤
 

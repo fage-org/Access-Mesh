@@ -167,7 +167,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 | [T-FE-012](T-FE-012.md) | 7.2 权限变更日志页（diff 快照 + before/after + 影响评估） | frontend-phase1 | api-contract §5.8/§6.8；design/frontend/permission-change-log.md | T-FE-001 | ✅ | ✅ |
 | [T-FE-013](T-FE-013.md) | 4.2 权限查询/校验页（多维度查询 + 权限解释 + 拒绝原因） | frontend-phase1 | api-contract §5.7/§6.6/§6.7/§6.8；design/frontend/permission-query.md | T-FE-001 | ✅ | ✅ |
 | [T-FE-014](T-FE-014.md) | 4.1 权限授予页（选角色→勾资源树→操作矩阵→绑条件→批量保存） | frontend-phase1 | api-contract §5.5/§6.4/§6.5；design/frontend/permission-grant.md | T-FE-001, T-FE-002, T-FE-008 | ✅ | ✅ |
-| T-FE-015 | Phase 3 联调：组织与用户（2.1 mock→真实接口，含 menus 接线/固定图 17 授权+15 菜单+默认树种子+20 Gateway 端点/bootstrap 分页缓存缺陷修复；已收口 2026-08-31，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
+| [T-FE-015](T-FE-015.md) | Phase 3 联调：组织与用户（2.1 mock→真实接口，含 menus 接线/固定图 17 授权+15 菜单+默认树种子+20 Gateway 端点/bootstrap 分页缓存缺陷修复；已收口 2026-08-31，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
 | T-FE-016 | Phase 3 联调：角色管理（2.2） | frontend-phase3 | api-contract | T-FE-002, T-PERM-022 | ⚙️ | ⏳ |
 | T-FE-017 | Phase 3 联调：资源/操作定义（3.1） | frontend-phase3 | api-contract | T-FE-008, T-PERM-028 | ⚙️ | ⏳ |
 | [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期） | [frontend-phase3](../plans/frontend-phase3-plan.md) | | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ⚙️ | ⏳ |
