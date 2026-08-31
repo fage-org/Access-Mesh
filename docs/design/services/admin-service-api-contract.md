@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-08-28   # 2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
+last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：四处「当前差距」陈旧措辞对齐实现（member-candidates 已实现/reset-password 默认树校验已具备/user-org remove 门禁分支已实现/set-primary 默认树限制已实现）；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -225,7 +225,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **错误码段**: 10100-10119
 
-**当前差距**: 接口未实现. 当前前端 mock 复用 `/user/page`, 但语义与默认树身份目录查询不同, 需独立接口.
+**当前差距**: 无——后端独立接口已实现（`POST /user/member-candidates`，语义为默认树身份目录候选查询）；前端 api 函数待 Phase 3 联调新增（见汇总表「待新增」列，指前端函数非后端端点）.
 
 **验收要点**:
 - 候选集**严格**来自默认树中操作者具备 `USER:VIEW` (或 `ORG:VIEW`) 的范围; 不暴露全租户用户.
@@ -392,7 +392,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **错误码段**: 10210-10229
 
-**当前差距**: 现有实现已具备 `newPassword` 可选 + `ResetPasswordResp` 返回; 待补默认树边界校验.
+**当前差距**: 无——`newPassword` 可选 + `ResetPasswordResp` 返回 + 非自我修改时默认树边界二次校验（`validateUsersInDefaultTreeScope`）均已实现.
 
 **验收要点**:
 - 操作者本人重置自己密码走另外的"修改密码"接口, 不复用本接口.
@@ -674,7 +674,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **错误码段**: 10430-10459
 
-**当前差距**: 现有实现未区分默认树/非默认树门禁; 需新增分支判断.
+**当前差距**: 无——默认树/非默认树门禁分支已实现（非默认树关系 `ORG:UPDATE@orgId`、默认树关系 `USER:UPDATE@userId`，默认树关系归 0 时拒绝）.
 
 **验收要点**:
 - 移除后用户默认树关系归 0 时抛 `BizException(USER_LOSE_DEFAULT_TREE_HOME)` — 默认树主归属不可被普通组织成员管理员意外清除.
@@ -705,7 +705,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **错误码段**: 10460-10479
 
-**当前差距**: 现有实现未限制必须为默认树; 需补.
+**当前差距**: 无——已实现仅默认组织树内主归属（默认树配置解析 + 树内切换主标记，不影响其他组织树的 `is_primary`）.
 
 **验收要点**:
 - `orgId` 不在默认树 → `BizException(PRIMARY_MUST_BE_IN_DEFAULT_TREE)`.
