@@ -200,7 +200,8 @@ function handleAsyncRoutes(routeList) {
  * T-FE-041 起为纯静态路由模式：所有业务路由由 `src/router/modules/*.ts` 本地声明，
  * 不再请求模板遗留的 `/get-async-routes`（真实后端无此端点，且其 mock 会注入
  * 与导航收敛口径冲突的演示菜单）。菜单可见性由路由 `meta.showLink` 控制，
- * 后端 `/auth/user-menu` 下发的菜单树存于 user store（可见性轨道数据，Phase 3 联调 T-FE-015 接线消费）。
+ * 后端 `/auth/user-menu` 下发的菜单树存于 user store（可见性轨道数据，
+ * Phase 3 联调 T-FE-015 接线消费）。
  */
 function initRouter() {
   return new Promise(resolve => {

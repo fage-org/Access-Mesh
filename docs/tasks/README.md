@@ -94,7 +94,7 @@
 | [T-PERM-034](T-PERM-034.md) | 4.1 权限授予后端（已收口 2026-08-30，终态见任务卡完成记录：20043 不变量/SubPermissionPolicy+sub-perm-allowed-types/diff_snapshot §6.8/GoldenFixturePgIT 引擎级比对含全局操作位掩码修复（该修复后随 T-PERM-049 全局操作概念退役整体移除）；第 5 项旧端点退役已随 2026-08-27 收口） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；permission-grant.md §12；access-service.sql | T-PERM-031 | ✅ | ✓ |
 | [T-PERM-035](T-PERM-035.md) | 自动授权（resolveAutoGrants + autoGrantForInsert + 循环依赖检测）— ⚠️ design-review §11 E4 暂缓未排期 | [frontend-phase2](../plans/frontend-phase2-plan.md) | core-flows §12；implementation §4；api-contract | T-PERM-034 | ⚙️ | ⏳ |
 | [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证（scopeMode → SQL 映射链路）— ⚠️ design-review §11 Q7/B 暂缓（延后 example-service） | frontend-phase2 | api-contract §6.7；core-flows；implementation | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |
-| [T-PERM-037](T-PERM-037.md) | 跨页共性接口改造 + api-contract 回写收尾（已收口 2026-08-31，审计型零代码变更，终态见任务卡完成记录：🔧❌ 全处置零补漏/共用接口零不一致/路由级 auths 悬空项定案 menus 接线归 Phase 3 T-FE-015） | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract；implementation | T-PERM-022~034 | ✅ | ✓ |
+| [T-PERM-037](T-PERM-037.md) | 跨页共性接口改造 + api-contract 回写收尾（已收口 2026-08-31，审计型零代码变更，终态见任务卡完成记录） | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract；implementation | T-PERM-022~034 | ✅ | ✓ |
 | T-PERM-038 | 全局 TODO 收口（已归档 improvement-plan 附录 A） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；implementation | — | ⚙️ | ⏳ |
 | T-PERM-039 | 测试补充（access-service permission 域新增改造接口测试） | frontend-phase4 | api-contract；implementation | T-PERM-037 | ⚙️ | ⏳ |
 | [T-PERM-040](T-PERM-040.md) | 4.1 权限授予单资源类型后端支持（已收口 2026-08-31，终态见任务卡完成记录） | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract §5.3/§6.4/§6.5.1；core-flows §6；permission-grant.md §3.2/§12 | T-PERM-028, T-PERM-034 | ✅ | ✓ |
@@ -222,7 +222,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 
 1. 归并主链已全部完成并归档（`docs/archive/2026-08-22/access-service-merge-plan.md`）；后续强化（T-ACCESS-013 OAuth2 资源服务器、T-ACCESS-015 菜单写链路收口）已完成并归档（`docs/archive/2026-08-27/access-post-merge-plan.md`）。
 2. 后端门禁解除：重基线后的 T-PERM/T-ADMIN 任务按各自 `depends_on` 推进（T-PERM-022~041、T-ADMIN-020/021）。
-3. 前端真接口联调（T-FE-015~022）等待对应 Phase 2 后端任务完成；纯 mock/UI 任务不受影响。
+3. 前端真接口联调（T-FE-015~022）后端依赖已就绪（T-PERM-037 收口 2026-08-31，Phase 2 后端任务全部完成；T-FE-037 二期另待 T-ADMIN-021）；纯 mock/UI 任务不受影响。
 4. access-post-merge 准入前置已由 T-ACCESS-017 最小 CI 落地关闭（GitHub Actions 两 job 以退出状态判定成功；原登记 40 项与 68 项实测均为历史口径，不维护计数同步）。
 
 ### P0 — 验收闭环（✅ 已完成 2026-06-20）
@@ -278,7 +278,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 
 配套：`T-FE-001` 跨页组件抽象池（贯穿，2+ 页确认后派生组件子任务）。后端任务 T-PERM-022~034 归 Phase 2（depends_on 对应前端，等清单产出）。
 
-### P6 — 前端 Phase 2/3/4（proposed，待 Phase 2 启动）
+### P6 — 前端 Phase 2/3/4（Phase 2 后端任务已全部完成 2026-08-31；Phase 3 联调待启动）
 
 - `T-PERM-022~034` 逐页后端接口改造 ← 各 Phase 1 前端任务（🔧❌ 清单）
 - `T-PERM-037` 跨页共性接口改造 + api-contract 回写收尾 ← T-PERM-022~034（不重复逐页改造）

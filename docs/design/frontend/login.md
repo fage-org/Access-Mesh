@@ -3,7 +3,7 @@ doc_type: design
 title: 登录页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-24
+last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：menus 轨道接线归 Phase 3 T-FE-015；此前：2026-08-24
 ---
 
 # 登录页 前端设计（T-FE-041 真实登录链路）

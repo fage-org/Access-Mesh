@@ -3,7 +3,7 @@ doc_type: design
 title: 5.1 业务域页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-026 后端收口终态化（业务键/分页/global/删除保护/JSON 校验/JSONB 确认）；原文 2026-07-01 Phase 1 前端设计定稿
+last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-29 T-PERM-026 后端收口终态化（业务键/分页/global/删除保护/JSON 校验/JSONB 确认）；原文 2026-07-01 Phase 1 前端设计定稿
 ---
 
 # 5.1 业务域页 前端设计

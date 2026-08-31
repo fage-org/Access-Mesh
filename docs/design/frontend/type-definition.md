@@ -3,7 +3,7 @@ doc_type: design
 title: 6.1 类型定义页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-29   # 2026-08-29 §8 第 4 项收口（T-PERM-028：resource_type 创建联动预置已实现）；2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）
+last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正（403 兜底 + menus 接线归 T-FE-015）、§4.1 切服务端分页终态化、§8 消费方计数三处→四处；2026-08-29 §8 第 4 项收口（T-PERM-028：resource_type 创建联动预置已实现）；2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）
 ---
 
 # 6.1 类型定义页 前端设计
@@ -78,11 +78,9 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），非左�
 
 ### 4.1 列表加载与过滤
 
-- **加载**：进入页面 `getTypeDefList({})` → 后端返回 `ItemsResp`（全量，无分页/无过滤，见 §8 🔧 第 2 条）→ hook `loadTable` 本地做 typeKey/keyword 过滤 + sortOrder 排序 + 切片分页。
-- **typeKey 下拉过滤**：顶部下拉选 typeKey（或「全部」）→ `onSearch` 重置页码 + `loadTable`，hook 本地过滤。
-- **keyword 搜索**：hook 本地按 name / typeCode 模糊匹配。
-- **分页**：`onPageChange` / `onPageSizeChange`，`pagination.total` = 本地过滤后长度，`tableData` = 切片后的当前页。
-- **字典表量小**：每次翻页重拉全量可接受；Phase 2 后端补 typeKey/keyword/pageNum/pageSize 参数 + 返回 PaginatedResp 后（T-PERM-023）可切回服务端分页。
+- **加载**：进入页面 `getTypeDefList({typeKey?, keyword?, pageNum, pageSize})` → 服务端过滤（keyword 匹配 name/typeCode LIKE，排序 `sort_order, id`）+ 分页，返回 `PaginatedResp`（§8 第 2 条终态，T-PERM-023 已切服务端分页；原 Phase 1「全量拉取 + hook 本地过滤/切片」描述已废弃）。
+- **typeKey 下拉过滤 / keyword 搜索**：均作为查询参数下发服务端精确/LIKE 过滤（`onSearch` 重置页码后 `loadTable`）。
+- **分页**：`onPageChange` / `onPageSizeChange` 触发 `loadTable` 重拉当前页，`pagination.total` = 服务端返回总数。
 
 ### 4.2 新增
 
@@ -148,7 +146,7 @@ views/system/type-def/
 
 ### 降级策略
 
-- 无 `TYPE_DEFINITION:VIEW` → 路由不可达（`meta.auths` 派生自 `TYPE_DEF_PERM_LIST`）。
+- 无 `TYPE_DEFINITION:VIEW` → 菜单仍可见、路由可达（路由过滤 `filterNoPermissionTree` 只认 `meta.roles` 不消费 `meta.auths`，本项目未设 roles），进入页面后由后端 VIEW 校验拒绝（403 兜底）；菜单级可见性随 Phase 3 联调 T-FE-015 user-menu menus 轨道接线切 v3.5 ∃op 派生（T-PERM-037 收口定案，2026-08-31）。
 - 无 `TYPE_DEFINITION:CREATE` → 隐藏「新增」按钮。
 - 无 `TYPE_DEFINITION:MANAGE` → 隐藏编辑/删除按钮。
 - `isSystem=true` 系统预置项 → 无论权限如何，均不展示编辑/删除按钮（业务约束，非权限）。

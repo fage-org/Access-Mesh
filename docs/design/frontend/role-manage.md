@@ -3,7 +3,7 @@ doc_type: design
 title: 2.2 角色管理页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-28   # 2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
+last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
 ---
 
 # 2.2 角色管理页 前端设计
@@ -167,7 +167,7 @@ views/system/role/
 
 ### 降级策略
 
-- 无 `ROLE:VIEW` → 路由不可达（`meta.auths` 派生自 `ROLE_MANAGE_PERM_LIST`）。
+- 无 `ROLE:VIEW` → 菜单仍可见、路由可达（路由过滤 `filterNoPermissionTree` 只认 `meta.roles` 不消费 `meta.auths`，本项目未设 roles），进入页面后由后端 VIEW 校验拒绝（403 兜底）；菜单级可见性随 Phase 3 联调 T-FE-015 user-menu menus 轨道接线切 v3.5 ∃op 派生（T-PERM-037 收口定案，2026-08-31）。
 - 无 `ROLE:CREATE` → 隐藏「新增角色」下拉。
 - 无 `ROLE:MANAGE` → 隐藏编辑/启停/删除按钮。
 - 无 `ROLE:ASSIGN` / `ROLE:REVOKE` → 隐藏额外角色「添加/移除」按钮（T-PERM-043 后面板不可达，门控保留）。
