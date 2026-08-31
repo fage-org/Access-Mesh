@@ -221,4 +221,13 @@ describe("permission-grant mock 契约", () => {
     expect(unfiltered.data.items.length).toBeGreaterThan(0);
     expect(blank.data.items.length).toBe(unfiltered.data.items.length);
   });
+
+  it('list：非空白值原样精确匹配——带边界空格的 " DATA " 属未知类型返回空列表', () => {
+    const resp = listRoute.response({
+      body: roleBody({ resourceTypeCode: " DATA " })
+    });
+
+    expect(resp.code).toBe(200);
+    expect(resp.data.items).toEqual([]);
+  });
 });

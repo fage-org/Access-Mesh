@@ -120,6 +120,29 @@ class OperationAppServiceImplTest {
         }
     }
 
+    @Test
+    @DisplayName("类型定义已软删的孤儿操作行 fail-closed 过滤——不回退逐项解析、不返回 null 类型码")
+    void shouldFilterOutOrphanOperationsWhoseTypeDefinitionDeleted() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+            // 全量路径：USER(7) 正常 + 类型 9 的孤儿行（批量反解不含 9——类型定义已软删）
+            when(operationPermissionMapper.selectByTenantAndResourceType(eq(1L), isNull()))
+                .thenReturn(List.of(op(7, "VIEW"), op(9, "ORPHAN_VIEW")));
+            when(typeResolutionService.batchResolveTypeCodes(eq(1L), eq("resource_type"), anySet()))
+                .thenReturn(java.util.Map.of(7, "USER"));
+
+            List<OperationPermissionResp> resp = service.listOperations(1L, null);
+
+            // 旧实现（缺项回退逐项解析）下：孤儿行走 resolveTypeCode 单查且返回 null 类型码——
+            // 逐项解析零调用与单条结果两断言均失败
+            assertEquals(1, resp.size());
+            assertEquals("USER", resp.get(0).resourceTypeCode());
+            verify(typeResolutionService, never()).resolveTypeCode(any(), any(), any());
+        }
+    }
+
     private static OperationPermission op(Integer resourceType, String code) {
         OperationPermission o = new OperationPermission();
         o.setTenantId(1L);

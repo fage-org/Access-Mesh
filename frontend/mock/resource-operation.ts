@@ -698,9 +698,13 @@ export default defineFakeRoute([
     response: ({ body }) => {
       const { resourceTypeCode } = body || {};
       // 全局操作概念已退役：有类型过滤返回该类型定义；无类型返回全量定义。
-      // 空白串视同缺省不过滤（契约 §5.3，与后端 isBlank 同口径）；矩阵列序由前端
+      // 空白串视同缺省不过滤（契约 §5.3，与后端 isBlank 同口径）；非空白值原样精确匹配
+      // （后端不 trim——" MENU " 属未知类型返回空列表，mock 同口径）；矩阵列序由前端
       // 按 binaryBit 升序归一（permission-grant.md §3.2 实现确认），后端 ORDER BY id 顺序对展示无关
-      const typeFilter = resourceTypeCode?.trim() || null;
+      const typeFilter =
+        resourceTypeCode != null && resourceTypeCode.trim() !== ""
+          ? resourceTypeCode
+          : null;
       const items = operations
         .filter(op => (typeFilter ? op.resourceTypeCode === typeFilter : true))
         .slice()

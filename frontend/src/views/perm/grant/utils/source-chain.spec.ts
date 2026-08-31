@@ -15,6 +15,7 @@ import {
   getCellState,
   allRowKey,
   instanceRowKey,
+  sortOperationDefs,
   type CellSource,
   type SourceRecordInput
 } from "./source-chain";
@@ -511,5 +512,51 @@ describe("source-chain 前端补充覆盖（非 golden 集）", () => {
         target: { resourceTypeCode: "REPORT", code: "VIEW" }
       })[0]?.hit
     ).toBe("DIRECT");
+  });
+});
+
+describe("sortOperationDefs（矩阵操作列按 binaryBit 升序归一，§3.2 实现确认）", () => {
+  const def = (code: string, binaryBit: string) => ({
+    code,
+    name: code,
+    resourceTypeCode: "REPORT",
+    binaryBit,
+    inheritMask: "0"
+  });
+
+  it("乱序输入按位值升序排序（与后端返回顺序无关）", () => {
+    const input = [
+      def("DELETE", "8"),
+      def("VIEW", "2"),
+      def("MANAGE", "16"),
+      def("CREATE", "1")
+    ];
+    expect(sortOperationDefs(input).map(d => d.code)).toEqual([
+      "CREATE",
+      "VIEW",
+      "DELETE",
+      "MANAGE"
+    ]);
+  });
+
+  it("超过 Number.MAX_SAFE_INTEGER 的 63 位位值按数值比较（字符串字典序会误排）", () => {
+    // 2^53 = 9007199254740992；2^62 与 2^63 十进制字符串首字符同为 4/9 区间，字典序不可靠
+    const input = [
+      def("B63", "9223372036854775808"),
+      def("B53", "9007199254740992"),
+      def("B62", "4611686018427387904")
+    ];
+    expect(sortOperationDefs(input).map(d => d.code)).toEqual([
+      "B53",
+      "B62",
+      "B63"
+    ]);
+  });
+
+  it("相等位值保持原相对顺序且不变异入参数组", () => {
+    const input = [def("A", "2"), def("B", "2"), def("C", "1")];
+    const snapshot = [...input];
+    expect(sortOperationDefs(input).map(d => d.code)).toEqual(["C", "A", "B"]);
+    expect(input).toEqual(snapshot);
   });
 });

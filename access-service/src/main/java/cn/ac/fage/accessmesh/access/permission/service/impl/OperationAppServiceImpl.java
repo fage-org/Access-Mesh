@@ -187,14 +187,17 @@ public class OperationAppServiceImpl implements OperationAppService {
         if (operations.isEmpty()) {
             return List.of();
         }
-        // 类型反解走批量（逐项 resolveTypeCode 为循环内类型解析禁止模式——冷缓存 N+1）
+        // 类型反解走批量（逐项 resolveTypeCode 为循环内类型解析禁止模式——冷缓存 N+1）；
+        // 批量查询只返回未软删类型——类型定义已删除的操作行（孤儿行）fail-closed 过滤，
+        // 不回退逐项解析（回退会在冷缓存逐行单查且返回 null 违反契约「恒非空」）
         Set<Integer> typeValues = operations.stream()
             .map(OperationPermission::getResourceType)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
-        Map<Integer, String> typeCodes = typeResolutionService
-            .batchResolveTypeCodes(tenantId, "resource_type", typeValues);
+        Map<Integer, String> typeCodes = typeValues.isEmpty() ? Map.of()
+            : typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", typeValues);
         return operations.stream()
+            .filter(op -> typeCodes.containsKey(op.getResourceType()))
             .map(op -> toResp(op, typeCodes))
             .collect(Collectors.toList());
     }
@@ -349,18 +352,24 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @return 操作权限响应对象
      */
     private OperationPermissionResp toResp(OperationPermission op) {
-        return toResp(op, Map.of());
+        String resourceTypeName = ResourceType.safeGetLabel(op.getResourceType());
+
+        return new OperationPermissionResp(
+            op.getId(), op.getTenantId(),
+            typeResolutionService.resolveTypeCode(op.getTenantId(), "resource_type", op.getResourceType()),
+            resourceTypeName,
+            op.getCode(), op.getName(), op.getBinaryBit(), op.getInheritMask(),
+            op.getCreatedAt(), op.getUpdatedAt()
+        );
     }
 
-    /** 列表路径：类型码来自批量反解结果（单项路径沿用无缓存 Map 的 toResp） */
+    /** 列表路径专用：类型码只消费批量反解结果，不做逐项回退（孤儿行由调用方 fail-closed 过滤） */
     private OperationPermissionResp toResp(OperationPermission op, Map<Integer, String> typeCodeByValue) {
         String resourceTypeName = ResourceType.safeGetLabel(op.getResourceType());
 
         return new OperationPermissionResp(
             op.getId(), op.getTenantId(),
-            typeCodeByValue.containsKey(op.getResourceType())
-                ? typeCodeByValue.get(op.getResourceType())
-                : typeResolutionService.resolveTypeCode(op.getTenantId(), "resource_type", op.getResourceType()),
+            typeCodeByValue.get(op.getResourceType()),
             resourceTypeName,
             op.getCode(), op.getName(), op.getBinaryBit(), op.getInheritMask(),
             op.getCreatedAt(), op.getUpdatedAt()

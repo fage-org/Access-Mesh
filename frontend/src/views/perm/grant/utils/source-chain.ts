@@ -32,6 +32,19 @@ export type OperationDefInput = {
   inheritMask: string | number;
 };
 
+/** 操作列排序：默认全部显示、按 binaryBit 升序（permission-grant.md §3.2 实现确认）——
+ *  排序在前端归一，与后端 ORDER BY id 返回顺序无关（BigInt 比较，十进制字符串线格式；
+ *  不变异入参数组） */
+export function sortOperationDefs(
+  defs: OperationDefInput[]
+): OperationDefInput[] {
+  return [...defs].sort((a, b) => {
+    const x = BigInt(a.binaryBit);
+    const y = BigInt(b.binaryBit);
+    return x < y ? -1 : x > y ? 1 : 0;
+  });
+}
+
 /** 资源树节点输入（仅消费必要字段；children 可嵌套或经由 parentId 关联） */
 export type ResourceNodeInput = {
   id: number;

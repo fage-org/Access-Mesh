@@ -39,13 +39,11 @@ last_updated: 2026-08-31
 
 ## 背景
 
-权限授予页（v3，T-FE-036）定稿**单类型矩阵上下文**：矩阵一次只呈现一个 `resourceTypeCode`，操作列 = 当前类型专属操作 ∪ 全局回退。为让前端不再重复实现"专属优先、全局回退"领域规则，后端提供：
+权限授予页（v3，T-FE-036）定稿**单类型矩阵上下文**：矩阵一次只呈现一个 `resourceTypeCode`，操作列 = 当前类型专属操作（原「∪ 全局回退」已随 T-PERM-049 全局操作退役删除，类型隔离后无回退轨）。为让前端不再自行拼装操作列数据，后端提供：
 
-1. `operation-permission/list` 类型查询参数（`resourceTypeCode + includeGlobalFallback`），true 时返回合并后集合；
+1. `operation-permission/list` 类型查询参数（`resourceTypeCode` 可选过滤；~~`includeGlobalFallback`，true 时返回合并后集合~~已随 T-PERM-049 退役）；
 2. `role-resource-permission/list` 类型过滤（`resourceTypeCode`，含跨类型子权限按 depend_on 挂父规则，2026-08-05 评审扩展）；
 3. `apply-grant-plan` creates 写入校验（operationCode 适用于记录的资源类型，不匹配 → 20008）。
-
-> 背景第 1 条的合并语义已随 T-PERM-049 退役（见上方退役注记）；操作列 = 当前类型专属操作（类型隔离后无回退轨）。
 
 ## 范围
 
@@ -65,12 +63,12 @@ last_updated: 2026-08-31
 2. **类型过滤下沉专用 Mapper 查询**：验收字面要求「对应 Mapper 批量查询」，原内存过滤虽无 N+1 但经定案按字面落地——新增 `selectValidMainByRoleIdAndResourceType`（tenant + role + depend_on IS NULL + resource_type + delete_flag=0），子权限复用既有 `selectValidByRoleIdAndDependIds`（双重约束 SQL 层满足）；childCount 计数源 = 主权限 + 全部直接子权限，includeChildren=false 时计数仍真实。
 3. **`OperationListReq.domainCode` 死参数删除**：DTO 注释声称「用于过滤」但实现从未使用、契约 §5.3 参数表未登记、前端全部调用点零传参——删除（DTO 字段 + Service 签名 + Controller + 前端 `OperationListQuery` 类型同步）。
 
-**收口补强（2026-08-31，外部评审核实后落地）**：`listOperations` 类型码反解改走 `batchResolveTypeCodes` 批量（原逐项 `resolveTypeCode` 属循环内类型解析禁止模式——冷缓存逐类型单查；N+1 锁并入既有已知类型用例：断言批量调用一次且逐项解析零调用）+ 补 `@Transactional(readOnly = true)`（`getOperation` 同步补齐）；前端矩阵操作列排序归一到 `hook.ts` 共用函数按 `binaryBit` 升序（§3.2 实现确认的既定要求，此前仅靠 mock 排序承载——真实后端 ORDER BY id 时列序不达设计）；两个 mock list 处理器空白串归一为视同缺省不过滤（对齐契约 §5.3/§6.4 成文口径）+ mock `OperationPermissionResp.resourceTypeCode` 类型收窄 `string|null`→`string`（全局操作已退役，对齐 api 契约类型）。
+**收口补强（2026-08-31，外部评审核实后落地）**：`listOperations` 类型码反解改走 `batchResolveTypeCodes` 批量（原逐项 `resolveTypeCode` 属循环内类型解析禁止模式——冷缓存逐类型单查；N+1 锁并入既有已知类型用例：断言批量调用一次且逐项解析零调用）+ 批量缺项（类型定义已软删的孤儿操作行）fail-closed 过滤不回退逐项解析（回退会冷缓存逐行单查且返回 null 违反契约「恒非空」；锁定用例：已知+孤儿混合集合仅返回已知项）+ 补 `@Transactional(readOnly = true)`（`getOperation` 同步补齐）；前端矩阵操作列排序归一到 `sortOperationDefs` 纯函数（source-chain.ts 导出，按 `binaryBit` 升序 BigInt 比较——§3.2 实现确认的既定要求，此前仅靠 mock 排序承载，附乱序/超 2^53 位值/不变异直接用例）；两个 mock list 处理器空白串归一为视同缺省不过滤、非空白值原样精确匹配（对齐契约 §5.3/§6.4 成文口径与后端不 trim 的行为）+ mock `OperationPermissionResp.resourceTypeCode` 类型收窄 `string|null`→`string`（全局操作已退役，对齐 api 契约类型）。
 
 **测试补齐**：`PermissionGrantPlanDomainServiceImplTest` 新增 `OperationApplicabilityValidation` 四用例（主 key / children[] 嵌套 / parentPermissionId 挂父三种形态 20008 + 未知码 20005 区分锁定——旧实现若误把异类型码当未知码或放行均失败）；`PermissionGrantAppServiceImplTest` 新增五用例（类型命中含跨类型子权限挂父 + 专用 SQL 调用与父 ID 集合精确断言 / 未知类型空列表零查询 / includeChildren=false 仅主权限但 childCount 真实 / 类型无命中不查子 / null 兼容全量不走专用 SQL）；`OperationAppServiceImplTest` 两用例收口（未知类型空列表——修复前该用例因回退全量必然失败、已知类型解析后下发 Mapper + 类型码批量反解零逐项解析锁定）+ 既有两用例签名同步；前端 mock 契约用例新增（permission-grant list 空白串视同缺省 + resource-operation list 空白串/已知类型过滤/未知类型空列表）。
 
 **文档回写**：见 acceptance 第 6 条。
 
-**回归**：access-service 双轨全绿（单元轨 990 + 容器轨 115，0 失败 0 错误；容器轨含 TaskExecutionLeaseConcurrencyTest 两轮不同用例抖动，隔离重跑 10/10 绿——029 已知遗留与本任务零关联）；前端 vue-tsc 0 错 / vitest 208 全过（+4 为 mock 契约用例）/ eslint 0 问题。
+**回归**：access-service 双轨全绿（单元轨 991 + 容器轨 115，0 失败 0 错误；容器轨含 TaskExecutionLeaseConcurrencyTest 两轮不同用例抖动，隔离重跑 10/10 绿——029 已知遗留与本任务零关联）；前端 vue-tsc 0 错 / vitest 213 全过（+5 为 mock 边界空格与操作列排序用例）/ eslint 0 问题。
 
 **解锁**：T-FE-018（权限授予页联调首期）全部后端依赖就绪。

@@ -27,6 +27,13 @@ describe("resource-operation mock 契约", () => {
     expect(blank.data.items.length).toBe(unfiltered.data.items.length);
   });
 
+  it('list：非空白值原样精确匹配——带边界空格的 " MENU " 属未知类型返回空列表', () => {
+    const resp = listRoute.response({ body: { resourceTypeCode: " MENU " } });
+
+    expect(resp.code).toBe(200);
+    expect(resp.data.items).toEqual([]);
+  });
+
   it("list：已知类型过滤仅返回该类型定义", () => {
     const resp = listRoute.response({ body: { resourceTypeCode: "MENU" } });
 

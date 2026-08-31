@@ -40,6 +40,7 @@ import {
   computeSourceChain,
   coveredSetOf,
   mergeOperationsForType,
+  sortOperationDefs,
   type OperationDefInput
 } from "./source-chain";
 import { decideRefreshAction } from "./subject-tree";
@@ -55,32 +56,6 @@ const COLUMN_STORAGE_PREFIX = "permission-grant:hidden-columns:";
 
 /** 上次选择类型 localStorage 前缀（按 subjectType 隔离，§2.2 默认选中上次选择类型） */
 const LAST_TYPE_STORAGE_PREFIX = "perm-grant:last-type:";
-
-/** 操作列映射 + 排序：默认全部显示、按 binaryBit 升序（§3.2 实现确认）——
- *  排序在前端归一，与后端 ORDER BY id 返回顺序无关（BigInt 比较，十进制字符串线格式） */
-function toSortedOperationDefs(
-  items: {
-    code: string;
-    name: string;
-    resourceTypeCode: string;
-    binaryBit: string;
-    inheritMask: string;
-  }[]
-): OperationDefInput[] {
-  return items
-    .map(op => ({
-      code: op.code,
-      name: op.name,
-      resourceTypeCode: op.resourceTypeCode,
-      binaryBit: op.binaryBit,
-      inheritMask: op.inheritMask
-    }))
-    .sort((a, b) => {
-      const x = BigInt(a.binaryBit);
-      const y = BigInt(b.binaryBit);
-      return x < y ? -1 : x > y ? 1 : 0;
-    });
-}
 
 export function usePermissionGrant() {
   const route = useRoute();
@@ -495,7 +470,15 @@ export function usePermissionGrant() {
         resourceForest.value = (treeResp.items ?? [])
           .map(it => it.root)
           .filter(Boolean) as ResourceTreeNode[];
-        operationDefs.value = toSortedOperationDefs(opResp.items ?? []);
+        operationDefs.value = sortOperationDefs(
+          (opResp.items ?? []).map(op => ({
+            code: op.code,
+            name: op.name,
+            resourceTypeCode: op.resourceTypeCode,
+            binaryBit: op.binaryBit,
+            inheritMask: op.inheritMask
+          }))
+        );
         // 操作列配置清理：当前类型操作定义中已不存在的操作码（§3.2）
         pruneHiddenColumns(operationDefs.value);
         const types = new Set<string>();
@@ -519,7 +502,15 @@ export function usePermissionGrant() {
       resourceForest.value = (treeResp.items ?? [])
         .map(it => it.root)
         .filter(Boolean) as ResourceTreeNode[];
-      operationDefs.value = toSortedOperationDefs(opResp.items ?? []);
+      operationDefs.value = sortOperationDefs(
+        (opResp.items ?? []).map(op => ({
+          code: op.code,
+          name: op.name,
+          resourceTypeCode: op.resourceTypeCode,
+          binaryBit: op.binaryBit,
+          inheritMask: op.inheritMask
+        }))
+      );
       // 操作列配置清理：当前类型操作定义中已不存在的操作码（§3.2）
       pruneHiddenColumns(operationDefs.value);
       return true;

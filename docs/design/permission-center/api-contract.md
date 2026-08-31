@@ -245,7 +245,7 @@ last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-040 单资源类型后端支持�
 | `POST /api/perm/resource-entity/sync`         | 资源实体专用幂等同步 |
 | `POST /api/perm/resource-entity/full-sync`    | 按 scope 全量校准资源 |
 
-**业务键定位（T-PERM-028 定稿）**：`resource-entity` 的 `detail/update/move/remove` 与 `operation-permission` 的 `detail/update/remove` 以业务键定位，不再接受内部 id（schema `uk_resource_entity` / `uk_operation_permission_typed` / `uk_operation_permission_global` 保证唯一；混合形态——detail/update 键字段平铺、move 嵌套、remove items 数组）：
+**业务键定位（T-PERM-028 定稿）**：`resource-entity` 的 `detail/update/move/remove` 与 `operation-permission` 的 `detail/update/remove` 以业务键定位，不再接受内部 id（schema `uk_resource_entity` / `uk_operation_permission_typed` + `ck_operation_permission_resource_type_required` 非空 CHECK 共同保证唯一（原 `uk_operation_permission_global` 已随全局操作退役删除，T-PERM-049）；混合形态——detail/update 键字段平铺、move 嵌套、remove items 数组）：
 
 ```json
 // resource-entity/detail（ResourceKeyReq 平铺）
