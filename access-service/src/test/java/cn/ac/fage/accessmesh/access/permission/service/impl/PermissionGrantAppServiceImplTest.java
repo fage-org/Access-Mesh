@@ -276,6 +276,8 @@ class PermissionGrantAppServiceImplTest {
             assertEquals(1L, items.get(0).childCount());
             assertEquals("BUTTON", items.get(1).resourceTypeCode());
             assertEquals(Long.valueOf(1L), items.get(1).dependOn());
+            // 子权限行 childCount 恒 0（父必须顶层，无孙代）
+            assertEquals(0L, items.get(1).childCount());
             verify(rolePermMapper).selectValidMainByRoleIdAndResourceType(TENANT, ROLE_ID, 7);
             verify(rolePermMapper, never()).selectValidByRoleId(TENANT, ROLE_ID);
         }

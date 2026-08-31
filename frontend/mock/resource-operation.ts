@@ -696,7 +696,9 @@ export default defineFakeRoute([
     method: "post",
     response: ({ body }) => {
       const { resourceTypeCode } = body || {};
-      // 全局操作概念已退役：有类型过滤返回该类型定义；无类型返回全量定义
+      // 全局操作概念已退役：有类型过滤返回该类型定义；无类型返回全量定义。
+      // 口径差异登记（T-PERM-040 评审）：空白串（如 " "）后端 isBlank 跳过过滤返回全量、
+      // mock 按 truthy 当过滤值返回空列表——类型下拉来自类型定义页，UI 不可达，联调以真实后端为准
       const items = operations
         .filter(op =>
           resourceTypeCode ? op.resourceTypeCode === resourceTypeCode : true

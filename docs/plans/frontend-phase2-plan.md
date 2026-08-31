@@ -32,7 +32,7 @@ tasks:
   - T-FE-040
   - T-ADMIN-021
 acceptance: "13 页后端接口改造完成（T-PERM-022~034 逐页实现）；跨页共性接口改造 + api-contract 回写完成（T-PERM-037）；自动授权实现 + 测试通过（T-PERM-035）；动态数据权限链路验证通过（T-PERM-036）；T-FE-036 前端权限授予页（mock 驱动）实现完成（本 plan 关联的前端部分，见正文前端重建任务节；含 DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机）；单类型矩阵上下文完成（T-FE-038 前端 + T-PERM-040 后端，2026-08-03 定稿，2026-08-05 扩展 list 类型过滤 + 嵌套 20008）；条件权限不可转授完成（T-PERM-041，20041 + **20042 条件启用状态** + 主权限 DDL CHECK）；矩阵图标正交模型完成（T-FE-039）；**授权弹窗 v3.1 记录级聚焦编辑完成（T-FE-040，mock-first，包含：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要/20042-20043 提示，联调见 T-FE-018）**；T-ADMIN-021 org-tree includePositions **二期**（首期只角色入口）。注：T-PERM-035/036 受 design-review §11 暂缓门禁约束，需 PM 重申后才能进入 in-progress。"
-last_updated: 2026-08-30
+last_updated: 2026-08-31
 ---
 
 # 前端 Phase 2 — 核心功能补齐 + 后端接口改造
