@@ -52,7 +52,7 @@ last_updated: 2026-08-31
 1. `OperationPermissionAppService`（或等价服务）list 支持 `resourceTypeCode + includeGlobalFallback` 参数：includeGlobalFallback=true 时按"专属优先、全局回退"合并（同 `operationCode` 专属定义优先，被覆盖的全局定义剔除；无专属时全局定义保留）；响应结构不变（OperationPermissionResp items）。~~（已随 T-PERM-049 退役）~~
 2. 合并规则抽为单一解析方法（如 `resolveEffectiveOperations(tenantId, resourceTypeCode)`），**list 合并与 apply-grant-plan 校验共用**。~~（已随 T-PERM-049 退役；两处共用同一份类型专属定义数据源）~~
 3. `role-resource-permission/list` 支持 `resourceTypeCode` 过滤（主权限按 `depend_on IS NULL + resource_type` 过滤）；`includeChildren=true` 时子权限按 `depend_on` 挂在该类型主权限下返回（子权限跨类型不按自身类型过滤）；对应 Mapper 批量查询（按类型过滤主权限，避免 N+1）。
-4. `prevalidateGrantPlan` creates 段补 operationCode 适用性校验：**覆盖主权限 key、children[] 嵌套、parentPermissionId 挂父三种形态**（不匹配 → 20008，组合位按位集校验）。
+4. `prevalidateGrantPlan` creates 段补 operationCode 适用性校验：**覆盖主权限 key、children[] 嵌套、parentPermissionId 挂父三种形态**（不匹配 → 20008，~~组合位按位集校验~~——已失效，见 acceptance 第 4 条订正：operationCode 必填非空白，组合位 create 形态不存在）。
 5. 测试覆盖（见 acceptance 第 5 条）。
 
 ## 完成记录（2026-08-31 收口）
