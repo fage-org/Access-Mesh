@@ -87,6 +87,9 @@
 | 资源依赖编辑保存报 20048 | 存量 `auto_grant=true` 行（旧 DDL `DEFAULT true` / 旧 mock 默认 true 时期写入；2026-08-27 起写入口拒绝 true、开关禁用，存量行编辑任何字段都会命中拒绝） | 一次性订正：`UPDATE resource_dependency SET auto_grant = false WHERE auto_grant AND delete_flag = 0;` 后重试；或直接删除重建该依赖 |
 | 域配置编辑报 400（configType 仅支持 SUB_PERM/CLASSIFY） | 存量 `SCOPE`/`RELATION`/`BINDING` 历史类型行（未实现类型，2026-08-27 起写入白名单拒绝） | 一次性订正：`UPDATE domain_config SET delete_flag = id, deleted_at = now() WHERE config_type IN ('SCOPE','RELATION','BINDING') AND delete_flag = 0;` 软删历史行后按两类重新配置 |
 | 部署含 `OPERATION_PERMISSIONS_BY_TYPE` 缓存内容语义变更的版本后，旧口径条目在 2 小时内继续生效 | 该缓存（L2 TTL 120m）仅在 miss 时按新口径重算（当前口径 = 类型专属集，全局操作概念已退役 2026-08-30；T-PERM-034 收口注记；与 T-PERM-047 写路径失效未接线相邻） | 部署该类变更前 flush 该目录（或 `--scan --delete` 该前缀键），或等 TTL 耗尽；未上线环境无影响 |
+| bootstrap 启动报「管理角色授权缺失/菜单种子部分存在/默认树」等固定图冲突，但库是旧版固定图 | **固定图定义升级后既有库不兼容**（T-FE-015 起：业务门禁 +17、菜单种子 15 行、Gateway 端点 +20、默认组织树；幂等三状态不自动补权，旧图缺新条目即状态③ fail-fast） | 按步骤 1 重建库（未上线项目不做在线迁移）；不要手工往旧图补数——检测断言含结构键比对，手工行属性不匹配同样冲突 |
+| 前端浏览器请求全部 403 空响应体，但 curl 直连 Gateway 200 | **Gateway CORS 白名单不含前端 origin**（T-GW-007 环境化，默认仅 `http://localhost:8848`）；curl 不带 Origin 头不受影响，易误判为后端故障 | Gateway 启动带 `GATEWAY_CORS_ALLOWED_ORIGINS` 含前端实际 origin（本机 8848 被 Nacos 容器占用、前端以 `VITE_PORT=8890` 起时：`GATEWAY_CORS_ALLOWED_ORIGINS=http://localhost:8890,http://localhost:8848`） |
+| 组织与用户页用户列表恒空、成员候选恒空 | `/user/page` 与 `/user/member-candidates` 均为**默认组织树身份目录视图**——无默认树配置时可见组织集恒空（T-FE-015 起 bootstrap 已种子默认树 `root`，旧库重建前会命中） | 确认 `sys_org_tree_config` 存在 `is_default=true` 行且指向有效根组织；无则按步骤 1 重建（bootstrap 自动种子），或经管理链路建树配置并设默认 |
 | 含条件授权判定结果与预期不符 | 存量 `permission_condition.condition_rules` 含 `items: []` 空数组（条件写入口仅验 JSON 合法性、未拦空数组，2026-08-29 T-PERM-033 评审登记） | 空数组 + AND 按旧语义无条件满足（放行）；如需收紧为 fail-close 应先在条件写入口显式拒绝空 items（登记项），不建议直接订正数据前不改写入校验 |
 
 ## 4. 相关权威文档

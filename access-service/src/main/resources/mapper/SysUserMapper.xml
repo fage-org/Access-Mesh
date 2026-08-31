@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.admin.mapper.SysUserMapper">
 
-    <select id="paginateUsers" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysUser">
+    <select id="selectUsersByCondition" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysUser">
         SELECT u.* FROM sys_user u
         WHERE u.tenant_id = #{tenantId} AND u.delete_flag = 0
         <if test="username != null"> AND username LIKE CONCAT('%', #{username}, '%')</if>
@@ -24,6 +24,29 @@
             )
         </if>
         ORDER BY u.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countUsersByCondition" resultType="long">
+        SELECT COUNT(*) FROM sys_user u
+        WHERE u.tenant_id = #{tenantId} AND u.delete_flag = 0
+        <if test="username != null"> AND username LIKE CONCAT('%', #{username}, '%')</if>
+        <if test="name != null"> AND name LIKE CONCAT('%', #{name}, '%')</if>
+        <if test="phone != null"> AND u.phone = #{phone}</if>
+        <if test="email != null"> AND u.email = #{email}</if>
+        <if test="status != null"> AND u.status = #{status}</if>
+        <if test="orgIds != null and orgIds.size() > 0">
+            AND EXISTS (
+                SELECT 1 FROM sys_user_org uo
+                WHERE uo.tenant_id = #{tenantId}
+                  AND uo.user_id = u.id
+                  AND uo.delete_flag = 0
+                  AND uo.org_id IN
+                  <foreach collection="orgIds" item="orgId" open="(" separator="," close=")">
+                      #{orgId}
+                  </foreach>
+            )
+        </if>
     </select>
 
     <select id="selectDistinctTenantIds" resultType="java.lang.Long">
@@ -102,7 +125,7 @@
         </foreach>
     </select>
 
-    <select id="paginateUsersByIdsAndKeyword" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysUser">
+    <select id="selectUsersByIdsAndKeyword" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysUser">
         SELECT * FROM sys_user
         WHERE tenant_id = #{tenantId} AND delete_flag = 0
         AND id IN
@@ -118,6 +141,24 @@
             )
         </if>
         ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countUsersByIdsAndKeyword" resultType="long">
+        SELECT COUNT(*) FROM sys_user
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        AND id IN
+        <foreach collection="userIds" item="uid" open="(" separator="," close=")">
+            #{uid}
+        </foreach>
+        <if test="keyword != null and keyword != ''">
+            AND (
+                username LIKE CONCAT('%', #{keyword}, '%')
+                OR name LIKE CONCAT('%', #{keyword}, '%')
+                OR phone LIKE CONCAT('%', #{keyword}, '%')
+                OR email LIKE CONCAT('%', #{keyword}, '%')
+            )
+        </if>
     </select>
 
 </mapper>

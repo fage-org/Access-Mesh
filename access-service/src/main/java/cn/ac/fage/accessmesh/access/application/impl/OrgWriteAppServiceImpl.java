@@ -112,7 +112,8 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         org.setCode(req.code());
         org.setName(req.orgName());
         org.setStatus(req.status() != null ? req.status() : 1);
-        org.setSortOrder(req.sort());
+        // sort 缺省补 0（DDL 列默认值同口径；显式 NULL 会覆盖列默认违反 NOT NULL——T-FE-015 联调发现）
+        org.setSortOrder(req.sort() != null ? req.sort() : 0);
         org.setLevel(level);
         org.setCreatedAt(LocalDateTime.now());
         org.setUpdatedAt(LocalDateTime.now());

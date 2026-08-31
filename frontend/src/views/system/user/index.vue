@@ -6,7 +6,7 @@ import PositionTab from "./components/PositionTab.vue";
 import OrgForm from "./components/OrgForm.vue";
 import { ReOrgTreePanel } from "@/components/ReOrgTreePanel";
 import { addDialog } from "@/components/ReDialog";
-import { getOrgTree, createOrg, updateOrg, deleteOrg } from "@/api/user-manage";
+import { createOrg, updateOrg, deleteOrg } from "@/api/user-manage";
 import type { OrgTreeNode } from "@/api/user-manage";
 import { OfficeBuilding, Edit, Plus } from "@element-plus/icons-vue";
 import { message } from "@/utils/message";
@@ -169,7 +169,6 @@ function openOrgForm(mode: "create" | "edit", node?: OrgTreeNode) {
             id: node.id,
             orgName: formData.orgName,
             code: formData.code,
-            orgType: formData.orgType,
             parentOrgId: formData.parentOrgId,
             status: formData.status,
             sort: formData.sort
@@ -224,7 +223,6 @@ async function onNodeMove(node: OrgTreeNode, targetParentId: number) {
       id: node.id,
       orgName: node.orgName,
       code: node.code,
-      orgType: node.orgType,
       parentOrgId: targetParentId,
       status: node.status,
       sort: node.sort

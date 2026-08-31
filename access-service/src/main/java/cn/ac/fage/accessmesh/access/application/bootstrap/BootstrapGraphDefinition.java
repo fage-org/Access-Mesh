@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.application.bootstrap;
 
+import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 
@@ -9,8 +10,8 @@ import java.util.List;
  * 空库 bootstrap 固定图定义（T-ACCESS-020，定稿见 access-service-architecture.md §14.2/§14.3/§14.4）。
  * <p>
  * 纯常量：固定租户 1、首管理员与管理用功能角色的稳定业务键、bootstrap 管理 API 清单
- * （含目标接口）、业务门禁最小集。幂等三状态检测与单事务创建均以本定义为唯一事实源，
- * 禁止在检测/创建两侧各自维护清单。
+ * （含目标接口）、业务门禁最小集、菜单种子（T-FE-015）。幂等三状态检测与单事务创建均以本
+ * 定义为唯一事实源，禁止在检测/创建两侧各自维护清单。
  * </p>
  * <p>
  * API 资源 {@code resource_entity(API).code = "{METHOD}:{外部路径}"}（外部路径含 Gateway 路由
@@ -47,6 +48,17 @@ public final class BootstrapGraphDefinition {
     public static final String API_SERVICE_CODE = "access-service";
 
     /**
+     * 默认组织树种子（T-FE-015 设计定案：bootstrap 种默认树——/user/page 与 member-candidates
+     * 均为默认树身份目录视图，无默认树配置则用户列表恒空，而树配置创建端点无页面 UI，空库首用死锁）。
+     * 根组织 code 为稳定业务键（结构性检测键）；名称为展示值（容忍改名）。
+     */
+    public static final String DEFAULT_TREE_ROOT_ORG_CODE = "root";
+    public static final String DEFAULT_TREE_ROOT_ORG_NAME = "默认组织";
+    public static final String DEFAULT_TREE_NAME = "默认组织树";
+    /** DDL 注释：tree_type ORG=组织树 / POSITION=职位树 */
+    public static final String DEFAULT_TREE_TYPE = "ORG";
+
+    /**
      * bootstrap 管理 API 清单条目。
      *
      * @param method         HTTP 方法
@@ -70,6 +82,22 @@ public final class BootstrapGraphDefinition {
                             String resourceCode, boolean canGrant) {}
 
     /**
+     * 菜单种子条目（T-FE-015，2026-08-31 设计定案：bootstrap 幂等种子 + 一次种全部 14 页）。
+     *
+     * @param menuType     DIR/MENU/EXTERNAL/IFRAME/HIDDEN（种子只用 DIR 与纯展示/业务 MENU）
+     * @param displayName  显示名（检测容忍漂移——菜单管理页可改）
+     * @param parentPath   父菜单 path（null/顶层）；种子按「先父后子」排序，创建时按 path 已建映射解析
+     * @param path         前端静态路由 path（唯一期望键，uk_sys_menu_tenant_path 兜底防重）
+     * @param icon         侧栏图标（检测容忍漂移；与前端静态路由同源字符串如 ep/user）
+     * @param sortOrder    排序（检测容忍漂移；/auth/user-menu 按 rank 升序下发）
+     * @param resourceType 资源挂接类型码；null=纯展示（全员可见，v3.5 §4.1 派生豁免）
+     * @param resourceCode 资源实例编码；种子恒 null（类型级挂接，派生命中 scopeAll 授权）
+     */
+    public record MenuSeed(String menuType, String displayName, String parentPath,
+                           String path, String icon, int sortOrder,
+                           String resourceType, String resourceCode) {}
+
+    /**
      * bootstrap 管理 API 清单（§14.3；含目标接口，计数以清单本身为准）。
      */
     public static List<ApiRoute> apiRoutes() {
@@ -86,6 +114,29 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/perm/api/perm/resource-api-mapping/create", "bootstrap:创建API映射", true, false),
             new ApiRoute("POST", "/perm/api/perm/role-resource-permission/apply-grant-plan", "bootstrap:授权与回收", true, false),
             new ApiRoute("POST", "/perm/api/perm/user-role/assign", "bootstrap:分配角色", true, false),
+            // T-FE-015：组织与用户页消费端点（Gateway 层逐端点精确注册——未映射路径
+            // fail-closed 403，Phase 3 首次真实联调暴露的系统性缺口；端点级粒度对齐
+            // 产品 API 级授权能力，后续联调任务按页同样扩展）。/admin/user/create 已在上方清单
+            new ApiRoute("POST", "/admin/org-tree-config/page", "bootstrap:组织树配置分页", true, false),
+            new ApiRoute("POST", "/admin/org/tree", "bootstrap:组织树查询", true, false),
+            new ApiRoute("POST", "/admin/org/page", "bootstrap:组织分页", true, false),
+            new ApiRoute("POST", "/admin/org/create", "bootstrap:创建组织", true, false),
+            new ApiRoute("POST", "/admin/org/update", "bootstrap:更新组织", true, false),
+            new ApiRoute("POST", "/admin/org/delete", "bootstrap:删除组织", true, false),
+            new ApiRoute("POST", "/admin/org/users", "bootstrap:组织成员查询", true, false),
+            new ApiRoute("POST", "/admin/user/page", "bootstrap:用户分页", true, false),
+            new ApiRoute("POST", "/admin/user/update", "bootstrap:更新用户", true, false),
+            new ApiRoute("POST", "/admin/user/delete", "bootstrap:删除用户", true, false),
+            new ApiRoute("POST", "/admin/user/enable", "bootstrap:用户启停", true, false),
+            new ApiRoute("POST", "/admin/user/reset-password", "bootstrap:重置密码", true, false),
+            new ApiRoute("POST", "/admin/user/member-candidates", "bootstrap:成员候选查询", true, false),
+            new ApiRoute("POST", "/admin/user-org/list", "bootstrap:用户组织查询", true, false),
+            new ApiRoute("POST", "/admin/user-org/assign", "bootstrap:分配组织", true, false),
+            new ApiRoute("POST", "/admin/user-org/remove", "bootstrap:移除组织关联", true, false),
+            new ApiRoute("POST", "/admin/user-org/set-primary", "bootstrap:设置主组织", true, false),
+            new ApiRoute("POST", "/admin/user-role/list", "bootstrap:用户角色查询", true, false),
+            new ApiRoute("POST", "/perm/api/perm/user-role/revoke", "bootstrap:回收角色", true, false),
+            new ApiRoute("POST", "/admin/role/list", "bootstrap:功能角色列表", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/admin/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }
@@ -141,6 +192,31 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.UPDATE, null, false),
             new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.DELETE, null, false),
             new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.SYNC, null, false),
+            // T-FE-015：组织与用户页读写门禁全档——固定图不持则空库上该页读写路径无授予起点
+            // （死锁，同 DEPENDENCY 先例；菜单种子挂 ORG 资源类型走 v3.5 派生同样要求先持有）。
+            // ORG 系/USER 系操作码取 AdminOperationCode（admin 域门禁常量；DDL 扩展码组 L855-865 全有种子），
+            // 不可转授与全部业务门禁同口径（转授链仅 API:ACCESS）
+            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.DELETE, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.MANAGE_MEMBER, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.VIEW_POSITION, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.CREATE_POSITION, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.UPDATE_POSITION, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.DELETE_POSITION, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.ASSIGN_POSITION_USER, null, false),
+            // USER:CREATE 已在图（L98）；此处补页面读写全档（ENABLE/RESET_PASSWORD DDL L864-865 有种子）
+            new GrantSpec(ResourceTypeCode.USER, AdminOperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.USER, AdminOperationCode.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.USER, AdminOperationCode.DELETE, null, false),
+            new GrantSpec(ResourceTypeCode.USER, AdminOperationCode.ENABLE, null, false),
+            new GrantSpec(ResourceTypeCode.USER, AdminOperationCode.RESET_PASSWORD, null, false),
+            // T-FE-015：系统配置页读写门禁（T-PERM-024 收口 SYSTEM_CONFIG:VIEW/MANAGE）——菜单种子挂
+            // SYSTEM_CONFIG 类型走派生则管理员必须先持有其操作位，否则菜单行恒不可见（死锁同款，
+            // T-FE-022 联调同样受益；MANAGE 为 DDL 运行时必需码组 L895 既有种子）
+            new GrantSpec(ResourceTypeCode.SYSTEM_CONFIG, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.SYSTEM_CONFIG, OperationCodeConstants.MANAGE, null, false),
             // T-API-001：类型级 API:ACCESS + canGrant——新接入服务接口的授权必须由首管理员完成，
             // 实例级（仅清单内管理接口）会造成鸡生蛋（无正规入口给新接口授权）。
             // ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子），此处按契约字符串声明
@@ -157,6 +233,40 @@ public final class BootstrapGraphDefinition {
             .map(route -> new GrantSpec(ResourceTypeCode.API, "ACCESS",
                 apiResourceCode(route.method(), route.path()), route.grantCanGrant()))
             .toList();
+    }
+
+    /**
+     * 菜单种子（T-FE-015，2026-08-31 设计定案：一次种全部 14 页——13 个系统子页 + welcome 首页；
+     * 权限授予页不进菜单，入口为角色管理页按钮，属交互入口设计非导航收敛）。
+     * <p>
+     * 「长期隐藏 9 页」的 T-FE-041 导航收敛口径随本定案放开：菜单可见性改由 v3.5 §4.1 ∃op
+     * 派生控制（admin 持全档可见、普通用户无授权不可见），静态路由 showLink 不再控制侧栏。
+     * 资源挂接单挂页面主资源类型；权限条件页读取全租户开放（2026-08-08 产品确认）故挂纯展示；
+     * 权限排查页门禁为 USER:VIEW 或 ROLE:VIEW 任一命中，单挂取 USER（派生无法表达或语义）。
+     * 侧栏点击按 path 跳前端静态路由，路由注册不变、直达 URL 仍可达、后端 403 兜底维持。
+     * </p>
+     */
+    public static List<MenuSeed> menuSeeds() {
+        return List.of(
+            // 首页（纯展示，全员可见）
+            new MenuSeed("MENU", "首页", null, "/welcome", "ep/home-filled", 0, null, null),
+            // 系统管理目录（DIR 恒候选可见，子全剪则父剪）
+            new MenuSeed("DIR", "系统管理", null, "/system", "ep/setting", 10, null, null),
+            new MenuSeed("MENU", "组织与用户", "/system", "/system/user", "ep/user", 1, ResourceTypeCode.ORG, null),
+            new MenuSeed("MENU", "角色管理", "/system", "/system/role", "ep/user-filled", 2, ResourceTypeCode.ROLE, null),
+            new MenuSeed("MENU", "类型定义", "/system", "/system/type-def", "ep/files", 3, ResourceTypeCode.TYPE_DEFINITION, null),
+            new MenuSeed("MENU", "系统配置", "/system", "/system/config", "ep/tools", 4, ResourceTypeCode.SYSTEM_CONFIG, null),
+            new MenuSeed("MENU", "操作日志", "/system", "/system/operation-log", "ep/document", 5, ResourceTypeCode.OPERATION_LOG, null),
+            new MenuSeed("MENU", "业务域", "/system", "/system/biz-domain", "ep/office-building", 6, ResourceTypeCode.DOMAIN, null),
+            new MenuSeed("MENU", "服务与接口", "/system", "/system/service-interface", "ep/connection", 7, ResourceTypeCode.SERVICE, null),
+            new MenuSeed("MENU", "资源与操作", "/system", "/system/resource-operation", "ep/coins", 8, ResourceTypeCode.RESOURCE, null),
+            // 权限条件：读取全租户开放 → 纯展示（菜单全员可见与读语义一致；写按钮由页面 hasPerms 门控）
+            new MenuSeed("MENU", "权限条件", "/system", "/system/permission-condition", "ep/key", 9, null, null),
+            new MenuSeed("MENU", "冲突规则", "/system", "/system/conflict-rule", "ep/warn-triangle-filled", 10, ResourceTypeCode.CONFLICT_RULE, null),
+            new MenuSeed("MENU", "资源依赖", "/system", "/system/resource-dependency", "ep/share", 11, ResourceTypeCode.DEPENDENCY, null),
+            new MenuSeed("MENU", "权限变更日志", "/system", "/system/permission-change-log", "ep/history", 12, ResourceTypeCode.PERMISSION_CHANGE_LOG, null),
+            // 权限排查：页面门 = USER:VIEW 或 ROLE:VIEW 任一（T-PERM-033 定案），派生单挂取 USER
+            new MenuSeed("MENU", "权限排查", "/system", "/system/permission-query", "ep/key", 13, ResourceTypeCode.USER, null));
     }
 
     /** 全部固定图授权（业务门禁 + 实例级 API:ACCESS；计数以 AccessBootstrapPgIT 断言为准） */

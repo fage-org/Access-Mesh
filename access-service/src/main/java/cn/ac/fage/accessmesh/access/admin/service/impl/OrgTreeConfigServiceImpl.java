@@ -219,15 +219,16 @@ public class OrgTreeConfigServiceImpl implements OrgTreeConfigService {
      */
     @Override
     public PaginatedResult<OrgTreeConfigResp> pageOrgTreeConfigs(PageReq pageReq) {
-        Page<SysOrgTreeConfig> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysOrgTreeConfig> result = orgTreeConfigMapper.paginateAll(page, TenantContextHolder.getTenantId());
-
-        List<OrgTreeConfigResp> items = result.getRecords().stream()
-            .map(OrgTreeConfigResp::from)
-            .toList();
-        long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
+        // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
+        long total = orgTreeConfigMapper.countAllByTenant(TenantContextHolder.getTenantId());
+        List<OrgTreeConfigResp> items = total == 0 ? List.of()
+            : orgTreeConfigMapper.selectAllByTenant(TenantContextHolder.getTenantId(),
+                (pageReq.pageNum() - 1) * pageReq.pageSize(), pageReq.pageSize()).stream()
+                .map(OrgTreeConfigResp::from)
+                .toList();
+        long totalPages = (total + pageReq.pageSize() - 1) / pageReq.pageSize();
         return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
+            new PaginatedResult.PaginationMeta(total, pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
     }
 
     private boolean resolveSingleAssoc(String treeType, Boolean requestedValue, boolean defaultValue) {

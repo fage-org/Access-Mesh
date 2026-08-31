@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
@@ -104,6 +105,10 @@ public class OperationPermission {
      *
      * @return 有效权限位值
      */
+    // 计算型 getter 不参与序列化：无 @JsonIgnore 时 Jackson 会把它写进
+    // OPERATION_PERMISSIONS_BY_TYPE 缓存，反序列化无对应属性即 UnrecognizedPropertyException
+    // （T-FE-015 联调发现的缓存读链路潜伏缺陷；与 T-PERM-047 失效接线登记同链路）
+    @JsonIgnore
     public long getEffectiveBits() {
         return (binaryBit != null ? binaryBit : 0L)
             | (inheritMask != null ? inheritMask : 0L);

@@ -142,7 +142,7 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(1)
-    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+13API 资源/12 映射/39 授权）")
+    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+33API 资源/32 映射/76 授权/15 菜单/默认组织树）")
     void createsFullGraphOnEmptyDatabase() {
         initializer.initialize(BOOTSTRAP_PASSWORD);
 
@@ -182,7 +182,9 @@ class AccessBootstrapPgIT {
                 + "AND target_type = 'ROLE' AND target_id = ? AND delete_flag = 0",
             Long.class, TENANT, subjectId, roleId)).isEqualTo(1L);
 
-        // SERVICE 资源 + 13 个 API 资源 + 12 个映射（目标接口无映射）
+        // SERVICE 资源 + 33 个 API 资源 + 32 个映射（目标接口无映射；13 原始管理端点 +
+        // T-FE-015 组织与用户页 20 端点逐条精确注册——Gateway 未映射路径 fail-closed；
+        // 页消费 22 端点中 /admin/user/create 与 /perm/api/perm/user-role/assign 原已在册）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'SERVICE') "
@@ -195,33 +197,36 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code IN ('" + String.join("','", expectedApiCodes) + "') AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(13L);
+            Long.class, TENANT)).isEqualTo(33L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND re.code LIKE 'POST:%'",
-            Long.class, TENANT)).isEqualTo(12L);
+            Long.class, TENANT)).isEqualTo(32L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 AND re.code = 'POST:/admin/role/my-info'",
             Long.class, TENANT)).isEqualTo(0L);
 
-        // 39 条授权（T-API-001 + T-PERM-025/032/026/027/030/031）：26 条业务门禁 scopeAll（含 SERVICE
-        // 四操作类型级 VIEW/MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE 与 API:ACCESS 类型级+canGrant、
+        // 76 条授权（T-API-001 + T-PERM-025/032/026/027/030/031 + T-FE-015）：43 条业务门禁 scopeAll
+        // （原 26 条 + T-FE-015 补 17 条——ORG 十档/USER 五档/SYSTEM_CONFIG 两档，组织与用户页与
+        // 系统配置页读写门禁 18 档中 USER:CREATE 已在图；菜单种子挂类型走派生同样要求先持有；
+        // 含 SERVICE 四操作类型级
+        // VIEW/MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE 与 API:ACCESS 类型级+canGrant、
         // OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW、DOMAIN:VIEW、T-PERM-030 补
         // CONFLICT_RULE 四档与 CONDITION 写三档、T-PERM-031 补 DEPENDENCY 五档）
-        // + 13 条实例（13 API:ACCESS）；canGrant=true 共 2 条（目标 API 实例 + API:ACCESS 类型级）
+        // + 33 条实例（33 API:ACCESS）；canGrant=true 共 2 条（目标 API 实例 + API:ACCESS 类型级）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(39L);
+            Long.class, TENANT, roleId)).isEqualTo(76L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
-            Long.class, TENANT, roleId)).isEqualTo(26L);
+            Long.class, TENANT, roleId)).isEqualTo(43L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND can_grant = true",
@@ -237,6 +242,55 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM sys_user WHERE tenant_id = ? AND username = ? AND delete_flag = 0",
             Long.class, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME)).isEqualTo(1L);
+
+        // 菜单种子 15 行（T-FE-015）：welcome 纯展示 +「系统管理」DIR + 13 业务 MENU；
+        // 资源挂接 12 行（权限条件页读取全租户开放挂纯展示）、类型级挂接 resource_code 全空；
+        // 13 个业务页全部挂 /system 目录下；MENU 投影全量维护（对齐 MenuWriteAppService 终态）
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0",
+            Long.class, TENANT)).isEqualTo(15L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 AND menu_type = 'DIR'",
+            Long.class, TENANT)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 "
+                + "AND resource_type IS NOT NULL", Long.class, TENANT)).isEqualTo(12L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 "
+                + "AND resource_type IS NOT NULL AND resource_code IS NOT NULL",
+            Long.class, TENANT)).isZero();
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 "
+                + "AND parent_id = (SELECT id FROM sys_menu WHERE tenant_id = ? AND path = '/system' "
+                + "AND delete_flag = 0)",
+            Long.class, TENANT, TENANT)).isEqualTo(13L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM resource_entity WHERE tenant_id = ? AND delete_flag = 0 "
+                + "AND resource_type = (SELECT type_value FROM type_definition "
+                + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'MENU')",
+            Long.class, TENANT)).isEqualTo(15L);
+
+        // 默认组织树种子（T-FE-015）：根组织（稳定业务键 root）+ 默认树配置 + admin 直绑根组织
+        // （isPrimary）+ ORG 投影 + user_role 投影——/user/page 与 member-candidates 为默认树
+        // 身份目录视图，无默认树配置则用户列表恒空（空库首用死锁，故入固定图）
+        Long rootOrgId = jdbc.queryForObject(
+            "SELECT id FROM sys_org WHERE tenant_id = ? AND code = 'root' AND delete_flag = 0",
+            Long.class, TENANT);
+        assertThat(rootOrgId).isNotNull();
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM sys_org_tree_config WHERE tenant_id = ? AND is_default = true "
+                + "AND root_org_id = ? AND tree_type = 'ORG' AND delete_flag = 0",
+            Long.class, TENANT, rootOrgId)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM sys_user_org WHERE tenant_id = ? AND user_id = ? AND org_id = ? "
+                + "AND is_primary = true AND delete_flag = 0",
+            Long.class, TENANT, subjectId, rootOrgId)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM resource_entity WHERE tenant_id = ? AND delete_flag = 0 "
+                + "AND resource_type = (SELECT type_value FROM type_definition "
+                + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'ORG') "
+                + "AND code = ?",
+            Long.class, TENANT, String.valueOf(rootOrgId))).isEqualTo(1L);
     }
 
     @Test
@@ -453,6 +507,14 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_api_mapping WHERE tenant_id = ? AND delete_flag = 0", Long.class, TENANT));
         counts.put("role_resource_permission", jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND delete_flag = 0", Long.class, TENANT));
+        counts.put("sys_menu", jdbc.queryForObject(
+            "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0", Long.class, TENANT));
+        counts.put("sys_org", jdbc.queryForObject(
+            "SELECT count(*) FROM sys_org WHERE tenant_id = ? AND delete_flag = 0", Long.class, TENANT));
+        counts.put("sys_org_tree_config", jdbc.queryForObject(
+            "SELECT count(*) FROM sys_org_tree_config WHERE tenant_id = ? AND delete_flag = 0", Long.class, TENANT));
+        counts.put("sys_user_org", jdbc.queryForObject(
+            "SELECT count(*) FROM sys_user_org WHERE tenant_id = ? AND delete_flag = 0", Long.class, TENANT));
         return counts;
     }
 }

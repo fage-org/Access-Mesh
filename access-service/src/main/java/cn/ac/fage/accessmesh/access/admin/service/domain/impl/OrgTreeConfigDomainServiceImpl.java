@@ -45,6 +45,15 @@ public class OrgTreeConfigDomainServiceImpl implements OrgTreeConfigDomainServic
     }
 
     /**
+     * 写入组织树配置（bootstrap 固定图专用；调用方负责装配完整字段与幂等检测）。
+     */
+    @Override
+    public Long insert(SysOrgTreeConfig config) {
+        orgTreeConfigMapper.insert(config);
+        return config.getId();
+    }
+
+    /**
      * 查询租户的默认组织树配置
      */
     @Override

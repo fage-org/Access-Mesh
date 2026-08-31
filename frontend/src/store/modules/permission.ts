@@ -32,6 +32,15 @@ export const usePermissionStore = defineStore("pure-permission", {
         this.constantMenus.concat(routes) as any
       );
     },
+    /**
+     * 后端派生菜单直写（T-FE-015：/auth/user-menu menus 树直接渲染）。
+     * 侧栏唯一数据源切换——wholeMenus 不再来自静态路由树（标题/图标/层级/排序
+     * 全来自 sys_menu）；flatteningRoutes 仍由 handleAsyncRoutes 以静态路由维护
+     * （multiTags 固定标签语义）。菜单不可见 ≠ 路由不可达，越权直达由后端 403 兜底。
+     */
+    handleBackendMenus(menus: any[]) {
+      this.wholeMenus = menus;
+    },
     /** 监听缓存页面是否存在于标签页，不存在则删除 */
     clearCache() {
       let cacheLength = this.cachePageList.length;

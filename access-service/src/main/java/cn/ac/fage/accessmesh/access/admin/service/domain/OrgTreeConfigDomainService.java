@@ -13,6 +13,15 @@ import java.util.Map;
 public interface OrgTreeConfigDomainService {
 
     /**
+     * 写入组织树配置（bootstrap 固定图专用入口——管理链写入口在 OrgTreeConfigService，
+     * 带操作者门禁与变更日志，bootstrap 无登录态不可复用）。
+     *
+     * @param config 已装配完整字段的配置实体（含 tenantId/isDefault/审计字段）
+     * @return 配置ID
+     */
+    Long insert(SysOrgTreeConfig config);
+
+    /**
      * 查询租户的默认组织树配置列表
      *
      * @param tenantId 租户ID

@@ -1,7 +1,15 @@
 package cn.ac.fage.accessmesh.access.application.bootstrap;
 
+import cn.ac.fage.accessmesh.access.admin.entity.SysMenu;
+import cn.ac.fage.accessmesh.access.admin.entity.SysOrg;
+import cn.ac.fage.accessmesh.access.admin.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.admin.entity.SysUser;
+import cn.ac.fage.accessmesh.access.admin.entity.SysUserOrg;
+import cn.ac.fage.accessmesh.access.admin.service.domain.MenuDomainService;
+import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
+import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
+import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
@@ -62,9 +70,11 @@ public class AccessBootstrapInitializer {
      * BootstrapGraphDefinition.businessGrants 涉及的类型同步增减，缺项会导致操作位 fail-fast） */
     private static final Set<String> GRANT_RESOURCE_TYPES = Set.of(
         ResourceTypeCode.API, ResourceTypeCode.SERVICE, ResourceTypeCode.USER, ResourceTypeCode.ROLE,
+        ResourceTypeCode.ORG,
         ResourceTypeCode.TYPE_DEFINITION, ResourceTypeCode.RESOURCE, ResourceTypeCode.OPERATION,
         ResourceTypeCode.OPERATION_LOG, ResourceTypeCode.PERMISSION_CHANGE_LOG, ResourceTypeCode.DOMAIN,
-        ResourceTypeCode.CONFLICT_RULE, ResourceTypeCode.CONDITION, ResourceTypeCode.DEPENDENCY);
+        ResourceTypeCode.CONFLICT_RULE, ResourceTypeCode.CONDITION, ResourceTypeCode.DEPENDENCY,
+        ResourceTypeCode.SYSTEM_CONFIG);
 
     /** sys_user.user_type：本地用户管理展示值（与 createUser 链一致；权限域类型由投影链解析） */
     private static final int SYS_USER_TYPE_PERSON = 1;
@@ -74,17 +84,29 @@ public class AccessBootstrapInitializer {
     private static final String TYPE_KEY_USER = "user_type";
 
     private final UserDomainService userDomainService;
+    private final MenuDomainService menuDomainService;
+    private final OrgDomainService orgDomainService;
+    private final OrgTreeConfigDomainService orgTreeConfigDomainService;
+    private final UserOrgDomainService userOrgDomainService;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final SubjectDomainService subjectDomainService;
     private final TypeResolutionService typeResolutionService;
     private final BootstrapSeedWriter seedWriter;
 
     public AccessBootstrapInitializer(UserDomainService userDomainService,
+                                      MenuDomainService menuDomainService,
+                                      OrgDomainService orgDomainService,
+                                      OrgTreeConfigDomainService orgTreeConfigDomainService,
+                                      UserOrgDomainService userOrgDomainService,
                                       LocalProjectionDomainService localProjectionDomainService,
                                       SubjectDomainService subjectDomainService,
                                       TypeResolutionService typeResolutionService,
                                       BootstrapSeedWriter seedWriter) {
         this.userDomainService = userDomainService;
+        this.menuDomainService = menuDomainService;
+        this.orgDomainService = orgDomainService;
+        this.orgTreeConfigDomainService = orgTreeConfigDomainService;
+        this.userOrgDomainService = userOrgDomainService;
         this.localProjectionDomainService = localProjectionDomainService;
         this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
@@ -277,16 +299,93 @@ public class AccessBootstrapInitializer {
             }
         }
 
+        // —— 菜单种子（T-FE-015；path 为期望键子集匹配：固定图 15 行齐全即可，
+        //    管理页后建的额外菜单不冲突。结构键 menuType/resourceType/parentPath/status 严格比对，
+        //    displayName/icon/sortOrder 容忍漂移——菜单管理页可改，不构成固定图冲突） ——
+        Map<String, SysMenu> menusByPath = menuDomainService.selectAllValid(tenantId).stream()
+            .collect(Collectors.toMap(SysMenu::getPath, m -> m, (a, b) -> a));
+        int menusMatched = 0;
+        for (BootstrapGraphDefinition.MenuSeed seed : BootstrapGraphDefinition.menuSeeds()) {
+            SysMenu existing = menusByPath.get(seed.path());
+            if (existing == null) {
+                continue;
+            }
+            menusMatched++;
+            if (!seed.menuType().equals(existing.getMenuType())) {
+                conflicts.add("菜单 '" + seed.path() + "' menuType=" + existing.getMenuType()
+                    + " 与固定图期望 " + seed.menuType() + " 不符");
+            }
+            if (!Objects.equals(seed.resourceType(), existing.getResourceType())) {
+                conflicts.add("菜单 '" + seed.path() + "' resourceType=" + existing.getResourceType()
+                    + " 与固定图期望 " + seed.resourceType() + " 不符（可见性派生口径漂移）");
+            }
+            if (existing.getStatus() == null || existing.getStatus() != 1) {
+                conflicts.add("菜单 '" + seed.path() + "' 已停用 (status=" + existing.getStatus() + ")");
+            }
+            Long expectedParentId = seed.parentPath() == null ? null
+                : (menusByPath.get(seed.parentPath()) != null ? menusByPath.get(seed.parentPath()).getId() : null);
+            boolean parentOk = seed.parentPath() == null
+                ? existing.getParentId() == null || existing.getParentId() == 0L
+                : Objects.equals(existing.getParentId(), expectedParentId);
+            if (!parentOk) {
+                conflicts.add("菜单 '" + seed.path() + "' parentId=" + existing.getParentId()
+                    + " 与固定图期望父级（" + (seed.parentPath() == null ? "顶层" : seed.parentPath()) + "）不符");
+            }
+        }
+        boolean menusPresent = menusMatched > 0;
+        boolean menusComplete = menusMatched == BootstrapGraphDefinition.menuSeeds().size();
+        if (menusPresent && !menusComplete) {
+            conflicts.add("菜单种子部分存在: " + menusMatched + "/"
+                + BootstrapGraphDefinition.menuSeeds().size() + "（按 path 匹配）");
+        }
+
+        // —— 默认组织树（T-FE-015 设计定案：bootstrap 种默认树；/user/page 与 member-candidates
+        //    为默认树身份目录视图，无默认树配置则用户列表恒空。检测键：默认配置 → 根组织 code
+        //    稳定业务键 + admin 直绑根组织；根组织名称容忍改名） ——
+        boolean defaultTreePresent = false;
+        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
+        if (!defaultConfigs.isEmpty()) {
+            defaultTreePresent = true;
+            if (defaultConfigs.size() > 1) {
+                conflicts.add("默认组织树配置多于一条 (" + defaultConfigs.size()
+                    + "，uk_tree_config_default 应已兜底)");
+            }
+            SysOrg rootOrg = orgDomainService.selectValidById(tenantId, defaultConfigs.get(0).getRootOrgId());
+            if (rootOrg == null) {
+                conflicts.add("默认组织树配置指向的根组织不存在 (rootOrgId="
+                    + defaultConfigs.get(0).getRootOrgId() + ")");
+            } else {
+                if (!BootstrapGraphDefinition.DEFAULT_TREE_ROOT_ORG_CODE.equals(rootOrg.getCode())) {
+                    conflicts.add("默认组织树根组织业务键漂移: code=" + rootOrg.getCode()
+                        + "（固定图期望 '" + BootstrapGraphDefinition.DEFAULT_TREE_ROOT_ORG_CODE + "'）");
+                }
+                if (rootOrg.getStatus() == null || rootOrg.getStatus() != 1) {
+                    conflicts.add("默认组织树根组织已停用 (status=" + rootOrg.getStatus() + ")");
+                }
+                if (adminPresent && adminSubjectId != null) {
+                    boolean adminBound = userOrgDomainService.findByUserId(tenantId, adminSubjectId).stream()
+                        .anyMatch(uo -> rootOrg.getId().equals(uo.getOrgId()));
+                    if (!adminBound) {
+                        conflicts.add("首管理员未挂默认树根组织（身份目录开箱可见 admin 的固定图绑定缺失）");
+                    }
+                }
+            }
+        }
+
         boolean apiResourcesComplete = apiResourceIds.size() == expectedApiCodes.size();
-        boolean complete = adminPresent && rolePresent && serviceResourcePresent && apiResourcesComplete;
+        boolean complete = adminPresent && rolePresent && serviceResourcePresent && apiResourcesComplete
+            && menusComplete && defaultTreePresent;
         if (!complete) {
             // 状态③而非①：任一固定图对象已存在而其余缺失时按"部分存在"报告，
             // 避免走创建链撞唯一约束（报不可诊断的数据库异常）
-            boolean anyPresent = adminPresent || rolePresent || serviceResourcePresent || !apiResourceIds.isEmpty();
+            boolean anyPresent = adminPresent || rolePresent || serviceResourcePresent
+                || !apiResourceIds.isEmpty() || menusPresent || defaultTreePresent;
             if (anyPresent) {
                 conflicts.add("固定图部分存在: admin=" + adminPresent + ", 管理角色=" + rolePresent
                     + ", SERVICE资源=" + serviceResourcePresent
-                    + ", API资源=" + apiResourceIds.size() + "/" + expectedApiCodes.size());
+                    + ", API资源=" + apiResourceIds.size() + "/" + expectedApiCodes.size()
+                    + ", 菜单种子=" + menusMatched + "/" + BootstrapGraphDefinition.menuSeeds().size()
+                    + ", 默认树=" + defaultTreePresent);
             }
         }
         return complete;
@@ -358,13 +457,95 @@ public class AccessBootstrapInitializer {
             tenantId, roleId, resourceTypes, operationBits, apiResourceIds, serviceResourceId);
         seedWriter.insertGrants(tenantId, roleId, grants);
 
+        // 菜单种子 + MENU 投影（T-FE-015；逐行 insert 回填主键，种子清单「先父后子」排序保证
+        // parentPath 解析时父行已建。投影对齐 MenuWriteAppService「全类型全量维护」终态——
+        // 种子行 resource_code 恒 null，可见性派生只走 scopeAll 授权不经投影，投影使菜单实例
+        // 在授权页资源树可见。检测分支不校验/不修复投影：upsert 语义、管理页改动时自然补齐）
+        LocalDateTime now = LocalDateTime.now();
+        List<SysMenu> seedMenus = new ArrayList<>();
+        Map<String, Long> seedMenuIds = new LinkedHashMap<>();
+        for (BootstrapGraphDefinition.MenuSeed seed : BootstrapGraphDefinition.menuSeeds()) {
+            SysMenu menu = new SysMenu();
+            menu.setTenantId(tenantId);
+            menu.setParentId(seed.parentPath() == null ? null : seedMenuIds.get(seed.parentPath()));
+            menu.setDisplayName(seed.displayName());
+            menu.setPath(seed.path());
+            menu.setIcon(seed.icon());
+            menu.setSortOrder(seed.sortOrder());
+            menu.setMenuType(seed.menuType());
+            menu.setStatus(1);
+            menu.setResourceType(seed.resourceType());
+            menu.setResourceCode(seed.resourceCode());
+            menu.setSourceService(BootstrapGraphDefinition.API_SERVICE_CODE);
+            menu.setCreatedAt(now);
+            menu.setUpdatedAt(now);
+            menu.setDeleteFlag(0L);
+            menuDomainService.insert(menu);
+            seedMenuIds.put(seed.path(), menu.getId());
+            seedMenus.add(menu);
+        }
+        for (SysMenu menu : seedMenus) {
+            localProjectionDomainService.upsertAdminMenu(tenantId, menu.getId(),
+                menu.getDisplayName(), menu.getParentId(), menu.getStatus(), menu.getSortOrder());
+        }
+
+        // 默认组织树（T-FE-015 设计定案）：根组织 + 默认树配置 + 首管理员挂根组织（镜像
+        // OrgWriteAppServiceImpl / UserWriteAppServiceImpl 生产链的领域服务写入——bootstrap
+        // 无登录态不走带门禁的 AppService）。ORG 投影与 user_role 投影同步维护，缓存失效
+        // 登记 visibility（树配置影响 ORG_VISIBILITY 默认树范围）与角色/用户快照。
+        SysOrg rootOrg = new SysOrg();
+        rootOrg.setTenantId(tenantId);
+        rootOrg.setParentId(0L);
+        rootOrg.setOrgType("1");
+        rootOrg.setCode(BootstrapGraphDefinition.DEFAULT_TREE_ROOT_ORG_CODE);
+        rootOrg.setName(BootstrapGraphDefinition.DEFAULT_TREE_ROOT_ORG_NAME);
+        rootOrg.setStatus(1);
+        rootOrg.setSortOrder(0);
+        rootOrg.setLevel(1);
+        rootOrg.setCreatedAt(now);
+        rootOrg.setUpdatedAt(now);
+        rootOrg.setDeleteFlag(0L);
+        orgDomainService.insert(rootOrg);
+        Long orgRoleId = localProjectionDomainService.upsertAdminOrg(
+            tenantId, rootOrg.getId(), rootOrg.getOrgType(), rootOrg.getName(),
+            rootOrg.getParentId(), null, rootOrg.getStatus(), rootOrg.getSortOrder(),
+            "{\"orgType\":\"1\"}");
+        PermissionChangeContext.markRoles(tenantId, orgRoleId);
+
+        SysOrgTreeConfig treeConfig = new SysOrgTreeConfig();
+        treeConfig.setTenantId(tenantId);
+        treeConfig.setRootOrgId(rootOrg.getId());
+        treeConfig.setTreeName(BootstrapGraphDefinition.DEFAULT_TREE_NAME);
+        treeConfig.setTreeType(BootstrapGraphDefinition.DEFAULT_TREE_TYPE);
+        treeConfig.setIsDefault(true);
+        treeConfig.setSingleAssoc(true);
+        treeConfig.setCreatedAt(now);
+        treeConfig.setUpdatedAt(now);
+        treeConfig.setDeleteFlag(0L);
+        orgTreeConfigDomainService.insert(treeConfig);
+
+        SysUserOrg adminOrg = new SysUserOrg();
+        adminOrg.setTenantId(tenantId);
+        adminOrg.setUserId(subjectId);
+        adminOrg.setOrgId(rootOrg.getId());
+        adminOrg.setIsPrimary(true);
+        adminOrg.setCreatedAt(now);
+        adminOrg.setUpdatedAt(now);
+        adminOrg.setDeleteFlag(0L);
+        userOrgDomainService.insertBatch(List.of(adminOrg));
+        // 普通组织（orgType=1）→ ORG 轨，relation 指向组织自身 parentId（与生产链一致）
+        localProjectionDomainService.bindUserOrg(tenantId, subjectId, rootOrg.getId(),
+            "ORG", rootOrg.getParentId());
+        PermissionChangeContext.markVisibility(tenantId);
+
         // 缓存失效登记（@PermissionChange afterCommit 统一 flush；空库首建无旧快照，防御性登记）
         PermissionChangeContext.markUsers(tenantId, Set.of(subjectId));
         PermissionChangeContext.markRoles(tenantId, Set.of(roleId));
 
         log.info("Bootstrap graph created: tenant={}, adminSubjectId={}, roleId={}, "
-                + "apiResources={}, mappings={}, grants={}",
-            tenantId, subjectId, roleId, apiResourceIds.size(), mappingCount, grants.size());
+                + "apiResources={}, mappings={}, grants={}, menus={}, defaultTreeRootOrg={}",
+            tenantId, subjectId, roleId, apiResourceIds.size(), mappingCount, grants.size(),
+            seedMenus.size(), rootOrg.getId());
     }
 
     // ===== 期望授权构造（检测比对与创建落库共用） =====

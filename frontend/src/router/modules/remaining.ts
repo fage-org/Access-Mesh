@@ -30,6 +30,17 @@ export default [
       showLink: false
     }
   },
+  // 会话恢复失败重试页（T-FE-015：user-menu 重取失败 fail-closed 空菜单时，
+  // 侧栏占位项「菜单加载失败，点击重试」跳转至此）
+  {
+    path: "/menu-retry",
+    name: "MenuLoadRetry",
+    component: () => import("@/views/error/menu-retry.vue"),
+    meta: {
+      title: "菜单加载失败",
+      showLink: false
+    }
+  },
   {
     path: "/redirect",
     component: Layout,

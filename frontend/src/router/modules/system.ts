@@ -15,13 +15,14 @@ import { PERMISSION_QUERY_PERM_LIST } from "@/views/system/permission-query/util
 const Layout = () => import("@/layout/index.vue");
 
 /**
- * 系统管理路由（导航收敛：T-FE-041，里程碑 A）。
+ * 系统管理路由（T-FE-041 静态注册 + T-FE-015 菜单后端派生）。
  * <p>
- * 顶级与全部子页 `showLink: false` —— 默认只显示通过真实 Gateway 冒烟的页面（登录页、主页、授权页）。
- * 路由与页面代码全部保留（隐藏不删），恢复时按页移除 showLink 即可：
- * - Phase 3 终态清单（随联调完成逐个开放）：组织与用户、角色管理、服务与接口、权限查询/排查
- * - 长期隐藏（模型收敛/复用门禁，开放需另行评审）：类型定义、系统配置、操作日志、业务域、
- *   冲突规则、资源依赖、资源与操作定义、权限条件、权限变更日志
+ * T-FE-015（2026-08-31）起侧栏菜单由 /auth/user-menu 下发的 menus 树直接渲染
+ * （sys_menu bootstrap 种子，可见性 = v3.5 §4.1 ∃op 派生），路由 meta.showLink
+ * 不再控制侧栏——本文件只承担路由注册与页面元信息：菜单不可见 ≠ 路由不可达，
+ * 越权直达 URL 由后端 VIEW 403 兜底。各子页 showLink:false 为 T-FE-041 导航收敛期
+ * 历史标记（保留不动，已无侧栏语义）；「长期隐藏 9 页」口径随 2026-08-31 设计定案
+ * 放开（14 页菜单一次种全，普通用户无授权不可见）。
  */
 export default {
   path: "/system",

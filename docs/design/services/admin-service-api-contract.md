@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：四处「当前差距」陈旧措辞对齐实现（member-candidates 已实现/reset-password 默认树校验已具备/user-org remove 门禁分支已实现/set-primary 默认树限制已实现）；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
+last_reviewed: 2026-08-31   # 2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -225,7 +225,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **错误码段**: 10100-10119
 
-**当前差距**: 无——后端独立接口已实现（`POST /user/member-candidates`，语义为默认树身份目录候选查询）；前端 api 函数待 Phase 3 联调新增（见汇总表「待新增」列，指前端函数非后端端点）.
+**当前差距**: 无——后端独立接口已实现（`POST /user/member-candidates`，语义为默认树身份目录候选查询）；前端 api 函数已新增并接入岗位挂人选择器（T-FE-015 收口 2026-08-31，`getMemberCandidates`——`alreadyAssignment` 后端恒 false，占用过滤由调用方本地完成）.
 
 **验收要点**:
 - 候选集**严格**来自默认树中操作者具备 `USER:VIEW` (或 `ORG:VIEW`) 的范围; 不暴露全租户用户.
@@ -791,6 +791,8 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 ### 4.6 菜单管理 (`/menu`) 🔧 (T-ACCESS-015 新增, v3.5 菜单零权限化终态)
 
 > 菜单表仅承载 UI 路由元数据与关联资源 link，不承载权限语义（`sys_menu` 权威 DDL 见 `../schema/access-service.sql`；设计语义见 `../permission-center-v3.5-design.md` §2.1/§4.1）。按钮级权限由 OperationPermission（L1）承担，不再挂菜单。前端登录菜单聚合走 `/auth/user-menu`（v3.5 §5 单 RPC 契约），与本节管理接口分离。前端菜单管理页尚未开发（views/system 无 menu 页面），本节契约为先行定稿，无现存消费方破坏面。
+>
+> **bootstrap 菜单种子（T-FE-015，2026-08-31 设计定案）**：空库 bootstrap 固定图幂等种子 15 行菜单——welcome 首页（纯展示）+「系统管理」DIR + 13 业务页 MENU（按页面主资源类型挂接、类型级 `resource_code=null` 走 scopeAll 派生；权限条件页读取全租户开放故挂纯展示、权限排查页门禁 USER:VIEW/ROLE:VIEW 任一单挂取 USER）。path 与前端静态路由一一对齐（侧栏点击按 path 跳静态路由）；检测断言以 path 集合为期望键（结构键严格，displayName/icon/sortOrder 容忍菜单管理页改动）。同批种子默认组织树（根组织稳定业务键 `root` + 默认树配置 + 首管理员挂根组织）——`/user/page` 与 `/user/member-candidates` 为默认树身份目录视图，无默认树配置则恒空。固定图定义升级后既有库须重建（runbook 常见问题表）。
 
 #### 4.6.1 `POST /menu/create` 🔧
 
@@ -1050,7 +1052,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | 后端接口 | 前端 `user-manage.ts` 函数 | 状态 |
 |----------|-----------------------------|------|
 | `POST /user/page` | `getUserPage` | 🔧 |
-| `POST /user/member-candidates` | (待新增) | 🔧 |
+| `POST /user/member-candidates` | `getMemberCandidates`（T-FE-015 已接入） | 🔧 |
 | `POST /user/create` | `createUser` | 🔧 |
 | `POST /user/update` | `updateUser` | ✅ |
 | `POST /user/delete` | `deleteUser` | 🔧 |

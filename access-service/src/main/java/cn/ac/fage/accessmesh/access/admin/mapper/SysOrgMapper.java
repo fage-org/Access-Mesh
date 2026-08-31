@@ -32,8 +32,20 @@ public interface SysOrgMapper extends BaseMapper<SysOrg> {
      * @param status   状态过滤，可选
      * @return 分页结果
      */
-    Page<SysOrg> paginateOrgs(@Param("page") Page<SysOrg> page,
-                              @Param("tenantId") Long tenantId,
+    // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效，
+    // T-FE-015 联调发现——与 SysUserMapper 同款修法）
+    List<SysOrg> selectOrgsByCondition(@Param("tenantId") Long tenantId,
+                                       @Param("orgName") String orgName,
+                                       @Param("orgType") String orgType,
+                                       @Param("status") Integer status,
+                                       @Param("orgIds") Set<Long> orgIds,
+                                       @Param("offset") int offset,
+                                       @Param("limit") int limit);
+
+    /**
+     * 按条件统计组织数（条件与 {@link #selectOrgsByCondition} 一致，用于分页计算）
+     */
+    long countOrgsByCondition(@Param("tenantId") Long tenantId,
                               @Param("orgName") String orgName,
                               @Param("orgType") String orgType,
                               @Param("status") Integer status,

@@ -34,7 +34,6 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
-import com.mybatisflex.core.paginate.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -278,18 +277,22 @@ public class UserServiceImpl implements UserService {
             orgIds = visibleOrgIds;
         }
 
-        Page<SysUser> page = Page.of(pageNum, pageSize);
-        Page<SysUser> result = userMapper.paginateUsers(page, tenantId,
+        // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
+        long total = userMapper.countUsersByCondition(tenantId,
             req.username(), req.name(), req.phone(), req.email(), req.status(), orgIds);
+        List<SysUser> records = total == 0 ? List.of()
+            : userMapper.selectUsersByCondition(tenantId,
+                req.username(), req.name(), req.phone(), req.email(), req.status(), orgIds,
+                (pageNum - 1) * pageSize, pageSize);
 
         // 批量获取用户组织关联，避免 N+1
-        Set<Long> userIds = result.getRecords().stream()
+        Set<Long> userIds = records.stream()
             .map(SysUser::getId)
             .collect(Collectors.toSet());
         if (userIds.isEmpty()) {
             return new PaginatedResult<>(
                 List.of(),
-                new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, 0)
+                new PaginatedResult.PaginationMeta(total, pageNum, pageSize, 0)
             );
         }
 
@@ -308,7 +311,7 @@ public class UserServiceImpl implements UserService {
         Map<Long, List<SysUserOrg>> userOrgMap = allUserOrgs.stream()
             .collect(Collectors.groupingBy(SysUserOrg::getUserId));
 
-        List<UserPageItemResp> items = result.getRecords().stream()
+        List<UserPageItemResp> items = records.stream()
             .map(u -> {
                 List<SysUserOrg> userOrgs = userOrgMap.getOrDefault(u.getId(), List.of());
                 List<UserPageItemResp.OrgBrief> orgs = userOrgs.stream()
@@ -329,10 +332,10 @@ public class UserServiceImpl implements UserService {
             })
             .collect(Collectors.toList());
 
-        long totalPages = (result.getTotalRow() + pageSize - 1) / pageSize;
+        long totalPages = (total + pageSize - 1) / pageSize;
         return new PaginatedResult<>(
             items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, (int) totalPages)
+            new PaginatedResult.PaginationMeta(total, pageNum, pageSize, (int) totalPages)
         );
     }
 
@@ -502,12 +505,14 @@ public class UserServiceImpl implements UserService {
         // 4. 分页查询候选用户
         int pageNum = req.getPageNum();
         int pageSize = req.getPageSize();
-        Page<SysUser> page = Page.of(pageNum, pageSize);
-        Page<SysUser> result = userMapper.paginateUsersByIdsAndKeyword(
-            page, tenantId, List.copyOf(candidateUserIds), req.keyword());
+        long total = userMapper.countUsersByIdsAndKeyword(
+            tenantId, List.copyOf(candidateUserIds), req.keyword());
+        List<SysUser> result = total == 0 ? List.of()
+            : userMapper.selectUsersByIdsAndKeyword(tenantId, List.copyOf(candidateUserIds),
+                req.keyword(), (pageNum - 1) * pageSize, pageSize);
 
         // 5. 批量获取用户的主组织名（默认树主归属）
-        Set<Long> resultUserIds = result.getRecords().stream()
+        Set<Long> resultUserIds = result.stream()
             .map(SysUser::getId)
             .collect(Collectors.toSet());
         if (resultUserIds.isEmpty()) {
@@ -525,7 +530,7 @@ public class UserServiceImpl implements UserService {
             ? Map.of()
             : orgDomainService.batchSelectValidByIdsMap(tenantId, new java.util.HashSet<>(userPrimaryOrgIdMap.values()));
 
-        List<MemberCandidateItemResp> items = result.getRecords().stream()
+        List<MemberCandidateItemResp> items = result.stream()
             .map(u -> {
                 Long primaryOrgId = userPrimaryOrgIdMap.get(u.getId());
                 SysOrg primaryOrg = primaryOrgId != null ? primaryOrgMap.get(primaryOrgId) : null;
@@ -540,10 +545,10 @@ public class UserServiceImpl implements UserService {
             })
             .collect(Collectors.toList());
 
-        long totalPages = (result.getTotalRow() + pageSize - 1) / pageSize;
+        long totalPages = (total + pageSize - 1) / pageSize;
         return new PaginatedResult<>(
             items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageNum, pageSize, (int) totalPages)
+            new PaginatedResult.PaginationMeta(total, pageNum, pageSize, (int) totalPages)
         );
     }
 

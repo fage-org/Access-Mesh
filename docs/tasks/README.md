@@ -167,7 +167,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 | [T-FE-012](T-FE-012.md) | 7.2 权限变更日志页（diff 快照 + before/after + 影响评估） | frontend-phase1 | api-contract §5.8/§6.8；design/frontend/permission-change-log.md | T-FE-001 | ✅ | ✅ |
 | [T-FE-013](T-FE-013.md) | 4.2 权限查询/校验页（多维度查询 + 权限解释 + 拒绝原因） | frontend-phase1 | api-contract §5.7/§6.6/§6.7/§6.8；design/frontend/permission-query.md | T-FE-001 | ✅ | ✅ |
 | [T-FE-014](T-FE-014.md) | 4.1 权限授予页（选角色→勾资源树→操作矩阵→绑条件→批量保存） | frontend-phase1 | api-contract §5.5/§6.4/§6.5；design/frontend/permission-grant.md | T-FE-001, T-FE-002, T-FE-008 | ✅ | ✅ |
-| T-FE-015 | Phase 3 联调：组织与用户（2.1 mock→真实接口） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；admin-service-api-contract | T-PERM-037 | ⚙️ | ⏳ |
+| T-FE-015 | Phase 3 联调：组织与用户（2.1 mock→真实接口，含 menus 接线/固定图 17 授权+15 菜单+默认树种子+20 Gateway 端点/bootstrap 分页缓存缺陷修复；已收口 2026-08-31，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
 | T-FE-016 | Phase 3 联调：角色管理（2.2） | frontend-phase3 | api-contract | T-FE-002, T-PERM-022 | ⚙️ | ⏳ |
 | T-FE-017 | Phase 3 联调：资源/操作定义（3.1） | frontend-phase3 | api-contract | T-FE-008, T-PERM-028 | ⚙️ | ⏳ |
 | [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期） | [frontend-phase3](../plans/frontend-phase3-plan.md) | | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ⚙️ | ⏳ |
@@ -222,7 +222,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 
 1. 归并主链已全部完成并归档（`docs/archive/2026-08-22/access-service-merge-plan.md`）；后续强化（T-ACCESS-013 OAuth2 资源服务器、T-ACCESS-015 菜单写链路收口）已完成并归档（`docs/archive/2026-08-27/access-post-merge-plan.md`）。
 2. 后端门禁解除：重基线后的 T-PERM/T-ADMIN 任务按各自 `depends_on` 推进（T-PERM-022~041、T-ADMIN-020/021）。
-3. 前端真接口联调（T-FE-015~022）后端依赖已就绪（T-PERM-037 收口 2026-08-31，逐页后端 T-PERM-022~034/037/040/041 全部完成；暂缓项 T-PERM-035/036 与 T-ADMIN-021 另行定夺，T-FE-037 二期另待 T-ADMIN-021）；纯 mock/UI 任务不受影响。
+3. 前端真接口联调（T-FE-015~022）后端依赖已就绪（T-PERM-037 收口 2026-08-31，逐页后端 T-PERM-022~034/037/040/041 全部完成；T-FE-015 已收口 2026-08-31——menus 后端派生接线/默认树/固定图扩容落地，后续各页联调按 T-FE-015 模式扩 Gateway 端点清单；暂缓项 T-PERM-035/036 与 T-ADMIN-021 另行定夺，T-FE-037 二期另待 T-ADMIN-021）；纯 mock/UI 任务不受影响。
 4. access-post-merge 准入前置已由 T-ACCESS-017 最小 CI 落地关闭（GitHub Actions 两 job 以退出状态判定成功；原登记 40 项与 68 项实测均为历史口径，不维护计数同步）。
 
 ### P0 — 验收闭环（✅ 已完成 2026-06-20）
@@ -278,7 +278,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 
 配套：`T-FE-001` 跨页组件抽象池（贯穿，2+ 页确认后派生组件子任务）。后端任务 T-PERM-022~034 归 Phase 2（depends_on 对应前端，等清单产出）。
 
-### P6 — 前端 Phase 2/3/4（Phase 2 逐页后端已完成 2026-08-31，暂缓项 T-PERM-035/036 与 T-ADMIN-021 另行定夺；Phase 3 联调待启动）
+### P6 — 前端 Phase 2/3/4（Phase 2 逐页后端已完成 2026-08-31，暂缓项 T-PERM-035/036 与 T-ADMIN-021 另行定夺；Phase 3 联调已启动——T-FE-015 已收口 2026-08-31，menus 接线基础设施就绪）
 
 - `T-PERM-022~034` 逐页后端接口改造 ← 各 Phase 1 前端任务（🔧❌ 清单）
 - `T-PERM-037` 跨页共性接口改造 + api-contract 回写收尾 ← T-PERM-022~034（不重复逐页改造）

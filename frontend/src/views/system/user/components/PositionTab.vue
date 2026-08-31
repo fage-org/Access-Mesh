@@ -3,7 +3,7 @@ import { ref, computed, watch, h } from "vue";
 import {
   getOrgPage,
   getOrgUsers,
-  getUserPage,
+  getMemberCandidates,
   createOrg,
   updateOrg,
   deleteOrg,
@@ -53,9 +53,7 @@ const canAssignPositionUser = computed(() =>
 
 // ========== 类型 ==========
 
-interface PositionItem extends OrgPageItem {
-  parentOrgName?: string;
-}
+type PositionItem = OrgPageItem;
 
 // ========== 状态 ==========
 
@@ -284,7 +282,6 @@ function openEditPositionDialog(position: PositionItem) {
           id: position.id,
           orgName: formData.orgName,
           code: formData.code,
-          orgType: 2,
           parentOrgId: formData.parentOrgId,
           status: formData.status,
           sort: formData.sort
@@ -334,12 +331,13 @@ function openAddUserDialog(positionId: number) {
 async function loadAvailableUsers() {
   userLoading.value = true;
   try {
-    const res = await getUserPage({
+    // T-FE-015：候选用户查询切专用接口（语义=默认树身份目录候选，门禁 ORG:UPDATE@targetOrgId，
+    // 区别于成员列表 /user/page）；alreadyAssignment 后端恒 false，已在当前岗位的过滤本地完成
+    const res = await getMemberCandidates({
+      targetOrgId: currentPositionId.value!,
       pageNum: 1,
-      pageSize: 100,
-      status: 1
+      pageSize: 100
     });
-    // 过滤掉已在当前岗位的用户
     const currentPositionUsers =
       positionUsers.value[currentPositionId.value!] || [];
     const currentUserIds = new Set(currentPositionUsers.map(u => u.userId));

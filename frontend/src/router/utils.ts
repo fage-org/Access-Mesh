@@ -17,10 +17,12 @@ import {
   isIncludeAllChildren
 } from "@pureadmin/utils";
 import { buildHierarchyTree } from "@/utils/tree";
-import { userKey, type DataInfo } from "@/utils/auth";
+import { getToken, userKey, type DataInfo } from "@/utils/auth";
+import type { UserMenuRoute } from "@/api/auth";
 import { type menuType, routerArrays } from "@/layout/types";
 import { useMultiTagsStoreHook } from "@/store/modules/multiTags";
 import { usePermissionStoreHook } from "@/store/modules/permission";
+import { useUserStoreHook } from "@/store/modules/user";
 const IFrame = () => import("@/layout/frame.vue");
 // https://cn.vitejs.dev/guide/features.html#glob-import
 const modulesRoutes = import.meta.glob("/src/views/**/*.{vue,tsx}");
@@ -194,20 +196,65 @@ function handleAsyncRoutes(routeList) {
   addPathMatch();
 }
 
+/** 会话恢复失败占位菜单项（fail-closed + 可重试；路由注册见 remaining.ts /menu-retry） */
+const MENU_LOAD_RETRY_ITEM: menuType = {
+  path: "/menu-retry",
+  name: "MenuLoadRetry",
+  meta: { title: "菜单加载失败，点击重试", icon: "ep/warning-filled" }
+} as any;
+
+/**
+ * 后端 menus 树 → 侧栏 wholeMenus 结构转换（T-FE-015 后端树直接渲染）。
+ * 后端 buildMenuTree 已完成可见性过滤、DIR 空剪枝与 rank 升序，此处直接消费；
+ * 点击按 path 命中本地静态路由。对象形态与静态 wholeMenus 一致
+ * （meta.title/icon + children + path，侧栏对缺省字段天然容忍）。
+ */
+function buildSidebarMenus(menus: Array<UserMenuRoute>): any[] {
+  return (menus ?? []).map(node => ({
+    // 不产出 name：RouterLink 对含 name 的 location 按 name 优先解析，后端 name
+    // （systemUser 等小写驼峰）与静态路由 name（SystemUser）不一致会 No match 抛错，
+    // 导致菜单子树渲染整体失败——侧栏跳转只按 path 命中静态路由
+    path: node.path,
+    redirect: node.redirect,
+    meta: node.meta ?? {},
+    children: node.children?.length
+      ? buildSidebarMenus(node.children)
+      : undefined
+  }));
+}
+
 /**
  * 初始化路由（`new Promise` 写法保持调用方签名兼容）。
  * <p>
  * T-FE-041 起为纯静态路由模式：所有业务路由由 `src/router/modules/*.ts` 本地声明，
- * 不再请求模板遗留的 `/get-async-routes`（真实后端无此端点，且其 mock 会注入
- * 与导航收敛口径冲突的演示菜单）。菜单可见性由路由 `meta.showLink` 控制，
- * 后端 `/auth/user-menu` 下发的菜单树存于 user store（可见性轨道数据，
- * Phase 3 联调 T-FE-015 接线消费）。
+ * 不再请求模板遗留的 `/get-async-routes`。
+ * T-FE-015 起侧栏菜单切换为后端派生（/auth/user-menu menus 树直接渲染，
+ * 标题/图标/层级/排序来自 sys_menu，可见性 = v3.5 §4.1 ∃op 派生）：
+ * <ul>
+ *   <li>登录路径：loginByUsername 已拉取 user-menu，此处复用 store 内存结果不重复请求</li>
+ *   <li>已登录 F5/启动（menus 内存态丢失）：重取 /auth/user-menu；失败 fail-closed 空菜单 +
+ *       侧栏「菜单加载失败，点击重试」占位项（跳 /menu-retry 重试页），
+ *       不持久化 menus、不回退全量静态菜单</li>
+ *   <li>路由仍全部静态注册：菜单不可见 ≠ 路由不可达，越权直达由后端 VIEW 403 兜底</li>
+ * </ul>
  */
-function initRouter() {
-  return new Promise(resolve => {
-    handleAsyncRoutes([]);
-    resolve(router);
-  });
+async function initRouter() {
+  const userStore = useUserStoreHook();
+  if (getToken() && userStore.menus.length === 0) {
+    try {
+      await userStore.refreshUserMenu();
+    } catch (err) {
+      // fail-closed：拉取失败按空菜单处理（下方占位项给出显式重试入口）
+      console.warn("[initRouter] failed to load /auth/user-menu", err);
+    }
+  }
+  handleAsyncRoutes([]);
+  usePermissionStoreHook().handleBackendMenus(
+    userStore.menus.length > 0
+      ? buildSidebarMenus(userStore.menus)
+      : [cloneDeep(MENU_LOAD_RETRY_ITEM)]
+  );
+  return router;
 }
 
 /**
@@ -372,9 +419,10 @@ function handleTopMenu(route) {
 
 /** 获取所有菜单中的第一个菜单（顶级菜单）*/
 function getTopMenu(tag = false): menuType {
-  const topMenu = handleTopMenu(
-    usePermissionStoreHook().wholeMenus[0]?.children[0]
-  );
+  // T-FE-015 后端树直接渲染：顶级项可能是叶子（如 welcome 无 Layout 容器层），
+  // 无 children 时回落到自身——兼容静态容器树与后端叶子树两种形态
+  const top = usePermissionStoreHook().wholeMenus[0];
+  const topMenu = handleTopMenu(top?.children?.[0] ?? top);
   tag && useMultiTagsStoreHook().handleTags("push", topMenu);
   return topMenu;
 }

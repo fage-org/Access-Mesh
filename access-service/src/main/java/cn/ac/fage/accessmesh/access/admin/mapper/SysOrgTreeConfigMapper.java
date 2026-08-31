@@ -49,12 +49,21 @@ public interface SysOrgTreeConfigMapper extends BaseMapper<SysOrgTreeConfig> {
     /**
      * 分页查询配置列表（租户隔离 + 未删除，按创建时间倒序）
      *
-     * @param page     分页参数（MyBatis-Flex自动拦截）
      * @param tenantId 租户ID
+     * @param offset   分页偏移量
+     * @param limit    分页大小
      * @return 分页结果
      */
-    Page<SysOrgTreeConfig> paginateAll(Page<SysOrgTreeConfig> page,
-                                       @Param("tenantId") Long tenantId);
+    // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效，
+    // T-FE-015 联调发现——与 SysUserMapper/SysOrgMapper 同款修法）
+    List<SysOrgTreeConfig> selectAllByTenant(@Param("tenantId") Long tenantId,
+                                             @Param("offset") int offset,
+                                             @Param("limit") int limit);
+
+    /**
+     * 统计租户下配置总数（用于分页计算）
+     */
+    long countAllByTenant(@Param("tenantId") Long tenantId);
 
     /**
      * 查询当前租户下所有默认配置（租户隔离 + 未删除 + is_default=true）

@@ -23,7 +23,6 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.application.OrgWriteAppService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import com.mybatisflex.core.paginate.Page;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -138,15 +137,15 @@ public class OrgServiceImpl implements OrgService {
             orgIds = Set.copyOf(subtreeIds);
         }
 
-        Page<SysOrg> result = orgMapper.paginateOrgs(Page.of(pageNum, pageSize), tenantId, req.orgName(), orgType, req.status(), orgIds);
-
-        List<SysOrg> records = result.getRecords();
+        // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
+        long total = orgMapper.countOrgsByCondition(tenantId, req.orgName(), orgType, req.status(), orgIds);
+        List<SysOrg> records = total == 0 ? List.of()
+            : orgMapper.selectOrgsByCondition(tenantId, req.orgName(), orgType, req.status(), orgIds,
+                (pageNum - 1) * pageSize, pageSize);
 
         List<OrgResp> items = records.stream()
             .map(o -> toResp(o, List.of()))
             .collect(Collectors.toList());
-
-        long total = result.getTotalRow();
         long totalPages = (total + pageSize - 1) / pageSize;
         return new PaginatedResult<>(items,
             new PaginatedResult.PaginationMeta(total, pageNum, pageSize, (int) totalPages));

@@ -32,14 +32,29 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      * @param status   状态（可选）
      * @return 分页用户列表
      */
-    Page<SysUser> paginateUsers(@Param("page") Page<SysUser> page,
-                                @Param("tenantId") Long tenantId,
-                                @Param("username") String username,
-                                @Param("name") String name,
-                                @Param("phone") String phone,
-                                @Param("email") String email,
-                                @Param("status") Integer status,
-                                @Param("orgIds") Set<Long> orgIds);
+    // XML 分页统一 offset/limit + count 双查询（仓库既定模式，见 PermissionChangeLogMapper；
+    // MyBatis-Flex 的 Page 参数在 XML 映射下不生效——单条映射/selectOne 多行异常，
+    // T-FE-015 联调发现：默认树可见集非空前该查询不可达，潜伏未触发）
+    List<SysUser> selectUsersByCondition(@Param("tenantId") Long tenantId,
+                                         @Param("username") String username,
+                                         @Param("name") String name,
+                                         @Param("phone") String phone,
+                                         @Param("email") String email,
+                                         @Param("status") Integer status,
+                                         @Param("orgIds") Set<Long> orgIds,
+                                         @Param("offset") int offset,
+                                         @Param("limit") int limit);
+
+    /**
+     * 按条件统计用户数（条件与 {@link #selectUsersByCondition} 一致，用于分页计算）
+     */
+    long countUsersByCondition(@Param("tenantId") Long tenantId,
+                               @Param("username") String username,
+                               @Param("name") String name,
+                               @Param("phone") String phone,
+                               @Param("email") String email,
+                               @Param("status") Integer status,
+                               @Param("orgIds") Set<Long> orgIds);
 
     /**
      * 查询所有有效的租户ID（去重）
@@ -160,8 +175,16 @@ public interface SysUserMapper extends BaseMapper<SysUser> {
      * @param keyword  关键字（可选，模糊匹配 username/name/phone/email）
      * @return 分页用户列表
      */
-    Page<SysUser> paginateUsersByIdsAndKeyword(@Param("page") Page<SysUser> page,
-                                                @Param("tenantId") Long tenantId,
-                                                @Param("userIds") List<Long> userIds,
-                                                @Param("keyword") String keyword);
+    List<SysUser> selectUsersByIdsAndKeyword(@Param("tenantId") Long tenantId,
+                                              @Param("userIds") List<Long> userIds,
+                                              @Param("keyword") String keyword,
+                                              @Param("offset") int offset,
+                                              @Param("limit") int limit);
+
+    /**
+     * 按 ID 集合与关键字统计用户数（条件与 {@link #selectUsersByIdsAndKeyword} 一致）
+     */
+    long countUsersByIdsAndKeyword(@Param("tenantId") Long tenantId,
+                                   @Param("userIds") List<Long> userIds,
+                                   @Param("keyword") String keyword);
 }
