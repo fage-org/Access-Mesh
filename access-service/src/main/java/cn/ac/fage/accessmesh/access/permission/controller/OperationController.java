@@ -76,17 +76,17 @@ public class OperationController {
     /**
      * 查询操作权限列表
      * <p>
-     * 返回指定资源类型和业务域下的操作权限列表。
+     * 返回指定资源类型下的操作权限列表（类型不存在时返回空）。
      * 可用于前端权限配置选择。
      * </p>
      *
-     * @param req 操作列表查询请求，包含资源类型编码和域编码过滤条件
+     * @param req 操作列表查询请求，包含资源类型编码过滤条件
      * @return 操作权限列表
      */
     @PostMapping("/list")
     public PermResult<ItemsResp<OperationPermissionResp>> listOperations(@Valid @RequestBody OperationListReq req) {
         return PermResult.success(new ItemsResp<>(
-            operationAppService.listOperations(TenantContextHolder.getTenantId(), req.resourceTypeCode(), req.domainCode())
+            operationAppService.listOperations(TenantContextHolder.getTenantId(), req.resourceTypeCode())
         ));
     }
 

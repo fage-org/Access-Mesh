@@ -161,11 +161,10 @@ public class OperationAppServiceImpl implements OperationAppService {
      *
      * @param tenantId        租户ID
      * @param resourceTypeCode 资源类型编码，可选过滤条件
-     * @param domainCode      业务域编码，可选（当前未使用）
      * @return 操作权限响应列表
      */
     @Override
-    public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode) {
+    public List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode) {
         // T-PERM-042：授权页操作列表读门禁（architecture §14.5 终态，类型级 OPERATION:VIEW）
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.OPERATION, null, OperationCodeConstants.VIEW)) {
@@ -174,6 +173,10 @@ public class OperationAppServiceImpl implements OperationAppService {
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+            // 未知类型 fail-closed：返回空列表而非回退全量（与 role-resource-permission/list 同口径）
+            if (resourceType == null) {
+                return List.of();
+            }
         }
         // 全局操作概念已退役（2026-08-30 设计定案）：操作定义仅按类型返回，
         // 原 includeGlobalFallback 合并参数随概念一并退役

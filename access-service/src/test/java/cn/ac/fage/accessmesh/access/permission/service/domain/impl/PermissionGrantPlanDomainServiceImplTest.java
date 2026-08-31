@@ -728,6 +728,104 @@ class PermissionGrantPlanDomainServiceImplTest {
         }
     }
 
+    // ========== 操作适用性校验（§6.5.1：类型隔离判定，20008/20005 区分） ==========
+
+    @Nested
+    class OperationApplicabilityValidation {
+
+        /** 指定类型+码的操作定义（bit 自定，构造异类型已知码场景用） */
+        private static OperationPermission typedOp(Integer resourceType, String code, long bit) {
+            OperationPermission op = new OperationPermission();
+            op.setId(90L);
+            op.setResourceType(resourceType);
+            op.setCode(code);
+            op.setBinaryBit(bit);
+            op.setInheritMask(0L);
+            return op;
+        }
+
+        private static ApplyGrantPlanReq.GrantRecordKey dataKey(String resourceCode, String operationCode) {
+            return new ApplyGrantPlanReq.GrantRecordKey(
+                "DATA", resourceCode, "default", operationCode, ScopeMode.INSTANCE, null, false);
+        }
+
+        private void stubApplicabilityBase(java.util.List<OperationPermission> operations) {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of());
+            when(typeResolutionService.batchResolveTypeValues(TENANT, "resource_type", java.util.Set.of("DATA")))
+                .thenReturn(Map.of("DATA", 4));
+            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), any()))
+                .thenReturn(Map.of(
+                    new ResourceResolveKey("DATA", "report:sales", "default", null), 101L,
+                    new ResourceResolveKey("DATA", "city:shanghai", "default", null), 102L));
+            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+                .thenReturn(operations);
+        }
+
+        @Test
+        void shouldRejectCreateWithOperationOfAnotherType() {
+            // VIEW 仅存在于 USER(7)：DATA 主权限写 VIEW → 码已知但不适用 → 20008
+            stubApplicabilityBase(List.of(typedOp(7, "VIEW", 2L)));
+            ApplyGrantPlanReq.GrantPlan plan = new ApplyGrantPlanReq.GrantPlan(
+                List.of(new ApplyGrantPlanReq.CreateItem(
+                    dataKey("report:sales", "VIEW"), null, List.of())),
+                List.of(), List.of());
+
+            BizException exception = assertThrows(BizException.class,
+                () -> service.prevalidate(TENANT, SUBJECT, ROLE, null, plan));
+            assertEquals(20008, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectNestedChildCreateWithOperationOfAnotherType() {
+            // 主权限 DATA/VIEW 命中专属定义；嵌套子权限 DATA/EXPORT 的 EXPORT 仅存在于 USER(7) → 20008
+            stubApplicabilityBase(List.of(typedOp(4, "VIEW", 2L), typedOp(7, "EXPORT", 16L)));
+            ApplyGrantPlanReq.GrantPlan plan = new ApplyGrantPlanReq.GrantPlan(
+                List.of(new ApplyGrantPlanReq.CreateItem(
+                    dataKey("report:sales", "VIEW"), null,
+                    List.of(dataKey("city:shanghai", "EXPORT")))),
+                List.of(), List.of());
+
+            BizException exception = assertThrows(BizException.class,
+                () -> service.prevalidate(TENANT, SUBJECT, ROLE, null, plan));
+            assertEquals(20008, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectChildCreateByParentIdWithOperationOfAnotherType() {
+            // parentPermissionId 挂父形态：挂已有父记录的 create 使用不适用操作 → 20008
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(1L, null, "MANUAL")));
+            when(typeResolutionService.batchResolveTypeValues(TENANT, "resource_type", java.util.Set.of("DATA")))
+                .thenReturn(Map.of("DATA", 4));
+            when(typeResolutionService.batchResolveResourceIds(eq(TENANT), any()))
+                .thenReturn(Map.of(new ResourceResolveKey("DATA", "report:sales", "default", null), 101L));
+            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+                .thenReturn(List.of(typedOp(7, "VIEW", 2L)));
+            ApplyGrantPlanReq.GrantPlan plan = new ApplyGrantPlanReq.GrantPlan(
+                List.of(new ApplyGrantPlanReq.CreateItem(
+                    dataKey("report:sales", "VIEW"), 1L, List.of())),
+                List.of(), List.of());
+
+            BizException exception = assertThrows(BizException.class,
+                () -> service.prevalidate(TENANT, SUBJECT, ROLE, null, plan));
+            assertEquals(20008, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectCreateWithUnknownOperationCodeAsOperationNotFound() {
+            // SYNC 任何类型都没有 → 20005（与「已知异类型」的 20008 区分锁定）
+            stubApplicabilityBase(List.of(typedOp(4, "VIEW", 2L)));
+            ApplyGrantPlanReq.GrantPlan plan = new ApplyGrantPlanReq.GrantPlan(
+                List.of(new ApplyGrantPlanReq.CreateItem(
+                    dataKey("report:sales", "SYNC"), null, List.of())),
+                List.of(), List.of());
+
+            BizException exception = assertThrows(BizException.class,
+                () -> service.prevalidate(TENANT, SUBJECT, ROLE, null, plan));
+            assertEquals(20005, exception.getErrorCode());
+        }
+    }
+
     // ========== 不变量反例 ==========
 
     @Nested

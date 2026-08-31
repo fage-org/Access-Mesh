@@ -170,6 +170,19 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                                                     @Param("resourceEntityId") Long resourceEntityId);
 
     /**
+     * 按角色与资源类型查询有效主权限（授权矩阵类型过滤，depend_on IS NULL）
+     *
+     * @param tenantId       租户ID
+     * @param abstractRoleId 抽象角色ID
+     * @param resourceType   资源类型内部值
+     * @return 该类型主权限列表
+     */
+    List<RoleResourcePermission> selectValidMainByRoleIdAndResourceType(
+        @Param("tenantId") Long tenantId,
+        @Param("abstractRoleId") Long abstractRoleId,
+        @Param("resourceType") Integer resourceType);
+
+    /**
      * 根据租户ID和角色ID查询角色资源权限列表
      * <p>
      * 用于角色权限快照构建场景（engine ROLE_PERM_SNAPSHOT 读路径）。

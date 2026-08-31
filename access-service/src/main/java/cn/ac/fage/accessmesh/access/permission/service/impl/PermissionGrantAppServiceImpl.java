@@ -157,35 +157,37 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             return List.of();
         }
 
-        List<RoleResourcePermission> allPerms = rolePermMapper.selectValidByRoleId(tenantId, roleId);
-        List<RoleResourcePermission> selectedPerms = allPerms;
+        List<RoleResourcePermission> selectedPerms;
         if (req.resourceTypeCode() != null && !req.resourceTypeCode().isBlank()) {
+            // 类型过滤下沉 Mapper（T-PERM-040）：主权限专用查询（depend_on IS NULL + 类型匹配），
+            // 子权限按 depend_on 批量挂父——SQL 层同时过滤 abstract_role_id，满足契约 §6.4
+            // 双重约束（depend_on ∈ 主权限集合 且同角色）；子权限可能跨类型不按自身类型过滤
             Integer resourceType = typeResolutionService.resolveTypeValue(
                 tenantId, "resource_type", req.resourceTypeCode());
             if (resourceType == null) {
                 return List.of();
             }
-            List<RoleResourcePermission> mainPermissions = allPerms.stream()
-                .filter(permission -> permission.getDependOn() == null)
-                .filter(permission -> Objects.equals(permission.getResourceType(), resourceType))
-                .toList();
-            if (req.shouldIncludeChildren()) {
-                Set<Long> mainPermissionIds = mainPermissions.stream()
-                    .map(RoleResourcePermission::getId)
-                    .collect(Collectors.toSet());
-                selectedPerms = allPerms.stream()
-                    .filter(permission -> permission.getDependOn() == null
-                        ? Objects.equals(permission.getResourceType(), resourceType)
-                        : mainPermissionIds.contains(permission.getDependOn()))
-                    .toList();
-            } else {
-                selectedPerms = mainPermissions;
+            List<RoleResourcePermission> mains = rolePermMapper
+                .selectValidMainByRoleIdAndResourceType(tenantId, roleId, resourceType);
+            if (mains.isEmpty()) {
+                return List.of();
             }
-        } else if (!req.shouldIncludeChildren()) {
-            selectedPerms = allPerms.stream()
+            Set<Long> mainIds = mains.stream()
+                .map(RoleResourcePermission::getId)
+                .collect(Collectors.toSet());
+            List<RoleResourcePermission> children = rolePermMapper
+                .selectValidByRoleIdAndDependIds(tenantId, roleId, mainIds);
+            // childCount 计数源 = 主权限 + 其全部直接子权限（父必须顶层，无孙代）
+            List<RoleResourcePermission> mainsWithChildren = new ArrayList<>(mains);
+            mainsWithChildren.addAll(children);
+            selectedPerms = req.shouldIncludeChildren() ? mainsWithChildren : mains;
+            return toItemRespList(tenantId, selectedPerms, mainsWithChildren);
+        }
+        List<RoleResourcePermission> allPerms = rolePermMapper.selectValidByRoleId(tenantId, roleId);
+        selectedPerms = req.shouldIncludeChildren() ? allPerms
+            : allPerms.stream()
                 .filter(permission -> permission.getDependOn() == null)
                 .toList();
-        }
         return toItemRespList(tenantId, selectedPerms, allPerms);
     }
 

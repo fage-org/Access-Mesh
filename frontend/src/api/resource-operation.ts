@@ -142,10 +142,10 @@ export type OperationPermissionResp = {
   updatedAt: string;
 };
 
-/** 操作权限列表查询参数（对齐 OperationListReq；无分页；全局操作概念已退役，操作定义按类型返回） */
+/** 操作权限列表查询参数（对齐 OperationListReq；无分页；全局操作概念已退役，操作定义按类型返回；
+ *  domainCode 死参数已随 T-PERM-040 删除——后端从未实现过滤、零调用方） */
 export type OperationListQuery = {
   resourceTypeCode?: string | null;
-  domainCode?: string | null;
 };
 
 /** 操作权限创建请求（对齐 OperationCreateReq；位字段十进制字符串） */

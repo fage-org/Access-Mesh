@@ -47,11 +47,10 @@ public interface OperationAppService {
      * 查询操作权限列表
      *
      * @param tenantId         租户ID
-     * @param resourceTypeCode 资源类型编码，可选
-     * @param domainCode       业务域编码，可选
+     * @param resourceTypeCode 资源类型编码，可选；指定但类型不存在时返回空列表
      * @return 操作权限列表
      */
-    List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode, String domainCode);
+    List<OperationPermissionResp> listOperations(Long tenantId, String resourceTypeCode);
 
     /**
      * 更新操作权限

@@ -57,7 +57,7 @@ class OperationAppServiceImplTest {
                 isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class,
-                () -> service.listOperations(1L, null, null));
+                () -> service.listOperations(1L, null));
         }
         verifyNoInteractions(operationPermissionMapper);
     }
@@ -72,8 +72,41 @@ class OperationAppServiceImplTest {
             when(operationPermissionMapper.selectByTenantAndResourceType(eq(1L), isNull()))
                 .thenReturn(List.<OperationPermission>of());
 
-            assertEquals(List.of(), service.listOperations(1L, null, null));
+            assertEquals(List.of(), service.listOperations(1L, null));
             verify(operationPermissionMapper).selectByTenantAndResourceType(eq(1L), isNull());
+        }
+    }
+
+    // ========== T-PERM-040：类型过滤 fail-closed（未知类型空列表，不回退全量） ==========
+
+    @Test
+    @DisplayName("resourceTypeCode 指定但类型不存在 → 空列表，不回退全量（fail-closed）")
+    void shouldReturnEmptyListForUnknownResourceType() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+            when(typeResolutionService.resolveTypeValue(1L, "resource_type", "TYPO")).thenReturn(null);
+
+            assertEquals(List.of(), service.listOperations(1L, "TYPO"));
+            verifyNoInteractions(operationPermissionMapper);
+        }
+    }
+
+    @Test
+    @DisplayName("resourceTypeCode 已知 → 解析为内部值后下发 Mapper 过滤")
+    void shouldResolveTypeAndDelegateFilterToMapper() {
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+            when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
+            when(operationPermissionMapper.selectByTenantAndResourceType(eq(1L), eq(7)))
+                .thenReturn(List.of(op(7, "VIEW")));
+            when(typeResolutionService.resolveTypeCode(1L, "resource_type", 7)).thenReturn("USER");
+
+            assertEquals(1, service.listOperations(1L, "USER").size());
+            verify(operationPermissionMapper).selectByTenantAndResourceType(eq(1L), eq(7));
         }
     }
 
