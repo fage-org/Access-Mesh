@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-09-01   # 2026-09-01 收口补遗：§4.3 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
+last_reviewed: 2026-09-01   # 2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -459,14 +459,14 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `pageSize` | `Integer` | 否 | 默认 20 |
 | `sort` | `String` | 否 | |
 | `orgName` | `String` | 否 | 模糊匹配 |
-| `orgType` | `Integer` | 否 | 1=组织, 2=岗位 |
+| `orgType` | `Integer` | 是 | 1=组织, 2=岗位; 缺失报 `ORG_TYPE_REQUIRED` |
 | `status` | `Integer` | 否 | |
 | `parentOrgId` | `Long` | 否 | 直接父级 |
 | `orgId` | `Long` | 否 | 子树根; 传入时返回该组织及其全部子孙 (岗位 Tab 用) |
 
 **响应**: `PaginatedResult<OrgResp>` (children 字段为空数组, 平铺语义)
 
-**门禁**: `ORG:VIEW`.
+**门禁**: 按 `orgType` 分发——`ORG:VIEW`(组织) / `ORG:VIEW_POSITION`(岗位).
 
 ---
 

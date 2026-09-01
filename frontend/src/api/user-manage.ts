@@ -142,12 +142,12 @@ export type OrgUpdateReq = {
   sort?: number;
 };
 
-/** 组织分页查询参数 */
+/** 组织分页查询参数（orgType 必填——后端按其分发 VIEW/VIEW_POSITION 门禁，缺省 ORG_TYPE_REQUIRED） */
 export type OrgPageQuery = {
   pageNum: number;
   pageSize: number;
   orgName?: string;
-  orgType?: number;
+  orgType: number;
   status?: number;
   /** 按选中组织子树筛选（用于岗位 Tab） */
   orgId?: number;
@@ -464,7 +464,7 @@ export const resetUserPassword = async (data: {
 /**
  * 成员候选查询（POST /admin/user/member-candidates；语义=默认树身份目录候选，
  * 区别于成员列表 /user/page。门禁 ORG:UPDATE@targetOrgId。
- * alreadyAssignment 后端恒 false——已在目标组织的过滤由调用方本地完成）
+ * alreadyAssigned 后端恒 false——已在目标组织的过滤由调用方本地完成）
  */
 export const getMemberCandidates = async (
   params: MemberCandidatesQuery

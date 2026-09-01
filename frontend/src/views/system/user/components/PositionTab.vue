@@ -332,7 +332,7 @@ async function loadAvailableUsers() {
   userLoading.value = true;
   try {
     // T-FE-015：候选用户查询切专用接口（语义=默认树身份目录候选，门禁 ORG:UPDATE@targetOrgId，
-    // 区别于成员列表 /user/page）；alreadyAssignment 后端恒 false，已在当前岗位的过滤本地完成
+    // 区别于成员列表 /user/page）；alreadyAssigned 后端恒 false，已在当前岗位的过滤本地完成
     const res = await getMemberCandidates({
       targetOrgId: currentPositionId.value!,
       pageNum: 1,
