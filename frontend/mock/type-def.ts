@@ -12,7 +12,7 @@ import { presetOperationsForType } from "./resource-operation";
  * 本地声明 type_key 常量与类型（不 import src/api/type-def，避免 fake-server 经
  * bundle-import 打包 src/api 链——该链 import 了 @/utils/http 等浏览器侧依赖，
  * 在 node platform 下打包会失败，导致整个 mock 文件加载被静默吞掉 → 路由不注册 → 404）。
- * 与 role-manage.ts mock 零 src 依赖范式一致；字段定义同步注释于下方，保持与 api 层对齐。
+ * 零 src 依赖范式（各 mock 文件同款）；字段定义同步注释于下方，保持与 api 层对齐。
  */
 const TYPE_KEY = {
   USER_TYPE: "user_type",

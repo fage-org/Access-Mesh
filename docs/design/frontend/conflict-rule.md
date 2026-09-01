@@ -133,7 +133,7 @@
 
 ## 7. mock 种子
 
-对齐 role-manage / resource-operation / type-def mock 种子 ID（名称映射通过 API 加载建立）：
+对齐 resource-operation / type-def mock 种子 ID（名称映射通过 API 加载建立；role-manage mock 已随 T-FE-016 退役，角色种子 ID 101/102/201/202 仅作历史对照）：
 
 | id | 类型 | 对象对 | 资源类型 |
 |----|------|--------|----------|

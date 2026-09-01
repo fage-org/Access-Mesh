@@ -4,7 +4,7 @@
 //
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。
 //
-// 种子 ID 对齐（名称映射由前端 hook 加载 role-manage/resource-operation/type-def mock 建立）：
+// 种子 ID 对齐（名称映射由前端 hook 加载建立——role 经真实 role API，resource-operation/type-def 经各自 mock；role-manage mock 已随 T-FE-016 退役删除）：
 // - 角色：101 基础用户 / 102 高级用户 / 201 核心开发组 / 202 运维保障组（BASIC_ROLE + GROUP_ROLE）
 // - 操作权限：501 MENU:CREATE / 502 MENU:VIEW / 504 MENU:DELETE / 509 API:CREATE / 512 API:DELETE
 // - 资源类型 typeValue：1 MENU / 3 API

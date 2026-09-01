@@ -145,7 +145,7 @@ function assertSubPermissionAllowed(
   );
 }
 
-/** 角色停用水位（对齐 role-manage mock BASIC_203 访客 status=0） */
+/** 角色停用水位（自含维护；原对齐 role-manage mock BASIC_203 访客 status=0，该 mock 已随 T-FE-016 退役） */
 const DISABLED_ROLE_KEYS = new Set(["BASIC_ROLE:BASIC_203"]);
 
 let nextPermissionId = 5001;

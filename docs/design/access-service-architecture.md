@@ -470,6 +470,8 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 ### 14.3 固定图组成与 bootstrap 管理 API 清单
 
+> 清单以 `BootstrapGraphDefinition.apiRoutes()` 为唯一权威（T-FE-015 起逐页联调按消费注册扩展：组织与用户页 +20、角色管理页 +4，下表为 T-API-001 原始清单，未随逐页扩展同步补行）。
+
 固定图幂等写入以下对象：
 
 1. `resource_entity(SERVICE, code=access-service)`——当前 DDL 无 SERVICE 类型资源种子、本地投影亦不产出（仅 USER/ROLE/MENU 投影）；`SERVICE:MANAGE_API_MAPPING` 已改类型级（§14.4），该资源保留为固定图种子对象（scopeAll 授权不依赖实例绑定，历史兼容且供未来实例级授权使用）。

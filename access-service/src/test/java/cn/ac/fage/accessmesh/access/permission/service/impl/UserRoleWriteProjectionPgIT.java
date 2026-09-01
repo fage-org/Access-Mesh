@@ -146,7 +146,7 @@ class UserRoleWriteProjectionPgIT {
     }
 
     @Test
-    @DisplayName("ROLE 写路径闭环：createRole 产出投影(code=roleId, owner=access-service)，实例 MANAGE 经生产投影命中，updateRole 镜像 status，deleteRoles 软删投影")
+    @DisplayName("ROLE 写路径闭环：createRole 产出投影(code=roleId, owner=access-service)，实例 MANAGE 经生产投影命中，updateRole 镜像 status + extraClear 强制写 null 列，deleteRoles 软删投影")
     void roleWritePathShouldProjectAndCloseInstanceGate() {
         Long creator = insertSubject("t019-op-create-role", "角色创建者");
         Long creatorRole = insertBasicRole("t019-holder-create-role", "创建者角色");
@@ -182,6 +182,18 @@ class UserRoleWriteProjectionPgIT {
         roleManageAppService.updateRole(TENANT, granted.id(), "被授权角色-禁用", 0, null, null, null, manager);
         assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(granted.id()))
             .get("status")).intValue()).isZero();
+
+        // T-FE-016：extraClear 强制写 null 列（DB 级回归锁——普通实体置 null 走
+        // BaseMapper.update(entity) 时 null 列被 MyBatis-Flex 默认忽略、清空静默失效，
+        // 本断言在该实现下必红；资源域 ResourceOperationKeyPgIT 同款先例）
+        roleManageAppService.updateRole(TENANT, granted.id(), null, null, null, "{\"k\":1}", null, manager);
+        assertThat(jdbc.queryForObject(
+            "SELECT extra->>'k' FROM abstract_role WHERE id = ? AND delete_flag = 0",
+            String.class, granted.id())).isEqualTo("1");
+        roleManageAppService.updateRole(TENANT, granted.id(), null, null, null, null, true, manager);
+        assertThat(jdbc.queryForObject(
+            "SELECT extra IS NULL FROM abstract_role WHERE id = ? AND delete_flag = 0",
+            Boolean.class, granted.id())).isTrue();
 
         // deleteRoles 软删角色与投影；被删编码经引擎 fail-closed 拒绝
         roleManageAppService.deleteRoles(TENANT, List.of(granted.id()), manager);

@@ -3,7 +3,7 @@ doc_type: design
 title: 2.2 角色管理页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口： 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
+last_reviewed: 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
 ---
 
 # 2.2 角色管理页 前端设计
