@@ -68,7 +68,7 @@ const textClass = computed(() => {
     isCollapse.value &&
     !toRaw(item.meta.icon) &&
     ((layout.value === "vertical" && item.parentId === null) ||
-      (layout.value === "mix" && item.pathList.length === 2))
+      (layout.value === "mix" && item?.pathList?.length === 2))
   ) {
     return `${baseClass} min-w-[54px]! text-center! px-3!`;
   }

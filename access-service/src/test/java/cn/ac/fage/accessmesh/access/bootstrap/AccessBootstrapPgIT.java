@@ -6,6 +6,7 @@ import cn.ac.fage.accessmesh.access.admin.service.AuthService;
 import cn.ac.fage.accessmesh.access.application.bootstrap.AccessBootstrapInitializer;
 import cn.ac.fage.accessmesh.access.application.bootstrap.BootstrapGraphDefinition;
 import cn.ac.fage.accessmesh.access.permission.service.domain.BootstrapSeedWriter;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.dev33.satoken.secure.BCrypt;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -38,6 +39,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.reset;
 
@@ -45,7 +47,7 @@ import static org.mockito.Mockito.reset;
  * 空库 bootstrap 幂等三状态验收（T-ACCESS-020，真实 PostgreSQL + Redis，Testcontainers；
  * architecture §14.2/§14.3）。
  * <p>
- * 固定顺序执行：状态①单事务创建固定图（前置：写入链最后一步注入故障证明整体回滚）→ 首管理员
+ * 固定顺序执行：状态①单事务创建固定图（前置：写入链中段与末段两点注入故障证明整体回滚）→ 首管理员
  * 真实登录（验证码经 Redis）→ 状态②整体 no-op（预改密码哈希后重跑，绝不重置）→ 状态③冲突
  * fail-fast（绑定缺失 / 授权缺失 / 映射 serviceCode / ROLE 投影 / 主体禁用 / 主体身份漂移 /
  * API·SERVICE 资源停用 / 固定业务键被其他角色类型占用）→ 类型种子缺失显式报错。Runner 装配与
@@ -118,13 +120,16 @@ class AccessBootstrapPgIT {
     @Autowired
     private JdbcTemplate jdbc;
 
-    /** 写入组件 spy：仅回滚用例对最后一步 insertGrants 注入故障，其余用例真实执行（用毕 reset）。 */
+    /** 写入组件 spy：两个回滚用例分别在中段 insertGrants 与末段 bindUserOrg 注入故障，其余用例真实执行（用毕 reset）。 */
     @SpyBean
     private BootstrapSeedWriter seedWriter;
 
+    @SpyBean
+    private LocalProjectionDomainService localProjectionDomainService;
+
     @Test
     @Order(0)
-    @DisplayName("事务性：创建链最后一步注入故障 → 单事务整体回滚，全部固定图表无残留")
+    @DisplayName("事务性：创建链中段（insertGrants）注入故障 → 单事务整体回滚，全部固定图表无残留")
     void midCreationFailureRollsBackEntireGraph() {
         doThrow(new IllegalStateException("injected: insertGrants failure"))
             .when(seedWriter).insertGrants(anyLong(), anyLong(), any());
@@ -137,6 +142,26 @@ class AccessBootstrapPgIT {
                 .as("回滚后 %s 应无残留行", table).isZero());
         } finally {
             reset(seedWriter);
+        }
+    }
+
+    @Test
+    @Order(0)
+    @DisplayName("事务性：创建链末段（默认树 user_role 投影 bindUserOrg）注入故障 → 单事务整体回滚，全部固定图表无残留")
+    void tailCreationFailureRollsBackEntireGraph() {
+        // 尾链注入：bindUserOrg 前已写入菜单/MENU 投影/根组织/ORG 投影/树配置/admin 直绑行——
+        // 证明末段与 insertGrants 前段同处一个事务（尾段脱离事务时本用例才可能失败）
+        doThrow(new IllegalStateException("injected: bindUserOrg failure"))
+            .when(localProjectionDomainService).bindUserOrg(anyLong(), anyLong(), anyLong(), anyString(), any());
+        try {
+            assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("injected: bindUserOrg failure");
+
+            snapshotRowCounts().forEach((table, count) -> assertThat(count)
+                .as("回滚后 %s 应无残留行", table).isZero());
+        } finally {
+            reset(localProjectionDomainService);
         }
     }
 
@@ -291,6 +316,17 @@ class AccessBootstrapPgIT {
                 + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'ORG') "
                 + "AND code = ?",
             Long.class, TENANT, String.valueOf(rootOrgId))).isEqualTo(1L);
+        // 组织型 user_role 投影：admin 直绑根组织产生指向 ORG 投影角色的 user_role 行
+        // （bindUserOrg 轨道；/user/page 身份目录视图的数据底座）
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM user_role ur JOIN abstract_role ar "
+                + "ON ur.target_id = ar.id AND ar.tenant_id = ur.tenant_id "
+                + "JOIN abstract_user au ON ur.abstract_user_id = au.id AND au.tenant_id = ur.tenant_id "
+                + "WHERE ur.tenant_id = ? AND ur.delete_flag = 0 AND ur.target_type = 'ROLE' "
+                + "AND au.external_id = ? AND ar.role_type = (SELECT type_value FROM type_definition "
+                + "WHERE tenant_id = 1 AND type_key = 'role_type' AND type_code = 'ORG') "
+                + "AND ar.external_id = ?",
+            Long.class, TENANT, String.valueOf(subjectId), String.valueOf(rootOrgId))).isEqualTo(1L);
     }
 
     @Test

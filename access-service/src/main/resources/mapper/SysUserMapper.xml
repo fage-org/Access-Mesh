@@ -23,7 +23,7 @@
                   </foreach>
             )
         </if>
-        ORDER BY u.created_at DESC
+        ORDER BY u.created_at DESC, u.id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
@@ -140,7 +140,7 @@
                 OR email LIKE CONCAT('%', #{keyword}, '%')
             )
         </if>
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 

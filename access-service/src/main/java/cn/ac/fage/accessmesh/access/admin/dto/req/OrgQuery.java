@@ -8,8 +8,8 @@ package cn.ac.fage.accessmesh.access.admin.dto.req;
  * </p>
  *
  * @param orgName    组织名称（可选，模糊匹配）
- * @param orgType    组织类型（可选）
- * @param status     状态（可选，0=正常，1=禁用）
+ * @param orgType    组织类型（必填——tree 查询按 orgType 分发 VIEW/VIEW_POSITION 门禁，缺省报 ORG_TYPE_REQUIRED）
+ * @param status     状态（可选，1=启用，0=停用——全系统统一口径，DDL DEFAULT 1 同源）
  * @param parentOrgId 父级组织ID（可选，用于查询子组织）
  */
 public record OrgQuery(

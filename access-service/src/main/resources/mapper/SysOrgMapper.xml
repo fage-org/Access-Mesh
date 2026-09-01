@@ -21,7 +21,7 @@
                 #{orgId}
             </foreach>
         </if>
-        ORDER BY sort_order ASC, created_at ASC
+        ORDER BY sort_order ASC, created_at ASC, id ASC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 

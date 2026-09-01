@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-08-31   # 2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
+last_reviewed: 2026-09-01   # 2026-09-01 收口补遗：§4.3 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -225,7 +225,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **错误码段**: 10100-10119
 
-**当前差距**: 无——后端独立接口已实现（`POST /user/member-candidates`，语义为默认树身份目录候选查询）；前端 api 函数已新增并接入岗位挂人选择器（T-FE-015 收口 2026-08-31，`getMemberCandidates`——`alreadyAssignment` 后端恒 false，占用过滤由调用方本地完成）.
+**当前差距**: 无——后端独立接口已实现（`POST /user/member-candidates`，语义为默认树身份目录候选查询）；前端 api 函数已新增并接入岗位挂人选择器（T-FE-015 收口 2026-08-31，`getMemberCandidates`——`alreadyAssigned` 后端恒 false，占用过滤由调用方本地完成）.
 
 **验收要点**:
 - 候选集**严格**来自默认树中操作者具备 `USER:VIEW` (或 `ORG:VIEW`) 的范围; 不暴露全租户用户.
@@ -510,7 +510,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `orgName` | `String` | 是 | |
 | `parentOrgId` | `Long` | 否 | null=顶级; 顶级仅允许在默认树根 (业务策略) |
 | `code` | `String` | 否 | 租户内唯一 (有值时) |
-| `status` | `Integer` | 否 | 默认 0 |
+| `status` | `Integer` | 否 | 默认 1 (1=启用, 0=停用, 对齐 DDL) |
 | `sort` | `Integer` | 否 | |
 
 > 评审 P2（2026-08-15）：组织 `phone`/`email` 字段已从契约/请求 DTO/响应模型删除——`sys_org` 实体与表不含联系方式字段（声明必须生效）。

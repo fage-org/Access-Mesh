@@ -21,7 +21,7 @@
     <select id="selectAllByTenant" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysOrgTreeConfig">
         SELECT * FROM sys_org_tree_config
         WHERE tenant_id = #{tenantId} AND delete_flag = 0
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
         LIMIT #{limit} OFFSET #{offset}
     </select>
 

@@ -185,14 +185,14 @@ export type MemberCandidatesQuery = {
   keyword?: string;
 };
 
-/** 成员候选项（对齐后端 MemberCandidateItemResp；alreadyAssignment 后端恒 false，占用过滤由调用方本地完成） */
+/** 成员候选项（对齐后端 MemberCandidateItemResp；alreadyAssigned 后端恒 false，占用过滤由调用方本地完成） */
 export type MemberCandidateItem = {
   id: number;
   username: string;
   name: string;
   avatar?: string;
   primaryOrgName?: string | null;
-  alreadyAssignment: boolean;
+  alreadyAssigned: boolean;
 };
 
 // ========== API 函数 ==========

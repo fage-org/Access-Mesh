@@ -206,21 +206,34 @@ const MENU_LOAD_RETRY_ITEM: menuType = {
 /**
  * 后端 menus 树 → 侧栏 wholeMenus 结构转换（T-FE-015 后端树直接渲染）。
  * 后端 buildMenuTree 已完成可见性过滤、DIR 空剪枝与 rank 升序，此处直接消费；
- * 点击按 path 命中本地静态路由。对象形态与静态 wholeMenus 一致
- * （meta.title/icon + children + path，侧栏对缺省字段天然容忍）。
+ * 点击按 path 命中本地静态路由。对象形态与静态 wholeMenus 一致（meta.title/icon +
+ * children + path，另按侧栏组件契约补 id/parentId/pathList 索引链）。
  */
-function buildSidebarMenus(menus: Array<UserMenuRoute>): any[] {
-  return (menus ?? []).map(node => ({
-    // 不产出 name：RouterLink 对含 name 的 location 按 name 优先解析，后端 name
-    // （systemUser 等小写驼峰）与静态路由 name（SystemUser）不一致会 No match 抛错，
-    // 导致菜单子树渲染整体失败——侧栏跳转只按 path 命中静态路由
-    path: node.path,
-    redirect: node.redirect,
-    meta: node.meta ?? {},
-    children: node.children?.length
-      ? buildSidebarMenus(node.children)
-      : undefined
-  }));
+function buildSidebarMenus(
+  menus: Array<UserMenuRoute>,
+  parentPathList: number[] = []
+): any[] {
+  return (menus ?? []).map((node, index) => {
+    const pathList = [...parentPathList, index];
+    return {
+      // 不产出 name：RouterLink 对含 name 的 location 按 name 优先解析，后端 name
+      // （systemUser 等小写驼峰）与静态路由 name（SystemUser）不一致会 No match 抛错，
+      // 导致菜单子树渲染整体失败——侧栏跳转只按 path 命中静态路由
+      path: node.path,
+      redirect: node.redirect,
+      meta: node.meta ?? {},
+      // 侧栏组件契约（SidebarItem 读 pathList.length 判层级、parentId===null 判顶级）：
+      // 与静态构建 buildHierarchyTree 同款——兄弟序号构成 id/parentId/pathList 索引链
+      id: index,
+      parentId: parentPathList.length
+        ? parentPathList[parentPathList.length - 1]
+        : null,
+      pathList,
+      children: node.children?.length
+        ? buildSidebarMenus(node.children, pathList)
+        : undefined
+    };
+  });
 }
 
 /**

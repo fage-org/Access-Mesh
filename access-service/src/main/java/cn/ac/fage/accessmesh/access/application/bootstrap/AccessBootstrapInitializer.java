@@ -300,7 +300,8 @@ public class AccessBootstrapInitializer {
         }
 
         // —— 菜单种子（T-FE-015；path 为期望键子集匹配：固定图 15 行齐全即可，
-        //    管理页后建的额外菜单不冲突。结构键 menuType/resourceType/parentPath/status 严格比对，
+        //    管理页后建的额外菜单不冲突。结构键 menuType/resourceType/resourceCode/parentPath/status
+        //    严格比对（resourceCode 种子恒 null，实例挂接会改变可见性派生口径），
         //    displayName/icon/sortOrder 容忍漂移——菜单管理页可改，不构成固定图冲突） ——
         Map<String, SysMenu> menusByPath = menuDomainService.selectAllValid(tenantId).stream()
             .collect(Collectors.toMap(SysMenu::getPath, m -> m, (a, b) -> a));
@@ -318,6 +319,11 @@ public class AccessBootstrapInitializer {
             if (!Objects.equals(seed.resourceType(), existing.getResourceType())) {
                 conflicts.add("菜单 '" + seed.path() + "' resourceType=" + existing.getResourceType()
                     + " 与固定图期望 " + seed.resourceType() + " 不符（可见性派生口径漂移）");
+            }
+            if (!Objects.equals(seed.resourceCode(), existing.getResourceCode())) {
+                conflicts.add("菜单 '" + seed.path() + "' resourceCode=" + existing.getResourceCode()
+                    + " 与固定图期望 " + seed.resourceCode() + " 不符（种子恒 null；实例挂接把"
+                    + " scopeAll 派生改为实例授权派生，普通用户可见性随之改变）");
             }
             if (existing.getStatus() == null || existing.getStatus() != 1) {
                 conflicts.add("菜单 '" + seed.path() + "' 已停用 (status=" + existing.getStatus() + ")");
@@ -341,7 +347,9 @@ public class AccessBootstrapInitializer {
 
         // —— 默认组织树（T-FE-015 设计定案：bootstrap 种默认树；/user/page 与 member-candidates
         //    为默认树身份目录视图，无默认树配置则用户列表恒空。检测键：默认配置 → 根组织 code
-        //    稳定业务键 + admin 直绑根组织；根组织名称容忍改名） ——
+        //    稳定业务键 + 结构键（status/orgType/parent）+ 树配置 treeType/singleAssoc + admin
+        //    直绑根组织；根组织名称容忍改名。ORG 资源投影、组织角色投影与组织型 user_role
+        //    不参与检测——upsert 语义、管理端改动时自然补齐（与菜单投影豁免同口径） ——
         boolean defaultTreePresent = false;
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         if (!defaultConfigs.isEmpty()) {
@@ -350,10 +358,19 @@ public class AccessBootstrapInitializer {
                 conflicts.add("默认组织树配置多于一条 (" + defaultConfigs.size()
                     + "，uk_tree_config_default 应已兜底)");
             }
-            SysOrg rootOrg = orgDomainService.selectValidById(tenantId, defaultConfigs.get(0).getRootOrgId());
+            SysOrgTreeConfig defaultConfig = defaultConfigs.get(0);
+            if (!BootstrapGraphDefinition.DEFAULT_TREE_TYPE.equals(defaultConfig.getTreeType())) {
+                conflicts.add("默认组织树配置 treeType=" + defaultConfig.getTreeType()
+                    + " 与固定图期望 " + BootstrapGraphDefinition.DEFAULT_TREE_TYPE + " 不符");
+            }
+            if (!Boolean.TRUE.equals(defaultConfig.getSingleAssoc())) {
+                conflicts.add("默认组织树配置 singleAssoc=" + defaultConfig.getSingleAssoc()
+                    + " 与固定图期望 true 不符（身份目录单归属语义）");
+            }
+            SysOrg rootOrg = orgDomainService.selectValidById(tenantId, defaultConfig.getRootOrgId());
             if (rootOrg == null) {
                 conflicts.add("默认组织树配置指向的根组织不存在 (rootOrgId="
-                    + defaultConfigs.get(0).getRootOrgId() + ")");
+                    + defaultConfig.getRootOrgId() + ")");
             } else {
                 if (!BootstrapGraphDefinition.DEFAULT_TREE_ROOT_ORG_CODE.equals(rootOrg.getCode())) {
                     conflicts.add("默认组织树根组织业务键漂移: code=" + rootOrg.getCode()
@@ -361,6 +378,14 @@ public class AccessBootstrapInitializer {
                 }
                 if (rootOrg.getStatus() == null || rootOrg.getStatus() != 1) {
                     conflicts.add("默认组织树根组织已停用 (status=" + rootOrg.getStatus() + ")");
+                }
+                if (!"1".equals(rootOrg.getOrgType())) {
+                    conflicts.add("默认组织树根组织 orgType=" + rootOrg.getOrgType()
+                        + " 与固定图期望 1 不符（组织型；漂移使 bindUserOrg 投影轨道错位）");
+                }
+                if (rootOrg.getParentId() == null || rootOrg.getParentId() != 0L) {
+                    conflicts.add("默认组织树根组织 parentId=" + rootOrg.getParentId()
+                        + " 与固定图期望 0 不符（根组织必须直挂顶层）");
                 }
                 if (adminPresent && adminSubjectId != null) {
                     boolean adminBound = userOrgDomainService.findByUserId(tenantId, adminSubjectId).stream()

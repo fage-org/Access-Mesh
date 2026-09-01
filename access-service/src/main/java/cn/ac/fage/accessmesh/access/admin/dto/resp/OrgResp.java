@@ -17,7 +17,7 @@ import java.util.List;
  * @param orgName     组织名称
  * @param parentOrgId 父级组织ID
  * @param code        组织编码
- * @param status      状态（0=正常，1=禁用）
+ * @param status      状态（1=启用，0=停用）
  * @param sort        排序号
  * @param createdAt   创建时间
  * @param updatedAt   更新时间
@@ -50,7 +50,7 @@ public record OrgResp(
     String code,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（1=启用，0=停用）
      */
     Integer status,
 

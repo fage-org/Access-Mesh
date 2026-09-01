@@ -14,8 +14,8 @@ import jakarta.validation.constraints.Min;
  * @param pageSize    每页大小（可选，默认20，范围1-100）
  * @param sort        排序字段（可选）
  * @param orgName     组织名称（可选，模糊匹配）
- * @param orgType     组织类型（可选）
- * @param status      状态（可选，0=正常，1=禁用）
+ * @param orgType     组织类型（必填——分页查询按 orgType 分发 VIEW/VIEW_POSITION 门禁，缺省报 ORG_TYPE_REQUIRED）
+ * @param status      状态（可选，1=启用，0=停用——全系统统一口径，DDL DEFAULT 1 同源）
  * @param parentOrgId 父级组织ID（可选，用于查询子组织）
  * @param orgId       子树根组织ID（可选，返回该组织及其子孙，岗位Tab筛选用）
  */
@@ -46,7 +46,7 @@ public record OrgPageReq(
     Integer orgType,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（1=启用，0=停用——全系统统一口径，DDL DEFAULT 1 同源）
      */
     Integer status,
 
