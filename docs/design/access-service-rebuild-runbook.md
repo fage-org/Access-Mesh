@@ -14,7 +14,13 @@
 >   重建后以 enabled=true 重启 access-service 即自动种子 `admin` 首管理员与管理用功能角色
 >   （幂等三状态：全图不存在单事务创建 / 完整匹配 no-op / 部分存在 fail-fast，见 architecture §14.2）。
 >   2026-08-31（T-FE-015）起固定图同时种子：业务门禁 17 条、sys_menu 菜单 15 行（含 MENU 投影）、
->   Gateway 管理 API 清单 33 端点、默认组织树（根组织 `root` + 默认树配置 + admin 挂根组织）。
+>   Gateway 管理 API 清单（T-FE-015 +20 至 33、T-FE-016 +4 至 37 端点）、默认组织树（根组织 `root` + 默认树配置 + admin 挂根组织）。
+- 服务启动密钥环境变量（T-FE-016 实操确认的完整清单；Nacos 配置中心为空不托管，均须启动时注入）：
+  `ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（bootstrap 种子）、
+  `JWT_SECRET_KEY`（access-service OAuth2 域，HS256 需 ≥32 字符）、
+  `ACCESSMESH_SIGNATURE_SECRET`（Gateway 与 access-service **必须同值**——内部请求头验签）、
+  `PERM_INTERNAL_SECRET`（两侧同值，内部管理 API 防护）；Gateway 另需
+  `GATEWAY_CORS_ALLOWED_ORIGINS=http://localhost:8890,http://localhost:8848`（缺 8890 时浏览器请求 403 空体）。
 
 ## 1. 重建步骤
 

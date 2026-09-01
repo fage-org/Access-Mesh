@@ -52,12 +52,6 @@ export function useRoleManage() {
   function filterVisibleTree(nodes: RoleTreeNode[]): RoleTreeNode[] {
     const result: RoleTreeNode[] = [];
     for (const node of nodes) {
-      // 跳过 mock ROOT 容器（仅 mock 层存在，对齐 data.items[0].root）
-      if (node.roleTypeCode === "ROOT") {
-        const children = node.children ? filterVisibleTree(node.children) : [];
-        result.push(...children);
-        continue;
-      }
       if (!isPageVisibleRoleType(node.roleTypeCode)) continue;
       const children = node.children
         ? filterSameTypeChildren(node.children, node.roleTypeCode)
@@ -205,11 +199,18 @@ export function useRoleManage() {
 
   // ========== CRUD ==========
 
-  /** 提交新建/编辑 */
+  /**
+   * 提交新建/编辑
+   *
+   * @param originalExtra 编辑目标的原 extra（来自 detail 回填的 initialData）——
+   *   extraClear 公式消费：原值非空且表单清空 → 显式清空（T-FE-016，对齐资源页
+   *   resource-operation hook 同构公式；JSON null 无法区分「未传」与「清空」）
+   */
   async function handleSubmitForm(
     mode: "create" | "edit",
     form: RoleFormData,
-    editingId?: number
+    editingId?: number,
+    originalExtra?: string | null
   ): Promise<boolean> {
     try {
       if (mode === "create") {
@@ -228,7 +229,8 @@ export function useRoleManage() {
           name: form.name,
           status: form.status,
           sortOrder: form.sortOrder,
-          extra: form.extra || null
+          extra: form.extra || null,
+          extraClear: originalExtra != null && !form.extra
         });
         message("更新成功", { type: "success" });
       }

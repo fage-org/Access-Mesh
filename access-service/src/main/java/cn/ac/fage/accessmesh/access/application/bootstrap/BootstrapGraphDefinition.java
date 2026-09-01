@@ -137,6 +137,13 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/admin/user-role/list", "bootstrap:用户角色查询", true, false),
             new ApiRoute("POST", "/perm/api/perm/user-role/revoke", "bootstrap:回收角色", true, false),
             new ApiRoute("POST", "/admin/role/list", "bootstrap:功能角色列表", true, false),
+            // T-FE-016：角色管理页消费端点（tree/create 已在上方清单）——update/remove/move
+            // 写路径 + detail 编辑回显（树节点无 extra 字段，编辑表单按业务键拉 detail 回填，
+            // role-manage.md §8 既定路径）。list 端点本页不消费（冲突规则页 T-FE-020 届时注册）
+            new ApiRoute("POST", "/perm/api/perm/abstract-role/update", "bootstrap:更新角色", true, false),
+            new ApiRoute("POST", "/perm/api/perm/abstract-role/remove", "bootstrap:删除角色", true, false),
+            new ApiRoute("POST", "/perm/api/perm/abstract-role/move", "bootstrap:移动角色", true, false),
+            new ApiRoute("POST", "/perm/api/perm/abstract-role/detail", "bootstrap:角色详情", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/admin/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }

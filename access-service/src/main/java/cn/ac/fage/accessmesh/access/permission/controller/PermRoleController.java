@@ -91,7 +91,7 @@ public class PermRoleController {
     @PostMapping("/update")
     public PermResult<RoleResp> updateRole(@Valid @RequestBody RoleUpdateReq req) {
         return PermResult.success(roleManageAppService.updateRole(
-                TenantContextHolder.getTenantId(), req.roleId(), req.name(), req.status(), req.sortOrder(), req.extra(), null));
+                TenantContextHolder.getTenantId(), req.roleId(), req.name(), req.status(), req.sortOrder(), req.extra(), req.extraClear(), null));
     }
 
     /**

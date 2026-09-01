@@ -55,10 +55,11 @@ public interface RoleManageAppService {
      * @param status     状态（0禁用 1启用）
      * @param sortOrder  排序序号
      * @param extra      扩展信息（JSON格式）
+     * @param extraClear 显式清空 extra 为 null，优先于 extra（T-FE-016，对齐 T-PERM-028 资源域）
      * @param operatorId 操作者ID
      * @return 更新后的角色详情
      */
-    RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Long operatorId);
+    RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Boolean extraClear, Long operatorId);
 
     /**
      * 移动角色

@@ -11,10 +11,12 @@ import {
   ROLE_TYPE_LABEL,
   ROLE_TYPE_CODE,
   MANAGEABLE_ROLE_TYPES,
+  getRoleDetail,
   type RoleTreeNode,
   type RoleTypeCode,
   type RoleSummaryResp
 } from "@/api/role-manage";
+import { message } from "@/utils/message";
 import { isReadonlyRoleType } from "./utils/types";
 import { Plus, Edit, Delete, Key } from "@element-plus/icons-vue";
 
@@ -61,7 +63,32 @@ function onFilterInput(val: string) {
 
 // ========== 新建/编辑弹窗 ==========
 
-function openRoleForm(
+/**
+ * 编辑回显数据：树节点契约（RoleTreeNode）不含 extra 字段，编辑表单须按业务键拉
+ * detail 回填（role-manage.md §8 既定路径，T-FE-016 接线）——否则 extra 回显空白，
+ * 旧值不可见也无法从界面清空（后端 update null=不更新，不会误删但界面误导）。
+ * detail 失败/未命中时回落树节点数据（extra 不回显，同历史行为）；无 externalId
+ * 的脏数据角色无业务键可查，直接回落（表单本就强制 externalId 必填，属边缘）。
+ */
+async function resolveEditInitialData(
+  node: RoleTreeNode
+): Promise<RoleTreeNode> {
+  if (!node.externalId) return node;
+  try {
+    const detail = await getRoleDetail({
+      roleTypeCode: node.roleTypeCode,
+      roleExternalId: node.externalId
+    });
+    return detail ? { ...node, ...detail } : node;
+  } catch (error: any) {
+    message(error.message || "角色详情加载失败，扩展属性未回显", {
+      type: "warning"
+    });
+    return node;
+  }
+}
+
+async function openRoleForm(
   mode: "create" | "edit",
   node?: RoleTreeNode | null,
   defaultRoleType?: RoleTypeCode
@@ -72,6 +99,9 @@ function openRoleForm(
   const resolvedType: RoleTypeCode = (defaultRoleType ??
     (node?.roleTypeCode as RoleTypeCode) ??
     ROLE_TYPE_CODE.BASIC_ROLE) as RoleTypeCode;
+
+  const initialData =
+    isEdit && node ? await resolveEditInitialData(node) : null;
 
   let formRef: any = null;
 
@@ -84,7 +114,7 @@ function openRoleForm(
           formRef = el;
         },
         mode,
-        initialData: isEdit ? node : null,
+        initialData,
         defaultRoleTypeCode: resolvedType,
         parentNode: !isEdit ? node : null,
         roleTree: roleTree.value
@@ -100,7 +130,8 @@ function openRoleForm(
       const ok = await handleSubmitForm(
         mode,
         formData,
-        isEdit ? node?.id : undefined
+        isEdit ? node?.id : undefined,
+        isEdit ? initialData?.extra : undefined
       );
       if (ok) done();
     }

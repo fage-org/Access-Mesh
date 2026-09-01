@@ -179,7 +179,7 @@ class UserRoleWriteProjectionPgIT {
             TENANT, manager, "ROLE", String.valueOf(ungranted.id()), "MANAGE")).isFalse();
 
         // updateRole 实例门禁经生产投影命中（非 scopeAll），status 镜像到投影
-        roleManageAppService.updateRole(TENANT, granted.id(), "被授权角色-禁用", 0, null, null, manager);
+        roleManageAppService.updateRole(TENANT, granted.id(), "被授权角色-禁用", 0, null, null, null, manager);
         assertThat(((Number) resourceRow(RESOURCE_TYPE_ROLE, String.valueOf(granted.id()))
             .get("status")).intValue()).isZero();
 
@@ -488,7 +488,7 @@ class UserRoleWriteProjectionPgIT {
         // updateRole 按目标现行类型拒绝（JDBC 直插的存量组角色行），事实未被触碰
         Long groupId = insertGroupRole("t019-ext-legacy-group", "存量组角色");
         assertThatThrownBy(() -> roleManageAppService.updateRole(
-                TENANT, groupId, "改名被拒", null, null, null, creator))
+                TENANT, groupId, "改名被拒", null, null, null, null, creator))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
             .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
             .isEqualTo(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());

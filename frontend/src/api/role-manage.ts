@@ -2,12 +2,15 @@
  * 角色管理 API
  * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/abstract-role/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/abstract-role`）。
- * T-FE-041 切换真实链路后，mock/role-manage.ts 的旧 `/api/perm/**` 路径已自然失配。
+ * T-FE-041 切换真实链路后旧 `/api/perm/**` mock 路径自然失配；T-FE-016 联调收口，
+ * mock/role-manage.ts 已随切换退役删除（Phase 3 模式，同 mock/user-manage.ts）。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.2 / §6.10.3
  * 后端实现：access-service RoleController + RoleManageAppService
+ * Gateway 注册：bootstrap 管理 API 清单（BootstrapGraphDefinition.apiRoutes，
+ * tree/create 先在册，update/remove/move/detail 随 T-FE-016 补注册）
  */
 import { http } from "@/utils/http";
 import { type PermResult, unwrap } from "./_envelope";
@@ -85,7 +88,7 @@ export type RoleTreeNode = {
   externalId: string | null;
   status: RoleStatus;
   sortOrder: number;
-  /** 扩展属性（后端 tree 节点未返回，前端编辑表单按需从 detail 获取；mock 提供） */
+  /** 扩展属性（后端 tree 节点不返回，恒 undefined；编辑表单按业务键拉 getRoleDetail 回填，T-FE-016 接线） */
   extra?: string | null;
   children: RoleTreeNode[];
 };
@@ -145,6 +148,8 @@ export type RoleUpdateReq = {
   status?: RoleStatus;
   sortOrder?: number;
   extra?: string | null;
+  /** 清空 extra 为 null 的显式标志，true 时优先于 extra（JSON null 无法区分「未传」与「清空」，T-FE-016 对齐 T-PERM-028 资源域口径） */
+  extraClear?: boolean;
 };
 
 /** 角色移动请求（对齐 RoleMoveReq） */

@@ -14,11 +14,14 @@ import jakarta.validation.constraints.NotNull;
  * @param status    角色状态，可选，0=禁用，1=启用
  * @param sortOrder 排序顺序，可选
  * @param extra     扩展属性JSON，可选
+ * @param extraClear 清空 extra 为 null 的显式标志，可选；true 时优先于 extra
+ *                   （JSON null 无法区分「未传」与「清空」，T-FE-016 对齐 T-PERM-028 资源域口径）
  */
 public record RoleUpdateReq(
     @NotNull Long roleId,
     String name,
     Integer status,
     Integer sortOrder,
-    String extra
+    String extra,
+    Boolean extraClear
 ) {}

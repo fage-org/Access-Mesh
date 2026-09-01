@@ -3,7 +3,7 @@ doc_type: design
 title: 2.2 角色管理页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
+last_reviewed: 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口： 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
 ---
 
 # 2.2 角色管理页 前端设计
@@ -127,6 +127,8 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 
 > T-PERM-043：`extra-roles/list|add|remove` 三行移除（后端接口删除，前端封装保留为不可达代码，见 §4.2）。`create`/`update` 后端显式拒绝 GROUP_ROLE（20022），与本页仅 BASIC_ROLE 的口径一致。
 
+> **T-FE-016 联调收口（2026-09-01）**：api 层真实链路（T-FE-041 切路径）经联调验证零漂移；Gateway bootstrap 清单注册本页消费 6 端点中的 4 个增量（update/remove/move/detail——tree/create 先在册；list 本页不消费留 T-FE-020）；`detail` 由编辑弹窗按业务键拉取回填 extra（树节点契约无 extra 字段，§8 第 1 条既定路径接线）；`update` 接入 `extraClear` 显式清空标志（清空 extra 无协议通道的冒烟缺口，对齐资源域 T-PERM-028 口径与同构提交公式，见契约 §5.2）；mock/role-manage.ts 退役删除。
+
 ## 6. 组件结构（含可复用组件识别）
 
 ```
@@ -228,4 +230,4 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。**
 
 - ~~配权入口已随旧权限授予页移除~~（T-FE-036 已恢复，2026-08-02：「权限授予」按钮跳转 `/perm/grant?subjectType=ROLE`，见 §4.3）。
 - 角色选择器组件未抽取，待权限授予页重做时按 §6 确认（T-FE-036 落地为页面级数据适配器，语义差异大不抽取整块 UI，同 §6 既有结论）。
-- mock 角色树对齐后端扁平森林结构（C2 已移除"类型虚拟根"展示构造）；联调时直接对接后端 `getRoleTree`，无虚拟根适配成本。
+- ~~mock 角色树对齐后端扁平森林结构（C2 已移除"类型虚拟根"展示构造）；联调时直接对接后端 `getRoleTree`，无虚拟根适配成本。~~（已随 T-FE-016 收口兑现：mock/role-manage.ts 退役删除，页面直接消费后端 `getRoleTree`；hook 的 mock 专属 ROOT 跳过分支一并清除）

@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -291,12 +292,61 @@ class RoleManageAppServiceImplTest {
             eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
-                () -> service.updateRole(1L, 123L, "新名", 0, null, null, 100L))
+                () -> service.updateRole(1L, 123L, "新名", 0, null, null, null, 100L))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
             .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
             .isEqualTo(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
         verifyNoInteractions(localProjectionDomainService);
         verifyNoInteractions(abstractRoleMapper);
+    }
+
+    /** T-FE-016：extraClear=true 强制清空 extra——update(entity) 默认忽略 null 列，须 UpdateEntity 显式写。 */
+    @Test
+    void shouldClearExtraWhenExtraClearTrue() {
+        AbstractRole role = new AbstractRole();
+        role.setId(123L);
+        role.setTenantId(1L);
+        role.setRoleType(6);
+        role.setName("旧名");
+        role.setStatus(1);
+        role.setExtra("{\"k\":1}");
+        when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            service.updateRole(1L, 123L, null, null, null, null, true, 100L);
+        }
+
+        // 强制写列：落库实体 extra 必须为 null（旧实现无该参数/普通 update(entity) 下 null 列被忽略）
+        verify(abstractRoleMapper).update(argThat(e -> e.getId().equals(123L) && e.getExtra() == null));
+    }
+
+    /** T-FE-016：extraClear 缺省（null）且 extra 未传——extra 保留原值，不得误清。 */
+    @Test
+    void shouldKeepExtraWhenExtraClearAbsent() {
+        AbstractRole role = new AbstractRole();
+        role.setId(123L);
+        role.setTenantId(1L);
+        role.setRoleType(6);
+        role.setName("旧名");
+        role.setStatus(1);
+        role.setExtra("{\"k\":1}");
+        when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            service.updateRole(1L, 123L, null, null, null, null, null, 100L);
+        }
+
+        verify(abstractRoleMapper).update(argThat(e -> e.getId().equals(123L) && "{\"k\":1}".equals(e.getExtra())));
     }
 
     /** T-ACCESS-019：updateRole 同事务镜像 name/status 到 ROLE 投影。 */
@@ -316,7 +366,7 @@ class RoleManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
-            service.updateRole(1L, 123L, "新名", 0, null, null, 100L);
+            service.updateRole(1L, 123L, "新名", 0, null, null, null, 100L);
         }
 
         verify(localProjectionDomainService).upsertRoleResource(1L, 123L, "新名", 0, null);

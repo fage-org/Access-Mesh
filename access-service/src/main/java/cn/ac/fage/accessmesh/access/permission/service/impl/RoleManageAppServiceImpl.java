@@ -183,7 +183,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @Transactional(rollbackFor = Exception.class)
     @PermissionChange
     @OperationLog(module = "PERMISSION", action = "ABSTRACT_ROLE_UPDATE", targetType = "abstract_role", targetId = "#roleId", summary = "'update role ' + #roleId")
-    public RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Long operatorId) {
+    public RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Boolean extraClear, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
@@ -209,7 +209,23 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         if (extra != null) role.setExtra(extra);
         role.setUpdatedAt(LocalDateTime.now());
         role.setUpdatedBy(operatorId);
-        abstractRoleMapper.update(role);
+        // T-FE-016：extraClear 显式清空（JSON null 无法区分「未传」与「清空」），优先于 extra——
+        // 对齐 T-PERM-028 资源域标准方式。extra 置 null 须强制写列：BaseMapper.update(entity)
+        // 默认忽略 null 字段，UpdateEntity 代理记录 set 调用（含 null 入参）为显式更新列
+        if (Boolean.TRUE.equals(extraClear)) {
+            role.setExtra(null);
+            AbstractRole patch = com.mybatisflex.core.util.UpdateEntity.of(AbstractRole.class);
+            patch.setId(role.getId());
+            patch.setName(role.getName());
+            patch.setStatus(role.getStatus());
+            patch.setSortOrder(role.getSortOrder());
+            patch.setExtra(null);
+            patch.setUpdatedAt(role.getUpdatedAt());
+            patch.setUpdatedBy(role.getUpdatedBy());
+            abstractRoleMapper.update(patch);
+        } else {
+            abstractRoleMapper.update(role);
+        }
 
         // T-ACCESS-019：ROLE 资源投影同事务镜像 name/status；status 禁用/启用影响有效角色解析，
         // 登记 markRoles 反查受影响用户失效（afterCommit 由 @PermissionChange AOP 处理）

@@ -222,32 +222,32 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code IN ('" + String.join("','", expectedApiCodes) + "') AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(33L);
+            Long.class, TENANT)).isEqualTo(37L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND re.code LIKE 'POST:%'",
-            Long.class, TENANT)).isEqualTo(32L);
+            Long.class, TENANT)).isEqualTo(36L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 AND re.code = 'POST:/admin/role/my-info'",
             Long.class, TENANT)).isEqualTo(0L);
 
-        // 76 条授权（T-API-001 + T-PERM-025/032/026/027/030/031 + T-FE-015）：43 条业务门禁 scopeAll
+        // 80 条授权（T-API-001 + T-PERM-025/032/026/027/030/031 + T-FE-015/016）：43 条业务门禁 scopeAll
         // （原 26 条 + T-FE-015 补 17 条——ORG 十档/USER 五档/SYSTEM_CONFIG 两档，组织与用户页与
         // 系统配置页读写门禁 18 档中 USER:CREATE 已在图；菜单种子挂类型走派生同样要求先持有；
         // 含 SERVICE 四操作类型级
         // VIEW/MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE 与 API:ACCESS 类型级+canGrant、
         // OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW、DOMAIN:VIEW、T-PERM-030 补
         // CONFLICT_RULE 四档与 CONDITION 写三档、T-PERM-031 补 DEPENDENCY 五档）
-        // + 33 条实例（33 API:ACCESS）；canGrant=true 共 2 条（目标 API 实例 + API:ACCESS 类型级）
+        // + 37 条实例（37 API:ACCESS——T-FE-016 角色管理页 +4 端点）；canGrant=true 共 2 条（目标 API 实例 + API:ACCESS 类型级）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(76L);
+            Long.class, TENANT, roleId)).isEqualTo(80L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
