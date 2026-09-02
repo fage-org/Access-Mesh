@@ -356,7 +356,8 @@ function useExplainTab(canQuery: () => boolean) {
       form.subjectExternalId,
       form.roleTypeCode,
       form.roleExternalId,
-      form.domainCode
+      form.domainCode,
+      form.clientIp
     ],
     () => invalidate()
   );

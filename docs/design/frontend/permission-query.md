@@ -147,7 +147,7 @@ last_reviewed: 2026-09-02   # T-FE-019 联调收口：三端点切 Gateway 真�
 
 | # | 项 | 状态 | 说明 |
 |---|---|---|---|
-| 1 | 聚合层取消 | ✅ | T-ACCESS-012 决策：不新增聚合层/路由，页面直连 `/api/perm/*` 契约端点；mock 路径联调时切换 |
+| 1 | 聚合层取消 | ✅ | T-ACCESS-012 决策：不新增聚合层/路由，页面直连 `/api/perm/*` 契约端点；mock 路径已于 T-FE-019 切换为契约路径并退役 |
 | 2 | 统一门禁 | ✅ | 设计定案：无独立排查码——explain/recent-changes 门禁切被查目标实例 `USER:VIEW`/`ROLE:VIEW`（effective-permissions 原样保留同款检查）；页面 UI 门 = USER:VIEW 或 ROLE:VIEW |
 | 3 | explain DTO 扩展 | ✅ | `context.clientIp` 输入 + `evaluationContextSource`（ADMIN_INPUT/CURRENT_REQUEST 回退）+ 条件评估明细（IP 掩码脱敏、日期/时间原样）+ 互斥丢弃明细；前端展示 T-FE-019 已接线（模拟 IP 输入 + ExplainPanel 三区块） |
 | 4 | recentChanges 按权限键过滤 | ✅ | 6 字段匹配（null 请求字段通配）+ USER 目标保留 `USER_ROLE_CHANGE`；候选池 200 / 返回上限 50；`impactLevel` 对齐 DIRECT/POSSIBLE |
