@@ -190,7 +190,8 @@ class UserRoleWriteProjectionPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT extra->>'k' FROM abstract_role WHERE id = ? AND delete_flag = 0",
             String.class, granted.id())).isEqualTo("1");
-        roleManageAppService.updateRole(TENANT, granted.id(), null, null, null, null, true, manager);
+        // extra 同传非空值 + extraClear=true：锁契约优先级「true 优先于 extra」（单测锁 extra=null 主路径，此处互补）
+        roleManageAppService.updateRole(TENANT, granted.id(), null, null, null, "{\"ignored\":true}", true, manager);
         assertThat(jdbc.queryForObject(
             "SELECT extra IS NULL FROM abstract_role WHERE id = ? AND delete_flag = 0",
             Boolean.class, granted.id())).isTrue();
