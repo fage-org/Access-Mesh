@@ -85,7 +85,7 @@ last_reviewed: 2026-09-02   # 2026-09-02 T-FE-017 联调收口（§5 补 Gateway
 
 - **新增操作**：操作权限表「新增操作」-> OperationForm（mode=create）。
 - **编辑/删除**：行内按钮。
-- **binaryBit 校验**：必须为 2 的幂次（前端校验 + mock 唯一性校验 `uk_operation_permission_typed_bit`）。
+- **binaryBit 校验**：必须为 2 的幂次（前端校验 + 后端真实 `uk_operation_permission_typed_bit` 约束）。
 
 ## 5. API 依赖
 
@@ -144,10 +144,10 @@ views/system/resource-operation/
 ### mock 角色矩阵
 
 - **admin**：全清单（RESOURCE + OPERATION 所有）。
-
-> 固定图口径（T-FE-017）：bootstrap 固定图持 RESOURCE/OPERATION 各 VIEW+CREATE+MANAGE 六条 scopeAll（VIEW 原有，CREATE/MANAGE 四条为 T-FE-017 补齐死锁防护）。
 - **sec**（安全管理员）：RESOURCE/OPERATION 的 CREATE + MANAGE + VIEW（权限定义职责）。
 - **hr/auditor**：VIEW_PERMS（RESOURCE:VIEW + OPERATION:VIEW，只读）。
+
+> 固定图口径（T-FE-017）：bootstrap 固定图持 RESOURCE/OPERATION 各 VIEW+CREATE+MANAGE 六条 scopeAll（VIEW 原有，CREATE/MANAGE 四条为 T-FE-017 补齐死锁防护）。
 
 ## 8. API 核对清单（登记 T-PERM-028）
 
@@ -166,9 +166,9 @@ views/system/resource-operation/
 - `create`（resource/operation）字段对齐 DTO，业务键唯一性校验（真实 uk 约束；mock 校验随路由段退役）。
 - `move` 防环（自身/子孙）+ 跨类型拦截（真实 20053）。
 - `remove` 级联软删子孙（resource，真实递归 CTE）。
-
-> mock 终态（T-FE-017，2026-09-02）：`mock/resource-operation.ts` 的 11 个 fake-server 路由（旧 `/api/perm/**`，自 T-FE-041 失配）已删除；仅保留数据导出（resources/operations/presetOperationsForType），待 resource-dependency/type-def/permission-grant 三页联调时随各自 mock 退役（设计定案）。
 - `operation-permission list` 无分页，前端本地过滤，量小可接受。
+
+> mock 终态（T-FE-017，2026-09-02）：`mock/resource-operation.ts` 的 11 个 fake-server 路由（旧 `/api/perm/**`，自 T-FE-041 失配）已删除；仅保留数据导出（resources/operations/presetOperationsForType/InternalResource），待 resource-dependency/type-def/permission-grant 三页联调时随各自 mock 退役（设计定案）。
 
 ## 9. 验收记录
 

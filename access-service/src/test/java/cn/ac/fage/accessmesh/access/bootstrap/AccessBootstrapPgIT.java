@@ -208,7 +208,7 @@ class AccessBootstrapPgIT {
             Long.class, TENANT, subjectId, roleId)).isEqualTo(1L);
 
         // SERVICE 资源 + 45 个 API 资源 + 44 个映射（目标接口无映射；13 原始管理端点 +
-        // T-FE-015 组织与用户页 20 端点 + T-FE-016 角色页 4 端点逐条精确注册——Gateway 未映射路径 fail-closed；
+        // T-FE-015 组织与用户页 20 端点 + T-FE-016 角色页 4 端点 + T-FE-017 资源与操作页 8 端点逐条精确注册——Gateway 未映射路径 fail-closed；
         // 页消费 22 端点中 /admin/user/create 与 /perm/api/perm/user-role/assign 原已在册）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "

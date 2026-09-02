@@ -13,7 +13,7 @@
 >   （[T-ACCESS-020](../tasks/T-ACCESS-020.md) 已交付，`access.bootstrap.enabled` 默认关闭）——
 >   重建后以 enabled=true 重启 access-service 即自动种子 `admin` 首管理员与管理用功能角色
 >   （幂等三状态：全图不存在单事务创建 / 完整匹配 no-op / 部分存在 fail-fast，见 architecture §14.2）。
->   2026-08-31（T-FE-015）起固定图同时种子：业务门禁 +17（现 47 条）、sys_menu 菜单 15 行（含 MENU 投影）、
+>   2026-08-31（T-FE-015）起固定图同时种子：业务门禁 +17 至 43（T-FE-015）、+4 至 47（T-FE-017 补 RESOURCE/OPERATION CREATE+MANAGE）、sys_menu 菜单 15 行（含 MENU 投影）、
 >   Gateway 管理 API 清单（T-FE-015 +20 至 33、T-FE-016 +4 至 37、T-FE-017 +8 至 45 端点）、默认组织树（根组织 `root` + 默认树配置 + admin 挂根组织）。
 > - 服务启动密钥环境变量（T-FE-016 实操确认的完整清单；Nacos 配置中心为空不托管，均须启动时注入）：
 >   `ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（bootstrap 种子）、
