@@ -3,7 +3,7 @@ doc_type: design
 title: 5.1 业务域页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-29 T-PERM-026 后端收口终态化（业务键/分页/global/删除保护/JSON 校验/JSONB 确认）；原文 2026-07-01 Phase 1 前端设计定稿
+last_reviewed: 2026-09-02   # 2026-09-02 T-FE-021 联调收口（mock 四文件退役、api 切 Gateway /perm 前缀路径，见 §6/§9 联调注记）；2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-29 T-PERM-026 后端收口终态化（业务键/分页/global/删除保护/JSON 校验/JSONB 确认）；原文 2026-07-01 Phase 1 前端设计定稿
 ---
 
 # 5.1 业务域页 前端设计
@@ -11,6 +11,8 @@ last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登
 > 任务：T-FE-006（Phase 1，mock 驱动）；后端收口：T-PERM-026（2026-08-29，契约要点见 api-contract §5.1/§5.6）
 > 后端契约：`docs/design/permission-center/api-contract.md` §5.1（类型与域）/ §5.6（高级能力）
 > 参照范式：6.2 系统配置页（`system-config.md`，PureTableBar 表格列表范式 + SSOT/降级/核对清单结构）
+
+> **T-FE-021 联调注记（2026-09-02）**：本页 9 端点（biz-domain 5 + domain-config 4）mock→真实收口——api 双文件路径由裸 `/api/perm/*` 切 Gateway `/perm/api/perm/*` 前缀（Gateway 仅路由 /admin/**、/perm/**，裸路径必 404，conflict-rule 页先例）；mock/biz-domain.ts + mock/domain-config.ts + 两个共享注册表整删；bootstrap 固定图 Gateway 端点 +9、业务门禁零新增（DOMAIN:VIEW 与 SYSTEM_CONFIG:VIEW/MANAGE 均已在图）；DTO 比对零漂移。
 
 ## 1. 页面定位
 
@@ -170,6 +172,9 @@ last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登
 
 ## 6. 组件结构
 
+> 路径说明（T-FE-021 起）：下文及 §5/§8 中的端点路径 `/api/perm/...` 为后端服务内路径；前端请求经 Gateway 统一加 `/perm` 前缀（如 `/perm/api/perm/biz-domain/list`），与仓库统一口径一致。
+
+
 ```
 views/system/biz-domain/
 ├── index.vue                  # 主页面（主从布局 + 权限门控）
@@ -182,7 +187,7 @@ views/system/biz-domain/
     └── types.ts               # 表单类型 + 工厂 + CONFIG_TYPE_OPTIONS 2 项（SUB_PERM/CLASSIFY） + parseExtra
 ```
 
-> **mock 共享注册表**：`mock/_bizDomainRegistry.ts` 持有业务域内存数据（唯一权威源），`mock/biz-domain.ts`（CRUD）与 `mock/domain-config.ts`（save 解析 domainCode→bizDomainId）共用同一份。使运行时新建/删除的业务域能被 domain-config save 实时感知（后端等价 `typeResolutionService.resolveDomainId`）。域配置数据同范式下沉 `mock/_domainConfigRegistry.ts`（T-PERM-026 起）——biz-domain mock remove 的「域下存在配置拒删」引用检查需要两份运行时数据一致。零 src 依赖（仅 mock 间共享，不 import @/api/*）。
+> **mock 共享注册表（已退役）**：Phase 1 时期 `mock/_bizDomainRegistry.ts` + `mock/_domainConfigRegistry.ts` 支撑 mock 间运行时数据一致（CRUD/引用检查/resolveDomainId 等价）。T-FE-021 联调切真实接口后 mock 四文件（biz-domain/domain-config/两个 registry）整删，注册表范式随之退役。
 
 ### Step 1.5 组件识别（登记 T-FE-001 组件池）
 
@@ -268,7 +273,7 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026；�
 - ~~biz-domain list 前端本地过滤+分页~~ → 已切服务端过滤+分页（2026-08-29）。
 - extra JSON 校验：前端 `JSON.parse` 预拦截 + 后端 `JsonValidationUtils` 二次校验（T-PERM-026 补齐双层）。
 - mock 保留 `deleted` 内部字段（对齐 schema delete_flag 范式），响应 clone 时剔除；`global` 随 Resp 收口改为下发（对齐后端终态）。`domainCode` 为 domain-config mock 内部冗余字段（便于按域过滤），响应 clone 时剔除。
-- **mock 共享注册表**：`mock/_bizDomainRegistry.ts` 持有业务域内存数据，biz-domain 与 domain-config mock 共用同一份——运行时新建/删除的域对 domain-config save 的 `resolveDomainId(code)` 实时可见；域配置数据同范式下沉 `mock/_domainConfigRegistry.ts`（biz-domain remove 引用检查需要）。
+- ~~mock 共享注册表~~ → 已随 T-FE-021 mock 四文件整删退役；运行时一致性语义回归后端（resolveDomainId/删除保护引用检查）。
 - ~~全局域不可删靠 mock 校验~~ → Resp 返回 global 后前端预判禁用删除按钮 + 后端 remove 删除保护（20051）双层兜底；bootstrap 固定图已补 DOMAIN:VIEW（空库可访问，§7）。
 - **删除二次确认**：业务域/域配置删除均在 hook `handleDelete*` 内前置 `ElMessageBox.confirm`（对齐 role/type-def 范式，持久配置类资源防误删）。
 - **子表权限守卫**：「配置」按钮 `v-if="canViewConfig"` 隐藏无权入口；`selectDomain(row, canViewConfig)` 双保险守卫，无 `SYSTEM_CONFIG:VIEW` 时只选中域不发 /list 请求，避免可避免的 403。

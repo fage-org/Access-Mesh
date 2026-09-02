@@ -175,6 +175,18 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/perm/api/perm/permission-view/effective-permissions", "bootstrap:排查有效权限", true, false),
             new ApiRoute("POST", "/perm/api/perm/auth/query-scopes", "bootstrap:排查范围权限四态", true, false),
             new ApiRoute("POST", "/perm/api/perm/permission-view/explain", "bootstrap:排查单权限解释", true, false),
+            // T-FE-021：业务域配置页消费端点（biz-domain 5 + domain-config 4，T-PERM-026 实现）。
+            // biz-domain list/detail 门禁 DOMAIN:VIEW、写操作与 domain-config 门禁 SYSTEM_CONFIG:VIEW/MANAGE
+            // ——两类均已在固定图（OPERATION_LOG 先例/系统配置页门禁），业务门禁零新增
+            new ApiRoute("POST", "/perm/api/perm/biz-domain/list", "bootstrap:业务域列表", true, false),
+            new ApiRoute("POST", "/perm/api/perm/biz-domain/detail", "bootstrap:业务域详情", true, false),
+            new ApiRoute("POST", "/perm/api/perm/biz-domain/create", "bootstrap:创建业务域", true, false),
+            new ApiRoute("POST", "/perm/api/perm/biz-domain/update", "bootstrap:更新业务域", true, false),
+            new ApiRoute("POST", "/perm/api/perm/biz-domain/remove", "bootstrap:删除业务域", true, false),
+            new ApiRoute("POST", "/perm/api/perm/domain-config/list", "bootstrap:域配置列表", true, false),
+            new ApiRoute("POST", "/perm/api/perm/domain-config/detail", "bootstrap:域配置详情", true, false),
+            new ApiRoute("POST", "/perm/api/perm/domain-config/save", "bootstrap:保存域配置", true, false),
+            new ApiRoute("POST", "/perm/api/perm/domain-config/remove", "bootstrap:删除域配置", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/admin/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }

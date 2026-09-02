@@ -1,7 +1,7 @@
 /**
  * 业务域 API
- * 经 @/utils/http 调用 access-service 端点（`/api/perm/biz-domain/*`）；
- * Phase 1 由 mock/biz-domain.ts（vite-plugin-fake-server）提供假数据。
+ * 经 @/utils/http 调用 access-service 端点（`/perm/api/perm/biz-domain/*`，Gateway /perm 前缀——T-FE-021 切换）；
+ * mock/biz-domain.ts 已于 T-FE-021 联调退役删除。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
  *
@@ -71,7 +71,7 @@ export const getBizDomainList = async (
 ): Promise<PaginatedResp<BizDomainResp>> => {
   const res = await http.request<PermResult<PaginatedResp<BizDomainResp>>>(
     "post",
-    "/api/perm/biz-domain/list",
+    "/perm/api/perm/biz-domain/list",
     { data: params }
   );
   return unwrap(res);
@@ -85,7 +85,7 @@ export const getBizDomainDetail = async (
 ): Promise<BizDomainResp | null> => {
   const res = await http.request<PermResult<BizDomainResp | null>>(
     "post",
-    "/api/perm/biz-domain/detail",
+    "/perm/api/perm/biz-domain/detail",
     { data: { domainCode } }
   );
   return unwrap(res);
@@ -97,7 +97,7 @@ export const createBizDomain = async (
 ): Promise<BizDomainResp> => {
   const res = await http.request<PermResult<BizDomainResp>>(
     "post",
-    "/api/perm/biz-domain/create",
+    "/perm/api/perm/biz-domain/create",
     { data }
   );
   return unwrap(res);
@@ -109,7 +109,7 @@ export const updateBizDomain = async (
 ): Promise<BizDomainResp> => {
   const res = await http.request<PermResult<BizDomainResp>>(
     "post",
-    "/api/perm/biz-domain/update",
+    "/perm/api/perm/biz-domain/update",
     { data }
   );
   return unwrap(res);
@@ -121,7 +121,7 @@ export const updateBizDomain = async (
 export const removeBizDomain = async (ids: number[]): Promise<void> => {
   const res = await http.request<PermResult<void>>(
     "post",
-    "/api/perm/biz-domain/remove",
+    "/perm/api/perm/biz-domain/remove",
     { data: { ids } }
   );
   unwrap(res);

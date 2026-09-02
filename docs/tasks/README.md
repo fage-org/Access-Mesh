@@ -174,7 +174,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 | [T-FE-037](T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ⚙️ | ⏳ |
 | [T-FE-019](T-FE-019.md) | Phase 3 联调：权限查询/校验（4.2）——Gateway +3 端点/explain 扩展展示接线/mock 整删；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-013, T-PERM-033 | ✅ | ✓ |
 | [T-FE-020](T-FE-020.md) | Phase 3 联调：条件/冲突规则（3.2/3.3）——Gateway +9 端点/前端 conflict-rule 路径修正/mock 双文件退役；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ✅ | ✓ |
-| T-FE-021 | Phase 3 联调：业务域配置（5.1） | frontend-phase3 | api-contract | T-FE-006, T-PERM-026 | ⚙️ | ⏳ |
+| [T-FE-021](T-FE-021.md) | Phase 3 联调：业务域配置（5.1）——Gateway +9 端点/前端 api 双文件路径修正/mock 四文件整删；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-006, T-PERM-026 | ✅ | ✓ |
 | T-FE-022 | Phase 3 联调：系统/服务配置与日志（6.x/5.2/7.x，2026-08-28 扩入 7.x） | frontend-phase3 | api-contract | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 | ⚙️ | ⏳ |
 | T-FE-023 | Phase 4：SPI 策略扩展验证 + 扩展指南（design/frontend/extension-guide.md） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；design/frontend/extension-guide.md | — | ⚙️ | ⏳ |
 | [T-FE-024](T-FE-024.md) | ReConditionPicker + ReConditionEditor + ChildPermissionInline 条件/子权限组件抽取 | [frontend-phase4](../plans/frontend-phase4-plan.md) | design/frontend/permission-condition.md；permission-grant.md | T-FE-001, T-FE-009, T-FE-014 | ✅ | ✅ |

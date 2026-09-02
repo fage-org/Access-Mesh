@@ -1,7 +1,7 @@
 /**
  * 域配置 API
- * 经 @/utils/http 调用 access-service 端点（`/api/perm/domain-config/*`）；
- * Phase 1 由 mock/domain-config.ts（vite-plugin-fake-server）提供假数据。
+ * 经 @/utils/http 调用 access-service 端点（`/perm/api/perm/domain-config/*`，Gateway /perm 前缀——T-FE-021 切换）；
+ * mock/domain-config.ts 已于 T-FE-021 联调退役删除。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
@@ -65,7 +65,7 @@ export const getDomainConfigList = async (
 ): Promise<ItemsResp<DomainConfigResp>> => {
   const res = await http.request<PermResult<ItemsResp<DomainConfigResp>>>(
     "post",
-    "/api/perm/domain-config/list",
+    "/perm/api/perm/domain-config/list",
     { data: { domainCode: domainCode ?? null } satisfies DomainConfigListReq }
   );
   return unwrap(res);
@@ -78,7 +78,7 @@ export const getDomainConfigDetail = async (
 ): Promise<DomainConfigResp | null> => {
   const res = await http.request<PermResult<DomainConfigResp | null>>(
     "post",
-    "/api/perm/domain-config/detail",
+    "/perm/api/perm/domain-config/detail",
     { data: { domainCode, configType } satisfies DomainConfigGetReq }
   );
   return unwrap(res);
@@ -92,7 +92,7 @@ export const saveDomainConfig = async (
 ): Promise<DomainConfigResp> => {
   const res = await http.request<PermResult<DomainConfigResp>>(
     "post",
-    "/api/perm/domain-config/save",
+    "/perm/api/perm/domain-config/save",
     { data }
   );
   return unwrap(res);
@@ -102,7 +102,7 @@ export const saveDomainConfig = async (
 export const removeDomainConfig = async (ids: number[]): Promise<void> => {
   const res = await http.request<PermResult<void>>(
     "post",
-    "/api/perm/domain-config/remove",
+    "/perm/api/perm/domain-config/remove",
     { data: { ids } }
   );
   unwrap(res);
