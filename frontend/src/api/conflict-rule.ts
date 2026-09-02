@@ -127,8 +127,10 @@ export const getConflictRuleList = async (): Promise<
   return unwrap(res);
 };
 
-/** 查询冲突规则详情（POST /api/perm/conflict-rule/detail，IdReq{id}）。
- *  内部主键 id 定位（T-PERM-030 评估定案：冲突规则无业务键）；查不到抛 20020。 */
+/** 查询冲突规则详情（POST /perm/api/perm/conflict-rule/detail，IdReq{id}）。
+ *  内部主键 id 定位（T-PERM-030 评估定案：冲突规则无业务键）；查不到抛 20020。
+ *  ⚠️ 该端点未注册 bootstrap Gateway 清单（本页不消费，T-FE-020 口径）——
+ *  后续页面接入前须先在 BootstrapGraphDefinition.apiRoutes() 补注册，否则 fail-closed 403。 */
 export const getConflictRuleDetail = async (
   id: number
 ): Promise<ConflictRuleResp> => {

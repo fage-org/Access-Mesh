@@ -71,7 +71,9 @@ export const getConditionList = async (): Promise<ItemsResp<ConditionResp>> => {
 };
 
 /** 查询条件详情（POST /perm/api/perm/permission-condition/detail，ConditionDetailReq{conditionCode}）。
- *  读取无门禁（2026-08-08 产品确认：条件规则全租户开放）；查不到抛 20006 CONDITION_NOT_FOUND。 */
+ *  读取无门禁（2026-08-08 产品确认：条件规则全租户开放）；查不到抛 20006 CONDITION_NOT_FOUND。
+ *  ⚠️ 该端点未注册 bootstrap Gateway 清单（本页不消费，T-FE-020 口径）——
+ *  后续页面接入前须先在 BootstrapGraphDefinition.apiRoutes() 补注册，否则 fail-closed 403。 */
 export const getConditionDetail = async (
   conditionCode: string
 ): Promise<ConditionResp> => {
