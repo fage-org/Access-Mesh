@@ -108,6 +108,12 @@ export function usePermissionGrant() {
   const conditions = ref<ConditionResp[]>([]);
   const depsLoading = ref(false);
   let depsLoaded = false;
+  /**
+   * 🔧 T-FE-018（理解 A，2026-09-02 定案）：当前用户缺少 TYPE_DEFINITION:VIEW 软依赖。
+   * true 时类型下拉与矩阵区禁用并显示「权限不足+重试」（GrantMatrixPanel），
+   * 不误报为「暂无资源类型配置」空态；页面其余部分（主体树等）保持可用。
+   */
+  const typePermDenied = ref(false);
 
   /** 默认矩阵类型：上次选择（localStorage 按 subjectType 隔离）优先，否则候选第一个（§2.2） */
   function resolveDefaultTypeCode(): string | null {
@@ -125,12 +131,21 @@ export function usePermissionGrant() {
     if (depsLoaded || depsLoading.value) return;
     depsLoading.value = true;
     try {
+      // 🔧 T-FE-018（理解 A）：类型候选只读依赖探查——后端 type-definition/list 强制
+      // TYPE_DEFINITION:VIEW（类型级），缺权限时 loadDeps 会整体失败。缺权限不发起
+      // 四个依赖请求（全部服务于矩阵区，已禁用），仅标记降级态；重试入口见 retryLoadDeps。
+      if (!hasPerms(PERMISSION_GRANT_PERMS.TYPE_VIEW)) {
+        typePermDenied.value = true;
+        typeCandidates.value = [];
+        return;
+      }
+      typePermDenied.value = false;
       const [typeResp, treeResp, opResp, conditionResp] = await Promise.all([
         getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE }),
-        // 门控说明（T-ACCESS-021 GUI 段缺陷修复）：资源树/操作列不做前端 capability 前置——
-        // /auth/user-menu 权限串按 admin 域类型白名单派生，不含 RESOURCE/OPERATION 类型码，
-        // 前置判定恒 false 会使矩阵恒空；访问控制由后端类型级 VIEW 门禁（T-PERM-042）承担，
-        // 无权限者收到接口错误提示
+        // 门控说明（T-ACCESS-021 GUI 段缺陷修复）：资源树/操作列不做前端 capability 前置
+        // （访问控制由后端类型级 VIEW 门禁 T-PERM-042 承担，无权限者收到接口错误提示；
+        // RESOURCE/OPERATION 虽已随 T-PERM-025 补入 /auth/user-menu 权限串白名单，
+        // 仍维持不做前端前置的既有设计）
         getResourceTree({}),
         getOperationList({}),
         // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），条件列表始终加载
@@ -172,6 +187,14 @@ export function usePermissionGrant() {
     ) {
       loadMatrixForType({ typeCode: currentTypeCode.value }).catch(() => {});
     }
+  }
+
+  /**
+   * 🔧 T-FE-018（理解 A）：typePermDenied 降级态的重试入口——重新探查权限串
+   * （权限授予后无需重新登录即可生效于下一次登录态刷新；重试本身幂等）。
+   */
+  function retryLoadDeps() {
+    void loadDeps();
   }
 
   // ========== 查看态（§3.4 开关为查看态过滤，不影响草稿与数据） ==========
@@ -927,6 +950,9 @@ export function usePermissionGrant() {
     operationDefs,
     conditions,
     depsLoading,
+    /** 🔧 T-FE-018：TYPE_DEFINITION:VIEW 软依赖降级态（true=类型下拉/矩阵区禁用+重试） */
+    typePermDenied,
+    retryLoadDeps,
     // 矩阵上下文（T-FE-038）
     typeCandidates,
     currentTypeCode,

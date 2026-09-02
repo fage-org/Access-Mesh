@@ -1,9 +1,7 @@
-// 资源与操作定义 Mock —— 共享数据模块（T-FE-017 联调收口）。
-// 本文件原为 T-FE-008 资源/操作页 mock（11 个 fake-server 路由），T-FE-041 api 层切
-// 真实路径（/perm/api/perm/**）后路由段自然失配；T-FE-017 资源/操作页联调收口时删除
-// 失配路由段，仅保留仍被 resource-dependency / type-def / permission-grant 三个 mock
-// 引用的数据导出（resources / operations / InternalResource / presetOperationsForType）。
-// 三个依赖页面的联调任务（T-FE-018/020 等）届时随各自 mock 退役一并处置。
+// 资源与操作定义 Mock —— 共享数据模块（T-FE-018 随授权页 mock 退役迁入 _shared）。
+// 沿革：T-FE-008 建 11 个 fake-server 路由 → T-FE-017 资源/操作页联调删失配路由段仅保数据导出
+// → T-FE-018 type-def / permission-grant mock 退役，唯一存活消费方 = resource-dependency mock，
+// 本文件随之更名 _shared/resource-fixtures.ts。
 //
 // T-PERM-028 口径保留：
 // - binaryBit/inheritMask 线格式为十进制字符串（63 位 bigint）；

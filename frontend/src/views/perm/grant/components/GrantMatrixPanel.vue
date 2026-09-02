@@ -28,6 +28,8 @@ const props = defineProps<{
   resourceForest: ResourceTreeNode[];
   /** 资源类型定义全集（类型下拉候选，§2.2；候选=全集，防首次授权死锁） */
   typeCandidates: TypeDefResp[];
+  /** 🔧 T-FE-018（理解 A）：缺少 TYPE_DEFINITION:VIEW 软依赖——类型下拉与矩阵区禁用+重试，不误报空态 */
+  typePermDenied: boolean;
   /** 当前矩阵类型（MatrixContext，§2.2） */
   currentTypeCode: string | null;
   /** 主体已有权限类型（仅用于下拉标记与排序——有权限的排前，§2.2） */
@@ -67,6 +69,8 @@ const emit = defineEmits<{
   (e: "update:keyword", value: string): void;
   /** 类型切换（MatrixContext，§2.2；未保存变更确认由页面层完成） */
   (e: "switchType", typeCode: string): void;
+  /** 🔧 T-FE-018（理解 A）：TYPE_DEFINITION:VIEW 降级态重试（重新探查权限并加载依赖） */
+  (e: "retryDeps"): void;
   (
     e: "cellDetail",
     target: {
@@ -500,6 +504,18 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
         :title="`分组角色「${groupHint}」无独立权限矩阵`"
         sub-title="请展开该分组，选择其基础角色查看/授予权限（授权目标 = 基础角色本身）"
       />
+      <!-- 🔧 T-FE-018（理解 A）：TYPE_DEFINITION:VIEW 软依赖缺失——明确提示权限不足并允许重试，
+           不得误报为「暂无资源类型配置」空态（设计 §10 已知缺口的联调定案落地） -->
+      <el-result
+        v-else-if="typePermDenied"
+        icon="warning"
+        title="无法加载资源类型"
+        sub-title="当前账号缺少类型定义查看权限（TYPE_DEFINITION:VIEW），请联系管理员开通后重试"
+      >
+        <template #extra>
+          <el-button type="primary" @click="emit('retryDeps')">重试</el-button>
+        </template>
+      </el-result>
       <!-- 类型候选为空（§2.2：候选=全集为空时矩阵区 el-empty 空态） -->
       <el-empty
         v-else-if="typeCandidates.length === 0"

@@ -2,7 +2,7 @@
  * 权限授予 API（4.1 权限授予页 v3，T-FE-036）
  * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/role-resource-permission/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/role-resource-permission`）。
- * T-FE-041 切换真实链路后，mock/permission-grant.ts 的旧 `/api/perm/**` 路径已自然失配。
+ * T-FE-041 切换真实链路后，mock/permission-grant.ts（已随 T-FE-018 删除）旧路径不再存在。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
@@ -13,7 +13,7 @@
  * - `RolePermissionItem` 统一返回 14 字段；list 支持 resourceTypeCode/includeChildren。
  * - `apply-grant-plan` 是授权页面唯一写入口（记录级 creates/updates/removes，
  *   单事务原子 + 受影响行数断言；无 CAS/幂等表/clientRequestId，第十四轮收窄），
- *   存量 save/revoke/children/add-child/remove-child 仅为其他服务兼容保留，授权页面不调用。
+ *   旧写端点 save/revoke/children/add-child/remove-child 已删除（网关 404，§6.4 端点退役收口）。
  * - grantedBits 为 63 位位图十进制字符串（避免 JSON number 精度丢失），前端 BigInt 解析。
  */
 import { http } from "@/utils/http";
@@ -118,8 +118,8 @@ export type RolePermissionItem = {
   codeType: string | null;
   /** 资源名（展示用；scopeMode=ALL 时为 null） */
   resourceName: string | null;
-  /** 操作码；组合位无对应操作定义时为 null（配合 grantedBits 兜底） */
-  operationCode: string | null;
+  /** 操作码；契约 §6.4 MANUAL 一行一操作恒有值（T-FE-018 收紧，不再容 null） */
+  operationCode: string;
   /** 是否可再授予 */
   canGrant: boolean;
   /** 条件码；无条件为 null */
@@ -164,8 +164,8 @@ export type GrantRecordKey = {
   resourceTypeCode: string;
   resourceCode: string | null;
   codeType: string | null;
-  /** 操作码（本页不支持多操作位组合新增，创建必传；对齐设计文档 §12 注） */
-  operationCode: string | null;
+  /** 操作码（必填非空白——MANUAL 一行只写一个操作位，契约 §6.5.1 validateKeyShapes；T-FE-018 收紧） */
+  operationCode: string;
   scopeMode: GrantScopeMode;
   conditionCode: string | null;
   /** 缺省 false */

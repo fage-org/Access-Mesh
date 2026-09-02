@@ -2,7 +2,8 @@
  * 类型定义 API
  * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/type-definition/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/type-definition`）。
- * T-FE-041 切换真实链路后，mock/type-def.ts 的旧 `/api/perm/**` 路径已自然失配。
+ * T-FE-041 切换真实链路后，mock/type-def.ts 的旧 `/api/perm/**` 路径已自然失配
+ *（该 mock 已随 T-FE-018 授权页联调退役删除）。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *

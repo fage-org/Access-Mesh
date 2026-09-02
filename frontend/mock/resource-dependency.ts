@@ -5,8 +5,8 @@
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。
 //
 // 种子 ID 对齐（名称/类型映射由前端 hook 加载 resource-operation mock 建立）：
-// - 资源：201-204 MENU / 211-212 BUTTON / 221-222 API / 231-232 DATA（见 mock/resource-operation.ts）
-// - 操作位：CREATE=1 VIEW=2 UPDATE=4 DELETE=8 MANAGE=16（见 mock/resource-operation.ts CRUD_OPS）
+// - 资源：201-204 MENU / 211-212 BUTTON / 221-222 API / 231-232 DATA（见 mock/_shared/resource-fixtures.ts）
+// - 操作位：CREATE=1 VIEW=2 UPDATE=4 DELETE=8 MANAGE=16（见 mock/_shared/resource-fixtures.ts CRUD_OPS）
 //
 // 对齐后端 DependencyAppServiceImpl（T-PERM-031 收口，2026-08-30）：
 // - create/update 用业务键（sourceResourceTypeCode+sourceResourceCode+...），mock 内部解析为资源 ID
@@ -25,7 +25,7 @@ import {
   resources,
   operations,
   type InternalResource
-} from "./resource-operation";
+} from "./_shared/resource-fixtures";
 
 // ========== 本地类型（对齐后端 DTO，api-contract.md §5.6） ==========
 

@@ -33,6 +33,14 @@ export const PERMISSION_GRANT_PERMS = {
    * 本串保留仅对齐后端枚举；不再参与条件列表加载门控与矩阵登记。
    */
   CONDITION_VIEW: "CONDITION:VIEW",
+  /**
+   * 🔧 T-FE-018（2026-09-02 定案，理解 A）：类型候选数据源 type-definition/list 的
+   * 只读依赖声明（后端 TypeDefinitionAppServiceImpl 强制门禁）。**软依赖**：缺失时
+   * 只禁用类型下拉与矩阵区并明确提示（hook.ts typePermDenied），**不得进路由
+   * meta.auths 硬门禁**——无类型管理权的配权用户仍可进入页面查看其余部分。
+   * 登录权限串白名单已含 TYPE_DEFINITION（T-PERM-025，2026-08-28 补齐）。
+   */
+  TYPE_VIEW: "TYPE_DEFINITION:VIEW",
 
   // ===== 左栏数据源门禁（轨道 1，组织入口二期/个人入口预留） =====
   /** 组织树数据源（组织入口二期） */
@@ -51,8 +59,11 @@ export type PermissionGrantPermValue =
  * 全部 perm 串清单（去重派生），用于路由 `meta.auths`。
  * 派生而非手抄，确保新增/重命名 perm 串时单点修改。
  * 🔧 T-FE-040 v3.1（S5）：CONDITION:VIEW 已全租户开放，不再登记进角色矩阵（VIEW 列移除）。
+ * 🔧 T-FE-018：TYPE_VIEW 为软依赖（缺权限降级提示，不拦路由），同样不进 meta.auths。
  */
 export const PERMISSION_GRANT_PERM_LIST: ReadonlyArray<PermissionGrantPermValue> =
   Array.from(new Set(Object.values(PERMISSION_GRANT_PERMS))).filter(
-    p => p !== PERMISSION_GRANT_PERMS.CONDITION_VIEW
+    p =>
+      p !== PERMISSION_GRANT_PERMS.CONDITION_VIEW &&
+      p !== PERMISSION_GRANT_PERMS.TYPE_VIEW
   );

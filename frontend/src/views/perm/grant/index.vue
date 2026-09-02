@@ -28,6 +28,8 @@ const {
   operationDefs,
   conditions,
   depsLoading,
+  typePermDenied,
+  retryLoadDeps,
   typeCandidates,
   currentTypeCode,
   subjectPermissionTypes,
@@ -119,6 +121,7 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
             :source-chain="sourceChain"
             :resource-forest="resourceForest"
             :type-candidates="typeCandidates"
+            :type-perm-denied="typePermDenied"
             :current-type-code="currentTypeCode"
             :permission-type-codes="subjectPermissionTypes"
             :visible-columns="visibleColumns"
@@ -131,6 +134,7 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
             :group-hint="groupHint"
             :locate-request="locateRequest"
             @switch-type="handleSwitchType"
+            @retry-deps="retryLoadDeps"
             @cell-detail="onCellDetail"
             @cell-grant="onCellGrant"
             @grant="openGrantDialog()"

@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { operations, presetOperationsForType } from "./resource-operation";
+import { operations, presetOperationsForType } from "./resource-fixtures";
 
 // T-FE-017：路由段删除后，本 spec 改锁共享数据导出（仍被 resource-dependency /
 // type-def / permission-grant 三个 mock 引用）；原 list 路由空白串过滤契约用例
 // 随路由段一并退役（消费方已切真实后端，契约行为由 PgIT 侧覆盖）。
 
-describe("resource-operation mock 共享数据", () => {
+describe("resource-fixtures mock 共享数据", () => {
   it("种子操作按资源类型预置 CRUD 四操作，位字段为十进制字符串", () => {
     const menuOps = operations.filter(op => op.resourceTypeCode === "MENU");
     expect(menuOps.map(op => op.code).sort()).toEqual([
