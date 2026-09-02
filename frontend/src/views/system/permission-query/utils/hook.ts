@@ -214,17 +214,20 @@ function useEffectivePermissionsTab(canQuery: () => boolean) {
 // ========== Tab2: query-scopes（范围权限四态，仅 USER） ==========
 
 function useQueryScopesTab(canQuery: () => boolean) {
+  // 示例默认值已清空（T-FE-019 设计定案）：mock 时代 REPORT/DATA 等示例在真实库
+  // 不存在，默认值直接查询必得 DENIED/空态，对排查者是误导；编码写法由输入框
+  // placeholder 引导
   const form = reactive({
     subjectTypeCode: "LOCAL_USER",
     subjectExternalId: "",
     domainCode: "example",
-    parentResourceTypeCode: "REPORT",
-    parentResourceCode: "report:sales",
-    parentCodeType: "default",
-    parentOperationCodes: "DATA_READ,DATA_EDIT",
-    scopeResourceTypeCodes: "DATA",
-    scopeOperationCodes: "DATA_READ,DATA_EDIT,DATA_EXPORT,DATA_DELETE",
-    scopeCodeType: "default"
+    parentResourceTypeCode: "",
+    parentResourceCode: "",
+    parentCodeType: "",
+    parentOperationCodes: "",
+    scopeResourceTypeCodes: "",
+    scopeOperationCodes: "",
+    scopeCodeType: ""
   });
   const result = ref<QueryScopesResp | null>(null);
   const loading = ref(false);
@@ -300,13 +303,13 @@ function useQueryScopesTab(canQuery: () => boolean) {
     form.subjectTypeCode = "LOCAL_USER";
     form.subjectExternalId = "";
     form.domainCode = "example";
-    form.parentResourceTypeCode = "REPORT";
-    form.parentResourceCode = "report:sales";
-    form.parentCodeType = "default";
-    form.parentOperationCodes = "DATA_READ,DATA_EDIT";
-    form.scopeResourceTypeCodes = "DATA";
-    form.scopeOperationCodes = "DATA_READ,DATA_EDIT,DATA_EXPORT,DATA_DELETE";
-    form.scopeCodeType = "default";
+    form.parentResourceTypeCode = "";
+    form.parentResourceCode = "";
+    form.parentCodeType = "";
+    form.parentOperationCodes = "";
+    form.scopeResourceTypeCodes = "";
+    form.scopeOperationCodes = "";
+    form.scopeCodeType = "";
     invalidate();
   }
 
@@ -323,11 +326,15 @@ function useExplainTab(canQuery: () => boolean) {
     roleTypeCode: "BASIC_ROLE",
     roleExternalId: "",
     domainCode: "example",
-    resourceTypeCode: "REPORT",
-    resourceCode: "report:sales",
-    codeType: "default",
-    operationCode: "DATA_READ",
+    // 示例默认值已清空（T-FE-019 设计定案，同 Tab2 注记）
+    resourceTypeCode: "",
+    resourceCode: "",
+    codeType: "",
+    operationCode: "",
     scopeMode: "INSTANCE" as "INSTANCE" | "ALL",
+    /** 模拟客户端 IP（T-PERM-033 explain 扩展）：可选，IP 类条件按此评估；
+     *  不填时后端回退当前请求 IP，响应 evaluationContextSource 标注来源 */
+    clientIp: "",
     includeSourceRoles: true,
     includeRecentChanges: true,
     recentDays: 30
@@ -400,6 +407,9 @@ function useExplainTab(canQuery: () => boolean) {
         codeType: isAll ? undefined : form.codeType,
         operationCode: form.operationCode,
         scopeMode: form.scopeMode,
+        context: form.clientIp.trim()
+          ? { clientIp: form.clientIp.trim() }
+          : undefined,
         includeSourceRoles: form.includeSourceRoles,
         includeRecentChanges: form.includeRecentChanges,
         recentDays: form.recentDays
@@ -427,11 +437,12 @@ function useExplainTab(canQuery: () => boolean) {
     form.roleTypeCode = "BASIC_ROLE";
     form.roleExternalId = "";
     form.domainCode = "example";
-    form.resourceTypeCode = "REPORT";
-    form.resourceCode = "report:sales";
-    form.codeType = "default";
-    form.operationCode = "DATA_READ";
+    form.resourceTypeCode = "";
+    form.resourceCode = "";
+    form.codeType = "";
+    form.operationCode = "";
     form.scopeMode = "INSTANCE";
+    form.clientIp = "";
     form.includeSourceRoles = true;
     form.includeRecentChanges = true;
     form.recentDays = 30;

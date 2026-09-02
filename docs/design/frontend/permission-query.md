@@ -3,12 +3,14 @@ doc_type: design
 title: 权限排查 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-29   # T-PERM-033 收口：门禁设计定案（无独立排查码，目标实例 USER:VIEW/ROLE:VIEW）+ explain 契约扩展 + API 核对清单收口
+last_reviewed: 2026-09-02   # T-FE-019 联调收口：三端点切 Gateway 真实路径 + mock 整删 + explain 扩展展示接线 + 示例默认值清空
 ---
 
 # 权限排查 前端设计
 
 > 对应任务：T-FE-013
+
+> **联调注记（T-FE-019，2026-09-02）**：三端点已切 Gateway 外部路径（`/perm/api/perm/permission-view/effective-permissions`、`/perm/api/perm/auth/query-scopes`、`/perm/api/perm/permission-view/explain`）并补注册 bootstrap 清单（+3，业务门禁零新增——USER:VIEW/ROLE:MANAGE 固定图原持）。`mock/permission-query.ts` 整删（无外部消费方）。Tab2/Tab3 mock 时代示例默认值（REPORT/report:sales 等）清空。§8 explain 契约扩展的前端展示已接线：Tab3 模拟 IP 输入（context.clientIp）+ ExplainPanel 条件评估上下文/条件评估明细/互斥丢弃三区块。
 > 后端契约：`docs/design/permission-center/api-contract.md` §6.6-6.8
 > 后端任务：T-PERM-033（permission 域门禁统一 + DTO 扩展；聚合层已取消——T-ACCESS-012 决策，页面直连 `/api/perm/*` 契约端点）
 
@@ -100,7 +102,7 @@ last_reviewed: 2026-08-29   # T-PERM-033 收口：门禁设计定案（无独立
 | query-scopes | §6.7 | POST /api/perm/auth/query-scopes | 范围权限四态 |
 | explain | §6.8 | POST /api/perm/permission-view/explain | 单权限解释 |
 
-**路径说明（T-ACCESS-012 决策：取消聚合层）**：原「admin 域聚合层 `/permission-query/*`」方案取消——归并后 `/perm/**` 与 `/admin/**` 同路由到 access-service，聚合层前提（前端不直连权限服务）不再成立；页面直连上表 `/api/perm/*` 契约端点，无新增 Gateway 路由（维持 3 路由契约）。Phase 1 mock 仍模拟 `/permission-query/*` 本地路径，联调（T-FE-019）时切换为契约路径。
+**路径说明（T-ACCESS-012 决策：取消聚合层）**：原「admin 域聚合层 `/permission-query/*`」方案取消——归并后 `/perm/**` 与 `/admin/**` 同路由到 access-service，聚合层前提（前端不直连权限服务）不再成立；页面直连 `/api/perm/*` 契约端点（Gateway 外部路径加 `/perm` 前缀）。T-FE-019 联调已切换真实路径，`mock/permission-query.ts` 已退役删除（仅历史对照）；三端点已注册 bootstrap Gateway 清单（fail-closed）。「无新增 Gateway 路由（维持 3 路由契约）」指契约层无新端点定义，bootstrap 注册是既有端点的清单补录。
 
 ## 7. 组件结构
 
@@ -134,7 +136,7 @@ last_reviewed: 2026-08-29   # T-PERM-033 收口：门禁设计定案（无独立
 | 仅有其他目标的 VIEW | 查该目标被拒（SecurityException） |
 | 无任何 USER:VIEW/ROLE:VIEW | 页面整页无权状态（API 全拒） |
 
-### explain 契约扩展（后端已实现，前端展示随 T-FE-019 联调接线）
+### explain 契约扩展（后端 T-PERM-033 实现，前端展示 T-FE-019 已接线）
 
 - 请求增可选 `context.clientIp`（管理员模拟输入；缺省回退当前请求，响应 `evaluationContextSource` 标注 `ADMIN_INPUT`/`CURRENT_REQUEST`）
 - 响应增 `evaluatedClientIp` / `conditionEvaluations`（逐项评估 + IP 掩码脱敏 + `OK/DISABLED/NOT_FOUND/INVALID` fail-close）/ `conflictDrops`（互斥丢弃条目 + 命中规则）
@@ -147,7 +149,7 @@ last_reviewed: 2026-08-29   # T-PERM-033 收口：门禁设计定案（无独立
 |---|---|---|---|
 | 1 | 聚合层取消 | ✅ | T-ACCESS-012 决策：不新增聚合层/路由，页面直连 `/api/perm/*` 契约端点；mock 路径联调时切换 |
 | 2 | 统一门禁 | ✅ | 设计定案：无独立排查码——explain/recent-changes 门禁切被查目标实例 `USER:VIEW`/`ROLE:VIEW`（effective-permissions 原样保留同款检查）；页面 UI 门 = USER:VIEW 或 ROLE:VIEW |
-| 3 | explain DTO 扩展 | ✅ | `context.clientIp` 输入 + `evaluationContextSource`（ADMIN_INPUT/CURRENT_REQUEST 回退）+ 条件评估明细（IP 掩码脱敏、日期/时间原样）+ 互斥丢弃明细；前端展示随 T-FE-019 |
+| 3 | explain DTO 扩展 | ✅ | `context.clientIp` 输入 + `evaluationContextSource`（ADMIN_INPUT/CURRENT_REQUEST 回退）+ 条件评估明细（IP 掩码脱敏、日期/时间原样）+ 互斥丢弃明细；前端展示 T-FE-019 已接线（模拟 IP 输入 + ExplainPanel 三区块） |
 | 4 | recentChanges 按权限键过滤 | ✅ | 6 字段匹配（null 请求字段通配）+ USER 目标保留 `USER_ROLE_CHANGE`；候选池 200 / 返回上限 50；`impactLevel` 对齐 DIRECT/POSSIBLE |
 | 5 | LOCAL_USER/USER 主体语义 | ✅ | 核对结论见 §3 核对补记；`resolveUserId` = type_definition user_type 解析 + `abstract_user(tenant, type, externalId)` |
 | 6 | query-resources API 核对 | ✅ | §6.6 实现（`PermissionQueryAppServiceImpl.queryResources`）响应字段名与契约逐项一致（resourceTypeCode/resourceCode/codeType/resourceName/canGrant/scopeMode/operations/matchedRoleIds/matchedPermissionIds/grantSources），treeMode 已移除、includeChildren/includeInherited 已实现；无差异登记 |

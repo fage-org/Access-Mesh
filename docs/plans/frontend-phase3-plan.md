@@ -42,7 +42,7 @@ last_updated: 2026-09-02
 | T-FE-017 ✅ | 资源/操作定义（3.1；Gateway +8 端点/业务门禁 +4/maintain_source 落库缺陷修复/mock 路由段退役保数据导出（设计定案：数据导出仍被三 mock 引用）；已收口 2026-09-02，终态见任务卡完成记录） | T-FE-008, T-PERM-028 |
 | T-FE-018 | 权限授予（4.1）- 角色联调（首期） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022, T-PERM-028, T-PERM-029, T-PERM-031 |
 | T-FE-037 | 权限授予（4.1）- 组织联调（二期） | T-FE-018, T-ADMIN-021 |
-| T-FE-019 | 权限查询/校验（4.2） | T-FE-013, T-PERM-033 |
+| T-FE-019 | 权限查询/校验（4.2）——done 2026-09-02 | T-FE-013, T-PERM-033 |
 | T-FE-020 | 条件/冲突规则（3.2/3.3）——done 2026-09-02 | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 |
 | T-FE-021 | 业务域配置（5.1） | T-FE-006, T-PERM-026 |
 | T-FE-022 | 系统/服务配置与日志（6.x/5.2/7.x；2026-08-28 扩入 7.x 日志两页——原计划无 7.x 承接） | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 |
@@ -62,6 +62,7 @@ last_updated: 2026-09-02
 
 ## 当前进度
 
+- 2026-09-02：**T-FE-019 收口（Phase 3 第五个联调任务 done，重建库后浏览器冒烟三 Tab 通过）**：权限排查页 Gateway bootstrap 清单 +3 端点（permission-view/effective-permissions、auth/query-scopes、permission-view/explain；permission-view 其余端点本页不消费不注册）；业务门禁零新增（explain/effective-permissions 被查目标实例 USER:VIEW/ROLE:VIEW 与 query-scopes 无门禁均系 T-PERM-033 已收口实现，固定图原持）；api/permission-query.ts 三端点切 Gateway 外部路径（本地 mock 路径退役）；explain 契约扩展前端展示接线（T-PERM-033 指派本任务：Tab3 模拟 IP 输入 context.clientIp + ExplainPanel 条件评估上下文/条件评估明细/互斥丢弃三区块）；表单示例默认值清空（设计定案：mock 时代 REPORT/DATA 示例真实库必查空误导排查者）；mock/permission-query.ts 整删（无外部消费方，设计定案）；契约零漂移；PgIT 计数 54/53/101→57/56/104（scopeAll 47 不变）。终态见任务卡完成记录。
 - 2026-06-29：建立本 plan + 拆分 8 个联调任务。全部 proposed，待 Phase 1/2 收尾。
 - 2026-07-12：权限授予 UX 设计变更，T-FE-018 重连依赖 T-FE-027；联调以 `design/frontend/permission-grant.md` §16 为准。
 - 2026-07-12：T-FE-018 关键路径增加 UX 重构链 T-FE-025 → T-FE-026 → T-FE-027，且仍依赖 T-PERM-034，是 Phase 3 最晚启动项；该延后用于避免旧矩阵联调后再次返工。

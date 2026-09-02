@@ -2,11 +2,11 @@
  * 权限排查 API
  *
  * 归并后取消聚合层（T-ACCESS-012 决策）：权限排查页直连既有契约端点，无新增
- * PermissionQueryController / Gateway 路由。Phase 1 mock 仍模拟本地路径
- * `/permission-query/*`；联调（T-FE-019）时切换为契约路径：
- * - /api/perm/permission-view/effective-permissions（§6.8 管理端分页排查视图，USER/ROLE）
- * - /api/perm/auth/query-scopes（§6.7 范围权限四态，仅 USER）
- * - /api/perm/permission-view/explain（§6.8 单权限解释 + 近期影响事件，USER/ROLE）
+ * PermissionQueryController / Gateway 路由。T-FE-019 联调已切 Gateway 外部路径
+ * （Phase 1 mock 本地路径 /permission-query/* 已退役）：
+ * - /perm/api/perm/permission-view/effective-permissions（§6.8 管理端分页排查视图，USER/ROLE）
+ * - /perm/api/perm/auth/query-scopes（§6.7 范围权限四态，仅 USER）
+ * - /perm/api/perm/permission-view/explain（§6.8 单权限解释 + 近期影响事件，USER/ROLE）
  *
  * 主体模型（核实 access-service 后端 PermissionQueryAppServiceImpl:126 / PermissionViewAppServiceImpl:698）：
  * - query-resources/query-scopes：仅支持用户主体（subjectTypeCode + subjectExternalId）
@@ -286,7 +286,7 @@ export const getEffectivePermissions = async (
 ): Promise<EffectivePermissionsResp> => {
   const res = await http.request<PermResult<EffectivePermissionsResp>>(
     "post",
-    "/permission-query/effective-permissions",
+    "/perm/api/perm/permission-view/effective-permissions",
     { data }
   );
   return unwrap(res);
@@ -298,7 +298,7 @@ export const getQueryScopes = async (
 ): Promise<QueryScopesResp> => {
   const res = await http.request<PermResult<QueryScopesResp>>(
     "post",
-    "/permission-query/query-scopes",
+    "/perm/api/perm/auth/query-scopes",
     { data }
   );
   return unwrap(res);
@@ -308,7 +308,7 @@ export const getQueryScopes = async (
 export const getExplain = async (data: ExplainReq): Promise<ExplainResp> => {
   const res = await http.request<PermResult<ExplainResp>>(
     "post",
-    "/permission-query/explain",
+    "/perm/api/perm/permission-view/explain",
     { data }
   );
   return unwrap(res);

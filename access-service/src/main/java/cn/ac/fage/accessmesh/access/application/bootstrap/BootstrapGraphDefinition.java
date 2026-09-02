@@ -168,6 +168,13 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/perm/api/perm/conflict-rule/update", "bootstrap:更新冲突规则", true, false),
             new ApiRoute("POST", "/perm/api/perm/conflict-rule/remove", "bootstrap:删除冲突规则", true, false),
             new ApiRoute("POST", "/perm/api/perm/conflict-rule/detect", "bootstrap:冲突检测", true, false),
+            // T-FE-019：权限排查页消费端点（管理端排查三端点，T-PERM-033 收口实现）。
+            // effective-permissions/explain 门禁=被查目标实例 USER:VIEW/ROLE:VIEW（AppService 层），
+            // query-scopes 运行时语义无排查门禁——业务门禁零新增（USER:VIEW/ROLE:MANAGE 已在图）；
+            // permission-view 其余端点（effective-permission-codes/resource-users 等）本页不消费不注册
+            new ApiRoute("POST", "/perm/api/perm/permission-view/effective-permissions", "bootstrap:排查有效权限", true, false),
+            new ApiRoute("POST", "/perm/api/perm/auth/query-scopes", "bootstrap:排查范围权限四态", true, false),
+            new ApiRoute("POST", "/perm/api/perm/permission-view/explain", "bootstrap:排查单权限解释", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/admin/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }

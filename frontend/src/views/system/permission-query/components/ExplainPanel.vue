@@ -14,6 +14,26 @@ function reasonLabel(reason: string | null): string {
 function impactMeta(level: string) {
   return IMPACT_LEVEL_META[level] ?? { label: level, type: "info" as const };
 }
+
+/** 条件加载状态（T-PERM-033）：非 OK 恒 fail-close */
+function conditionStatusMeta(status: string) {
+  const map: Record<
+    string,
+    { label: string; type: "success" | "warning" | "danger" | "info" }
+  > = {
+    OK: { label: "正常", type: "success" },
+    DISABLED: { label: "已停用(fail-close)", type: "warning" },
+    NOT_FOUND: { label: "未找到(fail-close)", type: "warning" },
+    INVALID: { label: "非法(fail-close)", type: "danger" }
+  };
+  return map[status] ?? { label: status, type: "info" as const };
+}
+
+/** 评估上下文来源（T-PERM-033）：管理员输入 or 回退当前请求 */
+const CONTEXT_SOURCE_META: Record<string, string> = {
+  ADMIN_INPUT: "管理员输入",
+  CURRENT_REQUEST: "当前请求回退"
+};
 </script>
 
 <template>
@@ -86,6 +106,114 @@ function impactMeta(level: string) {
         title="无命中来源角色"
       />
 
+      <!-- 条件评估上下文（T-PERM-033） -->
+      <el-descriptions
+        v-if="result.evaluationContextSource"
+        title="条件评估上下文"
+        :column="2"
+        border
+        size="small"
+        class="mb-4"
+      >
+        <el-descriptions-item label="上下文来源">
+          {{
+            CONTEXT_SOURCE_META[result.evaluationContextSource] ??
+            result.evaluationContextSource
+          }}
+        </el-descriptions-item>
+        <el-descriptions-item label="评估用客户端 IP">
+          {{ result.evaluatedClientIp ?? "-" }}（无 IP 类条件上下文时为空）
+        </el-descriptions-item>
+      </el-descriptions>
+
+      <!-- 条件评估明细（T-PERM-033） -->
+      <div v-if="result.conditionEvaluations?.length">
+        <div class="section-title mb-2">条件评估明细</div>
+        <el-table
+          :data="result.conditionEvaluations"
+          size="small"
+          border
+          class="mb-4"
+        >
+          <el-table-column prop="conditionId" label="条件 ID" width="90" />
+          <el-table-column label="加载状态" width="150">
+            <template #default="{ row }">
+              <el-tag
+                size="small"
+                :type="conditionStatusMeta(row.status).type"
+                effect="plain"
+              >
+                {{ conditionStatusMeta(row.status).label }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="logic" label="逻辑" width="70">
+            <template #default="{ row }">{{ row.logic ?? "-" }}</template>
+          </el-table-column>
+          <el-table-column label="整体" width="80">
+            <template #default="{ row }">
+              <el-tag
+                size="small"
+                :type="row.passed ? 'success' : 'danger'"
+                effect="plain"
+              >
+                {{ row.passed ? "通过" : "拒绝" }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="逐项评估（参数已脱敏）">
+            <template #default="{ row }">
+              <div v-for="(item, i) in row.items" :key="i" class="cond-item">
+                <el-tag
+                  size="small"
+                  :type="item.matched ? 'success' : 'info'"
+                  effect="plain"
+                  class="mr-2"
+                >
+                  {{ item.matched ? "满足" : "不满足" }}
+                </el-tag>
+                <span class="font-mono text-xs">{{ item.type }}</span>
+                <span
+                  v-if="item.maskedParams"
+                  class="text-gray-500 text-xs ml-2"
+                >
+                  {{ item.maskedParams }}
+                </span>
+              </div>
+              <span v-if="!row.items.length" class="text-gray-400 text-xs">
+                无评估项
+              </span>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <!-- 互斥规则丢弃明细（T-PERM-033） -->
+      <div v-if="result.conflictDrops?.length">
+        <div class="section-title mb-2">互斥规则丢弃</div>
+        <el-alert
+          type="warning"
+          :closable="false"
+          class="mb-4"
+          :title="`候选命中被权限互斥规则丢弃（规则/角色/权限 ID 见下）`"
+        />
+        <el-table :data="result.conflictDrops" size="small" border class="mb-4">
+          <el-table-column prop="ruleId" label="规则 ID" width="90" />
+          <el-table-column prop="roleId" label="角色 ID" width="90" />
+          <el-table-column prop="permissionId" label="权限 ID" width="100" />
+          <el-table-column
+            prop="firstOperationCode"
+            label="互斥操作 A"
+            width="140"
+          />
+          <el-table-column
+            prop="secondOperationCode"
+            label="互斥操作 B"
+            width="140"
+          />
+        </el-table>
+      </div>
+
       <!-- 近期影响事件 -->
       <div v-if="result.recentChanges.length">
         <div class="section-title mb-2">近期影响事件</div>
@@ -127,6 +255,10 @@ function impactMeta(level: string) {
     font-size: 14px;
     font-weight: 500;
     color: var(--el-text-color-primary);
+  }
+
+  .cond-item {
+    line-height: 1.8;
   }
 }
 </style>

@@ -398,6 +398,13 @@ function rowKey(row: any) {
                   <el-option label="全量 ALL" value="ALL" />
                 </el-select>
               </el-form-item>
+              <el-form-item label="模拟 IP" class="mb-0!">
+                <el-input
+                  v-model="tab3.form.clientIp"
+                  placeholder="可选，IP 条件按此评估"
+                  class="w-40!"
+                />
+              </el-form-item>
               <el-form-item class="mb-0!">
                 <el-button
                   type="primary"
