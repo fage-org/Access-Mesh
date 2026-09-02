@@ -46,10 +46,10 @@
 | 操作 | operation | 编辑 / 删除（权限门控） |
 
 **规则内容名称解析**（设计 §Q3）：Resp 只返回 ID，前端加载引用数据建立映射：
-- `roleMap`：getRoleList（BASIC_ROLE + GROUP_ROLE）→ id→name
+- `roleMap`：getRoleList（BASIC_ROLE + GROUP_ROLE，按 hasNext 循环拉全分页——后端单页上限 200，只取首页会截断超页角色）→ id→name
 - `operationMap`：getOperationList → id→name
 - `resourceTypeMap`：getTypeDefList 筛 `resource_type` → typeValue→name
-- 映射缺失回退 `#ID`
+- 三路请求独立成败（allSettled），单路失败不清空其余成功路；映射缺失回退 `#ID`
 
 ### 表单（ConflictForm.vue）
 

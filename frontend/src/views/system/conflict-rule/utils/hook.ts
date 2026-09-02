@@ -33,13 +33,58 @@ import type { ConflictFormData } from "./types";
  * - CONFLICT_RULE:CREATE/UPDATE/DELETE 门控写操作，三档独立（非 MANAGE，对齐后端）。
  * - loadList 内置 VIEW 短路，无权限直接清空返回。
  *
- * 引用数据（设计 §Q1/Q3）：页面加载时并行请求角色列表（BASIC_ROLE+GROUP_ROLE）、
- * 操作权限列表、类型定义列表（筛 resource_type），建立 id->name 映射供表格展示与表单选择器。
- * 引用数据加载失败不阻塞主列表（名称回退显示 #ID）。
+ * 引用数据（设计 §Q1/Q3）：页面加载时并行请求角色列表（BASIC_ROLE+GROUP_ROLE，
+ * 按 hasNext 循环拉全分页——单页上限 200，只取首页会截断）、操作权限列表、
+ * 类型定义列表（筛 resource_type），建立 id->name 映射供表格展示与表单选择器。
+ * 三路请求独立成败（allSettled），单路失败不影响其余两路；映射缺失名称回退显示 #ID。
  *
  * 范式对齐 permission-condition/utils/hook.ts（扁平表格 CRUD）。后端 list 无分页无筛选，
  * 前端本地过滤（keyword + conflictType）。
  */
+/**
+ * 角色选择器数据源：按 hasNext 循环拉齐全部分页。
+ * 后端单页上限 200（PageUtil.MAX_PAGE_SIZE），只取首页会静默截断超页角色——
+ * 已有规则名称回退 #ID、表单无法选入未加载角色。
+ */
+export async function loadAllRoles(): Promise<RoleResp[]> {
+  const roles: RoleResp[] = [];
+  let pageNum = 1;
+  for (;;) {
+    const res = await getRoleList({
+      roleTypeCodes: ["BASIC_ROLE", "GROUP_ROLE"],
+      pageNum,
+      pageSize: 200
+    });
+    roles.push(...res.items);
+    if (!res.hasNext) return roles;
+    pageNum++;
+  }
+}
+
+/**
+ * 引用数据整体装载：三路请求独立成败（allSettled），单路失败不清空其余成功路。
+ * 返回各路成功数据（失败路为空数组），调用方对空集回退 #ID 显示。
+ */
+export async function loadConflictRefData(): Promise<{
+  roles: RoleResp[];
+  operations: OperationPermissionResp[];
+  typeDefs: TypeDefResp[];
+}> {
+  const [roles, operations, typeDefs] = await Promise.allSettled([
+    loadAllRoles(),
+    getOperationList({}),
+    getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE })
+  ]);
+  return {
+    roles: roles.status === "fulfilled" ? roles.value : [],
+    operations: operations.status === "fulfilled" ? operations.value.items : [],
+    typeDefs:
+      typeDefs.status === "fulfilled"
+        ? typeDefs.value.items.filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
+        : []
+  };
+}
+
 export function useConflictRule() {
   // ========== 权限门控 ==========
   const canView = computed(() =>
@@ -85,21 +130,10 @@ export function useConflictRule() {
 
   async function loadRefData() {
     try {
-      const [roleRes, opRes, typeRes] = await Promise.all([
-        getRoleList({
-          roleTypeCodes: ["BASIC_ROLE", "GROUP_ROLE"],
-          pageSize: 200
-        }),
-        getOperationList({}),
-        getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE })
-      ]);
-      roleMap.value = new Map(roleRes.items.map(r => [r.id, r]));
-      operationMap.value = new Map(opRes.items.map(o => [o.id, o]));
-      resourceTypeMap.value = new Map(
-        typeRes.items
-          .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
-          .map(t => [t.typeValue, t])
-      );
+      const { roles, operations, typeDefs } = await loadConflictRefData();
+      roleMap.value = new Map(roles.map(r => [r.id, r]));
+      operationMap.value = new Map(operations.map(o => [o.id, o]));
+      resourceTypeMap.value = new Map(typeDefs.map(t => [t.typeValue, t]));
     } catch (e: any) {
       // 映射加载失败不阻塞主列表（名称将回退显示 #ID）
       console.warn("[conflict-rule] 加载引用数据失败:", e?.message);

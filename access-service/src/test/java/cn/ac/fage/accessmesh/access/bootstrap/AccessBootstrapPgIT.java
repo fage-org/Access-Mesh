@@ -167,7 +167,7 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(1)
-    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+54API 资源/53 映射/101 授权/15 菜单/默认组织树）")
+    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+API 资源/映射/授权/菜单/默认组织树，总量以本测试计数断言为准）")
     void createsFullGraphOnEmptyDatabase() {
         initializer.initialize(BOOTSTRAP_PASSWORD);
 
@@ -207,10 +207,9 @@ class AccessBootstrapPgIT {
                 + "AND target_type = 'ROLE' AND target_id = ? AND delete_flag = 0",
             Long.class, TENANT, subjectId, roleId)).isEqualTo(1L);
 
-        // SERVICE 资源 + 54 个 API 资源 + 53 个映射（目标接口无映射；13 原始管理端点 +
-        // T-FE-015 组织与用户页 20 端点 + T-FE-016 角色页 4 端点 + T-FE-017 资源与操作页 8 端点 +
-        // T-FE-020 条件与冲突规则页 9 端点逐条精确注册——Gateway 未映射路径 fail-closed；
-        // 页消费 22 端点中 /admin/user/create 与 /perm/api/perm/user-role/assign 原已在册）
+        // SERVICE 资源 + API 资源 + 映射（目标接口无映射；各联调任务按页消费端点
+        // 在 BootstrapGraphDefinition.apiRoutes() 逐条精确注册——Gateway 未映射路径
+        // fail-closed；原已在册的端点不重复注册。总量以本测试计数断言为准）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'SERVICE') "
