@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import conditionRoutes from "./permission-condition";
 import grantRoutes from "./permission-grant";
 import {
   findActiveMockCondition,
@@ -26,14 +25,19 @@ const applyRoute = routeOf(
   grantRoutes,
   "/api/perm/role-resource-permission/apply-grant-plan"
 );
-const updateConditionRoute = routeOf(
-  conditionRoutes,
-  "/api/perm/permission-condition/update"
-);
 const listRoute = routeOf(
   grantRoutes,
   "/api/perm/role-resource-permission/list"
 );
+
+/** 条件 mock 路由已随 T-FE-020 退役——测试直接改共享 store 模拟条件停用
+ * （原 permission-condition update 路由改状态，意图不变：授权 mock 消费共享条件状态）。 */
+function disableOfficeHours() {
+  const condition = mockConditions.find(item => item.code === "office-hours");
+  if (!condition) throw new Error("office-hours fixture missing");
+  condition.enabled = false;
+  persistMockConditions();
+}
 
 function roleBody(extra: Record<string, any> = {}) {
   return {
@@ -111,13 +115,7 @@ describe("permission-grant mock 契约", () => {
   });
 
   it("条件 CRUD 与授权校验同源：条件停用后新写入返回 20042", () => {
-    const updateResponse = updateConditionRoute.response({
-      body: { code: "office-hours", enabled: false }
-    });
-    expect(updateResponse).toMatchObject({
-      code: 200,
-      data: { code: "office-hours", enabled: false }
-    });
+    disableOfficeHours();
 
     const response = applyRoute.response({
       body: roleBody({
@@ -146,12 +144,7 @@ describe("permission-grant mock 契约", () => {
 
   it("跨标签页条件状态：授权校验会从共享存储重载并返回 20042", () => {
     vi.stubGlobal("localStorage", new MemoryStorage());
-    persistMockConditions();
-
-    const updateResponse = updateConditionRoute.response({
-      body: { code: "office-hours", enabled: false }
-    });
-    expect(updateResponse).toMatchObject({ code: 200 });
+    disableOfficeHours();
 
     // 模拟授权页标签仍保留旧模块内存；apply 时必须以共享存储中的停用状态为准。
     const staleOfficeHours = mockConditions.find(

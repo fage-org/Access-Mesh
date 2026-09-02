@@ -40,7 +40,7 @@ const {
 // ========== 权限门控 ==========
 // 与 docs/design/frontend/conflict-rule.md §权限接线 对齐。
 // CONFLICT_RULE:VIEW 门控路由可达性；CREATE/UPDATE/DELETE 三档独立门控写按钮（非 MANAGE，对齐后端）。
-// detect 按钮复用 VIEW 门控（后端 detect 无独立权限校验，🔧 登记同 T-PERM-030）。
+// detect 按钮复用 VIEW 门控（T-PERM-030 收口：后端 detect 已补类型级 CONFLICT_RULE:VIEW 门禁，与 list/detail 同款）。
 
 // ========== 列定义 ==========
 const columns = [

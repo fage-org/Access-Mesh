@@ -4,7 +4,9 @@
 > 任务：T-FE-010（mock 驱动）
 > 后端契约：api-contract.md §5.6（`conflict-rule/*` 含 detect；T-PERM-030 收口契约要点）
 > 后端任务：T-PERM-030（depends_on 本任务，已收口 2026-08-30）
-> last_reviewed: 2026-08-30（§4 🔧 六项全收口 + §5 权限接线四档类型级口径）
+> last_reviewed: 2026-09-02（T-FE-020 联调收口：前端 API 路径修正 + Gateway +5 端点注册 + mock 退役；§4 🔧 六项全收口 + §5 权限接线四档类型级口径——2026-08-30）
+
+> **联调注记（T-FE-020，2026-09-02）**：本页 6 端点全部经 Gateway 真实链路收口。联调发现前端 `api/conflict-rule.ts` 仍用裸 `/api/perm/conflict-rule/*`（T-FE-041 全局切 Gateway 外部路径时漏改本页；Gateway 仅路由 /admin/**、/perm/**，裸路径必 404）——已统一修正为 `/perm/api/perm/conflict-rule/*`。list/create/update/remove/detect +5 端点补注册 bootstrap 清单（detail 本页不消费未注册）；引用数据 abstract-role/list +1 注册（T-FE-016 登记的届时事项），type-definition/list 与 operation-permission/list 先在册。逐 DTO 比对零漂移；CONFLICT_RULE 四档固定图原持（T-PERM-030 预置，零新增）。
 
 ## 1. 背景
 
@@ -131,7 +133,7 @@
 - 操作权限分组选择器（el-option-group by resourceTypeCode）：ConflictForm 与 DetectDialog 各自实现（结构简单，不抽取共享）
 - 名称解析映射（roleMap/operationMap/resourceTypeMap）：hook 内聚，不抽取
 
-## 7. mock 种子
+## 7. mock 种子（已随 T-FE-020 退役删除；下表仅历史对照）
 
 对齐 resource-operation / type-def mock 种子 ID（名称映射通过 API 加载建立；role-manage mock 已随 T-FE-016 退役，角色种子 ID 101/102/201/202 仅作历史对照）：
 

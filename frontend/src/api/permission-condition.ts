@@ -2,7 +2,8 @@
  * 权限条件 API
  * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/permission-condition/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/permission-condition`）。
- * T-FE-041 切换真实链路后，mock/permission-condition.ts 的旧 `/api/perm/**` 路径已自然失配。
+ * T-FE-041 切换真实链路后，mock/permission-condition.ts 路由失配，已随 T-FE-020 退役删除
+ *（_shared/permission-condition-store 保留——授权页 mock 仍消费，属 T-FE-018 范围）。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.6（T-PERM-029 收口：detail/update/remove

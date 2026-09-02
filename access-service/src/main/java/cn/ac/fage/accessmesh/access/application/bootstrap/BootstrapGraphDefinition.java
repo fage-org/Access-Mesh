@@ -155,6 +155,19 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/perm/api/perm/operation-permission/create", "bootstrap:创建操作权限", true, false),
             new ApiRoute("POST", "/perm/api/perm/operation-permission/update", "bootstrap:更新操作权限", true, false),
             new ApiRoute("POST", "/perm/api/perm/operation-permission/remove", "bootstrap:删除操作权限", true, false),
+            // T-FE-020：条件与冲突规则页消费端点（condition/list、type-definition/list、
+            // operation-permission/list 已在上方清单）。condition/detail 页面不消费不注册；
+            // abstract-role/list 为冲突规则页角色选择器消费（T-FE-016 登记的届时注册事项）；
+            // 业务门禁零新增（CONFLICT_RULE 四档与 CONDITION 写三档已在图，T-PERM-029/030 预置）
+            new ApiRoute("POST", "/perm/api/perm/abstract-role/list", "bootstrap:冲突规则页角色列表", true, false),
+            new ApiRoute("POST", "/perm/api/perm/permission-condition/create", "bootstrap:创建条件", true, false),
+            new ApiRoute("POST", "/perm/api/perm/permission-condition/update", "bootstrap:更新条件", true, false),
+            new ApiRoute("POST", "/perm/api/perm/permission-condition/remove", "bootstrap:删除条件", true, false),
+            new ApiRoute("POST", "/perm/api/perm/conflict-rule/list", "bootstrap:冲突规则列表", true, false),
+            new ApiRoute("POST", "/perm/api/perm/conflict-rule/create", "bootstrap:创建冲突规则", true, false),
+            new ApiRoute("POST", "/perm/api/perm/conflict-rule/update", "bootstrap:更新冲突规则", true, false),
+            new ApiRoute("POST", "/perm/api/perm/conflict-rule/remove", "bootstrap:删除冲突规则", true, false),
+            new ApiRoute("POST", "/perm/api/perm/conflict-rule/detect", "bootstrap:冲突检测", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/admin/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }

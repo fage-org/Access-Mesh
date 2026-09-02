@@ -3,7 +3,7 @@ doc_type: design
 title: 权限条件 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-30   # 2026-08-30 §8 全量收口 + 字段/API 表对齐（T-PERM-029 落地：detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案、ConditionResp 补 updatedAt、remove 幂等静默跳过）+ 写门禁口径收窄为类型级（CONDITION 无实例投影，实例级原声称系 ID 空间错位废弃；实例投影与条件双轨制登记 T-PERM-048）；此前 2026-08-08 产品确认移除 CONDITION:VIEW 读取门禁
+last_reviewed: 2026-09-02   # 2026-09-02 T-FE-020 联调收口（§API 依赖补 Gateway 路径联调注记、§组件结构 mock 终态化）；2026-08-30 §8 全量收口 + 字段/API 表对齐（T-PERM-029 落地：detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案、ConditionResp 补 updatedAt、remove 幂等静默跳过）+ 写门禁口径收窄为类型级（CONDITION 无实例投影，实例级原声称系 ID 空间错位废弃；实例投影与条件双轨制登记 T-PERM-048）；此前 2026-08-08 产品确认移除 CONDITION:VIEW 读取门禁
 ---
 
 # 3.2 权限条件 前端设计
@@ -114,6 +114,8 @@ code / name / enabled（开关）/ gatewayEvaluable（开关）/ description（t
 后端实现：ConditionController + ConditionAppServiceImpl。
 conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 access-service permission 域共享）。
 
+> **联调注记（T-FE-020，2026-09-02）**：本页消费 4 端点（list/create/update/remove）经 Gateway 真实链路收口——list 先在册（授权页消费），create/update/remove +3 端点补注册 bootstrap 清单；detail 本页不消费未注册。逐 DTO 比对零漂移。条件读端点无门禁（产品定案），写三档 CONDITION:CREATE/UPDATE/DELETE 固定图原持（T-PERM-030 预置，本任务零新增）。
+
 ## 组件结构
 
 - `index.vue` - 页面壳 + PureTableBar + 弹窗调度。
@@ -122,7 +124,7 @@ conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 access-se
 - `utils/perms.ts` - 权限码 SSOT。
 - `utils/types.ts` - 条件表单元信息类型（ConditionFormData）；规则模型（ConditionRules / 序列化 / 摘要 / 常量）已抽到 `@/utils/condition-rules`（T-FE-024）。
 - `api/permission-condition.ts` - 类型 + API 函数。
-- `mock/permission-condition.ts` - fake-server 路由（4 条种子：office-hours/corp-ip-only/temp-access/blacklist-vpn）。
+- `mock/permission-condition.ts` - **已随 T-FE-020 退役删除**（路由自 T-FE-041 切真实路径起失配；种子数据经 `_shared/permission-condition-store` 保留——授权页 mock 仍消费，其联调任务 T-FE-018 届时一并处置）。
 
 ### 可复用组件识别（T-FE-001 池）
 
