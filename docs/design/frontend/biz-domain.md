@@ -260,7 +260,7 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026；�
 
 ### ✅ 满足
 
-- 9 接口满足前端需求，请求/响应结构与 mock 对齐。契约 §5.1/§5.6 路径与后端实现一致（无路径错误）。
+- 9 接口满足前端需求，请求/响应结构与 mock 对齐（T-PERM-026 核对时点口径；T-FE-021 起以真实接口联调比对，DTO 零漂移）。契约 §5.1/§5.6 路径与后端实现一致（无路径错误）。
 - domain-config save upsert 幂等覆盖新建/编辑，detail 用业务键二元组（domainCode+configType），无需独立 create/update。
 
 ### 备注
@@ -272,7 +272,7 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026；�
 
 - ~~biz-domain list 前端本地过滤+分页~~ → 已切服务端过滤+分页（2026-08-29）。
 - extra JSON 校验：前端 `JSON.parse` 预拦截 + 后端 `JsonValidationUtils` 二次校验（T-PERM-026 补齐双层）。
-- mock 保留 `deleted` 内部字段（对齐 schema delete_flag 范式），响应 clone 时剔除；`global` 随 Resp 收口改为下发（对齐后端终态）。`domainCode` 为 domain-config mock 内部冗余字段（便于按域过滤），响应 clone 时剔除。
+- ~~mock 保留 `deleted` 内部字段、`domainCode` mock 冗余字段响应 clone 剔除~~ → 已随 T-FE-021 mock 四文件退役失效；`global` 随 Resp 收口下发为后端终态（保留有效）。
 - ~~mock 共享注册表~~ → 已随 T-FE-021 mock 四文件整删退役；运行时一致性语义回归后端（resolveDomainId/删除保护引用检查）。
 - ~~全局域不可删靠 mock 校验~~ → Resp 返回 global 后前端预判禁用删除按钮 + 后端 remove 删除保护（20051）双层兜底；bootstrap 固定图已补 DOMAIN:VIEW（空库可访问，§7）。
 - **删除二次确认**：业务域/域配置删除均在 hook `handleDelete*` 内前置 `ElMessageBox.confirm`（对齐 role/type-def 范式，持久配置类资源防误删）。
