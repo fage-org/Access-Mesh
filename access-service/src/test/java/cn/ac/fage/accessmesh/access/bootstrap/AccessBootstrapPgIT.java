@@ -236,17 +236,13 @@ class AccessBootstrapPgIT {
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 AND re.code = 'POST:/admin/role/my-info'",
             Long.class, TENANT)).isEqualTo(0L);
 
-        // 113 条授权（T-API-001 + T-PERM-025/032/026/027/030/031 + T-FE-015/016/017/019/020/021）：47 条业务门禁 scopeAll
-        // （原 26 条 + T-FE-015 补 17 条——ORG 十档/USER 五档/SYSTEM_CONFIG 两档，组织与用户页与
-        // 系统配置页读写门禁 18 档中 USER:CREATE 已在图；菜单种子挂类型走派生同样要求先持有；
-        // 含 SERVICE 四操作类型级
-        // VIEW/MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE 与 API:ACCESS 类型级+canGrant、
-        // OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW、DOMAIN:VIEW、T-PERM-030 补
-        // CONFLICT_RULE 四档与 CONDITION 写三档、T-PERM-031 补 DEPENDENCY 五档）
-        // + 66 条实例（66 API:ACCESS——T-FE-016 角色管理页 +4 端点、T-FE-017 资源与操作定义页 +8 端点、
-        // T-FE-020 条件与冲突规则页 +9 端点、T-FE-019 权限排查页 +3 端点、T-FE-021 业务域配置页 +9 端点）；
-        // T-FE-017 另补业务门禁 RESOURCE/OPERATION CREATE+MANAGE 四条 scopeAll；
-        // canGrant=true 共 2 条（目标 API 实例 + API:ACCESS 类型级）
+        // 授权构成（总量以本测试计数断言为准，不在此注释维护）：业务门禁 scopeAll——
+        // 各联调页读写门禁档位（ORG/USER/SYSTEM_CONFIG/RESOURCE/OPERATION 等；菜单种子挂类型走派生
+        // 同样要求先持有）；含 SERVICE 四操作类型级 VIEW/MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE
+        // 与 API:ACCESS 类型级+canGrant、OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW、DOMAIN:VIEW、
+        // CONFLICT_RULE 与 CONDITION 写各档、DEPENDENCY 各档
+        // + 每条在册 API 路由派生一条 API:ACCESS 实例授权（各联调任务按页注册，见
+        // BootstrapGraphDefinition.apiRoutes()）；canGrant=true 仅目标 API 实例与 API:ACCESS 类型级
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",

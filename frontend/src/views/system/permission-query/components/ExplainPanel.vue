@@ -136,6 +136,18 @@ const CONTEXT_SOURCE_META: Record<string, string> = {
           class="mb-4"
         >
           <el-table-column prop="conditionId" label="条件 ID" width="90" />
+          <el-table-column label="关联授权" width="110">
+            <template #default="{ row }">
+              <span class="font-mono text-xs">{{
+                row.permissionId ?? "-"
+              }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="关联角色" width="110">
+            <template #default="{ row }">
+              <span class="font-mono text-xs">{{ row.roleId ?? "-" }}</span>
+            </template>
+          </el-table-column>
           <el-table-column label="加载状态" width="150">
             <template #default="{ row }">
               <el-tag

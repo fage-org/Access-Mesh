@@ -95,12 +95,15 @@ export function useBizDomain() {
    *  此处为双保险守卫）。 */
   function selectDomain(row: BizDomainResp, canViewConfig = true) {
     currentDomain.value = row;
+    // 切域立即清空旧域数据并使在途请求过期（防慢响应把 A 域配置回写到 B 域标题下）
+    configData.value = [];
     if (canViewConfig) {
       loadConfigs();
-    } else {
-      configData.value = [];
     }
   }
+
+  /** 域配置请求序号：仅最新一次 loadConfigs 可回写（权限查询页 reqSeq 同范式） */
+  let configReqSeq = 0;
 
   /** 加载当前选中域的配置列表 */
   async function loadConfigs() {
@@ -108,15 +111,18 @@ export function useBizDomain() {
       configData.value = [];
       return;
     }
+    const seq = ++configReqSeq;
     configLoading.value = true;
     try {
       const res = await getDomainConfigList(currentDomain.value.code);
+      if (seq !== configReqSeq) return;
       configData.value = res.items;
     } catch (e: any) {
+      if (seq !== configReqSeq) return;
       message(e.message || "加载域配置失败", { type: "error" });
       configData.value = [];
     } finally {
-      configLoading.value = false;
+      if (seq === configReqSeq) configLoading.value = false;
     }
   }
 
