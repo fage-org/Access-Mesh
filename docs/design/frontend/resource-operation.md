@@ -3,7 +3,7 @@ doc_type: design
 title: 资源与操作定义 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-29   # 2026-08-29 §5/§8 全量收口（T-PERM-028 落地：业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁补齐/resource_type 联动预置）；2026-08-28 §8 增补第 6 项：resource_type 联动预置操作位自 T-PERM-023 改归属登记
+last_reviewed: 2026-09-02   # 2026-09-02 T-FE-017 联调收口（§5 补 Gateway 注册登记与联调注记、§7 权限接线补固定图口径、§8 mock 校验句终态化、联调发现 maintain_source 落库缺陷已修）；2026-08-29 §5/§8 全量收口（T-PERM-028 落地：业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁补齐/resource_type 联动预置）；2026-08-28 §8 增补第 6 项：resource_type 联动预置操作位自 T-PERM-023 改归属登记
 ---
 
 # 资源与操作定义 前端设计
@@ -91,6 +91,8 @@ last_reviewed: 2026-08-29   # 2026-08-29 §5/§8 全量收口（T-PERM-028 落�
 
 对齐 `api-contract.md` §5.3。后端实现：`ResourceController` + `OperationController`。
 
+> **联调注记（T-FE-017，2026-09-02）**：本页消费 9 端点全部经 Gateway 真实链路收口（tree/operation list 先在册，create/update/move/remove/detail 与 operation create/update/remove 共 +8 端点补注册 bootstrap 清单）；operation detail 与 resource list 本页不消费未注册（后续消费页按页注册）。联调逐 DTO 比对零漂移；发现的 maintain_source 落库缺陷（create 未设值致 NOT NULL 500）已在后端修复并加 PgIT 回归锁。
+
 | 接口 | 用途 | 核对 |
 |---|---|---|
 | `POST /api/perm/resource-entity/tree` | 资源树（按 resourceTypeCode 过滤） | ✅ |
@@ -142,6 +144,8 @@ views/system/resource-operation/
 ### mock 角色矩阵
 
 - **admin**：全清单（RESOURCE + OPERATION 所有）。
+
+> 固定图口径（T-FE-017）：bootstrap 固定图持 RESOURCE/OPERATION 各 VIEW+CREATE+MANAGE 六条 scopeAll（VIEW 原有，CREATE/MANAGE 四条为 T-FE-017 补齐死锁防护）。
 - **sec**（安全管理员）：RESOURCE/OPERATION 的 CREATE + MANAGE + VIEW（权限定义职责）。
 - **hr/auditor**：VIEW_PERMS（RESOURCE:VIEW + OPERATION:VIEW，只读）。
 
@@ -159,9 +163,11 @@ views/system/resource-operation/
 ### ✅ 满足
 
 - `tree` 返回 `ItemsResp<ResourceTreeResp>`，每个 `item.root` 为一棵树根，森林语义。
-- `create`（resource/operation）字段对齐 DTO，业务键唯一性 mock 校验。
-- `move` 防环（自身/子孙）+ 跨类型拦截，mock 实现。
-- `remove` 级联软删子孙（resource），mock 实现。
+- `create`（resource/operation）字段对齐 DTO，业务键唯一性校验（真实 uk 约束；mock 校验随路由段退役）。
+- `move` 防环（自身/子孙）+ 跨类型拦截（真实 20053）。
+- `remove` 级联软删子孙（resource，真实递归 CTE）。
+
+> mock 终态（T-FE-017，2026-09-02）：`mock/resource-operation.ts` 的 11 个 fake-server 路由（旧 `/api/perm/**`，自 T-FE-041 失配）已删除；仅保留数据导出（resources/operations/presetOperationsForType），待 resource-dependency/type-def/permission-grant 三页联调时随各自 mock 退役（设计定案）。
 - `operation-permission list` 无分页，前端本地过滤，量小可接受。
 
 ## 9. 验收记录

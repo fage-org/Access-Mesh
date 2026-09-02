@@ -169,7 +169,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 | [T-FE-014](T-FE-014.md) | 4.1 权限授予页（选角色→勾资源树→操作矩阵→绑条件→批量保存） | frontend-phase1 | api-contract §5.5/§6.4/§6.5；design/frontend/permission-grant.md | T-FE-001, T-FE-002, T-FE-008 | ✅ | ✅ |
 | [T-FE-015](T-FE-015.md) | Phase 3 联调：组织与用户（2.1 mock→真实接口，含 menus 接线/固定图 17 授权+15 菜单+默认树种子+20 Gateway 端点/bootstrap 分页缓存缺陷修复；已收口 2026-08-31，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
 | [T-FE-016](T-FE-016.md) | Phase 3 联调：角色管理（2.2 mock→真实收口——Gateway +4 端点/编辑 extra 回显 detail 回填 + extraClear 清空协议/mock 退役删除；已收口 2026-09-01，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-002, T-PERM-022 | ✅ | ✓ |
-| T-FE-017 | Phase 3 联调：资源/操作定义（3.1） | frontend-phase3 | api-contract | T-FE-008, T-PERM-028 | ⚙️ | ⏳ |
+| [T-FE-017](T-FE-017.md) | Phase 3 联调：资源/操作定义（3.1 mock→真实收口——Gateway +8 端点/业务门禁 +4/maintain_source 落库缺陷修复/mock 路由段退役保数据导出；已收口 2026-09-02，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-008, T-PERM-028 | ✅ | ✓ |
 | [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期） | [frontend-phase3](../plans/frontend-phase3-plan.md) | | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ⚙️ | ⏳ |
 | [T-FE-037](T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ⚙️ | ⏳ |
 | T-FE-019 | Phase 3 联调：权限查询/校验（4.2） | frontend-phase3 | api-contract | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |

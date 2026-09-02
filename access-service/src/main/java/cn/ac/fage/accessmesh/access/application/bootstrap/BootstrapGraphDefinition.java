@@ -144,6 +144,17 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/perm/api/perm/abstract-role/remove", "bootstrap:删除角色", true, false),
             new ApiRoute("POST", "/perm/api/perm/abstract-role/move", "bootstrap:移动角色", true, false),
             new ApiRoute("POST", "/perm/api/perm/abstract-role/detail", "bootstrap:角色详情", true, false),
+            // T-FE-017：资源与操作定义页消费端点（tree、operation-permission/list 已在上方清单）。
+            // resource-entity/detail 编辑回显（树节点无 extra，按业务键拉 detail）；operation detail
+            // 与 resource list 本页不消费不注册（后续消费页按页注册）；remove 为批量端点（items 集合）
+            new ApiRoute("POST", "/perm/api/perm/resource-entity/detail", "bootstrap:资源详情", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-entity/create", "bootstrap:创建资源", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-entity/update", "bootstrap:更新资源", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-entity/move", "bootstrap:移动资源", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-entity/remove", "bootstrap:删除资源", true, false),
+            new ApiRoute("POST", "/perm/api/perm/operation-permission/create", "bootstrap:创建操作权限", true, false),
+            new ApiRoute("POST", "/perm/api/perm/operation-permission/update", "bootstrap:更新操作权限", true, false),
+            new ApiRoute("POST", "/perm/api/perm/operation-permission/remove", "bootstrap:删除操作权限", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/admin/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }
@@ -170,6 +181,13 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.VIEW, null, false),
+            // T-FE-017：资源与操作定义页写门禁——固定图不持 CREATE/MANAGE 则空库上
+            // 该页写路径无授予起点（死锁，同 T-PERM-027 先例）。RESOURCE 的 update/move/
+            // remove 为实例级校验，类型级 scopeAll 覆盖（实例粒度由租户后续自行收紧）
+            new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.MANAGE, null, false),
+            new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.MANAGE, null, false),
             // T-PERM-025 审计分离：操作日志查询独立门禁——新权限码需固定图持否则无授予起点（死锁）
             new GrantSpec(ResourceTypeCode.OPERATION_LOG, OperationCodeConstants.VIEW, null, false),
             // T-PERM-032 审计分离：变更日志页查询门禁（对齐 OPERATION_LOG 先例）

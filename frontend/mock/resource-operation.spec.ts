@@ -1,57 +1,37 @@
 import { describe, expect, it } from "vitest";
-import operationRoutes from "./resource-operation";
+import { operations, presetOperationsForType } from "./resource-operation";
 
-type FakeRoute = {
-  url: string;
-  response: (context: { body: Record<string, any> }) => any;
-};
+// T-FE-017：路由段删除后，本 spec 改锁共享数据导出（仍被 resource-dependency /
+// type-def / permission-grant 三个 mock 引用）；原 list 路由空白串过滤契约用例
+// 随路由段一并退役（消费方已切真实后端，契约行为由 PgIT 侧覆盖）。
 
-function routeOf(routes: unknown, url: string): FakeRoute {
-  const route = (routes as FakeRoute[]).find(item => item.url === url);
-  if (!route) throw new Error(`mock route not found: ${url}`);
-  return route;
-}
-
-const listRoute = routeOf(
-  operationRoutes,
-  "/api/perm/operation-permission/list"
-);
-
-describe("resource-operation mock 契约", () => {
-  it("list：空白串 resourceTypeCode 视同缺省不过滤（契约 §5.3，与后端 isBlank 同口径）", () => {
-    const unfiltered = listRoute.response({ body: {} });
-    const blank = listRoute.response({ body: { resourceTypeCode: "   " } });
-
-    expect(blank.code).toBe(200);
-    expect(unfiltered.data.items.length).toBeGreaterThan(0);
-    expect(blank.data.items.length).toBe(unfiltered.data.items.length);
+describe("resource-operation mock 共享数据", () => {
+  it("种子操作按资源类型预置 CRUD 四操作，位字段为十进制字符串", () => {
+    const menuOps = operations.filter(op => op.resourceTypeCode === "MENU");
+    expect(menuOps.map(op => op.code).sort()).toEqual([
+      "CREATE",
+      "DELETE",
+      "UPDATE",
+      "VIEW"
+    ]);
+    for (const op of menuOps) {
+      expect(op.binaryBit).toMatch(/^\d+$/);
+      expect(op.inheritMask).toMatch(/^\d+$/);
+    }
   });
 
-  it('list：非空白值原样精确匹配——带边界空格的 " MENU " 属未知类型返回空列表', () => {
-    const resp = listRoute.response({ body: { resourceTypeCode: " MENU " } });
-
-    expect(resp.code).toBe(200);
-    expect(resp.data.items).toEqual([]);
-  });
-
-  it("list：已知类型过滤仅返回该类型定义", () => {
-    const resp = listRoute.response({ body: { resourceTypeCode: "MENU" } });
-
-    expect(resp.code).toBe(200);
-    expect(resp.data.items.length).toBeGreaterThan(0);
-    expect(
-      resp.data.items.every(
-        (op: { resourceTypeCode: string }) => op.resourceTypeCode === "MENU"
-      )
-    ).toBe(true);
-  });
-
-  it("list：未知类型返回空列表（fail-closed，对齐后端口径）", () => {
-    const resp = listRoute.response({
-      body: { resourceTypeCode: "NO_SUCH_TYPE" }
-    });
-
-    expect(resp.code).toBe(200);
-    expect(resp.data.items).toEqual([]);
+  it("presetOperationsForType 为新类型联动预置 CRUD 四操作位（T-PERM-028 同事务预置语义）", () => {
+    const before = operations.length;
+    presetOperationsForType("NEW_TYPE_X");
+    const added = operations.slice(before);
+    expect(added).toHaveLength(4);
+    expect(added.map(op => op.code).sort()).toEqual([
+      "CREATE",
+      "DELETE",
+      "UPDATE",
+      "VIEW"
+    ]);
+    expect(added.every(op => op.resourceTypeCode === "NEW_TYPE_X")).toBe(true);
+    expect(added.every(op => op.resourceTypeName === null)).toBe(true);
   });
 });

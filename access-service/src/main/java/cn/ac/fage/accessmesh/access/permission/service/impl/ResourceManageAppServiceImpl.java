@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingUpdateReq;
@@ -193,6 +194,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         entity.setStatus(req.status() != null ? req.status() : 1);
         entity.setSortOrder(req.sortOrder() != null ? req.sortOrder() : 0);
         entity.setExtra(req.extra());
+        // maintain_source NOT NULL（DDL DEFAULT 'MANUAL' 不生效——flex insert 显式带列），
+        // 与其余全部本地写入方同款（bootstrap/投影/sync 各自设值）
+        entity.setMaintainSource(PermConstants.MaintainSource.MANUAL);
         entity.setCreatedBy(operatorId);
         LocalDateTime now = LocalDateTime.now();
         entity.setCreatedAt(now);
@@ -290,6 +294,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             entity.setStatus(req.status() != null ? req.status() : 1);
             entity.setSortOrder(req.sortOrder() != null ? req.sortOrder() : 0);
             entity.setExtra(req.extra());
+            entity.setMaintainSource(PermConstants.MaintainSource.MANUAL);
             entity.setCreatedBy(operatorId);
             entity.setCreatedAt(now);
             entity.setUpdatedAt(now);

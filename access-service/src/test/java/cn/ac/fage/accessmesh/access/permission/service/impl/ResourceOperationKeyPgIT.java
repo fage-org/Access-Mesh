@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeysReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq;
@@ -205,6 +206,22 @@ class ResourceOperationKeyPgIT {
         op.setDeleteFlag(0L);
         operationPermissionMapper.insert(op);
         return op;
+    }
+
+    @Test
+    @DisplayName("createResource 落库 maintain_source=MANUAL（T-FE-017 冒烟缺陷回归锁——flex insert 显式带列，DDL DEFAULT 不生效，缺设置则 NOT NULL 500）")
+    void createResourceShouldPersistMaintainSourceManual() {
+        ResourceManageAppServiceImpl service = newResourceManageAppService(permitAllEngine());
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            // BUTTON 非保留类型（{USER,ORG,MENU,ROLE} 保留，人工不可建投影）
+            var resp = service.createResource(TENANT, new ResourceCreateReq(
+                null, null, null, null, null, "BUTTON", "PGIT17_CREATE", null,
+                "冒烟资源", null, null, null, "{}"), 100L);
+            ResourceEntity saved = resourceEntityMapper.selectValidById(TENANT, resp.id());
+            assertThat(saved).isNotNull();
+            assertThat(saved.getMaintainSource()).isEqualTo("MANUAL");
+        }
     }
 
     @Test

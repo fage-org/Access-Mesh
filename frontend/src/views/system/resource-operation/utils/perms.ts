@@ -11,12 +11,12 @@
  * 本页涉及**两个资源类型**的门禁：
  *
  * - `RESOURCE:VIEW` / `RESOURCE:CREATE` / `RESOURCE:MANAGE`（资源类型 RESOURCE）
- *   - 资源树/列表查看 -> `RESOURCE:VIEW`（前端路由门控；后端 list/tree 未见 VIEW 校验，🔧 种子可能缺失登记 T-PERM-028）
+ *   - 资源树/列表查看 -> `RESOURCE:VIEW`（类型级，T-PERM-028 已实现；bootstrap 固定图已持——VIEW 原有，CREATE/MANAGE 补于 T-FE-017）
  *   - 创建资源 -> `RESOURCE:CREATE`（后端 createResource/batchCreateResources 校验 RESOURCE:CREATE）
  *   - 编辑/移动/删除 -> `RESOURCE:MANAGE`（后端 updateResource/moveResource/deleteResources 校验 RESOURCE:MANAGE）
  *
  * - `OPERATION:VIEW` / `OPERATION:CREATE` / `OPERATION:MANAGE`（资源类型 OPERATION）
- *   - 操作列表查看 -> `OPERATION:VIEW`（前端路由门控；后端 list 未见 VIEW 校验，🔧 登记同上）
+ *   - 操作列表查看 -> `OPERATION:VIEW`（类型级，T-PERM-028 已实现；bootstrap 固定图已持——VIEW 原有，CREATE/MANAGE 补于 T-FE-017）
  *   - 创建操作 -> `OPERATION:CREATE`（后端 createOperation 校验 OPERATION:CREATE）
  *   - 编辑/删除 -> `OPERATION:MANAGE`（后端 updateOperation/deleteOperations 校验 OPERATION:MANAGE）
  *

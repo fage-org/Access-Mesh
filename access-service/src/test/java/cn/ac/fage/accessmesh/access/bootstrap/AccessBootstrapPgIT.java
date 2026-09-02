@@ -167,7 +167,7 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(1)
-    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+33API 资源/32 映射/76 授权/15 菜单/默认组织树）")
+    @DisplayName("状态①：空库单事务创建完整固定图（主体链/角色/绑定/SERVICE+45API 资源/44 映射/92 授权/15 菜单/默认组织树）")
     void createsFullGraphOnEmptyDatabase() {
         initializer.initialize(BOOTSTRAP_PASSWORD);
 
@@ -207,7 +207,7 @@ class AccessBootstrapPgIT {
                 + "AND target_type = 'ROLE' AND target_id = ? AND delete_flag = 0",
             Long.class, TENANT, subjectId, roleId)).isEqualTo(1L);
 
-        // SERVICE 资源 + 37 个 API 资源 + 36 个映射（目标接口无映射；13 原始管理端点 +
+        // SERVICE 资源 + 45 个 API 资源 + 44 个映射（目标接口无映射；13 原始管理端点 +
         // T-FE-015 组织与用户页 20 端点 + T-FE-016 角色页 4 端点逐条精确注册——Gateway 未映射路径 fail-closed；
         // 页消费 22 端点中 /admin/user/create 与 /perm/api/perm/user-role/assign 原已在册）
         assertThat(jdbc.queryForObject(
@@ -222,36 +222,38 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code IN ('" + String.join("','", expectedApiCodes) + "') AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(37L);
+            Long.class, TENANT)).isEqualTo(45L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND re.code LIKE 'POST:%'",
-            Long.class, TENANT)).isEqualTo(36L);
+            Long.class, TENANT)).isEqualTo(44L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 AND re.code = 'POST:/admin/role/my-info'",
             Long.class, TENANT)).isEqualTo(0L);
 
-        // 80 条授权（T-API-001 + T-PERM-025/032/026/027/030/031 + T-FE-015/016）：43 条业务门禁 scopeAll
+        // 92 条授权（T-API-001 + T-PERM-025/032/026/027/030/031 + T-FE-015/016/017）：47 条业务门禁 scopeAll
         // （原 26 条 + T-FE-015 补 17 条——ORG 十档/USER 五档/SYSTEM_CONFIG 两档，组织与用户页与
         // 系统配置页读写门禁 18 档中 USER:CREATE 已在图；菜单种子挂类型走派生同样要求先持有；
         // 含 SERVICE 四操作类型级
         // VIEW/MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE 与 API:ACCESS 类型级+canGrant、
         // OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW、DOMAIN:VIEW、T-PERM-030 补
         // CONFLICT_RULE 四档与 CONDITION 写三档、T-PERM-031 补 DEPENDENCY 五档）
-        // + 37 条实例（37 API:ACCESS——T-FE-016 角色管理页 +4 端点）；canGrant=true 共 2 条（目标 API 实例 + API:ACCESS 类型级）
+        // + 45 条实例（45 API:ACCESS——T-FE-016 角色管理页 +4 端点、T-FE-017 资源与操作定义页 +8 端点）；
+        // T-FE-017 另补业务门禁 RESOURCE/OPERATION CREATE+MANAGE 四条 scopeAll；
+        // canGrant=true 共 2 条（目标 API 实例 + API:ACCESS 类型级）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(80L);
+            Long.class, TENANT, roleId)).isEqualTo(92L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
-            Long.class, TENANT, roleId)).isEqualTo(43L);
+            Long.class, TENANT, roleId)).isEqualTo(47L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND can_grant = true",
