@@ -3,10 +3,12 @@ doc_type: design
 title: 6.2 系统配置页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-024 收口：§5/§8/§9 终态化（契约要点补全、种子误报澄清、JSONB 实证+isSystem 修复、list 服务端分页）
+last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——ConfigForm 键名 Pattern 对齐后端命名空间前缀强制；keyword LIKE CAST 修复；2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-024 收口：§5/§8/§9 终态化（契约要点补全、种子误报澄清、JSONB 实证+isSystem 修复、list 服务端分页）
 ---
 
 # 6.2 系统配置页 前端设计
+
+> **T-FE-022 联调注记（2026-09-03）**：api/system-config.ts 三端点（detail 页面不消费）切 Gateway `/perm/api/perm/system-config/*`；mock/system-config.ts 整删；ConfigForm configKey 校验由 `^[A-Z][A-Z0-9_]*$` 对齐后端 T-ACCESS-007 §5.2 命名空间前缀强制（`^(admin|permission|access)\.[A-Z][A-Z0-9_]*$`，旧 Pattern 与后端互斥致新建链路必被前端挡死）；后端 list keyword 过滤 CAST 修复（见 TypeDefinitionMapper 锚点注释）。
 
 > 任务：T-FE-004（Phase 1，mock 驱动）
 > 后端契约：`docs/design/permission-center/api-contract.md` §5.8（系统配置仅 3 行表格条目，无独立字段契约章节——🔧 登记 T-PERM-024）

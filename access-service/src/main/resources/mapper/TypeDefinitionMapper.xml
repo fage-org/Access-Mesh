@@ -82,6 +82,9 @@
           AND type_key = #{typeKey}
     </select>
 
+    <!-- keyword 参数必须 CAST AS VARCHAR：JDBC URL 带 stringtype=unspecified（UTC TypeHandler 所需），
+         CONCAT(variadic "any") 下 PG 无法推断未定型参数类型会直接 500（T-FE-022 联调暴露，
+         同族 LIKE CONCAT 全部 mapper 一并修复） -->
     <sql id="listCondition">
         WHERE tenant_id = #{tenantId}
           AND delete_flag = 0
@@ -89,7 +92,7 @@
           AND type_key = #{typeKey}
         </if>
         <if test="keyword != null and keyword != ''">
-          AND (name LIKE CONCAT('%', #{keyword}, '%') OR type_code LIKE CONCAT('%', #{keyword}, '%'))
+          AND (name LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%') OR type_code LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%'))
         </if>
     </sql>
 

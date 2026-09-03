@@ -3,10 +3,12 @@ doc_type: design
 title: 5.2 服务与接口映射页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-29   # 2026-08-29 §7.6 资源选择器收口（T-PERM-028：类型下拉+树选落地、裸 ID 输入删除）；同日 T-PERM-027 后端收口终态化（删除级联/资源业务字段/FULL-only/mapping list 门禁/updatedAt/bootstrap SERVICE 授权；§7 七项收口标注）；原文 2026-07-11 Phase 1 前端设计定稿
+last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +8 端点（service-config 5 + api-mapping 3，detail 不消费）；2026-08-29   # 2026-08-29 §7.6 资源选择器收口（T-PERM-028：类型下拉+树选落地、裸 ID 输入删除）；同日 T-PERM-027 后端收口终态化（删除级联/资源业务字段/FULL-only/mapping list 门禁/updatedAt/bootstrap SERVICE 授权；§7 七项收口标注）；原文 2026-07-11 Phase 1 前端设计定稿
 ---
 
 # 5.2 服务与接口映射页 前端设计
+
+> **T-FE-022 联调注记（2026-09-03）**：api/service-interface.ts 九端点（service-config/apis/sync/remove + api-mapping list/update/remove，detail 不消费；api-mapping/create 先期在册）切 Gateway `/perm/api/perm/*`；mock/service-interface.ts 整删；浏览器全链路实证——登记/选中/新增映射/FULL 同步清理边界（服务维护映射清理、手工映射保留）/移除/删除服务。
 
 > 任务：T-FE-007（Phase 1，mock 驱动）
 > 后端契约：`docs/design/permission-center/api-contract.md` §5.4、§6.3、§6.10.4

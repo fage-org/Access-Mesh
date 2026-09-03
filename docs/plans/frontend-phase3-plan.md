@@ -18,7 +18,7 @@ tasks:
   - T-FE-021
   - T-FE-022
 acceptance: "9 个有效联调任务 mock -> 真实接口替换完成（T-FE-018 角色联调首期 + T-FE-037 组织联调二期，首期/二期拆分定稿；T-FE-018 角色联调依赖 T-FE-036 + T-FE-038 + T-FE-039 + **T-FE-040** + T-PERM-040 + T-PERM-041 + T-PERM-034 + T-PERM-022/028/029/031（2026-08-05 评审：T-FE-038 mock 先行，T-FE-018 汇合单类型矩阵/图标模型/条件转授链路；2026-08-08 补记录级聚焦编辑 T-FE-040），T-ADMIN-021 不阻塞首期；T-FE-037 组织联调二期依赖 T-FE-018 + T-ADMIN-021；统一提交主通道 = apply-grant-plan，无 CAS/幂等表/clientRequestId），核心流程联调通过，异常场景提示正确，页面间跳转/状态保持正确。"
-last_updated: 2026-09-02
+last_updated: 2026-09-03
 ---
 
 # 前端 Phase 3 — 前后端联调
@@ -45,7 +45,7 @@ last_updated: 2026-09-02
 | T-FE-019 | 权限查询/校验（4.2）——done 2026-09-02 | T-FE-013, T-PERM-033 |
 | T-FE-020 | 条件/冲突规则（3.2/3.3）——done 2026-09-02 | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 |
 | T-FE-021 | 业务域配置（5.1）——done 2026-09-02 | T-FE-006, T-PERM-026 |
-| T-FE-022 | 系统/服务配置与日志（6.x/5.2/7.x；2026-08-28 扩入 7.x 日志两页——原计划无 7.x 承接） | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 |
+| T-FE-022 ✅ | 系统/服务配置与日志（6.x/5.2/7.x；2026-08-28 扩入 7.x 日志两页——原计划无 7.x 承接；已收口 2026-09-03，终态见任务卡完成记录——Gateway +16 端点、TYPE_DEFINITION 写门禁 +2、keyword CAST 系统性修复 9 mapper、ConfigForm 前缀对齐、mock 四文件整删） | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 |
 
 ## 联调完成标准
 
@@ -62,6 +62,7 @@ last_updated: 2026-09-02
 
 ## 当前进度
 
+- 2026-09-03：**T-FE-022 收口（Phase 3 第八个联调任务 done，重建库后浏览器冒烟五页全过）**：五页 16 端点 mock→真实（类型定义 6.1/系统配置 6.2/服务与接口 5.2/操作日志 7.1/变更日志 7.2，三个 detail 端点页面不消费不注册）；Gateway bootstrap 清单 +16 端点；业务门禁 +2（TYPE_DEFINITION:CREATE/MANAGE，写路径死锁防护同 DEPENDENCY 先例；其余四类已在图）；前端 api 四文件裸 /api/perm/** 路径修正（T-FE-020/021 同款第三批，api 层自此无裸路径）；**联调修复两个系统性缺陷**——① keyword LIKE CONCAT 参数在 stringtype=unspecified 下 PG 无法推断类型致全部关键字搜索 500（三域直调实证）→ 9 mapper 统一 CAST(... AS VARCHAR) + KeywordLikeSearchPgIT 7 用例红绿双证（含 Testcontainers URL stringtype 追加无效的测试基建订正）；② ConfigForm 键名 Pattern 与后端命名空间前缀强制互斥（新建配置必被前端挡死）→ 对齐 admin./permission./access. 前缀形态；mock 四文件整删（_shared/resource-fixtures 留待 3.4 页）；契约零漂移（16 组 DTO 逐一比对）；PgIT 计数 66/65/113/47→82/81/131/49。联调发现登记不修：XML+Page 参数不生效族 9 方法（含 paginateByCondition CCE 实证，T-ADMIN-026）、user-role assign 无变更日志（revoke 有，审计不对称）。Phase 3 仅剩被 T-ADMIN-021 阻塞的 T-FE-037。
 - 2026-09-02：**T-FE-018 双轨子代理评审收口（代码轨 0P1+0P2+5P3、文档轨 2P1+1P2+3P3，逐条代码级核实全属实全处置）**：事实性修正——两看板（phase3-plan / tasks README）done 同步、任务卡与 api 注释「网关 404」按实测对齐 403、mock 旧名注释 3 处、api-contract 轮次标记 1 处、tsconfig include 恢复 `mock/_shared/*.ts`（resource-operation 更名挪出后 tsc 覆盖缩减退转）；四项用户决策执行——① SUB_PERM 顶层通配登记已知缺陷（api-contract §6.5.2 注记，ALLOW_ALL 以嵌套 `child_types:["*"]` 替代，修复另立任务）；② bootstrap 授权匹配拆两级（缺行 fail-fast / 属性漂移 warn 放行不重种；architecture §14.2+runbook 回写；PgIT +1 漂移放行回归锁 16/16，dev 库 id48 condition 漂移下 bootstrap=true 重启由拒启改为放行实证）；③ 前端类型候选 403 同样降级（探查粒度差异窄场景；hook.spec +4 用例，vitest 202/202；**2026-09-03 决策修订：后端门禁放宽为类型级或任一实例级 VIEW，`requireTypeViewPermission` 单测三用例锁定 17/17，前端 403 捕获保留为防御层**）；④ 停用条件三子项补验（复制入口禁用提示 / 「条件已停用」回显标注 / 20042 同值豁免 update 成功且 DB 断言保留，dev 真实后端全过）。
 - 2026-09-02：**T-FE-018 收口（Phase 3 第七个联调任务 done，重建库后浏览器全场景冒烟通过；后端零改动）**：授权页角色入口 6 数据源 mock→真实；mock 四文件整删（permission-grant+spec / type-def / _shared/sub-perm-policy+spec / _shared/permission-condition-store）+ resource-operation 更名 _shared/resource-fixtures（唯一存活消费方 = resource-dependency mock）；TYPE_DEFINITION:VIEW 缺口按理解 A 定案落地（perms SSOT TYPE_VIEW 软依赖不进路由 meta.auths + loadDeps hasPerms 探查 + typePermDenied 降级块可重试）；RolePermissionItem/GrantRecordKey.operationCode 收紧 string；S1~S11 + sub-perm-allowed-types 三态 + 8 错误码兜底 + 混合 plan 20008 单事务回滚（DB 断言零写入）+ XHR 延迟防重 + 降级用户端到端全过；Gateway 端点与业务门禁零新增（消费端点均先期在册）；vitest 198/198。终态见任务卡完成记录（含同日评审补三项决策处置）。
 - 2026-09-02：**T-FE-019 收口（Phase 3 第五个联调任务 done，重建库后浏览器冒烟三 Tab 通过）**：权限排查页 Gateway bootstrap 清单 +3 端点（permission-view/effective-permissions、auth/query-scopes、permission-view/explain；permission-view 其余端点本页不消费不注册）；业务门禁零新增（explain/effective-permissions 被查目标实例 USER:VIEW/ROLE:VIEW 与 query-scopes 无门禁均系 T-PERM-033 已收口实现，固定图原持）；api/permission-query.ts 三端点切 Gateway 外部路径（本地 mock 路径退役）；explain 契约扩展前端展示接线（T-PERM-033 指派本任务：Tab3 模拟 IP 输入 context.clientIp + ExplainPanel 条件评估上下文/条件评估明细/互斥丢弃三区块）；表单示例默认值清空（设计定案：mock 时代 REPORT/DATA 示例真实库必查空误导排查者）；mock/permission-query.ts 整删（无外部消费方，设计定案）；契约零漂移；PgIT 计数 54/53/101→57/56/104（scopeAll 47 不变）。终态见任务卡完成记录。

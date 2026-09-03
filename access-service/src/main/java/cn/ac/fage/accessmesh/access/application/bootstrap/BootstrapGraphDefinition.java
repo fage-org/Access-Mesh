@@ -187,6 +187,28 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/perm/api/perm/domain-config/detail", "bootstrap:域配置详情", true, false),
             new ApiRoute("POST", "/perm/api/perm/domain-config/save", "bootstrap:保存域配置", true, false),
             new ApiRoute("POST", "/perm/api/perm/domain-config/remove", "bootstrap:删除域配置", true, false),
+            // T-FE-022：系统/服务配置与日志五页消费端点（type-definition/list、
+            // resource-api-mapping/create 已在上方清单）。type-definition/detail、system-config/detail、
+            // service-config/detail 页面不消费不注册——类型定义编辑用行数据、系统配置 save 幂等无
+            // detail 需要、服务详情由 list 行数据展开；业务门禁仅 TYPE_DEFINITION:CREATE/MANAGE
+            // 需本任务补授（见下方），其余（SYSTEM_CONFIG/OPERATION_LOG/PERMISSION_CHANGE_LOG/
+            // SERVICE 四条）已在图
+            new ApiRoute("POST", "/perm/api/perm/type-definition/create", "bootstrap:创建类型定义", true, false),
+            new ApiRoute("POST", "/perm/api/perm/type-definition/update", "bootstrap:更新类型定义", true, false),
+            new ApiRoute("POST", "/perm/api/perm/type-definition/remove", "bootstrap:删除类型定义", true, false),
+            new ApiRoute("POST", "/perm/api/perm/system-config/list", "bootstrap:系统配置列表", true, false),
+            new ApiRoute("POST", "/perm/api/perm/system-config/save", "bootstrap:保存系统配置", true, false),
+            new ApiRoute("POST", "/perm/api/perm/service-config/list", "bootstrap:服务配置列表", true, false),
+            new ApiRoute("POST", "/perm/api/perm/service-config/save", "bootstrap:保存服务配置", true, false),
+            new ApiRoute("POST", "/perm/api/perm/service-config/remove", "bootstrap:删除服务配置", true, false),
+            new ApiRoute("POST", "/perm/api/perm/service-config/apis", "bootstrap:服务接口映射查询", true, false),
+            new ApiRoute("POST", "/perm/api/perm/service-config/sync", "bootstrap:服务接口FULL同步", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-api-mapping/list", "bootstrap:接口映射列表", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-api-mapping/update", "bootstrap:更新接口映射", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-api-mapping/remove", "bootstrap:删除接口映射", true, false),
+            new ApiRoute("POST", "/perm/api/perm/log/operation/list", "bootstrap:操作日志列表", true, false),
+            new ApiRoute("POST", "/perm/api/perm/log/operation/action-options", "bootstrap:操作类型字典", true, false),
+            new ApiRoute("POST", "/perm/api/perm/log/change/list", "bootstrap:权限变更日志列表", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/admin/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }
@@ -211,6 +233,11 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.MANAGE, null, false),
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.SYNC_INTERFACE, null, false),
             new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.VIEW, null, false),
+            // T-FE-022：类型定义页写门禁（T-PERM-023 收口：create 类型级 CREATE、update/remove
+            // 实例级 MANAGE——实例轨按 type_definition.id 直填引擎，业务键统一已登记 T-PERM-051；
+            // scopeAll 覆盖实例校验，实例粒度由租户后续自行收紧）
+            new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.MANAGE, null, false),
             new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.VIEW, null, false),
             // T-FE-017：资源与操作定义页写门禁——固定图不持 CREATE/MANAGE 则空库上

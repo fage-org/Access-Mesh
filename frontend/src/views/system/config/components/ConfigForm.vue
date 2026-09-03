@@ -30,14 +30,16 @@ const formRef = ref<FormInstance>();
 const isEdit = computed(() => props.mode === "edit");
 
 /** 表单校验规则。
- *  configKey 唯一键，新建可填（字母数字下划线，最长 128，对齐 schema VARCHAR(128)），编辑只读。
+ *  configKey 唯一键，新建可填（命名空间前缀 + 大写字母/数字/下划线，最长 128，对齐 schema
+ *  VARCHAR(128) 与后端 T-ACCESS-007 §5.2 命名空间前缀强制——无前缀键后端 400），编辑只读。
  *  configValue 必填 + JSON 合法性校验（与后端 JsonValidationUtils.validateJson 对齐）。 */
 const rules = computed<FormRules>(() => ({
   configKey: [
     { required: true, message: "请输入配置键", trigger: "blur" },
     {
-      pattern: /^[A-Z][A-Z0-9_]*$/,
-      message: "仅支持大写字母开头，含大写字母/数字/下划线",
+      pattern: /^(admin|permission|access)\.[A-Z][A-Z0-9_]*$/,
+      message:
+        "必须使用 admin./permission./access. 命名空间前缀，后接大写字母开头的键名",
       trigger: "blur"
     },
     { max: 128, message: "最长 128 字符", trigger: "blur" }
@@ -118,7 +120,7 @@ defineExpose({
   >
     <el-form-item label="配置键" prop="configKey">
       <!--
-        新建可填（唯一键，建议大写下划线命名）；编辑只读：configKey 是唯一键，
+        新建可填（唯一键，命名空间前缀 + 大写下划线命名，前缀后端强制）；编辑只读：configKey 是唯一键，
         改它等于新建新项（唯一索引 uk_system_config），与 type-def 稳定编码同口径。
       -->
       <el-input
@@ -130,7 +132,7 @@ defineExpose({
       <el-input
         v-else
         v-model="formData.configKey"
-        placeholder="如 ROLE_NAME_UNIQUE_MODE"
+        placeholder="如 permission.MY_SETTING"
         clearable
         maxlength="128"
       />

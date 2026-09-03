@@ -27,7 +27,7 @@
         SELECT * FROM sys_oauth2_client
         WHERE tenant_id = #{tenantId} AND delete_flag = 0
         <if test="clientName != null and clientName != ''">
-            AND client_name LIKE CONCAT('%', #{clientName}, '%')
+            AND client_name LIKE CONCAT('%', CAST(#{clientName} AS VARCHAR), '%')
         </if>
         <if test="status != null">
             AND status = #{status}

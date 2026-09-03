@@ -1,7 +1,7 @@
 /**
  * 权限变更日志 API
- * 经 @/utils/http 调用 access-service 端点（`/api/perm/log/change/list`）；
- * Phase 1 由 mock/permission-change-log.ts（vite-plugin-fake-server）提供假数据。
+ * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/log/change/list`
+ *（Gateway StripPrefix=1 后到 access-service `/api/perm/log/change/list`）。
  * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
  *
@@ -131,7 +131,7 @@ export type ChangeLogListReq = {
 
 // ========== API 函数 ==========
 
-/** 查询权限变更日志列表（POST /api/perm/log/change/list，契约路径已随 T-PERM-032 修正）。
+/** 查询权限变更日志列表（POST /perm/api/perm/log/change/list，契约路径已随 T-PERM-032 修正）。
  *  多维度过滤 + 服务端分页，返回 PaginatedResp<ChangeLogResp>。
  *  权限门禁：独立 PERMISSION_CHANGE_LOG:VIEW（T-PERM-032 审计分离，对齐操作日志 OPERATION_LOG:VIEW 先例）。 */
 export const getChangeLogList = async (
@@ -139,7 +139,7 @@ export const getChangeLogList = async (
 ): Promise<PaginatedResp<ChangeLogResp>> => {
   const res = await http.request<PermResult<PaginatedResp<ChangeLogResp>>>(
     "post",
-    "/api/perm/log/change/list",
+    "/perm/api/perm/log/change/list",
     { data: params }
   );
   return unwrap(res);

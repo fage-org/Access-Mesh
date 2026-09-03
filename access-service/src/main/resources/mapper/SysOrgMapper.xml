@@ -7,7 +7,7 @@
         SELECT * FROM sys_org
         WHERE tenant_id = #{tenantId} AND delete_flag = 0
         <if test="orgName != null">
-            AND name LIKE CONCAT('%', #{orgName}, '%')
+            AND name LIKE CONCAT('%', CAST(#{orgName} AS VARCHAR), '%')
         </if>
         <if test="orgType != null">
             AND org_type = #{orgType}
@@ -29,7 +29,7 @@
         SELECT COUNT(*) FROM sys_org
         WHERE tenant_id = #{tenantId} AND delete_flag = 0
         <if test="orgName != null">
-            AND name LIKE CONCAT('%', #{orgName}, '%')
+            AND name LIKE CONCAT('%', CAST(#{orgName} AS VARCHAR), '%')
         </if>
         <if test="orgType != null">
             AND org_type = #{orgType}

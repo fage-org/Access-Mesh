@@ -3,10 +3,12 @@ doc_type: design
 title: 7.2 权限变更日志页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-29   # 2026-08-29 T-PERM-032 收口：§3/§4/§5/§7 终态化（独立 PERMISSION_CHANGE_LOG:VIEW/筛选全集/createdBy/ROLE_BATCH_DELETE 补枚举）
+last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +1 端点；assign 无变更日志登记已知差距；2026-08-29   # 2026-08-29 T-PERM-032 收口：§3/§4/§5/§7 终态化（独立 PERMISSION_CHANGE_LOG:VIEW/筛选全集/createdBy/ROLE_BATCH_DELETE 补枚举）
 ---
 
 # 7.2 权限变更日志页设计
+
+> **T-FE-022 联调注记（2026-09-03）**：api/permission-change-log.ts 切 Gateway `/perm/api/perm/log/change/list`；mock/permission-change-log.ts 整删；浏览器实证 list + 详情抽屉（diff/old-new 快照/影响范围）。已知差距（登记于 T-FE-022 任务卡）：user-role assign 路径不写 permission_change_log（revoke 路径写 USER_ROLE_CHANGE），§6.8 事件历史 assign 半缺，聚合粒度设计待定。
 
 > 状态：adopted（T-FE-012 实现产出回写）
 > 关联任务：T-FE-012（前端）、T-PERM-032（后端 API 核对）

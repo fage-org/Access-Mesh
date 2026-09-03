@@ -18,7 +18,7 @@
           </foreach>
         </if>
         <if test="keyword != null and keyword != ''">
-          AND (name LIKE CONCAT('%', #{keyword}, '%') OR external_id LIKE CONCAT('%', #{keyword}, '%'))
+          AND (name LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%') OR external_id LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%'))
         </if>
         ORDER BY id
         LIMIT #{limit} OFFSET #{offset}

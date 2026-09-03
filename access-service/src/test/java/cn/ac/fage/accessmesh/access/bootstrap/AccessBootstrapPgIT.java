@@ -222,14 +222,14 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code IN ('" + String.join("','", expectedApiCodes) + "') AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(66L);
+            Long.class, TENANT)).isEqualTo(82L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND re.code LIKE 'POST:%'",
-            Long.class, TENANT)).isEqualTo(65L);
+            Long.class, TENANT)).isEqualTo(81L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
@@ -240,17 +240,17 @@ class AccessBootstrapPgIT {
         // 各联调页读写门禁档位（ORG/USER/SYSTEM_CONFIG/RESOURCE/OPERATION 等；菜单种子挂类型走派生
         // 同样要求先持有）；含 SERVICE 四操作类型级 VIEW/MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE
         // 与 API:ACCESS 类型级+canGrant、OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW、DOMAIN:VIEW、
-        // CONFLICT_RULE 与 CONDITION 写各档、DEPENDENCY 各档
+        // CONFLICT_RULE 与 CONDITION 写各档、DEPENDENCY 各档、TYPE_DEFINITION 写两档
         // + 每条在册 API 路由派生一条 API:ACCESS 实例授权（各联调任务按页注册，见
         // BootstrapGraphDefinition.apiRoutes()）；canGrant=true 仅目标 API 实例与 API:ACCESS 类型级
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(113L);
+            Long.class, TENANT, roleId)).isEqualTo(131L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
-            Long.class, TENANT, roleId)).isEqualTo(47L);
+            Long.class, TENANT, roleId)).isEqualTo(49L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND can_grant = true",

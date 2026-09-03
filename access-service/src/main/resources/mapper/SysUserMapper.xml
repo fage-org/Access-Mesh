@@ -6,8 +6,8 @@
     <select id="selectUsersByCondition" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysUser">
         SELECT u.* FROM sys_user u
         WHERE u.tenant_id = #{tenantId} AND u.delete_flag = 0
-        <if test="username != null"> AND username LIKE CONCAT('%', #{username}, '%')</if>
-        <if test="name != null"> AND name LIKE CONCAT('%', #{name}, '%')</if>
+        <if test="username != null"> AND username LIKE CONCAT('%', CAST(#{username} AS VARCHAR), '%')</if>
+        <if test="name != null"> AND name LIKE CONCAT('%', CAST(#{name} AS VARCHAR), '%')</if>
         <if test="phone != null"> AND u.phone = #{phone}</if>
         <if test="email != null"> AND u.email = #{email}</if>
         <if test="status != null"> AND u.status = #{status}</if>
@@ -30,8 +30,8 @@
     <select id="countUsersByCondition" resultType="long">
         SELECT COUNT(*) FROM sys_user u
         WHERE u.tenant_id = #{tenantId} AND u.delete_flag = 0
-        <if test="username != null"> AND username LIKE CONCAT('%', #{username}, '%')</if>
-        <if test="name != null"> AND name LIKE CONCAT('%', #{name}, '%')</if>
+        <if test="username != null"> AND username LIKE CONCAT('%', CAST(#{username} AS VARCHAR), '%')</if>
+        <if test="name != null"> AND name LIKE CONCAT('%', CAST(#{name} AS VARCHAR), '%')</if>
         <if test="phone != null"> AND u.phone = #{phone}</if>
         <if test="email != null"> AND u.email = #{email}</if>
         <if test="status != null"> AND u.status = #{status}</if>
@@ -134,10 +134,10 @@
         </foreach>
         <if test="keyword != null and keyword != ''">
             AND (
-                username LIKE CONCAT('%', #{keyword}, '%')
-                OR name LIKE CONCAT('%', #{keyword}, '%')
-                OR phone LIKE CONCAT('%', #{keyword}, '%')
-                OR email LIKE CONCAT('%', #{keyword}, '%')
+                username LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%')
+                OR name LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%')
+                OR phone LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%')
+                OR email LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%')
             )
         </if>
         ORDER BY created_at DESC, id DESC
@@ -153,10 +153,10 @@
         </foreach>
         <if test="keyword != null and keyword != ''">
             AND (
-                username LIKE CONCAT('%', #{keyword}, '%')
-                OR name LIKE CONCAT('%', #{keyword}, '%')
-                OR phone LIKE CONCAT('%', #{keyword}, '%')
-                OR email LIKE CONCAT('%', #{keyword}, '%')
+                username LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%')
+                OR name LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%')
+                OR phone LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%')
+                OR email LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%')
             )
         </if>
     </select>
