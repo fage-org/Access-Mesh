@@ -409,7 +409,7 @@ class HttpApiPathSnapshotTest {
 /org/delete|common.model.IdReq|common.model.PermResult<Void>
 /org/detail|common.model.IdReq|common.model.PermResult<access.admin.dto.resp.OrgResp>
 /org/page|access.admin.dto.req.OrgPageReq|common.model.PermResult<common.model.PaginatedResult<access.admin.dto.resp.OrgResp>>
-/org/tree|access.admin.dto.req.OrgQuery|common.model.PermResult<List<access.admin.dto.resp.OrgResp>>
+/org/tree|access.admin.dto.req.OrgQuery|common.model.PermResult<perm.common.dto.resp.ItemsResp<access.admin.dto.resp.OrgResp>>
 /org/update|access.admin.dto.req.OrgUpdateReq|common.model.PermResult<Void>
 /org/users|common.model.IdReq|common.model.PermResult<List<access.admin.dto.resp.OrgUserItemResp>>
 /role/list|access.admin.controller.AdminRoleController$RoleListQueryReq|common.model.PermResult<perm.common.dto.resp.ItemsResp<access.admin.dto.resp.RoleListItemResp>>

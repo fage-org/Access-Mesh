@@ -83,9 +83,15 @@ public interface OrgService {
      * 根据条件获取组织树结构。
      * 用于组织管理界面的树形展示。
      * </p>
+     * <p>
+     * T-ADMIN-021：支持 includePositions 组织+岗位一体树（岗位作为所属组织子节点，
+     * 岗位节点按调用者 ORG:VIEW_POSITION 后端裁剪）；operationCode（VIEW/CREATE，
+     * CREATE 限默认树）；treeConfigId 树配置子树裁剪（不传=默认树子树，用户决策契约字面）；
+     * 响应统一包装 ItemsResp（控制器层）。契约：admin-service-api-contract §4.2.1。
+     * </p>
      *
      * @param query 组织查询条件
-     * @return 组织树列表
+     * @return 组织树列表（顶层为配置根节点单根；parentOrgId 给定时为该节点子树）
      */
     List<OrgResp> treeOrgs(OrgQuery query);
 

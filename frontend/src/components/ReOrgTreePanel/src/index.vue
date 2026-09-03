@@ -139,9 +139,12 @@ async function loadTree() {
   // v1.4 后端 /org/tree 强制要求 orgType（按 orgType 分发 VIEW / VIEW_POSITION 门禁）；
   // 主组织树面板语义为「普通组织树」，传 orgType=1。
   // 若调用方需混合查询岗位，应在 props 上扩展并允许此处分别请求合并，而非传 null 走老语义。
-  // 注：后端 OrgQuery 暂无 treeConfigId 过滤（admin 契约 §4.2.1 合规债务①）——
-  // 切换树配置当前仅重拉同一棵默认树，待后端补齐后此处补参。
-  rawOrgTree.value = await getOrgTree({ orgType: 1 });
+  // T-ADMIN-021 起后端支持 treeConfigId 子树裁剪——切换树配置真实生效
+  //（缺省不传=默认树子树；无配置 id 时保持缺省语义）。
+  rawOrgTree.value = await getOrgTree({
+    orgType: 1,
+    ...(selectedConfigId.value != null ? { treeConfigId: selectedConfigId.value } : {})
+  });
 }
 
 async function onConfigChange(configId: number) {

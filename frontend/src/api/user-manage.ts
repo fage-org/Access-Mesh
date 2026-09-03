@@ -10,11 +10,17 @@ import { type PermResult, unwrap } from "./_envelope";
 
 // ========== 类型定义 ==========
 
-/** 组织树查询参数（对齐后端 OrgQuery；operationCode/treeConfigId 后端不存在——契约 §4.2.1 合规债务①，勿传） */
+/** 组织树查询参数（对齐后端 OrgQuery，T-ADMIN-021 全字段落地：operationCode/treeConfigId/includePositions） */
 export type OrgQuery = {
+  /** 操作语义：VIEW=可视范围 / CREATE=新增用户挂载点（限默认树，禁止与 treeConfigId/includePositions 同传） */
+  operationCode?: "VIEW" | "CREATE";
+  /** 组织树配置 ID；不传=默认树子树（多树租户下其他树须显式传 id） */
+  treeConfigId?: number;
   orgName?: string;
-  /** 必填语义：后端按 orgType 分发 ORG:VIEW / ORG:VIEW_POSITION 门禁（1=普通组织 / 2=岗位） */
+  /** includePositions 未传或为 false 时必填（后端按 orgType 分发 ORG:VIEW / ORG:VIEW_POSITION 门禁；1=普通组织 / 2=岗位） */
   orgType: number;
+  /** true=组织+岗位一体树（岗位作为所属组织子节点；orgType 被忽略；岗位按 ORG:VIEW_POSITION 后端裁剪） */
+  includePositions?: boolean;
   status?: number;
   parentOrgId?: number;
 };
@@ -207,14 +213,14 @@ export const getOrgTreeConfigs = async (): Promise<OrgTreeConfig[]> => {
   return unwrap(res).items;
 };
 
-/** 获取组织树（POST /admin/org/tree） */
+/** 获取组织树（POST /admin/org/tree；T-ADMIN-021 起响应统一 {items:[...]} 包装，此处解包保持调用方数组契约） */
 export const getOrgTree = async (params: OrgQuery): Promise<OrgTreeNode[]> => {
-  const res = await http.request<PermResult<OrgTreeNode[]>>(
+  const res = await http.request<PermResult<{ items: OrgTreeNode[] }>>(
     "post",
     "/admin/org/tree",
     { data: params }
   );
-  return unwrap(res);
+  return unwrap(res).items;
 };
 
 /** 获取用户分页列表（POST /admin/user/page） */

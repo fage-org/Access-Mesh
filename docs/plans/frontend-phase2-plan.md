@@ -32,7 +32,7 @@ tasks:
   - T-FE-040
   - T-ADMIN-021
 acceptance: "13 页后端接口改造完成（T-PERM-022~034 逐页实现）；跨页共性接口改造 + api-contract 回写完成（T-PERM-037）；自动授权实现 + 测试通过（T-PERM-035）；动态数据权限链路验证通过（T-PERM-036）；T-FE-036 前端权限授予页（mock 驱动）实现完成（本 plan 关联的前端部分，见正文前端重建任务节；含 DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机）；单类型矩阵上下文完成（T-FE-038 前端 + T-PERM-040 后端，2026-08-03 定稿，2026-08-05 扩展 list 类型过滤 + 嵌套 20008）；条件权限不可转授完成（T-PERM-041，20041 + **20042 条件启用状态** + 主权限 DDL CHECK）；矩阵图标正交模型完成（T-FE-039）；**授权弹窗 v3.1 记录级聚焦编辑完成（T-FE-040，mock-first，包含：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要/20042-20043 提示，联调见 T-FE-018）**；T-ADMIN-021 org-tree includePositions **二期**（首期只角色入口）。注：T-PERM-035/036 受 design-review §11 暂缓门禁约束，需 PM 重申后才能进入 in-progress。"
-last_updated: 2026-08-31
+last_updated: 2026-09-03
 ---
 
 # 前端 Phase 2 — 核心功能补齐 + 后端接口改造
@@ -101,7 +101,7 @@ last_updated: 2026-08-31
 | [T-FE-038](../tasks/T-FE-038.md) | 4.1 权限授予页单类型矩阵上下文 | ✅ | T-FE-036 |
 | [T-FE-039](../tasks/T-FE-039.md) | 4.1 矩阵图标正交状态模型与图标精简 | ✅ | T-FE-038 |
 | [T-FE-040](../tasks/T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录已确认，mock-first） | ✅ | T-FE-039 |
-| [T-ADMIN-021](../tasks/T-ADMIN-021.md) | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源） | ⚙️ | — |
+| [T-ADMIN-021](../tasks/T-ADMIN-021.md) | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源） | ✅ | — |
 
 
 ### 暂缓核心能力（T-PERM-035/036）
@@ -141,4 +141,5 @@ last_updated: 2026-08-31
 - 2026-08-30：**T-PERM-034 权限授予后端收口（四缺口推进，经决策）**——已完成项核对登记不重做（Resp 四字段/错误码族/DDL CHECK/prevalidate 主体/写入口五项清单均先行存在）；实施：①20043 子权限属性系统不变量（两 create 形态+update 子目标，先于 20041，+「向 AUTO_DEP 父挂子权限 20034」补齐）②SubPermissionPolicy 抽取+resolveSubPermissionPolicy 唯一公开入口+sub-perm-allowed-types 端点（§6.5.2 全套，读写同源）③diff_snapshot §6.8 聚合形状（AuditPermissionKey 预检期快照+一条聚合日志，T-PERM-033 读侧依赖解锁）④GoldenFixturePgIT 引擎级比对（6 用例真库种数据逐格等价）——比对首跑抓出引擎实质分歧并修复：resolveBitMasks 不计全局操作位（授权允许的全局位运行时被忽略），改按类型合并专属+全局；测试 4→35+5+1+3（含端到端成功/失败两场景）。剩余逐页任务：T-PERM-037/040/041（040/041 为授予链配套）。
 - 2026-08-30：**T-PERM-041 主权限条件不变量收口**——调研核实先行交付不重做（20041 枚举+prevalidate 最终态判定、`ck_role_resource_permission_condition_can_grant` DDL CHECK、api-contract/core-flows/permission-grant.md 契约文字均已存在），实际缺口仅 20042 后端校验与计划级测试：`CONDITION_DISABLED(20042)` 枚举建立（沿用预留编号）+ prevalidate 两处校验（creates 主权限新写入条件必须启用；updates 仅变更时校验——同 id 重写=存量保留按条件 id 比对豁免，清除仅精确空串、空白串落 20006、缺省不触发；均紧随 20041 之后符合 §6.5.1 优先级）；20006 存在性批量预检先于 20041/20042 维持既有顺序（设计定案：极端组合下与 mock 错误码不同但均为拒绝，不重排）；计划级条件不变量测试矩阵（doCallRealMethod 走真实 20041）+ H2 CHECK 用例。剩余逐页任务：T-PERM-037/040（040 为授予链配套）。
 - 2026-08-31：**T-PERM-040 单资源类型后端支持收口**——调研核实三块交付物实现面先行存在（operation-permission/list `resourceTypeCode` 过滤归并前已带、listPermissions 类型过滤+跨类型子权限挂父已实现、creates 20008 由 resolveOperation 承载且三形态全覆盖），includeGlobalFallback 合并语义已随 T-PERM-049 退役；实际缺口收口（三项设计定案）：①未知 resourceTypeCode 统一空列表 fail-closed（listOperations 原回退全量，与 listPermissions 口径相反）②类型过滤下沉专用 Mapper 查询（新增 `selectValidMainByRoleIdAndResourceType` 主权限 SQL + 复用 `selectValidByRoleIdAndDependIds` 子权限双重约束，childCount 计数源含全部直接子权限）③`OperationListReq.domainCode` 死参数删除（从未实现过滤、契约未登记、前端零传参，DTO+签名+前端类型同步）；操作适用性测试矩阵补齐（20008 三形态+20005 区分锁定、grant list 过滤五用例、operation list fail-closed 两用例）。剩余逐页任务：T-PERM-037。T-FE-018 后端依赖全部就绪。
+- 2026-09-03：**T-ADMIN-021 org-tree includePositions 收口——本 plan 后端任务全部完成，仅剩暂缓项 035/036 待定夺**。四项用户决策落地：债务①全顺带（OrgQuery 补 operationCode+treeConfigId，"CREATE+混合树拒绝"不再空转）、treeConfigId 缺省=默认树子树（契约字面；无默认配置 11001 fail-closed）、CREATE×treeConfigId 同传拒绝 10008、响应复用 perm-common ItemsResp<OrgResp>（线格式与 P1-3 定稿相同）。岗位节点后端裁剪（hasTypeLevel 非抛出判定，引擎技术故障/主体缺失 SystemException 99999 不静默降级）；顺带修正 orgName/parentOrgId 死参数与契约 OrgResp phone/email 陈旧行；前端 getOrgTree 解包 items（调用方零改动）+ ReOrgTreePanel 树配置切换真实生效。回归：OrgTreeIncludePositionsPgIT 12 用例（否定性裁剪/故障/兼容/多树/参数拒绝）+ hasTypeLevel 单测 3 用例 + 快照更新 + 前端 tsc/vitest 202 基线。T-FE-037（Phase 3 最后一项联调）依赖全部就绪。
 - 2026-08-31：**T-PERM-037 共性收口（审计型零代码变更）——Phase 2 逐页后端任务全部完成**（T-PERM-022~034/037/040/041；暂缓项 035/036 与 T-ADMIN-021 另行定夺）。全量审计结论：各页 🔧❌ 全处置零补漏（admin 契约 13 个 🔧 为已实现历史变更标记，抽验在案）、四组跨页共用接口消费侧零不一致（type-definition/list 四处消费全传 typeKey、资源树四处消费、condition/list 两页、operation-permission/list 随 040 收口）、api-contract 零占位残留、Phase 1 核对状态已随逐页任务回写。唯一悬空项「路由级 auths 拦截缺失」经用户决策定案：菜单可见性 v3.5 ∃op 派生方案后端已实现（user-menu 双轨下发过滤后 menus 树）、前端未接线（T-FE-041 纯静态路由模式，initRouter 传空数组、menus 存 user store 备用），**user-menu menus 轨道前端接线归入 Phase 3 联调 T-FE-015**（不立独立任务、不改 filterNoPermissionTree——与既定后端派生方案重复且可绕过）；三处页设文档登记同步收口。本 plan 归档另待 T-ADMIN-021（前端部分）与暂缓项定夺；T-FE-015~022 联调解锁。

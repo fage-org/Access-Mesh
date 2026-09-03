@@ -36,6 +36,21 @@ public interface AdminPermissionValidator {
     void checkTypeLevel(String resourceTypeCode, String operationCode);
 
     /**
+     * 类型级权限非抛出判定（T-ADMIN-021，供「部分裁剪」类调用方使用）。
+     * <p>
+     * 仅在权限引擎<b>成功响应</b>且判定拒绝时返回 false；本地权限引擎技术故障
+     * （如数据库异常）或操作者主体缺失时抛 {@link cn.ac.fage.accessmesh.common.exception.SystemException}
+     * 向上（fail-closed，不得静默降级为裁剪结果——P2-1）。不复用 SecurityException
+     * （全局映射 403，与故障语义矛盾）。
+     * </p>
+     *
+     * @param resourceTypeCode 资源类型码
+     * @param operationCode    操作码
+     * @return true=允许；false=引擎成功响应且明确拒绝
+     */
+    boolean hasTypeLevel(String resourceTypeCode, String operationCode);
+
+    /**
      * 实例级权限校验（用于UPDATE/DELETE操作）
      * <p>
      * 权限拒绝时抛出SecurityException。

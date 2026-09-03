@@ -4,7 +4,7 @@
 
 **AccessMesh** 是基于 Spring Cloud 微服务架构的通用访问控制平台，支持 SaaS 多租户模式。
 
-- **当前阶段**：access-service 归并完成（T-ACCESS-001~012，2026-08-22 收口归档）；产品定位已定案（开源通用 IAM，2026-08-28）；Phase 2 逐页后端改造全部收口（T-PERM-022~034 + 037/040/041，T-PERM-040/037 部分定案随 T-PERM-049 全局操作退役推翻）；Phase 3 前端联调 8/9 done（T-FE-015~022，2026-08-31~09-03；仅剩被 T-ADMIN-021 阻塞的 T-FE-037 组织联调二期）；看板待办以 `docs/tasks/README.md` 为准（T-PERM-044~051 加固/登记批次、T-ADMIN-025/026、Phase 4 T-FE-023 + T-PERM-039 等）
+- **当前阶段**：access-service 归并完成（T-ACCESS-001~012，2026-08-22 收口归档）；产品定位已定案（开源通用 IAM，2026-08-28）；Phase 2 逐页后端改造全部收口（T-PERM-022~034 + 037/040/041，T-PERM-040/037 部分定案随 T-PERM-049 全局操作退役推翻）；Phase 3 前端联调 8/9 done（T-FE-015~022，2026-08-31~09-03；仅剩 T-FE-037 组织联调二期——T-ADMIN-021 已收口 2026-09-03，依赖全部就绪待启动）；看板待办以 `docs/tasks/README.md` 为准（T-PERM-044~051 加固/登记批次、T-ADMIN-025/026、Phase 4 T-FE-023 + T-PERM-039 等）
 - **当前分支**：`feat-permission-center`
 - **文档入口**：`docs/README.md`
 

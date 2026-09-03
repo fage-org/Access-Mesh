@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.access.admin.service.OrgService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -119,15 +120,18 @@ public class OrgController {
     /**
      * 查询组织树
      * <p>
-     * 返回完整的组织层级树结构，用于管理界面展示组织架构关系。
+     * 返回组织层级树结构（按树配置子树裁剪，默认树为单根），用于管理界面展示组织架构关系。
+     * T-ADMIN-021：includePositions=true 返回组织+岗位一体树（岗位按调用者 VIEW_POSITION 后端裁剪）。
      * </p>
      *
-     * @param query 组织查询条件，可指定父组织ID过滤子树
-     * @return 组织树结构列表
+     * @param query 组织查询条件（operationCode/treeConfigId/includePositions/orgName/parentOrgId）
+     * @return 组织树结构（{items:[...]} 包装）
      */
     @PostMapping("/tree")
-    public PermResult<List<OrgResp>> treeOrgs(@Valid @RequestBody OrgQuery query) {
-        return PermResult.success(orgService.treeOrgs(query));
+    public PermResult<ItemsResp<OrgResp>> treeOrgs(@Valid @RequestBody OrgQuery query) {
+        // P1-3：不再返回裸数组，统一 {items:[...]} 包装（复用 perm-common ItemsResp，
+        // 与 /role/list、/user-role/list 同款；契约 §4.2.1）
+        return PermResult.success(new ItemsResp<>(orgService.treeOrgs(query)));
     }
 
     /**

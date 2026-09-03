@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-09-01   # 2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
+last_reviewed: 2026-09-03   # 2026-09-03 T-ADMIN-021 收口：§4.2.1 全字段落地（includePositions 一体树+岗位后端裁剪/债务① operationCode+treeConfigId/响应 ItemsResp<OrgResp> 包装/orgName+parentOrgId 死参数修正/OrgResp phone+email 陈旧行删除）；2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -404,21 +404,21 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 #### 4.2.1 `POST /org/tree` ✅
 
-**目的**: 返回组织层级树. 入参 `operationCode` 控制语义: `VIEW`=可视范围, `CREATE`=作为新增用户挂载点 (限默认树).
+**目的**: 返回组织层级树（按树配置子树裁剪，顶层为配置根单根）. 入参 `operationCode` 控制语义: `VIEW`=可视范围, `CREATE`=作为新增用户挂载点 (限默认树). `includePositions=true` 返回组织+岗位一体树（T-ADMIN-021，2026-09-03 全字段落地）.
 
-**请求 DTO**: `OrgQuery` (现有 record + 待新增 `operationCode`/`treeConfigId` 字段)
+**请求 DTO**: `OrgQuery`（T-ADMIN-021 起全字段落地，含原债务① `operationCode`/`treeConfigId`）
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `operationCode` | `String` | 否 | `VIEW` 或 `CREATE`; 不传时按 `VIEW` 处理。**`includePositions=true` 时仅支持 `VIEW`（P2-1 ：CREATE + 混合树 → 参数校验失败——岗位裁剪固定检查 VIEW_POSITION，CREATE 混合树会形成 CREATE+VIEW_POSITION 混合门禁；CREATE 场景保持 `orgType=1` 单类型树，不需要岗位节点）** |
-| `treeConfigId` | `Long` | 否 | 组织树配置 ID; 不传则返回默认树 |
-| `orgName` | `String` | 否 | 模糊匹配 |
-| `orgType` | `Integer` | 条件必填 | 1=组织, 2=岗位；**`includePositions != true` 时必填**（缺失 → `ORG_TYPE_REQUIRED`，保留现有业务码；后端 `treeOrgs` 按 orgType 分发 `VIEW/VIEW_POSITION` 门禁，放开空值会在单一门禁下返回全部类型，P1-2）；**`includePositions=true` 时忽略本字段（一体树语义，岗位裁剪由 hasTypeLevel 独立门控）** |
-| `includePositions` | `Boolean` | 否 | **T-ADMIN-021 新增（2026-08-01 评审 P1-6）**；默认 `false` 行为与现状完全一致；`true` 时返回组织+岗位一体树：岗位（orgType=2）作为所属组织（orgType=1）的**子节点**挂入同一树（岗位自身无下级），**忽略 `orgType` 单类型过滤** |
+| `operationCode` | `String` | 否 | `VIEW` 或 `CREATE`; 不传时按 `VIEW` 处理；非法值 → `INVALID_PARAM`(10008)。门禁按 `OrgOperationCodeMapper.resolve(orgType, operationCode)` 组合分发（orgType=1+CREATE → `ORG:CREATE`；orgType=2+VIEW → `ORG:VIEW_POSITION`）。**`includePositions=true` 时仅支持 `VIEW`（P2-1：CREATE + 混合树 → 10008——岗位裁剪固定检查 VIEW_POSITION，CREATE 混合树会形成 CREATE+VIEW_POSITION 混合门禁；CREATE 场景保持 `orgType=1` 单类型树，不需要岗位节点）；`CREATE` 与 `treeConfigId` 同传 → 10008（CREATE 限默认树，T-ADMIN-021 用户决策）** |
+| `treeConfigId` | `Long` | 否 | 组织树配置 ID；不传 = **默认树（is_default）子树**（契约字面，T-ADMIN-021 用户决策——多树租户下其他树必须显式传 id 才可见；无默认配置 → `ORG_TREE_CONFIG_NOT_FOUND`(11001) fail-closed，对齐 resolver 禁止静默 fallback 口径）；显式传 → 该配置 `root_org_id` 为根的子树（不存在 → 11001；根组织已删 → `ORG_TREE_ROOT_NOT_RESOLVED`(11002)）；`CREATE` 时禁止传 |
+| `orgName` | `String` | 否 | 模糊匹配（树剪枝语义：保留自身或后代命中的节点及其祖先链，与前端树过滤一致；T-ADMIN-021 修正原死参数——实现先前忽略本字段） |
+| `orgType` | `Integer` | 条件必填 | 1=组织, 2=岗位；**`includePositions != true` 时必填**（缺失 → `ORG_TYPE_REQUIRED`，保留现有业务码；后端 `treeOrgs` 按 orgType 分发 `VIEW/VIEW_POSITION` 门禁，放开空值会在单一门禁下返回全部类型，P1-2）；**`includePositions=true` 时忽略本字段（一体树语义，岗位裁剪由 hasTypeLevel 独立门控）**。注：orgType=2 树查询无前端消费者，且岗位的父节点均为组织——子树裁剪后仅直属根/父节点的岗位可见，结构退化；岗位树形态统一走 `includePositions` 混合树（已知边界，非缺陷） |
+| `includePositions` | `Boolean` | 否 | **T-ADMIN-021 已实现（2026-08-01 评审 P1-6）**；默认 `false` 行为与现状完全一致；`true` 时返回组织+岗位一体树：岗位（orgType=2）作为所属组织（orgType=1）的**子节点**挂入同一树（岗位自身无下级），**忽略 `orgType` 单类型过滤** |
 | `status` | `Integer` | 否 | |
-| `parentOrgId` | `Long` | 否 | 用于查询子树; 一般不与 `treeConfigId` 同时使用 |
+| `parentOrgId` | `Long` | 否 | 用于在配置子树内再取该节点子树（不在子树范围内 → 空结果，过滤语义不报错；T-ADMIN-021 修正原死参数）; 一般不与 `treeConfigId` 同时使用 |
 
-**响应（P1-3 定稿）**: `PermResult<OrgItemsResp>`，`data.items[]`（`OrgItemsResp{ items: List<OrgResp> }`）；**唯一形状，不再返回裸数组**（历史直返 List 已废弃；包装改造由 **T-ADMIN-021** 落地，见合规债务清单）
+**响应（P1-3 定稿，T-ADMIN-021 已落地）**: `PermResult<ItemsResp<OrgResp>>`，`data.items[]`（复用 perm-common 泛型 `ItemsResp{ items: List<OrgResp> }`，与 `/role/list`、`/user-role/list` 同款——T-ADMIN-021 用户决策，原定稿命名的 `OrgItemsResp` 类不再新建，线格式不变）；**唯一形状，不再返回裸数组**（历史直返 List 已废弃）
 
 `OrgResp`:
 
@@ -429,21 +429,21 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `orgName` | `String` | |
 | `parentOrgId` | `Long` | null=顶级 |
 | `code` | `String` | |
-| `phone` | `String` | |
-| `email` | `String` | |
 | `status` | `Integer` | 0/1 |
 | `sort` | `Integer` | |
 | `createdAt` | `LocalDateTime` | |
 | `updatedAt` | `LocalDateTime` | |
 | `children` | `List<OrgResp>` | 树形 |
 
-**门禁**: `ORG:{operationCode}` 类型级.
+（phone/email 行删除：sys_org 无联系方式字段，OrgResp 早已不含——T-ADMIN-021 核对修正）
 
-**岗位节点裁剪（T-ADMIN-021）**: `includePositions=true` 时，岗位节点（orgType=2）按调用者岗位权限**后端裁剪**——调用者仅具备 `ORG:VIEW`（无 `ORG:VIEW_POSITION`）时响应不包含任何岗位节点；裁剪判定用非抛出入口 `hasTypeLevel(ORG, VIEW_POSITION)`（**仅明确拒绝返回 false；permission-center 技术故障抛异常向上，不得静默降级为裁剪后的树**，P2-1）。前端隐藏不作为安全边界。
+**门禁**: 类型级，`OrgOperationCodeMapper.resolve(orgType, operationCode)` 组合分发（单一事实源）；`includePositions=true` 时组织轨固定 `ORG:VIEW`，岗位轨独立门控（见下）.
+
+**岗位节点裁剪（T-ADMIN-021 已实现）**: `includePositions=true` 时，岗位节点（orgType=2）按调用者岗位权限**后端裁剪**——调用者仅具备 `ORG:VIEW`（无 `ORG:VIEW_POSITION`）时响应不包含任何岗位节点；裁剪判定用非抛出入口 `AdminPermissionValidator.hasTypeLevel(ORG, VIEW_POSITION)`（**仅引擎成功响应且明确拒绝返回 false；本地权限引擎技术故障或操作者主体缺失抛 `SystemException`(99999) 向上，统一响应业务码标识故障，不得静默降级为裁剪后的树**，P2-1；不复用 SecurityException——全局映射 403 与故障语义矛盾）。前端隐藏不作为安全边界。
 
 **同步动作**: 无.
 
-**当前差距** (合规债务): ① `OrgQuery` 当前 record 缺 `operationCode` 与 `treeConfigId` 字段; ② 顶层响应应改为 `{ items: [...] }` 包装. **②已由 T-ADMIN-021 消化（2026-08-01 P1-3：响应定稿 `PermResult<OrgItemsResp>{data:{items}}`，含调用方适配）**; ① 仍列入 Phase 2 修正项.
+**当前差距**: 无——T-ADMIN-021（2026-09-03）销账：① `OrgQuery` 补齐 `operationCode`/`treeConfigId`（含 CREATE 冲突拒绝与非法值 fail-closed）；② 响应 `{items:[...]}` 包装落地（`ItemsResp<OrgResp>`）；③ `orgName`/`parentOrgId` 原死参数修正为真实过滤；④ OrgResp 表格 phone/email 陈旧行删除。回归锁定：`OrgTreeIncludePositionsPgIT`（12 用例，含否定性裁剪/故障 99999/兼容/多树/参数拒绝）+ `AdminPermissionValidatorImplHasTypeLevelTest`（3 用例）+ `HttpApiPathSnapshotTest` 快照更新。
 
 ---
 
