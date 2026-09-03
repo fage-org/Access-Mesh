@@ -25,8 +25,10 @@ const props = withDefaults(
     showSearch?: boolean;
     /** 紧凑模式（对话中内嵌用） */
     compact?: boolean;
-    /** 指定树配置 ID（不传则自动取默认树） */
+    /** 指定树配置 ID（不传则自动取默认树；operationCode=CREATE 时后端禁止携带，组件不发送） */
     treeConfigId?: number;
+    /** 查询语义：VIEW=可视范围 / CREATE=新增用户挂载点（限默认树，门禁 ORG:CREATE）；缺省 VIEW */
+    operationCode?: "VIEW" | "CREATE";
     /** 组织类型过滤（不传不过滤） */
     orgTypeFilter?: number[];
     /**
@@ -61,9 +63,10 @@ const emit = defineEmits<{
   "node-move": [node: OrgTreeNode, targetParentId: number];
 }>();
 
-// 组织树配置
+// 组织树配置（初始值取显式 prop；无 prop 时 null=不发 treeConfigId，走后端默认树语义——
+// 禁止硬编码 1：配置主键为全局 BIGSERIAL，非默认租户的默认配置 id 不保证为 1）
 const treeConfigs = ref<OrgTreeConfig[]>([]);
-const selectedConfigId = ref<number>(1);
+const selectedConfigId = ref<number | null>(props.treeConfigId ?? null);
 
 // 组织树（原始数据）
 const rawOrgTree = ref<OrgTreeNode[]>([]);
@@ -132,8 +135,11 @@ function filterTreeByOrgType(
 async function loadConfigs() {
   try {
     treeConfigs.value = await getOrgTreeConfigs();
-    const defaultCfg = treeConfigs.value.find(c => c.isDefault);
-    if (defaultCfg) selectedConfigId.value = defaultCfg.id;
+    // 显式 prop 优先；无 prop 才用自动发现的默认配置
+    if (props.treeConfigId == null) {
+      const defaultCfg = treeConfigs.value.find(c => c.isDefault);
+      if (defaultCfg) selectedConfigId.value = defaultCfg.id;
+    }
   } catch {
     // 配置列表加载失败（如无默认树配置租户 11001 fail-closed）——空列表降级，不中断挂载
     treeConfigs.value = [];
@@ -150,7 +156,11 @@ async function loadTree() {
   try {
     rawOrgTree.value = await getOrgTree({
       orgType: 1,
-      ...(selectedConfigId.value != null
+      ...(props.operationCode != null
+        ? { operationCode: props.operationCode }
+        : {}),
+      // CREATE 限默认树：后端拒绝 CREATE×treeConfigId 同传（10008），该模式一律不携带
+      ...(props.operationCode !== "CREATE" && selectedConfigId.value != null
         ? { treeConfigId: selectedConfigId.value }
         : {})
     });

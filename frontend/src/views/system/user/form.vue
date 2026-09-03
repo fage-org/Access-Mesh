@@ -108,6 +108,7 @@ defineExpose({ validate });
       <ReOrgTreePanel
         :show-config="false"
         :tree-config-id="treeConfigId"
+        operation-code="CREATE"
         compact
         class="w-full!"
         @org-change="onOrgChange"

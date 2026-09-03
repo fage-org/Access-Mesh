@@ -196,6 +196,16 @@ class OrgTreeIncludePositionsPgIT {
         return id;
     }
 
+    /** 插入 sys_user + abstract_user 但无角色无授权（引擎解析主体成功、全量拒绝——真·无授权用户）。 */
+    private long insertSubjectOnlyUser(String name) {
+        long userId = insertUnprivilegedUser(name);
+        jdbc.update(
+            "INSERT INTO abstract_user (id, tenant_id, user_type, external_id, name, enabled, extra) "
+                + "VALUES (?, ?, 3, ?, ?, true, '{}')",
+            userId, TENANT, String.valueOf(userId), name);
+        return userId;
+    }
+
     /** 插入拥有指定 ORG 操作位 scopeAll 授权的用户（一行一操作，MANUAL 单操作约束）。 */
     private long insertUserWithOrgGrants(String name, long... bits) {
         long userId = insertUnprivilegedUser(name);
@@ -356,9 +366,9 @@ class OrgTreeIncludePositionsPgIT {
     }
 
     @Test
-    @DisplayName("无任何 ORG 授权：includePositions=true 组织轨门禁 403 fail-closed")
-    void mixedTreeDeniedWithoutOrgView() throws Exception {
-        long userId = insertUnprivilegedUser("组织树-无权用户");
+    @DisplayName("主体投影缺失（sys_user 无 abstract_user）：组织轨门禁 403 fail-closed")
+    void mixedTreeDeniedWithMissingSubjectProjection() throws Exception {
+        long userId = insertUnprivilegedUser("组织树-投影缺失用户");
         String token = login(userId);
 
         MvcResult result = mockMvc.perform(post("/org/tree")
@@ -588,5 +598,50 @@ class OrgTreeIncludePositionsPgIT {
         assertThat(body.get("code").asInt()).isEqualTo(200);
         assertThat(body.get("data").get("items").size())
             .as("岗位节点被裁剪后其 id 不在集合内 → 空结果（与不存在同形，无存在性 oracle）").isZero();
+    }
+
+    // ===== ⑦ 门禁路径区分与剪枝组合 =====
+
+    @Test
+    @DisplayName("主体存在但无任何授权（引擎成功响应明确拒绝）：组织轨门禁 403 fail-closed")
+    void mixedTreeDeniedWithSubjectButNoGrants() throws Exception {
+        long userId = insertSubjectOnlyUser("组织树-主体无授权用户");
+        String token = login(userId);
+
+        MvcResult result = mockMvc.perform(post("/org/tree")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("includePositions", true))))
+            .andExpect(status().isForbidden())
+            .andReturn();
+        JsonNode body = mapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        assertThat(body.get("code").asInt()).isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("组合：status=0 + parentOrgId + orgName 同时命中停用节点 → 透视结果不被误删")
+    void combinedFiltersKeepPivotNodeMatchingName() throws Exception {
+        long disabledOrgId = 9009L;
+        insertOrg(disabledOrgId, "t21-disabled2", "停用部门", "1", ORG_A_ID, 0);
+        long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
+        String token = login(userId);
+
+        JsonNode body = tree(token, Map.of(
+            "orgType", 1, "status", 0, "parentOrgId", disabledOrgId, "orgName", "停用部门"));
+        assertThat(body.get("code").asInt()).isEqualTo(200);
+        assertThat(body.get("data").get("items").size())
+            .as("透视节点自身命中名称且满足 status——不得因祖先被 status 过滤断链而误删").isEqualTo(1);
+        assertThat(body.get("data").get("items").get(0).get("id").asLong()).isEqualTo(disabledOrgId);
+    }
+
+    @Test
+    @DisplayName("orgName 全不命中：顶层被剪除 → 空结果（不返回裸根骨架）")
+    void keywordMissYieldsEmptyResult() throws Exception {
+        long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
+        String token = login(userId);
+
+        JsonNode body = tree(token, Map.of("orgType", 1, "orgName", "不存在的名字"));
+        assertThat(body.get("code").asInt()).isEqualTo(200);
+        assertThat(body.get("data").get("items").size()).isZero();
     }
 }

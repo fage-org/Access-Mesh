@@ -21,6 +21,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.security.OrgOperationCodeMapper;
 import cn.ac.fage.accessmesh.access.admin.service.OrgService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.OrgDomainService;
+import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.application.OrgWriteAppService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -59,6 +60,7 @@ public class OrgServiceImpl implements OrgService {
 
     private final SysOrgMapper orgMapper;
     private final SysOrgTreeConfigMapper treeConfigMapper;
+    private final OrgTreeConfigDomainService treeConfigDomainService;
     private final OrgDomainService orgDomainService;
     private final AdminPermissionValidator permissionValidator;
     private final OrgWriteAppService orgWriteAppService;
@@ -66,6 +68,7 @@ public class OrgServiceImpl implements OrgService {
     private final UserDomainService userDomainService;
 
     public OrgServiceImpl(SysOrgMapper orgMapper, SysOrgTreeConfigMapper treeConfigMapper,
+                          OrgTreeConfigDomainService treeConfigDomainService,
                           OrgDomainService orgDomainService,
                           AdminPermissionValidator permissionValidator,
                           OrgWriteAppService orgWriteAppService,
@@ -73,6 +76,7 @@ public class OrgServiceImpl implements OrgService {
                           UserDomainService userDomainService) {
         this.orgMapper = orgMapper;
         this.treeConfigMapper = treeConfigMapper;
+        this.treeConfigDomainService = treeConfigDomainService;
         this.orgDomainService = orgDomainService;
         this.permissionValidator = permissionValidator;
         this.orgWriteAppService = orgWriteAppService;
@@ -245,19 +249,25 @@ public class OrgServiceImpl implements OrgService {
                 .collect(Collectors.toList());
         }
 
-        // 名称剪枝：保留自身或后代命中的节点（修正原死参数——契约 orgName 模糊匹配）
-        String keyword = q.orgName();
-        if (keyword != null && !keyword.isBlank()) {
-            scoped = pruneByName(scoped, byId, config.getRootOrgId(), keyword.trim());
-        }
-
         // 顶层：parentOrgId 给定时取该节点子树（不在配置子树内=空结果，过滤语义）；否则配置根为单根
+        //（先定顶层再剪枝——节点级过滤可能把透视节点与配置根在 scoped 图上断开，
+        //  从配置根起剪会把恰好命中的透视节点整支误删）
         Long topId = q.parentOrgId() != null ? q.parentOrgId() : config.getRootOrgId();
         Map<Long, SysOrg> scopedById = scoped.stream()
             .collect(Collectors.toMap(SysOrg::getId, o -> o, (a, b) -> a));
         SysOrg top = scopedById.get(topId);
         if (top == null) {
             return List.of();
+        }
+
+        // 名称剪枝：保留自身或后代命中的节点（修正原死参数——契约 orgName 模糊匹配），自顶层起剪；
+        // 顶层自身也被剪除（关键词全不命中）→ 空结果
+        String keyword = q.orgName();
+        if (keyword != null && !keyword.isBlank()) {
+            scoped = pruneByName(scoped, byId, topId, keyword.trim());
+            if (scoped.stream().noneMatch(o -> o.getId().equals(topId))) {
+                return List.of();
+            }
         }
         return List.of(toResp(top, buildTree(scoped, top.getId())));
     }
@@ -275,7 +285,9 @@ public class OrgServiceImpl implements OrgService {
             }
             return config;
         }
-        List<SysOrgTreeConfig> defaults = treeConfigMapper.selectDefaultConfigs(tenantId);
+        // 默认树查询复用 OrgTreeConfigDomainService.findDefaultConfigs（§8.4 复用优先；
+        // 显式 id 为单行查询、无既有领域方法，保留 mapper 直查）
+        List<SysOrgTreeConfig> defaults = treeConfigDomainService.findDefaultConfigs(tenantId);
         if (defaults.isEmpty()) {
             throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
                 "默认组织树配置不存在（treeConfigId 未传时按默认树裁剪）");

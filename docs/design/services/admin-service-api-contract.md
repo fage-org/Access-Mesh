@@ -52,9 +52,10 @@ admin 门禁通过 `AdminPermissionValidator` 本地调用 `PermQueryEngine` 完
 void checkTypeLevel(String resourceTypeCode, String operationCode);
 void checkInstanceLevel(String resourceTypeCode, String resourceCode, String operationCode);
 void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes, String operationCode);
+boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 ```
 
-> **终态口径（T-ACCESS-016 定稿，2026-08-23）**：门面三方法形态不变，是 `SecurityException` 的唯一出口（引擎纯查询，见 permission-center implementation §3.1）——`checkInstanceLevel` 内部走 `engine.hasPermissionByCode`、`checkBatchInstanceLevel` 内部走 `engine.getDeniedResourceCodes`（实施 T-PERM-042）。业务对象门禁统一**业务编码语义**：`resourceCode` 为业务 ID 字符串（`/user/**` 的 userId、`/org/**` 的 orgId；统一主体 ID 后 `resource_entity(USER).code = sys_user.id = abstract_user.id`，数值与语义一致），不得使用 `resource_entity.id`。下表及各章节资源类型串已按收敛映射切换为 `USER/ORG/ROLE`（access-service-architecture §13 资源类型注册表；常量类已合一为 `ResourceTypeCode`，原 `AdminResourceType` 随 T-ACCESS-018 删除）。
+> **终态口径（T-ACCESS-016 定稿，2026-08-23；T-ADMIN-021 增补 `hasTypeLevel`）**：前三个抛出式门禁是 `SecurityException` 的出口（引擎纯查询，见 permission-center implementation §3.1）——`checkInstanceLevel` 内部走 `engine.hasPermissionByCode`、`checkBatchInstanceLevel` 内部走 `engine.getDeniedResourceCodes`（实施 T-PERM-042）；`hasTypeLevel` 为**非抛出判定**（T-ADMIN-021，供「部分裁剪」类调用方）：仅引擎成功响应且明确拒绝返回 false，技术故障/主体缺失抛 `SystemException(99999)`（非 SecurityException 的第二出口，fail-closed 不静默降级），见 §4.2.1 岗位裁剪段。业务对象门禁统一**业务编码语义**：`resourceCode` 为业务 ID 字符串（`/user/**` 的 userId、`/org/**` 的 orgId；统一主体 ID 后 `resource_entity(USER).code = sys_user.id = abstract_user.id`，数值与语义一致），不得使用 `resource_entity.id`。下表及各章节资源类型串已按收敛映射切换为 `USER/ORG/ROLE`（access-service-architecture §13 资源类型注册表；常量类已合一为 `ResourceTypeCode`，原 `AdminResourceType` 随 T-ACCESS-018 删除）。
 
 资源类型常量（`ResourceTypeCode`，T-ACCESS-018 合一后单一常量源，原 AdminResourceType 已删除）:
 
