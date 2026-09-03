@@ -324,6 +324,21 @@ class TypeDefinitionAppServiceImplTest {
     }
 
     @Test
+    void shouldThrowWhenAllInstancesDeniedAndCodesContainCrossKeyDuplicates() {
+        // 种子跨 type_key 重码（user_type/resource_type 均有 USER、SERVICE）：全拒判定必须按
+        // 去重码集比较——旧实现 denied(去重) >= codes(含重复) 恒 false，零权限账号 fail-open
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(false);
+        when(typeDefinitionMapper.selectValidCodesByTenant(1L))
+            .thenReturn(List.of("USER", "SERVICE", "USER", "SERVICE", "ORG"));
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), any(), any(), any()))
+            .thenReturn(new java.util.LinkedHashSet<>(List.of("USER", "SERVICE", "ORG")));
+
+        assertThrows(SecurityException.class, () -> service.listTypes(1L, null, null, 0, 200));
+        verify(typeDefinitionMapper, never()).selectPageByCondition(anyLong(), any(), any(), anyInt(), anyInt());
+    }
+
+    @Test
     void shouldThrowWhenNoTypeInstancesExistAndTypeLevelDenied() {
         // 无实例可判定时 fail-closed（空清单无法证明任何实例级授权）
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))

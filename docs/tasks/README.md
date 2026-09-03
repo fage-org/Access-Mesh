@@ -108,7 +108,7 @@
 | [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（来源字段+resource_entity 投影+UI；T-PERM-029 收口登记，写门禁已先收窄类型级） | — | api-contract §5.6；access-service.sql | — | ⚙️ | ⏳ |
 | [T-PERM-049](T-PERM-049.md) | 全局操作概念整体退役（操作位空间按类型隔离 + DDL CHECK 焊死；外部复审 P1 越权根治） | — | api-contract §5.3；access-service.sql | — | — | ✅ |
 | [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（含资源实体/授权同类引用面盘点；T-PERM-040 收口登记） | — | schema；api-contract §5.1/§5.3 | — | ⚙️ | ⏳ |
-| [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影——type-definition 写路径联动维护 resource_entity（实例级授权可配 + list 实例级门禁通路；T-FE-018 决策修订查库登记，fail-closed 无风险） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ⚙️ | ⏳ |
+| [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一——type-definition 写路径联动维护 resource_entity + 门禁消费方迁移（实例级授权可配 + list 实例级门禁通路；T-FE-018 决策修订查库登记） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 

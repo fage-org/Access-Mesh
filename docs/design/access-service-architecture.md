@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-09-03   # 2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
+last_reviewed: 2026-09-03   # 2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
 ---
 
 # access-service 目标架构与归并约束
@@ -151,7 +151,7 @@ flowchart LR
 
 - subject 保留类型（user_type）：`ADMIN_USER`→`LOCAL_USER`（类型解析与保留清单同步更名，无兼容别名）；role 保留类型 `ORG|POSITION` 不变（role_type 未收敛）；`SYS_USER_ORG` 不变。
 - **resource 侧取消类型级保留**：收敛后 `USER`/`MENU` 是既有公共基础类型（外部业务服务同步自身菜单/用户资源合法，`ResourceEntitySyncAppServiceTest` 以 MENU 类型为 fixture），若把保留清单换成公共类型会整体拒绝合法外部同步（20045）。本地 `resource_entity` 投影行的保护改为**所有权检查**：外部 sync 的 UPSERT/DISABLE/DELETE 任一 mutation 分支，在进入分支前按 code 命中已有实体（`existing != null`）即统一执行 `owner=access-service` 拒绝（现状三个分支均缺失所有权检查，类型级保留是唯一防线，收敛时必须补齐——DELETE 分支现状直接软删命中实体，移除类型保留后外部服务可删除本地投影）；新建撞本地投影 code 由 `uk_resource_entity (tenant_id, resource_type, code, code_type)` 唯一约束 fail-closed 兜底；资源实体 full-sync 的清理范围按 api-contract §6.2.2 以 `sync_metadata(entityKind=RESOURCE_ENTITY, sourceService, scopeKey)` 界定（`owner_service_code/maintain_source/sync_key` 不是本接口清理依据），本地投影不写 `sync_metadata`（§4.2），天然不在清理集合内。
-- 管理入口（`/perm/resource-entity/create|update` 等人工建资源）的类型保留清单为 `{USER, ORG, MENU, ROLE}`（T-ACCESS-019 增补 ROLE）：人工不得绕过管理事实链路（用户/组织/菜单/角色管理）直接建这四类本地业务资源投影——ROLE 资源由角色管理写路径同事务产出（code=roleId，§12.3）；其余类型不受限。
+- 管理入口（`/perm/resource-entity/create|batch-create` 人工建资源）的类型保留清单为 `{USER, ORG, MENU, ROLE}`（T-ACCESS-019 增补 ROLE）：人工不得绕过管理事实链路（用户/组织/菜单/角色管理）直接建这四类本地业务资源投影——ROLE 资源由角色管理写路径同事务产出（code=roleId，§12.3）；其余类型不受限；`update` 不查类型清单、按本地投影所有权保护（`owner_service_code=access-service` 行拒改，`LocalProjectionGuard.rejectIfLocalResource`）。
 
 ## 5. 数据库与共享表
 

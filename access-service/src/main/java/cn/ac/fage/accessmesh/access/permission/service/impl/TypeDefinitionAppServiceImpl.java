@@ -265,9 +265,11 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 null, OperationCodeConstants.VIEW)) {
             return;
         }
-        List<String> codes = typeDefinitionMapper.selectValidCodesByTenant(tenantId);
+        // 全拒判定必须与引擎入参同一去重集合比较：typeCode 仅 tenant+typeKey 内唯一，
+        // 跨 type_key 重码下用未去重 codes.size() 比较会令全拒恒 false（fail-open）
+        Set<String> codes = new LinkedHashSet<>(typeDefinitionMapper.selectValidCodesByTenant(tenantId));
         Set<String> denied = engine.getDeniedResourceCodes(tenantId, operatorId,
-                ResourceTypeCode.TYPE_DEFINITION, new LinkedHashSet<>(codes), OperationCodeConstants.VIEW);
+                ResourceTypeCode.TYPE_DEFINITION, codes, OperationCodeConstants.VIEW);
         if (codes.isEmpty() || denied.size() >= codes.size()) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
         }

@@ -78,7 +78,8 @@ public class LocalProjectionGuard {
     }
 
     /**
-     * 管理入口（resource-entity create/update 等人工建资源）的类型保留清单 {USER, ORG, MENU, ROLE}：
+     * 管理入口（resource-entity create/batch-create 人工建资源；update 不查类型清单、
+     * 走 {@link #rejectIfLocalResource} 本地投影所有权保护）的类型保留清单 {USER, ORG, MENU, ROLE}：
      * 人工不得绕过管理事实链路（用户/组织/菜单/角色管理）直接建本地业务资源投影
      * （ROLE 随 T-ACCESS-019 加入：ROLE 资源由角色管理写路径产出，code=roleId）。
      * <p>
