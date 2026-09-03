@@ -138,7 +138,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 | [T-ADMIN-023](T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |
 | [T-ADMIN-024](T-ADMIN-024.md) | 恒拒绝退役 API 直接删除（含 /role/revoke-menu 共 5 个） | product-vertical-slice（已归档） | admin-service-api-contract；org-user-permission-contract；access-service-architecture；architecture；default-org-tree-user-lifecycle | T-ACCESS-021 | ✅ | ✓ |
 | [T-ADMIN-025](T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture；schema/access-service.sql | T-ADMIN-023 | ⚙️ | ⏳ |
-| [T-ADMIN-026](T-ADMIN-026.md) | XML 映射 mapper 的 Page 参数不生效族统一改造（9 方法有行即 CCE 500，含 2 个有生产调用方；T-FE-022 联调登记）+ PgIT stringtype 追加无效订正 | — | admin-service-api-contract；rebuild-runbook | T-FE-022 | ⚙️ | ⏳ |
+| [T-ADMIN-026](T-ADMIN-026.md) | XML 映射 mapper 的 Page 参数不生效族统一改造（9 方法有行即 CCE 500，服务层调用方 8/9、当前无前端消费页；T-FE-022 联调登记）+ PgIT stringtype 追加无效订正 | — | admin-service-api-contract；rebuild-runbook | T-FE-022 | ⚙️ | ⏳ |
 
 ### 组织/用户与跨服务 API（product-vertical-slice，已归档）
 
@@ -177,7 +177,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 | [T-FE-019](T-FE-019.md) | Phase 3 联调：权限查询/校验（4.2）——Gateway +3 端点/explain 扩展展示接线/mock 整删；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-013, T-PERM-033 | ✅ | ✓ |
 | [T-FE-020](T-FE-020.md) | Phase 3 联调：条件/冲突规则（3.2/3.3）——Gateway +9 端点/前端 conflict-rule 路径修正/mock 双文件退役；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ✅ | ✓ |
 | [T-FE-021](T-FE-021.md) | Phase 3 联调：业务域配置（5.1）——Gateway +9 端点/前端 api 双文件路径修正/mock 四文件整删；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-006, T-PERM-026 | ✅ | ✓ |
-| [T-FE-022](T-FE-022.md) | Phase 3 联调：系统/服务配置与日志（6.x/5.2/7.x）——Gateway +16 端点/TYPE_DEFINITION 写门禁 +2/keyword CAST 系统性修复 9 mapper + ConfigForm 前缀对齐/mock 四文件整删；已收口 2026-09-03，终态见任务卡完成记录（XML+Page 族与 assign 审计不对称登记 T-ADMIN-026/已知差距） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 | ✅ | ✓ |
+| [T-FE-022](T-FE-022.md) | Phase 3 联调：系统/服务配置与日志（6.x/5.2/7.x）——Gateway +16 端点/TYPE_DEFINITION 写门禁 +2/keyword CAST 系统性修复 9 mapper + ConfigForm 前缀对齐/mock 四文件整删；已收口 2026-09-03，终态见任务卡完成记录（XML+Page 族登记 T-ADMIN-026、assign 审计不对称记本卡已知差距） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 | ✅ | ✓ |
 | T-FE-023 | Phase 4：SPI 策略扩展验证 + 扩展指南（design/frontend/extension-guide.md） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；design/frontend/extension-guide.md | — | ⚙️ | ⏳ |
 | [T-FE-024](T-FE-024.md) | ReConditionPicker + ReConditionEditor + ChildPermissionInline 条件/子权限组件抽取 | [frontend-phase4](../plans/frontend-phase4-plan.md) | design/frontend/permission-condition.md；permission-grant.md | T-FE-001, T-FE-009, T-FE-014 | ✅ | ✅ |
 | [T-FE-025](T-FE-025.md) | 权限授予中栏资源权限概览与授权入口 | [permission-grant-ux-refactor](../plans/archive/2026-07/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.3/§16.8 | T-FE-014 | ✅ | ✅ |

@@ -21,14 +21,14 @@ MyBatis-Flex 的 `Page` 参数在 **XML 映射**下不生效（T-FE-015 联调�
 
 | mapper 方法 | 消费方 | 症状 |
 |---|---|---|
-| SysOauth2ClientMapper.paginateByCondition | Oauth2ClientController page 列表（**有生产调用方**） | 有行时 MyBatis 把首行实体按 Page 返回 → ClassCastException 500（T-FE-022 冒烟回归锁实证） |
+| SysOauth2ClientMapper.paginateByCondition | Oauth2ClientServiceImpl:221（OAuth2 客户端分页端点） | 有行时 MyBatis 把首行实体按 Page 返回 → ClassCastException 500（T-FE-022 冒烟期自动化用例触达实证——当时用例已按范围裁剪，未留回归锁，锁按下方验收标准补） |
 | SystemConfigMapper.selectPageByTenantId | ConfigServiceImpl.pageConfigs（/admin/config 端点） | 同款 CCE；perm 域系统配置页走 selectPageByCondition 不受影响 |
-| SysDictTypeMapper.paginateByTenantId | 字典分页 | 无当前 UI 消费页，潜伏 |
-| SysFileMapper.paginateFiles | 文件分页 | 同上 |
-| SysJobLogMapper.paginateJobLogs | 任务日志分页 | 同上 |
-| SysJobMapper.paginateJobs | 任务分页 | 同上 |
-| SysLoginLogMapper.paginateByTenantId | 登录日志分页 | 同上 |
-| SysNoticeMapper.paginateByTenant | 通知分页 | 同上 |
+| SysDictTypeMapper.paginateByTenantId | DictServiceImpl:225（字典分页） | 服务层有调用方，当前无前端消费页 |
+| SysFileMapper.paginateFiles | FileServiceImpl:425 | 同上 |
+| SysJobLogMapper.paginateJobLogs | JobServiceImpl:431 | 同上 |
+| SysJobMapper.paginateJobs | JobServiceImpl:405 | 同上 |
+| SysLoginLogMapper.paginateByTenantId | LoginLogServiceImpl:51 | 同上 |
+| SysNoticeMapper.paginateByTenant | NoticeServiceImpl:214 | 同上 |
 | OperationLogMapper.paginateByTenantId | **无调用方（死方法）** | 建议直接删除 |
 
 修法先例 = T-FE-015「XML 分页统一 offset/limit + count 双查询」（SysUserMapper.selectUsersByCondition/SysOrgMapper.selectOrgsByCondition 同款）：mapper 接口改 offset/limit + 配套 count 方法，service 层组装分页元数据；死方法删除。
@@ -40,5 +40,5 @@ MyBatis-Flex 的 `Page` 参数在 **XML 映射**下不生效（T-FE-015 联调�
 ## 验收
 
 - [ ] 9 方法处置完成：8 个改造 + 1 个死方法删除（或全改造，执行时定）
-- [ ] DB 级回归锁：分页返回类型/总数/页码元数据断言（旧实现下必红）
+- [ ] DB 级回归锁：分页返回类型/总数/页码元数据断言（旧实现下必红）；顺带把 KeywordLikeSearchPgIT 未触达的 count 伴生语句（selectRoleListCount/selectUserListCount/countUsersByCondition/countUsersByIdsAndKeyword/countOrgsByCondition，与 paged 版同型同修）纳入断言
 - [ ] 既有 PgIT stringtype 追加订正，行为不回退

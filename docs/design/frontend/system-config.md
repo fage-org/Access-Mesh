@@ -53,7 +53,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 |---|---|---|
 | id | number | 内部主键 |
 | tenantId | number? | 租户 ID（从 X-Tenant-Id Header 取，不在请求体） |
-| configKey | string | 配置键（租户内唯一，`uk_system_config`，如 ROLE_NAME_UNIQUE_MODE） |
+| configKey | string | 配置键（租户内唯一，`uk_system_config`，如 permission.MY_SETTING；后端强制 admin./permission./access. 命名空间前缀） |
 | configValue | string | 配置值（JSON 字符串，schema 是 JSONB，前端按字符串处理） |
 | description | string \| null | 描述（可空） |
 | updatedAt | string? | 更新时间 |
@@ -63,7 +63,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 
 | 字段 | 校验 | 说明 |
 |---|---|---|
-| configKey | 必填，大写字母开头+大写字母/数字/下划线，最长 128 | 新建可填；编辑只读（唯一键，改它等于新建新项，与 type-def 稳定编码同口径） |
+| configKey | 必填，admin./permission./access. 前缀 + 大写字母开头的大写/数字/下划线键名，最长 128（后端仅强制前缀，字符集为前端约定） | 新建可填；编辑只读（唯一键，改它等于新建新项，与 type-def 稳定编码同口径） |
 | configValue | 必填，合法 JSON | textarea 编辑；提交前 `JSON.parse` 校验（对齐后端 `JsonValidationUtils.validateJson`）；默认 `{}` |
 | description | 可空 | 描述 |
 

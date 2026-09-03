@@ -25,7 +25,7 @@ import type { ItemsResp, PaginatedResp } from "./role-manage";
 export type SystemConfigResp = {
   id: number;
   tenantId?: number;
-  /** 配置键（租户内唯一，如 ROLE_NAME_UNIQUE_MODE / UNREGISTERED_API_POLICY） */
+  /** 配置键（租户内唯一，后端强制 admin./permission./access. 前缀，如 permission.MY_SETTING） */
   configKey: string;
   /** 配置值（JSON 字符串，如 {"mode":"DOMAIN_UNIQUE"}） */
   configValue: string;

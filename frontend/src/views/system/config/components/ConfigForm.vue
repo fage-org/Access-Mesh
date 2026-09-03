@@ -36,12 +36,18 @@ const isEdit = computed(() => props.mode === "edit");
 const rules = computed<FormRules>(() => ({
   configKey: [
     { required: true, message: "请输入配置键", trigger: "blur" },
-    {
-      pattern: /^(admin|permission|access)\.[A-Z][A-Z0-9_]*$/,
-      message:
-        "必须使用 admin./permission./access. 命名空间前缀，后接大写字母开头的键名",
-      trigger: "blur"
-    },
+    // 前缀 Pattern 仅新建挂载：编辑态 configKey 只读，后端允许的存量键（前缀后字符
+    // 不受字符集约束）不应在不可修改字段上报校验错阻断保存
+    ...(isEdit.value
+      ? []
+      : [
+          {
+            pattern: /^(admin|permission|access)\.[A-Z][A-Z0-9_]*$/,
+            message:
+              "必须使用 admin./permission./access. 命名空间前缀，后接大写字母开头的键名",
+            trigger: "blur"
+          }
+        ]),
     { max: 128, message: "最长 128 字符", trigger: "blur" }
   ],
   configValue: [
