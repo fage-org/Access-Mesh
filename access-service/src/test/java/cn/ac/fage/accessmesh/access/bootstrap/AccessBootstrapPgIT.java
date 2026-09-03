@@ -361,6 +361,40 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(4)
+    @DisplayName("状态②变体：授权属性漂移（管理端运营修改）→ warn 放行不重种（2026-09-02 口径定案）")
+    void grantAttributeDriftIsToleratedAndNotReseeded() {
+        // 模拟授权页运营修改：API:ACCESS 类型级 scopeAll 授权 canGrant=true → false。
+        // 旧实现（canGrant 参与完整匹配键）此处必抛「授权缺失或属性不匹配」fail-fast——本用例为其回归锁
+        jdbc.update("UPDATE role_resource_permission SET can_grant = false, updated_at = now() "
+                + "WHERE tenant_id = ? AND scope_all = true AND can_grant = true "
+                + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
+                + "AND type_key = 'resource_type' AND type_code = 'API')",
+            TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, TENANT);
+
+        initializer.initialize(BOOTSTRAP_PASSWORD);
+
+        // 放行且不重种：该身份行唯一、保持运营修改值（未被固定图覆盖回 true，也未补种新行）
+        Integer totalCount = jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND scope_all = true "
+                + "AND delete_flag = 0 "
+                + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
+                + "AND type_key = 'resource_type' AND type_code = 'API')",
+            Integer.class, TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, TENANT);
+        assertThat(totalCount).isEqualTo(1);
+        Integer falseCount = jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND scope_all = true "
+                + "AND can_grant = false AND delete_flag = 0 "
+                + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
+                + "AND type_key = 'resource_type' AND type_code = 'API')",
+            Integer.class, TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, TENANT);
+        assertThat(falseCount).isEqualTo(1);
+    }
+
+    @Test
+    @Order(5)
     @DisplayName("状态③：绑定缺失 → fail-fast 并报告关联缺失")
     void missingBindingFailsFast() {
         jdbc.update("UPDATE user_role SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
@@ -374,7 +408,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(5)
+    @Order(6)
     @DisplayName("状态③：授权缺失 → fail-fast 并报告授权缺失")
     void missingGrantFailsFast() {
         jdbc.update("UPDATE role_resource_permission SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
@@ -388,7 +422,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(6)
+    @Order(7)
     @DisplayName("状态③：映射 serviceCode 不匹配（其他服务的同路径映射不能冒充）→ fail-fast 报映射缺失")
     void wrongServiceCodeMappingFailsFast() {
         jdbc.update("UPDATE resource_api_mapping SET service_code = 'example-service' WHERE tenant_id = ? "
@@ -400,7 +434,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(7)
+    @Order(8)
     @DisplayName("状态③：管理角色 ROLE 资源投影缺失 → fail-fast 报投影缺失")
     void missingRoleProjectionFailsFast() {
         jdbc.update("UPDATE resource_entity SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
@@ -414,7 +448,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     @DisplayName("状态③：admin 主体被禁用（引擎有效角色置空）→ fail-fast 报主体禁用")
     void disabledAdminSubjectFailsFast() {
         jdbc.update("UPDATE abstract_user SET enabled = false WHERE tenant_id = ? "
@@ -427,7 +461,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     @DisplayName("状态③：admin 主体身份漂移（user_type / external_id 背离固定图身份键）→ fail-fast")
     void subjectIdentityDriftFailsFast() {
         jdbc.update("UPDATE abstract_user SET user_type = user_type + 1 WHERE tenant_id = ? "
@@ -447,7 +481,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(10)
+    @Order(11)
     @DisplayName("状态③：API / SERVICE 资源停用（status=0）→ fail-fast 报资源停用")
     void disabledApiOrServiceResourceFailsFast() {
         jdbc.update("UPDATE resource_entity SET status = 0 WHERE tenant_id = ? "
@@ -468,7 +502,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(11)
+    @Order(12)
     @DisplayName("状态③：固定业务键被其他角色类型占用 → fail-fast 报告占用")
     void occupiedBusinessKeyFailsFast() {
         jdbc.update("UPDATE abstract_role SET role_type = 1 WHERE tenant_id = ? AND external_id = ?",
@@ -480,7 +514,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(12)
+    @Order(13)
     @DisplayName("状态③：仅 SERVICE 资源残留（其余固定图清空）→ 报\"固定图部分存在\"而非撞唯一约束")
     void partialGraphReportsConflictInsteadOfConstraintViolation() {
         Long adminSubjectId = jdbc.queryForObject(
@@ -513,7 +547,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(13)
+    @Order(14)
     @DisplayName("类型种子缺失（DDL 未完整执行）→ 显式 fail-fast 指向权威 DDL")
     void missingTypeSeedFailsFastWithDdlHint() {
         jdbc.update("DELETE FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' "

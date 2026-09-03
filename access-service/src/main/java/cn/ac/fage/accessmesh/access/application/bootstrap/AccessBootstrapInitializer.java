@@ -51,8 +51,10 @@ import java.util.stream.Collectors;
  *   <li><b>固定图完整匹配</b> → 整体 no-op，绝不重置密码（name/密码/邮箱等可变属性不参与匹配）；
  *       固定图之外的数据（E2E 等管理链路创建的用户/角色/授权）不构成冲突——否则 T-ACCESS-021
  *       第⑦步"重启后权限仍生效"无法通过；</li>
- *   <li><b>部分存在 / 属性不匹配 / 固定业务键被其他数据占用</b> → 抛 IllegalStateException
- *       报告全部冲突项，不自动修复、不补权、不扩权（启动失败 fail-fast）。</li>
+ *   <li><b>部分存在 / 固定业务键被其他数据占用</b> → 抛 IllegalStateException 报告全部冲突项，
+ *       不自动修复、不补权、不扩权（启动失败 fail-fast）。授权属性漂移除外（2026-09-02 口径定案，
+ *       T-FE-018 联调暴露：canGrant/condition/操作位等管理端运营修改是产品正常能力）——
+ *       身份行存在而属性不符仅 warn 放行，不构成冲突、不重种覆盖。</li>
  * </ol>
  * 复用既有领域服务：主体+投影（{@link LocalProjectionDomainService#createLocalUserSubject}）、
  * sys_user（{@link UserDomainService}）、角色（{@link SubjectDomainService#createRole} + ROLE 投影）、
@@ -283,19 +285,31 @@ public class AccessBootstrapInitializer {
             }
         }
 
-        // —— 授权（固定图全量，子集匹配：固定图条目齐全即可，角色上的多余授权不冲突） ——
+        // —— 授权（固定图全量，子集匹配：固定图条目齐全即可，角色上的多余授权不冲突；
+        //    2026-09-02 口径定案【T-FE-018 联调暴露】：缺行 fail-fast、属性漂移放行——
+        //    身份键 =（资源实体/范围 + 类型）判定「行」是否存在；grantedBits/canGrant/
+        //    conditionId/dependOn/grantSource 为可变属性，管理端运营修改（授权页加条件、
+        //    关转授、改操作位）是产品正常能力，漂移仅 warn 不阻断启动、不重种覆盖；
+        //    仅身份行整体缺失（种子半成品/整行被软删）才构成冲突 fail-fast） ——
         if (rolePresent && roleId != null) {
-            Set<GrantKey> existing = seedWriter.findValidGrants(tenantId, roleId).stream()
-                .map(GrantKey::of)
-                .collect(Collectors.toSet());
-            List<String> missingGrants = buildExpectedGrants(
-                    tenantId, roleId, resourceTypes, operationBits, apiResourceIds, serviceResourceId).stream()
-                .filter(grant -> !existing.contains(GrantKey.of(grant)))
-                .map(grant -> grant.getResourceType() + "#bits=" + grant.getGrantedBits()
-                    + (grant.getScopeAll() ? "@ALL" : "@instance") + grant.getResourceEntityId())
-                .toList();
-            if (!missingGrants.isEmpty()) {
-                conflicts.add("管理角色授权缺失或属性不匹配（canGrant 参与匹配）: " + missingGrants);
+            Map<GrantIdentity, List<GrantKey>> existingByIdentity =
+                seedWriter.findValidGrants(tenantId, roleId).stream()
+                    .collect(Collectors.groupingBy(GrantIdentity::of,
+                        Collectors.mapping(GrantKey::of, Collectors.toList())));
+            for (RoleResourcePermission grant : buildExpectedGrants(
+                    tenantId, roleId, resourceTypes, operationBits, apiResourceIds, serviceResourceId)) {
+                List<GrantKey> candidates = existingByIdentity.get(GrantIdentity.of(grant));
+                if (candidates == null) {
+                    conflicts.add("管理角色授权缺失（缺行 fail-fast，属性漂移放行）: "
+                        + grant.getResourceType() + "#bits=" + grant.getGrantedBits()
+                        + (grant.getScopeAll() ? "@ALL" : "@instance") + grant.getResourceEntityId());
+                } else if (!candidates.contains(GrantKey.of(grant))) {
+                    log.warn("bootstrap 固定图授权属性漂移（管理端运营修改，放行不重种）: {}#bits={}{}{} "
+                        + "固定图期望属性={} 实际={}",
+                        grant.getResourceType(), grant.getGrantedBits(),
+                        grant.getScopeAll() ? "@ALL" : "@instance", grant.getResourceEntityId(),
+                        GrantKey.of(grant), candidates);
+                }
             }
         }
 
@@ -624,9 +638,20 @@ public class AccessBootstrapInitializer {
     }
 
     /**
-     * 授权匹配键：范围/资源 + 类型 + 操作位 + 转授位 + 完整可变属性（canGrant 参与匹配——目标 API
-     * 授权传递链依赖；conditionId/dependOn/grantSource 参与匹配——条件授权或依赖派生（AUTO_DEP）
-     * 行不能冒充固定图要求的无条件 MANUAL 直接授权，否则生命周期不再由固定图控制）。
+     * 授权身份键（2026-09-02 口径定案：缺行 fail-fast、属性漂移放行）：资源实体/范围 + 类型——
+     * 判定固定图要求的授权「行」是否存在；行在而属性不符属管理端运营修改，仅 warn 不冲突。
+     */
+    private record GrantIdentity(Long resourceEntityId, Integer resourceType, boolean scopeAll) {
+        static GrantIdentity of(RoleResourcePermission p) {
+            return new GrantIdentity(p.getResourceEntityId(), p.getResourceType(),
+                Boolean.TRUE.equals(p.getScopeAll()));
+        }
+    }
+
+    /**
+     * 授权完整属性键（漂移检测与 warn 明细用）：grantedBits/canGrant/conditionId/dependOn/
+     * grantSource 全量参与——身份行存在但与本键不符即漂移（运营改操作位/加条件/关转授/
+     * AUTO_DEP 行并存等），放行并告警；仅身份键无匹配（缺行）构成固定图冲突。
      */
     private record GrantKey(Long resourceEntityId, Integer resourceType, Long grantedBits,
                             boolean scopeAll, boolean canGrant, Long conditionId, Long dependOn,

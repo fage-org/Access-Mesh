@@ -149,7 +149,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 
 > 来源：`docs/archive/2026-08-27/improvement-plan.md` §4 各 Phase 拆分（roadmap 已归档，拆分产物即各 phase plan）。Phase 1 archived（2026-07-12 归档），Phase 3/4 proposed。页面任务 design_refs 先指后端契约，UI 设计随任务回写到 `docs/design/frontend/<page>.md`。
 
-> ⚠️ **权限授予页 v1/v2 产物废弃（2026-07-26）；T-FE-018 已于 2026-08-01 按 v3 恢复待排期**：因对现有交互不满意，v1（`permission-grant`）+ v2（`permission-grant-v2`）两套页面及专属代码（`PermissionSummaryCell` / `ChildPermissionInline` / `RePermissionCell` / `ReConditionPicker` / `permission-grant-types` / `api/permission-grant` / `mock/permission-grant`）已删除，4 份设计文档归档至 `archive/2026-07-26/`，两个 plan 归档至 `plans/archive/2026-07/`。下表 T-FE-014 / T-FE-024~026 / T-FE-029~034 保持 ✅（历史完成事实）但产出代码已废弃；T-FE-027 / T-FE-028 / T-FE-035 标 ❌ cancelled（不再恢复）；**T-FE-018 已恢复 ⚙️ 待排期（2026-08-01，v3 设计 `design/frontend/permission-grant.md`，依赖见表格行）**。注：`ReConditionEditor` / `condition-rules` 保留，仍被 `permission-condition` 页使用。
+> ⚠️ **权限授予页 v1/v2 产物废弃（2026-07-26）；T-FE-018 已于 2026-08-01 按 v3 恢复（2026-09-02 收口 done）**：因对现有交互不满意，v1（`permission-grant`）+ v2（`permission-grant-v2`）两套页面及专属代码（`PermissionSummaryCell` / `ChildPermissionInline` / `RePermissionCell` / `ReConditionPicker` / `permission-grant-types` / `api/permission-grant` / `mock/permission-grant`）已删除，4 份设计文档归档至 `archive/2026-07-26/`，两个 plan 归档至 `plans/archive/2026-07/`。下表 T-FE-014 / T-FE-024~026 / T-FE-029~034 保持 ✅（历史完成事实）但产出代码已废弃；T-FE-027 / T-FE-028 / T-FE-035 标 ❌ cancelled（不再恢复）；**T-FE-018 已于 2026-08-01 按 v3 恢复、2026-09-02 收口 done（v3 设计 `design/frontend/permission-grant.md`，终态见表格行）**。注：`ReConditionEditor` / `condition-rules` 保留，仍被 `permission-condition` 页使用。
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
@@ -170,7 +170,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 | [T-FE-015](T-FE-015.md) | Phase 3 联调：组织与用户（2.1 mock→真实接口，含 menus 接线/固定图 17 授权+15 菜单+默认树种子+20 Gateway 端点/bootstrap 分页缓存缺陷修复；已收口 2026-08-31，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
 | [T-FE-016](T-FE-016.md) | Phase 3 联调：角色管理（2.2 mock→真实收口——Gateway +4 端点/编辑 extra 回显 detail 回填 + extraClear 清空协议/mock 退役删除；已收口 2026-09-01，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-002, T-PERM-022 | ✅ | ✓ |
 | [T-FE-017](T-FE-017.md) | Phase 3 联调：资源/操作定义（3.1 mock→真实收口——Gateway +8 端点/业务门禁 +4/maintain_source 落库缺陷修复/mock 路由段退役保数据导出；已收口 2026-09-02，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-008, T-PERM-028 | ✅ | ✓ |
-| [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期） | [frontend-phase3](../plans/frontend-phase3-plan.md) | | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ⚙️ | ⏳ |
+| [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期）——mock 四文件整删 + resource-operation 更名 _shared/resource-fixtures、TYPE_DEFINITION:VIEW 理解 A 降级落地、6 数据源全真实；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；design/frontend/permission-grant.md（v3） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ✅ | ✓ |
 | [T-FE-037](T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ⚙️ | ⏳ |
 | [T-FE-019](T-FE-019.md) | Phase 3 联调：权限查询/校验（4.2）——Gateway +3 端点/explain 扩展展示接线/mock 整删；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-013, T-PERM-033 | ✅ | ✓ |
 | [T-FE-020](T-FE-020.md) | Phase 3 联调：条件/冲突规则（3.2/3.3）——Gateway +9 端点/前端 conflict-rule 路径修正/mock 双文件退役；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ✅ | ✓ |
@@ -288,7 +288,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/021/025`（见下表）。`T-ADMIN-0
 
 ### P7 — 权限授予授权弹窗与右栏变更重构（❌ 已取消 2026-07-26）
 
-> 页面交互不满意，v1+v2 两套整体删除重做。T-FE-024~026 保持 done（产出已废），T-FE-027/028 cancelled；**T-FE-018 已于 2026-08-01 按 v3 恢复待排期（不再 cancelled，见表格行）**。详见上方"前端"段废弃说明。plan 已归档至 `plans/archive/2026-07/permission-grant-ux-refactor-plan.md`。
+> 页面交互不满意，v1+v2 两套整体删除重做。T-FE-024~026 保持 done（产出已废），T-FE-027/028 cancelled；**T-FE-018 已于 2026-08-01 按 v3 恢复（不再 cancelled）、2026-09-02 收口 done（见表格行）**。详见上方"前端"段废弃说明。plan 已归档至 `plans/archive/2026-07/permission-grant-ux-refactor-plan.md`。
 
 1. `T-FE-024` 条件/子权限组件抽取（含 ChildPermissionDrawer 内联化）← T-FE-014（外部前置，可与 T-FE-025 并行）
 2. `T-FE-025` 中栏资源权限概览 + 授权入口 ← T-FE-014

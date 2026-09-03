@@ -41,6 +41,7 @@
   },
   "include": [
     "mock/*.ts",
+    "mock/_shared/*.ts",
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.vue",

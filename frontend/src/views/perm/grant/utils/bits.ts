@@ -3,7 +3,7 @@
  *
  * binaryBit / inheritMask / grantedBits 均为 63 位位图：
  * - 契约线格式（T-PERM-028）：十进制字符串（如 "9223372036854775807"）；
- * - 共享 mock 现状（resource-operation.ts）：number（2^53 内精确）。
+ * - 共享 mock（mock/_shared/resource-fixtures.ts）同为十进制字符串（历史 number 形态已退役）。
  * 本模块统一宽容解析（string | number → BigInt），禁止 number 位运算
  * （JS 按位运算符强转 32 位，63 位 bigint 超 2^53 丢精度，事后转换无法恢复）。
  */

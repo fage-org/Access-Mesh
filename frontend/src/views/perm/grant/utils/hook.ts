@@ -140,8 +140,22 @@ export function usePermissionGrant() {
         return;
       }
       typePermDenied.value = false;
-      const [typeResp, treeResp, opResp, conditionResp] = await Promise.all([
-        getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE }),
+      // 🔧 T-FE-018 评审补（2026-09-02 用户决策）：登录权限串全集含实例级 TYPE_DEFINITION:VIEW，
+      // 而后端 list 门禁为类型级（scopeOnly）——仅实例级授权的账号探查通过但请求被 403 拒。
+      // 类型候选请求的权限拒绝同样进入降级块（可重试），不落「暂无资源类型配置」空态、
+      // 不弹通用错误；其余错误（含资源树/操作列 403——二者无前端前置为既定口径）维持原路径。
+      let typeResp: Awaited<ReturnType<typeof getTypeDefList>>;
+      try {
+        typeResp = await getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE });
+      } catch (error: any) {
+        if (error?.response?.status === 403 || error?.appCode === 403) {
+          typePermDenied.value = true;
+          typeCandidates.value = [];
+          return;
+        }
+        throw error;
+      }
+      const [treeResp, opResp, conditionResp] = await Promise.all([
         // 门控说明（T-ACCESS-021 GUI 段缺陷修复）：资源树/操作列不做前端 capability 前置
         // （访问控制由后端类型级 VIEW 门禁 T-PERM-042 承担，无权限者收到接口错误提示；
         // RESOURCE/OPERATION 虽已随 T-PERM-025 补入 /auth/user-menu 权限串白名单，

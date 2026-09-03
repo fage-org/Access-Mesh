@@ -13,7 +13,7 @@
  * - `RolePermissionItem` 统一返回 14 字段；list 支持 resourceTypeCode/includeChildren。
  * - `apply-grant-plan` 是授权页面唯一写入口（记录级 creates/updates/removes，
  *   单事务原子 + 受影响行数断言；无 CAS/幂等表/clientRequestId，第十四轮收窄），
- *   旧写端点 save/revoke/children/add-child/remove-child 已删除（网关 404，§6.4 端点退役收口）。
+ *   旧写端点 save/revoke/children/add-child/remove-child 已删除（网关 403——注册清单外拦截，请求不达后端；§6.4 端点退役收口）。
  * - grantedBits 为 63 位位图十进制字符串（避免 JSON number 精度丢失），前端 BigInt 解析。
  */
 import { http } from "@/utils/http";
