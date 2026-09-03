@@ -507,4 +507,86 @@ class OrgTreeIncludePositionsPgIT {
         assertThat(outside.get("data").get("items").size())
             .as("默认树范围内取非默认树节点 → 空结果").isZero();
     }
+
+    // ===== ⑥ 过滤语义与守卫边界（根存在性守卫基于未过滤全量；orgType/status 为节点级内存过滤） =====
+
+    @Test
+    @DisplayName("status=0（根启用）：节点级过滤不误报 11002——根被滤即空树，parentOrgId 透视可见停用节点")
+    void statusFilterIsNodeLevelInMemory() throws Exception {
+        long disabledOrgId = 9008L;
+        insertOrg(disabledOrgId, "t21-disabled", "停用部门", "1", ORG_A_ID, 0);
+        long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
+        String token = login(userId);
+
+        JsonNode body = tree(token, Map.of("orgType", 1, "status", 0));
+        assertThat(body.get("code").asInt())
+            .as("启用根不匹配 status=0 → 空树（过滤语义），不得误报 11002").isEqualTo(200);
+        assertThat(body.get("data").get("items").size()).isZero();
+
+        JsonNode pivot = tree(token, Map.of("orgType", 1, "status", 0, "parentOrgId", disabledOrgId));
+        assertThat(pivot.get("code").asInt()).isEqualTo(200);
+        assertThat(pivot.get("data").get("items").size()).isEqualTo(1);
+        assertThat(pivot.get("data").get("items").get(0).get("id").asLong())
+            .as("parentOrgId 透视可取到停用节点").isEqualTo(disabledOrgId);
+    }
+
+    @Test
+    @DisplayName("orgType=2 无 parentOrgId：恒空树（根为组织被类型过滤剔除），不得报 11002")
+    void orgType2WithoutPivotIsEmptyTree() throws Exception {
+        long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
+        String token = login(userId);
+
+        JsonNode body = tree(token, Map.of("orgType", 2));
+        assertThat(body.get("code").asInt())
+            .as("orgType=2 单类型树为已知边界退化（空树），非配置漂移错误").isEqualTo(200);
+        assertThat(body.get("data").get("items").size()).isZero();
+    }
+
+    @Test
+    @DisplayName("orgType 白名单 {1,2}：非法值 10008；operationCode 大小写敏感（view 小写拒绝）")
+    void orgTypeWhitelistAndOperationCodeCase() throws Exception {
+        long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
+        String token = login(userId);
+
+        assertThat(tree(token, Map.of("orgType", 3)).get("code").asInt())
+            .as("orgType=3 fail-closed").isEqualTo(10008);
+        assertThat(tree(token, Map.of("orgType", 1, "operationCode", "view")).get("code").asInt())
+            .as("operationCode 大小写敏感").isEqualTo(10008);
+    }
+
+    @Test
+    @DisplayName("根组织真被软删（配置漂移）→ 11002 fail-closed")
+    void softDeletedRootFailsClosedWith11002() throws Exception {
+        long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
+        String token = login(userId);
+        jdbc.update("UPDATE sys_org SET delete_flag = id WHERE id = ? AND tenant_id = ?", ROOT_ID, TENANT);
+
+        JsonNode body = tree(token, Map.of("orgType", 1));
+        assertThat(body.get("code").asInt())
+            .as("根行缺失是真实配置漂移，11002 而非空树").isEqualTo(11002);
+    }
+
+    @Test
+    @DisplayName("岗位裁剪不可被 orgName 旁路：仅 VIEW 用户搜岗位名 → 仍零 orgType=2 节点")
+    void pruningCannotBeBypassedByNameFilter() throws Exception {
+        long userId = insertUserWithOrgGrants("组织树-仅VIEW用户", BIT_VIEW);
+        String token = login(userId);
+
+        JsonNode body = tree(token, Map.of("includePositions", true, "orgName", "Java 工程师"));
+        assertThat(body.get("code").asInt()).isEqualTo(200);
+        assertThat(body.get("data").get("items").size())
+            .as("名称命中岗位但其父组织名不匹配 → 整支不保留（裁剪先于名称剪枝）").isZero();
+    }
+
+    @Test
+    @DisplayName("岗位裁剪不可被 parentOrgId 旁路：仅 VIEW 用户以岗位 id 透视 → 空结果")
+    void pruningCannotBeBypassedByParentOrgIdPivot() throws Exception {
+        long userId = insertUserWithOrgGrants("组织树-仅VIEW用户", BIT_VIEW);
+        String token = login(userId);
+
+        JsonNode body = tree(token, Map.of("includePositions", true, "parentOrgId", POS_P1_ID));
+        assertThat(body.get("code").asInt()).isEqualTo(200);
+        assertThat(body.get("data").get("items").size())
+            .as("岗位节点被裁剪后其 id 不在集合内 → 空结果（与不存在同形，无存在性 oracle）").isZero();
+    }
 }

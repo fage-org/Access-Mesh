@@ -45,20 +45,23 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
     public boolean hasTypeLevel(String resourceTypeCode, String operationCode) {
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = currentOperatorId();
-        Long userId = typeResolutionService.resolveUserId(
-            tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(operatorId));
-        if (userId == null) {
-            // 主体缺失归技术故障（fail-closed 抛 SystemException），不得当作「明确拒绝」返回 false
-            // ——hasTypeLevel 的 false 语义仅限引擎成功响应且 allowed=false（P2-1）
-            log.warn("Permission check user not found (hasTypeLevel): operatorId={}, resourceType={}, operation={}",
-                operatorId, resourceTypeCode, operationCode);
-            throw new SystemException(GlobalErrorCode.SYSTEM_ERROR.code(),
-                "权限判定失败: 操作者主体不存在");
-        }
+        Long userId;
         try {
+            userId = typeResolutionService.resolveUserId(
+                tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(operatorId));
+            if (userId == null) {
+                // 主体缺失归技术故障（fail-closed 抛 SystemException），不得当作「明确拒绝」返回 false
+                // ——hasTypeLevel 的 false 语义仅限引擎成功响应且 allowed=false（P2-1）
+                log.warn("Permission check user not found (hasTypeLevel): operatorId={}, resourceType={}, operation={}",
+                    operatorId, resourceTypeCode, operationCode);
+                throw new SystemException(GlobalErrorCode.SYSTEM_ERROR.code(),
+                    "权限判定失败: 操作者主体不存在");
+            }
             return engine.hasPermissionByCode(tenantId, userId, resourceTypeCode, null, operationCode);
+        } catch (SystemException e) {
+            throw e;
         } catch (RuntimeException e) {
-            // 引擎技术故障（如数据库异常）向上抛 SystemException，禁止静默降级为裁剪结果（P2-1）；
+            // 主体解析/引擎技术故障（如数据库异常）向上抛 SystemException，禁止静默降级为裁剪结果（P2-1）；
             // 不复用 SecurityException（全局映射 403）
             throw new SystemException(GlobalErrorCode.SYSTEM_ERROR.code(),
                 "权限判定技术故障: " + e.getMessage(), e);

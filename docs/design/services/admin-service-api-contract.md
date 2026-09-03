@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-09-03   # 2026-09-03 T-ADMIN-021 收口：§4.2.1 全字段落地（includePositions 一体树+岗位后端裁剪/债务① operationCode+treeConfigId/响应 ItemsResp<OrgResp> 包装/orgName+parentOrgId 死参数修正/OrgResp phone+email 陈旧行删除）；2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
+last_reviewed: 2026-09-03   # 2026-09-03 T-ADMIN-021 收口+复评收口：§4.2.1 全字段落地与过滤语义定案（根守卫基于未过滤全量、orgType/status 节点级内存过滤、orgType 白名单 10008）（includePositions 一体树+岗位后端裁剪/债务① operationCode+treeConfigId/响应 ItemsResp<OrgResp> 包装/orgName+parentOrgId 死参数修正/OrgResp phone+email 陈旧行删除）；2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -413,9 +413,9 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 | `operationCode` | `String` | 否 | `VIEW` 或 `CREATE`; 不传时按 `VIEW` 处理；非法值 → `INVALID_PARAM`(10008)。门禁按 `OrgOperationCodeMapper.resolve(orgType, operationCode)` 组合分发（orgType=1+CREATE → `ORG:CREATE`；orgType=2+VIEW → `ORG:VIEW_POSITION`）。**`includePositions=true` 时仅支持 `VIEW`（P2-1：CREATE + 混合树 → 10008——岗位裁剪固定检查 VIEW_POSITION，CREATE 混合树会形成 CREATE+VIEW_POSITION 混合门禁；CREATE 场景保持 `orgType=1` 单类型树，不需要岗位节点）；`CREATE` 与 `treeConfigId` 同传 → 10008（CREATE 限默认树，T-ADMIN-021 用户决策）** |
 | `treeConfigId` | `Long` | 否 | 组织树配置 ID；不传 = **默认树（is_default）子树**（契约字面，T-ADMIN-021 用户决策——多树租户下其他树必须显式传 id 才可见；无默认配置 → `ORG_TREE_CONFIG_NOT_FOUND`(11001) fail-closed，对齐 resolver 禁止静默 fallback 口径）；显式传 → 该配置 `root_org_id` 为根的子树（不存在 → 11001；根组织已删 → `ORG_TREE_ROOT_NOT_RESOLVED`(11002)）；`CREATE` 时禁止传 |
 | `orgName` | `String` | 否 | 模糊匹配（树剪枝语义：保留自身或后代命中的节点及其祖先链，与前端树过滤一致；T-ADMIN-021 修正原死参数——实现先前忽略本字段） |
-| `orgType` | `Integer` | 条件必填 | 1=组织, 2=岗位；**`includePositions != true` 时必填**（缺失 → `ORG_TYPE_REQUIRED`，保留现有业务码；后端 `treeOrgs` 按 orgType 分发 `VIEW/VIEW_POSITION` 门禁，放开空值会在单一门禁下返回全部类型，P1-2）；**`includePositions=true` 时忽略本字段（一体树语义，岗位裁剪由 hasTypeLevel 独立门控）**。注：orgType=2 树查询无前端消费者，且岗位的父节点均为组织——子树裁剪后仅直属根/父节点的岗位可见，结构退化；岗位树形态统一走 `includePositions` 混合树（已知边界，非缺陷） |
+| `orgType` | `Integer` | 条件必填 | 1=组织, 2=岗位（**值域白名单：非 1/2 → `INVALID_PARAM`(10008)**）；**`includePositions != true` 时必填**（缺失 → `ORG_TYPE_REQUIRED`，保留现有业务码；后端 `treeOrgs` 按 orgType 分发 `VIEW/VIEW_POSITION` 门禁，放开空值会在单一门禁下返回全部类型，P1-2）；**`includePositions=true` 时忽略本字段（一体树语义，岗位裁剪由 hasTypeLevel 独立门控）**。注：orgType 过滤为**节点级内存过滤**（根不豁免）——orgType=2 无 parentOrgId 时**恒为空树**（根组织被类型过滤剔除），岗位树形态统一走 `includePositions` 混合树（已知边界，非缺陷） |
 | `includePositions` | `Boolean` | 否 | **T-ADMIN-021 已实现（2026-08-01 评审 P1-6）**；默认 `false` 行为与现状完全一致；`true` 时返回组织+岗位一体树：岗位（orgType=2）作为所属组织（orgType=1）的**子节点**挂入同一树（岗位自身无下级），**忽略 `orgType` 单类型过滤** |
-| `status` | `Integer` | 否 | |
+| `status` | `Integer` | 否 | 节点级内存过滤（根不豁免）：根不匹配 status 时顶层即空，配合 `parentOrgId` 透视可取匹配节点 |
 | `parentOrgId` | `Long` | 否 | 用于在配置子树内再取该节点子树（不在子树范围内 → 空结果，过滤语义不报错；T-ADMIN-021 修正原死参数）; 一般不与 `treeConfigId` 同时使用 |
 
 **响应（P1-3 定稿，T-ADMIN-021 已落地）**: `PermResult<ItemsResp<OrgResp>>`，`data.items[]`（复用 perm-common 泛型 `ItemsResp{ items: List<OrgResp> }`，与 `/role/list`、`/user-role/list` 同款——T-ADMIN-021 用户决策，原定稿命名的 `OrgItemsResp` 类不再新建，线格式不变）；**唯一形状，不再返回裸数组**（历史直返 List 已废弃）
@@ -443,7 +443,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 **同步动作**: 无.
 
-**当前差距**: 无——T-ADMIN-021（2026-09-03）销账：① `OrgQuery` 补齐 `operationCode`/`treeConfigId`（含 CREATE 冲突拒绝与非法值 fail-closed）；② 响应 `{items:[...]}` 包装落地（`ItemsResp<OrgResp>`）；③ `orgName`/`parentOrgId` 原死参数修正为真实过滤；④ OrgResp 表格 phone/email 陈旧行删除。回归锁定：`OrgTreeIncludePositionsPgIT`（12 用例，含否定性裁剪/故障 99999/兼容/多树/参数拒绝）+ `AdminPermissionValidatorImplHasTypeLevelTest`（3 用例）+ `HttpApiPathSnapshotTest` 快照更新。
+**当前差距**: 无——T-ADMIN-021（2026-09-03）销账：① `OrgQuery` 补齐 `operationCode`/`treeConfigId`（含 CREATE 冲突拒绝与非法值 fail-closed）+ orgType 值域白名单；② 响应 `{items:[...]}` 包装落地（`ItemsResp<OrgResp>`）；③ `orgName`/`parentOrgId` 原死参数修正为真实过滤；④ OrgResp 表格 phone/email 陈旧行删除；⑤ 根存在性守卫（11002）基于未过滤全量——仅根真缺失/软删时触发，orgType/status 为节点级内存过滤（设计定案：过滤即过滤，根不豁免）。回归锁定以 `OrgTreeIncludePositionsPgIT`（否定性裁剪/故障 99999/兼容/多树/参数拒绝/过滤语义守卫/裁剪旁路锁）与 `AdminPermissionValidatorImplHasTypeLevelTest` 断言为准，另有 `HttpApiPathSnapshotTest` 快照同步。
 
 ---
 
@@ -928,7 +928,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 
 | # | 接口 | 来源 record | 备注 |
 |---|------|-------------|------|
-| 1 | `POST /org/tree` | `OrgQuery` | 待补 `operationCode/treeConfigId` 字段; **响应包装 `{ items }` 已由 T-ADMIN-021 消化（P1-3）** |
+| 1 | `POST /org/tree` | `OrgQuery` | **已对齐（T-ADMIN-021 全字段落地：operationCode + treeConfigId + includePositions + 响应 `{ items }` 包装）** |
 | 2 | `POST /org/page` | `OrgPageReq` | 含 `orgId` 子树筛选; 已对齐 |
 | 3 | `POST /org/users` | `IdReq` | 前端 mock 入参字段名为 `orgId`, 待 Phase 2 调整为 `id` |
 | 4 | `POST /user/update` | `UserUpdateReq` | 已对齐 |
@@ -945,7 +945,7 @@ Phase 2 后端实现以上 19 个接口后, 必须满足:
 2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `PermQueryEngine`; 实现不短路判断 (除自我修改豁免).
 3. **本地投影**: 所有写操作 (除 /user/reset-password, /user-org/set-primary) 在主事务内维护对应权限投影与 `permission_change_log`。
 4. **错误码段**: admin-service 业务错误使用 10001-19999 段, 系统错误使用 90001-99999 段; `XxxErrorCode` 枚举类不重复定义系统段.
-5. **响应壳统一**: 所有接口返回 `PermResult<T>`, 列表不直接返回数组 (由 `PermResultResponseAdvice` 强制); 现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`) 列入 Phase 2 修正项.
+5. **响应壳统一**: 所有接口返回 `PermResult<T>`, 列表不直接返回数组 (由 `PermResultResponseAdvice` 强制); ~~现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`)~~ 已清零（`/org/tree` 已由 T-ADMIN-021 切 `PermResult<ItemsResp<OrgResp>>`；台账见 §5）.
 6. **异常映射**: 业务拒绝抛 `BizException`; 安全拒绝抛 `SecurityException`; 技术故障抛 `SystemException`. 不允许用 `SecurityException` 表达"资源不存在".
 7. **默认树身份目录边界**: `/user/create` (带 orgId), `/user/delete`, `/user/enable`, `/user/reset-password`, `/user-org/set-primary` 必须在 AppService 内做默认树边界二次校验, 失败抛 `BizException`.
 8. **投影所有权**: 权限管理入口与外部 sync/full-sync 不得改写 `owner=access-service` 或保留业务键；失败抛 `BizException(20045)`。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。

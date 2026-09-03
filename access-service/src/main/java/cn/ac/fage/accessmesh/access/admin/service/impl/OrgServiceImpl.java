@@ -197,6 +197,12 @@ public class OrgServiceImpl implements OrgService {
                 throw new BizException(AdminErrorCode.ORG_TYPE_REQUIRED.getCode(),
                     AdminErrorCode.ORG_TYPE_REQUIRED.getMessage());
             }
+            // orgType 值域白名单（1=组织/2=岗位，契约字段定义）：非法值 fail-closed，
+            // 防止经 normalize 回退基础操作码后以空集悄悄绕过（枚举缝隙先例）
+            if (q.orgType() != 1 && q.orgType() != 2) {
+                throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+                    "orgType 仅支持 1（普通组织）/ 2（岗位），实际: " + q.orgType());
+            }
             permissionValidator.checkTypeLevel(
                 ResourceTypeCode.ORG,
                 OrgOperationCodeMapper.resolve(String.valueOf(q.orgType()), operationCode)
@@ -207,10 +213,10 @@ public class OrgServiceImpl implements OrgService {
         // 不传 treeConfigId = 默认树子树（契约字面，T-ADMIN-021 用户决策）
         SysOrgTreeConfig config = resolveTreeScope(tenantId, createSemantics ? null : q.treeConfigId());
 
-        List<SysOrg> all = orgMapper.selectOrgsForTree(
-            tenantId, mixed ? null : String.valueOf(q.orgType()), q.status());
+        // 根存在性守卫与子树裁剪必须基于未过滤全量（11002 仅在根真缺失/软删时触发）；
+        // orgType/status 为节点级过滤，移至内存执行——根不豁免，不匹配即从结果集剔除
+        List<SysOrg> all = orgMapper.selectOrgsForTree(tenantId, null, null);
 
-        // 配置子树裁剪（内存祖先链判定；根组织缺失=配置漂移 fail-closed，禁止静默空树）
         Map<Long, SysOrg> byId = all.stream()
             .collect(Collectors.toMap(SysOrg::getId, o -> o, (a, b) -> a));
         SysOrg root = byId.get(config.getRootOrgId());
@@ -220,10 +226,22 @@ public class OrgServiceImpl implements OrgService {
         }
         List<SysOrg> scoped = scopeToSubtree(all, byId, config.getRootOrgId());
 
-        // 岗位裁剪先于名称过滤：仅 ORG:VIEW 的调用者不返回任何岗位节点（前端隐藏不是安全边界）
+        // 岗位裁剪先于名称/orgType/status 过滤：仅 ORG:VIEW 的调用者不返回任何岗位节点（前端隐藏不是安全边界）
         if (mixed && !includePositionNodes) {
             scoped = scoped.stream()
                 .filter(o -> !isPositionOrg(o.getOrgType()))
+                .collect(Collectors.toList());
+        }
+        // 单类型语义：orgType 过滤在内存执行（orgType=2 时根组织被剔除，无 parentOrgId 即空树——已知边界）
+        if (!mixed) {
+            String targetType = String.valueOf(q.orgType());
+            scoped = scoped.stream()
+                .filter(o -> targetType.equals(o.getOrgType()))
+                .collect(Collectors.toList());
+        }
+        if (q.status() != null) {
+            scoped = scoped.stream()
+                .filter(o -> q.status().equals(o.getStatus()))
                 .collect(Collectors.toList());
         }
 

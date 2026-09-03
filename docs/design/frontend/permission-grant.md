@@ -396,7 +396,7 @@ interface MatrixContext {
 | 用途                       | 接口                                                                                                  | 契约                                             |
 | -------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
 | 主体树（角色入口）         | `abstract-role/tree`                                                                                  | api-contract.md（§6.10.3）                       |
-| 主体树（组织入口）         | admin-service `org-tree`（`includePositions=true`，岗位为组织子节点，T-ADMIN-021）                    | admin-service，`org-user-permission-contract.md` |
+| 主体树（组织入口）         | admin-service `org-tree`（`includePositions=true`，岗位为组织子节点，T-ADMIN-021）                    | admin-service，`admin-service-api-contract.md §4.2.1` |
 | 统一提交（全部写操作）     | `role-resource-permission/apply-grant-plan`（**唯一写入口**，§6.5.1；creates/updates/removes 记录级） | api-contract.md §6.5.1                           |
 | 直接授权列表               | `role-resource-permission/list`（`includeChildren=true` 一次取全量，来源链仅消费 `dependOn==null` 主权限，对齐 §6.1 加载口径） | api-contract.md §6.4（Resp 见 §7）               |
 | 子权限（并入统一提交）     | 无独立接口（creates parentPermissionId / updates / removes）                                          | api-contract.md §6.5/§6.5.1                      |

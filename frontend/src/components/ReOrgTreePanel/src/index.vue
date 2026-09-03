@@ -130,9 +130,15 @@ function filterTreeByOrgType(
 }
 
 async function loadConfigs() {
-  treeConfigs.value = await getOrgTreeConfigs();
-  const defaultCfg = treeConfigs.value.find(c => c.isDefault);
-  if (defaultCfg) selectedConfigId.value = defaultCfg.id;
+  try {
+    treeConfigs.value = await getOrgTreeConfigs();
+    const defaultCfg = treeConfigs.value.find(c => c.isDefault);
+    if (defaultCfg) selectedConfigId.value = defaultCfg.id;
+  } catch {
+    // 配置列表加载失败（如无默认树配置租户 11001 fail-closed）——空列表降级，不中断挂载
+    treeConfigs.value = [];
+    message("组织树配置加载失败", { type: "error" });
+  }
 }
 
 async function loadTree() {
@@ -141,10 +147,18 @@ async function loadTree() {
   // 若调用方需混合查询岗位，应在 props 上扩展并允许此处分别请求合并，而非传 null 走老语义。
   // T-ADMIN-021 起后端支持 treeConfigId 子树裁剪——切换树配置真实生效
   //（缺省不传=默认树子树；无配置 id 时保持缺省语义）。
-  rawOrgTree.value = await getOrgTree({
-    orgType: 1,
-    ...(selectedConfigId.value != null ? { treeConfigId: selectedConfigId.value } : {})
-  });
+  try {
+    rawOrgTree.value = await getOrgTree({
+      orgType: 1,
+      ...(selectedConfigId.value != null
+        ? { treeConfigId: selectedConfigId.value }
+        : {})
+    });
+  } catch {
+    // 树加载失败（如无默认树配置租户 11001 fail-closed）——空树降级，避免未处理 rejection
+    rawOrgTree.value = [];
+    message("组织树加载失败", { type: "error" });
+  }
 }
 
 async function onConfigChange(configId: number) {

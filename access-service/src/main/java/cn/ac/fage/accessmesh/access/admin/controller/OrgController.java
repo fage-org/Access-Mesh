@@ -1,7 +1,5 @@
 package cn.ac.fage.accessmesh.access.admin.controller;
 
-import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.access.admin.dto.req.OrgBatchCreateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.OrgCreateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.OrgPageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.OrgQuery;

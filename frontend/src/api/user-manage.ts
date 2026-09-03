@@ -17,8 +17,8 @@ export type OrgQuery = {
   /** 组织树配置 ID；不传=默认树子树（多树租户下其他树须显式传 id） */
   treeConfigId?: number;
   orgName?: string;
-  /** includePositions 未传或为 false 时必填（后端按 orgType 分发 ORG:VIEW / ORG:VIEW_POSITION 门禁；1=普通组织 / 2=岗位） */
-  orgType: number;
+  /** 后端条件必填：includePositions 未传或为 false 时必须传（后端按 orgType 分发 ORG:VIEW / ORG:VIEW_POSITION 门禁，缺省 10107；1=普通组织 / 2=岗位）；includePositions=true 时后端忽略本字段 */
+  orgType?: number;
   /** true=组织+岗位一体树（岗位作为所属组织子节点；orgType 被忽略；岗位按 ORG:VIEW_POSITION 后端裁剪） */
   includePositions?: boolean;
   status?: number;

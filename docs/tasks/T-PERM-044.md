@@ -17,7 +17,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-30
+last_updated: 2026-09-03
 ---
 
 # T-PERM-044 四棵树（角色/组织/菜单/资源实体）move 并发成环窗口与递归 CTE 遇环不收敛统一加固
@@ -41,3 +41,7 @@ T-PERM-022 为角色域 moveRole 补齐了环路防护（自身/子孙拒绝 200
 ## 优先级依据
 
 触发窗口极窄（双管理员同瞬交叉拖拽同一子树），且当前无已知环数据；属低概率高影响维护债，随维护债批次排期。
+
+## 登记追加
+
+- `OrgServiceImpl.treeOrgs` 读路径两处向下递归（T-ADMIN-021 收口登记）——`keepMatching` 名称剪枝 / `buildTree` 子树构建无环防护：`scopeToSubtree` 的步数上限只保护祖先链方向，数据异常父环（move 并发窗口脏数据）下会 StackOverflow。本任务统一加固时一并覆盖（visited 集合或深度上限）。
