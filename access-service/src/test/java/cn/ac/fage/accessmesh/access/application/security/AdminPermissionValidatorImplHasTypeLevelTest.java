@@ -18,12 +18,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
  * T-ADMIN-021：hasTypeLevel 非抛出判定语义锁定。
  * <p>
- * 三条不变量：①引擎成功响应时返回值透传（false 仅限明确拒绝）；
+ * 不变量：①引擎成功响应时返回值透传（false 仅限明确拒绝）；
  * ②引擎技术故障包装 SystemException(99999) 向上（fail-closed，不得静默降级为 false
  * ——否则调用方会返回裁剪后的树，P2-1 故障验收矛盾）；③操作者主体缺失同样归技术故障
  * （hasTypeLevel 的 false 语义仅限引擎成功响应且 allowed=false）。
@@ -82,6 +83,21 @@ class AdminPermissionValidatorImplHasTypeLevelTest {
             .satisfies(e -> assertThat(((SystemException) e).getErrorCode())
                 .isEqualTo(GlobalErrorCode.SYSTEM_ERROR.code()))
             .hasMessageContaining("simulated database failure");
+    }
+
+    @Test
+    @DisplayName("主体解析自身抛运行时异常：包装 SystemException(99999) 且不触碰引擎")
+    void subjectResolutionFailureWrapsSystemException() {
+        when(typeResolutionService.resolveUserId(anyLong(), eq(LocalProjectionOwner.SUBJECT_LOCAL_USER), eq("42")))
+            .thenThrow(new RuntimeException("simulated resolution failure"));
+
+        assertThatThrownBy(() -> validator.hasTypeLevel("ORG", "VIEW_POSITION"))
+            .isInstanceOf(SystemException.class)
+            .satisfies(e -> assertThat(((SystemException) e).getErrorCode())
+                .isEqualTo(GlobalErrorCode.SYSTEM_ERROR.code()))
+            .hasMessageContaining("simulated resolution failure")
+            .hasRootCauseMessage("simulated resolution failure");
+        verifyNoInteractions(engine);
     }
 
     @Test

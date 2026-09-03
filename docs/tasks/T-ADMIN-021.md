@@ -76,7 +76,7 @@ last_updated: 2026-09-03
 2. **前端**：`api/user-manage.ts` getOrgTree 解包 items + `OrgQuery` 类型对齐（operationCode/treeConfigId/includePositions，orgType 条件必填可选化）；`ReOrgTreePanel` loadTree 补 treeConfigId（树配置切换真实生效，selectedConfigId 初始化取显式 prop、无 prop 不发参数走默认树——修正硬编码初始值 1 在非默认 id 租户的 11001 空树缺陷）+ operationCode prop（CREATE 模式不携带 treeConfigId）+ loadConfigs/loadTree 失败 catch 空态降级；创建用户表单挂载点树传 operationCode=CREATE。
 3. **回归锁定**：
    - `OrgTreeIncludePositionsPgIT`（新，21 用例，真实 PG+Redis+引擎+MockMvc 全链路）：兼容行为（orgType=1 单类型/items 包装/默认树单根/无岗位）、缺省 orgType 10107、混合树全权（岗位挂所属组织、无下级）、**否定性裁剪**（仅 ORG:VIEW → 零 orgType=2、组织轨完好）、无授权 403、**故障验收**（@SpyBean 引擎 VIEW_POSITION 判定注入 RuntimeException → 业务码 99999、data null、不返回裁剪树）、CREATE 语义（门禁真实生效/限默认树/×treeConfigId 10008/×includePositions 10008/非法值 10008）、treeConfigId（显式非默认子树/缺省默认树字面/不存在 11001）、无默认配置 11001、orgName 剪枝（祖先链保留/无命中分支剪除）、parentOrgId 透视（子树内保留/范围外空结果）、过滤语义守卫（status=0 根不匹配→空树且不误报 11002、orgType=2 无透视→空树——两用例经 stash 旧实现红证）、orgType=3/小写 operationCode 10008、根真软删 11002、岗位裁剪旁路锁（orgName 搜岗位名/parentOrgId=岗位 id → 仍零 orgType=2）、门禁路径区分（主体存在无授权 403 / 主体投影缺失 403 两 fixture 分离）、组合剪枝（status=0+parentOrgId+orgName 同命中停用节点不误删——stash 旧实现红证）、关键词全不命中空结果。
-   - `AdminPermissionValidatorImplHasTypeLevelTest`（新，3 用例）：返回值透传/引擎故障包装 99999/主体缺失 99999。
+   - `AdminPermissionValidatorImplHasTypeLevelTest`（新，4 用例）：返回值透传/引擎故障包装 99999/主体缺失 99999/主体解析自身抛异常包装 99999 且不触碰引擎（防回归锁——解析若被移出 try 将必红）。
    - `HttpApiPathSnapshotTest` golden 行更新为 ItemsResp 包装。
 4. **文档回写**：契约 §4.2.1 全字段落地+债务①②销账+orgName/parentOrgId 死参数修正注记+phone/email 陈旧行删除+orgType=2 退化注记；permission-grant.md §9 组织主体适配器标注已实现（组织入口联调归 T-FE-037）；两文档 last_reviewed 更新。
 5. **回归**：后端全量 mvn test 绿（DualInstance 停 dev 后跑）；前端 vue-tsc 0 错 / vitest 202/202（基线不变）；重建库后浏览器冒烟（组织与用户页树正常渲染 + 混合树 curl 断言）。
