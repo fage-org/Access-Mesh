@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-09-02   # 2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
+last_reviewed: 2026-09-03   # 2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
 ---
 
 # access-service 目标架构与归并约束
@@ -466,6 +466,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
   - 管理 API 与目标接口的 API 资源：`resource_entity(API).code = {METHOD}:{外部路径}`（如 `POST:/admin/role/my-info`、`POST:/perm/api/perm/abstract-role/tree`），`code_type=default`；`resource_api_mapping.serviceCode=access-service`、`httpMethod/pathPattern` 与外部路径的方法和路径一致。
   - 幂等三状态的「完整匹配」按上述键定位对象后比对身份、角色、关联与授权；「业务键被占用」= 任一键被非本图数据持有（fail-fast 报告具体冲突）。
 - **幂等三状态**：① 固定图完全不存在——单事务创建完整固定图；② 完整存在且身份、角色、关联与授权行齐全——整体 no-op，绝不重置密码；③ 部分存在（含授权行缺失）、关联缺失或固定业务键被其他数据占用——启动失败并报告具体冲突，不自动修复、不补权、不扩权。**授权属性漂移放行（2026-09-02 口径定案，T-FE-018 联调暴露）**：canGrant/conditionId/grantedBits/dependOn/grantSource 等授权可变属性的管理端运营修改是产品正常能力——身份行（资源实体/范围 + 类型）存在而属性不符仅 warn 告警放行，不构成冲突、不重种覆盖（区分「种子半成品/授权行被删」与「运营修改」两种情况）。不新增 ownership 字段、种子版本表或通用 bootstrap 框架；唯一约束仅并发兜底（仅单实例启用）。
+  - **已知边界（待议清单，2026-09-03 建立）——固定图授权行不可经管理端整行撤销**：缺行 fail-fast 意味着管理端经授权页整行撤销固定图授权（软删）后，bootstrap=true 重启即拒启（防误删 API:ACCESS 等全瘫类事故）。此为 2026-09-02 口径的取舍（缺行=种子半成品/误删需人工介入；属性漂移=正常运营放行），**未终案**：管理端合法收缩固定图权限的通道（删行同样告警放行 / 撤销白名单 / 人工恢复流程）待后续讨论。**本条为固定图相关问题的持续登记点**——后续遇到的固定图冲突/边界/运营摩擦在此追加记录（含日期与现象），攒批讨论调整，不零散改口径。已记录：2026-09-02 fail-fast 误伤授权页合法写操作（已按「缺行拦截+属性漂移放行」调整，T-FE-018 任务卡）。
 - 不维护 SQL bootstrap 种子链路，不建 bootstrap 框架/独立模块/分布式锁；docker-compose 仅承诺一键基础设施（PostgreSQL/Redis/Nacos），README 写明 access-service → Gateway → 前端的启动顺序。
 
 ### 14.3 固定图组成与 bootstrap 管理 API 清单

@@ -140,10 +140,11 @@ export function usePermissionGrant() {
         return;
       }
       typePermDenied.value = false;
-      // 🔧 T-FE-018 评审补（2026-09-02 用户决策）：登录权限串全集含实例级 TYPE_DEFINITION:VIEW，
-      // 而后端 list 门禁为类型级（scopeOnly）——仅实例级授权的账号探查通过但请求被 403 拒。
-      // 类型候选请求的权限拒绝同样进入降级块（可重试），不落「暂无资源类型配置」空态、
-      // 不弹通用错误；其余错误（含资源树/操作列 403——二者无前端前置为既定口径）维持原路径。
+      // 🔧 T-FE-018 评审补（2026-09-03 终案）：后端 type-definition/list 门禁已放宽为
+      // 「类型级或任一实例级 VIEW」（与登录权限串投影口径对齐）；本端 403 捕获保留为
+      // 防御层（覆盖未来门禁变化）——权限拒绝进入降级块（可重试），不落「暂无资源类型
+      // 配置」空态、不弹通用错误；其余错误（含资源树/操作列 403——二者无前端前置为
+      // 既定口径）维持原路径。
       let typeResp: Awaited<ReturnType<typeof getTypeDefList>>;
       try {
         typeResp = await getTypeDefList({ typeKey: TYPE_KEY.RESOURCE_TYPE });

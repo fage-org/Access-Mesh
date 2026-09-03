@@ -292,4 +292,45 @@ class TypeDefinitionAppServiceImplTest {
 
         assertEquals(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), exception.getErrorCode());
     }
+
+    @Test
+    void shouldListTypesWhenOnlyInstanceLevelViewGranted() {
+        // 2026-09-03 门禁放宽：类型级拒绝但任一实例级 VIEW 命中即可查询（与登录权限串口径对齐；
+        // 旧实现仅认类型级，此用例必红）
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(false);
+        when(typeDefinitionMapper.selectValidCodesByTenant(1L))
+            .thenReturn(List.of("USER_TYPE", "ROLE_TYPE", "RESOURCE_TYPE"));
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), any(), any(), any()))
+            .thenReturn(java.util.Set.of("USER_TYPE", "ROLE_TYPE"));
+        when(typeDefinitionMapper.selectPageByCondition(eq(1L), isNull(), isNull(), anyInt(), anyInt()))
+            .thenReturn(List.of());
+
+        assertEquals(List.of(), service.listTypes(1L, null, null, 0, 200));
+        verify(typeDefinitionMapper).selectPageByCondition(eq(1L), isNull(), isNull(), eq(200), eq(0));
+    }
+
+    @Test
+    void shouldThrowWhenAllInstancesDeniedAndTypeLevelDenied() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(false);
+        when(typeDefinitionMapper.selectValidCodesByTenant(1L))
+            .thenReturn(List.of("USER_TYPE", "ROLE_TYPE"));
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), any(), any(), any()))
+            .thenReturn(java.util.Set.of("USER_TYPE", "ROLE_TYPE"));
+
+        assertThrows(SecurityException.class, () -> service.listTypes(1L, null, null, 0, 200));
+        verify(typeDefinitionMapper, never()).selectPageByCondition(anyLong(), any(), any(), anyInt(), anyInt());
+    }
+
+    @Test
+    void shouldThrowWhenNoTypeInstancesExistAndTypeLevelDenied() {
+        // 无实例可判定时 fail-closed（空清单无法证明任何实例级授权）
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(false);
+        when(typeDefinitionMapper.selectValidCodesByTenant(1L))
+            .thenReturn(List.of());
+
+        assertThrows(SecurityException.class, () -> service.countTypes(1L, null, null));
+    }
 }

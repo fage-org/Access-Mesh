@@ -105,4 +105,10 @@
         LIMIT #{limit} OFFSET #{offset}
     </select>
 
+    <select id="selectValidCodesByTenant" resultType="java.lang.String">
+        SELECT type_code FROM type_definition
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
 </mapper>

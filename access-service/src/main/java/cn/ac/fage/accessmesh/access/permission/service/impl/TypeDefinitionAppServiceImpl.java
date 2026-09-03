@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -223,9 +224,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     @Transactional(readOnly = true)
     public long countTypes(Long tenantId, String typeKey, String keyword) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
-        }
+        requireTypeViewPermission(tenantId, operatorId);
         return typeDefinitionMapper.countByCondition(tenantId, normalize(typeKey), normalize(keyword));
     }
 
@@ -246,11 +245,32 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     @Transactional(readOnly = true)
     public List<TypeDefinitionResp> listTypes(Long tenantId, String typeKey, String keyword, int offset, int limit) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
-        }
+        requireTypeViewPermission(tenantId, operatorId);
         return typeDefinitionMapper.selectPageByCondition(tenantId, normalize(typeKey), normalize(keyword), limit, offset)
             .stream().map(this::toTypeResp).collect(Collectors.toList());
+    }
+
+    /**
+     * 类型定义查看门禁（2026-09-03 用户决策放宽：与登录权限串投影口径对齐）。
+     * <p>
+     * 类型级 TYPE_DEFINITION:VIEW，或任一实例级 VIEW（对任一具体类型实例的授权），
+     * 均可查询类型清单。此前仅认类型级，而登录权限串全集含实例级授权——前端
+     * hasPerms 探查通过、后端拒绝，出现口径不一致（T-FE-018 评审发现）。
+     * 实例级判定经 getDeniedResourceCodes 批量判定（内部经类型解析批量处理，无 N+1；
+     * 无投影实体的 code 计入拒绝集合 fail-closed）。
+     * </p>
+     */
+    private void requireTypeViewPermission(Long tenantId, Long operatorId) {
+        if (engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
+                null, OperationCodeConstants.VIEW)) {
+            return;
+        }
+        List<String> codes = typeDefinitionMapper.selectValidCodesByTenant(tenantId);
+        Set<String> denied = engine.getDeniedResourceCodes(tenantId, operatorId,
+                ResourceTypeCode.TYPE_DEFINITION, new LinkedHashSet<>(codes), OperationCodeConstants.VIEW);
+        if (codes.isEmpty() || denied.size() >= codes.size()) {
+            throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
+        }
     }
 
     /**
