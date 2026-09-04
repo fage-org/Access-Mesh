@@ -14,11 +14,15 @@ const getOperationList = vi.fn();
 const getConditionList = vi.fn();
 const hasPermsMock = vi.fn();
 const messageMock = vi.fn();
+const routerReplaceMock = vi.fn();
+
+/** 可控 route（refreshAndPreset 预选分支按 query.roleExternalId 分发） */
+const routeMock: { query: Record<string, unknown> } = { query: {} };
 
 // 阻断 hook 模块级的 store/router/element-plus 链（同 biz-domain hook.spec 范式）
 vi.mock("vue-router", () => ({
-  useRoute: () => ({ query: {} }),
-  useRouter: () => ({}),
+  useRoute: () => routeMock,
+  useRouter: () => ({ replace: routerReplaceMock }),
   onBeforeRouteLeave: () => {}
 }));
 vi.mock("element-plus", () => ({ ElMessageBox: { confirm: vi.fn() } }));
@@ -106,5 +110,58 @@ describe("授权页类型候选降级判定", () => {
     await flush();
     expect(hook.typePermDenied.value).toBe(false);
     expect(messageMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("预选失败状态清理（T-FE-037 评审修正回归锁）", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setActivePinia(createPinia());
+    hasPermsMock.mockReturnValue(true);
+    getTypeDefList.mockResolvedValue({ items: [] });
+    getResourceTree.mockResolvedValue({ items: [] });
+    getOperationList.mockResolvedValue({ items: [] });
+    getConditionList.mockResolvedValue({ items: [] });
+    routeMock.query = {};
+  });
+
+  it("已有旧 context + preset 目标不存在：清空主体/高亮、作废在途并消费 query（旧实现仅提示后保留旧主体，后续保存会作用于错误主体）", async () => {
+    const { useGrantStore } = await import("./grant-store");
+    const grantStore = useGrantStore();
+    const hook = usePermissionGrant();
+    // 预置旧主体（keep-alive 跨入口残留：角色入口选中过 BASIC_ROLE/"1"）+ 高亮
+    const committed = grantStore.commitSubject(
+      {
+        domainCode: null,
+        roleTypeCode: "BASIC_ROLE",
+        roleExternalId: "1",
+        displayName: "旧角色"
+      },
+      []
+    );
+    expect(committed).toBe(true);
+    hook.activeKey.value = "role:1";
+    // 组织入口失效预选（树中 findNode 恒 null，如入口指向已停用组织）
+    routeMock.query = { subjectType: "ORG", roleExternalId: "99999" };
+    hook.subjectTreeRef.value = {
+      loadTree: vi.fn(async () => {}),
+      findNode: vi.fn(() => null),
+      preselect: vi.fn()
+    };
+    await hook.refreshAndPreset();
+    await flush();
+    expect(grantStore.context).toBeNull();
+    expect(grantStore.changes).toEqual([]);
+    expect(hook.activeKey.value).toBeNull();
+    // 失效 query 必须消费（否则每次 onActivated 重复弹 warning）
+    expect(routerReplaceMock).toHaveBeenCalledWith({
+      query: { subjectType: "ORG", roleExternalId: undefined }
+    });
+    expect(messageMock).toHaveBeenCalledWith(
+      "未找到指定组织/岗位，请重新选择",
+      { type: "warning" }
+    );
+    // 未走 preselect（目标不存在）
+    expect(hook.subjectTreeRef.value.preselect).not.toHaveBeenCalled();
   });
 });

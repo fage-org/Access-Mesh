@@ -1017,6 +1017,8 @@ export function usePermissionGrant() {
     onSelectSubject,
     onSelectGroup,
     frozen,
+    /** 树刷新+预选编排（生命周期驱动；暴露供回归测试锁定预选失败分支的状态清理） */
+    refreshAndPreset,
     // 弹窗
     dialogVisible,
     dialogInitial,
