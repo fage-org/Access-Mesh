@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-09-03   # 2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
+last_reviewed: 2026-09-04   # 2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
 ---
 
 # access-service 目标架构与归并约束
@@ -633,8 +633,11 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
   autocommit 不随事务关闭，锁语句结束即释放——实测互斥失效），该结论留作任何未来语句级
   锁方案的坑位登记。
 - **覆盖全部 parent 写入口**（漏一处窗口即残留）：`moveRole`、角色 `sync`/`full-sync`（同样写
-  parent）、组织 `updateOrg` 换父分支、菜单 `updateMenu` 换父分支、`moveResource`。普通字段编辑
-  不涉及树结构、不持锁。锁在方法内先于任何树结构校验查询获取；事务外调用 fail-fast 拒绝。
+  parent）、组织 `updateOrg` 换父分支、菜单 `updateMenu` 换父分支、`moveResource`、资源实体
+  `sync`/`full-sync`（UPDATE 分支同样写 parent——双轨评审补齐：single 判环先于版本写入、
+  full-sync 内存图判环 + 已应用边镜像，对齐角色同步先例）。组织/菜单换父入口请求携带 parent
+  即持锁并在锁内重读自身行重判（防锁前快照静默回写并发移动）。普通字段编辑（不带 parent）
+  不持锁。锁在方法内先于任何树结构校验查询获取；事务外调用 fail-fast 拒绝。
 - **代价**：持锁事务（如 full-sync 批量单事务）期间并发 move 在连接上排队等待——管理操作低频，
   可接受（设计定案）。
 - **验证**：`TreeCycleHardeningPgIT` 锁互斥用例（持锁事务提交前同键 tryLock false、事务
@@ -644,7 +647,8 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 
 环一旦因其他途径落库（如直接改库），查询不得挂死：
 
-- 四棵树全部 12 处 `UNION ALL` 递归 CTE 中的 11 处改 **`UNION` 去重**：重复行不再加入工作表、
+- 四棵树全部 12 处 `UNION ALL` 递归 CTE 中的 11 处改 **`UNION` 去重**（OrgVisibilityQueryMapper
+  的第 13 处 `selectDescendantOrgIds` 既有 `depth<100` 防护、不在本次改造范围）：重复行不再加入工作表、
   迭代自终止，环上返回全部可达节点（与正常树语义一致）；含分组列的批量查询（`original_id`/
   `root_id`）按组合行去重，分组语义不变。
 - **例外**：`SysMenuMapper.selectSubtreeHeight` 的递归列含 depth（每层新行永不重复），UNION 去重

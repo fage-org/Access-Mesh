@@ -133,20 +133,30 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
             resourceType != null ? resourceType : menu.getResourceType(),
             resourceCode != null ? resourceCode : menu.getResourceCode(),
             req.id());
-        if (req.parentId() != null && !req.parentId().equals(menu.getParentId())) {
+        // 请求携带 parentId（含表单回传原值）即持锁并在锁内重读自身行：锁前快照判「是否换父」
+        // 有丢失更新窗口——T2 已并发移动时，T1 按旧快照判「未换父」把旧 parent 原样写回
+        //（静默回滚 T2 的移动）
+        if (req.parentId() != null) {
             // T-PERM-044：树写锁先于换父校验（MENU_PARENT_INVALID 的 check-then-act 窗口收口），
-            // 普通字段编辑不涉及树结构、不持锁
+            // 普通字段编辑（不带 parentId）不涉及树结构、不持锁
             treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
-            checkNewParent(tenantId, req.id(), req.parentId());
-            // 换父按整棵子树校验：最深节点绝对深度 = 父深度 + 子树高度。
-            // 父深度：顶级目标（parentId=0）按 0 计（新根自身即第 1 层，calculateDepth(0)=1
-            // 会把不存在的父层多算一层）；非顶级为父节点自身深度。
-            // （单节点子树高度为 1，等价于仅校验新根自身深度）
-            int parentDepth = req.parentId() == 0L ? 0
-                : menuDomainService.calculateDepth(tenantId, req.parentId());
-            if (parentDepth + menuDomainService.subtreeHeight(tenantId, req.id()) > MAX_MENU_DEPTH) {
-                throw new BizException(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode(),
-                    AdminErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
+            menu = menuDomainService.selectValidById(tenantId, req.id());
+            if (menu == null) {
+                throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(),
+                    AdminErrorCode.MENU_NOT_FOUND.getMessage());
+            }
+            if (!req.parentId().equals(menu.getParentId())) {
+                checkNewParent(tenantId, req.id(), req.parentId());
+                // 换父按整棵子树校验：最深节点绝对深度 = 父深度 + 子树高度。
+                // 父深度：顶级目标（parentId=0）按 0 计（新根自身即第 1 层，calculateDepth(0)=1
+                // 会把不存在的父层多算一层）；非顶级为父节点自身深度。
+                // （单节点子树高度为 1，等价于仅校验新根自身深度）
+                int parentDepth = req.parentId() == 0L ? 0
+                    : menuDomainService.calculateDepth(tenantId, req.parentId());
+                if (parentDepth + menuDomainService.subtreeHeight(tenantId, req.id()) > MAX_MENU_DEPTH) {
+                    throw new BizException(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode(),
+                        AdminErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
+                }
             }
         }
         // 可选字段仅更新提供的字段（规范化后 null 跳过，保留原值）；sourceService 创建期追溯标识，不可改

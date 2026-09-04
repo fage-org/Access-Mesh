@@ -53,25 +53,29 @@ T-PERM-022 为角色域 moveRole 补齐了环路防护（自身/子孙拒绝 200
    为 `pg_advisory_xact_lock`（随事务原子释放），同日定案变更切换为 Redisson；advisory 路径必须
    经 MyBatis mapper 执行才有效（JdbcTemplate 直连实测 autocommit 不关、锁语句结束即释放），
    留作语句级锁方案的坑位登记。
-3. **覆盖全部 parent 写入口**：`moveRole`、角色 `sync`/`full-sync`（同样写 parent，漏锁则
-   move×sync 窗口残留）、组织 `updateOrg` 换父分支、菜单 `updateMenu` 换父分支、`moveResource`。
-   普通字段编辑不持锁。锁先于任何树结构校验查询；事务外调用 fail-fast（IllegalStateException）。
-   full-sync 单事务全程持锁、期间并发 move 排队——管理操作低频，可接受。
-4. **递归 CTE 止损 = UNION 去重为主 + subtreeHeight 深度上限**：四树 12 处 `UNION ALL` 递归 CTE
+2. **覆盖全部 parent 写入口**：`moveRole`、角色 `sync`/`full-sync`（同样写 parent，漏锁则
+   move×sync 窗口残留）、组织 `updateOrg` 换父分支、菜单 `updateMenu` 换父分支、`moveResource`、
+   资源实体 `sync`/`full-sync`（双轨评审补齐：UPDATE 分支同样写 parent——single 判环先于版本
+   写入、full-sync 内存图判环 + 已应用边镜像，对齐角色同步先例；父解析随之前移，依赖缺失与
+   环路拒绝均不推进同步版本）。组织/菜单换父入口请求携带 parent 即持锁并在锁内重读自身行
+   重判（双轨评审补齐：防锁前快照判「未换父」跳锁跳校验、把旧 parent 静默写回并发移动）。
+   普通字段编辑（不带 parent）不持锁。锁先于任何树结构校验查询；事务外调用 fail-fast
+   （IllegalStateException）。full-sync 单事务全程持锁、期间并发 move 排队——管理操作低频，可接受。
+3. **递归 CTE 止损 = UNION 去重为主 + subtreeHeight 深度上限**：四树 12 处 `UNION ALL` 递归 CTE
    中 11 处改 `UNION`（重复行不进工作表、迭代自终止，环上返回全部可达节点；含 `original_id`/
    `root_id` 分组列的批量查询按组合行去重、分组语义不变）。例外 `SysMenuMapper.selectSubtreeHeight`：
    递归列含 depth 每层新行永不重复，去重无法终止，改加 `depth < 100` 上限（对齐
    `OrgVisibilityQueryMapper` 既有先例；返回值确定为 100）。
-5. **内存递归防环 = visited（对齐 TreeBuilder/wouldCreateCycle 先例）**：祖先链上溯 while
+4. **内存递归防环 = visited（对齐 TreeBuilder/wouldCreateCycle 先例）**：祖先链上溯 while
    （`OrgDomainServiceImpl`/`MenuDomainServiceImpl.batchGetAncestorIds`）重访即截断返回已收集链；
    向下树构建（`OrgServiceImpl.keepMatching/buildTree`、`MenuServiceImpl.buildTree`）重访节点按叶子
-   返回——后者在当前调用图上环成员经 scopeToSubtree 裁剪/根不可达，属纵深防御。受影响单测构造
-   参数同步补 mock（8 个测试类 11 处构造点）。
-6. **环检测 = 订正 SQL 进 runbook，不做自动自愈**：每树一条同构检测 SQL（depth<200 防自不收敛）
+   返回——后者在当前调用图上环成员经 scopeToSubtree 裁剪/根不可达，属纵深防御。受影响的既有
+   测试类（单测轨与容器轨 PgIT）构造参数同步补 TreeWriteLockSupport mock。
+5. **环检测 = 订正 SQL 进 runbook，不做自动自愈**：每树一条同构检测 SQL（depth<200 防自不收敛）
    登记于 rebuild-runbook「常见问题」，输出环上节点 id；断哪条边是业务决策，人工订正后重跑检测
    为空即收口。检测 SQL 与 PgIT 用例同源保持不腐烂。不做内部检测端点/常驻检测方法（无消费方，
    过度设计）。
-7. **statement_timeout 不做**：CTE 全部止损后已知挂死面已消除；全局超时会误杀 full-sync 等长
+6. **statement_timeout 不做**：CTE 全部止损后已知挂死面已消除；全局超时会误杀 full-sync 等长
    事务，引入新的不可预期失败面。
 
 ## 登记追加（T-ADMIN-021 收口登记）
@@ -91,6 +95,12 @@ T-PERM-022 为角色域 moveRole 补齐了环路防护（自身/子孙拒绝 200
   一成一败且 2-环不落库、环检测 SQL 定位全部环节点）+ `AncestorChainCycleGuardTest`（单测轨
   3 用例：组织/菜单祖先链环截断 + 正常链不受影响；锁互斥用例随 Redisson 切换同步改写）。旧实现下：递归 CTE 用例不返回（连接挂死）、交叉移动用例双成功（窗口
   未收口）、祖先链用例不返回（JVM 死循环）——回归锁有效。
-- **文档**：architecture 新增 §17（四树防护定案，含锁选型与 mapper 路径定档）；api-contract
-  §5.2 move 补并发语义、frontmatter 同步；role-manage §8 登记句改收口口径；rebuild-runbook
-  常见问题表新增环检测订正条目（含 SQL）。
+- **文档**：architecture 新增 §17（四树防护定案，含锁选型与历史坑位注记）；api-contract
+  §5.2 move 补并发语义、§6.2.2 补资源同步判环条款与版本语义、frontmatter 同步；role-manage
+  §8 登记句改收口口径；rebuild-runbook 常见问题表新增环检测订正条目（含 SQL）。
+- **双轨评审处置（同日）**：代码轨 P1（resource-entity 同步写 parent 无锁无判环，单事件可落环）
+  经核实属实并补齐（上述 sync/full-sync 防护 + 用例）；代码轨 P2（updateOrg/updateMenu 锁前
+  快照静默回写并发移动 + level 记账漂移）经核实属实并修（锁内重读 + 用例）；文档轨 advisory
+  残留清扫（runbook 环检测行、PgIT 类注释、OrgServiceImpl 旁注）、architecture/role-manage
+  frontmatter 回写、任务卡编号与计数订正、§17.2 补排除句。资源同步测试随判环前移同步修订
+  dependencyMissing 用例（applyVersion never 断言锁「拒绝不推进版本」语义）。

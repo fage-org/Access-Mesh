@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntityFullSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntitySyncItem;
@@ -15,6 +16,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.SyncMetadataMapper;
 import cn.ac.fage.accessmesh.access.permission.service.ResourceEntitySyncAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
+import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
@@ -59,6 +61,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     private final ObjectMapper objectMapper;
     private final LocalProjectionGuard localProjectionGuard;
     private final SyncTypeGuard syncTypeGuard;
+    private final ResourceEntityDomainService resourceEntityDomainService;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     public ResourceEntitySyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                              SyncMetadataMapper syncMetadataMapper,
@@ -66,7 +70,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                                              ResourceEntityMapper resourceEntityMapper,
                                              ObjectMapper objectMapper,
                                              LocalProjectionGuard localProjectionGuard,
-                                             SyncTypeGuard syncTypeGuard) {
+                                             SyncTypeGuard syncTypeGuard,
+                                             ResourceEntityDomainService resourceEntityDomainService,
+                                             TreeWriteLockSupport treeWriteLockSupport) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.syncMetadataMapper = syncMetadataMapper;
         this.typeResolutionService = typeResolutionService;
@@ -74,6 +80,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         this.objectMapper = objectMapper;
         this.localProjectionGuard = localProjectionGuard;
         this.syncTypeGuard = syncTypeGuard;
+        this.resourceEntityDomainService = resourceEntityDomainService;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     @Override
@@ -92,6 +100,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         if (!syncTypeGuard.validate(tenantId, req.sourceService(), SyncTypes.resource(req.resourceTypeCode()))) {
             return SyncResultBuilder.securityDenied("SERVICE_TYPE_NOT_ALLOWED");
         }
+        // T-PERM-044 评审 P1：资源同步 UPDATE 分支写 parent，与 moveResource 共持
+        // (resource_entity, 租户) 树写锁——move×sync / sync×sync 交叉窗口收口
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         if (!OP_UPSERT.equals(req.operation())
                 && !OP_DISABLE.equals(req.operation())
                 && !OP_DELETE.equals(req.operation())) {
@@ -128,6 +139,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         String scopeKey = SyncKeyCodec.resourceEntityScopeKey(req.scope().resourceTypeCode());
         String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
 
+        // T-PERM-044 评审 P1：全量同步批量写 parent，与 moveResource/sync 共持树写锁（对齐角色域）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+
         // ---- 阶段 A：收集 (resourceCode, codeType) 与 parent (typeCode, code, codeType) 集合 ----
         Set<String> selfCodes = new HashSet<>(req.items().size());
         Set<String> selfCodeTypes = new HashSet<>();
@@ -160,6 +174,16 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 ? Map.of()
                 : typeResolutionService.batchResolveResourceIds(tenantId, parentRequests);
 
+        // ---- 阶段 B.6：全量父子关系内存图（写入前逐项判环用；无父项批次跳过加载，
+        // 对齐角色 fullSync 先例——循环体内无数据库调用，N+1 禁令）----
+        Map<Long, Long> parentGraphById = null;
+        if (!parentRequests.isEmpty()) {
+            parentGraphById = new HashMap<>();
+            for (ResourceEntity re : resourceEntityMapper.selectAllValid(tenantId)) {
+                parentGraphById.put(re.getId(), re.getParentId());
+            }
+        }
+
         // ---- 阶段 C：逐项 applyVersion + upsert ----
         int applied = 0, stale = 0, failed = 0, deactivated = 0;
         List<SyncResultResp.ItemResult> itemResults = new ArrayList<>(req.items().size());
@@ -190,11 +214,26 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                     item.parentCodeType(), item.path(), item.status(), item.sortOrder(), item.extra(),
                     req.scope().sourceService(), item.sourceEntityType(), item.sourceEntityId(),
                     item.syncVersion());
+            // T-PERM-044 评审 P1：环路防护（写入前逐项判定，先于版本写入——拒绝不推进同步版本）：
+            // 当前生效图 = 库内既有关系 + 本事务已应用项的边（应用成功后镜像更新）；新建实体
+            // 无既有子树天然无环；仅拒绝真正闭合环的本项，指向环的前缀安全项放行
+            if (parentRequested && existing != null && parentGraphById != null
+                    && wouldCreateCycle(parentGraphById, existing.getId(), preResolvedParentId)) {
+                failed++;
+                itemResults.add(new SyncResultResp.ItemResult(businessKey, false, false,
+                        SyncResultBuilder.RETRY_NON_RETRYABLE,
+                        "RESOURCE_PARENT_INVALID: " + item.parentResourceTypeCode() + ":" + item.parentResourceCode()));
+                continue;
+            }
             SyncResultResp r = doSyncOneInternal(tenantId, oneReq, resourceTypeValue, existing,
                     true, parentRequested, preResolvedParentId, now);
             if (r.applied()) {
                 applied++;
                 // doSyncOneInternal 在新建分支会把 insert 后的 ResourceEntity 注入 cache 不在此处再查 DB（避免 N+1）。
+                // 内存图镜像写入语义：更新分支成功后把边改为本项 parent，供后续项判环
+                if (parentGraphById != null && existing != null) {
+                    parentGraphById.put(existing.getId(), parentRequested ? preResolvedParentId : null);
+                }
             } else if (r.stale()) stale++;
             else failed++;
             itemResults.add(new SyncResultResp.ItemResult(businessKey, r.applied(), r.stale(),
@@ -230,6 +269,47 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
 
     private SyncResultResp doSyncOne(Long tenantId, ResourceEntitySyncReq req) {
         return doSyncOneInternal(tenantId, req, null, null, false, false, null, LocalDateTime.now());
+    }
+
+    /**
+     * parent 环路判定（single-sync 路径，与 moveResource 同款）：parentId 为实体自身或其子孙
+     * 时成环。parentId=null（解挂/未携带）天然无环。
+     */
+    private boolean isCyclicParent(Long tenantId, Long entityId, Long parentId) {
+        if (parentId == null) {
+            return false;
+        }
+        if (parentId.equals(entityId)) {
+            return true;
+        }
+        return resourceEntityDomainService.batchGetDescendantIds(tenantId, Set.of(entityId))
+                .getOrDefault(entityId, List.of()).contains(parentId);
+    }
+
+    /**
+     * parent 环路判定（full-sync 内存图版，对齐角色同步 wouldCreateCycle 先例）：parentId 为
+     * 实体自身，或实体在 parentId 的祖先链上即成环。visited 防既有环上溯不终止（防御）；
+     * 祖先不在图内（软删/缺失）视为到顶。
+     */
+    private static boolean wouldCreateCycle(Map<Long, Long> parentById, Long entityId, Long parentId) {
+        if (parentId == null) {
+            return false;
+        }
+        if (entityId.equals(parentId)) {
+            return true;
+        }
+        Set<Long> visited = new HashSet<>();
+        Long cur = parentId;
+        while (cur != null) {
+            if (cur.equals(entityId)) {
+                return true;
+            }
+            if (!visited.add(cur)) {
+                return true;
+            }
+            cur = parentById.get(cur);
+        }
+        return false;
     }
 
     /**
@@ -278,16 +358,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         // sync_metadata 持久化副作用，否则命中本地行的请求可绕过 20045 并留下悬挂元数据。
         localProjectionGuard.rejectIfLocalResource(existing);
 
-        SyncMetadataDomainService.ApplyVersionResult vr = syncMetadataDomainService.applyVersion(
-                tenantId, ENTITY_KIND, req.sourceService(),
-                scopeKeyHash, scopeKey, businessKeyHash, businessKey,
-                syncKey, syncKeyHash,
-                req.syncVersion().occurredAt(), req.syncVersion().sequenceNo());
-        if (vr == SyncMetadataDomainService.ApplyVersionResult.STALE) {
-            return SyncResultBuilder.stale();
-        }
-
-        // resolve parent (optional)
+        // resolve parent (optional) —— 先于 applyVersion：环路拒绝不推进同步版本，
+        // 上游修正后同版本重试不被判 STALE（对齐角色同步先例 T-PERM-022 评审收口）
         Long parentId = null;
         boolean callerHasParent = req.parentResourceCode() != null && !req.parentResourceCode().isBlank()
                 && req.parentResourceTypeCode() != null && !req.parentResourceTypeCode().isBlank();
@@ -302,6 +374,23 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             if (parentId == null) {
                 return SyncResultBuilder.dependencyMissing("PARENT_RESOURCE_NOT_FOUND");
             }
+        }
+
+        // T-PERM-044 评审 P1：parent 环路防护（与 moveResource 同款判定：目标父为自身或其子孙拒绝），
+        // 先于 applyVersion；新建分支无既有子树天然无环
+        if (OP_UPSERT.equals(req.operation()) && existing != null
+                && isCyclicParent(tenantId, existing.getId(), parentId)) {
+            return SyncResultBuilder.nonRetryable(
+                    "RESOURCE_PARENT_INVALID: " + req.parentResourceTypeCode() + ":" + req.parentResourceCode());
+        }
+
+        SyncMetadataDomainService.ApplyVersionResult vr = syncMetadataDomainService.applyVersion(
+                tenantId, ENTITY_KIND, req.sourceService(),
+                scopeKeyHash, scopeKey, businessKeyHash, businessKey,
+                syncKey, syncKeyHash,
+                req.syncVersion().occurredAt(), req.syncVersion().sequenceNo());
+        if (vr == SyncMetadataDomainService.ApplyVersionResult.STALE) {
+            return SyncResultBuilder.stale();
         }
 
         if (OP_UPSERT.equals(req.operation())) {

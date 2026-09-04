@@ -153,8 +153,9 @@ class TreeCycleHardeningPgIT {
     private AdminPermissionValidator permissionValidator;
 
     /**
-     * parent 环检测订正 SQL（与 docs/design/access-service-rebuild-runbook「树 parent 环订正」
-     * 同源；表名按树替换）：每个节点沿 parent 链上溯，depth 上限 200 防 CTE 自身遇环不收敛。
+     * parent 环检测订正 SQL（与 docs/design/access-service-rebuild-runbook「常见问题」表
+     * 环检测条目同构——无共享常量的机械绑定，改其一须同步另一；表名按树替换）：每个节点沿
+     * parent 链上溯，depth 上限 200 防 CTE 自身遇环不收敛。
      */
     private static final String MENU_CYCLE_DETECTION_SQL = """
         WITH RECURSIVE up AS (

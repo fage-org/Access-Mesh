@@ -297,7 +297,7 @@ public class OrgServiceImpl implements OrgService {
 
     /**
      * 内存祖先链裁剪：保留自身或祖先链命中 rootId 的节点（游离节点父链断裂自然排除）。
-     * 步数上限防御异常父环（写路径已加树级事务 advisory lock，正常链路不再产生环；此处仍保留，直改库等旁路脏数据下防死循环）。
+     * 步数上限防御异常父环（写路径已加树级分布式锁（Redisson），正常链路不再产生环；此处仍保留，直改库等旁路脏数据下防死循环）。
      */
     private static List<SysOrg> scopeToSubtree(List<SysOrg> all, Map<Long, SysOrg> byId, Long rootId) {
         int maxDepth = all.size() + 1;

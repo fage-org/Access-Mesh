@@ -183,6 +183,34 @@ class OrgWriteAppServiceTest {
     }
 
     @Test
+    @DisplayName("锁内重读：请求回传旧 parent 但并发已移动 → 按重读快照重判换父并走校验（不静默回写）")
+    void rereadAfterLockReevaluatesConcurrentMove() {
+        // 锁前快照 parent=10（表单回传同值）；锁内重读发现并发已移到 20 → 10 相对新快照是换父，
+        // 必须走完整移动校验（旧实现按锁前快照判「未换父」跳锁跳校验，会把旧 parent 静默写回）
+        SysOrg before = org("A", "1", 2);
+        before.setParentId(30L);
+        SysOrg after = org("A", "1", 2);
+        after.setParentId(20L);
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(before, after);
+        when(orgDomainService.getDescendantIds(TENANT, ORG_ID)).thenReturn(List.of());
+        SysOrg newParent = new SysOrg();
+        newParent.setId(30L);
+        newParent.setOrgType("1");
+        newParent.setLevel(4);
+        when(orgDomainService.selectValidById(TENANT, 30L)).thenReturn(newParent);
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, ORG_ID)).thenReturn("1");
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, 30L)).thenReturn("1");
+
+        service.updateOrg(new OrgUpdateReq(ORG_ID, null, 30L, null, null, null));
+
+        // 换父校验被触发 + 落库 parent 为请求目标值 30（经校验的显式意图，非静默回写）
+        verify(orgDomainService).getDescendantIds(TENANT, ORG_ID);
+        ArgumentCaptor<SysOrg> captor = ArgumentCaptor.forClass(SysOrg.class);
+        verify(orgDomainService).update(captor.capture());
+        assertThat(captor.getValue().getParentId()).isEqualTo(30L);
+    }
+
+    @Test
     @DisplayName("移动到顶级 → 拒绝（九轮决策：树根由配置管理）")
     void moveToTopLevelRejected() {
         when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org("A", "1", 2));

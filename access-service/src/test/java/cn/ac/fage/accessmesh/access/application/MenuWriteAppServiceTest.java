@@ -444,4 +444,29 @@ class MenuWriteAppServiceTest {
         verify(localProjectionDomainService).deleteAdminMenu(TENANT, MENU_ID);
         verify(auditDomainService).recordChangeLog(any(), any());
     }
+
+    @Test
+    @DisplayName("锁内重读：请求回传旧 parent 但并发已移动 → 按重读快照重判换父并走校验（不静默回写）")
+    void rereadAfterLockReevaluatesConcurrentMove() {
+        // 锁前快照 parent=50（表单回传同值）；锁内重读发现并发已移到 60 → 50 相对新快照是换父，
+        // 必须走完整换父校验（旧实现按锁前快照判「未换父」跳锁跳校验，会把旧 parent 静默写回）
+        SysMenu before = menu("MENU");
+        before.setParentId(50L);
+        SysMenu after = menu("MENU");
+        after.setParentId(60L);
+        SysMenu parentMenu = menu("MENU");
+        parentMenu.setId(50L);
+        when(menuDomainService.selectValidById(TENANT, MENU_ID)).thenReturn(before, after);
+        when(menuDomainService.selectValidById(TENANT, 50L)).thenReturn(parentMenu);
+        when(menuDomainService.getDescendantIdsIncludingSelf(TENANT, MENU_ID)).thenReturn(java.util.List.of(MENU_ID));
+        when(menuDomainService.calculateDepth(TENANT, 50L)).thenReturn(1);
+        when(menuDomainService.subtreeHeight(TENANT, MENU_ID)).thenReturn(1);
+
+        service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, 50L, null, null, null, null, null, null));
+
+        verify(menuDomainService).getDescendantIdsIncludingSelf(TENANT, MENU_ID);
+        org.mockito.ArgumentCaptor<SysMenu> captor = org.mockito.ArgumentCaptor.forClass(SysMenu.class);
+        verify(menuDomainService).update(captor.capture());
+        assertThat(captor.getValue().getParentId()).isEqualTo(50L);
+    }
 }

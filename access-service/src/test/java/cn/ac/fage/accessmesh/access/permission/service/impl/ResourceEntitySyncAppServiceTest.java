@@ -3,6 +3,11 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.permission.dto.common.SyncVersionRef;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntityFullSyncReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntitySyncItem;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntitySyncScope;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntitySyncReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
@@ -56,6 +61,10 @@ class ResourceEntitySyncAppServiceTest {
     private HttpServletRequest httpRequest;
     @Mock
     private SyncTypeGuard syncTypeGuard;
+    @Mock
+    private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService;
+    @Mock
+    private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -67,7 +76,8 @@ class ResourceEntitySyncAppServiceTest {
     void setUp() {
         service = new ResourceEntitySyncAppServiceImpl(syncMetadataDomainService, syncMetadataMapper,
                 typeResolutionService, resourceEntityMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                resourceEntityDomainService, treeWriteLockSupport);
         org.mockito.Mockito.lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
     }
@@ -149,10 +159,8 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void shouldReturnDependencyMissing_whenParentResourceNotFound() {
         mockHeaderMatch();
-        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
-                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
-                anyString(), anyString(), any(), anyLong()))
-                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        // parent 解析与判环先于 applyVersion（T-PERM-044 评审 P1 对齐角色先例：依赖缺失/环路
+        // 拒绝不推进同步版本，上游修正后同版本重试不被判 STALE）——本用例不触达 applyVersion
         when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
         when(typeResolutionService.resolveResourceId(TENANT_ID, "MENU", "parent-x", "default", null))
                 .thenReturn(null);
@@ -167,6 +175,13 @@ class ResourceEntitySyncAppServiceTest {
         assertThat(resp.accepted()).isFalse();
         assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_DEPENDENCY_MISSING);
         assertThat(resp.reason()).isEqualTo("PARENT_RESOURCE_NOT_FOUND");
+        org.mockito.Mockito.verify(syncMetadataDomainService, org.mockito.Mockito.never()).applyVersion(
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong());
     }
 
     @Test
@@ -271,5 +286,88 @@ class ResourceEntitySyncAppServiceTest {
                 anyString(), anyString(), any(), anyLong());
         verify(typeResolutionService, org.mockito.Mockito.never())
                 .resolveResourceId(anyLong(), anyString(), anyString(), anyString(), any());
+    }
+
+    @Test
+    void shouldRejectCyclicParent_withoutAdvancingVersion() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        // existing id=5；目标 parent id=9 是其子孙 → 判环拒绝（先于 applyVersion，不推进同步版本）
+        ResourceEntity existing = new ResourceEntity();
+        existing.setId(5L);
+        existing.setTenantId(TENANT_ID);
+        existing.setResourceType(0);
+        existing.setCode("menu-1");
+        existing.setCodeType("default");
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default"))
+                .thenReturn(existing);
+        when(typeResolutionService.resolveResourceId(TENANT_ID, "MENU", "child-x", "default", null))
+                .thenReturn(9L);
+        when(resourceEntityDomainService.batchGetDescendantIds(TENANT_ID, java.util.Set.of(5L)))
+                .thenReturn(java.util.Map.of(5L, java.util.List.of(9L)));
+
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
+                "Menu One", "MENU", "child-x", "default", "/menu/one", 1, 0, null,
+                SOURCE_SERVICE, "menu", "menu-1",
+                new SyncVersionRef(OCCURRED_AT, 1L));
+
+        SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        assertThat(resp.reason()).isEqualTo("RESOURCE_PARENT_INVALID: MENU:child-x");
+        org.mockito.Mockito.verify(syncMetadataDomainService, org.mockito.Mockito.never()).applyVersion(
+                anyLong(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong());
+        org.mockito.Mockito.verify(resourceEntityMapper, org.mockito.Mockito.never())
+                .update(org.mockito.ArgumentMatchers.any(ResourceEntity.class));
+    }
+
+    @Test
+    void fullSyncRejectsCyclicParent_viaInMemoryGraph() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        // 库内图：9 → 5（child-x 挂在 menu-1 下）；事件要求 menu-1 挂到 child-x 下（新边 5 → 9）
+        // → 与既有 9 → 5 闭合环，拒绝该 item
+        ResourceEntity existing = new ResourceEntity();
+        existing.setId(5L);
+        existing.setTenantId(TENANT_ID);
+        existing.setResourceType(0);
+        existing.setCode("menu-1");
+        existing.setCodeType("default");
+        existing.setParentId(null);
+        ResourceEntity child = new ResourceEntity();
+        child.setId(9L);
+        child.setTenantId(TENANT_ID);
+        child.setResourceType(0);
+        child.setCode("child-x");
+        child.setCodeType("default");
+        child.setParentId(5L);
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+                org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.eq(0),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of(existing));
+        when(resourceEntityMapper.selectAllValid(TENANT_ID))
+                .thenReturn(java.util.List.of(existing, child));
+        when(typeResolutionService.batchResolveResourceIds(org.mockito.ArgumentMatchers.eq(TENANT_ID),
+                org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Map.of(new ResourceResolveKey("MENU", "child-x", "default", null), 9L));
+
+        ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
+                new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
+                java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
+                        "MENU", "child-x", "default", null, 1, 0, null, null, null,
+                        new SyncVersionRef(OCCURRED_AT, 1L))));
+
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.detail()).isNotNull();
+        assertThat(resp.detail().appliedCount()).isZero();
+        assertThat(resp.detail().itemResults()).hasSize(1);
+        assertThat(resp.detail().itemResults().get(0).applied()).isFalse();
+        assertThat(resp.detail().itemResults().get(0).reason())
+                .isEqualTo("RESOURCE_PARENT_INVALID: MENU:child-x");
+        org.mockito.Mockito.verify(resourceEntityMapper, org.mockito.Mockito.never())
+                .update(org.mockito.ArgumentMatchers.any(ResourceEntity.class));
     }
 }

@@ -142,21 +142,31 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG, String.valueOf(req.id()),
             OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.UPDATE));
-        // 组织移动安全门禁与树结构校验
+        // 组织移动安全门禁与树结构校验。
+        // 请求携带 parent（含表单回传原值）即持锁并在锁内重读自身行：锁前快照判「是否换父」
+        // 有丢失更新窗口——T2 已并发移动时，T1 按旧快照判「未换父」跳锁跳校验、把旧 parent
+        // 原样写回（静默回滚 T2 的移动），且 validateOrgMove 复用旧 level 会使子树同步 delta 算错
         Long newParentId = req.parentOrgId();
-        Long oldParentId = org.getParentId();
-        if (newParentId != null && !Objects.equals(newParentId, oldParentId)) {
+        if (newParentId != null) {
             // T-PERM-044：树写锁先于移动校验（ORG_PARENT_CYCLE 的 check-then-act 窗口收口），
-            // 普通字段编辑不涉及树结构、不持锁
+            // 普通字段编辑（不带 parent）不涉及树结构、不持锁
             treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
-            validateOrgMove(tenantId, req.id(), org, newParentId);
-            // 岗位（POSITION）移动后迁移已有成员 user_role.relation_id
-            // （旧所属组织 → 新所属组织），否则后续解绑按新三元组匹配不到旧记录导致投影残留
-            if (OrgOperationCodeMapper.isPositionOrg(org.getOrgType())) {
-                java.util.Set<Long> affectedUsers = localProjectionDomainService.migratePositionRelation(
-                    tenantId, org.getId(), oldParentId, newParentId);
-                if (!affectedUsers.isEmpty()) {
-                    PermissionChangeContext.markUsers(tenantId, affectedUsers);
+            org = orgDomainService.selectValidById(tenantId, req.id());
+            if (org == null) {
+                throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                    AdminErrorCode.ORG_NOT_FOUND.getMessage());
+            }
+            Long oldParentId = org.getParentId();
+            if (!Objects.equals(newParentId, oldParentId)) {
+                validateOrgMove(tenantId, req.id(), org, newParentId);
+                // 岗位（POSITION）移动后迁移已有成员 user_role.relation_id
+                // （旧所属组织 → 新所属组织），否则后续解绑按新三元组匹配不到旧记录导致投影残留
+                if (OrgOperationCodeMapper.isPositionOrg(org.getOrgType())) {
+                    java.util.Set<Long> affectedUsers = localProjectionDomainService.migratePositionRelation(
+                        tenantId, org.getId(), oldParentId, newParentId);
+                    if (!affectedUsers.isEmpty()) {
+                        PermissionChangeContext.markUsers(tenantId, affectedUsers);
+                    }
                 }
             }
         }
