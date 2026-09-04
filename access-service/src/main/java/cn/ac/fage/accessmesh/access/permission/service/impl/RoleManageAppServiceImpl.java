@@ -249,8 +249,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
         // T-PERM-044：树写锁先于任何校验查询——「查子孙 → 校验 → update」的 check-then-act
-        // 窗口由 (abstract_role, 租户) 事务级 advisory lock 串行化，交叉移动的后进锁者
-        // 校验时能看到先进锁者已提交的 parent，环无法落库
+        // 窗口由 (abstract_role, 租户) 分布式锁串行化（Redisson，事务 afterCompletion 释放），
+        // 交叉移动的后进锁者校验时能看到先进锁者已提交的 parent，环无法落库
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);

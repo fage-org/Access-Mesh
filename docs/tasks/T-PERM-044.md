@@ -42,16 +42,17 @@ T-PERM-022 为角色域 moveRole 补齐了环路防护（自身/子孙拒绝 200
 
 ## 设计口径
 
-1. **根治窗口 = 树级事务 advisory lock**：`TreeWriteLockSupport.lockTreeWrites` 调
-   `pg_advisory_xact_lock(treeKey, tenantKey)`（双 int 键组合，treeKey 1-4 显式编号，与任务租约
-   扫描器单 bigint 键不重叠）；锁由 PostgreSQL 在事务 commit/rollback 时原子释放。分布式锁
-   （Redis/Redisson）不采用——存在「解锁先于提交」「锁超时逐出而事务仍在跑」「锁服务故障与数据
-   可用性分裂」三类缝隙，本场景要求锁与事务同生共死。行锁（FOR UPDATE）亦不采用——正确性要求
-   锁全树行集（只锁移动节点+新父挡不住深交叉场景），复杂易错。
-2. **锁语句经 MyBatis mapper 执行**（`TreeWriteLockMapper`，count 包装丢弃 void 结果列）：必须与
-   业务 SQL 共享 MyBatis SpringManagedTransaction 的事务绑定连接，锁才挂到业务事务上。JdbcTemplate
-   直连路径实测互斥失效（事务回调内连接 autocommit 未随事务关闭，锁语句结束即释放）——已定档
-   禁用，TreeWriteLockMapper Javadoc 钉死。
+1. **根治窗口 = 树级分布式锁（Redisson，2026-09-04 定案变更）**：`TreeWriteLockSupport.lockTreeWrites`
+   取 `RLock`（key `accessmesh:tree-write-lock:{treeKey}:{tenantId}`，treeKey 1-4 显式编号），
+   `lock()` 不带 leaseTime 由 watchdog 自动续期（30s/10s 续，防持锁进程崩溃死锁）；**释放挂
+   `TransactionSynchronization.afterCompletion`**（事务提交/回滚后同线程 unlock），堵死「解锁先于
+   提交」缝隙；unlock 失败仅告警由 lease TTL 兜底。已知边界（定案接受）：watchdog 网络分区/JVM
+   长停 >30s 时锁逐出而事务仍在跑（窗口复现，概率极低）；Redis 不可用时写入口 fail-closed。
+   正确性依赖 READ_COMMITTED（语句级快照），改 REPEATABLE_READ 需把锁提到事务外层。行锁
+   （FOR UPDATE）不采用——正确性要求锁全树行集（只锁移动节点+新父挡不住深交叉场景）。首个实现
+   为 `pg_advisory_xact_lock`（随事务原子释放），同日定案变更切换为 Redisson；advisory 路径必须
+   经 MyBatis mapper 执行才有效（JdbcTemplate 直连实测 autocommit 不关、锁语句结束即释放），
+   留作语句级锁方案的坑位登记。
 3. **覆盖全部 parent 写入口**：`moveRole`、角色 `sync`/`full-sync`（同样写 parent，漏锁则
    move×sync 窗口残留）、组织 `updateOrg` 换父分支、菜单 `updateMenu` 换父分支、`moveResource`。
    普通字段编辑不持锁。锁先于任何树结构校验查询；事务外调用 fail-fast（IllegalStateException）。
@@ -82,13 +83,13 @@ T-PERM-022 为角色域 moveRole 补齐了环路防护（自身/子孙拒绝 200
 
 ## 完成记录
 
-- **代码**：新增 `TreeWriteLockSupport`（infrastructure）+ `TreeWriteLockMapper`（infrastructure.mapper，
-  注解式 SQL）；5 个写入口接锁；11 处递归 CTE 改 UNION 去重 + `selectSubtreeHeight` 深度上限；
-  5 处内存递归加 visited。
+- **代码**：新增 `TreeWriteLockSupport`（infrastructure，Redisson 实现 + afterCompletion 释放；
+  首版 advisory mapper 路径随定案变更删除）；5 个写入口接锁（对外接口不变，切换零改动）；
+  11 处递归 CTE 改 UNION 去重 + `selectSubtreeHeight` 深度上限；5 处内存递归加 visited。
 - **测试**：新增 `TreeCycleHardeningPgIT`（容器轨 5 用例：四树 2-环下 SQL 递归查询返回且结果
-  确定、组织/菜单祖先链截断、锁互斥与随事务释放、双线程同瞬交叉移动恰好一成一败且 2-环不落库、
-  环检测 SQL 定位全部环节点）+ `AncestorChainCycleGuardTest`（单测轨 3 用例：组织/菜单祖先链环
-  截断 + 正常链不受影响）。旧实现下：递归 CTE 用例不返回（连接挂死）、交叉移动用例双成功（窗口
+  确定、组织/菜单祖先链截断、锁互斥（事务提交前同键 tryLock false、afterCompletion 释放后 true）、双线程同瞬交叉移动恰好
+  一成一败且 2-环不落库、环检测 SQL 定位全部环节点）+ `AncestorChainCycleGuardTest`（单测轨
+  3 用例：组织/菜单祖先链环截断 + 正常链不受影响；锁互斥用例随 Redisson 切换同步改写）。旧实现下：递归 CTE 用例不返回（连接挂死）、交叉移动用例双成功（窗口
   未收口）、祖先链用例不返回（JVM 死循环）——回归锁有效。
 - **文档**：architecture 新增 §17（四树防护定案，含锁选型与 mapper 路径定档）；api-contract
   §5.2 move 补并发语义、frontmatter 同步；role-manage §8 登记句改收口口径；rebuild-runbook

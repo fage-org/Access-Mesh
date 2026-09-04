@@ -615,23 +615,30 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 通过校验、双双落库形成 parent 环；环落库后子孙/祖先递归 CTE 不收敛挂死连接、内存祖先链遍历
 死循环。统一防护分三层：
 
-### 17.1 写窗口根治：树级事务 advisory lock
+### 17.1 写窗口根治：树级分布式锁（Redisson，2026-09-04 定案变更）
 
-- **机制**：`TreeWriteLockSupport.lockTreeWrites(tenantId, target)` 调用
-  `pg_advisory_xact_lock(treeKey, tenantKey)`（双 int 键，组合键 `(treeKey << 32) | tenantKey`；
-  treeKey 1-4 显式编号，高位区段与任务租约扫描器的单 bigint 键低位区段不重叠）。锁由
-  PostgreSQL 在事务 commit/rollback 时**原子释放**——无「解锁先于提交」「锁超时逐出而事务仍在跑」
-  「锁服务故障与数据可用性分裂」三类分布式锁缝隙（正确性由数据库保证而非代码时序）。
-- **锁语句经 MyBatis mapper 执行**（`TreeWriteLockMapper`）：必须与业务 SQL 共享 MyBatis 的
-  SpringManagedTransaction 事务绑定连接，锁才能挂到业务事务上（JdbcTemplate 直连在事务内拿到的
-  连接 autocommit 不随事务关闭，锁语句结束即释放——实测互斥失效，已定档禁用）。
+- **机制**：`TreeWriteLockSupport.lockTreeWrites(tenantId, target)` 取 Redisson 可重入锁
+  `RLock`，key = `accessmesh:tree-write-lock:{treeKey}:{tenantId}`（treeKey 1-4 显式编号）。
+  `lock()` 不带 leaseTime，由 watchdog 自动续期（默认 30s、每 10s 续）——防持锁进程崩溃后
+  死锁；**释放挂 `TransactionSynchronization.afterCompletion`**（事务 commit/rollback 后
+  同线程回调 unlock），堵死「解锁先于提交」缝隙：unlock 若写在事务方法体内，与 AOP 代理的
+  实际提交之间存在空隙，后进锁者校验读不到未提交数据，窗口复现。unlock 失败仅告警，由
+  watchdog 停止后的 lease TTL 兜底释放。
+- **已知边界（定案接受）**：①watchdog 依赖与 Redis 的连接——网络分区/JVM 长暂停超 30s
+  无续期时锁被逐出而事务仍在跑，窗口复现（概率极低）；②Redis 不可用时取锁失败即写入口
+  失败（fail-closed；跳锁等于窗口大开，不可选）。正确性依赖 READ_COMMITTED（PG 语句级
+  快照，拿到锁后的校验查询可见他人已提交数据）；若改 REPEATABLE_READ 需把锁提到事务外层。
+- **历史注记**：首个实现为 `pg_advisory_xact_lock`（随事务原子释放），同日按定案变更切换为
+  Redisson。advisory 路径经 MyBatis mapper 执行才有效（JdbcTemplate 直连在事务内拿到的连接
+  autocommit 不随事务关闭，锁语句结束即释放——实测互斥失效），该结论留作任何未来语句级
+  锁方案的坑位登记。
 - **覆盖全部 parent 写入口**（漏一处窗口即残留）：`moveRole`、角色 `sync`/`full-sync`（同样写
   parent）、组织 `updateOrg` 换父分支、菜单 `updateMenu` 换父分支、`moveResource`。普通字段编辑
   不涉及树结构、不持锁。锁在方法内先于任何树结构校验查询获取；事务外调用 fail-fast 拒绝。
 - **代价**：持锁事务（如 full-sync 批量单事务）期间并发 move 在连接上排队等待——管理操作低频，
   可接受（设计定案）。
-- **验证**：`TreeCycleHardeningPgIT` 锁互斥用例（持锁事务进行中同键探测 false、事务结束后 true）+
-  双线程同瞬交叉移动用例（恰好一成一败 10207，2-环不落库）。
+- **验证**：`TreeCycleHardeningPgIT` 锁互斥用例（持锁事务提交前同键 tryLock false、事务
+  afterCompletion 释放后 true）+ 双线程同瞬交叉移动用例（恰好一成一败 10207，2-环不落库）。
 
 ### 17.2 递归 CTE 遇环止损：UNION 去重 + 深度上限
 

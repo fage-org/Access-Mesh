@@ -60,7 +60,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * <ul>
  *   <li>四棵树的子孙/祖先递归 CTE 在 2-环上返回且结果确定（不挂死连接）</li>
  *   <li>组织/菜单祖先链内存上溯在环上返回截断链（JVM 不死循环）</li>
- *   <li>树写锁真实互斥且随事务结束释放（锁与数据同库同生命周期）</li>
+ *   <li>树写锁真实互斥且经事务 afterCompletion 释放（解锁不先于提交）</li>
  *   <li>双线程同瞬交叉移动同一对节点：恰好一成一败，环无法落库</li>
  *   <li>环检测订正 SQL（与 access-service-rebuild-runbook 同源）能定位环节点</li>
  * </ul>
@@ -141,6 +141,8 @@ class TreeCycleHardeningPgIT {
     private MenuWriteAppService menuWriteAppService;
     @Autowired
     private TreeWriteLockSupport treeWriteLockSupport;
+    @Autowired
+    private org.redisson.api.RedissonClient redissonClient;
     @Autowired
     private JdbcTemplate jdbcTemplate;
     @Autowired
@@ -293,8 +295,12 @@ class TreeCycleHardeningPgIT {
     }
 
     @Test
-    @DisplayName("树写锁互斥且随事务结束释放（pg_advisory_xact_lock 与事务同生命周期）")
-    void advisoryLockHeldUntilTransactionEnd() throws Exception {
+    @DisplayName("树写锁互斥且经事务 afterCompletion 释放（解锁不先于提交）")
+    void redisLockHeldUntilTransactionCompletion() throws Exception {
+        String lockKey = "accessmesh:tree-write-lock:"
+            + TreeWriteLockSupport.TreeLockTarget.SYS_MENU.key() + ":" + TENANT;
+        org.redisson.api.RLock probeLock = redissonClient.getLock(lockKey);
+
         TransactionTemplate txn = new TransactionTemplate(transactionManager);
         ExecutorService pool = Executors.newSingleThreadExecutor();
         try {
@@ -320,20 +326,15 @@ class TreeCycleHardeningPgIT {
 
             assertThat(locked.await(5, TimeUnit.SECONDS)).isTrue();
 
-            // 持锁事务进行中：同键 (SYS_MENU=3, tenant=1) 探测失败
-            Boolean held = jdbcTemplate.queryForObject(
-                "SELECT pg_try_advisory_xact_lock(?, ?)", Boolean.class,
-                TreeWriteLockSupport.TreeLockTarget.SYS_MENU.key(), TENANT.intValue());
-            assertThat(held).isFalse();
+            // 持锁事务进行中（未提交）：同键互斥
+            assertThat(probeLock.tryLock()).as("事务提交前同键不可获取").isFalse();
 
             release.countDown();
             holder.get(5, TimeUnit.SECONDS);
 
-            // 事务结束：锁随 commit 原子释放，同键可再次获取（xact 锁在 autocommit 探测语句结束即释放）
-            Boolean free = jdbcTemplate.queryForObject(
-                "SELECT pg_try_advisory_xact_lock(?, ?)", Boolean.class,
-                TreeWriteLockSupport.TreeLockTarget.SYS_MENU.key(), TENANT.intValue());
-            assertThat(free).isTrue();
+            // 事务结束后 afterCompletion 已释放：同键可获取（tryLock 立即返回并清理）
+            assertThat(probeLock.tryLock()).as("事务结束后同键可获取").isTrue();
+            probeLock.unlock();
         } finally {
             pool.shutdownNow();
         }
