@@ -232,9 +232,7 @@ describe("buildOrgSubjectTree（T-FE-037 组织入口一体树）", () => {
             id: 9002,
             orgName: "研发部",
             orgType: 1,
-            children: [
-              makeOrgNode({ id: 9005, orgName: "后端岗", orgType: 2 })
-            ]
+            children: [makeOrgNode({ id: 9005, orgName: "后端岗", orgType: 2 })]
           })
         ]
       })
@@ -256,7 +254,10 @@ describe("buildOrgSubjectTree（T-FE-037 组织入口一体树）", () => {
 
   it("orgType 非法值（3/后端字典外）归 ORG 且 children 缺省容错为空数组——与后端 resolveOrgRoleType『非 2 即 ORG』同构，防止前后端投影口径分叉", () => {
     const result = buildOrgSubjectTree([
-      { ...makeOrgNode({ id: 9008, orgName: "未知类型", orgType: 3 }), children: undefined }
+      {
+        ...makeOrgNode({ id: 9008, orgName: "未知类型", orgType: 3 }),
+        children: undefined
+      }
     ]);
     expect(result[0].kind).toBe("ORG");
     expect(result[0].roleTypeCode).toBe("ORG");
@@ -265,7 +266,7 @@ describe("buildOrgSubjectTree（T-FE-037 组织入口一体树）", () => {
 });
 
 describe("isSamePresetSubject（T-FE-037 评审 P1：跨入口 id 碰撞防误判 no-op）", () => {
-  it("异类型同 externalId（角色业务键 \"1\" vs 组织 id \"1\"）→ false（旧实现单字段比对为 true，会静默走 no-op 致授权目标错乱）", () => {
+  it('异类型同 externalId（角色业务键 "1" vs 组织 id "1"）→ false（旧实现单字段比对为 true，会静默走 no-op 致授权目标错乱）', () => {
     expect(
       isSamePresetSubject(
         { roleTypeCode: "BASIC_ROLE", roleExternalId: "1" },

@@ -697,6 +697,17 @@ export function usePermissionGrant() {
             subjectType.value === "ORG" ? undefined : "BASIC_ROLE"
           );
           if (!found) {
+            // 预选目标不存在（入口指向已停用/已删除主体或 query 失效）：清空旧主体并消费
+            // query——keep-alive 下旧 context/baseline/capability 保留会让矩阵仍指向旧主体、
+            // 后续保存作用于错误主体（同 clearSubject 语义：主体失效即清空；作废在途防复活）
+            ++matrixToken;
+            matrixLoading.value = false;
+            grantStore.cancelPending();
+            grantStore.resetAll();
+            activeKey.value = null;
+            router.replace({
+              query: { ...route.query, roleExternalId: undefined }
+            });
             message(`未找到指定${subjectLabel.value}，请重新选择`, {
               type: "warning"
             });
