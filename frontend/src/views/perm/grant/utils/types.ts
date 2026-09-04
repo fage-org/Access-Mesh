@@ -20,7 +20,7 @@ export type SubjectType = "ROLE" | "ORG";
 export type GrantContext = {
   /** 恒 null（P1-1：abstract_role 无域列，domainCode 仅校验域存在性、不按域过滤） */
   domainCode: null;
-  /** BASIC_ROLE（角色入口/分组展开） / ORG / POSITION（组织入口二期） */
+  /** BASIC_ROLE（角色入口/分组展开）/ ORG / POSITION（组织入口，T-FE-037 已联调） */
   roleTypeCode: string;
   /** 角色 externalId（组织入口为 String(sys_org.id)，对齐 abstract_role 投影） */
   roleExternalId: string;

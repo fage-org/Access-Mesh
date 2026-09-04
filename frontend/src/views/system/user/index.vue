@@ -54,7 +54,7 @@ function goPermissionGrant() {
   });
 }
 
-// 角色热切换（mock）后，若用户停留在 position tab 而权限消失，自动切回 member 避免空白页
+// 角色权限热变更后权限消失时，若用户停留在 position tab 自动切回 member，避免空白页
 watch(canViewPosition, visible => {
   if (!visible && activeTab.value === "position") {
     activeTab.value = "member";

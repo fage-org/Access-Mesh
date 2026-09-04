@@ -492,10 +492,10 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
 
     <!-- 主体区 -->
     <div ref="tableWrapRef" class="matrix-body">
-      <!-- 未选主体 -->
+      <!-- 未选主体（文案中性：两入口通用，不按 subjectType 指称） -->
       <el-empty
         v-if="!hasSubject && !groupHint"
-        description="请选择左侧角色主体查看权限矩阵"
+        description="请选择左侧主体查看权限矩阵"
       />
       <!-- GROUP_ROLE 节点本身无权限矩阵 -->
       <el-result

@@ -4,7 +4,7 @@ const Layout = () => import("@/layout/index.vue");
 
 /**
  * 权限域路由（4.1 权限授予 v3，T-FE-036）。
- * 入口：角色管理页（2.2）"权限授予"按钮（组织入口二期挂 2.1）；菜单不展示（showLink: false）。
+ * 入口：角色管理页（2.2）"权限授予"按钮 + 组织与用户页（2.1）组织卡片/岗位行按钮（T-FE-037）；菜单不展示（showLink: false）。
  * 路由约定：/perm/grant?subjectType=ROLE|ORG（同一页面组件，subjectType 驱动主体数据源与标题；
  * PERSONAL 预留，首期不挂路由）。
  */

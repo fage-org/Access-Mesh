@@ -3,7 +3,7 @@ doc_type: design
 title: 4.1 权限授予 前端设计（v3）
 status: adopted # T-FE-040 v3.1 已于 2026-08-09 实现并完成 S1~S8 mock 人工验收；后续进入 T-FE-018 真实接口联调
 domain: frontend
-last_reviewed: 2026-09-04   # 2026-09-04 T-FE-037 组织入口联调收口：§1.1 组织行改已联调（status=1 仅启用为用户决策、GrantContext 派生口径）、§9 适配器行标已实现（SubjectTreePanel 组织分支 + buildOrgSubjectTree）、§13.1 入口行补组织/岗位入口并删 mock 时代残留行；2026-09-03 T-ADMIN-021 后端落地回写：§9 组织主体适配器标注依赖接口已实现（含岗位后端裁剪/故障 fail-closed/响应包装，组织入口联调归 T-FE-037）；同日评审补终案：§10 TYPE_DEFINITION 门禁差异改后端放宽（类型级或任一实例级 VIEW，前端 403 捕获保留为防御层；同日无投影查库核实、实例投影登记 T-PERM-051）；2026-09-02 T-FE-018 需求对齐+联调落地：§10 数据源表下登记 operation-permission/list 分组结构优化（暂不实施，用户决策）、§10 已知缺口 TYPE_DEFINITION:VIEW 定案收口（理解 A 软依赖+降级态）、§14 L570 门禁行同步；此前 2026-08-31 T-PERM-040 后端落地回写：§12 决策 14 改终态口径（类型过滤×2 + 20008 校验已落地、includeGlobalFallback 已退役、domainCode 死参数删除、未知类型空列表）；2026-08-30 T-PERM-041 后端落地回写：§4 停用条件规则补后端已落地与"未修改"比对口径（同 id 重写=存量保留）、§11 S11 与 §12 决策 15 标后端 20041/20042 已落地；同日全局操作概念整体退役回写（T-PERM-049）：§3.2/§7.1 操作列与注记改按类型隔离口径、§8 紧凑类型选择器与子权限操作集合收口、§12 fixtures 6→5 例（global-fallback 移除）；同日 T-PERM-034 后端收口回写：§12 决策 16（sub-perm-allowed-types）与 17（20043 不变量）后端落地、工程加固 GoldenFixturePgIT 落地（引擎级比对）；此前：2026-08-28 §1.1 主体树 enabledOnly 口径（T-PERM-022）；2026-08-09 T-FE-040 v3.1
+last_reviewed: 2026-09-04   # 2026-09-04 T-FE-037 组织入口联调收口 + 双轨评审收口：§1.1 组织行改已联调（status=1 仅启用为用户决策、GrantContext 派生口径）并补多标签直切边界（用户决策登记）、§9 适配器行标已实现（SubjectTreePanel 组织分支 + buildOrgSubjectTree）、§13.1 入口行补组织/岗位入口并删 mock 时代残留行、§13.2 决策 4 补落地修订标；评审轮修正——preset 同主体判定改双字段比对 isSamePresetSubject（跨入口 id 碰撞防授权目标错乱）、停用主体/未选主体文案中性化；2026-09-03 T-ADMIN-021 后端落地回写：§9 组织主体适配器标注依赖接口已实现（含岗位后端裁剪/故障 fail-closed/响应包装，组织入口联调归 T-FE-037）；同日评审补终案：§10 TYPE_DEFINITION 门禁差异改后端放宽（类型级或任一实例级 VIEW，前端 403 捕获保留为防御层；同日无投影查库核实、实例投影登记 T-PERM-051）；2026-09-02 T-FE-018 需求对齐+联调落地：§10 数据源表下登记 operation-permission/list 分组结构优化（暂不实施，用户决策）、§10 已知缺口 TYPE_DEFINITION:VIEW 定案收口（理解 A 软依赖+降级态）、§14 L570 门禁行同步；此前 2026-08-31 T-PERM-040 后端落地回写：§12 决策 14 改终态口径（类型过滤×2 + 20008 校验已落地、includeGlobalFallback 已退役、domainCode 死参数删除、未知类型空列表）；2026-08-30 T-PERM-041 后端落地回写：§4 停用条件规则补后端已落地与"未修改"比对口径（同 id 重写=存量保留）、§11 S11 与 §12 决策 15 标后端 20041/20042 已落地；同日全局操作概念整体退役回写（T-PERM-049）：§3.2/§7.1 操作列与注记改按类型隔离口径、§8 紧凑类型选择器与子权限操作集合收口、§12 fixtures 6→5 例（global-fallback 移除）；同日 T-PERM-034 后端收口回写：§12 决策 16（sub-perm-allowed-types）与 17（20043 不变量）后端落地、工程加固 GoldenFixturePgIT 落地（引擎级比对）；此前：2026-08-28 §1.1 主体树 enabledOnly 口径（T-PERM-022）；2026-08-09 T-FE-040 v3.1
 ---
 
 # 4.1 权限授予 前端设计（v3）
@@ -42,7 +42,7 @@ last_reviewed: 2026-09-04   # 2026-09-04 T-FE-037 组织入口联调收口：§1
 | 组织 | 组织与用户页（2.1）入口：组织信息卡片「权限授予」按钮 + 岗位管理 Tab 岗位行操作（T-FE-037 用户决策，2026-09-04） | `ORG`（ORG + POSITION）           | admin-service `org-tree`（`includePositions=true`，岗位为组织子节点，T-ADMIN-021 §4.2.1） | 可编辑（**已联调，T-FE-037，2026-09-04**）                          |
 | 个人 | 用户管理/详情页（2.1）入口      | `PERSONAL`                        | 用户列表（admin-service）                                     | **首期移除**（见下注）                                               |
 
-- 路由约定：`/perm/grant?subjectType=ROLE|ORG`（前端同一页面组件，`subjectType` 驱动主体数据源与左栏文案；`PERSONAL` 预留，首期不挂路由）。
+- 路由约定：`/perm/grant?subjectType=ROLE|ORG`（前端同一页面组件，`subjectType` 驱动主体数据源与左栏文案；`PERSONAL` 预留，首期不挂路由）。**多标签直切边界（T-FE-037 评审，2026-09-04 用户决策登记）**：multiTags 按 path+query 去重，两入口形成并存标签；直接点击切换时组件实例复用（不触发 onActivated/onMounted/query-watch），左栏树立即切换但矩阵维持旧入口主体——可见不一致态，点任意主体节点即自愈（不补 subjectType watch，避免三路刷新触发点并发的新竞态面；详见任务卡已知边界）。
 - 主体切换：左栏树选中即切换查看目标；**未保存变更在切换主体/离开时拦截**（§6.4）。
 - **GROUP_ROLE 展开（T-PERM-043 隐藏）**：主体树过滤仅保留 BASIC_ROLE，GROUP_ROLE 节点整棵裁掉（`extra-roles/list` 已退役，展开代码保留为不可达，待 role_inclusion 立项恢复）。
 - **树启用态过滤（T-PERM-022，设计定案）**：角色入口 `getRoleTree({domainCode: null, enabledOnly: true})`——树接口默认返回全部有效角色（角色管理页需见禁用、可再启用），授权页主体树仅取启用（前端入参后端 SQL 过滤，api-contract §6.10.3）；T-FE-036 既有的节点禁用标记渲染保留为防御展示（正常链路禁用节点不达前端）。**组织入口同口径**（T-FE-037 用户决策，2026-09-04）：`getOrgTree({includePositions: true, status: 1})` 仅启用组织/岗位可作授权目标（对齐角色入口先例；接受节点级过滤副作用——停用父组织下启用子树在本页不可见，用户管理页组织树不受影响）；`ORG:VIEW` 缺失时左栏占位不发请求（§10 轨道 1），岗位按调用者 `ORG:VIEW_POSITION` 后端裁剪（前端不探查）。
@@ -517,7 +517,7 @@ interface MatrixContext {
 1. **矩阵选型 = el-table-v2 虚拟滚动**（S7 验收驱动；§2 已回写）。
 2. **弹窗取消勾选 = 撤权（方案二）** + 删除红色醒目提示（§4 已回写）；严格勾选 + ALL 全局操作选类型（§4 已回写；该选择器已随全局操作概念退役移除，2026-08-30）。
 3. **Golden fixtures 载体 = 前端 JSON**（§12 方案三已回写）。
-4. **路由 = 新建 /perm 模块 + 角色页入口恢复**（§1.1 路由约定落地；组织入口二期占位 `el-result` 提示，未实现组织树适配器与 org-tree mock）。
+4. **路由 = 新建 /perm 模块 + 角色页入口恢复**（§1.1 路由约定落地；组织入口已于 T-FE-037 落地真实适配、原二期 `el-result` 占位删除，2026-09-04，见 §1.1/§9）。
 5. **操作位线格式 = 页面层宽容解析**（`bits.ts` `toBigIntBits`：string|number → BigInt；共享 `mock/resource-operation.ts` number 格式与 3.1 页不受影响；本页 `grantedBits` 严格按契约十进制字符串，DoD-1）。
 6. **baseline 一次全量加载**（§6.1 已回写）。
 7. **操作列默认 = 全部显示**（§3.2"实现时定"采纳；按 binaryBit 升序，localStorage 按 subjectType 隔离）——**🔧 T-FE-038 修订**：单类型矩阵上下文定稿后，隔离维度改为 `resourceTypeCode`，存储键 `permission-grant:hidden-columns:{resourceTypeCode}`（§3.2），原按 subjectType 隔离的既有键不再使用。（✅ T-FE-038 已落地，2026-08-07）

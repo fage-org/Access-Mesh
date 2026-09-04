@@ -8,11 +8,17 @@
  *
  * ## 双层门禁（设计文档 permission-grant.md §10，P1-3）
  * - 轨道 1（数据源可见性）：左栏主体数据源沿用入口页既有门禁
- *   （组织树 `ORG:VIEW` / 用户列表 `USER:VIEW` / 岗位 `ORG:VIEW_POSITION`，
- *   access-service 数据，与 views/system/user/utils/perms.ts 同源；首期组织入口二期、个人入口移除，
- *   角色入口主体树为 access-service 数据，随 ROLE:VIEW 门控）。
+ *   （组织树 `ORG:VIEW` / 用户列表 `USER:VIEW`（个人入口移除后暂无消费方）/ 岗位
+ *   `ORG:VIEW_POSITION`（组织入口已联调 T-FE-037，岗位由后端裁剪、前端不探查），
+ *   access-service 数据，与 views/system/user/utils/perms.ts 同源；角色入口主体树
+ *   为 access-service 数据，随 ROLE:VIEW 门控）。
  * - 轨道 2（配权门禁）：矩阵查看/授权动作统一用对目标抽象角色的 `ROLE:VIEW` / `ROLE:MANAGE`
  *   （后端 role-resource-permission/* 均校验目标抽象角色）。
+ *
+ * ## meta.auths 说明（T-FE-037 评审澄清）
+ * 本页路由 auths 为按钮级声明，不参与路由拦截（router/index.ts beforeEach 仅按
+ * meta.roles）；页面进入控制=页内 canView（ROLE:VIEW）整页占位 + 后端接口门禁，
+ * 左栏数据源串（ORG:VIEW 等）为页内软探查，进不了 auths 也拦不住路由。
  *
  * perm 串字面量全部为既有资源类型:操作码复用（无新增权限串）：
  * ROLE:VIEW / ROLE:MANAGE（access-service 乙层锚点）、CONDITION:VIEW（3.2 条件）。
@@ -42,12 +48,12 @@ export const PERMISSION_GRANT_PERMS = {
    */
   TYPE_VIEW: "TYPE_DEFINITION:VIEW",
 
-  // ===== 左栏数据源门禁（轨道 1，组织入口二期/个人入口预留） =====
-  /** 组织树数据源（组织入口二期） */
+  // ===== 左栏数据源门禁（轨道 1，组织入口已联调 T-FE-037；个人入口移除后 USER:VIEW 暂无消费方） =====
+  /** 组织树数据源（组织入口，T-FE-037 消费于 SubjectTreePanel canViewOrgTree 探查） */
   ORG_VIEW: "ORG:VIEW",
-  /** 用户列表数据源（个人入口预留，首期移除） */
+  /** 用户列表数据源（个人入口预留已移除，常量保留对齐枚举；暂无消费方） */
   USER_VIEW: "USER:VIEW",
-  /** 岗位数据源（组织入口二期，岗位为组织子节点） */
+  /** 岗位数据源（组织入口，岗位为组织子节点；后端按调用者权限裁剪，前端不探查） */
   POSITION_VIEW: "ORG:VIEW_POSITION"
 } as const;
 

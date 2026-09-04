@@ -95,6 +95,27 @@ export function buildOrgSubjectTree(nodes: OrgTreeNode[]): SubjectTreeNode[] {
   });
 }
 
+// ========== preset 同主体判定（T-FE-037 评审 P1） ==========
+
+/**
+ * preset 一次性入口指令的同主体判定：双字段比对（roleTypeCode + roleExternalId）。
+ * 仅比 externalId 时，跨入口 id 碰撞（角色业务键手填 "1" vs 组织 String(sys_org.id)="1"，
+ * 两 id 空间独立且后端唯一索引含 role_type 不拦碰撞）会把不同类型主体误判为同主体
+ * 走 no-op 分支——页头改名但 baseline/矩阵仍是旧类型主体，后续保存静默作用于错误主体。
+ * 对齐 handleSelectSubject 的同主体 no-op 判断（同为双字段）。
+ */
+export function isSamePresetSubject(
+  context: { roleTypeCode: string; roleExternalId: string } | null | undefined,
+  found: { roleTypeCode: string; externalId: string | null }
+): boolean {
+  return (
+    context != null &&
+    found.externalId != null &&
+    context.roleTypeCode === found.roleTypeCode &&
+    context.roleExternalId === found.externalId
+  );
+}
+
 // ========== 刷新后动作决策（评审问题 6） ==========
 
 export type RefreshAction =

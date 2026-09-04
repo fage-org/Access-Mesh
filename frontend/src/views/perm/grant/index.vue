@@ -3,7 +3,7 @@
  * 4.1 权限授予页（v3，T-FE-036）。
  * 查看为主：左栏主体树 + 中栏矩阵（el-table-v2 虚拟滚动）+ 右栏变更清单 + 底部保存条；
  * 授予/撤销、已有授权属性与子权限配置 = 授权弹窗本地事务；授权记录/子权限现状 = 详情层只读展示；统一提交 = apply-grant-plan 单入口。
- * 路由：/perm/grant?subjectType=ROLE|ORG（角色首期；组织二期占位；PERSONAL 预留不挂路由）。
+ * 路由：/perm/grant?subjectType=ROLE|ORG（角色/组织两入口已联调；PERSONAL 预留不挂路由）。
  */
 import { computed } from "vue";
 import { hasPerms } from "@/utils/auth";

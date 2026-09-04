@@ -21,7 +21,7 @@ last_reviewed: 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补�
 
 | 类型 | 来源 | 权限分配归属 |
 |---|---|---|
-| `ORG` / `POSITION` | 组织投影自动生成（`access.application` 同事务维护，`default-org-tree-user-lifecycle.md:167`） | 权限授予页（v3 已重建，T-FE-036；组织入口二期） |
+| `ORG` / `POSITION` | 组织投影自动生成（`access.application` 同事务维护，`default-org-tree-user-lifecycle.md:167`） | 权限授予页（v3 已重建，T-FE-036；组织入口已联调 T-FE-037，2026-09-04） |
 | `PERSONAL` | 用户同步连带创建（`abstract_user` 创建时自动生成 `PERSONAL_{external_id}`，schema access-service.sql `abstract_role` 注释） | 权限授予页（v3 已重建；个人入口首期移除，待个人角色同步链路恢复）+ 2.1 用户详情页弹窗 |
 
 **设计依据**：ORG/POSITION/PERSONAL 被抽象成角色，只是为了让它们能"像角色一样被分配权限"——它们本身不是"被管理的角色"。角色管理页的职责是**管理角色**（创建/编辑/删除功能角色），不是**分配和管理权限**。权限分配是权限授予页的职责（v3 已重建，T-FE-036）（`default-org-tree-user-lifecycle.md:72`：功能角色分配走 `ROLE:MANAGE`，不归 `ORG`/`USER` 资源类型）。
@@ -223,7 +223,7 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-022。**
 ### 备注
 
 - **RoleResp 缺 `roleTypeName` 友好字段**：后端已返回 `roleTypeName`，但前端统一用 `ROLE_TYPE_LABEL` 映射更稳（防类型码扩展时后端未同步）。非缺口。
-- **本页范围限定**：角色管理页仅管理 BASIC_ROLE（T-PERM-043 后唯一可手工创建的功能角色）。ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示——它们被抽象成角色仅为"像角色一样被分配权限"，权限分配归权限授予页（v3 已重建，T-FE-036；组织入口二期、个人入口首期移除）与 2.1 用户详情弹窗（评审确认 B 选项 3）。GROUP_ROLE 写入口已删除、选项隐藏（存量节点不展示，delete/move 后端仍可用作清理）。非缺口，是设计意图。
+- **本页范围限定**：角色管理页仅管理 BASIC_ROLE（T-PERM-043 后唯一可手工创建的功能角色）。ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示——它们被抽象成角色仅为"像角色一样被分配权限"，权限分配归权限授予页（v3 已重建，T-FE-036；组织入口已联调 T-FE-037、个人入口首期移除）与 2.1 用户详情弹窗（评审确认 B 选项 3）。GROUP_ROLE 写入口已删除、选项隐藏（存量节点不展示，delete/move 后端仍可用作清理）。非缺口，是设计意图。
 - **PERSONAL 权限分配入口**（原 T-FE-014 设计要点，v3 首期移除个人入口，permission-grant.md §1.2）：① 权限授予页选角色时能选到 PERSONAL（待个人 `abstract_role` 同步链路落地后恢复）；② 2.1 用户详情页弹额外窗口配置该用户 PERSONAL 角色的权限（弹窗形式避免页面杂乱）。
 
 ## 9. 已知限制（Phase 1）

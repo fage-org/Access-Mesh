@@ -43,7 +43,7 @@ import {
   sortOperationDefs,
   type OperationDefInput
 } from "./source-chain";
-import { decideRefreshAction } from "./subject-tree";
+import { decideRefreshAction, isSamePresetSubject } from "./subject-tree";
 import type {
   DraftChange,
   GrantContext,
@@ -702,8 +702,9 @@ export function usePermissionGrant() {
             });
             break;
           }
-          if (grantStore.context?.roleExternalId === action.externalId) {
-            // 同主体 no-op：同步名称 + 消费 query（不重载 baseline，评审问题 5）
+          if (isSamePresetSubject(grantStore.context, found)) {
+            // 同主体 no-op：同步名称 + 消费 query（不重载 baseline，评审问题 5）；
+            // 双字段比对防跨入口 id 碰撞（角色业务键 "1" vs 组织 id "1"，评审 P1）
             grantStore.syncDisplayName(found.name);
             router.replace({
               query: { ...route.query, roleExternalId: undefined }
@@ -725,13 +726,14 @@ export function usePermissionGrant() {
         case "clearSubject":
           // 主体已删除：清空主体 + 提示（review 复核 should-fix：先作废 hook 代际与
           // store 在途——否则先读后提交流程的 prepareBaseline 已成功返回后，树/操作/标记
-          // 在途时触发本分支，resetAll 后 Promise.all 恢复仍通过 token 校验复活已清空的主体）
+          // 在途时触发本分支，resetAll 后 Promise.all 恢复仍通过 token 校验复活已清空的主体）。
+          // 文案用中性「当前主体」（跨入口残留 context 被清时按入口称呼会指称不准，评审 P3）
           ++matrixToken;
           matrixLoading.value = false;
           grantStore.cancelPending();
           grantStore.resetAll();
           activeKey.value = null;
-          message(`当前${subjectLabel.value}已不存在，请重新选择`, {
+          message("当前主体已不存在，请重新选择", {
             type: "warning"
           });
           break;
