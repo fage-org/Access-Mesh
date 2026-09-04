@@ -22,7 +22,7 @@ export type GrantContext = {
   domainCode: null;
   /** BASIC_ROLE（角色入口/分组展开） / ORG / POSITION（组织入口二期） */
   roleTypeCode: string;
-  /** 角色 externalId（组织入口为 String(orgId)，二期） */
+  /** 角色 externalId（组织入口为 String(sys_org.id)，对齐 abstract_role 投影） */
   roleExternalId: string;
   /** 页头展示名 */
   displayName: string;
@@ -32,10 +32,10 @@ export type GrantContext = {
 
 /**
  * 左栏主体树节点（角色入口：T-PERM-043 后主体树仅 BASIC_ROLE；GROUP_ROLE 展开为基础角色
- * 虚拟子节点的分支保留为不可达，待 role_inclusion 立项恢复）
+ * 虚拟子节点的分支保留为不可达，待 role_inclusion 立项恢复。组织入口 T-FE-037：ORG/POSITION）
  */
 export type SubjectTreeNode = {
-  /** el-tree node-key（BASIC_ROLE 用 `role:{externalId}`；分组展开子节点 `role:{externalId}@{groupExternalId}`） */
+  /** el-tree node-key（角色 `role:{externalId}`；分组展开子节点 `role:{externalId}@{groupExternalId}`；组织入口 `org:{id}`） */
   key: string;
   /**
    * 节点种类（不依赖 roleTypeCode 猜测，评审问题 5）：
@@ -43,8 +43,10 @@ export type SubjectTreeNode = {
    * - EXTRA_CONTAINER：GROUP_ROLE 展开时"关联基础角色"虚拟容器（不可选，装 EXTRA_ROLE；
    *   T-PERM-043 后不可达，extra-roles/list 已退役，结构保留待恢复）
    * - EXTRA_ROLE：虚拟容器内的基础角色子节点（选中主体=该基础角色；同上不可达）
+   * - ORG / POSITION：组织入口主体节点（T-FE-037，来自 org-tree includePositions，
+   *   roleExternalId = String(sys_org.id)，对齐 abstract_role 投影 external_id，设计 §2.1）
    */
-  kind: "ROLE" | "EXTRA_CONTAINER" | "EXTRA_ROLE";
+  kind: "ROLE" | "EXTRA_CONTAINER" | "EXTRA_ROLE" | "ORG" | "POSITION";
   roleTypeCode: string;
   externalId: string | null;
   name: string;

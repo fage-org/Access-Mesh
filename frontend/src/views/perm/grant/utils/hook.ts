@@ -62,10 +62,15 @@ export function usePermissionGrant() {
   const router = useRouter();
   const grantStore = useGrantStore();
 
-  // ========== 主体入口（§1.1：角色首期；组织二期占位；PERSONAL 预留不挂路由） ==========
+  // ========== 主体入口（§1.1：角色/组织两入口共用；PERSONAL 预留不挂路由） ==========
 
   const subjectType = computed<SubjectType>(() =>
     route.query.subjectType === "ORG" ? "ORG" : "ROLE"
+  );
+
+  /** 主体称呼（提示文案用，组织入口含岗位主体） */
+  const subjectLabel = computed(() =>
+    subjectType.value === "ORG" ? "组织/岗位" : "角色"
   );
 
   // ========== 门控（§10 双层门禁；页面 capability 仅门禁派生） ==========
@@ -686,12 +691,15 @@ export function usePermissionGrant() {
       });
       switch (action.kind) {
         case "preset": {
+          // 角色入口限定 BASIC_ROLE；组织入口不限（sys_org.id 全表唯一，组织/岗位共用 id 空间）
           const found = subjectTreeRef.value?.findNode(
             action.externalId,
-            "BASIC_ROLE"
+            subjectType.value === "ORG" ? undefined : "BASIC_ROLE"
           );
           if (!found) {
-            message("未找到指定角色，请重新选择", { type: "warning" });
+            message(`未找到指定${subjectLabel.value}，请重新选择`, {
+              type: "warning"
+            });
             break;
           }
           if (grantStore.context?.roleExternalId === action.externalId) {
@@ -715,7 +723,7 @@ export function usePermissionGrant() {
           }
           break;
         case "clearSubject":
-          // 角色已删除：清空主体 + 提示（review 复核 should-fix：先作废 hook 代际与
+          // 主体已删除：清空主体 + 提示（review 复核 should-fix：先作废 hook 代际与
           // store 在途——否则先读后提交流程的 prepareBaseline 已成功返回后，树/操作/标记
           // 在途时触发本分支，resetAll 后 Promise.all 恢复仍通过 token 校验复活已清空的主体）
           ++matrixToken;
@@ -723,7 +731,9 @@ export function usePermissionGrant() {
           grantStore.cancelPending();
           grantStore.resetAll();
           activeKey.value = null;
-          message("当前角色已不存在，请重新选择", { type: "warning" });
+          message(`当前${subjectLabel.value}已不存在，请重新选择`, {
+            type: "warning"
+          });
           break;
         case "none":
           break;

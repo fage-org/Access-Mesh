@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, h } from "vue";
+import { useRouter } from "vue-router";
 import {
   getOrgPage,
   getOrgUsers,
@@ -18,6 +19,7 @@ import { ElMessageBox } from "element-plus";
 import { addDialog } from "@/components/ReDialog";
 import { hasPerms } from "@/utils/auth";
 import { ORG_USER_PERMS } from "../utils/perms";
+import { ROLE_MANAGE_PERMS } from "@/views/system/role/utils/perms";
 import OrgForm from "./OrgForm.vue";
 import AddFill from "~icons/ri/add-circle-line";
 import User from "~icons/ep/user";
@@ -29,6 +31,7 @@ import Refresh from "~icons/ep/refresh";
 import EditPen from "~icons/ep/edit-pen";
 import Plus from "~icons/ep/plus";
 import Location from "~icons/ep/location";
+import Key from "~icons/ep/key";
 
 defineOptions({
   name: "PositionTab"
@@ -50,6 +53,24 @@ const canDeletePosition = computed(() =>
 const canAssignPositionUser = computed(() =>
   hasPerms(ORG_USER_PERMS.POSITION_ASSIGN)
 );
+
+// ========== 权限授予入口（4.1 v3 组织入口，T-FE-037；岗位 = POSITION 主体） ==========
+
+const router = useRouter();
+
+/** 权限授予入口可用：ROLE:VIEW（授予页矩阵查看门禁，permission-grant.md §10 轨道 2） */
+const canGrantPerm = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_VIEW));
+
+/** 跳转授权页组织入口并预选该岗位（GrantContext = POSITION + String(sys_org.id)） */
+function goPermissionGrant(position: PositionItem) {
+  router.push({
+    path: "/perm/grant",
+    query: {
+      subjectType: "ORG",
+      roleExternalId: String(position.id)
+    }
+  });
+}
 
 // ========== 类型 ==========
 
@@ -498,6 +519,16 @@ watch(
               </div>
             </div>
             <div class="position-actions">
+              <el-button
+                v-if="canGrantPerm"
+                link
+                type="primary"
+                size="small"
+                :icon="useRenderIcon(Key)"
+                @click.stop="goPermissionGrant(position)"
+              >
+                权限授予
+              </el-button>
               <el-button
                 v-if="canAssignPositionUser"
                 link

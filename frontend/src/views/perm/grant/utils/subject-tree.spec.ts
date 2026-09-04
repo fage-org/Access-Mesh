@@ -3,11 +3,27 @@
  */
 import { describe, it, expect } from "vitest";
 import type { RoleTreeNode } from "@/api/role-manage";
+import type { OrgTreeNode } from "@/api/user-manage";
 import {
   buildExtraContainer,
+  buildOrgSubjectTree,
   decideRefreshAction,
   filterVisibleTree
 } from "./subject-tree";
+
+function makeOrgNode(over: Partial<OrgTreeNode>): OrgTreeNode {
+  return {
+    id: 1,
+    orgName: "n",
+    code: "C1",
+    parentOrgId: null,
+    orgType: 1,
+    status: 1,
+    sort: 0,
+    children: [],
+    ...over
+  };
+}
 
 function makeNode(over: Partial<RoleTreeNode>): RoleTreeNode {
   return {
@@ -185,6 +201,56 @@ describe("buildExtraContainer（评审问题 5）", () => {
     const container = buildExtraContainer("GROUP_402", "运维保障组", []);
     expect(container.kind).toBe("EXTRA_CONTAINER");
     expect(container.children).toEqual([]);
+  });
+});
+
+describe("buildOrgSubjectTree（T-FE-037 组织入口一体树）", () => {
+  it("组织节点（orgType=1）→ ORG 主体；岗位节点（orgType=2）→ POSITION 主体；externalId=String(id)", () => {
+    const result = buildOrgSubjectTree([
+      makeOrgNode({ id: 9001, orgName: "总部", orgType: 1 }),
+      makeOrgNode({ id: 9004, orgName: "销售岗", orgType: 2 })
+    ]);
+    expect(result).toHaveLength(2);
+    expect(result[0].kind).toBe("ORG");
+    expect(result[0].roleTypeCode).toBe("ORG");
+    expect(result[0].externalId).toBe("9001");
+    expect(result[0].key).toBe("org:9001");
+    expect(result[1].kind).toBe("POSITION");
+    expect(result[1].roleTypeCode).toBe("POSITION");
+    expect(result[1].externalId).toBe("9004");
+  });
+
+  it("递归保留组织层级与岗位挂载（岗位作为所属组织子节点）", () => {
+    const result = buildOrgSubjectTree([
+      makeOrgNode({
+        id: 9001,
+        orgName: "总部",
+        orgType: 1,
+        children: [
+          makeOrgNode({
+            id: 9002,
+            orgName: "研发部",
+            orgType: 1,
+            children: [
+              makeOrgNode({ id: 9005, orgName: "后端岗", orgType: 2 })
+            ]
+          })
+        ]
+      })
+    ]);
+    expect(result[0].children).toHaveLength(1);
+    const dept = result[0].children![0];
+    expect(dept.kind).toBe("ORG");
+    expect(dept.children).toHaveLength(1);
+    expect(dept.children![0].kind).toBe("POSITION");
+    expect(dept.children![0].externalId).toBe("9005");
+  });
+
+  it("status 透传（停用过滤在请求层 status=1 完成，函数不重复过滤）", () => {
+    const result = buildOrgSubjectTree([
+      makeOrgNode({ id: 9001, orgName: "停用组织", status: 0 })
+    ]);
+    expect(result[0].status).toBe(0);
   });
 });
 

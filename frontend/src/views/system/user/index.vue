@@ -8,10 +8,12 @@ import { ReOrgTreePanel } from "@/components/ReOrgTreePanel";
 import { addDialog } from "@/components/ReDialog";
 import { createOrg, updateOrg, deleteOrg } from "@/api/user-manage";
 import type { OrgTreeNode } from "@/api/user-manage";
-import { OfficeBuilding, Edit, Plus } from "@element-plus/icons-vue";
+import { OfficeBuilding, Edit, Plus, Key } from "@element-plus/icons-vue";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { ORG_USER_PERMS } from "./utils/perms";
+import { ROLE_MANAGE_PERMS } from "@/views/system/role/utils/perms";
+import { useRouter } from "vue-router";
 import { h, ref, computed, watch } from "vue";
 
 defineOptions({
@@ -28,6 +30,29 @@ const canEditOrg = computed(() => hasPerms(ORG_USER_PERMS.ORG_EDIT));
 const canDeleteOrg = computed(() => hasPerms(ORG_USER_PERMS.ORG_DELETE));
 /** 岗位 Tab 整体可见性（无 view 权限直接隐藏 Tab） */
 const canViewPosition = computed(() => hasPerms(ORG_USER_PERMS.POSITION_VIEW));
+
+// ========== 权限授予入口（4.1 v3 组织入口，T-FE-037） ==========
+
+const router = useRouter();
+
+/**
+ * 权限授予入口可用：ROLE:VIEW（授予页矩阵查看门禁，permission-grant.md §10 轨道 2；
+ * 矩阵查看/授权动作统一用对目标抽象角色的 ROLE:VIEW/ROLE:MANAGE）。
+ */
+const canGrantPerm = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_VIEW));
+
+/** 跳转授权页组织入口并预选当前组织（GrantContext roleExternalId = String(sys_org.id)） */
+function goPermissionGrant() {
+  router.push({
+    path: "/perm/grant",
+    query: {
+      subjectType: "ORG",
+      ...(selectedOrg.value?.id != null
+        ? { roleExternalId: String(selectedOrg.value.id) }
+        : {})
+    }
+  });
+}
 
 // 角色热切换（mock）后，若用户停留在 position tab 而权限消失，自动切回 member 避免空白页
 watch(canViewPosition, visible => {
@@ -284,6 +309,15 @@ async function onNodeMove(node: OrgTreeNode, targetParentId: number) {
             </span>
           </div>
           <div class="org-info-actions">
+            <el-button
+              v-if="canGrantPerm"
+              type="primary"
+              size="small"
+              :icon="Key"
+              @click="goPermissionGrant"
+            >
+              权限授予
+            </el-button>
             <el-button
               v-if="canEditOrg"
               type="primary"

@@ -1,32 +1,43 @@
 <script setup lang="ts">
 /**
- * 左栏主体树（§1.1 两入口；首期角色入口，组织入口二期占位）。
- * 角色入口数据源：abstract-role/tree（权限中心）；T-PERM-043 后主体树仅展示 BASIC_ROLE
- * （GROUP_ROLE 写入口已删除、节点整棵裁掉；extra-roles/list 已退役）。
- * GROUP_ROLE 展开/选中分支代码保留为不可达（expandGroup、requestSelectGroup 等），
- * 待未来 role_inclusion 单事实源立项后随 subject-tree 过滤恢复。
+ * 左栏主体树（§1.1 两入口共用一套组件）。
+ * - 角色入口：abstract-role/tree（权限中心）；T-PERM-043 后主体树仅展示 BASIC_ROLE
+ *   （GROUP_ROLE 写入口已删除、节点整棵裁掉；extra-roles/list 已退役）。
+ *   GROUP_ROLE 展开/选中分支代码保留为不可达（expandGroup、requestSelectGroup 等），
+ *   待未来 role_inclusion 单事实源立项后随 subject-tree 过滤恢复。
+ * - 组织入口（T-FE-037）：admin-service org-tree（includePositions=true，岗位为所属组织
+ *   子节点，T-ADMIN-021）；status=1 仅启用（2026-09-04 用户决策，对齐角色入口 enabledOnly
+ *   先例）；ORG:VIEW 缺失时左栏占位（§10 轨道 1 数据源门禁），岗位由后端按
+ *   ORG:VIEW_POSITION 裁剪（前端不探查）。
  *
  * 受控协议（评审问题 3 组件部分）：组件不持有选中态，由父组件通过 activeKey/selectingKey
  * 两阶段提交--点击候选 emit requestSelect，父组件确认成功才设 activeKey；saving 期间
- * disabled 冻结点击。节点 kind（ROLE/EXTRA_CONTAINER/EXTRA_ROLE）不依赖 roleTypeCode 猜测，
- * 嵌套真实 children 递归保留，extra-roles 装入虚拟容器追加不覆盖（评审问题 5）。
+ * disabled 冻结点击。节点 kind（ROLE/EXTRA_CONTAINER/EXTRA_ROLE/ORG/POSITION）不依赖
+ * roleTypeCode 猜测，嵌套真实 children 递归保留，extra-roles 装入虚拟容器追加不覆盖（评审问题 5）。
  *
  * 树加载由父组件 onActivated 驱动（问题 6：keep-alive 重入刷新树覆盖新建/改名/删除/层级变化）；
  * 本组件不自行 onMounted 加载，暴露 loadTree/findNode/preselect 供父组件编排一次性入口指令。
  */
-import { nextTick, ref, watch } from "vue";
+import { computed, nextTick, ref, watch } from "vue";
 import { message } from "@/utils/message";
+import { hasPerms } from "@/utils/auth";
 import {
   getRoleTree,
   listExtraRoles,
   type RoleTreeNode
 } from "@/api/role-manage";
+import { getOrgTree } from "@/api/user-manage";
+import { PERMISSION_GRANT_PERMS } from "../utils/perms";
 import type {
   GrantContext,
   SubjectTreeNode,
   SubjectType
 } from "../utils/types";
-import { buildExtraContainer, filterVisibleTree } from "../utils/subject-tree";
+import {
+  buildExtraContainer,
+  buildOrgSubjectTree,
+  filterVisibleTree
+} from "../utils/subject-tree";
 
 const props = defineProps<{
   subjectType: SubjectType;
@@ -39,15 +50,30 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  /** 请求选中可授权主体（BASIC_ROLE 或分组展开的基础角色）；父组件确认成功才设 activeKey */
+  /** 请求选中可授权主体（BASIC_ROLE / ORG / POSITION）；父组件确认成功才设 activeKey */
   (e: "requestSelect", payload: { key: string; context: GrantContext }): void;
   /** 请求选中 GROUP_ROLE 节点本身（无独立权限矩阵，提示展开选择基础角色；T-PERM-043 后不可达） */
   (e: "requestSelectGroup", payload: { key: string; name: string }): void;
 }>();
 
+const isOrg = computed(() => props.subjectType === "ORG");
+
+/**
+ * 组织树数据源门禁（§10 轨道 1）：ORG:VIEW 缺失 → 左栏占位，不发请求
+ * （岗位 VIEW_POSITION 不探查——后端按调用者权限裁剪岗位节点）。
+ */
+const canViewOrgTree = computed(() =>
+  hasPerms(PERMISSION_GRANT_PERMS.ORG_VIEW)
+);
+
 const loading = ref(false);
 const filterText = ref("");
-const treeData = ref<SubjectTreeNode[]>([]);
+const roleTreeData = ref<SubjectTreeNode[]>([]);
+const orgTreeData = ref<SubjectTreeNode[]>([]);
+/** 当前入口树数据（两分支共用同一 el-tree 渲染，仅数据源与文案不同） */
+const treeData = computed(() =>
+  isOrg.value ? orgTreeData.value : roleTreeData.value
+);
 const treeRef = ref();
 
 const treeProps = { label: "name", children: "children" };
@@ -64,16 +90,39 @@ watch(
   { immediate: true }
 );
 
-/** 加载/刷新角色树（不预选；预选由父组件 preselect 编排，问题 6） */
+/** 加载/刷新主体树（不预选；预选由父组件 preselect 编排，问题 6） */
 async function loadTree() {
+  if (isOrg.value) {
+    await loadOrgTree();
+    return;
+  }
   loading.value = true;
   try {
     // T-PERM-022：树接口默认返回全部有效角色（角色管理页需见禁用可再启用），
     // 授权页主体树仅取启用角色——前端入参后端过滤（T-PERM-022 设计定案）
     const roots = await getRoleTree({ domainCode: null, enabledOnly: true });
-    treeData.value = filterVisibleTree(roots);
+    roleTreeData.value = filterVisibleTree(roots);
   } catch (error: any) {
     message(error.message || "加载角色树失败", { type: "error" });
+  } finally {
+    loading.value = false;
+  }
+}
+
+/**
+ * 组织入口加载（T-FE-037）：org-tree 一体树（组织+岗位）。
+ * - includePositions=true：岗位作为所属组织子节点（orgType 被后端忽略）；
+ * - status=1：仅启用节点（用户决策 2026-09-04，对齐角色入口 enabledOnly 先例）；
+ * - 不传 treeConfigId：默认树子树（契约字面；多树租户其他树不在本入口可选范围，已知边界）。
+ */
+async function loadOrgTree() {
+  if (!canViewOrgTree.value) return;
+  loading.value = true;
+  try {
+    const roots = await getOrgTree({ includePositions: true, status: 1 });
+    orgTreeData.value = buildOrgSubjectTree(roots);
+  } catch (error: any) {
+    message(error.message || "加载组织树失败", { type: "error" });
   } finally {
     loading.value = false;
   }
@@ -98,7 +147,10 @@ function findInTree(
   return null;
 }
 
-/** 暴露给父组件：按 externalId 查找节点（问题 6：刷新后当前主体处理 + 预选定位） */
+/**
+ * 暴露给父组件：按 externalId 查找节点（问题 6：刷新后当前主体处理 + 预选定位）。
+ * 组织入口不限定 roleTypeCode（sys_org.id 全表唯一，组织/岗位共用 id 空间）。
+ */
 function findNode(
   externalId: string,
   roleTypeCode?: string
@@ -108,7 +160,9 @@ function findNode(
 
 /** 暴露给父组件：预选节点（一次性入口指令，问题 6）--找到则触发 requestSelect */
 function preselect(externalId: string) {
-  const hit = findNode(externalId, "BASIC_ROLE");
+  const hit = isOrg.value
+    ? findNode(externalId)
+    : findNode(externalId, "BASIC_ROLE");
   if (hit) handleNodeClick(hit);
 }
 
@@ -146,12 +200,16 @@ function handleNodeClick(node: SubjectTreeNode) {
     return;
   }
   if (!node.externalId) return;
-  // BASIC_ROLE（ROLE）或分组展开基础角色（EXTRA_ROLE）：主体均为 BASIC_ROLE
+  // 角色入口：BASIC_ROLE（ROLE/EXTRA_ROLE，主体均为 BASIC_ROLE）；
+  // 组织入口：ORG / POSITION（roleTypeCode 即主体类型，§2.1）
   emit("requestSelect", {
     key: node.key,
     context: {
       domainCode: null,
-      roleTypeCode: "BASIC_ROLE",
+      roleTypeCode:
+        node.kind === "ORG" || node.kind === "POSITION"
+          ? node.kind
+          : "BASIC_ROLE",
       roleExternalId: node.externalId,
       displayName: node.name,
       fromGroupRoleName: node.expandedFromGroup
@@ -171,23 +229,27 @@ defineExpose({ loadTree, findNode, preselect });
 
 <template>
   <div class="subject-tree-panel">
-    <!-- 组织入口二期（第十四轮收窄；联调期切 T-ADMIN-021 org-tree includePositions） -->
-    <template v-if="subjectType === 'ORG'">
+    <!-- 组织入口数据源门禁缺失（§10 轨道 1）：左栏占位，不发请求 -->
+    <template v-if="isOrg && !canViewOrgTree">
       <el-result
-        icon="info"
-        title="组织入口二期开放"
-        sub-title="组织/岗位主体树将于二期接入（T-ADMIN-021 扩展 org-tree，includePositions=true）"
+        icon="warning"
+        title="无权限"
+        sub-title="您没有权限查看组织主体树（需要 ORG:VIEW），请联系管理员"
       />
     </template>
 
     <template v-else>
       <div class="panel-header">
-        <div class="panel-title">角色主体</div>
-        <span class="panel-sub">选择角色查看/授予权限</span>
+        <div class="panel-title">
+          {{ isOrg ? "组织主体" : "角色主体" }}
+        </div>
+        <span class="panel-sub">{{
+          isOrg ? "选择组织或岗位查看/授予权限" : "选择角色查看/授予权限"
+        }}</span>
       </div>
       <el-input
         v-model="filterText"
-        placeholder="搜索角色名称"
+        :placeholder="isOrg ? '搜索组织/岗位名称' : '搜索角色名称'"
         clearable
         class="tree-search"
         @input="val => treeRef?.filter(val)"
@@ -237,6 +299,15 @@ defineExpose({ loadTree, findNode, preselect });
                 class="node-tag"
               >
                 基础角色
+              </el-tag>
+              <el-tag
+                v-else-if="data.kind === 'POSITION'"
+                size="small"
+                type="warning"
+                effect="plain"
+                class="node-tag"
+              >
+                岗位
               </el-tag>
               <el-tag
                 v-if="data.status === 0"

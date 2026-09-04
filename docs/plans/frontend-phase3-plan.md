@@ -18,7 +18,7 @@ tasks:
   - T-FE-021
   - T-FE-022
 acceptance: "9 个有效联调任务 mock -> 真实接口替换完成（T-FE-018 角色联调首期 + T-FE-037 组织联调二期，首期/二期拆分定稿；T-FE-018 角色联调依赖 T-FE-036 + T-FE-038 + T-FE-039 + **T-FE-040** + T-PERM-040 + T-PERM-041 + T-PERM-034 + T-PERM-022/028/029/031（2026-08-05 评审：T-FE-038 mock 先行，T-FE-018 汇合单类型矩阵/图标模型/条件转授链路；2026-08-08 补记录级聚焦编辑 T-FE-040），T-ADMIN-021 不阻塞首期；T-FE-037 组织联调二期依赖 T-FE-018 + T-ADMIN-021；统一提交主通道 = apply-grant-plan，无 CAS/幂等表/clientRequestId），核心流程联调通过，异常场景提示正确，页面间跳转/状态保持正确。"
-last_updated: 2026-09-03
+last_updated: 2026-09-04
 ---
 
 # 前端 Phase 3 — 前后端联调
@@ -41,7 +41,7 @@ last_updated: 2026-09-03
 | T-FE-016 ✅ | 角色管理（2.2；api 层 T-FE-041 已真实路径，本任务收口 Gateway +4 端点注册/编辑 extra 回显 detail 回填 + extraClear 清空协议（3 项设计定案，另含开发库重建）/mock 退役删除/业务门禁零新增（ROLE 全档在图）；已收口 2026-09-01，终态见任务卡完成记录） | T-FE-002, T-PERM-022 |
 | T-FE-017 ✅ | 资源/操作定义（3.1；Gateway +8 端点/业务门禁 +4/maintain_source 落库缺陷修复/mock 路由段退役保数据导出（设计定案：数据导出仍被三 mock 引用）；已收口 2026-09-02，终态见任务卡完成记录） | T-FE-008, T-PERM-028 |
 | T-FE-018 | 权限授予（4.1）- 角色联调（首期）——done 2026-09-02 | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022, T-PERM-028, T-PERM-029, T-PERM-031 |
-| T-FE-037 | 权限授予（4.1）- 组织联调（二期；T-ADMIN-021 已收口 2026-09-03，依赖全部就绪待启动） | T-FE-018, T-ADMIN-021 |
+| T-FE-037 ✅ | 权限授予（4.1）- 组织联调（二期；两项用户决策：主体树 status=1 仅启用对齐角色先例/入口=组织卡片按钮+岗位行操作；已收口 2026-09-04，终态见任务卡完成记录） | T-FE-018, T-ADMIN-021 |
 | T-FE-019 | 权限查询/校验（4.2）——done 2026-09-02 | T-FE-013, T-PERM-033 |
 | T-FE-020 | 条件/冲突规则（3.2/3.3）——done 2026-09-02 | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 |
 | T-FE-021 | 业务域配置（5.1）——done 2026-09-02 | T-FE-006, T-PERM-026 |
@@ -62,6 +62,7 @@ last_updated: 2026-09-03
 
 ## 当前进度
 
+- 2026-09-04：**T-FE-037 收口（Phase 3 第九个即最后一个联调任务 done，API+浏览器双冒烟全过；后端零改动）**：授权页组织入口真实适配——SubjectTreePanel 组织分支（getOrgTree includePositions+status=1 一体树、ORG:VIEW 探查占位、岗位 tag）+ buildOrgSubjectTree 纯函数（kind 扩 ORG/POSITION，roleExternalId=String(sys_org.id)）+ hook preset/文案类型感知；入口两处（组织与用户页组织信息卡片按钮 + 岗位管理 Tab 岗位行操作，门禁 ROLE:VIEW）。两项用户决策：①主体树 status=1 仅启用（对齐角色 enabledOnly 先例，接受停用父组织下启用子树不可见边界）；②入口=卡片按钮+岗位行操作。冒烟：API 级 ORG/POSITION 双主体 list/apply-grant-plan creates/removes 全 200（DATA 被转授校验 20040 拒绝=门禁生效实证）+ 浏览器全场景（入口预选/主体树/岗位切换/类型切换/授权弹窗/变更清单/保存/撤销/详情抽屉/DB 终态清零）+ 截图视觉核对 5/5；subject-tree.spec +3 用例，vitest 205/205，tsc 0 错。**Phase 3 九个联调任务全部收口**。
 - 2026-09-03：**T-ADMIN-021 收口（Phase 3 外后端配套，T-FE-037 依赖解锁）**：org-tree includePositions 组织+岗位一体树落地（岗位挂所属组织子节点、按调用者 ORG:VIEW_POSITION 后端裁剪、引擎故障 fail-closed 99999）；债务①全顺带（operationCode CREATE 限默认树 + treeConfigId 默认树子树裁剪，均经用户决策）；响应 {items} 包装（复用 ItemsResp<OrgResp>）前端 getOrgTree 解包零改动适配；顺带修正 orgName/parentOrgId 死参数。组织入口左栏主体树数据源就绪，T-FE-037 可启动（Phase 3 最后一项）。
 - 2026-09-03：**T-FE-022 收口（Phase 3 第八个联调任务 done，重建库后浏览器冒烟五页全过）**：五页 16 端点 mock→真实（类型定义 6.1/系统配置 6.2/服务与接口 5.2/操作日志 7.1/变更日志 7.2，三个 detail 端点页面不消费不注册）；Gateway bootstrap 清单 +16 端点；业务门禁 +2（TYPE_DEFINITION:CREATE/MANAGE，写路径死锁防护同 DEPENDENCY 先例；其余四类已在图）；前端 api 四文件裸 /api/perm/** 路径修正（T-FE-020/021 同款第三批，api 层裸路径除 resource-dependency.ts 保留外清零）；**联调修复两个系统性缺陷**——① keyword LIKE CONCAT 参数在 stringtype=unspecified 下 PG 无法推断类型致全部关键字搜索 500（三域直调实证）→ 9 mapper 统一 CAST(... AS VARCHAR) + KeywordLikeSearchPgIT 7 用例红绿双证（含 Testcontainers URL stringtype 追加无效的测试基建订正）；② ConfigForm 键名 Pattern 与后端命名空间前缀强制互斥（新建配置必被前端挡死）→ 对齐 admin./permission./access. 前缀形态；mock 四文件整删（_shared/resource-fixtures 留待 3.4 页）；契约零漂移（19 个 DTO 类型逐一比对）；PgIT 计数 66/65/113/47→82/81/131/49。联调发现登记不修：XML+Page 参数不生效族 9 方法（含 paginateByCondition CCE 实证，T-ADMIN-026）、user-role assign 无变更日志（revoke 有，审计不对称）。Phase 3 仅剩被 T-ADMIN-021 阻塞的 T-FE-037。
 - 2026-09-02：**T-FE-018 双轨子代理评审收口（代码轨 0P1+0P2+5P3、文档轨 2P1+1P2+3P3，逐条代码级核实全属实全处置）**：事实性修正——两看板（phase3-plan / tasks README）done 同步、任务卡与 api 注释「网关 404」按实测对齐 403、mock 旧名注释 3 处、api-contract 轮次标记 1 处、tsconfig include 恢复 `mock/_shared/*.ts`（resource-operation 更名挪出后 tsc 覆盖缩减退转）；四项用户决策执行——① SUB_PERM 顶层通配登记已知缺陷（api-contract §6.5.2 注记，ALLOW_ALL 以嵌套 `child_types:["*"]` 替代，修复另立任务）；② bootstrap 授权匹配拆两级（缺行 fail-fast / 属性漂移 warn 放行不重种；architecture §14.2+runbook 回写；PgIT +1 漂移放行回归锁 16/16，dev 库 id48 condition 漂移下 bootstrap=true 重启由拒启改为放行实证）；③ 前端类型候选 403 同样降级（探查粒度差异窄场景；hook.spec +4 用例，vitest 202/202；**2026-09-03 决策修订：后端门禁放宽为类型级或任一实例级 VIEW，`requireTypeViewPermission` 单测三用例锁定 17/17，前端 403 捕获保留为防御层**）；④ 停用条件三子项补验（复制入口禁用提示 / 「条件已停用」回显标注 / 20042 同值豁免 update 成功且 DB 断言保留，dev 真实后端全过）。

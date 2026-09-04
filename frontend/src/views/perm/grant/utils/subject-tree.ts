@@ -2,9 +2,11 @@
  * 主体树构造纯函数（评审问题 5：递归保留真实 children + 虚拟容器装 extra-roles）。
  *
  * 从 filterVisibleTree 提取为独立模块，便于单测；不依赖响应式/this。
- * 设计依据：docs/design/frontend/permission-grant.md §1.1（角色入口两类型 + 分组展开）。
+ * 设计依据：docs/design/frontend/permission-grant.md §1.1（角色入口两类型 + 分组展开；
+ * 组织入口 ORG/POSITION 一体树，T-FE-037）。
  */
 import type { RoleTreeNode } from "@/api/role-manage";
+import type { OrgTreeNode } from "@/api/user-manage";
 import type { SubjectTreeNode } from "./types";
 
 /**
@@ -66,6 +68,31 @@ export function buildExtraContainer(
       children: []
     }))
   };
+}
+
+// ========== 组织入口主体树（T-FE-037，§1.1/§2.1） ==========
+
+/**
+ * 组织入口主体树构造：org-tree（includePositions=true，status=1 启用过滤）响应
+ * → SubjectTreeNode。组织节点（orgType=1）→ ORG 主体；岗位节点（orgType=2）→ POSITION 主体；
+ * roleExternalId = String(sys_org.id)（对齐 abstract_role 投影 external_id，设计 §2.1）。
+ * 停用节点已在请求层过滤（status=1，2026-09-04 用户决策：对齐角色入口 enabledOnly 先例，
+ * 接受停用父组织下启用子树不可见的节点级过滤副作用）。
+ */
+export function buildOrgSubjectTree(nodes: OrgTreeNode[]): SubjectTreeNode[] {
+  return nodes.map(node => {
+    const kind: SubjectTreeNode["kind"] =
+      node.orgType === 2 ? "POSITION" : "ORG";
+    return {
+      key: `org:${node.id}`,
+      kind,
+      roleTypeCode: kind,
+      externalId: String(node.id),
+      name: node.orgName,
+      status: node.status,
+      children: buildOrgSubjectTree(node.children ?? [])
+    };
+  });
 }
 
 // ========== 刷新后动作决策（评审问题 6） ==========

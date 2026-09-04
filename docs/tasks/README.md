@@ -173,7 +173,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/025/026`（见下表）。`T-ADMIN-0
 | [T-FE-016](T-FE-016.md) | Phase 3 联调：角色管理（2.2 mock→真实收口——Gateway +4 端点/编辑 extra 回显 detail 回填 + extraClear 清空协议/mock 退役删除；已收口 2026-09-01，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-002, T-PERM-022 | ✅ | ✓ |
 | [T-FE-017](T-FE-017.md) | Phase 3 联调：资源/操作定义（3.1 mock→真实收口——Gateway +8 端点/业务门禁 +4/maintain_source 落库缺陷修复/mock 路由段退役保数据导出；已收口 2026-09-02，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-008, T-PERM-028 | ✅ | ✓ |
 | [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期）——mock 四文件整删 + resource-operation 更名 _shared/resource-fixtures、TYPE_DEFINITION:VIEW 理解 A 降级落地、6 数据源全真实；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；design/frontend/permission-grant.md（v3） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ✅ | ✓ |
-| [T-FE-037](T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ⚙️ | ⏳ |
+| [T-FE-037](T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期）——组织入口真实适配（一体树/ORG+POSITION 双主体/卡片+岗位行两处入口，两项用户决策），Phase 3 收官任务；已收口 2026-09-04，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ✅ | ✓ |
 | [T-FE-019](T-FE-019.md) | Phase 3 联调：权限查询/校验（4.2）——Gateway +3 端点/explain 扩展展示接线/mock 整删；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-013, T-PERM-033 | ✅ | ✓ |
 | [T-FE-020](T-FE-020.md) | Phase 3 联调：条件/冲突规则（3.2/3.3）——Gateway +9 端点/前端 conflict-rule 路径修正/mock 双文件退役；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ✅ | ✓ |
 | [T-FE-021](T-FE-021.md) | Phase 3 联调：业务域配置（5.1）——Gateway +9 端点/前端 api 双文件路径修正/mock 四文件整删；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-006, T-PERM-026 | ✅ | ✓ |
@@ -280,7 +280,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/025/026`（见下表）。`T-ADMIN-0
 
 配套：`T-FE-001` 跨页组件抽象池（贯穿，2+ 页确认后派生组件子任务）。后端任务 T-PERM-022~034 归 Phase 2（depends_on 对应前端，等清单产出）。
 
-### P6 — 前端 Phase 2/3/4（Phase 2 逐页后端已完成 2026-08-31、T-ADMIN-021 已收口 2026-09-03，仅剩暂缓项 T-PERM-035/036 另行定夺；Phase 3 联调 8/9 done——T-FE-015~022 已收口 2026-08-31~09-03，仅剩 T-FE-037 组织联调二期，依赖已全部就绪）
+### P6 — 前端 Phase 2/3/4（Phase 2 逐页后端已完成 2026-08-31，仅剩暂缓项 T-PERM-035/036 另行定夺；Phase 3 联调 9/9 全部收口——T-FE-015~022 已收口 2026-08-31~09-03、T-FE-037 组织联调二期收官 2026-09-04）
 
 - `T-PERM-022~034` 逐页后端接口改造 ← 各 Phase 1 前端任务（🔧❌ 清单）
 - `T-PERM-037` 跨页共性接口改造 + api-contract 回写收尾 ← T-PERM-022~034（不重复逐页改造）
