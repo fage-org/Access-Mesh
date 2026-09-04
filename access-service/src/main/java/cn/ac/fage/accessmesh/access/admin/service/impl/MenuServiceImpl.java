@@ -141,7 +141,7 @@ public class MenuServiceImpl implements MenuService {
     public List<MenuResp> treeMenu() {
         Long tenantId = TenantContextHolder.getTenantId();
         List<SysMenu> all = menuMapper.selectMenusForTree(tenantId);
-        return buildTree(all, 0L);
+        return buildTree(all, 0L, new java.util.HashSet<>());
     }
 
     /**
@@ -169,11 +169,16 @@ public class MenuServiceImpl implements MenuService {
      * 将菜单列表转换为树形结构，递归构建子菜单。
      * </p>
      *
-     * @param all 所有菜单列表
+     * @param all      所有菜单列表
      * @param parentId 当前层级父菜单ID（0表示根级）
+     * @param visited  已构建的父菜单ID集合（防 parent 环脏数据下无限递归，T-PERM-044
+     *                 对齐 TreeBuilder 先例——重访节点按叶子返回）
      * @return 菜单树列表
      */
-    private List<MenuResp> buildTree(List<SysMenu> all, Long parentId) {
+    private List<MenuResp> buildTree(List<SysMenu> all, Long parentId, java.util.Set<Long> visited) {
+        if (!visited.add(parentId)) {
+            return List.of();
+        }
         return all.stream()
             .filter(m -> parentId.equals(m.getParentId()))
             .map(m -> new MenuResp(
@@ -181,7 +186,7 @@ public class MenuServiceImpl implements MenuService {
                 m.getParentId(), m.getPath(), m.getIcon(), m.getSortOrder(),
                 m.getStatus(), m.getResourceType(), m.getResourceCode(),
                 m.getSourceService(), m.getCreatedAt(), m.getUpdatedAt(),
-                buildTree(all, m.getId())
+                buildTree(all, m.getId(), visited)
             ))
             .collect(Collectors.toList());
     }

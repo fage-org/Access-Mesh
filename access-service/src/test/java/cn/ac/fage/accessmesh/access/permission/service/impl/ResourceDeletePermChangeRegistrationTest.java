@@ -16,6 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -49,6 +50,7 @@ class ResourceDeletePermChangeRegistrationTest {
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private PermQueryEngine engine;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
+    @Mock private TreeWriteLockSupport treeWriteLockSupport;
 
     private ResourceManageAppServiceImpl service;
 
@@ -57,7 +59,8 @@ class ResourceDeletePermChangeRegistrationTest {
         service = new ResourceManageAppServiceImpl(
             resourceEntityMapper, apiMappingMapper, resourceEntityDomainService,
             typeResolutionService, domainClassifyService, engine, rolePermMapper,
-            new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard());
+            new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
+            treeWriteLockSupport);
         // 模拟 @PermissionChange AOP 绑定 context（owner）
         PermissionChangeContext.bindIfAbsent();
     }

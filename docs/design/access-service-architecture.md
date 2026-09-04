@@ -607,3 +607,57 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
   两轮库内瞬时（绕过 handler 直读 `OffsetDateTime`）相同且等于墙钟按 UTC 解释；单测轨
   `TimestamptzLocalDateTimeTypeHandlerTest`（换算数学）+ `UtcTimezoneEnvironmentPostProcessorTest`
   （幂等/强制）+ `AccessServiceApplicationTest` EPP spring.factories 注册发现断言（宿主时区无关）+ 时区断言（非 UTC 宿主证明实际执行）。
+
+## 17. 四棵树 parent 写并发与环防护（T-PERM-044 定稿，2026-09-04）
+
+角色（`abstract_role`）/组织（`sys_org`）/菜单（`sys_menu`）/资源实体（`resource_entity`）四棵树的
+「查子孙 → 校验不成环 → 改 parent」原为 check-then-act：两个写请求同瞬交叉移动同一子树时双双
+通过校验、双双落库形成 parent 环；环落库后子孙/祖先递归 CTE 不收敛挂死连接、内存祖先链遍历
+死循环。统一防护分三层：
+
+### 17.1 写窗口根治：树级事务 advisory lock
+
+- **机制**：`TreeWriteLockSupport.lockTreeWrites(tenantId, target)` 调用
+  `pg_advisory_xact_lock(treeKey, tenantKey)`（双 int 键，组合键 `(treeKey << 32) | tenantKey`；
+  treeKey 1-4 显式编号，高位区段与任务租约扫描器的单 bigint 键低位区段不重叠）。锁由
+  PostgreSQL 在事务 commit/rollback 时**原子释放**——无「解锁先于提交」「锁超时逐出而事务仍在跑」
+  「锁服务故障与数据可用性分裂」三类分布式锁缝隙（正确性由数据库保证而非代码时序）。
+- **锁语句经 MyBatis mapper 执行**（`TreeWriteLockMapper`）：必须与业务 SQL 共享 MyBatis 的
+  SpringManagedTransaction 事务绑定连接，锁才能挂到业务事务上（JdbcTemplate 直连在事务内拿到的
+  连接 autocommit 不随事务关闭，锁语句结束即释放——实测互斥失效，已定档禁用）。
+- **覆盖全部 parent 写入口**（漏一处窗口即残留）：`moveRole`、角色 `sync`/`full-sync`（同样写
+  parent）、组织 `updateOrg` 换父分支、菜单 `updateMenu` 换父分支、`moveResource`。普通字段编辑
+  不涉及树结构、不持锁。锁在方法内先于任何树结构校验查询获取；事务外调用 fail-fast 拒绝。
+- **代价**：持锁事务（如 full-sync 批量单事务）期间并发 move 在连接上排队等待——管理操作低频，
+  可接受（设计定案）。
+- **验证**：`TreeCycleHardeningPgIT` 锁互斥用例（持锁事务进行中同键探测 false、事务结束后 true）+
+  双线程同瞬交叉移动用例（恰好一成一败 10207，2-环不落库）。
+
+### 17.2 递归 CTE 遇环止损：UNION 去重 + 深度上限
+
+环一旦因其他途径落库（如直接改库），查询不得挂死：
+
+- 四棵树全部 12 处 `UNION ALL` 递归 CTE 中的 11 处改 **`UNION` 去重**：重复行不再加入工作表、
+  迭代自终止，环上返回全部可达节点（与正常树语义一致）；含分组列的批量查询（`original_id`/
+  `root_id`）按组合行去重，分组语义不变。
+- **例外**：`SysMenuMapper.selectSubtreeHeight` 的递归列含 depth（每层新行永不重复），UNION 去重
+  无法终止——加 `depth < 100` 深度上限（对齐 `OrgVisibilityQueryMapper.selectDescendantOrgIds`
+  既有先例；MAX_MENU_DEPTH=5，100 仅环脏数据触顶，返回值确定为 100）。
+- 全仓不做 `statement_timeout` 兜底（设计定案：CTE 止损后已知挂死面已消除，全局超时会误杀
+  full-sync 等长事务）。
+
+### 17.3 内存递归防环与读路径
+
+- **祖先链上溯**（`OrgDomainServiceImpl`/`MenuDomainServiceImpl.batchGetAncestorIds` 的 while 循环）：
+  visited 重访即截断，环上返回已收集的截断链（对齐角色同步 `wouldCreateCycle` 先例）。
+- **向下树构建**（`OrgServiceImpl.keepMatching/buildTree`、`MenuServiceImpl.buildTree`）：visited
+  重访节点按叶子返回（对齐 `TreeBuilder` 先例）。当前调用图上环成员经 `scopeToSubtree` 裁剪/
+  根不可达，本层为纵深防御。
+- **验证**：`AncestorChainCycleGuardTest`（单测，mock 环数据锁截断链与 calculateDepth 确定返回）+
+  `TreeCycleHardeningPgIT` SQL/内存用例（JDBC 制造四树 2-环后各递归查询返回且结果确定）。
+
+### 17.4 环检测与订正
+
+不提供自动断环自愈（选哪条边断开是业务决策）。环出现时按
+`docs/design/access-service-rebuild-runbook.md`「常见问题」的检测 SQL 定位环节点后人工订正
+（每树一条同构 SQL，depth 上限 200）；检测 SQL 与 `TreeCycleHardeningPgIT` 用例同源保持不腐烂。

@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeysReq;
@@ -157,7 +158,8 @@ class ResourceOperationKeyPgIT {
     private ResourceManageAppServiceImpl newResourceManageAppService(PermQueryEngine engine) {
         return new ResourceManageAppServiceImpl(resourceEntityMapper, resourceApiMappingMapper,
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
-            engine, rolePermMapper, new LocalProjectionGuard());
+            engine, rolePermMapper, new LocalProjectionGuard(),
+            mock(TreeWriteLockSupport.class));
     }
 
     private OperationAppServiceImpl newOperationAppService(PermQueryEngine engine) {

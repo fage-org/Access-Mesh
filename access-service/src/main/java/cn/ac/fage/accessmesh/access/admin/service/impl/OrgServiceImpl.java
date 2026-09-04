@@ -269,7 +269,7 @@ public class OrgServiceImpl implements OrgService {
                 return List.of();
             }
         }
-        return List.of(toResp(top, buildTree(scoped, top.getId())));
+        return List.of(toResp(top, buildTree(scoped, top.getId(), new HashSet<>())));
     }
 
     /**
@@ -297,7 +297,7 @@ public class OrgServiceImpl implements OrgService {
 
     /**
      * 内存祖先链裁剪：保留自身或祖先链命中 rootId 的节点（游离节点父链断裂自然排除）。
-     * 步数上限防御异常父环（move 并发成环窗口统一加固归 T-PERM-044，此处仅防死循环）。
+     * 步数上限防御异常父环（写路径已加树级事务 advisory lock，正常链路不再产生环；此处仍保留，直改库等旁路脏数据下防死循环）。
      */
     private static List<SysOrg> scopeToSubtree(List<SysOrg> all, Map<Long, SysOrg> byId, Long rootId) {
         int maxDepth = all.size() + 1;
@@ -328,22 +328,29 @@ public class OrgServiceImpl implements OrgService {
             }
         }
         Set<Long> kept = new HashSet<>();
-        keepMatching(byId.get(rootId), childrenMap, keyword, kept);
+        keepMatching(byId.get(rootId), childrenMap, keyword, kept, new HashSet<>());
         return scoped.stream()
             .filter(o -> kept.contains(o.getId()))
             .collect(Collectors.toList());
     }
 
-    /** 名称剪枝递归：返回该节点（自身命中或存在保留后代）是否保留。 */
+    /**
+     * 名称剪枝递归：返回该节点（自身命中或存在保留后代）是否保留。
+     * visited 防 parent 环脏数据下无限递归（T-PERM-044，对齐 TreeBuilder 先例——
+     * 环成员作剪枝起点时子孙互指不终止，重访节点按无保留后代处理）。
+     */
     private static boolean keepMatching(SysOrg node, Map<Long, List<SysOrg>> childrenMap,
-                                        String keyword, Set<Long> kept) {
+                                        String keyword, Set<Long> kept, Set<Long> visited) {
         if (node == null) {
+            return false;
+        }
+        if (!visited.add(node.getId())) {
             return false;
         }
         boolean selfKept = node.getName() != null && node.getName().contains(keyword);
         boolean childKept = false;
         for (SysOrg child : childrenMap.getOrDefault(node.getId(), List.of())) {
-            childKept = keepMatching(child, childrenMap, keyword, kept) || childKept;
+            childKept = keepMatching(child, childrenMap, keyword, kept, visited) || childKept;
         }
         if (selfKept || childKept) {
             kept.add(node.getId());
@@ -401,14 +408,21 @@ public class OrgServiceImpl implements OrgService {
         );
     }
 
-    private List<OrgResp> buildTree(List<SysOrg> all, Long parentId) {
+    /**
+     * 子树构建递归。visited 防 parent 环脏数据下无限递归（T-PERM-044，对齐 TreeBuilder 先例——
+     * 环成员作构建起点时子孙互指不终止，重访节点按叶子返回）；调用方每棵树传入独立 visited。
+     */
+    private List<OrgResp> buildTree(List<SysOrg> all, Long parentId, Set<Long> visited) {
+        if (!visited.add(parentId)) {
+            return List.of();
+        }
         return all.stream()
             .filter(o -> parentId.equals(o.getParentId()))
             .map(o -> new OrgResp(
                 o.getId(), Integer.parseInt(o.getOrgType()), o.getName(),
                 o.getParentId(), o.getCode(),
                 o.getStatus(), o.getSortOrder(), o.getCreatedAt(), o.getUpdatedAt(),
-                buildTree(all, o.getId())
+                buildTree(all, o.getId(), visited)
             ))
             .collect(Collectors.toList());
     }

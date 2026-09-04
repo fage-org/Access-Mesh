@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
@@ -123,6 +124,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     private final RoleResourcePermissionMapper rolePermMapper;
     private final LocalProjectionGuard localProjectionGuard;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     /**
      * 构造函数注入依赖
@@ -142,7 +144,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                                      DomainClassifyService domainClassifyService,
                                      PermQueryEngine engine,
                                      RoleResourcePermissionMapper rolePermMapper,
-                                     LocalProjectionGuard localProjectionGuard) {
+                                     LocalProjectionGuard localProjectionGuard,
+                                     TreeWriteLockSupport treeWriteLockSupport) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.resourceEntityDomainService = resourceEntityDomainService;
@@ -151,6 +154,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         this.engine = engine;
         this.rolePermMapper = rolePermMapper;
         this.localProjectionGuard = localProjectionGuard;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     /**
@@ -403,6 +407,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     public void moveResource(Long tenantId, ResourceMoveReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
+        // T-PERM-044：树写锁先于跨类型/防环校验（check-then-act 窗口收口，同 moveRole）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+
         ResourceEntity entity = selectResourceByBusinessKey(tenantId, req.resource());
         localProjectionGuard.rejectIfLocalResource(entity);
 
@@ -415,7 +422,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         if (req.parent() != null) {
             ResourceEntity parent = selectResourceByBusinessKey(tenantId, req.parent());
             // T-PERM-028：跨类型拦截 + 防环（目标父不得是自身或其子孙；原内部 id 实现缺失两项校验，
-            // 对齐前端设计 §4 与 mock 语义，环会使树构建不收敛——先例 ROLE_PARENT_INVALID）
+            // 对齐前端设计 §4 与 mock 语义——环节点从树构建静默消失，先例 ROLE_PARENT_INVALID）
             if (!parent.getResourceType().equals(entity.getResourceType())) {
                 throw new BizException(PermissionErrorCode.RESOURCE_PARENT_INVALID.getCode(),
                     "不可跨资源类型移动: " + req.parent().resourceTypeCode() + " -> " + req.resource().resourceTypeCode());

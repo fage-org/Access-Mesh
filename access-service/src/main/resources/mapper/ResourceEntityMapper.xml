@@ -50,7 +50,9 @@
                 #{id}
             </foreach>
             AND tenant_id = #{tenantId} AND delete_flag = 0
-            UNION ALL
+            <!-- UNION 去重防 parent 环迭代不收敛（T-PERM-044）；(id, parent_id, original_id)
+                 组合去重，环上重复组合不再加入工作表、迭代自终止 -->
+            UNION
             SELECT r.id, r.parent_id, d.original_id FROM resource_entity r
             INNER JOIN descendants d ON r.parent_id = d.id
             WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0

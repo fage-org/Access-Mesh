@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.application.OrgWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
@@ -45,6 +46,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     private final LocalProjectionDomainService localProjectionDomainService;
     private final AuditDomainService auditDomainService;
     private final ObjectMapper objectMapper;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     public OrgWriteAppServiceImpl(OrgDomainService orgDomainService,
                                   UserOrgDomainService userOrgDomainService,
@@ -52,7 +54,8 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
                                   AdminPermissionValidator permissionValidator,
                                   LocalProjectionDomainService localProjectionDomainService,
                                   AuditDomainService auditDomainService,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  TreeWriteLockSupport treeWriteLockSupport) {
         this.orgDomainService = orgDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
@@ -60,6 +63,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         this.localProjectionDomainService = localProjectionDomainService;
         this.auditDomainService = auditDomainService;
         this.objectMapper = objectMapper;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     @Override
@@ -142,6 +146,9 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         Long newParentId = req.parentOrgId();
         Long oldParentId = org.getParentId();
         if (newParentId != null && !Objects.equals(newParentId, oldParentId)) {
+            // T-PERM-044：树写锁先于移动校验（ORG_PARENT_CYCLE 的 check-then-act 窗口收口），
+            // 普通字段编辑不涉及树结构、不持锁
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
             validateOrgMove(tenantId, req.id(), org, newParentId);
             // 岗位（POSITION）移动后迁移已有成员 user_role.relation_id
             // （旧所属组织 → 新所属组织），否则后续解绑按新三元组匹配不到旧记录导致投影残留

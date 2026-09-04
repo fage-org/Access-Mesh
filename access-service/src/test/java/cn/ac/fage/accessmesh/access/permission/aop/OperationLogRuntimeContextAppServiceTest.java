@@ -31,6 +31,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -141,7 +142,8 @@ class OperationLogRuntimeContextAppServiceTest {
             domainClassifyService,
             engine,
             roleResourcePermissionMapper,
-            new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard()
+            new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
+            org.mockito.Mockito.mock(TreeWriteLockSupport.class)
         );
 
         ResourceEntity first = new ResourceEntity();

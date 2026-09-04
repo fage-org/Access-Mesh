@@ -17,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -54,6 +55,8 @@ class AbstractRoleSyncAppServiceTest {
     private SyncTypeGuard syncTypeGuard;
     @Mock
     private cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService;
+    @Mock
+    private TreeWriteLockSupport treeWriteLockSupport;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -66,7 +69,7 @@ class AbstractRoleSyncAppServiceTest {
         service = new AbstractRoleSyncAppServiceImpl(syncMetadataDomainService,
                 typeResolutionService, abstractRoleMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService);
+                subjectDomainService, treeWriteLockSupport);
         org.mockito.Mockito.lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
         // 版本预判领域判定的 mock 默认：无现存元数据（Map 空取 null）= 新版本放行；

@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.common.SyncVersionRef;
 import cn.ac.fage.accessmesh.access.permission.dto.req.AbstractRoleFullSyncReq;
@@ -63,6 +64,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     private final LocalProjectionGuard localProjectionGuard;
     private final SyncTypeGuard syncTypeGuard;
     private final SubjectDomainService subjectDomainService;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     public AbstractRoleSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                           TypeResolutionService typeResolutionService,
@@ -70,7 +72,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                                           ObjectMapper objectMapper,
                                           LocalProjectionGuard localProjectionGuard,
                                           SyncTypeGuard syncTypeGuard,
-                                          SubjectDomainService subjectDomainService) {
+                                          SubjectDomainService subjectDomainService,
+                                          TreeWriteLockSupport treeWriteLockSupport) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.abstractRoleMapper = abstractRoleMapper;
@@ -78,6 +81,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         this.localProjectionGuard = localProjectionGuard;
         this.syncTypeGuard = syncTypeGuard;
         this.subjectDomainService = subjectDomainService;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     @Override
@@ -101,6 +105,10 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         if (!syncTypeGuard.validate(tenantId, req.sourceService(), SyncTypes.role(req.roleTypeCode()))) {
             return SyncResultBuilder.securityDenied("SERVICE_TYPE_NOT_ALLOWED");
         }
+
+        // T-PERM-044：外部同步同样写 parent（isCyclicParent 同为 check-then-act），与 moveRole
+        // 共持 (abstract_role, 租户) 树写锁——move×sync 交叉否则窗口仍在
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
 
         // 2. operation 合法性
         String op = req.operation();
@@ -221,6 +229,10 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                     SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED",
                     req.items().size(), List.of(denied));
         }
+
+        // T-PERM-044：全量同步批量写 parent，与 moveRole/sync 共持树写锁（单事务全程持有，
+        // 期间并发 move 在锁上排队——低频管理操作可接受）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
 
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.scope().roleTypeCode());
         if (roleType == null) {

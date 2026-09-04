@@ -173,6 +173,9 @@ public class OrgDomainServiceImpl implements OrgDomainService {
         Map<Long, List<Long>> result = new HashMap<>();
         for (Long orgId : orgIds) {
             List<Long> ancestors = new ArrayList<>();
+            // visited 防 parent 环脏数据下无限上溯（T-PERM-044，对齐角色同步 wouldCreateCycle
+            // 先例——重访即环，返回已收集的截断链）；每个输入独立 visited
+            Set<Long> visited = new HashSet<>();
             Long current = orgId;
             // 从当前组织向上遍历到根组织
             while (current != null) {
@@ -181,6 +184,9 @@ public class OrgDomainServiceImpl implements OrgDomainService {
                     break;
                 }
                 if (org.getParentId() != null && org.getParentId() != 0L) {
+                    if (!visited.add(org.getParentId())) {
+                        break;
+                    }
                     ancestors.add(org.getParentId());
                     current = org.getParentId();
                 } else {

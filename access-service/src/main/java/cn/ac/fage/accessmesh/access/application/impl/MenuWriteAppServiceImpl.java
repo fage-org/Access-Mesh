@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.access.application.MenuWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
@@ -49,15 +50,18 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
     private final AdminPermissionValidator permissionValidator;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final AuditDomainService auditDomainService;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     public MenuWriteAppServiceImpl(MenuDomainService menuDomainService,
                                    AdminPermissionValidator permissionValidator,
                                    LocalProjectionDomainService localProjectionDomainService,
-                                   AuditDomainService auditDomainService) {
+                                   AuditDomainService auditDomainService,
+                                   TreeWriteLockSupport treeWriteLockSupport) {
         this.menuDomainService = menuDomainService;
         this.permissionValidator = permissionValidator;
         this.localProjectionDomainService = localProjectionDomainService;
         this.auditDomainService = auditDomainService;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     @Override
@@ -130,6 +134,9 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
             resourceCode != null ? resourceCode : menu.getResourceCode(),
             req.id());
         if (req.parentId() != null && !req.parentId().equals(menu.getParentId())) {
+            // T-PERM-044：树写锁先于换父校验（MENU_PARENT_INVALID 的 check-then-act 窗口收口），
+            // 普通字段编辑不涉及树结构、不持锁
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
             checkNewParent(tenantId, req.id(), req.parentId());
             // 换父按整棵子树校验：最深节点绝对深度 = 父深度 + 子树高度。
             // 父深度：顶级目标（parentId=0）按 0 计（新根自身即第 1 层，calculateDepth(0)=1
@@ -272,8 +279,8 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
 
     /**
      * 换父时校验新父菜单：必须存在（同 {@link #checkParentExists}），
-     * 且不能是被移动菜单自身或其后代（parent 链成环后祖先链遍历与递归 CTE 均不收敛，
-     * sys_menu 无数据库约束兜底）。
+     * 且不能是被移动菜单自身或其后代（parent 链成环后环节点从树构建中静默消失、
+     * 深度/祖先查询语义受损，sys_menu 无数据库约束兜底）。
      */
     private void checkNewParent(Long tenantId, Long menuId, Long newParentId) {
         checkParentExists(tenantId, newParentId);

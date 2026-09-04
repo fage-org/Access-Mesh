@@ -101,7 +101,7 @@
 | [T-PERM-041](T-PERM-041.md) | 主权限条件不变量（20041 不可转授 + 20042 启用状态） | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract §6.5.1；core-flows §6；permission-grant.md §4/§12；access-service.sql | T-PERM-034 | ✅ | ✓ |
 | [T-PERM-042](T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | product-vertical-slice（已归档） | api-contract；implementation；access-service-architecture | T-ACCESS-016, T-ACCESS-017 | ✅ | ✓ |
 | [T-PERM-043](T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | product-vertical-slice（已归档） | api-contract；implementation；frontend/role-manage；frontend/permission-grant | T-ACCESS-019, T-ACCESS-021 | ✅ | ✓ |
-| [T-PERM-044](T-PERM-044.md) | 四棵树（角色/组织/菜单/资源实体，后者 T-PERM-028 收口扩入）move 并发成环窗口与递归 CTE 遇环不收敛统一加固 | — | [T-PERM-044](T-PERM-044.md) | — | ⚙️ | ⏳ |
+| [T-PERM-044](T-PERM-044.md) | 四棵树（角色/组织/菜单/资源实体，后者 T-PERM-028 收口扩入）move 并发成环窗口与递归 CTE 遇环不收敛统一加固（已收口 2026-09-04：树级事务 advisory lock + UNION 去重/深度上限 + 内存 visited，终态见 architecture §17） | — | [T-PERM-044](T-PERM-044.md) | — | ✅ | ✓ |
 | [T-PERM-045](T-PERM-045.md) | 内部管理门禁统一启用子级继承（父有权子有权） | — | [T-PERM-045](T-PERM-045.md) | — | ⚙️ | ⏳ |
 | [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（全局域创建入口设计 + domain_config 唯一键兜底 + 删除保护并发窗口；T-PERM-026 收口登记） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ⚙️ | ⏳ |
 | [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ⚙️ | ⏳ |

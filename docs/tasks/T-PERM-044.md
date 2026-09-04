@@ -2,12 +2,14 @@
 doc_type: task
 id: T-PERM-044
 title: 四棵树（角色/组织/菜单/资源实体）move 并发成环窗口与递归 CTE 遇环不收敛统一加固
-status: proposed
+status: done
 plan: ""
 domain: permission-center
 design_refs:
   - docs/design/frontend/role-manage.md#§8
   - docs/design/permission-center/api-contract.md#§5.2
+  - docs/design/access-service-architecture.md#§17
+  - docs/design/access-service-rebuild-runbook.md#§3
 depends_on: []
 blocks: []
 acceptance:
@@ -16,13 +18,13 @@ acceptance:
   - "回归测试：PgIT 用 JDBC 制造 2-环后调用子孙/祖先递归查询，锁定不挂死且行为确定；并发交叉移动的窗口用例（可选，视根治方案；resource_entity 侧 T-PERM-028 已有 move 防环单测+PgIT 语义锁可复用）"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-09-03
+  status: done
+last_updated: 2026-09-04
 ---
 
 # T-PERM-044 四棵树（角色/组织/菜单/资源实体）move 并发成环窗口与递归 CTE 遇环不收敛统一加固
 
-> 状态：proposed（2026-08-28 T-PERM-022 双轨评审登记，设计定案：登记跨域统一修）
+> 状态：done（2026-09-04 收口）
 > 依赖：无（独立维护债）
 > 前置验收：见 acceptance
 
@@ -38,10 +40,56 @@ T-PERM-022 为角色域 moveRole 补齐了环路防护（自身/子孙拒绝 200
 - 全仓 `statement_timeout` 兜底策略评估（可选，随方案定）。
 - 不改各树既有的类型一致/环路业务校验语义（T-PERM-022 已落地部分保持不变）。
 
-## 优先级依据
+## 设计口径
 
-触发窗口极窄（双管理员同瞬交叉拖拽同一子树），且当前无已知环数据；属低概率高影响维护债，随维护债批次排期。
+1. **根治窗口 = 树级事务 advisory lock**：`TreeWriteLockSupport.lockTreeWrites` 调
+   `pg_advisory_xact_lock(treeKey, tenantKey)`（双 int 键组合，treeKey 1-4 显式编号，与任务租约
+   扫描器单 bigint 键不重叠）；锁由 PostgreSQL 在事务 commit/rollback 时原子释放。分布式锁
+   （Redis/Redisson）不采用——存在「解锁先于提交」「锁超时逐出而事务仍在跑」「锁服务故障与数据
+   可用性分裂」三类缝隙，本场景要求锁与事务同生共死。行锁（FOR UPDATE）亦不采用——正确性要求
+   锁全树行集（只锁移动节点+新父挡不住深交叉场景），复杂易错。
+2. **锁语句经 MyBatis mapper 执行**（`TreeWriteLockMapper`，count 包装丢弃 void 结果列）：必须与
+   业务 SQL 共享 MyBatis SpringManagedTransaction 的事务绑定连接，锁才挂到业务事务上。JdbcTemplate
+   直连路径实测互斥失效（事务回调内连接 autocommit 未随事务关闭，锁语句结束即释放）——已定档
+   禁用，TreeWriteLockMapper Javadoc 钉死。
+3. **覆盖全部 parent 写入口**：`moveRole`、角色 `sync`/`full-sync`（同样写 parent，漏锁则
+   move×sync 窗口残留）、组织 `updateOrg` 换父分支、菜单 `updateMenu` 换父分支、`moveResource`。
+   普通字段编辑不持锁。锁先于任何树结构校验查询；事务外调用 fail-fast（IllegalStateException）。
+   full-sync 单事务全程持锁、期间并发 move 排队——管理操作低频，可接受。
+4. **递归 CTE 止损 = UNION 去重为主 + subtreeHeight 深度上限**：四树 12 处 `UNION ALL` 递归 CTE
+   中 11 处改 `UNION`（重复行不进工作表、迭代自终止，环上返回全部可达节点；含 `original_id`/
+   `root_id` 分组列的批量查询按组合行去重、分组语义不变）。例外 `SysMenuMapper.selectSubtreeHeight`：
+   递归列含 depth 每层新行永不重复，去重无法终止，改加 `depth < 100` 上限（对齐
+   `OrgVisibilityQueryMapper` 既有先例；返回值确定为 100）。
+5. **内存递归防环 = visited（对齐 TreeBuilder/wouldCreateCycle 先例）**：祖先链上溯 while
+   （`OrgDomainServiceImpl`/`MenuDomainServiceImpl.batchGetAncestorIds`）重访即截断返回已收集链；
+   向下树构建（`OrgServiceImpl.keepMatching/buildTree`、`MenuServiceImpl.buildTree`）重访节点按叶子
+   返回——后者在当前调用图上环成员经 scopeToSubtree 裁剪/根不可达，属纵深防御。受影响单测构造
+   参数同步补 mock（8 个测试类 11 处构造点）。
+6. **环检测 = 订正 SQL 进 runbook，不做自动自愈**：每树一条同构检测 SQL（depth<200 防自不收敛）
+   登记于 rebuild-runbook「常见问题」，输出环上节点 id；断哪条边是业务决策，人工订正后重跑检测
+   为空即收口。检测 SQL 与 PgIT 用例同源保持不腐烂。不做内部检测端点/常驻检测方法（无消费方，
+   过度设计）。
+7. **statement_timeout 不做**：CTE 全部止损后已知挂死面已消除；全局超时会误杀 full-sync 等长
+   事务，引入新的不可预期失败面。
 
-## 登记追加
+## 登记追加（T-ADMIN-021 收口登记）
 
-- `OrgServiceImpl.treeOrgs` 读路径两处向下递归（T-ADMIN-021 收口登记）——`keepMatching` 名称剪枝 / `buildTree` 子树构建无环防护：`scopeToSubtree` 的步数上限只保护祖先链方向，数据异常父环（move 并发窗口脏数据）下会 StackOverflow。本任务统一加固时一并覆盖（visited 集合或深度上限）。
+- `OrgServiceImpl.treeOrgs` 读路径两处向下递归（`keepMatching` 名称剪枝 / `buildTree` 子树构建）
+  已随本任务加 visited 防环覆盖。执行中核实追加同构面：`MenuServiceImpl.buildTree`（菜单树构建
+  同款无防护）、`MenuDomainServiceImpl`/`OrgDomainServiceImpl.batchGetAncestorIds` 祖先链 while
+  （环上 JVM 死循环，与 SQL 挂死同后果）——一并收口。
+
+## 完成记录
+
+- **代码**：新增 `TreeWriteLockSupport`（infrastructure）+ `TreeWriteLockMapper`（infrastructure.mapper，
+  注解式 SQL）；5 个写入口接锁；11 处递归 CTE 改 UNION 去重 + `selectSubtreeHeight` 深度上限；
+  5 处内存递归加 visited。
+- **测试**：新增 `TreeCycleHardeningPgIT`（容器轨 5 用例：四树 2-环下 SQL 递归查询返回且结果
+  确定、组织/菜单祖先链截断、锁互斥与随事务释放、双线程同瞬交叉移动恰好一成一败且 2-环不落库、
+  环检测 SQL 定位全部环节点）+ `AncestorChainCycleGuardTest`（单测轨 3 用例：组织/菜单祖先链环
+  截断 + 正常链不受影响）。旧实现下：递归 CTE 用例不返回（连接挂死）、交叉移动用例双成功（窗口
+  未收口）、祖先链用例不返回（JVM 死循环）——回归锁有效。
+- **文档**：architecture 新增 §17（四树防护定案，含锁选型与 mapper 路径定档）；api-contract
+  §5.2 move 补并发语义、frontmatter 同步；role-manage §8 登记句改收口口径；rebuild-runbook
+  常见问题表新增环检测订正条目（含 SQL）。

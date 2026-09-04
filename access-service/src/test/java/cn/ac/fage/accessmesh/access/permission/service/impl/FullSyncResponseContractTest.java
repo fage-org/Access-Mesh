@@ -32,6 +32,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -178,7 +179,7 @@ class FullSyncResponseContractTest {
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService);
+                subjectDomainService, org.mockito.Mockito.mock(TreeWriteLockSupport.class));
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
                 new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", null, null,
@@ -211,7 +212,7 @@ class FullSyncResponseContractTest {
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService);
+                subjectDomainService, org.mockito.Mockito.mock(TreeWriteLockSupport.class));
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
                 new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", "BASIC_ROLE", "missing-parent",

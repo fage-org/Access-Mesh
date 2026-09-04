@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
@@ -49,6 +50,7 @@ class RoleManageAppServiceImplTest {
     @Mock private AuditDomainService auditDomainService;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private PermQueryEngine engine;
+    @Mock private TreeWriteLockSupport treeWriteLockSupport;
 
     private RoleManageAppServiceImpl service;
 
@@ -63,7 +65,8 @@ class RoleManageAppServiceImplTest {
             auditDomainService,
             new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
             localProjectionDomainService,
-            engine
+            engine,
+            treeWriteLockSupport
         );
     }
 

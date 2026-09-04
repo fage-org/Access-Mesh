@@ -181,6 +181,9 @@ public class MenuDomainServiceImpl implements MenuDomainService {
         Map<Long, List<Long>> result = new HashMap<>();
         for (Long menuId : menuIds) {
             List<Long> ancestors = new ArrayList<>();
+            // visited 防 parent 环脏数据下无限上溯（T-PERM-044，对齐角色同步 wouldCreateCycle
+            // 先例——重访即环，返回已收集的截断链）；每个输入独立 visited
+            Set<Long> visited = new HashSet<>();
             Long current = menuId;
             while (current != null) {
                 SysMenu menu = entityMap.get(current);
@@ -188,6 +191,9 @@ public class MenuDomainServiceImpl implements MenuDomainService {
                     break;
                 }
                 if (menu.getParentId() != null && menu.getParentId() != 0L) {
+                    if (!visited.add(menu.getParentId())) {
+                        break;
+                    }
                     ancestors.add(menu.getParentId());
                     current = menu.getParentId();
                 } else {

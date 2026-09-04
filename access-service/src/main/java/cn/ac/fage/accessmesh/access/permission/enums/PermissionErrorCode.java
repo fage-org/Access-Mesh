@@ -248,8 +248,8 @@ public enum PermissionErrorCode {
     TYPE_DEFINITION_CODE_DUPLICATE(20049, "类型编码已存在（tenant+typeKey 内唯一）"),
 
     /**
-     * 父角色非法：不能是被移动角色自身或其子孙（parent 链成环后祖先链遍历与递归 CTE 均不收敛，
-     * 环节点从树构建中静默消失；对齐 admin 域同场景先例 ORG_PARENT_CYCLE/MENU_PARENT_INVALID）。
+     * 父角色非法：不能是被移动角色自身或其子孙（parent 链成环后环节点从树构建中静默消失、
+     * 祖先/子孙查询语义受损；对齐 admin 域同场景先例 ORG_PARENT_CYCLE/MENU_PARENT_INVALID）。
      */
     ROLE_PARENT_INVALID(20050, "父角色不能是自身或该角色的子孙"),
 

@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.access.application.impl.OrgWriteAppServiceImpl;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -59,6 +60,7 @@ class OrgWriteAppServiceTest {
     @Mock private AdminPermissionValidator permissionValidator;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private AuditDomainService auditDomainService;
+    @Mock private TreeWriteLockSupport treeWriteLockSupport;
 
     private OrgWriteAppServiceImpl service;
 
@@ -71,7 +73,8 @@ class OrgWriteAppServiceTest {
             permissionValidator,
             localProjectionDomainService,
             auditDomainService,
-            new ObjectMapper()
+            new ObjectMapper(),
+            treeWriteLockSupport
         );
         TenantContextHolder.setTenantId(TENANT);
         AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));

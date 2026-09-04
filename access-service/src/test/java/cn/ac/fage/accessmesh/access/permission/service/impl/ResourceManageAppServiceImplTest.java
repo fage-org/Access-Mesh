@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
@@ -50,6 +51,7 @@ class ResourceManageAppServiceImplTest {
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private PermQueryEngine engine;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
+    @Mock private TreeWriteLockSupport treeWriteLockSupport;
 
     private ResourceManageAppServiceImpl service;
 
@@ -64,7 +66,8 @@ class ResourceManageAppServiceImplTest {
             domainClassifyService,
             engine,
             rolePermMapper,
-            new LocalProjectionGuard()
+            new LocalProjectionGuard(),
+            treeWriteLockSupport
         );
     }
 

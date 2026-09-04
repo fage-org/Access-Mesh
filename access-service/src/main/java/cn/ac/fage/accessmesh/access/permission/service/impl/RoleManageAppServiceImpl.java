@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
@@ -70,6 +71,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     private final LocalProjectionGuard localProjectionGuard;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final PermQueryEngine engine;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     /**
      * 构造函数注入依赖
@@ -91,7 +93,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                                  AuditDomainService auditDomainService,
                                  LocalProjectionGuard localProjectionGuard,
                                  LocalProjectionDomainService localProjectionDomainService,
-                                 PermQueryEngine engine) {
+                                 PermQueryEngine engine,
+                                 TreeWriteLockSupport treeWriteLockSupport) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
@@ -101,6 +104,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         this.localProjectionGuard = localProjectionGuard;
         this.localProjectionDomainService = localProjectionDomainService;
         this.engine = engine;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     /**
@@ -244,6 +248,11 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     public void moveRole(Long tenantId, Long roleId, Long parentId, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
+        // T-PERM-044：树写锁先于任何校验查询——「查子孙 → 校验 → update」的 check-then-act
+        // 窗口由 (abstract_role, 租户) 事务级 advisory lock 串行化，交叉移动的后进锁者
+        // 校验时能看到先进锁者已提交的 parent，环无法落库
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
             throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);
@@ -266,7 +275,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                     "不允许跨角色类型移动（父角色须与移动角色同类型）");
             }
             // T-PERM-022：环路防护——目标父为自身或其子孙时 parent 链成环
-            // （环节点从树构建中静默消失、祖先/子孙递归 CTE 不收敛），对齐 admin 域先例
+            // （环节点从树构建中静默消失、祖先/子孙查询语义受损），对齐 admin 域先例
             if (roleId.equals(parentId)) {
                 throw new BizException(PermissionErrorCode.ROLE_PARENT_INVALID.getCode(),
                     "父角色不能是自身或该角色的子孙: " + parentId);

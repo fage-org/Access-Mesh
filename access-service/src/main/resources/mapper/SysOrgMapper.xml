@@ -83,7 +83,8 @@
         WITH RECURSIVE descendants AS (
             SELECT id, parent_id FROM sys_org
             WHERE id = #{orgId} AND tenant_id = #{tenantId} AND delete_flag = 0
-            UNION ALL
+            <!-- UNION 去重防 parent 环迭代不收敛（T-PERM-044） -->
+            UNION
             SELECT o.id, o.parent_id FROM sys_org o
             INNER JOIN descendants d ON o.parent_id = d.id
             WHERE o.tenant_id = #{tenantId} AND o.delete_flag = 0
@@ -96,7 +97,8 @@
         WITH RECURSIVE descendants AS (
             SELECT id, parent_id FROM sys_org
             WHERE id = #{orgId} AND tenant_id = #{tenantId} AND delete_flag = 0
-            UNION ALL
+            <!-- UNION 去重防 parent 环迭代不收敛（T-PERM-044） -->
+            UNION
             SELECT o.id, o.parent_id FROM sys_org o
             INNER JOIN descendants d ON o.parent_id = d.id
             WHERE o.tenant_id = #{tenantId} AND o.delete_flag = 0
@@ -120,7 +122,9 @@
             FROM sys_org o
             INNER JOIN starting_points sp ON o.id = sp.root_id
             WHERE o.tenant_id = #{tenantId} AND o.delete_flag = 0
-            UNION ALL
+            <!-- UNION 去重防 parent 环迭代不收敛（T-PERM-044）；(root_id, descendant_id, parent_id)
+                 组合去重，批量分组语义不变 -->
+            UNION
             SELECT d.root_id, o.id AS descendant_id, o.parent_id
             FROM sys_org o
             INNER JOIN descendants d ON o.parent_id = d.descendant_id

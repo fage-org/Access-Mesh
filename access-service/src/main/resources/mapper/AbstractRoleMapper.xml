@@ -12,7 +12,8 @@
             </foreach>
             AND tenant_id = #{tenantId} AND delete_flag = 0
 
-            UNION ALL
+            <!-- UNION 去重：parent 环脏数据下重复行不再加入工作表、迭代自终止（T-PERM-044） -->
+            UNION
 
             SELECT r.* FROM abstract_role r
             INNER JOIN role_tree rt ON r.parent_id = rt.id
@@ -40,7 +41,8 @@
                 #{id}
             </foreach>
             AND tenant_id = #{tenantId} AND delete_flag = 0
-            UNION ALL
+            <!-- UNION 去重防 parent 环迭代不收敛（T-PERM-044） -->
+            UNION
             SELECT r.id, r.parent_id FROM abstract_role r
             INNER JOIN descendants d ON r.parent_id = d.id
             WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0
@@ -56,7 +58,8 @@
         WITH RECURSIVE ancestors AS (
             SELECT id, parent_id, role_type FROM abstract_role
             WHERE id = #{roleId} AND tenant_id = #{tenantId} AND delete_flag = 0
-            UNION ALL
+            <!-- UNION 去重防 parent 环迭代不收敛（T-PERM-044） -->
+            UNION
             SELECT r.id, r.parent_id, r.role_type FROM abstract_role r
             INNER JOIN ancestors a ON r.id = a.parent_id
             WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0
@@ -73,7 +76,8 @@
                 #{rid}
             </foreach>
               AND tenant_id = #{tenantId} AND delete_flag = 0
-            UNION ALL
+            <!-- UNION 去重防 parent 环迭代不收敛（T-PERM-044） -->
+            UNION
             SELECT r.id, r.parent_id, r.role_type FROM abstract_role r
             INNER JOIN ancestors a ON r.id = a.parent_id
             WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0

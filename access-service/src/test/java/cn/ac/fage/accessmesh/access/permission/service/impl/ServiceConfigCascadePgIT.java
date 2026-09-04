@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig;
@@ -150,7 +151,8 @@ class ServiceConfigCascadePgIT {
     private ResourceManageAppService newResourceManageAppService(PermQueryEngine engine) {
         return new ResourceManageAppServiceImpl(resourceEntityMapper, resourceApiMappingMapper,
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
-            engine, rolePermMapper, new LocalProjectionGuard());
+            engine, rolePermMapper, new LocalProjectionGuard(),
+            mock(TreeWriteLockSupport.class));
     }
 
     private final LocalDateTime now = LocalDateTime.now();
