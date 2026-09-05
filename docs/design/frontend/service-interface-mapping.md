@@ -3,7 +3,7 @@ doc_type: design
 title: 5.2 服务与接口映射页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +8 端点（service-config 5 + api-mapping 3，detail 不消费）；2026-08-29   # 2026-08-29 §7.6 资源选择器收口（T-PERM-028：类型下拉+树选落地、裸 ID 输入删除）；同日 T-PERM-027 后端收口终态化（删除级联/资源业务字段/FULL-only/mapping list 门禁/updatedAt/bootstrap SERVICE 授权；§7 七项收口标注）；原文 2026-07-11 Phase 1 前端设计定稿
+last_reviewed: 2026-09-05   # 2026-09-05 T-PERM-053 锁步补正（§3.2 同步必填字段清单删 operationCode——接口权限无操作粒度，随契约 §6.3 字段退役）；2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +8 端点（service-config 5 + api-mapping 3，detail 不消费）；2026-08-29   # 2026-08-29 §7.6 资源选择器收口（T-PERM-028：类型下拉+树选落地、裸 ID 输入删除）；同日 T-PERM-027 后端收口终态化（删除级联/资源业务字段/FULL-only/mapping list 门禁/updatedAt/bootstrap SERVICE 授权；§7 七项收口标注）；原文 2026-07-11 Phase 1 前端设计定稿
 ---
 
 # 5.2 服务与接口映射页 前端设计
@@ -55,7 +55,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 
 - 「同步接口」只在拥有 `SERVICE:SYNC_INTERFACE` 时展示。
 - 弹窗固定 `syncMode: "FULL"`，基础路径可调整，分组 JSON 在前端校验 `groups[] → apis[]` 的必要字段。
-- 每条 API 要求 `name/httpMethod/path/operationCode/resourceCode`，`path` 必须以 `/` 开头。
+- 每条 API 要求 `name/httpMethod/path/resourceCode`，`path` 必须以 `/` 开头（`operationCode` 已删除：接口权限无操作粒度，T-PERM-053，2026-09-05）。
 - mock 保留 `SERVICE_SYNC` 与 `MANUAL` 维护来源：FULL 同步只删除当前服务缺失的 `SERVICE_SYNC` 映射，绝不删除 `MANUAL` 映射；成功消息展示新增、更新、清理数量。
 
 ### 3.3 手工 API 映射

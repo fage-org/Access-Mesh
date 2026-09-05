@@ -238,7 +238,6 @@ class ExampleProtectedApiE2EIT {
                         .put("name", "example 演示问候接口")
                         .put("httpMethod", TARGET_API_METHOD)
                         .put("path", TARGET_API_PATH)
-                        .put("operationCode", "ACCESS")
                         .put("resourceCode", TARGET_API_RESOURCE_CODE)
                         .put("description", "E2E 目标接口"))))));
         assertThat(syncResp.path("createdResources").asLong())

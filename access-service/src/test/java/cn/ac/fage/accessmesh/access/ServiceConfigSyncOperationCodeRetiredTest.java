@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.AccessServiceApplicationTest;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.access.permission.service.ServiceSyncAppService;
+import cn.ac.fage.accessmesh.common.enums.GlobalErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -148,7 +149,10 @@ class ServiceConfigSyncOperationCodeRetiredTest {
                 .header("X-Service-Code", "my-svc")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
-            .andExpect(status().isBadRequest());
+            // 信封码断言把 400 归因钉死在 HttpMessageNotReadable → 90001 通道，
+            // 防未来新增其它 400 来源（如前置校验）时本用例意外通过
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.code").value(GlobalErrorCode.VALIDATION_FAILED.code()));
 
         verifyNoInteractions(serviceSyncAppService);
     }
