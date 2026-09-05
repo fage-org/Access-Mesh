@@ -19,6 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -91,8 +92,9 @@ class ResourceTypeOwnershipGuardTest {
         when(typeDefinitionMapper.selectByTypeKeyAndCode(TENANT, "resource_type", "HR_ORG"))
                 .thenReturn(resourceType(1L, "HR_ORG", 5,
                         "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}"));
+        TypeDefinition menu = resourceType(2L, "MENU", 1, null);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(TENANT, "resource_type", "MENU"))
-                .thenReturn(resourceType(2L, "MENU", 1, null));
+                .thenReturn(menu);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(TENANT, "resource_type", "GHOST"))
                 .thenReturn(null);
 
@@ -100,9 +102,24 @@ class ResourceTypeOwnershipGuardTest {
                 .isInstanceOf(BizException.class)
                 .extracting("errorCode")
                 .isEqualTo(20055);
-        assertThatCode(() -> guard.rejectIfSyncManagedType(TENANT, "MENU")).doesNotThrowAnyException();
-        // 类型不存在不在此拦截（存在性由既有类型解析负责，门禁只按声明判定）
-        assertThatCode(() -> guard.rejectIfSyncManagedType(TENANT, "GHOST")).doesNotThrowAnyException();
+        // codex 三轮复评 P1-2（写路径权威化）：通过时返回库内直查的类型权威行、类型不存在返回 null
+        assertThat(guard.rejectIfSyncManagedType(TENANT, "MENU")).isSameAs(menu);
+        // 类型不存在不在此拦截（存在性由调用方 fail-closed 负责，门禁只按声明判定）
+        assertThat(guard.rejectIfSyncManagedType(TENANT, "GHOST")).isNull();
+    }
+
+    @Test
+    @DisplayName("rejectIfAnySyncManagedByCodes：返回码→类型权威行映射（codex 三轮复评 P1-2 写路径权威化）")
+    void rejectIfAnySyncManagedByCodes_shouldReturnAuthoritativeTypeMap() {
+        TypeDefinition menu = resourceType(2L, "MENU", 1, null);
+        when(typeDefinitionMapper.selectByTypeKeyAndCodes(eq(TENANT), eq("resource_type"),
+                org.mockito.ArgumentMatchers.any())).thenReturn(List.of(menu));
+
+        java.util.Map<String, TypeDefinition> result =
+                guard.rejectIfAnySyncManagedByCodes(TENANT, Set.of("MENU", "GHOST"));
+
+        // 请求码含不存在的 GHOST：映射只含实际查到的类型，缺失码由调用方走存在性错误路径
+        assertThat(result).hasSize(1).containsEntry("MENU", menu);
     }
 
     @Test

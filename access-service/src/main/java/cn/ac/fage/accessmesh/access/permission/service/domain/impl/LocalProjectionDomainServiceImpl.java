@@ -14,13 +14,13 @@ import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import com.mybatisflex.core.util.UpdateEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import com.mybatisflex.core.util.UpdateEntity;
 
 /**
  * 本地权限投影写入。不写 sync_metadata，owner 固定 access-service。

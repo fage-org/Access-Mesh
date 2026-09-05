@@ -949,7 +949,7 @@ Phase 2 后端实现以上 19 个接口后, 必须满足:
 5. **响应壳统一**: 所有接口返回 `PermResult<T>`, 列表不直接返回数组 (由 `PermResultResponseAdvice` 强制); ~~现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`)~~ 已清零（`/org/tree` 已由 T-ADMIN-021 切 `PermResult<ItemsResp<OrgResp>>`；台账见 §5）.
 6. **异常映射**: 业务拒绝抛 `BizException`; 安全拒绝抛 `SecurityException`; 技术故障抛 `SystemException`. 不允许用 `SecurityException` 表达"资源不存在".
 7. **默认树身份目录边界**: `/user/create` (带 orgId), `/user/delete`, `/user/enable`, `/user/reset-password`, `/user-org/set-primary` 必须在 AppService 内做默认树边界二次校验, 失败抛 `BizException`.
-8. **投影所有权**: subject/role/user_role 侧保留业务键（`LOCAL_USER`/`ORG|POSITION`/`SYS_USER_ORG`）不得被外部 sync/full-sync 写入，失败抛 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05）：事实链路四类型 USER/ORG/MENU/ROLE 种子声明 SYNC+access-service，外部同步与管理面资源 CRUD 分别被类型门禁拒绝（20055/20056），原行级 `owner=access-service` 检查已收编删除。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
+8. **投影所有权**: subject/role/user_role 侧保留业务键（`LOCAL_USER`/`ORG|POSITION`/`SYS_USER_ORG`）不得被外部 sync/full-sync 写入，失败抛 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05）：事实链路四类型 USER/ORG/MENU/ROLE 种子声明 SYNC+access-service——外部同步被类型所有权门禁以 `RESOURCE_TYPE_OWNERSHIP_DENIED`（同步拒绝响应）拒绝、管理面资源 CRUD 拒绝 20055、所有权声明变更/类型删除冲突拒绝 20056，原行级 `owner=access-service` 检查已收编删除。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
 
 ---
 

@@ -942,7 +942,7 @@ CREATE INDEX idx_resource_entity_parent ON resource_entity (parent_id) WHERE del
 CREATE INDEX idx_resource_entity_type ON resource_entity (tenant_id, resource_type) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_entity_sync_owner ON resource_entity (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
-COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）。用户/组织等管理对象通过既有资源类型（如 USER/ORG）建模实例级权限（T-ACCESS-018 收敛，原 ADMIN_* 管理类型已并入）；本地投影行 owner_service_code=access-service 按所有权保护（外部 sync mutation 前置拒绝，architecture §4.3）';
+COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）。用户/组织等管理对象通过既有资源类型（如 USER/ORG）建模实例级权限（T-ACCESS-018 收敛，原 ADMIN_* 管理类型已并入）；owner_service_code/maintain_source 仅记录行归属（service-config 声明通道的撞码归属消歧与前端展示），写入门禁不依赖该列——资源边界以 type_definition.extra 类型级所有权声明为准（T-PERM-052，architecture §4.3）';
 COMMENT ON COLUMN resource_entity.parent_id IS '父节点ID';
 COMMENT ON COLUMN resource_entity.resource_type IS '资源类型枚举（type_definition type_value），来自 type_definition；除 MENU/BUTTON/API/DATA 等公共基础类型外，租户可通过 type_definition 扩展管理资源类型（终态注册表见 type_definition 种子与头部终值分配表）';
 COMMENT ON COLUMN resource_entity.code IS '资源编码';

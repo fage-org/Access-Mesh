@@ -344,7 +344,8 @@ class ResourceOperationKeyPgIT {
     void shouldPresetCrudOperationsWhenCreatingResourceTypeOnRealPostgres() {
         TypeDefinitionAppServiceImpl typeService = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, permitAllEngine(), ownershipGuard(),
-            resourceEntityDomainService, mock(TreeWriteLockSupport.class));
+            resourceEntityDomainService, mock(TreeWriteLockSupport.class),
+            mock(cn.ac.fage.accessmesh.common.cache.CacheService.class));
 
         var resp = typeService.createType(TENANT,
             new TypeCreateReq("resource_type", "PGIT28_TYPE", "联调测试类型", null, null, null), 100L);

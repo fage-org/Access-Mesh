@@ -49,6 +49,7 @@ class TypeDefinitionAppServiceImplTest {
     @Mock private cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper serviceConfigMapper;
     @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService;
     @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
+    @Mock private cn.ac.fage.accessmesh.common.cache.CacheService cacheService;
 
     private TypeDefinitionAppServiceImpl service;
 
@@ -61,7 +62,7 @@ class TypeDefinitionAppServiceImplTest {
                 new com.fasterxml.jackson.databind.ObjectMapper());
         service = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, engine, ownershipGuard,
-            resourceEntityDomainService, treeWriteLockSupport
+            resourceEntityDomainService, treeWriteLockSupport, cacheService
         );
         // list/count 走 OperatorContext（读 AccessRequestContext），绑定用户上下文
         AccessRequestContext.bind(RequestContext.user(1L, 100L));
@@ -491,6 +492,66 @@ class TypeDefinitionAppServiceImplTest {
     }
 
     @Test
+    void shouldPinSystemTypeDeclarationButAllowUnchangedResubmissionAndFieldEdits() {
+        // codex 三轮复评 P2-2：钉死只拒「有效声明变更」——同声明重复提交与仅改非声明字段必须放行
+        // （isSystem 判定若误移到相等比较之前，系统类型正常编辑被 20056 阻断而本组拒绝用例仍绿）
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        TypeDefinition user = new TypeDefinition();
+        user.setId(9L);
+        user.setTenantId(1L);
+        user.setTypeKey("resource_type");
+        user.setTypeCode("USER");
+        user.setTypeValue(6);
+        user.setIsSystem(true);
+        user.setExtra("{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\"}");
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(user);
+
+        // 同声明重复提交（仅附加无关键）+ 仅改名称（extra=null 维持原声明）
+        service.updateType(1L, new TypeUpdateReq(9L, null, null, null,
+            "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\",\"k\":1}"), 100L);
+        service.updateType(1L, new TypeUpdateReq(9L, "用户类型改名", null, null, null), 100L);
+
+        verify(typeDefinitionMapper, org.mockito.Mockito.times(2)).update(any(TypeDefinition.class));
+        // 声明未变：不触发行数查询
+        verify(resourceEntityDomainService, never()).hasValidRowsOfType(anyLong(), any());
+    }
+
+    @Test
+    void shouldLockTreeWritesForResourceTypeCreate() {
+        // codex 三轮复评 P1-1：resource_type 类型创建与资源写入口共持树写锁（锁先于首次类型读取；
+        // 管理面门禁对「类型不存在」放行，创建类型不持锁时在途资源插入可落进并发新建的 SYNC 类型）；
+        // 非 resource_type 类型创建不持锁
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(5);
+
+        service.createType(1L, new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null, null), 100L);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, typeDefinitionMapper);
+        order.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        order.verify(typeDefinitionMapper).selectMaxTypeValueAllRows(1L, "resource_type");
+
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "role_type")).thenReturn(2);
+        org.mockito.Mockito.clearInvocations(treeWriteLockSupport);
+        service.createType(1L, new TypeCreateReq("role_type", "TEAM_ROLE", "团队角色类型", null, null, null), 100L);
+        verify(treeWriteLockSupport, never()).lockTreeWrites(anyLong(), any());
+    }
+
+    @Test
+    void shouldEvictTypeResolutionCachesAfterCreate() {
+        // codex 三轮复评 P1-2：新建类型提交后失效双向解析缓存键——删建同码不同值时旧映射不得残留
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "role_type")).thenReturn(2);
+
+        service.createType(1L, new TypeCreateReq("role_type", "TEAM_ROLE", "团队角色类型", null, null, null), 100L);
+
+        verify(cacheService).evictAfterCommit(
+            cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.TYPE_VALUE, 1L, "role_type:TEAM_ROLE");
+        verify(cacheService).evictAfterCommit(
+            cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.TYPE_CODE, 1L, "role_type:3");
+    }
+
+    @Test
     void shouldRejectDeclarationChangeForSystemTypeEvenWithoutRows() {
         // codex 二轮复评 P1-1 定案：系统预置类型所有权声明钉死——空 USER 类型翻成 MANAGED 后
         // 事实链路照旧投影写入即双 writer（顺序性破坏）；旧实现零行时放行
@@ -607,6 +668,11 @@ class TypeDefinitionAppServiceImplTest {
         service.deleteTypesByIds(1L, java.util.List.of(9L), 100L);
 
         verify(typeDefinitionMapper).softDeleteBatch(eq(1L), any(), any());
+        // codex 三轮复评 P1-2：被删类型提交后失效双向解析缓存键（TYPE_VALUE code 键 + TYPE_CODE value 键）
+        verify(cacheService).evictAfterCommit(
+            cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.TYPE_VALUE, 1L, "resource_type:HR_ORG");
+        verify(cacheService).evictAfterCommit(
+            cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.TYPE_CODE, 1L, "resource_type:5");
     }
 
     @Test

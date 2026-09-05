@@ -17,7 +17,9 @@ import org.springframework.stereotype.Component;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 资源类型级所有权守卫（T-PERM-052 定案 2026-09-05：类型级所有权取代行级判定）。
@@ -306,26 +308,38 @@ public class ResourceTypeOwnershipGuard {
 
     /**
      * 管理面写入口守卫（create/update/move 单类型）：类型声明 SYNC 时拒绝（20055）。
-     * 类型不存在不在此拦截（由既有类型解析/存在性校验负责）。
+     * 类型不存在不在此拦截（由调用方存在性校验负责）。
+     * <p>
+     * codex 三轮复评 P1-2（写路径权威化）：门禁本身即库内直查 type_definition，通过时返回
+     * 类型权威行供 create 直接消费 typeValue——写路径不再经 TYPE_VALUE 类型缓存（10s L2 且
+     * 历史上删除类型无失效，陈旧缓存会产出引用已删类型值的孤儿资源行）。
+     *
+     * @return 类型权威行；类型不存在返回 {@code null}
      */
-    public void rejectIfSyncManagedType(Long tenantId, String resourceTypeCode) {
-        Ownership ownership = resolveTypeOwnership(tenantId, resourceTypeCode);
-        rejectIfSyncOwned(ownership, resourceTypeCode);
+    public TypeDefinition rejectIfSyncManagedType(Long tenantId, String resourceTypeCode) {
+        TypeDefinition td = typeDefinitionMapper.selectByTypeKeyAndCode(
+                tenantId, TYPE_KEY_RESOURCE, resourceTypeCode);
+        if (td != null) {
+            rejectIfSyncOwned(parseOwnership(td.getExtra()), td.getTypeCode());
+        }
+        return td;
     }
 
     /**
      * 管理面写入口守卫（batch-create 按类型码集合一次批量查询，N+1 禁令）：
-     * 任一类型声明 SYNC 时拒绝（20055）。
+     * 任一类型声明 SYNC 时拒绝（20055）。返回码→类型权威行映射供批量创建直接消费
+     * typeValue（同 {@link #rejectIfSyncManagedType} 写路径权威化口径）。
      */
-    public void rejectIfAnySyncManagedByCodes(Long tenantId, Collection<String> resourceTypeCodes) {
+    public Map<String, TypeDefinition> rejectIfAnySyncManagedByCodes(Long tenantId, Collection<String> resourceTypeCodes) {
         if (resourceTypeCodes == null || resourceTypeCodes.isEmpty()) {
-            return;
+            return Map.of();
         }
         List<TypeDefinition> types = typeDefinitionMapper.selectByTypeKeyAndCodes(
                 tenantId, TYPE_KEY_RESOURCE, new LinkedHashSet<>(resourceTypeCodes));
         for (TypeDefinition td : types) {
             rejectIfSyncOwned(parseOwnership(td.getExtra()), td.getTypeCode());
         }
+        return types.stream().collect(Collectors.toMap(TypeDefinition::getTypeCode, td -> td));
     }
 
     /**

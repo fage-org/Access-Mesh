@@ -135,8 +135,9 @@ class ResourceManageAppServiceImplTest {
     void shouldNormalizeCodeTypeOnCreate() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
             isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
-        // API 为非保留类型（USER/ORG/MENU/ROLE 保留给管理事实链路，create 被 guard 拒绝）
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(3);
+        // API 为非保留类型（USER/ORG/MENU/ROLE 保留给管理事实链路，create 被 guard 拒绝）；
+        // codex 三轮复评 P1-2：create 消费门禁返回的权威类型行（不再经 TYPE_VALUE 类型缓存）
+        when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "API")).thenReturn(apiType());
 
         // 带空白 codeType：落库前 trim，否则该行无法经业务键（归一 trim）寻址
         service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
@@ -344,22 +345,27 @@ class ResourceManageAppServiceImplTest {
     }
 
     @Test
-    @DisplayName("create/batch-create 与声明变更互斥：树写锁先于所有权门禁与落库（codex 二轮复评 P1-2 回归锁，旧实现无锁下失败）")
+    @DisplayName("create/batch-create 与声明变更互斥：权限→树写锁→所有权门禁→落库（codex 二轮复评 P1-2 + 三轮 P2-1 回归锁）")
     void createResources_shouldLockTreeWritesBeforeOwnershipGate() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
             isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
-        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(3);
+        when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "API")).thenReturn(apiType());
 
         service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
             null, null, null, null, null, "API", "res-lock", null, "资源锁序", null, null, null, null), 100L);
 
+        // codex 三轮复评 P2-1：engine 入序（钉「权限在锁前」）；旧实现无锁/门禁在锁前时失败
         org.mockito.InOrder createOrder = org.mockito.Mockito.inOrder(
-            treeWriteLockSupport, resourceTypeOwnershipGuard, resourceEntityMapper);
+            engine, treeWriteLockSupport, resourceTypeOwnershipGuard, resourceEntityMapper);
+        createOrder.verify(engine).hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCodeConstants.CREATE));
         createOrder.verify(treeWriteLockSupport).lockTreeWrites(1L,
             cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         createOrder.verify(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, "API");
         createOrder.verify(resourceEntityMapper).insert(any(ResourceEntity.class));
 
+        // codex 三轮复评 P2-1：批量段前清调用记录——旧断言可被单创建段的锁满足（假阳性）
+        org.mockito.Mockito.clearInvocations(treeWriteLockSupport, resourceTypeOwnershipGuard, resourceEntityMapper);
         // batch-create 同口径（拒绝路径足以钉锁序：锁 → 批量门禁）
         org.mockito.Mockito.doThrow(new cn.ac.fage.accessmesh.common.exception.BizException(20055,
                 "资源由外部来源维护: resourceTypeCode=API"))
@@ -372,6 +378,40 @@ class ResourceManageAppServiceImplTest {
         batchOrder.verify(treeWriteLockSupport).lockTreeWrites(1L,
             cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         batchOrder.verify(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("API"));
+    }
+
+    @Test
+    @DisplayName("create 类型不存在 → fail-closed 20021（写路径权威化：类型缓存陈旧也不落库，codex 三轮复评 P1-2 回归锁）")
+    void shouldRejectCreateWhenTypeMissingEvenIfStaleCacheResolves() {
+        // 场景：类型已删但 TYPE_VALUE 缓存（10s L2）仍返回旧值——门禁库内直查 null 必须当场拒绝；
+        // 旧实现（resolveTypeValue 兜底）下会以陈旧值 35 落库，产出引用不到有效 type_definition 的孤儿行
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "GHOST")).thenReturn(null);
+        // lenient：新实现不消费类型缓存（该桩仅用于证明「陈旧缓存存在时旧实现会落库」——回归锁语义）
+        org.mockito.Mockito.lenient().when(typeResolutionService.resolveTypeValue(1L, "resource_type", "GHOST")).thenReturn(35);
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+                null, null, null, null, null, "GHOST", "res-ghost", null, "幽灵类型", null, null, null, null), 100L));
+        assertEquals(20021, ex.getErrorCode());
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
+        verify(typeResolutionService, org.mockito.Mockito.never())
+            .resolveTypeValue(anyLong(),
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+    }
+
+    /** API 类型权威行（value=3，门禁返回值消费用） */
+    private static cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition apiType() {
+        cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition td =
+            new cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition();
+        td.setId(99L);
+        td.setTenantId(1L);
+        td.setTypeKey("resource_type");
+        td.setTypeCode("API");
+        td.setTypeValue(3);
+        return td;
     }
 
     @Test

@@ -86,7 +86,7 @@ last_reviewed: 2026-08-28
 | gateway         | access-service | HTTP (转发)    | `/admin/**`、`/perm/**`（合并路由，StripPrefix=1）、`/auth/**`（StripPrefix=0）登录与管理接口转发 |
 | gateway         | access-service | HTTP (负载均衡 WebClient) | 快照鉴权：`POST /api/perm/auth/interface-snapshot` 拉取全量接口权限快照；未覆盖场景回退 `check-interface` 实时鉴权 |
 | gateway         | example-service | HTTP (转发)   | 演示服务接口转发                                                                             |
-| example-service | access-service | HTTP（内部同步通道，运维期） | 接口资源注册：`POST /api/perm/resource-entity/sync`（X-Internal-Secret + X-Service-Code 身份）。运行期业务调用为零——接口级鉴权由 Gateway 承担（T-API-001：example 已删 perm-client/openfeign，无 Feign 鉴权查询） |
+| example-service | access-service | HTTP（经 Gateway 管理面，运维期） | 接口资源注册：管理员经 `POST /api/perm/service-config/sync`（FULL 接口声明）一步创建 API 资源与映射（T-API-001 E2E 钉死；原 resource-entity/sync 直连通道已随 T-PERM-052 类型级所有权退役——API 类型恒 MANAGED，同步入口一律拒绝）。运行期业务调用为零——接口级鉴权由 Gateway 承担（T-API-001：example 已删 perm-client/openfeign，无 Feign 鉴权查询） |
 
 ### 1.5 管理端前后端交互原则
 
@@ -319,7 +319,7 @@ admin 域管理事实（`sys_user`/`sys_org`/`sys_menu`）与 permission 域权�
 
 | 模块               | 说明                                                                                          | 档位       |
 | ------------------ | --------------------------------------------------------------------------------------------- | ---------- |
-| 服务注册与接口同步 | 业务服务经 `/api/perm/resource-entity/sync` 内部同步通道注册 API 资源（运维期，X-Internal-Secret + X-Service-Code） | 当前可用   |
+| 服务注册与接口同步 | 接口声明经 `/api/perm/service-config/sync`（FULL）注册 API 资源与映射（管理员经 Gateway 运维期操作；原 resource-entity/sync 通道已随 T-PERM-052 类型级所有权退役） | 当前可用   |
 | 接口权限演示       | 单受保护接口 `POST /api/example/demo/hello` 经 Gateway 快照鉴权 + 身份回显 + HMAC 签名校验演示 | 当前可用   |
 | 菜单/按钮权限演示  | 前端动态菜单与按钮级权限控制                                                                  | 已规划     |
 | 报表范围权限演示   | `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeMode=ALL`                                        | 已规划     |

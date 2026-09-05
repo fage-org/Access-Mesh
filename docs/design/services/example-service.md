@@ -21,7 +21,7 @@ last_reviewed: 2026-08-28
 
 - `POST /api/example/demo/hello`（身份回显接口）：入参 `{name}`，返回问候语 + Gateway `HeaderEnrichFilter` 注入的 `X-User-Id`/`X-Tenant-Id` 回显；`name` 空白拒绝 30001、身份头缺失拒绝 30002（example 业务域错误码段 30001-39999，`ExampleErrorCode`）。
 - 接口级鉴权完全由 Gateway 承担（规范 §2.4 服务内不重复鉴权）：Gateway `/example/**` 路由（StripPrefix=1、`serviceCode=example-service`）按接口快照放行/拒绝；业务服务不引入 perm-client/perm-data，无服务内二次鉴权。
-- 接入路径（E2E `ExampleProtectedApiE2EIT` 钉死）：业务服务经 `/api/perm/resource-entity/sync`（X-Internal-Secret + X-Service-Code 身份、service_config `syncTypes` 白名单）注册 API 资源 → 管理员创建 `resource_api_mapping`（外部路径 `/example/api/example/demo/hello`）→ 授予角色 `API:ACCESS` → 403 变 200。
+- 接入路径（E2E `ExampleProtectedApiE2EIT` 钉死；2026-09-05 T-PERM-052 后迁移）：管理员经 Gateway 调 `/api/perm/service-config/sync`（FULL 接口声明）一步创建 API 资源与 `resource_api_mapping`（owner=example-service、maintainSource=SERVICE_SYNC、pathPattern=basePath+path=外部路径 `/example/api/example/demo/hello`）→ 授予角色 `API:ACCESS` → 403 变 200。原三段链路（resource-entity/sync 直连 + `syncTypes` 白名单 + 手工建映射）已随 T-PERM-052 类型级所有权退役（API 类型恒 MANAGED，同步入口一律 RESOURCE_TYPE_OWNERSHIP_DENIED）。
 - 依赖瘦身：POM 删除 perm-client、perm-data、openfeign、MyBatis-Flex、PostgreSQL、Redis、MapStruct、JSqlParser（均无消费方）；保留 common（统一响应体/全局异常处理器）、web、validation、nacos、log4j2。无数据源、无缓存消费（`accessmesh.cache.enabled=false`）。
 - 菜单/按钮/范围/条件权限等其余演示场景仍为规划（见上表），随核心主线后续任务补齐。
 - 错误码子段约定：30001-30099 为演示接口（demo）相关错误（`ExampleErrorCode` 代码注释为登记处），30001+ 段位分配随新资源扩展时在代码枚举中登记。

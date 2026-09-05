@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeUpdateReq;
@@ -46,6 +48,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final TreeWriteLockSupport treeWriteLockSupport;
+    private final CacheService cacheService;
 
     /**
      * 构造函数注入依赖
@@ -53,20 +56,24 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * @param typeDefinitionMapper      类型定义数据访问层
      * @param operationPermissionMapper 操作权限数据访问层（resource_type 联动预置写入，T-PERM-028）
      * @param engine                    权限查询引擎
+     * @param resourceEntityDomainService 资源实体域服务（行数守卫查询）
      * @param resourceTypeOwnershipGuard 资源类型所有权守卫（extra.managedMode 声明校验与变更守卫，T-PERM-052）
+     * @param cacheService              统一缓存入口（类型解析缓存提交后失效，codex 三轮复评 P1-2）
      */
     public TypeDefinitionAppServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                          OperationPermissionMapper operationPermissionMapper,
                                          PermQueryEngine engine,
                                          ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                          ResourceEntityDomainService resourceEntityDomainService,
-                                         TreeWriteLockSupport treeWriteLockSupport) {
+                                         TreeWriteLockSupport treeWriteLockSupport,
+                                         CacheService cacheService) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.engine = engine;
         this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.treeWriteLockSupport = treeWriteLockSupport;
+        this.cacheService = cacheService;
     }
 
     /**
@@ -93,6 +100,14 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on TYPE_DEFINITION");
+        }
+
+        // codex 三轮复评 P1-1：resource_type 类型创建与资源写入口共持 (resource_entity, 租户) 树写锁
+        // （锁先于首次类型读取）——createResource/batchCreate 的所有权门禁对「类型不存在」放行
+        // （由存在性校验兜底），创建类型入口不持锁时「门禁放行→并发建 SYNC 类型→资源插入落库」
+        // 交错破坏单一所有权；同锁亦顺带封闭并发同码建类型的查重窗口
+        if ("resource_type".equals(req.typeKey())) {
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         }
 
         // typeValue 自动分配：全量行（含软删行）max+1，软删不复用（T-PERM-023，收敛 T-PERM-019 D1）
@@ -157,7 +172,23 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         if ("resource_type".equals(req.typeKey())) {
             insertPresetOperations(tenantId, typeValue, operatorId, now);
         }
+        // codex 三轮复评 P1-2：新建类型提交后失效双向解析缓存键（删建同码不同值时旧 code→value
+        // 与新值反向键都不得残留）
+        evictTypeResolutionCachesAfterCommit(tenantId, req.typeKey(), typeCode, typeValue);
         return toTypeResp(type);
+    }
+
+    /**
+     * 类型解析缓存双向失效（codex 三轮复评 P1-2）：TYPE_VALUE（code→value）与 TYPE_CODE
+     * （value→code）均 10s L2 且 null 不缓存——类型创建/删除提交后失效对应键，防「删类型→
+     * 10s 内解析命中陈旧缓存」把已删类型值继续喂给消费方（管理面创建已同步改为门禁权威值，
+     * 此处失效保护其余全部解析消费方）。updateType 不涉及（typeCode/typeValue 不可变）。
+     */
+    private void evictTypeResolutionCachesAfterCommit(Long tenantId, String typeKey, String typeCode, Integer typeValue) {
+        cacheService.evictAfterCommit(PermCacheCatalog.TYPE_VALUE, tenantId, typeKey + ":" + typeCode);
+        if (typeValue != null) {
+            cacheService.evictAfterCommit(PermCacheCatalog.TYPE_CODE, tenantId, typeKey + ":" + typeValue);
+        }
     }
 
     /**
@@ -448,6 +479,13 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
         LocalDateTime now = LocalDateTime.now();
         typeDefinitionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
+        // codex 三轮复评 P1-2：被删类型提交后失效双向解析缓存键（同码重建新值前，旧映射不得残留）
+        for (TypeDefinition deleted : entities) {
+            if (validIds.contains(deleted.getId())) {
+                evictTypeResolutionCachesAfterCommit(tenantId, deleted.getTypeKey(),
+                        deleted.getTypeCode(), deleted.getTypeValue());
+            }
+        }
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " type_definition row(s)");
     }
 

@@ -39,6 +39,8 @@ import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 
 import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
 
+import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;
+
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceType;
 
@@ -185,19 +187,21 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         // 零行放行）→插入落库」，手工行写入 SYNC 类型/已删类型
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         // T-PERM-052：SYNC 类型管理面只读（20055）——事实链路四类型（USER/ORG/MENU/ROLE）种子声明
-        // SYNC+access-service，原类型保留清单已收编进本门禁（2026-09-05 内部来源统一）
-        resourceTypeOwnershipGuard.rejectIfSyncManagedType(tenantId, req.resourceTypeCode());
+        // SYNC+access-service，原类型保留清单已收编进本门禁（2026-09-05 内部来源统一）。
+        // codex 三轮复评 P1-2（写路径权威化）：门禁为库内直查，返回类型权威行——typeValue 直接
+        // 消费该结果、类型不存在当场 fail-closed，不再经 TYPE_VALUE 类型缓存（删除类型无失效时
+        // 陈旧缓存会产出引用已删类型值的孤儿行）
+        TypeDefinition ownedType = resourceTypeOwnershipGuard.rejectIfSyncManagedType(tenantId, req.resourceTypeCode());
+        if (ownedType == null) {
+            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的resourceTypeCode: " + req.resourceTypeCode());
+        }
 
         Long parentId = resolveParentId(tenantId, req);
 
         ResourceEntity entity = new ResourceEntity();
         entity.setTenantId(tenantId);
         entity.setParentId(parentId);
-        Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
-        if (resourceType == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的resourceTypeCode: " + req.resourceTypeCode());
-        }
-        entity.setResourceType(resourceType);
+        entity.setResourceType(ownedType.getTypeValue());
         entity.setCode(req.code());
         entity.setCodeType(normalizedCodeType(req.codeType()));
         entity.setName(req.name());
@@ -233,8 +237,11 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         }
         // codex 二轮复评 P1-2：同 createResource——批量创建与声明变更/删除互斥，锁先于批量门禁
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
-        // T-PERM-052：SYNC 类型管理面只读（含事实链路四类型；类型码去重后一次批量判定，20055）
-        resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(tenantId,
+        // T-PERM-052：SYNC 类型管理面只读（含事实链路四类型；类型码去重后一次批量判定，20055）。
+        // codex 三轮复评 P1-2：批量门禁同样返回码→类型权威行——typeValue 直接消费（不经
+        // TYPE_VALUE 类型缓存），类型码缺失走既有逐项错误路径
+        Map<String, TypeDefinition> ownedTypeMap = resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(
+            tenantId,
             reqs.stream()
                 .map(ResourceCreateReq::resourceTypeCode)
                 .filter(c -> c != null && !c.isBlank())
@@ -257,12 +264,6 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             .map(this::toParentResolveRequest)
             .collect(Collectors.toList());
         Map<ResourceResolveKey, Long> parentIdByKey = typeResolutionService.batchResolveResourceIds(tenantId, parentResolveRequests);
-
-        Set<String> typeCodes = reqs.stream()
-            .map(ResourceCreateReq::resourceTypeCode)
-            .filter(c -> c != null && !c.isBlank())
-            .collect(Collectors.toSet());
-        Map<String, Integer> typeValueMap = typeResolutionService.batchResolveTypeValues(tenantId, "resource_type", typeCodes);
 
         LocalDateTime now = LocalDateTime.now();
         List<ResourceEntity> toInsert = new ArrayList<>();
@@ -293,7 +294,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 continue;
             }
 
-            Integer resourceType = typeValueMap.get(req.resourceTypeCode());
+            TypeDefinition ownedType = ownedTypeMap.get(req.resourceTypeCode());
+            Integer resourceType = ownedType != null ? ownedType.getTypeValue() : null;
             if (resourceType == null) {
                 errors.add("req[" + i + "]: 未知的resourceTypeCode: " + req.resourceTypeCode());
                 continue;

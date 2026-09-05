@@ -33,6 +33,7 @@ import cn.ac.fage.accessmesh.access.permission.util.TreeBuilder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.mybatisflex.core.util.UpdateEntity;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -46,7 +47,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
-import com.mybatisflex.core.util.UpdateEntity;
 
 /**
  * 角色管理服务实现类
@@ -302,7 +302,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         // （flex 语义），旧实现事实侧 parent 残留旧值，而投影侧（upsertRoleResource）已显式清列，
         // 造成角色树挂旧父/资源树到根的分叉（UpdateEntity 先例：moveResource/投影 upsertResource）
         if (parentId == null) {
-            AbstractRole patch = com.mybatisflex.core.util.UpdateEntity.of(AbstractRole.class);
+            AbstractRole patch = UpdateEntity.of(AbstractRole.class);
             patch.setId(role.getId());
             patch.setParentId(null);
             patch.setUpdatedBy(role.getUpdatedBy());
