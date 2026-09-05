@@ -90,6 +90,8 @@ class FullSyncN1GuardTest {
     private HttpServletRequest httpRequest;
     @Mock
     private cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard syncTypeGuard;
+    @Mock
+    private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -104,6 +106,11 @@ class FullSyncN1GuardTest {
         // 公共 stub：类型白名单放行（本测试聚焦 N+1 批量化，不测白名单）
         lenient().when(syncTypeGuard.validate(anyLong(), anyString(), any()))
                 .thenReturn(true);
+        // T-PERM-052：resource-entity 通道类型门禁默认放行（SYNC 且归当前来源）
+        lenient().when(resourceTypeOwnershipGuard.resolveTypeOwnership(anyLong(), anyString()))
+                .thenReturn(new cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.Ownership(
+                        cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.MODE_SYNC,
+                        SOURCE_SERVICE));
     }
 
     @Test
@@ -181,7 +188,7 @@ class FullSyncN1GuardTest {
         ResourceEntitySyncAppServiceImpl service = new ResourceEntitySyncAppServiceImpl(
                 syncMetadataDomainService, syncMetadataMapper, typeResolutionService,
                 resourceEntityMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), resourceTypeOwnershipGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
 

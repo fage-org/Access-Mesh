@@ -29,7 +29,7 @@ class SyncTypeGuardTest {
     private static final String SERVICE = "hr-service";
     private static final String DECLARED =
             "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"roleTypeCodes\": [\"TEAM_ROLE\"],"
-                    + " \"resourceTypeCodes\": [\"HR_ORG\"], \"sourceTypes\": [\"HR_MEMBER\"]}}";
+                    + " \"sourceTypes\": [\"HR_MEMBER\"]}}";
 
     @Mock
     private ServiceConfigMapper serviceConfigMapper;
@@ -112,7 +112,6 @@ class SyncTypeGuardTest {
                 .thenReturn(config("{\"syncTypes\": {\"roleTypeCodes\": [\"TEAM_ROLE\"]}}", 1, 0L));
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isFalse();
-        assertThat(guard.validate(TENANT, SERVICE, SyncTypes.resource("HR_ORG"))).isFalse();
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.role("TEAM_ROLE"))).isTrue();
     }
 
@@ -124,7 +123,6 @@ class SyncTypeGuardTest {
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isTrue();
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.role("TEAM_ROLE"))).isTrue();
-        assertThat(guard.validate(TENANT, SERVICE, SyncTypes.resource("HR_ORG"))).isTrue();
         assertThat(guard.validate(TENANT, SERVICE,
                 SyncTypes.userRole(java.util.Set.of("EMP"), java.util.Set.of("TEAM_ROLE"),
                         java.util.Set.of("HR_MEMBER")))).isTrue();
@@ -137,7 +135,6 @@ class SyncTypeGuardTest {
                 .thenReturn(config(DECLARED, 1, 0L));
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("PROJ_USER"))).isFalse();
-        assertThat(guard.validate(TENANT, SERVICE, SyncTypes.resource("PROJ_ORG"))).isFalse();
     }
 
     @Test
@@ -210,7 +207,16 @@ class SyncTypeGuardTest {
     void validateExtra_shouldAccept_whenWellFormed() {
         org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> guard.validateSyncTypesExtra(
                 "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"roleTypeCodes\": [\"TEAM_ROLE\"],"
-                        + " \"resourceTypeCodes\": [\"HR_ORG\"], \"sourceTypes\": [\"HR_MEMBER\"]}}"));
+                        + " \"sourceTypes\": [\"HR_MEMBER\"]}}"));
+    }
+
+    @Test
+    @DisplayName("保存校验：resourceTypeCodes 已随 T-PERM-052 退役 → 保存拒绝（防旧结构配置误导）")
+    void validateExtra_shouldReject_retiredResourceDimension() {
+        org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> guard.validateSyncTypesExtra(
+                        "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"],"
+                                + " \"resourceTypeCodes\": [\"HR_ORG\"]}}"));
     }
 
     @Test

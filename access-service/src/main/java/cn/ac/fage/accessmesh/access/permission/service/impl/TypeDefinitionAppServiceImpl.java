@@ -14,6 +14,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.TypeDefinitionAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
+import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
@@ -40,6 +41,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final TypeDefinitionMapper typeDefinitionMapper;
     private final OperationPermissionMapper operationPermissionMapper;
     private final PermQueryEngine engine;
+    private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
 
     /**
      * 构造函数注入依赖
@@ -47,13 +49,16 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * @param typeDefinitionMapper      类型定义数据访问层
      * @param operationPermissionMapper 操作权限数据访问层（resource_type 联动预置写入，T-PERM-028）
      * @param engine                    权限查询引擎
+     * @param resourceTypeOwnershipGuard 资源类型所有权守卫（extra.managedMode 声明校验与变更守卫，T-PERM-052）
      */
     public TypeDefinitionAppServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                          OperationPermissionMapper operationPermissionMapper,
-                                         PermQueryEngine engine) {
+                                         PermQueryEngine engine,
+                                         ResourceTypeOwnershipGuard resourceTypeOwnershipGuard) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.engine = engine;
+        this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
     }
 
     /**
@@ -95,6 +100,15 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 throw new BizException(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
                     "Type code already exists: " + typeCode);
             }
+        }
+
+        // T-PERM-052：extra 所有权声明结构校验（managedMode/syncSourceService 仅 resource_type、
+        // 值域与来源引用校验；对齐 SyncTypeGuard.validateSyncTypesExtra 的保存边界先例）
+        try {
+            resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, req.typeKey(), req.extra());
+        } catch (IllegalArgumentException e) {
+            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+                PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());
         }
 
         TypeDefinition type = new TypeDefinition();
@@ -308,6 +322,16 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
         if (type == null) throw new BizException(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
+        // T-PERM-052：extra 所有权声明结构校验 + 有效值变更守卫（类型下存在有效资源行时
+        // managedMode/syncSourceService 不得变更，含删键隐式切回 MANAGED；20056）
+        try {
+            resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, type.getTypeKey(), req.extra());
+        } catch (IllegalArgumentException e) {
+            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+                PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());
+        }
+        resourceTypeOwnershipGuard.rejectIfDeclarationChangeBlocked(
+                tenantId, type, req.extra() != null ? req.extra() : type.getExtra());
         if (req.name() != null) type.setName(req.name());
         if (req.description() != null) type.setDescription(req.description());
         if (req.sortOrder() != null) type.setSortOrder(req.sortOrder());

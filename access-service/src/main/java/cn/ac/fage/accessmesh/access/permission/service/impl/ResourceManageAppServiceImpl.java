@@ -52,6 +52,7 @@ import cn.ac.fage.accessmesh.access.permission.service.ResourceManageAppService;
 
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
 
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 
@@ -124,6 +125,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     private final RoleResourcePermissionMapper rolePermMapper;
     private final LocalProjectionGuard localProjectionGuard;
+    private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     private final TreeWriteLockSupport treeWriteLockSupport;
 
     /**
@@ -136,6 +138,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
      * @param domainClassifyService       域分类服务
      * @param engine                      权限查询引擎
      * @param rolePermMapper              角色资源权限数据访问层
+     * @param resourceTypeOwnershipGuard  资源类型所有权守卫（SYNC 类型管理面只读，T-PERM-052）
      */
     public ResourceManageAppServiceImpl(ResourceEntityMapper resourceEntityMapper,
                                      ResourceApiMappingMapper apiMappingMapper,
@@ -145,6 +148,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                                      PermQueryEngine engine,
                                      RoleResourcePermissionMapper rolePermMapper,
                                      LocalProjectionGuard localProjectionGuard,
+                                     ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                      TreeWriteLockSupport treeWriteLockSupport) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
@@ -154,6 +158,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         this.engine = engine;
         this.rolePermMapper = rolePermMapper;
         this.localProjectionGuard = localProjectionGuard;
+        this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
@@ -180,6 +185,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             throw new SecurityException("无创建资源的权限");
         }
         localProjectionGuard.rejectReservedResourceType(req.resourceTypeCode());
+        // T-PERM-052：SYNC 类型（extra.managedMode=SYNC，外部来源声明所有）管理面只读，20055
+        resourceTypeOwnershipGuard.rejectIfSyncManagedType(tenantId, req.resourceTypeCode());
 
         Long parentId = resolveParentId(tenantId, req);
 
@@ -227,6 +234,12 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         for (ResourceCreateReq req : reqs) {
             localProjectionGuard.rejectReservedResourceType(req.resourceTypeCode());
         }
+        // T-PERM-052：SYNC 类型管理面只读（类型码去重后一次批量判定，20055）
+        resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(tenantId,
+            reqs.stream()
+                .map(ResourceCreateReq::resourceTypeCode)
+                .filter(c -> c != null && !c.isBlank())
+                .collect(Collectors.toSet()));
 
         Set<Long> allParentIds = reqs.stream()
             .filter(req -> !hasParentBusinessKey(req))
@@ -372,6 +385,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         ResourceEntity entity = selectResourceByBusinessKey(tenantId,
             new ResourceKeyReq(req.resourceTypeCode(), req.code(), req.codeType()));
         localProjectionGuard.rejectIfLocalResource(entity);
+        // T-PERM-052：SYNC 类型管理面只读（资源事实归声明来源服务维护，20055）
+        resourceTypeOwnershipGuard.rejectIfSyncManagedType(tenantId, req.resourceTypeCode());
 
         // T-PERM-042：资源实体管理链路按 resource_entity.id 门禁（entityId 轨，§12.3 边界）
         if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, entity.getId(), OperationCodeConstants.MANAGE)) {
@@ -417,6 +432,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         ResourceEntity entity = selectResourceByBusinessKey(tenantId, req.resource());
         localProjectionGuard.rejectIfLocalResource(entity);
+        // T-PERM-052：SYNC 类型管理面只读（树位置归声明来源服务维护，20055）
+        resourceTypeOwnershipGuard.rejectIfSyncManagedType(tenantId, req.resource().resourceTypeCode());
 
         // T-PERM-042：资源实体管理链路按 resource_entity.id 门禁（entityId 轨，§12.3 边界）
         if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, entity.getId(), OperationCodeConstants.MANAGE)) {
@@ -499,6 +516,15 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         for (List<Long> descendants : descendantsMap.values()) {
             allIdsToDelete.addAll(descendants);
         }
+
+        // T-PERM-052：SYNC 类型级联守卫——对删除全集（含展开的后代，非仅请求根集合）判定：
+        // sync 通道允许跨类型父子边，MANAGED 根的子树可能含 SYNC 类型后代，只判根集合会连带
+        // 清掉外部来源维护的子树（一次批量取实体收集类型值，20055）
+        Set<Integer> allTypeValues = resourceEntityDomainService
+            .batchSelectByIdsMap(tenantId, allIdsToDelete).values().stream()
+            .map(ResourceEntity::getResourceType)
+            .collect(Collectors.toSet());
+        resourceTypeOwnershipGuard.rejectIfAnySyncManagedByValues(tenantId, allTypeValues);
 
         // T-PERM-018 (C9)：软删 perm 前登记受影响范围。资源软删会级联软删 role_resource_permission，
         // ROLE_PERM_SNAPSHOT 缓存含旧 perm → 软删前查受影响 roleIds + serviceCodes 双重登记，afterCommit AOP 失效与广播

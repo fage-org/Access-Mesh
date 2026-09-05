@@ -132,6 +132,13 @@ class ServiceConfigCascadePgIT {
     private DomainClassifyService domainClassifyService;
     @Autowired
     private RoleResourcePermissionMapper rolePermMapper;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper typeDefinitionMapper;
+
+    private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard ownershipGuard() {
+        return new cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard(
+                typeDefinitionMapper, serviceConfigMapper, resourceEntityDomainService, new com.fasterxml.jackson.databind.ObjectMapper());
+    }
 
     private PermQueryEngine permitAllEngine() {
         PermQueryEngine engine = mock(PermQueryEngine.class);
@@ -151,7 +158,7 @@ class ServiceConfigCascadePgIT {
     private ResourceManageAppService newResourceManageAppService(PermQueryEngine engine) {
         return new ResourceManageAppServiceImpl(resourceEntityMapper, resourceApiMappingMapper,
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
-            engine, rolePermMapper, new LocalProjectionGuard(),
+            engine, rolePermMapper, new LocalProjectionGuard(), ownershipGuard(),
             mock(TreeWriteLockSupport.class));
     }
 

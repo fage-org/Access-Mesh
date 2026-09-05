@@ -15,9 +15,9 @@ import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.SyncMetadataMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
-import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -60,7 +60,7 @@ class ResourceEntitySyncAppServiceTest {
     @Mock
     private HttpServletRequest httpRequest;
     @Mock
-    private SyncTypeGuard syncTypeGuard;
+    private ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     @Mock
     private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService;
     @Mock
@@ -76,10 +76,14 @@ class ResourceEntitySyncAppServiceTest {
     void setUp() {
         service = new ResourceEntitySyncAppServiceImpl(syncMetadataDomainService, syncMetadataMapper,
                 typeResolutionService, resourceEntityMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
+                resourceTypeOwnershipGuard,
                 resourceEntityDomainService, treeWriteLockSupport);
-        org.mockito.Mockito.lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
-                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
+        // 默认桩：类型声明 SYNC 且归当前来源服务（T-PERM-052 类型级所有权门禁的放行态）；
+        // 拒绝态用例按需覆盖为 MANAGED / 异源
+        lenient().when(resourceTypeOwnershipGuard.resolveTypeOwnership(anyLong(), anyString()))
+                .thenReturn(new ResourceTypeOwnershipGuard.Ownership(
+                        ResourceTypeOwnershipGuard.MODE_SYNC, SOURCE_SERVICE));
     }
 
     private ResourceEntitySyncReq upsertReq() {
@@ -193,6 +197,87 @@ class ResourceEntitySyncAppServiceTest {
         assertThat(resp.accepted()).isFalse();
         assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_SECURITY_DENIED);
         assertThat(resp.reason()).isEqualTo("SOURCE_SERVICE_MISMATCH");
+    }
+
+    // ------------------------------------------------------------------
+    // T-PERM-052（2026-09-05 定案）：类型级所有权门禁取代 syncTypes.resourceTypeCodes
+    // 白名单维度——目标类型必须声明 extra.managedMode=SYNC 且 syncSourceService==调用服务，
+    // 否则 SECURITY_DENIED / RESOURCE_TYPE_OWNERSHIP_DENIED。以下用例在旧实现
+    // （白名单放行后直接写库）下会因 insert/update 实际发生而失败。
+    // ------------------------------------------------------------------
+
+    @Test
+    void shouldReturnSecurityDenied_whenTypeNotSyncManaged() {
+        mockHeaderMatch();
+        // MANAGED 类型（管理面维护/公共基础类型）——外部同步整类拒绝
+        when(resourceTypeOwnershipGuard.resolveTypeOwnership(TENANT_ID, "MENU"))
+                .thenReturn(new ResourceTypeOwnershipGuard.Ownership(
+                        ResourceTypeOwnershipGuard.MODE_MANAGED, null));
+
+        SyncResultResp resp = service.sync(TENANT_ID, upsertReq(), httpRequest);
+
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_SECURITY_DENIED);
+        assertThat(resp.reason()).isEqualTo("RESOURCE_TYPE_OWNERSHIP_DENIED");
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
+        verify(resourceEntityMapper, org.mockito.Mockito.never())
+                .softDeleteBatch(anyLong(), any(), any());
+    }
+
+    @Test
+    void shouldReturnSecurityDenied_whenSourceNotTypeOwner() {
+        mockHeaderMatch();
+        // 类型声明 SYNC 但来源是别的服务——非声明来源不得同步（同类型单来源）
+        when(resourceTypeOwnershipGuard.resolveTypeOwnership(TENANT_ID, "MENU"))
+                .thenReturn(new ResourceTypeOwnershipGuard.Ownership(
+                        ResourceTypeOwnershipGuard.MODE_SYNC, "other-service"));
+
+        SyncResultResp resp = service.sync(TENANT_ID, upsertReq(), httpRequest);
+
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_SECURITY_DENIED);
+        assertThat(resp.reason()).isEqualTo("RESOURCE_TYPE_OWNERSHIP_DENIED");
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
+    }
+
+    @Test
+    void shouldReturnSecurityDenied_whenTypeDeclarationMissing() {
+        mockHeaderMatch();
+        // 类型不存在（声明缺失）fail-closed 一并拒绝
+        when(resourceTypeOwnershipGuard.resolveTypeOwnership(TENANT_ID, "MENU")).thenReturn(null);
+
+        SyncResultResp resp = service.sync(TENANT_ID, upsertReq(), httpRequest);
+
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_SECURITY_DENIED);
+        assertThat(resp.reason()).isEqualTo("RESOURCE_TYPE_OWNERSHIP_DENIED");
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
+    }
+
+    @Test
+    void fullSyncRejectsManagedType_atEntry() {
+        mockHeaderMatch();
+        when(resourceTypeOwnershipGuard.resolveTypeOwnership(TENANT_ID, "MENU"))
+                .thenReturn(new ResourceTypeOwnershipGuard.Ownership(
+                        ResourceTypeOwnershipGuard.MODE_MANAGED, null));
+
+        ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
+                new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
+                java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
+                        null, null, null, null, 1, 0, null, null, null,
+                        new SyncVersionRef(OCCURRED_AT, 1L))));
+
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_SECURITY_DENIED);
+        assertThat(resp.reason()).isEqualTo("RESOURCE_TYPE_OWNERSHIP_DENIED");
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
+        verify(resourceEntityMapper, org.mockito.Mockito.never())
+                .softDeleteBatch(anyLong(), any(), any());
     }
 
     // ------------------------------------------------------------------

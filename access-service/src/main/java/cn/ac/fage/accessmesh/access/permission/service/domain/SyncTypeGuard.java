@@ -21,8 +21,14 @@ import java.util.Set;
  * </p>
  * <p>
  * extra 约定：{@code {"syncTypes": {"subjectTypeCodes": [...], "roleTypeCodes": [...],
- * "resourceTypeCodes": [...], "sourceTypes": [...]}}}。缺失分类按「该分类无任何权限」处理，
+ * "sourceTypes": [...]}}}。缺失分类按「该分类无任何权限」处理，
  * 不做大小写转换、不支持通配/正则/前缀/继承；保留键拒绝（LocalProjectionGuard）作为独立纵深防护继续生效。
+ * </p>
+ * <p>
+ * T-PERM-052（2026-09-05 定案）：资源维度移出本白名单——resource-entity 通道改由
+ * {@link ResourceTypeOwnershipGuard} 按类型声明（extra.managedMode=SYNC + syncSourceService）
+ * 判定所有权，{@code resourceTypeCodes} 不再是 syncTypes 的合法字段（保存含该字段直接拒绝，
+ * 防止旧结构配置静默失效被误读为资源同步仍走白名单）。
  * </p>
  * <p>
  * 配置约定：上线前先为各同步服务补齐 syncTypes 声明，再部署严格校验（fail-closed 发布顺序，
@@ -38,11 +44,10 @@ public class SyncTypeGuard {
     private static final String SYNC_TYPES_KEY = "syncTypes";
     private static final String KEY_SUBJECT_TYPES = "subjectTypeCodes";
     private static final String KEY_ROLE_TYPES = "roleTypeCodes";
-    private static final String KEY_RESOURCE_TYPES = "resourceTypeCodes";
     private static final String KEY_SOURCE_TYPES = "sourceTypes";
-    /** syncTypes 内部字段白名单：未知字段（拼写错误/多余字段）直接拒绝保存，防止合法 JSON 但错误结构被解释为空白名单。 */
+    /** syncTypes 内部字段白名单：未知字段（拼写错误/多余字段，含已退役的 resourceTypeCodes）直接拒绝保存，防止合法 JSON 但错误结构被解释为空白名单。 */
     private static final Set<String> SYNC_TYPES_FIELD_WHITELIST = Set.of(
-            KEY_SUBJECT_TYPES, KEY_ROLE_TYPES, KEY_RESOURCE_TYPES, KEY_SOURCE_TYPES);
+            KEY_SUBJECT_TYPES, KEY_ROLE_TYPES, KEY_SOURCE_TYPES);
 
     private final ServiceConfigMapper serviceConfigMapper;
     private final ObjectMapper objectMapper;
@@ -90,8 +95,9 @@ public class SyncTypeGuard {
 
     /**
      * 保存边界校验（service-config/save 写入入口）：extra 含 {@code syncTypes} 时必须为对象，
-     * 内部仅允许 subjectTypeCodes/roleTypeCodes/resourceTypeCodes/sourceTypes 四个字段（未知字段拒绝），
-     * 四分类如存在必须为字符串数组，拒绝 null、空白项与非字符串元素。
+     * 内部仅允许 subjectTypeCodes/roleTypeCodes/sourceTypes 三个字段（未知字段拒绝，含已退役的
+     * resourceTypeCodes——资源维度改由类型声明承载，T-PERM-052），各分类如存在必须为字符串数组，
+     * 拒绝 null、空白项与非字符串元素。
      * <p>
      * 配置结构损坏（含字段拼写错误）虽不构成安全风险，但会在运行时被解释为空白名单导致同步全部
      * SECURITY_DENIED，属难排查的运行故障，应在配置写入时尽早暴露。
@@ -119,7 +125,6 @@ public class SyncTypeGuard {
             });
             requireStringArray(syncTypes, KEY_SUBJECT_TYPES);
             requireStringArray(syncTypes, KEY_ROLE_TYPES);
-            requireStringArray(syncTypes, KEY_RESOURCE_TYPES);
             requireStringArray(syncTypes, KEY_SOURCE_TYPES);
         } catch (IllegalArgumentException e) {
             throw e;
@@ -156,7 +161,6 @@ public class SyncTypeGuard {
             return new SyncTypes(
                     stringSet(syncTypes, KEY_SUBJECT_TYPES),
                     stringSet(syncTypes, KEY_ROLE_TYPES),
-                    stringSet(syncTypes, KEY_RESOURCE_TYPES),
                     stringSet(syncTypes, KEY_SOURCE_TYPES));
         } catch (Exception e) {
             log.warn("sync type guard: invalid extra json, service extra rejected", e);
@@ -180,40 +184,38 @@ public class SyncTypeGuard {
 
     /**
      * 请求写入事实的类型集合；空集合表示该分类无类型要求。
+     * <p>
+     * T-PERM-052：资源维度已移除（resourceTypeCodes 字段与 resource 工厂删除）——
+     * resource-entity 通道所有权由 {@link ResourceTypeOwnershipGuard} 按类型声明判定。
+     * </p>
      */
     public record SyncTypes(Set<String> subjectTypeCodes, Set<String> roleTypeCodes,
-                            Set<String> resourceTypeCodes, Set<String> sourceTypes) {
+                            Set<String> sourceTypes) {
 
         /** 无任何类型权限（配置缺失/损坏时的声明结果）。 */
-        public static final SyncTypes NONE = new SyncTypes(Set.of(), Set.of(), Set.of(), Set.of());
+        public static final SyncTypes NONE = new SyncTypes(Set.of(), Set.of(), Set.of());
 
         public static SyncTypes subject(String subjectTypeCode) {
-            return new SyncTypes(Set.of(subjectTypeCode), Set.of(), Set.of(), Set.of());
+            return new SyncTypes(Set.of(subjectTypeCode), Set.of(), Set.of());
         }
 
         public static SyncTypes role(String roleTypeCode) {
-            return new SyncTypes(Set.of(), Set.of(roleTypeCode), Set.of(), Set.of());
-        }
-
-        public static SyncTypes resource(String resourceTypeCode) {
-            return new SyncTypes(Set.of(), Set.of(), Set.of(resourceTypeCode), Set.of());
+            return new SyncTypes(Set.of(), Set.of(roleTypeCode), Set.of());
         }
 
         public static SyncTypes userRole(Set<String> subjectTypeCodes, Set<String> roleTypeCodes,
                                          Set<String> sourceTypes) {
-            return new SyncTypes(subjectTypeCodes, roleTypeCodes, Set.of(), sourceTypes);
+            return new SyncTypes(subjectTypeCodes, roleTypeCodes, sourceTypes);
         }
 
         boolean isEmpty() {
-            return subjectTypeCodes.isEmpty() && roleTypeCodes.isEmpty()
-                    && resourceTypeCodes.isEmpty() && sourceTypes.isEmpty();
+            return subjectTypeCodes.isEmpty() && roleTypeCodes.isEmpty() && sourceTypes.isEmpty();
         }
 
         /** 请求的每个非空分类必须全部包含于声明的对应分类（精确匹配，不做通配/继承）。 */
         boolean covers(SyncTypes requested) {
             return containsAll(subjectTypeCodes, requested.subjectTypeCodes)
                     && containsAll(roleTypeCodes, requested.roleTypeCodes)
-                    && containsAll(resourceTypeCodes, requested.resourceTypeCodes)
                     && containsAll(sourceTypes, requested.sourceTypes);
         }
 

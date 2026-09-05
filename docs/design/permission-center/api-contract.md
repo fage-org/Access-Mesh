@@ -161,7 +161,9 @@ last_reviewed: 2026-09-04   # 2026-09-04 T-PERM-044 四树环加固收口：§5.
 **type-definition 契约要点（T-PERM-023 收口，2026-08-28）**：
 
 - `create`：`{typeKey, typeCode?, name, description?, sortOrder?, extra?}`——`typeValue` 由服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）；`typeCode` 留空按 `TYPEKEY_<typeValue>` 生成，显式提供时查重（重复 20049；DB 唯一索引对并发窗口与生成码被显式码抢占的场景兜底，同映射 20049）；`isSystem` 不可由 API 创建（固定 false，系统预置仅走租户初始化种子）。
-- `list`：`{typeKey?, keyword?, pageNum?, pageSize?}` → 分页结构（§3.3）；`keyword` 匹配 name/typeCode（LIKE，大小写敏感），排序 `sort_order, id`；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`），供下拉数据源消费。门禁（2026-09-03 放宽定案，用户决策）：类型级 TYPE_DEFINITION:VIEW **或任一实例级 VIEW** 均可查询——与登录权限串投影口径对齐（权限串全集含实例级授权；此前仅认类型级，出现「前端 hasPerms 探查通过、后端拒绝」的口径不一致，T-FE-018 评审发现）；`detail` 维持按目标实例校验 VIEW、写操作维持类型级/实例级 MANAGE 不变。注：TYPE_DEFINITION 实例无自动产出链路（type-definition 写路径无投影联动，当前库 0 行；人工经 resource-entity 管理入口可构造——TYPE_DEFINITION 不在类型保留清单），实例级路径为未来兼容（投影落地即生效，登记 T-PERM-051，2026-09-03 用户决策后续处理）；无投影期间全拒判定按去重码集比较 fail-closed 拒绝（跨 type_key 重码曾致 fail-open，2026-09-03 修复并加回归用例锁定）。
+- `list`：`{typeKey?, keyword?, pageNum?, pageSize?}` → 分页结构（§3.3）；`keyword` 匹配 name/typeCode（LIKE，大小写敏感），排序 `sort_order, id`；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`），供下拉数据源消费。
+
+**resource_type 类型所有权声明（T-PERM-052，2026-09-05 定案）**：`create`/`update` 的 `extra` 可携带类型级所有权声明，约定键 `managedMode`（`MANAGED`=缺省，管理面维护 / `SYNC`=外部同步维护）与 `syncSourceService`（`mode=SYNC` 时必填，须为已注册有效服务，`type_key` 非 resource_type 携带此二键保存拒绝 20044）。规则：SYNC 类型归声明来源服务独占同步（§6.2.2 门禁），管理面 create/update/move/remove 只读（§5.3，20055）；声明有效值变更（含删键隐式切回 MANAGED——extra 为整串替换语义）在类型下存在有效资源行时拒绝 **20056** `TYPE_OWNERSHIP_CHANGE_CONFLICT`（无有效行才可改，2026-09-05 用户定案）；读取侧 extra 损坏按 MANAGED 处理（fail-closed）。外部服务接入流程：`service-config/save` 注册服务 → `type-definition/create` 建自有类型并声明 `managedMode=SYNC` + 来源 → 调 `resource-entity/sync|full-sync`。门禁（2026-09-03 放宽定案，用户决策）：类型级 TYPE_DEFINITION:VIEW **或任一实例级 VIEW** 均可查询——与登录权限串投影口径对齐（权限串全集含实例级授权；此前仅认类型级，出现「前端 hasPerms 探查通过、后端拒绝」的口径不一致，T-FE-018 评审发现）；`detail` 维持按目标实例校验 VIEW、写操作维持类型级/实例级 MANAGE 不变。注：TYPE_DEFINITION 实例无自动产出链路（type-definition 写路径无投影联动，当前库 0 行；人工经 resource-entity 管理入口可构造——TYPE_DEFINITION 不在类型保留清单），实例级路径为未来兼容（投影落地即生效，登记 T-PERM-051，2026-09-03 用户决策后续处理）；无投影期间全拒判定按去重码集比较 fail-closed 拒绝（跨 type_key 重码曾致 fail-open，2026-09-03 修复并加回归用例锁定）。
 
 **biz-domain 契约要点（T-PERM-026 收口，2026-08-29）**：
 
@@ -273,6 +275,7 @@ last_reviewed: 2026-09-04   # 2026-09-04 T-PERM-044 四树环加固收口：§5.
 | extraClear | boolean 可选；true=清空 extra 为 null，优先于 extra（JSON null 无法区分「未传」与「清空」） |
 | move 校验 | 跨资源类型 / 目标父为自身或子孙 → 20053 RESOURCE_PARENT_INVALID（一类码两因，message 区分） |
 | remove 未命中键 | 静默跳过（对齐原 ids 批删语义），级联软删子孙 |
+| SYNC 类型只读（T-PERM-052） | 目标类型声明 `extra.managedMode=SYNC` 时 create/batch-create/update/move/remove 一律拒绝 **20055** `RESOURCE_EXTERNALLY_MAINTAINED`（资源由外部来源维护，请到来源系统操作）；**remove 的级联守卫覆盖删除全集（含展开的后代）**——sync 通道允许跨类型父子边，MANAGED 根的子树可能含 SYNC 类型后代，命中即整批拒绝不软删；读路径（tree/list/detail）不受限 |
 
 **读门禁（T-PERM-028 补齐，类型级）**：`resource-entity/list`、`resource-entity/detail` 补 `RESOURCE:VIEW`，`operation-permission/detail` 补 `OPERATION:VIEW`（与既有 tree/list 门禁同口径；bootstrap §14.4 最小集已持有，不阻断首管理员）。
 
@@ -662,8 +665,9 @@ last_reviewed: 2026-09-04   # 2026-09-04 T-PERM-044 四树环加固收口：§5.
 - `syncVersion` 使用事件时间 + 序号；同一幂等键下旧版本请求必须返回成功但不覆盖新状态。permission-center 必须通过 `sync_metadata.last_sync_occurred_at + last_sync_sequence_no` 做原子比较更新，禁止只在内存中判断版本。
 - 父资源使用 `parentResourceTypeCode + parentResourceCode` 业务键定位，permission-center 内部解析为 `parentId`；父资源不存在时返回 `retryClass=DEPENDENCY_MISSING`，调用方可按短退避重发（T-PERM-044 评审对齐角色先例：父解析与判环先于版本写入——依赖缺失与环路拒绝均不推进同步版本，短退避同版本重发不会被 STALE 挡）。
 - 父资源环路防护（T-PERM-044 评审补齐，与 moveResource 同款）：目标父为资源自身或其子孙时拒绝 `retryClass=NON_RETRYABLE`、reason=`RESOURCE_PARENT_INVALID`；full-sync 按内存图逐项判定（当前生效图 = 库内关系 + 本事务已应用项的边），仅拒绝真正闭合环的项，指向环的前缀安全项放行。
-- 调用方必须通过可信 Header 提供服务身份；permission-center 必须校验认证服务身份、`sourceService`、`resourceTypeCode` 白名单，禁止任意服务同步任意资源类型。
-- 外部业务服务同步自身资源类型时调用本接口（`resourceTypeCode` 为服务自有类型，须通过服务身份与类型白名单校验）；AccessMesh 本地投影行（`owner_service_code=access-service`）由 access.application（用户/组织/菜单编排）与 permission 域管理入口（角色/主体编排，T-ACCESS-019）经 LocalProjectionDomainService 同事务维护，本接口 UPSERT/DISABLE/DELETE 任一 mutation 命中已有本地投影实体时前置所有权检查返回 20045 拒绝（T-ACCESS-018：resource 侧取消类型级保留——USER/MENU 为公共基础类型，外部同步自身用户/菜单资源合法，新建撞本地投影 code 由唯一约束兜底；管理入口 `/perm/resource-entity/create|batch-create` 的类型保留清单为 `{USER, ORG, MENU, ROLE}`（ROLE 随 T-ACCESS-019 增补，ROLE 资源由角色管理写路径产出），人工不得绕过管理事实链路；`update` 不查类型清单、按本地投影所有权保护（`owner_service_code=access-service` 行拒改））。
+- 调用方必须通过可信 Header 提供服务身份；permission-center 必须校验认证服务身份与 `sourceService`（不匹配返回 `SECURITY_DENIED`/`SOURCE_SERVICE_MISMATCH`），禁止任意服务同步任意资源类型。
+- **类型级所有权门禁（T-PERM-052，2026-09-05 定案，取代原 syncTypes.resourceTypeCodes 白名单维度）**：目标 `resourceTypeCode` 必须在类型定义上声明 `extra.managedMode=SYNC` 且 `extra.syncSourceService` 等于调用服务身份——否则 `SECURITY_DENIED`/`RESOURCE_TYPE_OWNERSHIP_DENIED`（类型不存在一并 fail-closed 拒绝）。每个资源类型单一所有权：MANAGED（缺省，管理面维护，公共基础类型 USER/MENU 等属之）/ SYNC（声明来源服务独占同步，管理面只读）。外部服务接入先经 `type-definition/create` 建自有类型（如 `HR_ORG`、`BI_MENU`）并声明来源，再调用本接口同步。
+- 外部业务服务同步自有资源类型时调用本接口（`resourceTypeCode` 须经类型级所有权门禁，见上条；T-ACCESS-018 的「公共类型外部同步合法」口径已随 T-PERM-052 类型级所有权定案收紧——外部服务同步自身用户/菜单须建自有类型，公共 `USER`/`MENU` 类型不再对同步开放）；AccessMesh 本地投影行（`owner_service_code=access-service`）由 access.application（用户/组织/菜单编排）与 permission 域管理入口（角色/主体编排，T-ACCESS-019）经 LocalProjectionDomainService 同事务维护，本接口 UPSERT/DISABLE/DELETE 任一 mutation 命中已有本地投影实体时前置所有权检查返回 20045 拒绝（门禁通过的类型下不应命中本地行，该检查作为纵深防御保留）；管理入口 `/perm/resource-entity/create|batch-create` 的类型保留清单为 `{USER, ORG, MENU, ROLE}`（ROLE 随 T-ACCESS-019 增补，ROLE 资源由角色管理写路径产出），人工不得绕过管理事实链路；`update/move/remove` 按类型所有权保护（SYNC 类型管理面只读，见 §5.3）。
 - 外部业务服务的全量校准同步走 `resource-entity/full-sync`，不是逐条调用本接口。
 
 #### 6.2.2.1 资源实体分领域全量校准
@@ -708,7 +712,7 @@ last_reviewed: 2026-09-04   # 2026-09-04 T-PERM-044 四树环加固收口：§5.
 - full-sync item 的父资源默认与 scope 中的 `resourceTypeCode` 同类型、`codeType=default`；若不是默认值，必须显式传入 `parentResourceTypeCode` 和 `parentCodeType`。实现解析父节点时使用 `parentResourceTypeCode + parentResourceCode + parentCodeType`。
 - permission-center 以 `sync_metadata(entityKind=RESOURCE_ENTITY, sourceService, scopeKey)` 作为 full-sync ownership 范围；请求中存在则 upsert 并更新 metadata，请求中缺失的 metadata 对应事实按删除语义软删除。`resource_entity.owner_service_code/maintain_source/sync_key` 不作为本接口的清理依据。
 - `resource-entity/full-sync` 与既有 `service-config/sync` 是两条独立 ownership 通道。本接口只清理命中 `sync_metadata` scope 的同步事实，绝不按 `resourceTypeCode` 扫描删除资源，也不删除 `service-config/sync`、`MANUAL` 或其他维护来源创建的事实。
-- 全量接口仍必须执行 source 白名单校验和旧版本 no-op 规则。
+- 全量接口仍必须执行 source 身份校验、类型级所有权门禁（scope.resourceTypeCode 同 §6.2.2 单条口径）和旧版本 no-op 规则。
 - 组织资源等有树依赖的数据应按足够小的 scope 调用，避免单请求过大。
 
 #### 6.2.2.2 同步接口通用响应与错误分类
@@ -1092,7 +1096,6 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
   "syncTypes": {
     "subjectTypeCodes": ["EMP"],
     "roleTypeCodes": ["TEAM_ROLE"],
-    "resourceTypeCodes": ["HR_ORG"],
     "sourceTypes": ["HR_MEMBER"]
   }
 }
@@ -1100,13 +1103,14 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 语义（与 `SyncTypeGuard` 实现一致）：
 
-- **四个分类均可选**；某分类缺失或为空数组 = 该分类无任何权限（对应链路同步全部 `SECURITY_DENIED`）。
-- **四条链路的最小映射**：主体同步校验 `subjectTypeCode`；角色同步校验 `roleTypeCode`；资源同步校验 `resourceTypeCode`；用户角色同步校验写入事实使用的 `subjectTypeCode` + `roleTypeCode` + `sourceType`（`relationKey` 角色类型为引用，不要求声明）。
+- **三个分类均可选**；某分类缺失或为空数组 = 该分类无任何权限（对应链路同步全部 `SECURITY_DENIED`）。
+- **资源维度已退役（T-PERM-052，2026-09-05 定案）**：原 `resourceTypeCodes` 字段删除——resource-entity 同步通道改由**类型级所有权声明**判定（`type-definition` 的 `extra.managedMode=SYNC` + `extra.syncSourceService`，见 §6.2.2），服务侧不再声明资源类型；保存含 `resourceTypeCodes` 字段直接拒绝（防旧结构配置误导）。
+- **三条链路的最小映射**：主体同步校验 `subjectTypeCode`；角色同步校验 `roleTypeCode`；用户角色同步校验写入事实使用的 `subjectTypeCode` + `roleTypeCode` + `sourceType`（`relationKey` 角色类型为引用，不要求声明）；资源同步走类型级所有权门禁（不经本白名单）。
 - **GROUP_ROLE 例外（T-PERM-043）**：角色同步在白名单之外恒拒 `GROUP_ROLE`（`ROLE_TYPE_MISMATCH(20022)`，先于白名单判定）——即使服务声明了 `roleTypeCodes: ["GROUP_ROLE"]` 也不生效。
-- **服务状态**：`status != 1`（禁用）时该服务全部 sync/full-sync 拒绝。
+- **服务状态**：`status != 1`（禁用）时该服务全部 sync/full-sync 拒绝（resource-entity 通道的类型声明来源服务未注册/已删时，类型声明保存校验与运行时门禁同样拒绝）。
 - **校验顺序**：使用经过认证的服务身份（凭证通过后绑定的 `X-Service-Code`）查询配置，不信任请求体；未通过统一返回 `SECURITY_DENIED`（`SERVICE_TYPE_NOT_ALLOWED`），内部日志记录真实原因，不向调用方返回白名单明细。
 - **保留键纵深**：即使白名单错误声明 `LOCAL_USER`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 AccessMesh 保留键，入口仍以 20045 拒绝。
-- **结构校验**：`service-config/save` 保存时校验 `syncTypes` 必须为对象、四分类（如存在）必须为非空白字符串数组；结构非法保存失败（20044）。缺失配置在运行时按无权限处理（fail-closed），不视为允许全部。
+- **结构校验**：`service-config/save` 保存时校验 `syncTypes` 必须为对象、内部仅允许 subjectTypeCodes/roleTypeCodes/sourceTypes 三个字段（未知字段拒绝，含已退役的 `resourceTypeCodes`）、各分类（如存在）必须为非空白字符串数组；结构非法保存失败（20044）。缺失配置在运行时按无权限处理（fail-closed），不视为允许全部。
 - **上线准备（fail-closed 发布顺序）**：先为各同步服务通过 `service-config/save` 补齐 `syncTypes` 声明（并确认 `status=1`），再部署严格校验代码；未声明类型的存量服务在严格校验上线后同步全部拒绝，属预期行为。
 
 ### 6.4 角色权限配置查询（list）

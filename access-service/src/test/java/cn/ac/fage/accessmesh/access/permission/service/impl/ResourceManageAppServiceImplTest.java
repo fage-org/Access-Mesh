@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapp
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
@@ -29,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.lenient;
@@ -51,6 +53,7 @@ class ResourceManageAppServiceImplTest {
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private PermQueryEngine engine;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
+    @Mock private ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     @Mock private TreeWriteLockSupport treeWriteLockSupport;
 
     private ResourceManageAppServiceImpl service;
@@ -67,6 +70,7 @@ class ResourceManageAppServiceImplTest {
             engine,
             rolePermMapper,
             new LocalProjectionGuard(),
+            resourceTypeOwnershipGuard,
             treeWriteLockSupport
         );
     }
@@ -293,6 +297,109 @@ class ResourceManageAppServiceImplTest {
 
         assertEquals(null, entity.getParentId());
         verify(resourceEntityMapper).update(any(ResourceEntity.class));
+    }
+
+    // ========== T-PERM-052：类型级所有权——SYNC 类型管理面只读（20055）==========
+    // 守卫为 mock：本组用例锁「管理面写入口必须调用类型守卫且拒绝时不落库」；
+    // 守卫判定语义（20055 抛出）由 ResourceTypeOwnershipGuardTest 覆盖。
+    // 以下用例在旧实现（无类型门禁）下会因守卫未被调用/实际写库而失败。
+
+    private void stubSyncTypeRejection(String typeCode) {
+        org.mockito.Mockito.doThrow(new cn.ac.fage.accessmesh.common.exception.BizException(20055,
+                "资源由外部来源维护，请到来源系统操作: resourceTypeCode=" + typeCode))
+            .when(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, typeCode);
+    }
+
+    @Test
+    @DisplayName("create 命中 SYNC 类型 → 20055 拒绝，不落库（资源事实归声明来源服务）")
+    void shouldRejectCreateOnSyncManagedType() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        stubSyncTypeRejection("API");
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+                null, null, null, null, null, "API", "res-a", null, "资源A", null, null, null, null), 100L));
+        assertEquals(20055, ex.getErrorCode());
+        verify(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, "API");
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
+    }
+
+    @Test
+    @DisplayName("update 命中 SYNC 类型行 → 20055 拒绝（含 name 在内管理面完全只读）")
+    void shouldRejectUpdateOnSyncManagedType() {
+        ResourceEntity entity = resourceWithKey(10L);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "HR_ORG")).thenReturn(1);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
+        // 旧实现放行至写库的对照：门禁拒绝不依赖引擎权限结果
+        lenient().when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+            .thenReturn(true);
+        stubSyncTypeRejection("HR_ORG");
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.updateResource(1L,
+                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq(
+                    "HR_ORG", "x", null, "改名", null, null, null, null, null), 100L));
+        assertEquals(20055, ex.getErrorCode());
+        verify(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, "HR_ORG");
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
+    }
+
+    @Test
+    @DisplayName("move 命中 SYNC 类型行 → 20055 拒绝（树位置归声明来源服务）")
+    void shouldRejectMoveOnSyncManagedType() {
+        ResourceEntity entity = resourceWithKey(10L);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "HR_ORG")).thenReturn(1);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
+        lenient().when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+            .thenReturn(true);
+        stubSyncTypeRejection("HR_ORG");
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.moveResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq(
+                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("HR_ORG", "x", null), null), 100L));
+        assertEquals(20055, ex.getErrorCode());
+        verify(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, "HR_ORG");
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
+    }
+
+    @Test
+    @DisplayName("remove 级联守卫：MANAGED 根 + SYNC 类型后代（跨类型父子边）→ 20055 拒绝，后代不软删")
+    void shouldRejectRemoveWhenCascadeHitsSyncManagedDescendant() {
+        // 根：HR_MENU(类型1) MANAGED；后代：id=11 类型7（如 BI_MENU，SYNC）——sync 通道允许
+        // 跨类型父子边，旧实现会连同后代一并软删
+        ResourceEntity root = resourceWithKey(10L);
+        root.setResourceType(1);
+        root.setCode("x");
+        ResourceEntity syncChild = resourceWithKey(11L);
+        syncChild.setResourceType(7);
+        syncChild.setCode("bi-1");
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("HR_MENU")))
+            .thenReturn(java.util.Map.of("HR_MENU", 1));
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(1)), anySet(), anySet()))
+            .thenReturn(List.of(root));
+        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
+            .thenReturn(Set.of());
+        when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
+            .thenReturn(java.util.Map.of(10L, List.of(11L)));
+        when(resourceEntityDomainService.batchSelectByIdsMap(1L, Set.of(10L, 11L)))
+            .thenReturn(java.util.Map.of(10L, root, 11L, syncChild));
+        org.mockito.Mockito.doThrow(new cn.ac.fage.accessmesh.common.exception.BizException(20055,
+                "资源由外部来源维护，请到来源系统操作"))
+            .when(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByValues(1L, Set.of(1, 7));
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.deleteResources(1L,
+                List.of(new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("HR_MENU", "x", null)), 99L));
+        assertEquals(20055, ex.getErrorCode());
+        // 守卫以删除全集（含展开后代）的类型值调用——旧实现无此调用且后代被软删
+        verify(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByValues(1L, Set.of(1, 7));
+        verify(resourceEntityDomainService, org.mockito.Mockito.never())
+            .softDeleteBatch(anyLong(), any(), any());
     }
 
     private ResourceEntity resourceWithKey(Long id) {

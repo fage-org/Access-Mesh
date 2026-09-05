@@ -140,6 +140,21 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
     }
 
     /**
+     * 类型下是否存在有效资源行（T-PERM-052 类型所有权声明变更守卫：无有效行才可改）。
+     *
+     * @param tenantId     租户ID
+     * @param resourceType resource_type 内部类型值
+     * @return true=存在 delete_flag=0 的行
+     */
+    @Override
+    public boolean hasValidRowsOfType(Long tenantId, Integer resourceType) {
+        if (resourceType == null) {
+            return false;
+        }
+        return resourceEntityMapper.existsValidByType(tenantId, resourceType) > 0;
+    }
+
+    /**
      * 批量软删除资源
      *
      * @param tenantId  租户ID

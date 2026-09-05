@@ -4,7 +4,7 @@
 
 **AccessMesh** 是基于 Spring Cloud 微服务架构的通用访问控制平台，支持 SaaS 多租户模式。
 
-- **当前阶段**：access-service 归并完成（T-ACCESS-001~012，2026-08-22 收口归档）；产品定位已定案（开源通用 IAM，2026-08-28）；Phase 2 逐页后端改造全部收口（T-PERM-022~034 + 037/040/041，T-PERM-040/037 部分定案随 T-PERM-049 全局操作退役推翻）；**Phase 3 前端联调 9/9 全部收口（T-FE-015~022 + T-FE-037 组织联调二期收官 2026-09-04）**；看板待办以 `docs/tasks/README.md` 为准（T-PERM-045~054 加固/登记批次（044 已收口 2026-09-04）、design-audit-followup 设计体检批次（T-PERM-052~054、T-API-002、T-ACCESS-029，2026-09-05）、T-ADMIN-025/026、Phase 4 T-FE-023 + T-PERM-039 等）
+- **当前阶段**：access-service 归并完成（T-ACCESS-001~012，2026-08-22 收口归档）；产品定位已定案（开源通用 IAM，2026-08-28）；Phase 2 逐页后端改造全部收口（T-PERM-022~034 + 037/040/041，T-PERM-040/037 部分定案随 T-PERM-049 全局操作退役推翻）；**Phase 3 前端联调 9/9 全部收口（T-FE-015~022 + T-FE-037 组织联调二期收官 2026-09-04）**；看板待办以 `docs/tasks/README.md` 为准（T-PERM-045~054 加固/登记批次（044 已收口 2026-09-04）、design-audit-followup 设计体检批次（T-PERM-052 已收口 2026-09-05：类型级所有权定案；余 T-PERM-053/054、T-API-002、T-ACCESS-029）、T-ADMIN-025/026、Phase 4 T-FE-023 + T-PERM-039 等）
 - **当前分支**：`feat-permission-center`
 - **文档入口**：`docs/README.md`
 
@@ -78,6 +78,7 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 - `type_value` 在同一 `tenant_id + type_key` 内全局唯一；不要按业务域重复分配相同内部值。
 - `query-scopes`、`scope_all` 是当前范围权限模型；不要恢复旧的 `query-data-scopes`、`includeDataScope`、`dataScopes`。
 - `resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
+- **资源类型级所有权（T-PERM-052 定案 2026-09-05）**：每个 resource_type 类型单一所有权，声明于 `type_definition.extra`（`managedMode`：MANAGED=缺省管理面维护 / SYNC=外部同步维护 + `syncSourceService` 来源服务）。resource-entity sync/full-sync 入口做类型门禁（非 SYNC 或来源不匹配 → `RESOURCE_TYPE_OWNERSHIP_DENIED`，**不再走 syncTypes.resourceTypeCodes——该维度已退役且保存含此字段拒绝**）；管理面 create/batch-create/update/move/remove 对 SYNC 类型拒绝（20055，remove 守卫覆盖级联删除全集含跨类型后代）；类型下有有效资源行时声明不可变更（20056）。判定不依赖 `resource_entity.maintain_source`（纯记录值）。
 - **业务域分类模型**：角色、资源等实体不再内嵌 `bizDomainId` 列，域分类通过 `domain_config` 表的 `CLASSIFY` 配置实现（按 `resourceTypeCode` 关联）。全局域(`global=true`)的范围隐式包含未被其他域认领的资源类型。权限查询管线不感知业务域。管理查询通过 `DomainClassifyService.matchesTypeCode/getClassifiedTypeCodes` 按三种模式(ALL/GLOBAL_PLUS/DOMAIN_ONLY)过滤。
 
 ## 项目级 Skills（自动加载）

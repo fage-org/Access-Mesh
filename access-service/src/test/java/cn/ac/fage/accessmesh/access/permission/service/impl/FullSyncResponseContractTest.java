@@ -81,6 +81,8 @@ class FullSyncResponseContractTest {
     @Mock
     private SyncTypeGuard syncTypeGuard;
     @Mock
+    private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
+    @Mock
     private cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService;
     @Mock
     private TreeWriteLockSupport fullSyncLockSupport;
@@ -100,6 +102,12 @@ class FullSyncResponseContractTest {
         lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(true);
+        // T-PERM-052：resource-entity 通道类型门禁默认放行（SYNC 且归当前来源）
+        lenient().when(resourceTypeOwnershipGuard.resolveTypeOwnership(
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(new cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.Ownership(
+                        cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.MODE_SYNC,
+                        SOURCE_SERVICE));
     }
 
     @Test
@@ -287,7 +295,7 @@ class FullSyncResponseContractTest {
 
         ResourceEntitySyncAppServiceImpl service = new ResourceEntitySyncAppServiceImpl(
                 syncMetadataDomainService, syncMetadataMapper, typeResolutionService, resourceEntityMapper, new ObjectMapper(),
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), resourceTypeOwnershipGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(

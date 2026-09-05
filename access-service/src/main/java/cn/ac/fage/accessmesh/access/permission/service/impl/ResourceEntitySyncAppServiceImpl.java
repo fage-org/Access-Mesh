@@ -17,12 +17,11 @@ import cn.ac.fage.accessmesh.access.permission.mapper.SyncMetadataMapper;
 import cn.ac.fage.accessmesh.access.permission.service.ResourceEntitySyncAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder;
-import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard;
-import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard.SyncTypes;
 import cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -60,7 +59,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     private final ResourceEntityMapper resourceEntityMapper;
     private final ObjectMapper objectMapper;
     private final LocalProjectionGuard localProjectionGuard;
-    private final SyncTypeGuard syncTypeGuard;
+    private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final TreeWriteLockSupport treeWriteLockSupport;
 
@@ -70,7 +69,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                                              ResourceEntityMapper resourceEntityMapper,
                                              ObjectMapper objectMapper,
                                              LocalProjectionGuard localProjectionGuard,
-                                             SyncTypeGuard syncTypeGuard,
+                                             ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                              ResourceEntityDomainService resourceEntityDomainService,
                                              TreeWriteLockSupport treeWriteLockSupport) {
         this.syncMetadataDomainService = syncMetadataDomainService;
@@ -79,7 +78,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         this.resourceEntityMapper = resourceEntityMapper;
         this.objectMapper = objectMapper;
         this.localProjectionGuard = localProjectionGuard;
-        this.syncTypeGuard = syncTypeGuard;
+        this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.treeWriteLockSupport = treeWriteLockSupport;
     }
@@ -94,11 +93,14 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             return SyncResultBuilder.securityDenied("SOURCE_SERVICE_MISMATCH");
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
-        // 服务-类型白名单（service_config.extra.syncTypes，fail-closed）：服务须声明该资源类型
-        // （T-ACCESS-018：resource 侧取消类型级保留，USER/MENU 等公共类型外部同步合法；
-        //   本地投影行改按所有权保护，命中已有实体时在 doSyncOneInternal 统一拒绝）
-        if (!syncTypeGuard.validate(tenantId, req.sourceService(), SyncTypes.resource(req.resourceTypeCode()))) {
-            return SyncResultBuilder.securityDenied("SERVICE_TYPE_NOT_ALLOWED");
+        // T-PERM-052 类型级所有权门禁（取代 syncTypes.resourceTypeCodes 白名单维度，2026-09-05 定案）：
+        // 目标类型必须声明 extra.managedMode=SYNC 且 syncSourceService==调用服务身份；
+        // 类型不存在（声明缺失）fail-closed 一并拒绝。本地投影行防线（rejectIfLocalResource，
+        // T-ACCESS-018）作为纵深防御保留——门禁通过的类型下不应再命中 owner=access-service 行。
+        ResourceTypeOwnershipGuard.Ownership ownership = resourceTypeOwnershipGuard.resolveTypeOwnership(
+                tenantId, req.resourceTypeCode());
+        if (ownership == null || !ownership.syncOwnedBy(req.sourceService())) {
+            return SyncResultBuilder.securityDenied("RESOURCE_TYPE_OWNERSHIP_DENIED");
         }
         // T-PERM-044 评审 P1：资源同步 UPDATE 分支写 parent，与 moveResource 共持
         // (resource_entity, 租户) 树写锁——move×sync / sync×sync 交叉窗口收口
@@ -125,15 +127,16 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                             SyncResultBuilder.RETRY_SECURITY_DENIED, "SOURCE_SERVICE_MISMATCH")));
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
-        // 服务-类型白名单（fail-closed）：scope 资源类型须在服务声明的 resourceTypeCodes 内
-        // （类型级保留已取消，本地投影保护按所有权在逐条 item 命中已有实体时拒绝）
-        if (!syncTypeGuard.validate(tenantId, req.scope().sourceService(),
-                SyncTypes.resource(req.scope().resourceTypeCode()))) {
+        // T-PERM-052 类型级所有权门禁（取代 syncTypes.resourceTypeCodes 白名单维度，2026-09-05 定案）：
+        // scope 资源类型必须声明 extra.managedMode=SYNC 且 syncSourceService==调用服务身份
+        ResourceTypeOwnershipGuard.Ownership scopeOwnership = resourceTypeOwnershipGuard.resolveTypeOwnership(
+                tenantId, req.scope().resourceTypeCode());
+        if (scopeOwnership == null || !scopeOwnership.syncOwnedBy(req.scope().sourceService())) {
             return SyncResultBuilder.fullSyncRejected(
-                    SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED",
+                    SyncResultBuilder.RETRY_SECURITY_DENIED, "RESOURCE_TYPE_OWNERSHIP_DENIED",
                     req.items().size(),
                     List.of(new SyncResultResp.ItemResult("*", false, false,
-                            SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_TYPE_NOT_ALLOWED")));
+                            SyncResultBuilder.RETRY_SECURITY_DENIED, "RESOURCE_TYPE_OWNERSHIP_DENIED")));
         }
 
         String scopeKey = SyncKeyCodec.resourceEntityScopeKey(req.scope().resourceTypeCode());

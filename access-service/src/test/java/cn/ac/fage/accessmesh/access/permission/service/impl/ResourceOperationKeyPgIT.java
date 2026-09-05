@@ -141,6 +141,13 @@ class ResourceOperationKeyPgIT {
     private OperationPermissionMapper operationPermissionMapper;
     @Autowired
     private TypeDefinitionMapper typeDefinitionMapper;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper serviceConfigMapper;
+
+    private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard ownershipGuard() {
+        return new cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard(
+                typeDefinitionMapper, serviceConfigMapper, resourceEntityDomainService, new com.fasterxml.jackson.databind.ObjectMapper());
+    }
 
     private final LocalDateTime now = LocalDateTime.now();
 
@@ -158,7 +165,7 @@ class ResourceOperationKeyPgIT {
     private ResourceManageAppServiceImpl newResourceManageAppService(PermQueryEngine engine) {
         return new ResourceManageAppServiceImpl(resourceEntityMapper, resourceApiMappingMapper,
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
-            engine, rolePermMapper, new LocalProjectionGuard(),
+            engine, rolePermMapper, new LocalProjectionGuard(), ownershipGuard(),
             mock(TreeWriteLockSupport.class));
     }
 
@@ -335,7 +342,7 @@ class ResourceOperationKeyPgIT {
     @DisplayName("resource_type 创建联动预置 CRUD 四操作位（真实 uk 约束 + DDL 模板位值）")
     void shouldPresetCrudOperationsWhenCreatingResourceTypeOnRealPostgres() {
         TypeDefinitionAppServiceImpl typeService = new TypeDefinitionAppServiceImpl(
-            typeDefinitionMapper, operationPermissionMapper, permitAllEngine());
+            typeDefinitionMapper, operationPermissionMapper, permitAllEngine(), ownershipGuard());
 
         var resp = typeService.createType(TENANT,
             new TypeCreateReq("resource_type", "PGIT28_TYPE", "联调测试类型", null, null, null), 100L);

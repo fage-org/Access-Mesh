@@ -46,13 +46,20 @@ class TypeDefinitionAppServiceImplTest {
     @Mock private TypeDefinitionMapper typeDefinitionMapper;
     @Mock private cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper operationPermissionMapper;
     @Mock private PermQueryEngine engine;
+    @Mock private cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper serviceConfigMapper;
+    @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService;
 
     private TypeDefinitionAppServiceImpl service;
 
     @BeforeEach
     void setUp() {
+        // T-PERM-052：真实守卫实例（mapper mock）——声明校验与变更守卫在 AppService 路径真实执行
+        cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard ownershipGuard =
+            new cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard(
+                typeDefinitionMapper, serviceConfigMapper, resourceEntityDomainService,
+                new com.fasterxml.jackson.databind.ObjectMapper());
         service = new TypeDefinitionAppServiceImpl(
-            typeDefinitionMapper, operationPermissionMapper, engine
+            typeDefinitionMapper, operationPermissionMapper, engine, ownershipGuard
         );
         // list/count 走 OperatorContext（读 AccessRequestContext），绑定用户上下文
         AccessRequestContext.bind(RequestContext.user(1L, 100L));
@@ -347,5 +354,151 @@ class TypeDefinitionAppServiceImplTest {
             .thenReturn(List.of());
 
         assertThrows(SecurityException.class, () -> service.countTypes(1L, null, null));
+    }
+
+    // ========== T-PERM-052：extra 所有权声明（managedMode/syncSourceService）==========
+    // 以下声明校验/变更守卫用例在旧实现（不校验 extra、无变更守卫）下会因落库成功而失败。
+
+    private static final String SYNC_DECLARATION =
+        "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}";
+
+    @Test
+    void shouldCreateSyncDeclaredResourceType_whenSourceServiceRegistered() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(5);
+        when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "hr-service"))
+            .thenReturn(new cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig());
+
+        service.createType(1L, new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
+            SYNC_DECLARATION), 100L);
+
+        ArgumentCaptor<TypeDefinition> captor = ArgumentCaptor.forClass(TypeDefinition.class);
+        verify(typeDefinitionMapper).insert(captor.capture());
+        assertEquals(SYNC_DECLARATION, captor.getValue().getExtra());
+    }
+
+    @Test
+    void shouldRejectDeclarationOnNonResourceTypeKey() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+
+        BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
+            new TypeCreateReq("group_type", "G1", "组", null, null, SYNC_DECLARATION), 100L));
+        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldRejectSyncModeWithoutSourceService() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+
+        BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
+            new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
+                "{\"managedMode\":\"SYNC\"}"), 100L));
+        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldRejectInvalidManagedModeValue() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+
+        BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
+            new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
+                "{\"managedMode\":\"AUTO\"}"), 100L));
+        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+    }
+
+    @Test
+    void shouldRejectSyncModeWithUnregisteredSourceService() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "hr-service")).thenReturn(null);
+
+        BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
+            new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
+                SYNC_DECLARATION), 100L));
+        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldRejectDeclarationChangeWhenTypeHasValidRows() {
+        // 无有效行才可改（2026-09-05 定案）：类型下有行时 managedMode 变更 → 20056；
+        // 旧实现无守卫会直接落库
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        TypeDefinition existing = new TypeDefinition();
+        existing.setId(9L);
+        existing.setTenantId(1L);
+        existing.setTypeKey("resource_type");
+        existing.setTypeCode("HR_ORG");
+        existing.setTypeValue(5);
+        existing.setExtra(SYNC_DECLARATION);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
+        when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(true);
+
+        BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
+            new TypeUpdateReq(9L, null, null, null, "{\"managedMode\":\"MANAGED\"}"), 100L));
+        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        verify(typeDefinitionMapper, never()).update(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldRejectImplicitModeRevertWhenTypeHasValidRows() {
+        // 删键=隐式切回 MANAGED（extra 整串替换）：同样视为有效值变更 → 20056
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        TypeDefinition existing = new TypeDefinition();
+        existing.setId(9L);
+        existing.setTenantId(1L);
+        existing.setTypeKey("resource_type");
+        existing.setTypeCode("HR_ORG");
+        existing.setTypeValue(5);
+        existing.setExtra(SYNC_DECLARATION);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
+        when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(true);
+
+        BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
+            new TypeUpdateReq(9L, "改名", null, null, "{\"k\":1}"), 100L));
+        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+    }
+
+    @Test
+    void shouldAllowDeclarationChangeWhenTypeHasNoValidRows() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        TypeDefinition existing = new TypeDefinition();
+        existing.setId(9L);
+        existing.setTenantId(1L);
+        existing.setTypeKey("resource_type");
+        existing.setTypeCode("HR_ORG");
+        existing.setTypeValue(5);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
+        when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "hr-service"))
+            .thenReturn(new cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig());
+        when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(false);
+
+        service.updateType(1L, new TypeUpdateReq(9L, null, null, null, SYNC_DECLARATION), 100L);
+
+        verify(typeDefinitionMapper).update(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldAllowUnrelatedExtraUpdateWithoutModeChange() {
+        // 声明有效值未变（SYNC→SYNC 同来源）时，其余 extra 字段更新不受变更守卫限制
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        TypeDefinition existing = new TypeDefinition();
+        existing.setId(9L);
+        existing.setTenantId(1L);
+        existing.setTypeKey("resource_type");
+        existing.setTypeCode("HR_ORG");
+        existing.setTypeValue(5);
+        existing.setExtra(SYNC_DECLARATION);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
+        when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "hr-service"))
+            .thenReturn(new cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig());
+
+        service.updateType(1L, new TypeUpdateReq(9L, null, null, null,
+            SYNC_DECLARATION.substring(0, SYNC_DECLARATION.length() - 1) + ",\"k\":1}"), 100L);
+
+        verify(typeDefinitionMapper).update(any(TypeDefinition.class));
+        // 声明未变不触发行数查询
+        verify(resourceEntityDomainService, never()).hasValidRowsOfType(anyLong(), any());
     }
 }

@@ -38,7 +38,7 @@ last_updated: 2026-09-05
 
 | 任务 | 来源 | 范围一句话 | 状态 |
 |---|---|---|---|
-| [T-PERM-052](../tasks/T-PERM-052.md) | §B P1 | 资源同步双向所有权边界（sync 接管拒绝 + 管理面 SYNC 行只读含级联守卫 + FULL 删除归属核验） | ⚙️ |
+| [T-PERM-052](../tasks/T-PERM-052.md) | §B P1 | 资源类型级所有权边界——类型声明门禁（2026-09-05 用户四项定案改定类型级方案：sync 独占 + 管理面只读含级联守卫 + 声明变更守卫 + syncTypes 资源维度退役） | ✅ |
 | [T-PERM-053](../tasks/T-PERM-053.md) | §B P2-3a | service-config 同步 ApiItem.operationCode 无效字段删除（前后端同批锁步） | ⚙️ |
 | [T-API-002](../tasks/T-API-002.md) | §B P2-2 | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（含内部 id 字段族全裁 + 排查页同批改造） | ⚙️ |
 | [T-ACCESS-029](../tasks/T-ACCESS-029.md) | §A-5 | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | ⚙️ |

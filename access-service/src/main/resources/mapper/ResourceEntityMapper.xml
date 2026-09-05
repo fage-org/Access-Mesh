@@ -202,4 +202,11 @@
         </if>
     </select>
 
+    <select id="existsValidByType" resultType="int">
+        SELECT COUNT(*) FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND resource_type = #{resourceType}
+    </select>
+
 </mapper>

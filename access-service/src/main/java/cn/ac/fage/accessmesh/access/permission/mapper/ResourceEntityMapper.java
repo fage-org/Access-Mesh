@@ -251,4 +251,14 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
     long selectResourceListCount(@Param("tenantId") Long tenantId,
                                   @Param("resourceType") Integer resourceType,
                                   @Param("matchNone") boolean matchNone);
+
+    /**
+     * 类型下有效资源行计数（T-PERM-052 类型所有权声明变更守卫；LIMIT 1 存在性探测语义）。
+     *
+     * @param tenantId     租户ID
+     * @param resourceType resource_type 内部类型值
+     * @return 行数（0=无有效行）
+     */
+    int existsValidByType(@Param("tenantId") Long tenantId,
+                          @Param("resourceType") Integer resourceType);
 }

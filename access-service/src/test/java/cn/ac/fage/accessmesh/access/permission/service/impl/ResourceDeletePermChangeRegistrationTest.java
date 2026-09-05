@@ -50,6 +50,7 @@ class ResourceDeletePermChangeRegistrationTest {
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private PermQueryEngine engine;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
+    @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     @Mock private TreeWriteLockSupport treeWriteLockSupport;
 
     private ResourceManageAppServiceImpl service;
@@ -60,6 +61,7 @@ class ResourceDeletePermChangeRegistrationTest {
             resourceEntityMapper, apiMappingMapper, resourceEntityDomainService,
             typeResolutionService, domainClassifyService, engine, rolePermMapper,
             new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
+            resourceTypeOwnershipGuard,
             treeWriteLockSupport);
         // 模拟 @PermissionChange AOP 绑定 context（owner）
         PermissionChangeContext.bindIfAbsent();
@@ -86,6 +88,14 @@ class ResourceDeletePermChangeRegistrationTest {
             .thenReturn(Set.of());
         when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
             .thenReturn(java.util.Map.of(10L, List.of(11L)));
+        // T-PERM-052 级联守卫：删除全集（含后代）批量取实体收集类型值
+        ResourceEntity child = new ResourceEntity();
+        child.setId(11L);
+        child.setResourceType(1);
+        child.setCode("child");
+        child.setCodeType("default");
+        when(resourceEntityDomainService.batchSelectByIdsMap(1L, Set.of(10L, 11L)))
+            .thenReturn(java.util.Map.of(10L, root, 11L, child));
 
         // 受影响 roleIds（软删前查出）
         when(rolePermMapper.selectRoleIdsByResourceIds(eq(1L), anyList()))
@@ -127,6 +137,8 @@ class ResourceDeletePermChangeRegistrationTest {
             .thenReturn(Set.of());
         when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
             .thenReturn(java.util.Map.of(10L, List.of()));
+        when(resourceEntityDomainService.batchSelectByIdsMap(1L, Set.of(10L)))
+            .thenReturn(java.util.Map.of(10L, root));
 
         when(rolePermMapper.selectRoleIdsByResourceIds(eq(1L), anyList())).thenReturn(Set.of());
         when(apiMappingMapper.selectByResourceEntityIds(eq(1L), anySet())).thenReturn(List.of());

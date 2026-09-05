@@ -151,7 +151,7 @@ class ServiceConfigAppServiceImplTest {
 
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
             "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"roleTypeCodes\": [\"TEAM_ROLE\"],"
-                + " \"resourceTypeCodes\": [\"HR_ORG\"], \"sourceTypes\": [\"HR_MEMBER\"]}}");
+                + " \"sourceTypes\": [\"HR_MEMBER\"]}}");
 
         ServiceConfigResp result = service.saveServiceConfig(1L, req, 100L);
 

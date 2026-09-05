@@ -275,7 +275,21 @@ public enum PermissionErrorCode {
      * 等价依赖规则已存在（uk_resource_dependency：tenant + 源资源 + 目标资源 + COALESCE(source_operation_bits,0)）。
      * 业务层预查命中返回（对齐 CONFLICT_RULE_DUPLICATE 先例），并发窗口由 DB 唯一索引兜底转同码。
      */
-    DEPENDENCY_DUPLICATE(20054, "等价依赖规则已存在（同源/目标资源对 + 同触发操作位）");
+    DEPENDENCY_DUPLICATE(20054, "等价依赖规则已存在（同源/目标资源对 + 同触发操作位）"),
+
+    /**
+     * 资源由外部来源维护（类型级所有权，T-PERM-052 定案 2026-09-05）：目标资源类型声明为
+     * SYNC（extra.managedMode=SYNC）时，管理面 create/update/move/remove（含级联删除的后代全集）
+     * 一律拒绝——资源事实归声明来源服务维护，请到来源系统操作。读路径不受限。
+     */
+    RESOURCE_EXTERNALLY_MAINTAINED(20055, "资源由外部来源维护，请到来源系统操作"),
+
+    /**
+     * 类型所有权声明不可变更：resource_type 类型下仍存在有效资源行时，extra.managedMode /
+     * syncSourceService 的有效值变更（含删除键隐式切回 MANAGED）被拒绝（T-PERM-052 定案：
+     * 无有效行才可改——防止人工行切成 SYNC 变只读孤岛、SYNC 行切成 MANAGED 被管理面误删）。
+     */
+    TYPE_OWNERSHIP_CHANGE_CONFLICT(20056, "类型所有权声明不可变更：类型下存在有效资源行");
 
     private final int code;
     private final String message;

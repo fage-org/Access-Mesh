@@ -1,64 +1,78 @@
 ---
 doc_type: task
 id: T-PERM-052
-title: 资源同步双向所有权边界——sync 接管拒绝 + 管理面 SYNC 行只读 + FULL 删除归属核验
-status: proposed
+title: 资源类型级所有权边界——类型声明门禁（sync 独占 + 管理面只读 + 声明变更守卫）
+status: done
 plan: docs/plans/design-audit-followup-plan.md
 domain: permission-center
 design_refs:
+  - docs/design/permission-center/api-contract.md#§5.1
   - docs/design/permission-center/api-contract.md#§5.3
-  - docs/design/permission-center/api-contract.md#§6.2
+  - docs/design/permission-center/api-contract.md#§6.2.2
+  - docs/design/permission-center/api-contract.md#§6.3.1
   - docs/design/access-service-architecture.md#§4.3
   - docs/design/schema/access-service.sql
 depends_on: []
 blocks: []
 acceptance:
-  - "sync 接管拒绝：ResourceEntitySyncAppServiceImpl.doSyncOneInternal 在 localProjectionGuard.rejectIfLocalResource 之后、applyVersion 之前增加同源归属校验（UserRoleSyncAppServiceImpl.ownedByCurrentSource 同款先例，但**位置取 applyVersion 之前**——user_role 先例实际在 applyVersion 之后、冲突时版本已推进；本处对齐本文件既有注释「所有权是安全边界，必须先于任何可提交的提前返回」）——existing 非空且不由当前 sourceService+scopeKey+businessKey 的 sync_metadata 指向（target_id 不匹配）**或 maintain_source 非 'SYNC'**（叠加维度：挡修复前已被接管的存量行，INSERT 分支写死 'SYNC'；亦挡 service-config 通道 SERVICE_SYNC 行）→ OWNERSHIP_CONFLICT non-retryable；UPSERT/DISABLE/DELETE 三分支统一前置；single 走 resolveTargetId 单条、full-sync 阶段 C 批量预加载 Map 传入（N+1 禁令，对齐 ownedTargetIdsByBusinessKeyHash 先例）"
-  - "管理面只读（守卫须覆盖级联全集，复评审补强）：资源本体管理写路径对 maintain_source 非 MANUAL 的行前置拒绝，语义=「资源由外部来源维护，请到来源系统操作」；判定基于 maintain_source 白名单（MANUAL 可写）而非黑名单枚举；**remove 的后代级联删除必须对 allIdsToDelete 全集（含 batchGetDescendantIds 展开的后代，非仅请求根集合）执行同一守卫**——否则删一个 MANUAL 根会连带清掉子树中的 SYNC/本地投影行（现存 rejectIfLocalResource 同样未护后代，一并收口）；入口=updateResource/moveResource/deleteResources（同在 ResourceManageAppServiceImpl）+ 完整入口清单执行时盘点；新错误码 perm 段顺延（执行时与 T-PERM-046 全局域新码统一排号避免撞号）；授权（apply-grant-plan）/资源依赖/API 映射操作不受限——不触碰资源本体字段"
-  - "FULL diff 删除归属核验（2026-09-05 复评审补强机制）：差异校准 deactivate 前核验目标行——maintain_source='MANUAL' 直接拦（异源 SYNC 行无法靠该列分辨，**新增 sync_metadata 按 target_id 反查**：同一 target_id 存在其他 sourceService 的有效 metadata 指向=异源接管残留，不软删）；命中拦截的行不软删、记 WARN 列明——修复上线前可能已发生存量接管的防御；**跳过软删时对应 metadata 不标 DELETED、保持原状**（标 DELETED 会造成行 ACTIVE 而 metadata DELETED 的反向漂移；每轮 FULL 重复 WARN 提示人工处置存量）；对齐 service-config §6.3「FULL diff 只软删同一 ownerServiceCode+SERVICE_SYNC 范围」先例"
-  - "maintain_source 值域收口：resource-entity/sync 写入的 'SYNC' 值不在 schema 注释值域 {MANUAL, SERVICE_SYNC, SDK_SCAN, MANIFEST, ADMIN_UI} 内（列无 CHECK 约束静默落库）——值域与判定条件配套定案（注释收口登记 'SYNC' 值或统一取值，含存量行核对），与第 2 条白名单判定一致"
-  - "契约回写：api-contract §6.2/§6.2.2 补 OWNERSHIP_CONFLICT 错误分类与接管拒绝语义；§5.3 update/move/remove 补「SYNC 行管理面只读」口径与新错误码"
-  - "回归锁（须在旧实现下失败）：MANUAL 行与异源 SYNC 行 × {UPSERT、DISABLE、DELETE、FULL 差异删除} 的接管全部拒绝 + verify never 到 update/softDeleteBatch；管理面 update/move/remove 命中 SYNC 行拒绝 + never；**MANUAL 根 + SYNC 后代的级联删除拒绝**（旧实现会连后代一并软删）+ never 到后代 softDeleteBatch；同源行正常同步、本地投影既有拒绝行为不回归"
+  - "类型所有权声明载体（用户定案 2026-09-05：extra JSONB 约定）：type_definition.extra 携带 managedMode（两态 MANAGED=缺省/SYNC，用户定案两态——SYSTEM 语义由 is_system 承载）+ syncSourceService（SYNC 必填）；type-definition create/update 保存边界结构校验（20044）：仅 type_key=resource_type 可携带此二键、mode 值域受限、SYNC 必填非空白来源且须为已注册有效服务、MANAGED 携带来源拒绝、非法 JSON 拒绝（对齐 SyncTypeGuard.validateSyncTypesExtra 先例防拼写错误静默失效）；读取侧 extra 损坏按 MANAGED 处理（fail-closed：外部同步拒绝、管理面可写）"
+  - "声明变更守卫（用户定案 2026-09-05：无有效行才可改）：update 的新旧声明有效值变更（extra 整串替换语义下含删键隐式切回 MANAGED）且类型下存在有效 resource_entity 行 → 20056 TYPE_OWNERSHIP_CHANGE_CONFLICT；声明未变不触发行数查询"
+  - "sync 入口类型门禁：resource-entity/sync 与 full-sync 目标类型必须声明 SYNC 且 syncSourceService==调用服务身份，否则 SECURITY_DENIED/RESOURCE_TYPE_OWNERSHIP_DENIED（类型不存在/声明缺失 fail-closed 同拒）；取代 syncTypeGuard 资源维度——SyncTypes.resourceTypeCodes 字段与 resource() 工厂删除、validateSyncTypesExtra 字段白名单收为三维（subject/role/source）且含已退役 resourceTypeCodes 的保存直接拒绝；T-ACCESS-018 的 rejectIfLocalResource（owner=access-service 行 20045）保留为纵深防御"
+  - "管理面类型门禁：create/batch-create/update/move/remove 对 SYNC 类型一律 20055 RESOURCE_EXTERNALLY_MAINTAINED（资源由外部来源维护，请到来源系统操作）；batch-create 按去重类型码一次批量判定、remove 对删除全集（含 batchGetDescendantIds 展开的后代）批量取实体按类型值一次判定（N+1 禁令）——sync 通道允许跨类型父子边，MANAGED 根的子树可含 SYNC 类型后代，只判请求根集合会连带清掉外部来源维护的子树；读路径（tree/list/detail）不受限"
+  - "错误码登记：20055/20056 perm 段顺延占用（20054 后首次取号；T-PERM-046 全域新码后续取号从 20057 起顺延避让）"
+  - "契约与文档回写：api-contract §5.1（声明约定+接入流程+变更约束 20056）/§5.3（SYNC 类型只读+级联守卫+20055）/§6.2.2+§6.2.2.1（类型门禁与 RESOURCE_TYPE_OWNERSHIP_DENIED）/§6.3.1（syncTypes 三维+退役字段保存拒绝）；architecture §4.3 与 core-flows 的 T-ACCESS-018 行级口径改写为类型级（标注 2026-09-05 定案取代）；schema：type_definition.extra 注释补约定、resource_entity.maintain_source 注释登记 'SYNC' 记录值（判定不依赖该列，所有权由类型声明承载）"
+  - "回归锁（须在旧实现下失败）：MANAGED 类型/异源 SYNC/未声明类型 × {sync、fullSync} 入口拒绝 + verify never 到 insert/update/softDeleteBatch；管理面 create/update/move 命中 SYNC 类型 20055 + never 写库；remove 级联含 SYNC 类型后代整批拒绝 + never softDeleteBatch（旧实现会连后代一并软删）；声明校验负向五型（非 resource_type 携带/非法 mode/SYNC 缺来源/来源未注册/MANUAL 语义携带来源）+ 变更守卫三态（有行 20056/删键隐式变更同拒/无行放行）+ 声明未变不查行数；syncTypes 含已退役字段保存拒绝；同源 SYNC 类型正常同步、本地投影既有拒绝行为不回归"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-05
 ---
 
-# T-PERM-052 资源同步双向所有权边界——sync 接管拒绝 + 管理面 SYNC 行只读 + FULL 删除归属核验
+# T-PERM-052 资源类型级所有权边界——类型声明门禁（sync 独占 + 管理面只读 + 声明变更守卫）
 
-> 状态：proposed（2026-09-05 设计体检 P1，逐条代码级核实后定案）
-> 依赖：无硬依赖；与 T-PERM-051 的 TYPE_DEFINITION 保留清单、T-ADMIN-025 的 ADMIN_FILE 保留清单口径同向，排期互不阻塞
+> 状态：done（2026-09-05 设计体检 P1 立项为行级方案，同日执行时经用户四项定案改定为类型级所有权方案后实施收口；access-service 全量套件 1039 单测 + 151 容器测试全绿）
+> 依赖：无硬依赖；错误码与 T-PERM-046 取号协调（本卡占 20055/20056）
 
-## 背景
+## 设计口径（2026-09-05 用户定案）
 
-resource-entity 外部同步与管理面当前都只有「本地投影」一道防线（`localProjectionGuard.rejectIfLocalResource`，owner=access-service 才拒绝），两个方向都能越界：
+原行级方案（sync_metadata 反查接管拒绝 + maintain_source 行级白名单 + FULL diff 归属核验）在执行时被用户改定为**类型级所有权**模型，四项定案：
 
-1. **sync → 人工/异源**：`doSyncOneInternal` 命中 MANUAL 行或他源 SYNC 行时直接走 UPDATE 分支覆盖字段并 `markStatus+backfillTargetId` 登记本源 sync_metadata——归属被夺走；随后 FULL 差异校准（他源 metadata 有、本次请求无）即软删；单条 `operation=DELETE` 更是一步直接软删。违反契约 §6.2.2「不删除 MANUAL 或其他维护来源创建的事实」。
-2. **管理面 → sync**：`updateResource`/`removeResource` 等同样只拦本地投影，SYNC 行可被手工改（下次同步覆盖回，白改）或删（partial uk 下次同步重建**新 id**，旧 id 上授权全部悬挂失效）。
+1. **声明载体 = type_definition.extra JSONB 约定**（非新列/独立表）：`managedMode` + `syncSourceService` 两键；
+2. **mode 值域 = 两态 MANAGED(缺省)/SYNC**：SYSTEM 语义由既有 is_system 承载，不设第三态；
+3. **syncTypes 移除资源维度**：resource-entity 通道唯一门禁 = 类型声明，service_config.extra.syncTypes 只剩 subject/role/source 三维；
+4. **无有效行才可改**：类型下存在有效资源行时声明有效值不得变更（含删键隐式切回 MANAGED）。
 
-正确先例：user_role 同步每分支前有 `ownedByCurrentSource` 同源校验（OWNERSHIP_CONFLICT）；service-config 通道 FULL diff 只清自己 owner+SERVICE_SYNC 范围——resource-entity 通道两半都没搬全。
+两个混合场景的用户答案（推翻 T-ACCESS-018「公共类型外部同步合法」口径）：
 
-## 设计口径（2026-09-05 定案）
+- 外部服务同步用户 → 走自有用户类型（主体通道自有类型 + 资源通道自有类型），不动公共 `USER`；
+- 菜单归本系统管理则同用户口径；其他服务的菜单走自建类型（如 `BI_MENU`）。
 
-- **资源节点来源三分**：手工 `maintain_source=MANUAL` / 本系统投影 `owner=access-service` / 外部同步 `maintain_source='SYNC'+owner=NULL`（ownership 以 sync_metadata 为准）。**双向不可跨界**：同步不得接管人工/异源行；管理面不得写 SYNC 行。
-- **SYNC 节点管理面完全只读**（含 name）：展示文案的本地调整走**类型名称**（type_definition.name，类型定义管理面另一对象，不受资源所有权限制）；名称归来源系统，同步 UPDATE 继续覆盖。
-- 授权/资源依赖/API 映射是对 access-service 自有事实的操作，不触碰资源本体，不受限。
+模型不变式：每个 resource_type 类型单一所有权——MANAGED=管理面维护（公共基础类型属之）/ SYNC=声明来源服务独占同步且管理面只读。双向越界（sync 接管人工行、管理面改/删同步行）在类型层结构性消除。`maintain_source` 降级为记录值（'SYNC' 登记进 schema 注释），判定不依赖该列。
 
 ## 范围
 
-- doSyncOneInternal 同源归属校验（single/full 两条路径）；
-- 资源本体管理写路径全部入口的 SYNC 行拒绝（入口清单执行时盘点：update/move/remove/batch-remove 等）；
-- FULL 差异删除归属核验 + 存量防御；
-- maintain_source 值域与 schema 注释收口；
-- 契约回写 + 双向回归锁。
+- ResourceTypeOwnershipGuard（extra 解析/保存校验/管理面门禁/变更守卫，新域组件）；
+- type-definition create/update：声明结构校验 + 变更守卫（20056）；
+- resource-entity sync/fullSync 入口类型门禁（取代 syncTypeGuard 资源维度）；
+- 管理面 create/batch-create/update/move/remove 五入口门禁（remove 含级联删除全集守卫）；
+- SyncTypeGuard 资源维度移除（字段/工厂/白名单/保存校验）；
+- 错误码 20055/20056；契约（§5.1/§5.3/§6.2.2/§6.2.2.1/§6.3.1）+ architecture §4.3 + core-flows + schema 注释回写；
+- 双向回归锁。
 
 ## 非目标
 
-- 不动 user_role 同步与 service-config 通道（先例本身正确）；
-- 不做资源「显示别名」机制（2026-09-05 定案否决：SYNC 行连 name 也不开放本地改）；
-- 不处理存量已接管数据的自动修复（FULL 删除防御核验挡住即可，修复留人工）。
+- 主体/角色同步通道维持现状（已是调用方自有类型+syncTypes 白名单模型，与类型级所有权同向）；
+- service-config 接口声明通道维持现状（AccessMesh 内部通道，自有 owner_service_code 行级守卫，不写 sync_metadata）；
+- 本地投影链路不动（rejectIfLocalResource 保留为纵深防御）；
+- 不处理类型删除时的行数检查（deleteTypesByIds 现状不查行，见已知边界）；
+- 前端类型定义页/资源页不改造（extra 为 JSON 编辑、20055 走统一错误提示；类型声明管理面增强另行评估）。
 
-## 已知边界（2026-09-05 复评审登记，另行评估）
+## 已知边界（登记，另行评估）
 
-- **资源同步通道删除无授权级联与快照失效**（存量行为，非本任务引入）：sync DELETE / FULL 差异校准只软删 resource_entity 行，不做该实体下授权行的级联软删、无 `@PermissionChange` 快照失效广播——对比管理面 `deleteResources` 的完整级联（授权软删 + 快照失效登记）。本任务的 FULL 防御会减少此类删除面，但不改变该行为；是否对齐管理面级联语义另行评估登记。
+- **type-definition/remove 不检查类型下是否仍有资源行**（存量行为）：删除 SYNC 类型后其行失去类型解析（sync 报 RESOURCE_TYPE_OWNERSHIP_DENIED、管理面业务键寻址 20021）——与变更守卫「无有效行才可改」同构，是否补行数检查另行评估；
+- **sync 通道跨类型父子边仍合法**（parentResourceTypeCode 可与 item 类型不同）：本卡以 remove 级联全集守卫防御，是否收紧为同类型父边另行评估；
+- **SYNC 类型声明来源服务被删除后**类型声明残留（service-config remove 不级联类型声明）：该类型同步入口持续拒绝（fail-closed 方向），人工清理类型声明即可。
+
+## 完成记录
+
+- 2026-09-05 实施：错误码 20055/20056；ResourceTypeOwnershipGuard 新建（解析/校验/门禁/变更守卫）；ResourceEntityDomainService.hasValidRowsOfType + mapper existsValidByType；TypeDefinitionAppServiceImpl 声明校验+变更守卫；ResourceEntitySyncAppServiceImpl 入口门禁替换白名单；ResourceManageAppServiceImpl 五入口门禁（remove 级联全集）；SyncTypeGuard 资源维度移除；schema/api-contract/architecture/core-flows 回写；回归用例 22 个新增/适配（含旧实现下失败锁），受影响测试类 118 用例全绿，access-service 全量套件通过。
