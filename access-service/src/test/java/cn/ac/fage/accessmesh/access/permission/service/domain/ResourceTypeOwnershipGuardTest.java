@@ -87,6 +87,15 @@ class ResourceTypeOwnershipGuardTest {
         assertThat(guard.parseOwnership("{\"managedMode\":\"SYNC\",\"syncSourceService\":\" hr-service \"}")).isEqualTo(managed);
         // MANAGED 携带来源：结构非法（保存侧同款拒绝），读取侧按纯 MANAGED
         assertThat(guard.parseOwnership("{\"managedMode\":\"MANAGED\",\"syncSourceService\":\"hr-service\"}")).isEqualTo(managed);
+        // codex 五轮复评 P1：超长来源（>service_code 列宽 128）不可能匹配任何注册服务——
+        // 视为有效 SYNC 会重现零 writer 锁死（同步拒+管理面 20055+20056 阻修复）
+        String oversizedSource = "hr-" + "x".repeat(127);
+        assertThat(guard.parseOwnership("{\"managedMode\":\"SYNC\",\"syncSourceService\":\"" + oversizedSource + "\"}"))
+                .isEqualTo(managed);
+        // codex 五轮复评 P2：仅来源无 mode / 已知键显式 null（均为保存侧拒绝形态）读取侧同样回退
+        assertThat(guard.parseOwnership("{\"syncSourceService\":\"hr-service\"}")).isEqualTo(managed);
+        assertThat(guard.parseOwnership("{\"managedMode\":null}")).isEqualTo(managed);
+        assertThat(guard.parseOwnership("{\"managedMode\":\"MANAGED\",\"syncSourceService\":null}")).isEqualTo(managed);
 
         // 损坏声明 + 类型下有行：可经 update 修复（旧声明解析为 MANAGED，与新声明未变更，
         // 不触发行数守卫——旧实现下 20056 拒绝修复，类型永久锁死）

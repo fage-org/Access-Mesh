@@ -60,6 +60,9 @@ public class ResourceTypeOwnershipGuard {
     public static final String EXTRA_KEY_SYNC_SOURCE_SERVICE = "syncSourceService";
     public static final String MODE_MANAGED = "MANAGED";
     public static final String MODE_SYNC = "SYNC";
+    /** 来源编码上限（对齐 service_config.service_code / sync_metadata.source_service 的 128 列宽，
+     * 保存校验与读取回退共用——codex 五轮复评 P1：读取侧漏判超长来源会重现零 writer 锁死） */
+    private static final int SOURCE_SERVICE_MAX_LENGTH = 128;
 
     private final TypeDefinitionMapper typeDefinitionMapper;
     private final ServiceConfigMapper serviceConfigMapper;
@@ -91,12 +94,13 @@ public class ResourceTypeOwnershipGuard {
     }
 
     /**
-     * 解析 extra 中的所有权声明。键缺失/extra 为空 = MANAGED；结构损坏（非法 JSON、mode
-     * 非文本或值域外、SYNC 缺失/非文本/空白或含首尾空白的来源、MANAGED 携带来源）一律
-     * WARN 后按 MANAGED 处理（codex 四轮复评 P1：读取侧执行与保存边界同构的结构校验——
-     * 仅校验 JSON 合法性与 mode 文本性时，{@code SYNC+非文本来源} 会解析成无来源的 SYNC：
-     * 外部同步来源不匹配被拒、管理面 20055，而 20056 行数守卫又阻止修复，存量类型被锁成
-     * 零 writer。回退 MANAGED = fail-closed + 可恢复方向，与类注释/契约承诺一致）。
+     * 解析 extra 中的所有权声明。键缺失/extra 为空 = MANAGED；结构损坏（非法 JSON、已知键
+     * 显式 null、仅来源无 mode、mode 非文本或值域外、SYNC 缺失/非文本/空白/含首尾空白/超长
+     * 来源、MANAGED 携带来源）一律 WARN 后按 MANAGED 处理（codex 四/五轮复评 P1/P2：读取侧
+     * 执行与保存边界同构的结构校验——仅校验 JSON 合法性与 mode 文本性时，{@code SYNC+非文本
+     * 来源}或超长来源会解析成无人可满足的 SYNC：外部同步被拒、管理面 20055，而 20056 行数
+     * 守卫又阻止修复，存量类型被锁成零 writer。回退 MANAGED = fail-closed + 可恢复方向，
+     * 与类注释/契约承诺一致）。
      */
     public Ownership parseOwnership(String extraJson) {
         if (extraJson == null || extraJson.isBlank()) {
@@ -105,7 +109,18 @@ public class ResourceTypeOwnershipGuard {
         try {
             JsonNode root = objectMapper.readTree(extraJson);
             JsonNode mode = root.get(EXTRA_KEY_MANAGED_MODE);
-            if (mode == null || mode.isNull()) {
+            JsonNode source = root.get(EXTRA_KEY_SYNC_SOURCE_SERVICE);
+            // codex 五轮复评 P2：与保存侧同构——已知键显式 null 是保存侧拒绝形态，读取侧记 WARN 回退
+            if ((mode != null && mode.isNull()) || (source != null && source.isNull())) {
+                log.warn("resource type ownership: explicit null on known keys, fallback MANAGED: {}", extraJson);
+                return Ownership.MANAGED;
+            }
+            if (mode == null) {
+                // 仅携带来源无 mode：保存侧拒绝（来源仅随 SYNC 声明），读取侧记 WARN 回退
+                if (source != null) {
+                    log.warn("resource type ownership: {} carried without {}, fallback MANAGED: {}",
+                            EXTRA_KEY_SYNC_SOURCE_SERVICE, EXTRA_KEY_MANAGED_MODE, extraJson);
+                }
                 return Ownership.MANAGED;
             }
             if (!mode.isTextual()) {
@@ -120,18 +135,23 @@ public class ResourceTypeOwnershipGuard {
                 return Ownership.MANAGED;
             }
             if (MODE_MANAGED.equals(modeText)) {
-                JsonNode source = root.get(EXTRA_KEY_SYNC_SOURCE_SERVICE);
-                if (source != null && !source.isNull()) {
+                if (source != null) {
                     log.warn("resource type ownership: MANAGED declaration carries {}, fallback MANAGED: {}",
                             EXTRA_KEY_SYNC_SOURCE_SERVICE, extraJson);
                 }
                 return Ownership.MANAGED;
             }
-            JsonNode source = root.get(EXTRA_KEY_SYNC_SOURCE_SERVICE);
             String sourceText = source != null && source.isTextual() ? source.asText() : null;
             if (sourceText == null || sourceText.isBlank() || !sourceText.equals(sourceText.trim())) {
                 log.warn("resource type ownership: SYNC declaration missing/blank/padded source, "
                         + "fallback MANAGED: {}", extraJson);
+                return Ownership.MANAGED;
+            }
+            if (sourceText.length() > SOURCE_SERVICE_MAX_LENGTH) {
+                // codex 五轮复评 P1：超长来源不可能匹配任何注册服务（service_code 列宽 128）——
+                // 视为有效 SYNC 会重现「同步拒+管理面 20055+20056 阻修复」零 writer 锁死
+                log.warn("resource type ownership: SYNC source exceeds {} chars, fallback MANAGED: {}",
+                        SOURCE_SERVICE_MAX_LENGTH, extraJson);
                 return Ownership.MANAGED;
             }
             return new Ownership(modeText, sourceText);
@@ -262,8 +282,9 @@ public class ResourceTypeOwnershipGuard {
             }
             // 长度对齐 service_config.service_code / sync_metadata.source_service 的 128 列宽
             // （codex 复评 P2：65~128 字符的合法注册服务不应被声明校验拒绝）
-            if (sourceText.length() > 128) {
-                throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE + " 长度超过 128");
+            if (sourceText.length() > SOURCE_SERVICE_MAX_LENGTH) {
+                throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE
+                        + " 长度超过 " + SOURCE_SERVICE_MAX_LENGTH);
             }
         }
         if (sourceText != null && !MODE_SYNC.equals(modeText)) {
