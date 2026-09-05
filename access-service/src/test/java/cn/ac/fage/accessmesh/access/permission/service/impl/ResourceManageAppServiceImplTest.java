@@ -364,20 +364,27 @@ class ResourceManageAppServiceImplTest {
         createOrder.verify(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, "API");
         createOrder.verify(resourceEntityMapper).insert(any(ResourceEntity.class));
 
-        // codex 三轮复评 P2-1：批量段前清调用记录——旧断言可被单创建段的锁满足（假阳性）
-        org.mockito.Mockito.clearInvocations(treeWriteLockSupport, resourceTypeOwnershipGuard, resourceEntityMapper);
-        // batch-create 同口径（拒绝路径足以钉锁序：锁 → 批量门禁）
-        org.mockito.Mockito.doThrow(new cn.ac.fage.accessmesh.common.exception.BizException(20055,
-                "资源由外部来源维护: resourceTypeCode=API"))
-            .when(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("API"));
-        assertThrows(cn.ac.fage.accessmesh.common.exception.BizException.class, () ->
-            service.batchCreateResources(1L, java.util.List.of(
-                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
-                    null, null, null, null, null, "API", "res-lock-b", null, "资源B", null, null, null, null)), 100L));
-        org.mockito.InOrder batchOrder = org.mockito.Mockito.inOrder(treeWriteLockSupport, resourceTypeOwnershipGuard);
+        // codex 四轮复评 P2-2：批量段改成功路径全序（拒绝路径只能证明锁→门禁）——
+        // 权限 → 锁 → 批量门禁（返回权威行）→ insertBatch；旧实现无锁/门禁在锁前时失败
+        org.mockito.Mockito.clearInvocations(engine, treeWriteLockSupport, resourceTypeOwnershipGuard, resourceEntityMapper);
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("API")))
+            .thenReturn(java.util.Map.of("API", apiType()));
+        when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), any())).thenReturn(java.util.Map.of());
+        when(resourceEntityDomainService.findExistingCodes(eq(1L), any())).thenReturn(java.util.Set.of());
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
+
+        service.batchCreateResources(1L, java.util.List.of(
+            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+                null, null, null, null, null, "API", "res-lock-b", null, "资源B", null, null, null, null)), 100L);
+
+        org.mockito.InOrder batchOrder = org.mockito.Mockito.inOrder(
+            engine, treeWriteLockSupport, resourceTypeOwnershipGuard, resourceEntityMapper);
+        batchOrder.verify(engine).hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCodeConstants.CREATE));
         batchOrder.verify(treeWriteLockSupport).lockTreeWrites(1L,
             cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         batchOrder.verify(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("API"));
+        batchOrder.verify(resourceEntityMapper).insertBatch(org.mockito.ArgumentMatchers.anyList());
     }
 
     @Test

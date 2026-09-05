@@ -91,8 +91,12 @@ public class ResourceTypeOwnershipGuard {
     }
 
     /**
-     * 解析 extra 中的所有权声明。键缺失/extra 为空 = MANAGED；JSON 损坏按 MANAGED 处理
-     * （外部同步拒绝、管理面可写，fail-closed 方向）并记 WARN。
+     * 解析 extra 中的所有权声明。键缺失/extra 为空 = MANAGED；结构损坏（非法 JSON、mode
+     * 非文本或值域外、SYNC 缺失/非文本/空白或含首尾空白的来源、MANAGED 携带来源）一律
+     * WARN 后按 MANAGED 处理（codex 四轮复评 P1：读取侧执行与保存边界同构的结构校验——
+     * 仅校验 JSON 合法性与 mode 文本性时，{@code SYNC+非文本来源} 会解析成无来源的 SYNC：
+     * 外部同步来源不匹配被拒、管理面 20055，而 20056 行数守卫又阻止修复，存量类型被锁成
+     * 零 writer。回退 MANAGED = fail-closed + 可恢复方向，与类注释/契约承诺一致）。
      */
     public Ownership parseOwnership(String extraJson) {
         if (extraJson == null || extraJson.isBlank()) {
@@ -109,9 +113,28 @@ public class ResourceTypeOwnershipGuard {
                         EXTRA_KEY_MANAGED_MODE, extraJson);
                 return Ownership.MANAGED;
             }
+            String modeText = mode.asText();
+            if (!MODE_MANAGED.equals(modeText) && !MODE_SYNC.equals(modeText)) {
+                log.warn("resource type ownership: invalid {} value, fallback MANAGED: {}",
+                        EXTRA_KEY_MANAGED_MODE, extraJson);
+                return Ownership.MANAGED;
+            }
+            if (MODE_MANAGED.equals(modeText)) {
+                JsonNode source = root.get(EXTRA_KEY_SYNC_SOURCE_SERVICE);
+                if (source != null && !source.isNull()) {
+                    log.warn("resource type ownership: MANAGED declaration carries {}, fallback MANAGED: {}",
+                            EXTRA_KEY_SYNC_SOURCE_SERVICE, extraJson);
+                }
+                return Ownership.MANAGED;
+            }
             JsonNode source = root.get(EXTRA_KEY_SYNC_SOURCE_SERVICE);
             String sourceText = source != null && source.isTextual() ? source.asText() : null;
-            return new Ownership(mode.asText(), sourceText);
+            if (sourceText == null || sourceText.isBlank() || !sourceText.equals(sourceText.trim())) {
+                log.warn("resource type ownership: SYNC declaration missing/blank/padded source, "
+                        + "fallback MANAGED: {}", extraJson);
+                return Ownership.MANAGED;
+            }
+            return new Ownership(modeText, sourceText);
         } catch (Exception e) {
             log.warn("resource type ownership: invalid extra json, fallback MANAGED: {}", extraJson, e);
             return Ownership.MANAGED;

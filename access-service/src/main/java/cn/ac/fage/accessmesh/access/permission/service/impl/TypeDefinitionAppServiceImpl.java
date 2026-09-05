@@ -479,13 +479,20 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
         LocalDateTime now = LocalDateTime.now();
         typeDefinitionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
-        // codex 三轮复评 P1-2：被删类型提交后失效双向解析缓存键（同码重建新值前，旧映射不得残留）
+        // codex 三轮复评 P1-2：被删类型提交后失效双向解析缓存键（同码重建新值前，旧映射不得残留）；
+        // codex 四轮复评 P2：按码键/值键各合并一次批量失效（逐项 evictAfterCommit = 2N 个事务回调）
+        java.util.Set<String> valueCacheKeys = new LinkedHashSet<>();
+        java.util.Set<String> codeCacheKeys = new LinkedHashSet<>();
         for (TypeDefinition deleted : entities) {
             if (validIds.contains(deleted.getId())) {
-                evictTypeResolutionCachesAfterCommit(tenantId, deleted.getTypeKey(),
-                        deleted.getTypeCode(), deleted.getTypeValue());
+                valueCacheKeys.add(deleted.getTypeKey() + ":" + deleted.getTypeCode());
+                if (deleted.getTypeValue() != null) {
+                    codeCacheKeys.add(deleted.getTypeKey() + ":" + deleted.getTypeValue());
+                }
             }
         }
+        cacheService.evictBatchAfterCommit(PermCacheCatalog.TYPE_VALUE, tenantId, valueCacheKeys);
+        cacheService.evictBatchAfterCommit(PermCacheCatalog.TYPE_CODE, tenantId, codeCacheKeys);
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " type_definition row(s)");
     }
 

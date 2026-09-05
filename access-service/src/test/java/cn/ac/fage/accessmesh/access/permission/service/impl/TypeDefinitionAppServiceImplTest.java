@@ -526,7 +526,9 @@ class TypeDefinitionAppServiceImplTest {
 
         service.createType(1L, new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null, null), 100L);
 
-        org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, typeDefinitionMapper);
+        // codex 四轮复评 P2-2：engine 入序（钉「权限→锁→首次类型读取」完整顺序）
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(engine, treeWriteLockSupport, typeDefinitionMapper);
+        order.verify(engine).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
         order.verify(treeWriteLockSupport).lockTreeWrites(1L,
             cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         order.verify(typeDefinitionMapper).selectMaxTypeValueAllRows(1L, "resource_type");
@@ -668,11 +670,14 @@ class TypeDefinitionAppServiceImplTest {
         service.deleteTypesByIds(1L, java.util.List.of(9L), 100L);
 
         verify(typeDefinitionMapper).softDeleteBatch(eq(1L), any(), any());
-        // codex 三轮复评 P1-2：被删类型提交后失效双向解析缓存键（TYPE_VALUE code 键 + TYPE_CODE value 键）
-        verify(cacheService).evictAfterCommit(
-            cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.TYPE_VALUE, 1L, "resource_type:HR_ORG");
-        verify(cacheService).evictAfterCommit(
-            cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.TYPE_CODE, 1L, "resource_type:5");
+        // codex 三轮复评 P1-2：被删类型提交后失效双向解析缓存键；codex 四轮复评 P2：
+        // 码键/值键各合并一次批量失效（逐项 evictAfterCommit = 2N 个事务回调）
+        verify(cacheService).evictBatchAfterCommit(
+            cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.TYPE_VALUE, 1L,
+            java.util.Set.of("resource_type:HR_ORG"));
+        verify(cacheService).evictBatchAfterCommit(
+            cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.TYPE_CODE, 1L,
+            java.util.Set.of("resource_type:5"));
     }
 
     @Test

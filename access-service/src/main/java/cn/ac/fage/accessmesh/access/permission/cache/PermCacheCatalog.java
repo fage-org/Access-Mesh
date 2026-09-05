@@ -77,7 +77,7 @@ public final class PermCacheCatalog {
     /**
      * 类型值映射缓存（快照链路）
      * <p>
-     * Key: typeDefId + typeCode（复合键，使用字符串表示）
+     * Key: typeKey + ":" + typeCode（与 TypeResolutionServiceImpl 键构造一致）
      * Value: Map&lt;String, Integer&gt; 类型码 -&gt; 类型值
      * </p>
      */
@@ -92,7 +92,7 @@ public final class PermCacheCatalog {
     /**
      * 类型码缓存（快照链路）
      * <p>
-     * Key: typeDefId + typeValue
+     * Key: typeKey + ":" + typeValue（与 TypeResolutionServiceImpl 键构造一致）
      * Value: String 类型码
      * </p>
      */

@@ -74,6 +74,31 @@ class ResourceTypeOwnershipGuardTest {
     }
 
     @Test
+    @DisplayName("结构损坏声明一律回退 MANAGED（codex 四轮复评 P1）：非法 mode/SYNC 非文本或空白或含首尾空白来源/MANAGED 携带来源")
+    void parseOwnership_shouldFallBackToManagedOnStructurallyCorruptDeclarations() {
+        cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.Ownership managed =
+                ResourceTypeOwnershipGuard.Ownership.MANAGED;
+        assertThat(guard.parseOwnership("{\"managedMode\":\"BROKEN\"}")).isEqualTo(managed);
+        // SYNC 携带非文本来源：旧实现解析成无来源 SYNC——同步来源不匹配被拒、管理面 20055、
+        // 20056 行数守卫又阻止修复 = 零 writer 锁死；回退 MANAGED 即可恢复
+        assertThat(guard.parseOwnership("{\"managedMode\":\"SYNC\",\"syncSourceService\":123}")).isEqualTo(managed);
+        assertThat(guard.parseOwnership("{\"managedMode\":\"SYNC\"}")).isEqualTo(managed);
+        assertThat(guard.parseOwnership("{\"managedMode\":\"SYNC\",\"syncSourceService\":\"  \"}")).isEqualTo(managed);
+        assertThat(guard.parseOwnership("{\"managedMode\":\"SYNC\",\"syncSourceService\":\" hr-service \"}")).isEqualTo(managed);
+        // MANAGED 携带来源：结构非法（保存侧同款拒绝），读取侧按纯 MANAGED
+        assertThat(guard.parseOwnership("{\"managedMode\":\"MANAGED\",\"syncSourceService\":\"hr-service\"}")).isEqualTo(managed);
+
+        // 损坏声明 + 类型下有行：可经 update 修复（旧声明解析为 MANAGED，与新声明未变更，
+        // 不触发行数守卫——旧实现下 20056 拒绝修复，类型永久锁死）
+        TypeDefinition hrOrg = resourceType(1L, "HR_ORG", 5,
+                "{\"managedMode\":\"SYNC\",\"syncSourceService\":123}");
+        assertThatCode(() -> guard.rejectIfDeclarationChangeBlocked(TENANT, hrOrg,
+                "{\"managedMode\":\"MANAGED\"}")).doesNotThrowAnyException();
+        verify(resourceEntityDomainService, never()).hasValidRowsOfType(anyLong(),
+                org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     @DisplayName("SYNC 声明解析出 mode 与来源；syncOwnedBy 按来源精确匹配")
     void parseOwnership_shouldParseSyncDeclaration() {
         ResourceTypeOwnershipGuard.Ownership ownership = guard.parseOwnership(

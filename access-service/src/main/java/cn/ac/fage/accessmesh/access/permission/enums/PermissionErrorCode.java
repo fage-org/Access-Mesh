@@ -285,11 +285,14 @@ public enum PermissionErrorCode {
     RESOURCE_EXTERNALLY_MAINTAINED(20055, "资源由外部来源维护，请到来源系统操作"),
 
     /**
-     * 类型所有权声明不可变更：resource_type 类型下仍存在有效资源行时，extra.managedMode /
-     * syncSourceService 的有效值变更（含删除键隐式切回 MANAGED）被拒绝（T-PERM-052 定案：
-     * 无有效行才可改——防止人工行切成 SYNC 变只读孤岛、SYNC 行切成 MANAGED 被管理面误删）。
+     * 类型所有权声明不可变更（T-PERM-052）：三种冲突面共用——①系统预置类型（is_system）
+     * 所有权声明钉死（空类型翻转后事实链路照旧写入即双 writer，codex 二轮复评定案）；
+     * ②自定义类型下仍存在有效资源行时 extra.managedMode/syncSourceService 有效值变更
+     * （含删除键隐式切回 MANAGED）被拒绝（无有效行才可改——防止人工行切成 SYNC 变只读
+     * 孤岛、SYNC 行切成 MANAGED 被管理面误删）；③类型下存在有效资源行时类型删除被拒绝
+     * （软删类型会让其行成永久孤儿）。读路径不受限。
      */
-    TYPE_OWNERSHIP_CHANGE_CONFLICT(20056, "类型所有权声明不可变更：类型下存在有效资源行");
+    TYPE_OWNERSHIP_CHANGE_CONFLICT(20056, "类型所有权声明不可变更（系统预置类型钉死，或类型下存在有效资源行）");
 
     private final int code;
     private final String message;
