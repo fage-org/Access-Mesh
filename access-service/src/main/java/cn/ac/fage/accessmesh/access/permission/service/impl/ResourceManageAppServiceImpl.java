@@ -476,6 +476,10 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             return;
         }
 
+        // T-PERM-052 评审批次（2026-09-05）：remove 与 update/move/sync 同持树写锁——后代展开与
+        // 批量软删之间的并发 sync 插入会产生「父已删、子存活」的悬挂引用（存量缺口顺手收口）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+
         // T-PERM-028：业务键批量解析为实体（按 resourceTypeCode 分组批量查询，避免N+1；
         // 未命中的键静默跳过，对齐原 ids 批删语义）
         List<ResourceEntity> entities = resolveResourcesByKeys(tenantId, keys);

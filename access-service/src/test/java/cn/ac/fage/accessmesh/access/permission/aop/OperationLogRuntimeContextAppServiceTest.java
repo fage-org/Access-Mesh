@@ -114,7 +114,8 @@ class OperationLogRuntimeContextAppServiceTest {
     @Test
     void shouldRecordActualSummaryForTypeDefinitionBatchDelete() {
         TypeDefinitionAppServiceImpl service = new TypeDefinitionAppServiceImpl(typeDefinitionMapper, operationPermissionMapper, engine,
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.class));
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService.class));
 
         TypeDefinition first = new TypeDefinition();
         first.setId(1L);

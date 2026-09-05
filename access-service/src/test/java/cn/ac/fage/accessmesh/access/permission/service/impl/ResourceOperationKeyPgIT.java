@@ -343,7 +343,8 @@ class ResourceOperationKeyPgIT {
     @DisplayName("resource_type 创建联动预置 CRUD 四操作位（真实 uk 约束 + DDL 模板位值）")
     void shouldPresetCrudOperationsWhenCreatingResourceTypeOnRealPostgres() {
         TypeDefinitionAppServiceImpl typeService = new TypeDefinitionAppServiceImpl(
-            typeDefinitionMapper, operationPermissionMapper, permitAllEngine(), ownershipGuard());
+            typeDefinitionMapper, operationPermissionMapper, permitAllEngine(), ownershipGuard(),
+            resourceEntityDomainService);
 
         var resp = typeService.createType(TENANT,
             new TypeCreateReq("resource_type", "PGIT28_TYPE", "联调测试类型", null, null, null), 100L);

@@ -253,7 +253,7 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
                                   @Param("matchNone") boolean matchNone);
 
     /**
-     * 类型下有效资源行计数（T-PERM-052 类型所有权声明变更守卫；LIMIT 1 存在性探测语义）。
+      * 类型下有效资源行计数（T-PERM-052 类型所有权声明变更/类型删除守卫）。
      *
      * @param tenantId     租户ID
      * @param resourceType resource_type 内部类型值

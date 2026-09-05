@@ -75,7 +75,7 @@ flowchart LR
 - 首期只支持 FULL 全量同步，本次上报内容就是该 `serviceCode` 的完整事实。
 - 权限中心用 `basePath + api.path` 生成 Gateway 原始路径并写入 `resource_api_mapping.path_pattern`。
 - 新接口自动创建 API 类型 `resource_entity` 和 `resource_api_mapping`。
-- 自动创建的 API 资源必须标记 `ownerServiceCode=serviceCode`、`maintainSource=SERVICE_SYNC` 和稳定 `syncKey`。
+- 自动创建的 API 资源必须标记 `ownerServiceCode=serviceCode`、`maintainSource=SERVICE_SYNC`（`resource_entity.sync_key` 列已删除，2026-09-05 T-PERM-052）。
 - 上报中缺失的旧接口会被软删除映射；若资源是同一 `ownerServiceCode + maintainSource=SERVICE_SYNC` 下自动创建的 API 资源，也可同步软删除。
 - FULL diff 不得删除人工维护或其他维护来源的资源。
 - Gateway 鉴权使用客户端原始请求路径匹配，不使用后端 StripPrefix 后路径。

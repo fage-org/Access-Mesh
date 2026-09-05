@@ -149,6 +149,27 @@ class LocalProjectionDomainServiceImplTest {
     // ------------------------------------------------------------------
 
     @Test
+    @DisplayName("upsertAdminUser 命中行且 parent 置空：UpdateEntity 强制清 parent 列（评审批次顺手修复回归锁）")
+    void upsertAdminUser_clearsParentColumnWhenNull() {
+        when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "LOCAL_USER")).thenReturn(3);
+        when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "USER")).thenReturn(6);
+        when(abstractUserMapper.selectByTypeAndExternalId(TENANT, 3, "123")).thenReturn(null);
+        ResourceEntity existing = foreignResource(900L, "123");
+        existing.setParentId(555L); // 旧 parent 残留场景
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT, 6, "123", "default"))
+            .thenReturn(existing);
+
+        service.upsertAdminUser(TENANT, 123L, "张三", true, null);
+
+        // parentId=null 须走 UpdateEntity 显式清列（update(entity) 忽略 null 字段，flex 语义）
+        org.mockito.ArgumentCaptor<ResourceEntity> captor =
+            org.mockito.ArgumentCaptor.forClass(ResourceEntity.class);
+        verify(resourceEntityMapper).update(captor.capture());
+        org.junit.jupiter.api.Assertions.assertNull(captor.getValue().getParentId());
+        org.junit.jupiter.api.Assertions.assertEquals(900L, captor.getValue().getId());
+    }
+
+    @Test
     @DisplayName("upsertAdminUser 命中已有 USER 资源行：直接更新（不再行级归属判定）")
     void upsertAdminUser_updatesExistingRow_withoutRowLevelOwnershipCheck() {
         when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "LOCAL_USER")).thenReturn(3);

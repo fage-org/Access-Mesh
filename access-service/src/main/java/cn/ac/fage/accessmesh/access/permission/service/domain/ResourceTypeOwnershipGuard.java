@@ -1,8 +1,10 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain;
 
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
+import cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -37,8 +39,9 @@ import java.util.Objects;
  * <p>
  * 保存边界（type-definition create/update）由 {@link #validateExtraDeclaration} 校验结构，
  * 防止合法 JSON 但错误结构（拼写错误键/非法值/缺来源）静默落库后在运行时表现为 MANAGED——
- * 对齐 SyncTypeGuard.validateSyncTypesExtra 先例。extra 损坏时读取侧按 MANAGED 处理
- * （管理面可写、外部同步拒绝，fail-closed 方向）并记 WARN。
+ * 对齐 SyncTypeGuard.validateSyncTypesExtra 先例。extra 损坏时读取侧按 MANAGED 处理：
+ * 对外部同步 fail-closed（拒绝）、对管理面 fail-open（可写=可恢复方向，管理员可清理
+ * 损坏声明后重新声明，WARN 日志定位）。
  * </p>
  */
 @Component
@@ -121,17 +124,59 @@ public class ResourceTypeOwnershipGuard {
     }
 
     /**
+     * sync/full-sync 入口门禁（评审 P1 补强，2026-09-05）：类型须声明 SYNC 且
+     * syncSourceService==调用服务身份，且调用服务在 service_config 注册、未软删、
+     * status=1 启用——对齐主体/角色/user_role 通道白名单语义（服务停用/注销即四通道
+     * 一起断）。内部来源 access-service 天然不可达（rejectInternalSourceService 先拒
+     * 外部冒充，类型声明 SYNC+access-service 对任何外部来源均不匹配），无需豁免分支。
+     * 真实拒绝原因仅记内部日志（不向调用方泄露判定明细，SyncTypeGuard 先例）。
+     *
+     * @return true=放行；false=拒绝（统一 RESOURCE_TYPE_OWNERSHIP_DENIED）
+     */
+    public boolean isSyncEntranceAllowed(Long tenantId, String resourceTypeCode, String sourceService) {
+        Ownership ownership = resolveTypeOwnership(tenantId, resourceTypeCode);
+        if (ownership == null) {
+            log.warn("resource type ownership gate: type not found, tenantId={}, typeCode={}",
+                    tenantId, resourceTypeCode);
+            return false;
+        }
+        if (!ownership.syncOwnedBy(sourceService)) {
+            log.warn("resource type ownership gate: source not type owner, tenantId={}, typeCode={}, "
+                    + "declaredSource={}, caller={}", tenantId, resourceTypeCode,
+                    ownership.syncSourceService(), sourceService);
+            return false;
+        }
+        ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, sourceService);
+        if (config == null || (config.getDeleteFlag() != null && config.getDeleteFlag() != 0L)) {
+            log.warn("resource type ownership gate: source service not registered or deleted, "
+                    + "tenantId={}, serviceCode={}", tenantId, sourceService);
+            return false;
+        }
+        if (!Integer.valueOf(1).equals(config.getStatus())) {
+            log.warn("resource type ownership gate: source service disabled, tenantId={}, serviceCode={}",
+                    tenantId, sourceService);
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * 保存边界校验（type-definition create/update 写入口）：
      * managedMode/syncSourceService 仅允许出现在 {@code type_key=resource_type} 的 extra 上；
-     * mode 值域 {MANAGED, SYNC}；SYNC 必须携带非空白来源且来源须为已注册有效服务——
-     * 唯一豁免：{@code syncSourceService=access-service}（内部来源声明，收编事实链路类型，
-     * 仅 is_system=true 的系统预置类型可声明，防止自定义类型锁死成无人写入的孤岛）。
+     * mode 值域 {MANAGED, SYNC}；SYNC 必须携带非空白来源（禁止首尾空白——校验 trim 后与落库
+     * 原值不一致会造出无人可同步的锁死类型）且来源须为已注册有效服务——唯一豁免：
+     * {@code syncSourceService=access-service}（内部来源声明，收编事实链路类型，仅
+     * is_system=true 的系统预置类型可声明，防止自定义类型锁死成无人写入的孤岛）；
+     * API 类型禁止声明 SYNC（service-config 接口声明通道是其事实 writer，双 writer 口径
+     * 会破坏类型级单来源不变量）。
      *
+     * @param typeCode     目标类型编码（API 类型拒绝 SYNC 声明用）
      * @param isSystemType 目标类型是否系统预置（create 恒 false——is_system 不可由 API 创建）
      * @throws IllegalArgumentException 结构不合法（调用方转为 BizException 20044 返回，
      *                                  对齐 SyncTypeGuard.validateSyncTypesExtra 先例）
      */
-    public void validateExtraDeclaration(Long tenantId, String typeKey, String extraJson, boolean isSystemType) {
+    public void validateExtraDeclaration(Long tenantId, String typeKey, String typeCode,
+                                         String extraJson, boolean isSystemType) {
         if (extraJson == null || extraJson.isBlank()) {
             return;
         }
@@ -162,14 +207,22 @@ public class ResourceTypeOwnershipGuard {
                         + " 仅允许 " + MODE_MANAGED + "/" + MODE_SYNC + ": " + modeText);
             }
         }
+        if (MODE_SYNC.equals(modeText) && ResourceTypeCode.API.equals(typeCode)) {
+            throw new IllegalArgumentException("API 类型由 service-config 接口声明通道维护，禁止声明 SYNC");
+        }
         String sourceText = null;
         if (source != null && !source.isNull()) {
             if (!source.isTextual()) {
                 throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE + " 必须为字符串");
             }
-            sourceText = source.asText().trim();
+            String raw = source.asText();
+            sourceText = raw.trim();
             if (sourceText.isEmpty()) {
                 throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE + " 不能为空白");
+            }
+            if (!sourceText.equals(raw)) {
+                throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE
+                        + " 不能含首尾空白（校验按 trim 值、运行时按原值精确匹配，会造出无人可同步的类型）");
             }
             if (sourceText.length() > 64) {
                 throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE + " 长度超过 64");

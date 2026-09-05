@@ -42,6 +42,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final OperationPermissionMapper operationPermissionMapper;
     private final PermQueryEngine engine;
     private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
+    private final cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService;
 
     /**
      * 构造函数注入依赖
@@ -54,11 +55,13 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     public TypeDefinitionAppServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                          OperationPermissionMapper operationPermissionMapper,
                                          PermQueryEngine engine,
-                                         ResourceTypeOwnershipGuard resourceTypeOwnershipGuard) {
+                                         ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
+                                         cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.engine = engine;
         this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
+        this.resourceEntityDomainService = resourceEntityDomainService;
     }
 
     /**
@@ -103,10 +106,10 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         }
 
         // T-PERM-052：extra 所有权声明结构校验（managedMode/syncSourceService 仅 resource_type、
-        // 值域与来源引用校验；对齐 SyncTypeGuard.validateSyncTypesExtra 的保存边界先例）。
-        // create 恒 is_system=false——内部来源 access-service 仅系统预置类型可声明（种子）
+        // 值域/首尾空白/来源引用/API 类型禁 SYNC 校验；对齐 SyncTypeGuard.validateSyncTypesExtra
+        // 的保存边界先例）。create 恒 is_system=false——内部来源 access-service 仅系统预置类型可声明（种子）
         try {
-            resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, req.typeKey(), req.extra(), false);
+            resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, req.typeKey(), typeCode, req.extra(), false);
         } catch (IllegalArgumentException e) {
             throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
                 PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());
@@ -327,8 +330,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // managedMode/syncSourceService 不得变更，含删键隐式切回 MANAGED；20056）。
         // is_system 类型允许声明内部来源 access-service（USER/ORG/MENU/ROLE 种子同款）
         try {
-            resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, type.getTypeKey(), req.extra(),
-                Boolean.TRUE.equals(type.getIsSystem()));
+            resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, type.getTypeKey(),
+                type.getTypeCode(), req.extra(), Boolean.TRUE.equals(type.getIsSystem()));
         } catch (IllegalArgumentException e) {
             throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
                 PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());
@@ -399,6 +402,17 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         if (validIds.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
             return;
+        }
+
+        // T-PERM-052 评审批次（2026-09-05）：类型下存在有效资源行时不可删除（与声明变更守卫同款
+        // 20056——软删类型后其行成「外部源失去通道、管理面守卫看不见」的永久孤儿）。整批校验，
+        // 任一命中整批拒绝
+        for (TypeDefinition type : entities) {
+            if (validIds.contains(type.getId()) && "resource_type".equals(type.getTypeKey())
+                    && resourceEntityDomainService.hasValidRowsOfType(tenantId, type.getTypeValue())) {
+                throw new BizException(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
+                    "类型下存在有效资源行，不可删除: " + type.getTypeCode());
+            }
         }
 
         LocalDateTime now = LocalDateTime.now();

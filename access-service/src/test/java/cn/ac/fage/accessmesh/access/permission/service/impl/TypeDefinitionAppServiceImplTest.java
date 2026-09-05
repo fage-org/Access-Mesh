@@ -59,7 +59,8 @@ class TypeDefinitionAppServiceImplTest {
                 typeDefinitionMapper, serviceConfigMapper, resourceEntityDomainService,
                 new com.fasterxml.jackson.databind.ObjectMapper());
         service = new TypeDefinitionAppServiceImpl(
-            typeDefinitionMapper, operationPermissionMapper, engine, ownershipGuard
+            typeDefinitionMapper, operationPermissionMapper, engine, ownershipGuard,
+            resourceEntityDomainService
         );
         // list/count 走 OperatorContext（读 AccessRequestContext），绑定用户上下文
         AccessRequestContext.bind(RequestContext.user(1L, 100L));
@@ -477,6 +478,47 @@ class TypeDefinitionAppServiceImplTest {
         service.updateType(1L, new TypeUpdateReq(9L, null, null, null, SYNC_DECLARATION), 100L);
 
         verify(typeDefinitionMapper).update(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldRejectTypeDeletionWhenTypeHasValidRows() {
+        // 评审批次（2026-09-05）：类型下存在有效资源行时不可删除（20056，与声明变更守卫同款；
+        // 旧实现无守卫会直接软删类型，其行成外部源与管理面都无法触达的永久孤儿）
+        when(engine.getDeniedEntityIds(anyLong(), anyLong(), any(), eq(java.util.Set.of(9L)), any()))
+            .thenReturn(java.util.Set.of());
+        TypeDefinition hrOrg = new TypeDefinition();
+        hrOrg.setId(9L);
+        hrOrg.setTenantId(1L);
+        hrOrg.setTypeKey("resource_type");
+        hrOrg.setTypeCode("HR_ORG");
+        hrOrg.setTypeValue(5);
+        hrOrg.setIsSystem(false);
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(hrOrg));
+        when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(true);
+
+        BizException ex = assertThrows(BizException.class,
+            () -> service.deleteTypesByIds(1L, java.util.List.of(9L), 100L));
+        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
+    }
+
+    @Test
+    void shouldDeleteTypeWhenNoValidRows() {
+        when(engine.getDeniedEntityIds(anyLong(), anyLong(), any(), eq(java.util.Set.of(9L)), any()))
+            .thenReturn(java.util.Set.of());
+        TypeDefinition hrOrg = new TypeDefinition();
+        hrOrg.setId(9L);
+        hrOrg.setTenantId(1L);
+        hrOrg.setTypeKey("resource_type");
+        hrOrg.setTypeCode("HR_ORG");
+        hrOrg.setTypeValue(5);
+        hrOrg.setIsSystem(false);
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(hrOrg));
+        when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(false);
+
+        service.deleteTypesByIds(1L, java.util.List.of(9L), 100L);
+
+        verify(typeDefinitionMapper).softDeleteBatch(eq(1L), any(), any());
     }
 
     @Test

@@ -79,11 +79,10 @@ class ResourceEntitySyncAppServiceTest {
                 new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
                 resourceTypeOwnershipGuard,
                 resourceEntityDomainService, treeWriteLockSupport);
-        // 默认桩：类型声明 SYNC 且归当前来源服务（T-PERM-052 类型级所有权门禁的放行态）；
-        // 拒绝态用例按需覆盖为 MANAGED / 异源
-        lenient().when(resourceTypeOwnershipGuard.resolveTypeOwnership(anyLong(), anyString()))
-                .thenReturn(new ResourceTypeOwnershipGuard.Ownership(
-                        ResourceTypeOwnershipGuard.MODE_SYNC, SOURCE_SERVICE));
+        // 默认桩：类型门禁放行（SYNC+来源匹配+服务注册启用，T-PERM-052；评审 P1 后门禁含
+        // service_config 状态校验）；拒绝态用例按需覆盖为 false
+        lenient().when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(anyLong(), anyString(), anyString()))
+                .thenReturn(true);
     }
 
     private ResourceEntitySyncReq upsertReq() {
@@ -210,9 +209,8 @@ class ResourceEntitySyncAppServiceTest {
     void shouldReturnSecurityDenied_whenTypeNotSyncManaged() {
         mockHeaderMatch();
         // MANAGED 类型（管理面维护/公共基础类型）——外部同步整类拒绝
-        when(resourceTypeOwnershipGuard.resolveTypeOwnership(TENANT_ID, "MENU"))
-                .thenReturn(new ResourceTypeOwnershipGuard.Ownership(
-                        ResourceTypeOwnershipGuard.MODE_MANAGED, null));
+        when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(TENANT_ID, "MENU", SOURCE_SERVICE))
+                .thenReturn(false);
 
         SyncResultResp resp = service.sync(TENANT_ID, upsertReq(), httpRequest);
 
@@ -229,9 +227,8 @@ class ResourceEntitySyncAppServiceTest {
     void shouldReturnSecurityDenied_whenSourceNotTypeOwner() {
         mockHeaderMatch();
         // 类型声明 SYNC 但来源是别的服务——非声明来源不得同步（同类型单来源）
-        when(resourceTypeOwnershipGuard.resolveTypeOwnership(TENANT_ID, "MENU"))
-                .thenReturn(new ResourceTypeOwnershipGuard.Ownership(
-                        ResourceTypeOwnershipGuard.MODE_SYNC, "other-service"));
+        when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(TENANT_ID, "MENU", SOURCE_SERVICE))
+                .thenReturn(false);
 
         SyncResultResp resp = service.sync(TENANT_ID, upsertReq(), httpRequest);
 
@@ -246,7 +243,8 @@ class ResourceEntitySyncAppServiceTest {
     void shouldReturnSecurityDenied_whenTypeDeclarationMissing() {
         mockHeaderMatch();
         // 类型不存在（声明缺失）fail-closed 一并拒绝
-        when(resourceTypeOwnershipGuard.resolveTypeOwnership(TENANT_ID, "MENU")).thenReturn(null);
+        when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(TENANT_ID, "MENU", SOURCE_SERVICE))
+                .thenReturn(false);
 
         SyncResultResp resp = service.sync(TENANT_ID, upsertReq(), httpRequest);
 
@@ -259,9 +257,8 @@ class ResourceEntitySyncAppServiceTest {
     @Test
     void fullSyncRejectsManagedType_atEntry() {
         mockHeaderMatch();
-        when(resourceTypeOwnershipGuard.resolveTypeOwnership(TENANT_ID, "MENU"))
-                .thenReturn(new ResourceTypeOwnershipGuard.Ownership(
-                        ResourceTypeOwnershipGuard.MODE_MANAGED, null));
+        when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(TENANT_ID, "MENU", SOURCE_SERVICE))
+                .thenReturn(false);
 
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
@@ -294,9 +291,8 @@ class ResourceEntitySyncAppServiceTest {
         ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "USER", "1001", "default",
                 "张三", null, null, null, null, 1, 0, null,
                 SOURCE_SERVICE, "user", "1001", new SyncVersionRef(OCCURRED_AT, 1L));
-        when(resourceTypeOwnershipGuard.resolveTypeOwnership(TENANT_ID, "USER"))
-                .thenReturn(new ResourceTypeOwnershipGuard.Ownership(
-                        ResourceTypeOwnershipGuard.MODE_SYNC, "access-service"));
+        when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(TENANT_ID, "USER", SOURCE_SERVICE))
+                .thenReturn(false);
 
         SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
 

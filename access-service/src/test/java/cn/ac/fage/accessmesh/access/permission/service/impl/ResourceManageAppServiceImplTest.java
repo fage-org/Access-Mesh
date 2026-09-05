@@ -325,6 +325,25 @@ class ResourceManageAppServiceImplTest {
     }
 
     @Test
+    @DisplayName("batch-create 命中 SYNC 类型 → 20055 拒绝，不落库（评审批次补回归锁）")
+    void shouldRejectBatchCreateOnSyncManagedType() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        org.mockito.Mockito.doThrow(new cn.ac.fage.accessmesh.common.exception.BizException(20055,
+                "资源由外部来源维护，请到来源系统操作: resourceTypeCode=HR_ORG"))
+            .when(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("HR_ORG"));
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.batchCreateResources(1L, java.util.List.of(
+                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+                    null, null, null, null, null, "HR_ORG", "org-a", null, "部门A", null, null, null, null)), 100L));
+        assertEquals(20055, ex.getErrorCode());
+        verify(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("HR_ORG"));
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insertBatch(org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
     @DisplayName("update 命中 SYNC 类型行 → 20055 拒绝（含 name 在内管理面完全只读）")
     void shouldRejectUpdateOnSyncManagedType() {
         ResourceEntity entity = resourceWithKey(10L);

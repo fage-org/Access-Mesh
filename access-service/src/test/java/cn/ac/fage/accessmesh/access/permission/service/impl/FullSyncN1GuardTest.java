@@ -106,11 +106,9 @@ class FullSyncN1GuardTest {
         // 公共 stub：类型白名单放行（本测试聚焦 N+1 批量化，不测白名单）
         lenient().when(syncTypeGuard.validate(anyLong(), anyString(), any()))
                 .thenReturn(true);
-        // T-PERM-052：resource-entity 通道类型门禁默认放行（SYNC 且归当前来源）
-        lenient().when(resourceTypeOwnershipGuard.resolveTypeOwnership(anyLong(), anyString()))
-                .thenReturn(new cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.Ownership(
-                        cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.MODE_SYNC,
-                        SOURCE_SERVICE));
+        // T-PERM-052：resource-entity 通道类型门禁默认放行（SYNC+来源匹配+服务注册启用）
+        lenient().when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(anyLong(), anyString(), anyString()))
+                .thenReturn(true);
     }
 
     @Test

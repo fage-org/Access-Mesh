@@ -94,13 +94,12 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
         // T-PERM-052 类型级所有权门禁（取代 syncTypes.resourceTypeCodes 白名单维度，2026-09-05 定案）：
-        // 目标类型必须声明 extra.managedMode=SYNC 且 syncSourceService==调用服务身份；
-        // 类型不存在（声明缺失）fail-closed 一并拒绝（事实链路四类型声明 SYNC+access-service，
-        // 对一切外部来源不匹配——原 rejectIfLocalResource 行级防线已收编进本门禁，
-        // 2026-09-05 内部来源统一）。
-        ResourceTypeOwnershipGuard.Ownership ownership = resourceTypeOwnershipGuard.resolveTypeOwnership(
-                tenantId, req.resourceTypeCode());
-        if (ownership == null || !ownership.syncOwnedBy(req.sourceService())) {
+        // 目标类型必须声明 extra.managedMode=SYNC 且 syncSourceService==调用服务身份，且调用服务
+        // 在 service_config 注册并启用（评审 P1 补强：服务停用/注销即四通道一起断，对齐主体/角色/
+        // user_role 白名单语义）；类型不存在（声明缺失）fail-closed 一并拒绝（事实链路四类型声明
+        // SYNC+access-service，对一切外部来源不匹配——原 rejectIfLocalResource 行级防线已收编）
+        if (!resourceTypeOwnershipGuard.isSyncEntranceAllowed(
+                tenantId, req.resourceTypeCode(), req.sourceService())) {
             return SyncResultBuilder.securityDenied("RESOURCE_TYPE_OWNERSHIP_DENIED");
         }
         // T-PERM-044 评审 P1：资源同步 UPDATE 分支写 parent，与 moveResource 共持
@@ -128,11 +127,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                             SyncResultBuilder.RETRY_SECURITY_DENIED, "SOURCE_SERVICE_MISMATCH")));
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
-        // T-PERM-052 类型级所有权门禁（取代 syncTypes.resourceTypeCodes 白名单维度，2026-09-05 定案）：
-        // scope 资源类型必须声明 extra.managedMode=SYNC 且 syncSourceService==调用服务身份
-        ResourceTypeOwnershipGuard.Ownership scopeOwnership = resourceTypeOwnershipGuard.resolveTypeOwnership(
-                tenantId, req.scope().resourceTypeCode());
-        if (scopeOwnership == null || !scopeOwnership.syncOwnedBy(req.scope().sourceService())) {
+        // T-PERM-052 类型级所有权门禁（同单条口径：SYNC+来源匹配+服务注册启用，评审 P1 补强）
+        if (!resourceTypeOwnershipGuard.isSyncEntranceAllowed(
+                tenantId, req.scope().resourceTypeCode(), req.scope().sourceService())) {
             return SyncResultBuilder.fullSyncRejected(
                     SyncResultBuilder.RETRY_SECURITY_DENIED, "RESOURCE_TYPE_OWNERSHIP_DENIED",
                     req.items().size(),

@@ -405,11 +405,25 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             return resource.getId();
         }
         existing.setName(name);
-        existing.setParentId(parentId);
         existing.setStatus(status);
         existing.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
         existing.setUpdatedAt(now);
-        resourceEntityMapper.update(existing);
+        // parentId 置 null（挂到根）须强制写列：update(entity) 忽略 null 字段（flex 语义），
+        // 旧 parent 残留会让资源树错挂——UpdateEntity 显式更新列（moveResource 同款先例，
+        // T-PERM-052 评审批次顺手修复）
+        if (parentId == null) {
+            ResourceEntity patch = com.mybatisflex.core.util.UpdateEntity.of(ResourceEntity.class);
+            patch.setId(existing.getId());
+            patch.setParentId(null);
+            patch.setName(name);
+            patch.setStatus(status);
+            patch.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+            patch.setUpdatedAt(now);
+            resourceEntityMapper.update(patch);
+        } else {
+            existing.setParentId(parentId);
+            resourceEntityMapper.update(existing);
+        }
         return existing.getId();
     }
 

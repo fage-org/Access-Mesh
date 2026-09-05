@@ -102,12 +102,11 @@ class FullSyncResponseContractTest {
         lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any()))
                 .thenReturn(true);
-        // T-PERM-052：resource-entity 通道类型门禁默认放行（SYNC 且归当前来源）
-        lenient().when(resourceTypeOwnershipGuard.resolveTypeOwnership(
-                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString()))
-                .thenReturn(new cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.Ownership(
-                        cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.MODE_SYNC,
-                        SOURCE_SERVICE));
+        // T-PERM-052：resource-entity 通道类型门禁默认放行（SYNC+来源匹配+服务注册启用）
+        lenient().when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(
+                org.mockito.ArgumentMatchers.anyLong(), org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.anyString()))
+                .thenReturn(true);
     }
 
     @Test
