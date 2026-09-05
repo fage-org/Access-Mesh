@@ -307,11 +307,9 @@ public class AccessBootstrapInitializer {
                 if (candidates == null) {
                     missingGrants.add(grant);
                 } else if (!candidates.contains(GrantKey.of(grant))) {
-                    log.warn("bootstrap 固定图授权属性漂移（管理端运营修改，放行不重种）: {}#bits={}{}{} "
+                    log.warn("bootstrap 固定图授权属性漂移（管理端运营修改，放行不重种）: {} "
                         + "固定图期望属性={} 实际={}",
-                        grant.getResourceType(), grant.getGrantedBits(),
-                        grant.getScopeAll() ? "@ALL" : "@instance", grant.getResourceEntityId(),
-                        GrantKey.of(grant), candidates);
+                        grantIdentityDesc(grant), GrantKey.of(grant), candidates);
                 }
             }
             classifyMissingGrants(tenantId, roleId, missingGrants, conflicts);
@@ -680,8 +678,10 @@ public class AccessBootstrapInitializer {
     }
 
     /**
-     * 授权身份键（2026-09-02 口径定案：缺行 fail-fast、属性漂移放行）：资源实体/范围 + 类型——
-     * 判定固定图要求的授权「行」是否存在；行在而属性不符属管理端运营修改，仅 warn 不冲突。
+     * 授权身份键（2026-09-02 口径定案：缺行判定、属性漂移放行）：资源实体/范围 + 类型——
+     * 判定固定图要求的授权「行」是否存在；行在而属性不符属管理端运营修改，仅 warn 不冲突；
+     * 行缺（无有效行）的处置按 {@link #classifyMissingGrants} 三分（T-ACCESS-029：
+     * 同身份键软删墓碑 WARN 放行 / 无任何历史 fail-fast）。
      */
     private record GrantIdentity(Long resourceEntityId, Integer resourceType, boolean scopeAll) {
         static GrantIdentity of(RoleResourcePermission p) {
@@ -693,7 +693,8 @@ public class AccessBootstrapInitializer {
     /**
      * 授权完整属性键（漂移检测与 warn 明细用）：grantedBits/canGrant/conditionId/dependOn/
      * grantSource 全量参与——身份行存在但与本键不符即漂移（运营改操作位/加条件/关转授/
-     * AUTO_DEP 行并存等），放行并告警；仅身份键无匹配（缺行）构成固定图冲突。
+     * AUTO_DEP 行并存等），放行并告警；仅身份键无匹配（缺行）进入
+     * {@link #classifyMissingGrants} 三分（墓碑 WARN 放行 / 无历史 fail-fast）。
      */
     private record GrantKey(Long resourceEntityId, Integer resourceType, Long grantedBits,
                             boolean scopeAll, boolean canGrant, Long conditionId, Long dependOn,
