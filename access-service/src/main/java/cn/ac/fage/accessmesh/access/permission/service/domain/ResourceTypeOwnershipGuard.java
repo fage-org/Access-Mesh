@@ -224,8 +224,10 @@ public class ResourceTypeOwnershipGuard {
                 throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE
                         + " 不能含首尾空白（校验按 trim 值、运行时按原值精确匹配，会造出无人可同步的类型）");
             }
-            if (sourceText.length() > 64) {
-                throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE + " 长度超过 64");
+            // 长度对齐 service_config.service_code / sync_metadata.source_service 的 128 列宽
+            // （codex 复评 P2：65~128 字符的合法注册服务不应被声明校验拒绝）
+            if (sourceText.length() > 128) {
+                throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE + " 长度超过 128");
             }
         }
         if (sourceText != null && !MODE_SYNC.equals(modeText)) {

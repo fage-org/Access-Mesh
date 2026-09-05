@@ -37,7 +37,6 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     private final TypeResolutionService typeResolutionService;
     private final AbstractUserMapper abstractUserMapper;
-    /** 所有权防线（无状态）：USER/ORG/MENU 为公共类型后防本地投影接管外部行 */
     private final AbstractRoleMapper abstractRoleMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final UserRoleProjectionWriter userRoleProjectionWriter;

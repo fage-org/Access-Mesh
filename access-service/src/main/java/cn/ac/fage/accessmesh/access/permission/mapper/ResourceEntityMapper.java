@@ -253,7 +253,7 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
                                   @Param("matchNone") boolean matchNone);
 
     /**
-      * 类型下有效资源行计数（T-PERM-052 类型所有权声明变更/类型删除守卫）。
+     * 类型下有效资源行计数（T-PERM-052 类型所有权声明变更守卫）。
      *
      * @param tenantId     租户ID
      * @param resourceType resource_type 内部类型值
@@ -261,4 +261,14 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
      */
     int existsValidByType(@Param("tenantId") Long tenantId,
                           @Param("resourceType") Integer resourceType);
+
+    /**
+     * 批量判定哪些类型值下存在有效资源行（T-PERM-052 类型删除守卫；一次查询防批删循环单查）。
+     *
+     * @param tenantId      租户ID
+     * @param resourceTypes resource_type 内部类型值集合
+     * @return 存在有效行的类型值列表（DISTINCT）
+     */
+    java.util.List<Integer> selectDistinctTypesWithValidRows(@Param("tenantId") Long tenantId,
+                                                             @Param("resourceTypes") java.util.Collection<Integer> resourceTypes);
 }

@@ -638,7 +638,7 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
   回写可闭合成环，故不能按「是否带 parent」条件持锁；锁若晚于实体读取，读取-拿锁-写回窗口内
   完成的合法移动仍会被锁外旧快照覆盖——锁必须覆盖读与写，快照在锁内产生）：角色
   `updateRole`/`moveRole`/`sync`/`full-sync`、组织 `updateOrg`、菜单 `updateMenu`、资源
-  `updateResource`/`moveResource`/`removeResource`（评审批次 2026-09-05 补：后代展开与批量软删间的并发 sync 插入会产生悬挂引用）/资源实体 `sync`/`full-sync`、服务接口同步
+  `updateResource`/`moveResource`/`removeResource`（评审批次 2026-09-05 补：后代展开与批量软删间的并发 sync 插入会产生悬挂引用）/资源实体 `sync`/`full-sync`（T-PERM-052 codex 复评 P1 后移：类型所有权门禁在取锁后执行，与下述类型操作互斥）、`type-definition/update|remove` 涉 resource_type 时（同 codex 复评：声明变更/删除的行数守卫与资源写入口互斥——peek→lock→锁内重读；防「守卫查零行→并发资源插入→声明变更/删除落库」交错）、服务接口同步
   `syncInterfaces`（批量 upsert 资源全列回写）。组织/菜单携带 parent 时按锁内快照重判换父
   （相同即 no-op 跳过校验）。资源实体同步判环先于版本写入（拒绝不推进同步版本，full-sync
   内存图判环 + 已应用边镜像，经 cyclePreChecked 跳过逐项 DB 判环防 N+1）。事务外调用

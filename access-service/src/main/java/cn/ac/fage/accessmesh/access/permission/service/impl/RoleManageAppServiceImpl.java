@@ -297,7 +297,19 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         role.setParentId(parentId);
         role.setUpdatedBy(operatorId);
         role.setUpdatedAt(LocalDateTime.now());
-        abstractRoleMapper.update(role);
+        // codex 复评 P1：parentId 置 null（移到根）须强制写列——update(entity) 忽略 null 字段
+        // （flex 语义），旧实现事实侧 parent 残留旧值，而投影侧（upsertRoleResource）已显式清列，
+        // 造成角色树挂旧父/资源树到根的分叉（UpdateEntity 先例：moveResource/投影 upsertResource）
+        if (parentId == null) {
+            AbstractRole patch = com.mybatisflex.core.util.UpdateEntity.of(AbstractRole.class);
+            patch.setId(role.getId());
+            patch.setParentId(null);
+            patch.setUpdatedBy(role.getUpdatedBy());
+            patch.setUpdatedAt(role.getUpdatedAt());
+            abstractRoleMapper.update(patch);
+        } else {
+            abstractRoleMapper.update(role);
+        }
 
         // T-ACCESS-019：ROLE 资源投影同事务镜像父节点
         localProjectionDomainService.upsertRoleResource(

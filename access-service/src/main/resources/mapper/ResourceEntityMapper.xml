@@ -209,4 +209,14 @@
           AND resource_type = #{resourceType}
     </select>
 
+    <select id="selectDistinctTypesWithValidRows" resultType="int">
+        SELECT DISTINCT resource_type FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND resource_type IN
+        <foreach collection="resourceTypes" item="type" open="(" separator="," close=")">
+            #{type}
+        </foreach>
+    </select>
+
 </mapper>

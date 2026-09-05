@@ -32,7 +32,7 @@ last_updated: 2026-09-05
 
 # T-PERM-052 资源类型级所有权边界——类型声明门禁（sync 独占 + 管理面只读 + 声明变更守卫）
 
-> 状态：done（2026-09-05 设计体检 P1 立项为行级方案，同日执行时经用户四项定案改定为类型级所有权方案后实施收口；经双轨子代理评审收口批次后终态 access-service 全量套件 1046 单测全绿 + 151 容器测试中 150 绿、1 为登记在案的 TaskExecutionLeaseConcurrencyTest 负载敏感抖动（本轮 claimBlockedOverMaxAttempts，隔离复跑恒绿，处置待用户决策））
+> 状态：done（2026-09-05 设计体检 P1 立项为行级方案，同日执行时经用户四项定案改定为类型级所有权方案后实施收口；经双轨子代理与 codex 外部评审两轮收口后终态 access-service 全量套件 1049 单测 + 151 容器测试全绿）
 > 依赖：无硬依赖；错误码与 T-PERM-046 取号协调（本卡占 20055/20056）
 
 ## 设计口径（2026-09-05 用户定案）
@@ -68,7 +68,6 @@ last_updated: 2026-09-05
 - 主体/角色同步通道维持现状（已是调用方自有类型+syncTypes 白名单模型，与类型级所有权同向）；
 - service-config 接口声明通道维持现状（AccessMesh 内部通道，自有 owner_service_code 行级守卫，不写 sync_metadata）；
 - 本地投影链路的写入逻辑不动（其行级防线 rejectIfLocalResource/rejectIfForeignResource/isOwnResource 已随内部来源统一批次收编删除，见设计口径）；
-- 不处理类型删除时的行数检查（deleteTypesByIds 现状不查行，见已知边界）；
 - 前端类型定义页/资源页不改造（extra 为 JSON 编辑、20055 走统一错误提示；类型声明管理面增强另行评估）。
 
 ## 已知边界（登记，另行评估）
@@ -82,5 +81,6 @@ last_updated: 2026-09-05
 ## 完成记录
 
 - 2026-09-05 实施：错误码 20055/20056；ResourceTypeOwnershipGuard 新建（解析/校验/门禁/变更守卫）；ResourceEntityDomainService.hasValidRowsOfType + mapper existsValidByType；TypeDefinitionAppServiceImpl 声明校验+变更守卫；ResourceEntitySyncAppServiceImpl 入口门禁替换白名单；ResourceManageAppServiceImpl 五入口门禁（remove 级联全集）；SyncTypeGuard 资源维度移除；schema/api-contract/architecture/core-flows 回写；回归用例 22 个新增/适配（含旧实现下失败锁），受影响测试类 118 用例全绿，access-service 全量套件通过。
+- 2026-09-05 codex 外部评审收口批次（gpt-5.6-sol xhigh 只读评审，2P1+3P2+2P3 七条逐条代码级核实全属实零误报，无存疑项）：P1-1 sync/fullSync 类型门禁移到树锁之后 + type-definition update/remove 涉 resource_type 时持 (resource_entity, 租户) 树锁并锁内重读（peek→lock→reread，T-PERM-044 先例）——堵「门禁放行/行数守卫查零行 → 类型翻转来源/删除 → 资源插入落库」交错破坏单一所有权（双轨评审曾定性为语义混乱非越权，codex 定级 P1 采纳）；P1-2 moveRole 移到根显式清 parent 列（flex update 忽略 null，事实侧残留旧父与投影侧清列分叉——投影清列修复暴露的存量 bug；菜单/组织用 0L 哨兵无同款问题）；P2 类型批删行数检查改一次批量查询（selectDistinctTypesWithValidRows）、投影 parentId 测试改 UpdateWrapper.getUpdates 断言（旧断言在旧实现下也过，luna 实证）、来源长度 64→128 对齐 service_code 列宽；P3 schema service_config.extra 注释退役字段清扫、契约 §6.2.2 门禁 bullet 四类型归属表述修正、任务卡非目标行清理、挂错注释与 FQCN 风格修正。新增回归用例 5 个（含 InOrder 锁序×2、getUpdates 强断言×2、非 resource_type 不持锁）。
 - 2026-09-05 双轨子代理评审收口批次（代码正确性与安全边界 + 规范符合性与文档一致性两轨，14 项发现逐条代码级核实；P1×1：resource-entity 通道运行时未校验服务注册/状态（已停用/注销服务仍可同步其声明类型，与三兄弟通道不一致）——用户定案门禁补查 service_config（isSyncEntranceAllowed，注册+未软删+status=1，真实原因仅记内部日志）；用户选全部四项顺手修：remove 补树写锁（§17.1 入口列表同步）/ type-definition/remove 补行数守卫（20056）/ API 类型禁 SYNC 声明（service-config 通道是其事实 writer）/ 投影 upsert parentId=null 走 UpdateEntity 强制清列；事实性小修：来源首尾空白保存拒绝（trim 不对称会锁死类型）、损坏 extra 回落方向措辞修正（对同步 fail-closed、对管理面可恢复）、batch-create 20055 回归锁补齐、existsValidByType 注释修正、契约 last_reviewed/两处 sync_key 残留枚举/core-flows syncKey 句/admin 契约终态注记取代标注/任务卡矛盾句与计数修正；新增回归用例 10 个）。
 - 2026-09-05 内部来源统一批次（同日补充定案）：四类型种子声明 + is_system 内部来源豁免 + 20055 message 特化；删除保留清单/行级投影防线/isOwnResource 过滤（LocalProjectionGuard 三个资源侧方法与 LocalProjectionOwner.isReservedResourceType 移除）；resource_entity.sync_key 列删除（实体字段 + ResourceEntitySyncAppServiceImpl/ResourceSyncHandlerImpl 写入点）；契约 §5.1/§6.2.2/§6.3/§10-14、architecture §4.3、core-flows、admin-service-api-contract、AGENTS.md 同步改写；测试适配（行级投影防线组替换为内部来源门禁用例）。

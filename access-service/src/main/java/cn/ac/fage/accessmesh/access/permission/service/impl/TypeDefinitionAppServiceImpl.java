@@ -14,7 +14,9 @@ import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.TypeDefinitionAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
+import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
@@ -42,7 +44,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final OperationPermissionMapper operationPermissionMapper;
     private final PermQueryEngine engine;
     private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
-    private final cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService;
+    private final ResourceEntityDomainService resourceEntityDomainService;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     /**
      * 构造函数注入依赖
@@ -56,12 +59,14 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                                          OperationPermissionMapper operationPermissionMapper,
                                          PermQueryEngine engine,
                                          ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
-                                         cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService) {
+                                         ResourceEntityDomainService resourceEntityDomainService,
+                                         TreeWriteLockSupport treeWriteLockSupport) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.engine = engine;
         this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.resourceEntityDomainService = resourceEntityDomainService;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     /**
@@ -326,6 +331,14 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
         if (type == null) throw new BizException(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
+        // codex 复评 P1：resource_type 类型的声明变更与资源写入口共持 (resource_entity, 租户)
+        // 树写锁（锁内重读，T-PERM-044 先例）——堵「行数守卫查零行→并发资源插入→声明变更/删除
+        // 落库」交错窗口；sync 入口门禁同样在锁后（见 ResourceEntitySyncAppServiceImpl）
+        if ("resource_type".equals(type.getTypeKey())) {
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+            type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
+            if (type == null) throw new BizException(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
+        }
         // T-PERM-052：extra 所有权声明结构校验 + 有效值变更守卫（类型下存在有效资源行时
         // managedMode/syncSourceService 不得变更，含删键隐式切回 MANAGED；20056）。
         // is_system 类型允许声明内部来源 access-service（USER/ORG/MENU/ROLE 种子同款）
@@ -394,6 +407,16 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             return;
         }
 
+        // codex 复评 P1：含 resource_type 时与资源写入口共持树写锁并锁内重读（同 updateType）
+        if (entities.stream().anyMatch(e -> "resource_type".equals(e.getTypeKey()))) {
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+            entities = typeDefinitionMapper.selectValidByIds(tenantId, validInputIds);
+            if (entities.isEmpty()) {
+                OperationLogRuntimeContext.markSkip();
+                return;
+            }
+        }
+
         Set<Long> validIds = entities.stream()
             .filter(e -> !Boolean.TRUE.equals(e.getIsSystem()))
             .map(TypeDefinition::getId)
@@ -406,12 +429,20 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
         // T-PERM-052 评审批次（2026-09-05）：类型下存在有效资源行时不可删除（与声明变更守卫同款
         // 20056——软删类型后其行成「外部源失去通道、管理面守卫看不见」的永久孤儿）。整批校验，
-        // 任一命中整批拒绝
-        for (TypeDefinition type : entities) {
-            if (validIds.contains(type.getId()) && "resource_type".equals(type.getTypeKey())
-                    && resourceEntityDomainService.hasValidRowsOfType(tenantId, type.getTypeValue())) {
+        // 任一命中整批拒绝。codex 复评 P2：类型值去重后一次批量查询（循环单查违反 §8.4.8）
+        List<TypeDefinition> deletableResourceTypes = entities.stream()
+            .filter(e -> validIds.contains(e.getId()) && "resource_type".equals(e.getTypeKey()))
+            .toList();
+        if (!deletableResourceTypes.isEmpty()) {
+            Set<Integer> typesWithRows = resourceEntityDomainService.findTypesWithValidRows(
+                tenantId, deletableResourceTypes.stream().map(TypeDefinition::getTypeValue).collect(Collectors.toSet()));
+            List<String> conflictCodes = deletableResourceTypes.stream()
+                .filter(t -> typesWithRows.contains(t.getTypeValue()))
+                .map(TypeDefinition::getTypeCode)
+                .toList();
+            if (!conflictCodes.isEmpty()) {
                 throw new BizException(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
-                    "类型下存在有效资源行，不可删除: " + type.getTypeCode());
+                    "类型下存在有效资源行，不可删除: " + String.join(", ", conflictCodes));
             }
         }
 

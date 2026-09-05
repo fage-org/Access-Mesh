@@ -154,6 +154,14 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
         return resourceEntityMapper.existsValidByType(tenantId, resourceType) > 0;
     }
 
+    @Override
+    public java.util.Set<Integer> findTypesWithValidRows(Long tenantId, java.util.Collection<Integer> resourceTypes) {
+        if (resourceTypes == null || resourceTypes.isEmpty()) {
+            return java.util.Collections.emptySet();
+        }
+        return new java.util.HashSet<>(resourceEntityMapper.selectDistinctTypesWithValidRows(tenantId, resourceTypes));
+    }
+
     /**
      * 批量软删除资源
      *

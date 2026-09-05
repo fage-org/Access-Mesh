@@ -221,6 +221,12 @@ class ResourceEntitySyncAppServiceTest {
         verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
         verify(resourceEntityMapper, org.mockito.Mockito.never())
                 .softDeleteBatch(anyLong(), any(), any());
+        // codex 复评 P1 回归锁：门禁在树锁之后（与类型声明变更/删除的行数守卫互斥），
+        // 旧实现门禁在锁前
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, resourceTypeOwnershipGuard);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT_ID,
+                cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        order.verify(resourceTypeOwnershipGuard).isSyncEntranceAllowed(TENANT_ID, "MENU", SOURCE_SERVICE);
     }
 
     @Test

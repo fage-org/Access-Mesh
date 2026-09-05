@@ -161,11 +161,17 @@ class LocalProjectionDomainServiceImplTest {
 
         service.upsertAdminUser(TENANT, 123L, "张三", true, null);
 
-        // parentId=null 须走 UpdateEntity 显式清列（update(entity) 忽略 null 字段，flex 语义）
+        // parentId=null 须走 UpdateEntity 显式清列（update(entity) 忽略 null 字段，flex 语义）。
+        // codex 复评 P2：只断言 Java 字段 null 在旧实现下同样通过（旧实现 set null 但 SQL 忽略该列），
+        // 须断言 updates map 显式含 parentId=null（Dependency 先例写法）——旧实现下必败
         org.mockito.ArgumentCaptor<ResourceEntity> captor =
             org.mockito.ArgumentCaptor.forClass(ResourceEntity.class);
         verify(resourceEntityMapper).update(captor.capture());
-        org.junit.jupiter.api.Assertions.assertNull(captor.getValue().getParentId());
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> updates =
+            ((com.mybatisflex.core.update.UpdateWrapper<ResourceEntity>) captor.getValue()).getUpdates();
+        org.assertj.core.api.Assertions.assertThat(updates).containsKey("parentId");
+        org.assertj.core.api.Assertions.assertThat(updates.get("parentId")).isNull();
         org.junit.jupiter.api.Assertions.assertEquals(900L, captor.getValue().getId());
     }
 

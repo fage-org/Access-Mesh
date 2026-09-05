@@ -48,6 +48,7 @@ class TypeDefinitionAppServiceImplTest {
     @Mock private PermQueryEngine engine;
     @Mock private cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper serviceConfigMapper;
     @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
 
     private TypeDefinitionAppServiceImpl service;
 
@@ -60,7 +61,7 @@ class TypeDefinitionAppServiceImplTest {
                 new com.fasterxml.jackson.databind.ObjectMapper());
         service = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, engine, ownershipGuard,
-            resourceEntityDomainService
+            resourceEntityDomainService, treeWriteLockSupport
         );
         // list/count 走 OperatorContext（读 AccessRequestContext），绑定用户上下文
         AccessRequestContext.bind(RequestContext.user(1L, 100L));
@@ -481,6 +482,50 @@ class TypeDefinitionAppServiceImplTest {
     }
 
     @Test
+    void shouldLockTreeWritesAndReReadForResourceTypeUpdate() {
+        // codex 复评 P1 回归锁：resource_type 更新须持 (resource_entity, 租户) 树写锁并锁内重读
+        // （与资源写入口互斥）；旧实现无锁且只读一次
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        TypeDefinition hrOrg = new TypeDefinition();
+        hrOrg.setId(9L);
+        hrOrg.setTenantId(1L);
+        hrOrg.setTypeKey("resource_type");
+        hrOrg.setTypeCode("HR_ORG");
+        hrOrg.setTypeValue(5);
+        hrOrg.setIsSystem(false);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(hrOrg);
+
+        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null), 100L);
+
+        verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        // peek + 锁内重读共两次；InOrder 证明锁后仍有读取（重读在锁内）
+        verify(typeDefinitionMapper, times(2)).selectValidById(1L, 9L);
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, typeDefinitionMapper);
+        order.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        order.verify(typeDefinitionMapper).selectValidById(1L, 9L);
+        verify(typeDefinitionMapper).update(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldNotLockTreeWritesForNonResourceTypeUpdate() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        TypeDefinition groupType = new TypeDefinition();
+        groupType.setId(9L);
+        groupType.setTenantId(1L);
+        groupType.setTypeKey("group_type");
+        groupType.setTypeCode("G1");
+        groupType.setTypeValue(1);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(groupType);
+
+        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null), 100L);
+
+        verify(treeWriteLockSupport, never()).lockTreeWrites(anyLong(),
+            org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
     void shouldRejectTypeDeletionWhenTypeHasValidRows() {
         // 评审批次（2026-09-05）：类型下存在有效资源行时不可删除（20056，与声明变更守卫同款；
         // 旧实现无守卫会直接软删类型，其行成外部源与管理面都无法触达的永久孤儿）
@@ -494,12 +539,16 @@ class TypeDefinitionAppServiceImplTest {
         hrOrg.setTypeValue(5);
         hrOrg.setIsSystem(false);
         when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(hrOrg));
-        when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(true);
+        when(resourceEntityDomainService.findTypesWithValidRows(1L, java.util.Set.of(5)))
+            .thenReturn(java.util.Set.of(5));
 
         BizException ex = assertThrows(BizException.class,
             () -> service.deleteTypesByIds(1L, java.util.List.of(9L), 100L));
         assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
+        // 批删 resource_type 同样持锁（codex P1）
+        verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
     }
 
     @Test
@@ -514,7 +563,8 @@ class TypeDefinitionAppServiceImplTest {
         hrOrg.setTypeValue(5);
         hrOrg.setIsSystem(false);
         when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(hrOrg));
-        when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(false);
+        when(resourceEntityDomainService.findTypesWithValidRows(1L, java.util.Set.of(5)))
+            .thenReturn(java.util.Set.of());
 
         service.deleteTypesByIds(1L, java.util.List.of(9L), 100L);
 

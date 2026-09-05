@@ -420,6 +420,41 @@ class RoleManageAppServiceImplTest {
         verify(auditDomainService, org.mockito.Mockito.times(2)).recordChangeLog(any(), any());
     }
 
+    /** codex 复评 P1：moveRole 移到根（parentId=null）须显式清 parent 列，事实侧与投影侧同时清父。 */
+    @Test
+    void shouldClearParentColumnWhenMoveRoleToRoot() {
+        AbstractRole role = new AbstractRole();
+        role.setId(123L);
+        role.setTenantId(1L);
+        role.setRoleType(6);
+        role.setParentId(200L);
+        role.setName("运维角色");
+        role.setStatus(1);
+        when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        when(subjectDomainService.findUserIdsByEffectiveRoles(1L, java.util.Set.of(123L)))
+            .thenReturn(java.util.Set.of(66L));
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            service.moveRole(1L, 123L, null, 100L);
+        }
+
+        // 事实侧：UpdateEntity 强制写列（旧实现普通 update 忽略 null，parent 残留 200）——
+        // getUpdates 断言在旧实现下必败（Dependency 先例）
+        org.mockito.ArgumentCaptor<AbstractRole> captor = org.mockito.ArgumentCaptor.forClass(AbstractRole.class);
+        verify(abstractRoleMapper).update(captor.capture());
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> updates =
+            ((com.mybatisflex.core.update.UpdateWrapper<AbstractRole>) captor.getValue()).getUpdates();
+        org.assertj.core.api.Assertions.assertThat(updates).containsKey("parentId");
+        org.assertj.core.api.Assertions.assertThat(updates.get("parentId")).isNull();
+        // 投影侧同步清父（事实/投影不分叉）
+        verify(localProjectionDomainService).upsertRoleResource(1L, 123L, "运维角色", 1, null);
+    }
+
     /** T-ACCESS-019：moveRole 投影镜像新父节点，旧父链成员在树变更前预计算失效。 */
     @Test
     void shouldProjectRoleResourceOnMove() {

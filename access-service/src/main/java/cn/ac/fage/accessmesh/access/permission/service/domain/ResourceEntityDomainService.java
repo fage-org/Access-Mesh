@@ -86,6 +86,15 @@ public interface ResourceEntityDomainService {
     boolean hasValidRowsOfType(Long tenantId, Integer resourceType);
 
     /**
+     * 批量判定哪些类型值下存在有效资源行（T-PERM-052 类型删除守卫；一次查询）。
+     *
+     * @param tenantId      租户ID
+     * @param resourceTypes resource_type 内部类型值集合
+     * @return 存在有效行的类型值集合
+     */
+    java.util.Set<Integer> findTypesWithValidRows(Long tenantId, java.util.Collection<Integer> resourceTypes);
+
+    /**
      * 批量软删除资源
      *
      * @param tenantId  租户ID

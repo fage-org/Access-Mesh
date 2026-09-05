@@ -93,18 +93,18 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             return SyncResultBuilder.securityDenied("SOURCE_SERVICE_MISMATCH");
         }
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
+        // T-PERM-044 评审 P1：资源同步 UPDATE 分支写 parent，与 moveResource 共持
+        // (resource_entity, 租户) 树写锁——move×sync / sync×sync 交叉窗口收口
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         // T-PERM-052 类型级所有权门禁（取代 syncTypes.resourceTypeCodes 白名单维度，2026-09-05 定案）：
         // 目标类型必须声明 extra.managedMode=SYNC 且 syncSourceService==调用服务身份，且调用服务
-        // 在 service_config 注册并启用（评审 P1 补强：服务停用/注销即四通道一起断，对齐主体/角色/
-        // user_role 白名单语义）；类型不存在（声明缺失）fail-closed 一并拒绝（事实链路四类型声明
-        // SYNC+access-service，对一切外部来源不匹配——原 rejectIfLocalResource 行级防线已收编）
+        // 在 service_config 注册并启用（评审 P1 补强：服务停用/注销即四通道一起断）；类型不存在
+        // fail-closed 一并拒绝。codex 复评 P1：门禁移到树锁之后——与 type-definition 声明变更/删除
+        // 的行数守卫（同持本锁）互斥，堵「门禁放行→类型翻转来源→插入」交错破坏单一所有权
         if (!resourceTypeOwnershipGuard.isSyncEntranceAllowed(
                 tenantId, req.resourceTypeCode(), req.sourceService())) {
             return SyncResultBuilder.securityDenied("RESOURCE_TYPE_OWNERSHIP_DENIED");
         }
-        // T-PERM-044 评审 P1：资源同步 UPDATE 分支写 parent，与 moveResource 共持
-        // (resource_entity, 租户) 树写锁——move×sync / sync×sync 交叉窗口收口
-        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         if (!OP_UPSERT.equals(req.operation())
                 && !OP_DISABLE.equals(req.operation())
                 && !OP_DELETE.equals(req.operation())) {
@@ -127,7 +127,15 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                             SyncResultBuilder.RETRY_SECURITY_DENIED, "SOURCE_SERVICE_MISMATCH")));
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
-        // T-PERM-052 类型级所有权门禁（同单条口径：SYNC+来源匹配+服务注册启用，评审 P1 补强）
+
+        String scopeKey = SyncKeyCodec.resourceEntityScopeKey(req.scope().resourceTypeCode());
+        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
+
+        // T-PERM-044 评审 P1：全量同步批量写 parent，与 moveResource/sync 共持树写锁（对齐角色域）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+
+        // T-PERM-052 类型级所有权门禁（同单条口径；codex 复评 P1：置于树锁之后，与类型声明
+        // 变更/删除的行数守卫互斥）
         if (!resourceTypeOwnershipGuard.isSyncEntranceAllowed(
                 tenantId, req.scope().resourceTypeCode(), req.scope().sourceService())) {
             return SyncResultBuilder.fullSyncRejected(
@@ -136,12 +144,6 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                     List.of(new SyncResultResp.ItemResult("*", false, false,
                             SyncResultBuilder.RETRY_SECURITY_DENIED, "RESOURCE_TYPE_OWNERSHIP_DENIED")));
         }
-
-        String scopeKey = SyncKeyCodec.resourceEntityScopeKey(req.scope().resourceTypeCode());
-        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
-
-        // T-PERM-044 评审 P1：全量同步批量写 parent，与 moveResource/sync 共持树写锁（对齐角色域）
-        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
 
         // ---- 阶段 A：收集 (resourceCode, codeType) 与 parent (typeCode, code, codeType) 集合 ----
         Set<String> selfCodes = new HashSet<>(req.items().size());
