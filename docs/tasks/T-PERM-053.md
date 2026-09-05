@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-053
 title: service-config 同步 ApiItem.operationCode 无效字段删除（前后端同批锁步）
-status: proposed
+status: done
 plan: docs/plans/design-audit-followup-plan.md
 domain: permission-center
 design_refs:
@@ -18,13 +18,13 @@ acceptance:
   - "回归锁：锁步后前端表单不含 operationCode 可提交成功；仍含 operationCode 的请求体 400（严格 mapper 行为锁定，防 mapper 配置漂移反向依赖）"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-05
 ---
 
 # T-PERM-053 service-config 同步 ApiItem.operationCode 无效字段删除（前后端同批锁步）
 
-> 状态：proposed（2026-09-05 设计体检 P2-3 问题一，定案=删除；同日复评审修正兼容性前提并扩入前端锁步面）
+> 状态：done（2026-09-05 收口；proposed 于同日设计体检 P2-3 问题一，定案=删除；同日复评审修正兼容性前提并扩入前端锁步面）
 > 依赖：无
 
 ## 背景
@@ -40,3 +40,7 @@ last_updated: 2026-09-05
 ## 范围
 
 - 后端 DTO 删字段 + 前端 service-interface 页同批清理 + 契约回写 + 双侧回归锁。
+
+## 完成记录
+
+- 2026-09-05 实施：后端 `ServiceConfigSyncReq.ApiItem` 删 operationCode（含 Javadoc 退役注记），既有测试 `MappingSyncHandlerImplTest`/`ServiceSyncAppServiceImplTest` 构造参数同步（4 处）；前端锁步清理 `api/service-interface.ts` SyncApiItem 类型、`utils/types.ts` 示例 payload 与 parseSyncGroups 必填校验、`SyncForm.vue` 帮助文案（操作码字样）；契约 §6.3 示例删行 + 退役规则条目 + last_reviewed。回归锁双侧新增：后端 `ServiceConfigSyncOperationCodeRetiredTest`（全量 Context + MockMvc + SERVICE 凭证身份，RetiredSyncTaskEndpointTest/SecurityMatrixIT 先例）——新载荷 200 且字段全量到达业务层（ArgumentCaptor 断言）、旧载荷 400 且 `verifyNoInteractions`（两用例在旧实现下均失败，锁与删除语义同向，mapper 漂移为宽容模式时负向用例失败）；前端 `views/system/service-interface/utils/types.spec.ts` 4 用例（无 operationCode 解析通过、示例 payload 不含该字段、仍含该字段时前端放行=删除而非反向校验、其余必填校验语义保持）。

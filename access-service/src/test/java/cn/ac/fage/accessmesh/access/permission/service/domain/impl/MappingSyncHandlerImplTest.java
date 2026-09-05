@@ -43,7 +43,7 @@ class MappingSyncHandlerImplTest {
             List.of(new ServiceConfigSyncReq.GroupItem(
                 "default",
                 "默认",
-                List.of(new ServiceConfigSyncReq.ApiItem("demo", "GET", "/demo", "READ", "demo:read", "demo api"))
+                List.of(new ServiceConfigSyncReq.ApiItem("demo", "GET", "/demo", "demo:read", "demo api"))
             ))
         );
         SyncContext context = SyncContext.of(1L, new ServiceConfig(), req, 100L, "/base", 1);

@@ -111,7 +111,7 @@
 | [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（含资源实体/授权同类引用面盘点；T-PERM-040 收口登记） | — | schema；api-contract §5.1/§5.3 | — | ⚙️ | ⏳ |
 | [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一——type-definition 写路径联动维护 resource_entity + 门禁消费方迁移（实例级授权可配 + list 实例级门禁通路；T-FE-018 决策修订查库登记；2026-09-05 定案投影三族全量/复合键/保留清单） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ⚙️ | ⏳ |
 | [T-PERM-052](T-PERM-052.md) | 资源类型级所有权边界——类型声明门禁（sync 独占 + 管理面只读含级联守卫 + 声明变更守卫；2026-09-05 用户定案改定类型级方案） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.1/§5.3/§6.2.2/§6.3.1；architecture §4.3；schema | — | ✅ | ✅ |
-| [T-PERM-053](T-PERM-053.md) | service-config 同步 ApiItem.operationCode 无效字段删除 | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §6.3；schema | — | ⚙️ | ⏳ |
+| [T-PERM-053](T-PERM-053.md) | service-config 同步 ApiItem.operationCode 无效字段删除 | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §6.3；schema | — | ✅ | ✓ |
 | [T-PERM-054](T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置——暂缓（关联权限自动授权方向待讨论） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.4；schema | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）

@@ -100,7 +100,6 @@ export function createSyncPayload(service: ServiceConfigResp): SyncFormData {
           name: "查询列表",
           httpMethod: "POST",
           path: "/api/example/list",
-          operationCode: "VIEW",
           resourceCode: `${service.serviceCode}:example:list`,
           description: "请用服务实际暴露的接口清单替换此示例"
         }
@@ -156,21 +155,18 @@ export function parseSyncGroups(raw: string): {
           !("name" in api) ||
           !("httpMethod" in api) ||
           !("path" in api) ||
-          !("operationCode" in api) ||
           !("resourceCode" in api) ||
           typeof api.name !== "string" ||
           typeof api.httpMethod !== "string" ||
           typeof api.path !== "string" ||
-          typeof api.operationCode !== "string" ||
           typeof api.resourceCode !== "string" ||
           !api.name.trim() ||
           !api.path.startsWith("/") ||
-          !api.operationCode.trim() ||
           !api.resourceCode.trim()
         ) {
           return {
             error:
-              "每个接口必须包含 name、httpMethod、以 / 开头的 path、operationCode 和 resourceCode"
+              "每个接口必须包含 name、httpMethod、以 / 开头的 path 和 resourceCode"
           };
         }
       }

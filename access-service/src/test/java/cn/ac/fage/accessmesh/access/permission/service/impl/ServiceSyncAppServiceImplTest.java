@@ -61,7 +61,7 @@ class ServiceSyncAppServiceImplTest {
 
             ServiceConfigSyncReq req = new ServiceConfigSyncReq("my-svc", null, "FULL",
                 List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of(
-                    new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "READ", "test:read", "test api")
+                    new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "test:read", "test api")
                 ))));
             assertThrows(cn.ac.fage.accessmesh.common.exception.BizException.class,
                 () -> service.syncInterfaces(1L, req));
@@ -80,7 +80,7 @@ class ServiceSyncAppServiceImplTest {
 
             ServiceConfigSyncReq req = new ServiceConfigSyncReq("my-svc", null, "FULL",
                 List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of(
-                    new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "READ", "test:read", "test api")
+                    new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "test:read", "test api")
                 ))));
             assertThrows(SecurityException.class, () -> service.syncInterfaces(1L, req));
         }
@@ -97,7 +97,7 @@ class ServiceSyncAppServiceImplTest {
 
             ServiceConfigSyncReq req = new ServiceConfigSyncReq("my-svc", null, "FULL",
                 List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of(
-                    new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "READ", "test:read", "test api")
+                    new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "test:read", "test api")
                 ))));
             BizException exception = assertThrows(BizException.class, () -> service.syncInterfaces(1L, req));
             assertEquals(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), exception.getErrorCode());

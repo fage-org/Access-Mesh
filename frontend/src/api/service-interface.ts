@@ -78,11 +78,11 @@ export type ApiMappingUpdateReq = {
   extra?: string | null;
 };
 
+/** operationCode 已退役（T-PERM-053，2026-09-05）：接口权限模型无操作粒度，运行时固定 ACCESS。 */
 export type SyncApiItem = {
   name: string;
   httpMethod: string;
   path: string;
-  operationCode: string;
   resourceCode: string;
   description?: string | null;
 };

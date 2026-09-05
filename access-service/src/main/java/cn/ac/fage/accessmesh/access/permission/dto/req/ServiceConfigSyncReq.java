@@ -49,11 +49,15 @@ public record ServiceConfigSyncReq(
      * <p>
      * 表示单个API接口的详细信息，包括方法、路径、权限关联等。
      * </p>
+     * <p>
+     * operationCode 已删除（T-PERM-053，2026-09-05）：接口权限模型为「API 资源实例 ×
+     * ACCESS 单操作」，无操作粒度，运行时固定按 ACCESS 判定；原字段既不落库也不参与
+     * 鉴权，属契约性空壳。仍携带该字段的旧请求体经全局严格 ObjectMapper 反序列化 400。
+     * </p>
      *
      * @param name         接口名称，必填，最大256字符
      * @param httpMethod   HTTP方法，必填，必须是有效HTTP方法
      * @param path         路径，必填，最大512字符，必须以/开头
-     * @param operationCode 操作编码，必填，最大128字符
      * @param resourceCode 资源编码，必填，最大128字符
      * @param description  接口描述，可选，最大512字符
      */
@@ -72,12 +76,6 @@ public record ServiceConfigSyncReq(
         @Pattern(regexp = "^/[a-zA-Z0-9_/.\\-{}]*$",
                  message = "Invalid path format")
         String path,
-
-        @NotBlank(message = "operationCode cannot be blank")
-        @Size(max = 128, message = "operationCode too long")
-        @Pattern(regexp = "^[a-zA-Z0-9_.-]+$",
-                 message = "Invalid operationCode format")
-        String operationCode,
 
         @NotBlank(message = "resourceCode cannot be blank")
         @Size(max = 128, message = "resourceCode too long")

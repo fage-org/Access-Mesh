@@ -107,7 +107,7 @@ defineExpose({ validate, getFormData });
         />
         <div class="sync-help">
           使用 groups → apis 结构；每条接口须提供名称、HTTP
-          方法、相对路径、操作码和资源编码。
+          方法、相对路径和资源编码。
         </div>
       </el-form-item>
     </el-form>
