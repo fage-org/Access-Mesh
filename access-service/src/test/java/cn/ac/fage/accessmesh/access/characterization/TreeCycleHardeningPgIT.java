@@ -53,8 +53,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 四棵树 move 并发成环窗口与递归 CTE 遇环收敛统一加固的真实 PostgreSQL 验证
  * （T-PERM-044，Testcontainers，Docker 可用时执行）。
  * <p>
- * 方案（用户决策 2026-09-04）：树级 {@code pg_advisory_xact_lock} 根治写窗口 +
- * 递归 CTE UNION 去重（subtreeHeight 深度上限）止损 + 内存递归 visited 防环。
+ * 方案（2026-09-04 定案，同日由 advisory lock 变更为 Redisson）：树级分布式锁
+ * （RLock + watchdog 续期 + 事务 afterCompletion 释放）根治写窗口 + 递归 CTE UNION 去重
+ * （subtreeHeight 深度上限）止损 + 内存递归 visited 防环。
  * 本 PgIT 用 JDBC 直接制造 2-环脏数据，锁定：
  * </p>
  * <ul>
@@ -341,6 +342,12 @@ class TreeCycleHardeningPgIT {
         }
     }
 
+    /**
+     * 行为特征化用例：锁互斥由 {@link #redisLockHeldUntilTransactionCompletion} 与各写入口
+     * 单测的 lockTreeWrites verify 承担确定性证明；本用例验证端到端行为——无论两请求以何种
+     * 次序/交错进入，最终恒一成一败且 2-环不落库（时序完全分离时校验语义兜底，真同瞬窗口
+     * 由锁兜底，两条防线共同保证该断言在锁移除前恒成立）。
+     */
     @Test
     @DisplayName("交叉移动窗口：双线程同瞬 A→B 下 / B→A 下，恰好一成一败，环无法落库")
     void crossMoveCannotCreateCycle() throws Exception {

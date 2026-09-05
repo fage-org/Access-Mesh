@@ -133,13 +133,13 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
             resourceType != null ? resourceType : menu.getResourceType(),
             resourceCode != null ? resourceCode : menu.getResourceCode(),
             req.id());
-        // 请求携带 parentId（含表单回传原值）即持锁并在锁内重读自身行：锁前快照判「是否换父」
-        // 有丢失更新窗口——T2 已并发移动时，T1 按旧快照判「未换父」把旧 parent 原样写回
-        //（静默回滚 T2 的移动）
+        // 树写锁无条件持有：不带 parentId 的普通编辑也会全列回写锁前读到的 parent（update(entity)
+        // 非 null 列全写），无锁时并发移动会被静默回滚、经两步合法移动+回写可闭合成环——锁内
+        // 读写串行后回写旧值不可能覆盖并发变更
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
+        // 请求携带 parentId（含表单回传原值）时锁内重读自身行重判：锁前快照判「是否换父」会漏
+        // 校验语义
         if (req.parentId() != null) {
-            // T-PERM-044：树写锁先于换父校验（MENU_PARENT_INVALID 的 check-then-act 窗口收口），
-            // 普通字段编辑（不带 parentId）不涉及树结构、不持锁
-            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
             menu = menuDomainService.selectValidById(tenantId, req.id());
             if (menu == null) {
                 throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(),

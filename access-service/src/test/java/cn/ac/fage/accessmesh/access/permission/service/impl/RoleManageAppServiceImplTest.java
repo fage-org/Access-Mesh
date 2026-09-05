@@ -17,6 +17,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngi
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -68,6 +69,23 @@ class RoleManageAppServiceImplTest {
             engine,
             treeWriteLockSupport
         );
+    }
+
+    @Test
+    @DisplayName("树写锁无条件先于业务校验：updateRole/moveRole 异常路径同样验证入口已接锁")
+    void treeWriteLockTakenBeforeRoleWriteValidation() {
+        when(subjectDomainService.selectValidRoleById(1L, 99L)).thenReturn(null);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.updateRole(1L, 99L, "n", null, null, null, null, 9L))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
+        org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+
+        org.mockito.Mockito.clearInvocations(treeWriteLockSupport);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.moveRole(1L, 99L, null, 9L))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
+        org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
     }
 
     @Test

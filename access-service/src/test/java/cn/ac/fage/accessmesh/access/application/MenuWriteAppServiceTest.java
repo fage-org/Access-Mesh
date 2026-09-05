@@ -161,6 +161,9 @@ class MenuWriteAppServiceTest {
 
         service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, null, null, null, null, null, null, null));
 
+        // 树写锁无条件持有（T-PERM-044）：不带 parentId 的普通编辑同样接锁
+        verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
         ArgumentCaptor<SysMenu> captor = ArgumentCaptor.forClass(SysMenu.class);
         verify(menuDomainService).update(captor.capture());
         SysMenu updated = captor.getValue();

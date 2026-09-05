@@ -110,6 +110,9 @@ class OrgWriteAppServiceTest {
         assertThatThrownBy(() -> service.updateOrg(new OrgUpdateReq(ORG_ID, null, 999L, null, null, null)))
             .isInstanceOf(BizException.class)
             .hasMessageContaining("父组织不存在");
+        // 树写锁无条件先于业务校验（T-PERM-044）：异常路径同样验证入口已接锁
+        verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
     }
 
     @Test

@@ -190,6 +190,11 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     public RoleResp updateRole(Long tenantId, Long roleId, String name, Integer status, Integer sortOrder, String extra, Boolean extraClear, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
+        // 树写锁无条件持有（与 moveRole 同把）：普通字段更新全列回写锁前读到的 parent
+        //（update(entity) 非 null 列全写），无锁时并发移动会被静默回滚、经两步合法移动+回写
+        // 可闭合成环——锁内读写串行后回写旧值不可能覆盖并发变更
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
             throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);

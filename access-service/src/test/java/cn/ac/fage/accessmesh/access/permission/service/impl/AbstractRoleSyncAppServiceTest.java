@@ -108,6 +108,8 @@ class AbstractRoleSyncAppServiceTest {
 
     @Test
     void shouldReturnApplied_whenUpsertNewVersion() {
+        // 树写锁先于任何树结构校验（T-PERM-044）：外部同步与 moveRole 共持同把锁
+        org.mockito.Mockito.clearInvocations(treeWriteLockSupport);
         mockHeaderMatch();
         when(typeResolutionService.resolveTypeValue(TENANT_ID, "role_type", "BASIC_ROLE")).thenReturn(2);
         when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("ABSTRACT_ROLE"),
@@ -123,6 +125,8 @@ class AbstractRoleSyncAppServiceTest {
         assertThat(resp.applied()).isTrue();
         assertThat(resp.stale()).isFalse();
         assertThat(resp.retryClass()).isNull();
+        org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(TENANT_ID,
+                cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
     }
 
     @Test

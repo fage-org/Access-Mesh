@@ -72,6 +72,29 @@ class ResourceManageAppServiceImplTest {
     }
 
     @Test
+    @DisplayName("树写锁无条件先于业务校验：updateResource/moveResource 异常路径同样验证入口已接锁")
+    void treeWriteLockTakenBeforeResourceWriteValidation() {
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(0);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 0, "m1", "default")).thenReturn(null);
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.updateResource(1L,
+                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq(
+                    "MENU", "m1", "default", null, null, null, null, null, null), 9L))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
+        org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+
+        org.mockito.Mockito.clearInvocations(treeWriteLockSupport);
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.moveResource(1L,
+                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq(
+                    new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "m1", "default"),
+                    null), 9L))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
+        org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+    }
+
+    @Test
     @DisplayName("无 RESOURCE:VIEW → SecurityException，不触碰资源查询")
     void shouldRejectResourceTreeWithoutResourceViewPermission() {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {

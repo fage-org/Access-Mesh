@@ -316,6 +316,9 @@ class ResourceEntitySyncAppServiceTest {
         assertThat(resp.accepted()).isFalse();
         assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
         assertThat(resp.reason()).isEqualTo("RESOURCE_PARENT_INVALID: MENU:child-x");
+        // 外部同步与 moveResource 共持 (resource_entity, 租户) 树写锁（T-PERM-044 评审 P1）
+        org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(TENANT_ID,
+                cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         org.mockito.Mockito.verify(syncMetadataDomainService, org.mockito.Mockito.never()).applyVersion(
                 anyLong(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(),
                 anyString(), anyString(), any(), anyLong());
@@ -369,5 +372,10 @@ class ResourceEntitySyncAppServiceTest {
                 .isEqualTo("RESOURCE_PARENT_INVALID: MENU:child-x");
         org.mockito.Mockito.verify(resourceEntityMapper, org.mockito.Mockito.never())
                 .update(org.mockito.ArgumentMatchers.any(ResourceEntity.class));
+        // N+1 回归锁：full-sync 路径经内存图预判（cyclePreChecked），doSyncOneInternal 内的
+        // DB 子孙查询判定不得逐项触发（外部评审 P1-2）
+        org.mockito.Mockito.verify(resourceEntityDomainService, org.mockito.Mockito.never())
+                .batchGetDescendantIds(org.mockito.ArgumentMatchers.anyLong(),
+                        org.mockito.ArgumentMatchers.any());
     }
 }

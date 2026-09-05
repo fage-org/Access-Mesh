@@ -53,14 +53,15 @@ T-PERM-022 为角色域 moveRole 补齐了环路防护（自身/子孙拒绝 200
    为 `pg_advisory_xact_lock`（随事务原子释放），同日定案变更切换为 Redisson；advisory 路径必须
    经 MyBatis mapper 执行才有效（JdbcTemplate 直连实测 autocommit 不关、锁语句结束即释放），
    留作语句级锁方案的坑位登记。
-2. **覆盖全部 parent 写入口**：`moveRole`、角色 `sync`/`full-sync`（同样写 parent，漏锁则
-   move×sync 窗口残留）、组织 `updateOrg` 换父分支、菜单 `updateMenu` 换父分支、`moveResource`、
-   资源实体 `sync`/`full-sync`（双轨评审补齐：UPDATE 分支同样写 parent——single 判环先于版本
-   写入、full-sync 内存图判环 + 已应用边镜像，对齐角色同步先例；父解析随之前移，依赖缺失与
-   环路拒绝均不推进同步版本）。组织/菜单换父入口请求携带 parent 即持锁并在锁内重读自身行
-   重判（双轨评审补齐：防锁前快照判「未换父」跳锁跳校验、把旧 parent 静默写回并发移动）。
-   普通字段编辑（不带 parent）不持锁。锁先于任何树结构校验查询；事务外调用 fail-fast
-   （IllegalStateException）。full-sync 单事务全程持锁、期间并发 move 排队——管理操作低频，可接受。
+2. **树表全部写入口无条件持锁**：角色 `updateRole`/`moveRole`/`sync`/`full-sync`、组织
+   `updateOrg`、菜单 `updateMenu`、资源 `updateResource`/`moveResource`/资源实体
+   `sync`/`full-sync`、服务接口同步 `syncInterfaces`。外部评审 P1 收口：update(entity) 全列
+   回写含 parent，「不带 parent 的普通编辑」按条件持锁时，无锁回写可静默回滚并发移动、经
+   两步合法移动+回写可闭合成环——故无条件持锁（锁内读写串行，回写旧值不可能覆盖并发变更）。
+   组织/菜单请求携带 parent 时锁内重读自身行重判换父（双轨评审补齐：防锁前快照漏校验语义）。
+   资源实体同步判环先于版本写入（双轨评审补齐：拒绝不推进同步版本，full-sync 内存图判环 +
+   已应用边镜像，经 cyclePreChecked 跳过逐项 DB 判环防 N+1）。锁先于任何树结构校验查询；
+   事务外调用 fail-fast（IllegalStateException）。持锁事务期间并发写排队——管理操作低频，可接受。
 3. **递归 CTE 止损 = UNION 去重为主 + subtreeHeight 深度上限**：四树 12 处 `UNION ALL` 递归 CTE
    中 11 处改 `UNION`（重复行不进工作表、迭代自终止，环上返回全部可达节点；含 `original_id`/
    `root_id` 分组列的批量查询按组合行去重、分组语义不变）。例外 `SysMenuMapper.selectSubtreeHeight`：
@@ -104,3 +105,11 @@ T-PERM-022 为角色域 moveRole 补齐了环路防护（自身/子孙拒绝 200
   残留清扫（runbook 环检测行、PgIT 类注释、OrgServiceImpl 旁注）、architecture/role-manage
   frontmatter 回写、任务卡编号与计数订正、§17.2 补排除句。资源同步测试随判环前移同步修订
   dependencyMissing 用例（applyVersion never 断言锁「拒绝不推进版本」语义）。
+- **codex 外部评审处置（gpt-5.6-sol xhigh，同日）**：P1 普通更新全列回写 parent（含
+  ResourceSyncHandler 接口同步批量面）经核实属实（两步合法移动+回写可闭合成环）——按用户
+  定案改为树表全部写入口无条件持锁（updateRole/updateResource/updateOrg/updateMenu/
+  syncInterfaces 五处扩面）并补入口 verify 用例；P1 fullSync 内存判环后逐项 DB 判环 N+1
+  属实——doSyncOneInternal 加 cyclePreChecked 参数跳过并补 never 断言回归锁；P2 并发用例
+  无确定性窗口制造（黑盒无法在校验与写入间注入屏障）——crossMove 用例定位精化为行为
+  特征化（注释说明两道防线），入口接锁确定性由各单测 verify 承担；P3 PgIT 类注释方案句
+  上轮 patch 断言失败未落盘——修正。

@@ -42,6 +42,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
     private final TypeResolutionService typeResolutionService;
     private final SyncModeStrategyFactory strategyFactory;
     private final PermQueryEngine engine;
+    private final cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
 
     /**
      * 构造函数注入依赖
@@ -59,13 +60,15 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
             ServiceConfigMapper serviceConfigMapper,
             TypeResolutionService typeResolutionService,
             SyncModeStrategyFactory strategyFactory,
-            PermQueryEngine engine) {
+            PermQueryEngine engine,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport) {
         this.resourceSyncHandler = resourceSyncHandler;
         this.mappingSyncHandler = mappingSyncHandler;
         this.serviceConfigMapper = serviceConfigMapper;
         this.typeResolutionService = typeResolutionService;
         this.strategyFactory = strategyFactory;
         this.engine = engine;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     /**
@@ -91,6 +94,12 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
         validatePermission(tenantId, operatorId, req);
 
         ServiceConfig config = prepareServiceConfig(tenantId, req, operatorId);
+
+        // T-PERM-044 外部评审 P1：接口同步批量 upsert 资源（全列回写含 parent），与
+        // moveResource/资源实体同步共持 (resource_entity, 租户) 树写锁——无锁时并发移动会被
+        // 批量回写静默回滚、经两步合法移动+回写可闭合成环
+        treeWriteLockSupport.lockTreeWrites(tenantId,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
 
         String basePath = normalizeBasePath(
             req.basePath() != null && !req.basePath().isBlank() ? req.basePath() : config.getBasePath()

@@ -226,7 +226,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 continue;
             }
             SyncResultResp r = doSyncOneInternal(tenantId, oneReq, resourceTypeValue, existing,
-                    true, parentRequested, preResolvedParentId, now);
+                    true, parentRequested, preResolvedParentId, true, now);
             if (r.applied()) {
                 applied++;
                 // doSyncOneInternal 在新建分支会把 insert 后的 ResourceEntity 注入 cache 不在此处再查 DB（避免 N+1）。
@@ -268,7 +268,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     private record CodeKey(String code, String codeType) {}
 
     private SyncResultResp doSyncOne(Long tenantId, ResourceEntitySyncReq req) {
-        return doSyncOneInternal(tenantId, req, null, null, false, false, null, LocalDateTime.now());
+        return doSyncOneInternal(tenantId, req, null, null, false, false, null, false, LocalDateTime.now());
     }
 
     /**
@@ -322,12 +322,15 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
      *                             INSERT/不存在分支，不再查 DB；false=本方法 fallback 单条 select）
      * @param parentRequested      调用方是否声明了 parent
      * @param preResolvedParentId  预解析的 parentId（仅当 parentRequested=true 时使用）
+     * @param cyclePreChecked      调用方已完成判环（full-sync 循环体经内存图判定后传入，
+     *                             跳过本方法内的 DB 子孙查询判定，避免逐项递归 CTE 的 N+1）
      */
     private SyncResultResp doSyncOneInternal(Long tenantId, ResourceEntitySyncReq req,
                                              Integer preResolvedTypeValue,
                                              ResourceEntity preLoadedExisting,
                                              boolean preExistingResolved,
                                              boolean parentRequested, Long preResolvedParentId,
+                                             boolean cyclePreChecked,
                                              LocalDateTime now) {
         String codeType = (req.codeType() == null || req.codeType().isBlank()) ? DEFAULT_CODE_TYPE : req.codeType();
         String businessKey = SyncKeyCodec.resourceEntityBusinessKey(
@@ -377,8 +380,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         }
 
         // T-PERM-044 评审 P1：parent 环路防护（与 moveResource 同款判定：目标父为自身或其子孙拒绝），
-        // 先于 applyVersion；新建分支无既有子树天然无环
-        if (OP_UPSERT.equals(req.operation()) && existing != null
+        // 先于 applyVersion；新建分支无既有子树天然无环。full-sync 路径经内存图预判后跳过
+        //（cyclePreChecked），本处 DB 子孙查询判定仅服务 single-sync
+        if (!cyclePreChecked && OP_UPSERT.equals(req.operation()) && existing != null
                 && isCyclicParent(tenantId, existing.getId(), parentId)) {
             return SyncResultBuilder.nonRetryable(
                     "RESOURCE_PARENT_INVALID: " + req.parentResourceTypeCode() + ":" + req.parentResourceCode());

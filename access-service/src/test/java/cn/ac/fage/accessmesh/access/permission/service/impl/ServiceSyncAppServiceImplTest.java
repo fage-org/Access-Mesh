@@ -35,6 +35,7 @@ class ServiceSyncAppServiceImplTest {
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private SyncModeStrategyFactory strategyFactory;
     @Mock private PermQueryEngine engine;
+    @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
 
     private ServiceSyncAppServiceImpl service;
 
@@ -42,7 +43,31 @@ class ServiceSyncAppServiceImplTest {
     void setUp() {
         service = new ServiceSyncAppServiceImpl(
             resourceSyncHandler, mappingSyncHandler, serviceConfigMapper,
-            typeResolutionService, strategyFactory, engine);
+            typeResolutionService, strategyFactory, engine, treeWriteLockSupport);
+    }
+
+    @Test
+    void shouldTakeTreeWriteLockBeforeApiTypeResolution() {
+        // 树写锁先于策略执行（T-PERM-044 外部评审 P1：接口同步批量 upsert 资源全列回写含
+        // parent）——API 类型解析失败在锁后抛出，异常路径即可 verify 入口接锁
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L),
+                eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCodeConstants.SYNC_INTERFACE)))
+                .thenReturn(true);
+            when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-svc")).thenReturn(new cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig());
+            when(typeResolutionService.resolveTypeValue(1L, "resource_type", ResourceTypeCode.API))
+                .thenReturn(null);
+
+            ServiceConfigSyncReq req = new ServiceConfigSyncReq("my-svc", null, "FULL",
+                List.of(new ServiceConfigSyncReq.GroupItem("default", "默认", List.of(
+                    new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "READ", "test:read", "test api")
+                ))));
+            assertThrows(cn.ac.fage.accessmesh.common.exception.BizException.class,
+                () -> service.syncInterfaces(1L, req));
+            org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(1L,
+                cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        }
     }
 
     @Test
