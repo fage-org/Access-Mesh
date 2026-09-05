@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain;
 
+import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper;
@@ -28,6 +29,10 @@ import java.util.Objects;
  *       后代全集）：目标类型声明 SYNC 时一律拒绝（20055）；</li>
  *   <li>声明变更：类型下存在有效资源行时 managedMode/syncSourceService 有效值不得变更（20056，
  *       含删除键隐式切回 MANAGED）。</li>
+ *   <li>内部来源声明（2026-09-05 补充定案）：USER/ORG/MENU/ROLE 四类事实链路类型由种子声明
+ *       SYNC + syncSourceService=access-service——外部同步一律拒绝（来源不匹配）、管理面资源
+ *       CRUD 一律 20055（行由用户/组织/菜单/角色管理自动维护），收编原类型保留清单与
+ *       行级 owner=access-service 投影防线两套旧机制。</li>
  * </ul>
  * <p>
  * 保存边界（type-definition create/update）由 {@link #validateExtraDeclaration} 校验结构，
@@ -118,12 +123,15 @@ public class ResourceTypeOwnershipGuard {
     /**
      * 保存边界校验（type-definition create/update 写入口）：
      * managedMode/syncSourceService 仅允许出现在 {@code type_key=resource_type} 的 extra 上；
-     * mode 值域 {MANAGED, SYNC}；SYNC 必须携带非空白来源且来源须为已注册有效服务。
+     * mode 值域 {MANAGED, SYNC}；SYNC 必须携带非空白来源且来源须为已注册有效服务——
+     * 唯一豁免：{@code syncSourceService=access-service}（内部来源声明，收编事实链路类型，
+     * 仅 is_system=true 的系统预置类型可声明，防止自定义类型锁死成无人写入的孤岛）。
      *
+     * @param isSystemType 目标类型是否系统预置（create 恒 false——is_system 不可由 API 创建）
      * @throws IllegalArgumentException 结构不合法（调用方转为 BizException 20044 返回，
      *                                  对齐 SyncTypeGuard.validateSyncTypesExtra 先例）
      */
-    public void validateExtraDeclaration(Long tenantId, String typeKey, String extraJson) {
+    public void validateExtraDeclaration(Long tenantId, String typeKey, String extraJson, boolean isSystemType) {
         if (extraJson == null || extraJson.isBlank()) {
             return;
         }
@@ -175,6 +183,15 @@ public class ResourceTypeOwnershipGuard {
             if (sourceText == null) {
                 throw new IllegalArgumentException(EXTRA_KEY_MANAGED_MODE + "=" + MODE_SYNC
                         + " 必须携带 " + EXTRA_KEY_SYNC_SOURCE_SERVICE);
+            }
+            // 内部来源豁免：access-service 不是 service_config 注册行（rejectInternalSourceService
+            // 同时禁止外部 sync 冒充），仅系统预置类型可声明——USER/ORG/MENU/ROLE 四类事实链路类型
+            if (LocalProjectionOwner.SERVICE_CODE.equals(sourceText)) {
+                if (!isSystemType) {
+                    throw new IllegalArgumentException("内部来源 " + LocalProjectionOwner.SERVICE_CODE
+                            + " 仅系统预置类型可声明");
+                }
+                return;
             }
             if (serviceConfigMapper.selectByTenantAndServiceCode(tenantId, sourceText) == null) {
                 throw new IllegalArgumentException("来源服务未注册: " + sourceText);
@@ -245,6 +262,12 @@ public class ResourceTypeOwnershipGuard {
 
     private static void rejectIfSyncOwned(Ownership ownership, String resourceTypeCode) {
         if (ownership != null && MODE_SYNC.equals(ownership.managedMode())) {
+            // 内部来源（USER/ORG/MENU/ROLE 事实链路类型）：行由系统用户/组织/菜单/角色管理自动维护
+            if (LocalProjectionOwner.SERVICE_CODE.equals(ownership.syncSourceService())) {
+                throw new BizException(PermissionErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),
+                        "资源由系统事实链路维护（用户/组织/菜单/角色管理），资源管理面只读: resourceTypeCode="
+                                + resourceTypeCode);
+            }
             throw new BizException(PermissionErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),
                     "资源由外部来源维护，请到来源系统操作: resourceTypeCode=" + resourceTypeCode
                             + ", syncSourceService=" + ownership.syncSourceService());

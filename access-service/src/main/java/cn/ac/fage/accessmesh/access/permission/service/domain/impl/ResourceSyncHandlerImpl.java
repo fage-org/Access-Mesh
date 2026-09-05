@@ -65,7 +65,6 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
         for (ServiceConfigSyncReq.GroupItem group : context.req().groups()) {
             for (ServiceConfigSyncReq.ApiItem api : group.apis()) {
                 String fullPath = joinPath(context.basePath(), api.path());
-                String syncKey = context.req().serviceCode() + "|" + api.resourceCode();
 
                 // 查找已有资源
                 ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
@@ -84,7 +83,6 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                     resource.setSortOrder(0);
                     resource.setOwnerServiceCode(context.req().serviceCode());
                     resource.setMaintainSource(PermConstants.MaintainSource.SERVICE_SYNC);
-                    resource.setSyncKey(syncKey);
                     resource.setExtra("{}");
                     resource.setCreatedBy(context.operatorId());
                     LocalDateTime now = LocalDateTime.now();
@@ -105,7 +103,6 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                     resource.setName(api.name());
                     resource.setPath(fullPath);
                     resource.setStatus(1);
-                    resource.setSyncKey(syncKey);
                     resource.setUpdatedAt(LocalDateTime.now());
                     resourceEntityMapper.update(resource);
                     updatedCount++;

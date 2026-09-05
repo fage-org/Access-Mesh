@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
  * 表示系统中需要权限控制的资源对象。
  * 资源类型包括：菜单、按钮、API、数据等。
  * 支持资源层级结构（通过parentId）和资源路径定位。
- * 资源可由外部服务同步维护（通过maintainSource和syncKey）。
+ * 资源所有权由类型声明承载（type_definition.extra.managedMode，T-PERM-052）；maintainSource 为记录值。
  * </p>
  *
  * @author AccessMesh Team
@@ -86,11 +86,6 @@ public class ResourceEntity {
      * 维护来源，标识资源的维护方式（MANUAL/SYNC）
      */
     private String maintainSource;
-
-    /**
-     * 同步键，用于外部系统同步时的唯一标识
-     */
-    private String syncKey;
 
     /**
      * 扩展信息（JSON格式），存储额外属性

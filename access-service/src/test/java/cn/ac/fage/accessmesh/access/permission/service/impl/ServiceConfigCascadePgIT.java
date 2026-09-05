@@ -11,7 +11,6 @@ import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapp
 import cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.permission.service.ResourceManageAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncTypeGuard;
@@ -158,7 +157,7 @@ class ServiceConfigCascadePgIT {
     private ResourceManageAppService newResourceManageAppService(PermQueryEngine engine) {
         return new ResourceManageAppServiceImpl(resourceEntityMapper, resourceApiMappingMapper,
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
-            engine, rolePermMapper, new LocalProjectionGuard(), ownershipGuard(),
+            engine, rolePermMapper, ownershipGuard(),
             mock(TreeWriteLockSupport.class));
     }
 

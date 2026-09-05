@@ -12,7 +12,6 @@ import cn.ac.fage.accessmesh.access.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.springframework.stereotype.Service;
@@ -39,7 +38,6 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     private final TypeResolutionService typeResolutionService;
     private final AbstractUserMapper abstractUserMapper;
     /** 所有权防线（无状态）：USER/ORG/MENU 为公共类型后防本地投影接管外部行 */
-    private final LocalProjectionGuard localProjectionGuard = new LocalProjectionGuard();
     private final AbstractRoleMapper abstractRoleMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final UserRoleProjectionWriter userRoleProjectionWriter;
@@ -140,7 +138,9 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         }
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
-        if (isOwnResource(resource)) {
+        // T-PERM-052：USER 类型种子声明 SYNC+access-service 后行内只可能是本投影的行，
+        // 原 isOwnResource 外部行过滤已无必要（类型门禁挡住外部写入）
+        if (resource != null) {
             resource.setStatus(STATUS_DISABLED);
             resource.setUpdatedAt(now);
             resourceEntityMapper.update(resource);
@@ -160,7 +160,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         }
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
-        if (isOwnResource(resource)) {
+        if (resource != null) {
             resourceEntityMapper.softDeleteBatch(tenantId, List.of(resource.getId()), now);
         }
     }
@@ -229,7 +229,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         }
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
-        if (isOwnResource(resource)) {
+        if (resource != null) {
             resourceEntityMapper.softDeleteBatch(tenantId, List.of(resource.getId()), now);
         }
     }
@@ -251,7 +251,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         String externalId = String.valueOf(sysMenuId);
         ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, externalId, CODE_TYPE_DEFAULT);
-        if (isOwnResource(resource)) {
+        if (resource != null) {
             resourceEntityMapper.softDeleteBatch(tenantId, List.of(resource.getId()), LocalDateTime.now());
         }
     }
@@ -365,32 +365,27 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             .map(String::valueOf).collect(java.util.stream.Collectors.toSet()));
     }
 
-    /** 批量按 code 软删本地投影资源行（一次批量加载 + 过滤 owner + 一次批量软删；外部行跳过）。
-     * 限定 code_type=default 与 upsert 定位对称（不误删同 code 非默认编码行） */
+    /** 批量按 code 软删本地投影资源行（一次批量加载 + 一次批量软删）。
+     * 限定 code_type=default 与 upsert 定位对称（不误删同 code 非默认编码行）。
+     * T-PERM-052：USER 类型种子声明 SYNC+access-service 后行内只可能是本投影的行，
+     * 原 owner 过滤已无必要 */
     private void softDeleteOwnResources(Long tenantId, Integer resourceType, Set<String> codes) {
-        List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
-            tenantId, resourceType, codes, Set.of(CODE_TYPE_DEFAULT));
-        List<Long> ownIds = resources.stream()
-            .filter(LocalProjectionDomainServiceImpl::isOwnResource)
+        List<Long> ids = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+            tenantId, resourceType, codes, Set.of(CODE_TYPE_DEFAULT)).stream()
             .map(ResourceEntity::getId)
             .toList();
-        if (!ownIds.isEmpty()) {
-            resourceEntityMapper.softDeleteBatch(tenantId, ownIds, LocalDateTime.now());
+        if (!ids.isEmpty()) {
+            resourceEntityMapper.softDeleteBatch(tenantId, ids, LocalDateTime.now());
         }
-    }
-
-    /** 仅 owner=access-service 的行才是本地投影可操作的行（禁用/删除路径跳过外部行） */
-    private static boolean isOwnResource(ResourceEntity resource) {
-        return resource != null && LocalProjectionOwner.isLocalOwner(resource.getOwnerServiceCode());
     }
 
     private Long upsertResource(Long tenantId, Integer resourceType, String code, String name,
                                 Long parentId, int status, LocalDateTime now) {
         ResourceEntity existing = resourceEntityMapper.selectByTypeCodeAndCodeType(
             tenantId, resourceType, code, CODE_TYPE_DEFAULT);
-        // 公共类型（USER/ORG/MENU）下命中行可能属外部同步：fail-closed 拒绝接管，
-        // 不改写 owner、不留悬挂的 sync_metadata.target_id）
-        localProjectionGuard.rejectIfForeignResource(existing);
+        // T-PERM-052：USER/ORG/MENU 类型种子声明 SYNC+access-service，外部同步/人工创建均被
+        // 类型门禁拒绝（20055/RESOURCE_TYPE_OWNERSHIP_DENIED），命中行只可能是本投影的行，
+        // 原 rejectIfForeignResource 接管防线已无必要
         if (existing == null) {
             ResourceEntity resource = new ResourceEntity();
             resource.setTenantId(tenantId);

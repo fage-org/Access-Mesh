@@ -95,8 +95,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         localProjectionGuard.rejectInternalSourceService(req.sourceService());
         // T-PERM-052 类型级所有权门禁（取代 syncTypes.resourceTypeCodes 白名单维度，2026-09-05 定案）：
         // 目标类型必须声明 extra.managedMode=SYNC 且 syncSourceService==调用服务身份；
-        // 类型不存在（声明缺失）fail-closed 一并拒绝。本地投影行防线（rejectIfLocalResource，
-        // T-ACCESS-018）作为纵深防御保留——门禁通过的类型下不应再命中 owner=access-service 行。
+        // 类型不存在（声明缺失）fail-closed 一并拒绝（事实链路四类型声明 SYNC+access-service，
+        // 对一切外部来源不匹配——原 rejectIfLocalResource 行级防线已收编进本门禁，
+        // 2026-09-05 内部来源统一）。
         ResourceTypeOwnershipGuard.Ownership ownership = resourceTypeOwnershipGuard.resolveTypeOwnership(
                 tenantId, req.resourceTypeCode());
         if (ownership == null || !ownership.syncOwnedBy(req.sourceService())) {
@@ -355,14 +356,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 ? preLoadedExisting
                 : resourceEntityMapper.selectByTypeCodeAndCodeType(tenantId, resourceTypeValue, req.resourceCode(), codeType);
 
-        // T-ACCESS-018：resource 侧取消类型级保留后本地投影的唯一防线——
-        // 命中已有实体（existing != null）即按所有权拒绝（owner=access-service 抛 20045），
-        // UPSERT/DISABLE/DELETE 三个 mutation 分支统一前置覆盖；existing 为 null 的 INSERT
-        // 分支由 uk_resource_entity 唯一约束 fail-closed 兜底（撞本地投影 code 时约束冲突）。
-        // 评审 P2：检查前移到 applyVersion 与 parent 解析之前——所有权是安全边界，
-        // 必须先于任何可提交的提前返回（parent 缺失 dependencyMissing）与外部
-        // sync_metadata 持久化副作用，否则命中本地行的请求可绕过 20045 并留下悬挂元数据。
-        localProjectionGuard.rejectIfLocalResource(existing);
+        // T-PERM-052：本地投影行防线（owner=access-service 拒绝）已收编进入口类型门禁——
+        // 事实链路四类型声明 SYNC+access-service，外部来源在入口即被拒，不可达本分支；
+        // existing 为 null 的 INSERT 分支由 uk_resource_entity 唯一约束 fail-closed 兜底。
 
         // resolve parent (optional) —— 先于 applyVersion：环路拒绝不推进同步版本，
         // 上游修正后同版本重试不被判 STALE（对齐角色同步先例 T-PERM-022 评审收口）
@@ -413,7 +409,6 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 re.setStatus(req.status() == null ? 1 : req.status());
                 re.setSortOrder(req.sortOrder() == null ? 0 : req.sortOrder());
                 re.setMaintainSource(MAINTAIN_SOURCE_SYNC);
-                re.setSyncKey(syncKey);
                 // 外部业务服务同步的行所有权保持 NULL（owner 由本地投影独占，见 LocalProjectionOwner）
                 re.setExtra(serializeExtra(req.extra()));
                 re.setCreatedAt(now);

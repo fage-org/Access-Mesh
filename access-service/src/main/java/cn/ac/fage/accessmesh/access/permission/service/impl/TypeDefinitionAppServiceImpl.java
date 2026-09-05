@@ -103,9 +103,10 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         }
 
         // T-PERM-052：extra 所有权声明结构校验（managedMode/syncSourceService 仅 resource_type、
-        // 值域与来源引用校验；对齐 SyncTypeGuard.validateSyncTypesExtra 的保存边界先例）
+        // 值域与来源引用校验；对齐 SyncTypeGuard.validateSyncTypesExtra 的保存边界先例）。
+        // create 恒 is_system=false——内部来源 access-service 仅系统预置类型可声明（种子）
         try {
-            resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, req.typeKey(), req.extra());
+            resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, req.typeKey(), req.extra(), false);
         } catch (IllegalArgumentException e) {
             throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
                 PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());
@@ -323,9 +324,11 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
         if (type == null) throw new BizException(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
         // T-PERM-052：extra 所有权声明结构校验 + 有效值变更守卫（类型下存在有效资源行时
-        // managedMode/syncSourceService 不得变更，含删键隐式切回 MANAGED；20056）
+        // managedMode/syncSourceService 不得变更，含删键隐式切回 MANAGED；20056）。
+        // is_system 类型允许声明内部来源 access-service（USER/ORG/MENU/ROLE 种子同款）
         try {
-            resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, type.getTypeKey(), req.extra());
+            resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, type.getTypeKey(), req.extra(),
+                Boolean.TRUE.equals(type.getIsSystem()));
         } catch (IllegalArgumentException e) {
             throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
                 PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());

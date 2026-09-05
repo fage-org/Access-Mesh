@@ -19,7 +19,6 @@ import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
@@ -165,7 +164,7 @@ class ResourceOperationKeyPgIT {
     private ResourceManageAppServiceImpl newResourceManageAppService(PermQueryEngine engine) {
         return new ResourceManageAppServiceImpl(resourceEntityMapper, resourceApiMappingMapper,
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
-            engine, rolePermMapper, new LocalProjectionGuard(), ownershipGuard(),
+            engine, rolePermMapper, ownershipGuard(),
             mock(TreeWriteLockSupport.class));
     }
 
@@ -223,7 +222,7 @@ class ResourceOperationKeyPgIT {
         ResourceManageAppServiceImpl service = newResourceManageAppService(permitAllEngine());
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
-            // BUTTON 非保留类型（{USER,ORG,MENU,ROLE} 保留，人工不可建投影）
+            // BUTTON 未声明 SYNC（事实链路四类型之外），管理面可建（原保留清单已收编进类型门禁）
             var resp = service.createResource(TENANT, new ResourceCreateReq(
                 null, null, null, null, null, "BUTTON", "PGIT17_CREATE", null,
                 "冒烟资源", null, null, null, "{}"), 100L);
@@ -236,8 +235,10 @@ class ResourceOperationKeyPgIT {
     @Test
     @DisplayName("资源业务键全链路：detail（codeType 缺省归一）→ update（extraClear）→ move（防环）→ remove（级联子孙）")
     void shouldWalkResourceBusinessKeyChainOnRealPostgres() {
-        ResourceEntity parent = insertResource(1, "PGIT28_ROOT", "default", null);
-        ResourceEntity child = insertResource(1, "PGIT28_CHILD", "default", parent.getId());
+        // T-PERM-052 内部来源统一后 MENU 属事实链路四类型（种子声明 SYNC+access-service，
+        // 管理面资源 CRUD 20055 只读）——业务键链路夹具改用 MANAGED 的 DATA 类型
+        ResourceEntity parent = insertResource(4, "PGIT28_ROOT", "default", null);
+        ResourceEntity child = insertResource(4, "PGIT28_CHILD", "default", parent.getId());
         ResourceEntity button = insertResource(2, "PGIT28_BTN", "default", null);
 
         ResourceManageAppServiceImpl service = newResourceManageAppService(permitAllEngine());
@@ -246,14 +247,14 @@ class ResourceOperationKeyPgIT {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
             // detail：codeType 缺省归一 default 命中真实行
-            assertThat(service.getResource(TENANT, new ResourceKeyReq("MENU", "PGIT28_CHILD", null)).id())
+            assertThat(service.getResource(TENANT, new ResourceKeyReq("DATA", "PGIT28_CHILD", null)).id())
                 .isEqualTo(child.getId());
             // 查不到 → 20004
-            assertThatThrownBy(() -> service.getResource(TENANT, new ResourceKeyReq("MENU", "PGIT28_NONE", null)))
+            assertThatThrownBy(() -> service.getResource(TENANT, new ResourceKeyReq("DATA", "PGIT28_NONE", null)))
                 .isInstanceOf(BizException.class);
 
             // update：业务键定位 + extraClear 清空
-            service.updateResource(TENANT, new ResourceUpdateReq("MENU", "PGIT28_CHILD", null,
+            service.updateResource(TENANT, new ResourceUpdateReq("DATA", "PGIT28_CHILD", null,
                 "子资源改名", null, null, null, null, Boolean.TRUE), 100L);
             ResourceEntity updated = resourceEntityMapper.selectValidById(TENANT, child.getId());
             assertThat(updated.getName()).isEqualTo("子资源改名");
@@ -261,31 +262,31 @@ class ResourceOperationKeyPgIT {
 
             // move：跨类型（BUTTON 父）→ 20053
             assertThatThrownBy(() -> service.moveResource(TENANT, new ResourceMoveReq(
-                new ResourceKeyReq("MENU", "PGIT28_CHILD", null),
+                new ResourceKeyReq("DATA", "PGIT28_CHILD", null),
                 new ResourceKeyReq("BUTTON", "PGIT28_BTN", null)), 100L))
                 .isInstanceOf(BizException.class)
                 .extracting("errorCode").isEqualTo(20053);
 
             // move：目标父为子孙（root 移到 child 下）→ 20053（真实递归 CTE 判定）
             assertThatThrownBy(() -> service.moveResource(TENANT, new ResourceMoveReq(
-                new ResourceKeyReq("MENU", "PGIT28_ROOT", null),
-                new ResourceKeyReq("MENU", "PGIT28_CHILD", null)), 100L))
+                new ResourceKeyReq("DATA", "PGIT28_ROOT", null),
+                new ResourceKeyReq("DATA", "PGIT28_CHILD", null)), 100L))
                 .isInstanceOf(BizException.class)
                 .extracting("errorCode").isEqualTo(20053);
 
             // move：合法同类型移动（child 先移到顶层、再移回 root 下——双向覆盖）
             service.moveResource(TENANT, new ResourceMoveReq(
-                new ResourceKeyReq("MENU", "PGIT28_CHILD", null), null), 100L);
+                new ResourceKeyReq("DATA", "PGIT28_CHILD", null), null), 100L);
             assertThat(resourceEntityMapper.selectValidById(TENANT, child.getId()).getParentId()).isNull();
             service.moveResource(TENANT, new ResourceMoveReq(
-                new ResourceKeyReq("MENU", "PGIT28_CHILD", null),
-                new ResourceKeyReq("MENU", "PGIT28_ROOT", null)), 100L);
+                new ResourceKeyReq("DATA", "PGIT28_CHILD", null),
+                new ResourceKeyReq("DATA", "PGIT28_ROOT", null)), 100L);
             assertThat(resourceEntityMapper.selectValidById(TENANT, child.getId()).getParentId())
                 .isEqualTo(parent.getId());
         }
 
         // remove：按业务键删除 root，级联软删子孙（真实递归 CTE）
-        service.deleteResources(TENANT, List.of(new ResourceKeyReq("MENU", "PGIT28_ROOT", null)), 100L);
+        service.deleteResources(TENANT, List.of(new ResourceKeyReq("DATA", "PGIT28_ROOT", null)), 100L);
         assertThat(resourceEntityMapper.selectValidById(TENANT, parent.getId())).isNull();
         assertThat(resourceEntityMapper.selectValidById(TENANT, child.getId())).isNull();
         // 其他类型资源不受影响

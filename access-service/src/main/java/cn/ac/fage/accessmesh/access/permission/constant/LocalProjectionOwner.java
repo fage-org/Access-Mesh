@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.permission.constant;
 
-import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 
 /**
  * AccessMesh 本地权限投影所有权与保留业务键。
@@ -11,14 +10,15 @@ import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
  * 管理入口（角色/主体编排，T-ACCESS-019），事务由调用方 AppService 声明。
  * </p>
  * <p>
- * 保留业务键终态（T-ACCESS-016 §4.3/§13.2，T-ACCESS-018 落地；管理入口保留清单随 T-ACCESS-019 增补 ROLE）：
+ * 保留业务键终态（T-ACCESS-016 §4.3/§13.2，T-ACCESS-018 落地）：
  * subject 侧 {@link #SUBJECT_LOCAL_USER}（原 ADMIN_USER 更名，无兼容别名）；role 侧 ORG|POSITION
- * 不变；SYS_USER_ORG 不变。resource 侧已取消类型级保留——USER/MENU 是公共基础类型，
- * 本地 resource_entity 投影行改按所有权保护（外部 sync mutation 前置
- * {@code LocalProjectionGuard.rejectIfLocalResource}，owner=access-service 即 20045），
- * 仅管理入口（人工建资源）保留 {@link #isReservedResourceType(String)} 清单
- * {USER, ORG, MENU, ROLE}：人工不得绕过管理事实链路直接建本地业务资源投影
- * （ROLE 资源由角色管理写路径同事务产出，T-ACCESS-019）。
+ * 不变；SYS_USER_ORG 不变。
+ * </p>
+ * <p>
+ * resource 侧所有权（T-PERM-052，2026-09-05 内部来源统一）：USER/ORG/MENU/ROLE 四类事实链路
+ * 类型由种子声明 {@code type_definition.extra.managedMode=SYNC + syncSourceService=access-service}
+ * ——外部 sync 一律拒绝（来源不匹配）、管理面资源 CRUD 一律 20055（原类型保留清单与
+ * {@code LocalProjectionGuard.rejectIfLocalResource/rejectIfForeignResource} 行级防线均已收编删除）。
  * </p>
  */
 public final class LocalProjectionOwner {
@@ -49,23 +49,6 @@ public final class LocalProjectionOwner {
 
     public static boolean isReservedRoleType(String roleTypeCode) {
         return ROLE_ORG.equals(roleTypeCode) || ROLE_POSITION.equals(roleTypeCode);
-    }
-
-    /**
-     * 管理入口（resource-entity create/update 等人工建资源）的类型保留清单。
-     * <p>
-     * 仅约束人工入口：USER/ORG/MENU/ROLE 四类本地业务资源投影必须经管理事实链路
-     * （用户/组织/菜单/角色管理）创建，其余类型不受限。ROLE 随 T-ACCESS-019 加入——
-     * resource_entity(ROLE).code=roleId 由角色管理写路径同事务产出，人工入口建 ROLE
-     * 会产生无 abstract_role 对应的孤儿资源。外部 sync 入口不使用本清单
-     * （resource 侧已取消类型级保留，改为所有权检查，见类注释）。
-     * </p>
-     */
-    public static boolean isReservedResourceType(String resourceTypeCode) {
-        return ResourceTypeCode.USER.equals(resourceTypeCode)
-            || ResourceTypeCode.ORG.equals(resourceTypeCode)
-            || ResourceTypeCode.MENU.equals(resourceTypeCode)
-            || ResourceTypeCode.ROLE.equals(resourceTypeCode);
     }
 
     public static boolean isReservedUserRoleSource(String sourceType) {

@@ -141,27 +141,31 @@ class LocalProjectionDomainServiceImplTest {
         return r;
     }
 
+    // ------------------------------------------------------------------
+    // T-PERM-052 内部来源统一（2026-09-05）：USER 类型种子声明 SYNC+access-service，
+    // 外部同步/人工创建均被类型门禁拒绝，USER 类型行只可能来自本投影——原行级防线
+    // （rejectIfForeignResource 接管拒绝 / isOwnResource 外部行跳过）已收编删除，
+    // 本组用例改锁「命中行一律按本投影行处理」的新语义。
+    // ------------------------------------------------------------------
+
     @Test
-    @DisplayName("upsertAdminUser 命中外部同步 USER 资源行：拒绝接管（20045），不写不删")
-    void upsertAdminUser_rejectsForeignResourceRow() {
+    @DisplayName("upsertAdminUser 命中已有 USER 资源行：直接更新（不再行级归属判定）")
+    void upsertAdminUser_updatesExistingRow_withoutRowLevelOwnershipCheck() {
         when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "LOCAL_USER")).thenReturn(3);
         when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "USER")).thenReturn(6);
         when(abstractUserMapper.selectByTypeAndExternalId(TENANT, 3, "123")).thenReturn(null);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT, 6, "123", "default"))
             .thenReturn(foreignResource(900L, "123"));
 
-        assertThatThrownBy(() -> service.upsertAdminUser(TENANT, 123L, "外部占用", true, null))
-            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
-            .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
-            .isEqualTo(20045);
-        verify(resourceEntityMapper, never()).update(any(ResourceEntity.class));
+        service.upsertAdminUser(TENANT, 123L, "张三", true, null);
+
+        verify(resourceEntityMapper).update(any(ResourceEntity.class));
         verify(resourceEntityMapper, never()).insert(any(ResourceEntity.class));
-        verify(resourceEntityMapper, never()).softDeleteBatch(any(), any(), any());
     }
 
     @Test
-    @DisplayName("deleteAdminUser 命中外部同步 USER 资源行：跳过资源行（本地生命周期不阻断、不触碰外部行）")
-    void deleteAdminUser_skipsForeignResourceRow() {
+    @DisplayName("deleteAdminUser 命中 USER 资源行：连同主体一并软删（投影是类型唯一 writer）")
+    void deleteAdminUser_softDeletesResourceRow() {
         when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "LOCAL_USER")).thenReturn(3);
         when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "USER")).thenReturn(6);
         when(abstractUserMapper.selectByTypeAndExternalId(TENANT, 3, "123"))
@@ -171,31 +175,32 @@ class LocalProjectionDomainServiceImplTest {
 
         service.deleteAdminUser(TENANT, 123L);
 
-        // 主体生命周期照常推进（abstract_user 软删），外部资源行不被触碰
         verify(abstractUserMapper).softDeleteBatch(eq(TENANT), eq(List.of(100L)), any());
-        verify(resourceEntityMapper, never()).softDeleteBatch(any(), any(), any());
+        verify(resourceEntityMapper).softDeleteBatch(eq(TENANT), eq(List.of(900L)), any());
     }
 
     @Test
-    @DisplayName("batchUpsertAdminUsers 命中外部同步 USER 资源行：整批拒绝（20045）")
-    void batchUpsertAdminUsers_rejectsForeignResourceRow() {
+    @DisplayName("batchUpsertAdminUsers 命中已有 USER 资源行：批量更新照常（不再整批 20045 拒绝）")
+    void batchUpsertAdminUsers_updatesExistingResourceRows() {
         mockTypes();
         when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("123")))
             .thenReturn(List.of(user(100L, "123")));
         when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("123"), Set.of("default")))
             .thenReturn(List.of(foreignResource(900L, "123")));
 
-        assertThatThrownBy(() -> service.batchUpsertAdminUsers(TENANT,
-                List.of(new LocalProjectionDomainService.UpsertUserKey(123L, "外部占用", true, null))))
-            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
-            .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
-            .isEqualTo(20045);
-        verify(resourceEntityMapper, never()).batchUpdateValues(any(), anyString(), any(), any());
+        service.batchUpsertAdminUsers(TENANT,
+                List.of(new LocalProjectionDomainService.UpsertUserKey(123L, "张三", true, null)));
+
+        // 已有资源行进入批量刷新，不再因行级归属判定整批回滚
+        verify(resourceEntityMapper).batchUpdateValues(eq(TENANT), eq(LocalProjectionOwner.SERVICE_CODE),
+            org.mockito.ArgumentMatchers.<java.util.List<ResourceEntity>>argThat(
+                list -> list.size() == 1 && list.get(0).getId().equals(900L)),
+            any());
     }
 
     @Test
-    @DisplayName("batchDeleteAdminUsers 混合行：只软删自己的资源行，外部行跳过")
-    void batchDeleteAdminUsers_deletesOnlyOwnResourceRows() {
+    @DisplayName("batchDeleteAdminUsers：命中 USER 资源行全部软删（owner 过滤已无必要）")
+    void batchDeleteAdminUsers_deletesAllFoundResourceRows() {
         mockTypes();
         when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("123", "456")))
             .thenReturn(List.of(user(100L, "123"), user(101L, "456")));
@@ -209,9 +214,9 @@ class LocalProjectionDomainServiceImplTest {
 
         service.batchDeleteAdminUsers(TENANT, Set.of(123L, 456L));
 
-        // 两个主体都软删，但资源行只删 owner=access-service 的那行
         verify(abstractUserMapper).softDeleteBatch(eq(TENANT), eq(List.of(100L, 101L)), any());
-        verify(resourceEntityMapper).softDeleteBatch(eq(TENANT), eq(List.of(800L)), any());
+        // 命中的两行资源全部软删（不再按 owner 过滤）
+        verify(resourceEntityMapper).softDeleteBatch(eq(TENANT), eq(List.of(900L, 800L)), any());
     }
 
     @Test

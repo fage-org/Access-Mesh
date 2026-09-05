@@ -9,7 +9,6 @@ import cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
@@ -69,7 +68,6 @@ class ResourceManageAppServiceImplTest {
             domainClassifyService,
             engine,
             rolePermMapper,
-            new LocalProjectionGuard(),
             resourceTypeOwnershipGuard,
             treeWriteLockSupport
         );

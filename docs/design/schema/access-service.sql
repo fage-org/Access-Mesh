@@ -637,7 +637,7 @@ COMMENT ON COLUMN type_definition.name IS '显示名称';
 COMMENT ON COLUMN type_definition.description IS '描述';
 COMMENT ON COLUMN type_definition.is_system IS '是否系统预置：true=预置不可删改，false=租户自定义可扩展';
 COMMENT ON COLUMN type_definition.sort_order IS '排序';
-COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）在类型下存在有效资源行时拒绝（20056），保存边界校验结构防拼写错误静默失效，读取侧损坏按 MANAGED 处理 fail-closed';
+COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）在类型下存在有效资源行时拒绝（20056），保存边界校验结构防拼写错误静默失效，读取侧损坏按 MANAGED 处理 fail-closed。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE 四类事实链路类型，种子声明 SYNC+access-service）';
 COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- 预置类型种子（tenant 1；type_value 为权威数值，与文件头 type_value 终值分配表一致——
@@ -684,6 +684,14 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
     (1, 'resource_type', 'ORG',                29, '组织管理',     true, 29, 0, now(), now()),
     (1, 'resource_type', 'OPERATION_LOG',      30, '操作日志',     true, 30, 0, now(), now()),
     (1, 'resource_type', 'PERMISSION_CHANGE_LOG', 31, '权限变更日志', true, 31, 0, now(), now());
+
+-- T-PERM-052 内部来源声明（2026-09-05 定案）：事实链路四类型——资源行由用户/组织/菜单/角色管理
+-- 经 LocalProjectionDomainService 同事务自动维护（SYNC + 来源=access-service），外部同步一律拒绝
+-- （来源不匹配）、管理面资源 CRUD 一律 20055；收编原类型保留清单与行级 owner=access-service 防线。
+UPDATE type_definition
+SET extra = '{"managedMode":"SYNC","syncSourceService":"access-service"}'
+WHERE tenant_id = 1 AND type_key = 'resource_type'
+  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE');
 
 -- -----------------------------------------------------------------------------
 -- 18. biz_domain - 业务域表（扁平列表，无启停，引用检查拒删）
@@ -920,7 +928,6 @@ CREATE TABLE resource_entity (
     extra         JSONB DEFAULT '{}',
     owner_service_code VARCHAR(128),
     maintain_source    VARCHAR(32) NOT NULL DEFAULT 'MANUAL',
-    sync_key           VARCHAR(256),
     created_by    BIGINT,
     updated_by    BIGINT,
     deleted_by    BIGINT,
@@ -946,7 +953,6 @@ COMMENT ON COLUMN resource_entity.status IS '状态：0=停用 1=启用';
 COMMENT ON COLUMN resource_entity.extra IS '扩展属性(JSON)，如菜单图标/路由等';
 COMMENT ON COLUMN resource_entity.owner_service_code IS '资源维护方服务编码；仅用于 service-config/sync、资源依赖等既有维护来源标记。新 resource-entity/sync/full-sync：本地管理投影由 access.application 同一事务写入 access-service（sync 入口已拒绝旧内部来源 admin-service，20045）；外部业务服务同步保持 NULL，其 ownership 以 sync_metadata 为准';
 COMMENT ON COLUMN resource_entity.maintain_source IS '维护来源（记录值，判定不依赖本列——资源所有权由类型声明 type_definition.extra.managedMode 承载，T-PERM-052）：MANUAL=人工维护，SERVICE_SYNC=service-config/sync 自动维护，SYNC=resource-entity 外部同步通道写入值（owner_service_code=NULL，所有权由类型声明+sync_metadata 承载），SDK_SCAN/MANIFEST/ADMIN_UI 可用于后续扩展；列无 CHECK 约束，新值须同步登记本注释';
-COMMENT ON COLUMN resource_entity.sync_key IS '既有同步源内稳定键，用于 service-config/sync 等 FULL diff 判断；新 resource-entity/sync/full-sync 的 syncKey 以 sync_metadata 为准';
 
 -- -----------------------------------------------------------------------------
 -- 23. resource_api_mapping - 接口资源映射表

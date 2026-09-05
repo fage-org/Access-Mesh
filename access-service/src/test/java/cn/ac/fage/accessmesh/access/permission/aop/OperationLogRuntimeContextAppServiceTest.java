@@ -143,7 +143,6 @@ class OperationLogRuntimeContextAppServiceTest {
             domainClassifyService,
             engine,
             roleResourcePermissionMapper,
-            new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.class),
             org.mockito.Mockito.mock(TreeWriteLockSupport.class)
         );

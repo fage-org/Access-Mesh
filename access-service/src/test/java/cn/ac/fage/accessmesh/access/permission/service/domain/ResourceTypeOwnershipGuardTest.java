@@ -140,13 +140,13 @@ class ResourceTypeOwnershipGuardTest {
                 .thenReturn(new cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig());
 
         assertThatCode(() -> guard.validateExtraDeclaration(TENANT, "resource_type",
-                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}"))
+                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}", false))
                 .doesNotThrowAnyException();
         assertThatCode(() -> guard.validateExtraDeclaration(TENANT, "resource_type",
-                "{\"managedMode\":\"MANAGED\"}")).doesNotThrowAnyException();
-        assertThatCode(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "{\"k\":1}"))
+                "{\"managedMode\":\"MANAGED\"}", false)).doesNotThrowAnyException();
+        assertThatCode(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "{\"k\":1}", false))
                 .doesNotThrowAnyException();
-        assertThatCode(() -> guard.validateExtraDeclaration(TENANT, "resource_type", null))
+        assertThatCode(() -> guard.validateExtraDeclaration(TENANT, "resource_type", null, false))
                 .doesNotThrowAnyException();
     }
 
@@ -156,19 +156,19 @@ class ResourceTypeOwnershipGuardTest {
         when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, "hr-service")).thenReturn(null);
 
         assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "group_type",
-                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}"))
+                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}", false))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type",
-                "{\"managedMode\":\"AUTO\"}")).isInstanceOf(IllegalArgumentException.class);
+                "{\"managedMode\":\"AUTO\"}", false)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type",
-                "{\"managedMode\":\"SYNC\"}")).isInstanceOf(IllegalArgumentException.class);
+                "{\"managedMode\":\"SYNC\"}", false)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type",
-                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}"))
+                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}", false))
                 .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("未注册");
         assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type",
-                "{\"managedMode\":\"MANAGED\",\"syncSourceService\":\"hr-service\"}"))
+                "{\"managedMode\":\"MANAGED\",\"syncSourceService\":\"hr-service\"}", false))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "not-json"))
+        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "not-json", false))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -214,5 +214,37 @@ class ResourceTypeOwnershipGuardTest {
         when(resourceEntityDomainService.hasValidRowsOfType(TENANT, 5)).thenReturn(false);
         assertThatCode(() -> guard.rejectIfDeclarationChangeBlocked(TENANT, hrOrg,
                 "{\"managedMode\":\"MANAGED\"}")).doesNotThrowAnyException();
+    }
+
+    // ---- 内部来源声明（2026-09-05 补充定案：事实链路四类型收编） ----
+
+    @Test
+    @DisplayName("内部来源豁免：is_system 类型可声明 SYNC+access-service（无需服务注册行）；非 is_system 拒绝")
+    void validateExtraDeclaration_shouldCarveOutInternalSource() {
+        String internal = "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\"}";
+
+        // is_system 预置类型：豁免通过（access-service 不是 service_config 注册行）
+        assertThatCode(() -> guard.validateExtraDeclaration(TENANT, "resource_type", internal, true))
+                .doesNotThrowAnyException();
+        // 非 is_system（API create 恒 false / 租户自定义类型）：拒绝——防自定义类型锁死成无人写入的孤岛
+        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", internal, false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("仅系统预置类型");
+    }
+
+    @Test
+    @DisplayName("内部来源类型的 20055 message 指向事实链路管理入口（区别于外部来源「到来源系统操作」）")
+    void rejectIfSyncManagedType_shouldDistinguishInternalSourceMessage() {
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(TENANT, "resource_type", "USER"))
+                .thenReturn(resourceType(1L, "USER", 6,
+                        "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\"}"));
+
+        assertThatThrownBy(() -> guard.rejectIfSyncManagedType(TENANT, "USER"))
+                .isInstanceOf(BizException.class)
+                .extracting("errorCode")
+                .isEqualTo(20055)
+                .isNotNull();
+        assertThatThrownBy(() -> guard.rejectIfSyncManagedType(TENANT, "USER"))
+                .hasMessageContaining("系统事实链路维护");
     }
 }
