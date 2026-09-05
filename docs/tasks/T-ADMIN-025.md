@@ -13,19 +13,21 @@ depends_on: [T-ADMIN-023]
 blocks: []
 acceptance:
   - "文件夹实例产生：bootstrap 预置 default/avatar/document/image 四文件夹 ADMIN_FILE resource_entity 投影（空库即可授权）+ 上传新 bizType 时惰性登记投影（首次出现即成为可授权实例），无需管理界面"
-  - "门禁全链路升级为文件夹实例级：upload=CREATE（目标文件夹）、detail/download=VIEW（文件所属文件夹）、delete=DELETE（按文件夹批量，resourceCode 从文件 ID 迁移为 bizType）、page 按可见文件夹过滤（scopeAll 命中全量返回，否则批量解析可见文件夹集合 + SQL bucket_name IN 过滤，无可见文件夹返回空页）"
+  - "ADMIN_FILE 加入资源创建保留清单（2026-09-05 定案）：在既有 {USER,ORG,MENU,ROLE} 基础上新增（若 T-PERM-051 已先行落地则含 TYPE_DEFINITION）——文件夹实例仅允许 bootstrap 预置 + 上传惰性登记两条事实链产出，人工不得经 resource-entity 管理入口手工构造（手工 MANUAL 行与惰性登记 upsert 冲突，资源同步双向所有权 T-PERM-052 口径同向）"
+  - "门禁全链路升级为文件夹实例级：upload=CREATE（目标文件夹；bizType 无投影的新文件夹首传按类型级 CREATE/scopeAll 判定后惰性登记）、detail/download=VIEW（文件所属文件夹）、delete=DELETE（按文件夹批量，resourceCode 从文件 ID 迁移为 bizType）、page 按可见文件夹过滤（scopeAll 命中全量返回，否则批量解析可见文件夹集合 + SQL bucket_name IN 过滤，无可见文件夹返回空页）"
   - "契约回写：admin-service-api-contract §4.7 门禁档位从类型级过渡升级为文件夹实例级（§4.7 已预留 VIEW 档位说明衔接）；架构文档 §15 演进方向更新；schema 注释同步"
   - "单测 + PG 用例：文件夹级授权放行/拒绝（含 fail-closed：无投影 bizType 拒绝）、page 过滤正确性、上传惰性登记、bootstrap 预置四文件夹"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-25
+last_updated: 2026-09-05
 ---
 
 # T-ADMIN-025 文件夹级授权
 
 > `plan` 字段（product-vertical-slice-plan.md）仅为来源溯源：本任务**不在该计划 `tasks:` 闭包内**
 > （不阻塞 T-ACCESS-026 与该计划按 18 项收口），推进与收口按任务卡生命周期独立进行，必要时另立计划承载。
+> 2026-09-05 设计体检复核确认既有设计口径，并定案 ADMIN_FILE 保留清单补强（acceptance 第 2 条）。
 
 ## 背景
 
@@ -40,7 +42,7 @@ T-ADMIN-023 执行中用户提出文件夹粒度授权设想（"用户甲只能�
 ## 范围
 
 - 上传惰性登记投影（upsert `resource_entity(ADMIN_FILE, code=bizType)`，事务内）+ bootstrap 预置四文件夹。
-- 四链路门禁档位迁移（见 acceptance 第 2 条）；page 过滤管线（批量 `getDeniedResourceCodes` + mapper 按 bucket_name 集合过滤）。
+- 门禁全链路迁移与 page 过滤管线（见 acceptance 第 3 条；批量 `getDeniedResourceCodes` + mapper 按 bucket_name 集合过滤）。
 - delete 的 resourceCode 语义迁移（文件 ID → bizType 集合，去重）。
 - 契约/架构/schema 回写。
 
@@ -49,6 +51,7 @@ T-ADMIN-023 执行中用户提出文件夹粒度授权设想（"用户甲只能�
 - 文件夹 = `sys_file.bucket_name` = `resource_entity(ADMIN_FILE).code`，单事实源为投影表；不建文件夹管理界面。
 - 历史存量文件的 bucketName 若不满足格式白名单（白名单前落库的脏数据）：无投影 → 实例级校验 fail-closed 拒绝，不自动修复。
 - page 的 bizType 请求参数指向无权文件夹时静默返回空（过滤语义，非 403）。
+- 新文件夹需先有一次上传才产生实例、才可在授权页配置实例级授权（保留清单补强的代价）；**后续优化点登记（2026-09-05 登记，暂不设计）**：预登记机制方向——为尚未出现文件的文件夹预先创建实例以便提前授权，启动时另行设计。
 
 ## 非目标 / 遗留
 

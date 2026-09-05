@@ -13,7 +13,7 @@ depends_on:
 blocks: []
 acceptance:
   - "OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + scope 校验控制（默认拒绝）"
-  - "JWT 载荷的 client_id/scope/audience 参与授权判定；scope → 权限映射采用独立映射模型（2026-08-22 用户决策：scope 保持 OAuth2 委托范围语义、与平台权限体系正交，不接入 PermQueryEngine；原'语义一致'措辞随决策修订）"
+  - "JWT 载荷的 client_id/scope/audience 参与授权判定；scope → 权限映射采用独立映射模型（2026-08-22 定案：scope 保持 OAuth2 委托范围语义、与平台权限体系正交，不接入 PermQueryEngine；原'语义一致'措辞随决策修订）"
   - "撤销令牌（黑名单）对开放路径生效，路径限定不产生绕过"
   - "文档回写：架构文档 §6 的 OAuth2 JWT 适用范围更新为开放路径清单"
 design_writeback:
@@ -53,7 +53,7 @@ T-ACCESS-004 将 OAuth2 JWT 认证分支精确限定为 `/auth/oauth2/userinfo` 
 7. **audience 严格度：userinfo 豁免 + 业务路径强制**——`/auth/oauth2/userinfo` 默认不校验 audience（旧令牌无 aud 兼容）；其他开放路径令牌 aud 必须包含声明的受众（缺失/不匹配 403）。
 8. **文档回写：架构 §6 + 任务卡 + 补契约**——admin-service-api-contract.md 补 §8 OAuth2 章节此前 OAuth2 契约仅存在于归档文档）。
 9. **路径匹配：Ant 通配 + 启动防护**——支持 `/api/example/**` 通配；启动 fail-fast 防护：不得覆盖 `/auth/**` 会话端点（userinfo/user-menu/oauth2/authorize）与 `/api/perm/**`（内部凭证双认证冲突）。
-10. **分层规范：同层横向调用全局放开**（2026-08-22 用户确认）——project-rules §8.2 删除禁止条款，三个既有例外登记（授权域/query 包/审计门面）废止；本任务拦截器（infrastructure）注入 admin 域 `OAuth2ClientDomainService` 依此合规；跨域 Mapper 直读边界与跳层禁令不变，`QueryBoundaryArchitectureTest` AppService 白名单断言删除、数据边界断言保留。
+10. **分层规范：同层横向调用全局放开**（2026-08-22 定案）——project-rules §8.2 删除禁止条款，三个既有例外登记（授权域/query 包/审计门面）废止；本任务拦截器（infrastructure）注入 admin 域 `OAuth2ClientDomainService` 依此合规；跨域 Mapper 直读边界与跳层禁令不变，`QueryBoundaryArchitectureTest` AppService 白名单断言删除、数据边界断言保留。
 
 **授权链**（`RequestContextInterceptor.authenticateOAuth2Jwt`）：验签（HS256+loginType+超时）→ 必填 claim（loginId/jti/client_id，缺失 401）→ 撤销黑名单（`oauth2:blacklist:<jti>`，对全部开放路径生效）→ 客户端启用动态校验（禁用 401）→ 路径门禁（clientIds/scope 子集/audience，不满足 403）→ 绑定 `RequestContext.delegatedUser`。未配置路径上委托令牌默认拒绝（落会话分支 → 401）。
 

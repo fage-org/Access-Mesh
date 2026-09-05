@@ -45,9 +45,9 @@ GROUP_ROLE 写入路径从未可用：GroupRoleAppServiceImpl:123 写 user_role.
 - 通用入口复用现有类型校验错误（ROLE_TYPE_MISMATCH 20022），不新增错误码。
 - extra-roles 三接口（list/add/remove）一并退役：list 唯一数据生产者 add 从未成功写入、恒返回空，随 GroupRoleAppServiceImpl 整删；进 RETIRED_PATHS 负向防回归；契约 §6.10.3 改题保留 tree 语义、删 extra-roles 正文。
 - 存量 GROUP_ROLE 行清理通道：delete/move 保持可用（update 请求体无 roleTypeCode，拒绝语义=按目标角色现行类型判定）。
-- GROUP_ROLE 生命周期彻底冻结（2026-08-25 用户确认）：通用 create/update 与外部 sync/full-sync 通道均拒绝 GROUP_ROLE(20022)，白名单声明 role:GROUP_ROLE 亦不生效。
-- 前端隐藏形态（2026-08-25 用户确认）：直接收窄数组 `MANAGEABLE_ROLE_TYPES = [BASIC_ROLE]`（注释保留历史与恢复条件，不引入显式开关常量）；授予页主体树同口径过滤仅 BASIC_ROLE，保留代码不删。
-- 双事实源遗留登记位置（2026-08-25 用户确认）：根 README「技术债遗留登记」段 + 本任务卡遗留节（沿用现有载体，不新建 known-issues 文档）。
+- GROUP_ROLE 生命周期彻底冻结（2026-08-25 定案）：通用 create/update 与外部 sync/full-sync 通道均拒绝 GROUP_ROLE(20022)，白名单声明 role:GROUP_ROLE 亦不生效。
+- 前端隐藏形态（2026-08-25 定案）：直接收窄数组 `MANAGEABLE_ROLE_TYPES = [BASIC_ROLE]`（注释保留历史与恢复条件，不引入显式开关常量）；授予页主体树同口径过滤仅 BASIC_ROLE，保留代码不删。
+- 双事实源遗留登记位置（2026-08-25 定案）：根 README「技术债遗留登记」段 + 本任务卡遗留节（沿用现有载体，不新建 known-issues 文档）。
 - 未来真实需求出现时按 role_inclusion 单事实源表设计重立项，删除 extra.basicRoleIds，禁止继续滥用 user_role 表达角色包含关系。
 
 ## 非目标 / 遗留

@@ -4,7 +4,7 @@
 
 **AccessMesh** 是基于 Spring Cloud 微服务架构的通用访问控制平台，支持 SaaS 多租户模式。
 
-- **当前阶段**：access-service 归并完成（T-ACCESS-001~012，2026-08-22 收口归档）；产品定位已定案（开源通用 IAM，2026-08-28）；Phase 2 逐页后端改造全部收口（T-PERM-022~034 + 037/040/041，T-PERM-040/037 部分定案随 T-PERM-049 全局操作退役推翻）；**Phase 3 前端联调 9/9 全部收口（T-FE-015~022 + T-FE-037 组织联调二期收官 2026-09-04）**；看板待办以 `docs/tasks/README.md` 为准（T-PERM-045~051 加固/登记批次（044 已收口 2026-09-04）、T-ADMIN-025/026、Phase 4 T-FE-023 + T-PERM-039 等）
+- **当前阶段**：access-service 归并完成（T-ACCESS-001~012，2026-08-22 收口归档）；产品定位已定案（开源通用 IAM，2026-08-28）；Phase 2 逐页后端改造全部收口（T-PERM-022~034 + 037/040/041，T-PERM-040/037 部分定案随 T-PERM-049 全局操作退役推翻）；**Phase 3 前端联调 9/9 全部收口（T-FE-015~022 + T-FE-037 组织联调二期收官 2026-09-04）**；看板待办以 `docs/tasks/README.md` 为准（T-PERM-045~054 加固/登记批次（044 已收口 2026-09-04）、design-audit-followup 设计体检批次（T-PERM-052~054、T-API-002、T-ACCESS-029，2026-09-05）、T-ADMIN-025/026、Phase 4 T-FE-023 + T-PERM-039 等）
 - **当前分支**：`feat-permission-center`
 - **文档入口**：`docs/README.md`
 

@@ -13,7 +13,7 @@ design_refs:
 depends_on: []
 blocks: []
 acceptance:
-  - "四棵树（abstract_role / sys_org / sys_menu / resource_entity）move 的 check-then-update 并发窗口统一收口：根治方案二选一并四树一致——递归 CTE 改 UNION 去重（遇环自终止，不挂连接）或 move 对涉及行按 id 排序加锁 / 树级 advisory lock（消除窗口本身）。resource_entity 为 T-PERM-028 复评扩入（2026-08-30 用户决策）：moveResource 的跨类型/防环校验同为 check-then-act 无锁，子孙查询 selectDescendantIdsBatch 同为 UNION ALL 递归 CTE、后果同构"
+  - "四棵树（abstract_role / sys_org / sys_menu / resource_entity）move 的 check-then-update 并发窗口统一收口：根治方案二选一并四树一致——递归 CTE 改 UNION 去重（遇环自终止，不挂连接）或 move 对涉及行按 id 排序加锁 / 树级 advisory lock（消除窗口本身）。resource_entity 为 T-PERM-028 复评扩入（2026-08-30 定案）：moveResource 的跨类型/防环校验同为 check-then-act 无锁，子孙查询 selectDescendantIdsBatch 同为 UNION ALL 递归 CTE、后果同构"
   - "环路一旦落库后的自愈/检测能力：任一树出现 parent 环时树构建与鉴权查询不挂死（TreeBuilder 已有 visited 防环，缺口在 SQL 侧递归 CTE），并能定位环节点供订正"
   - "回归测试：PgIT 用 JDBC 制造 2-环后调用子孙/祖先递归查询，锁定不挂死且行为确定；并发交叉移动的窗口用例（可选，视根治方案；resource_entity 侧 T-PERM-028 已有 move 防环单测+PgIT 语义锁可复用）"
 design_writeback:

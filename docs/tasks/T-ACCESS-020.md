@@ -63,7 +63,7 @@ last_updated: 2026-08-24
 - **测试**：`AccessBootstrapRunnerTest`（密码 fail-fast/委托/上下文清理/默认关闭装配语义，3 用例）；`AccessBootstrapPgIT`（Testcontainers PG16+Redis7，14 用例：事务性——创建链最后一步注入故障全表回滚、状态①全图断言+BCrypt 校验、真实登录（验证码经 Redis、clientId=admin-web）、状态② no-op 绝不重置密码+行数快照、状态③绑定缺失/授权缺失/映射 serviceCode 不匹配/ROLE 投影缺失/主体禁用/主体身份漂移（user_type、external_id）/API·SERVICE 资源停用/业务键被其他角色类型占用/SERVICE-only 部分图 fail-fast、类型种子缺失显式报错）。
 - **文档回写**：README 快速开始（compose 命令/DDL 首启说明/bootstrap 启用方式/启动顺序）、runbook（临时验证 fixture 节整体删除、前置条件与重建步骤改 bootstrap 口径、章节重排）、architecture §14.7 实施终态。
 
-### 设计决策（2026-08-24 用户确认）
+### 设计决策（2026-08-24 定案）
 
 1. **DDL 执行**：compose 首启自动执行（initdb.d 挂载）；runbook 手动重建模式保留。
 2. **幂等状态②口径**：固定图子集匹配——只校验 bootstrap 自建固定图（20 授权/12 映射/绑定/身份）完整匹配即 no-op；图外数据（E2E 创建的用户/角色/授权）与管理角色上的额外授权行不构成冲突（T-ACCESS-021 第⑦步"重启后权限仍生效"的前提）；canGrant 参与匹配，name/密码不参与。

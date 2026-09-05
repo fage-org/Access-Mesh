@@ -8,12 +8,12 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 029 |
-| permission-center | `T-PERM` | 052 |
+| access-service 归并（跨服务） | `T-ACCESS` | 030 |
+| permission-center | `T-PERM` | 055 |
 | admin-service | `T-ADMIN` | 027 |
 | gateway | `T-GW` | 008 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
-| 跨服务 API 契约 | `T-API` | 002 |
+| 跨服务 API 契约 | `T-API` | 003 |
 | 前端 | `T-FE` | 043 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
@@ -54,6 +54,7 @@
 | [T-ACCESS-026](T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | product-vertical-slice（已归档） | architecture；access-post-merge-plan；project-rules | T-API-001 + 里程碑 B 全部 | ✅ | ✓ |
 | [T-ACCESS-027](T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改（开源通用 IAM 定案） | [product-positioning-landing](../plans/product-positioning-landing-plan.md) | README；docs/README；design/README；architecture；access-service-architecture；permission-center overview/implementation | — | ✅ | ✓ |
 | [T-ACCESS-028](T-ACCESS-028.md) | perm-data 空装配模块删除（SDK 面名实对齐） | [product-positioning-landing](../plans/product-positioning-landing-plan.md) | architecture；README；example-service | — | ✅ | ✓ |
+| [T-ACCESS-029](T-ACCESS-029.md) | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | [design-audit-followup](../plans/design-audit-followup-plan.md) | access-service-architecture §14.2 | — | ⚙️ | ⏳ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 待确认 + 前端 Phase 1/2/4 后端任务）
 
@@ -103,12 +104,15 @@
 | [T-PERM-043](T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | product-vertical-slice（已归档） | api-contract；implementation；frontend/role-manage；frontend/permission-grant | T-ACCESS-019, T-ACCESS-021 | ✅ | ✓ |
 | [T-PERM-044](T-PERM-044.md) | 四棵树（角色/组织/菜单/资源实体，后者 T-PERM-028 收口扩入）move 并发成环窗口与递归 CTE 遇环不收敛统一加固（已收口 2026-09-04：树级 Redisson 锁（事务提交后释放）+ UNION 去重/深度上限 + 内存 visited，终态见 architecture §17） | — | [T-PERM-044](T-PERM-044.md) | — | ✅ | ✓ |
 | [T-PERM-045](T-PERM-045.md) | 内部管理门禁统一启用子级继承（父有权子有权） | — | [T-PERM-045](T-PERM-045.md) | — | ⚙️ | ⏳ |
-| [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（全局域创建入口设计 + domain_config 唯一键兜底 + 删除保护并发窗口；T-PERM-026 收口登记） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ⚙️ | ⏳ |
+| [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（全局域创建入口设计 + domain_config 唯一键兜底 + 删除保护并发窗口；T-PERM-026 收口登记；全局域入口 2026-09-05 已定案） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ⚙️ | ⏳ |
 | [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ⚙️ | ⏳ |
 | [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（来源字段+resource_entity 投影+UI；T-PERM-029 收口登记，写门禁已先收窄类型级） | — | api-contract §5.6；access-service.sql | — | ⚙️ | ⏳ |
 | [T-PERM-049](T-PERM-049.md) | 全局操作概念整体退役（操作位空间按类型隔离 + DDL CHECK 焊死；外部复审 P1 越权根治） | — | api-contract §5.3；access-service.sql | — | — | ✅ |
 | [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（含资源实体/授权同类引用面盘点；T-PERM-040 收口登记） | — | schema；api-contract §5.1/§5.3 | — | ⚙️ | ⏳ |
-| [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一——type-definition 写路径联动维护 resource_entity + 门禁消费方迁移（实例级授权可配 + list 实例级门禁通路；T-FE-018 决策修订查库登记） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ⚙️ | ⏳ |
+| [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一——type-definition 写路径联动维护 resource_entity + 门禁消费方迁移（实例级授权可配 + list 实例级门禁通路；T-FE-018 决策修订查库登记；2026-09-05 定案投影三族全量/复合键/保留清单） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ⚙️ | ⏳ |
+| [T-PERM-052](T-PERM-052.md) | 资源同步双向所有权边界（sync 接管拒绝 + 管理面 SYNC 行只读 + FULL 删除归属核验） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.3/§6.2；architecture §4.3；schema | — | ⚙️ | ⏳ |
+| [T-PERM-053](T-PERM-053.md) | service-config 同步 ApiItem.operationCode 无效字段删除 | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §6.3；schema | — | ⚙️ | ⏳ |
+| [T-PERM-054](T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置——暂缓（关联权限自动授权方向待讨论） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.4；schema | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 
@@ -140,12 +144,13 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/025/026`（见下表）。`T-ADMIN-0
 | [T-ADMIN-025](T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture；schema/access-service.sql | T-ADMIN-023 | ⚙️ | ⏳ |
 | [T-ADMIN-026](T-ADMIN-026.md) | XML 映射 mapper 的 Page 参数不生效族统一改造（9 方法有行即 CCE 500，服务层调用方 8/9、当前无前端消费页；T-FE-022 联调登记）+ PgIT stringtype 追加无效订正 | — | admin-service-api-contract；rebuild-runbook | T-FE-022 | ⚙️ | ⏳ |
 
-### 组织/用户与跨服务 API（product-vertical-slice，已归档）
+### 组织/用户与跨服务 API
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
 | [T-ORG-001](T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | product-vertical-slice（已归档） | access-service-architecture；schema/access-service.sql；implementation；default-org-tree-user-lifecycle；access-service-rebuild-runbook | T-PERM-042 | ✅ | ✓ |
 | [T-API-001](T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | product-vertical-slice（已归档） | example-service；gateway；architecture | T-ACCESS-021 | ✅ | ✓ |
+| [T-API-002](T-API-002.md) | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（含内部 id 字段族全裁 + 排查页同批改造） | [design-audit-followup](../plans/design-audit-followup-plan.md) | core-flows §15；api-contract；perm-sdk | — | ⚙️ | ⏳ |
 
 ### 前端（前端 Phase 1/3/4 拆分）
 

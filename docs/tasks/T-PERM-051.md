@@ -13,21 +13,21 @@ depends_on: []
 blocks: []
 acceptance:
   - "投影链路核心范围（执行时细化）：type_definition 创建/更新/软删写路径同事务维护 resource_entity(TYPE_DEFINITION) 投影——落位 LocalProjectionDomainService（T-ACCESS-019 upsertRoleResource 模式：事实由调用方编排维护、本域服务只写投影，owner_service_code=access-service；同事务联动先例=创建 resource_type 同事务预置 CRUD 四操作位 insertPresetOperations）；存量有效行补投影迁移语句（rebuild-runbook 订正语句先例，幂等可重跑）"
-  - "投影 code 与范围设计定案（执行时决策）：typeCode 仅 tenant+type_key 内唯一（种子 user_type 与 resource_type 均有 USER/SERVICE 同名行），resource_entity uk(tenant, resource_type, code, code_type) 下跨 type_key 同名投影会撞唯一索引——候选 `{typeKey}:{typeCode}` 限定形态 vs 仅投影 resource_type 子集；同时定夺投影范围：全部 type_key 行（user_type/role_type/resource_type 皆为 TYPE_DEFINITION 实例）vs 仅 resource_type 行（实例级类型管理的实际语义面）"
-  - "实例业务键统一与既有门禁消费方迁移（执行时与上一条一并定案）：现状四处键形态不一致——list/count 门禁 requireTypeViewPermission 按裸 typeCode 判实例权限，detail/update 把 type_definition.id 字符串当业务编码传编码轨（ID 空间错位形态，getType L204/updateType L303），remove 把 type_definition.id 直传实体轨 getDeniedEntityIds（deleteTypesByIds，同款错位）——投影落地必须同时定案唯一实例业务键并迁移全部消费方（批量删除改批量解析到统一键），否则任一 code 形态选择都至少一组调用方无法命中；各消费方补 VIEW/MANAGE 的 DB 级通路测试"
+  - "投影 code 与范围设计定案（2026-09-05 定案）：投影范围=**全部三族**（user_type/role_type/resource_type 皆为 TYPE_DEFINITION 实例，一条规则无特例，对齐本地投影全量行先例）；投影与实例业务键=不可变复合键 `{typeKey}:{typeCode}`（typeCode 仅 tenant+type_key 内唯一——种子 user_type 与 resource_type 均有 USER/SERVICE 同名行，resource_entity uk(tenant, resource_type, code, code_type) 下裸 code 跨族撞唯一索引）；编码规则与长度上限随实现核对"
+  - "实例业务键统一与既有门禁消费方迁移（键已定 `{typeKey}:{typeCode}` 复合）：现状四处键形态不一致——list/count 门禁 requireTypeViewPermission 按裸 typeCode 判实例权限，detail/update 把 type_definition.id 字符串当业务编码传编码轨（ID 空间错位形态，getType L204/updateType L303），remove 把 type_definition.id 直传实体轨 getDeniedEntityIds（deleteTypesByIds，同款错位）——全部消费方迁移到统一复合键（批量删除改批量解析到统一键），否则任一 code 形态选择都至少一组调用方无法命中；各消费方补 VIEW/MANAGE 的 DB 级通路测试"
   - "实例级通路 DB 级验证：投影落地后 type-definition/list 实例级门禁路径（requireTypeViewPermission 第二段 getDeniedResourceCodes）从「无自动产出」变可达——现有用例系 mock engine 锁定语义，须补 DB 级通路用例（构造仅实例级 TYPE_DEFINITION:VIEW 的角色实测 list 通过、全实例拒绝仍 403）；授权页可对 TYPE_DEFINITION 实例配置实例级授权（资源选择器/矩阵按现有 resource_type-实例模式呈现）"
-  - "引用面协调（执行时决策）：类型保留清单 {USER,ORG,MENU,ROLE} 实际仅约束 create/batch-create（LocalProjectionOwner.isReservedResourceType；update 不查清单、按本地投影所有权保护 rejectIfLocalResource）——是否将 TYPE_DEFINITION 加入清单（人工绕过管理事实链路禁入 vs 允许手工补投影并先定义 owner 归属与后续事实链路接管规则，architecture §4.1/§12.3 口径）；T-PERM-050 类型删除级联的引用面盘点新增「类型定义自身投影行及其下授权行」处置语义，两侧排期协调"
+  - "引用面协调（2026-09-05 定案：加入保留清单）：TYPE_DEFINITION 加入 create/batch-create 类型保留清单（在 {USER,ORG,MENU,ROLE} 基础上新增）——人工不得绕过管理事实链路手工构造投影（投影 owner=access-service，与资源同步双向所有权 T-PERM-052 口径同向；update 不查清单、按本地投影所有权保护的既有口径不变）；T-PERM-050 类型删除级联的引用面盘点新增「类型定义自身投影行及其下授权行」处置语义，两侧排期协调"
   - "回归测试：投影同生共死（创建联动同事务、失败回滚、软删级联含该投影行下授权行处置语义）、name 变更同步、存量迁移幂等重跑；类型级门禁语义与 bootstrap 固定图不变（固定图无 TYPE_DEFINITION 实例级条目、不因投影新增）"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-03
+last_updated: 2026-09-05
 ---
 
 # T-PERM-051 TYPE_DEFINITION 实例投影与业务键统一——type-definition 写路径联动维护 resource_entity + 门禁消费方迁移
 
-> 状态：proposed（T-FE-018 决策修订落地时查库登记，2026-09-03 用户决策「记录成问题，后面处理」）
-> 依赖：无硬依赖（与 T-PERM-050 引用面互需协调，见 acceptance 第 4 条）
+> 状态：proposed（T-FE-018 决策修订落地时查库登记，2026-09-03 用户决策「记录成问题，后面处理」；2026-09-05 设计体检定案投影范围/复合键/保留清单，acceptance 第 2/3/5 条已按定案改写）
+> 依赖：无硬依赖（与 T-PERM-050 引用面互需协调，见 acceptance 第 5 条）
 > 前置验收：见 acceptance
 
 ## 背景
@@ -44,9 +44,9 @@ last_updated: 2026-09-03
 ## 范围
 
 - TYPE_DEFINITION→resource_entity 投影链路：创建联动 / name 变更同步 / 软删级联（含投影行下授权行处置语义）/ 存量补齐迁移。
-- 投影 code 形态、投影范围与实例业务键定案（全部 type_key vs 仅 resource_type；消费方迁移见 acceptance 第 3 条）。
+- 投影按定案执行：三族全量投影、`{typeKey}:{typeCode}` 复合业务键、TYPE_DEFINITION 加入创建保留清单。
 - 实例级门禁通路 DB 级验证 + 授权页实例级授权可达。
-- 引用面协调：resource-entity 管理入口保留清单定夺、T-PERM-050 级联范围同步。
+- 引用面协调：T-PERM-050 级联范围同步。
 - 不改类型级门禁语义；不动 bootstrap 固定图（不新增 TYPE_DEFINITION 实例级条目）。
 
 ## 优先级依据

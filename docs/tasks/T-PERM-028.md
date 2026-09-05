@@ -14,15 +14,15 @@ depends_on:
   - T-FE-008
 blocks: []
 acceptance:
-  - "业务键切换：resource-entity detail/update/move/remove 切 (resourceTypeCode, code, codeType)（codeType 缺省归一 default）；operation-permission detail/update/remove 切 (resourceTypeCode[可空=全局操作], code)。混合形态（2026-08-29 用户决策）：detail/update 键字段平铺、move 嵌套 {resource, parent|null}、remove {items:[键]}。不保留内部 id 兼容（未上线先例 T-PERM-034）"
+  - "业务键切换：resource-entity detail/update/move/remove 切 (resourceTypeCode, code, codeType)（codeType 缺省归一 default）；operation-permission detail/update/remove 切 (resourceTypeCode[可空=全局操作], code)。混合形态（2026-08-29 定案）：detail/update 键字段平铺、move 嵌套 {resource, parent|null}、remove {items:[键]}。不保留内部 id 兼容（未上线先例 T-PERM-034）"
   - "update 收窄：resource 侧 code 可更新字段删除（业务键不可变，mock 早已拒绝）；operation 侧 code/type 定位键不可更新"
   - "extraClear 显式清空：ResourceUpdateReq 增 boolean extraClear，true 时优先于 extra 将 extra 置 null（JSON null 无法区分「未传」与「清空」）；置 null 经 UpdateEntity 强制写列（BaseMapper.update 默认忽略 null 字段）"
   - "move 校验补齐：跨资源类型 / 目标父为自身或子孙 → 20053 RESOURCE_PARENT_INVALID（新码，一类两因 message 区分；原内部 id 实现完全缺失两项校验，成环会使树构建不收敛）；移到顶层 parentId 置 null 同样走 UpdateEntity"
   - "detail 查不到语义收紧：data:null 宽松形态删除，统一抛 20004/20005（对齐同域 update/move 先例）"
-  - "VIEW 门禁三处补齐（2026-08-29 用户决策全补）：resource-entity/list、resource-entity/detail 补类型级 RESOURCE:VIEW，operation-permission/detail 补类型级 OPERATION:VIEW（tree 与 operation list 门禁 T-PERM-042 已有；种子由 DDL CRUD 预置组覆盖——§8 第 3 项 2026-08-28 核实注记成立）"
-  - "bigint 十进制字符串线格式：OperationPermissionResp.binaryBit/inheritMask 加 @JsonSerialize(ToStringSerializer)（全项目 bigint 序列化策略首例，project-rules §7.4 定策略）；请求侧 Long 组件 Jackson 宽容接受字符串；前端线格式全切 string，显示/运算/排序全 BigInt，表单保留 el-input-number 提交转字符串（2026-08-29 用户决策）"
-  - "resource_type 创建联动预置（2026-08-29 用户决策实现）：TypeDefinitionAppServiceImpl.createType 在 typeKey=resource_type 时同事务 INSERT 四条 CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)（DDL 预置组模板同款，新类型位段空闲无 uk 冲突；跨域写入先例 ServiceConfig 级联 T-PERM-027）"
-  - "T-PERM-027 §7.6 资源选择器联动落地（2026-08-29 用户决策实现）：MappingForm 裸「资源实体 ID」数字输入替换为「资源类型下拉 + el-tree-select 资源树选择」，选中取节点内部 id 提交（映射 API 仍 resourceId，api-contract §5.4 定案），数据源 resource-entity/tree"
+  - "VIEW 门禁三处补齐（2026-08-29 定案全补）：resource-entity/list、resource-entity/detail 补类型级 RESOURCE:VIEW，operation-permission/detail 补类型级 OPERATION:VIEW（tree 与 operation list 门禁 T-PERM-042 已有；种子由 DDL CRUD 预置组覆盖——§8 第 3 项 2026-08-28 核实注记成立）"
+  - "bigint 十进制字符串线格式：OperationPermissionResp.binaryBit/inheritMask 加 @JsonSerialize(ToStringSerializer)（全项目 bigint 序列化策略首例，project-rules §7.4 定策略）；请求侧 Long 组件 Jackson 宽容接受字符串；前端线格式全切 string，显示/运算/排序全 BigInt，表单保留 el-input-number 提交转字符串（2026-08-29 定案）"
+  - "resource_type 创建联动预置（2026-08-29 定案实现）：TypeDefinitionAppServiceImpl.createType 在 typeKey=resource_type 时同事务 INSERT 四条 CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)（DDL 预置组模板同款，新类型位段空闲无 uk 冲突；跨域写入先例 ServiceConfig 级联 T-PERM-027）"
+  - "T-PERM-027 §7.6 资源选择器联动落地（2026-08-29 定案实现）：MappingForm 裸「资源实体 ID」数字输入替换为「资源类型下拉 + el-tree-select 资源树选择」，选中取节点内部 id 提交（映射 API 仍 resourceId，api-contract §5.4 定案），数据源 resource-entity/tree"
   - "XML 参数名既有缺陷修复：OperationPermissionMapper.selectByResourceTypeAndCode 的 #{operationCode} → #{code}（mapper 参数名不一致，此前无真实调用方从未暴露，PgIT 抓出）"
   - "前端与 mock 对齐：api 类型与函数签名切业务键/字符串位值；hook/表单/移动表单改造；bit-ops 类型放宽 string；type-def mock 接 presetOperationsForType 联动"
   - "design_writeback：api-contract §5.3 业务键定稿块 + 位字段口径 + 联调门禁收口 + §5.4 选择器登记收口、resource-operation.md §5/§8、type-definition.md §8 第 4 项、service-interface-mapping.md §7.6、project-rules §7.4 bigint 策略、看板行 ✅"

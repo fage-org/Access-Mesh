@@ -59,7 +59,7 @@ last_updated: 2026-06-20
 - 无 `PermissionChangeContext` / `PermInvalidateEvent` / 订阅器
 - redisson 3.37.0 已是 permission-center 依赖
 
-## 决策（2026-06-20 用户确认）
+## 决策（2026-06-20 定案）
 
 1. **AOP 切点**：注解驱动 `@PermissionChange`，标在 AppService 写方法上（与 `@OperationLog` 风格一致，显式可控，不误切只读）
 2. **Redis publish 归属**：T-PERM-002 同时做 evict + publish（建 `PermInvalidateEvent` + 发布端）；T-PERM-006 收敛为仅 Gateway 订阅器

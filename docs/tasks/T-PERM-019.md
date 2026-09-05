@@ -14,20 +14,18 @@ design_refs:
 depends_on: []
 blocks: []
 acceptance:
-  - "执行前确认：D1 type_value 自动分配语义已定稿，且 api-contract/core-flows/schema 对外 typeCode、内部 type_value、软删除不复用的边界一致"
-  - "设计回写明确 type_value 在 tenant_id + type_key 内自动分配、全局唯一、软删除不复用；外部 API 不要求调用方传 typeValue；当前仅 delete_flag=0 的唯一索引不足以单独保证不复用，需明确 allocator/墓碑策略"
-  - "按归档评审默认方案引入 perm-common.BusinessKeys + BusinessKeysParityTest，覆盖 grant/role/resource/interface mapping/sync 常见业务键，禁止散落字符串拼接；如改用等价方案需执行前确认"
-  - "@AppliesTo 或等价注册模型能表达资源类型专属操作与全局操作，常量、种子、校验路径一致"
+  - "D1 已落地收口（2026-09-05 核实，卡面标完成、无代码工作）：createType 服务端分配=全量行（含软删行）max+1、软删不复用为分配语义本身；并发撞值/显式码抢占映射 20049 可重试 + uk_type_definition_* 兜底；api-contract §5.1 与 core-flows §3 已于 2026-08-28 收口成文（本卡 2026-08-22 所记 DESIGN_DRIFT 已不存在）"
+  - "D3 注解方案废弃（2026-09-05 定案）：@AppliesTo 预设「表达全局操作」，该概念已随 T-PERM-049 整体退役；类型专属操作现由 DDL 种子/预置组 + 操作位按类型隔离 + 授权侧适用性校验（20008/20005）完整表达，注解化属多余元数据；残余=OperationCodeConstants/ResourceTypeCode 常量、DDL 种子、校验路径三方一致性核对，并入 D2 交付"
+  - "D2 BusinessKeys 收敛（唯一实质交付，2026-09-05 定案保留）：后端业务键拼接点盘点（TYPEKEY_<typeValue> 生成码、relationKey `TYPE:externalId` 解析、bootstrap `typeCode:operationCode` 拼接等，SyncKeyCodec 已集中作范本）收敛到 perm-common 统一封装 + BusinessKeysParityTest 锁格式；范围限后端（前端 TS 类型辅助不动）；T-PERM-051 新增 `{typeKey}:{typeCode}` 键族直接经本模块构造，不得再裸拼"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-22
+last_updated: 2026-09-05
 ---
 
 # T-PERM-019 工作单 D：防呆机制
 
-> 状态：proposed
-> 执行门禁：进入 `in-progress` 前必须再次确认 D1 语义和设计回写范围。
+> 状态：proposed（2026-09-05 设计体检重基线：D1 标完成、D3 废注解收窄、D2 收敛为唯一实质交付；定案来源 [design-audit-followup](../plans/design-audit-followup-plan.md)，本卡 plan 字段保留原始溯源）
 
 ## 背景
 
@@ -39,16 +37,16 @@ D 来自归档设计评审 §11 的暂缓项，目标是减少权限中心实现
 
 | 子项 | 内容 | 当前核对 | 标记 |
 |---|---|---|---|
-| D1 | `type_value` 自动分配器 | `api-contract.md` 与 schema 强调外部使用 `typeCode`、内部使用 `type_value`，但 `core-flows.md` 仍有 `type-definition/create` 输入 `typeValue` 的旧描述；schema 当前唯一索引只约束 `delete_flag=0`，不足以单独保证“软删不复用” | `DESIGN_DRIFT` |
-| D2 | BusinessKeys 封装 | 归档评审已明确默认方案为 `perm-common.BusinessKeys` + `BusinessKeysParityTest`；方向与当前业务键规范兼容，替代方案需另行确认 | `NO_HARD_CONFLICT` |
-| D3 | `@AppliesTo` | 与资源类型专属操作、全局操作模型兼容；需核对 OperationCode 常量、种子与校验路径 | `NO_HARD_CONFLICT` |
+| D1 | `type_value` 自动分配器 | 已随 T-PERM-023 落地：服务端 max+1（含软删行）+ 20049 并发兜底 + 文档 2026-08-28 收口（2026-09-05 复核确认） | ✅ 完成 |
+| D2 | BusinessKeys 封装 | 唯一实质交付：拼接点盘点收敛到 perm-common + BusinessKeysParityTest；范围限后端 | 待执行 |
+| D3 | `@AppliesTo` | 注解方案废弃（2026-09-05：全局操作概念已退役，类型专属操作由种子/位段/授权校验完整表达）；残余一致性核对并入 D2 | 已重基线 |
 
-## 执行前确认
+## 执行前确认（2026-09-05 重基线后已全部有答案）
 
-1. 是否确认外部 `type-definition/create` 不再接收 `typeValue`，由服务端在 `tenant_id + type_key` 内自动分配。
-2. 是否通过 allocator/墓碑机制保证软删除 `type_value` 不复用，而不是仅依赖当前 `delete_flag=0` 唯一索引。
-3. 是否允许先做设计回写，再做代码防呆实现。
-4. 是否按默认方案使用 `perm-common.BusinessKeys` + `BusinessKeysParityTest`，并把 `@AppliesTo` 定位为内部实现约束，不暴露为 API 契约。
+1. ✅ 外部 `type-definition/create` 不接收 `typeValue`，服务端在 `tenant_id + type_key` 内自动分配——**已实现即终态**。
+2. ✅ 软删除 `type_value` 不复用由分配语义（全量行含软删 max+1）保证，无需墓碑表——**已实现即终态**。
+3. ✅ 设计回写随 D2 收口一并完成（D1 相关文档已收口，无遗留）。
+4. ✅ 采用 `perm-common.BusinessKeys` + `BusinessKeysParityTest` 默认方案；`@AppliesTo` 不做（废弃，见子项核对表）。
 
 ## 验收标准
 
