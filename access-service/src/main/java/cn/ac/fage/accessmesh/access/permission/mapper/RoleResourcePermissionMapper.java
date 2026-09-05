@@ -146,6 +146,21 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                                        @Param("roleIds") Set<Long> roleIds);
 
     /**
+     * 根据角色ID集合查询软删权限历史（delete_flag != 0 行）。
+     * <p>
+     * T-ACCESS-029 bootstrap 墓碑三分判定专用诊断查询（经 BootstrapSeedWriter 暴露，
+     * 禁止业务调用方用作通用「查历史软删」查询面）。scopeAll 行 resource_entity_id 为
+     * NULL，身份键匹配在调用方内存完成——SQL 等值条件 {@code = NULL} 恒不命中。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleIds  角色ID集合
+     * @return 软删历史权限记录列表
+     */
+    List<RoleResourcePermission> selectSoftDeletedByRoleIds(@Param("tenantId") Long tenantId,
+                                                             @Param("roleIds") Set<Long> roleIds);
+
+    /**
      * 根据角色ID和依赖权限ID集合查询有效的权限记录
      *
      * @param tenantId  租户ID

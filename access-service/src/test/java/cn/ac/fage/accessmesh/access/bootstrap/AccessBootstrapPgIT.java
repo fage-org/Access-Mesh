@@ -8,6 +8,12 @@ import cn.ac.fage.accessmesh.access.application.bootstrap.BootstrapGraphDefiniti
 import cn.ac.fage.accessmesh.access.permission.service.domain.BootstrapSeedWriter;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.dev33.satoken.secure.BCrypt;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Property;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -36,6 +42,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -50,8 +57,10 @@ import static org.mockito.Mockito.reset;
  * 固定顺序执行：状态①单事务创建固定图（前置：写入链中段与末段两点注入故障证明整体回滚）→ 首管理员
  * 真实登录（验证码经 Redis）→ 状态②整体 no-op（预改密码哈希后重跑，绝不重置）→ 状态③冲突
  * fail-fast（绑定缺失 / 授权缺失 / 映射 serviceCode / ROLE 投影 / 主体禁用 / 主体身份漂移 /
- * API·SERVICE 资源停用 / 固定业务键被其他角色类型占用）→ 类型种子缺失显式报错。Runner 装配与
- * 密码 fail-fast 由 {@code AccessBootstrapRunnerTest} 单测覆盖；本 IT 以 enabled=false 上下文手动调
+ * API·SERVICE 资源停用 / 固定业务键被其他角色类型占用）→ 授权缺行墓碑三分（T-ACCESS-029，
+ * 2026-09-05 定案：缺行 + 同身份键软删墓碑 → WARN 列明授权键放行不补回 / 缺行 + 无任何历史
+ * （硬删/残缺）→ 仍拒启）→ 类型种子缺失显式报错。Runner 装配与密码 fail-fast 由
+ * {@code AccessBootstrapRunnerTest} 单测覆盖；本 IT 以 enabled=false 上下文手动调
  * initializer（同一 Spring 代理，事务与 @PermissionChange 语义一致）。
  * </p>
  */
@@ -395,6 +404,81 @@ class AccessBootstrapPgIT {
 
     @Test
     @Order(5)
+    @DisplayName("状态③例外（T-ACCESS-029 三分）：缺行 + 同身份键软删墓碑 → WARN 列明授权键放行不补回（旧实现 fail-fast，本用例为其回归锁）")
+    void missingGrantWithSoftDeletedTombstoneWarnsAndPasses() {
+        // 模拟管理端整行撤销两条固定图授权，软删形态与 softDeleteBatch 一致（delete_flag=id + deleted_at）：
+        // ① OPERATION_LOG:VIEW 类型级 scopeAll——身份键 resource_entity_id=NULL（复评审补的 NULL
+        //    语义回归锚：SQL = NULL 恒不命中，墓碑匹配若下推 SQL 等值条件本用例必红）；
+        // ② POST:/admin/user/create 的 API 实例 ACCESS——身份键带 resource_entity_id
+        jdbc.update("UPDATE role_resource_permission SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
+                + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
+                + "AND delete_flag = 0 "
+                + "AND ("
+                + "  (scope_all = true AND resource_type = (SELECT type_value FROM type_definition "
+                + "    WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'OPERATION_LOG')) "
+                + "  OR (scope_all = false AND resource_entity_id = (SELECT re.id FROM resource_entity re "
+                + "    WHERE re.tenant_id = ? AND re.code = 'POST:/admin/user/create' "
+                + "    AND re.resource_type = (SELECT type_value FROM type_definition "
+                + "    WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API')))"
+                + ")",
+            TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, TENANT);
+
+        // 期望告警键：与 initializer grantIdentityDesc 同构（type#bits=@范围[实体id]），从墓碑行取实际值
+        Map<String, Object> scopeAllTombstone = jdbc.queryForMap(
+            "SELECT resource_type, granted_bits FROM role_resource_permission WHERE tenant_id = ? "
+                + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
+                + "AND scope_all = true AND delete_flag != 0",
+            TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
+        Map<String, Object> instanceTombstone = jdbc.queryForMap(
+            "SELECT resource_type, granted_bits, resource_entity_id FROM role_resource_permission WHERE tenant_id = ? "
+                + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
+                + "AND scope_all = false AND delete_flag != 0",
+            TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
+        String scopeAllKey = scopeAllTombstone.get("resource_type") + "#bits="
+            + scopeAllTombstone.get("granted_bits") + "@ALL";
+        String instanceKey = instanceTombstone.get("resource_type") + "#bits="
+            + instanceTombstone.get("granted_bits") + "@instance" + instanceTombstone.get("resource_entity_id");
+
+        LoggerContext logCtx = (LoggerContext) LogManager.getContext(false);
+        CapturingAppender appender = new CapturingAppender();
+        appender.start();
+        org.apache.logging.log4j.core.Logger bootstrapLogger =
+            logCtx.getLogger(AccessBootstrapInitializer.class.getName());
+        bootstrapLogger.addAppender(appender);
+        try {
+            // 旧实现（缺行一律 fail-fast）在 doesNotThrowAnyException 处失败——回归锁方向
+            assertThatCode(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
+                .doesNotThrowAnyException();
+
+            // WARN 内容列明具体授权键（含 scopeAll NULL 身份键与实例身份键两条）
+            assertThat(appender.warnMessages()).anySatisfy(message ->
+                assertThat(message).contains("软删墓碑").contains(scopeAllKey).contains(instanceKey));
+        } finally {
+            bootstrapLogger.removeAppender(appender);
+            appender.stop();
+        }
+
+        // 放行且不补回：两个身份键的有效行数仍为 0（未被重种覆盖管理端撤销）
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? "
+                + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
+                + "AND delete_flag = 0 AND scope_all = true "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 "
+                + "AND type_key = 'resource_type' AND type_code = 'OPERATION_LOG')",
+            Long.class, TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID)).isZero();
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? "
+                + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
+                + "AND delete_flag = 0 AND scope_all = false "
+                + "AND resource_entity_id = (SELECT re.id FROM resource_entity re WHERE re.tenant_id = ? "
+                + "AND re.code = 'POST:/admin/user/create' "
+                + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 "
+                + "AND type_key = 'resource_type' AND type_code = 'API'))",
+            Long.class, TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, TENANT)).isZero();
+    }
+
+    @Test
+    @Order(6)
     @DisplayName("状态③：绑定缺失 → fail-fast 并报告关联缺失")
     void missingBindingFailsFast() {
         jdbc.update("UPDATE user_role SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
@@ -408,12 +492,13 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(6)
-    @DisplayName("状态③：授权缺失 → fail-fast 并报告授权缺失")
-    void missingGrantFailsFast() {
-        jdbc.update("UPDATE role_resource_permission SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
+    @Order(7)
+    @DisplayName("状态③：缺行且无任何历史（硬删/残缺）→ fail-fast 报告授权缺失（墓碑三分的拒启分支）")
+    void missingGrantWithoutHistoryFailsFast() {
+        // 硬删（DELETE 而非软删）：无墓碑可查，三分判定维持 fail-fast；软删缺行走 Order(5) WARN 放行
+        jdbc.update("DELETE FROM role_resource_permission WHERE tenant_id = ? "
                 + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
-                + "AND scope_all = true",
+                + "AND delete_flag = 0 AND scope_all = true",
             TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
 
         assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
@@ -422,7 +507,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(7)
+    @Order(8)
     @DisplayName("状态③：映射 serviceCode 不匹配（其他服务的同路径映射不能冒充）→ fail-fast 报映射缺失")
     void wrongServiceCodeMappingFailsFast() {
         jdbc.update("UPDATE resource_api_mapping SET service_code = 'example-service' WHERE tenant_id = ? "
@@ -434,7 +519,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     @DisplayName("状态③：管理角色 ROLE 资源投影缺失 → fail-fast 报投影缺失")
     void missingRoleProjectionFailsFast() {
         jdbc.update("UPDATE resource_entity SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
@@ -448,7 +533,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     @DisplayName("状态③：admin 主体被禁用（引擎有效角色置空）→ fail-fast 报主体禁用")
     void disabledAdminSubjectFailsFast() {
         jdbc.update("UPDATE abstract_user SET enabled = false WHERE tenant_id = ? "
@@ -461,7 +546,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(10)
+    @Order(11)
     @DisplayName("状态③：admin 主体身份漂移（user_type / external_id 背离固定图身份键）→ fail-fast")
     void subjectIdentityDriftFailsFast() {
         jdbc.update("UPDATE abstract_user SET user_type = user_type + 1 WHERE tenant_id = ? "
@@ -481,7 +566,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(11)
+    @Order(12)
     @DisplayName("状态③：API / SERVICE 资源停用（status=0）→ fail-fast 报资源停用")
     void disabledApiOrServiceResourceFailsFast() {
         jdbc.update("UPDATE resource_entity SET status = 0 WHERE tenant_id = ? "
@@ -502,7 +587,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(12)
+    @Order(13)
     @DisplayName("状态③：固定业务键被其他角色类型占用 → fail-fast 报告占用")
     void occupiedBusinessKeyFailsFast() {
         jdbc.update("UPDATE abstract_role SET role_type = 1 WHERE tenant_id = ? AND external_id = ?",
@@ -514,7 +599,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(13)
+    @Order(14)
     @DisplayName("状态③：仅 SERVICE 资源残留（其余固定图清空）→ 报\"固定图部分存在\"而非撞唯一约束")
     void partialGraphReportsConflictInsteadOfConstraintViolation() {
         Long adminSubjectId = jdbc.queryForObject(
@@ -547,7 +632,7 @@ class AccessBootstrapPgIT {
     }
 
     @Test
-    @Order(14)
+    @Order(15)
     @DisplayName("类型种子缺失（DDL 未完整执行）→ 显式 fail-fast 指向权威 DDL")
     void missingTypeSeedFailsFastWithDdlHint() {
         jdbc.update("DELETE FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' "
@@ -585,5 +670,25 @@ class AccessBootstrapPgIT {
         counts.put("sys_user_org", jdbc.queryForObject(
             "SELECT count(*) FROM sys_user_org WHERE tenant_id = ? AND delete_flag = 0", Long.class, TENANT));
         return counts;
+    }
+
+    /** 最小 WARN 捕获 appender：log4j-core 主 jar 无 ListAppender（在 test-jar），测试内自实现（append 在记录线程同步调用，无需并发容器）。 */
+    private static final class CapturingAppender extends AbstractAppender {
+        private final List<String> warnMessages = new java.util.ArrayList<>();
+
+        CapturingAppender() {
+            super("tombstone-warn-capture", null, null, true, Property.EMPTY_ARRAY);
+        }
+
+        List<String> warnMessages() {
+            return warnMessages;
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            if (event.getLevel() == Level.WARN) {
+                warnMessages.add(event.getMessage().getFormattedMessage());
+            }
+        }
     }
 }

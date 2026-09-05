@@ -99,6 +99,11 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
     }
 
     @Override
+    public List<RoleResourcePermission> findSoftDeletedGrants(Long tenantId, Long roleId) {
+        return roleResourcePermissionMapper.selectSoftDeletedByRoleIds(tenantId, Set.of(roleId));
+    }
+
+    @Override
     public List<UserRole> findValidBindings(Long tenantId, Long subjectId, Long roleId) {
         return userRoleMapper.selectValidByUserIdsAndTargetIds(
             tenantId, Set.of(subjectId), Set.of(roleId), ResourceTypeCode.ROLE);

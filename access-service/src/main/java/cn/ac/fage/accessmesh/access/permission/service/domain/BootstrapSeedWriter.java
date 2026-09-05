@@ -36,6 +36,17 @@ public interface BootstrapSeedWriter {
     /** 角色当前有效授权全集（幂等状态②子集匹配检测用）。 */
     List<RoleResourcePermission> findValidGrants(Long tenantId, Long roleId);
 
+    /**
+     * 角色软删授权历史（含 {@code delete_flag != 0} 行，T-ACCESS-029 墓碑三分判定专用）。
+     * <p>
+     * <b>诊断例外：</b>仅 bootstrap 校验内部使用，禁止业务调用方将其外泄为通用
+     * 「查历史软删」查询面。返回该角色软删历史全集，身份键（资源实体/范围 + 类型）匹配由
+     * 调用方在内存完成——scopeAll 行 resource_entity_id 为 NULL，SQL 等值条件
+     * {@code = NULL} 恒不命中，不能下推到 SQL。
+     * </p>
+     */
+    List<RoleResourcePermission> findSoftDeletedGrants(Long tenantId, Long roleId);
+
     /** 主体与角色的有效绑定行。 */
     List<UserRole> findValidBindings(Long tenantId, Long subjectId, Long roleId);
 

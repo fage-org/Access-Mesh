@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-029
 title: bootstrap 固定图授权收缩通道——软删墓碑三分判定
-status: proposed
+status: done
 plan: docs/plans/design-audit-followup-plan.md
 domain: access-service
 design_refs:
@@ -16,13 +16,13 @@ acceptance:
   - "回归锁（须在旧实现下失败）：三种库状态各自启动结果——正常 no-op / 墓碑缺行放行（旧实现 fail-fast，须失败）/ 无历史缺行拒启；WARN 内容断言列明缺失授权键"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-05
 ---
 
 # T-ACCESS-029 bootstrap 固定图授权收缩通道——软删墓碑三分判定
 
-> 状态：proposed（§14.2 待议清单 2026-09-05 定案承接实现）
+> 状态：done（2026-09-05 收口）
 > 依赖：无
 
 ## 背景
@@ -43,3 +43,7 @@ last_updated: 2026-09-05
 
 - 不做撤销白名单、不做自动补回、不改「属性漂移放行」既有语义；
 - 不做固定图→租户初始化引擎（演进方向已登记 §14.2，另行立项）。
+
+## 完成记录
+
+- 2026-09-05 实施：mapper `RoleResourcePermissionMapper.selectSoftDeletedByRoleIds`（镜像 `selectValidByRoleIds`，`delete_flag != 0`）；`BootstrapSeedWriter.findSoftDeletedGrants` 诊断例外方法（按角色查软删授权历史全集，身份键匹配在调用方内存按 `GrantIdentity` 等值完成——scopeAll 行 `resource_entity_id` 为 NULL，SQL `= NULL` 恒不命中故不下推 SQL）；`AccessBootstrapInitializer` 授权缺行改三分判定 `classifyMissingGrants`（缺行 + 墓碑 → WARN 列明授权键放行不补回 / 缺行 + 无历史 → 冲突消息注明「无软删墓碑」维持 fail-fast；墓碑查询仅在实际存在缺行时执行一次）；缺行冲突与墓碑告警共用 `grantIdentityDesc` 键描述（scopeAll 行不再拼接尾部 null 字样）。文档：architecture §14.2 升级边界扩写（「新版新增条目缺行且无墓碑仍拒启」不自动补权 + 资源实体删除重建换 `resource_entity_id` 的墓碑判定边界 + runbook 交叉引用）+ last_reviewed 注记；rebuild-runbook 前置条件补三分语义、旧图升级行补注（升级/重建边界）、新增「墓碑 WARN 现象」处置行（误删恢复=授权页重授；全瘫=SQL 复活墓碑行或重建库）。回归锁 `AccessBootstrapPgIT` 17/17（原 16 + 新 1，真实 PostgreSQL/Redis 容器）：新增 Order(5) 墓碑缺行放行用例（软删 `OPERATION_LOG:VIEW` scopeAll——`resource_entity_id=NULL` 身份键 NULL 语义回归锚——与 `POST:/admin/user/create` API 实例 ACCESS 各一条；Log4j2 内嵌捕获 appender 断言 WARN 列明两条授权键、initialize 不抛、两身份键有效行数仍 0=不补回；旧实现缺行一律 fail-fast，本用例必失败）；原缺行用例（现 Order(7)）构造方式由软删改硬删 `DELETE`——三分判定下软删缺行走墓碑 WARN 放行，硬删/残缺才是「无任何历史」拒启分支的构造方式，断言「授权缺失」维持。access-service 全量回归绿。

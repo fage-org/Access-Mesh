@@ -54,7 +54,9 @@ import java.util.stream.Collectors;
  *   <li><b>部分存在 / 固定业务键被其他数据占用</b> → 抛 IllegalStateException 报告全部冲突项，
  *       不自动修复、不补权、不扩权（启动失败 fail-fast）。授权属性漂移除外（2026-09-02 口径定案，
  *       T-FE-018 联调暴露：canGrant/condition/操作位等管理端运营修改是产品正常能力）——
- *       身份行存在而属性不符仅 warn 放行，不构成冲突、不重种覆盖。</li>
+ *       身份行存在而属性不符仅 warn 放行，不构成冲突、不重种覆盖；授权缺行 + 同身份键软删墓碑
+ *       亦除外（2026-09-05 三分定案 T-ACCESS-029：管理端整行撤销 → WARN 放行不补回，仅
+ *       无任何历史记录的缺行维持 fail-fast）。</li>
  * </ol>
  * 复用既有领域服务：主体+投影（{@link LocalProjectionDomainService#createLocalUserSubject}）、
  * sys_user（{@link UserDomainService}）、角色（{@link SubjectDomainService#createRole} + ROLE 投影）、
@@ -290,19 +292,20 @@ public class AccessBootstrapInitializer {
         //    身份键 =（资源实体/范围 + 类型）判定「行」是否存在；grantedBits/canGrant/
         //    conditionId/dependOn/grantSource 为可变属性，管理端运营修改（授权页加条件、
         //    关转授、改操作位）是产品正常能力，漂移仅 warn 不阻断启动、不重种覆盖；
-        //    仅身份行整体缺失（种子半成品/整行被软删）才构成冲突 fail-fast） ——
+        //    2026-09-05 墓碑三分【T-ACCESS-029，§14.2 收缩通道】：缺行 + 同身份键软删墓碑
+        //    （delete_flag=id 历史行）= 管理端整行撤销 → WARN 放行不补回；缺行 + 无任何
+        //    历史记录 = 初始化残缺/键被占用/硬删 → 维持 fail-fast ——
         if (rolePresent && roleId != null) {
             Map<GrantIdentity, List<GrantKey>> existingByIdentity =
                 seedWriter.findValidGrants(tenantId, roleId).stream()
                     .collect(Collectors.groupingBy(GrantIdentity::of,
                         Collectors.mapping(GrantKey::of, Collectors.toList())));
+            List<RoleResourcePermission> missingGrants = new ArrayList<>();
             for (RoleResourcePermission grant : buildExpectedGrants(
                     tenantId, roleId, resourceTypes, operationBits, apiResourceIds, serviceResourceId)) {
                 List<GrantKey> candidates = existingByIdentity.get(GrantIdentity.of(grant));
                 if (candidates == null) {
-                    conflicts.add("管理角色授权缺失（缺行 fail-fast，属性漂移放行）: "
-                        + grant.getResourceType() + "#bits=" + grant.getGrantedBits()
-                        + (grant.getScopeAll() ? "@ALL" : "@instance") + grant.getResourceEntityId());
+                    missingGrants.add(grant);
                 } else if (!candidates.contains(GrantKey.of(grant))) {
                     log.warn("bootstrap 固定图授权属性漂移（管理端运营修改，放行不重种）: {}#bits={}{}{} "
                         + "固定图期望属性={} 实际={}",
@@ -311,6 +314,7 @@ public class AccessBootstrapInitializer {
                         GrantKey.of(grant), candidates);
                 }
             }
+            classifyMissingGrants(tenantId, roleId, missingGrants, conflicts);
         }
 
         // —— 菜单种子（T-FE-015；path 为期望键子集匹配：固定图 15 行齐全即可，
@@ -434,6 +438,44 @@ public class AccessBootstrapInitializer {
     private static String mappingKey(String serviceCode, Long resourceEntityId,
                                      String httpMethod, String pathPattern) {
         return serviceCode + "|" + resourceEntityId + "|" + httpMethod.toUpperCase() + "|" + pathPattern;
+    }
+
+    /**
+     * 缺行授权三分判定（T-ACCESS-029，2026-09-05 定案，架构 §14.2 收缩通道）：缺行 + 同身份键
+     * 软删墓碑 = 管理端整行撤销 → WARN（列明授权键）放行、不补回；缺行 + 无任何历史记录 =
+     * 初始化残缺/键被占用/硬删 → 维持 fail-fast。墓碑查询仅在实际存在缺行时执行一次；身份键匹配
+     * 在内存按 {@link GrantIdentity} 完成（scopeAll 行 resource_entity_id 为 NULL，SQL 等值条件
+     * {@code = NULL} 恒不命中，不能下推到 SQL）。已知取舍（定案接受）：误删与故意撤销不可区分；
+     * 全瘫场景（撤销全部管理 API 授权）仍需人工恢复——人工恢复路径见 rebuild-runbook。
+     */
+    private void classifyMissingGrants(Long tenantId, Long roleId,
+                                       List<RoleResourcePermission> missingGrants, List<String> conflicts) {
+        if (missingGrants.isEmpty()) {
+            return;
+        }
+        Set<GrantIdentity> tombstones = seedWriter.findSoftDeletedGrants(tenantId, roleId).stream()
+            .map(GrantIdentity::of)
+            .collect(Collectors.toSet());
+        List<String> revokedKeys = new ArrayList<>();
+        for (RoleResourcePermission grant : missingGrants) {
+            if (tombstones.contains(GrantIdentity.of(grant))) {
+                revokedKeys.add(grantIdentityDesc(grant));
+            } else {
+                conflicts.add("管理角色授权缺失（缺行无软删墓碑=非管理端撤销，fail-fast；属性漂移放行）: "
+                    + grantIdentityDesc(grant));
+            }
+        }
+        if (!revokedKeys.isEmpty()) {
+            log.warn("bootstrap 固定图授权缺行且存在软删墓碑（管理端撤销过，放行不补回；"
+                + "误删与撤销不可区分，如需恢复经授权页重新授予）: {}", revokedKeys);
+        }
+    }
+
+    /** 授权键描述（缺行冲突与墓碑告警共用）：资源类型#操作位@范围+资源实体（scopeAll 无实体段）。 */
+    private static String grantIdentityDesc(RoleResourcePermission grant) {
+        return grant.getResourceType() + "#bits=" + grant.getGrantedBits()
+            + (Boolean.TRUE.equals(grant.getScopeAll()) ? "@ALL" : "@instance")
+            + (grant.getResourceEntityId() == null ? "" : grant.getResourceEntityId());
     }
 
     // ===== 状态①：单事务创建固定图 =====

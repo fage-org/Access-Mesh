@@ -54,7 +54,7 @@
 | [T-ACCESS-026](T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | product-vertical-slice（已归档） | architecture；access-post-merge-plan；project-rules | T-API-001 + 里程碑 B 全部 | ✅ | ✓ |
 | [T-ACCESS-027](T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改（开源通用 IAM 定案） | [product-positioning-landing](../plans/product-positioning-landing-plan.md) | README；docs/README；design/README；architecture；access-service-architecture；permission-center overview/implementation | — | ✅ | ✓ |
 | [T-ACCESS-028](T-ACCESS-028.md) | perm-data 空装配模块删除（SDK 面名实对齐） | [product-positioning-landing](../plans/product-positioning-landing-plan.md) | architecture；README；example-service | — | ✅ | ✓ |
-| [T-ACCESS-029](T-ACCESS-029.md) | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | [design-audit-followup](../plans/design-audit-followup-plan.md) | access-service-architecture §14.2 | — | ⚙️ | ⏳ |
+| [T-ACCESS-029](T-ACCESS-029.md) | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | [design-audit-followup](../plans/design-audit-followup-plan.md) | access-service-architecture §14.2 | — | ✅ | ✓ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 待确认 + 前端 Phase 1/2/4 后端任务）
 
