@@ -9,6 +9,7 @@ import org.apache.ibatis.annotations.Param;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.Collection;
 
 /**
  * 资源实体数据访问接口
@@ -269,6 +270,6 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
      * @param resourceTypes resource_type 内部类型值集合
      * @return 存在有效行的类型值列表（DISTINCT）
      */
-    java.util.List<Integer> selectDistinctTypesWithValidRows(@Param("tenantId") Long tenantId,
-                                                             @Param("resourceTypes") java.util.Collection<Integer> resourceTypes);
+    List<Integer> selectDistinctTypesWithValidRows(@Param("tenantId") Long tenantId,
+                                                   @Param("resourceTypes") Collection<Integer> resourceTypes);
 }

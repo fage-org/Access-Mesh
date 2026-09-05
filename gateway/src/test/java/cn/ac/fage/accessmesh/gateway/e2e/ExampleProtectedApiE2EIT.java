@@ -83,9 +83,10 @@ class ExampleProtectedApiE2EIT {
     private static final String EXAMPLE_MAIN_CLASS = "cn.ac.fage.accessmesh.example.ExampleServiceApplication";
 
     /** E2E 目标接口（外部路径口径：Gateway 匹配 StripPrefix 前路径，example 内部路径为去 /example 前缀） */
-    private static final String TARGET_API_CODE = "POST:/example/api/example/demo/hello";
     private static final String TARGET_API_METHOD = "POST";
     private static final String TARGET_API_PATH = "/example/api/example/demo/hello";
+    /** API 资源业务码：service-config 声明通道 DTO @Pattern（^[a-zA-Z0-9_:.-]+$）禁斜杠，冒号段式 */
+    private static final String TARGET_API_RESOURCE_CODE = "example:demo:hello";
 
     private static final String ROLE_TYPE = "BASIC_ROLE";
     private static final String ROLE_EXTERNAL_ID = "e2e-example-role";
@@ -130,11 +131,12 @@ class ExampleProtectedApiE2EIT {
             postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
              var st = conn.createStatement()) {
             st.execute(ddl);
-            // 环境种子：example-service 接入服务配置（syncTypes 白名单声明可同步 API 资源，
-            // SyncTypeGuard fail-closed 的前置；正式接入由管理员经 service-config 管理接口维护）
-            st.execute("INSERT INTO service_config (tenant_id, service_code, name, status, extra) VALUES ("
-                + "1, 'example-service', 'Example Service', 1, "
-                + "'{\"syncTypes\":{\"resourceTypeCodes\":[\"API\"]}}')");
+            // 环境种子：example-service 接入服务注册（service-config/sync 的前置——服务配置须已存在）；
+            // 正式接入由管理员经 service-config 管理接口维护。API 资源/映射由第③步
+            // service-config/sync 接口声明通道自动创建（T-PERM-052 后 API 类型恒 MANAGED，
+            // resource-entity/sync 对其一律拒绝，旧 syncTypes.resourceTypeCodes 白名单已退役）
+            st.execute("INSERT INTO service_config (tenant_id, service_code, name, status) VALUES ("
+                + "1, 'example-service', 'Example Service', 1)");
         }
 
         int accessPort = freePort();
@@ -217,26 +219,32 @@ class ExampleProtectedApiE2EIT {
 
     @Test
     @Order(3)
-    @DisplayName("③ example 经内部同步通道注册 API 资源（UPSERT），管理员创建 Gateway 映射")
+    @DisplayName("③ example 经 service-config 接口声明通道注册 API 资源与 Gateway 映射（FULL）")
     void step3_createExampleApiResourceAndMapping() {
-        // 资源注册走业务服务同步通道（api-contract §6.2.2）：直连 access-service，X-Internal-Secret
-        // 身份 + sourceService=example-service——bootstrap 管理员的固定图不含 /resource-entity/create
-        // （unregistered-policy=DENY），经 Gateway 会被拒；同步通道正是业务服务注册资源的正规入口
-        JsonNode syncResp = postForData(
-            "http://localhost:" + accessService.port() + "/api/perm/resource-entity/sync", null,
+        // API 资源的唯一事实入口是 service-config/sync 接口声明通道（api-contract §6.3）：FULL
+        // 上报即完整事实来源，自动创建 API 资源与 resource_api_mapping（owner=example-service、
+        // maintainSource=SERVICE_SYNC、pathPattern=basePath+path）。T-PERM-052 类型级所有权后
+        // API 类型恒 MANAGED——resource-entity/sync 通道对其一律 RESOURCE_TYPE_OWNERSHIP_DENIED，
+        // 旧 syncTypes.resourceTypeCodes 白名单已退役，经 Gateway 走管理面（bootstrap 固定图含本路径）
+        JsonNode syncResp = postForData(gateway() + "/perm/api/perm/service-config/sync", adminToken,
             JSON.createObjectNode()
-                .put("operation", "UPSERT")
-                .put("resourceTypeCode", "API")
-                .put("resourceCode", TARGET_API_CODE)
-                .put("name", "example 演示问候接口")
-                .put("sourceService", "example-service")
-                .set("syncVersion", JSON.createObjectNode()
-                    .put("occurredAt", "2026-08-26T00:00:00")
-                    .put("sequenceNo", 1)),
-            Map.of("X-Internal-Secret", INTERNAL_SECRET, "X-Tenant-Id", TENANT_ID,
-                "X-Service-Code", "example-service"));
-        assertThat(syncResp.path("applied").asBoolean())
-            .as("API 资源必须经同步通道落库，响应：" + syncResp).isTrue();
+                .put("serviceCode", "example-service")
+                .put("basePath", "")
+                .put("syncMode", "FULL")
+                .set("groups", JSON.createArrayNode().add(JSON.createObjectNode()
+                    .put("groupCode", "demo")
+                    .put("groupName", "示例接口")
+                    .set("apis", JSON.createArrayNode().add(JSON.createObjectNode()
+                        .put("name", "example 演示问候接口")
+                        .put("httpMethod", TARGET_API_METHOD)
+                        .put("path", TARGET_API_PATH)
+                        .put("operationCode", "ACCESS")
+                        .put("resourceCode", TARGET_API_RESOURCE_CODE)
+                        .put("description", "E2E 目标接口"))))));
+        assertThat(syncResp.path("createdResources").asLong())
+            .as("接口声明通道必须创建 API 资源，响应：" + syncResp).isPositive();
+        assertThat(syncResp.path("createdMappings").asLong())
+            .as("接口声明通道必须自动创建 Gateway 映射，响应：" + syncResp).isPositive();
 
         // 经授权页同款资源树定位新资源 id（bootstrap 固定图含 tree），树按资源类型返回多棵
         JsonNode treeData = postForData(gateway() + "/perm/api/perm/resource-entity/tree", adminToken,
@@ -249,18 +257,7 @@ class ExampleProtectedApiE2EIT {
             }
         }
         assertThat(resourceId)
-            .as("同步注册的 example API 资源必须可见，实际树响应：%s", treeData).isPositive();
-
-        // pathPattern 按 Gateway 外部路径口径（StripPrefix 前），serviceCode 与路由元数据一致
-        JsonNode mapping = postForData(gateway() + "/perm/api/perm/resource-api-mapping/create", adminToken,
-            JSON.createObjectNode()
-                .put("resourceId", resourceId)
-                .put("serviceCode", "example-service")
-                .put("httpMethod", TARGET_API_METHOD)
-                .put("pathPattern", TARGET_API_PATH)
-                .put("enabled", true));
-        assertThat(mapping.path("pathPattern").asText())
-            .as("example API 映射必须按 Gateway 外部路径创建").isEqualTo(TARGET_API_PATH);
+            .as("接口声明注册的 example API 资源必须可见，实际树响应：%s", treeData).isPositive();
     }
 
     /** 在资源树中按 code 定位 API 资源 id */
@@ -268,7 +265,7 @@ class ExampleProtectedApiE2EIT {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return -1;
         }
-        if (TARGET_API_CODE.equals(node.path("code").asText())) {
+        if (TARGET_API_RESOURCE_CODE.equals(node.path("code").asText())) {
             return node.path("id").asLong();
         }
         for (JsonNode child : node.path("children")) {
@@ -297,7 +294,7 @@ class ExampleProtectedApiE2EIT {
     void step5_grantApiAccess() {
         var key = JSON.createObjectNode();
         key.put("resourceTypeCode", "API");
-        key.put("resourceCode", TARGET_API_CODE);
+        key.put("resourceCode", TARGET_API_RESOURCE_CODE);
         key.put("codeType", "default");
         key.put("operationCode", "ACCESS");
         key.put("scopeMode", "INSTANCE");

@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collection;
 
 /**
  * 资源实体领域服务接口
@@ -92,7 +93,7 @@ public interface ResourceEntityDomainService {
      * @param resourceTypes resource_type 内部类型值集合
      * @return 存在有效行的类型值集合
      */
-    java.util.Set<Integer> findTypesWithValidRows(Long tenantId, java.util.Collection<Integer> resourceTypes);
+    Set<Integer> findTypesWithValidRows(Long tenantId, Collection<Integer> resourceTypes);
 
     /**
      * 批量软删除资源

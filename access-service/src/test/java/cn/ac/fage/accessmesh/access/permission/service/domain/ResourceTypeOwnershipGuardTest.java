@@ -138,7 +138,7 @@ class ResourceTypeOwnershipGuardTest {
     @DisplayName("声明校验：SYNC+已注册来源 → 通过；MANAGED 显式 → 通过；无声明 → 通过")
     void validateExtraDeclaration_shouldAcceptValidDeclarations() {
         when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, "hr-service"))
-                .thenReturn(new cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig());
+                .thenReturn(serviceConfig(1, 0L));
 
         assertThatCode(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "HR_ORG",
                 "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}", false))
@@ -170,6 +170,31 @@ class ResourceTypeOwnershipGuardTest {
                 "{\"managedMode\":\"MANAGED\",\"syncSourceService\":\"hr-service\"}", false))
                 .isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "HR_ORG", "not-json", false))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    @DisplayName("声明校验（codex 二轮复评 P2/存疑定案）：来源停用或状态缺失、保留内部来源 admin-service、已知键显式 null → 拒绝")
+    void validateExtraDeclaration_shouldRejectDisabledReservedOrNullSources() {
+        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, "hr-service"))
+                .thenReturn(serviceConfig(0, 0L), serviceConfig(null, 0L));
+        // status=0（停用）：与运行时入口同规则，仅注册非空会保存出无人可写的锁死类型
+        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "HR_ORG",
+                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}", false))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("未启用");
+        // status=null（历史行状态缺失）同样拒绝
+        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "HR_ORG",
+                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}", false))
+                .isInstanceOf(IllegalArgumentException.class);
+        // 保留内部来源（admin-service）：运行时 rejectInternalSourceService 拒绝其冒充，声明=锁死
+        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "USER",
+                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"admin-service\"}", true))
+                .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("保留内部来源");
+        // 已知键显式 null：与「清除声明=删除键」语义歧义，保存边界 fail-closed（未知键仍开放）
+        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "HR_ORG",
+                "{\"managedMode\":null}", false)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "HR_ORG",
+                "{\"managedMode\":\"MANAGED\",\"syncSourceService\":null}", false))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -215,6 +240,28 @@ class ResourceTypeOwnershipGuardTest {
         when(resourceEntityDomainService.hasValidRowsOfType(TENANT, 5)).thenReturn(false);
         assertThatCode(() -> guard.rejectIfDeclarationChangeBlocked(TENANT, hrOrg,
                 "{\"managedMode\":\"MANAGED\"}")).doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("声明变更 + is_system 系统预置类型 → 一律 20056 钉死，先于行数判定（codex 二轮复评 P1-1）")
+    void rejectIfDeclarationChangeBlocked_shouldPinSystemTypes() {
+        TypeDefinition user = new TypeDefinition();
+        user.setId(3L);
+        user.setTenantId(TENANT);
+        user.setTypeKey("resource_type");
+        user.setTypeCode("USER");
+        user.setTypeValue(6);
+        user.setIsSystem(true);
+        user.setExtra("{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\"}");
+
+        // 空类型翻转同样拒绝：事实链路类型翻转后事实写入方照旧写即双 writer
+        assertThatThrownBy(() -> guard.rejectIfDeclarationChangeBlocked(TENANT, user,
+                "{\"managedMode\":\"MANAGED\"}"))
+                .isInstanceOf(BizException.class)
+                .extracting("errorCode")
+                .isEqualTo(20056);
+        verify(resourceEntityDomainService, never()).hasValidRowsOfType(anyLong(),
+                org.mockito.ArgumentMatchers.any());
     }
 
     // ---- 内部来源声明（2026-09-05 补充定案：事实链路四类型收编） ----

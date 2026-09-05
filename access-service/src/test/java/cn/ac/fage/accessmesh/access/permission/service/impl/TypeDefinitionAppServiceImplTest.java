@@ -364,12 +364,21 @@ class TypeDefinitionAppServiceImplTest {
     private static final String SYNC_DECLARATION =
         "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}";
 
+    /** 已注册且启用（status=1、未软删）的 hr-service 注册行——保存侧与运行时同规则的合法来源 */
+    private static cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig registeredEnabledService() {
+        cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig config =
+            new cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig();
+        config.setStatus(1);
+        config.setDeleteFlag(0L);
+        return config;
+    }
+
     @Test
     void shouldCreateSyncDeclaredResourceType_whenSourceServiceRegistered() {
         when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(5);
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "hr-service"))
-            .thenReturn(new cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig());
+            .thenReturn(registeredEnabledService());
 
         service.createType(1L, new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
             SYNC_DECLARATION), 100L);
@@ -473,12 +482,35 @@ class TypeDefinitionAppServiceImplTest {
         existing.setTypeValue(5);
         when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "hr-service"))
-            .thenReturn(new cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig());
+            .thenReturn(registeredEnabledService());
         when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(false);
 
         service.updateType(1L, new TypeUpdateReq(9L, null, null, null, SYNC_DECLARATION), 100L);
 
         verify(typeDefinitionMapper).update(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldRejectDeclarationChangeForSystemTypeEvenWithoutRows() {
+        // codex 二轮复评 P1-1 定案：系统预置类型所有权声明钉死——空 USER 类型翻成 MANAGED 后
+        // 事实链路照旧投影写入即双 writer（顺序性破坏）；旧实现零行时放行
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        TypeDefinition user = new TypeDefinition();
+        user.setId(9L);
+        user.setTenantId(1L);
+        user.setTypeKey("resource_type");
+        user.setTypeCode("USER");
+        user.setTypeValue(6);
+        user.setIsSystem(true);
+        user.setExtra("{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\"}");
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(user);
+
+        BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
+            new TypeUpdateReq(9L, null, null, null, "{\"managedMode\":\"MANAGED\"}"), 100L));
+        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        // 钉死判定先于行数查询
+        verify(resourceEntityDomainService, never()).hasValidRowsOfType(anyLong(), any());
+        verify(typeDefinitionMapper, never()).update(any(TypeDefinition.class));
     }
 
     @Test
@@ -546,9 +578,15 @@ class TypeDefinitionAppServiceImplTest {
             () -> service.deleteTypesByIds(1L, java.util.List.of(9L), 100L));
         assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
-        // 批删 resource_type 同样持锁（codex P1）
-        verify(treeWriteLockSupport).lockTreeWrites(1L,
+        // 批删 resource_type 同样持锁（codex P1）；codex 二轮复评 P2-2 回归锁：锁外 peek 读 →
+        // 锁 → 锁内重读 → 行数守卫的完整顺序（删掉锁内重读/锁后置的旧实现下失败）
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(
+            treeWriteLockSupport, typeDefinitionMapper, resourceEntityDomainService);
+        order.verify(typeDefinitionMapper).selectValidByIds(1L, java.util.Set.of(9L));
+        order.verify(treeWriteLockSupport).lockTreeWrites(1L,
             cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        order.verify(typeDefinitionMapper).selectValidByIds(1L, java.util.Set.of(9L));
+        order.verify(resourceEntityDomainService).findTypesWithValidRows(1L, java.util.Set.of(5));
     }
 
     @Test
@@ -584,7 +622,7 @@ class TypeDefinitionAppServiceImplTest {
         existing.setExtra(SYNC_DECLARATION);
         when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "hr-service"))
-            .thenReturn(new cn.ac.fage.accessmesh.access.permission.entity.ServiceConfig());
+            .thenReturn(registeredEnabledService());
 
         service.updateType(1L, new TypeUpdateReq(9L, null, null, null,
             SYNC_DECLARATION.substring(0, SYNC_DECLARATION.length() - 1) + ",\"k\":1}"), 100L);

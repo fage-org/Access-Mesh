@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import com.mybatisflex.core.util.UpdateEntity;
 
 /**
  * 角色管理服务实现类
@@ -223,7 +224,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         // 默认忽略 null 字段，UpdateEntity 代理记录 set 调用（含 null 入参）为显式更新列
         if (Boolean.TRUE.equals(extraClear)) {
             role.setExtra(null);
-            AbstractRole patch = com.mybatisflex.core.util.UpdateEntity.of(AbstractRole.class);
+            AbstractRole patch = UpdateEntity.of(AbstractRole.class);
             patch.setId(role.getId());
             patch.setName(role.getName());
             patch.setStatus(role.getStatus());

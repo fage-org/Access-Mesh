@@ -180,6 +180,10 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("无创建资源的权限");
         }
+        // codex 二轮复评 P1-2：管理面创建与声明变更/删除（type-definition 侧同持本锁）互斥，
+        // 锁先于所有权门禁与首次实体读取——堵「门禁读 MANAGED→并发翻转 SYNC/删类型（锁内查
+        // 零行放行）→插入落库」，手工行写入 SYNC 类型/已删类型
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         // T-PERM-052：SYNC 类型管理面只读（20055）——事实链路四类型（USER/ORG/MENU/ROLE）种子声明
         // SYNC+access-service，原类型保留清单已收编进本门禁（2026-09-05 内部来源统一）
         resourceTypeOwnershipGuard.rejectIfSyncManagedType(tenantId, req.resourceTypeCode());
@@ -227,6 +231,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             OperationLogRuntimeContext.markSkip();
             return List.of();
         }
+        // codex 二轮复评 P1-2：同 createResource——批量创建与声明变更/删除互斥，锁先于批量门禁
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         // T-PERM-052：SYNC 类型管理面只读（含事实链路四类型；类型码去重后一次批量判定，20055）
         resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(tenantId,
             reqs.stream()

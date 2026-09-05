@@ -14,6 +14,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Collection;
+import java.util.HashSet;
 
 /**
  * 资源实体领域服务实现类
@@ -155,11 +157,11 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
     }
 
     @Override
-    public java.util.Set<Integer> findTypesWithValidRows(Long tenantId, java.util.Collection<Integer> resourceTypes) {
+    public Set<Integer> findTypesWithValidRows(Long tenantId, Collection<Integer> resourceTypes) {
         if (resourceTypes == null || resourceTypes.isEmpty()) {
-            return java.util.Collections.emptySet();
+            return Collections.emptySet();
         }
-        return new java.util.HashSet<>(resourceEntityMapper.selectDistinctTypesWithValidRows(tenantId, resourceTypes));
+        return new HashSet<>(resourceEntityMapper.selectDistinctTypesWithValidRows(tenantId, resourceTypes));
     }
 
     /**

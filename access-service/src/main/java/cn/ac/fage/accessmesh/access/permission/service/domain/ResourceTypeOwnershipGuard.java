@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -29,8 +30,10 @@ import java.util.Objects;
  *   <li>外部 {@code resource-entity/sync|full-sync}：类型必须声明 SYNC 且来源==调用服务身份；</li>
  *   <li>管理面 {@code resource-entity/create|batch-create|update|move|remove}（含级联删除的
  *       后代全集）：目标类型声明 SYNC 时一律拒绝（20055）；</li>
- *   <li>声明变更：类型下存在有效资源行时 managedMode/syncSourceService 有效值不得变更（20056，
- *       含删除键隐式切回 MANAGED）。</li>
+ *   <li>声明变更：系统预置类型（is_system=true）所有权声明一律不可变更（20056，
+ *       codex 二轮复评 P1-1 定案——事实链路类型翻转后事实写入方照旧写即双 writer）；
+ *       自定义类型在类型下存在有效资源行时有效值不得变更（20056，含删除键隐式切回
+ *       MANAGED）。</li>
  *   <li>内部来源声明（2026-09-05 补充定案）：USER/ORG/MENU/ROLE 四类事实链路类型由种子声明
  *       SYNC + syncSourceService=access-service——外部同步一律拒绝（来源不匹配）、管理面资源
  *       CRUD 一律 20055（行由用户/组织/菜单/角色管理自动维护），收编原类型保留清单与
@@ -38,10 +41,11 @@ import java.util.Objects;
  * </ul>
  * <p>
  * 保存边界（type-definition create/update）由 {@link #validateExtraDeclaration} 校验结构，
- * 防止合法 JSON 但错误结构（拼写错误键/非法值/缺来源）静默落库后在运行时表现为 MANAGED——
- * 对齐 SyncTypeGuard.validateSyncTypesExtra 先例。extra 损坏时读取侧按 MANAGED 处理：
- * 对外部同步 fail-closed（拒绝）、对管理面 fail-open（可写=可恢复方向，管理员可清理
- * 损坏声明后重新声明，WARN 日志定位）。
+ * 防止合法 JSON 但错误结构（已知键非法值/缺来源/显式 null）静默落库后在运行时表现为
+ * MANAGED——对齐 SyncTypeGuard.validateSyncTypesExtra 先例。extra 是开放扩展位：未知键
+ * 不视为声明（拼错键=无声明，按缺省 MANAGED，与合法扩展键不可区分故不拒绝）。extra 损坏时
+ * 读取侧按 MANAGED 处理：对外部同步 fail-closed（拒绝）、对管理面 fail-open（可写=可恢复
+ * 方向，管理员可清理损坏声明后重新声明，WARN 日志定位）。
  * </p>
  */
 @Component
@@ -164,11 +168,12 @@ public class ResourceTypeOwnershipGuard {
      * 保存边界校验（type-definition create/update 写入口）：
      * managedMode/syncSourceService 仅允许出现在 {@code type_key=resource_type} 的 extra 上；
      * mode 值域 {MANAGED, SYNC}；SYNC 必须携带非空白来源（禁止首尾空白——校验 trim 后与落库
-     * 原值不一致会造出无人可同步的锁死类型）且来源须为已注册有效服务——唯一豁免：
-     * {@code syncSourceService=access-service}（内部来源声明，收编事实链路类型，仅
-     * is_system=true 的系统预置类型可声明，防止自定义类型锁死成无人写入的孤岛）；
-     * API 类型禁止声明 SYNC（service-config 接口声明通道是其事实 writer，双 writer 口径
-     * 会破坏类型级单来源不变量）。
+     * 原值不一致会造出无人可同步的锁死类型）且来源须为已注册、未软删、status=1 的服务——与
+     * 运行时入口 {@link #isSyncEntranceAllowed} 同规则；保留内部来源（access-service 之外，
+     * 如 admin-service）拒绝。唯一豁免：{@code syncSourceService=access-service}（内部来源
+     * 声明，收编事实链路类型，仅 is_system=true 的系统预置类型可声明，防止自定义类型锁死成
+     * 无人写入的孤岛）；API 类型禁止声明 SYNC（service-config 接口声明通道是其事实 writer，
+     * 双 writer 口径会破坏类型级单来源不变量）。已知键显式 null 拒绝（清除声明=删除键）。
      *
      * @param typeCode     目标类型编码（API 类型拒绝 SYNC 声明用）
      * @param isSystemType 目标类型是否系统预置（create 恒 false——is_system 不可由 API 创建）
@@ -190,6 +195,12 @@ public class ResourceTypeOwnershipGuard {
         JsonNode source = root.get(EXTRA_KEY_SYNC_SOURCE_SERVICE);
         if (mode == null && source == null) {
             return;
+        }
+        // codex 二轮复评定案（2026-09-05）：已知键显式 null 拒绝——null 与「清除声明=删除键」
+        // 语义歧义（落库后运行时按缺省 MANAGED 判定），fail-closed 在保存边界拦下
+        if ((mode != null && mode.isNull()) || (source != null && source.isNull())) {
+            throw new IllegalArgumentException(EXTRA_KEY_MANAGED_MODE + "/" + EXTRA_KEY_SYNC_SOURCE_SERVICE
+                    + " 不接受显式 null（清除声明请删除键）");
         }
         if (!TYPE_KEY_RESOURCE.equals(typeKey)) {
             throw new IllegalArgumentException(
@@ -248,16 +259,26 @@ public class ResourceTypeOwnershipGuard {
                 }
                 return;
             }
-            if (serviceConfigMapper.selectByTenantAndServiceCode(tenantId, sourceText) == null) {
-                throw new IllegalArgumentException("来源服务未注册: " + sourceText);
+            // codex 二轮复评 P2：保留内部来源（admin-service 等退役内部同步身份）一律拒绝——
+            // 运行时 rejectInternalSourceService 拒绝其冒充，声明它=保存出无人可写的锁死类型
+            if (LocalProjectionOwner.isInternalSourceService(sourceText)) {
+                throw new IllegalArgumentException("保留内部来源不可声明为同步来源: " + sourceText);
+            }
+            // codex 二轮复评 P2：保存侧与运行时入口（isSyncEntranceAllowed）同规则——
+            // 已注册、未软删且 status=1 启用；仅查注册非空会保存出「管理面 20055、
+            // 同步入口 status 拒绝」的无人可写类型
+            ServiceConfig sourceService = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, sourceText);
+            if (sourceService == null || (sourceService.getDeleteFlag() != null && sourceService.getDeleteFlag() != 0L)
+                    || !Integer.valueOf(1).equals(sourceService.getStatus())) {
+                throw new IllegalArgumentException("来源服务未注册或未启用: " + sourceText);
             }
         }
     }
 
     /**
      * 声明变更守卫（type-definition update）：resource_type 类型的所有权声明有效值变更
-     * （含删除键隐式切回 MANAGED）且类型下仍存在有效资源行时拒绝（20056）。
-     * 类型无行或声明未变时放行。
+     * （含删除键隐式切回 MANAGED）时——系统预置类型（is_system）一律拒绝；自定义类型在
+     * 类型下仍存在有效资源行时拒绝（20056）。声明未变时放行。
      */
     public void rejectIfDeclarationChangeBlocked(Long tenantId, TypeDefinition existingType, String newExtraJson) {
         if (!TYPE_KEY_RESOURCE.equals(existingType.getTypeKey())) {
@@ -267,6 +288,14 @@ public class ResourceTypeOwnershipGuard {
         Ownership newDeclaration = parseOwnership(newExtraJson);
         if (Objects.equals(oldDeclaration, newDeclaration)) {
             return;
+        }
+        // codex 二轮复评 P1-1 定案（2026-09-05）：系统预置类型所有权声明钉死——事实链路类型
+        // （USER/ORG/MENU/ROLE=SYNC+access-service）即使零行翻转为 MANAGED/外部来源，事实链路
+        // 照旧无条件投影写入即成双 writer（顺序性破坏，无需并发）；先例：is_system 类型禁止删除
+        if (Boolean.TRUE.equals(existingType.getIsSystem())) {
+            throw new BizException(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
+                    "系统预置类型所有权声明不可变更: " + existingType.getTypeCode()
+                            + " " + oldDeclaration + " -> " + newDeclaration);
         }
         if (resourceEntityDomainService.hasValidRowsOfType(tenantId, existingType.getTypeValue())) {
             throw new BizException(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
@@ -293,7 +322,7 @@ public class ResourceTypeOwnershipGuard {
             return;
         }
         List<TypeDefinition> types = typeDefinitionMapper.selectByTypeKeyAndCodes(
-                tenantId, TYPE_KEY_RESOURCE, new java.util.LinkedHashSet<>(resourceTypeCodes));
+                tenantId, TYPE_KEY_RESOURCE, new LinkedHashSet<>(resourceTypeCodes));
         for (TypeDefinition td : types) {
             rejectIfSyncOwned(parseOwnership(td.getExtra()), td.getTypeCode());
         }
@@ -309,7 +338,7 @@ public class ResourceTypeOwnershipGuard {
             return;
         }
         List<TypeDefinition> types = typeDefinitionMapper.selectByTypeKeyAndValues(
-                tenantId, TYPE_KEY_RESOURCE, new java.util.LinkedHashSet<>(resourceTypeValues));
+                tenantId, TYPE_KEY_RESOURCE, new LinkedHashSet<>(resourceTypeValues));
         for (TypeDefinition td : types) {
             rejectIfSyncOwned(parseOwnership(td.getExtra()), td.getTypeCode());
         }

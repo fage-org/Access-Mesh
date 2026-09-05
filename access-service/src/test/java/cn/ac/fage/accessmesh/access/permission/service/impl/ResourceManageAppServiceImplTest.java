@@ -344,6 +344,37 @@ class ResourceManageAppServiceImplTest {
     }
 
     @Test
+    @DisplayName("create/batch-create 与声明变更互斥：树写锁先于所有权门禁与落库（codex 二轮复评 P1-2 回归锁，旧实现无锁下失败）")
+    void createResources_shouldLockTreeWritesBeforeOwnershipGate() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(3);
+
+        service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+            null, null, null, null, null, "API", "res-lock", null, "资源锁序", null, null, null, null), 100L);
+
+        org.mockito.InOrder createOrder = org.mockito.Mockito.inOrder(
+            treeWriteLockSupport, resourceTypeOwnershipGuard, resourceEntityMapper);
+        createOrder.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        createOrder.verify(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, "API");
+        createOrder.verify(resourceEntityMapper).insert(any(ResourceEntity.class));
+
+        // batch-create 同口径（拒绝路径足以钉锁序：锁 → 批量门禁）
+        org.mockito.Mockito.doThrow(new cn.ac.fage.accessmesh.common.exception.BizException(20055,
+                "资源由外部来源维护: resourceTypeCode=API"))
+            .when(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("API"));
+        assertThrows(cn.ac.fage.accessmesh.common.exception.BizException.class, () ->
+            service.batchCreateResources(1L, java.util.List.of(
+                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+                    null, null, null, null, null, "API", "res-lock-b", null, "资源B", null, null, null, null)), 100L));
+        org.mockito.InOrder batchOrder = org.mockito.Mockito.inOrder(treeWriteLockSupport, resourceTypeOwnershipGuard);
+        batchOrder.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        batchOrder.verify(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("API"));
+    }
+
+    @Test
     @DisplayName("update 命中 SYNC 类型行 → 20055 拒绝（含 name 在内管理面完全只读）")
     void shouldRejectUpdateOnSyncManagedType() {
         ResourceEntity entity = resourceWithKey(10L);

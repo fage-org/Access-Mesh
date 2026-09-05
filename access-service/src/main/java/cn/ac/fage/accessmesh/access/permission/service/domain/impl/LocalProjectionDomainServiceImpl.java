@@ -20,6 +20,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.mybatisflex.core.util.UpdateEntity;
 
 /**
  * 本地权限投影写入。不写 sync_metadata，owner 固定 access-service。
@@ -411,7 +412,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         // 旧 parent 残留会让资源树错挂——UpdateEntity 显式更新列（moveResource 同款先例，
         // T-PERM-052 评审批次顺手修复）
         if (parentId == null) {
-            ResourceEntity patch = com.mybatisflex.core.util.UpdateEntity.of(ResourceEntity.class);
+            ResourceEntity patch = UpdateEntity.of(ResourceEntity.class);
             patch.setId(existing.getId());
             patch.setParentId(null);
             patch.setName(name);

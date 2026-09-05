@@ -1011,7 +1011,7 @@ CREATE UNIQUE INDEX uk_service_config ON service_config (tenant_id, service_code
 COMMENT ON TABLE service_config IS '接入服务配置：全量同步策略，支持手动增删改接口映射。extra.syncTypes 声明服务可同步的类型白名单（见 api-contract §6.3.1）；停用(status=0)后其接口不参与授权且 sync/full-sync 全部拒绝';
 COMMENT ON COLUMN service_config.service_code IS '服务编码，租户内唯一';
 COMMENT ON COLUMN service_config.base_path IS '基础路径前缀';
-COMMENT ON COLUMN service_config.extra IS '扩展属性(JSON)：syncTypes 声明同步类型白名单（subjectTypeCodes/roleTypeCodes/resourceTypeCodes/sourceTypes 字符串数组，缺失分类=无权限）；保存时校验结构，运行时 fail-closed';
+COMMENT ON COLUMN service_config.extra IS '扩展属性(JSON)：syncTypes 声明同步类型白名单（subjectTypeCodes/roleTypeCodes/sourceTypes 字符串数组，缺失分类=无权限；资源维度已随 T-PERM-052 类型级所有权退役，保存含 resourceTypeCodes 拒绝）；保存时校验结构，运行时 fail-closed';
 COMMENT ON COLUMN service_config.status IS '状态：0=停用 1=启用。停用后该服务的接口不参与授权，且 sync/full-sync 全部拒绝（SECURITY_DENIED）';
 
 -- -----------------------------------------------------------------------------
