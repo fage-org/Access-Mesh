@@ -186,15 +186,11 @@ class OrgWriteAppServiceTest {
     }
 
     @Test
-    @DisplayName("锁内重读：请求回传旧 parent 但并发已移动 → 按重读快照重判换父并走校验（不静默回写）")
-    void rereadAfterLockReevaluatesConcurrentMove() {
-        // 锁前快照 parent=10（表单回传同值）；锁内重读发现并发已移到 20 → 10 相对新快照是换父，
-        // 必须走完整移动校验（旧实现按锁前快照判「未换父」跳锁跳校验，会把旧 parent 静默写回）
-        SysOrg before = org("A", "1", 2);
-        before.setParentId(30L);
-        SysOrg after = org("A", "1", 2);
-        after.setParentId(20L);
-        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(before, after);
+    @DisplayName("树写锁先于首次实体读取（无条件持锁，快照在锁内产生——外部评审 P1 顺序锁）")
+    void treeWriteLockPrecedesFirstEntityRead() {
+        // 实体快照必须在锁内产生：锁晚于读取时，读取-拿锁-写回窗口内完成的合法移动会被
+        // 旧快照静默回滚、经两步合法移动+回写可闭合成环（update(entity) 全列回写 parent）
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org("A", "1", 2));
         when(orgDomainService.getDescendantIds(TENANT, ORG_ID)).thenReturn(List.of());
         SysOrg newParent = new SysOrg();
         newParent.setId(30L);
@@ -206,11 +202,11 @@ class OrgWriteAppServiceTest {
 
         service.updateOrg(new OrgUpdateReq(ORG_ID, null, 30L, null, null, null));
 
-        // 换父校验被触发 + 落库 parent 为请求目标值 30（经校验的显式意图，非静默回写）
-        verify(orgDomainService).getDescendantIds(TENANT, ORG_ID);
-        ArgumentCaptor<SysOrg> captor = ArgumentCaptor.forClass(SysOrg.class);
-        verify(orgDomainService).update(captor.capture());
-        assertThat(captor.getValue().getParentId()).isEqualTo(30L);
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, orgDomainService);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+        order.verify(orgDomainService).selectValidById(TENANT, ORG_ID);
+        verify(orgDomainService).update(any(SysOrg.class));
     }
 
     @Test
@@ -399,6 +395,10 @@ class OrgWriteAppServiceTest {
         // 投影按更新后事实同步（名称保持旧值）；parentOrgType 由 resolveParentOrgType 解析（父查询 null → null）
         verify(localProjectionDomainService).upsertAdminOrg(
             eq(TENANT), eq(ORG_ID), eq("1"), eq("旧名称"), eq(1L), eq(null), eq(1), eq(5), any());
+        // 无条件持锁回归锁：不带 parentOrgId 的普通编辑同样接锁（外部评审 P2——
+        // 旧「仅带 parent 才持锁」实现下本断言失败）
+        verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
     }
 
     @Test

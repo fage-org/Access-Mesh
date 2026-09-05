@@ -82,6 +82,8 @@ class FullSyncResponseContractTest {
     private SyncTypeGuard syncTypeGuard;
     @Mock
     private cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService;
+    @Mock
+    private TreeWriteLockSupport fullSyncLockSupport;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -179,13 +181,15 @@ class FullSyncResponseContractTest {
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService, org.mockito.Mockito.mock(TreeWriteLockSupport.class));
+                subjectDomainService, fullSyncLockSupport);
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
                 new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", null, null,
                         1, 0, null, null, null, new SyncVersionRef(OCCURRED_AT, 1L))));
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+        org.mockito.Mockito.verify(fullSyncLockSupport).lockTreeWrites(TENANT_ID,
+                TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
 
         assertThat(resp.accepted()).isTrue();
         assertThat(resp.applied()).isTrue();
@@ -212,13 +216,15 @@ class FullSyncResponseContractTest {
         AbstractRoleSyncAppServiceImpl service = new AbstractRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, abstractRoleMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService, org.mockito.Mockito.mock(TreeWriteLockSupport.class));
+                subjectDomainService, fullSyncLockSupport);
         AbstractRoleFullSyncReq req = new AbstractRoleFullSyncReq(
                 new AbstractRoleSyncScope(SOURCE_SERVICE, "BASIC_ROLE", "ROOT"),
                 List.of(new AbstractRoleSyncItem("org-1", "Org 1", "BASIC_ROLE", "missing-parent",
                         1, 0, null, null, null, new SyncVersionRef(OCCURRED_AT, 1L))));
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+        org.mockito.Mockito.verify(fullSyncLockSupport).lockTreeWrites(TENANT_ID,
+                TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
 
         assertThat(resp.accepted()).isTrue();
         assertThat(resp.applied()).isFalse();

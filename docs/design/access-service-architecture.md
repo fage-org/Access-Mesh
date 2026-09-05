@@ -632,14 +632,16 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
   Redisson。advisory 路径经 MyBatis mapper 执行才有效（JdbcTemplate 直连在事务内拿到的连接
   autocommit 不随事务关闭，锁语句结束即释放——实测互斥失效），该结论留作任何未来语句级
   锁方案的坑位登记。
-- **树表全部写入口无条件持锁**（外部评审 P1 收口：update(entity) 全列回写含 parent，「不带
-  parent 的普通编辑」无锁时并发移动会被静默回滚、经两步合法移动+回写可闭合成环，故不能按
-  「是否带 parent」条件持锁）：角色 `updateRole`/`moveRole`/`sync`/`full-sync`、组织
-  `updateOrg`、菜单 `updateMenu`、资源 `updateResource`/`moveResource`/资源实体
-  `sync`/`full-sync`、服务接口同步 `syncInterfaces`（批量 upsert 资源全列回写）。组织/菜单
-  请求携带 parent 时锁内重读自身行重判换父（防锁前快照漏校验语义）。资源实体同步判环先于
-  版本写入（拒绝不推进同步版本，full-sync 内存图判环 + 已应用边镜像，对齐角色同步先例）。
-  锁在方法内先于任何树结构校验查询获取；事务外调用 fail-fast 拒绝。
+- **树表全部写入口无条件持锁，且锁先于首次实体读取**（外部评审两轮收口：update(entity)
+  全列回写含 parent，「不带 parent 的普通编辑」无锁时并发移动会被静默回滚、经两步合法移动+
+  回写可闭合成环，故不能按「是否带 parent」条件持锁；锁若晚于实体读取，读取-拿锁-写回窗口内
+  完成的合法移动仍会被锁外旧快照覆盖——锁必须覆盖读与写，快照在锁内产生）：角色
+  `updateRole`/`moveRole`/`sync`/`full-sync`、组织 `updateOrg`、菜单 `updateMenu`、资源
+  `updateResource`/`moveResource`/资源实体 `sync`/`full-sync`、服务接口同步
+  `syncInterfaces`（批量 upsert 资源全列回写）。组织/菜单携带 parent 时按锁内快照重判换父
+  （相同即 no-op 跳过校验）。资源实体同步判环先于版本写入（拒绝不推进同步版本，full-sync
+  内存图判环 + 已应用边镜像，经 cyclePreChecked 跳过逐项 DB 判环防 N+1）。事务外调用
+  fail-fast 拒绝。
 - **代价**：持锁事务（如 full-sync 批量单事务）期间并发 move 在连接上排队等待——管理操作低频，
   可接受（设计定案）。
 - **验证**：`TreeCycleHardeningPgIT` 锁互斥用例（持锁事务提交前同键 tryLock false、事务

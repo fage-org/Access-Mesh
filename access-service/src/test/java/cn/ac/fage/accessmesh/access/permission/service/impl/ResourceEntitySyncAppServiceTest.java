@@ -372,10 +372,62 @@ class ResourceEntitySyncAppServiceTest {
                 .isEqualTo("RESOURCE_PARENT_INVALID: MENU:child-x");
         org.mockito.Mockito.verify(resourceEntityMapper, org.mockito.Mockito.never())
                 .update(org.mockito.ArgumentMatchers.any(ResourceEntity.class));
-        // N+1 回归锁：full-sync 路径经内存图预判（cyclePreChecked），doSyncOneInternal 内的
-        // DB 子孙查询判定不得逐项触发（外部评审 P1-2）
+    }
+
+    @Test
+    void fullSyncWithLegalParentAppliesUpdate_withoutPerItemDescendantQuery() {
+        mockHeaderMatch();
+        // 合法新 parent（不闭环）→ 通过外层内存判环、实际进入 doSyncOneInternal 执行 update——
+        // 该路径下 cyclePreChecked 必须跳过内部 DB 子孙判定（无参数时每项一次递归 CTE，N+1）
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        ResourceEntity existing = new ResourceEntity();
+        existing.setId(5L);
+        existing.setTenantId(TENANT_ID);
+        existing.setResourceType(0);
+        existing.setCode("menu-1");
+        existing.setCodeType("default");
+        existing.setParentId(null);
+        ResourceEntity parent = new ResourceEntity();
+        parent.setId(9L);
+        parent.setTenantId(TENANT_ID);
+        parent.setResourceType(0);
+        parent.setCode("parent-x");
+        parent.setCodeType("default");
+        parent.setParentId(null);
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+                org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.eq(0),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of(existing));
+        when(resourceEntityMapper.selectAllValid(TENANT_ID))
+                .thenReturn(java.util.List.of(existing, parent));
+        when(typeResolutionService.batchResolveResourceIds(org.mockito.ArgumentMatchers.eq(TENANT_ID),
+                org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Map.of(new ResourceResolveKey("MENU", "parent-x", "default", null), 9L));
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        when(syncMetadataDomainService.listScopeForFullSync(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString())).thenReturn(java.util.List.of());
+
+        ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
+                new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
+                java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
+                        "MENU", "parent-x", "default", null, 1, 0, null, null, null,
+                        new SyncVersionRef(OCCURRED_AT, 1L))));
+
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.detail().appliedCount()).isEqualTo(1);
+        // full-sync 入口接锁（外部评审 P2：sync 与 fullSync 分别验证）
+        org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(TENANT_ID,
+                cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        // N+1 回归锁：项通过外层判环并执行 update，doSyncOneInternal 内的 DB 子孙查询判定
+        // 不得触发（撤销 cyclePreChecked 时本断言失败）
         org.mockito.Mockito.verify(resourceEntityDomainService, org.mockito.Mockito.never())
                 .batchGetDescendantIds(org.mockito.ArgumentMatchers.anyLong(),
                         org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(resourceEntityMapper)
+                .update(org.mockito.ArgumentMatchers.any(ResourceEntity.class));
     }
 }

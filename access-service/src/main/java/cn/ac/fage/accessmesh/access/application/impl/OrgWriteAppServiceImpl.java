@@ -134,6 +134,11 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         targetId = "#req.id()", summary = "'update org ' + #req.id()")
     public void updateOrg(OrgUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
+        // 树写锁先于首次实体读取并无条件持有（对齐 updateRole/updateResource 位置）：不带
+        // parent 的普通编辑也会全列回写实体快照的 parent（update(entity) 非 null 列全写），
+        // 若锁晚于读取，读取-拿锁-写回窗口内完成的合法移动会被旧快照静默回滚、经两步合法
+        // 移动+回写可闭合成环——锁覆盖读与写后，锁内快照在临界区内无并发变更
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
         SysOrg org = orgDomainService.selectValidById(tenantId, req.id());
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
@@ -142,20 +147,10 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG, String.valueOf(req.id()),
             OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.UPDATE));
-        // 组织移动安全门禁与树结构校验。
-        // 树写锁无条件持有：不带 parent 的普通编辑也会全列回写锁前读到的 parent（update(entity)
-        // 非 null 列全写），无锁时并发移动会被静默回滚、经两步合法移动+回写可闭合成环——锁内
-        // 读写串行后回写旧值不可能覆盖并发变更
-        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
-        // 请求携带 parent（含表单回传原值）时锁内重读自身行重判：锁前快照判「是否换父」会漏
-        // 校验语义（parent 已被并发改到请求值时应视为 no-op 而非跳过校验后写回）
+        // 请求携带 parent（含表单回传原值）时按锁内快照重判换父：parent 已被改到请求值时
+        // 视为 no-op 移动（跳过校验），否则走完整移动校验——快照在锁内，无需二次读取
         Long newParentId = req.parentOrgId();
         if (newParentId != null) {
-            org = orgDomainService.selectValidById(tenantId, req.id());
-            if (org == null) {
-                throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                    AdminErrorCode.ORG_NOT_FOUND.getMessage());
-            }
             Long oldParentId = org.getParentId();
             if (!Objects.equals(newParentId, oldParentId)) {
                 validateOrgMove(tenantId, req.id(), org, newParentId);

@@ -113,3 +113,11 @@ T-PERM-022 为角色域 moveRole 补齐了环路防护（自身/子孙拒绝 200
   无确定性窗口制造（黑盒无法在校验与写入间注入屏障）——crossMove 用例定位精化为行为
   特征化（注释说明两道防线），入口接锁确定性由各单测 verify 承担；P3 PgIT 类注释方案句
   上轮 patch 断言失败未落盘——修正。
+- **codex 二轮复评处置（gpt-5.6-sol xhigh，2026-09-05）**：P1 updateOrg/updateMenu 锁晚于
+  首次实体读取（锁只串行写、未覆盖旧快照产生，普通编辑仍可在读取-拿锁-写回窗口覆盖并发
+  移动成环）经核实属实——锁提前到首次读取之前（对齐 updateRole/updateResource 位置），
+  带分支的锁内重读随之去除（快照已在锁内），两用例改 InOrder 顺序验证（锁先于 selectValidById）；
+  P2 N+1 回归断言挂在必然成环项上（外层判环 continue 后不进 doSyncOneInternal，锁了个空）
+  属实——补「合法 parent 过外层判环实际执行 update」用例（撤销 cyclePreChecked 时失败）；
+  P2 verify 覆盖不全属实——组织无 parent 用例补锁断言（旧条件锁实现下失败）、角色/资源
+  fullSync 分别补锁 verify；P3 ServiceSyncAppServiceImpl 全限定名改 import。
