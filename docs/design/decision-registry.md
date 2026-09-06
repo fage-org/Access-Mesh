@@ -44,6 +44,7 @@
 | 2026-09-06 | AGENTS.md 只承载长期稳定事实与路由（外部评审核实后用户拍板）：任务进度/阶段枚举移出、指针化到 `docs/tasks/README.md`（禁以本文件历史任务号推断状态）；所有权段只留当前模型+错误码+防复活护栏，演进史交本表与架构文档；核心编码规范裁到高频硬约束（细则单一权威 project-rules）；新增 Agent 工作协议 5 步 | AGENTS.md | 报了先核出处 |
 | 2026-09-06 | 统一响应壳全量更名 PermResult→R（工厂 success/error→ok/fail、Advice→RResponseAdvice、前端 TS 信封类型同步 R<T>）；线格式字段与取值不变（RWireShapeTest 锁）；引擎类 `dto/query/PermResult` 是权限查询内部结果、与响应壳是两个物，禁止合并或混淆 | common/model/R.java、project-rules.md §1.1、docs/design/frontend/service-interface-mapping.md | 报了先核出处 |
 | 2026-09-06 | Agent 指令面收敛：删除 `.github/copilot-instructions.md`（第 4 份浓缩副本，漂移实证 3 处），规范入口=AGENTS.md + project-rules.md + skills/rules；勿再为 GitHub Copilot 重建独立指令副本（如需注入面用薄指针文件指向 AGENTS.md） | accessmesh-patterns SKILL.md（权威列表行）、本表 | 报了先核出处 |
+| 2026-09-06 | 分页信封统一（T-ADMIN-027 登记）：全仓唯一分页方言=扁平五字段 `{items,total,pageNum,pageSize,hasNext}`，统一类更名 `PaginatedResp`→`PageResp`（线格式零变化）；admin 嵌套方言 `PaginatedResult` 退役删除；5 处 `R<List>` 裸数组收编 `ItemsResp`；分页字段不进 R（信封管传输/载荷管分页正交）；类名 `Page` 因与 MyBatis-Flex Page（19 文件在用）冲突被否 | docs/tasks/T-ADMIN-027.md、api-contract.md §3.3、project-rules.md §1.3 | 报了先核出处 |
 
 ## 已推翻（superseded）
 
