@@ -69,14 +69,14 @@ Mapper
 - 路径统一使用 `/api/{module}/{resource}/{action}`
 - 禁止 RESTful 路径参数；ID 放在请求体中
 - 文件上传是少数可使用 `@RequestParam` 的例外
-- 统一返回 `R.ok(data)` / `R.fail(errorCode, message)`
+- 统一返回 `PermResult.success(data)` / `PermResult.error(code, message)`
 
 统一响应体结构：
 
 ```json
 {
   "code": 200,
-  "message": "操作成功",
+  "message": "success",
   "data": {},
   "requestId": "uuid-xxx",
   "traceId": "trace-xxx"
@@ -152,18 +152,18 @@ Map<Long, Xxx> rowMap = rows.stream()
 - 禁止 `catch (Exception e) {}` 静默吞异常
 - 禁止在事务内发起 Feign 或 MQ 调用
 - 禁止使用 `java.util.Date` / `java.sql.Timestamp`
-- 禁止使用 FastJSON、Hutool
-- Lombok 仅允许精确导入 `@Getter` / `@Setter`
+- 禁止使用 FastJSON、Hutool（整库禁令，见 project-rules §5.2）
+- Lombok 精确导入按需使用：`@Getter` / `@Setter`，复杂构造或测试装配可用 `@Builder`；禁止 `@Data`、`@Value` 等隐式生成过多逻辑的注解
 
 ## Commit 规范
 
 项目使用 Conventional Commits：
 
 ```text
-feat(permission-center): 新增分组角色批量删除接口
-fix(gateway): align PermissionClient with permission-center response model
-refactor(common): 优化分页响应结构
-docs(plan): 更新文档索引
+feat(perm-sdk): T-API-002 SDK 四件套补齐与内部 id 字段族全线裁剪
+fix(access): T-PERM-052 双轨评审收口——sync 门禁补服务状态校验
+refactor(access): T-PERM-052 内部来源统一——事实链路四类型收编旧机制
+docs(tasks): design-audit-followup 设计体检批次建卡与定案回写
 ```
 
 格式：`<type>(<scope>): <subject>`

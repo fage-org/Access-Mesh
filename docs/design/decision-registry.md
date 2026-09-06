@@ -41,6 +41,7 @@
 | 2026-09-06 | 工作流审计沉淀定案：评审收口已随两轨分离 skill 治理落地；定案登记表=本文件；回归 SOP 与锁协议收编 rule/skill 不立项（能力内容留在评审/回归相关记忆） | 本表（会话定案） | 报了先核出处 |
 | 2026-09-06 | SDK 直连端点内部 id 全线裁剪（T-API-002 执行中用户决策扩大面）：除原定案六字段外，check/batch-check/check-interface 响应的 matchedRoleIds/matchedPermissionIds 与 matchedResources[].resourceId 一并裁剪——评审勿报「check 响应缺来源 id 字段」类缺失 | api-contract.md §5.7 注记 + §6.1/§6.2/§6.6/§6.7 已删除字段条目、docs/tasks/T-API-002.md | 再报直接撤回 |
 | 2026-09-06 | 权限排查页（permission-query）暂停待重做（T-FE-043 登记）：页面问题与功能记录后整体重做，后续任务对该页只做编译一致最小改动，不投入页面改造；评审勿报该页 UI/交互缺陷，改登记 T-FE-043 | docs/tasks/T-FE-043.md、api-contract.md §6.7 排查页暂停注记 | 再报直接撤回 |
+| 2026-09-06 | AGENTS.md 只承载长期稳定事实与路由（外部评审核实后用户拍板）：任务进度/阶段枚举移出、指针化到 `docs/tasks/README.md`（禁以本文件历史任务号推断状态）；所有权段只留当前模型+错误码+防复活护栏，演进史交本表与架构文档；核心编码规范裁到高频硬约束（细则单一权威 project-rules）；新增 Agent 工作协议 5 步 | AGENTS.md | 报了先核出处 |
 
 ## 已推翻（superseded）
 
