@@ -144,8 +144,14 @@ class GatewayInvalidationRaceTest {
     @Test
     void tenantWideEvictDuringSlowEvictAll_shouldDiscardStaleCommitAndRefetch()
         throws Exception {
-        // evictAll 阻塞 400ms：构造"清理进行中"窗口
+        // evictAll 阻塞 400ms：构造"清理进行中"窗口。旧回源提交闸门在窗口开启瞬间
+        // （epoch 已递增、evictAll 即将执行）放行——确定性命中「失效期间到达」窗口；
+        // 原 delayElement(150ms)+sleep(50) 固定余量在 -T 模块并行负载下会被主线程
+        // 调度延迟击穿（T-ACCESS-031 场景③实证同族失败，用户拍板一并闸门化）
+        CompletableFuture<Void> staleCommitGate = new CompletableFuture<>();
         doAnswer(inv -> {
+            // completeAsync：放行后的旧回源链在 FJ 池执行，不在被桩线程内联
+            staleCommitGate.completeAsync(() -> null);
             Thread.sleep(400);
             return inv.callRealMethod();
         }).when(cacheService).evictAll(any(), any());
@@ -158,8 +164,8 @@ class GatewayInvalidationRaceTest {
             .thenAnswer(inv -> {
                 loadStarted.countDown();
                 if (calls.incrementAndGet() == 1) {
-                    // 旧回源：150ms 后返回（失效发生后、慢 evictAll 期间到达）
-                    return Mono.just(R.ok(stale)).delayElement(Duration.ofMillis(150));
+                    // 旧回源：闸门放行后返回（失效已递增 epoch、慢 evictAll 期间到达）
+                    return Mono.just(R.ok(stale)).delayUntil(v -> Mono.fromFuture(staleCommitGate));
                 }
                 // 重试拉取新快照：延迟到慢 evictAll（400ms）完成后提交，
                 // 使最终缓存状态确定（新快照在清理结束后写入并保留）
@@ -173,8 +179,8 @@ class GatewayInvalidationRaceTest {
                 filter.filter(buildExchange(), chain).block(Duration.ofSeconds(5)));
 
             assertThat(loadStarted.await(3, TimeUnit.SECONDS)).isTrue();
-            Thread.sleep(50); // 确保 beginLoad 已完成（在途 token 已建立）
-            // 租户级失效（仅 roleIds）：修复后先递增 epoch 再执行慢 evictAll
+            // 租户级失效（仅 roleIds）：修复后先递增 epoch 再执行慢 evictAll；
+            // 闸门在 evictAll 进入时才放行，evict 必然先于旧回源提交——无时序余量
             invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(99L), Set.of(), Set.of()));
 
             request.get(5, TimeUnit.SECONDS);
@@ -196,10 +202,18 @@ class GatewayInvalidationRaceTest {
     @Test
     void clearAllDuringSlowEvictAll_shouldDiscardStaleCommitAndRefetch()
         throws Exception {
+        // 与场景①同款：旧回源提交闸门在慢 evictAll 窗口开启瞬间放行（clearAll 先递增
+        // epoch 再执行慢 evictAll），evict 必然先于旧回源提交——无时序余量
+        // （T-ACCESS-031 用户拍板一并闸门化，替代 delayElement(150ms)+sleep(50)）。
+        // 桩面修正：clearAll 走一参 evictAll(catalog) 全局清理（CacheService 一参/两参
+        // 为不同重载），原桩在两参重载上从未生效——「慢 evictAll 窗口」此前是死桩代码，
+        // 场景名义的清理期间竞态实际未发生过，本次闸门化按实际调用面拦截。
+        CompletableFuture<Void> staleCommitGate = new CompletableFuture<>();
         doAnswer(inv -> {
+            staleCommitGate.completeAsync(() -> null);
             Thread.sleep(400);
             return inv.callRealMethod();
-        }).when(cacheService).evictAll(any(), any());
+        }).when(cacheService).evictAll(any());
 
         // 预置同租户另一用户的已跟踪快照：clearAll 据索引执行（慢）evictAll，
         // 同时保证当前请求用户未命中缓存、必然走回源
@@ -215,7 +229,7 @@ class GatewayInvalidationRaceTest {
             .thenAnswer(inv -> {
                 loadStarted.countDown();
                 if (calls.incrementAndGet() == 1) {
-                    return Mono.just(R.ok(stale)).delayElement(Duration.ofMillis(150));
+                    return Mono.just(R.ok(stale)).delayUntil(v -> Mono.fromFuture(staleCommitGate));
                 }
                 return Mono.just(R.ok(fresh)).delayElement(Duration.ofMillis(600));
             });
@@ -227,7 +241,6 @@ class GatewayInvalidationRaceTest {
                 filter.filter(buildExchange(), chain).block(Duration.ofSeconds(5)));
 
             assertThat(loadStarted.await(3, TimeUnit.SECONDS)).isTrue();
-            Thread.sleep(50);
             invalidator.clearAll();
 
             request.get(5, TimeUnit.SECONDS);
