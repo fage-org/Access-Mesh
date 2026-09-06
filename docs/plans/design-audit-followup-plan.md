@@ -15,7 +15,7 @@ tasks:
   - T-API-002
   - T-ACCESS-029
 acceptance: "体检新发现（P1×1、P2×2）逐条代码级核实并定案后拆为可追踪任务；五条预置题的执行口径已定并回写对应任务卡/架构文档；暂缓项与演进方向单独登记不混入执行面；各任务实现按任务卡验收执行。"
-last_updated: 2026-09-05
+last_updated: 2026-09-06
 ---
 
 # codex 项目级设计体检处置批次
@@ -40,7 +40,7 @@ last_updated: 2026-09-05
 |---|---|---|---|
 | [T-PERM-052](../tasks/T-PERM-052.md) | §B P1 | 资源类型级所有权边界——类型声明门禁（2026-09-05 用户四项定案改定类型级方案：sync 独占 + 管理面只读含级联守卫 + 声明变更守卫 + syncTypes 资源维度退役） | ✅ |
 | [T-PERM-053](../tasks/T-PERM-053.md) | §B P2-3a | service-config 同步 ApiItem.operationCode 无效字段删除（前后端同批锁步） | ✅ |
-| [T-API-002](../tasks/T-API-002.md) | §B P2-2 | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（含内部 id 字段族全裁 + 排查页同批改造） | ⚙️ |
+| [T-API-002](../tasks/T-API-002.md) | §B P2-2 | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（含内部 id 字段族全裁——2026-09-06 用户决策扩大到 check 族三接口——+ 排查页同批改造，页面暂停重做登记 T-FE-043） | ✅ |
 | [T-ACCESS-029](../tasks/T-ACCESS-029.md) | §A-5 | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | ✅ |
 | [T-PERM-054](../tasks/T-PERM-054.md) | §B P2-3b | 手工 API 映射绑定非 API 资源处置——**暂缓**（关联权限自动授权方向待讨论） | ⚙️（暂缓） |
 
@@ -67,6 +67,8 @@ last_updated: 2026-09-05
 ## 当前进度
 
 - 2026-09-05：批次建立；同日双轨复评审（代码正确性/安全边界 + 规范符合性/文档一致性）结论并入各卡与看板，T-API 编号 003 修正回收为 002。
+- 2026-09-06：T-API-002 进入执行；两项执行期用户决策登记 decision-registry——①裁剪面扩大到 check 族三接口响应（含 matchedResources[].resourceId）；②权限排查页暂停待重做（T-FE-043 登记重做事项，前端仅编译一致最小改动）。
+- 2026-09-06：T-API-002 收口（双轨评审零 P0/P1，P2×1+P3×7 当场修复；全模块测试与前端验证零失败，终态见任务卡完成记录）。批次内执行任务仅余 T-PERM-054 暂缓卡待启动门禁处置，归档随其定夺。
 
 ## 归档条件
 

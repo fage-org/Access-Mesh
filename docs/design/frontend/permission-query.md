@@ -3,7 +3,7 @@ doc_type: design
 title: 权限排查 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-02   # T-FE-019 联调收口：三端点切 Gateway 真实路径 + mock 整删 + explain 扩展展示接线 + 示例默认值清空
+last_reviewed: 2026-09-06   # T-API-002 契约裁剪同步：Tab2 响应字段清单与 §5 核对表第 6 行对齐内部 id 字段族裁剪终态（页面暂停待重做 T-FE-043，仅文档一致性修正）；2026-09-02 T-FE-019 联调收口：三端点切 Gateway 真实路径 + mock 整删 + explain 扩展展示接线 + 示例默认值清空
 ---
 
 # 权限排查 前端设计
@@ -78,7 +78,7 @@ last_reviewed: 2026-09-02   # T-FE-019 联调收口：三端点切 Gateway 真�
 
 ### Tab2 query-scopes
 - 查询：subjectTypeCode + subjectExternalId + domainCode + parentResourceTypeCode + parentResourceCode + parentCodeType + parentOperationCodes[] + scopeResourceTypeCodes[] + scopeOperationCodes[] + scopeCodeType
-- 响应：reason + matchedParentOperations + parentPermissionIds + scopeGroups[]（resourceTypeCode/operationCode/scopeMode/items/matchedRoleIds/...）
+- 响应：reason + matchedParentOperations + scopeGroups[]（resourceTypeCode/operationCode/scopeMode/items）——`parentPermissionIds` 与 `matchedRoleIds` 等内部 id 字段族已随 T-API-002 裁剪（2026-09-06；页面暂停待重做 T-FE-043）
 - scopeMode 四态 DENIED/INSTANCE/ALL/EMPTY（§6.7 L1322）
 
 ### Tab3 explain
@@ -152,6 +152,6 @@ last_reviewed: 2026-09-02   # T-FE-019 联调收口：三端点切 Gateway 真�
 | 3 | explain DTO 扩展 | ✅ | `context.clientIp` 输入 + `evaluationContextSource`（ADMIN_INPUT/CURRENT_REQUEST 回退）+ 条件评估明细（IP 掩码脱敏、日期/时间原样）+ 互斥丢弃明细；前端展示 T-FE-019 已接线（模拟 IP 输入 + ExplainPanel 三区块） |
 | 4 | recentChanges 按权限键过滤 | ✅ | 6 字段匹配（null 请求字段通配）+ USER 目标保留 `USER_ROLE_CHANGE`；候选池 200 / 返回上限 50；`impactLevel` 对齐 DIRECT/POSSIBLE |
 | 5 | LOCAL_USER/USER 主体语义 | ✅ | 核对结论见 §3 核对补记；`resolveUserId` = type_definition user_type 解析 + `abstract_user(tenant, type, externalId)` |
-| 6 | query-resources API 核对 | ✅ | §6.6 实现（`PermissionQueryAppServiceImpl.queryResources`）响应字段名与契约逐项一致（resourceTypeCode/resourceCode/codeType/resourceName/canGrant/scopeMode/operations/matchedRoleIds/matchedPermissionIds/grantSources），treeMode 已移除、includeChildren/includeInherited 已实现；无差异登记 |
+| 6 | query-resources API 核对 | ✅ | §6.6 实现（`PermissionQueryAppServiceImpl.queryResources`）响应字段名与契约逐项一致（resourceTypeCode/resourceCode/codeType/resourceName/canGrant/scopeMode/operations/grantSources；matchedRoleIds/matchedPermissionIds 已随 T-API-002 裁剪，2026-09-06），treeMode 已移除、includeChildren/includeInherited 已实现；无差异登记 |
 | 7 | ~~treeMode TODO~~ | 已收口 | 2026-08-27 设计定案：从契约移除（无真实消费方），树由调用方自建，登记 v3.5.1-evolution |
 | 8 | permission-view/* 契约差异 | ✅ | 核对结论：effective-roles/resource-tree 门禁=目标用户 `USER:VIEW`（实现一致）；role-permissions/effective-permission-codes 门禁与实现一致；**唯一差异**：`resource-users` 契约 §5.8 端点表写「查询拥有资源权限的**用户**」，实现（`getResourcePermissions`）返回的是该资源上的**角色**授予分布（RoleGrantInfo）——登记差异待该端点有消费方时二选一收口（改实现聚合用户维度 or 契约表述对齐角色维度），当前无消费方 |

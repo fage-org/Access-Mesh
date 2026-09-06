@@ -8,6 +8,12 @@ import java.util.List;
  * 返回批量权限校验的结果列表，每个结果对应一次权限校验。
  * 用于批量权限检查接口的响应。
  * </p>
+ * <p>
+ * T-API-002（2026-09-06 定案，用户决策扩大裁剪面）：单项结果的内部数据库 id 字段族
+ * （matchedRoleIds / matchedPermissionIds）裁剪，与 core-flows §15「SDK 四件套
+ * 不要求/不泄漏内部数据库 ID」口径对齐。线格式与 perm-common 副本保持同形
+ * （双副本形状由回归锁钉死）。
+ * </p>
  *
  * @param items 权限校验结果列表
  */
@@ -25,16 +31,12 @@ public record BatchAuthCheckResp(
      * @param operationCode     操作编码
      * @param allowed           是否允许访问
      * @param reason            拒绝原因，允许时为null
-     * @param matchedRoleIds    匹配的角色ID列表
-     * @param matchedPermissionIds 匹配的权限ID列表
      */
     public record AuthCheckItemResult(
         String resourceTypeCode,
         String resourceCode,
         String operationCode,
         boolean allowed,
-        String reason,
-        List<Long> matchedRoleIds,
-        List<Long> matchedPermissionIds
+        String reason
     ) {}
 }

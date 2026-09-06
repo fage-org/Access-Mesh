@@ -68,7 +68,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      *
      * @param tenantId 租户ID
      * @param req      校验请求，包含用户标识、资源类型、资源编码、操作码等
-     * @return 校验响应，包含是否允许、拒绝原因、匹配的角色和权限ID
+     * @return 校验响应，包含是否允许、拒绝原因与条件评估状态（T-API-002：matched id 字段族不进线格式）
      */
     @Override
     @Transactional(readOnly = true)
@@ -104,8 +104,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         if (userId == null) {
             return new BatchAuthCheckResp(req.items().stream()
                 .map(item -> new AuthCheckItemResult(
-                    item.resourceTypeCode(), item.resourceCode(), item.operationCode(), false, "USER_NOT_FOUND",
-                    List.of(), List.of()))
+                    item.resourceTypeCode(), item.resourceCode(), item.operationCode(), false, "USER_NOT_FOUND"))
                 .toList());
         }
         List<AuthCheckItemResult> results = new ArrayList<>();
@@ -119,9 +118,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
             PermResult r = engine.query(q);
             results.add(new AuthCheckItemResult(
                 item.resourceTypeCode(), item.resourceCode(), item.operationCode(),
-                r.allowed(), r.reason(),
-                r.matchedRoleIds().stream().toList(),
-                r.matchedPermissionIds().stream().toList()));
+                r.allowed(), r.reason()));
         }
         return new BatchAuthCheckResp(List.copyOf(results));
     }
@@ -136,7 +133,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      *
      * @param tenantId 租户ID
      * @param req      接口校验请求，包含用户标识、服务编码、HTTP方法和请求路径
-     * @return 接口校验响应，包含是否允许、拒绝原因和匹配的权限ID列表
+     * @return 接口校验响应，包含是否允许、拒绝原因与匹配资源业务键列表（T-API-002：内部 id 字段族不进线格式）
      */
     @Override
     @Transactional(readOnly = true)

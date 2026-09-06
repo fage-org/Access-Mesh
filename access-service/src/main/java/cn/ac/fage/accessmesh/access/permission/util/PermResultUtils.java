@@ -3,10 +3,8 @@ package cn.ac.fage.accessmesh.access.permission.util;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 
 import java.util.*;
@@ -16,6 +14,12 @@ import java.util.*;
  * <p>
  * 提供PermResult转换为各种响应DTO的静态方法。
  * 在engine.query()返回结果后使用这些方法进行响应转换。
+ * </p>
+ * <p>
+ * T-API-002（2026-09-06）：check 族响应内部数据库 id 字段族裁剪后，本工具类只产出
+ * 线格式所需字段；explain 等内部需要 matched id 集合的场景直接消费 {@link PermResult}，
+ * 不再经由线格式 DTO 中转。零调用的 toQueryResourcesResp 已删除（真实组装在
+ * PermissionQueryAppServiceImpl.buildQueryResourcesResponse）。
  * </p>
  */
 public final class PermResultUtils {
@@ -48,7 +52,7 @@ public final class PermResultUtils {
      * 转换PermResult为AuthCheckResp
      * <p>
      * 将权限查询结果转换为权限校验响应DTO。
-     * 包含匹配的角色ID、权限ID和条件评估状态。
+     * 包含校验结果与条件评估状态（T-API-002：matched id 字段族不进线格式）。
      * </p>
      *
      * @param r 权限查询结果
@@ -59,16 +63,14 @@ public final class PermResultUtils {
             return AuthCheckResp.deny(r.reason() != null ? r.reason() : "DENIED");
         }
         boolean condEvaluated = r.allEntries().stream().anyMatch(RolePermEntry::hasCondition);
-        return AuthCheckResp.allow(
-            r.matchedRoleIds().stream().toList(),
-            r.matchedPermissionIds().stream().toList(), condEvaluated);
+        return AuthCheckResp.allow(condEvaluated);
     }
 
     /**
      * 转换PermResult为CheckInterfaceResp
      * <p>
      * 将权限查询结果转换为接口校验响应DTO。
-     * 包含匹配的资源信息、操作码和角色权限ID。
+     * 包含匹配的资源业务键信息与操作码。
      * 用于Gateway接口权限校验场景。
      * </p>
      *
@@ -95,61 +97,14 @@ public final class PermResultUtils {
                 boolean allowed = true;
                 OperationPermission op = findOpByBinaryBit(opMap, perms.get(0).resourceType(), perms.get(0).grantedBits());
                 String opCode = op != null ? op.getCode() : null;
-                List<Long> roleIds = perms.stream().map(RolePermEntry::roleId).filter(Objects::nonNull).distinct().toList();
-                List<Long> permIds = perms.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();
                 matched.add(new CheckInterfaceResp.MatchedResource(
-                    res != null ? res.getId() : entry.getKey(),
-                    null,  // resourceTypeCode 由调用方填充
+                    null,  // resourceTypeCode 历史上未填充；消费方 Gateway 只读 allowed/reason/matchedResources.size()
                     res != null ? res.getCode() : null,
-                    opCode, allowed, roleIds, permIds));
+                    opCode, allowed));
             }
         }
         return r.allowed()
             ? CheckInterfaceResp.allow(matched, cacheTtlSeconds)
             : CheckInterfaceResp.deny(r.reason() != null ? r.reason() : "DENIED", matched, cacheTtlSeconds);
-    }
-
-    /**
-     * 转换PermResult为QueryResourcesResp
-     * <p>
-     * 将权限查询结果转换为资源查询响应DTO。
-     * 包含用户有权访问的资源列表和权限详情。
-     * 用于资源权限视图场景。
-     * </p>
-     *
-     * @param r              权限查询结果
-     * @param cacheTtlSeconds 缓存有效期（秒）
-     * @return 资源查询响应
-     */
-    public static QueryResourcesResp toQueryResourcesResp(PermResult r, int cacheTtlSeconds) {
-        Map<Long, ResourceEntity> resMap = r.resourceMap();
-        if (resMap == null) return new QueryResourcesResp(List.of(), cacheTtlSeconds);
-
-        Map<Long, List<RolePermEntry>> byResource = new LinkedHashMap<>();
-        for (RolePermEntry e : r.allEntries()) {
-            if (e.resourceEntityId() != null) {
-                byResource.computeIfAbsent(e.resourceEntityId(), k -> new ArrayList<>()).add(e);
-            }
-        }
-        Map<Long, OperationPermission> opMap = r.operationMap();
-        List<QueryResourcesResp.ResourceEntry> entries = new ArrayList<>();
-        for (var entry : byResource.entrySet()) {
-            ResourceEntity res = resMap.get(entry.getKey());
-            if (res == null) continue;
-            List<RolePermEntry> perms = entry.getValue();
-            List<String> ops = perms.stream()
-                .map(e -> findOpByBinaryBit(opMap, e.resourceType(), e.grantedBits()))
-                .filter(Objects::nonNull).map(OperationPermission::getCode).distinct().toList();
-            List<Long> roleIds = perms.stream().map(RolePermEntry::roleId).filter(Objects::nonNull).distinct().toList();
-            List<Long> permIds = perms.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();
-            List<String> sources = perms.stream().map(RolePermEntry::grantSource).filter(Objects::nonNull).distinct().toList();
-            entries.add(new QueryResourcesResp.ResourceEntry(
-                null,
-                res.getCode(), res.getCodeType(), res.getName(),
-                perms.stream().anyMatch(e -> Boolean.TRUE.equals(e.canGrant())),
-                ScopeMode.INSTANCE,
-                ops, roleIds, permIds, sources));
-        }
-        return new QueryResourcesResp(entries, cacheTtlSeconds);
     }
 }

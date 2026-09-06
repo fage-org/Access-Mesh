@@ -13,7 +13,6 @@ import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermViewFilter;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermViewResult;
-import cn.ac.fage.accessmesh.access.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionExplainReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserEffectiveRolesReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserPermissionViewReq;
@@ -33,7 +32,6 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionServ
 import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
-import cn.ac.fage.accessmesh.access.permission.util.PermResultUtils;
 import cn.ac.fage.accessmesh.access.permission.util.PermViewAssembler;
 import cn.ac.fage.accessmesh.access.permission.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
@@ -734,16 +732,17 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         String queryResourceCode = scopeAll ? null : req.resourceCode();
         String queryCodeType = scopeAll ? null : req.codeType();
 
-        // 判定查询（allowed/reason/matchedPermissionIds 由引擎完整评估得出）
-        AuthCheckResp checkResp;
+        // 判定查询（allowed/reason/matched id 集合由引擎完整评估得出）
+        // T-API-002：check 线格式响应已裁 matched id 字段族，explain 改用内部载体直接消费引擎结果
+        ExplainCheckOutcome check;
         if (roleTarget && targetRoleId == null) {
-            checkResp = AuthCheckResp.deny("ROLE_NOT_FOUND");
+            check = ExplainCheckOutcome.deny("ROLE_NOT_FOUND");
         } else if (!roleTarget && userId == null) {
-            checkResp = AuthCheckResp.deny("USER_NOT_FOUND");
+            check = ExplainCheckOutcome.deny("USER_NOT_FOUND");
         } else {
             PermQuery q = buildExplainPermQuery(tenantId, req, roleTarget, targetRoleId, userId,
                 scopeAll, queryResourceCode, queryCodeType, evalContext);
-            checkResp = PermResultUtils.toAuthCheckResp(engine.query(q));
+            check = ExplainCheckOutcome.of(engine.query(q));
         }
 
         List<PermissionExplainResp.SourceRole> sourceRoles = List.of();
@@ -760,8 +759,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                         ));
                     }
                 }
-            } else if (checkResp.matchedRoleIds() != null && !checkResp.matchedRoleIds().isEmpty()) {
-                sourceRoles = abstractRoleMapper.selectValidByIds(tenantId, new java.util.HashSet<>(checkResp.matchedRoleIds())).stream()
+            } else if (!check.matchedRoleIds().isEmpty()) {
+                sourceRoles = abstractRoleMapper.selectValidByIds(tenantId, new java.util.HashSet<>(check.matchedRoleIds())).stream()
                     .map(role -> new PermissionExplainResp.SourceRole(
                         typeResolutionService.resolveTypeCode(tenantId, "role_type", role.getRoleType()),
                         role.getExternalId(),
@@ -814,13 +813,13 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
 
         return new PermissionExplainResp(
             req.targetType(),
-            checkResp.allowed(),
-            checkResp.reason(),
+            check.allowed(),
+            check.reason(),
             new PermissionExplainResp.PermissionKey(
                 req.domainCode(), req.resourceTypeCode(), queryResourceCode, queryCodeType, req.operationCode(), req.scopeMode()
             ),
             sourceRoles,
-            checkResp.matchedPermissionIds(),
+            check.matchedPermissionIds(),
             recentChanges,
             contextSource,
             evaluatedClientIp,
@@ -833,6 +832,28 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 .toList(),
             conflictDrops
         );
+    }
+
+    /**
+     * explain 判定内部载体（T-API-002）：check 线格式响应已裁 matched id 字段族，
+     * explain 内部仍需 matched 角色/权限 id 集合（来源角色反查、matchedPermissionIds 回填），
+     * 改为直接消费引擎 {@link PermResult}，不经线格式 DTO 中转。
+     */
+    private record ExplainCheckOutcome(boolean allowed, String reason,
+                                       Set<Long> matchedRoleIds,
+                                       List<Long> matchedPermissionIds) {
+
+        static ExplainCheckOutcome deny(String reason) {
+            return new ExplainCheckOutcome(false, reason, Set.of(), List.of());
+        }
+
+        static ExplainCheckOutcome of(PermResult r) {
+            return new ExplainCheckOutcome(
+                r.allowed(),
+                r.allowed() ? null : (r.reason() != null ? r.reason() : "DENIED"),
+                r.matchedRoleIds(),
+                List.copyOf(r.matchedPermissionIds()));
+        }
     }
 
     /**

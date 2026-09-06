@@ -148,9 +148,6 @@ export interface ScopeGroup {
   scopeMode: ScopeMode;
   /** scopeMode=INSTANCE 时非空，其余为空 */
   items: ScopeItem[];
-  matchedRoleIds: number[];
-  matchedPermissionIds: number[];
-  dependOnPermissionIds: number[];
 }
 
 /** query-scopes 响应 */
@@ -158,7 +155,6 @@ export interface QueryScopesResp {
   /** 拒绝原因：null=正常 | NO_PERMISSION | USER_NOT_FOUND | OBJECT_KEY_NOT_FOUND */
   reason: string | null;
   matchedParentOperations: string[];
-  parentPermissionIds: number[];
   scopeGroups: ScopeGroup[];
   cacheTtlSeconds: number;
 }

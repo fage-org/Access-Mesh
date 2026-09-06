@@ -1,12 +1,13 @@
-package cn.ac.fage.accessmesh.access.permission.dto.req;
+package cn.ac.fage.accessmesh.perm.common.dto.req;
 
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+
 import java.util.List;
 import java.util.Map;
 
 /**
- * 权限范围查询请求体
+ * 权限范围查询请求体（T-API-002 自 access-service 迁入 SDK 公共包）
  * <p>
  * 用于查询主资源上下文内的范围资源权限。
  * 租户ID不在请求体中，从X-Tenant-Id请求头获取。

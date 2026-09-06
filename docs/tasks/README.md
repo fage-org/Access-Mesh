@@ -14,7 +14,7 @@
 | gateway | `T-GW` | 008 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
 | 跨服务 API 契约 | `T-API` | 003 |
-| 前端 | `T-FE` | 043 |
+| 前端 | `T-FE` | 044 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
@@ -150,7 +150,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/025/026`（见下表）。`T-ADMIN-0
 |---|---|---|---|---|---|---|
 | [T-ORG-001](T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | product-vertical-slice（已归档） | access-service-architecture；schema/access-service.sql；implementation；default-org-tree-user-lifecycle；access-service-rebuild-runbook | T-PERM-042 | ✅ | ✓ |
 | [T-API-001](T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | product-vertical-slice（已归档） | example-service；gateway；architecture | T-ACCESS-021 | ✅ | ✓ |
-| [T-API-002](T-API-002.md) | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（含内部 id 字段族全裁 + 排查页同批改造） | [design-audit-followup](../plans/design-audit-followup-plan.md) | core-flows §15；api-contract；perm-sdk | — | ⚙️ | ⏳ |
+| [T-API-002](T-API-002.md) | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（已收口 2026-09-06：Query* DTO 迁 perm-common + 内部 id 字段族全线裁剪——含用户决策扩大到 check 族三接口——+ 排查页暂停最小改造 T-FE-043，终态见任务卡完成记录） | [design-audit-followup](../plans/design-audit-followup-plan.md) | core-flows §15；api-contract；perm-sdk | — | ✅ | ✓ |
 
 ### 前端（前端 Phase 1/3/4 拆分）
 
@@ -202,6 +202,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/025/026`（见下表）。`T-ADMIN-0
 | [T-FE-040](T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录已确认：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要；mock-first） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md（v3.1）；api-contract §6.5.1/§6.5.2；plans/permission-grant-record-level-editing-proposal.md | T-FE-039 | ✅ | ✓ |
 | [T-FE-041](T-FE-041.md) | 前端真实登录链路与默认导航收敛 | product-vertical-slice（已归档） | admin-service-api-contract；gateway；frontend/README；frontend/login | T-ACCESS-020 | ✅ | ✓ |
 | T-FE-042 | ~~前端默认导航收敛~~（❌ cancelled 2026-08-23：范围并入 T-FE-041，同为前端发布面避免任务碎片化） | product-vertical-slice（已归档） | frontend/README | — | ❌ | — |
+| [T-FE-043](T-FE-043.md) | 权限排查页（permission-query）重做——暂停期问题与功能登记（2026-09-06 用户定案页面暂停；暂停期其他任务仅编译一致最小改动，评审缺陷改登记本卡） | — | design/frontend/permission-query.md；api-contract §6.7 | — | ⚙️ | ⏳ |
 
 ---
 

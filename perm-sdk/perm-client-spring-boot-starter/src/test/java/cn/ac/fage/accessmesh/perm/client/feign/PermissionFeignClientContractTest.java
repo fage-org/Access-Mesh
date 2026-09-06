@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.RecordComponent;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -40,6 +41,8 @@ class PermissionFeignClientContractTest {
         "/api/perm/abstract-user/remove",
         "/api/perm/auth/check",
         "/api/perm/auth/batch-check",
+        "/api/perm/auth/query-resources",
+        "/api/perm/auth/query-scopes",
         "/api/perm/abstract-role/create",
         "/api/perm/abstract-role/list",
         "/api/perm/abstract-role/detail",
@@ -84,7 +87,7 @@ class PermissionFeignClientContractTest {
             .toList();
 
         assertThat((long) actualPaths.size())
-            .as("接口方法总数必须与契约清单一致（16，2026-08-27 随 T-PERM-034 端点退役移除 save/revoke 后），防止增删端点静默漂移")
+            .as("接口方法总数必须与契约清单一致（18，2026-09-06 T-API-002 补齐 query-resources/query-scopes 后），防止增删端点静默漂移")
             .isEqualTo(CONTRACT_PATHS.size());
         assertThat(actualPaths)
             .as("SDK 声明的路径集合必须与契约清单完全一致")
@@ -120,5 +123,48 @@ class PermissionFeignClientContractTest {
                 .as("%s 不得携带 @RequestParam/@PathVariable/@RequestHeader（违反 POST+单一 JSON Body 契约）",
                     method.getName()).isTrue();
         }
+    }
+
+    @Test
+    @DisplayName("SDK 四件套 DTO 字段快照：query-resources/query-scopes 线格式防漂移（T-API-002 裁剪后终态）")
+    void queryEndpointDtoFieldsAreFrozen() {
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq.class))
+            .containsExactly("subjectTypeCode", "subjectExternalId", "resourceTypeCodes",
+                "operationCodes", "domainCode", "codeType", "includeInherited",
+                "includeChildren", "context");
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp.class))
+            .containsExactly("items", "cacheTtlSeconds");
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp.ResourceEntry.class))
+            .containsExactly("resourceTypeCode", "resourceCode", "codeType", "resourceName",
+                "canGrant", "scopeMode", "operations", "grantSources");
+
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq.class))
+            .containsExactly("subjectTypeCode", "subjectExternalId", "parentResourceTypeCode",
+                "parentResourceCode", "parentCodeType", "parentOperationCodes",
+                "scopeResourceTypeCodes", "scopeOperationCodes", "scopeCodeType",
+                "domainCode", "context");
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp.class))
+            .containsExactly("reason", "matchedParentOperations", "scopeGroups", "cacheTtlSeconds");
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp.ScopeGroup.class))
+            .containsExactly("resourceTypeCode", "operationCode", "scopeMode", "items");
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp.ScopeItem.class))
+            .containsExactly("resourceCode", "codeType", "resourceName");
+    }
+
+    @Test
+    @DisplayName("SDK 四件套 DTO 字段快照：check 族响应不含内部 id 字段（T-API-002 扩大裁剪后终态）")
+    void checkEndpointDtoFieldsAreFrozen() {
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp.class))
+            .containsExactly("allowed", "reason", "conditionEvaluated");
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class))
+            .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed", "reason");
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp.MatchedResource.class))
+            .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed");
+    }
+
+    private static List<String> recordComponents(Class<?> record) {
+        return Arrays.stream(record.getRecordComponents())
+            .map(RecordComponent::getName)
+            .toList();
     }
 }

@@ -8,6 +8,12 @@ import java.util.List;
  * Gateway回调的接口权限检查响应。
  * 返回是否允许访问、拒绝原因和匹配的资源信息。
  * </p>
+ * <p>
+ * T-API-002（2026-09-06 定案，用户决策扩大裁剪面）：匹配资源的内部数据库 id 字段族
+ * （resourceId=resource_entity 内部行 id、matchedRoleIds / matchedPermissionIds）
+ * 裁剪，资源身份以业务键 resourceTypeCode + resourceCode 表达，与 core-flows §15
+ * 「SDK 四件套不要求/不泄漏内部数据库 ID」口径对齐。
+ * </p>
  *
  * @param allowed         是否允许访问
  * @param reason          拒绝原因，允许时为null
@@ -26,21 +32,15 @@ public record CheckInterfaceResp(
      * 表示一次接口权限检查匹配的资源详情。
      * </p>
      *
-     * @param resourceId         资源ID
      * @param resourceTypeCode   资源类型编码
      * @param resourceCode       资源编码
      * @param operationCode      操作编码
      * @param allowed            是否允许访问此资源
-     * @param matchedRoleIds     匹配的角色ID列表
-     * @param matchedPermissionIds 匹配的权限ID列表
      */
     public record MatchedResource(
-        Long resourceId,
         String resourceTypeCode,
         String resourceCode,
         String operationCode,
-        boolean allowed,
-        List<Long> matchedRoleIds,
-        List<Long> matchedPermissionIds
+        boolean allowed
     ) {}
 }

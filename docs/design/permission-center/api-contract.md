@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-05   # 2026-09-05 T-PERM-053 收口：§6.3 ApiItem.operationCode 字段退役（删除；严格 mapper 旧载荷 400；前后端同批锁步）；同日 T-PERM-052 codex 二轮复评收口：§5.1 保存校验与运行时入口同规则（来源须注册+未软删+status=1、保留内部来源拒绝、已知键显式 null 拒绝/未知键开放）+ 系统预置类型所有权声明钉死（20056）；同日 T-PERM-052 类型级所有权两批落地与评审批次收口：§5.1 类型所有权声明（managedMode/syncSourceService 两态+内部来源 is_system 豁免+API 类型禁 SYNC+remove 行数守卫）、§5.3 SYNC 类型管理面只读（20055，remove 级联全集守卫）、§6.2.2/§6.2.2.1 同步入口类型门禁（RESOURCE_TYPE_OWNERSHIP_DENIED，含来源服务注册+启用校验）、§6.3/§6.3.1 syncTypes 资源维度退役（三维+退役字段保存拒绝）、§10-14；同日内部来源统一：事实链路四类型种子声明 SYNC+access-service，原保留清单/行级投影防线收编删除，resource_entity.sync_key 列删除；2026-09-04 T-PERM-044 四树环加固收口：§5.2 move 并发语义成文（树级分布式锁串行化，Redisson、事务提交/回滚后释放）；同日双轨评审补：§6.2.2 资源同步 parent 判环条款与版本语义对齐（拒绝/依赖缺失不推进同步版本）；2026-09-03 T-FE-018 评审复核：§5.1 type-definition/list 门禁放宽为类型级或任一实例级 VIEW（与登录权限串投影口径对齐，用户决策；TYPE_DEFINITION 无实例投影经查库核实，实例投影登记 T-PERM-051）；同日外部评审处置：§5.1 list 门禁全拒比较跨 type_key 重码 fail-open 修复（去重码集比较+回归锁）、无自动产出/人工可构造口径精化、资源实体管理入口保留清单精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 需求对齐会：§5.3 登记 resource-entity/tree 未知类型 fail-open 与兄弟接口 fail-closed 口径不一致（待办收口，暂不实施）；同日 T-FE-018 联调评审：§6.5.2 登记 SUB_PERM 顶层通配经真实 jsonb 链路不可达已知缺陷（ALLOW_ALL 以嵌套通配替代，修复待办）、§5.8 轮次标记清理；此前 2026-09-01 T-FE-016 角色管理联调收口：§5.2 角色管理契约要点补 update extraClear 显式清空标志（对齐 §5.3 resource-entity 同款口径）；2026-08-31 T-PERM-040 单资源类型后端支持收口：§6.4 resourceTypeCode 类型过滤标已落地（主权限专用 Mapper 查询 + 子权限按 depend_on 批量挂父，双重约束 SQL 层满足）+ 未知类型空列表 fail-closed 口径成文、§6.5.1 operationCode 适用性校验标已落地（20008/20005 区分成文）、§5.3 类型查询参数补未知类型空列表与空白串视同缺省（不过滤）口径 + domainCode 死参数删除登记（从未实现过滤、零调用方）；2026-08-30 T-PERM-041 主权限条件不变量收口：§6.5.1 共用不变量块与 20042 条件启用状态标已落地（20041 预检最终态判定与主权限 DDL CHECK 先行存在，本任务补 20042 启用校验）+ 20042"未变更"口径成文（update 同 id 重写=存量保留，按解析后条件 id 比对豁免；清除仅精确空串、空白串落 20006、缺省不触发）+ updates conditionCode 三态定义补明空白串口径；同日全局操作概念整体退役（T-PERM-049，外部复审触发的设计定案）：§5.3 includeGlobalFallback 合并参数与「专属优先、全局回退」合并语义退役、resourceTypeCode 可空=全局操作键轨退役（detail/update/remove 必填）、§6.5.1 operationCode 适用性校验收窄为类型专属定义、§6.6 投影轨全局位分歧登记随概念失效；同日 T-PERM-034 外部复评收口：§6.8 apply-grant-plan 写侧快照补录级联删除子权限（depend_on 命中 removes 同记 REMOVE、与显式删除去重）；同日 T-PERM-034 收口：§5.5 sub-perm-allowed-types 落地标注、§6.5.2 落地状态注记、§6.8 增补 apply-grant-plan 写侧聚合形状落地（20043 预检/diff_snapshot §6.8/GoldenFixturePgIT 引擎级比对/引擎全局操作位掩码修复；此前同日 §5.6 resource-dependency 契约要点（T-PERM-031 收口：读三端点 list/graph/check 补类型级 DEPENDENCY:VIEW + 写三档类型级收窄（update 原「编码轨传内部 id」/remove 原实例级 entityId 轨均为 ID 空间错位废弃）、update PUT 全量覆盖 + 资源对业务键补全（Q3=B 前端契约收口）、等价重复业务预查 20054 新增、操作码 fail-closed 20005（原静默丢弃）、自依赖 20044、Resp 补静态字段 + 操作位字符串线格式、maintainSource 四值白名单、bootstrap 补 DEPENDENCY 五档）+ §6.9 同步；同日 §5.6 conflict-rule 契约要点（T-PERM-030 收口：读三端点 list/detail/detect 补类型级 CONFLICT_RULE:VIEW + 写三档类型级收窄（原「编码轨传内部 id」实例级声称系 ID 空间错位废弃，同 CONDITION 口径/实例投影登记 T-PERM-048）、detail 查不到 20020、list 全量不分页、定位键维持内部 id 评估定案（无业务键）、Resp 补 updatedAt、description ≤512、bootstrap 补 CONFLICT_RULE 四档 + CONDITION 写三档（029 遗漏死锁缺口）；同日更早 §5.6 permission-condition 契约要点（T-PERM-029 收口：写门禁口径收窄为类型级（原「实例级」声称系 ID 空间错位废弃，实例投影登记 T-PERM-048）、detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案（🔧3 分页登记反转）、ConditionResp 补 updatedAt、读取无门禁+写三档独立门禁口径、gatewayEvaluable 联合校验/remove 幂等语义成文）；2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-09-06   # 2026-09-06 T-API-002 收口：SDK 四件套补齐与内部 id 字段族全线裁剪（§5.7 SDK 入口清单注记 + Query* DTO 迁 perm-common + query-resources/query-scopes 入 PermissionFeignClient；§6.1/§6.2 check 族响应裁 matchedRoleIds/matchedPermissionIds/resourceId（用户决策扩大面）+ §6.6/§6.7 六字段裁剪与去重/DEPENDENT 规则措辞对齐 + 排查页暂停注记 T-FE-043）；2026-09-05 T-PERM-053 收口：§6.3 ApiItem.operationCode 字段退役（删除；严格 mapper 旧载荷 400；前后端同批锁步）；同日 T-PERM-052 codex 二轮复评收口：§5.1 保存校验与运行时入口同规则（来源须注册+未软删+status=1、保留内部来源拒绝、已知键显式 null 拒绝/未知键开放）+ 系统预置类型所有权声明钉死（20056）；同日 T-PERM-052 类型级所有权两批落地与评审批次收口：§5.1 类型所有权声明（managedMode/syncSourceService 两态+内部来源 is_system 豁免+API 类型禁 SYNC+remove 行数守卫）、§5.3 SYNC 类型管理面只读（20055，remove 级联全集守卫）、§6.2.2/§6.2.2.1 同步入口类型门禁（RESOURCE_TYPE_OWNERSHIP_DENIED，含来源服务注册+启用校验）、§6.3/§6.3.1 syncTypes 资源维度退役（三维+退役字段保存拒绝）、§10-14；同日内部来源统一：事实链路四类型种子声明 SYNC+access-service，原保留清单/行级投影防线收编删除，resource_entity.sync_key 列删除；2026-09-04 T-PERM-044 四树环加固收口：§5.2 move 并发语义成文（树级分布式锁串行化，Redisson、事务提交/回滚后释放）；同日双轨评审补：§6.2.2 资源同步 parent 判环条款与版本语义对齐（拒绝/依赖缺失不推进同步版本）；2026-09-03 T-FE-018 评审复核：§5.1 type-definition/list 门禁放宽为类型级或任一实例级 VIEW（与登录权限串投影口径对齐，用户决策；TYPE_DEFINITION 无实例投影经查库核实，实例投影登记 T-PERM-051）；同日外部评审处置：§5.1 list 门禁全拒比较跨 type_key 重码 fail-open 修复（去重码集比较+回归锁）、无自动产出/人工可构造口径精化、资源实体管理入口保留清单精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 需求对齐会：§5.3 登记 resource-entity/tree 未知类型 fail-open 与兄弟接口 fail-closed 口径不一致（待办收口，暂不实施）；同日 T-FE-018 联调评审：§6.5.2 登记 SUB_PERM 顶层通配经真实 jsonb 链路不可达已知缺陷（ALLOW_ALL 以嵌套通配替代，修复待办）、§5.8 轮次标记清理；此前 2026-09-01 T-FE-016 角色管理联调收口：§5.2 角色管理契约要点补 update extraClear 显式清空标志（对齐 §5.3 resource-entity 同款口径）；2026-08-31 T-PERM-040 单资源类型后端支持收口：§6.4 resourceTypeCode 类型过滤标已落地（主权限专用 Mapper 查询 + 子权限按 depend_on 批量挂父，双重约束 SQL 层满足）+ 未知类型空列表 fail-closed 口径成文、§6.5.1 operationCode 适用性校验标已落地（20008/20005 区分成文）、§5.3 类型查询参数补未知类型空列表与空白串视同缺省（不过滤）口径 + domainCode 死参数删除登记（从未实现过滤、零调用方）；2026-08-30 T-PERM-041 主权限条件不变量收口：§6.5.1 共用不变量块与 20042 条件启用状态标已落地（20041 预检最终态判定与主权限 DDL CHECK 先行存在，本任务补 20042 启用校验）+ 20042"未变更"口径成文（update 同 id 重写=存量保留，按解析后条件 id 比对豁免；清除仅精确空串、空白串落 20006、缺省不触发）+ updates conditionCode 三态定义补明空白串口径；同日全局操作概念整体退役（T-PERM-049，外部复审触发的设计定案）：§5.3 includeGlobalFallback 合并参数与「专属优先、全局回退」合并语义退役、resourceTypeCode 可空=全局操作键轨退役（detail/update/remove 必填）、§6.5.1 operationCode 适用性校验收窄为类型专属定义、§6.6 投影轨全局位分歧登记随概念失效；同日 T-PERM-034 外部复评收口：§6.8 apply-grant-plan 写侧快照补录级联删除子权限（depend_on 命中 removes 同记 REMOVE、与显式删除去重）；同日 T-PERM-034 收口：§5.5 sub-perm-allowed-types 落地标注、§6.5.2 落地状态注记、§6.8 增补 apply-grant-plan 写侧聚合形状落地（20043 预检/diff_snapshot §6.8/GoldenFixturePgIT 引擎级比对/引擎全局操作位掩码修复；此前同日 §5.6 resource-dependency 契约要点（T-PERM-031 收口：读三端点 list/graph/check 补类型级 DEPENDENCY:VIEW + 写三档类型级收窄（update 原「编码轨传内部 id」/remove 原实例级 entityId 轨均为 ID 空间错位废弃）、update PUT 全量覆盖 + 资源对业务键补全（Q3=B 前端契约收口）、等价重复业务预查 20054 新增、操作码 fail-closed 20005（原静默丢弃）、自依赖 20044、Resp 补静态字段 + 操作位字符串线格式、maintainSource 四值白名单、bootstrap 补 DEPENDENCY 五档）+ §6.9 同步；同日 §5.6 conflict-rule 契约要点（T-PERM-030 收口：读三端点 list/detail/detect 补类型级 CONFLICT_RULE:VIEW + 写三档类型级收窄（原「编码轨传内部 id」实例级声称系 ID 空间错位废弃，同 CONDITION 口径/实例投影登记 T-PERM-048）、detail 查不到 20020、list 全量不分页、定位键维持内部 id 评估定案（无业务键）、Resp 补 updatedAt、description ≤512、bootstrap 补 CONFLICT_RULE 四档 + CONDITION 写三档（029 遗漏死锁缺口）；同日更早 §5.6 permission-condition 契约要点（T-PERM-029 收口：写门禁口径收窄为类型级（原「实例级」声称系 ID 空间错位废弃，实例投影登记 T-PERM-048）、detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案（🔧3 分页登记反转）、ConditionResp 补 updatedAt、读取无门禁+写三档独立门禁口径、gatewayEvaluable 联合校验/remove 幂等语义成文）；2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -448,6 +448,8 @@ last_reviewed: 2026-09-05   # 2026-09-05 T-PERM-053 收口：§6.3 ApiItem.opera
 | `POST /api/perm/auth/check-interface`     | Gateway 接口级判定                                     |
 | `POST /api/perm/auth/interface-snapshot`  | Gateway 接口权限快照，可选优化接口                     |
 
+> **SDK 入口清单（T-API-002 收口，2026-09-06）**：`check` / `batch-check` / `query-resources` / `query-scopes` 四件套已全部进入 perm-sdk `PermissionFeignClient`（Query* DTO 迁入 perm-common，接入方不再手写 HTTP + 自造 DTO 副本）；`check-interface` / `interface-snapshot` 为 Gateway 专用（经 starter/PermissionClient 消费），不开放业务服务 Feign 入口。**内部数据库 id 字段族全线裁剪**（详见 §6.1/§6.2/§6.6/§6.7 各节注记），与 core-flows §15「SDK 可接入=四件套不要求/不泄漏内部数据库 ID」口径对齐。
+
 ### 5.8 视图与审计
 
 | 接口                                                   | 说明                                                   |
@@ -519,11 +521,11 @@ last_reviewed: 2026-09-05   # 2026-09-05 T-PERM-053 收口：§6.3 ApiItem.opera
 {
   "allowed": true,
   "reason": null,
-  "matchedRoleIds": [10],
-  "matchedPermissionIds": [100],
   "conditionEvaluated": false
 }
 ```
+
+> **已删除字段（T-API-002，2026-09-06 用户决策扩大裁剪面）**：`matchedRoleIds` / `matchedPermissionIds`（role / role_resource_permission 内部行 id）已从响应裁剪——SDK 直连端点不泄漏内部数据库 ID（core-flows §15 口径）。需要来源解释时使用 §6.8 `permission-view/explain`（管理端排查端点，`sourceRoles` 业务键 + 门禁）。
 
 ### 6.2 Gateway 接口级鉴权
 
@@ -553,13 +555,10 @@ last_reviewed: 2026-09-05   # 2026-09-05 T-PERM-053 收口：§6.3 ApiItem.opera
   "reason": null,
   "matchedResources": [
     {
-      "resourceId": 200,
       "resourceTypeCode": "API",
       "resourceCode": "admin:user:list",
       "operationCode": "ACCESS",
-      "allowed": true,
-      "matchedRoleIds": [10],
-      "matchedPermissionIds": [100]
+      "allowed": true
     }
   ],
   "cacheTtlSeconds": 30
@@ -573,6 +572,7 @@ last_reviewed: 2026-09-05   # 2026-09-05 T-PERM-053 收口：§6.3 ApiItem.opera
 - 当同一路径匹配多个资源映射时，接口级鉴权采用 OR 语义：任一映射资源权限通过即允许。
 - 响应使用 `matchedResources[]` 返回所有命中的映射资源及各自鉴权结果；只要其中任一项 `allowed=true`，顶层 `allowed=true`。
 - 未注册接口默认拒绝，返回 `API_NOT_REGISTERED`。
+- **已删除字段（T-API-002，2026-09-06 用户决策扩大裁剪面）**：`matchedResources[]` 条目的 `resourceId`（resource_entity 内部行 id）与 `matchedRoleIds` / `matchedPermissionIds` 已裁剪，资源身份以业务键 `resourceTypeCode + resourceCode` 表达（core-flows §15 口径）。
 
 ### 6.2.1 Gateway 接口权限快照
 
@@ -1338,8 +1338,6 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "operations": ["UPDATE"],
       "scopeMode": "INSTANCE",
       "canGrant": true,
-      "matchedRoleIds": [10, 11],
-      "matchedPermissionIds": [301, 315],
       "grantSources": ["MANUAL"]
     },
     {
@@ -1350,14 +1348,14 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "operations": ["UPDATE"],
       "scopeMode": "ALL",
       "canGrant": false,
-      "matchedRoleIds": [12],
-      "matchedPermissionIds": [401],
       "grantSources": ["MANUAL"]
     }
   ],
   "cacheTtlSeconds": 60
 }
 ```
+
+> **DTO 公共化与内部 id 裁剪（T-API-002 收口，2026-09-06）**：`QueryResourcesReq/Resp` 已迁入 perm-common（SDK `PermissionFeignClient.queryResources` 直连）；条目的 `matchedRoleIds` / `matchedPermissionIds`（role / role_resource_permission 内部行 id）已裁剪（core-flows §15 口径），线格式字段快照由 SDK 契约测试钉死。
 
 管理域查询示例：
 
@@ -1375,7 +1373,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - AccessMesh 管理端中，`USER`/`ORG` 的 `resourceCode` 固定使用 admin 域本地主键字符串（T-ACCESS-018 收敛后类型码），避免与组织编码、用户名等可变业务字段混用。
 - AccessMesh 管理端中，USER/ORG 的 resourceCode 固定使用 admin 域本地主键字符串。所有接口均支持业务键参数，permission-center 内部通过 TypeResolutionService 解析为内部 ID。调用方不应存储 permission-center 的内部主键 ID。
 - `scopeMode=ALL` 的条目表示该 `resourceTypeCode` 下全量资源权限，此时 `resourceCode`、`resourceName`、`codeType` 均为 null；不展开全量范围为逐条资源实例。实例级条目（`scopeMode=INSTANCE`）按 `resourceCode + codeType` 精确表示。
-- 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType + scopeMode` 去重，并合并 `operations`、`matchedRoleIds`、`matchedPermissionIds`。
+- 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType + scopeMode` 去重，并合并 `operations`、`grantSources`。
 - 条件、冲突规则、停用状态、角色继承、资源继承必须与 `auth/check` 使用同一套计算逻辑。
 - `treeMode` 树模式响应已从契约移除（2026-08-27 决策，无真实消费方）：接口固定返回平面列表，树形展示由调用方基于平面列表自建；资源父子关系可经 `includeChildren` 展开获取。如未来需要服务端树响应，登记于 v3.5.1-evolution 演进方向重新评估。
 - 该接口面向运行时 SDK 查询；若要解释授权来源和变更历史，使用 `permission-view/*`。
@@ -1413,16 +1411,12 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 {
   "reason": null,
   "matchedParentOperations": ["DATA_READ", "DATA_EDIT"],
-  "parentPermissionIds": [200, 260],
   "scopeGroups": [
     {
       "resourceTypeCode": "DATA",
       "operationCode": "DATA_READ",
       "scopeMode": "ALL",
-      "items": [],
-      "matchedRoleIds": [10, 12],
-      "matchedPermissionIds": [301, 302, 401],
-      "dependOnPermissionIds": [200]
+      "items": []
     },
     {
       "resourceTypeCode": "DATA",
@@ -1431,19 +1425,13 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
       "items": [
         { "resourceCode": "data:dept:A", "codeType": "default", "resourceName": "A部门数据" },
         { "resourceCode": "data:dept:B", "codeType": "default", "resourceName": "B部门数据" }
-      ],
-      "matchedRoleIds": [10, 15],
-      "matchedPermissionIds": [302, 501],
-      "dependOnPermissionIds": []
+      ]
     },
     {
       "resourceTypeCode": "DATA",
       "operationCode": "DATA_EXPORT",
       "scopeMode": "DENIED",
-      "items": [],
-      "matchedRoleIds": [],
-      "matchedPermissionIds": [],
-      "dependOnPermissionIds": []
+      "items": []
     }
   ],
   "cacheTtlSeconds": 60
@@ -1465,7 +1453,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - 主权限全部不通过时，`reason="NO_PERMISSION"`，所有 `scopeGroups` 格置 `scopeMode=DENIED`，不返回范围实例。
 - 主体/主资源未解析时 `reason` 填 `USER_NOT_FOUND` / `OBJECT_KEY_NOT_FOUND`，`scopeGroups` 为空。
 - `DIRECT` 范围权限来自当前主体有效角色下 `depend_on IS NULL` 的范围资源授权。
-- `DEPENDENT` 范围权限来自 `depend_on IN parentPermissionIds` 的子权限授权，只在当前主资源上下文内生效。
+- `DEPENDENT` 范围权限来自依赖已通过主权限的子权限授权（服务端内部按 `depend_on ∈ 已通过主权限行集合` 过滤），只在当前主资源上下文内生效；该集合不进线格式（T-API-002 裁剪，见下）。
 - 有效范围权限计算公式为 `effectiveScopes = DIRECT ∪ DEPENDENT`。
 - **分类键为 `(resourceTypeCode, operationCode)`**：每个请求的 `scopeResourceTypeCodes × scopeOperationCodes` 笛卡尔积对应一个 `scopeGroup`，各格独立判定 `scopeMode`。
 - 单格判定优先级：无覆盖该操作的权限 → `DENIED`；有权限但条件/互斥过滤后为空 → `EMPTY`；过滤后含全量范围条目 → `ALL`（`items` 为空，ALL 优先于 INSTANCE）；仅具体实例 → `INSTANCE`（`items` 去重列出有效实例）。
@@ -1473,8 +1461,9 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - 如果主操作和范围操作不是同名关系，应通过域配置声明映射规则；未配置映射时，默认只做同名操作匹配。
 - `scopeMode=ALL` 表示该格 `resourceTypeCode + operationCode` 下全量范围权限，实现不应展开返回全部实例明细。
 - 权限中心只返回范围权限事实，不生成 SQL、不解释业务字段；业务服务自行按 `scopeMode` 决定是否发 SQL 及如何把 `items[].resourceCode` 映射为查询条件。
-- **管理端排查复用（T-PERM-033 设计定案，2026-08-29）**：权限排查页 Tab2 复用本接口，但本接口**维持运行时语义、不加排查门禁**（业务服务按主体查询不要求调用者持排查码；未来业务方合法的非自查查询不应被拒）。排查页仅靠页面级 UI 门（`USER:VIEW` 或 `ROLE:VIEW` 任一）控制入口；API 层为租户内只读暴露面，按演进需要再评估收紧。
-- 已删除字段：`allowed`（合并进 `scopeMode`）、`mergeMode`（分类模型下每格独立，不再需要 UNION 标记）、顶层 `items[]`/`ScopeEntry`（改为 `scopeGroups[].items[]`）。`permissionVersion` 字段已于 T-PERM-018（缓存下沉）移除。
+- **管理端排查复用（T-PERM-033 设计定案，2026-08-29）**：权限排查页 Tab2 复用本接口，但本接口**维持运行时语义、不加排查门禁**（业务服务按主体查询不要求调用者持排查码；未来业务方合法的非自查查询不应被拒）。排查页仅靠页面级 UI 门（`USER:VIEW` 或 `ROLE:VIEW` 任一）控制入口；API 层为租户内只读暴露面，按演进需要再评估收紧。**排查页暂停注记（2026-09-06 用户决策）**：权限排查页整体暂停待重做（T-FE-043 登记重做事项），T-API-002 仅做编译一致的最小改造（内部 id 字段类型清除、信息条「主权限ID」栏随字段删除），不投入页面改造。
+- **DTO 公共化与内部 id 裁剪（T-API-002 收口，2026-09-06）**：`QueryScopesReq/Resp` 已迁入 perm-common（SDK `PermissionFeignClient.queryScopes` 直连）；`parentPermissionIds` 与 `scopeGroups[]` 的 `matchedRoleIds` / `matchedPermissionIds` / `dependOnPermissionIds`（均为 role / role_resource_permission 内部行 id）已裁剪（core-flows §15 口径），线格式字段快照由 SDK 契约测试钉死。
+- 已删除字段：`allowed`（合并进 `scopeMode`）、`mergeMode`（分类模型下每格独立，不再需要 UNION 标记）、顶层 `items[]`/`ScopeEntry`（改为 `scopeGroups[].items[]`）、`parentPermissionIds`、`scopeGroups[]` 的 `matchedRoleIds`/`matchedPermissionIds`/`dependOnPermissionIds`（T-API-002）。`permissionVersion` 字段已于 T-PERM-018（缓存下沉）移除。
 
 ### 6.8 权限排查视图与近期变更
 

@@ -29,7 +29,7 @@ export type ScopeFactMode = typeof ScopeMode.INSTANCE | typeof ScopeMode.ALL;
 
 // ========== query-resources 响应 ==========
 
-/** query-resources 资源条目（对齐 api-contract §6.6） */
+/** query-resources 资源条目（对齐 api-contract §6.6；T-API-002 内部 id 字段族已裁剪） */
 export type ResourceEntry = {
   /** 资源类型编码 */
   resourceTypeCode: string;
@@ -45,10 +45,6 @@ export type ResourceEntry = {
   scopeMode: ScopeFactMode;
   /** 操作权限列表 */
   operations: Array<string>;
-  /** 匹配的角色ID列表 */
-  matchedRoleIds: Array<number>;
-  /** 匹配的权限ID列表 */
-  matchedPermissionIds: Array<number>;
   /** 授权来源列表 */
   grantSources: Array<string>;
 };
@@ -68,7 +64,7 @@ export type ScopeItem = {
   resourceName: string | null;
 };
 
-/** query-scopes 范围分组（对齐 api-contract §6.7） */
+/** query-scopes 范围分组（对齐 api-contract §6.7；T-API-002 内部 id 字段族已裁剪） */
 export type ScopeGroup = {
   /** 资源类型编码 */
   resourceTypeCode: string;
@@ -78,12 +74,6 @@ export type ScopeGroup = {
   scopeMode: ScopeMode;
   /** 有效范围实例列表，scopeMode=INSTANCE 时非空 */
   items: Array<ScopeItem>;
-  /** 匹配的角色ID列表 */
-  matchedRoleIds: Array<number>;
-  /** 匹配的权限ID列表 */
-  matchedPermissionIds: Array<number>;
-  /** 依赖的父权限ID列表 */
-  dependOnPermissionIds: Array<number>;
 };
 
 /** query-scopes 响应体 */
@@ -92,8 +82,6 @@ export type QueryScopesResp = {
   reason: string | null;
   /** 匹配的父操作码 */
   matchedParentOperations: Array<string>;
-  /** 父权限ID列表 */
-  parentPermissionIds: Array<number>;
   /** 范围分组列表 */
   scopeGroups: Array<ScopeGroup>;
   cacheTtlSeconds: number;

@@ -76,10 +76,10 @@ const reasonMeta = computed(() => {
       主权限未通过或主体/资源未解析，无范围权限返回。
     </el-alert>
 
-    <!-- 主权限元信息 -->
+    <!-- 主权限元信息（T-API-002：parentPermissionIds 内部行 id 已裁剪，「主权限ID」栏随删） -->
     <el-descriptions
       v-if="result && !result.reason"
-      :column="3"
+      :column="2"
       border
       size="small"
       class="mb-3"
@@ -88,13 +88,6 @@ const reasonMeta = computed(() => {
         {{
           result.matchedParentOperations.length
             ? result.matchedParentOperations.join("、")
-            : "-"
-        }}
-      </el-descriptions-item>
-      <el-descriptions-item label="主权限ID">
-        {{
-          result.parentPermissionIds.length
-            ? result.parentPermissionIds.join(",")
             : "-"
         }}
       </el-descriptions-item>

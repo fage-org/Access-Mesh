@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-30   # 2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+last_reviewed: 2026-09-06   # 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
@@ -244,7 +244,7 @@ PermQueryEngine.query(PermQuery)
 1. 管理域入口从登录态取 `subjectTypeCode + subjectExternalId` 和 `X-Tenant-Id`。
 2. 同进程调用 permission 域 `POST /api/perm/auth/query-resources` 语义（本地 AppService/engine 直调，非跨服务 HTTP），传资源类型、操作码、业务域和上下文。
 3. permission 域解析用户有效角色、角色继承、资源继承、条件、冲突规则。
-4. permission 域返回命中的 `resourceCode`、`operations`、`matchedRoleIds`、`matchedPermissionIds`。
+4. permission 域返回命中的 `resourceCode`、`operations`、`grantSources`（内部 id 字段族已随 T-API-002 裁剪，2026-09-06）。
 5. 管理域用 `resourceCode` 回查本服务组织、角色、菜单表，过滤列表或组装树。
 
 关键逻辑：
@@ -438,7 +438,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 接口规范统一   | 全部接口走 `/api/perm/*`，无 RESTful Path 参数，无 body `tenantId`                                    |
 | SaaS 多租户    | 所有查询和写入都强制带 `X-Tenant-Id`，接口映射也按租户过滤                                            |
 | Gateway 可接入 | `check-interface` 使用 serviceCode、method、原始 path 判定                                            |
-| SDK 可接入     | `auth/check`、`auth/batch-check`、`auth/query-resources`、`auth/query-scopes` 都不要求内部数据库 ID   |
+| SDK 可接入     | `auth/check`、`auth/batch-check`、`auth/query-resources`、`auth/query-scopes` 都不要求、也不泄漏内部数据库 ID（响应侧裁剪定案 2026-09-06，T-API-002，含 Gateway 复用的 `check-interface`）   |
 | 管理端可解释   | 权限视图、操作日志、变更日志能解释授权来源和变更历史                                                  |
 | 数据权限可表达 | `depend_on` 子权限和直接范围权限共同表达主资源上下文内的有效范围，运行时通过 `auth/query-scopes` 查询 |
 | 接口同步简单   | 首期只有 FULL 同步，接入服务不需要维护增量事件                                                        |

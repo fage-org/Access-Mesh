@@ -2,12 +2,12 @@ package cn.ac.fage.accessmesh.access.permission.service;
 
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionTreeReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.QueryResourcesReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.QueryScopesReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionTreeResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.QueryResourcesResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.QueryScopesResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 
 /**
  * 权限查询应用服务接口

@@ -1,11 +1,11 @@
-package cn.ac.fage.accessmesh.access.permission.dto.resp;
+package cn.ac.fage.accessmesh.perm.common.dto.resp;
 
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 
 import java.util.List;
 
 /**
- * 资源查询响应体
+ * 资源查询响应体（T-API-002 自 access-service 迁入 SDK 公共包）
  * <p>
  * 返回用户可访问的资源列表，包括缓存信息。
  * 用于资源查询接口的响应。
@@ -13,6 +13,11 @@ import java.util.List;
  * <p>
  * T-PERM-013：scopeAll(boolean) → scopeMode(ScopeMode)，对外协议统一使用枚举。
  * 资源条目仅使用 INSTANCE / ALL 两态。
+ * </p>
+ * <p>
+ * T-API-002（2026-09-06 定案）：内部数据库 id 字段族（matchedRoleIds /
+ * matchedPermissionIds，role / role_resource_permission 内部行 id）全数裁剪，
+ * 与 core-flows §15「SDK 四件套不要求/不泄漏内部数据库 ID」口径对齐。
  * </p>
  *
  * @param items           资源条目列表
@@ -29,14 +34,12 @@ public record QueryResourcesResp(
      * </p>
      *
      * @param resourceTypeCode   资源类型编码
-     * @param resourceCode       资源编码
-     * @param codeType           编码类型
-     * @param resourceName       资源名称
+     * @param resourceCode       资源编码，scopeMode=ALL 时为 null
+     * @param codeType           编码类型，scopeMode=ALL 时为 null
+     * @param resourceName       资源名称，scopeMode=ALL 时为 null
      * @param canGrant           是否可授予他人
      * @param scopeMode          范围模式（T-PERM-013）：INSTANCE=具体实例，ALL=全量范围
      * @param operations         操作权限列表
-     * @param matchedRoleIds     匹配的角色ID列表
-     * @param matchedPermissionIds 匹配的权限ID列表
      * @param grantSources       授权来源列表
      */
     public record ResourceEntry(
@@ -47,8 +50,6 @@ public record QueryResourcesResp(
         boolean canGrant,
         ScopeMode scopeMode,
         List<String> operations,
-        List<Long> matchedRoleIds,
-        List<Long> matchedPermissionIds,
         List<String> grantSources
     ) {}
 }

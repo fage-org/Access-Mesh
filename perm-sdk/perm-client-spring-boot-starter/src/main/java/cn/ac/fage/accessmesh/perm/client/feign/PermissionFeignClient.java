@@ -8,6 +8,8 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PaginatedResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.RolePermissionItemsResp;
@@ -64,6 +66,32 @@ public interface PermissionFeignClient {
      */
     @PostMapping("/api/perm/auth/batch-check")
     PermResult<BatchAuthCheckResp> batchCheckAuth(@RequestBody BatchAuthCheckReq req);
+
+    /**
+     * 查询主体可访问资源集合（T-API-002 补齐，core-flows §15 SDK 四件套之一）
+     * <p>
+     * 返回指定资源类型和操作下用户可访问/可管理的资源业务键集合
+     * （scopeMode=INSTANCE 列实例，ALL 表示全量范围）。
+     * </p>
+     *
+     * @param req 资源查询请求
+     * @return 资源条目列表与缓存有效期
+     */
+    @PostMapping("/api/perm/auth/query-resources")
+    PermResult<QueryResourcesResp> queryResources(@RequestBody QueryResourcesReq req);
+
+    /**
+     * 查询主资源上下文内的范围权限四态（T-API-002 补齐，core-flows §15 SDK 四件套之一）
+     * <p>
+     * 按 {@code (resourceTypeCode, operationCode)} 分格返回 DENIED/INSTANCE/ALL/EMPTY，
+     * 数据权限运行时消费端（DIRECT ∪ DEPENDENT 并集）。
+     * </p>
+     *
+     * @param req 范围查询请求
+     * @return 范围分组与缓存有效期
+     */
+    @PostMapping("/api/perm/auth/query-scopes")
+    PermResult<QueryScopesResp> queryScopes(@RequestBody QueryScopesReq req);
 
     // ========== 角色管理 ==========
 

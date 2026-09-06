@@ -262,8 +262,8 @@ class HttpApiPathSnapshotTest {
 /api/perm/auth/check|access.permission.dto.req.AuthCheckReq|common.model.PermResult<access.permission.dto.resp.AuthCheckResp>
 /api/perm/auth/interface-snapshot|perm.common.dto.req.InterfaceSnapshotReq|common.model.PermResult<perm.common.dto.resp.InterfaceSnapshotResp>
 /api/perm/auth/query-permission-tree|access.permission.dto.req.PermissionTreeReq|common.model.PermResult<access.permission.dto.resp.PermissionTreeResp>
-/api/perm/auth/query-resources|access.permission.dto.req.QueryResourcesReq|common.model.PermResult<access.permission.dto.resp.QueryResourcesResp>
-/api/perm/auth/query-scopes|access.permission.dto.req.QueryScopesReq|common.model.PermResult<access.permission.dto.resp.QueryScopesResp>
+/api/perm/auth/query-resources|perm.common.dto.req.QueryResourcesReq|common.model.PermResult<perm.common.dto.resp.QueryResourcesResp>
+/api/perm/auth/query-scopes|perm.common.dto.req.QueryScopesReq|common.model.PermResult<perm.common.dto.resp.QueryScopesResp>
 /api/perm/biz-domain/create|access.permission.dto.req.BizDomainCreateReq|common.model.PermResult<access.permission.dto.resp.BizDomainResp>
 /api/perm/biz-domain/detail|access.permission.dto.req.BizDomainDetailReq|common.model.PermResult<access.permission.dto.resp.BizDomainResp>
 /api/perm/biz-domain/list|access.permission.dto.req.BizDomainListReq|common.model.PermResult<access.permission.dto.resp.PaginatedResp<access.permission.dto.resp.BizDomainResp>>
