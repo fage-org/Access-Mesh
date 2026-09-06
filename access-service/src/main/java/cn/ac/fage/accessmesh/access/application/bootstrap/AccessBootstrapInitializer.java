@@ -126,6 +126,13 @@ public class AccessBootstrapInitializer {
     @PermissionChange
     public void initialize(String adminPassword) {
         Long tenantId = BootstrapGraphDefinition.TENANT_ID;
+        // ADMIN_FILE 文件夹投影预置（T-ADMIN-025）：幂等 insert-if-absent，置于三状态检测之前——
+        // no-op 路径同样执行（建于本特性前的库重启自愈补种），冲突/创建失败路径随事务整体回滚。
+        // 不参与固定图检测：文件夹无管理面写入口（类型 SYNC+access-service，资源 CRUD 20055），
+        // 缺失只可能是库先于本特性存在，无运营意图可保护（对齐 MENU/ORG 投影豁免口径）
+        for (BootstrapGraphDefinition.FolderSeed seed : BootstrapGraphDefinition.adminFileFolderSeeds()) {
+            localProjectionDomainService.ensureAdminFileFolder(tenantId, seed.code(), seed.name());
+        }
         Map<String, Integer> resourceTypes = resolveGrantResourceTypes(tenantId);
         Integer basicRoleType = requireType(tenantId, TYPE_KEY_ROLE, BootstrapGraphDefinition.ADMIN_ROLE_TYPE_CODE);
         Integer localUserType = requireType(tenantId, TYPE_KEY_USER, LocalProjectionOwner.SUBJECT_LOCAL_USER);

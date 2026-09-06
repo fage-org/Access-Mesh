@@ -78,9 +78,23 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
         if (resourceCodes == null || resourceCodes.isEmpty()) {
             return;
         }
-        // T-PERM-042：业务编码语义批量门禁。code → entity 解析下沉引擎
-        // （getDeniedResourceCodes 内部经 TypeResolutionService 批量解析，无 N+1）；
-        // 未解析（无投影实体）的 code 进入拒绝集合 → fail-closed（与单条 forAuthCheck 内部解析语义一致）。
+        Set<String> deniedCodes = getDeniedResourceCodes(
+            resourceTypeCode, new LinkedHashSet<>(resourceCodes), operationCode);
+        if (!deniedCodes.isEmpty()) {
+            Long operatorId = currentOperatorId();
+            log.warn("Permission denied (batch): operatorId={}, resourceType={}, deniedCodes={}, operation={}",
+                operatorId, resourceTypeCode, deniedCodes, operationCode);
+            throw new SecurityException(
+                String.format("权限被拒绝: 无法在 %s:%s 上执行 %s 操作。原因: %s",
+                    resourceTypeCode, deniedCodes, operationCode, "NO_PERMISSION"));
+        }
+    }
+
+    @Override
+    public Set<String> getDeniedResourceCodes(String resourceTypeCode, Set<String> resourceCodes, String operationCode) {
+        if (resourceCodes == null || resourceCodes.isEmpty()) {
+            return Set.of();
+        }
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = currentOperatorId();
         Long userId = typeResolutionService.resolveUserId(
@@ -90,15 +104,7 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
                 operatorId, resourceTypeCode, resourceCodes, operationCode);
             throw new SecurityException("权限校验失败: 操作者主体不存在");
         }
-        Set<String> deniedCodes = engine.getDeniedResourceCodes(
-            tenantId, userId, resourceTypeCode, new LinkedHashSet<>(resourceCodes), operationCode);
-        if (!deniedCodes.isEmpty()) {
-            log.warn("Permission denied (batch): operatorId={}, resourceType={}, deniedCodes={}, operation={}",
-                operatorId, resourceTypeCode, deniedCodes, operationCode);
-            throw new SecurityException(
-                String.format("权限被拒绝: 无法在 %s:%s 上执行 %s 操作。原因: %s",
-                    resourceTypeCode, deniedCodes, operationCode, "NO_PERMISSION"));
-        }
+        return engine.getDeniedResourceCodes(tenantId, userId, resourceTypeCode, resourceCodes, operationCode);
     }
 
     private void checkAndThrow(String resourceTypeCode, String resourceCode, String operationCode) {

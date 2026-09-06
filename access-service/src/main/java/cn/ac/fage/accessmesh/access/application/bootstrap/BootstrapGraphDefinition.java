@@ -98,6 +98,14 @@ public final class BootstrapGraphDefinition {
                            String resourceType, String resourceCode) {}
 
     /**
+     * ADMIN_FILE 文件夹预置种子条目（T-ADMIN-025：bizType 即文件夹实例，空库即可授权）。
+     *
+     * @param code 文件夹编码（= 上传 bizType；default 为空白 bizType 归一目标）
+     * @param name 展示名（仅首次创建生效；惰性登记的新文件夹以 code 为名）
+     */
+    public record FolderSeed(String code, String name) {}
+
+    /**
      * bootstrap 管理 API 清单（§14.3；含目标接口，计数以清单本身为准）。
      */
     public static List<ApiRoute> apiRoutes() {
@@ -356,6 +364,19 @@ public final class BootstrapGraphDefinition {
     /** 全部固定图授权（业务门禁 + 实例级 API:ACCESS；计数以 AccessBootstrapPgIT 断言为准） */
     public static List<GrantSpec> allGrants() {
         return java.util.stream.Stream.concat(businessGrants().stream(), apiAccessGrants().stream()).toList();
+    }
+
+    /**
+     * ADMIN_FILE 文件夹预置种子（T-ADMIN-025）：default（空白 bizType 归一目标）+
+     * BIZ_TYPE_ALLOWED_EXTENSIONS 既有业务文件夹。bootstrap 预置走幂等 insert-if-absent
+     * （ensureAdminFileFolder），不参与固定图三状态检测；新文件夹由上传惰性登记产出。
+     */
+    public static List<FolderSeed> adminFileFolderSeeds() {
+        return List.of(
+            new FolderSeed("default", "默认文件夹"),
+            new FolderSeed("avatar", "头像"),
+            new FolderSeed("document", "文档"),
+            new FolderSeed("image", "图片"));
     }
 
     /** API 资源稳定业务键 */

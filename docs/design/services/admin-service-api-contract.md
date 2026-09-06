@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-09-06   # T-ADMIN-026：XML+Page 分页族收口——admin 8 分页端点内部实现改 offset/limit+count 双查询（线格式不变，修「有行即 500」）；§4.7.3 FilePageReq 参数面补齐（可选默认 1/20 + @Min/@Max，JobLogPageReq 同款、login-log/page 补 @Valid——分页参数校验自此全域对齐 §1.3）；排序统一补 id tie-breaker；T-ADMIN-027：分页/列表信封统一（PageResp 扁平+裸数组收编 ItemsResp）；2026-09-03 T-ADMIN-021 收口+复评收口：§4.2.1 全字段落地与过滤语义定案（根守卫基于未过滤全量、orgType/status 节点级内存过滤、orgType 白名单 10008）（includePositions 一体树+岗位后端裁剪/债务① operationCode+treeConfigId/响应 ItemsResp<OrgResp> 包装/orgName+parentOrgId 死参数修正/OrgResp phone+email 陈旧行删除）；2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
+last_reviewed: 2026-09-06   # T-ADMIN-025 收口：§4.7 门禁档位升级为文件夹实例级（upload=CREATE 目标文件夹+惰性登记投影、detail/download=VIEW 文件所属文件夹、page 按可见文件夹过滤非门禁、delete=DELETE bucket 去重集合）；T-ADMIN-026：XML+Page 分页族收口——admin 8 分页端点内部实现改 offset/limit+count 双查询（线格式不变，修「有行即 500」）；§4.7.3 FilePageReq 参数面补齐（可选默认 1/20 + @Min/@Max，JobLogPageReq 同款、login-log/page 补 @Valid——分页参数校验自此全域对齐 §1.3）；排序统一补 id tie-breaker；T-ADMIN-027：分页/列表信封统一（PageResp 扁平+裸数组收编 ItemsResp）；2026-09-03 T-ADMIN-021 收口+复评收口：§4.2.1 全字段落地与过滤语义定案（根守卫基于未过滤全量、orgType/status 节点级内存过滤、orgType 白名单 10008）（includePositions 一体树+岗位后端裁剪/债务① operationCode+treeConfigId/响应 ItemsResp<OrgResp> 包装/orgName+parentOrgId 死参数修正/OrgResp phone+email 陈旧行删除）；2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -109,9 +109,9 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `sys_menu`（DIR/MENU/EXTERNAL/IFRAME/HIDDEN 五值全量投影，T-ACCESS-015） | `resource_entity(MENU)` | `code` = `sys_menu.id.toString()` |
 | `sys_user_org` | `user_role` | 主体 `LOCAL_USER` + 角色 `ORG/POSITION` |
 
-> **终态口径（T-ACCESS-016 定稿，2026-08-23）**：① 主体 ID 统一后 `sys_user.id = abstract_user.id`（唯一 ID 源，access-service-architecture §12），`external_id`/`code` 的数值与语义不变（同一 Long 的字符串化）；② 类型码随 §13 注册表收敛：`abstract_user(ADMIN_USER)`→`abstract_user(LOCAL_USER)`（user_type 更名）、`resource_entity(ADMIN_USER/ADMIN_ORG/ADMIN_MENU)`→`resource_entity(USER/ORG/MENU)`；③ 保留业务键终态（§4.3 终态注记）：subject 侧 `ADMIN_USER`→`LOCAL_USER`（无兼容别名）；resource 侧取消类型级保留，本地投影行改按所有权保护（外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置 `owner=access-service` 即 20045、新建撞 code 由唯一索引兜底；USER/MENU 保持公共类型可被外部同步自身资源）——**该 resource 侧口径已被 T-PERM-052 类型级所有权取代（2026-09-05）：四类型种子声明 SYNC+access-service，外部同步一律拒绝、管理面 20055 只读，行级 owner 防线删除，见下方「保护」段**。类型串替换已随 T-ACCESS-018 落地（本契约全量切换）；USER/ROLE 投影全写路径补齐已随 T-ACCESS-019 落地（2026-08-23，permission 域 abstract-user/abstract-role 管理入口同事务投影，外部 sync 入口遗留登记）。
+> **终态口径（T-ACCESS-016 定稿，2026-08-23）**：① 主体 ID 统一后 `sys_user.id = abstract_user.id`（唯一 ID 源，access-service-architecture §12），`external_id`/`code` 的数值与语义不变（同一 Long 的字符串化）；② 类型码随 §13 注册表收敛：`abstract_user(ADMIN_USER)`→`abstract_user(LOCAL_USER)`（user_type 更名）、`resource_entity(ADMIN_USER/ADMIN_ORG/ADMIN_MENU)`→`resource_entity(USER/ORG/MENU)`；③ 保留业务键终态（§4.3 终态注记）：subject 侧 `ADMIN_USER`→`LOCAL_USER`（无兼容别名）；resource 侧取消类型级保留，本地投影行改按所有权保护（外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置 `owner=access-service` 即 20045、新建撞 code 由唯一索引兜底；USER/MENU 保持公共类型可被外部同步自身资源）——**该 resource 侧口径已被 T-PERM-052 类型级所有权取代（2026-09-05；T-ADMIN-025 增 ADMIN_FILE）：事实链路类型种子声明 SYNC+access-service，外部同步一律拒绝、管理面 20055 只读，行级 owner 防线删除，见下方「保护」段**。类型串替换已随 T-ACCESS-018 落地（本契约全量切换）；USER/ROLE 投影全写路径补齐已随 T-ACCESS-019 落地（2026-08-23，permission 域 abstract-user/abstract-role 管理入口同事务投影，外部 sync 入口遗留登记）。
 
-保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影——保留业务键 `LOCAL_USER` / `ORG|POSITION` / `SYS_USER_ORG`（subject 侧原 `ADMIN_USER` 已更名）与内部 `sourceService` 拒绝为 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05：事实链路四类型 USER/ORG/MENU/ROLE 种子声明 `managedMode=SYNC + syncSourceService=access-service`，外部同步入口拒绝、管理面资源 CRUD 20055 只读，原保留清单与行级 owner 防线已收编删除，详见 permission-center api-contract §5.1/§5.3/§6.2.2）。
+保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影——保留业务键 `LOCAL_USER` / `ORG|POSITION` / `SYS_USER_ORG`（subject 侧原 `ADMIN_USER` 已更名）与内部 `sourceService` 拒绝为 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05；T-ADMIN-025 增 ADMIN_FILE：事实链路五类型 USER/ORG/MENU/ROLE/ADMIN_FILE 种子声明 `managedMode=SYNC + syncSourceService=access-service`，外部同步入口拒绝、管理面资源 CRUD 20055 只读，原保留清单与行级 owner 防线已收编删除，详见 permission-center api-contract §5.1/§5.3/§6.2.2）。
 
 本契约接口的投影动作：
 
@@ -874,7 +874,8 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 **安全语义**:
 
-- **门禁**: `ADMIN_FILE:CREATE` 类型级。
+- **门禁**: `ADMIN_FILE:CREATE` 目标文件夹实例级（T-ADMIN-025；resourceCode = 归一化 bizType）。引擎 scopeAll 短路：类型级 CREATE（scopeAll）授权放行任意文件夹——含无投影新文件夹首传；无类型级授权时按文件夹实例判定，无投影文件夹 fail-closed 拒绝（403）。
+- **惰性登记**: 门禁放行后同事务 insert-if-absent `resource_entity(ADMIN_FILE, code=bizType)`——首次出现的 bizType 即成为可授权实例（bootstrap 预置 default/avatar/document/image 四文件夹；拒绝路径不登记）。
 - **bizType 格式白名单**: `^[A-Za-z0-9_-]{1,32}$`（null/空白归一 `default`）；bizType 是存储路径第一段，违规拒绝 `10506`（不排斥未来新增业务类型，仅消除路径注入面）。
 - **文件校验**: 大小上限（默认 10MB，`10503`）；危险扩展名黑名单 + 按 bizType 的扩展名白名单（`10504`）；原始文件名 sanitize；落盘文件名 = UUID + 扩展名；存储相对路径 `{bizType}/yyyy/MM/dd/{uuid}{ext}`。
 - **路径安全**: 目录与目标文件构造均经统一路径安全函数（规范化后必须位于存储根内，违规 `10506`）。
@@ -882,23 +883,23 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 #### 4.7.2 `POST /file/detail` 🔧
 
 **请求 DTO**: `IdReq`。**响应**: `R<FileResp>`（字段序：`id/fileName/originalName/fileSuffix/fileUrl/fileSize/fileType/storagePath(=file_path)/createdAt`；既有实现将 MIME 同时填入 `fileSuffix` 与 `fileType` 两位置，消费方按 `fileType` 取 MIME）。
-**错误**: `10501`。**门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
+**错误**: `10501`。**门禁**: `ADMIN_FILE:VIEW` 文件所属文件夹实例级（T-ADMIN-025；resourceCode = 元数据 `bucket_name`，须先取行——文件不存在先报 `10501`，再做文件夹判定）。无投影文件夹（含白名单前落库的历史脏桶）fail-closed 拒绝（403）。
 
 #### 4.7.3 `POST /file/page` 🔧
 
 **请求 DTO**: `FilePageReq { pageNum, pageSize, sort?, bizType? }`（`pageNum/pageSize` 可选，默认 1/20，`@Min(1)/@Max(100)` 校验——T-ADMIN-026 对齐 PageReq 先例，原「必填、缺省将失败」行为废止；`sort/bizType` 可选）。**响应**: `R<PageResp<FileResp>>`（按创建时间倒序 `created_at DESC, id DESC`，可按 bizType 过滤）。
-**门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
+**门禁**: 过滤语义非门禁（T-ADMIN-025，不 403）：可见文件夹全集 = 租户内有效文件覆盖的 bucket_name 去重（bizType 请求参数先收窄全集），经引擎批量判定（scopeAll 命中返回全量；无投影文件夹 fail-closed 落入不可见侧），按可见文件夹集合 SQL `bucket_name IN` 过滤；无可见文件夹返回空页，bizType 指向无权文件夹静默返回空页。
 
 #### 4.7.4 `POST /file/download` 🔧
 
 **请求 DTO**: `IdReq`。**响应**: 文件字节流直接写 HTTP 响应（`Content-Disposition: attachment`；全仓唯一绕过 `R` 包装的文件流白名单端点，T-ACCESS-011 登记）。
 **错误**: `10501`（元数据或物理文件不存在）/ `10506`（路径非法）/ `10507`（读取 IO 失败；原裸 `10504/10505` 硬编码已归位，T-ADMIN-023）。
-**门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
+**门禁**: `ADMIN_FILE:VIEW` 文件所属文件夹实例级（T-ADMIN-025，同 detail 口径：先取行、resourceCode=`bucket_name`、无投影 fail-closed）。
 
 #### 4.7.5 `POST /file/delete` 🔧
 
 **请求 DTO**: `IdsReq { ids: List<Long> }`（批量）。**响应**: `R<Void>`。
-**门禁**: `ADMIN_FILE:DELETE` 批量实例级（resourceCode = 文件 ID；无 ADMIN_FILE 投影机制，实际由 scopeAll 全量授权决定放行，fail-closed）。
+**门禁**: `ADMIN_FILE:DELETE` 批量文件夹实例级（T-ADMIN-025：resourceCode 从文件 ID 迁移为有效文件的 `bucket_name` 去重集合，先取元数据后判定；无投影历史脏桶 fail-closed 拒绝，scopeAll 放行全量）。
 
 **删除顺序（T-ADMIN-023 反转后的终态语义）**:
 
@@ -913,15 +914,17 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 | 端点 | 门禁（操作/档位） | 路径安全 | 错误码 |
 |------|------------------|----------|--------|
-| `/file/upload` | `ADMIN_FILE:CREATE` 类型级 | 目录 + 目标文件经统一路径安全函数；bizType 格式白名单 | `10502/10503/10504/10506` |
-| `/file/detail` | `ADMIN_FILE:VIEW` 类型级 | 不触盘 | `10501` |
-| `/file/page` | `ADMIN_FILE:VIEW` 类型级 | 不触盘 | — |
-| `/file/download` | `ADMIN_FILE:VIEW` 类型级 | DB filePath 经统一路径安全函数（纵深防御） | `10501/10506/10507` |
-| `/file/delete` | `ADMIN_FILE:DELETE` 批量实例级 | 清理阶段经统一路径安全函数（非法路径容忍为孤儿，不回滚软删） | —（软删总是提交） |
+| `/file/upload` | `ADMIN_FILE:CREATE` 目标文件夹实例级（scopeAll 放行任意文件夹含新夹首传）+ 惰性登记投影 | 目录 + 目标文件经统一路径安全函数；bizType 格式白名单 | `10502/10503/10504/10506` |
+| `/file/detail` | `ADMIN_FILE:VIEW` 文件所属文件夹实例级 | 不触盘 | `10501` |
+| `/file/page` | 过滤语义（按可见文件夹裁剪，无 403） | 不触盘 | — |
+| `/file/download` | `ADMIN_FILE:VIEW` 文件所属文件夹实例级 | DB filePath 经统一路径安全函数（纵深防御） | `10501/10506/10507` |
+| `/file/delete` | `ADMIN_FILE:DELETE` 批量文件夹实例级（bucket 去重） | 清理阶段经统一路径安全函数（非法路径容忍为孤儿，不回滚软删） | —（软删总是提交） |
 
-> **VIEW 档位说明（2026-08-25 口径）**: detail/page/download 暂按类型级 VIEW 过渡；
-> 「文件夹级授权」（bizType 即文件夹实例，预置+惰性登记投影，全链路 CREATE/VIEW/DELETE
-> 按 folder 隔离、page 按可见文件夹过滤）另立任务卡 `T-ADMIN-025` 落地，落地时本节门禁档位升级。
+> **文件夹级授权（T-ADMIN-025 落地，2026-09-06）**: bizType 即文件夹实例（`sys_file.bucket_name` =
+> `resource_entity(ADMIN_FILE).code`，单事实源为投影表）；实例由 bootstrap 预置四文件夹 +
+> 上传惰性登记两条事实链产出，无管理界面；ADMIN_FILE 种子声明 SYNC+access-service（人工经
+> resource-entity 管理入口构造一律 20055）。原「类型级 VIEW 过渡」口径（2026-08-25）随本任务废止。
+> 新文件夹需先有一次上传才产生实例、才可配置实例级授权（预登记机制为后续优化点，未设计）。
 
 ---
 
@@ -949,7 +952,7 @@ Phase 2 后端实现以上 19 个接口后, 必须满足:
 5. **响应壳统一**: 所有接口返回 `R<T>`, 列表不直接返回数组 (由 `RResponseAdvice` 强制); ~~现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`)~~ 已清零（`/org/tree` 已由 T-ADMIN-021 切 `R<ItemsResp<OrgResp>>`；台账见 §5）.
 6. **异常映射**: 业务拒绝抛 `BizException`; 安全拒绝抛 `SecurityException`; 技术故障抛 `SystemException`. 不允许用 `SecurityException` 表达"资源不存在".
 7. **默认树身份目录边界**: `/user/create` (带 orgId), `/user/delete`, `/user/enable`, `/user/reset-password`, `/user-org/set-primary` 必须在 AppService 内做默认树边界二次校验, 失败抛 `BizException`.
-8. **投影所有权**: subject/role/user_role 侧保留业务键（`LOCAL_USER`/`ORG|POSITION`/`SYS_USER_ORG`）不得被外部 sync/full-sync 写入，失败抛 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05）：事实链路四类型 USER/ORG/MENU/ROLE 种子声明 SYNC+access-service——外部同步被类型所有权门禁以 `RESOURCE_TYPE_OWNERSHIP_DENIED`（同步拒绝响应）拒绝、管理面资源 CRUD 拒绝 20055、所有权声明变更/类型删除冲突拒绝 20056，原行级 `owner=access-service` 检查已收编删除。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
+8. **投影所有权**: subject/role/user_role 侧保留业务键（`LOCAL_USER`/`ORG|POSITION`/`SYS_USER_ORG`）不得被外部 sync/full-sync 写入，失败抛 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05；T-ADMIN-025 增 ADMIN_FILE）：事实链路五类型 USER/ORG/MENU/ROLE/ADMIN_FILE种子声明 SYNC+access-service——外部同步被类型所有权门禁以 `RESOURCE_TYPE_OWNERSHIP_DENIED`（同步拒绝响应）拒绝、管理面资源 CRUD 拒绝 20055、所有权声明变更/类型删除冲突拒绝 20056，原行级 `owner=access-service` 检查已收编删除。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
 
 ---
 

@@ -73,4 +73,23 @@ public interface AdminPermissionValidator {
      * @param operationCode    操作码
      */
     void checkBatchInstanceLevel(String resourceTypeCode, java.util.List<String> resourceCodes, String operationCode);
+
+    /**
+     * 批量实例级非抛出判定（T-ADMIN-025，供「按可见集过滤」类调用方使用）。
+     * <p>
+     * 返回输入编码中被权限引擎明确拒绝的子集（含无投影实体 fail-closed 拒绝的编码），
+     * 引擎语义与 {@link #checkBatchInstanceLevel} 完全一致，仅不抛安全拒绝——
+     * 调用方据此裁剪可见范围（如文件 page 按可见文件夹过滤）。scopeAll 命中返回空集。
+     * 操作者主体缺失抛 {@link SecurityException}（与抛出型同语义，会话身份问题非技术故障）；
+     * 引擎技术故障向上传播。
+     * </p>
+     *
+     * @param resourceTypeCode 资源类型码
+     * @param resourceCodes    资源实例码集合
+     * @param operationCode    操作码
+     * @return 被拒绝的业务编码集合（空集=全部允许）
+     */
+    java.util.Set<String> getDeniedResourceCodes(String resourceTypeCode,
+                                                 java.util.Set<String> resourceCodes,
+                                                 String operationCode);
 }

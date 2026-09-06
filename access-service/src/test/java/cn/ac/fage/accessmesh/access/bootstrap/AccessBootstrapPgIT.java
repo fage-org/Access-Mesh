@@ -287,6 +287,20 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM sys_user WHERE tenant_id = ? AND username = ? AND delete_flag = 0",
             Long.class, TENANT, BootstrapGraphDefinition.ADMIN_USERNAME)).isEqualTo(1L);
 
+        // ADMIN_FILE 文件夹预置（T-ADMIN-025）：四文件夹投影（default/avatar/document/image，
+        // owner=access-service）——空库即可在授权页配置文件夹实例级授权；不参与固定图检测
+        // （幂等 insert-if-absent，置于三状态检测之前，no-op 路径同样执行）
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM resource_entity WHERE tenant_id = ? AND delete_flag = 0 "
+                + "AND resource_type = (SELECT type_value FROM type_definition "
+                + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'ADMIN_FILE') "
+                + "AND code IN ('default','avatar','document','image')", Long.class, TENANT)).isEqualTo(4L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM resource_entity WHERE tenant_id = ? AND delete_flag = 0 "
+                + "AND resource_type = (SELECT type_value FROM type_definition "
+                + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'ADMIN_FILE') "
+                + "AND owner_service_code = 'access-service'", Long.class, TENANT)).isEqualTo(4L);
+
         // 菜单种子 15 行（T-FE-015）：welcome 纯展示 +「系统管理」DIR + 13 业务 MENU；
         // 资源挂接 12 行（权限条件页读取全租户开放挂纯展示）、类型级挂接 resource_code 全空；
         // 13 个业务页全部挂 /system 目录下；MENU 投影全量维护（对齐 MenuWriteAppService 终态）
@@ -377,6 +391,12 @@ class AccessBootstrapPgIT {
             "SELECT password FROM sys_user WHERE username = 'admin'", String.class))
             .isEqualTo("tampered-hash");
         assertThat(snapshotRowCounts()).isEqualTo(before);
+        // ADMIN_FILE 文件夹预置在 no-op 路径同样幂等（ensure 不重复建号，T-ADMIN-025）
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM resource_entity WHERE tenant_id = ? AND delete_flag = 0 "
+                + "AND resource_type = (SELECT type_value FROM type_definition "
+                + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'ADMIN_FILE') "
+                + "AND code IN ('default','avatar','document','image')", Long.class, TENANT)).isEqualTo(4L);
     }
 
     @Test

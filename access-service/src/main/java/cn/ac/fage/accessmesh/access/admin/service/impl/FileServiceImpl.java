@@ -8,6 +8,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.FileResp;
 import cn.ac.fage.accessmesh.access.admin.entity.SysFile;
 import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysFileMapper;
+import cn.ac.fage.accessmesh.access.admin.security.AdminFileFolderRegistrar;
 import cn.ac.fage.accessmesh.access.admin.security.AdminOperationCode;
 import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
@@ -30,6 +31,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -44,7 +46,9 @@ import java.util.stream.Collectors;
  * 提供文件的上传、下载、删除、分页查询等功能。
  * 支持多业务类型（bizType）的文件分类存储，如头像、文档、图片等。
  * 实现了完整的文件安全校验机制：
- * - 全接口权限门禁（upload=CREATE、detail/page/download=VIEW、delete=DELETE，ADMIN_FILE）
+ * - 全接口文件夹实例级权限门禁（T-ADMIN-025：upload=CREATE、detail/download=VIEW、delete=DELETE，
+ *   resourceCode=文件所属文件夹 bucket_name；page 按可见文件夹过滤——引擎 scopeAll 命中放行
+ *   任意文件夹含新文件夹首传，无投影文件夹 fail-closed 拒绝）
  * - 文件大小限制（默认10MB）
  * - 文件类型白名单（按bizType配置）
  * - 文件扩展名白名单和黑名单
@@ -155,16 +159,21 @@ public class FileServiceImpl implements FileService {
 
     private final SysFileMapper fileMapper;
     private final AdminPermissionValidator permissionValidator;
+    private final AdminFileFolderRegistrar folderRegistrar;
 
     /**
      * 构造函数注入依赖
      *
      * @param fileMapper 文件数据访问Mapper
      * @param permissionValidator 权限校验器，校验文件操作权限
+     * @param folderRegistrar 文件夹投影登记端口，上传惰性登记文件夹实例（T-ADMIN-025；
+     *                        admin 域禁依赖 permission，实现经 access.application 反转）
      */
-    public FileServiceImpl(SysFileMapper fileMapper, AdminPermissionValidator permissionValidator) {
+    public FileServiceImpl(SysFileMapper fileMapper, AdminPermissionValidator permissionValidator,
+                           AdminFileFolderRegistrar folderRegistrar) {
         this.fileMapper = fileMapper;
         this.permissionValidator = permissionValidator;
+        this.folderRegistrar = folderRegistrar;
     }
 
     /**
@@ -188,72 +197,85 @@ public class FileServiceImpl implements FileService {
      * 上传文件
      * <p>
      * 执行完整的文件安全校验流程：
-     * 1. 检查文件是否为空
-     * 2. 检查文件大小是否超限
-     * 3. 安全化文件名（移除路径遍历字符）
-     * 4. bizType 归一化 + 格式白名单校验
-     * 5. 获取并验证文件扩展名
-     * 6. 检查危险扩展名黑名单
-     * 7. 检查扩展名白名单（按bizType）
-     * 8. 检查Content-Type
-     * 9. 生成UUID随机文件名
-     * 10. 构建日期目录结构存储路径（统一路径安全函数防穿越）
-     * 11. 保存物理文件
-     * 12. 记录文件信息到数据库
+     * 1. bizType 归一化 + 格式白名单校验
+     * 2. 文件夹实例级 CREATE 门禁（T-ADMIN-025：引擎 forValidate 的 scopeAll 短路使类型级授权
+     *    放行任意文件夹（含无投影新文件夹首传）；无类型级授权时按 bizType 实例判定——
+     *    无投影文件夹 fail-closed 拒绝，实例授权文件夹放行）
+     * 3. 惰性登记文件夹投影（首次出现的 bizType 成为可授权实例；置于物理落盘之前，
+     *    登记失败不留孤儿物理文件；与元数据同事务）
+     * 4. 检查文件是否为空
+     * 5. 检查文件大小是否超限
+     * 6. 安全化文件名（移除路径遍历字符）
+     * 7. 获取并验证文件扩展名
+     * 8. 检查危险扩展名黑名单
+     * 9. 检查扩展名白名单（按bizType）
+     * 10. 检查Content-Type
+     * 11. 生成UUID随机文件名
+     * 12. 构建日期目录结构存储路径（统一路径安全函数防穿越）
+     * 13. 保存物理文件
+     * 14. 记录文件信息到数据库
      * </p>
      *
      * @param file 上传的文件
      * @param bizType 业务类型（如avatar、document、image），空白按 default 处理
      * @return 文件记录ID
-     * @throws BizException 文件为空、文件超限、文件类型不允许、文件保存失败等
-     * @throws SecurityException 无 ADMIN_FILE:CREATE 权限
+     * @throws BizException 文件为空、文件超限、文件类型不允许、文件保存失败、文件夹登记并发冲突等
+     * @throws SecurityException 无目标文件夹的 ADMIN_FILE:CREATE 权限
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "ADMIN", action = "FILE_UPLOAD", targetType = "sys_file",
         targetId = "#result", summary = "'upload file'")
     public Long uploadFile(MultipartFile file, String bizType) {
-        // 权限检查 — FILE 类型级 CREATE
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_FILE, AdminOperationCode.CREATE);
+        // 1. bizType 归一化 + 格式白名单（T-ADMIN-023：bizType 是存储路径第一段，禁止路径注入字符）
+        String normalizedBizType = normalizeBizType(bizType);
 
-        // 1. 检查文件是否为空
+        // 2. 权限检查 — 目标文件夹实例级 CREATE（T-ADMIN-025；scopeAll 短路在引擎内）
+        permissionValidator.checkInstanceLevel(
+            ResourceTypeCode.ADMIN_FILE, normalizedBizType, AdminOperationCode.CREATE);
+
+        Long tenantId = TenantContextHolder.getTenantId();
+
+        // 3. 惰性登记文件夹投影（T-ADMIN-025：首次出现的 bizType 成为可授权实例；
+        //     insert-if-absent，已登记（bootstrap 预置或此前惰性）为 no-op）。置于物理落盘
+        //     之前：登记失败（含并发首传冲突）时物理文件尚未写入，不留孤儿；与元数据同事务
+        folderRegistrar.ensureFolder(tenantId, normalizedBizType, normalizedBizType);
+
+        // 4. 检查文件是否为空
         if (file == null || file.isEmpty()) {
             throw new BizException(AdminErrorCode.FILE_UPLOAD_FAILED.getCode(), "上传文件不能为空");
         }
 
-        // 2. 检查文件大小
+        // 5. 检查文件大小
         if (file.getSize() > maxFileSize) {
             throw new BizException(AdminErrorCode.FILE_TOO_LARGE.getCode(),
                 "文件大小超出限制，最大允许 " + (maxFileSize / 1024 / 1024) + "MB");
         }
 
-        // 3. 获取并验证原始文件名
+        // 6. 获取并验证原始文件名
         String originalName = file.getOriginalFilename();
         if (originalName == null || originalName.isBlank()) {
             throw new BizException(AdminErrorCode.FILE_UPLOAD_FAILED.getCode(), "文件名不能为空");
         }
 
-        // 4. Sanitize 文件名（移除路径遍历字符和特殊字符）
+        // 7. Sanitize 文件名（移除路径遍历字符和特殊字符）
         originalName = sanitizeFileName(originalName);
 
-        // 5. bizType 归一化 + 格式白名单（T-ADMIN-023：bizType 是存储路径第一段，禁止路径注入字符）
-        String normalizedBizType = normalizeBizType(bizType);
-
-        // 6. 获取并验证文件扩展名
+        // 8. 获取并验证文件扩展名
         String extension = getFileExtension(originalName);
         if (extension == null || extension.isBlank()) {
             throw new BizException(AdminErrorCode.FILE_TYPE_NOT_ALLOWED.getCode(), "无法识别文件类型");
         }
         String lowerExtension = extension.toLowerCase();
 
-        // 7. 检查危险扩展名（黑名单）
+        // 9. 检查危险扩展名（黑名单）
         if (DANGEROUS_EXTENSIONS.contains(lowerExtension)) {
             log.warn("Blocked dangerous file upload: originalName={}, extension={}", originalName, extension);
             throw new BizException(AdminErrorCode.FILE_TYPE_NOT_ALLOWED.getCode(),
                 "禁止上传可执行文件: " + extension);
         }
 
-        // 8. 检查扩展名白名单（根据 bizType 或默认）
+        // 10. 检查扩展名白名单（根据 bizType 或默认）
         Set<String> allowedExtensions = BIZ_TYPE_ALLOWED_EXTENSIONS.getOrDefault(normalizedBizType, DEFAULT_ALLOWED_EXTENSIONS);
         if (!allowedExtensions.contains(lowerExtension)) {
             log.warn("Blocked unauthorized file type: originalName={}, extension={}, bizType={}",
@@ -262,24 +284,24 @@ public class FileServiceImpl implements FileService {
                 "不允许的文件类型: " + extension + "，允许的类型: " + allowedExtensions);
         }
 
-        // 9. 检查 Content-Type（可选，作为额外验证）
+        // 11. 检查 Content-Type（可选，作为额外验证）
         String contentType = file.getContentType();
         if (contentType != null && !DEFAULT_ALLOWED_TYPES.contains(contentType)) {
             log.warn("Suspicious content type: originalName={}, contentType={}", originalName, contentType);
             // 不直接拒绝，但记录警告，因为有些文件类型可能不在默认列表中
         }
 
-        // 10. 生成安全的文件名（UUID + 扩展名）
+        // 12. 生成安全的文件名（UUID + 扩展名）
         String fileName = UUID.randomUUID().toString().replace("-", "") + lowerExtension;
 
-        // 11. 构建存储路径（统一路径安全函数：目录与目标文件都必须位于存储根目录内）
+        // 13. 构建存储路径（统一路径安全函数：目录与目标文件都必须位于存储根目录内）
         String dateDir = DateTimeFormatter.ofPattern("yyyy/MM/dd").format(LocalDateTime.now());
         try {
             Path dirPath = securePath(normalizedBizType, dateDir);
             Files.createDirectories(dirPath);
             Path targetPath = securePath(normalizedBizType, dateDir, fileName);
 
-            // 12. 保存文件
+            // 保存文件
             file.transferTo(targetPath.toFile());
             log.info("File uploaded successfully: originalName={}, fileName={}, size={}, bizType={}",
                 originalName, fileName, file.getSize(), normalizedBizType);
@@ -289,9 +311,8 @@ public class FileServiceImpl implements FileService {
             throw new BizException(AdminErrorCode.FILE_UPLOAD_FAILED.getCode(), "文件保存失败: " + e.getMessage());
         }
 
-        // 13. 记录文件信息到数据库
+        // 14. 记录文件信息到数据库
         String filePath = normalizedBizType + "/" + dateDir + "/" + fileName;
-        Long tenantId = TenantContextHolder.getTenantId();
         SysFile sysFile = new SysFile();
         sysFile.setTenantId(tenantId);
         sysFile.setOriginalName(originalName);
@@ -312,7 +333,8 @@ public class FileServiceImpl implements FileService {
     /**
      * 批量删除文件
      * <p>
-     * 执行批量实例级权限校验后删除文件。
+     * 按文件所属文件夹批量实例级 DELETE 门禁（T-ADMIN-025：resourceCode 从文件 ID 迁移为
+     * bucket_name 去重集合；无投影的历史脏桶 fail-closed 拒绝）后删除文件。
      * 删除顺序（T-ADMIN-023 反转）：先在同一事务内提交元数据软删除，
      * 事务提交成功后再经事务同步（afterCommit）物理清理文件——物理文件不可回滚，
      * 必须保证元数据先落地；物理清理失败仅记 WARN 保留孤儿文件（孤儿文件优于丢失有效文件），
@@ -320,24 +342,27 @@ public class FileServiceImpl implements FileService {
      * </p>
      *
      * @param req ID集合请求，包含待删除的文件ID列表
-     * @throws SecurityException 任一文件无 ADMIN_FILE:DELETE 权限
+     * @throws SecurityException 任一目标文件夹无 ADMIN_FILE:DELETE 权限
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "ADMIN", action = "FILE_DELETE", targetType = "sys_file",
         targetId = "", summary = "'batch delete files'")
     public void deleteFiles(IdsReq req) {
-        // 权限检查 — FILE 批量实例级 DELETE
-        List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
-        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_FILE, resourceCodes, AdminOperationCode.DELETE);
-
         Long tenantId = TenantContextHolder.getTenantId();
-        // 批量查询有效文件
+        // 批量查询有效文件（门禁键=文件所属文件夹，须先取元数据）
         List<SysFile> files = fileMapper.selectValidByIds(tenantId, req.ids());
 
         if (files.isEmpty()) {
             return;
         }
+
+        // 权限检查 — 目标文件夹批量实例级 DELETE（bucket 去重；T-ADMIN-025 resourceCode 迁移）
+        List<String> folderCodes = files.stream()
+            .map(SysFile::getBucketName)
+            .distinct()
+            .toList();
+        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_FILE, folderCodes, AdminOperationCode.DELETE);
 
         // 1. 先同事务提交元数据软删除（回滚安全：文件尚未物理删除）
         LocalDateTime now = LocalDateTime.now();
@@ -382,51 +407,70 @@ public class FileServiceImpl implements FileService {
     /**
      * 获取文件详情
      * <p>
-     * 类型级 VIEW 门禁后根据文件ID查询文件完整信息，包含文件名、URL、大小等。
+     * 按文件所属文件夹实例级 VIEW 门禁（T-ADMIN-025）后根据文件ID查询文件完整信息，
+     * 包含文件名、URL、大小等。门禁键=元数据 bucket_name，须先取行；无投影文件夹
+     * （含白名单前落库的历史脏桶）fail-closed 拒绝。
      * </p>
      *
      * @param id 文件ID
      * @return 文件详情响应
-     * @throws SecurityException 无 ADMIN_FILE:VIEW 权限
+     * @throws SecurityException 无文件所属文件夹的 ADMIN_FILE:VIEW 权限
      * @throws BizException 文件不存在
      */
     @Override
     public FileResp getFile(Long id) {
-        // 权限检查 — FILE 类型级 VIEW（T-ADMIN-023）
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_FILE, AdminOperationCode.VIEW);
-
         Long tenantId = TenantContextHolder.getTenantId();
         SysFile f = fileMapper.selectValidById(tenantId, id);
         if (f == null) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());
         }
+        // 权限检查 — 文件所属文件夹实例级 VIEW（T-ADMIN-025）
+        permissionValidator.checkInstanceLevel(
+            ResourceTypeCode.ADMIN_FILE, f.getBucketName(), AdminOperationCode.VIEW);
         return toResp(f);
     }
 
     /**
      * 分页查询文件列表
      * <p>
-     * 类型级 VIEW 门禁后分页查询，支持按业务类型过滤，按创建时间倒序排列。
+     * 按可见文件夹过滤（T-ADMIN-025，过滤语义非门禁——不 403）：可见文件夹全集取租户内
+     * 有效文件覆盖的 bucket_name 去重（bizType 请求参数先收窄全集），经引擎批量判定后
+     * <b>始终</b>按可见集 SQL {@code bucket_name IN} 过滤（含 scopeAll 全量可见时——
+     * IN 全集使 NULL bucket 历史行在任何授权形态下都不可见，与 detail/download 的
+     * fail-closed 口径统一），无可见文件夹返回空页。bizType 指向无权文件夹时静默返回空页。
+     * 按创建时间倒序排列。
      * </p>
      *
      * @param pageReq 分页查询请求，包含分页参数
      * @param bizType 业务类型过滤条件，可选
      * @return 分页文件列表结果
-     * @throws SecurityException 无 ADMIN_FILE:VIEW 权限
      */
     @Override
     public PageResp<FileResp> pageFiles(FilePageReq pageReq, String bizType) {
-        // 权限检查 — FILE 类型级 VIEW（T-ADMIN-023）
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_FILE, AdminOperationCode.VIEW);
-
         Long tenantId = TenantContextHolder.getTenantId();
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
 
-        // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
-        long total = fileMapper.countFilesByCondition(tenantId, bizType);
+        // 1. 可见文件夹全集（有效文件覆盖的 bucket 去重；空全集=空页，跳过引擎调用）
+        Set<String> universe = new LinkedHashSet<>(fileMapper.selectDistinctBucketNames(tenantId, bizType));
+        if (universe.isEmpty()) {
+            return new PageResp<>(List.of(), 0L, pageNum, pageSize, false);
+        }
+
+        // 2. 引擎批量判定可见集；拒绝集为空（scopeAll 或实例授权覆盖全集）时可见集=全集，
+        //    仍走 IN 过滤——NULL bucket 行不进任何授权形态的结果（与 detail/download 统一）
+        Set<String> denied = permissionValidator.getDeniedResourceCodes(
+            ResourceTypeCode.ADMIN_FILE, universe, AdminOperationCode.VIEW);
+        List<String> visibleBuckets = denied.isEmpty() ? List.copyOf(universe)
+            : universe.stream().filter(code -> !denied.contains(code)).toList();
+        if (visibleBuckets.isEmpty()) {
+            return new PageResp<>(List.of(), 0L, pageNum, pageSize, false);
+        }
+
+        // 3. XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
+        long total = fileMapper.countFilesByCondition(tenantId, bizType, visibleBuckets);
         List<SysFile> records = total == 0 ? List.of()
-            : fileMapper.selectFilesByCondition(tenantId, bizType, (pageNum - 1) * pageSize, pageSize);
+            : fileMapper.selectFilesByCondition(tenantId, bizType, visibleBuckets, (pageNum - 1) * pageSize, pageSize);
 
         List<FileResp> items = records.stream()
             .map(this::toResp)
@@ -457,7 +501,8 @@ public class FileServiceImpl implements FileService {
     /**
      * 下载文件
      * <p>
-     * 类型级 VIEW 门禁后根据文件ID读取物理文件并返回内容。
+     * 按文件所属文件夹实例级 VIEW 门禁（T-ADMIN-025，同 detail 口径）后根据文件ID读取
+     * 物理文件并返回内容。
      * 物理路径经统一路径安全函数校验（filePath 虽源于 DB 仍做纵深防御）。
      * 设置HTTP响应头Content-Disposition和Content-Type。
      * </p>
@@ -465,19 +510,19 @@ public class FileServiceImpl implements FileService {
      * @param id 文件ID
      * @param response HTTP响应对象，用于设置下载头
      * @return 文件内容字节数组
-     * @throws SecurityException 无 ADMIN_FILE:VIEW 权限
+     * @throws SecurityException 无文件所属文件夹的 ADMIN_FILE:VIEW 权限
      * @throws BizException 文件不存在、路径非法、物理文件不存在、文件读取失败
      */
     @Override
     public byte[] downloadFile(Long id, jakarta.servlet.http.HttpServletResponse response) {
-        // 权限检查 — FILE 类型级 VIEW（T-ADMIN-023）
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_FILE, AdminOperationCode.VIEW);
-
         Long tenantId = TenantContextHolder.getTenantId();
         SysFile f = fileMapper.selectValidById(tenantId, id);
         if (f == null) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());
         }
+        // 权限检查 — 文件所属文件夹实例级 VIEW（T-ADMIN-025）
+        permissionValidator.checkInstanceLevel(
+            ResourceTypeCode.ADMIN_FILE, f.getBucketName(), AdminOperationCode.VIEW);
         Path filePath = securePath(f.getFilePath());
         if (!Files.exists(filePath)) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), "物理文件不存在");

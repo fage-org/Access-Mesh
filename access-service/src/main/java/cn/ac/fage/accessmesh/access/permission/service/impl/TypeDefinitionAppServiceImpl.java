@@ -372,7 +372,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         }
         // T-PERM-052：extra 所有权声明结构校验 + 有效值变更守卫（类型下存在有效资源行时
         // managedMode/syncSourceService 不得变更，含删键隐式切回 MANAGED；20056）。
-        // is_system 类型允许声明内部来源 access-service（USER/ORG/MENU/ROLE 种子同款）
+        // is_system 类型允许声明内部来源 access-service（事实链路类型种子同款，含 T-ADMIN-025 的 ADMIN_FILE）
         try {
             resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, type.getTypeKey(),
                 type.getTypeCode(), req.extra(), Boolean.TRUE.equals(type.getIsSystem()));

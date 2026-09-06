@@ -36,10 +36,11 @@ import java.util.stream.Collectors;
  *       codex 二轮复评 P1-1 定案——事实链路类型翻转后事实写入方照旧写即双 writer）；
  *       自定义类型在类型下存在有效资源行时有效值不得变更（20056，含删除键隐式切回
  *       MANAGED）。</li>
- *   <li>内部来源声明（2026-09-05 补充定案）：USER/ORG/MENU/ROLE 四类事实链路类型由种子声明
- *       SYNC + syncSourceService=access-service——外部同步一律拒绝（来源不匹配）、管理面资源
- *       CRUD 一律 20055（行由用户/组织/菜单/角色管理自动维护），收编原类型保留清单与
- *       行级 owner=access-service 投影防线两套旧机制。</li>
+ *   <li>内部来源声明（2026-09-05 补充定案；T-ADMIN-025 增 ADMIN_FILE）：事实链路类型
+ *       （USER/ORG/MENU/ROLE/ADMIN_FILE）由种子声明 SYNC + syncSourceService=access-service
+ *       ——外部同步一律拒绝（来源不匹配）、管理面资源 CRUD 一律 20055（行由用户/组织/菜单/角色
+ *       管理或文件夹预置/惰性登记自动维护），收编原类型保留清单与行级 owner=access-service
+ *       投影防线两套旧机制。</li>
  * </ul>
  * <p>
  * 保存边界（type-definition create/update）由 {@link #validateExtraDeclaration} 校验结构，
@@ -297,7 +298,7 @@ public class ResourceTypeOwnershipGuard {
                         + " 必须携带 " + EXTRA_KEY_SYNC_SOURCE_SERVICE);
             }
             // 内部来源豁免：access-service 不是 service_config 注册行（rejectInternalSourceService
-            // 同时禁止外部 sync 冒充），仅系统预置类型可声明——USER/ORG/MENU/ROLE 四类事实链路类型
+            // 同时禁止外部 sync 冒充），仅系统预置类型可声明——事实链路类型（含 T-ADMIN-025 增的 ADMIN_FILE）
             if (LocalProjectionOwner.SERVICE_CODE.equals(sourceText)) {
                 if (!isSystemType) {
                     throw new IllegalArgumentException("内部来源 " + LocalProjectionOwner.SERVICE_CODE
@@ -336,7 +337,7 @@ public class ResourceTypeOwnershipGuard {
             return;
         }
         // codex 二轮复评 P1-1 定案（2026-09-05）：系统预置类型所有权声明钉死——事实链路类型
-        // （USER/ORG/MENU/ROLE=SYNC+access-service）即使零行翻转为 MANAGED/外部来源，事实链路
+        // （事实链路类型=SYNC+access-service）即使零行翻转为 MANAGED/外部来源，事实链路
         // 照旧无条件投影写入即成双 writer（顺序性破坏，无需并发）；先例：is_system 类型禁止删除
         if (Boolean.TRUE.equals(existingType.getIsSystem())) {
             throw new BizException(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
@@ -404,10 +405,10 @@ public class ResourceTypeOwnershipGuard {
 
     private static void rejectIfSyncOwned(Ownership ownership, String resourceTypeCode) {
         if (ownership != null && MODE_SYNC.equals(ownership.managedMode())) {
-            // 内部来源（USER/ORG/MENU/ROLE 事实链路类型）：行由系统用户/组织/菜单/角色管理自动维护
+            // 内部来源（事实链路类型：USER/ORG/MENU/ROLE 及 ADMIN_FILE 文件夹——T-ADMIN-025）
             if (LocalProjectionOwner.SERVICE_CODE.equals(ownership.syncSourceService())) {
                 throw new BizException(PermissionErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),
-                        "资源由系统事实链路维护（用户/组织/菜单/角色管理），资源管理面只读: resourceTypeCode="
+                        "资源由系统事实链路维护（用户/组织/菜单/角色管理、文件上传/预置），资源管理面只读: resourceTypeCode="
                                 + resourceTypeCode);
             }
             throw new BizException(PermissionErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),

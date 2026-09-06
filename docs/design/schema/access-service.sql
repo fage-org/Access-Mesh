@@ -453,6 +453,7 @@ COMMENT ON COLUMN sys_file.file_path IS '存储相对路径（{bizType}/yyyy/MM/
 COMMENT ON COLUMN sys_file.file_url IS '访问URL';
 COMMENT ON COLUMN sys_file.file_size IS '文件大小（字节）';
 COMMENT ON COLUMN sys_file.file_type IS 'MIME 类型';
+COMMENT ON COLUMN sys_file.bucket_name IS '业务类型（文件夹）= resource_entity(ADMIN_FILE).code，文件夹实例级授权判定键（T-ADMIN-025）：投影由 bootstrap 预置 + 上传惰性登记产出，无投影的历史脏桶实例级校验 fail-closed 拒绝';
 COMMENT ON COLUMN sys_file.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- -----------------------------------------------------------------------------
@@ -637,7 +638,7 @@ COMMENT ON COLUMN type_definition.name IS '显示名称';
 COMMENT ON COLUMN type_definition.description IS '描述';
 COMMENT ON COLUMN type_definition.is_system IS '是否系统预置：true=预置不可删改，false=租户自定义可扩展';
 COMMENT ON COLUMN type_definition.sort_order IS '排序';
-COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）——系统预置类型钉死不可变更、自定义类型在类型下存在有效资源行时拒绝（20056），保存边界校验已知键结构（显式 null 拒绝），未知键开放不视为声明（拼错键=无声明按缺省 MANAGED）；读取侧 extra 损坏按 MANAGED 处理（对外部同步 fail-closed、对管理面可写=可恢复方向）。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE 四类事实链路类型，种子声明 SYNC+access-service）';
+COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）——系统预置类型钉死不可变更、自定义类型在类型下存在有效资源行时拒绝（20056），保存边界校验已知键结构（显式 null 拒绝），未知键开放不视为声明（拼错键=无声明按缺省 MANAGED）；读取侧 extra 损坏按 MANAGED 处理（对外部同步 fail-closed、对管理面可写=可恢复方向）。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE/ADMIN_FILE 五类事实链路类型，种子声明 SYNC+access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025）';
 COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- 预置类型种子（tenant 1；type_value 为权威数值，与文件头 type_value 终值分配表一致——
@@ -685,13 +686,16 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
     (1, 'resource_type', 'OPERATION_LOG',      30, '操作日志',     true, 30, 0, now(), now()),
     (1, 'resource_type', 'PERMISSION_CHANGE_LOG', 31, '权限变更日志', true, 31, 0, now(), now());
 
--- T-PERM-052 内部来源声明（2026-09-05 定案）：事实链路四类型——资源行由用户/组织/菜单/角色管理
+-- T-PERM-052 内部来源声明（2026-09-05 定案）：事实链路类型——资源行由用户/组织/菜单/角色管理
 -- 经 LocalProjectionDomainService 同事务自动维护（SYNC + 来源=access-service），外部同步一律拒绝
 -- （来源不匹配）、管理面资源 CRUD 一律 20055；收编原类型保留清单与行级 owner=access-service 防线。
+-- T-ADMIN-025（2026-09-06）增 ADMIN_FILE：文件夹实例（code=bucket_name）由 bootstrap 预置
+-- default/avatar/document/image 四文件夹 + 上传新 bizType 惰性登记两条事实链产出，人工不得
+-- 经 resource-entity 管理入口构造（管理面 CRUD 20055，与惰性登记 upsert 双 writer 冲突同向）。
 UPDATE type_definition
 SET extra = '{"managedMode":"SYNC","syncSourceService":"access-service"}'
 WHERE tenant_id = 1 AND type_key = 'resource_type'
-  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE');
+  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE', 'ADMIN_FILE');
 
 -- -----------------------------------------------------------------------------
 -- 18. biz_domain - 业务域表（扁平列表，无启停，引用检查拒删）

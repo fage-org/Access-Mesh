@@ -257,6 +257,35 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     }
 
     @Override
+    public Long ensureAdminFileFolder(Long tenantId, String folderCode, String name) {
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.ADMIN_FILE);
+        // insert-if-absent：有效行已存在直接返回（名称以首建为准——惰性登记传 code、预置传标签，
+        // 回写会让后到者覆盖先建者）；软删墓碑不在有效行查询内，按缺行重新插入（部分唯一索引允许）
+        ResourceEntity existing = resourceEntityMapper.selectByTypeCodeAndCodeType(
+            tenantId, resourceType, folderCode, CODE_TYPE_DEFAULT);
+        if (existing != null) {
+            return existing.getId();
+        }
+        ResourceEntity resource = new ResourceEntity();
+        resource.setTenantId(tenantId);
+        resource.setResourceType(resourceType);
+        resource.setCode(folderCode);
+        resource.setCodeType(CODE_TYPE_DEFAULT);
+        resource.setName(name);
+        resource.setParentId(null);
+        resource.setStatus(STATUS_ENABLED);
+        resource.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+        // DDL maintain_source NOT NULL：显式 NULL 会绕过列默认值触发约束（同 upsertResource）
+        resource.setMaintainSource(PermConstants.MaintainSource.MANUAL);
+        LocalDateTime now = LocalDateTime.now();
+        resource.setCreatedAt(now);
+        resource.setUpdatedAt(now);
+        resource.setDeleteFlag(0L);
+        resourceEntityMapper.insert(resource);
+        return resource.getId();
+    }
+
+    @Override
     public Long bindUserOrg(Long tenantId, Long sysUserId, Long sysOrgId, String roleTypeCode,
                             Long relationSysOrgId) {
         return userRoleProjectionWriter.bindUserOrg(tenantId, sysUserId, sysOrgId, roleTypeCode, relationSysOrgId);

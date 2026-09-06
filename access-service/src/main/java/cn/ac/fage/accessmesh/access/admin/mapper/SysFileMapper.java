@@ -45,12 +45,14 @@ public interface SysFileMapper extends BaseMapper<SysFile> {
      *
      * @param tenantId 租户ID
      * @param bizType  业务类型过滤条件，可选
+     * @param buckets  可见文件夹集合过滤（T-ADMIN-025 page 按可见文件夹裁剪），null=不过滤
      * @param offset   偏移量
      * @param limit    每页条数
      * @return 文件列表（当前页）
      */
     List<SysFile> selectFilesByCondition(@Param("tenantId") Long tenantId,
                                          @Param("bizType") String bizType,
+                                         @Param("buckets") List<String> buckets,
                                          @Param("offset") int offset,
                                          @Param("limit") int limit);
 
@@ -58,7 +60,22 @@ public interface SysFileMapper extends BaseMapper<SysFile> {
      * 按条件统计文件数（条件与 {@link #selectFilesByCondition} 一致，用于分页计算）
      */
     long countFilesByCondition(@Param("tenantId") Long tenantId,
-                               @Param("bizType") String bizType);
+                               @Param("bizType") String bizType,
+                               @Param("buckets") List<String> buckets);
+
+    /**
+     * 查询有效文件覆盖的文件夹（bucket_name 去重）
+     * <p>
+     * T-ADMIN-025 page 可见文件夹全集：租户内出现过文件的文件夹（含无投影的历史脏桶——
+     * 引擎对其 fail-closed 拒绝，自然落入不可见侧）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param bizType  业务类型过滤条件，可选（进一步收窄全集）
+     * @return 去重文件夹编码列表
+     */
+    List<String> selectDistinctBucketNames(@Param("tenantId") Long tenantId,
+                                           @Param("bizType") String bizType);
 
     /**
      * 批量软删除文件

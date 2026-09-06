@@ -233,6 +233,64 @@ class FileServiceSecurityPgIT {
             Long.class, TENANT, originalName, "uuid.txt", filePath, "/files/" + filePath, bucketName);
     }
 
+    /**
+     * 插入 ADMIN_FILE 文件夹投影（resource_entity，code=folder，幂等复用已有行），返回实体 id。
+     * 模拟 bootstrap 预置/上传惰性登记产出的事实行（owner=access-service）。
+     */
+    private long insertFolderProjection(String folderCode) {
+        List<Long> existing = jdbc.queryForList(
+            "SELECT id FROM resource_entity WHERE tenant_id = ? AND resource_type = ? "
+                + "AND code = ? AND code_type = 'default' AND delete_flag = 0",
+            Long.class, TENANT, RESOURCE_TYPE_ADMIN_FILE, folderCode);
+        if (!existing.isEmpty()) {
+            return existing.get(0);
+        }
+        return jdbc.queryForObject(
+            "INSERT INTO resource_entity (tenant_id, resource_type, code, code_type, name, status, "
+                + "owner_service_code, maintain_source, delete_flag) "
+                + "VALUES (?, ?, ?, 'default', ?, 1, 'access-service', 'MANUAL', 0) RETURNING id",
+            Long.class, TENANT, RESOURCE_TYPE_ADMIN_FILE, folderCode, folderCode);
+    }
+
+    /**
+     * 插入仅持指定文件夹实例授权的用户（无类型级/scopeAll 授权）：
+     * folderOpBits 每项 = 文件夹编码 → 该文件夹上的操作位数列表（一行一操作，MANUAL 单操作约束）。
+     */
+    private long insertFolderUser(String name, Map<String, List<Long>> folderOpBits) {
+        long userId = insertUnprivilegedUser(name);
+        jdbc.update(
+            "INSERT INTO abstract_user (id, tenant_id, user_type, external_id, name, enabled, extra) "
+                + "VALUES (?, ?, 3, ?, ?, true, '{}')",
+            userId, TENANT, String.valueOf(userId), name);
+        Long roleId = jdbc.queryForObject(
+            "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, parent_id, extra) "
+                + "VALUES (?, 6, ?, ?, 1, NULL, '{}') RETURNING id",
+            Long.class, TENANT, "folder-role-" + UUID.randomUUID().toString().substring(0, 8), name + "-角色");
+        jdbc.update(
+            "INSERT INTO user_role (tenant_id, abstract_user_id, target_type, target_id) VALUES (?, ?, 'ROLE', ?)",
+            TENANT, userId, roleId);
+        for (Map.Entry<String, List<Long>> entry : folderOpBits.entrySet()) {
+            long folderEntityId = insertFolderProjection(entry.getKey());
+            for (long bits : entry.getValue()) {
+                jdbc.update(
+                    "INSERT INTO role_resource_permission "
+                        + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, grant_source) "
+                        + "VALUES (?, ?, ?, ?, ?, false, 'MANUAL')",
+                    TENANT, roleId, folderEntityId, bits, RESOURCE_TYPE_ADMIN_FILE);
+            }
+        }
+        return userId;
+    }
+
+    /** ADMIN_FILE 文件夹投影有效行数（code 维度，惰性登记/预置断言用）。 */
+    private long countFolderProjection(String folderCode) {
+        Integer count = jdbc.queryForObject(
+            "SELECT count(*) FROM resource_entity WHERE tenant_id = ? AND resource_type = ? "
+                + "AND code = ? AND code_type = 'default' AND delete_flag = 0",
+            Integer.class, TENANT, RESOURCE_TYPE_ADMIN_FILE, folderCode);
+        return count == null ? 0 : count;
+    }
+
     /** 上传真实文件（multipart），返回响应信封。 */
     private JsonNode upload(String token, String filename, String contentType, String bizType) throws Exception {
         MvcResult result = mockMvc.perform(multipart("/file/upload")
@@ -256,17 +314,18 @@ class FileServiceSecurityPgIT {
     // ===== ① VIEW 门禁 =====
 
     @Test
-    @DisplayName("无 ADMIN_FILE:VIEW 授权：detail/page/download 全部 403 fail-closed")
+    @DisplayName("无 ADMIN_FILE:VIEW 授权：detail/download 403 fail-closed；page 过滤语义返回 200 空页（T-ADMIN-025）")
     void viewEndpointsDeniedWithoutGrant() throws Exception {
         long userId = insertUnprivilegedUser("文件安全-无权用户");
         String token = login(userId);
+        // 门禁键=文件所属文件夹（元数据先取行）：须用真实存在的文件行，不存在会先走 10501 业务错
+        long existingFile = insertFileRow("无权可见.txt", "vg-denied/2026/09/06/n.txt", "vg-denied");
 
-        // page 无实例参数，请求体为空对象；detail/download 传 id
-        Map<String, String> cases = Map.of(
-            "/file/detail", "{\"id\":1}",
-            "/file/page", "{}",
-            "/file/download", "{\"id\":1}");
-        for (Map.Entry<String, String> c : cases.entrySet()) {
+        // detail/download 按文件所属文件夹实例级判定（无授权 403）
+        Map<String, String> deniedCases = Map.of(
+            "/file/detail", "{\"id\":" + existingFile + "}",
+            "/file/download", "{\"id\":" + existingFile + "}");
+        for (Map.Entry<String, String> c : deniedCases.entrySet()) {
             MvcResult result = mockMvc.perform(post(c.getKey())
                     .header("Authorization", "Bearer " + token)
                     .contentType(MediaType.APPLICATION_JSON)
@@ -276,6 +335,13 @@ class FileServiceSecurityPgIT {
             JsonNode body = mapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
             assertThat(body.get("code").asInt()).as("%s 应 403 拒绝", c.getKey()).isEqualTo(403);
         }
+
+        // page 过滤语义不是门禁：bizType 收窄到无文件的唯一 bucket → 空全集直接空页（不触发主体判定）；
+        // 「有文件但全部无权 → 空页」由 pageBizTypeOfDeniedFolderReturnsEmptySilently 用有主体用户覆盖
+        JsonNode page = postJson(token, "/file/page", Map.of("bizType", "vg-empty"));
+        assertThat(page.get("code").asInt()).as("page 过滤语义返回空页而非 403").isEqualTo(200);
+        assertThat(page.get("data").get("total").asLong()).isZero();
+        assertThat(page.get("data").get("items").size()).isZero();
     }
 
     @Test
@@ -375,5 +441,126 @@ class FileServiceSecurityPgIT {
             "SELECT delete_flag FROM sys_file WHERE id = ?", Long.class, fileId);
         assertThat(deleteFlag).as("软删已提交（delete_flag=id）").isEqualTo(fileId);
         assertThat(Files.exists(orphanDir)).as("孤儿文件保留（优于丢失/回滚）").isTrue();
+    }
+
+    // ===== ④ 文件夹级授权（T-ADMIN-025：bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE） =====
+
+    @Test
+    @DisplayName("文件夹 VIEW 实例授权：page 只见本文件夹、detail 本夹放行他夹 403、脏桶不外泄")
+    void folderViewGrantIsolatesFolders() throws Exception {
+        // 用例内唯一 bucket 名：类内共享库（单容器），公共 bucket 会被其他用例的文件/惰性登记污染断言
+        long userId = insertFolderUser("文件夹-仅本夹VIEW", Map.of("fv-mine", List.of(BIT_VIEW)));
+        String token = login(userId);
+        long mineFile = insertFileRow("本夹.png", "fv-mine/2026/09/06/a.png", "fv-mine");
+        long otherFile = insertFileRow("他夹.pdf", "fv-other/2026/09/06/r.pdf", "fv-other");
+        // 白名单前落库的历史脏桶（无投影）——page 过滤语义下不可见（fail-closed 落入不可见侧）
+        insertFileRow("脏桶.txt", "../fv-legacy/x.txt", "../fv-legacy");
+
+        JsonNode page = postJson(token, "/file/page", Map.of());
+        assertThat(page.get("code").asInt()).isEqualTo(200);
+        assertThat(page.get("data").get("total").asLong()).as("只见本文件夹文件").isEqualTo(1L);
+        assertThat(page.get("data").get("items").get(0).get("id").asLong()).isEqualTo(mineFile);
+
+        assertThat(postJson(token, "/file/detail", Map.of("id", mineFile)).get("code").asInt())
+            .as("本文件夹 detail 放行").isEqualTo(200);
+
+        MvcResult denied = mockMvc.perform(post("/file/detail")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("id", otherFile))))
+            .andExpect(status().isForbidden())
+            .andReturn();
+        assertThat(mapper.readTree(denied.getResponse().getContentAsString(StandardCharsets.UTF_8))
+            .get("code").asInt()).as("他文件夹 detail 403").isEqualTo(403);
+    }
+
+    @Test
+    @DisplayName("page bizType 指向无权文件夹 → 静默空页（过滤语义非 403）")
+    void pageBizTypeOfDeniedFolderReturnsEmptySilently() throws Exception {
+        long userId = insertFolderUser("文件夹-空页用户", Map.of("pv-mine", List.of(BIT_VIEW)));
+        String token = login(userId);
+        insertFileRow("报告.pdf", "pv-other/2026/09/06/r.pdf", "pv-other");
+
+        JsonNode page = postJson(token, "/file/page", Map.of("bizType", "pv-other"));
+        assertThat(page.get("code").asInt()).as("无权文件夹过滤为空页而非 403").isEqualTo(200);
+        assertThat(page.get("data").get("total").asLong()).isZero();
+        assertThat(page.get("data").get("items").size()).isZero();
+    }
+
+    @Test
+    @DisplayName("upload：本夹实例 CREATE 放行；无投影新文件夹对无类型级授权者 fail-closed 403 且不留痕")
+    void uploadGatesOnTargetFolderInstance() throws Exception {
+        long userId = insertFolderUser("文件夹-仅本夹CREATE", Map.of("ug-mine", List.of(BIT_CREATE)));
+        String token = login(userId);
+
+        JsonNode uploaded = upload(token, "a.jpg", "image/jpeg", "ug-mine");
+        assertThat(uploaded.get("code").asInt()).as("已授权文件夹上传放行").isEqualTo(200);
+
+        Integer filesBefore = jdbc.queryForObject(
+            "SELECT count(*) FROM sys_file WHERE tenant_id = ? AND delete_flag = 0", Integer.class, TENANT);
+        MvcResult denied = mockMvc.perform(multipart("/file/upload")
+                .file(new MockMultipartFile("file", "b.txt", "text/plain", "content".getBytes()))
+                .param("bizType", "ug-brandnew")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden())
+            .andReturn();
+        assertThat(mapper.readTree(denied.getResponse().getContentAsString(StandardCharsets.UTF_8))
+            .get("code").asInt()).as("无投影新文件夹首传需类型级 CREATE（该用户无 → fail-closed）").isEqualTo(403);
+        assertThat(countFolderProjection("ug-brandnew"))
+            .as("拒绝路径不惰性登记投影").isZero();
+        Integer filesAfter = jdbc.queryForObject(
+            "SELECT count(*) FROM sys_file WHERE tenant_id = ? AND delete_flag = 0", Integer.class, TENANT);
+        assertThat(filesAfter).as("拒绝路径不落元数据").isEqualTo(filesBefore);
+    }
+
+    @Test
+    @DisplayName("upload 惰性登记：scopeAll 用户新 bizType 首传登记投影且重复上传不重复建号")
+    void uploadLazilyRegistersFolderProjectionForScopeAll() throws Exception {
+        long userId = insertFileAdminUser("文件夹-惰性登记");
+        String token = login(userId);
+
+        JsonNode first = upload(token, "a.txt", "text/plain", "ul-lazyreg");
+        assertThat(first.get("code").asInt()).isEqualTo(200);
+        assertThat(countFolderProjection("ul-lazyreg")).as("首传即成为可授权实例").isEqualTo(1L);
+
+        JsonNode second = upload(token, "b.txt", "text/plain", "ul-lazyreg");
+        assertThat(second.get("code").asInt()).isEqualTo(200);
+        assertThat(countFolderProjection("ul-lazyreg")).as("重复上传不重复登记").isEqualTo(1L);
+    }
+
+    @Test
+    @DisplayName("delete：本夹实例 DELETE 放行；他夹文件 403 且不软删；脏桶 fail-closed")
+    void deleteGatesOnFolders() throws Exception {
+        long userId = insertFolderUser("文件夹-仅本夹DELETE", Map.of("dg-mine", List.of(BIT_DELETE)));
+        String token = login(userId);
+        long mineFile = insertFileRow("本夹.png", "dg-mine/2026/09/06/a.png", "dg-mine");
+
+        JsonNode deleted = postJson(token, "/file/delete", Map.of("ids", List.of(mineFile)));
+        assertThat(deleted.get("code").asInt()).as("本文件夹删除放行").isEqualTo(200);
+        assertThat(jdbc.queryForObject(
+            "SELECT delete_flag FROM sys_file WHERE id = ?", Long.class, mineFile)).isEqualTo(mineFile);
+
+        long otherFile = insertFileRow("他夹.pdf", "dg-other/2026/09/06/r.pdf", "dg-other");
+        MvcResult denied = mockMvc.perform(post("/file/delete")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("ids", List.of(otherFile)))))
+            .andExpect(status().isForbidden())
+            .andReturn();
+        assertThat(mapper.readTree(denied.getResponse().getContentAsString(StandardCharsets.UTF_8))
+            .get("code").asInt()).as("他文件夹删除 403").isEqualTo(403);
+        assertThat(jdbc.queryForObject(
+            "SELECT delete_flag FROM sys_file WHERE id = ?", Long.class, otherFile))
+            .as("拒绝路径不软删").isEqualTo(0L);
+
+        long dirtyFile = insertFileRow("脏桶.txt", "../dg-legacy/y.txt", "../dg-legacy");
+        MvcResult dirtyDenied = mockMvc.perform(post("/file/delete")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(mapper.writeValueAsString(Map.of("ids", List.of(dirtyFile)))))
+            .andExpect(status().isForbidden())
+            .andReturn();
+        assertThat(mapper.readTree(dirtyDenied.getResponse().getContentAsString(StandardCharsets.UTF_8))
+            .get("code").asInt()).as("无投影历史脏桶 fail-closed 拒绝删除").isEqualTo(403);
     }
 }

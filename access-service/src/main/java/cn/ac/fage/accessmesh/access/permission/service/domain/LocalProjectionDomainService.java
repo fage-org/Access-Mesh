@@ -75,6 +75,25 @@ public interface LocalProjectionDomainService {
     void deleteAdminMenu(Long tenantId, Long sysMenuId);
 
     /**
+     * 登记 ADMIN_FILE 文件夹资源投影（T-ADMIN-025，insert-if-absent 语义）。
+     * <p>
+     * 文件夹 = {@code sys_file.bucket_name} = {@code resource_entity(ADMIN_FILE).code}，
+     * 单事实源为投影表（无文件夹管理界面）。两条产出链：bootstrap 预置
+     * default/avatar/document/image 四文件夹（{@code name} 传展示标签）与上传新
+     * bizType 惰性登记（首次出现即成为可授权实例，{@code name} 传 code 本身）。
+     * 有效行已存在时<b>不回写</b>（名称以首建为准，避免惰性登记用 code 覆盖预置标签），
+     * 返回既有行 id；软删墓碑不复活（部分唯一索引允许重新插入新行）。
+     * 类型所有权：ADMIN_FILE 种子声明 SYNC+access-service（T-PERM-052 口径），
+     * 本投影与 bootstrap 预置是该类型唯一合法 writer。
+     * </p>
+     *
+     * @param folderCode 文件夹编码（= 上传 bizType，调用方保证格式白名单）
+     * @param name      展示名（仅首次创建生效）
+     * @return resource_entity.id
+     */
+    Long ensureAdminFileFolder(Long tenantId, String folderCode, String name);
+
+    /**
      * BIND sys_user_org 对应的 user_role。
      *
      * @param relationSysOrgId POSITION 时为其所属组织 sys_org.id（ 修复：

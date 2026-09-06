@@ -253,13 +253,22 @@ class AdminXmlPaginationPgIT {
                 + "VALUES (?, ?, ?, ?, 'report')", tenant, "报告" + i + ".pdf", "r" + i, "/r/" + i);
         }
 
-        assertThat(fileMapper.countFilesByCondition(tenant, null)).isEqualTo(5L);
-        assertThat(fileMapper.countFilesByCondition(tenant, "contract")).isEqualTo(3L);
-        assertThat(fileMapper.countFilesByCondition(tenant, "report")).isEqualTo(2L);
-        assertThat(fileMapper.selectFilesByCondition(tenant, "contract", 0, 2)).hasSize(2);
-        assertThat(fileMapper.selectFilesByCondition(tenant, "contract", 2, 2)).hasSize(1);
-        assertThat(fileMapper.selectFilesByCondition(tenant, "contract", 0, 2)
+        assertThat(fileMapper.countFilesByCondition(tenant, null, null)).isEqualTo(5L);
+        assertThat(fileMapper.countFilesByCondition(tenant, "contract", null)).isEqualTo(3L);
+        assertThat(fileMapper.countFilesByCondition(tenant, "report", null)).isEqualTo(2L);
+        assertThat(fileMapper.selectFilesByCondition(tenant, "contract", null, 0, 2)).hasSize(2);
+        assertThat(fileMapper.selectFilesByCondition(tenant, "contract", null, 2, 2)).hasSize(1);
+        assertThat(fileMapper.selectFilesByCondition(tenant, "contract", null, 0, 2)
             .stream().map(f -> f.getBucketName()).distinct()).containsOnly("contract");
+
+        // T-ADMIN-025：可见文件夹集合过滤（buckets IN）与 distinct 桶全集查询
+        assertThat(fileMapper.countFilesByCondition(tenant, null, List.of("report"))).isEqualTo(2L);
+        assertThat(fileMapper.countFilesByCondition(tenant, "contract", List.of("contract", "report"))).isEqualTo(3L);
+        assertThat(fileMapper.selectFilesByCondition(tenant, null, List.of("report"), 0, 10)
+            .stream().map(f -> f.getBucketName()).distinct()).containsOnly("report");
+        assertThat(fileMapper.selectDistinctBucketNames(tenant, null))
+            .containsExactlyInAnyOrder("contract", "report");
+        assertThat(fileMapper.selectDistinctBucketNames(tenant, "contract")).containsOnly("contract");
     }
 
     @Test
