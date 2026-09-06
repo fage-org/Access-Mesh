@@ -43,6 +43,7 @@
 | 2026-09-06 | 权限排查页（permission-query）暂停待重做（T-FE-043 登记）：页面问题与功能记录后整体重做，后续任务对该页只做编译一致最小改动，不投入页面改造；评审勿报该页 UI/交互缺陷，改登记 T-FE-043 | docs/tasks/T-FE-043.md、api-contract.md §6.7 排查页暂停注记 | 再报直接撤回 |
 | 2026-09-06 | AGENTS.md 只承载长期稳定事实与路由（外部评审核实后用户拍板）：任务进度/阶段枚举移出、指针化到 `docs/tasks/README.md`（禁以本文件历史任务号推断状态）；所有权段只留当前模型+错误码+防复活护栏，演进史交本表与架构文档；核心编码规范裁到高频硬约束（细则单一权威 project-rules）；新增 Agent 工作协议 5 步 | AGENTS.md | 报了先核出处 |
 | 2026-09-06 | 统一响应壳全量更名 PermResult→R（工厂 success/error→ok/fail、Advice→RResponseAdvice、前端 TS 信封类型同步 R<T>）；线格式字段与取值不变（RWireShapeTest 锁）；引擎类 `dto/query/PermResult` 是权限查询内部结果、与响应壳是两个物，禁止合并或混淆 | common/model/R.java、project-rules.md §1.1、docs/design/frontend/service-interface-mapping.md | 报了先核出处 |
+| 2026-09-06 | Agent 指令面收敛：删除 `.github/copilot-instructions.md`（第 4 份浓缩副本，漂移实证 3 处），规范入口=AGENTS.md + project-rules.md + skills/rules；勿再为 GitHub Copilot 重建独立指令副本（如需注入面用薄指针文件指向 AGENTS.md） | accessmesh-patterns SKILL.md（权威列表行）、本表 | 报了先核出处 |
 
 ## 已推翻（superseded）
 

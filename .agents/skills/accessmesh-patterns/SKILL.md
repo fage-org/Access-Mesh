@@ -13,7 +13,7 @@ metadata:
 
 # AccessMesh 通用开发模式
 
-本技能用于 AccessMesh 仓库级快速对齐。它不是权威规范的替代品；遇到冲突时，以 `docs/design/project-rules.md`、`AGENTS.md`、`.github/copilot-instructions.md` 和模块专用规则为准。
+本技能用于 AccessMesh 仓库级快速对齐。它不是权威规范的替代品；遇到冲突时，以 `docs/design/project-rules.md`、`AGENTS.md` 和模块专用规则为准。
 
 ## 适用范围
 
