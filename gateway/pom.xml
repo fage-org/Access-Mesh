@@ -24,7 +24,7 @@
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>common</artifactId>
             <!-- T-ACCESS-003 评审 P1 修复（2026-08-14）：排除 spring-webmvc 传递依赖。
-                 common 的 GlobalExceptionHandler/PermResultResponseAdvice 是 WebMvc 组件
+                 common 的 GlobalExceptionHandler/RResponseAdvice 是 WebMvc 组件
                  （GatewayApplication 已 exclude CommonAutoConfiguration 不加载），
                  spring-webmvc 在 classpath 触发 Spring Cloud Gateway 的
                  MvcFoundOnClasspathException（Gateway 不允许 MVC/WebFlux 共存），

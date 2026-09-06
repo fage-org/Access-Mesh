@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleTreeReq;
@@ -59,8 +59,8 @@ public class PermRoleController {
      * @return 创建成功的角色详情
      */
     @PostMapping("/create")
-    public PermResult<RoleResp> createRole(@Valid @RequestBody RoleCreateReq req) {
-        return PermResult.success(roleManageAppService.createRole(TenantContextHolder.getTenantId(), req, null));
+    public R<RoleResp> createRole(@Valid @RequestBody RoleCreateReq req) {
+        return R.ok(roleManageAppService.createRole(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -74,8 +74,8 @@ public class PermRoleController {
      * @return 角色详情信息
      */
     @PostMapping("/detail")
-    public PermResult<RoleResp> getRole(@Valid @RequestBody RoleDetailReq req) {
-        return PermResult.success(roleManageAppService.getRole(
+    public R<RoleResp> getRole(@Valid @RequestBody RoleDetailReq req) {
+        return R.ok(roleManageAppService.getRole(
                 TenantContextHolder.getTenantId(), req.roleTypeCode(), req.roleExternalId()));
     }
 
@@ -89,8 +89,8 @@ public class PermRoleController {
      * @return 更新后的角色详情
      */
     @PostMapping("/update")
-    public PermResult<RoleResp> updateRole(@Valid @RequestBody RoleUpdateReq req) {
-        return PermResult.success(roleManageAppService.updateRole(
+    public R<RoleResp> updateRole(@Valid @RequestBody RoleUpdateReq req) {
+        return R.ok(roleManageAppService.updateRole(
                 TenantContextHolder.getTenantId(), req.roleId(), req.name(), req.status(), req.sortOrder(), req.extra(), req.extraClear(), null));
     }
 
@@ -104,9 +104,9 @@ public class PermRoleController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteRole(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteRole(@Valid @RequestBody IdsReq req) {
         roleManageAppService.deleteRoles(TenantContextHolder.getTenantId(), req.ids(), null);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -119,8 +119,8 @@ public class PermRoleController {
      * @return 角色树结构列表
      */
     @PostMapping("/tree")
-    public PermResult<ItemsResp<RoleTreeResp>> getRoleTree(@Valid @RequestBody RoleTreeReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<RoleTreeResp>> getRoleTree(@Valid @RequestBody RoleTreeReq req) {
+        return R.ok(new ItemsResp<>(
             roleManageAppService.getRoleTree(TenantContextHolder.getTenantId(), req.domainCode(),
                 Boolean.TRUE.equals(req.enabledOnly()))
         ));
@@ -136,7 +136,7 @@ public class PermRoleController {
      * @return 分页角色列表结果
      */
     @PostMapping("/list")
-    public PermResult<PaginatedResp<RoleResp>> listRoles(@Valid @RequestBody RoleListReq req) {
+    public R<PaginatedResp<RoleResp>> listRoles(@Valid @RequestBody RoleListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
@@ -147,7 +147,7 @@ public class PermRoleController {
         List<RoleResp> items = roleManageAppService.listRoles(
             tenantId, req.domainCode(), req.roleTypeCode(), req.roleTypeCodes(), req.keyword(), offset, pageSize
         );
-        return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 
     /**
@@ -160,8 +160,8 @@ public class PermRoleController {
      * @return 操作成功结果
      */
     @PostMapping("/move")
-    public PermResult<Void> moveRole(@Valid @RequestBody RoleMoveReq req) {
+    public R<Void> moveRole(@Valid @RequestBody RoleMoveReq req) {
         roleManageAppService.moveRole(TenantContextHolder.getTenantId(), req.roleId(), req.parentId(), null);
-        return PermResult.success();
+        return R.ok();
     }
 }

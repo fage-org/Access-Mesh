@@ -3,7 +3,7 @@
  * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/role-resource-permission/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/role-resource-permission`）。
  * T-FE-041 切换真实链路后，mock/permission-grant.ts（已随 T-FE-018 删除）旧路径不再存在。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.5 / §6.4 / §6.5 / §6.5.1
@@ -17,7 +17,7 @@
  * - grantedBits 为 63 位位图十进制字符串（避免 JSON number 精度丢失），前端 BigInt 解析。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { ItemsResp } from "./role-manage";
 
 // ========== 常量 ==========
@@ -219,7 +219,7 @@ export type ApplyGrantPlanReq = {
 export const getRolePermissionList = async (
   params: RolePermissionListReq
 ): Promise<ItemsResp<RolePermissionItem>> => {
-  const res = await http.request<PermResult<ItemsResp<RolePermissionItem>>>(
+  const res = await http.request<R<ItemsResp<RolePermissionItem>>>(
     "post",
     "/perm/api/perm/role-resource-permission/list",
     { data: params }
@@ -237,7 +237,7 @@ export const getRolePermissionList = async (
 export const applyGrantPlan = async (
   params: ApplyGrantPlanReq
 ): Promise<ItemsResp<RolePermissionItem>> => {
-  const res = await http.request<PermResult<ItemsResp<RolePermissionItem>>>(
+  const res = await http.request<R<ItemsResp<RolePermissionItem>>>(
     "post",
     "/perm/api/perm/role-resource-permission/apply-grant-plan",
     { data: params }
@@ -290,7 +290,7 @@ export type SubPermAllowedTypesReq = {
 export const getSubPermAllowedTypes = async (
   params: SubPermAllowedTypesReq
 ): Promise<SubPermissionPolicy> => {
-  const res = await http.request<PermResult<SubPermissionPolicy>>(
+  const res = await http.request<R<SubPermissionPolicy>>(
     "post",
     "/perm/api/perm/role-resource-permission/sub-perm-allowed-types",
     { data: params }

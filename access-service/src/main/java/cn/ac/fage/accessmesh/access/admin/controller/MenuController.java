@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.MenuUpdateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.MenuResp;
 import cn.ac.fage.accessmesh.access.admin.service.MenuService;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,8 +48,8 @@ public class MenuController {
      * @return 创建成功的菜单ID
      */
     @PostMapping("/create")
-    public PermResult<Long> createMenu(@Valid @RequestBody MenuCreateReq req) {
-        return PermResult.success(menuService.createMenu(req));
+    public R<Long> createMenu(@Valid @RequestBody MenuCreateReq req) {
+        return R.ok(menuService.createMenu(req));
     }
 
     /**
@@ -62,9 +62,9 @@ public class MenuController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    public PermResult<Void> updateMenu(@Valid @RequestBody MenuUpdateReq req) {
+    public R<Void> updateMenu(@Valid @RequestBody MenuUpdateReq req) {
         menuService.updateMenu(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -77,9 +77,9 @@ public class MenuController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteMenu(@Valid @RequestBody IdReq req) {
+    public R<Void> deleteMenu(@Valid @RequestBody IdReq req) {
         menuService.deleteMenu(req.id());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -92,8 +92,8 @@ public class MenuController {
      * @return 菜单详情信息
      */
     @PostMapping("/detail")
-    public PermResult<MenuResp> getMenu(@Valid @RequestBody IdReq req) {
-        return PermResult.success(menuService.getMenu(req.id()));
+    public R<MenuResp> getMenu(@Valid @RequestBody IdReq req) {
+        return R.ok(menuService.getMenu(req.id()));
     }
 
     /**
@@ -105,7 +105,7 @@ public class MenuController {
      * @return 菜单树结构列表
      */
     @PostMapping("/tree")
-    public PermResult<List<MenuResp>> treeMenu() {
-        return PermResult.success(menuService.treeMenu());
+    public R<List<MenuResp>> treeMenu() {
+        return R.ok(menuService.treeMenu());
     }
 }

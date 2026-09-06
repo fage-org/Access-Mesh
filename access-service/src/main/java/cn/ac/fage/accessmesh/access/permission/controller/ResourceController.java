@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.*;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
@@ -51,8 +51,8 @@ public class ResourceController {
      * @return 创建成功的资源详情
      */
     @PostMapping("/create")
-    public PermResult<ResourceResp> createResource(@Valid @RequestBody ResourceCreateReq req) {
-        return PermResult.success(resourceManageAppService.createResource(TenantContextHolder.getTenantId(), req, null));
+    public R<ResourceResp> createResource(@Valid @RequestBody ResourceCreateReq req) {
+        return R.ok(resourceManageAppService.createResource(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -65,8 +65,8 @@ public class ResourceController {
      * @return 创建成功的资源列表
      */
     @PostMapping("/batch-create")
-    public PermResult<ItemsResp<ResourceResp>> batchCreateResources(@Valid @RequestBody ResourceBatchCreateReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<ResourceResp>> batchCreateResources(@Valid @RequestBody ResourceBatchCreateReq req) {
+        return R.ok(new ItemsResp<>(
             resourceManageAppService.batchCreateResources(TenantContextHolder.getTenantId(), req.items(), null)
         ));
     }
@@ -81,8 +81,8 @@ public class ResourceController {
      * @return 资源详情信息
      */
     @PostMapping("/detail")
-    public PermResult<ResourceResp> getResource(@Valid @RequestBody ResourceKeyReq req) {
-        return PermResult.success(resourceManageAppService.getResource(TenantContextHolder.getTenantId(), req));
+    public R<ResourceResp> getResource(@Valid @RequestBody ResourceKeyReq req) {
+        return R.ok(resourceManageAppService.getResource(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -95,8 +95,8 @@ public class ResourceController {
      * @return 更新后的资源详情
      */
     @PostMapping("/update")
-    public PermResult<ResourceResp> updateResource(@Valid @RequestBody ResourceUpdateReq req) {
-        return PermResult.success(resourceManageAppService.updateResource(TenantContextHolder.getTenantId(), req, null));
+    public R<ResourceResp> updateResource(@Valid @RequestBody ResourceUpdateReq req) {
+        return R.ok(resourceManageAppService.updateResource(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -109,9 +109,9 @@ public class ResourceController {
      * @return 操作成功结果
      */
     @PostMapping("/move")
-    public PermResult<Void> moveResource(@Valid @RequestBody ResourceMoveReq req) {
+    public R<Void> moveResource(@Valid @RequestBody ResourceMoveReq req) {
         resourceManageAppService.moveResource(TenantContextHolder.getTenantId(), req, null);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -124,9 +124,9 @@ public class ResourceController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteResource(@Valid @RequestBody ResourceKeysReq req) {
+    public R<Void> deleteResource(@Valid @RequestBody ResourceKeysReq req) {
         resourceManageAppService.deleteResources(TenantContextHolder.getTenantId(), req.items(), null);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -139,8 +139,8 @@ public class ResourceController {
      * @return 资源树结构列表
      */
     @PostMapping("/tree")
-    public PermResult<ItemsResp<ResourceTreeResp>> getResourceTree(@Valid @RequestBody ResourceTreeReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<ResourceTreeResp>> getResourceTree(@Valid @RequestBody ResourceTreeReq req) {
+        return R.ok(new ItemsResp<>(
             resourceManageAppService.getResourceTree(TenantContextHolder.getTenantId(), req.resourceTypeCode(), req.domainCode())
         ));
     }
@@ -155,13 +155,13 @@ public class ResourceController {
      * @return 分页资源列表结果
      */
     @PostMapping("/list")
-    public PermResult<PaginatedResp<ResourceResp>> listResources(@Valid @RequestBody ResourceListReq req) {
+    public R<PaginatedResp<ResourceResp>> listResources(@Valid @RequestBody ResourceListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
         Long tenantId = TenantContextHolder.getTenantId();
         long total = resourceManageAppService.countResources(tenantId, req.resourceTypeCode(), req.domainCode());
         List<ResourceResp> items = resourceManageAppService.listResources(tenantId, req.resourceTypeCode(), req.domainCode(), offset, pageSize);
-        return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 }

@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.example.controller;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.example.dto.DemoHelloReq;
 import cn.ac.fage.accessmesh.example.dto.DemoHelloResp;
 import cn.ac.fage.accessmesh.example.enums.ExampleErrorCode;
@@ -44,7 +44,7 @@ public class DemoController {
      * @return 问候语与身份回显
      */
     @PostMapping("/hello")
-    public PermResult<DemoHelloResp> hello(@RequestBody DemoHelloReq req,
+    public R<DemoHelloResp> hello(@RequestBody DemoHelloReq req,
                                            @RequestHeader(name = "X-User-Id", required = false) String userId,
                                            @RequestHeader(name = "X-Tenant-Id", required = false) String tenantId) {
         if (req == null || req.name() == null || req.name().isBlank()) {
@@ -55,6 +55,6 @@ public class DemoController {
             throw new BizException(ExampleErrorCode.DEMO_IDENTITY_HEADER_MISSING.getCode(),
                 ExampleErrorCode.DEMO_IDENTITY_HEADER_MISSING.getMessage());
         }
-        return PermResult.success(new DemoHelloResp("hello, " + req.name(), userId, tenantId));
+        return R.ok(new DemoHelloResp("hello, " + req.name(), userId, tenantId));
     }
 }

@@ -71,7 +71,7 @@ class ExampleServiceApplicationTest {
         assertThat(envelope.path("data").path("greeting").asText()).isEqualTo("hello, AccessMesh");
         assertThat(envelope.path("data").path("userId").asText()).isEqualTo("42");
         assertThat(envelope.path("data").path("tenantId").asText()).isEqualTo("1");
-        assertThat(envelope.path("requestId")).as("PermResultResponseAdvice 自动填充 requestId").isNotNull();
+        assertThat(envelope.path("requestId")).as("RResponseAdvice 自动填充 requestId").isNotNull();
     }
 
     @Test

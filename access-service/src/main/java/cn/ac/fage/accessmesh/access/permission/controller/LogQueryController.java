@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ChangeLogListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.LogActionOptionsReq;
@@ -57,7 +57,7 @@ public class LogQueryController {
      * @return 分页变更日志列表结果
      */
     @PostMapping("/change/list")
-    public PermResult<PaginatedResp<ChangeLogResp>> listChangeLogs(@Valid @RequestBody ChangeLogListReq req) {
+    public R<PaginatedResp<ChangeLogResp>> listChangeLogs(@Valid @RequestBody ChangeLogListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
@@ -69,7 +69,7 @@ public class LogQueryController {
                 tenantId, req.entityType(), req.entityId(),
                 req.eventType(), req.changeSource(), req.affectedUserId(), req.affectedRoleId(),
                 req.since(), req.until(), offset, pageSize);
-        return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 
     // ===== 操作日志 =====
@@ -86,7 +86,7 @@ public class LogQueryController {
      * @return 分页操作日志列表结果
      */
     @PostMapping("/operation/list")
-    public PermResult<PaginatedResp<OperationLogResp>> listOperationLogs(@Valid @RequestBody OperationLogListReq req) {
+    public R<PaginatedResp<OperationLogResp>> listOperationLogs(@Valid @RequestBody OperationLogListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
@@ -97,7 +97,7 @@ public class LogQueryController {
                 tenantId, req.module(), req.action(),
                 req.operatorId(), req.since(), req.until(), req.targetType(),
                 offset, pageSize);
-        return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 
     /**
@@ -111,8 +111,8 @@ public class LogQueryController {
      * @return action 去重集合（字典序）
      */
     @PostMapping("/operation/action-options")
-    public PermResult<ItemsResp<String>> listActionOptions(@Valid @RequestBody LogActionOptionsReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<String>> listActionOptions(@Valid @RequestBody LogActionOptionsReq req) {
+        return R.ok(new ItemsResp<>(
             logQueryService.listActionOptions(TenantContextHolder.getTenantId(), req.module())));
     }
 }

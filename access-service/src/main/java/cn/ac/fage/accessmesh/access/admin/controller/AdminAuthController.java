@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.auth.SmsLoginReq;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.access.admin.dto.auth.UserMenuResp;
 import cn.ac.fage.accessmesh.access.admin.service.AuthService;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -48,8 +48,8 @@ public class AdminAuthController {
      * @return 验证码响应，包含图片Base64和验证码Key
      */
     @PostMapping("/captcha")
-    public PermResult<CaptchaResp> captcha() {
-        return PermResult.success(authService.generateCaptcha());
+    public R<CaptchaResp> captcha() {
+        return R.ok(authService.generateCaptcha());
     }
 
     /**
@@ -63,8 +63,8 @@ public class AdminAuthController {
      * @return 登录响应，包含访问令牌和用户基本信息
      */
     @PostMapping("/login")
-    public PermResult<LoginResp> login(@Valid @RequestBody LoginReq req) {
-        return PermResult.success(authService.login(req));
+    public R<LoginResp> login(@Valid @RequestBody LoginReq req) {
+        return R.ok(authService.login(req));
     }
 
     /**
@@ -78,8 +78,8 @@ public class AdminAuthController {
      * @return 登录响应，包含访问令牌和用户基本信息
      */
     @PostMapping("/login/sms")
-    public PermResult<LoginResp> smsLogin(@Valid @RequestBody SmsLoginReq req) {
-        return PermResult.success(authService.smsLogin(req));
+    public R<LoginResp> smsLogin(@Valid @RequestBody SmsLoginReq req) {
+        return R.ok(authService.smsLogin(req));
     }
 
     /**
@@ -91,9 +91,9 @@ public class AdminAuthController {
      * @return 操作成功结果
      */
     @PostMapping("/logout")
-    public PermResult<Void> logout() {
+    public R<Void> logout() {
         authService.logout();
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -106,9 +106,9 @@ public class AdminAuthController {
      * @return 用户信息响应，包含用户详细信息和角色列表
      */
     @PostMapping("/userinfo")
-    public PermResult<UserInfoResp> getUserInfo() {
+    public R<UserInfoResp> getUserInfo() {
         Long userId = StpUtil.getLoginIdAsLong();
-        return PermResult.success(authService.getUserInfo(userId));
+        return R.ok(authService.getUserInfo(userId));
     }
 
     /**
@@ -121,8 +121,8 @@ public class AdminAuthController {
      * @return 用户菜单响应，包含菜单树结构
      */
     @PostMapping("/user-menu")
-    public PermResult<UserMenuResp> getUserMenu() {
+    public R<UserMenuResp> getUserMenu() {
         Long userId = StpUtil.getLoginIdAsLong();
-        return PermResult.success(authService.getUserMenu(userId));
+        return R.ok(authService.getUserMenu(userId));
     }
 }

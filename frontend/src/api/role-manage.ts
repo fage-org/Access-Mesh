@@ -4,7 +4,7 @@
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/abstract-role`）。
  * T-FE-041 切换真实链路后旧 `/api/perm/**` mock 路径自然失配；T-FE-016 联调收口，
  * mock/role-manage.ts 已随切换退役删除（Phase 3 模式，同 mock/user-manage.ts）。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.2 / §6.10.3
@@ -13,7 +13,7 @@
  * tree/create 先在册，update/remove/move/detail 随 T-FE-016 补注册）
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 
 // ========== 角色类型常量 ==========
 
@@ -195,7 +195,7 @@ export type GroupRoleExtraRoleReq = {
 export const getRoleTree = async (
   params: RoleTreeQuery = {}
 ): Promise<RoleTreeNode[]> => {
-  const res = await http.request<PermResult<ItemsResp<{ root: RoleTreeNode }>>>(
+  const res = await http.request<R<ItemsResp<{ root: RoleTreeNode }>>>(
     "post",
     "/perm/api/perm/abstract-role/tree",
     { data: params }
@@ -209,7 +209,7 @@ export const getRoleTree = async (
 export const getRoleList = async (
   params: RoleListQuery
 ): Promise<PaginatedResp<RoleResp>> => {
-  const res = await http.request<PermResult<PaginatedResp<RoleResp>>>(
+  const res = await http.request<R<PaginatedResp<RoleResp>>>(
     "post",
     "/perm/api/perm/abstract-role/list",
     { data: params }
@@ -219,7 +219,7 @@ export const getRoleList = async (
 
 /** 创建角色（POST /perm/api/perm/abstract-role/create） */
 export const createRole = async (data: RoleCreateReq): Promise<RoleResp> => {
-  const res = await http.request<PermResult<RoleResp>>(
+  const res = await http.request<R<RoleResp>>(
     "post",
     "/perm/api/perm/abstract-role/create",
     { data }
@@ -229,7 +229,7 @@ export const createRole = async (data: RoleCreateReq): Promise<RoleResp> => {
 
 /** 更新角色（POST /perm/api/perm/abstract-role/update） */
 export const updateRole = async (data: RoleUpdateReq): Promise<RoleResp> => {
-  const res = await http.request<PermResult<RoleResp>>(
+  const res = await http.request<R<RoleResp>>(
     "post",
     "/perm/api/perm/abstract-role/update",
     { data }
@@ -240,7 +240,7 @@ export const updateRole = async (data: RoleUpdateReq): Promise<RoleResp> => {
 /** 移动角色树节点（POST /perm/api/perm/abstract-role/move） */
 export const moveRole = async (data: RoleMoveReq): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/abstract-role/move",
       {
@@ -253,7 +253,7 @@ export const moveRole = async (data: RoleMoveReq): Promise<void> => {
 /** 删除角色，支持批量（POST /perm/api/perm/abstract-role/remove） */
 export const removeRoles = async (ids: number[]): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/abstract-role/remove",
       {
@@ -282,7 +282,7 @@ export type RoleDetailQuery = {
 export const getRoleDetail = async (
   params: RoleDetailQuery
 ): Promise<RoleResp | null> => {
-  const res = await http.request<PermResult<RoleResp | null>>(
+  const res = await http.request<R<RoleResp | null>>(
     "post",
     "/perm/api/perm/abstract-role/detail",
     { data: params }
@@ -297,7 +297,7 @@ export const getRoleDetail = async (
 export const listExtraRoles = async (
   params: GroupRoleExtraRolesQuery
 ): Promise<RoleSummaryResp[]> => {
-  const res = await http.request<PermResult<ItemsResp<RoleSummaryResp>>>(
+  const res = await http.request<R<ItemsResp<RoleSummaryResp>>>(
     "post",
     "/perm/api/perm/abstract-role/extra-roles/list",
     { data: params }
@@ -310,7 +310,7 @@ export const addExtraRole = async (
   data: GroupRoleExtraRoleReq
 ): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/abstract-role/extra-roles/add",
       { data }
@@ -323,7 +323,7 @@ export const removeExtraRole = async (
   data: GroupRoleExtraRoleReq
 ): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/abstract-role/extra-roles/remove",
       { data }

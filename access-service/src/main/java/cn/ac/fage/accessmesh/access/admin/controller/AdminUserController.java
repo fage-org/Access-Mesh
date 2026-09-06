@@ -22,7 +22,7 @@ import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
@@ -68,8 +68,8 @@ public class AdminUserController {
      * @return 创建成功的用户ID和初始密码
      */
     @PostMapping("/create")
-    public PermResult<UserCreateResp> createUser(@Valid @RequestBody UserCreateReq req) {
-        return PermResult.success(userService.createUser(req));
+    public R<UserCreateResp> createUser(@Valid @RequestBody UserCreateReq req) {
+        return R.ok(userService.createUser(req));
     }
 
     /**
@@ -82,9 +82,9 @@ public class AdminUserController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    public PermResult<Void> updateUser(@Valid @RequestBody UserUpdateReq req) {
+    public R<Void> updateUser(@Valid @RequestBody UserUpdateReq req) {
         userService.updateUser(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -97,9 +97,9 @@ public class AdminUserController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteUser(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteUser(@Valid @RequestBody IdsReq req) {
         userService.deleteUser(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -113,9 +113,9 @@ public class AdminUserController {
      * @return 操作成功结果
      */
     @PostMapping("/enable")
-    public PermResult<Void> updateStatus(@Valid @RequestBody UserUpdateStatusReq req) {
+    public R<Void> updateStatus(@Valid @RequestBody UserUpdateStatusReq req) {
         userService.updateStatus(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -128,8 +128,8 @@ public class AdminUserController {
      * @return 用户详情信息
      */
     @PostMapping("/detail")
-    public PermResult<UserResp> getUser(@Valid @RequestBody IdReq req) {
-        return PermResult.success(userService.getUser(req.id()));
+    public R<UserResp> getUser(@Valid @RequestBody IdReq req) {
+        return R.ok(userService.getUser(req.id()));
     }
 
     /**
@@ -142,8 +142,8 @@ public class AdminUserController {
      * @return 分页用户列表结果
      */
     @PostMapping("/page")
-    public PermResult<PaginatedResult<UserPageItemResp>> pageUsers(@Valid @RequestBody UserPageReq req) {
-        return PermResult.success(userService.pageUsers(req));
+    public R<PaginatedResult<UserPageItemResp>> pageUsers(@Valid @RequestBody UserPageReq req) {
+        return R.ok(userService.pageUsers(req));
     }
 
     /**
@@ -157,9 +157,9 @@ public class AdminUserController {
      * @return 分页候选用户列表
      */
     @PostMapping("/member-candidates")
-    public PermResult<PaginatedResult<MemberCandidateItemResp>> memberCandidates(
+    public R<PaginatedResult<MemberCandidateItemResp>> memberCandidates(
         @Valid @RequestBody MemberCandidatesReq req) {
-        return PermResult.success(userService.memberCandidates(req));
+        return R.ok(userService.memberCandidates(req));
     }
 
     /**
@@ -174,8 +174,8 @@ public class AdminUserController {
      * @return 重置密码响应，包含生效的密码
      */
     @PostMapping("/reset-password")
-    public PermResult<ResetPasswordResp> resetPassword(@Valid @RequestBody ResetPasswordReq req) {
-        return PermResult.success(userService.resetPassword(req.userId(), req.newPassword()));
+    public R<ResetPasswordResp> resetPassword(@Valid @RequestBody ResetPasswordReq req) {
+        return R.ok(userService.resetPassword(req.userId(), req.newPassword()));
     }
 
     /**
@@ -189,7 +189,7 @@ public class AdminUserController {
      * @return 用户信息响应，包含菜单列表和权限标识
      */
     @PostMapping("/user-menus")
-    public PermResult<UserInfoResp> getUserMenus(@Valid @RequestBody IdReq req) {
+    public R<UserInfoResp> getUserMenus(@Valid @RequestBody IdReq req) {
         // 权限边界：改己豁免——当前登录用户可查自己的权限信息；
         // 查询其他用户需 USER:VIEW 实例级门禁，防普通用户枚举 ID 读取他人角色/权限/组织
         Long currentUserId = StpUtil.getLoginIdAsLong();
@@ -197,6 +197,6 @@ public class AdminUserController {
             permissionValidator.checkInstanceLevel(ResourceTypeCode.USER,
                 String.valueOf(req.id()), AdminOperationCode.VIEW);
         }
-        return PermResult.success(userMenuQueryService.loadUserRolesAndPermissions(req.id()));
+        return R.ok(userMenuQueryService.loadUserRolesAndPermissions(req.id()));
     }
 }

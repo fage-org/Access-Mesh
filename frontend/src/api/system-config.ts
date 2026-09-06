@@ -2,7 +2,7 @@
  * 系统配置 API
  * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/system-config/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/system-config`）。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.8 system-config 契约要点（T-PERM-024 收口）
@@ -12,7 +12,7 @@
  * （按 configKey 查存在则 update 不存在则 insert），无删除接口。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { ItemsResp, PaginatedResp } from "./role-manage";
 
 // ========== 系统配置定义 ==========
@@ -67,7 +67,7 @@ export type SystemConfigSaveReq = {
 export const getSystemConfigList = async (
   params: SystemConfigListQuery
 ): Promise<PaginatedResp<SystemConfigResp>> => {
-  const res = await http.request<PermResult<PaginatedResp<SystemConfigResp>>>(
+  const res = await http.request<R<PaginatedResp<SystemConfigResp>>>(
     "post",
     "/perm/api/perm/system-config/list",
     { data: params }
@@ -79,7 +79,7 @@ export const getSystemConfigList = async (
 export const getSystemConfigDetail = async (
   configKey: string
 ): Promise<SystemConfigResp> => {
-  const res = await http.request<PermResult<SystemConfigResp>>(
+  const res = await http.request<R<SystemConfigResp>>(
     "post",
     "/perm/api/perm/system-config/detail",
     { data: { configKey } satisfies SystemConfigGetReq }
@@ -93,7 +93,7 @@ export const getSystemConfigDetail = async (
 export const saveSystemConfig = async (
   data: SystemConfigSaveReq
 ): Promise<SystemConfigResp> => {
-  const res = await http.request<PermResult<SystemConfigResp>>(
+  const res = await http.request<R<SystemConfigResp>>(
     "post",
     "/perm/api/perm/system-config/save",
     { data }

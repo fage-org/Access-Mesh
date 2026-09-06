@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.common.config;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
@@ -15,7 +15,7 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice;
 import java.util.UUID;
 
 /**
- * PermResult响应体增强
+ * R响应体增强
  * <p>
  * 自动填充requestId和traceId字段。
  * requestId从X-Request-Id请求头获取，若不存在则生成UUID。
@@ -23,21 +23,21 @@ import java.util.UUID;
  * </p>
  */
 @ControllerAdvice
-public class PermResultResponseAdvice implements ResponseBodyAdvice<Object> {
+public class RResponseAdvice implements ResponseBodyAdvice<Object> {
 
     private static final String REQUEST_ID_HEADER = "X-Request-Id";
     private static final String TRACE_ID_HEADER = "X-Trace-Id";
 
     @Override
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
-        return PermResult.class.equals(returnType.getParameterType());
+        return R.class.equals(returnType.getParameterType());
     }
 
     @Override
     public Object beforeBodyWrite(Object body, MethodParameter returnType, MediaType selectedContentType,
                                   Class<? extends HttpMessageConverter<?>> selectedConverterType,
                                   ServerHttpRequest request, ServerHttpResponse response) {
-        if (body instanceof PermResult<?> result) {
+        if (body instanceof R<?> result) {
             String requestId = resolveRequestId();
             result.setRequestId(requestId);
             result.setTraceId(resolveTraceId(requestId));

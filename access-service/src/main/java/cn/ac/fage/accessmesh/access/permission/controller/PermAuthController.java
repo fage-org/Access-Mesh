@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BatchAuthCheckReq;
@@ -59,8 +59,8 @@ public class PermAuthController {
      * @return 权限校验结果，包含是否允许、拒绝原因等
      */
     @PostMapping("/check")
-    public PermResult<AuthCheckResp> check(@Valid @RequestBody AuthCheckReq req) {
-        return PermResult.success(permissionCheckAppService.check(TenantContextHolder.getTenantId(), req));
+    public R<AuthCheckResp> check(@Valid @RequestBody AuthCheckReq req) {
+        return R.ok(permissionCheckAppService.check(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -70,8 +70,8 @@ public class PermAuthController {
      * @return 批量校验结果，包含每个资源的校验状态
      */
     @PostMapping("/batch-check")
-    public PermResult<BatchAuthCheckResp> batchCheck(@Valid @RequestBody BatchAuthCheckReq req) {
-        return PermResult.success(permissionCheckAppService.batchCheck(TenantContextHolder.getTenantId(), req));
+    public R<BatchAuthCheckResp> batchCheck(@Valid @RequestBody BatchAuthCheckReq req) {
+        return R.ok(permissionCheckAppService.batchCheck(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -81,8 +81,8 @@ public class PermAuthController {
      * @return 接口校验结果，包含是否允许访问
      */
     @PostMapping("/check-interface")
-    public PermResult<CheckInterfaceResp> checkInterface(@Valid @RequestBody CheckInterfaceReq req) {
-        return PermResult.success(permissionCheckAppService.checkInterface(TenantContextHolder.getTenantId(), req));
+    public R<CheckInterfaceResp> checkInterface(@Valid @RequestBody CheckInterfaceReq req) {
+        return R.ok(permissionCheckAppService.checkInterface(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -92,8 +92,8 @@ public class PermAuthController {
      * @return 用户可访问的资源列表
      */
     @PostMapping("/query-resources")
-    public PermResult<QueryResourcesResp> queryResources(@Valid @RequestBody QueryResourcesReq req) {
-        return PermResult.success(permissionQueryAppService.queryResources(TenantContextHolder.getTenantId(), req));
+    public R<QueryResourcesResp> queryResources(@Valid @RequestBody QueryResourcesReq req) {
+        return R.ok(permissionQueryAppService.queryResources(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -103,8 +103,8 @@ public class PermAuthController {
      * @return 用户的数据范围条件列表
      */
     @PostMapping("/query-scopes")
-    public PermResult<QueryScopesResp> queryScopes(@Valid @RequestBody QueryScopesReq req) {
-        return PermResult.success(permissionQueryAppService.queryScopes(TenantContextHolder.getTenantId(), req));
+    public R<QueryScopesResp> queryScopes(@Valid @RequestBody QueryScopesReq req) {
+        return R.ok(permissionQueryAppService.queryScopes(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -114,8 +114,8 @@ public class PermAuthController {
      * @return 主体维度的服务接口权限快照
      */
     @PostMapping("/interface-snapshot")
-    public PermResult<InterfaceSnapshotResp> interfaceSnapshot(@Valid @RequestBody InterfaceSnapshotReq req) {
-        return PermResult.success(permissionQueryAppService.interfaceSnapshot(TenantContextHolder.getTenantId(), req));
+    public R<InterfaceSnapshotResp> interfaceSnapshot(@Valid @RequestBody InterfaceSnapshotReq req) {
+        return R.ok(permissionQueryAppService.interfaceSnapshot(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -125,7 +125,7 @@ public class PermAuthController {
      * @return 带权限标记的资源树
      */
     @PostMapping("/query-permission-tree")
-    public PermResult<PermissionTreeResp> queryPermissionTree(@Valid @RequestBody PermissionTreeReq req) {
-        return PermResult.success(permissionQueryAppService.queryPermissionTree(TenantContextHolder.getTenantId(), req));
+    public R<PermissionTreeResp> queryPermissionTree(@Valid @RequestBody PermissionTreeReq req) {
+        return R.ok(permissionQueryAppService.queryPermissionTree(TenantContextHolder.getTenantId(), req));
     }
 }

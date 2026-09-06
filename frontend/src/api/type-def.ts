@@ -4,14 +4,14 @@
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/type-definition`）。
  * T-FE-041 切换真实链路后，mock/type-def.ts 的旧 `/api/perm/**` 路径已自然失配
  *（该 mock 已随 T-FE-018 授权页联调退役删除）。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.1
  * 后端实现：access-service TypeDefinitionController + TypeDefinitionAppService
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { PaginatedResp, ItemsResp } from "./role-manage";
 
 // ========== 类型种类常量（type_key 分组） ==========
@@ -115,7 +115,7 @@ export type TypeDefUpdateReq = {
 export const getTypeDefList = async (
   params: TypeDefListQuery
 ): Promise<PaginatedResp<TypeDefResp>> => {
-  const res = await http.request<PermResult<PaginatedResp<TypeDefResp>>>(
+  const res = await http.request<R<PaginatedResp<TypeDefResp>>>(
     "post",
     "/perm/api/perm/type-definition/list",
     { data: params }
@@ -125,7 +125,7 @@ export const getTypeDefList = async (
 
 /** 查询类型定义详情（POST /perm/api/perm/type-definition/detail，IdReq{id}） */
 export const getTypeDefDetail = async (id: number): Promise<TypeDefResp> => {
-  const res = await http.request<PermResult<TypeDefResp>>(
+  const res = await http.request<R<TypeDefResp>>(
     "post",
     "/perm/api/perm/type-definition/detail",
     { data: { id } }
@@ -137,7 +137,7 @@ export const getTypeDefDetail = async (id: number): Promise<TypeDefResp> => {
 export const createTypeDef = async (
   data: TypeDefCreateReq
 ): Promise<TypeDefResp> => {
-  const res = await http.request<PermResult<TypeDefResp>>(
+  const res = await http.request<R<TypeDefResp>>(
     "post",
     "/perm/api/perm/type-definition/create",
     { data }
@@ -149,7 +149,7 @@ export const createTypeDef = async (
 export const updateTypeDef = async (
   data: TypeDefUpdateReq
 ): Promise<TypeDefResp> => {
-  const res = await http.request<PermResult<TypeDefResp>>(
+  const res = await http.request<R<TypeDefResp>>(
     "post",
     "/perm/api/perm/type-definition/update",
     { data }
@@ -161,7 +161,7 @@ export const updateTypeDef = async (
  *  isSystem=true 的系统预置项后端跳过删除。 */
 export const removeTypeDefs = async (ids: number[]): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/type-definition/remove",
       { data: { ids } }

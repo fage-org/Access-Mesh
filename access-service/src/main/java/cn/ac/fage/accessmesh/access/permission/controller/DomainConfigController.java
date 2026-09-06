@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DomainConfigGetReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DomainConfigListReq;
@@ -51,8 +51,8 @@ public class DomainConfigController {
      * @return 保存后的配置详情
      */
     @PostMapping("/save")
-    public PermResult<DomainConfigResp> upsertDomainConfig(@Valid @RequestBody DomainConfigReq req) {
-        return PermResult.success(domainConfigAppService.upsertDomainConfig(TenantContextHolder.getTenantId(), req));
+    public R<DomainConfigResp> upsertDomainConfig(@Valid @RequestBody DomainConfigReq req) {
+        return R.ok(domainConfigAppService.upsertDomainConfig(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -65,8 +65,8 @@ public class DomainConfigController {
      * @return 域配置详情信息
      */
     @PostMapping("/detail")
-    public PermResult<DomainConfigResp> getDomainConfig(@Valid @RequestBody DomainConfigGetReq req) {
-        return PermResult.success(domainConfigAppService.getDomainConfig(TenantContextHolder.getTenantId(), req.domainCode(), req.configType()));
+    public R<DomainConfigResp> getDomainConfig(@Valid @RequestBody DomainConfigGetReq req) {
+        return R.ok(domainConfigAppService.getDomainConfig(TenantContextHolder.getTenantId(), req.domainCode(), req.configType()));
     }
 
     /**
@@ -80,8 +80,8 @@ public class DomainConfigController {
      * @return 域配置列表
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<DomainConfigResp>> listDomainConfigs(@Valid @RequestBody DomainConfigListReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<DomainConfigResp>> listDomainConfigs(@Valid @RequestBody DomainConfigListReq req) {
+        return R.ok(new ItemsResp<>(
             domainConfigAppService.listDomainConfigs(TenantContextHolder.getTenantId(), req.domainCode())
         ));
     }
@@ -96,8 +96,8 @@ public class DomainConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteDomainConfig(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteDomainConfig(@Valid @RequestBody IdsReq req) {
         domainConfigAppService.deleteDomainConfigsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
-        return PermResult.success();
+        return R.ok();
     }
 }

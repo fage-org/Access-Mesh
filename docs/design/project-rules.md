@@ -44,7 +44,7 @@ last_reviewed: 2026-08-12   # access-service 归并：错误码继续按管理�
 ```json
 {
   "code": 200,
-  "message": "操作成功",
+  "message": "success",
   "data": {},
   "requestId": "uuid-xxx",
   "traceId": "a3f2b1c0d4e5..."
@@ -58,6 +58,8 @@ last_reviewed: 2026-08-12   # access-service 归并：错误码继续按管理�
 | `data`      | `Object` | 业务数据；失败时为 `null`                                     |
 | `requestId` | `String` | 请求追踪 ID，由 Gateway 生成                                  |
 | `traceId`   | `String` | 链路追踪 ID，由 Micrometer Tracing 生成，网关注入并全链路透传 |
+
+> 响应壳构造统一使用 `R.ok(data)` / `R.fail(code, message)`；`requestId/traceId` 由 `RResponseAdvice` 在序列化前回填，业务代码不写入。
 
 > **禁止**直接将 `data` 设计为 `List`，必须包装为对象（如分页结构），保留扩展空间。
 
@@ -476,7 +478,7 @@ Mapper（数据访问层）
 
 **permission-center Controller（补充）：**
 
-- 权限排查类接口（如 `permission-view/explain`、`recent-changes`）的编排、分页过滤、JSON 解析、多表组装须在**调度层 Service**（如 `PermissionViewAppService`）完成；Controller 仅做校验与 `PermResult` 包装。
+- 权限排查类接口（如 `permission-view/explain`、`recent-changes`）的编排、分页过滤、JSON 解析、多表组装须在**调度层 Service**（如 `PermissionViewAppService`）完成；Controller 仅做校验与 `R` 包装。
 
 ### 8.3 包结构规范
 

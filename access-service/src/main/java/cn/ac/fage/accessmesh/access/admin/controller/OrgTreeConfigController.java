@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.OrgTreeConfigUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.admin.service.OrgTreeConfigService;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -50,8 +50,8 @@ public class OrgTreeConfigController {
      * @return 创建成功的配置ID
      */
     @PostMapping("/create")
-    public PermResult<Long> createOrgTreeConfig(@Valid @RequestBody OrgTreeConfigCreateReq req) {
-        return PermResult.success(orgTreeConfigService.createOrgTreeConfig(req));
+    public R<Long> createOrgTreeConfig(@Valid @RequestBody OrgTreeConfigCreateReq req) {
+        return R.ok(orgTreeConfigService.createOrgTreeConfig(req));
     }
 
     /**
@@ -64,9 +64,9 @@ public class OrgTreeConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    public PermResult<Void> updateOrgTreeConfig(@Valid @RequestBody OrgTreeConfigUpdateReq req) {
+    public R<Void> updateOrgTreeConfig(@Valid @RequestBody OrgTreeConfigUpdateReq req) {
         orgTreeConfigService.updateOrgTreeConfig(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -79,9 +79,9 @@ public class OrgTreeConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteOrgTreeConfigs(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteOrgTreeConfigs(@Valid @RequestBody IdsReq req) {
         orgTreeConfigService.deleteOrgTreeConfigs(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -96,9 +96,9 @@ public class OrgTreeConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/set-default")
-    public PermResult<Void> setDefault(@Valid @RequestBody IdReq req) {
+    public R<Void> setDefault(@Valid @RequestBody IdReq req) {
         orgTreeConfigService.setDefault(req.id());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -111,8 +111,8 @@ public class OrgTreeConfigController {
      * @return 组织树配置详情信息
      */
     @PostMapping("/detail")
-    public PermResult<OrgTreeConfigResp> getOrgTreeConfig(@Valid @RequestBody IdReq req) {
-        return PermResult.success(orgTreeConfigService.getOrgTreeConfig(req.id()));
+    public R<OrgTreeConfigResp> getOrgTreeConfig(@Valid @RequestBody IdReq req) {
+        return R.ok(orgTreeConfigService.getOrgTreeConfig(req.id()));
     }
 
     /**
@@ -125,7 +125,7 @@ public class OrgTreeConfigController {
      * @return 分页组织树配置列表结果
      */
     @PostMapping("/page")
-    public PermResult<PaginatedResult<OrgTreeConfigResp>> pageOrgTreeConfigs(@Valid @RequestBody PageReq req) {
-        return PermResult.success(orgTreeConfigService.pageOrgTreeConfigs(req));
+    public R<PaginatedResult<OrgTreeConfigResp>> pageOrgTreeConfigs(@Valid @RequestBody PageReq req) {
+        return R.ok(orgTreeConfigService.pageOrgTreeConfigs(req));
     }
 }

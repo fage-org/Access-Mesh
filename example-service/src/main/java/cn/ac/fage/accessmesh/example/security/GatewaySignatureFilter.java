@@ -81,7 +81,7 @@ public class GatewaySignatureFilter extends OncePerRequestFilter {
             response.setContentType("application/json");
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             response.getWriter().write(objectMapper.writeValueAsString(
-                cn.ac.fage.accessmesh.common.model.PermResult.error(
+                cn.ac.fage.accessmesh.common.model.R.fail(
                     ExampleErrorCode.SIGNATURE_INVALID.getCode(),
                     ExampleErrorCode.SIGNATURE_INVALID.getMessage())));
             return;

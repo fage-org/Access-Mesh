@@ -3,7 +3,7 @@
  * 经 @/utils/http 调用 access-service 端点
  * （`/api/perm/resource-dependency/*`）；
  * Phase 1 由 mock/resource-dependency.ts（vite-plugin-fake-server）提供假数据。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.6 / §6.9
@@ -26,7 +26,7 @@
  * - batch-sync 端点 P0 标 TODO（Q5=B），前端不调用，mock 不实现。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { ItemsResp } from "./role-manage";
 
 // ========== 响应类型 ==========
@@ -137,7 +137,7 @@ export type DependencyGraphReq = DependencyListReq;
 export const getDependencyList = async (
   params: DependencyListReq = {}
 ): Promise<ItemsResp<ResourceDependencyResp>> => {
-  const res = await http.request<PermResult<ItemsResp<ResourceDependencyResp>>>(
+  const res = await http.request<R<ItemsResp<ResourceDependencyResp>>>(
     "post",
     "/api/perm/resource-dependency/list",
     { data: params }
@@ -151,7 +151,7 @@ export const getDependencyList = async (
 export const createDependency = async (
   data: ResourceDependencyCreateReq
 ): Promise<ResourceDependencyResp> => {
-  const res = await http.request<PermResult<ResourceDependencyResp>>(
+  const res = await http.request<R<ResourceDependencyResp>>(
     "post",
     "/api/perm/resource-dependency/create",
     { data }
@@ -164,7 +164,7 @@ export const createDependency = async (
 export const updateDependency = async (
   data: ResourceDependencyUpdateReq
 ): Promise<ResourceDependencyResp> => {
-  const res = await http.request<PermResult<ResourceDependencyResp>>(
+  const res = await http.request<R<ResourceDependencyResp>>(
     "post",
     "/api/perm/resource-dependency/update",
     { data }
@@ -176,7 +176,7 @@ export const updateDependency = async (
  *  类型级 DELETE 全有或全无；幽灵 id 幂等跳过，响应 data=null 无行数。 */
 export const removeDependencies = async (ids: number[]): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/api/perm/resource-dependency/remove",
       { data: { ids } }
@@ -189,7 +189,7 @@ export const removeDependencies = async (ids: number[]): Promise<void> => {
 export const getDependencyGraph = async (
   params: DependencyGraphReq = {}
 ): Promise<ItemsResp<ResourceDependencyResp>> => {
-  const res = await http.request<PermResult<ItemsResp<ResourceDependencyResp>>>(
+  const res = await http.request<R<ItemsResp<ResourceDependencyResp>>>(
     "post",
     "/api/perm/resource-dependency/graph",
     { data: params }
@@ -202,7 +202,7 @@ export const getDependencyGraph = async (
 export const checkDependencyCycle = async (
   data: ResourceDependencyCheckReq
 ): Promise<DependencyCycleCheckResp> => {
-  const res = await http.request<PermResult<DependencyCycleCheckResp>>(
+  const res = await http.request<R<DependencyCycleCheckResp>>(
     "post",
     "/api/perm/resource-dependency/check",
     { data }

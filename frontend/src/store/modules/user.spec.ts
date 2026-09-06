@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
 import { RequestError } from "@/api/_envelope";
-import type { PermResult } from "@/api/_envelope";
+import type { R } from "@/api/_envelope";
 
 // mock API 层（阻断 http；login/getUserMenu 返回值由用例控制）
 const { mockLogin, mockGetUserMenu } = vi.hoisted(() => ({
@@ -65,7 +65,7 @@ const LOGIN_RESP = {
   forceResetPwd: false
 };
 
-const MENU_RESP: PermResult<{
+const MENU_RESP: R<{
   menus: Array<{ path: string; name?: string }>;
   roles: string[];
   permissions: string[];

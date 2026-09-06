@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionDetailReq;
@@ -51,8 +51,8 @@ public class ConditionController {
      * @return 创建成功的条件详情
      */
     @PostMapping("/create")
-    public PermResult<ConditionResp> createCondition(@Valid @RequestBody ConditionCreateReq req) {
-        return PermResult.success(conditionAppService.createCondition(TenantContextHolder.getTenantId(), req, null));
+    public R<ConditionResp> createCondition(@Valid @RequestBody ConditionCreateReq req) {
+        return R.ok(conditionAppService.createCondition(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -67,8 +67,8 @@ public class ConditionController {
      * @return 条件详情信息
      */
     @PostMapping("/detail")
-    public PermResult<ConditionResp> getCondition(@Valid @RequestBody ConditionDetailReq req) {
-        return PermResult.success(conditionAppService.getCondition(TenantContextHolder.getTenantId(), req.conditionCode()));
+    public R<ConditionResp> getCondition(@Valid @RequestBody ConditionDetailReq req) {
+        return R.ok(conditionAppService.getCondition(TenantContextHolder.getTenantId(), req.conditionCode()));
     }
 
     /**
@@ -82,8 +82,8 @@ public class ConditionController {
      * @return 条件列表
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<ConditionResp>> listConditions(@Valid @RequestBody EmptyReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<ConditionResp>> listConditions(@Valid @RequestBody EmptyReq req) {
+        return R.ok(new ItemsResp<>(
             conditionAppService.listConditions(TenantContextHolder.getTenantId())
         ));
     }
@@ -99,9 +99,9 @@ public class ConditionController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteCondition(@Valid @RequestBody ConditionRemoveReq req) {
+    public R<Void> deleteCondition(@Valid @RequestBody ConditionRemoveReq req) {
         conditionAppService.deleteConditionsByCodes(TenantContextHolder.getTenantId(), req.codes(), null);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -114,7 +114,7 @@ public class ConditionController {
      * @return 更新后的条件详情
      */
     @PostMapping("/update")
-    public PermResult<ConditionResp> updateCondition(@Valid @RequestBody ConditionUpdateReq req) {
-        return PermResult.success(conditionAppService.updateCondition(TenantContextHolder.getTenantId(), req, null));
+    public R<ConditionResp> updateCondition(@Valid @RequestBody ConditionUpdateReq req) {
+        return R.ok(conditionAppService.updateCondition(TenantContextHolder.getTenantId(), req, null));
     }
 }

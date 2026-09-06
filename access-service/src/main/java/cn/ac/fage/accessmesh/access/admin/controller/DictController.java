@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.admin.service.DictService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -53,8 +53,8 @@ public class DictController {
      * @return 创建成功的字典类型ID
      */
     @PostMapping("/type/create")
-    public PermResult<Long> createDictType(@Valid @RequestBody DictTypeCreateReq req) {
-        return PermResult.success(dictService.createDictType(req));
+    public R<Long> createDictType(@Valid @RequestBody DictTypeCreateReq req) {
+        return R.ok(dictService.createDictType(req));
     }
 
     /**
@@ -67,9 +67,9 @@ public class DictController {
      * @return 操作成功结果
      */
     @PostMapping("/type/delete")
-    public PermResult<Void> deleteDictType(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteDictType(@Valid @RequestBody IdsReq req) {
         dictService.deleteDictType(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -81,8 +81,8 @@ public class DictController {
      * @return 字典类型列表
      */
     @PostMapping("/type/list")
-    public PermResult<List<DictTypeResp>> listDictTypes() {
-        return PermResult.success(dictService.listDictTypes());
+    public R<List<DictTypeResp>> listDictTypes() {
+        return R.ok(dictService.listDictTypes());
     }
 
     /**
@@ -95,8 +95,8 @@ public class DictController {
      * @return 分页字典类型列表结果
      */
     @PostMapping("/type/page")
-    public PermResult<PaginatedResult<DictTypeResp>> pageDictTypes(@Valid @RequestBody PageReq pageReq) {
-        return PermResult.success(dictService.pageDictTypes(pageReq));
+    public R<PaginatedResult<DictTypeResp>> pageDictTypes(@Valid @RequestBody PageReq pageReq) {
+        return R.ok(dictService.pageDictTypes(pageReq));
     }
 
     /**
@@ -109,8 +109,8 @@ public class DictController {
      * @return 创建成功的字典数据ID
      */
     @PostMapping("/data/create")
-    public PermResult<Long> createDictData(@Valid @RequestBody DictDataCreateReq req) {
-        return PermResult.success(dictService.createDictData(req));
+    public R<Long> createDictData(@Valid @RequestBody DictDataCreateReq req) {
+        return R.ok(dictService.createDictData(req));
     }
 
     /**
@@ -123,9 +123,9 @@ public class DictController {
      * @return 操作成功结果
      */
     @PostMapping("/data/update")
-    public PermResult<Void> updateDictData(@Valid @RequestBody DictDataUpdateReq req) {
+    public R<Void> updateDictData(@Valid @RequestBody DictDataUpdateReq req) {
         dictService.updateDictData(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -138,9 +138,9 @@ public class DictController {
      * @return 操作成功结果
      */
     @PostMapping("/data/delete")
-    public PermResult<Void> deleteDictData(@Valid @RequestBody IdReq req) {
+    public R<Void> deleteDictData(@Valid @RequestBody IdReq req) {
         dictService.deleteDictData(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -154,7 +154,7 @@ public class DictController {
      * @return 字典数据列表
      */
     @PostMapping("/data/list")
-    public PermResult<List<DictDataResp>> listDictData(@Valid @RequestBody IdReq req) {
-        return PermResult.success(dictService.listDictData(req.id()));
+    public R<List<DictDataResp>> listDictData(@Valid @RequestBody IdReq req) {
+        return R.ok(dictService.listDictData(req.id()));
     }
 }

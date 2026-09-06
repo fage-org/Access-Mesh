@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.admin.service.NoticeService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -51,8 +51,8 @@ public class NoticeController {
      * @return 创建成功的公告ID
      */
     @PostMapping("/create")
-    public PermResult<Long> createNotice(@Valid @RequestBody NoticeCreateReq req) {
-        return PermResult.success(noticeService.createNotice(req));
+    public R<Long> createNotice(@Valid @RequestBody NoticeCreateReq req) {
+        return R.ok(noticeService.createNotice(req));
     }
 
     /**
@@ -65,9 +65,9 @@ public class NoticeController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    public PermResult<Void> updateNotice(@Valid @RequestBody NoticeUpdateReq req) {
+    public R<Void> updateNotice(@Valid @RequestBody NoticeUpdateReq req) {
         noticeService.updateNotice(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -80,9 +80,9 @@ public class NoticeController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteNotice(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteNotice(@Valid @RequestBody IdsReq req) {
         noticeService.deleteNotice(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -95,8 +95,8 @@ public class NoticeController {
      * @return 公告详情信息
      */
     @PostMapping("/detail")
-    public PermResult<NoticeResp> getNotice(@Valid @RequestBody IdReq req) {
-        return PermResult.success(noticeService.getNotice(req.id()));
+    public R<NoticeResp> getNotice(@Valid @RequestBody IdReq req) {
+        return R.ok(noticeService.getNotice(req.id()));
     }
 
     /**
@@ -109,8 +109,8 @@ public class NoticeController {
      * @return 分页公告列表结果
      */
     @PostMapping("/page")
-    public PermResult<PaginatedResult<NoticeResp>> pageNotices(@Valid @RequestBody PageReq pageReq) {
-        return PermResult.success(noticeService.pageNotices(pageReq));
+    public R<PaginatedResult<NoticeResp>> pageNotices(@Valid @RequestBody PageReq pageReq) {
+        return R.ok(noticeService.pageNotices(pageReq));
     }
 
     /**
@@ -123,9 +123,9 @@ public class NoticeController {
      * @return 操作成功结果
      */
     @PostMapping("/publish")
-    public PermResult<Void> publishNotice(@Valid @RequestBody IdReq req) {
+    public R<Void> publishNotice(@Valid @RequestBody IdReq req) {
         noticeService.publishNotice(req.id());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -139,9 +139,9 @@ public class NoticeController {
      * @return 操作成功结果
      */
     @PostMapping("/read")
-    public PermResult<Void> markAsRead(@Valid @RequestBody IdReq req) {
+    public R<Void> markAsRead(@Valid @RequestBody IdReq req) {
         noticeService.markNoticeAsRead(req.id(), StpUtil.getLoginIdAsLong());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -154,7 +154,7 @@ public class NoticeController {
      * @return 用户公告列表，包含公告信息和已读状态
      */
     @PostMapping("/my-notices")
-    public PermResult<java.util.List<NoticeService.UserNoticeItem>> listMyNotices() {
-        return PermResult.success(noticeService.listMyNotices(StpUtil.getLoginIdAsLong()));
+    public R<java.util.List<NoticeService.UserNoticeItem>> listMyNotices() {
+        return R.ok(noticeService.listMyNotices(StpUtil.getLoginIdAsLong()));
     }
 }

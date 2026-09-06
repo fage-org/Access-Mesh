@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingListReq;
@@ -50,8 +50,8 @@ public class ResourceApiMappingController {
      * @return 创建成功的映射详情
      */
     @PostMapping("/create")
-    public PermResult<ApiMappingResp> addApiMapping(@Valid @RequestBody ApiMappingAddReq req) {
-        return PermResult.success(resourceManageService.addApiMapping(TenantContextHolder.getTenantId(), req));
+    public R<ApiMappingResp> addApiMapping(@Valid @RequestBody ApiMappingAddReq req) {
+        return R.ok(resourceManageService.addApiMapping(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -64,8 +64,8 @@ public class ResourceApiMappingController {
      * @return 更新后的映射详情
      */
     @PostMapping("/update")
-    public PermResult<ApiMappingResp> updateApiMapping(@Valid @RequestBody ApiMappingUpdateReq req) {
-        return PermResult.success(resourceManageService.updateApiMapping(TenantContextHolder.getTenantId(), req));
+    public R<ApiMappingResp> updateApiMapping(@Valid @RequestBody ApiMappingUpdateReq req) {
+        return R.ok(resourceManageService.updateApiMapping(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -78,9 +78,9 @@ public class ResourceApiMappingController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> removeApiMapping(@Valid @RequestBody IdsReq req) {
+    public R<Void> removeApiMapping(@Valid @RequestBody IdsReq req) {
         resourceManageService.removeApiMappingsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -94,8 +94,8 @@ public class ResourceApiMappingController {
      * @return API映射列表
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<ApiMappingResp>> listApiMappings(@Valid @RequestBody ApiMappingListReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<ApiMappingResp>> listApiMappings(@Valid @RequestBody ApiMappingListReq req) {
+        return R.ok(new ItemsResp<>(
             resourceManageService.listApiMappings(TenantContextHolder.getTenantId(), req.resourceId(), req.serviceCode())
         ));
     }

@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.admin.controller;
 import cn.ac.fage.accessmesh.access.admin.dto.req.UserRoleListReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.UserRoleItemResp;
 import cn.ac.fage.accessmesh.access.application.query.UserRoleQueryService;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -44,8 +44,8 @@ public class AdminUserRoleController {
      * @return 用户角色列表（{ items: [...] } 包装）
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<UserRoleItemResp>> listUserRoles(
+    public R<ItemsResp<UserRoleItemResp>> listUserRoles(
         @Valid @RequestBody UserRoleListReq req) {
-        return PermResult.success(new ItemsResp<>(userRoleQueryService.listUserRoles(req.userId())));
+        return R.ok(new ItemsResp<>(userRoleQueryService.listUserRoles(req.userId())));
     }
 }

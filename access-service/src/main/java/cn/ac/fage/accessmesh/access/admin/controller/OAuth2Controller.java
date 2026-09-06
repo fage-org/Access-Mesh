@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.admin.controller;
 
 import cn.ac.fage.accessmesh.access.admin.dto.oauth2.*;
 import cn.ac.fage.accessmesh.access.admin.service.OAuth2Service;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -45,8 +45,8 @@ public class OAuth2Controller {
      * @return 授权响应，包含授权码
      */
     @PostMapping("/authorize")
-    public PermResult<AuthorizeResp> authorize(@Valid @RequestBody AuthorizeReq req) {
-        return PermResult.success(oauth2Service.authorize(req));
+    public R<AuthorizeResp> authorize(@Valid @RequestBody AuthorizeReq req) {
+        return R.ok(oauth2Service.authorize(req));
     }
 
     /**
@@ -60,8 +60,8 @@ public class OAuth2Controller {
      * @return 令牌响应，包含访问令牌、刷新令牌、过期时间
      */
     @PostMapping("/token")
-    public PermResult<TokenResp> token(@Valid @RequestBody TokenReq req) {
-        return PermResult.success(oauth2Service.token(req));
+    public R<TokenResp> token(@Valid @RequestBody TokenReq req) {
+        return R.ok(oauth2Service.token(req));
     }
 
     /**
@@ -75,8 +75,8 @@ public class OAuth2Controller {
      * @return 令牌响应，包含新的访问令牌和刷新令牌
      */
     @PostMapping("/refresh")
-    public PermResult<TokenResp> refresh(@RequestBody RefreshTokenReq req) {
-        return PermResult.success(
+    public R<TokenResp> refresh(@RequestBody RefreshTokenReq req) {
+        return R.ok(
             oauth2Service.refreshToken(req.refreshToken(), req.clientId())
         );
     }
@@ -92,9 +92,9 @@ public class OAuth2Controller {
      * @return 操作成功结果
      */
     @PostMapping("/revoke")
-    public PermResult<Void> revoke(@RequestBody RevokeTokenReq req) {
+    public R<Void> revoke(@RequestBody RevokeTokenReq req) {
         oauth2Service.revokeToken(req.accessToken());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -107,12 +107,12 @@ public class OAuth2Controller {
      * @return 用户信息响应，包含用户基本信息
      */
     @PostMapping("/userinfo")
-    public PermResult<OAuth2UserInfoResp> userinfo() {
+    public R<OAuth2UserInfoResp> userinfo() {
         // 评审 P1 修复（2026-08-14）：端点契约要求第三方携带 OAuth2 JWT 访问令牌，
         // 平台会话（uuid 模式）不解析 JWT——改为读可信上下文操作者
         // （RequestContextInterceptor 已对 OAuth2 JWT 验签 + 黑名单检查后绑定）。
         Long userId = cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext.getOperatorId();
-        return PermResult.success(oauth2Service.getClientUserInfo(userId));
+        return R.ok(oauth2Service.getClientUserInfo(userId));
     }
 
     /**

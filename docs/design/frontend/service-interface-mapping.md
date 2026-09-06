@@ -80,7 +80,7 @@ last_reviewed: 2026-09-05   # 2026-09-05 T-PERM-053 锁步补正（§3.2 同步�
 | 更新映射 | `POST /api/perm/resource-api-mapping/update` | `resourceId/mappingId/...` | `ApiMappingResp` | ✅（§6.10.4；同上） |
 | 移除映射 | `POST /api/perm/resource-api-mapping/remove` | `{ids}` | `void` | ✅ |
 
-所有接口由 `src/api/service-interface.ts` 解包统一 `PermResult<T>` 信封；请求体不传 `tenantId`。
+所有接口由 `src/api/service-interface.ts` 解包统一 `R<T>` 信封；请求体不传 `tenantId`。
 
 ## 5. 组件与权限接线
 
@@ -131,6 +131,6 @@ Phase 1 不修改后端；以下项目登记到 T-PERM-027 并已随其收口（
 - [x] 路由、服务库存、服务登记/编辑/删除、接口同步、手工映射和三维筛选均以 mock 数据可交互。
 - [x] FULL 同步的清理边界在界面、表单校验和 mock 行为三处保持一致。
 - [x] `hasPerms` 按 SERVICE 四类权限做按钮门控与只读降级。
-- [x] API 封装、mock 响应与 `PermResult<T>` 信封一致；create/update 映射直接消费单条响应。
+- [x] API 封装、mock 响应与 `R<T>` 信封一致；create/update 映射直接消费单条响应。
 - [x] 布局采用左右两栏（左服务列表 + 右接口映射），对齐用户管理页范式与 CSS 设计系统，移除装饰性标题与工作区外壳，保持全站视觉一致。
 - [x] 已完成 `pnpm typecheck`。

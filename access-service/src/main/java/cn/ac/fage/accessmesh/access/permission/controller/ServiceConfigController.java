@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigGetReq;
@@ -54,8 +54,8 @@ public class ServiceConfigController {
      * @return 保存后的配置详情
      */
     @PostMapping("/save")
-    public PermResult<ServiceConfigResp> saveServiceConfig(@Valid @RequestBody ServiceConfigReq req) {
-        return PermResult.success(serviceConfigAppService.saveServiceConfig(TenantContextHolder.getTenantId(), req, null));
+    public R<ServiceConfigResp> saveServiceConfig(@Valid @RequestBody ServiceConfigReq req) {
+        return R.ok(serviceConfigAppService.saveServiceConfig(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -68,8 +68,8 @@ public class ServiceConfigController {
      * @return 服务配置详情信息
      */
     @PostMapping("/detail")
-    public PermResult<ServiceConfigResp> getServiceConfig(@Valid @RequestBody ServiceConfigGetReq req) {
-        return PermResult.success(serviceConfigAppService.getServiceConfig(TenantContextHolder.getTenantId(), req.serviceCode()));
+    public R<ServiceConfigResp> getServiceConfig(@Valid @RequestBody ServiceConfigGetReq req) {
+        return R.ok(serviceConfigAppService.getServiceConfig(TenantContextHolder.getTenantId(), req.serviceCode()));
     }
 
     /**
@@ -83,8 +83,8 @@ public class ServiceConfigController {
      * @return 服务配置列表
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<ServiceConfigResp>> listServiceConfigs(@Valid @RequestBody EmptyReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<ServiceConfigResp>> listServiceConfigs(@Valid @RequestBody EmptyReq req) {
+        return R.ok(new ItemsResp<>(
             serviceConfigAppService.listServiceConfigs(TenantContextHolder.getTenantId())
         ));
     }
@@ -101,9 +101,9 @@ public class ServiceConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteServiceConfig(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteServiceConfig(@Valid @RequestBody IdsReq req) {
         serviceConfigAppService.deleteServiceConfigsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -117,8 +117,8 @@ public class ServiceConfigController {
      * @return 同步结果，包含新增、更新、删除的接口数量
      */
     @PostMapping("/sync")
-    public PermResult<ServiceConfigSyncResp> syncServiceConfig(@Valid @RequestBody ServiceConfigSyncReq req) {
-        return PermResult.success(serviceSyncAppService.syncInterfaces(TenantContextHolder.getTenantId(), req));
+    public R<ServiceConfigSyncResp> syncServiceConfig(@Valid @RequestBody ServiceConfigSyncReq req) {
+        return R.ok(serviceSyncAppService.syncInterfaces(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -132,8 +132,8 @@ public class ServiceConfigController {
      * @return API映射列表
      */
     @PostMapping("/apis")
-    public PermResult<ItemsResp<ApiMappingResp>> listServiceApis(@Valid @RequestBody ServiceConfigApisReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<ApiMappingResp>> listServiceApis(@Valid @RequestBody ServiceConfigApisReq req) {
+        return R.ok(new ItemsResp<>(
             serviceConfigAppService.listServiceApis(TenantContextHolder.getTenantId(), req.serviceCode())
         ));
     }

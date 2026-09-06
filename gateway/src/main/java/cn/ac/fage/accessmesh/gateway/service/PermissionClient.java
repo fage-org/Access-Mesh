@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.gateway.service;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.perm.common.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
@@ -66,7 +66,7 @@ public class PermissionClient {
      * 调用access-service检查接口访问权限
      * <p>
      * 发送CheckInterfaceReq（包含subjectTypeCode、subjectExternalId、服务编码、路径等）
-     * 并解析PermResult<CheckInterfaceResp>响应。
+     * 并解析R<CheckInterfaceResp>响应。
      * 使用内部密钥请求头标识请求来源为Gateway。
      * </p>
      *
@@ -79,7 +79,7 @@ public class PermissionClient {
      * @param tenantId  租户ID
      * @return 权限校验响应Mono
      */
-    public Mono<PermResult<CheckInterfaceResp>> checkInterface(
+    public Mono<R<CheckInterfaceResp>> checkInterface(
              String subjectTypeCode, Long userId, String serviceCode, String httpMethod, String path,
             String clientIp, Long tenantId) {
 
@@ -108,7 +108,7 @@ public class PermissionClient {
             .header("X-Internal-Secret", internalSecret)
             .bodyValue(req)
             .retrieve()
-            .bodyToMono(new ParameterizedTypeReference<PermResult<CheckInterfaceResp>>() {})
+            .bodyToMono(new ParameterizedTypeReference<R<CheckInterfaceResp>>() {})
             .doOnSuccess(result -> {
                 if (result != null && result.getData() != null) {
                     CheckInterfaceResp resp = result.getData();
@@ -139,7 +139,7 @@ public class PermissionClient {
      * @param tenantId        租户ID
      * @return 接口快照响应 Mono
      */
-    public Mono<PermResult<InterfaceSnapshotResp>> interfaceSnapshot(
+    public Mono<R<InterfaceSnapshotResp>> interfaceSnapshot(
         String subjectTypeCode, Long userId, String serviceCode, Long tenantId) {
 
         InterfaceSnapshotReq req = new InterfaceSnapshotReq(
@@ -156,7 +156,7 @@ public class PermissionClient {
             .header("X-Internal-Secret", internalSecret)
             .bodyValue(req)
             .retrieve()
-            .bodyToMono(new ParameterizedTypeReference<PermResult<InterfaceSnapshotResp>>() {})
+            .bodyToMono(new ParameterizedTypeReference<R<InterfaceSnapshotResp>>() {})
             .doOnSuccess(result -> {
                 if (result != null && result.getData() != null) {
                     InterfaceSnapshotResp resp = result.getData();

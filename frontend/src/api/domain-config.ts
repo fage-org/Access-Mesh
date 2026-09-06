@@ -2,7 +2,7 @@
  * 域配置 API
  * 经 @/utils/http 调用 access-service 端点（`/perm/api/perm/domain-config/*`，Gateway /perm 前缀——T-FE-021 切换）；
  * mock/domain-config.ts 已于 T-FE-021 联调退役删除。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.6（高级能力）
@@ -16,7 +16,7 @@
  *   后端 save 亦经 JsonValidationUtils 校验；JSONB↔String 映射已随 T-PERM-026 PgIT 确认语义等价）。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { ItemsResp } from "./role-manage";
 
 // ========== 域配置定义 ==========
@@ -63,7 +63,7 @@ export type DomainConfigGetReq = {
 export const getDomainConfigList = async (
   domainCode?: string | null
 ): Promise<ItemsResp<DomainConfigResp>> => {
-  const res = await http.request<PermResult<ItemsResp<DomainConfigResp>>>(
+  const res = await http.request<R<ItemsResp<DomainConfigResp>>>(
     "post",
     "/perm/api/perm/domain-config/list",
     { data: { domainCode: domainCode ?? null } satisfies DomainConfigListReq }
@@ -76,7 +76,7 @@ export const getDomainConfigDetail = async (
   domainCode: string,
   configType: string
 ): Promise<DomainConfigResp | null> => {
-  const res = await http.request<PermResult<DomainConfigResp | null>>(
+  const res = await http.request<R<DomainConfigResp | null>>(
     "post",
     "/perm/api/perm/domain-config/detail",
     { data: { domainCode, configType } satisfies DomainConfigGetReq }
@@ -90,7 +90,7 @@ export const getDomainConfigDetail = async (
 export const saveDomainConfig = async (
   data: DomainConfigSaveReq
 ): Promise<DomainConfigResp> => {
-  const res = await http.request<PermResult<DomainConfigResp>>(
+  const res = await http.request<R<DomainConfigResp>>(
     "post",
     "/perm/api/perm/domain-config/save",
     { data }
@@ -100,7 +100,7 @@ export const saveDomainConfig = async (
 
 /** 删除域配置（POST /api/perm/domain-config/remove，IdsReq 批量软删）。 */
 export const removeDomainConfig = async (ids: number[]): Promise<void> => {
-  const res = await http.request<PermResult<void>>(
+  const res = await http.request<R<void>>(
     "post",
     "/perm/api/perm/domain-config/remove",
     { data: { ids } }

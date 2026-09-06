@@ -3,7 +3,7 @@
  * 经 @/utils/http 调用 Gateway 外部路径
  * （`/perm/api/perm/resource-entity/*` + `/perm/api/perm/operation-permission/*`，
  * Gateway StripPrefix=1 后到 access-service `/api/perm/...`）。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.3
@@ -17,7 +17,7 @@
  * - update 支持 extraClear 显式清空 extra（JSON null 无法区分「未传」与「清空」）。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { ItemsResp, PaginatedResp } from "./role-manage";
 
 // ========== 业务键 ==========
@@ -174,7 +174,7 @@ export type OperationUpdateReq = {
 export const getResourceTree = async (
   params: ResourceTreeQuery
 ): Promise<ItemsResp<ResourceTreeResp>> => {
-  const res = await http.request<PermResult<ItemsResp<ResourceTreeResp>>>(
+  const res = await http.request<R<ItemsResp<ResourceTreeResp>>>(
     "post",
     "/perm/api/perm/resource-entity/tree",
     { data: params }
@@ -187,7 +187,7 @@ export const getResourceTree = async (
 export const getResourceList = async (
   params: ResourceListQuery
 ): Promise<PaginatedResp<ResourceResp>> => {
-  const res = await http.request<PermResult<PaginatedResp<ResourceResp>>>(
+  const res = await http.request<R<PaginatedResp<ResourceResp>>>(
     "post",
     "/perm/api/perm/resource-entity/list",
     { data: params }
@@ -199,7 +199,7 @@ export const getResourceList = async (
 export const getResourceDetail = async (
   key: ResourceKey
 ): Promise<ResourceResp> => {
-  const res = await http.request<PermResult<ResourceResp>>(
+  const res = await http.request<R<ResourceResp>>(
     "post",
     "/perm/api/perm/resource-entity/detail",
     { data: key }
@@ -211,7 +211,7 @@ export const getResourceDetail = async (
 export const createResource = async (
   data: ResourceCreateReq
 ): Promise<ResourceResp> => {
-  const res = await http.request<PermResult<ResourceResp>>(
+  const res = await http.request<R<ResourceResp>>(
     "post",
     "/perm/api/perm/resource-entity/create",
     { data }
@@ -223,7 +223,7 @@ export const createResource = async (
 export const updateResource = async (
   data: ResourceUpdateReq
 ): Promise<ResourceResp> => {
-  const res = await http.request<PermResult<ResourceResp>>(
+  const res = await http.request<R<ResourceResp>>(
     "post",
     "/perm/api/perm/resource-entity/update",
     { data }
@@ -235,7 +235,7 @@ export const updateResource = async (
  *  parent 为 null 表示移动到顶层。 */
 export const moveResource = async (data: ResourceMoveReq): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/resource-entity/move",
       { data }
@@ -246,7 +246,7 @@ export const moveResource = async (data: ResourceMoveReq): Promise<void> => {
 /** 删除资源，支持批量（POST /perm/api/perm/resource-entity/remove，业务键集合）。 */
 export const removeResources = async (keys: ResourceKey[]): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/resource-entity/remove",
       { data: { items: keys } }
@@ -260,7 +260,7 @@ export const getOperationList = async (
   params: OperationListQuery
 ): Promise<ItemsResp<OperationPermissionResp>> => {
   const res = await http.request<
-    PermResult<ItemsResp<OperationPermissionResp>>
+    R<ItemsResp<OperationPermissionResp>>
   >("post", "/perm/api/perm/operation-permission/list", { data: params });
   return unwrap(res);
 };
@@ -270,7 +270,7 @@ export const getOperationList = async (
 export const getOperationDetail = async (
   key: OperationKey
 ): Promise<OperationPermissionResp> => {
-  const res = await http.request<PermResult<OperationPermissionResp>>(
+  const res = await http.request<R<OperationPermissionResp>>(
     "post",
     "/perm/api/perm/operation-permission/detail",
     { data: key }
@@ -282,7 +282,7 @@ export const getOperationDetail = async (
 export const createOperation = async (
   data: OperationCreateReq
 ): Promise<OperationPermissionResp> => {
-  const res = await http.request<PermResult<OperationPermissionResp>>(
+  const res = await http.request<R<OperationPermissionResp>>(
     "post",
     "/perm/api/perm/operation-permission/create",
     { data }
@@ -294,7 +294,7 @@ export const createOperation = async (
 export const updateOperation = async (
   data: OperationUpdateReq
 ): Promise<OperationPermissionResp> => {
-  const res = await http.request<PermResult<OperationPermissionResp>>(
+  const res = await http.request<R<OperationPermissionResp>>(
     "post",
     "/perm/api/perm/operation-permission/update",
     { data }
@@ -305,7 +305,7 @@ export const updateOperation = async (
 /** 删除操作权限，支持批量（POST /perm/api/perm/operation-permission/remove，业务键集合）。 */
 export const removeOperations = async (keys: OperationKey[]): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/operation-permission/remove",
       { data: { items: keys } }

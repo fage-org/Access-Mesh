@@ -2,11 +2,11 @@
  * 用户管理 API（T-FE-015 联调收口：mock 退役，直连 access-service 真实端点）
  * 经 @/utils/http 调用外部路径（Gateway：/admin StripPrefix=1 → access-service 裸路径 /org、/user 等；
  * 角色分配走 permission 域 /perm/api/perm/user-role/*）。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 
 // ========== 类型定义 ==========
 
@@ -205,7 +205,7 @@ export type MemberCandidateItem = {
 
 /** 获取可用组织树配置列表（POST /admin/org-tree-config/page，分页取前 100 条） */
 export const getOrgTreeConfigs = async (): Promise<OrgTreeConfig[]> => {
-  const res = await http.request<PermResult<PaginatedResult<OrgTreeConfig>>>(
+  const res = await http.request<R<PaginatedResult<OrgTreeConfig>>>(
     "post",
     "/admin/org-tree-config/page",
     { data: { pageNum: 1, pageSize: 100 } }
@@ -215,7 +215,7 @@ export const getOrgTreeConfigs = async (): Promise<OrgTreeConfig[]> => {
 
 /** 获取组织树（POST /admin/org/tree；T-ADMIN-021 起响应统一 {items:[...]} 包装，此处解包保持调用方数组契约） */
 export const getOrgTree = async (params: OrgQuery): Promise<OrgTreeNode[]> => {
-  const res = await http.request<PermResult<{ items: OrgTreeNode[] }>>(
+  const res = await http.request<R<{ items: OrgTreeNode[] }>>(
     "post",
     "/admin/org/tree",
     { data: params }
@@ -227,7 +227,7 @@ export const getOrgTree = async (params: OrgQuery): Promise<OrgTreeNode[]> => {
 export const getUserPage = async (
   params: UserPageQuery
 ): Promise<PaginatedResult<UserItem>> => {
-  const res = await http.request<PermResult<PaginatedResult<UserItem>>>(
+  const res = await http.request<R<PaginatedResult<UserItem>>>(
     "post",
     "/admin/user/page",
     { data: params }
@@ -244,7 +244,7 @@ export const createUser = async (data: {
   /** 所属组织ID（可选；需属默认组织树） */
   orgId?: number;
 }): Promise<CreateUserResult> => {
-  const res = await http.request<PermResult<CreateUserResult>>(
+  const res = await http.request<R<CreateUserResult>>(
     "post",
     "/admin/user/create",
     { data }
@@ -260,14 +260,14 @@ export const updateUser = async (data: {
   email?: string | null;
 }): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>("post", "/admin/user/update", { data })
+    await http.request<R<void>>("post", "/admin/user/update", { data })
   );
 };
 
 /** 删除用户（POST /admin/user/delete，IdsReq 批量） */
 export const deleteUser = async (ids: number[]): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>("post", "/admin/user/delete", {
+    await http.request<R<void>>("post", "/admin/user/delete", {
       data: { ids }
     })
   );
@@ -277,7 +277,7 @@ export const deleteUser = async (ids: number[]): Promise<void> => {
 
 /** 查询用户所属组织（POST /admin/user-org/list，IdReq.id=userId） */
 export const getUserOrgs = async (userId: number): Promise<OrgBrief[]> => {
-  const res = await http.request<PermResult<OrgBrief[]>>(
+  const res = await http.request<R<OrgBrief[]>>(
     "post",
     "/admin/user-org/list",
     { data: { id: userId } }
@@ -292,7 +292,7 @@ export const assignUserOrgs = async (data: {
   primaryOrgId?: number;
 }): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>("post", "/admin/user-org/assign", {
+    await http.request<R<void>>("post", "/admin/user-org/assign", {
       data
     })
   );
@@ -304,7 +304,7 @@ export const removeUserOrg = async (data: {
   orgId: number;
 }): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>("post", "/admin/user-org/remove", {
+    await http.request<R<void>>("post", "/admin/user-org/remove", {
       data
     })
   );
@@ -316,7 +316,7 @@ export const setPrimaryOrg = async (data: {
   orgId: number;
 }): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/admin/user-org/set-primary",
       {
@@ -330,7 +330,7 @@ export const setPrimaryOrg = async (data: {
 
 /** 获取用户角色列表（POST /admin/user-role/list，全类型角色含 ORG/POSITION 投影） */
 export const getUserRoles = async (userId: number): Promise<UserRoleItem[]> => {
-  const res = await http.request<PermResult<{ items: UserRoleItem[] }>>(
+  const res = await http.request<R<{ items: UserRoleItem[] }>>(
     "post",
     "/admin/user-role/list",
     { data: { userId } }
@@ -351,7 +351,7 @@ export const assignRole = async (data: {
   validTo?: string;
 }): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/user-role/assign",
       {
@@ -381,7 +381,7 @@ export const revokeRole = async (data: {
   roleExternalId: string;
 }): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/user-role/revoke",
       {
@@ -404,7 +404,7 @@ export const revokeRole = async (data: {
 
 /** 创建组织（POST /admin/org/create；响应 data 为裸 Long——新组织 ID） */
 export const createOrg = async (data: OrgCreateReq): Promise<number> => {
-  const res = await http.request<PermResult<number>>(
+  const res = await http.request<R<number>>(
     "post",
     "/admin/org/create",
     { data }
@@ -415,14 +415,14 @@ export const createOrg = async (data: OrgCreateReq): Promise<number> => {
 /** 更新组织（POST /admin/org/update，仅传变更字段；类型不可改） */
 export const updateOrg = async (data: OrgUpdateReq): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>("post", "/admin/org/update", { data })
+    await http.request<R<void>>("post", "/admin/org/update", { data })
   );
 };
 
 /** 删除组织（POST /admin/org/delete，IdReq） */
 export const deleteOrg = async (id: number): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>("post", "/admin/org/delete", {
+    await http.request<R<void>>("post", "/admin/org/delete", {
       data: { id }
     })
   );
@@ -432,7 +432,7 @@ export const deleteOrg = async (id: number): Promise<void> => {
 export const getOrgPage = async (
   params: OrgPageQuery
 ): Promise<PaginatedResult<OrgPageItem>> => {
-  const res = await http.request<PermResult<PaginatedResult<OrgPageItem>>>(
+  const res = await http.request<R<PaginatedResult<OrgPageItem>>>(
     "post",
     "/admin/org/page",
     { data: params }
@@ -448,7 +448,7 @@ export const enableUsers = async (data: {
   status: 0 | 1;
 }): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>("post", "/admin/user/enable", {
+    await http.request<R<void>>("post", "/admin/user/enable", {
       data
     })
   );
@@ -459,7 +459,7 @@ export const resetUserPassword = async (data: {
   userId: number;
   newPassword?: string;
 }): Promise<{ newPassword: string }> => {
-  const res = await http.request<PermResult<{ newPassword: string }>>(
+  const res = await http.request<R<{ newPassword: string }>>(
     "post",
     "/admin/user/reset-password",
     { data }
@@ -476,7 +476,7 @@ export const getMemberCandidates = async (
   params: MemberCandidatesQuery
 ): Promise<PaginatedResult<MemberCandidateItem>> => {
   const res = await http.request<
-    PermResult<PaginatedResult<MemberCandidateItem>>
+    R<PaginatedResult<MemberCandidateItem>>
   >("post", "/admin/user/member-candidates", { data: params });
   return unwrap(res);
 };
@@ -485,7 +485,7 @@ export const getMemberCandidates = async (
 
 /** 获取功能角色列表（POST /admin/role/list，默认仅 BASIC_ROLE / GROUP_ROLE / PERSONAL） */
 export const getRoleList = async (): Promise<RoleItem[]> => {
-  const res = await http.request<PermResult<{ items: RoleItem[] }>>(
+  const res = await http.request<R<{ items: RoleItem[] }>>(
     "post",
     "/admin/role/list",
     {
@@ -499,7 +499,7 @@ export const getRoleList = async (): Promise<RoleItem[]> => {
 
 /** 组织下的用户（POST /admin/org/users，IdReq.id=orgId） */
 export const getOrgUsers = async (orgId: number): Promise<OrgUserItem[]> => {
-  const res = await http.request<PermResult<OrgUserItem[]>>(
+  const res = await http.request<R<OrgUserItem[]>>(
     "post",
     "/admin/org/users",
     { data: { id: orgId } }

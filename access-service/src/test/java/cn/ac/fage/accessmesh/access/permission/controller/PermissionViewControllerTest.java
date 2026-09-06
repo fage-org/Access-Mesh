@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.service.LogQueryAppService;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionViewAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import org.junit.jupiter.api.AfterEach;
@@ -54,7 +54,7 @@ class PermissionViewControllerTest {
         when(permissionViewAppService.getEffectivePermissionCodesForManage(eq(TENANT), eq(req)))
             .thenReturn(new UserEffectivePermissionCodesResp(List.of("USER:VIEW")));
 
-        PermResult<UserEffectivePermissionCodesResp> result = controller.getEffectivePermissionCodes(req);
+        R<UserEffectivePermissionCodesResp> result = controller.getEffectivePermissionCodes(req);
 
         assertEquals(List.of("USER:VIEW"), result.getData().permissions());
         verify(permissionViewAppService).getEffectivePermissionCodesForManage(eq(TENANT), eq(req));

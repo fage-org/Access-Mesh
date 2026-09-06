@@ -1,5 +1,5 @@
 import { http } from "@/utils/http";
-import { unwrap, type PermResult } from "./_envelope";
+import { unwrap, type R } from "./_envelope";
 
 // ========== 真实登录链路契约（T-FE-041，对齐 AdminAuthController） ==========
 
@@ -62,7 +62,7 @@ export type LoginFormData = Pick<
  * 验证码 5 分钟有效且一次性消费。
  */
 export const getCaptcha = async (): Promise<CaptchaResp> => {
-  const res = await http.request<PermResult<CaptchaResp>>(
+  const res = await http.request<R<CaptchaResp>>(
     "post",
     "/auth/captcha"
   );
@@ -72,11 +72,11 @@ export const getCaptcha = async (): Promise<CaptchaResp> => {
 /**
  * 账号密码登录（POST /auth/login）。
  * <p>
- * 保留 PermResult 信封返回，由 store 通过 `unwrap` 解包以走统一异常路径
+ * 保留 R 信封返回，由 store 通过 `unwrap` 解包以走统一异常路径
  * （业务失败 HTTP 200 + code≠200，经 unwrap 抛 RequestError）。
  */
-export const login = (data: LoginFormData): Promise<PermResult<LoginResp>> => {
-  return http.request<PermResult<LoginResp>>("post", "/auth/login", {
+export const login = (data: LoginFormData): Promise<R<LoginResp>> => {
+  return http.request<R<LoginResp>>("post", "/auth/login", {
     // 固定 tenantId/clientId 放在展开之后获得最终覆盖权（结构化类型下多余字段无法篡改）
     data: {
       ...data,
@@ -94,7 +94,7 @@ export const login = (data: LoginFormData): Promise<PermResult<LoginResp>> => {
  * - `roles`：用户角色（pure-admin-thin 模板按角色名 string 处理）
  * - `permissions`：按钮权限轨道，形如 `"ORG:CREATE_POSITION"` 的 perm 串
  *
- * 注意：本文件返回 `Promise<PermResult<UserMenuData>>`（保留 PermResult 信封），
+ * 注意：本文件返回 `Promise<R<UserMenuData>>`（保留 R 信封），
  * 由 store/user.ts 通过 `unwrap` 解包以触发 try/catch 抛错降级。
  */
 export type UserMenuData = {
@@ -124,9 +124,9 @@ export type UserMenuRoute = {
 /**
  * 登录后获取用户菜单 + 角色 + 按钮权限。
  * <p>
- * 响应壳为 PermResult<T>（code=200 为成功），由调用方 store.refreshUserMenu
+ * 响应壳为 R<T>（code=200 为成功），由调用方 store.refreshUserMenu
  * 通过 `unwrap` 解包并以 try/catch 处理失败。
  */
 export const getUserMenu = () => {
-  return http.request<PermResult<UserMenuData>>("post", "/auth/user-menu");
+  return http.request<R<UserMenuData>>("post", "/auth/user-menu");
 };

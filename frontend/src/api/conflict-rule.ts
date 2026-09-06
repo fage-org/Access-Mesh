@@ -4,7 +4,7 @@
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/conflict-rule`）。
  * T-FE-020 修正：本文件原用裸 `/api/perm/conflict-rule/*`（T-FE-041 全局切 Gateway 路径时漏改
  * 本页），Gateway 仅路由 /admin/**、/perm/**，裸路径必 404；mock/conflict-rule.ts 已随真实链路退役删除。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.6（T-PERM-030 收口契约要点）
@@ -20,7 +20,7 @@
  * - conflictType 实体注释已对齐枚举（ROLE_MUTEX/PERM_MUTEX）。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { ItemsResp } from "./role-manage";
 
 // ========== 常量 ==========
@@ -119,7 +119,7 @@ export type ConflictDetectReq = {
 export const getConflictRuleList = async (): Promise<
   ItemsResp<ConflictRuleResp>
 > => {
-  const res = await http.request<PermResult<ItemsResp<ConflictRuleResp>>>(
+  const res = await http.request<R<ItemsResp<ConflictRuleResp>>>(
     "post",
     "/perm/api/perm/conflict-rule/list",
     { data: {} }
@@ -134,7 +134,7 @@ export const getConflictRuleList = async (): Promise<
 export const getConflictRuleDetail = async (
   id: number
 ): Promise<ConflictRuleResp> => {
-  const res = await http.request<PermResult<ConflictRuleResp>>(
+  const res = await http.request<R<ConflictRuleResp>>(
     "post",
     "/perm/api/perm/conflict-rule/detail",
     { data: { id } }
@@ -146,7 +146,7 @@ export const getConflictRuleDetail = async (
 export const createConflictRule = async (
   data: ConflictRuleCreateReq
 ): Promise<ConflictRuleResp> => {
-  const res = await http.request<PermResult<ConflictRuleResp>>(
+  const res = await http.request<R<ConflictRuleResp>>(
     "post",
     "/perm/api/perm/conflict-rule/create",
     { data }
@@ -160,7 +160,7 @@ export const createConflictRule = async (
 export const updateConflictRule = async (
   data: ConflictRuleUpdateReq
 ): Promise<ConflictRuleResp> => {
-  const res = await http.request<PermResult<ConflictRuleResp>>(
+  const res = await http.request<R<ConflictRuleResp>>(
     "post",
     "/perm/api/perm/conflict-rule/update",
     { data }
@@ -172,7 +172,7 @@ export const updateConflictRule = async (
  *  幂等：幽灵 id 静默跳过；无类型级 DELETE 权限整批拒绝。 */
 export const removeConflictRules = async (ids: number[]): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/conflict-rule/remove",
       { data: { ids } }
@@ -186,7 +186,7 @@ export const removeConflictRules = async (ids: number[]): Promise<void> => {
 export const detectConflictRule = async (
   data: ConflictDetectReq
 ): Promise<ConflictDetectResp> => {
-  const res = await http.request<PermResult<ConflictDetectResp>>(
+  const res = await http.request<R<ConflictDetectResp>>(
     "post",
     "/perm/api/perm/conflict-rule/detect",
     { data }

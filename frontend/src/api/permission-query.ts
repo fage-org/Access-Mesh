@@ -24,7 +24,7 @@
  *   permission-view/* 唯一差异 resource-users 已登记
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { ScopeMode } from "@/utils/scope-mode";
 
 // ========== 公共类型 ==========
@@ -280,7 +280,7 @@ export interface ExplainResp {
 export const getEffectivePermissions = async (
   data: EffectivePermissionsReq
 ): Promise<EffectivePermissionsResp> => {
-  const res = await http.request<PermResult<EffectivePermissionsResp>>(
+  const res = await http.request<R<EffectivePermissionsResp>>(
     "post",
     "/perm/api/perm/permission-view/effective-permissions",
     { data }
@@ -292,7 +292,7 @@ export const getEffectivePermissions = async (
 export const getQueryScopes = async (
   data: QueryScopesReq
 ): Promise<QueryScopesResp> => {
-  const res = await http.request<PermResult<QueryScopesResp>>(
+  const res = await http.request<R<QueryScopesResp>>(
     "post",
     "/perm/api/perm/auth/query-scopes",
     { data }
@@ -302,7 +302,7 @@ export const getQueryScopes = async (
 
 /** 解释单个用户/角色对某资源操作的当前权限 + 近期影响事件（§6.8） */
 export const getExplain = async (data: ExplainReq): Promise<ExplainResp> => {
-  const res = await http.request<PermResult<ExplainResp>>(
+  const res = await http.request<R<ExplainResp>>(
     "post",
     "/perm/api/perm/permission-view/explain",
     { data }

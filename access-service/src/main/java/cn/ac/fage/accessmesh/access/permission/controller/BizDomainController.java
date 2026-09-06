@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainDetailReq;
@@ -53,8 +53,8 @@ public class BizDomainController {
      * @return 创建成功的业务域详情
      */
     @PostMapping("/create")
-    public PermResult<BizDomainResp> createBizDomain(@Valid @RequestBody BizDomainCreateReq req) {
-        return PermResult.success(bizDomainAppService.createBizDomain(TenantContextHolder.getTenantId(), req, null));
+    public R<BizDomainResp> createBizDomain(@Valid @RequestBody BizDomainCreateReq req) {
+        return R.ok(bizDomainAppService.createBizDomain(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -68,8 +68,8 @@ public class BizDomainController {
      * @return 业务域详情信息
      */
     @PostMapping("/detail")
-    public PermResult<BizDomainResp> getBizDomain(@Valid @RequestBody BizDomainDetailReq req) {
-        return PermResult.success(bizDomainAppService.getBizDomain(TenantContextHolder.getTenantId(), req.domainCode()));
+    public R<BizDomainResp> getBizDomain(@Valid @RequestBody BizDomainDetailReq req) {
+        return R.ok(bizDomainAppService.getBizDomain(TenantContextHolder.getTenantId(), req.domainCode()));
     }
 
     /**
@@ -83,7 +83,7 @@ public class BizDomainController {
      * @return 分页业务域列表
      */
     @PostMapping("/list")
-    public PermResult<PaginatedResp<BizDomainResp>> listBizDomains(@Valid @RequestBody BizDomainListReq req) {
+    public R<PaginatedResp<BizDomainResp>> listBizDomains(@Valid @RequestBody BizDomainListReq req) {
         boolean paged = req.pageNum() != null || req.pageSize() != null;
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = paged ? PageUtil.pageSize(req.pageSize()) : PageUtil.MAX_PAGE_SIZE;
@@ -92,7 +92,7 @@ public class BizDomainController {
         long total = bizDomainAppService.countBizDomains(tenantId, req.keyword());
         List<BizDomainResp> items =
             bizDomainAppService.listBizDomains(tenantId, req.keyword(), offset, pageSize);
-        return PermResult.success(new PaginatedResp<>(
+        return R.ok(new PaginatedResp<>(
             items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 
@@ -106,9 +106,9 @@ public class BizDomainController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteBizDomain(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteBizDomain(@Valid @RequestBody IdsReq req) {
         bizDomainAppService.deleteBizDomainsByIds(TenantContextHolder.getTenantId(), req.ids(), null);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -122,7 +122,7 @@ public class BizDomainController {
      * @return 更新后的业务域详情
      */
     @PostMapping("/update")
-    public PermResult<BizDomainResp> updateBizDomain(@Valid @RequestBody BizDomainUpdateReq req) {
-        return PermResult.success(bizDomainAppService.updateBizDomain(TenantContextHolder.getTenantId(), req, null));
+    public R<BizDomainResp> updateBizDomain(@Valid @RequestBody BizDomainUpdateReq req) {
+        return R.ok(bizDomainAppService.updateBizDomain(TenantContextHolder.getTenantId(), req, null));
     }
 }

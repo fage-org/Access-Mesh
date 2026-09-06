@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RolePermissionListReq;
@@ -46,11 +46,11 @@ public class PermissionGrantController {
      * 单事务应用授权计划。
      */
     @PostMapping("/apply-grant-plan")
-    public PermResult<RolePermissionItemsResp> applyGrantPlan(
+    public R<RolePermissionItemsResp> applyGrantPlan(
             @Valid @RequestBody ApplyGrantPlanReq req) {
         List<RolePermissionItemResp> items = permissionGrantService.applyGrantPlan(
             TenantContextHolder.getTenantId(), req);
-        return PermResult.success(new RolePermissionItemsResp(items));
+        return R.ok(new RolePermissionItemsResp(items));
     }
 
     /**
@@ -63,9 +63,9 @@ public class PermissionGrantController {
      * @return 角色权限条目列表
      */
     @PostMapping("/list")
-    public PermResult<RolePermissionItemsResp> list(@Valid @RequestBody RolePermissionListReq req) {
+    public R<RolePermissionItemsResp> list(@Valid @RequestBody RolePermissionListReq req) {
         List<RolePermissionItemResp> items = permissionGrantService.listPermissions(TenantContextHolder.getTenantId(), req);
-        return PermResult.success(new RolePermissionItemsResp(items));
+        return R.ok(new RolePermissionItemsResp(items));
     }
 
     /**
@@ -76,9 +76,9 @@ public class PermissionGrantController {
      * </p>
      */
     @PostMapping("/sub-perm-allowed-types")
-    public PermResult<SubPermAllowedTypesResp> subPermAllowedTypes(
+    public R<SubPermAllowedTypesResp> subPermAllowedTypes(
             @Valid @RequestBody SubPermAllowedTypesReq req) {
-        return PermResult.success(permissionGrantService.subPermAllowedTypes(
+        return R.ok(permissionGrantService.subPermAllowedTypes(
             TenantContextHolder.getTenantId(), req));
     }
 }

@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.gateway.filter;
 
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.gateway.cache.GatewayCacheCatalog;
 import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker;
 import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker.LoadToken;
@@ -294,9 +294,9 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 从 PermResult 提取快照数据
+     * 从 R 提取快照数据
      */
-    private InterfaceSnapshotResp extractSnapshot(PermResult<InterfaceSnapshotResp> result) {
+    private InterfaceSnapshotResp extractSnapshot(R<InterfaceSnapshotResp> result) {
         if (result == null || result.getData() == null) {
             return null;
         }
@@ -487,7 +487,7 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     private static class StaleLoadDiscardedException extends RuntimeException {
     }
 
-    /** 回源返回空快照（PermResult.data 为 null）时抛出，触发 403 */
+    /** 回源返回空快照（R.data 为 null）时抛出，触发 403 */
     private static class EmptySnapshotException extends RuntimeException {
     }
 

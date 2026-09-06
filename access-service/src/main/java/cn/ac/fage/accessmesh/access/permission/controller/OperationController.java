@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeysReq;
@@ -53,8 +53,8 @@ public class OperationController {
      * @return 创建成功的操作权限详情
      */
     @PostMapping("/create")
-    public PermResult<OperationPermissionResp> createOperation(@Valid @RequestBody OperationCreateReq req) {
-        return PermResult.success(operationAppService.createOperation(
+    public R<OperationPermissionResp> createOperation(@Valid @RequestBody OperationCreateReq req) {
+        return R.ok(operationAppService.createOperation(
                 TenantContextHolder.getTenantId(), req.resourceTypeCode(), req.code(), req.name(), req.binaryBit(), req.inheritMask(), null));
     }
 
@@ -69,8 +69,8 @@ public class OperationController {
      * @return 操作权限详情信息
      */
     @PostMapping("/detail")
-    public PermResult<OperationPermissionResp> getOperation(@Valid @RequestBody OperationKeyReq req) {
-        return PermResult.success(operationAppService.getOperation(TenantContextHolder.getTenantId(), req));
+    public R<OperationPermissionResp> getOperation(@Valid @RequestBody OperationKeyReq req) {
+        return R.ok(operationAppService.getOperation(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -84,8 +84,8 @@ public class OperationController {
      * @return 操作权限列表
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<OperationPermissionResp>> listOperations(@Valid @RequestBody OperationListReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<OperationPermissionResp>> listOperations(@Valid @RequestBody OperationListReq req) {
+        return R.ok(new ItemsResp<>(
             operationAppService.listOperations(TenantContextHolder.getTenantId(), req.resourceTypeCode())
         ));
     }
@@ -100,8 +100,8 @@ public class OperationController {
      * @return 更新后的操作权限详情
      */
     @PostMapping("/update")
-    public PermResult<OperationPermissionResp> updateOperation(@Valid @RequestBody OperationUpdateReq req) {
-        return PermResult.success(operationAppService.updateOperation(TenantContextHolder.getTenantId(), req, null));
+    public R<OperationPermissionResp> updateOperation(@Valid @RequestBody OperationUpdateReq req) {
+        return R.ok(operationAppService.updateOperation(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -114,8 +114,8 @@ public class OperationController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteOperation(@Valid @RequestBody OperationKeysReq req) {
+    public R<Void> deleteOperation(@Valid @RequestBody OperationKeysReq req) {
         operationAppService.deleteOperations(TenantContextHolder.getTenantId(), req.items(), null);
-        return PermResult.success();
+        return R.ok();
     }
 }

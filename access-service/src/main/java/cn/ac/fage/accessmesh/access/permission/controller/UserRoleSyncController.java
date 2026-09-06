@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleFullSyncReq;
@@ -34,16 +34,16 @@ public class UserRoleSyncController {
     }
 
     @PostMapping("/sync")
-    public PermResult<SyncResultResp> sync(@Valid @RequestBody UserRoleSyncReq req,
+    public R<SyncResultResp> sync(@Valid @RequestBody UserRoleSyncReq req,
                                             HttpServletRequest httpRequest) {
         Long tenantId = TenantContextHolder.getTenantId();
-        return PermResult.success(userRoleSyncAppService.sync(tenantId, req, httpRequest));
+        return R.ok(userRoleSyncAppService.sync(tenantId, req, httpRequest));
     }
 
     @PostMapping("/full-sync")
-    public PermResult<SyncResultResp> fullSync(@Valid @RequestBody UserRoleFullSyncReq req,
+    public R<SyncResultResp> fullSync(@Valid @RequestBody UserRoleFullSyncReq req,
                                                HttpServletRequest httpRequest) {
         Long tenantId = TenantContextHolder.getTenantId();
-        return PermResult.success(userRoleSyncAppService.fullSync(tenantId, req, httpRequest));
+        return R.ok(userRoleSyncAppService.fullSync(tenantId, req, httpRequest));
     }
 }

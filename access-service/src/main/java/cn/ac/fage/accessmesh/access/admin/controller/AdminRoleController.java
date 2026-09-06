@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.auth.UserInfoResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.ac.fage.accessmesh.access.application.query.UserRoleQueryService;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.dev33.satoken.stp.StpUtil;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,11 +53,11 @@ public class AdminRoleController {
      * @return 角色列表
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<RoleListItemResp>> listRoles(@RequestBody(required = false) RoleListQueryReq req) {
+    public R<ItemsResp<RoleListItemResp>> listRoles(@RequestBody(required = false) RoleListQueryReq req) {
         List<String> typeCodes = req != null && req.roleTypeCodes() != null
             ? req.roleTypeCodes()
             : null;
-        return PermResult.success(new ItemsResp<>(userRoleQueryService.listRoles(typeCodes)));
+        return R.ok(new ItemsResp<>(userRoleQueryService.listRoles(typeCodes)));
     }
 
     /**
@@ -70,8 +70,8 @@ public class AdminRoleController {
      * @return 用户信息响应，包含角色列表和权限标识
      */
     @PostMapping("/my-info")
-    public PermResult<UserInfoResp> getMyInfo() {
-        return PermResult.success(userMenuQueryService.loadUserRolesAndPermissions(StpUtil.getLoginIdAsLong()));
+    public R<UserInfoResp> getMyInfo() {
+        return R.ok(userMenuQueryService.loadUserRolesAndPermissions(StpUtil.getLoginIdAsLong()));
     }
 
     /**

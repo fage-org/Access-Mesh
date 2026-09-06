@@ -2,7 +2,7 @@
  * 业务域 API
  * 经 @/utils/http 调用 access-service 端点（`/perm/api/perm/biz-domain/*`，Gateway /perm 前缀——T-FE-021 切换）；
  * mock/biz-domain.ts 已于 T-FE-021 联调退役删除。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.1（类型与域，T-PERM-026 收口契约要点）
@@ -16,7 +16,7 @@
  *   create 编码重复 20052。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { PaginatedResp } from "./role-manage";
 
 // ========== 业务域定义 ==========
@@ -69,7 +69,7 @@ export type BizDomainUpdateReq = {
 export const getBizDomainList = async (
   params: BizDomainListQuery
 ): Promise<PaginatedResp<BizDomainResp>> => {
-  const res = await http.request<PermResult<PaginatedResp<BizDomainResp>>>(
+  const res = await http.request<R<PaginatedResp<BizDomainResp>>>(
     "post",
     "/perm/api/perm/biz-domain/list",
     { data: params }
@@ -83,7 +83,7 @@ export const getBizDomainList = async (
 export const getBizDomainDetail = async (
   domainCode: string
 ): Promise<BizDomainResp | null> => {
-  const res = await http.request<PermResult<BizDomainResp | null>>(
+  const res = await http.request<R<BizDomainResp | null>>(
     "post",
     "/perm/api/perm/biz-domain/detail",
     { data: { domainCode } }
@@ -95,7 +95,7 @@ export const getBizDomainDetail = async (
 export const createBizDomain = async (
   data: BizDomainCreateReq
 ): Promise<BizDomainResp> => {
-  const res = await http.request<PermResult<BizDomainResp>>(
+  const res = await http.request<R<BizDomainResp>>(
     "post",
     "/perm/api/perm/biz-domain/create",
     { data }
@@ -107,7 +107,7 @@ export const createBizDomain = async (
 export const updateBizDomain = async (
   data: BizDomainUpdateReq
 ): Promise<BizDomainResp> => {
-  const res = await http.request<PermResult<BizDomainResp>>(
+  const res = await http.request<R<BizDomainResp>>(
     "post",
     "/perm/api/perm/biz-domain/update",
     { data }
@@ -119,7 +119,7 @@ export const updateBizDomain = async (
  *  删除保护（T-PERM-026，20051）：全局域不可删（Resp.global=true 前端预判禁用按钮）；
  *  域下仍存在有效域配置时拒删（需先删除该域下全部配置）。 */
 export const removeBizDomain = async (ids: number[]): Promise<void> => {
-  const res = await http.request<PermResult<void>>(
+  const res = await http.request<R<void>>(
     "post",
     "/perm/api/perm/biz-domain/remove",
     { data: { ids } }

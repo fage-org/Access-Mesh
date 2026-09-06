@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.FileResp;
 import cn.ac.fage.accessmesh.access.admin.service.FileService;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -53,9 +53,9 @@ public class FileController {
      * @return 上传成功后的文件ID
      */
     @PostMapping("/upload")
-    public PermResult<Long> uploadFile(@RequestParam("file") MultipartFile file,
+    public R<Long> uploadFile(@RequestParam("file") MultipartFile file,
                                         @RequestParam(required = false, defaultValue = "default") String bizType) {
-        return PermResult.success(fileService.uploadFile(file, bizType));
+        return R.ok(fileService.uploadFile(file, bizType));
     }
 
     /**
@@ -68,9 +68,9 @@ public class FileController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteFiles(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteFiles(@Valid @RequestBody IdsReq req) {
         fileService.deleteFiles(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -83,8 +83,8 @@ public class FileController {
      * @return 文件详情信息
      */
     @PostMapping("/detail")
-    public PermResult<FileResp> getFile(@Valid @RequestBody IdReq req) {
-        return PermResult.success(fileService.getFile(req.id()));
+    public R<FileResp> getFile(@Valid @RequestBody IdReq req) {
+        return R.ok(fileService.getFile(req.id()));
     }
 
     /**
@@ -97,8 +97,8 @@ public class FileController {
      * @return 分页文件列表结果
      */
     @PostMapping("/page")
-    public PermResult<PaginatedResult<FileResp>> pageFiles(@Valid @RequestBody FilePageReq pageReq) {
-        return PermResult.success(fileService.pageFiles(pageReq, pageReq.bizType()));
+    public R<PaginatedResult<FileResp>> pageFiles(@Valid @RequestBody FilePageReq pageReq) {
+        return R.ok(fileService.pageFiles(pageReq, pageReq.bizType()));
     }
 
     /**

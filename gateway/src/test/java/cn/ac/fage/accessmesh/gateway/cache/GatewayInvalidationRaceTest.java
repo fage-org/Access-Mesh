@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
 import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.gateway.config.GatewayProperties;
 import cn.ac.fage.accessmesh.gateway.filter.PermissionFilter;
 import cn.ac.fage.accessmesh.gateway.service.PermissionClient;
@@ -158,11 +158,11 @@ class GatewayInvalidationRaceTest {
                 loadStarted.countDown();
                 if (calls.incrementAndGet() == 1) {
                     // 旧回源：150ms 后返回（失效发生后、慢 evictAll 期间到达）
-                    return Mono.just(PermResult.success(stale)).delayElement(Duration.ofMillis(150));
+                    return Mono.just(R.ok(stale)).delayElement(Duration.ofMillis(150));
                 }
                 // 重试拉取新快照：延迟到慢 evictAll（400ms）完成后提交，
                 // 使最终缓存状态确定（新快照在清理结束后写入并保留）
-                return Mono.just(PermResult.success(fresh)).delayElement(Duration.ofMillis(600));
+                return Mono.just(R.ok(fresh)).delayElement(Duration.ofMillis(600));
             });
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -214,9 +214,9 @@ class GatewayInvalidationRaceTest {
             .thenAnswer(inv -> {
                 loadStarted.countDown();
                 if (calls.incrementAndGet() == 1) {
-                    return Mono.just(PermResult.success(stale)).delayElement(Duration.ofMillis(150));
+                    return Mono.just(R.ok(stale)).delayElement(Duration.ofMillis(150));
                 }
-                return Mono.just(PermResult.success(fresh)).delayElement(Duration.ofMillis(600));
+                return Mono.just(R.ok(fresh)).delayElement(Duration.ofMillis(600));
             });
 
         ExecutorService executor = Executors.newSingleThreadExecutor();
@@ -256,9 +256,9 @@ class GatewayInvalidationRaceTest {
             .thenAnswer(inv -> {
                 loadStarted.countDown();
                 if (calls.incrementAndGet() == 1) {
-                    return Mono.just(PermResult.success(stale)).delayElement(Duration.ofMillis(150));
+                    return Mono.just(R.ok(stale)).delayElement(Duration.ofMillis(150));
                 }
-                return Mono.just(PermResult.success(fresh));
+                return Mono.just(R.ok(fresh));
             });
 
         ExecutorService executor = Executors.newSingleThreadExecutor();

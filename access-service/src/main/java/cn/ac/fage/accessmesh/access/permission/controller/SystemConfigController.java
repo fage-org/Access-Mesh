@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.SystemConfigGetReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.SystemConfigListReq;
@@ -51,8 +51,8 @@ public class SystemConfigController {
      * @return 保存后的配置详情
      */
     @PostMapping("/save")
-    public PermResult<SystemConfigResp> upsertSystemConfig(@Valid @RequestBody SystemConfigReq req) {
-        return PermResult.success(systemConfigAppService.upsertSystemConfig(TenantContextHolder.getTenantId(), req));
+    public R<SystemConfigResp> upsertSystemConfig(@Valid @RequestBody SystemConfigReq req) {
+        return R.ok(systemConfigAppService.upsertSystemConfig(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -65,8 +65,8 @@ public class SystemConfigController {
      * @return 系统配置详情信息
      */
     @PostMapping("/detail")
-    public PermResult<SystemConfigResp> getSystemConfig(@Valid @RequestBody SystemConfigGetReq req) {
-        return PermResult.success(systemConfigAppService.getSystemConfig(TenantContextHolder.getTenantId(), req.configKey()));
+    public R<SystemConfigResp> getSystemConfig(@Valid @RequestBody SystemConfigGetReq req) {
+        return R.ok(systemConfigAppService.getSystemConfig(TenantContextHolder.getTenantId(), req.configKey()));
     }
 
     /**
@@ -80,7 +80,7 @@ public class SystemConfigController {
      * @return 分页系统配置列表
      */
     @PostMapping("/list")
-    public PermResult<PaginatedResp<SystemConfigResp>> listSystemConfigs(@Valid @RequestBody SystemConfigListReq req) {
+    public R<PaginatedResp<SystemConfigResp>> listSystemConfigs(@Valid @RequestBody SystemConfigListReq req) {
         boolean paged = req.pageNum() != null || req.pageSize() != null;
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = paged ? PageUtil.pageSize(req.pageSize()) : PageUtil.MAX_PAGE_SIZE;
@@ -89,7 +89,7 @@ public class SystemConfigController {
         long total = systemConfigAppService.countSystemConfigs(tenantId, req.keyword());
         List<SystemConfigResp> items =
             systemConfigAppService.listSystemConfigs(tenantId, req.keyword(), offset, pageSize);
-        return PermResult.success(new PaginatedResp<>(
+        return R.ok(new PaginatedResp<>(
             items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 }

@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.JobUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.entity.SysJob;
 import cn.ac.fage.accessmesh.access.admin.service.JobService;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -54,8 +54,8 @@ public class JobController {
      * @return 创建成功的任务ID
      */
     @PostMapping("/create")
-    public PermResult<Long> createJob(@Valid @RequestBody JobCreateReq req) {
-        return PermResult.success(jobService.createJob(req));
+    public R<Long> createJob(@Valid @RequestBody JobCreateReq req) {
+        return R.ok(jobService.createJob(req));
     }
 
     /**
@@ -68,9 +68,9 @@ public class JobController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    public PermResult<Void> updateJob(@Valid @RequestBody JobUpdateReq req) {
+    public R<Void> updateJob(@Valid @RequestBody JobUpdateReq req) {
         jobService.updateJob(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -83,9 +83,9 @@ public class JobController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteJobs(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteJobs(@Valid @RequestBody IdsReq req) {
         jobService.deleteJobs(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -99,9 +99,9 @@ public class JobController {
      * @return 操作成功结果
      */
     @PostMapping("/toggle")
-    public PermResult<Void> toggleJobStatus(@RequestBody ToggleJobReq req) {
+    public R<Void> toggleJobStatus(@RequestBody ToggleJobReq req) {
         jobService.toggleJobStatus(req.id(), req.status());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -115,9 +115,9 @@ public class JobController {
      * @return 操作成功结果
      */
     @PostMapping("/trigger")
-    public PermResult<Void> triggerJob(@Valid @RequestBody IdReq req) {
+    public R<Void> triggerJob(@Valid @RequestBody IdReq req) {
         jobService.triggerJob(req.id());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -130,8 +130,8 @@ public class JobController {
      * @return 任务详情信息
      */
     @PostMapping("/detail")
-    public PermResult<JobResp> getJob(@Valid @RequestBody IdReq req) {
-        return PermResult.success(jobService.getJob(req.id()));
+    public R<JobResp> getJob(@Valid @RequestBody IdReq req) {
+        return R.ok(jobService.getJob(req.id()));
     }
 
     /**
@@ -144,8 +144,8 @@ public class JobController {
      * @return 分页任务列表结果
      */
     @PostMapping("/page")
-    public PermResult<PaginatedResult<JobResp>> pageJobs(@Valid @RequestBody PageReq req) {
-        return PermResult.success(jobService.pageJobs(req, null));
+    public R<PaginatedResult<JobResp>> pageJobs(@Valid @RequestBody PageReq req) {
+        return R.ok(jobService.pageJobs(req, null));
     }
 
     /**
@@ -159,9 +159,9 @@ public class JobController {
      * @return 分页任务日志列表结果
      */
     @PostMapping("/log/page")
-    public PermResult<PaginatedResult<JobLogResp>> pageJobLogs(
+    public R<PaginatedResult<JobLogResp>> pageJobLogs(
             @Valid @RequestBody JobLogPageReq req) {
-        return PermResult.success(jobService.pageJobLogs(req, req.jobId()));
+        return R.ok(jobService.pageJobLogs(req, req.jobId()));
     }
 
     /**

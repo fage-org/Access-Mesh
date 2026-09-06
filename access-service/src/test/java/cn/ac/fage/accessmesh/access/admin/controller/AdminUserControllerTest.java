@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.UserService;
 import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.dev33.satoken.stp.StpUtil;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -65,7 +65,7 @@ class AdminUserControllerTest {
             .thenReturn(new UserInfoResp(SELF_ID, null, null, null, null, null, null,
                 List.of(), List.of(), List.of()));
 
-        PermResult<UserInfoResp> result = controller.getUserMenus(new IdReq(SELF_ID));
+        R<UserInfoResp> result = controller.getUserMenus(new IdReq(SELF_ID));
 
         assertEquals(SELF_ID, result.getData().userId());
         verify(permissionValidator, never()).checkInstanceLevel(anyString(), anyString(), anyString());
@@ -78,7 +78,7 @@ class AdminUserControllerTest {
             .thenReturn(new UserInfoResp(OTHER_ID, null, null, null, null, null, null,
                 List.of(), List.of(), List.of()));
 
-        PermResult<UserInfoResp> result = controller.getUserMenus(new IdReq(OTHER_ID));
+        R<UserInfoResp> result = controller.getUserMenus(new IdReq(OTHER_ID));
 
         verify(permissionValidator).checkInstanceLevel(
             ResourceTypeCode.USER, String.valueOf(OTHER_ID), AdminOperationCode.VIEW);

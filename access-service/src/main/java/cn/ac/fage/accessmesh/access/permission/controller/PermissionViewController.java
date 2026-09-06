@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
@@ -55,8 +55,8 @@ public class PermissionViewController {
     }
 
     @PostMapping("/effective-permissions")
-    public PermResult<PermissionEffectivePermissionsResp> getEffectivePermissions(@Valid @RequestBody UserPermissionViewReq req) {
-        return PermResult.success(permissionViewAppService.getEffectivePermissions(TenantContextHolder.getTenantId(), req));
+    public R<PermissionEffectivePermissionsResp> getEffectivePermissions(@Valid @RequestBody UserPermissionViewReq req) {
+        return R.ok(permissionViewAppService.getEffectivePermissions(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -68,48 +68,48 @@ public class PermissionViewController {
      * 门禁：自查豁免；查他人需操作者对被查用户有 {@code USER:VIEW}。
      */
     @PostMapping("/effective-permission-codes")
-    public PermResult<UserEffectivePermissionCodesResp> getEffectivePermissionCodes(
+    public R<UserEffectivePermissionCodesResp> getEffectivePermissionCodes(
             @Valid @RequestBody UserEffectivePermissionCodesReq req) {
-        return PermResult.success(permissionViewAppService.getEffectivePermissionCodesForManage(
+        return R.ok(permissionViewAppService.getEffectivePermissionCodesForManage(
             TenantContextHolder.getTenantId(), req));
     }
 
     @PostMapping("/resource-users")
-    public PermResult<ResourcePermissionViewResp> getResourcePermissions(@Valid @RequestBody ResourcePermissionViewReq req) {
-        return PermResult.success(permissionViewAppService.getResourcePermissions(
+    public R<ResourcePermissionViewResp> getResourcePermissions(@Valid @RequestBody ResourcePermissionViewReq req) {
+        return R.ok(permissionViewAppService.getResourcePermissions(
             TenantContextHolder.getTenantId(), req.domainCode(), req.resourceTypeCode(), req.resourceCode(), req.codeType()));
     }
 
     @PostMapping("/role-permissions")
-    public PermResult<RolePermissionViewResp> getRolePermissions(@Valid @RequestBody RolePermissionViewReq req) {
-        return PermResult.success(permissionViewAppService.getRolePermissions(
+    public R<RolePermissionViewResp> getRolePermissions(@Valid @RequestBody RolePermissionViewReq req) {
+        return R.ok(permissionViewAppService.getRolePermissions(
             TenantContextHolder.getTenantId(), req.domainCode(), req.roleTypeCode(), req.roleExternalId(), req.expandSub() != null && req.expandSub()));
     }
 
     @PostMapping("/effective-roles")
-    public PermResult<ItemsResp<EffectiveRoleResp>> getEffectiveRoles(@Valid @RequestBody UserEffectiveRolesReq req) {
-        return PermResult.success(permissionViewAppService.listEffectiveRoles(
+    public R<ItemsResp<EffectiveRoleResp>> getEffectiveRoles(@Valid @RequestBody UserEffectiveRolesReq req) {
+        return R.ok(permissionViewAppService.listEffectiveRoles(
             TenantContextHolder.getTenantId(), req));
     }
 
     @PostMapping("/resource-tree")
-    public PermResult<ItemsResp<ResourcePermissionTreeResp>> getResourceTree(@Valid @RequestBody UserResourceTreeReq req) {
+    public R<ItemsResp<ResourcePermissionTreeResp>> getResourceTree(@Valid @RequestBody UserResourceTreeReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) {
-            return PermResult.success(new ItemsResp<>(List.of()));
+            return R.ok(new ItemsResp<>(List.of()));
         }
-        return PermResult.success(new ItemsResp<>(
+        return R.ok(new ItemsResp<>(
             permissionViewAppService.getUserResourceTree(tenantId, userId, req)));
     }
 
     @PostMapping("/explain")
-    public PermResult<PermissionExplainResp> explain(@Valid @RequestBody PermissionExplainReq req) {
-        return PermResult.success(permissionViewAppService.explain(TenantContextHolder.getTenantId(), req));
+    public R<PermissionExplainResp> explain(@Valid @RequestBody PermissionExplainReq req) {
+        return R.ok(permissionViewAppService.explain(TenantContextHolder.getTenantId(), req));
     }
 
     @PostMapping("/recent-changes")
-    public PermResult<PermissionRecentChangesResp> recentChanges(@Valid @RequestBody PermissionRecentChangesReq req) {
-        return PermResult.success(logQueryService.getRecentChanges(TenantContextHolder.getTenantId(), req));
+    public R<PermissionRecentChangesResp> recentChanges(@Valid @RequestBody PermissionRecentChangesReq req) {
+        return R.ok(logQueryService.getRecentChanges(TenantContextHolder.getTenantId(), req));
     }
 }

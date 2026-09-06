@@ -72,7 +72,7 @@ export const useUserStore = defineStore("pure-user", {
       this.loginDay = Number(value);
     },
     /**
-     * 登入（T-FE-041 真实链路，对齐 PermResult 信封）。
+     * 登入（T-FE-041 真实链路，对齐 R 信封）。
      * <p>
      * 流程（v1.4 双轨并行）：
      *  1. 调 `/auth/login` 拿令牌（`unwrap` 解包：业务失败 HTTP 200 + code≠200 抛 RequestError）
@@ -112,7 +112,7 @@ export const useUserStore = defineStore("pure-user", {
      * 独立 action 暴露便于：① 登录时调用；② 权限变更回调时手动重拉。
      * 成功后同步写入 Pinia state 与 localStorage（保持 setToken 的 userKey 一致语义）。
      * <p>
-     * 响应壳为 PermResult<T>（code=200 为成功）；通过 `unwrap` 解包，
+     * 响应壳为 R<T>（code=200 为成功）；通过 `unwrap` 解包，
      * 非 200 / 网络异常会抛出 Error，由调用方 try/catch（loginByUsername 已接住降级，仅 console.warn 不阻断）。
      */
     async refreshUserMenu() {

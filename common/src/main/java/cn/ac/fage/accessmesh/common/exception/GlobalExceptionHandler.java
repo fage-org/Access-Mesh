@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.common.enums.GlobalErrorCode;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -38,9 +38,9 @@ public class GlobalExceptionHandler {
      * @return 包含错误码和消息的标准响应
      */
     @ExceptionHandler(BizException.class)
-    public PermResult<Void> handleBizException(BizException e) {
+    public R<Void> handleBizException(BizException e) {
         log.warn("BizException: code={}, message={}", e.getErrorCode(), e.getMessage());
-        return PermResult.error(e.getErrorCode(), e.getMessage());
+        return R.fail(e.getErrorCode(), e.getMessage());
     }
 
     /**
@@ -54,9 +54,9 @@ public class GlobalExceptionHandler {
      * @return 包含错误码和通用消息的标准响应
      */
     @ExceptionHandler(SystemException.class)
-    public PermResult<Void> handleSystemException(SystemException e) {
+    public R<Void> handleSystemException(SystemException e) {
         log.error("SystemException: code={}, message={}", e.getErrorCode(), e.getMessage(), e);
-        return PermResult.error(e.getErrorCode(), "系统异常");
+        return R.fail(e.getErrorCode(), "系统异常");
     }
 
     /**
@@ -71,9 +71,9 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(SecurityException.class)
     @ResponseStatus(HttpStatus.FORBIDDEN)
-    public PermResult<Void> handleSecurityException(SecurityException e) {
+    public R<Void> handleSecurityException(SecurityException e) {
         log.warn("SecurityException: {}", e.getMessage());
-        return PermResult.error(403, "权限不足");
+        return R.fail(403, "权限不足");
     }
 
     /**
@@ -88,10 +88,10 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public PermResult<Void> handleValidation(MethodArgumentNotValidException e) {
+    public R<Void> handleValidation(MethodArgumentNotValidException e) {
         String msg = e.getBindingResult().getAllErrors().get(0).getDefaultMessage();
         log.warn("Validation failed: {}", msg);
-        return PermResult.error(GlobalErrorCode.VALIDATION_FAILED.code(), msg);
+        return R.fail(GlobalErrorCode.VALIDATION_FAILED.code(), msg);
     }
 
     /**
@@ -105,9 +105,9 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(ConstraintViolationException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public PermResult<Void> handleConstraintViolation(ConstraintViolationException e) {
+    public R<Void> handleConstraintViolation(ConstraintViolationException e) {
         log.warn("Constraint violation: {}", e.getMessage());
-        return PermResult.error(GlobalErrorCode.VALIDATION_FAILED.code(), e.getMessage());
+        return R.fail(GlobalErrorCode.VALIDATION_FAILED.code(), e.getMessage());
     }
 
     /**
@@ -124,10 +124,10 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(IllegalArgumentException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public PermResult<Void> handleIllegalArgumentException(IllegalArgumentException e, HttpServletRequest request) {
+    public R<Void> handleIllegalArgumentException(IllegalArgumentException e, HttpServletRequest request) {
         String requestId = request.getHeader("X-Request-Id");
         log.warn("IllegalArgumentException [requestId={}]: {}", requestId, e.getMessage());
-        return PermResult.error(400, "参数错误", requestId);
+        return R.fail(400, "参数错误", requestId);
     }
 
     /**
@@ -142,9 +142,9 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HttpMessageNotReadableException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public PermResult<Void> handleHttpMessageNotReadable(HttpMessageNotReadableException e) {
+    public R<Void> handleHttpMessageNotReadable(HttpMessageNotReadableException e) {
         log.warn("HttpMessageNotReadable: {}", e.getMessage());
-        return PermResult.error(GlobalErrorCode.VALIDATION_FAILED.code(), "请求体格式错误");
+        return R.fail(GlobalErrorCode.VALIDATION_FAILED.code(), "请求体格式错误");
     }
 
     /**
@@ -160,8 +160,8 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public PermResult<Void> handleException(Exception e) {
+    public R<Void> handleException(Exception e) {
         log.error("Unexpected exception", e);
-        return PermResult.error(GlobalErrorCode.SYSTEM_ERROR.code(), GlobalErrorCode.SYSTEM_ERROR.message());
+        return R.fail(GlobalErrorCode.SYSTEM_ERROR.code(), GlobalErrorCode.SYSTEM_ERROR.message());
     }
 }

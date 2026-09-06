@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConflictRuleReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConflictRuleDetectReq;
@@ -53,8 +53,8 @@ public class ConflictRuleController {
      * @return 创建成功的规则详情
      */
     @PostMapping("/create")
-    public PermResult<ConflictRuleResp> createConflictRule(@Valid @RequestBody ConflictRuleReq req) {
-        return PermResult.success(conflictRuleAppService.createConflictRule(TenantContextHolder.getTenantId(), req, null));
+    public R<ConflictRuleResp> createConflictRule(@Valid @RequestBody ConflictRuleReq req) {
+        return R.ok(conflictRuleAppService.createConflictRule(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -67,8 +67,8 @@ public class ConflictRuleController {
      * @return 规则详情信息
      */
     @PostMapping("/detail")
-    public PermResult<ConflictRuleResp> getConflictRule(@Valid @RequestBody IdReq req) {
-        return PermResult.success(conflictRuleAppService.getConflictRule(TenantContextHolder.getTenantId(), req.id()));
+    public R<ConflictRuleResp> getConflictRule(@Valid @RequestBody IdReq req) {
+        return R.ok(conflictRuleAppService.getConflictRule(TenantContextHolder.getTenantId(), req.id()));
     }
 
     /**
@@ -82,8 +82,8 @@ public class ConflictRuleController {
      * @return 规则列表
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<ConflictRuleResp>> listConflictRules(@Valid @RequestBody EmptyReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<ConflictRuleResp>> listConflictRules(@Valid @RequestBody EmptyReq req) {
+        return R.ok(new ItemsResp<>(
             conflictRuleAppService.listConflictRules(TenantContextHolder.getTenantId())
         ));
     }
@@ -98,9 +98,9 @@ public class ConflictRuleController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteConflictRule(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteConflictRule(@Valid @RequestBody IdsReq req) {
         conflictRuleAppService.deleteConflictRulesByIds(TenantContextHolder.getTenantId(), req.ids(), null);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -113,8 +113,8 @@ public class ConflictRuleController {
      * @return 更新后的规则详情
      */
     @PostMapping("/update")
-    public PermResult<ConflictRuleResp> updateConflictRule(@Valid @RequestBody ConflictRuleUpdateReq req) {
-        return PermResult.success(conflictRuleAppService.updateConflictRule(TenantContextHolder.getTenantId(), req, null));
+    public R<ConflictRuleResp> updateConflictRule(@Valid @RequestBody ConflictRuleUpdateReq req) {
+        return R.ok(conflictRuleAppService.updateConflictRule(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -128,7 +128,7 @@ public class ConflictRuleController {
      * @return 冲突检测结果，包含是否存在冲突、冲突详情
      */
     @PostMapping("/detect")
-    public PermResult<ConflictDetectResp> detectConflictRule(@Valid @RequestBody ConflictRuleDetectReq req) {
-        return PermResult.success(conflictRuleAppService.detectConflictRule(TenantContextHolder.getTenantId(), req));
+    public R<ConflictDetectResp> detectConflictRule(@Valid @RequestBody ConflictRuleDetectReq req) {
+        return R.ok(conflictRuleAppService.detectConflictRule(TenantContextHolder.getTenantId(), req));
     }
 }

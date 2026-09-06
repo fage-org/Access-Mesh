@@ -1,14 +1,14 @@
 /**
- * 统一响应信封（对齐 common.model.PermResult）。
+ * 统一响应信封（对齐 common.model.R）。
  * <p>
  * AccessMesh 后端所有 HTTP 响应统一为 `{ code, message, data, requestId?, traceId? }` 结构，
  * code=200 视为成功；非 200 抛错由调用方 try/catch 处理。
  *
  * 使用：
  * ```ts
- * import { type PermResult, unwrap } from "@/api/_envelope";
+ * import { type R, unwrap } from "@/api/_envelope";
  *
- * const res = await http.request<PermResult<UserItem>>(...);
+ * const res = await http.request<R<UserItem>>(...);
  * return unwrap(res);
  * ```
  *
@@ -17,7 +17,7 @@
  */
 
 /** 后端统一响应包装：code=200 为成功 */
-export type PermResult<T> = {
+export type R<T> = {
   code: number;
   message: string;
   data: T;
@@ -36,7 +36,7 @@ export type ErrorKind = "business" | "timeout" | "network" | "unknown";
 
 /**
  * 类型化错误（带 appCode / httpStatus / kind）。
- * 业务错经 unwrap 抛出（kind=business, appCode=PermResult.code）；
+ * 业务错经 unwrap 抛出（kind=business, appCode=R.code）；
  * http 层错误（axios）由 classifySaveError 按 code/status 分类，不靠 message。
  */
 export class RequestError extends Error {
@@ -60,7 +60,7 @@ export class RequestError extends Error {
 }
 
 /** 按 code 解包，非 200 抛 RequestError（kind=business, appCode=code），交由调用方 try/catch 处理 */
-export function unwrap<T>(res: PermResult<T>): T {
+export function unwrap<T>(res: R<T>): T {
   if (res.code !== 200) {
     throw new RequestError(res.message || "请求失败", {
       appCode: res.code,

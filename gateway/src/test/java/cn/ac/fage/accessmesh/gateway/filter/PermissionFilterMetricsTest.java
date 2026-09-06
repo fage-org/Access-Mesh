@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
 import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.gateway.cache.GatewayCacheCatalog;
 import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidator;
@@ -218,7 +218,7 @@ class PermissionFilterMetricsTest {
         void shouldIncrementDeadlineExceeded_whenLoadExceedsDeadline() throws InterruptedException {
             PermissionFilter filter = createFilter(Duration.ofMillis(150));
             when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
-                .thenReturn(Mono.just(PermResult.success(allowSnapshot()))
+                .thenReturn(Mono.just(R.ok(allowSnapshot()))
                     .delayElement(Duration.ofSeconds(1)));
 
             awaitCompletion(filter, buildExchange());

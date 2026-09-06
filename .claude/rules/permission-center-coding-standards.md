@@ -48,7 +48,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
 // ❌ 禁止 — Controller 中包含业务逻辑
 @PostMapping("/save")
-public PermResult<RoleResp> create(@RequestBody RoleCreateReq req) {
+public R<RoleResp> create(@RequestBody RoleCreateReq req) {
     // 不要在 Controller 中直接操作 Mapper 或编写业务逻辑
     AbstractRole role = abstractRoleMapper.insert(...); // WRONG
 }

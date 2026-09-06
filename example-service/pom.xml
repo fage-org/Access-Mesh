@@ -14,7 +14,7 @@
     <description>Demo service showing permission center integration</description>
 
     <dependencies>
-        <!-- 统一响应体 PermResult / 全局异常处理 / UTC 时区装配；缓存等能力按条件装配，无 Redis 也可启动 -->
+        <!-- 统一响应体 R / 全局异常处理 / UTC 时区装配；缓存等能力按条件装配，无 Redis 也可启动 -->
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
             <artifactId>common</artifactId>

@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleBatchAssignReq;
@@ -47,9 +47,9 @@ public class PermUserRoleController {
      * @return 操作成功结果
      */
     @PostMapping("/assign")
-    public PermResult<Void> assignRole(@Valid @RequestBody UserAssignRoleReq req) {
+    public R<Void> assignRole(@Valid @RequestBody UserAssignRoleReq req) {
         userManageService.assignRole(TenantContextHolder.getTenantId(), req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -62,9 +62,9 @@ public class PermUserRoleController {
      * @return 操作成功结果
      */
     @PostMapping("/batch-assign")
-    public PermResult<Void> batchAssignRole(@Valid @RequestBody UserRoleBatchAssignReq req) {
+    public R<Void> batchAssignRole(@Valid @RequestBody UserRoleBatchAssignReq req) {
         userManageService.assignRolesBatch(TenantContextHolder.getTenantId(), req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -77,9 +77,9 @@ public class PermUserRoleController {
      * @return 操作成功结果
      */
     @PostMapping("/revoke")
-    public PermResult<Void> revokeRoles(@Valid @RequestBody UserRoleBatchRevokeReq req) {
+    public R<Void> revokeRoles(@Valid @RequestBody UserRoleBatchRevokeReq req) {
         userManageService.revokeRolesBatch(TenantContextHolder.getTenantId(), req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -92,7 +92,7 @@ public class PermUserRoleController {
      * @return 用户角色列表响应
      */
     @PostMapping("/list")
-    public PermResult<UserRolesResp> getUserRoles(@Valid @RequestBody UserRoleListReq req) {
-        return PermResult.success(userManageService.getUserRoles(TenantContextHolder.getTenantId(), req));
+    public R<UserRolesResp> getUserRoles(@Valid @RequestBody UserRoleListReq req) {
+        return R.ok(userManageService.getUserRoles(TenantContextHolder.getTenantId(), req));
     }
 }

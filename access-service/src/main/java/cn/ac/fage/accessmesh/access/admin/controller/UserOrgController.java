@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.UserOrgRemoveReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.UserOrgSetPrimaryReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.access.admin.service.UserOrgService;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,9 +46,9 @@ public class UserOrgController {
      * @return 操作成功结果
      */
     @PostMapping("/assign")
-    public PermResult<Void> assignUserToOrgs(@Valid @RequestBody UserOrgAssignReq req) {
+    public R<Void> assignUserToOrgs(@Valid @RequestBody UserOrgAssignReq req) {
         userOrgService.assignUserToOrgs(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -61,9 +61,9 @@ public class UserOrgController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> removeUserFromOrg(@Valid @RequestBody UserOrgRemoveReq req) {
+    public R<Void> removeUserFromOrg(@Valid @RequestBody UserOrgRemoveReq req) {
         userOrgService.removeUserFromOrg(req.userId(), req.orgId());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -77,9 +77,9 @@ public class UserOrgController {
      * @return 操作成功结果
      */
     @PostMapping("/set-primary")
-    public PermResult<Void> setPrimaryOrg(@Valid @RequestBody UserOrgSetPrimaryReq req) {
+    public R<Void> setPrimaryOrg(@Valid @RequestBody UserOrgSetPrimaryReq req) {
         userOrgService.setPrimaryOrg(req.userId(), req.orgId());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -92,7 +92,7 @@ public class UserOrgController {
      * @return 用户组织列表，包含组织基本信息和是否为主组织标记
      */
     @PostMapping("/list")
-    public PermResult<List<UserPageItemResp.OrgBrief>> getUserOrgs(@Valid @RequestBody IdReq req) {
-        return PermResult.success(userOrgService.getUserOrgs(req.id()));
+    public R<List<UserPageItemResp.OrgBrief>> getUserOrgs(@Valid @RequestBody IdReq req) {
+        return R.ok(userOrgService.getUserOrgs(req.id()));
     }
 }

@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.OrgUserItemResp;
 import cn.ac.fage.accessmesh.access.admin.service.OrgService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -53,8 +53,8 @@ public class OrgController {
      * @return 创建成功的组织ID
      */
     @PostMapping("/create")
-    public PermResult<Long> createOrg(@Valid @RequestBody OrgCreateReq req) {
-        return PermResult.success(orgService.createOrg(req));
+    public R<Long> createOrg(@Valid @RequestBody OrgCreateReq req) {
+        return R.ok(orgService.createOrg(req));
     }
 
     /**
@@ -67,9 +67,9 @@ public class OrgController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    public PermResult<Void> updateOrg(@Valid @RequestBody OrgUpdateReq req) {
+    public R<Void> updateOrg(@Valid @RequestBody OrgUpdateReq req) {
         orgService.updateOrg(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -82,9 +82,9 @@ public class OrgController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteOrg(@Valid @RequestBody IdReq req) {
+    public R<Void> deleteOrg(@Valid @RequestBody IdReq req) {
         orgService.deleteOrg(req.id());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -97,8 +97,8 @@ public class OrgController {
      * @return 组织详情信息
      */
     @PostMapping("/detail")
-    public PermResult<OrgResp> getOrg(@Valid @RequestBody IdReq req) {
-        return PermResult.success(orgService.getOrg(req.id()));
+    public R<OrgResp> getOrg(@Valid @RequestBody IdReq req) {
+        return R.ok(orgService.getOrg(req.id()));
     }
 
     /**
@@ -111,8 +111,8 @@ public class OrgController {
      * @return 分页组织列表结果
      */
     @PostMapping("/page")
-    public PermResult<PaginatedResult<OrgResp>> pageOrgs(@Valid @RequestBody OrgPageReq req) {
-        return PermResult.success(orgService.pageOrgs(req));
+    public R<PaginatedResult<OrgResp>> pageOrgs(@Valid @RequestBody OrgPageReq req) {
+        return R.ok(orgService.pageOrgs(req));
     }
 
     /**
@@ -126,10 +126,10 @@ public class OrgController {
      * @return 组织树结构（{items:[...]} 包装）
      */
     @PostMapping("/tree")
-    public PermResult<ItemsResp<OrgResp>> treeOrgs(@Valid @RequestBody OrgQuery query) {
+    public R<ItemsResp<OrgResp>> treeOrgs(@Valid @RequestBody OrgQuery query) {
         // P1-3：不再返回裸数组，统一 {items:[...]} 包装（复用 perm-common ItemsResp，
         // 与 /role/list、/user-role/list 同款；契约 §4.2.1）
-        return PermResult.success(new ItemsResp<>(orgService.treeOrgs(query)));
+        return R.ok(new ItemsResp<>(orgService.treeOrgs(query)));
     }
 
     /**
@@ -143,7 +143,7 @@ public class OrgController {
      * @return 用户简要信息列表
      */
     @PostMapping("/users")
-    public PermResult<List<OrgUserItemResp>> listOrgUsers(@Valid @RequestBody IdReq req) {
-        return PermResult.success(orgService.listOrgUsers(req.id()));
+    public R<List<OrgUserItemResp>> listOrgUsers(@Valid @RequestBody IdReq req) {
+        return R.ok(orgService.listOrgUsers(req.id()));
     }
 }

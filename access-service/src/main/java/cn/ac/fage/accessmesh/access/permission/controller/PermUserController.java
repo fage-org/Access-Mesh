@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
@@ -53,8 +53,8 @@ public class PermUserController {
      * @return 创建成功的用户详情
      */
     @PostMapping("/create")
-    public PermResult<UserResp> createUser(@Valid @RequestBody UserCreateReq req) {
-        return PermResult.success(userManageService.createUser(TenantContextHolder.getTenantId(), req));
+    public R<UserResp> createUser(@Valid @RequestBody UserCreateReq req) {
+        return R.ok(userManageService.createUser(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -67,8 +67,8 @@ public class PermUserController {
      * @return 更新后的用户详情
      */
     @PostMapping("/update")
-    public PermResult<UserResp> updateUser(@Valid @RequestBody UserUpdateReq req) {
-        return PermResult.success(userManageService.updateUser(TenantContextHolder.getTenantId(), req));
+    public R<UserResp> updateUser(@Valid @RequestBody UserUpdateReq req) {
+        return R.ok(userManageService.updateUser(TenantContextHolder.getTenantId(), req));
     }
 
     /**
@@ -81,8 +81,8 @@ public class PermUserController {
      * @return 用户详情信息
      */
     @PostMapping("/detail")
-    public PermResult<UserResp> getUser(@Valid @RequestBody IdReq req) {
-        return PermResult.success(userManageService.getUser(TenantContextHolder.getTenantId(), req.id()));
+    public R<UserResp> getUser(@Valid @RequestBody IdReq req) {
+        return R.ok(userManageService.getUser(TenantContextHolder.getTenantId(), req.id()));
     }
 
     /**
@@ -95,9 +95,9 @@ public class PermUserController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteUser(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteUser(@Valid @RequestBody IdsReq req) {
         userManageService.deleteUsers(TenantContextHolder.getTenantId(), req.ids());
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -110,7 +110,7 @@ public class PermUserController {
      * @return 分页用户列表结果
      */
     @PostMapping("/list")
-    public PermResult<PaginatedResp<UserResp>> listUsers(@Valid @RequestBody UserListReq req) {
+    public R<PaginatedResp<UserResp>> listUsers(@Valid @RequestBody UserListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
@@ -119,6 +119,6 @@ public class PermUserController {
         List<UserResp> items = userManageService.listUsers(
             tenantId, req.subjectTypeCode(), req.domainCode(), req.keyword(), offset, pageSize
         );
-        return PermResult.success(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 }

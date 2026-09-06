@@ -4,14 +4,14 @@
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/permission-condition`）。
  * T-FE-041 切换真实链路后，mock/permission-condition.ts 路由失配，已随 T-FE-020 退役删除
  *（_shared/permission-condition-store 亦随 T-FE-018 授权页 mock 退役一并删除，条件链路全真实）。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.6（T-PERM-029 收口：detail/update/remove
  * 均以业务键 code 定位，uk tenant+code；ConditionResp 含 updatedAt；detail 查不到抛 20006）。
  * 后端实现：access-service ConditionController + ConditionAppServiceImpl。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { ItemsResp } from "./role-manage";
 
 /** 权限条件响应（对齐后端 ConditionResp） */
@@ -62,7 +62,7 @@ export type ConditionUpdateReq = {
  *  后端返回 ItemsResp<ConditionResp> 全量不分页（T-PERM-029 设计定案：条件模板数量有界，
  *  与 domain-config/service-config 同款；keyword/enabled 过滤由前端本地完成）。 */
 export const getConditionList = async (): Promise<ItemsResp<ConditionResp>> => {
-  const res = await http.request<PermResult<ItemsResp<ConditionResp>>>(
+  const res = await http.request<R<ItemsResp<ConditionResp>>>(
     "post",
     "/perm/api/perm/permission-condition/list",
     { data: {} }
@@ -77,7 +77,7 @@ export const getConditionList = async (): Promise<ItemsResp<ConditionResp>> => {
 export const getConditionDetail = async (
   conditionCode: string
 ): Promise<ConditionResp> => {
-  const res = await http.request<PermResult<ConditionResp>>(
+  const res = await http.request<R<ConditionResp>>(
     "post",
     "/perm/api/perm/permission-condition/detail",
     { data: { conditionCode } }
@@ -89,7 +89,7 @@ export const getConditionDetail = async (
 export const createCondition = async (
   data: ConditionCreateReq
 ): Promise<ConditionResp> => {
-  const res = await http.request<PermResult<ConditionResp>>(
+  const res = await http.request<R<ConditionResp>>(
     "post",
     "/perm/api/perm/permission-condition/create",
     { data }
@@ -102,7 +102,7 @@ export const createCondition = async (
 export const updateCondition = async (
   data: ConditionUpdateReq
 ): Promise<ConditionResp> => {
-  const res = await http.request<PermResult<ConditionResp>>(
+  const res = await http.request<R<ConditionResp>>(
     "post",
     "/perm/api/perm/permission-condition/update",
     { data }
@@ -114,7 +114,7 @@ export const updateCondition = async (
  *  请求中不存在的 code 静默跳过（幂等语义）。 */
 export const removeConditions = async (codes: string[]): Promise<void> => {
   unwrap(
-    await http.request<PermResult<void>>(
+    await http.request<R<void>>(
       "post",
       "/perm/api/perm/permission-condition/remove",
       { data: { codes } }

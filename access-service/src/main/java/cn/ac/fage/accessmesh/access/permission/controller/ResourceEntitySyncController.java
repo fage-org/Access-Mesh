@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceEntityFullSyncReq;
@@ -27,16 +27,16 @@ public class ResourceEntitySyncController {
     }
 
     @PostMapping("/sync")
-    public PermResult<SyncResultResp> sync(@Valid @RequestBody ResourceEntitySyncReq req,
+    public R<SyncResultResp> sync(@Valid @RequestBody ResourceEntitySyncReq req,
                                             HttpServletRequest httpRequest) {
         Long tenantId = TenantContextHolder.getTenantId();
-        return PermResult.success(resourceEntitySyncAppService.sync(tenantId, req, httpRequest));
+        return R.ok(resourceEntitySyncAppService.sync(tenantId, req, httpRequest));
     }
 
     @PostMapping("/full-sync")
-    public PermResult<SyncResultResp> fullSync(@Valid @RequestBody ResourceEntityFullSyncReq req,
+    public R<SyncResultResp> fullSync(@Valid @RequestBody ResourceEntityFullSyncReq req,
                                                HttpServletRequest httpRequest) {
         Long tenantId = TenantContextHolder.getTenantId();
-        return PermResult.success(resourceEntitySyncAppService.fullSync(tenantId, req, httpRequest));
+        return R.ok(resourceEntitySyncAppService.fullSync(tenantId, req, httpRequest));
     }
 }

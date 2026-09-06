@@ -43,9 +43,9 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 ## API 依赖（链接后端契约章节）
 
-- `POST /auth/captcha` → `PermResult<CaptchaResp{captchaId, image}>`（契约来源：后端 `AdminAuthController`/`CaptchaResp`——`admin-service-api-contract.md` 尚未收录平台登录端点，以代码为准）
-- `POST /auth/login` → `PermResult<LoginResp{accessToken, refreshToken(null), expiresIn(秒), tokenType, userId, username, tenantId, forceResetPwd}>`（契约来源同上：`LoginReq`/`LoginResp`）；业务失败 HTTP 200 + code≠200
-- `POST /auth/user-menu` → `PermResult<UserMenuData{menus, roles, permissions}>`（登录成功后 store 拉取；HTTP 401 会话失效不降级 rethrow，其余异常仅 console.warn 不阻断登录）
+- `POST /auth/captcha` → `R<CaptchaResp{captchaId, image}>`（契约来源：后端 `AdminAuthController`/`CaptchaResp`——`admin-service-api-contract.md` 尚未收录平台登录端点，以代码为准）
+- `POST /auth/login` → `R<LoginResp{accessToken, refreshToken(null), expiresIn(秒), tokenType, userId, username, tenantId, forceResetPwd}>`（契约来源同上：`LoginReq`/`LoginResp`）；业务失败 HTTP 200 + code≠200
+- `POST /auth/user-menu` → `R<UserMenuData{menus, roles, permissions}>`（登录成功后 store 拉取；HTTP 401 会话失效不降级 rethrow，其余异常仅 console.warn 不阻断登录）
 - 路径经 Gateway 外部约定（`/auth/**` StripPrefix=0 直通）；开发环境由 vite proxy 同路径转发（`VITE_PROXY_TARGET`）
 
 ## 组件结构（含可复用组件识别）
@@ -68,5 +68,5 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 ## mock 与动态路由口径（T-FE-041 决策）
 
-- `mock/login.ts` 由 `VITE_MOCK_LOGIN`（.env.development，默认 **false**）控制注册；开启时注册 `/auth/captcha`（SVG 占位图）+ `/auth/login` + `/auth/user-menu`，响应壳已对齐 PermResult，前端代码零分支（开关经 wrapperEnv 写回 `process.env` 生效，已端到端验证：后端未启动时三端点全走 mock；关闭时请求穿透 vite 代理）。生产构建 mock 由 `VITE_ENABLE_PROD_MOCK=false` 关闭。mock user-menu 自 T-FE-015 起下发最小菜单树（welcome 纯展示，对齐 bootstrap 种子形态）——侧栏唯一数据源已切本接口 menus 树，空数组会渲染为失败占位。
+- `mock/login.ts` 由 `VITE_MOCK_LOGIN`（.env.development，默认 **false**）控制注册；开启时注册 `/auth/captcha`（SVG 占位图）+ `/auth/login` + `/auth/user-menu`，响应壳已对齐 R，前端代码零分支（开关经 wrapperEnv 写回 `process.env` 生效，已端到端验证：后端未启动时三端点全走 mock；关闭时请求穿透 vite 代理）。生产构建 mock 由 `VITE_ENABLE_PROD_MOCK=false` 关闭。mock user-menu 自 T-FE-015 起下发最小菜单树（welcome 纯展示，对齐 bootstrap 种子形态）——侧栏唯一数据源已切本接口 menus 树，空数组会渲染为失败占位。
 - 纯静态路由：`initRouter` 不再请求 `/get-async-routes`（`src/api/routes.ts` 已删除），路由注册由 `router/modules/*.ts` 静态维护；**侧栏菜单已切后端派生（T-FE-015 已接线 2026-08-31）**——`initRouter` 将 `/auth/user-menu` 的 menus 树直接渲染为侧栏（标题/图标/层级来自 sys_menu bootstrap 种子，可见性 = v3.5 §4.1 ∃op 派生），`meta.showLink` 不再控制侧栏；会话恢复 = 已登录 F5/启动重取 user-menu，失败 fail-closed 空菜单 + 侧栏「菜单加载失败，点击重试」占位项（跳 `/menu-retry` 重试页），不持久化、不回退全量静态菜单。

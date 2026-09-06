@@ -4,7 +4,7 @@
 // - 这是 fake server 仅模拟前端 UX 隐藏，**真实拒绝以 access-service 后端 permissionValidator 为准**。
 // - perm 串字面量从 `views/system/user/utils/perms.ts`（SSOT）反向导入，禁止再硬编码。
 //   契约见 `docs/design/org-user-permission-contract.md` §4。
-// - T-FE-041：默认关闭（真实 /auth 链路经 Gateway）；响应壳已对齐 PermResult 契约。
+// - T-FE-041：默认关闭（真实 /auth 链路经 Gateway）；响应壳已对齐 R 契约。
 import { defineFakeRoute } from "vite-plugin-fake-server/client";
 import {
   ORG_USER_PERMS as P,
@@ -248,7 +248,7 @@ const KNOWN_USERS = Object.keys(ROLE_PERM_MATRIX);
 function buildLoginPayload(username: string) {
   const profile = ROLE_PROFILES[username];
   return {
-    // 响应对齐后端 LoginResp（PermResult.data）
+    // 响应对齐后端 LoginResp（R.data）
     // 显式假串前缀，避免被误认为真 JWT
     accessToken: `mock-token-${username}`,
     refreshToken: null,
@@ -270,7 +270,7 @@ function buildLoginPayload(username: string) {
 /**
  * T-FE-041 mock 开关：默认 false（.env.development VITE_MOCK_LOGIN），mock 不注册任何路由，
  * 真实 /auth 链路全程经 vite proxy → Gateway。仅前端联调需要 mock 登录时置 true；
- * 此时响应壳已对齐 PermResult 契约，前端代码零分支。
+ * 此时响应壳已对齐 R 契约，前端代码零分支。
  * <p>
  * 注意：fake-server 中间件先于 vite proxy 执行，开关打开时 /auth/user-menu 会被本 mock
  * 拦截（无法同时使用真实登录 + mock 菜单）。
@@ -331,7 +331,7 @@ export default defineFakeRoute(
            * 真后端从 token 解析 userId 后查权限中心；mock 无 token 解码逻辑，
            * 通过 token 字段 `mock-token-{username}` 反查 ROLE_PERM_MATRIX。
            * <p>
-           * 响应壳与真后端 `PermResult<UserMenuResp>`（code=200/message/data）一致 ——
+           * 响应壳与真后端 `R<UserMenuResp>`（code=200/message/data）一致 ——
            * 前端 store/user.ts 通过 `unwrap` 解包。
            */
           url: "/auth/user-menu",

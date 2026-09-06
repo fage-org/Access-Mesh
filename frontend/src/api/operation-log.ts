@@ -2,7 +2,7 @@
  * 操作日志 API
  * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/log/operation/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/log/operation`）。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.8 operation-log 契约要点
@@ -14,7 +14,7 @@
  * OperationLogResp 已含全部字段，详情由前端抽屉展示（无需单独 detail 接口）。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { ItemsResp, PaginatedResp } from "./role-manage";
 
 // ========== 操作日志定义 ==========
@@ -77,7 +77,7 @@ export type LogActionOptionsReq = {
 export const getOperationLogList = async (
   params: OperationLogListReq
 ): Promise<PaginatedResp<OperationLogResp>> => {
-  const res = await http.request<PermResult<PaginatedResp<OperationLogResp>>>(
+  const res = await http.request<R<PaginatedResp<OperationLogResp>>>(
     "post",
     "/perm/api/perm/log/operation/list",
     { data: params }
@@ -92,7 +92,7 @@ export const getOperationLogList = async (
 export const getOperationLogActionOptions = async (
   params?: LogActionOptionsReq
 ): Promise<ItemsResp<string>> => {
-  const res = await http.request<PermResult<ItemsResp<string>>>(
+  const res = await http.request<R<ItemsResp<string>>>(
     "post",
     "/perm/api/perm/log/operation/action-options",
     { data: params ?? {} }

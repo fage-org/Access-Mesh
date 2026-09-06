@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.perm.client.feign;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.req.*;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
@@ -39,7 +39,7 @@ public interface PermissionFeignClient {
      * @return 删除结果
      */
     @PostMapping("/api/perm/abstract-user/remove")
-    PermResult<Void> deleteUsers(@RequestBody IdsReq req);
+    R<Void> deleteUsers(@RequestBody IdsReq req);
 
     // ========== 权限校验（新API，使用稳定业务键） ==========
 
@@ -53,7 +53,7 @@ public interface PermissionFeignClient {
      * @return 权限校验结果，包含是否允许和拒绝原因
      */
     @PostMapping("/api/perm/auth/check")
-    PermResult<AuthCheckResp> checkAuth(@RequestBody AuthCheckReq req);
+    R<AuthCheckResp> checkAuth(@RequestBody AuthCheckReq req);
 
     /**
      * 批量权限校验（使用稳定业务键）
@@ -65,7 +65,7 @@ public interface PermissionFeignClient {
      * @return 批量校验结果，包含每个项目的权限状态
      */
     @PostMapping("/api/perm/auth/batch-check")
-    PermResult<BatchAuthCheckResp> batchCheckAuth(@RequestBody BatchAuthCheckReq req);
+    R<BatchAuthCheckResp> batchCheckAuth(@RequestBody BatchAuthCheckReq req);
 
     /**
      * 查询主体可访问资源集合（T-API-002 补齐，core-flows §15 SDK 四件套之一）
@@ -78,7 +78,7 @@ public interface PermissionFeignClient {
      * @return 资源条目列表与缓存有效期
      */
     @PostMapping("/api/perm/auth/query-resources")
-    PermResult<QueryResourcesResp> queryResources(@RequestBody QueryResourcesReq req);
+    R<QueryResourcesResp> queryResources(@RequestBody QueryResourcesReq req);
 
     /**
      * 查询主资源上下文内的范围权限四态（T-API-002 补齐，core-flows §15 SDK 四件套之一）
@@ -91,7 +91,7 @@ public interface PermissionFeignClient {
      * @return 范围分组与缓存有效期
      */
     @PostMapping("/api/perm/auth/query-scopes")
-    PermResult<QueryScopesResp> queryScopes(@RequestBody QueryScopesReq req);
+    R<QueryScopesResp> queryScopes(@RequestBody QueryScopesReq req);
 
     // ========== 角色管理 ==========
 
@@ -102,7 +102,7 @@ public interface PermissionFeignClient {
      * @return 创建结果，包含角色详细信息
      */
     @PostMapping("/api/perm/abstract-role/create")
-    PermResult<RoleResp> createRole(@RequestBody RoleCreateReq req);
+    R<RoleResp> createRole(@RequestBody RoleCreateReq req);
 
     /**
      * 查询角色列表
@@ -111,10 +111,10 @@ public interface PermissionFeignClient {
      * @return 角色列表
      */
     @PostMapping("/api/perm/abstract-role/list")
-    PermResult<PaginatedResp<RoleResp>> listRoles(@RequestBody RoleListReq req);
+    R<PaginatedResp<RoleResp>> listRoles(@RequestBody RoleListReq req);
 
     @PostMapping("/api/perm/abstract-role/detail")
-    PermResult<RoleResp> getRole(@RequestBody IdReq req);
+    R<RoleResp> getRole(@RequestBody IdReq req);
 
     /**
      * 查询用户角色列表
@@ -123,7 +123,7 @@ public interface PermissionFeignClient {
      * @return 用户角色列表响应
      */
     @PostMapping("/api/perm/user-role/list")
-    PermResult<UserRolesResp> getUserRoles(@RequestBody UserRoleListReq req);
+    R<UserRolesResp> getUserRoles(@RequestBody UserRoleListReq req);
 
     /**
      * 为用户分配角色
@@ -135,7 +135,7 @@ public interface PermissionFeignClient {
      * @return 操作成功结果
      */
     @PostMapping("/api/perm/user-role/assign")
-    PermResult<Void> assignRole(@RequestBody UserAssignRoleReq req);
+    R<Void> assignRole(@RequestBody UserAssignRoleReq req);
 
     /**
      * 批量撤销用户角色
@@ -147,7 +147,7 @@ public interface PermissionFeignClient {
      * @return 操作成功结果
      */
     @PostMapping("/api/perm/user-role/revoke")
-    PermResult<Void> revokeRoles(@RequestBody UserRoleBatchRevokeReq req);
+    R<Void> revokeRoles(@RequestBody UserRoleBatchRevokeReq req);
 
     // ========== 赋源同步 ==========
 
@@ -158,7 +158,7 @@ public interface PermissionFeignClient {
      * @return 创建结果，包含资源详细信息
      */
     @PostMapping("/api/perm/resource-entity/create")
-    PermResult<ResourceResp> createResource(@RequestBody ResourceCreateReq req);
+    R<ResourceResp> createResource(@RequestBody ResourceCreateReq req);
 
     /**
      * 批量创建资源
@@ -167,7 +167,7 @@ public interface PermissionFeignClient {
      * @return 创建结果，包含资源列表
      */
     @PostMapping("/api/perm/resource-entity/batch-create")
-    PermResult<ItemsResp<ResourceResp>> batchCreateResources(@RequestBody ResourceBatchCreateReq req);
+    R<ItemsResp<ResourceResp>> batchCreateResources(@RequestBody ResourceBatchCreateReq req);
 
     /**
      * 更新资源
@@ -176,7 +176,7 @@ public interface PermissionFeignClient {
      * @return 更新结果，包含资源详细信息
      */
     @PostMapping("/api/perm/resource-entity/update")
-    PermResult<ResourceResp> updateResource(@RequestBody ResourceUpdateReq req);
+    R<ResourceResp> updateResource(@RequestBody ResourceUpdateReq req);
 
     /**
      * 批量删除资源
@@ -185,7 +185,7 @@ public interface PermissionFeignClient {
      * @return 删除结果
      */
     @PostMapping("/api/perm/resource-entity/remove")
-    PermResult<Void> deleteResources(@RequestBody IdsReq req);
+    R<Void> deleteResources(@RequestBody IdsReq req);
 
     // ========== 操作权限 ==========
 
@@ -196,7 +196,7 @@ public interface PermissionFeignClient {
      * @return 操作权限列表
      */
     @PostMapping("/api/perm/operation-permission/list")
-    PermResult<ItemsResp<OperationPermissionResp>> listOperations(@RequestBody OperationListReq req);
+    R<ItemsResp<OperationPermissionResp>> listOperations(@RequestBody OperationListReq req);
 
     // ========== 权限授予/撤销 ==========
     // 旧写入口 batchGrant(/save)/batchRevoke(/revoke) 已随 T-PERM-034 端点退役删除（2026-08-27）；
@@ -209,7 +209,7 @@ public interface PermissionFeignClient {
      * @return 有效权限分页结果
      */
     @PostMapping("/api/perm/permission-view/effective-permissions")
-    PermResult<PermissionEffectivePermissionsResp> getEffectivePermissions(
+    R<PermissionEffectivePermissionsResp> getEffectivePermissions(
         @RequestBody UserPermissionViewReq req);
 
     /**
@@ -223,6 +223,6 @@ public interface PermissionFeignClient {
      * @return perm 串列表
      */
     @PostMapping("/api/perm/permission-view/effective-permission-codes")
-    PermResult<UserEffectivePermissionCodesResp> getEffectivePermissionCodes(
+    R<UserEffectivePermissionCodesResp> getEffectivePermissionCodes(
         @RequestBody UserEffectivePermissionCodesReq req);
 }

@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
 import cn.ac.fage.accessmesh.common.cache.TypeRef;
 import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
 import cn.ac.fage.accessmesh.common.cache.spi.DistributedCacheStore;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.gateway.cache.GatewayCacheCatalog;
 import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidator;
@@ -231,7 +231,7 @@ class SnapshotSafetyBoundaryTest {
                 InterfaceSnapshotResp resp = upstreamValue != null
                     ? snapshot()
                     : new InterfaceSnapshotResp(List.of());
-                return Mono.just(PermResult.success(resp)).delayElement(Duration.ofMillis(4_500));
+                return Mono.just(R.ok(resp)).delayElement(Duration.ofMillis(4_500));
             }));
 
         filter.filter(buildExchange(), mockChain()).block(Duration.ofSeconds(8));

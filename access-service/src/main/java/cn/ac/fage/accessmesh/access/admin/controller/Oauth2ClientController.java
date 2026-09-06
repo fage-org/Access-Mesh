@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.Oauth2ClientUpdateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.Oauth2ClientResp;
 import cn.ac.fage.accessmesh.access.admin.service.Oauth2ClientService;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -50,8 +50,8 @@ public class Oauth2ClientController {
      * @return 创建成功的客户端ID
      */
     @PostMapping("/create")
-    public PermResult<Long> createClient(@Valid @RequestBody Oauth2ClientCreateReq req) {
-        return PermResult.success(oauth2ClientService.createClient(req));
+    public R<Long> createClient(@Valid @RequestBody Oauth2ClientCreateReq req) {
+        return R.ok(oauth2ClientService.createClient(req));
     }
 
     /**
@@ -64,9 +64,9 @@ public class Oauth2ClientController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    public PermResult<Void> updateClient(@Valid @RequestBody Oauth2ClientUpdateReq req) {
+    public R<Void> updateClient(@Valid @RequestBody Oauth2ClientUpdateReq req) {
         oauth2ClientService.updateClient(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -79,9 +79,9 @@ public class Oauth2ClientController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteClients(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteClients(@Valid @RequestBody IdsReq req) {
         oauth2ClientService.deleteClients(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -94,8 +94,8 @@ public class Oauth2ClientController {
      * @return 客户端详情信息
      */
     @PostMapping("/detail")
-    public PermResult<Oauth2ClientResp> getClient(@Valid @RequestBody IdReq req) {
-        return PermResult.success(oauth2ClientService.getClientResp(req.id()));
+    public R<Oauth2ClientResp> getClient(@Valid @RequestBody IdReq req) {
+        return R.ok(oauth2ClientService.getClientResp(req.id()));
     }
 
     /**
@@ -108,7 +108,7 @@ public class Oauth2ClientController {
      * @return 分页客户端列表结果
      */
     @PostMapping("/page")
-    public PermResult<PaginatedResult<Oauth2ClientResp>> pageClients(@Valid @RequestBody Oauth2ClientPageReq req) {
-        return PermResult.success(oauth2ClientService.pageClientResps(req));
+    public R<PaginatedResult<Oauth2ClientResp>> pageClients(@Valid @RequestBody Oauth2ClientPageReq req) {
+        return R.ok(oauth2ClientService.pageClientResps(req));
     }
 }

@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.admin.service.ConfigService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.common.model.PaginatedResult;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,8 +48,8 @@ public class ConfigController {
      * @return 分页配置列表结果
      */
     @PostMapping("/page")
-    public PermResult<PaginatedResult<ConfigResp>> pageConfigs(@Valid @RequestBody PageReq pageReq) {
-        return PermResult.success(configService.pageConfigs(pageReq));
+    public R<PaginatedResult<ConfigResp>> pageConfigs(@Valid @RequestBody PageReq pageReq) {
+        return R.ok(configService.pageConfigs(pageReq));
     }
 
     /**
@@ -62,8 +62,8 @@ public class ConfigController {
      * @return 配置详情信息
      */
     @PostMapping("/detail")
-    public PermResult<ConfigResp> getConfig(@Valid @RequestBody IdReq req) {
-        return PermResult.success(configService.getConfig(req.id()));
+    public R<ConfigResp> getConfig(@Valid @RequestBody IdReq req) {
+        return R.ok(configService.getConfig(req.id()));
     }
 
     /**
@@ -77,9 +77,9 @@ public class ConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/update")
-    public PermResult<Void> updateConfig(@Valid @RequestBody ConfigUpdateReq req) {
+    public R<Void> updateConfig(@Valid @RequestBody ConfigUpdateReq req) {
         configService.updateConfig(req);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -92,8 +92,8 @@ public class ConfigController {
      * @return 操作成功结果
      */
     @PostMapping("/delete")
-    public PermResult<Void> deleteConfig(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteConfig(@Valid @RequestBody IdsReq req) {
         configService.deleteConfig(req);
-        return PermResult.success();
+        return R.ok();
     }
 }

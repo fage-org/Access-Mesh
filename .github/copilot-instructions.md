@@ -40,7 +40,7 @@ R.fail(errorCode, message)
 ```json
 {
   "code": 200,
-  "message": "操作成功",
+  "message": "success",
   "data": {},
   "requestId": "uuid-xxx",
   "traceId": "a3f2b1c0d4e5..."

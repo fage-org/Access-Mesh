@@ -69,7 +69,7 @@ Mapper
 - 路径统一使用 `/api/{module}/{resource}/{action}`
 - 禁止 RESTful 路径参数；ID 放在请求体中
 - 文件上传是少数可使用 `@RequestParam` 的例外
-- 统一返回 `PermResult.success(data)` / `PermResult.error(code, message)`
+- 统一返回 `R.ok(data)` / `R.fail(code, message)`
 
 统一响应体结构：
 

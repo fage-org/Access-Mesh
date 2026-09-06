@@ -34,7 +34,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-ADMIN-021 收口+复评收口：§4.2
 
 引用 `project-rules.md`:
 
-- **§1.1 统一响应壳**: 所有接口返回 `PermResult<T> { code, message, data, requestId, traceId }`. `code=200` 为成功, 失败时 `data=null`. `requestId/traceId` 由网关与 Micrometer Tracing 注入, 业务侧不写入.
+- **§1.1 统一响应壳**: 所有接口返回 `R<T> { code, message, data, requestId, traceId }`. `code=200` 为成功, 失败时 `data=null`. `requestId/traceId` 由网关与 Micrometer Tracing 注入, 业务侧不写入.
 - **§1.3 分页**: 入参 `{ pageNum, pageSize, sort? }`, `pageNum>=1`, `1<=pageSize<=100`, `sort` 形如 `"createdAt,desc"`. 出参分页对象统一为 `PaginatedResult<T> { items: T[], total, pageNum, pageSize, hasNext }`. 非分页列表也必须用 `{ items: [...] }` 包装, 禁止顶层数组.
 - **§2.1 HTTP 方法**: 所有接口 `POST + application/json + @RequestBody DTO`. 禁止 `@GetMapping/@PutMapping/@DeleteMapping/@PatchMapping`, 禁止 `@RequestParam` (除文件上传/下载), 禁止路径参数. 业务 ID 必须放 JSON Body.
 - **§2.2 路径**: access-service admin 域挂载在网关路由 `/admin/api/**` 下, 实际控制器映射为 `/user`, `/org`, `/user-org`, `/user-role`, `/role` 等资源根. 本契约文档中所有路径均为服务内部映射 (前端经网关访问).
@@ -292,7 +292,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `email` | `String` | 否 | |
 | `status` | `Integer` | 否 | 1=启用, 0=停用；仅接纳 0/1，其它值抛 `BizException(INVALID_PARAM)`（T-ADMIN-022 语义收口，与 DDL `sys_user.status` 单一口径） |
 
-**响应**: `PermResult<Void>`
+**响应**: `R<Void>`
 
 **门禁**: `USER:UPDATE@id` (实例级). 自我修改业务豁免在 AppService 调用门禁前判断 (operatorId == id 时跳过门禁).
 
@@ -314,7 +314,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 |------|------|------|------|
 | `ids` | `List<Long>` | 是 | sys_user.id 列表 |
 
-**响应**: `PermResult<Void>`
+**响应**: `R<Void>`
 
 **门禁**: `USER:DELETE` 实例级批量 (`checkBatchInstanceLevel(USER, ids, DELETE)`) + 默认树边界二次校验 (操作者必须在每个目标用户的默认树主归属子树下具备 `ORG:UPDATE`).
 
@@ -349,7 +349,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `ids` | `List<Long>` | 是 | 用户 ID 列表 |
 | `status` | `Integer` | 是 | 1=启用, 0=停用 |
 
-**响应**: `PermResult<Void>`
+**响应**: `R<Void>`
 
 **门禁**:
 - `status=1`: `USER:ENABLE` 实例级批量
@@ -419,7 +419,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `status` | `Integer` | 否 | 节点级内存过滤（根不豁免）：根不匹配 status 时顶层即空，配合 `parentOrgId` 透视可取匹配节点 |
 | `parentOrgId` | `Long` | 否 | 用于在配置子树内再取该节点子树（不在子树范围内 → 空结果，过滤语义不报错；T-ADMIN-021 修正原死参数）; 一般不与 `treeConfigId` 同时使用 |
 
-**响应（P1-3 定稿，T-ADMIN-021 已落地）**: `PermResult<ItemsResp<OrgResp>>`，`data.items[]`（复用 perm-common 泛型 `ItemsResp{ items: List<OrgResp> }`，与 `/role/list`、`/user-role/list` 同款——T-ADMIN-021 用户决策，原定稿命名的 `OrgItemsResp` 类不再新建，线格式不变）；**唯一形状，不再返回裸数组**（历史直返 List 已废弃）
+**响应（P1-3 定稿，T-ADMIN-021 已落地）**: `R<ItemsResp<OrgResp>>`，`data.items[]`（复用 perm-common 泛型 `ItemsResp{ items: List<OrgResp> }`，与 `/role/list`、`/user-role/list` 同款——T-ADMIN-021 用户决策，原定稿命名的 `OrgItemsResp` 类不再新建，线格式不变）；**唯一形状，不再返回裸数组**（历史直返 List 已废弃）
 
 `OrgResp`:
 
@@ -483,7 +483,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 > 前端 mock 实际传 `{ orgId }`, 与后端 `IdReq.id` 不一致. **决策**: 以 `IdReq.id` 为准, 前端在 Phase 2 调整 mock 字段名为 `id`. 列入 Phase 2 前端调整项.
 
-**响应**: `PermResult<List<OrgUserItemResp>>` (Phase 2 改为 `{ items: [...] }` 包装)
+**响应**: `R<List<OrgUserItemResp>>` (Phase 2 改为 `{ items: [...] }` 包装)
 
 `OrgUserItemResp`:
 
@@ -516,7 +516,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 > 评审 P2（2026-08-15）：组织 `phone`/`email` 字段已从契约/请求 DTO/响应模型删除——`sys_org` 实体与表不含联系方式字段（声明必须生效）。
 
-**响应**: `PermResult<Long>` (新组织 ID)
+**响应**: `R<Long>` (新组织 ID)
 
 **门禁**:
 - 顶级 (`parentOrgId=null`): `ORG:CREATE` 类型级
@@ -552,7 +552,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `status` | `Integer` | 否 | |
 | `sort` | `Integer` | 否 | |
 
-**响应**: `PermResult<Void>`
+**响应**: `R<Void>`
 
 **门禁**: `ORG:UPDATE@id` 实例级. 若 `parentOrgId` 变化, 还需 `ORG:UPDATE@新parentOrgId`.
 
@@ -579,7 +579,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 |------|------|------|------|
 | `id` | `Long` | 是 | sys_org.id |
 
-**响应**: `PermResult<Void>`
+**响应**: `R<Void>`
 
 **门禁**: `ORG:DELETE@id` 实例级.
 
@@ -604,7 +604,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 **请求 DTO**: `IdReq` (`{ id: userId }`)
 
-**响应**: `PermResult<List<UserPageItemResp.OrgBrief>>` (Phase 2 包装为 `{ items: [...] }`)
+**响应**: `R<List<UserPageItemResp.OrgBrief>>` (Phase 2 包装为 `{ items: [...] }`)
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -629,7 +629,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `orgIds` | `List<Long>` | 是 | 待追加的组织 ID 列表 (允许已存在的关系幂等忽略) |
 | `primaryOrgId` | `Long` | 否 | 主组织; 必须落在 `orgIds` 内或用户已有关系内; 默认树边界校验 |
 
-**响应**: `PermResult<Void>`
+**响应**: `R<Void>`
 
 **门禁**: 对 `orgIds` 中每个组织实例分别 `ORG:UPDATE@orgId` (`checkBatchInstanceLevel`).
 
@@ -664,7 +664,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `userId` | `Long` | 是 | |
 | `orgId` | `Long` | 是 | |
 
-**响应**: `PermResult<Void>`
+**响应**: `R<Void>`
 
 **门禁**:
 - 非默认树关系: `ORG:UPDATE@orgId`
@@ -694,7 +694,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `userId` | `Long` | 是 | |
 | `orgId` | `Long` | 是 | 目标主组织 ID, **必须**位于默认组织树 |
 
-**响应**: `PermResult<Void>`
+**响应**: `R<Void>`
 
 **门禁**: `ORG:UPDATE@orgId` + 默认树边界校验.
 
@@ -729,7 +729,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 |------|------|------|------|
 | `userId` | `Long` | 是 | sys_user.id |
 
-**响应**: `PermResult<{ items: UserRoleItemResp[] }>`
+**响应**: `R<{ items: UserRoleItemResp[] }>`
 
 `UserRoleItemResp`:
 
@@ -772,7 +772,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 |------|------|------|------|
 | `roleTypeCodes` | `List<String>` | 否 | 不传时默认 `[BASIC_ROLE, GROUP_ROLE, PERSONAL]` |
 
-**响应**: `PermResult<{ items: RoleListItemResp[] }>`
+**响应**: `R<{ items: RoleListItemResp[] }>`
 
 `RoleListItemResp`:
 
@@ -812,7 +812,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `resourceCode` | `String` | 否 | 关联资源实例；租户内同一资源仅可挂一个菜单（10206） |
 | `sourceService` | `String` | 否 | 业务服务标识，缺省 `access-service`（管理端创建） |
 
-**响应**: `PermResult<Long>`（新菜单 ID）。
+**响应**: `R<Long>`（新菜单 ID）。
 
 **错误**: `10201` 菜单不存在（含正数 `parentId` 指向的父菜单不存在）/ `10203` 深度超限 / `10205` 路径已存在 / `10206` 资源关联已被占用 / `10207` 父菜单为自身或后代 / `90001` 成对校验失败。
 
@@ -822,7 +822,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 **请求 DTO**: `MenuUpdateReq`：同 `MenuCreateReq` 全部字段均可选（null 跳过保留原值）+ 必填 `id`；`sourceService` 不可更新（创建期追溯标识）。
 
-**响应**: `PermResult<Void>`。
+**响应**: `R<Void>`。
 
 **错误**: `10201` 菜单不存在（含目标 `parentId` 不存在）/ `10203` 深度超限（换父按整棵子树）/ `10205` / `10206`（排除自身的冲突预查 + 唯一索引兜底）/ `10207` 父菜单为自身或后代（防环）。
 
@@ -832,7 +832,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 **请求 DTO**: `IdReq`（`id`）。
 
-**响应**: `PermResult<Void>`。软删（`delete_flag=id`）+ 同事务清理 MENU 投影；软删后部分唯一索引释放（path/资源可复用）。
+**响应**: `R<Void>`。软删（`delete_flag=id`）+ 同事务清理 MENU 投影；软删后部分唯一索引释放（path/资源可复用）。
 
 **错误**: `10201` 不存在 / `10204` 存在子菜单。
 
@@ -840,11 +840,11 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 #### 4.6.4 `POST /menu/detail` 🔧
 
-**请求 DTO**: `IdReq`。**响应**: `PermResult<MenuResp>`。**错误**: `10201`。
+**请求 DTO**: `IdReq`。**响应**: `R<MenuResp>`。**错误**: `10201`。
 
 #### 4.6.5 `POST /menu/tree` 🔧
 
-**请求**: 无参。**响应**: `PermResult<List<MenuResp>>`（全量菜单树，管理界面用；用户可见性过滤走 `/auth/user-menu`）。
+**请求**: 无参。**响应**: `R<List<MenuResp>>`（全量菜单树，管理界面用；用户可见性过滤走 `/auth/user-menu`）。
 
 `MenuResp` 字段：`id / menuType(String) / displayName / parentId / path / icon / sortOrder / status(1=ENABLED) / resourceType / resourceCode / sourceService / createdAt / updatedAt / children`。
 
@@ -870,7 +870,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 #### 4.7.1 `POST /file/upload` 🔧
 
 **请求**: `multipart/form-data`（`@RequestParam` 例外之一）：`file`（文件）+ `bizType`（业务类型，可选，默认 `default`）。
-**响应**: `PermResult<Long>`（文件记录 ID）。
+**响应**: `R<Long>`（文件记录 ID）。
 
 **安全语义**:
 
@@ -881,23 +881,23 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 #### 4.7.2 `POST /file/detail` 🔧
 
-**请求 DTO**: `IdReq`。**响应**: `PermResult<FileResp>`（字段序：`id/fileName/originalName/fileSuffix/fileUrl/fileSize/fileType/storagePath(=file_path)/createdAt`；既有实现将 MIME 同时填入 `fileSuffix` 与 `fileType` 两位置，消费方按 `fileType` 取 MIME）。
+**请求 DTO**: `IdReq`。**响应**: `R<FileResp>`（字段序：`id/fileName/originalName/fileSuffix/fileUrl/fileSize/fileType/storagePath(=file_path)/createdAt`；既有实现将 MIME 同时填入 `fileSuffix` 与 `fileType` 两位置，消费方按 `fileType` 取 MIME）。
 **错误**: `10501`。**门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
 
 #### 4.7.3 `POST /file/page` 🔧
 
-**请求 DTO**: `FilePageReq { pageNum, pageSize, sort?, bizType? }`（`pageNum/pageSize` 必填——服务端未实现缺省默认值，缺省将失败；`sort/bizType` 可选）。**响应**: `PermResult<PaginatedResult<FileResp>>`（按创建时间倒序，可按 bizType 过滤）。
+**请求 DTO**: `FilePageReq { pageNum, pageSize, sort?, bizType? }`（`pageNum/pageSize` 必填——服务端未实现缺省默认值，缺省将失败；`sort/bizType` 可选）。**响应**: `R<PaginatedResult<FileResp>>`（按创建时间倒序，可按 bizType 过滤）。
 **门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
 
 #### 4.7.4 `POST /file/download` 🔧
 
-**请求 DTO**: `IdReq`。**响应**: 文件字节流直接写 HTTP 响应（`Content-Disposition: attachment`；全仓唯一绕过 `PermResult` 包装的文件流白名单端点，T-ACCESS-011 登记）。
+**请求 DTO**: `IdReq`。**响应**: 文件字节流直接写 HTTP 响应（`Content-Disposition: attachment`；全仓唯一绕过 `R` 包装的文件流白名单端点，T-ACCESS-011 登记）。
 **错误**: `10501`（元数据或物理文件不存在）/ `10506`（路径非法）/ `10507`（读取 IO 失败；原裸 `10504/10505` 硬编码已归位，T-ADMIN-023）。
 **门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
 
 #### 4.7.5 `POST /file/delete` 🔧
 
-**请求 DTO**: `IdsReq { ids: List<Long> }`（批量）。**响应**: `PermResult<Void>`。
+**请求 DTO**: `IdsReq { ids: List<Long> }`（批量）。**响应**: `R<Void>`。
 **门禁**: `ADMIN_FILE:DELETE` 批量实例级（resourceCode = 文件 ID；无 ADMIN_FILE 投影机制，实际由 scopeAll 全量授权决定放行，fail-closed）。
 
 **删除顺序（T-ADMIN-023 反转后的终态语义）**:
@@ -946,7 +946,7 @@ Phase 2 后端实现以上 19 个接口后, 必须满足:
 2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `PermQueryEngine`; 实现不短路判断 (除自我修改豁免).
 3. **本地投影**: 所有写操作 (除 /user/reset-password, /user-org/set-primary) 在主事务内维护对应权限投影与 `permission_change_log`。
 4. **错误码段**: admin-service 业务错误使用 10001-19999 段, 系统错误使用 90001-99999 段; `XxxErrorCode` 枚举类不重复定义系统段.
-5. **响应壳统一**: 所有接口返回 `PermResult<T>`, 列表不直接返回数组 (由 `PermResultResponseAdvice` 强制); ~~现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`)~~ 已清零（`/org/tree` 已由 T-ADMIN-021 切 `PermResult<ItemsResp<OrgResp>>`；台账见 §5）.
+5. **响应壳统一**: 所有接口返回 `R<T>`, 列表不直接返回数组 (由 `RResponseAdvice` 强制); ~~现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`)~~ 已清零（`/org/tree` 已由 T-ADMIN-021 切 `R<ItemsResp<OrgResp>>`；台账见 §5）.
 6. **异常映射**: 业务拒绝抛 `BizException`; 安全拒绝抛 `SecurityException`; 技术故障抛 `SystemException`. 不允许用 `SecurityException` 表达"资源不存在".
 7. **默认树身份目录边界**: `/user/create` (带 orgId), `/user/delete`, `/user/enable`, `/user/reset-password`, `/user-org/set-primary` 必须在 AppService 内做默认树边界二次校验, 失败抛 `BizException`.
 8. **投影所有权**: subject/role/user_role 侧保留业务键（`LOCAL_USER`/`ORG|POSITION`/`SYS_USER_ORG`）不得被外部 sync/full-sync 写入，失败抛 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05）：事实链路四类型 USER/ORG/MENU/ROLE 种子声明 SYNC+access-service——外部同步被类型所有权门禁以 `RESOURCE_TYPE_OWNERSHIP_DENIED`（同步拒绝响应）拒绝、管理面资源 CRUD 拒绝 20055、所有权声明变更/类型删除冲突拒绝 20056，原行级 `owner=access-service` 检查已收编删除。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
@@ -980,7 +980,7 @@ Phase 2 后端实现以上 19 个接口后, 必须满足:
 
 ### 8.1 授权端点 (`/auth/oauth2/*`)
 
-所有端点 POST + JSON Body；统一响应壳 `PermResult<T>`。
+所有端点 POST + JSON Body；统一响应壳 `R<T>`。
 
 #### 8.1.1 `POST /auth/oauth2/authorize`（需平台会话）
 
@@ -1010,7 +1010,7 @@ Phase 2 后端实现以上 19 个接口后, 必须满足:
 
 撤销访问令牌：先验签（非法令牌不写 Redis，防黑名单键 DoS），`jti` 写入 `oauth2:blacklist:<jti>`，TTL=令牌剩余有效期。黑名单对全部开放路径生效。
 
-请求（`RevokeTokenReq`）：`accessToken`*。响应：`PermResult<Void>`。
+请求（`RevokeTokenReq`）：`accessToken`*。响应：`R<Void>`。
 
 #### 8.1.5 `POST /auth/oauth2/userinfo`（需 OAuth2 JWT，默认开放路径）
 
@@ -1034,11 +1034,11 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 | 端点 | 请求 | 响应 | 备注 |
 |------|------|------|------|
-| `POST /oauth2/client/create` | `Oauth2ClientCreateReq` | `PermResult<Long>`（新客户端 id） | clientId 唯一（重复 `CLIENT_ID_EXISTS`）；secret BCrypt 存储 |
-| `POST /oauth2/client/update` | `Oauth2ClientUpdateReq` | `PermResult<Void>` | 仅更新非 null 字段；secret 更新重新 BCrypt |
-| `POST /oauth2/client/delete` | `IdsReq` | `PermResult<Void>` | 批量软删除 |
-| `POST /oauth2/client/detail` | `IdReq` | `PermResult<Oauth2ClientResp>` | 不返回 clientSecret |
-| `POST /oauth2/client/page` | `Oauth2ClientPageReq` | `PermResult<PaginatedResult<Oauth2ClientResp>>` | 按名称/状态过滤 |
+| `POST /oauth2/client/create` | `Oauth2ClientCreateReq` | `R<Long>`（新客户端 id） | clientId 唯一（重复 `CLIENT_ID_EXISTS`）；secret BCrypt 存储 |
+| `POST /oauth2/client/update` | `Oauth2ClientUpdateReq` | `R<Void>` | 仅更新非 null 字段；secret 更新重新 BCrypt |
+| `POST /oauth2/client/delete` | `IdsReq` | `R<Void>` | 批量软删除 |
+| `POST /oauth2/client/detail` | `IdReq` | `R<Oauth2ClientResp>` | 不返回 clientSecret |
+| `POST /oauth2/client/page` | `Oauth2ClientPageReq` | `R<PaginatedResult<Oauth2ClientResp>>` | 按名称/状态过滤 |
 
 `Oauth2ClientCreateReq`：`clientId`* / `clientSecret`* / `clientName`* / `grantTypes`（逗号分隔）/ `redirectUris`（逗号分隔）/ `scopes`（逗号分隔）/ **`audiences`**（逗号分隔资源服务器标识，T-ACCESS-013；配置后签发写入 aud claim）/ `accessTokenTtl`（60-86400）/ `refreshTokenTtl`（60-604800）/ `status`。
 

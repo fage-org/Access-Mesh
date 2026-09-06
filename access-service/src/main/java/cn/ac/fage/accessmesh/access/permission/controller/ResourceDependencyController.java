@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DependencyBatchSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DependencyListReq;
@@ -55,8 +55,8 @@ public class ResourceDependencyController {
      * @return 创建成功的依赖关系详情
      */
     @PostMapping("/create")
-    public PermResult<ResourceDependencyResp> createDependency(@Valid @RequestBody ResourceDependencyCreateReq req) {
-        return PermResult.success(dependencyManageService.createDependency(TenantContextHolder.getTenantId(), req, null));
+    public R<ResourceDependencyResp> createDependency(@Valid @RequestBody ResourceDependencyCreateReq req) {
+        return R.ok(dependencyManageService.createDependency(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -69,8 +69,8 @@ public class ResourceDependencyController {
      * @return 依赖关系列表
      */
     @PostMapping("/list")
-    public PermResult<ItemsResp<ResourceDependencyResp>> listDependencies(@Valid @RequestBody DependencyListReq req) {
-        return PermResult.success(new ItemsResp<>(
+    public R<ItemsResp<ResourceDependencyResp>> listDependencies(@Valid @RequestBody DependencyListReq req) {
+        return R.ok(new ItemsResp<>(
             dependencyManageService.listDependencies(TenantContextHolder.getTenantId(), req.resourceEntityId())
         ));
     }
@@ -85,9 +85,9 @@ public class ResourceDependencyController {
      * @return 操作成功结果
      */
     @PostMapping("/remove")
-    public PermResult<Void> deleteDependency(@Valid @RequestBody IdsReq req) {
+    public R<Void> deleteDependency(@Valid @RequestBody IdsReq req) {
         dependencyManageService.deleteDependencies(TenantContextHolder.getTenantId(), req.ids(), null);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -101,9 +101,9 @@ public class ResourceDependencyController {
      * @return 操作成功结果
      */
     @PostMapping("/batch-sync")
-    public PermResult<Void> batchSyncDependencies(@Valid @RequestBody DependencyBatchSyncReq req) {
+    public R<Void> batchSyncDependencies(@Valid @RequestBody DependencyBatchSyncReq req) {
         dependencyManageService.batchSyncDependencies(TenantContextHolder.getTenantId(), req, null);
-        return PermResult.success();
+        return R.ok();
     }
 
     /**
@@ -116,8 +116,8 @@ public class ResourceDependencyController {
      * @return 更新后的依赖关系详情
      */
     @PostMapping("/update")
-    public PermResult<ResourceDependencyResp> updateDependency(@Valid @RequestBody ResourceDependencyUpdateReq req) {
-        return PermResult.success(dependencyManageService.updateDependency(TenantContextHolder.getTenantId(), req, null));
+    public R<ResourceDependencyResp> updateDependency(@Valid @RequestBody ResourceDependencyUpdateReq req) {
+        return R.ok(dependencyManageService.updateDependency(TenantContextHolder.getTenantId(), req, null));
     }
 
     /**
@@ -131,12 +131,12 @@ public class ResourceDependencyController {
      * @return 依赖关系列表（完整图）
      */
     @PostMapping("/graph")
-    public PermResult<ItemsResp<ResourceDependencyResp>> graph(@Valid @RequestBody DependencyListReq req) {
+    public R<ItemsResp<ResourceDependencyResp>> graph(@Valid @RequestBody DependencyListReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
         List<ResourceDependencyResp> items = req.resourceEntityId() != null
             ? dependencyManageService.listDependencies(tenantId, req.resourceEntityId())
             : dependencyManageService.listAllDependencies(tenantId);
-        return PermResult.success(new ItemsResp<>(items));
+        return R.ok(new ItemsResp<>(items));
     }
 
     /**
@@ -150,9 +150,9 @@ public class ResourceDependencyController {
      * @return 循环检测结果，包含是否存在循环、涉及的资源信息
      */
     @PostMapping("/check")
-    public PermResult<DependencyCycleCheckResp> check(@Valid @RequestBody ResourceDependencyCheckReq req) {
+    public R<DependencyCycleCheckResp> check(@Valid @RequestBody ResourceDependencyCheckReq req) {
         boolean hasCycle = dependencyManageService.hasDependencyCycle(TenantContextHolder.getTenantId(), req);
-        return PermResult.success(new DependencyCycleCheckResp(
+        return R.ok(new DependencyCycleCheckResp(
             hasCycle, req.sourceResourceTypeCode(), req.sourceResourceCode(),
             req.targetResourceTypeCode(), req.targetResourceCode()));
     }

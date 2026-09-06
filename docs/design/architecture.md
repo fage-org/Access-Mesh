@@ -338,14 +338,14 @@ admin 域管理事实（`sys_user`/`sys_org`/`sys_menu`）与 permission 域权�
 
 ```
 perm-sdk/
-├── perm-common/                          # 公共模型、异常、工具（PermResult, PermissionContext, ConditionRule 等）
+├── perm-common/                          # SDK 公共契约 DTO 与模型（AuthCheck*/Query* Req/Resp、PermContext、ItemsResp/PaginatedResp 等）
 ├── perm-client-spring-boot-starter/      # 业务服务引用
 └── perm-gateway-spring-boot-starter/     # 网关引用
 ```
 
 | Starter                          | 功能                                                                                                                       |
 | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| perm-common                      | 公共模型（PermResult/PermissionContext/ConditionRule 等）、统一异常                                                        |
+| perm-common                      | SDK 公共模型（AuthCheck*/Query* 契约 DTO、PermContext、ItemsResp/PaginatedResp）、SDK 事件与工具 |
 | perm-client-spring-boot-starter  | access-service 权限客户端（已实现部分）：`PermissionFeignClient` 远程查询/写方法（checkAuth、batchCheckAuth、角色/资源/授权维护等）、`@EnableFeignClients` 自动装配与 `X-Internal-Secret`/`X-Service-Code` 身份透传拦截器（`perm.client.enabled` 开关）。接口扫描/@PermResource/自动注册未实现（T-API-001 名实对齐；有真实消费者后另行评估） |
 | perm-gateway-spring-boot-starter | 网关插件：快照模式本地匹配鉴权（T-PERM-001）、条件本地评估、未覆盖场景回退 access-service 实时鉴权                        |
 

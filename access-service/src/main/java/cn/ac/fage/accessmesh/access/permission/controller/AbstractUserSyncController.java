@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.AbstractUserFullSyncReq;
@@ -34,9 +34,9 @@ public class AbstractUserSyncController {
      * 增量同步：UPSERT / DISABLE / DELETE。
      */
     @PostMapping("/sync")
-    public PermResult<SyncResultResp> sync(@Valid @RequestBody AbstractUserSyncReq req,
+    public R<SyncResultResp> sync(@Valid @RequestBody AbstractUserSyncReq req,
                                            HttpServletRequest httpRequest) {
-        return PermResult.success(abstractUserSyncAppService.sync(
+        return R.ok(abstractUserSyncAppService.sync(
                 TenantContextHolder.getTenantId(), req, httpRequest));
     }
 
@@ -45,9 +45,9 @@ public class AbstractUserSyncController {
      * 顶层契约同 sync；批量明细放入 {@code SyncResultResp.detail}。
      */
     @PostMapping("/full-sync")
-    public PermResult<SyncResultResp> fullSync(@Valid @RequestBody AbstractUserFullSyncReq req,
+    public R<SyncResultResp> fullSync(@Valid @RequestBody AbstractUserFullSyncReq req,
                                                HttpServletRequest httpRequest) {
-        return PermResult.success(abstractUserSyncAppService.fullSync(
+        return R.ok(abstractUserSyncAppService.fullSync(
                 TenantContextHolder.getTenantId(), req, httpRequest));
     }
 }

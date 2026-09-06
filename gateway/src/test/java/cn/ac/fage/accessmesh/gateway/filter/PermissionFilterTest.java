@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.DefaultCacheService;
 import cn.ac.fage.accessmesh.common.cache.impl.CaffeineLocalCacheStore;
-import cn.ac.fage.accessmesh.common.model.PermResult;
+import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.gateway.cache.GatewayCacheCatalog;
 import cn.ac.fage.accessmesh.gateway.cache.InvalidationMarker;
 import cn.ac.fage.accessmesh.gateway.cache.InterfaceSnapshotCacheInvalidator;
@@ -153,8 +153,8 @@ class PermissionFilterTest {
         ));
     }
 
-    private PermResult<InterfaceSnapshotResp> successResult(InterfaceSnapshotResp snapshot) {
-        return PermResult.success(snapshot);
+    private R<InterfaceSnapshotResp> successResult(InterfaceSnapshotResp snapshot) {
+        return R.ok(snapshot);
     }
 
     /**

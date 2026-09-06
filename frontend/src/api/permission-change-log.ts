@@ -2,7 +2,7 @@
  * 权限变更日志 API
  * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/log/change/list`
  *（Gateway StripPrefix=1 后到 access-service `/api/perm/log/change/list`）。
- * 响应统一为后端 PermResult<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
+ * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.8 permission-change-log 契约要点
@@ -15,7 +15,7 @@
  * 详情由前端抽屉展示（无需单独 detail 接口）。
  */
 import { http } from "@/utils/http";
-import { type PermResult, unwrap } from "./_envelope";
+import { type R, unwrap } from "./_envelope";
 import type { PaginatedResp } from "./role-manage";
 
 // ========== diff_snapshot 结构化类型（对齐 api-contract api-contract §6.8） ==========
@@ -137,7 +137,7 @@ export type ChangeLogListReq = {
 export const getChangeLogList = async (
   params: ChangeLogListReq
 ): Promise<PaginatedResp<ChangeLogResp>> => {
-  const res = await http.request<PermResult<PaginatedResp<ChangeLogResp>>>(
+  const res = await http.request<R<PaginatedResp<ChangeLogResp>>>(
     "post",
     "/perm/api/perm/log/change/list",
     { data: params }

@@ -50,7 +50,7 @@ vi.mock("@/api/permission-grant", () => ({
 
 import { usePermissionGrant } from "./hook";
 
-/** SecurityException 经 GlobalExceptionHandler 映射：HTTP 403 + PermResult code=403 */
+/** SecurityException 经 GlobalExceptionHandler 映射：HTTP 403 + R code=403 */
 function axios403() {
   return Object.assign(new Error("Request failed with status code 403"), {
     response: { status: 403, data: { code: 403, message: "权限不足" } }
