@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.ConfigResp;
 import cn.ac.fage.accessmesh.access.admin.service.ConfigService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -48,7 +48,7 @@ public class ConfigController {
      * @return 分页配置列表结果
      */
     @PostMapping("/page")
-    public R<PaginatedResult<ConfigResp>> pageConfigs(@Valid @RequestBody PageReq pageReq) {
+    public R<PageResp<ConfigResp>> pageConfigs(@Valid @RequestBody PageReq pageReq) {
         return R.ok(configService.pageConfigs(pageReq));
     }
 

@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeysReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.access.permission.service.OperationAppService;
 import jakarta.validation.Valid;

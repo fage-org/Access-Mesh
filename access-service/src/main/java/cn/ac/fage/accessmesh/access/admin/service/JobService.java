@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.JobLogResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.JobResp;
 import cn.ac.fage.accessmesh.access.admin.entity.SysJob;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 
 /**
  * 定时任务服务接口
@@ -99,7 +99,7 @@ public interface JobService {
      * @param jobGroup 任务组名称
      * @return 分页任务列表结果
      */
-    PaginatedResult<JobResp> pageJobs(PageReq pageReq, String jobGroup);
+    PageResp<JobResp> pageJobs(PageReq pageReq, String jobGroup);
 
     /**
      * 执行一轮租约接管扫描（T-ACCESS-009）
@@ -133,5 +133,5 @@ public interface JobService {
      * @param jobId   任务ID，可选
      * @return 分页任务日志列表结果
      */
-    PaginatedResult<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId);
+    PageResp<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId);
 }

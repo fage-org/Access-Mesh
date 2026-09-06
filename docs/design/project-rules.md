@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-08-12   # access-service 归并：错误码继续按管理域/权限域分段
+last_reviewed: 2026-09-06   # T-ADMIN-027：§1.3 补信封承载类单源指引；2026-08-12 access-service 归并：错误码继续按管理域/权限域分段
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -116,6 +116,8 @@ last_reviewed: 2026-08-12   # access-service 归并：错误码继续按管理�
 ```
 
 `data.items` 为数据列表，`total/pageNum/pageSize/hasNext` 为分页元数据。非分页列表也必须使用 `{ "items": [...] }` 包装，不直接返回数组。
+
+分页信封承载类为 perm-common `PageResp<T>`，无分页列表承载类为 `ItemsResp`（`perm.common.dto.resp`，admin/permission 域与 SDK 单一来源，全仓不建同构副本）。
 
 ---
 

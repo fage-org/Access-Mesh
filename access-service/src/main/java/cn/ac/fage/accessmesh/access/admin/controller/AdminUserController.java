@@ -21,7 +21,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
 import cn.dev33.satoken.stp.StpUtil;
 import cn.ac.fage.accessmesh.common.model.IdReq;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
@@ -142,7 +142,7 @@ public class AdminUserController {
      * @return 分页用户列表结果
      */
     @PostMapping("/page")
-    public R<PaginatedResult<UserPageItemResp>> pageUsers(@Valid @RequestBody UserPageReq req) {
+    public R<PageResp<UserPageItemResp>> pageUsers(@Valid @RequestBody UserPageReq req) {
         return R.ok(userService.pageUsers(req));
     }
 
@@ -157,7 +157,7 @@ public class AdminUserController {
      * @return 分页候选用户列表
      */
     @PostMapping("/member-candidates")
-    public R<PaginatedResult<MemberCandidateItemResp>> memberCandidates(
+    public R<PageResp<MemberCandidateItemResp>> memberCandidates(
         @Valid @RequestBody MemberCandidatesReq req) {
         return R.ok(userService.memberCandidates(req));
     }

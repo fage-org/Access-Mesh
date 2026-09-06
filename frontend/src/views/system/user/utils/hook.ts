@@ -22,8 +22,7 @@ export function useUserManage() {
   const pagination = reactive({
     page: 1,
     size: 15,
-    total: 0,
-    totalPages: 0
+    total: 0
   });
 
   async function loadTable() {
@@ -39,8 +38,7 @@ export function useUserManage() {
         orgId: selectedOrgId.value ?? undefined
       });
       tableData.value = result.items;
-      pagination.total = result.pagination.total;
-      pagination.totalPages = result.pagination.totalPages;
+      pagination.total = result.total;
     } finally {
       loading.value = false;
     }

@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.access.permission.service.TypeDefinitionAppService;
 import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
@@ -47,7 +47,7 @@ public class TypeDefinitionController {
     }
 
     @PostMapping("/list")
-    public R<PaginatedResp<TypeDefinitionResp>> listTypes(@Valid @RequestBody TypeListReq req) {
+    public R<PageResp<TypeDefinitionResp>> listTypes(@Valid @RequestBody TypeListReq req) {
         // pageNum/pageSize 均未传 = 字典全量场景（授权页/冲突规则/资源操作等下拉数据源），
         // 取 PageUtil.MAX_PAGE_SIZE 上限（先例 /role/list LIMIT 0,200）；显式分页走 PageUtil 默认值。
         boolean paged = req.pageNum() != null || req.pageSize() != null;
@@ -58,7 +58,7 @@ public class TypeDefinitionController {
         long total = typeDefinitionAppService.countTypes(tenantId, req.typeKey(), req.keyword());
         List<TypeDefinitionResp> items =
             typeDefinitionAppService.listTypes(tenantId, req.typeKey(), req.keyword(), offset, pageSize);
-        return R.ok(new PaginatedResp<>(
+        return R.ok(new PageResp<>(
             items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 

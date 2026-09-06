@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ApiMappingResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.service.ResourceManageAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;

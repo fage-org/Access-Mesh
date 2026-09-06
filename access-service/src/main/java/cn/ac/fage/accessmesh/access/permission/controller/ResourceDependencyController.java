@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceDependencyCreateR
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceDependencyCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceDependencyUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.DependencyCycleCheckResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourceDependencyResp;
 import cn.ac.fage.accessmesh.access.permission.service.DependencyAppService;
 import jakarta.validation.Valid;

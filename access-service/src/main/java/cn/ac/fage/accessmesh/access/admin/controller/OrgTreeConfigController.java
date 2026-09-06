@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.admin.service.OrgTreeConfigService;
 import cn.ac.fage.accessmesh.common.model.R;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -125,7 +125,7 @@ public class OrgTreeConfigController {
      * @return 分页组织树配置列表结果
      */
     @PostMapping("/page")
-    public R<PaginatedResult<OrgTreeConfigResp>> pageOrgTreeConfigs(@Valid @RequestBody PageReq req) {
+    public R<PageResp<OrgTreeConfigResp>> pageOrgTreeConfigs(@Valid @RequestBody PageReq req) {
         return R.ok(orgTreeConfigService.pageOrgTreeConfigs(req));
     }
 }

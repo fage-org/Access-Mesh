@@ -143,7 +143,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/025/026`（见下表）。`T-ADMIN-0
 | [T-ADMIN-024](T-ADMIN-024.md) | 恒拒绝退役 API 直接删除（含 /role/revoke-menu 共 5 个） | product-vertical-slice（已归档） | admin-service-api-contract；org-user-permission-contract；access-service-architecture；architecture；default-org-tree-user-lifecycle | T-ACCESS-021 | ✅ | ✓ |
 | [T-ADMIN-025](T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture；schema/access-service.sql | T-ADMIN-023 | ⚙️ | ⏳ |
 | [T-ADMIN-026](T-ADMIN-026.md) | XML 映射 mapper 的 Page 参数不生效族统一改造（9 方法有行即 CCE 500，服务层调用方 8/9、当前无前端消费页；T-FE-022 联调登记）+ PgIT stringtype 追加无效订正 | — | admin-service-api-contract；rebuild-runbook | T-FE-022 | ⚙️ | ⏳ |
-| [T-ADMIN-027](T-ADMIN-027.md) | 响应分页信封统一——admin 嵌套方言退役（12 端点迁扁平）+ PaginatedResp 更名 PageResp + 5 处裸数组收编 ItemsResp | — | admin-service-api-contract；api-contract §3.3；project-rules §1.3 | — | ⚙️ | ⏳ |
+| [T-ADMIN-027](T-ADMIN-027.md) | 响应分页信封统一——admin 嵌套方言退役（12 端点迁扁平）+ PaginatedResp 更名 PageResp + 6 处裸数组收编 ItemsResp（建卡 5 + 执行发现 my-notices） | — | admin-service-api-contract；api-contract §3.3；project-rules §1.3 | — | ✅ | ✓ |
 
 ### 组织/用户与跨服务 API
 

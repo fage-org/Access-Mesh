@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.OrgResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.OrgUserItemResp;
 import cn.ac.fage.accessmesh.access.admin.service.OrgService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import jakarta.validation.Valid;
@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 
 /**
  * 组织管理控制器
@@ -111,7 +110,7 @@ public class OrgController {
      * @return 分页组织列表结果
      */
     @PostMapping("/page")
-    public R<PaginatedResult<OrgResp>> pageOrgs(@Valid @RequestBody OrgPageReq req) {
+    public R<PageResp<OrgResp>> pageOrgs(@Valid @RequestBody OrgPageReq req) {
         return R.ok(orgService.pageOrgs(req));
     }
 
@@ -143,7 +142,7 @@ public class OrgController {
      * @return 用户简要信息列表
      */
     @PostMapping("/users")
-    public R<List<OrgUserItemResp>> listOrgUsers(@Valid @RequestBody IdReq req) {
-        return R.ok(orgService.listOrgUsers(req.id()));
+    public R<ItemsResp<OrgUserItemResp>> listOrgUsers(@Valid @RequestBody IdReq req) {
+        return R.ok(new ItemsResp<>(orgService.listOrgUsers(req.id())));
     }
 }

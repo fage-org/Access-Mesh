@@ -19,7 +19,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 操作日志页查询 `operation_log` 表的**轻量全量操作日志**（记录所有写操作，与 `permission_change_log` 区分：后者只记权限变更详情）。
 
 - **只读查询页**：无 CRUD 写操作，仅 list 查询 + 详情查看。无新增/编辑/删除按钮。
-- **服务端分页**：后端 `OperationLogListReq` 支持 `pageNum/pageSize`（`@NotNull`），返回 `PaginatedResp`。**非** system-config 的全量本地过滤——前端不做本地切片。
+- **服务端分页**：后端 `OperationLogListReq` 支持 `pageNum/pageSize`（`@NotNull`），返回 `PageResp`。**非** system-config 的全量本地过滤——前端不做本地切片。
 - **筛选五维（T-PERM-025 收口）**：module/action/操作者 ID/时间范围/目标类型，全部服务端精确匹配（原仅 module/action 两维，2026-08-28 扩展）。
 - **无 detail 接口**：后端有 list 与 action-options 两端点（均无 detail），`OperationLogResp` 已含全部字段。详情由前端抽屉展示（无需单独 detail 接口）。
 - **独立 OPERATION_LOG:VIEW 门禁（T-PERM-025 审计分离，2026-08-28）**：后端操作日志查询（list/action-options）以独立 `OPERATION_LOG:VIEW` 校验（资源类型 OPERATION_LOG=30），不再复用 `SYSTEM_CONFIG:VIEW`。
@@ -79,7 +79,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 
 ### 4.1 列表加载与筛选
 
-- **加载**：进入页面 `getOperationLogList({ module, action, operatorId, since, until, targetType, pageNum, pageSize })` → 后端返回 `PaginatedResp`（服务端五维过滤分页）→ `tableData = res.items` / `pagination.total = res.total`；同时 `loadActionOptions` 拉取动态 action 字典（失败降级为空下拉，不阻塞列表）。
+- **加载**：进入页面 `getOperationLogList({ module, action, operatorId, since, until, targetType, pageNum, pageSize })` → 后端返回 `PageResp`（服务端五维过滤分页）→ `tableData = res.items` / `pagination.total = res.total`；同时 `loadActionOptions` 拉取动态 action 字典（失败降级为空下拉，不阻塞列表）。
 - **筛选**：module/action 下拉与 targetType/operatorId 输入 `@change`/回车触发 `onSearch`（重置 page=1 后 loadTable）；时间范围 datetimerange 序列化为 since/until（UTC 墙钟，与 createdAt 展示同参照系）。后端全部精确匹配。
 - **分页**：`onPageChange` / `onPageSizeChange`，服务端分页（非本地切片）。`pagination.total` = 后端返回 total。
 
@@ -97,7 +97,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 列表 | `POST /api/perm/log/operation/list` | `{module?,action?,operatorId?,since?,until?,targetType?,pageNum,pageSize}` | `PaginatedResp<OperationLogResp>`（服务端分页，排序 createdAt DESC） | ✅（T-PERM-025 收口） |
+| 列表 | `POST /api/perm/log/operation/list` | `{module?,action?,operatorId?,since?,until?,targetType?,pageNum,pageSize}` | `PageResp<OperationLogResp>`（服务端分页，排序 createdAt DESC） | ✅（T-PERM-025 收口） |
 | 字典 | `POST /api/perm/log/operation/action-options` | `{module?}` | `ItemsResp<String>`（action 去重集合，字典序） | ✅（T-PERM-025 新增） |
 
 > **路径说明**：api-contract §5.8 路径即实现路径 `/api/perm/log/operation/list`（历史误写 `/api/perm/operation-log/list` 已随 T-ACCESS-007 评审修复（提交 371d9d009）修正，T-PERM-025 核实无残留）。

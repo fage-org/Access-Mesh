@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.EmptyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ApiMappingResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ServiceConfigResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.access.permission.service.ServiceConfigAppService;

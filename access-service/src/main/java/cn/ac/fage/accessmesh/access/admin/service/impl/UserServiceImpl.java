@@ -31,7 +31,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainServ
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
 import org.slf4j.Logger;
@@ -231,7 +231,7 @@ public class UserServiceImpl implements UserService {
      * @return 分页用户列表结果
      */
     @Override
-    public PaginatedResult<UserPageItemResp> pageUsers(UserPageReq req) {
+    public PageResp<UserPageItemResp> pageUsers(UserPageReq req) {
         // v1.4 类型级 VIEW 门禁：前端隐藏不是安全边界
         permissionValidator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.VIEW);
 
@@ -258,10 +258,7 @@ public class UserServiceImpl implements UserService {
                 .filter(visibleOrgIds::contains)
                 .collect(Collectors.toSet());
             if (visibleSubtree.isEmpty()) {
-                return new PaginatedResult<>(
-                    List.of(),
-                    new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
-                );
+                return new PageResp<>(List.of(), 0, pageNum, pageSize, false);
             }
             orgIds = visibleSubtree;
         } else {
@@ -269,10 +266,7 @@ public class UserServiceImpl implements UserService {
             Long operatorId = StpUtil.getLoginIdAsLong();
             Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
             if (visibleOrgIds.isEmpty()) {
-                return new PaginatedResult<>(
-                    List.of(),
-                    new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
-                );
+                return new PageResp<>(List.of(), 0, pageNum, pageSize, false);
             }
             orgIds = visibleOrgIds;
         }
@@ -290,10 +284,8 @@ public class UserServiceImpl implements UserService {
             .map(SysUser::getId)
             .collect(Collectors.toSet());
         if (userIds.isEmpty()) {
-            return new PaginatedResult<>(
-                List.of(),
-                new PaginatedResult.PaginationMeta(total, pageNum, pageSize, 0)
-            );
+            return new PageResp<>(List.of(), total, pageNum, pageSize,
+                (pageNum - 1) * pageSize < total);
         }
 
         // 批量查询用户组织关系
@@ -332,11 +324,8 @@ public class UserServiceImpl implements UserService {
             })
             .collect(Collectors.toList());
 
-        long totalPages = (total + pageSize - 1) / pageSize;
-        return new PaginatedResult<>(
-            items,
-            new PaginatedResult.PaginationMeta(total, pageNum, pageSize, (int) totalPages)
-        );
+        return new PageResp<>(items, total, pageNum, pageSize,
+            (pageNum - 1) * pageSize + items.size() < total);
     }
 
     /**
@@ -456,7 +445,7 @@ public class UserServiceImpl implements UserService {
      * @return 分页候选用户列表
      */
     @Override
-    public PaginatedResult<MemberCandidateItemResp> memberCandidates(MemberCandidatesReq req) {
+    public PageResp<MemberCandidateItemResp> memberCandidates(MemberCandidatesReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
         // 门禁：ORG:UPDATE@targetOrgId（校验能管理目标组织成员）
@@ -545,18 +534,12 @@ public class UserServiceImpl implements UserService {
             })
             .collect(Collectors.toList());
 
-        long totalPages = (total + pageSize - 1) / pageSize;
-        return new PaginatedResult<>(
-            items,
-            new PaginatedResult.PaginationMeta(total, pageNum, pageSize, (int) totalPages)
-        );
+        return new PageResp<>(items, total, pageNum, pageSize,
+            (pageNum - 1) * pageSize + items.size() < total);
     }
 
-    private PaginatedResult<MemberCandidateItemResp> emptyMemberCandidates(MemberCandidatesReq req) {
-        return new PaginatedResult<>(
-            List.of(),
-            new PaginatedResult.PaginationMeta(0, req.getPageNum(), req.getPageSize(), 0)
-        );
+    private PageResp<MemberCandidateItemResp> emptyMemberCandidates(MemberCandidatesReq req) {
+        return new PageResp<>(List.of(), 0, req.getPageNum(), req.getPageSize(), false);
     }
 
     // ==================== 辅助方法 ====================

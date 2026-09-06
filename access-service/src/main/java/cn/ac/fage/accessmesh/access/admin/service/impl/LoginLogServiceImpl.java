@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.entity.SysLoginLog;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysLoginLogMapper;
 import cn.ac.fage.accessmesh.access.admin.service.LoginLogService;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import com.mybatisflex.core.paginate.Page;
 import org.springframework.stereotype.Service;
 
@@ -45,14 +45,12 @@ public class LoginLogServiceImpl implements LoginLogService {
      * @return 分页登录日志列表结果
      */
     @Override
-    public PaginatedResult<SysLoginLog> pageLoginLogs(PageReq pageReq) {
+    public PageResp<SysLoginLog> pageLoginLogs(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
         Page<SysLoginLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysLoginLog> result = loginLogMapper.paginateByTenantId(page, tenantId);
 
         List<SysLoginLog> items = result.getRecords();
-        long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
-        return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
+        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
     }
 }

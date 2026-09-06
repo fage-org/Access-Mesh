@@ -6,9 +6,9 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ChangeLogListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.LogActionOptionsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationLogListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ChangeLogResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationLogResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.access.permission.service.LogQueryAppService;
 import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
 import jakarta.validation.Valid;
@@ -57,7 +57,7 @@ public class LogQueryController {
      * @return 分页变更日志列表结果
      */
     @PostMapping("/change/list")
-    public R<PaginatedResp<ChangeLogResp>> listChangeLogs(@Valid @RequestBody ChangeLogListReq req) {
+    public R<PageResp<ChangeLogResp>> listChangeLogs(@Valid @RequestBody ChangeLogListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
@@ -69,7 +69,7 @@ public class LogQueryController {
                 tenantId, req.entityType(), req.entityId(),
                 req.eventType(), req.changeSource(), req.affectedUserId(), req.affectedRoleId(),
                 req.since(), req.until(), offset, pageSize);
-        return R.ok(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(new PageResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 
     // ===== 操作日志 =====
@@ -86,7 +86,7 @@ public class LogQueryController {
      * @return 分页操作日志列表结果
      */
     @PostMapping("/operation/list")
-    public R<PaginatedResp<OperationLogResp>> listOperationLogs(@Valid @RequestBody OperationLogListReq req) {
+    public R<PageResp<OperationLogResp>> listOperationLogs(@Valid @RequestBody OperationLogListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
@@ -97,7 +97,7 @@ public class LogQueryController {
                 tenantId, req.module(), req.action(),
                 req.operatorId(), req.since(), req.until(), req.targetType(),
                 offset, pageSize);
-        return R.ok(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(new PageResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 
     /**

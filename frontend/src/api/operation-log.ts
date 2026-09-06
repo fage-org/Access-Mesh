@@ -15,7 +15,7 @@
  */
 import { http } from "@/utils/http";
 import { type R, unwrap } from "./_envelope";
-import type { ItemsResp, PaginatedResp } from "./role-manage";
+import type { ItemsResp, PageResp } from "./role-manage";
 
 // ========== 操作日志定义 ==========
 
@@ -72,12 +72,12 @@ export type LogActionOptionsReq = {
 
 /** 查询操作日志列表（POST /perm/api/perm/log/operation/list）。
  *  后端按 module/action/operatorId/时间范围/targetType 过滤 + 服务端分页，
- *  返回 PaginatedResp<OperationLogResp>。
+ *  返回 PageResp<OperationLogResp>。
  *  权限门禁：独立 OPERATION_LOG:VIEW（T-PERM-025 审计分离，不再复用 SYSTEM_CONFIG:VIEW）。 */
 export const getOperationLogList = async (
   params: OperationLogListReq
-): Promise<PaginatedResp<OperationLogResp>> => {
-  const res = await http.request<R<PaginatedResp<OperationLogResp>>>(
+): Promise<PageResp<OperationLogResp>> => {
+  const res = await http.request<R<PageResp<OperationLogResp>>>(
     "post",
     "/perm/api/perm/log/operation/list",
     { data: params }
@@ -100,4 +100,4 @@ export const getOperationLogActionOptions = async (
   return unwrap(res);
 };
 
-export { type PaginatedResp, type ItemsResp };
+export { type PageResp, type ItemsResp };

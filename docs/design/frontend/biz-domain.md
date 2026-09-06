@@ -27,7 +27,7 @@ last_reviewed: 2026-09-02   # 2026-09-02 T-FE-021 联调收口（mock 四文件�
 - **BizDomain 有独立 create/update/remove**（非 system-config 的纯 save upsert）：主表 hook 区分 create/edit + handleDelete。
 - **DomainConfig save upsert 幂等**（同 system-config 范式）：按 domainCode+configType upsert（存在则 update extra，不存在则 insert），新建/编辑统一走 save。
 - **全局域不可删**：`biz_domain.global` 字段（每租户仅一个全局域，隐式包含未认领类型）。T-PERM-026 起 `BizDomainResp` 返回 global——前端以「全局」tag 标识并禁用删除按钮预判，后端 remove 删除保护兜底（全局域或域下存在配置拒绝 20051）。
-- **biz-domain list 服务端过滤+分页**（T-PERM-026 收口）：`{keyword, pageNum, pageSize}` → `PaginatedResp`（keyword LIKE code/name/description、ORDER BY code,id、均不传=字典全量上限 200），同 system-config 范式。
+- **biz-domain list 服务端过滤+分页**（T-PERM-026 收口）：`{keyword, pageNum, pageSize}` → `PageResp`（keyword LIKE code/name/description、ORDER BY code,id、均不传=字典全量上限 200），同 system-config 范式。
 - **extra 是 JSON**：`domain_config.extra` schema 是 JSONB，前端按 JSON 字符串编辑 + 提交前 `JSON.parse` 校验；后端 save 亦经 `JsonValidationUtils` 校验（T-PERM-026 补齐），JSONB↔String 映射已真库确认（语义等价、可直接再提交）。
 
 ## 2. 布局结构
@@ -111,7 +111,7 @@ last_reviewed: 2026-09-02   # 2026-09-02 T-FE-021 联调收口（mock 四文件�
 
 ### 4.1 主表：列表加载与过滤
 
-- **加载**（T-PERM-026 收口：服务端过滤+分页）：`getBizDomainList({keyword, pageNum, pageSize})` → 后端返回 `PaginatedResp`（keyword LIKE code/name/description、ORDER BY code,id），前端只消费。
+- **加载**（T-PERM-026 收口：服务端过滤+分页）：`getBizDomainList({keyword, pageNum, pageSize})` → 后端返回 `PageResp`（keyword LIKE code/name/description、ORDER BY code,id），前端只消费。
 - **keyword 搜索**：`onSearch` 重置页码后重拉；`onReset` 清空重拉。
 - **分页**：`onPageChange` / `onPageSizeChange` 透传服务端，`pagination.total` = 响应 total。
 
@@ -158,7 +158,7 @@ last_reviewed: 2026-09-02   # 2026-09-02 T-FE-021 联调收口（mock 四文件�
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 域列表 | `POST /api/perm/biz-domain/list` | `{keyword?,pageNum?,pageSize?}` | `PaginatedResp<BizDomainResp>` | ✅（T-PERM-026 服务端过滤+分页） |
+| 域列表 | `POST /api/perm/biz-domain/list` | `{keyword?,pageNum?,pageSize?}` | `PageResp<BizDomainResp>` | ✅（T-PERM-026 服务端过滤+分页） |
 | 域详情 | `POST /api/perm/biz-domain/detail` | `{domainCode}` | `BizDomainResp`（未命中 data=null） | ✅（T-PERM-026 切业务键） |
 | 域创建 | `POST /api/perm/biz-domain/create` | `{code,name,description?}` | `BizDomainResp` | ✅（重复 20052） |
 | 域更新 | `POST /api/perm/biz-domain/update` | `{domainCode,name?,description?}` | `BizDomainResp` | ✅（T-PERM-026 切业务键；空串清空 description） |
@@ -251,7 +251,7 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026；�
 
 3. ~~**biz-domain detail/update 用内部主键**~~（已收口，2026-08-29）：detail 接 `BizDomainDetailReq{domainCode}`（未命中 data=null，role detail 先例）、update 接 `{domainCode, name?, description?}`（description 空串=显式清空）；前端与 mock 同步切业务键。
 
-4. ~~**biz-domain list 无分页**~~（已收口，2026-08-29）：list 接 `BizDomainListReq{keyword?, pageNum?, pageSize?}` 返回 `PaginatedResp`（keyword LIKE code/name/description、ORDER BY code,id、均不传=字典全量上限 200，system-config 范式）；前端 hook 切服务端过滤分页。
+4. ~~**biz-domain list 无分页**~~（已收口，2026-08-29）：list 接 `BizDomainListReq{keyword?, pageNum?, pageSize?}` 返回 `PageResp`（keyword LIKE code/name/description、ORDER BY code,id、均不传=字典全量上限 200，system-config 范式）；前端 hook 切服务端过滤分页。
 
 5. ~~**AppServiceImpl configType 注释不全**~~（已收口反转，2026-08-27）
    - 原 🔧 登记的"schema 注释列 5 种 vs 后端只提两类"漂移已按两类收口定案：SUB_PERM/CLASSIFY 为唯一实现范围（DDL 注释、后端注释、`DomainConfigReq` 白名单、前端下拉四处同源），SCOPE/RELATION/BINDING 为历史设想类型不再提供；原"前端列全 5 种"已被收窄取代。

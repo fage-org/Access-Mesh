@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.DomainConfigListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.DomainConfigResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.service.DomainConfigAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;

@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.BizDomainResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.access.permission.service.BizDomainAppService;
 import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
 import jakarta.validation.Valid;
@@ -83,7 +83,7 @@ public class BizDomainController {
      * @return 分页业务域列表
      */
     @PostMapping("/list")
-    public R<PaginatedResp<BizDomainResp>> listBizDomains(@Valid @RequestBody BizDomainListReq req) {
+    public R<PageResp<BizDomainResp>> listBizDomains(@Valid @RequestBody BizDomainListReq req) {
         boolean paged = req.pageNum() != null || req.pageSize() != null;
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = paged ? PageUtil.pageSize(req.pageSize()) : PageUtil.MAX_PAGE_SIZE;
@@ -92,7 +92,7 @@ public class BizDomainController {
         long total = bizDomainAppService.countBizDomains(tenantId, req.keyword());
         List<BizDomainResp> items =
             bizDomainAppService.listBizDomains(tenantId, req.keyword(), offset, pageSize);
-        return R.ok(new PaginatedResp<>(
+        return R.ok(new PageResp<>(
             items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 

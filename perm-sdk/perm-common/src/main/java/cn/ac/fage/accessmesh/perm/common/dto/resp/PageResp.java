@@ -16,7 +16,7 @@ import java.util.List;
  * @param hasNext  是否有下一页
  * @param <T>      对象类型
  */
-public record PaginatedResp<T>(
+public record PageResp<T>(
     List<T> items,
     long total,
     int pageNum,

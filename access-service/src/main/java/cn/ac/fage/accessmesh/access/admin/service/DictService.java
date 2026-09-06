@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.DictDataResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.DictTypeResp;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 
 import java.util.List;
 
@@ -65,7 +65,7 @@ public interface DictService {
      * @param pageReq 分页查询请求
      * @return 分页字典类型列表结果
      */
-    PaginatedResult<DictTypeResp> pageDictTypes(PageReq pageReq);
+    PageResp<DictTypeResp> pageDictTypes(PageReq pageReq);
 
     /**
      * 创建字典数据

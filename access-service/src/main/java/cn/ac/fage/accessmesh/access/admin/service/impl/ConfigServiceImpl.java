@@ -14,7 +14,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import com.mybatisflex.core.paginate.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,7 +60,7 @@ public class ConfigServiceImpl implements ConfigService {
      * @return 分页配置列表结果
      */
     @Override
-    public PaginatedResult<ConfigResp> pageConfigs(PageReq pageReq) {
+    public PageResp<ConfigResp> pageConfigs(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
         Page<SystemConfig> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SystemConfig> result = configMapper.selectPageByTenantId(page, tenantId);
@@ -69,9 +69,7 @@ public class ConfigServiceImpl implements ConfigService {
             .map(c -> new ConfigResp(c.getId(), c.getConfigName(), c.getConfigKey(), c.getConfigValue(), c.getRemark(), c.getCreatedAt(), c.getUpdatedAt()))
             .toList();
 
-        long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
-        return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
+        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
     }
 
     /**

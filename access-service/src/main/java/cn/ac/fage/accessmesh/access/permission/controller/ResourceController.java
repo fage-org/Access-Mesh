@@ -3,8 +3,8 @@ package cn.ac.fage.accessmesh.access.permission.controller;
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.*;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourceResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourceTreeResp;
 import cn.ac.fage.accessmesh.access.permission.service.ResourceManageAppService;
@@ -155,13 +155,13 @@ public class ResourceController {
      * @return 分页资源列表结果
      */
     @PostMapping("/list")
-    public R<PaginatedResp<ResourceResp>> listResources(@Valid @RequestBody ResourceListReq req) {
+    public R<PageResp<ResourceResp>> listResources(@Valid @RequestBody ResourceListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
         Long tenantId = TenantContextHolder.getTenantId();
         long total = resourceManageAppService.countResources(tenantId, req.resourceTypeCode(), req.domainCode());
         List<ResourceResp> items = resourceManageAppService.listResources(tenantId, req.resourceTypeCode(), req.domainCode(), offset, pageSize);
-        return R.ok(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(new PageResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 }

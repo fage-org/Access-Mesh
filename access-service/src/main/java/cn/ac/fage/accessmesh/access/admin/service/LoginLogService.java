@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.admin.service;
 
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.entity.SysLoginLog;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 
 /**
  * 登录日志服务接口
@@ -22,5 +22,5 @@ public interface LoginLogService {
      * @param pageReq 分页请求参数
      * @return 分页登录日志结果
      */
-    PaginatedResult<SysLoginLog> pageLoginLogs(PageReq pageReq);
+    PageResp<SysLoginLog> pageLoginLogs(PageReq pageReq);
 }

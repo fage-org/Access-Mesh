@@ -117,8 +117,8 @@ export type RoleListQuery = {
   sort?: string | null;
 };
 
-/** 分页响应（对齐后端 PaginatedResp） */
-export type PaginatedResp<T> = {
+/** 分页响应（对齐后端 PageResp） */
+export type PageResp<T> = {
   items: T[];
   total: number;
   pageNum: number;
@@ -208,8 +208,8 @@ export const getRoleTree = async (
 /** 分页查询角色列表（POST /perm/api/perm/abstract-role/list） */
 export const getRoleList = async (
   params: RoleListQuery
-): Promise<PaginatedResp<RoleResp>> => {
-  const res = await http.request<R<PaginatedResp<RoleResp>>>(
+): Promise<PageResp<RoleResp>> => {
+  const res = await http.request<R<PageResp<RoleResp>>>(
     "post",
     "/perm/api/perm/abstract-role/list",
     { data: params }

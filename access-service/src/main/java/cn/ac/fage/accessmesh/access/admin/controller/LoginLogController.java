@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.LoginLogResp;
 import cn.ac.fage.accessmesh.access.admin.entity.SysLoginLog;
 import cn.ac.fage.accessmesh.access.admin.service.LoginLogService;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.common.model.R;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -48,11 +48,11 @@ public class LoginLogController {
      * @return 分页登录日志列表结果
      */
     @PostMapping("/page")
-    public R<PaginatedResult<LoginLogResp>> pageLoginLogs(@RequestBody PageReq pageReq) {
-        PaginatedResult<SysLoginLog> result = loginLogService.pageLoginLogs(pageReq);
+    public R<PageResp<LoginLogResp>> pageLoginLogs(@RequestBody PageReq pageReq) {
+        PageResp<SysLoginLog> result = loginLogService.pageLoginLogs(pageReq);
         List<LoginLogResp> items = result.items().stream()
             .map(LoginLogResp::from)
             .toList();
-        return R.ok(new PaginatedResult<>(items, result.pagination()));
+        return R.ok(new PageResp<>(items, result.total(), result.pageNum(), result.pageSize(), result.hasNext()));
     }
 }

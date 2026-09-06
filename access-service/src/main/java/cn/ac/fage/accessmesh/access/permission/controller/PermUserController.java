@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.access.permission.service.UserManageAppService;
 import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
@@ -110,7 +110,7 @@ public class PermUserController {
      * @return 分页用户列表结果
      */
     @PostMapping("/list")
-    public R<PaginatedResp<UserResp>> listUsers(@Valid @RequestBody UserListReq req) {
+    public R<PageResp<UserResp>> listUsers(@Valid @RequestBody UserListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
@@ -119,6 +119,6 @@ public class PermUserController {
         List<UserResp> items = userManageService.listUsers(
             tenantId, req.subjectTypeCode(), req.domainCode(), req.keyword(), offset, pageSize
         );
-        return R.ok(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(new PageResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 }

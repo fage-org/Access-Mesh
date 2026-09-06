@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.UserCreateResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 
 /**
  * 用户服务接口
@@ -90,7 +90,7 @@ public interface UserService {
      * @param req 分页查询请求
      * @return 分页用户列表结果
      */
-    PaginatedResult<UserPageItemResp> pageUsers(UserPageReq req);
+    PageResp<UserPageItemResp> pageUsers(UserPageReq req);
 
     /**
      * 重置用户密码
@@ -117,5 +117,5 @@ public interface UserService {
      * @param req 候选用户查询请求（含 targetOrgId）
      * @return 分页候选用户列表
      */
-    PaginatedResult<MemberCandidateItemResp> memberCandidates(MemberCandidatesReq req);
+    PageResp<MemberCandidateItemResp> memberCandidates(MemberCandidatesReq req);
 }

@@ -27,7 +27,7 @@ import cn.ac.fage.accessmesh.access.admin.mapper.SysJobLogMapper;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysJobMapper;
 import cn.ac.fage.accessmesh.access.admin.service.JobService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import com.mybatisflex.core.paginate.Page;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -399,7 +399,7 @@ public class JobServiceImpl implements JobService {
      * @return 分页任务列表结果
      */
     @Override
-    public PaginatedResult<JobResp> pageJobs(PageReq pageReq, String jobGroup) {
+    public PageResp<JobResp> pageJobs(PageReq pageReq, String jobGroup) {
         Long tenantId = TenantContextHolder.getTenantId();
 
         Page<SysJob> result = jobMapper.paginateJobs(Page.of(pageReq.pageNum(), pageReq.pageSize()), tenantId, jobGroup);
@@ -408,9 +408,7 @@ public class JobServiceImpl implements JobService {
             .map(JobResp::from)
             .toList();
 
-        long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
-        return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
+        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
     }
 
     /**
@@ -425,7 +423,7 @@ public class JobServiceImpl implements JobService {
      * @return 分页任务日志列表结果
      */
     @Override
-    public PaginatedResult<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
+    public PageResp<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
         Long tenantId = TenantContextHolder.getTenantId();
 
         Page<SysJobLog> result = jobLogMapper.paginateJobLogs(Page.of(pageReq.pageNum(), pageReq.pageSize()), tenantId, jobId);
@@ -434,9 +432,7 @@ public class JobServiceImpl implements JobService {
             .map(JobLogResp::from)
             .toList();
 
-        long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
-        return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
+        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
     }
 
     /**

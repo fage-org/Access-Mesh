@@ -7,10 +7,10 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.UserOrgSetPrimaryReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.access.admin.service.UserOrgService;
 import cn.ac.fage.accessmesh.common.model.R;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 
 /**
  * 用户组织关联管理控制器
@@ -92,7 +92,7 @@ public class UserOrgController {
      * @return 用户组织列表，包含组织基本信息和是否为主组织标记
      */
     @PostMapping("/list")
-    public R<List<UserPageItemResp.OrgBrief>> getUserOrgs(@Valid @RequestBody IdReq req) {
-        return R.ok(userOrgService.getUserOrgs(req.id()));
+    public R<ItemsResp<UserPageItemResp.OrgBrief>> getUserOrgs(@Valid @RequestBody IdReq req) {
+        return R.ok(new ItemsResp<>(userOrgService.getUserOrgs(req.id())));
     }
 }

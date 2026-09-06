@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.OrgTreeConfigResp;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOrgTreeConfig;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 
 /**
  * 组织树配置服务接口
@@ -81,5 +81,5 @@ public interface OrgTreeConfigService {
      * @param pageReq 分页请求参数
      * @return 分页组织树配置结果
      */
-    PaginatedResult<OrgTreeConfigResp> pageOrgTreeConfigs(PageReq pageReq);
+    PageResp<OrgTreeConfigResp> pageOrgTreeConfigs(PageReq pageReq);
 }

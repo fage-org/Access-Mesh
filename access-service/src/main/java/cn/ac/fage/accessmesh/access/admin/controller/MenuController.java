@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.MenuUpdateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.MenuResp;
 import cn.ac.fage.accessmesh.access.admin.service.MenuService;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -12,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 
 /**
  * 菜单管理控制器
@@ -105,7 +105,7 @@ public class MenuController {
      * @return 菜单树结构列表
      */
     @PostMapping("/tree")
-    public R<List<MenuResp>> treeMenu() {
-        return R.ok(menuService.treeMenu());
+    public R<ItemsResp<MenuResp>> treeMenu() {
+        return R.ok(new ItemsResp<>(menuService.treeMenu()));
     }
 }

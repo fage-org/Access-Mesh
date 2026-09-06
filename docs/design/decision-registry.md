@@ -45,6 +45,7 @@
 | 2026-09-06 | 统一响应壳全量更名 PermResult→R（工厂 success/error→ok/fail、Advice→RResponseAdvice、前端 TS 信封类型同步 R<T>）；线格式字段与取值不变（RWireShapeTest 锁）；引擎类 `dto/query/PermResult` 是权限查询内部结果、与响应壳是两个物，禁止合并或混淆 | common/model/R.java、project-rules.md §1.1、docs/design/frontend/service-interface-mapping.md | 报了先核出处 |
 | 2026-09-06 | Agent 指令面收敛：删除 `.github/copilot-instructions.md`（第 4 份浓缩副本，漂移实证 3 处），规范入口=AGENTS.md + project-rules.md + skills/rules；勿再为 GitHub Copilot 重建独立指令副本（如需注入面用薄指针文件指向 AGENTS.md） | accessmesh-patterns SKILL.md（权威列表行）、本表 | 报了先核出处 |
 | 2026-09-06 | 分页信封统一（T-ADMIN-027 登记）：全仓唯一分页方言=扁平五字段 `{items,total,pageNum,pageSize,hasNext}`，统一类更名 `PaginatedResp`→`PageResp`（线格式零变化）；admin 嵌套方言 `PaginatedResult` 退役删除；5 处 `R<List>` 裸数组收编 `ItemsResp`；分页字段不进 R（信封管传输/载荷管分页正交）；类名 `Page` 因与 MyBatis-Flex Page（19 文件在用）冲突被否 | docs/tasks/T-ADMIN-027.md、api-contract.md §3.3、project-rules.md §1.3 | 报了先核出处 |
+| 2026-09-06 | 分页/列表信封双份重复类收编单源（T-ADMIN-027 执行定案）：`access.permission.dto.resp` 内部 `PaginatedResp`/`ItemsResp` 副本删除，全仓（admin/permission 域、SDK）统一 import perm-common `perm.common.dto.resp.PageResp/ItemsResp`（执行扩面：裸数组收编由建卡 5 处增至 6 处，含 FQ 写法漏盘的 `/notice/my-notices`）——后续演进只改一处，勿再建议恢复域内副本 | perm-sdk/perm-common dto/resp、project-rules.md §1.3 类名指引 | 报了先核出处 |
 
 ## 已推翻（superseded）
 

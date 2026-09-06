@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.OrgQuery;
 import cn.ac.fage.accessmesh.access.admin.dto.req.OrgUpdateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.OrgResp;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.OrgUserItemResp;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 
 import java.util.List;
 
@@ -75,7 +75,7 @@ public interface OrgService {
      * @param req 分页查询请求
      * @return 分页组织列表结果
      */
-    PaginatedResult<OrgResp> pageOrgs(OrgPageReq req);
+    PageResp<OrgResp> pageOrgs(OrgPageReq req);
 
     /**
      * 获取组织树

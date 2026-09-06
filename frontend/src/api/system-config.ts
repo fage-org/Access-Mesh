@@ -13,7 +13,7 @@
  */
 import { http } from "@/utils/http";
 import { type R, unwrap } from "./_envelope";
-import type { ItemsResp, PaginatedResp } from "./role-manage";
+import type { ItemsResp, PageResp } from "./role-manage";
 
 // ========== 系统配置定义 ==========
 
@@ -62,12 +62,12 @@ export type SystemConfigSaveReq = {
 // ========== API 函数 ==========
 
 /** 查询系统配置列表（POST /perm/api/perm/system-config/list）。
- *  T-PERM-024 收口：服务端 keyword 过滤（configKey/description，LIKE）+ 分页，返回 PaginatedResp
+ *  T-PERM-024 收口：服务端 keyword 过滤（configKey/description，LIKE）+ 分页，返回 PageResp
  *  （ORDER BY configKey,id）；不传分页参数 = 字典全量（上限 200）。 */
 export const getSystemConfigList = async (
   params: SystemConfigListQuery
-): Promise<PaginatedResp<SystemConfigResp>> => {
-  const res = await http.request<R<PaginatedResp<SystemConfigResp>>>(
+): Promise<PageResp<SystemConfigResp>> => {
+  const res = await http.request<R<PageResp<SystemConfigResp>>>(
     "post",
     "/perm/api/perm/system-config/list",
     { data: params }

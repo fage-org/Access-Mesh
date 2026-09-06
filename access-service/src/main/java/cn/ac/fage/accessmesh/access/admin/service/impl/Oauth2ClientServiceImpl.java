@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.Oauth2ClientService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.dev33.satoken.secure.BCrypt;
@@ -216,7 +216,7 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
      * @return 分页客户端列表结果
      */
     @Override
-    public PaginatedResult<Oauth2ClientResp> pageClientResps(Oauth2ClientPageReq req) {
+    public PageResp<Oauth2ClientResp> pageClientResps(Oauth2ClientPageReq req) {
         Page<SysOauth2Client> page = Page.of(req.getPageNum(), req.getPageSize());
         Page<SysOauth2Client> result = oauth2ClientMapper.paginateByCondition(
             page, TenantContextHolder.getTenantId(), req.clientName(), req.status());
@@ -225,8 +225,6 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
             .map(Oauth2ClientResp::fromEntity)
             .collect(Collectors.toList());
 
-        long totalPages = (result.getTotalRow() + req.getPageSize() - 1) / req.getPageSize();
-        return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), req.getPageNum(), req.getPageSize(), (int) totalPages));
+        return new PageResp<>(items, result.getTotalRow(), req.getPageNum(), req.getPageSize(), result.hasNext());
     }
 }

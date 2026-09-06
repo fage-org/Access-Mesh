@@ -62,7 +62,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 |---|---|---|
 | 路径 | `POST /api/perm/log/change/list` | 后端 `LogQueryController` `@RequestMapping("/api/perm/log")` + `@PostMapping("/change/list")` |
 | 权限 | 独立 `PERMISSION_CHANGE_LOG:VIEW` | T-PERM-032 审计分离（对齐操作日志先例），页面 list/count 门禁；排查视图 recent-changes 已随 T-PERM-033 切被查目标实例 `USER:VIEW`/`ROLE:VIEW` |
-| 分页 | 服务端分页 | `PaginatedResp<ChangeLogResp>` |
+| 分页 | 服务端分页 | `PageResp<ChangeLogResp>` |
 | detail | 无独立接口 | `ChangeLogResp` 已含全字段（含 diffSnapshot），前端抽屉展示 |
 
 ### 请求 `ChangeLogListReq`
@@ -153,7 +153,7 @@ T-PERM-032 起独立 `PERMISSION_CHANGE_LOG:VIEW`，mock/login.ts 四账号按�
 | 4 | 操作人字段 | ✅ | `ChangeLogResp` 暴露 `createdBy`（表 created_by；名称解析归前端展示层），抽屉展示 |
 | 5 | changeSource 枚举 | ✅ | schema 注释修正为 MANUAL/SERVICE_SYNC（复用 PermConstants.MaintainSource）；operation 注释同步补 BATCH_DELETE/BATCH_REMOVE |
 | 6 | 独立权限码 | ✅ | 设计定案（2026-08-29）：独立 `PERMISSION_CHANGE_LOG:VIEW`，五步清单全链路（枚举/DDL 种子=31/bootstrap 固定图/下发白名单/前端常量+mock 矩阵）；排查视图 recent-changes 已随 T-PERM-033 切被查目标实例 USER:VIEW/ROLE:VIEW |
-| 7 | list 端点 | ✅ | `/api/perm/log/change/list` 分页查询可用，返回 PaginatedResp |
+| 7 | list 端点 | ✅ | `/api/perm/log/change/list` 分页查询可用，返回 PageResp |
 | 8 | diff_snapshot 规范 | ✅ | §6.8 完整规范，7 种 eventType（T-PERM-043 后 6 种 + T-PERM-032 增 ROLE_BATCH_DELETE）+ 3 种 changeType 固定枚举 |
 | 9 | detail 端点 | ✅ | 无需独立 detail（Resp 含全字段 + diffSnapshot），设计合理 |
 | 10 | eventType 枚举一致性 | ✅ | 设计定案：契约 §6.8 增补第 7 枚举 `ROLE_BATCH_DELETE`（批量删除聚合事件，entityId=0 + operation=BATCH_DELETE——原 6 枚举无一语义覆盖）；前端 `DiffEventType`/`EVENT_TYPE_META` 同步 |

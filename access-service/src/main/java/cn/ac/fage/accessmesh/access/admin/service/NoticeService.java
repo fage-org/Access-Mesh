@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.NoticeCreateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.NoticeUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.NoticeResp;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 
 /**
  * 通知公告服务接口
@@ -72,7 +72,7 @@ public interface NoticeService {
      * @param pageReq 分页查询请求
      * @return 分页通知列表结果
      */
-    PaginatedResult<NoticeResp> pageNotices(PageReq pageReq);
+    PageResp<NoticeResp> pageNotices(PageReq pageReq);
 
     /**
      * 发布通知

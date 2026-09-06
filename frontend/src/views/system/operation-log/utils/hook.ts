@@ -12,7 +12,7 @@ import { formatToWallClockIso } from "@/utils/wall-clock";
  * 操作日志页 hook（分页表格 + 服务端分页 + 动态 action 字典）。
  *
  * 范式对齐 type-def/utils/hook.ts，但本页为**服务端分页**（后端 OperationLogListReq 支持
- * pageNum/pageSize，返回 PaginatedResp），非 type-def 的全量本地过滤。
+ * pageNum/pageSize，返回 PageResp），非 type-def 的全量本地过滤。
  * 只读查询页：无 handleSubmitForm/handleDelete（无写操作）。
  *
  * T-PERM-025 收口：筛选维度扩展（module/action/operatorId/时间范围/targetType）+

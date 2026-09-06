@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.Oauth2ClientCreateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.Oauth2ClientPageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.Oauth2ClientUpdateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.Oauth2ClientResp;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 
 /**
  * OAuth2客户端服务接口
@@ -71,5 +71,5 @@ public interface Oauth2ClientService {
      * @param req 分页查询请求
      * @return 分页OAuth2客户端响应结果
      */
-    PaginatedResult<Oauth2ClientResp> pageClientResps(Oauth2ClientPageReq req);
+    PageResp<Oauth2ClientResp> pageClientResps(Oauth2ClientPageReq req);
 }

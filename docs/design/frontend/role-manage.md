@@ -118,7 +118,7 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
 | 角色树 | `POST /api/perm/abstract-role/tree` | `{domainCode?,enabledOnly?}` | `ItemsResp<{root:RoleTreeNode}>` | ✅ |
-| 角色列表 | `POST /api/perm/abstract-role/list` | `{domainCode?,roleTypeCode?,roleTypeCodes?,keyword?,pageNum,pageSize,sort?}` | `PaginatedResp<RoleResp>` | ✅ |
+| 角色列表 | `POST /api/perm/abstract-role/list` | `{domainCode?,roleTypeCode?,roleTypeCodes?,keyword?,pageNum,pageSize,sort?}` | `PageResp<RoleResp>` | ✅ |
 | 创建 | `POST /api/perm/abstract-role/create` | `{parentId?,roleTypeCode,externalId?,name,sortOrder?,extra?}` | `RoleResp` | ✅ |
 | 更新 | `POST /api/perm/abstract-role/update` | `{roleId,name?,status?,sortOrder?,extra?,extraClear?}` | `RoleResp` | ✅ |
 | 移动 | `POST /api/perm/abstract-role/move` | `{roleId,parentId?}` | `Void` | ✅ |

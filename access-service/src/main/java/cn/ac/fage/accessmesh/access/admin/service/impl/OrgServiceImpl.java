@@ -25,7 +25,7 @@ import cn.ac.fage.accessmesh.access.admin.service.domain.OrgTreeConfigDomainServ
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.access.application.OrgWriteAppService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -121,7 +121,7 @@ public class OrgServiceImpl implements OrgService {
     }
 
     @Override
-    public PaginatedResult<OrgResp> pageOrgs(OrgPageReq req) {
+    public PageResp<OrgResp> pageOrgs(OrgPageReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
         // D2=B 强制要求显式 orgType，否则无法分发 VIEW / VIEW_POSITION 做细粒度门控
         if (req.orgType() == null) {
@@ -141,10 +141,7 @@ public class OrgServiceImpl implements OrgService {
         if (req.orgId() != null) {
             List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, req.orgId());
             if (subtreeIds.isEmpty()) {
-                return new PaginatedResult<>(
-                    List.of(),
-                    new PaginatedResult.PaginationMeta(0, pageNum, pageSize, 0)
-                );
+                return new PageResp<>(List.of(), 0, pageNum, pageSize, false);
             }
             orgIds = Set.copyOf(subtreeIds);
         }
@@ -158,9 +155,8 @@ public class OrgServiceImpl implements OrgService {
         List<OrgResp> items = records.stream()
             .map(o -> toResp(o, List.of()))
             .collect(Collectors.toList());
-        long totalPages = (total + pageSize - 1) / pageSize;
-        return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(total, pageNum, pageSize, (int) totalPages));
+        return new PageResp<>(items, total, pageNum, pageSize,
+            (pageNum - 1) * pageSize + items.size() < total);
     }
 
     @Override

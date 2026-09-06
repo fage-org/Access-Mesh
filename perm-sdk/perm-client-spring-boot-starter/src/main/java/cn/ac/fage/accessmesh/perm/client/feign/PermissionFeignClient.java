@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.OperationPermissionResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.PaginatedResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
@@ -111,7 +111,7 @@ public interface PermissionFeignClient {
      * @return 角色列表
      */
     @PostMapping("/api/perm/abstract-role/list")
-    R<PaginatedResp<RoleResp>> listRoles(@RequestBody RoleListReq req);
+    R<PageResp<RoleResp>> listRoles(@RequestBody RoleListReq req);
 
     @PostMapping("/api/perm/abstract-role/detail")
     R<RoleResp> getRole(@RequestBody IdReq req);

@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.FileService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import com.mybatisflex.core.paginate.Page;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
@@ -416,7 +416,7 @@ public class FileServiceImpl implements FileService {
      * @throws SecurityException 无 ADMIN_FILE:VIEW 权限
      */
     @Override
-    public PaginatedResult<FileResp> pageFiles(FilePageReq pageReq, String bizType) {
+    public PageResp<FileResp> pageFiles(FilePageReq pageReq, String bizType) {
         // 权限检查 — FILE 类型级 VIEW（T-ADMIN-023）
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_FILE, AdminOperationCode.VIEW);
 
@@ -428,9 +428,7 @@ public class FileServiceImpl implements FileService {
             .map(this::toResp)
             .collect(Collectors.toList());
 
-        long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
-        return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
+        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
     }
 
     /**

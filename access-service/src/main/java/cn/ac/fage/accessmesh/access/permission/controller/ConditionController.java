@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionRemoveReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.EmptyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConditionResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.service.ConditionAppService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;

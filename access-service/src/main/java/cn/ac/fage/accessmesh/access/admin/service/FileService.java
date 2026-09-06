@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.FileResp;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import org.springframework.web.multipart.MultipartFile;
 
 /**
@@ -62,7 +62,7 @@ public interface FileService {
      * @param bizType 业务类型
      * @return 分页文件列表结果
      */
-    PaginatedResult<FileResp> pageFiles(FilePageReq pageReq, String bizType);
+    PageResp<FileResp> pageFiles(FilePageReq pageReq, String bizType);
 
     /**
      * 下载文件

@@ -11,7 +11,7 @@ import { formatToWallClockIso } from "@/utils/wall-clock";
  * 权限变更日志页 hook（分页表格 + 服务端分页）。
  *
  * 范式对齐 operation-log/utils/hook.ts，本页同样为**服务端分页**（后端 ChangeLogListReq 支持
- * pageNum/pageSize，返回 PaginatedResp）。
+ * pageNum/pageSize，返回 PageResp）。
  * 只读查询页：无 handleSubmitForm/handleDelete（无写操作）。
  *
  * T-PERM-032 收口：筛选全集（entityType/entityId/eventType/changeSource/受影响 user·role/
@@ -31,7 +31,7 @@ export function usePermissionChangeLog() {
     const seq = ++reqSeq;
     loading.value = true;
     try {
-      // 后端 /api/perm/log/change/list 返回 PaginatedResp（服务端分页 + 全维度过滤）。
+      // 后端 /api/perm/log/change/list 返回 PageResp（服务端分页 + 全维度过滤）。
       // 前端不做本地过滤/切片--服务端已分页。
       const res = await getChangeLogList({
         entityType: searchForm.entityType || undefined,

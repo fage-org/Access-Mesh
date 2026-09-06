@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-09-03   # 2026-09-03 T-ADMIN-021 收口+复评收口：§4.2.1 全字段落地与过滤语义定案（根守卫基于未过滤全量、orgType/status 节点级内存过滤、orgType 白名单 10008）（includePositions 一体树+岗位后端裁剪/债务① operationCode+treeConfigId/响应 ItemsResp<OrgResp> 包装/orgName+parentOrgId 死参数修正/OrgResp phone+email 陈旧行删除）；2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
+last_reviewed: 2026-09-06   # T-ADMIN-027：分页/列表信封统一（PageResp 扁平+裸数组收编 ItemsResp）；2026-09-03 T-ADMIN-021 收口+复评收口：§4.2.1 全字段落地与过滤语义定案（根守卫基于未过滤全量、orgType/status 节点级内存过滤、orgType 白名单 10008）（includePositions 一体树+岗位后端裁剪/债务① operationCode+treeConfigId/响应 ItemsResp<OrgResp> 包装/orgName+parentOrgId 死参数修正/OrgResp phone+email 陈旧行删除）；2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -35,7 +35,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-ADMIN-021 收口+复评收口：§4.2
 引用 `project-rules.md`:
 
 - **§1.1 统一响应壳**: 所有接口返回 `R<T> { code, message, data, requestId, traceId }`. `code=200` 为成功, 失败时 `data=null`. `requestId/traceId` 由网关与 Micrometer Tracing 注入, 业务侧不写入.
-- **§1.3 分页**: 入参 `{ pageNum, pageSize, sort? }`, `pageNum>=1`, `1<=pageSize<=100`, `sort` 形如 `"createdAt,desc"`. 出参分页对象统一为 `PaginatedResult<T> { items: T[], total, pageNum, pageSize, hasNext }`. 非分页列表也必须用 `{ items: [...] }` 包装, 禁止顶层数组.
+- **§1.3 分页**: 入参 `{ pageNum, pageSize, sort? }`, `pageNum>=1`, `1<=pageSize<=100`, `sort` 形如 `"createdAt,desc"`. 出参分页对象统一为 `PageResp<T> { items: T[], total, pageNum, pageSize, hasNext }`（承载类 perm-common `perm.common.dto.resp.PageResp`，admin/permission 域与 SDK 单一来源）. 非分页列表也必须用 `{ items: [...] }` 包装, 禁止顶层数组.
 - **§2.1 HTTP 方法**: 所有接口 `POST + application/json + @RequestBody DTO`. 禁止 `@GetMapping/@PutMapping/@DeleteMapping/@PatchMapping`, 禁止 `@RequestParam` (除文件上传/下载), 禁止路径参数. 业务 ID 必须放 JSON Body.
 - **§2.2 路径**: access-service admin 域挂载在网关路由 `/admin/api/**` 下, 实际控制器映射为 `/user`, `/org`, `/user-org`, `/user-role`, `/role` 等资源根. 本契约文档中所有路径均为服务内部映射 (前端经网关访问).
 - **请求体禁止 `tenantId`**: 服务端统一从 `X-Tenant-Id` Header 与 SecurityContext 读取. 前端经网关后无需感知.
@@ -155,7 +155,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `status` | `Integer` | 否 | 1=启用, 0=停用（与 DDL `sys_user.status` 一致） |
 | `orgId` | `Long` | 否 | 选中组织/岗位 ID; 不传时返回操作者在默认树内可见的全部用户; 传时仅返回直接挂在该组织 (含子树, 视实现决策) 的成员 |
 
-**响应 DTO**: `PaginatedResult<UserPageItemResp>`, `items[]` 字段:
+**响应 DTO**: `PageResp<UserPageItemResp>`, `items[]` 字段:
 
 `UserPageItemResp`:
 
@@ -207,7 +207,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `pageSize` | `Integer` | 否 | 默认 20, 范围 1-100 |
 | `keyword` | `String` | 否 | 关键字 (按 username/name/phone/email 模糊匹配) |
 
-**响应 DTO**: `PaginatedResult<MemberCandidateItemResp>`
+**响应 DTO**: `PageResp<MemberCandidateItemResp>`
 
 `MemberCandidateItemResp`:
 
@@ -465,7 +465,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `parentOrgId` | `Long` | 否 | 直接父级 |
 | `orgId` | `Long` | 否 | 子树根; 传入时返回该组织及其全部子孙 (岗位 Tab 用) |
 
-**响应**: `PaginatedResult<OrgResp>` (children 字段为空数组, 平铺语义)
+**响应**: `PageResp<OrgResp>` (children 字段为空数组, 平铺语义)
 
 **门禁**: 按 `orgType` 分发——`ORG:VIEW`(组织) / `ORG:VIEW_POSITION`(岗位).
 
@@ -483,7 +483,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 > 前端 mock 实际传 `{ orgId }`, 与后端 `IdReq.id` 不一致. **决策**: 以 `IdReq.id` 为准, 前端在 Phase 2 调整 mock 字段名为 `id`. 列入 Phase 2 前端调整项.
 
-**响应**: `R<List<OrgUserItemResp>>` (Phase 2 改为 `{ items: [...] }` 包装)
+**响应**: `R<ItemsResp<OrgUserItemResp>>`（`{ items: [...] }` 包装已收编，T-ADMIN-027）
 
 `OrgUserItemResp`:
 
@@ -604,7 +604,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 **请求 DTO**: `IdReq` (`{ id: userId }`)
 
-**响应**: `R<List<UserPageItemResp.OrgBrief>>` (Phase 2 包装为 `{ items: [...] }`)
+**响应**: `R<ItemsResp<UserPageItemResp.OrgBrief>>`（`{ items: [...] }` 包装已收编，T-ADMIN-027）
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
@@ -844,7 +844,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 #### 4.6.5 `POST /menu/tree` 🔧
 
-**请求**: 无参。**响应**: `R<List<MenuResp>>`（全量菜单树，管理界面用；用户可见性过滤走 `/auth/user-menu`）。
+**请求**: 无参。**响应**: `R<ItemsResp<MenuResp>>`（全量菜单树，管理界面用；用户可见性过滤走 `/auth/user-menu`；T-ADMIN-027 收编 `{ items }` 包装）。
 
 `MenuResp` 字段：`id / menuType(String) / displayName / parentId / path / icon / sortOrder / status(1=ENABLED) / resourceType / resourceCode / sourceService / createdAt / updatedAt / children`。
 
@@ -886,7 +886,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 #### 4.7.3 `POST /file/page` 🔧
 
-**请求 DTO**: `FilePageReq { pageNum, pageSize, sort?, bizType? }`（`pageNum/pageSize` 必填——服务端未实现缺省默认值，缺省将失败；`sort/bizType` 可选）。**响应**: `R<PaginatedResult<FileResp>>`（按创建时间倒序，可按 bizType 过滤）。
+**请求 DTO**: `FilePageReq { pageNum, pageSize, sort?, bizType? }`（`pageNum/pageSize` 必填——服务端未实现缺省默认值，缺省将失败；`sort/bizType` 可选）。**响应**: `R<PageResp<FileResp>>`（按创建时间倒序，可按 bizType 过滤）。
 **门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
 
 #### 4.7.4 `POST /file/download` 🔧
@@ -931,9 +931,9 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 |---|------|-------------|------|
 | 1 | `POST /org/tree` | `OrgQuery` | **已对齐（T-ADMIN-021 全字段落地：operationCode + treeConfigId + includePositions + 响应 `{ items }` 包装）** |
 | 2 | `POST /org/page` | `OrgPageReq` | 含 `orgId` 子树筛选; 已对齐 |
-| 3 | `POST /org/users` | `IdReq` | 前端 mock 入参字段名为 `orgId`, 待 Phase 2 调整为 `id` |
+| 3 | `POST /org/users` | `IdReq` | 前端 mock 入参字段名为 `orgId`, 待 Phase 2 调整为 `id`; 响应已收编 `{ items }` 包装 (T-ADMIN-027) |
 | 4 | `POST /user/update` | `UserUpdateReq` | 已对齐 |
-| 5 | `POST /user-org/list` | `IdReq` | 已对齐; 待包装 `{ items }` |
+| 5 | `POST /user-org/list` | `IdReq` | 已对齐; `{ items }` 包装已收编 (T-ADMIN-027) |
 | 6 | `POST /role/list` | `RoleListQueryReq` | 已对齐 |
 
 ---
@@ -968,7 +968,7 @@ Phase 2 后端实现以上 19 个接口后, 必须满足:
 | 9 | 功能角色分配/回收由 `/api/perm/user-role/assign|revoke` 提供，仅处理功能角色 | ORG/POSITION 由组织与成员关系投影产生；外部 sync 的 SYS_USER_ORG 来源一律拒绝（原 admin 代理端点已删除） |
 | 10 | admin 域不存储 permission 域内部 ID | 跨域统一用业务键; 业务键格式严格按 api-contract.md §6.2.2.4 |
 | 11 | `IdReq` 入参字段名为 `id` 而非 `orgId/userId` | 复用公共 record; 前端在 Phase 2 调整 mock 字段 (例如 `/org/users` 入参 `{ id }`) |
-| 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (如 `/role/list`, `/user-org/list`, `/org/users`; **`/org/tree` 已由 T-ADMIN-021 消化, P1-3**) |
+| 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (`/role/list` 已收编; `/user-org/list`、`/org/users` 已由 T-ADMIN-027 收编; **`/org/tree` 已由 T-ADMIN-021 消化, P1-3**) |
 | 13 | `/user/update` 自我修改业务豁免 | 在 AppService 调用门禁前判断 `operatorId == id` 跳过门禁; 不放在门禁层 |
 | 14 | 错误码段 admin-service 子分配 | 用户域 10001-10299 / 组织域 10300-10499 / 关系域 10400-10499 / 10500 用户-角色代理段（历史分配，无活跃错误码；10111 已退役且码值不复用）+ 10501-10599 文件模块（附录 B，T-ADMIN-023 起） / 其他保留 10600-19999 |
 
@@ -1038,7 +1038,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `POST /oauth2/client/update` | `Oauth2ClientUpdateReq` | `R<Void>` | 仅更新非 null 字段；secret 更新重新 BCrypt |
 | `POST /oauth2/client/delete` | `IdsReq` | `R<Void>` | 批量软删除 |
 | `POST /oauth2/client/detail` | `IdReq` | `R<Oauth2ClientResp>` | 不返回 clientSecret |
-| `POST /oauth2/client/page` | `Oauth2ClientPageReq` | `R<PaginatedResult<Oauth2ClientResp>>` | 按名称/状态过滤 |
+| `POST /oauth2/client/page` | `Oauth2ClientPageReq` | `R<PageResp<Oauth2ClientResp>>` | 按名称/状态过滤 |
 
 `Oauth2ClientCreateReq`：`clientId`* / `clientSecret`* / `clientName`* / `grantTypes`（逗号分隔）/ `redirectUris`（逗号分隔）/ `scopes`（逗号分隔）/ **`audiences`**（逗号分隔资源服务器标识，T-ACCESS-013；配置后签发写入 aud claim）/ `accessTokenTtl`（60-86400）/ `refreshTokenTtl`（60-604800）/ `status`。
 

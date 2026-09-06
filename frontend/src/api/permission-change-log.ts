@@ -16,7 +16,7 @@
  */
 import { http } from "@/utils/http";
 import { type R, unwrap } from "./_envelope";
-import type { PaginatedResp } from "./role-manage";
+import type { PageResp } from "./role-manage";
 
 // ========== diff_snapshot 结构化类型（对齐 api-contract api-contract §6.8） ==========
 
@@ -132,12 +132,12 @@ export type ChangeLogListReq = {
 // ========== API 函数 ==========
 
 /** 查询权限变更日志列表（POST /perm/api/perm/log/change/list，契约路径已随 T-PERM-032 修正）。
- *  多维度过滤 + 服务端分页，返回 PaginatedResp<ChangeLogResp>。
+ *  多维度过滤 + 服务端分页，返回 PageResp<ChangeLogResp>。
  *  权限门禁：独立 PERMISSION_CHANGE_LOG:VIEW（T-PERM-032 审计分离，对齐操作日志 OPERATION_LOG:VIEW 先例）。 */
 export const getChangeLogList = async (
   params: ChangeLogListReq
-): Promise<PaginatedResp<ChangeLogResp>> => {
-  const res = await http.request<R<PaginatedResp<ChangeLogResp>>>(
+): Promise<PageResp<ChangeLogResp>> => {
+  const res = await http.request<R<PageResp<ChangeLogResp>>>(
     "post",
     "/perm/api/perm/log/change/list",
     { data: params }
@@ -183,4 +183,4 @@ export function parseDiffSnapshot(
   }
 }
 
-export { type PaginatedResp };
+export { type PageResp };

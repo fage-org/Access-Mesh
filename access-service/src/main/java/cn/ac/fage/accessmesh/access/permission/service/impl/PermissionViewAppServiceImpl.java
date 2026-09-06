@@ -22,7 +22,8 @@ import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourcePermissionViewRe
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RolePermissionViewResp.PermissionItem;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.UserPermissionViewResp.ResourcePermissionView;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.UserPermissionViewResp.SourceRoleView;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.entity.*;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.*;
@@ -158,7 +159,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on USER:" + userId);
             }
-            PaginatedResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, req);
+            PageResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, req);
             List<PermissionEffectivePermissionsResp.EffectivePermissionItem> items = paged.items().stream().map(v ->
                 new PermissionEffectivePermissionsResp.EffectivePermissionItem(
                     v.resourceTypeCode(), v.resourceCode(), v.resourceName(), v.codeType(),
@@ -180,7 +181,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on ROLE");
         }
-        PaginatedResp<PermissionItem> paged = getRolePermissionItemsPaged(
+        PageResp<PermissionItem> paged = getRolePermissionItemsPaged(
             tenantId, roleId, pageNum, pageSize);
         List<PermissionEffectivePermissionsResp.EffectivePermissionItem> items = paged.items().stream().map(p ->
             new PermissionEffectivePermissionsResp.EffectivePermissionItem(
@@ -206,13 +207,13 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      * @param req      权限视图查询请求
      * @return 分页后的资源权限视图列表
      */
-    PaginatedResp<ResourcePermissionView> getUserPermissionsWithFilters(Long tenantId, Long userId, UserPermissionViewReq req) {
+    PageResp<ResourcePermissionView> getUserPermissionsWithFilters(Long tenantId, Long userId, UserPermissionViewReq req) {
         // 1. 解析用户角色并过滤
         Set<Long> allRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
         if (allRoleIds.isEmpty()) {
             int pageNum = PageUtil.pageNum(req.pageNum());
             int pageSize = PageUtil.pageSize(req.pageSize());
-            return new PaginatedResp<>(List.of(), 0L, pageNum, pageSize, false);
+            return new PageResp<>(List.of(), 0L, pageNum, pageSize, false);
         }
 
         Set<Long> filteredRoleIds = filterRoleIds(tenantId, allRoleIds,
@@ -220,7 +221,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         if (filteredRoleIds.isEmpty()) {
             int pageNum = PageUtil.pageNum(req.pageNum());
             int pageSize = PageUtil.pageSize(req.pageSize());
-            return new PaginatedResp<>(List.of(), 0L, pageNum, pageSize, false);
+            return new PageResp<>(List.of(), 0L, pageNum, pageSize, false);
         }
 
         // 2. 构建 forUserView 查询
@@ -232,7 +233,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         if (!result.allowed()) {
             int pageNum = PageUtil.pageNum(req.pageNum());
             int pageSize = PageUtil.pageSize(req.pageSize());
-            return new PaginatedResp<>(List.of(), 0L, pageNum, pageSize, false);
+            return new PageResp<>(List.of(), 0L, pageNum, pageSize, false);
         }
 
         // 4. 构建过滤条件
@@ -267,7 +268,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      * @param tenantId   租户ID
      * @return 分页后的资源权限视图列表
      */
-    private PaginatedResp<ResourcePermissionView> buildResponseFromView(PermViewResult viewResult, PermViewFilter filter, Long tenantId) {
+    private PageResp<ResourcePermissionView> buildResponseFromView(PermViewResult viewResult, PermViewFilter filter, Long tenantId) {
         List<ResourcePermissionView> items = new ArrayList<>();
 
         // scopeAll 条目：按 resourceType 分组，每种类型生成一个视图项
@@ -306,7 +307,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             .collect(Collectors.toList());
         boolean hasNext = offset + pageSize < totalItems;
 
-        return new PaginatedResp<>(pagedItems, totalItems,
+        return new PageResp<>(pagedItems, totalItems,
             pageNum, pageSize, hasNext);
     }
 
@@ -624,9 +625,9 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
      * @param pageSize 每页大小
      * @return 分页后的权限项列表
      */
-    private PaginatedResp<PermissionItem> getRolePermissionItemsPaged(Long tenantId, Long roleId, int pageNum, int pageSize) {
+    private PageResp<PermissionItem> getRolePermissionItemsPaged(Long tenantId, Long roleId, int pageNum, int pageSize) {
         if (roleId == null) {
-            return new PaginatedResp<>(List.of(), 0L, pageNum, pageSize, false);
+            return new PageResp<>(List.of(), 0L, pageNum, pageSize, false);
         }
         int offset = Math.max((pageNum - 1) * pageSize, 0);
         long total = rolePermMapper.countByRoleId(tenantId, roleId);
@@ -667,7 +668,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 p.getGrantSource()
             );
         }).toList();
-        return new PaginatedResp<>(items, total, pageNum, pageSize, offset + items.size() < total);
+        return new PageResp<>(items, total, pageNum, pageSize, offset + items.size() < total);
     }
 
     /**
@@ -1105,7 +1106,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             null, null, req.resourceTypeCodes(), req.operationCodes(),
             req.resourceKeyword(), null, false, false, false, null, 1, 10000
         );
-        PaginatedResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, treeReq);
+        PageResp<ResourcePermissionView> paged = getUserPermissionsWithFilters(tenantId, userId, treeReq);
         Set<Long> permittedIds = paged.items().stream()
             .map(ResourcePermissionView::resourceEntityId)
             .filter(Objects::nonNull)

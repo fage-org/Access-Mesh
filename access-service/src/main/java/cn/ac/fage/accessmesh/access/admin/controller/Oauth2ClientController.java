@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.admin.dto.req.Oauth2ClientPageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.Oauth2ClientUpdateReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.Oauth2ClientResp;
 import cn.ac.fage.accessmesh.access.admin.service.Oauth2ClientService;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -108,7 +108,7 @@ public class Oauth2ClientController {
      * @return 分页客户端列表结果
      */
     @PostMapping("/page")
-    public R<PaginatedResult<Oauth2ClientResp>> pageClients(@Valid @RequestBody Oauth2ClientPageReq req) {
+    public R<PageResp<Oauth2ClientResp>> pageClients(@Valid @RequestBody Oauth2ClientPageReq req) {
         return R.ok(oauth2ClientService.pageClientResps(req));
     }
 }

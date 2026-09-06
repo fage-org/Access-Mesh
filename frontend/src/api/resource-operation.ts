@@ -18,7 +18,7 @@
  */
 import { http } from "@/utils/http";
 import { type R, unwrap } from "./_envelope";
-import type { ItemsResp, PaginatedResp } from "./role-manage";
+import type { ItemsResp, PageResp } from "./role-manage";
 
 // ========== 业务键 ==========
 
@@ -186,8 +186,8 @@ export const getResourceTree = async (
  *  本页以树为主不消费，保留对齐契约。 */
 export const getResourceList = async (
   params: ResourceListQuery
-): Promise<PaginatedResp<ResourceResp>> => {
-  const res = await http.request<R<PaginatedResp<ResourceResp>>>(
+): Promise<PageResp<ResourceResp>> => {
+  const res = await http.request<R<PageResp<ResourceResp>>>(
     "post",
     "/perm/api/perm/resource-entity/list",
     { data: params }
@@ -313,4 +313,4 @@ export const removeOperations = async (keys: OperationKey[]): Promise<void> => {
   );
 };
 
-export { type PaginatedResp, type ItemsResp };
+export { type PageResp, type ItemsResp };

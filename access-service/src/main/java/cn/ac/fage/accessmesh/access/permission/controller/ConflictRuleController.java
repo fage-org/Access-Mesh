@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.IdReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.EmptyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConflictDetectResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConflictRuleResp;
 import cn.ac.fage.accessmesh.access.permission.service.ConflictRuleAppService;
 import jakarta.validation.Valid;

@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.FileResp;
 import cn.ac.fage.accessmesh.access.admin.service.FileService;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -97,7 +97,7 @@ public class FileController {
      * @return 分页文件列表结果
      */
     @PostMapping("/page")
-    public R<PaginatedResult<FileResp>> pageFiles(@Valid @RequestBody FilePageReq pageReq) {
+    public R<PageResp<FileResp>> pageFiles(@Valid @RequestBody FilePageReq pageReq) {
         return R.ok(fileService.pageFiles(pageReq, pageReq.bizType()));
     }
 

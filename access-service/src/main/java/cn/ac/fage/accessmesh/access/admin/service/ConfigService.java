@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.access.admin.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.dto.resp.ConfigResp;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 
 /**
  * 系统配置服务接口
@@ -26,7 +26,7 @@ public interface ConfigService {
      * @param pageReq 分页查询请求
      * @return 分页配置列表结果
      */
-    PaginatedResult<ConfigResp> pageConfigs(PageReq pageReq);
+    PageResp<ConfigResp> pageConfigs(PageReq pageReq);
 
     /**
      * 获取配置详情

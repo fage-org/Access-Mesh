@@ -10,14 +10,14 @@
  *
  * 后端端点 5 个：list / detail / create / update / remove（批量软删）。
  * - biz-domain 有独立 create/update/remove（非 save upsert，与 system-config 不同）。
- * - T-PERM-026 收口：list 服务端 keyword（code/name/description LIKE）+ 分页返回 PaginatedResp
+ * - T-PERM-026 收口：list 服务端 keyword（code/name/description LIKE）+ 分页返回 PageResp
  *   （ORDER BY code,id；不传分页参数=字典全量上限 200）；detail/update 切业务键 code；
  *   Resp 返回 global（全局域标识，前端禁删）；remove 删除保护（全局域/域下有配置 20051）；
  *   create 编码重复 20052。
  */
 import { http } from "@/utils/http";
 import { type R, unwrap } from "./_envelope";
-import type { PaginatedResp } from "./role-manage";
+import type { PageResp } from "./role-manage";
 
 // ========== 业务域定义 ==========
 
@@ -65,11 +65,11 @@ export type BizDomainUpdateReq = {
 
 /** 查询业务域列表（POST /api/perm/biz-domain/list，BizDomainListReq）。
  *  T-PERM-026 收口：服务端 keyword 过滤（code/name/description，LIKE）+ 分页，
- *  返回 PaginatedResp（ORDER BY code,id）；不传分页参数 = 字典全量（上限 200）。 */
+ *  返回 PageResp（ORDER BY code,id）；不传分页参数 = 字典全量（上限 200）。 */
 export const getBizDomainList = async (
   params: BizDomainListQuery
-): Promise<PaginatedResp<BizDomainResp>> => {
-  const res = await http.request<R<PaginatedResp<BizDomainResp>>>(
+): Promise<PageResp<BizDomainResp>> => {
+  const res = await http.request<R<PageResp<BizDomainResp>>>(
     "post",
     "/perm/api/perm/biz-domain/list",
     { data: params }

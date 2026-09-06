@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.UserEffectiveRolesReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserPermissionViewReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserResourceTreeReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.EffectiveRoleResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionEffectivePermissionsResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionExplainResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourcePermissionTreeResp;

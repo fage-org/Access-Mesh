@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.admin.entity.SysJob;
 import cn.ac.fage.accessmesh.access.admin.service.JobService;
 import cn.ac.fage.accessmesh.common.model.R;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 
 /**
  * 定时任务管理控制器
@@ -144,7 +143,7 @@ public class JobController {
      * @return 分页任务列表结果
      */
     @PostMapping("/page")
-    public R<PaginatedResult<JobResp>> pageJobs(@Valid @RequestBody PageReq req) {
+    public R<PageResp<JobResp>> pageJobs(@Valid @RequestBody PageReq req) {
         return R.ok(jobService.pageJobs(req, null));
     }
 
@@ -159,7 +158,7 @@ public class JobController {
      * @return 分页任务日志列表结果
      */
     @PostMapping("/log/page")
-    public R<PaginatedResult<JobLogResp>> pageJobLogs(
+    public R<PageResp<JobLogResp>> pageJobLogs(
             @Valid @RequestBody JobLogPageReq req) {
         return R.ok(jobService.pageJobLogs(req, req.jobId()));
     }

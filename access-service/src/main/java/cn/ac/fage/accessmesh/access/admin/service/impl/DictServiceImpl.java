@@ -22,7 +22,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import com.mybatisflex.core.paginate.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -220,7 +220,7 @@ public class DictServiceImpl implements DictService {
      * @return 分页字典类型列表结果
      */
     @Override
-    public PaginatedResult<DictTypeResp> pageDictTypes(PageReq pageReq) {
+    public PageResp<DictTypeResp> pageDictTypes(PageReq pageReq) {
         Page<SysDictType> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysDictType> result = dictTypeMapper.paginateByTenantId(page, TenantContextHolder.getTenantId());
 
@@ -228,9 +228,7 @@ public class DictServiceImpl implements DictService {
             .map(t -> new DictTypeResp(t.getId(), t.getDictName(), t.getDictType(), t.getStatus(), t.getRemark(), t.getCreatedAt(), List.of()))
             .collect(Collectors.toList());
 
-        long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
-        return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
+        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
     }
 
     /**

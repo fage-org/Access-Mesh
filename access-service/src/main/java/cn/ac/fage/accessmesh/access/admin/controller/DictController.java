@@ -9,7 +9,8 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.DictTypeResp;
 import cn.ac.fage.accessmesh.access.admin.service.DictService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 
 /**
  * 字典管理控制器
@@ -81,8 +81,8 @@ public class DictController {
      * @return 字典类型列表
      */
     @PostMapping("/type/list")
-    public R<List<DictTypeResp>> listDictTypes() {
-        return R.ok(dictService.listDictTypes());
+    public R<ItemsResp<DictTypeResp>> listDictTypes() {
+        return R.ok(new ItemsResp<>(dictService.listDictTypes()));
     }
 
     /**
@@ -95,7 +95,7 @@ public class DictController {
      * @return 分页字典类型列表结果
      */
     @PostMapping("/type/page")
-    public R<PaginatedResult<DictTypeResp>> pageDictTypes(@Valid @RequestBody PageReq pageReq) {
+    public R<PageResp<DictTypeResp>> pageDictTypes(@Valid @RequestBody PageReq pageReq) {
         return R.ok(dictService.pageDictTypes(pageReq));
     }
 
@@ -154,7 +154,7 @@ public class DictController {
      * @return 字典数据列表
      */
     @PostMapping("/data/list")
-    public R<List<DictDataResp>> listDictData(@Valid @RequestBody IdReq req) {
-        return R.ok(dictService.listDictData(req.id()));
+    public R<ItemsResp<DictDataResp>> listDictData(@Valid @RequestBody IdReq req) {
+        return R.ok(new ItemsResp<>(dictService.listDictData(req.id())));
     }
 }

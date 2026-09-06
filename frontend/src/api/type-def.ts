@@ -12,7 +12,7 @@
  */
 import { http } from "@/utils/http";
 import { type R, unwrap } from "./_envelope";
-import type { PaginatedResp, ItemsResp } from "./role-manage";
+import type { PageResp, ItemsResp } from "./role-manage";
 
 // ========== 类型种类常量（type_key 分组） ==========
 
@@ -110,12 +110,12 @@ export type TypeDefUpdateReq = {
 // ========== API 函数 ==========
 
 /** 查询类型定义列表（POST /perm/api/perm/type-definition/list）。
- *  T-PERM-023 收口：服务端 typeKey/keyword 过滤 + 分页，返回 PaginatedResp
+ *  T-PERM-023 收口：服务端 typeKey/keyword 过滤 + 分页，返回 PageResp
  *  （ORDER BY sortOrder,id）；不传分页参数 = 字典全量（上限 200）。 */
 export const getTypeDefList = async (
   params: TypeDefListQuery
-): Promise<PaginatedResp<TypeDefResp>> => {
-  const res = await http.request<R<PaginatedResp<TypeDefResp>>>(
+): Promise<PageResp<TypeDefResp>> => {
+  const res = await http.request<R<PageResp<TypeDefResp>>>(
     "post",
     "/perm/api/perm/type-definition/list",
     { data: params }
@@ -169,4 +169,4 @@ export const removeTypeDefs = async (ids: number[]): Promise<void> => {
   );
 };
 
-export { type PaginatedResp, type ItemsResp };
+export { type PageResp, type ItemsResp };

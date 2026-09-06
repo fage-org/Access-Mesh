@@ -7,7 +7,8 @@ import cn.ac.fage.accessmesh.access.admin.dto.resp.NoticeResp;
 import cn.ac.fage.accessmesh.access.admin.service.NoticeService;
 import cn.ac.fage.accessmesh.common.model.IdReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.dev33.satoken.stp.StpUtil;
 import jakarta.validation.Valid;
@@ -109,7 +110,7 @@ public class NoticeController {
      * @return 分页公告列表结果
      */
     @PostMapping("/page")
-    public R<PaginatedResult<NoticeResp>> pageNotices(@Valid @RequestBody PageReq pageReq) {
+    public R<PageResp<NoticeResp>> pageNotices(@Valid @RequestBody PageReq pageReq) {
         return R.ok(noticeService.pageNotices(pageReq));
     }
 
@@ -154,7 +155,7 @@ public class NoticeController {
      * @return 用户公告列表，包含公告信息和已读状态
      */
     @PostMapping("/my-notices")
-    public R<java.util.List<NoticeService.UserNoticeItem>> listMyNotices() {
-        return R.ok(noticeService.listMyNotices(StpUtil.getLoginIdAsLong()));
+    public R<ItemsResp<NoticeService.UserNoticeItem>> listMyNotices() {
+        return R.ok(new ItemsResp<>(noticeService.listMyNotices(StpUtil.getLoginIdAsLong())));
     }
 }

@@ -6,6 +6,7 @@
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  */
 import { http } from "@/utils/http";
+import type { PageResp } from "./role-manage";
 import { type R, unwrap } from "./_envelope";
 
 // ========== 类型定义 ==========
@@ -76,16 +77,6 @@ export type UserPageQuery = {
   orgId?: number;
 };
 
-/** 分页响应（对齐后端 PaginatedResult） */
-export type PaginatedResult<T> = {
-  items: T[];
-  pagination: {
-    total: number;
-    page: number;
-    size: number;
-    totalPages: number;
-  };
-};
 
 export type UserRoleItem = {
   roleTypeCode: string;
@@ -205,7 +196,7 @@ export type MemberCandidateItem = {
 
 /** 获取可用组织树配置列表（POST /admin/org-tree-config/page，分页取前 100 条） */
 export const getOrgTreeConfigs = async (): Promise<OrgTreeConfig[]> => {
-  const res = await http.request<R<PaginatedResult<OrgTreeConfig>>>(
+  const res = await http.request<R<PageResp<OrgTreeConfig>>>(
     "post",
     "/admin/org-tree-config/page",
     { data: { pageNum: 1, pageSize: 100 } }
@@ -226,8 +217,8 @@ export const getOrgTree = async (params: OrgQuery): Promise<OrgTreeNode[]> => {
 /** 获取用户分页列表（POST /admin/user/page） */
 export const getUserPage = async (
   params: UserPageQuery
-): Promise<PaginatedResult<UserItem>> => {
-  const res = await http.request<R<PaginatedResult<UserItem>>>(
+): Promise<PageResp<UserItem>> => {
+  const res = await http.request<R<PageResp<UserItem>>>(
     "post",
     "/admin/user/page",
     { data: params }
@@ -277,12 +268,13 @@ export const deleteUser = async (ids: number[]): Promise<void> => {
 
 /** 查询用户所属组织（POST /admin/user-org/list，IdReq.id=userId） */
 export const getUserOrgs = async (userId: number): Promise<OrgBrief[]> => {
-  const res = await http.request<R<OrgBrief[]>>(
+  const res = await http.request<R<{ items: OrgBrief[] }>>(
     "post",
     "/admin/user-org/list",
     { data: { id: userId } }
   );
-  return unwrap(res);
+  // T-ADMIN-027：后端改 {items:[...]} 包装，此处解包保持调用方数组契约
+  return unwrap(res).items;
 };
 
 /** 分配组织（POST /admin/user-org/assign；普通组织 ORG:MANAGE_MEMBER / 岗位 ORG:ASSIGN_POSITION_USER） */
@@ -431,8 +423,8 @@ export const deleteOrg = async (id: number): Promise<void> => {
 /** 组织分页列表（POST /admin/org/page，平铺不含 children） */
 export const getOrgPage = async (
   params: OrgPageQuery
-): Promise<PaginatedResult<OrgPageItem>> => {
-  const res = await http.request<R<PaginatedResult<OrgPageItem>>>(
+): Promise<PageResp<OrgPageItem>> => {
+  const res = await http.request<R<PageResp<OrgPageItem>>>(
     "post",
     "/admin/org/page",
     { data: params }
@@ -474,9 +466,9 @@ export const resetUserPassword = async (data: {
  */
 export const getMemberCandidates = async (
   params: MemberCandidatesQuery
-): Promise<PaginatedResult<MemberCandidateItem>> => {
+): Promise<PageResp<MemberCandidateItem>> => {
   const res = await http.request<
-    R<PaginatedResult<MemberCandidateItem>>
+    R<PageResp<MemberCandidateItem>>
   >("post", "/admin/user/member-candidates", { data: params });
   return unwrap(res);
 };
@@ -499,10 +491,11 @@ export const getRoleList = async (): Promise<RoleItem[]> => {
 
 /** 组织下的用户（POST /admin/org/users，IdReq.id=orgId） */
 export const getOrgUsers = async (orgId: number): Promise<OrgUserItem[]> => {
-  const res = await http.request<R<OrgUserItem[]>>(
+  const res = await http.request<R<{ items: OrgUserItem[] }>>(
     "post",
     "/admin/org/users",
     { data: { id: orgId } }
   );
-  return unwrap(res);
+  // T-ADMIN-027：后端改 {items:[...]} 包装，此处解包保持调用方数组契约
+  return unwrap(res).items;
 };

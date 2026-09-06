@@ -19,7 +19,7 @@ import cn.ac.fage.accessmesh.access.admin.mapper.SysUserNoticeMapper;
 import cn.ac.fage.accessmesh.access.admin.service.NoticeService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.model.PaginatedResult;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import com.mybatisflex.core.paginate.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -208,7 +208,7 @@ public class NoticeServiceImpl implements NoticeService {
      * @return 分页通知列表结果
      */
     @Override
-    public PaginatedResult<NoticeResp> pageNotices(PageReq pageReq) {
+    public PageResp<NoticeResp> pageNotices(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
         Page<SysNotice> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
         Page<SysNotice> result = noticeMapper.paginateByTenant(page, tenantId);
@@ -219,9 +219,7 @@ public class NoticeServiceImpl implements NoticeService {
                 n.getStatus(), n.getCreatedAt(), n.getUpdatedAt()))
             .toList();
 
-        long totalPages = (result.getTotalRow() + pageReq.pageSize() - 1) / pageReq.pageSize();
-        return new PaginatedResult<>(items,
-            new PaginatedResult.PaginationMeta(result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), (int) totalPages));
+        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
     }
 
     /**

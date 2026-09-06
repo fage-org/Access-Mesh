@@ -9,8 +9,8 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.RoleDetailReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleMoveReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ItemsResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PaginatedResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleTreeResp;
 import cn.ac.fage.accessmesh.access.permission.service.RoleManageAppService;
@@ -136,7 +136,7 @@ public class PermRoleController {
      * @return 分页角色列表结果
      */
     @PostMapping("/list")
-    public R<PaginatedResp<RoleResp>> listRoles(@Valid @RequestBody RoleListReq req) {
+    public R<PageResp<RoleResp>> listRoles(@Valid @RequestBody RoleListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
         int offset = PageUtil.offset(pageNum, pageSize);
@@ -147,7 +147,7 @@ public class PermRoleController {
         List<RoleResp> items = roleManageAppService.listRoles(
             tenantId, req.domainCode(), req.roleTypeCode(), req.roleTypeCodes(), req.keyword(), offset, pageSize
         );
-        return R.ok(new PaginatedResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(new PageResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
     }
 
     /**
