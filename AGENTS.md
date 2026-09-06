@@ -83,89 +83,17 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 
 ## 项目级 Skills（自动加载）
 
-项目在 `.claude/skills/` 目录下定义了以下技能，会在相关场景自动加载：
+项目技能维护于 `.claude/skills/` 与 `.agents/skills/` 双副本（改一份须同步全部）；正文以 skill 文件为唯一权威，此处仅留指针，详细触发条件与规范见各 SKILL.md：
 
-### dual-layer-cache-framework
-
-**自动触发条件**: 涉及缓存相关代码、`CacheService`、`CacheCatalogEntry`、`CacheMode`、
-`CacheReadToken`、`CombinedL1L2Store`、`RedissonBucketStore`、`CaffeineLocalCacheStore`、
-`CacheAutoConfiguration`、`RedissonCacheAutoConfiguration`、`CacheInvalidationBroadcaster`、
-缓存失效逻辑、关键词 "cache"、"缓存"、"Caffeine"、"Redis"、"Redisson"、"evictAfterCommit"、
-"getBatch"、`CacheProperties`、"剩余 TTL"、"beginRead"、"单次有效 TTL"。
-
-**核心要点**:
-
-- **框架位置**: `common/cache/` 模块，所有服务可复用
-- **唯一入口**: 业务层只注入 `CacheService`，不再创建 `CacheManager` / region 类
-- **装配模型**: `CacheAutoConfiguration` 始终创建唯一 `CacheService`；`RedissonCacheAutoConfiguration` 只提供 Redisson store 与跨实例 L1 失效广播器
-- **键格式**: `{tenantId}:{catalogCode}:{identifier}`
-- **TTL**: 统一 `java.time.Duration` 秒级精度；YAML 用 Spring Duration 文法（`15s`/`5m`）；分钟字段已删除、无兼容别名
-- **使用模式**: `get` → miss 后业务加载 → `put` → 写路径使用 `evictAfterCommit`
-- **模式划分**: `L1_L2` 使用 `CombinedL1L2Store`，`L2_ONLY` 使用 `RedissonBucketStore`，`L1_ONLY` 使用 `CaffeineLocalCacheStore`
-- **剩余 TTL 回填（T-ACCESS-008）**: 授权 L2 miss 在 DB 读取前 `beginRead` 记录单调时钟起点，`put(token,...)` 只写剩余 TTL、≤0 不写、批量/重试不重置起点；`put(..., Duration)` 单次有效 TTL 强制 cap catalog TTL
-- **30s 安全边界（启动强制）**: 快照链路 6 目录 L2_ONLY 且有效 L2 TTL≤10s（`PermCacheBoundaryValidator`）；Gateway 快照 L1≤15s、加载截止≤5s（`GatewayCacheBoundaryValidator`）；超截止不写缓存 fail-closed 503
-- **普通 L1 跨实例失效**: L1_L2 目录失效时经 RTopic 广播，各实例清本地 L1；失败仅记 `cache.invalidate.failures` 指标，L1 TTL 兜底
-- **禁止事项**: 禁止 loader 回调缓存 API、禁止直接操作 `RedisTemplate` / `StringRedisTemplate` / 裸 `Caffeine`、禁止业务缓存继续使用 Spring Cache 注解、禁止循环单条查询、禁止 `KEYS`、禁止分钟制 TTL 字段或硬编码 TTL 换算
-
-**Catalog 定义示例**:
-
-```java
-public final class MyCacheCatalog {
-    public static final CacheCatalogEntry<MyData> DETAIL =
-        CacheCatalogEntry.<MyData>builder()
-            .code("my:detail")
-            .mode(CacheMode.L1_L2)
-            .l1Ttl(Duration.ofMinutes(5))
-            .l1MaxSize(1000)
-            .l2Ttl(Duration.ofMinutes(30))
-            .valueType(new TypeRef<MyData>() {})
-            .build();
-}
-```
-
-**业务调用示例**:
-
-```java
-MyData data = cacheService.get(MyCacheCatalog.DETAIL, tenantId, id);
-if (data == null) {
-    data = mapper.selectById(id);
-    if (data != null) {
-        cacheService.put(MyCacheCatalog.DETAIL, tenantId, id, data);
-    }
-}
-
-cacheService.evictAfterCommit(MyCacheCatalog.DETAIL, tenantId, id);
-```
-
-### permission-query-pipeline
-
-**自动触发条件**: 涉及权限查询/校验代码、`PermQueryEngine`、`PermQuery`、`PermResult`、`OperationCodeConstants`、
-`ResourceTypeCode`、批量权限检查、权限相关逻辑，关键词 "permission"、"权限"、"hasPermissionByCode"、
-"getDeniedResourceCodes"、"hasPermissionByEntityId"、"getDeniedEntityIds"、"canGrant"。
-
-**核心 API**（T-PERM-042 终态：旧 `hasPermission`/`validateBatch`/`getDeniedIds` 已从引擎删除）：
-
-```java
-// —— 业务编码轨（对外；USER/ROLE 等业务对象门禁统一使用）——
-// T-ORG-001 统一后操作者 ID 即主体 ID（operatorId = abstract_user.id = sys_user.id），无转换层
-// 单目标鉴权（code 传 null = 类型级）
-boolean allowed = engine.hasPermissionByCode(tenantId, operatorId,
-    ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.MANAGE);
-
-// 批量获取拒绝的业务编码集合（引擎纯查询不抛异常，拒绝时调用方显式 throw）
-Set<String> denied = engine.getDeniedResourceCodes(tenantId, operatorId,
-    ResourceTypeCode.DOMAIN, domainCodes, OperationCodeConstants.VIEW);
-
-// —— entityId 轨（仅引擎内部或已完成解析的调用方：资源树、API 映射、资源依赖、权限树等）——
-boolean ok = engine.hasPermissionByEntityId(tenantId, operatorId,
-    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.MANAGE);
-Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, operatorId,
-    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCodeConstants.DELETE);
-```
-
-**OperationCodeConstants 操作码**: CREATE, VIEW, MANAGE, UPDATE, DELETE, ASSIGN, REVOKE, SYNC,
-MANAGE_API_MAPPING, SYNC_INTERFACE, GRANT。禁止 `ResourcePermissionValidator` / `OperationType` 枚举 /
-`ResourcePermissionStrategy`（均已删除）；禁止绕过引擎直查 `rolePermMapper` 做权限判定。
+| 技能                          | 定位                                                                                                        |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `dual-layer-cache-framework`  | 统一缓存框架规范：涉及 CacheService/缓存目录/L1+L2 存储/失效广播/TTL/evictAfterCommit 等缓存代码时读 skill   |
+| `permission-query-pipeline`   | 权限查询引擎规范：涉及 PermQueryEngine/权限校验/批量检查/OperationCodeConstants 时读 skill；禁止绕过引擎直查 rolePermMapper |
+| `accessmesh-patterns`         | 仓库级开发模式速查：分层边界/API 路径/DTO 命名/审计字段/N+1/禁止依赖/提交规范                                  |
+| `dual-track-local-review`     | 任务本地双轨评审与收口 checklist（收口默认动作；不自动串联 codex）                                             |
+| `codex-external-review`       | codex 外部评审执行规范（仅用户显式触发）                                                                     |
+| `design-plan-task-lifecycle`  | 设计/计划/任务三层文档生命周期治理                                                                            |
+| `grill`                       | 访谈式计划压力测试（当前仅 .claude 侧；ZCode 用户级另有 grill-me/grilling）                                  |
 
 ## 常用命令（开发阶段预估）
 
