@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.gateway.e2e;
+package cn.ac.fage.accessmesh.e2e;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -61,8 +61,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 签发或注入令牌，不旁路平台超管。
  *
  * <p>注意：本 IT 需在 maven（surefire/IDE 传递完整 java.class.path）下执行；
- * {@code @Tag("testcontainers")} 使其只随容器门控 execution 运行
- * （{@code mvn test -pl gateway}，CI 单测 job 经 -DskipTestcontainers=true 排除）。
+ * T-ACCESS-031 自 gateway 测试树迁入独立 e2e 模块（模块整轨即 E2E）——随 mvn test
+ * 执行，日常全仓经 -DskipE2E=true 跳过（收口必跑）；{@code @Tag("testcontainers")}
+ * 保留轨道标识（与各服务容器轨同词汇）。
  */
 @Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)
@@ -568,8 +569,8 @@ class BasicRoleGrantVerticalSliceE2EIT {
      * 以子进程启动一个服务并等待就绪端点返回 200。
      *
      * <p>类路径取当前测试 JVM 的 java.class.path 并过滤掉 test-classes——子进程只应看到
-     * 生产 classes 与依赖；两服务 main class 均在该类路径上（gateway 自身 + access-service
-     * test 依赖）。注意两点：① 本地仓库中的 access-service jar 已被 spring-boot 插件
+     * 生产 classes 与依赖；各服务 main class 均在该类路径上（gateway/access-service/
+     * example-service 经 e2e 模块 test 依赖引入，T-ACCESS-031 迁移前 gateway 为「自身」）。注意两点：① 本地仓库中的 access-service jar 已被 spring-boot 插件
      * repackage 为 fat jar（主类在 BOOT-INF 下、不可经 -cp 加载），须显式加入 reactor 布局
      * 下的 ../access-service/target/classes；② 共享类路径上两服务的 application.yml 同名——
      * access-service 子进程必须把自己的 classes 目录<b>前置</b>（classpath 首个命中），

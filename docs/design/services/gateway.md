@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-08-28   # 2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-25
+last_reviewed: 2026-09-06   # 2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031：E2E 迁独立 e2e 模块，gateway 解除跨服务 test 依赖与容器轨死配置）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；2026-08-25
 ---
 
 # Gateway 服务设计
@@ -176,10 +176,10 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 - 接口级鉴权契约以 `../permission-center/api-contract.md` 为准（§6.5 check-interface、§6.6 interface-snapshot）。
 - 限流、请求体大小、安全响应头按网关配置实现；CORS 见上文「CORS 配置终态」段。
 
-## 测试域与 E2E IT（T-ACCESS-021，2026-08-24）
+## 测试域与 E2E IT（T-ACCESS-021 建链，T-ACCESS-031 分轨）
 
-- 单元/上下文测试（`GatewayApplicationConfigTest` 等）与容器 E2E（`BasicRoleGrantVerticalSliceE2EIT`，`@Tag("testcontainers")`）按 surefire 双 execution 分轨（`-DskipTestcontainers=true` 跳过容器组），与 access-service 同款。
-- 跨服务 E2E IT 托管于 gateway 测试域：access-service 以 **test 依赖**引入（生产依赖图不变；附带 webmvc 须显式 `spring-webmvc` test 依赖恢复——common 对 webmvc 的既有排除使最近路径去重吞掉该件），IT 以**子进程**（独立 JVM）启动两服务、PG/Redis 走 Testcontainers、重启即 kill+respawn；`GatewayApplicationConfigTest` 因此显式 `web-application-type=reactive` 并排除 access-service 依赖树新带入的自动配置（Redisson/RedissonCacheAutoConfiguration/sa-token-servlet 注册器/DataSource 系）。
+- gateway 自有测试 = 单元/上下文测试（`GatewayApplicationConfigTest` 等）+ 容器组（缓存失效订阅等），按 surefire 双 execution 分轨（`-DskipTestcontainers=true` 跳过容器组），与 access-service 同款。
+- 跨服务 E2E IT（`BasicRoleGrantVerticalSliceE2EIT`、`ExampleProtectedApiE2EIT`）已迁独立 **e2e 模块**（T-ACCESS-031，reactor 末位）：模块 test 依赖 gateway/access-service/example-service 三服务（配方含 logging 排除与 `spring-webmvc` test 依赖——common 对 webmvc 的既有排除使最近路径去重吞掉该件），IT 以**子进程**（独立 JVM）启动各服务、PG/Redis 走 Testcontainers、重启即 kill+respawn；模块整轨随 `mvn test` 执行，`-DskipE2E=true` 跳过（日常全仓跳过、收口必跑）。gateway 因此解除全部跨服务 test 依赖（轻模块，可与 access-service 在 `mvn -T` 下并行）；`GatewayApplicationConfigTest` 的显式 `web-application-type=reactive` 与依赖树带出自动配置的排除保留为防回归护栏。
 - E2E 环境免 Nacos：`spring.cloud.discovery.client.simple.instances` 静态实例直连（路由与权限回源 WebClient 同源解析）；真实 Nacos 链路由 compose 手动 runbook 覆盖。执行细节与证据见任务卡 T-ACCESS-021。
 
 ## 实现参考

@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -252,11 +253,16 @@ class GatewayInvalidationRaceTest {
         InterfaceSnapshotResp fresh = snapshot("fresh");
         AtomicInteger calls = new AtomicInteger();
         CountDownLatch loadStarted = new CountDownLatch(1);
+        // 首次回源提交闸门：撤权事件先发出、再放行 stale——「已开始（注册表在途）、未提交」
+        // 窗口被确定性命中。原 delayElement(150ms)+sleep(50) 的固定余量在机器负载下会被
+        // 主线程调度延迟击穿（T-ACCESS-031 -T 模块并行日常形态下实证失败：evict 落到
+        // stale 提交之后，无在途 key 可标、不触发重试）
+        CompletableFuture<Void> staleCommitGate = new CompletableFuture<>();
         when(permissionClient.interfaceSnapshot(anyString(), anyLong(), anyString(), anyLong()))
             .thenAnswer(inv -> {
                 loadStarted.countDown();
                 if (calls.incrementAndGet() == 1) {
-                    return Mono.just(R.ok(stale)).delayElement(Duration.ofMillis(150));
+                    return Mono.just(R.ok(stale)).delayUntil(v -> Mono.fromFuture(staleCommitGate));
                 }
                 return Mono.just(R.ok(fresh));
             });
@@ -267,12 +273,13 @@ class GatewayInvalidationRaceTest {
             Future<?> request = executor.submit(() ->
                 filter.filter(buildExchange(), chain).block(Duration.ofSeconds(5)));
 
-            // 首次回源已开始（在途），但尚未写缓存/track——跟踪索引为空
+            // 首次回源已开始（loadRegistry.load 经 computeIfAbsent 先注册在途再订阅），
+            // 但尚未写缓存——跟踪索引侧的失效标记为空
             assertThat(loadStarted.await(3, TimeUnit.SECONDS)).isTrue();
             assertThat(marker.contains(TENANT_ID + ":" + identifier())).isFalse();
-            Thread.sleep(50);
-            // 仅 userIds 的用户级撤权事件
+            // 仅 userIds 的用户级撤权事件：先于 stale 提交发出（确定性在途未提交窗口）
             invalidator.evict(new PermInvalidateEvent(TENANT_ID, Set.of(), Set.of(USER_ID), Set.of()));
+            staleCommitGate.complete(null);
 
             request.get(5, TimeUnit.SECONDS);
         } finally {

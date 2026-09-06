@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-09-05   # 2026-09-05 T-ACCESS-029 实现收口：§14.2 收缩通道墓碑三分落地（BootstrapSeedWriter 墓碑查询诊断例外 + 升级口径与重建换 id 边界成文、runbook 处置步骤交叉引用）；2026-09-05 §14.2 固定图收缩通道墓碑三分定案（缺行+软删墓碑=告警放行不补回/无墓碑=仍拒启，T-ACCESS-029 承接）+ 固定图→租户初始化演进方向登记；2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
+last_reviewed: 2026-09-06   # 2026-09-06 §14.8 E2E 自动化轨落位改 e2e 独立模块（T-ACCESS-031：E2E 分轨迁出 gateway、skipE2E 日常/收口两形态口径）；2026-09-05 T-ACCESS-029 实现收口：§14.2 收缩通道墓碑三分落地（BootstrapSeedWriter 墓碑查询诊断例外 + 升级口径与重建换 id 边界成文、runbook 处置步骤交叉引用）；2026-09-05 §14.2 固定图收缩通道墓碑三分定案（缺行+软删墓碑=告警放行不补回/无墓碑=仍拒启，T-ACCESS-029 承接）+ 固定图→租户初始化演进方向登记；2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
 ---
 
 # access-service 目标架构与归并约束
@@ -558,7 +558,7 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 
 ### 14.8 E2E 验收终态（T-ACCESS-021，2026-08-24）
 
-- **自动化轨**：`BasicRoleGrantVerticalSliceE2EIT`（gateway 测试域，`@Tag("testcontainers")` 随 CI 容器门控）——固定 8 步全链路：PG/Redis Testcontainers + 双服务子进程（独立 JVM、随机端口、重启=kill+respawn），Gateway 免 Nacos（`spring.cloud.discovery.client.simple.instances` 静态实例直连，路由与回源 WebClient 同源解析），验证码 Redis 读码，fail-closed 503 与步骤⑦合并；⑥的 30 秒窗口自⑤授权响应到达时刻单调起算、以目标状态响应到达时刻判定（与⑧撤权同口径）；放行路径信封级断言（HTTP 200 + code=200 + 目标用户数据结构）。落位与测试域约束见 `docs/design/services/gateway.md` §测试域。
+- **自动化轨**：`BasicRoleGrantVerticalSliceE2EIT`（e2e 独立模块——T-ACCESS-031 自 gateway 测试域迁出；模块整轨随 `mvn test` 执行，`-DskipE2E=true` 日常跳过/收口必跑）——固定 8 步全链路：PG/Redis Testcontainers + 双服务子进程（独立 JVM、随机端口、重启=kill+respawn），Gateway 免 Nacos（`spring.cloud.discovery.client.simple.instances` 静态实例直连，路由与回源 WebClient 同源解析），验证码 Redis 读码，fail-closed 503 与步骤⑦合并；⑥的 30 秒窗口自⑤授权响应到达时刻单调起算、以目标状态响应到达时刻判定（与⑧撤权同口径）；放行路径信封级断言（HTTP 200 + code=200 + 目标用户数据结构）。落位与测试域约束见 `docs/design/services/gateway.md` §测试域。
 - **页面轨**：授权页 GUI 授予场景经真实浏览器操作验收（compose 真实环境 + 真实 Nacos；变更暂存→apply-grant-plan 保存→0.4s 生效 200），截图与响应证据归档 `docs/tasks/evidence/t-access-021/`。
 - **E2E 修复的四处缺陷**（均为自动化轨/API 轨或页面轨暴露的真实产品缺陷）：① `resource-api-mapping/create` 缺省 matchOrder 显式 null 写库违例（缺省 0 对齐 DDL）；② 用户创建 status 两侧不同源（缺省一次解析同源，DDL 权威语义 1=启用；DTO javadoc 与 admin 契约 create 段表述同步更正）；③ 授权页资源矩阵恒空（前端 capability 门控用了 user-menu 权限串白名单必然排除的 RESOURCE:VIEW/OPERATION:VIEW；改为直接请求、后端类型级 VIEW 门禁为权威）；④ `operation-permission/list` 补齐 api-contract §5.3 `includeGlobalFallback` 后端实现（「专属优先、全局回退」合并；该参数已随全局操作概念退役删除，2026-08-30 T-PERM-049）。
 

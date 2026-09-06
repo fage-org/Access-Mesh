@@ -13,12 +13,6 @@
     <name>Gateway Service</name>
     <description>Spring Cloud Gateway - traffic entry point</description>
 
-    <properties>
-        <!-- 单测轨道开关（T-ACCESS-021 与 access-service 同款双 execution 分层）：
-             true 时 mvn test 跳过 testcontainers 组 execution（CI 单测 job / 本地快速反馈） -->
-        <skipTestcontainers>false</skipTestcontainers>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>
@@ -108,62 +102,12 @@
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- T-ACCESS-021：Testcontainers 容器轨道（PG/Redis） -->
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>postgresql</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <!-- T-ACCESS-021：common（compile）对 spring-webmvc 的既有排除使最近路径的
-             starter-web 子树失去 webmvc，access-service(test) 的同 artifact 路径整体被
-             「omitted for duplicate」去重——webmvc 因此从测试类路径消失，E2E 的
-             access-service 子进程（servlet 栈）无法启动。显式 test 依赖恢复：仅进入
-             测试类路径（GatewayApplicationConfigTest 已显式 reactive），生产编译/运行
-             classpath 不受影响。 -->
-        <dependency>
-            <groupId>org.springframework</groupId>
-            <artifactId>spring-webmvc</artifactId>
-            <scope>test</scope>
-        </dependency>
-        <!-- T-ACCESS-021：跨服务 E2E IT（BasicRoleGrantVerticalSliceE2EIT）以子进程启动
-             access-service——两服务需在同一 java.class.path 上。仅 test scope，不进入生
-             产依赖图。排除 spring-boot-starter-logging 防 Logback 与 log4j2 双 Provider
-             （与 access-service 对 web starter 的处理同模式；其依赖树实测无 logback，此为
-             防回归保险）。注意：webmvc/webflux 因此共存于 gateway 测试类路径——上下文测试
-             显式 reactive（GatewayApplicationConfigTest），E2E 子进程按服务各自显式声明。 -->
-        <dependency>
-            <groupId>cn.ac.fage.accessmesh</groupId>
-            <artifactId>access-service</artifactId>
-            <version>${project.version}</version>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-logging</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <!-- T-API-001：跨服务 E2E IT（ExampleProtectedApiE2EIT）以子进程启动
-             example-service（网关 /example/** 路由的下游）——三服务需在同一
-             java.class.path 上。仅 test scope，不进入生产依赖图；排除
-             spring-boot-starter-logging 防 Logback 与 log4j2 双 Provider。 -->
-        <dependency>
-            <groupId>cn.ac.fage.accessmesh</groupId>
-            <artifactId>example-service</artifactId>
-            <version>${project.version}</version>
-            <scope>test</scope>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springframework.boot</groupId>
-                    <artifactId>spring-boot-starter-logging</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
+        <!-- T-ACCESS-031：E2E 两个 IT 连同其跨服务 test 依赖（access-service /
+             example-service / spring-webmvc）与容器轨基建（testcontainers 依赖、
+             双 execution、-DskipTestcontainers 开关、api.version 钉版——容器轨唯一
+             消费者即两个 E2E，迁移后 gateway/src 零 testcontainers 引用）整体迁入独立
+             e2e 模块——gateway 解除 test-scope 模块依赖后恢复轻模块，可与 access-service
+             在 mvn -T 下并行；子进程类路径配方见 e2e/pom.xml（原样迁入）。 -->
     </dependencies>
 
     <build>
@@ -172,16 +116,15 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
             </plugin>
-            <!-- T-ACCESS-021：与 access-service 同款双 execution 分层（默认 execution 排除
-                 testcontainers 组、容器组独立 execution 可经 -DskipTestcontainers=true 跳过），
-                 CI 单测 job 全量跑容器 E2E 会拖垮反馈速度，必须与仓库既有轨道一致分层。 -->
+            <!-- T-ACCESS-031：容器轨随 E2E 迁入 e2e 模块后 gateway 仅剩单 execution
+                 （单元/上下文测试）；surefire 通用配置沿用（nacos 日志关闭防测试在
+                 构建目录外写日志文件、*IT.java includes、空匹配容忍）。 -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <systemPropertyVariables>
                         <nacos.logging.default.config.enabled>false</nacos.logging.default.config.enabled>
-                        <api.version>1.44</api.version>
                     </systemPropertyVariables>
                     <includes>
                         <include>**/Test*.java</include>
@@ -190,23 +133,8 @@
                         <include>**/*TestCase.java</include>
                         <include>**/*IT.java</include>
                     </includes>
-                    <excludedGroups>testcontainers</excludedGroups>
                     <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
                 </configuration>
-                <executions>
-                    <execution>
-                        <id>testcontainers</id>
-                        <phase>test</phase>
-                        <goals>
-                            <goal>test</goal>
-                        </goals>
-                        <configuration>
-                            <excludedGroups combine.self="override"/>
-                            <groups>testcontainers</groups>
-                            <skip>${skipTestcontainers}</skip>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>cn.ac.fage.accessmesh</groupId>
+        <artifactId>accessmesh</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>e2e</artifactId>
+    <name>E2E Tests</name>
+    <description>跨服务 E2E 验收垂直切片（gateway/access-service/example-service 子进程拓扑）——T-ACCESS-031 自 gateway 测试树分轨</description>
+
+    <properties>
+        <!-- E2E 轨道开关（T-ACCESS-031）：默认 false=随 mvn test 执行（收口必跑）；
+             日常全仓 mvn test -T 1C -DskipE2E=true 跳过本模块测试。
+             ci.yml unit job（每次 push）必须同时带 -DskipTestcontainers=true -DskipE2E=true，
+             否则 GitHub runner 自带 Docker 会把整条 E2E 拖进单测 job。 -->
+        <skipE2E>false</skipE2E>
+    </properties>
+
+    <dependencies>
+        <!-- 测试载体即被测拓扑：E2E 以子进程 spawn 三服务，类路径 = 本测试 JVM
+             java.class.path 过滤 test-classes（仅生产 classes 与依赖）——三服务须在
+             同一 java.class.path 上。全部 test scope，不进入任何生产依赖图。 -->
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>gateway</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- T-ACCESS-021：access-service 子进程（servlet 栈）。排除 spring-boot-starter-logging
+             防 Logback 与 log4j2 双 Provider（配方自 gateway 原样迁入）。 -->
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>access-service</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- T-API-001：example-service 子进程（网关 /example/** 路由的下游）。同上排除。 -->
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>example-service</artifactId>
+            <version>${project.version}</version>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <!-- common（经 gateway compile 传递）对 spring-webmvc 的既有排除使最近路径的
+             starter-web 子树失去 webmvc，access-service(test) 的同 artifact 路径整体被
+             「omitted for duplicate」去重——webmvc 因此从类路径消失，access-service
+             子进程（servlet 栈）无法启动。显式 test 依赖恢复（配方自 gateway 迁入）。 -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-webmvc</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Test -->
+        <!-- 覆盖 root 全局注入并补 logging 排除：本模块 starter-test 直下的 spring-boot-starter
+             是全树最浅同名节点（Maven nearest-wins），不带排除时 starter-logging（Logback +
+             log4j-to-slf4j）会与经 gateway 传递的 log4j-slf4j2-impl 共存——log4j2 双桥接互斥，
+             静态初始化即炸，@Testcontainers 的 Docker 探测随之雪崩为「无 Docker」整类跳过（实测）。
+             gateway/access 自身靠 perm-gateway-starter 的同名排除路径赢得去重，本模块无此拓扑。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- 模块整轨即 E2E（无单测/容器轨分 execution）：skip 绑定 -DskipE2E；
+                 failIfNoSpecifiedTests=false 容忍仓库根 -Dtest 过滤运行时本模块无匹配；
+                 includes 显式含 *IT.java（surefire 默认 includes 不命中 E2EIT 类）。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <skip>${skipE2E}</skip>
+                    <failIfNoSpecifiedTests>false</failIfNoSpecifiedTests>
+                    <systemPropertyVariables>
+                        <!-- 禁用 Nacos SpringApplicationRunListener 默认日志（同 access/gateway surefire 口径：
+                             类路径携带 nacos 客户端，防在构建目录外写日志文件） -->
+                        <nacos.logging.default.config.enabled>false</nacos.logging.default.config.enabled>
+                        <!-- Docker 25+ 与 docker-java 3.3.6 兼容（2026-08-22 用户决策 pom 固定，与
+                             access/gateway surefire 同款）：Testcontainers 1.19.x 携带的 docker-java
+                             默认走 API 1.32，Docker 29 起守护进程最低仅支持 API 1.44，未固定版本时
+                             @Testcontainers(disabledWithoutDocker=true) 测试会被静默跳过（本模块迁移
+                             实证：npipe 策略 /info 返回 400 BadRequest）。 -->
+                        <api.version>1.44</api.version>
+                    </systemPropertyVariables>
+                    <includes>
+                        <include>**/Test*.java</include>
+                        <include>**/*Test.java</include>
+                        <include>**/*Tests.java</include>
+                        <include>**/*TestCase.java</include>
+                        <include>**/*IT.java</include>
+                    </includes>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

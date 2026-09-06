@@ -1,4 +1,4 @@
-package cn.ac.fage.accessmesh.gateway.e2e;
+package cn.ac.fage.accessmesh.e2e;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -58,7 +58,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 就绪后无身份头返回 HTTP 200 + 信封 code=30002（BizException 映射 HTTP 200）。
  *
  * <p>注意：本 IT 需在 maven（surefire/IDE 传递完整 java.class.path）下执行；
- * {@code @Tag("testcontainers")} 使其只随容器门控 execution 运行。
+ * T-ACCESS-031 自 gateway 测试树迁入独立 e2e 模块（模块整轨即 E2E）——随 mvn test
+ * 执行，日常全仓经 -DskipE2E=true 跳过（收口必跑）；{@code @Tag("testcontainers")}
+ * 保留轨道标识（与各服务容器轨同词汇）。
  */
 @Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)

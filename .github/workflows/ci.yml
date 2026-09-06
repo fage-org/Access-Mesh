@@ -1,6 +1,7 @@
 # 最小 CI（T-ACCESS-017）：单个 Maven workflow，两个 job。
 # - unit-tests：全量单测强制通过（push / PR / 手动），排除 @Tag("testcontainers") 容器测试
-# - testcontainers：容器门控（PR / 手动触发），全量 mvn test（含 Testcontainers）
+#   与 e2e 模块（T-ACCESS-031：E2E 是收口资产，runner 自带 Docker 会照跑，必须显式跳过）
+# - testcontainers：容器门控（PR / 手动触发），全量 mvn test（含 Testcontainers 与 E2E）
 # 口径：以测试退出状态判定成功，不维护测试数量计数；不建发布流水线与多分支矩阵。
 name: CI
 
@@ -21,8 +22,8 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-      - name: 全量单测（排除 Testcontainers）
-        run: mvn -B test -DskipTestcontainers=true
+      - name: 全量单测（排除 Testcontainers 与 E2E）
+        run: mvn -B test -DskipTestcontainers=true -DskipE2E=true
 
   testcontainers:
     name: Testcontainers（PR / 手动触发）

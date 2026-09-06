@@ -286,9 +286,21 @@ class TaskExecutionLeaseConcurrencyTest {
         // owner 不变，attempt 递增——旧尝试必须被 fencing 挡住
         assertThat(taskExecutionMapper.tryClaimExecution(TENANT_ID, key, "owner-A", 1, 3))
             .isEqualTo(1);
-        TimeUnit.MILLISECONDS.sleep(1200);
-        Integer secondAttempt = taskExecutionMapper.tryClaimExecution(TENANT_ID, key, "owner-A", 1, 3);
-        assertThat(secondAttempt).isEqualTo(2);
+        // 第二次抢占轮询至数据库判定租约过期（有界 5s）：sleep 固定余量在机器负载下不可靠
+        // （T-ACCESS-030 -T 试验实证 sleep 1200ms 对 1s 租约的 200ms 余量单次失败）；
+        // 本用例主语是 attempt 级 fencing，过期边界的严格单次判定由
+        // takeoverAfterExpiryPreventsOldHolderFromOverwriting 承担
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        Integer secondAttempt = null;
+        while (secondAttempt == null && System.nanoTime() < deadline) {
+            secondAttempt = taskExecutionMapper.tryClaimExecution(TENANT_ID, key, "owner-A", 1, 3);
+            if (secondAttempt == null) {
+                TimeUnit.MILLISECONDS.sleep(200);
+            }
+        }
+        assertThat(secondAttempt)
+            .as("5s 内租约应已过期、同实例可再抢占（attempt=2）")
+            .isEqualTo(2);
 
         // 旧尝试（attempt=1）续租/完成均失败
         assertThat(taskExecutionDomainService.renewLease(TENANT_ID, key, "owner-A", 1)).isFalse();

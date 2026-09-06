@@ -8,7 +8,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 031 |
+| access-service 归并（跨服务） | `T-ACCESS` | 032 |
 | permission-center | `T-PERM` | 055 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 008 |
@@ -56,6 +56,7 @@
 | [T-ACCESS-028](T-ACCESS-028.md) | perm-data 空装配模块删除（SDK 面名实对齐） | [product-positioning-landing](../plans/product-positioning-landing-plan.md) | architecture；README；example-service | — | ✅ | ✓ |
 | [T-ACCESS-029](T-ACCESS-029.md) | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | [design-audit-followup](../plans/design-audit-followup-plan.md) | access-service-architecture §14.2 | — | ✅ | ✓ |
 | [T-ACCESS-030](T-ACCESS-030.md) | 容器测试轨道提速——单例容器 + 按类建库 + 复用 + fork 级并行 | —（2026-09-06 用户决策提速定案） | docs/tasks/T-ACCESS-030.md 设计口径（工程改进，无设计文档回写） | — | ✅ | ✓ |
+| [T-ACCESS-031](T-ACCESS-031.md) | E2E 独立模块分轨——gateway 解除 test 依赖 + skipE2E 日常口径 + -T 模块并行恢复 | —（2026-09-06 用户决策 B+结构性拆分） | docs/tasks/T-ACCESS-031.md 设计口径；gateway.md §测试域、access-service-architecture §14.8（E2E 落位回写） | — | ✅ | ✓ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 待确认 + 前端 Phase 1/2/4 后端任务）
 

@@ -38,7 +38,7 @@ Gateway (8080)
 
 ## 项目状态
 
-**核心垂直切片完成（里程碑 A，T-ACCESS-021 验收通过）**：从空库 bootstrap 到网关级授权生效的完整产品链路已由跨服务 E2E 测试钉死并通过（[BasicRoleGrantVerticalSliceE2EIT](gateway/src/test/java/cn/ac/fage/accessmesh/gateway/e2e/BasicRoleGrantVerticalSliceE2EIT.java)，固定 8 步：空库首管理员真实登录 → 创建用户/空权限 BASIC_ROLE 并分配 → 真实创建 API 映射 → 403 → 授予 API:ACCESS → 30 秒内 200 → 双服务子进程重启后仍 200 + 权限服务不可用 fail-closed 503 → 撤权 30 秒内恢复 403），授权页 GUI 授予场景亦经真实浏览器操作验收；E2E 过程中修复 4 处真实缺陷（API 映射缺省 matchOrder、用户创建 status 两侧同源、授权页 capability 门控源错误、operation-permission/list 缺 includeGlobalFallback 后端实现——该参数已于 2026-08-30 随全局操作概念退役删除，T-PERM-049）。验证证据见[任务卡 T-ACCESS-021](docs/tasks/T-ACCESS-021.md)。
+**核心垂直切片完成（里程碑 A，T-ACCESS-021 验收通过）**：从空库 bootstrap 到网关级授权生效的完整产品链路已由跨服务 E2E 测试钉死并通过（[BasicRoleGrantVerticalSliceE2EIT](e2e/src/test/java/cn/ac/fage/accessmesh/e2e/BasicRoleGrantVerticalSliceE2EIT.java)，固定 8 步：空库首管理员真实登录 → 创建用户/空权限 BASIC_ROLE 并分配 → 真实创建 API 映射 → 403 → 授予 API:ACCESS → 30 秒内 200 → 双服务子进程重启后仍 200 + 权限服务不可用 fail-closed 503 → 撤权 30 秒内恢复 403），授权页 GUI 授予场景亦经真实浏览器操作验收；E2E 过程中修复 4 处真实缺陷（API 映射缺省 matchOrder、用户创建 status 两侧同源、授权页 capability 门控源错误、operation-permission/list 缺 includeGlobalFallback 后端实现——该参数已于 2026-08-30 随全局操作概念退役删除，T-PERM-049）。验证证据见[任务卡 T-ACCESS-021](docs/tasks/T-ACCESS-021.md)。
 
 **试点加固完成（里程碑 B，2026-08-27 随 T-ACCESS-026 收口）**：登录锁定临时化（T-ADMIN-022）、GROUP_ROLE 写入口删除（T-PERM-043）、文件服务安全加固（T-ADMIN-023）、Gateway CORS 环境化（T-GW-007）、时间语义 UTC 统一（T-ACCESS-024）、操作日志收敛（T-ACCESS-025）、退役 API 直接删除（T-ADMIN-024）、example 单受保护接口接入（T-API-001）全部交付；外部 Docker 验证证据登记与 product-vertical-slice / access-post-merge 双计划归档随 T-ACCESS-026 完成（CI 以 GitHub Actions 退出状态判定成功，68 项为 2026-08-22 外部主机历史基线）。
 

@@ -51,18 +51,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
     "spring.cloud.nacos.config.enabled=false",
     "spring.cloud.nacos.config.import-check.enabled=false",
     "spring.cloud.nacos.discovery.enabled=false",
-    // T-ACCESS-021：access-service 以 test 依赖引入后 webmvc 进入测试类路径，
-    // Boot 默认推导翻成 SERVLET（触发 Gateway MvcFoundOnClasspathException、路由
-    // 自动配置整体失效）——显式恢复 reactive MOCK 上下文语义
+    // T-ACCESS-021 防回归护栏（保留）：access-service test 依赖曾把 webmvc 带入测试类路径，
+    // Boot 默认推导翻成 SERVLET（触发 Gateway MvcFoundOnClasspathException、路由自动配置
+    // 整体失效）；T-ACCESS-031 该依赖迁出 e2e 模块后类路径已无 webmvc，显式 reactive
+    // 声明防御性钉住语义
     "spring.main.web-application-type=reactive",
-    // 排除 Redis/Nacos 自动配置（基础设施由 TestInfraConfig 提供）；
-    // T-ACCESS-021 追加排除 access-service 依赖树新带入的自动配置：Redisson 客户端
-    // 会真实连接 Redis（本测试无 Redis）；common 缓存框架的 RedissonCacheAutoConfiguration
-    // 仅在 Redisson 类存在时激活（生产 Gateway 无 Redisson），激活后要求 RedissonClient
-    // bean——一并排除以恢复生产等效装配（L1-only CacheService）；sa-token servlet 版
-    // starter（access-service 传递）的 SaTokenContextRegister 会挤掉 reactor 版导致
-    // SaTokenContext 缺失，排除后由 reactor 版提供；DataSource/JdbcTemplate
-    // 在无数据源配置的 gateway 上下文中无意义
+    // 排除 Redis/Nacos 自动配置（基础设施由 TestInfraConfig 提供）；Redisson /
+    // sa-token servlet 版 / DataSource 族为 T-ACCESS-021 随 access-service test 依赖
+    // 引入的排除，T-ACCESS-031 依赖迁出后类路径已无对应触发类（no-op 护栏，留作
+    // 防回归——依赖树再漂移引入同类自动配置仍被挡住）；RedissonCacheAutoConfiguration
+    // 类本身随 common 常在，仅 Redisson 类存在时激活，排除持续有效
     "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,cn.ac.fage.accessmesh.common.cache.RedissonCacheAutoConfiguration,cn.dev33.satoken.spring.SaTokenContextRegister,org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration,org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration",
     "logging.level.cn.ac.fage.accessmesh=WARN",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-gateway-test",
