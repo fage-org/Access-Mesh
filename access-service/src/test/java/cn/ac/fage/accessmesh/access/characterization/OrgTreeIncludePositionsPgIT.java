@@ -1,9 +1,9 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
+import cn.ac.fage.accessmesh.access.it.ItInfra;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -22,14 +22,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -75,7 +70,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OrgTreeIncludePositionsPgIT {
 
     private static final Long TENANT = 1L;
-    private static final Path DDL_PATH = Path.of("..", "docs", "design", "schema", "access-service.sql");
     private static final String PASSWORD = "Pass@123";
 
     /** ORG 资源类型值与操作位（schema 种子：CREATE=1 / VIEW=2 预置，VIEW_POSITION=512 扩展码） */
@@ -83,9 +77,6 @@ class OrgTreeIncludePositionsPgIT {
     private static final long BIT_CREATE = 1L;
     private static final long BIT_VIEW = 2L;
     private static final long BIT_VIEW_POSITION = 512L;
-
-    /** Redis 容器与客户端密码必须对齐（同 FileServiceSecurityPgIT） */
-    private static final String REDIS_TEST_PASSWORD = "accessmesh-test";
 
     /** 固定主体/节点 id（@BeforeEach 全量清理，无跨用例冲突） */
     private static final long ROOT_ID = 9001L;
@@ -101,47 +92,9 @@ class OrgTreeIncludePositionsPgIT {
     /** 每用例独立用户 id，避免跨用例主键冲突 */
     private static final AtomicLong USER_SEQ = new AtomicLong();
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-        .withDatabaseName("org_tree_it")
-        .withUsername("perm")
-        .withPassword("perm");
-
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
-        .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
-        .withExposedPorts(6379);
-
-    /**
-     * Testcontainers 的 getJdbcUrl() 已自带查询参数，直接追加 "?stringtype=unspecified"
-     * 会并入前一个参数值被 pgjdbc 静默忽略，按是否已含 "?" 选择分隔符
-     * （T-ADMIN-026 订正；先例 KeywordLikeSearchPgIT.urlWithStringtype）。
-     */
-    static String urlWithStringtype() {
-        String url = postgres.getJdbcUrl();
-        return url + (url.contains("?") ? "&" : "?") + "stringtype=unspecified";
-    }
-
-
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> urlWithStringtype());
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-        registry.add("spring.data.redis.password", () -> REDIS_TEST_PASSWORD);
-    }
-
-    @BeforeAll
-    static void setupSchema() throws Exception {
-        String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
-        try (var conn = java.sql.DriverManager.getConnection(
-            urlWithStringtype(), postgres.getUsername(), postgres.getPassword());
-             var st = conn.createStatement()) {
-            st.execute(sql);
-        }
+        ItInfra.register(registry, OrgTreeIncludePositionsPgIT.class);
     }
 
     @Autowired

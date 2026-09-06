@@ -47,6 +47,7 @@
 | 2026-09-06 | 分页信封统一（T-ADMIN-027 登记）：全仓唯一分页方言=扁平五字段 `{items,total,pageNum,pageSize,hasNext}`，统一类更名 `PaginatedResp`→`PageResp`（线格式零变化）；admin 嵌套方言 `PaginatedResult` 退役删除；5 处 `R<List>` 裸数组收编 `ItemsResp`；分页字段不进 R（信封管传输/载荷管分页正交）；类名 `Page` 因与 MyBatis-Flex Page（19 文件在用）冲突被否 | docs/tasks/T-ADMIN-027.md、api-contract.md §3.3、project-rules.md §1.3 | 报了先核出处 |
 | 2026-09-06 | 分页/列表信封双份重复类收编单源（T-ADMIN-027 执行定案）：`access.permission.dto.resp` 内部 `PaginatedResp`/`ItemsResp` 副本删除，全仓（admin/permission 域、SDK）统一 import perm-common `perm.common.dto.resp.PageResp/ItemsResp`（执行扩面：裸数组收编由建卡 5 处增至 6 处，含 FQ 写法漏盘的 `/notice/my-notices`）——后续演进只改一处，勿再建议恢复域内副本 | perm-sdk/perm-common dto/resp、project-rules.md §1.3 类名指引 | 报了先核出处 |
 | 2026-09-06 | admin 分页端点参数面统一（T-ADMIN-026 设计定案：顺带对齐先例）：分页请求 DTO 不再允许裸 Integer 形态——FilePageReq/JobLogPageReq 补 `@Min(1)/@Max(100)` + 默认 getter（1/20），login-log/page 补 `@Valid`；漏传走默认、非法值 400，对齐 PageReq/Oauth2ClientPageReq 先例 | docs/tasks/T-ADMIN-026.md、admin-service-api-contract.md §4.7.3/§1.3 | 报了先核出处 |
+| 2026-09-06 | 容器测试轨道基建与并行口径（T-ACCESS-030）：容器组单例基建 ItInfra + fork 级进程并行——sa-token 的 SaManager 是 JVM 级静态单例，线程级类并发被两轮实证否决，勿再建议 JUnit 线程并行；fork 标记 = user.home 文件锁槽位 1..4（surefire ${surefire.forkNumber} 在 systemPropertyVariables 插值空串、java.io.tmpdir 每 fork 不同，均不可用）；Redis 测试容器开 --databases 64 按槽位独占 16 索引段（利用 Redis 多 database，勿建议恢复共享段/奇偶两段式）；forkCount=${it.forkCount} 默认 2，-Dit.forkCount=1 串行逃生门 | docs/tasks/T-ACCESS-030.md、access-service/pom.xml、AGENTS.md 常用命令区、access-service/src/test/java/cn/ac/fage/accessmesh/access/it/ItInfra.java | 报了先核出处 |
 
 ## 已推翻（superseded）
 

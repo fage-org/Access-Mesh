@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
+import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
@@ -11,7 +12,6 @@ import cn.ac.fage.accessmesh.access.permission.service.PermissionGrantAppService
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -23,14 +23,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 
@@ -54,6 +48,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 @SpringBootTest
 @ActiveProfiles("test")
 @Testcontainers(disabledWithoutDocker = true)
+// T-ACCESS-030 fork 并行下独占：断言缓存失效时序（L1 命中/回源）。@Isolated 串行化同 fork 内邻类，
+// 跨 fork 失效广播理论上仍可互扰（广播通道全局）——两轮并行全绿下接受现状（任务卡登记）
+@org.junit.jupiter.api.parallel.Isolated("缓存失效时序敏感")
 @TestPropertySource(properties = {
     "spring.config.import=optional:classpath:/test-nacos-dummy.yml",
     "spring.cloud.nacos.config.enabled=false",
@@ -66,7 +63,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AuthorizationChangeInvalidationPgIT {
 
     private static final Long TENANT = 1L;
-    private static final Path DDL_PATH = Path.of("..", "docs", "design", "schema", "access-service.sql");
 
     private static final int USER_TYPE_ADMIN = 3;
     private static final int ROLE_TYPE_BASIC = 6;
@@ -76,50 +72,9 @@ class AuthorizationChangeInvalidationPgIT {
     private static final long ROLE_MANAGE_BIT = 16L;
     private static final long SERVICE_VIEW_BIT = 2L;
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-        .withDatabaseName("grant_invalidation_test")
-        .withUsername("perm")
-        .withPassword("perm");
-
-    /** Redis 容器与客户端密码必须对齐（同 PermissionCharacterizationPgIT） */
-    private static final String REDIS_TEST_PASSWORD = "accessmesh-test";
-
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
-        .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
-        .withExposedPorts(6379);
-
-    /**
-     * Testcontainers 的 getJdbcUrl() 已自带查询参数，直接追加 "?stringtype=unspecified"
-     * 会并入前一个参数值被 pgjdbc 静默忽略，按是否已含 "?" 选择分隔符
-     * （T-ADMIN-026 订正；先例 KeywordLikeSearchPgIT.urlWithStringtype）。
-     */
-    static String urlWithStringtype() {
-        String url = postgres.getJdbcUrl();
-        return url + (url.contains("?") ? "&" : "?") + "stringtype=unspecified";
-    }
-
-
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> urlWithStringtype());
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-        registry.add("spring.data.redis.password", () -> REDIS_TEST_PASSWORD);
-    }
-
-    @BeforeAll
-    static void setupSchema() throws Exception {
-        String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
-        try (var conn = java.sql.DriverManager.getConnection(
-            urlWithStringtype(), postgres.getUsername(), postgres.getPassword());
-             var st = conn.createStatement()) {
-            st.execute(sql);
-        }
+        ItInfra.register(registry, AuthorizationChangeInvalidationPgIT.class);
     }
 
     @Autowired

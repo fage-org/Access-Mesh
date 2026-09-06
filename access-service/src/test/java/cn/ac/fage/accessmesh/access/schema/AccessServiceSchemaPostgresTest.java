@@ -1,11 +1,10 @@
 package cn.ac.fage.accessmesh.access.schema;
 
+import cn.ac.fage.accessmesh.access.it.ItInfra;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.nio.charset.StandardCharsets;
@@ -40,9 +39,6 @@ class AccessServiceSchemaPostgresTest {
 
     private static final Path DDL_PATH = Path.of("..", "docs", "design", "schema", "access-service.sql");
 
-    @Container
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
-
     private static Connection conn;
 
     @BeforeAll
@@ -50,10 +46,10 @@ class AccessServiceSchemaPostgresTest {
         if (!Files.exists(DDL_PATH)) {
             throw new IllegalStateException("access-service.sql 不存在：" + DDL_PATH.toAbsolutePath());
         }
-        // stringtype=unspecified：与 application.yml 数据源一致，验证 JSONB 列接受 String 参数绑定
-        // （PGJDBC 默认 stringtype=VARCHAR 对 JSONB 列写入报 42804）
-        String url = POSTGRES.getJdbcUrl() + (POSTGRES.getJdbcUrl().contains("?") ? "&" : "?") + "stringtype=unspecified";
-        conn = DriverManager.getConnection(url, POSTGRES.getUsername(), POSTGRES.getPassword());
+        // 空库自跑 DDL 是本测试的被测对象：禁用模板克隆通道，从单例容器取独立空库，
+        // stringtype=unspecified 由 ItInfra.jdbcUrl 通道附带（JSONB String 绑定语义不变）
+        String url = ItInfra.createStandaloneDatabase("schema_postgres_test");
+        conn = DriverManager.getConnection(url, ItInfra.username(), ItInfra.password());
         String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
         try (Statement s = conn.createStatement()) {
             s.execute(sql);

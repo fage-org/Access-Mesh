@@ -7,8 +7,8 @@ import cn.ac.fage.accessmesh.access.application.UserWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.it.ItInfra;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -22,14 +22,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -61,56 +55,14 @@ class LocalSubjectIdUnificationPgIT {
 
     private static final Long TENANT = 1L;
     private static final Long OPERATOR = 9L;
-    private static final Path DDL_PATH = Path.of("..", "docs", "design", "schema", "access-service.sql");
 
     /** type_definition 种子：user_type/LOCAL_USER = 3；resource_type 种子：USER = 6 */
     private static final int USER_TYPE_ADMIN = 3;
     private static final int RESOURCE_TYPE_USER = 6;
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-        .withDatabaseName("subject_unification_test")
-        .withUsername("perm")
-        .withPassword("perm");
-
-    /** Redis 容器与客户端密码必须对齐（见 PermissionCharacterizationPgIT 同款说明） */
-    private static final String REDIS_TEST_PASSWORD = "accessmesh-test";
-
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
-        .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
-        .withExposedPorts(6379);
-
-    /**
-     * Testcontainers 的 getJdbcUrl() 已自带查询参数，直接追加 "?stringtype=unspecified"
-     * 会并入前一个参数值被 pgjdbc 静默忽略，按是否已含 "?" 选择分隔符
-     * （T-ADMIN-026 订正；先例 KeywordLikeSearchPgIT.urlWithStringtype）。
-     */
-    static String urlWithStringtype() {
-        String url = postgres.getJdbcUrl();
-        return url + (url.contains("?") ? "&" : "?") + "stringtype=unspecified";
-    }
-
-
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> urlWithStringtype());
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-        registry.add("spring.data.redis.password", () -> REDIS_TEST_PASSWORD);
-    }
-
-    @BeforeAll
-    static void setupSchema() throws Exception {
-        String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
-        try (var conn = java.sql.DriverManager.getConnection(
-            urlWithStringtype(), postgres.getUsername(), postgres.getPassword());
-             var st = conn.createStatement()) {
-            st.execute(sql);
-        }
+        ItInfra.register(registry, LocalSubjectIdUnificationPgIT.class);
     }
 
     @Autowired

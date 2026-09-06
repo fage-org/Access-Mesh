@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.infrastructure;
 
 import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.mapper.SystemConfigMapper;
+import cn.ac.fage.accessmesh.access.it.ItInfra;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -15,14 +16,8 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -69,47 +64,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 class TimestamptzDualTimezonePgIT {
 
     private static final Long TENANT = 1L;
-    private static final Path DDL_PATH = Path.of("..", "docs", "design", "schema", "access-service.sql");
 
     /** 固定墙钟标记（带纳秒位，防止秒级截断掩盖偏移） */
     private static final LocalDateTime MARKER =
         LocalDateTime.of(2026, 8, 25, 12, 34, 56, 789_000_000);
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-        .withDatabaseName("dual_timezone_test")
-        .withUsername("perm")
-        .withPassword("perm");
-
-    /** Redis 容器与客户端密码必须对齐：主配置 ${REDIS_PASSWORD:} 解析为空串而非 null，
-     * Redisson 对空串仍发 AUTH，无密码 Redis 会拒绝（ERR AUTH called without any password） */
-    private static final String REDIS_TEST_PASSWORD = "accessmesh-test";
-
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
-        .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
-        .withExposedPorts(6379);
-
-    /**
-     * Testcontainers 的 getJdbcUrl() 已自带查询参数，直接追加 "?stringtype=unspecified"
-     * 会并入前一个参数值被 pgjdbc 静默忽略，按是否已含 "?" 选择分隔符
-     * （T-ADMIN-026 订正；先例 KeywordLikeSearchPgIT.urlWithStringtype）。
-     */
-    static String urlWithStringtype() {
-        String url = postgres.getJdbcUrl();
-        return url + (url.contains("?") ? "&" : "?") + "stringtype=unspecified";
-    }
-
-
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> urlWithStringtype());
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-        registry.add("spring.data.redis.password", () -> REDIS_TEST_PASSWORD);
+        ItInfra.register(registry, TimestamptzDualTimezonePgIT.class);
     }
 
     @Autowired
@@ -121,15 +83,8 @@ class TimestamptzDualTimezonePgIT {
     private static TimeZone originalZone;
 
     @BeforeAll
-    static void setupSchema() throws Exception {
+    static void pinDefaultZone() {
         originalZone = TimeZone.getDefault();
-        // 原样执行权威 DDL（system_config 为独立表，无投影/变更日志副作用）
-        String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
-        try (var conn = java.sql.DriverManager.getConnection(
-            urlWithStringtype(), postgres.getUsername(), postgres.getPassword());
-             var st = conn.createStatement()) {
-            st.execute(sql);
-        }
     }
 
     @AfterAll

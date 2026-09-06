@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.integration;
 
+import cn.ac.fage.accessmesh.access.it.ItInfra;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -10,9 +11,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,23 +31,6 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 @Testcontainers(disabledWithoutDocker = true)
 class PermissionCenterIntegrationTest {
 
-    /** PostgreSQL 测试容器 */
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-        .withDatabaseName("perm_test")
-        .withUsername("perm")
-        .withPassword("perm");
-
-    /** Redis 容器与客户端密码必须对齐：主配置 ${REDIS_PASSWORD:} 解析为空串而非 null，
-     * Redisson 对空串仍发 AUTH，无密码 Redis 会拒绝（ERR AUTH called without any password） */
-    private static final String REDIS_TEST_PASSWORD = "accessmesh-test";
-
-    /** Redis 测试容器 */
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
-        .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
-        .withExposedPorts(6379);
-
     /**
      * 配置测试环境动态属性
      * <p>
@@ -61,13 +42,7 @@ class PermissionCenterIntegrationTest {
      */
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-        registry.add("spring.data.redis.password", () -> REDIS_TEST_PASSWORD);
+        ItInfra.register(registry, PermissionCenterIntegrationTest.class);
     }
 
     /** JDBC 数据访问模板 */

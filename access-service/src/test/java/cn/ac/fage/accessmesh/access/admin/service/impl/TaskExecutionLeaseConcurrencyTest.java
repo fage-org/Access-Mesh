@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.entity.SysTaskExecution;
 import cn.ac.fage.accessmesh.access.infrastructure.mapper.SysTaskExecutionMapper;
 import cn.ac.fage.accessmesh.access.infrastructure.task.JobInvocable;
 import cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionContext;
+import cn.ac.fage.accessmesh.access.it.ItInfra;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
@@ -20,9 +21,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Connection;
@@ -64,30 +62,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers(disabledWithoutDocker = true)
 class TaskExecutionLeaseConcurrencyTest {
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("task_lease_test")
-            .withUsername("perm")
-            .withPassword("perm");
-
-    /** Redis 容器与客户端密码必须对齐：主配置 ${REDIS_PASSWORD:} 解析为空串而非 null，
-     * Redisson 对空串仍发 AUTH，无密码 Redis 会拒绝（ERR AUTH called without any password） */
-    private static final String REDIS_TEST_PASSWORD = "accessmesh-test";
-
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
-            .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
-            .withExposedPorts(6379);
-
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-        registry.add("spring.data.redis.password", () -> REDIS_TEST_PASSWORD);
+        // 空库通道（fromTemplate=false）：@BeforeAll 自建 sys_task_execution/sys_job/sys_job_log 局部表
+        ItInfra.register(registry, TaskExecutionLeaseConcurrencyTest.class, false);
     }
 
     /** 测试任务 Bean：记录每次调用的执行键，模拟外部副作用按执行键去重 */
@@ -134,9 +112,11 @@ class TaskExecutionLeaseConcurrencyTest {
 
     @BeforeAll
     static void initSchema() throws Exception {
+        // @BeforeAll 先于 Spring 上下文装配执行：先占位建库（空库，register 复用同一绑定）
+        ItInfra.prepare(TaskExecutionLeaseConcurrencyTest.class, false);
         // 容器已启动、Spring 上下文尚未创建：先建全部依赖表
         try (Connection conn = DriverManager.getConnection(
-                 postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+                 ItInfra.jdbcUrl(TaskExecutionLeaseConcurrencyTest.class), ItInfra.username(), ItInfra.password());
              Statement st = conn.createStatement()) {
             st.execute("""
                     CREATE TABLE sys_task_execution (

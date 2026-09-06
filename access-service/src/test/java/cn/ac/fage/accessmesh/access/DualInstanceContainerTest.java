@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access;
 
 import cn.ac.fage.accessmesh.access.admin.cache.AdminCacheCatalog;
 import cn.ac.fage.accessmesh.access.admin.service.domain.TaskExecutionDomainService;
+import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,9 +20,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Connection;
@@ -54,36 +53,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 @ActiveProfiles("test")
 @Tag("testcontainers")
 @Testcontainers(disabledWithoutDocker = true)
+// T-ACCESS-030 fork 并行下独占：本类启动真实端口服务实例 + RTopic 跨实例广播，@Isolated 串行化同 fork 内邻类
+@Isolated("双实例独占：真实端口 + 跨实例广播")
 class DualInstanceContainerTest {
 
     private static final Long TENANT_ID = 1L;
     private static final String OWNER_A = "dual-instance-A";
     private static final String OWNER_B = "dual-instance-B";
 
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("dual_instance_test")
-            .withUsername("perm")
-            .withPassword("perm");
-
-    /** Redis 容器与客户端密码必须对齐：主配置 ${REDIS_PASSWORD:} 解析为空串而非 null，
-     * Redisson 对空串仍发 AUTH，无密码 Redis 会拒绝（ERR AUTH called without any password） */
-    private static final String REDIS_TEST_PASSWORD = "accessmesh-test";
-
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
-            .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
-            .withExposedPorts(6379);
-
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-        registry.add("spring.data.redis.password", () -> REDIS_TEST_PASSWORD);
+        // 空库通道（fromTemplate=false）：@BeforeAll 自建 sys_task_execution/sys_job/sys_job_log 局部表
+        ItInfra.register(registry, DualInstanceContainerTest.class, false);
     }
 
     /** 实例 B：独立 ApplicationContext，与实例 A 共享同一容器 PG/Redis。 */
@@ -102,10 +83,12 @@ class DualInstanceContainerTest {
 
     @BeforeAll
     static void initSchemaAndBootSecondInstance() throws Exception {
+        // @BeforeAll 先于 Spring 上下文装配执行：先占位建库（空库，register 复用同一绑定）
+        ItInfra.prepare(DualInstanceContainerTest.class, false);
         // 容器已启动、两个 Spring 上下文均未创建：先建全部依赖表
         // （JobServiceImpl @PostConstruct 启动时跨租户查询 sys_job）
         try (Connection conn = DriverManager.getConnection(
-                 postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword());
+                 ItInfra.jdbcUrl(DualInstanceContainerTest.class), ItInfra.username(), ItInfra.password());
              Statement st = conn.createStatement()) {
             st.execute("""
                     CREATE TABLE sys_task_execution (
@@ -168,13 +151,15 @@ class DualInstanceContainerTest {
         // 会被 application.yml 的 127.0.0.1 本机地址压过（评审修复）；
         // 命令行参数优先级高于 ConfigData，实例 B 才会真正连接容器
         instanceB = app.run(
-            "--spring.datasource.url=" + postgres.getJdbcUrl(),
-            "--spring.datasource.username=" + postgres.getUsername(),
-            "--spring.datasource.password=" + postgres.getPassword(),
-            "--spring.datasource.driver-class-name=" + postgres.getDriverClassName(),
-            "--spring.data.redis.host=" + redis.getHost(),
-            "--spring.data.redis.port=" + redis.getMappedPort(6379),
-            "--spring.data.redis.password=" + REDIS_TEST_PASSWORD);
+            "--spring.datasource.url=" + ItInfra.jdbcUrl(DualInstanceContainerTest.class),
+            "--spring.datasource.username=" + ItInfra.username(),
+            "--spring.datasource.password=" + ItInfra.password(),
+            "--spring.datasource.driver-class-name=org.postgresql.Driver",
+            "--spring.data.redis.host=" + ItInfra.redisHost(),
+            "--spring.data.redis.port=" + ItInfra.redisPort(),
+            "--spring.data.redis.password=" + ItInfra.REDIS_TEST_PASSWORD,
+            // 实例 B 必须与实例 A 同 Redis 逻辑库索引：双实例共享键空间是本测试的前提
+            "--spring.data.redis.database=" + ItInfra.redisDatabase(DualInstanceContainerTest.class));
     }
 
     @AfterAll

@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.permission.entity.SyncMetadata;
 import cn.ac.fage.accessmesh.access.permission.mapper.SyncMetadataMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SyncMetadataDomainService.ApplyVersionResult;
@@ -14,9 +15,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
@@ -53,32 +51,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Testcontainers(disabledWithoutDocker = true)
 class SyncMetadataConcurrencyTest {
 
-    /** PostgreSQL 测试容器 */
-    @Container
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("perm_sync_meta_test")
-            .withUsername("perm")
-            .withPassword("perm");
-
-    /** Redis 容器与客户端密码必须对齐：主配置 ${REDIS_PASSWORD:} 解析为空串而非 null，
-     * Redisson 对空串仍发 AUTH，无密码 Redis 会拒绝（ERR AUTH called without any password） */
-    private static final String REDIS_TEST_PASSWORD = "accessmesh-test";
-
-    /** Redis 测试容器（Spring 上下文需要） */
-    @Container
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine")
-            .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
-            .withExposedPorts(6379);
-
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", postgres::getJdbcUrl);
-        registry.add("spring.datasource.username", postgres::getUsername);
-        registry.add("spring.datasource.password", postgres::getPassword);
-        registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
-        registry.add("spring.data.redis.host", redis::getHost);
-        registry.add("spring.data.redis.port", () -> redis.getMappedPort(6379));
-        registry.add("spring.data.redis.password", () -> REDIS_TEST_PASSWORD);
+        // 空库通道（fromTemplate=false）：@BeforeEach 仅自建 sync_metadata 单表（避免拉起完整 schema 的原语义保留）
+        ItInfra.register(registry, SyncMetadataConcurrencyTest.class, false);
     }
 
     private static final Long TENANT_ID = 1L;

@@ -17,6 +17,8 @@
         <!-- 单测轨道开关（T-ACCESS-017 双 execution 分层）：true 时 mvn test 跳过
              testcontainers 组 execution，只跑单测（CI 单测 job / 本地快速反馈） -->
         <skipTestcontainers>false</skipTestcontainers>
+        <!-- 容器组 fork 数（T-ACCESS-030）：默认 2；-Dit.forkCount=1 串行复跑定性 fork 级抖动的逃生门 -->
+        <it.forkCount>2</it.forkCount>
     </properties>
 
     <dependencies>
@@ -241,6 +243,17 @@
                             <groups>testcontainers</groups>
                             <!-- 单测轨道开关：mvn test -DskipTestcontainers=true 跳过本 execution -->
                             <skip>${skipTestcontainers}</skip>
+                            <!-- T-ACCESS-030 容器组 fork 级并行：测试类分配到 2 个常驻 fork JVM。
+                                 必须用进程级而非 JUnit 线程级——sa-token 的 SaManager 是 JVM 级静态单例
+                                 （SaBeanInject 每上下文启动时重注入），线程级类并发下邻类上下文关闭会
+                                 把静态 dao 指向已 shutdown 的 Redisson（login 路径 500，2026-09-06 两轮
+                                 并发回归实证：FileService/OrgTree/AccessBootstrap 共 43 失败、堆栈
+                                 SaTokenDaoRedisJackson.get）；fork=独立 JVM 静态天然隔离（与 T-ACCESS-017
+                                 双 execution 分轨同哲学）。ItInfra 启动时以文件锁抢占 1..4 槽位作为
+                                 fork 标记（surefire 的 ${surefire.forkNumber} 在 systemPropertyVariables
+                                 中插值为空串，不可用——第五轮实证），类库/模板/Redis 索引段按槽位隔离。 -->
+                            <forkCount>${it.forkCount}</forkCount>
+                            <reuseForks>true</reuseForks>
                         </configuration>
                     </execution>
                 </executions>
