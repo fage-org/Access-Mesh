@@ -3,7 +3,7 @@ doc_type: design
 title: Admin Service 对前端 API 契约（组织与用户域）
 status: adopted
 domain: admin-service
-last_reviewed: 2026-09-06   # T-ADMIN-027：分页/列表信封统一（PageResp 扁平+裸数组收编 ItemsResp）；2026-09-03 T-ADMIN-021 收口+复评收口：§4.2.1 全字段落地与过滤语义定案（根守卫基于未过滤全量、orgType/status 节点级内存过滤、orgType 白名单 10008）（includePositions 一体树+岗位后端裁剪/债务① operationCode+treeConfigId/响应 ItemsResp<OrgResp> 包装/orgName+parentOrgId 死参数修正/OrgResp phone+email 陈旧行删除）；2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
+last_reviewed: 2026-09-06   # T-ADMIN-026：XML+Page 分页族收口——admin 8 分页端点内部实现改 offset/limit+count 双查询（线格式不变，修「有行即 500」）；§4.7.3 FilePageReq 参数面补齐（可选默认 1/20 + @Min/@Max，JobLogPageReq 同款、login-log/page 补 @Valid——分页参数校验自此全域对齐 §1.3）；排序统一补 id tie-breaker；T-ADMIN-027：分页/列表信封统一（PageResp 扁平+裸数组收编 ItemsResp）；2026-09-03 T-ADMIN-021 收口+复评收口：§4.2.1 全字段落地与过滤语义定案（根守卫基于未过滤全量、orgType/status 节点级内存过滤、orgType 白名单 10008）（includePositions 一体树+岗位后端裁剪/债务① operationCode+treeConfigId/响应 ItemsResp<OrgResp> 包装/orgName+parentOrgId 死参数修正/OrgResp phone+email 陈旧行删除）；2026-09-01 收口与复评收口：§4.2.2 orgType 改必填+门禁按类型分发（VIEW/VIEW_POSITION）；§4.2.4 创建组织 status 默认值订正 0→1（对齐 DDL 与代码）；§4.1.2 alreadyAssignment 拼写订正 alreadyAssigned；2026-08-31 T-FE-015 收口：§4.6 登记 bootstrap 菜单种子 15 行与默认组织树种子（设计定案）；member-candidates 前端函数已新增接入（差距行与汇总表收口）；同日早前 T-PERM-037 四处「当前差距」对齐实现；2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；此前：2026-08-23
 ---
 
 # Admin Service 对前端 API 契约（组织与用户域）
@@ -886,7 +886,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 #### 4.7.3 `POST /file/page` 🔧
 
-**请求 DTO**: `FilePageReq { pageNum, pageSize, sort?, bizType? }`（`pageNum/pageSize` 必填——服务端未实现缺省默认值，缺省将失败；`sort/bizType` 可选）。**响应**: `R<PageResp<FileResp>>`（按创建时间倒序，可按 bizType 过滤）。
+**请求 DTO**: `FilePageReq { pageNum, pageSize, sort?, bizType? }`（`pageNum/pageSize` 可选，默认 1/20，`@Min(1)/@Max(100)` 校验——T-ADMIN-026 对齐 PageReq 先例，原「必填、缺省将失败」行为废止；`sort/bizType` 可选）。**响应**: `R<PageResp<FileResp>>`（按创建时间倒序 `created_at DESC, id DESC`，可按 bizType 过滤）。
 **门禁**: `ADMIN_FILE:VIEW` 类型级（T-ADMIN-023 补齐，原无校验）。
 
 #### 4.7.4 `POST /file/download` 🔧

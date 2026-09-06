@@ -47,11 +47,6 @@
         ORDER BY action
     </select>
 
-    <!-- T-ACCESS-002 归并：以下语句自原 admin SysAuditLogMapper.xml 并入，表名统一为 operation_log -->
-    <select id="paginateByTenantId" resultType="cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog">
-        SELECT * FROM operation_log
-        WHERE tenant_id = #{tenantId}
-        ORDER BY created_at DESC
-    </select>
+    <!-- T-ACCESS-002 归并自原 admin SysAuditLogMapper.xml 的 paginateByTenantId 因无调用方删除（T-ADMIN-026） -->
 
 </mapper>

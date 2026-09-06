@@ -20,7 +20,6 @@ import cn.ac.fage.accessmesh.access.admin.service.NoticeService;
 import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
-import com.mybatisflex.core.paginate.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -210,16 +209,22 @@ public class NoticeServiceImpl implements NoticeService {
     @Override
     public PageResp<NoticeResp> pageNotices(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
-        Page<SysNotice> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysNotice> result = noticeMapper.paginateByTenant(page, tenantId);
+        int pageNum = pageReq.getPageNum();
+        int pageSize = pageReq.getPageSize();
 
-        List<NoticeResp> items = result.getRecords().stream()
+        // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
+        long total = noticeMapper.countByTenant(tenantId);
+        List<SysNotice> records = total == 0 ? List.of()
+            : noticeMapper.selectByTenantPaged(tenantId, (pageNum - 1) * pageSize, pageSize);
+
+        List<NoticeResp> items = records.stream()
             .map(n -> new NoticeResp(n.getId(), n.getTitle(), n.getContent(),
                 n.getNoticeType() != null ? Integer.parseInt(n.getNoticeType()) : null, n.getTargetIds(),
                 n.getStatus(), n.getCreatedAt(), n.getUpdatedAt()))
             .toList();
 
-        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
+        return new PageResp<>(items, total, pageNum, pageSize,
+            (pageNum - 1) * pageSize + items.size() < total);
     }
 
     /**

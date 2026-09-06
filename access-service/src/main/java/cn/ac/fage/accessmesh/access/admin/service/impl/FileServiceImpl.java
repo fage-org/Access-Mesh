@@ -14,7 +14,6 @@ import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.admin.service.FileService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
-import com.mybatisflex.core.paginate.Page;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -421,14 +420,20 @@ public class FileServiceImpl implements FileService {
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_FILE, AdminOperationCode.VIEW);
 
         Long tenantId = TenantContextHolder.getTenantId();
+        int pageNum = pageReq.getPageNum();
+        int pageSize = pageReq.getPageSize();
 
-        Page<SysFile> result = fileMapper.paginateFiles(Page.of(pageReq.pageNum(), pageReq.pageSize()), tenantId, bizType);
+        // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
+        long total = fileMapper.countFilesByCondition(tenantId, bizType);
+        List<SysFile> records = total == 0 ? List.of()
+            : fileMapper.selectFilesByCondition(tenantId, bizType, (pageNum - 1) * pageSize, pageSize);
 
-        List<FileResp> items = result.getRecords().stream()
+        List<FileResp> items = records.stream()
             .map(this::toResp)
             .collect(Collectors.toList());
 
-        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
+        return new PageResp<>(items, total, pageNum, pageSize,
+            (pageNum - 1) * pageSize + items.size() < total);
     }
 
     /**

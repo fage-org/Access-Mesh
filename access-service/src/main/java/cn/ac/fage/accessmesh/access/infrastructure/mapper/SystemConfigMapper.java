@@ -1,7 +1,6 @@
 package cn.ac.fage.accessmesh.access.infrastructure.mapper;
 
 import com.mybatisflex.core.BaseMapper;
-import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
 import org.apache.ibatis.annotations.Param;
 
@@ -76,14 +75,29 @@ public interface SystemConfigMapper extends BaseMapper<SystemConfig> {
                         @Param("deletedAt") LocalDateTime deletedAt);
 
     /**
-     * 分页查询租户下的配置列表
+     * 分页查询租户下的配置列表（按创建时间正序）
+     * <p>
+     * XML 分页统一 offset/limit + count 双查询（仓库既定模式，见 SysUserMapper；
+     * MyBatis-Flex 的 Page 参数在 XML 映射下不生效——selectOne 多行异常，
+     * T-FE-022 冒烟实证有行即 500，T-ADMIN-026 收口）
+     * </p>
      *
-     * @param page     分页参数
      * @param tenantId 租户ID
-     * @return 分页结果
+     * @param offset   偏移量
+     * @param limit    每页条数
+     * @return 配置列表（当前页）
      */
-    Page<SystemConfig> selectPageByTenantId(Page<SystemConfig> page,
-                                            @Param("tenantId") Long tenantId);
+    List<SystemConfig> selectPageByTenantId(@Param("tenantId") Long tenantId,
+                                            @Param("offset") int offset,
+                                            @Param("limit") int limit);
+
+    /**
+     * 统计租户下的有效配置数（用于分页计算）
+     *
+     * @param tenantId 租户ID
+     * @return 有效配置数
+     */
+    long countByTenantId(@Param("tenantId") Long tenantId);
 
     /**
      * 根据ID列表和租户ID查询配置列表

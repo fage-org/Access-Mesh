@@ -107,7 +107,7 @@
 | [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（全局域创建入口设计 + domain_config 唯一键兜底 + 删除保护并发窗口；T-PERM-026 收口登记；全局域入口 2026-09-05 已定案） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ⚙️ | ⏳ |
 | [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ⚙️ | ⏳ |
 | [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（来源字段+resource_entity 投影+UI；T-PERM-029 收口登记，写门禁已先收窄类型级） | — | api-contract §5.6；access-service.sql | — | ⚙️ | ⏳ |
-| [T-PERM-049](T-PERM-049.md) | 全局操作概念整体退役（操作位空间按类型隔离 + DDL CHECK 焊死；外部复审 P1 越权根治） | — | api-contract §5.3；access-service.sql | — | — | ✅ |
+| [T-PERM-049](T-PERM-049.md) | 全局操作概念整体退役（操作位空间按类型隔离 + DDL CHECK 焊死；外部复审 P1 越权根治） | — | api-contract §5.3；access-service.sql | — | ✅ | ✓ |
 | [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（含资源实体/授权同类引用面盘点；T-PERM-040 收口登记） | — | schema；api-contract §5.1/§5.3 | — | ⚙️ | ⏳ |
 | [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一——type-definition 写路径联动维护 resource_entity + 门禁消费方迁移（实例级授权可配 + list 实例级门禁通路；T-FE-018 决策修订查库登记；2026-09-05 定案投影三族全量/复合键/保留清单） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ⚙️ | ⏳ |
 | [T-PERM-052](T-PERM-052.md) | 资源类型级所有权边界——类型声明门禁（sync 独占 + 管理面只读含级联守卫 + 声明变更守卫；2026-09-05 用户定案改定类型级方案） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.1/§5.3/§6.2.2/§6.3.1；architecture §4.3；schema | — | ✅ | ✅ |
@@ -142,7 +142,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020/025/026`（见下表）。`T-ADMIN-0
 | [T-ADMIN-023](T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |
 | [T-ADMIN-024](T-ADMIN-024.md) | 恒拒绝退役 API 直接删除（含 /role/revoke-menu 共 5 个） | product-vertical-slice（已归档） | admin-service-api-contract；org-user-permission-contract；access-service-architecture；architecture；default-org-tree-user-lifecycle | T-ACCESS-021 | ✅ | ✓ |
 | [T-ADMIN-025](T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture；schema/access-service.sql | T-ADMIN-023 | ⚙️ | ⏳ |
-| [T-ADMIN-026](T-ADMIN-026.md) | XML 映射 mapper 的 Page 参数不生效族统一改造（9 方法有行即 CCE 500，服务层调用方 8/9、当前无前端消费页；T-FE-022 联调登记）+ PgIT stringtype 追加无效订正 | — | admin-service-api-contract；rebuild-runbook | T-FE-022 | ⚙️ | ⏳ |
+| [T-ADMIN-026](T-ADMIN-026.md) | XML 映射 mapper 的 Page 参数不生效族统一改造（9 方法有行即 CCE 500，服务层调用方 8/9、当前无前端消费页；已收口 2026-09-06：8 改造+死方法删除+参数面补齐（设计定案）+tie-breaker+stringtype 订正 21 文件，终态见任务卡完成记录） | — | admin-service-api-contract；rebuild-runbook | T-FE-022 | ✅ | ✓ |
 | [T-ADMIN-027](T-ADMIN-027.md) | 响应分页信封统一——admin 嵌套方言退役（12 端点迁扁平）+ PaginatedResp 更名 PageResp + 6 处裸数组收编 ItemsResp（建卡 5 + 执行发现 my-notices） | — | admin-service-api-contract；api-contract §3.3；project-rules §1.3 | — | ✅ | ✓ |
 
 ### 组织/用户与跨服务 API

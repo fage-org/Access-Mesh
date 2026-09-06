@@ -1,7 +1,6 @@
 package cn.ac.fage.accessmesh.access.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
-import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.access.admin.entity.SysDictType;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -49,13 +48,27 @@ public interface SysDictTypeMapper extends BaseMapper<SysDictType> {
 
     /**
      * 根据租户ID分页查询字典类型（按创建时间正序）
+     * <p>
+     * XML 分页统一 offset/limit + count 双查询（仓库既定模式，见 SysUserMapper；
+     * MyBatis-Flex 的 Page 参数在 XML 映射下不生效——selectOne 多行异常，T-ADMIN-026 收口）
+     * </p>
      *
-     * @param page     分页参数（MyBatis-Flex自动拦截）
      * @param tenantId 租户ID
-     * @return 分页结果
+     * @param offset   偏移量
+     * @param limit    每页条数
+     * @return 字典类型列表（当前页）
      */
-    Page<SysDictType> paginateByTenantId(Page<SysDictType> page,
-                                         @Param("tenantId") Long tenantId);
+    List<SysDictType> selectByTenantIdPaged(@Param("tenantId") Long tenantId,
+                                            @Param("offset") int offset,
+                                            @Param("limit") int limit);
+
+    /**
+     * 统计租户下的有效字典类型数（用于分页计算）
+     *
+     * @param tenantId 租户ID
+     * @return 有效字典类型数
+     */
+    long countByTenantId(@Param("tenantId") Long tenantId);
 
     /**
      * 批量软删除字典类型

@@ -104,9 +104,20 @@ class TreeCycleHardeningPgIT {
         .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
         .withExposedPorts(6379);
 
+    /**
+     * Testcontainers 的 getJdbcUrl() 已自带查询参数，直接追加 "?stringtype=unspecified"
+     * 会并入前一个参数值被 pgjdbc 静默忽略，按是否已含 "?" 选择分隔符
+     * （T-ADMIN-026 订正；先例 KeywordLikeSearchPgIT.urlWithStringtype）。
+     */
+    static String urlWithStringtype() {
+        String url = postgres.getJdbcUrl();
+        return url + (url.contains("?") ? "&" : "?") + "stringtype=unspecified";
+    }
+
+
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> postgres.getJdbcUrl() + "?stringtype=unspecified");
+        registry.add("spring.datasource.url", () -> urlWithStringtype());
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
@@ -120,7 +131,7 @@ class TreeCycleHardeningPgIT {
         // 原样执行权威 DDL + 种子数据（type_definition MENU=1 供菜单投影解析）
         String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
         try (var conn = java.sql.DriverManager.getConnection(
-            postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
+            urlWithStringtype(), postgres.getUsername(), postgres.getPassword());
              var st = conn.createStatement()) {
             st.execute(sql);
         }

@@ -6,7 +6,6 @@ import cn.ac.fage.accessmesh.access.admin.entity.SysLoginLog;
 import cn.ac.fage.accessmesh.access.admin.mapper.SysLoginLogMapper;
 import cn.ac.fage.accessmesh.access.admin.service.LoginLogService;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
-import com.mybatisflex.core.paginate.Page;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -47,10 +46,15 @@ public class LoginLogServiceImpl implements LoginLogService {
     @Override
     public PageResp<SysLoginLog> pageLoginLogs(PageReq pageReq) {
         Long tenantId = TenantContextHolder.getTenantId();
-        Page<SysLoginLog> page = Page.of(pageReq.pageNum(), pageReq.pageSize());
-        Page<SysLoginLog> result = loginLogMapper.paginateByTenantId(page, tenantId);
+        int pageNum = pageReq.getPageNum();
+        int pageSize = pageReq.getPageSize();
 
-        List<SysLoginLog> items = result.getRecords();
-        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
+        // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
+        long total = loginLogMapper.countByTenantId(tenantId);
+        List<SysLoginLog> items = total == 0 ? List.of()
+            : loginLogMapper.selectByTenantIdPaged(tenantId, (pageNum - 1) * pageSize, pageSize);
+
+        return new PageResp<>(items, total, pageNum, pageSize,
+            (pageNum - 1) * pageSize + items.size() < total);
     }
 }

@@ -46,10 +46,17 @@
         AND delete_flag = 0 AND tenant_id = #{tenantId}
     </update>
 
+    <!-- XML 分页统一 offset/limit + count 双查询（T-ADMIN-026；id 作 tie-breaker 保证分页稳定） -->
     <select id="selectPageByTenantId" resultType="cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig">
         SELECT * FROM system_config
         WHERE tenant_id = #{tenantId} AND delete_flag = 0
-        ORDER BY created_at ASC
+        ORDER BY created_at ASC, id ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByTenantId" resultType="long">
+        SELECT COUNT(*) FROM system_config
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
     </select>
 
     <select id="selectListByIdsAndTenantId" resultType="cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig">

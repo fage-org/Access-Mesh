@@ -8,7 +8,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
-import com.mybatisflex.core.paginate.Page;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,9 +28,10 @@ import static org.mockito.Mockito.when;
  * <p>
  * admin 12 端点由嵌套 {@code PaginatedResult{items, pagination:{total,page,size,totalPages}}}
  * 迁扁平 {@code PageResp{items,total,pageNum,pageSize,hasNext}}。本测试锁定扁平五字段与
- * hasNext 的两类装配语义：手工 count/offset 装配（offset+已取条数&lt;total）与 MyBatis-Flex
- * {@code Page#hasNext()}（pageNumber&lt;totalPage）。边界用例取「整除末页 hasNext=false」
- * 与「非整除末页 hasNext=false」，旧嵌套实现无 hasNext 访问器，无法通过编译。
+ * hasNext 的手工 count/offset 装配语义（offset+已取条数&lt;total）。边界用例取「整除末页
+ * hasNext=false」与「非整除末页 hasNext=false」。原 Flex Page 装配轨（MyBatis-Flex
+ * {@code Page#hasNext()}）已随 T-ADMIN-026 XML 分页改造消亡，Config 用例改锁
+ * count/offset 装配（与 OrgTreeConfig 同轨，两个 service 分别锁定）。
  * </p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -109,10 +109,10 @@ class AdminPageRespShapeTest {
     }
 
     /**
-     * MyBatis-Flex Page 装配（Config 为代表，Flex paginate 同款 7 端点）。
+     * 手工 count/offset 装配（Config 为代表，T-ADMIN-026 XML 分页改造后同轨）。
      */
     @Nested
-    class FlexPageAssembly {
+    class ConfigManualCountAssembly {
 
         @Mock private SystemConfigMapper configMapper;
         @Mock private AdminPermissionValidator permissionValidator;
@@ -121,23 +121,12 @@ class AdminPageRespShapeTest {
             return new ConfigServiceImpl(configMapper, permissionValidator);
         }
 
-        /** 就地填充调用方传入的 Flex Page（Page 未实现 equals，不能按值匹配桩参）。 */
-        private void stubFlexPage(int fetched, long totalRow) {
-            when(configMapper.selectPageByTenantId(org.mockito.ArgumentMatchers.any(), eq(TENANT_ID)))
-                .thenAnswer(inv -> {
-                    Page<SystemConfig> page = inv.getArgument(0);
-                    page.setTotalRow(totalRow);
-                    page.setRecords(java.util.stream.IntStream.rangeClosed(1, fetched)
-                        .mapToObj(i -> new SystemConfig())
-                        .toList());
-                    return page;
-                });
-        }
-
         @Test
-        @DisplayName("非末页：pageNumber < totalPage → hasNext=true")
-        void flexPageBeforeLastHasNextTrue() {
-            stubFlexPage(2, 5L);
+        @DisplayName("非末页：offset+已取 < total → hasNext=true")
+        void configPageBeforeLastHasNextTrue() {
+            when(configMapper.countByTenantId(TENANT_ID)).thenReturn(5L);
+            when(configMapper.selectPageByTenantId(eq(TENANT_ID), eq(0), eq(2)))
+                .thenReturn(List.of(new SystemConfig(), new SystemConfig()));
 
             PageResp<cn.ac.fage.accessmesh.access.admin.dto.resp.ConfigResp> resp =
                 service().pageConfigs(PageReq.of(1, 2));
@@ -150,15 +139,30 @@ class AdminPageRespShapeTest {
         }
 
         @Test
-        @DisplayName("整除末页边界：pageNumber == totalPage → hasNext=false")
-        void flexExactFitLastPageHasNextFalse() {
-            stubFlexPage(2, 4L);
+        @DisplayName("整除末页边界：offset+已取 == total → hasNext=false")
+        void configExactFitLastPageHasNextFalse() {
+            when(configMapper.countByTenantId(TENANT_ID)).thenReturn(4L);
+            when(configMapper.selectPageByTenantId(eq(TENANT_ID), eq(2), eq(2)))
+                .thenReturn(List.of(new SystemConfig(), new SystemConfig()));
 
             PageResp<cn.ac.fage.accessmesh.access.admin.dto.resp.ConfigResp> resp =
                 service().pageConfigs(PageReq.of(2, 2));
 
             assertThat(resp.items()).hasSize(2);
             assertThat(resp.total()).isEqualTo(4L);
+            assertThat(resp.hasNext()).isFalse();
+        }
+
+        @Test
+        @DisplayName("空集：total=0 短路不查列表 → items 空、hasNext=false")
+        void configZeroTotalShortCircuit() {
+            when(configMapper.countByTenantId(TENANT_ID)).thenReturn(0L);
+
+            PageResp<cn.ac.fage.accessmesh.access.admin.dto.resp.ConfigResp> resp =
+                service().pageConfigs(PageReq.of(1, 2));
+
+            assertThat(resp.items()).isEmpty();
+            assertThat(resp.total()).isZero();
             assertThat(resp.hasNext()).isFalse();
         }
     }

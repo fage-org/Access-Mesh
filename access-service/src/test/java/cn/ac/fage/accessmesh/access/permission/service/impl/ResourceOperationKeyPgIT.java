@@ -103,9 +103,20 @@ class ResourceOperationKeyPgIT {
         .withCommand("redis-server", "--requirepass", REDIS_TEST_PASSWORD)
         .withExposedPorts(6379);
 
+    /**
+     * Testcontainers 的 getJdbcUrl() 已自带查询参数，直接追加 "?stringtype=unspecified"
+     * 会并入前一个参数值被 pgjdbc 静默忽略，按是否已含 "?" 选择分隔符
+     * （T-ADMIN-026 订正；先例 KeywordLikeSearchPgIT.urlWithStringtype）。
+     */
+    static String urlWithStringtype() {
+        String url = postgres.getJdbcUrl();
+        return url + (url.contains("?") ? "&" : "?") + "stringtype=unspecified";
+    }
+
+
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", () -> postgres.getJdbcUrl() + "?stringtype=unspecified");
+        registry.add("spring.datasource.url", () -> urlWithStringtype());
         registry.add("spring.datasource.username", postgres::getUsername);
         registry.add("spring.datasource.password", postgres::getPassword);
         registry.add("spring.datasource.driver-class-name", postgres::getDriverClassName);
@@ -118,7 +129,7 @@ class ResourceOperationKeyPgIT {
     static void setupSchema() throws Exception {
         String sql = Files.readString(DDL_PATH, StandardCharsets.UTF_8);
         try (var conn = java.sql.DriverManager.getConnection(
-            postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
+            urlWithStringtype(), postgres.getUsername(), postgres.getPassword());
              var st = conn.createStatement()) {
             st.execute(sql);
         }
@@ -328,7 +339,7 @@ class ResourceOperationKeyPgIT {
         // 全局操作概念退役：DDL CHECK 强制 resource_type 非空，全局行在数据层被拒
         // （授权行只存 resource_type + granted_bits，全局位与专属位同值时授权身份不可区分）
         try (var conn = java.sql.DriverManager.getConnection(
-                postgres.getJdbcUrl() + "?stringtype=unspecified", postgres.getUsername(), postgres.getPassword());
+                urlWithStringtype(), postgres.getUsername(), postgres.getPassword());
              var ps = conn.prepareStatement(
                 "INSERT INTO operation_permission (tenant_id, resource_type, code, name, "
                     + "binary_bit, inherit_mask, delete_flag) VALUES (?, NULL, 'PGIT28_OP_GLOBAL', 'x', 4096, 0, 0)")) {

@@ -17,7 +17,6 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.dev33.satoken.secure.BCrypt;
-import com.mybatisflex.core.paginate.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -217,14 +216,21 @@ public class Oauth2ClientServiceImpl implements Oauth2ClientService {
      */
     @Override
     public PageResp<Oauth2ClientResp> pageClientResps(Oauth2ClientPageReq req) {
-        Page<SysOauth2Client> page = Page.of(req.getPageNum(), req.getPageSize());
-        Page<SysOauth2Client> result = oauth2ClientMapper.paginateByCondition(
-            page, TenantContextHolder.getTenantId(), req.clientName(), req.status());
+        Long tenantId = TenantContextHolder.getTenantId();
+        int pageNum = req.getPageNum();
+        int pageSize = req.getPageSize();
 
-        List<Oauth2ClientResp> items = result.getRecords().stream()
+        // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
+        long total = oauth2ClientMapper.countClientsByCondition(tenantId, req.clientName(), req.status());
+        List<SysOauth2Client> records = total == 0 ? List.of()
+            : oauth2ClientMapper.selectClientsByCondition(tenantId, req.clientName(), req.status(),
+                (pageNum - 1) * pageSize, pageSize);
+
+        List<Oauth2ClientResp> items = records.stream()
             .map(Oauth2ClientResp::fromEntity)
             .collect(Collectors.toList());
 
-        return new PageResp<>(items, result.getTotalRow(), req.getPageNum(), req.getPageSize(), result.hasNext());
+        return new PageResp<>(items, total, pageNum, pageSize,
+            (pageNum - 1) * pageSize + items.size() < total);
     }
 }

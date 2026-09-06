@@ -28,7 +28,6 @@ import cn.ac.fage.accessmesh.access.admin.mapper.SysJobMapper;
 import cn.ac.fage.accessmesh.access.admin.service.JobService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
-import com.mybatisflex.core.paginate.Page;
 import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -401,14 +400,20 @@ public class JobServiceImpl implements JobService {
     @Override
     public PageResp<JobResp> pageJobs(PageReq pageReq, String jobGroup) {
         Long tenantId = TenantContextHolder.getTenantId();
+        int pageNum = pageReq.getPageNum();
+        int pageSize = pageReq.getPageSize();
 
-        Page<SysJob> result = jobMapper.paginateJobs(Page.of(pageReq.pageNum(), pageReq.pageSize()), tenantId, jobGroup);
+        // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
+        long total = jobMapper.countJobsByCondition(tenantId, jobGroup);
+        List<SysJob> records = total == 0 ? List.of()
+            : jobMapper.selectJobsByCondition(tenantId, jobGroup, (pageNum - 1) * pageSize, pageSize);
 
-        List<JobResp> items = result.getRecords().stream()
+        List<JobResp> items = records.stream()
             .map(JobResp::from)
             .toList();
 
-        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
+        return new PageResp<>(items, total, pageNum, pageSize,
+            (pageNum - 1) * pageSize + items.size() < total);
     }
 
     /**
@@ -425,14 +430,20 @@ public class JobServiceImpl implements JobService {
     @Override
     public PageResp<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
         Long tenantId = TenantContextHolder.getTenantId();
+        int pageNum = pageReq.getPageNum();
+        int pageSize = pageReq.getPageSize();
 
-        Page<SysJobLog> result = jobLogMapper.paginateJobLogs(Page.of(pageReq.pageNum(), pageReq.pageSize()), tenantId, jobId);
+        // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
+        long total = jobLogMapper.countJobLogsByCondition(tenantId, jobId);
+        List<SysJobLog> records = total == 0 ? List.of()
+            : jobLogMapper.selectJobLogsByCondition(tenantId, jobId, (pageNum - 1) * pageSize, pageSize);
 
-        List<JobLogResp> items = result.getRecords().stream()
+        List<JobLogResp> items = records.stream()
             .map(JobLogResp::from)
             .toList();
 
-        return new PageResp<>(items, result.getTotalRow(), pageReq.pageNum(), pageReq.pageSize(), result.hasNext());
+        return new PageResp<>(items, total, pageNum, pageSize,
+            (pageNum - 1) * pageSize + items.size() < total);
     }
 
     /**

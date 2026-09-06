@@ -1,7 +1,6 @@
 package cn.ac.fage.accessmesh.access.infrastructure.mapper;
 
 import com.mybatisflex.core.BaseMapper;
-import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
 import org.apache.ibatis.annotations.Param;
 
@@ -17,7 +16,7 @@ import java.util.List;
  * </p>
  * <p>
  * 归并（T-ACCESS-002）：sys_audit_log（admin）并入 operation_log，原 admin 侧
- * SysAuditLogMapper 的租户分页方法合并到本接口。
+ * SysAuditLogMapper 的租户分页方法合并到本接口后因无调用方删除（T-ADMIN-026）。
  * </p>
  */
 public interface OperationLogMapper extends BaseMapper<OperationLog> {
@@ -74,14 +73,4 @@ public interface OperationLogMapper extends BaseMapper<OperationLog> {
      */
     List<String> selectDistinctActions(@Param("tenantId") Long tenantId,
                                         @Param("module") String module);
-
-    /**
-     * 分页查询指定租户的操作日志，按创建时间倒序排列（原 admin 审计日志页）
-     *
-     * @param page     分页参数
-     * @param tenantId 租户ID
-     * @return 分页结果
-     */
-    Page<OperationLog> paginateByTenantId(@Param("page") Page<OperationLog> page,
-                                          @Param("tenantId") Long tenantId);
 }

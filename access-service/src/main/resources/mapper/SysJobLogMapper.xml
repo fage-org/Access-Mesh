@@ -3,13 +3,24 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.admin.mapper.SysJobLogMapper">
 
-    <select id="paginateJobLogs" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysJobLog">
+    <!-- XML 分页统一 offset/limit + count 双查询（T-ADMIN-026；id 作 tie-breaker 保证分页稳定；
+         日志表无 delete_flag，与既有查询口径一致 -->
+    <select id="selectJobLogsByCondition" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysJobLog">
         SELECT * FROM sys_job_log
         WHERE tenant_id = #{tenantId}
         <if test="jobId != null">
             AND job_id = #{jobId}
         </if>
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countJobLogsByCondition" resultType="long">
+        SELECT COUNT(*) FROM sys_job_log
+        WHERE tenant_id = #{tenantId}
+        <if test="jobId != null">
+            AND job_id = #{jobId}
+        </if>
     </select>
 
 </mapper>

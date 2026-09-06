@@ -1,7 +1,6 @@
 package cn.ac.fage.accessmesh.access.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
-import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -58,18 +57,32 @@ public interface SysOauth2ClientMapper extends BaseMapper<SysOauth2Client> {
                                      @Param("clientId") String clientId);
 
     /**
-     * 分页查询客户端列表（租户隔离 + 未删除，可选过滤条件）
+     * 按条件分页查询客户端列表（租户隔离 + 未删除，可选过滤条件）
+     * <p>
+     * XML 分页统一 offset/limit + count 双查询（仓库既定模式，见 SysUserMapper；
+     * MyBatis-Flex 的 Page 参数在 XML 映射下不生效——selectOne 多行异常，
+     * T-FE-022 冒烟实证有行即 TooManyResultsException 500，T-ADMIN-026 收口）
+     * </p>
      *
-     * @param page       分页参数（MyBatis-Flex自动拦截）
      * @param tenantId   租户ID
      * @param clientName 客户端名称（可选，模糊匹配）
      * @param status     状态（可选，精确匹配）
-     * @return 分页结果
+     * @param offset     偏移量
+     * @param limit      每页条数
+     * @return 客户端列表（当前页）
      */
-    Page<SysOauth2Client> paginateByCondition(Page<SysOauth2Client> page,
-                                              @Param("tenantId") Long tenantId,
-                                              @Param("clientName") String clientName,
-                                              @Param("status") Integer status);
+    List<SysOauth2Client> selectClientsByCondition(@Param("tenantId") Long tenantId,
+                                                   @Param("clientName") String clientName,
+                                                   @Param("status") Integer status,
+                                                   @Param("offset") int offset,
+                                                   @Param("limit") int limit);
+
+    /**
+     * 按条件统计客户端数（条件与 {@link #selectClientsByCondition} 一致，用于分页计算）
+     */
+    long countClientsByCondition(@Param("tenantId") Long tenantId,
+                                 @Param("clientName") String clientName,
+                                 @Param("status") Integer status);
 
     /**
      * 根据客户端ID查询启用状态的客户端（未删除 + 已启用）

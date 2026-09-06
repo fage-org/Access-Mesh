@@ -17,10 +17,17 @@
         </foreach>
     </select>
 
-    <select id="paginateByTenant" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysNotice">
+    <!-- XML 分页统一 offset/limit + count 双查询（T-ADMIN-026；id 作 tie-breaker 保证分页稳定） -->
+    <select id="selectByTenantPaged" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysNotice">
         SELECT * FROM sys_notice
         WHERE tenant_id = #{tenantId} AND delete_flag = 0
-        ORDER BY created_at DESC
+        ORDER BY created_at DESC, id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByTenant" resultType="long">
+        SELECT COUNT(*) FROM sys_notice
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
     </select>
 
     <select id="selectPublishedByTenant" resultType="cn.ac.fage.accessmesh.access.admin.entity.SysNotice">

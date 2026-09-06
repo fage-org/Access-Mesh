@@ -2,9 +2,10 @@ package cn.ac.fage.accessmesh.access.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
 import cn.ac.fage.accessmesh.access.admin.entity.SysLoginLog;
-import com.mybatisflex.core.paginate.Page;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
+
+import java.util.List;
 
 /**
  * 系统登录日志数据访问接口
@@ -18,11 +19,22 @@ public interface SysLoginLogMapper extends BaseMapper<SysLoginLog> {
 
     /**
      * 分页查询指定租户的登录日志，按登录时间倒序排列
+     * <p>
+     * XML 分页统一 offset/limit + count 双查询（仓库既定模式，见 SysUserMapper；
+     * MyBatis-Flex 的 Page 参数在 XML 映射下不生效——selectOne 多行异常，T-ADMIN-026 收口）
+     * </p>
      *
-     * @param page     分页参数
      * @param tenantId 租户ID
-     * @return 分页结果
+     * @param offset   偏移量
+     * @param limit    每页条数
+     * @return 登录日志列表（当前页）
      */
-    Page<SysLoginLog> paginateByTenantId(@Param("page") Page<SysLoginLog> page,
-                                         @Param("tenantId") Long tenantId);
+    List<SysLoginLog> selectByTenantIdPaged(@Param("tenantId") Long tenantId,
+                                            @Param("offset") int offset,
+                                            @Param("limit") int limit);
+
+    /**
+     * 统计指定租户的登录日志数（用于分页计算）
+     */
+    long countByTenantId(@Param("tenantId") Long tenantId);
 }

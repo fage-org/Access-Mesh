@@ -1,7 +1,6 @@
 package cn.ac.fage.accessmesh.access.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
-import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.access.admin.entity.SysNotice;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -39,12 +38,24 @@ public interface SysNoticeMapper extends BaseMapper<SysNotice> {
 
     /**
      * 分页查询未删除的通知（租户隔离），按创建时间倒序
+     * <p>
+     * XML 分页统一 offset/limit + count 双查询（仓库既定模式，见 SysUserMapper；
+     * MyBatis-Flex 的 Page 参数在 XML 映射下不生效——selectOne 多行异常，T-ADMIN-026 收口）
+     * </p>
      *
-     * @param page     分页参数（MyBatis-Flex自动拦截）
      * @param tenantId 租户ID
-     * @return 分页结果
+     * @param offset   偏移量
+     * @param limit    每页条数
+     * @return 通知列表（当前页）
      */
-    Page<SysNotice> paginateByTenant(@Param("page") Page<SysNotice> page, @Param("tenantId") Long tenantId);
+    List<SysNotice> selectByTenantPaged(@Param("tenantId") Long tenantId,
+                                        @Param("offset") int offset,
+                                        @Param("limit") int limit);
+
+    /**
+     * 统计租户下未删除的通知数（用于分页计算）
+     */
+    long countByTenant(@Param("tenantId") Long tenantId);
 
     /**
      * 查询已发布且未删除的通知列表（租户隔离），按创建时间倒序

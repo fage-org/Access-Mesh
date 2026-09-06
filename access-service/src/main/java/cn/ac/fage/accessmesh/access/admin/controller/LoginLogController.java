@@ -6,6 +6,7 @@ import cn.ac.fage.accessmesh.access.admin.entity.SysLoginLog;
 import cn.ac.fage.accessmesh.access.admin.service.LoginLogService;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.common.model.R;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -48,7 +49,7 @@ public class LoginLogController {
      * @return 分页登录日志列表结果
      */
     @PostMapping("/page")
-    public R<PageResp<LoginLogResp>> pageLoginLogs(@RequestBody PageReq pageReq) {
+    public R<PageResp<LoginLogResp>> pageLoginLogs(@Valid @RequestBody PageReq pageReq) {
         PageResp<SysLoginLog> result = loginLogService.pageLoginLogs(pageReq);
         List<LoginLogResp> items = result.items().stream()
             .map(LoginLogResp::from)

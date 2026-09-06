@@ -1,7 +1,6 @@
 package cn.ac.fage.accessmesh.access.admin.mapper;
 
 import com.mybatisflex.core.BaseMapper;
-import com.mybatisflex.core.paginate.Page;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOrg;
 import lombok.Getter;
 import lombok.Setter;
