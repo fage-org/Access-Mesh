@@ -34,9 +34,11 @@ metadata:
 3. 必设「实证通过项」清单（已核对无问题的面）。
 4. 必设「存疑待用户决策项」：宁可多列，每条给倾向选项与理由；上报时按 `.claude/rules/decision-question-protocol.md` 举例提问。
 5. 子代理 grep 排除 `.claude/worktrees/`、`docs/archive/`、`target/`（历史工作树/归档/构建产物会造成假阳性）。
+6. 豁免段：整段注入 `docs/design/decision-registry.md` 当前内容——结论命中「再报直接撤回」口径即撤回，命中「报了先核出处」先核出处锚点，均不进存疑队列。
 
 ## 结论处置协议
 
+- 先对照 `docs/design/decision-registry.md`：结论命中「再报直接撤回」口径直接撤回，命中「报了先核出处」先核出处锚点，再走下列核实流程。
 - **逐条核实后再处置**，不照单全收：不成立的结论以证据反驳（先例：「测试包位置不规范」经查有域子包先例，驳回）；评审的改进建议同样核实可行性再采纳（先例：「换 effectiveOperationEntries 消除重复查询」因缺 conditionId 不可行，以技术理由登记拒绝）。
 - 属实且**修法唯一、最小、无设计取舍**的事实性缺陷 → 直接修复，汇报中说明未中断提问的原因。
 - 设计取舍/范围/口径类 → 交用户，按决策提问协议单条推进。
@@ -54,4 +56,5 @@ metadata:
 1. 残留 grep 用 `command grep` + 阳性对照（本 shell grep=ugrep 包装，双引号 pattern 假阴性）；超长单行字段编辑后 `grep -o` 计数复核关键短语。
 2. 任务卡写法：禁评审日记与「用户决策」过程节；状态行不写测试总数（以 surefire 报告为准，防逐轮漂移）。
 3. skill 双副本同步：`.claude/skills/` 与 `.agents/skills/` 改一份须同步全部。
-4. 提交：subject 精简一句、明细进 body；只本地 commit 不 push（用户明确要求时才 push/CI）。
+4. 定案登记：本任务产生的用户定案（含 AskUserQuestion 结论）当轮登记 `docs/design/decision-registry.md`，被推翻的旧条目移入「已推翻」节不删。
+5. 提交：subject 精简一句、明细进 body；只本地 commit 不 push（用户明确要求时才 push/CI）。

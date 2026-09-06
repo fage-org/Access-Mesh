@@ -39,6 +39,7 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 | ------------------ | ------------------------------------------ |
 | 文档入口与阅读顺序 | `docs/README.md`                           |
 | 工程规范           | `docs/design/project-rules.md`             |
+| 定案登记表         | `docs/design/decision-registry.md`（定案消费与评审豁免唯一入口；用户定案当轮登记） |
 | 整体架构           | `docs/design/architecture.md`              |
 | 归并后目标架构     | `docs/design/access-service-architecture.md` |
 | 权限中心概念模型   | `docs/design/permission-center/overview.md` |
