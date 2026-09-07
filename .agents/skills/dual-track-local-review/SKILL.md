@@ -33,7 +33,7 @@ metadata:
 2. 按 P0-P3 分级，每条附 `文件:行号` 与实证证据。
 3. 必设「实证通过项」清单（已核对无问题的面）。
 4. 必设「存疑待用户决策项」：宁可多列，每条给倾向选项与理由；上报时按 `.claude/rules/decision-question-protocol.md` 举例提问。
-5. 子代理 grep 排除 `.claude/worktrees/`、`docs/archive/`、`target/`（历史工作树/归档/构建产物会造成假阳性）。
+5. 子代理残留搜索统一 `rg "<pattern>" -g '!docs/archive/**'`（rg 尊重 .gitignore，`target/`、`node_modules/`、`.claude/worktrees/` 自动跳过；`docs/archive/` 归档文档是唯一需手工排除的假阳性源）。
 6. 豁免段：整段注入 `docs/design/decision-registry.md` 当前内容——结论命中「再报直接撤回」口径即撤回，命中「报了先核出处」先核出处锚点，均不进存疑队列。
 
 ## 结论处置协议
@@ -53,7 +53,7 @@ metadata:
 
 ## 收口 checklist
 
-1. 残留 grep 用 `command grep` + 阳性对照（本 shell grep=ugrep 包装，双引号 pattern 假阴性）；超长单行字段编辑后 `grep -o` 计数复核关键短语。
+1. 残留检查首选 `rg` + 阳性对照（pattern 写错任何工具都静默 0 命中）。rg 无 `-r`（默认递归）、无 `--include`（排除用 `-g '!docs/archive/**'`）、二进制默认跳过；裸 `command grep` 全仓噪音比 429:112 文件（2026-09-07 实测），勿再用。超长单行字段编辑后 `rg -o | wc -l` 复核关键短语计数。`command -v rg` 不在时退回 ugrep 包装 grep（双引号假阴性旧坑同日复测已不复发）。
 2. 任务卡写法：禁评审日记与「用户决策」过程节；状态行不写测试总数（以 surefire 报告为准，防逐轮漂移）。
 3. skill 双副本同步：`.claude/skills/` 与 `.agents/skills/` 改一份须同步全部。
 4. 定案登记：本任务产生的用户定案（含 AskUserQuestion 结论）当轮登记 `docs/design/decision-registry.md`，被推翻的旧条目移入「已推翻」节不删。
