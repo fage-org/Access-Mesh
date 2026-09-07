@@ -708,13 +708,13 @@ public class PermQueryEngine {
         // 查询（IN），putBatch 分组回填——不逐类型单查。
         Set<String> cacheKeys = new LinkedHashSet<>();
         for (Integer resourceType : resourceTypes) {
-            cacheKeys.add("op_perm:" + resourceType);
+            cacheKeys.add(PermCacheCatalog.operationPermissionsByTypeKey(resourceType));
         }
         Map<String, Map<Long, OperationPermission>> opMapsByCacheKey = new LinkedHashMap<>(cacheService.getBatch(
             PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKeys));
         List<Integer> missTypes = new ArrayList<>();
         for (Integer resourceType : resourceTypes) {
-            if (!opMapsByCacheKey.containsKey("op_perm:" + resourceType)) {
+            if (!opMapsByCacheKey.containsKey(PermCacheCatalog.operationPermissionsByTypeKey(resourceType))) {
                 missTypes.add(resourceType);
             }
         }
@@ -725,7 +725,7 @@ public class PermQueryEngine {
                 if (specific.getResourceType() == null) {
                     continue;
                 }
-                toPut.computeIfAbsent("op_perm:" + specific.getResourceType(),
+                toPut.computeIfAbsent(PermCacheCatalog.operationPermissionsByTypeKey(specific.getResourceType()),
                         key -> new LinkedHashMap<>())
                     .put(specific.getId(), specific);
             }
@@ -737,7 +737,8 @@ public class PermQueryEngine {
 
         Map<Integer, Long> result = new LinkedHashMap<>();
         for (Integer resourceType : resourceTypes) {
-            Map<Long, OperationPermission> opMap = opMapsByCacheKey.get("op_perm:" + resourceType);
+            Map<Long, OperationPermission> opMap = opMapsByCacheKey.get(
+                PermCacheCatalog.operationPermissionsByTypeKey(resourceType));
             if (opMap == null || opMap.isEmpty()) {
                 continue;
             }

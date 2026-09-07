@@ -107,7 +107,7 @@
 | [T-PERM-044](T-PERM-044.md) | 四棵树（角色/组织/菜单/资源实体，后者 T-PERM-028 收口扩入）move 并发成环窗口与递归 CTE 遇环不收敛统一加固（已收口 2026-09-04：树级 Redisson 锁（事务提交后释放）+ UNION 去重/深度上限 + 内存 visited，终态见 architecture §17） | — | [T-PERM-044](T-PERM-044.md) | — | ✅ | ✓ |
 | [T-PERM-045](T-PERM-045.md) | 内部管理门禁统一启用子级继承（父有权子有权） | — | [T-PERM-045](T-PERM-045.md) | — | ⚙️ | ⏳ |
 | [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（全局域创建入口设计 + domain_config 唯一键兜底 + 删除保护并发窗口；T-PERM-026 收口登记；全局域入口 2026-09-05 已定案） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ⚙️ | ⏳ |
-| [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ⚙️ | ⏳ |
+| [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ✅ | ✓ |
 | [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（来源字段+resource_entity 投影+UI；T-PERM-029 收口登记，写门禁已先收窄类型级） | — | api-contract §5.6；access-service.sql | — | ⚙️ | ⏳ |
 | [T-PERM-049](T-PERM-049.md) | 全局操作概念整体退役（操作位空间按类型隔离 + DDL CHECK 焊死；外部复审 P1 越权根治） | — | api-contract §5.3；access-service.sql | — | ✅ | ✓ |
 | [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（含资源实体/授权同类引用面盘点；T-PERM-040 收口登记） | — | schema；api-contract §5.1/§5.3 | — | ⚙️ | ⏳ |

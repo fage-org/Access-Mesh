@@ -628,6 +628,15 @@ GROUP_ROLE 树结构变更（moveRole 调整 parent_id；extra.basicRoleIds 无�
 条件规则变更（permission_condition）
   → PermissionChangeContext.markConditions(conditionIds)
   → afterCommit 批量失效 CONDITION_RULES；RolePermEntry 缓存只保存 conditionId，条件仍实时评估
+
+操作权限定义变更（operation_permission：createOperation/updateOperation/deleteOperations；
+  resource_type 创建联动预置 CRUD 四操作位同口径，T-PERM-047）
+  → 写路径事务提交后 evictAfterCommit(OPERATION_PERMISSIONS_BY_TYPE, tenantId,
+    "op_perm:" + resourceType)——键构造统一走 PermCacheCatalog.operationPermissionsByTypeKey，
+    deleteOperations 按受影响类型集合一次 evictBatchAfterCommit（同类型去重）
+  → 失效粒度 = 缓存 identifier 粒度（per-type；L1_L2 目录，evict 时框架同步清 L2 + 广播各实例清 L1）
+  → 兜底：广播丢失时最长陈旧 = L1 TTL 60m（本实例即时）；预置路径当前 typeValue 软删不复用、
+    新值必为冷键，接线是「写路径变更集合即失效」的语义完备性保证
 ```
 
 ### 5.3 Gateway 回调鉴权流程

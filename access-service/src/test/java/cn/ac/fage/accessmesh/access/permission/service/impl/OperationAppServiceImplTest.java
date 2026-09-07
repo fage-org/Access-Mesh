@@ -42,13 +42,14 @@ class OperationAppServiceImplTest {
     @Mock private OperationPermissionMapper operationPermissionMapper;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private PermQueryEngine engine;
+    @Mock private cn.ac.fage.accessmesh.common.cache.CacheService cacheService;
 
     private OperationAppServiceImpl service;
 
     @BeforeEach
     void setUp() {
         // 测试简化：投影主体 = 传入 operatorId
-        service = new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine);
+        service = new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine, cacheService);
     }
 
     @Test
@@ -204,7 +205,7 @@ class OperationAppServiceImplTest {
     }
 
     @Test
-    @DisplayName("update 按业务键定位更新（operationId 形态已删除）")
+    @DisplayName("update 按业务键定位更新（operationId 形态已删除）+ 提交后失效该类型操作缓存（T-PERM-047）")
     void shouldUpdateOperationByBusinessKey() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
@@ -219,6 +220,11 @@ class OperationAppServiceImplTest {
         assertEquals(16L, resp.binaryBit());
         assertEquals(2L, resp.inheritMask());
         verify(operationPermissionMapper).update(entity);
+        // T-PERM-047 回归锁：旧实现（写路径无失效，靠 L1 60m/L2 120m TTL 兜底）下 verify 失败——
+        // 位值变更后引擎最长 1-2 小时按旧位值判定
+        verify(cacheService).evictAfterCommit(
+            eq(cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
+            eq(1L), eq("op_perm:5"));
     }
 
     @Test
@@ -276,5 +282,55 @@ class OperationAppServiceImplTest {
             ids -> ids != null && ids.size() == 2
                 && ids.containsAll(List.of(11L, 22L))
                 && !ids.contains(12L) && !ids.contains(21L)), any());
+        // T-PERM-047 回归锁：批量软删后按受影响类型集合批量失效（同类型去重）
+        verify(cacheService).evictBatchAfterCommit(
+            eq(cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
+            eq(1L), eq(java.util.Set.of("op_perm:5", "op_perm:6")));
+    }
+
+    // ========== T-PERM-047：OPERATION_PERMISSIONS_BY_TYPE 写路径失效接线 ==========
+
+    @Test
+    @DisplayName("create 落库后提交失效该类型操作缓存（T-PERM-047）")
+    void shouldEvictOperationCacheAfterCreate() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
+
+        service.createOperation(1L, "USER", "EXPORT", "导出", 64L, 0L, 100L);
+
+        // 旧实现（无失效接线）下 verify 失败：新增操作在 TTL 窗口内不参与覆盖判定
+        verify(operationPermissionMapper).insert(any(OperationPermission.class));
+        verify(cacheService).evictAfterCommit(
+            eq(cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
+            eq(1L), eq("op_perm:7"));
+    }
+
+    @Test
+    @DisplayName("remove 空键早退不失效（无数据变更，T-PERM-047）")
+    void shouldSkipEvictionWhenDeleteHitsNothing() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+
+        service.deleteOperations(1L, List.of(), 100L);
+
+        verify(cacheService, never()).evictBatchAfterCommit(any(), any(), anySet());
+        verify(cacheService, never()).evictAfterCommit(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("remove 键非空但零命中（类型解析空）早退不失效（T-PERM-047）")
+    void shouldSkipEvictionWhenDeleteResolvesNoEntities() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        when(typeResolutionService.batchResolveTypeValues(eq(1L), eq("resource_type"), eq(java.util.Set.of("ROLE"))))
+            .thenReturn(java.util.Map.of());
+
+        service.deleteOperations(1L, List.of(
+            new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("ROLE", "VIEW")), 100L);
+
+        verify(operationPermissionMapper, never()).softDeleteBatch(any(), any(), any());
+        verify(cacheService, never()).evictBatchAfterCommit(any(), any(), anySet());
+        verify(cacheService, never()).evictAfterCommit(any(), any(), any());
     }
 }

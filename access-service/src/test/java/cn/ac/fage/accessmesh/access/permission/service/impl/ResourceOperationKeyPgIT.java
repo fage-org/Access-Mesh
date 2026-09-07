@@ -132,7 +132,8 @@ class ResourceOperationKeyPgIT {
     }
 
     private OperationAppServiceImpl newOperationAppService(PermQueryEngine engine) {
-        return new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine);
+        return new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine,
+            mock(cn.ac.fage.accessmesh.common.cache.CacheService.class));
     }
 
     @BeforeEach
@@ -303,12 +304,13 @@ class ResourceOperationKeyPgIT {
     }
 
     @Test
-    @DisplayName("resource_type 创建联动预置 CRUD 四操作位（真实 uk 约束 + DDL 模板位值）")
+    @DisplayName("resource_type 创建联动预置 CRUD 四操作位（真实 uk 约束 + DDL 模板位值）+ 预置后失效 per-type 操作缓存（T-PERM-047）")
     void shouldPresetCrudOperationsWhenCreatingResourceTypeOnRealPostgres() {
+        var cacheService = mock(cn.ac.fage.accessmesh.common.cache.CacheService.class);
         TypeDefinitionAppServiceImpl typeService = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, permitAllEngine(), ownershipGuard(),
             resourceEntityDomainService, mock(TreeWriteLockSupport.class),
-            mock(cn.ac.fage.accessmesh.common.cache.CacheService.class));
+            cacheService);
 
         var resp = typeService.createType(TENANT,
             new TypeCreateReq("resource_type", "PGIT28_TYPE", "联调测试类型", null, null, null), 100L);
@@ -327,5 +329,10 @@ class ResourceOperationKeyPgIT {
                 default -> throw new AssertionError("意外操作码: " + op.getCode());
             }
         }
+        // T-PERM-047 回归锁：预置路径同样接线失效（当前 typeValue 软删不复用、新值必为冷键，
+        // 此锁保证「写路径变更集合即失效」语义不随分配策略漂移）
+        org.mockito.Mockito.verify(cacheService).evictAfterCommit(
+            cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE,
+            TENANT, "op_perm:" + resp.typeValue());
     }
 }

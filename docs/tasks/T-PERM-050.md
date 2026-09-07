@@ -16,7 +16,7 @@ acceptance:
   - "同类引用面盘点并定夺范围（执行时决策）：resource_entity.resource_type（NOT NULL）与 role_resource_permission.resource_type 同样以 type_value 引用类型定义，删除类型同样零检查零级联——已删类型下的资源实体行、授权行同为孤儿（管理视图类型反解缺项不可达）。定夺：并入本任务统一处置 / 拆分登记后续任务 / 仅登记不修；若级联软删操作定义行，须评估已授权行（引用该类型操作位的 role_resource_permission）的处置语义，避免只清操作定义留下授权行反解缺项"
   - "既有事实边界（排除项，已核实）：typeValue 分配含软删行取 MAX（selectMaxTypeValueAllRows，软删不复用是分配语义本身）→ 孤儿操作行 resource_type 永不撞新类型，uk_operation_permission_typed / uk_operation_permission_typed_bit（均 WHERE delete_flag=0 部分索引）无冲突恶化路径，级联软删不与历史行冲突"
   - "存量孤儿行订正：根因修复只约束新写入，存量孤儿操作行需登记订正语句（对齐 rebuild-runbook 既有订正语句先例）；T-PERM-040 落地的 operation-permission/list fail-closed 过滤为防御层保留（存量与跨环境数据兜底），锁定用例 shouldFilterOutOrphanOperationsWhoseTypeDefinitionDeleted 不回退"
-  - "与 T-PERM-047 协调：若采用级联软删方案，该写路径属操作定义变更，OPERATION_PERMISSIONS_BY_TYPE 缓存失效接线随 047 统一处置或本任务一并落地（排期时定）；若采用删除保护方案则无新写路径，无缓存接线需求"
+  - "与 T-PERM-047 协调：若采用级联软删方案，该写路径属操作定义变更，OPERATION_PERMISSIONS_BY_TYPE 缓存失效接线随 047 统一处置或本任务一并落地（排期时定）；若采用删除保护方案则无新写路径，无缓存接线需求。**047 终态（2026-09-07 收口）**：per-type evict 模式与键构造 PermCacheCatalog.operationPermissionsByTypeKey 已就绪——级联软删落库后对被删类型集合逐键 evictBatchAfterCommit 即可复用，无需另起设计"
   - "回归测试：按选定方案锁定语义——级联方案断言同事务软删且失败回滚（类型行与操作行同生共死）；保护方案断言存在引用时拒绝（新错误码走 20001-29999 分段空闲段并回写契约 §5.1）；孤儿过滤既有用例维持全绿"
 design_writeback:
   required: true

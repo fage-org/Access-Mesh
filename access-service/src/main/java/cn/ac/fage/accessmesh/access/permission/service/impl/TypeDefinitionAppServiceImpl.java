@@ -171,6 +171,11 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // 跨域写入先例：ServiceConfig 删除级联直写 apiMappingMapper（T-PERM-027）。
         if ("resource_type".equals(req.typeKey())) {
             insertPresetOperations(tenantId, typeValue, operatorId, now);
+            // T-PERM-047：预置操作位同样改变该类型操作集合，提交后失效 per-type 缓存。
+            // 当前 typeValue 为全量行（含软删）max+1、软删不复用，新值键必为冷键——
+            // 此处失效是语义完备性接线（写路径变更集合即失效），不依赖分配策略不变
+            cacheService.evictAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
+                PermCacheCatalog.operationPermissionsByTypeKey(typeValue));
         }
         // codex 三轮复评 P1-2：新建类型提交后失效双向解析缓存键（删建同码不同值时旧 code→value
         // 与新值反向键都不得残留）

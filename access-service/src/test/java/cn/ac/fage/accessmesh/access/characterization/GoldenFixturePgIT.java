@@ -100,7 +100,8 @@ class GoldenFixturePgIT {
             "resource-inherit", "operation-inherit", "two-segment-chain");
 
         // 预种全部用例的类型与操作：引擎 OPERATION_PERMISSIONS_BY_TYPE 缓存在首次按类型
-        // 加载时合并快照（T-PERM-047 写路径失效未接线），中途补种新操作会读到陈旧缓存
+        // 加载时合并快照——本测试经 jdbc 直插不经管理写路径（无 evict 可触发），
+        // 中途补种新操作会读到陈旧缓存，必须先预种全部再进入判定
         for (JsonNode caseNode : cases) {
             seedTypesAndOperations(caseNode);
         }

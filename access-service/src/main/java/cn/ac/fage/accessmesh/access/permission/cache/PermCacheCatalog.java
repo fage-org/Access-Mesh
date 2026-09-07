@@ -157,6 +157,18 @@ public final class PermCacheCatalog {
             .build();
 
     /**
+     * OPERATION_PERMISSIONS_BY_TYPE 的缓存键构造（T-PERM-047）。
+     * 读路径（PermQueryEngine.resolveBitMasks）与写路径失效（create/update/deleteOperation、
+     * resource_type 预置）共用同一键格式，禁止散落手拼 "op_perm:" 前缀。
+     *
+     * @param resourceType 资源类型内部值（type_definition.type_value）
+     * @return 缓存 identifier
+     */
+    public static String operationPermissionsByTypeKey(Integer resourceType) {
+        return "op_perm:" + resourceType;
+    }
+
+    /**
      * 操作者可见组织范围缓存
      * <p>
      * Key: operatorId（操作者用户 ID）

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationPermissionResp;
@@ -15,6 +16,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
@@ -43,6 +45,7 @@ public class OperationAppServiceImpl implements OperationAppService {
     private final OperationPermissionMapper operationPermissionMapper;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
+    private final CacheService cacheService;
 
     /**
      * 构造函数注入依赖
@@ -50,13 +53,16 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @param operationPermissionMapper 操作权限数据访问层
      * @param typeResolutionService     类型解析服务
      * @param engine                    权限查询引擎
+     * @param cacheService              统一缓存服务（OPERATION_PERMISSIONS_BY_TYPE 写路径失效，T-PERM-047）
      */
     public OperationAppServiceImpl(OperationPermissionMapper operationPermissionMapper,
                                       TypeResolutionService typeResolutionService,
-                                      PermQueryEngine engine) {
+                                      PermQueryEngine engine,
+                                      CacheService cacheService) {
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
+        this.cacheService = cacheService;
     }
 
     /**
@@ -105,6 +111,10 @@ public class OperationAppServiceImpl implements OperationAppService {
         op.setUpdatedAt(now);
         op.setDeleteFlag(0L);
         operationPermissionMapper.insert(op);
+        // T-PERM-047：新增操作改变该类型的操作集合，提交后失效 per-type 缓存
+        // （引擎位掩码按 op_perm:{type} 缓存全量操作 Map，L1 60m/L2 120m TTL 不兜底变更）
+        cacheService.evictAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
+            PermCacheCatalog.operationPermissionsByTypeKey(resourceType));
         return toResp(op);
     }
 
@@ -234,6 +244,10 @@ public class OperationAppServiceImpl implements OperationAppService {
         op.setUpdatedAt(LocalDateTime.now());
         op.setUpdatedBy(operatorId);
         operationPermissionMapper.update(op);
+        // T-PERM-047：位值/继承掩码变更改变覆盖判定输入，提交后失效 per-type 缓存
+        // （否则 TTL 窗口内引擎按旧位值判定，已授权角色语义静默翻转）
+        cacheService.evictAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
+            PermCacheCatalog.operationPermissionsByTypeKey(op.getResourceType()));
         return toResp(op);
     }
 
@@ -281,6 +295,16 @@ public class OperationAppServiceImpl implements OperationAppService {
         // 批量软删除（性能修复：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         operationPermissionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
+        // T-PERM-047：已删操作在 TTL 窗口内仍参与覆盖判定（陈旧 Map 含已删行），
+        // 按受影响类型集合批量失效 per-type 缓存（同类型去重一次提交）
+        Set<String> affectedTypeKeys = entities.stream()
+            .map(OperationPermission::getResourceType)
+            .filter(Objects::nonNull)
+            .map(PermCacheCatalog::operationPermissionsByTypeKey)
+            .collect(Collectors.toSet());
+        if (!affectedTypeKeys.isEmpty()) {
+            cacheService.evictBatchAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, affectedTypeKeys);
+        }
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " operation_permission row(s)");
     }
 
