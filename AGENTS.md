@@ -100,7 +100,7 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 | `decision-question-protocol`         | 决策提问协议：任何要求用户决策/表态的提问（AskUserQuestion 选项、评审存疑上报、修法选择、定案讨论）必须举例——场景+数据示例+实际后果（含「现在为什么没出事」）；事实性最小修正直接修并汇报，不过度提问 |
 | `permission-center-coding-standards` | 权限中心编码规范：access-service permission 域代码改动必读（分层/PermQueryEngine/命名/事务边界/批量加载/操作日志/域分类/类型解析） |
 | `security-standards`                 | 安全标准：全部后端服务与 API 端点（密钥管理/HTTPS/CSRF/限流/安全头/依赖扫描）                                |
-| `testing-standards`                  | 测试标准：全部测试代码（TDD/覆盖率/独立性/mock/命名/边界用例/行为测试/测试数据工厂）                          |
+| `testing-standards`                  | 测试标准：全部测试代码（TDD/覆盖率/独立性/mock/命名/边界用例/行为测试/测试数据工厂；§10 项目级轨道归属——容器测试用 ItInfra、跨服务 E2E 只进 e2e 模块、时序用例禁裸 sleep 余量） |
 | `frontend-coding-standards`          | 前端编码规范（pure-admin-thin）：pnpm 强制等工程约束                                                        |
 | `frontend-layout-patterns`           | 前端布局规范（pure-admin-thin）：动手写 CSS 前先确认实际 DOM 结构，布局模式与陷阱                            |
 | `css-design-system`                  | 前端样式 CSS 设计系统：禁魔法数字、CSS 变量化等                                                             |

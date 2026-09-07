@@ -4,7 +4,9 @@ description: >-
   测试标准规范。
   Rule type: ALWAYS — applies to all testing code changes.
   Covers: TDD workflow, coverage thresholds, test independence, mocking, naming,
-  edge cases, behavior testing, library testing, test data factories.
+  edge cases, behavior testing, library testing, test data factories,
+  AccessMesh project track ownership (unit / testcontainers via ItInfra / e2e module)
+  and deterministic timing patterns (no bare-sleep margins).
 origin: project
 metadata:
   project: AccessMesh
@@ -472,6 +474,72 @@ export function createTestUser(overrides: Partial<User> = {}): User {
 // 使用
 const user = createTestUser({ name: "admin", roles: ["admin"] });
 ```
+
+## 10. 仓库测试基建与轨道归属（AccessMesh 项目级硬约束）
+
+> 权威出处：`docs/design/decision-registry.md`（容器轨道 T-ACCESS-030 / E2E 分轨 T-ACCESS-031 两行）；运行口径见 AGENTS.md 常用命令区与测试运行纪律块。本节是编写面约束——新增测试先按此节选定轨道与基建，禁止自建平行方案。
+
+### 10.1 轨道归属三选一
+
+| 测试形态 | 归属 | 标识 |
+|---|---|---|
+| 单元/上下文测试（无真实容器） | 所在服务模块默认 execution | 无 |
+| access-service 容器测试（真实 PG/Redis） | access-service 容器组 execution | `@Tag("testcontainers")` |
+| 跨服务 E2E（子进程拓扑：gateway/access/example 子进程 + 自起容器） | **仅 `e2e` 模块** | 模块整轨，`-DskipE2E` 开关 |
+
+**禁止**把跨服务 E2E 类放进任何服务模块：服务模块为 E2E 声明跨服务 test 依赖会形成 reactor 依赖边，使 `mvn -T` 模块并行对重模块完全失效（T-ACCESS-031 实测：未拆分时 -T 525s ≈ 串行 522s，拆分后日常 269s）。
+
+### 10.2 容器测试必须用 ItInfra（禁自建基建）
+
+```java
+// ❌ 错误 — 自起容器对 + 类内全量 DDL（T-ACCESS-030 前旧形态，28 类 × 15-30s 冗余基建）
+@Container
+static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine") ...;
+@BeforeAll
+static void setupSchema() { /* 自行执行 docs/design/schema/access-service.sql */ }
+
+// ✅ 正确 — 单例基建：模板克隆库（全量 DDL 每会话仅一次）+ 按类 Redis 逻辑库
+@Tag("testcontainers")
+@Testcontainers(disabledWithoutDocker = true)
+class SomethingPgIT {
+    @DynamicPropertySource
+    static void configure(DynamicPropertyRegistry registry) {
+        ItInfra.register(registry, SomethingPgIT.class);   // 标准通道
+        // 自建局部表/自证 DDL 的偏差类才用：ItInfra.register(registry, X.class, false);
+    }
+}
+```
+
+- 每类各自声明 `@DynamicPropertySource` 方法（保证上下文缓存键互异，按类独立上下文）。
+- 类内裸 JDBC 用 `ItInfra.jdbcUrl(X.class)` / `username()` / `password()` / `redisDatabase(X.class)` 访问器，禁自行拼接容器地址。
+- fork 并行（forkCount=2）与库/索引隔离由 ItInfra + pom 承担，测试作者不需要也不得干预。
+
+### 10.3 时序/并发用例禁裸 sleep 余量
+
+`-T 1C` 模块并行负载会击穿固定 sleep 余量（实证两例：租约接管 sleep 1200ms 对 1s 租约仅 200ms 余量、失效竞态 delayElement(150ms)+sleep(50)）——时序关系必须用确定性机制表达：
+
+```java
+// ❌ 错误 — 靠固定余量赌调度
+TimeUnit.MILLISECONDS.sleep(1200);
+Integer attempt = mapper.tryClaimExecution(...);
+assertThat(attempt).isEqualTo(2);
+
+// ✅ 正确 — 有界轮询（等条件成立，deadline 兜底）
+long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+Integer attempt = null;
+while (attempt == null && System.nanoTime() < deadline) {
+    attempt = mapper.tryClaimExecution(...);
+    if (attempt == null) TimeUnit.MILLISECONDS.sleep(200);
+}
+assertThat(attempt).as("5s 内应满足前置条件").isEqualTo(2);
+
+// ✅ 正确 — CompletableFuture 提交闸门（被测窗口确定性命中：先发失效事件，再放行旧提交）
+CompletableFuture<Void> gate = new CompletableFuture<>();
+// 被测方持有: Mono.just(stale).delayUntil(v -> Mono.fromFuture(gate));
+invalidator.evict(event);   // 先于旧提交发出（确定性）
+gate.completeAsync(() -> null);  // 离当前线程放行，防内联自锁
+```
+
 
 ---
 
