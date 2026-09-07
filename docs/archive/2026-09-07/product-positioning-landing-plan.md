@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 产品定位落地（三档叙事整改 + 名实对齐收尾）
-status: completed
+status: archived
 domain: cross-service
 design_refs:
   - README.md
@@ -15,12 +15,12 @@ tasks:
   - T-ACCESS-027
   - T-ACCESS-028
 acceptance: "产品定位口径（开源通用 IAM）回写进文档体系；adopted 文档按「当前可用 / 已规划 / 仅演进方向」三档完成叙事整改；perm-data 空装配模块删除后构建与文档口径一致。"
-last_updated: 2026-08-28
+last_updated: 2026-09-07
 ---
 
 # 产品定位落地（三档叙事整改 + 名实对齐收尾）
 
-> 状态：active（2026-08-28 立项）
+> 状态：archived（2026-08-28 completed，2026-09-07 物理归档）
 > 来源：2026-08-27 外部评审遗留项（产品边界分层叙事与维护债，此前仅会话登记；2026-08-28 定案后立项）
 
 ## 设计定案（2026-08-28）
@@ -43,13 +43,14 @@ last_updated: 2026-08-28
 
 | 任务 | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ACCESS-027](../tasks/T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改 | ✅ | — |
-| [T-ACCESS-028](../tasks/T-ACCESS-028.md) | perm-data 空装配模块删除 | ✅ | — |
+| [T-ACCESS-027](../../tasks/T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改 | ✅ | — |
+| [T-ACCESS-028](../../tasks/T-ACCESS-028.md) | perm-data 空装配模块删除 | ✅ | — |
 
 ## 当前进度
 
 - 2026-08-28：立项；定位口径定案（开源通用 IAM）；T-ACCESS-028 当日执行收口；T-ACCESS-027 当日执行收口（三档口径入口落位 design/README、architecture §4.2/§4.3 演示模块三档重写、决策过程标注清扫 27 处，完成记录见任务卡）。
 - 两任务全部 done，计划 completed；物理归档条件已满足，待后续归档批次执行（含归档自检）。
+- 2026-09-07：物理归档至本批次（2026-09-07），自检记录见批次 [README.md](README.md)。
 
 ## 归档条件
 

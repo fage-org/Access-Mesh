@@ -52,8 +52,8 @@
 | [T-ACCESS-024](T-ACCESS-024.md) | 时间语义 UTC 统一（TypeHandler/JDBC/JVM） | product-vertical-slice（已归档） | project-rules；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |
 | [T-ACCESS-025](T-ACCESS-025.md) | 操作日志收敛（默认不序列化参数，裁剪覆盖要求） | product-vertical-slice（已归档） | access-service-architecture；project-rules；admin-service-api-contract | T-ACCESS-021 | ✅ | ✓ |
 | [T-ACCESS-026](T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | product-vertical-slice（已归档） | architecture；access-post-merge-plan；project-rules | T-API-001 + 里程碑 B 全部 | ✅ | ✓ |
-| [T-ACCESS-027](T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改（开源通用 IAM 定案） | [product-positioning-landing](../plans/product-positioning-landing-plan.md) | README；docs/README；design/README；architecture；access-service-architecture；permission-center overview/implementation | — | ✅ | ✓ |
-| [T-ACCESS-028](T-ACCESS-028.md) | perm-data 空装配模块删除（SDK 面名实对齐） | [product-positioning-landing](../plans/product-positioning-landing-plan.md) | architecture；README；example-service | — | ✅ | ✓ |
+| [T-ACCESS-027](T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改（开源通用 IAM 定案） | product-positioning-landing（已归档） | README；docs/README；design/README；architecture；access-service-architecture；permission-center overview/implementation | — | ✅ | ✓ |
+| [T-ACCESS-028](T-ACCESS-028.md) | perm-data 空装配模块删除（SDK 面名实对齐） | product-positioning-landing（已归档） | architecture；README；example-service | — | ✅ | ✓ |
 | [T-ACCESS-029](T-ACCESS-029.md) | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | [design-audit-followup](../plans/design-audit-followup-plan.md) | access-service-architecture §14.2 | — | ✅ | ✓ |
 | [T-ACCESS-030](T-ACCESS-030.md) | 容器测试轨道提速——单例容器 + 按类建库 + 复用 + fork 级并行 | —（2026-09-06 用户决策提速定案） | docs/tasks/T-ACCESS-030.md 设计口径（工程改进，无设计文档回写） | — | ✅ | ✓ |
 | [T-ACCESS-031](T-ACCESS-031.md) | E2E 独立模块分轨——gateway 解除 test 依赖 + skipE2E 日常口径 + -T 模块并行恢复 | —（2026-09-06 用户决策 B+结构性拆分） | docs/tasks/T-ACCESS-031.md 设计口径；gateway.md §测试域、access-service-architecture §14.8（E2E 落位回写） | — | ✅ | ✓ |
@@ -177,15 +177,15 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 | [T-FE-012](T-FE-012.md) | 7.2 权限变更日志页（diff 快照 + before/after + 影响评估） | frontend-phase1 | api-contract §5.8/§6.8；design/frontend/permission-change-log.md | T-FE-001 | ✅ | ✅ |
 | [T-FE-013](T-FE-013.md) | 4.2 权限查询/校验页（多维度查询 + 权限解释 + 拒绝原因） | frontend-phase1 | api-contract §5.7/§6.6/§6.7/§6.8；design/frontend/permission-query.md | T-FE-001 | ✅ | ✅ |
 | [T-FE-014](T-FE-014.md) | 4.1 权限授予页（选角色→勾资源树→操作矩阵→绑条件→批量保存） | frontend-phase1 | api-contract §5.5/§6.4/§6.5；design/frontend/permission-grant.md | T-FE-001, T-FE-002, T-FE-008 | ✅ | ✅ |
-| [T-FE-015](T-FE-015.md) | Phase 3 联调：组织与用户（2.1 mock→真实接口，含 menus 接线/固定图 17 授权+15 菜单+默认树种子+20 Gateway 端点/bootstrap 分页缓存缺陷修复；已收口 2026-08-31，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
-| [T-FE-016](T-FE-016.md) | Phase 3 联调：角色管理（2.2 mock→真实收口——Gateway +4 端点/编辑 extra 回显 detail 回填 + extraClear 清空协议/mock 退役删除；已收口 2026-09-01，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-002, T-PERM-022 | ✅ | ✓ |
-| [T-FE-017](T-FE-017.md) | Phase 3 联调：资源/操作定义（3.1 mock→真实收口——Gateway +8 端点/业务门禁 +4/maintain_source 落库缺陷修复/mock 路由段退役保数据导出；已收口 2026-09-02，终态见任务卡完成记录） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-008, T-PERM-028 | ✅ | ✓ |
-| [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期）——mock 四文件整删 + resource-operation 更名 _shared/resource-fixtures、TYPE_DEFINITION:VIEW 理解 A 降级落地、6 数据源全真实；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；design/frontend/permission-grant.md（v3） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ✅ | ✓ |
-| [T-FE-037](T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期）——组织入口真实适配（一体树/ORG+POSITION 双主体/卡片+岗位行两处入口，两项用户决策），Phase 3 收官任务；已收口 2026-09-04，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ✅ | ✓ |
-| [T-FE-019](T-FE-019.md) | Phase 3 联调：权限查询/校验（4.2）——Gateway +3 端点/explain 扩展展示接线/mock 整删；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-013, T-PERM-033 | ✅ | ✓ |
-| [T-FE-020](T-FE-020.md) | Phase 3 联调：条件/冲突规则（3.2/3.3）——Gateway +9 端点/前端 conflict-rule 路径修正/mock 双文件退役；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ✅ | ✓ |
-| [T-FE-021](T-FE-021.md) | Phase 3 联调：业务域配置（5.1）——Gateway +9 端点/前端 api 双文件路径修正/mock 四文件整删；已收口 2026-09-02，终态见任务卡完成记录 | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-006, T-PERM-026 | ✅ | ✓ |
-| [T-FE-022](T-FE-022.md) | Phase 3 联调：系统/服务配置与日志（6.x/5.2/7.x）——Gateway +16 端点/TYPE_DEFINITION 写门禁 +2/keyword CAST 系统性修复 9 mapper + ConfigForm 前缀对齐/mock 四文件整删；已收口 2026-09-03，终态见任务卡完成记录（XML+Page 族登记 T-ADMIN-026、assign 审计不对称记本卡已知差距） | [frontend-phase3](../plans/frontend-phase3-plan.md) | api-contract | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 | ✅ | ✓ |
+| [T-FE-015](T-FE-015.md) | Phase 3 联调：组织与用户（2.1 mock→真实接口，含 menus 接线/固定图 17 授权+15 菜单+默认树种子+20 Gateway 端点/bootstrap 分页缓存缺陷修复；已收口 2026-08-31，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
+| [T-FE-016](T-FE-016.md) | Phase 3 联调：角色管理（2.2 mock→真实收口——Gateway +4 端点/编辑 extra 回显 detail 回填 + extraClear 清空协议/mock 退役删除；已收口 2026-09-01，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract | T-FE-002, T-PERM-022 | ✅ | ✓ |
+| [T-FE-017](T-FE-017.md) | Phase 3 联调：资源/操作定义（3.1 mock→真实收口——Gateway +8 端点/业务门禁 +4/maintain_source 落库缺陷修复/mock 路由段退役保数据导出；已收口 2026-09-02，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract | T-FE-008, T-PERM-028 | ✅ | ✓ |
+| [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期）——mock 四文件整删 + resource-operation 更名 _shared/resource-fixtures、TYPE_DEFINITION:VIEW 理解 A 降级落地、6 数据源全真实；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract；design/frontend/permission-grant.md（v3） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ✅ | ✓ |
+| [T-FE-037](T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期）——组织入口真实适配（一体树/ORG+POSITION 双主体/卡片+岗位行两处入口，两项用户决策），Phase 3 收官任务；已收口 2026-09-04，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ✅ | ✓ |
+| [T-FE-019](T-FE-019.md) | Phase 3 联调：权限查询/校验（4.2）——Gateway +3 端点/explain 扩展展示接线/mock 整删；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-013, T-PERM-033 | ✅ | ✓ |
+| [T-FE-020](T-FE-020.md) | Phase 3 联调：条件/冲突规则（3.2/3.3）——Gateway +9 端点/前端 conflict-rule 路径修正/mock 双文件退役；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ✅ | ✓ |
+| [T-FE-021](T-FE-021.md) | Phase 3 联调：业务域配置（5.1）——Gateway +9 端点/前端 api 双文件路径修正/mock 四文件整删；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-006, T-PERM-026 | ✅ | ✓ |
+| [T-FE-022](T-FE-022.md) | Phase 3 联调：系统/服务配置与日志（6.x/5.2/7.x）——Gateway +16 端点/TYPE_DEFINITION 写门禁 +2/keyword CAST 系统性修复 9 mapper + ConfigForm 前缀对齐/mock 四文件整删；已收口 2026-09-03，终态见任务卡完成记录（XML+Page 族登记 T-ADMIN-026、assign 审计不对称记本卡已知差距） | frontend-phase3（已归档） | api-contract | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 | ✅ | ✓ |
 | T-FE-023 | Phase 4：SPI 策略扩展验证 + 扩展指南（design/frontend/extension-guide.md） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；design/frontend/extension-guide.md | — | ⚙️ | ⏳ |
 | [T-FE-024](T-FE-024.md) | ReConditionPicker + ReConditionEditor + ChildPermissionInline 条件/子权限组件抽取 | [frontend-phase4](../plans/frontend-phase4-plan.md) | design/frontend/permission-condition.md；permission-grant.md | T-FE-001, T-FE-009, T-FE-014 | ✅ | ✅ |
 | [T-FE-025](T-FE-025.md) | 权限授予中栏资源权限概览与授权入口 | [permission-grant-ux-refactor](../plans/archive/2026-07/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.3/§16.8 | T-FE-014 | ✅ | ✅ |
@@ -326,7 +326,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 
 ### P9 — 产品定位落地（2026-08-28 立项，定位定案：开源通用 IAM）
 
-> 设计定案（2026-08-28）：产品定位 = 开源通用 IAM（通用多租户访问控制平台）；暂缓能力维持暂缓（自动授权写入口 20048 预留禁用、动态数据权限延后 example-service，等 PM 重申重启）。计划见 [product-positioning-landing-plan](../plans/product-positioning-landing-plan.md)。
+> 设计定案（2026-08-28）：产品定位 = 开源通用 IAM（通用多租户访问控制平台）；暂缓能力维持暂缓（自动授权写入口 20048 预留禁用、动态数据权限延后 example-service，等 PM 重申重启）。计划已归档（[archive/2026-09-07](../archive/2026-09-07/product-positioning-landing-plan.md)）。
 
 1. `T-ACCESS-028` perm-data 空装配模块删除 — ✅ done（2026-08-28）
 2. `T-ACCESS-027` 文档三档叙事整改 — ✅ done（2026-08-28：三档口径入口落位 design/README、architecture §4.2/§4.3 演示模块重写三档标注、决策过程标注清扫 27 处；计划已 completed，物理归档待后续批次）

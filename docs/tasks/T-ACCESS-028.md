@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-028
 title: perm-data 空装配模块删除（SDK 面名实对齐）
 status: done
-plan: docs/plans/product-positioning-landing-plan.md
+plan: docs/archive/2026-09-07/product-positioning-landing-plan.md
 domain: cross-service
 design_refs:
   - docs/design/architecture.md

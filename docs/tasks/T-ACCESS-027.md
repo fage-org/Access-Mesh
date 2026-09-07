@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-027
 title: 产品定位定稿回写与文档三档叙事整改（当前可用 / 已规划 / 仅演进方向）
 status: done
-plan: docs/plans/product-positioning-landing-plan.md
+plan: docs/archive/2026-09-07/product-positioning-landing-plan.md
 domain: cross-service
 design_refs:
   - README.md

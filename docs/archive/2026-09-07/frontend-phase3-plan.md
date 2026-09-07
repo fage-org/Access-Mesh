@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 前端 Phase 3 — 前后端联调
-status: proposed
+status: archived
 domain: frontend
 design_refs:
   - docs/design/permission-center/api-contract.md
@@ -18,12 +18,12 @@ tasks:
   - T-FE-021
   - T-FE-022
 acceptance: "9 个有效联调任务 mock -> 真实接口替换完成（T-FE-018 角色联调首期 + T-FE-037 组织联调二期，首期/二期拆分定稿；T-FE-018 角色联调依赖 T-FE-036 + T-FE-038 + T-FE-039 + **T-FE-040** + T-PERM-040 + T-PERM-041 + T-PERM-034 + T-PERM-022/028/029/031（2026-08-05 评审：T-FE-038 mock 先行，T-FE-018 汇合单类型矩阵/图标模型/条件转授链路；2026-08-08 补记录级聚焦编辑 T-FE-040），T-ADMIN-021 不阻塞首期；T-FE-037 组织联调二期依赖 T-FE-018 + T-ADMIN-021；统一提交主通道 = apply-grant-plan，无 CAS/幂等表/clientRequestId），核心流程联调通过，异常场景提示正确，页面间跳转/状态保持正确。"
-last_updated: 2026-09-04
+last_updated: 2026-09-07
 ---
 
 # 前端 Phase 3 — 前后端联调
 
-> 状态：proposed
+> 状态：archived（2026-09-04 九任务全 done，2026-09-07 归档门禁（统一全页导航/F5/直达 URL 冒烟）执行通过后物理归档）
 > 来源：`docs/archive/2026-08-27/improvement-plan.md` §4 Phase 3 拆分（roadmap 已归档，拆分产物即本 plan）
 > 准入：Phase 1 收尾 + Phase 2 接口改造完成
 
@@ -62,6 +62,7 @@ last_updated: 2026-09-04
 
 ## 当前进度
 
+- 2026-09-07：**归档门禁执行通过（统一全页导航/F5/直达 URL 冒烟，21/21 PASS），计划物理归档至本批次**。环境：docker compose 三容器 + access-service（按 runbook 重建库 + bootstrap 重种：131 grants / 15 menus / 82 apiResources / 默认树）+ gateway + vite 8890。执行方式：playwright-core 驱动系统 Edge headless（IAB 在锁屏桌面下渲染帧冻结、transition 卡 enter-from，不可用于冒烟——环境性限制非产品缺陷）；验证码经 Redis TTL 最大键读取，admin 密码重建库后与 dev-secrets 对齐。结果：登录→welcome 1/1；侧栏后端派生菜单 14 项 1/1；全页导航 13/13（组织与用户/角色管理/类型定义/系统配置/操作日志/业务域/服务与接口/资源与操作/权限条件/冲突规则/资源依赖/权限变更日志/权限排查，每页主内容区渲染业务内容，空态文案计入有效渲染）；直达 URL 3/3（#/system/user、#/system/resource-operation、#/perm/grant?subjectType=ROLE 隐藏入口含 query 形态）；F5 会话恢复 3/3（type-def/biz-domain/operation-log，刷新后未回登录页、页面内容恢复）。结果清单与逐页内容证据：`C:\Users\li\.zcode\tmp-smoke\result.json`（本机会话产物，不入库）。执行期订正一处误判：IAB 冻结态下「权限排查页死菜单」结论系渲染假象（路由已注册），headless 下导航与渲染正常，撤回。
 - 2026-09-04：**T-FE-037 收口（Phase 3 第九个即最后一个联调任务 done，API+浏览器双冒烟全过；后端零改动）**：授权页组织入口真实适配——SubjectTreePanel 组织分支（getOrgTree includePositions+status=1 一体树、ORG:VIEW 探查占位、岗位 tag）+ buildOrgSubjectTree 纯函数（kind 扩 ORG/POSITION，roleExternalId=String(sys_org.id)）+ hook preset/文案类型感知；入口两处（组织与用户页组织信息卡片按钮 + 岗位管理 Tab 岗位行操作，门禁 ROLE:VIEW）；主体树 status=1 仅启用（对齐角色 enabledOnly 先例，接受停用父组织下启用子树不可见边界，定案见任务卡）。冒烟：API 级 ORG/POSITION 双主体 list/apply-grant-plan creates/removes 全 200（DATA 被转授校验 20040 拒绝=门禁生效实证）+ 浏览器全场景（入口预选/主体树/岗位切换/类型切换/授权弹窗/变更清单/保存/撤销/详情抽屉/DB 终态清零）+ 截图视觉核对 5/5；vitest/tsc 全绿（vitest 基线 202→209，含后续评审修正补测）。**Phase 3 九个联调任务全部收口**。
 - 2026-09-03：**T-ADMIN-021 收口（Phase 3 外后端配套，T-FE-037 依赖解锁）**：org-tree includePositions 组织+岗位一体树落地（岗位挂所属组织子节点、按调用者 ORG:VIEW_POSITION 后端裁剪、引擎故障 fail-closed 99999）；债务①全顺带（operationCode CREATE 限默认树 + treeConfigId 默认树子树裁剪，均经定案）；响应 {items} 包装（复用 ItemsResp<OrgResp>）前端 getOrgTree 解包零改动适配；顺带修正 orgName/parentOrgId 死参数。组织入口左栏主体树数据源就绪，T-FE-037 可启动（Phase 3 最后一项）。
 - 2026-09-03：**T-FE-022 收口（Phase 3 第八个联调任务 done，重建库后浏览器冒烟五页全过）**：五页 16 端点 mock→真实（类型定义 6.1/系统配置 6.2/服务与接口 5.2/操作日志 7.1/变更日志 7.2，三个 detail 端点页面不消费不注册）；Gateway bootstrap 清单 +16 端点；业务门禁 +2（TYPE_DEFINITION:CREATE/MANAGE，写路径死锁防护同 DEPENDENCY 先例；其余四类已在图）；前端 api 四文件裸 /api/perm/** 路径修正（T-FE-020/021 同款第三批，api 层裸路径除 resource-dependency.ts 保留外清零）；**联调修复两个系统性缺陷**——① keyword LIKE CONCAT 参数在 stringtype=unspecified 下 PG 无法推断类型致全部关键字搜索 500（三域直调实证）→ 9 mapper 统一 CAST(... AS VARCHAR) + KeywordLikeSearchPgIT 7 用例红绿双证（含 Testcontainers URL stringtype 追加无效的测试基建订正）；② ConfigForm 键名 Pattern 与后端命名空间前缀强制互斥（新建配置必被前端挡死）→ 对齐 admin./permission./access. 前缀形态；mock 四文件整删（_shared/resource-fixtures 留待 3.4 页）；契约零漂移（19 个 DTO 类型逐一比对）；PgIT 计数 66/65/113/47→82/81/131/49。联调发现登记不修：XML+Page 参数不生效族 9 方法（含 paginateByCondition CCE 实证，T-ADMIN-026）、user-role assign 无变更日志（revoke 有，审计不对称）。Phase 3 仅剩被 T-ADMIN-021 阻塞的 T-FE-037。
