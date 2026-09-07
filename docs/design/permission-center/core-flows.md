@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-06   # 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
@@ -98,7 +98,7 @@ flowchart LR
 - 在 AccessMesh 管理端场景中，`sys_user` 的本地投影由 `access.application` 同一事务维护：`abstract_user(subjectTypeCode=LOCAL_USER, subjectExternalId=sys_user.id)` + `resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)`，两类事实均使用业务键定位，不再走 sync API。
 - 对外可调用的角色建议必须有 `roleExternalId`，后续授权和分配可以不用内部角色 ID。
 - 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。`access.application` 同一事务维护本地投影：`sys_org` → `resource_entity(ORG)` + `abstract_role(ORG/POSITION)`（父角色按父节点实际 orgType 解析，业务键定位，不回填内部 ID）；`sys_user_org` 成员关系同事务写入 `user_role`（POSITION 成员 `relation_id` 指向所属组织角色）。`user-role/assign` 仅用于功能角色等正式用户角色管理操作。
-- 管理端（`access.application`）不再有同步任务：投影、`permission_change_log` 与缓存失效登记在同一事务内完成，删除用户即级联软删其全部 `user_role`（含功能角色），投影依赖缺失整体回滚（fail-closed）。外部业务服务仍通过 `/api/perm/**/sync|full-sync` 维护自有类型投影（保留业务键：subject `LOCAL_USER`（原 ADMIN_USER 更名）/role `ORG|POSITION`/`SYS_USER_ORG` 20045 拒绝；resource 侧为**类型级所有权**（T-PERM-052 定案，2026-09-05，取代 T-ACCESS-018 的行级口径：类型声明 `extra.managedMode=SYNC`+来源服务独占同步、MANAGED 类型管理面维护；事实链路五类型 USER/ORG/MENU/ROLE/ADMIN_FILE 种子声明 SYNC+access-service 内部来源（T-ADMIN-025 增 ADMIN_FILE），原保留清单与行级投影防线已收编删除）。`role_resource_permission` 属于 permission-center 授权管理域，不进入管理端写入。
+- 管理端（`access.application`）不再有同步任务：投影、`permission_change_log` 与缓存失效登记在同一事务内完成，删除用户即级联软删其全部 `user_role`（含功能角色），投影依赖缺失整体回滚（fail-closed）。外部业务服务仍通过 `/api/perm/**/sync|full-sync` 维护自有类型投影（保留业务键：subject `LOCAL_USER`（原 ADMIN_USER 更名）/role `ORG|POSITION`/`SYS_USER_ORG` 20045 拒绝；resource 侧为**类型级所有权**（T-PERM-052 定案，2026-09-05，取代 T-ACCESS-018 的行级口径：类型声明 `extra.managedMode=SYNC`+来源服务独占同步、MANAGED 类型管理面维护；事实链路六类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION 种子声明 SYNC+access-service 内部来源（T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION），原保留清单与行级投影防线已收编删除）。`role_resource_permission` 属于 permission-center 授权管理域，不进入管理端写入。
 - `GROUP_ROLE` 本身不直接配置权限，通过子角色或额外基本角色产生有效权限。首期用 `extra.basicRoleIds` 简化表达，缓存构建阶段展开，运行时不频繁解析 JSON。
 - `POSITION` 类型分配时可带组织关系字段，用于表达职位在某组织下的上下文。
 - 分配或回收用户角色后，失效该用户有效角色缓存。

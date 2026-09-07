@@ -638,7 +638,7 @@ COMMENT ON COLUMN type_definition.name IS '显示名称';
 COMMENT ON COLUMN type_definition.description IS '描述';
 COMMENT ON COLUMN type_definition.is_system IS '是否系统预置：true=预置不可删改，false=租户自定义可扩展';
 COMMENT ON COLUMN type_definition.sort_order IS '排序';
-COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）——系统预置类型钉死不可变更、自定义类型在类型下存在有效资源行时拒绝（20056），保存边界校验已知键结构（显式 null 拒绝），未知键开放不视为声明（拼错键=无声明按缺省 MANAGED）；读取侧 extra 损坏按 MANAGED 处理（对外部同步 fail-closed、对管理面可写=可恢复方向）。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE/ADMIN_FILE 五类事实链路类型，种子声明 SYNC+access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025）';
+COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）——系统预置类型钉死不可变更、自定义类型在类型下存在有效资源行时拒绝（20056），保存边界校验已知键结构（显式 null 拒绝），未知键开放不视为声明（拼错键=无声明按缺省 MANAGED）；读取侧 extra 损坏按 MANAGED 处理（对外部同步 fail-closed、对管理面可写=可恢复方向）。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION 六类事实链路类型，种子声明 SYNC+access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 类型定义实例投影由写路径同事务维护+bootstrap 自愈补种产出，T-PERM-051）';
 COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- 预置类型种子（tenant 1；type_value 为权威数值，与文件头 type_value 终值分配表一致——
@@ -692,10 +692,12 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
 -- T-ADMIN-025（2026-09-06）增 ADMIN_FILE：文件夹实例（code=bucket_name）由 bootstrap 预置
 -- default/avatar/document/image 四文件夹 + 上传新 bizType 惰性登记两条事实链产出，人工不得
 -- 经 resource-entity 管理入口构造（管理面 CRUD 20055，与惰性登记 upsert 双 writer 冲突同向）。
+-- T-PERM-051（2026-09-07）增 TYPE_DEFINITION：类型定义自身实例（code={typeKey}:{typeCode} 复合
+-- 业务键）由 type-definition 写路径同事务投影维护 + bootstrap 自愈补种，人工不得构造（同款 20055）。
 UPDATE type_definition
 SET extra = '{"managedMode":"SYNC","syncSourceService":"access-service"}'
 WHERE tenant_id = 1 AND type_key = 'resource_type'
-  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE', 'ADMIN_FILE');
+  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE', 'ADMIN_FILE', 'TYPE_DEFINITION');
 
 -- -----------------------------------------------------------------------------
 -- 18. biz_domain - 业务域表（扁平列表，无启停，引用检查拒删）
@@ -923,7 +925,7 @@ CREATE TABLE resource_entity (
     tenant_id     BIGINT NOT NULL,
     parent_id     BIGINT,
     resource_type INT NOT NULL,
-    code          VARCHAR(128) NOT NULL,
+    code          VARCHAR(256) NOT NULL,
     code_type     VARCHAR(64) NOT NULL DEFAULT 'default',
     name          VARCHAR(256) NOT NULL,
     path          VARCHAR(1024),
@@ -947,9 +949,9 @@ CREATE INDEX idx_resource_entity_type ON resource_entity (tenant_id, resource_ty
 CREATE INDEX idx_resource_entity_sync_owner ON resource_entity (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
 COMMENT ON TABLE resource_entity IS '权限资源实体，树形；同一资源可有多行不同 code_type 用于编码转换（如 "default"="100", "en"="Britain", "cn"="英国"）。用户/组织等管理对象通过既有资源类型（如 USER/ORG）建模实例级权限（T-ACCESS-018 收敛，原 ADMIN_* 管理类型已并入）；owner_service_code/maintain_source 仅记录行归属（service-config 声明通道的撞码归属消歧与前端展示），写入门禁不依赖该列——资源边界以 type_definition.extra 类型级所有权声明为准（T-PERM-052，architecture §4.3）';
+COMMENT ON COLUMN resource_entity.code IS '资源业务编码。长度上限 256（T-PERM-051：TYPE_DEFINITION 实例投影为复合键 {typeKey}:{typeCode}，type_key/type_code 各 ≤64，最坏 129 字符超出原 128 列宽而加宽；手工/同步入口的编码长度语义不变，仅列宽放行）';
 COMMENT ON COLUMN resource_entity.parent_id IS '父节点ID';
 COMMENT ON COLUMN resource_entity.resource_type IS '资源类型枚举（type_definition type_value），来自 type_definition；除 MENU/BUTTON/API/DATA 等公共基础类型外，租户可通过 type_definition 扩展管理资源类型（终态注册表见 type_definition 种子与头部终值分配表）';
-COMMENT ON COLUMN resource_entity.code IS '资源编码';
 COMMENT ON COLUMN resource_entity.code_type IS '编码类型，默认 "default"；同一资源不同编码体系用不同 code_type 区分';
 COMMENT ON COLUMN resource_entity.name IS '名称';
 COMMENT ON COLUMN resource_entity.path IS '树路径（物化路径）';

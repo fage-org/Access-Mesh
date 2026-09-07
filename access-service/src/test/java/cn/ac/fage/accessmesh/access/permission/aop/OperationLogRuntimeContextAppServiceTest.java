@@ -116,6 +116,9 @@ class OperationLogRuntimeContextAppServiceTest {
         TypeDefinitionAppServiceImpl service = new TypeDefinitionAppServiceImpl(typeDefinitionMapper, operationPermissionMapper, engine,
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.common.cache.CacheService.class));
 

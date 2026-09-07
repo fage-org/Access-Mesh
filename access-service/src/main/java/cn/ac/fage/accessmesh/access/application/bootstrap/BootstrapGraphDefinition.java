@@ -243,7 +243,7 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.SYNC_INTERFACE, null, false),
             new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.VIEW, null, false),
             // T-FE-022：类型定义页写门禁（T-PERM-023 收口：create 类型级 CREATE、update/remove
-            // 实例级 MANAGE——实例轨按 type_definition.id 直填引擎，业务键统一已登记 T-PERM-051；
+            // 实例级 MANAGE——实例业务键已由 T-PERM-051 统一为复合键 {typeKey}:{typeCode}（type_definition.id 直填系 ID 空间错位，已迁移）；
             // scopeAll 覆盖实例校验，实例粒度由租户后续自行收紧）
             new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.CREATE, null, false),
             new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.MANAGE, null, false),

@@ -309,7 +309,11 @@ class ResourceOperationKeyPgIT {
         var cacheService = mock(cn.ac.fage.accessmesh.common.cache.CacheService.class);
         TypeDefinitionAppServiceImpl typeService = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, permitAllEngine(), ownershipGuard(),
-            resourceEntityDomainService, mock(TreeWriteLockSupport.class),
+            resourceEntityDomainService,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper.class),
+            mock(TreeWriteLockSupport.class),
             cacheService);
 
         var resp = typeService.createType(TENANT,

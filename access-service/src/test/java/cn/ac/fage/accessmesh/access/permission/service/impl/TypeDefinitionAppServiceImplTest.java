@@ -48,6 +48,9 @@ class TypeDefinitionAppServiceImplTest {
     @Mock private PermQueryEngine engine;
     @Mock private cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper serviceConfigMapper;
     @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService localProjectionDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper rolePermMapper;
+    @Mock private cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper apiMappingMapper;
     @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
     @Mock private cn.ac.fage.accessmesh.common.cache.CacheService cacheService;
 
@@ -62,7 +65,8 @@ class TypeDefinitionAppServiceImplTest {
                 new com.fasterxml.jackson.databind.ObjectMapper());
         service = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, engine, ownershipGuard,
-            resourceEntityDomainService, treeWriteLockSupport, cacheService
+            resourceEntityDomainService, localProjectionDomainService, rolePermMapper,
+            apiMappingMapper, treeWriteLockSupport, cacheService
         );
         // list/count 走 OperatorContext（读 AccessRequestContext），绑定用户上下文
         AccessRequestContext.bind(RequestContext.user(1L, 100L));
@@ -292,7 +296,7 @@ class TypeDefinitionAppServiceImplTest {
 
     @Test
     void shouldThrowTypeDefinitionNotFoundWhenUpdateTargetMissing() {
-        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("99"), any()))
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any()))
             .thenReturn(true);
         when(typeDefinitionMapper.selectValidById(1L, 99L)).thenReturn(null);
 
@@ -306,13 +310,15 @@ class TypeDefinitionAppServiceImplTest {
     @Test
     void shouldListTypesWhenOnlyInstanceLevelViewGranted() {
         // 2026-09-03 门禁放宽：类型级拒绝但任一实例级 VIEW 命中即可查询（与登录权限串口径对齐；
-        // 旧实现仅认类型级，此用例必红）
+        // 旧实现仅认类型级，此用例必红）。T-PERM-051：实例键为复合键 {typeKey}:{typeCode}
+        // （旧实现按裸 typeCode 判定，此用例组在旧实现下失败）
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(false);
-        when(typeDefinitionMapper.selectValidCodesByTenant(1L))
-            .thenReturn(List.of("USER_TYPE", "ROLE_TYPE", "RESOURCE_TYPE"));
+        when(typeDefinitionMapper.selectValidByTenant(1L))
+            .thenReturn(List.of(typeRow("user_type", "USER_TYPE"), typeRow("role_type", "ROLE_TYPE"),
+                typeRow("resource_type", "RESOURCE_TYPE")));
         when(engine.getDeniedResourceCodes(eq(1L), eq(100L), any(), any(), any()))
-            .thenReturn(java.util.Set.of("USER_TYPE", "ROLE_TYPE"));
+            .thenReturn(java.util.Set.of("user_type:USER_TYPE", "role_type:ROLE_TYPE"));
         when(typeDefinitionMapper.selectPageByCondition(eq(1L), isNull(), isNull(), anyInt(), anyInt()))
             .thenReturn(List.of());
 
@@ -324,28 +330,40 @@ class TypeDefinitionAppServiceImplTest {
     void shouldThrowWhenAllInstancesDeniedAndTypeLevelDenied() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(false);
-        when(typeDefinitionMapper.selectValidCodesByTenant(1L))
-            .thenReturn(List.of("USER_TYPE", "ROLE_TYPE"));
+        when(typeDefinitionMapper.selectValidByTenant(1L))
+            .thenReturn(List.of(typeRow("user_type", "USER_TYPE"), typeRow("role_type", "ROLE_TYPE")));
         when(engine.getDeniedResourceCodes(eq(1L), eq(100L), any(), any(), any()))
-            .thenReturn(java.util.Set.of("USER_TYPE", "ROLE_TYPE"));
+            .thenReturn(java.util.Set.of("user_type:USER_TYPE", "role_type:ROLE_TYPE"));
 
         assertThrows(SecurityException.class, () -> service.listTypes(1L, null, null, 0, 200));
         verify(typeDefinitionMapper, never()).selectPageByCondition(anyLong(), any(), any(), anyInt(), anyInt());
     }
 
     @Test
-    void shouldThrowWhenAllInstancesDeniedAndCodesContainCrossKeyDuplicates() {
-        // 种子跨 type_key 重码（user_type/resource_type 均有 USER、SERVICE）：全拒判定必须按
-        // 去重码集比较——旧实现 denied(去重) >= codes(含重复) 恒 false，零权限账号 fail-open
+    void shouldPassCompositeKeysToInstanceGate() {
+        // T-PERM-051 回归锁：list 实例门禁的引擎入参必须是复合键集合（裸 typeCode 在跨 type_key
+        // 重码下无法唯一命中投影行——user_type 与 resource_type 均有 USER/SERVICE 同名行）
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(false);
-        when(typeDefinitionMapper.selectValidCodesByTenant(1L))
-            .thenReturn(List.of("USER", "SERVICE", "USER", "SERVICE", "ORG"));
+        when(typeDefinitionMapper.selectValidByTenant(1L))
+            .thenReturn(List.of(typeRow("user_type", "USER"), typeRow("resource_type", "USER"),
+                typeRow("resource_type", "HR_ORG")));
         when(engine.getDeniedResourceCodes(eq(1L), eq(100L), any(), any(), any()))
-            .thenReturn(new java.util.LinkedHashSet<>(List.of("USER", "SERVICE", "ORG")));
+            .thenReturn(java.util.Set.of("user_type:USER", "resource_type:USER"));
+        when(typeDefinitionMapper.selectPageByCondition(eq(1L), isNull(), isNull(), anyInt(), anyInt()))
+            .thenReturn(List.of());
 
-        assertThrows(SecurityException.class, () -> service.listTypes(1L, null, null, 0, 200));
-        verify(typeDefinitionMapper, never()).selectPageByCondition(anyLong(), any(), any(), anyInt(), anyInt());
+        service.listTypes(1L, null, null, 0, 200);
+
+        // 复合键集合：跨 type_key 同码 USER 以 typeKey 区分，均为三段式复合键
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<java.util.Set<String>> captor =
+            (org.mockito.ArgumentCaptor<java.util.Set<String>>) (org.mockito.ArgumentCaptor<?>)
+                org.mockito.ArgumentCaptor.forClass(java.util.Set.class);
+        org.mockito.Mockito.verify(engine).getDeniedResourceCodes(eq(1L), eq(100L), any(),
+            captor.capture(), any());
+        assertEquals(java.util.Set.of("user_type:USER", "resource_type:USER", "resource_type:HR_ORG"),
+            captor.getValue());
     }
 
     @Test
@@ -353,10 +371,19 @@ class TypeDefinitionAppServiceImplTest {
         // 无实例可判定时 fail-closed（空清单无法证明任何实例级授权）
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(false);
-        when(typeDefinitionMapper.selectValidCodesByTenant(1L))
+        when(typeDefinitionMapper.selectValidByTenant(1L))
             .thenReturn(List.of());
 
         assertThrows(SecurityException.class, () -> service.countTypes(1L, null, null));
+    }
+
+    /** list 实例门禁复合键构造用最小类型行 */
+    private static TypeDefinition typeRow(String typeKey, String typeCode) {
+        TypeDefinition row = new TypeDefinition();
+        row.setTenantId(1L);
+        row.setTypeKey(typeKey);
+        row.setTypeCode(typeCode);
+        return row;
     }
 
     // ========== T-PERM-052：extra 所有权声明（managedMode/syncSourceService）==========
@@ -436,7 +463,7 @@ class TypeDefinitionAppServiceImplTest {
     void shouldRejectDeclarationChangeWhenTypeHasValidRows() {
         // 无有效行才可改（2026-09-05 定案）：类型下有行时 managedMode 变更 → 20056；
         // 旧实现无守卫会直接落库
-        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
         TypeDefinition existing = new TypeDefinition();
         existing.setId(9L);
         existing.setTenantId(1L);
@@ -456,7 +483,7 @@ class TypeDefinitionAppServiceImplTest {
     @Test
     void shouldRejectImplicitModeRevertWhenTypeHasValidRows() {
         // 删键=隐式切回 MANAGED（extra 整串替换）：同样视为有效值变更 → 20056
-        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
         TypeDefinition existing = new TypeDefinition();
         existing.setId(9L);
         existing.setTenantId(1L);
@@ -474,7 +501,7 @@ class TypeDefinitionAppServiceImplTest {
 
     @Test
     void shouldAllowDeclarationChangeWhenTypeHasNoValidRows() {
-        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
         TypeDefinition existing = new TypeDefinition();
         existing.setId(9L);
         existing.setTenantId(1L);
@@ -495,7 +522,7 @@ class TypeDefinitionAppServiceImplTest {
     void shouldPinSystemTypeDeclarationButAllowUnchangedResubmissionAndFieldEdits() {
         // codex 三轮复评 P2-2：钉死只拒「有效声明变更」——同声明重复提交与仅改非声明字段必须放行
         // （isSystem 判定若误移到相等比较之前，系统类型正常编辑被 20056 阻断而本组拒绝用例仍绿）
-        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
         TypeDefinition user = new TypeDefinition();
         user.setId(9L);
         user.setTenantId(1L);
@@ -557,7 +584,7 @@ class TypeDefinitionAppServiceImplTest {
     void shouldRejectDeclarationChangeForSystemTypeEvenWithoutRows() {
         // codex 二轮复评 P1-1 定案：系统预置类型所有权声明钉死——空 USER 类型翻成 MANAGED 后
         // 事实链路照旧投影写入即双 writer（顺序性破坏）；旧实现零行时放行
-        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
         TypeDefinition user = new TypeDefinition();
         user.setId(9L);
         user.setTenantId(1L);
@@ -580,7 +607,7 @@ class TypeDefinitionAppServiceImplTest {
     void shouldLockTreeWritesAndReReadForResourceTypeUpdate() {
         // codex 复评 P1 回归锁：resource_type 更新须持 (resource_entity, 租户) 树写锁并锁内重读
         // （与资源写入口互斥）；旧实现无锁且只读一次
-        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
         TypeDefinition hrOrg = new TypeDefinition();
         hrOrg.setId(9L);
         hrOrg.setTenantId(1L);
@@ -605,7 +632,7 @@ class TypeDefinitionAppServiceImplTest {
 
     @Test
     void shouldNotLockTreeWritesForNonResourceTypeUpdate() {
-        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
         TypeDefinition groupType = new TypeDefinition();
         groupType.setId(9L);
         groupType.setTenantId(1L);
@@ -624,7 +651,7 @@ class TypeDefinitionAppServiceImplTest {
     void shouldRejectTypeDeletionWhenTypeHasValidRows() {
         // 评审批次（2026-09-05）：类型下存在有效资源行时不可删除（20056，与声明变更守卫同款；
         // 旧实现无守卫会直接软删类型，其行成外部源与管理面都无法触达的永久孤儿）
-        when(engine.getDeniedEntityIds(anyLong(), anyLong(), any(), eq(java.util.Set.of(9L)), any()))
+        when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
             .thenReturn(java.util.Set.of());
         TypeDefinition hrOrg = new TypeDefinition();
         hrOrg.setId(9L);
@@ -641,7 +668,7 @@ class TypeDefinitionAppServiceImplTest {
             () -> service.deleteTypesByIds(1L, java.util.List.of(9L), 100L));
         assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
-        // 批删 resource_type 同样持锁（codex P1）；codex 二轮复评 P2-2 回归锁：锁外 peek 读 →
+        // 批删 resource_type 同样持锁（codex P1）；codex 二轮复评 P2-2 回归锁：键构造读 →
         // 锁 → 锁内重读 → 行数守卫的完整顺序（删掉锁内重读/锁后置的旧实现下失败）
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(
             treeWriteLockSupport, typeDefinitionMapper, resourceEntityDomainService);
@@ -654,7 +681,7 @@ class TypeDefinitionAppServiceImplTest {
 
     @Test
     void shouldDeleteTypeWhenNoValidRows() {
-        when(engine.getDeniedEntityIds(anyLong(), anyLong(), any(), eq(java.util.Set.of(9L)), any()))
+        when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
             .thenReturn(java.util.Set.of());
         TypeDefinition hrOrg = new TypeDefinition();
         hrOrg.setId(9L);
@@ -683,7 +710,7 @@ class TypeDefinitionAppServiceImplTest {
     @Test
     void shouldAllowUnrelatedExtraUpdateWithoutModeChange() {
         // 声明有效值未变（SYNC→SYNC 同来源）时，其余 extra 字段更新不受变更守卫限制
-        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("9"), any())).thenReturn(true);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
         TypeDefinition existing = new TypeDefinition();
         existing.setId(9L);
         existing.setTenantId(1L);
@@ -701,5 +728,163 @@ class TypeDefinitionAppServiceImplTest {
         verify(typeDefinitionMapper).update(any(TypeDefinition.class));
         // 声明未变不触发行数查询
         verify(resourceEntityDomainService, never()).hasValidRowsOfType(anyLong(), any());
+    }
+
+    // ========== T-PERM-051：TYPE_DEFINITION 实例投影联动 + 复合业务键门禁迁移 ==========
+
+    @Test
+    void shouldProjectTypeDefinitionOnCreate() {
+        // 创建类型同事务维护 TYPE_DEFINITION 投影（复合业务键）；旧实现无投影联动，本用例必红
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(null);
+
+        service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null), 100L);
+
+        verify(localProjectionDomainService).upsertTypeDefinitionResource(
+            1L, "group_type", "GROUP_TYPE_1", "First");
+    }
+
+    @Test
+    void shouldSyncProjectionNameOnlyWhenNameProvided() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
+        TypeDefinition existing = new TypeDefinition();
+        existing.setId(9L);
+        existing.setTenantId(1L);
+        existing.setTypeKey("resource_type");
+        existing.setTypeCode("HR_ORG");
+        existing.setTypeValue(5);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
+
+        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null), 100L);
+        verify(localProjectionDomainService).upsertTypeDefinitionResource(
+            1L, "resource_type", "HR_ORG", "改名");
+
+        // name 未提供（仅改 sortOrder/description）不触发投影写
+        org.mockito.Mockito.clearInvocations(localProjectionDomainService);
+        service.updateType(1L, new TypeUpdateReq(9L, null, "desc", 3, null), 100L);
+        verify(localProjectionDomainService, never()).upsertTypeDefinitionResource(anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void shouldGateUpdateByCompositeBusinessKey() {
+        // T-PERM-051 回归锁：update 门禁按复合键 {typeKey}:{typeCode} 判定——
+        // 旧实现传 String.valueOf(typeId)="9"（ID 空间错位），本用例在旧实现下必红
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("resource_type:HR_ORG"), any()))
+            .thenReturn(true);
+        TypeDefinition existing = new TypeDefinition();
+        existing.setId(9L);
+        existing.setTenantId(1L);
+        existing.setTypeKey("resource_type");
+        existing.setTypeCode("HR_ORG");
+        existing.setTypeValue(5);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
+
+        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null), 100L);
+
+        verify(typeDefinitionMapper).update(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldGateDetailByCompositeKeyAndFallBackToTypeLevelWhenRowMissing() {
+        // 行存在：实例级复合键 VIEW 命中即可查详情（旧实现按 id 串判，本用例必红）
+        TypeDefinition existing = new TypeDefinition();
+        existing.setId(9L);
+        existing.setTenantId(1L);
+        existing.setTypeKey("resource_type");
+        existing.setTypeCode("HR_ORG");
+        existing.setTypeValue(5);
+        existing.setName("HR组织");
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq("resource_type:HR_ORG"), any()))
+            .thenReturn(true);
+        assertNotNull(service.getType(1L, 9L));
+
+        // 行缺失：退化为类型级校验——无权限 SecurityException（保持既有可观察行为）、有权限 null
+        when(typeDefinitionMapper.selectValidById(1L, 99L)).thenReturn(null);
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(false);
+        assertThrows(SecurityException.class, () -> service.getType(1L, 99L));
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(true);
+        assertNull(service.getType(1L, 99L));
+    }
+
+    @Test
+    void shouldGateBatchDeleteByCompositeKeys() {
+        // T-PERM-051 回归锁：批删门禁走编码轨复合键（旧实现 type_definition.id 直传实体轨，
+        // ID 空间错位）——本用例在旧实现下因 getDeniedEntityIds 未被 stub 而必红
+        when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(java.util.Set.of("resource_type:HR_ORG"));
+        TypeDefinition hrOrg = new TypeDefinition();
+        hrOrg.setId(9L);
+        hrOrg.setTenantId(1L);
+        hrOrg.setTypeKey("resource_type");
+        hrOrg.setTypeCode("HR_ORG");
+        hrOrg.setTypeValue(5);
+        hrOrg.setIsSystem(false);
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(hrOrg));
+
+        assertThrows(SecurityException.class,
+            () -> service.deleteTypesByIds(1L, java.util.List.of(9L), 100L));
+        verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<java.util.Set<String>> captor =
+            (org.mockito.ArgumentCaptor<java.util.Set<String>>) (org.mockito.ArgumentCaptor<?>)
+                org.mockito.ArgumentCaptor.forClass(java.util.Set.class);
+        verify(engine).getDeniedResourceCodes(eq(1L), eq(100L), any(), captor.capture(), any());
+        assertEquals(java.util.Set.of("resource_type:HR_ORG"), captor.getValue());
+    }
+
+    @Test
+    void shouldCascadeProjectionAndGrantRowsOnDelete() {
+        // 2026-09-07 用户定案级联：类型软删同事务级联投影行 + 投影行下授权行（deleteResources 同款）
+        when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(java.util.Set.of());
+        TypeDefinition hrOrg = new TypeDefinition();
+        hrOrg.setId(9L);
+        hrOrg.setTenantId(1L);
+        hrOrg.setTypeKey("resource_type");
+        hrOrg.setTypeCode("HR_ORG");
+        hrOrg.setTypeValue(5);
+        hrOrg.setIsSystem(false);
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(hrOrg));
+        when(resourceEntityDomainService.findTypesWithValidRows(1L, java.util.Set.of(5)))
+            .thenReturn(java.util.Set.of());
+        when(localProjectionDomainService.findTypeDefinitionResourceIds(1L, java.util.Set.of("resource_type:HR_ORG")))
+            .thenReturn(java.util.List.of(88L));
+        when(rolePermMapper.selectRoleIdsByResourceIds(1L, java.util.List.of(88L)))
+            .thenReturn(java.util.Set.of(5L));
+        when(rolePermMapper.selectValidPermIdsByResourceIds(1L, java.util.List.of(88L)))
+            .thenReturn(java.util.List.of(77L));
+        when(apiMappingMapper.selectByResourceEntityIds(1L, java.util.Set.of(88L)))
+            .thenReturn(java.util.List.of());
+
+        service.deleteTypesByIds(1L, java.util.List.of(9L), 100L);
+
+        // 软删顺序对齐 deleteResources：类型行 → 投影行 → 授权行，同事务
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(
+            typeDefinitionMapper, resourceEntityDomainService, rolePermMapper);
+        order.verify(typeDefinitionMapper).softDeleteBatch(eq(1L), any(), any());
+        order.verify(resourceEntityDomainService).softDeleteBatch(eq(1L), eq(java.util.List.of(88L)), any());
+        order.verify(rolePermMapper).softDeleteBatch(eq(1L), eq(java.util.List.of(77L)), any());
+    }
+
+    @Test
+    void shouldFailClosedWhenDeletingNonexistentIdsWithoutPermission() {
+        // 载行空集（id 全部不存在/已删）退化为类型级校验：无权限仍抛 SecurityException
+        // （保持旧实现的 fail-closed 可观察行为，防止迁移后变成静默 no-op）
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(404L))).thenReturn(java.util.List.of());
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(false);
+
+        assertThrows(SecurityException.class,
+            () -> service.deleteTypesByIds(1L, java.util.List.of(404L), 100L));
+
+        // 有类型级权限：静默 no-op（不触删除）
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(true);
+        service.deleteTypesByIds(1L, java.util.List.of(404L), 100L);
+        verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
     }
 }

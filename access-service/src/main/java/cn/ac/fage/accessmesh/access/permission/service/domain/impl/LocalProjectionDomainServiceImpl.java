@@ -5,22 +5,27 @@ import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
+import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import com.mybatisflex.core.util.UpdateEntity;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 本地权限投影写入。不写 sync_metadata，owner 固定 access-service。
@@ -40,6 +45,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     private final AbstractUserMapper abstractUserMapper;
     private final AbstractRoleMapper abstractRoleMapper;
     private final ResourceEntityMapper resourceEntityMapper;
+    private final TypeDefinitionMapper typeDefinitionMapper;
     private final UserRoleProjectionWriter userRoleProjectionWriter;
     private final BatchAdminUserProjectionWriter batchAdminUserProjectionWriter;
 
@@ -47,11 +53,13 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
                                             AbstractUserMapper abstractUserMapper,
                                             AbstractRoleMapper abstractRoleMapper,
                                             ResourceEntityMapper resourceEntityMapper,
+                                            TypeDefinitionMapper typeDefinitionMapper,
                                             UserRoleMapper userRoleMapper) {
         this.typeResolutionService = typeResolutionService;
         this.abstractUserMapper = abstractUserMapper;
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
+        this.typeDefinitionMapper = typeDefinitionMapper;
         this.userRoleProjectionWriter = new UserRoleProjectionWriter(
             typeResolutionService, abstractUserMapper, abstractRoleMapper, userRoleMapper);
         this.batchAdminUserProjectionWriter = new BatchAdminUserProjectionWriter(
@@ -392,6 +400,69 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
         softDeleteOwnResources(tenantId, resourceType, subjectIds.stream()
             .map(String::valueOf).collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Override
+    public void upsertTypeDefinitionResource(Long tenantId, String typeKey, String typeCode, String name) {
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.TYPE_DEFINITION);
+        upsertResource(tenantId, resourceType, BusinessKeys.typeInstanceBusinessKey(typeKey, typeCode),
+            name, null, STATUS_ENABLED, LocalDateTime.now());
+    }
+
+    @Override
+    public List<Long> findTypeDefinitionResourceIds(Long tenantId, Set<String> compositeKeys) {
+        if (compositeKeys == null || compositeKeys.isEmpty()) {
+            return List.of();
+        }
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.TYPE_DEFINITION);
+        return resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+            tenantId, resourceType, compositeKeys, Set.of(CODE_TYPE_DEFAULT)).stream()
+            .map(ResourceEntity::getId)
+            .toList();
+    }
+
+    @Override
+    public int backfillTypeDefinitionProjections(Long tenantId) {
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.TYPE_DEFINITION);
+        List<TypeDefinition> validTypes = typeDefinitionMapper.selectValidByTenant(tenantId);
+        if (validTypes.isEmpty()) {
+            return 0;
+        }
+        Set<String> expectedCodes = validTypes.stream()
+            .map(t -> BusinessKeys.typeInstanceBusinessKey(t.getTypeKey(), t.getTypeCode()))
+            .collect(Collectors.toSet());
+        Set<String> existingCodes = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+            tenantId, resourceType, expectedCodes, Set.of(CODE_TYPE_DEFAULT)).stream()
+            .map(ResourceEntity::getCode)
+            .collect(Collectors.toSet());
+        LocalDateTime now = LocalDateTime.now();
+        List<ResourceEntity> toInsert = new ArrayList<>();
+        for (TypeDefinition type : validTypes) {
+            String code = BusinessKeys.typeInstanceBusinessKey(type.getTypeKey(), type.getTypeCode());
+            if (existingCodes.contains(code)) {
+                continue;
+            }
+            ResourceEntity resource = new ResourceEntity();
+            resource.setTenantId(tenantId);
+            resource.setResourceType(resourceType);
+            resource.setCode(code);
+            resource.setCodeType(CODE_TYPE_DEFAULT);
+            resource.setName(type.getName());
+            resource.setParentId(null);
+            resource.setStatus(STATUS_ENABLED);
+            resource.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+            // DDL maintain_source NOT NULL：显式 NULL 会绕过列默认值触发约束（同 upsertResource）
+            resource.setMaintainSource(PermConstants.MaintainSource.MANUAL);
+            resource.setCreatedAt(now);
+            resource.setUpdatedAt(now);
+            resource.setDeleteFlag(0L);
+            toInsert.add(resource);
+        }
+        if (toInsert.isEmpty()) {
+            return 0;
+        }
+        resourceEntityMapper.insertBatch(toInsert);
+        return toInsert.size();
     }
 
     /** 批量按 code 软删本地投影资源行（一次批量加载 + 一次批量软删）。

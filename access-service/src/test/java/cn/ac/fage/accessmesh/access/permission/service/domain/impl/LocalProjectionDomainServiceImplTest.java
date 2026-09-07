@@ -45,6 +45,7 @@ class LocalProjectionDomainServiceImplTest {
     @Mock private AbstractUserMapper abstractUserMapper;
     @Mock private AbstractRoleMapper abstractRoleMapper;
     @Mock private ResourceEntityMapper resourceEntityMapper;
+    @Mock private cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper typeDefinitionMapper;
     @Mock private UserRoleMapper userRoleMapper;
 
     private LocalProjectionDomainServiceImpl service;
@@ -53,7 +54,7 @@ class LocalProjectionDomainServiceImplTest {
     void setUp() {
         service = new LocalProjectionDomainServiceImpl(
             typeResolutionService, abstractUserMapper, abstractRoleMapper,
-            resourceEntityMapper, userRoleMapper);
+            resourceEntityMapper, typeDefinitionMapper, userRoleMapper);
     }
 
     @Test

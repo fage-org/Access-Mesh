@@ -113,16 +113,18 @@ public interface TypeDefinitionMapper extends BaseMapper<TypeDefinition> {
                                                    @Param("typeKey") String typeKey);
 
     /**
-     * 查询租户内全部有效 type_code（跨 type_key）
+     * 查询租户内全部有效类型定义行（跨 type_key，T-PERM-051）
      * <p>
-     * 用于 TYPE_DEFINITION 实例级查看门禁的批量判定（2026-09-03 门禁放宽：任一实例级
-     * VIEW 亦可查询类型清单），与登录权限串投影口径对齐。
+     * 用于 TYPE_DEFINITION 实例门禁的复合业务键构造（{typeKey}:{typeCode}，经
+     * {@code BusinessKeys.typeInstanceBusinessKey} 拼装，格式不在 SQL 内拼串）与
+     * bootstrap 投影自愈补种。替换已退役的 {@code selectValidCodesByTenant}
+     * （裸 typeCode 在跨 type_key 重码下无法唯一命中投影行）。
      * </p>
      *
      * @param tenantId 租户ID
-     * @return 有效 type_code 列表
+     * @return 有效类型定义列表
      */
-    List<String> selectValidCodesByTenant(@Param("tenantId") Long tenantId);
+    List<TypeDefinition> selectValidByTenant(@Param("tenantId") Long tenantId);
 
     /**
      * 查询租户+类型键内全量行（含软删行）的 typeValue 最大值

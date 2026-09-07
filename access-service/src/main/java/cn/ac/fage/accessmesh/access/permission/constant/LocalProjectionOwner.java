@@ -15,8 +15,8 @@ package cn.ac.fage.accessmesh.access.permission.constant;
  * 不变；SYS_USER_ORG 不变。
  * </p>
  * <p>
- * resource 侧所有权（T-PERM-052，2026-09-05 内部来源统一；T-ADMIN-025 增 ADMIN_FILE）：事实链路
- * 类型（USER/ORG/MENU/ROLE/ADMIN_FILE）由种子声明 {@code type_definition.extra.managedMode=SYNC + syncSourceService=access-service}
+ * resource 侧所有权（T-PERM-052，2026-09-05 内部来源统一；T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION）：事实链路
+ * 类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION）由种子声明 {@code type_definition.extra.managedMode=SYNC + syncSourceService=access-service}
  * ——外部 sync 一律拒绝（来源不匹配）、管理面资源 CRUD 一律 20055（原类型保留清单与
  * {@code LocalProjectionGuard.rejectIfLocalResource/rejectIfForeignResource} 行级防线均已收编删除）。
  * </p>

@@ -53,7 +53,9 @@
 4. **重启 access-service**（空库无缓存回填，启动即回源）。启用 bootstrap
    （`ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD`，仅单实例）时启动即自动
    种子首管理员（幂等，重复重启 no-op、不重置密码）；未启用则空库无管理员，管理链 HTTP 验证前
-   须先启用 bootstrap 重新种子。
+   须先启用 bootstrap 重新种子。bootstrap 启动同时为存量有效类型定义行自愈补种
+   TYPE_DEFINITION 实例投影（T-PERM-051，幂等 insert-if-absent）；未启用 bootstrap 的环境用 §3
+   订正语句手工补齐，否则授权页 TYPE_DEFINITION 类型下无实例可选、实例级门禁对种子类型不可达。
 
 ## 2. 主体链验证（用户/角色/组织/菜单样例）
 
@@ -104,6 +106,7 @@
 | 组织与用户页用户列表恒空、成员候选恒空 | `/user/page` 与 `/user/member-candidates` 均为**默认组织树身份目录视图**——无默认树配置时可见组织集恒空（T-FE-015 起 bootstrap 已种子默认树 `root`，旧库重建前会命中） | 确认 `sys_org_tree_config` 存在 `is_default=true` 行且指向有效根组织；无则按步骤 1 重建（bootstrap 自动种子），或经管理链路建树配置并设默认 |
 | 四棵树（角色/组织/菜单/资源实体）树查询异常缓慢或连接堆积；树接口返回缺节点 | 库内存在 parent 环脏数据（move 并发窗口历史残留或直改库；写路径已加树级分布式锁串行化（Redisson，事务提交/回滚后释放），正常链路不会再产生，T-PERM-044 / architecture §17） | 检测定位（每树一条同构 SQL，表名替换 `abstract_role`/`sys_org`/`sys_menu`/`resource_entity`，输出为环上节点 id）：`WITH RECURSIVE up AS (SELECT id, parent_id, id AS origin, 0 AS depth FROM sys_menu WHERE tenant_id = 1 AND delete_flag = 0 UNION ALL SELECT m.id, m.parent_id, up.origin, up.depth + 1 FROM sys_menu m JOIN up ON m.id = up.parent_id WHERE up.depth < 200) SELECT DISTINCT origin FROM up WHERE id = origin AND depth > 0;` 而后按业务判断把其中一个环节点的 parent 订正回合理值（断哪条边是业务决策，系统不做自动自愈），重跑检测为空即收口 |
 | 含条件授权判定结果与预期不符 | 存量 `permission_condition.condition_rules` 含 `items: []` 空数组（条件写入口仅验 JSON 合法性、未拦空数组，2026-08-29 T-PERM-033 评审登记） | 空数组 + AND 按旧语义无条件满足（放行）；如需收紧为 fail-close 应先在条件写入口显式拒绝空 items（登记项），不建议直接订正数据前不改写入校验 |
+| 升级到 T-PERM-051（2026-09-07）后：授权页 TYPE_DEFINITION 类型下无实例可选 / 实例级门禁对种子类型不可达 / 建超长 typeKey+typeCode 类型报资源编码列宽溢出 | 存量库缺三件套：`resource_entity.code` 仍为旧列宽 128（复合键最坏 129）、TYPE_DEFINITION 类型未声明 SYNC、存量类型行无实例投影。**启用 bootstrap 的环境重启即自愈补投影**（幂等）；列宽与声明仍需手工订正 | 一次性订正（幂等可重跑）：① `ALTER TABLE resource_entity ALTER COLUMN code TYPE VARCHAR(256);` ② `UPDATE type_definition SET extra = '{"managedMode":"SYNC","syncSourceService":"access-service"}' WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'TYPE_DEFINITION' AND delete_flag = 0;` ③ 投影补种（bootstrap 未启用或跳过启动时的兜底，已存在行自动跳过）：`INSERT INTO resource_entity (tenant_id, resource_type, code, code_type, name, status, owner_service_code, maintain_source, created_at, updated_at, delete_flag) SELECT td.tenant_id, 10, td.type_key || ':' || td.type_code, 'default', td.name, 1, 'access-service', 'MANUAL', now(), now(), 0 FROM type_definition td WHERE td.delete_flag = 0 AND NOT EXISTS (SELECT 1 FROM resource_entity re WHERE re.tenant_id = td.tenant_id AND re.resource_type = 10 AND re.code_type = 'default' AND re.delete_flag = 0 AND re.code = td.type_key || ':' || td.type_code);`（②③执行前先核对 tenant 范围：bootstrap 自愈仅覆盖租户 1，多租户存量需按租户分别执行。另：自愈补种与旧实例 API 流量存在毫秒级 select-then-insert 交错窗，命中时新实例启动 fail-fast、重试即自愈——升级发布建议低峰期且 bootstrap 保持单实例启用） |
 
 ## 4. 相关权威文档
 

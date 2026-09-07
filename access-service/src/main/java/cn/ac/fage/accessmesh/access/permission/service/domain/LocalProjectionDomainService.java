@@ -227,4 +227,36 @@ public interface LocalProjectionDomainService {
      * 外部行跳过不阻断）。
      */
     void softDeleteUserResources(Long tenantId, Set<Long> subjectIds);
+
+    /**
+     * UPSERT resource_entity(TYPE_DEFINITION)——type-definition 写路径投影（T-PERM-051）。
+     * <p>
+     * 类型定义事实由调用方（TypeDefinitionAppService 编排）维护，本方法只写资源投影：
+     * code = {@code {typeKey}:{typeCode}} 复合业务键（typeCode 仅 tenant+type_key 内唯一，
+     * 种子 user_type 与 resource_type 均有 USER/SERVICE 同名行，裸 code 跨族撞
+     * uk_resource_entity；格式经 BusinessKeys.typeInstanceBusinessKey 构造，2026-09-05 定案）。
+     * 无树形语义：parent 恒 null、status 恒启用，name 随类型定义名称同步。
+     * </p>
+     */
+    void upsertTypeDefinitionResource(Long tenantId, String typeKey, String typeCode, String name);
+
+    /**
+     * 按复合业务键批量定位 TYPE_DEFINITION 投影行 id（类型删除路径级联处置授权行用）。
+     * 一次批量查询；限定 code_type=default 与 {@link #upsertTypeDefinitionResource} 定位对称。
+     */
+    List<Long> findTypeDefinitionResourceIds(Long tenantId, Set<String> compositeKeys);
+
+    /**
+     * TYPE_DEFINITION 实例投影自愈补种（T-PERM-051，bootstrap 启动调用，幂等可重跑）：
+     * 为全部有效类型定义行中缺少投影的行 insert-if-absent（2026-09-07 用户定案：启动自愈
+     * 对齐 ADMIN_FILE 文件夹投影先例 T-ADMIN-025，部署即生效免手工）。
+     * <p>
+     * 覆盖特性上线前已存在的存量种子行；软删类型行不在有效行内不补种，软删投影墓碑
+     * 不复活（部分唯一索引允许重插新行）。仅覆盖 bootstrap 租户（tenant 1，现网唯一），
+     * 其余租户/异常场景由 rebuild-runbook 订正语句兜底。
+     * </p>
+     *
+     * @return 本次补种行数（0=已齐备）
+     */
+    int backfillTypeDefinitionProjections(Long tenantId);
 }

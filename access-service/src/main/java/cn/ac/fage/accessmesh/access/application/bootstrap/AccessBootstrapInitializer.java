@@ -134,6 +134,15 @@ public class AccessBootstrapInitializer {
         for (BootstrapGraphDefinition.FolderSeed seed : BootstrapGraphDefinition.adminFileFolderSeeds()) {
             localProjectionDomainService.ensureAdminFileFolder(tenantId, seed.code(), seed.name());
         }
+        // TYPE_DEFINITION 实例投影自愈补种（T-PERM-051，2026-09-07 用户定案启动自愈）：
+        // 为全部有效类型定义行幂等补投影（insert-if-absent，no-op 路径同样执行）。同款豁免
+        // 口径——缺失只可能是库先于本特性存在（存量种子行无写路径联动可补），无运营意图可保护；
+        // 固定图授权不新增 TYPE_DEFINITION 实例级条目（任务范围明确不动固定图）
+        int backfilledTypeProjections = localProjectionDomainService.backfillTypeDefinitionProjections(tenantId);
+        if (backfilledTypeProjections > 0) {
+            log.info("TYPE_DEFINITION 实例投影自愈补种 {} 行（存量类型行缺投影，T-PERM-051）",
+                backfilledTypeProjections);
+        }
         Map<String, Integer> resourceTypes = resolveGrantResourceTypes(tenantId);
         Integer basicRoleType = requireType(tenantId, TYPE_KEY_ROLE, BootstrapGraphDefinition.ADMIN_ROLE_TYPE_CODE);
         Integer localUserType = requireType(tenantId, TYPE_KEY_USER, LocalProjectionOwner.SUBJECT_LOCAL_USER);

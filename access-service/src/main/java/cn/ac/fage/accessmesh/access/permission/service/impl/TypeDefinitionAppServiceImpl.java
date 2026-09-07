@@ -3,19 +3,25 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
+import cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.TypeDefinitionAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
+import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
@@ -28,6 +34,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -48,6 +56,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final PermQueryEngine engine;
     private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     private final ResourceEntityDomainService resourceEntityDomainService;
+    private final LocalProjectionDomainService localProjectionDomainService;
+    private final RoleResourcePermissionMapper rolePermMapper;
+    private final ResourceApiMappingMapper apiMappingMapper;
     private final TreeWriteLockSupport treeWriteLockSupport;
     private final CacheService cacheService;
 
@@ -57,8 +68,11 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * @param typeDefinitionMapper      类型定义数据访问层
      * @param operationPermissionMapper 操作权限数据访问层（resource_type 联动预置写入，T-PERM-028）
      * @param engine                    权限查询引擎
-     * @param resourceEntityDomainService 资源实体域服务（行数守卫查询）
+     * @param resourceEntityDomainService 资源实体域服务（行数守卫查询 + 投影行软删）
      * @param resourceTypeOwnershipGuard 资源类型所有权守卫（extra.managedMode 声明校验与变更守卫，T-PERM-052）
+     * @param localProjectionDomainService 本地投影域服务（TYPE_DEFINITION 实例投影同事务维护，T-PERM-051）
+     * @param rolePermMapper            授权数据访问层（类型软删级联处置投影行下授权行，T-PERM-051）
+     * @param apiMappingMapper          API 映射数据访问层（删除级联的受影响服务查询，deleteResources 同款）
      * @param cacheService              统一缓存入口（类型解析缓存提交后失效，codex 三轮复评 P1-2）
      */
     public TypeDefinitionAppServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
@@ -66,6 +80,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                                          PermQueryEngine engine,
                                          ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                          ResourceEntityDomainService resourceEntityDomainService,
+                                         LocalProjectionDomainService localProjectionDomainService,
+                                         RoleResourcePermissionMapper rolePermMapper,
+                                         ResourceApiMappingMapper apiMappingMapper,
                                          TreeWriteLockSupport treeWriteLockSupport,
                                          CacheService cacheService) {
         this.typeDefinitionMapper = typeDefinitionMapper;
@@ -73,6 +90,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         this.engine = engine;
         this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.resourceEntityDomainService = resourceEntityDomainService;
+        this.localProjectionDomainService = localProjectionDomainService;
+        this.rolePermMapper = rolePermMapper;
+        this.apiMappingMapper = apiMappingMapper;
         this.treeWriteLockSupport = treeWriteLockSupport;
         this.cacheService = cacheService;
     }
@@ -83,6 +103,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * typeValue 由服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）；
      * typeCode 留空时按 {@code <TYPEKEY大写>_<typeValue>} 生成（如 resource_type 的 12 号 → RESOURCE_TYPE_12，经 BusinessKeys.generatedTypeCode 构造），显式提供时校验 tenant+typeKey 内唯一；
      * isSystem 固定 false——系统预置类型仅走租户初始化种子，不可由 API 创建。
+     * 同事务维护 TYPE_DEFINITION 实例投影（code={typeKey}:{typeCode}，T-PERM-051）。
      * 需要TYPE_DEFINITION_CREATE权限。
      * </p>
      *
@@ -166,6 +187,10 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             }
             throw e;
         }
+        // T-PERM-051：类型定义行同事务维护 TYPE_DEFINITION 实例投影（code={typeKey}:{typeCode}
+        // 复合业务键，经 LocalProjectionDomainService 落库，owner=access-service；类型种子已声明
+        // SYNC+access-service，人工/外部不得经资源管理面构造同类行，单 writer 口径成立）
+        localProjectionDomainService.upsertTypeDefinitionResource(tenantId, req.typeKey(), typeCode, req.name());
         // T-PERM-028：resource_type 新类型联动预置 CRUD 操作位（同事务；schema 表注释承诺、
         // 原 DDL CROSS JOIN 预置仅覆盖建库时既有类型）。模板对齐 DDL 预置组：
         // CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)；新类型位段空闲无 uk_typed_bit 冲突。
@@ -249,7 +274,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * 获取类型定义详情
      * <p>
      * 根据类型定义ID查询类型的完整信息。
-     * 需要TYPE_DEFINITION_VIEW权限。
+     * 需要TYPE_DEFINITION_VIEW权限（T-PERM-051：实例级门禁按复合业务键
+     * {@code {typeKey}:{typeCode}} 判定——先载行取键再门禁；行缺失时退化为类型级
+     * 校验保持既有可观察行为：无权限抛 SecurityException、有权限返回 null）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -261,11 +288,11 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     @Transactional(readOnly = true)
     public TypeDefinitionResp getType(Long tenantId, Long typeId) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, String.valueOf(typeId), OperationCodeConstants.VIEW)) {
+        TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, typeId);
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
+                type != null ? instanceBusinessKey(type) : null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION:" + typeId);
         }
-
-        TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, typeId);
         return type != null ? toTypeResp(type) : null;
     }
 
@@ -319,20 +346,36 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * 实例级判定经 getDeniedResourceCodes 批量判定（内部经类型解析批量处理，无 N+1；
      * 无投影实体的 code 计入拒绝集合 fail-closed）。
      * </p>
+     * <p>
+     * T-PERM-051：实例业务键统一为复合键 {@code {typeKey}:{typeCode}}（typeCode 仅
+     * tenant+type_key 内唯一，种子 user_type 与 resource_type 均有 USER/SERVICE 同名行，
+     * 裸 typeCode 无法唯一命中投影行）；全拒判定沿用去重码集比较（复合键行级唯一，
+     * 去重语义不变）。
+     * </p>
      */
     private void requireTypeViewPermission(Long tenantId, Long operatorId) {
         if (engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
                 null, OperationCodeConstants.VIEW)) {
             return;
         }
-        // 全拒判定必须与引擎入参同一去重集合比较：typeCode 仅 tenant+typeKey 内唯一，
-        // 跨 type_key 重码下用未去重 codes.size() 比较会令全拒恒 false（fail-open）
-        Set<String> codes = new LinkedHashSet<>(typeDefinitionMapper.selectValidCodesByTenant(tenantId));
+        // 全拒判定必须与引擎入参同一去重集合比较：复合键虽行级唯一，保持去重集合入参
+        // 与 denied.size() 比较的同一口径（跨 type_key 重码 fail-open 修复语义不变，2026-09-03）
+        Set<String> codes = typeDefinitionMapper.selectValidByTenant(tenantId).stream()
+            .map(this::instanceBusinessKey)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
         Set<String> denied = engine.getDeniedResourceCodes(tenantId, operatorId,
                 ResourceTypeCode.TYPE_DEFINITION, codes, OperationCodeConstants.VIEW);
         if (codes.isEmpty() || denied.size() >= codes.size()) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
         }
+    }
+
+    /**
+     * TYPE_DEFINITION 实例复合业务键（T-PERM-051 定案 {typeKey}:{typeCode}，
+     * 构造唯一入口 BusinessKeys.typeInstanceBusinessKey，格式 golden 锁定）
+     */
+    private String instanceBusinessKey(TypeDefinition type) {
+        return BusinessKeys.typeInstanceBusinessKey(type.getTypeKey(), type.getTypeCode());
     }
 
     /**
@@ -346,7 +389,10 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * 更新类型定义
      * <p>
      * 更新类型定义的名称、描述、排序顺序、扩展属性等。
-     * 需要TYPE_DEFINITION_MANAGE权限。
+     * 需要TYPE_DEFINITION_MANAGE权限（T-PERM-051：实例级门禁按复合业务键
+     * {@code {typeKey}:{typeCode}} 判定——先载行取键再门禁；行缺失时退化为类型级
+     * 校验，无权限先于 NOT_FOUND 抛出，保持既有可观察行为）。
+     * name 变更同事务同步 TYPE_DEFINITION 投影行（description/sortOrder 不投影）。
      * </p>
      *
      * @param tenantId   租户ID
@@ -362,11 +408,12 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, String.valueOf(req.typeId()), OperationCodeConstants.MANAGE)) {
+        // T-PERM-051：复合业务键需先载行（typeCode/typeKey 不可变，锁内重读不改变键）
+        TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
+                type != null ? instanceBusinessKey(type) : null, OperationCodeConstants.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + req.typeId());
         }
-
-        TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
         if (type == null) throw new BizException(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
         // codex 复评 P1：resource_type 类型的声明变更与资源写入口共持 (resource_entity, 租户)
         // 树写锁（锁内重读，T-PERM-044 先例）——堵「行数守卫查零行→并发资源插入→声明变更/删除
@@ -394,6 +441,12 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         if (req.extra() != null) type.setExtra(req.extra());
         type.setUpdatedAt(LocalDateTime.now());
         typeDefinitionMapper.update(type);
+        // T-PERM-051：name 变更同步投影展示名（投影无 description/sortOrder 语义；
+        // upsert 幂等——名称未实际变化时重写同值无害，与 ROLE/USER 投影同款）
+        if (req.name() != null) {
+            localProjectionDomainService.upsertTypeDefinitionResource(
+                tenantId, type.getTypeKey(), type.getTypeCode(), req.name());
+        }
         return toTypeResp(type);
     }
 
@@ -402,7 +455,11 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * <p>
      * 批量软删除类型定义。系统内置类型（isSystem=true）不可删除。
      * 使用批量查询和批量软删除避免N+1问题。
-     * 需要TYPE_DEFINITION_MANAGE权限。
+     * 需要TYPE_DEFINITION_MANAGE权限（T-PERM-051：批量门禁按复合业务键
+     * {@code {typeKey}:{typeCode}} 编码轨判定——原 type_definition.id 直传实体轨系
+     * ID 空间错位；先批量载行构键再判，载行空集退化为类型级校验保持 fail-closed）。
+     * 同事务级联：软删 TYPE_DEFINITION 投影行 + 投影行下授权行（deleteResources 同款，
+     * 2026-09-07 用户定案级联方案），markRoles/markServiceCodes 提交后失效与广播。
      * </p>
      *
      * @param tenantId   租户ID
@@ -412,6 +469,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_REMOVE", targetType = "type_definition", targetId = "", summary = "'batch remove type definitions'")
     public void deleteTypesByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -430,18 +488,26 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             return;
         }
 
-        // T-PERM-042：引擎纯查询，拒绝时由调用方显式抛出
-        Set<Long> deniedIds = engine.getDeniedEntityIds(
-            tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, validInputIds, OperationCodeConstants.MANAGE);
-        if (!deniedIds.isEmpty()) {
-            throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + deniedIds);
-        }
-
+        // T-PERM-051：复合业务键需先批量载行（原 getDeniedEntityIds 直传 type_definition.id
+        // 系 ID 空间错位）；载行空集（全部不存在/已删）退化为类型级校验——无权限对不存在的
+        // id 仍抛 SecurityException，保持既有 fail-closed 可观察行为
         List<TypeDefinition> entities = typeDefinitionMapper.selectValidByIds(tenantId, validInputIds);
-
         if (entities.isEmpty()) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
+                    null, OperationCodeConstants.MANAGE)) {
+                throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + validInputIds);
+            }
             OperationLogRuntimeContext.markSkip();
             return;
+        }
+        // T-PERM-042：引擎纯查询（编码轨批量判定），拒绝时由调用方显式抛出
+        Set<String> keys = entities.stream()
+            .map(this::instanceBusinessKey)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> deniedKeys = engine.getDeniedResourceCodes(
+            tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, keys, OperationCodeConstants.MANAGE);
+        if (!deniedKeys.isEmpty()) {
+            throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + deniedKeys);
         }
 
         // codex 复评 P1：含 resource_type 时与资源写入口共持树写锁并锁内重读（同 updateType）
@@ -483,8 +549,42 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             }
         }
 
+        // T-PERM-051：投影行级联定位（批量按复合键一次查询；typeCode/typeKey 不可变，
+        // 锁内重读不改变键）。isSystem 行不删但保留投影（种子类型不删，投影随之保留）
+        Set<String> deletableKeys = entities.stream()
+            .filter(e -> validIds.contains(e.getId()))
+            .map(this::instanceBusinessKey)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<Long> projectionIds = localProjectionDomainService.findTypeDefinitionResourceIds(tenantId, deletableKeys);
+
+        // 投影行下授权行级联（deleteResources 同款，2026-09-07 用户定案）：软删前登记受影响
+        // roles（ROLE_PERM_SNAPSHOT 含旧 perm）与 serviceCodes（投影行若被 API 映射引用，
+        // 删除影响 Gateway 本地快照构建——正常无映射，防御性登记）
+        List<Long> permIds = List.of();
+        if (!projectionIds.isEmpty()) {
+            Set<Long> affectedRoleIds = rolePermMapper.selectRoleIdsByResourceIds(tenantId, projectionIds);
+            if (!affectedRoleIds.isEmpty()) {
+                PermissionChangeContext.markRoles(tenantId, affectedRoleIds);
+            }
+            Set<String> affectedServiceCodes = apiMappingMapper.selectByResourceEntityIds(
+                tenantId, new HashSet<>(projectionIds)).stream()
+                .map(ResourceApiMapping::getServiceCode)
+                .filter(code -> code != null && !code.isBlank())
+                .collect(Collectors.toSet());
+            if (!affectedServiceCodes.isEmpty()) {
+                PermissionChangeContext.markServiceCodes(tenantId, affectedServiceCodes);
+            }
+            permIds = rolePermMapper.selectValidPermIdsByResourceIds(tenantId, projectionIds);
+        }
+
         LocalDateTime now = LocalDateTime.now();
-        typeDefinitionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
+        typeDefinitionMapper.softDeleteBatch(tenantId, new ArrayList<>(validIds), now);
+        if (!projectionIds.isEmpty()) {
+            resourceEntityDomainService.softDeleteBatch(tenantId, projectionIds, now);
+        }
+        if (!permIds.isEmpty()) {
+            rolePermMapper.softDeleteBatch(tenantId, permIds, now);
+        }
         // codex 三轮复评 P1-2：被删类型提交后失效双向解析缓存键（同码重建新值前，旧映射不得残留）；
         // codex 四轮复评 P2：按码键/值键各合并一次批量失效（逐项 evictAfterCommit = 2N 个事务回调）
         java.util.Set<String> valueCacheKeys = new LinkedHashSet<>();

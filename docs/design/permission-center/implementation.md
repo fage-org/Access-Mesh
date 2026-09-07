@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -959,7 +959,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 - **范围**：跨类格式契约键（类型解析缓存、操作位/操作编码、资源三段、转授五段、relationKey 解析、typeCode 生成码、对外权限串）+ 单文件内部映射键（主体/角色定位、关系去重、diff 去重、API 路由）——2026-09-07 用户定案 A+B 全收。
 - **出界（不经 BusinessKeys）**：sync API 契约键（percent-encoded）归 access-service `SyncKeyCodec`；缓存框架存储信封（common cache）；Gateway 本地快照键；登录计数/任务幂等/树写锁等基础设施键；错误文案与日志 summary 拼接。
 - **放置依据**：落 perm-common 而非 access-service 自身 util，依据 §3 单一来源先例（PageResp/ItemsResp 同款）——SDK 侧（starter 测试夹具、未来投影数据）需与 access-service 同格式构造 relationKey 等键；任务卡 acceptance 明写「收敛到 perm-common」。
-- **T-PERM-051 预留**：`typeInstanceBusinessKey(typeKey, typeCode)` 复合键已落位，TYPE_DEFINITION 实例投影实现时必须经此构造，不得裸拼。
+- **TYPE_DEFINITION 实例投影（T-PERM-051 已落地 2026-09-07）**：`typeInstanceBusinessKey(typeKey, typeCode)` 复合键是实例投影与门禁的唯一构造入口（`LocalProjectionDomainService.upsertTypeDefinitionResource`/`TypeDefinitionAppServiceImpl` 全部消费方经此构造，不得裸拼）；语义与级联细节见 architecture §12.3。
 
 ### 8.2 大小写口径（登记待统一）
 

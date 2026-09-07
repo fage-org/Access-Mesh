@@ -52,6 +52,7 @@
 | 2026-09-07 | 后端业务键统一入口=perm-common BusinessKeys（19 方法族，A+B 全收：跨类契约键+单文件内部键；格式 BusinessKeysParityTest golden 锁）；防回归仅 golden 锁，不加源码扫描守卫——评审勿再建议裸拼扫描守卫测试 | docs/design/permission-center/implementation.md §8、perm-sdk/perm-common util/BusinessKeys.java、AGENTS.md 核心编码规范行 | 再报直接撤回 |
 | 2026-09-07 | BusinessKeys/SyncKeyCodec 名词命名偏离 project-rules §6.2「XxxUtil」：用户已知、计划后续 IDE 统一改名；改名落地前评审勿再报命名不符，规则例外句暂不写 | 本表（会话定案；类见 perm-common util/BusinessKeys.java、access-service permission/util/SyncKeyCodec.java） | 再报直接撤回 |
 | 2026-09-07 | operationCodeKey 族不做大小写归一：授权域（先 toUpperCase 再拼）与查询/解析域（裸拼）语义不一致为已登记事实，保持现状待统一；统一方向（raw 严格化/归一宽松化+DTO Pattern）属行为变更需单独立项 | docs/design/permission-center/implementation.md §8.2 | 报了先核出处 |
+| 2026-09-07 | T-PERM-051 四项执行定案（同批 AskUserQuestion）：①复合键长度溢出（type_key/type_code 各 ≤64 最坏 129 > 旧 code 列宽 128）处置=加宽 resource_entity.code 至 VARCHAR(256)，不加创建入口限长；②类型软删对「投影行下授权行」处置=级联软删（deleteResources 同款：markRoles/markServiceCodes + 投影行/授权行同事务软删），不走删除保护；③「TYPE_DEFINITION 加入保留清单」按机制现状落地=种子声明 SYNC+access-service（清单机制已被 T-PERM-052 收编，不复活字面清单）；④存量投影回填=bootstrap 启动自愈（对齐 T-ADMIN-025 ensureAdminFileFolder 先例）+ runbook FAQ 订正语句兜底，非纯手工 SQL | docs/tasks/T-PERM-051.md 实现记录、docs/design/schema/access-service.sql（列宽注释+种子声明）、access-service-rebuild-runbook.md §1/§3 | 报了先核出处 |
 
 ## 已推翻（superseded）
 
