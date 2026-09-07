@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain;
 
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -86,11 +87,9 @@ public class ResolveContext {
         if (resourceTypeCode == null || operationCodes == null || operationCodes.isEmpty()) {
             return;
         }
-        String cachePrefix = resourceTypeCode + ":";
         Set<String> toResolve = new HashSet<>();
         for (String opCode : operationCodes) {
-            String cacheKey = cachePrefix + opCode;
-            if (!operationIdCache.containsKey(cacheKey)) {
+            if (!operationIdCache.containsKey(BusinessKeys.operationCodeKey(resourceTypeCode, opCode))) {
                 toResolve.add(opCode);
             }
         }
@@ -100,7 +99,7 @@ public class ResolveContext {
         Map<String, Long> resolved = typeResolutionService.batchResolveOperationIds(
             tenantId, resourceTypeCode, toResolve);
         for (Map.Entry<String, Long> entry : resolved.entrySet()) {
-            operationIdCache.put(cachePrefix + entry.getKey(), entry.getValue());
+            operationIdCache.put(BusinessKeys.operationCodeKey(resourceTypeCode, entry.getKey()), entry.getValue());
         }
     }
 
@@ -157,7 +156,7 @@ public class ResolveContext {
         if (resourceTypeCode == null || operationCode == null) {
             return null;
         }
-        String cacheKey = resourceTypeCode + ":" + operationCode;
+        String cacheKey = BusinessKeys.operationCodeKey(resourceTypeCode, operationCode);
         if (operationIdCache.containsKey(cacheKey)) {
             return operationIdCache.get(cacheKey);
         }
@@ -206,9 +205,8 @@ public class ResolveContext {
         prepareOperations(resourceTypeCodes, operationCodes);
         Set<Long> result = new HashSet<>();
         for (String rtCode : resourceTypeCodes) {
-            String cachePrefix = rtCode + ":";
             for (String opCode : operationCodes) {
-                Long id = operationIdCache.get(cachePrefix + opCode);
+                Long id = operationIdCache.get(BusinessKeys.operationCodeKey(rtCode, opCode));
                 if (id != null) {
                     result.add(id);
                 }

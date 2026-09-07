@@ -86,7 +86,7 @@ export type TypeDefListQuery = {
 
 /** 类型定义创建请求（T-PERM-023 收口，对齐后端 TypeCreateReq）：
  *  - 不含 typeValue：服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）。
- *  - typeCode 可选：留空则服务端按 TYPEKEY_<typeValue> 生成；显式提供时后端查重（20049）。
+ *  - typeCode 可选：留空则服务端按 <TYPEKEY大写>_<typeValue> 生成（如 RESOURCE_TYPE_12）；显式提供时后端查重（20049）。
  *  - 不含 isSystem：系统预置仅走租户初始化种子，API 创建固定 isSystem=false。 */
 export type TypeDefCreateReq = {
   typeKey: string;

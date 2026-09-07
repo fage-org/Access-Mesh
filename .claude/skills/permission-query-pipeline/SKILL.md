@@ -159,12 +159,9 @@ OperationCodeConstants.VIEW        // 查看
 OperationCodeConstants.MANAGE      // 管理
 OperationCodeConstants.UPDATE      // 更新
 OperationCodeConstants.DELETE      // 删除
-OperationCodeConstants.ASSIGN      // 分配
-OperationCodeConstants.REVOKE      // 撤销
 OperationCodeConstants.SYNC        // 同步
 OperationCodeConstants.MANAGE_API_MAPPING // API映射管理
 OperationCodeConstants.SYNC_INTERFACE     // 接口同步
-OperationCodeConstants.GRANT       // 授权
 ```
 
 ### ResourceTypeCode（资源类型）

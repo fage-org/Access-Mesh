@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
@@ -246,7 +247,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         return perms.stream().map(perm -> {
             ResourceEntity resource = perm.getResourceEntityId() == null ? null : resourceMap.get(perm.getResourceEntityId());
-            OperationPermission operation = opByTypeAndBit.get(operationIndexKey(
+            OperationPermission operation = opByTypeAndBit.get(BusinessKeys.operationBitKey(
                 perm.getResourceType(), perm.getGrantedBits()));
             String resourceTypeCode = resourceTypeCodeMap.get(perm.getResourceType());
             PermissionCondition condition = perm.getConditionId() == null ? null : conditionMap.get(perm.getConditionId());
@@ -284,14 +285,10 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             for (OperationPermission operation : allOperations.stream()
                     .filter(op -> Objects.equals(op.getResourceType(), resourceType))
                     .toList()) {
-                result.put(operationIndexKey(resourceType, operation.getBinaryBit()), operation);
+                result.put(BusinessKeys.operationBitKey(resourceType, operation.getBinaryBit()), operation);
             }
         }
         return result;
-    }
-
-    private String operationIndexKey(Integer resourceType, Long binaryBit) {
-        return resourceType + ":" + binaryBit;
     }
 
     private void recordGrantPlanChanges(

@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.util;
 
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 
 import java.util.*;
 
@@ -13,8 +14,6 @@ import java.util.*;
  * </p>
  */
 public final class OperationPermissionUtils {
-
-    private static final String NULL_RESOURCE_TYPE = "NULL";
 
     /**
      * 私有构造函数
@@ -217,6 +216,6 @@ public final class OperationPermissionUtils {
     }
 
     private static String composeKey(Integer resourceType, Long binaryBit) {
-        return (resourceType == null ? NULL_RESOURCE_TYPE : String.valueOf(resourceType)) + ":" + binaryBit;
+        return BusinessKeys.operationBitKey(resourceType, binaryBit);
     }
 }

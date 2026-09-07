@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DependencyBatchSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceDependencyCheckReq;
@@ -632,9 +633,9 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     private record ResolvedSyncItem(Long sourceId, Long targetId, Long sourceBits, Long requiredBits,
                                     DependencyBatchSyncReq.DependencySyncItem item) {}
 
-    /** uk 语义三元组键（source + target + COALESCE(source_bits,0)） */
+    /** uk 语义三元组键（source + target + COALESCE(source_bits,0)，经 BusinessKeys 构造） */
     private static String depKey(Long sourceId, Long targetId, Long sourceBits) {
-        return sourceId + ":" + targetId + ":" + (sourceBits == null ? 0L : sourceBits);
+        return BusinessKeys.dependencyDiffKey(sourceId, targetId, sourceBits);
     }
 
     /**

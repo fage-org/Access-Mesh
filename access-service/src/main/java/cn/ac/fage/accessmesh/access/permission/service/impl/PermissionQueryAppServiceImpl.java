@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionTreeReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
@@ -167,7 +168,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         // 先构建 code→OperationPermission 索引用于 opMatch
         Map<String, OperationPermission> opByCode = opMap.values().stream()
             .collect(Collectors.toMap(
-                o -> o.getResourceType() + ":" + o.getCode(),
+                o -> BusinessKeys.operationCodeKey(o.getResourceType(), o.getCode()),
                 o -> o, (a, b) -> a));
 
         // 使用引擎的 covers() 覆盖判定：MANAGE 覆盖 VIEW 等
@@ -179,7 +180,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             if (granted == null) return false;
             // 检查授予的操作是否覆盖请求中的任一操作
             return operationCodes.stream().anyMatch(reqOp -> {
-                OperationPermission target = opByCode.get(entry.resourceType() + ":" + reqOp);
+                OperationPermission target = opByCode.get(BusinessKeys.operationCodeKey(entry.resourceType(), reqOp));
                 return target != null && OperationPermissionUtils.covers(granted, target);
             });
         };

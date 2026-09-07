@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
@@ -325,7 +326,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             ));
         Map<String, Set<String>> roleExternalIdsByTypeAndDomain = req.items().stream()
             .collect(Collectors.groupingBy(
-                item -> item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : ""),
+                item -> BusinessKeys.roleTypeDomainKey(item.roleTypeCode(), item.domainCode()),
                 Collectors.mapping(UserAssignRoleReq.AssignItem::roleExternalId, Collectors.toSet())
             ));
 
@@ -335,7 +336,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 tenantId, entry.getKey(), entry.getValue());
             userIdMap.putAll(partialMap.entrySet().stream()
                 .collect(Collectors.toMap(
-                    e -> entry.getKey() + ":" + e.getKey(),
+                    e -> BusinessKeys.subjectKey(entry.getKey(), e.getKey()),
                     Map.Entry::getValue
                 )));
         }
@@ -349,14 +350,14 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 tenantId, roleTypeCode, entry.getValue(), domainCode);
             roleIdMap.putAll(partialMap.entrySet().stream()
                 .collect(Collectors.toMap(
-                    e -> roleTypeCode + ":" + (domainCode != null ? domainCode : "") + ":" + e.getKey(),
+                    e -> BusinessKeys.roleKey(roleTypeCode, domainCode, e.getKey()),
                     Map.Entry::getValue
                 )));
         }
 
         Set<Long> targetRoleIds = new LinkedHashSet<>();
         for (UserAssignRoleReq.AssignItem item : req.items()) {
-            String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
+            String roleKey = BusinessKeys.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
             Long targetRoleId = roleIdMap.get(roleKey);
             if (targetRoleId != null) {
                 targetRoleIds.add(targetRoleId);
@@ -371,7 +372,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         Set<Long> allUserIds = new LinkedHashSet<>();
         for (UserAssignRoleReq.AssignItem item : req.items()) {
-            String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
+            String userKey = BusinessKeys.subjectKey(item.subjectTypeCode(), item.subjectExternalId());
             Long userId = userIdMap.get(userKey);
             if (userId != null) {
                 allUserIds.add(userId);
@@ -382,7 +383,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (!allUserIds.isEmpty() && !targetRoleIds.isEmpty()) {
             List<UserRole> existingRelations = userRoleMapper.selectValidByUserIdsAndTargetIds(tenantId, allUserIds, targetRoleIds, ResourceTypeCode.ROLE);
             for (UserRole ur : existingRelations) {
-                String key = ur.getAbstractUserId() + ":" + ur.getTargetId();
+                String key = BusinessKeys.userRoleRelationKey(ur.getAbstractUserId(), ur.getTargetId());
                 existingRelationMap.put(key, ur);
             }
         }
@@ -393,14 +394,14 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         LocalDateTime now = LocalDateTime.now();
 
         for (UserAssignRoleReq.AssignItem item : req.items()) {
-            String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
+            String userKey = BusinessKeys.subjectKey(item.subjectTypeCode(), item.subjectExternalId());
             Long abstractUserId = userIdMap.get(userKey);
             if (abstractUserId == null) {
                 errors.add("User not found: " + item.subjectTypeCode() + "/" + item.subjectExternalId());
                 continue;
             }
 
-            String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
+            String roleKey = BusinessKeys.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
             Long targetRoleId = roleIdMap.get(roleKey);
             if (targetRoleId == null) {
                 errors.add("Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
@@ -412,7 +413,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 continue;
             }
 
-            String relationKey = abstractUserId + ":" + targetRoleId;
+            String relationKey = BusinessKeys.userRoleRelationKey(abstractUserId, targetRoleId);
             if (existingRelationMap.containsKey(relationKey)) {
                 continue;
             }
@@ -469,7 +470,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             tenantId, req.subjectTypeCode(), new LinkedHashSet<>(req.subjectExternalIds()));
         Map<String, Long> fullUserIdMap = userIdMap.entrySet().stream()
             .collect(Collectors.toMap(
-                e -> req.subjectTypeCode() + ":" + e.getKey(),
+                e -> BusinessKeys.subjectKey(req.subjectTypeCode(), e.getKey()),
                 Map.Entry::getValue
             ));
 
@@ -489,7 +490,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Set<Long> allUserIds = new LinkedHashSet<>();
         List<String> userNotFoundErrors = new ArrayList<>();
         for (String subjectExternalId : req.subjectExternalIds()) {
-            String userKey = req.subjectTypeCode() + ":" + subjectExternalId;
+            String userKey = BusinessKeys.subjectKey(req.subjectTypeCode(), subjectExternalId);
             Long userId = fullUserIdMap.get(userKey);
             if (userId == null) {
                 userNotFoundErrors.add("User not found: " + req.subjectTypeCode() + "/" + subjectExternalId);
@@ -506,7 +507,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (!allUserIds.isEmpty()) {
             List<UserRole> existingRelations = userRoleMapper.selectValidByUserIdsAndTargetId(tenantId, allUserIds, targetRoleId, ResourceTypeCode.ROLE);
             for (UserRole ur : existingRelations) {
-                String key = ur.getAbstractUserId() + ":" + ur.getTargetId();
+                String key = BusinessKeys.userRoleRelationKey(ur.getAbstractUserId(), ur.getTargetId());
                 existingRelationMap.put(key, ur);
             }
         }
@@ -516,13 +517,13 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         LocalDateTime now = LocalDateTime.now();
 
         for (String subjectExternalId : req.subjectExternalIds()) {
-            String userKey = req.subjectTypeCode() + ":" + subjectExternalId;
+            String userKey = BusinessKeys.subjectKey(req.subjectTypeCode(), subjectExternalId);
             Long abstractUserId = fullUserIdMap.get(userKey);
             if (abstractUserId == null) {
                 continue;
             }
 
-            String relationKey = abstractUserId + ":" + targetRoleId;
+            String relationKey = BusinessKeys.userRoleRelationKey(abstractUserId, targetRoleId);
             if (existingRelationMap.containsKey(relationKey)) {
                 continue;
             }
@@ -581,7 +582,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             .collect(Collectors.toSet());
         Map<String, Set<String>> roleExternalIdsByTypeAndDomain = req.items().stream()
             .collect(Collectors.groupingBy(
-                item -> item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : ""),
+                item -> BusinessKeys.roleTypeDomainKey(item.roleTypeCode(), item.domainCode()),
                 Collectors.mapping(UserRoleBatchRevokeReq.RevokeItem::roleExternalId, Collectors.toSet())
             ));
         Map<String, Long> roleIdMap = new HashMap<>();
@@ -593,7 +594,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 tenantId, roleTypeCode, entry.getValue(), domainCode);
             roleIdMap.putAll(partialMap.entrySet().stream()
                 .collect(Collectors.toMap(
-                    e -> roleTypeCode + ":" + (domainCode != null ? domainCode : "") + ":" + e.getKey(),
+                    e -> BusinessKeys.roleKey(roleTypeCode, domainCode, e.getKey()),
                     Map.Entry::getValue
                 )));
         }
@@ -609,14 +610,14 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 tenantId, entry.getKey(), entry.getValue());
             userIdMap.putAll(partialMap.entrySet().stream()
                 .collect(Collectors.toMap(
-                    e -> entry.getKey() + ":" + e.getKey(),
+                    e -> BusinessKeys.subjectKey(entry.getKey(), e.getKey()),
                     Map.Entry::getValue
                 )));
         }
 
         Set<Long> targetRoleIds = new LinkedHashSet<>();
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
-            String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
+            String roleKey = BusinessKeys.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
             Long targetRoleId = roleIdMap.get(roleKey);
             if (targetRoleId != null) {
                 targetRoleIds.add(targetRoleId);
@@ -636,9 +637,9 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Set<Long> allUserIds = new LinkedHashSet<>();
         Set<Long> allRoleIds = new LinkedHashSet<>();
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
-            String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
+            String userKey = BusinessKeys.subjectKey(item.subjectTypeCode(), item.subjectExternalId());
             Long abstractUserId = userIdMap.get(userKey);
-            String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
+            String roleKey = BusinessKeys.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
             Long targetRoleId = roleIdMap.get(roleKey);
             if (abstractUserId != null && targetRoleId != null) {
                 allUserIds.add(abstractUserId);
@@ -650,7 +651,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (!allUserIds.isEmpty() && !allRoleIds.isEmpty()) {
             List<UserRole> userRoles = userRoleMapper.selectValidByUserIdsTypeAndTargetIds(tenantId, allUserIds, ResourceTypeCode.ROLE, allRoleIds);
             for (UserRole ur : userRoles) {
-                String key = ur.getAbstractUserId() + ":" + ur.getTargetId() + ":" + (ur.getRelationId() != null ? ur.getRelationId() : "null");
+                String key = BusinessKeys.userRoleRelationIdKey(ur.getAbstractUserId(), ur.getTargetId(), ur.getRelationId());
                 userRoleMap.put(key, ur);
             }
         }
@@ -664,12 +665,12 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         LocalDateTime now = LocalDateTime.now();
 
         for (UserRoleBatchRevokeReq.RevokeItem item : req.items()) {
-            String userKey = item.subjectTypeCode() + ":" + item.subjectExternalId();
+            String userKey = BusinessKeys.subjectKey(item.subjectTypeCode(), item.subjectExternalId());
             Long abstractUserId = userIdMap.get(userKey);
             if (abstractUserId == null) {
                 throw new BizException(PermissionErrorCode.USER_NOT_FOUND.getCode(), "User not found: " + item.subjectTypeCode() + "/" + item.subjectExternalId());
             }
-            String roleKey = item.roleTypeCode() + ":" + (item.domainCode() != null ? item.domainCode() : "") + ":" + item.roleExternalId();
+            String roleKey = BusinessKeys.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
             Long targetRoleId = roleIdMap.get(roleKey);
             if (targetRoleId == null) {
                 throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
@@ -680,7 +681,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 continue;
             }
 
-            String urKey = abstractUserId + ":" + targetRoleId + ":" + (item.relationId() != null ? item.relationId() : "null");
+            String urKey = BusinessKeys.userRoleRelationIdKey(abstractUserId, targetRoleId, item.relationId());
             UserRole ur = userRoleMap.get(urKey);
             if (ur == null) {
                 throw new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(), "User-role relation not found for item");

@@ -3,7 +3,7 @@ doc_type: design
 title: 6.1 类型定义页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——写路径三端点 Gateway 注册+TYPE_DEFINITION:CREATE/MANAGE 补授；2026-08-31   # 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正（403 兜底 + menus 接线归 T-FE-015）、§4.1 切服务端分页终态化、§8 消费方计数三处→四处；2026-08-29 §8 第 4 项收口（T-PERM-028：resource_type 创建联动预置已实现）；2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）
+last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-019：create 生成码措辞订正；此前 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——写路径三端点 Gateway 注册+TYPE_DEFINITION:CREATE/MANAGE 补授；2026-08-31   # 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正（403 兜底 + menus 接线归 T-FE-015）、§4.1 切服务端分页终态化、§8 消费方计数三处→四处；2026-08-29 §8 第 4 项收口（T-PERM-028：resource_type 创建联动预置已实现）；2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）
 ---
 
 # 6.1 类型定义页 前端设计
@@ -168,7 +168,7 @@ Phase 1 登记的 🔧 项处置终态：
 
 1. ✅ **typeValue 自动分配（收敛 T-PERM-019 D1）**：服务端在 tenant+typeKey 内按全量行（含软删行）max+1 分配，软删不复用；`TypeCreateReq` 已移除 `typeValue` 字段。
 2. ✅ **list 服务端过滤+分页**：`TypeListReq` = `{typeKey?, keyword?, pageNum?, pageSize?}`（移除从未生效的 `domainCode`），返回 `PageResp`（keyword 匹配 name/typeCode LIKE——大小写敏感，对齐全仓关键字过滤先例；ORDER BY sortOrder,id）；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`，供授权页/冲突规则/资源操作下拉数据源消费——四处消费均传 `typeKey` 服务端过滤（授权页/冲突规则/资源操作/服务接口映射 MappingForm，T-PERM-037 核对订正））；本页 hook 已切服务端分页。
-3. ✅ **create 接收 typeCode**：可选，留空服务端按 `TYPEKEY_<typeValue>` 生成；显式提供时 tenant+typeKey 内查重，重复拒绝 20049。
+3. ✅ **create 接收 typeCode**：可选，留空服务端按 `<TYPEKEY大写>_<typeValue>` 生成（如 `RESOURCE_TYPE_12`）；显式提供时 tenant+typeKey 内查重，重复拒绝 20049。
 4. ✅ **resource_type 创建联动预置 operation_permission**：已随 T-PERM-028 落地（2026-08-29 用户决策实现）——createType 在 typeKey=resource_type 时同事务预置 CRUD 四操作位 CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)，DDL 预置组模板同款。
 5. ✅ **create 移除 isSystem**：服务端固定 `isSystem=false`，系统预置仅走租户初始化种子，不可由 API 创建。
 

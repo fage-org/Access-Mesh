@@ -19,10 +19,12 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionServ
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import org.springframework.stereotype.Service;
 
 import java.util.Collections;
 import java.util.HashMap;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -84,7 +86,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
      */
     @Override
     public Integer resolveTypeValue(Long tenantId, String typeKey, String typeCode) {
-        String cacheKey = typeKey + ":" + typeCode;
+        String cacheKey = BusinessKeys.typeValueCacheKey(typeKey, typeCode);
 
         // ① 查缓存
         Map<String, Integer> cached = cacheService.get(PermCacheCatalog.TYPE_VALUE, tenantId, cacheKey);
@@ -132,7 +134,7 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             return null;
         }
 
-        String cacheKey = typeKey + ":" + typeValue;
+        String cacheKey = BusinessKeys.typeCodeCacheKey(typeKey, typeValue);
 
         // ① 查缓存
         String cached = cacheService.get(PermCacheCatalog.TYPE_CODE, tenantId, cacheKey);
@@ -358,14 +360,14 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
             Map<String, ResourceEntity> resourceLookup = new HashMap<>();
             for (ResourceEntity res : resources) {
                 String codeType = res.getCodeType() != null ? res.getCodeType() : PermConstants.CodeType.DEFAULT;
-                String lookupKey = res.getCode() + ":" + codeType;
+                String lookupKey = BusinessKeys.resourceCodeTypeKey(res.getCode(), codeType);
                 resourceLookup.put(lookupKey, res);
             }
 
             // 匹配请求到资源
             for (ResourceResolveRequest req : typeRequests) {
                 String codeType = req.codeType() != null && !req.codeType().isBlank() ? req.codeType() : PermConstants.CodeType.DEFAULT;
-                String lookupKey = req.resourceCode() + ":" + codeType;
+                String lookupKey = BusinessKeys.resourceCodeTypeKey(req.resourceCode(), codeType);
                 ResourceEntity res = resourceLookup.get(lookupKey);
                 if (res != null) {
                     result.put(req.toKey(), res.getId());

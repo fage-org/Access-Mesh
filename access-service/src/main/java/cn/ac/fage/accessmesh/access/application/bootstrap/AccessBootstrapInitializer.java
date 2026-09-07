@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.application.bootstrap;
 
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.admin.entity.SysMenu;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.admin.entity.SysOrgTreeConfig;
@@ -663,7 +664,7 @@ public class AccessBootstrapInitializer {
                     continue;
                 }
             }
-            Long bits = operationBits.get(spec.resourceTypeCode() + ":" + spec.operationCode());
+            Long bits = operationBits.get(BusinessKeys.operationCodeKey(spec.resourceTypeCode(), spec.operationCode()));
             if (bits == null) {
                 continue;
             }
@@ -751,13 +752,13 @@ public class AccessBootstrapInitializer {
         for (OperationPermission op : seedWriter.findOperations(tenantId, typeValues, operationCodes)) {
             String typeCode = typeValueToCode.get(op.getResourceType());
             if (typeCode != null) {
-                bits.put(typeCode + ":" + op.getCode(), op.getBinaryBit());
+                bits.put(BusinessKeys.operationCodeKey(typeCode, op.getCode()), op.getBinaryBit());
             }
         }
         for (BootstrapGraphDefinition.GrantSpec spec : BootstrapGraphDefinition.allGrants()) {
-            if (!bits.containsKey(spec.resourceTypeCode() + ":" + spec.operationCode())) {
-                throw new IllegalStateException("operation_permission 种子缺失: "
-                    + spec.resourceTypeCode() + ":" + spec.operationCode()
+            String key = BusinessKeys.operationCodeKey(spec.resourceTypeCode(), spec.operationCode());
+            if (!bits.containsKey(key)) {
+                throw new IllegalStateException("operation_permission 种子缺失: " + key
                     + " —— 请确认唯一权威 DDL 已完整执行（docs/design/schema/access-service.sql）");
             }
         }

@@ -111,7 +111,7 @@ class TypeDefinitionAppServiceImplTest {
         ArgumentCaptor<TypeDefinition> captor = ArgumentCaptor.forClass(TypeDefinition.class);
         verify(typeDefinitionMapper).insert(captor.capture());
         assertEquals(8, captor.getValue().getTypeValue());
-        // typeCode 留空 → TYPEKEY_<typeValue> 生成
+        // typeCode 留空 → <TYPEKEY大写>_<typeValue> 生成
         assertEquals("RESOURCE_TYPE_8", captor.getValue().getTypeCode());
         // isSystem 固定 false：系统预置仅走种子，不可由 API 创建
         assertEquals(false, captor.getValue().getIsSystem());

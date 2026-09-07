@@ -41,7 +41,7 @@ const isSystemRow = computed(
 );
 
 /** 表单校验规则。
- *  typeCode 对外稳定编码，新建可空（留空由服务端按 TYPEKEY_<typeValue> 生成），格式仅字母数字下划线中划线。
+ *  typeCode 对外稳定编码，新建可空（留空由服务端按 <TYPEKEY大写>_<typeValue> 生成），格式仅字母数字下划线中划线。
  *  不含 typeValue（服务端自动分配，D1）。 */
 const rules = computed<FormRules>(() => ({
   typeKey: [{ required: true, message: "请选择类型分组", trigger: "change" }],

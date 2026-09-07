@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-019
 title: 工作单 D：防呆机制（type_value 自动分配、业务键封装、AppliesTo）
-status: proposed
+status: done
 plan: docs/plans/design-review-def-followup-plan.md
 domain: permission-center
 design_refs:
@@ -15,17 +15,17 @@ depends_on: []
 blocks: []
 acceptance:
   - "D1 已落地收口（2026-09-05 核实，卡面标完成、无代码工作）：createType 服务端分配=全量行（含软删行）max+1、软删不复用为分配语义本身；并发撞值/显式码抢占映射 20049 可重试 + uk_type_definition_* 兜底；api-contract §5.1 与 core-flows §3 已于 2026-08-28 收口成文（本卡 2026-08-22 所记 DESIGN_DRIFT 已不存在）"
-  - "D3 注解方案废弃（2026-09-05 定案）：@AppliesTo 预设「表达全局操作」，该概念已随 T-PERM-049 整体退役；类型专属操作现由 DDL 种子/预置组 + 操作位按类型隔离 + 授权侧适用性校验（20008/20005）完整表达，注解化属多余元数据；残余=OperationCodeConstants/ResourceTypeCode 常量、DDL 种子、校验路径三方一致性核对，并入 D2 交付"
-  - "D2 BusinessKeys 收敛（唯一实质交付，2026-09-05 定案保留）：后端业务键拼接点盘点（TYPEKEY_<typeValue> 生成码、relationKey `TYPE:externalId` 解析、bootstrap `typeCode:operationCode` 拼接等，SyncKeyCodec 已集中作范本）收敛到 perm-common 统一封装 + BusinessKeysParityTest 锁格式；范围限后端（前端 TS 类型辅助不动）；T-PERM-051 新增 `{typeKey}:{typeCode}` 键族直接经本模块构造，不得再裸拼"
+  - "D3（✅ 2026-09-07）：注解方案废弃维持；残余三方一致性核对完成——代码门禁调用对 36 组 + bootstrap GrantSpec 33 组比对 DDL 种子全部有对应行零缺失；OperationCodeConstants.ASSIGN/REVOKE 死常量删除（DDL 种子行保留，数据面不动）；typeCode 生成码确认为 <TYPEKEY大写>_<typeValue>（如 RESOURCE_TYPE_12），api-contract/type-definition/javadoc 措辞同步订正。结论落 implementation.md §8.3"
+  - "D2（✅ 2026-09-07）：后端业务键收敛到 perm-common BusinessKeys（19 方法族=跨类契约键+单文件内部键 A+B 全收，2026-09-07 用户定案范围）+ BusinessKeysParityTest golden 锁（22 用例含 null 边界）；范围限后端（前端 TS 类型辅助不动，注释措辞同步）；T-PERM-051 预留 typeInstanceBusinessKey(typeKey,typeCode) 已落位；入口指针进 AGENTS.md 核心编码规范。边界与口径见 implementation.md §8"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-09-05
+  status: done
+last_updated: 2026-09-07
 ---
 
 # T-PERM-019 工作单 D：防呆机制
 
-> 状态：proposed（2026-09-05 设计体检重基线：D1 标完成、D3 废注解收窄、D2 收敛为唯一实质交付；定案来源 [design-audit-followup](../plans/design-audit-followup-plan.md)，本卡 plan 字段保留原始溯源）
+> 状态：done（2026-09-07 收口：D2 BusinessKeys 收敛 + D3 三方一致性核对全部落地，实现记录见下节；2026-09-05 重基线口径见 design-audit-followup，本卡 plan 字段保留原始溯源）
 
 ## 背景
 
@@ -38,8 +38,8 @@ D 来自归档设计评审 §11 的暂缓项，目标是减少权限中心实现
 | 子项 | 内容 | 当前核对 | 标记 |
 |---|---|---|---|
 | D1 | `type_value` 自动分配器 | 已随 T-PERM-023 落地：服务端 max+1（含软删行）+ 20049 并发兜底 + 文档 2026-08-28 收口（2026-09-05 复核确认） | ✅ 完成 |
-| D2 | BusinessKeys 封装 | 唯一实质交付：拼接点盘点收敛到 perm-common + BusinessKeysParityTest；范围限后端 | 待执行 |
-| D3 | `@AppliesTo` | 注解方案废弃（2026-09-05：全局操作概念已退役，类型专属操作由种子/位段/授权校验完整表达）；残余一致性核对并入 D2 | 已重基线 |
+| D2 | BusinessKeys 封装 | ✅ 2026-09-07：19 方法族 + 17 文件替换 + golden 锁（实现记录见下节） | 完成 |
+| D3 | `@AppliesTo` | 注解方案废弃维持；三方一致性核对完成（36+33 调用对零缺失、ASSIGN/REVOKE 死常量删常量留种子、生成码措辞订正） | ✅ 完成 |
 
 ## 执行前确认（2026-09-05 重基线后已全部有答案）
 
@@ -54,3 +54,43 @@ D 来自归档设计评审 §11 的暂缓项，目标是减少权限中心实现
 - 不引入 RESTful 路径参数或 `@RequestParam`。
 - 不在 AppService 重写 DomainService 已有领域逻辑。
 - 涉及批量解析时不得引入 N+1 查询。
+
+## 实现记录（2026-09-07）
+
+### 交付
+
+- **perm-common `cn.ac.fage.accessmesh.perm.common.util.BusinessKeys`**（纯 JDK 依赖）：19 个公开方法族 + `RelationKeyRef` record。
+  - 类型族：`typeValueCacheKey` / `typeCodeCacheKey`（TYPE_VALUE/TYPE_CODE 解析缓存键，写读分离三侧同源）、`generatedTypeCode`（`<TYPEKEY大写>_<typeValue>`）、`typeInstanceBusinessKey`（T-PERM-051 预留复合键）。
+  - 操作族：`operationCodeKey`（String 类型码轨 / Integer 类型值轨两个重载，不归一大小写）、`operationBitKey`（null 类型 → `"NULL"` 哨兵）、`permissionCode`（对外权限串 `ROLE:MANAGE`）、`grantEntryKey`（授权记录三段键）。
+  - 资源族：`resourceCodeTypeKey`（两段）、`resourceTripleValueKey`（值域三段）、`resourceTripleCodeKey`（码域三段，保留原实现大写归一）、`grantCheckKey`（转授检查五段键，原两类逐字重复实现收敛为唯一）。
+  - 关系族：`relationKey`（契约格式构造，测试夹具预留）+ `parseRelationKey`（原 UserRoleSyncAppServiceImpl 四处同语义私有/内联解析统一；`rejectReservedRelationType` 语义不同——畸形键也要拒保留类型——保留自有 indexOf 并注释）。
+  - 单文件内部键：`subjectKey` / `roleKey` / `userRoleRelationKey` / `userRoleRelationIdKey`（null → 字面 `"null"`）/ `roleTypeDomainKey`（null domain → `""`）/ `dependencyDiffKey`（null bits → 0）/ `apiRouteKey`。
+- **替换面**：access-service 17 个文件约 90 处调用点全部经 BusinessKeys；`PermissionGrantDomainServiceImpl` 私有 buildPermissionKey/buildResourceKey/operationIndexKey、`PermissionGrantAppServiceImpl` operationIndexKey、`PermissionGrantPlanDomainServiceImpl` grantCheckKey 重复实现删除或改为委托。
+- **BusinessKeysParityTest**（perm-common test，22 用例）：每族 golden 值 + null 边界（纯拼接族 null → 字面 `"null"` 语义锁，防未来加拒绝分支静默）+ parseRelationKey 五种畸形输入 + 首冒号切分（`EXT:a:b`）。
+- **死常量**：`OperationCodeConstants.ASSIGN/REVOKE` 删除（DDL 种子行保留）；常量类 javadoc 注记「常量类只镜像代码引用面」。
+
+### 口径（2026-09-07 用户定案，已登记 decision-registry）
+
+- 收敛范围 A+B 全收（跨类契约键 + 单文件内部键）；出界清单见 implementation.md §8.1（SyncKeyCodec/缓存信封/Gateway 快照/基础设施键/错误文案）。
+- `operationCodeKey` 族不归一大小写，两域不一致登记 §8.2 待后续统一（统一属行为变更需立项）。
+- 防回归仅 golden 锁，不加源码扫描守卫。
+- BusinessKeys/SyncKeyCodec 名词命名偏离 project-rules §6.2：用户已知，后续 IDE 统一改名，规则例外句暂不写。
+
+### 评审与修正（双轨子代理 2026-09-07）
+
+- 代码轨 P1-1/P2-1：BusinessKeys 迁入时 bare→Locale.ROOT 使读/写两侧转换不一致（tr/az locale 键错配窗口）——已还原裸 toUpperCase（严格字节等价）。
+- 代码轨 P2-2：UserRoleSyncAppServiceImpl 桶收集阶段第四处内联 relationKey 解析漏收敛——已收敛（与 parseRelationKey 逐条件等价）。
+- 代码轨 P2-3：拼接族 null 边界 golden 补齐（见上）。
+- 文档轨 P1：permission-query-pipeline skill 双副本常量清单含已删 ASSIGN/REVOKE 与从未存在的 GRANT——双副本同步订正。
+- 文档轨 P2/P3：TYPEKEY 措辞三处消费侧同步（type-def.ts/TypeForm.vue/测试注释）；api-contract/type-definition frontmatter 补记；implementation.md §8.1 补放置依据。
+
+### 文档回写
+
+- `docs/design/permission-center/implementation.md` 新增 §8（8.1 定位与边界 / 8.2 大小写口径登记 / 8.3 D3 核对结论）+ frontmatter。
+- `api-contract.md` §5.1、`design/frontend/type-definition.md` 生成码措辞订正 + frontmatter。
+- AGENTS.md 核心编码规范 + accessmesh-patterns skill 双副本：业务键唯一入口指针。
+- decision-registry 三条（唯一入口+golden 锁口径 / 命名偏离待改名 / 大小写口径）。
+
+### 范围外发现（登记不修）
+
+- UserManageAppServiceImpl 以 `split(":")` 反解 roleTypeDomainKey 分组键——domainCode 含 `:` 时误切；原实现同款行为未变，BusinessKeys 后续可补 parse 对偶。

@@ -8,6 +8,10 @@ package cn.ac.fage.accessmesh.access.permission.constant;
  * 这些操作码存储在 operation_permission 表中。
  * </p>
  *
+ * <p>常量类只镜像代码引用面：DDL 种子中另有 ROLE:ASSIGN/REVOKE 操作位（授权矩阵可见可授予，
+ * 历史用户角色代理门禁遗物、无代码门禁消费），对应常量已删（T-PERM-019 D3，2026-09-07）；
+ * 重新需要时恢复常量即可，种子行不受影响。</p>
+ *
  * <p>使用示例（T-ORG-001 统一后操作者 ID 即主体 ID，无转换层；
  * 业务对象门禁统一业务编码语义，{@code resource_entity(ROLE).code = roleId}）：
  * <pre>
@@ -65,24 +69,6 @@ public final class OperationCodeConstants {
      * </p>
      */
     public static final String DELETE = "DELETE";
-
-    /**
-     * 分配操作码
-     * <p>
-     * 表示分配角色或权限给用户的操作，如为用户分配角色。
-     * 用于角色管理和权限分配场景。
-     * </p>
-     */
-    public static final String ASSIGN = "ASSIGN";
-
-    /**
-     * 撤销操作码
-     * <p>
-     * 表示撤销用户角色或权限的操作，如撤销用户的角色。
-     * 用于角色管理和权限撤销场景。
-     * </p>
-     */
-    public static final String REVOKE = "REVOKE";
 
     /**
      * 同步操作码

@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
@@ -1267,7 +1268,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             if (resourceTypeCode == null) {
                 continue;
             }
-            permCodes.add(resourceTypeCode + ":" + entry.operationCode());
+            permCodes.add(BusinessKeys.permissionCode(resourceTypeCode, entry.operationCode()));
         }
         return new UserEffectivePermissionCodesResp(new ArrayList<>(permCodes));
     }

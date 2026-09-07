@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleFullSyncReq;
@@ -134,13 +135,10 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     .add(item.subjectExternalId());
             roleExternalIdsByType.computeIfAbsent(item.roleTypeCode(), k -> new HashSet<>())
                     .add(item.roleExternalId());
-            String rk = item.relationKey();
-            if (rk != null && !rk.isBlank()) {
-                int idx = rk.indexOf(':');
-                if (idx > 0 && idx < rk.length() - 1) {
-                    relationExternalIdsByType.computeIfAbsent(rk.substring(0, idx), k -> new HashSet<>())
-                            .add(rk.substring(idx + 1));
-                }
+            BusinessKeys.RelationKeyRef rk = BusinessKeys.parseRelationKey(item.relationKey());
+            if (rk != null) {
+                relationExternalIdsByType.computeIfAbsent(rk.typeCode(), k -> new HashSet<>())
+                        .add(rk.externalId());
             }
         }
 
@@ -294,13 +292,10 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
 
     private static Long resolveRelationFromCache(String relationKey,
                                                   Map<String, Map<String, Long>> relationResolved) {
-        if (relationKey == null || relationKey.isBlank()) return null;
-        int idx = relationKey.indexOf(':');
-        if (idx <= 0 || idx == relationKey.length() - 1) return null;
-        String typeCode = relationKey.substring(0, idx);
-        String externalId = relationKey.substring(idx + 1);
-        Map<String, Long> bucket = relationResolved.get(typeCode);
-        return bucket == null ? null : bucket.get(externalId);
+        BusinessKeys.RelationKeyRef ref = BusinessKeys.parseRelationKey(relationKey);
+        if (ref == null) return null;
+        Map<String, Long> bucket = relationResolved.get(ref.typeCode());
+        return bucket == null ? null : bucket.get(ref.externalId());
     }
 
     /**
@@ -415,12 +410,9 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     }
 
     private Long resolveRelationRoleId(Long tenantId, String relationKey) {
-        if (relationKey == null || relationKey.isBlank()) return null;
-        int idx = relationKey.indexOf(':');
-        if (idx <= 0 || idx == relationKey.length() - 1) return null;
-        String typeCode = relationKey.substring(0, idx);
-        String externalId = relationKey.substring(idx + 1);
-        return typeResolutionService.resolveRoleId(tenantId, typeCode, externalId, null);
+        BusinessKeys.RelationKeyRef ref = BusinessKeys.parseRelationKey(relationKey);
+        if (ref == null) return null;
+        return typeResolutionService.resolveRoleId(tenantId, ref.typeCode(), ref.externalId(), null);
     }
 
     // upsertUserRoleWithExisting 由 doSyncOneInternal 直接调用
@@ -452,6 +444,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         if (relationKey == null || relationKey.isBlank()) {
             return;
         }
+        // 不用 BusinessKeys.parseRelationKey：守卫语义只看类型段是否存在（idx > 0），
+        // "ORG:" 这类空 id 段的畸形键也要拒绝保留类型，parseRelationKey 则将其归为 null
         int idx = relationKey.indexOf(':');
         if (idx > 0) {
             localProjectionGuard.rejectReservedRoleType(relationKey.substring(0, idx));

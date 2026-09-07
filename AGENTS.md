@@ -62,6 +62,7 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 - DTO 优先 Java 21 Record；禁止 `@Data`/`@Value` 等隐式生成过多逻辑的 Lombok 注解。
 - 日期统一 `java.time.LocalDateTime`（禁 `java.util.Date`），时间语义全链路 UTC（TypeHandler 显式换算，§7.4）。
 - 权限校验必须走 `PermQueryEngine`，禁止绕过引擎直查 `rolePermMapper`。
+- 后端业务键构造/解析唯一入口 `perm-common` 的 `BusinessKeys`（格式 golden 锁），禁止裸拼；sync API 契约键（percent-encoded）仍走 `SyncKeyCodec`。
 
 统一响应体、错误码分段、路径格式、Lombok 细则、同层横向调用边界、实体类约束等以 `project-rules.md` 为准。
 

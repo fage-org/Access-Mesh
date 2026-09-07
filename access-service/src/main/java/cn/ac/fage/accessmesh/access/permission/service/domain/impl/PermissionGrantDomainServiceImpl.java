@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
@@ -93,7 +94,8 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                                        boolean scopeAll, String domainCode) {
         Set<GrantCheckKey> keys = Set.of(new GrantCheckKey(resourceTypeCode, resourceCode, codeType, operationCode, scopeAll));
         Map<String, GrantCheckResult> results = checkCanGrant(tenantId, subjectId, keys, domainCode);
-        String key = buildPermissionKey(new GrantCheckKey(resourceTypeCode, resourceCode, codeType, operationCode, scopeAll));
+        GrantCheckKey checkKey = new GrantCheckKey(resourceTypeCode, resourceCode, codeType, operationCode, scopeAll);
+        String key = grantCheckKeyText(checkKey);
         GrantCheckResult result = results.get(key);
         return result != null && result.canGrant();
     }
@@ -131,7 +133,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                 boolean valid = key.resourceTypeCode() != null && !key.resourceTypeCode().isBlank()
                     && key.operationCode() != null && !key.operationCode().isBlank();
                 if (!valid) {
-                    results.put(buildPermissionKey(key), new GrantCheckResult(false, "INVALID_PERMISSION_KEY"));
+                    results.put(grantCheckKeyText(key), new GrantCheckResult(false, "INVALID_PERMISSION_KEY"));
                 }
                 return valid;
             })
@@ -143,7 +145,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         Set<Long> operatorRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, subjectId);
         if (operatorRoleIds.isEmpty()) {
             for (GrantCheckKey key : validPermissions) {
-                String permKey = buildPermissionKey(key);
+                String permKey = grantCheckKeyText(key);
                 results.put(permKey, new GrantCheckResult(false, "NO_ROLE"));
             }
             return results;
@@ -175,7 +177,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         Set<Integer> resourceTypeValues = new HashSet<>(resourceTypeByCode.values());
         if (resourceTypeValues.isEmpty()) {
             for (GrantCheckKey key : validPermissions) {
-                results.put(buildPermissionKey(key),
+                results.put(grantCheckKeyText(key),
                     new GrantCheckResult(false, "INVALID_RESOURCE_TYPE"));
             }
             return results;
@@ -191,7 +193,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                 .collect(Collectors.toList());
             targetOpsByType.put(resourceTypeValue, merged);
             for (OperationPermission operation : merged) {
-                opPermByKey.put(resourceTypeValue + ":" + operation.getCode().toUpperCase(), operation);
+                opPermByKey.put(BusinessKeys.operationCodeKey(resourceTypeValue, operation.getCode().toUpperCase()), operation);
             }
         }
         Map<String, OperationPermission> grantedOpIndex = buildOperationIndex(
@@ -208,7 +210,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         Map<String, Long> resourceEntityIdByKey = new HashMap<>();
         for (Map.Entry<ResourceResolveKey, Long> entry : resolvedResourceIds.entrySet()) {
             ResourceResolveKey key = entry.getKey();
-            resourceEntityIdByKey.put(buildResourceKey(key.resourceTypeCode(), key.resourceCode(), key.codeType()), entry.getValue());
+            resourceEntityIdByKey.put(BusinessKeys.resourceTripleCodeKey(key.resourceTypeCode(), key.resourceCode(), key.codeType()), entry.getValue());
         }
 
         // 5. 批量查询角色资源权限（按角色和资源类型过滤）
@@ -225,7 +227,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
         for (RoleResourcePermission perm : allPerms) {
             OperationPermission grantedOp = grantedOpIndex.get(
-                operationIndexKey(perm.getResourceType(), perm.getGrantedBits()));
+                BusinessKeys.operationBitKey(perm.getResourceType(), perm.getGrantedBits()));
             if (grantedOp == null) {
                 continue;
             }
@@ -233,11 +235,13 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                 if (!OperationPermissionUtils.covers(grantedOp, targetOp)) {
                     continue;
                 }
-                String baseKey = perm.getResourceType() + ":" + targetOp.getCode().toUpperCase();
+                String baseKey = BusinessKeys.operationCodeKey(perm.getResourceType(), targetOp.getCode().toUpperCase());
                 if (Boolean.TRUE.equals(perm.getScopeAll())) {
                     permsByScopeAll.computeIfAbsent(baseKey, _unused -> new ArrayList<>()).add(perm);
                 } else if (perm.getResourceEntityId() != null) {
-                    permsBySpecificResource.computeIfAbsent(baseKey + ":" + perm.getResourceEntityId(), _unused -> new ArrayList<>()).add(perm);
+                    permsBySpecificResource.computeIfAbsent(
+                        BusinessKeys.grantEntryKey(perm.getResourceType(), targetOp.getCode().toUpperCase(), perm.getResourceEntityId()),
+                        _unused -> new ArrayList<>()).add(perm);
                 }
             }
         }
@@ -246,7 +250,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         for (GrantCheckKey key : validPermissions) {
             GrantCheckResult result = evaluateGrantPermission(key, resourceTypeByCode, opPermByKey,
                 resourceEntityIdByKey, permsBySpecificResource, permsByScopeAll);
-            results.put(buildPermissionKey(key), result);
+            results.put(grantCheckKeyText(key), result);
         }
         return results;
     }
@@ -318,7 +322,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return new GrantCheckResult(false, "INVALID_RESOURCE_TYPE");
         }
 
-        String opPermKey = resourceTypeValue + ":" + opCodeUpper;
+        String opPermKey = BusinessKeys.operationCodeKey(resourceTypeValue, opCodeUpper);
         OperationPermission opPerm = opPermByKey.get(opPermKey);
         if (opPerm == null) {
             return new GrantCheckResult(false, "INVALID_OPERATION");
@@ -326,21 +330,21 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
         Long resourceEntityId = null;
         if (!key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank()) {
-            String resKey = buildResourceKey(resTypeCodeUpper, key.resourceCode(), key.codeType());
+            String resKey = BusinessKeys.resourceTripleCodeKey(resTypeCodeUpper, key.resourceCode(), key.codeType());
             resourceEntityId = resourceEntityIdByKey.get(resKey);
             if (resourceEntityId == null) {
                 return new GrantCheckResult(false, "RESOURCE_NOT_FOUND");
             }
         }
 
-        String baseKey = resourceTypeValue + ":" + opCodeUpper;
+        String baseKey = BusinessKeys.operationCodeKey(resourceTypeValue, opCodeUpper);
         List<RoleResourcePermission> matchingPerms = new ArrayList<>();
 
         if (key.scopeAll()) {
             List<RoleResourcePermission> scopeAllPerms = permsByScopeAll.getOrDefault(baseKey, List.of());
             matchingPerms.addAll(scopeAllPerms);
         } else {
-            String specificKey = baseKey + ":" + resourceEntityId;
+            String specificKey = BusinessKeys.grantEntryKey(resourceTypeValue, opCodeUpper, resourceEntityId);
             List<RoleResourcePermission> specificPerms = permsBySpecificResource.getOrDefault(specificKey, List.of());
             List<RoleResourcePermission> scopeAllPerms = permsByScopeAll.getOrDefault(baseKey, List.of());
             matchingPerms.addAll(specificPerms);
@@ -363,11 +367,10 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         return new GrantCheckResult(false, "NO_GRANT_RIGHT");
     }
 
-    private String buildResourceKey(String resourceTypeCode, String resourceCode, String codeType) {
-        return String.format("%s:%s:%s",
-            resourceTypeCode == null ? "" : resourceTypeCode.toUpperCase(),
-            resourceCode == null ? "" : resourceCode,
-            codeType == null ? "" : codeType);
+    /** K8 转授检查五段键（经 BusinessKeys 构造，格式 golden 锁定）。 */
+    private static String grantCheckKeyText(GrantCheckKey key) {
+        return BusinessKeys.grantCheckKey(key.resourceTypeCode(), key.resourceCode(),
+            key.codeType(), key.operationCode(), key.scopeAll());
     }
 
     private boolean isManual(RoleResourcePermission permission) {
@@ -386,14 +389,10 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             for (OperationPermission operation : operations.stream()
                     .filter(op -> Objects.equals(op.getResourceType(), resourceType))
                     .toList()) {
-                result.put(operationIndexKey(resourceType, operation.getBinaryBit()), operation);
+                result.put(BusinessKeys.operationBitKey(resourceType, operation.getBinaryBit()), operation);
             }
         }
         return result;
-    }
-
-    private String operationIndexKey(Integer resourceType, Long binaryBit) {
-        return resourceType + ":" + binaryBit;
     }
 
     private record ManualGrantKey(
@@ -418,18 +417,4 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         }
     }
 
-    /**
-     * 构建权限键字符串
-     * <p>
-     * 格式：resourceTypeCode:resourceCode:codeType:operationCode:scopeType
-     * </p>
-     */
-    private String buildPermissionKey(GrantCheckKey key) {
-        return String.format("%s:%s:%s:%s:%s",
-            key.resourceTypeCode(),
-            key.resourceCode() == null ? "*" : key.resourceCode(),
-            key.codeType() == null ? "*" : key.codeType(),
-            key.operationCode(),
-            key.scopeAll() ? "ALL" : "SPECIFIC");
-    }
 }

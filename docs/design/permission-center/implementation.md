@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-28   # 2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）；此前：2026-08-27 §3.6 引擎入口映射修正（query-resources→forUserView）、§4.1 端点退役收口
+last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -946,3 +946,27 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 2. **update 项**：`canGrant=true` 或 `conditionCode` 变更（清空/覆盖）-> 走 `canGrantPermission` 校验。
 3. **批量收口**：`prevalidateGrantPlan` 内一次 `selectByTenantAndResourceTypes` 加载后内存分组，查询次数与资源类型数量无关。
 4. **条件不可转授**：`conditionCode != null -> canGrant=false` 由数据库约束与预检共同保证，因此不存在“受限条件 + canGrant”的合法来源记录。
+
+---
+
+## 8. 业务键统一构造（T-PERM-019 D2）
+
+### 8.1 定位与边界
+
+后端全部业务键的统一构造/解析入口为 `perm-common` 的 `cn.ac.fage.accessmesh.perm.common.util.BusinessKeys`（2026-09-07 收敛，格式由 `BusinessKeysParityTest` 以 golden 值锁定——改格式即测试失败，不是运行时静默错配）。
+
+- **为什么收敛**：同一格式的构造与消费曾分散多类（类型解析缓存键由 TypeResolutionServiceImpl 写入、TypeDefinitionAppServiceImpl 失效，靠 PermCacheCatalog 注释口头约定一致；转授检查五段键在授权域/授权计划域逐字重复实现），任一侧手改格式即静默错配。
+- **范围**：跨类格式契约键（类型解析缓存、操作位/操作编码、资源三段、转授五段、relationKey 解析、typeCode 生成码、对外权限串）+ 单文件内部映射键（主体/角色定位、关系去重、diff 去重、API 路由）——2026-09-07 用户定案 A+B 全收。
+- **出界（不经 BusinessKeys）**：sync API 契约键（percent-encoded）归 access-service `SyncKeyCodec`；缓存框架存储信封（common cache）；Gateway 本地快照键；登录计数/任务幂等/树写锁等基础设施键；错误文案与日志 summary 拼接。
+- **放置依据**：落 perm-common 而非 access-service 自身 util，依据 §3 单一来源先例（PageResp/ItemsResp 同款）——SDK 侧（starter 测试夹具、未来投影数据）需与 access-service 同格式构造 relationKey 等键；任务卡 acceptance 明写「收敛到 perm-common」。
+- **T-PERM-051 预留**：`typeInstanceBusinessKey(typeKey, typeCode)` 复合键已落位，TYPE_DEFINITION 实例投影实现时必须经此构造，不得裸拼。
+
+### 8.2 大小写口径（登记待统一）
+
+`operationCodeKey` 族**不做大小写归一**（2026-09-07 用户定案：保持各点现状语义，后续另行统一）。现状不一致事实：授权域（PermissionGrantDomainServiceImpl 及 Plan 域）先 `toUpperCase()` 再拼键——`applyGrantPlan` 传小写 `view` 可匹配 DB `VIEW` 授权成功；查询/解析域（TypeResolutionService、ResolveContext、PermissionQuery）裸拼——同一份小写 `view` 走 check/dependency 链路解析不到、按 20005 fail-closed 拒绝。当前无实际影响的原因：唯一活跃调用方为管理前端（全发大写常量），且 `operationCode` 入参仅 `@NotBlank` 无大写 `@Pattern` 锁。统一时的方向选择（raw 严格化 / 归一宽松化 + DTO Pattern 前置拒绝）属行为变更，需单独立项。
+
+### 8.3 D3 一致性核对结论（2026-09-07）
+
+- 代码门禁调用对 36 组 + bootstrap GrantSpec 33 组逐一比对 DDL 种子：**全部有对应 `operation_permission` 种子行，零缺失**。
+- `OperationCodeConstants.ASSIGN/REVOKE` 为死常量（DDL 有 ROLE:ASSIGN/REVOKE 种子、授权矩阵可见可授予，但无任何代码门禁消费——历史用户角色代理门禁遗物）：常量已删、种子保留（数据面不动）。
+- typeCode 服务端生成码确认为 `<TYPEKEY大写>_<typeValue>`（如 `RESOURCE_TYPE_12`）；原 javadoc `TYPEKEY_<typeValue>` 为占位示意写法，已订正为准确表述。

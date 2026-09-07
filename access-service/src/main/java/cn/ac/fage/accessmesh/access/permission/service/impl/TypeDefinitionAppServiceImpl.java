@@ -20,6 +20,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDoma
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -80,7 +81,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * 创建类型定义
      * <p>
      * typeValue 由服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）；
-     * typeCode 留空时按 {@code TYPEKEY_<typeValue>} 生成，显式提供时校验 tenant+typeKey 内唯一；
+     * typeCode 留空时按 {@code <TYPEKEY大写>_<typeValue>} 生成（如 resource_type 的 12 号 → RESOURCE_TYPE_12，经 BusinessKeys.generatedTypeCode 构造），显式提供时校验 tenant+typeKey 内唯一；
      * isSystem 固定 false——系统预置类型仅走租户初始化种子，不可由 API 创建。
      * 需要TYPE_DEFINITION_CREATE权限。
      * </p>
@@ -116,7 +117,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
         String typeCode = req.typeCode();
         if (typeCode == null || typeCode.isBlank()) {
-            typeCode = req.typeKey().toUpperCase() + "_" + typeValue;
+            typeCode = BusinessKeys.generatedTypeCode(req.typeKey(), typeValue);
         } else {
             typeCode = typeCode.trim();
             if (typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, req.typeKey(), typeCode) != null) {
@@ -190,9 +191,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * 此处失效保护其余全部解析消费方）。updateType 不涉及（typeCode/typeValue 不可变）。
      */
     private void evictTypeResolutionCachesAfterCommit(Long tenantId, String typeKey, String typeCode, Integer typeValue) {
-        cacheService.evictAfterCommit(PermCacheCatalog.TYPE_VALUE, tenantId, typeKey + ":" + typeCode);
+        cacheService.evictAfterCommit(PermCacheCatalog.TYPE_VALUE, tenantId, BusinessKeys.typeValueCacheKey(typeKey, typeCode));
         if (typeValue != null) {
-            cacheService.evictAfterCommit(PermCacheCatalog.TYPE_CODE, tenantId, typeKey + ":" + typeValue);
+            cacheService.evictAfterCommit(PermCacheCatalog.TYPE_CODE, tenantId, BusinessKeys.typeCodeCacheKey(typeKey, typeValue));
         }
     }
 
@@ -490,9 +491,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         java.util.Set<String> codeCacheKeys = new LinkedHashSet<>();
         for (TypeDefinition deleted : entities) {
             if (validIds.contains(deleted.getId())) {
-                valueCacheKeys.add(deleted.getTypeKey() + ":" + deleted.getTypeCode());
+                valueCacheKeys.add(BusinessKeys.typeValueCacheKey(deleted.getTypeKey(), deleted.getTypeCode()));
                 if (deleted.getTypeValue() != null) {
-                    codeCacheKeys.add(deleted.getTypeKey() + ":" + deleted.getTypeValue());
+                    codeCacheKeys.add(BusinessKeys.typeCodeCacheKey(deleted.getTypeKey(), deleted.getTypeValue()));
                 }
             }
         }

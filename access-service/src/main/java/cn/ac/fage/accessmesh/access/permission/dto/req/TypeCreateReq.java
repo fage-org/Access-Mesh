@@ -8,7 +8,7 @@ import jakarta.validation.constraints.Size;
  * <p>
  * 用于创建新的类型定义。typeValue 由服务端在 tenant+typeKey 内自动分配
  * （全量行 max+1，软删不复用）；typeCode 可选，留空时服务端按
- * {@code TYPEKEY_<typeValue>} 生成；isSystem 不可由 API 创建（系统预置仅走租户初始化种子）。
+ * {@code <TYPEKEY大写>_<typeValue>} 生成（如 RESOURCE_TYPE_12）；isSystem 不可由 API 创建（系统预置仅走租户初始化种子）。
  * 长度约束对齐 schema type_definition 列宽。
  * </p>
  *
