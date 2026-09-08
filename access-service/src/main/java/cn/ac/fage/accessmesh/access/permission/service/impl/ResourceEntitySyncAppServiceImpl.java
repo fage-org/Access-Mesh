@@ -341,7 +341,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         String scopeKey = SyncKeyCodec.resourceEntityScopeKey(req.resourceTypeCode());
         String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
         String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
-        String syncKey = req.sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
+        String syncKey = SyncKeyCodec.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
         String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
 
         Integer resourceTypeValue = preResolvedTypeValue != null

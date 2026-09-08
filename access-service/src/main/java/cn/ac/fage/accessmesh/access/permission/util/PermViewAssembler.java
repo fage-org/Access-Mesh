@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.util;
 
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult.EffectiveOperationEntry;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermViewFilter;
@@ -163,21 +164,13 @@ public class PermViewAssembler {
     }
 
     private String effectiveSourceKey(RolePermEntry entry) {
-        return entry.permissionId() + "|"
-            + entry.roleId() + "|"
-            + entry.resourceEntityId() + "|"
-            + entry.resourceType() + "|"
-            + entry.grantedBits() + "|"
-            + entry.scopeAll();
+        return BusinessKeys.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
+            entry.resourceType(), entry.grantedBits(), entry.scopeAll());
     }
 
     private String effectiveSourceKey(EffectiveOperationEntry entry) {
-        return entry.permissionId() + "|"
-            + entry.roleId() + "|"
-            + entry.resourceEntityId() + "|"
-            + entry.resourceType() + "|"
-            + entry.grantedBits() + "|"
-            + entry.scopeAll();
+        return BusinessKeys.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
+            entry.resourceType(), entry.grantedBits(), entry.scopeAll());
     }
 
     private List<RolePermEntry> filterByResourceTypes(List<RolePermEntry> entries, PermViewFilter filter,

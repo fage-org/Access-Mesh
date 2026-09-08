@@ -39,7 +39,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  *       权威 DDL（docs/design/schema/access-service.sql）每会话仅在模板构建时执行一次；</li>
  *   <li>会话首启清理上次会话遗留 {@code it_} 类库——reusable 容器跨 JVM 存活时不携带脏数据；</li>
  *   <li>Redis 单例上按类分配逻辑库索引（fork 槽位分段内轮转，取用时 FLUSHDB），键空间隔离等价于
- *       独容器。轮转必然回绕（段大小 &lt; 同 fork 类数）：安全性依赖已完结类不再写 Redis——无
+ *       独容器。每槽位可分配索引 15 个（段首一格留缓冲），同 fork 测试类超过 15 个时轮转回绕：
+ *       安全性依赖已完结类不再写 Redis——无
  *       @DirtiesContext 的常驻缓存上下文当前经核无后台 Redis 写入方，若未来引入会话清扫/缓存预热
  *       类后台任务需重审本前提；pub/sub 通道全局可见（跨库），广播敏感类由 {@code @Isolated}
  *       名单隔离（仅串行化同 fork 内邻类，跨 fork 互扰接受现状）；</li>
@@ -79,7 +80,8 @@ public final class ItInfra {
     private static final String TEMPLATE_DATABASE = "it_tpl_" + FORK_TAG;
     /**
      * Redis 逻辑库索引：容器开 --databases 64，槽位 s（1..4）独占 16 索引段 (s-1)*16 .. (s-1)*16+15
-     * （2026-09-06 用户定案：利用 Redis 多 database 消除槽间段共享；每 fork 类数 &lt; 16 时轮转不回绕）。
+     * （2026-09-06 用户定案：利用 Redis 多 database 消除槽间段共享；每槽位可分配索引 15 个
+     * ——段首一格留缓冲——同 fork 类数 ≤15 时轮转不回绕，超过则回绕）。
      * 段首一格留缓冲不分配；回绕或跨会话脏键由取用时 FLUSHDB 兜底。
      */
     private static final int REDIS_INDEX_BASE = (FORK_NUMBER - 1) * 16 + 1;
@@ -327,6 +329,12 @@ public final class ItInfra {
                     // 越界值会产出非法库名（负号）或撞回退段，fail-loud 好于静默碰撞
                     throw new IllegalStateException("it.forkNumber 显式值须为 1..4: " + value);
                 }
+                // 显式槽位同样必须持有文件锁：绕锁直用会在并行 JVM 显式同值时共享
+                // 库名前缀与 Redis 索引段，一方 DROP DATABASE/FLUSHDB 即互毁对方会话
+                if (!tryAcquireSlot(value)) {
+                    throw new IllegalStateException("it.forkNumber 显式槽位 " + value
+                        + " 已被其他测试 JVM 占用，换一个 1..4 空闲槽位或等待其结束");
+                }
                 return value;
             } catch (NumberFormatException e) {
                 throw new IllegalStateException("it.forkNumber 显式值须为 1..4 整数: " + explicit, e);
@@ -345,27 +353,32 @@ public final class ItInfra {
      *  互删先启动 fork 的在用类库（第八轮实证，双 pid 同 it_f1_ 前缀）。
      *  探测失败 fail-fast：静默回退共享槽会互删在用类库（第九轮实证），宁可拒绝启动。 */
     private static int forkSlotNumber() {
-        Path dir = Path.of(System.getProperty("user.home"), ".accessmesh");
-        try {
-            Files.createDirectories(dir);
-        } catch (IOException e) {
-            throw new IllegalStateException("ItInfra fork 槽位目录不可用: " + dir, e);
-        }
         for (int slot = 1; slot <= 4; slot++) {
-            try {
-                FileChannel channel = FileChannel.open(dir.resolve("it-slot-" + slot + ".lck"),
-                    StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
-                FileLock lock = channel.tryLock();
-                if (lock != null) {
-                    slotChannel = channel;
-                    slotLock = lock;
-                    return slot;
-                }
-            } catch (IOException e) {
-                throw new IllegalStateException("ItInfra fork 槽位探测失败 (slot=" + slot + ")", e);
+            if (tryAcquireSlot(slot)) {
+                return slot;
             }
         }
         throw new IllegalStateException("ItInfra fork 槽位 1..4 全被占用（并发测试 JVM 过多），"
-            + "等待在跑构建结束或 -Dit.forkNumber=1..4 显式指定");
+            + "等待在跑构建结束或 -Dit.forkNumber=1..4 指定空闲槽位");
+    }
+
+    /** 尝试锁定指定槽位：成功则静态持有 channel/lock 并返回 true；被占用或打开失败关闭本次 channel 返回 false。 */
+    private static boolean tryAcquireSlot(int slot) {
+        Path dir = Path.of(System.getProperty("user.home"), ".accessmesh");
+        try {
+            Files.createDirectories(dir);
+            FileChannel channel = FileChannel.open(dir.resolve("it-slot-" + slot + ".lck"),
+                StandardOpenOption.CREATE, StandardOpenOption.WRITE, StandardOpenOption.READ);
+            FileLock lock = channel.tryLock();
+            if (lock != null) {
+                slotChannel = channel;
+                slotLock = lock;
+                return true;
+            }
+            channel.close();
+        } catch (IOException e) {
+            throw new IllegalStateException("ItInfra fork 槽位探测失败 (slot=" + slot + ")", e);
+        }
+        return false;
     }
 }

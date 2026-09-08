@@ -250,4 +250,79 @@ public final class BusinessKeys {
     public static String apiRouteKey(String method, String path) {
         return method + ":" + path;
     }
+
+    // ---------------------------------------------------------------------
+    // 竖线分隔族（历史 "|" 格式，golden 锁与冒号族同等效力；2026-09-08 codex 复评 P2-1 收编）
+    // ---------------------------------------------------------------------
+
+    /**
+     * 权限条目生效来源键（六段竖线）：{@code permissionId|roleId|resourceEntityId|resourceType|bits|scopeAll}。
+     * <p>bits 位取 grantedBits 或 operationBinaryBit（调用侧语义决定）；PermQueryEngine /
+     * PermViewAssembler / PermissionViewAppServiceImpl 三处同构消费——此前逐字重复实现，
+     * 任一侧改段序即静默错配。resourceEntityId 为 null（scopeAll 行）拼字面 {@code "null"}。</p>
+     */
+    public static String permEntrySourceKey(Long permissionId, Long roleId, Long resourceEntityId,
+                                            Integer resourceType, Long bits, Boolean scopeAll) {
+        return permissionId + "|" + roleId + "|" + resourceEntityId + "|" + resourceType
+            + "|" + bits + "|" + scopeAll;
+    }
+
+    /**
+     * 继承展开条目去重键：{@code resourceEntityId|permissionId}。
+     * <p>PermQueryEngine 继承子代/祖先展开去重（entityId×permissionId 唯一）。</p>
+     */
+    public static String inheritedEntryKey(Long resourceEntityId, Long permissionId) {
+        return resourceEntityId + "|" + permissionId;
+    }
+
+    /**
+     * 角色投影索引键：{@code roleTypeCode|externalId}。
+     * <p>UserRoleProjectionWriter 角色批量加载索引——同一 externalId 的 ORG/POSITION 投影
+     * 可共存（数据库唯一约束含 role_type），必须按请求类型精确取值。</p>
+     */
+    public static String roleProjectionIndexKey(String roleTypeCode, String externalId) {
+        return roleTypeCode + "|" + externalId;
+    }
+
+    /**
+     * 用户-角色三元组匹配键：{@code abstractUserId|targetRoleId|relationId}（null 段拼字面 {@code "null"}）。
+     * <p>UserRoleProjectionWriter 投影绑定/解绑/回查按三元组精确匹配。</p>
+     */
+    public static String userRoleTripleKey(Long abstractUserId, Long targetRoleId, Long relationId) {
+        return abstractUserId + "|" + targetRoleId + "|" + relationId;
+    }
+
+    /**
+     * API 路由×资源映射活跃键：{@code METHOD|path|resourceCode}（method 由调用侧大写化后传入）。
+     * <p>MappingSyncHandlerImpl 同步活跃集与过期清理比对（routeKey 三段同构）。</p>
+     */
+    public static String apiRouteResourceKey(String method, String path, String resourceCode) {
+        return method + "|" + path + "|" + resourceCode;
+    }
+
+    /**
+     * query-scopes 实例条目去重键：{@code codeType|code}。
+     * <p>PermissionQueryAppServiceImpl INSTANCE 桶内资源条目去重。</p>
+     */
+    public static String scopeItemKey(String codeType, String code) {
+        return codeType + "|" + code;
+    }
+
+    /**
+     * API 快照条目去重键（四段竖线）：{@code serviceCode|method|pathPattern|conditionId}
+     * （conditionId 为 null 拼字面 {@code "null"}——无条件分支与条件分支独立保留，T-PERM-017 C4）。
+     * <p>PermissionQueryAppServiceImpl Gateway 快照装配去重。</p>
+     */
+    public static String apiEntryDedupKey(String serviceCode, String httpMethod, String pathPattern, Long conditionId) {
+        return serviceCode + "|" + httpMethod + "|" + pathPattern + "|" + conditionId;
+    }
+
+    /**
+     * API 映射存在键：{@code serviceCode|resourceEntityId|METHOD|path}（method 大写化）。
+     * <p>与 resource_api_mapping 唯一索引同构——AccessBootstrapInitializer 固定图缺行判定。</p>
+     */
+    public static String apiMappingPresenceKey(String serviceCode, Long resourceEntityId,
+                                               String httpMethod, String pathPattern) {
+        return serviceCode + "|" + resourceEntityId + "|" + httpMethod.toUpperCase() + "|" + pathPattern;
+    }
 }

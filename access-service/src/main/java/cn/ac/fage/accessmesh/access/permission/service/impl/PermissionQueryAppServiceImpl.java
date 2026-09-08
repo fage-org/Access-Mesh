@@ -524,7 +524,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             if (entry.resourceEntityId() == null) continue;
             ResourceEntity resource = resourceMap.get(entry.resourceEntityId());
             if (resource == null || resource.getDeleteFlag() != 0L) continue;
-            String itemKey = resource.getCodeType() + "|" + resource.getCode();
+            String itemKey = BusinessKeys.scopeItemKey(resource.getCodeType(), resource.getCode());
             items.putIfAbsent(itemKey, new QueryScopesResp.ScopeItem(
                 resource.getCode(), resource.getCodeType(), resource.getName()));
         }
@@ -580,8 +580,8 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
                 // T-PERM-017 C4 修 P1-②：去重 key 加 conditionId，避免同 API 多授权（无条件+含条件）
                 // 被折叠成单条。Gateway InterfaceSnapshotMatcher 用 OR 语义合并多条 entry。
                 // conditionId=null（无条件）参与 key，使无条件分支与任何条件分支独立保留。
-                item -> item.serviceCode() + "|" + item.httpMethod() + "|" + item.pathPattern()
-                    + "|" + item.conditionId(),
+                item -> BusinessKeys.apiEntryDedupKey(
+                    item.serviceCode(), item.httpMethod(), item.pathPattern(), item.conditionId()),
                 item -> item,
                 (left, right) -> left,
                 LinkedHashMap::new

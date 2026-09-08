@@ -331,7 +331,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                 req.sourceType(), req.roleTypeCode(), req.treeRootExternalId());
         String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
         String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
-        String syncKey = req.sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
+        String syncKey = SyncKeyCodec.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
         String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
 
         // applyVersion (atomic compare)

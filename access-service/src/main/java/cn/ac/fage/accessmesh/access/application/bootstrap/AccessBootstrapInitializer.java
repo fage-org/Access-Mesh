@@ -449,10 +449,10 @@ public class AccessBootstrapInitializer {
         return complete;
     }
 
-    /** 映射存在键：serviceCode|resourceId|METHOD|path（与 resource_api_mapping 唯一索引同构——Gateway 快照按 serviceCode 过滤）。 */
+    /** 映射存在键（与 resource_api_mapping 唯一索引同构——Gateway 快照按 serviceCode 过滤）。 */
     private static String mappingKey(String serviceCode, Long resourceEntityId,
                                      String httpMethod, String pathPattern) {
-        return serviceCode + "|" + resourceEntityId + "|" + httpMethod.toUpperCase() + "|" + pathPattern;
+        return BusinessKeys.apiMappingPresenceKey(serviceCode, resourceEntityId, httpMethod, pathPattern);
     }
 
     /**

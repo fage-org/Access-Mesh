@@ -135,6 +135,58 @@ class BusinessKeysParityTest {
         assertThat(BusinessKeys.apiRouteKey("POST", "/api/perm/x/list")).isEqualTo("POST:/api/perm/x/list");
     }
 
+    // -------------------- 竖线族（2026-09-08 codex 复评 P2-1 收编） --------------------
+
+    @Test
+    void permEntrySourceKeyShouldLockSixSegmentPipeFormat() {
+        assertThat(BusinessKeys.permEntrySourceKey(11L, 22L, 1001L, 6, 48L, false))
+            .isEqualTo("11|22|1001|6|48|false");
+        // scopeAll 行 resourceEntityId 为 null（拼字面 "null"，与原始实现一致）
+        assertThat(BusinessKeys.permEntrySourceKey(11L, 22L, null, 6, 255L, true))
+            .isEqualTo("11|22|null|6|255|true");
+    }
+
+    @Test
+    void inheritedEntryKeyShouldLockEntityPermissionPair() {
+        assertThat(BusinessKeys.inheritedEntryKey(1001L, 11L)).isEqualTo("1001|11");
+    }
+
+    @Test
+    void roleProjectionIndexKeyShouldLockTypeExternalPair() {
+        assertThat(BusinessKeys.roleProjectionIndexKey("ORG", "2001")).isEqualTo("ORG|2001");
+    }
+
+    @Test
+    void userRoleTripleKeyShouldLockTripleAndNullRelation() {
+        assertThat(BusinessKeys.userRoleTripleKey(31L, 41L, 51L)).isEqualTo("31|41|51");
+        assertThat(BusinessKeys.userRoleTripleKey(31L, 41L, null)).isEqualTo("31|41|null");
+    }
+
+    @Test
+    void apiRouteResourceKeyShouldLockThreeSegmentPipeFormat() {
+        assertThat(BusinessKeys.apiRouteResourceKey("POST", "/api/x", "res-1")).isEqualTo("POST|/api/x|res-1");
+    }
+
+    @Test
+    void scopeItemKeyShouldLockCodeTypeCodeOrder() {
+        assertThat(BusinessKeys.scopeItemKey("BIZ", "res-1")).isEqualTo("BIZ|res-1");
+    }
+
+    @Test
+    void apiEntryDedupKeyShouldLockFourSegmentAndNullCondition() {
+        assertThat(BusinessKeys.apiEntryDedupKey("demo-svc", "POST", "/api/x", 7L))
+            .isEqualTo("demo-svc|POST|/api/x|7");
+        // 无条件分支 conditionId=null 拼字面 "null"，与任何条件分支独立保留（T-PERM-017 C4）
+        assertThat(BusinessKeys.apiEntryDedupKey("demo-svc", "POST", "/api/x", null))
+            .isEqualTo("demo-svc|POST|/api/x|null");
+    }
+
+    @Test
+    void apiMappingPresenceKeyShouldLockIndexIsomorphicFormat() {
+        assertThat(BusinessKeys.apiMappingPresenceKey("demo-svc", 1001L, "get", "/api/x"))
+            .isEqualTo("demo-svc|1001|GET|/api/x");
+    }
+
     /**
      * 纯拼接族的 null 语义锁：null 引用按字符串拼接规则产出字面 "null"（与被收敛的原始实现一致），
      * 防未来有人给这些方法加 null 拒绝分支而不自知——部分调用点的 null 入参是可达分支

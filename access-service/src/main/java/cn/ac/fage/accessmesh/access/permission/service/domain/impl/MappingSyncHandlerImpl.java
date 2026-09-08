@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigSyncReq;
@@ -11,6 +12,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.MappingSyncHandler;
 import cn.ac.fage.accessmesh.access.permission.service.domain.sync.SyncContext;
 import cn.ac.fage.accessmesh.access.permission.service.domain.sync.SyncMappingsResult;
+import cn.ac.fage.accessmesh.access.permission.util.SyncKeyCodec;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -68,9 +70,10 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
         for (ServiceConfigSyncReq.GroupItem group : context.req().groups()) {
             for (ServiceConfigSyncReq.ApiItem api : group.apis()) {
                 String fullPath = joinPath(context.basePath(), api.path());
-                String routeResourceKey = api.httpMethod().toUpperCase() + "|" + fullPath + "|" + api.resourceCode();
+                String routeResourceKey = BusinessKeys.apiRouteResourceKey(
+                    api.httpMethod().toUpperCase(), fullPath, api.resourceCode());
                 incomingKeys.add(routeResourceKey);
-                String syncKey = context.req().serviceCode() + "|" + api.resourceCode();
+                String syncKey = SyncKeyCodec.apiMappingSyncKey(context.req().serviceCode(), api.resourceCode());
 
                 // 获取资源实体
                 ResourceEntity resource = resourceEntityMapper.selectByTypeCodeAndCodeType(
@@ -169,9 +172,9 @@ public class MappingSyncHandlerImpl implements MappingSyncHandler {
                 continue;
             }
 
-            String routeKey = mapping.getHttpMethod().toUpperCase() + "|" + mapping.getPathPattern();
             String resourceCode = resource.getCode();
-            String routeResourceKey = routeKey + "|" + resourceCode;
+            String routeResourceKey = BusinessKeys.apiRouteResourceKey(
+                mapping.getHttpMethod().toUpperCase(), mapping.getPathPattern(), resourceCode);
 
             if (!incomingKeys.contains(routeResourceKey)) {
                 idsToDelete.add(mapping.getId());

@@ -1375,21 +1375,13 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     }
 
     private String effectiveSourceKey(RolePermEntry entry) {
-        return entry.permissionId() + "|"
-            + entry.roleId() + "|"
-            + entry.resourceEntityId() + "|"
-            + entry.resourceType() + "|"
-            + entry.grantedBits() + "|"
-            + entry.scopeAll();
+        return BusinessKeys.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
+            entry.resourceType(), entry.grantedBits(), entry.scopeAll());
     }
 
     private String effectiveSourceKey(PermResult.EffectiveOperationEntry entry) {
-        return entry.permissionId() + "|"
-            + entry.roleId() + "|"
-            + entry.resourceEntityId() + "|"
-            + entry.resourceType() + "|"
-            + entry.grantedBits() + "|"
-            + entry.scopeAll();
+        return BusinessKeys.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
+            entry.resourceType(), entry.grantedBits(), entry.scopeAll());
     }
 
 }

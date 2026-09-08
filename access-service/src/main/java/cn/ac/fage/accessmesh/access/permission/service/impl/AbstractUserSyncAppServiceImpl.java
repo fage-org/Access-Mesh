@@ -104,7 +104,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
         String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
         String scopeKey = SyncKeyCodec.abstractUserScopeKey(req.subjectTypeCode());
         String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
-        String syncKey = req.sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
+        String syncKey = SyncKeyCodec.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
         String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
 
         // 5. applyVersion
@@ -213,7 +213,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
                     req.scope().subjectTypeCode(), item.subjectExternalId());
             String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
             seenBusinessKeyHashes.add(businessKeyHash);
-            String syncKey = req.scope().sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
+            String syncKey = SyncKeyCodec.syncKey(req.scope().sourceService(), ENTITY_KIND, businessKey);
             String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
 
             SyncVersionRef ver = item.syncVersion();

@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
@@ -673,12 +674,8 @@ public class PermQueryEngine {
     }
 
     private String effectiveOperationKey(PermResult.EffectiveOperationEntry entry) {
-        return entry.permissionId() + "|"
-            + entry.roleId() + "|"
-            + entry.resourceEntityId() + "|"
-            + entry.resourceType() + "|"
-            + entry.operationBinaryBit() + "|"
-            + entry.scopeAll();
+        return BusinessKeys.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
+            entry.resourceType(), entry.operationBinaryBit(), entry.scopeAll());
     }
 
     /**
@@ -876,7 +873,7 @@ public class PermQueryEngine {
                 Set<Long> descendants = new LinkedHashSet<>();
                 collectDescendants(srcEntityId, parentIdToChildren, descendants);
                 for (Long descId : descendants) {
-                    String key = descId + "|" + entry.permissionId();
+                    String key = BusinessKeys.inheritedEntryKey(descId, entry.permissionId());
                     if (inheritedKeys.add(key)) {
                         inheritedEntries.add(cloneWithInherited(entry, descId));
                     }
@@ -886,7 +883,7 @@ public class PermQueryEngine {
             if (inheritParents) {
                 Long current = idToParentId.get(srcEntityId);
                 while (current != null) {
-                    String key = current + "|" + entry.permissionId();
+                    String key = BusinessKeys.inheritedEntryKey(current, entry.permissionId());
                     if (inheritedKeys.add(key)) {
                         inheritedEntries.add(cloneWithInherited(entry, current));
                     }

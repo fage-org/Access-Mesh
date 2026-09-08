@@ -127,7 +127,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
         String scopeKey = SyncKeyCodec.abstractRoleScopeKey(req.roleTypeCode(), req.treeRootExternalId());
         String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
-        String syncKey = req.sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
+        String syncKey = SyncKeyCodec.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
         String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
 
         // 4.5 版本预判（只读）：旧版本无条件按 STALE 钝化（契约：成功 no-op，调度器置
@@ -326,7 +326,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                         SyncResultBuilder.RETRY_STALE_VERSION, SyncResultBuilder.REASON_STALE));
                 continue;
             }
-            String syncKey = req.scope().sourceService() + "|" + ENTITY_KIND + "|" + businessKey;
+            String syncKey = SyncKeyCodec.syncKey(req.scope().sourceService(), ENTITY_KIND, businessKey);
             String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
 
             // 父角色解析（命中阶段 B 预加载结果；契约 §6.2.2.4：parentRoleTypeCode 缺省 = scope.roleTypeCode）

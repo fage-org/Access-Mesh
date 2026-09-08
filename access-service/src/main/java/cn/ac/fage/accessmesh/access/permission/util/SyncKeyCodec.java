@@ -165,6 +165,27 @@ public final class SyncKeyCodec {
     }
 
     // ---------------------------------------------------------------------
+    // sync_key / 持久化同步定位串（api-contract §6.2.2.4；2026-09-08 codex 复评 P2-1 收编）
+    // ---------------------------------------------------------------------
+
+    /**
+     * sync_metadata.sync_key：{@code sourceService|entityKind|businessKey} 来源内稳定定位串。
+     * <p>四个同步 AppService（user/role/resource-entity/user-role）同构持久化——此前逐字重复拼接，
+     * 改段序会静默写脏存量 sync_key。</p>
+     */
+    public static String syncKey(String sourceService, String entityKind, String businessKey) {
+        return sourceService + "|" + entityKind + "|" + businessKey;
+    }
+
+    /**
+     * resource_api_mapping.extra.syncKey：{@code serviceCode|resourceCode} 映射行同步来源标记。
+     * <p>MappingSyncHandlerImpl 映射创建/更新时写入 extra JSON。</p>
+     */
+    public static String apiMappingSyncKey(String serviceCode, String resourceCode) {
+        return serviceCode + "|" + resourceCode;
+    }
+
+    // ---------------------------------------------------------------------
     // private helpers
     // ---------------------------------------------------------------------
 

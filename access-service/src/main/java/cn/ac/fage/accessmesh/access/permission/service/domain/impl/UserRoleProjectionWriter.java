@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
@@ -138,9 +139,9 @@ public class UserRoleProjectionWriter {
         Map<String, AbstractRole> rolesByExt = new HashMap<>();
         if (!orgExtIds.isEmpty()) {
             abstractRoleMapper.selectByTypeAndExternalIds(tenantId, orgRoleType, orgExtIds)
-                .forEach(r -> rolesByExt.put(LocalProjectionOwner.ROLE_ORG + "|" + r.getExternalId(), r));
+                .forEach(r -> rolesByExt.put(BusinessKeys.roleProjectionIndexKey(LocalProjectionOwner.ROLE_ORG, r.getExternalId()), r));
             abstractRoleMapper.selectByTypeAndExternalIds(tenantId, roleTypePosition, orgExtIds)
-                .forEach(r -> rolesByExt.put(LocalProjectionOwner.ROLE_POSITION + "|" + r.getExternalId(), r));
+                .forEach(r -> rolesByExt.put(BusinessKeys.roleProjectionIndexKey(LocalProjectionOwner.ROLE_POSITION, r.getExternalId()), r));
         }
         Set<String> relationOrgExtIds = keys.stream()
             .map(k -> String.valueOf(resolveRelationOrgId(k)))
@@ -161,7 +162,7 @@ public class UserRoleProjectionWriter {
         // 保留三元组 → 完整实体映射（含主键），已有行更新不重建无 id 实体
         Map<String, UserRole> candidatesByKey = candidates.stream()
             .collect(Collectors.toMap(
-                ur -> ur.getAbstractUserId() + "|" + ur.getTargetId() + "|" + ur.getRelationId(),
+                ur -> BusinessKeys.userRoleTripleKey(ur.getAbstractUserId(), ur.getTargetId(), ur.getRelationId()),
                 ur -> ur, (a, b) -> a));
 
         // 3. 逐 key 计算三元组，批量 insert（新）或批量刷新（已存在，一次 UPDATE）
@@ -174,7 +175,7 @@ public class UserRoleProjectionWriter {
         Set<String> pendingTriples = new HashSet<>();
         for (LocalProjectionDomainService.UserOrgBindKey key : keys) {
             AbstractUser user = usersByExt.get(String.valueOf(key.sysUserId()));
-            AbstractRole role = rolesByExt.get(key.roleTypeCode() + "|" + key.sysOrgId());
+            AbstractRole role = rolesByExt.get(BusinessKeys.roleProjectionIndexKey(key.roleTypeCode(), String.valueOf(key.sysOrgId())));
             if (user == null || role == null) {
                 throw new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
                     "local projection missing for user-org bind: userId=" + key.sysUserId()
@@ -188,7 +189,7 @@ public class UserRoleProjectionWriter {
                         + ", relationOrgId=" + resolveRelationOrgId(key));
             }
             Long relationId = relationRole.getId();
-            String tripleKey = user.getId() + "|" + role.getId() + "|" + relationId;
+            String tripleKey = BusinessKeys.userRoleTripleKey(user.getId(), role.getId(), relationId);
             UserRole existing = candidatesByKey.get(tripleKey);
             if (existing != null) {
                 toUpdateIds.add(existing.getId());
@@ -249,9 +250,9 @@ public class UserRoleProjectionWriter {
         Map<String, AbstractRole> rolesByExt = new HashMap<>();
         if (!orgExtIds.isEmpty()) {
             abstractRoleMapper.selectByTypeAndExternalIds(tenantId, orgRoleType, orgExtIds)
-                .forEach(r -> rolesByExt.put(LocalProjectionOwner.ROLE_ORG + "|" + r.getExternalId(), r));
+                .forEach(r -> rolesByExt.put(BusinessKeys.roleProjectionIndexKey(LocalProjectionOwner.ROLE_ORG, r.getExternalId()), r));
             abstractRoleMapper.selectByTypeAndExternalIds(tenantId, roleTypePosition, orgExtIds)
-                .forEach(r -> rolesByExt.put(LocalProjectionOwner.ROLE_POSITION + "|" + r.getExternalId(), r));
+                .forEach(r -> rolesByExt.put(BusinessKeys.roleProjectionIndexKey(LocalProjectionOwner.ROLE_POSITION, r.getExternalId()), r));
         }
         Set<String> relationOrgExtIds = keys.stream()
             .map(k -> String.valueOf(resolveRelationOrgId(k)))
@@ -274,7 +275,7 @@ public class UserRoleProjectionWriter {
         Set<String> keysToMatch = new HashSet<>();
         for (LocalProjectionDomainService.UserOrgBindKey key : keys) {
             AbstractUser user = usersByExt.get(String.valueOf(key.sysUserId()));
-            AbstractRole role = rolesByExt.get(key.roleTypeCode() + "|" + key.sysOrgId());
+            AbstractRole role = rolesByExt.get(BusinessKeys.roleProjectionIndexKey(key.roleTypeCode(), String.valueOf(key.sysOrgId())));
             if (user == null || role == null) {
                 // 请求类型的用户/角色投影缺失 = 依赖缺失，抛错回滚（不再静默跳过：
                 // 否则调用方删除 sys_user_org/sys_org 管理事实后，错类型/残留 user_role 仍存活）
@@ -291,12 +292,12 @@ public class UserRoleProjectionWriter {
                         + ", relationOrgId=" + resolveRelationOrgId(key));
             }
             Long relationId = relationRole.getId();
-            keysToMatch.add(user.getId() + "|" + role.getId() + "|" + relationId);
+            keysToMatch.add(BusinessKeys.userRoleTripleKey(user.getId(), role.getId(), relationId));
         }
 
         // 4. 内存匹配后批量软删
         List<Long> toDelete = candidates.stream()
-            .filter(ur -> keysToMatch.contains(ur.getAbstractUserId() + "|" + ur.getTargetId() + "|" + ur.getRelationId()))
+                .filter(ur -> keysToMatch.contains(BusinessKeys.userRoleTripleKey(ur.getAbstractUserId(), ur.getTargetId(), ur.getRelationId())))
             .map(UserRole::getId)
             .collect(Collectors.toList());
         if (!toDelete.isEmpty()) {
@@ -368,7 +369,7 @@ public class UserRoleProjectionWriter {
         Map<String, Long> result = new HashMap<>();
         for (UserRole ur : userRoleMapper.selectValidByUserTargetRelation(
             tenantId, userIds, targetIds, relationIds, ResourceTypeCode.ROLE)) {
-            result.put(ur.getAbstractUserId() + "|" + ur.getTargetId() + "|" + ur.getRelationId(), ur.getId());
+            result.put(BusinessKeys.userRoleTripleKey(ur.getAbstractUserId(), ur.getTargetId(), ur.getRelationId()), ur.getId());
         }
         return result;
     }
