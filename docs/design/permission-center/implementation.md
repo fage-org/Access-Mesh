@@ -393,8 +393,8 @@ PermQueryEngine.query(PermQuery q)
 
 `PermResultUtils` 提供转换方法将 `PermResult` 转为对外响应：
 
-- `PermResultUtils.toAuthCheckResp(result)` — `check` / `batch-check` 响应
-- `PermResultUtils.validateOrThrow(result)` — `validate` 模式，拒绝时抛异常
+- `PermResultUtils.toAuthCheckResp(result)` — `check` 响应（`batch-check` 由 AppService 逐 item 组装 `BatchAuthCheckResp`）
+- `validate` 模式：AppService 显式 `if (!result.allowed()) throw new SecurityException(...)`（引擎纯查询；`validateOrThrow` 已删除勿引用）
 
 ### 3.4 内部 scopeAll 与对外 scopeMode 映射
 
@@ -956,7 +956,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 后端全部业务键的统一构造/解析入口为 `perm-common` 的 `cn.ac.fage.accessmesh.perm.common.util.BusinessKeys`（2026-09-07 收敛，格式由 `BusinessKeysParityTest` 以 golden 值锁定——改格式即测试失败，不是运行时静默错配）。
 
 - **为什么收敛**：同一格式的构造与消费曾分散多类（类型解析缓存键由 TypeResolutionServiceImpl 写入、TypeDefinitionAppServiceImpl 失效，靠 PermCacheCatalog 注释口头约定一致；转授检查五段键在授权域/授权计划域逐字重复实现），任一侧手改格式即静默错配。
-- **范围**：跨类格式契约键（类型解析缓存、操作位/操作编码、资源三段、转授五段、relationKey 解析、typeCode 生成码、对外权限串）+ 单文件内部映射键（主体/角色定位、关系去重、diff 去重、API 路由）——2026-09-07 用户定案 A+B 全收。
+- **范围**：跨类格式契约键（类型解析缓存、操作位/操作编码、资源三段、转授五段、relationKey 解析、typeCode 生成码、对外权限串）+ 单文件内部映射键（主体/角色定位、关系去重、diff 去重、API 路由）——2026-09-07 用户定案 A+B 全收。**补收（2026-09-08，codex 复评 P2-1 用户拍板全量收敛）**：竖线分隔八族入 BusinessKeys——`permEntrySourceKey`（权限条目生效来源六段，三处逐字重复实现收编）/`inheritedEntryKey`（继承展开去重）/`roleProjectionIndexKey`/`userRoleTripleKey`（投影三元组）/`apiRouteResourceKey`（映射同步活跃键）/`scopeItemKey`/`apiEntryDedupKey`（快照去重四段）/`apiMappingPresenceKey`（bootstrap 缺行判定）；`sync_metadata.sync_key` 三段与 `resource_api_mapping.extra.syncKey` 两段归 `SyncKeyCodec.syncKey/apiMappingSyncKey`（同步通道族）。
 - **出界（不经 BusinessKeys）**：sync API 契约键（percent-encoded）归 access-service `SyncKeyCodec`；缓存框架存储信封（common cache）；Gateway 本地快照键；登录计数/任务幂等/树写锁等基础设施键；错误文案与日志 summary 拼接。
 - **放置依据**：落 perm-common 而非 access-service 自身 util，依据 §3 单一来源先例（PageResp/ItemsResp 同款）——SDK 侧（starter 测试夹具、未来投影数据）需与 access-service 同格式构造 relationKey 等键；任务卡 acceptance 明写「收敛到 perm-common」。
 - **TYPE_DEFINITION 实例投影（T-PERM-051 已落地 2026-09-07）**：`typeInstanceBusinessKey(typeKey, typeCode)` 复合键是实例投影与门禁的唯一构造入口（`LocalProjectionDomainService.upsertTypeDefinitionResource`/`TypeDefinitionAppServiceImpl` 全部消费方经此构造，不得裸拼）；语义与级联细节见 architecture §12.3。

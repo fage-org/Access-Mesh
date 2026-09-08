@@ -93,16 +93,17 @@ div.user-page.main-content {
 - **页面层**用 `display: grid`，列宽精确控制，子元素天然等高
 - **面板内部**用 `display: flex; flex-direction: column`，header 固定 `auto`，内容区 `flex: 1; min-height: 0`
 - **表格滚动**交给 `pure-table` 的 `adaptive` prop，不要手动设 overflow
+- 列宽落地一律 `minmax()`（见 css-design-system §2）；下图与示例中的 200px/360px 仅为结构示意，不是可复制的取值
 
 ```css
-/* 页面层 — Grid */
+/* 页面层 — Grid（列宽用 minmax，禁止固定像素，见 css-design-system §2） */
 .user-page {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: minmax(180px, 240px) 1fr;
   overflow: hidden;
 
   &:has(.role-panel) {
-    grid-template-columns: 200px 1fr 360px;
+    grid-template-columns: minmax(180px, 240px) 1fr minmax(300px, 360px);
   }
 }
 
@@ -126,17 +127,19 @@ div.user-page.main-content {
 2. **次选**：当父容器无明确高度时（如 fixedHeader 的 `el-scrollbar`），用 `calc` 估算
 
 ```css
-/* fixedHeader 模式下，el-scrollbar 无 flex 约束，需要手动设高 */
+/* fixedHeader 模式下，el-scrollbar 无 flex 约束，需要手动设高；
+   扣除值先用下方公式推导，落成 CSS 变量（如 --header-offset），禁止直接写死像素（css-design-system §1） */
 .user-page {
-  height: calc(100vh - 150px);
-  /* 150px = 81px(section padding-top) + 24px(main-content margin) + 35px(footer) + 10px(缓冲) */
+  height: calc(100vh - var(--header-offset)); /* --header-offset 的取值按下方拆解推导确定 */
   overflow: hidden;
 }
 ```
 
 **调整方法**：如果仍有滚动条，减小值（更多扣除）。如果底部有空隙，增大值。每次增减 10px 即可定位。
 
-## 6. 通用高度计算公式
+## 6. 通用高度计算公式（诊断推导用，不直接写入样式）
+
+以下公式用于推导 CSS 变量的取值；推导结果落入 `design-tokens.css` 变量，样式代码中只引用变量。
 
 ```
 可用页面高度 = 100vh

@@ -41,7 +41,7 @@ Mapper
 - Controller 不直接调用 Mapper
 - 同层横向调用**允许**（2026-08-22 全局放开，见 project-rules.md §分层规范）：调度层 Service 互调、DomainService 互调、跨域 Service/AppService 注入复用；通用约束为仅限同层、禁循环依赖、复用优先于重实现、跨域 Mapper 直读边界不变（admin/permission 域互不直读对方 Mapper）
 - 新功能优先复用已有 DomainService，而不是在 AppService 里重写领域逻辑
-- 写操作事务放在 AppService，DomainService 不声明事务
+- 写操作事务边界默认在 AppService 入口声明；DomainService 默认不声明事务（事务由调用方声明），确需独立事务语义的领域组件可声明（如审计异步落库的 `REQUIRES_NEW` 独立短事务）——禁止的是编排级事务下沉，非领域层一律禁事务
 
 ## 命名规范
 

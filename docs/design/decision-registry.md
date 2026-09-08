@@ -32,7 +32,7 @@
 | 2026-09-03 | TYPE_DEFINITION 反向变体：type-definition/list 门禁放宽为「类型级或任一实例级 VIEW」，实例投影登记 T-PERM-051 待做——评审勿报「实例级路径无自动产出」缺陷 | docs/tasks/T-PERM-051.md、api-contract.md 头部登记 | 再报直接撤回 |
 | 2026-09-03 | 固定图（BootstrapGraphDefinition）冲突/边界问题一律登记 access-service-architecture §14.2 待议清单，攒批讨论，不零散改口径 | docs/design/access-service-architecture.md §14.2 | 报了先核出处 |
 | 2026-09-04 | 四棵树统一写锁=Redisson（advisory 路径退役），unlock 挂 afterCompletion | docs/tasks/T-PERM-044.md | 报了先核出处 |
-| 2026-09-05 | 资源类型级所有权（T-PERM-052）：每 resource_type 单一所有权（extra.managedMode MANAGED/SYNC + syncSourceService）；USER/ORG/MENU/ROLE 种子声明 SYNC+access-service；syncTypes 维度退役；评审勿再建议行级方案 | AGENTS.md 权限中心实现提醒节、docs/tasks/T-PERM-052.md、access-service-architecture.md | 再报直接撤回 |
+| 2026-09-05 | 资源类型级所有权（T-PERM-052）：每 resource_type 单一所有权（extra.managedMode MANAGED/SYNC + syncSourceService）；USER/ORG/MENU/ROLE 种子声明 SYNC+access-service；syncTypes 资源维度退役（subject/role/source 三维白名单保留）；评审勿再建议行级方案 | AGENTS.md 权限中心实现提醒节、docs/tasks/T-PERM-052.md、access-service-architecture.md | 再报直接撤回 |
 | 2026-09-06 | 本地双轨评审与 codex 外评两轨分离：codex 仅用户显式触发，本地收口不自动串联，续跑由用户拍板 | dual-track-local-review / codex-external-review 两 skill 触发纪律节 | 报了先核出处 |
 | 2026-09-06 | 决策提问协议：任何提问决策场景必须举例说明 | .claude/rules/decision-question-protocol.md | 报了先核出处 |
 | 2026-09-06 | 树写锁不加 tryLock/lock_timeout 等待保险丝（会误杀排在 full-sync 后的合法长等待，与不配 statement_timeout 同向；恢复=重启持锁实例或 lease TTL 30s 兜底） | 本表（会话定案；机制背景见 docs/tasks/T-PERM-044.md） | 报了先核出处 |
@@ -53,6 +53,7 @@
 | 2026-09-07 | BusinessKeys/SyncKeyCodec 名词命名偏离 project-rules §6.2「XxxUtil」：用户已知、计划后续 IDE 统一改名；改名落地前评审勿再报命名不符，规则例外句暂不写 | 本表（会话定案；类见 perm-common util/BusinessKeys.java、access-service permission/util/SyncKeyCodec.java） | 再报直接撤回 |
 | 2026-09-07 | operationCodeKey 族不做大小写归一：授权域（先 toUpperCase 再拼）与查询/解析域（裸拼）语义不一致为已登记事实，保持现状待统一；统一方向（raw 严格化/归一宽松化+DTO Pattern）属行为变更需单独立项 | docs/design/permission-center/implementation.md §8.2 | 报了先核出处 |
 | 2026-09-07 | T-PERM-051 四项执行定案（同批 AskUserQuestion）：①复合键长度溢出（type_key/type_code 各 ≤64 最坏 129 > 旧 code 列宽 128）处置=加宽 resource_entity.code 至 VARCHAR(256)，不加创建入口限长；②类型软删对「投影行下授权行」处置=级联软删（deleteResources 同款：markRoles/markServiceCodes + 投影行/授权行同事务软删），不走删除保护；③「TYPE_DEFINITION 加入保留清单」按机制现状落地=种子声明 SYNC+access-service（清单机制已被 T-PERM-052 收编，不复活字面清单）；④存量投影回填=bootstrap 启动自愈（对齐 T-ADMIN-025 ensureAdminFileFolder 先例）+ runbook FAQ 订正语句兜底，非纯手工 SQL | docs/tasks/T-PERM-051.md 实现记录、docs/design/schema/access-service.sql（列宽注释+种子声明）、access-service-rebuild-runbook.md §1/§3 | 报了先核出处 |
+| 2026-09-08 | BusinessKeys 竖线族补收（codex 复评 P2-1 用户拍板全量收敛）：2026-09-07 首轮收敛遗留的 12 文件约 31 处 `\|` 裸拼点全量收编——八族进 BusinessKeys、sync_key 两族进 SyncKeyCodec；SignatureVerifier 签名载荷维持出界（基础设施键）；golden 锁扩至 30 用例 | implementation.md §8.1 范围补收句、perm-common util/BusinessKeys.java、access-service permission/util/SyncKeyCodec.java | 报了先核出处 |
 
 ## 已推翻（superseded）
 

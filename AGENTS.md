@@ -75,7 +75,7 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 - `type_value` 在同一 `tenant_id + type_key` 内全局唯一；不要按业务域重复分配相同内部值。
 - `query-scopes`、`scope_all` 是当前范围权限模型；不要恢复旧的 `query-data-scopes`、`includeDataScope`、`dataScopes`。
 - `resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
-- **资源类型级所有权**：每个 resource_type 单一所有权，声明于 `type_definition.extra`（`managedMode` MANAGED/SYNC + `syncSourceService` 来源服务）。sync/full-sync 入口做类型门禁（非 SYNC、来源不匹配或来源服务未注册/停用 → `RESOURCE_TYPE_OWNERSHIP_DENIED`；`syncTypes` 维度已退役，保存含此字段拒绝；API 类型禁止声明 SYNC）；管理面对 SYNC 类型 create/batch-create/update/move/remove 拒绝（20055，remove 覆盖级联删除全集含跨类型后代）；类型下有有效资源行时声明不可变更（20056）。USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION 为内部事实链路 SYNC（access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 实例投影 code={typeKey}:{typeCode} 复合键由 type-definition 写路径同事务维护+bootstrap 自愈补种，T-PERM-051），外部同步一律拒；`resource_entity.maintain_source/owner_service_code` 为 service-config 通道行归属标记（读取面封闭）。演进历史（退役机制与收编清单）见 `docs/design/decision-registry.md` 与 `docs/design/access-service-architecture.md`。
+- **资源类型级所有权**：每个 resource_type 单一所有权，声明于 `type_definition.extra`（`managedMode` MANAGED/SYNC + `syncSourceService` 来源服务）。sync/full-sync 入口做类型门禁（非 SYNC、来源不匹配或来源服务未注册/停用 → `RESOURCE_TYPE_OWNERSHIP_DENIED`；service-config `extra.syncTypes` 仅保留 `subjectTypeCodes/roleTypeCodes/sourceTypes` 三维白名单供 user/role 同步通道消费，资源维度已退役——保存含 `resourceTypeCodes` 或未知字段拒绝（20044）；API 类型禁止声明 SYNC）；管理面对 SYNC 类型 create/batch-create/update/move/remove 拒绝（20055，remove 覆盖级联删除全集含跨类型后代）；类型下有有效资源行时声明不可变更（20056）。USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION 为内部事实链路 SYNC（access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 实例投影 code={typeKey}:{typeCode} 复合键由 type-definition 写路径同事务维护+bootstrap 自愈补种，T-PERM-051），外部同步一律拒；`resource_entity.maintain_source/owner_service_code` 为 service-config 通道行归属标记（读取面封闭）。演进历史（退役机制与收编清单）见 `docs/design/decision-registry.md` 与 `docs/design/access-service-architecture.md`。
 - **业务域分类模型**：角色、资源等实体不再内嵌 `bizDomainId` 列，域分类通过 `domain_config` 表的 `CLASSIFY` 配置实现（按 `resourceTypeCode` 关联）。全局域(`global=true`)的范围隐式包含未被其他域认领的资源类型。权限查询管线不感知业务域。管理查询通过 `DomainClassifyService.matchesTypeCode/getClassifiedTypeCodes` 按三种模式(ALL/GLOBAL_PLUS/DOMAIN_ONLY)过滤。
 
 ## 项目级 Skills（自动加载）
@@ -155,7 +155,7 @@ docker compose -f docker-compose.yml up -d nacos redis postgresql
 > - 容器组基建已单例化（`ItInfra`：**每 fork JVM 一份**单例 PG/Redis + 按类建库 + 按类 Redis 逻辑库索引 + fork 级 2 进程并行——sa-token 的 SaManager 是 JVM 级静态单例，同 JVM 线程级类并发下邻类上下文关闭会把静态 dao 指向已 shutdown 的 Redisson，故并行必须走进程隔离；本机开 `~/.testcontainers.properties` 的 `testcontainers.reuse.enable=true` 后各 fork 按配置哈希复用同一对容器，无该文件的环境（如 CI）每 fork 各起一对）；类库/索引由会话首启自动清理，无需手工维护。
 > - `-T 1C` 模块并行下负载抬升曾击穿两个固定 sleep 余量的时序用例（TaskLease 同实例接管、Gateway 失效代际竞态），均已改确定性机制（轮询至可抢占 / CompletableFuture 提交闸门）；新增并发/时序用例**禁用裸 sleep 余量**表达时序。
 
-> **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter` → `example-service`）。
+> **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter`；example-service 有意不消费权限 SDK starter，接口级鉴权由 Gateway 承担）。
 > `mvn compile` 不会将上游模块 install 到本地仓库，依赖方编译时可能拿到**上次 install 的旧版本**。
 > 当上游模块（`perm-sdk/*`、`common`、`perm-entity`）有 API 变更时，**必须**执行 `mvn install -pl <上游模块> -DskipTests` 或全量 `mvn clean install -DskipTests` 后再编译下游模块。
 

@@ -25,31 +25,25 @@ metadata:
 
 ```java
 // ✅ 正确 — TDD 流程
-// Step 1 (RED): 先写测试
+// Step 1 (RED): 先写测试（getRole 未命中返回 null——与 list 空分页同口径，T-PERM-022；ROLE_NOT_FOUND 仅用于写路径）
 @Test
-void shouldThrowExceptionWhenRoleNotFound() {
-    assertThatThrownBy(() -> roleService.getRole(1L, 999L))
-        .isInstanceOf(BizException.class)
-        .hasMessageContaining("Role not found");
+void shouldReturnNullWhenRoleNotFound() {
+    assertNull(roleService.getRole(1L, "GHOST", "ext-1"));
 }
 
 // Step 2 (GREEN): 实现最小代码
-public RoleResp getRole(Long tenantId, Long roleId) {
-    AbstractRole role = abstractRoleMapper.selectOneById(roleId);
-    if (role == null) {
-        throw new BizException(ErrorCode.ROLE_NOT_FOUND, "Role not found");
+public RoleResp getRole(Long tenantId, String roleTypeCode, String roleExternalId) {
+    Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
+    if (roleType == null) {
+        return null;
     }
-    return toRoleResp(role);
+    AbstractRole role = abstractRoleMapper.selectOneByQuery(/* tenantId + roleType + externalId */);
+    return role != null ? toRoleResp(role) : null;
 }
 
-// Step 3 (REFACTOR): 优化实现
-public RoleResp getRole(Long tenantId, Long roleId) {
-    return toRoleResp(findRoleOrThrow(roleId));
-}
-
-private AbstractRole findRoleOrThrow(Long roleId) {
-    return Optional.ofNullable(abstractRoleMapper.selectOneById(roleId))
-        .orElseThrow(() -> new BizException(ErrorCode.ROLE_NOT_FOUND, "Role not found"));
+// Step 3 (REFACTOR): 提取私有加载方法，主流程收敛
+public RoleResp getRole(Long tenantId, String roleTypeCode, String roleExternalId) {
+    return toNullableResp(loadRole(tenantId, roleTypeCode, roleExternalId));
 }
 
 // ❌ 禁止 — 先写实现后补测试
@@ -123,7 +117,7 @@ fail_under = 80
 // ✅ 正确 — 每个测试独立准备数据
 @Test
 void shouldCreateRole() {
-    RoleCreateReq req = new RoleCreateReq("admin", null, "管理员角色");
+    RoleCreateReq req = new RoleCreateReq(null, "role-custom", "ext-admin", "管理员角色", null, null);
     roleService.createRole(TENANT_ID, req, OPERATOR_ID);
 }
 
@@ -148,7 +142,7 @@ void test1() {
 
 @Test
 void test2() {
-    roleService.getRole(TENANT_ID, sharedRoleId);  // 依赖 test1 执行顺序
+    roleService.getRole(TENANT_ID, "role-custom", "shared-ext");  // 依赖 test1 执行顺序
 }
 ```
 
@@ -187,7 +181,7 @@ class RoleManageAppServiceTest {
 
         RoleResp result = roleManageAppService.createRole(TENANT_ID, req, OPERATOR_ID);
 
-        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.id()).isEqualTo(1L);
     }
 }
 
@@ -214,9 +208,12 @@ when(service.createRole(any())).thenReturn(response);  // 测试的不是真实�
 // ✅ 正确 — 描述性命名
 @Test
 void shouldThrowException_whenRoleNotFound() {
-    assertThatThrownBy(() -> roleService.getRole(TENANT_ID, 999L))
-        .isInstanceOf(BizException.class)
-        .hasMessage("Role not found");
+    // getRole 未命中返回 null（T-PERM-022 同口径）；安全拒绝（门禁不过）断言 SecurityException
+    when(permQueryEngine.hasPermissionByCode(any(), any(), eq(ROLE), any(), eq(VIEW)))
+        .thenReturn(false);
+
+    assertThatThrownBy(() -> roleService.getRole(TENANT_ID, "role-custom", "ext-1"))
+        .isInstanceOf(SecurityException.class);
 }
 
 @Test
@@ -224,7 +221,7 @@ void shouldReturnRole_whenUserHasViewPermission() {
     when(permQueryEngine.hasPermissionByCode(any(), any(), eq(ROLE), eq(String.valueOf(roleId)), eq(VIEW)))
         .thenReturn(true);
 
-    RoleResp result = roleService.getRole(TENANT_ID, roleId);
+    RoleResp result = roleService.getRole(TENANT_ID, "role-custom", "ext-1");
 
     assertThat(result).isNotNull();
 }
@@ -264,14 +261,14 @@ class CreateRole {
 
     @Test
     void shouldThrowException_whenNameIsNull() {
-        RoleCreateReq req = new RoleCreateReq(null, null, "desc");
+        RoleCreateReq req = new RoleCreateReq(null, "role-custom", "ext-1", null, null, null);
         assertThatThrownBy(() -> roleService.createRole(TENANT_ID, req, OPERATOR_ID))
             .isInstanceOf(BizException.class);
     }
 
     @Test
     void shouldThrowException_whenNameIsEmpty() {
-        RoleCreateReq req = new RoleCreateReq("", null, "desc");
+        RoleCreateReq req = new RoleCreateReq(null, "role-custom", "ext-1", "", null, null);
         assertThatThrownBy(() -> roleService.createRole(TENANT_ID, req, OPERATOR_ID))
             .isInstanceOf(BizException.class);
     }
@@ -279,7 +276,7 @@ class CreateRole {
     @Test
     void shouldThrowException_whenNameTooLong() {
         String longName = "a".repeat(256);
-        RoleCreateReq req = new RoleCreateReq(longName, null, "desc");
+        RoleCreateReq req = new RoleCreateReq(null, "role-custom", "ext-1", longName, null, null);
         assertThatThrownBy(() -> roleService.createRole(TENANT_ID, req, OPERATOR_ID))
             .isInstanceOf(BizException.class);
     }
@@ -287,7 +284,7 @@ class CreateRole {
     @Test
     void shouldThrowException_whenDuplicateName() {
         createTestRole("admin");
-        RoleCreateReq req = new RoleCreateReq("admin", null, "desc");
+        RoleCreateReq req = new RoleCreateReq(null, "role-custom", "ext-2", "admin", null, null);
         assertThatThrownBy(() -> roleService.createRole(TENANT_ID, req, OPERATOR_ID))
             .isInstanceOf(BizException.class);
     }
@@ -381,7 +378,7 @@ void shouldMapRoleEntityToResponse() {
 
     RoleResp response = RoleMapper.toResponse(role);  // 你的转换逻辑
 
-    assertThat(response.getId()).isEqualTo(1L);
+    assertThat(response.id()).isEqualTo(1L);
 }
 ```
 
@@ -410,25 +407,17 @@ void shouldAssignRoleToUser() {
     assertThat(userRoleService.getUserRoles(TENANT_ID, userId)).contains(roleId);
 }
 
-// ✅ 正确 — 优先直接构造 record/不可变 DTO
+// ✅ 正确 — 优先直接构造 record/不可变 DTO（RoleCreateReq 为六组件 record：parentId, roleTypeCode, externalId, name, sortOrder, extra）
 @Test
 void shouldCreateRoleWithCustomSettings() {
-    RoleCreateReq req = new RoleCreateReq("admin", null, "EXT-001");
+    RoleCreateReq req = new RoleCreateReq(null, "role-custom", "EXT-001", "admin", 0, null);
 
     roleService.createRole(TENANT_ID, req, OPERATOR_ID);
 }
 
-// ✅ 允许 — DTO 已提供 @Builder 时，可用于复杂测试数据
-@Test
-void shouldCreateRoleWithBuilder_whenBuilderImprovesReadability() {
-    RoleCreateReq req = RoleCreateReq.builder()
-        .name("admin")
-        .parentId(null)
-        .externalId("EXT-001")
-        .build();
-
-    roleService.createRole(TENANT_ID, req, OPERATOR_ID);
-}
+// ⚠️ Builder 仅适用于确已提供 @Builder 的 DTO/实体类型；RoleCreateReq 等 record DTO 无 builder——
+// 下面的写法对 record DTO 不存在，照抄会编译失败：
+// RoleCreateReq req = RoleCreateReq.builder().name("admin").build();  // ❌ RoleCreateReq 无 builder
 
 // ❌ 禁止 — 每个测试手动构造对象
 @Test
@@ -443,14 +432,14 @@ void test1() {
 // ✅ 正确 — 测试数据工厂类
 public class TestRoleFactory {
     public static Long create(String name) {
-        return create(name, null, null);
+        return create(name, null);
     }
 
-    public static Long create(String name, Long parentId, List<Long> permissionIds) {
-        RoleCreateReq req = new RoleCreateReq(name, parentId, permissionIds);
+    public static Long create(String name, Long parentId) {
+        RoleCreateReq req = new RoleCreateReq(parentId, "role-custom", null, name, null, null);
 
         RoleResp role = roleAppService.createRole(DEFAULT_TENANT_ID, req, DEFAULT_OPERATOR_ID);
-        return role.getId();
+        return role.id();
     }
 
     public static Long createWithDefaults() {

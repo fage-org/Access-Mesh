@@ -37,7 +37,7 @@ last_reviewed: 2026-08-28
 | 文件存储 | 本地磁盘（file.storage.path）       | 文件上传下载；单实例约束（多实例本地盘不可共享，access-service-architecture §15，T-ADMIN-023 登记） |
 | 任务调度 | Spring Scheduler                   | 轻量定时任务（兼演示权限控制）       |
 | 认证框架 | Sa-Token + OAuth2                  | 多种授权模式并存                     |
-| 链路追踪 | Micrometer Tracing + OpenTelemetry | 分布式 traceId 生成与传递            |
+| 链路追踪 | X-Request-Id / X-Trace-Id 头链     | 请求关联：Gateway 生成/透传 X-Request-Id + RResponseAdvice 回填 traceId；完整分布式 tracing 未接线（otel 桥依赖已引、头链路未消费，演进登记见 project-rules §4.3） |
 | 前端框架 | Vue 3 + Element Plus               | 管理端 + example 演示端              |
 
 ### 1.3 架构拓扑图

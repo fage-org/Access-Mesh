@@ -66,12 +66,16 @@ session:
 必需配置：
 - **SSL/TLS**: 所有 Gateway 和对外端口使用 TLS
 - **Secure Cookie**: Session Cookie 设置 `Secure` 属性
-- **HSTS Header**: `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+- **HSTS Header**: `Strict-Transport-Security: max-age=31536000; includeSubDomains`（上线前确认全部子域均已具备 TLS，否则子域会被钉死强制 HTTPS）
 - **SSL Redirect**: Gateway 配置 HTTP → HTTPS 自动重定向
 
 ## 3. CSRF 保护
 
 **MUST** 根据认证类型配置 CSRF 保护。
+
+> 示例为通用 Spring Security 参考写法（示意「按认证类型选择策略」的语义）；本项目实际使用 Sa-Token + Gateway 自研过滤器，仓内无 Spring Security 依赖——落地时按本项目过滤器链实现同等语义，照抄示例会引入不存在的框架依赖。
+>
+> 本仓事实：令牌经 `Authorization` 头显式传递（前端 http 层注入）；Gateway sa-token `is-read-cookie: true` 保留 cookie 读通道——若未来启用 cookie 承载，须重评 CSRF 策略。
 
 ```java
 // ✅ 正确 — 无状态 JWT API 禁用 CSRF（需文档说明理由）
@@ -138,11 +142,11 @@ resilience4j:
 | `X-Frame-Options` | `DENY` | 防止点击劫持 |
 | `X-XSS-Protection` | `1; mode=block` | 浏览器 XSS 过滤 |
 | `X-Content-Type-Options` | `nosniff` | 防止 MIME 嗅探 |
-| `Strict-Transport-Security` | `max-age=31536000` | 强制 HTTPS |
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | 强制 HTTPS（与 §2 HSTS 配置同值） |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | 控制 Referrer 泄露 |
 
 ```java
-// Spring Security Header 配置
+// Spring Security Header 配置（通用参考写法；本项目实际经 Gateway 过滤器设置安全头，勿照抄引入 Spring Security）
 @Bean
 public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     http

@@ -163,8 +163,8 @@ PermQueryEngine.query(PermQuery)
 
 **内部 AppService 使用 `PermResultUtils`** 将 `PermResult` 转为对外响应：
 
-- `PermResultUtils.toAuthCheckResp(result)` — `check/batch-check` 响应
-- `PermResultUtils.validateOrThrow(result)` — `validate` 模式（拒绝时抛异常）
+- `PermResultUtils.toAuthCheckResp(result)` — `check` 响应（`batch-check` 由 AppService 逐 item 组装 `BatchAuthCheckResp`）
+- `validate` 模式：AppService 显式 `if (!result.allowed()) throw new SecurityException(...)`（引擎纯查询；`validateOrThrow` 已删除勿引用）
 
 ## 8. 场景五：配置子权限和数据范围
 

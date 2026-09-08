@@ -73,33 +73,37 @@ PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, resourc
 PermResult r = engine.query(q);
 return PermResultUtils.toAuthCheckResp(r);
 
-// batchCheck — 批量判定
+// batchCheck — 批量判定（组装在 AppService：PermissionCheckAppServiceImpl.batchCheck 逐 item 走 engine.query 后 new BatchAuthCheckResp）
 for (var item : items) {
     PermQuery q = PermQuery.forAuthCheck(tenantId, userId, item.resourceTypeCode(), item.resourceCode(), item.operationCode());
-    resultsByCode.put(item.resourceCode(), engine.query(q));
+    results.add(engine.query(q));
 }
-return PermResultUtils.toBatchAuthCheckResp(resultsByCode);
+return new BatchAuthCheckResp(List.copyOf(results));
 
 // checkInterface — 接口权限
 Set<Long> entityIds = matchApiPaths(tenantId, path, method);
 PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, "ACCESS");
 return PermResultUtils.toCheckInterfaceResp(engine.query(q), cacheTtl);
 
-// queryResources — 资源筛选（实现走 forUserView 取全量权限事实）
+// queryResources — 资源筛选（实现走 forUserView 取全量权限事实；响应组装在 AppService：
+// PermissionQueryAppServiceImpl.buildQueryResourcesResponse，toQueryResourcesResp 已删除勿引用）
 PermQuery q = PermQuery.forUserView(tenantId, userId);
-return PermResultUtils.toQueryResourcesResp(engine.query(q), cacheTtl);
+return buildQueryResourcesResponse(engine.query(q), req, tenantId);
 
-// validate — 管理操作校验
+// validate — 管理操作校验（引擎纯查询，拒绝由调用方显式抛出；admin 域经 AdminPermissionValidator 门面）
 PermQuery q = PermQuery.forValidate(tenantId, subjectId, resourceTypeCode, resourceCode, operationCode);
-PermResultUtils.validateOrThrow(engine.query(q));
+PermResult r = engine.query(q);
+if (!r.allowed()) {
+    throw new SecurityException("Permission denied: ...");
+}
 
 // scopeQuery — 范围查询
 PermQuery q = PermQuery.forScopeQuery(tenantId, userId, resourceTypeCodes, operationCodes);
 PermResult r = engine.query(q);
 
-// grant check — 授权传递检查（canGrant 校验）
+// grant check — 授权传递检查（canGrant 校验；codeType 为第 5 参）
 boolean canGrant = permissionGrantDomainService.canGrantPermission(
-  tenantId, subjectId, resourceTypeCode, resourceCode, operationCode, scopeAll, domainCode
+  tenantId, subjectId, resourceTypeCode, resourceCode, codeType, operationCode, scopeAll, domainCode
 );
 
 Map<String, PermissionGrantDomainService.GrantCheckResult> results =
@@ -131,7 +135,7 @@ query(PermQuery)
   ├─ 5. resolveEntityIds + queryInstance (1 SQL)
   ├─ 6. matchesBit过滤 (内存)
   ├─ 7. evaluateConditions + filterConflicts
-  ├─ 8. loadAncillary (1-3 SQL, 按需)
+  ├─ 8. loadAncillary (按需；SQL 数随附属开关与资源类型数变化——操作定义按类型逐条查询，N 类型加 N 条)
   └─ 9. build PermResult
 ```
 
@@ -141,10 +145,9 @@ query(PermQuery)
 |--------|------|------|
 | `PermResultUtils` | `toAuthCheckResp()` | PermResult→AuthCheckResp |
 | `PermResultUtils` | `toCheckInterfaceResp()` | PermResult→CheckInterfaceResp |
-| `PermResultUtils` | `validateOrThrow()` | allowed? 抛BizException(403) |
 | `OperationPermissionUtils` | `effectiveBits()` | 有效位计算 |
 | `OperationPermissionUtils` | `covers(granted,target)` | 操作覆盖检查 |
-| `OperationPermissionUtils` | `filterByOperation()` | 批量过滤 |
+| `OperationPermissionUtils` | `coveredOperations()` | 按位掩码取覆盖操作集 |
 | `ConditionEvalUtils` | `evalDateRange()` | 日期评估 |
 | `ConditionEvalUtils` | `evalTimeRange()` | 时间评估 |
 | `ConditionEvalUtils` | `ipMatchesCidr()` | IP/CIDR匹配 |
@@ -184,7 +187,7 @@ ResourceTypeCode.API               // API接口
 - ❌ 禁止直接调 `rolePermMapper.selectListByQuery()` 做权限判定 — 通过 Engine
 - ❌ 禁止在 service impl 中写权限查询逻辑 — 通过 Engine
 - ❌ 禁止 new `RolePermEntry(...)` — 使用 `RolePermEntryMapper`
-- ❌ 禁止私有 `loadResources/loadOperations/loadRoles` — 使用 `EntityBatchLoadDomainService`
+- ❌ 禁止私有 `loadResources/loadOperations/loadRoles` — 使用对应 Mapper 批量查询（`selectValidByIds(tenantId, ids)` 等；`EntityBatchLoadDomainService` 已删除勿引用）
 
 ## 相关文件
 
@@ -199,4 +202,4 @@ ResourceTypeCode.API               // API接口
 | `OperationPermissionUtils.java` | 位运算 |
 | `ConditionEvalUtils.java` | 条件评估 |
 | `RolePermEntryMapper.java` | 实体→VO |
-| `EntityBatchLoadDomainService.java` | 批量加载 |
+| `UserRoleMapper.java` 等批量查询 | 批量加载（`selectValidByIds`） |

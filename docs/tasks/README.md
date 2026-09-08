@@ -79,22 +79,22 @@
 | T-PERM-015 | 前端 ScopeMode 类型定义 + composable（hasPerms/Perms 不涉及 L2 数据权限，无需改造） | scope-mode-migration | design/permission-center-v3.5-design.md §3 | T-PERM-009 | ✅ | ✓ |
 | [T-PERM-017](T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 gateway_evaluable + 未下发回退 check-interface） | perm-cache-invalidation | design/services/gateway.md；v3.5 §7.2 | T-PERM-002, T-PERM-018 | ✅ | ✓ |
 | [T-PERM-018](T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | perm-cache-invalidation | v3.5 §5.1/§7.2；api-contract §6.x | T-PERM-002 | ✅ | ✓ |
-| [T-PERM-019](T-PERM-019.md) | 工作单 D：防呆机制（D2 BusinessKeys 业务键收敛 perm-common 唯一入口+golden 锁、D3 三方一致性核对零缺失；已收口 2026-09-07，终态见任务卡实现记录与 implementation §8） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation §8；schema；admin sync | — | ✅ | ✓ |
+| [T-PERM-019](T-PERM-019.md) | 工作单 D：防呆机制（已收口 2026-09-07，终态见任务卡实现记录与 implementation §8） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation §8；schema；admin sync | — | ✅ | ✓ |
 | [T-PERM-020](T-PERM-020.md) | 工作单 E：清理预设能力（死工厂删除 + domain_config/RocketMQ/auto-grant 口径收口） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；architecture | — | ✅ | ✓ |
-| [T-PERM-021](T-PERM-021.md) | 工作单 F：文档准确性与代码简化（指标自动化、DTO 单源、ownership、日志链路、full-sync runbook；含冲突标记） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | ⚙️ | ⏳ |
+| [T-PERM-021](T-PERM-021.md) | 工作单 F：文档准确性与代码简化（范围与冲突标记见任务卡） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | ⚙️ | ⏳ |
 | T-PERM-022 | 2.2 角色管理后端（已收口 2026-08-28，终态见 design/frontend/role-manage.md §8） | frontend-phase2 | api-contract §5.2/§6.10.3；implementation §2.1；design/frontend/role-manage.md §8 | T-FE-002 | ✅ | ✓ |
 | T-PERM-023 | 6.1 类型定义后端（已收口 2026-08-28，终态见 design/frontend/type-definition.md §8） | frontend-phase2 | api-contract §5.1；design/frontend/type-definition.md §8 | T-FE-003 | ✅ | ✓ |
 | T-PERM-024 | 6.2 系统配置后端（已收口 2026-08-28，终态见 design/frontend/system-config.md §8） | frontend-phase2 | api-contract §5.8 | T-FE-004 | ✅ | ✓ |
 | [T-PERM-025](T-PERM-025.md) | 7.1 操作日志后端（已收口 2026-08-28，终态见 design/frontend/operation-log.md §8） | frontend-phase2 | api-contract §5.8/§6.10.6；implementation §2.3；design/frontend/operation-log.md §8 | T-FE-005 | ✅ | ✓ |
 | T-PERM-026 | 5.1 业务域后端（已收口 2026-08-29，终态见 api-contract §5.1/§5.6 契约要点） | frontend-phase2 | api-contract §5.1/§5.6；implementation §2.7；design/frontend/biz-domain.md §8 | T-FE-006 | ✅ | ✓ |
 | [T-PERM-027](T-PERM-027.md) | 5.2 服务+接口映射后端（已收口 2026-08-29，终态见 api-contract §5.4 契约要点） | frontend-phase2 | api-contract §5.4/§6.3/§6.10.4；design/frontend/service-interface-mapping.md §7 | T-FE-007 | ✅ | ✓ |
-| T-PERM-028 | 3.1 资源+操作定义后端（业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁三处补齐/resource_type 联动预置/T-PERM-027 §7.6 资源选择器落地——五项设计定案见任务卡） | frontend-phase2 | api-contract §5.3/§6.2.2；implementation §2.9；design/frontend/resource-operation.md §8 | T-FE-008 | ✅ | ✓ |
-| [T-PERM-029](T-PERM-029.md) | 3.2 权限条件后端（已收口 2026-08-30，终态见 api-contract §5.6 permission-condition 契约要点：业务键 code/detail 20006/list 全量不分页定案/updatedAt） | frontend-phase2 | api-contract §5.6；implementation §2.5；design/frontend/permission-condition.md §8 | T-FE-009 | ✅ | ✓ |
-| [T-PERM-030](T-PERM-030.md) | 3.3 冲突规则后端（已收口 2026-08-30，终态见 api-contract §5.6 conflict-rule 契约要点：读三端点 VIEW + 写三档类型级门禁/detail 20020/updatedAt/bootstrap 补授含 CONDITION 三条） | frontend-phase2 | api-contract §5.6；implementation §2.4；design/frontend/conflict-rule.md §4 | T-FE-010 | ✅ | ✓ |
-| [T-PERM-031](T-PERM-031.md) | 3.4 资源依赖后端（已收口 2026-08-30，终态见 api-contract §5.6 resource-dependency 契约要点：门禁五档类型级/update PUT 全量替换+资源对业务键/等价重复 20054/操作码 fail-closed 20005/bootstrap 五条补授） | frontend-phase2 | api-contract §5.6/§6.9；core-flows §12 | T-FE-011 | ✅ | ✓ |
+| T-PERM-028 | 3.1 资源+操作定义后端（已收口，五项设计定案与终态见任务卡） | frontend-phase2 | api-contract §5.3/§6.2.2；implementation §2.9；design/frontend/resource-operation.md §8 | T-FE-008 | ✅ | ✓ |
+| [T-PERM-029](T-PERM-029.md) | 3.2 权限条件后端（已收口 2026-08-30，终态见任务卡） | frontend-phase2 | api-contract §5.6；implementation §2.5；design/frontend/permission-condition.md §8 | T-FE-009 | ✅ | ✓ |
+| [T-PERM-030](T-PERM-030.md) | 3.3 冲突规则后端（已收口 2026-08-30，终态见任务卡） | frontend-phase2 | api-contract §5.6；implementation §2.4；design/frontend/conflict-rule.md §4 | T-FE-010 | ✅ | ✓ |
+| [T-PERM-031](T-PERM-031.md) | 3.4 资源依赖后端（已收口 2026-08-30，终态见任务卡） | frontend-phase2 | api-contract §5.6/§6.9；core-flows §12 | T-FE-011 | ✅ | ✓ |
 | T-PERM-032 | 7.2 变更日志后端（已收口 2026-08-29，终态见 design/frontend/permission-change-log.md §5） | frontend-phase2 | api-contract §5.8/§6.8；implementation §2.3 | T-FE-012 | ✅ | ✓ |
-| T-PERM-033 | 4.2 权限查询后端（已收口 2026-08-29：门禁设计定案=目标实例 USER:VIEW/ROLE:VIEW 无独立排查码；explain 契约扩展 + recentChanges 权限键过滤，终态见 design/frontend/permission-query.md §8-9） | frontend-phase2 | api-contract §6.6-§6.8；implementation；design/frontend/permission-query.md | T-FE-013 | ✅ | ✓ |
-| [T-PERM-034](T-PERM-034.md) | 4.1 权限授予后端（已收口 2026-08-30，终态见任务卡完成记录：20043 不变量/SubPermissionPolicy+sub-perm-allowed-types/diff_snapshot §6.8/GoldenFixturePgIT 引擎级比对含全局操作位掩码修复（该修复后随 T-PERM-049 全局操作概念退役整体移除）；第 5 项旧端点退役已随 2026-08-27 收口） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；permission-grant.md §12；access-service.sql | T-PERM-031 | ✅ | ✓ |
+| T-PERM-033 | 4.2 权限查询后端（已收口 2026-08-29，终态见任务卡/设计回写） | frontend-phase2 | api-contract §6.6-§6.8；implementation；design/frontend/permission-query.md | T-FE-013 | ✅ | ✓ |
+| [T-PERM-034](T-PERM-034.md) | 4.1 权限授予后端（已收口 2026-08-30，终态见任务卡完成记录） | frontend-phase2 | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；permission-grant.md §12；access-service.sql | T-PERM-031 | ✅ | ✓ |
 | [T-PERM-035](T-PERM-035.md) | 自动授权（resolveAutoGrants + autoGrantForInsert + 循环依赖检测）— ⚠️ design-review §11 E4 暂缓未排期 | [frontend-phase2](../plans/frontend-phase2-plan.md) | core-flows §12；implementation §4；api-contract | T-PERM-034 | ⚙️ | ⏳ |
 | [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证（scopeMode → SQL 映射链路）— ⚠️ design-review §11 Q7/B 暂缓（延后 example-service） | frontend-phase2 | api-contract §6.7；core-flows；implementation | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |
 | [T-PERM-037](T-PERM-037.md) | 跨页共性接口改造 + api-contract 回写收尾（已收口 2026-08-31，审计型零代码变更，终态见任务卡完成记录） | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract；implementation | T-PERM-022~034 | ✅ | ✓ |
@@ -104,17 +104,17 @@
 | [T-PERM-041](T-PERM-041.md) | 主权限条件不变量（20041 不可转授 + 20042 启用状态） | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract §6.5.1；core-flows §6；permission-grant.md §4/§12；access-service.sql | T-PERM-034 | ✅ | ✓ |
 | [T-PERM-042](T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | product-vertical-slice（已归档） | api-contract；implementation；access-service-architecture | T-ACCESS-016, T-ACCESS-017 | ✅ | ✓ |
 | [T-PERM-043](T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | product-vertical-slice（已归档） | api-contract；implementation；frontend/role-manage；frontend/permission-grant | T-ACCESS-019, T-ACCESS-021 | ✅ | ✓ |
-| [T-PERM-044](T-PERM-044.md) | 四棵树（角色/组织/菜单/资源实体，后者 T-PERM-028 收口扩入）move 并发成环窗口与递归 CTE 遇环不收敛统一加固（已收口 2026-09-04：树级 Redisson 锁（事务提交后释放）+ UNION 去重/深度上限 + 内存 visited，终态见 architecture §17） | — | [T-PERM-044](T-PERM-044.md) | — | ✅ | ✓ |
+| [T-PERM-044](T-PERM-044.md) | 四棵树（角色/组织/菜单/资源实体）move 并发成环窗口与递归 CTE 遇环不收敛统一加固（已收口 2026-09-04，终态见 architecture §17） | — | [T-PERM-044](T-PERM-044.md) | — | ✅ | ✓ |
 | [T-PERM-045](T-PERM-045.md) | 内部管理门禁统一启用子级继承（父有权子有权） | — | [T-PERM-045](T-PERM-045.md) | — | ⚙️ | ⏳ |
-| [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（全局域创建入口设计 + domain_config 唯一键兜底 + 删除保护并发窗口；T-PERM-026 收口登记；全局域入口 2026-09-05 已定案） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ⚙️ | ⏳ |
+| [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（范围与定案见任务卡） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ⚙️ | ⏳ |
 | [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ✅ | ✓ |
-| [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（来源字段+resource_entity 投影+UI；T-PERM-029 收口登记，写门禁已先收窄类型级） | — | api-contract §5.6；access-service.sql | — | ⚙️ | ⏳ |
+| [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（范围见任务卡） | — | api-contract §5.6；access-service.sql | — | ⚙️ | ⏳ |
 | [T-PERM-049](T-PERM-049.md) | 全局操作概念整体退役（操作位空间按类型隔离 + DDL CHECK 焊死；外部复审 P1 越权根治） | — | api-contract §5.3；access-service.sql | — | ✅ | ✓ |
-| [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（含资源实体/授权同类引用面盘点；T-PERM-040 收口登记） | — | schema；api-contract §5.1/§5.3 | — | ⚙️ | ⏳ |
-| [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一——type-definition 写路径联动维护 resource_entity + 门禁消费方迁移（实例级授权可配 + list 实例级门禁通路；T-FE-018 决策修订查库登记；2026-09-05 定案投影三族全量/复合键，2026-09-07 定案 SYNC 声明落点/级联/自愈） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ✅ | ✓ |
-| [T-PERM-052](T-PERM-052.md) | 资源类型级所有权边界——类型声明门禁（sync 独占 + 管理面只读含级联守卫 + 声明变更守卫；2026-09-05 用户定案改定类型级方案） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.1/§5.3/§6.2.2/§6.3.1；architecture §4.3；schema | — | ✅ | ✅ |
+| [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（范围见任务卡） | — | schema；api-contract §5.1/§5.3 | — | ⚙️ | ⏳ |
+| [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一（已收口，定案与终态见任务卡） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ✅ | ✓ |
+| [T-PERM-052](T-PERM-052.md) | 资源类型级所有权边界——类型声明门禁（已收口，定案与终态见任务卡） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.1/§5.3/§6.2.2/§6.3.1；architecture §4.3；schema | — | ✅ | ✅ |
 | [T-PERM-053](T-PERM-053.md) | service-config 同步 ApiItem.operationCode 无效字段删除 | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §6.3；schema | — | ✅ | ✓ |
-| [T-PERM-054](T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置——暂缓（关联权限自动授权方向待讨论） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.4；schema | — | ⚙️ | ⏳ |
+| [T-PERM-054](T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置（暂缓——关联权限自动授权方向待讨论，见任务卡） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.4；schema | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 
@@ -139,13 +139,13 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
 | T-ADMIN-020 | access-service admin 域 CRUD 代码清理（痛点 #6，低优先级） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；access-service-architecture | — | ⚙️ | ⏳ |
-| T-ADMIN-021 | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源；已收口 2026-09-03，含债务① operationCode+treeConfigId 全顺带与响应 ItemsResp 包装，终态见任务卡完成记录——T-FE-037 依赖解锁） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §9；admin-service-api-contract §4.2.1 | — | ✅ | ✓ |
+| T-ADMIN-021 | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源；已收口 2026-09-03，终态见任务卡完成记录——T-FE-037 依赖解锁） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §9；admin-service-api-contract §4.2.1 | — | ✅ | ✓ |
 | [T-ADMIN-022](T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | product-vertical-slice（已归档） | admin-service-api-contract；schema/access-service.sql；default-org-tree-user-lifecycle | T-ORG-001, T-ACCESS-021 | ✅ | ✓ |
 | [T-ADMIN-023](T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |
 | [T-ADMIN-024](T-ADMIN-024.md) | 恒拒绝退役 API 直接删除（含 /role/revoke-menu 共 5 个） | product-vertical-slice（已归档） | admin-service-api-contract；org-user-permission-contract；access-service-architecture；architecture；default-org-tree-user-lifecycle | T-ACCESS-021 | ✅ | ✓ |
 | [T-ADMIN-025](T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture；schema/access-service.sql | T-ADMIN-023 | ✅ | ✅ |
-| [T-ADMIN-026](T-ADMIN-026.md) | XML 映射 mapper 的 Page 参数不生效族统一改造（9 方法有行即 CCE 500，服务层调用方 8/9、当前无前端消费页；已收口 2026-09-06：8 改造+死方法删除+参数面补齐（设计定案）+tie-breaker+stringtype 订正 21 文件，终态见任务卡完成记录） | — | admin-service-api-contract；rebuild-runbook | T-FE-022 | ✅ | ✓ |
-| [T-ADMIN-027](T-ADMIN-027.md) | 响应分页信封统一——admin 嵌套方言退役（12 端点迁扁平）+ PaginatedResp 更名 PageResp + 6 处裸数组收编 ItemsResp（建卡 5 + 执行发现 my-notices） | — | admin-service-api-contract；api-contract §3.3；project-rules §1.3 | — | ✅ | ✓ |
+| [T-ADMIN-026](T-ADMIN-026.md) | XML 映射 mapper 的 Page 参数不生效族统一改造（已收口 2026-09-06，终态见任务卡完成记录） | — | admin-service-api-contract；rebuild-runbook | T-FE-022 | ✅ | ✓ |
+| [T-ADMIN-027](T-ADMIN-027.md) | 响应分页信封统一——admin 嵌套方言退役 + PaginatedResp 更名 PageResp + 裸数组收编 ItemsResp（已收口，终态见任务卡） | — | admin-service-api-contract；api-contract §3.3；project-rules §1.3 | — | ✅ | ✓ |
 
 ### 组织/用户与跨服务 API
 
@@ -153,11 +153,11 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 |---|---|---|---|---|---|---|
 | [T-ORG-001](T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | product-vertical-slice（已归档） | access-service-architecture；schema/access-service.sql；implementation；default-org-tree-user-lifecycle；access-service-rebuild-runbook | T-PERM-042 | ✅ | ✓ |
 | [T-API-001](T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | product-vertical-slice（已归档） | example-service；gateway；architecture | T-ACCESS-021 | ✅ | ✓ |
-| [T-API-002](T-API-002.md) | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（已收口 2026-09-06：Query* DTO 迁 perm-common + 内部 id 字段族全线裁剪——含用户决策扩大到 check 族三接口——+ 排查页暂停最小改造 T-FE-043，终态见任务卡完成记录） | [design-audit-followup](../plans/design-audit-followup-plan.md) | core-flows §15；api-contract；perm-sdk | — | ✅ | ✓ |
+| [T-API-002](T-API-002.md) | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（已收口 2026-09-06，终态见任务卡完成记录） | [design-audit-followup](../plans/design-audit-followup-plan.md) | core-flows §15；api-contract；perm-sdk | — | ✅ | ✓ |
 
 ### 前端（前端 Phase 1/3/4 拆分）
 
-> 来源：`docs/archive/2026-08-27/improvement-plan.md` §4 各 Phase 拆分（roadmap 已归档，拆分产物即各 phase plan）。Phase 1 archived（2026-07-12 归档），Phase 3/4 proposed。页面任务 design_refs 先指后端契约，UI 设计随任务回写到 `docs/design/frontend/<page>.md`。
+> 来源：`docs/archive/2026-08-27/improvement-plan.md` §4 各 Phase 拆分（roadmap 已归档，拆分产物即各 phase plan）。Phase 1 archived（2026-07-12 归档）；Phase 3 联调九任务 2026-09-04 全部收口、2026-09-07 物理归档（[archive/2026-09-07](../archive/2026-09-07/frontend-phase3-plan.md)）；Phase 4 proposed。页面任务 design_refs 先指后端契约，UI 设计随任务回写到 `docs/design/frontend/<page>.md`。
 
 > ⚠️ **权限授予页 v1/v2 产物废弃（2026-07-26）；T-FE-018 已于 2026-08-01 按 v3 恢复（2026-09-02 收口 done）**：因对现有交互不满意，v1（`permission-grant`）+ v2（`permission-grant-v2`）两套页面及专属代码（`PermissionSummaryCell` / `ChildPermissionInline` / `RePermissionCell` / `ReConditionPicker` / `permission-grant-types` / `api/permission-grant` / `mock/permission-grant`）已删除，4 份设计文档归档至 `archive/2026-07-26/`，两个 plan 归档至 `plans/archive/2026-07/`。下表 T-FE-014 / T-FE-024~026 / T-FE-029~034 保持 ✅（历史完成事实）但产出代码已废弃；T-FE-027 / T-FE-028 / T-FE-035 标 ❌ cancelled（不再恢复）；**T-FE-018 已于 2026-08-01 按 v3 恢复、2026-09-02 收口 done（v3 设计 `design/frontend/permission-grant.md`，终态见表格行）**。注：`ReConditionEditor` / `condition-rules` 保留，仍被 `permission-condition` 页使用。
 
@@ -166,26 +166,26 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 | [T-FE-001](T-FE-001.md) | 跨页组件抽象池（清单维护 + 派生子任务） | [frontend-phase1](../archive/2026-07-12/frontend-phase1-plan.md) | design/frontend/README.md | — | ✅ | — |
 | T-FE-002 | 2.2 角色管理页（5 种角色类型 CRUD，本页仅消费功能角色） | frontend-phase1 | api-contract §5.2/§6.10.3；design/frontend/role-manage.md | T-FE-001 | ✅ | ✓ |
 | T-FE-003 | 6.1 类型定义页（type_definition code↔value 映射 CRUD） | frontend-phase1 | api-contract §5.1；design/frontend/type-definition.md | — | ✅ | ✓ |
-| T-FE-004 | 6.2 系统配置页（租户级 key-value 配置字典；任务原标题「分组表单」校正——后端/schema 无 config_group 字段，为扁平键值表，仅 list/detail/save 3 端点，save upsert 幂等无删除） | frontend-phase1 | api-contract §5.8；design/frontend/system-config.md | — | ✅ | ✓ |
-| T-FE-005 | 7.1 操作日志页（只读查询：module/action 服务端分页筛选 + 抽屉详情；后端无 detail 接口，OperationLogResp 已含全字段；~~复用 SYSTEM_CONFIG:VIEW 门禁，无独立 OPERATION_LOG 权限码~~（已随 T-PERM-025 审计分离切独立 OPERATION_LOG:VIEW，2026-08-28）；~~路径对齐后端实际 /api/perm/log/operation/list 而非契约 §5.8 写错的 /api/perm/operation-log/list~~（契约路径已于 T-ACCESS-007 评审修复修正）） | frontend-phase1 | api-contract §5.8；design/frontend/operation-log.md | — | ✅ | ✓ |
-| T-FE-006 | 5.1 业务域页（主从：BizDomain CRUD 主表 + DomainConfig 域配置子表含 CLASSIFY；biz-domain list/detail 门禁 DOMAIN:VIEW 独立资源类型新增矩阵；domain-config 子区门禁 SYSTEM_CONFIG:VIEW/MANAGE；configType 列全 5 种 SCOPE/RELATION/BINDING/SUB_PERM/CLASSIFY；2026-08-27 起收窄为 SUB_PERM/CLASSIFY 两类，白名单校验拒绝历史类型） | frontend-phase1 | api-contract §5.1/§5.6；design/frontend/biz-domain.md | — | ✅ | ✓ |
-| T-FE-007 | 5.2 服务+接口映射页（服务注册 + 接口同步 + API 映射；FULL 同步边界 + SERVICE 四类 perm 门控 + mock 交互；API 🔧 清单已登记 T-PERM-027） | frontend-phase1 | api-contract §5.4/§6.3/§6.10.4；design/frontend/service-interface-mapping.md | — | ✅ | ✓ |
+| T-FE-004 | 6.2 系统配置页（租户级 key-value 配置字典；标题校正与端点口径见 design/frontend/system-config.md） | frontend-phase1 | api-contract §5.8；design/frontend/system-config.md | — | ✅ | ✓ |
+| T-FE-005 | 7.1 操作日志页（只读查询：module/action 服务端分页筛选 + 抽屉详情；门禁/端点口径见 design/frontend/operation-log.md） | frontend-phase1 | api-contract §5.8；design/frontend/operation-log.md | — | ✅ | ✓ |
+| T-FE-006 | 5.1 业务域页（主从：BizDomain CRUD 主表 + DomainConfig 域配置子表；门禁矩阵与 configType 收窄口径见 design/frontend/biz-domain.md） | frontend-phase1 | api-contract §5.1/§5.6；design/frontend/biz-domain.md | — | ✅ | ✓ |
+| T-FE-007 | 5.2 服务+接口映射页（服务注册 + 接口同步 + API 映射；边界/门控口径见 design/frontend/service-interface-mapping.md） | frontend-phase1 | api-contract §5.4/§6.3/§6.10.4；design/frontend/service-interface-mapping.md | — | ✅ | ✓ |
 | T-FE-008 | 3.1 资源+操作定义页（资源树 CRUD + 操作定义 + 关联） | frontend-phase1 | api-contract §5.3；design/frontend/resource-operation.md | — | ✅ | ✓ |
-| T-FE-009 | 3.2 权限条件页（通用条件模板 CRUD；conditionRules 可视化编辑器 {logic,items[]} 4 类型 DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST + gatewayEvaluable 开关 T-PERM-017；~~CONDITION:VIEW~~ **设计确认移除（读取全租户开放，2026-08-08 产品确认；前后端已落地移除，路由/loadList/canCondition 门禁无残留）** → CREATE/UPDATE/DELETE 三档独立非 MANAGE 对齐后端；后端 list 无分页前端本地过滤（T-PERM-029 定案维持全量）；🔧 清单 6 项已随 T-PERM-029 收口 2026-08-30） | frontend-phase1 | api-contract §5.6；design/frontend/permission-condition.md | - | ✅ | ✓ |
-| [T-FE-010](T-FE-010.md) | 3.3 冲突规则页（ROLE_MUTEX 角色互斥/PERM_MUTEX 权限互斥 CRUD + 冲突检测对话框仅操作权限对双向匹配；表格名称映射加载 role/operation/type-def；CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE 四档独立非 MANAGE 对齐后端；🔧 清单 6 项已随 T-PERM-030 全收口 2026-08-30） | frontend-phase1 | api-contract §5.6；design/frontend/conflict-rule.md | T-FE-001 | ✅ | ✓ |
-| [T-FE-011](T-FE-011.md) | 3.4 资源依赖页（依赖 CRUD + 依赖图 echarts graph + 环检测；资源类型下拉+资源下拉联动；bits->操作码位运算拆解+id->资源映射（Resp 已补静态字段，映射保留为冗余快路径）；编辑资源对可改全量替换 Q3=B；DEPENDENCY:VIEW/CREATE/UPDATE/DELETE/SYNC 五档类型级对齐后端+SYNC(batch-sync P0 标 TODO Q5=B)；🔧 清单 8 项已随 T-PERM-031 全收口 2026-08-30，bits 字符串线格式/新字段已对齐） | frontend-phase1 | api-contract §5.6/§6.9；design/frontend/resource-dependency.md | T-FE-001, T-FE-008 | ✅ | ✓ |
+| T-FE-009 | 3.2 权限条件页（通用条件模板 CRUD；门禁史与收口口径见 design/frontend/permission-condition.md） | frontend-phase1 | api-contract §5.6；design/frontend/permission-condition.md | - | ✅ | ✓ |
+| [T-FE-010](T-FE-010.md) | 3.3 冲突规则页（ROLE_MUTEX 角色互斥/PERM_MUTEX 权限互斥 CRUD + 冲突检测对话框；门禁口径见 design/frontend/conflict-rule.md） | frontend-phase1 | api-contract §5.6；design/frontend/conflict-rule.md | T-FE-001 | ✅ | ✓ |
+| [T-FE-011](T-FE-011.md) | 3.4 资源依赖页（依赖 CRUD + 依赖图 echarts graph + 环检测；门禁/契约口径见 design/frontend/resource-dependency.md） | frontend-phase1 | api-contract §5.6/§6.9；design/frontend/resource-dependency.md | T-FE-001, T-FE-008 | ✅ | ✓ |
 | [T-FE-012](T-FE-012.md) | 7.2 权限变更日志页（diff 快照 + before/after + 影响评估） | frontend-phase1 | api-contract §5.8/§6.8；design/frontend/permission-change-log.md | T-FE-001 | ✅ | ✅ |
 | [T-FE-013](T-FE-013.md) | 4.2 权限查询/校验页（多维度查询 + 权限解释 + 拒绝原因） | frontend-phase1 | api-contract §5.7/§6.6/§6.7/§6.8；design/frontend/permission-query.md | T-FE-001 | ✅ | ✅ |
 | [T-FE-014](T-FE-014.md) | 4.1 权限授予页（选角色→勾资源树→操作矩阵→绑条件→批量保存） | frontend-phase1 | api-contract §5.5/§6.4/§6.5；design/frontend/permission-grant.md | T-FE-001, T-FE-002, T-FE-008 | ✅ | ✅ |
-| [T-FE-015](T-FE-015.md) | Phase 3 联调：组织与用户（2.1 mock→真实接口，含 menus 接线/固定图 17 授权+15 菜单+默认树种子+20 Gateway 端点/bootstrap 分页缓存缺陷修复；已收口 2026-08-31，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
-| [T-FE-016](T-FE-016.md) | Phase 3 联调：角色管理（2.2 mock→真实收口——Gateway +4 端点/编辑 extra 回显 detail 回填 + extraClear 清空协议/mock 退役删除；已收口 2026-09-01，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract | T-FE-002, T-PERM-022 | ✅ | ✓ |
-| [T-FE-017](T-FE-017.md) | Phase 3 联调：资源/操作定义（3.1 mock→真实收口——Gateway +8 端点/业务门禁 +4/maintain_source 落库缺陷修复/mock 路由段退役保数据导出；已收口 2026-09-02，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract | T-FE-008, T-PERM-028 | ✅ | ✓ |
-| [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期）——mock 四文件整删 + resource-operation 更名 _shared/resource-fixtures、TYPE_DEFINITION:VIEW 理解 A 降级落地、6 数据源全真实；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract；design/frontend/permission-grant.md（v3） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ✅ | ✓ |
-| [T-FE-037](T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期）——组织入口真实适配（一体树/ORG+POSITION 双主体/卡片+岗位行两处入口，两项用户决策），Phase 3 收官任务；已收口 2026-09-04，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ✅ | ✓ |
-| [T-FE-019](T-FE-019.md) | Phase 3 联调：权限查询/校验（4.2）——Gateway +3 端点/explain 扩展展示接线/mock 整删；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-013, T-PERM-033 | ✅ | ✓ |
-| [T-FE-020](T-FE-020.md) | Phase 3 联调：条件/冲突规则（3.2/3.3）——Gateway +9 端点/前端 conflict-rule 路径修正/mock 双文件退役；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ✅ | ✓ |
-| [T-FE-021](T-FE-021.md) | Phase 3 联调：业务域配置（5.1）——Gateway +9 端点/前端 api 双文件路径修正/mock 四文件整删；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-006, T-PERM-026 | ✅ | ✓ |
-| [T-FE-022](T-FE-022.md) | Phase 3 联调：系统/服务配置与日志（6.x/5.2/7.x）——Gateway +16 端点/TYPE_DEFINITION 写门禁 +2/keyword CAST 系统性修复 9 mapper + ConfigForm 前缀对齐/mock 四文件整删；已收口 2026-09-03，终态见任务卡完成记录（XML+Page 族登记 T-ADMIN-026、assign 审计不对称记本卡已知差距） | frontend-phase3（已归档） | api-contract | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 | ✅ | ✓ |
+| [T-FE-015](T-FE-015.md) | Phase 3 联调：组织与用户（2.1 mock→真实接口；已收口 2026-08-31，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
+| [T-FE-016](T-FE-016.md) | Phase 3 联调：角色管理（2.2 mock→真实收口；已收口 2026-09-01，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract | T-FE-002, T-PERM-022 | ✅ | ✓ |
+| [T-FE-017](T-FE-017.md) | Phase 3 联调：资源/操作定义（3.1 mock→真实收口；已收口 2026-09-02，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract | T-FE-008, T-PERM-028 | ✅ | ✓ |
+| [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract；design/frontend/permission-grant.md（v3） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ✅ | ✓ |
+| [T-FE-037](T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期）；已收口 2026-09-04，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ✅ | ✓ |
+| [T-FE-019](T-FE-019.md) | Phase 3 联调：权限查询/校验（4.2）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-013, T-PERM-033 | ✅ | ✓ |
+| [T-FE-020](T-FE-020.md) | Phase 3 联调：条件/冲突规则（3.2/3.3）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ✅ | ✓ |
+| [T-FE-021](T-FE-021.md) | Phase 3 联调：业务域配置（5.1）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-006, T-PERM-026 | ✅ | ✓ |
+| [T-FE-022](T-FE-022.md) | Phase 3 联调：系统/服务配置与日志（6.x/5.2/7.x）；已收口 2026-09-03，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 | ✅ | ✓ |
 | T-FE-023 | Phase 4：SPI 策略扩展验证 + 扩展指南（design/frontend/extension-guide.md） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；design/frontend/extension-guide.md | — | ⚙️ | ⏳ |
 | [T-FE-024](T-FE-024.md) | ReConditionPicker + ReConditionEditor + ChildPermissionInline 条件/子权限组件抽取 | [frontend-phase4](../plans/frontend-phase4-plan.md) | design/frontend/permission-condition.md；permission-grant.md | T-FE-001, T-FE-009, T-FE-014 | ✅ | ✅ |
 | [T-FE-025](T-FE-025.md) | 权限授予中栏资源权限概览与授权入口 | [permission-grant-ux-refactor](../plans/archive/2026-07/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.3/§16.8 | T-FE-014 | ✅ | ✅ |
@@ -199,10 +199,10 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 | [T-FE-034](T-FE-034.md) | V2保存前总览+失败两子态+STALE_WITH_CHILD_FAILURE+fetchBaseline+离开保护 | permission-grant-v2 | design/frontend/permission-grant-{state-model,error-flow,interaction}.md §2/§2.5/§4.5 | T-FE-033 | ✅ | ✅ |
 | [T-FE-035](T-FE-035.md) | 扩展V2 transport（多条件+失败模拟）+失格降级+回归验证+设计回写 | [permission-grant-v2](../plans/archive/2026-07/permission-grant-v2-plan.md) | design/frontend/permission-grant-{error-flow,state-model}.md §2.8/§8 | T-FE-034 | ❌ | ⏳ |
 | [T-FE-027](T-FE-027.md) | 权限授予三栏状态整合、回归验证与设计回写 | [permission-grant-ux-refactor](../plans/archive/2026-07/permission-grant-ux-refactor-plan.md) | ~~permission-grant.md §16.6~§16.9~~（已删） | T-FE-025, T-FE-026, T-FE-028 | ❌ | ⏳ |
-| [T-FE-036](T-FE-036.md) | 4.1 权限授予页重设计（v3：查看为主+操作中心授权弹窗+详情层+变更清单；范围：状态机四态/GoldenFixture 6 用例/Step3 多选/组织入口二期；DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机/交互先行） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md（v3）；api-contract §5.5/§6.4/§6.5/§6.5.1 | T-FE-001, T-FE-002, T-FE-008, T-FE-009 | ✅ | ✓ |
+| [T-FE-036](T-FE-036.md) | 4.1 权限授予页重设计（v3：查看为主+操作中心授权弹窗+详情层+变更清单；范围与 DoD 见任务卡） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md（v3）；api-contract §5.5/§6.4/§6.5/§6.5.1 | T-FE-001, T-FE-002, T-FE-008, T-FE-009 | ✅ | ✓ |
 | [T-FE-038](T-FE-038.md) | 4.1 权限授予页单类型矩阵上下文 | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §2.2/§3.1/§3.2/§3.5/§3.6/§11/§13.2/§13.4；api-contract §5.1/§5.3/§6.4 | T-FE-036 | ✅ | ✅ |
 | [T-FE-039](T-FE-039.md) | 4.1 矩阵图标正交状态模型与图标精简 | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §3.3/§6.2/§11（S2/S5/S6/S10/S11）/§13.5；api-contract §6.5.1（20041 配套） | T-FE-038 | ✅ | ✅ |
-| [T-FE-040](T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录已确认：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要；mock-first） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md（v3.1）；api-contract §6.5.1/§6.5.2；plans/permission-grant-record-level-editing-proposal.md | T-FE-039 | ✅ | ✓ |
+| [T-FE-040](T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录见任务卡；mock-first） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md（v3.1）；api-contract §6.5.1/§6.5.2；plans/permission-grant-record-level-editing-proposal.md | T-FE-039 | ✅ | ✓ |
 | [T-FE-041](T-FE-041.md) | 前端真实登录链路与默认导航收敛 | product-vertical-slice（已归档） | admin-service-api-contract；gateway；frontend/README；frontend/login | T-ACCESS-020 | ✅ | ✓ |
 | T-FE-042 | ~~前端默认导航收敛~~（❌ cancelled 2026-08-23：范围并入 T-FE-041，同为前端发布面避免任务碎片化） | product-vertical-slice（已归档） | frontend/README | — | ❌ | — |
 | [T-FE-043](T-FE-043.md) | 权限排查页（permission-query）重做——暂停期问题与功能登记（2026-09-06 用户定案页面暂停；暂停期其他任务仅编译一致最小改动，评审缺陷改登记本卡） | — | design/frontend/permission-query.md；api-contract §6.7 | — | ⚙️ | ⏳ |
@@ -275,7 +275,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 
 ### P4 — 工作单 D/E/F（执行前确认；E 已于 2026-08-28 收口）
 
-1. `T-PERM-019` 工作单 D 防呆机制：整体无硬冲突，但 `typeValue` 外部入参描述和软删不复用保证方式存在 `DESIGN_DRIFT`，需先确认并回写设计。
+1. `T-PERM-019` 工作单 D 防呆机制 — ✅ 已收口（2026-09-07）：D1 已随 T-PERM-023/api-contract 收口（原 DESIGN_DRIFT 不存在）、D2 BusinessKeys 收敛、D3 三方一致性核对落地。完成记录见任务卡。
 2. `T-PERM-020` 工作单 E 清理预设 — ✅ 已收口（2026-08-28）：删除零调用 `forResourceQuery`/`forResourceCheck`（`forValidate` 保留，有生产调用）；domain_config schema 表头注释、AGENTS/copilot MQ 口径同步；auto-grant 禁用态核实已收敛。完成记录见任务卡。
 3. `T-PERM-021` 工作单 F 文档准确性与代码简化：ownership 字段删除、`request_id NOT NULL` 均存在当前设计约束，且 `requestId`/`traceId` 语义需先收敛；执行前必须确认 F1.c/F1.d。
 
@@ -331,7 +331,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 1. `T-ACCESS-028` perm-data 空装配模块删除 — ✅ done（2026-08-28）
 2. `T-ACCESS-027` 文档三档叙事整改 — ✅ done（2026-08-28：三档口径入口落位 design/README、architecture §4.2/§4.3 演示模块重写三档标注、决策过程标注清扫 27 处；计划已 completed，物理归档待后续批次）
 
-后续节奏（2026-08-28 定案）：维护债 → 定位落地文档整改 → 简单页后端改造（`T-PERM-023/024/025/022`）；权限授予主链等复杂核心任务（`T-PERM-034` 主体、`T-PERM-040/041`、Phase 3 联调）等用户时间充足再启动。
+后续节奏（2026-08-28 定案，所列批次现已全部完成）：「简单页后端改造 T-PERM-022~025」2026-08-28 收口、「权限授予主链 T-PERM-034/040/041」2026-08-30~31 收口、Phase 3 联调 2026-09-04 全部收口；当前待办以任务板各分区状态为准。
 
 ### 不排期（待立项）
 

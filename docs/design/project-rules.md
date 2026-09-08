@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-09-06   # T-ADMIN-027：§1.3 补信封承载类单源指引；2026-08-12 access-service 归并：错误码继续按管理域/权限域分段
+last_reviewed: 2026-09-07   # 规范性文件审查修复（traceId 口径/log4j2 单文件/N+1 表指针化/软删例外/租户入口/openfeign 前缀/路径模板）；2026-09-06 T-ADMIN-027：§1.3 补信封承载类单源指引；2026-08-12 access-service 归并：错误码继续按管理域/权限域分段
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -57,7 +57,7 @@ last_reviewed: 2026-09-06   # T-ADMIN-027：§1.3 补信封承载类单源指引
 | `message`   | `String` | 面向前端展示的提示文本，不得包含堆栈信息                      |
 | `data`      | `Object` | 业务数据；失败时为 `null`                                     |
 | `requestId` | `String` | 请求追踪 ID，由 Gateway 生成                                  |
-| `traceId`   | `String` | 链路追踪 ID，由 Micrometer Tracing 生成，网关注入并全链路透传 |
+| `traceId`   | `String` | 链路追踪 ID，`RResponseAdvice` 回填：优先取上游 `X-Trace-Id` 请求头，缺省与 `requestId` 相同（`X-Request-Id` 由 Gateway `RequestIdFilter` 生成/透传） |
 
 > 响应壳构造统一使用 `R.ok(data)` / `R.fail(code, message)`；`requestId/traceId` 由 `RResponseAdvice` 在序列化前回填，业务代码不写入。
 
@@ -154,19 +154,20 @@ last_reviewed: 2026-09-06   # T-ADMIN-027：§1.3 补信封承载类单源指引
 ### 2.2 路径命名规范
 
 ```
-/v{version}/{resource}/{action}
+/api/{module}/{resource}/{action}
 ```
 
-示例：
+示例（permission 域现行 Controller 实际形态）：
 
-| 路径               | 说明       |
-| ------------------ | ---------- |
-| `/api/user/create` | 创建用户   |
-| `/api/user/update` | 更新用户   |
-| `/api/user/delete` | 删除用户   |
-| `/api/user/get`    | 查询单条   |
-| `/api/user/page`   | 分页查询   |
-| `/api/user/list`   | 不分页列表 |
+| 路径                              | 说明       |
+| --------------------------------- | ---------- |
+| `/api/perm/abstract-role/create`  | 创建角色   |
+| `/api/perm/abstract-role/update`  | 更新角色   |
+| `/api/perm/abstract-role/remove`  | 删除角色   |
+| `/api/perm/abstract-role/list`    | 分页列表   |
+| `/api/perm/log/operation/list`    | 操作日志   |
+
+> admin 域存量为资源根三段形态（Controller 挂 `/user`、`/org` 等，如 `/user/create`），外部经 Gateway 路由 `/admin/**`（StripPrefix=1）访问；新增接口（含 admin 域）统一按上方四段模板。
 
 规则：
 
@@ -285,13 +286,13 @@ RuntimeException
 
 | MDC Key       | 来源                                                            |
 | ------------- | --------------------------------------------------------------- |
-| `traceId`     | Micrometer Tracing 自动注入                                     |
+| `traceId`     | `RequestContextInterceptor` 写入 MDC：取 `X-Request-Id` 头，缺省生成 UUID（截断 64 字符） |
 | `userId`      | 网关解析 Token 后写入请求 Header，服务层从 SecurityContext 读取 |
 | `tenantId`    | 同上                                                            |
 | `serviceCode` | 服务启动时从配置文件读取                                        |
 
-- 使用 Filter（WebMVC）在请求入口设置 MDC，请求结束后**必须 clear**（防 ThreadPool 污染）。
-- Feign 调用时需通过 `RequestInterceptor` 将 MDC 字段透传到下游 Header。
+- access-service 由 `RequestContextInterceptor` 在请求入口设置 MDC，请求结束后**必须 clear**（防 ThreadPool 污染）。
+- Feign 跨服务透传现状：SDK `FeignInternalSyncInterceptor` 仅注入 `X-Internal-Secret` / `X-Service-Code`；`X-Trace-Id` 跨服务透传尚未实现，跨服务日志关联暂依赖 Gateway 的 `X-Request-Id` 头链。
 
 ### 4.4 日志级别规范
 
@@ -326,7 +327,7 @@ RuntimeException
 ERROR 级别单独写入 error.log，保留 180 天
 ```
 
-两套配置分别放 `log4j2-dev.xml` / `log4j2-prod.xml`，通过 Spring Profile 激活。
+三服务各使用单文件 `log4j2-spring.xml`（`application.yml` 经 `logging.config: classpath:log4j2-spring.xml` 显式指定）；上述保留期为部署侧目标要求，按环境在该文件/部署配置中落实。
 
 ---
 
@@ -435,6 +436,8 @@ private LocalDateTime createdAt;
 private LocalDateTime updatedAt;
 private LocalDateTime deletedAt;
 ```
+
+> 适用范围为可变业务实体；例外见 §13.2（四类日志表不做软删、纯关联状态表无审计字段，以权威 DDL 为准）。
 
 ### 7.4 日期时间类型
 
@@ -612,7 +615,7 @@ cn.ac.fage.accessmesh.{service}
 
 调度层 ResourceManageAppServiceImpl
   └→ 调用 ResourceEntityDomainService.batchGetDescendantIds()（层级遍历）
-  └→ 调用 OperationPermission.getEffectiveBits()（实体方法）
+  └→ 权限判定统一走 PermQueryEngine（hasPermissionByCode / hasPermissionByEntityId / getDeniedEntityIds / getDeniedResourceCodes）
 ```
 
 **违反此规范的代码评审时必须打回修改**。
@@ -678,23 +681,10 @@ Map<Long, AbstractRole> roleMap = roles.stream()
 | ---------------- | -------------------------------------------------------------------- |
 | 权限批量检查     | `PermQueryEngine.getDeniedResourceCodes()` / `PermQueryEngine.getDeniedEntityIds()`（T-PERM-042 终态，旧 validateBatch/getDeniedIds 已删除） |
 | 授权批量校验     | `PermissionGrantDomainService.checkCanGrant()`                       |
-| 角色批量加载     | `PermQueryEngine.batchLoadRoles(Set<Long> roleIds)`                  |
-| 操作权限批量加载 | `PermQueryEngine.batchLoadOperations(Set<Long> opIds)`               |
+| 角色批量加载     | `PermQueryEngine.batchLoadRoles(Long tenantId, Set<Long> ids)`（引擎内部私有方法；外部批量加载走 `abstractRoleMapper.selectValidByIds(tenantId, ids)`） |
+| 操作权限批量加载 | `PermQueryEngine.batchLoadOperations(Long tenantId, Set<Long> ids)`（引擎内部私有方法；外部批量加载走 `operationPermissionMapper.selectValidByIds(tenantId, ids)`） |
 
-**N+1 问题跟踪**：
-
-| 状态      | Service                        | 方法                   | 问题描述                          |
-| --------- | ------------------------------ | ---------------------- | --------------------------------- |
-| ✅ 已修复 | `UserServiceImpl`              | `batchCreateUsers`     | 循环内单条查询父组织/检查编码重复 |
-| ✅ 已修复 | `OrgServiceImpl`               | `batchCreateOrgs`      | 循环内单条查询父组织/检查编码重复 |
-| ✅ 已修复 | `MenuServiceImpl`              | `batchCreateMenus`     | 循环内单条查询父菜单/检查路径重复 |
-| ❌ 待修复 | `UserOrgServiceImpl`           | `setPrimaryOrg`        | 循环内单条查询用户组织关系        |
-| ✅ 已修复 | `DictServiceImpl`              | `listDictTypes`        | 循环内单条查询字典类型详情        |
-| ❌ 待修复 | `RoleManageAppServiceImpl`     | `deleteRoles`          | 循环内单条查询角色权限并删除      |
-| ❌ 待修复 | `UserManageAppServiceImpl`     | `assignRole`           | 循环内单条查询用户并分配角色      |
-| ❌ 待修复 | `UserManageAppServiceImpl`     | `assignRolesBatch`     | 循环内单条查询用户并批量分配角色  |
-| ❌ 待修复 | `ResourceManageAppServiceImpl` | `batchCreateResources` | 循环内单条查询父资源/检查编码重复 |
-| ❌ 待修复 | `ResourceManageAppServiceImpl` | `deleteResources`      | 循环内单条查询资源依赖并删除      |
+存量 N+1 整改进度以任务板（`docs/tasks/README.md`）为准，本规范不维护逐方法状态表（避免随代码演进腐化）；规范本体只保留上表的批量约束与批量模式。
 
 **评审标准**：
 
@@ -807,7 +797,7 @@ public UserDetailResp getUserDetail(Long userId) { ... }
 - **L1_ONLY 实现**: `CaffeineLocalCacheStore`
 - **配置**: `CacheProperties`（代码默认值 + `accessmesh.cache.default-config` / `accessmesh.cache.catalogs.*` 运维覆盖，Spring Boot Duration 文法如 `15s`/`5m`）
 - **跨实例 L1 失效广播**: `CacheInvalidationBroadcaster`（Redisson 可用时自动装配，L1_L2 目录失效时经 RTopic 广播，各实例订阅清理本地 L1）
-- **自动配置**: `CacheAutoConfiguration` 始终创建唯一 `CacheService`；`RedissonCacheAutoConfiguration` 只在 Redisson 可用时补充 store bean 与广播器
+- **自动配置**: `CacheAutoConfiguration` 按 `accessmesh.cache.enabled` 装配唯一 `CacheService`（默认启用，显式 `false` 关闭）；`RedissonCacheAutoConfiguration` 只在 Redisson 可用时补充 store bean 与广播器
 
 **核心规范**：
 
@@ -928,16 +918,18 @@ updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 deleted_at  TIMESTAMPTZ
 ```
 
+> 例外（以权威 DDL `docs/design/schema/access-service.sql` 为准）：`sys_login_log`、`operation_log`、`sys_job_log`、`permission_change_log` 四类日志表不做软删除；`sys_user_notice` 等纯关联状态表无审计字段、唯一索引不加 `WHERE delete_flag = 0`（行生命周期即业务状态，物理删除/唯一键即可表达）。
+
 ### 13.3 设计原则
 
 - **无物理外键**：所有表关联为逻辑 ID，由应用层保证数据一致性。
-- **软删除**：统一使用 `delete_flag`（删除时设为本行 id 值），所有唯一约束必须附加 `WHERE delete_flag = 0`。
+- **软删除**：统一使用 `delete_flag`（删除时设为本行 id 值），可变业务表的唯一约束必须附加 `WHERE delete_flag = 0`；四类日志表与纯关联状态表例外见 §13.2。
 - **无 ENUM 类型**：枚举值使用 `INT` 或 `VARCHAR`，枚举含义在代码枚举类中维护。
 - **租户隔离（MyBatis-Flex TenantFactory 自动处理）**：
   - 所有多租户数据表必须包含 `tenant_id` 列。
   - **已全局配置 TenantFactory**：`MybatisFlexTenantConfig` 通过 `TenantManager.setTenantFactory()` 自动为所有 SQL 查询添加 `tenant_id = ?` 条件。
   - **开发者无需手动添加 tenant_id 条件**：`selectOneById(id)`、`selectListByQuery()` 等方法会自动注入租户过滤。
-  - **前提条件**：请求入口必须通过 `TenantInterceptor` 设置 `TenantContextHolder.setTenantId()`，否则租户过滤不生效。
+  - **前提条件**：请求入口必须经过 `RequestContextInterceptor`（唯一绑定 `AccessRequestContext` 的 HTTP 入口，T-ACCESS-004 起替换旧 TenantInterceptor/PermTenantInterceptor 双链）设置租户上下文，否则租户过滤不生效；`TenantContextHolder` 仅作兼容门面委托该上下文，新代码直接用 `AccessRequestContext`。
   - **特殊场景**：如需跨租户查询（仅限系统管理场景），使用 `TenantManager.ignore()` 临时绕过，但必须在代码中添加注释说明原因。
 - **禁止存储明文密码**。
 - 大字段（JSON 配置等）使用 PostgreSQL `JSONB` 类型。
@@ -963,7 +955,7 @@ deleted_at  TIMESTAMPTZ
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="cn.ac.fage.accessmesh.permission.mapper.UserRoleMapper">
+<mapper namespace="cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper">
 
     <update id="softDeleteBatch">
         UPDATE user_role
@@ -1010,14 +1002,17 @@ int softDeleteBatch(...);
 ### 14.1 超时配置
 
 ```yaml
-feign:
-  client:
-    config:
-      default:
-        connectTimeout: 3000 # 连接超时 3s
-        readTimeout: 5000 # 读取超时 5s
-      permission-center:
-        readTimeout: 10000 # 鉴权接口可适当放宽
+spring:
+  cloud:
+    openfeign:
+      client:
+        config:
+          default:
+            connect-timeout: 3000 # 连接超时 3s
+            read-timeout: 5000 # 读取超时 5s
+          # 客户端键与 @FeignClient(name=...) 一致（本仓库为 access-service）
+          access-service:
+            read-timeout: 10000 # 鉴权接口可适当放宽
 ```
 
 ### 14.2 Header 透传

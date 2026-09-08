@@ -33,14 +33,14 @@ metadata:
 - `CacheProperties` - 代码默认值 + YAML 运维覆盖（Spring Duration 文法 `15s`/`5m`）
 - `CacheInvalidationBroadcaster` / `RedissonCacheInvalidationBroadcaster` - 普通 L1 跨实例失效广播（RTopic）
 - `CacheInvalidationMessage` - 广播消息载荷
-- `CacheAutoConfiguration` - 始终创建唯一 `CacheService`
+- `CacheAutoConfiguration` - 装配唯一 `CacheService`（`accessmesh.cache.enabled`，默认启用，显式 false 关闭）
 - `RedissonCacheAutoConfiguration` - 仅在 Redisson 可用时补充 store bean 与广播器
 
 ## 当前装配模型
 
 ### 1. 只有一个 CacheService bean
 
-- `CacheAutoConfiguration` 始终创建唯一的 `CacheService`
+- `CacheAutoConfiguration` 装配唯一的 `CacheService`（`accessmesh.cache.enabled`，默认启用，显式 false 关闭）
 - `RedissonCacheAutoConfiguration` 不再创建第二个 `CacheService`
 - Redisson 自动配置只负责贡献：
   - `CombinedL1L2Store`
@@ -130,7 +130,7 @@ if (!miss.isEmpty()) {
 
 ## 普通 L1 跨实例失效广播（T-ACCESS-008）
 
-- `L1_L2` 目录 evict/evictAll 时，`DefaultCacheService` 在清理共享 L2 的同时经 `CacheInvalidationBroadcaster` 向 RTopic `accessmesh:cache:l1-invalidate` 广播 `{catalogCode, tenantId, keys|all}`
+- `L1_L2` 目录 `evict` / `evictBatch` / 租户级 `evictAll(catalog, tenantId)` 时，`DefaultCacheService` 在清理共享 L2 的同时经 `CacheInvalidationBroadcaster` 向 RTopic `accessmesh:cache:l1-invalidate` 广播 `{catalogCode, tenantId, keys|all}`；**catalog 级跨租户 `evictAll(catalog)` 不广播**（订阅重连等恢复场景，各实例重连时各自执行同等清理，其他实例 L1 由自身 TTL 兜底）
 - 各实例订阅后清理本地 `CombinedL1L2Store` 的对应 L1 条目（`invalidateLocalL1` / `invalidateLocalL1All`）
 - 广播失败不抛异常、不影响已提交事务：记 WARN + `cache.invalidate.failures` 指标（type=broadcast/subscribe/listen），各实例 L1 由自身 TTL 兜底
 - 回滚不失效（广播只发生在 evict 实际执行时，事务场景即提交后）

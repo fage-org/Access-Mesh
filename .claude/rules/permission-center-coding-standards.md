@@ -97,7 +97,10 @@ PermQuery q = PermQuery.forUserView(tenantId, userId);
 PermResult r = engine.query(q);
 
 PermQuery q = PermQuery.forValidate(tenantId, operatorId, resourceTypeCode, resourceCode, operationCode);
-PermResultUtils.validateOrThrow(engine.query(q));
+PermResult r = engine.query(q);
+if (!r.allowed()) {
+    throw new SecurityException("Permission denied: ...");
+}
 ```
 
 ### 异常边界（permission-center）
@@ -173,7 +176,7 @@ public class UserManageController { }
 
 ## 5. 事务边界
 
-**MUST** 在 AppService 声明事务，DomainService 不声明事务。
+**MUST** 事务边界默认在 AppService 入口声明（写路径单事务原子）。DomainService 默认不声明事务（事务由调用方声明，如 `SyncMetadataDomainService` 契约明示）；确需独立事务语义的领域组件可声明——如 `AuditDomainServiceImpl.asyncRecordLog` 的 `@Async + REQUIRES_NEW` 独立审计短事务、`SubjectDomainServiceImpl` 领域内写事务。禁止的是把编排级事务边界下沉到领域层，而非领域层一律禁事务。
 
 ```java
 // ✅ 正确 — AppService 声明事务
@@ -187,8 +190,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     @Transactional(readOnly = true)
-    public RoleResp getRole(Long tenantId, Long roleId) {
-        // 只读操作
+    public RoleResp getRole(Long tenantId, String roleTypeCode, String roleExternalId) {
+        // 只读操作（未命中返回 null，与 list 空分页同口径）
     }
 }
 
@@ -281,8 +284,8 @@ entityBatchLoadDomainService.batchLoadResources(...);  // 类已删除
 // ✅ 正确 — 使用 @OperationLog 注解
 @Override
 @Transactional(rollbackFor = Exception.class)
-@OperationLog(module = "perm", action = "ROLE_RESOURCE_PERMISSION_APPLY_PLAN", targetType = "abstract_role",
-    targetId = "#req.roleExternalId", summary = "apply grant plan")
+@OperationLog(module = "PERMISSION", action = "ROLE_RESOURCE_PERMISSION_APPLY_PLAN", targetType = "abstract_role",
+    targetId = "#req.roleExternalId", summary = "'apply grant plan'")
 public List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlanReq req) {
     // 业务逻辑
     // 不再需要手动调用 auditDomainService.asyncRecordLog(...) 做入口级日志
@@ -310,24 +313,23 @@ auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
 auditDomainService.asyncRecordLog(...); // 仅在非入口级场景
 ```
 
-## 8. 同层禁止横向调用
+## 8. 同层横向调用边界
 
-**MUST NOT** AppService 之间不得互相注入。
+同层横向调用**允许**（project-rules §8.2，2026-08-22 全局放开）：AppService 互调、DomainService 互调、跨域 Service/AppService 注入复用（如 `ServiceConfigAppServiceImpl` 注入 `ResourceManageAppService`）均可，无需登记例外。通用约束：仅限同层（跳层禁令不变）、**不得形成循环依赖**、复用方不得重复实现被复用方已有的领域逻辑、跨域 Mapper 直读边界不变（admin/permission 域互不直读对方 Mapper）。
 
 ```java
-// ❌ 禁止 — AppService 注入另一个 AppService
+// ✅ 允许 — 同层横向注入复用（无循环依赖即可；字段为各类型示意，非该类完整依赖清单）
 @Service
-public class RoleManageAppServiceImpl implements RoleManageAppService {
-    private final PermissionGrantAppService permissionGrantAppService; // WRONG
+public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
+    private final ResourceManageAppService resourceManageAppService; // 同层 AppService 复用 OK
+    private final SubjectDomainService subjectDomainService;         // DomainService OK
+    private final PermQueryEngine engine;                            // Engine OK
+    private final AbstractRoleMapper abstractRoleMapper;             // Mapper OK（AppService 注入 Mapper 本身合法）
 }
 
-// ✅ 正确 — AppService 注入 DomainService 或 Engine
-@Service
-public class RoleManageAppServiceImpl implements RoleManageAppService {
-    private final SubjectDomainService subjectDomainService;  // OK
-    private final PermQueryEngine engine;                     // OK
-    private final AbstractRoleMapper abstractRoleMapper;      // OK
-}
+// ❌ 禁止 — 循环依赖与反向跳层
+// AAppServiceImpl 注入 BAppService，BAppServiceImpl 又注入 AAppService → 循环依赖
+// DomainService 注入 AppService（反向调用调度层）→ 跳层
 ```
 
 ## 9. 业务域分类
@@ -402,7 +404,9 @@ userRoleMapper.selectListByQuery(...)
 // ✅ 正确
 long bits = OperationPermissionUtils.effectiveBits(op);
 boolean ok = OperationPermissionUtils.covers(granted, target);
-List<RolePermEntry> filtered = OperationPermissionUtils.filterByOperation(entries, opCache, targetOp);
+// 全量方法族见 OperationPermissionUtils：effectiveBits / covers / computeCoveringBitMask /
+// coveredOperations / indexByResourceTypeAndBinaryBit / findIndexedByResourceTypeAndBinaryBit /
+// findByResourceTypeAndBinaryBit（filterByOperation 等旧方法不存在，勿引用）
 ```
 
 ## 13. RolePermEntry 构造
@@ -430,24 +434,21 @@ boolean ok = ConditionEvalUtils.evalItem(jsonNode, context, ...);
 
 ## 15. MyBatis-Flex TableDef 使用（全模块）
 
-**ALL MODULES MUST** 使用普通导入或 `Tables` 类，**禁止静态导入 `*TableDef` 类**。
+**ALL MODULES MUST** 使用普通导入（`XxxTableDef` 类名引用），**禁止静态导入 `*TableDef` 类**；本仓未开启 MyBatis-Flex 聚合 `Tables` 类生成（构建产物无 `Tables.java`），勿引用。
 
 ```java
-// ✅ 正确 — 使用 Tables 类（APT 生成）
-import cn.ac.fage.accessmesh.permission.entity.table.Tables;
-
-QueryWrapper qw = QueryWrapper.create()
-    .where(Tables.ABSTRACT_ROLE.ID.eq(roleId));
-
-// ✅ 正确 — 普通导入 + 类名引用
-import cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef;
+// ✅ 正确 — 普通导入 TableDef + 类名引用（本仓唯一可用形态）
+import cn.ac.fage.accessmesh.access.permission.entity.table.AbstractRoleTableDef;
 
 QueryWrapper qw = QueryWrapper.create()
     .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(roleId));
 
 // ❌ 禁止 — 静态导入
-import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
+import static cn.ac.fage.accessmesh.access.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
 // mvn clean 后编译失败
+
+// ❌ 勿引用 — 聚合 Tables 类本仓未生成（无 Tables.java），照抄必编译失败
+import cn.ac.fage.accessmesh.access.permission.entity.table.Tables;
 ```
 
 ## 16. 常量类使用
@@ -458,7 +459,7 @@ import static cn.ac.fage.accessmesh.permission.entity.table.AbstractRoleTableDef
 
 ```java
 // ✅ 正确
-import cn.ac.fage.accessmesh.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 
 engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE);
 engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.CREATE);
@@ -473,7 +474,7 @@ OperationType.MANAGE  // 类已删除
 
 ```java
 // ✅ 正确
-import cn.ac.fage.accessmesh.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 
 engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE);
 
@@ -522,7 +523,7 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 
 | # | 检查点 | 参考 |
 |---|--------|------|
-| 1 | 是否有可复用的 DomainService 方法？ | §6 批量实体加载、§8 同层禁止横向调用 |
+| 1 | 是否有可复用的 DomainService 方法？ | §6 批量实体加载、§8 同层横向调用边界 |
 | 2 | 命名是否符合分层规范？ | §3 命名规范 |
 | 3 | 是否引用了已删除的类？ | §17 已删除的类 |
 | 4 | 是否引用了已删除的实体字段（如 `bizDomainId`）？ | §18 已删除的实体字段 |
@@ -537,7 +538,7 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 | 8 | 异常类型是否正确（BizException / SystemException / SecurityException）？ | §2 异常边界 |
 | 9 | 操作日志是否使用 `@OperationLog` AOP（入口级）或 `AuditDomainService`（内部动态）？ | §7 操作日志 |
 | 10 | 缓存失效是否绑定事务提交后执行（`evictAfterCommit`）？ | §5 事务边界 |
-| 11 | 是否避免了 AppService 间横向注入？ | §8 同层禁止横向调用 |
+| 11 | 同层横向调用是否合规（无循环依赖、不重复实现被复用逻辑、跨域 Mapper 直读边界不变）？ | §8 同层横向调用边界 |
 | 12 | 业务域过滤是否通过 `DomainClassifyService`（而非直查 `bizDomainId`）？ | §9 业务域分类 |
 
 ### 文档与提交检查
@@ -546,7 +547,7 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 |---|--------|------|
 | 13 | 文档使用中文标题和描述 | 项目约定 |
 | 14 | Commit message 格式：`<type>(<scope>): <中文描述>` | Conventional Commits |
-| 15 | 提交前通过 `mvn compile` + `mvn test` | 提交前验证要求 |
+| 15 | 提交前按 AGENTS.md 测试运行纪律选轨道验证（日常 `-DskipTestcontainers=true` 单测轨道；收口全量 `-T 1C` 含 E2E；上游 API 变更先 `mvn install -pl <上游模块> -DskipTests`） | 提交前验证要求 |
 
 ### 过度设计警示
 

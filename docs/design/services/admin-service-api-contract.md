@@ -34,7 +34,7 @@ last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事�
 
 引用 `project-rules.md`:
 
-- **§1.1 统一响应壳**: 所有接口返回 `R<T> { code, message, data, requestId, traceId }`. `code=200` 为成功, 失败时 `data=null`. `requestId/traceId` 由网关与 Micrometer Tracing 注入, 业务侧不写入.
+- **§1.1 统一响应壳**: 所有接口返回 `R<T> { code, message, data, requestId, traceId }`. `code=200` 为成功, 失败时 `data=null`. `requestId/traceId` 由 `RResponseAdvice` 在序列化前回填（`X-Request-Id` 由网关生成/透传；`traceId` 优先上游 `X-Trace-Id` 头、缺省同 `requestId`）, 业务侧不写入.
 - **§1.3 分页**: 入参 `{ pageNum, pageSize, sort? }`, `pageNum>=1`, `1<=pageSize<=100`, `sort` 形如 `"createdAt,desc"`. 出参分页对象统一为 `PageResp<T> { items: T[], total, pageNum, pageSize, hasNext }`（承载类 perm-common `perm.common.dto.resp.PageResp`，admin/permission 域与 SDK 单一来源）. 非分页列表也必须用 `{ items: [...] }` 包装, 禁止顶层数组.
 - **§2.1 HTTP 方法**: 所有接口 `POST + application/json + @RequestBody DTO`. 禁止 `@GetMapping/@PutMapping/@DeleteMapping/@PatchMapping`, 禁止 `@RequestParam` (除文件上传/下载), 禁止路径参数. 业务 ID 必须放 JSON Body.
 - **§2.2 路径**: access-service admin 域挂载在网关路由 `/admin/api/**` 下, 实际控制器映射为 `/user`, `/org`, `/user-org`, `/user-role`, `/role` 等资源根. 本契约文档中所有路径均为服务内部映射 (前端经网关访问).
