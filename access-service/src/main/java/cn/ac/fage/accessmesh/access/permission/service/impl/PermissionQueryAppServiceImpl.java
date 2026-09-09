@@ -295,8 +295,11 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
 
         PermResult result = engine.query(q);
-        if (!result.allowed()) {
-            // 父资源无任何匹配权限（或 depend_on/评估清空）→ 整体拒绝，所有 scope 格置 DENIED
+        if (!result.allowed()
+            && ("PARENT_NO_PERMISSION".equals(result.reason()) || "NO_ROLE".equals(result.reason()))) {
+            // 仅「父资源无任何匹配权限 / 无角色」整表拒绝；条件评估清空与 depend_on 清空
+            // 不属此列——rawEntries 事实源仍可四态分态（有覆盖→EMPTY），勿压成 DENIED
+            // （grok 外评 P1：评估摘光范围类型时整表拒绝会让业务方把 EMPTY 误当 403）
             List<ScopeGroup> deniedGroups = buildDeniedGroups(req);
             return new QueryScopesResp("NO_PERMISSION", List.of(), deniedGroups, 60);
         }

@@ -253,12 +253,15 @@ public class PermQueryEngine {
         List<RolePermEntry> rawEntries = List.copyOf(allEntries);
         allEntries = evaluateIfNeeded(q, allEntries);
         if (allEntries.isEmpty()) {
-            return PermResult.builder(false, "CONDITION_NOT_MET_OR_CONFLICT")
+            // 评估清空 ≠ 整体拒绝：rawEntries 事实源仍在——四态组装区分 EMPTY/DENIED 需要
+            // 操作定义在场（条件摘光的类型仍须装载其操作定义，grok 外评 P1 修复）
+            PermResult.Builder denyBuilder = PermResult.builder(false, "CONDITION_NOT_MET_OR_CONFLICT")
                 .scopeAllMatched(false)
                 .rawEntries(rawEntries)
                 .parentMatchedOperationCodes(parentMatchedOps)
-                .parentMatchedPermissionIds(parentPermissionIds)
-                .build();
+                .parentMatchedPermissionIds(parentPermissionIds);
+            loadAncillaryForView(q, denyBuilder, rawEntries, rawEntries, roleIds);
+            return denyBuilder.build();
         }
 
         // -- 展示面展开（查询后克隆，不改变判定）--
@@ -273,7 +276,9 @@ public class PermQueryEngine {
             .rawEntries(rawEntries)
             .parentMatchedOperationCodes(parentMatchedOps)
             .parentMatchedPermissionIds(parentPermissionIds);
-        loadAncillaryForView(q, builder, allEntries, roleIds);
+        // 操作定义装载源用 rawEntries（评估后条目类型的超集）——条件摘光的类型仍须装载，
+        // 否则四态组装层 covers 判定缺目标操作定义会把 EMPTY 误判 DENIED（grok 外评 P1）
+        loadAncillaryForView(q, builder, allEntries, rawEntries, roleIds);
         return builder.build();
     }
 
@@ -1198,7 +1203,8 @@ public class PermQueryEngine {
      * @param roleIds 角色ID集合
      */
     private void loadAncillaryForView(PermQuery q, PermResult.Builder builder,
-                                       List<RolePermEntry> entries, Set<Long> roleIds) {
+                                       List<RolePermEntry> entries,
+                                       List<RolePermEntry> operationsScopeEntries, Set<Long> roleIds) {
         Set<Long> allEntityIds = new HashSet<>();
         for (RolePermEntry e : entries) {
             if (e.resourceEntityId() != null) {
@@ -1211,8 +1217,9 @@ public class PermQueryEngine {
         }
         Map<Integer, List<OperationPermission>> operationsByType = Map.of();
         if (q.includeOperations()) {
-            // 按所有资源类型批量加载操作权限
-            Set<Integer> allResourceTypes = entries.stream()
+            // 操作定义装载源=operationsScopeEntries（LIST 传 rawEntries 超集）——资源/投影仍按
+            // 评估后条目 entries；被条件摘光的类型其操作定义必须在场（四态组装 EMPTY 分态依赖）
+            Set<Integer> allResourceTypes = operationsScopeEntries.stream()
                 .map(RolePermEntry::resourceType)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toSet());

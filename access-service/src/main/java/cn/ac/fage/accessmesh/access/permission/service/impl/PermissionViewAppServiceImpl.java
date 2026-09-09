@@ -730,7 +730,9 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             evaluatedClientIp = HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest());
             contextSource = CONTEXT_SOURCE_CURRENT_REQUEST;
         }
-        PermEvalContext evalCtx = new PermEvalContext(evaluatedClientIp, null, Map.of());
+        // evaluatedAt 入口一次钉住（grok 外评 P3：判定查询与明细评估共用同一对象同一时钟，
+        // 勿在展平 Map 与 fromCallerMap 之间往返——往返会丢 evaluatedAt 字段导致双时钟）
+        PermEvalContext evalCtx = new PermEvalContext(evaluatedClientIp, LocalDateTime.now(), Map.of());
         Map<String, Object> evalContext = evalCtx.toEvalMap();
 
         boolean scopeAll = ScopeModeSupport.toScopeAllForGrant(req.scopeMode(), req.resourceCode(), req.codeType());
@@ -746,7 +748,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             check = ExplainCheckOutcome.deny("USER_NOT_FOUND");
         } else {
             PermQuery q = buildExplainPermQuery(tenantId, req, roleTarget, targetRoleId, userId,
-                scopeAll, queryResourceCode, queryCodeType, evalContext);
+                scopeAll, queryResourceCode, queryCodeType, evalCtx);
             check = ExplainCheckOutcome.of(engine.query(q));
         }
 
@@ -781,7 +783,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         boolean targetResolved = roleTarget ? targetRoleId != null : userId != null;
         if (targetResolved) {
             PermQuery rawQuery = buildExplainPermQuery(tenantId, req, roleTarget, targetRoleId, userId,
-                scopeAll, queryResourceCode, queryCodeType, evalContext);
+                scopeAll, queryResourceCode, queryCodeType, evalCtx);
             rawQuery.setEvaluateConditions(false);
             rawQuery.setEvaluateConflicts(false);
             // 候选查询只消费 allEntries，关闭辅助实体批量加载（资源/操作/角色映射）
@@ -869,7 +871,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     private PermQuery buildExplainPermQuery(Long tenantId, PermissionExplainReq req, boolean roleTarget,
                                             Long targetRoleId, Long userId, boolean scopeAll,
                                             String queryResourceCode, String queryCodeType,
-                                            Map<String, Object> evalContext) {
+                                            PermEvalContext evalContext) {
         PermQuery q;
         if (roleTarget) {
             q = PermQuery.forScopeQuery(tenantId, null,
@@ -891,7 +893,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 req.resourceTypeCode(), queryResourceCode, req.operationCode());
             q.setCodeType(queryCodeType);
         }
-        q.setEvalContext(PermEvalContext.fromCallerMap(evalContext));
+        q.setEvalContext(evalContext);
         return q;
     }
 

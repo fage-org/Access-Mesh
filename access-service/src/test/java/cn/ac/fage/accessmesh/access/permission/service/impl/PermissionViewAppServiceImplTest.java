@@ -223,6 +223,9 @@ class PermissionViewAppServiceImplTest {
         verify(engine, times(2)).query(captor.capture());
         for (PermQuery q : captor.getAllValues()) {
             assertNotNull(q.evalContext());
+            // grok 外评 P3 锁：evaluatedAt 入口一次钉住（判定与明细同一时钟；
+            // 旧实现展平 Map 经 fromCallerMap 往返会丢该字段 → null → 双时钟）
+            assertNotNull(q.evalContext().evaluatedAt());
         }
     }
 
@@ -248,6 +251,7 @@ class PermissionViewAppServiceImplTest {
         verify(engine, times(2)).query(captor.capture());
         for (PermQuery q : captor.getAllValues()) {
             assertEquals("10.1.2.3", q.evalContext().clientIp());
+            assertNotNull(q.evalContext().evaluatedAt(), "evaluatedAt 钉住（grok 外评 P3 锁）");
         }
         // 候选查询（第二次）只消费 allEntries，不加载辅助实体
         assertFalse(captor.getAllValues().get(1).includeResources());
@@ -495,6 +499,9 @@ class PermissionViewAppServiceImplTest {
         assertTrue(access.resourceEntityIds().contains(200L));
         assertFalse(access.allScopeTypes().contains(1));
         assertFalse(access.resourceEntityIds().contains(501L));
+        // 判定面继承（读过滤面）锁：授权实例集必须经子孙扩展 CTE——mock 默认空列表会让
+        // 无 verify 的实现恒绿（grok 外评指出），verify 钉住调用经被测路径
+        verify(resourceEntityMapper).selectDescendantIdsBatch(1L, Set.of(200L));
     }
 
     @Test

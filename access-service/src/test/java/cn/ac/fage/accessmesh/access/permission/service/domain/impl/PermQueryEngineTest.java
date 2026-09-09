@@ -774,6 +774,32 @@ class PermQueryEngineTest {
         assertThat(sawCallerClientIp).as("父资源条件评估透传调用方 clientIp（旧实现空上下文）").isTrue();
     }
 
+    /**
+     * grok 外评 P1 修复锁：LIST 评估清空 deny 路径仍装载操作定义（源=rawEntries 超集）——
+     * 旧实现 deny 直接 build 不装 ancillary，四态组装层 covers 缺目标操作定义 → EMPTY 误判 DENIED。
+     */
+    @Test
+    void listDenyPathMustLoadOperationDefinitionsForRawEntries() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        // raw 条目类型=2；条件评估清空全部
+        RolePermEntry rawEntry = new RolePermEntry(
+            501L, 20L, 300L, "data-1", 2, 1L, "READ", 1L, "MANUAL", false, 301L, true, null, false);
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, List.of(rawEntry)));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenReturn(List.of());
+        when(operationPermissionMapper.selectByTenantAndResourceType(1L, 2))
+            .thenReturn(List.of(operation(601L, 2, "READ", 1L, 0L)));
+
+        PermResult result = engine.query(PermQuery.forScopeQuery(1L, 10L, Set.of("DATA"), Set.of("READ")));
+
+        assertFalse(result.allowed());
+        assertEquals("CONDITION_NOT_MET_OR_CONFLICT", result.reason());
+        assertEquals(1, result.rawEntries().size());
+        assertThat(result.operationMap())
+            .as("deny 路径操作定义装载源=rawEntries（旧实现为空）")
+            .containsKey(601L);
+    }
+
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {
         OperationPermission operationPermission = new OperationPermission();
         operationPermission.setId(id);

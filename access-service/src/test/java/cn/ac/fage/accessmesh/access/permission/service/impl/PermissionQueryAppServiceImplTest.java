@@ -175,6 +175,47 @@ class PermissionQueryAppServiceImplTest {
         assertTrue(group.items().isEmpty());
     }
 
+    /** grok 外评 P1 修复锁：条件评估清空（allowed=false, CONDITION_NOT_MET_OR_CONFLICT）
+     * 不得整表拒绝——rawEntries 有覆盖即 EMPTY、matchedParentOperations 照常回传
+     * （旧实现一律压成 NO_PERMISSION + 全格 DENIED，业务方把 EMPTY 误当 403）。 */
+    @Test
+    void shouldClassifyEmptyNotDeniedWhenConditionClearsScopeEntries() {
+        QueryScopesReq req = new QueryScopesReq(
+            "USER", "u-1", "REPORT", "report:sales", "default",
+            List.of("VIEW"), List.of("DATA"), List.of("READ"), "default", null, Map.of()
+        );
+
+        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
+        when(typeResolutionService.resolveResourceId(1L, "REPORT", "report:sales", "default", null)).thenReturn(100L);
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("DATA")))
+            .thenReturn(Map.of("DATA", 2));
+        when(typeResolutionService.batchResolveOperationIds(1L, "DATA", Set.of("READ")))
+            .thenReturn(Map.of("READ", 601L));
+
+        // DATA 授权行挂时间条件当前不满足：评估后清空（引擎 deny CONDITION_NOT_MET_OR_CONFLICT），
+        // 但 rawEntries 含该行 + 操作定义已装载（装载源=rawEntries 超集）+ 父判定命中
+        RolePermEntry dataEntry = new RolePermEntry(
+            501L, 200L, 300L, "data-1", 2, 1L, "READ", 1L, "MANUAL", false, 301L, true, null, false);
+        OperationPermission readOp = new OperationPermission();
+        readOp.setId(601L); readOp.setResourceType(2);
+        readOp.setCode("READ"); readOp.setBinaryBit(1L); readOp.setInheritMask(0L);
+        PermResult result = PermResult.builder(false, "CONDITION_NOT_MET_OR_CONFLICT")
+            .rawEntries(List.of(dataEntry))
+            .parentMatchedOperationCodes(Set.of("VIEW"))
+            .parentMatchedPermissionIds(Set.of(401L))
+            .operationMap(Map.of(601L, readOp))
+            .build();
+        when(engine.query(any(PermQuery.class))).thenReturn(result);
+
+        QueryScopesResp resp = service.queryScopes(1L, req);
+
+        assertNull(resp.reason(), "评估清空不是整体拒绝");
+        assertEquals(1, resp.matchedParentOperations().size(), "父操作命中照常回传");
+        assertEquals(1, resp.scopeGroups().size());
+        assertEquals(ScopeMode.EMPTY, resp.scopeGroups().get(0).scopeMode(),
+            "有覆盖但评估清空 = EMPTY（勿压 DENIED）");
+    }
+
     // ===== interfaceSnapshot tests (T-PERM-018：缓存下沉，移除令牌/notModified) =====
 
     @Nested

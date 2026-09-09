@@ -425,7 +425,7 @@ PermQueryEngine.query(PermQuery q)
 
 - `allowed` / `reason`
 - `scopeAllMatched` / `scopeAllEntries` / `instanceEntries`
-- `rawEntries`：LIST 模式回传评估前条目（depend_on 过滤后、条件/互斥评估前）——query-scopes 四态组装区分 DENIED（raw 无覆盖条目）与 EMPTY（有覆盖但评估后清空）的事实源
+- `rawEntries`：LIST 模式回传评估前条目（depend_on 过滤后、条件/互斥评估前）——query-scopes 四态组装区分 DENIED（raw 无覆盖条目）与 EMPTY（有覆盖但评估后清空）的事实源；**操作定义装载源同为 rawEntries 超集且评估清空的 deny 路径仍装载**（条件摘光的类型其操作定义必须在场，否则组装层 covers 缺目标操作定义会把 EMPTY 误判 DENIED；grok 外评 P1，2026-09-10 修复）
 - `effectiveOperationEntries`：基于已命中的原始授权条目和 `OperationPermission.effectiveBits` 展开的最终可用操作投影（覆盖投影轨，权限串/用户视图消费）；canGrant 字段在 `RolePermEntry` 上（吸收原 canGrant 直查管线的授权传递校验面，`PermissionGrantDomainServiceImpl` 转授资格判定消费）
 - `resourceMap` / `operationMap` / `roleMap`（按 `includeXxx` 标志选择性加载）
 - `parentMatchedOperationCodes` / `parentMatchedPermissionIds`：LIST 模式主资源上下文（parentResource\*）判定回传——query-scopes 线格式 `matchedParentOps` 与 depend_on 过滤事实
@@ -450,7 +450,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 | 单次鉴权     | `POST /api/perm/auth/check`              | `engine.query(PermQuery.forAuthCheck())`；`inheritMode` 接通闭包（§3.4） |
 | 批量鉴权     | `POST /api/perm/auth/batch-check`        | `engine.query(PermQuery.forAuthCheck())` x N（item 级参数粒度既有） |
 | 资源权限查询 | `POST /api/perm/auth/query-resources`    | `engine.query(PermQuery.forUserView())`；树扩展经引擎展示面展开轨道（`inheritChildren`/`inheritParents`） |
-| 范围权限查询 | `POST /api/perm/auth/query-scopes`       | 一次 `engine.query(forScopeQuery + setParentResource)`——父判定 + depend_on 过滤 + 条件/互斥评估全在引擎，AppService 只留四态线格式组装（T-PERM-057 第六套形态收编） |
+| 范围权限查询 | `POST /api/perm/auth/query-scopes`       | 一次 `engine.query(forScopeQuery + setParentResource)`——父判定 + depend_on 过滤 + 条件/互斥评估全在引擎，AppService 只留四态线格式组装（T-PERM-057 第六套形态收编）；整表拒绝仅限父判定失败/无角色，条件评估清空走四态分态（EMPTY） |
 | 接口级判定   | `POST /api/perm/auth/check-interface`    | `engine.query(PermQuery.forInterfaceCheck())`                 |
 | 权限视图     | `POST /api/perm/permission-view/*`       | `engine.query(PermQuery.forUserView())` + `PermViewAssembler`；门禁=被查目标实例 USER:VIEW/ROLE:VIEW（T-PERM-033 设计定案）；`getEffectiveResourceAccess` 授权实例集含判定面继承子孙扩展（§3.4） |
 | 权限解释     | `POST /api/perm/permission-view/explain` | 判定查询 + 候选查询（评估关闭）双查询；条件明细 `PermissionConditionDomainService.evaluateDetailed` + 互斥丢弃 `filterPermMutexWithDrops`（T-PERM-033）；条件上下文 `PermEvalContext` 统一（§3.5） |
