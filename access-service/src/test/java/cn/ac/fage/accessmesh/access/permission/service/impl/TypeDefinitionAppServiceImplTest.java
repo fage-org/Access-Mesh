@@ -49,6 +49,7 @@ class TypeDefinitionAppServiceImplTest {
     @Mock private cn.ac.fage.accessmesh.access.permission.mapper.ServiceConfigMapper serviceConfigMapper;
     @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService resourceEntityDomainService;
     @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService localProjectionDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService;
     @Mock private cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper rolePermMapper;
     @Mock private cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper apiMappingMapper;
     @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
@@ -65,8 +66,8 @@ class TypeDefinitionAppServiceImplTest {
                 new com.fasterxml.jackson.databind.ObjectMapper());
         service = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, engine, ownershipGuard,
-            resourceEntityDomainService, localProjectionDomainService, rolePermMapper,
-            apiMappingMapper, treeWriteLockSupport, cacheService
+            resourceEntityDomainService, localProjectionDomainService, subjectDomainService,
+            rolePermMapper, apiMappingMapper, treeWriteLockSupport, cacheService
         );
         // list/count 走 OperatorContext（读 AccessRequestContext），绑定用户上下文
         AccessRequestContext.bind(RequestContext.user(1L, 100L));
@@ -937,7 +938,8 @@ class TypeDefinitionAppServiceImplTest {
     void shouldNotTouchResourceTypeFacesWhenDeletingOtherTypeKeys() {
         // 级联面限定 typeKey=resource_type：type_value 仅 tenant+type_key 内唯一，user_type
         // 同值（5）删除不得误伤 resource_type 空间的操作行/授权行——若级联按 typeValue
-        // 全 typeKey 展开，本用例必红
+        // 全 typeKey 展开，本用例必红。T-PERM-056 后 user_type 删除须先过主体行数守卫
+        // （无有效引用行放行，删除照常完成）
         when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
             .thenReturn(java.util.Set.of());
         TypeDefinition contractor = new TypeDefinition();
@@ -948,6 +950,8 @@ class TypeDefinitionAppServiceImplTest {
         contractor.setTypeValue(5);
         contractor.setIsSystem(false);
         when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(contractor));
+        when(subjectDomainService.findUserTypesWithValidRows(1L, java.util.Set.of(5)))
+            .thenReturn(java.util.Set.of());
 
         service.deleteTypesByIds(1L, java.util.List.of(9L), 100L);
 
@@ -959,5 +963,92 @@ class TypeDefinitionAppServiceImplTest {
         verify(cacheService, never()).evictBatchAfterCommit(
             eq(cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
             anyLong(), any());
+        verify(subjectDomainService, never()).findRoleTypesWithValidRows(anyLong(), any());
+    }
+
+    // ========== T-PERM-056：user_type/role_type 删除引用面行数守卫（2026-09-09 用户定案删除保护） ==========
+
+    @Test
+    void shouldRejectUserTypeDeleteWhenReferencedByValidUsers() {
+        // user_type 下存在有效 abstract_user 行时整批拒绝（20056，对齐 resource_type 行数守卫
+        // 先例——用户/角色是业务主体数据不级联）；旧实现（零检查）下删除照常完成不抛异常，
+        // 本用例必红
+        when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(java.util.Set.of());
+        TypeDefinition contractor = new TypeDefinition();
+        contractor.setId(9L);
+        contractor.setTenantId(1L);
+        contractor.setTypeKey("user_type");
+        contractor.setTypeCode("CONTRACTOR");
+        contractor.setTypeValue(5);
+        contractor.setIsSystem(false);
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(contractor));
+        when(subjectDomainService.findUserTypesWithValidRows(1L, java.util.Set.of(5)))
+            .thenReturn(java.util.Set.of(5));
+
+        BizException ex = assertThrows(BizException.class,
+            () -> service.deleteTypesByIds(1L, java.util.List.of(9L), 100L));
+
+        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        // 整批拒绝：类型行/投影行零写入
+        verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
+        verify(resourceEntityDomainService, never()).softDeleteBatch(anyLong(), any(), any());
+        // 守卫按 typeKey 分族一次批量查询（循环单查违反 §8.4.8）；user_type 删除不持 RESOURCE_ENTITY 锁
+        verify(subjectDomainService).findUserTypesWithValidRows(1L, java.util.Set.of(5));
+        verify(subjectDomainService, never()).findRoleTypesWithValidRows(anyLong(), any());
+        verify(treeWriteLockSupport, never()).lockTreeWrites(anyLong(), any());
+    }
+
+    @Test
+    void shouldRejectRoleTypeDeleteWhenReferencedByValidRolesAndTakeRoleTreeLock() {
+        // role_type 定案同款；自定义 role_type 角色行的唯一写入口（角色同步）持 ABSTRACT_ROLE
+        // 树写锁，批删含 role_type 须共持同锁闭合「守卫查零行→并发建角色→删除落库」交错
+        when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(java.util.Set.of());
+        TypeDefinition customRoleType = new TypeDefinition();
+        customRoleType.setId(9L);
+        customRoleType.setTenantId(1L);
+        customRoleType.setTypeKey("role_type");
+        customRoleType.setTypeCode("CUSTOM_RT");
+        customRoleType.setTypeValue(7);
+        customRoleType.setIsSystem(false);
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(customRoleType));
+        when(subjectDomainService.findRoleTypesWithValidRows(1L, java.util.Set.of(7)))
+            .thenReturn(java.util.Set.of(7));
+
+        BizException ex = assertThrows(BizException.class,
+            () -> service.deleteTypesByIds(1L, java.util.List.of(9L), 100L));
+
+        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        verify(treeWriteLockSupport, never()).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
+        verify(subjectDomainService, never()).findUserTypesWithValidRows(anyLong(), any());
+    }
+
+    @Test
+    void shouldSkipSubjectGuardsWhenDeletingResourceTypeOnly() {
+        // 分族防误伤：纯 resource_type 批删不触主体守卫查询（type_value 仅 tenant+type_key 内
+        // 唯一，user_type 与 resource_type 同值不串）——若守卫按 typeValue 跨族展开，本用例必红
+        when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(java.util.Set.of());
+        TypeDefinition hrOrg = new TypeDefinition();
+        hrOrg.setId(9L);
+        hrOrg.setTenantId(1L);
+        hrOrg.setTypeKey("resource_type");
+        hrOrg.setTypeCode("HR_ORG");
+        hrOrg.setTypeValue(5);
+        hrOrg.setIsSystem(false);
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(hrOrg));
+        when(resourceEntityDomainService.findTypesWithValidRows(1L, java.util.Set.of(5)))
+            .thenReturn(java.util.Set.of());
+
+        service.deleteTypesByIds(1L, java.util.List.of(9L), 100L);
+
+        verify(subjectDomainService, never()).findUserTypesWithValidRows(anyLong(), any());
+        verify(subjectDomainService, never()).findRoleTypesWithValidRows(anyLong(), any());
+        verify(typeDefinitionMapper).softDeleteBatch(eq(1L), any(), any());
     }
 }

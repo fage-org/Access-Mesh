@@ -116,7 +116,7 @@
 | [T-PERM-053](T-PERM-053.md) | service-config 同步 ApiItem.operationCode 无效字段删除 | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §6.3；schema | — | ✅ | ✓ |
 | [T-PERM-054](T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置（暂缓——关联权限自动授权方向待讨论，见任务卡） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.4；schema | — | ⚙️ | ⏳ |
 | [T-PERM-055](T-PERM-055.md) | 域分类查询批量预载优化（matchesTypeCode 循环点查放大收敛；T-PERM-046 评审登记） | — | access-service-architecture §13；api-contract §3.4 | — | ⚙️ | ⏳ |
-| [T-PERM-056](T-PERM-056.md) | user_type/role_type 删除零检查——主体/角色类型引用面保护（T-PERM-050 盘点拆分） | — | schema；api-contract §5.1 | — | ⚙️ | ⏳ |
+| [T-PERM-056](T-PERM-056.md) | user_type/role_type 删除零检查——主体/角色类型引用面保护（已收口 2026-09-09，删除保护定案与终态见任务卡） | — | schema；api-contract §5.1 | — | ✅ | ✓ |
 
 ### gateway（工作单 C 失联兜底）
 

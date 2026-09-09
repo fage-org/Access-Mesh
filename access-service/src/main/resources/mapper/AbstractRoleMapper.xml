@@ -201,5 +201,16 @@
           AND external_id = #{externalId}
           AND delete_flag = 0
     </select>
+    <!-- 批量判定哪些 role_type 值下存在有效角色行（T-PERM-056 删除守卫，对齐
+         ResourceEntityMapper#selectDistinctTypesWithValidRows 先例） -->
+    <select id="selectDistinctRoleTypesWithValidRows" resultType="int">
+        SELECT DISTINCT role_type FROM abstract_role
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND role_type IN
+        <foreach collection="roleTypes" item="type" open="(" separator="," close=")">
+            #{type}
+        </foreach>
+    </select>
 
 </mapper>

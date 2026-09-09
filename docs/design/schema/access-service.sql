@@ -630,7 +630,7 @@ CREATE TABLE type_definition (
 CREATE UNIQUE INDEX uk_type_definition_value ON type_definition (tenant_id, type_key, type_value) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_type_definition_code ON type_definition (tenant_id, type_key, type_code) WHERE delete_flag = 0;
 
-COMMENT ON TABLE type_definition IS '类型定义：type_code 是对外稳定编码，type_value 是内部存储和计算值。type_key 如 user_type/role_type/resource_type，is_system=true 为系统预置不可删改。创建 resource_type 时自动预置 CRUD 四个 operation_permission；删除 resource_type（非系统、类型下无有效资源行）时同事务级联软删该类型全部有效 operation_permission 与该类型下有效授权行（正常流仅剩 scope_all 类型级行，T-PERM-050）';
+COMMENT ON TABLE type_definition IS '类型定义：type_code 是对外稳定编码，type_value 是内部存储和计算值。type_key 如 user_type/role_type/resource_type，is_system=true 为系统预置不可删改。创建 resource_type 时自动预置 CRUD 四个 operation_permission；删除 resource_type（非系统、类型下无有效资源行）时同事务级联软删该类型全部有效 operation_permission 与该类型下有效授权行（正常流仅剩 scope_all 类型级行，T-PERM-050）；删除 user_type/role_type（非系统、类型下存在有效 abstract_user/abstract_role 行）时整批拒绝（20056 删除保护——主体数据不级联，T-PERM-056）';
 COMMENT ON COLUMN type_definition.type_key IS '类型键，如 user_type、role_type、resource_type';
 COMMENT ON COLUMN type_definition.type_code IS '对外稳定编码，如 USER、SERVICE、BASIC_ROLE、MENU、DATA';
 COMMENT ON COLUMN type_definition.type_value IS '内部枚举值；同一 tenant_id + type_key 内全局唯一，只用于存储、索引和计算，不作为外部 API 契约';

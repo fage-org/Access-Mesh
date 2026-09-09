@@ -291,8 +291,10 @@ public enum PermissionErrorCode {
      * （含删除键隐式切回 MANAGED）被拒绝（无有效行才可改——防止人工行切成 SYNC 变只读
      * 孤岛、SYNC 行切成 MANAGED 被管理面误删）；③类型下存在有效资源行时类型删除被拒绝
      * （软删类型会让其行成永久孤儿）。读路径不受限。
+     * T-PERM-056（2026-09-09 用户定案删除保护）：③扩展至主体类型——user_type/role_type
+     * 下存在有效用户/角色行时类型删除同拒绝（用户/角色是业务主体数据不级联）。
      */
-    TYPE_OWNERSHIP_CHANGE_CONFLICT(20056, "类型所有权声明不可变更（系统预置类型钉死，或类型下存在有效资源行）"),
+    TYPE_OWNERSHIP_CHANGE_CONFLICT(20056, "类型所有权声明不可变更（系统预置类型钉死，或类型下存在有效引用行——资源行/用户行/角色行）"),
 
     /**
      * 全局域已存在（uk_biz_domain_global：每租户至多一个 global=true 有效域，T-PERM-046）。

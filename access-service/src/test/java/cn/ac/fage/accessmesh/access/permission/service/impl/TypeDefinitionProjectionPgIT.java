@@ -340,6 +340,61 @@ class TypeDefinitionProjectionPgIT {
             "resource_type = 10 AND code = 'resource_type:PGIT050_RB' AND code_type = 'default'")).isEqualTo(1);
     }
 
+    @Test
+    @DisplayName("T-PERM-056 删除保护：user_type/role_type 下存在有效用户/角色行时拒删（20056），清走引用后放行")
+    void deleteShouldRejectWhenSubjectTypeReferencedByValidRows() {
+        // 创建者：类型级 CREATE（user_type/role_type 类型行走类型定义页创建，extra 空=无所有权声明）
+        Long creator = insertSubject("t056-op-create", "主体类型创建者");
+        Long creatorRole = insertBasicRole("t056-role-create", "主体类型创建角色");
+        insertUserRole(creator, creatorRole);
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_TYPE_DEFINITION, CREATE_BIT);
+        bindOperator(creator);
+        TypeDefinitionResp userType = typeDefinitionAppService.createType(TENANT,
+            new TypeCreateReq("user_type", "PGIT056_UT", "外包人员类型", null, null, null), creator);
+        TypeDefinitionResp roleType = typeDefinitionAppService.createType(TENANT,
+            new TypeCreateReq("role_type", "PGIT056_RT", "扩展角色类型", null, null, null), creator);
+
+        // deleter：类型级 MANAGE（批删门禁复合键轨，类型级 scopeAll 放行）
+        Long deleter = insertSubject("t056-op-deleter", "主体类型删除者");
+        Long deleterRole = insertBasicRole("t056-role-deleter", "主体类型删除角色");
+        insertUserRole(deleter, deleterRole);
+        insertScopeAllRolePerm(deleterRole, RESOURCE_TYPE_TYPE_DEFINITION, MANAGE_BIT);
+        bindOperator(deleter);
+
+        // 场景1：user_type 下存在有效用户行 → 20056 整批拒绝（旧实现零检查直接删成孤儿，本段必红）
+        jdbc.update("INSERT INTO abstract_user (tenant_id, user_type, external_id, name, enabled, extra) "
+                + "VALUES (?, ?, 't056-cw-001', '外包用户', true, '{}')", TENANT, userType.typeValue());
+        assertThatThrownBy(() -> typeDefinitionAppService.deleteTypesByIds(TENANT, List.of(userType.id()), deleter))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("类型下存在有效用户行")
+            .hasMessageContaining("PGIT056_UT");
+        assertThat(countValidRows("type_definition", "type_key = 'user_type' AND type_code = 'PGIT056_UT'"))
+            .isEqualTo(1);
+
+        // 场景2：role_type 同款（自定义角色类型角色行经同步通道产出，此处 jdbc 直插同构行）
+        jdbc.update("INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, extra) "
+                + "VALUES (?, ?, 't056-ext-role', '扩展角色', 1, '{}')", TENANT, roleType.typeValue());
+        assertThatThrownBy(() -> typeDefinitionAppService.deleteTypesByIds(TENANT, List.of(roleType.id()), deleter))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("类型下存在有效角色行")
+            .hasMessageContaining("PGIT056_RT");
+        assertThat(countValidRows("type_definition", "type_key = 'role_type' AND type_code = 'PGIT056_RT'"))
+            .isEqualTo(1);
+
+        // 场景3：清走引用（软删用户/角色行）后删除放行——管理员「先清数据再删类型」路径走通。
+        // 含 role_type 的批删经真实 Redisson 取放 ABSTRACT_ROLE 树写锁（释放由 afterCompletion
+        // 保证；本场景验证放行功能路径，锁泄漏检测不在此——同线程重入会掩盖泄漏，不以此证明）
+        jdbc.update("UPDATE abstract_user SET delete_flag = id WHERE tenant_id = ? AND user_type = ? "
+            + "AND external_id = 't056-cw-001'", TENANT, userType.typeValue());
+        jdbc.update("UPDATE abstract_role SET delete_flag = id WHERE tenant_id = ? AND role_type = ? "
+            + "AND external_id = 't056-ext-role'", TENANT, roleType.typeValue());
+        typeDefinitionAppService.deleteTypesByIds(TENANT, List.of(userType.id(), roleType.id()), deleter);
+        assertThat(countValidRows("type_definition", "type_key = 'user_type' AND type_code = 'PGIT056_UT'"))
+            .isZero();
+        assertThat(countValidRows("type_definition", "type_key = 'role_type' AND type_code = 'PGIT056_RT'"))
+            .isZero();
+    }
+
     // ===== 数据装配（jdbc 直插事实/授权，先于相关主体首次引擎调用） =====
 
     private void bindOperator(Long operatorId) {

@@ -123,5 +123,16 @@
         ) AS v(id, name, enabled, extra)
         WHERE u.id = v.id AND u.tenant_id = #{tenantId} AND u.delete_flag = 0
     </update>
+    <!-- 批量判定哪些 user_type 值下存在有效用户行（T-PERM-056 删除守卫，对齐
+         ResourceEntityMapper#selectDistinctTypesWithValidRows 先例） -->
+    <select id="selectDistinctUserTypesWithValidRows" resultType="int">
+        SELECT DISTINCT user_type FROM abstract_user
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND user_type IN
+        <foreach collection="userTypes" item="type" open="(" separator="," close=")">
+            #{type}
+        </foreach>
+    </select>
 
 </mapper>

@@ -311,6 +311,7 @@ class ResourceOperationKeyPgIT {
             typeDefinitionMapper, operationPermissionMapper, permitAllEngine(), ownershipGuard(),
             resourceEntityDomainService,
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper.class),
             mock(TreeWriteLockSupport.class),

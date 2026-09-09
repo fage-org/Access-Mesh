@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -91,6 +92,14 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         return abstractUserMapper.selectValidById(userId, tenantId);
     }
 
+    @Override
+    public Set<Integer> findUserTypesWithValidRows(Long tenantId, Collection<Integer> userTypes) {
+        if (userTypes == null || userTypes.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return new HashSet<>(abstractUserMapper.selectDistinctUserTypesWithValidRows(tenantId, userTypes));
+    }
+
     // ===== AbstractRole =====
 
     /**
@@ -151,6 +160,14 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         // T-ACCESS-019 IT 暴露的存量参数反转：mapper 约定为 (id, tenantId)，
         // 原实参 (tenantId, roleId) 使 updateRole/moveRole/deleteRoles 对 roleId≠租户号的角色恒报不存在
         return abstractRoleMapper.selectValidById(roleId, tenantId);
+    }
+
+    @Override
+    public Set<Integer> findRoleTypesWithValidRows(Long tenantId, Collection<Integer> roleTypes) {
+        if (roleTypes == null || roleTypes.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return new HashSet<>(abstractRoleMapper.selectDistinctRoleTypesWithValidRows(tenantId, roleTypes));
     }
 
     @Override

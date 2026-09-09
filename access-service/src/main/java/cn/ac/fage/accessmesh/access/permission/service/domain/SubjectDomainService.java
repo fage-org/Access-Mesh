@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access.permission.service.domain;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +27,16 @@ public interface SubjectDomainService {
      * @return 用户实体，不存在或已删除返回null
      */
     AbstractUser selectValidUserById(Long tenantId, Long userId);
+
+    /**
+     * 批量判定哪些 user_type 值下存在有效用户行（T-PERM-056 user_type 删除守卫，
+     * 对齐 ResourceEntityDomainService#findTypesWithValidRows 先例）。
+     *
+     * @param tenantId  租户ID
+     * @param userTypes user_type 内部类型值集合
+     * @return 存在有效用户行的类型值集合
+     */
+    Set<Integer> findUserTypesWithValidRows(Long tenantId, Collection<Integer> userTypes);
 
     // ===== AbstractRole =====
 
@@ -52,6 +63,16 @@ public interface SubjectDomainService {
      * @return 角色实体，不存在或已删除返回null
      */
     AbstractRole selectValidRoleById(Long tenantId, Long roleId);
+
+    /**
+     * 批量判定哪些 role_type 值下存在有效角色行（T-PERM-056 role_type 删除守卫，
+     * 对齐 ResourceEntityDomainService#findTypesWithValidRows 先例）。
+     *
+     * @param tenantId  租户ID
+     * @param roleTypes role_type 内部类型值集合
+     * @return 存在有效角色行的类型值集合
+     */
+    Set<Integer> findRoleTypesWithValidRows(Long tenantId, Collection<Integer> roleTypes);
 
     /**
      * 批量查询有效角色

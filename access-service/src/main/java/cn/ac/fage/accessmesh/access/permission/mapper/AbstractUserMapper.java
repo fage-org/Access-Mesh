@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -185,4 +186,15 @@ public interface AbstractUserMapper extends BaseMapper<AbstractUser> {
                           @Param("owner") String owner,
                           @Param("users") List<AbstractUser> users,
                           @Param("updatedAt") LocalDateTime updatedAt);
+
+    /**
+     * 批量判定哪些类型值下存在有效用户行（T-PERM-056 user_type 删除守卫；一次查询防批删循环单查，
+     * 对齐 ResourceEntityMapper#selectDistinctTypesWithValidRows 先例）。
+     *
+     * @param tenantId  租户ID
+     * @param userTypes user_type 内部类型值集合
+     * @return 存在有效行的类型值列表（DISTINCT）
+     */
+    List<Integer> selectDistinctUserTypesWithValidRows(@Param("tenantId") Long tenantId,
+                                                       @Param("userTypes") Collection<Integer> userTypes);
 }

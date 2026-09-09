@@ -19,6 +19,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.TypeDefinitionAppService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
@@ -39,6 +40,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -57,6 +59,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final LocalProjectionDomainService localProjectionDomainService;
+    private final SubjectDomainService subjectDomainService;
     private final RoleResourcePermissionMapper rolePermMapper;
     private final ResourceApiMappingMapper apiMappingMapper;
     private final TreeWriteLockSupport treeWriteLockSupport;
@@ -68,9 +71,10 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * @param typeDefinitionMapper      类型定义数据访问层
      * @param operationPermissionMapper 操作权限数据访问层（resource_type 联动预置写入，T-PERM-028）
      * @param engine                    权限查询引擎
-     * @param resourceEntityDomainService 资源实体域服务（行数守卫查询 + 投影行软删）
      * @param resourceTypeOwnershipGuard 资源类型所有权守卫（extra.managedMode 声明校验与变更守卫，T-PERM-052）
+     * @param resourceEntityDomainService 资源实体域服务（行数守卫查询 + 投影行软删）
      * @param localProjectionDomainService 本地投影域服务（TYPE_DEFINITION 实例投影同事务维护，T-PERM-051）
+     * @param subjectDomainService      主体域服务（user_type/role_type 删除引用面行数守卫，T-PERM-056）
      * @param rolePermMapper            授权数据访问层（类型软删级联处置投影行下授权行，T-PERM-051）
      * @param apiMappingMapper          API 映射数据访问层（删除级联的受影响服务查询，deleteResources 同款）
      * @param cacheService              统一缓存入口（类型解析缓存提交后失效，codex 三轮复评 P1-2）
@@ -81,6 +85,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                                          ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                          ResourceEntityDomainService resourceEntityDomainService,
                                          LocalProjectionDomainService localProjectionDomainService,
+                                         SubjectDomainService subjectDomainService,
                                          RoleResourcePermissionMapper rolePermMapper,
                                          ResourceApiMappingMapper apiMappingMapper,
                                          TreeWriteLockSupport treeWriteLockSupport,
@@ -91,6 +96,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.localProjectionDomainService = localProjectionDomainService;
+        this.subjectDomainService = subjectDomainService;
         this.rolePermMapper = rolePermMapper;
         this.apiMappingMapper = apiMappingMapper;
         this.treeWriteLockSupport = treeWriteLockSupport;
@@ -463,12 +469,16 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * T-PERM-050（2026-09-09 定案级联）：被删 resource_type 的操作定义行（含预置 CRUD 四操作位，
      * 对称于创建联动预置）与该类型下有效授权行（正常流仅剩 scope_all 类型级行）同事务级联软删，
      * markRoles 失效角色快照、OPERATION_PERMISSIONS_BY_TYPE 按类型集合提交后失效。
+     * T-PERM-056（2026-09-09 用户定案删除保护）：user_type/role_type 类型下存在有效用户/角色行时
+     * 整批拒绝删除（对齐 resource_type 行数守卫 20056 先例——用户/角色是业务主体数据，
+     * 非类型从属配置，不级联）；role_type 面与角色写入口共持 ABSTRACT_ROLE 树写锁闭合并发交错。
      * </p>
      *
      * @param tenantId   租户ID
      * @param ids        类型定义ID列表
      * @param operatorId 操作者ID，可选
      * @throws SecurityException 无权限时抛出
+     * @throws BizException      user_type/role_type 下存在有效用户/角色行时抛出（20056）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -513,9 +523,21 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + deniedKeys);
         }
 
-        // codex 复评 P1：含 resource_type 时与资源写入口共持树写锁并锁内重读（同 updateType）
-        if (entities.stream().anyMatch(e -> "resource_type".equals(e.getTypeKey()))) {
+        // codex 复评 P1：含 resource_type 时与资源写入口共持树写锁并锁内重读（同 updateType）；
+        // T-PERM-056：含 role_type 时与角色写入口共持 ABSTRACT_ROLE 树写锁——自定义 role_type
+        // 角色行的唯一创建入口是角色同步通道（管理面 createRole 经 RoleType.fromValue 枚举校验
+        // 只接受种子类型；updateRole/moveRole 可写已存在行但亦持同锁），「行数守卫查零行→并发
+        // 建该类型角色→类型删除落库」交错由此闭合。锁序固定 RESOURCE_ENTITY→ABSTRACT_ROLE
+        // 单向（角色写路径持锁后不再取 RESOURCE_ENTITY 锁，无对向死锁）
+        boolean containsResourceType = entities.stream().anyMatch(e -> "resource_type".equals(e.getTypeKey()));
+        boolean containsRoleType = entities.stream().anyMatch(e -> "role_type".equals(e.getTypeKey()));
+        if (containsResourceType) {
             treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        }
+        if (containsRoleType) {
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        }
+        if (containsResourceType || containsRoleType) {
             entities = typeDefinitionMapper.selectValidByIds(tenantId, validInputIds);
             if (entities.isEmpty()) {
                 OperationLogRuntimeContext.markSkip();
@@ -553,6 +575,18 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                     "类型下存在有效资源行，不可删除: " + String.join(", ", conflictCodes));
             }
         }
+
+        // T-PERM-056（2026-09-09 用户定案删除保护）：user_type/role_type 引用面守卫——存在引用
+        // 该 typeValue 的有效 abstract_user/abstract_role 行时整批拒绝（用户/角色是业务主体数据，
+        // 对齐 resource_entity 面=守卫，而非操作位/投影=级联）；管理员须先删/迁走该类型用户/角色。
+        // 并发语义：role_type 面经上方 ABSTRACT_ROLE 树写锁与全部角色写入口串行闭合；user_type
+        // 面用户写入口无锁可复用（用户行无树结构，本无锁需求；为极窄交错给高频用户创建加分布式
+        // 锁不成比例），为 best-effort 守卫（对齐 T-PERM-050 级联并发先例）——交错残留由 typeValue
+        // 软删不复用兜底（孤儿 user_type 值永不撞新类型，uk_abstract_user 部分索引无冲突恶化）
+        rejectIfSubjectTypeReferenced(tenantId, entities, validIds, "user_type", "用户行",
+            subjectDomainService::findUserTypesWithValidRows);
+        rejectIfSubjectTypeReferenced(tenantId, entities, validIds, "role_type", "角色行",
+            subjectDomainService::findRoleTypesWithValidRows);
 
         // T-PERM-051：投影行级联定位（批量按复合键一次查询；typeCode/typeKey 不可变，
         // 锁内重读不改变键）。isSystem 行不删但保留投影（种子类型不删，投影随之保留）
@@ -632,6 +666,41 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         cacheService.evictBatchAfterCommit(PermCacheCatalog.TYPE_VALUE, tenantId, valueCacheKeys);
         cacheService.evictBatchAfterCommit(PermCacheCatalog.TYPE_CODE, tenantId, codeCacheKeys);
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " type_definition row(s)");
+    }
+
+    /**
+     * T-PERM-056 主体类型删除守卫：存在引用该 typeValue 的有效 abstract_user/abstract_role 行时
+     * 整批拒绝（20056，对齐 resource_type 行数守卫先例；用户/角色是业务主体数据不级联，
+     * 2026-09-09 用户定案）。
+     *
+     * @param tenantId           租户ID
+     * @param entities           锁内重读后的全部待删类型行（含 isSystem 行，由 validIds 过滤）
+     * @param validIds           通过 isSystem 过滤的实际待删 ID 集
+     * @param typeKey            主体类型键（user_type / role_type）
+     * @param rowLabel           冲突文案中的引用行称谓（用户行 / 角色行）
+     * @param typesWithValidRows 批量引用行存在性查询（域服务方法引用）
+     * @throws BizException 存在有效引用行时抛出（20056，message 列冲突 typeCode）
+     */
+    private void rejectIfSubjectTypeReferenced(Long tenantId, List<TypeDefinition> entities, Set<Long> validIds,
+            String typeKey, String rowLabel, BiFunction<Long, Set<Integer>, Set<Integer>> typesWithValidRows) {
+        List<TypeDefinition> deletable = entities.stream()
+            .filter(e -> validIds.contains(e.getId()) && typeKey.equals(e.getTypeKey()))
+            .toList();
+        if (deletable.isEmpty()) {
+            return;
+        }
+        Set<Integer> typeValues = deletable.stream()
+            .map(TypeDefinition::getTypeValue)
+            .collect(Collectors.toSet());
+        Set<Integer> typesWithRows = typesWithValidRows.apply(tenantId, typeValues);
+        List<String> conflictCodes = deletable.stream()
+            .filter(t -> typesWithRows.contains(t.getTypeValue()))
+            .map(TypeDefinition::getTypeCode)
+            .toList();
+        if (!conflictCodes.isEmpty()) {
+            throw new BizException(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
+                "类型下存在有效" + rowLabel + "，不可删除: " + String.join(", ", conflictCodes));
+        }
     }
 
     /**
