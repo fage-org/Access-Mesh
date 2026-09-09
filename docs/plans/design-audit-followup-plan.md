@@ -42,7 +42,7 @@ last_updated: 2026-09-06
 | [T-PERM-053](../tasks/T-PERM-053.md) | §B P2-3a | service-config 同步 ApiItem.operationCode 无效字段删除（前后端同批锁步） | ✅ |
 | [T-API-002](../tasks/T-API-002.md) | §B P2-2 | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（含内部 id 字段族全裁——2026-09-06 用户决策扩大到 check 族三接口——+ 排查页同批改造，页面暂停重做登记 T-FE-043） | ✅ |
 | [T-ACCESS-029](../tasks/T-ACCESS-029.md) | §A-5 | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | ✅ |
-| [T-PERM-054](../tasks/T-PERM-054.md) | §B P2-3b | 手工 API 映射绑定非 API 资源处置——**暂缓**（关联权限自动授权方向待讨论） | ⚙️（暂缓） |
+| [T-PERM-054](../tasks/T-PERM-054.md) | §B P2-3b | 手工 API 映射绑定非 API 资源处置——**暂缓**（关联权限自动授权方向已定、方案未定，2026-09-09 registry 登记） | ⚙️（暂缓） |
 
 ## 既有任务卡口径回写（非本计划新建）
 

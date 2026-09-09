@@ -1,7 +1,7 @@
 ---
 doc_type: task
 id: T-PERM-054
-title: 手工 API 映射绑定非 API 资源的处置——暂缓（关联权限自动授权方向待讨论）
+title: 手工 API 映射绑定非 API 资源的处置——暂缓（关联权限自动授权方向已定、方案未定）
 status: proposed
 plan: docs/plans/design-audit-followup-plan.md
 domain: permission-center
@@ -11,7 +11,7 @@ design_refs:
 depends_on: []
 blocks: []
 acceptance:
-  - "启动门禁（暂缓卡）：**方向已定（2026-09-09 registry 登记：API 不单独授权、接口权限由操作权限关联派生——授操作权限即有接口权限，网关按 {资源类型:操作} 映射 API 鉴定），方案未定**；方案讨论定案后重写本卡验收并解除暂缓；讨论范围见『讨论范围』三问（第 1/2 问的方向已有上述定案倾向，具体机制与入口语义仍待设计）"
+  - "启动门禁（暂缓卡）：**方向已定（2026-09-09 registry 登记：API 不单独授权、接口权限由操作权限关联派生——授操作权限即有接口权限，网关按 {资源类型:操作} 映射 API 鉴定），方案未定**；方案讨论定案后重写本卡验收并解除暂缓。开放项仅剩映射机制、存量迁移与入口兼容方案（见『讨论范围』三问中未决部分）"
 design_writeback:
   required: true
   status: pending

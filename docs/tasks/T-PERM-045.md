@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-045
 title: 内部管理门禁统一启用子级继承（项目规则「父级有权限子级即有权限」）
 status: cancelled
-plan: docs/plans/permission-query-unification-plan.md
+plan: ""
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.2
@@ -17,14 +17,14 @@ acceptance:
   - "全量回归：角色/用户/域/日志等全部内部实例门禁行为核对 + 容器轨验证 + 文档回写（api-contract 门禁语义、architecture §14.x、implementation §3.1）"
   - "deleteRoles 级联注释同步：本任务落地后删除「不对子孙做独立权限过滤」的局部实现口径，回归统一门禁语义"
 design_writeback:
-  required: true
+  required: false
   status: pending
 last_updated: 2026-09-09
 ---
 
 # T-PERM-045 内部管理门禁统一启用子级继承
 
-> 状态：cancelled（2026-09-09 取消——范围整体并入 [T-PERM-057](T-PERM-057.md) 权限查询统一引擎重构：2026-09-09 grill 定案将「门禁默认启用子级继承」扩展为统一引擎全模型（判定面/展示面两语义拆分 + 默认值矩阵 + 评估拉平），本卡范围为子集；终态设计见 [query-engine-unification.md](../design/permission-center/query-engine-unification.md)。取消时无下游依赖（grep depends_on 零命中）。）
+> 状态：cancelled（2026-09-09 取消——范围整体并入 [T-PERM-057](T-PERM-057.md) 权限查询统一引擎重构：2026-09-09 grill 定案将「门禁默认启用子级继承」扩展为统一引擎全模型（判定面/展示面两语义拆分 + 目标模式三态 + 默认值矩阵 + 评估拉平），本卡范围为子集；终态设计见 [query-engine-unification.md](../design/permission-center/query-engine-unification.md)。取消时无下游依赖（grep depends_on 零命中）；cancelled 不做设计回写（required=false）。）
 > 依赖：无（独立权限语义收口任务）
 > 前置验收：见 acceptance（随取消作废，被 T-PERM-057 acceptance 覆盖）
 
@@ -34,7 +34,7 @@ last_updated: 2026-09-09
 
 现状缺口：内部管理门禁统一走 `forAuthCheck` 工厂（`hasPermissionByCode`/`getDeniedResourceCodes`），**不启用继承**；全仓仅运行时 `/auth/check`（`PermissionCheckAppServiceImpl`）按请求传入可选 `inheritMode`。因此「操作者对父资源有实例级权限、对子资源无」在管理路径是常态。
 
-T-PERM-022 外部复评暴露的具体后果（已按局部最小修处置，见 role-manage.md §8）：deleteRoles 级联删除若对子孙做独立权限过滤，会出现「删父留子」的悬挂子树——已改为「级联根有权即整棵子树可删」（局部实现项目规则）。本任务将该规则统一到引擎层，消除各内部门禁的口径分叉。
+deleteRoles 级联删除若对子孙做独立权限过滤，会出现「删父留子」的悬挂子树——已按局部最小修处置（见 role-manage.md §8）：「级联根有权即整棵子树可删」（局部实现项目规则）。本任务原定将该规则统一到引擎层，消除各内部门禁的口径分叉。
 
 ## 范围
 

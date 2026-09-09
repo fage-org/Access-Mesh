@@ -11,7 +11,7 @@ tasks:
   - T-API-003
   - T-PERM-058
   - T-PERM-059
-acceptance: "T-PERM-057/T-API-003/T-PERM-058/T-PERM-059 全部 done 或 cancelled；全仓权限查询无引擎外独立管线（canGrant 直查/query-resources AppService 展开/getDenied* 手写管线收编清零）；implementation §3 重写为统一引擎版且 query-engine-unification.md 转 superseded"
+acceptance: "T-PERM-057/T-API-003/T-PERM-058/T-PERM-059 全部 done 或 cancelled；全仓权限查询无引擎外独立管线（canGrant 直查/query-resources AppService 展开/query-scopes AppService 自评管线/getDenied* 手写管线收编清零）；implementation §3 重写为统一引擎版，T-PERM-058/059 design_refs 已重连 implementation §3，query-engine-unification.md 转 superseded"
 last_updated: 2026-09-09
 ---
 
@@ -22,8 +22,8 @@ last_updated: 2026-09-09
 
 ## 目标
 
-- 权限查询收敛为**一个引擎、一套入参、一个结果模型**，消除五套执行形态分叉（query() 六工厂 / getDenied\* 手写管线 / query-resources AppService 展开 / deleteRoles 局部规则 / canGrant 直查管线）。
-- 判定面继承（目标闭包「父授权覆盖子」）在引擎层落地并按默认值矩阵启用。
+- 权限查询收敛为**一个引擎、一套入参、一个结果模型**，消除六套执行形态分叉（query() 六工厂 / getDenied\* 手写管线 / query-resources AppService 展开 / deleteRoles 局部规则 / canGrant 直查管线 / query-scopes AppService 自评管线）。
+- 判定面继承（目标闭包「父授权覆盖子」）在引擎层落地并按默认值矩阵启用；目标模式三态判别（TYPE_LEVEL/INSTANCE/LIST）消除「无实例目标」二义。
 - 管理面门禁条件评估拉平；冲突过滤入参化；两级互斥过滤点统一归属。
 
 ## 非目标
@@ -41,7 +41,7 @@ last_updated: 2026-09-09
 
 | ID | 标题 | 状态快照 |
 |---|---|---|
-| [T-PERM-057](../tasks/T-PERM-057.md) | 权限查询统一引擎重构（收编五套形态 + 判定面继承 + 评估拉平） | ⚙️ proposed |
+| [T-PERM-057](../tasks/T-PERM-057.md) | 权限查询统一引擎重构（收编六套形态 + 目标模式三态 + 判定面继承 + 评估拉平） | ⚙️ proposed |
 | [T-API-003](../tasks/T-API-003.md) | check 族三端点结果记录全量回传（推翻 T-API-002 check 族裁剪） | ⚙️ proposed |
 | [T-PERM-058](../tasks/T-PERM-058.md) | depend_on 子权限单点门禁闭合设计 | ⚙️ proposed |
 | [T-PERM-059](../tasks/T-PERM-059.md) | 权限视图/排查删除重设计（范围待定） | ⚙️ proposed |
@@ -50,8 +50,8 @@ last_updated: 2026-09-09
 
 ## 归档条件
 
-四个任务全部 done/cancelled；implementation §3 重写为统一引擎版；query-engine-unification.md 转 superseded（并入后）；关联 skill 双副本与 rule 同步完成。
+四个任务全部 done/cancelled；implementation §3 重写为统一引擎版；T-PERM-058/059 的 design_refs 重连 implementation §3 后，query-engine-unification.md 转 superseded；关联 skill 双副本与 rule 同步完成。
 
 ## 当前进度
 
-- 2026-09-09：grill 定案（Q1-Q15）+ 双子代理评审修订（ORG_VISIBILITY 失效论据修正、canGrant 第五套形态补计、清单面矩阵修订、check-interface 推翻范围补全、/query-permission-tree 归位修正）+ D1/D2 补充定案；设计与任务卡落盘。
+- 2026-09-09：grill 定案（Q1-Q15）+ D1/D2 补充定案；现状断言经代码级核验修订后落盘设计（目标模式三态化、codeType 归位目标三元组、query-scopes 自评管线补计为第六套形态、evolution superseded 时点定于计划收口）。

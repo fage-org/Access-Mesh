@@ -13,7 +13,7 @@ depends_on:
 blocks: []
 acceptance:
   - "缝隙定案：现状 selectInstancePermsByBitsBatch 不看 depend_on——单点查子权限行绕过父绑定照放行（query-scopes 面有主资源上下文判定、单点面没有）；设计产出闭合语义并定案"
-  - "设计要点（grill 预定向，待本卡定案确认）：可选 parentContext（类型+编码+操作）入参；不传时 depend_on 行是否计入为开放决策点（倾向不计入=fail-closed 自动闭合，需评审存量调用面后定案）"
+  - "设计要点（grill 预定向，待本卡定案确认）：可选 parentContext（类型+编码+操作）入参；不传时 depend_on 行是否计入为开放决策点（倾向不计入=fail-closed 自动闭合，需核对存量调用面后定案）"
   - "线格式：/auth/check、batch-check 的 parentContext 入参（若定案引入）+ api-contract §6.1 回写；depend_on 行 id 不进线格式（引擎内部解析）"
   - "实施分期：本卡可先出设计定案，实施随 T-PERM-057 落地后的引擎入参扩展（或独立小卡）"
 design_writeback:

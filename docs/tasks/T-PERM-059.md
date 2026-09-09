@@ -29,7 +29,7 @@ last_updated: 2026-09-09
 
 ## 背景
 
-权限视图/排查系（permission-view 七端点 + 前端排查页）拟整体删除重新设计（2026-09-09 用户定案）。前端排查页本已暂停待重做（T-FE-043，2026-09-06 登记）；/query-permission-tree 经评审核实为零外部消费端点（前端授权页实际消费 role-resource-permission/list + resource-entity/tree），一并并入评估。
+权限视图/排查系（permission-view 七端点 + 前端排查页）拟整体删除重新设计（2026-09-09 用户定案）。前端排查页本已暂停待重做（T-FE-043，2026-09-06 登记）；/query-permission-tree 经核实为零外部消费端点（前端授权页实际消费 role-resource-permission/list + resource-entity/tree），一并并入评估。
 
 ## 范围
 

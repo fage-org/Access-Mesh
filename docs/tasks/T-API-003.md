@@ -10,7 +10,6 @@ design_refs:
   - docs/design/permission-center/api-contract.md#§6.2
   - docs/design/permission-center/api-contract.md#§6.6
   - docs/design/permission-center/core-flows.md#§15
-  - docs/tasks/T-API-002.md
 depends_on: []
 blocks: []
 acceptance:
@@ -37,7 +36,7 @@ last_updated: 2026-09-09
 ## 范围
 
 - 三端点响应 DTO（双副本）恢复结果记录字段；契约测试与负向锁按新口径改写；文档回写。
-- registry 处置核对：2026-09-06 行的 check 族部分已移入「已推翻」节（2026-09-09 登记），本卡落地后核对新口径行为与登记一致。
+- registry 处置核对：2026-09-06 行的 check 族部分已移入「已推翻」节（2026-09-09 登记）；被取代关系的正文记载见本卡背景段（原裁剪任务卡 docs/tasks/T-API-002.md，历史完成事实不改）。本卡落地后核对新口径行为与登记一致。
 
 ## 非目标 / 遗留
 
