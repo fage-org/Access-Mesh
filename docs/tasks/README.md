@@ -9,11 +9,11 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 032 |
-| permission-center | `T-PERM` | 057 |
+| permission-center | `T-PERM` | 060 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 008 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
-| 跨服务 API 契约 | `T-API` | 003 |
+| 跨服务 API 契约 | `T-API` | 004 |
 | 前端 | `T-FE` | 044 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
@@ -105,7 +105,7 @@
 | [T-PERM-042](T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | product-vertical-slice（已归档） | api-contract；implementation；access-service-architecture | T-ACCESS-016, T-ACCESS-017 | ✅ | ✓ |
 | [T-PERM-043](T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | product-vertical-slice（已归档） | api-contract；implementation；frontend/role-manage；frontend/permission-grant | T-ACCESS-019, T-ACCESS-021 | ✅ | ✓ |
 | [T-PERM-044](T-PERM-044.md) | 四棵树（角色/组织/菜单/资源实体）move 并发成环窗口与递归 CTE 遇环不收敛统一加固（已收口 2026-09-04，终态见 architecture §17） | — | [T-PERM-044](T-PERM-044.md) | — | ✅ | ✓ |
-| [T-PERM-045](T-PERM-045.md) | 内部管理门禁统一启用子级继承（父有权子有权） | — | [T-PERM-045](T-PERM-045.md) | — | ⚙️ | ⏳ |
+| [T-PERM-045](T-PERM-045.md) | 内部管理门禁统一启用子级继承——❌ 已取消（2026-09-09 范围并入 T-PERM-057 统一引擎重构，终态设计 query-engine-unification.md） | [permission-query-unification](../plans/permission-query-unification-plan.md) | query-engine-unification.md | — | ❌ | — |
 | [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（已收口 2026-09-09，执行定案与终态见任务卡） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ✅ | ✓ |
 | [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ✅ | ✓ |
 | [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（范围见任务卡） | — | api-contract §5.6；access-service.sql | — | ⚙️ | ⏳ |
@@ -117,6 +117,9 @@
 | [T-PERM-054](T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置（暂缓——关联权限自动授权方向待讨论，见任务卡） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.4；schema | — | ⚙️ | ⏳ |
 | [T-PERM-055](T-PERM-055.md) | 域分类查询批量预载优化（matchesTypeCode 循环点查放大收敛；T-PERM-046 评审登记） | — | access-service-architecture §13；api-contract §3.4 | — | ⚙️ | ⏳ |
 | [T-PERM-056](T-PERM-056.md) | user_type/role_type 删除零检查——主体/角色类型引用面保护（已收口 2026-09-09，删除保护定案与终态见任务卡） | — | schema；api-contract §5.1 | — | ✅ | ✓ |
+| [T-PERM-057](T-PERM-057.md) | 权限查询统一引擎重构——收编五套形态 + 判定面继承 + 评估拉平（2026-09-09 grill 定案，含原 T-PERM-045 范围） | [permission-query-unification](../plans/permission-query-unification-plan.md) | query-engine-unification.md；implementation §3/§5.2；core-flows §7/§10.1/§15/§16；overview；permission-query-pipeline skill 双副本；permission-center-coding-standards rule；runbook §3 | — | ⚙️ | ⏳ |
+| [T-PERM-058](T-PERM-058.md) | depend_on 子权限单点门禁闭合设计——单点查询的主资源上下文语义 | [permission-query-unification](../plans/permission-query-unification-plan.md) | query-engine-unification.md §3；api-contract §6.1 | T-PERM-057 | ⚙️ | ⏳ |
+| [T-PERM-059](T-PERM-059.md) | 权限视图/排查删除重设计——范围圈定与新设计方向（含 /query-permission-tree 并入评估；范围待定） | [permission-query-unification](../plans/permission-query-unification-plan.md) | api-contract §6.8；access-service-architecture §14；query-engine-unification.md §9 | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 
@@ -155,7 +158,8 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 |---|---|---|---|---|---|---|
 | [T-ORG-001](T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | product-vertical-slice（已归档） | access-service-architecture；schema/access-service.sql；implementation；default-org-tree-user-lifecycle；access-service-rebuild-runbook | T-PERM-042 | ✅ | ✓ |
 | [T-API-001](T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | product-vertical-slice（已归档） | example-service；gateway；architecture | T-ACCESS-021 | ✅ | ✓ |
-| [T-API-002](T-API-002.md) | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（已收口 2026-09-06，终态见任务卡完成记录） | [design-audit-followup](../plans/design-audit-followup-plan.md) | core-flows §15；api-contract；perm-sdk | — | ✅ | ✓ |
+| [T-API-002](T-API-002.md) | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（已收口 2026-09-06，终态见任务卡完成记录；其内部 id 裁剪的 check 族部分 2026-09-09 被推翻，见 T-API-003 与 registry 已推翻节） | [design-audit-followup](../plans/design-audit-followup-plan.md) | core-flows §15；api-contract；perm-sdk | — | ✅ | ✓ |
+| [T-API-003](T-API-003.md) | check 族三端点结果记录全量回传（推翻 T-API-002 check 族裁剪；Query* 六字段维持） | [permission-query-unification](../plans/permission-query-unification-plan.md) | api-contract §6.1/§6.2/§6.6；core-flows §15；T-API-002.md | — | ⚙️ | ⏳ |
 
 ### 前端（前端 Phase 1/3/4 拆分）
 

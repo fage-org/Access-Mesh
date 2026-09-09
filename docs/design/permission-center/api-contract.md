@@ -226,7 +226,7 @@ last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-056 收口：§5.1 type-definiti
 - `list`/`detail` 读门禁：类型级 `ROLE:VIEW`（评审收口补齐，与 `tree` 同款——`list` 信息量不低于 `tree`，不设门禁会使 tree 门禁事实可绕；无权抛 SecurityException）。
 - `update` 补 `extraClear` 显式清空标志（T-FE-016 联调收口，对齐 §5.3 resource-entity 同款口径）：boolean 可选，`true`=清空 `extra` 为 null、优先于 `extra`（JSON null 无法区分「未传」与「清空」）；其余字段 null=不更新维持。前端编辑表单按「原 extra 非空且表单清空」判定传 `true`（resource-operation 同构公式）。
 - `sync`/`full-sync` 的 parent 同款环路判定（评审收口补齐）：parent 为目标角色自身或其子孙时拒绝（单条 nonRetryable、批量该项 failed + `ROLE_PARENT_INVALID`）；只读版本预判先行——旧版本无条件按 STALE 钝化（§6.2.2.5 成功 no-op，含携带非法父边的旧事件），新版本才进入父解析/判环，判环拒绝不推进版本（上游修正后同版本重试不被判 STALE；预判与写入间的并发交错由 applyVersion 原子判定兜底）。full-sync 为**写入前逐项判定**：当前生效图 = 库内既有关系 + 本事务已应用项的边，内存图严格镜像写入语义（未携带父字段的更新不清图内旧边）——STALE 项不落边、天然保持旧边（含同批次多边共同成环、批内/库内混合、STALE+APPLIED 混合的组合均覆盖），仅拒绝真正闭合环的项、指向环的前缀安全项放行。同批重复 `businessKey` 的后续项写入前拒绝（`DUPLICATE_BUSINESS_KEY`，对齐 user-role/full-sync 先例）。item 省略 `parentRoleTypeCode` 时缺省 = `scope.roleTypeCode`（§6.2.2.4 既有规则，父解析/判环/写入均按缺省类型）。
-- `remove` 级联覆盖 BASIC_ROLE 子孙（容器类型 GROUP_ROLE/ORG 之外）；级联根有权即整棵子树可删、不对子孙做独立权限过滤（项目规则「父级有权限子级即有权限」，2026-08-28 设计定案——内部门禁引擎级统一启用子级继承登记 T-PERM-045）。
+- `remove` 级联覆盖 BASIC_ROLE 子孙（容器类型 GROUP_ROLE/ORG 之外）；级联根有权即整棵子树可删、不对子孙做独立权限过滤（项目规则「父级有权限子级即有权限」，2026-08-28 设计定案——统一引擎判定面继承落地登记 T-PERM-057，终态设计 query-engine-unification.md §6/§10；原 T-PERM-045 已取消并入 057）。
 
 ### 5.3 资源与操作
 
@@ -527,6 +527,7 @@ last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-056 收口：§5.1 type-definiti
 ```
 
 > **已删除字段（T-API-002，2026-09-06 用户决策扩大裁剪面）**：`matchedRoleIds` / `matchedPermissionIds`（role / role_resource_permission 内部行 id）已从响应裁剪——SDK 直连端点不泄漏内部数据库 ID（core-flows §15 口径）。需要来源解释时使用 §6.8 `permission-view/explain`（管理端排查端点，`sourceRoles` 业务键 + 门禁）。
+> **⚠️ 已定案待实施（2026-09-09，T-API-003）**：本裁剪的 check 族部分（check/batch-check/check-interface 三端点）已被推翻——三端点将同口径恢复结果记录全量回传（`matchedRoleIds`/`matchedPermissionIds`/`matchedResources[].resourceId` 回线格式）；Query\* 响应族六字段裁剪维持。实施前本节现状描述仍有效；registry 已推翻节与 2026-09-09 登记行为定案依据。
 
 ### 6.2 Gateway 接口级鉴权
 

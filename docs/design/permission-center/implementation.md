@@ -290,6 +290,8 @@ public interface PermissionGrantDomainService {
 
 ## 3. 鉴权查询模块（PermQueryEngine）
 
+> **演进方向（已定案待实施，2026-09-09）**：本模块将按「权限查询统一引擎」终态重构——一引擎一套入参一个结果模型、判定面/展示面两语义拆分、判定面继承默认值矩阵、管理面条件评估拉平、canGrant 直查管线等五套执行形态全收编。终态设计见 [query-engine-unification.md](query-engine-unification.md)（evolution，落地时并入本节并转约束）；实施任务 T-PERM-057 / T-API-003 / T-PERM-058 / T-PERM-059（[permission-query-unification-plan](../../plans/permission-query-unification-plan.md)）。**本节以下现状描述在 T-PERM-057 落地前仍为实现的唯一权威**；OAuth2 委托用户链路维持不接入引擎（2026-08-22 用户决策）。
+
 ### 3.1 统一入口
 
 所有权限查询和校验统一通过 `PermQueryEngine` 执行。引擎提供两层 API：

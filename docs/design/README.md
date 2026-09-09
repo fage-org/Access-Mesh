@@ -13,6 +13,7 @@
 | 权限中心外部 API 契约 | [permission-center/api-contract.md](permission-center/api-contract.md)                 |
 | 权限中心核心调用链路  | [permission-center/core-flows.md](permission-center/core-flows.md)                     |
 | 权限中心实现设计      | [permission-center/implementation.md](permission-center/implementation.md)             |
+| 权限查询统一引擎（演进终态） | [permission-center/query-engine-unification.md](permission-center/query-engine-unification.md)（`status: evolution`，2026-09-09 定案待实施——实施 T-PERM-057/T-API-003/T-PERM-058/T-PERM-059，落地后并入 implementation §3） |
 | 权限中心 v3.5 端到端设计 | [permission-center-v3.5-design.md](permission-center-v3.5-design.md)（`status: adopted`）|
 | 权限中心 v3.5.1+ 演进方向 | [permission-center-v3.5.1-evolution.md](permission-center-v3.5.1-evolution.md)（`status: evolution`，非约束）|
 | 默认组织树与用户生命周期 | [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)               |

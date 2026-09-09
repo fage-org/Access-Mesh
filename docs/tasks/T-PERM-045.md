@@ -2,8 +2,8 @@
 doc_type: task
 id: T-PERM-045
 title: 内部管理门禁统一启用子级继承（项目规则「父级有权限子级即有权限」）
-status: proposed
-plan: ""
+status: cancelled
+plan: docs/plans/permission-query-unification-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.2
@@ -19,14 +19,14 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-28
+last_updated: 2026-09-09
 ---
 
 # T-PERM-045 内部管理门禁统一启用子级继承
 
-> 状态：proposed（2026-08-28 T-PERM-022 外部复评 P2-2 处置时定案登记）
+> 状态：cancelled（2026-09-09 取消——范围整体并入 [T-PERM-057](T-PERM-057.md) 权限查询统一引擎重构：2026-09-09 grill 定案将「门禁默认启用子级继承」扩展为统一引擎全模型（判定面/展示面两语义拆分 + 默认值矩阵 + 评估拉平），本卡范围为子集；终态设计见 [query-engine-unification.md](../design/permission-center/query-engine-unification.md)。取消时无下游依赖（grep depends_on 零命中）。）
 > 依赖：无（独立权限语义收口任务）
-> 前置验收：见 acceptance
+> 前置验收：见 acceptance（随取消作废，被 T-PERM-057 acceptance 覆盖）
 
 ## 背景
 
