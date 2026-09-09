@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 
 import java.net.InetAddress;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.Map;
@@ -18,23 +19,30 @@ import java.util.Set;
  * 支持日期范围、时间范围、IP白名单/黑名单等条件类型的评估。
  * </p>
  * <p>
- * 时钟语义说明（T-PERM-017）：
+ * 时钟语义说明（T-PERM-017；2026-09-09 T-PERM-057 修订）：
  * <ul>
- *   <li>{@link #evalDateRange} / {@link #evalTimeRange} 使用调用方进程的系统时钟
- *       {@code LocalDate.now()} / {@code LocalTime.now()}。</li>
+ *   <li>{@link #evalDateRange} / {@link #evalTimeRange} 优先消费评估上下文的服务器环境键
+ *       {@link #CONTEXT_KEY_EVALUATED_AT}（ISO-8601 LocalDateTime 字符串，access-service
+ *       统一引擎的 {@code PermEvalContext} 展平注入）；键缺省或不可解析回退调用方进程
+ *       系统时钟 {@code LocalDate.now()} / {@code LocalTime.now()}（Gateway 快照重评等
+ *       无服务器环境上下文的调用方维持既有行为）。</li>
  *   <li>Gateway 与 access-service 可能运行在不同进程。本项目面向中小型企业部署，
  *       Gateway 与 access-service 通常同机房 / 同云区域，跨进程时钟一致性由 NTP
  *       同步保证（亚秒级）。条件规则的业务粒度（DATE_RANGE 按天，TIME_RANGE 通常按
  *       小时级如 09:00-18:00）远大于 NTP 漂移，因此 4 类条件均可下发 Gateway。</li>
- *   <li>评估上下文 {@link Map} 当前仅承载 {@code clientIp}，不传递 {@code timestamp}：
- *       一是 NTP 已能解决；二是引入 context 时钟传递会显著增加复杂度（ISO 解析、时区
- *       约定、fail-close 策略），收益与中小企业部署场景不匹配。</li>
+ *   <li>评估上下文 {@link Map} 承载 {@code clientIp}（用户环境）与
+ *       {@code evaluatedAt}（服务器环境，可选）。</li>
  * </ul>
  * </p>
  */
 public final class ConditionEvalUtils {
 
     private static final Logger log = LoggerFactory.getLogger(ConditionEvalUtils.class);
+
+    /**
+     * 评估上下文键：服务器环境评估时间（ISO-8601 LocalDateTime 字符串；缺省回退本机时钟）
+     */
+    public static final String CONTEXT_KEY_EVALUATED_AT = "evaluatedAt";
 
     /**
      * Gateway 可下发评估的条件类型白名单（T-PERM-017）
@@ -87,7 +95,8 @@ public final class ConditionEvalUtils {
      * 评估日期范围条件
      * <p>
      * 判断当前日期是否在指定的日期范围内（包含边界）。
-     * 日期格式为 ISO 8601 格式（yyyy-MM-dd）。使用调用方进程的系统时钟。
+     * 日期格式为 ISO 8601 格式（yyyy-MM-dd）。使用调用方进程的系统时钟；
+     * 带 context 的重载优先消费服务器环境键 {@link #CONTEXT_KEY_EVALUATED_AT}。
      * </p>
      *
      * @param startDate 开始日期字符串
@@ -95,9 +104,16 @@ public final class ConditionEvalUtils {
      * @return 当前日期在范围内返回true，否则返回false
      */
     public static boolean evalDateRange(String startDate, String endDate) {
+        return evalDateRange(startDate, endDate, null);
+    }
+
+    /**
+     * 评估日期范围条件（服务器环境时钟：context 的 evaluatedAt 优先，缺省本机时钟）
+     */
+    public static boolean evalDateRange(String startDate, String endDate, Map<String, Object> context) {
         if (startDate == null || endDate == null) return false;
         try {
-            LocalDate now = LocalDate.now();
+            LocalDate now = resolveEvalDate(context);
             LocalDate start = LocalDate.parse(startDate);
             LocalDate end = LocalDate.parse(endDate);
             return !now.isBefore(start) && !now.isAfter(end);
@@ -111,7 +127,8 @@ public final class ConditionEvalUtils {
      * 评估时间范围条件
      * <p>
      * 判断当前时间是否在指定的时间范围内（包含边界）。
-     * 时间格式为 ISO 8601 格式（HH:mm:ss）。使用调用方进程的系统时钟。
+     * 时间格式为 ISO 8601 格式（HH:mm:ss）。使用调用方进程的系统时钟；
+     * 带 context 的重载优先消费服务器环境键 {@link #CONTEXT_KEY_EVALUATED_AT}。
      * </p>
      *
      * @param startTime 开始时间字符串
@@ -119,9 +136,16 @@ public final class ConditionEvalUtils {
      * @return 当前时间在范围内返回true，否则返回false
      */
     public static boolean evalTimeRange(String startTime, String endTime) {
+        return evalTimeRange(startTime, endTime, null);
+    }
+
+    /**
+     * 评估时间范围条件（服务器环境时钟：context 的 evaluatedAt 优先，缺省本机时钟）
+     */
+    public static boolean evalTimeRange(String startTime, String endTime, Map<String, Object> context) {
         if (startTime == null || endTime == null) return false;
         try {
-            LocalTime now = LocalTime.now();
+            LocalTime now = resolveEvalTime(context);
             LocalTime start = LocalTime.parse(startTime);
             LocalTime end = LocalTime.parse(endTime);
             if (end.isBefore(start)) {
@@ -132,6 +156,36 @@ public final class ConditionEvalUtils {
         } catch (DateTimeParseException e) {
             log.warn("无效的时间范围: [{}, {}] — {}", startTime, endTime, e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * 解析评估日期：context 服务器环境键 evaluatedAt（ISO-8601 LocalDateTime 字符串）优先，
+     * 缺省/不可解析回退本机时钟（2026-09-09 定案：条件上下文含服务器环境维度）。
+     */
+    private static LocalDate resolveEvalDate(Map<String, Object> context) {
+        LocalDateTime at = resolveEvalAt(context);
+        return at != null ? at.toLocalDate() : LocalDate.now();
+    }
+
+    /**
+     * 解析评估时间：context 服务器环境键 evaluatedAt 优先，缺省/不可解析回退本机时钟。
+     */
+    private static LocalTime resolveEvalTime(Map<String, Object> context) {
+        LocalDateTime at = resolveEvalAt(context);
+        return at != null ? at.toLocalTime() : LocalTime.now();
+    }
+
+    private static LocalDateTime resolveEvalAt(Map<String, Object> context) {
+        Object value = context == null ? null : context.get(CONTEXT_KEY_EVALUATED_AT);
+        if (value == null) {
+            return null;
+        }
+        try {
+            return LocalDateTime.parse(String.valueOf(value));
+        } catch (DateTimeParseException e) {
+            log.warn("无效的评估时间上下文: {} — 回退本机时钟", value);
+            return null;
         }
     }
 
@@ -277,12 +331,14 @@ public final class ConditionEvalUtils {
         if (dateRangeType.equals(type)) {
             return evalDateRange(
                 params.has("start") ? params.get("start").asText() : null,
-                params.has("end") ? params.get("end").asText() : null);
+                params.has("end") ? params.get("end").asText() : null,
+                context);
         }
         if (timeRangeType.equals(type)) {
             return evalTimeRange(
                 params.has("start") ? params.get("start").asText() : null,
-                params.has("end") ? params.get("end").asText() : null);
+                params.has("end") ? params.get("end").asText() : null,
+                context);
         }
         if (ipWhitelistType.equals(type)) {
             String clientIp = (String) context.get("clientIp");

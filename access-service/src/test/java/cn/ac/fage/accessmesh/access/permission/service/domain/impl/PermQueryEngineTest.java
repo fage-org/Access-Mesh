@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
@@ -32,12 +33,14 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -125,20 +128,11 @@ class PermQueryEngineTest {
         when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
         when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(invocation -> invocation.getArgument(1));
 
-        ResourceEntity resource = new ResourceEntity();
-        resource.setId(200L);
-        resource.setCode("sys:user");
-        resource.setCodeType("default");
-        resource.setName("用户资源");
-        resource.setResourceType(1);
-        when(resourceEntityMapper.selectValidByIds(1L, Set.of(200L))).thenReturn(List.of(resource));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any()))
+            .thenReturn(Map.of(new ResourceResolveKey("MENU", "sys:user", null, null), 200L));
 
-        PermQuery query = PermQuery.forScopeQuery(1L, 10L, Set.of("MENU"), Set.of("VIEW"));
-        query.setResourceCodes(Set.of("sys:user"));
-        query.setResourceEntityIds(Set.of(200L));
-        query.setEvaluateConditions(true);
-        query.setEvaluateConflicts(true);
-        query.setEvaluateMatchesBit(true);
+        PermQuery query = PermQuery.forAuthCheck(1L, 10L, "MENU", "sys:user", "VIEW");
+        query.setIncludeOperations(true);
 
         PermResult result = engine.query(query);
 
@@ -149,8 +143,9 @@ class PermQueryEngineTest {
 
     /**
      * T-ACCESS-017 特征测试（链路 4）：scopeAll 类型级授权命中时提前返回放行——
-     * 允许结果 + scopeAllMatched=true + 零实例级查询（verify never），
-     * 且 forValidate（evaluateConditions=false）不触发条件评估。
+     * 允许结果 + scopeAllMatched=true + 零实例级查询（verify never）。
+     * T-PERM-057 拉平后 forValidate 评估条件与条目互斥（Q13 定案），本用例同时锁
+     * 「评估通过不改变放行结论」。
      */
     @Test
     void queryShouldEarlyReturnAllowOnScopeAllMatch() {
@@ -176,6 +171,8 @@ class PermQueryEngineTest {
         scopeAllPerm.setDeleteFlag(0L);
         when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
             .thenReturn(List.of(scopeAllPerm));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(invocation -> invocation.getArgument(1));
 
         PermQuery query = PermQuery.forValidate(1L, 10L, "SERVICE", "svc-code-1", "VIEW");
 
@@ -572,6 +569,8 @@ class PermQueryEngineTest {
         granted.setDeleteFlag(0L);
         when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), any()))
             .thenReturn(List.of(granted));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(invocation -> invocation.getArgument(1));
 
         assertTrue(engine.hasPermissionByEntityId(1L, 10L, "RESOURCE", 200L, "MANAGE"));
         // entityId 轨零 code 解析
@@ -612,7 +611,7 @@ class PermQueryEngineTest {
         when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
             .thenReturn(List.of());
 
-        engine.query(PermQuery.forScopeQuery(1L, 10L, Set.of("ATYPE", "BTYPE", "CTYPE"), Set.of("VIEW")));
+        engine.query(PermQuery.forInterfaceCheck(1L, 10L, Set.of("ATYPE", "BTYPE", "CTYPE"), Set.of(300L), "VIEW"));
 
         // miss 集合一次批量专属查询、零逐类型查询
         verify(operationPermissionMapper).selectByTenantAndResourceTypes(1L, Set.of(1, 3));
@@ -622,6 +621,98 @@ class PermQueryEngineTest {
             org.mockito.ArgumentCaptor.forClass(Map.class);
         verify(cacheService).putBatch(any(CacheCatalogEntry.class), eq(1L), putCaptor.capture());
         assertEquals(Set.of("op_perm:1", "op_perm:3"), putCaptor.getValue().keySet());
+    }
+
+
+    // ===== T-PERM-057 targetMode 三态互不串义回归锁 =====
+
+    /**
+     * TYPE_LEVEL 不被实例授权命中：只有实例级授权行时类型级门禁必须拒绝，
+     * 且管线零实例查询（TYPE_LEVEL 只消费 scopeAll——实例授权放行类型级门禁=越权）。
+     */
+    @Test
+    void typeLevelMustNotBeSatisfiedByInstanceOnlyGrantAndNeverQueryInstance() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 101L));
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(101L))).thenReturn(List.of(viewOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1"))))
+            .thenReturn(Map.of("op_perm:1", Map.of(101L, viewOp)));
+        // 仅有实例级授权行，无 scopeAll 行
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of());
+
+        // 类型级门禁（code=null → TYPE_LEVEL）
+        assertFalse(engine.hasPermissionByCode(1L, 10L, "MENU", null, "VIEW"));
+        // TYPE_LEVEL 管线零实例查询（互不串义形态锁）
+        verify(rolePermMapper, never()).selectInstancePermsByBitsBatch(any(), any(), any(), any());
+        verify(resourceEntityMapper, never()).selectSelfAndAncestorClosureBatch(any(), any());
+    }
+
+    /**
+     * LIST 返回实例条目（修复锁：旧 forScopeQuery 形态 queryInstance=true 却无目标，
+     * 实例条目永不返回——query-scopes INSTANCE 四态不可达；收编后 LIST 按角色全量拉取）。
+     */
+    @Test
+    void listModeMustReturnInstanceEntries() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        RolePermEntry instanceEntry = new RolePermEntry(
+            501L, 20L, 200L, "res-a", 1, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, false);
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, List.of(instanceEntry)));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(invocation -> invocation.getArgument(1));
+
+        PermResult result = engine.query(PermQuery.forScopeQuery(1L, 10L, Set.of("MENU"), Set.of("VIEW")));
+
+        assertTrue(result.allowed());
+        assertThat(result.instanceEntries()).anyMatch(e -> Long.valueOf(200L).equals(e.resourceEntityId()));
+        // LIST 管线不做 scopeAll/实例 SQL 下推（按角色全量缓存读路径）
+        verify(rolePermMapper, never()).selectInstancePermsByBitsBatch(any(), any(), any(), any());
+    }
+
+    /**
+     * INSTANCE + 判定面继承：目标集扩为 {目标}∪同类型祖先链（闭包成员入实例查询下推）。
+     */
+    @Test
+    void instanceClosureMustExpandQueryTargets() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 101L));
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(101L))).thenReturn(List.of(viewOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1"))))
+            .thenReturn(Map.of("op_perm:1", Map.of(101L, viewOp)));
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of());
+
+        // 闭包：目标 200 的祖先链含 100
+        ResourceEntityMapper.AncestorClosureResult closure = new ResourceEntityMapper.AncestorClosureResult();
+        closure.setTargetId(200L);
+        closure.setClosureId(100L);
+        when(resourceEntityMapper.selectSelfAndAncestorClosureBatch(1L, Set.of(200L)))
+            .thenReturn(List.of(closure));
+        // 授权行挂祖先 100（不在请求目标集内）
+        RoleResourcePermission ancestorPerm = new RoleResourcePermission();
+        ancestorPerm.setId(501L);
+        ancestorPerm.setAbstractRoleId(20L);
+        ancestorPerm.setResourceEntityId(100L);
+        ancestorPerm.setResourceType(1);
+        ancestorPerm.setGrantedBits(1L);
+        ancestorPerm.setDeleteFlag(0L);
+        when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(200L, 100L)), any()))
+            .thenReturn(List.of(ancestorPerm));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(invocation -> invocation.getArgument(1));
+
+        assertTrue(engine.hasPermissionByEntityId(1L, 10L, "MENU", 200L, "VIEW"));
+        // 判定面闭包 SQL 以请求目标为起点（查询前扩大目标集）
+        verify(resourceEntityMapper).selectSelfAndAncestorClosureBatch(1L, Set.of(200L));
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

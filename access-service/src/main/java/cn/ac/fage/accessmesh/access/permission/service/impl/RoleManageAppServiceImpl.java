@@ -387,10 +387,12 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             .collect(Collectors.toSet());
 
         if (!cascadeRootIds.isEmpty()) {
-            // 级联子孙整体入删（项目规则「父级有权限子级即有权限」，2026-08-28 设计定案）：
-            // 级联根有权即整棵子树可删，不对子孙做独立权限过滤——实例级授权不自动继承子级
-            // 的引擎级统一收口登记 T-PERM-057（原 T-PERM-045 已取消并入，终态设计
-            // query-engine-unification.md）；悬挂子树防护由此成立（根删则整棵同删，
+            // 级联子孙整体入删——统一引擎判定面继承口径（T-PERM-057 落地，项目规则
+            // 「父级有权限子级即有权限」唯一判定面落点）：级联根的门禁判定（上方
+            // getDeniedResourceCodes，判定面继承默认开）按 {根}∪祖先链闭包评估；
+            // 子孙不做独立权限过滤——任一子孙的祖先链必含级联根，按闭包语义其判定
+            // 结论与级联根一致（等价性：根有权→整棵子树可删；根无权→根不进删除集、
+            // 其子孙不会被级联展开）。悬挂子树防护由此成立（根删则整棵同删，
             // 不存在删父留子的部分删除）
             List<Long> descendantIds = subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, cascadeRootIds);
             allIdsToDelete.addAll(descendantIds);

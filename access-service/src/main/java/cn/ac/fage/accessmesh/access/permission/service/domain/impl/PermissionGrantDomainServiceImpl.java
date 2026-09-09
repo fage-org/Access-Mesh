@@ -4,26 +4,27 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.permission.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
+import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,6 +37,9 @@ import java.util.stream.Collectors;
  * <p>
  * 实现权限授予相关的核心领域逻辑：
  * - 授权传递检查（canGrant验证）：操作者必须拥有该权限且canGrant=true才能授权给他人
+ *   （T-PERM-057 第五套形态收编：授权事实经统一引擎 LIST 管线获取，不再直查
+ *   role_resource_permission；本服务只保留 canGrant 转授资格的领域判定——
+ *   canGrant=true 且无条件挂载（20041 条件权限不可转授同源））
  * - 权限撤销：批量软删除权限并级联删除子权限
  * TODO: 自动授权解析（resolveAutoGrants）——依赖资源的自动授权尚未实现，当前仅使用 GrantSource.MANUAL
  * 采用批量处理策略避免N+1查询问题。
@@ -47,26 +51,22 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     private static final Logger log = LoggerFactory.getLogger(PermissionGrantDomainServiceImpl.class);
 
     private final TypeResolutionService typeResolutionService;
-    private final SubjectDomainService subjectDomainService;
+    private final PermQueryEngine permQueryEngine;
     private final OperationPermissionMapper operationPermissionMapper;
-    private final RoleResourcePermissionMapper roleResourcePermissionMapper;
 
     /**
-     * 构造函数注入依赖
+     * 构造函数注入依赖服务
      *
-     * @param typeResolutionService        类型解析服务
-     * @param subjectDomainService        主体领域服务
-     * @param operationPermissionMapper    操作权限数据访问层
-     * @param roleResourcePermissionMapper 角色资源权限数据访问层
+     * @param typeResolutionService     类型解析服务
+     * @param permQueryEngine           统一权限查询引擎（授权事实唯一来源）
+     * @param operationPermissionMapper 操作权限数据访问层（目标操作定义加载，非权限判定）
      */
     public PermissionGrantDomainServiceImpl(TypeResolutionService typeResolutionService,
-                                            SubjectDomainService subjectDomainService,
-                                            OperationPermissionMapper operationPermissionMapper,
-                                            RoleResourcePermissionMapper roleResourcePermissionMapper) {
+                                            PermQueryEngine permQueryEngine,
+                                            OperationPermissionMapper operationPermissionMapper) {
         this.typeResolutionService = typeResolutionService;
-        this.subjectDomainService = subjectDomainService;
+        this.permQueryEngine = permQueryEngine;
         this.operationPermissionMapper = operationPermissionMapper;
-        this.roleResourcePermissionMapper = roleResourcePermissionMapper;
     }
 
     // ===== canGrant 权限检查 =====
@@ -103,12 +103,10 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     /**
      * 批量检查授权权限（canGrant验证）
      * <p>
-     * 采用批量处理策略避免N+1查询：
-     * 1. 批量解析资源类型值
-     * 2. 批量查询操作权限
-     * 3. 批量解析资源实体ID
-     * 4. 批量查询角色资源权限
-     * 5. 构建查找映射并逐个评估
+     * 授权事实一次经统一引擎 LIST 管线拉取（T-PERM-057 收编；配置面口径：不评估条件与
+     * 条目互斥——转授资格看原始授权行），本方法内存完成 canGrant 领域判定：
+     * 批量解析资源实体ID → 逐键匹配授权条目（位覆盖 covers）→ canGrant=true 且
+     * conditionId=null（20041 同源：条件权限不可转授）。
      * 主体必须是权限域投影主体（{@code abstract_user.id}），禁止直接传 admin 域
      * （T-ORG-001 统一后操作者 ID 即主体 ID，无转换层）。
      * </p>
@@ -142,114 +140,113 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return results;
         }
 
-        Set<Long> operatorRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, subjectId);
-        if (operatorRoleIds.isEmpty()) {
+        // 1. 授权事实：引擎 LIST 全量（配置面口径——不评估条件/互斥；评估与否不影响
+        //    canGrant 判定：转授资格只认 canGrant=true 且无条件挂载的原始行）
+        PermQuery query = PermQuery.forUserView(tenantId, subjectId);
+        query.setEvaluateConditions(false);
+        query.setEvaluateConflicts(false);
+        query.setEvaluateMatchesBit(false);
+        query.setIncludeResources(false);
+        query.setIncludeOperations(true);
+        query.setIncludeRoles(false);
+        PermResult permResult = permQueryEngine.query(query);
+        List<RolePermEntry> operatorEntries = permResult.allowed()
+            ? permResult.instanceEntries() : List.of();
+        if (operatorEntries.isEmpty()) {
             for (GrantCheckKey key : validPermissions) {
-                String permKey = grantCheckKeyText(key);
-                results.put(permKey, new GrantCheckResult(false, "NO_ROLE"));
+                results.put(grantCheckKeyText(key), new GrantCheckResult(false, "NO_ROLE"));
             }
             return results;
         }
 
-        // ===== 批量优化策略 =====
-
-        // 1. 收集资源类型编码和操作码
-        Set<String> resourceTypeCodes = validPermissions.stream()
-            .map(GrantCheckKey::resourceTypeCode)
-            .collect(Collectors.toSet());
-        Set<String> operationCodes = validPermissions.stream()
-            .map(GrantCheckKey::operationCode)
-            .map(String::toUpperCase)
-            .collect(Collectors.toSet());
-
-        // 2. 批量解析资源类型，避免N+1查询
+        // 2. 类型值与目标操作解析（批量）
         Map<String, Integer> rawResourceTypeByCode = typeResolutionService.batchResolveTypeValues(
-            tenantId, "resource_type", resourceTypeCodes);
-        // 键转大写以保持一致的查找
+            tenantId, "resource_type",
+            validPermissions.stream().map(GrantCheckKey::resourceTypeCode).collect(Collectors.toSet()));
         Map<String, Integer> resourceTypeByCode = new HashMap<>();
         for (Map.Entry<String, Integer> entry : rawResourceTypeByCode.entrySet()) {
             if (entry.getKey() != null && entry.getValue() != null) {
                 resourceTypeByCode.put(entry.getKey().toUpperCase(), entry.getValue());
             }
         }
-
-        // 3. 批量查询操作权限
-        Set<Integer> resourceTypeValues = new HashSet<>(resourceTypeByCode.values());
-        if (resourceTypeValues.isEmpty()) {
+        if (resourceTypeByCode.isEmpty()) {
             for (GrantCheckKey key : validPermissions) {
                 results.put(grantCheckKeyText(key),
                     new GrantCheckResult(false, "INVALID_RESOURCE_TYPE"));
             }
             return results;
         }
-        List<OperationPermission> specificTargetOperations = operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
-            tenantId, resourceTypeValues, operationCodes);
 
-        Map<String, OperationPermission> opPermByKey = new HashMap<>();
-        Map<Integer, List<OperationPermission>> targetOpsByType = new LinkedHashMap<>();
-        for (Integer resourceTypeValue : resourceTypeValues) {
-            List<OperationPermission> merged = specificTargetOperations.stream()
-                .filter(operation -> Objects.equals(operation.getResourceType(), resourceTypeValue))
-                .collect(Collectors.toList());
-            targetOpsByType.put(resourceTypeValue, merged);
-            for (OperationPermission operation : merged) {
-                opPermByKey.put(BusinessKeys.operationCodeKey(resourceTypeValue, operation.getCode().toUpperCase()), operation);
-            }
+        // 目标操作索引（键=类型值+操作码大写）。目标操作独立于引擎辅助 map 加载——
+        // 操作者无该类型授权行时该类型不进引擎 operationMap，目标操作仍须可解析（→NO_PERMISSION 而非误报 INVALID_OPERATION）
+        Map<String, OperationPermission> targetOpByKey = new HashMap<>();
+        Map<String, Set<String>> opCodesByTypeCode = new HashMap<>();
+        for (GrantCheckKey key : validPermissions) {
+            opCodesByTypeCode.computeIfAbsent(key.resourceTypeCode().toUpperCase(), _unused -> new LinkedHashSet<>())
+                .add(key.operationCode().toUpperCase());
         }
-        Map<String, OperationPermission> grantedOpIndex = buildOperationIndex(
-            operationPermissionMapper.selectByTenantAndResourceType(tenantId, null), resourceTypeValues);
+        Set<Integer> targetTypeValues = new LinkedHashSet<>(resourceTypeByCode.values());
+        Set<String> allTargetOpCodes = opCodesByTypeCode.values().stream()
+            .flatMap(Set::stream).collect(Collectors.toCollection(LinkedHashSet::new));
+        List<OperationPermission> targetOperations = operationPermissionMapper
+            .selectByTenantResourceTypesAndOpCodes(tenantId, targetTypeValues, allTargetOpCodes);
+        for (OperationPermission target : targetOperations) {
+            if (target.getResourceType() == null || target.getCode() == null) {
+                continue;
+            }
+            targetOpByKey.put(BusinessKeys.operationCodeKey(
+                target.getResourceType(), target.getCode().toUpperCase()), target);
+        }
 
-        // 4. 批量解析资源实体ID
+        // 3. 实例目标批量解析（非 scopeAll 键）
         List<ResourceResolveRequest> resourceRequests = validPermissions.stream()
             .filter(key -> !key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank())
             .map(key -> new ResourceResolveRequest(key.resourceTypeCode(), key.resourceCode(), key.codeType(), domainCode))
             .distinct()
             .collect(Collectors.toList());
         Map<ResourceResolveKey, Long> resolvedResourceIds = typeResolutionService.batchResolveResourceIds(tenantId, resourceRequests);
-
         Map<String, Long> resourceEntityIdByKey = new HashMap<>();
         for (Map.Entry<ResourceResolveKey, Long> entry : resolvedResourceIds.entrySet()) {
             ResourceResolveKey key = entry.getKey();
             resourceEntityIdByKey.put(BusinessKeys.resourceTripleCodeKey(key.resourceTypeCode(), key.resourceCode(), key.codeType()), entry.getValue());
         }
 
-        // 5. 批量查询角色资源权限（按角色和资源类型过滤）
-        List<RoleResourcePermission> allPerms = roleResourcePermissionMapper.selectValidByRoleIds(
-            tenantId, operatorRoleIds);
-
-        allPerms = allPerms.stream()
-            .filter(p -> p.getResourceType() != null && resourceTypeValues.contains(p.getResourceType()))
-            .collect(Collectors.toList());
-
-        // 6. 构建查找映射
-        Map<String, List<RoleResourcePermission>> permsBySpecificResource = new HashMap<>();
-        Map<String, List<RoleResourcePermission>> permsByScopeAll = new HashMap<>();
-
-        for (RoleResourcePermission perm : allPerms) {
+        // 4. 授权条目按（类型值×操作码）与（类型值×操作码×实体）索引（位覆盖语义：授予操作覆盖目标操作即匹配）
+        Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils
+            .indexByResourceTypeAndBinaryBit(permResult.operationMap() != null
+                ? permResult.operationMap().values() : List.of());
+        Map<String, List<RolePermEntry>> entriesByOpKey = new HashMap<>();
+        Map<String, List<RolePermEntry>> entriesByOpAndEntity = new HashMap<>();
+        for (RolePermEntry perm : operatorEntries) {
+            if (perm.resourceType() == null || perm.grantedBits() == null) {
+                continue;
+            }
             OperationPermission grantedOp = grantedOpIndex.get(
-                BusinessKeys.operationBitKey(perm.getResourceType(), perm.getGrantedBits()));
+                BusinessKeys.operationBitKey(perm.resourceType(), perm.grantedBits()));
             if (grantedOp == null) {
                 continue;
             }
-            for (OperationPermission targetOp : targetOpsByType.getOrDefault(perm.getResourceType(), List.of())) {
-                if (!OperationPermissionUtils.covers(grantedOp, targetOp)) {
+            for (OperationPermission targetOp : targetOpByKey.values()) {
+                if (!Objects.equals(targetOp.getResourceType(), perm.resourceType())
+                    || !OperationPermissionUtils.covers(grantedOp, targetOp)) {
                     continue;
                 }
-                String baseKey = BusinessKeys.operationCodeKey(perm.getResourceType(), targetOp.getCode().toUpperCase());
-                if (Boolean.TRUE.equals(perm.getScopeAll())) {
-                    permsByScopeAll.computeIfAbsent(baseKey, _unused -> new ArrayList<>()).add(perm);
-                } else if (perm.getResourceEntityId() != null) {
-                    permsBySpecificResource.computeIfAbsent(
-                        BusinessKeys.grantEntryKey(perm.getResourceType(), targetOp.getCode().toUpperCase(), perm.getResourceEntityId()),
+                String opKey = BusinessKeys.operationCodeKey(perm.resourceType(), targetOp.getCode().toUpperCase());
+                if (Boolean.TRUE.equals(perm.scopeAll())) {
+                    entriesByOpKey.computeIfAbsent(opKey, _unused -> new ArrayList<>()).add(perm);
+                } else if (perm.resourceEntityId() != null) {
+                    entriesByOpAndEntity.computeIfAbsent(
+                        BusinessKeys.grantEntryKey(perm.resourceType(), targetOp.getCode().toUpperCase(), perm.resourceEntityId()),
                         _unused -> new ArrayList<>()).add(perm);
+                    // scopeAll=false 的实例行同样满足类型级转授键？否——scopeAll 键只认 scopeAll 行（与既有语义一致）
                 }
             }
         }
 
-        // ===== 逐个评估权限 =====
+        // 5. 逐键评估转授资格
         for (GrantCheckKey key : validPermissions) {
-            GrantCheckResult result = evaluateGrantPermission(key, resourceTypeByCode, opPermByKey,
-                resourceEntityIdByKey, permsBySpecificResource, permsByScopeAll);
+            GrantCheckResult result = evaluateGrantPermission(key, resourceTypeByCode, targetOpByKey,
+                resourceEntityIdByKey, entriesByOpAndEntity, entriesByOpKey);
             results.put(grantCheckKeyText(key), result);
         }
         return results;
@@ -297,23 +294,23 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     // ===== 私有辅助方法 =====
 
     /**
-     * 评估单个权限的授权资格
+     * 评估单个权限的授权资格（T-PERM-057 收编后基于引擎 RolePermEntry 条目）
      * <p>
      * 根据预加载的数据评估操作者是否有canGrant权限。
      * 检查步骤：
      * 1. 验证资源类型有效性
      * 2. 验证操作权限有效性
      * 3. 解析资源实体ID（非scopeAll时）
-     * 4. 查找匹配的权限记录
-     * 5. 检查canGrant标记
+     * 4. 查找匹配的权限条目
+     * 5. 检查canGrant标记（可转授行须 canGrant=true 且无挂载条件，20041 同源）
      * </p>
      */
     private GrantCheckResult evaluateGrantPermission(GrantCheckKey key,
                                                       Map<String, Integer> resourceTypeByCode,
                                                       Map<String, OperationPermission> opPermByKey,
                                                       Map<String, Long> resourceEntityIdByKey,
-                                                      Map<String, List<RoleResourcePermission>> permsBySpecificResource,
-                                                      Map<String, List<RoleResourcePermission>> permsByScopeAll) {
+                                                      Map<String, List<RolePermEntry>> permsBySpecificResource,
+                                                      Map<String, List<RolePermEntry>> permsByScopeAll) {
         String resTypeCodeUpper = key.resourceTypeCode().toUpperCase();
         String opCodeUpper = key.operationCode().toUpperCase();
 
@@ -338,26 +335,23 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         }
 
         String baseKey = BusinessKeys.operationCodeKey(resourceTypeValue, opCodeUpper);
-        List<RoleResourcePermission> matchingPerms = new ArrayList<>();
+        List<RolePermEntry> matchingPerms = new ArrayList<>();
 
         if (key.scopeAll()) {
-            List<RoleResourcePermission> scopeAllPerms = permsByScopeAll.getOrDefault(baseKey, List.of());
-            matchingPerms.addAll(scopeAllPerms);
+            matchingPerms.addAll(permsByScopeAll.getOrDefault(baseKey, List.of()));
         } else {
             String specificKey = BusinessKeys.grantEntryKey(resourceTypeValue, opCodeUpper, resourceEntityId);
-            List<RoleResourcePermission> specificPerms = permsBySpecificResource.getOrDefault(specificKey, List.of());
-            List<RoleResourcePermission> scopeAllPerms = permsByScopeAll.getOrDefault(baseKey, List.of());
-            matchingPerms.addAll(specificPerms);
-            matchingPerms.addAll(scopeAllPerms);
+            matchingPerms.addAll(permsBySpecificResource.getOrDefault(specificKey, List.of()));
+            matchingPerms.addAll(permsByScopeAll.getOrDefault(baseKey, List.of()));
         }
 
         if (matchingPerms.isEmpty()) {
             return new GrantCheckResult(false, "NO_PERMISSION");
         }
 
-        for (RoleResourcePermission perm : matchingPerms) {
-            if (Boolean.TRUE.equals(perm.getCanGrant()) && perm.getConditionId() == null) {
-                if (key.scopeAll() && !Boolean.TRUE.equals(perm.getScopeAll())) {
+        for (RolePermEntry perm : matchingPerms) {
+            if (Boolean.TRUE.equals(perm.canGrant()) && perm.conditionId() == null) {
+                if (key.scopeAll() && !Boolean.TRUE.equals(perm.scopeAll())) {
                     continue;
                 }
                 return new GrantCheckResult(true, null);
@@ -380,19 +374,6 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
     private boolean isSingleOperationBit(Long grantedBits) {
         return grantedBits != null && grantedBits > 0 && (grantedBits & (grantedBits - 1)) == 0;
-    }
-
-    private Map<String, OperationPermission> buildOperationIndex(
-            List<OperationPermission> operations, Set<Integer> resourceTypes) {
-        Map<String, OperationPermission> result = new HashMap<>();
-        for (Integer resourceType : resourceTypes) {
-            for (OperationPermission operation : operations.stream()
-                    .filter(op -> Objects.equals(op.getResourceType(), resourceType))
-                    .toList()) {
-                result.put(BusinessKeys.operationBitKey(resourceType, operation.getBinaryBit()), operation);
-            }
-        }
-        return result;
     }
 
     private record ManualGrantKey(

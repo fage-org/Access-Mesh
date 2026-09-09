@@ -199,45 +199,17 @@ class GoldenFixturePgIT {
                 String opCode = column.asText();
                 boolean expectedCell = expectedCells.stream().anyMatch(cell ->
                     cell[1].equals(opCode) && (cell[0].equals(resRow) || cell[0].equals(allRow)));
-                // fixtures 的 nodeClosure 语义（记录资源覆盖其子孙）映射为引擎对
-                // {资源}∪祖先链 的逐点判定取或——引擎实例判定按查询实体精确加载，
-                // 继承展开（core-flows：expandByInheritMode）是对已加载条目的展示性
-                // 克隆，运行时单点判定不含祖先授权；祖先链组合即「父授权覆盖子」语义
-                boolean actual = false;
-                for (Long nodeId : selfAndAncestors(caseNode, resource, entityIdByFixtureId)) {
-                    if (permQueryEngine.hasPermissionByEntityId(TENANT, subjectId, typeCode, nodeId, opCode)) {
-                        actual = true;
-                        break;
-                    }
-                }
+                // fixtures 的 nodeClosure 语义（记录资源覆盖其子孙）= 引擎判定面继承
+                // （T-PERM-057 落地后引擎原生闭包：查目标时 {目标}∪同类型祖先链入查询，
+                // 「父授权覆盖子」为引擎单点判定语义）——单点判定即为终态断言，
+                // 手工 selfAndAncestors 模拟已收敛（query-engine-unification.md §10.7）
+                boolean actual = permQueryEngine.hasPermissionByEntityId(TENANT, subjectId, typeCode,
+                    entityIdByFixtureId.get(resource.path("id").asLong()), opCode);
                 assertThat(actual)
                     .as("%s: %s x %s（expected.cells %s 该格）", caseName, resRow, opCode, expectedCell ? "有" : "无")
                     .isEqualTo(expectedCell);
             }
         }
-    }
-
-    /** fixtures 资源自身 + 祖先链（parentId 上溯）的实体 ID 集合 */
-    private java.util.Set<Long> selfAndAncestors(JsonNode caseNode, JsonNode resource,
-                                                 Map<Long, Long> entityIdByFixtureId) {
-        java.util.Set<Long> ids = new java.util.LinkedHashSet<>();
-        JsonNode current = resource;
-        int guard = 0;
-        while (current != null && guard++ < 16) {
-            ids.add(entityIdByFixtureId.get(current.path("id").asLong()));
-            if (current.path("parentId").isNull()) {
-                break;
-            }
-            long parentId = current.path("parentId").asLong();
-            current = null;
-            for (JsonNode candidate : caseNode.path("resources")) {
-                if (candidate.path("id").asLong() == parentId) {
-                    current = candidate;
-                    break;
-                }
-            }
-        }
-        return ids;
     }
 
     private Long resolveEntityId(JsonNode caseNode, Map<String, Integer> typeValuesByCode,

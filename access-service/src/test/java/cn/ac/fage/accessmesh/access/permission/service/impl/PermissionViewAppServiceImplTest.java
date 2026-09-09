@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesRe
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
+import cn.ac.fage.accessmesh.access.permission.enums.TargetMode;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermViewResult;
 import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionExplainReq;
@@ -221,7 +222,7 @@ class PermissionViewAppServiceImplTest {
         ArgumentCaptor<PermQuery> captor = ArgumentCaptor.forClass(PermQuery.class);
         verify(engine, times(2)).query(captor.capture());
         for (PermQuery q : captor.getAllValues()) {
-            assertNotNull(q.context());
+            assertNotNull(q.evalContext());
         }
     }
 
@@ -246,7 +247,7 @@ class PermissionViewAppServiceImplTest {
         ArgumentCaptor<PermQuery> captor = ArgumentCaptor.forClass(PermQuery.class);
         verify(engine, times(2)).query(captor.capture());
         for (PermQuery q : captor.getAllValues()) {
-            assertEquals("10.1.2.3", q.context().get("clientIp"));
+            assertEquals("10.1.2.3", q.evalContext().clientIp());
         }
         // 候选查询（第二次）只消费 allEntries，不加载辅助实体
         assertFalse(captor.getAllValues().get(1).includeResources());
@@ -275,8 +276,7 @@ class PermissionViewAppServiceImplTest {
         // 两次查询形状一致：判定查询（评估开）+ 候选查询（评估关）
         for (PermQuery q : captor.getAllValues()) {
             assertNull(q.resourceCodes());
-            assertTrue(q.queryScopeAll());
-            assertFalse(q.queryInstance());
+            assertEquals(TargetMode.TYPE_LEVEL, q.targetMode());
         }
         assertFalse(captor.getAllValues().get(1).evaluateConditions());
         assertFalse(captor.getAllValues().get(1).evaluateConflicts());
@@ -300,8 +300,7 @@ class PermissionViewAppServiceImplTest {
         ArgumentCaptor<PermQuery> captor = ArgumentCaptor.forClass(PermQuery.class);
         verify(engine, times(2)).query(captor.capture());
         for (PermQuery q : captor.getAllValues()) {
-            assertFalse(q.queryScopeAll());
-            assertTrue(q.queryInstance());
+            assertEquals(TargetMode.INSTANCE, q.targetMode());
             assertEquals(Set.of("sys:user"), q.resourceCodes());
             assertEquals("default", q.codeType());
         }

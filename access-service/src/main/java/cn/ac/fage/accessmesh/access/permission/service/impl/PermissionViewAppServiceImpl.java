@@ -10,8 +10,10 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermEvalContext;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
+import cn.ac.fage.accessmesh.access.permission.enums.TargetMode;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermViewFilter;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermViewResult;
 import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionExplainReq;
@@ -717,7 +719,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             throw new SecurityException("Permission denied: VIEW on USER:" + userId);
         }
 
-        // 条件评估上下文：管理员输入优先，缺省回退当前请求（T-PERM-033）
+        // 条件评估上下文：管理员输入优先，缺省回退当前请求（T-PERM-033）；
+        // 服务器环境 evaluatedAt 统一注入（T-PERM-057，判定与明细评估同一时钟）
         String evaluatedClientIp;
         String contextSource;
         if (req.context() != null && req.context().clientIp() != null && !req.context().clientIp().isBlank()) {
@@ -727,8 +730,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             evaluatedClientIp = HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest());
             contextSource = CONTEXT_SOURCE_CURRENT_REQUEST;
         }
-        Map<String, Object> evalContext = evaluatedClientIp == null
-            ? Map.<String, Object>of() : Map.of("clientIp", evaluatedClientIp);
+        PermEvalContext evalCtx = new PermEvalContext(evaluatedClientIp, null, Map.of());
+        Map<String, Object> evalContext = evalCtx.toEvalMap();
 
         boolean scopeAll = ScopeModeSupport.toScopeAllForGrant(req.scopeMode(), req.resourceCode(), req.codeType());
         String queryResourceCode = scopeAll ? null : req.resourceCode();
@@ -859,8 +862,9 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     }
 
     /**
-     * 构建 explain 判定查询（USER 分支 forAuthCheck / ROLE 分支 forScopeQuery，
-     * 形状与判定语义和历史实现一致；上下文为条件评估所用）
+     * 构建 explain 判定查询（USER 分支 forAuthCheck / ROLE 分支单角色视角判定，
+     * 形状与判定语义和历史实现一致；上下文为条件评估所用——管理员模拟 clientIp 优先、
+     * 缺省回退当前请求，服务器环境 evaluatedAt 由引擎评估时补齐）
      */
     private PermQuery buildExplainPermQuery(Long tenantId, PermissionExplainReq req, boolean roleTarget,
                                             Long targetRoleId, Long userId, boolean scopeAll,
@@ -871,11 +875,14 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             q = PermQuery.forScopeQuery(tenantId, null,
                 Set.of(req.resourceTypeCode()), Set.of(req.operationCode()));
             q.setRoleIds(Set.of(targetRoleId));
-            q.setResourceCodes(scopeAll ? null : Set.of(queryResourceCode));
             q.setCodeType(queryCodeType);
             q.setDomainCode(req.domainCode());
-            q.setQueryScopeAll(scopeAll);
-            q.setQueryInstance(!scopeAll);
+            if (scopeAll) {
+                q.setTargetMode(TargetMode.TYPE_LEVEL);
+            } else {
+                q.setTargetMode(TargetMode.INSTANCE);
+                q.setResourceCodes(Set.of(queryResourceCode));
+            }
             q.setEvaluateConditions(true);
             q.setEvaluateConflicts(true);
             q.setEvaluateMatchesBit(true);
@@ -884,7 +891,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 req.resourceTypeCode(), queryResourceCode, req.operationCode());
             q.setCodeType(queryCodeType);
         }
-        q.setContext(evalContext);
+        q.setEvalContext(PermEvalContext.fromCallerMap(evalContext));
         return q;
     }
 
@@ -1290,6 +1297,15 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 allScopeTypes.add(entry.resourceType());
             } else if (entry.resourceEntityId() != null) {
                 resourceEntityIds.add(entry.resourceEntityId());
+            }
+        }
+        // 判定面继承（读过滤面默认开，Q12 矩阵；T-PERM-057 落位）：对授权实例集做一次
+        // 子孙扩展（而非逐目标闭包）——授父分组 VIEW → 子报表/子菜单实例可见
+        // （query-engine-unification.md §5 读过滤面继承落位）
+        if (!resourceEntityIds.isEmpty()) {
+            for (ResourceEntityMapper.DescendantResult pair :
+                resourceEntityMapper.selectDescendantIdsBatch(tenantId, resourceEntityIds)) {
+                resourceEntityIds.add(pair.getDescendantId());
             }
         }
         return new EffectiveResourceAccess(allScopeTypes, resourceEntityIds);

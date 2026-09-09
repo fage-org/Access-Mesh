@@ -60,6 +60,25 @@
         SELECT original_id as resourceId, id as descendantId FROM descendants WHERE id != original_id
     </select>
 
+    <!-- T-PERM-057 判定面继承目标闭包：{目标}∪同类型祖先链（含自身行）；上溯止步同类型（sync 通道
+         允许跨类型父子边，跨类型祖先不参与闭包）；软删祖先截断；UNION 组合去重防环（T-PERM-044 先例） -->
+    <select id="selectSelfAndAncestorClosureBatch" resultType="cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper$AncestorClosureResult">
+        WITH RECURSIVE closure AS (
+            SELECT id, parent_id, resource_type, id as target_id FROM resource_entity
+            WHERE id IN
+            <foreach collection="resourceEntityIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+            AND tenant_id = #{tenantId} AND delete_flag = 0
+            UNION
+            SELECT r.id, r.parent_id, r.resource_type, c.target_id FROM resource_entity r
+            INNER JOIN closure c ON r.id = c.parent_id
+            WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0
+              AND r.resource_type = c.resource_type
+        )
+        SELECT target_id as targetId, id as closureId FROM closure
+    </select>
+
     <select id="selectValidById" resultType="cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity">
         SELECT * FROM resource_entity
         WHERE id = #{resourceId}

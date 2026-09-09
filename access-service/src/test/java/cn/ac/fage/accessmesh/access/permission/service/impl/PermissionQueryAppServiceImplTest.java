@@ -15,7 +15,6 @@ import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
@@ -55,7 +54,6 @@ class PermissionQueryAppServiceImplTest {
     @Mock private OperationPermissionMapper operationPermissionMapper;
     @Mock private SubjectDomainService subjectDomainService;
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
-    @Mock private PermissionConditionDomainService permissionConditionDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private CacheService cacheService;
     @Mock private DomainClassifyService domainClassifyService;
@@ -69,7 +67,7 @@ class PermissionQueryAppServiceImplTest {
         service = new PermissionQueryAppServiceImpl(
             resourceEntityMapper, operationPermissionMapper,
             subjectDomainService, permissionConflictDomainService,
-            permissionConditionDomainService, typeResolutionService, cacheService,
+            typeResolutionService, cacheService,
             domainClassifyService,
             engine, snapshotAssembler
         );
@@ -109,16 +107,16 @@ class PermissionQueryAppServiceImplTest {
         manageOp.setId(602L); manageOp.setResourceType(2);
         manageOp.setCode("MANAGE"); manageOp.setBinaryBit(8L); manageOp.setInheritMask(1L);
 
-        PermResult parentResult = PermResult.builder(true, null)
-            .instanceEntries(List.of(parentEntry)).build();
+        // T-PERM-057 收编：一次引擎调用（LIST 管线完成父判定 + dependOn 过滤 + 条件/互斥评估；
+        // parentMatched/rawEntries/instanceEntries 回传供四态组装）
         PermResult scopeResult = PermResult.builder(true, null)
             .instanceEntries(List.of(scopeEntry))
+            .rawEntries(List.of(scopeEntry))
+            .parentMatchedOperationCodes(Set.of("VIEW"))
+            .parentMatchedPermissionIds(Set.of(401L))
             .resourceMap(Map.of(300L, scopeResource))
             .operationMap(Map.of(601L, viewOp, 602L, manageOp)).build();
-
-        when(engine.query(any(PermQuery.class))).thenReturn(parentResult, scopeResult);
-        when(permissionConditionDomainService.evaluate(any(), any(), any())).thenAnswer(inv -> inv.getArgument(1));
-        when(permissionConflictDomainService.filterPermMutex(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(engine.query(any(PermQuery.class))).thenReturn(scopeResult);
 
         QueryScopesResp resp = service.queryScopes(1L, req);
 
@@ -159,17 +157,15 @@ class PermissionQueryAppServiceImplTest {
         viewOp.setId(601L); viewOp.setResourceType(2);
         viewOp.setCode("VIEW"); viewOp.setBinaryBit(1L); viewOp.setInheritMask(0L);
 
-        PermResult parentResult = PermResult.builder(true, null)
-            .instanceEntries(List.of(parentEntry)).build();
-        // resourceMap 为空 → scopeEntry 的资源缺失
+        // T-PERM-057 收编：一次引擎调用；resourceMap 为空 → scopeEntry 的资源缺失
         PermResult scopeResult = PermResult.builder(true, null)
             .instanceEntries(List.of(scopeEntry))
+            .rawEntries(List.of(scopeEntry))
+            .parentMatchedOperationCodes(Set.of("VIEW"))
+            .parentMatchedPermissionIds(Set.of(401L))
             .resourceMap(Map.of())
             .operationMap(Map.of(601L, viewOp)).build();
-
-        when(engine.query(any(PermQuery.class))).thenReturn(parentResult, scopeResult);
-        when(permissionConditionDomainService.evaluate(any(), any(), any())).thenAnswer(inv -> inv.getArgument(1));
-        when(permissionConflictDomainService.filterPermMutex(any(), any())).thenAnswer(inv -> inv.getArgument(1));
+        when(engine.query(any(PermQuery.class))).thenReturn(scopeResult);
 
         QueryScopesResp resp = service.queryScopes(1L, req);
 

@@ -44,6 +44,15 @@ public class PermResult {
     private final List<RolePermEntry> instanceEntries;
 
     /**
+     * 评估前原始条目（LIST 模式回传：depend_on 过滤后、条件/互斥评估前的全量条目）。
+     * <p>
+     * 供四态线格式组装区分 DENIED（无覆盖条目）与 EMPTY（有覆盖但评估后清空）；
+     * 非 LIST 模式为空集合。
+     * </p>
+     */
+    private final List<RolePermEntry> rawEntries;
+
+    /**
      * 有效操作权限投影列表
      * <p>
      * 基于已命中的原始授权条目和 {@code OperationPermission.effectiveBits}
@@ -67,6 +76,16 @@ public class PermResult {
      */
     private final Map<Long, AbstractRole> roleMap;
 
+    /**
+     * 主资源上下文命中操作码集合（LIST 模式给出 parentResource* 时回传；query-scopes 线格式消费）
+     */
+    private final Set<String> parentMatchedOperationCodes;
+
+    /**
+     * 主资源上下文命中权限ID集合（LIST 模式给出 parentResource* 时回传；depend_on 过滤事实）
+     */
+    private final Set<Long> parentMatchedPermissionIds;
+
     @lombok.Builder(builderClassName = "Builder", builderMethodName = "_builder")
     private PermResult(
         boolean allowed,
@@ -74,21 +93,29 @@ public class PermResult {
         boolean scopeAllMatched,
         List<RolePermEntry> scopeAllEntries,
         List<RolePermEntry> instanceEntries,
+        List<RolePermEntry> rawEntries,
         List<EffectiveOperationEntry> effectiveOperationEntries,
         Map<Long, ResourceEntity> resourceMap,
         Map<Long, OperationPermission> operationMap,
-        Map<Long, AbstractRole> roleMap
+        Map<Long, AbstractRole> roleMap,
+        Set<String> parentMatchedOperationCodes,
+        Set<Long> parentMatchedPermissionIds
     ) {
         this.allowed = allowed;
         this.reason = reason;
         this.scopeAllMatched = scopeAllMatched;
         this.scopeAllEntries = List.copyOf(scopeAllEntries != null ? scopeAllEntries : List.of());
         this.instanceEntries = List.copyOf(instanceEntries != null ? instanceEntries : List.of());
+        this.rawEntries = List.copyOf(rawEntries != null ? rawEntries : List.of());
         this.effectiveOperationEntries = List.copyOf(
             effectiveOperationEntries != null ? effectiveOperationEntries : List.of());
         this.resourceMap = resourceMap == null ? null : Map.copyOf(resourceMap);
         this.operationMap = operationMap == null ? null : Map.copyOf(operationMap);
         this.roleMap = roleMap == null ? null : Map.copyOf(roleMap);
+        this.parentMatchedOperationCodes = parentMatchedOperationCodes == null
+            ? Set.of() : Set.copyOf(parentMatchedOperationCodes);
+        this.parentMatchedPermissionIds = parentMatchedPermissionIds == null
+            ? Set.of() : Set.copyOf(parentMatchedPermissionIds);
     }
 
     // ===== Getter 方法（保留 xxx() 形式） =====
@@ -98,10 +125,13 @@ public class PermResult {
     public boolean scopeAllMatched() { return scopeAllMatched; }
     public List<RolePermEntry> scopeAllEntries() { return scopeAllEntries; }
     public List<RolePermEntry> instanceEntries() { return instanceEntries; }
+    public List<RolePermEntry> rawEntries() { return rawEntries; }
     public List<EffectiveOperationEntry> effectiveOperationEntries() { return effectiveOperationEntries; }
     public Map<Long, ResourceEntity> resourceMap() { return resourceMap; }
     public Map<Long, OperationPermission> operationMap() { return operationMap; }
     public Map<Long, AbstractRole> roleMap() { return roleMap; }
+    public Set<String> parentMatchedOperationCodes() { return parentMatchedOperationCodes; }
+    public Set<Long> parentMatchedPermissionIds() { return parentMatchedPermissionIds; }
 
     /**
      * 创建Builder实例（必填参数）

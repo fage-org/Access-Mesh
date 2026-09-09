@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionCheckAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermEvalContext;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.util.PermResultUtils;
@@ -81,7 +82,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         q.setCodeType(req.codeType());
         q.setDomainCode(req.domainCode());
         if (req.inheritMode() != null) q.setInheritMode(req.inheritMode());
-        q.setContext(req.context());
+        q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
 
         return PermResultUtils.toAuthCheckResp(engine.query(q));
     }
@@ -114,7 +115,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
             q.setCodeType(item.codeType());
             q.setDomainCode(item.domainCode());
             q.setInheritMode(item.inheritMode());
-            q.setContext(req.context());
+            q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
             PermResult r = engine.query(q);
             results.add(new AuthCheckItemResult(
                 item.resourceTypeCode(), item.resourceCode(), item.operationCode(),
@@ -153,7 +154,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
             .map(ResourceApiMapping::getResourceEntityId).filter(Objects::nonNull).collect(Collectors.toSet());
 
         PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, "ACCESS");
-        q.setContext(req.context());
+        q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
         return PermResultUtils.toCheckInterfaceResp(engine.query(q), 30);
     }
 

@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermEvalContext;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
@@ -32,24 +34,28 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
- * 统一权限查询引擎 -- 所有权限校验的唯一入口。
+ * 统一权限查询引擎 -- 所有权限校验的唯一入口（T-PERM-057 统一引擎：一个引擎、一套入参、一个结果模型）。
  *
- * <h3>查询流程</h3>
+ * <h3>管线阶段（query-engine-unification.md §4；角色互斥不归引擎——授权时校验另立项，
+ * 快照/权限树的 filterRoleMutex 由调用方自理，2026-09-09 定案）</h3>
  * <ol>
- *   <li>解析用户角色（缓存L1->L2->DB）</li>
- *   <li>解析资源类型码和操作码为内部ID（批量）</li>
- *   <li>查询类型级权限（scopeAll=true）-- 1条SQL</li>
- *   <li>如果scopeAll匹配则提前返回</li>
- *   <li>查询实例级权限 -- 1条SQL</li>
- *   <li>评估条件和冲突（按参数标志）</li>
- *   <li>加载辅助实体（按参数标志）</li>
- *   <li>构建统一PermResult结果</li>
+ *   <li>入口封装：userId → roleIds（EFFECTIVE_ROLES 缓存）+ 条件上下文装配（四便捷入口自动取当前请求 clientIp）</li>
+ *   <li>解析：类型值 / 操作 id / 位掩码（位覆盖并入掩码，常开）</li>
+ *   <li>scopeAll 类型级查询（TYPE_LEVEL / INSTANCE）</li>
+ *   <li>目标解析 + 判定面闭包（INSTANCE 且 inheritClosure：{目标}∪同类型祖先链入查询，作用于查询前）</li>
+ *   <li>实例查询（INSTANCE 目标下推 / LIST 按角色全量，ROLE_PERM_SNAPSHOT 读缓存）</li>
+ *   <li>条件评估（三态：评估 / 不评估 / 标记下发）</li>
+ *   <li>条目级冲突过滤（开关，运行时面默认开）</li>
+ *   <li>展示面展开（参数开时结果克隆，grantSource=INHERITED；不改变判定）</li>
+ *   <li>操作投影展开（位覆盖投影轨，展示面消费）</li>
+ *   <li>结果装配：双轨（原始授权行 + 覆盖投影）+ 辅助 map + 判定结论</li>
  * </ol>
  *
  * <h3>优化策略</h3>
  * <ul>
  *   <li>批量ID解析：避免N次单查询</li>
  *   <li>scopeAll优先匹配：匹配后跳过实例级查询</li>
+ *   <li>判定面闭包走目标下推递归 CTE（止步同类型/软删截断/UNION 防环），不走全量图</li>
  *   <li>内存筛选：matchesBit过滤、条件评估、冲突过滤</li>
  *   <li>操作权限缓存：通过CacheService缓存ID索引，优化位掩码计算效率</li>
  * </ul>
@@ -107,94 +113,228 @@ public class PermQueryEngine {
     }
 
     /**
-     * 执行统一权限查询
+     * 执行统一权限查询（targetMode 三态判别，互不串义）
      *
      * @param q 权限查询参数
      * @return 权限查询结果
      */
     public PermResult query(PermQuery q) {
-        // -- forUserView 分支 --
-        if (q.forUserView()) {
-            return queryForUserView(q);
-        }
-
-        // -- 0. 创建 ResolveContext，预解析所有类型 --
-        ResolveContext ctx = new ResolveContext(q.tenantId(), typeResolutionService);
-        if (q.resourceTypeCodes() != null && !q.resourceTypeCodes().isEmpty()) {
-            ctx.prepareResourceTypes(q.resourceTypeCodes());
-        }
-        if (q.operationCodes() != null && !q.operationCodes().isEmpty()
-            && q.resourceTypeCodes() != null && !q.resourceTypeCodes().isEmpty()) {
-            ctx.prepareOperations(q.resourceTypeCodes(), q.operationCodes());
-        }
-
-        // -- 1. 解析角色 --
+        // -- 0. 入口封装：userId → roleIds（EFFECTIVE_ROLES 缓存） --
         Set<Long> roleIds = resolveRoleIds(q);
         if (roleIds.isEmpty()) {
             return PermResult.deny("NO_ROLE");
         }
 
-        // -- 2. 解析资源类型（使用 ResolveContext）--
-        Set<Integer> resourceTypes = resolveResourceTypes(q, ctx);
+        return switch (q.targetMode()) {
+            case TYPE_LEVEL -> queryTypeLevel(q, roleIds);
+            case INSTANCE -> queryInstanceMode(q, roleIds);
+            case LIST -> queryList(q, roleIds);
+        };
+    }
 
-        // -- 3. 解析操作ID（使用 ResolveContext）--
+    /**
+     * TYPE_LEVEL：类型级门禁——无实例目标、只消费 scopeAll，不做实例查询
+     * （实例级授权不得使命中，否则任何实例授权都会放行类型级门禁=越权）。
+     */
+    private PermResult queryTypeLevel(PermQuery q, Set<Long> roleIds) {
+        ResolveContext ctx = prepareResolveContext(q);
+        Set<Integer> resourceTypes = resolveResourceTypes(q, ctx);
         Set<Long> opIds = resolveOperationIds(q, ctx);
         Map<Integer, Long> bitMasks = resolveBitMasks(q.tenantId(), resourceTypes, opIds);
 
-        // -- 4. 查询类型级权限（scopeAll=true） --
-        List<RolePermEntry> scopeAllEntries = List.of();
-        if (q.queryScopeAll() && !bitMasks.isEmpty()) {
-            scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, bitMasks);
-        }
-
-        // -- 5. scopeAll匹配时提前返回 --
-        if (!scopeAllEntries.isEmpty() && q.earlyReturnOnScopeAll()) {
-            scopeAllEntries = evaluateIfNeeded(q, scopeAllEntries);
-            if (scopeAllEntries.isEmpty()) {
-                return PermResult.deny("CONDITION_NOT_MET_OR_CONFLICT");
-            }
-            Map<String, Object> evalCtx = q.context();
-            if (evalCtx == null) evalCtx = Map.of();
-            PermResult.Builder builder = PermResult.builder(true, null)
-                .scopeAllMatched(true)
-                .scopeAllEntries(scopeAllEntries);
-            loadAncillary(q, builder, scopeAllEntries, List.of(), roleIds);
-            return builder.build();
-        }
-
-        // -- 6. 解析并查询实例级权限 --
-        Set<Long> entityIds = resolveEntityIds(q);
-        List<RolePermEntry> instanceEntries = List.of();
-
-        if (q.queryInstance() && !entityIds.isEmpty()) {
-            instanceEntries = queryInstance(q.tenantId(), roleIds, entityIds, bitMasks);
-        }
-
-        // -- 6.5 根据继承模式展开资源 --
-        if (q.queryInstance() && (q.inheritParents() || q.inheritChildren()) && !instanceEntries.isEmpty()) {
-            instanceEntries = expandByInheritMode(q.tenantId(), instanceEntries,
-                q.inheritParents(), q.inheritChildren());
-        }
-
-        // -- 7. 合并scopeAll和实例级结果 --
-        List<RolePermEntry> combined = new ArrayList<>(scopeAllEntries);
-        combined.addAll(instanceEntries);
-        if (combined.isEmpty()) {
+        List<RolePermEntry> scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, bitMasks);
+        scopeAllEntries = evaluateIfNeeded(q, scopeAllEntries);
+        if (scopeAllEntries.isEmpty()) {
             return PermResult.deny("NO_PERMISSION");
         }
 
-        // 评估条件和冲突
-        combined = evaluateIfNeeded(q, combined);
-        if (combined.isEmpty()) {
-            return PermResult.deny("CONDITION_NOT_MET_OR_CONFLICT");
+        PermResult.Builder builder = PermResult.builder(true, null)
+            .scopeAllMatched(true)
+            .scopeAllEntries(scopeAllEntries);
+        loadAncillary(q, builder, scopeAllEntries, List.of(), roleIds);
+        return builder.build();
+    }
+
+    /**
+     * INSTANCE：实例判定——scopeAll 类型级命中（评估通过）即放行任意实例；
+     * 未命中则目标下推实例查询（判定面继承开启时目标集扩为 {目标}∪同类型祖先链闭包）。
+     */
+    private PermResult queryInstanceMode(PermQuery q, Set<Long> roleIds) {
+        ResolveContext ctx = prepareResolveContext(q);
+        Set<Integer> resourceTypes = resolveResourceTypes(q, ctx);
+        Set<Long> opIds = resolveOperationIds(q, ctx);
+        Map<Integer, Long> bitMasks = resolveBitMasks(q.tenantId(), resourceTypes, opIds);
+
+        // -- scopeAll 类型级优先：命中（评估通过）即放行，无需实例查询 --
+        List<RolePermEntry> scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, bitMasks);
+        if (!scopeAllEntries.isEmpty()) {
+            scopeAllEntries = evaluateIfNeeded(q, scopeAllEntries);
+            if (!scopeAllEntries.isEmpty()) {
+                PermResult.Builder builder = PermResult.builder(true, null)
+                    .scopeAllMatched(true)
+                    .scopeAllEntries(scopeAllEntries);
+                loadAncillary(q, builder, scopeAllEntries, List.of(), roleIds);
+                return builder.build();
+            }
+            // scopeAll 命中但评估清空：类型级路径已拒绝，实例级仍可命中（授权行各自评估）
+            scopeAllEntries = List.of();
+        }
+
+        // -- 目标解析 + 判定面闭包（查询前扩大目标集）--
+        Set<Long> targetEntityIds = resolveEntityIds(q);
+        if (targetEntityIds.isEmpty()) {
+            return PermResult.deny("NO_PERMISSION");
+        }
+        Set<Long> queryEntityIds = targetEntityIds;
+        if (q.inheritClosure()) {
+            queryEntityIds = expandTargetsByClosure(q.tenantId(), targetEntityIds);
+        }
+
+        List<RolePermEntry> instanceEntries = queryInstance(q.tenantId(), roleIds, queryEntityIds, bitMasks);
+        instanceEntries = evaluateIfNeeded(q, instanceEntries);
+        if (instanceEntries.isEmpty()) {
+            return PermResult.deny("NO_PERMISSION");
+        }
+
+        // -- 展示面展开（查询后克隆，不改变判定）--
+        if (q.inheritParents() || q.inheritChildren()) {
+            instanceEntries = expandByPresentMode(q.tenantId(), instanceEntries,
+                q.inheritParents(), q.inheritChildren());
         }
 
         PermResult.Builder builder = PermResult.builder(true, null)
-            .scopeAllMatched(!scopeAllEntries.isEmpty())
-            .scopeAllEntries(scopeAllEntries)
+            .scopeAllMatched(false)
             .instanceEntries(instanceEntries);
-        loadAncillary(q, builder, scopeAllEntries, instanceEntries, roleIds);
+        loadAncillary(q, builder, List.of(), instanceEntries, roleIds);
         return builder.build();
+    }
+
+    /**
+     * LIST：全量清单——按角色全量拉取角色权限行（ROLE_PERM_SNAPSHOT 读缓存）；
+     * 主资源上下文给出时执行 depend_on 子权限过滤（query-scopes 收编）。
+     */
+    private PermResult queryList(PermQuery q, Set<Long> roleIds) {
+        List<RolePermEntry> allEntries = loadRolePermEntriesWithCache(q.tenantId(), roleIds);
+        if (allEntries.isEmpty()) {
+            return PermResult.deny("NO_PERMISSION");
+        }
+
+        // -- 主资源上下文（depend_on 子权限过滤）：先对主资源做 INSTANCE 判定 --
+        Set<String> parentMatchedOps = Set.of();
+        Set<Long> parentPermissionIds = Set.of();
+        boolean parentPresent = q.parentResourceTypeCode() != null && q.parentResourceCode() != null;
+        if (parentPresent) {
+            ParentCheckOutcome parent = checkParentResource(q, roleIds);
+            parentMatchedOps = parent.matchedOperationCodes();
+            parentPermissionIds = parent.matchedPermissionIds();
+            if (parentPermissionIds.isEmpty()) {
+                // 父资源无任何匹配权限：整体拒绝（全 DENIED 由调用方按四态组装）
+                return PermResult.builder(false, "PARENT_NO_PERMISSION")
+                    .scopeAllMatched(false)
+                    .parentMatchedOperationCodes(parentMatchedOps)
+                    .parentMatchedPermissionIds(parentPermissionIds)
+                    .build();
+            }
+            // depend_on 过滤：子权限条目要求其 dependOn 指向的父权限在主资源命中集合内
+            final Set<Long> allowedParents = parentPermissionIds;
+            allEntries = allEntries.stream()
+                .filter(entry -> entry.dependOn() == null || allowedParents.contains(entry.dependOn()))
+                .toList();
+            if (allEntries.isEmpty()) {
+                return PermResult.builder(false, "NO_PERMISSION")
+                    .scopeAllMatched(false)
+                    .parentMatchedOperationCodes(parentMatchedOps)
+                    .parentMatchedPermissionIds(parentPermissionIds)
+                    .build();
+            }
+        }
+
+        // 评估前原始条目（四态组装区分 DENIED/EMPTY 的事实源）
+        List<RolePermEntry> rawEntries = List.copyOf(allEntries);
+        allEntries = evaluateIfNeeded(q, allEntries);
+        if (allEntries.isEmpty()) {
+            return PermResult.builder(false, "CONDITION_NOT_MET_OR_CONFLICT")
+                .scopeAllMatched(false)
+                .rawEntries(rawEntries)
+                .parentMatchedOperationCodes(parentMatchedOps)
+                .parentMatchedPermissionIds(parentPermissionIds)
+                .build();
+        }
+
+        // -- 展示面展开（查询后克隆，不改变判定）--
+        if (q.inheritParents() || q.inheritChildren()) {
+            allEntries = expandByPresentMode(q.tenantId(), allEntries, q.inheritParents(), q.inheritChildren());
+        }
+
+        // LIST 不做 scopeAll/instance 语义断言，全部归入实例条目（forUserView 既有口径）
+        PermResult.Builder builder = PermResult.builder(true, null)
+            .scopeAllMatched(false)
+            .instanceEntries(allEntries)
+            .rawEntries(rawEntries)
+            .parentMatchedOperationCodes(parentMatchedOps)
+            .parentMatchedPermissionIds(parentPermissionIds);
+        loadAncillaryForView(q, builder, allEntries, roleIds);
+        return builder.build();
+    }
+
+    /** 主资源判定结果（LIST 模式 depend_on 过滤的父上下文）。 */
+    private record ParentCheckOutcome(Set<String> matchedOperationCodes, Set<Long> matchedPermissionIds) {}
+
+    /**
+     * 对主资源做 INSTANCE 判定（一次查询覆盖 parentOperationCodes 全集，内存逐操作 covers 判定）。
+     */
+    private ParentCheckOutcome checkParentResource(PermQuery q, Set<Long> roleIds) {
+        Set<String> parentOps = q.parentOperationCodes() == null ? Set.of() : q.parentOperationCodes();
+        PermQuery parentQuery = PermQuery.forAuthCheck(q.tenantId(), q.userId(),
+            q.parentResourceTypeCode(), q.parentResourceCode(), null);
+        parentQuery.setRoleIds(roleIds);
+        parentQuery.setCodeType(q.parentCodeType());
+        parentQuery.setOperationCodes(parentOps.isEmpty() ? Set.of() : parentOps);
+        parentQuery.setEvaluateMatchesBit(true);
+        PermResult parentResult = query(parentQuery);
+        if (!parentResult.allowed()) {
+            return new ParentCheckOutcome(Set.of(), Set.of());
+        }
+        Set<Long> parentPermissionIds = parentResult.matchedPermissionIds();
+        // 逐操作命中判定：掩码合并查询后按条目 grantedBits 与各目标操作 covers 展开
+        Set<String> matchedOps = resolveMatchedOperationCodes(q, parentResult, parentOps);
+        return new ParentCheckOutcome(matchedOps, parentPermissionIds);
+    }
+
+    /**
+     * 从 INSTANCE 判定结果条目解析逐操作命中集合（哪些 parentOperationCode 实际被授权覆盖）。
+     */
+    private Set<String> resolveMatchedOperationCodes(PermQuery q, PermResult parentResult, Set<String> parentOps) {
+        if (parentOps.isEmpty() || parentResult.operationMap() == null || parentResult.operationMap().isEmpty()) {
+            return Set.of();
+        }
+        Map<String, OperationPermission> targetOpByCode = new LinkedHashMap<>();
+        for (Map.Entry<String, Long> opIdEntry : typeResolutionService
+            .batchResolveOperationIds(q.tenantId(), q.parentResourceTypeCode(), parentOps).entrySet()) {
+            OperationPermission target = parentResult.operationMap().get(opIdEntry.getValue());
+            if (target != null) {
+                targetOpByCode.put(opIdEntry.getKey(), target);
+            }
+        }
+        if (targetOpByCode.isEmpty()) {
+            return Set.of();
+        }
+        Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils
+            .indexByResourceTypeAndBinaryBit(parentResult.operationMap().values());
+        Set<String> matched = new LinkedHashSet<>();
+        for (RolePermEntry entry : parentResult.allEntries()) {
+            OperationPermission granted = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                grantedOpIndex, entry.resourceType(), entry.grantedBits());
+            if (granted == null) {
+                continue;
+            }
+            for (Map.Entry<String, OperationPermission> target : targetOpByCode.entrySet()) {
+                if (OperationPermissionUtils.covers(granted, target.getValue())) {
+                    matched.add(target.getKey());
+                }
+            }
+        }
+        return matched;
     }
 
     // ===== 引擎便捷 API（T-ACCESS-016 定稿终态，T-PERM-042 落地）=====
@@ -205,6 +345,8 @@ public class PermQueryEngine {
     //     （资源树、API 映射、资源依赖、权限树等直接管理资源实体的后台链路）。
     // 引擎纯查询不抛 SecurityException；异常由调用方显式抛出（admin 域经 AdminPermissionValidator 门面、
     // permission 域 AppService if-throw）。
+    // T-PERM-057 拉平口径（管理面写门禁）：条件评估开（入口自动装配当前请求 clientIp——explain 先例；
+    // 无请求上下文则 IP 类条件按 ConditionEvalUtils 既有 fail-closed 拒绝）、条目互斥开、判定面继承开。
 
     /**
      * 按业务编码检查是否有权限（对外）
@@ -225,6 +367,7 @@ public class PermQueryEngine {
     public boolean hasPermissionByCode(Long tenantId, Long subjectId, String resourceTypeCode,
                                         String resourceCode, String operationCode) {
         PermQuery q = PermQuery.forValidate(tenantId, subjectId, resourceTypeCode, resourceCode, operationCode);
+        autoFillEvalContext(q);
         return query(q).allowed();
     }
 
@@ -248,6 +391,7 @@ public class PermQueryEngine {
                                             Long resourceEntityId, String operationCode) {
         PermQuery q = PermQuery.forValidateByEntityId(
             tenantId, subjectId, resourceTypeCode, resourceEntityId, operationCode);
+        autoFillEvalContext(q);
         return query(q).allowed();
     }
 
@@ -260,7 +404,8 @@ public class PermQueryEngine {
      * 语义一致）→ 未命中才一次批量 {@code code → resource_entity.id} 解析
      * （{@link TypeResolutionService#batchResolveResourceIds}，无 N+1）+ 一次批量实例级查询 →
      * 内存计算拒绝集合。未解析到投影实体的 code 直接拒绝（fail-closed，与单条 forAuthCheck
-     * 内部解析语义一致）。
+     * 内部解析语义一致）。T-PERM-057：判定面继承（管理面写门禁默认开）——目标集扩为
+     * {目标}∪同类型祖先链，条目挂祖先实体经闭包回映射判目标允许（评估口径拉平：条件+条目互斥）。
      * </p>
      *
      * @param tenantId         租户ID
@@ -293,9 +438,10 @@ public class PermQueryEngine {
             return distinctCodes; // 未知类型/未知操作 = 全部拒绝
         }
 
+        Map<String, Object> evalMap = autoEvalMap();
         // 3. 类型级 scopeAll 优先（含条件与冲突评估）：命中则全部允许，不做 code 解析
         Map<Integer, Long> bitMasks = resolveBitMasks(tenantId, Set.of(resourceTypeValue), Set.of(operationId));
-        if (passesScopeAll(tenantId, roleIds, bitMasks)) {
+        if (passesScopeAll(tenantId, roleIds, bitMasks, evalMap)) {
             return Set.of();
         }
 
@@ -315,9 +461,9 @@ public class PermQueryEngine {
             return distinctCodes; // 无有效投影 = 全部拒绝
         }
 
-        // 5. 实例级批量查询（含条件与冲突评估）+ 内存映射回编码；未解析的 code 一并拒绝（fail-closed）
+        // 5. 实例级批量查询（含条件与冲突评估）+ 闭包回映射；未解析的 code 一并拒绝（fail-closed）
         Set<Long> deniedEntityIds = computeInstanceDenied(
-            tenantId, roleIds, new LinkedHashSet<>(entityIdByCode.values()), bitMasks);
+            tenantId, roleIds, new LinkedHashSet<>(entityIdByCode.values()), bitMasks, evalMap, true);
         Set<String> denied = new LinkedHashSet<>();
         for (String code : distinctCodes) {
             Long entityId = entityIdByCode.get(code);
@@ -335,7 +481,8 @@ public class PermQueryEngine {
      * {@link #hasPermissionByEntityId}。门禁主体契约同 {@link #hasPermissionByCode}。
      * 未知类型/未知操作/无角色 fail-closed 全量拒绝。相比 N 次单独查询：
      * 一次解析用户角色 → 一次类型级 scopeAll 查询（命中则全部允许，含条件与冲突评估）→
-     * 一次批量实例级查询（含条件与冲突评估）→ 内存计算拒绝集合。
+     * 一次批量实例级查询（含条件与冲突评估）→ 内存计算拒绝集合（判定面继承开启时经闭包回映射，
+     * 条目挂同类型祖先实体的目标判允许）。
      * </p>
      *
      * @param tenantId         租户ID
@@ -371,14 +518,33 @@ public class PermQueryEngine {
             return new LinkedHashSet<>(resourceEntityIds); // 未知操作 = 全部拒绝
         }
 
+        Map<String, Object> evalMap = autoEvalMap();
         // 3. 类型级 scopeAll 优先（含条件与冲突评估）：命中则全部允许
         Map<Integer, Long> bitMasks = resolveBitMasks(tenantId, Set.of(resourceTypeValue), Set.of(operationId));
-        if (passesScopeAll(tenantId, roleIds, bitMasks)) {
+        if (passesScopeAll(tenantId, roleIds, bitMasks, evalMap)) {
             return Set.of();
         }
 
-        // 4. 实例级批量查询（含条件与冲突评估）+ 内存计算拒绝集合
-        return computeInstanceDenied(tenantId, roleIds, resourceEntityIds, bitMasks);
+        // 4. 实例级批量查询（含条件与冲突评估）+ 闭包回映射计算拒绝集合
+        return computeInstanceDenied(tenantId, roleIds, resourceEntityIds, bitMasks, evalMap, true);
+    }
+
+    /**
+     * 自动装配条件评估上下文（四便捷入口——管理面写门禁拉平为评估后，
+     * 从当前请求装配 clientIp；无请求上下文（内部调用）则 IP 类条件按 fail-closed 拒绝，
+     * 时间/日期类条件用评估方时钟。explain 链路 T-PERM-033 先例）。
+     */
+    private static void autoFillEvalContext(PermQuery q) {
+        if (q.evalContext() != null) {
+            return;
+        }
+        q.setEvalContext(new PermEvalContext(
+            HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest()), null, Map.of()));
+    }
+
+    private static Map<String, Object> autoEvalMap() {
+        return new PermEvalContext(
+            HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest()), null, Map.of()).toEvalMap();
     }
 
     /**
@@ -387,12 +553,13 @@ public class PermQueryEngine {
      * scopeAll 命中且评估非空即放行该资源类型的任意实例；条件或冲突评估清空条目则视为未命中。
      * </p>
      */
-    private boolean passesScopeAll(Long tenantId, Set<Long> roleIds, Map<Integer, Long> bitMasks) {
+    private boolean passesScopeAll(Long tenantId, Set<Long> roleIds, Map<Integer, Long> bitMasks,
+                                    Map<String, Object> evalMap) {
         List<RolePermEntry> scopeAllEntries = queryScopeAll(tenantId, roleIds, bitMasks);
         if (scopeAllEntries.isEmpty()) {
             return false;
         }
-        List<RolePermEntry> evaluated = conditionDomainService.evaluate(tenantId, scopeAllEntries, Map.of());
+        List<RolePermEntry> evaluated = conditionDomainService.evaluate(tenantId, scopeAllEntries, evalMap);
         if (evaluated.isEmpty()) {
             return false;
         }
@@ -401,17 +568,38 @@ public class PermQueryEngine {
     }
 
     /**
-     * 实例级批量查询（含条件与冲突评估）并计算拒绝集合。
+     * 实例级批量查询（含条件与冲突评估）并计算拒绝集合（判定面继承闭包回映射）。
      * <p>
      * 调用方须已完成角色/类型/操作解析与 scopeAll 检查（未命中路径的共享实例步骤）。
+     * inheritClosure 开启时（管理面写门禁/读过滤面默认）：目标集扩为 {目标}∪同类型祖先链，
+     * 实例条目可能挂在祖先实体上——拒绝判定按「目标的闭包集与条目实体集交集为空」回映射
+     * （实现成败点，query-engine-unification.md §10.2：条目挂祖先、请求目标不在条目实体集
+     * 不得误判 DENIED）。
      * </p>
      */
     private Set<Long> computeInstanceDenied(Long tenantId, Set<Long> roleIds,
-                                             Set<Long> resourceEntityIds, Map<Integer, Long> bitMasks) {
-        List<RolePermEntry> instanceEntries = queryInstance(tenantId, roleIds, resourceEntityIds, bitMasks);
+                                             Set<Long> resourceEntityIds, Map<Integer, Long> bitMasks,
+                                             Map<String, Object> evalMap, boolean inheritClosure) {
+        // 目标闭包：target → {自身}∪同类型祖先
+        Map<Long, Set<Long>> closureByTarget = new LinkedHashMap<>();
+        Set<Long> queryEntityIds = new LinkedHashSet<>(resourceEntityIds);
+        if (inheritClosure) {
+            for (ResourceEntityMapper.AncestorClosureResult pair :
+                resourceEntityMapper.selectSelfAndAncestorClosureBatch(tenantId, resourceEntityIds)) {
+                closureByTarget.computeIfAbsent(pair.getTargetId(), _unused -> new LinkedHashSet<>())
+                    .add(pair.getClosureId());
+                queryEntityIds.add(pair.getClosureId());
+            }
+        } else {
+            for (Long entityId : resourceEntityIds) {
+                closureByTarget.put(entityId, Set.of(entityId));
+            }
+        }
+
+        List<RolePermEntry> instanceEntries = queryInstance(tenantId, roleIds, queryEntityIds, bitMasks);
 
         if (!instanceEntries.isEmpty()) {
-            instanceEntries = conditionDomainService.evaluate(tenantId, instanceEntries, Map.of());
+            instanceEntries = conditionDomainService.evaluate(tenantId, instanceEntries, evalMap);
         }
         if (!instanceEntries.isEmpty()) {
             instanceEntries = conflictDomainService.filterPermMutex(tenantId, instanceEntries);
@@ -426,7 +614,13 @@ public class PermQueryEngine {
 
         Set<Long> denied = new LinkedHashSet<>();
         for (Long entityId : resourceEntityIds) {
-            if (entityId == null || !allowedEntityIds.contains(entityId)) {
+            if (entityId == null) {
+                denied.add(entityId);
+                continue;
+            }
+            Set<Long> closure = closureByTarget.getOrDefault(entityId, Set.of(entityId));
+            boolean allowed = closure.stream().anyMatch(allowedEntityIds::contains);
+            if (!allowed) {
                 denied.add(entityId);
             }
         }
@@ -434,6 +628,21 @@ public class PermQueryEngine {
     }
 
     // ===== 私有步骤方法 =====
+
+    /**
+     * 预解析 ResolveContext（类型与操作，批量）
+     */
+    private ResolveContext prepareResolveContext(PermQuery q) {
+        ResolveContext ctx = new ResolveContext(q.tenantId(), typeResolutionService);
+        if (q.resourceTypeCodes() != null && !q.resourceTypeCodes().isEmpty()) {
+            ctx.prepareResourceTypes(q.resourceTypeCodes());
+        }
+        if (q.operationCodes() != null && !q.operationCodes().isEmpty()
+            && q.resourceTypeCodes() != null && !q.resourceTypeCodes().isEmpty()) {
+            ctx.prepareOperations(q.resourceTypeCodes(), q.operationCodes());
+        }
+        return ctx;
+    }
 
     /**
      * 解析查询参数中的角色ID
@@ -475,14 +684,13 @@ public class PermQueryEngine {
     }
 
     /**
-     * 解析查询参数中的操作ID（旧方法，保留兼容）
+     * 解析操作ID集合为映射（loadAncillary 目标操作装配用，批量）
      */
-    private Set<Long> resolveOperationIds(PermQuery q) {
+    private Set<Long> resolveOperationIdsForAncillary(PermQuery q) {
         if (q.operationPermissionIds() != null && !q.operationPermissionIds().isEmpty()) {
             return q.operationPermissionIds();
         }
         if (q.operationCodes() == null || q.operationCodes().isEmpty()) return Set.of();
-        // 批量解析：遍历所有resourceTypeCode，合并结果
         if (q.resourceTypeCodes() == null || q.resourceTypeCodes().isEmpty()) return Set.of();
         Set<Long> result = new HashSet<>();
         for (String rtCode : q.resourceTypeCodes()) {
@@ -494,7 +702,7 @@ public class PermQueryEngine {
     }
 
     /**
-     * 解析查询参数中的资源实体ID
+     * 解析查询参数中的资源实体ID（INSTANCE 编码目标批量解析）
      */
     private Set<Long> resolveEntityIds(PermQuery q) {
         if (q.resourceEntityIds() != null && !q.resourceEntityIds().isEmpty()) {
@@ -515,6 +723,18 @@ public class PermQueryEngine {
         }
 
         return allResolved;
+    }
+
+    /**
+     * 判定面继承：目标集扩为 {目标}∪同类型祖先链（查询前，作用于实例查询目标下推）。
+     */
+    private Set<Long> expandTargetsByClosure(Long tenantId, Set<Long> targetEntityIds) {
+        Set<Long> expanded = new LinkedHashSet<>(targetEntityIds);
+        for (ResourceEntityMapper.AncestorClosureResult pair :
+            resourceEntityMapper.selectSelfAndAncestorClosureBatch(tenantId, targetEntityIds)) {
+            expanded.add(pair.getClosureId());
+        }
+        return expanded;
     }
 
     /**
@@ -562,12 +782,11 @@ public class PermQueryEngine {
     }
 
     /**
-     * 按需评估条件和冲突
+     * 按需评估条件和冲突（条件评估三态：评估 / 不评估 / 标记下发 markConditionsOnly）
      */
     private List<RolePermEntry> evaluateIfNeeded(PermQuery q, List<RolePermEntry> entries) {
         if (entries.isEmpty()) return entries;
-        Map<String, Object> ctx = q.context();
-        if (ctx == null) ctx = Map.of();
+        Map<String, Object> ctx = q.evalContext() == null ? Map.of() : q.evalContext().toEvalMap();
         if (q.evaluateConditions() && !q.markConditionsOnly()) {
             // T-PERM-017 C3：markConditionsOnly=true 时跳过条件过滤，
             // 条件条目原样保留，由调用方（SnapshotAssembler/Gateway）决定下发与重评。
@@ -586,7 +805,7 @@ public class PermQueryEngine {
                                 List<RolePermEntry> scopeAll, List<RolePermEntry> instance,
                                 Set<Long> roleIds) {
         Set<Long> allEntityIds = new HashSet<>();
-        Set<Long> targetOpIds = resolveOperationIds(q);
+        Set<Long> targetOpIds = resolveOperationIdsForAncillary(q);
         Map<Integer, Set<Long>> grantedBitsByType = new LinkedHashMap<>();
         List<RolePermEntry> entries = Stream.concat(scopeAll.stream(), instance.stream()).toList();
         entries.forEach(e -> {
@@ -808,110 +1027,79 @@ public class PermQueryEngine {
             .stream().collect(Collectors.toMap(AbstractRole::getId, role -> role, (a, b) -> a));
     }
 
-    // ===== 资源继承展开 =====
+    // ===== 展示面展开（查询后条目克隆，不改变判定；T-PERM-057 归位为展示面轨道） =====
 
     /**
-     * 根据继承模式展开实例级权限条目
+     * 展示面展开：按父子关系克隆结果条目（grantSource=INHERITED）。
      * <p>
-     * 加载全部有效资源构建父子关系图，然后：
-     * <ul>
-     *   <li>inheritParents时：向上遍历父链，为每个祖先资源克隆权限条目</li>
-     *   <li>inheritChildren时：向下递归收集所有子孙，为每个后代资源克隆权限条目</li>
-     * </ul>
-     * 克隆条目的grantSource设为"INHERITED"，其他字段保持不变。
-     * scopeAll条目（resourceEntityId为null）不参与展开。
+     * 作用在查询后，不改变 allowed/denied 判定，只改变返回集合内容（清单面树扩展归口本轨道，
+     * Q1 定案两语义拆分）。方向展开经目标下推递归 CTE（上溯止步同类型/软删截断/防环，
+     * 下溯镜像 selectDescendantIdsBatch），不走 selectAllValid 全量图。
+     * scopeAll 条目（resourceEntityId 为 null）不参与展开。
      * </p>
      *
      * @param tenantId         租户ID
      * @param entries          原始实例级权限条目
-     * @param inheritParents   是否继承父资源权限
-     * @param inheritChildren  是否继承子资源权限
-     * @return 合并后的权限条目列表（原条目 + 继承条目）
+     * @param expandParents    是否向父方向克隆条目
+     * @param expandChildren   是否向子方向克隆条目
+     * @return 合并后的权限条目列表（原条目 + 展开条目）
      */
-    private List<RolePermEntry> expandByInheritMode(Long tenantId, List<RolePermEntry> entries,
-                                                      boolean inheritParents, boolean inheritChildren) {
-        // 收集有资源实体ID的条目
+    private List<RolePermEntry> expandByPresentMode(Long tenantId, List<RolePermEntry> entries,
+                                                     boolean expandParents, boolean expandChildren) {
         Set<Long> entityIds = entries.stream()
             .map(RolePermEntry::resourceEntityId)
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
-
         if (entityIds.isEmpty()) {
             return entries;
         }
 
-        // 加载全部有效资源（用于构建完整的父子关系图）
-        List<ResourceEntity> allResources = resourceEntityMapper.selectAllValid(tenantId);
-        if (allResources.isEmpty()) {
-            return entries;
+        // 祖先展开：{条目实体}∪同类型祖先（排除自身）；子孙展开：全部后代
+        Map<Long, List<Long>> ancestorsByEntity = Map.of();
+        Map<Long, List<Long>> descendantsByEntity = Map.of();
+        if (expandParents) {
+            ancestorsByEntity = new LinkedHashMap<>();
+            for (ResourceEntityMapper.AncestorClosureResult pair :
+                resourceEntityMapper.selectSelfAndAncestorClosureBatch(tenantId, entityIds)) {
+                if (!Objects.equals(pair.getTargetId(), pair.getClosureId())) {
+                    ancestorsByEntity.computeIfAbsent(pair.getTargetId(), _unused -> new ArrayList<>())
+                        .add(pair.getClosureId());
+                }
+            }
         }
-
-        // 构建资源映射和父子关系图
-        Map<Long, ResourceEntity> idToResource = allResources.stream()
-            .collect(Collectors.toMap(ResourceEntity::getId, r -> r, (a, b) -> a));
-        Map<Long, List<Long>> parentIdToChildren = new LinkedHashMap<>();
-        Map<Long, Long> idToParentId = new LinkedHashMap<>();
-        for (ResourceEntity resource : allResources) {
-            if (resource.getParentId() != null && resource.getParentId() != 0L) {
-                parentIdToChildren.computeIfAbsent(resource.getParentId(), _unused -> new ArrayList<>())
-                    .add(resource.getId());
-                idToParentId.put(resource.getId(), resource.getParentId());
+        if (expandChildren) {
+            descendantsByEntity = new LinkedHashMap<>();
+            for (ResourceEntityMapper.DescendantResult pair :
+                resourceEntityMapper.selectDescendantIdsBatch(tenantId, entityIds)) {
+                descendantsByEntity.computeIfAbsent(pair.getResourceId(), _unused -> new ArrayList<>())
+                    .add(pair.getDescendantId());
             }
         }
 
-        // 收集继承条目
-        List<RolePermEntry> inheritedEntries = new ArrayList<>();
-        Set<String> inheritedKeys = new HashSet<>(); // 用于去重：entityId+"|"+permissionId
-
+        List<RolePermEntry> expandedEntries = new ArrayList<>();
+        Set<String> expandedKeys = new HashSet<>(); // 去重：entityId+"|"+permissionId
         for (RolePermEntry entry : entries) {
             Long srcEntityId = entry.resourceEntityId();
             if (srcEntityId == null) {
-                continue; // scopeAll条目不参与展开
+                continue; // scopeAll 条目不参与展开
             }
-
-            if (inheritChildren) {
-                Set<Long> descendants = new LinkedHashSet<>();
-                collectDescendants(srcEntityId, parentIdToChildren, descendants);
-                for (Long descId : descendants) {
-                    String key = BusinessKeys.inheritedEntryKey(descId, entry.permissionId());
-                    if (inheritedKeys.add(key)) {
-                        inheritedEntries.add(cloneWithInherited(entry, descId));
-                    }
+            for (Long ancestorId : ancestorsByEntity.getOrDefault(srcEntityId, List.of())) {
+                String key = BusinessKeys.inheritedEntryKey(ancestorId, entry.permissionId());
+                if (expandedKeys.add(key)) {
+                    expandedEntries.add(cloneWithInherited(entry, ancestorId));
                 }
             }
-
-            if (inheritParents) {
-                Long current = idToParentId.get(srcEntityId);
-                while (current != null) {
-                    String key = BusinessKeys.inheritedEntryKey(current, entry.permissionId());
-                    if (inheritedKeys.add(key)) {
-                        inheritedEntries.add(cloneWithInherited(entry, current));
-                    }
-                    current = idToParentId.get(current);
+            for (Long descendantId : descendantsByEntity.getOrDefault(srcEntityId, List.of())) {
+                String key = BusinessKeys.inheritedEntryKey(descendantId, entry.permissionId());
+                if (expandedKeys.add(key)) {
+                    expandedEntries.add(cloneWithInherited(entry, descendantId));
                 }
             }
         }
 
-        // 合并原始条目和继承条目
         List<RolePermEntry> result = new ArrayList<>(entries);
-        result.addAll(inheritedEntries);
+        result.addAll(expandedEntries);
         return result;
-    }
-
-    /**
-     * 递归收集所有后代资源ID
-     *
-     * @param parentId      父资源ID
-     * @param childrenMap   父ID→子ID列表映射
-     * @param result        收集结果的集合
-     */
-    private void collectDescendants(Long parentId, Map<Long, List<Long>> childrenMap, Set<Long> result) {
-        List<Long> children = childrenMap.getOrDefault(parentId, List.of());
-        for (Long childId : children) {
-            if (result.add(childId)) {
-                collectDescendants(childId, childrenMap, result);
-            }
-        }
     }
 
     /**
@@ -940,56 +1128,7 @@ public class PermQueryEngine {
         );
     }
 
-    // ===== forUserView 专用方法 =====
-
-    /**
-     * 执行用户视图查询
-     * <p>
-     * 查询该用户全部角色权限记录，不按资源类型/操作码/位掩码过滤。
-     * 查询流程：
-     * <ol>
-     *   <li>解析用户角色</li>
-     *   <li>查询全部角色权限记录（scopeAll + instance）</li>
-     *   <li>评估条件和冲突（按参数标志）</li>
-     *   <li>加载辅助实体（资源、操作、角色）</li>
-     *   <li>构建结果</li>
-     * </ol>
-     * </p>
-     *
-     * @param q 权限查询参数（forUserView=true）
-     * @return 权限查询结果
-     */
-    private PermResult queryForUserView(PermQuery q) {
-        // 1. 解析角色
-        Set<Long> roleIds = resolveRoleIds(q);
-        if (roleIds.isEmpty()) {
-            return PermResult.deny("NO_ROLE");
-        }
-
-        // 2. 查询全部角色权限（scopeAll + instance）—— T-PERM-018 激活 ROLE_PERM_SNAPSHOT 读缓存
-        List<RolePermEntry> allEntries = loadRolePermEntriesWithCache(q.tenantId(), roleIds);
-
-        if (allEntries.isEmpty()) {
-            return PermResult.deny("NO_PERMISSION");
-        }
-
-        // 3. 评估条件和冲突
-        allEntries = evaluateIfNeeded(q, allEntries);
-        if (allEntries.isEmpty()) {
-            return PermResult.deny("CONDITION_NOT_MET_OR_CONFLICT");
-        }
-
-        // 4. 构建结果（forUserView 不做 scopeAll/instance 语义断言，全部归入实例条目）
-        PermResult.Builder builder = PermResult.builder(true, null)
-            .scopeAllMatched(false)
-            .scopeAllEntries(List.of())
-            .instanceEntries(allEntries);
-
-        // 5. 加载辅助实体（资源、操作、角色）
-        loadAncillaryForView(q, builder, allEntries, roleIds);
-
-        return builder.build();
-    }
+    // ===== LIST 专用方法 =====
 
     /**
      * 加载角色权限条目（带 ROLE_PERM_SNAPSHOT 读缓存）。

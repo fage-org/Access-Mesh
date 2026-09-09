@@ -5,11 +5,12 @@ import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionGrantDomainService.GrantCheckKey;
-import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,11 +40,9 @@ class PermissionGrantDomainServiceImplTest {
     @Mock
     private TypeResolutionService typeResolutionService;
     @Mock
-    private SubjectDomainService subjectDomainService;
-    @Mock
     private OperationPermissionMapper operationPermissionMapper;
     @Mock
-    private RoleResourcePermissionMapper roleResourcePermissionMapper;
+    private PermQueryEngine permQueryEngine;
 
     private PermissionGrantDomainServiceImpl service;
 
@@ -51,15 +50,13 @@ class PermissionGrantDomainServiceImplTest {
     void setUp() {
         service = new PermissionGrantDomainServiceImpl(
             typeResolutionService,
-            subjectDomainService,
-            operationPermissionMapper,
-            roleResourcePermissionMapper
+            permQueryEngine,
+            operationPermissionMapper
         );
     }
 
     @Test
     void canGrantPermissionShouldAllowInheritedGrantCoverage() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
 
@@ -68,19 +65,17 @@ class PermissionGrantDomainServiceImplTest {
 
         when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(1), Set.of("VIEW")))
             .thenReturn(List.of(viewOp));
-        when(operationPermissionMapper.selectByTenantAndResourceType(1L, null)).thenReturn(List.of(viewOp, manageOp));
         when(typeResolutionService.batchResolveResourceIds(any(), any()))
             .thenReturn(Map.of(new ResourceResolveKey("MENU", "sys:user", PermConstants.CodeType.DEFAULT, null), 100L));
 
-        RoleResourcePermission perm = new RoleResourcePermission();
-        perm.setAbstractRoleId(20L);
-        perm.setResourceEntityId(100L);
-        perm.setResourceType(1);
-        perm.setGrantedBits(8L);
-        perm.setCanGrant(true);
-        perm.setScopeAll(false);
-
-        when(roleResourcePermissionMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of(perm));
+        // T-PERM-057 收编：授权事实来自引擎 LIST 管线（MANAGE 授予行 canGrant=true，
+        // 经 inheritMask 覆盖 VIEW 目标操作）
+        RolePermEntry grantedEntry = new RolePermEntry(
+            500L, 20L, 100L, "sys:user", 1, 8L, "MANAGE", 9L, "MANUAL", true, null, false, null, false);
+        when(permQueryEngine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null)
+            .instanceEntries(List.of(grantedEntry))
+            .operationMap(Map.of(viewOp.getId(), viewOp, manageOp.getId(), manageOp))
+            .build());
 
         boolean allowed = service.canGrantPermission(1L, 10L, "MENU", "sys:user", PermConstants.CodeType.DEFAULT, "VIEW", false, null);
 
@@ -89,25 +84,22 @@ class PermissionGrantDomainServiceImplTest {
 
     @Test
     void canGrantPermissionShouldDenyWhenCodeTypeDiffers() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
 
         OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
         when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(1), Set.of("VIEW")))
             .thenReturn(List.of(viewOp));
-        when(operationPermissionMapper.selectByTenantAndResourceType(1L, null)).thenReturn(List.of(viewOp));
+        // 请求 codeType=ID 解析到不同实体（200），与授予行实体（100）不匹配 → 拒绝
         when(typeResolutionService.batchResolveResourceIds(any(), any()))
             .thenReturn(Map.of(new ResourceResolveKey("MENU", "sys:user", "ID", null), 200L));
 
-        RoleResourcePermission perm = new RoleResourcePermission();
-        perm.setAbstractRoleId(20L);
-        perm.setResourceEntityId(100L);
-        perm.setResourceType(1);
-        perm.setGrantedBits(1L);
-        perm.setCanGrant(true);
-        perm.setScopeAll(false);
-        when(roleResourcePermissionMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of(perm));
+        RolePermEntry grantedEntry = new RolePermEntry(
+            500L, 20L, 100L, "sys:user", 1, 1L, "VIEW", 1L, "MANUAL", true, null, false, null, false);
+        when(permQueryEngine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null)
+            .instanceEntries(List.of(grantedEntry))
+            .operationMap(Map.of(viewOp.getId(), viewOp))
+            .build());
 
         boolean allowed = service.canGrantPermission(1L, 10L, "MENU", "sys:user", "ID", "VIEW", false, null);
 
@@ -180,7 +172,7 @@ class PermissionGrantDomainServiceImplTest {
             service.checkCanGrant(1L, 10L, Set.of(invalid), null);
 
         assertEquals("INVALID_PERMISSION_KEY", results.values().iterator().next().reason());
-        verify(subjectDomainService, never()).resolveEffectiveRoles(anyLong(), anyLong());
+        verify(permQueryEngine, never()).query(any(PermQuery.class));
     }
 
     private RoleResourcePermission permission(Long id, String source, Long conditionId, Long bits) {

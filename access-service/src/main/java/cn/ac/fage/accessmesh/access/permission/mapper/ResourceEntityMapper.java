@@ -196,6 +196,36 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
     }
 
     /**
+     * 批量祖先闭包查询结果类
+     * <p>
+     * 用于封装判定面继承目标闭包查询的结果，包含目标ID与其闭包成员ID（目标自身+同类型祖先）对。
+     * </p>
+     */
+    @Getter
+    @Setter
+    class AncestorClosureResult {
+        private Long targetId;
+        private Long closureId;
+    }
+
+    /**
+     * 判定面继承目标闭包批量查询（T-PERM-057，递归 CTE 上溯）
+     * <p>
+     * 对每个目标实体返回 {目标自身}∪同类型祖先链 的全部成员（闭包成员对 targetId×closureId，
+     * 含 targetId=closureId 自身行）。上溯**止步同类型**（2026-09-09 用户定案：sync 通道允许
+     * 跨类型父子边，跨类型祖先不参与闭包——两类型操作位空间各自独立，跨类型授权不越权放行）；
+     * 软删祖先截断（delete_flag=0 过滤）；UNION 组合去重防 parent 环迭代不收敛（T-PERM-044 先例）。
+     * 逐次加载全租户资源图不可接受（管理 API 每调用 1-3 门禁），故走目标下推 CTE 而非 selectAllValid。
+     * </p>
+     *
+     * @param tenantId          租户ID
+     * @param resourceEntityIds 目标资源实体ID集合
+     * @return 闭包成员对列表（targetId×closureId，含自身行）
+     */
+    List<AncestorClosureResult> selectSelfAndAncestorClosureBatch(@Param("tenantId") Long tenantId,
+                                                                   @Param("resourceEntityIds") Set<Long> resourceEntityIds);
+
+    /**
      * 查询所有有效资源实体（用于权限树构建）
      *
      * @param tenantId 租户ID
