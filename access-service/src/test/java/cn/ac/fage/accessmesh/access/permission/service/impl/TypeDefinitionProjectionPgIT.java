@@ -7,6 +7,7 @@ import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.TypeDefinitionResp;
+import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.TypeDefinitionAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
@@ -33,6 +34,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
@@ -94,6 +96,10 @@ class TypeDefinitionProjectionPgIT {
     /** 投影层 spy：回滚用例仅指定方法注入故障，其余真实（成功场景全链路落库）。 */
     @SpyBean
     private LocalProjectionDomainService localProjectionSpy;
+
+    /** 操作行级联 spy（T-PERM-050）：回滚用例仅 softDeleteBatch 注入故障，其余真实。 */
+    @SpyBean
+    private OperationPermissionMapper operationPermissionSpy;
 
     @AfterEach
     void tearDown() {
@@ -278,6 +284,60 @@ class TypeDefinitionProjectionPgIT {
             .hasMessageContaining("资源由系统事实链路维护")
             .hasMessageContaining("类型定义")
             .hasMessageContaining("TYPE_DEFINITION");
+    }
+
+    @Test
+    @DisplayName("T-PERM-050 级联：resource_type 删除同事务清预置操作行 + 类型级授权行；级联失败整体回滚")
+    void deleteShouldCascadeOperationsAndTypeLevelGrantsAtomically() {
+        // 创建者：类型级 CREATE——resource_type 创建触发预置 CRUD 四操作位（T-PERM-028 联动）
+        Long creator = insertSubject("t050-op-create", "资源类型创建者");
+        Long creatorRole = insertBasicRole("t050-role-create", "资源类型创建角色");
+        insertUserRole(creator, creatorRole);
+        insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_TYPE_DEFINITION, CREATE_BIT);
+        bindOperator(creator);
+        TypeDefinitionResp doomed = typeDefinitionAppService.createType(TENANT,
+            new TypeCreateReq("resource_type", "PGIT050_RT", "待删资源类型", null, null, null), creator);
+        int doomedTypeValue = doomed.typeValue();
+        assertThat(countValidRows("operation_permission", "resource_type = " + doomedTypeValue))
+            .as("创建 resource_type 联动预置 CRUD 四操作位").isEqualTo(4);
+
+        // holder 角色持有该类型级 VIEW 授权（scope_all）——删除后须级联软删（T-PERM-050 定案并入）
+        Long holder = insertSubject("t050-op-holder", "类型持权用户");
+        Long holderRole = insertBasicRole("t050-role-holder", "类型持权角色");
+        insertUserRole(holder, holderRole);
+        insertScopeAllRolePerm(holderRole, doomedTypeValue, VIEW_BIT);
+
+        // deleter：类型级 MANAGE（批删走 getDeniedResourceCodes 复合键轨，类型级 scopeAll 放行）
+        Long deleter = insertSubject("t050-op-deleter", "资源类型删除者");
+        Long deleterRole = insertBasicRole("t050-role-deleter", "资源类型删除角色");
+        insertUserRole(deleter, deleterRole);
+        insertScopeAllRolePerm(deleterRole, RESOURCE_TYPE_TYPE_DEFINITION, MANAGE_BIT);
+        bindOperator(deleter);
+        typeDefinitionAppService.deleteTypesByIds(TENANT, List.of(doomed.id()), deleter);
+
+        // 同生共死：类型行 + 该类型全部操作行 + 该类型下授权行三面软删（旧实现仅删类型行，本组断言必红）
+        assertThat(countValidRows("type_definition",
+            "type_key = 'resource_type' AND type_code = 'PGIT050_RT'")).isZero();
+        assertThat(countValidRows("operation_permission",
+            "resource_type = " + doomedTypeValue)).isZero();
+        assertThat(countValidRows("role_resource_permission",
+            "resource_type = " + doomedTypeValue)).isZero();
+
+        // 原子性：级联中段（操作行软删）失败 → 类型行/投影行/操作行整体回滚，不留半删状态
+        bindOperator(creator);
+        TypeDefinitionResp doomed2 = typeDefinitionAppService.createType(TENANT,
+            new TypeCreateReq("resource_type", "PGIT050_RB", "回滚资源类型", null, null, null), creator);
+        doThrow(new RuntimeException("op cascade boom"))
+            .when(operationPermissionSpy).softDeleteBatch(anyLong(), anyList(), any());
+        bindOperator(deleter);
+        assertThatThrownBy(() -> typeDefinitionAppService.deleteTypesByIds(TENANT, List.of(doomed2.id()), deleter))
+            .hasMessageContaining("op cascade boom");
+        assertThat(countValidRows("type_definition",
+            "type_key = 'resource_type' AND type_code = 'PGIT050_RB'")).isEqualTo(1);
+        assertThat(countValidRows("operation_permission",
+            "resource_type = " + doomed2.typeValue())).isEqualTo(4);
+        assertThat(countValidRows("resource_entity",
+            "resource_type = 10 AND code = 'resource_type:PGIT050_RB' AND code_type = 'default'")).isEqualTo(1);
     }
 
     // ===== 数据装配（jdbc 直插事实/授权，先于相关主体首次引擎调用） =====

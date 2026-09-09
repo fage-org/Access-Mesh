@@ -173,6 +173,33 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                                                   @Param("dependIds") Set<Long> dependIds);
 
     /**
+     * 查询指定资源类型值集合的有效权限ID（resource_type 删除级联场景）。
+     * <p>
+     * T-PERM-050：deleteTypesByIds 级联软删被删 resource_type 下的有效授权行前取行 ID——
+     * 正常流仅剩 scope_all 类型级行（资源行已被行数守卫拒绝、实例级授权随资源删除级联），
+     * 防御性含引用已软删资源行的残留实例行。仅限 typeKey=resource_type 的类型值调用
+     * （type_value 仅 tenant+type_key 内唯一，其他 typeKey 同值不得误入）。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param resourceTypes 资源类型值集合
+     * @return 权限ID列表
+     */
+    List<Long> selectValidPermIdsByResourceTypes(@Param("tenantId") Long tenantId,
+                                                  @Param("resourceTypes") Set<Integer> resourceTypes);
+
+    /**
+     * 查询指定资源类型值集合涉及的受影响角色ID集合（resource_type 删除级联场景，
+     * 登记 ROLE_PERM_SNAPSHOT 失效，与 {@link #selectRoleIdsByResourceIds} 同口径）。
+     *
+     * @param tenantId     租户ID
+     * @param resourceTypes 资源类型值集合
+     * @return 受影响角色ID集合
+     */
+    Set<Long> selectRoleIdsByResourceTypes(@Param("tenantId") Long tenantId,
+                                            @Param("resourceTypes") Set<Integer> resourceTypes);
+
+    /**
      * 根据角色ID和资源实体ID查询有效的权限记录
      *
      * @param tenantId         租户ID

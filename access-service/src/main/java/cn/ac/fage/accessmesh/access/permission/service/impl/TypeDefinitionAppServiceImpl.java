@@ -460,6 +460,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * ID 空间错位；先批量载行构键再判，载行空集退化为类型级校验保持 fail-closed）。
      * 同事务级联：软删 TYPE_DEFINITION 投影行 + 投影行下授权行（deleteResources 同款，
      * 2026-09-07 用户定案级联方案），markRoles/markServiceCodes 提交后失效与广播。
+     * T-PERM-050（2026-09-09 定案级联）：被删 resource_type 的操作定义行（含预置 CRUD 四操作位，
+     * 对称于创建联动预置）与该类型下有效授权行（正常流仅剩 scope_all 类型级行）同事务级联软删，
+     * markRoles 失效角色快照、OPERATION_PERMISSIONS_BY_TYPE 按类型集合提交后失效。
      * </p>
      *
      * @param tenantId   租户ID
@@ -536,9 +539,11 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         List<TypeDefinition> deletableResourceTypes = entities.stream()
             .filter(e -> validIds.contains(e.getId()) && "resource_type".equals(e.getTypeKey()))
             .toList();
+        Set<Integer> deletableTypeValues = deletableResourceTypes.stream()
+            .map(TypeDefinition::getTypeValue)
+            .collect(Collectors.toSet());
         if (!deletableResourceTypes.isEmpty()) {
-            Set<Integer> typesWithRows = resourceEntityDomainService.findTypesWithValidRows(
-                tenantId, deletableResourceTypes.stream().map(TypeDefinition::getTypeValue).collect(Collectors.toSet()));
+            Set<Integer> typesWithRows = resourceEntityDomainService.findTypesWithValidRows(tenantId, deletableTypeValues);
             List<String> conflictCodes = deletableResourceTypes.stream()
                 .filter(t -> typesWithRows.contains(t.getTypeValue()))
                 .map(TypeDefinition::getTypeCode)
@@ -584,6 +589,33 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         }
         if (!permIds.isEmpty()) {
             rolePermMapper.softDeleteBatch(tenantId, permIds, now);
+        }
+        // T-PERM-050（2026-09-09 定案级联）：被删 resource_type 的操作定义行与类型级授权行同事务
+        // 级联软删——对称于创建联动预置（建时自动生 4 行、删时自动清），与上方投影级联同款。
+        // 级联面限定 typeKey=resource_type：type_value 仅 tenant+type_key 内唯一，user_type/role_type
+        // 同值删除不得误伤 resource_type 空间（deletableResourceTypes 已按 typeKey 过滤）。
+        if (!deletableResourceTypes.isEmpty()) {
+            List<Long> operationIds = operationPermissionMapper
+                .selectByTenantAndResourceTypes(tenantId, deletableTypeValues).stream()
+                .map(OperationPermission::getId)
+                .toList();
+            if (!operationIds.isEmpty()) {
+                operationPermissionMapper.softDeleteBatch(tenantId, operationIds, now);
+            }
+            // 正常流仅剩 scope_all 类型级行（资源行被行数守卫拒绝、实例级授权随资源删除级联）；
+            // 防御性含引用已软删资源行的残留实例行
+            Set<Long> typeGrantRoleIds = rolePermMapper.selectRoleIdsByResourceTypes(tenantId, deletableTypeValues);
+            if (!typeGrantRoleIds.isEmpty()) {
+                PermissionChangeContext.markRoles(tenantId, typeGrantRoleIds);
+            }
+            List<Long> typeGrantPermIds = rolePermMapper.selectValidPermIdsByResourceTypes(tenantId, deletableTypeValues);
+            if (!typeGrantPermIds.isEmpty()) {
+                rolePermMapper.softDeleteBatch(tenantId, typeGrantPermIds, now);
+            }
+            // T-PERM-047 终态复用：操作集合变更提交后按被删类型集合 per-type 失效
+            cacheService.evictBatchAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
+                deletableTypeValues.stream().map(PermCacheCatalog::operationPermissionsByTypeKey)
+                    .collect(Collectors.toCollection(LinkedHashSet::new)));
         }
         // codex 三轮复评 P1-2：被删类型提交后失效双向解析缓存键（同码重建新值前，旧映射不得残留）；
         // codex 四轮复评 P2：按码键/值键各合并一次批量失效（逐项 evictAfterCommit = 2N 个事务回调）

@@ -887,4 +887,77 @@ class TypeDefinitionAppServiceImplTest {
         service.deleteTypesByIds(1L, java.util.List.of(404L), 100L);
         verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
     }
+
+    // ========== T-PERM-050：resource_type 删除级联操作行 + 类型级授权行 ==========
+
+    @Test
+    void shouldCascadeOperationsAndTypeLevelGrantsOnResourceTypeDelete() {
+        // 2026-09-09 定案级联：类型软删同事务级联该类型操作定义行（含预置四操作位）+ 类型级
+        // 授权行；旧实现（零级联）下两条 softDeleteBatch 均不会被触达，本用例必红
+        when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(java.util.Set.of());
+        TypeDefinition hrOrg = new TypeDefinition();
+        hrOrg.setId(9L);
+        hrOrg.setTenantId(1L);
+        hrOrg.setTypeKey("resource_type");
+        hrOrg.setTypeCode("HR_ORG");
+        hrOrg.setTypeValue(5);
+        hrOrg.setIsSystem(false);
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(hrOrg));
+        when(resourceEntityDomainService.findTypesWithValidRows(1L, java.util.Set.of(5)))
+            .thenReturn(java.util.Set.of());
+        cn.ac.fage.accessmesh.access.permission.entity.OperationPermission create =
+            new cn.ac.fage.accessmesh.access.permission.entity.OperationPermission();
+        create.setId(31L);
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, java.util.Set.of(5)))
+            .thenReturn(java.util.List.of(create));
+        when(rolePermMapper.selectRoleIdsByResourceTypes(1L, java.util.Set.of(5)))
+            .thenReturn(java.util.Set.of(7L));
+        when(rolePermMapper.selectValidPermIdsByResourceTypes(1L, java.util.Set.of(5)))
+            .thenReturn(java.util.List.of(77L));
+
+        service.deleteTypesByIds(1L, java.util.List.of(9L), 100L);
+
+        // 同事务软删顺序：类型行 → 操作行 → 类型级授权行
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(
+            typeDefinitionMapper, operationPermissionMapper, rolePermMapper);
+        order.verify(typeDefinitionMapper).softDeleteBatch(eq(1L), any(), any());
+        order.verify(operationPermissionMapper).softDeleteBatch(eq(1L), eq(java.util.List.of(31L)), any());
+        order.verify(rolePermMapper).softDeleteBatch(eq(1L), eq(java.util.List.of(77L)), any());
+        // 受影响角色与授权行均按被删类型值批量定位（循环单查违反 §8.4.8）
+        verify(rolePermMapper).selectRoleIdsByResourceTypes(1L, java.util.Set.of(5));
+        verify(rolePermMapper).selectValidPermIdsByResourceTypes(1L, java.util.Set.of(5));
+        // 操作集合变更提交后按被删类型 per-type 失效（T-PERM-047 终态复用）
+        verify(cacheService).evictBatchAfterCommit(
+            cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE,
+            1L, java.util.Set.of("op_perm:5"));
+    }
+
+    @Test
+    void shouldNotTouchResourceTypeFacesWhenDeletingOtherTypeKeys() {
+        // 级联面限定 typeKey=resource_type：type_value 仅 tenant+type_key 内唯一，user_type
+        // 同值（5）删除不得误伤 resource_type 空间的操作行/授权行——若级联按 typeValue
+        // 全 typeKey 展开，本用例必红
+        when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(java.util.Set.of());
+        TypeDefinition contractor = new TypeDefinition();
+        contractor.setId(9L);
+        contractor.setTenantId(1L);
+        contractor.setTypeKey("user_type");
+        contractor.setTypeCode("CONTRACTOR");
+        contractor.setTypeValue(5);
+        contractor.setIsSystem(false);
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L))).thenReturn(java.util.List.of(contractor));
+
+        service.deleteTypesByIds(1L, java.util.List.of(9L), 100L);
+
+        verify(typeDefinitionMapper).softDeleteBatch(eq(1L), any(), any());
+        verify(operationPermissionMapper, never()).selectByTenantAndResourceTypes(anyLong(), any());
+        verify(operationPermissionMapper, never()).softDeleteBatch(anyLong(), any(), any());
+        verify(rolePermMapper, never()).selectRoleIdsByResourceTypes(anyLong(), any());
+        verify(rolePermMapper, never()).selectValidPermIdsByResourceTypes(anyLong(), any());
+        verify(cacheService, never()).evictBatchAfterCommit(
+            eq(cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
+            anyLong(), any());
+    }
 }

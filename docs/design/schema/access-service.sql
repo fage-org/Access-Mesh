@@ -630,7 +630,7 @@ CREATE TABLE type_definition (
 CREATE UNIQUE INDEX uk_type_definition_value ON type_definition (tenant_id, type_key, type_value) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_type_definition_code ON type_definition (tenant_id, type_key, type_code) WHERE delete_flag = 0;
 
-COMMENT ON TABLE type_definition IS '类型定义：type_code 是对外稳定编码，type_value 是内部存储和计算值。type_key 如 user_type/role_type/resource_type，is_system=true 为系统预置不可删改。创建 resource_type 时自动预置 CRUD 四个 operation_permission';
+COMMENT ON TABLE type_definition IS '类型定义：type_code 是对外稳定编码，type_value 是内部存储和计算值。type_key 如 user_type/role_type/resource_type，is_system=true 为系统预置不可删改。创建 resource_type 时自动预置 CRUD 四个 operation_permission；删除 resource_type（非系统、类型下无有效资源行）时同事务级联软删该类型全部有效 operation_permission 与该类型下有效授权行（正常流仅剩 scope_all 类型级行，T-PERM-050）';
 COMMENT ON COLUMN type_definition.type_key IS '类型键，如 user_type、role_type、resource_type';
 COMMENT ON COLUMN type_definition.type_code IS '对外稳定编码，如 USER、SERVICE、BASIC_ROLE、MENU、DATA';
 COMMENT ON COLUMN type_definition.type_value IS '内部枚举值；同一 tenant_id + type_key 内全局唯一，只用于存储、索引和计算，不作为外部 API 契约';
@@ -839,7 +839,7 @@ CREATE UNIQUE INDEX uk_operation_permission_typed_bit ON operation_permission (t
 -- 授权身份不可区分（同位异码互相越权），CHECK 在数据层焊死该形态。种子数据本就无全局行，无迁移成本。
 ALTER TABLE operation_permission ADD CONSTRAINT ck_operation_permission_resource_type_required CHECK (resource_type IS NOT NULL);
 
-COMMENT ON TABLE operation_permission IS '操作权限；effective = binary_bit | inherit_mask；预置CRUD：CREATE(1,0) VIEW(2,0) UPDATE(4,2) DELETE(8,2)';
+COMMENT ON TABLE operation_permission IS '操作权限；effective = binary_bit | inherit_mask；预置CRUD：CREATE(1,0) VIEW(2,0) UPDATE(4,2) DELETE(8,2)；所属 resource_type 删除时该类型全部有效操作行同事务级联软删（对称于创建联动预置，T-PERM-050）';
 COMMENT ON COLUMN operation_permission.resource_type IS '适用的资源类型枚举值（type_definition type_value）；全局操作（NULL=适用所有）概念已退役（2026-08-30 设计定案），CHECK 强制非空';
 COMMENT ON COLUMN operation_permission.code IS '操作编码，如 CREATE、VIEW、UPDATE、DELETE（v1.4 起统一用 VIEW，原 READ 为历史命名）';
 COMMENT ON COLUMN operation_permission.binary_bit IS '本操作独占位（BIGINT 63 个独立操作）';
@@ -1185,7 +1185,7 @@ CREATE INDEX idx_role_resource_permission_depend ON role_resource_permission (de
 CREATE INDEX idx_role_resource_permission_type ON role_resource_permission (tenant_id, resource_type) WHERE delete_flag = 0;
 CREATE INDEX idx_role_resource_permission_scope_all ON role_resource_permission (tenant_id, resource_type, granted_bits) WHERE delete_flag = 0 AND scope_all = true;
 
-COMMENT ON TABLE role_resource_permission IS '角色对某资源某操作位的授权；同一角色+资源/范围+操作+父权限仅允许一条 MANUAL 直接授权，condition_id/can_grant 为可变属性；depend_on 实现子权限（单层）；scope_all=true 表示某资源类型全量范围授权';
+COMMENT ON TABLE role_resource_permission IS '角色对某资源某操作位的授权；同一角色+资源/范围+操作+父权限仅允许一条 MANUAL 直接授权，condition_id/can_grant 为可变属性；depend_on 实现子权限（单层）；scope_all=true 表示某资源类型全量范围授权；所属 resource_type 删除时该类型下有效授权行（scope_all 为主）同事务级联软删（T-PERM-050）';
 COMMENT ON COLUMN role_resource_permission.resource_entity_id IS '资源实体ID；scope_all=false 时必填，scope_all=true 时为空';
 COMMENT ON COLUMN role_resource_permission.granted_bits IS '授予的操作位；MANUAL 记录只存单个 operation_permission.binary_bit（2 的幂），配合 effective_bits / inherit_mask 实现覆盖判定';
 COMMENT ON COLUMN role_resource_permission.resource_type IS '资源类型；普通授权时从 resource_entity 自动填充，scope_all=true 时用于标识全量范围资源类型';

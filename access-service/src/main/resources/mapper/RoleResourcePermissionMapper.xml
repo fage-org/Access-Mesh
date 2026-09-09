@@ -237,4 +237,26 @@
           </if>
     </select>
 
+    <!-- T-PERM-050：resource_type 删除级联——被删类型下有效授权行 ID（仅限 typeKey=resource_type 的类型值调用） -->
+    <select id="selectValidPermIdsByResourceTypes" resultType="java.lang.Long">
+        SELECT id FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND resource_type IN
+        <foreach collection="resourceTypes" item="rt" open="(" separator="," close=")">
+            #{rt}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <!-- T-PERM-050：resource_type 删除级联——受影响角色（markRoles 登记 ROLE_PERM_SNAPSHOT 失效） -->
+    <select id="selectRoleIdsByResourceTypes" resultType="java.lang.Long">
+        SELECT DISTINCT abstract_role_id FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND resource_type IN
+        <foreach collection="resourceTypes" item="rt" open="(" separator="," close=")">
+            #{rt}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
 </mapper>

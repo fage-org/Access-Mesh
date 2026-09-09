@@ -630,7 +630,8 @@ GROUP_ROLE 树结构变更（moveRole 调整 parent_id；extra.basicRoleIds 无�
   → afterCommit 批量失效 CONDITION_RULES；RolePermEntry 缓存只保存 conditionId，条件仍实时评估
 
 操作权限定义变更（operation_permission：createOperation/updateOperation/deleteOperations；
-  resource_type 创建联动预置 CRUD 四操作位同口径，T-PERM-047）
+  resource_type 创建联动预置 CRUD 四操作位同口径，T-PERM-047；
+  type-definition/remove 级联软删被删类型操作行同口径按类型集合 evictBatchAfterCommit，T-PERM-050）
   → 写路径事务提交后 evictAfterCommit(OPERATION_PERMISSIONS_BY_TYPE, tenantId,
     "op_perm:" + resourceType)——键构造统一走 PermCacheCatalog.operationPermissionsByTypeKey，
     deleteOperations 按受影响类型集合一次 evictBatchAfterCommit（同类型去重）

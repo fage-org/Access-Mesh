@@ -9,7 +9,7 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 032 |
-| permission-center | `T-PERM` | 056 |
+| permission-center | `T-PERM` | 057 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 008 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
@@ -110,12 +110,13 @@
 | [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ✅ | ✓ |
 | [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（范围见任务卡） | — | api-contract §5.6；access-service.sql | — | ⚙️ | ⏳ |
 | [T-PERM-049](T-PERM-049.md) | 全局操作概念整体退役（操作位空间按类型隔离 + DDL CHECK 焊死；外部复审 P1 越权根治） | — | api-contract §5.3；access-service.sql | — | ✅ | ✓ |
-| [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（范围见任务卡） | — | schema；api-contract §5.1/§5.3 | — | ⚙️ | ⏳ |
+| [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（已收口 2026-09-09，级联定案与终态见任务卡） | — | schema；api-contract §5.1/§5.3 | — | ✅ | ✓ |
 | [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一（已收口，定案与终态见任务卡） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ✅ | ✓ |
 | [T-PERM-052](T-PERM-052.md) | 资源类型级所有权边界——类型声明门禁（已收口，定案与终态见任务卡） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.1/§5.3/§6.2.2/§6.3.1；architecture §4.3；schema | — | ✅ | ✅ |
 | [T-PERM-053](T-PERM-053.md) | service-config 同步 ApiItem.operationCode 无效字段删除 | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §6.3；schema | — | ✅ | ✓ |
 | [T-PERM-054](T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置（暂缓——关联权限自动授权方向待讨论，见任务卡） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.4；schema | — | ⚙️ | ⏳ |
 | [T-PERM-055](T-PERM-055.md) | 域分类查询批量预载优化（matchesTypeCode 循环点查放大收敛；T-PERM-046 评审登记） | — | access-service-architecture §13；api-contract §3.4 | — | ⚙️ | ⏳ |
+| [T-PERM-056](T-PERM-056.md) | user_type/role_type 删除零检查——主体/角色类型引用面保护（T-PERM-050 盘点拆分） | — | schema；api-contract §5.1 | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 
