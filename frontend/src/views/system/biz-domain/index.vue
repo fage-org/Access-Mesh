@@ -84,10 +84,18 @@ const configColumns = [
 ];
 
 // ========== 主表：业务域新建/编辑弹窗 ==========
+/** 弹窗打开序号守卫（codex 评审 P3-1，2026-09-09 用户定案序列号修法）：
+ *  create 态 await 全局域预查期间用户可能点击其他弹窗入口（编辑/再次新增），
+ *  过期打开在预查返回后丢弃——dialogStore.push 无取消机制，慢网下会叠弹窗。 */
+let bizDomainFormOpenSeq = 0;
+
 async function openBizDomainForm(mode: "create" | "edit", row?: BizDomainResp) {
+  const seq = ++bizDomainFormOpenSeq;
   // T-PERM-046：create 态预查全局域存在性（开关禁用+提示；查询失败按不存在，后端 20057 兜底）
   const globalExists =
     mode === "create" ? await checkGlobalDomainExists() : false;
+  // await 期间有更新的弹窗打开请求（任何模式）→ 本次为过期请求，放弃打开
+  if (seq !== bizDomainFormOpenSeq) return;
   let formRef: any = null;
   addDialog({
     title: mode === "edit" ? "编辑业务域" : "新增业务域",

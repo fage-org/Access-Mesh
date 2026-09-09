@@ -65,3 +65,5 @@ T-PERM-026 业务域后端收口的双轨评审发现两项模型层缺口，经
 - 回归面：access-service 单测轨道全量（-DskipTestcontainers=true）0 失败；前端 tsc+vue-tsc 通过。
 
 **残留清扫**：「隐式包含/无需配置 CLASSIFY/由系统初始化」旧口径全仓清扫（schema 列注释、architecture、biz-domain.md、AGENTS.md、前端 api 注释、5 处 Java Javadoc：BizDomain/BizDomainResp/ConfigType/PermissionErrorCode/DomainClassifyService）。
+
+**codex 外评（2026-09-09，luna max read-only，用户触发）**：零 P0-P2、P3×2 已处置——getClassifiedTypeCodes 接口方法 Javadoc 旧口径残留当场修正；业务域弹窗打开竞态按用户定案序列号守卫修复（openBizDomainForm 模块级序号，过期打开丢弃）。专项复查（写读入口枚举/三态范围/锁交错/权限链/schema 适配）全部通过。定案登记 decision-registry。
