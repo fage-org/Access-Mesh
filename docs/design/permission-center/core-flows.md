@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
@@ -129,37 +129,47 @@ flowchart LR
 
 ## 7. 权限查询引擎（PermQueryEngine）
 
-所有权限查询和校验统一通过 `PermQueryEngine.query(PermQuery)` 执行，引擎根据查询模式走不同路径：
+所有权限查询和校验统一通过 `PermQueryEngine.query(PermQuery)` 执行（T-PERM-057 统一引擎：一个引擎、一套入参、一个结果模型；多入口 = 参数预设的封装）。引擎按 **targetMode 三态**分流（TYPE_LEVEL 只消费 scopeAll 零实例查询 / INSTANCE 目标下推+判定面闭包 / LIST 按角色全量）：
 
 ```
 PermQueryEngine.query(PermQuery)
     │
-    ├─ forUserView ──► 全量角色权限记录（不按位过滤）+ effective 操作投影
+    ├─ 0. resolveRoleIds ──► SubjectDomainService（EFFECTIVE_ROLES 缓存）
     │
-    ├─ forAuthCheck / forValidate / forValidateByEntityId / forInterfaceCheck
-    │      ├─ resolveRoleIds ──► SubjectDomainService
-    │      ├─ resolveResourceTypes / resolveOperationIds ──► TypeResolutionService (ResolveContext)
+    ├─ TYPE_LEVEL（forAuthCheck/forValidate 无编码目标）
+    │      ├─ resolveResourceTypes / resolveOperationIds / resolveBitMasks（位覆盖常开）
     │      ├─ queryScopeAll ──► selectScopeAllPermsByBitsBatch (1 SQL)
-    │      │     └─ scopeAll 匹配且 earlyReturnOnScopeAll → 提前返回
+    │      └─ evaluateIfNeeded（条件三态 + 条目互斥开关）──► allowed
+    │
+    ├─ INSTANCE（forAuthCheck/forValidate 有目标、forInterfaceCheck）
+    │      ├─ queryScopeAll (1 SQL) ──► 评估通过 → 提前返回 allowed
     │      ├─ resolveEntityIds ──► TypeResolutionService.batchResolveResourceIds
-    │      ├─ queryInstance ──► selectInstancePermsByBitsBatch (1 SQL)
-    │      ├─ expandByInheritMode ──► 按 inheritParents/inheritChildren 展开
-    │      ├─ evaluateConditions ──► PermissionConditionDomainService
-    │      ├─ evaluateConflicts ──► PermissionConflictDomainService
+    │      ├─ inheritClosure ──► selectSelfAndAncestorClosureBatch（判定面闭包 CTE，
+    │      │     查询前扩大目标集：{目标}∪同类型祖先链，止步同类型/软删截断/防环）
+    │      ├─ queryInstance ──► selectInstancePermsByBitsBatch (1 SQL，目标下推含闭包集)
+    │      ├─ evaluateIfNeeded ──► PermissionConditionDomainService / PermissionConflictDomainService
+    │      ├─ expandByPresentMode ──► 展示面展开（查询后克隆，不改变判定）
     │      └─ loadAncillary ──► 批量加载 Resource/Operation/Role
     │
-    └─ forScopeQuery ──► 不提前返回，不评估，返回全部辅助信息
+    └─ LIST（forScopeQuery / forUserView）
+           ├─ loadRolePermEntriesWithCache ──► ROLE_PERM_SNAPSHOT 读缓存全量角色权限行
+           ├─ parentResource 给出 ──► 引擎内主资源 INSTANCE 判定 + depend_on 子权限过滤
+           ├─ evaluateIfNeeded（forUserView 快照构建经 markConditionsOnly 切标记态）
+           ├─ expandByPresentMode ──► 展示面展开（includeChildren/includeInherited 收编）
+           └─ loadAncillaryForView + rawEntries/parentMatched 回传（四态组装事实源）
 ```
+
+**评估口径**（2026-09-09 定案）：管理面写门禁条件评估拉平为评估（入口自动装配当前请求 clientIp，`PermEvalContext` 多层条件上下文）；条目互斥（PERM_MUTEX）入参化按入口开关；**角色互斥（ROLE_MUTEX）不归引擎**——授权时校验另行立项，快照/权限树的 `filterRoleMutex` 调用方自理。
 
 **内部 `scopeAll` 作为一等权限维度，对外统一映射为 `scopeMode`**：
 
 - `SnapshotAssembler`：内部 `scopeAll` 条目不展开为 N 个 API 资源，对外快照项返回 `scopeMode=ALL` 且 `httpMethod=null, pathPattern=null`；实例级条目返回 `scopeMode=INSTANCE`。
 - `PermViewAssembler`：按 `resourceType` 分组输出全量范围视图项，对外使用 `scopeMode=ALL`，例如 `DATA_EDIT + DEPT + scopeMode=ALL` 表示可编辑全部部门范围。
 
-**资源继承展开**（引擎层实现）：
+**两语义拆分**（T-PERM-057，Q1 定案）：
 
-- `setInheritMode("PARENT"/"CHILD"/"BOTH")` 设置后，引擎在 `expandByInheritMode()` 中加载全部有效资源构建父子图，向上遍历父链或向下递归收集子孙，克隆权限条目（`grantSource="INHERITED"`、`resourceEntityId=目标资源ID`）。
-- scopeAll 条目（`resourceEntityId=null`）不参与继承展开。
+- **判定面继承（目标闭包）**：作用在查询前扩大目标集——查目标 X 时把 X∪同类型祖先链入查询（`selectSelfAndAncestorClosureBatch` 递归 CTE，止步同类型、软删截断、UNION 防环）。改变 allowed/denied。默认值矩阵：管理面写门禁/读过滤面**开**；/auth-check **关** + `inheritMode` 参数显式开（PARENT/BOTH——契约参数从「对单点判定结论无效」接通为闭包真实语义）；网关快照天然关；清单面不适用。批量拒绝轨按「目标闭包集 ∩ 条目实体集 ≠ ∅」回映射（条目挂祖先不误判 DENIED）。
+- **展示面展开（条目克隆）**：作用在查询后克隆结果行（`grantSource="INHERITED"`、`resourceEntityId=目标资源ID`）——不改变判定，只改变返回集合内容。`setInheritParents/setInheritChildren`（清单面 `includeInherited`/`includeChildren` 契约字段收编）；上溯/下溯均目标下推批量 CTE，不走全量图。scopeAll 条目（`resourceEntityId=null`）不参与展开。
 
 **内部 AppService 使用 `PermResultUtils`** 将 `PermResult` 转为对外响应：
 

@@ -10,7 +10,7 @@ origin: project
 metadata:
   project: AccessMesh
   module: access-service
-  version: "5.0.0"
+  version: "6.0.0"
 ---
 
 # 权限中心（access-service permission 域）编码规范
@@ -84,10 +84,11 @@ ResourcePermissionValidator.validate(...); // 类已删除
 PermissionCheckUtils.check(...);           // 类已删除
 ```
 
-### Domain 层 API（复杂查询使用 PermQuery）
+### Domain 层 API（复杂查询使用 PermQuery；T-PERM-057 统一引擎）
 
 ```java
-// ✅ 正确 — 使用预设工厂方法
+// ✅ 正确 — 使用预设工厂方法（targetMode 三态：TYPE_LEVEL/INSTANCE/LIST；
+//    判定面继承与展示面展开两语义拆分，评估口径见 skill permission-query-pipeline）
 PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, resourceCode, operationCode);
 PermResult r = engine.query(q);
 return PermResultUtils.toAuthCheckResp(r);
@@ -96,6 +97,7 @@ return PermResultUtils.toAuthCheckResp(r);
 PermQuery q = PermQuery.forUserView(tenantId, userId);
 PermResult r = engine.query(q);
 
+// 管理面写门禁（条件评估已拉平：入口自动装配 clientIp；判定面继承默认开——授父覆盖子）
 PermQuery q = PermQuery.forValidate(tenantId, operatorId, resourceTypeCode, resourceCode, operationCode);
 PermResult r = engine.query(q);
 if (!r.allowed()) {

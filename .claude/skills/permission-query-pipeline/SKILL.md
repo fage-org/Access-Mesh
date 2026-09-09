@@ -7,7 +7,7 @@ description: >-
 origin: project
 metadata:
   project: AccessMesh
-  version: "4.0.0"
+  version: "5.0.0"
 ---
 
 # 统一权限查询引擎规范
@@ -17,8 +17,10 @@ metadata:
 | 组件 | 职责 | 使用场景 |
 |------|------|---------|
 | `PermQueryEngine` | 统一查询入口 `query(PermQuery)` + 业务层API | 所有权限查询的唯一入口 |
-| `PermQuery` | 统一入参 DTO，6个预设工厂 | 调用方构造查询参数 |
-| `PermResult` | 统一返回对象 | 调用方获取结果 |
+| `PermQuery` | 统一入参 DTO，6个预设工厂（参数预设封装） | 调用方构造查询参数 |
+| `PermResult` | 统一返回对象（双轨 + 主资源上下文回传） | 调用方获取结果 |
+| `TargetMode` | 目标模式三态枚举：TYPE_LEVEL/INSTANCE/LIST（T-PERM-057） | targetMode 三态判别 |
+| `PermEvalContext` | 条件评估多层上下文（clientIp 用户环境 + evaluatedAt 服务器环境 + attributes 调用方上下文，T-PERM-057） | 条件评估入参 |
 | `OperationCodeConstants` | 操作码常量（CREATE/MANAGE/DELETE等） | 业务层权限校验参数 |
 | `ResourceTypeCode` | 资源类型常量（ROLE/USER/SERVICE等） | 业务层权限校验参数 |
 
@@ -97,8 +99,10 @@ if (!r.allowed()) {
     throw new SecurityException("Permission denied: ...");
 }
 
-// scopeQuery — 范围查询
+// scopeQuery — 范围查询（LIST；主资源上下文经引擎执行 depend_on 过滤，T-PERM-057 收编）
 PermQuery q = PermQuery.forScopeQuery(tenantId, userId, resourceTypeCodes, operationCodes);
+q.setParentResource(parentResourceTypeCode, parentResourceCode, parentCodeType, parentOperationCodes);
+q.setEvalContext(PermEvalContext.fromCallerMap(callerContextMap));
 PermResult r = engine.query(q);
 
 // grant check — 授权传递检查（canGrant 校验；codeType 为第 5 参）
@@ -110,33 +114,37 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> results =
   permissionGrantDomainService.checkCanGrant(tenantId, subjectId, permissions, domainCode);
 ```
 
-## 工厂方法预设
+## 工厂方法预设（T-PERM-057 统一引擎：targetMode 三态 + 评估口径）
 
-| 工厂方法 | type级 | instance级 | scopeAll短路 | 评估条件 | 评估冲突 | 附属信息 |
-|---------|--------|-----------|-------------|---------|---------|---------|
-| forAuthCheck | ✅ | ✅ | ✅ | ✅ | ✅ | 无 |
-| forInterfaceCheck | ✅ | ✅ | ✅ | ✅ | ✅ | 全部 |
-| forValidate | ✅ | ✅ | ✅ | ❌ | ❌ | 无 |
-| forValidateByEntityId | ✅ | ✅ | ✅ | ❌ | ❌ | 无（entityId 轨，仅引擎内部/已完成解析的调用方） |
-| forScopeQuery | ✅ | ✅ | ❌ | ❌ | ❌ | resource+op+role |
-| forUserView | ✅ | ✅ | ❌ | ✅ | ✅ | resource+op+role（用户全量视图，快照读缓存） |
+| 工厂方法 | targetMode | 评估条件 | 条目互斥 | 判定面继承 | 附属信息 |
+|---------|-----------|---------|---------|-----------|---------|
+| forAuthCheck | code=null→TYPE_LEVEL / 有 code→INSTANCE | ✅ | ✅ | 关 + `setInheritMode("PARENT"/"BOTH")` 显式开 | 无 |
+| forInterfaceCheck | INSTANCE | ✅ | ✅ | 关（API 扁平） | 全部 |
+| forValidate | code=null→TYPE_LEVEL / 有 code→INSTANCE | ✅（拉平，入口自动装配 clientIp） | ✅ | **开**（管理面写门禁矩阵） | 无 |
+| forValidateByEntityId | id=null→TYPE_LEVEL / 有 id→INSTANCE | ✅（同上） | ✅ | **开** | 无（entityId 轨，仅引擎内部/已完成解析的调用方） |
+| forScopeQuery | LIST | ✅ | ✅ | 不适用 | resource+op+role；主资源上下文 `setParentResource` 由引擎执行 depend_on 过滤 |
+| forUserView | LIST | ✅（标记态 `setMarkConditionsOnly`，快照构建） | ✅ | 不适用 | resource+op+role（用户全量视图，快照读缓存）；树扩展 `setInheritChildren/setInheritParents`（展示面展开） |
+
+**三态互不串义**：TYPE_LEVEL 只消费 scopeAll（零实例查询，实例授权不得放行类型级门禁）；INSTANCE 目标下推+判定面闭包；LIST 按角色全量。**两语义拆分**：判定面继承（`inheritClosure`，查询前目标∪同类型祖先链，改变 allowed/denied）≠ 展示面展开（`inheritParents/inheritChildren`，查询后克隆 `grantSource=INHERITED`，不改变判定）。**角色互斥不归引擎**（2026-09-09 定案）：快照/权限树的 `filterRoleMutex` 调用方自理，授权时校验另行立项。
 
 > 使用政策：`forValidateByEntityId` 仅限引擎内部或已完成解析的调用方（资源树、API 映射、资源依赖、权限树），禁止用于 USER/ROLE 等业务对象门禁。`forResourceQuery` / `forResourceCheck` 已删除（2026-08-28，零生产调用；资源类查询语义由 `forUserView` / `forValidateByEntityId` 覆盖，勿重新引入）。
 
-## Engine 内部流程
+## Engine 内部流程（T-PERM-057 统一管线）
 
 ```
 query(PermQuery)
-  ├─ 1. resolveRoleIds (L1→L2→DB)
-  ├─ 2. resolveResourceTypes (批量 code→int)
-  ├─ 3. resolveOperationIds (批量 code→opId)
-  ├─ 4. queryTypeLevel (1 SQL, scopeAll=true)
-  │     └─ scopeAll命中 && earlyReturn → 提前返回 ✅
-  ├─ 5. resolveEntityIds + queryInstance (1 SQL)
-  ├─ 6. matchesBit过滤 (内存)
-  ├─ 7. evaluateConditions + filterConflicts
-  ├─ 8. loadAncillary (按需；SQL 数随附属开关与资源类型数变化——操作定义按类型逐条查询，N 类型加 N 条)
-  └─ 9. build PermResult
+  ├─ 0. resolveRoleIds (EFFECTIVE_ROLES 缓存；四便捷入口自动装配 PermEvalContext)
+  ├─ TYPE_LEVEL：resolveContext → resolveBitMasks(位覆盖常开) → queryScopeAll (1 SQL)
+  │     → evaluateIfNeeded → allowed（零实例查询）
+  ├─ INSTANCE：queryScopeAll (1 SQL，评估通过提前返回)
+  │     → resolveEntityIds → [inheritClosure] selectSelfAndAncestorClosureBatch
+  │       (判定面闭包 CTE：{目标}∪同类型祖先链，止步同类型/软删截断/防环)
+  │     → queryInstance (1 SQL，目标下推含闭包集) → evaluateIfNeeded
+  │     → [展示面展开] expandByPresentMode (查询后克隆) → loadAncillary
+  └─ LIST：loadRolePermEntriesWithCache (ROLE_PERM_SNAPSHOT 读缓存全量)
+        → [parentResource] 主资源 INSTANCE 判定 + depend_on 过滤
+        → 记录 rawEntries → evaluateIfNeeded → [展示面展开] → loadAncillaryForView
+  └─ build PermResult (双轨 + rawEntries/parentMatched 回传)
 ```
 
 ## 工具类

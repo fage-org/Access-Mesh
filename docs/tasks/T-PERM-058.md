@@ -6,7 +6,7 @@ status: proposed
 plan: docs/plans/permission-query-unification-plan.md
 domain: permission-center
 design_refs:
-  - docs/design/permission-center/query-engine-unification.md#§3
+  - docs/design/permission-center/implementation.md#§3
   - docs/design/permission-center/api-contract.md#§6.1
 depends_on:
   - T-PERM-057
@@ -34,7 +34,7 @@ last_updated: 2026-09-09
 ## 范围
 
 - 闭合语义设计定案：parentContext 可选入参形态 + 不传时 depend_on 行计入/不计入的取舍（fail-closed 方向 vs 兼容现状）。
-- 定案后落 api-contract 与 query-engine-unification.md §3（或其并入后的 implementation §3）。
+- 定案后落 api-contract 与 implementation §3（query-engine-unification.md 已并入，T-PERM-057 落地）。
 
 ## 非目标 / 遗留
 

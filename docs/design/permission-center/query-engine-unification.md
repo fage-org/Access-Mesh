@@ -8,7 +8,7 @@ last_reviewed: 2026-09-09
 
 # 权限查询统一引擎（演进终态设计）
 
-> **定案说明**：本文件为 2026-09-09 用户 grill 访谈定案（Q1-Q15 + D1/D2；现状断言经代码级核验修订）的终态设计。已定案、未实施——实施任务：T-PERM-057（引擎统一重构）、T-API-003（check 族结果记录回传）、T-PERM-058（depend_on 单点闭合设计）、T-PERM-059（权限视图/排查删除重设计）。**T-PERM-057 落地时本文件内容并入 `implementation.md` §3（转约束）；本文件转 superseded 延后至计划收口——先把 T-PERM-058/059 的 design_refs 重连到 implementation §3（lifecycle 设计变更依赖扫描），随后本文件 superseded**；当前实现仍以 `implementation.md` §3 现状描述为准。定案已按口径主题分列登记 `decision-registry.md`（2026-09-09 五行）。
+> **定案说明**：本文件为 2026-09-09 用户 grill 访谈定案（Q1-Q15 + D1/D2；现状断言经代码级核验修订）的终态设计。**T-PERM-057 已落地（2026-09-09 实施）**：正文已并入 `implementation.md` §3（统一引擎版，含三条实施定案——角色互斥不归引擎/条件上下文多层对象/闭包止步同类型，registry 另行登记）；**实现以 `implementation.md` §3 为唯一权威，本文件仅存续为定案过程追溯**。T-PERM-058/059 的 design_refs 已重连 implementation §3；本文件转 superseded 延后至计划收口（permission-query-unification-plan 归档条件达成时）。剩余实施任务：T-API-003（check 族结果记录回传）、T-PERM-058（depend_on 单点闭合设计）、T-PERM-059（权限视图/排查删除重设计）。
 
 ## 1. 现状与动机
 

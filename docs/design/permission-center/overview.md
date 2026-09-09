@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 概念模型
 status: adopted
 domain: permission-center
-last_reviewed: 2026-08-28   # 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
+last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
 ---
 
 # Permission Center 概念模型
@@ -135,16 +135,18 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
     ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCodeConstants.DELETE);
 ```
 
-**复杂查询 API（`PermQuery` 工厂方法 + `engine.query()`）：**
+**复杂查询 API（`PermQuery` 工厂方法 + `engine.query()`；T-PERM-057 统一引擎——targetMode 三态：TYPE_LEVEL 只消费 scopeAll / INSTANCE 目标下推+判定面闭包 / LIST 按角色全量）：**
 
-| 工厂方法                      | 模式     | 说明                                            |
-| ----------------------------- | -------- | ----------------------------------------------- |
-| `PermQuery.forAuthCheck`      | 鉴权校验 | 类型+实例查询，scopeAll 匹配时提前返回          |
-| `PermQuery.forInterfaceCheck` | 接口鉴权 | 类型优先 + 实例回退，完整评估，返回所有辅助信息 |
-| `PermQuery.forValidate`       | 管理校验 | 类型+实例，无评估，最小输出                     |
-| `PermQuery.forValidateByEntityId` | 管理校验（entityId 轨） | 类型+实体ID，无评估，最小输出；仅限引擎内部/已完成解析的调用方 |
-| `PermQuery.forScopeQuery`     | 范围查询 | 无提前返回，不评估，返回所有辅助信息            |
-| `PermQuery.forUserView`       | 用户视图 | 全量角色权限记录，不按位过滤；同时按 `effectiveBits` 生成最终可用操作投影 |
+| 工厂方法                      | targetMode | 说明                                            |
+| ----------------------------- | ---------- | ----------------------------------------------- |
+| `PermQuery.forAuthCheck`      | 无目标 TYPE_LEVEL / 有目标 INSTANCE | 运行时鉴权；判定面继承关 + `setInheritMode("PARENT"/"BOTH")` 显式开（契约参数接通为闭包真实语义） |
+| `PermQuery.forInterfaceCheck` | INSTANCE   | 接口鉴权，完整评估，返回所有辅助信息；API 扁平无树天然关 |
+| `PermQuery.forValidate`       | 无目标 TYPE_LEVEL / 有目标 INSTANCE | 管理面写门禁：条件评估拉平（自动装配 clientIp）+ 条目互斥 + 判定面继承开 |
+| `PermQuery.forValidateByEntityId` | 同上（entityId 轨） | 仅限引擎内部/已完成解析的调用方 |
+| `PermQuery.forScopeQuery`     | LIST       | 数据范围查询：主资源上下文（`setParentResource`）经引擎执行 depend_on 过滤，条件/互斥评估在引擎 |
+| `PermQuery.forUserView`       | LIST       | 用户视图/清单面：全量角色权限记录 + effectiveBits 操作投影；树扩展经展示面展开轨道 |
+
+**两语义拆分（T-PERM-057）**：判定面继承（目标∪同类型祖先链入查询，改变 allowed/denied，管理面写门禁/读过滤面默认开）与展示面展开（查询后条目克隆 `grantSource=INHERITED`，不改变判定，清单面 `includeChildren`/`includeInherited` 归口）互不混用；条目互斥（PERM_MUTEX）引擎入参开关、角色互斥（ROLE_MUTEX）不归引擎（授权时校验另行立项）。
 
 **对外接口：**
 

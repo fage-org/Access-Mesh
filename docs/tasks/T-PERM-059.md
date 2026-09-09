@@ -8,7 +8,7 @@ domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§6.8
   - docs/design/access-service-architecture.md#§14
-  - docs/design/permission-center/query-engine-unification.md#§9
+  - docs/design/permission-center/implementation.md#§3
 depends_on: []
 blocks: []
 acceptance:

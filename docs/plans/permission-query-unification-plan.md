@@ -41,7 +41,7 @@ last_updated: 2026-09-09
 
 | ID | 标题 | 状态快照 |
 |---|---|---|
-| [T-PERM-057](../tasks/T-PERM-057.md) | 权限查询统一引擎重构（收编六套形态 + 目标模式三态 + 判定面继承 + 评估拉平） | ⚙️ proposed |
+| [T-PERM-057](../tasks/T-PERM-057.md) | 权限查询统一引擎重构（收编六套形态 + 目标模式三态 + 判定面继承 + 评估拉平） | ✅ done |
 | [T-API-003](../tasks/T-API-003.md) | check 族三端点结果记录全量回传（推翻 T-API-002 check 族裁剪） | ⚙️ proposed |
 | [T-PERM-058](../tasks/T-PERM-058.md) | depend_on 子权限单点门禁闭合设计 | ⚙️ proposed |
 | [T-PERM-059](../tasks/T-PERM-059.md) | 权限视图/排查删除重设计（范围待定） | ⚙️ proposed |
@@ -55,3 +55,4 @@ last_updated: 2026-09-09
 ## 当前进度
 
 - 2026-09-09：grill 定案（Q1-Q15）+ D1/D2 补充定案；现状断言经代码级核验修订后落盘设计（目标模式三态化、codeType 归位目标三元组、query-scopes 自评管线补计为第六套形态、evolution superseded 时点定于计划收口）。
+- 2026-09-09：**T-PERM-057 收口 done**——三条实施定案（角色互斥不归引擎+授权校验另立项 / PermEvalContext 多层条件上下文 / 闭包止步同类型+禁止跨类型改进项登记，registry 三行）；六套形态收编清零 + forScopeQuery 实例条目不可达缺陷修复；回归锁三态单测 3 例 + TargetModeClosurePgIT 5 例 + golden 收敛；全量回归 -T 1C 含 E2E 全绿（BUILD SUCCESS）；implementation §3 重写为统一引擎版、T-PERM-058/059 design_refs 已重连 implementation §3。
