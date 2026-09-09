@@ -97,6 +97,11 @@ sa-token:
   is-concurrent: true
   is-share: false
   token-style: uuid
+  # 登录不种 Authorization Cookie：sa-token 默认 isReadCookie=true，不显式关闭时
+  # StpUtil.login 会在响应 Set-Cookie Authorization=<token>（无 SameSite/HttpOnly/Secure
+  # 标记，Safari/旧浏览器跨站请求自动携带 = CSRF 面）；令牌仅经 Authorization 头显式
+  # 传递（前端恒发 Bearer），Gateway 读侧已同步关闭 Cookie 备选
+  is-read-cookie: false
   is-log: false
   # jwt-secret-key 仅用于 OAuth2 访问令牌签发（SaJwtUtil HS256），与平台用户会话 token-style 无关；
   # 无默认值，缺失时 Spring 占位符解析失败 → 启动失败（T-ACCESS-003 用户决策：配置缺失天然启动失败）

@@ -114,6 +114,9 @@ class GatewayApplicationConfigTest {
             "active-timeout 必须为 1800（30 分钟滑动续期），实际 " + config.getActiveTimeout());
         assertTrue(config.getIsConcurrent(), "is-concurrent 必须为 true");
         assertTrue(!config.getIsShare(), "is-share 必须为 false");
+        // 令牌仅经 Authorization 头传递：sa-token 默认 isReadCookie=true，若 yml 未显式
+        // 关闭则回退默认值即重开 Cookie 承载通道（CSRF 面，双端与 AuthTokenFilter 同步关闭）
+        assertTrue(!config.getIsReadCookie(), "is-read-cookie 必须为 false（Cookie 承载通道已关闭），实际 " + config.getIsReadCookie());
     }
 
     @Test

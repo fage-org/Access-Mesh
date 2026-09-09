@@ -93,7 +93,12 @@ sa-token:
   is-share: false
   token-style: uuid
   is-read-header: true
-  is-read-cookie: true
+  # 令牌仅经 Authorization 头显式传递，Cookie 承载通道关闭（双端）：sa-token 默认
+  # isReadCookie=true，不显式关闭时 access-service 登录响应会种无 SameSite/HttpOnly
+  # 标记的 Authorization Cookie，浏览器跨站自动携带 = CSRF 面（本配置对自研
+  # AuthTokenFilter 无直接作用——过滤器已只认 Bearer 头；此处为防未来引入
+  # sa-token 上下文读取时静默重开通道的语义防御位）
+  is-read-cookie: false
   is-log: false
 
 gateway:

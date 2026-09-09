@@ -13,7 +13,6 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain;
 import org.springframework.cloud.gateway.filter.GlobalFilter;
 import org.springframework.core.Ordered;
 import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpResponse;
@@ -176,22 +175,20 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
     /**
      * 从请求中提取Token
      * <p>
-     * 优先从Authorization Header提取Bearer Token，
-     * 备选方案从Cookie中提取。
+     * 仅从Authorization Header提取Bearer Token，不读Cookie：令牌经头显式
+     * 传递（前端恒发Bearer头），Cookie承载会被浏览器跨站自动携带构成CSRF面
+     * （sa-token种出的Authorization Cookie无SameSite标记，Safari/旧浏览器不受
+     * Lax默认保护）。
      * </p>
      *
      * @param exchange 服务器Web交换对象
      * @return Token字符串，不存在时返回null
      */
     private String extractToken(ServerWebExchange exchange) {
-        HttpHeaders headers = exchange.getRequest().getHeaders();
-        String authHeader = headers.getFirst("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            return authHeader.substring(7);
-        }
-        // 备选方案：从Cookie提取
-        var cookie = exchange.getRequest().getCookies().getFirst("Authorization");
-        return cookie != null ? cookie.getValue() : null;
+        String authHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
+        return authHeader != null && authHeader.startsWith("Bearer ")
+            ? authHeader.substring(7)
+            : null;
     }
 
     /**

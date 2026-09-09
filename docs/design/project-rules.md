@@ -292,7 +292,7 @@ RuntimeException
 | `serviceCode` | 服务启动时从配置文件读取                                        |
 
 - access-service 由 `RequestContextInterceptor` 在请求入口设置 MDC，请求结束后**必须 clear**（防 ThreadPool 污染）。
-- Feign 跨服务透传现状：SDK `FeignInternalSyncInterceptor` 仅注入 `X-Internal-Secret` / `X-Service-Code`；`X-Trace-Id` 跨服务透传尚未实现，跨服务日志关联暂依赖 Gateway 的 `X-Request-Id` 头链。
+- Feign 跨服务透传现状：SDK `FeignInternalSyncInterceptor` 仅注入 `X-Internal-Secret` / `X-Service-Code`；统一链路追踪头透传尚未实现（目标头为 `X-Request-Id`，与 Gateway 头链同名，见 §14.2），跨服务日志关联暂依赖 Gateway 的 `X-Request-Id` 头链。
 
 ### 4.4 日志级别规范
 
@@ -1017,17 +1017,24 @@ spring:
 
 ### 14.2 Header 透传
 
-所有 Feign 调用必须通过 `RequestInterceptor` 透传以下 Header：
+> **现状（与 §4.3 口径一致）**：当前唯一装配的 Feign `RequestInterceptor` 是 SDK 的
+> `FeignInternalSyncInterceptor`，仅注入 `X-Internal-Secret` / `X-Service-Code`；
+> `X-Tenant-Id` 由调用方业务侧拦截器从 ThreadLocal 注入；`Authorization` 与链路追踪头
+> 尚无统一透传——跨服务日志关联暂依赖 Gateway 的 `X-Request-Id` 头链（`RequestIdFilter`
+> 生成 → `HeaderEnrichFilter` 注入下游，服务侧 `RequestContextInterceptor` 写 MDC）。
+> 下表为目标态契约：新增统一透传拦截器时按此实现并补契约测试，勿在现状下当作已生效规范引用。
+
+目标态：所有 Feign 调用必须通过 `RequestInterceptor` 透传以下 Header：
 
 | Header           | 说明                         |
 | ---------------- | ---------------------------- |
 | `Authorization`  | Bearer Token（用户身份透传） |
-| `X-Trace-Id`     | 链路追踪 ID                  |
+| `X-Request-Id`   | 链路追踪 ID（与 Gateway 请求关联头同名，衔接 MDC `traceId`） |
 | `X-Tenant-Id`    | 租户 ID                      |
 | `X-Service-Code` | 调用方服务标识               |
 
 - Gateway 必须清洗外部请求中伪造的 `X-Tenant-Id`、`X-User-Id`、`X-Service-Code` 等安全 Header，再根据 Token 或可信服务身份重新注入。
-- 业务服务和 permission-center 只能信任 Gateway/Feign 拦截器注入的安全上下文，不得直接信任客户端原始 Header。
+- 业务服务只能信任 Gateway/Feign 拦截器注入的安全上下文，不得直接信任客户端原始 Header。
 
 ### 14.3 降级与重试
 

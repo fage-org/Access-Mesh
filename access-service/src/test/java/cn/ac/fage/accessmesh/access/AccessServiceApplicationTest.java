@@ -189,6 +189,9 @@ class AccessServiceApplicationTest {
         assertTrue("Authorization".equals(config.getTokenName()), "token-name 必须为 Authorization");
         assertTrue("Bearer".equals(config.getTokenPrefix()), "token-prefix 必须为 Bearer（与 Gateway/前端一致），实际 " + config.getTokenPrefix());
         assertTrue("uuid".equals(config.getTokenStyle()), "token-style 必须为 uuid（与 Gateway 统一），实际 " + config.getTokenStyle());
+        // 登录不得种 Authorization Cookie（sa-token 默认 true，未显式关闭则响应
+        // Set-Cookie 无 SameSite/HttpOnly 标记，跨站自动携带 = CSRF 面；令牌仅经头传递）
+        assertTrue(!config.getIsReadCookie(), "is-read-cookie 必须为 false（登录不种 Authorization Cookie），实际 " + config.getIsReadCookie());
     }
 
     /**

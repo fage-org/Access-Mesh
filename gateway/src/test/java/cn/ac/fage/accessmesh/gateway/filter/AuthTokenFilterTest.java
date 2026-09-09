@@ -250,8 +250,11 @@ class AuthTokenFilterTest {
     }
 
     @Test
-    @DisplayName("Cookie 备选提取：Authorization Cookie 中的裸令牌可完成校验")
-    void cookieFallback_extractsToken() {
+    @DisplayName("Cookie 通道已关闭：仅带 Authorization Cookie（无头）的请求必须 401")
+    void cookieOnlyToken_rejected401() {
+        // 回归锁：旧实现的 Cookie 备选提取会让裸令牌 Cookie 完成认证（放行），
+        // 本用例在旧实现下失败；令牌只经 Authorization 头传递，Cookie 承载构成
+        // CSRF 面（浏览器跨站自动携带）必须拒绝
         String token = loginAsAccessService(true, true, true);
         MockServerHttpRequest request = MockServerHttpRequest.post("/admin/user/page")
             .cookie(new org.springframework.http.HttpCookie("Authorization", token))
@@ -261,8 +264,8 @@ class AuthTokenFilterTest {
 
         filter.filter(exchange, chainOf(chained)).block();
 
-        assertThat(chained.get()).isTrue();
-        assertThat((Object) exchange.getAttribute("tenantId")).isEqualTo(TENANT_ID);
+        assertThat(chained.get()).as("仅 Cookie 承载令牌不得放行").isFalse();
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     @Test

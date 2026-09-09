@@ -207,8 +207,9 @@ when(service.createRole(any())).thenReturn(response);  // 测试的不是真实�
 ```java
 // ✅ 正确 — 描述性命名
 @Test
-void shouldThrowException_whenRoleNotFound() {
-    // getRole 未命中返回 null（T-PERM-022 同口径）；安全拒绝（门禁不过）断言 SecurityException
+void shouldThrowException_whenViewPermissionDenied() {
+    // 安全拒绝（VIEW 门禁不过）断言 SecurityException；getRole 未命中返回 null 是
+    // 另一分支（T-PERM-022 同口径），须拆独立用例（授权通过 + 查询为空 → assertNull）
     when(permQueryEngine.hasPermissionByCode(any(), any(), eq(ROLE), any(), eq(VIEW)))
         .thenReturn(false);
 
