@@ -136,12 +136,12 @@ PermQueryEngine.query(PermQuery)
     │
     ├─ 0. resolveRoleIds ──► SubjectDomainService（EFFECTIVE_ROLES 缓存）
     │
-    ├─ TYPE_LEVEL（forAuthCheck/forValidate 无编码目标）
+    ├─ TYPE_LEVEL（forAuthCheck/forValidate/forValidateByEntityId 无编码目标）
     │      ├─ resolveResourceTypes / resolveOperationIds / resolveBitMasks（位覆盖常开）
     │      ├─ queryScopeAll ──► selectScopeAllPermsByBitsBatch (1 SQL)
     │      └─ evaluateIfNeeded（条件三态 + 条目互斥开关）──► allowed
     │
-    ├─ INSTANCE（forAuthCheck/forValidate 有目标、forInterfaceCheck）
+    ├─ INSTANCE（forAuthCheck/forValidate/forValidateByEntityId 有目标、forInterfaceCheck）
     │      ├─ queryScopeAll (1 SQL) ──► 评估通过 → 提前返回 allowed
     │      ├─ resolveEntityIds ──► TypeResolutionService.batchResolveResourceIds
     │      ├─ inheritClosure ──► selectSelfAndAncestorClosureBatch（判定面闭包 CTE，

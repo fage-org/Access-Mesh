@@ -378,6 +378,8 @@ PermQueryEngine.query(PermQuery q)
     │
     ├─ INSTANCE → queryInstanceMode：
     │     ├─ queryScopeAll(1 SQL) → 评估通过 → 提前返回 allowed（scopeAll 覆盖任意实例）
+    │     │     └─ 命中但评估清空 → 回退实例查询（授权行各自评估：类型级挂条件拒绝 +
+    │     │        无条件实例授权并存时由 deny 变 allow——Q13 拉平的授权行独立评估语义）
     │     ├─ resolveEntityIds（code→id 批量解析）
     │     ├─ inheritClosure=true → selectSelfAndAncestorClosureBatch（闭包 CTE，查询前扩大目标集）
     │     ├─ queryInstance(1 SQL，目标下推含闭包集)
@@ -456,7 +458,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 
 ### 3.9 收编清单与边界声明
 
-- **收编清零**（全仓无引擎外权限查询独立管线）：getDenied\* 手写管线（共享引擎步骤+闭包回映射）、query-resources 的 `expandResourceScope`（展示面展开轨道）、deleteRoles 局部级联（闭包语义等价，注释锚定）、`PermissionGrantDomainServiceImpl` canGrant 直查（引擎 LIST 授权事实 + 内存转授资格判定）、query-scopes AppService 自评管线（位覆盖/条件/互斥/depend_on 全进引擎）。
+- **收编清零**（全仓无引擎外权限查询独立管线）：getDenied\* 手写管线（共享引擎步骤+闭包回映射）、query-resources 的 `expandResourceScope`（展示面展开轨道）、deleteRoles 局部级联（闭包语义等价，注释锚定）、`PermissionGrantDomainServiceImpl` canGrant 直查（引擎 LIST 授权事实 + 内存转授资格判定）、query-scopes AppService 自评管线（条件/互斥/depend_on 过滤全进引擎；位覆盖语义由组装层复用引擎同一 covers 判定做 (type×op) 线格分桶——分桶即线格式组装的一部分，不归引擎，亦非引擎外自评）。
 - **缓存键不变**（§5.2 核对）：ROLE_PERM_SNAPSHOT / OPERATION_PERMISSIONS_BY_TYPE / EFFECTIVE_ROLES / 网关 gw:interface-snapshot 均不因闭包下推改变键与失效；ORG_VISIBILITY 已由 PermissionChangeAspect 租户级 evictAll 覆盖（继承后可见闭包语义确变但失效机制已闭合）。
 - **OAuth2 委托链路显式排除**（2026-08-22 用户决策维持）：OAuth2 资源服务器链路（access.oauth2.resource-paths 显式开放路径 + delegatedClientId 独立映射，T-ACCESS-013）不接入统一引擎——重构不得误接入。
 - **回归面**：四个门禁入口族（admin 域门面 / permission 域 code 轨 / 资源树 entityId 轨 / SDK auth-check 族）语义回归 + targetMode 三态互不串义锁 + 判定面闭包锁（`TargetModeClosurePgIT`：TYPE_LEVEL 串义拒绝 / 单点闭包 / 批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）+ golden fixtures（`GoldenFixturePgIT` 单点判定收敛，nodeClosure 语义=引擎原生闭包）。

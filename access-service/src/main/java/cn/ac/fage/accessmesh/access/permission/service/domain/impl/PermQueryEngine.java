@@ -291,6 +291,10 @@ public class PermQueryEngine {
         parentQuery.setCodeType(q.parentCodeType());
         parentQuery.setOperationCodes(parentOps.isEmpty() ? Set.of() : parentOps);
         parentQuery.setEvaluateMatchesBit(true);
+        // 逐操作命中解析依赖 operationMap 装配（forAuthCheck 最小输出默认不装配）；
+        // 条件上下文透传调用方（父资源挂条件授权时按真实 clientIp 评估，勿退化为空上下文）
+        parentQuery.setIncludeOperations(true);
+        parentQuery.setEvalContext(q.evalContext());
         PermResult parentResult = query(parentQuery);
         if (!parentResult.allowed()) {
             return new ParentCheckOutcome(Set.of(), Set.of());

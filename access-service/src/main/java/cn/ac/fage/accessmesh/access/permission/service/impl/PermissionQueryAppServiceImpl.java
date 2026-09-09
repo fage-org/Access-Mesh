@@ -268,8 +268,9 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     /**
      * 数据范围查询（T-PERM-057 第六套形态收编：评估全进引擎，AppService 只留四态线格式组装）。
      * <p>
-     * 位覆盖匹配、条件评估、条目互斥、depend_on 子权限过滤（主资源上下文一等入参）全部由
-     * 统一引擎 LIST 管线执行；本方法组装四态分组——raw 无覆盖条目 DENIED、有覆盖但评估后
+     * 条件评估、条目互斥、depend_on 子权限过滤（主资源上下文一等入参）全部由统一引擎
+     * LIST 管线执行；位覆盖语义由本方法复用引擎同一 covers 判定做 (type×op) 线格分桶
+     * （分桶即线格式组装，不归引擎）。四态分组——raw 无覆盖条目 DENIED、有覆盖但评估后
      * 清空 EMPTY、过滤后含 scopeAll ALL、仅实例 INSTANCE（T-PERM-009 契约维持）。
      * </p>
      */

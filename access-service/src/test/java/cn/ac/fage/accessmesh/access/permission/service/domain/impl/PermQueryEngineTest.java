@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermEvalContext;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
@@ -713,6 +714,64 @@ class PermQueryEngineTest {
         assertTrue(engine.hasPermissionByEntityId(1L, 10L, "MENU", 200L, "VIEW"));
         // 判定面闭包 SQL 以请求目标为起点（查询前扩大目标集）
         verify(resourceEntityMapper).selectSelfAndAncestorClosureBatch(1L, Set.of(200L));
+    }
+
+
+    /**
+     * 双轨评审 P1 修复锁（query-scopes 收编管线）：LIST+主资源上下文真实管线断言——
+     * ①parentMatchedOperationCodes 非空（旧实现 forAuthCheck 不装 operationMap → 恒空）；
+     * ②条件评估上下文透传调用方 clientIp（旧实现父判定退化空上下文，挂 IP 条件的父授权误拒）。
+     */
+    @Test
+    void parentResourceContextMustResolveMatchedOpsAndPropagateEvalContext() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        // 主资源 MENU / 父资源 REPORT；父 scopeAll VIEW 授权
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("REPORT")))
+            .thenReturn(Map.of("REPORT", 5));
+        when(typeResolutionService.batchResolveOperationIds(1L, "REPORT", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 501L));
+        OperationPermission reportView = operation(501L, 5, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(501L))).thenReturn(List.of(reportView));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:5"))))
+            .thenReturn(Map.of("op_perm:5", Map.of(501L, reportView)));
+        when(operationPermissionMapper.selectByTenantAndResourceType(1L, 5)).thenReturn(List.of(reportView));
+
+        RoleResourcePermission parentScopeAll = new RoleResourcePermission();
+        parentScopeAll.setId(601L);
+        parentScopeAll.setAbstractRoleId(20L);
+        parentScopeAll.setResourceEntityId(null);
+        parentScopeAll.setResourceType(5);
+        parentScopeAll.setGrantedBits(1L);
+        parentScopeAll.setScopeAll(true);
+        parentScopeAll.setDeleteFlag(0L);
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of(parentScopeAll));
+
+        // LIST 全量条目（scope 行，dependOn=null）
+        RolePermEntry scopeEntry = new RolePermEntry(
+            701L, 20L, 300L, "dept-a", 2, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, false);
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, List.of(scopeEntry)));
+        when(operationPermissionMapper.selectByTenantAndResourceType(1L, 2)).thenReturn(List.of());
+
+        org.mockito.ArgumentCaptor<Map<String, Object>> evalCaptor =
+            org.mockito.ArgumentCaptor.forClass(Map.class);
+        when(conditionDomainService.evaluate(eq(1L), any(), evalCaptor.capture()))
+            .thenAnswer(invocation -> invocation.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(invocation -> invocation.getArgument(1));
+
+        PermQuery q = PermQuery.forScopeQuery(1L, 10L, Set.of("DEPT"), Set.of("VIEW"));
+        q.setParentResource("REPORT", "report:sales", "default", Set.of("VIEW"));
+        q.setEvalContext(new PermEvalContext("10.1.2.3", null, Map.of()));
+
+        PermResult result = engine.query(q);
+
+        assertTrue(result.allowed());
+        assertThat(result.parentMatchedOperationCodes()).as("matchedParentOps 非空（旧实现恒空）").contains("VIEW");
+        assertThat(result.parentMatchedPermissionIds()).contains(601L);
+        boolean sawCallerClientIp = evalCaptor.getAllValues().stream()
+            .anyMatch(ctx -> "10.1.2.3".equals(ctx.get(PermEvalContext.KEY_CLIENT_IP)));
+        assertThat(sawCallerClientIp).as("父资源条件评估透传调用方 clientIp（旧实现空上下文）").isTrue();
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

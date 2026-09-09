@@ -68,7 +68,9 @@ last_updated: 2026-09-09
 - 读过滤面：getEffectiveResourceAccess 授权实例集一次子孙扩展（判定面继承语义）；GoldenFixturePgIT selfAndAncestors 手工模拟收敛为单点判定（golden 断言语义一致，全绿）。
 - interfaceSnapshot/prepareTreeContext 的 filterRoleMutex 保留（调用方自理，定案一）。
 
-**回归锁**：PermQueryEngineTest 三态锁 3 例（TYPE_LEVEL never instance SQL / LIST 实例条目可达修复锁 / INSTANCE 闭包目标扩展）；TargetModeClosurePgIT 5 例（真实 CTE：TYPE_LEVEL 串义拒绝 / 单点闭包+批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）；GoldenFixturePgIT 单点判定收敛全绿；四门禁入口族 33 个测试文件消费方语义回归全绿。
+**回归锁**：PermQueryEngineTest 三态锁 3 例（TYPE_LEVEL never instance SQL / LIST 实例条目可达修复锁 / INSTANCE 闭包目标扩展）+ 主资源上下文管线锁 1 例（matchedParentOps 非空 + clientIp 透传，双轨评审 P1 修复锁）；TargetModeClosurePgIT 5 例（真实 CTE：TYPE_LEVEL 串义拒绝 / 单点闭包+批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）；GoldenFixturePgIT 单点判定收敛全绿；四门禁入口族消费方语义回归全绿（admin 门面/permission 域 code 轨/资源树 entityId 轨/SDK check 族，含引擎符号的全部引用测试文件）。
+
+**收编形态口径注记（双轨评审 P2 处置）**：验收条款「位覆盖/条件/互斥/depend_on 过滤进引擎」的落地形态=条件/互斥/dependOn 在引擎 LIST 管线；位覆盖语义由组装层复用引擎同一 covers 判定做 (type×op) 线格分桶——分桶即线格式组装的一部分（「AppService 只留四态线格式组装」的题中之义），非引擎外自评管线。
 
 **§5.2 缓存失效触发点核对结论**：ROLE_PERM_SNAPSHOT / OPERATION_PERMISSIONS_BY_TYPE / EFFECTIVE_ROLES / 网关快照键与失效均未变（闭包下推只增只读 CTE，无新失效面）；ORG_VISIBILITY 租户级 evictAll 已覆盖继承后语义（implementation §3.9 注记）。
 

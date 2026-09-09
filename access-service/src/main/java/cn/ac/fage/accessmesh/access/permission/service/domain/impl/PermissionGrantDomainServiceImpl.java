@@ -153,8 +153,10 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         List<RolePermEntry> operatorEntries = permResult.allowed()
             ? permResult.instanceEntries() : List.of();
         if (operatorEntries.isEmpty()) {
+            // reason 区分（异常消息运维归因通道）：无角色=NO_ROLE、有角色零授权行=NO_PERMISSION
+            String noEntryReason = "NO_ROLE".equals(permResult.reason()) ? "NO_ROLE" : "NO_PERMISSION";
             for (GrantCheckKey key : validPermissions) {
-                results.put(grantCheckKeyText(key), new GrantCheckResult(false, "NO_ROLE"));
+                results.put(grantCheckKeyText(key), new GrantCheckResult(false, noEntryReason));
             }
             return results;
         }

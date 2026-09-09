@@ -55,16 +55,17 @@ public record PermEvalContext(String clientIp, LocalDateTime evaluatedAt, Map<St
      * 展平为条件评估 Map（{@link cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService#evaluate} 入参形态）。
      * <p>
      * evaluatedAt 为 null 时按展平时钟填充（调用方单次评估内时钟一致）。
+     * 保留键（clientIp/evaluatedAt）后写——attributes 同名键不可覆盖用户/服务器环境。
      * </p>
      */
     public Map<String, Object> toEvalMap() {
         Map<String, Object> eval = new LinkedHashMap<>();
+        eval.putAll(attributes);
         if (clientIp != null) {
             eval.put(KEY_CLIENT_IP, clientIp);
         }
         LocalDateTime at = evaluatedAt != null ? evaluatedAt : LocalDateTime.now();
         eval.put(KEY_EVALUATED_AT, at.toString());
-        eval.putAll(attributes);
         return eval;
     }
 }
