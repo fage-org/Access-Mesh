@@ -126,9 +126,22 @@ export function useBizDomain() {
     }
   }
 
+  /** 检查租户下是否已存在全局域（T-PERM-046，create 弹窗打开时调用）。
+   *  拉字典全量（不传分页=上限 200，业务域量级远低于此）判断 any global；
+   *  查询失败按「不存在」处理（开关可用，后端 20057 兜底——预判仅 UX 优化不作防线）。 */
+  async function checkGlobalDomainExists(): Promise<boolean> {
+    try {
+      const res = await getBizDomainList({});
+      return res.items.some(item => item.global === true);
+    } catch {
+      return false;
+    }
+  }
+
   /** 提交业务域表单（create/edit 区分——biz-domain 有独立 create/update 接口）。
    *  edit 态以业务键 code 定位（T-PERM-026 收口）；name/description 总是携带表单当前值
    *  （description 空串=显式清空，后端仅 null 表示不更新）。
+   *  create 态携带 global 开关值（T-PERM-046：true=全局域每租户仅一个，已存在时后端 20057 拒绝）。
    *  返回 true 表示提交成功（弹窗可关闭）。 */
   async function handleSubmitBizDomain(
     mode: "create" | "edit",
@@ -140,7 +153,8 @@ export function useBizDomain() {
         await createBizDomain({
           code: form.code,
           name: form.name,
-          description: form.description || null
+          description: form.description || null,
+          global: form.global
         });
         message("创建成功", { type: "success" });
       } else {
@@ -276,6 +290,7 @@ export function useBizDomain() {
     onPageSizeChange,
     selectDomain,
     handleSubmitBizDomain,
+    checkGlobalDomainExists,
     handleDeleteBizDomain,
     // 子表
     configData,

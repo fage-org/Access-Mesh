@@ -83,4 +83,25 @@
         LIMIT 1
     </select>
 
+    <!-- T-PERM-046：域行锁（写事务内调用）——save 域解析与 remove 引用检查共用，
+         串行化删除保护并发窗口（FOR UPDATE 走 mapper 同事务连接，锁持续到提交） -->
+    <select id="selectByCodeForUpdate" resultType="cn.ac.fage.accessmesh.access.permission.entity.BizDomain">
+        SELECT * FROM biz_domain
+        WHERE tenant_id = #{tenantId}
+          AND code = #{domainCode}
+          AND delete_flag = 0
+        FOR UPDATE
+    </select>
+
+    <select id="selectValidByIdsForUpdate" resultType="cn.ac.fage.accessmesh.access.permission.entity.BizDomain">
+        SELECT * FROM biz_domain
+        WHERE tenant_id = #{tenantId}
+          AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND delete_flag = 0
+        FOR UPDATE
+    </select>
+
 </mapper>

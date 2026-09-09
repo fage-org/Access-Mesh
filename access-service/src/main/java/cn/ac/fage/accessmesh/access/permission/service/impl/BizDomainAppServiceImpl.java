@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
  * T-PERM-026 收口：detail/update 按业务键 code 定位（uk_biz_domain）、list 服务端过滤分页、
  * Resp 返回 global、create 编码查重（预查 + uk_biz_domain DIVE 兜底）、
  * remove 删除保护（全局域不可删 + domain_config 引用检查拒删，20051）。
+ * T-PERM-046：create 加 global 可选入口（预查 + uk_biz_domain_global DIVE 兜底 20057）；
+ * remove 校验改 FOR UPDATE 域行锁，与 domain-config save 域解析双向闭合并发窗口。
  * </p>
  */
 @Service
@@ -65,15 +67,17 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
      * 创建新的业务域实体，设置编码、名称、描述等属性。
      * 编码租户内唯一：预查已占用拒绝 20052，check-then-insert 并发窗口由
      * uk_biz_domain 唯一索引兜底（DIVE 同映射 20052）。
+     * T-PERM-046：global 可选默认 false——true 时每租户仅一个（预查 + uk_biz_domain_global
+     * 唯一索引 DIVE 兜底同映射 20057）；global 创建后不可变（update 请求体不含此字段）。
      * 需要SYSTEM_CONFIG_MANAGE权限。
      * </p>
      *
      * @param tenantId   租户ID
-     * @param req        创建请求，包含编码、名称、描述
+     * @param req        创建请求，包含编码、名称、描述、是否全局域
      * @param operatorId 操作者ID，可选
      * @return 创建的业务域响应
      * @throws SecurityException          无权限时抛出
-     * @throws BizException               编码重复（20052）时抛出
+     * @throws BizException               编码重复（20052）/ 全局域已存在（20057）时抛出
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -90,12 +94,18 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
                 "Biz domain code already exists: " + req.code());
         }
 
+        boolean global = Boolean.TRUE.equals(req.global());
+        if (global && bizDomainMapper.selectGlobalByTenant(tenantId) != null) {
+            throw new BizException(PermissionErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(),
+                "Global biz domain already exists (one per tenant), cannot create: " + req.code());
+        }
+
         BizDomain domain = new BizDomain();
         domain.setTenantId(tenantId);
         domain.setCode(req.code());
         domain.setName(req.name());
         domain.setDescription(req.description());
-        domain.setGlobal(false);
+        domain.setGlobal(global);
         domain.setCreatedBy(operatorId);
         LocalDateTime now = LocalDateTime.now();
         domain.setCreatedAt(now);
@@ -106,10 +116,15 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         } catch (DataIntegrityViolationException e) {
             // DB 唯一索引兜底（TypeDefinition/ConflictRule 同模式）：并发窗口重复编码映射 20052 而非裸 99999。
             // 约束名带引号精确匹配——uk_biz_domain 是 uk_biz_domain_global 的前缀，裸子串匹配会误吞
-            // 全局域唯一索引违例（当前 create 固定 global=false 不可达，防御性收紧）
+            // 全局域唯一索引违例
             if (isUniqueViolationOn(e, "\"uk_biz_domain\"")) {
                 throw new BizException(PermissionErrorCode.DOMAIN_CODE_DUPLICATE.getCode(),
                     "Biz domain code already exists: " + req.code());
+            }
+            if (isUniqueViolationOn(e, "\"uk_biz_domain_global\"")) {
+                // global=true 并发创建窗口：两个请求同瞬通过预查，后落库者命中全局唯一索引（20057）
+                throw new BizException(PermissionErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(),
+                    "Global biz domain already exists (one per tenant), cannot create: " + req.code());
             }
             throw e;
         }
@@ -260,7 +275,10 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
             return;
         }
 
-        List<BizDomain> entities = bizDomainMapper.selectValidByIds(tenantId, validInputIds);
+        // T-PERM-046：FOR UPDATE 行锁串行化——与 domain-config save 的域解析（selectByCodeForUpdate）
+        // 互斥：save 持锁插入配置时本事务阻塞至其提交，引用检查能看到新配置（拒删）；反向本事务
+        // 持锁软删提交后，save 解析不到软删行（20017），孤儿配置窗口双向闭合
+        List<BizDomain> entities = bizDomainMapper.selectValidByIdsForUpdate(tenantId, validInputIds);
 
         if (entities.isEmpty()) {
             OperationLogRuntimeContext.markSkip();

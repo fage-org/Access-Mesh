@@ -22,7 +22,7 @@ public enum DomainQueryMode {
     ALL("ALL"),
 
     /**
-     * 全局+指定域 — 查看指定域声明的资源类型 + 未被任何域认领的资源类型（全局域隐含内容）
+     * 全局+指定域 — 查看指定域声明的资源类型 + 全局域实际范围（有 CLASSIFY 声明按声明，无声明为未被认领类型补集；T-PERM-046 定案）
      */
     GLOBAL_PLUS("GLOBAL_PLUS"),
 

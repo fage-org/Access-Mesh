@@ -26,7 +26,7 @@ public enum ConfigType {
      * <p>
      * 定义业务域的分类范围，通过资源类型码指定该域管理的对象类型。
      * extra格式: {"resourceTypeCodes":["ORG","USER"]}
-     * 全局域(global=true)的范围隐式包含未被其他域认领的资源类型，无需配置CLASSIFY。
+     * 全局域(global=true)的范围=有 CLASSIFY 声明按声明（T-PERM-046 定案 2026-09-09），无声明为未被其他域认领的资源类型动态补集。
      * </p>
      */
     CLASSIFY("CLASSIFY");

@@ -428,6 +428,19 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
+    @DisplayName("domain_config 唯一约束：同租户+域+配置类型重复插入被拒（T-PERM-046 save 并发双插兜底）")
+    void shouldEnforceDomainConfigUniqueKey() {
+        assertThrows(SQLException.class, () -> {
+            try (Statement s = conn.createStatement()) {
+                s.execute("INSERT INTO domain_config (tenant_id, biz_domain_id, config_type, extra) " +
+                    "VALUES (1, 1, 'CLASSIFY', '{}')");
+                s.execute("INSERT INTO domain_config (tenant_id, biz_domain_id, config_type, extra) " +
+                    "VALUES (1, 1, 'CLASSIFY', '{}')");
+            }
+        }, "uk_domain_config (tenant_id, biz_domain_id, config_type) 应拒绝重复插入");
+    }
+
+    @Test
     @DisplayName("role_resource_permission CHECK：scope_all=false 时必须携带 resource_entity_id")
     void shouldEnforceRoleResourcePermissionCheck() {
         assertThrows(SQLException.class, () -> {

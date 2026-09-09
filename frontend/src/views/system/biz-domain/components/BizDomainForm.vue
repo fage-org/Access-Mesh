@@ -12,13 +12,17 @@ const props = defineProps<{
   mode: "create" | "edit";
   /** 编辑时的初始数据（来自表格行） */
   initialData?: BizDomainResp | null;
+  /** 租户下是否已存在全局域（T-PERM-046，仅 create 态消费：已存在时开关禁用+提示，
+   *  后端 20057 兜底） */
+  globalExists?: boolean;
 }>();
 
 /** 表单默认值 */
 const defaultFormData = (): BizDomainFormData => ({
   code: "",
   name: "",
-  description: ""
+  description: "",
+  global: false
 });
 
 const formData = reactive<BizDomainFormData>({ ...defaultFormData() });
@@ -27,6 +31,9 @@ const formRef = ref<FormInstance>();
 
 /** 是否编辑态 */
 const isEdit = computed(() => props.mode === "edit");
+
+/** 租户下是否已存在全局域（create 开关禁用判定） */
+const globalExists = computed(() => props.globalExists === true);
 
 /** 表单校验规则。
  *  code 唯一键，新建可填（大写字母开头，含大写字母/数字/下划线，最长 64，对齐 schema VARCHAR(64)），编辑只读。
@@ -54,6 +61,7 @@ function initFormData() {
       code: props.initialData.code,
       name: props.initialData.name,
       description: props.initialData.description ?? ""
+      // global 不回填：创建后不可变（T-PERM-046），edit 态不展示开关也不提交
     });
   } else {
     Object.assign(formData, defaultFormData());
@@ -142,6 +150,21 @@ defineExpose({
         placeholder="可空，业务域用途说明"
       />
     </el-form-item>
+
+    <!--
+      T-PERM-046：全局域创建入口——仅 create 态展示（创建后不可变，换轨=新建域）。
+      已存在全局域时禁用并提示（每租户仅一个，后端 uk_biz_domain_global + 20057 兜底）。
+    -->
+    <el-form-item v-if="!isEdit" label="全局域">
+      <el-switch
+        v-model="formData.global"
+        :disabled="globalExists"
+        active-text="设为全局域"
+      />
+      <div v-if="globalExists" class="global-exists-hint">
+        该租户已存在全局域（每租户仅一个），本次将创建普通域
+      </div>
+    </el-form-item>
   </el-form>
 </template>
 
@@ -154,5 +177,13 @@ defineExpose({
   :deep(.el-form-item:last-child) {
     margin-bottom: 0;
   }
+}
+
+.global-exists-hint {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--el-color-info);
 }
 </style>

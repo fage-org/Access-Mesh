@@ -37,6 +37,8 @@ import static org.mockito.Mockito.when;
  * T-PERM-026 收口回归：业务键 code 定位（detail/update）、list 服务端过滤分页、
  * Resp global 字段、create 编码查重（预查 + uk_biz_domain DIVE 兜底）、
  * remove 删除保护（全局域不可删 + 域配置引用检查拒删，20051）。
+ * T-PERM-046 增量：create global 入口（默认 false；true 预查 + uk_biz_domain_global
+ * DIVE 兜底 20057）、remove 校验改走 FOR UPDATE 行锁版本（selectValidByIdsForUpdate）。
  */
 @ExtendWith(MockitoExtension.class)
 class BizDomainAppServiceImplTest {
@@ -70,7 +72,7 @@ class BizDomainAppServiceImplTest {
             .thenReturn(true);
         when(bizDomainMapper.selectByCode(1L, "HR")).thenReturn(null);
 
-        BizDomainCreateReq req = new BizDomainCreateReq("HR", "人力资源", "desc");
+        BizDomainCreateReq req = new BizDomainCreateReq("HR", "人力资源", "desc", null);
         BizDomainResp result = service.createBizDomain(1L, req, 100L);
 
         ArgumentCaptor<BizDomain> captor = ArgumentCaptor.forClass(BizDomain.class);
@@ -80,7 +82,7 @@ class BizDomainAppServiceImplTest {
         assertNotNull(result);
         assertEquals("HR", inserted.getCode());
         assertEquals("人力资源", inserted.getName());
-        // API 创建固定普通域（全局域不由本入口创建）
+        // global=null 默认普通域（T-PERM-046：显式传 true 才创建全局域，另有用例覆盖）
         assertEquals(Boolean.FALSE, inserted.getGlobal());
         assertEquals(Boolean.FALSE, result.global());
     }
@@ -90,7 +92,7 @@ class BizDomainAppServiceImplTest {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(false);
 
-        BizDomainCreateReq req = new BizDomainCreateReq("HR", "人力资源", "desc");
+        BizDomainCreateReq req = new BizDomainCreateReq("HR", "人力资源", "desc", null);
         assertThrows(SecurityException.class, () -> service.createBizDomain(1L, req, 100L));
     }
 
@@ -101,7 +103,7 @@ class BizDomainAppServiceImplTest {
         when(bizDomainMapper.selectByCode(1L, "HR")).thenReturn(entity(10L, "HR", false));
 
         BizException ex = assertThrows(BizException.class,
-            () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null), 100L));
+            () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null, null), 100L));
         assertEquals(PermissionErrorCode.DOMAIN_CODE_DUPLICATE.getCode(), ex.getErrorCode());
         verify(bizDomainMapper, never()).insert(any(BizDomain.class));
     }
@@ -117,7 +119,7 @@ class BizDomainAppServiceImplTest {
                 "duplicate key value violates unique constraint \"uk_biz_domain\""));
 
         BizException ex = assertThrows(BizException.class,
-            () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null), 100L));
+            () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null, null), 100L));
         assertEquals(PermissionErrorCode.DOMAIN_CODE_DUPLICATE.getCode(), ex.getErrorCode());
     }
 
@@ -130,23 +132,56 @@ class BizDomainAppServiceImplTest {
             .thenThrow(new DataIntegrityViolationException("NOT NULL violation on other column"));
 
         assertThrows(DataIntegrityViolationException.class,
-            () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null), 100L));
+            () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null, null), 100L));
     }
 
     @Test
-    void shouldNotMapGlobalUniqueIndexViolationTo20052() {
+    void shouldRejectCreateGlobalWhenGlobalDomainExists() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(true);
-        when(bizDomainMapper.selectByCode(1L, "HR")).thenReturn(null);
-        // uk_biz_domain 是 uk_biz_domain_global 的前缀：裸子串匹配会误吞全局域唯一索引违例
-        // 映射成 20052「编码重复」，带引号精确匹配下应原样重抛（当前 create 固定 global=false
-        // 不可达，防御性回归锁——旧实现下本用例失败）
+        when(bizDomainMapper.selectByCode(1L, "GLOBAL")).thenReturn(null);
+        when(bizDomainMapper.selectGlobalByTenant(1L)).thenReturn(entity(99L, "GLOBAL_OLD", true));
+
+        BizException ex = assertThrows(BizException.class,
+            () -> service.createBizDomain(1L, new BizDomainCreateReq("GLOBAL", "全局域", null, true), 100L));
+        assertEquals(PermissionErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(), ex.getErrorCode());
+        verify(bizDomainMapper, never()).insert(any(BizDomain.class));
+    }
+
+    @Test
+    void shouldCreateGlobalDomainWhenGlobalFieldTrue() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(true);
+        when(bizDomainMapper.selectByCode(1L, "GLOBAL")).thenReturn(null);
+        when(bizDomainMapper.selectGlobalByTenant(1L)).thenReturn(null);
+
+        BizDomainResp result = service.createBizDomain(1L,
+            new BizDomainCreateReq("GLOBAL", "全局域", null, true), 100L);
+
+        ArgumentCaptor<BizDomain> captor = ArgumentCaptor.forClass(BizDomain.class);
+        verify(bizDomainMapper).insert(captor.capture());
+        assertEquals(Boolean.TRUE, captor.getValue().getGlobal());
+        assertEquals(Boolean.TRUE, result.global());
+    }
+
+    @Test
+    void shouldMapGlobalUniqueIndexViolationOnCreateTo20057() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+            .thenReturn(true);
+        when(bizDomainMapper.selectByCode(1L, "GLOBAL")).thenReturn(null);
+        when(bizDomainMapper.selectGlobalByTenant(1L)).thenReturn(null);
+        // global=true 并发创建窗口：两个请求同瞬通过预查，后落库者命中 uk_biz_domain_global
+        // 唯一索引兜底转 20057（DIVE 映射）
         when(bizDomainMapper.insert(any(BizDomain.class)))
             .thenThrow(new DataIntegrityViolationException(
                 "duplicate key value violates unique constraint \"uk_biz_domain_global\""));
 
-        assertThrows(DataIntegrityViolationException.class,
-            () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null), 100L));
+        BizException ex = assertThrows(BizException.class,
+            () -> service.createBizDomain(1L, new BizDomainCreateReq("GLOBAL", "全局域", null, true), 100L));
+        assertEquals(PermissionErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(), ex.getErrorCode());
+        // 约束名带引号精确匹配：uk_biz_domain_global 违例不得误映射为 20052「编码重复」
+        // （uk_biz_domain 是 uk_biz_domain_global 的前缀）
+        assertNotEquals(PermissionErrorCode.DOMAIN_CODE_DUPLICATE.getCode(), ex.getErrorCode());
     }
 
     // ===== detail（业务键 code + 类型级 DOMAIN:VIEW 门禁）=====
@@ -262,7 +297,7 @@ class BizDomainAppServiceImplTest {
     void shouldRejectRemoveGlobalDomain() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(true);
-        when(bizDomainMapper.selectValidByIds(eq(1L), anySet()))
+        when(bizDomainMapper.selectValidByIdsForUpdate(eq(1L), anySet()))
             .thenReturn(List.of(entity(10L, "GLOBAL", true)));
 
         BizException ex = assertThrows(BizException.class,
@@ -276,7 +311,7 @@ class BizDomainAppServiceImplTest {
     void shouldRejectRemoveWhenDomainConfigsReferenced() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(true);
-        when(bizDomainMapper.selectValidByIds(eq(1L), anySet()))
+        when(bizDomainMapper.selectValidByIdsForUpdate(eq(1L), anySet()))
             .thenReturn(List.of(entity(10L, "HR", false)));
         DomainConfig config = new DomainConfig();
         config.setId(99L);
@@ -295,7 +330,7 @@ class BizDomainAppServiceImplTest {
     void shouldSoftDeleteDomainsWithoutConflicts() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(true);
-        when(bizDomainMapper.selectValidByIds(eq(1L), anySet()))
+        when(bizDomainMapper.selectValidByIdsForUpdate(eq(1L), anySet()))
             .thenReturn(List.of(entity(10L, "HR", false), entity(11L, "ORDER", false)));
         when(domainConfigMapper.selectValidByDomainIds(eq(1L), anySet()))
             .thenReturn(List.of());

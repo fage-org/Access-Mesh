@@ -721,10 +721,10 @@ CREATE TABLE biz_domain (
 CREATE UNIQUE INDEX uk_biz_domain ON biz_domain (tenant_id, code) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_biz_domain_global ON biz_domain (tenant_id) WHERE global = TRUE AND delete_flag = 0;
 
-COMMENT ON TABLE biz_domain IS '业务域，扁平列表，对权限对象分类，无启停，删除前检查引用。全局域(global=true)每个租户仅一个，其范围=未被其他域认领的资源类型；全局域由管理 API 创建，不在本文件预置';
+COMMENT ON TABLE biz_domain IS '业务域，扁平列表，对权限对象分类，无启停，删除前检查引用。全局域(global=true)每个租户仅一个，由管理 API 创建（create 可选 global 字段，T-PERM-046）；其范围：有 CLASSIFY 声明时按声明（2026-09-09 定案），否则=未被其他域认领的资源类型（动态补集）';
 COMMENT ON COLUMN biz_domain.code IS '域编码';
 COMMENT ON COLUMN biz_domain.name IS '域名称';
-COMMENT ON COLUMN biz_domain.global IS '是否全局域：true=全局域（每租户仅一个），其范围隐式包含未被其他域认领的资源类型';
+COMMENT ON COLUMN biz_domain.global IS '是否全局域：true=全局域（每租户仅一个），其范围=有 CLASSIFY 声明按声明（T-PERM-046 定案），否则为未被其他域认领的资源类型动态补集';
 
 -- -----------------------------------------------------------------------------
 -- 19. abstract_user - 抽象用户表
@@ -1214,9 +1214,11 @@ CREATE TABLE domain_config (
     delete_flag   BIGINT NOT NULL DEFAULT 0
 );
 
-CREATE INDEX idx_domain_config_domain ON domain_config (tenant_id, biz_domain_id, config_type) WHERE delete_flag = 0;
+-- 唯一索引（T-PERM-046）：save 的 check-then-insert 并发双插窗口由 uk 兜底
+-- （违例映射 20058 提示重试）；覆盖域配置查询全部用途（原普通索引已由本索引取代）
+CREATE UNIQUE INDEX uk_domain_config ON domain_config (tenant_id, biz_domain_id, config_type) WHERE delete_flag = 0;
 
-COMMENT ON TABLE domain_config IS '域配置：SUB_PERM=子权限配置 / CLASSIFY=域分类配置（仅此两类已实现并接受写入；SCOPE/RELATION/BINDING 为历史设想类型，未实现，请求校验拒绝）。每个域独立，无继承';
+COMMENT ON TABLE domain_config IS '域配置：SUB_PERM=子权限配置 / CLASSIFY=域分类配置（仅此两类已实现并接受写入；SCOPE/RELATION/BINDING 为历史设想类型，未实现，请求校验拒绝）。每个域独立，无继承。CLASSIFY 挂全局域时生效（T-PERM-046，2026-09-09 定案：有声明按声明，无声明退动态补集）';
 COMMENT ON COLUMN domain_config.config_type IS 'SUB_PERM / CLASSIFY（实现范围与 ConfigType 枚举一致；其余历史类型不分配）';
 COMMENT ON COLUMN domain_config.extra IS 'SUB_PERM示例: {"allowed":[{"parent_type":"MENU","child_types":["BUTTON","DATA"]}]}, CLASSIFY示例: {"resourceTypeCodes":["ORG","USER"]}';
 

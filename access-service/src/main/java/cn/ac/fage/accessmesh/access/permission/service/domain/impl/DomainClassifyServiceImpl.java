@@ -23,7 +23,10 @@ import java.util.stream.Collectors;
  * 域分类领域服务实现
  * <p>
  * 通过 domain_config CLASSIFY 配置确定业务域的分类范围。
- * 全局域(global=true)的范围 = 全部类型 - 其他域声明的类型（隐式计算，不存配置）。
+ * 全局域(global=true)的范围（T-PERM-046，2026-09-09 用户定案）：有 CLASSIFY 声明时
+ * 按声明生效（声明即收窄，覆盖动态补集；声明可为空集）；无 CLASSIFY 行时退回动态
+ * 补集（全部类型 - 其他非全局域声明的类型）。GLOBAL_PLUS 的隐式段与全局域实际范围
+ * 同源：全局域不存在或未声明时=未被非全局域认领（既有语义不变），有声明时=声明集。
  * </p>
  */
 @Service
@@ -60,11 +63,12 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
     /**
      * 获取指定域声明的资源类型码集合
      * <p>
-     * 如果是全局域，返回所有未被其他域认领的类型（隐式计算）。
+     * 如果是全局域：有 CLASSIFY 声明时返回声明集（T-PERM-046，2026-09-09 用户定案：
+     * 声明生效），无声明时返回所有未被其他域认领的类型（动态补集）。
      * 如果是非全局域，返回CLASSIFY配置中声明的类型。
      * </p>
      *
-     * @param tenantId  租户ID
+     * @param tenantId 租户ID
      * @param domainCode 业务域编码
      * @return 资源类型编码集合
      */
@@ -73,11 +77,7 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
         Long domainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
         if (domainId == null) return Set.of();
 
-        boolean isGlobal = isGlobalDomain(tenantId, domainId);
-        if (isGlobal) {
-            return computeGlobalTypeCodes(tenantId);
-        }
-        return loadClassifyTypeCodes(tenantId, domainId);
+        return effectiveTypeCodes(tenantId, domainId, isGlobalDomain(tenantId, domainId));
     }
 
     /**
@@ -85,7 +85,7 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
      * <p>
      * 根据查询模式判断资源类型是否在域范围内：
      * - ALL: 覆盖所有类型
-     * - GLOBAL_PLUS: 覆盖全局域 + 指定域声明的类型
+     * - GLOBAL_PLUS: 覆盖全局域实际范围 + 指定域声明的类型
      * - DOMAIN_ONLY: 仅覆盖指定域声明的类型
      * </p>
      *
@@ -118,22 +118,29 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
             return false;
         }
 
-        Set<String> classifiedCodes = isGlobalDomain(tenantId, domainId)
-            ? computeGlobalTypeCodes(tenantId)
-            : loadClassifyTypeCodes(tenantId, domainId);
+        boolean isGlobal = isGlobalDomain(tenantId, domainId);
+        Set<String> classifiedCodes = effectiveTypeCodes(tenantId, domainId, isGlobal);
 
         if (mode == DomainQueryMode.DOMAIN_ONLY) {
             return classifiedCodes.contains(resourceTypeCode);
         }
 
-        // GLOBAL_PLUS: 该域类型 + 未被任何域认领的类型（全局域的隐式范围）
+        // GLOBAL_PLUS: 该域类型 + 全局域实际范围（隐式段）
         if (classifiedCodes.contains(resourceTypeCode)) {
             return true;
         }
 
-        // 未被任何具体域认领的类型属于 GLOBAL_PLUS 的隐式范围。
-        Set<String> allClaimedCodes = getAllClaimedTypeCodes(tenantId);
-        return !allClaimedCodes.contains(resourceTypeCode);
+        // 全局域实际范围：有 CLASSIFY 声明时=声明集（声明即收窄全局域范围，T-PERM-046）；
+        // 全局域不存在或未声明时=未被任何非全局域认领的类型（既有动态补集语义不变）
+        BizDomain globalDomain = bizDomainMapper.selectGlobalByTenant(tenantId);
+        if (globalDomain != null) {
+            DomainConfig globalClassify = domainConfigMapper.selectValidByTypeString(
+                tenantId, globalDomain.getId(), ConfigType.CLASSIFY.getValue());
+            if (globalClassify != null) {
+                return parseResourceTypeCodes(globalClassify.getExtra()).contains(resourceTypeCode);
+            }
+        }
+        return !getAllClaimedTypeCodes(tenantId).contains(resourceTypeCode);
     }
 
     /**
@@ -192,6 +199,26 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
     private boolean isGlobalDomain(Long tenantId, Long domainId) {
         BizDomain domain = bizDomainMapper.selectValidById(domainId, tenantId);
         return domain != null && Boolean.TRUE.equals(domain.getGlobal());
+    }
+
+    /**
+     * 域的实际类型范围（T-PERM-046，2026-09-09 用户定案）
+     * <p>
+     * 全局域：有 CLASSIFY 配置行时按声明生效（声明即收窄，可为空集——与普通域
+     * 「有行解析空=空集」同语义）；无配置行时退回动态补集（未被非全局域认领的类型）。
+     * 非全局域：CLASSIFY 声明集。
+     * </p>
+     */
+    private Set<String> effectiveTypeCodes(Long tenantId, Long domainId, boolean isGlobal) {
+        if (isGlobal) {
+            DomainConfig classify = domainConfigMapper.selectValidByTypeString(
+                tenantId, domainId, ConfigType.CLASSIFY.getValue());
+            if (classify != null) {
+                return parseResourceTypeCodes(classify.getExtra());
+            }
+            return computeGlobalTypeCodes(tenantId);
+        }
+        return loadClassifyTypeCodes(tenantId, domainId);
     }
 
     /**

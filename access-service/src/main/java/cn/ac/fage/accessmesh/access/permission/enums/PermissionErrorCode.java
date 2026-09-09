@@ -254,7 +254,7 @@ public enum PermissionErrorCode {
     ROLE_PARENT_INVALID(20050, "父角色不能是自身或该角色的子孙"),
 
     /**
-     * 业务域删除冲突：目标域为全局域（global=true，每租户唯一，范围隐式包含未被认领的资源类型），
+     * 业务域删除冲突：目标域为全局域（global=true，每租户唯一，范围=CLASSIFY 声明或动态补集），
      * 或域下仍存在有效域配置（domain_config 引用检查拒删，schema 表注释约定）。
      * 同一删除被拒语义承载两类原因，message 区分具体原因（T-PERM-026 设计定案）。
      */
@@ -292,7 +292,19 @@ public enum PermissionErrorCode {
      * 孤岛、SYNC 行切成 MANAGED 被管理面误删）；③类型下存在有效资源行时类型删除被拒绝
      * （软删类型会让其行成永久孤儿）。读路径不受限。
      */
-    TYPE_OWNERSHIP_CHANGE_CONFLICT(20056, "类型所有权声明不可变更（系统预置类型钉死，或类型下存在有效资源行）");
+    TYPE_OWNERSHIP_CHANGE_CONFLICT(20056, "类型所有权声明不可变更（系统预置类型钉死，或类型下存在有效资源行）"),
+
+    /**
+     * 全局域已存在（uk_biz_domain_global：每租户至多一个 global=true 有效域，T-PERM-046）。
+     * 预查命中返回；并发创建窗口由唯一索引兜底同映射。
+     */
+    DOMAIN_GLOBAL_EXISTS(20057, "全局域已存在（每租户仅一个）"),
+
+    /**
+     * 域配置并发保存冲突（uk_domain_config：tenant+biz_domain+configType 有效行唯一，T-PERM-046）。
+     * save 的 check-then-insert 并发窗口由唯一索引兜底转本码，提示重试（后到者重试即转为 update）。
+     */
+    DOMAIN_CONFIG_CONCURRENT_CONFLICT(20058, "域配置并发冲突，请重试");
 
     private final int code;
     private final String message;

@@ -2,7 +2,8 @@ import type { BizDomainResp } from "@/api/biz-domain";
 import type { DomainConfigResp } from "@/api/domain-config";
 
 /** 业务域表单数据（新建/编辑共用）。
- *  code 为唯一键（uk_biz_domain），编辑只读——改它等于新建新域，与 type-def 稳定编码同口径。 */
+ *  code 为唯一键（uk_biz_domain），编辑只读——改它等于新建新域，与 type-def 稳定编码同口径。
+ *  global 仅 create 态生效（T-PERM-046：true=全局域每租户仅一个；创建后不可变，edit 表单不展示开关）。 */
 export interface BizDomainFormData {
   /** 业务域编码（新建必填，编辑只读——租户内唯一） */
   code: string;
@@ -10,6 +11,8 @@ export interface BizDomainFormData {
   name: string;
   /** 描述（可空） */
   description: string;
+  /** 是否全局域（仅新建提交携带；编辑态恒 false 且不提交） */
+  global: boolean;
 }
 
 /** 域配置表单数据（新建/编辑共用，提交统一走 save upsert）。
@@ -27,7 +30,8 @@ export function createEmptyBizDomainForm(): BizDomainFormData {
   return {
     code: "",
     name: "",
-    description: ""
+    description: "",
+    global: false
   };
 }
 

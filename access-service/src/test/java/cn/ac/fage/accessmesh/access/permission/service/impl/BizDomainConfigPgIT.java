@@ -13,17 +13,26 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * T-PERM-026 回归锁（真实 PostgreSQL，权威 DDL 原样执行）：
@@ -76,6 +85,9 @@ class BizDomainConfigPgIT {
 
     @Autowired
     private DomainClassifyService domainClassifyService;
+
+    @Autowired
+    private TransactionTemplate transactionTemplate;
 
     private BizDomain insertDomain(String code, boolean global) {
         BizDomain domain = new BizDomain();
@@ -174,7 +186,10 @@ class BizDomainConfigPgIT {
     void shouldFilterAndPageBizDomainsOnRealPostgres() {
         insertDomain("PGITPAGEAALPHA", false);
         insertDomain("PGITPAGEBBETA", false);
-        insertDomain("PGITPAGEAGLOBAL", true);
+        // 原为 global=true 行：T-PERM-046 后 uk_biz_domain_global 生效且测试方法共享类库、
+        // 执行顺序不定，与 shouldEnforceGlobalDomainUniqueIndex 的全局域行互斥——本用例
+        // 测试目的是 keyword 匹配与排序，global 标志无关，改用普通域
+        insertDomain("PGITPAGEAGLOBAL", false);
 
         assertThat(bizDomainMapper.countByCondition(TENANT, null)).isGreaterThanOrEqualTo(3);
         // LIKE 大小写敏感，匹配 code（PGITPAGEA 前缀两条）
@@ -187,5 +202,88 @@ class BizDomainConfigPgIT {
         List<BizDomain> page2 = bizDomainMapper.selectPageByCondition(TENANT, "PGITPAGE", 2, 2);
         assertThat(page2).extracting(BizDomain::getCode)
             .containsExactly("PGITPAGEBBETA");
+    }
+
+    // ---------------------------------------------------------------------
+    // T-PERM-046 回归锁（真实 PG + 权威 DDL）
+    // ---------------------------------------------------------------------
+
+    @Test
+    @DisplayName("uk_domain_config：同租户+域+配置类型有效行双插被拒（save 并发窗口唯一索引兜底）")
+    void shouldRejectDuplicateDomainConfigByUniqueIndex() {
+        BizDomain domain = insertDomain("PGITUKCFG", false);
+        insertDomainConfig(domain.getId(), "CLASSIFY");
+
+        // check-then-insert 并发窗口的 DB 兜底：第二行同键插入命中唯一索引（应用层映射 20058）
+        assertThatThrownBy(() -> insertDomainConfig(domain.getId(), "CLASSIFY"))
+            .isInstanceOf(DataIntegrityViolationException.class)
+            .hasMessageContaining("uk_domain_config");
+    }
+
+    @Test
+    @DisplayName("uk_biz_domain_global：每租户仅一个有效全局域（create 并发窗口唯一索引兜底）")
+    void shouldEnforceGlobalDomainUniqueIndex() {
+        insertDomain("PGITGLBONE", true);
+
+        assertThatThrownBy(() -> insertDomain("PGITGLBTWO", true))
+            .isInstanceOf(DataIntegrityViolationException.class)
+            .hasMessageContaining("uk_biz_domain_global");
+    }
+
+    @Test
+    @DisplayName("域行锁串行化：remove 持锁软删期间 save 的 FOR UPDATE 解析阻塞，提交后读到软删返 null")
+    void shouldSerializeRemoveAndSaveViaDomainRowLock() throws Exception {
+        BizDomain domain = insertDomain("PGITLOCKS", false);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            CountDownLatch removeLocked = new CountDownLatch(1);
+            CountDownLatch releaseRemove = new CountDownLatch(1);
+
+            // remove 侧事务：锁域行（selectValidByIdsForUpdate）→ 等待放行 → 软删 → 提交
+            Future<?> removeTx = executor.submit(() -> transactionTemplate.execute(status -> {
+                assertThat(bizDomainMapper.selectValidByIdsForUpdate(TENANT, Set.of(domain.getId())))
+                    .hasSize(1);
+                removeLocked.countDown();
+                try {
+                    releaseRemove.await(5, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+                bizDomainMapper.softDeleteBatch(TENANT, List.of(domain.getId()), LocalDateTime.now());
+                return null;
+            }));
+            assertThat(removeLocked.await(5, TimeUnit.SECONDS)).isTrue();
+
+            // save 侧事务：域解析走 FOR UPDATE——remove 事务持有行锁且未提交，此处必须阻塞；
+            // remove 提交后重读（READ COMMITTED 语句级快照）读到软删行 → 返回 null（→20017 拒绝）
+            Future<BizDomain> saveResolve = executor.submit(() ->
+                transactionTemplate.execute(status ->
+                    bizDomainMapper.selectByCodeForUpdate(TENANT, "PGITLOCKS")));
+
+            // 有界等待证明阻塞（回归锁：无锁读的旧实现在毫秒内完成、get 成功 → 本断言失败）；
+            // 300ms ≪ remove 事务的持锁窗口（等 releaseRemove，秒级），误通过概率可忽略
+            assertThatThrownBy(() -> saveResolve.get(300, TimeUnit.MILLISECONDS))
+                .isInstanceOf(TimeoutException.class);
+
+            releaseRemove.countDown();
+            removeTx.get(5, TimeUnit.SECONDS);
+            // remove 提交后：软删行不可见 → save 解析得 null → 上层映射 20017，孤儿配置窗口闭合
+            assertThat(saveResolve.get(5, TimeUnit.SECONDS)).isNull();
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    private void insertDomainConfig(Long bizDomainId, String configType) {
+        DomainConfig config = new DomainConfig();
+        config.setTenantId(TENANT);
+        config.setBizDomainId(bizDomainId);
+        config.setConfigType(configType);
+        config.setExtra("{}");
+        LocalDateTime now = LocalDateTime.now();
+        config.setCreatedAt(now);
+        config.setUpdatedAt(now);
+        config.setDeleteFlag(0L);
+        domainConfigMapper.insert(config);
     }
 }

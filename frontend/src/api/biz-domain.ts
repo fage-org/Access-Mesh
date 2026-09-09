@@ -31,7 +31,7 @@ export type BizDomainResp = {
   name: string;
   /** 描述（可空） */
   description?: string | null;
-  /** 是否全局域（每租户仅一个，范围隐式包含未被其他域认领的资源类型；全局域不可删；后端保证非空） */
+  /** 是否全局域（每租户仅一个，范围=有 CLASSIFY 声明按声明、无声明为未被其他域认领的资源类型；全局域不可删；后端保证非空） */
   global: boolean;
   createdAt?: string;
 };
@@ -45,11 +45,14 @@ export type BizDomainListQuery = {
 };
 
 /** 业务域创建请求（POST /create，BizDomainCreateReq）。
- *  code 必填（@NotBlank），租户内唯一；name 必填；description 可空。 */
+ *  code 必填（@NotBlank），租户内唯一；name 必填；description 可空；
+ *  global 可选默认 false（T-PERM-046：true=全局域，每租户仅一个，已存在时后端拒绝 20057；
+ *  创建后不可变——update 无此字段，换轨=新建域）。 */
 export type BizDomainCreateReq = {
   code: string;
   name: string;
   description?: string | null;
+  global?: boolean;
 };
 
 /** 业务域更新请求（POST /update，BizDomainUpdateReq，T-PERM-026 切业务键 code 定位）。

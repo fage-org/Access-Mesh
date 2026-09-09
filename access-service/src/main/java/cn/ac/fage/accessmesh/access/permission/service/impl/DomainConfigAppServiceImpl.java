@@ -6,9 +6,11 @@ import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContex
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.DomainConfigResp;
+import cn.ac.fage.accessmesh.access.permission.entity.BizDomain;
 import cn.ac.fage.accessmesh.access.permission.entity.DomainConfig;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.access.permission.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.permission.service.DomainConfigAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
@@ -16,6 +18,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngi
 import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +38,7 @@ import java.util.stream.Collectors;
 public class DomainConfigAppServiceImpl implements DomainConfigAppService {
 
     private final DomainConfigMapper domainConfigMapper;
+    private final BizDomainMapper bizDomainMapper;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
 
@@ -42,13 +46,16 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
      * 构造函数注入依赖
      *
      * @param domainConfigMapper      域配置数据访问层
+     * @param bizDomainMapper         业务域数据访问层（save 域解析 FOR UPDATE 行锁，T-PERM-046）
      * @param typeResolutionService   类型解析服务
      * @param engine                  权限查询引擎
      */
     public DomainConfigAppServiceImpl(DomainConfigMapper domainConfigMapper,
+                                       BizDomainMapper bizDomainMapper,
                                        TypeResolutionService typeResolutionService,
                                        PermQueryEngine engine) {
         this.domainConfigMapper = domainConfigMapper;
+        this.bizDomainMapper = bizDomainMapper;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
     }
@@ -60,6 +67,10 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
         * 当前支持的配置类型包括CLASSIFY（资源类型分类）和SUB_PERM（子权限配置）。
      * extra 为 JSON 字符串，写入前经 {@link JsonValidationUtils} 语法校验
      * （非法 JSON 拒绝，system-config configValue 同范式，T-PERM-026 补齐）。
+     * T-PERM-046：①域解析走 FOR UPDATE 域行锁（selectByCodeForUpdate），与 biz-domain
+     * remove 的删除保护校验互斥——并发 remove 提交后此处解析不到软删域（20017），
+     * 反向持锁插入的配置会被 remove 的引用检查看到（20051 拒删），孤儿配置窗口闭合；
+     * ②insert 并发双插窗口由 uk_domain_config 唯一索引兜底（DIVE 映射 20058 提示重试）。
      * 需要SYSTEM_CONFIG_MANAGE权限。
      * </p>
      *
@@ -67,7 +78,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
      * @param req      配置请求，包含域编码、配置类型、扩展JSON
      * @return 配置响应
      * @throws SecurityException       无权限时抛出
-     * @throws BizException            域不存在时抛出
+     * @throws BizException            域不存在（20017）/ 并发保存冲突（20058）时抛出
      * @throws IllegalArgumentException extra 非法 JSON 时抛出（统一异常处理映射 code=400 参数错误）
      */
     @Override
@@ -81,10 +92,16 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
 
         JsonValidationUtils.validateJson(req.extra());
 
-        Long bizDomainId = typeResolutionService.resolveDomainId(tenantId, req.domainCode());
-        if (bizDomainId == null) {
+        // T-PERM-046：域行锁解析（写事务内）——FOR UPDATE 锁住目标域行直到本事务结束，
+        // 与 biz-domain remove 的 selectValidByIdsForUpdate 互斥（锁内读写串行，
+        // 后进锁者可见先进锁者已提交的软删/配置）
+        BizDomain domain = (req.domainCode() == null || req.domainCode().isBlank())
+            ? null
+            : bizDomainMapper.selectByCodeForUpdate(tenantId, req.domainCode());
+        if (domain == null) {
             throw new BizException(PermissionErrorCode.DOMAIN_NOT_FOUND.getCode(), "Unknown domainCode: " + req.domainCode());
         }
+        Long bizDomainId = domain.getId();
         DomainConfig existing = domainConfigMapper.selectValidByTypeString(tenantId, bizDomainId, req.configType());
 
         if (existing != null) {
@@ -102,7 +119,19 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
             config.setCreatedAt(now);
             config.setUpdatedAt(now);
             config.setDeleteFlag(0L);
-            domainConfigMapper.insert(config);
+            try {
+                domainConfigMapper.insert(config);
+            } catch (DataIntegrityViolationException e) {
+                // T-PERM-046：uk_domain_config 并发兜底——check-then-insert 窗口内并发
+                // 同键保存（domainCode+configType）后落库者命中唯一索引，转 20058 提示重试
+                // （重试时另一事务已提交，selectValidByTypeString 命中转 update 分支）
+                if (isUniqueViolationOn(e, "\"uk_domain_config\"")) {
+                    throw new BizException(PermissionErrorCode.DOMAIN_CONFIG_CONCURRENT_CONFLICT.getCode(),
+                        "Concurrent save on same domainCode+configType, please retry: "
+                            + req.domainCode() + ":" + req.configType());
+                }
+                throw e;
+            }
             return toDomainConfigResp(config);
         }
     }
@@ -232,5 +261,20 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
             c.getId(), c.getTenantId(), c.getBizDomainId(),
             c.getConfigType(), c.getExtra(), c.getUpdatedAt()
         );
+    }
+
+    /**
+     * PG 唯一约束违反消息含约束名，沿 cause 链匹配（BizDomainAppService 同模式）
+     */
+    private boolean isUniqueViolationOn(DataIntegrityViolationException e, String constraintName) {
+        Throwable cause = e;
+        while (cause != null) {
+            String msg = cause.getMessage();
+            if (msg != null && msg.contains(constraintName)) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 }

@@ -3,7 +3,7 @@ doc_type: design
 title: 5.1 业务域页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-02   # 2026-09-02 T-FE-021 联调收口（mock 四文件退役、api 切 Gateway /perm 前缀路径，见 §6/§9 联调注记）；2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-29 T-PERM-026 后端收口终态化（业务键/分页/global/删除保护/JSON 校验/JSONB 确认）；原文 2026-07-01 Phase 1 前端设计定稿
+last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-046 三项加固收口（§4.2 create「全局域」开关 + 20057 兜底、§8/§9 全局域范围新口径=CLASSIFY 声明或动态补集 + domain_config 唯一键 20058 + remove/save 域行锁）；2026-09-02 T-FE-021 联调收口（mock 四文件退役、api 切 Gateway /perm 前缀路径，见 §6/§9 联调注记）；2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-29 T-PERM-026 后端收口终态化（业务键/分页/global/删除保护/JSON 校验/JSONB 确认）；原文 2026-07-01 Phase 1 前端设计定稿
 ---
 
 # 5.1 业务域页 前端设计
@@ -26,7 +26,7 @@ last_reviewed: 2026-09-02   # 2026-09-02 T-FE-021 联调收口（mock 四文件�
 - **主从布局**：上区 BizDomain 表格（CRUD），选中域后下区展示该域的 DomainConfig 列表。
 - **BizDomain 有独立 create/update/remove**（非 system-config 的纯 save upsert）：主表 hook 区分 create/edit + handleDelete。
 - **DomainConfig save upsert 幂等**（同 system-config 范式）：按 domainCode+configType upsert（存在则 update extra，不存在则 insert），新建/编辑统一走 save。
-- **全局域不可删**：`biz_domain.global` 字段（每租户仅一个全局域，隐式包含未认领类型）。T-PERM-026 起 `BizDomainResp` 返回 global——前端以「全局」tag 标识并禁用删除按钮预判，后端 remove 删除保护兜底（全局域或域下存在配置拒绝 20051）。
+- **全局域不可删**：`biz_domain.global` 字段（每租户仅一个全局域，范围=有 CLASSIFY 声明按声明、无声明动态补集，见 §8）。T-PERM-026 起 `BizDomainResp` 返回 global——前端以「全局」tag 标识并禁用删除按钮预判，后端 remove 删除保护兜底（全局域或域下存在配置拒绝 20051）。
 - **biz-domain list 服务端过滤+分页**（T-PERM-026 收口）：`{keyword, pageNum, pageSize}` → `PageResp`（keyword LIKE code/name/description、ORDER BY code,id、均不传=字典全量上限 200），同 system-config 范式。
 - **extra 是 JSON**：`domain_config.extra` schema 是 JSONB，前端按 JSON 字符串编辑 + 提交前 `JSON.parse` 校验；后端 save 亦经 `JsonValidationUtils` 校验（T-PERM-026 补齐），JSONB↔String 映射已真库确认（语义等价、可直接再提交）。
 
@@ -118,7 +118,8 @@ last_reviewed: 2026-09-02   # 2026-09-02 T-FE-021 联调收口（mock 四文件�
 ### 4.2 主表：新增业务域
 
 - 顶部「新增业务域」按钮（门禁 `SYSTEM_CONFIG:MANAGE`，即 CONFIG_SAVE）→ BizDomainForm 弹窗。
-- 表单：code 可填、name、description。提交 → `createBizDomain`（code+name+description）→ 后端查重（重复 20052，uk_biz_domain 兜底）后落库 → 成功 `loadTable`。
+- 表单：code 可填、name、description、「全局域」开关（T-PERM-046，仅 create 态展示——创建后不可变，换轨=新建域）。弹窗打开时预查租户是否已有全局域（`checkGlobalDomainExists` 拉字典全量判断）：已存在时开关禁用并提示「该租户已存在全局域（每租户仅一个），本次将创建普通域」（预判失败由后端 20057 兜底，查询失败按不存在处理不阻断）。
+- 提交 → `createBizDomain`（code+name+description+global）→ 后端查重（重复 20052，uk_biz_domain 兜底；global=true 且已存在全局域拒绝 20057，uk_biz_domain_global 兜底）后落库 → 成功 `loadTable`。
 
 ### 4.3 主表：编辑业务域
 
@@ -266,9 +267,9 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026；�
 ### 备注
 
 - **主从布局非单表**：本页是主从两表联动（BizDomain 主 + DomainConfig 从），与其他单表页（system-config/type-def）不同。主表有独立 create/update/remove（非 upsert），子表 save upsert。
-- **全局域语义**：每租户仅一个全局域（`uk_biz_domain_global`），其范围隐式包含未被其他域认领的资源类型（DomainClassifyService 全局域语义）。前端不直接管理全局域创建（由系统初始化），仅展示 + 禁删。
+- **全局域语义**：每租户仅一个全局域（`uk_biz_domain_global`），其范围=有 CLASSIFY 声明按声明、无声明为未被其他域认领的资源类型动态补集（DomainClassifyService，T-PERM-046 定案 2026-09-09）。创建入口=create 表单「全局域」开关（T-PERM-046，已存在时禁用+提示），展示 + 禁删不变。
 
-## 9. 已知限制与收口状态（T-PERM-026 后）
+## 9. 已知限制与收口状态（T-PERM-026 / T-PERM-046 后）
 
 - ~~biz-domain list 前端本地过滤+分页~~ → 已切服务端过滤+分页（2026-08-29）。
 - extra JSON 校验：前端 `JSON.parse` 预拦截 + 后端 `JsonValidationUtils` 二次校验（T-PERM-026 补齐双层）。
@@ -277,6 +278,6 @@ Phase 1 不改后端，🔧❌ 项登记为 Phase 2 后端任务 T-PERM-026；�
 - ~~全局域不可删靠 mock 校验~~ → Resp 返回 global 后前端预判禁用删除按钮 + 后端 remove 删除保护（20051）双层兜底；bootstrap 固定图已补 DOMAIN:VIEW（空库可访问，§7）。
 - **删除二次确认**：业务域/域配置删除均在 hook `handleDelete*` 内前置 `ElMessageBox.confirm`（对齐 role/type-def 范式，持久配置类资源防误删）。
 - **子表权限守卫**：「配置」按钮 `v-if="canViewConfig"` 隐藏无权入口；`selectDomain(row, canViewConfig)` 双保险守卫，无 `SYSTEM_CONFIG:VIEW` 时只选中域不发 /list 请求，避免可避免的 403。
-- **全局域创建入口缺失（登记 T-PERM-046）**：DDL 注释称「全局域由管理 API 创建」，但 create 固定 global=false，真库无任何入口能创建 global=true 域（mock 有 GLOBAL 种子、真库无）——uk_biz_domain_global 与「全局域不可删」保护在真库形同虚设；DomainClassifyService 对全局域缺失容忍（语义退化但不报错）。
-- **domain_config 并发双插已知限制（登记 T-PERM-046）**：save 的 check-then-insert 在并发窗口可双插同键两行（表无唯一键，仅普通索引）；每域至多 2 条配置、管理页低并发，实际风险极低，契约 §5.6 已标注。
-- **删除保护并发窗口（登记 T-PERM-046）**：remove 引用检查与软删两条无锁语句间、save 域解析后 insert——并发交错可留指向已软删域的孤儿配置（不可达死数据，非越权）；管理页低并发窗口极窄，锁策略设计并入 T-PERM-046 统一处置。
+- **全局域创建入口缺失（登记 T-PERM-046）** → ✅ 已收口（T-PERM-046，2026-09-09）：create 加 global 可选入口（默认 false；20057 全局域已存在，预查+uk_biz_domain_global DIVE 兜底；创建后不可变）；前端 create 表单加「全局域」开关（已存在时禁用+提示）。全局域范围语义同步定案：CLASSIFY 声明生效（有声明按声明、无声明退动态补集，2026-09-09 用户定案）——往全局域配 CLASSIFY 是真实有效操作。
+- **domain_config 并发双插已知限制（登记 T-PERM-046）** → ✅ 已收口（T-PERM-046）：`uk_domain_config(tenant_id, biz_domain_id, config_type) WHERE delete_flag=0` 部分唯一索引兜底，违例映射 20058（并发保存提示重试）；PgIT 真库锁双插拒绝。
+- **删除保护并发窗口（登记 T-PERM-046）** → ✅ 已收口（T-PERM-046）：biz-domain remove 引用检查与 domain-config save 域解析共用 FOR UPDATE 域行锁（mapper 同事务连接，锁至提交）——remove 提交后 save 解析不到软删域（20017）、save 持锁插入的配置被 remove 引用检查看到（20051 拒删），孤儿配置窗口双向闭合；PgIT 并发交错回归锁。

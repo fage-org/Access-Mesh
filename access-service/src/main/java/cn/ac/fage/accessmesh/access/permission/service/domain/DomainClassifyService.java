@@ -9,7 +9,7 @@ import java.util.Map;
  * 域分类领域服务
  * <p>
  * 通过 domain_config CLASSIFY 配置确定业务域的分类范围。
- * 全局域(global=true)的范围隐式包含未被其他域认领的资源类型，无需配置CLASSIFY。
+ * 全局域(global=true)的范围=有 CLASSIFY 声明按声明（T-PERM-046 定案 2026-09-09），无声明为未被其他域认领的资源类型动态补集。
  * 管理查询按三种模式(ALL/GLOBAL_PLUS/DOMAIN_ONLY)过滤资源类型。
  * 权限查询管线不使用此服务。
  * </p>

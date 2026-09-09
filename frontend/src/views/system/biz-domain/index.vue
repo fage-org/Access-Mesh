@@ -35,6 +35,7 @@ const {
   onPageSizeChange,
   selectDomain,
   handleSubmitBizDomain,
+  checkGlobalDomainExists,
   handleDeleteBizDomain,
   configData,
   configLoading,
@@ -83,7 +84,10 @@ const configColumns = [
 ];
 
 // ========== 主表：业务域新建/编辑弹窗 ==========
-function openBizDomainForm(mode: "create" | "edit", row?: BizDomainResp) {
+async function openBizDomainForm(mode: "create" | "edit", row?: BizDomainResp) {
+  // T-PERM-046：create 态预查全局域存在性（开关禁用+提示；查询失败按不存在，后端 20057 兜底）
+  const globalExists =
+    mode === "create" ? await checkGlobalDomainExists() : false;
   let formRef: any = null;
   addDialog({
     title: mode === "edit" ? "编辑业务域" : "新增业务域",
@@ -94,7 +98,8 @@ function openBizDomainForm(mode: "create" | "edit", row?: BizDomainResp) {
           formRef = el;
         },
         mode,
-        initialData: mode === "edit" ? row : null
+        initialData: mode === "edit" ? row : null,
+        globalExists
       }),
     beforeSure: async (done: Function, { closeLoading }: any) => {
       if (!formRef) {

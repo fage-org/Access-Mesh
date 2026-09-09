@@ -50,7 +50,7 @@ public class BizDomain {
     private String description;
 
     /**
-     * 是否全局域（每租户仅一个全局域，其范围隐式包含未被其他域认领的资源类型）
+     * 是否全局域（每租户仅一个全局域，其范围=有 CLASSIFY 声明按声明、无声明为未被其他域认领的资源类型）
      */
     private Boolean global;
 
