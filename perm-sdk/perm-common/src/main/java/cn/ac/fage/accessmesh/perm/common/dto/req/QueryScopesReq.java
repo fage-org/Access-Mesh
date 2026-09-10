@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.perm.common.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 import java.util.Map;
@@ -31,9 +32,12 @@ public record QueryScopesReq(
     @NotBlank String parentResourceTypeCode,
     @NotBlank String parentResourceCode,
     String parentCodeType,
-    @NotEmpty List<String> parentOperationCodes,
-    @NotEmpty List<String> scopeResourceTypeCodes,
-    @NotEmpty List<String> scopeOperationCodes,
+    @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
+    List<String> parentOperationCodes,
+    @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
+    List<String> scopeResourceTypeCodes,
+    @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
+    List<String> scopeOperationCodes,
     String scopeCodeType,
     String domainCode,
     Map<String, Object> context

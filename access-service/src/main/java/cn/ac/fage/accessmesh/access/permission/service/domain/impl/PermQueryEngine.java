@@ -125,7 +125,8 @@ public class PermQueryEngine {
         // 各取 now()（codex 四轮 P3；explain 已入口钉住，此处覆盖全部路径）
         if (q.evalContext() == null) {
             q.setEvalContext(new PermEvalContext(
-                HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest()), null, Map.of()));
+                HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest()),
+                LocalDateTime.now(), Map.of()));
         } else if (q.evalContext().evaluatedAt() == null) {
             PermEvalContext pinned = new PermEvalContext(q.evalContext().clientIp(),
                 LocalDateTime.now(), q.evalContext().attributes());

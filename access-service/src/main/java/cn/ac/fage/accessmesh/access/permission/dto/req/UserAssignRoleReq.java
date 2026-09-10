@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access.permission.dto.req;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 import java.util.List;
 
 /**
@@ -14,7 +15,8 @@ import java.util.List;
  * @param items 分配条目列表，必填且不能为空
  */
 public record UserAssignRoleReq(
-    @NotEmpty List<@Valid AssignItem> items
+    @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
+    List<@Valid AssignItem> items
 ) {
     /**
      * 分配条目

@@ -76,6 +76,8 @@ last_updated: 2026-09-09
 
 **codex luna max 第四轮外评处置（2026-09-10）**：P1 canGrant 绕过 ROLE_PERM_SNAPSHOT（bypassPermSnapshot 直查——撤权后 TTL 陈旧/旧读回填竞态对转授校验不可接受）；P2×2 修复（目标解析空丢评估拒绝原因、createRole/deleteRoles 补 ABSTRACT_ROLE 树写锁——updateRole/moveRole 先例）+ P2 批量入口 @Size(max=1000) + P3 query() 入口钉 evaluatedAt；explain USER INSTANCE 候选遗留→T-PERM-059；引擎内部分片改进项登记 registry。配真锁 2 例。
 
+**codex luna max 第五轮外评处置（2026-09-10）**：P2×2+P3×1 全核实属实已修——①批量入参上限补全（四轮只封 getDenied* 直连 DTO 的遗漏面：assign/revoke 角色集经 getDeniedResourceCodes 进闭包 CTE、batch-check 双副本逐项全管线、query-scopes 三列表网格，补 @Size(1000) 配 Bean Validation 层锁五用例含四轮两 DTO 补锁；死 DTO PermissionCheckBatchReq 零消费方删除）；②组织写链三树锁全量修（用户拍板——核实缺口比报告宽：createOrg/deleteOrg 连 SYS_ORG 锁也无、投影同事务写 resource_entity 无锁；三入口各持 SYS_ORG+ABSTRACT_ROLE+RESOURCE_ENTITY，锁序固定，防并发删组织挂子成孤儿投影）；③query() 空上下文分支钉 evaluatedAt（四轮修复不完整——null 分支留 null 致每阶段评估各自 now()）。真锁 9 例（校验层 5 + 组织 InOrder 锁 3 + 时钟非空 1）；单测轨道 1118 全绿。
+
 **收编形态口径注记（双轨评审 P2 处置）**：验收条款「位覆盖/条件/互斥/depend_on 过滤进引擎」的落地形态=条件/互斥/dependOn 在引擎 LIST 管线；位覆盖语义由组装层复用引擎同一 covers 判定做 (type×op) 线格分桶——分桶即线格式组装的一部分（「AppService 只留四态线格式组装」的题中之义），非引擎外自评管线。
 
 **§5.2 缓存失效触发点核对结论**：ROLE_PERM_SNAPSHOT / OPERATION_PERMISSIONS_BY_TYPE / EFFECTIVE_ROLES / 网关快照键与失效均未变（闭包下推只增只读 CTE，无新失效面）；ORG_VISIBILITY 租户级 evictAll 已覆盖继承后语义（implementation §3.9 注记）。

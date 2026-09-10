@@ -79,6 +79,14 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
         String orgType = String.valueOf(req.orgType());
         Long tenantId = TenantContextHolder.getTenantId();
+        // 三树写锁先于首次树读取（codex 五轮 P2-1 全量修）：组织写路径同事务写 sys_org 行与
+        // abstract_role/resource_entity 投影（parent 镜像组织树），须与角色管理/角色同步/资源域
+        // 写入口按各自树锁串行——无锁窗口内父组织被并发删除（deleteOrg 的 hasChildren 检查与
+        // 本次插入同瞬交叉时双双通过），子组织及其投影会落成树上不可见孤儿。锁序固定
+        // SYS_ORG→ABSTRACT_ROLE→RESOURCE_ENTITY（本类为全仓唯一多树持锁方，无反向持锁无死锁面）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         // 契约 §4.2.4 互斥门禁——顶级用类型级 CREATE，子级只用父节点实例级 UPDATE
         // （不再无条件先校验类型级 CREATE，避免误拒绝可管理父节点但无租户级 CREATE 的局部管理员）；
         // 编码存在性探测（findByCode）在鉴权之后执行，不向未授权调用者暴露编码是否存在
@@ -137,8 +145,12 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         // 树写锁先于首次实体读取并无条件持有（对齐 updateRole/updateResource 位置）：不带
         // parent 的普通编辑也会全列回写实体快照的 parent（update(entity) 非 null 列全写），
         // 若锁晚于读取，读取-拿锁-写回窗口内完成的合法移动会被旧快照静默回滚、经两步合法
-        // 移动+回写可闭合成环——锁覆盖读与写后，锁内快照在临界区内无并发变更
+        // 移动+回写可闭合成环——锁覆盖读与写后，锁内快照在临界区内无并发变更。
+        // 投影两树同锁（codex 五轮 P2-1）：parent 变更同步回写 abstract_role/resource_entity
+        // 投影的 parent，与角色/资源域写入口的并发同款串行要求；锁序同 createOrg
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         SysOrg org = orgDomainService.selectValidById(tenantId, req.id());
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
@@ -303,6 +315,12 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         targetId = "#id", summary = "'delete org ' + #id")
     public void deleteOrg(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
+        // 三树写锁（codex 五轮 P2-1，锁序同 createOrg/updateOrg）：hasChildren 检查-删除与并发
+        // createOrg/updateOrg/角色同步在锁内串行——无锁窗口内并发挂入的子组织及其投影会指向
+        // 已软删本组织，成树上不可见孤儿
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         SysOrg org = orgDomainService.selectValidById(tenantId, id);
         if (org == null) {
             throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),

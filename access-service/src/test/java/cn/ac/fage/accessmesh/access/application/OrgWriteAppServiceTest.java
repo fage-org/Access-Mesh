@@ -27,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -202,11 +203,70 @@ class OrgWriteAppServiceTest {
 
         service.updateOrg(new OrgUpdateReq(ORG_ID, null, 30L, null, null, null));
 
+        // codex 五轮 P2-1：三树锁（SYS_ORG→ABSTRACT_ROLE→RESOURCE_ENTITY）全部先于首次树读取——
+        // 旧实现（仅 SYS_ORG）下后两把锁的 InOrder 断言失败
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, orgDomainService);
         order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
             cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         order.verify(orgDomainService).selectValidById(TENANT, ORG_ID);
         verify(orgDomainService).update(any(SysOrg.class));
+    }
+
+    @Test
+    @DisplayName("codex 五轮 P2-1：createOrg 三树锁先于首次父组织读取（旧实现完全无锁下失败）")
+    void createOrgMustHoldThreeTreeLocksBeforeFirstTreeRead() {
+        SysOrg parent = new SysOrg();
+        parent.setId(999L);
+        parent.setOrgType("1");
+        parent.setLevel(1);
+        when(orgDomainService.selectValidById(TENANT, 999L)).thenReturn(parent);
+        when(orgTreeConfigDomainService.resolveTreeRootExternalId(TENANT, 999L)).thenReturn("1");
+        when(orgDomainService.findByCode(TENANT, "NEW")).thenReturn(null);
+        doAnswer(inv -> {
+            SysOrg o = inv.getArgument(0);
+            o.setId(888L);
+            return null;
+        }).when(orgDomainService).insert(any(SysOrg.class));
+        when(localProjectionDomainService.upsertAdminOrg(anyLong(), anyLong(), anyString(), anyString(),
+            any(), any(), any(), any(), any())).thenReturn(700L);
+
+        service.createOrg(orgCreateReq(999L));
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, orgDomainService);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        order.verify(orgDomainService).selectValidById(TENANT, 999L);
+        verify(orgDomainService).insert(any(SysOrg.class));
+    }
+
+    @Test
+    @DisplayName("codex 五轮 P2-1：deleteOrg 三树锁先于首次组织读取（旧实现完全无锁下失败）")
+    void deleteOrgMustHoldThreeTreeLocksBeforeFirstTreeRead() {
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(org("A", "1", 2));
+        when(orgDomainService.hasChildren(TENANT, ORG_ID)).thenReturn(false);
+        when(userOrgDomainService.findByOrgIds(eq(TENANT), any())).thenReturn(List.of());
+        when(localProjectionDomainService.batchFindAdminUserIds(eq(TENANT), any())).thenReturn(Map.of());
+
+        service.deleteOrg(ORG_ID);
+
+        // hasChildren 检查-删除与并发 createOrg/角色同步在锁内串行，防已删组织的并发挂子成孤儿投影
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, orgDomainService);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        order.verify(orgDomainService).selectValidById(TENANT, ORG_ID);
+        verify(orgDomainService).softDeleteBatch(TENANT, List.of(ORG_ID));
     }
 
     @Test

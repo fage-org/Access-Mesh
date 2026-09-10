@@ -37,6 +37,7 @@ import java.util.Set;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -939,6 +940,27 @@ class PermQueryEngineTest {
         assertFalse(result.allowed());
         assertEquals("CONDITION_NOT_MET_OR_CONFLICT", result.reason(),
             "scopeAll 曾命中被评估清空 + 目标不可解析 = 条件拒绝（旧分支误报 NO_PERMISSION）");
+    }
+
+    /**
+     * codex 五轮 P3 锁：query() 空上下文分支同样钉住 evaluatedAt——单次查询多阶段条件评估
+     * 共用同一时钟；旧实现（null 分支 evaluatedAt 留 null，toEvalMap 每阶段各自 now()）下
+     * assertNotNull 失败。
+     */
+    @Test
+    void nullEvalContextMustBePinnedWithEvaluatedAtOnEntry() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
+
+        PermQuery q = PermQuery.forUserView(1L, 10L);
+        q.setEvaluateConditions(false);
+        q.setEvaluateConflicts(false);
+        assertNull(q.evalContext(), "视图/清单面查询不预设上下文（触发空上下文分支）");
+        engine.query(q);
+
+        assertNotNull(q.evalContext(), "入口应装配默认上下文");
+        assertNotNull(q.evalContext().evaluatedAt(),
+            "空上下文分支同样钉住 evaluatedAt（留 null 则每阶段评估各自取 now()，跨时间边界分叉）");
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {
