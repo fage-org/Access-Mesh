@@ -137,7 +137,9 @@ gateway:
     # 正常路径仍被无条件 set 覆盖（仅 remoteAddr 不可得分支透传外部值）；误删
     # X-Real-IP 清洗项时外部值透传（access-service 当前无 X-Real-IP 消费方）。
     # X-Forwarded-Host/Port/Proto/Prefix 与 Forwarded 同属可伪造转发声明
-    # （当前零消费，清洗防未来 forward-headers-strategy 开启时伪造面复活）。
+    # （当前零消费，清洗配合 ForwardHeadersStrategyGuard 启动护栏防未来消费转发
+    # 声明时伪造面复活——清洗对 forward-headers-strategy=framework 不生效，Spring
+    # 的 ForwardedHeaderTransformer 在全部过滤器之前消费转发头，护栏拒绝该配置）。
     # 以上各项均勿从本列表移除。
     clean:
       - X-User-Id
