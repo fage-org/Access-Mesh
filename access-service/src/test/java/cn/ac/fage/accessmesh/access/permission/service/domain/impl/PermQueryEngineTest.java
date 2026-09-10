@@ -20,6 +20,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainServi
 import cn.ac.fage.accessmesh.access.permission.util.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import org.junit.jupiter.api.BeforeEach;
@@ -881,6 +882,63 @@ class PermQueryEngineTest {
         assertEquals("1.2.3.4", ctx.clientIp());
         org.junit.jupiter.api.Assertions.assertTrue(ctx.toEvalMap().containsKey("clientIp"));
         org.junit.jupiter.api.Assertions.assertFalse(ctx.toEvalMap().containsKey("extra"), "null 值项被过滤");
+    }
+
+    /**
+     * codex 四轮 P1 锁：bypassPermSnapshot 模式绕过 ROLE_PERM_SNAPSHOT（直查 DB 不读不回填）——
+     * 写校验面（canGrant）消费；旧实现（走缓存）下 verify 失败。
+     */
+    @Test
+    void bypassPermSnapshotMustQueryDbDirectlyWithoutCache() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
+
+        PermQuery q = PermQuery.forUserView(1L, 10L);
+        q.setBypassPermSnapshot(true);
+        q.setEvaluateConditions(false);
+        q.setEvaluateConflicts(false);
+        PermResult result = engine.query(q);
+
+        // bypass：直查 DB（mock 返回空）→ deny，缓存里的条目不可见；非 bypass 时会命中缓存条目
+        assertFalse(result.allowed());
+        verify(rolePermMapper).selectValidByRoleIds(1L, Set.of(20L));
+        verify(cacheService, never()).putBatch(any(CacheReadToken.class), eq(1L), any());
+    }
+
+    /**
+     * codex 四轮 P2-1 锁：scopeAll 命中但评估清空 + 目标实体解析为空（编码不存在/软删）→
+     * CONDITION_NOT_MET_OR_CONFLICT（勿丢评估拒绝原因报 NO_PERMISSION）。
+     */
+    @Test
+    void unresolvableTargetMustKeepConditionReasonWhenScopeAllEvaluatedEmpty() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 101L));
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(101L))).thenReturn(List.of(viewOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1"))))
+            .thenReturn(Map.of("op_perm:1", Map.of(101L, viewOp)));
+        // scopeAll 命中（条件行）→ 评估清空；目标编码解析不到实体
+        RoleResourcePermission conditional = new RoleResourcePermission();
+        conditional.setId(501L);
+        conditional.setAbstractRoleId(20L);
+        conditional.setResourceEntityId(null);
+        conditional.setResourceType(1);
+        conditional.setGrantedBits(1L);
+        conditional.setScopeAll(true);
+        conditional.setDeleteFlag(0L);
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of(conditional));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenReturn(List.of());
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(Map.of());
+
+        PermResult result = engine.query(PermQuery.forAuthCheck(1L, 10L, "MENU", "ghost-code", "VIEW"));
+
+        assertFalse(result.allowed());
+        assertEquals("CONDITION_NOT_MET_OR_CONFLICT", result.reason(),
+            "scopeAll 曾命中被评估清空 + 目标不可解析 = 条件拒绝（旧分支误报 NO_PERMISSION）");
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

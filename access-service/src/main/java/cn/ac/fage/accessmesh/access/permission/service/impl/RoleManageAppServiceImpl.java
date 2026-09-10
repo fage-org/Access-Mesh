@@ -129,6 +129,10 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
+        // 树写锁先于父角色读取（与 updateRole/moveRole/deleteRoles 同把；codex 四轮 P2）：
+        // 无锁时并发 deleteRoles 软删目标父 → 本事务挂入已删父 → 存活孤儿角色
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
             throw new SecurityException("无创建角色的权限");
         }
@@ -326,6 +330,11 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @PermissionChange
     public void deleteRoles(Long tenantId, List<Long> roleIds, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
+
+        // 树写锁先于首次读取（与 updateRole/moveRole 同把，T-PERM-044 先例；codex 四轮 P2）：
+        // 无锁时「查子孙 → 软删」窗口内并发 createRole/moveRole 挂入本子树 → 存活孤儿角色
+        //（parent 指向已删行，树上不可见无法管理）；锁内串行后挂入者读到的是已删父（校验拒绝）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
 
         if (roleIds == null || roleIds.isEmpty()) {
             OperationLogRuntimeContext.markSkip();

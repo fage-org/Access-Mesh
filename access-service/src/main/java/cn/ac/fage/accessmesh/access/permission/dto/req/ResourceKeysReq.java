@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.dto.req;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -14,5 +15,5 @@ import java.util.List;
  * @param items 业务键列表，必填且不能为空
  */
 public record ResourceKeysReq(
-    @NotEmpty List<@Valid ResourceKeyReq> items
+    @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）") List<@Valid ResourceKeyReq> items
 ) {}

@@ -211,6 +211,13 @@ public class PermQuery {
     private boolean useRoleCache = true;
 
     /**
+     * 绕过 ROLE_PERM_SNAPSHOT 读缓存（LIST 模式直查 DB，不读不回填）——写校验面消费
+     * （canGrant 转授资格：撤权后 10s TTL 陈旧窗口/旧读回填竞态对授权传递校验不可接受，
+     * codex 外评 P1 修复；读面维持缓存=T-ACCESS-008 陈旧预算定案）
+     */
+    private boolean bypassPermSnapshot;
+
+    /**
      * 构造权限查询
      * <p>
      * 租户ID必填，其他字段通过工厂方法或setter设置。
@@ -439,6 +446,7 @@ public class PermQuery {
     public boolean includeDomains() { return includeDomains; }
     public boolean includeConditions() { return includeConditions; }
     public boolean useRoleCache() { return useRoleCache; }
+    public boolean bypassPermSnapshot() { return bypassPermSnapshot; }
 
     /**
      * 设置主资源上下文（数据范围面 depend_on 子权限过滤，query-scopes 收编）。

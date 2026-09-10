@@ -149,6 +149,9 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         query.setIncludeResources(false);
         query.setIncludeOperations(true);
         query.setIncludeRoles(false);
+        // 写校验面绕过 ROLE_PERM_SNAPSHOT（codex 四轮 P1）：直查恢复收编前新鲜度——
+        // 撤权后 TTL 陈旧/旧读回填竞态可放行已撤销的转授资格（权限提升）
+        query.setBypassPermSnapshot(true);
         PermResult permResult = permQueryEngine.query(query);
         List<RolePermEntry> operatorEntries = permResult.allowed()
             ? permResult.instanceEntries() : List.of();

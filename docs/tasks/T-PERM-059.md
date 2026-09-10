@@ -16,6 +16,7 @@ acceptance:
   - "连动面处置定案：①Gateway bootstrap 固定图（BootstrapGraphDefinition 注册的 effective-permissions/explain 两行）随删调整 + architecture §14.3/§14.4 回写 + runbook 固定图升级 FAQ；②T-FE-043（排查页暂停重做登记卡）absorb/cancel 二选一处置"
   - "新设计方向产出（可与删除分期）：基于统一引擎结果模型（T-PERM-057 落地后）的视图/排查新形态设计草案"
   - "e2e 核对：两垂直切片不触删除面端点（已核实），回归确认零影响"
+  - "遗留并入评估（codex 四轮外评 P2，2026-09-10）：explain USER 目标 scopeMode=INSTANCE 且 scopeAll 授权被条件/互斥评估清空时的候选明细缺实际通过判定的实例授权行（判定查询有回退分支、候选查询提前返回 scopeAll）——非安全缺陷（明细完整性），explain 本就在本卡删除重设计范围，去留决策时一并处置（保留则需候选收集模式：scopeAll+实例原始行全收集）"
 design_writeback:
   required: true
   status: pending

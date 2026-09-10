@@ -29,6 +29,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -119,7 +120,17 @@ public class PermQueryEngine {
      * @return 权限查询结果
      */
     public PermResult query(PermQuery q) {
-        // -- 0. 入口封装：userId → roleIds（EFFECTIVE_ROLES 缓存） --
+        // -- 0. 入口封装：userId → roleIds（EFFECTIVE_ROLES 缓存）+ evaluatedAt 一次钉住 --
+        // 单次查询内多阶段（scopeAll/实例/主资源/范围）条件评估共用同一时钟，勿跨时间边界
+        // 各取 now()（codex 四轮 P3；explain 已入口钉住，此处覆盖全部路径）
+        if (q.evalContext() == null) {
+            q.setEvalContext(new PermEvalContext(
+                HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest()), null, Map.of()));
+        } else if (q.evalContext().evaluatedAt() == null) {
+            PermEvalContext pinned = new PermEvalContext(q.evalContext().clientIp(),
+                LocalDateTime.now(), q.evalContext().attributes());
+            q.setEvalContext(pinned);
+        }
         Set<Long> roleIds = resolveRoleIds(q);
         if (roleIds.isEmpty()) {
             return PermResult.deny("NO_ROLE");
@@ -189,7 +200,9 @@ public class PermQueryEngine {
         // -- 目标解析 + 判定面闭包（查询前扩大目标集）--
         Set<Long> targetEntityIds = resolveEntityIds(q);
         if (targetEntityIds.isEmpty()) {
-            return PermResult.deny("NO_PERMISSION");
+            // 拒绝原因区分同下（codex 四轮 P2）：scopeAll 曾命中而被评估清空 + 目标不可解析
+            // → 仍属「有授权但条件/冲突不满足」，勿报 NO_PERMISSION
+            return PermResult.deny(scopeAllEvaluatedEmpty ? "CONDITION_NOT_MET_OR_CONFLICT" : "NO_PERMISSION");
         }
         Set<Long> queryEntityIds = targetEntityIds;
         if (q.inheritClosure()) {
@@ -223,7 +236,7 @@ public class PermQueryEngine {
      * 主资源上下文给出时执行 depend_on 子权限过滤（query-scopes 收编）。
      */
     private PermResult queryList(PermQuery q, Set<Long> roleIds) {
-        List<RolePermEntry> allEntries = loadRolePermEntriesWithCache(q.tenantId(), roleIds);
+        List<RolePermEntry> allEntries = loadRolePermEntriesWithCache(q.tenantId(), roleIds, q.bypassPermSnapshot());
         if (allEntries.isEmpty()) {
             return PermResult.deny("NO_PERMISSION");
         }
@@ -1162,7 +1175,13 @@ public class PermQueryEngine {
      * @param roleIds  角色ID集合
      * @return 全部角色的权限条目（合并，可变列表）
      */
-    private List<RolePermEntry> loadRolePermEntriesWithCache(Long tenantId, Set<Long> roleIds) {
+    private List<RolePermEntry> loadRolePermEntriesWithCache(Long tenantId, Set<Long> roleIds, boolean bypassSnapshot) {
+        if (bypassSnapshot) {
+            // 写校验面（canGrant）：直查不回填——ROLE_PERM_SNAPSHOT 10s TTL 陈旧窗口与
+            // 旧读回填竞态对授权传递校验不可接受（codex 外评 P1）
+            return rolePermMapper.selectValidByRoleIds(tenantId, roleIds).stream()
+                .map(entryMapper::toEntry).toList();
+        }
         // 1. 批量读缓存
         Map<Long, List<RolePermEntry>> cached = cacheService.getBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIds);
         List<RolePermEntry> allEntries = new ArrayList<>();
