@@ -143,9 +143,11 @@ public class PermQueryEngine {
         Map<Integer, Long> bitMasks = resolveBitMasks(q.tenantId(), resourceTypes, opIds);
 
         List<RolePermEntry> scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, bitMasks);
+        boolean scopeAllMatchedBeforeEval = !scopeAllEntries.isEmpty();
         scopeAllEntries = evaluateIfNeeded(q, scopeAllEntries);
         if (scopeAllEntries.isEmpty()) {
-            return PermResult.deny("NO_PERMISSION");
+            // 拒绝原因区分（codex 外评 P2 修复，对齐基线语义）：有授权但条件/互斥评估清空 ≠ 无授权
+            return PermResult.deny(scopeAllMatchedBeforeEval ? "CONDITION_NOT_MET_OR_CONFLICT" : "NO_PERMISSION");
         }
 
         PermResult.Builder builder = PermResult.builder(true, null)
@@ -165,19 +167,23 @@ public class PermQueryEngine {
         Set<Long> opIds = resolveOperationIds(q, ctx);
         Map<Integer, Long> bitMasks = resolveBitMasks(q.tenantId(), resourceTypes, opIds);
 
-        // -- scopeAll 类型级优先：命中（评估通过）即放行，无需实例查询 --
-        List<RolePermEntry> scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, bitMasks);
-        if (!scopeAllEntries.isEmpty()) {
-            scopeAllEntries = evaluateIfNeeded(q, scopeAllEntries);
+        // -- scopeAll 类型级优先：命中（评估通过）即放行，无需实例查询（精确实例模式跳过，
+        //    explain scopeMode=INSTANCE 契约：按 resourceCode+codeType 精确匹配，不回退类型级）--
+        boolean scopeAllEvaluatedEmpty = false;
+        if (!q.exactInstanceOnly()) {
+            List<RolePermEntry> scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, bitMasks);
             if (!scopeAllEntries.isEmpty()) {
-                PermResult.Builder builder = PermResult.builder(true, null)
-                    .scopeAllMatched(true)
-                    .scopeAllEntries(scopeAllEntries);
-                loadAncillary(q, builder, scopeAllEntries, List.of(), roleIds);
-                return builder.build();
+                scopeAllEntries = evaluateIfNeeded(q, scopeAllEntries);
+                if (!scopeAllEntries.isEmpty()) {
+                    PermResult.Builder builder = PermResult.builder(true, null)
+                        .scopeAllMatched(true)
+                        .scopeAllEntries(scopeAllEntries);
+                    loadAncillary(q, builder, scopeAllEntries, List.of(), roleIds);
+                    return builder.build();
+                }
+                // scopeAll 命中但评估清空：类型级路径已拒绝，实例级仍可命中（授权行各自评估）
+                scopeAllEvaluatedEmpty = true;
             }
-            // scopeAll 命中但评估清空：类型级路径已拒绝，实例级仍可命中（授权行各自评估）
-            scopeAllEntries = List.of();
         }
 
         // -- 目标解析 + 判定面闭包（查询前扩大目标集）--
@@ -191,9 +197,12 @@ public class PermQueryEngine {
         }
 
         List<RolePermEntry> instanceEntries = queryInstance(q.tenantId(), roleIds, queryEntityIds, bitMasks);
+        boolean instanceMatchedBeforeEval = !instanceEntries.isEmpty();
         instanceEntries = evaluateIfNeeded(q, instanceEntries);
         if (instanceEntries.isEmpty()) {
-            return PermResult.deny("NO_PERMISSION");
+            // 拒绝原因区分（codex 外评 P2）：任一授权集合评估前命中而评估后清空 → 条件/冲突拒绝
+            boolean anyMatchedBeforeEval = instanceMatchedBeforeEval || scopeAllEvaluatedEmpty;
+            return PermResult.deny(anyMatchedBeforeEval ? "CONDITION_NOT_MET_OR_CONFLICT" : "NO_PERMISSION");
         }
 
         // -- 展示面展开（查询后克隆，不改变判定）--

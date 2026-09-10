@@ -884,6 +884,9 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             } else {
                 q.setTargetMode(TargetMode.INSTANCE);
                 q.setResourceCodes(Set.of(queryResourceCode));
+                // explain 契约（api-contract §explain）：scopeMode=INSTANCE 按 resourceCode+codeType
+                // 精确匹配——不回退 scopeAll 类型级放行（codex 外评 P2 修复，对齐旧 queryScopeAll=false）
+                q.setExactInstanceOnly(true);
             }
             q.setEvaluateConditions(true);
             q.setEvaluateConflicts(true);

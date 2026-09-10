@@ -86,6 +86,15 @@ public class PermQuery {
      */
     private Set<Long> operationPermissionIds;
 
+    // ── INSTANCE 精确模式（explain scopeMode=INSTANCE 契约：只认直接实例授权，不回退 scopeAll 类型级） ──
+
+    /**
+     * INSTANCE 精确模式：跳过 scopeAll 类型级查询与放行（codex 外评 P2 修复——旧
+     * queryScopeAll=false 语义）。仅 INSTANCE 模式生效；explain ROLE 目标
+     * scopeMode=INSTANCE 消费（api-contract：按 resourceCode+codeType 精确匹配）。
+     */
+    private boolean exactInstanceOnly;
+
     // ── 判定面继承（查询前目标闭包，仅 INSTANCE 模式生效；Q12 默认值矩阵） ──
 
     /**
@@ -412,6 +421,7 @@ public class PermQuery {
     public Set<String> operationCodes() { return operationCodes; }
     public Set<Long> operationPermissionIds() { return operationPermissionIds; }
     public boolean inheritClosure() { return inheritClosure; }
+    public boolean exactInstanceOnly() { return exactInstanceOnly; }
     public boolean inheritParents() { return inheritParents; }
     public boolean inheritChildren() { return inheritChildren; }
     public String parentResourceTypeCode() { return parentResourceTypeCode; }

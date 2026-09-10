@@ -72,6 +72,8 @@ last_updated: 2026-09-09
 
 **grok-4.6 xhigh 外评处置（2026-09-10，commit 8f5905ccb 后）**：P1 query-scopes EMPTY 误判 DENIED（操作定义装载源用评估后条目 + deny 路径不装 ancillary + AppService 评估清空一律整表拒绝；修复=装载源 rawEntries 超集/deny 仍装载/整表收窄至父判定失败与无角色，配两条真锁）+ P3 explain 双时钟（evaluatedAt 入口钉住直传）；子孙扩展 verify 锁补齐。存量观察三条不处置（登记 registry）。
 
+**codex luna max 外评处置（2026-09-10）**：P2×3 核实属实已修复（deny reason 区分 CONDITION_NOT_MET_OR_CONFLICT/explain INSTANCE 精确模式开关 exactInstanceOnly/PermEvalContext null 值防御过滤，三条真锁）；P1 X-Forwarded-For 可伪造为跨组件安全取舍待用户拍板（登记 registry）。专项核查确认前两轮修复正确、缓存链路无损、LIST 消费方无同类事实源混用。
+
 **收编形态口径注记（双轨评审 P2 处置）**：验收条款「位覆盖/条件/互斥/depend_on 过滤进引擎」的落地形态=条件/互斥/dependOn 在引擎 LIST 管线；位覆盖语义由组装层复用引擎同一 covers 判定做 (type×op) 线格分桶——分桶即线格式组装的一部分（「AppService 只留四态线格式组装」的题中之义），非引擎外自评管线。
 
 **§5.2 缓存失效触发点核对结论**：ROLE_PERM_SNAPSHOT / OPERATION_PERMISSIONS_BY_TYPE / EFFECTIVE_ROLES / 网关快照键与失效均未变（闭包下推只增只读 CTE，无新失效面）；ORG_VISIBILITY 租户级 evictAll 已覆盖继承后语义（implementation §3.9 注记）。

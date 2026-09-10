@@ -28,7 +28,22 @@ public record PermEvalContext(String clientIp, LocalDateTime evaluatedAt, Map<St
     public static final String KEY_EVALUATED_AT = ConditionEvalUtils.CONTEXT_KEY_EVALUATED_AT;
 
     public PermEvalContext {
-        attributes = attributes == null ? Map.of() : Map.copyOf(attributes);
+        // 防御性复制过滤 null 键值（Map.copyOf 禁 null——SDK context Map 经 JSON 反序列化可含
+        // null 值，直接复制会在权限判定前抛 NPE 变 500；codex 外评 P2 修复）
+        attributes = filterValid(attributes);
+    }
+
+    private static Map<String, Object> filterValid(Map<String, Object> source) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : source.entrySet()) {
+            if (entry.getKey() != null && entry.getValue() != null) {
+                copy.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return Map.copyOf(copy);
     }
 
     /**

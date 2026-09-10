@@ -800,6 +800,89 @@ class PermQueryEngineTest {
             .containsKey(601L);
     }
 
+    /**
+     * codex 外评 P2-1 锁：TYPE_LEVEL 有授权但条件评估清空 → reason=CONDITION_NOT_MET_OR_CONFLICT
+     * （非 NO_PERMISSION——基线语义，拒绝原因进 /auth/check·explain 响应，勿把「条件不满足」
+     * 误报为「无权限」）。
+     */
+    @Test
+    void typeLevelDenyReasonMustDistinguishConditionFromNoPermission() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 101L));
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(101L))).thenReturn(List.of(viewOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1"))))
+            .thenReturn(Map.of("op_perm:1", Map.of(101L, viewOp)));
+
+        RoleResourcePermission conditional = new RoleResourcePermission();
+        conditional.setId(501L);
+        conditional.setAbstractRoleId(20L);
+        conditional.setResourceEntityId(null);
+        conditional.setResourceType(1);
+        conditional.setGrantedBits(1L);
+        conditional.setScopeAll(true);
+        conditional.setConditionId(301L);
+        conditional.setDeleteFlag(0L);
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of(conditional));
+        // 条件评估清空全部条目
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenReturn(List.of());
+
+        PermResult result = engine.query(PermQuery.forAuthCheck(1L, 10L, "MENU", null, "VIEW"));
+
+        assertFalse(result.allowed());
+        assertEquals("CONDITION_NOT_MET_OR_CONFLICT", result.reason(),
+            "有授权但评估清空 = 条件/冲突拒绝（旧重写误报 NO_PERMISSION）");
+    }
+
+    /**
+     * codex 外评 P2-2 锁：exactInstanceOnly 模式跳过 scopeAll 类型级查询与放行——
+     * 角色仅有 scopeAll 授权时 explain scopeMode=INSTANCE 判定 denied（契约：精确匹配）。
+     */
+    @Test
+    void exactInstanceOnlyMustNotFallBackToScopeAll() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 101L));
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(101L))).thenReturn(List.of(viewOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1"))))
+            .thenReturn(Map.of("op_perm:1", Map.of(101L, viewOp)));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any()))
+            .thenReturn(Map.of(new ResourceResolveKey("MENU", "sys:user", null, null), 200L));
+        when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), any()))
+            .thenReturn(List.of());
+
+        PermQuery q = PermQuery.forAuthCheck(1L, 10L, "MENU", "sys:user", "VIEW");
+        q.setExactInstanceOnly(true);
+        PermResult result = engine.query(q);
+
+        assertFalse(result.allowed(), "scopeAll-only 角色 + 精确实例模式 → denied（旧重写经类型级放行）");
+        verify(rolePermMapper, never()).selectScopeAllPermsByBitsBatch(any(), any(), any());
+    }
+
+    /**
+     * codex 外评 P2-3 锁：SDK context Map 含 null 值不得 NPE（JSON 反序列化可产 null value，
+     * Map.copyOf 禁 null 会在权限判定前抛 NPE 变 500）——null 项静默过滤。
+     */
+    @Test
+    void evalContextMustTolerateNullValuesInCallerMap() {
+        java.util.Map<String, Object> caller = new java.util.HashMap<>();
+        caller.put("clientIp", "1.2.3.4");
+        caller.put("extra", null);
+
+        PermEvalContext ctx = PermEvalContext.fromCallerMap(caller);
+
+        assertEquals("1.2.3.4", ctx.clientIp());
+        org.junit.jupiter.api.Assertions.assertTrue(ctx.toEvalMap().containsKey("clientIp"));
+        org.junit.jupiter.api.Assertions.assertFalse(ctx.toEvalMap().containsKey("extra"), "null 值项被过滤");
+    }
+
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {
         OperationPermission operationPermission = new OperationPermission();
         operationPermission.setId(id);
