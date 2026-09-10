@@ -149,6 +149,9 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
 
         // 展开条目已由引擎展示面轨道并入 allEntries（grantSource=INHERITED）
         List<RolePermEntry> allEntries = r.allEntries();
+        // T-PERM-058：子权限行不进清单面——其授权只在 query-scopes 主资源上下文内生效/可见，
+        // 独立 INSTANCE 条目呈现会误导调用方（子行实例 ≠ 独立可访问）
+        allEntries = allEntries.stream().filter(e -> e.dependOn() == null).toList();
 
         // Collect all resource types for batch resolution
         Set<Integer> resourceTypesNeeded = new HashSet<>();

@@ -165,6 +165,20 @@ class PermissionFeignClientContractTest {
                 "matchedRoleIds", "matchedPermissionIds");
     }
 
+    @Test
+    @DisplayName("SDK check 族请求入参快照：T-PERM-058 主资源上下文四字段后终态")
+    void checkRequestDtoFieldsAreFrozen() {
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq.class))
+            .containsExactly("subjectTypeCode", "subjectExternalId", "resourceTypeCode",
+                "resourceCode", "operationCode", "domainCode", "codeType", "inheritMode",
+                "parentResourceTypeCode", "parentResourceCode", "parentCodeType", "parentOperationCodes",
+                "context");
+        assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.class))
+            .containsExactly("subjectTypeCode", "subjectExternalId", "items",
+                "parentResourceTypeCode", "parentResourceCode", "parentCodeType", "parentOperationCodes",
+                "context");
+    }
+
     private static List<String> recordComponents(Class<?> record) {
         return Arrays.stream(record.getRecordComponents())
             .map(RecordComponent::getName)

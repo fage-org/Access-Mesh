@@ -304,5 +304,49 @@ class PermissionQueryAppServiceImplTest {
             assertEquals(ScopeMode.ALL, resp.items().get(0).scopeMode());
             assertEquals("REPORT", resp.items().get(0).resourceTypeCode());
         }
+
+        @Test
+        void shouldExcludeDependentEntriesFromQueryResourcesItems() {
+            // T-PERM-058：子权限行不进清单面——独立 INSTANCE 条目呈现会误导调用方
+            // （子行实例 ≠ 独立可访问，其授权只在 query-scopes 主资源上下文内生效）
+            lenient().when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
+            lenient().when(typeResolutionService.batchResolveTypeCodes(1L, "resource_type", Set.of(1)))
+                .thenReturn(Map.of(1, "REPORT"));
+
+            // 主行实例 200（dependOn=null）+ 子行实例 300（dependOn=501）
+            RolePermEntry mainEntry = new RolePermEntry(
+                401L, 20L, 200L, "report:1", 1, 1L, "VIEW", 1L,
+                "MANUAL", false, null, false, null, false);
+            RolePermEntry dependentEntry = new RolePermEntry(
+                402L, 20L, 300L, "city:gd", 1, 1L, "VIEW", 1L,
+                "MANUAL", false, null, false, 501L, false);
+
+            OperationPermission viewOp = new OperationPermission();
+            viewOp.setId(101L); viewOp.setResourceType(1);
+            viewOp.setCode("VIEW"); viewOp.setBinaryBit(1L);
+
+            ResourceEntity mainRes = new ResourceEntity();
+            mainRes.setId(200L); mainRes.setResourceType(1);
+            mainRes.setCode("report:1"); mainRes.setCodeType("default");
+            ResourceEntity childRes = new ResourceEntity();
+            childRes.setId(300L); childRes.setResourceType(1);
+            childRes.setCode("city:gd"); childRes.setCodeType("default");
+
+            PermResult r = PermResult.builder(true, null)
+                .instanceEntries(List.of(mainEntry, dependentEntry))
+                .resourceMap(Map.of(200L, mainRes, 300L, childRes))
+                .operationMap(Map.of(101L, viewOp)).build();
+
+            lenient().when(engine.query(any(PermQuery.class))).thenReturn(r);
+
+            var req = new QueryResourcesReq(
+                "USER", "u-1", List.of("REPORT"), List.of("VIEW"),
+                null, null, null, null, null);
+            var resp = service.queryResources(1L, req);
+
+            // 旧实现：两条 INSTANCE 条目（子行误报独立可访问）
+            assertEquals(1, resp.items().size(), "子权限行不得进清单面（旧实现独立 INSTANCE 条目误报）");
+            assertEquals("report:1", resp.items().get(0).resourceCode());
+        }
     }
 }

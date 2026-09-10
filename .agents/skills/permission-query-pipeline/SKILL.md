@@ -7,7 +7,7 @@ description: >-
 origin: project
 metadata:
   project: AccessMesh
-  version: "5.0.0"
+  version: "5.1.0"
 ---
 
 # 统一权限查询引擎规范
@@ -118,7 +118,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> results =
 
 | 工厂方法 | targetMode | 评估条件 | 条目互斥 | 判定面继承 | 附属信息 |
 |---------|-----------|---------|---------|-----------|---------|
-| forAuthCheck | code=null→TYPE_LEVEL / 有 code→INSTANCE | ✅ | ✅ | 关 + `setInheritMode("PARENT"/"BOTH")` 显式开 | 无 |
+| forAuthCheck | code=null→TYPE_LEVEL / 有 code→INSTANCE | ✅ | ✅ | 关 + `setInheritMode("PARENT"/"BOTH")` 显式开 | 无；depend_on 子行按 parentResource 上下文过滤（T-PERM-058：不传=fail-closed 排除，拒绝原因 DEPENDENT_NOT_IN_PARENT_CONTEXT） |
 | forInterfaceCheck | INSTANCE | ✅ | ✅ | 关（API 扁平） | 全部 |
 | forValidate | code=null→TYPE_LEVEL / 有 code→INSTANCE | ✅（拉平，入口自动装配 clientIp） | ✅ | **开**（管理面写门禁矩阵） | 无 |
 | forValidateByEntityId | id=null→TYPE_LEVEL / 有 id→INSTANCE | ✅（同上） | ✅ | **开** | 无（entityId 轨，仅引擎内部/已完成解析的调用方） |
@@ -135,12 +135,13 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> results =
 query(PermQuery)
   ├─ 0. resolveRoleIds (EFFECTIVE_ROLES 缓存；四便捷入口自动装配 PermEvalContext)
   ├─ TYPE_LEVEL：resolveContext → resolveBitMasks(位覆盖常开) → queryScopeAll (1 SQL)
-  │     → evaluateIfNeeded → allowed（零实例查询）
-  ├─ INSTANCE：queryScopeAll (1 SQL，评估通过提前返回)
+  │     → depend_on 行读侧排除（T-PERM-058：只认主授权）→ evaluateIfNeeded → allowed（零实例查询）
+  ├─ INSTANCE：queryScopeAll (1 SQL) → filterDependentEntries (depend_on 上下文
+  │       过滤，惰性父判定) → 评估通过提前返回
   │     → resolveEntityIds → [inheritClosure] selectSelfAndAncestorClosureBatch
   │       (判定面闭包 CTE：{目标}∪同类型祖先链，止步同类型/软删截断/防环)
-  │     → queryInstance (1 SQL，目标下推含闭包集) → evaluateIfNeeded
-  │     → [展示面展开] expandByPresentMode (查询后克隆) → loadAncillary
+  │     → queryInstance (1 SQL，目标下推含闭包集) → filterDependentEntries (两阶段共享一次父判定)
+  │     → evaluateIfNeeded → [展示面展开] expandByPresentMode (查询后克隆) → loadAncillary
   └─ LIST：loadRolePermEntriesWithCache (ROLE_PERM_SNAPSHOT 读缓存全量)
         → [parentResource] 主资源 INSTANCE 判定 + depend_on 过滤
         → 记录 rawEntries → evaluateIfNeeded → [展示面展开] → loadAncillaryForView

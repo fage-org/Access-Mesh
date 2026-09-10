@@ -155,6 +155,10 @@ public class PermQueryEngine {
         Map<Integer, Long> bitMasks = resolveBitMasks(q.tenantId(), resourceTypes, opIds);
 
         List<RolePermEntry> scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, bitMasks);
+        // T-PERM-058：类型级门禁只认主授权——scopeAll 子权限行（depend_on 非空，写侧可造）
+        // 不放行类型级门禁（无主资源上下文概念的面不消费上下文授权；子行 ALL 的唯一生效面
+        // 为 LIST 父上下文内的 depend_on 过滤）。读侧排除，DB 直写脏数据同受防护。
+        scopeAllEntries = scopeAllEntries.stream().filter(e -> e.dependOn() == null).toList();
         boolean scopeAllMatchedBeforeEval = !scopeAllEntries.isEmpty();
         scopeAllEntries = evaluateIfNeeded(q, scopeAllEntries);
         if (scopeAllEntries.isEmpty()) {
@@ -181,9 +185,17 @@ public class PermQueryEngine {
 
         // -- scopeAll 类型级优先：命中（评估通过）即放行，无需实例查询（精确实例模式跳过，
         //    explain scopeMode=INSTANCE 契约：按 resourceCode+codeType 精确匹配，不回退类型级）--
+        // T-PERM-058：depend_on 子权限行按主资源上下文过滤（惰性父判定，两阶段共享一次）
+        LazyParentCheck parentCheck = new LazyParentCheck(q, roleIds);
+        boolean dependentOnlyExcluded = false;
         boolean scopeAllEvaluatedEmpty = false;
         if (!q.exactInstanceOnly()) {
             List<RolePermEntry> scopeAllEntries = queryScopeAll(q.tenantId(), roleIds, bitMasks);
+            List<RolePermEntry> contextFilteredScopeAll = filterDependentEntries(q, scopeAllEntries, parentCheck);
+            if (contextFilteredScopeAll.isEmpty() && !scopeAllEntries.isEmpty()) {
+                dependentOnlyExcluded = true;
+            }
+            scopeAllEntries = contextFilteredScopeAll;
             if (!scopeAllEntries.isEmpty()) {
                 scopeAllEntries = evaluateIfNeeded(q, scopeAllEntries);
                 if (!scopeAllEntries.isEmpty()) {
@@ -202,21 +214,39 @@ public class PermQueryEngine {
         Set<Long> targetEntityIds = resolveEntityIds(q);
         if (targetEntityIds.isEmpty()) {
             // 拒绝原因区分同下（codex 四轮 P2）：scopeAll 曾命中而被评估清空 + 目标不可解析
-            // → 仍属「有授权但条件/冲突不满足」，勿报 NO_PERMISSION
-            return PermResult.deny(scopeAllEvaluatedEmpty ? "CONDITION_NOT_MET_OR_CONFLICT" : "NO_PERMISSION");
+            // → 仍属「有授权但条件/冲突不满足」，勿报 NO_PERMISSION；scopeAll 子行被上下文排除同理
+            if (scopeAllEvaluatedEmpty) {
+                return PermResult.deny("CONDITION_NOT_MET_OR_CONFLICT");
+            }
+            if (dependentOnlyExcluded) {
+                return PermResult.deny("DEPENDENT_NOT_IN_PARENT_CONTEXT");
+            }
+            return PermResult.deny("NO_PERMISSION");
         }
         Set<Long> queryEntityIds = targetEntityIds;
         if (q.inheritClosure()) {
             queryEntityIds = expandTargetsByClosure(q.tenantId(), targetEntityIds);
         }
 
-        List<RolePermEntry> instanceEntries = queryInstance(q.tenantId(), roleIds, queryEntityIds, bitMasks);
+        List<RolePermEntry> rawInstanceEntries = queryInstance(q.tenantId(), roleIds, queryEntityIds, bitMasks);
+        List<RolePermEntry> instanceEntries = filterDependentEntries(q, rawInstanceEntries, parentCheck);
+        if (instanceEntries.isEmpty() && !rawInstanceEntries.isEmpty()) {
+            dependentOnlyExcluded = true;
+        }
         boolean instanceMatchedBeforeEval = !instanceEntries.isEmpty();
         instanceEntries = evaluateIfNeeded(q, instanceEntries);
         if (instanceEntries.isEmpty()) {
-            // 拒绝原因区分（codex 外评 P2）：任一授权集合评估前命中而评估后清空 → 条件/冲突拒绝
+            // 条件/冲突拒绝优先：过滤后仍有授权但被评估清空（codex 外评 P2 口径）
             boolean anyMatchedBeforeEval = instanceMatchedBeforeEval || scopeAllEvaluatedEmpty;
-            return PermResult.deny(anyMatchedBeforeEval ? "CONDITION_NOT_MET_OR_CONFLICT" : "NO_PERMISSION");
+            if (anyMatchedBeforeEval) {
+                return PermResult.deny("CONDITION_NOT_MET_OR_CONFLICT");
+            }
+            // 子权限行被主资源上下文排除（无上下文 fail-closed / 父未命中 / dependOn 不在父命中集）
+            // 与「无任何授权」区分，便于排查（用户配了子权限但查询面无父上下文或父未命中）
+            if (dependentOnlyExcluded) {
+                return PermResult.deny("DEPENDENT_NOT_IN_PARENT_CONTEXT");
+            }
+            return PermResult.deny("NO_PERMISSION");
         }
 
         // -- 展示面展开（查询后克隆，不改变判定）--
@@ -307,6 +337,71 @@ public class PermQueryEngine {
 
     /** 主资源判定结果（LIST 模式 depend_on 过滤的父上下文）。 */
     private record ParentCheckOutcome(Set<String> matchedOperationCodes, Set<Long> matchedPermissionIds) {}
+
+    /**
+     * depend_on 父判定惰性缓存（单次 INSTANCE 查询内 scopeAll 前置与实例查询两阶段
+     * 共享一次父 INSTANCE 判定；主行命中的常规路径零额外查询）。
+     */
+    private final class LazyParentCheck {
+        private final PermQuery q;
+        private final Set<Long> roleIds;
+        private Set<Long> matchedPermissionIds;
+        private boolean resolved;
+
+        LazyParentCheck(PermQuery q, Set<Long> roleIds) {
+            this.q = q;
+            this.roleIds = roleIds;
+        }
+
+        Set<Long> matchedPermissionIds() {
+            if (!resolved) {
+                ParentCheckOutcome parent = checkParentResource(q, roleIds);
+                matchedPermissionIds = parent.matchedPermissionIds() == null
+                    ? Set.of() : parent.matchedPermissionIds();
+                resolved = true;
+            }
+            return matchedPermissionIds;
+        }
+    }
+
+    /**
+     * depend_on 子权限行的主资源上下文过滤（T-PERM-058 单点面闭合）。
+     * <p>
+     * 子权限行（depend_on 非空）的授权语义是「只在父权限命中的主资源上下文内生效」
+     * （api-contract §6.7 DEPENDENT 公式；此前仅 LIST 带 parentResource 路径实现，
+     * 单点 INSTANCE 路径直接命中子行=绕过父绑定）。本过滤将同一语义接入 INSTANCE 路径：
+     * <ul>
+     *   <li>结果不含子行时原样返回（零开销，主行命中的常规路径不受影响）；</li>
+     *   <li>无主资源上下文（parentResourceTypeCode/Code 未给）→ 子权限行一律不计入
+     *       （fail-closed，与 TYPE_LEVEL 不消费实例授权的三态原则同构）；</li>
+     *   <li>给出上下文 → 惰性执行父 INSTANCE 判定（含条件/互斥评估），子行要求其
+     *       dependOn ∈ 父命中权限 id 集（与 LIST 路径 depend_on 过滤同构；
+     *       父判定经 forAuthCheck 递归本引擎，自身无父上下文=只认父的主授权，单层语义）。</li>
+     * </ul>
+     * </p>
+     */
+    private List<RolePermEntry> filterDependentEntries(PermQuery q, List<RolePermEntry> entries,
+                                                       LazyParentCheck parentCheck) {
+        List<RolePermEntry> dependent = entries.stream()
+            .filter(e -> e.dependOn() != null).toList();
+        if (dependent.isEmpty()) {
+            return entries;
+        }
+        List<RolePermEntry> main = entries.stream()
+            .filter(e -> e.dependOn() == null).toList();
+        if (q.parentResourceTypeCode() == null || q.parentResourceCode() == null) {
+            return main;
+        }
+        Set<Long> allowedParents = parentCheck.matchedPermissionIds();
+        if (allowedParents.isEmpty()) {
+            return main;
+        }
+        List<RolePermEntry> merged = new ArrayList<>(main);
+        dependent.stream()
+            .filter(e -> allowedParents.contains(e.dependOn()))
+            .forEach(merged::add);
+        return merged;
+    }
 
     /**
      * 对主资源做 INSTANCE 判定（一次查询覆盖 parentOperationCodes 全集，内存逐操作 covers 判定）。
@@ -588,6 +683,8 @@ public class PermQueryEngine {
     private boolean passesScopeAll(Long tenantId, Set<Long> roleIds, Map<Integer, Long> bitMasks,
                                     Map<String, Object> evalMap) {
         List<RolePermEntry> scopeAllEntries = queryScopeAll(tenantId, roleIds, bitMasks);
+        // T-PERM-058：批量便捷入口无主资源上下文——子权限行不计入（fail-closed，与单点面同口径）
+        scopeAllEntries = scopeAllEntries.stream().filter(e -> e.dependOn() == null).toList();
         if (scopeAllEntries.isEmpty()) {
             return false;
         }
@@ -629,6 +726,8 @@ public class PermQueryEngine {
         }
 
         List<RolePermEntry> instanceEntries = queryInstance(tenantId, roleIds, queryEntityIds, bitMasks);
+        // T-PERM-058：同 passesScopeAll——子权限行仅在主资源上下文内生效，批量便捷入口不计入
+        instanceEntries = instanceEntries.stream().filter(e -> e.dependOn() == null).toList();
 
         if (!instanceEntries.isEmpty()) {
             instanceEntries = conditionDomainService.evaluate(tenantId, instanceEntries, evalMap);

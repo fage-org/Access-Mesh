@@ -190,6 +190,46 @@ class TargetModeClosurePgIT {
             .as("inheritMode=PARENT：目标闭包接通，授父覆盖子判定").isTrue();
     }
 
+    @Test
+    @DisplayName("T-PERM-058 depend_on 单点闭合：无父上下文拒 / 父上下文命中放行 / scopeAll 子行不放行类型级")
+    void dependentPermSinglePointContextSemantics() {
+        Integer parentType = ensureResourceType("TMCL_F1");
+        Integer childType = ensureResourceType("TMCL_F2");
+        ensureOperation(parentType, "VIEW", 1L, 0L);
+        ensureOperation(childType, "VIEW", 1L, 0L);
+        long subjectId = nextSubjectId++;
+        long roleId = insertRoleAndBind(subjectId, "tmcl-f");
+        long parentRes = insertResource(parentType, "tmcl-f-parent", null);
+        long childRes = insertResource(childType, "tmcl-f-child", null);
+
+        // 主权限行（父类型实例）+ 子权限行（子类型实例，depend_on 指向主权限行）
+        insertPerm(roleId, parentType, parentRes, 1L, false);
+        Long parentPermId = jdbc.queryForObject(
+            "SELECT id FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
+                + "AND resource_entity_id = ? AND delete_flag = 0",
+            Long.class, TENANT, roleId, parentRes);
+        insertPermWithDependOn(roleId, childType, childRes, 1L, false, parentPermId);
+
+        // 1. 单点无父上下文：子行不参与判定（fail-closed，拒绝原因区分）
+        PermResult bare = permQueryEngine.query(
+            PermQuery.forAuthCheck(TENANT, subjectId, "TMCL_F2", "tmcl-f-child", "VIEW"));
+        assertThat(bare.allowed()).as("无主资源上下文时子权限行不得放行").isFalse();
+        assertThat(bare.reason()).isEqualTo("DEPENDENT_NOT_IN_PARENT_CONTEXT");
+
+        // 2. 给出父上下文且父判定命中：子行计入放行
+        PermQuery withParent = PermQuery.forAuthCheck(TENANT, subjectId, "TMCL_F2", "tmcl-f-child", "VIEW");
+        withParent.setParentResource("TMCL_F1", "tmcl-f-parent", "default", java.util.Set.of("VIEW"));
+        assertThat(permQueryEngine.query(withParent).allowed())
+            .as("父判定命中且 dependOn ∈ 父命中集 → 子行计入放行").isTrue();
+
+        // 3. scopeAll 子行（depend_on 非空 + scope_all=true，写侧可造形态）不放行类型级门禁
+        jdbc.update("UPDATE role_resource_permission SET scope_all = true, resource_entity_id = NULL "
+            + "WHERE tenant_id = ? AND abstract_role_id = ? AND depend_on IS NOT NULL AND delete_flag = 0",
+            TENANT, roleId);
+        assertThat(permQueryEngine.hasPermissionByCode(TENANT, subjectId, "TMCL_F2", null, "VIEW"))
+            .as("scopeAll 子权限行不得放行类型级门禁（读侧排除）").isFalse();
+    }
+
     // ===== 种子方法（GoldenFixturePgIT 同款口径） =====
 
     private long insertRoleAndBind(long subjectId, String caseName) {
@@ -256,5 +296,15 @@ class TargetModeClosurePgIT {
                 + "(tenant_id, abstract_role_id, resource_entity_id, resource_type, granted_bits, scope_all, "
                 + "can_grant, grant_source, delete_flag) VALUES (?, ?, ?, ?, ?, ?, false, 'MANUAL', 0)",
             TENANT, roleId, resourceEntityId, typeValue, grantedBits, scopeAll);
+    }
+
+    /** 子权限行（depend_on 指向父权限行；DDL CHECK：子行 can_grant 必须 false） */
+    private void insertPermWithDependOn(long roleId, Integer typeValue, Long resourceEntityId,
+                                        long grantedBits, boolean scopeAll, Long dependOn) {
+        jdbc.update(
+            "INSERT INTO role_resource_permission "
+                + "(tenant_id, abstract_role_id, resource_entity_id, resource_type, granted_bits, scope_all, "
+                + "can_grant, grant_source, depend_on, delete_flag) VALUES (?, ?, ?, ?, ?, ?, false, 'MANUAL', ?, 0)",
+            TENANT, roleId, resourceEntityId, typeValue, grantedBits, scopeAll, dependOn);
     }
 }

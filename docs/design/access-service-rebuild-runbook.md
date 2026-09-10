@@ -113,6 +113,8 @@
 | 部署 Gateway 前置于 nginx/LB/CDN 后（T-GW-008，2026-09-10 部署前提）：按真实客户端 IP 配置的 IP 白名单/黑名单不生效（所有请求的条件评估 clientIp 同为代理出口 IP），操作/登录日志记录的 IP 也为代理 IP | XFF 信任面收口：Gateway 清洗外部 `X-Forwarded-For` / `X-Real-IP`（可伪造声明）并以自身观测的 remoteAddr 重建 XFF 写回下游，单一可信来源=Gateway 直连对端——升级前外部 XFF 首段被采信的「正常工作」本身就是伪造面，勿作为回滚理由 | 按粒度需求二选一：① IP 条件改配代理出口网段（白名单语义=「允许经该代理进来的流量」）；② 把按真实客户端 IP 的过滤上移到最外层可信设施（nginx/WAF 层做）。需要 Gateway 层精确采信真实客户端 IP 须重启已弃的 trusted-proxies 设计（另立项）；规范见 `.claude/rules/security-standards.md` §7 |
 | Gateway 启动报 `server.forward-headers-strategy=... 被 XFF 信任面收口（T-GW-008）禁止`（ForwardHeadersStrategyGuard 拒启，codex 外评 P1 处置 2026-09-10） | `framework` 策略会启用 Spring ForwardedHeaderTransformer，在全部过滤器之前把外部 X-Forwarded-For 解析进 remoteAddress——清洗来不及参与，伪造 IP 进入条件评估/日志/快照重评（socket 对端=唯一可信 IP 来源的定案前提被打破） | 勿改护栏；按需求选：① 保持缺省/none（IP 条件语义=直连对端）；② 多层代理拓扑按 security-standards §7 部署前提处置（白名单配代理段或过滤上移最外层可信设施）；确需框架级转发头处理须重启 trusted-proxies 方向另立项 |
 
+| 升级到 T-PERM-058（2026-09-10）后：①/auth/check·batch-check 单点查 depend_on 子权限实例从放行变拒绝（reason=`DEPENDENT_NOT_IN_PARENT_CONTEXT`，类型级门禁面为 `NO_PERMISSION`）；②类型级门禁（code=null）被 scopeAll 子权限行放行的库从放行变拒绝；③query-resources 清单与 Gateway 接口快照不再呈现/下发子权限行（API 类型子行从进快照变排除）；④check 族父上下文半传（type/code 不成对）或给出父上下文但操作集缺省/空集/超 1000 从静默忽略变 400 | depend_on 子权限行授权语义「只在父权限命中的主资源上下文内生效」接入全部查询面（此前仅 query-scopes 实现，单点/类型级/快照/清单四面绕过）；需单点查子行放行的调用方必须显式传 parentResourceTypeCode/Code/OperationCodes（父判定通过才计入） | 预期行为变化，勿回滚；存量零影响（bootstrap 无 SUB_PERM 种子、租户未配置前无法创建子权限行）；需查子行的 SDK 调用方按 api-contract §6.1 主资源上下文入参改造 |
+
 ## 4. 相关权威文档
 
 - `docs/design/access-service-architecture.md` §12（主体身份模型）、§4（管理事实与权限投影）、§14（空库 bootstrap 首管理员权限模型）

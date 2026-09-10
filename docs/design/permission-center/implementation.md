@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -333,6 +333,8 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 3. 否则，一次批量 `code → resource_entity.id` 解析 + 一次闭包 CTE + 一次批量查询实例级权限（`selectInstancePermsByBitsBatch`，含条件+条目互斥评估）
 4. 内存按闭包回映射计算拒绝 code 集合
 
+> **T-PERM-058 depend_on 口径**：批量便捷入口（步骤 2/3 的两处查询结果）与单点面同口径排除 depend_on 非空行——便捷入口无主资源上下文概念，fail-closed；步骤 2 的排除同时覆盖 hasPermissionByCode/ByEntityId 的 TYPE_LEVEL 分支（scopeAll 子行不放行类型级门禁）。forUserView 的 LIST 全量（query-resources/快照/视图/登录串）**不在引擎层排除**——组装面各自处置：query-resources 组装与 SnapshotAssembler 排除子行（无父上下文的消费面不呈现），permission-view 系与登录权限串维持现状（T-PERM-059 删除重设计范围 / 非目标不动）；canGrant 委托链零行为差（子行 canGrant 恒 false，DDL CHECK 保证其在转授资格判定中本就不贡献资格）。
+
 **复杂查询 API**（`PermQuery` 工厂方法 + `engine.query(PermQuery)`；T-PERM-057 后工厂预设）：
 
 | 工厂方法                      | targetMode（目标三态）                | 评估口径                                           | 判定面继承 |
@@ -361,8 +363,8 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 
 **目标模式三态判别**（「无实例目标」不是二义输入，三态互不串义，回归锁 `TargetModeClosurePgIT` + `PermQueryEngineTest` 三态锁各钉一例）：
 
-- **TYPE_LEVEL**（类型级门禁）：无实例目标、只消费 scopeAll，**不做实例查询**（实例级授权不得放行类型级门禁=越权）。
-- **INSTANCE**（实例判定）：带编码/实体 id 目标；scopeAll 类型级命中（评估通过）优先放行；实例查询按目标下推（判定面继承开启时目标集扩为 {目标}∪同类型祖先链）。
+- **TYPE_LEVEL**（类型级门禁）：无实例目标、只消费 scopeAll，**不做实例查询**（实例级授权不得放行类型级门禁=越权）；**只认主授权**——scopeAll 子权限行（depend_on 非空 + scope_all=true，写侧可造形态）不参与（T-PERM-058 读侧排除，DB 直写脏数据同受防护；该形态生效面为 LIST 父上下文与带主资源上下文的 INSTANCE）。
+- **INSTANCE**（实例判定）：带编码/实体 id 目标；scopeAll 类型级命中（评估通过）优先放行；实例查询按目标下推（判定面继承开启时目标集扩为 {目标}∪同类型祖先链）；**depend_on 子权限行按主资源上下文过滤（T-PERM-058）**——无 `parentResource` 上下文一律不计入（fail-closed），给出上下文时惰性父判定（仅当命中集确含子行才触发查询，主行命中的常规路径零额外成本），子行要求 dependOn ∈ 父命中权限 id 集（父判定经 forAuthCheck 递归本引擎、自身无父上下文=只认父的主授权，单层语义）；因「子行被排除致空」的拒绝原因 `DEPENDENT_NOT_IN_PARENT_CONTEXT` 与「无任何授权」区分。
 - **LIST**（全量清单）：无目标、按角色全量拉取（`selectValidByRoleIds` + ROLE_PERM_SNAPSHOT 读缓存）；主资源上下文给出时执行 depend_on 子权限过滤。
 
 **统一管线**（角色互斥不归引擎——2026-09-09 定案）：
@@ -377,12 +379,13 @@ PermQueryEngine.query(PermQuery q)
     │     → evaluateIfNeeded（条件三态+条目互斥开关）→ allowed
     │
     ├─ INSTANCE → queryInstanceMode：
-    │     ├─ queryScopeAll(1 SQL) → 评估通过 → 提前返回 allowed（scopeAll 覆盖任意实例）
+    │     ├─ queryScopeAll(1 SQL) → filterDependentEntries（depend_on 上下文过滤，惰性父判定）
+    │     │     → 评估通过 → 提前返回 allowed（scopeAll 覆盖任意实例）
     │     │     └─ 命中但评估清空 → 回退实例查询（授权行各自评估：类型级挂条件拒绝 +
     │     │        无条件实例授权并存时由 deny 变 allow——Q13 拉平的授权行独立评估语义）
     │     ├─ resolveEntityIds（code→id 批量解析）
     │     ├─ inheritClosure=true → selectSelfAndAncestorClosureBatch（闭包 CTE，查询前扩大目标集）
-    │     ├─ queryInstance(1 SQL，目标下推含闭包集)
+    │     ├─ queryInstance(1 SQL，目标下推含闭包集) → filterDependentEntries（同上，两阶段共享一次父判定）
     │     ├─ evaluateIfNeeded → 展示面展开（expandByPresentMode，查询后克隆）
     │     └─ loadAncillary → allowed（任一条目命中）
     │
@@ -462,7 +465,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 - **缓存键不变**（§5.2 核对）：ROLE_PERM_SNAPSHOT / OPERATION_PERMISSIONS_BY_TYPE / EFFECTIVE_ROLES / 网关 gw:interface-snapshot 均不因闭包下推改变键与失效；ORG_VISIBILITY 已由 PermissionChangeAspect 租户级 evictAll 覆盖（继承后可见闭包语义确变但失效机制已闭合）。
 - **OAuth2 委托链路显式排除**（2026-08-22 用户决策维持）：OAuth2 资源服务器链路（access.oauth2.resource-paths 显式开放路径 + delegatedClientId 独立映射，T-ACCESS-013）不接入统一引擎——重构不得误接入。
 - **回归面**：四个门禁入口族（admin 域门面 / permission 域 code 轨 / 资源树 entityId 轨 / SDK auth-check 族）语义回归 + targetMode 三态互不串义锁 + 判定面闭包锁（`TargetModeClosurePgIT`：TYPE_LEVEL 串义拒绝 / 单点闭包 / 批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）+ golden fixtures（`GoldenFixturePgIT` 单点判定收敛，nodeClosure 语义=引擎原生闭包）。
-- **遗留**：check 族三端点结果记录全量回传 → T-API-003；depend_on 单点面闭合语义 → T-PERM-058；权限视图/排查删除重设计 → T-PERM-059；角色互斥授权时校验 → 另行立项；「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）→ 改进项登记 decision-registry。
+- **遗留**：check 族三端点结果记录全量回传 → T-API-003；权限视图/排查删除重设计 → T-PERM-059；角色互斥授权时校验 → 另行立项；「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）→ 改进项登记 decision-registry。
 
 ---
 

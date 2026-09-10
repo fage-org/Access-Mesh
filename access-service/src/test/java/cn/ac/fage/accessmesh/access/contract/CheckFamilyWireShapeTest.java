@@ -101,6 +101,29 @@ class CheckFamilyWireShapeTest {
     }
 
     @Test
+    @DisplayName("check 族请求入参快照（T-PERM-058 增主资源上下文四字段后终态）+ 双副本同形")
+    void checkRequestShapesAreFrozenWithParentContext() {
+        List<String> expected = List.of("subjectTypeCode", "subjectExternalId", "resourceTypeCode",
+            "resourceCode", "operationCode", "domainCode", "codeType", "inheritMode",
+            "parentResourceTypeCode", "parentResourceCode", "parentCodeType", "parentOperationCodes",
+            "context");
+        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.req.AuthCheckReq.class))
+            .containsExactlyElementsOf(expected);
+        assertThat(components(cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq.class))
+            .as("AuthCheckReq 双副本漂移会破坏 SDK 消费方序列化")
+            .containsExactlyElementsOf(expected);
+
+        List<String> batchExpected = List.of("subjectTypeCode", "subjectExternalId", "items",
+            "parentResourceTypeCode", "parentResourceCode", "parentCodeType", "parentOperationCodes",
+            "context");
+        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.req.BatchAuthCheckReq.class))
+            .containsExactlyElementsOf(batchExpected);
+        assertThat(components(cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.class))
+            .as("BatchAuthCheckReq 双副本漂移会破坏 SDK 消费方序列化")
+            .containsExactlyElementsOf(batchExpected);
+    }
+
+    @Test
     @DisplayName("内部 id 字段族禁止回潮：Query* 响应族 DTO 不得再声明任何内部行 id 组件（check 族按 T-API-003 恢复回传，不在本锁范围）")
     void retiredIdFieldsMustNotResurface() {
         List<Class<?>> wireRecords = Stream.<Class<?>>of(

@@ -118,7 +118,7 @@
 | [T-PERM-055](T-PERM-055.md) | 域分类查询批量预载优化（matchesTypeCode 循环点查放大收敛；T-PERM-046 评审登记） | — | access-service-architecture §13；api-contract §3.4 | — | ⚙️ | ⏳ |
 | [T-PERM-056](T-PERM-056.md) | user_type/role_type 删除零检查——主体/角色类型引用面保护（已收口 2026-09-09，删除保护定案与终态见任务卡） | — | schema；api-contract §5.1 | — | ✅ | ✓ |
 | [T-PERM-057](T-PERM-057.md) | 权限查询统一引擎重构——收编六套形态 + 目标模式三态 + 判定面继承 + 评估拉平（已收口 2026-09-09，三条实施定案与终态见任务卡实现记录；query-engine-unification 已并入 implementation §3） | [permission-query-unification](../plans/permission-query-unification-plan.md) | implementation §3/§5.2；core-flows §7；overview 鉴权与查询入口节；api-contract §6.1 inheritMode；permission-query-pipeline skill 双副本；permission-center-coding-standards rule；runbook §3 | — | ✅ | ✓ |
-| [T-PERM-058](T-PERM-058.md) | depend_on 子权限单点门禁闭合设计——单点查询的主资源上下文语义 | [permission-query-unification](../plans/permission-query-unification-plan.md) | query-engine-unification.md §3；api-contract §6.1 | T-PERM-057 | ⚙️ | ⏳ |
+| [T-PERM-058](T-PERM-058.md) | depend_on 子权限单点门禁闭合——单点主资源上下文 + fail-closed + 四面排除（已收口 2026-09-10，四项定案与终态见任务卡实现记录） | [permission-query-unification](../plans/permission-query-unification-plan.md) | implementation §3.1/§3.3；api-contract §6.1/§6.6 | T-PERM-057 | ✅ | ✓ |
 | [T-PERM-059](T-PERM-059.md) | 权限视图/排查删除重设计——范围圈定与新设计方向（含 /query-permission-tree 并入评估；范围待定） | [permission-query-unification](../plans/permission-query-unification-plan.md) | api-contract §6.8；access-service-architecture §14；query-engine-unification.md §9 | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）

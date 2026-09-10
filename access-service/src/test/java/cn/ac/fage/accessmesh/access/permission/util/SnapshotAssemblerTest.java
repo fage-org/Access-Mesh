@@ -311,6 +311,28 @@ class SnapshotAssemblerTest {
         );
     }
 
+    @Test
+    void shouldExcludeDependentEntriesFromSnapshot() {
+        // T-PERM-058：接口快照无主资源上下文——depend_on 子权限行不下发 Gateway
+        // （子权限授权只在 query-scopes 主资源上下文内生效，接口鉴权面不消费）
+        when(apiMappingMapper.selectEnabledByServiceCode(eq(TENANT_ID), eq(SERVICE_CODE)))
+            .thenReturn(List.of(apiMapping("POST", "/api/order")));
+
+        RolePermEntry dependent = new RolePermEntry(
+            1L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
+            "DIRECT", false, null, false, 501L, false);
+        // 仅子行授权：快照为空（旧实现子行照常下发=接口鉴权绕过父绑定）
+        assertThat(assembler.buildSnapshot(TENANT_ID, resultWith(dependent), SERVICE_CODE, API_TYPE))
+            .isEmpty();
+
+        // 主行照常下发：排除不误伤
+        RolePermEntry main = new RolePermEntry(
+            2L, 10L, RESOURCE_ID, "res-code", API_TYPE, 1L, "ACCESS", 1L,
+            "DIRECT", false, null, false, null, false);
+        assertThat(assembler.buildSnapshot(TENANT_ID, resultWith(main, dependent), SERVICE_CODE, API_TYPE))
+            .hasSize(1);
+    }
+
     private ResourceApiMapping apiMapping(String httpMethod, String pathPattern) {
         ResourceApiMapping m = new ResourceApiMapping();
         m.setTenantId(TENANT_ID);

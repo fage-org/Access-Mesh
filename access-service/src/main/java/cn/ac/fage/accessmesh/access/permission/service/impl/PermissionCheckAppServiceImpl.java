@@ -82,6 +82,11 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         q.setCodeType(req.codeType());
         q.setDomainCode(req.domainCode());
         if (req.inheritMode() != null) q.setInheritMode(req.inheritMode());
+        // T-PERM-058 主资源上下文：depend_on 子权限实例的父判定入参（不传=fail-closed 排除子行）
+        if (req.parentResourceTypeCode() != null && req.parentResourceCode() != null) {
+            q.setParentResource(req.parentResourceTypeCode(), req.parentResourceCode(),
+                req.parentCodeType(), toOperationCodeSet(req.parentOperationCodes()));
+        }
         q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
 
         return PermResultUtils.toAuthCheckResp(engine.query(q));
@@ -116,6 +121,11 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
             q.setCodeType(item.codeType());
             q.setDomainCode(item.domainCode());
             q.setInheritMode(item.inheritMode());
+            // T-PERM-058 主资源上下文（请求级）：与 query-scopes 对齐——批量项共享同一父上下文
+            if (req.parentResourceTypeCode() != null && req.parentResourceCode() != null) {
+                q.setParentResource(req.parentResourceTypeCode(), req.parentResourceCode(),
+                    req.parentCodeType(), toOperationCodeSet(req.parentOperationCodes()));
+            }
             q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
             PermResult r = engine.query(q);
             results.add(new AuthCheckItemResult(
@@ -172,6 +182,18 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
      * @param path    请求路径
      * @return 是否匹配
      */
+    /**
+     * 主资源操作码集合转换（null 整体透传=父判定不限操作由引擎按必填口径处理；
+     * null 元素防御过滤——SDK 请求经 JSON 反序列化可含 null 值，Set.copyOf 禁 null
+     * 会把可 400/拒绝的入参放大成 500，PermEvalContext.filterValid 同款缺陷类先例）。
+     */
+    private static Set<String> toOperationCodeSet(List<String> operationCodes) {
+        if (operationCodes == null) {
+            return null;
+        }
+        return Set.copyOf(operationCodes.stream().filter(Objects::nonNull).toList());
+    }
+
     private boolean pathMatches(String pattern, String path) {
         if (pattern.equals(path)) return true;
         return PATH_MATCHER.match(pattern, path);

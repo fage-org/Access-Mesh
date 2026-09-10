@@ -132,6 +132,9 @@ public class SnapshotAssembler {
         List<RolePermEntry> apiEntries = entries.stream()
             .filter(e -> e.resourceType() != null && e.resourceType().equals(apiType))
             .filter(e -> e.grantedBits() != null && (e.grantedBits() & accessCoverageMask) != 0)
+            // T-PERM-058：接口快照无主资源上下文——depend_on 子权限行不下发 Gateway
+            // （子权限授权只在 query-scopes 主资源上下文内生效，接口鉴权面不消费）
+            .filter(e -> e.dependOn() == null)
             .toList();
 
         if (apiEntries.isEmpty()) {

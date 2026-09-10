@@ -142,7 +142,7 @@ class PermissionCheckAppServiceImplTest {
     void shouldDenyCheckWhenUserNotFound() {
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(null);
 
-        var req = new AuthCheckReq("USER", "u-1", "REPORT", "report:1", "VIEW", null, null, null, null);
+        var req = new AuthCheckReq("USER", "u-1", "REPORT", "report:1", "VIEW", null, null, null, null, null, null, null, null);
         var resp = service.check(1L, req);
 
         assertFalse(resp.allowed());
@@ -160,7 +160,7 @@ class PermissionCheckAppServiceImplTest {
             .instanceEntries(List.of(entry)).build();
         when(engine.query(any(PermQuery.class))).thenReturn(r);
 
-        var req = new AuthCheckReq("USER", "u-1", "REPORT", "report:1", "VIEW", null, null, null, null);
+        var req = new AuthCheckReq("USER", "u-1", "REPORT", "report:1", "VIEW", null, null, null, null, null, null, null, null);
         var resp = service.check(1L, req);
 
         assertTrue(resp.allowed());
@@ -182,7 +182,7 @@ class PermissionCheckAppServiceImplTest {
 
         var req = new BatchAuthCheckReq("USER", "u-1",
             List.of(new BatchAuthCheckReq.AuthCheckItem("REPORT", "report:1", "VIEW", null, null, null)),
-            Map.of());
+            null, null, null, null, Map.of());
         BatchAuthCheckResp resp = service.batchCheck(1L, req);
 
         assertEquals(1, resp.items().size());
@@ -196,7 +196,7 @@ class PermissionCheckAppServiceImplTest {
         when(typeResolutionService.resolveUserId(1L, "USER", "ghost")).thenReturn(null);
         BatchAuthCheckResp notFound = service.batchCheck(1L, new BatchAuthCheckReq("USER", "ghost",
             List.of(new BatchAuthCheckReq.AuthCheckItem("REPORT", "report:1", "VIEW", null, null, null)),
-            Map.of()));
+            null, null, null, null, Map.of()));
         assertFalse(notFound.items().get(0).allowed());
         assertEquals("USER_NOT_FOUND", notFound.items().get(0).reason());
         assertEquals(List.of(), notFound.items().get(0).matchedRoleIds());

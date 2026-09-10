@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
@@ -961,6 +962,248 @@ class PermQueryEngineTest {
         assertNotNull(q.evalContext(), "入口应装配默认上下文");
         assertNotNull(q.evalContext().evaluatedAt(),
             "空上下文分支同样钉住 evaluatedAt（留 null 则每阶段评估各自取 now()，跨时间边界分叉）");
+    }
+
+    /**
+     * T-PERM-058 核心锁：单点 INSTANCE 无主资源上下文时 depend_on 子权限行不参与判定——
+     * 子行授权语义是「只在父权限命中的主资源上下文内生效」（§6.7 DEPENDENT 公式），
+     * 旧实现 selectInstancePermsByBitsBatch 不筛 depend_on，单点查子行实例直接放行=绕过父绑定；
+     * 拒绝原因 DEPENDENT_NOT_IN_PARENT_CONTEXT 与「无任何授权」区分。
+     */
+    @Test
+    void dependentEntryMustBeDeniedWithoutParentContext() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(Map.of("MENU", 1));
+        when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 101L));
+        OperationPermission viewOp = operation(101L, 1, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(101L))).thenReturn(List.of(viewOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1"))))
+            .thenReturn(Map.of("op_perm:1", Map.of(101L, viewOp)));
+
+        // 目标实例仅有一行子权限授权（depend_on=501 指向父权限），无主行
+        RoleResourcePermission childPerm = new RoleResourcePermission();
+        childPerm.setId(502L);
+        childPerm.setAbstractRoleId(20L);
+        childPerm.setResourceEntityId(200L);
+        childPerm.setResourceType(1);
+        childPerm.setGrantedBits(1L);
+        childPerm.setDependOn(501L);
+        childPerm.setDeleteFlag(0L);
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of());
+        when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), any()))
+            .thenReturn(List.of(childPerm));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any()))
+            .thenReturn(Map.of(new ResourceResolveKey("MENU", "child-res", null, null), 200L));
+
+        PermResult result = engine.query(PermQuery.forAuthCheck(1L, 10L, "MENU", "child-res", "VIEW"));
+
+        assertFalse(result.allowed(), "无主资源上下文时子权限行不得放行（旧实现绕过父绑定）");
+        assertEquals("DEPENDENT_NOT_IN_PARENT_CONTEXT", result.reason());
+    }
+
+    /**
+     * T-PERM-058 正向锁：单点 INSTANCE 给出主资源上下文且父判定命中（父 scopeAll VIEW）→
+     * 子行 dependOn ∈ 父命中权限集 → 放行。父判定复用 checkParentResource（含条件/互斥评估）。
+     */
+    @Test
+    void dependentEntryMustPassWhenParentContextMatches() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(eq(1L), eq("resource_type"), any()))
+            .thenReturn(Map.of("MENU", 1, "REPORT", 5));
+        when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 101L));
+        when(typeResolutionService.batchResolveOperationIds(1L, "REPORT", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 501L));
+        OperationPermission menuView = operation(101L, 1, "VIEW", 1L, 0L);
+        OperationPermission reportView = operation(501L, 5, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(101L))).thenReturn(List.of(menuView));
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(501L))).thenReturn(List.of(reportView));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1"))))
+            .thenReturn(Map.of("op_perm:1", Map.of(101L, menuView)));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:5"))))
+            .thenReturn(Map.of("op_perm:5", Map.of(501L, reportView)));
+        when(operationPermissionMapper.selectByTenantAndResourceType(1L, 5)).thenReturn(List.of(reportView));
+
+        // 父 scopeAll 主授权行（601）——父判定命中的权限 id 集
+        RoleResourcePermission parentScopeAll = new RoleResourcePermission();
+        parentScopeAll.setId(601L);
+        parentScopeAll.setAbstractRoleId(20L);
+        parentScopeAll.setResourceEntityId(null);
+        parentScopeAll.setResourceType(5);
+        parentScopeAll.setGrantedBits(1L);
+        parentScopeAll.setScopeAll(true);
+        parentScopeAll.setDeleteFlag(0L);
+        // 目标子行：depend_on=601（父命中集内）
+        RoleResourcePermission childPerm = new RoleResourcePermission();
+        childPerm.setId(502L);
+        childPerm.setAbstractRoleId(20L);
+        childPerm.setResourceEntityId(200L);
+        childPerm.setResourceType(1);
+        childPerm.setGrantedBits(1L);
+        childPerm.setDependOn(601L);
+        childPerm.setDeleteFlag(0L);
+        // scopeAll 查询按位掩码分流：父查询（type=5）返回父主行；目标查询（type=1）空
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenAnswer(inv -> {
+                List<BitMaskEntry> entries = inv.getArgument(2);
+                return entries.get(0).resourceType() == 5 ? List.of(parentScopeAll) : List.of();
+            });
+        when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), any()))
+            .thenReturn(List.of(childPerm));
+        when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(invocation -> invocation.getArgument(1));
+        // 按请求键分流解析结果（resolveEntityIds 取 resolved.values() 全集，合并 Map 会把
+        // 父编码带进目标集——生产 batchResolveResourceIds 只返回请求键的解析结果）
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any()))
+            .thenAnswer(inv -> {
+                List<ResourceResolveRequest> requests = inv.getArgument(1);
+                Map<ResourceResolveKey, Long> resolved = new LinkedHashMap<>();
+                for (ResourceResolveRequest r : requests) {
+                    if ("MENU".equals(r.resourceTypeCode()) && "child-res".equals(r.resourceCode())) {
+                        resolved.put(new ResourceResolveKey("MENU", "child-res", null, null), 200L);
+                    }
+                    if ("REPORT".equals(r.resourceTypeCode()) && "report:sales".equals(r.resourceCode())) {
+                        resolved.put(new ResourceResolveKey("REPORT", "report:sales", "default", null), 900L);
+                    }
+                }
+                return resolved;
+            });
+
+        PermQuery q = PermQuery.forAuthCheck(1L, 10L, "MENU", "child-res", "VIEW");
+        q.setParentResource("REPORT", "report:sales", "default", Set.of("VIEW"));
+
+        PermResult result = engine.query(q);
+
+        assertTrue(result.allowed(), "父判定命中且 dependOn ∈ 父命中集 → 子行计入放行");
+        assertEquals(1, result.instanceEntries().size());
+    }
+
+    /**
+     * T-PERM-058 父判定锁：给出主资源上下文但父无任何授权 → 父判定拒绝 → 子行不计入 →
+     * DENY + DEPENDENT_NOT_IN_PARENT_CONTEXT（拒绝原因与无授权区分）。
+     */
+    @Test
+    void dependentEntryMustDenyWhenParentContextFails() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(eq(1L), eq("resource_type"), any()))
+            .thenReturn(Map.of("MENU", 1, "REPORT", 5));
+        when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 101L));
+        when(typeResolutionService.batchResolveOperationIds(1L, "REPORT", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 501L));
+        OperationPermission menuView = operation(101L, 1, "VIEW", 1L, 0L);
+        OperationPermission reportView = operation(501L, 5, "VIEW", 1L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(101L))).thenReturn(List.of(menuView));
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(501L))).thenReturn(List.of(reportView));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:1"))))
+            .thenReturn(Map.of("op_perm:1", Map.of(101L, menuView)));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:5"))))
+            .thenReturn(Map.of("op_perm:5", Map.of(501L, reportView)));
+
+        RoleResourcePermission childPerm = new RoleResourcePermission();
+        childPerm.setId(502L);
+        childPerm.setAbstractRoleId(20L);
+        childPerm.setResourceEntityId(200L);
+        childPerm.setResourceType(1);
+        childPerm.setGrantedBits(1L);
+        childPerm.setDependOn(601L);
+        childPerm.setDeleteFlag(0L);
+        // 父无任何授权：scopeAll 与实例查询全空
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of());
+        when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), any()))
+            .thenReturn(List.of(childPerm));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any()))
+            .thenReturn(Map.of(new ResourceResolveKey("MENU", "child-res", null, null), 200L));
+
+        PermQuery q = PermQuery.forAuthCheck(1L, 10L, "MENU", "child-res", "VIEW");
+        q.setParentResource("REPORT", "report:sales", "default", Set.of("VIEW"));
+
+        PermResult result = engine.query(q);
+
+        assertFalse(result.allowed(), "父判定失败 → 子行不计入");
+        assertEquals("DEPENDENT_NOT_IN_PARENT_CONTEXT", result.reason());
+    }
+
+    /**
+     * T-PERM-058 类型级门禁锁：scopeAll 子权限行（depend_on 非空 + scope_all=true，写侧可造）
+     * 不得放行 TYPE_LEVEL 门禁——旧实现 selectScopeAllPermsByBitsBatch 不筛 depend_on，
+     * 一行子权限放开整个类型级门禁；读侧排除后其唯一生效面为 LIST 父上下文内 depend_on 过滤。
+     */
+    @Test
+    void scopeAllDependentEntryMustNotPassTypeLevelGate() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("SERVICE")))
+            .thenReturn(Map.of("SERVICE", 8));
+        when(typeResolutionService.batchResolveOperationIds(1L, "SERVICE", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 901L));
+        OperationPermission viewOp = operation(901L, 8, "VIEW", 2L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(901L))).thenReturn(List.of(viewOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:8"))))
+            .thenReturn(Map.of("op_perm:8", Map.of(901L, viewOp)));
+
+        RoleResourcePermission childScopeAll = new RoleResourcePermission();
+        childScopeAll.setId(601L);
+        childScopeAll.setAbstractRoleId(20L);
+        childScopeAll.setResourceEntityId(null);
+        childScopeAll.setResourceType(8);
+        childScopeAll.setGrantedBits(2L);
+        childScopeAll.setScopeAll(true);
+        childScopeAll.setDependOn(501L);
+        childScopeAll.setDeleteFlag(0L);
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of(childScopeAll));
+
+        // code=null → TYPE_LEVEL：类型级门禁只认主授权
+        PermResult result = engine.query(PermQuery.forValidate(1L, 10L, "SERVICE", null, "VIEW"));
+
+        assertFalse(result.allowed(), "scopeAll 子权限行不得放行类型级门禁（旧实现一行放开整个类型）");
+        assertEquals("NO_PERMISSION", result.reason());
+    }
+
+    /**
+     * T-PERM-058 批量便捷入口锁：getDeniedEntityIds 管线同口径排除子权限行——
+     * 便捷入口无主资源上下文概念，子行实例计入拒绝集（旧实现子行放行=拒绝集缺失）。
+     */
+    @Test
+    void getDeniedEntityIdsMustRejectDependentOnlyEntries() {
+        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("SERVICE")))
+            .thenReturn(Map.of("SERVICE", 8));
+        when(typeResolutionService.batchResolveOperationIds(1L, "SERVICE", Set.of("VIEW")))
+            .thenReturn(Map.of("VIEW", 901L));
+        OperationPermission viewOp = operation(901L, 8, "VIEW", 2L, 0L);
+        when(operationPermissionMapper.selectValidByIds(1L, Set.of(901L))).thenReturn(List.of(viewOp));
+        when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of("op_perm:8"))))
+            .thenReturn(Map.of("op_perm:8", Map.of(901L, viewOp)));
+
+        RoleResourcePermission childPerm = new RoleResourcePermission();
+        childPerm.setId(502L);
+        childPerm.setAbstractRoleId(20L);
+        childPerm.setResourceEntityId(200L);
+        childPerm.setResourceType(8);
+        childPerm.setGrantedBits(2L);
+        childPerm.setDependOn(501L);
+        childPerm.setDeleteFlag(0L);
+        when(rolePermMapper.selectScopeAllPermsByBitsBatch(eq(1L), eq(Set.of(20L)), any()))
+            .thenReturn(List.of());
+        when(rolePermMapper.selectInstancePermsByBitsBatch(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), any()))
+            .thenReturn(List.of(childPerm));
+        // 评估透传 stub 标 lenient：新实现过滤后短路不消费（strict 会报 UnnecessaryStubbing），
+        // 旧实现下消费——子行存活进 allowedEntityIds → denied 不含 200 → 断言失败（真锁前提）
+        org.mockito.Mockito.lenient().when(conditionDomainService.evaluate(eq(1L), any(), any()))
+            .thenAnswer(invocation -> invocation.getArgument(1));
+        org.mockito.Mockito.lenient().when(conflictDomainService.filterPermMutex(eq(1L), any()))
+            .thenAnswer(invocation -> invocation.getArgument(1));
+        when(resourceEntityMapper.selectSelfAndAncestorClosureBatch(1L, Set.of(200L)))
+            .thenReturn(List.of());
+
+        Set<Long> denied = engine.getDeniedEntityIds(1L, 10L, "SERVICE", Set.of(200L), "VIEW");
+
+        assertThat(denied).as("子权限行不计入批量便捷入口的放行面（旧实现拒绝集缺失）").contains(200L);
     }
 
     private OperationPermission operation(Long id, Integer resourceType, String code, Long binaryBit, Long inheritMask) {

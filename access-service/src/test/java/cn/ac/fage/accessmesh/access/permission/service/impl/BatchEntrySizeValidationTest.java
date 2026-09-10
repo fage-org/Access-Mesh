@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import cn.ac.fage.accessmesh.access.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq;
@@ -77,15 +78,59 @@ class BatchEntrySizeValidationTest {
         cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq sdkOver =
             new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq("LOCAL_USER", "1",
                 items(1001, i -> new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
-                    "MENU", null, "VIEW", null, null, null)), null);
+                    "MENU", null, "VIEW", null, null, null)), null, null, null, null, null);
         assertFalse(validator.validate(sdkOver).isEmpty(), "SDK 契约副本同款上限（逐项执行完整引擎管线）");
 
         BatchAuthCheckReq over = new BatchAuthCheckReq("LOCAL_USER", "1",
-            items(1001, i -> new BatchAuthCheckReq.AuthCheckItem("MENU", null, "VIEW", null, null, null)), null);
+            items(1001, i -> new BatchAuthCheckReq.AuthCheckItem("MENU", null, "VIEW", null, null, null)), null, null, null, null, null);
         assertFalse(validator.validate(over).isEmpty(), "服务端校验副本同款上限");
         BatchAuthCheckReq exact = new BatchAuthCheckReq("LOCAL_USER", "1",
-            items(1000, i -> new BatchAuthCheckReq.AuthCheckItem("MENU", null, "VIEW", null, null, null)), null);
+            items(1000, i -> new BatchAuthCheckReq.AuthCheckItem("MENU", null, "VIEW", null, null, null)), null, null, null, null, null);
         assertTrue(validator.validate(exact).isEmpty());
+    }
+
+    @Test
+    void parentContextPairingMustBeValidatedInBothCopies() {
+        // T-PERM-058：parentResourceTypeCode 与 parentResourceCode 必须成对——半传 400
+        // （Bean Validation 生效性锁：校验方法是 isXxx getter，非 public 不被 HV 拾取，双轨评审 P2-2）
+        Validator validator = validatorFactory.getValidator();
+
+        // 完整父上下文（type+code+operations）→ 约束通过
+        AuthCheckReq paired = new AuthCheckReq("USER", "u-1", "MENU", "m-1", "VIEW",
+            null, null, null, "REPORT", "report:1", null, List.of("VIEW"), null);
+        assertTrue(validator.validate(paired).isEmpty(), "成对+操作集非空合法");
+
+        // 给了父资源但 operations 缺省/空集 → 400（P1-1 定案：必填口径，引擎对空集不发父判定查询）
+        AuthCheckReq noOps = new AuthCheckReq("USER", "u-1", "MENU", "m-1", "VIEW",
+            null, null, null, "REPORT", "report:1", null, null, null);
+        assertFalse(validator.validate(noOps).isEmpty(), "父上下文缺操作集须 400");
+        AuthCheckReq emptyOps = new AuthCheckReq("USER", "u-1", "MENU", "m-1", "VIEW",
+            null, null, null, "REPORT", "report:1", null, List.of(), null);
+        assertFalse(validator.validate(emptyOps).isEmpty(), "父上下文空操作集须 400");
+
+        // claude 外评 P2-2：操作集上限与 query-scopes 同名口径对齐（逐元素进 SQL IN 绑定）
+        AuthCheckReq overOps = new AuthCheckReq("USER", "u-1", "MENU", "m-1", "VIEW",
+            null, null, null, "REPORT", "report:1", null,
+            java.util.Collections.nCopies(1001, "VIEW"), null);
+        assertFalse(validator.validate(overOps).isEmpty(), "父上下文操作集超 1000 须 400");
+
+        // 半传：只给 type 不给 code
+        AuthCheckReq halfType = new AuthCheckReq("USER", "u-1", "MENU", "m-1", "VIEW",
+            null, null, null, "REPORT", null, null, null, null);
+        assertFalse(validator.validate(halfType).isEmpty(), "半传 type 须 400");
+
+        // 半传：只给 code 不给 type
+        AuthCheckReq halfCode = new AuthCheckReq("USER", "u-1", "MENU", "m-1", "VIEW",
+            null, null, null, null, "report:1", null, null, null);
+        assertFalse(validator.validate(halfCode).isEmpty(), "半传 code 须 400");
+
+        // SDK 契约副本同款（batch-check 请求级）
+        cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq sdkHalf =
+            new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq("USER", "u-1",
+                List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
+                    "MENU", "m-1", "VIEW", null, null, null)),
+                "REPORT", null, null, null, null);
+        assertFalse(validator.validate(sdkHalf).isEmpty(), "SDK 副本半传同款 400");
     }
 
     @Test
