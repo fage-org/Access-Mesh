@@ -10,7 +10,6 @@ import { RESOURCE_OPERATION_PERM_LIST } from "@/views/system/resource-operation/
 import { CONFLICT_RULE_PERM_LIST } from "@/views/system/conflict-rule/utils/perms";
 import { RESOURCE_DEPENDENCY_PERM_LIST } from "@/views/system/resource-dependency/utils/perms";
 import { PERMISSION_CHANGE_LOG_PERM_LIST } from "@/views/system/permission-change-log/utils/perms";
-import { PERMISSION_QUERY_PERM_LIST } from "@/views/system/permission-query/utils/perms";
 
 const Layout = () => import("@/layout/index.vue");
 
@@ -185,19 +184,6 @@ export default {
         // 单一事实源派生：见 views/system/permission-change-log/utils/perms.ts
         // 变更日志独立 PERMISSION_CHANGE_LOG:VIEW 门禁（T-PERM-032 审计分离）
         auths: [...PERMISSION_CHANGE_LOG_PERM_LIST]
-      }
-    },
-    {
-      path: "/system/permission-query",
-      name: "SystemPermissionQuery",
-      component: () => import("@/views/system/permission-query/index.vue"),
-      meta: {
-        showLink: false, // T-FE-041 Phase 3 开放清单（导航收敛，路由保留）
-        icon: "ep/key",
-        title: "权限排查",
-        // 单一事实源派生：见 views/system/permission-query/utils/perms.ts
-        // T-PERM-033 设计定案：无独立排查码，页面门 = USER:VIEW 或 ROLE:VIEW 任一命中（SSOT 见 utils/perms.ts）
-        auths: [...PERMISSION_QUERY_PERM_LIST]
       }
     }
   ]

@@ -8,7 +8,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -41,7 +40,7 @@ class LogQueryAppServiceImplOperationLogTest {
 
     private LogQueryAppServiceImpl service() {
         return new LogQueryAppServiceImpl(changeLogMapper, operationLogMapper, engine,
-            typeResolutionService, new ObjectMapper());
+            typeResolutionService);
     }
 
     @Test

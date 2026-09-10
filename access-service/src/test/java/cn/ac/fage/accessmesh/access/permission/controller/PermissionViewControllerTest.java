@@ -1,9 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.controller;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.service.LogQueryAppService;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionViewAppService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
@@ -31,14 +29,12 @@ class PermissionViewControllerTest {
     private static final Long TENANT = 1L;
 
     @Mock private PermissionViewAppService permissionViewAppService;
-    @Mock private TypeResolutionService typeResolutionService;
-    @Mock private LogQueryAppService logQueryService;
 
     private PermissionViewController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new PermissionViewController(permissionViewAppService, typeResolutionService, logQueryService);
+        controller = new PermissionViewController(permissionViewAppService);
         TenantContextHolder.setTenantId(TENANT);
     }
 

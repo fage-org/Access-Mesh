@@ -21,17 +21,6 @@ public final class ScopeModeSupport {
         return ScopeMode.ALL.equals(scopeMode);
     }
 
-    public static ScopeMode fromSnapshot(String scopeMode, Boolean scopeAll) {
-        if (scopeMode != null && !scopeMode.isBlank()) {
-            try {
-                return ScopeMode.valueOf(scopeMode.trim().toUpperCase());
-            } catch (IllegalArgumentException ignored) {
-                return null;
-            }
-        }
-        return scopeAll == null ? null : fromScopeAll(scopeAll);
-    }
-
     private static void validateGrantScopeMode(ScopeMode scopeMode, String resourceCode, String codeType) {
         if (scopeMode == null) {
             throw validation("scopeMode is required");

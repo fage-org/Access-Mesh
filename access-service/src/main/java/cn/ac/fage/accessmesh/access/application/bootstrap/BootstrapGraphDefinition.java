@@ -177,13 +177,9 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/perm/api/perm/conflict-rule/update", "bootstrap:更新冲突规则", true, false),
             new ApiRoute("POST", "/perm/api/perm/conflict-rule/remove", "bootstrap:删除冲突规则", true, false),
             new ApiRoute("POST", "/perm/api/perm/conflict-rule/detect", "bootstrap:冲突检测", true, false),
-            // T-FE-019：权限排查页消费端点（管理端排查三端点，T-PERM-033 收口实现）。
-            // effective-permissions/explain 门禁=被查目标实例 USER:VIEW/ROLE:VIEW（AppService 层），
-            // query-scopes 运行时语义无排查门禁——业务门禁零新增（USER:VIEW/ROLE:MANAGE 已在图）；
-            // permission-view 其余端点（effective-permission-codes/resource-users 等）本页不消费不注册
-            new ApiRoute("POST", "/perm/api/perm/permission-view/effective-permissions", "bootstrap:排查有效权限", true, false),
-            new ApiRoute("POST", "/perm/api/perm/auth/query-scopes", "bootstrap:排查范围权限四态", true, false),
-            new ApiRoute("POST", "/perm/api/perm/permission-view/explain", "bootstrap:排查单权限解释", true, false),
+            // query-scopes 运行时 SDK 契约端点（§6.7，无排查门禁）——固定图注册维持空库 API 映射种子。
+            // 权限排查页及其消费的 effective-permissions/explain 已删除（T-PERM-059，2026-09-10 删除重设计定案）
+            new ApiRoute("POST", "/perm/api/perm/auth/query-scopes", "bootstrap:范围权限四态", true, false),
             // T-FE-021：业务域配置页消费端点（biz-domain 5 + domain-config 4，T-PERM-026 实现）。
             // biz-domain list/detail 门禁 DOMAIN:VIEW、写操作与 domain-config 门禁 SYSTEM_CONFIG:VIEW/MANAGE
             // ——两类均已在固定图（OPERATION_LOG 先例/系统配置页门禁），业务门禁零新增
@@ -329,13 +325,13 @@ public final class BootstrapGraphDefinition {
     }
 
     /**
-     * 菜单种子（T-FE-015，2026-08-31 设计定案：一次种全部 14 页——13 个系统子页 + welcome 首页；
-     * 权限授予页不进菜单，入口为角色管理页按钮，属交互入口设计非导航收敛）。
+     * 菜单种子（T-FE-015，2026-08-31 设计定案：原一次种全部 14 页——13 个系统子页 + welcome 首页；
+     * 权限授予页不进菜单，入口为角色管理页按钮，属交互入口设计非导航收敛。
+     * 权限排查页已删除——T-PERM-059，2026-09-10 删除重设计定案，现 13 页 = 12 个系统子页 + welcome）。
      * <p>
      * 「长期隐藏 9 页」的 T-FE-041 导航收敛口径随本定案放开：菜单可见性改由 v3.5 §4.1 ∃op
      * 派生控制（admin 持全档可见、普通用户无授权不可见），静态路由 showLink 不再控制侧栏。
-     * 资源挂接单挂页面主资源类型；权限条件页读取全租户开放（2026-08-08 产品确认）故挂纯展示；
-     * 权限排查页门禁为 USER:VIEW 或 ROLE:VIEW 任一命中，单挂取 USER（派生无法表达或语义）。
+     * 资源挂接单挂页面主资源类型；权限条件页读取全租户开放（2026-08-08 产品确认）故挂纯展示。
      * 侧栏点击按 path 跳前端静态路由，路由注册不变、直达 URL 仍可达、后端 403 兜底维持。
      * </p>
      */
@@ -357,9 +353,7 @@ public final class BootstrapGraphDefinition {
             new MenuSeed("MENU", "权限条件", "/system", "/system/permission-condition", "ep/key", 9, null, null),
             new MenuSeed("MENU", "冲突规则", "/system", "/system/conflict-rule", "ep/warn-triangle-filled", 10, ResourceTypeCode.CONFLICT_RULE, null),
             new MenuSeed("MENU", "资源依赖", "/system", "/system/resource-dependency", "ep/share", 11, ResourceTypeCode.DEPENDENCY, null),
-            new MenuSeed("MENU", "权限变更日志", "/system", "/system/permission-change-log", "ep/history", 12, ResourceTypeCode.PERMISSION_CHANGE_LOG, null),
-            // 权限排查：页面门 = USER:VIEW 或 ROLE:VIEW 任一（T-PERM-033 定案），派生单挂取 USER
-            new MenuSeed("MENU", "权限排查", "/system", "/system/permission-query", "ep/key", 13, ResourceTypeCode.USER, null));
+            new MenuSeed("MENU", "权限变更日志", "/system", "/system/permission-change-log", "ep/history", 12, ResourceTypeCode.PERMISSION_CHANGE_LOG, null));
     }
 
     /** 全部固定图授权（业务门禁 + 实例级 API:ACCESS；计数以 AccessBootstrapPgIT 断言为准） */

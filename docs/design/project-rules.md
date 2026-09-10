@@ -483,7 +483,7 @@ Mapper（数据访问层）
 
 **permission-center Controller（补充）：**
 
-- 权限排查类接口（如 `permission-view/explain`、`recent-changes`）的编排、分页过滤、JSON 解析、多表组装须在**调度层 Service**（如 `PermissionViewAppService`）完成；Controller 仅做校验与 `R` 包装。
+- 查询编排类接口（如 `query-resources`、`operation-log/list`）的分页过滤、JSON 解析、多表组装须在**调度层 Service**（如 `PermissionQueryAppService`、`LogQueryAppService`）完成；Controller 仅做校验与 `R` 包装。（原举例 permission-view/explain 已随 T-PERM-059 删除，2026-09-10）
 
 ### 8.3 包结构规范
 
@@ -513,7 +513,7 @@ cn.ac.fage.accessmesh.{service}
 
 | 层级                     | 命名                                        | 职责                                                           | 典型方法                                                                    |
 | ------------------------ | ------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------- |
-| **调度层 AppService**    | `XxxAppService` / `XxxAppServiceImpl`       | 业务流程编排、跨领域协调、外部接口契约转换、权限检查、事务边界 | `batchGrant()`、`check()`、`listEffectiveRoles()`                           |
+| **调度层 AppService**    | `XxxAppService` / `XxxAppServiceImpl`       | 业务流程编排、跨领域协调、外部接口契约转换、权限检查、事务边界 | `batchGrant()`、`check()`、`queryResources()`                           |
 | **逻辑级 DomainService** | `XxxDomainService` / `XxxDomainServiceImpl` | 单一领域逻辑、可复用的原子操作、内部数据转换、缓存管理         | `resolveEffectiveRoles()`、`batchGetDescendantIds()`、`checkCanGrant()` |
 
 **核心原则**：

@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 概念模型
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
+last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口：运行时接口列表与「权限排查与变更日志」节（改「变更日志与审计」）更新删除口径；此前 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
 ---
 
 # Permission Center 概念模型
@@ -155,16 +155,12 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 - `auth/check-interface`：Gateway 接口级鉴权。
 - `auth/query-resources`：查询用户能操作哪些独立资源。
 - `auth/query-scopes`：查询用户在某个主资源上下文内能操作哪些范围资源。
-- `permission-view/*`：用于管理端解释和审计，不作为业务服务高频运行时依赖。
+- 管理端解释/排查端点族（原 `permission-view/*`）：已删除（T-PERM-059，2026-09-10 删除重设计定案），新形态另立任务；登录权限串 `effective-permission-codes` 为该控制器唯一存续端点。
 
-## 权限排查与变更日志
+## 变更日志与审计
 
-权限排查能力采用”当前权限事实 + 最近影响事件”的轻量模型，用于解释用户或管理员常见问题，例如”为什么突然缺失某权限”或”为什么突然新增某权限”。
+权限排查端点族（原 `permission-view/*`）已删除（T-PERM-059，2026-09-10 删除重设计定案，新形态另立任务）；变更日志与操作日志构成现役审计面，「为什么突然缺失/新增某权限」的排查形态为 check 族确认当前判定事实 + 变更日志定位引入变更。
 
-- `permission-view/effective-permissions` 分页筛选展示当前有效权限；用户视角可展示权限来源角色摘要。
-- `permission-view/explain` 是单权限排查主入口，用于解释某个具体资源操作当前是否拥有、来源角色、拒绝原因和近期相关变更。
-- `permission-view/recent-changes` 展示最近一段时间可能影响目标用户或角色权限的事件。
-- `effective-permissions` 默认不展开数据范围、子权限、API 资源和完整来源角色，避免大权限用户一次返回过多数据。
 - 入口操作日志由 `@OperationLog` AOP 自动记录（拦截标注该注解的 AppService 写方法）。方法体内可通过 `OperationLogRuntimeContext.markSkip()` / `setSummary()` / `setTargetType()` / `setTargetId()` 覆盖注解值。内部动态日志（diff 快照、冲突通知）由 `AuditDomainService` 显式调用。
 - `permission_change_log.old_snapshot/new_snapshot` 保存原始审计快照。
 - `permission_change_log.diff_snapshot` 保存结构化变更摘要，顶层包含 `eventType + items[]`，用于排查展示和筛选。

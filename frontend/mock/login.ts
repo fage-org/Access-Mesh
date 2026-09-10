@@ -85,11 +85,8 @@ import { PERMISSION_CHANGE_LOG_VIEW_PERMS } from "../src/views/system/permission
  * 四账号全量补入 PERMISSION_CHANGE_LOG_VIEW_PERMS（对齐旧复用口径下全员可查的行为；mock 模拟 UX，
  * 不模拟最小权限；审计员 auditor 必须能查日志）。
  *
- * 7.3 权限排查页不引入独立权限码（T-PERM-033 设计定案，2026-08-29：原预案
- * PERMISSION_QUERY:VIEW 否决——权限码结构为「资源:操作」，PERMISSION_QUERY 是操作描述而非资源）——
- * API 门禁为被查目标实例 USER:VIEW/ROLE:VIEW，页面级 UI 门 = USER:VIEW 或 ROLE:VIEW 任一命中；
- * 四账号经 ORG_USER_VIEW_PERMS（含 USER:VIEW）与 ROLE_MANAGE_VIEW_PERMS（含 ROLE:VIEW）
- * 已持有，本矩阵无需增配。
+ * 7.3 权限排查页不引入独立权限码（T-PERM-033 设计定案——页面已随 T-PERM-059 删除，2026-09-10；
+ * 定案留痕：原预案 PERMISSION_QUERY:VIEW 否决——权限码结构为「资源:操作」，PERMISSION_QUERY 是操作描述而非资源）。
  *
  * 5.1 业务域页涉及**两个资源类型**门禁：
  * - biz-domain list/detail 门禁 `DOMAIN:VIEW`（独立资源类型 DOMAIN，后端 listBizDomains/getBizDomain 校验）。

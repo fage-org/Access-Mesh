@@ -3,7 +3,7 @@ doc_type: design
 title: 7.2 权限变更日志页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +1 端点；assign 无变更日志登记已知差距；2026-08-29   # 2026-08-29 T-PERM-032 收口：§3/§4/§5/§7 终态化（独立 PERMISSION_CHANGE_LOG:VIEW/筛选全集/createdBy/ROLE_BATCH_DELETE 补枚举）
+last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口（含 claude 外评处置）：与 recent-changes 分工叙述/门禁表句改删除口径 + diff_snapshot 规范引用改 api-contract §5.8 + 排查链路步骤引用改 §13.2 两步形态；此前 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +1 端点；assign 无变更日志登记已知差距；2026-08-29   # 2026-08-29 T-PERM-032 收口：§3/§4/§5/§7 终态化（独立 PERMISSION_CHANGE_LOG:VIEW/筛选全集/createdBy/ROLE_BATCH_DELETE 补枚举）
 ---
 
 # 7.2 权限变更日志页设计
@@ -16,7 +16,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 
 ## 1. 页面定位
 
-权限变更日志页是权限排查链路的「原始审计详情」入口（core-flows §13.2 用户排查第 5 步 / §13.3 角色排查第 4 步），回答「某次权限变更具体改了什么」。
+权限变更日志页是审计排查链路的「原始审计详情」入口（core-flows §13.2 排查链路两步形态），回答「某次权限变更具体改了什么」。
 
 与 7.1 操作日志区分：
 
@@ -27,7 +27,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 | 字段 | module/action/summary/operatorName | entityType/operation/oldSnapshot/newSnapshot/diffSnapshot/affected*Ids |
 | 详情展示 | el-descriptions 纯字段 | el-descriptions + **diff 对比面板** + 影响分析 |
 
-与 `permission-view/recent-changes` 区分：recent-changes 回答「最近有哪些事件可能影响权限」（轻量，`impactLevel` DIRECT/POSSIBLE）；变更日志回答「某次变更的原始 before/after/diff 审计」（详情，含完整快照）。
+（原与 `permission-view/recent-changes` 的轻量/详情分工叙述——recent-changes 已随 T-PERM-059 删除，2026-09-10；变更日志现为权限变更审计唯一读面。）
 
 ## 2. 布局
 
@@ -61,7 +61,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 | 项 | 值 | 说明 |
 |---|---|---|
 | 路径 | `POST /api/perm/log/change/list` | 后端 `LogQueryController` `@RequestMapping("/api/perm/log")` + `@PostMapping("/change/list")` |
-| 权限 | 独立 `PERMISSION_CHANGE_LOG:VIEW` | T-PERM-032 审计分离（对齐操作日志先例），页面 list/count 门禁；排查视图 recent-changes 已随 T-PERM-033 切被查目标实例 `USER:VIEW`/`ROLE:VIEW` |
+| 权限 | 独立 `PERMISSION_CHANGE_LOG:VIEW` | T-PERM-032 审计分离（对齐操作日志先例），页面 list/count 门禁（原排查视图 recent-changes 门禁句——该端点已随 T-PERM-059 删除，2026-09-10） |
 | 分页 | 服务端分页 | `PageResp<ChangeLogResp>` |
 | detail | 无独立接口 | `ChangeLogResp` 已含全字段（含 diffSnapshot），前端抽屉展示 |
 
@@ -90,7 +90,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 | operation | string | 实体层操作：INSERT/UPDATE/DELETE/BATCH_DELETE/BATCH_REMOVE（schema operation 列注释，区别于 diff changeType） |
 | oldSnapshot | string? | 变更前快照 JSON 字符串 |
 | newSnapshot | string? | 变更后快照 JSON 字符串 |
-| diffSnapshot | string? | 结构化变更摘要 JSON 字符串（§6.8 规范） |
+| diffSnapshot | string? | 结构化变更摘要 JSON 字符串（api-contract §5.8 diff_snapshot 规范） |
 | affectedAbstractUserIds | number[]? | 受影响用户 ID 数组 |
 | affectedAbstractRoleIds | number[]? | 受影响角色 ID 数组 |
 | changeReason | string? | 变更原因 |
@@ -99,7 +99,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 | requestId | string? | 请求/追踪 ID |
 | createdAt | string | 创建时间 |
 
-### diff_snapshot 规范（api-contract §6.8）
+### diff_snapshot 规范（api-contract §5.8 diff_snapshot 轻量规范）
 
 顶层：`eventType`（7 枚举；T-PERM-043 移除 `GROUP_ROLE_CHANGE`，T-PERM-032 增补 `ROLE_BATCH_DELETE`）+ `items[]`
 
@@ -152,11 +152,11 @@ T-PERM-032 起独立 `PERMISSION_CHANGE_LOG:VIEW`，mock/login.ts 四账号按�
 | 3 | 筛选维度 | ✅ | T-PERM-032 全集落地（设计定案）：eventType/changeSource/受影响 user·role/时间范围全部暴露，维度对齐 schema 索引；页面与 recent-changes 统一条件组（原两套查询合并） |
 | 4 | 操作人字段 | ✅ | `ChangeLogResp` 暴露 `createdBy`（表 created_by；名称解析归前端展示层），抽屉展示 |
 | 5 | changeSource 枚举 | ✅ | schema 注释修正为 MANUAL/SERVICE_SYNC（复用 PermConstants.MaintainSource）；operation 注释同步补 BATCH_DELETE/BATCH_REMOVE |
-| 6 | 独立权限码 | ✅ | 设计定案（2026-08-29）：独立 `PERMISSION_CHANGE_LOG:VIEW`，五步清单全链路（枚举/DDL 种子=31/bootstrap 固定图/下发白名单/前端常量+mock 矩阵）；排查视图 recent-changes 已随 T-PERM-033 切被查目标实例 USER:VIEW/ROLE:VIEW |
+| 6 | 独立权限码 | ✅ | 设计定案（2026-08-29）：独立 `PERMISSION_CHANGE_LOG:VIEW`，五步清单全链路（枚举/DDL 种子=31/bootstrap 固定图/下发白名单/前端常量+mock 矩阵）；排查视图 recent-changes 门禁历史口径（T-PERM-033；该端点已随 T-PERM-059 删除，2026-09-10） |
 | 7 | list 端点 | ✅ | `/api/perm/log/change/list` 分页查询可用，返回 PageResp |
-| 8 | diff_snapshot 规范 | ✅ | §6.8 完整规范，7 种 eventType（T-PERM-043 后 6 种 + T-PERM-032 增 ROLE_BATCH_DELETE）+ 3 种 changeType 固定枚举 |
+| 8 | diff_snapshot 规范 | ✅ | api-contract §5.8 完整规范（原 §6.8 迁入），7 种 eventType（T-PERM-043 后 6 种 + T-PERM-032 增 ROLE_BATCH_DELETE）+ 3 种 changeType 固定枚举 |
 | 9 | detail 端点 | ✅ | 无需独立 detail（Resp 含全字段 + diffSnapshot），设计合理 |
-| 10 | eventType 枚举一致性 | ✅ | 设计定案：契约 §6.8 增补第 7 枚举 `ROLE_BATCH_DELETE`（批量删除聚合事件，entityId=0 + operation=BATCH_DELETE——原 6 枚举无一语义覆盖）；前端 `DiffEventType`/`EVENT_TYPE_META` 同步 |
+| 10 | eventType 枚举一致性 | ✅ | 设计定案：契约（原 §6.8，现 §5.8 diff_snapshot 规范）增补第 7 枚举 `ROLE_BATCH_DELETE`（批量删除聚合事件，entityId=0 + operation=BATCH_DELETE——原 6 枚举无一语义覆盖）；前端 `DiffEventType`/`EVENT_TYPE_META` 同步 |
 
 ## 6. 组件识别（Step 1.5 -> T-FE-001 组件池）
 

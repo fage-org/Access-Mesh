@@ -76,34 +76,4 @@ class AuditDomainServiceImplTest {
                 "created role", 100L, null, null, null, null, 200, 5)));
     }
 
-    @Test
-    void shouldQueryRecentChangesWithFilters() {
-        PermissionChangeLog log = new PermissionChangeLog();
-        log.setId(1L);
-        log.setEntityType("role_resource_permission");
-        log.setOperation("INSERT");
-        log.setTenantId(1L);
-        when(changeLogMapper.selectPageByCondition(
-            eq(1L), isNull(), isNull(), eq(100L), eq(20L), any(), any(), any(), isNull(), eq(0), eq(10)))
-            .thenReturn(List.of(log));
-
-        List<PermissionChangeLog> results = service.queryRecentChanges(1L, 100L, 20L,
-            LocalDateTime.now().minusDays(7), LocalDateTime.now(),
-            List.of("INSERT"), 0, 10);
-
-        assertEquals(1, results.size());
-    }
-
-    @Test
-    void shouldCountRecentChanges() {
-        when(changeLogMapper.countByCondition(
-            eq(1L), isNull(), isNull(), eq(100L), eq(20L), any(), any(), any(), isNull()))
-            .thenReturn(5L);
-
-        long count = service.countRecentChanges(1L, 100L, 20L,
-            LocalDateTime.now().minusDays(7), LocalDateTime.now(),
-            List.of("INSERT"));
-
-        assertEquals(5L, count);
-    }
 }

@@ -50,8 +50,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PermissionQueryAppServiceImplTest {
 
-    @Mock private ResourceEntityMapper resourceEntityMapper;
-    @Mock private OperationPermissionMapper operationPermissionMapper;
     @Mock private SubjectDomainService subjectDomainService;
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
     @Mock private TypeResolutionService typeResolutionService;
@@ -65,7 +63,6 @@ class PermissionQueryAppServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new PermissionQueryAppServiceImpl(
-            resourceEntityMapper, operationPermissionMapper,
             subjectDomainService, permissionConflictDomainService,
             typeResolutionService, cacheService,
             domainClassifyService,

@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -136,8 +136,7 @@ cn.ac.fage.accessmesh.permission
 │   ├── PermissionConstants
 │   ├── PermQuery / PermResult / PermViewFilter / PermViewResult
 │   ├── PermResultUtils
-│   ├── PermTreeAssembler
-│   ├── PermViewAssembler
+│   ├── PermViewAssembler（登录权限串管线专用，T-PERM-059 后排查视图面已删）
 │   ├── RolePermEntryMapper                         ← 在 util 包（非 domain）
 │   ├── SecurityEventType / SecurityLogUtil / SecurityUtils
 │   ├── SnapshotAssembler
@@ -201,9 +200,6 @@ public interface AuditDomainService {
     void asyncRecordLog(String module, String action, String targetType, Long targetId,
                         String summary, Long operatorId, String ipAddress, String requestId, Long tenantId);
 
-    // 变更历史查询
-    List<PermissionChangeLog> queryRecentChanges(...);
-    long countRecentChanges(...);
 }
 ```
 
@@ -225,8 +221,7 @@ public interface PermissionConflictDomainService {
 ```java
 public interface PermissionConditionDomainService {
     List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries, Map<String, Object> context);
-    // explain 排查明细（T-PERM-033）：返回挂条件条目的评估明细（含脱敏规则），无条件条目跳过
-    List<ConditionEvaluationDetail> evaluateDetailed(Long tenantId, List<RolePermEntry> entries, Map<String, Object> context);
+    // 原 explain 排查明细 evaluateDetailed 已随 T-PERM-059 删除（2026-09-10）
 }
 ```
 
@@ -333,7 +328,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 3. 否则，一次批量 `code → resource_entity.id` 解析 + 一次闭包 CTE + 一次批量查询实例级权限（`selectInstancePermsByBitsBatch`，含条件+条目互斥评估）
 4. 内存按闭包回映射计算拒绝 code 集合
 
-> **T-PERM-058 depend_on 口径**：批量便捷入口（步骤 2/3 的两处查询结果）与单点面同口径排除 depend_on 非空行——便捷入口无主资源上下文概念，fail-closed；步骤 2 的排除同时覆盖 hasPermissionByCode/ByEntityId 的 TYPE_LEVEL 分支（scopeAll 子行不放行类型级门禁）。forUserView 的 LIST 全量（query-resources/快照/视图/登录串）**不在引擎层排除**——组装面各自处置：query-resources 组装与 SnapshotAssembler 排除子行（无父上下文的消费面不呈现），permission-view 系与登录权限串维持现状（T-PERM-059 删除重设计范围 / 非目标不动）；canGrant 委托链零行为差（子行 canGrant 恒 false，DDL CHECK 保证其在转授资格判定中本就不贡献资格）。
+> **T-PERM-058 depend_on 口径**：批量便捷入口（步骤 2/3 的两处查询结果）与单点面同口径排除 depend_on 非空行——便捷入口无主资源上下文概念，fail-closed；步骤 2 的排除同时覆盖 hasPermissionByCode/ByEntityId 的 TYPE_LEVEL 分支（scopeAll 子行不放行类型级门禁）。forUserView 的 LIST 全量（query-resources/快照/视图/登录串）**不在引擎层排除**——组装面各自处置：query-resources 组装与 SnapshotAssembler 排除子行（无父上下文的消费面不呈现），permission-view 系已随七端点删除（T-PERM-059，2026-09-10），登录权限串为该管线唯一存续消费面；canGrant 委托链零行为差（子行 canGrant 恒 false，DDL CHECK 保证其在转授资格判定中本就不贡献资格）。
 
 **复杂查询 API**（`PermQuery` 工厂方法 + `engine.query(PermQuery)`；T-PERM-057 后工厂预设）：
 
@@ -420,7 +415,7 @@ PermQueryEngine.query(PermQuery q)
 
 - **条件评估三态**：评估（运行时/门禁面默认，含拉平后的管理面写门禁）/ 不评估（配置视图面——canGrant 转授资格看原始授权行）/ 标记下发（快照专用 `markConditionsOnly`，条件在网关用真实请求上下文评，T-PERM-017 C3）。
 - **条目互斥（PERM_MUTEX）入参化**：`evaluateConflicts` 开关，默认按入口（运行时面开、配置面关）。**角色互斥（ROLE_MUTEX）不归引擎**（2026-09-09 定案）：授权时校验另行立项；`interfaceSnapshot`/`prepareTreeContext` 的 `filterRoleMutex` 调用点保留为调用方自理。
-- **条件上下文 `PermEvalContext`**（多层对象）：`clientIp`（用户环境，入口封装层从当前请求装配）/ `evaluatedAt`（服务器环境，展平时补当前时钟）/ `attributes`（调用方上下文，SDK `context` Map 经 `fromCallerMap` 转换——clientIp 键提取、其余归 attributes）。展平 Map 键：`clientIp`（既有契约）、`evaluatedAt`（ISO-8601，`ConditionEvalUtils` 时间类条件优先消费、缺省回退本机时钟——Gateway 快照重评等无服务器环境上下文的调用方维持既有行为）。explain 判定与明细评估共用同一 `PermEvalContext`（同一时钟）。
+- **条件上下文 `PermEvalContext`**（多层对象）：`clientIp`（用户环境，入口封装层从当前请求装配）/ `evaluatedAt`（服务器环境，展平时补当前时钟）/ `attributes`（调用方上下文，SDK `context` Map 经 `fromCallerMap` 转换——clientIp 键提取、其余归 attributes）。展平 Map 键：`clientIp`（既有契约）、`evaluatedAt`（ISO-8601，`ConditionEvalUtils` 时间类条件优先消费、缺省回退本机时钟——Gateway 快照重评等无服务器环境上下文的调用方维持既有行为）。原 explain 判定与明细评估共用同一 `PermEvalContext`（同一时钟；该端点已随 T-PERM-059 删除，2026-09-10）。
 
 ### 3.6 PermResult 双轨与回传字段
 
@@ -455,8 +450,6 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 | 资源权限查询 | `POST /api/perm/auth/query-resources`    | `engine.query(PermQuery.forUserView())`；树扩展经引擎展示面展开轨道（`inheritChildren`/`inheritParents`） |
 | 范围权限查询 | `POST /api/perm/auth/query-scopes`       | 一次 `engine.query(forScopeQuery + setParentResource)`——父判定 + depend_on 过滤 + 条件/互斥评估全在引擎，AppService 只留四态线格式组装（T-PERM-057 第六套形态收编）；整表拒绝仅限父判定失败/无角色，条件评估清空走四态分态（EMPTY） |
 | 接口级判定   | `POST /api/perm/auth/check-interface`    | `engine.query(PermQuery.forInterfaceCheck())`                 |
-| 权限视图     | `POST /api/perm/permission-view/*`       | `engine.query(PermQuery.forUserView())` + `PermViewAssembler`；门禁=被查目标实例 USER:VIEW/ROLE:VIEW（T-PERM-033 设计定案）；`getEffectiveResourceAccess` 授权实例集含判定面继承子孙扩展（§3.4） |
-| 权限解释     | `POST /api/perm/permission-view/explain` | 判定查询 + 候选查询（评估关闭）双查询；条件明细 `PermissionConditionDomainService.evaluateDetailed` + 互斥丢弃 `filterPermMutexWithDrops`（T-PERM-033）；条件上下文 `PermEvalContext` 统一（§3.5） |
 | 接口快照     | `POST /api/perm/auth/interface-snapshot` | `engine.query(forUserView + markConditionsOnly)` + `SnapshotAssembler`；`filterRoleMutex` 调用方自理（§3.5） |
 
 ### 3.9 收编清单与边界声明
@@ -465,7 +458,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 - **缓存键不变**（§5.2 核对）：ROLE_PERM_SNAPSHOT / OPERATION_PERMISSIONS_BY_TYPE / EFFECTIVE_ROLES / 网关 gw:interface-snapshot 均不因闭包下推改变键与失效；ORG_VISIBILITY 已由 PermissionChangeAspect 租户级 evictAll 覆盖（继承后可见闭包语义确变但失效机制已闭合）。
 - **OAuth2 委托链路显式排除**（2026-08-22 用户决策维持）：OAuth2 资源服务器链路（access.oauth2.resource-paths 显式开放路径 + delegatedClientId 独立映射，T-ACCESS-013）不接入统一引擎——重构不得误接入。
 - **回归面**：四个门禁入口族（admin 域门面 / permission 域 code 轨 / 资源树 entityId 轨 / SDK auth-check 族）语义回归 + targetMode 三态互不串义锁 + 判定面闭包锁（`TargetModeClosurePgIT`：TYPE_LEVEL 串义拒绝 / 单点闭包 / 批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）+ golden fixtures（`GoldenFixturePgIT` 单点判定收敛，nodeClosure 语义=引擎原生闭包）。
-- **遗留**：check 族三端点结果记录全量回传 → T-API-003；权限视图/排查删除重设计 → T-PERM-059；角色互斥授权时校验 → 另行立项；「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）→ 改进项登记 decision-registry。
+- **遗留**：角色互斥授权时校验 → 另行立项；（原列两项已收口 2026-09-10：check 族全量回传 → T-API-003 done；权限视图/排查删除 → T-PERM-059 done，新形态另立任务）；「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）→ 改进项登记 decision-registry。
 
 ---
 
@@ -478,7 +471,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 
 **SUB_PERM 共享策略对象（复审实现建议采纳，复审补公开入口）**：从 `assertSubPermissionAllowed` 抽取不可变策略对象 `SubPermissionPolicy { mode, reason, allowedTypeCodes, allows(childTypeCode) }`，**唯一公开解析入口 `PermissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, parentResourceTypeCode)`**——读接口（`sub-perm-allowed-types`）由 AppService 映射其结果直接序列化；写链路 `prevalidate` 内部复用同一解析器（`policy.allows(childTypeCode)`），**禁止在 AppService/Controller 另行编写 SUB_PERM 判断（读写同源）**；顶层通配、全量结构校验（任一 allowed 项非法 -> CONFIG_INVALID）、并集去重、大小写不敏感与错误原因均在策略内统一组装，读写不再各自编排判断（顶层通配当前经真实 jsonb 链路暂不可达——已知缺陷登记见 api-contract §6.5.2 判定步骤 1，2026-09-02；ALLOW_ALL 以嵌套通配替代）。**校验顺序**：先按主/子记录分类（子权限 create 非 null/false -> 20043、子权限 update -> 20043），主权限再评估 20041（条件不可转授）→ 20042（条件启用状态）→ 20033 → 其他。
 
-> **落地状态（T-PERM-034 收口，2026-08-30；外部复评二轮同日修正）**：策略对象/端点/校验顺序均已实现（判定优先级 0-6 单测全分支覆盖）；20043 预检先于 20041（update 目标为子权限与两种 create 形态均拒），并补齐「向 AUTO_DEP 父挂子权限 → 20034」遗漏不变量；diff_snapshot 按 §6.8 聚合形状写侧落地（级联删除子权限同记 REMOVE 快照）；`GoldenFixturePgIT`（真库引擎级比对）落地并顺带修复引擎缺口——`resolveBitMasks` 此前不计全局操作位（授权侧允许的全局位运行时被忽略），已改为按类型合并「专属优先、全局回退」（`selectGlobal` mapper + OPERATION_PERMISSIONS_BY_TYPE 缓存合并，与写链路 mergeGlobalFallback 同源）；复评二轮修正两点：多类型查询的目标位按该类型合并结果中**同码实际生效定义**取值（同码专属取代全局后，全局定义的 binaryBit 属于另一位空间——uk_operation_permission_typed_bit 按 tenant+resource_type 隔离位值，沿用会双向出错），冷缓存回源改批量口径（getBatch 收集 miss 类型 → 1 次全局 + 1 次批量专属 IN → putBatch 分组回填）。**全局操作概念整体退役（2026-08-30 设计定案，T-PERM-049）**：上述全局位合并与同码覆盖目标位解析逻辑随概念一并简化——`resolveBitMasks` 回归纯类型专属位（冷缓存批量口径保留），`resolveOperationId`/`batchResolveOperationIds` 删除全局回退，`OperationResolutionDomainService`（mergeGlobalFallback）与 `selectGlobal*` mapper 删除，DDL 补 `ck_operation_permission_resource_type_required` CHECK 在数据层焊死（授权行只存 resource_type+granted_bits，全局位与专属位同值时授权身份不可区分——外部复审 P1 越权结论的根治）。
+> **落地状态（T-PERM-034 收口，2026-08-30；外部复评二轮同日修正）**：策略对象/端点/校验顺序均已实现（判定优先级 0-6 单测全分支覆盖）；20043 预检先于 20041（update 目标为子权限与两种 create 形态均拒），并补齐「向 AUTO_DEP 父挂子权限 → 20034」遗漏不变量；diff_snapshot 按 api-contract §5.8 diff_snapshot 规范聚合形状写侧落地（级联删除子权限同记 REMOVE 快照）；`GoldenFixturePgIT`（真库引擎级比对）落地并顺带修复引擎缺口——`resolveBitMasks` 此前不计全局操作位（授权侧允许的全局位运行时被忽略），已改为按类型合并「专属优先、全局回退」（`selectGlobal` mapper + OPERATION_PERMISSIONS_BY_TYPE 缓存合并，与写链路 mergeGlobalFallback 同源）；复评二轮修正两点：多类型查询的目标位按该类型合并结果中**同码实际生效定义**取值（同码专属取代全局后，全局定义的 binaryBit 属于另一位空间——uk_operation_permission_typed_bit 按 tenant+resource_type 隔离位值，沿用会双向出错），冷缓存回源改批量口径（getBatch 收集 miss 类型 → 1 次全局 + 1 次批量专属 IN → putBatch 分组回填）。**全局操作概念整体退役（2026-08-30 设计定案，T-PERM-049）**：上述全局位合并与同码覆盖目标位解析逻辑随概念一并简化——`resolveBitMasks` 回归纯类型专属位（冷缓存批量口径保留），`resolveOperationId`/`batchResolveOperationIds` 删除全局回退，`OperationResolutionDomainService`（mergeGlobalFallback）与 `selectGlobal*` mapper 删除，DDL 补 `ck_operation_permission_resource_type_required` CHECK 在数据层焊死（授权行只存 resource_type+granted_bits，全局位与专属位同值时授权身份不可区分——外部复审 P1 越权结论的根治）。
 
 | 接口         | 路径                                                             | 说明                                             |
 | ------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
@@ -583,7 +576,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         //    updates/removes 实际影响行数 ≠ 预期（记录被并发删除/修改）-> 20036 抛出整体回滚
         permissionGrantPlanDomainService.apply(prepared);
 
-        // ④ 变更审计：同事务内写一条聚合 permission_change_log（§6.8 形状——T-PERM-034 落地：
+        // ④ 变更审计：同事务内写一条聚合 permission_change_log（api-contract §5.8 diff_snapshot 规范形状——T-PERM-034 落地：
         //    eventType=ROLE_PERMISSION_CHANGE + items[]{changeType, permission 6 字段业务键, role 摘要}，
         //    业务键快照由 prevalidate 期 AuditPermissionKey 装配，removes 悬挂引用降级 null 键字段）
         //    回滚随事务消失，不写日志
@@ -592,7 +585,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             tenantId, operatorId, requestId, PermConstants.MaintainSource.MANUAL, "apply-grant-plan"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "role_resource_permission", roleId, "APPLY_GRANT_PLAN", null, null,
-                buildDiffSnapshot(req, role, prepared),  // §6.8 聚合形状（旧「记录 ID 列表」形状已废弃）
+                buildDiffSnapshot(req, role, prepared),  // §5.8 diff_snapshot 规范聚合形状（旧「记录 ID 列表」形状已废弃）
                 new Long[0],               // affectedUserIds
                 new Long[]{roleId})));      // affectedRoleIds
 
@@ -884,68 +877,6 @@ if (!deniedRoleCodes.isEmpty()) {
 
 ---
 
-### 7.5 权限树查询接口 `query-permission-tree`
-
-用于外部系统查询从某个资源节点出发，用户能操作的层级关系。
-
-**接口路径**：`POST /api/perm/auth/query-permission-tree`
-
-**入参 DTO**：
-
-```java
-public record PermissionTreeReq(
-    @NotBlank String subjectTypeCode,
-    @NotBlank String subjectExternalId,
-    @NotBlank String resourceTypeCode,
-    @NotBlank String resourceCode,          // 起点资源
-    String codeType,
-    @NotEmpty Set<String> operationCodes,   // 操作类型集合
-    @NotBlank String direction,             // ANCESTORS(向上) / DESCENDANTS(向下) / BOTH(双向)
-    Integer maxDepth,                       // 最大层级深度
-    String domainCode,
-    Map<String, Object> context
-) {}
-```
-
-**返回 DTO**：
-
-```java
-public record PermissionTreeResp(
-    TreeNode root,                          // 起点节点
-    List<TreeNode> ancestors,               // 父级链路（direction=ANCESTORS/BOTH）
-    List<TreeNode> descendants,             // 子级树（direction=DESCENDANTS/BOTH）
-    int cacheTtlSeconds                     // 缓存有效时间（秒）
-) {
-    public record TreeNode(
-        Long resourceId,
-        String resourceTypeCode,
-        String resourceCode,
-        String resourceName,
-        int depth,                          // 相对起点的层级
-        Set<String> operations,             // 用户对该节点拥有的操作
-        boolean canGrant,                   // 是否可授权
-        List<TreeNode> children             // 子节点（仅descendants树）
-    ) {}
-}
-```
-
-**典型场景**：
-| 场景 | direction | 用途 |
-|------|-----------|------|
-| 用户能看到某个菜单，想知道父菜单链路 | `ANCESTORS` | 显示面包屑导航时过滤无权限节点 |
-| 用户有某个组织管理权限，想知道下级组织树 | `DESCENDANTS` | 组织管理页面显示可管理的子组织 |
-| 用户对某个角色有权限，想知道完整层级关系 | `BOTH` | 角色权限配置页面 |
-
-**与 `query-resources` 的区别**：
-| 维度 | `query-resources` | `query-permission-tree` |
-|------|-------------------|------------------------|
-| 查询起点 | 无起点，查所有可访问资源 | 从指定资源节点出发 |
-| 遍历方向 | 只向下（children） | 支持向上/向下/双向 |
-| 返回范围 | 用户有权限的全部资源 | 只返回起点路径上有权限的节点 |
-| 用途 | "我能访问哪些资源" | "从某资源出发，我能操作的层级关系" |
-
----
-
 ### 7.6 实现注意事项
 
 1. **移除 `CAN_MANAGE` 误用**：不再使用 `CAN_MANAGE` 作为权限判断条件，统一使用 `OperationCodeConstants.MANAGE`
@@ -953,7 +884,6 @@ public record PermissionTreeResp(
 3. **统一入口**：内部权限检查统一调用 `PermQueryEngine.hasPermissionByCode/getDeniedResourceCodes`（业务编码）或 `hasPermissionByEntityId/getDeniedEntityIds`（资源实体管理链路）或 `query(PermQuery)`，避免各 Service 分散实现（T-ACCESS-016 终态，旧 `hasPermission/validateBatch/getDeniedIds` 随 T-PERM-042 删除）
 4. **批量检查避免 N+1**：批量操作（删除、修改）使用 `getDeniedResourceCodes`/`getDeniedEntityIds`，一次统一管线完成全部权限校验
 5. **业务例外显式处理**：如”允许操作自己”之类的场景，由具体业务服务在调用引擎前后显式处理，不再引入独立的 `PermissionCheckUtils` 抽象
-6. **树形遍历深度限制**：`query-permission-tree` 必须有 `maxDepth` 限制，防止无限递归
 
 ### 7.7 授权安全校验（Grant Validation）
 

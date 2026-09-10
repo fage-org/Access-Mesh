@@ -3,7 +3,6 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
-import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionRecentChangesReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ChangeLogResp;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionChangeLog;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
@@ -12,7 +11,6 @@ import cn.ac.fage.accessmesh.access.permission.mapper.PermissionChangeLogMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -57,7 +55,7 @@ class LogQueryAppServiceImplChangeLogTest {
     @BeforeEach
     void setUp() {
         service = new LogQueryAppServiceImpl(changeLogMapper, operationLogMapper,
-                engine, typeResolutionService, new ObjectMapper());
+                engine, typeResolutionService);
         AccessRequestContext.bind(RequestContext.user(TENANT, 100L));
     }
 
@@ -149,69 +147,4 @@ class LogQueryAppServiceImplChangeLogTest {
         }
     }
 
-    /** T-PERM-033 设计定案：recent-changes 门禁从 SYSTEM_CONFIG:VIEW 切目标实例 USER:VIEW
-     * （回归锁——持 SYSTEM_CONFIG:VIEW 而无目标 VIEW 者被拒，旧实现放行）。 */
-    @Test
-    void shouldDenyRecentChangesWhenOperatorLacksTargetUserView() {
-        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
-            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(typeResolutionService.resolveUserId(TENANT, "USER", "u-2")).thenReturn(1002L);
-            org.mockito.Mockito.lenient().when(engine.hasPermissionByCode(eq(TENANT), eq(100L),
-                eq(ResourceTypeCode.SYSTEM_CONFIG), isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
-            when(engine.hasPermissionByCode(TENANT, 100L, ResourceTypeCode.USER, "1002", OperationCodeConstants.VIEW))
-                .thenReturn(false);
-
-            assertThrows(SecurityException.class, () -> service.getRecentChanges(TENANT,
-                new PermissionRecentChangesReq("USER", "USER", "u-2", null, null, null,
-                    null, null, null, 1, 20)));
-        }
-        verifyNoInteractions(changeLogMapper);
-    }
-
-    /** USER 未解析：不检查目标门禁，返回空（与 explain/effective-permissions USER 分支同款）。 */
-    @Test
-    void shouldReturnEmptyRecentChangesWhenUserUnresolved() {
-        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
-            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(typeResolutionService.resolveUserId(TENANT, "USER", "u-999")).thenReturn(null);
-
-            var resp = service.getRecentChanges(TENANT,
-                new PermissionRecentChangesReq("USER", "USER", "u-999", null, null, null,
-                    null, null, null, 1, 20));
-
-            assertEquals(0, resp.total());
-            assertTrue(resp.items().isEmpty());
-        }
-        verifyNoInteractions(changeLogMapper);
-    }
-
-    /** ROLE 未解析：类型级 ROLE:VIEW 兜底（无类型级 VIEW → 拒）。 */
-    @Test
-    void shouldDenyRecentChangesWhenRoleUnresolvedWithoutTypeLevelRoleView() {
-        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
-            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(typeResolutionService.resolveRoleId(TENANT, "ROLE", "r-x", "admin")).thenReturn(null);
-            when(engine.hasPermissionByCode(TENANT, 100L, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW))
-                .thenReturn(false);
-
-            assertThrows(SecurityException.class, () -> service.getRecentChanges(TENANT,
-                new PermissionRecentChangesReq("ROLE", null, null, "ROLE", "r-x", "admin",
-                    null, null, null, 1, 20)));
-        }
-        verifyNoInteractions(changeLogMapper);
-    }
-
-    /** 非 USER/ROLE 的 targetType 一律拒绝（P0 回归锁：旧门禁重构后若无兜底，
-     * 非法值会绕过目标过滤拉取全租户变更日志）。 */
-    @Test
-    void shouldRejectRecentChangesWithInvalidTargetType() {
-        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
-            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
-
-            assertThrows(SecurityException.class, () -> service.getRecentChanges(TENANT,
-                new PermissionRecentChangesReq("FOO", null, null, null, null, null,
-                    null, null, null, 1, 20)));
-        }
-        verifyNoInteractions(changeLogMapper);
-    }
 }

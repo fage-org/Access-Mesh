@@ -3,7 +3,7 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.permission.mapper.PermissionChangeLogMapper">
 
-    <!-- T-PERM-032：页面查询与 recent-changes 统一条件组（对齐 schema 索引：user/role GIN 包含、
+    <!-- T-PERM-032：页面查询条件组（原与 recent-changes 统一，该端点已随 T-PERM-059 删除）（对齐 schema 索引：user/role GIN 包含、
          eventType 表达式索引、时间/实体普通索引；changeSource 低基数无索引） -->
     <sql id="listCondition">
         WHERE tenant_id = #{tenantId}

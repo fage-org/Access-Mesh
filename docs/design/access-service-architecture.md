@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-051 收口：§4.3 事实链路族增 TYPE_DEFINITION（类型定义实例投影两条产出链 + 删除级联）、§12.3 补 TYPE_DEFINITION 复合业务键语义（{typeKey}:{typeCode}、code 列宽 256）；2026-09-06 §14.8 E2E 自动化轨落位改 e2e 独立模块（T-ACCESS-031：E2E 分轨迁出 gateway、skipE2E 日常/收口两形态口径）；2026-09-05 T-ACCESS-029 实现收口：§14.2 收缩通道墓碑三分落地（BootstrapSeedWriter 墓碑查询诊断例外 + 升级口径与重建换 id 边界成文、runbook 处置步骤交叉引用）；2026-09-05 §14.2 固定图收缩通道墓碑三分定案（缺行+软删墓碑=告警放行不补回/无墓碑=仍拒启，T-ACCESS-029 承接）+ 固定图→租户初始化演进方向登记；2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
+last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口：§14.4 门禁表注记改排查端点族已删除（bootstrap 固定图 effective-permissions/explain 两行与「权限排查」菜单种子同批移除，清单仍以 BootstrapGraphDefinition.apiRoutes() 为唯一权威）；此前 2026-09-07 T-PERM-051 收口：§4.3 事实链路族增 TYPE_DEFINITION（类型定义实例投影两条产出链 + 删除级联）、§12.3 补 TYPE_DEFINITION 复合业务键语义（{typeKey}:{typeCode}、code 列宽 256）；2026-09-06 §14.8 E2E 自动化轨落位改 e2e 独立模块（T-ACCESS-031：E2E 分轨迁出 gateway、skipE2E 日常/收口两形态口径）；2026-09-05 T-ACCESS-029 实现收口：§14.2 收缩通道墓碑三分落地（BootstrapSeedWriter 墓碑查询诊断例外 + 升级口径与重建换 id 边界成文、runbook 处置步骤交叉引用）；2026-09-05 §14.2 固定图收缩通道墓碑三分定案（缺行+软删墓碑=告警放行不补回/无墓碑=仍拒启，T-ACCESS-029 承接）+ 固定图→租户初始化演进方向登记；2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
 ---
 
 # access-service 目标架构与归并约束
@@ -107,7 +107,7 @@ flowchart LR
 门禁与限额：
 
 - `/user/user-menus` 查询他人时需 `USER:VIEW@目标用户`，查自己豁免（方案1+2，P1-2；T-ACCESS-018 类型收敛后为 USER）：`AdminUserController.getUserMenus` 在 `req.id() != 当前登录用户` 时经 `AdminPermissionValidator.checkInstanceLevel(USER, id, VIEW)` 门禁。
-- 权限码下发门禁下放入口（方案「门禁下放入口」）：`PermissionViewAppService.buildEffectiveView` 公共管线不再设 `USER:VIEW` 门禁；permission 域独立 HTTP 入口 `/effective-permission-codes` 走 `getEffectivePermissionCodesForManage`（自查豁免 + 查他人需 `USER:VIEW`）；query 包内部调用由其入口 Controller 门禁（自查豁免 + `USER:VIEW`，P1-2）兜底；`getEffectivePermissions` 管理员视图保留原 `USER:VIEW`/`ROLE:VIEW` 门禁不动。
+- 权限码下发门禁下放入口（方案「门禁下放入口」）：`PermissionViewAppService.buildEffectiveView` 公共管线不再设 `USER:VIEW` 门禁；permission 域独立 HTTP 入口 `/effective-permission-codes` 走 `getEffectivePermissionCodesForManage`（自查豁免 + 查他人需 `USER:VIEW`）；query 包内部调用由其入口 Controller 门禁（自查豁免 + `USER:VIEW`，P1-2）兜底。（原 `getEffectivePermissions` 管理员视图已随 T-PERM-059 删除，2026-09-10）
 - `/role/list` 保持 `LIMIT 0,200` 上限并在 `UserRoleQueryService` Javadoc 声明（P2-3，设计定案「保持 + 文档声明上限」）：功能角色面向前端下拉，超出 200 属配置异常，由组织治理收敛。
 - `OrgVisibilityQueryServiceImpl` 缓存读写故障旁路 DB（P2-1）：`CacheService.get/put` 异常时记 `log.warn` 并降级直查 DB，不阻断可见性计算（fail-open 至数据库层，权限判定本身仍经 engine fail-closed）。
 - 角色数据走 query 服务（P2-2，设计定案「角色走 query 服务 + 权限保留 AppService」）：`UserRoleQueryService` 经 `UserRoleQueryMapper` 直读 `user_role ⨝ abstract_role`（跨域只读），权限事实（有效权限码/资源访问）保留经 `PermissionViewAppService`。
@@ -394,7 +394,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 - `resource_entity(USER).code` = 主体 ID 字符串化（`subjectId.toString()`）；`resource_entity(ROLE).code` = roleId 字符串化（`abstract_role.id.toString()`）。二者是实例级授权的业务编码（`resourceCode`），由 USER/ROLE 全写路径同事务投影维护（T-ACCESS-019 已落地 2026-08-23：admin 域 `UserWriteAppService`（既有）与 permission 域 `RoleManageAppService`/`UserManageAppService` 的 create/update/move/remove/启停全量经 `LocalProjectionDomainService` 维护投影；ROLE 投影 `parent_id` 镜像角色树且父投影缺失 fail-closed 回滚；`abstract-user/update` 门禁升实例级 `USER:MANAGE@subjectId`。范围口径：外部 `/api/perm/**/sync|full-sync` 三入口不产投影、亦无缓存失效登记，为登记遗留——外部主体的 USER 资源按 §4.3 由外部经 resource-entity sync 自行维护，`UserRoleSync` 缓存失效缺口见 T-ACCESS-019 任务卡遗留节）。
 - **`resource_entity(TYPE_DEFINITION).code` = 复合业务键 `{typeKey}:{typeCode}`（T-PERM-051，2026-09-05 定案）**：typeCode 仅 `tenant+type_key` 内唯一（种子 user_type 与 resource_type 均有 USER/SERVICE 同名行），裸 code 跨族撞 `uk_resource_entity`，故以复合键消歧；格式构造唯一入口 `BusinessKeys.typeInstanceBusinessKey`（golden 锁）。投影由 type-definition 写路径同事务维护（create 联动 / name 变更同步 / 软删级联投影行与投影行下授权行）+ bootstrap 自愈补种（存量种子行，幂等）两条事实链产出（类型所有权 SYNC+access-service，见 §4.3）；无树形语义（parent 恒 null、status 恒启用）。实例级门禁（list 第二段 / detail / update / remove 批量）全部按该复合键编码轨判定（经 `hasPermissionByCode`/`getDeniedResourceCodes`，投影缺失的键 fail-closed 计入拒绝）；`resource_entity.code` 列宽 256 即为容纳最坏 64+1+64=129 复合键而加宽（2026-09-07 用户定案）。
-- **`resource_entity.id` 边界**：USER/ROLE 等业务对象门禁与跨服务 SDK **不得使用** `resource_entity.id`，统一使用业务 code/externalId；权限域内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等 `resource_entity` 自身的管理链路）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp`/`ResourcePermissionTreeResp` 等契约不因此重构。
+- **`resource_entity.id` 边界**：USER/ROLE 等业务对象门禁与跨服务 SDK **不得使用** `resource_entity.id`，统一使用业务 code/externalId；权限域内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等 `resource_entity` 自身的管理链路）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp` 等契约不因此重构（原 `ResourcePermissionTreeResp` 已随 T-PERM-059 删除，2026-09-10）。
 - 引擎门禁按业务编码判定的契约（`hasPermissionByCode`/`getDeniedResourceCodes` 等）以 permission-center `implementation.md` §3.1 为准。
 
 ## 13. 资源类型注册表（T-ACCESS-016 定稿）
@@ -521,7 +521,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | `RESOURCE:VIEW`                        | ALL                | 授权页资源树加载门控（门禁补齐见 §14.5）                                                        |
 | `OPERATION:VIEW`                       | ALL                | 授权页操作列表加载门控（同上）                                                                   |
 | `OPERATION_LOG:VIEW`                   | ALL                | 操作日志查询门禁（T-PERM-025 审计分离：独立权限码取代复用 SYSTEM_CONFIG:VIEW；固定图持否则新码无授予起点） |
-| `PERMISSION_CHANGE_LOG:VIEW`           | ALL                | 权限变更日志查询门禁（T-PERM-032 审计分离：对齐 OPERATION_LOG 先例；排查视图 explain/recent-changes 已随 T-PERM-033 切被查目标实例 USER:VIEW/ROLE:VIEW，无独立排查码） |
+| `PERMISSION_CHANGE_LOG:VIEW`           | ALL                | 权限变更日志查询门禁（T-PERM-032 审计分离：对齐 OPERATION_LOG 先例；排查视图端点族已随 T-PERM-059 删除，2026-09-10） |
 | `DOMAIN:VIEW`                          | ALL                | 业务域页读门禁（T-PERM-026：固定图不持则空库上业务域页读路径无授予起点死锁，OPERATION_LOG:VIEW 先例） |
 | `CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE` | ALL             | 冲突规则页读写四档（T-PERM-030：读三端点 list/detail/detect 与写三档均类型级；固定图不持则空库上该页读写路径无授予起点死锁，DOMAIN:VIEW 先例；均不可转授） |
 | `CONDITION:CREATE/UPDATE/DELETE`      | ALL                | 权限条件页写门禁三档（T-PERM-030 顺带补授：T-PERM-029 遗漏的同款死锁缺口——checkCanGrant 要求操作者先持有；条件读取无门禁故无 VIEW 条目） |

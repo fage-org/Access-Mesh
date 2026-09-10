@@ -156,7 +156,7 @@ class AuthorizationChangeInvalidationPgIT {
     }
 
     @Test
-    @DisplayName("端到端场景 1（成功提交）：权限事实落库 + 恰好一条 §6.8 聚合 permission_change_log + 缓存失效")
+    @DisplayName("端到端场景 1（成功提交）：权限事实落库 + 恰好一条 §5.8 diff_snapshot 规范聚合（原 §6.8） permission_change_log + 缓存失效")
     void applyGrantPlanSuccessShouldPersistFactsAndSingleAggregateChangeLog() throws Exception {
         Long operatorSubject = insertAbstractUserWithId(920011L, "特征测试-成功提交操作者");
         Long operatorRole = insertAbstractRole("op-role-920111", "特征测试-成功提交操作者角色");
@@ -206,7 +206,7 @@ class AuthorizationChangeInvalidationPgIT {
             "SELECT can_grant FROM role_resource_permission WHERE id = ?", Boolean.class, updatedPermId);
         assertThat(updatedCanGrant).isTrue();
 
-        // 恰好一条 §6.8 聚合 permission_change_log（eventType + items[].permission/role）
+        // 恰好一条 §5.8 diff_snapshot 规范聚合（原 §6.8） permission_change_log（eventType + items[].permission/role）
         Integer logCount = jdbc.queryForObject(
             "SELECT count(*) FROM permission_change_log WHERE tenant_id = ? AND entity_id = ?",
             Integer.class, TENANT, targetRole);

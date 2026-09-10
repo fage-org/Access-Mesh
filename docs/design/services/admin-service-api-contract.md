@@ -793,7 +793,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 > 菜单表仅承载 UI 路由元数据与关联资源 link，不承载权限语义（`sys_menu` 权威 DDL 见 `../schema/access-service.sql`；设计语义见 `../permission-center-v3.5-design.md` §2.1/§4.1）。按钮级权限由 OperationPermission（L1）承担，不再挂菜单。前端登录菜单聚合走 `/auth/user-menu`（v3.5 §5 单 RPC 契约），与本节管理接口分离。前端菜单管理页尚未开发（views/system 无 menu 页面），本节契约为先行定稿，无现存消费方破坏面。
 >
-> **bootstrap 菜单种子（T-FE-015，2026-08-31 设计定案）**：空库 bootstrap 固定图幂等种子 15 行菜单——welcome 首页（纯展示）+「系统管理」DIR + 13 业务页 MENU（按页面主资源类型挂接、类型级 `resource_code=null` 走 scopeAll 派生；权限条件页读取全租户开放故挂纯展示、权限排查页门禁 USER:VIEW/ROLE:VIEW 任一单挂取 USER）。path 与前端静态路由一一对齐（侧栏点击按 path 跳静态路由）；检测断言以 path 集合为期望键（结构键严格，displayName/icon/sortOrder 容忍菜单管理页改动）。同批种子默认组织树（根组织稳定业务键 `root` + 默认树配置 + 首管理员挂根组织）——`/user/page` 与 `/user/member-candidates` 为默认树身份目录视图，无默认树配置则恒空。固定图定义升级后既有库须重建（runbook 常见问题表）。
+> **bootstrap 菜单种子（T-FE-015，2026-08-31 设计定案）**：空库 bootstrap 固定图幂等种子 14 行菜单——welcome 首页（纯展示）+「系统管理」DIR + 12 业务页 MENU（按页面主资源类型挂接、类型级 `resource_code=null` 走 scopeAll 派生；权限条件页读取全租户开放故挂纯展示；原权限排查页已随 T-PERM-059 删除，2026-09-10）。path 与前端静态路由一一对齐（侧栏点击按 path 跳静态路由）；检测断言以 path 集合为期望键（结构键严格，displayName/icon/sortOrder 容忍菜单管理页改动）。同批种子默认组织树（根组织稳定业务键 `root` + 默认树配置 + 首管理员挂根组织）——`/user/page` 与 `/user/member-candidates` 为默认树身份目录视图，无默认树配置则恒空。固定图定义升级后既有库须重建（runbook 常见问题表）。
 
 #### 4.6.1 `POST /menu/create` 🔧
 

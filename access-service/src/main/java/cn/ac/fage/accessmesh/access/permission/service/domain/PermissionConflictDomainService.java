@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain;
 
-import cn.ac.fage.accessmesh.access.permission.vo.MutexFilterResult;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 
 import java.util.List;
@@ -46,17 +45,4 @@ public interface PermissionConflictDomainService {
      */
     List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries);
 
-    /**
-     * 权限互斥过滤（带丢弃明细，T-PERM-033 explain DTO 扩展）。
-     * <p>
-     * 过滤语义与 {@link #filterPermMutex} 完全一致，但保留被互斥规则丢弃的条目
-     * 及其命中规则（规则ID + 两侧操作码），供权限排查视图解释「本可命中但被互斥
-     * 规则移除」。只读排查路径专用，不触发冲突通知。
-     * </p>
-     *
-     * @param tenantId     租户ID
-     * @param passedEntries 条件评估后的权限条目列表
-     * @return 过滤结果（通过条目 + 被丢弃条目及命中规则）
-     */
-    MutexFilterResult filterPermMutexWithDrops(Long tenantId, List<RolePermEntry> passedEntries);
 }

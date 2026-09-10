@@ -146,27 +146,5 @@ public class AuditDomainServiceImpl implements AuditDomainService {
         return value.substring(0, maxLen);
     }
 
-    // ===== 变更历史查询 =====
 
-    /**
-     * 查询近期变更历史
-     */
-    @Override
-    public List<PermissionChangeLog> queryRecentChanges(Long tenantId, Long userId, Long roleId,
-                                                          LocalDateTime since, LocalDateTime until,
-                                                          List<String> eventTypes, int offset, int limit) {
-        return changeLogMapper.selectPageByCondition(tenantId, null, null, userId, roleId,
-                since, until, eventTypes, null, offset, limit);
-    }
-
-    /**
-     * 统计近期变更数量
-     */
-    @Override
-    public long countRecentChanges(Long tenantId, Long userId, Long roleId,
-                                    LocalDateTime since, LocalDateTime until,
-                                    List<String> eventTypes) {
-        return changeLogMapper.countByCondition(tenantId, null, null, userId, roleId,
-                since, until, eventTypes, null);
-    }
 }

@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 外部 API 契约
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§6.1 check/batch-check 增主资源上下文四可选字段（parentResourceTypeCode/parentResourceCode/parentCodeType/parentOperationCodes，与 §6.7 同名对齐；不传=fail-closed 排除子权限行，拒绝原因 DEPENDENT_NOT_IN_PARENT_CONTEXT）+ 引擎便捷入口/类型级门禁同口径注记 + §6.6 注记子权限行不进清单面（Gateway 快照同口径）；此前 2026-09-10 T-API-003 收口：§5.7 SDK 入口清单注记改分族口径 + §6.1 check/§6.2 check-interface 响应示例与注记改写为结果记录全量回传（matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId 恢复回线格式，推翻 T-API-002 check 族裁剪；Query\* 响应族六字段裁剪维持 §6.6/§6.7 终态）；此前 2026-09-09 T-PERM-057 §6.1 补 inheritMode 接通语义注记（PARENT/BOTH=判定面闭包开）；2026-09-09 T-PERM-056 收口：§5.1 type-definition remove 主体类型删除保护成文（user_type/role_type 下存在有效 abstract_user/abstract_role 行时整批拒绝 20056——主体数据不级联、对齐 resource_type 行数守卫先例，用户定案；role_type 面与角色写入口共持 ABSTRACT_ROLE 树写锁闭合并发交错、user_type 面 best-effort + typeValue 软删不复用兜底；20056 message 措辞扩为「有效引用行——资源行/用户行/角色行」；存量孤儿检测语句见 rebuild-runbook）；此前 2026-09-09 T-PERM-050 收口：§5.1 type-definition remove 级联语义成文（被删 resource_type 的操作定义行——含预置 CRUD 四操作位——与该类型下有效授权行（正常流仅剩 scope_all 类型级）同事务级联软删 + markRoles/OPERATION_PERMISSIONS_BY_TYPE per-type 失效；级联面限定 type_key=resource_type；user_type/role_type 面拆分 T-PERM-056、存量订正语句见 rebuild-runbook）；此前 2026-09-09 T-PERM-046 业务域三项加固收口：§5.1 biz-domain create 加 global 可选入口（默认 false；20057 全局域已存在，预查+uk_biz_domain_global DIVE 兜底；创建后不可变）+ 全局域范围=CLASSIFY 声明或动态补集（用户定案）；§5.6 domain-config 并发语义收口（uk_domain_config 部分唯一索引 + 20058 并发冲突提示重试 + remove/save 域行锁双向闭合孤儿配置窗口）+ 全局域 CLASSIFY 声明生效条目；此前 2026-09-07 T-PERM-051 收口：§5.1 TYPE_DEFINITION 实例投影落地（复合业务键 {typeKey}:{typeCode}、四处门禁消费方迁移、事实链路族六类型、删除级联与 bootstrap 自愈口径）；同日早前 T-PERM-019 D2/D3：§5.1 typeCode 生成码措辞订正（<TYPEKEY大写>_<typeValue>，例 RESOURCE_TYPE_12）；此前 2026-09-06 T-ADMIN-025 增补：事实链路类型族增 ADMIN_FILE（bootstrap 预置+上传惰性登记两条产出链，§5.1/§6.2.2 五类型口径）；2026-09-06 T-API-002 收口：SDK 四件套补齐与内部 id 字段族全线裁剪（§5.7 SDK 入口清单注记 + Query* DTO 迁 perm-common + query-resources/query-scopes 入 PermissionFeignClient；§6.1/§6.2 check 族响应裁 matchedRoleIds/matchedPermissionIds/resourceId（用户决策扩大面）+ §6.6/§6.7 六字段裁剪与去重/DEPENDENT 规则措辞对齐 + 排查页暂停注记 T-FE-043）；2026-09-05 T-PERM-053 收口：§6.3 ApiItem.operationCode 字段退役（删除；严格 mapper 旧载荷 400；前后端同批锁步）；同日 T-PERM-052 codex 二轮复评收口：§5.1 保存校验与运行时入口同规则（来源须注册+未软删+status=1、保留内部来源拒绝、已知键显式 null 拒绝/未知键开放）+ 系统预置类型所有权声明钉死（20056）；同日 T-PERM-052 类型级所有权两批落地与评审批次收口：§5.1 类型所有权声明（managedMode/syncSourceService 两态+内部来源 is_system 豁免+API 类型禁 SYNC+remove 行数守卫）、§5.3 SYNC 类型管理面只读（20055，remove 级联全集守卫）、§6.2.2/§6.2.2.1 同步入口类型门禁（RESOURCE_TYPE_OWNERSHIP_DENIED，含来源服务注册+启用校验）、§6.3/§6.3.1 syncTypes 资源维度退役（三维+退役字段保存拒绝）、§10-14；同日内部来源统一：事实链路四类型种子声明 SYNC+access-service，原保留清单/行级投影防线收编删除，resource_entity.sync_key 列删除；2026-09-04 T-PERM-044 四树环加固收口：§5.2 move 并发语义成文（树级分布式锁串行化，Redisson、事务提交/回滚后释放）；同日双轨评审补：§6.2.2 资源同步 parent 判环条款与版本语义对齐（拒绝/依赖缺失不推进同步版本）；2026-09-03 T-FE-018 评审复核：§5.1 type-definition/list 门禁放宽为类型级或任一实例级 VIEW（与登录权限串投影口径对齐，用户决策；TYPE_DEFINITION 无实例投影经查库核实，实例投影登记 T-PERM-051）；同日外部评审处置：§5.1 list 门禁全拒比较跨 type_key 重码 fail-open 修复（去重码集比较+回归锁）、无自动产出/人工可构造口径精化、资源实体管理入口保留清单精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 需求对齐会：§5.3 登记 resource-entity/tree 未知类型 fail-open 与兄弟接口 fail-closed 口径不一致（待办收口，暂不实施）；同日 T-FE-018 联调评审：§6.5.2 登记 SUB_PERM 顶层通配经真实 jsonb 链路不可达已知缺陷（ALLOW_ALL 以嵌套通配替代，修复待办）、§5.8 轮次标记清理；此前 2026-09-01 T-FE-016 角色管理联调收口：§5.2 角色管理契约要点补 update extraClear 显式清空标志（对齐 §5.3 resource-entity 同款口径）；2026-08-31 T-PERM-040 单资源类型后端支持收口：§6.4 resourceTypeCode 类型过滤标已落地（主权限专用 Mapper 查询 + 子权限按 depend_on 批量挂父，双重约束 SQL 层满足）+ 未知类型空列表 fail-closed 口径成文、§6.5.1 operationCode 适用性校验标已落地（20008/20005 区分成文）、§5.3 类型查询参数补未知类型空列表与空白串视同缺省（不过滤）口径 + domainCode 死参数删除登记（从未实现过滤、零调用方）；2026-08-30 T-PERM-041 主权限条件不变量收口：§6.5.1 共用不变量块与 20042 条件启用状态标已落地（20041 预检最终态判定与主权限 DDL CHECK 先行存在，本任务补 20042 启用校验）+ 20042"未变更"口径成文（update 同 id 重写=存量保留，按解析后条件 id 比对豁免；清除仅精确空串、空白串落 20006、缺省不触发）+ updates conditionCode 三态定义补明空白串口径；同日全局操作概念整体退役（T-PERM-049，外部复审触发的设计定案）：§5.3 includeGlobalFallback 合并参数与「专属优先、全局回退」合并语义退役、resourceTypeCode 可空=全局操作键轨退役（detail/update/remove 必填）、§6.5.1 operationCode 适用性校验收窄为类型专属定义、§6.6 投影轨全局位分歧登记随概念失效；同日 T-PERM-034 外部复评收口：§6.8 apply-grant-plan 写侧快照补录级联删除子权限（depend_on 命中 removes 同记 REMOVE、与显式删除去重）；同日 T-PERM-034 收口：§5.5 sub-perm-allowed-types 落地标注、§6.5.2 落地状态注记、§6.8 增补 apply-grant-plan 写侧聚合形状落地（20043 预检/diff_snapshot §6.8/GoldenFixturePgIT 引擎级比对/引擎全局操作位掩码修复；此前同日 §5.6 resource-dependency 契约要点（T-PERM-031 收口：读三端点 list/graph/check 补类型级 DEPENDENCY:VIEW + 写三档类型级收窄（update 原「编码轨传内部 id」/remove 原实例级 entityId 轨均为 ID 空间错位废弃）、update PUT 全量覆盖 + 资源对业务键补全（Q3=B 前端契约收口）、等价重复业务预查 20054 新增、操作码 fail-closed 20005（原静默丢弃）、自依赖 20044、Resp 补静态字段 + 操作位字符串线格式、maintainSource 四值白名单、bootstrap 补 DEPENDENCY 五档）+ §6.9 同步；同日 §5.6 conflict-rule 契约要点（T-PERM-030 收口：读三端点 list/detail/detect 补类型级 CONFLICT_RULE:VIEW + 写三档类型级收窄（原「编码轨传内部 id」实例级声称系 ID 空间错位废弃，同 CONDITION 口径/实例投影登记 T-PERM-048）、detail 查不到 20020、list 全量不分页、定位键维持内部 id 评估定案（无业务键）、Resp 补 updatedAt、description ≤512、bootstrap 补 CONFLICT_RULE 四档 + CONDITION 写三档（029 遗漏死锁缺口）；同日更早 §5.6 permission-condition 契约要点（T-PERM-029 收口：写门禁口径收窄为类型级（原「实例级」声称系 ID 空间错位废弃，实例投影登记 T-PERM-048）、detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案（🔧3 分页登记反转）、ConditionResp 补 updatedAt、读取无门禁+写三档独立门禁口径、gatewayEvaluable 联合校验/remove 幂等语义成文）；2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
+last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口：§5.8 permission-view 七端点（effective-permissions/resource-users/role-permissions/effective-roles/resource-tree/explain/recent-changes）+ /auth/query-permission-tree 契约整段删除（删除重设计定案，新形态另立任务；登录串 effective-permission-codes 保留），diff_snapshot 轻量规范自 §6.8 迁入 §5.8 change-log 段，§6.1/§6.7/§6.4/§6.10.6 交叉引用与 §6.10.5 同步清理；此前 2026-09-10 T-PERM-058 收口：§6.1 check/batch-check 增主资源上下文四可选字段（parentResourceTypeCode/parentResourceCode/parentCodeType/parentOperationCodes，与 §6.7 同名对齐；不传=fail-closed 排除子权限行，拒绝原因 DEPENDENT_NOT_IN_PARENT_CONTEXT）+ 引擎便捷入口/类型级门禁同口径注记 + §6.6 注记子权限行不进清单面（Gateway 快照同口径）；此前 2026-09-10 T-API-003 收口：§5.7 SDK 入口清单注记改分族口径 + §6.1 check/§6.2 check-interface 响应示例与注记改写为结果记录全量回传（matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId 恢复回线格式，推翻 T-API-002 check 族裁剪；Query\* 响应族六字段裁剪维持 §6.6/§6.7 终态）；此前 2026-09-09 T-PERM-057 §6.1 补 inheritMode 接通语义注记（PARENT/BOTH=判定面闭包开）；2026-09-09 T-PERM-056 收口：§5.1 type-definition remove 主体类型删除保护成文（user_type/role_type 下存在有效 abstract_user/abstract_role 行时整批拒绝 20056——主体数据不级联、对齐 resource_type 行数守卫先例，用户定案；role_type 面与角色写入口共持 ABSTRACT_ROLE 树写锁闭合并发交错、user_type 面 best-effort + typeValue 软删不复用兜底；20056 message 措辞扩为「有效引用行——资源行/用户行/角色行」；存量孤儿检测语句见 rebuild-runbook）；此前 2026-09-09 T-PERM-050 收口：§5.1 type-definition remove 级联语义成文（被删 resource_type 的操作定义行——含预置 CRUD 四操作位——与该类型下有效授权行（正常流仅剩 scope_all 类型级）同事务级联软删 + markRoles/OPERATION_PERMISSIONS_BY_TYPE per-type 失效；级联面限定 type_key=resource_type；user_type/role_type 面拆分 T-PERM-056、存量订正语句见 rebuild-runbook）；此前 2026-09-09 T-PERM-046 业务域三项加固收口：§5.1 biz-domain create 加 global 可选入口（默认 false；20057 全局域已存在，预查+uk_biz_domain_global DIVE 兜底；创建后不可变）+ 全局域范围=CLASSIFY 声明或动态补集（用户定案）；§5.6 domain-config 并发语义收口（uk_domain_config 部分唯一索引 + 20058 并发冲突提示重试 + remove/save 域行锁双向闭合孤儿配置窗口）+ 全局域 CLASSIFY 声明生效条目；此前 2026-09-07 T-PERM-051 收口：§5.1 TYPE_DEFINITION 实例投影落地（复合业务键 {typeKey}:{typeCode}、四处门禁消费方迁移、事实链路族六类型、删除级联与 bootstrap 自愈口径）；同日早前 T-PERM-019 D2/D3：§5.1 typeCode 生成码措辞订正（<TYPEKEY大写>_<typeValue>，例 RESOURCE_TYPE_12）；此前 2026-09-06 T-ADMIN-025 增补：事实链路类型族增 ADMIN_FILE（bootstrap 预置+上传惰性登记两条产出链，§5.1/§6.2.2 五类型口径）；2026-09-06 T-API-002 收口：SDK 四件套补齐与内部 id 字段族全线裁剪（§5.7 SDK 入口清单注记 + Query* DTO 迁 perm-common + query-resources/query-scopes 入 PermissionFeignClient；§6.1/§6.2 check 族响应裁 matchedRoleIds/matchedPermissionIds/resourceId（用户决策扩大面）+ §6.6/§6.7 六字段裁剪与去重/DEPENDENT 规则措辞对齐 + 排查页暂停注记 T-FE-043）；2026-09-05 T-PERM-053 收口：§6.3 ApiItem.operationCode 字段退役（删除；严格 mapper 旧载荷 400；前后端同批锁步）；同日 T-PERM-052 codex 二轮复评收口：§5.1 保存校验与运行时入口同规则（来源须注册+未软删+status=1、保留内部来源拒绝、已知键显式 null 拒绝/未知键开放）+ 系统预置类型所有权声明钉死（20056）；同日 T-PERM-052 类型级所有权两批落地与评审批次收口：§5.1 类型所有权声明（managedMode/syncSourceService 两态+内部来源 is_system 豁免+API 类型禁 SYNC+remove 行数守卫）、§5.3 SYNC 类型管理面只读（20055，remove 级联全集守卫）、§6.2.2/§6.2.2.1 同步入口类型门禁（RESOURCE_TYPE_OWNERSHIP_DENIED，含来源服务注册+启用校验）、§6.3/§6.3.1 syncTypes 资源维度退役（三维+退役字段保存拒绝）、§10-14；同日内部来源统一：事实链路四类型种子声明 SYNC+access-service，原保留清单/行级投影防线收编删除，resource_entity.sync_key 列删除；2026-09-04 T-PERM-044 四树环加固收口：§5.2 move 并发语义成文（树级分布式锁串行化，Redisson、事务提交/回滚后释放）；同日双轨评审补：§6.2.2 资源同步 parent 判环条款与版本语义对齐（拒绝/依赖缺失不推进同步版本）；2026-09-03 T-FE-018 评审复核：§5.1 type-definition/list 门禁放宽为类型级或任一实例级 VIEW（与登录权限串投影口径对齐，用户决策；TYPE_DEFINITION 无实例投影经查库核实，实例投影登记 T-PERM-051）；同日外部评审处置：§5.1 list 门禁全拒比较跨 type_key 重码 fail-open 修复（去重码集比较+回归锁）、无自动产出/人工可构造口径精化、资源实体管理入口保留清单精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 需求对齐会：§5.3 登记 resource-entity/tree 未知类型 fail-open 与兄弟接口 fail-closed 口径不一致（待办收口，暂不实施）；同日 T-FE-018 联调评审：§6.5.2 登记 SUB_PERM 顶层通配经真实 jsonb 链路不可达已知缺陷（ALLOW_ALL 以嵌套通配替代，修复待办）、§5.8 轮次标记清理；此前 2026-09-01 T-FE-016 角色管理联调收口：§5.2 角色管理契约要点补 update extraClear 显式清空标志（对齐 §5.3 resource-entity 同款口径）；2026-08-31 T-PERM-040 单资源类型后端支持收口：§6.4 resourceTypeCode 类型过滤标已落地（主权限专用 Mapper 查询 + 子权限按 depend_on 批量挂父，双重约束 SQL 层满足）+ 未知类型空列表 fail-closed 口径成文、§6.5.1 operationCode 适用性校验标已落地（20008/20005 区分成文）、§5.3 类型查询参数补未知类型空列表与空白串视同缺省（不过滤）口径 + domainCode 死参数删除登记（从未实现过滤、零调用方）；2026-08-30 T-PERM-041 主权限条件不变量收口：§6.5.1 共用不变量块与 20042 条件启用状态标已落地（20041 预检最终态判定与主权限 DDL CHECK 先行存在，本任务补 20042 启用校验）+ 20042"未变更"口径成文（update 同 id 重写=存量保留，按解析后条件 id 比对豁免；清除仅精确空串、空白串落 20006、缺省不触发）+ updates conditionCode 三态定义补明空白串口径；同日全局操作概念整体退役（T-PERM-049，外部复审触发的设计定案）：§5.3 includeGlobalFallback 合并参数与「专属优先、全局回退」合并语义退役、resourceTypeCode 可空=全局操作键轨退役（detail/update/remove 必填）、§6.5.1 operationCode 适用性校验收窄为类型专属定义、§6.6 投影轨全局位分歧登记随概念失效；同日 T-PERM-034 外部复评收口：§6.8 apply-grant-plan 写侧快照补录级联删除子权限（depend_on 命中 removes 同记 REMOVE、与显式删除去重）；同日 T-PERM-034 收口：§5.5 sub-perm-allowed-types 落地标注、§6.5.2 落地状态注记、§6.8 增补 apply-grant-plan 写侧聚合形状落地（20043 预检/diff_snapshot §6.8/GoldenFixturePgIT 引擎级比对/引擎全局操作位掩码修复；此前同日 §5.6 resource-dependency 契约要点（T-PERM-031 收口：读三端点 list/graph/check 补类型级 DEPENDENCY:VIEW + 写三档类型级收窄（update 原「编码轨传内部 id」/remove 原实例级 entityId 轨均为 ID 空间错位废弃）、update PUT 全量覆盖 + 资源对业务键补全（Q3=B 前端契约收口）、等价重复业务预查 20054 新增、操作码 fail-closed 20005（原静默丢弃）、自依赖 20044、Resp 补静态字段 + 操作位字符串线格式、maintainSource 四值白名单、bootstrap 补 DEPENDENCY 五档）+ §6.9 同步；同日 §5.6 conflict-rule 契约要点（T-PERM-030 收口：读三端点 list/detail/detect 补类型级 CONFLICT_RULE:VIEW + 写三档类型级收窄（原「编码轨传内部 id」实例级声称系 ID 空间错位废弃，同 CONDITION 口径/实例投影登记 T-PERM-048）、detail 查不到 20020、list 全量不分页、定位键维持内部 id 评估定案（无业务键）、Resp 补 updatedAt、description ≤512、bootstrap 补 CONFLICT_RULE 四档 + CONDITION 写三档（029 遗漏死锁缺口）；同日更早 §5.6 permission-condition 契约要点（T-PERM-029 收口：写门禁口径收窄为类型级（原「实例级」声称系 ID 空间错位废弃，实例投影登记 T-PERM-048）、detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案（🔧3 分页登记反转）、ConditionResp 补 updatedAt、读取无门禁+写三档独立门禁口径、gatewayEvaluable 联合校验/remove 幂等语义成文）；2026-08-29 §5.3 资源与操作业务键定稿（T-PERM-028 收口：detail/update/move/remove 切业务键混合形态、extraClear 显式清空、move 20053 跨类型/防环、list/detail VIEW 门禁补齐、bigint 十进制字符串线格式落地、resource_type 创建联动预置、§5.4 资源选择器登记收口）+ §5.4 service-config/resource-api-mapping 契约要点（T-PERM-027 收口：list 维持全量设计定案、remove 级联清理、syncMode FULL-only 校验、ApiMappingResp 资源业务字段、mapping list 门禁+裁剪、updatedAt、bootstrap SERVICE 三授权）+ §6.3/§6.10.4 同步；§5.1 biz-domain 契约要点 + §5.6 domain-config 契约要点（T-PERM-026 收口：detail/update 切业务键 code、list 服务端过滤分页、Resp global、删除保护 20051/创建查重 20052、extra JSON 校验、JSONB 映射确认）；§6.8 explain 契约扩展 + §6.7/§6.8 门禁设计定案（T-PERM-033：explain/recent-changes 门禁=被查目标实例 USER:VIEW/ROLE:VIEW、无独立排查码；explain 增 context/评估上下文来源/条件评估明细（脱敏）/互斥丢弃明细；recentChanges 按权限键过滤；§6.7 登记 query-scopes 管理端排查复用无门禁）；此前：§5.8 permission-change-log 契约要点 + §6.8 增补 ROLE_BATCH_DELETE（T-PERM-032 收口）；2026-08-28 §5.2 角色管理契约要点 + §6.10.3 tree 全量返回与 enabledOnly（T-PERM-022 收口：detail 业务键/move 类型一致+环路 20050/list+detail VIEW 门禁/sync 最终图判环+版本不推进/remove 根有权整棵子树可删）、§5.1 type-definition 契约要点（T-PERM-023 收口）、§5.8 system-config/operation-log 契约要点（T-PERM-024/025 收口：upsert/isSystem 修复/list 分页/JSONB 语义/OPERATION_LOG:VIEW 审计分离/action-options 字典）；更早：2026-08-27 §5.5 五旧端点删除、§6.6 treeMode 移除、§6.9 autoGrant 20048
 ---
 
 # Permission Center 外部 API 契约
@@ -12,7 +12,7 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§6.1 check/batch-c
 
 > **全局注记（2026-06-20 审计 S-001 + T-PERM-018 收尾）**：`permissionVersion` 字段已随 T-PERM-018（缓存下沉）从所有响应体移除——令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」已核实，permission-center 侧该 L2 缓存已删，令牌随之失效，连带 304/notModified 死代码一并清除。本文档历史段落保留的字段描述仅作演进记录，**以代码为准**（`InterfaceSnapshotResp`/`InterfaceSnapshotReq`/`QueryResourcesResp`/`QueryScopesResp`/`PermissionTreeResp` 均不再含 `permissionVersion`）。
 
-> **scopeMode 协议定义（2026-06-27 T-PERM-011，T-PERM-013 落地完成）**：对外协议字段统一使用 `scopeMode`，不再暴露旧 boolean 范围字段。`auth/query-scopes.scopeGroups[]` 使用四态 `DENIED / INSTANCE / ALL / EMPTY`：无权限、具体实例、全量范围、有权限但过滤后为空；授权请求、授权配置响应、接口快照项、`query-resources` 和 `effective-permissions` 等权限事实列表项只使用 `INSTANCE / ALL`。授权请求侧 `INSTANCE` 表示具体实例范围且必须传 `resourceCode/codeType`，`ALL` 表示资源类型 + 操作下全量范围且不传 `resourceCode/codeType`。数据库内部仍保留 `role_resource_permission.scope_all` 作为存储字段，由服务端完成协议层映射（`ScopeModeSupport`）。所有对外协议 DTO（含 `InterfaceSnapshotResp.ApiPermissionEntry` 和 `QueryResourcesResp.ResourceEntry`）已完成迁移，旧 `scopeAll` boolean 字段不再出现在任何外部响应中。
+> **scopeMode 协议定义（2026-06-27 T-PERM-011，T-PERM-013 落地完成）**：对外协议字段统一使用 `scopeMode`，不再暴露旧 boolean 范围字段。`auth/query-scopes.scopeGroups[]` 使用四态 `DENIED / INSTANCE / ALL / EMPTY`：无权限、具体实例、全量范围、有权限但过滤后为空；授权请求、授权配置响应、接口快照项和 `query-resources` 等权限事实列表项只使用 `INSTANCE / ALL`（原 `effective-permissions` 已随 T-PERM-059 删除，2026-09-10）。授权请求侧 `INSTANCE` 表示具体实例范围且必须传 `resourceCode/codeType`，`ALL` 表示资源类型 + 操作下全量范围且不传 `resourceCode/codeType`。数据库内部仍保留 `role_resource_permission.scope_all` 作为存储字段，由服务端完成协议层映射（`ScopeModeSupport`）。所有对外协议 DTO（含 `InterfaceSnapshotResp.ApiPermissionEntry` 和 `QueryResourcesResp.ResourceEntry`）已完成迁移，旧 `scopeAll` boolean 字段不再出现在任何外部响应中。
 
 ## 1. 设计目标
 
@@ -117,7 +117,7 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§6.1 check/batch-c
 - 同一接口不同时接受 `id/code/externalId` 多套定位方式，避免歧义。
 - 所有请求体禁止出现 `tenantId`；服务端统一从 `X-Tenant-Id` 和安全上下文读取租户。
 - 对外 API 使用稳定字符串 `typeCode`；数据库实体继续保存 `type_value INT`，由服务端通过缓存解析，避免外部系统依赖内部数字枚举。
-- **实例授权业务编码语义（T-ACCESS-016 定稿）**：`resource_entity(USER).code = subjectId`（主体 ID 字符串化）、`resource_entity(ROLE).code = roleId`（`abstract_role.id` 字符串化）；业务对象门禁与跨服务 SDK 统一使用业务 `resourceCode`，不得使用 `resource_entity.id`——权限域内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp`/`ResourcePermissionTreeResp` 等契约不因此重构。引擎内部 Java API 契约见 implementation §3.1（`hasPermissionByCode`/`getDeniedResourceCodes` 对外，`getDeniedEntityIds`/`hasPermissionByEntityId` 仅引擎内部或已完成解析的调用方）。
+- **实例授权业务编码语义（T-ACCESS-016 定稿）**：`resource_entity(USER).code = subjectId`（主体 ID 字符串化）、`resource_entity(ROLE).code = roleId`（`abstract_role.id` 字符串化）；业务对象门禁与跨服务 SDK 统一使用业务 `resourceCode`，不得使用 `resource_entity.id`——权限域内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp` 等契约不因此重构（原 `ResourcePermissionTreeResp` 已随 T-PERM-059 删除，2026-09-10）。引擎内部 Java API 契约见 implementation §3.1（`hasPermissionByCode`/`getDeniedResourceCodes` 对外，`getDeniedEntityIds`/`hasPermissionByEntityId` 仅引擎内部或已完成解析的调用方）。
 - `type_value` 在同一 `tenant_id + type_key` 内全局唯一，不随 `domainCode/biz_domain_id` 重复；`type_code` 仍可按业务域和全局分别定义。
 - `domainCode` 用于**管理查询的域过滤与同步命名空间**：管理查询经 `DomainClassifyService.matchesTypeCode/getClassifiedTypeCodes` 按 **ALL / GLOBAL_PLUS / DOMAIN_ONLY** 三种模式过滤（`domain_config` 表 `CLASSIFY` 配置按 `resourceTypeCode` 关联）；**查询管线不做按域的对象过滤，仅按域分类过滤资源类型**（`queryResources`/`queryScopes` 经 `DomainClassifyService(GLOBAL_PLUS)` 分类过滤，非按 domainCode 定位对象）；角色/资源实体不内嵌域列，`domainCode` 不参与角色/资源定位（仅域存在性校验，见 §6.4/§6.10）。**不存在"传域查域+全局，不传只查全局"的旧命名空间语义**——如有接口确需旧语义，须逐项列出并标注迁移（ P2-2 修正）。
 - Gateway 必须清洗外部伪造的 `X-Tenant-Id/X-User-Id/X-Service-Code`，再基于 Token 或可信服务身份重新注入；permission-center 不信任客户端原始 Header。
@@ -394,7 +394,7 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§6.1 check/batch-c
 
 **permission-condition 契约要点（T-PERM-029 收口，2026-08-30）**：
 
-- **业务键**：管理端点 `detail`/`update`/`remove` 一律以 `code` 定位（`uk_permission_condition(tenant_id, code) WHERE delete_flag=0`，从内部主键 id/conditionId 切换；管理端点请求体不再使用内部 id——id 仅见于 Resp、授权链路 `role_resource_permission.condition_id` 引用及 explain 排查明细 `conditionEvaluations[].conditionId`）。`detail` 请求 `{conditionCode}`（ConditionDetailReq）；`update` 请求 `{code, name?, conditionRules?, enabled?, gatewayEvaluable?, description?}`（code 为定位键不可改，null 字段不更新，name≤128/description≤512 列宽校验）；`remove` 请求 `{codes:[...]}`（ConditionRemoveReq，元素 1-64 字符非空白，批量软删）。
+- **业务键**：管理端点 `detail`/`update`/`remove` 一律以 `code` 定位（`uk_permission_condition(tenant_id, code) WHERE delete_flag=0`，从内部主键 id/conditionId 切换；管理端点请求体不再使用内部 id——id 仅见于 Resp、授权链路 `role_resource_permission.condition_id` 引用及原 explain 排查明细——该端点已随 T-PERM-059 删除，2026-09-10）。`detail` 请求 `{conditionCode}`（ConditionDetailReq）；`update` 请求 `{code, name?, conditionRules?, enabled?, gatewayEvaluable?, description?}`（code 为定位键不可改，null 字段不更新，name≤128/description≤512 列宽校验）；`remove` 请求 `{codes:[...]}`（ConditionRemoveReq，元素 1-64 字符非空白，批量软删）。
 - **detail 收紧**：查不到抛 **20006** `CONDITION_NOT_FOUND`（原 `data:null` 宽松语义删除，对齐 resource-entity/detail 收紧定案与授权链路 apply-grant-plan 未知 conditionCode 同码）。
 - **list 全量不分页**（设计定案）：`{}` 返回全量 `ItemsResp<ConditionResp>`——条件模板数量有界（租户内几十个量级，非流水表），与 domain-config/service-config「量小不分页」同款；keyword/enabled 过滤由前端本地完成（前端设计文档 §8 🔧3 登记的 ConditionListReq 分页方案据此反转）。
 - **ConditionResp**：`{id, tenantId, code, name, conditionRules, enabled, gatewayEvaluable, description, createdAt, updatedAt}`——`updatedAt` 为本次补齐（entity 有列但 Resp 此前不返回）；`conditionRules` 结构 `{logic, items[]}`（4 预置类型 DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST），语义等价可直接再提交——**注意来源差异**：list/detail 为 JSONB 回读的 DB 规范化文本，create/update 直接返回本次最终接受的规则文本（未做写后反查，调用方提交的空白/键序原样保留）。
@@ -451,23 +451,18 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§6.1 check/batch-c
 
 > **SDK 入口清单（T-API-002 收口 2026-09-06；T-API-003 check 族改写 2026-09-10）**：`check` / `batch-check` / `query-resources` / `query-scopes` 四件套已全部进入 perm-sdk `PermissionFeignClient`（Query* DTO 迁入 perm-common，接入方不再手写 HTTP + 自造 DTO 副本）；`check-interface` / `interface-snapshot` 为 Gateway 专用（经 starter/PermissionClient 消费），不开放业务服务 Feign 入口。**内部数据库 id 字段族口径分族**：check 族三端点（check/batch-check/check-interface）结果记录全量回传（`matchedRoleIds`/`matchedPermissionIds`/`matchedResources[].resourceId`，T-API-003 推翻 T-API-002 的 check 族裁剪——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场，详见 §6.1/§6.2 注记）；Query\* 响应族（query-resources/query-scopes）六字段裁剪维持 T-API-002 终态（详见 §6.6/§6.7 各节注记）。
 
-### 5.8 视图与审计
+### 5.8 审计与系统配置
 
 | 接口                                                   | 说明                                                   |
 | ------------------------------------------------------ | ------------------------------------------------------ |
-| `POST /api/perm/permission-view/effective-roles`       | 查询用户有效角色                                       |
-| `POST /api/perm/permission-view/effective-permissions` | 分页筛选查询用户或角色当前有效权限                     |
-| `POST /api/perm/permission-view/resource-tree`         | 查询用户资源树                                         |
-| `POST /api/perm/permission-view/resource-users`        | 查询拥有资源权限的用户                                 |
-| `POST /api/perm/permission-view/role-permissions`      | 查询角色权限视图                                       |
-| `POST /api/perm/permission-view/explain`               | 解释单个用户或角色对某资源操作的当前权限和近期影响事件 |
-| `POST /api/perm/permission-view/recent-changes`        | 查询近期可能影响用户或角色权限的变更事件               |
 | `POST /api/perm/log/operation/list`              | 操作日志（路径以 LogQueryController 实现为准；历史误写已随 T-ACCESS-007 修正） |
 | `POST /api/perm/log/operation/action-options`    | 操作日志 action 字典（T-PERM-025 新增） |
 | `POST /api/perm/log/change/list`                  | 权限变更日志                                           |
 | `POST /api/perm/system-config/list`                    | 查询系统配置                                           |
 | `POST /api/perm/system-config/detail`                  | 查询系统配置详情                                       |
 | `POST /api/perm/system-config/save`                    | 保存系统配置                                           |
+
+> **permission-view 七端点已删除（T-PERM-059，2026-09-10 删除重设计定案）**：`effective-permissions` / `resource-users` / `role-permissions` / `effective-roles` / `resource-tree` / `explain` / `recent-changes` 整体退役（前端排查页同批删除，新形态待重做另立任务）；`/api/perm/auth/query-permission-tree`（零外部消费）同批退役。登录权限串 `effective-permission-codes` 不在删除面，仍由 `PermissionViewController` 提供。
 
 > **system-config 错误码**：`system-config/save`（upsert）在权限校验后、触达数据前 fail-closed 校验配置键命名空间前缀（`admin.`/`permission.`/`access.`），非法键返回 **20047 `CONFIG_KEY_NAMESPACE_INVALID`**（配置键只能使用 admin./permission./access. 命名空间前缀，T-ACCESS-007）。
 
@@ -483,15 +478,99 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§6.1 check/batch-c
 
 - `list`：`{module?, action?, operatorId?, since?, until?, targetType?, pageNum, pageSize}` → 分页结构（§3.3，排序 `created_at DESC`）；module/action/targetType **精确匹配**（等值索引友好）；`since`/`until` 为创建时间闭区间（ISO 无偏移墙钟；后端 LocalDateTime 语义为 UTC 墙钟——全链路 UTC §7.4，前端提交数字与表格原样展示对齐）。无 detail 接口——`OperationLogResp` 已含全部字段，详情由前端抽屉展示。
 - `action-options`：`{module?}` → `ItemsResp<String>`——返回 operation_log 当前实际存在的 action 去重集合（字典序），供筛选下拉动态拉取；返回实际存在值而非维护端枚举（action 由 `@OperationLog` 注解开放增长，避免双轨漂移）。
-- 权限门禁：list 与 action-options 需独立 `OPERATION_LOG:VIEW`（**审计分离**，2026-08-28 设计定案——不再复用 `SYSTEM_CONFIG:VIEW`；资源类型 OPERATION_LOG=30 权威 DDL 种子，bootstrap 固定图已授予管理角色）。权限排查视图（`permission-view/explain`、`permission-view/recent-changes`）已随 T-PERM-033 切被查目标实例 `USER:VIEW`/`ROLE:VIEW`（无独立排查码）。
+- 权限门禁：list 与 action-options 需独立 `OPERATION_LOG:VIEW`（**审计分离**，2026-08-28 设计定案——不再复用 `SYSTEM_CONFIG:VIEW`；资源类型 OPERATION_LOG=30 权威 DDL 种子，bootstrap 固定图已授予管理角色）。排查视图端点族（permission-view 七端点）已删除（T-PERM-059，2026-09-10）。
 
 **permission-change-log 契约要点（T-PERM-032 收口，2026-08-29）**：
 
 - 端点为 `POST /api/perm/log/change/list`（原 §5.8 表格误写 `/api/perm/permission-change-log/list`，已随 T-ACCESS-007 评审修正，此处补记）；无独立 detail——`ChangeLogResp` 含全字段（含 diffSnapshot），前端抽屉展示。
-- 筛选全集（维度对齐 schema 索引，2026-08-29 设计定案）：`entityType/entityId`（实体索引）、`eventType`（diff_snapshot.eventType 表达式索引，单选）、`affectedUserId/affectedRoleId`（affected_*_ids GIN 包含匹配）、`since/until`（created_at 闭区间，时间索引；ISO 无偏移墙钟字符串，同操作日志数字对齐口径）、`changeSource`（MANUAL/SERVICE_SYNC 精确匹配，低基数无索引）。服务端分页；页面与 recent-changes 统一条件组。
+- 筛选全集（维度对齐 schema 索引，2026-08-29 设计定案）：`entityType/entityId`（实体索引）、`eventType`（diff_snapshot.eventType 表达式索引，单选）、`affectedUserId/affectedRoleId`（affected_*_ids GIN 包含匹配）、`since/until`（created_at 闭区间，时间索引；ISO 无偏移墙钟字符串，同操作日志数字对齐口径）、`changeSource`（MANUAL/SERVICE_SYNC 精确匹配，低基数无索引）。服务端分页（条件组设计源自已删的 recent-changes 端点，T-PERM-059 后为变更日志独立条件面）。
 - `ChangeLogResp` 暴露 `createdBy`（表 created_by，抽象用户 ID；名称解析归前端展示层）。
 - 权限门禁：独立 `PERMISSION_CHANGE_LOG:VIEW`（**审计分离**，2026-08-29 设计定案，对齐 OPERATION_LOG 先例；资源类型 PERMISSION_CHANGE_LOG=31 权威 DDL 种子，bootstrap 固定图已授予管理角色）。
-- `diff_snapshot.eventType` 增补第 7 枚举 `ROLE_BATCH_DELETE`（批量删除角色的聚合事件：entityId=0 + operation=BATCH_DELETE，items[] 逐角色列出；§6.8 同步），`operation` 列含 `BATCH_DELETE/BATCH_REMOVE`（批量聚合行专用，schema 注释已修正）。
+- `diff_snapshot.eventType` 增补第 7 枚举 `ROLE_BATCH_DELETE`（批量删除角色的聚合事件：entityId=0 + operation=BATCH_DELETE，items[] 逐角色列出；本节 diff_snapshot 规范同步），`operation` 列含 `BATCH_DELETE/BATCH_REMOVE`（批量聚合行专用，schema 注释已修正）。
+
+#### diff_snapshot 轻量规范
+
+`permission_change_log.diff_snapshot` 用于保存可展示、可检索的结构化变更摘要。它只描述本次写操作直接改变了什么，不负责计算用户最终有效权限是否发生变化。
+
+角色权限变更：
+
+```json
+{
+  "eventType": "ROLE_PERMISSION_CHANGE",
+  "items": [
+    {
+      "changeType": "REMOVE",
+      "permission": {
+        "domainCode": "example",
+        "resourceTypeCode": "REPORT",
+        "resourceCode": "report:sales",
+        "codeType": "default",
+        "operationCode": "DATA_EDIT",
+        "scopeMode": "INSTANCE"
+      },
+      "role": {
+        "roleTypeCode": "BASIC_ROLE",
+        "roleExternalId": "role_report_editor",
+        "roleName": "报表编辑员"
+      }
+    }
+  ]
+}
+```
+
+用户角色变更：
+
+```json
+{
+  "eventType": "USER_ROLE_CHANGE",
+  "items": [
+    {
+      "changeType": "REMOVE",
+      "role": {
+        "roleTypeCode": "BASIC_ROLE",
+        "roleExternalId": "role_report_editor",
+        "roleName": "报表编辑员"
+      }
+    }
+  ]
+}
+```
+
+资源、角色或条件状态变更：
+
+```json
+{
+  "eventType": "RESOURCE_STATUS_CHANGE",
+  "items": [
+    {
+      "changeType": "UPDATE",
+      "resource": {
+        "domainCode": "example",
+        "resourceTypeCode": "REPORT",
+        "resourceCode": "report:sales",
+        "codeType": "default"
+      },
+      "before": {
+        "status": 1
+      },
+      "after": {
+        "status": 0
+      }
+    }
+  ]
+}
+```
+
+`diff_snapshot` 字段约束：
+
+- 顶层必须包含 `eventType` 和 `items[]`。
+- `eventType` 固定枚举：`USER_ROLE_CHANGE`、`ROLE_PERMISSION_CHANGE`、`ROLE_STATUS_CHANGE`、`RESOURCE_STATUS_CHANGE`、`CONDITION_CHANGE`、`RESOURCE_DEPENDENCY_CHANGE`、`ROLE_BATCH_DELETE`（批量删除角色的聚合事件，entityId=0 + operation=BATCH_DELETE，T-PERM-032 增补——原 6 枚举无一语义覆盖批量删除聚合；`GROUP_ROLE_CHANGE` 随 T-PERM-043 extra-roles 写入口删除移除——该事件类型自登记起无任何生产方）。
+- `items[].changeType` 固定枚举：`ADD`、`REMOVE`、`UPDATE`。
+- （历史）原 `recent-changes` 响应的 `impactLevel` 枚举（DIRECT/POSSIBLE）随端点删除退役（T-PERM-059，2026-09-10）；diff_snapshot 本身不含 impactLevel。
+- 权限项使用稳定业务键：`domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode`。
+- 用户或角色来源使用稳定业务键，不要求在 `diff_snapshot` 中暴露内部 ID；内部 ID 可保留在 `old_snapshot/new_snapshot/entity_id` 中用于审计追溯。
+- `old_snapshot/new_snapshot` 继续保存原始变更前后快照；`diff_snapshot` 只保存排查展示需要的摘要。
+- **写侧落地（T-PERM-034 收口，2026-08-30——T-PERM-033 登记的读侧依赖解锁）**：`apply-grant-plan` 按本节聚合形状写一条 `ROLE_PERMISSION_CHANGE` 日志——`items[]{changeType, permission(6 字段业务键), role 摘要}` 由 prevalidate 期业务键快照装配（creates 取请求键、updates/removes 反查资源实体+类型+按位操作，removes 行软删后不可回查故预检期快照；removes 的悬挂引用降级为 null 键字段，删除不被死引用阻塞；随主权限级联软删的子权限（`depend_on` 命中 removes）同记 REMOVE 业务键快照、与显式删除项去重——实际被删除的行均可按业务键检索本次变更），端到端场景（成功恰好一条聚合日志+缓存失效；失败全回滚不触发）由容器特征测试锁定。
 
 ## 6. 核心请求契约
 
@@ -533,7 +612,7 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§6.1 check/batch-c
 ```
 
 > **`inheritMode` 参数语义接通（T-PERM-057，2026-09-09 落地）**：`NONE`/缺省 = 判定面继承关（目标精确判定）；`PARENT`/`BOTH` = 判定面继承开——判定目标扩为 {目标}∪同类型祖先链（授父资源该操作时子目标判定通过，闭包止步同类型、软删祖先截断）。该参数从「对单点判定结论无效」接通为目标闭包真实语义（判定面继承默认值矩阵见 implementation §3.4）。
-> **结果记录全量回传（T-API-003，2026-09-09 定案推翻 T-API-002 的 check 族裁剪，2026-09-10 落地）**：`matchedRoleIds` / `matchedPermissionIds`（role / role_resource_permission 内部行 id）恢复回传——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场。拒绝时为空列表（与允许时非空记录区分）。需要人类可读的来源解释时仍使用 §6.8 `permission-view/explain`（管理端排查端点，`sourceRoles` 业务键 + 门禁）。Query\* 响应族（§6.6/§6.7）的字段裁剪不在推翻范围，维持 T-API-002 终态。
+> **结果记录全量回传（T-API-003，2026-09-09 定案推翻 T-API-002 的 check 族裁剪，2026-09-10 落地）**：`matchedRoleIds` / `matchedPermissionIds`（role / role_resource_permission 内部行 id）恢复回传——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场。拒绝时为空列表（与允许时非空记录区分）。人类可读的来源解释通道（原 §6.8 `permission-view/explain`）已随排查端点族删除（T-PERM-059，2026-09-10），重做设计另立任务。Query\* 响应族（§6.6/§6.7）的字段裁剪不在推翻范围，维持 T-API-002 终态。
 > **主资源上下文与 depend_on 单点闭合（T-PERM-058，2026-09-10 落地）**：查询目标为子权限（depend_on）实例时，可选传入 `parentResourceTypeCode` / `parentResourceCode` / `parentCodeType` / `parentOperationCodes`（与 §6.7 query-scopes 父入参同名对齐；type 与 code 必须成对提供，半传 400；**给出父上下文时 `parentOperationCodes` 一并必填且非空**——缺省/空集按 400 拒绝，勿依赖静默回退：引擎对空操作集不发父判定查询、父判定必不命中）——引擎对父资源做 INSTANCE 判定（含条件/互斥评估，惰性执行：仅当目标命中集确含子行才触发），子行要求其 `depend_on` ∈ 父命中权限集才计入。**不传时子权限行一律不参与判定（fail-closed）**，拒绝原因为 `DEPENDENT_NOT_IN_PARENT_CONTEXT`（与「无任何授权」的 `NO_PERMISSION` 区分；**类型级门禁面（resourceCode=null）为 `NO_PERMISSION`**——该面无 DEPENDENT 分支，SDK 按 reason 分支时勿漏判）——子权限的授权语义是「只在父权限命中的主资源上下文内生效」（§6.7 DEPENDENT 公式），无上下文即无法证明父命中。`batch-check` 的同名四字段为**请求级**（与 query-scopes 对齐：批量项共享同一主资源上下文，如报表A上下文内的广东/杭州/上海多目标）。引擎内部便捷入口（`hasPermissionByCode` / `hasPermissionByEntityId` / `getDenied*`，管理面写门禁矩阵）无主资源上下文概念，同口径 fail-closed；类型级门禁（`resourceCode=null`）只认主授权——scopeAll 子权限行（写侧可造形态）不放行类型级门禁（读侧排除，DB 直写脏数据同受防护）。
 
 ### 6.2 Gateway 接口级鉴权
@@ -565,7 +644,7 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§6.1 check/batch-c
   "matchedResources": [
     {
       "resourceId": 101,
-      "resourceTypeCode": "API",
+      "resourceTypeCode": null,
       "resourceCode": "admin:user:list",
       "operationCode": "ACCESS",
       "allowed": true,
@@ -584,7 +663,7 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-058 收口：§6.1 check/batch-c
 - 当同一路径匹配多个资源映射时，接口级鉴权采用 OR 语义：任一映射资源权限通过即允许。
 - 响应使用 `matchedResources[]` 返回所有命中的映射资源及各自鉴权结果；只要其中任一项 `allowed=true`，顶层 `allowed=true`。
 - 未注册接口默认拒绝，返回 `API_NOT_REGISTERED`。
-- **结果记录全量回传（T-API-003，2026-09-09 定案推翻 T-API-002 的 check 族裁剪，2026-09-10 落地）**：`matchedResources[]` 条目的 `resourceId`（resource_entity 内部行 id）与 `matchedRoleIds` / `matchedPermissionIds` 恢复回传——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场；业务键 `resourceTypeCode + resourceCode` 继续并行表达资源身份。现消费方 Gateway 只读 `allowed` / `reason`，不受回传字段影响。
+- **结果记录全量回传（T-API-003，2026-09-09 定案推翻 T-API-002 的 check 族裁剪，2026-09-10 落地）**：`matchedResources[]` 条目的 `resourceId`（resource_entity 内部行 id）与 `matchedRoleIds` / `matchedPermissionIds` 恢复回传——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场；业务键 `resourceTypeCode + resourceCode` 继续并行表达资源身份。现消费方 Gateway 只读 `allowed` / `reason`，不受回传字段影响。`matchedResources[].resourceTypeCode` 实现恒 null（示例同步改 null，registry T-API-003 行挂靠 T-PERM-059 的示例漂移收口，2026-09-10 用户拍板）——资源身份以 `resourceId + resourceCode` 表达。
 
 ### 6.2.1 Gateway 接口权限快照
 
@@ -1167,7 +1246,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 | dependOn | number\|null | 父权限 id；主权限为 null |
 | grantSource | string | MANUAL（手动授权）/ AUTO_DEP（依赖自动补全产生）；INHERITED 为查询时克隆、不落库不返回 |
 | grantedBits | string | 操作位，**十进制字符串**；MANUAL 记录等于单个操作定义的 `binaryBit`（2 的幂），避免 JSON number 精度丢失，前端用 BigInt 解析 |
-| createdAt | string | 创建时间，ISO-8601 无时区（如 `2026-04-20T10:30:00`，对齐 §6.8 示例） |
+| createdAt | string | 创建时间，ISO-8601 无时区（如 `2026-04-20T10:30:00`，对齐 §5.8 diff_snapshot 规范示例） |
 | childCount | number | 直接子权限数（depend_on = 本 id，不含孙代）；list 时按 depend_on 分组 COUNT 一次返回 |
 
 - 门禁：目标抽象角色 ROLE:VIEW（`PermissionGrantAppServiceImpl.listPermissions` 入口校验，失败返回空列表）。
@@ -1389,7 +1468,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType + scopeMode` 去重，并合并 `operations`、`grantSources`。
 - 条件、冲突规则、停用状态、角色继承、资源继承必须与 `auth/check` 使用同一套计算逻辑。
 - `treeMode` 树模式响应已从契约移除（2026-08-27 决策，无真实消费方）：接口固定返回平面列表，树形展示由调用方基于平面列表自建；资源父子关系可经 `includeChildren` 展开获取。如未来需要服务端树响应，登记于 v3.5.1-evolution 演进方向重新评估。
-- 该接口面向运行时 SDK 查询；若要解释授权来源和变更历史，使用 `permission-view/*`。
+- 该接口面向运行时 SDK 查询（原「解释授权来源用 permission-view/*」的指引已随排查端点族删除失效，T-PERM-059，2026-09-10）。
 
 ### 6.7 范围权限运行时查询
 
@@ -1474,369 +1553,11 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - 如果主操作和范围操作不是同名关系，应通过域配置声明映射规则；未配置映射时，默认只做同名操作匹配。
 - `scopeMode=ALL` 表示该格 `resourceTypeCode + operationCode` 下全量范围权限，实现不应展开返回全部实例明细。
 - 权限中心只返回范围权限事实，不生成 SQL、不解释业务字段；业务服务自行按 `scopeMode` 决定是否发 SQL 及如何把 `items[].resourceCode` 映射为查询条件。
-- **管理端排查复用（T-PERM-033 设计定案，2026-08-29）**：权限排查页 Tab2 复用本接口，但本接口**维持运行时语义、不加排查门禁**（业务服务按主体查询不要求调用者持排查码；未来业务方合法的非自查查询不应被拒）。排查页仅靠页面级 UI 门（`USER:VIEW` 或 `ROLE:VIEW` 任一）控制入口；API 层为租户内只读暴露面，按演进需要再评估收紧。**排查页暂停注记（2026-09-06 用户决策）**：权限排查页整体暂停待重做（T-FE-043 登记重做事项），T-API-002 仅做编译一致的最小改造（内部 id 字段类型清除、信息条「主权限ID」栏随字段删除），不投入页面改造。
+- **管理端排查复用（T-PERM-033 设计定案，2026-08-29）**：权限排查页 Tab2 复用本接口，但本接口**维持运行时语义、不加排查门禁**（业务服务按主体查询不要求调用者持排查码；未来业务方合法的非自查查询不应被拒）。排查页仅靠页面级 UI 门（`USER:VIEW` 或 `ROLE:VIEW` 任一）控制入口；API 层为租户内只读暴露面，按演进需要再评估收紧。**排查页复用注记（历史）**：原权限排查页 Tab2 复用本接口的形态已随页面整体删除（T-PERM-059，2026-09-10；此前 2026-09-06 曾暂停待重做）；本接口维持运行时语义不变。
 - **DTO 公共化与内部 id 裁剪（T-API-002 收口，2026-09-06）**：`QueryScopesReq/Resp` 已迁入 perm-common（SDK `PermissionFeignClient.queryScopes` 直连）；`parentPermissionIds` 与 `scopeGroups[]` 的 `matchedRoleIds` / `matchedPermissionIds` / `dependOnPermissionIds`（均为 role / role_resource_permission 内部行 id）已裁剪（core-flows §15 口径），线格式字段快照由 SDK 契约测试钉死。
 - 已删除字段：`allowed`（合并进 `scopeMode`）、`mergeMode`（分类模型下每格独立，不再需要 UNION 标记）、顶层 `items[]`/`ScopeEntry`（改为 `scopeGroups[].items[]`）、`parentPermissionIds`、`scopeGroups[]` 的 `matchedRoleIds`/`matchedPermissionIds`/`dependOnPermissionIds`（T-API-002）。`permissionVersion` 字段已于 T-PERM-018（缓存下沉）移除。
 
-### 6.8 权限排查视图与近期变更
-
-权限排查视图用于回答“用户或角色为什么当前有/没有某权限，以及最近有哪些变更可能影响了权限”。该能力不追求还原任意历史时刻的精确有效权限快照，首期采用“当前权限事实 + 最近影响事件”的轻量模型。
-
-#### 分页筛选查询当前有效权限
-
-`POST /api/perm/permission-view/effective-permissions`
-
-用户视角请求：
-
-```json
-{
-  "targetType": "USER",
-  "subjectTypeCode": "USER",
-  "subjectExternalId": "u-10001",
-  "domainCode": "example",
-  "resourceTypeCodes": ["REPORT"],
-  "operationCodes": ["DATA_READ", "DATA_EDIT"],
-  "resourceKeyword": "销售",
-  "sourceRoleExternalId": null,
-  "includeScopes": false,
-  "includeApiResources": false,
-  "includeSourceRoles": true,
-  "sourceRoleLimit": 3,
-  "pageNum": 1,
-  "pageSize": 50
-}
-```
-
-角色视角请求：
-
-```json
-{
-  "targetType": "ROLE",
-  "domainCode": "example",
-  "roleTypeCode": "BASIC_ROLE",
-  "roleExternalId": "role_report_viewer",
-  "resourceTypeCodes": ["REPORT"],
-  "operationCodes": ["DATA_READ"],
-  "includeScopes": false,
-  "includeApiResources": false,
-  "pageNum": 1,
-  "pageSize": 50
-}
-```
-
-响应示例：
-
-```json
-{
-  "targetType": "USER",
-  "items": [
-    {
-      "resourceTypeCode": "REPORT",
-      "resourceCode": "report:sales",
-      "resourceName": "销售报表",
-      "codeType": "default",
-      "operationCodes": ["DATA_READ"],
-      "scopeMode": "INSTANCE",
-      "sourceRoles": [
-        {
-          "roleTypeCode": "BASIC_ROLE",
-          "roleExternalId": "role_report_viewer",
-          "roleName": "报表查看员",
-          "via": []
-        }
-      ],
-      "sourceRoleCount": 1,
-      "sourceRolesTruncated": false,
-      "matchedPermissionIds": [200]
-    },
-    {
-      "resourceTypeCode": "REPORT",
-      "resourceCode": null,
-      "resourceName": null,
-      "codeType": null,
-      "operationCodes": ["DATA_READ"],
-      "scopeMode": "ALL",
-      "sourceRoles": [
-        {
-          "roleTypeCode": "BASIC_ROLE",
-          "roleExternalId": "role_admin",
-          "roleName": "管理员",
-          "via": []
-        }
-      ],
-      "sourceRoleCount": 1,
-      "sourceRolesTruncated": false,
-      "matchedPermissionIds": [201]
-    }
-  ],
-  "total": 2,
-  "pageNum": 1,
-  "pageSize": 50,
-  "hasNext": false
-}
-```
-
-规则：
-
-- `effective-permissions` 是管理端排查视图，不作为业务服务运行时高频接口；业务运行时继续使用 `auth/query-resources` 和 `auth/query-scopes`。
-- 该接口必须分页，禁止默认一次性返回用户或角色的全部有效权限；`pageSize` 必须有服务端上限。
-- 查询应支持 `domainCode`、`resourceTypeCodes`、`operationCodes`、`resourceKeyword`、`sourceRoleExternalId` 等筛选条件。
-- 默认 `includeScopes=false`，不展开数据范围或子权限；排查数据权限时由调用方显式开启。
-- 默认 `includeApiResources=false`，不返回 API 类型资源；排查接口权限时由调用方显式传 `resourceTypeCodes=["API"]` 或开启该字段。
-- 用户视角默认只返回来源角色摘要；`sourceRoles` 最多返回 `sourceRoleLimit` 条，同时返回 `sourceRoleCount` 和 `sourceRolesTruncated`。
-- 需要查看某条权限的完整来源角色时，应使用 `permission-view/explain` 或按权限键二次查询，不要求列表接口展开全部来源。
-- `scopeMode=ALL` 的条目表示该 `resourceTypeCode` 下全量范围权限，此时 `resourceCode`、`resourceName`、`codeType` 均为 null。不展开全量范围为逐条资源实例。实例级条目（`scopeMode=INSTANCE`）按 `resourceCode + codeType` 精确表示。
-
-#### 解释单个权限
-
-`POST /api/perm/permission-view/explain`
-
-用于排查“某用户或角色为什么有/没有某个具体权限”。这是单权限问题的推荐入口，避免通过 `effective-permissions` 拉取全量权限再筛选。
-
-请求：
-
-```json
-{
-  "targetType": "USER",
-  "subjectTypeCode": "USER",
-  "subjectExternalId": "u-10001",
-  "domainCode": "example",
-  "resourceTypeCode": "REPORT",
-  "resourceCode": "report:sales",
-  "codeType": "default",
-  "operationCode": "DATA_EDIT",
-  "scopeMode": "INSTANCE",
-  "includeSourceRoles": true,
-  "includeRecentChanges": true,
-  "recentDays": 30,
-  "context": {
-    "clientIp": "10.20.30.40"
-  }
-}
-```
-
-响应示例：
-
-```json
-{
-  "targetType": "USER",
-  "allowed": false,
-  "reason": "NO_PERMISSION",
-  "permission": {
-    "domainCode": "example",
-    "resourceTypeCode": "REPORT",
-    "resourceCode": "report:sales",
-    "codeType": "default",
-    "operationCode": "DATA_EDIT",
-    "scopeMode": "INSTANCE"
-  },
-  "sourceRoles": [],
-  "matchedPermissionIds": [],
-  "recentChanges": [
-    {
-      "changeLogId": 9001,
-      "eventType": "ROLE_PERMISSION_CHANGE",
-      "changeType": "REMOVE",
-      "impactLevel": "POSSIBLE",
-      "message": "角色 报表编辑员 删除了销售报表 DATA_EDIT 权限，可能影响该用户",
-      "createdAt": "2026-04-20T10:30:00"
-    }
-  ],
-  "evaluationContextSource": "ADMIN_INPUT",
-  "evaluatedClientIp": "10.20.30.40",
-  "conditionEvaluations": [
-    {
-      "conditionId": 77,
-      "permissionId": 501,
-      "roleId": 20,
-      "status": "OK",
-      "logic": "AND",
-      "passed": false,
-      "items": [
-        { "type": "IP_WHITELIST", "maskedParams": "192.168.*.*/24, 10.20.*.*", "matched": false },
-        { "type": "TIME_RANGE", "maskedParams": "09:00:00~18:00:00", "matched": true }
-      ]
-    }
-  ],
-  "conflictDrops": [
-    {
-      "permissionId": 502,
-      "roleId": 21,
-      "ruleId": 9,
-      "firstOperationCode": "VIEW",
-      "secondOperationCode": "MANAGE"
-    }
-  ]
-}
-```
-
-规则：
-
-- `explain` 只解释一个资源和一个操作，不返回权限列表。
-- **门禁（T-PERM-033 设计定案，2026-08-29）**：`explain` 门禁为**被查目标实例 `USER:VIEW` / `ROLE:VIEW`**（查谁就要对谁有 VIEW，与 `effective-permissions` 同款；ROLE 目标未解析时类型级 `ROLE:VIEW` 兜底，USER 目标未解析不检查、返回 `USER_NOT_FOUND`）。不引入独立排查权限码（原预案 `PERMISSION_QUERY:VIEW` 否决：权限码结构为「资源:操作」，`PERMISSION_QUERY` 是操作描述而非资源）。
-- 请求侧 `scopeMode` 只允许 `INSTANCE` / `ALL`：`INSTANCE` 表示解释具体实例权限，必须传 `resourceCode/codeType`；`ALL` 表示解释 `resourceTypeCode + operationCode` 下的全量范围权限，不传 `resourceCode/codeType`。
-- `allowed/reason` 复用 `auth/check` 的主体、角色、资源、操作、条件、冲突计算逻辑（判定查询与运行时同一引擎语义）。
-- 用户视角需要返回命中的来源角色；未命中时返回拒绝原因和相关近期影响事件。
-- **条件评估上下文（T-PERM-033）**：请求 `context.clientIp` 为管理员输入的模拟客户端 IP；未提供时回退**当前请求环境**（操作者 IP），响应 `evaluationContextSource` 标注实际来源（`ADMIN_INPUT` / `CURRENT_REQUEST`）。日期/时间类条件按服务进程系统时钟评估（与运行时判定一致，不可模拟）；IP 类条件按上述上下文评估。
-- **条件评估明细（T-PERM-033）**：`conditionEvaluations` 覆盖候选命中条目（条件/互斥过滤前）中挂条件的条目，逐项给出类型、脱敏参数摘要与是否满足；`status` 区分 `OK/DISABLED/NOT_FOUND/INVALID`，非 `OK` 恒 fail-close（`passed=false`）。**敏感条件值脱敏**：IP 黑白名单掩码主机段（如 `192.168.1.0/24 → 192.168.*.*\/24`，IPv6/非常规整体 `MASKED`，超过三条以 `…` 截断）；日期/时间范围为非敏感值原样回传。
-- **互斥丢弃明细（T-PERM-033）**：`conflictDrops` 列出候选命中中被权限互斥规则丢弃的条目及命中规则（规则ID + 两侧操作码），解释「本可命中但被互斥移除」。角色级互斥（ROLE_MUTEX）不在此明细范围。
-- `includeRecentChanges=true` 时，`recentChanges` **按完整权限键过滤**：含 `permission` 键的事件按 6 字段匹配（`resourceTypeCode/operationCode/scopeMode` 精确相等；`domainCode/resourceCode/codeType` 请求侧为 null 时通配），返回与目标权限键相关的事件；USER 目标额外保留该用户的 `USER_ROLE_CHANGE`（角色分配/回收，`impactLevel=DIRECT`），含权限键事件对 USER 目标标 `POSSIBLE`、对 ROLE 目标标 `DIRECT`。默认窗口为 30 天，服务端可限制最大窗口。**现状登记（T-PERM-034 收口后更新，2026-08-30）**：`apply-grant-plan` 已按本规范写入 `items[].permission` 聚合形状（ROLE 目标 recentChanges 端到端可用）；`ROLE_BATCH_DELETE`/`USER_ROLE_CHANGE` 的 items 无 permission 键（按事件类型本就无该键，非缺口）。
-- 范围权限排查应使用主资源权限 + `auth/query-scopes` 或后续扩展 `explain` 的 scope 参数，不应让本接口隐式展开全部范围。
-
-#### 查询近期影响事件
-
-`POST /api/perm/permission-view/recent-changes`
-
-```json
-{
-  "targetType": "USER",
-  "subjectTypeCode": "USER",
-  "subjectExternalId": "u-10001",
-  "domainCode": "example",
-  "since": "2026-03-29T00:00:00",
-  "until": "2026-04-29T23:59:59",
-  "eventTypes": [
-    "USER_ROLE_CHANGE",
-    "ROLE_PERMISSION_CHANGE",
-    "ROLE_STATUS_CHANGE",
-    "RESOURCE_STATUS_CHANGE",
-    "CONDITION_CHANGE"
-  ],
-  "pageNum": 1,
-  "pageSize": 20
-}
-```
-
-响应示例：
-
-```json
-{
-  "items": [
-    {
-      "changeLogId": 9001,
-      "eventType": "ROLE_PERMISSION_CHANGE",
-      "changeType": "REMOVE",
-      "impactLevel": "POSSIBLE",
-      "message": "角色 报表编辑员 删除了销售报表 DATA_EDIT 权限，可能影响该用户",
-      "permission": {
-        "domainCode": "example",
-        "resourceTypeCode": "REPORT",
-        "resourceCode": "report:sales",
-        "codeType": "default",
-        "operationCode": "DATA_EDIT",
-        "scopeMode": "INSTANCE"
-      },
-      "sourceRole": {
-        "roleTypeCode": "BASIC_ROLE",
-        "roleExternalId": "role_report_editor",
-        "roleName": "报表编辑员"
-      },
-      "operatorId": 100,
-      "operatorName": "admin",
-      "changeReason": "权限清理",
-      "createdAt": "2026-04-20T10:30:00"
-    }
-  ],
-  "total": 2,
-  "pageNum": 1,
-  "pageSize": 20,
-  "hasNext": false
-}
-```
-
-规则：
-
-- `recent-changes` 返回的是“可能影响目标权限的变更事件”，不是目标有效权限的精确历史 diff。
-- **门禁（T-PERM-033 设计定案）**：被查目标实例 `USER:VIEW` / `ROLE:VIEW`（与 `explain` 同款；ROLE 未解析时类型级兜底，USER 未解析返回空）——从 `SYSTEM_CONFIG:VIEW` 切换。
-- 查询对象为用户时，事件来源包括用户角色分配/回收、命中角色的权限增删改、角色启停、资源启停、条件变更、分组角色包含关系变化。
-- 查询对象为角色时，只返回该角色自身权限、状态、条件、依赖规则等相关变更。
-- 如果同一权限来自多个角色，某个角色删除权限不代表用户一定失去该权限；响应应使用 `impactLevel=POSSIBLE` 或解释性文案表达“可能影响”。
-- 需要展示“当前是否仍拥有某个具体权限”时，前端或管理端应优先调用 `permission-view/explain`；需要浏览权限清单时再调用 `effective-permissions`。
-- 默认查询最近 30 天；调用方可通过 `since/until` 缩小或扩大窗口，服务端可设置最大窗口限制。
-
-#### diff_snapshot 轻量规范
-
-`permission_change_log.diff_snapshot` 用于保存可展示、可检索的结构化变更摘要。它只描述本次写操作直接改变了什么，不负责计算用户最终有效权限是否发生变化。
-
-角色权限变更：
-
-```json
-{
-  "eventType": "ROLE_PERMISSION_CHANGE",
-  "items": [
-    {
-      "changeType": "REMOVE",
-      "permission": {
-        "domainCode": "example",
-        "resourceTypeCode": "REPORT",
-        "resourceCode": "report:sales",
-        "codeType": "default",
-        "operationCode": "DATA_EDIT",
-        "scopeMode": "INSTANCE"
-      },
-      "role": {
-        "roleTypeCode": "BASIC_ROLE",
-        "roleExternalId": "role_report_editor",
-        "roleName": "报表编辑员"
-      }
-    }
-  ]
-}
-```
-
-用户角色变更：
-
-```json
-{
-  "eventType": "USER_ROLE_CHANGE",
-  "items": [
-    {
-      "changeType": "REMOVE",
-      "role": {
-        "roleTypeCode": "BASIC_ROLE",
-        "roleExternalId": "role_report_editor",
-        "roleName": "报表编辑员"
-      }
-    }
-  ]
-}
-```
-
-资源、角色或条件状态变更：
-
-```json
-{
-  "eventType": "RESOURCE_STATUS_CHANGE",
-  "items": [
-    {
-      "changeType": "UPDATE",
-      "resource": {
-        "domainCode": "example",
-        "resourceTypeCode": "REPORT",
-        "resourceCode": "report:sales",
-        "codeType": "default"
-      },
-      "before": {
-        "status": 1
-      },
-      "after": {
-        "status": 0
-      }
-    }
-  ]
-}
-```
-
-`diff_snapshot` 字段约束：
-
-- 顶层必须包含 `eventType` 和 `items[]`。
-- `eventType` 固定枚举：`USER_ROLE_CHANGE`、`ROLE_PERMISSION_CHANGE`、`ROLE_STATUS_CHANGE`、`RESOURCE_STATUS_CHANGE`、`CONDITION_CHANGE`、`RESOURCE_DEPENDENCY_CHANGE`、`ROLE_BATCH_DELETE`（批量删除角色的聚合事件，entityId=0 + operation=BATCH_DELETE，T-PERM-032 增补——原 6 枚举无一语义覆盖批量删除聚合；`GROUP_ROLE_CHANGE` 随 T-PERM-043 extra-roles 写入口删除移除——该事件类型自登记起无任何生产方）。
-- `items[].changeType` 固定枚举：`ADD`、`REMOVE`、`UPDATE`。
-- `recent-changes` 响应中的 `impactLevel` 固定枚举：`DIRECT` 表示直接命中查询对象，`POSSIBLE` 表示通过角色、资源、条件、分组等间接关系可能影响查询对象。
-- 权限项使用稳定业务键：`domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode`。
-- 用户或角色来源使用稳定业务键，不要求在 `diff_snapshot` 中暴露内部 ID；内部 ID 可保留在 `old_snapshot/new_snapshot/entity_id` 中用于审计追溯。
-- `old_snapshot/new_snapshot` 继续保存原始变更前后快照；`diff_snapshot` 只保存排查展示需要的摘要。
-- **写侧落地（T-PERM-034 收口，2026-08-30——T-PERM-033 登记的读侧依赖解锁）**：`apply-grant-plan` 按本节聚合形状写一条 `ROLE_PERMISSION_CHANGE` 日志——`items[]{changeType, permission(6 字段业务键), role 摘要}` 由 prevalidate 期业务键快照装配（creates 取请求键、updates/removes 反查资源实体+类型+按位操作，removes 行软删后不可回查故预检期快照；removes 的悬挂引用降级为 null 键字段，删除不被死引用阻塞；随主权限级联软删的子权限（`depend_on` 命中 removes）同记 REMOVE 业务键快照、与显式删除项去重——实际被删除的行均可按业务键检索本次变更），端到端场景（成功恰好一条聚合日志+缓存失效；失败全回滚不触发）由容器特征测试锁定。
+> **编号注记**：原 §6.8「权限排查视图与近期变更」与 §6.10.5 已随 T-PERM-059 删除（2026-09-10）——diff_snapshot 轻量规范迁至 §5.8，编号空洞保留防历史锚点断链。
 
 ### 6.9 资源依赖批量同步
 
@@ -1948,16 +1669,10 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - `create`、`update` 成功后响应 `data` 为**单条**映射对象（与列表项结构一致），至少包含映射主键 `id` 及 `serviceCode`、`httpMethod`、`pathPattern` 等关键字段，便于调用方无需再发 `list` 即可确认结果。
 - T-PERM-027：`ApiMappingResp`（`list`/`service-config/apis`/`create`/`update` 共用）另含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode/maintainSource`（资源已软删时为 null）。
 
-#### 6.10.5 `permission-view/explain` 在 `targetType=ROLE` 时的语义
-
-- `targetType=USER`：复用运行时鉴权等价逻辑（与 `auth/check` 一致的主体、角色解析、条件、冲突等）。
-- `targetType=ROLE`：**仅**判定该角色在 `role_resource_permission` 上是否**直接**拥有指定 `resourceTypeCode + resourceCode + codeType + operationCode + scopeMode`（含内部 `scope_all`、条件启用、记录停用等角色侧字段）；**不**走用户维度的 `auth/check` 链路，不模拟用户继承的多角色并集。
-- 请求体必须显式传 `scopeMode`。`scopeMode=INSTANCE` 时按 `resourceCode + codeType` 精确匹配；`scopeMode=ALL` 时不传 `resourceCode/codeType`，只匹配类型级全量授权。
-
 #### 6.10.6 批量删除与审计日志
 
 - 单次 `remove` 接口无论软删除多少行，**写入一条** `operation_log`（摘要中可含删除数量或 id 列表截断说明）。
-- 若该写操作需记 `permission_change_log`，同一事务内**写入一条**记录；`diff_snapshot` 符合 §6.8：`eventType` + `items[]`，可在 `items` 中列出多条 `REMOVE`/`UPDATE` 摘要，**禁止**为每个被删 id 各插入一条 `permission_change_log` 父记录。
+- 若该写操作需记 `permission_change_log`，同一事务内**写入一条**记录；`diff_snapshot` 符合 §5.8 diff_snapshot 规范：`eventType` + `items[]`，可在 `items` 中列出多条 `REMOVE`/`UPDATE` 摘要，**禁止**为每个被删 id 各插入一条 `permission_change_log` 父记录。
 
 ## 7. 错误原因建议
 
@@ -2013,7 +1728,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 12. **委托授权**：`canGrant=true` 表示可把同一条权限授权给他人，但不得扩大资源、操作或范围；被授权对象候选范围由业务服务控制。
 13. **资源依赖方向**：`resource_dependency.resource_entity_id` 是源资源/被授权资源，`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
 14. **同步所有权**：服务接口同步通过 `ownerServiceCode + maintainSource` 限定 FULL diff 删除范围；资源依赖同步通过 `ownerServiceCode + maintainSource + syncKey`（`resource_dependency.sync_key`，非 `resource_entity.sync_key`——后者已删除）。
-15. **变更摘要枚举**：`diff_snapshot.eventType`、`items[].changeType` 和 `recent-changes.impactLevel` 使用固定枚举，不使用开放字符串。
+15. **变更摘要枚举**：`diff_snapshot.eventType` 与 `items[].changeType` 使用固定枚举（原 `recent-changes.impactLevel` 枚举随端点删除，2026-09-10 T-PERM-059），不使用开放字符串。
 16. **子权限类型只读契约（v3.1，D5，2026-08-08 评审复审修订）**：授权页面子权限配置器通过 `POST /api/perm/role-resource-permission/sub-perm-allowed-types`（§6.5.2）按父资源类型获取 SUB_PERM 允许的子资源类型并过滤选择器；请求携带目标角色业务键（domainCode/roleTypeCode/roleExternalId），门禁使用与 §6.4 list **相同的 ROLE:VIEW 权限资源与操作码，但失败响应不同**（list 失败返回空列表，本接口角色定位失败 20001、无 VIEW 抛 SecurityException 走统一访问拒绝）；`mode` 判定（ALLOW_ALL / ALLOW_LIST / ALLOW_NONE + reason 细分）与写校验 `assertSubPermissionAllowed` 完全同口径——覆盖顶层与嵌套 `"*"` 通配、多匹配项并集去重、大小写不敏感，**读写复用同一策略解析函数**；前端不硬编码允许集；本契约不改变任何写语义，不新增错误码（复用 20007/20001）。
 17. **子权限属性系统不变量（2026-08-08 复审产品确认）**：子权限不承载条件与再授予是**系统不变量而非 UI 限制**——两种子权限 create 形态（`creates[].children[]` 与 `parentPermissionId` 挂父）的 `conditionCode` 必须为 null、`canGrant` 必须为 false（违反 -> **20043**）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；历史异常记录只兼容读取与删除，不允许继续属性编辑；20042 不再描述 child create（子权限带条件 -> 20043 而非 20042）。
 18. **引擎显式资源 API 与实例门禁业务编码（T-ACCESS-016 定稿，2026-08-23）**：引擎便捷 API 拆分为 `hasPermissionByCode(...)`/`getDeniedResourceCodes(...)`（对外，业务编码语义）与 `getDeniedEntityIds(...)`/`hasPermissionByEntityId(...)`（仅引擎内部或已完成解析的调用方）；泛型 `<ID>`、`Object resourceId`、`toLongId()` 运行时猜测全部删除，抛异常便捷方法从引擎移除（引擎纯查询不抛 `SecurityException`，异常由调用方显式抛出：admin 域经 `AdminPermissionValidator` 门面、permission 域 AppService if-throw）。`resource_entity(USER).code = subjectId`、`resource_entity(ROLE).code = roleId` 业务编码定稿（§3.4）；资源类型收敛映射、`type_value` 终值与扩展操作 bit 终值以 access-service-architecture §13 资源类型注册表为准（实施 T-PERM-042/T-ACCESS-018）。

@@ -18,8 +18,8 @@ import java.util.*;
  * <p>
  * T-API-002（2026-09-06）check 族响应内部 id 字段族裁剪已被 T-API-003（2026-09-09）
  * 推翻：check 族三端点恢复结果记录全量回传（matchedRoleIds / matchedPermissionIds /
- * matchedResources[].resourceId），本工具类恢复产出该字段族；explain 等内部需要
- * matched id 集合的场景仍直接消费 {@link PermResult}，不经线格式 DTO 中转。
+ * matchedResources[].resourceId），本工具类恢复产出该字段族；需要 matched id 集合
+ * 的内部场景直接消费 {@link PermResult} 不经线格式中转（原消费方 explain 已随 T-PERM-059 删除，2026-09-10）。
  * 零调用的 toQueryResourcesResp 已删除（真实组装在
  * PermissionQueryAppServiceImpl.buildQueryResourcesResponse）。
  * </p>

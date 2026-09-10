@@ -94,20 +94,6 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
     List<AbstractRole> selectValidByIds(@Param("tenantId") Long tenantId, @Param("ids") Set<Long> ids);
 
     /**
-     * 根据角色ID集合和可选过滤条件批量查询角色（用于filterRoleIds）
-     *
-     * @param tenantId           租户ID
-     * @param ids                角色ID集合
-     * @param externalId         角色外部ID，可选
-     * @param roleType           角色类型值，可选
-     * @return 角色列表
-     */
-    List<AbstractRole> selectFilteredByIds(@Param("tenantId") Long tenantId,
-                                            @Param("ids") Set<Long> ids,
-                                            @Param("externalId") String externalId,
-                                            @Param("roleType") Integer roleType);
-
-    /**
      * 查询角色树数据（全部有效角色，含禁用）
      * <p>
      * T-PERM-022：树接口默认返回 delete_flag=0 全量角色，status 仅作展示字段

@@ -52,7 +52,7 @@ import static org.mockito.Mockito.when;
 /**
  * T-PERM-034 AppService 层收口用例：sub-perm-allowed-types 门禁与策略映射（§6.5.2——
  * 角色定位失败 20001、无 ROLE:VIEW 抛 SecurityException、策略结果直接序列化）、
- * apply-grant-plan 变更日志 §6.8 聚合形状（eventType/items[].permission 6 字段业务键/role 摘要）。
+ * apply-grant-plan 变更日志 §5.8 diff_snapshot 规范聚合（原 §6.8）形状（eventType/items[].permission 6 字段业务键/role 摘要）。
  */
 @ExtendWith(MockitoExtension.class)
 class PermissionGrantAppServiceImplTest {
@@ -158,7 +158,7 @@ class PermissionGrantAppServiceImplTest {
         }
     }
 
-    // ========== apply-grant-plan 变更日志 §6.8 聚合形状 ==========
+    // ========== apply-grant-plan 变更日志 §5.8 diff_snapshot 规范聚合（原 §6.8）形状 ==========
 
     @Test
     void shouldWriteAggregateDiffSnapshot() throws Exception {
@@ -192,7 +192,7 @@ class PermissionGrantAppServiceImplTest {
             service.applyGrantPlan(TENANT, req);
         }
 
-        // 捕获 diff_snapshot 并断言 §6.8 聚合形状（一条聚合日志）
+        // 捕获 diff_snapshot 并断言 §5.8 diff_snapshot 规范聚合（原 §6.8）形状（一条聚合日志）
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<AuditDomainService.ChangeLogEntry>> captor =
             ArgumentCaptor.forClass(List.class);

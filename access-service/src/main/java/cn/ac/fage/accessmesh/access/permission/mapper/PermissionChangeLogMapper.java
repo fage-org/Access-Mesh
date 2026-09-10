@@ -20,7 +20,7 @@ public interface PermissionChangeLogMapper extends BaseMapper<PermissionChangeLo
     /**
      * 多条件筛选查询权限变更日志（按创建时间倒序，条件组与 countByCondition 共享）
      * <p>
-     * T-PERM-032：页面查询与 recent-changes 统一走本条件组（原筛选对/实体对两套查询合并）。
+     * T-PERM-032：页面查询条件组（原与 recent-changes 统一——该端点已随 T-PERM-059 删除，2026-09-10）。
      * 对齐 schema 索引：affected user/role 走 GIN 包含、eventType 走表达式索引、时间/实体走普通索引。
      * </p>
      *

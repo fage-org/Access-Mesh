@@ -335,7 +335,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 Boolean.TRUE.equals(permission.getScopeAll()) ? ScopeMode.ALL : ScopeMode.INSTANCE));
         }
 
-        // removes 业务键快照（行随后被软删，事后不可回查；§6.8 聚合形状装配）。
+        // removes 业务键快照（行随后被软删，事后不可回查；§5.8 diff_snapshot 规范聚合（原 §6.8）形状装配）。
         // 悬挂引用（资源实体/操作定义已不存在）降级为 null 键字段：删除不得被
         // 死引用阻塞（清理死引用正是删除的合法场景），update 路径维持既有严格判定
         for (Long removeId : removeIds) {

@@ -2,20 +2,15 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
-import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionTreeReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp.ApiPermissionEntry;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionTreeResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionTreeResp.TreeNode;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp.ScopeGroup;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionQueryAppService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.permission.enums.DomainQueryMode;
@@ -51,7 +46,7 @@ import java.util.stream.Collectors;
 /**
  * 权限查询应用服务实现
  * <p>
- * 提供高级查询功能：资源查询、范围查询、权限树查询、接口快照。
+ * 提供高级查询功能：资源查询、范围查询、接口快照。
  * 从 PermissionServiceImpl 提取。
  * </p>
  */
@@ -60,8 +55,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
 
     private static final Logger log = LoggerFactory.getLogger(PermissionQueryAppServiceImpl.class);
 
-    private final ResourceEntityMapper resourceEntityMapper;
-    private final OperationPermissionMapper operationPermissionMapper;
     private final SubjectDomainService subjectDomainService;
     private final PermissionConflictDomainService permissionConflictDomainService;
     private final TypeResolutionService typeResolutionService;
@@ -73,8 +66,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     /**
      * 构造函数注入依赖
      *
-     * @param resourceEntityMapper             资源实体数据访问层
-     * @param operationPermissionMapper        操作权限数据访问层
      * @param subjectDomainService             主体领域服务
      * @param permissionConflictDomainService  权限冲突领域服务
      * @param typeResolutionService            类型解析服务
@@ -83,17 +74,13 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
      * @param engine                           权限查询引擎
      * @param snapshotAssembler                快照装配器
      */
-    public PermissionQueryAppServiceImpl(ResourceEntityMapper resourceEntityMapper,
-                                          OperationPermissionMapper operationPermissionMapper,
-                                          SubjectDomainService subjectDomainService,
+    public PermissionQueryAppServiceImpl(SubjectDomainService subjectDomainService,
                                           PermissionConflictDomainService permissionConflictDomainService,
                                           TypeResolutionService typeResolutionService,
                                           CacheService cacheService,
                                           DomainClassifyService domainClassifyService,
                                           PermQueryEngine engine,
                                           SnapshotAssembler snapshotAssembler) {
-        this.resourceEntityMapper = resourceEntityMapper;
-        this.operationPermissionMapper = operationPermissionMapper;
         this.subjectDomainService = subjectDomainService;
         this.permissionConflictDomainService = permissionConflictDomainService;
         this.typeResolutionService = typeResolutionService;
@@ -476,274 +463,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             .toList();
 
         return new InterfaceSnapshotResp(dedupedEntries);
-    }
-
-    // ===== queryPermissionTree =====
-
-    @Override
-    @Transactional(readOnly = true)
-    public PermissionTreeResp queryPermissionTree(Long tenantId, PermissionTreeReq req) {
-        TreeContext context = prepareTreeContext(tenantId, req);
-        if (context.userId == null) {
-            return new PermissionTreeResp(null, List.of(), List.of(), 60);
-        }
-        if (context.rootResourceId == null) {
-            return new PermissionTreeResp(null, List.of(), List.of(), 60);
-        }
-        if (context.validRoleIds.isEmpty()) {
-            ResourceEntity rootResource = resourceEntityMapper.selectOneById(context.rootResourceId);
-            return new PermissionTreeResp(buildNode(context.rootResourceId, 0, Set.of(), false, null, rootResource, Map.of()),
-                List.of(), List.of(), 60);
-        }
-
-        Map<Long, List<RolePermEntry>> permissionMap = buildPermissionMap(tenantId, context);
-        return buildPermissionTreeResponse(tenantId, context, permissionMap);
-    }
-
-    private static class TreeContext {
-        final Long userId;
-        final Long rootResourceId;
-        final Set<Long> validRoleIds;
-        final Set<Long> operationIds;
-        final Map<Long, OperationPermission> operationMap;
-        final int maxDepth;
-        final String direction;
-        final Map<String, Object> context;
-
-        TreeContext(Long userId, Long rootResourceId, Set<Long> validRoleIds,
-                    Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
-                    int maxDepth, String direction, Map<String, Object> context) {
-            this.userId = userId;
-            this.rootResourceId = rootResourceId;
-            this.validRoleIds = validRoleIds;
-            this.operationIds = operationIds;
-            this.operationMap = operationMap;
-            this.maxDepth = maxDepth;
-            this.direction = direction;
-            this.context = context;
-        }
-    }
-
-    private TreeContext prepareTreeContext(Long tenantId, PermissionTreeReq req) {
-        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) {
-            return new TreeContext(null, null, Set.of(), Set.of(), Map.of(), 10, "BOTH", Map.of());
-        }
-
-        Long rootResourceId = typeResolutionService.resolveResourceId(
-            tenantId, req.resourceTypeCode(), req.resourceCode(), req.codeType(), req.domainCode()
-        );
-        if (rootResourceId == null) {
-            return new TreeContext(userId, null, Set.of(), Set.of(), Map.of(), 10, "BOTH", Map.of());
-        }
-
-        Set<Long> effectiveRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
-        if (effectiveRoleIds.isEmpty()) {
-            return new TreeContext(userId, rootResourceId, Set.of(), Set.of(), Map.of(), 10, "BOTH", Map.of());
-        }
-        Set<Long> validRoleIds = permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
-        if (validRoleIds.isEmpty()) {
-            return new TreeContext(userId, rootResourceId, Set.of(), Set.of(), Map.of(), 10, "BOTH", Map.of());
-        }
-
-        Set<Long> operationIds = resolveOperationIds(tenantId, req);
-
-        Map<Long, OperationPermission> operationMap = operationIds.isEmpty()
-            ? Collections.emptyMap()
-            : operationPermissionMapper.selectValidByIds(tenantId, operationIds)
-                .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
-
-        int maxDepth = req.maxDepth() != null ? req.maxDepth() : 10;
-        String direction = req.direction() != null ? req.direction().toUpperCase() : "BOTH";
-
-        return new TreeContext(userId, rootResourceId, validRoleIds, operationIds, operationMap, maxDepth, direction, req.context());
-    }
-
-    private Set<Long> resolveOperationIds(Long tenantId, PermissionTreeReq req) {
-        Set<String> opCodes = new HashSet<>(req.operationCodes());
-        Map<String, Long> opIdMap = typeResolutionService.batchResolveOperationIds(tenantId, req.resourceTypeCode(), opCodes);
-        return new HashSet<>(opIdMap.values());
-    }
-
-    private Map<Long, List<RolePermEntry>> buildPermissionMap(Long tenantId, TreeContext context) {
-        PermQuery query = PermQuery.forUserView(tenantId, context.userId);
-        query.setRoleIds(context.validRoleIds); // 使用已过滤互斥的角色（调用方自理，2026-09-09 定案）
-        if (context.context != null) {
-            query.setEvalContext(PermEvalContext.fromCallerMap(context.context));
-        }
-        PermResult result = engine.query(query);
-        return result.allEntries().stream()
-            .filter(e -> e.resourceEntityId() != null)
-            .collect(Collectors.groupingBy(RolePermEntry::resourceEntityId));
-    }
-
-    private PermissionTreeResp buildPermissionTreeResponse(Long tenantId, TreeContext context,
-                                                            Map<Long, List<RolePermEntry>> permsByResource) {
-        List<ResourceEntity> allResources = resourceEntityMapper.selectAllValid(tenantId);
-        Map<Long, ResourceEntity> allResourceMap = allResources.stream()
-            .collect(Collectors.toMap(ResourceEntity::getId, r -> r));
-
-        Set<Integer> allResourceTypes = allResources.stream()
-            .map(ResourceEntity::getResourceType)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<Integer, String> resourceTypeCodeMap = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", allResourceTypes);
-
-        ResourceEntity rootResource = allResourceMap.get(context.rootResourceId);
-        TreeNode root = buildNode(context.rootResourceId, 0,
-            getOperationsForResource(permsByResource.get(context.rootResourceId), context.operationIds, context.operationMap),
-            hasCanGrant(permsByResource.get(context.rootResourceId), context.operationIds, context.operationMap),
-            rootResource != null ? rootResource.getName() : null,
-            rootResource, resourceTypeCodeMap);
-
-        List<TreeNode> ancestors = List.of();
-        List<TreeNode> descendants = List.of();
-
-        if ("ANCESTORS".equals(context.direction) || "BOTH".equals(context.direction)) {
-            ancestors = traverseAncestors(tenantId, context.rootResourceId, permsByResource,
-                context.operationIds, context.operationMap, context.maxDepth, allResourceMap, resourceTypeCodeMap);
-        }
-        if ("DESCENDANTS".equals(context.direction) || "BOTH".equals(context.direction)) {
-            descendants = traverseDescendants(tenantId, context.rootResourceId, permsByResource,
-                context.operationIds, context.operationMap, context.maxDepth, allResourceMap, resourceTypeCodeMap);
-        }
-
-        return new PermissionTreeResp(root, ancestors, descendants, 60);
-    }
-
-    private TreeNode buildNode(Long resourceId, int depth,
-                               Set<String> operations, boolean canGrant, String name,
-                               ResourceEntity resource, Map<Integer, String> resourceTypeCodeMap) {
-        if (resource == null) {
-            return new TreeNode(resourceId, null, null, name, depth, operations, canGrant, null);
-        }
-        String typeCode = resourceTypeCodeMap.get(resource.getResourceType());
-        return new TreeNode(resourceId, typeCode, resource.getCode(), resource.getName(), depth, operations, canGrant, null);
-    }
-
-    private Set<String> getOperationsForResource(List<RolePermEntry> perms, Set<Long> operationIds,
-                                                  Map<Long, OperationPermission> operationMap) {
-        if (perms == null || perms.isEmpty()) return Set.of();
-        Set<OperationPermission> targetOps = operationIds.stream()
-            .map(operationMap::get)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(operationMap.values());
-        Set<String> operations = new LinkedHashSet<>();
-        for (RolePermEntry perm : perms) {
-            OperationPermission grantedOp = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
-                grantedOpIndex,
-                perm.resourceType(),
-                perm.grantedBits()
-            );
-            if (grantedOp == null) {
-                continue;
-            }
-            for (OperationPermission targetOp : targetOps) {
-                if (OperationPermissionUtils.covers(grantedOp, targetOp)) {
-                    operations.add(targetOp.getCode());
-                }
-            }
-        }
-        return operations;
-    }
-
-    private boolean hasCanGrant(List<RolePermEntry> perms, Set<Long> operationIds,
-                                 Map<Long, OperationPermission> operationMap) {
-        if (perms == null || perms.isEmpty()) return false;
-        Set<OperationPermission> targetOps = operationIds.stream()
-            .map(operationMap::get)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
-        Map<String, OperationPermission> grantedOpIndex = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(operationMap.values());
-        for (RolePermEntry perm : perms) {
-            if (!Boolean.TRUE.equals(perm.canGrant())) {
-                continue;
-            }
-            OperationPermission grantedOp = OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
-                grantedOpIndex,
-                perm.resourceType(),
-                perm.grantedBits()
-            );
-            if (grantedOp == null) {
-                continue;
-            }
-            for (OperationPermission targetOp : targetOps) {
-                if (OperationPermissionUtils.covers(grantedOp, targetOp)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    private List<TreeNode> traverseAncestors(Long tenantId, Long startResourceId,
-                                              Map<Long, List<RolePermEntry>> permsByResource,
-                                              Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
-                                              int maxDepth, Map<Long, ResourceEntity> allResourceMap,
-                                              Map<Integer, String> resourceTypeCodeMap) {
-        List<TreeNode> ancestors = new ArrayList<>();
-        Long currentId = startResourceId;
-        int depth = -1;
-
-        while (currentId != null && Math.abs(depth) <= maxDepth) {
-            ResourceEntity resource = allResourceMap.get(currentId);
-            if (resource == null || resource.getDeleteFlag() != 0L || !resource.getTenantId().equals(tenantId)) {
-                break;
-            }
-            if (resource.getParentId() != null) {
-                List<RolePermEntry> perms = permsByResource.get(resource.getParentId());
-                Set<String> ops = getOperationsForResource(perms, operationIds, operationMap);
-                if (!ops.isEmpty()) {
-                    ResourceEntity parentResource = allResourceMap.get(resource.getParentId());
-                    TreeNode node = buildNode(resource.getParentId(), depth, ops,
-                        hasCanGrant(perms, operationIds, operationMap), null, parentResource, resourceTypeCodeMap);
-                    ancestors.add(node);
-                }
-                currentId = resource.getParentId();
-                depth--;
-            } else {
-                break;
-            }
-        }
-        return ancestors;
-    }
-
-    private List<TreeNode> traverseDescendants(Long tenantId, Long startResourceId,
-                                                Map<Long, List<RolePermEntry>> permsByResource,
-                                                Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
-                                                int maxDepth, Map<Long, ResourceEntity> allResourceMap,
-                                                Map<Integer, String> resourceTypeCodeMap) {
-        List<TreeNode> descendants = new ArrayList<>();
-        collectDescendantsWithPermission(tenantId, startResourceId, permsByResource, operationIds, operationMap,
-            1, maxDepth, descendants, allResourceMap, resourceTypeCodeMap);
-        return descendants;
-    }
-
-    private void collectDescendantsWithPermission(Long tenantId, Long parentId,
-                                                   Map<Long, List<RolePermEntry>> permsByResource,
-                                                   Set<Long> operationIds, Map<Long, OperationPermission> operationMap,
-                                                   int currentDepth, int maxDepth,
-                                                   List<TreeNode> result,
-                                                   Map<Long, ResourceEntity> allResourceMap,
-                                                   Map<Integer, String> resourceTypeCodeMap) {
-        if (currentDepth > maxDepth) return;
-
-        List<ResourceEntity> children = allResourceMap.values().stream()
-            .filter(r -> Objects.equals(r.getParentId(), parentId) && r.getDeleteFlag() == 0L && r.getTenantId().equals(tenantId))
-            .collect(Collectors.toList());
-
-        for (ResourceEntity child : children) {
-            List<RolePermEntry> perms = permsByResource.get(child.getId());
-            Set<String> ops = getOperationsForResource(perms, operationIds, operationMap);
-            if (!ops.isEmpty()) {
-                TreeNode node = buildNode(child.getId(), currentDepth, ops,
-                    hasCanGrant(perms, operationIds, operationMap), child.getName(), child, resourceTypeCodeMap);
-                result.add(node);
-            }
-            collectDescendantsWithPermission(tenantId, child.getId(), permsByResource, operationIds, operationMap,
-                currentDepth + 1, maxDepth, result, allResourceMap, resourceTypeCodeMap);
-        }
     }
 
 }

@@ -33,10 +33,4 @@ class ScopeModeSupportTest {
             () -> ScopeModeSupport.toScopeAllForGrant(ScopeMode.DENIED, "res-1", "default"));
     }
 
-    @Test
-    void shouldReadScopeModeFromNewOrLegacySnapshot() {
-        assertEquals(ScopeMode.ALL, ScopeModeSupport.fromSnapshot("ALL", false));
-        assertEquals(ScopeMode.ALL, ScopeModeSupport.fromSnapshot(null, true));
-        assertEquals(ScopeMode.INSTANCE, ScopeModeSupport.fromSnapshot(null, false));
-    }
 }

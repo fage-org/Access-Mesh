@@ -194,14 +194,14 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code IN ('" + String.join("','", expectedApiCodes) + "') AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(82L);
+            Long.class, TENANT)).isEqualTo(80L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND re.code LIKE 'POST:%'",
-            Long.class, TENANT)).isEqualTo(81L);
+            Long.class, TENANT)).isEqualTo(79L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
@@ -218,7 +218,7 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(131L);
+            Long.class, TENANT, roleId)).isEqualTo(129L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
@@ -253,18 +253,18 @@ class AccessBootstrapPgIT {
                 + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'ADMIN_FILE') "
                 + "AND owner_service_code = 'access-service'", Long.class, TENANT)).isEqualTo(4L);
 
-        // 菜单种子 15 行（T-FE-015）：welcome 纯展示 +「系统管理」DIR + 13 业务 MENU；
-        // 资源挂接 12 行（权限条件页读取全租户开放挂纯展示）、类型级挂接 resource_code 全空；
-        // 13 个业务页全部挂 /system 目录下；MENU 投影全量维护（对齐 MenuWriteAppService 终态）
+        // 菜单种子 14 行（T-FE-015；T-PERM-059 删权限排查页后）：welcome 纯展示 +「系统管理」DIR + 12 业务 MENU；
+        // 资源挂接 11 行（权限条件页读取全租户开放挂纯展示）、类型级挂接 resource_code 全空；
+        // 12 个业务页全部挂 /system 目录下；MENU 投影全量维护（对齐 MenuWriteAppService 终态）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(15L);
+            Long.class, TENANT)).isEqualTo(14L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 AND menu_type = 'DIR'",
             Long.class, TENANT)).isEqualTo(1L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 "
-                + "AND resource_type IS NOT NULL", Long.class, TENANT)).isEqualTo(12L);
+                + "AND resource_type IS NOT NULL", Long.class, TENANT)).isEqualTo(11L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 "
                 + "AND resource_type IS NOT NULL AND resource_code IS NOT NULL",
@@ -273,12 +273,12 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM sys_menu WHERE tenant_id = ? AND delete_flag = 0 "
                 + "AND parent_id = (SELECT id FROM sys_menu WHERE tenant_id = ? AND path = '/system' "
                 + "AND delete_flag = 0)",
-            Long.class, TENANT, TENANT)).isEqualTo(13L);
+            Long.class, TENANT, TENANT)).isEqualTo(12L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? AND delete_flag = 0 "
                 + "AND resource_type = (SELECT type_value FROM type_definition "
                 + "WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'MENU')",
-            Long.class, TENANT)).isEqualTo(15L);
+            Long.class, TENANT)).isEqualTo(14L);
 
         // 默认组织树种子（T-FE-015）：根组织（稳定业务键 root）+ 默认树配置 + admin 直绑根组织
         // （isPrimary）+ ORG 投影 + user_role 投影——/user/page 与 member-candidates 为默认树

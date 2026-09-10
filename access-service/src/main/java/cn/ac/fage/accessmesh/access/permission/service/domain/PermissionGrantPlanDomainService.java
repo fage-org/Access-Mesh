@@ -60,7 +60,7 @@ public interface PermissionGrantPlanDomainService {
     ) {}
 
     /**
-     * 变更日志业务键快照（§6.8 聚合形状）：prevalidate 期装配，
+     * 变更日志业务键快照（§5.8 diff_snapshot 规范聚合（原 §6.8）形状）：prevalidate 期装配，
      * 供 AppService 组装 diff_snapshot 的 items[]（removes 行随后被软删，事后不可回查）。
      */
     record AuditPermissionKey(

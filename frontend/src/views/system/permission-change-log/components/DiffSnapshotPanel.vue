@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Diff 对比面板 -- 结构化展示 permission_change_log.diff_snapshot（§6.8 规范）。
+ * Diff 对比面板 -- 结构化展示 permission_change_log.diff_snapshot（§5.8 diff_snapshot 规范（原 §6.8））。
  *
  * 设计：
  * - 结构化 diff_snapshot 为主：eventType tag + items 列表（每项 changeType tag + permission/role/resource

@@ -83,7 +83,7 @@ export const CHANGE_SOURCE_OPTIONS: ReadonlyArray<{
 ];
 
 /**
- * eventType（diff_snapshot 事件类型）标签映射（api-contract §6.8 固定枚举）。
+ * eventType（diff_snapshot 事件类型）标签映射（api-contract §5.8 diff_snapshot 规范（原 §6.8） 固定枚举）。
  * 用于表格/详情展示事件类型中文标签 + tag 颜色。
  */
 export const EVENT_TYPE_META: Record<
@@ -101,7 +101,7 @@ export const EVENT_TYPE_META: Record<
 };
 
 /**
- * changeType（diff_snapshot.items[].changeType）标签映射（§6.8 L1667 固定枚举）。
+ * changeType（diff_snapshot.items[].changeType）标签映射（§5.8 diff_snapshot 规范 固定枚举）。
  * 用于 diff 面板展示变更动作中文标签 + tag 颜色。
  */
 export const CHANGE_TYPE_META: Record<

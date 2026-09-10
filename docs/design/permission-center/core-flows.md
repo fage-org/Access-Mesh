@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-10   # 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口：§13 场景十收口为审计双日志面（permission-view 排查端点族删除说明 + 用户/角色排查链路改为 check 族+变更日志两步形态 + 能力表六行删）；此前 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
@@ -36,7 +36,7 @@ flowchart LR
     E --> F["Gateway 或 SDK 发起鉴权"]
     F --> G["权限中心解析主体、角色、资源、操作和条件"]
     G --> H["返回允许/拒绝、数据范围和命中信息"]
-    H --> I["权限视图和审计日志用于排查"]
+    H --> I["审计双日志用于排查追溯"]
 ```
 
 ## 3. 场景一：租户初始化与权限模型准备
@@ -90,7 +90,6 @@ flowchart LR
 | 2    | `POST /api/perm/abstract-role/create`            | `roleTypeCode + roleExternalId + name + domainCode`   | 创建可授权角色   |
 | 3    | `POST /api/perm/abstract-role/tree`              | `domainCode/roleTypeCode`                             | 查看角色层级     |
 | 4    | `POST /api/perm/user-role/assign`                | `subjectTypeCode + subjectExternalId + assignments[]` | 给用户分配角色   |
-| 5    | `POST /api/perm/permission-view/effective-roles` | `subjectTypeCode + subjectExternalId`                 | 验证用户有效角色 |
 
 关键逻辑：
 
@@ -225,11 +224,11 @@ PermQueryEngine.query(PermQuery)
 
 **Gateway 接口权限检查**：Gateway 调用 `POST /api/perm/auth/check-interface`，服务端匹配 API 映射后直接走 `PermQueryEngine.query(PermQuery.forInterfaceCheck())` 做 `API.ACCESS` 判定，不额外叠加其他资源类型 VIEW 门禁。
 
-> **注意**：`getEffectivePermissions` 的权限门禁从 `SYSTEM_CONFIG.VIEW` 改为按 targetType 对应的资源类型 VIEW 权限判定。
+> **注意（历史注记）**：原 `getEffectivePermissions` 的权限门禁从 `SYSTEM_CONFIG.VIEW` 改为按 targetType 对应的资源类型 VIEW 权限判定（T-PERM-033 定案；端点已随 T-PERM-059 删除，2026-09-10，门禁先例由 check 族与审计端点延续）。
 
 ## 10. 场景七：业务服务 SDK 鉴权与权限查询
 
-目标：业务服务既能判断单个动作是否允许，也能查询用户可操作资源集合和数据范围。SDK 运行时接口入参不依赖权限中心内部数据库 ID，也不复用管理端解释用的 `permission-view/*`；响应面按统一引擎消费方模型分族——check 族（check/batch-check/check-interface）回传结果记录（matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，T-API-003 推翻 T-API-002 的 check 族裁剪），Query\* 响应族不泄漏内部 id（T-API-002 终态维持）。
+目标：业务服务既能判断单个动作是否允许，也能查询用户可操作资源集合和数据范围。SDK 运行时接口入参不依赖权限中心内部数据库 ID，也不依赖管理端解释端点（原 `permission-view/*` 已随 T-PERM-059 删除，2026-09-10）；响应面按统一引擎消费方模型分族——check 族（check/batch-check/check-interface）回传结果记录（matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，T-API-003 推翻 T-API-002 的 check 族裁剪），Query\* 响应族不泄漏内部 id（T-API-002 终态维持）。
 
 | 能力           | 接口                                  | 典型场景                                                     | 结果                          |
 | -------------- | ------------------------------------- | ------------------------------------------------------------ | ----------------------------- |
@@ -294,7 +293,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - `auth/check` 和 `auth/batch-check` 解决“能不能做”。
 - `auth/query-resources` 解决“能操作哪些资源对象”。
 - `auth/query-scopes` 解决“允许访问主资源后，能操作哪些范围资源”。
-- `permission-view/*` 解决“为什么有/没有权限”，用于管理端解释、排查和审计，不作为业务服务高频运行时依赖。
+- 管理端解释/排查端点族（原 `permission-view/*`）已删除（T-PERM-059，2026-09-10 删除重设计定案），新形态另立任务；审计面由 `log/change/list` 与 `log/operation/list` 承担。
 
 ## 11. 场景八：接口变更后的全量同步和权限影响
 
@@ -339,21 +338,16 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 - 自动补全同样需要记录变更日志，并通过 `PermissionChangeContext.markRoles/markServiceCodes` 在 afterCommit 阶段失效 `ROLE_PERM_SNAPSHOT`、用户有效角色缓存并广播。
 - **注意**：`auto-grant` 自动补全功能标记为 TODO，Phase 1-5 未完整实现（T-PERM-035 暂缓；当前写入口拒绝 `autoGrant=true` 返回 20048，见本节开头状态声明）。撤销走 `apply-grant-plan` 的 removes（软删+级联+行数断言 20036 fail-closed）；缓存失效与广播由调用方通过 `PermissionChangeContext` + `@PermissionChange` afterCommit 统一处理。
 
-## 13. 场景十：权限视图和审计排查
+## 13. 场景十：审计排查
 
-目标：让管理端、测试和运维能解释“用户为什么有/没有某权限”。
+目标：为管理端、测试和运维提供权限相关写操作的审计追溯能力。
 
-| 查询目标     | 接口                                                   | 说明                                             |
-| ------------ | ------------------------------------------------------ | ------------------------------------------------ |
-| 用户有效角色 | `POST /api/perm/permission-view/effective-roles`       | 展示直接、分组、组织、职位等来源                 |
-| 用户有效权限 | `POST /api/perm/permission-view/effective-permissions` | 分页筛选展示当前有效权限                         |
-| 用户资源树   | `POST /api/perm/permission-view/resource-tree`         | 菜单/按钮展示常用                                |
-| 资源授权用户 | `POST /api/perm/permission-view/resource-users`        | 反查谁拥有某资源权限                             |
-| 角色权限     | `POST /api/perm/permission-view/role-permissions`      | 角色维度排查                                     |
-| 单权限解释   | `POST /api/perm/permission-view/explain`               | 解释某个具体权限当前是否拥有、来源和近期影响事件 |
-| 近期变更     | `POST /api/perm/permission-view/recent-changes`        | 查询近期可能影响用户或角色权限的变更事件         |
-| 操作日志     | `POST /api/perm/log/operation/list`                    | 所有写操作轻量审计                               |
-| 权限变更日志 | `POST /api/perm/log/change/list`            | 权限 diff 审计                                   |
+> 原「权限视图和审计排查」中的权限排查端点族（permission-view 七端点 effective-permissions/resource-tree/resource-users/role-permissions/explain/recent-changes + effective-roles）已整体删除（T-PERM-059，2026-09-10 删除重设计定案，新形态另立任务）；本场景收口为审计双日志面。
+
+| 查询目标     | 接口                                        | 说明               |
+| ------------ | ------------------------------------------- | ------------------ |
+| 操作日志     | `POST /api/perm/log/operation/list`         | 所有写操作轻量审计 |
+| 权限变更日志 | `POST /api/perm/log/change/list`            | 权限 diff 审计     |
 
 ### 13.1 操作日志记录机制
 
@@ -366,58 +360,23 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
   - `setTargetType(String)` / `setTargetId(Long/String)` — 覆盖目标类型和 ID
 - 内部动态日志（diff 快照、冲突通知）仍由 `AuditDomainService.asyncRecordLog()` 显式调用，不走 AOP。
 
-### 13.2 用户排查链路
+### 13.2 排查链路（审计面）
 
-典型问题：用户反馈“我突然没有某个报表权限”或“我突然多了某个权限”。
+典型问题：用户反馈"我突然没有某个报表权限"或"我突然多了某个权限"——排查形态：先经 check 族（/auth/check 结果记录全量回传，matchedPermissionIds 可定位授权行）确认当前判定事实，再查变更日志定位是哪次变更引入。
 
-| 步骤 | 接口                                                   | 作用                                                                 |
-| ---- | ------------------------------------------------------ | -------------------------------------------------------------------- |
-| 1    | `POST /api/perm/permission-view/effective-roles`       | 查询用户当前有效角色，确认是否被移除角色或命中停用角色               |
-| 2    | `POST /api/perm/permission-view/explain`               | 针对用户反馈的具体资源和操作，解释当前是否拥有、来源角色和未命中原因 |
-| 3    | `POST /api/perm/permission-view/recent-changes`        | 查询最近 30 天可能影响该用户权限的变更事件                           |
-| 4    | `POST /api/perm/permission-view/effective-permissions` | 需要浏览当前权限清单时，按资源类型、操作、关键词分页筛选             |
-| 5    | `POST /api/perm/log/change/list`            | 必要时查看原始 before/after/diff 审计详情                            |
-
-展示建议：
-
-```text
-当前权限：
-- report:sales DATA_READ，来源：报表查看员、部门主管
-
-最近变更：
-- 2026-04-20 管理员从“报表编辑员”角色删除了 report:sales DATA_EDIT
-- 2026-04-18 用户被移出“财务主管”角色
-- 2026-04-15 “销售报表”资源被停用后恢复
-```
+| 步骤 | 接口                             | 作用                                     |
+| ---- | -------------------------------- | ---------------------------------------- |
+| 1    | `POST /api/perm/auth/check`      | 确认当前判定事实与命中的授权行记录       |
+| 2    | `POST /api/perm/log/change/list` | 按实体/事件类型/影响用户筛选变更审计记录 |
 
 关键边界：
 
-- `explain` 回答“某个具体权限当前是否拥有、来源角色是谁、为什么拒绝、最近有什么相关变更”。
-- `effective-permissions` 回答“当前拥有什么权限”，但必须分页和筛选，不应用于一次性拉取全量权限。
-- `recent-changes` 回答“最近有哪些事件可能影响该用户权限”。
-- `recent-changes` 不承诺返回用户有效权限的精确历史 diff，因为同一权限可能同时来自多个角色。
-- 如果角色 A 删除了某权限，但角色 B 仍授予同一权限，用户当前仍拥有该权限；页面文案应表达为“可能影响”，不能写成“用户已失去权限”。
-- `effective-permissions` 默认不展开数据范围、子权限、API 资源和完整来源角色；调用方必须显式传过滤条件和展开选项。
-
-### 13.3 角色排查链路
-
-典型问题：管理员查看某个角色为什么当前权限发生变化。
-
-| 步骤 | 接口                                              | 作用                                         |
-| ---- | ------------------------------------------------- | -------------------------------------------- |
-| 1    | `POST /api/perm/permission-view/role-permissions` | 查询角色当前权限配置                         |
-| 2    | `POST /api/perm/permission-view/explain`          | 针对某个资源和操作解释该角色当前是否拥有权限 |
-| 3    | `POST /api/perm/permission-view/recent-changes`   | 查询该角色最近权限增删改、状态变更、依赖变更 |
-| 4    | `POST /api/perm/log/change/list`       | 查看原始审计记录                             |
-
-关键逻辑：
-
-- 权限视图应使用实时事实数据或最新缓存，不应返回已软删除记录。
-- 视图接口用于解释和展示，不应承担写入职责。
+- 变更日志不承诺返回用户有效权限的精确历史 diff，因为同一权限可能同时来自多个角色。
+- 如果角色 A 删除了某权限，但角色 B 仍授予同一权限，用户当前仍拥有该权限；页面文案应表达为"可能影响"，不能写成"用户已失去权限"。
 - 审计日志需要包含 `requestId`、操作者、目标对象、前后差异或摘要。
-- `permission_change_log.diff_snapshot` 保存结构化变更摘要，用于 `recent-changes` 展示和筛选；`old_snapshot/new_snapshot` 保存原始审计快照。
+- `permission_change_log.diff_snapshot` 保存结构化变更摘要，用于变更日志列表展示和筛选；`old_snapshot/new_snapshot` 保存原始审计快照。
 - `diff_snapshot` 只描述本次写操作直接改变了什么，不负责计算用户最终有效权限是否发生变化。
-- 查询用户最近变更时，服务端可通过 `affected_abstract_user_ids` 直接匹配用户，也可通过用户当前/历史关联角色匹配 `affected_abstract_role_ids`；首期以“排查线索完整”为目标，不做历史快照回放。
+- 查询用户最近变更时，服务端可通过 `affected_abstract_user_ids` 直接匹配用户，也可通过用户当前/历史关联角色匹配 `affected_abstract_role_ids`；首期以"排查线索完整"为目标，不做历史快照回放。
 
 ## 14. 场景十一：回收、删除和级联
 

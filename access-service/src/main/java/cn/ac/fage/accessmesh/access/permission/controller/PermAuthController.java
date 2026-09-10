@@ -6,14 +6,12 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionTreeReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionTreeResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionCheckAppService;
@@ -27,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 权限校验控制器
  * <p>
- * 提供权限校验、资源查询、权限树查询等核心功能。
+ * 提供权限校验、资源查询等核心功能。
  * 该控制器是Gateway和SDK的主要调用入口，用于实时权限判定。
  * 所有接口采用POST + JSON Body方式。
  * 租户ID通过TenantContextHolder从X-Tenant-Id请求头获取。
@@ -118,14 +116,4 @@ public class PermAuthController {
         return R.ok(permissionQueryAppService.interfaceSnapshot(TenantContextHolder.getTenantId(), req));
     }
 
-    /**
-     * 查询权限树
-     *
-     * @param req 权限树查询请求，包含用户ID、资源类型、域编码
-     * @return 带权限标记的资源树
-     */
-    @PostMapping("/query-permission-tree")
-    public R<PermissionTreeResp> queryPermissionTree(@Valid @RequestBody PermissionTreeReq req) {
-        return R.ok(permissionQueryAppService.queryPermissionTree(TenantContextHolder.getTenantId(), req));
-    }
 }

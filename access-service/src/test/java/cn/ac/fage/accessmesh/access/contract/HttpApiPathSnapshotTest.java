@@ -70,7 +70,6 @@ class HttpApiPathSnapshotTest {
 /api/perm/auth/check
 /api/perm/auth/check-interface
 /api/perm/auth/interface-snapshot
-/api/perm/auth/query-permission-tree
 /api/perm/auth/query-resources
 /api/perm/auth/query-scopes
 /api/perm/biz-domain/create
@@ -102,13 +101,6 @@ class HttpApiPathSnapshotTest {
 /api/perm/permission-condition/remove
 /api/perm/permission-condition/update
 /api/perm/permission-view/effective-permission-codes
-/api/perm/permission-view/effective-permissions
-/api/perm/permission-view/effective-roles
-/api/perm/permission-view/explain
-/api/perm/permission-view/recent-changes
-/api/perm/permission-view/resource-tree
-/api/perm/permission-view/resource-users
-/api/perm/permission-view/role-permissions
 /api/perm/resource-api-mapping/create
 /api/perm/resource-api-mapping/list
 /api/perm/resource-api-mapping/remove
@@ -261,7 +253,6 @@ class HttpApiPathSnapshotTest {
 /api/perm/auth/check-interface|access.permission.dto.req.CheckInterfaceReq|common.model.R<access.permission.dto.resp.CheckInterfaceResp>
 /api/perm/auth/check|access.permission.dto.req.AuthCheckReq|common.model.R<access.permission.dto.resp.AuthCheckResp>
 /api/perm/auth/interface-snapshot|perm.common.dto.req.InterfaceSnapshotReq|common.model.R<perm.common.dto.resp.InterfaceSnapshotResp>
-/api/perm/auth/query-permission-tree|access.permission.dto.req.PermissionTreeReq|common.model.R<access.permission.dto.resp.PermissionTreeResp>
 /api/perm/auth/query-resources|perm.common.dto.req.QueryResourcesReq|common.model.R<perm.common.dto.resp.QueryResourcesResp>
 /api/perm/auth/query-scopes|perm.common.dto.req.QueryScopesReq|common.model.R<perm.common.dto.resp.QueryScopesResp>
 /api/perm/biz-domain/create|access.permission.dto.req.BizDomainCreateReq|common.model.R<access.permission.dto.resp.BizDomainResp>
@@ -293,13 +284,6 @@ class HttpApiPathSnapshotTest {
 /api/perm/permission-condition/remove|access.permission.dto.req.ConditionRemoveReq|common.model.R<Void>
 /api/perm/permission-condition/update|access.permission.dto.req.ConditionUpdateReq|common.model.R<access.permission.dto.resp.ConditionResp>
 /api/perm/permission-view/effective-permission-codes|perm.common.dto.req.UserEffectivePermissionCodesReq|common.model.R<perm.common.dto.resp.UserEffectivePermissionCodesResp>
-/api/perm/permission-view/effective-permissions|access.permission.dto.req.UserPermissionViewReq|common.model.R<access.permission.dto.resp.PermissionEffectivePermissionsResp>
-/api/perm/permission-view/effective-roles|access.permission.dto.req.UserEffectiveRolesReq|common.model.R<perm.common.dto.resp.ItemsResp<access.permission.dto.resp.EffectiveRoleResp>>
-/api/perm/permission-view/explain|access.permission.dto.req.PermissionExplainReq|common.model.R<access.permission.dto.resp.PermissionExplainResp>
-/api/perm/permission-view/recent-changes|access.permission.dto.req.PermissionRecentChangesReq|common.model.R<access.permission.dto.resp.PermissionRecentChangesResp>
-/api/perm/permission-view/resource-tree|access.permission.dto.req.UserResourceTreeReq|common.model.R<perm.common.dto.resp.ItemsResp<access.permission.dto.resp.ResourcePermissionTreeResp>>
-/api/perm/permission-view/resource-users|access.permission.dto.req.ResourcePermissionViewReq|common.model.R<access.permission.dto.resp.ResourcePermissionViewResp>
-/api/perm/permission-view/role-permissions|access.permission.dto.req.RolePermissionViewReq|common.model.R<access.permission.dto.resp.RolePermissionViewResp>
 /api/perm/resource-api-mapping/create|access.permission.dto.req.ApiMappingAddReq|common.model.R<access.permission.dto.resp.ApiMappingResp>
 /api/perm/resource-api-mapping/list|access.permission.dto.req.ApiMappingListReq|common.model.R<perm.common.dto.resp.ItemsResp<access.permission.dto.resp.ApiMappingResp>>
 /api/perm/resource-api-mapping/remove|access.permission.dto.req.IdsReq|common.model.R<Void>

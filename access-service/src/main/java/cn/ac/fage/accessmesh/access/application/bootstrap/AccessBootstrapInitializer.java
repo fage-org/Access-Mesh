@@ -332,7 +332,7 @@ public class AccessBootstrapInitializer {
             classifyMissingGrants(tenantId, roleId, missingGrants, conflicts);
         }
 
-        // —— 菜单种子（T-FE-015；path 为期望键子集匹配：固定图 15 行齐全即可，
+        // —— 菜单种子（T-FE-015；path 为期望键子集匹配：固定图 14 行齐全即可（T-PERM-059 后），
         //    管理页后建的额外菜单不冲突。结构键 menuType/resourceType/resourceCode/parentPath/status
         //    严格比对（resourceCode 种子恒 null，实例挂接会改变可见性派生口径），
         //    displayName/icon/sortOrder 容忍漂移——菜单管理页可改，不构成固定图冲突） ——

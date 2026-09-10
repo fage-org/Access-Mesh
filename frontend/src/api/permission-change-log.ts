@@ -7,7 +7,7 @@
  *
  * 契约依据：docs/design/permission-center/api-contract.md §5.8 permission-change-log 契约要点
  *   （T-PERM-032 收口：端点 /api/perm/log/change/list/筛选全集/createdBy/独立
- *   PERMISSION_CHANGE_LOG:VIEW 门禁）+ §6.8 diff_snapshot 规范。
+ *   PERMISSION_CHANGE_LOG:VIEW 门禁）+ §5.8 diff_snapshot 规范 diff_snapshot 规范。
  * 后端实现：access-service LogQueryController（@RequestMapping("/api/perm/log")
  *   + @PostMapping("/change/list")）+ LogQueryAppServiceImpl.listChangeLogs。
  *
@@ -18,9 +18,9 @@ import { http } from "@/utils/http";
 import { type R, unwrap } from "./_envelope";
 import type { PageResp } from "./role-manage";
 
-// ========== diff_snapshot 结构化类型（对齐 api-contract api-contract §6.8） ==========
+// ========== diff_snapshot 结构化类型（对齐 api-contract §5.8 diff_snapshot 规范（原 §6.8）） ==========
 
-/** 事件类型固定枚举（api-contract §6.8） */
+/** 事件类型固定枚举（api-contract §5.8 diff_snapshot 规范（原 §6.8）） */
 export type DiffEventType =
   | "USER_ROLE_CHANGE"
   | "ROLE_PERMISSION_CHANGE"
@@ -31,10 +31,10 @@ export type DiffEventType =
   /** 批量删除角色的聚合事件（entityId=0 + operation=BATCH_DELETE；T-PERM-032 契约收口补枚举） */
   | "ROLE_BATCH_DELETE";
 
-/** 变更类型固定枚举（api-contract §6.8） */
+/** 变更类型固定枚举（api-contract §5.8 diff_snapshot 规范（原 §6.8）） */
 export type DiffChangeType = "ADD" | "REMOVE" | "UPDATE";
 
-/** 权限项业务键（§6.8 L1669：domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode） */
+/** 权限项业务键（§5.8 diff_snapshot 规范：domainCode+resourceTypeCode+resourceCode+codeType+operationCode+scopeMode） */
 export interface DiffPermissionKey {
   domainCode?: string | null;
   resourceTypeCode?: string | null;
@@ -44,14 +44,14 @@ export interface DiffPermissionKey {
   scopeMode?: string | null;
 }
 
-/** 角色来源业务键（§6.8 L1670） */
+/** 角色来源业务键（§5.8 diff_snapshot 规范） */
 export interface DiffRoleRef {
   roleTypeCode?: string | null;
   roleExternalId?: string | null;
   roleName?: string | null;
 }
 
-/** 资源业务键（§6.8 RESOURCE_STATUS_CHANGE 示例 L1646） */
+/** 资源业务键（§5.8 diff_snapshot 规范（原 §6.8）RESOURCE_STATUS_CHANGE 示例） */
 export interface DiffResourceRef {
   domainCode?: string | null;
   resourceTypeCode?: string | null;
@@ -59,7 +59,7 @@ export interface DiffResourceRef {
   codeType?: string | null;
 }
 
-/** diff_snapshot.items[] 单项（§6.8 L1599-1660） */
+/** diff_snapshot.items[] 单项（§5.8 diff_snapshot 规范） */
 export interface DiffItem {
   changeType: DiffChangeType;
   permission?: DiffPermissionKey | null;
@@ -70,7 +70,7 @@ export interface DiffItem {
   message?: string | null;
 }
 
-/** diff_snapshot 顶层结构（§6.8 L1665：eventType + items[]） */
+/** diff_snapshot 顶层结构（§5.8 diff_snapshot 规范：eventType + items[]） */
 export interface DiffSnapshot {
   eventType: DiffEventType;
   items: DiffItem[];
@@ -94,7 +94,7 @@ export type ChangeLogResp = {
   oldSnapshot?: string | null;
   /** 变更后快照 JSON 字符串（可空） */
   newSnapshot?: string | null;
-  /** 结构化变更摘要 JSON 字符串（§6.8 规范，可空）。前端 JSON.parse 后取 eventType + items[] */
+  /** 结构化变更摘要 JSON 字符串（§5.8 diff_snapshot 规范（原 §6.8），可空）。前端 JSON.parse 后取 eventType + items[] */
   diffSnapshot?: string | null;
   /** 受影响的用户 ID 数组（可空） */
   affectedAbstractUserIds?: number[] | null;
@@ -145,7 +145,7 @@ export const getChangeLogList = async (
   return unwrap(res);
 };
 
-/** diff items[].changeType 合法枚举（api-contract §6.8），超出此集合的元素视为非法并过滤 */
+/** diff items[].changeType 合法枚举（api-contract §5.8 diff_snapshot 规范（原 §6.8）），超出此集合的元素视为非法并过滤 */
 const VALID_CHANGE_TYPES: ReadonlySet<string> = new Set([
   "ADD",
   "REMOVE",
@@ -156,7 +156,7 @@ const VALID_CHANGE_TYPES: ReadonlySet<string> = new Set([
  *  逐项校验 items：仅保留非空对象且 changeType 属于 ADD/REMOVE/UPDATE 的元素，
  *  避免历史/异常数据（如 items:[null]）在 DiffSnapshotPanel 渲染时访问 item.changeType 抛错。
  *  eventType 仅校验为 string（不限制枚举值）--后端批量删除角色实际写 "ROLE_BATCH_DELETE"
- *  契约 §6.8 七枚举之一（T-PERM-032 增补），EVENT_TYPE_META 有正式条目；未知值仍 fallback 显示原值。 */
+ *  契约 §5.8 diff_snapshot 规范（原 §6.8） 七枚举之一（T-PERM-032 增补），EVENT_TYPE_META 有正式条目；未知值仍 fallback 显示原值。 */
 export function parseDiffSnapshot(
   raw: string | null | undefined
 ): DiffSnapshot | null {

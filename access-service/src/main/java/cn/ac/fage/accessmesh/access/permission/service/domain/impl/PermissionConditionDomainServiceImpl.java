@@ -7,7 +7,6 @@ import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService;
-import cn.ac.fage.accessmesh.access.permission.vo.ConditionEvaluationDetail;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -87,106 +86,6 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             .collect(Collectors.toList());
     }
 
-    /**
-     * 逐项评估权限条目条件并返回评估明细（T-PERM-033 explain DTO 扩展）。
-     * <p>
-     * 与 {@link #evaluate} 共用逐项评估逻辑，不丢弃条目；
-     * 条件值按脱敏规则回传（IP 掩码主机段、日期/时间原样）。
-     * 条件加载为批量路径（缓存 getBatch → miss 一次批量查库 → putBatch 回填剩余 TTL），
-     * 候选条目共享同一条件时同一 ID 只加载一次（禁用/缺失条件不缓存、也不重复穿透）。
-     * </p>
-     */
-    @Override
-    public List<ConditionEvaluationDetail> evaluateDetailed(Long tenantId, List<RolePermEntry> entries,
-                                                            Map<String, Object> context) {
-        Map<String, Object> ctx = context == null ? Map.of() : context;
-        Set<Long> conditionIds = entries.stream()
-            .filter(entry -> entry.conditionId() != null && entry.hasCondition())
-            .map(RolePermEntry::conditionId)
-            .collect(Collectors.toCollection(LinkedHashSet::new));
-        Map<Long, LoadedRules> rulesById = conditionIds.isEmpty()
-            ? Map.of() : loadRulesBatch(tenantId, conditionIds);
-
-        List<ConditionEvaluationDetail> details = new ArrayList<>();
-        for (RolePermEntry entry : entries) {
-            if (entry.conditionId() == null || !entry.hasCondition()) {
-                continue;
-            }
-            details.add(evaluateOneDetailed(entry, rulesById.get(entry.conditionId()), ctx));
-        }
-        return details;
-    }
-
-    /**
-     * 单条挂条件条目的评估明细（rules 为批量加载结果，可能为 null=未收集到的异常形态）
-     */
-    private ConditionEvaluationDetail evaluateOneDetailed(RolePermEntry entry, LoadedRules rules,
-                                                          Map<String, Object> context) {
-        if (rules == null || rules.rules() == null) {
-            String status = rules != null ? rules.status() : ConditionEvaluationDetail.STATUS_NOT_FOUND;
-            return new ConditionEvaluationDetail(entry.conditionId(), entry.permissionId(), entry.roleId(),
-                status, null, false, List.of());
-        }
-        try {
-            RulesEvaluation evaluation = evalRules(entry.conditionId(), rules.rules(), context);
-            boolean passed = aggregate(evaluation);
-            return new ConditionEvaluationDetail(entry.conditionId(), entry.permissionId(), entry.roleId(),
-                ConditionEvaluationDetail.STATUS_OK, evaluation.logic(), passed, evaluation.items());
-        } catch (Exception e) {
-            log.error("CRITICAL: Unexpected error evaluating condition, conditionId: {}", entry.conditionId(), e);
-            return new ConditionEvaluationDetail(entry.conditionId(), entry.permissionId(), entry.roleId(),
-                ConditionEvaluationDetail.STATUS_INVALID, null, false, List.of());
-        }
-    }
-
-    /**
-     * 批量加载条件规则（缓存优先，miss 后一次批量查库并按剩余 TTL 回填）。
-     * <p>
-     * 状态语义与单条加载一致：命中缓存视为 OK（禁用/删除条件经写路径 evict 缓存）；
-     * miss 时按实体状态区分 NOT_FOUND（不在结果集=不存在/已删/跨租户）、DISABLED（enabled=false）、
-     * INVALID（解析失败）；仅 OK 且解析成功的规则回填缓存。
-     * </p>
-     */
-    private Map<Long, LoadedRules> loadRulesBatch(Long tenantId, Set<Long> conditionIds) {
-        Map<Long, JsonNode> cached = cacheService.getBatch(PermCacheCatalog.CONDITION_RULES, tenantId, conditionIds);
-        Map<Long, LoadedRules> result = new HashMap<>();
-        cached.forEach((id, rules) -> result.put(id, new LoadedRules(ConditionEvaluationDetail.STATUS_OK, rules)));
-
-        Set<Long> missed = new LinkedHashSet<>(conditionIds);
-        missed.removeAll(cached.keySet());
-        if (missed.isEmpty()) {
-            return result;
-        }
-        CacheReadToken<JsonNode> readToken = cacheService.beginRead(PermCacheCatalog.CONDITION_RULES);
-        Map<Long, PermissionCondition> byId = conditionMapper.selectValidByIds(tenantId, missed).stream()
-            .collect(Collectors.toMap(PermissionCondition::getId, condition -> condition, (a, b) -> a));
-        Map<Long, JsonNode> toCache = new LinkedHashMap<>();
-        for (Long conditionId : missed) {
-            PermissionCondition condition = byId.get(conditionId);
-            if (condition == null) {
-                result.put(conditionId, new LoadedRules(ConditionEvaluationDetail.STATUS_NOT_FOUND, null));
-                continue;
-            }
-            if (!Boolean.TRUE.equals(condition.getEnabled())) {
-                result.put(conditionId, new LoadedRules(ConditionEvaluationDetail.STATUS_DISABLED, null));
-                continue;
-            }
-            try {
-                JsonNode rules = objectMapper.readTree(condition.getConditionRules());
-                result.put(conditionId, new LoadedRules(ConditionEvaluationDetail.STATUS_OK, rules));
-                if (rules != null) {
-                    toCache.put(conditionId, rules);
-                }
-            } catch (Exception e) {
-                log.error("CRITICAL: Failed to parse conditionRules JSON, conditionId: {}", conditionId, e);
-                result.put(conditionId, new LoadedRules(ConditionEvaluationDetail.STATUS_INVALID, null));
-            }
-        }
-        if (!toCache.isEmpty()) {
-            cacheService.putBatch(readToken, tenantId, toCache);
-        }
-        return result;
-    }
 
     /**
      * 评估单个条件
@@ -202,7 +101,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      */
     private boolean evaluateCondition(Long tenantId, Long conditionId, Map<String, Object> context) {
         LoadedRules loaded = loadRules(tenantId, conditionId);
-        if (!ConditionEvaluationDetail.STATUS_OK.equals(loaded.status()) || loaded.rules() == null) {
+        if (!LoadedRules.STATUS_OK.equals(loaded.status()) || loaded.rules() == null) {
             return false;
         }
         try {
@@ -224,17 +123,17 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         // ① 查缓存（null = miss）
         JsonNode rules = cacheService.get(PermCacheCatalog.CONDITION_RULES, tenantId, conditionId);
         if (rules != null) {
-            return new LoadedRules(ConditionEvaluationDetail.STATUS_OK, rules);
+            return new LoadedRules(LoadedRules.STATUS_OK, rules);
         }
 
         // ② miss 后查 DB（T-ACCESS-008：DB 读取前记录读取起点，回填只写剩余 TTL）
         CacheReadToken<JsonNode> readToken = cacheService.beginRead(PermCacheCatalog.CONDITION_RULES);
         PermissionCondition condition = conditionMapper.selectOneById(conditionId);
         if (condition == null || !tenantId.equals(condition.getTenantId())) {
-            return new LoadedRules(ConditionEvaluationDetail.STATUS_NOT_FOUND, null);
+            return new LoadedRules(LoadedRules.STATUS_NOT_FOUND, null);
         }
         if (!Boolean.TRUE.equals(condition.getEnabled())) {
-            return new LoadedRules(ConditionEvaluationDetail.STATUS_DISABLED, null);
+            return new LoadedRules(LoadedRules.STATUS_DISABLED, null);
         }
 
         try {
@@ -243,10 +142,10 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             if (rules != null) {
                 cacheService.put(readToken, tenantId, conditionId, rules);
             }
-            return new LoadedRules(ConditionEvaluationDetail.STATUS_OK, rules);
+            return new LoadedRules(LoadedRules.STATUS_OK, rules);
         } catch (Exception e) {
             log.error("CRITICAL: Failed to parse conditionRules JSON, conditionId: {}", conditionId, e);
-            return new LoadedRules(ConditionEvaluationDetail.STATUS_INVALID, null);
+            return new LoadedRules(LoadedRules.STATUS_INVALID, null);
         }
     }
 
@@ -267,11 +166,11 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         if (!itemsArrayPresent) {
             return new RulesEvaluation(logic, logicValid, false, List.of());
         }
-        List<ConditionEvaluationDetail.ItemDetail> details = new ArrayList<>();
+        List<ItemDetail> details = new ArrayList<>();
         for (JsonNode item : items) {
             String type = item != null && item.has("type") ? item.get("type").asText() : "";
             boolean matched = evaluateItem(item, context);
-            details.add(new ConditionEvaluationDetail.ItemDetail(type, maskParams(type, item), matched));
+            details.add(new ItemDetail(type, maskParams(type, item), matched));
         }
         return new RulesEvaluation(logic, logicValid, true, details);
     }
@@ -286,7 +185,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             return false;
         }
         boolean allMatch = PermConstants.ConditionLogic.AND.equals(evaluation.logic());
-        for (ConditionEvaluationDetail.ItemDetail item : evaluation.items()) {
+        for (ItemDetail item : evaluation.items()) {
             if (allMatch && !item.matched()) return false;
             if (!allMatch && item.matched()) return true;
         }
@@ -378,12 +277,20 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         return Integer.parseInt(value) <= max;
     }
 
-    /** 规则加载结果（状态 + 规则树，非 OK 状态时规则为 null） */
-    private record LoadedRules(String status, JsonNode rules) {}
+    /** 单个条件项评估结果（原 ConditionEvaluationDetail.ItemDetail 迁入，T-PERM-059） */
+    private record ItemDetail(String type, String maskedParams, boolean matched) {}
+
+    /** 规则加载结果（状态 + 规则树，非 OK 状态时规则为 null；状态常量原 ConditionEvaluationDetail 迁入，T-PERM-059） */
+    private record LoadedRules(String status, JsonNode rules) {
+        static final String STATUS_OK = "OK";
+        static final String STATUS_DISABLED = "DISABLED";
+        static final String STATUS_NOT_FOUND = "NOT_FOUND";
+        static final String STATUS_INVALID = "INVALID";
+    }
 
     /** 逐项评估中间结果（logic + 合法性 + items 节点形态 + 脱敏明细） */
     private record RulesEvaluation(String logic, boolean logicValid, boolean itemsArrayPresent,
-                                   List<ConditionEvaluationDetail.ItemDetail> items) {}
+                                   List<ItemDetail> items) {}
 
     /**
      * 评估单个条件项

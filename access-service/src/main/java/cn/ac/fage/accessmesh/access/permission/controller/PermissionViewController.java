@@ -4,38 +4,19 @@ import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionExplainReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionRecentChangesReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.RolePermissionViewReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourcePermissionViewReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserEffectiveRolesReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserPermissionViewReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserResourceTreeReq;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.EffectiveRoleResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionEffectivePermissionsResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionExplainResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionRecentChangesResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourcePermissionTreeResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourcePermissionViewResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.RolePermissionViewResp;
-import cn.ac.fage.accessmesh.access.permission.service.LogQueryAppService;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionViewAppService;
-import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
-
 /**
  * 权限视图控制器
  * <p>
- * 提供权限的可视化查询功能，用于管理界面展示。
- * 包括用户有效权限、资源权限分布、角色权限配置、权限变更历史等查询。
- * 所有接口采用POST + JSON Body方式。
+ * 原权限排查视图七端点（effective-permissions/resource-users/role-permissions/
+ * effective-roles/resource-tree/explain/recent-changes）已删除（T-PERM-059，
+ * 2026-09-10 删除重设计定案）；本控制器仅保留登录权限串端点。
  * </p>
  */
 @RestController
@@ -43,28 +24,15 @@ import java.util.List;
 public class PermissionViewController {
 
     private final PermissionViewAppService permissionViewAppService;
-    private final TypeResolutionService typeResolutionService;
-    private final LogQueryAppService logQueryService;
 
-    public PermissionViewController(PermissionViewAppService permissionViewAppService,
-                                    TypeResolutionService typeResolutionService,
-                                    LogQueryAppService logQueryService) {
+    public PermissionViewController(PermissionViewAppService permissionViewAppService) {
         this.permissionViewAppService = permissionViewAppService;
-        this.typeResolutionService = typeResolutionService;
-        this.logQueryService = logQueryService;
-    }
-
-    @PostMapping("/effective-permissions")
-    public R<PermissionEffectivePermissionsResp> getEffectivePermissions(@Valid @RequestBody UserPermissionViewReq req) {
-        return R.ok(permissionViewAppService.getEffectivePermissions(TenantContextHolder.getTenantId(), req));
     }
 
     /**
      * 用户有效权限码聚合下发（v1.4 双轨并行 / 命名空间统一）。
      * <p>
      * 不分页、扁平 perm 串列表，可供前端 hasPerms、功能开关、客户端能力下发等场景使用。
-     * 与 effective-permissions 解耦，
-     * 杜绝大权限用户被分页截断（原 page=1, size=500 模式）。
      * 门禁：自查豁免；查他人需操作者对被查用户有 {@code USER:VIEW}。
      */
     @PostMapping("/effective-permission-codes")
@@ -72,44 +40,5 @@ public class PermissionViewController {
             @Valid @RequestBody UserEffectivePermissionCodesReq req) {
         return R.ok(permissionViewAppService.getEffectivePermissionCodesForManage(
             TenantContextHolder.getTenantId(), req));
-    }
-
-    @PostMapping("/resource-users")
-    public R<ResourcePermissionViewResp> getResourcePermissions(@Valid @RequestBody ResourcePermissionViewReq req) {
-        return R.ok(permissionViewAppService.getResourcePermissions(
-            TenantContextHolder.getTenantId(), req.domainCode(), req.resourceTypeCode(), req.resourceCode(), req.codeType()));
-    }
-
-    @PostMapping("/role-permissions")
-    public R<RolePermissionViewResp> getRolePermissions(@Valid @RequestBody RolePermissionViewReq req) {
-        return R.ok(permissionViewAppService.getRolePermissions(
-            TenantContextHolder.getTenantId(), req.domainCode(), req.roleTypeCode(), req.roleExternalId(), req.expandSub() != null && req.expandSub()));
-    }
-
-    @PostMapping("/effective-roles")
-    public R<ItemsResp<EffectiveRoleResp>> getEffectiveRoles(@Valid @RequestBody UserEffectiveRolesReq req) {
-        return R.ok(permissionViewAppService.listEffectiveRoles(
-            TenantContextHolder.getTenantId(), req));
-    }
-
-    @PostMapping("/resource-tree")
-    public R<ItemsResp<ResourcePermissionTreeResp>> getResourceTree(@Valid @RequestBody UserResourceTreeReq req) {
-        Long tenantId = TenantContextHolder.getTenantId();
-        Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        if (userId == null) {
-            return R.ok(new ItemsResp<>(List.of()));
-        }
-        return R.ok(new ItemsResp<>(
-            permissionViewAppService.getUserResourceTree(tenantId, userId, req)));
-    }
-
-    @PostMapping("/explain")
-    public R<PermissionExplainResp> explain(@Valid @RequestBody PermissionExplainReq req) {
-        return R.ok(permissionViewAppService.explain(TenantContextHolder.getTenantId(), req));
-    }
-
-    @PostMapping("/recent-changes")
-    public R<PermissionRecentChangesResp> recentChanges(@Valid @RequestBody PermissionRecentChangesReq req) {
-        return R.ok(logQueryService.getRecentChanges(TenantContextHolder.getTenantId(), req));
     }
 }

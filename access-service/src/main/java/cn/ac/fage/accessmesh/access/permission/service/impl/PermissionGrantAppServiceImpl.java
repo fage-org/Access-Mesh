@@ -297,10 +297,10 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             ApplyGrantPlanReq req,
             AbstractRole role,
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared) {
-        // §6.8 聚合形状（T-PERM-034 收口）：eventType=ROLE_PERMISSION_CHANGE +
+        // §5.8 diff_snapshot 规范聚合（原 §6.8）形状（T-PERM-034 收口）：eventType=ROLE_PERMISSION_CHANGE +
         // items[]{changeType, permission(6 字段业务键), role 摘要}，一条聚合日志；
         // 业务键快照由 prevalidate 期装配（removes 行随后被软删，事后不可回查），
-        // 读侧 permission-view/recent-changes 与 change-log 列表按 items[].permission 解析
+        // 读侧 change-log 列表按 items[].permission 解析（原 recent-changes 读面已随 T-PERM-059 删除）
         if (prepared.auditKeys().isEmpty()) {
             return;
         }

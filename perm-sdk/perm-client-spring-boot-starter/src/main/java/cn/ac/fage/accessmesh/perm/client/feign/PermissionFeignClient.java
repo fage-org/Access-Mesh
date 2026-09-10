@@ -7,7 +7,6 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
-import cn.ac.fage.accessmesh.perm.common.dto.resp.PermissionEffectivePermissionsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ResourceResp;
@@ -203,21 +202,11 @@ public interface PermissionFeignClient {
     // 授权写入唯一入口为 /api/perm/role-resource-permission/apply-grant-plan（记录级 plan 单事务原子）。
 
     /**
-     * 查询用户有效权限视图
-     *
-     * @param req 用户权限视图查询请求
-     * @return 有效权限分页结果
-     */
-    @PostMapping("/api/perm/permission-view/effective-permissions")
-    R<PermissionEffectivePermissionsResp> getEffectivePermissions(
-        @RequestBody UserPermissionViewReq req);
-
-    /**
      * 查询用户有效权限码聚合（v1.4 双轨并行 / 命名空间统一）。
      * <p>
      * 不分页、扁平 {@code resourceTypeCode:operationCode} 字符串列表，可供前端 hasPerms、
      * 功能开关、客户端能力下发等场景使用。
-     * 与 {@link #getEffectivePermissions} 解耦，杜绝大权限用户被分页截断的故障模式。
+     * 不分页聚合，杜绝大权限用户被分页截断的故障模式。
      *
      * @param req 有效权限码聚合请求（含 resourceTypeCodes 白名单）
      * @return perm 串列表

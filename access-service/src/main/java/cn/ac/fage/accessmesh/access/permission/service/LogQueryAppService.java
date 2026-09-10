@@ -1,9 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service;
 
-import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionRecentChangesReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ChangeLogResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationLogResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionRecentChangesResp;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -97,18 +95,4 @@ public interface LogQueryAppService {
      */
     List<String> listActionOptions(Long tenantId, String module);
 
-    // ===== 最近变更查询 =====
-
-    /**
-     * 获取权限最近变更列表（permission-view/recent-changes 端点）
-     * <p>
-     * 门禁（T-PERM-033 设计定案）：被查目标实例 USER:VIEW / ROLE:VIEW——
-     * 查谁就要对谁有 VIEW（ROLE 未解析时类型级兜底；USER 未解析返回空）。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      最近变更查询请求
-     * @return 权限最近变更响应
-     */
-    PermissionRecentChangesResp getRecentChanges(Long tenantId, PermissionRecentChangesReq req);
 }

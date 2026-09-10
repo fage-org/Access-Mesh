@@ -1,11 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
-import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
-import cn.ac.fage.accessmesh.access.permission.dto.req.PermissionRecentChangesReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ChangeLogResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationLogResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.PermissionRecentChangesResp;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.RecentChangeResp;
 import cn.ac.fage.accessmesh.access.infrastructure.entity.OperationLog;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionChangeLog;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
@@ -15,9 +11,6 @@ import cn.ac.fage.accessmesh.access.permission.service.LogQueryAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
-import cn.ac.fage.accessmesh.access.permission.util.ScopeModeSupport;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
@@ -31,8 +24,8 @@ import java.util.stream.Collectors;
  * <p>
  * 提供变更日志和操作日志的只读查询功能。
  * 门禁（审计分离）：变更日志页 listChangeLogs/countChangeLogs 需 PERMISSION_CHANGE_LOG:VIEW
- * （T-PERM-032），操作日志需 OPERATION_LOG:VIEW（T-PERM-025）；recent-changes 为被查目标
- * 实例 USER:VIEW/ROLE:VIEW（T-PERM-033 设计定案）。
+ * （T-PERM-032），操作日志需 OPERATION_LOG:VIEW（T-PERM-025）。原 recent-changes 端点
+ * 门禁=被查目标实例 USER:VIEW/ROLE:VIEW，该端点已随 T-PERM-059 删除（2026-09-10）。
  * 支持按实体、用户、角色、时间范围、事件类型、变更来源等多维度过滤查询。
  * </p>
  */
@@ -43,7 +36,6 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     private final OperationLogMapper operationLogMapper;
     private final PermQueryEngine engine;
     private final TypeResolutionService typeResolutionService;
-    private final ObjectMapper objectMapper;
 
     /**
      * 构造函数注入依赖
@@ -52,18 +44,15 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
      * @param operationLogMapper      操作日志数据访问层
      * @param engine                  权限查询引擎
      * @param typeResolutionService   类型解析服务
-     * @param objectMapper            JSON解析器
      */
     public LogQueryAppServiceImpl(PermissionChangeLogMapper changeLogMapper,
                                 OperationLogMapper operationLogMapper,
                                 PermQueryEngine engine,
-                                TypeResolutionService typeResolutionService,
-                                ObjectMapper objectMapper) {
+                                TypeResolutionService typeResolutionService) {
         this.changeLogMapper = changeLogMapper;
         this.operationLogMapper = operationLogMapper;
         this.engine = engine;
         this.typeResolutionService = typeResolutionService;
-        this.objectMapper = objectMapper;
     }
 
     // ===== 变更日志查询 =====
@@ -120,107 +109,6 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
         return changeLogMapper.countByCondition(tenantId, normalize(entityType), entityId,
                 affectedUserId, affectedRoleId, since, until,
                 toEventTypeList(eventType), normalize(changeSource));
-    }
-
-    /**
-     * 筛选查询变更日志列表（getRecentChanges 内部复用，无独立门禁——
-     * 门禁由 {@link #getRecentChanges} 的目标实例 VIEW 检查承担）。
-     *
-     * @param tenantId   租户ID
-     * @param userId     受影响的用户ID，可选
-     * @param roleId     涉及的角色ID，可选
-     * @param since      开始时间，可选
-     * @param until      结束时间，可选
-     * @param eventTypes 事件类型列表，可选
-     * @param offset     分页偏移量
-     * @param limit      分页条数
-     * @return 变更日志列表
-     */
-    private List<ChangeLogResp> listChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
-                                                       LocalDateTime since, LocalDateTime until,
-                                                       List<String> eventTypes, int offset, int limit) {
-        return changeLogMapper.selectPageByCondition(tenantId, null, null, userId, roleId,
-                        since, until, eventTypes, null, offset, limit)
-            .stream().map(this::toChangeLogResp).collect(Collectors.toList());
-    }
-
-    /**
-     * 筛选统计变更日志数量（getRecentChanges 内部复用，无独立门禁）。
-     *
-     * @return 变更日志数量
-     */
-    private long countChangeLogsFiltered(Long tenantId, Long userId, Long roleId,
-                                         LocalDateTime since, LocalDateTime until,
-                                         List<String> eventTypes) {
-        return changeLogMapper.countByCondition(tenantId, null, null, userId, roleId,
-                since, until, eventTypes, null);
-    }
-
-    // ===== 最近变更查询 =====
-
-    /**
-     * 查询最近变更（permission-view/recent-changes 端点）
-     * <p>
-     * 查询用户或角色的最近权限变更记录。
-     * 支持按目标类型（USER/ROLE）、时间范围、事件类型过滤。
-     * 门禁（T-PERM-033 设计定案）：被查目标实例 USER:VIEW / ROLE:VIEW
-     * （查谁就要对谁有 VIEW；ROLE 未解析时类型级兜底，USER 未解析返回空）——
-     * 从 SYSTEM_CONFIG:VIEW 切换，与 explain/effective-permissions 同款目标检查。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param req      最近变更查询请求
-     * @return 最近变更响应，包含变更列表和分页信息
-     * @throws SecurityException 无目标 VIEW 权限时抛出
-     */
-    @Override
-    public PermissionRecentChangesResp getRecentChanges(Long tenantId, PermissionRecentChangesReq req) {
-        Long operatorId = OperatorContext.getOperatorId();
-
-        Long userId = null;
-        Long roleId = null;
-        if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType()) && req.subjectTypeCode() != null && req.subjectExternalId() != null) {
-            userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
-        } else if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType()) && req.roleTypeCode() != null && req.roleExternalId() != null) {
-            roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
-        }
-
-        // 门禁：目标实例 VIEW（USER 未解析不检查、返回空；ROLE 未解析类型级兜底；
-        // 非 USER/ROLE 的 targetType 一律拒绝——fail-closed，防止绕过目标过滤拉取全租户日志）
-        if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType())) {
-            if (userId != null
-                && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
-                throw new SecurityException("Permission denied: VIEW on USER:" + userId);
-            }
-        } else if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType())) {
-            if (roleId != null) {
-                if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.VIEW)) {
-                    throw new SecurityException("Permission denied: VIEW on ROLE:" + roleId);
-                }
-            } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCodeConstants.VIEW)) {
-                throw new SecurityException("Permission denied: VIEW on ROLE");
-            }
-        } else {
-            throw new SecurityException("Permission denied: invalid targetType " + req.targetType());
-        }
-
-        int pageNum = PageUtil.pageNum(req.pageNum());
-        int pageSize = PageUtil.pageSize(req.pageSize());
-        int offset = Math.max((pageNum - 1) * pageSize, 0);
-        if (PermConstants.TargetType.USER.equalsIgnoreCase(req.targetType()) && userId == null) {
-            return new PermissionRecentChangesResp(List.of(), 0, pageNum, pageSize, false);
-        }
-        if (PermConstants.TargetType.ROLE.equalsIgnoreCase(req.targetType()) && roleId == null) {
-            return new PermissionRecentChangesResp(List.of(), 0, pageNum, pageSize, false);
-        }
-        long total = countChangeLogsFiltered(
-            tenantId, userId, roleId, req.since(), req.until(), req.eventTypes());
-        List<ChangeLogResp> logs = listChangeLogsFiltered(
-            tenantId, userId, roleId, req.since(), req.until(), req.eventTypes(), offset, pageSize);
-        List<RecentChangeResp> items = logs.stream().map(this::toRecentChange).toList();
-        int totalInt = total > Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) total;
-        return new PermissionRecentChangesResp(
-            items, totalInt, pageNum, pageSize, offset + items.size() < total);
     }
 
     // ===== 操作日志查询 =====
@@ -354,102 +242,4 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
         );
     }
 
-    /**
-     * 将变更日志转换为最近变更响应
-     *
-     * @param log 变更日志响应
-     * @return 最近变更响应对象
-     */
-    private RecentChangeResp toRecentChange(ChangeLogResp log) {
-        return new RecentChangeResp(
-            log.id(),
-            parseText(log.diffSnapshot(), "eventType"),
-            parseText(log.diffSnapshot(), "items[0].changeType"),
-            "POSSIBLE",
-            parseText(log.diffSnapshot(), "items[0].message"),
-            new RecentChangeResp.PermissionKey(
-                parseText(log.diffSnapshot(), "items[0].permission.domainCode"),
-                parseText(log.diffSnapshot(), "items[0].permission.resourceTypeCode"),
-                parseText(log.diffSnapshot(), "items[0].permission.resourceCode"),
-                parseText(log.diffSnapshot(), "items[0].permission.codeType"),
-                parseText(log.diffSnapshot(), "items[0].permission.operationCode"),
-                ScopeModeSupport.fromSnapshot(
-                    parseText(log.diffSnapshot(), "items[0].permission.scopeMode"),
-                    parseBoolean(log.diffSnapshot(), "items[0].permission.scopeAll")
-                )
-            ),
-            new RecentChangeResp.SourceRole(
-                parseText(log.diffSnapshot(), "items[0].role.roleTypeCode"),
-                parseText(log.diffSnapshot(), "items[0].role.roleExternalId"),
-                parseText(log.diffSnapshot(), "items[0].role.roleName")
-            ),
-            null,
-            null,
-            log.changeReason(),
-            log.createdAt()
-        );
-    }
-
-    /**
-     * 从JSON中解析文本值
-     *
-     * @param json JSON字符串
-     * @param path JSON路径表达式
-     * @return 解析的文本值，不存在返回null
-     */
-    private String parseText(String json, String path) {
-        JsonNode node = parsePath(json, path);
-        return node == null || node.isNull() ? null : node.asText();
-    }
-
-    /**
-     * 从JSON中解析布尔值
-     *
-     * @param json JSON字符串
-     * @param path JSON路径表达式
-     * @return 解析的布尔值，不存在返回null
-     */
-    private Boolean parseBoolean(String json, String path) {
-        JsonNode node = parsePath(json, path);
-        return node == null || node.isNull() ? null : node.asBoolean();
-    }
-
-    /**
-     * 按路径解析JSON节点
-     * <p>
-     * 支持嵌套路径和数组索引访问，如 items[0].changeType
-     * </p>
-     *
-     * @param json JSON字符串
-     * @param path JSON路径表达式
-     * @return JsonNode节点，不存在返回null
-     */
-    private JsonNode parsePath(String json, String path) {
-        if (json == null || json.isBlank() || path == null || path.isBlank()) {
-            return null;
-        }
-        try {
-            JsonNode current = objectMapper.readTree(json);
-            String[] segments = path.split("\\.");
-            for (String segment : segments) {
-                if (segment.endsWith("]") && segment.contains("[")) {
-                    String field = segment.substring(0, segment.indexOf('['));
-                    int idx = Integer.parseInt(segment.substring(segment.indexOf('[') + 1, segment.length() - 1));
-                    current = current.path(field);
-                    if (!current.isArray() || current.size() <= idx) {
-                        return null;
-                    }
-                    current = current.get(idx);
-                } else {
-                    current = current.path(segment);
-                }
-                if (current.isMissingNode()) {
-                    return null;
-                }
-            }
-            return current;
-        } catch (Exception e) {
-            return null;
-        }
-    }
 }
