@@ -33,7 +33,10 @@ import org.springframework.web.reactive.function.client.WebClientRequestExceptio
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.URI;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.HashMap;
 import java.util.List;
@@ -105,10 +108,17 @@ class PermissionFilterMetricsTest {
             .predicate(exchange -> true)
             .build();
 
-        MockServerHttpRequest request = MockServerHttpRequest
-            .method(HttpMethod.GET, URI.create("/api/test"))
-            .header("X-Real-IP", "10.0.0.1")
-            .build();
+        // T-GW-008：clientIp 直用 Gateway 观测的 remoteAddr，X-Real-IP 等头不再被采信
+        MockServerHttpRequest request;
+        try {
+            request = MockServerHttpRequest
+                .method(HttpMethod.GET, URI.create("/api/test"))
+                .remoteAddress(new InetSocketAddress(
+                    InetAddress.getByAddress(new byte[]{10, 0, 0, 1}), 443))
+                .build();
+        } catch (UnknownHostException e) {
+            throw new IllegalStateException("字面 IP 解析不应失败", e);
+        }
 
         ServerHttpResponse response = mock(ServerHttpResponse.class);
         HttpHeaders writableHeaders = new HttpHeaders();

@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-09-06   # 2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031：E2E 迁独立 e2e 模块，gateway 解除跨服务 test 依赖与容器轨死配置）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（T-ACCESS-027）；2026-08-25
+last_reviewed: 2026-09-10   # 2026-09-10 §请求头清洗与客户端 IP 重建新增（T-GW-008：XFF 清洗+remoteAddr 重建+清洗叠加语义缺陷修复）；此前：2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031）；2026-08-28（T-ACCESS-027）
 ---
 
 # Gateway 服务设计
@@ -22,9 +22,19 @@ last_reviewed: 2026-09-06   # 2026-09-06 §测试域与 E2E IT 分轨口径更�
 
 1. 接收客户端请求并匹配白名单（`/auth/**`、`/public/**`、`/captcha/**`；无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。
 2. 解析 Sa-Token / OAuth2 Token，得到主体信息。
-3. 清洗客户端伪造的安全 Header，再注入可信 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
+3. 清洗客户端伪造的安全 Header（含 IP 转发头，见下节 T-GW-008），再注入可信 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
 4. **快照鉴权**（T-PERM-001）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地快照缓存——命中则本地匹配；未命中回源拉取 `interface-snapshot` 快照后缓存再匹配。
 5. 允许时转发到目标服务，拒绝时返回统一 403 错误响应。
+
+## 请求头清洗与客户端 IP 重建（T-GW-008，2026-09-10）
+
+**信任面背景**：外部传入的 `X-Forwarded-For` / `X-Real-IP` 是客户端可伪造的 IP 声明。T-PERM-057 条件评估拉平后，IP 条件（IP_WHITELIST / IP_BLACKLIST）消费面扩大到管理面写门禁，「持合法凭证 + 伪造 XFF」成为现实绕过面。收口定案（2026-09-10，registry）：**Gateway 清洗 + 重建**，弃可信代理链配置（trusted-proxies，成本与单层 Gateway 主拓扑定位不匹配）。
+
+- **清洗（`HeaderCleanFilter`，order -90）**：`gateway.header.clean` 列表加入 `X-Forwarded-For` / `X-Real-IP`，外部传入一律删除；另扩列 `X-Forwarded-Host/Port/Proto/Prefix` 与 `Forwarded`（RFC 7239）——同属外部可伪造转发声明，当前三服务零消费，清洗防未来任一服务开启 `server.forward-headers-strategy` 时伪造面复活。匹配按 HTTP 头名大小写不敏感（RFC 7230），小写变体（`x-forwarded-for`）一并清除——变体缝隙曾对整个清洗列表有效（含 clean 列表既有全部内部头）。
+- **重建（单一可信来源）**：清洗后以 Gateway 自身观测的 `remoteAddr` 重建 `X-Forwarded-For: <remoteAddr>` 写回下游。access-service 门禁条件评估（PermEvalContext clientIp）、操作/登录日志（HttpRequestUtils）、网关快照条件重评统一消费该值。remoteAddr 不可得时不写回（下游按自身 remoteAddr 兜底）。**SCG 内置 XForwardedHeadersFilter 的 `for-append` 已置 false**（默认 true 会在代理出口再追加一段同值致下游双段 `remoteAddr,remoteAddr`；关闭后替换写回、下游单值——三服务消费链均取首段本无安全差异，纯形态统一，回归锁与文档口径均为单值）；host/port/proto/prefix 维度维持 SCG 默认 append（写入网关观测真实值，与清洗外部伪造声明不冲突）。
+- **网关自身条件重评直用 remoteAddr**（`PermissionFilter.resolveClientIp`）：不读任何请求头——即使清洗配置被误删，网关侧评估也不采信可伪造头；下游消费重建 XFF（值同为该观测值）。
+- **实现约束（存量缺陷修复）**：清洗必须走 `headers(h -> h.remove(...))` 显式删除，**禁止**「构建干净头副本再 `putAll`」——`ServerHttpRequest.Builder#headers` 的 consumer 收到的是原请求头的可写视图，`putAll` 为叠加语义，清洗项不会被移除（归并起旧实现即因此从未真正删除过头，仅靠下游注入 filter 的 set 覆盖兜底；T-GW-008 实测修正并以回归锁钉住）。重建用 `set`（替换）——清洗配置误删时外部任意 XFF 值/多值也被覆盖为单值观测值。
+- **部署前提（多层 LB / nginx / CDN 拓扑）**：Gateway 观测到的是**代理出口 IP**，按真实客户端 IP 的黑白名单在此类拓扑下不工作（所有客户端同呈一个代理 IP）。要么接受白名单只配到代理出口段（粒度变粗），要么把 IP 过滤上移到能看见真实客户端 IP 的最外层可信设施（nginx/WAF）；如需 Gateway 层精确采信真实客户端 IP，须重新评估已弃的 trusted-proxies 方向（另立项）。详见 `.claude/rules/security-standards.md` §7 与 `access-service-rebuild-runbook.md`。
 
 ## OAuth2 委托令牌透传（T-ACCESS-013，2026-08-22）
 
@@ -64,7 +74,7 @@ last_reviewed: 2026-09-06   # 2026-09-06 §测试域与 E2E IT 分轨口径更�
    - `hasCondition=true` 但 `conditionRules` 未下发（`gateway_evaluable=false` 或防御过滤拒绝）→ 标记需要 `FALLBACK`，继续遍历（后续仍可能有无条件条目兜底）。
 4. 遍历结束：未命中 `ALLOW` 时，有 `FALLBACK` 标记 → 调 `/api/perm/auth/check-interface` 同步回退实时鉴权（context 仅承载 `clientIp`）；否则 `DENY`。
 
-> **条件权限混合评估（T-PERM-017，2026-06-24）**：废止"`hasCondition` 直接放行"。可下发条件（`IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类）由权限中心 `SnapshotAssembler` 内联 `conditionRules` JSON 进 `ApiPermissionEntry`，Gateway 用 `ConditionEvalUtils`（已迁入 `perm-common`）本地重评。跨进程时钟一致性由 NTP 同步保证（亚秒漂移 < 业务粒度小时级），不通过 context 传递 `timestamp`。未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 `gateway_evaluable=false`，由 fallback 通路回到 access-service 评估。`PermissionFilter` 提取 `clientIp` 顺序：`X-Forwarded-For` 首段 → `X-Real-IP` → 远端地址。
+> **条件权限混合评估（T-PERM-017，2026-06-24）**：废止"`hasCondition` 直接放行"。可下发条件（`IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类）由权限中心 `SnapshotAssembler` 内联 `conditionRules` JSON 进 `ApiPermissionEntry`，Gateway 用 `ConditionEvalUtils`（已迁入 `perm-common`）本地重评。跨进程时钟一致性由 NTP 同步保证（亚秒漂移 < 业务粒度小时级），不通过 context 传递 `timestamp`。未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 `gateway_evaluable=false`，由 fallback 通路回到 access-service 评估。`PermissionFilter` 提取 `clientIp`：直用 Gateway 自身观测的 `remoteAddr`（单一可信来源，T-GW-008——外部 XFF/X-Real-IP 已清洗且不作为评估输入；下游消费 Gateway 重建的 XFF）。
 
 > **P1-② 多授权折叠修复**：`SnapshotAssembler` 实例级条目按 `(resourceEntityId, conditionId)` 组合展开；同一资源含条件+无条件多条授权各产出独立 `ApiPermissionEntry`，避免折叠后被错误统一处理。配合 Matcher OR 合并语义，保证"任一无条件条目存在即放行"。
 

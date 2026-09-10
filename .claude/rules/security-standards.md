@@ -188,6 +188,15 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 - **定期扫描**: 每周全量扫描，新漏洞及时告警
 - **禁止黑名单依赖**: 即使扫描通过也禁止使用团队规定的黑名单依赖（如 FastJSON）
 
+## 7. 客户端 IP 信任面（X-Forwarded-For）
+
+**MUST** 网关清洗外部 `X-Forwarded-For` / `X-Real-IP`（头名匹配大小写不敏感，RFC 7230），并以自身观测的 `remoteAddr` 重建 `X-Forwarded-For` 写回下游——客户端可伪造的 IP 头声明一律不采信（T-GW-008，2026-09-10 定案；实现见 `docs/design/services/gateway.md` §请求头清洗与客户端 IP 重建）。`X-Forwarded-Host/Port/Proto/Prefix` 与 `Forwarded` 同在清洗列表（可伪造转发声明，防未来 `forward-headers-strategy` 开启时伪造面复活）。
+
+- **网关自身条件评估直用 remoteAddr**：`PermissionFilter` 做 IP_WHITELIST / IP_BLACKLIST 评估时直接取 socket 层 remoteAddr，不读任何请求头——即使清洗配置被误删，网关侧评估也不复活伪造面。
+- **下游统一消费重建值**：access-service 门禁条件评估与操作/登录日志消费网关重建后的 XFF（值=网关观测的直连对端 IP）；下游服务不得自行采信外部 XFF / X-Real-IP 声明。
+- **多层 LB / nginx / CDN 拓扑部署前提**：网关观测到的是**代理出口 IP**，按真实客户端 IP 的黑白名单在此类拓扑下不工作（所有客户端同呈一个代理 IP）。要么 IP 条件改配代理出口网段（粒度变粗），要么把按真实客户端 IP 的过滤上移到最外层可信设施（nginx/WAF）；需要网关层精确采信真实客户端 IP 须重启已弃的 trusted-proxies 设计（另立项，定案见 decision-registry 2026-09-10）。
+- **实现约束**：请求头清洗必须走显式 `headers(h -> h.remove(...))` 删除语义，**禁止**「构建干净头副本再 `putAll`」——`ServerHttpRequest.Builder#headers` 的 consumer 收到的是原请求头的可写视图，`putAll` 为叠加语义、清洗项不会被移除（归并起 HeaderCleanFilter 即因此从未真正删除过头，仅靠下游注入 filter 的 set 覆盖兜底；T-GW-008 实测修正并以回归锁钉住）。
+
 ---
 
-**记住**: 环境变量管理密钥 → HTTPS 强制 → CSRF 按类型配置 → Gateway 限流 → 安全响应头 → CI 依赖扫描。
+**记住**: 环境变量管理密钥 → HTTPS 强制 → CSRF 按类型配置 → Gateway 限流 → 安全响应头 → CI 依赖扫描 → XFF 清洗重建不采信外部 IP 头。

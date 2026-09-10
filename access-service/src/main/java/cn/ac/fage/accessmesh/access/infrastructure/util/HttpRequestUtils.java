@@ -39,8 +39,10 @@ public final class HttpRequestUtils {
     }
 
     /**
-     * 获取客户端IP地址（优先 X-Forwarded-For 代理链第一个地址，否则远程地址），
-     * 按列上限限长（VARCHAR(64)，超长直接入库会触发插入失败丢失整条日志）。
+     * 获取客户端IP地址（优先 X-Forwarded-For 首段，否则远程地址），按列上限限长
+     * （VARCHAR(64)，超长直接入库会触发插入失败丢失整条日志）。XFF 经 Gateway
+     * 部署时为 Gateway 重建单值（值=Gateway 观测的 remoteAddr，T-GW-008，
+     * 见 gateway.md §请求头清洗与客户端 IP 重建）；直连本服务时为请求方可伪造声明。
      *
      * @param request HTTP 请求；为 null 时返回 null
      */
@@ -50,7 +52,7 @@ public final class HttpRequestUtils {
         }
         String ip = request.getHeader("X-Forwarded-For");
         if (ip != null && !ip.isBlank()) {
-            // 代理链第一个地址为客户端原始 IP
+            // 取首段（Gateway 链路下该值=Gateway 重建的 remoteAddr，T-GW-008）
             ip = ip.split(",")[0].trim();
         } else {
             ip = request.getRemoteAddr();

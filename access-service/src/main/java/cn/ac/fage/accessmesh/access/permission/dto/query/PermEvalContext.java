@@ -15,7 +15,7 @@ import java.util.Map;
  * 时间类条件优先消费、缺省回退评估方本机时钟）。
  * </p>
  *
- * @param clientIp    用户环境：客户端 IP（经 Gateway 透传 X-Forwarded-For 首地址）；null=无请求上下文
+ * @param clientIp    用户环境：客户端 IP（经 Gateway 重建的 X-Forwarded-For，值=Gateway 观测的 remoteAddr，T-GW-008；直连时为请求方可伪造声明）；null=无请求上下文
  * @param evaluatedAt 服务器环境：评估时间；null=展平时取当前时钟
  * @param attributes  调用方提供的上下文（SDK/管理端模拟等扩展键值）
  */

@@ -92,7 +92,18 @@ public class GatewayProperties {
             "X-User-Type",
             "X-Internal-Secret",
             "X-User-Signature",
-            "X-Signature-Timestamp"
+            "X-Signature-Timestamp",
+            // T-GW-008：IP 条件信任面收口——外部传入的转发 IP 头一律删除，
+            // 由 HeaderCleanFilter 以 Gateway 自身观测的 remoteAddr 重建 XFF 写回下游；
+            // X-Forwarded-Host/Port/Proto/Prefix 与 Forwarded 同属外部可伪造的转发声明
+            // （当前三服务零消费，清洗防未来 forward-headers-strategy 开启时伪造面复活）
+            "X-Forwarded-For",
+            "X-Real-IP",
+            "X-Forwarded-Host",
+            "X-Forwarded-Port",
+            "X-Forwarded-Proto",
+            "X-Forwarded-Prefix",
+            "Forwarded"
         );
         private Enrich enrich = new Enrich();
 

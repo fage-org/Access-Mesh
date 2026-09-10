@@ -22,6 +22,13 @@ spring:
     # 原配置前缀错误（Spring Cloud Gateway 属性前缀为 spring.cloud.gateway），
     # 路由定义从未被 PropertiesRouteDefinitionLocator 加载（归并前既有缺陷，由新 Gateway 上下文测试暴露）。
     gateway:
+      # T-GW-008：XFF 由 HeaderCleanFilter 以 remoteAddr 重建（单值）写回下游；
+      # SCG 内置 XForwardedHeadersFilter 的 for-append 默认会在代理出口再追加一段
+      # 同值（下游双段冗余），关闭改走替换写回（值同为 remoteAddr）——文档/单测/
+      # 生产三者形态一致。host/port/proto/prefix 维度维持 SCG 默认 append（写入
+      # 网关观测真实值，与「清洗外部伪造声明」不冲突）。
+      x-forwarded:
+        for-append: false
       discovery:
         locator:
           enabled: false
@@ -124,6 +131,14 @@ gateway:
   # 原 gateway.cache.l1.*（ttl-seconds/stale-grace-seconds）随 stale-allow 删除废弃。
 
   header:
+    # T-GW-008：X-Forwarded-For / X-Real-IP 为外部可伪造的 IP 条件信任面——
+    # 外部传入一律删除，HeaderCleanFilter 以 Gateway 自身观测的 remoteAddr
+    # 重建 X-Forwarded-For 写回下游（单一可信来源）。误删 X-Forwarded-For 清洗项时
+    # 正常路径仍被无条件 set 覆盖（仅 remoteAddr 不可得分支透传外部值）；误删
+    # X-Real-IP 清洗项时外部值透传（access-service 当前无 X-Real-IP 消费方）。
+    # X-Forwarded-Host/Port/Proto/Prefix 与 Forwarded 同属可伪造转发声明
+    # （当前零消费，清洗防未来 forward-headers-strategy 开启时伪造面复活）。
+    # 以上各项均勿从本列表移除。
     clean:
       - X-User-Id
       - X-Tenant-Id
@@ -133,6 +148,13 @@ gateway:
       - X-Internal-Secret
       - X-User-Signature
       - X-Signature-Timestamp
+      - X-Forwarded-For
+      - X-Real-IP
+      - X-Forwarded-Host
+      - X-Forwarded-Port
+      - X-Forwarded-Proto
+      - X-Forwarded-Prefix
+      - Forwarded
     enrich:
       request-id: X-Request-Id
       tenant-id: X-Tenant-Id

@@ -275,20 +275,15 @@ public class PermissionFilter implements GlobalFilter, Ordered {
     }
 
     /**
-     * 提取请求 clientIp：优先 X-Forwarded-For 首段 → X-Real-IP → 远端地址。
+     * 提取请求 clientIp：直接采用 Gateway 自身观测的 remoteAddr（单一可信来源，T-GW-008）。
+     * <p>
+     * 外部 X-Forwarded-For / X-Real-IP 已由 HeaderCleanFilter 清洗且不以头为评估输入——
+     * 即使清洗配置被误删，网关自评也不采信可伪造头；下游 access-service 消费
+     * Gateway 重建的 XFF（值同为本观测值）。
+     * </p>
      * 用于条件评估 IP_WHITELIST / IP_BLACKLIST 与 fallback check-interface 上下文。
      */
     private String resolveClientIp(ServerWebExchange exchange) {
-        var headers = exchange.getRequest().getHeaders();
-        String xff = headers.getFirst("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            int comma = xff.indexOf(',');
-            return (comma > 0 ? xff.substring(0, comma) : xff).trim();
-        }
-        String real = headers.getFirst("X-Real-IP");
-        if (real != null && !real.isBlank()) {
-            return real.trim();
-        }
         InetSocketAddress remote = exchange.getRequest().getRemoteAddress();
         return remote != null && remote.getAddress() != null ? remote.getAddress().getHostAddress() : null;
     }
