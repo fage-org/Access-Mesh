@@ -11,10 +11,13 @@ import java.util.stream.Stream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * SDK 直连端点线格式字段快照（T-API-002 回归锁）。
+ * SDK 直连端点线格式字段快照（T-API-002 回归锁；T-API-003 check 族改写）。
  * <p>
- * core-flows §15「SDK 四件套（check / batch-check / query-resources / query-scopes，
- * 含 Gateway 复用的 check-interface）不要求/不泄漏内部数据库 ID」的代码级钉死：
+ * 口径分族（2026-09-09 定案，推翻 T-API-002 的 check 族裁剪部分）：
+ * check 族三端点（check / batch-check / check-interface）恢复结果记录全量回传
+ * （matchedRoleIds / matchedPermissionIds / matchedResources[].resourceId）——统一引擎
+ * 消费方模型「调用方根据结果记录判定」需要记录在场；Query* 响应族（query-resources /
+ * query-scopes）六字段裁剪维持 T-API-002 终态，内部 id 字段族禁止回潮。
  * record 组件名快照精确比对，任何字段增删/改名都必须显式更新本清单并过设计评审。
  * </p>
  * <p>
@@ -24,7 +27,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  */
 class CheckFamilyWireShapeTest {
 
-    /** 内部数据库 id 字段族：禁止再出现在 SDK 直连端点线格式（防泄漏回潮）。 */
+    /** 内部数据库 id 字段族：禁止再出现在 Query* 响应族线格式（防泄漏回潮；check 族按 T-API-003 定案恢复回传，不受本名单约束）。 */
     private static final List<String> RETIRED_ID_FIELDS = List.of(
         "matchedRoleIds", "matchedPermissionIds", "dependOnPermissionIds",
         "parentPermissionIds", "resourceId");
@@ -62,18 +65,21 @@ class CheckFamilyWireShapeTest {
     }
 
     @Test
-    @DisplayName("check 族线格式字段快照（T-API-002 用户决策扩大裁剪后终态）")
+    @DisplayName("check 族线格式字段快照（T-API-003 恢复结果记录全量回传后终态）")
     void checkWireShapesAreFrozen() {
         assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.AuthCheckResp.class))
-            .containsExactly("allowed", "reason", "conditionEvaluated");
+            .containsExactly("allowed", "reason", "matchedRoleIds", "matchedPermissionIds",
+                "conditionEvaluated");
         assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp.class))
             .containsExactly("items");
         assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class))
-            .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed", "reason");
+            .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed", "reason",
+                "matchedRoleIds", "matchedPermissionIds");
         assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp.class))
             .containsExactly("allowed", "reason", "matchedResources", "cacheTtlSeconds");
         assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp.MatchedResource.class))
-            .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed");
+            .containsExactly("resourceId", "resourceTypeCode", "resourceCode", "operationCode", "allowed",
+                "matchedRoleIds", "matchedPermissionIds");
     }
 
     @Test
@@ -95,28 +101,18 @@ class CheckFamilyWireShapeTest {
     }
 
     @Test
-    @DisplayName("内部 id 字段族禁止回潮：SDK 直连端点全部响应 DTO 不得再声明任何内部行 id 组件")
+    @DisplayName("内部 id 字段族禁止回潮：Query* 响应族 DTO 不得再声明任何内部行 id 组件（check 族按 T-API-003 恢复回传，不在本锁范围）")
     void retiredIdFieldsMustNotResurface() {
         List<Class<?>> wireRecords = Stream.<Class<?>>of(
                 cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp.class,
                 cn.ac.fage.accessmesh.perm.common.dto.resp.QueryResourcesResp.ResourceEntry.class,
                 cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp.class,
                 cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp.ScopeGroup.class,
-                cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp.ScopeItem.class,
-                cn.ac.fage.accessmesh.access.permission.dto.resp.AuthCheckResp.class,
-                cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp.class,
-                cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp.class,
-                cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.class,
-                cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class,
-                cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class,
-                cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp.class,
-                cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp.class,
-                cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp.MatchedResource.class,
-                cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp.MatchedResource.class)
+                cn.ac.fage.accessmesh.perm.common.dto.resp.QueryScopesResp.ScopeItem.class)
             .toList();
         for (Class<?> record : wireRecords) {
             assertThat(components(record))
-                .as("%s 不得再声明内部数据库 id 字段（core-flows §15 口径）", record.getName())
+                .as("%s 不得再声明内部数据库 id 字段（Query* 响应族裁剪维持 T-API-002 终态）", record.getName())
                 .doesNotContainAnyElementsOf(RETIRED_ID_FIELDS);
         }
     }

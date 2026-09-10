@@ -152,14 +152,17 @@ class PermissionFeignClientContractTest {
     }
 
     @Test
-    @DisplayName("SDK 四件套 DTO 字段快照：check 族响应不含内部 id 字段（T-API-002 扩大裁剪后终态）")
+    @DisplayName("SDK 四件套 DTO 字段快照：check 族响应恢复结果记录全量回传（T-API-003 推翻裁剪后终态）")
     void checkEndpointDtoFieldsAreFrozen() {
         assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp.class))
-            .containsExactly("allowed", "reason", "conditionEvaluated");
+            .containsExactly("allowed", "reason", "matchedRoleIds", "matchedPermissionIds",
+                "conditionEvaluated");
         assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class))
-            .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed", "reason");
+            .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed", "reason",
+                "matchedRoleIds", "matchedPermissionIds");
         assertThat(recordComponents(cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp.MatchedResource.class))
-            .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed");
+            .containsExactly("resourceId", "resourceTypeCode", "resourceCode", "operationCode", "allowed",
+                "matchedRoleIds", "matchedPermissionIds");
     }
 
     private static List<String> recordComponents(Class<?> record) {

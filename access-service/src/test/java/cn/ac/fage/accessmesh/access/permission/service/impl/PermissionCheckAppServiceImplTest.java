@@ -1,9 +1,11 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.access.permission.dto.req.AuthCheckReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
+import cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceApiMapping;
@@ -97,7 +99,12 @@ class PermissionCheckAppServiceImplTest {
 
         assertTrue(resp.allowed());
         assertEquals(1, resp.matchedResources().size());
-        assertTrue(resp.matchedResources().stream().anyMatch(CheckInterfaceResp.MatchedResource::allowed));
+        CheckInterfaceResp.MatchedResource matched = resp.matchedResources().get(0);
+        assertTrue(matched.allowed());
+        // T-API-003：resourceId 与 matched id 字段族恢复回传（裁剪态下这些断言失败）
+        assertEquals(101L, matched.resourceId());
+        assertEquals(List.of(200L), matched.matchedRoleIds());
+        assertEquals(List.of(401L), matched.matchedPermissionIds());
     }
 
     @Test
@@ -157,5 +164,42 @@ class PermissionCheckAppServiceImplTest {
         var resp = service.check(1L, req);
 
         assertTrue(resp.allowed());
+        // T-API-003：matched id 字段族恢复回传（裁剪态下这些断言失败）
+        assertEquals(List.of(20L), resp.matchedRoleIds());
+        assertEquals(List.of(401L), resp.matchedPermissionIds());
+    }
+
+    @Test
+    void batchCheckMustCarryMatchedRecordsAndEmptyOnUserNotFound() {
+        when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
+
+        RolePermEntry entry = new RolePermEntry(
+            401L, 20L, 200L, "report:1", 1, 1L, "VIEW", 1L,
+            "MANUAL", false, null, false, null, false);
+        PermResult r = PermResult.builder(true, null)
+            .instanceEntries(List.of(entry)).build();
+        when(engine.query(any(PermQuery.class))).thenReturn(r);
+
+        var req = new BatchAuthCheckReq("USER", "u-1",
+            List.of(new BatchAuthCheckReq.AuthCheckItem("REPORT", "report:1", "VIEW", null, null, null)),
+            Map.of());
+        BatchAuthCheckResp resp = service.batchCheck(1L, req);
+
+        assertEquals(1, resp.items().size());
+        BatchAuthCheckResp.AuthCheckItemResult item = resp.items().get(0);
+        assertTrue(item.allowed());
+        // T-API-003：单项结果记录恢复回传（裁剪态下这些断言失败）
+        assertEquals(List.of(20L), item.matchedRoleIds());
+        assertEquals(List.of(401L), item.matchedPermissionIds());
+
+        // 主体不存在分支：拒绝 + 结果记录为空列表（非 null）
+        when(typeResolutionService.resolveUserId(1L, "USER", "ghost")).thenReturn(null);
+        BatchAuthCheckResp notFound = service.batchCheck(1L, new BatchAuthCheckReq("USER", "ghost",
+            List.of(new BatchAuthCheckReq.AuthCheckItem("REPORT", "report:1", "VIEW", null, null, null)),
+            Map.of()));
+        assertFalse(notFound.items().get(0).allowed());
+        assertEquals("USER_NOT_FOUND", notFound.items().get(0).reason());
+        assertEquals(List.of(), notFound.items().get(0).matchedRoleIds());
+        assertEquals(List.of(), notFound.items().get(0).matchedPermissionIds());
     }
 }

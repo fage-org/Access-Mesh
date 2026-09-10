@@ -17,7 +17,7 @@ import java.util.List;
  * <p>
  * T-API-002（2026-09-06 定案）：内部数据库 id 字段族（matchedRoleIds /
  * matchedPermissionIds，role / role_resource_permission 内部行 id）全数裁剪，
- * 与 core-flows §15「SDK 四件套不要求/不泄漏内部数据库 ID」口径对齐。
+ * 与 core-flows §15「Query\* 响应族不泄漏内部 id」口径对齐（T-API-003 后 §15 为分族口径：check 族回传结果记录、Query\* 族维持裁剪）。
  * </p>
  *
  * @param items           资源条目列表

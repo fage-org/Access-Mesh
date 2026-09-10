@@ -16,9 +16,11 @@ import java.util.*;
  * 在engine.query()返回结果后使用这些方法进行响应转换。
  * </p>
  * <p>
- * T-API-002（2026-09-06）：check 族响应内部数据库 id 字段族裁剪后，本工具类只产出
- * 线格式所需字段；explain 等内部需要 matched id 集合的场景直接消费 {@link PermResult}，
- * 不再经由线格式 DTO 中转。零调用的 toQueryResourcesResp 已删除（真实组装在
+ * T-API-002（2026-09-06）check 族响应内部 id 字段族裁剪已被 T-API-003（2026-09-09）
+ * 推翻：check 族三端点恢复结果记录全量回传（matchedRoleIds / matchedPermissionIds /
+ * matchedResources[].resourceId），本工具类恢复产出该字段族；explain 等内部需要
+ * matched id 集合的场景仍直接消费 {@link PermResult}，不经线格式 DTO 中转。
+ * 零调用的 toQueryResourcesResp 已删除（真实组装在
  * PermissionQueryAppServiceImpl.buildQueryResourcesResponse）。
  * </p>
  */
@@ -52,7 +54,8 @@ public final class PermResultUtils {
      * 转换PermResult为AuthCheckResp
      * <p>
      * 将权限查询结果转换为权限校验响应DTO。
-     * 包含校验结果与条件评估状态（T-API-002：matched id 字段族不进线格式）。
+     * 包含校验结果、命中结果记录与条件评估状态
+     * （T-API-003：matched id 字段族恢复回传，拒绝时为空列表）。
      * </p>
      *
      * @param r 权限查询结果
@@ -63,7 +66,9 @@ public final class PermResultUtils {
             return AuthCheckResp.deny(r.reason() != null ? r.reason() : "DENIED");
         }
         boolean condEvaluated = r.allEntries().stream().anyMatch(RolePermEntry::hasCondition);
-        return AuthCheckResp.allow(condEvaluated);
+        return AuthCheckResp.allow(
+            r.matchedRoleIds().stream().toList(),
+            r.matchedPermissionIds().stream().toList(), condEvaluated);
     }
 
     /**
@@ -97,10 +102,13 @@ public final class PermResultUtils {
                 boolean allowed = true;
                 OperationPermission op = findOpByBinaryBit(opMap, perms.get(0).resourceType(), perms.get(0).grantedBits());
                 String opCode = op != null ? op.getCode() : null;
+                List<Long> roleIds = perms.stream().map(RolePermEntry::roleId).filter(Objects::nonNull).distinct().toList();
+                List<Long> permIds = perms.stream().map(RolePermEntry::permissionId).filter(Objects::nonNull).distinct().toList();
                 matched.add(new CheckInterfaceResp.MatchedResource(
+                    res != null ? res.getId() : entry.getKey(),
                     null,  // resourceTypeCode 历史上未填充；消费方 Gateway 只读 allowed/reason/matchedResources.size()
                     res != null ? res.getCode() : null,
-                    opCode, allowed));
+                    opCode, allowed, roleIds, permIds));
             }
         }
         return r.allowed()

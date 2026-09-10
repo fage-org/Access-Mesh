@@ -8,9 +8,9 @@ import java.util.List;
  * 包含批量校验中每个项目的校验结果。
  * </p>
  * <p>
- * T-API-002（2026-09-06 定案，用户决策扩大裁剪面）：单项结果的内部数据库 id 字段族
+ * T-API-003（2026-09-09 定案，推翻 T-API-002 的 check 族裁剪）：单项结果的结果记录
  * （matchedRoleIds / matchedPermissionIds，role / role_resource_permission 内部行 id）
- * 裁剪，与 core-flows §15「SDK 四件套不要求/不泄漏内部数据库 ID」口径对齐。
+ * 全量回传——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场。
  * </p>
  */
 public record BatchAuthCheckResp(
@@ -46,6 +46,14 @@ public record BatchAuthCheckResp(
         /**
          * 拒绝原因
          */
-        String reason
+        String reason,
+        /**
+         * 匹配的角色ID列表（拒绝时为空列表）
+         */
+        List<Long> matchedRoleIds,
+        /**
+         * 匹配的权限ID列表（拒绝时为空列表）
+         */
+        List<Long> matchedPermissionIds
     ) {}
 }

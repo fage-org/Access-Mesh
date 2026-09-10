@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+last_reviewed: 2026-09-10   # 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
@@ -229,7 +229,7 @@ PermQueryEngine.query(PermQuery)
 
 ## 10. 场景七：业务服务 SDK 鉴权与权限查询
 
-目标：业务服务既能判断单个动作是否允许，也能查询用户可操作资源集合和数据范围。SDK 运行时接口不依赖权限中心内部数据库 ID，也不复用管理端解释用的 `permission-view/*`。
+目标：业务服务既能判断单个动作是否允许，也能查询用户可操作资源集合和数据范围。SDK 运行时接口入参不依赖权限中心内部数据库 ID，也不复用管理端解释用的 `permission-view/*`；响应面按统一引擎消费方模型分族——check 族（check/batch-check/check-interface）回传结果记录（matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，T-API-003 推翻 T-API-002 的 check 族裁剪），Query\* 响应族不泄漏内部 id（T-API-002 终态维持）。
 
 | 能力           | 接口                                  | 典型场景                                                     | 结果                          |
 | -------------- | ------------------------------------- | ------------------------------------------------------------ | ----------------------------- |
@@ -448,7 +448,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 | 接口规范统一   | 全部接口走 `/api/perm/*`，无 RESTful Path 参数，无 body `tenantId`                                    |
 | SaaS 多租户    | 所有查询和写入都强制带 `X-Tenant-Id`，接口映射也按租户过滤                                            |
 | Gateway 可接入 | `check-interface` 使用 serviceCode、method、原始 path 判定                                            |
-| SDK 可接入     | `auth/check`、`auth/batch-check`、`auth/query-resources`、`auth/query-scopes` 都不要求、也不泄漏内部数据库 ID（响应侧裁剪定案 2026-09-06，T-API-002，含 Gateway 复用的 `check-interface`）   |
+| SDK 可接入     | `auth/check`、`auth/batch-check`、`auth/query-resources`、`auth/query-scopes` 入参全部走业务键、不要求内部数据库 ID；响应面 check 族（含 Gateway 复用的 `check-interface`）按 T-API-003（2026-09-09 定案推翻 T-API-002 check 族裁剪）回传结果记录（matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId），Query\* 响应族不泄漏内部 id（T-API-002 终态维持）   |
 | 管理端可解释   | 权限视图、操作日志、变更日志能解释授权来源和变更历史                                                  |
 | 数据权限可表达 | `depend_on` 子权限和直接范围权限共同表达主资源上下文内的有效范围，运行时通过 `auth/query-scopes` 查询 |
 | 接口同步简单   | 首期只有 FULL 同步，接入服务不需要维护增量事件                                                        |

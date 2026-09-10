@@ -9,10 +9,11 @@ import java.util.List;
  * 用于批量权限检查接口的响应。
  * </p>
  * <p>
- * T-API-002（2026-09-06 定案，用户决策扩大裁剪面）：单项结果的内部数据库 id 字段族
- * （matchedRoleIds / matchedPermissionIds）裁剪，与 core-flows §15「SDK 四件套
- * 不要求/不泄漏内部数据库 ID」口径对齐。线格式与 perm-common 副本保持同形
- * （双副本形状由回归锁钉死）。
+ * T-API-003（2026-09-09 定案，推翻 T-API-002 的 check 族裁剪）：单项结果的结果记录
+ * （matchedRoleIds / matchedPermissionIds，role / role_resource_permission 内部行 id）
+ * 全量回传——统一引擎消费方模型「调用方根据结果记录判定」需要记录在场。
+ * Query* 响应族的字段裁剪不在推翻范围（维持 T-API-002 终态）。
+ * 线格式与 perm-common 副本保持同形（双副本形状由回归锁钉死）。
  * </p>
  *
  * @param items 权限校验结果列表
@@ -26,17 +27,21 @@ public record BatchAuthCheckResp(
      * 包含一次权限校验的完整信息，包括资源类型、编码、操作和校验结果。
      * </p>
      *
-     * @param resourceTypeCode  资源类型编码
-     * @param resourceCode      资源编码
-     * @param operationCode     操作编码
-     * @param allowed           是否允许访问
-     * @param reason            拒绝原因，允许时为null
+     * @param resourceTypeCode    资源类型编码
+     * @param resourceCode        资源编码
+     * @param operationCode       操作编码
+     * @param allowed             是否允许访问
+     * @param reason              拒绝原因，允许时为null
+     * @param matchedRoleIds      匹配的角色ID列表（拒绝时为空列表）
+     * @param matchedPermissionIds 匹配的权限ID列表（拒绝时为空列表）
      */
     public record AuthCheckItemResult(
         String resourceTypeCode,
         String resourceCode,
         String operationCode,
         boolean allowed,
-        String reason
+        String reason,
+        List<Long> matchedRoleIds,
+        List<Long> matchedPermissionIds
     ) {}
 }

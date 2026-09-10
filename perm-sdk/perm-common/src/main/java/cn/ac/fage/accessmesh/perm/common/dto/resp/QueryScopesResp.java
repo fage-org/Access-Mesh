@@ -23,7 +23,7 @@ import java.util.List;
  * T-API-002（2026-09-06 定案）：内部数据库 id 字段族（parentPermissionIds、
  * ScopeGroup 的 matchedRoleIds / matchedPermissionIds / dependOnPermissionIds，
  * 均为 role / role_resource_permission 内部行 id）全数裁剪，与 core-flows §15
- * 「SDK 四件套不要求/不泄漏内部数据库 ID」口径对齐。父权限 id 集合仅服务端
+ * 「Query\* 响应族不泄漏内部 id」口径对齐（T-API-003 后 §15 为分族口径）。父权限 id 集合仅服务端
  * 内部用于 DEPENDENT 子权限过滤，不再出现在响应中。
  * </p>
  *
