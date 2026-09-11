@@ -90,8 +90,9 @@ class RoleManageAppServiceImplTest {
 
     @Test
     void shouldShortCircuitRoleTreeWhenDomainDoesNotCoverRoleType() {
-        when(domainClassifyService.matchesTypeCode(1L, DomainQueryMode.GLOBAL_PLUS, "OPS", ResourceTypeCode.ROLE))
-            .thenReturn(false);
+        // T-PERM-055：批量上下文改走预载覆盖集（空集=ROLE 不被域覆盖，短路同语义）
+        when(domainClassifyService.preloadCoveredTypeCodes(1L, DomainQueryMode.GLOBAL_PLUS, "OPS"))
+            .thenReturn(java.util.Set.of());
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);

@@ -819,7 +819,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
         boolean matchNone = false;
         if (domainCode != null && !domainCode.isBlank()) {
-            matchNone = !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.USER);
+            matchNone = !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
+                .contains(ResourceTypeCode.USER);
         }
         if (!matchNone && subjectTypeCode != null && !subjectTypeCode.isBlank() && userType == null) {
             matchNone = true;
@@ -836,7 +837,8 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
         boolean matchNone = false;
         if (domainCode != null && !domainCode.isBlank()) {
-            matchNone = !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.USER);
+            matchNone = !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
+                .contains(ResourceTypeCode.USER);
         }
         if (!matchNone && subjectTypeCode != null && !subjectTypeCode.isBlank() && userType == null) {
             matchNone = true;

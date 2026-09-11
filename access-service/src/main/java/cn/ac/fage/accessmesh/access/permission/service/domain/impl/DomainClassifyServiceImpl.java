@@ -144,6 +144,56 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
     }
 
     /**
+     * 批量预载域查询模式覆盖的资源类型码集合（T-PERM-055）
+     * <p>
+     * 与 {@link #matchesTypeCode} 同语义：ALL / domainCode 为空 = 全部有效类型码；
+     * 域不存在 = 空集；DOMAIN_ONLY = 指定域声明集 ∩ 有效类型；GLOBAL_PLUS =
+     * 指定域实际范围 ∪ 全局域实际范围（有 CLASSIFY 声明=声明集，无声明/无全局域=
+     * 未被非全局域认领的动态补集）。声明集中的无效类型码被有效类型交集滤除，
+     * 与 matchesTypeCode 的 resolveTypeValue 前置判定保持一致。
+     * </p>
+     */
+    @Override
+    public Set<String> preloadCoveredTypeCodes(Long tenantId, DomainQueryMode mode, String domainCode) {
+        if (mode == DomainQueryMode.ALL || domainCode == null || domainCode.isBlank()) {
+            return loadAllResourceTypeCodes(tenantId);
+        }
+        Long domainId = typeResolutionService.resolveDomainId(tenantId, domainCode);
+        if (domainId == null) {
+            return Set.of();
+        }
+
+        Set<String> validCodes = new HashSet<>(loadAllResourceTypeCodes(tenantId));
+        boolean isGlobal = isGlobalDomain(tenantId, domainId);
+        Set<String> classifiedCodes = effectiveTypeCodes(tenantId, domainId, isGlobal);
+
+        if (mode == DomainQueryMode.DOMAIN_ONLY) {
+            validCodes.retainAll(classifiedCodes);
+            return validCodes;
+        }
+
+        // GLOBAL_PLUS：指定域实际范围 ∪ 全局域实际范围（隐式段），一次预载
+        Set<String> covered = new HashSet<>(classifiedCodes);
+        BizDomain globalDomain = bizDomainMapper.selectGlobalByTenant(tenantId);
+        if (globalDomain != null) {
+            DomainConfig globalClassify = domainConfigMapper.selectValidByTypeString(
+                tenantId, globalDomain.getId(), ConfigType.CLASSIFY.getValue());
+            if (globalClassify != null) {
+                covered.addAll(parseResourceTypeCodes(globalClassify.getExtra()));
+                validCodes.retainAll(covered);
+                return validCodes;
+            }
+        }
+        // 全局域不存在或未声明：隐式段=未被非全局域认领的动态补集；
+        // 指定域自身声明的有效类型先取交集再并回（被其他域重叠认领不影响指定域可见性）
+        Set<String> classifiedValid = new HashSet<>(classifiedCodes);
+        classifiedValid.retainAll(validCodes);
+        validCodes.removeAll(getAllClaimedTypeCodes(tenantId));
+        validCodes.addAll(classifiedValid);
+        return validCodes;
+    }
+
+    /**
      * 通过资源类型码反查所属的业务域ID
      */
     @Override
@@ -243,12 +293,23 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
 
     /**
      * 获取所有非全局域声明的类型码
+     * <p>
+     * T-PERM-055：域清单 + 配置清单两条查询收敛，替换 per-domain 循环单查的存量 N+1。
+     * </p>
      */
     private Set<String> getAllClaimedTypeCodes(Long tenantId) {
         List<BizDomain> specificDomains = bizDomainMapper.selectNonGlobalByTenant(tenantId);
+        if (specificDomains.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> specificDomainIds = specificDomains.stream().map(BizDomain::getId).collect(Collectors.toSet());
         Set<String> claimed = new HashSet<>();
-        for (BizDomain domain : specificDomains) {
-            claimed.addAll(loadClassifyTypeCodes(tenantId, domain.getId()));
+        for (DomainConfig config : domainConfigMapper.selectByTenantId(tenantId)) {
+            if (!specificDomainIds.contains(config.getBizDomainId())
+                || !ConfigType.CLASSIFY.getValue().equals(config.getConfigType())) {
+                continue;
+            }
+            claimed.addAll(parseResourceTypeCodes(config.getExtra()));
         }
         return claimed;
     }

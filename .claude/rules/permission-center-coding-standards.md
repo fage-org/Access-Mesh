@@ -339,10 +339,16 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
 **MUST** 通过 `DomainClassifyService` 进行管理查询的域范围过滤。权限查询管线不感知业务域。
 
 ```java
-// ✅ 正确 — 管理查询按域判断资源类型是否可见
+// ✅ 正确 — 管理查询按域判断资源类型是否可见（单次调用场景）
 boolean visible = domainClassifyService.matchesTypeCode(
     tenantId, DomainQueryMode.GLOBAL_PLUS, "HR", ResourceTypeCode.USER
 );
+
+// ✅ 正确 — 批量上下文（逐条目循环/列表过滤）必须一次预载覆盖集，循环内 contains 复用（T-PERM-055，
+//    与 matchesTypeCode 同语义；循环内逐条调 matchesTypeCode 会产生逐条目点查放大）
+Set<String> covered = domainClassifyService.preloadCoveredTypeCodes(
+    tenantId, DomainQueryMode.GLOBAL_PLUS, "HR");
+boolean visibleInBatch = covered.contains(ResourceTypeCode.USER);
 
 // ✅ 正确 — 获取域声明的类型码范围
 Set<String> typeCodes = domainClassifyService.getClassifiedTypeCodes(tenantId, "HR");

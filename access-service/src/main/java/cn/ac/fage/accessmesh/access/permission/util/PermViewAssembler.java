@@ -245,6 +245,9 @@ public class PermViewAssembler {
             return entries;
         }
         String domainCode = filter.getDomainCode();
+        // T-PERM-055：GLOBAL_PLUS 覆盖集一次预载，循环内 contains 复用（消除逐条目 matchesTypeCode 点查放大）
+        Set<String> coveredTypeCodes = domainClassifyService.preloadCoveredTypeCodes(
+            tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode);
         return entries.stream()
             .filter(e -> {
                 if (e.resourceEntityId() == null) {
@@ -252,8 +255,7 @@ public class PermViewAssembler {
                     if (e.resourceType() == null) return false;
                     String typeCode = resourceTypeCodeMap.get(e.resourceType());
                     if (typeCode == null) return false;
-                    return domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS,
-                        domainCode, typeCode);
+                    return coveredTypeCodes.contains(typeCode);
                 }
                 ResourceEntity res = resourceMap.get(e.resourceEntityId());
                 if (res == null || res.getResourceType() == null) {
@@ -263,8 +265,7 @@ public class PermViewAssembler {
                 if (typeCode == null) {
                     return false;
                 }
-                return domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS,
-                    domainCode, typeCode);
+                return coveredTypeCodes.contains(typeCode);
             })
             .collect(Collectors.toList());
     }

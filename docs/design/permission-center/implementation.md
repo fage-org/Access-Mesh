@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -254,10 +254,14 @@ public interface TypeResolutionService {
 ```java
 public interface DomainClassifyService {
     boolean matchesTypeCode(Long tenantId, DomainQueryMode mode, String domainCode, String typeCode);
+    Set<String> preloadCoveredTypeCodes(Long tenantId, DomainQueryMode mode, String domainCode);
     Set<String> getClassifiedTypeCodes(Long tenantId, String domainCode);
     Long findDomainIdByTypeCode(Long tenantId, String typeCode);
+    Map<String, Long> findDomainIdsByTypeCodes(Long tenantId, Set<String> typeCodes);
 }
 ```
+
+> `preloadCoveredTypeCodes`（T-PERM-055）为 `matchesTypeCode` 同语义的批量预载形态：批量上下文（逐条目循环/列表过滤）必须走预载、循环内 `Set.contains` 复用，消除逐条目点查放大。
 
 ---
 

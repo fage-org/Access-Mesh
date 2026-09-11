@@ -477,7 +477,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             throw new SecurityException("Permission denied: VIEW on ROLE");
         }
         if (domainCode != null && !domainCode.isBlank()
-            && !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE)) {
+            && !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
+                .contains(ResourceTypeCode.ROLE)) {
             return List.of();
         }
 
@@ -515,7 +516,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         RoleTypeFilter roleTypeFilter = resolveRoleTypeFilter(tenantId, roleTypeCode, roleTypeCodes);
         boolean matchNone = roleTypeFilter.matchNone();
         if (domainCode != null && !domainCode.isBlank()) {
-            matchNone = matchNone || !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE);
+            matchNone = matchNone || !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
+                .contains(ResourceTypeCode.ROLE);
         }
         return abstractRoleMapper.selectRoleListPaged(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone, offset, limit)
             .stream().map(this::toRoleResp).collect(Collectors.toList());
@@ -531,7 +533,8 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         RoleTypeFilter roleTypeFilter = resolveRoleTypeFilter(tenantId, roleTypeCode, roleTypeCodes);
         boolean matchNone = roleTypeFilter.matchNone();
         if (domainCode != null && !domainCode.isBlank()) {
-            matchNone = matchNone || !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.ROLE);
+            matchNone = matchNone || !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
+                .contains(ResourceTypeCode.ROLE);
         }
         return abstractRoleMapper.selectRoleListCount(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone);
     }

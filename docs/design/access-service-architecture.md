@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口：§14.4 门禁表注记改排查端点族已删除（bootstrap 固定图 effective-permissions/explain 两行与「权限排查」菜单种子同批移除，清单仍以 BootstrapGraphDefinition.apiRoutes() 为唯一权威）；此前 2026-09-07 T-PERM-051 收口：§4.3 事实链路族增 TYPE_DEFINITION（类型定义实例投影两条产出链 + 删除级联）、§12.3 补 TYPE_DEFINITION 复合业务键语义（{typeKey}:{typeCode}、code 列宽 256）；2026-09-06 §14.8 E2E 自动化轨落位改 e2e 独立模块（T-ACCESS-031：E2E 分轨迁出 gateway、skipE2E 日常/收口两形态口径）；2026-09-05 T-ACCESS-029 实现收口：§14.2 收缩通道墓碑三分落地（BootstrapSeedWriter 墓碑查询诊断例外 + 升级口径与重建换 id 边界成文、runbook 处置步骤交叉引用）；2026-09-05 §14.2 固定图收缩通道墓碑三分定案（缺行+软删墓碑=告警放行不补回/无墓碑=仍拒启，T-ACCESS-029 承接）+ 固定图→租户初始化演进方向登记；2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
+last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-055 收口：§13.4 域分类批量预载成文（preloadCoveredTypeCodes 批量上下文一次预载模式覆盖集 + 认领集单次装配收敛 per-domain N+1，三模式判定结果不变）；此前 2026-09-10 T-PERM-059 收口：§14.4 门禁表注记改排查端点族已删除（bootstrap 固定图 effective-permissions/explain 两行与「权限排查」菜单种子同批移除，清单仍以 BootstrapGraphDefinition.apiRoutes() 为唯一权威）；此前 2026-09-07 T-PERM-051 收口：§4.3 事实链路族增 TYPE_DEFINITION（类型定义实例投影两条产出链 + 删除级联）、§12.3 补 TYPE_DEFINITION 复合业务键语义（{typeKey}:{typeCode}、code 列宽 256）；2026-09-06 §14.8 E2E 自动化轨落位改 e2e 独立模块（T-ACCESS-031：E2E 分轨迁出 gateway、skipE2E 日常/收口两形态口径）；2026-09-05 T-ACCESS-029 实现收口：§14.2 收缩通道墓碑三分落地（BootstrapSeedWriter 墓碑查询诊断例外 + 升级口径与重建换 id 边界成文、runbook 处置步骤交叉引用）；2026-09-05 §14.2 固定图收缩通道墓碑三分定案（缺行+软删墓碑=告警放行不补回/无墓碑=仍拒启，T-ACCESS-029 承接）+ 固定图→租户初始化演进方向登记；2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
 ---
 
 # access-service 目标架构与归并约束
@@ -441,7 +441,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 - 引擎枚举 `ResourceTypeCode`（12 码）与管理门禁 `AdminResourceType`（14 码）**合一为单一常量类**（T-ACCESS-018 实施命名），全量生产代码、前端权限串、安全矩阵按终态类型码切换；无兼容别名双写。
 - 对外 API 只使用稳定字符串 `type_code`；内部表继续存 `type_value INT`（api-contract §3.4 原则不变）。
-- 业务域分类模型联动：`domain_config` 的 `CLASSIFY` 配置按 `resourceTypeCode` 关联，类型码切换后自然生效；全局域（`global=true`）范围=有 CLASSIFY 声明按声明（T-PERM-046 定案 2026-09-09）、无声明为未被其他域认领的资源类型动态补集，注册表收敛不改变三模式（ALL/GLOBAL_PLUS/DOMAIN_ONLY）过滤逻辑。
+- 业务域分类模型联动：`domain_config` 的 `CLASSIFY` 配置按 `resourceTypeCode` 关联，类型码切换后自然生效；全局域（`global=true`）范围=有 CLASSIFY 声明按声明（T-PERM-046 定案 2026-09-09）、无声明为未被其他域认领的资源类型动态补集，注册表收敛不改变三模式（ALL/GLOBAL_PLUS/DOMAIN_ONLY）过滤逻辑。批量上下文的域过滤经 `DomainClassifyService.preloadCoveredTypeCodes` 一次预载模式覆盖集（含全局域声明/补集与认领集单次装配），循环内 `Set.contains` 复用，三模式判定结果与逐条 `matchesTypeCode` 一致（T-PERM-055）。
 - **MENU 资源语义**：`MENU:CREATE/UPDATE/DELETE/VIEW` 仅保护菜单配置后台（`/menu/**` 管理链路）；普通用户菜单可见性仍按 `sys_menu.resource_type`/`resource_code` 关联业务权限派生（`UserMenuQueryService` v3.5 §4.1 语义，§3 已述），两者不混同。
 
 ## 14. 空库 bootstrap 首管理员权限模型（T-ACCESS-016 定稿）

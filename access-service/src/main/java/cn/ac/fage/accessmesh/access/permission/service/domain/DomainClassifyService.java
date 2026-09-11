@@ -42,6 +42,23 @@ public interface DomainClassifyService {
     boolean matchesTypeCode(Long tenantId, DomainQueryMode mode, String domainCode, String resourceTypeCode);
 
     /**
+     * 批量预载域查询模式覆盖的资源类型码集合（T-PERM-055）
+     * <p>
+     * 与 {@link #matchesTypeCode} 同语义的批量形态：一次预载模式实际覆盖的类型码集合，
+     * 供批量上下文循环内以 {@code Set.contains} 复用判定，消除逐条目调用 matchesTypeCode
+     * 的点查放大。返回集合只含 type_definition 中实际存在的有效 resource_type 类型码
+     * （未知类型码不在集合中，与 matchesTypeCode 的有效性前置判定一致）。
+     * 批量上下文（逐条目循环/列表过滤）必须走本方法；单次调用场景可继续用 matchesTypeCode。
+     * </p>
+     *
+     * @param tenantId   租户ID
+     * @param mode       查询模式
+     * @param domainCode 业务域编码
+     * @return 模式覆盖的资源类型码集合（域不存在返回空集）；不保证可变性，调用方不得修改
+     */
+    Set<String> preloadCoveredTypeCodes(Long tenantId, DomainQueryMode mode, String domainCode);
+
+    /**
      * 通过资源类型码反查所属的业务域ID
      * <p>
      * 遍历所有非全局域的 CLASSIFY 配置，找到包含该类型码的域。

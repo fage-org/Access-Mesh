@@ -644,7 +644,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         boolean matchNone = false;
         if (domainCode != null && !domainCode.isBlank()) {
-            matchNone = !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.RESOURCE);
+            matchNone = !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
+                .contains(ResourceTypeCode.RESOURCE);
         }
 
         List<ResourceEntity> allEntities = resourceEntityMapper.selectResourceTree(tenantId, resourceType, matchNone);
@@ -683,7 +684,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         boolean matchNone = false;
         if (domainCode != null && !domainCode.isBlank()) {
-            matchNone = !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.RESOURCE);
+            matchNone = !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
+                .contains(ResourceTypeCode.RESOURCE);
         }
 
         return resourceEntityMapper.selectResourceListPaged(tenantId, resourceType, matchNone, offset, limit)
@@ -704,7 +706,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         boolean matchNone = false;
         if (domainCode != null && !domainCode.isBlank()) {
-            matchNone = !domainClassifyService.matchesTypeCode(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, ResourceTypeCode.RESOURCE);
+            matchNone = !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
+                .contains(ResourceTypeCode.RESOURCE);
         }
 
         return resourceEntityMapper.selectResourceListCount(tenantId, resourceType, matchNone);

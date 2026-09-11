@@ -173,12 +173,15 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         };
 
         // 按 domainCode 过滤
+        // T-PERM-055：GLOBAL_PLUS 覆盖集一次预载，谓词内 contains 复用（消除逐条目 matchesTypeCode 点查放大）
+        Set<String> domainCoveredTypeCodes = domainCode == null || domainCode.isBlank()
+            ? null
+            : domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode);
         java.util.function.Predicate<RolePermEntry> domainMatch = entry -> {
-            if (domainCode == null || domainCode.isBlank()) return true;
+            if (domainCoveredTypeCodes == null) return true;
             if (entry.resourceType() == null) return false;
             String rtCode = resourceTypeCodeMap.get(entry.resourceType());
-            return rtCode != null && domainClassifyService.matchesTypeCode(
-                tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode, rtCode);
+            return rtCode != null && domainCoveredTypeCodes.contains(rtCode);
         };
 
         // 按 codeType 过滤
