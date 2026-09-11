@@ -121,7 +121,7 @@
 | [T-PERM-058](T-PERM-058.md) | depend_on 子权限单点门禁闭合——单点主资源上下文 + fail-closed + 四面排除（已收口 2026-09-10，四项定案与终态见任务卡实现记录） | [permission-query-unification](../plans/permission-query-unification-plan.md) | implementation §3.1/§3.3；api-contract §6.1/§6.6 | T-PERM-057 | ✅ | ✓ |
 | [T-PERM-059](T-PERM-059.md) | 权限视图/排查删除重设计——删除收口（全删 8 端点+前端排查页；新设计方向另立任务，2026-09-10 三项定案） | [permission-query-unification](../plans/permission-query-unification-plan.md) | api-contract §5.8；access-service-architecture §14；query-engine-unification.md §9 | — | ✅ | ✓ |
 | [T-PERM-060](T-PERM-060.md) | 工程健康小批次——权限视图域映射批量化 + T-PERM-055 误读观察撤回 + EXT-7/8 处置登记（已收口 2026-09-11，终态见任务卡实施记录） | — | implementation §2.7 | — | ✅ | — |
-| [T-PERM-061](T-PERM-061.md) | EXT-7：batchCheck 逐条 engine.query 收敛——A+ 形态「分组 + 请求级共享装载」（设计定稿 v2 2026-09-11：claude+codex 双外评处置 + evaluatedAt/互斥通知两项定案；实施未开始） | — | implementation §3；api-contract §6.1 | — | ⚙️ | ⏳ |
+| [T-PERM-061](T-PERM-061.md) | EXT-7：batchCheck 逐条 engine.query 收敛——A+ 形态「分组 + 请求级共享装载」（设计定稿 v3 2026-09-11：首轮双评 + 三轨复审处置 + evaluatedAt/互斥通知两项定案；实施未开始） | — | implementation §3；api-contract §6.1 | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 
