@@ -108,8 +108,10 @@ last_updated: 2026-09-11
 
 - 随批修复（2026-09-11，随设计评审批次落地）：`BatchAuthCheckReq.items` 双副本补 @Valid 嵌套级联（commit 1cebf1ad9，空白嵌套字段 deny→400，独立评审零缺陷）；SDK 副本级联用例补强 blank operationCode+null 元素（commit eaea2d75a，防双副本漂移）。
 - 评审处置全程（各轮发现→修复映射、撤回裁决）登记于 decision-registry 2026-09-11 T-PERM-061 行（v2/v3/v4/定稿四行），此处不复制过程流水。
+- 实施批次双轨本地评审修复（2026-09-11，均为事实性最小修正）：core-flows §7 batch-check 组装形态句改 queryBatch 口径（存量随实施过期）；implementation §2.4/§2.5 域服务接口摘录补 `openBatchMutexEvaluator`/`openBatchEvaluator`（§3.10 指针完整性）；§3.10 批量条件快照接口表述改完成时；看板回写列与 design_writeback 同步；`ResolveContext` 增缓存直取（`getCachedTypeValue`/`getCachedOperationId`）消幽灵码逐组单条探测；`PermQuery.inheritClosureOf` 静态唯一口径（setInheritMode 与批量编排共用，消副本漂移面）。
 
 ## 非目标 / 遗留
 
 - 单条 `check()` 不并入批量入口（留待实测证据；与批量在时间窗边界的分叉已由 a2 接受）。
-- 存量观察登记（评审累积，不属本卡实施范围）：resolveEntityIds values() 合并丢 key（单条无害）；PERM_MUTEX 规则查询不消费 resource_type_value 列（靠 op id 类型归属，无误判面）；复合 granted_bits 行静默排除出互斥判定（唯一潜在来源=未来 AUTO_DEP 落地）；notifyPermConflict detail 的端点 OR 过滤（b2 聚合机制以 AND 命中集绕开，单条路径维持现状）；`TypeResolutionServiceImpl.batchResolveDomainIds` 结果计算后未参与过滤（批量解析路径不校验 domainCode 存在性，与单条 resolveResourceId 的域存在性检查不一致——待后续核实处置）。
+- **父判定段条件装载维持既有递归单条形态（用户定案 2026-09-11）**：§一.7「父判定共享只经既有注入面（不穿透递归）」定案优先——父判定每请求 ≤1 次、正确性共享（roleIds + evalContext）已经闭合、同 conditionId 请求内至多回源一次经缓存成立（批量段已预载条件父判定命中零回源）；§一.9「三段批量预载」的父段一批次字面口径不达成，与「父判定递归内部操作解析为已知残余 IO」同类登记（最坏每请求多 ≤父私有冷条件数次单查，正常路径零差）。
+- 存量观察登记（评审累积，不属本卡实施范围）：resolveEntityIds values() 合并丢 key（单条无害）；PERM_MUTEX 规则查询不消费 resource_type_value 列（靠 op id 类型归属，无误判面）；复合 granted_bits 行静默排除出互斥判定（唯一潜在来源=未来 AUTO_DEP 落地）；notifyPermConflict detail 的端点 OR 过滤（b2 聚合机制以 AND 命中集绕开，单条路径维持现状）；`TypeResolutionServiceImpl.batchResolveDomainIds` 结果计算后未参与过滤（批量解析路径不校验 domainCode 存在性，与单条 resolveResourceId 的域存在性检查不一致——待后续核实处置）；ledger 组键可读串的 `"-"` 空值占位与字面 `"-"` codeType 可碰撞（仅审计归并粒度冷僻退化，判定与通知条数语义不受影响，维持）。

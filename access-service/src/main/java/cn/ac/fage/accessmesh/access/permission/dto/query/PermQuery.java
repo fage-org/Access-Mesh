@@ -465,6 +465,17 @@ public class PermQuery {
     }
 
     /**
+     * inheritMode 参数解析（唯一口径，批量编排与 setter 共用）：
+     * "PARENT"/"BOTH" → 判定面继承开；"CHILD"/"NONE"/其他含缺省 → 关。
+     *
+     * @param inheritMode 继承模式（可 null）
+     * @return 判定面继承开关
+     */
+    public static boolean inheritClosureOf(String inheritMode) {
+        return "PARENT".equalsIgnoreCase(inheritMode) || "BOTH".equalsIgnoreCase(inheritMode);
+    }
+
+    /**
      * 设置继承模式（/auth/check 契约参数；接通为判定面闭包真实语义——Q12 定案：
      * 该参数从「对单点判定结论无效」接通为目标闭包）。
      * <ul>
@@ -475,10 +486,6 @@ public class PermQuery {
      * @param inheritMode 继承模式
      */
     public void setInheritMode(String inheritMode) {
-        if ("PARENT".equalsIgnoreCase(inheritMode) || "BOTH".equalsIgnoreCase(inheritMode)) {
-            this.inheritClosure = true;
-        } else {
-            this.inheritClosure = false;
-        }
+        this.inheritClosure = inheritClosureOf(inheritMode);
     }
 }

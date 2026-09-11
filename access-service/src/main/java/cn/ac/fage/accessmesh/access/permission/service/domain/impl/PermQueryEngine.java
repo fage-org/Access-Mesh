@@ -526,9 +526,10 @@ public class PermQueryEngine {
         for (Map.Entry<String, Set<String>> entry : opsByType.entrySet()) {
             resolveCtx.prepareOperations(entry.getKey(), entry.getValue());
         }
+        // 批量解析结果即权威（缓存直取，无单条回退）——幽灵类型/操作码不再逐组单条探测
         for (BatchGroup group : groups) {
-            group.typeValue = resolveCtx.getResourceTypeValue(group.key.typeCode());
-            group.opId = resolveCtx.getOperationId(group.key.typeCode(), group.key.opCode());
+            group.typeValue = resolveCtx.getCachedTypeValue(group.key.typeCode());
+            group.opId = resolveCtx.getCachedOperationId(group.key.typeCode(), group.key.opCode());
         }
     }
 

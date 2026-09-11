@@ -211,6 +211,8 @@ public interface AuditDomainService {
 public interface PermissionConflictDomainService {
     Set<Long> filterRoleMutex(Long tenantId, Set<Long> effectiveRoleIds);
     List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries);
+    // T-PERM-061 批量判定：请求级互斥评估器（静态数据共享 + 计算通知解耦，见 §3.10）
+    BatchPermMutexEvaluator openBatchMutexEvaluator(Long tenantId);
 }
 ```
 
@@ -221,6 +223,8 @@ public interface PermissionConflictDomainService {
 ```java
 public interface PermissionConditionDomainService {
     List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries, Map<String, Object> context);
+    // T-PERM-061 批量判定：请求级条件快照评估器（四态 fail-close + 增量装载，见 §3.10）
+    BatchConditionEvaluator openBatchEvaluator(Long tenantId);
     // 原 explain 排查明细 evaluateDetailed 已随 T-PERM-059 删除（2026-09-10）
 
     // T-PERM-048 双轨制：条件规则写入口径校验双轨共享（管理页 create/update 与内联轨同源）
@@ -478,7 +482,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 
 **共享装载（BatchEvalContext）**——per-request 实例经方法参数传递，**禁止落引擎字段**（@Component 单例并发串数据）；全部 DB 新鲜读，**不引入 ROLE_PERM_SNAPSHOT**（L2_ONLY 10s 陈旧窗口不进运行时鉴权面，T-ACCESS-008 边界）：角色 ×1（空=整批 NO_ROLE 前置）＋「已尝试解析」显式状态（resolveRoleIds/resolveEntityIds/resolveOperationIds 三处空集哨兵）；全类型与全 (type,op) 对一次解析；scopeAll 行全组 BitMaskEntry 合并一次；**分段化**——实例装载仅对 scopeAll 段未放行的组（短路是既有优化，两阶段保持）；entity 预解析合并一次按 Map 键取（resolveEntityIds 现状 values() 合并丢 key 不可复用）；闭包 CTE 仅对 inheritClosure=true 档目标发一次；共享父判定 ×1（惰性保留，只经既有 roleIds+evalContext 注入面，父类型/操作解析不并入共享上下文）；PERM_MUTEX 静态数据 ×1（规则一次+操作索引 O(distinct types)，只共享装载不共享计算）；**唯一非空 PermEvalContext(ip, now(), attrs) 强制注入全链**（item/父递归/条件评估共用，a2 定案——禁各 item 重钉禁 now() 回退）；批量路径不调 loadAncillary（matched 字段族由条目派生）；**空目标集守卫**——可解析 entityId 并集为空（纯 TYPE_LEVEL 批/全幽灵 code）禁调闭包 CTE（空 foreach `IN ()`=500）与实例 SQL（`<if>` 空集丢实体过滤=无界装载），queryInstance 空 entityIds 直接 List.of()。
 
-**条件快照 = 请求级增量、四态建模**（设计定稿口径；**需新增批量条件快照接口**——PermissionConditionDomainService 扩展，见 §2.5 面的改动归属）：快照形态 `conditionId → LoadedRules 四态（OK/NOT_FOUND/DISABLED/INVALID）`，仅 enabled=true 且解析成功作为 OK 写 CONDITION_RULES 正缓存（putBatch 带 beginRead 剩余 TTL）；失败态请求级记忆、评估 fail-close（与单条 loadRules 语义一致——selectValidByIds 不滤 enabled，朴素批量把禁用条件当有效规则入缓存=权限绕过）。**增量装载**：scopeAll/实例/父判定各阶段只批量加载新出现的 conditionId（每阶段至多一批次、同 ID 请求内至多回源一次——分段化与预取严格 ×1 存在数据依赖环，弃 ×1 口径）。
+**条件快照 = 请求级增量、四态建模**（设计定稿口径；批量条件快照接口已随实施落地——`PermissionConditionDomainService.openBatchEvaluator`，§2.5 摘录已同步）：快照形态 `conditionId → LoadedRules 四态（OK/NOT_FOUND/DISABLED/INVALID）`，仅 enabled=true 且解析成功作为 OK 写 CONDITION_RULES 正缓存（putBatch 带 beginRead 剩余 TTL）；失败态请求级记忆、评估 fail-close（与单条 loadRules 语义一致——selectValidByIds 不滤 enabled，朴素批量把禁用条件当有效规则入缓存=权限绕过）。**增量装载**：scopeAll/实例/父判定各阶段只批量加载新出现的 conditionId（每阶段至多一批次、同 ID 请求内至多回源一次——分段化与预取严格 ×1 存在数据依赖环，弃 ×1 口径）。
 
 **分组键**：`(targetMode, resourceTypeCode, operationCode, codeType, domainCode, inheritMode)`；parentResource 请求级共享不进键。
 

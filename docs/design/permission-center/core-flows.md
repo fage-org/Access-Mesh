@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口：§13 场景十收口为审计双日志面（permission-view 排查端点族删除说明 + 用户/角色排查链路改为 check 族+变更日志两步形态 + 能力表六行删）；此前 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-061 实施：§7 batch-check 组装形态改 queryBatch 口径（原逐 item 表述随实施过期）；此前 2026-09-10 T-PERM-059 收口：§13 场景十收口为审计双日志面（permission-view 排查端点族删除说明 + 用户/角色排查链路改为 check 族+变更日志两步形态 + 能力表六行删）；此前 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
@@ -172,7 +172,7 @@ PermQueryEngine.query(PermQuery)
 
 **内部 AppService 使用 `PermResultUtils`** 将 `PermResult` 转为对外响应：
 
-- `PermResultUtils.toAuthCheckResp(result)` — `check` 响应（`batch-check` 由 AppService 逐 item 组装 `BatchAuthCheckResp`）
+- `PermResultUtils.toAuthCheckResp(result)` — `check` 响应（`batch-check` 由 AppService 组装 `PermBatchQuery` 走 `engine.queryBatch`，结果按下标对齐拆分 `BatchAuthCheckResp`——A+ 形态，T-PERM-061）
 - `validate` 模式：AppService 显式 `if (!result.allowed()) throw new SecurityException(...)`（引擎纯查询；`validateOrThrow` 已删除勿引用）
 
 ## 8. 场景五：配置子权限和数据范围

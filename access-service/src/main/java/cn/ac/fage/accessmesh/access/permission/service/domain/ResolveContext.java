@@ -146,6 +146,27 @@ public class ResolveContext {
     }
 
     /**
+     * 仅从缓存读取资源类型值（无单次解析回退）。
+     * <p>
+     * 批量解析权威形态（T-PERM-061）：调用方已 prepareResourceTypes 批量预载后消费，
+     * miss 即未知码 fail-closed——不再逐码单条探测（幽灵码组数上界的 IO 放大面）。
+     * </p>
+     */
+    public Integer getCachedTypeValue(String typeCode) {
+        return typeCode == null ? null : resourceTypeValueCache.get(typeCode);
+    }
+
+    /**
+     * 仅从缓存读取操作 ID（无单次解析回退）——语义同 {@link #getCachedTypeValue}。
+     */
+    public Long getCachedOperationId(String resourceTypeCode, String operationCode) {
+        if (resourceTypeCode == null || operationCode == null) {
+            return null;
+        }
+        return operationIdCache.get(BusinessKeys.operationCodeKey(resourceTypeCode, operationCode));
+    }
+
+    /**
      * 获取操作ID
      *
      * @param resourceTypeCode 资源类型编码

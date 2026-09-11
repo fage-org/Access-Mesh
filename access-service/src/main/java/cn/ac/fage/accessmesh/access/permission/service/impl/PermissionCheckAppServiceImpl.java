@@ -128,7 +128,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(tenantId, userId, req.items().stream()
             .map(item -> new PermBatchQuery.Item(
                 item.resourceTypeCode(), item.resourceCode(), item.operationCode(),
-                item.codeType(), item.domainCode(), inheritClosureOf(item.inheritMode())))
+                item.codeType(), item.domainCode(), PermQuery.inheritClosureOf(item.inheritMode())))
             .toList());
         batch.setEvalContext(pinned);
         // T-PERM-058 主资源上下文（请求级）：与 query-scopes 对齐——批量项共享同一父上下文
@@ -148,11 +148,6 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
                 List.copyOf(outcome.matchedRoleIds()), List.copyOf(outcome.matchedPermissionIds())));
         }
         return new BatchAuthCheckResp(List.copyOf(results));
-    }
-
-    /** inheritMode 参数解析（与 PermQuery.setInheritMode 同口径：PARENT/BOTH 开，其余含缺省关）。 */
-    private static boolean inheritClosureOf(String inheritMode) {
-        return "PARENT".equalsIgnoreCase(inheritMode) || "BOTH".equalsIgnoreCase(inheritMode);
     }
 
     /**
