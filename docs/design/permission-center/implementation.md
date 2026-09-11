@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -458,7 +458,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 | 接口         | 路径                                     | 引擎入口                                                      |
 | ------------ | ---------------------------------------- | ------------------------------------------------------------- |
 | 单次鉴权     | `POST /api/perm/auth/check`              | `engine.query(PermQuery.forAuthCheck())`；`inheritMode` 接通闭包（§3.4） |
-| 批量鉴权     | `POST /api/perm/auth/batch-check`        | 现状 `engine.query(PermQuery.forAuthCheck())` x N（item 级参数粒度既有）；目标形态 `engine.queryBatch` A+ 批量化（**设计定稿 2026-09-11 T-PERM-061，实施未开始**，见 §3.10） |
+| 批量鉴权     | `POST /api/perm/auth/batch-check`        | `engine.queryBatch(PermBatchQuery.forAuthCheckBatch)` A+ 批量化（T-PERM-061，2026-09-11 实施落地，见 §3.10） |
 | 资源权限查询 | `POST /api/perm/auth/query-resources`    | `engine.query(PermQuery.forUserView())`；树扩展经引擎展示面展开轨道（`inheritChildren`/`inheritParents`） |
 | 范围权限查询 | `POST /api/perm/auth/query-scopes`       | 一次 `engine.query(forScopeQuery + setParentResource)`——父判定 + depend_on 过滤 + 条件/互斥评估全在引擎，AppService 只留四态线格式组装（T-PERM-057 第六套形态收编）；整表拒绝仅限父判定失败/无角色，条件评估清空走四态分态（EMPTY） |
 | 接口级判定   | `POST /api/perm/auth/check-interface`    | `engine.query(PermQuery.forInterfaceCheck())`                 |
@@ -472,9 +472,9 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 - **回归面**：四个门禁入口族（admin 域门面 / permission 域 code 轨 / 资源树 entityId 轨 / SDK auth-check 族）语义回归 + targetMode 三态互不串义锁 + 判定面闭包锁（`TargetModeClosurePgIT`：TYPE_LEVEL 串义拒绝 / 单点闭包 / 批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）+ golden fixtures（`GoldenFixturePgIT` 单点判定收敛，nodeClosure 语义=引擎原生闭包）。
 - **遗留**：角色互斥授权时校验 → 另行立项；（原列两项已收口 2026-09-10：check 族全量回传 → T-API-003 done；权限视图/排查删除 → T-PERM-059 done，新形态另立任务）；「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）→ 改进项登记 decision-registry。
 
-### 3.10 batchCheck 批量化（queryBatch 入口）——A+ 形态（T-PERM-061 设计定稿 2026-09-11，实施未开始）
+### 3.10 batchCheck 批量化（queryBatch 入口）——A+ 形态（T-PERM-061 设计定稿 2026-09-11，同日实施落地）
 
-`batch-check` 现状逐 item 走完整管线（每 item ≈ 2-3× Redis + 6+K 条无缓存 SQL，主体级数据重复装载 N 次）。目标形态 = **分组 + 请求级共享装载（A+）**：装载共享收敛为常数、判定全部内存化、契约零变化（请求/响应 JSON、1000 上限、reason 词表、matched 字段族不变；api-contract §6.1 的 a2 批量口径注记随实施回写）。
+`batch-check` 原状逐 item 走完整管线（每 item ≈ 2-3× Redis + 6+K 条无缓存 SQL，主体级数据重复装载 N 次）。实施形态 = **分组 + 请求级共享装载（A+）**：装载共享收敛为常数、判定全部内存化、契约零变化（请求/响应 JSON、1000 上限、reason 词表、matched 字段族不变；api-contract §6.1 的 a2 批量口径注记已回写）。
 
 **共享装载（BatchEvalContext）**——per-request 实例经方法参数传递，**禁止落引擎字段**（@Component 单例并发串数据）；全部 DB 新鲜读，**不引入 ROLE_PERM_SNAPSHOT**（L2_ONLY 10s 陈旧窗口不进运行时鉴权面，T-ACCESS-008 边界）：角色 ×1（空=整批 NO_ROLE 前置）＋「已尝试解析」显式状态（resolveRoleIds/resolveEntityIds/resolveOperationIds 三处空集哨兵）；全类型与全 (type,op) 对一次解析；scopeAll 行全组 BitMaskEntry 合并一次；**分段化**——实例装载仅对 scopeAll 段未放行的组（短路是既有优化，两阶段保持）；entity 预解析合并一次按 Map 键取（resolveEntityIds 现状 values() 合并丢 key 不可复用）；闭包 CTE 仅对 inheritClosure=true 档目标发一次；共享父判定 ×1（惰性保留，只经既有 roleIds+evalContext 注入面，父类型/操作解析不并入共享上下文）；PERM_MUTEX 静态数据 ×1（规则一次+操作索引 O(distinct types)，只共享装载不共享计算）；**唯一非空 PermEvalContext(ip, now(), attrs) 强制注入全链**（item/父递归/条件评估共用，a2 定案——禁各 item 重钉禁 now() 回退）；批量路径不调 loadAncillary（matched 字段族由条目派生）；**空目标集守卫**——可解析 entityId 并集为空（纯 TYPE_LEVEL 批/全幽灵 code）禁调闭包 CTE（空 foreach `IN ()`=500）与实例 SQL（`<if>` 空集丢实体过滤=无界装载），queryInstance 空 entityIds 直接 List.of()。
 
@@ -498,6 +498,8 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 **互斥通知（b2 定案）**：计算与通知解耦；批量层维护 `(组, ruleId) → 命中 originalIndex 列表` ledger，scopeAll 段与实例段分桶写入、scopeAll 短路 return 前 flush；每 (组, ruleId) 一条审计行，detail 由实际命中规则集（AND 两端）构造 + hitItemCount（item 去重段间合并）；**父判定审计桶**——共享父判定每请求 ≤1 次触发，其内部互斥通知维持现有形态不入 ledger（无去重需求；纳入需穿透递归 query 与既有注入面决策冲突）。
 
 **回归锁（容器轨，GoldenFixturePgIT/TargetModeClosurePgIT 先例）**：等价差分（query()×N vs queryBatch 逐 item 对拍 allowed/reason/matched 按集合比较）＋共享计数锁（N=10/100 mapper 调用次数不变）＋投影谓词否定锁（默认模式授父查子 deny / TYPE_LEVEL+depend_on+父上下文 deny / 跨类型位泄漏 deny）＋空目标集批（1000 项上限形态）200 全 deny 禁 500 ＋互斥真锁（VIEW 行+UPDATE 行（inherit_mask 覆盖）+互斥规则→逐 item 双 allowed）＋reason 边界（幽灵 code+仅子行 scopeAll→DEPENDENT_NOT_IN_PARENT_CONTEXT）＋时间窗边界＋通知次数/内容锁＋禁用条件 fail-close 两轨锁＋条件-互斥顺序锁＋条件增量快照次数锁。现有 PermissionCheckAppServiceImplTest mock 了引擎——改 stub 到新入口，不作等价证据。
+
+**实施落点（2026-09-11 落地）**：引擎 `PermQueryEngine.queryBatch(PermBatchQuery)`（分组键/共享装载/分段评估/reason 双轨全部在引擎内，`BatchEvalContext` 为 per-request 对象经方法参数传递）；入参 `PermBatchQuery.forAuthCheckBatch`（item 粒度参数与 forAuthCheck 对齐 + 请求级 parentResource + 唯一非空 `PermEvalContext`）与结果 `PermBatchResult`（outcomes 与 items 下标对齐，拒绝项 matched 恒空）；编排 `PermissionCheckAppServiceImpl.batchCheck` 只做参数组装 + 时刻钉住 + 结果拆分。条件快照 = `PermissionConditionDomainService.openBatchEvaluator`（`BatchConditionEvaluator`：四态/增量/fail-close/评估记忆封装在请求级 evaluator）；互斥 = `openBatchMutexEvaluator`（`BatchPermMutexEvaluator`：规则/操作索引请求级共享、`compute` 不通知、`notifyHits` 消费引擎 ledger）；`queryInstance` 补空 entityIds 守卫。回归锁容器轨落位 `BatchAuthCheckPgIT`（characterization 包，①-⑪ 全量），evaluator 四态/增量另有单测轨行为锁。
 
 ---
 

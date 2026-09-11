@@ -7,7 +7,7 @@ description: >-
 origin: project
 metadata:
   project: AccessMesh
-  version: "5.1.0"
+  version: "5.2.0"
 ---
 
 # 统一权限查询引擎规范
@@ -20,6 +20,7 @@ metadata:
 | `PermQuery` | 统一入参 DTO，6个预设工厂（参数预设封装） | 调用方构造查询参数 |
 | `PermResult` | 统一返回对象（双轨 + 主资源上下文回传） | 调用方获取结果 |
 | `TargetMode` | 目标模式三态枚举：TYPE_LEVEL/INSTANCE/LIST（T-PERM-057） | targetMode 三态判别 |
+| `PermBatchQuery` / `PermBatchResult` | 批量判定入参/结果（T-PERM-061 A+ 形态：item 参数与 forAuthCheck 对齐 + 请求级 parentResource + 唯一 PermEvalContext；结果与 items 下标对齐） | batch-check 族批量判定 |
 | `PermEvalContext` | 条件评估多层上下文（clientIp 用户环境 + evaluatedAt 服务器环境 + attributes 调用方上下文，T-PERM-057） | 条件评估入参 |
 | `OperationCodeConstants` | 操作码常量（CREATE/MANAGE/DELETE等） | 业务层权限校验参数 |
 | `ResourceTypeCode` | 资源类型常量（ROLE/USER/SERVICE等） | 业务层权限校验参数 |
@@ -75,12 +76,15 @@ PermQuery q = PermQuery.forAuthCheck(tenantId, userId, resourceTypeCode, resourc
 PermResult r = engine.query(q);
 return PermResultUtils.toAuthCheckResp(r);
 
-// batchCheck — 批量判定（组装在 AppService：PermissionCheckAppServiceImpl.batchCheck 逐 item 走 engine.query 后 new BatchAuthCheckResp）
-for (var item : items) {
-    PermQuery q = PermQuery.forAuthCheck(tenantId, userId, item.resourceTypeCode(), item.resourceCode(), item.operationCode());
-    results.add(engine.query(q));
-}
-return new BatchAuthCheckResp(List.copyOf(results));
+// batchCheck — 批量判定（T-PERM-061 A+ 形态：分组 + 请求级共享装载）
+// 编排在 AppService：PermissionCheckAppServiceImpl.batchCheck 组装 PermBatchQuery（item 参数
+// 与 forAuthCheck 对齐 + 请求级 parentResource）并钉住唯一非空 PermEvalContext（a2：请求级
+// 单一评估时刻——全部 item/父判定递归/条件评估共用，禁逐 item 重钉禁 now() 回退）
+PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(tenantId, userId, List.of(
+    new PermBatchQuery.Item(resourceTypeCode, resourceCode, operationCode, codeType, domainCode, inheritClosure)));
+batch.setEvalContext(new PermEvalContext(clientIp, LocalDateTime.now(), Map.of()));
+List<PermBatchResult.ItemOutcome> outcomes = engine.queryBatch(batch).outcomes(); // 与 items 下标对齐
+// 禁止循环逐 item 调 engine.query 组装批量结果（回归 N 次完整管线；语义由容器轨等价差分锁钉死）
 
 // checkInterface — 接口权限
 Set<Long> entityIds = matchApiPaths(tenantId, path, method);
@@ -146,6 +150,18 @@ query(PermQuery)
         → [parentResource] 主资源 INSTANCE 判定 + depend_on 过滤
         → 记录 rawEntries → evaluateIfNeeded → [展示面展开] → loadAncillaryForView
   └─ build PermResult (双轨 + rawEntries/parentMatched 回传)
+
+queryBatch(PermBatchQuery) — 批量判定 A+ 形态（T-PERM-061，语义与单条逐 item 等价）
+  ├─ 唯一非空 PermEvalContext 钉住（a2：请求级单一评估时刻挂全链）
+  ├─ 角色 ×1（空=整批 NO_ROLE）→ 六元分组键归组（parentResource 请求级共享不进键）
+  ├─ 共享装载：类型/操作解析 ×1 + 逐组掩码 + scopeAll 行 ×1（合并 SQL 切回组子集）
+  ├─ scopeAll 段逐组评估（组内一次；TYPE_LEVEL 无条件丢 depend_on 子行/INSTANCE filterDependentEntries）
+  │     → 组放行即短路（全部 item allowed，含幽灵 code；ledger 记账后继续）
+  ├─ 实例段（未放行组）：entity 预解析 ×1 按键取 → true 档闭包 CTE ×1（false 档恒 {自身}）
+  │     → 实例行 ×1 → 逐 item 评估（PERM_MUTEX 集合语义）→ reason 三支
+  ├─ 条件快照 = 请求级增量四态（openBatchEvaluator：仅 OK 入正缓存，失败态 fail-close）
+  ├─ 互斥 = 静态数据共享 + 计算通知解耦（openBatchMutexEvaluator；(组,ruleId) ledger 聚合通知）
+  └─ 空目标集守卫：可解析 entityId 并集为空不调闭包 CTE 与实例 SQL
 ```
 
 ## 工具类

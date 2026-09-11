@@ -35,6 +35,19 @@ public interface PermissionConditionDomainService {
                                                    Map<String, Object> context);
 
     /**
+     * 创建请求级批量条件评估器（T-PERM-061 A+ 形态：条件快照 = 请求级增量、四态建模）。
+     * <p>
+     * 批量判定路径消费——per-request 实例经方法参数传递，各段（scopeAll / 实例 / 父判定）
+     * 共用同一快照；仅 OK 规则入 CONDITION_RULES 正缓存，失败态评估 fail-close。
+     * 增量装载与次数口径见 {@link BatchConditionEvaluator}。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 请求级批量条件评估器
+     */
+    BatchConditionEvaluator openBatchEvaluator(Long tenantId);
+
+    /**
      * 条件规则写入口径校验（T-PERM-048 收敛为双轨共享：管理页 create/update 与授权内联轨同源）。
      * <p>
      * ① JSON 语法合法性（JsonValidationUtils）；② {@code gatewayEvaluable=true} 时

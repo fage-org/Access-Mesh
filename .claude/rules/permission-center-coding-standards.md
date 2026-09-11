@@ -10,7 +10,7 @@ origin: project
 metadata:
   project: AccessMesh
   module: access-service
-  version: "6.0.0"
+  version: "6.1.0"
 ---
 
 # 权限中心（access-service permission 域）编码规范
@@ -56,7 +56,7 @@ public R<RoleResp> create(@RequestBody RoleCreateReq req) {
 
 ## 2. 权限查询铁律
 
-**MUST** 所有判定经过 `engine.query()` 或四个显式入口（T-PERM-042 终态，旧 `hasPermission`/`validateBatch`/`getDeniedIds` 已删除）：
+**MUST** 所有判定经过 `engine.query()`、`engine.queryBatch()`（批量判定，T-PERM-061 A+ 形态）或四个显式入口（T-PERM-042 终态，旧 `hasPermission`/`validateBatch`/`getDeniedIds` 已删除）：
 - 业务编码轨（对外，USER/ROLE 等业务对象门禁统一使用，`resource_entity(USER).code = subjectId`、`resource_entity(ROLE).code = roleId`）：`engine.hasPermissionByCode(tenantId, subjectId, type, code, op)`（code 传 null = 类型级）、`engine.getDeniedResourceCodes(...)`（引擎纯查询，拒绝时调用方显式 throw）。
 - 实体 ID 轨（仅引擎内部或已完成解析的调用方：资源树、API 映射、资源依赖、权限树等 resource_entity 管理链路）：`engine.hasPermissionByEntityId(...)`、`engine.getDeniedEntityIds(...)`。
 
@@ -96,6 +96,14 @@ return PermResultUtils.toAuthCheckResp(r);
 // query-resources 语义走 forUserView（forResourceQuery/forResourceCheck 已删除，勿重新引入）
 PermQuery q = PermQuery.forUserView(tenantId, userId);
 PermResult r = engine.query(q);
+
+// 批量判定（batch-check 族）走 queryBatch——A+ 形态（分组 + 请求级共享装载，T-PERM-061）：
+// 编排层组装 PermBatchQuery（item 参数与 forAuthCheck 对齐 + 请求级 parentResource）
+// 并钉住唯一非空 PermEvalContext（请求级单一评估时刻，禁逐 item 重钉禁 now() 回退）；
+// 禁止在 AppService 循环逐 item 调 engine.query 组装批量结果（回归到 N 次完整管线）
+PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(tenantId, userId, items);
+batch.setEvalContext(pinnedEvalContext);
+List<PermBatchResult.ItemOutcome> outcomes = engine.queryBatch(batch).outcomes(); // 与 items 下标对齐
 
 // 管理面写门禁（条件评估已拉平：入口自动装配 clientIp；判定面继承默认开——授父覆盖子）
 PermQuery q = PermQuery.forValidate(tenantId, operatorId, resourceTypeCode, resourceCode, operationCode);

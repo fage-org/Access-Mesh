@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.access.permission.enums.ConditionSource;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.permission.service.domain.BatchConditionEvaluator;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
@@ -98,6 +99,133 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
                     id -> evaluateCondition(tenantId, id, context));
             })
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public BatchConditionEvaluator openBatchEvaluator(Long tenantId) {
+        return new BatchConditionEvaluatorImpl(tenantId);
+    }
+
+    /**
+     * 请求级批量条件评估器（T-PERM-061：四态快照 + 增量装载 + fail-close）。
+     * <p>
+     * 内部类形态以复用本类私有评估原语（evalRules / aggregate / LoadedRules 四态），
+     * 快照与评估记忆均挂在 per-request 实例上——引擎经方法参数传递，禁止落单例字段。
+     * </p>
+     */
+    private final class BatchConditionEvaluatorImpl implements BatchConditionEvaluator {
+
+        private final Long tenantId;
+        /** conditionId → 四态快照（含失败态——同 ID 请求内至多回源一次的显式记忆） */
+        private final Map<Long, LoadedRules> snapshot = new LinkedHashMap<>();
+        /** conditionId → 评估结果记忆（评估上下文请求级唯一，同条件结果恒同） */
+        private final Map<Long, Boolean> evaluated = new HashMap<>();
+
+        BatchConditionEvaluatorImpl(Long tenantId) {
+            this.tenantId = tenantId;
+        }
+
+        @Override
+        public void preload(Long tenantId, Set<Long> conditionIds) {
+            if (conditionIds == null || conditionIds.isEmpty()) {
+                return;
+            }
+            Set<Long> toLoad = new LinkedHashSet<>();
+            for (Long id : conditionIds) {
+                if (id != null && !snapshot.containsKey(id)) {
+                    toLoad.add(id);
+                }
+            }
+            if (toLoad.isEmpty()) {
+                return;
+            }
+            // ① 批量读缓存（命中视为 OK——禁用/删除条件经写路径 evict）
+            Map<Long, JsonNode> cached = cacheService.getBatch(PermCacheCatalog.CONDITION_RULES, tenantId, toLoad);
+            Set<Long> miss = new LinkedHashSet<>();
+            for (Long id : toLoad) {
+                JsonNode rules = cached.get(id);
+                if (rules != null) {
+                    snapshot.put(id, new LoadedRules(LoadedRules.STATUS_OK, rules));
+                } else {
+                    miss.add(id);
+                }
+            }
+            if (miss.isEmpty()) {
+                return;
+            }
+            // ② miss 批量回源：selectValidByIds 只滤租户+软删不滤 enabled——禁用/缺失/解析
+            //    失败记请求级失败状态，仅 OK 入正缓存（朴素批量把禁用条件当有效规则入缓存
+            //    = 权限绕过方向，T-PERM-061 设计定稿四态 fail-close）
+            CacheReadToken<JsonNode> readToken = cacheService.beginRead(PermCacheCatalog.CONDITION_RULES);
+            List<PermissionCondition> rows = conditionMapper.selectValidByIds(tenantId, miss);
+            Map<Long, PermissionCondition> rowById = new LinkedHashMap<>();
+            for (PermissionCondition condition : rows) {
+                rowById.put(condition.getId(), condition);
+            }
+            Map<Long, JsonNode> toPut = new LinkedHashMap<>();
+            for (Long id : miss) {
+                PermissionCondition condition = rowById.get(id);
+                if (condition == null) {
+                    snapshot.put(id, new LoadedRules(LoadedRules.STATUS_NOT_FOUND, null));
+                    continue;
+                }
+                if (!Boolean.TRUE.equals(condition.getEnabled())) {
+                    snapshot.put(id, new LoadedRules(LoadedRules.STATUS_DISABLED, null));
+                    continue;
+                }
+                try {
+                    JsonNode rules = objectMapper.readTree(condition.getConditionRules());
+                    if (rules != null) {
+                        snapshot.put(id, new LoadedRules(LoadedRules.STATUS_OK, rules));
+                        toPut.put(id, rules);
+                    } else {
+                        snapshot.put(id, new LoadedRules(LoadedRules.STATUS_INVALID, null));
+                    }
+                } catch (Exception e) {
+                    log.error("CRITICAL: Failed to parse conditionRules JSON in batch preload, conditionId: {}", id, e);
+                    snapshot.put(id, new LoadedRules(LoadedRules.STATUS_INVALID, null));
+                }
+            }
+            // ③ 仅 OK 回填缓存（beginRead 剩余 TTL）
+            if (!toPut.isEmpty()) {
+                cacheService.putBatch(readToken, tenantId, toPut);
+            }
+        }
+
+        @Override
+        public List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries,
+                                            Map<String, Object> context) {
+            // 防御兜底：引擎按阶段预载后此处零 IO（不新增批次）
+            Set<Long> referenced = new LinkedHashSet<>();
+            for (RolePermEntry entry : entries) {
+                if (entry.conditionId() != null && entry.hasCondition()) {
+                    referenced.add(entry.conditionId());
+                }
+            }
+            preload(tenantId, referenced);
+            return entries.stream()
+                .filter(entry -> passesSnapshot(entry, context))
+                .collect(Collectors.toList());
+        }
+
+        /** 快照评估：非 OK 一律 fail-close 拒绝（与单条 loadRules 语义一致）。 */
+        private boolean passesSnapshot(RolePermEntry entry, Map<String, Object> context) {
+            if (entry.conditionId() == null || !entry.hasCondition()) {
+                return true;
+            }
+            LoadedRules loaded = snapshot.get(entry.conditionId());
+            if (loaded == null || !LoadedRules.STATUS_OK.equals(loaded.status()) || loaded.rules() == null) {
+                return false;
+            }
+            return evaluated.computeIfAbsent(entry.conditionId(), id -> {
+                try {
+                    return aggregate(evalRules(id, loaded.rules(), context));
+                } catch (Exception e) {
+                    log.error("CRITICAL: Unexpected error evaluating condition in batch, conditionId: {}", id, e);
+                    return false;
+                }
+            });
+        }
     }
 
 

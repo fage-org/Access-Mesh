@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,6 +16,8 @@ import cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.permission.service.PermissionCheckAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermBatchQuery;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermBatchResult;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermEvalContext;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
@@ -95,8 +98,10 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
     /**
      * 批量权限校验
      * <p>
-     * 批量校验用户对多个资源操作的权限。
-     * 逐项调用引擎查询，返回每项的校验结果。
+     * T-PERM-061 A+ 形态（分组 + 请求级共享装载）：编排层组装批量查询（item 粒度参数与
+     * 单条 forAuthCheck 对齐）并钉住请求级唯一评估时刻（a2 定案——唯一非空
+     * PermEvalContext 挂全链，禁各 item 重钉禁 now() 回退），判定收敛到
+     * {@link PermQueryEngine#queryBatch}；结果按原始输入序与 items 下标对齐拆分。
      * </p>
      *
      * @param tenantId 租户ID
@@ -114,27 +119,40 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
                     List.of(), List.of()))
                 .toList());
         }
-        List<AuthCheckItemResult> results = new ArrayList<>();
-        for (var item : req.items()) {
-            PermQuery q = PermQuery.forAuthCheck(tenantId, userId,
-                item.resourceTypeCode(), item.resourceCode(), item.operationCode());
-            q.setCodeType(item.codeType());
-            q.setDomainCode(item.domainCode());
-            q.setInheritMode(item.inheritMode());
-            // T-PERM-058 主资源上下文（请求级）：与 query-scopes 对齐——批量项共享同一父上下文
-            if (req.parentResourceTypeCode() != null && req.parentResourceCode() != null) {
-                q.setParentResource(req.parentResourceTypeCode(), req.parentResourceCode(),
-                    req.parentCodeType(), toOperationCodeSet(req.parentOperationCodes()));
-            }
-            q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
-            PermResult r = engine.query(q);
+        // a2 定案：请求级单一评估时刻——fromCallerMap 后立即钉住 evaluatedAt，
+        // 全部 item 评估/父判定递归/条件评估共用同一实例（旧逐 item 路径各 item 各自 now()）
+        PermEvalContext caller = PermEvalContext.fromCallerMap(req.context());
+        PermEvalContext pinned = new PermEvalContext(
+            caller.clientIp(), LocalDateTime.now(), caller.attributes());
+
+        PermBatchQuery batch = PermBatchQuery.forAuthCheckBatch(tenantId, userId, req.items().stream()
+            .map(item -> new PermBatchQuery.Item(
+                item.resourceTypeCode(), item.resourceCode(), item.operationCode(),
+                item.codeType(), item.domainCode(), inheritClosureOf(item.inheritMode())))
+            .toList());
+        batch.setEvalContext(pinned);
+        // T-PERM-058 主资源上下文（请求级）：与 query-scopes 对齐——批量项共享同一父上下文
+        if (req.parentResourceTypeCode() != null && req.parentResourceCode() != null) {
+            batch.setParentResource(req.parentResourceTypeCode(), req.parentResourceCode(),
+                req.parentCodeType(), toOperationCodeSet(req.parentOperationCodes()));
+        }
+
+        List<PermBatchResult.ItemOutcome> outcomes = engine.queryBatch(batch).outcomes();
+        List<AuthCheckItemResult> results = new ArrayList<>(req.items().size());
+        for (int i = 0; i < req.items().size(); i++) {
+            BatchAuthCheckReq.AuthCheckItem item = req.items().get(i);
+            PermBatchResult.ItemOutcome outcome = outcomes.get(i);
             results.add(new AuthCheckItemResult(
                 item.resourceTypeCode(), item.resourceCode(), item.operationCode(),
-                r.allowed(), r.reason(),
-                r.matchedRoleIds().stream().toList(),
-                r.matchedPermissionIds().stream().toList()));
+                outcome.allowed(), outcome.reason(),
+                List.copyOf(outcome.matchedRoleIds()), List.copyOf(outcome.matchedPermissionIds())));
         }
         return new BatchAuthCheckResp(List.copyOf(results));
+    }
+
+    /** inheritMode 参数解析（与 PermQuery.setInheritMode 同口径：PARENT/BOTH 开，其余含缺省关）。 */
+    private static boolean inheritClosureOf(String inheritMode) {
+        return "PARENT".equalsIgnoreCase(inheritMode) || "BOTH".equalsIgnoreCase(inheritMode);
     }
 
     /**

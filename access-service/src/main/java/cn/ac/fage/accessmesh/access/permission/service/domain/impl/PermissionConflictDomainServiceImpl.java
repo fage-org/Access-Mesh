@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.permission.entity.PermissionConflictRule;
 import cn.ac.fage.accessmesh.access.permission.enums.ConflictType;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConflictRuleMapper;
+import cn.ac.fage.accessmesh.access.permission.service.domain.BatchPermMutexEvaluator;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
@@ -161,6 +162,129 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
         return passedEntries.stream()
             .filter(entry -> !context.isConflicting(entry))
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public BatchPermMutexEvaluator openBatchMutexEvaluator(Long tenantId) {
+        return new BatchPermMutexEvaluatorImpl(tenantId);
+    }
+
+    /**
+     * 请求级批量互斥评估器（T-PERM-061：静态数据共享装载 + 计算通知解耦）。
+     * <p>
+     * 规则惰性装载一次、操作索引按 distinct 类型惰性扩；剔除语义与
+     * {@link #filterPermMutex} 逐分支一致（复用 {@link PermMutexContext} 的
+     * 精确查表与两端同场判定），但不通知——通知由调用方 ledger 聚合后
+     * 经 {@link #notifyHits} 触发（b2 定案）。
+     * </p>
+     */
+    private final class BatchPermMutexEvaluatorImpl implements BatchPermMutexEvaluator {
+
+        private final Long tenantId;
+        private List<PermissionConflictRule> rules;
+        private Map<Long, PermissionConflictRule> ruleById = Map.of();
+        /** (resourceType, binaryBit) → 操作索引，按已见类型惰性扩（distinct 类型 O(K)） */
+        private final Map<String, OperationPermission> opByTypeAndBit = new LinkedHashMap<>();
+        private final Set<Integer> indexedTypes = new HashSet<>();
+
+        BatchPermMutexEvaluatorImpl(Long tenantId) {
+            this.tenantId = tenantId;
+        }
+
+        @Override
+        public PermMutexComputation compute(List<RolePermEntry> entries) {
+            if (entries == null || entries.isEmpty()) {
+                return new PermMutexComputation(List.of(), Set.of());
+            }
+            ensureRulesLoaded();
+            ensureOperationIndex(entries);
+            // 剔除语义与单条路径一致（集合语义：对子集整体算 opIds，两端同场才冲突且两端全丢）
+            Set<Long> opIds = entries.stream()
+                .map(entry -> OperationPermissionUtils.findIndexedByResourceTypeAndBinaryBit(
+                    opByTypeAndBit, entry.resourceType(), entry.grantedBits()))
+                .filter(Objects::nonNull)
+                .map(OperationPermission::getId)
+                .collect(Collectors.toSet());
+            Set<Long> triggeredRuleIds = new LinkedHashSet<>();
+            Set<Long> conflictingOpIds = new HashSet<>();
+            for (PermissionConflictRule rule : rules) {
+                if (rule.getFirstOperationPermissionId() != null && rule.getSecondOperationPermissionId() != null
+                    && opIds.contains(rule.getFirstOperationPermissionId())
+                    && opIds.contains(rule.getSecondOperationPermissionId())) {
+                    triggeredRuleIds.add(rule.getId());
+                    conflictingOpIds.add(rule.getFirstOperationPermissionId());
+                    conflictingOpIds.add(rule.getSecondOperationPermissionId());
+                }
+            }
+            List<RolePermEntry> filtered = entries.stream()
+                .filter(entry -> {
+                    OperationPermission granted = OperationPermissionUtils
+                        .findIndexedByResourceTypeAndBinaryBit(opByTypeAndBit,
+                            entry.resourceType(), entry.grantedBits());
+                    return granted == null || !conflictingOpIds.contains(granted.getId());
+                })
+                .collect(Collectors.toList());
+            return new PermMutexComputation(filtered, triggeredRuleIds);
+        }
+
+        @Override
+        public void notifyHits(Long tenantId, List<MutexHit> hits) {
+            if (hits == null || hits.isEmpty()) {
+                return;
+            }
+            ensureRulesLoaded();
+            for (MutexHit hit : hits) {
+                // detail 由实际命中规则（AND 两端在场）构造——未触发规则不出现（内容锁口径）
+                PermissionConflictRule rule = hit.ruleId() == null ? null : ruleById.get(hit.ruleId());
+                if (rule == null) {
+                    log.warn("Batch mutex hit references unknown rule, skipped: tenantId={}, group={}, ruleId={}",
+                        tenantId, hit.groupKey(), hit.ruleId());
+                    continue;
+                }
+                String detail = String.format("rule[%d]: op%d vs op%d", rule.getId(),
+                    rule.getFirstOperationPermissionId(), rule.getSecondOperationPermissionId());
+                try {
+                    auditDomainService.asyncRecordLog(new AuditDomainService.OperationLogEntry(
+                        tenantId, "PERMISSION", "CONFLICT_DETECTED", "permission_conflict_rule", null,
+                        String.format("Perm conflict blocked (batch): tenantId=%d, group=%s, hitItemCount=%d, detail=%s",
+                            tenantId, hit.groupKey(), hit.hitItemCount(), detail),
+                        null, null, null, null, null, null, null
+                    ));
+                } catch (Exception e) {
+                    log.error("Failed to record batch permission conflict notification: tenantId={}, group={}",
+                        tenantId, hit.groupKey(), e);
+                }
+            }
+        }
+
+        private void ensureRulesLoaded() {
+            if (rules != null) {
+                return;
+            }
+            rules = conflictRuleMapper.selectByConflictType(tenantId, ConflictType.PERM_MUTEX.getValue());
+            Map<Long, PermissionConflictRule> index = new LinkedHashMap<>();
+            for (PermissionConflictRule rule : rules) {
+                index.put(rule.getId(), rule);
+            }
+            ruleById = Map.copyOf(index);
+        }
+
+        private void ensureOperationIndex(List<RolePermEntry> entries) {
+            Set<Integer> missing = entries.stream()
+                .map(RolePermEntry::resourceType)
+                .filter(Objects::nonNull)
+                .filter(type -> !indexedTypes.contains(type))
+                .collect(Collectors.toSet());
+            if (missing.isEmpty()) {
+                return;
+            }
+            indexedTypes.addAll(missing);
+            List<OperationPermission> loaded = missing.stream()
+                .flatMap(type -> operationPermissionMapper
+                    .selectByTenantAndResourceType(tenantId, type).stream())
+                .toList();
+            opByTypeAndBit.putAll(OperationPermissionUtils.indexByResourceTypeAndBinaryBit(loaded));
+        }
     }
 
 

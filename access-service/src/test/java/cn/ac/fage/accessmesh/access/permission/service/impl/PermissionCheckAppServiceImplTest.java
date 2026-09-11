@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 import cn.ac.fage.accessmesh.access.permission.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.CheckInterfaceReq;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermBatchQuery;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermBatchResult;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp;
@@ -22,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -173,12 +176,10 @@ class PermissionCheckAppServiceImplTest {
     void batchCheckMustCarryMatchedRecordsAndEmptyOnUserNotFound() {
         when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
 
-        RolePermEntry entry = new RolePermEntry(
-            401L, 20L, 200L, "report:1", 1, 1L, "VIEW", 1L,
-            "MANUAL", false, null, false, null, false);
-        PermResult r = PermResult.builder(true, null)
-            .instanceEntries(List.of(entry)).build();
-        when(engine.query(any(PermQuery.class))).thenReturn(r);
+        // T-PERM-061：batchCheck 编排已收敛到 engine.queryBatch（A+ 形态）——stub 新入口，
+        // 不作等价证据（引擎批量语义由容器轨等价差分锁钉死）
+        when(engine.queryBatch(any(PermBatchQuery.class))).thenReturn(new PermBatchResult(List.of(
+            PermBatchResult.ItemOutcome.allow(Set.of(20L), Set.of(401L)))));
 
         var req = new BatchAuthCheckReq("USER", "u-1",
             List.of(new BatchAuthCheckReq.AuthCheckItem("REPORT", "report:1", "VIEW", null, null, null)),

@@ -45,4 +45,17 @@ public interface PermissionConflictDomainService {
      */
     List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries);
 
+    /**
+     * 创建请求级批量互斥评估器（T-PERM-061 A+ 形态：计算与通知解耦 + 静态数据共享装载）。
+     * <p>
+     * 批量判定路径消费——per-request 实例经方法参数传递；规则请求级一次、操作索引按
+     * distinct 类型惰性扩，计算按传入条目集合（不共享计算）。通知由调用方 ledger
+     * 聚合后经 {@code notifyHits} 显式触发。见 {@link BatchPermMutexEvaluator}。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 请求级批量互斥评估器
+     */
+    BatchPermMutexEvaluator openBatchMutexEvaluator(Long tenantId);
+
 }

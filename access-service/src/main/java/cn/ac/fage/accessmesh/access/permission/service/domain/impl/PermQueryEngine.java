@@ -2,6 +2,8 @@ package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermBatchQuery;
+import cn.ac.fage.accessmesh.access.permission.dto.query.PermBatchResult;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermEvalContext;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
@@ -11,11 +13,14 @@ import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.access.permission.enums.TargetMode;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper.BitMaskEntry;
+import cn.ac.fage.accessmesh.access.permission.service.domain.BatchConditionEvaluator;
+import cn.ac.fage.accessmesh.access.permission.service.domain.BatchPermMutexEvaluator;
 import cn.ac.fage.accessmesh.access.permission.service.domain.*;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResolveContext;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
@@ -337,6 +342,534 @@ public class PermQueryEngine {
 
     /** 主资源判定结果（LIST 模式 depend_on 过滤的父上下文）。 */
     private record ParentCheckOutcome(Set<String> matchedOperationCodes, Set<Long> matchedPermissionIds) {}
+
+    // ===== 批量判定（T-PERM-061 A+ 形态：分组 + 请求级共享装载；设计定稿见 implementation §3.10）=====
+
+    /** 批量分组键（六元；parentResource 请求级共享不进键）。 */
+    private record BatchGroupKey(TargetMode mode, String typeCode, String opCode,
+                                 String codeType, String domainCode, boolean inheritClosure) {}
+
+    /**
+     * 批量组运行态（共享装载与分段评估的中间物；outcomes 按 item 下标回填最终判定）。
+     */
+    private static final class BatchGroup {
+        final BatchGroupKey key;
+        final List<Integer> itemIndexes = new ArrayList<>();
+        final Map<Integer, PermBatchResult.ItemOutcome> outcomes = new HashMap<>();
+        Integer typeValue;
+        Long opId;
+        long coveringMask;
+        boolean scopeAllPassed;
+        boolean scopeAllMatchedBeforeEval;
+        boolean scopeAllEvaluatedEmpty;
+        boolean scopeAllDependentOnly;
+
+        BatchGroup(BatchGroupKey key) {
+            this.key = key;
+        }
+    }
+
+    /**
+     * 批量请求级共享上下文（per-request 实例经方法参数传递——@Component 单例禁止落引擎字段，
+     * 实例字段会跨请求串数据）。全部 DB 新鲜读，不引入 ROLE_PERM_SNAPSHOT 陈旧语义
+     * （L2_ONLY 10s 陈旧窗口不进运行时鉴权面，T-ACCESS-008 边界）。
+     */
+    private static final class BatchEvalContext {
+        final Long tenantId;
+        final Set<Long> roleIds;
+        final Map<String, Object> evalMap;
+        final BatchConditionEvaluator conditionEvaluator;
+        final BatchPermMutexEvaluator mutexEvaluator;
+        /** (组, ruleId) → 命中 item 下标（b2 定案 ledger；scopeAll 段与实例段分桶写入、Set 去重段间合并） */
+        final Map<String, Map<Long, Set<Integer>>> mutexLedger = new LinkedHashMap<>();
+
+        BatchEvalContext(Long tenantId, Set<Long> roleIds, Map<String, Object> evalMap,
+                         BatchConditionEvaluator conditionEvaluator, BatchPermMutexEvaluator mutexEvaluator) {
+            this.tenantId = tenantId;
+            this.roleIds = roleIds;
+            this.evalMap = evalMap;
+            this.conditionEvaluator = conditionEvaluator;
+            this.mutexEvaluator = mutexEvaluator;
+        }
+    }
+
+    /**
+     * 执行批量权限判定（batch-check 族，A+ 形态：分组 + 请求级共享装载）。
+     * <p>
+     * 装载共享收敛为常数、判定全部内存化；契约零变化（reason 词表 / matched 字段族与
+     * 单条 forAuthCheck 逐 item 等价——等价差分回归锁钉死）。核心不变量（设计定稿 v4）：
+     * </p>
+     * <ul>
+     *   <li>合并 SQL 切回投影谓词：组子集 = 同类型 + 组掩码；item 实例子集再按
+     *       {@code entityId ∈ (inheritClosure ? 闭包∪自身 : {自身})} 收窄——false 档（含缺省）
+     *       闭包集恒 {自身}，不得消费 CTE 映射（不分档 = 默认模式获得祖先继承 = 越权）；</li>
+     *   <li>评估粒度：scopeAll 段组内一次（子集与 item 无关）、实例段逐 item（PERM_MUTEX
+     *       集合语义——两端同场才冲突且两端全丢，合并评估必不等价）；</li>
+     *   <li>评估顺序：每个投影子集固定 depend_on 过滤 → 条件评估 → PERM_MUTEX 计算
+     *       （重排致条件摘掉互斥一端前两端同场全丢 = false deny + 虚假审计）；</li>
+     *   <li>evaluatedAt 请求级单一时刻（a2 定案）：入口钉住唯一非空 PermEvalContext 挂全链。</li>
+     * </ul>
+     *
+     * @param bq 批量查询参数（items 顺序即原始输入序，结果按下标对齐）
+     * @return 批量结果（与 items 等长、下标对齐；拒绝项 matched 字段族恒空）
+     */
+    public PermBatchResult queryBatch(PermBatchQuery bq) {
+        Long tenantId = bq.tenantId();
+        // -- 0. 入口封装：唯一且非空 PermEvalContext 钉住请求级单一评估时刻（a2 定案）——
+        //    全部 item 评估、父判定递归、条件评估共用同一实例；调用方已钉住时零操作，
+        //    批量路径禁评估期 now() 回退（toEvalMap null 分支不触达）--
+        PermEvalContext evalContext = bq.evalContext();
+        if (evalContext == null || evalContext.evaluatedAt() == null) {
+            evalContext = new PermEvalContext(
+                evalContext != null ? evalContext.clientIp()
+                    : HttpRequestUtils.getClientIp(HttpRequestUtils.currentRequest()),
+                LocalDateTime.now(),
+                evalContext != null ? evalContext.attributes() : Map.of());
+        }
+        Map<String, Object> evalMap = evalContext.toEvalMap();
+
+        // -- 1. 角色 ×1（空 = 整批 NO_ROLE 前置返回，与单条 query 入口同层）--
+        Set<Long> roleIds;
+        if (bq.roleIds() != null && !bq.roleIds().isEmpty()) {
+            roleIds = bq.roleIds();
+        } else if (bq.userId() == null) {
+            roleIds = Set.of();
+        } else {
+            roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, bq.userId());
+        }
+        List<PermBatchQuery.Item> items = bq.items();
+        if (roleIds.isEmpty()) {
+            List<PermBatchResult.ItemOutcome> outcomes = new ArrayList<>(items.size());
+            for (int i = 0; i < items.size(); i++) {
+                outcomes.add(PermBatchResult.ItemOutcome.deny("NO_ROLE"));
+            }
+            return new PermBatchResult(outcomes);
+        }
+
+        // -- 2. 分组 + 共享类型/操作解析（全类型一次、全 (type,op) 对逐类型批量）+ 逐组掩码 --
+        List<BatchGroup> groups = buildBatchGroups(items);
+        ResolveContext resolveCtx = new ResolveContext(tenantId, typeResolutionService);
+        prepareBatchResolutions(groups, resolveCtx);
+        computeGroupMasks(tenantId, groups);
+
+        BatchEvalContext ctx = new BatchEvalContext(tenantId, roleIds, evalMap,
+            conditionDomainService.openBatchEvaluator(tenantId),
+            conflictDomainService.openBatchMutexEvaluator(tenantId));
+
+        // 共享父判定载体（惰性；共享只经既有注入面 setRoleIds+evalContext——父类型/父操作
+        // 解析不并入共享 ResolveContext：父判定每请求至多一次，其内部解析天然一次）
+        PermQuery parentCarrier = PermQuery.forAuthCheck(tenantId, bq.userId(), null, null, null);
+        parentCarrier.setRoleIds(roleIds);
+        parentCarrier.setEvalContext(evalContext);
+        if (bq.parentResourceTypeCode() != null && bq.parentResourceCode() != null) {
+            parentCarrier.setParentResource(bq.parentResourceTypeCode(), bq.parentResourceCode(),
+                bq.parentCodeType(), bq.parentOperationCodes());
+        }
+        LazyParentCheck parentCheck = new LazyParentCheck(parentCarrier, roleIds);
+
+        // -- 3. scopeAll 行 ×1（全组 BitMaskEntry 合并一次 SQL）+ 段内评估（组内一次）--
+        List<RolePermEntry> scopeAllRows = queryScopeAllForGroups(tenantId, roleIds, groups);
+        // 条件增量快照：scopeAll 段行集到手后一次预载（每阶段至多一批次）
+        ctx.conditionEvaluator.preload(tenantId, collectConditionIds(scopeAllRows));
+        List<BatchGroup> unresolvedGroups = new ArrayList<>();
+        for (BatchGroup group : groups) {
+            evalBatchScopeAllSegment(ctx, group, scopeAllRows, parentCarrier, parentCheck);
+            if (!group.scopeAllPassed) {
+                unresolvedGroups.add(group);
+            }
+        }
+
+        // -- 4. 实例段（仅 scopeAll 未放行组；分段化装载——scopeAll 命中即短路是既有优化）--
+        evalBatchInstanceSegment(ctx, items, unresolvedGroups, parentCarrier, parentCheck);
+
+        // -- 5. 互斥通知 ledger flush（每 (组, ruleId) 一条审计行；单出口——scopeAll 短路组入账后才返回）--
+        flushMutexLedger(ctx);
+
+        // -- 6. 结果按原始输入序组装 --
+        List<PermBatchResult.ItemOutcome> outcomes = new ArrayList<>(items.size());
+        for (int i = 0; i < items.size(); i++) {
+            outcomes.add(null);
+        }
+        for (BatchGroup group : groups) {
+            for (int idx : group.itemIndexes) {
+                PermBatchResult.ItemOutcome outcome = group.outcomes.get(idx);
+                outcomes.set(idx, outcome != null ? outcome
+                    : PermBatchResult.ItemOutcome.deny("NO_PERMISSION"));
+            }
+        }
+        return new PermBatchResult(outcomes);
+    }
+
+    /** 按 (targetMode, type, op, codeType, domainCode, inheritClosure) 六元分组，保序记录 item 下标。 */
+    private List<BatchGroup> buildBatchGroups(List<PermBatchQuery.Item> items) {
+        Map<BatchGroupKey, BatchGroup> byKey = new LinkedHashMap<>();
+        for (int i = 0; i < items.size(); i++) {
+            PermBatchQuery.Item item = items.get(i);
+            TargetMode mode = item.resourceCode() == null ? TargetMode.TYPE_LEVEL : TargetMode.INSTANCE;
+            BatchGroupKey key = new BatchGroupKey(mode, item.resourceTypeCode(), item.operationCode(),
+                item.codeType(), item.domainCode(), item.inheritClosure());
+            byKey.computeIfAbsent(key, BatchGroup::new).itemIndexes.add(i);
+        }
+        return new ArrayList<>(byKey.values());
+    }
+
+    /** 共享类型/操作解析：全类型一次 + 全 (type,op) 对逐类型批量，组上回填解析结果。 */
+    private void prepareBatchResolutions(List<BatchGroup> groups, ResolveContext resolveCtx) {
+        Set<String> typeCodes = new LinkedHashSet<>();
+        Map<String, Set<String>> opsByType = new LinkedHashMap<>();
+        for (BatchGroup group : groups) {
+            typeCodes.add(group.key.typeCode());
+            opsByType.computeIfAbsent(group.key.typeCode(), _unused -> new LinkedHashSet<>())
+                .add(group.key.opCode());
+        }
+        resolveCtx.prepareResourceTypes(typeCodes);
+        for (Map.Entry<String, Set<String>> entry : opsByType.entrySet()) {
+            resolveCtx.prepareOperations(entry.getKey(), entry.getValue());
+        }
+        for (BatchGroup group : groups) {
+            group.typeValue = resolveCtx.getResourceTypeValue(group.key.typeCode());
+            group.opId = resolveCtx.getOperationId(group.key.typeCode(), group.key.opCode());
+        }
+    }
+
+    /** 逐组覆盖掩码（全组操作并集一次装载 + 类型操作索引共享；位覆盖常开）。 */
+    private void computeGroupMasks(Long tenantId, List<BatchGroup> groups) {
+        Set<Long> allOpIds = new LinkedHashSet<>();
+        Set<Integer> typeValues = new LinkedHashSet<>();
+        for (BatchGroup group : groups) {
+            if (group.opId != null) {
+                allOpIds.add(group.opId);
+            }
+            if (group.typeValue != null) {
+                typeValues.add(group.typeValue);
+            }
+        }
+        if (allOpIds.isEmpty() || typeValues.isEmpty()) {
+            return;
+        }
+        Map<Long, OperationPermission> targetOps = batchLoadOperations(tenantId, allOpIds);
+        Map<Integer, Map<Long, OperationPermission>> typeOpIndex = loadOperationIndexByType(tenantId, typeValues);
+        for (BatchGroup group : groups) {
+            if (group.typeValue == null || group.opId == null) {
+                continue;
+            }
+            OperationPermission targetOp = targetOps.get(group.opId);
+            if (targetOp == null || !Objects.equals(targetOp.getResourceType(), group.typeValue)) {
+                continue;
+            }
+            Map<Long, OperationPermission> ops = typeOpIndex.get(group.typeValue);
+            if (ops == null || ops.isEmpty()) {
+                continue;
+            }
+            group.coveringMask = OperationPermissionUtils.computeCoveringBitMask(ops.values(), targetOp.getBinaryBit());
+        }
+    }
+
+    /** scopeAll 行 ×1：全组 BitMaskEntry 合并（同类型 OR 形成超集谓词，切回时按组掩码收窄）。 */
+    private List<RolePermEntry> queryScopeAllForGroups(Long tenantId, Set<Long> roleIds, List<BatchGroup> groups) {
+        Map<Integer, Long> merged = new LinkedHashMap<>();
+        for (BatchGroup group : groups) {
+            if (group.typeValue == null || group.coveringMask == 0L) {
+                continue;
+            }
+            merged.merge(group.typeValue, group.coveringMask, (a, b) -> a | b);
+        }
+        if (merged.isEmpty()) {
+            return List.of();
+        }
+        List<BitMaskEntry> entries = merged.entrySet().stream()
+            .map(e -> new BitMaskEntry(e.getKey(), e.getValue()))
+            .toList();
+        return rolePermMapper.selectScopeAllPermsByBitsBatch(tenantId, roleIds, entries)
+            .stream()
+            .map(entryMapper::toEntry)
+            .toList();
+    }
+
+    /** 组子集切分：resourceType == 组类型 AND (grantedBits & 组掩码) != 0（投影谓词——缺类型谓词即跨组泄漏）。 */
+    private List<RolePermEntry> filterByGroupMask(List<RolePermEntry> rows, BatchGroup group) {
+        if (group.typeValue == null || group.coveringMask == 0L) {
+            return List.of();
+        }
+        return rows.stream()
+            .filter(e -> Objects.equals(e.resourceType(), group.typeValue)
+                && e.grantedBits() != null && (e.grantedBits() & group.coveringMask) != 0)
+            .toList();
+    }
+
+    /**
+     * scopeAll 段评估（组内一次——子集与 item 无关）。
+     * <p>
+     * TYPE_LEVEL 组：无条件丢子行（queryTypeLevel 现状，二值 reason，永不 DEPENDENT）；
+     * INSTANCE 组：filterDependentEntries（无父剥子行/有父按父命中集留，惰性共享父判定）；
+     * 评估通过即组放行（短路优先——全部 item allowed，无论 code 可解析与否）。
+     * </p>
+     */
+    private void evalBatchScopeAllSegment(BatchEvalContext ctx, BatchGroup group,
+                                          List<RolePermEntry> scopeAllRows,
+                                          PermQuery carrier, LazyParentCheck parentCheck) {
+        List<RolePermEntry> subset = filterByGroupMask(scopeAllRows, group);
+        if (group.key.mode() == TargetMode.TYPE_LEVEL) {
+            // 类型级门禁只认主授权——depend_on 子权限行读侧排除（T-PERM-058 现状）
+            subset = subset.stream().filter(e -> e.dependOn() == null).toList();
+        } else {
+            List<RolePermEntry> contextFiltered = filterDependentEntries(carrier, subset, parentCheck);
+            if (contextFiltered.isEmpty() && !subset.isEmpty()) {
+                group.scopeAllDependentOnly = true;
+            }
+            subset = contextFiltered;
+        }
+        group.scopeAllMatchedBeforeEval = !subset.isEmpty();
+        if (subset.isEmpty()) {
+            return;
+        }
+        // 评估顺序不变量：depend_on 过滤（上方）→ 条件评估 → PERM_MUTEX 计算（不得重排）
+        List<RolePermEntry> evaluated = ctx.conditionEvaluator.evaluate(ctx.tenantId, subset, ctx.evalMap);
+        BatchPermMutexEvaluator.PermMutexComputation mutex = ctx.mutexEvaluator.compute(evaluated);
+        // scopeAll 段 ledger：子集与 item 无关——命中规则记账组内全部 item
+        recordMutexHit(ctx, group, mutex.triggeredRuleIds(), group.itemIndexes);
+        evaluated = mutex.filtered();
+        if (evaluated.isEmpty()) {
+            // scopeAll 命中但评估清空：INSTANCE 组实例级仍可命中（授权行各自评估）
+            group.scopeAllEvaluatedEmpty = true;
+            return;
+        }
+        group.scopeAllPassed = true;
+        PermBatchResult.ItemOutcome allowed = allowOutcomeOf(evaluated);
+        for (int idx : group.itemIndexes) {
+            group.outcomes.put(idx, allowed);
+        }
+    }
+
+    /**
+     * 实例段（仅 scopeAll 未放行组；分段化装载）。
+     * <p>
+     * entity 预解析 ×1（按返回 Map 键取）；闭包 CTE 仅对 true 档目标发一次（false 档含缺省
+     * 闭包集恒 {自身}）；实例 SQL 一次（未放行组合并）；逐 item 评估（PERM_MUTEX 集合语义）。
+     * 空目标集守卫：可解析 entityId 并集为空（纯 TYPE_LEVEL 批 / 全幽灵 code）不调闭包 CTE
+     * （空 foreach IN() = PG 语法错误 500）与实例 SQL（<if> 空集丢实体过滤 = 无界装载）。
+     * </p>
+     */
+    private void evalBatchInstanceSegment(BatchEvalContext ctx, List<PermBatchQuery.Item> items,
+                                          List<BatchGroup> unresolvedGroups,
+                                          PermQuery carrier, LazyParentCheck parentCheck) {
+        List<BatchGroup> instanceGroups = unresolvedGroups.stream()
+            .filter(group -> group.key.mode() == TargetMode.INSTANCE)
+            .toList();
+        // TYPE_LEVEL 组在 scopeAll 段已全部出结果（二值 reason——无实例查询）
+        for (BatchGroup group : unresolvedGroups) {
+            if (group.key.mode() == TargetMode.TYPE_LEVEL) {
+                String reason = group.scopeAllMatchedBeforeEval ? "CONDITION_NOT_MET_OR_CONFLICT" : "NO_PERMISSION";
+                for (int idx : group.itemIndexes) {
+                    group.outcomes.put(idx, PermBatchResult.ItemOutcome.deny(reason));
+                }
+            }
+        }
+        if (instanceGroups.isEmpty()) {
+            return;
+        }
+
+        // -- entity 预解析 ×1：实例段全部 item 的 code 合并一次（distinct 解析键）--
+        List<ResourceResolveRequest> requests = new ArrayList<>();
+        Set<ResourceResolveKey> seenKeys = new HashSet<>();
+        for (BatchGroup group : instanceGroups) {
+            for (int idx : group.itemIndexes) {
+                PermBatchQuery.Item item = items.get(idx);
+                if (item.resourceCode() == null) {
+                    continue;
+                }
+                ResourceResolveKey key = new ResourceResolveKey(item.resourceTypeCode(), item.resourceCode(),
+                    item.codeType(), item.domainCode());
+                if (seenKeys.add(key)) {
+                    requests.add(new ResourceResolveRequest(item.resourceTypeCode(), item.resourceCode(),
+                        item.codeType(), item.domainCode()));
+                }
+            }
+        }
+        Map<ResourceResolveKey, Long> entityIdByKey = requests.isEmpty() ? Map.of()
+            : typeResolutionService.batchResolveResourceIds(ctx.tenantId, requests);
+        Map<Integer, Long> entityIdByIndex = new HashMap<>();
+        for (BatchGroup group : instanceGroups) {
+            for (int idx : group.itemIndexes) {
+                PermBatchQuery.Item item = items.get(idx);
+                if (item.resourceCode() != null) {
+                    entityIdByIndex.put(idx, entityIdByKey.get(new ResourceResolveKey(
+                        item.resourceTypeCode(), item.resourceCode(), item.codeType(), item.domainCode())));
+                }
+            }
+        }
+        Set<Long> resolvedIds = new LinkedHashSet<>();
+        for (Long entityId : entityIdByIndex.values()) {
+            if (entityId != null) {
+                resolvedIds.add(entityId);
+            }
+        }
+        if (resolvedIds.isEmpty()) {
+            // 空目标集守卫：全部幽灵/不可解析——各 item 走目标空 reason 树，不下推实例 SQL 与闭包 CTE
+            for (BatchGroup group : instanceGroups) {
+                for (int idx : group.itemIndexes) {
+                    group.outcomes.put(idx, targetEmptyOutcome(group));
+                }
+            }
+            return;
+        }
+
+        // -- 闭包映射 ×1（按档分用）：仅 true 档目标发 CTE；false 档闭包集恒 {自身} --
+        Set<Long> closureTargets = new LinkedHashSet<>();
+        for (Map.Entry<Integer, Long> entry : entityIdByIndex.entrySet()) {
+            if (entry.getValue() != null && items.get(entry.getKey()).inheritClosure()) {
+                closureTargets.add(entry.getValue());
+            }
+        }
+        Map<Long, Set<Long>> closureByTarget = new LinkedHashMap<>();
+        if (!closureTargets.isEmpty()) {
+            for (ResourceEntityMapper.AncestorClosureResult pair :
+                resourceEntityMapper.selectSelfAndAncestorClosureBatch(ctx.tenantId, closureTargets)) {
+                closureByTarget.computeIfAbsent(pair.getTargetId(), _unused -> new LinkedHashSet<>())
+                    .add(pair.getClosureId());
+            }
+        }
+        Set<Long> queryEntityIds = new LinkedHashSet<>();
+        for (Map.Entry<Integer, Long> entry : entityIdByIndex.entrySet()) {
+            Long entityId = entry.getValue();
+            if (entityId == null) {
+                continue;
+            }
+            if (items.get(entry.getKey()).inheritClosure()) {
+                queryEntityIds.addAll(closureByTarget.getOrDefault(entityId, Set.of(entityId)));
+            } else {
+                queryEntityIds.add(entityId);
+            }
+        }
+
+        // -- 实例行 ×1：未放行组 BitMaskEntry 合并（同类型 OR 超集，切回按 item 闭包集收窄）--
+        Map<Integer, Long> mergedMask = new LinkedHashMap<>();
+        for (BatchGroup group : instanceGroups) {
+            if (group.typeValue == null || group.coveringMask == 0L) {
+                continue;
+            }
+            mergedMask.merge(group.typeValue, group.coveringMask, (a, b) -> a | b);
+        }
+        List<RolePermEntry> instanceRows = queryInstance(ctx.tenantId, ctx.roleIds, queryEntityIds, mergedMask);
+        // 条件增量快照：实例段行集到手后一次预载（每阶段至多一批次）
+        ctx.conditionEvaluator.preload(ctx.tenantId, collectConditionIds(instanceRows));
+
+        for (BatchGroup group : instanceGroups) {
+            for (int idx : group.itemIndexes) {
+                evalBatchItem(ctx, group, idx, items.get(idx), entityIdByIndex.get(idx),
+                    instanceRows, closureByTarget, carrier, parentCheck);
+            }
+        }
+    }
+
+    /** 单 item 实例段评估（投影谓词三分量 + 顺序不变量 + reason 三支）。 */
+    private void evalBatchItem(BatchEvalContext ctx, BatchGroup group, int idx, PermBatchQuery.Item item,
+                               Long targetEntityId, List<RolePermEntry> instanceRows,
+                               Map<Long, Set<Long>> closureByTarget,
+                               PermQuery carrier, LazyParentCheck parentCheck) {
+        if (targetEntityId == null) {
+            // 目标空（code 预解析失败）：scopeAll 段三支（对齐单条目标空分支）
+            group.outcomes.put(idx, targetEmptyOutcome(group));
+            return;
+        }
+        // item 实例子集：同类型+组掩码+entityId ∈ (inheritClosure ? cteClosure[target]∪{target} : {target})
+        Set<Long> closure = item.inheritClosure()
+            ? closureByTarget.getOrDefault(targetEntityId, Set.of(targetEntityId))
+            : Set.of(targetEntityId);
+        List<RolePermEntry> subset = instanceRows.stream()
+            .filter(e -> Objects.equals(e.resourceType(), group.typeValue)
+                && e.grantedBits() != null && (e.grantedBits() & group.coveringMask) != 0
+                && e.resourceEntityId() != null && closure.contains(e.resourceEntityId()))
+            .toList();
+        // 评估顺序不变量：depend_on 过滤 → 条件评估 → PERM_MUTEX 计算（不得重排）
+        List<RolePermEntry> filtered = filterDependentEntries(carrier, subset, parentCheck);
+        boolean itemDependentOnly = filtered.isEmpty() && !subset.isEmpty();
+        boolean instanceMatchedBeforeEval = !filtered.isEmpty();
+        List<RolePermEntry> evaluated = ctx.conditionEvaluator.evaluate(ctx.tenantId, filtered, ctx.evalMap);
+        BatchPermMutexEvaluator.PermMutexComputation mutex = ctx.mutexEvaluator.compute(evaluated);
+        recordMutexHit(ctx, group, mutex.triggeredRuleIds(), List.of(idx));
+        evaluated = mutex.filtered();
+        if (!evaluated.isEmpty()) {
+            group.outcomes.put(idx, allowOutcomeOf(evaluated));
+            return;
+        }
+        // 拒绝原因三支（对齐单条评估清空分支：条件/冲突拒绝优先，scopeAll 段标志 OR 合并）
+        boolean anyMatchedBeforeEval = instanceMatchedBeforeEval || group.scopeAllEvaluatedEmpty;
+        String reason = anyMatchedBeforeEval ? "CONDITION_NOT_MET_OR_CONFLICT"
+            : (itemDependentOnly || group.scopeAllDependentOnly) ? "DEPENDENT_NOT_IN_PARENT_CONTEXT"
+            : "NO_PERMISSION";
+        group.outcomes.put(idx, PermBatchResult.ItemOutcome.deny(reason));
+    }
+
+    /** 目标空分支 reason（scopeAll 段三支；TYPE_LEVEL 组不触达）。 */
+    private static PermBatchResult.ItemOutcome targetEmptyOutcome(BatchGroup group) {
+        String reason = group.scopeAllEvaluatedEmpty ? "CONDITION_NOT_MET_OR_CONFLICT"
+            : group.scopeAllDependentOnly ? "DEPENDENT_NOT_IN_PARENT_CONTEXT"
+            : "NO_PERMISSION";
+        return PermBatchResult.ItemOutcome.deny(reason);
+    }
+
+    /** 互斥命中记账（(组, ruleId) → 命中下标集合；scopeAll 段=组内全部 item、实例段=该 item）。 */
+    private void recordMutexHit(BatchEvalContext ctx, BatchGroup group, Set<Long> triggeredRuleIds,
+                                List<Integer> hitIndexes) {
+        if (triggeredRuleIds == null || triggeredRuleIds.isEmpty() || hitIndexes.isEmpty()) {
+            return;
+        }
+        Map<Long, Set<Integer>> bucket = ctx.mutexLedger
+            .computeIfAbsent(groupKeyString(group.key), _unused -> new LinkedHashMap<>());
+        for (Long ruleId : triggeredRuleIds) {
+            bucket.computeIfAbsent(ruleId, _unused -> new LinkedHashSet<>()).addAll(hitIndexes);
+        }
+    }
+
+    /** ledger flush：每 (组, ruleId) 一条审计行（hitItemCount = item 去重、段间合并后计数）。 */
+    private void flushMutexLedger(BatchEvalContext ctx) {
+        if (ctx.mutexLedger.isEmpty()) {
+            return;
+        }
+        List<BatchPermMutexEvaluator.MutexHit> hits = new ArrayList<>();
+        for (Map.Entry<String, Map<Long, Set<Integer>>> groupEntry : ctx.mutexLedger.entrySet()) {
+            for (Map.Entry<Long, Set<Integer>> ruleEntry : groupEntry.getValue().entrySet()) {
+                hits.add(new BatchPermMutexEvaluator.MutexHit(
+                    groupEntry.getKey(), ruleEntry.getKey(), ruleEntry.getValue().size()));
+            }
+        }
+        ctx.mutexEvaluator.notifyHits(ctx.tenantId, hits);
+    }
+
+    /** 允许项工厂（matched 字段族由评估后条目派生；组内共享条目集）。 */
+    private static PermBatchResult.ItemOutcome allowOutcomeOf(List<RolePermEntry> entries) {
+        Set<Long> matchedRoleIds = new LinkedHashSet<>();
+        Set<Long> matchedPermissionIds = new LinkedHashSet<>();
+        for (RolePermEntry entry : entries) {
+            if (entry.roleId() != null) {
+                matchedRoleIds.add(entry.roleId());
+            }
+            if (entry.permissionId() != null) {
+                matchedPermissionIds.add(entry.permissionId());
+            }
+        }
+        return PermBatchResult.ItemOutcome.allow(matchedRoleIds, matchedPermissionIds);
+    }
+
+    /** 行集引用的条件 ID 并集（增量快照 preload 入参）。 */
+    private static Set<Long> collectConditionIds(List<RolePermEntry> rows) {
+        Set<Long> ids = new LinkedHashSet<>();
+        for (RolePermEntry entry : rows) {
+            if (entry.conditionId() != null && entry.hasCondition()) {
+                ids.add(entry.conditionId());
+            }
+        }
+        return ids;
+    }
+
+    /** 组键可读串（互斥 ledger / 审计 detail 消费）。 */
+    private static String groupKeyString(BatchGroupKey key) {
+        return key.mode() + ":" + key.typeCode() + ":" + key.opCode()
+            + ":" + (key.codeType() == null ? "-" : key.codeType())
+            + ":" + (key.domainCode() == null ? "-" : key.domainCode())
+            + ":" + (key.inheritClosure() ? "CLOSURE" : "FLAT");
+    }
 
     /**
      * depend_on 父判定惰性缓存（单次 INSTANCE 查询内 scopeAll 前置与实例查询两阶段
@@ -898,7 +1431,9 @@ public class PermQueryEngine {
      */
     private List<RolePermEntry> queryInstance(Long tenantId, Set<Long> roleIds,
                                                Set<Long> entityIds, Map<Integer, Long> bitMasks) {
-        if (bitMasks == null || bitMasks.isEmpty()) {
+        if (bitMasks == null || bitMasks.isEmpty() || entityIds == null || entityIds.isEmpty()) {
+            // 空目标集守卫（T-PERM-061）：空 entityIds 不下推 SQL——XML <if> 空集会静默丢掉
+            // 实体过滤 = 无界全量行装载（旧路径只守空 bitMasks，grok 外评存量观察，设计列入改动面）
             return List.of();
         }
         // 构建 BitMaskEntry 列表
@@ -1053,6 +1588,49 @@ public class PermQueryEngine {
         // 每类型有效操作集 = 该类型专属操作，uk_operation_permission_typed_bit 保证
         // 同类型同位不异码。冷缓存批量回源：getBatch 收集 miss 类型后一次批量专属
         // 查询（IN），putBatch 分组回填——不逐类型单查。
+        Map<Integer, Map<Long, OperationPermission>> opMapsByType =
+            loadOperationIndexByType(tenantId, resourceTypes);
+
+        Map<Integer, Long> result = new LinkedHashMap<>();
+        for (Integer resourceType : resourceTypes) {
+            Map<Long, OperationPermission> opMap = opMapsByType.getOrDefault(resourceType, Map.of());
+            if (opMap.isEmpty()) {
+                continue;
+            }
+
+            long mask = 0L;
+            for (OperationPermission targetOp : targetOps.values()) {
+                // 目标操作只在本类型位空间参与判定（多类型查询跳过其他类型的专属操作）
+                if (targetOp.getResourceType() != null
+                    && !Objects.equals(resourceType, targetOp.getResourceType())) {
+                    continue;
+                }
+                mask |= OperationPermissionUtils.computeCoveringBitMask(opMap.values(), targetOp.getBinaryBit());
+            }
+            if (mask != 0L) {
+                result.put(resourceType, mask);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 按资源类型批量装载操作索引（OPERATION_PERMISSIONS_BY_TYPE 缓存 + 冷 miss 批量回源）。
+     * <p>
+     * 单条掩码计算与批量判定（T-PERM-061）共享装载面：getBatch 批量读、miss 类型一次
+     * 批量专属查询（IN）、putBatch 分组回填。
+     * </p>
+     *
+     * @param tenantId      租户ID
+     * @param resourceTypes 资源类型值集合
+     * @return resourceType → (operationId → OperationPermission)
+     */
+    private Map<Integer, Map<Long, OperationPermission>> loadOperationIndexByType(
+        Long tenantId, Set<Integer> resourceTypes) {
+        Map<Integer, Map<Long, OperationPermission>> result = new LinkedHashMap<>();
+        if (resourceTypes == null || resourceTypes.isEmpty()) {
+            return result;
+        }
         Set<String> cacheKeys = new LinkedHashSet<>();
         for (Integer resourceType : resourceTypes) {
             cacheKeys.add(PermCacheCatalog.operationPermissionsByTypeKey(resourceType));
@@ -1081,27 +1659,9 @@ public class PermQueryEngine {
             }
             opMapsByCacheKey.putAll(toPut);
         }
-
-        Map<Integer, Long> result = new LinkedHashMap<>();
         for (Integer resourceType : resourceTypes) {
-            Map<Long, OperationPermission> opMap = opMapsByCacheKey.get(
-                PermCacheCatalog.operationPermissionsByTypeKey(resourceType));
-            if (opMap == null || opMap.isEmpty()) {
-                continue;
-            }
-
-            long mask = 0L;
-            for (OperationPermission targetOp : targetOps.values()) {
-                // 目标操作只在本类型位空间参与判定（多类型查询跳过其他类型的专属操作）
-                if (targetOp.getResourceType() != null
-                    && !Objects.equals(resourceType, targetOp.getResourceType())) {
-                    continue;
-                }
-                mask |= OperationPermissionUtils.computeCoveringBitMask(opMap.values(), targetOp.getBinaryBit());
-            }
-            if (mask != 0L) {
-                result.put(resourceType, mask);
-            }
+            result.put(resourceType, opMapsByCacheKey.getOrDefault(
+                PermCacheCatalog.operationPermissionsByTypeKey(resourceType), Map.of()));
         }
         return result;
     }
