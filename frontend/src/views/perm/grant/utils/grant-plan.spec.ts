@@ -143,6 +143,7 @@ describe("normalizeChildGrantKey（子权限属性收敛）", () => {
       operationCode: "VIEW",
       scopeMode: "INSTANCE",
       conditionCode: null,
+      inlineCondition: null,
       canGrant: false
     });
   });
@@ -1214,6 +1215,7 @@ describe("uncheckSlot（取消勾选 → suspended 暂存，§6.1）", () => {
     // 快照属性取生效视图（含未提交的 update）
     expect(stashed?.attributes).toEqual({
       conditionCode: null,
+      inlineCondition: null,
       canGrant: true
     });
   });
