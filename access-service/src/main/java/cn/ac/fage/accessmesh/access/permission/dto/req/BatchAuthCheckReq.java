@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.access.permission.dto.req;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 import java.util.List;
@@ -37,7 +39,7 @@ public record BatchAuthCheckReq(
     String subjectExternalId,
     @NotEmpty(message = "检查项不能为空")
     @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
-    List<AuthCheckItem> items,
+    List<@NotNull @Valid AuthCheckItem> items,
     String parentResourceTypeCode,
     String parentResourceCode,
     String parentCodeType,

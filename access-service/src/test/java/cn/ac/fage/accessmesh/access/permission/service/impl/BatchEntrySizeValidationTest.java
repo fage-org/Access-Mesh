@@ -134,6 +134,41 @@ class BatchEntrySizeValidationTest {
     }
 
     @Test
+    void batchAuthCheckItemFieldsMustCascadeValidateInBothCopies() {
+        // codex 外评存量观察（2026-09-11）：items 双副本缺 @Valid 时嵌套 @NotBlank 不级联，
+        // 空白 resourceTypeCode/operationCode 穿透到引擎走 fail-closed deny 而非 400。
+        // 旧实现（无 @Valid）下本用例失败。
+        Validator validator = validatorFactory.getValidator();
+
+        // 空白 resourceTypeCode → 须 400
+        BatchAuthCheckReq blankType = new BatchAuthCheckReq("LOCAL_USER", "1",
+            List.of(new BatchAuthCheckReq.AuthCheckItem(" ", "m-1", "VIEW", null, null, null)), null, null, null, null, null);
+        assertFalse(validator.validate(blankType).isEmpty(), "嵌套空白 resourceTypeCode 须级联拒 400");
+
+        // 空白 operationCode → 须 400
+        BatchAuthCheckReq blankOp = new BatchAuthCheckReq("LOCAL_USER", "1",
+            List.of(new BatchAuthCheckReq.AuthCheckItem("MENU", "m-1", "", null, null, null)), null, null, null, null, null);
+        assertFalse(validator.validate(blankOp).isEmpty(), "嵌套空白 operationCode 须级联拒 400");
+
+        // null 元素 → 须 400（List 元素级 @NotNull）
+        BatchAuthCheckReq nullElement = new BatchAuthCheckReq("LOCAL_USER", "1",
+            java.util.Arrays.asList((BatchAuthCheckReq.AuthCheckItem) null), null, null, null, null, null);
+        assertFalse(validator.validate(nullElement).isEmpty(), "items null 元素须 400");
+
+        // 合法 item → 无违例
+        BatchAuthCheckReq valid = new BatchAuthCheckReq("LOCAL_USER", "1",
+            List.of(new BatchAuthCheckReq.AuthCheckItem("MENU", "m-1", "VIEW", null, null, null)), null, null, null, null, null);
+        assertTrue(validator.validate(valid).isEmpty());
+
+        // SDK 契约副本同款级联
+        cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq sdkBlank =
+            new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq("LOCAL_USER", "1",
+                List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
+                    "", "m-1", "VIEW", null, null, null)), null, null, null, null, null);
+        assertFalse(validator.validate(sdkBlank).isEmpty(), "SDK 副本嵌套空白同款 400");
+    }
+
+    @Test
     void queryScopesListsMustBeCappedAt1000() {
         Validator validator = validatorFactory.getValidator();
         QueryScopesReq base = new QueryScopesReq("LOCAL_USER", "1", "REPORT", "r-1", null,

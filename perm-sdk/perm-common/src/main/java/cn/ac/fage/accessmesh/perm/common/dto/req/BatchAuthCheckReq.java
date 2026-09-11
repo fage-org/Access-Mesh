@@ -1,7 +1,9 @@
 package cn.ac.fage.accessmesh.perm.common.dto.req;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.Size;
 
@@ -33,7 +35,7 @@ public record BatchAuthCheckReq(
      * 批量校验项列表
      */
     @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
-    List<AuthCheckItem> items,
+    List<@NotNull @Valid AuthCheckItem> items,
     /**
      * 主资源类型码（可选，T-PERM-058）：与 parentResourceCode 成对提供
      */
