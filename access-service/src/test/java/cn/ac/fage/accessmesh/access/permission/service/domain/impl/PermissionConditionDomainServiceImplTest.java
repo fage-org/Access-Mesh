@@ -39,6 +39,7 @@ class PermissionConditionDomainServiceImplTest {
     private static final Long TENANT = 1L;
 
     @Mock private PermissionConditionMapper conditionMapper;
+    @Mock private cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper rolePermMapper;
     @Mock private CacheService cacheService;
     @Mock private CacheReadToken<JsonNode> readToken;
 
@@ -47,7 +48,7 @@ class PermissionConditionDomainServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new PermissionConditionDomainServiceImpl(conditionMapper,
-            new ObjectMapper(), cacheService);
+            rolePermMapper, new ObjectMapper(), cacheService);
         lenient().when(cacheService.beginRead(PermCacheCatalog.CONDITION_RULES)).thenReturn(readToken);
         // 默认缓存全 miss（loadRules 单条路径走 get；各用例按需覆写为命中）
         lenient().when(cacheService.get(eq(PermCacheCatalog.CONDITION_RULES), eq(TENANT), anyLong()))

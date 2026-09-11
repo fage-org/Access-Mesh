@@ -2,11 +2,18 @@ package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
+import cn.ac.fage.accessmesh.access.permission.enums.ConditionSource;
+import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService;
+import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -39,7 +46,11 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     /** 明细展示的 CIDR 掩码条数上限（超出以 … 截断） */
     private static final int MAX_MASKED_IP_SHOWN = 3;
 
+    /** 内联条件 code 生成前缀（T-PERM-048：inline- + UUID，与管理页手输 code 空间天然隔离） */
+    private static final String INLINE_CODE_PREFIX = "inline-";
+
     private final PermissionConditionMapper conditionMapper;
+    private final RoleResourcePermissionMapper rolePermMapper;
     private final ObjectMapper objectMapper;
     private final CacheService cacheService;
 
@@ -47,13 +58,16 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      * 构造函数注入依赖
      *
      * @param conditionMapper 条件数据访问层
+     * @param rolePermMapper  授权数据访问层（内联回收引用归零判定，T-PERM-048）
      * @param objectMapper    JSON解析器
      * @param cacheService    统一缓存服务
      */
     public PermissionConditionDomainServiceImpl(PermissionConditionMapper conditionMapper,
+                                                 RoleResourcePermissionMapper rolePermMapper,
                                                  ObjectMapper objectMapper,
                                                  CacheService cacheService) {
         this.conditionMapper = conditionMapper;
+        this.rolePermMapper = rolePermMapper;
         this.objectMapper = objectMapper;
         this.cacheService = cacheService;
     }
@@ -348,30 +362,104 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      */
     @Override
     public void assertConditionRulesValid(String conditionRules, boolean gatewayEvaluable) {
-        cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils.validateJson(conditionRules);
+        JsonValidationUtils.validateJson(conditionRules);
         if (!gatewayEvaluable) {
             return;
         }
         if (conditionRules == null || conditionRules.isBlank()) {
-            throw new cn.ac.fage.accessmesh.common.exception.BizException(
-                cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+            throw new BizException(PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
                 "gatewayEvaluable=true 但 conditionRules 为空");
         }
         JsonNode tree;
         try {
             tree = objectMapper.readTree(conditionRules);
         } catch (Exception e) {
-            throw new cn.ac.fage.accessmesh.common.exception.BizException(
-                cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+            throw new BizException(PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
                 "conditionRules 解析失败: " + e.getMessage());
         }
         if (!ConditionEvalUtils.isGatewayPushable(tree)) {
-            throw new cn.ac.fage.accessmesh.common.exception.BizException(
-                cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+            throw new BizException(PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
                 "gatewayEvaluable=true 仅允许 logic ∈ "
                     + ConditionEvalUtils.VALID_LOGIC
                     + "（或缺省=AND）且 items[].type ∈ "
                     + ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES + " 的规则");
         }
+    }
+
+    @Override
+    public PermissionCondition createInlineCondition(Long tenantId, Long operatorId,
+        ApplyGrantPlanReq.InlineConditionDef def) {
+        boolean gatewayEvaluable = def.gatewayEvaluable() != null && def.gatewayEvaluable();
+        // 规则写入口径与管理页轨同源（双轨共享校验）
+        assertConditionRulesValid(def.conditionRules(), gatewayEvaluable);
+        PermissionCondition condition = new PermissionCondition();
+        condition.setTenantId(tenantId);
+        // code 自动生成（inline- + UUID，总长 43 ≤ 列宽 64）：租户内碰撞概率可忽略，
+        // uk_permission_condition 兜底（随授权计划事务失败，由用户重提交）
+        condition.setCode(INLINE_CODE_PREFIX + java.util.UUID.randomUUID());
+        condition.setName(def.name());
+        condition.setConditionRules(def.conditionRules());
+        condition.setEnabled(true);
+        condition.setGatewayEvaluable(gatewayEvaluable);
+        condition.setSource(ConditionSource.INLINE.getValue());
+        condition.setCreatedBy(operatorId);
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        condition.setCreatedAt(now);
+        condition.setUpdatedAt(now);
+        condition.setDeleteFlag(0L);
+        conditionMapper.insert(condition);
+        return condition;
+    }
+
+    @Override
+    public void editInlineCondition(Long tenantId, Long operatorId, PermissionCondition condition,
+        ApplyGrantPlanReq.InlineConditionDef def) {
+        if (!ConditionSource.INLINE.getValue().equals(condition.getSource())) {
+            throw new BizException(PermissionErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode(),
+                "仅内联条件可在授权页编辑（管理页条件请在权限条件页更改）: " + condition.getCode());
+        }
+        boolean gatewayEvaluable = def.gatewayEvaluable() != null ? def.gatewayEvaluable()
+            : Boolean.TRUE.equals(condition.getGatewayEvaluable());
+        // 最终态联合校验：只切 flag 用 DB 老 rules / 带 rules 用新 rules（管理页轨同口径）
+        assertConditionRulesValid(
+            def.conditionRules() != null ? def.conditionRules() : condition.getConditionRules(),
+            gatewayEvaluable);
+        condition.setName(def.name());
+        if (def.conditionRules() != null) {
+            condition.setConditionRules(def.conditionRules());
+        }
+        condition.setGatewayEvaluable(gatewayEvaluable);
+        condition.setUpdatedBy(operatorId);
+        condition.setUpdatedAt(java.time.LocalDateTime.now());
+        conditionMapper.update(condition);
+        PermissionChangeContext.markConditions(tenantId, Set.of(condition.getId()));
+    }
+
+    @Override
+    public Set<Long> recycleOrphanInlineConditions(Long tenantId, Set<Long> candidateIds) {
+        if (candidateIds == null || candidateIds.isEmpty()) {
+            return Set.of();
+        }
+        List<PermissionCondition> candidates = conditionMapper.selectValidByIds(tenantId, candidateIds);
+        Set<Long> inlineIds = candidates.stream()
+            .filter(condition -> ConditionSource.INLINE.getValue().equals(condition.getSource()))
+            .map(PermissionCondition::getId)
+            .collect(Collectors.toSet());
+        if (inlineIds.isEmpty()) {
+            return Set.of();
+        }
+        // 引用归零判定：apply 已落库（removes/updates 均已生效）后调用，仍被引用的跳过
+        // （conditionCode 引用轨对 INLINE 已 20060 焊死，仍被引用=防御分支）
+        Set<Long> stillReferenced = rolePermMapper.selectReferencedConditionIds(tenantId, inlineIds);
+        Set<Long> recyclable = inlineIds.stream()
+            .filter(id -> !stillReferenced.contains(id))
+            .collect(Collectors.toSet());
+        if (recyclable.isEmpty()) {
+            return Set.of();
+        }
+        conditionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(recyclable),
+            java.time.LocalDateTime.now());
+        PermissionChangeContext.markConditions(tenantId, recyclable);
+        return recyclable;
     }
 }

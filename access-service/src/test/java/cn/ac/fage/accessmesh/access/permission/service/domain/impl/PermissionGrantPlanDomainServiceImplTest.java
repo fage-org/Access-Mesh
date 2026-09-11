@@ -62,6 +62,8 @@ class PermissionGrantPlanDomainServiceImplTest {
     // 具体实现类 mock：主权限条件不变量用例经 doCallRealMethod 执行真实 20041 校验
     // （validateGrantAttributes 不触达实例字段，安全）；其余方法保持默认 no-op stub
     @Mock private PermissionGrantDomainServiceImpl permissionGrantDomainService;
+    // T-PERM-048 内联轨：接口 mock（默认 no-op——既有用例不触内联；内联专项用例单独装配）
+    @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService conditionDomainService;
     @Mock private RoleResourcePermissionMapper rolePermissionMapper;
     @Mock private ResourceEntityMapper resourceEntityMapper;
     @Mock private OperationPermissionMapper operationPermissionMapper;
@@ -74,7 +76,7 @@ class PermissionGrantPlanDomainServiceImplTest {
     void setUp() {
         service = new PermissionGrantPlanDomainServiceImpl(
             typeResolutionService, domainClassifyService, permissionGrantDomainService,
-            rolePermissionMapper, resourceEntityMapper, operationPermissionMapper,
+            conditionDomainService, rolePermissionMapper, resourceEntityMapper, operationPermissionMapper,
             permissionConditionMapper, domainConfigMapper, new ObjectMapper());
     }
 
@@ -84,7 +86,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                                                         String conditionCode, Boolean canGrant) {
         return new ApplyGrantPlanReq.GrantRecordKey(
             "DATA", resourceCode, scopeMode == ScopeMode.ALL ? null : "default",
-            "VIEW", scopeMode, conditionCode, canGrant);
+            "VIEW", scopeMode, conditionCode, null, canGrant);
     }
 
     private static RoleResourcePermission existing(long id, Long dependOn, String grantSource) {
@@ -262,7 +264,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null)), List.of()));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null, null)), List.of()));
 
             assertEquals(1, prepared.updates().size());
             assertEquals(1, prepared.auditKeys().size());
@@ -346,7 +348,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         void shouldCascadeSoftDeleteChildrenOnMainPermissionRemove() {
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
                 new PermissionGrantPlanDomainService.PreparedGrantPlan(
-                    TENANT, ROLE, List.of(), List.of(), List.of(5L), java.util.Set.of(), List.of());
+                    TENANT, ROLE, List.of(), List.of(), List.of(5L), java.util.Set.of(), List.of(), java.util.Set.of());
             when(rolePermissionMapper.softDeleteBatch(eq(TENANT), eq(List.of(5L)), any()))
                 .thenReturn(1);
 
@@ -414,7 +416,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, null, null)), List.of())));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, null, null, null)), List.of())));
 
             assertEquals(20043, exception.getErrorCode());
         }
@@ -428,7 +430,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, Boolean.TRUE, null)), List.of(5L))));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, Boolean.TRUE, null, null)), List.of(5L))));
 
             assertEquals(20043, exception.getErrorCode());
         }
@@ -442,7 +444,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, Boolean.TRUE, null)), List.of())));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, Boolean.TRUE, null, null)), List.of())));
 
             assertEquals(20043, exception.getErrorCode());
         }
@@ -459,7 +461,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, null, "cond-1")), List.of())));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(6L, null, "cond-1", null)), List.of())));
 
             assertEquals(20043, exception.getErrorCode());
         }
@@ -513,7 +515,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, "work-time")), List.of())));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, "work-time", null)), List.of())));
 
             assertEquals(20041, exception.getErrorCode());
         }
@@ -530,7 +532,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "work-time")), List.of())));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "work-time", null)), List.of())));
 
             assertEquals(20041, exception.getErrorCode());
         }
@@ -546,7 +548,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null)), List.of())));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null, null)), List.of())));
 
             assertEquals(20041, exception.getErrorCode());
         }
@@ -597,7 +599,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "")), List.of()));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "", null)), List.of()));
 
             assertEquals(1, prepared.updates().size());
             assertNull(prepared.updates().get(0).getConditionId());
@@ -615,7 +617,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.FALSE, null)), List.of()));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.FALSE, null, null)), List.of()));
 
             assertEquals(1, prepared.updates().size());
             assertEquals(Boolean.FALSE, prepared.updates().get(0).getCanGrant());
@@ -646,7 +648,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "biz-hours")), List.of())));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "biz-hours", null)), List.of())));
 
             assertEquals(20042, exception.getErrorCode());
         }
@@ -667,7 +669,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "   ")), List.of())));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "   ", null)), List.of())));
 
             assertEquals(20006, exception.getErrorCode());
         }
@@ -685,7 +687,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.FALSE, "biz-hours")), List.of()));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.FALSE, "biz-hours", null)), List.of()));
 
             assertEquals(1, prepared.updates().size());
             assertEquals(30L, prepared.updates().get(0).getConditionId());
@@ -704,7 +706,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "work-time")), List.of()));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "work-time", null)), List.of()));
 
             assertEquals(1, prepared.updates().size());
             assertEquals(31L, prepared.updates().get(0).getConditionId());
@@ -722,7 +724,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared = service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.FALSE, null)), List.of()));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.FALSE, null, null)), List.of()));
 
             assertEquals(1, prepared.updates().size());
         }
@@ -746,7 +748,7 @@ class PermissionGrantPlanDomainServiceImplTest {
 
         private static ApplyGrantPlanReq.GrantRecordKey dataKey(String resourceCode, String operationCode) {
             return new ApplyGrantPlanReq.GrantRecordKey(
-                "DATA", resourceCode, "default", operationCode, ScopeMode.INSTANCE, null, false);
+                "DATA", resourceCode, "default", operationCode, ScopeMode.INSTANCE, null, null, false);
         }
 
         private void stubApplicabilityBase(java.util.List<OperationPermission> operations) {
@@ -837,7 +839,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null)), List.of(5L))));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null, null)), List.of(5L))));
 
             assertEquals(cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode
                 .VALIDATION_FAILED.getCode(), exception.getErrorCode());
@@ -860,7 +862,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(99L, Boolean.TRUE, null)), List.of())));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(99L, Boolean.TRUE, null, null)), List.of())));
 
             assertEquals(20036, exception.getErrorCode());
         }
@@ -886,7 +888,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null)), List.of())));
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null, null)), List.of())));
 
             assertEquals(20034, exception.getErrorCode());
         }
@@ -921,7 +923,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         void shouldRejectRemoveWhenAffectedRowCountChanges() {
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
                 new PermissionGrantPlanDomainService.PreparedGrantPlan(
-                    TENANT, ROLE, List.of(), List.of(), List.of(99L), java.util.Set.of(), List.of());
+                    TENANT, ROLE, List.of(), List.of(), List.of(99L), java.util.Set.of(), List.of(), java.util.Set.of());
             when(rolePermissionMapper.softDeleteBatch(eq(TENANT), eq(List.of(99L)), any()))
                 .thenReturn(0);
 
@@ -1145,5 +1147,192 @@ class PermissionGrantPlanDomainServiceImplTest {
             assertEquals(PermissionGrantPlanDomainService.SubPermissionPolicy.Mode.ALLOW_LIST, policy.mode());
             assertEquals(List.of("BUTTON"), policy.allowedTypeCodes());
         }
+    }
+
+    /** T-PERM-048 内联轨回归锁（定案①：apply-grant-plan 同事务创建/编辑/回收，1:1 不可共享） */
+    @Nested
+    class TPerm048InlineTrack {
+
+        private static final ApplyGrantPlanReq.InlineConditionDef DEF =
+            new ApplyGrantPlanReq.InlineConditionDef("内联条件", "{}", null);
+
+        private PermissionCondition inlineCondition(long id, String code) {
+            PermissionCondition condition = new PermissionCondition();
+            condition.setId(id);
+            condition.setTenantId(TENANT);
+            condition.setCode(code);
+            condition.setName("内联条件");
+            condition.setConditionRules("{}");
+            condition.setEnabled(true);
+            condition.setSource(cn.ac.fage.accessmesh.access.permission.enums.ConditionSource.INLINE.getValue());
+            return condition;
+        }
+
+        private PermissionCondition managedCondition(long id, String code) {
+            PermissionCondition condition = inlineCondition(id, code);
+            condition.setSource(cn.ac.fage.accessmesh.access.permission.enums.ConditionSource.MANAGED.getValue());
+            return condition;
+        }
+
+        @Test
+        void shouldCreateInlineConditionAndBindOnCreateKey() {
+            // 创建轨：key.inlineCondition 落库（同事务）并绑定为该行条件（旧实现无内联形态）
+            stubCreateBase();
+            stubDelegationAllowed();
+            PermissionCondition created = inlineCondition(99L, "inline-abc");
+            when(conditionDomainService.createInlineCondition(eq(TENANT), eq(SUBJECT), any()))
+                .thenReturn(created);
+
+            var prepared = service.prevalidate(TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    new ApplyGrantPlanReq.GrantRecordKey("DATA", "report:sales", "default",
+                        "VIEW", ScopeMode.INSTANCE, null, DEF, null), null, List.of())),
+                    List.of(), List.of()));
+
+            assertEquals(99L, prepared.creates().get(0).permission().getConditionId());
+            verify(conditionDomainService).createInlineCondition(eq(TENANT), eq(SUBJECT), eq(DEF));
+        }
+
+        @Test
+        void shouldRejectWhenConditionCodeAndInlineTogether() {
+            // 二选一互斥：conditionCode（引用轨）与 inlineCondition（内联轨）同现拒绝（validateKeyShapes 期，早于类型解析）
+            assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    new ApplyGrantPlanReq.GrantRecordKey("DATA", "report:sales", "default",
+                        "VIEW", ScopeMode.INSTANCE, "work-time", DEF, null), null, List.of())),
+                    List.of(), List.of())));
+            verify(conditionDomainService, never()).createInlineCondition(any(), any(), any());
+        }
+
+        @Test
+        void shouldRejectChildKeyWithInlineCondition() {
+            // 20043 同口径覆盖内联：子权限不承载任何形态的条件绑定（create 循环期拒绝，早于类型解析）
+            RoleResourcePermission parent = existing(5L, null, "MANUAL");
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE)).thenReturn(List.of(parent));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    new ApplyGrantPlanReq.GrantRecordKey("DATA", "report:sales", "default",
+                        "VIEW", ScopeMode.INSTANCE, null, DEF, null), 5L, List.of())),
+                    List.of(), List.of())));
+
+            assertEquals(20043, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldReject20060WhenConditionCodeReferencesInline() {
+            // 1:1 的 API 焊点：conditionCode 引用轨值域=MANAGED（旧实现可引用任意条件）
+            stubCreateBase();
+            PermissionCondition inline = inlineCondition(99L, "inline-abc");
+            when(permissionConditionMapper.selectValidByCodes(eq(TENANT), anySet()))
+                .thenReturn(List.of(inline));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    new ApplyGrantPlanReq.GrantRecordKey("DATA", "report:sales", "default",
+                        "VIEW", ScopeMode.INSTANCE, "inline-abc", null, null), null, List.of())),
+                    List.of(), List.of())));
+
+            assertEquals(20060, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldEditExistingInlineOnUpdateKeepingBinding() {
+            // 就地编辑：现绑定为 INLINE → editInlineCondition 同 id 保持（不新建、不回收）
+            RoleResourcePermission row = existing(5L, null, "MANUAL");
+            row.setConditionId(99L);
+            stubUpdateRemoveBase(row);
+            PermissionCondition current = inlineCondition(99L, "inline-abc");
+            when(permissionConditionMapper.selectValidByIds(eq(TENANT), anySet()))
+                .thenReturn(List.of(current));
+
+            stubDelegationAllowed();
+            var prepared = service.prevalidate(TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, null,
+                        new ApplyGrantPlanReq.InlineConditionDef("改名", RULES_JSON, null))),
+                    List.of()));
+
+            RoleResourcePermission updated = prepared.updates().get(0);
+            assertEquals(99L, updated.getConditionId());
+            verify(conditionDomainService).editInlineCondition(eq(TENANT), eq(SUBJECT), eq(current), any());
+            verify(conditionDomainService, never()).createInlineCondition(any(), any(), any());
+            assertTrue(prepared.inlineRecycleCandidates().isEmpty());
+        }
+
+        @Test
+        void shouldRebindToNewInlineWhenCurrentIsNullOrManaged() {
+            // 换绑：inlineCondition 非空 = 最终条件为内联（现绑定 null/MANAGED → 新建内联行）
+            stubUpdateRemoveBase(existing(5L, null, "MANUAL"));
+            when(conditionDomainService.createInlineCondition(eq(TENANT), eq(SUBJECT), any()))
+                .thenReturn(inlineCondition(100L, "inline-new"));
+            stubDelegationAllowed();
+
+            var prepared = service.prevalidate(TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, null, DEF)), List.of()));
+
+            assertEquals(100L, prepared.updates().get(0).getConditionId());
+            verify(conditionDomainService).createInlineCondition(eq(TENANT), eq(SUBJECT), eq(DEF));
+            assertTrue(prepared.inlineRecycleCandidates().isEmpty());
+        }
+
+        @Test
+        void shouldCollectRecycleCandidateWhenClearingInlineBinding() {
+            // 回收候选：清除内联绑定（conditionCode=""）→ 原 id 进候选（apply 段归零回收）
+            RoleResourcePermission row = existing(5L, null, "MANUAL");
+            row.setConditionId(99L);
+            stubUpdateRemoveBase(row);
+            when(permissionConditionMapper.selectValidByIds(eq(TENANT), anySet()))
+                .thenReturn(List.of(inlineCondition(99L, "inline-abc")));
+            stubDelegationAllowed();
+
+            var prepared = service.prevalidate(TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "", null)), List.of()));
+
+            assertNull(prepared.updates().get(0).getConditionId());
+            assertTrue(prepared.inlineRecycleCandidates().contains(99L));
+        }
+
+        @Test
+        void shouldRecycleOrphanInlineConditionsOnApply() {
+            // apply 末段：removes/updates 落库后判定引用归零回收（旧实现无回收面=孤儿累积）
+            var prepared = new PermissionGrantPlanDomainService.PreparedGrantPlan(
+                TENANT, ROLE, List.of(), List.of(), List.of(5L), java.util.Set.of(), List.of(),
+                java.util.Set.of(99L));
+            when(rolePermissionMapper.softDeleteBatch(eq(TENANT), eq(List.of(5L)), any()))
+                .thenReturn(1);
+
+            service.apply(prepared);
+
+            verify(conditionDomainService).recycleOrphanInlineConditions(TENANT, java.util.Set.of(99L));
+        }
+
+        @Test
+        void shouldNotRecycleManagedConditionCandidates() {
+            // 回收候选含 MANAGED 来源 id：prevalidate 收集不做来源过滤，过滤在回收侧
+            //（PermissionConditionDomainServiceImplTest 覆盖回收过滤；此处锁候选透传语义）
+            RoleResourcePermission row = existing(5L, null, "MANUAL");
+            row.setConditionId(31L);
+            stubUpdateRemoveBase(row);
+            when(permissionConditionMapper.selectValidByIds(eq(TENANT), anySet()))
+                .thenReturn(List.of(managedCondition(31L, "work-time")));
+            when(conditionDomainService.createInlineCondition(eq(TENANT), eq(SUBJECT), any()))
+                .thenReturn(inlineCondition(100L, "inline-new"));
+            stubDelegationAllowed();
+
+            var prepared = service.prevalidate(TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "", DEF)), List.of()));
+
+            assertTrue(prepared.inlineRecycleCandidates().contains(31L));
+        }
+
+        private static final String RULES_JSON =
+            "{\"logic\":\"AND\",\"items\":[]}";
     }
 }

@@ -188,9 +188,9 @@ class AuthorizationChangeInvalidationPgIT {
                 new ApplyGrantPlanReq.GrantPlan(
                     List.of(new ApplyGrantPlanReq.CreateItem(
                         new ApplyGrantPlanReq.GrantRecordKey(
-                            "ROLE", null, null, "MANAGE", ScopeMode.ALL, null, false),
+                            "ROLE", null, null, "MANAGE", ScopeMode.ALL, null, null, false),
                         null, List.of())),
-                    List.of(new ApplyGrantPlanReq.UpdateItem(updatedPermId, Boolean.TRUE, null)),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(updatedPermId, Boolean.TRUE, null, null)),
                     List.of())));
         } finally {
             AccessRequestContext.clear();
@@ -275,9 +275,9 @@ class AuthorizationChangeInvalidationPgIT {
                         null, "BASIC_ROLE", "target-role-920221",
                         new ApplyGrantPlanReq.GrantPlan(List.of(
                             new ApplyGrantPlanReq.CreateItem(new ApplyGrantPlanReq.GrantRecordKey(
-                                "ROLE", null, null, "MANAGE", ScopeMode.ALL, null, false), null, List.of()),
+                            "ROLE", null, null, "MANAGE", ScopeMode.ALL, null, null, false), null, List.of()),
                             new ApplyGrantPlanReq.CreateItem(new ApplyGrantPlanReq.GrantRecordKey(
-                                "ROLE", null, null, "TRIGGER_OP", ScopeMode.ALL, null, false), null, List.of())),
+                            "ROLE", null, null, "TRIGGER_OP", ScopeMode.ALL, null, null, false), null, List.of())),
                             List.of(), List.of()))));
                 // 锁定故障来自注入的触发器（第二笔 create 落库时炸），而非预检拒绝
                 Throwable root = thrown;

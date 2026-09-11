@@ -97,7 +97,7 @@ class ConditionAppServiceImplTest {
         // 真实 PermissionConditionDomainServiceImpl（条件规则写入口径校验双轨共享，T-PERM-048 收敛）——
         // 保留 T-PERM-017 C2.5 白名单/JSON 校验回归锁为真实行为（mock 会令校验用例空转）
         PermissionConditionDomainService conditionDomainService =
-            new PermissionConditionDomainServiceImpl(conditionMapper, new ObjectMapper(), cacheService);
+            new PermissionConditionDomainServiceImpl(conditionMapper, rolePermMapper, new ObjectMapper(), cacheService);
         service = new ConditionAppServiceImpl(conditionMapper, rolePermMapper, engine,
             localProjectionDomainService, conditionDomainService);
         // T-PERM-017 P2-A：mark 调用需绑定上下文；测试入口主动 bind，AfterEach 清理

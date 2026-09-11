@@ -176,7 +176,8 @@ class PermissionGrantAppServiceImplTest {
                 List.of(new PermissionGrantPlanDomainService.AuditPermissionKey(
                     "REMOVE", "REPORT", "report:sales", "default", "VIEW", ScopeMode.INSTANCE),
                     new PermissionGrantPlanDomainService.AuditPermissionKey(
-                        "ADD", "REPORT", "report:hr", "default", "DATA_EDIT", ScopeMode.ALL)));
+                        "ADD", "REPORT", "report:hr", "default", "DATA_EDIT", ScopeMode.ALL)),
+                java.util.Set.of());
         when(permissionGrantPlanDomainService.prevalidate(eq(TENANT), eq(OPERATOR), eq(ROLE_ID),
             eq("example"), any(ApplyGrantPlanReq.GrantPlan.class))).thenReturn(prepared);
         when(rolePermMapper.selectValidByRoleId(TENANT, ROLE_ID)).thenReturn(List.of());

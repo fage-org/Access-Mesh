@@ -280,7 +280,7 @@ class HttpApiPathSnapshotTest {
 /api/perm/operation-permission/update|access.permission.dto.req.OperationUpdateReq|common.model.R<access.permission.dto.resp.OperationPermissionResp>
 /api/perm/permission-condition/create|access.permission.dto.req.ConditionCreateReq|common.model.R<access.permission.dto.resp.ConditionResp>
 /api/perm/permission-condition/detail|access.permission.dto.req.ConditionDetailReq|common.model.R<access.permission.dto.resp.ConditionResp>
-/api/perm/permission-condition/list|access.permission.dto.req.EmptyReq|common.model.R<perm.common.dto.resp.ItemsResp<access.permission.dto.resp.ConditionResp>>
+/api/perm/permission-condition/list|access.permission.dto.req.ConditionListReq|common.model.R<perm.common.dto.resp.ItemsResp<access.permission.dto.resp.ConditionResp>>
 /api/perm/permission-condition/remove|access.permission.dto.req.ConditionRemoveReq|common.model.R<Void>
 /api/perm/permission-condition/update|access.permission.dto.req.ConditionUpdateReq|common.model.R<access.permission.dto.resp.ConditionResp>
 /api/perm/permission-view/effective-permission-codes|perm.common.dto.req.UserEffectivePermissionCodesReq|common.model.R<perm.common.dto.resp.UserEffectivePermissionCodesResp>

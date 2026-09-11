@@ -79,6 +79,8 @@ public interface PermissionGrantPlanDomainService {
         List<RoleResourcePermission> updates,
         List<Long> removes,
         Set<PermissionGrantDomainService.GrantCheckKey> delegationKeys,
-        List<AuditPermissionKey> auditKeys
+        List<AuditPermissionKey> auditKeys,
+        /** 内联回收候选（T-PERM-048）：随换绑/清除/删行失去引用的原条件 id，apply 末段判定归零回收 */
+        Set<Long> inlineRecycleCandidates
     ) {}
 }
