@@ -111,7 +111,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 > **终态口径（T-ACCESS-016 定稿，2026-08-23）**：① 主体 ID 统一后 `sys_user.id = abstract_user.id`（唯一 ID 源，access-service-architecture §12），`external_id`/`code` 的数值与语义不变（同一 Long 的字符串化）；② 类型码随 §13 注册表收敛：`abstract_user(ADMIN_USER)`→`abstract_user(LOCAL_USER)`（user_type 更名）、`resource_entity(ADMIN_USER/ADMIN_ORG/ADMIN_MENU)`→`resource_entity(USER/ORG/MENU)`；③ 保留业务键终态（§4.3 终态注记）：subject 侧 `ADMIN_USER`→`LOCAL_USER`（无兼容别名）；resource 侧取消类型级保留，本地投影行改按所有权保护（外部 sync UPSERT/DISABLE/DELETE 任一 mutation 分支前置 `owner=access-service` 即 20045、新建撞 code 由唯一索引兜底；USER/MENU 保持公共类型可被外部同步自身资源）——**该 resource 侧口径已被 T-PERM-052 类型级所有权取代（2026-09-05；T-ADMIN-025 增 ADMIN_FILE）：事实链路类型种子声明 SYNC+access-service，外部同步一律拒绝、管理面 20055 只读，行级 owner 防线删除，见下方「保护」段**。类型串替换已随 T-ACCESS-018 落地（本契约全量切换）；USER/ROLE 投影全写路径补齐已随 T-ACCESS-019 落地（2026-08-23，permission 域 abstract-user/abstract-role 管理入口同事务投影，外部 sync 入口遗留登记）。
 
-保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影——保留业务键 `LOCAL_USER` / `ORG|POSITION` / `SYS_USER_ORG`（subject 侧原 `ADMIN_USER` 已更名）与内部 `sourceService` 拒绝为 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05；T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION：事实链路六类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION 种子声明 `managedMode=SYNC + syncSourceService=access-service`，外部同步入口拒绝、管理面资源 CRUD 20055 只读，原保留清单与行级 owner 防线已收编删除，详见 permission-center api-contract §5.1/§5.3/§6.2.2）。
+保护：权限管理入口与外部 `/api/perm/**/sync|full-sync` 拒绝改写本地投影——保留业务键 `LOCAL_USER` / `ORG|POSITION` / `SYS_USER_ORG`（subject 侧原 `ADMIN_USER` 已更名）与内部 `sourceService` 拒绝为 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05；T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION：事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION （T-PERM-048 增 CONDITION——管理页条件投影，仅 source=MANAGED）种子声明 `managedMode=SYNC + syncSourceService=access-service`，外部同步入口拒绝、管理面资源 CRUD 20055 只读，原保留清单与行级 owner 防线已收编删除，详见 permission-center api-contract §5.1/§5.3/§6.2.2）。
 
 本契约接口的投影动作：
 
@@ -952,7 +952,7 @@ Phase 2 后端实现以上 19 个接口后, 必须满足:
 5. **响应壳统一**: 所有接口返回 `R<T>`, 列表不直接返回数组 (由 `RResponseAdvice` 强制); ~~现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`)~~ 已清零（`/org/tree` 已由 T-ADMIN-021 切 `R<ItemsResp<OrgResp>>`；台账见 §5）.
 6. **异常映射**: 业务拒绝抛 `BizException`; 安全拒绝抛 `SecurityException`; 技术故障抛 `SystemException`. 不允许用 `SecurityException` 表达"资源不存在".
 7. **默认树身份目录边界**: `/user/create` (带 orgId), `/user/delete`, `/user/enable`, `/user/reset-password`, `/user-org/set-primary` 必须在 AppService 内做默认树边界二次校验, 失败抛 `BizException`.
-8. **投影所有权**: subject/role/user_role 侧保留业务键（`LOCAL_USER`/`ORG|POSITION`/`SYS_USER_ORG`）不得被外部 sync/full-sync 写入，失败抛 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05；T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION）：事实链路六类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION 种子声明 SYNC+access-service——外部同步被类型所有权门禁以 `RESOURCE_TYPE_OWNERSHIP_DENIED`（同步拒绝响应）拒绝、管理面资源 CRUD 拒绝 20055、所有权声明变更/类型删除冲突拒绝 20056，原行级 `owner=access-service` 检查已收编删除。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
+8. **投影所有权**: subject/role/user_role 侧保留业务键（`LOCAL_USER`/`ORG|POSITION`/`SYS_USER_ORG`）不得被外部 sync/full-sync 写入，失败抛 `BizException(20045)`；resource 侧为类型级所有权（T-PERM-052，2026-09-05；T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION）：事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION （T-PERM-048 增 CONDITION——管理页条件投影，仅 source=MANAGED）种子声明 SYNC+access-service——外部同步被类型所有权门禁以 `RESOURCE_TYPE_OWNERSHIP_DENIED`（同步拒绝响应）拒绝、管理面资源 CRUD 拒绝 20055、所有权声明变更/类型删除冲突拒绝 20056，原行级 `owner=access-service` 检查已收编删除。外部增量/全量同步仍使用 `sync_metadata` 做版本乱序保护。
 
 ---
 

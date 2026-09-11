@@ -75,7 +75,7 @@ public record ApplyGrantPlanReq(
         @NotBlank String operationCode,
         @NotNull ScopeMode scopeMode,
         String conditionCode,
-        InlineConditionDef inlineCondition,
+        @Valid InlineConditionDef inlineCondition,
         Boolean canGrant
     ) {}
 
@@ -83,6 +83,6 @@ public record ApplyGrantPlanReq(
         @NotNull @Positive Long id,
         Boolean canGrant,
         String conditionCode,
-        InlineConditionDef inlineCondition
+        @Valid InlineConditionDef inlineCondition
     ) {}
 }

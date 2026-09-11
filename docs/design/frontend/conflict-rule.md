@@ -88,7 +88,7 @@
 - conflictType 实体注释（MUTEX_OP/MUTEX_ROLE）与 enum 不一致 —— **已修正**（对齐 ROLE_MUTEX/PERM_MUTEX）
 - detect 无权限校验 —— **已补类型级 VIEW**（matchedRules 透出完整规则数据，与 list 同级敏感；经决策）
 
-另随 T-PERM-030：写门禁从「编码轨传内部 id 的实例级」收窄为类型级（CONFLICT_RULE 无实例投影，ID 空间错位废弃，同 T-PERM-029 CONDITION 口径，实例投影登记 T-PERM-048）；detail 查不到从 data:null 收紧为 20020；update 从 UpdateChain 改 UpdateEntity 强制写列（T-PERM-028 extraClear 同款标准方式，语义不变）；mock 对齐后端错误码（404→20020、409→20032、remove 返 data=null）。
+另随 T-PERM-030：写门禁从「编码轨传内部 id 的实例级」收窄为类型级（CONFLICT_RULE 无实例投影，ID 空间错位废弃，同 T-PERM-029 CONDITION 口径，CONDITION 侧投影已随 T-PERM-048 落地（仅 MANAGED），CONFLICT_RULE 维持类型级——投影如需另立任务）；detail 查不到从 data:null 收紧为 20020；update 从 UpdateChain 改 UpdateEntity 强制写列（T-PERM-028 extraClear 同款标准方式，语义不变）；mock 对齐后端错误码（404→20020、409→20032、remove 返 data=null）。
 
 ### ✅ 本次修复（T-PERM-030 P1，2026-07-11）
 

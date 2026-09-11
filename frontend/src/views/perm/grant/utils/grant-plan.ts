@@ -70,6 +70,7 @@ export function normalizeChildGrantKey(key: GrantRecordKey): GrantRecordKey {
   return {
     ...key,
     conditionCode: null,
+    inlineCondition: null,
     canGrant: false
   };
 }
@@ -1049,8 +1050,15 @@ export function uncheckSlot(
   const slotKey = slotKeyOf(input.slot);
   if (state.suspended.has(slotKey)) return state;
   const record = findSlotRecord(input.view, input.slot);
+  // 快照含内联绑定（T-PERM-048 双轨评审 P3-1）：草稿 add 的内联定义随快照恢复；
+  // baseline 内联绑定的定义不在记录上（conditions 按 code 回显），恢复走 conditionCode
+  // round-trip（快照与 baseline 同值不产生 update，编辑内联重新进内联态）
   const attributes: SlotAttributes = record
-    ? { conditionCode: record.conditionCode, canGrant: record.canGrant }
+    ? {
+        conditionCode: record.conditionCode,
+        canGrant: record.canGrant,
+        inlineCondition: record.inlineCondition ?? null
+      }
     : { conditionCode: null, canGrant: false };
 
   let changes = [...state.changes];
@@ -1181,6 +1189,7 @@ export function resumeSlot(
       );
       const after: SlotAttributes = {
         conditionCode: stashed.attributes.conditionCode,
+        inlineCondition: stashed.attributes.inlineCondition ?? null,
         canGrant: stashed.attributes.canGrant
       };
       if (

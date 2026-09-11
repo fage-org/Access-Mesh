@@ -41,8 +41,9 @@ import java.util.stream.Collectors;
  * 门禁语义（T-PERM-030 口径）：读 list/detail/detect 与写 create/update/remove 均为
  * CONFLICT_RULE 类型级（scope_all）——CONFLICT_RULE 无 resource_entity 实例投影，
  * 实例级授权无从配置（role_resource_permission.resource_entity_id 引用 resource_entity.id
- * 空间），原「编码轨传内部 id」的实例级声称系 ID 空间错位已废弃（与 T-PERM-029 CONDITION
- * 同口径，实例投影登记 T-PERM-048）。remove 类型级全有或全无；幽灵 id 静默跳过不进入门禁。
+ * 空间），原「编码轨传内部 id」的实例级声称系 ID 空间错位已废弃（T-PERM-029/030 同口径；
+ * CONDITION 已随 T-PERM-048 落地实例投影与实例级写门禁，CONFLICT_RULE 维持类型级——
+ * 其投影与门禁升级如需另立任务）。remove 类型级全有或全无；幽灵 id 静默跳过不进入门禁。
  * </p>
  * <p>
  * ID 顺序规范化：create/update 写库时保证 first_id &lt; second_id

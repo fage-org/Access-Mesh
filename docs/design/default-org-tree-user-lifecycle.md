@@ -194,7 +194,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 4. `user-role/full-sync(sourceType=<外部 sourceType>&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId})`：同步外部成员关系。
 5. 其他资源按资源类型调用 `resource-entity/full-sync`。
 
-> **评审 P2（2026-08-15）**：禁止使用 `LOCAL_USER`（subject 保留键，原 ADMIN_USER 更名）/`ORG`/`POSITION`/`SYS_USER_ORG` 等 access-service 本地投影保留键（resource 侧为类型级所有权——T-PERM-052 定案 2026-09-05：类型声明 `extra.managedMode=SYNC`+`syncSourceService` 独占同步，事实链路六类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION 由种子声明 SYNC+access-service（T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION），原行级 owner 检查已收编删除）——外部 sync/full-sync 携带保留键会被以 20045（`LOCAL_PROJECTION_IMMUTABLE`）拒绝（subject/role/user_role 通道）或类型所有权门禁以 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝（resource 同步通道，同步拒绝响应而非 20055——20055 是管理面资源 CRUD 的拒绝码）；access-service 对 `sys_user`/`sys_org`/`sys_user_org`/`sys_menu` 的投影由 `access.application` 同事务维护（§5.4），不参与任何 full-sync。
+> **评审 P2（2026-08-15）**：禁止使用 `LOCAL_USER`（subject 保留键，原 ADMIN_USER 更名）/`ORG`/`POSITION`/`SYS_USER_ORG` 等 access-service 本地投影保留键（resource 侧为类型级所有权——T-PERM-052 定案 2026-09-05：类型声明 `extra.managedMode=SYNC`+`syncSourceService` 独占同步，事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION （T-PERM-048 增 CONDITION——管理页条件投影，仅 source=MANAGED）由种子声明 SYNC+access-service（T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION），原行级 owner 检查已收编删除）——外部 sync/full-sync 携带保留键会被以 20045（`LOCAL_PROJECTION_IMMUTABLE`）拒绝（subject/role/user_role 通道）或类型所有权门禁以 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝（resource 同步通道，同步拒绝响应而非 20055——20055 是管理面资源 CRUD 的拒绝码）；access-service 对 `sys_user`/`sys_org`/`sys_user_org`/`sys_menu` 的投影由 `access.application` 同事务维护（§5.4），不参与任何 full-sync。
 
 外部业务服务的单次删除/禁用仍必须生成对应 `DISABLE/DELETE/UNBIND` envelope；全量校准是最终一致性兜底，不是跳过单次同步的理由。
 

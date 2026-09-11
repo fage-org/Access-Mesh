@@ -19,9 +19,13 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -157,5 +161,44 @@ class PermissionConditionDomainServiceImplTest {
 
         assertEquals(1, kept.size(), "AND 空 items 放行、OR 空 items 拒绝（旧语义不变）");
         assertEquals(501L, kept.get(0).permissionId());
+    }
+
+    // ===== T-PERM-048 内联回收：来源过滤与引用归零判定 =====
+
+    private PermissionCondition conditionWithSource(long id, String source) {
+        PermissionCondition condition = condition(Long.valueOf(id), "{\"logic\":\"AND\",\"items\":[]}");
+        condition.setSource(source);
+        return condition;
+    }
+
+    @org.junit.jupiter.api.Test
+    void recycleShouldFilterManagedAndSkipReferenced() {
+        // 候选 {9=MANAGED, 10=INLINE}，均无引用 → 仅 INLINE 被软删（MANAGED 管理页条件不受
+        // 授权页换绑/删行影响——误删该过滤会把管理页条件静默蒸发，本锁在旧实现下必失败于 9 被删）
+        when(conditionMapper.selectValidByIds(eq(TENANT), eq(java.util.Set.of(9L, 10L))))
+            .thenReturn(java.util.List.of(
+                conditionWithSource(9L, "MANAGED"), conditionWithSource(10L, "INLINE")));
+        when(rolePermMapper.selectReferencedConditionIds(eq(TENANT), eq(java.util.Set.of(10L))))
+            .thenReturn(java.util.Set.of());
+
+        java.util.Set<Long> recycled = service.recycleOrphanInlineConditions(TENANT, java.util.Set.of(9L, 10L));
+
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of(10L), recycled);
+        verify(conditionMapper).softDeleteBatch(eq(TENANT),
+            argThat((java.util.List<Long> ids) -> ids.size() == 1 && ids.contains(10L)), org.mockito.ArgumentMatchers.any());
+    }
+
+    @org.junit.jupiter.api.Test
+    void recycleShouldSkipStillReferencedInline() {
+        // 仍被有效授权行引用的 INLINE 跳过不删（防御分支：conditionCode 引用轨已 20060 焊死）
+        when(conditionMapper.selectValidByIds(eq(TENANT), eq(java.util.Set.of(10L))))
+            .thenReturn(java.util.List.of(conditionWithSource(10L, "INLINE")));
+        when(rolePermMapper.selectReferencedConditionIds(eq(TENANT), eq(java.util.Set.of(10L))))
+            .thenReturn(java.util.Set.of(10L));
+
+        java.util.Set<Long> recycled = service.recycleOrphanInlineConditions(TENANT, java.util.Set.of(10L));
+
+        org.junit.jupiter.api.Assertions.assertTrue(recycled.isEmpty());
+        verify(conditionMapper, never()).softDeleteBatch(anyLong(), anyList(), org.mockito.ArgumentMatchers.any());
     }
 }

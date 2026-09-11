@@ -1206,6 +1206,21 @@ class PermissionGrantPlanDomainServiceImplTest {
         }
 
         @Test
+        void shouldRejectUpdateWhenConditionCodeAndInlineTogether() {
+            // update 轨同款互斥（双轨评审 P1 补拒）：conditionCode 非空 + inlineCondition 同传拒绝
+            // ——旧实现静默落内联丢弃引用（20006 存在性预检仍跑，本用例用已知条件短路无关面）
+            stubUpdateRemoveBase(existing(5L, null, "MANUAL"));
+            when(permissionConditionMapper.selectValidByCodes(eq(TENANT), anySet()))
+                .thenReturn(List.of(managedCondition(31L, "work-time")));
+
+            assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "work-time", DEF)), List.of())));
+            verify(conditionDomainService, never()).createInlineCondition(any(), any(), any());
+        }
+
+        @Test
         void shouldRejectChildKeyWithInlineCondition() {
             // 20043 同口径覆盖内联：子权限不承载任何形态的条件绑定（create 循环期拒绝，早于类型解析）
             RoleResourcePermission parent = existing(5L, null, "MANUAL");
@@ -1315,7 +1330,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         @Test
         void shouldNotRecycleManagedConditionCandidates() {
             // 回收候选含 MANAGED 来源 id：prevalidate 收集不做来源过滤，过滤在回收侧
-            //（PermissionConditionDomainServiceImplTest 覆盖回收过滤；此处锁候选透传语义）
+            //（PermissionConditionDomainServiceImplTest.recycleShouldFilterManaged 补锁；此处锁候选透传语义）
             RoleResourcePermission row = existing(5L, null, "MANUAL");
             row.setConditionId(31L);
             stubUpdateRemoveBase(row);

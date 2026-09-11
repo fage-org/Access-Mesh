@@ -340,6 +340,13 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             if (update.canGrant() == null && update.conditionCode() == null && update.inlineCondition() == null) {
                 throw validation("An update must change canGrant, conditionCode or inlineCondition");
             }
+            // 条件绑定二选一（T-PERM-048，与 validateKeyShapes 的 create 轨同款）：
+            // conditionCode 非空（引用轨）与 inlineCondition（内联轨）同传拒绝——
+            // 精确空串（""）+ inlineCondition 组合=换绑为内联，允许
+            if (update.conditionCode() != null && !update.conditionCode().isEmpty()
+                && update.inlineCondition() != null) {
+                throw validation("conditionCode and inlineCondition are mutually exclusive");
+            }
             RoleResourcePermission permission = existingById.get(update.id());
             Long originalConditionId = permission.getConditionId();
             if (update.canGrant() != null) {
@@ -351,8 +358,8 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             }
             // 内联编辑/换绑轨（T-PERM-048 定案①）：inlineCondition 非空 = 该记录最终条件为
             // 该内联定义——现绑定为 INLINE → 就地编辑规则（1:1 保持，同 id）；
-            // 现绑定为 null/MANAGED → 新建内联行换绑（互斥校验保证 conditionCode 此时为 null/""
-            // ——精确空串与 null 行为等价，均被内联覆盖；MANAGED 引用随换绑解除不回收）
+            // 现绑定为 null/MANAGED → 新建内联行换绑（上方互斥校验保证 conditionCode 此时为
+            // null/精确空串——两者行为等价，均被内联覆盖；MANAGED 引用随换绑解除不回收）
             if (update.inlineCondition() != null) {
                 PermissionCondition current = originalConditionId == null ? null
                     : currentConditionsById.get(originalConditionId);

@@ -2096,7 +2096,7 @@ describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
     expect(updated.kind === "add" && updated.recordKey.canGrant).toBe(false);
   });
 
-  it("copySlotAttributes：源内联定义深拷贝到目标（1:1 不复制引用，目标独立定义）", () => {
+  it("copySlotAttributes：源内联定义值应用到目标（1:1 不复制引用——逐目标提交时独立序列化建行）", () => {
     const target = makeRecord({ id: 5004, resourceCode: "data:r3" });
     const source = makeRecord({ id: 5005, resourceCode: "data:r2" });
     const state = createSlotDraftState([]);
@@ -2129,6 +2129,10 @@ describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
     expect(
       update.kind === "update" && update.after.inlineCondition
     ).toEqual(INLINE_DEF);
+    // 引用独立锁：目标 after 的定义对象不与源共享引用（未来引入原地变异写法即红）
+    expect(update.kind === "update" && update.after.inlineCondition).not.toBe(
+      INLINE_DEF
+    );
     expect(update.kind === "update" && update.after.conditionCode).toBeNull();
     expect(update.kind === "update" && update.after.canGrant).toBe(false);
   });
