@@ -157,8 +157,22 @@ export type RolePermissionListReq = {
 };
 
 /**
+ * 授权页内联条件定义（T-PERM-048 双轨制定案①）：随 apply-grant-plan 同事务创建/回收，
+ * 1:1 属于其授权记录（不可被 conditionCode 显式引用/共享）；门禁随授权入口 ROLE:MANAGE 携带。
+ */
+export type InlineConditionDef = {
+  /** 条件名称（必填，DDL NOT NULL） */
+  name: string;
+  /** 条件规则 JSON 字符串（写入口径校验同管理页轨） */
+  conditionRules: string;
+  /** 可下发 Gateway 评估（缺省 false） */
+  gatewayEvaluable?: boolean;
+};
+
+/**
  * 授权记录键（apply-grant-plan creates 的 key / children 项）。
- * 跨字段约束：scopeMode=INSTANCE -> resourceCode/codeType 必填；scopeMode=ALL -> 两者为 null。
+ * 跨字段约束：scopeMode=INSTANCE -> resourceCode/codeType 必填；scopeMode=ALL -> 两者为 null；
+ * 条件绑定二选一（T-PERM-048）：conditionCode（引用轨，值域=MANAGED 条件）或 inlineCondition（内联轨）。
  */
 export type GrantRecordKey = {
   resourceTypeCode: string;
@@ -168,6 +182,8 @@ export type GrantRecordKey = {
   operationCode: string;
   scopeMode: GrantScopeMode;
   conditionCode: string | null;
+  /** 内联条件定义（T-PERM-048）：与 conditionCode 互斥；子权限不得携带（20043 同口径） */
+  inlineCondition?: InlineConditionDef | null;
   /** 缺省 false */
   canGrant?: boolean;
 };
@@ -184,12 +200,15 @@ export type GrantPlanCreate = {
 /**
  * plan.updates[] 项（三态协议）：
  * - canGrant：null/缺省=不改 / true / false
- * - conditionCode：缺省或 null=不改 / ""=清除 / 非空=覆盖
+ * - conditionCode：缺省或 null=不改 / ""=清除 / 非空=覆盖（值域=MANAGED 条件）
+ * - inlineCondition（T-PERM-048）：非空=该记录最终条件为该内联定义（现绑 INLINE 就地编辑 /
+ *   现绑 null/MANAGED 新建换绑；与 conditionCode 非空互斥）
  */
 export type GrantPlanUpdate = {
   id: number;
   canGrant?: boolean | null;
   conditionCode?: string | null;
+  inlineCondition?: InlineConditionDef | null;
 };
 
 /** 记录级授权计划（唯一写入口；单事务原子执行，任一失败整体回滚） */

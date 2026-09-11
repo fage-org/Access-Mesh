@@ -66,6 +66,8 @@ export type SourceRecordInput = {
   operationCode: string | null;
   canGrant: boolean;
   conditionCode: string | null;
+  /** 内联条件绑定（T-PERM-048）：草稿生效记录携带；baseline 记录为 null（其内联经 code 回显） */
+  inlineCondition?: import("@/api/permission-grant").InlineConditionDef | null;
   scopeMode: GrantScopeMode;
   grantSource: GrantSource;
   /** 后端标准字段；兼容旧接口缺失时由 operationCode 回退单操作位。 */
@@ -115,6 +117,8 @@ export type CellSource = {
   /** 组合位记录（operationCode=null 按位拆解命中，来源标注"组合位"） */
   combinationBit: boolean;
   conditionCode: string | null;
+  /** 内联条件绑定（T-PERM-048，条纹判定用） */
+  inlineCondition?: import("@/api/permission-grant").InlineConditionDef | null;
   canGrant: boolean;
   scopeMode: GrantScopeMode;
   createdAt: string;
@@ -403,6 +407,7 @@ export function computeSourceChain(input: {
           opInheritFromCode,
           combinationBit: record.operationCode === null,
           conditionCode: record.conditionCode,
+          inlineCondition: record.inlineCondition ?? null,
           canGrant: record.canGrant,
           scopeMode: record.scopeMode,
           createdAt: record.createdAt ?? "",

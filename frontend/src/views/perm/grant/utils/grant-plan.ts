@@ -13,6 +13,7 @@ import type {
   GrantPlan,
   GrantPlanCreate,
   GrantRecordKey,
+  InlineConditionDef,
   RolePermissionItem
 } from "@/api/permission-grant";
 import type {
@@ -79,6 +80,9 @@ export function normalizeChildGrantKey(key: GrantRecordKey): GrantRecordKey {
 export type EffectiveRecord = RolePermissionItem & {
   draftMark: "add" | "update" | "remove" | null;
   changeId?: string;
+  /** 内联条件定义（T-PERM-048）：草稿 add/applyFocusEdit 后的内联绑定展示用；
+   *  baseline 记录绑定内联时为 null（展示回退 conditions 按 code 查找——code 为 inline- 前缀） */
+  inlineCondition?: InlineConditionDef | null;
 };
 
 export type DraftAppliedView = {
@@ -183,7 +187,8 @@ export function applyDraftToRecords(input: {
       createdAt: "",
       childCount: dependOn == null ? childAdds.length : 0,
       draftMark: "add",
-      changeId: change.changeId
+      changeId: change.changeId,
+      inlineCondition: recordKey.inlineCondition ?? null
     };
   };
 
@@ -205,7 +210,8 @@ export function applyDraftToRecords(input: {
       canGrant: update ? update.after.canGrant : record.canGrant,
       conditionCode: update ? update.after.conditionCode : record.conditionCode,
       draftMark: mark?.mark ?? null,
-      changeId: mark?.changeId
+      changeId: mark?.changeId,
+      inlineCondition: update ? update.after.inlineCondition ?? null : null
     };
     if (record.dependOn == null) {
       mains.push(effective);
@@ -328,17 +334,30 @@ export function buildGrantPlan(changes: DraftChange[]): GrantPlan | null {
     } else if (change.kind === "update") {
       if (removedIds.has(change.recordId)) continue; // 自身被移除
       if (isChildOfRemoved(change.before.dependOn)) continue; // 随主权限级联删除
-      const item: { id: number; canGrant?: boolean; conditionCode?: string } = {
-        id: change.recordId
-      };
+      const item: {
+        id: number;
+        canGrant?: boolean;
+        conditionCode?: string;
+        inlineCondition?: InlineConditionDef | null;
+      } = { id: change.recordId };
       if (change.before.canGrant !== change.after.canGrant) {
         item.canGrant = change.after.canGrant;
       }
-      if (change.before.conditionCode !== change.after.conditionCode) {
-        // 三态：null → 清除映射为 ""；非空 → 覆盖
+      if (change.after.inlineCondition != null) {
+        // T-PERM-048 内联轨：最终条件为该内联定义（后端语义——现绑 INLINE 就地编辑 /
+        // 现绑 null/MANAGED 新建换绑）；与 conditionCode 互斥不并发
+        item.inlineCondition = change.after.inlineCondition;
+      } else if (
+        change.before.conditionCode !== change.after.conditionCode
+      ) {
+        // 三态：null → 清除映射为 ""；非空 → 覆盖（值域=MANAGED）
         item.conditionCode = change.after.conditionCode ?? "";
       }
-      if (item.canGrant !== undefined || item.conditionCode !== undefined) {
+      if (
+        item.canGrant !== undefined ||
+        item.conditionCode !== undefined ||
+        item.inlineCondition != null
+      ) {
         updates.push(item);
       }
     }
@@ -363,7 +382,10 @@ export function buildSummary(input: {
   conditionName?: string | null;
 }): ChangeSummary {
   const { recordKey } = input;
-  const conditionLabel = recordKey.conditionCode ?? "无条件";
+  const conditionLabel = recordKey.conditionCode
+    ?? (recordKey.inlineCondition != null
+      ? `内联:${recordKey.inlineCondition.name}`
+      : "无条件");
   return {
     operationCode: recordKey.operationCode,
     conditionCode: recordKey.conditionCode,
@@ -397,7 +419,11 @@ export function buildAddChange(input: {
 
 export function buildUpdateChange(input: {
   before: RolePermissionItem;
-  after: { canGrant: boolean; conditionCode: string | null };
+  after: {
+    canGrant: boolean;
+    conditionCode: string | null;
+    inlineCondition?: InlineConditionDef | null;
+  };
   summary: ChangeSummary;
 }): UpdateChange {
   return {
@@ -599,12 +625,14 @@ export function applyDialogResultToDraft(input: {
                 recordKey: {
                   ...c.recordKey,
                   conditionCode: attributes.conditionCode,
+                  inlineCondition: attributes.inlineCondition ?? null,
                   canGrant: attributes.canGrant
                 },
                 summary: buildSummary({
                   recordKey: {
                     ...c.recordKey,
                     conditionCode: attributes.conditionCode,
+                    inlineCondition: attributes.inlineCondition ?? null,
                     canGrant: attributes.canGrant
                   },
                   resourceLabel:
@@ -622,6 +650,7 @@ export function applyDialogResultToDraft(input: {
                 ...c,
                 after: {
                   conditionCode: attributes.conditionCode,
+                  inlineCondition: attributes.inlineCondition ?? null,
                   canGrant: attributes.canGrant
                 },
                 summary: buildSummary({
@@ -632,6 +661,7 @@ export function applyDialogResultToDraft(input: {
                     operationCode: focusRecord.operationCode,
                     scopeMode: focusRecord.scopeMode,
                     conditionCode: attributes.conditionCode,
+                    inlineCondition: attributes.inlineCondition ?? null,
                     canGrant: attributes.canGrant
                   },
                   resourceLabel:
@@ -644,14 +674,16 @@ export function applyDialogResultToDraft(input: {
         );
       } else if (
         focusRecord.canGrant !== attributes.canGrant ||
-        focusRecord.conditionCode !== attributes.conditionCode
+        focusRecord.conditionCode !== attributes.conditionCode ||
+        attributes.inlineCondition != null
       ) {
         changes.push(
           buildUpdateChange({
             before: focusRecord,
             after: {
               canGrant: attributes.canGrant,
-              conditionCode: attributes.conditionCode
+              conditionCode: attributes.conditionCode,
+              inlineCondition: attributes.inlineCondition ?? null
             },
             summary: buildSummary({
               recordKey: {
@@ -661,6 +693,7 @@ export function applyDialogResultToDraft(input: {
                 operationCode: focusRecord.operationCode,
                 scopeMode: focusRecord.scopeMode,
                 conditionCode: attributes.conditionCode,
+                inlineCondition: attributes.inlineCondition ?? null,
                 canGrant: attributes.canGrant
               },
               resourceLabel:
@@ -721,14 +754,9 @@ export function applyDialogResultToDraft(input: {
     }
   }
 
-  // 清理：update 变更回退为无差异（after == before）时剔除（清单幽灵条目）
-  changes = changes.filter(c => {
-    if (c.kind !== "update") return true;
-    return (
-      c.before.canGrant !== c.after.canGrant ||
-      c.before.conditionCode !== c.after.conditionCode
-    );
-  });
+  // 清理：update 变更回退为无差异（after == before）时剔除（清单幽灵条目；
+  // 内联在场恒有效——见 normalizeNoopUpdates 注释）
+  changes = normalizeNoopUpdates(changes);
 
   return { changes, revertedChangeIds };
 }
@@ -917,10 +945,13 @@ export type FocusSlot = {
   scopeMode: "INSTANCE" | "ALL";
 };
 
-/** 槽位属性（条件 / 再授予；条件不可转授：conditionCode 非空时 canGrant 恒 false） */
+/** 槽位属性（条件 / 再授予；条件不可转授：conditionCode 或 inlineCondition 非空时 canGrant 恒 false） */
 export type SlotAttributes = {
   conditionCode: string | null;
   canGrant: boolean;
+  /** 内联条件定义（T-PERM-048 双轨制）：非空时该记录最终条件为内联（conditionCode 须为 null）；
+   *  null/缺省 = 非内联形态（managed 引用或无条件，由 conditionCode 表达） */
+  inlineCondition?: InlineConditionDef | null;
 };
 
 /** suspended 槽位（弹窗本地暂存态，设计 §6.1：取消勾选暂存 → 重新勾选恢复 → 确认时双路径展开） */
@@ -1252,7 +1283,9 @@ export function applyFocusAttributes(
   const { slot, view } = input;
   const raw = input.attributes;
   const attributes: SlotAttributes =
-    raw.conditionCode != null ? { ...raw, canGrant: false } : raw;
+    raw.conditionCode != null || raw.inlineCondition != null
+      ? { ...raw, canGrant: false }
+      : raw;
   const record = findSlotRecord(view, slot);
   if (!record) return state;
 
@@ -1265,12 +1298,14 @@ export function applyFocusAttributes(
             recordKey: {
               ...c.recordKey,
               conditionCode: attributes.conditionCode,
+              inlineCondition: attributes.inlineCondition ?? null,
               canGrant: attributes.canGrant
             },
             summary: buildSummary({
               recordKey: {
                 ...c.recordKey,
                 conditionCode: attributes.conditionCode,
+                inlineCondition: attributes.inlineCondition ?? null,
                 canGrant: attributes.canGrant
               },
               resourceLabel: resourceLabelOf(slot, record.resourceName)
@@ -1285,6 +1320,7 @@ export function applyFocusAttributes(
             ...c,
             after: {
               conditionCode: attributes.conditionCode,
+              inlineCondition: attributes.inlineCondition ?? null,
               canGrant: attributes.canGrant
             },
             summary: buildSummary({
@@ -1295,6 +1331,7 @@ export function applyFocusAttributes(
                 operationCode: record.operationCode,
                 scopeMode: record.scopeMode,
                 conditionCode: attributes.conditionCode,
+                inlineCondition: attributes.inlineCondition ?? null,
                 canGrant: attributes.canGrant
               },
               resourceLabel: resourceLabelOf(slot, record.resourceName)
@@ -1304,14 +1341,16 @@ export function applyFocusAttributes(
     );
   } else if (
     record.canGrant !== attributes.canGrant ||
-    record.conditionCode !== attributes.conditionCode
+    record.conditionCode !== attributes.conditionCode ||
+    attributes.inlineCondition != null
   ) {
     changes.push(
       buildUpdateChange({
         before: record,
         after: {
           canGrant: attributes.canGrant,
-          conditionCode: attributes.conditionCode
+          conditionCode: attributes.conditionCode,
+          inlineCondition: attributes.inlineCondition ?? null
         },
         summary: buildSummary({
           recordKey: {
@@ -1321,6 +1360,7 @@ export function applyFocusAttributes(
             operationCode: record.operationCode,
             scopeMode: record.scopeMode,
             conditionCode: attributes.conditionCode,
+            inlineCondition: attributes.inlineCondition ?? null,
             canGrant: attributes.canGrant
           },
           resourceLabel: resourceLabelOf(slot, record.resourceName)
@@ -1350,15 +1390,23 @@ export function copySlotAttributes(
     sourceSlot: FocusSlot;
     targetSlots: FocusSlot[];
     view: DraftAppliedView;
+    /** 源内联条件定义（T-PERM-048）：源绑定为内联时由调用方从 conditions（INLINE 实体）
+     *  或草稿 add 的 recordKey 解析深拷贝传入——内联 1:1 不复制引用，逐目标独立定义 */
+    sourceInline?: InlineConditionDef | null;
   }
 ): SlotDraftState {
   const { sourceSlot, targetSlots, view } = input;
   const sourceKey = slotKeyOf(sourceSlot);
   const source = findSlotRecord(view, sourceSlot);
   if (!source) return state;
+  const sourceInline = input.sourceInline ?? null;
   const attributes: SlotAttributes = {
-    conditionCode: source.conditionCode,
-    canGrant: source.conditionCode != null ? false : source.canGrant
+    conditionCode: sourceInline == null ? source.conditionCode : null,
+    inlineCondition: sourceInline,
+    canGrant:
+      source.conditionCode != null || sourceInline != null
+        ? false
+        : source.canGrant
   };
 
   let changes = [...state.changes];
@@ -1368,13 +1416,15 @@ export function copySlotAttributes(
     if (!record) continue;
     const after: SlotAttributes = {
       conditionCode: attributes.conditionCode,
+      inlineCondition: attributes.inlineCondition ?? null,
       canGrant: attributes.canGrant
     };
     if (
       record.canGrant === after.canGrant &&
-      record.conditionCode === after.conditionCode
+      record.conditionCode === after.conditionCode &&
+      after.inlineCondition == null
     ) {
-      continue; // 属性相同：无变更
+      continue; // 属性相同：无变更（内联复制恒产生逐目标独立定义，不做相同跳过）
     }
     // 禁止同 id 多条：目标已有 update 变更时保留其 before/changeId，仅合并 after
     // （复制值回到 baseline 时 noop 归一化剔除伪变更；before 恒为基线值）
@@ -1387,12 +1437,14 @@ export function copySlotAttributes(
               recordKey: {
                 ...c.recordKey,
                 conditionCode: after.conditionCode,
+                inlineCondition: after.inlineCondition ?? null,
                 canGrant: after.canGrant
               },
               summary: buildSummary({
                 recordKey: {
                   ...c.recordKey,
                   conditionCode: after.conditionCode,
+                  inlineCondition: after.inlineCondition ?? null,
                   canGrant: after.canGrant
                 },
                 resourceLabel: resourceLabelOf(target, record.resourceName)
@@ -1413,6 +1465,7 @@ export function copySlotAttributes(
                 ...c,
                 after: {
                   conditionCode: after.conditionCode,
+                  inlineCondition: after.inlineCondition ?? null,
                   canGrant: after.canGrant
                 },
                 summary: buildSummary({
@@ -1423,6 +1476,7 @@ export function copySlotAttributes(
                     operationCode: target.operationCode,
                     scopeMode: target.scopeMode,
                     conditionCode: after.conditionCode,
+                    inlineCondition: after.inlineCondition ?? null,
                     canGrant: after.canGrant
                   },
                   resourceLabel: resourceLabelOf(target, record.resourceName)
@@ -1443,6 +1497,7 @@ export function copySlotAttributes(
                 operationCode: target.operationCode,
                 scopeMode: target.scopeMode,
                 conditionCode: after.conditionCode,
+                inlineCondition: after.inlineCondition ?? null,
                 canGrant: after.canGrant
               },
               resourceLabel: resourceLabelOf(target, record.resourceName)
@@ -1460,13 +1515,16 @@ export function copySlotAttributes(
   };
 }
 
-/** 归一化：剔除 after==before 的 update 变更（无差异幽灵条目清理，设计 §4 复制合并规则⑥） */
+/** 归一化：剔除 after==before 的 update 变更（无差异幽灵条目清理，设计 §4 复制合并规则⑥）。
+ *  内联轨（T-PERM-048）：after.inlineCondition 非空恒保留——baseline 无条件记录加内联时
+ *  conditionCode 两侧均为 null 无 diff，仅 inline 在场即为有效变更。 */
 export function normalizeNoopUpdates(changes: DraftChange[]): DraftChange[] {
   return changes.filter(c => {
     if (c.kind !== "update") return true;
     return (
       c.before.canGrant !== c.after.canGrant ||
-      c.before.conditionCode !== c.after.conditionCode
+      c.before.conditionCode !== c.after.conditionCode ||
+      c.after.inlineCondition != null
     );
   });
 }

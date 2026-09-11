@@ -19,16 +19,19 @@ export type ConditionResp = {
   /** 内部主键（授权链路 conditionId 引用；管理端点定位一律用 code） */
   id: number;
   tenantId: number;
-  /** 条件编码（业务键，uk tenant+code，创建后不可改） */
+  /** 条件编码（业务键，uk tenant+code，创建后不可改；INLINE 条件为 inline- 前缀自动生成） */
   code: string;
   /** 条件名称 */
   name: string;
   /** 条件规则 JSON 字符串，结构 {logic, items[]}，详见 ConditionEvalUtils */
   conditionRules: string;
-  /** 是否启用 */
+  /** 是否启用（INLINE 条件恒 true） */
   enabled: boolean;
   /** 是否可下发 Gateway 评估（T-PERM-017），true 时规则随接口快照内联到 Gateway 本地重评 */
   gatewayEvaluable: boolean;
+  /** 条件来源（T-PERM-048 双轨制）：MANAGED=管理页条件（可被 conditionCode 引用/可实例级授权）；
+   *  INLINE=授权页内联（1:1 属于创建它的授权记录，不可被显式 code 引用，只能在授权页随记录更改） */
+  source: "MANAGED" | "INLINE";
   /** 条件描述 */
   description: string | null;
   /** 创建时间 */
@@ -60,12 +63,16 @@ export type ConditionUpdateReq = {
 
 /** 查询条件列表（POST /perm/api/perm/permission-condition/list）。
  *  后端返回 ItemsResp<ConditionResp> 全量不分页（T-PERM-029 设计定案：条件模板数量有界，
- *  与 domain-config/service-config 同款；keyword/enabled 过滤由前端本地完成）。 */
-export const getConditionList = async (): Promise<ItemsResp<ConditionResp>> => {
+ *  与 domain-config/service-config 同款；keyword/enabled 过滤由前端本地完成）。
+ *  双轨制（T-PERM-048）：缺省只返回 MANAGED 管理页条件（权限条件页口径——内联条件在管理页
+ *  查不到也不能管理）；includeInline=true 时含 INLINE（授权页回显内联条件名称/规则摘要用）。 */
+export const getConditionList = async (
+  includeInline?: boolean
+): Promise<ItemsResp<ConditionResp>> => {
   const res = await http.request<R<ItemsResp<ConditionResp>>>(
     "post",
     "/perm/api/perm/permission-condition/list",
-    { data: {} }
+    { data: includeInline === true ? { includeInline: true } : {} }
   );
   return unwrap(res);
 };

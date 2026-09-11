@@ -74,7 +74,10 @@ export function aggregatePermissionIcon(
   return {
     solid: hasDirect,
     arrow,
-    striped: sources.every(s => s.conditionCode != null),
+    // 条纹=全部来源带条件（managed 引用或内联定义，T-PERM-048 内联同口径）
+    striped: sources.every(
+      s => s.conditionCode != null || s.inlineCondition != null
+    ),
     boldBorder: sources.some(s => s.canGrant)
   };
 }

@@ -1945,3 +1945,191 @@ describe("评审修复回归（ALL 勾选 / add 恢复 / update 恢复去重 / �
     expect(next.changes).toHaveLength(0);
   });
 });
+
+// ========== T-PERM-048 内联轨（双轨制：apply-grant-plan 同事务创建/编辑/回收） ==========
+
+describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
+  const INLINE_DEF = {
+    name: "工作时间",
+    conditionRules: "{\"logic\":\"AND\",\"items\":[]}",
+    gatewayEvaluable: false
+  };
+
+  it("update 内联编辑：after.inlineCondition 非空 → 只发 inlineCondition（managed 引用不发）", () => {
+    const before = makeRecord({ id: 5000, conditionCode: "inline-abc" });
+    const change = buildUpdateChange({
+      before,
+      after: {
+        canGrant: false,
+        conditionCode: null,
+        inlineCondition: { ...INLINE_DEF }
+      },
+      summary: summaryOf(before)
+    });
+    const plan = buildGrantPlan([change])!;
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates![0].inlineCondition).toEqual(INLINE_DEF);
+    // 互斥：内联在场不发 conditionCode（后端 20060 拒绝 conditionCode 引用内联）
+    expect(plan.updates![0].conditionCode).toBeUndefined();
+  });
+
+  it("update 换绑：managed → 内联 → 只发 inlineCondition（后端新建内联行换绑）", () => {
+    const before = makeRecord({ id: 5001, conditionCode: "work-time" });
+    const change = buildUpdateChange({
+      before,
+      after: {
+        canGrant: false,
+        conditionCode: null,
+        inlineCondition: { ...INLINE_DEF }
+      },
+      summary: summaryOf(before)
+    });
+    const plan = buildGrantPlan([change])!;
+    expect(plan.updates![0].inlineCondition).toEqual(INLINE_DEF);
+    expect(plan.updates![0].conditionCode).toBeUndefined();
+  });
+
+  it("update 清除内联：before=inline code → after 全空 → conditionCode 映射为 \"\"", () => {
+    const before = makeRecord({ id: 5002, conditionCode: "inline-abc" });
+    const change = buildUpdateChange({
+      before,
+      after: { canGrant: false, conditionCode: null, inlineCondition: null },
+      summary: summaryOf(before)
+    });
+    const plan = buildGrantPlan([change])!;
+    expect(plan.updates![0].conditionCode).toBe("");
+    expect(plan.updates![0].inlineCondition).toBeUndefined();
+  });
+
+  it("无条件记录加内联：conditionCode 两侧均 null 无 diff，仅 inline 在场即有效变更（noop 过滤锁）", () => {
+    const before = makeRecord({ id: 5003, conditionCode: null });
+    const change = buildUpdateChange({
+      before,
+      after: {
+        canGrant: false,
+        conditionCode: null,
+        inlineCondition: { ...INLINE_DEF }
+      },
+      summary: summaryOf(before)
+    });
+    const plan = buildGrantPlan([change])!;
+    // 旧实现（仅 canGrant/conditionCode diff 判定）会把该 update 判为 noop 丢弃
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates![0].inlineCondition).toEqual(INLINE_DEF);
+  });
+
+  it("create 键携带内联定义 → creates 原样透传（同事务创建语义）", () => {
+    const add = buildAddChange({
+      recordKey: {
+        resourceTypeCode: "DATA",
+        resourceCode: "data:r1",
+        codeType: "default",
+        operationCode: "VIEW",
+        scopeMode: "INSTANCE",
+        conditionCode: null,
+        inlineCondition: { ...INLINE_DEF },
+        canGrant: false
+      },
+      summary: buildSummary({
+        recordKey: {
+          resourceTypeCode: "DATA",
+          resourceCode: "data:r1",
+          codeType: "default",
+          operationCode: "VIEW",
+          scopeMode: "INSTANCE",
+          conditionCode: null,
+          inlineCondition: { ...INLINE_DEF },
+          canGrant: false
+        },
+        resourceLabel: "数据一"
+      })
+    });
+    const plan = buildGrantPlan([add])!;
+    expect(plan.creates![0].key.inlineCondition).toEqual(INLINE_DEF);
+  });
+
+  it("buildSummary：内联键标签显示 内联:name（清单展示）", () => {
+    const summary = buildSummary({
+      recordKey: {
+        resourceTypeCode: "DATA",
+        resourceCode: "data:r1",
+        codeType: "default",
+        operationCode: "VIEW",
+        scopeMode: "INSTANCE",
+        conditionCode: null,
+        inlineCondition: { ...INLINE_DEF },
+        canGrant: false
+      },
+      resourceLabel: "数据一"
+    });
+    expect(summary.label).toContain("内联:工作时间");
+  });
+
+  it("applyFocusAttributes：内联属性落 add 草稿 recordKey（canGrant 强制 false）", () => {
+    const add = addChangeOf(makeRecord({ resourceCode: "data:r2" }));
+    const state = createSlotDraftState([add]);
+    const view = applyDraftToRecords({
+      baseline: [],
+      changes: state.changes,
+      operations: OPS
+    });
+    const slot: FocusSlot = {
+      resourceTypeCode: "DATA",
+      resourceCode: "data:r2",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE"
+    };
+    const next = applyFocusAttributes(state, {
+      slot,
+      attributes: {
+        conditionCode: null,
+        inlineCondition: { ...INLINE_DEF },
+        canGrant: true
+      },
+      view
+    });
+    const updated = next.changes.find(c => c.kind === "add")!;
+    expect(updated.kind === "add" && updated.recordKey.inlineCondition).toEqual(
+      INLINE_DEF
+    );
+    expect(updated.kind === "add" && updated.recordKey.canGrant).toBe(false);
+  });
+
+  it("copySlotAttributes：源内联定义深拷贝到目标（1:1 不复制引用，目标独立定义）", () => {
+    const target = makeRecord({ id: 5004, resourceCode: "data:r3" });
+    const source = makeRecord({ id: 5005, resourceCode: "data:r2" });
+    const state = createSlotDraftState([]);
+    const view = applyDraftToRecords({
+      baseline: [source, target],
+      changes: [],
+      operations: OPS
+    });
+    const sourceSlot: FocusSlot = {
+      resourceTypeCode: "DATA",
+      resourceCode: "data:r2",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE"
+    };
+    const targetSlot: FocusSlot = {
+      resourceTypeCode: "DATA",
+      resourceCode: "data:r3",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE"
+    };
+    const next = copySlotAttributes(state, {
+      sourceSlot,
+      targetSlots: [targetSlot],
+      view,
+      sourceInline: { ...INLINE_DEF }
+    });
+    const update = next.changes.find(c => c.kind === "update")!;
+    expect(
+      update.kind === "update" && update.after.inlineCondition
+    ).toEqual(INLINE_DEF);
+    expect(update.kind === "update" && update.after.conditionCode).toBeNull();
+    expect(update.kind === "update" && update.after.canGrant).toBe(false);
+  });
+});

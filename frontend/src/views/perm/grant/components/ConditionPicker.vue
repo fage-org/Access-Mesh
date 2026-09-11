@@ -6,6 +6,9 @@
  * 🔧 T-FE-040 v3.1（S4）：新选限启用中条件——停用条件灰显不可选；存量停用绑定回显标注
  * 「条件已停用」（对应后端 20042 同口径：主权限 conditionCode 新写入或变更必须 enabled=true）。
  * 🔧 T-FE-040 v3.1（S5）：CONDITION:VIEW 读取门禁已移除（2026-08-08 产品确认），条件列表始终可读。
+ * 🔧 T-PERM-048 双轨制：引用轨值域=MANAGED（列表过滤 INLINE——内联条件 1:1 属于创建它的
+ * 授权记录不可共享）；固定项「内联条件…」切换内联编辑模式（select-inline 事件，编辑器在
+ * GrantDialog 授权设置区展开）；inlineActive 时触发按钮显示内联态。
  */
 import { computed, ref } from "vue";
 import { Search } from "@element-plus/icons-vue";
@@ -17,10 +20,13 @@ const props = defineProps<{
   conditions: ConditionResp[];
   disabled?: boolean;
   placeholder?: string;
+  /** 内联编辑模式激活（T-PERM-048）：触发按钮显示内联态，列表不高亮任何 MANAGED 项 */
+  inlineActive?: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: "update:modelValue", value: string | null): void;
+  (e: "select-inline"): void;
 }>();
 
 const keyword = ref("");
@@ -32,11 +38,13 @@ const selected = computed(
 
 const filtered = computed(() => {
   const kw = keyword.value.trim();
-  return props.conditions.filter(c => {
-    if (enabledOnly.value && !c.enabled) return false;
-    if (!kw) return true;
-    return c.code.includes(kw) || c.name.includes(kw);
-  });
+  return props.conditions
+    .filter(c => c.source !== "INLINE")
+    .filter(c => {
+      if (enabledOnly.value && !c.enabled) return false;
+      if (!kw) return true;
+      return c.code.includes(kw) || c.name.includes(kw);
+    });
 });
 
 function handleSelect(code: string | null) {
@@ -45,6 +53,11 @@ function handleSelect(code: string | null) {
     return;
   }
   emit("update:modelValue", code);
+  popoverVisible.value = false;
+}
+
+function handleSelectInline() {
+  emit("select-inline");
   popoverVisible.value = false;
 }
 
@@ -60,7 +73,10 @@ const popoverVisible = ref(false);
   >
     <template #reference>
       <el-button :disabled="disabled" class="condition-trigger">
-        <span v-if="selected">
+        <span v-if="inlineActive" class="inline-active-label">
+          内联条件（编辑中）
+        </span>
+        <span v-else-if="selected">
           {{ selected.name }}（{{ selected.code }}）
           <!-- S4：存量停用绑定回显标注 -->
           <el-tooltip
@@ -90,18 +106,31 @@ const popoverVisible = ref(false);
       <div class="picker-list">
         <div
           class="picker-item"
-          :class="{ active: modelValue === null }"
+          :class="{ active: !inlineActive && modelValue === null }"
           @click="handleSelect(null)"
         >
           <span class="item-name">无条件</span>
           <span class="item-summary">不附加条件，始终生效</span>
         </div>
         <div
+          class="picker-item"
+          :class="{ active: inlineActive }"
+          @click="handleSelectInline"
+        >
+          <span class="item-name">
+            内联条件…
+            <el-tag size="small" type="warning" effect="plain">随授权保存创建</el-tag>
+          </span>
+          <span class="item-summary">
+            就地定义规则，随本条授权记录保存/回收（管理页不可见）
+          </span>
+        </div>
+        <div
           v-for="condition in filtered"
           :key="condition.code"
           class="picker-item"
           :class="{
-            active: modelValue === condition.code,
+            active: !inlineActive && modelValue === condition.code,
             disabled: !condition.enabled
           }"
           @click="handleSelect(condition.code)"
@@ -127,7 +156,7 @@ const popoverVisible = ref(false);
         />
       </div>
       <div class="picker-footer">
-        需新建条件请前往「3.2 权限条件」页维护，本页只选择已有条件。
+        复用型条件请在「3.2 权限条件」页维护后引用；单条授权专用的条件用内联条件就地定义。
       </div>
     </div>
   </el-popover>
@@ -140,6 +169,10 @@ const popoverVisible = ref(false);
 
   .placeholder {
     color: var(--el-text-color-placeholder);
+  }
+
+  .inline-active-label {
+    color: var(--el-color-warning);
   }
 }
 

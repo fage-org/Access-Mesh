@@ -110,8 +110,13 @@ export type UpdateChange = {
   recordId: number;
   /** 变更前快照（清单展示 + 撤销回滚） */
   before: RolePermissionItem;
-  /** 变更后值（仅微变更字段；conditionCode=null 表示清除条件，提交时映射为 ""） */
-  after: { canGrant: boolean; conditionCode: string | null };
+  /** 变更后值（仅微变更字段；conditionCode=null 表示清除条件，提交时映射为 ""；
+   *  inlineCondition 非空=最终条件为内联定义（T-PERM-048，conditionCode 须为 null）） */
+  after: {
+    canGrant: boolean;
+    conditionCode: string | null;
+    inlineCondition?: import("@/api/permission-grant").InlineConditionDef | null;
+  };
   summary: ChangeSummary;
 };
 

@@ -168,8 +168,10 @@ export function usePermissionGrant() {
         // 仍维持不做前端前置的既有设计）
         getResourceTree({}),
         getOperationList({}),
-        // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），条件列表始终加载
-        getConditionList()
+        // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），条件列表始终加载；
+        // 🔧 T-PERM-048：includeInline=true 含内联条件（详情/节点摘要回显内联名称与规则——
+        // 引用选择器侧自行过滤 source=INLINE）
+        getConditionList(true)
       ]);
       typeCandidates.value = (typeResp.items ?? [])
         .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
