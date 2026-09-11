@@ -602,4 +602,40 @@ class BatchAuthCheckPgIT {
         assertThat(outcome.reason()).isEqualTo("CONDITION_NOT_MET_OR_CONFLICT");
         verify(conditionMapper, times(1)).selectValidByIds(eq(TENANT), anySet());
     }
+
+    // ===== 补：批量父判定装配分支（外评发现——请求级父上下文 + 实例 depend_on 子行） =====
+
+    @Test
+    @DisplayName("父判定装配：请求级父上下文 + 实例 depend_on 子行 → 父命中放行 / 父操作不覆盖 DEPENDENT")
+    void batchParentContextMustResolveThroughSharedCarrier() {
+        int type = newType();
+        ensureOperation(type, "VIEW", VIEW_BIT, 0L);
+        ensureOperation(type, "UPDATE", UPDATE_BIT, 0L); // (b) 变体：父实体不挂 UPDATE 行
+        long subjectId = newSubject("parent");
+        long roleId = roleIdOf(subjectId);
+        long parentEntity = insertResource(type, "b61-pt-parent", null);
+        long childEntity = insertResource(type, "b61-pt-child", null);
+        long parentPermId = insertPerm(roleId, type, parentEntity, VIEW_BIT, false, null, null); // 父主行
+        long childPermId = insertPerm(roleId, type, childEntity, VIEW_BIT, false, null, parentPermId); // 子行
+
+        // (a) 父操作覆盖（VIEW）：父判定命中集含 parentPermId ⊇ 子行 depend_on → 子行保留放行
+        //     （覆盖 carrier 装配三线：setRoleIds 不重复解析、setEvalContext 时刻透传、父字段装配）
+        PermBatchQuery hit = PermBatchQuery.forAuthCheckBatch(TENANT, subjectId, List.of(
+            new PermBatchQuery.Item(typeCodeOf(type), "b61-pt-child", "VIEW", null, null, false)));
+        hit.setParentResource(typeCodeOf(type), "b61-pt-parent", null, Set.of("VIEW"));
+        hit.setEvalContext(pinnedContext(LocalDateTime.now()));
+        List<PermBatchResult.ItemOutcome> allowed = engine.queryBatch(hit).outcomes();
+        assertThat(allowed.get(0).allowed())
+            .as("批量父判定命中：子行 depend_on ∈ 父命中集 → 放行").isTrue();
+        assertThat(allowed.get(0).matchedPermissionIds()).containsExactly(childPermId);
+
+        // (b) 父操作不覆盖（UPDATE：父实体只挂 VIEW 行）：父判定不命中 → 子行剥除 → DEPENDENT
+        PermBatchQuery miss = PermBatchQuery.forAuthCheckBatch(TENANT, subjectId, List.of(
+            new PermBatchQuery.Item(typeCodeOf(type), "b61-pt-child", "VIEW", null, null, false)));
+        miss.setParentResource(typeCodeOf(type), "b61-pt-parent", null, Set.of("UPDATE"));
+        miss.setEvalContext(pinnedContext(LocalDateTime.now()));
+        List<PermBatchResult.ItemOutcome> dependent = engine.queryBatch(miss).outcomes();
+        assertThat(dependent.get(0).allowed()).isFalse();
+        assertThat(dependent.get(0).reason()).isEqualTo("DEPENDENT_NOT_IN_PARENT_CONTEXT");
+    }
 }
