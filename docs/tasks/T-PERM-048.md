@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-048
 title: 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（来源字段 + resource_entity 投影 + UI）
-status: proposed
+status: in-progress
 plan: ""
 domain: permission-center
 design_refs:
@@ -18,7 +18,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-08-30（T-PERM-030 关联更新：CONFLICT_RULE 错位已收口）
+last_updated: 2026-09-11（开工：五项设计定案拍板，见 decision-registry 同日行）
 ---
 
 # T-PERM-048 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件

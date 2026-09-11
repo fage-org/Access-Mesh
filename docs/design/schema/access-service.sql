@@ -694,10 +694,13 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
 -- 经 resource-entity 管理入口构造（管理面 CRUD 20055，与惰性登记 upsert 双 writer 冲突同向）。
 -- T-PERM-051（2026-09-07）增 TYPE_DEFINITION：类型定义自身实例（code={typeKey}:{typeCode} 复合
 -- 业务键）由 type-definition 写路径同事务投影维护 + bootstrap 自愈补种，人工不得构造（同款 20055）。
+-- T-PERM-048（2026-09-11）增 CONDITION：管理页条件实例（code=条件 code，租户内唯一无需复合键）
+-- 由条件写路径同事务投影维护 + bootstrap 自愈补种（仅 source=MANAGED；INLINE 内联条件不投影——
+-- 无资源身份消费者，授权树零过滤），人工不得构造（同款 20055）。
 UPDATE type_definition
 SET extra = '{"managedMode":"SYNC","syncSourceService":"access-service"}'
 WHERE tenant_id = 1 AND type_key = 'resource_type'
-  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE', 'ADMIN_FILE', 'TYPE_DEFINITION');
+  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE', 'ADMIN_FILE', 'TYPE_DEFINITION', 'CONDITION');
 
 -- -----------------------------------------------------------------------------
 -- 18. biz_domain - 业务域表（扁平列表，无启停，引用检查拒删）
@@ -1031,6 +1034,7 @@ CREATE TABLE permission_condition (
     condition_rules JSONB NOT NULL DEFAULT '{}',
     enabled         BOOLEAN NOT NULL DEFAULT true,
     gateway_evaluable BOOLEAN NOT NULL DEFAULT false,
+    source          VARCHAR(16) NOT NULL DEFAULT 'MANAGED',
     description     VARCHAR(512),
     created_by      BIGINT,
     updated_by      BIGINT,
@@ -1038,7 +1042,9 @@ CREATE TABLE permission_condition (
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at      TIMESTAMPTZ,
-    delete_flag     BIGINT NOT NULL DEFAULT 0
+    delete_flag     BIGINT NOT NULL DEFAULT 0,
+    -- 条件双轨制来源焊死（T-PERM-048，2026-09-11 定案）：管理页条件 vs 授权页内联条件
+    CONSTRAINT ck_permission_condition_source CHECK (source IN ('MANAGED', 'INLINE'))
 );
 
 CREATE UNIQUE INDEX uk_permission_condition ON permission_condition (tenant_id, code) WHERE delete_flag = 0;
@@ -1049,6 +1055,7 @@ COMMENT ON COLUMN permission_condition.name IS '名称';
 COMMENT ON COLUMN permission_condition.condition_rules IS '条件规则(JSON)，如 {"logic":"AND","items":[{"type":"DATE_RANGE","params":{"start":"2025-01-01","end":"2025-12-31"}},{"type":"TIME_RANGE","params":{"start":"09:00","end":"18:00"}},{"type":"IP_WHITELIST","params":{"cidrs":["192.168.1.0/24"]}}]}。预置类型：DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST';
 COMMENT ON COLUMN permission_condition.enabled IS '是否启用';
 COMMENT ON COLUMN permission_condition.gateway_evaluable IS '是否可下发 Gateway 评估（T-PERM-017）。true 时条件规则随接口快照内联到 Gateway，由 Gateway 用请求上下文（clientIp）本地重评。可下发类型：IP_WHITELIST/IP_BLACKLIST/DATE_RANGE/TIME_RANGE（4 类全部）。未来扩展类型（如 ORG_SCOPE）默认不下发，需显式审批加入白名单';
+COMMENT ON COLUMN permission_condition.source IS '条件来源（T-PERM-048 双轨制）：MANAGED=权限条件页管理（有 resource_entity(CONDITION) 实例投影 code=条件 code，可被实例级授权 CONDITION:UPDATE/DELETE@code；存量行默认本值）；INLINE=授权页内联（随 apply-grant-plan 同事务创建/回收，1:1 属于授权记录不可共享、code 自动生成 inline- 前缀，管理页查不到也不能管理，不建投影行）';
 
 -- -----------------------------------------------------------------------------
 -- 26. user_role - 用户关联表（统一关联角色，target_type 标记角色类型）
