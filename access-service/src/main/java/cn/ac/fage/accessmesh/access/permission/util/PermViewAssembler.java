@@ -287,7 +287,7 @@ public class PermViewAssembler {
             .collect(Collectors.toSet());
 
         // T-PERM-060：distinct typeCode 一次批量反查（登录权限串热路径，
-        // 逐类型点查为 ≤12 类型 × 3 查询的放大源）
+        // 逐类型点查按 distinct 类型数 ×3 放大，类型数无硬上限）
         Set<String> distinctTypeCodes = new LinkedHashSet<>();
         for (Long resId : resourceIds) {
             ResourceEntity res = resourceMap.get(resId);

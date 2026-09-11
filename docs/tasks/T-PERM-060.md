@@ -62,8 +62,11 @@ last_updated: 2026-09-11
 - 回归锁（新建 `PermViewAssemblerTest`，本类首件单测）：①批量单次调用锁——
   `verify times(1) findDomainIdsByTypeCodes(全 distinct 集)` + `verify never findDomainIdByTypeCode`
   + 输出 `getDomainCodeMap()` 断言（同类型多资源去重 + 跨类型归属）；②缺 key 边界锁——批量映射
-  缺 key（类型未认领）不进 domainCodeMap。RED 已实证（旧实现下因严格打桩失配 + never 双重失败，
-  Mockito 对未打桩包装类型 Long 默认返回 0L 而非 null）；GREEN 2/2。
+  缺 key（类型未认领）不进 domainCodeMap。RED 已实证（2026-09-11，
+  `mvn test -pl access-service -Dtest=PermViewAssemblerTest -DskipTestcontainers=true`：
+  旧实现下未打桩 `findDomainIdByTypeCode` 返回 Mockito 对包装类型 Long 的默认值 0L（非 null）
+  → `selectValidByIds(1L,[0])` 与打桩失配，两用例均以 PotentialStubbingProblem 于 assemble
+  内失败中止——`verify never` 行未及执行，其必失败为推断而非实测）；GREEN 同命令 2/2。
 - 空集短路分支未单独上锁（双轨评审裁决）：该守卫是纯优化分支（有无守卫输出一致，仅差一次空集
   服务调用），锁定会过度约束无害重构。
 - 误读撤回与 EXT 处置登记同 commit 落盘（T-PERM-055 非目标/遗留段、看板两处 EXT 注记、
@@ -79,3 +82,9 @@ last_updated: 2026-09-11
   单测轨 1133 + 容器轨 193、e2e 14（BasicRoleGrant 8 + ExampleProtectedApi 6）、其余模块
   30/65/15/10/106 全绿，`TaskExecutionLeaseConcurrencyTest` 本轮 10/10 未触发已登记抖动；
   总耗时 5:42。
+- claude CLI 外评（2026-09-11 用户触发，read-only plan 模式、默认模型未显式指定，范围 5e3536427..d95f34576）：P0-P2 全零、P3×2 均核实属实并已修复——①代码侧两处注释残留「≤12 类型」上界（d95f34576 只修了任务卡未同步代码注释，两处统一为「distinct 类型数 ×3 无硬上限」）；②实施记录 RED 失败模式与实测日志不符（实测两用例均以 PotentialStubbingProblem 于 assemble 内失败中止、verify never 行未及执行，「never 双重失败」系推断被写成实证——改写为实测口径并内联命令与日期）。五项专项核查（批量化六分支逐元素恒等含构造性等价证明、回归锁真红真绿无假绿、0-test 撤回证据链与仓库事实逐字吻合、EXT-7/8 处置三处登记互指一致、残留与范围含 d95f34576 回归数字逐项比对）全部通过；第二轮换方法复查（零写入口/API/DB 写入点，调用链反查三公开入口）无发现。存量观察一条登记见下。
+- 修复后定向复跑（2026-09-11，`mvn test -pl access-service -Dtest=PermViewAssemblerTest -DskipTestcontainers=true`）：2/2 通过（注释级改动，编译面复验）。
+
+## 非目标 / 遗留
+
+- claude 外评存量观察：`DomainClassifyService.findDomainIdByTypeCode` 经本任务失去最后一个生产调用方（原唯一生产点即 buildDomainCodeMap），现仅剩测试消费（DomainClassifyServiceImplTest 直测 + PermViewAssemblerTest never 断言）——非缺陷，可变动死 API；下次触达 DomainClassifyService 接口时随「删除/收窄」一并处置或显式保留单元素委托形态。

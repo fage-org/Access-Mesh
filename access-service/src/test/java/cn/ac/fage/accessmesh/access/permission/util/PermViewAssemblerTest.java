@@ -46,7 +46,8 @@ class PermViewAssemblerTest {
     /**
      * T-PERM-060 回归锁：buildDomainCodeMap 对 distinct typeCode 必须一次批量反查
      * （findDomainIdsByTypeCodes 收全集），禁止退回逐类型点查（findDomainIdByTypeCode）——
-     * 登录权限串热路径上逐类型点查是 ≤12 类型 × 3 查询的放大源（旧实现下本用例必失败）。
+     * 登录权限串热路径上逐类型点查按 distinct 类型数 ×3 放大（类型数无硬上限，
+     * schema 预置 25 类且可自定义新增；旧实现下本用例必失败）。
      */
     @Test
     void shouldResolveDomainIdsForAllDistinctTypeCodesInSingleBatchCall() {
