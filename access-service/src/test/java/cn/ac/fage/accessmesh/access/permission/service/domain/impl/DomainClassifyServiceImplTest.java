@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -122,7 +123,9 @@ class DomainClassifyServiceImplTest {
         when(domainConfigMapper.selectByTenantId(any())).thenReturn(List.of(config));
         when(bizDomainMapper.selectGlobalByTenant(any())).thenReturn(globalDomain);
 
-        assertEquals(99L, service.findDomainIdByTypeCode(1L, "API"));
+        // MENU 被 OPS 认领；API 未被认领回退全局域（键=原输入形态）
+        assertEquals(Map.of("MENU", 10L, "API", 99L),
+            service.findDomainIdsByTypeCodes(1L, Set.of("MENU", "API")));
     }
 
     // ===== T-PERM-046：全局域 CLASSIFY 声明生效（2026-09-09 用户定案）=====

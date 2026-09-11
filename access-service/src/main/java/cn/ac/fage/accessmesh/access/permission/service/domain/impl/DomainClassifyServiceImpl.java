@@ -193,15 +193,6 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
         return validCodes;
     }
 
-    /**
-     * 通过资源类型码反查所属的业务域ID
-     */
-    @Override
-    public Long findDomainIdByTypeCode(Long tenantId, String resourceTypeCode) {
-        if (resourceTypeCode == null || resourceTypeCode.isBlank()) return null;
-        return findDomainIdsByTypeCodes(tenantId, Set.of(resourceTypeCode)).get(resourceTypeCode);
-    }
-
     @Override
     public Map<String, Long> findDomainIdsByTypeCodes(Long tenantId, Set<String> resourceTypeCodes) {
         if (resourceTypeCodes == null || resourceTypeCodes.isEmpty()) {

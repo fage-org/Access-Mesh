@@ -87,4 +87,4 @@ last_updated: 2026-09-11
 
 ## 非目标 / 遗留
 
-- claude 外评存量观察：`DomainClassifyService.findDomainIdByTypeCode` 经本任务失去最后一个生产调用方（原唯一生产点即 buildDomainCodeMap），现仅剩测试消费（DomainClassifyServiceImplTest 直测 + PermViewAssemblerTest never 断言）——非缺陷，可变动死 API；下次触达 DomainClassifyService 接口时随「删除/收窄」一并处置或显式保留单元素委托形态。
+- claude 外评存量观察：`DomainClassifyService.findDomainIdByTypeCode` 经本任务失去最后一个生产调用方（原唯一生产点即 buildDomainCodeMap），现仅剩测试消费（DomainClassifyServiceImplTest 直测 + PermViewAssemblerTest never 断言）——非缺陷，可变动死 API；下次触达 DomainClassifyService 接口时随「删除/收窄」一并处置或显式保留单元素委托形态。**已处置（2026-09-11，用户预授权「想删就说一声」当日删除）**：接口方法 + Impl 单元素委托实现删除；DomainClassifyServiceImplTest 的「未认领类型回退全局域」用例改为经保留面 `findDomainIdsByTypeCodes` 驱动重写（原驱动入口为待删方法，但断言语义由批量实现共享——整删会带走唯一行为锁）；PermViewAssemblerTest 移除 never 断言（目标符号已不存在，times(1) 批量锁仍在）；implementation §2.7 接口清单同步。

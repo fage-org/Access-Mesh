@@ -59,19 +59,6 @@ public interface DomainClassifyService {
     Set<String> preloadCoveredTypeCodes(Long tenantId, DomainQueryMode mode, String domainCode);
 
     /**
-     * 通过资源类型码反查所属的业务域ID
-     * <p>
-     * 遍历所有非全局域的 CLASSIFY 配置，找到包含该类型码的域。
-     * 如果多个域都包含该类型码，返回第一个匹配的域ID。
-     * </p>
-     *
-     * @param tenantId         租户ID
-     * @param resourceTypeCode 资源类型码
-     * @return 业务域ID，未找到返回null
-     */
-    Long findDomainIdByTypeCode(Long tenantId, String resourceTypeCode);
-
-    /**
      * 批量反查资源类型所属业务域，未被具体域认领的类型归入全局域。
      *
      * @param tenantId         租户ID

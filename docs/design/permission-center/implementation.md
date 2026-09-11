@@ -256,7 +256,6 @@ public interface DomainClassifyService {
     boolean matchesTypeCode(Long tenantId, DomainQueryMode mode, String domainCode, String typeCode);
     Set<String> preloadCoveredTypeCodes(Long tenantId, DomainQueryMode mode, String domainCode);
     Set<String> getClassifiedTypeCodes(Long tenantId, String domainCode);
-    Long findDomainIdByTypeCode(Long tenantId, String typeCode);
     Map<String, Long> findDomainIdsByTypeCodes(Long tenantId, Set<String> typeCodes);
 }
 ```
