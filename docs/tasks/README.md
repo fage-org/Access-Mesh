@@ -108,7 +108,7 @@
 | [T-PERM-045](T-PERM-045.md) | 内部管理门禁统一启用子级继承——❌ 已取消（2026-09-09 范围并入 T-PERM-057 统一引擎重构，终态设计 query-engine-unification.md） | — | query-engine-unification.md | — | ❌ | — |
 | [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（已收口 2026-09-09，执行定案与终态见任务卡） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ✅ | ✓ |
 | [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ✅ | ✓ |
-| [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（来源字段 + resource_entity 投影 + UI；2026-09-11 五项定案拍板开工，见 registry 同日行） | — | api-contract §5.6；access-service.sql | — | 🔨 | ⏳ |
+| [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（已收口 2026-09-11，五项定案与终态见任务卡完成记录与 registry 同日行） | — | api-contract §5.6；access-service.sql | — | ✅ | ✓ |
 | [T-PERM-049](T-PERM-049.md) | 全局操作概念整体退役（操作位空间按类型隔离 + DDL CHECK 焊死；外部复审 P1 越权根治） | — | api-contract §5.3；access-service.sql | — | ✅ | ✓ |
 | [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（已收口 2026-09-09，级联定案与终态见任务卡） | — | schema；api-contract §5.1/§5.3 | — | ✅ | ✓ |
 | [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一（已收口，定案与终态见任务卡） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ✅ | ✓ |

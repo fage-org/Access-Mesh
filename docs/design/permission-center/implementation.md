@@ -216,14 +216,23 @@ public interface PermissionConflictDomainService {
 
 ---
 
-### 2.5 `PermissionConditionDomainService` — 条件校验
+### 2.5 `PermissionConditionDomainService` — 条件校验 + 内联轨生命周期（T-PERM-048 扩展 2026-09-11）
 
 ```java
 public interface PermissionConditionDomainService {
     List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries, Map<String, Object> context);
     // 原 explain 排查明细 evaluateDetailed 已随 T-PERM-059 删除（2026-09-10）
+
+    // T-PERM-048 双轨制：条件规则写入口径校验双轨共享（管理页 create/update 与内联轨同源）
+    void assertConditionRulesValid(String conditionRules, boolean gatewayEvaluable);
+    // 内联轨生命周期（apply-grant-plan 同事务调用；门禁随授权入口 ROLE:MANAGE 携带，定案②）
+    PermissionCondition createInlineCondition(Long tenantId, Long operatorId, InlineConditionDef def);
+    void editInlineCondition(Long tenantId, Long operatorId, PermissionCondition condition, InlineConditionDef def);
+    Set<Long> recycleOrphanInlineConditions(Long tenantId, Set<Long> candidateIds);
 }
 ```
+
+条件双轨制（T-PERM-048 五项定案 2026-09-11，详见 registry）：`permission_condition.source` 区分 MANAGED（管理页轨——ConditionAppService CRUD，update/remove 实例级门禁 CONDITION:UPDATE/DELETE@{code} 经 resource_entity(CONDITION) 投影解析，删除引用守卫 20059，有实例投影）与 INLINE（内联轨——apply-grant-plan 携带 inlineCondition 同事务创建/编辑/回收，1:1 属于授权记录不可共享，code 自动生成 inline- 前缀，enabled 恒 true，不投影；管理面防线 20060 三面 + conditionCode 引用轨值域焊死 MANAGED）。条件写路径同事务维护 CONDITION 实例投影（`LocalProjectionDomainService.upsertConditionResource`，status 镜像 enabled）+ bootstrap 自愈补种（`backfillConditionProjections` 仅 MANAGED）。
 
 ---
 

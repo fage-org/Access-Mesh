@@ -166,3 +166,11 @@ sec 负责条件定义（与 RESOURCE/OPERATION 同源），拥有 CREATE+UPDATE
 | 6 | api-contract §5.6 缺字段契约 | 补字段表与请求示例 | ✅ 已收口：§5.6 增 permission-condition 契约要点块（业务键/20006/门禁/gatewayEvaluable 联合校验/幂等语义） |
 
 前端已随 T-PERM-029 同步切业务键（api/hook/index/mock + 授权页契约 spec 两用例订正），Phase 3 联调（T-FE-020）无需再动本页接口层。
+
+## §9 条件双轨制收口（T-PERM-048，2026-09-11）
+
+本页为**管理页条件轨**（source=MANAGED）唯一管理面，双轨制定案（五项见 decision-registry 同日行）落地口径：
+
+- **数据面零改动**：list 缺省只回 MANAGED（后端过滤），本页搜索/列表/CRUD 全链路无需感知 INLINE——内联条件在本页查不到也不能管理（产品构想原文收口）。
+- **门禁变化（后端）**：update/remove 升实例级 CONDITION:UPDATE/DELETE@{code}（scope_all 存量授权零破坏）；删除加引用守卫 20059（被授权引用不可删，message 带冲突 code 清单）；ConditionResp 新增 source 字段（本页恒 MANAGED，不展示列）。
+- **错误透传**：20059/20060 后端 message 为中文完整文案，本页 catch 直接 `e.message` 弹错（无额外映射层，既有模式）。
