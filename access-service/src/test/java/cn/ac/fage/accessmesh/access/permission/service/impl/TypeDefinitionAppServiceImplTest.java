@@ -67,7 +67,7 @@ class TypeDefinitionAppServiceImplTest {
         service = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, engine, ownershipGuard,
             resourceEntityDomainService, localProjectionDomainService, subjectDomainService,
-            rolePermMapper, apiMappingMapper, treeWriteLockSupport, cacheService
+            rolePermMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService.class), apiMappingMapper, treeWriteLockSupport, cacheService
         );
         // list/count 走 OperatorContext（读 AccessRequestContext），绑定用户上下文
         AccessRequestContext.bind(RequestContext.user(1L, 100L));

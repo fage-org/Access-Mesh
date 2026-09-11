@@ -233,7 +233,7 @@ function handleClick() {
               </el-tag>
             </div>
             <div class="source-meta">
-              <span>条件：{{ s.conditionCode ?? "无" }}</span>
+              <span>条件：{{ s.conditionCode ?? (s.inlineCondition != null ? `内联:${s.inlineCondition.name}` : "无") }}</span>
               <span>范围：{{ s.scopeMode === "ALL" ? "全量" : "实例" }}</span>
               <span>可转授：{{ s.canGrant ? "是" : "否" }}</span>
               <span v-if="s.childCount > 0">子权限：{{ s.childCount }}</span>

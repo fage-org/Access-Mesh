@@ -82,6 +82,8 @@ export type ChangeSummary = {
   scopeMode: GrantScopeMode;
   /** 展示文本（如 "销售报表 · VIEW · 无条件"） */
   label: string;
+  /** 内联条件名（T-PERM-048）：草稿绑定内联定义时非空——展示/分组与 conditionCode 轨区分 */
+  inlineName?: string | null;
   /** 资源维度展示（资源名或 "全部资源"；定位用） */
   resourceLabel: string;
   resourceTypeCode: string;
@@ -182,6 +184,7 @@ export function changeGroupKey(summary: ChangeSummary): string {
   return [
     summary.operationCode ?? "-",
     summary.conditionCode ?? "-",
+    summary.inlineName ?? "-",
     summary.canGrant ? "1" : "0",
     summary.scopeMode
   ].join("|");

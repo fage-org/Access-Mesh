@@ -119,6 +119,7 @@ class OperationLogRuntimeContextAppServiceTest {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.common.cache.CacheService.class));
@@ -150,6 +151,7 @@ class OperationLogRuntimeContextAppServiceTest {
             domainClassifyService,
             engine,
             roleResourcePermissionMapper,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard.class),
             org.mockito.Mockito.mock(TreeWriteLockSupport.class)
         );

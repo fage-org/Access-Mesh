@@ -125,6 +125,19 @@
         ) affected_service_codes
     </select>
 
+    <!-- T-PERM-048 内联回收：级联删除授权行前按行收集非空 condition_id（与 selectReferencedConditionIds 反向） -->
+    <select id="selectConditionIdsByPermIds" resultType="java.lang.Long">
+        SELECT DISTINCT condition_id
+        FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND condition_id IS NOT NULL
+          AND id IN
+        <foreach collection="permissionIds" item="pid" open="(" separator="," close=")">
+            #{pid}
+        </foreach>
+    </select>
+
     <!-- T-PERM-048：条件删除引用守卫/内联回收——候选 conditionIds 中仍被有效授权行引用的存在性判定
          （condition_id + delete_flag=0，同时覆盖类型级/实例级两形态行） -->
     <select id="selectReferencedConditionIds" resultType="java.lang.Long">

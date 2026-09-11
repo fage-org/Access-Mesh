@@ -11,8 +11,8 @@ import org.springframework.stereotype.Component;
 /**
  * 本地投影保护：权限管理写入口与外部 sync/full-sync 不得改写 access-service 投影
  * （subject/role/user_role 三侧防线保留；resource 侧已收编进 ResourceTypeOwnershipGuard
- * 类型级所有权门禁——事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION）种子声明 SYNC+access-service，
- * T-PERM-052 2026-09-05、T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION）。
+ * 类型级所有权门禁——事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION）种子声明 SYNC+access-service，
+ * T-PERM-052 2026-09-05、T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION、T-PERM-048 增 CONDITION）。
  */
 @Component
 public class LocalProjectionGuard {

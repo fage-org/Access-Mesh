@@ -68,6 +68,7 @@ class ResourceManageAppServiceImplTest {
             domainClassifyService,
             engine,
             rolePermMapper,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService.class),
             resourceTypeOwnershipGuard,
             treeWriteLockSupport
         );

@@ -50,6 +50,7 @@ class ResourceDeletePermChangeRegistrationTest {
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private PermQueryEngine engine;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
+    @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService conditionDomainService;
     @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     @Mock private TreeWriteLockSupport treeWriteLockSupport;
 
@@ -60,6 +61,7 @@ class ResourceDeletePermChangeRegistrationTest {
         service = new ResourceManageAppServiceImpl(
             resourceEntityMapper, apiMappingMapper, resourceEntityDomainService,
             typeResolutionService, domainClassifyService, engine, rolePermMapper,
+            conditionDomainService,
             resourceTypeOwnershipGuard,
             treeWriteLockSupport);
         // 模拟 @PermissionChange AOP 绑定 context（owner）
@@ -119,6 +121,35 @@ class ResourceDeletePermChangeRegistrationTest {
         org.junit.jupiter.api.Assertions.assertEquals(Set.of("example-service", "order-service"), acc.serviceCodes());
         // 软删确实执行
         verify(rolePermMapper).softDeleteBatch(eq(1L), anyList(), any());
+    }
+
+    @Test
+    @org.junit.jupiter.api.DisplayName("T-PERM-048 claude 外评 P3-2：级联删授权行后回收引用归零的内联条件（旧实现留孤儿 INLINE 行）")
+    void shouldRecycleOrphanInlineConditionsAfterCascadePermDelete() {
+        ResourceEntity root = new ResourceEntity();
+        root.setId(10L);
+        root.setResourceType(1);
+        root.setCode("x");
+        root.setCodeType("default");
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
+            .thenReturn(java.util.Map.of("MENU", 1));
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(1)), anySet(), anySet()))
+            .thenReturn(List.of(root));
+        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
+            .thenReturn(Set.of());
+        when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
+            .thenReturn(java.util.Map.of(10L, List.of()));
+        when(resourceEntityDomainService.batchSelectByIdsMap(1L, Set.of(10L)))
+            .thenReturn(java.util.Map.of(10L, root));
+        when(rolePermMapper.selectValidPermIdsByResourceIds(eq(1L), anyList()))
+            .thenReturn(List.of(501L));
+        // 被删授权行挂内联条件 id=77 → 删除后候选进回收
+        when(rolePermMapper.selectConditionIdsByPermIds(eq(1L), eq(List.of(501L))))
+            .thenReturn(Set.of(77L));
+
+        service.deleteResources(1L, List.of(new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "x", null)), 99L);
+
+        verify(conditionDomainService).recycleOrphanInlineConditions(1L, Set.of(77L));
     }
 
     @Test

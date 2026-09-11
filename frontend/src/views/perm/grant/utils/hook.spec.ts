@@ -72,6 +72,21 @@ describe("授权页类型候选降级判定", () => {
     getConditionList.mockResolvedValue({ items: [] });
   });
 
+  it("T-PERM-048 P2-1：refreshConditions 独立于 depsLoaded 闩锁（保存后内联条件回流通道，旧实现无此入口）", async () => {
+    const hook = usePermissionGrant();
+    hook.retryLoadDeps();
+    await flush();
+    expect(getConditionList).toHaveBeenCalledWith(true);
+    const callsAfterLoad = getConditionList.mock.calls.length;
+    // 阀锁后再刷：绕过 depsLoaded（loadDeps 二次调用不重拉，refreshConditions 独立重拉）
+    getConditionList.mockResolvedValue({
+      items: [{ id: 9, code: "inline-x", source: "INLINE" }]
+    });
+    await hook.refreshConditions();
+    expect(getConditionList.mock.calls.length).toBe(callsAfterLoad + 1);
+    expect(hook.conditions.value.map(c => c.code)).toEqual(["inline-x"]);
+  });
+
   it("权限串缺 TYPE_VIEW：不发任何依赖请求，直接降级（理解 A 原行为锁定）", async () => {
     hasPermsMock.mockReturnValue(false);
     const hook = usePermissionGrant();

@@ -132,6 +132,20 @@ export function usePermissionGrant() {
     return typeCandidates.value[0].typeCode;
   }
 
+  /**
+   * 条件列表刷新（T-PERM-048 claude 外评 P2-1）：includeInline 拉全量。
+   * 独立于 depsLoaded 闩锁——保存成功后新建/回收的内联条件必须回流，否则新内联 code
+   * 在 conditions 缺失：回显回落「无条件」、复制误判停用、误点无条件会清除并回收该内联。
+   */
+  async function refreshConditions() {
+    try {
+      const conditionResp = await getConditionList(true);
+      conditions.value = conditionResp.items ?? [];
+    } catch {
+      // 刷新失败保持旧列表：回显退化为裸 code，不阻断保存主流程
+    }
+  }
+
   async function loadDeps() {
     if (depsLoaded || depsLoading.value) return;
     depsLoading.value = true;
@@ -161,18 +175,17 @@ export function usePermissionGrant() {
         }
         throw error;
       }
-      const [treeResp, opResp, conditionResp] = await Promise.all([
+      const [treeResp, opResp] = await Promise.all([
         // 门控说明（T-ACCESS-021 GUI 段缺陷修复）：资源树/操作列不做前端 capability 前置
         // （访问控制由后端类型级 VIEW 门禁 T-PERM-042 承担，无权限者收到接口错误提示；
         // RESOURCE/OPERATION 虽已随 T-PERM-025 补入 /auth/user-menu 权限串白名单，
         // 仍维持不做前端前置的既有设计）
         getResourceTree({}),
-        getOperationList({}),
-        // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），条件列表始终加载；
-        // 🔧 T-PERM-048：includeInline=true 含内联条件（详情/节点摘要回显内联名称与规则——
-        // 引用选择器侧自行过滤 source=INLINE）
-        getConditionList(true)
+        getOperationList({})
       ]);
+      // 🔧 T-FE-040 v3.1（S5）：条件查看全租户开放（2026-08-08 产品确认），条件列表始终加载；
+      // 🔧 T-PERM-048：includeInline=true 含内联条件（回显内联名称/规则；选择器侧过滤 INLINE）
+      await refreshConditions();
       typeCandidates.value = (typeResp.items ?? [])
         .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
         .sort((a, b) => a.sortOrder - b.sortOrder);
@@ -186,7 +199,6 @@ export function usePermissionGrant() {
         binaryBit: op.binaryBit,
         inheritMask: op.inheritMask
       }));
-      conditions.value = conditionResp.items ?? [];
       depsLoaded = true;
     } catch (error: any) {
       message(error.message || "加载基础数据失败", { type: "error" });
@@ -863,6 +875,9 @@ export function usePermissionGrant() {
         }
         subjectPermissionTypes.value = [...types].sort();
       }
+      // T-PERM-048 claude 外评 P2-1：保存产生的内联条件（新建/回收）回流 conditions，
+      // 保证本会话内新建内联可回显/编辑/复制
+      await refreshConditions();
       message("保存成功", { type: "success" });
     } else if (grantStore.submit.kind === "saveFailed") {
       // 失败条目保留标红、整体重试；文案经错误码映射（DoD-1）
@@ -1034,6 +1049,7 @@ export function usePermissionGrant() {
     childrenOf,
     // 保存/放弃
     handleSaveAll,
+    refreshConditions,
     handleRevertAll,
     // 定位
     locateRequest,

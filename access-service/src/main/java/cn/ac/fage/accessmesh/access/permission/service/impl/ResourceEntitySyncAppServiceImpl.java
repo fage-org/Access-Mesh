@@ -356,7 +356,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 : resourceEntityMapper.selectByTypeCodeAndCodeType(tenantId, resourceTypeValue, req.resourceCode(), codeType);
 
         // T-PERM-052：本地投影行防线（owner=access-service 拒绝）已收编进入口类型门禁——
-        // 事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION）声明 SYNC+access-service，外部来源在入口即被拒，不可达本分支；
+        // 事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION）声明 SYNC+access-service，外部来源在入口即被拒，不可达本分支；
         // existing 为 null 的 INSERT 分支由 uk_resource_entity 唯一约束 fail-closed 兜底。
 
         // resolve parent (optional) —— 先于 applyVersion：环路拒绝不推进同步版本，

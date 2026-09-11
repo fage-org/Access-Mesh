@@ -126,6 +126,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     private final PermQueryEngine engine;
 
     private final RoleResourcePermissionMapper rolePermMapper;
+    private final cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService conditionDomainService;
     private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     private final TreeWriteLockSupport treeWriteLockSupport;
 
@@ -148,6 +149,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                                      DomainClassifyService domainClassifyService,
                                      PermQueryEngine engine,
                                      RoleResourcePermissionMapper rolePermMapper,
+                                     cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService conditionDomainService,
                                      ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                      TreeWriteLockSupport treeWriteLockSupport) {
         this.resourceEntityMapper = resourceEntityMapper;
@@ -157,6 +159,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         this.domainClassifyService = domainClassifyService;
         this.engine = engine;
         this.rolePermMapper = rolePermMapper;
+        this.conditionDomainService = conditionDomainService;
         this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.treeWriteLockSupport = treeWriteLockSupport;
     }
@@ -187,8 +190,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         // 锁先于所有权门禁与首次实体读取——堵「门禁读 MANAGED→并发翻转 SYNC/删类型（锁内查
         // 零行放行）→插入落库」，手工行写入 SYNC 类型/已删类型
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
-        // T-PERM-052：SYNC 类型管理面只读（20055）——事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION，
-        // T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION）种子声明
+        // T-PERM-052：SYNC 类型管理面只读（20055）——事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION，
+        // T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION、T-PERM-048 增 CONDITION）种子声明
         // SYNC+access-service，原类型保留清单已收编进本门禁（2026-09-05 内部来源统一）。
         // codex 三轮复评 P1-2（写路径权威化）：门禁为库内直查，返回类型权威行——typeValue 直接
         // 消费该结果、类型不存在当场 fail-closed，不再经 TYPE_VALUE 类型缓存（删除类型无失效时
@@ -546,12 +549,19 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         }
 
         List<Long> permIds = rolePermMapper.selectValidPermIdsByResourceIds(tenantId, resourceIdsToDelete);
+        // T-PERM-048 claude 外评 P3-2：级联删授权行前收集行上内联条件候选，删后引用归零同事务回收
+        //（apply-grant-plan 之外的内联生命周期完整性——不留管理页不可见的孤儿 INLINE 行）
+        Set<Long> cascadeConditionIds = permIds.isEmpty() ? Set.of()
+            : rolePermMapper.selectConditionIdsByPermIds(tenantId, permIds);
 
         LocalDateTime now = LocalDateTime.now();
         resourceEntityDomainService.softDeleteBatch(tenantId, resourceIdsToDelete, now);
 
         if (!permIds.isEmpty()) {
             rolePermMapper.softDeleteBatch(tenantId, permIds, now);
+        }
+        if (!cascadeConditionIds.isEmpty()) {
+            conditionDomainService.recycleOrphanInlineConditions(tenantId, cascadeConditionIds);
         }
 
         OperationLogRuntimeContext.setSummary(

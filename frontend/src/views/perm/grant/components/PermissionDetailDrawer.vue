@@ -46,9 +46,15 @@ watch(
   }
 );
 
-function conditionName(code: string | null): string {
+/** 条件名（T-PERM-048 双轨）：草稿内联绑定显示定义名；引用绑定查 conditions（含 INLINE 实体） */
+function conditionName(record: EffectiveRecord): string {
+  if (record.inlineCondition != null) {
+    return `内联：${record.inlineCondition.name}`;
+  }
+  const code = record.conditionCode;
   if (!code) return "无条件";
   const condition = props.conditions.find(item => item.code === code);
+  if (condition?.source === "INLINE") return `内联：${condition.name}`;
   return condition ? `${condition.name}（${code}）` : code;
 }
 
@@ -146,7 +152,7 @@ function handleClose() {
                         : "直接授权"
                     }}
                   </el-tag>
-                  <span>{{ conditionName(record.conditionCode) }}</span>
+                  <span>{{ conditionName(record) }}</span>
                 </div>
                 <el-tag
                   v-if="draftTag(record)"
@@ -195,7 +201,7 @@ function handleClose() {
               <span class="parent-mark">主</span>
               <div>
                 <strong>{{ resourceLabel(manualRecord) }}</strong>
-                <span>{{ conditionName(manualRecord.conditionCode) }}</span>
+                <span>{{ conditionName(manualRecord) }}</span>
               </div>
             </div>
             <div class="child-list">

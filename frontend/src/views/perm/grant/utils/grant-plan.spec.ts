@@ -29,6 +29,7 @@ import {
   resolveGrantedBits,
   computePreset,
   resumeSlot,
+  validateInlineDefs,
   slotKeyOf,
   uncheckSlot,
   type DialogResult,
@@ -2048,6 +2049,57 @@ describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
     });
     const plan = buildGrantPlan([add])!;
     expect(plan.creates![0].key.inlineCondition).toEqual(INLINE_DEF);
+  });
+
+  it("validateInlineDefs：半成品内联被拒（空名/空 items）——旧实现无校验，'{}' 创建成功但引擎恒拒绝", () => {
+    const parse = (json: string) => JSON.parse(json) as { items: unknown[] };
+    const addWith = (name: string, rules: string) =>
+      buildAddChange({
+        recordKey: {
+          resourceTypeCode: "DATA",
+          resourceCode: "data:r1",
+          codeType: "default",
+          operationCode: "VIEW",
+          scopeMode: "INSTANCE",
+          conditionCode: null,
+          inlineCondition: { name, conditionRules: rules },
+          canGrant: false
+        },
+        summary: buildSummary({
+          recordKey: {
+            resourceTypeCode: "DATA",
+            resourceCode: "data:r1",
+            codeType: "default",
+            operationCode: "VIEW",
+            scopeMode: "INSTANCE",
+            conditionCode: null,
+            inlineCondition: { name, conditionRules: rules },
+            canGrant: false
+          },
+          resourceLabel: "数据一"
+        })
+      });
+    // 空名拒绝
+    expect(
+      validateInlineDefs([addWith(" ", INLINE_DEF.conditionRules)], parse)
+    ).toContain("名称不能为空");
+    // "{}"（初值未编辑）/ 空 items 拒绝——静默失效面锁（引擎 items 缺失恒拒绝）
+    expect(validateInlineDefs([addWith("内联", "{}")], parse)).toContain(
+      "规则不完整"
+    );
+    expect(
+      validateInlineDefs(
+        [addWith("内联", "{\"logic\":\"AND\",\"items\":[]}")],
+        parse
+      )
+    ).toContain("规则不完整");
+    // 完整定义通过
+    expect(
+      validateInlineDefs(
+        [addWith("内联", "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}")],
+        parse
+      )
+    ).toBeNull();
   });
 
   it("buildSummary：内联键标签显示 内联:name（清单展示）", () => {

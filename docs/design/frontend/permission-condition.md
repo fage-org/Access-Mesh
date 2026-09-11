@@ -105,11 +105,11 @@ code / name / enabled（开关）/ gatewayEvaluable（开关）/ description（t
 
 | 接口 | 方法 | 请求 | 响应 | 权限 |
 |---|---|---|---|---|
-| /api/perm/permission-condition/list | POST | EmptyReq | ItemsResp<ConditionResp> | 无读取门禁（产品确认，全租户开放） |
+| /api/perm/permission-condition/list | POST | ConditionListReq{includeInline?}（T-PERM-048：缺省只回 MANAGED） | ItemsResp<ConditionResp> | 无读取门禁（产品确认，全租户开放） |
 | /api/perm/permission-condition/detail | POST | ConditionDetailReq{conditionCode} | ConditionResp | 无读取门禁；查不到 20006（T-PERM-029） |
 | /api/perm/permission-condition/create | POST | ConditionCreateReq | ConditionResp | CONDITION:CREATE |
-| /api/perm/permission-condition/update | POST | ConditionUpdateReq{code,...} | ConditionResp | CONDITION:UPDATE（类型级，2026-08-30 口径收窄） |
-| /api/perm/permission-condition/remove | POST | ConditionRemoveReq{codes} | Void | CONDITION:DELETE（类型级全有或全无） |
+| /api/perm/permission-condition/update | POST | ConditionUpdateReq{code,...} | ConditionResp | CONDITION:UPDATE@{code}（T-PERM-048 升实例级；INLINE 行 20060） |
+| /api/perm/permission-condition/remove | POST | ConditionRemoveReq{codes} | Void | CONDITION:DELETE@{code} 实例级全有或全无（T-PERM-048）+ 引用守卫 20059 |
 
 后端实现：ConditionController + ConditionAppServiceImpl。
 conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 access-service permission 域共享）。

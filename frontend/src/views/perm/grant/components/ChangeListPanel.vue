@@ -41,7 +41,12 @@ const addGroups = computed<AddGroup[]>(() => {
   }
   return [...map.values()].map(items => {
     const first = items[0];
-    const condition = first.summary.conditionCode ?? "无条件";
+    const condition =
+      first.summary.conditionCode
+      ?? (first.summary.inlineName != null
+        ? `内联:${first.summary.inlineName}`
+        : null)
+      ?? "无条件";
     return {
       key: changeGroupKey(first.summary),
       items,
@@ -86,9 +91,18 @@ function updateSummary(
       `可转授：${change.before.canGrant ? "是" : "否"} → ${change.after.canGrant ? "是" : "否"}`
     );
   }
-  if (change.before.conditionCode !== change.after.conditionCode) {
+  // before 恒为 baseline 记录（无内联定义字段）：其内联绑定经 conditionCode 裸码保真显示
+  const beforeInlineName = null as string | null;
+  const afterInlineName =
+    change.after.inlineCondition != null
+      ? `内联:${change.after.inlineCondition.name}`
+      : null;
+  if (
+    change.before.conditionCode !== change.after.conditionCode ||
+    beforeInlineName !== afterInlineName
+  ) {
     parts.push(
-      `条件：${change.before.conditionCode ?? "无"} → ${change.after.conditionCode ?? "无"}`
+      `条件：${change.before.conditionCode ?? beforeInlineName ?? "无"} → ${change.after.conditionCode ?? afterInlineName ?? "无"}`
     );
   }
   return parts.join("；") || "内容调整";

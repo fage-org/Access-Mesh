@@ -42,6 +42,7 @@ import {
   resumeSlot,
   slotKeyOf,
   uncheckSlot,
+  validateInlineDefs,
   type EffectiveRecord,
   type FocusSlot,
   type SlotDraftState,
@@ -429,6 +430,11 @@ function validateInlineBeforeConfirm(): string | null {
   if (!focusInline.value.name.trim()) return "内联条件名称不能为空";
   if (!inlineEditorRef.value?.validate()) return "内联条件规则不完整";
   return null;
+}
+
+/** 全草稿内联校验（claude 外评 P2-2）：纯函数 validateInlineDefs（grant-plan.ts，可单测） */
+function validateAllDraftInline(): string | null {
+  return validateInlineDefs(slotDraft.value.changes, parseRules);
 }
 
 function handleCanGrantChange(value: boolean | string | number) {
@@ -1122,7 +1128,8 @@ function handleRestoreChild(record: EffectiveRecord) {
 /** 确定：expandSuspended 双路径展开（baseline→remove / add→取消变更组）后提交完整草稿。
  *  内联定义在场时先校验（名称必填 + 规则完整性），不合法阻断提交（T-PERM-048）。 */
 function handleConfirm() {
-  const inlineError = validateInlineBeforeConfirm();
+  const inlineError =
+    validateAllDraftInline() ?? validateInlineBeforeConfirm();
   if (inlineError != null) {
     message(inlineError, { type: "warning" });
     return;

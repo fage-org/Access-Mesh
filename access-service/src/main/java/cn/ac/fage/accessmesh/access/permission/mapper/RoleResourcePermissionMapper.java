@@ -89,6 +89,17 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                                   @Param("conditionIds") Set<Long> conditionIds);
 
     /**
+     * 按权限行 id 集合查询其非空 condition_id（T-PERM-048 内联回收：级联删除授权行前收集候选，
+     * 与 {@link #selectReferencedConditionIds} 互为反向——本方法按行取条件、彼方法按条件查行）。
+     *
+     * @param tenantId      租户ID
+     * @param permissionIds 权限行ID集合（不可为空）
+     * @return 非空 condition_id 去重集合
+     */
+    java.util.Set<Long> selectConditionIdsByPermIds(@Param("tenantId") Long tenantId,
+                                                     @Param("permissionIds") java.util.List<Long> permissionIds);
+
+    /**
      * 查询条件ID集合中仍被有效授权行引用的 condition_id（T-PERM-048 条件删除引用守卫/内联回收共用）。
      * <p>
      * 仅按 {@code condition_id + delete_flag=0} 过滤，同时覆盖类型级（scope_all）与实例级两形态行。

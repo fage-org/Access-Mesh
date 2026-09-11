@@ -114,7 +114,7 @@ export function usePermissionCondition() {
   async function deleteCondition(row: ConditionResp): Promise<boolean> {
     try {
       await ElMessageBox.confirm(
-        `确认删除条件「${row.name}（${row.code}）」吗？关联的授权关系将失效。`,
+        `确认删除条件「${row.name}（${row.code}）」吗？若被授权引用将被拒绝（需先解绑）。`,
         "删除条件",
         {
           type: "warning",

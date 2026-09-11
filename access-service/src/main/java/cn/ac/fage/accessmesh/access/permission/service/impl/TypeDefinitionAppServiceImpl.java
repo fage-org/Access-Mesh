@@ -61,6 +61,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final LocalProjectionDomainService localProjectionDomainService;
     private final SubjectDomainService subjectDomainService;
     private final RoleResourcePermissionMapper rolePermMapper;
+    private final cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService conditionDomainService;
     private final ResourceApiMappingMapper apiMappingMapper;
     private final TreeWriteLockSupport treeWriteLockSupport;
     private final CacheService cacheService;
@@ -87,6 +88,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                                          LocalProjectionDomainService localProjectionDomainService,
                                          SubjectDomainService subjectDomainService,
                                          RoleResourcePermissionMapper rolePermMapper,
+                                         cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService conditionDomainService,
                                          ResourceApiMappingMapper apiMappingMapper,
                                          TreeWriteLockSupport treeWriteLockSupport,
                                          CacheService cacheService) {
@@ -98,6 +100,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         this.localProjectionDomainService = localProjectionDomainService;
         this.subjectDomainService = subjectDomainService;
         this.rolePermMapper = rolePermMapper;
+        this.conditionDomainService = conditionDomainService;
         this.apiMappingMapper = apiMappingMapper;
         this.treeWriteLockSupport = treeWriteLockSupport;
         this.cacheService = cacheService;
@@ -616,6 +619,16 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             permIds = rolePermMapper.selectValidPermIdsByResourceIds(tenantId, projectionIds);
         }
 
+        // T-PERM-048 claude 外评 P3-2：级联删授权行前收集内联条件候选（两段级联面合并收集，删后统一回收）
+        List<Long> cascadePermIds = new ArrayList<>(permIds);
+        List<Long> typeGrantPermIds = List.of();
+        if (!deletableResourceTypes.isEmpty()) {
+            typeGrantPermIds = rolePermMapper.selectValidPermIdsByResourceTypes(tenantId, deletableTypeValues);
+            cascadePermIds.addAll(typeGrantPermIds);
+        }
+        Set<Long> cascadeConditionIds = cascadePermIds.isEmpty() ? Set.of()
+            : rolePermMapper.selectConditionIdsByPermIds(tenantId, cascadePermIds);
+
         LocalDateTime now = LocalDateTime.now();
         typeDefinitionMapper.softDeleteBatch(tenantId, new ArrayList<>(validIds), now);
         if (!projectionIds.isEmpty()) {
@@ -642,7 +655,6 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             if (!typeGrantRoleIds.isEmpty()) {
                 PermissionChangeContext.markRoles(tenantId, typeGrantRoleIds);
             }
-            List<Long> typeGrantPermIds = rolePermMapper.selectValidPermIdsByResourceTypes(tenantId, deletableTypeValues);
             if (!typeGrantPermIds.isEmpty()) {
                 rolePermMapper.softDeleteBatch(tenantId, typeGrantPermIds, now);
             }
@@ -650,6 +662,10 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             cacheService.evictBatchAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
                 deletableTypeValues.stream().map(PermCacheCatalog::operationPermissionsByTypeKey)
                     .collect(Collectors.toCollection(LinkedHashSet::new)));
+        }
+        // T-PERM-048：级联授权行已软删，引用归零的内联条件同事务回收（含 markConditions）
+        if (!cascadeConditionIds.isEmpty()) {
+            conditionDomainService.recycleOrphanInlineConditions(tenantId, cascadeConditionIds);
         }
         // codex 三轮复评 P1-2：被删类型提交后失效双向解析缓存键（同码重建新值前，旧映射不得残留）；
         // codex 四轮复评 P2：按码键/值键各合并一次批量失效（逐项 evictAfterCommit = 2N 个事务回调）

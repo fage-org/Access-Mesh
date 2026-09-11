@@ -120,7 +120,7 @@ class ServiceConfigCascadePgIT {
     private ResourceManageAppService newResourceManageAppService(PermQueryEngine engine) {
         return new ResourceManageAppServiceImpl(resourceEntityMapper, resourceApiMappingMapper,
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
-            engine, rolePermMapper, ownershipGuard(),
+            engine, rolePermMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService.class), ownershipGuard(),
             mock(TreeWriteLockSupport.class));
     }
 

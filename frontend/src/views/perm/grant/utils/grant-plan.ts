@@ -390,6 +390,8 @@ export function buildSummary(input: {
   return {
     operationCode: recordKey.operationCode,
     conditionCode: recordKey.conditionCode,
+    inlineName:
+      recordKey.inlineCondition != null ? recordKey.inlineCondition.name : null,
     canGrant: recordKey.canGrant ?? false,
     scopeMode: recordKey.scopeMode,
     label: `${input.resourceLabel} · ${recordKey.operationCode ?? "组合位"} · ${conditionLabel}`,
@@ -1522,6 +1524,37 @@ export function copySlotAttributes(
     suspended: state.suspended,
     focusSlotKey: state.focusSlotKey
   };
+}
+
+/**
+ * 全草稿内联定义校验（T-PERM-048 claude 外评 P2-2）：确认前扫描草稿中全部内联定义——
+ * add 的 recordKey 与 update 的 after。聚焦切走后组件级 focusInline 为 null 只覆盖当前焦点，
+ * 残留半成品（空名 / 未编辑规则 "{}" 或空 items）会绕过校验提交：空名后端 400 整批失败、
+ * 空 items 创建成功但引擎 items 缺失恒拒绝（静默失效）。返回首个错误文案或 null。
+ */
+export function validateInlineDefs(
+  changes: DraftChange[],
+  parse: (json: string) => { items?: unknown[] }
+): string | null {
+  for (const change of changes) {
+    if (change.kind === "add" && change.recordKey.inlineCondition != null) {
+      const def = change.recordKey.inlineCondition;
+      const label = change.summary.resourceLabel ?? "新增授权";
+      if (!def.name.trim()) return `「${label}」的内联条件名称不能为空`;
+      if ((parse(def.conditionRules).items?.length ?? 0) === 0) {
+        return `「${label}」的内联条件规则不完整（至少一项）`;
+      }
+    }
+    if (change.kind === "update" && change.after.inlineCondition != null) {
+      const def = change.after.inlineCondition;
+      const label = change.summary.resourceLabel ?? "授权记录";
+      if (!def.name.trim()) return `「${label}」的内联条件名称不能为空`;
+      if ((parse(def.conditionRules).items?.length ?? 0) === 0) {
+        return `「${label}」的内联条件规则不完整（至少一项）`;
+      }
+    }
+  }
+  return null;
 }
 
 /** 归一化：剔除 after==before 的 update 变更（无差异幽灵条目清理，设计 §4 复制合并规则⑥）。
