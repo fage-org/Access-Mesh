@@ -279,6 +279,12 @@ public interface LocalProjectionDomainService {
     void softDeleteConditionResources(Long tenantId, Set<String> codes);
 
     /**
+     * 按条件编码批量定位 CONDITION 投影行 id（删除路径引用守卫②——投影行下实例授权引用检查用）。
+     * 一次批量查询；限定 code_type=default 与 {@link #upsertConditionResource} 定位对称。
+     */
+    List<Long> findConditionResourceIds(Long tenantId, Set<String> codes);
+
+    /**
      * CONDITION 实例投影自愈补种（T-PERM-048，bootstrap 启动调用，幂等可重跑，对齐
      * {@link #backfillTypeDefinitionProjections} 先例）：为全部有效 MANAGED 条件行中
      * 缺少投影的行 insert-if-absent。INLINE 条件不投影（定案⑤）。

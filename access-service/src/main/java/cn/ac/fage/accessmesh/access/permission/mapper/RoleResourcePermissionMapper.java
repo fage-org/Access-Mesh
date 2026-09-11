@@ -89,6 +89,20 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                                   @Param("conditionIds") Set<Long> conditionIds);
 
     /**
+     * 查询条件ID集合中仍被有效授权行引用的 condition_id（T-PERM-048 条件删除引用守卫/内联回收共用）。
+     * <p>
+     * 仅按 {@code condition_id + delete_flag=0} 过滤，同时覆盖类型级（scope_all）与实例级两形态行。
+     * 与 {@link #selectServiceCodesByConditionIds}（JOIN mapping 查广播面）语义不同——本方法只判存在性。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param conditionIds 条件ID集合（不可为空）
+     * @return 仍被引用的 condition_id 集合（候选中未被引用的不在结果中）
+     */
+    Set<Long> selectReferencedConditionIds(@Param("tenantId") Long tenantId,
+                                            @Param("conditionIds") Set<Long> conditionIds);
+
+    /**
      * 批量软删除角色资源权限
      *
      * @param tenantId  租户ID

@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
  * @param conditionRules   条件规则JSON，定义评估逻辑
  * @param enabled          是否启用
  * @param gatewayEvaluable 是否可下发 Gateway 评估（T-PERM-017）。true 时规则随接口快照内联到 Gateway 本地重评
+ * @param source           条件来源（T-PERM-048 双轨制）：MANAGED=管理页条件 / INLINE=授权页内联（list 默认只回 MANAGED，includeInline=true 时含内联）
  * @param description      条件描述
  * @param createdAt        创建时间
  * @param updatedAt        更新时间（T-PERM-029 补齐，此前 Resp 不返回）
@@ -28,6 +29,7 @@ public record ConditionResp(
     String conditionRules,
     Boolean enabled,
     Boolean gatewayEvaluable,
+    String source,
     String description,
     LocalDateTime createdAt,
     LocalDateTime updatedAt

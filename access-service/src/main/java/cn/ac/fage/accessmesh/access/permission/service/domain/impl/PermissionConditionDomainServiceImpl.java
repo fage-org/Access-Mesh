@@ -338,4 +338,40 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         }
         cacheService.evictBatchAfterCommit(PermCacheCatalog.CONDITION_RULES, tenantId, conditionIds);
     }
+
+    /**
+     * 条件规则写入口径校验（T-PERM-048 双轨共享：管理页 create/update 与授权内联轨同源）。
+     * <p>
+     * ① JSON 语法合法；② gatewayEvaluable=true 时 items[].type 全部在白名单内
+     * （T-PERM-017 C2.5，含未知类型默认 fail-close）。
+     * </p>
+     */
+    @Override
+    public void assertConditionRulesValid(String conditionRules, boolean gatewayEvaluable) {
+        cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils.validateJson(conditionRules);
+        if (!gatewayEvaluable) {
+            return;
+        }
+        if (conditionRules == null || conditionRules.isBlank()) {
+            throw new cn.ac.fage.accessmesh.common.exception.BizException(
+                cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+                "gatewayEvaluable=true 但 conditionRules 为空");
+        }
+        JsonNode tree;
+        try {
+            tree = objectMapper.readTree(conditionRules);
+        } catch (Exception e) {
+            throw new cn.ac.fage.accessmesh.common.exception.BizException(
+                cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+                "conditionRules 解析失败: " + e.getMessage());
+        }
+        if (!ConditionEvalUtils.isGatewayPushable(tree)) {
+            throw new cn.ac.fage.accessmesh.common.exception.BizException(
+                cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+                "gatewayEvaluable=true 仅允许 logic ∈ "
+                    + ConditionEvalUtils.VALID_LOGIC
+                    + "（或缺省=AND）且 items[].type ∈ "
+                    + ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES + " 的规则");
+        }
+    }
 }

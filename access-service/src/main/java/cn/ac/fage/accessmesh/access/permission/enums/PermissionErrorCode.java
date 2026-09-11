@@ -306,7 +306,25 @@ public enum PermissionErrorCode {
      * 域配置并发保存冲突（uk_domain_config：tenant+biz_domain+configType 有效行唯一，T-PERM-046）。
      * save 的 check-then-insert 并发窗口由唯一索引兜底转本码，提示重试（后到者重试即转为 update）。
      */
-    DOMAIN_CONFIG_CONCURRENT_CONFLICT(20058, "域配置并发冲突，请重试");
+    DOMAIN_CONFIG_CONCURRENT_CONFLICT(20058, "域配置并发冲突，请重试"),
+
+    /**
+     * 条件被授权引用不可删除（T-PERM-048 定案③，2026-09-11 引用守卫）：两类引用任一命中即整批拒绝——
+     * ① role_resource_permission.condition_id 挂靠引用（挂该条件的授权行评估将 fail-close 拒绝，
+     * 静默删除会让授权「静默失效」）；② 投影行下实例授权引用（CONDITION:UPDATE/DELETE@code 等实例级
+     * 授权行，删除后悬空）。零引用才放行删除（对齐 T-PERM-056 删除保护先例，弃级联软删——
+     * 授权资产被删条件连带消失比要求显式解绑更危险）。message 携带冲突条件 code 清单。
+     */
+    CONDITION_REFERENCED_BY_GRANTS(20059, "条件被授权引用，不可删除：请先解绑/换条件（零引用才可删）"),
+
+    /**
+     * 内联条件不可管理面管理（T-PERM-048 双轨制，2026-09-11 定案①）：三面共用——
+     * ①权限条件页 update/remove 遇 source=INLINE 行拒绝（内联条件只能在授权页随记录更改，
+     * 管理页查不到也不能管理）；②管理面 list/detail 读面拒绝（list 默认只回 MANAGED）；
+     * ③apply-grant-plan 的 conditionCode 引用轨遇 INLINE 行拒绝（内联条件 1:1 属于创建它的
+     * 授权记录，不可被显式 code 引用或共享——引用轨值域=MANAGED）。
+     */
+    CONDITION_INLINE_NOT_MANAGEABLE(20060, "内联条件不可在管理面管理/不可被显式引用（只能在授权页随记录更改）");
 
     private final int code;
     private final String message;

@@ -61,12 +61,15 @@ public interface ConditionAppService {
      * <p>
      * 获取租户的所有权限条件列表（条件模板数量有界，全量返回不分页，
      * 与 domain-config/service-config 同款定案）。
+     * 双轨制（T-PERM-048）：缺省只返回 MANAGED 管理页条件（权限条件页口径）；
+     * includeInline=true 时含授权页内联条件（授权页回显用）。
      * </p>
      *
-     * @param tenantId 租户ID
+     * @param tenantId      租户ID
+     * @param includeInline 是否包含内联条件
      * @return 条件列表
      */
-    List<ConditionResp> listConditions(Long tenantId);
+    List<ConditionResp> listConditions(Long tenantId, Boolean includeInline);
 
     /**
      * 按业务键批量删除权限条件

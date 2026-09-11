@@ -31,4 +31,18 @@ public interface PermissionConditionDomainService {
     List<RolePermEntry> evaluate(Long tenantId, List<RolePermEntry> entries,
                                                    Map<String, Object> context);
 
+    /**
+     * 条件规则写入口径校验（T-PERM-048 收敛为双轨共享：管理页 create/update 与授权内联轨同源）。
+     * <p>
+     * ① JSON 语法合法性（JsonValidationUtils）；② {@code gatewayEvaluable=true} 时
+     * items[].type 全部在 {@code ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES} 白名单内
+     * （T-PERM-017 C2.5，含未知类型默认 fail-close）。不通过抛 {@code BizException}
+     * （20030 CONDITION_RULES_INVALID 系）。
+     * </p>
+     *
+     * @param conditionRules     条件规则 JSON 字符串
+     * @param gatewayEvaluable   最终生效的可下发标志（调用方先合并请求缺省值）
+     */
+    void assertConditionRulesValid(String conditionRules, boolean gatewayEvaluable);
+
 }

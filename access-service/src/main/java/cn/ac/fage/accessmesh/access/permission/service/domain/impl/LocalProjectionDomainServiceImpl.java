@@ -491,6 +491,18 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     }
 
     @Override
+    public List<Long> findConditionResourceIds(Long tenantId, Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return List.of();
+        }
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.CONDITION);
+        return resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+            tenantId, resourceType, codes, Set.of(CODE_TYPE_DEFAULT)).stream()
+            .map(ResourceEntity::getId)
+            .toList();
+    }
+
+    @Override
     public int backfillConditionProjections(Long tenantId) {
         Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.CONDITION);
         // 仅 MANAGED 条件投影（T-PERM-048 定案⑤：INLINE 内联条件无资源身份消费者，不投影）

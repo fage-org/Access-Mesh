@@ -125,6 +125,20 @@
         ) affected_service_codes
     </select>
 
+    <!-- T-PERM-048：条件删除引用守卫/内联回收——候选 conditionIds 中仍被有效授权行引用的存在性判定
+         （condition_id + delete_flag=0，同时覆盖类型级/实例级两形态行） -->
+    <select id="selectReferencedConditionIds" resultType="java.lang.Long">
+        SELECT DISTINCT condition_id
+        FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND condition_id IS NOT NULL
+          AND condition_id IN
+        <foreach collection="conditionIds" item="cid" open="(" separator="," close=")">
+            #{cid}
+        </foreach>
+    </select>
+
     <select id="selectValidByRoleIds" resultType="cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission">
         SELECT * FROM role_resource_permission
         WHERE tenant_id = #{tenantId}

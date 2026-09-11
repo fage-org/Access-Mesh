@@ -4,9 +4,9 @@ import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionDetailReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionRemoveReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConditionUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.EmptyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConditionResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.service.ConditionAppService;
@@ -74,17 +74,18 @@ public class ConditionController {
     /**
      * 查询权限条件列表
      * <p>
-     * 返回租户下所有的权限条件列表，无过滤条件。
-     * 用于权限配置时选择可用的条件。
+     * 返回租户下的权限条件列表（全量不分页，T-PERM-029 定案）。
+     * 双轨制（T-PERM-048）：缺省只返回 MANAGED 管理页条件（权限条件页口径）；
+     * includeInline=true 时含授权页内联条件（授权页回显用）。读取无门禁维持。
      * </p>
      *
-     * @param req 空请求，用于保持接口一致性
+     * @param req 列表请求（includeInline 可选）
      * @return 条件列表
      */
     @PostMapping("/list")
-    public R<ItemsResp<ConditionResp>> listConditions(@Valid @RequestBody EmptyReq req) {
+    public R<ItemsResp<ConditionResp>> listConditions(@Valid @RequestBody ConditionListReq req) {
         return R.ok(new ItemsResp<>(
-            conditionAppService.listConditions(TenantContextHolder.getTenantId())
+            conditionAppService.listConditions(TenantContextHolder.getTenantId(), req.includeInline())
         ));
     }
 
