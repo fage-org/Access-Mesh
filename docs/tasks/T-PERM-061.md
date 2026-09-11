@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-061
 title: EXT-7：batchCheck 逐条 engine.query 收敛——分组 + 请求级共享装载（A+ 形态）
-status: review
+status: done
 plan: ""
 domain: permission-center
 design_refs:
@@ -24,7 +24,7 @@ last_updated: 2026-09-11
 
 # T-PERM-061 EXT-7：batchCheck 逐条 engine.query 收敛——A+ 形态
 
-> 状态：review（2026-09-11 **实施完成**：A+ 形态主链路（引擎 queryBatch/BatchEvalContext + 条件四态增量快照 + 互斥计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫）与回归锁①-⑪ 全部落地（BatchAuthCheckPgIT 容器轨 + evaluator 单测轨全绿）；api-contract §6.1 批量口径注记 / coding-standards 句扩写 / skill 双副本示例已同步；实施落点见 implementation §3.10「实施落点」段；待双轨本地评审收口）
+> 状态：done（2026-09-11 **收口**：A+ 形态实施完成（引擎 queryBatch/BatchEvalContext + 条件四态增量快照 + 互斥计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫）；回归锁①-⑪（BatchAuthCheckPgIT）+ evaluator 单测轨 + 收口全量回归（-T 1C 含 E2E）全绿；双轨本地评审处置完毕（六处修正 + 父判定段条件装载定案登记遗留，见 registry 实施收口行）；api-contract §6.1 批量口径注记 / implementation §3.8+§3.10 实施落点 / coding-standards §2（6.1.0）/ skill 双副本（5.2.0）已同步）
 > 依赖：无硬依赖
 
 ## 背景
