@@ -166,6 +166,18 @@ class BatchEntrySizeValidationTest {
                 List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
                     "", "m-1", "VIEW", null, null, null)), null, null, null, null, null);
         assertFalse(validator.validate(sdkBlank).isEmpty(), "SDK 副本嵌套空白同款 400");
+
+        // SDK 副本补强（grok r2 复审 2026-09-11）：服务端副本有而副本面缺的 blank op 与 null 元素，防双副本漂移
+        cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq sdkBlankOp =
+            new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq("LOCAL_USER", "1",
+                List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
+                    "MENU", "m-1", " ", null, null, null)), null, null, null, null, null);
+        assertFalse(validator.validate(sdkBlankOp).isEmpty(), "SDK 副本嵌套空白 operationCode 同款 400");
+        cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq sdkNullElement =
+            new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq("LOCAL_USER", "1",
+                java.util.Arrays.asList((cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem) null),
+                null, null, null, null, null);
+        assertFalse(validator.validate(sdkNullElement).isEmpty(), "SDK 副本 items null 元素同款 400");
     }
 
     @Test
