@@ -24,7 +24,7 @@ last_updated: 2026-09-11
 
 # T-PERM-061 EXT-7：batchCheck 逐条 engine.query 收敛——A+ 形态
 
-> 状态：proposed（2026-09-11 立项；同日设计定稿 v3——claude+codex 首轮双外评处置 + claude+codex+grok 三轨复审处置，实施未开始）
+> 状态：proposed（2026-09-11 立项；同日设计稿 v4——首轮双评 + 三轨复审 + codex sol 第三轮处置；**待用户确认定稿**，实施未开始）
 > 依赖：无硬依赖
 
 ## 背景
@@ -33,7 +33,7 @@ last_updated: 2026-09-11
 
 场景实底：大 N 场景按 (类型,操作,修饰符) 分组后组内同构、组数小；真逐项异构 N≤20；组数上界=类型×操作×修饰符组合（类型租户可扩展，最坏≈item 数）——设计目标为「装载共享=常数、组内判定=内存」。纯行级过滤 SDK 引导面是 query-resources 正查询；batch-check 定位是验证形态。
 
-## 设计定稿（v3）
+## 设计稿 v4（待用户确认定稿）
 
 ### 一、共享装载（BatchEvalContext，引擎内部，全部 DB 新鲜读）
 
@@ -47,7 +47,7 @@ last_updated: 2026-09-11
 6. **entity 预解析 ×1**：全部实例 item 的 code 合并一次 batchResolveResourceIds，**按返回 Map 键取**（resolveEntityIds 现状 values() 合并丢弃 key——存量缺陷，批量不可复用该形态）；「已尝试」状态含全 miss。
 7. **父判定 ×1（惰性保留）**：共享 LazyParentCheck（仅当某组命中集确含子行才触发第一次执行）；共享只经既有注入面——`checkParentResource` 的 `setRoleIds` + 已钉住 evalContext；**父类型/父操作解析不并入共享 ResolveContext**（父判定每请求仅一次，其内部解析天然一次；prepareResolveContext 无注入点，强并入需改 PermQuery/签名且无收益）。父判定递归内部 resolveMatchedOperationCodes 的操作解析为已知残余 IO（正确性无差，实施时可评估带上下文的内部入口，非必须）。
 8. **PERM_MUTEX 静态数据 ×1**：规则一次装载；操作索引按 distinct 类型 O(K)；**只共享装载，不共享计算**（集合语义见下）。
-9. **条件规则预取 ×1**：**需新增批量条件快照接口**（PermissionConditionDomainService 扩展：CONDITION_RULES getBatch + miss 集 beginRead + selectValidByIds + putBatch(token)，保持 L2_ONLY 与剩余 TTL 语义）——评估阶段只消费快照；conditionCache 每次 evaluate 新建，无批量接口则逐 item 重复 Redis/解析，「常数装载」不成立。
+9. **请求级增量条件快照（四态建模）**：**需新增批量条件快照接口**（PermissionConditionDomainService 扩展）。快照形态 = `conditionId → LoadedRules 四态（OK / NOT_FOUND / DISABLED / INVALID）`，**仅 enabled=true 且解析成功的规则作为 OK 写入 CONDITION_RULES 正缓存（putBatch 带 beginRead 剩余 TTL）**；缺失/禁用/解析失败记录请求级失败状态，评估 fail-close（与单条 loadRules 语义一致——selectValidByIds 只滤租户+软删不滤 enabled，朴素批量会把禁用条件当有效规则入缓存=权限绕过方向）。**增量装载**：scopeAll 段、实例段、父判定各自在行集到手后只批量加载**新出现**的 conditionId（每阶段至多一批次 getBatch+miss 回源；同 ID 请求内至多回源一次）——分段化与「预取 ×1」存在数据依赖环（scopeAll 放行判定需要条件、实例行条件 ID 要实例装载后才知、父判定条件 ID 要父查询后才知），严格 ×1 不可达；验收口径 = 每阶段至多一次 + 同 ID 请求内至多回源一次，配缓存/Mapper 次数锁。
 10. **evaluatedAt（定案 a2）**：批量入口构造**唯一且非空**的 `PermEvalContext(ip, now(), attrs)` 挂全链——全部 item 评估、父判定递归、条件评估共用同一实例；**禁止**各 item 经 fromCallerMap 后再进 query() 各自重钉（query() 的 evaluatedAt==null 分支会各自 now()，定案落空）；批量路径禁止 now() 回退（toEvalMap null 分支不触达）。
 11. **不调 loadAncillary**：批量路径直接消费条目集合构造 AuthCheckItemResult（只要 allowed/reason/matchedRoleIds/matchedPermissionIds——均由条目派生，不需要 resourceMap/operationMap/roleMap）；规避 loadAncillary 首行无条件 resolveOperationIdsForAncillary 的逐 item 无缓存 SQL。
 
@@ -65,7 +65,7 @@ last_updated: 2026-09-11
 | item 实例子集 | `resourceType == 组类型` AND 位掩码命中；`entityId ∈ (item.inheritClosure ? cteClosure[target] ∪ {target} : {target})`；再 filterDependentEntries |
 | 空并集 | 可解析 entityId 为空 → 不调用 CTE 与实例 SQL（见上守卫） |
 
-**评估粒度不变量**：scopeAll 段组内一次评估（子集与 item 无关）；实例段逐 item（PERM_MUTEX 集合语义——filterPermMutex 对传入条目整体算 opIds，规则两端都在场才冲突且两端全丢；合并评估必不等价）。可达反例（修正构造）：同组两 item 各持不同单 bit 行（如 VIEW 行与 UPDATE 行，UPDATE 的 inherit_mask=2 覆盖 VIEW 位 → 查 VIEW 时 coveringMask 把 UPDATE 位纳入）构成互斥对——逐 item 评估各自 allowed、合并评估双 denied。**MANUAL 行单 bit 依据 = DDL CHECK 为来源条件式（非 MANUAL 不受约束）+ 当前全部写入口仅 MANUAL 单 bit 两条（apply-grant-plan/bootstrap）；未来 AUTO_DEP 落地是复合位唯一潜在来源**。存量语义记录：无精确 op 匹配的 granted_bits 行被静默排除出互斥判定（findIndexedByResourceTypeAndBinaryBit 精确查表 null → filter 掉）——不可用「位掩码命中」近似「opIds 命中」；**computeInstanceDenied（getDenied 族的并集互斥回映射）不可复用于 check 族实例段**。
+**评估粒度不变量**：scopeAll 段组内一次评估（子集与 item 无关）；实例段逐 item（PERM_MUTEX 集合语义——filterPermMutex 对传入条目整体算 opIds，规则两端都在场才冲突且两端全丢；合并评估必不等价）。**评估顺序不变量**：每个投影子集固定 `depend_on 过滤 → 条件评估 → PERM_MUTEX 计算`（evaluateIfNeeded 现状序 :921-928，新批量路径不得重排）——反例：同一资源 VIEW 行挂不满足条件 + 无条件 UPDATE 行（inherit_mask 覆盖 VIEW）+ VIEW↔UPDATE 互斥规则：现状先摘 VIEW → 互斥两端不齐 → UPDATE 仍放行 VIEW；若先算互斥 → 两行全丢 = false deny + 虚假冲突审计。可达反例（修正构造）：同组两 item 各持不同单 bit 行（如 VIEW 行与 UPDATE 行，UPDATE 的 inherit_mask=2 覆盖 VIEW 位 → 查 VIEW 时 coveringMask 把 UPDATE 位纳入）构成互斥对——逐 item 评估各自 allowed、合并评估双 denied。**MANUAL 行单 bit 依据 = DDL CHECK 为来源条件式（非 MANUAL 不受约束）+ 当前全部写入口仅 MANUAL 单 bit 两条（apply-grant-plan/bootstrap）；未来 AUTO_DEP 落地是复合位唯一潜在来源**。存量语义记录：无精确 op 匹配的 granted_bits 行被静默排除出互斥判定（findIndexedByResourceTypeAndBinaryBit 精确查表 null → filter 掉）——不可用「位掩码命中」近似「opIds 命中」；**computeInstanceDenied（getDenied 族的并集互斥回映射）不可复用于 check 族实例段**。
 
 ### 三、结果拆分（reason 树双轨规格）
 
@@ -84,6 +84,7 @@ last_updated: 2026-09-11
 - **计算与通知解耦**：filterPermMutex 现状每次调用即通知且 detail 用「任一端点命中」OR 过滤（loose，跨 item 并集放大误报）——批量层**不复用**该聚合原语。
 - 批量层维护 **`(组, ruleId) → 命中 originalIndex 列表` ledger**：scopeAll 段（组内一次）与实例段（逐 item）分桶写入；**scopeAll 短路 return 前必须 flush**（否则短路放行路径漏记）。
 - 通知形态：每 (组, ruleId) 一条审计行，detail 由**实际命中规则集**（first ∈ opIds && second ∈ opIds 的 AND 判定）构造 + `hitItemCount`（item 去重、段间合并）；**次数锁**按 (组, ruleId) 计、**内容锁**断言未触发规则不出现在 detail。
+- **父判定审计桶（登记口径）**：共享父判定（每请求至多触发一次）经既有 `query(parentQuery)` 递归，其内部互斥通知**维持现有形态、不入 ledger**——理由：每请求 ≤1 次无 N→1 去重需求；纳入 ledger 需把冲突快照/ledger sink 穿透递归 query（与「父判定共享只经既有注入面」决策冲突，工程面不成比例）；其 detail 端点 OR 宽松过滤为存量缺陷维持现状（登记于遗留节）。
 
 ### 五、改动面
 
@@ -96,14 +97,16 @@ last_updated: 2026-09-11
 | PermissionCheckAppServiceImpl | batchCheck 编排重写（分组+注入+ResultSlot 拆分+唯一 PermEvalContext） | 中 |
 | api-contract §6.1 / implementation §3 / permission-center-coding-standards | a2 批量口径注记 + queryBatch 入口成文（「engine.query() 或四个显式入口」句扩写） | 小 |
 
-### 六、回归锁计划（v3）
+### 六、回归锁计划（v4）
 
-容器轨落位（GoldenFixturePgIT/TargetModeClosurePgIT 先例）：①**等价差分**——同一 fixtures 上 query()×N vs queryBatch 逐 item 对拍 allowed/reason/matched（按集合比较）；②**共享计数锁**——N=10 与 N=100 下 selectScopeAllPermsByBitsBatch/selectInstancePermsByBitsBatch/selectSelfAndAncestorClosureBatch 调用次数不变（防批量入口内部仍循环 query() 的假绿）；③**投影谓词否定锁**——默认模式（不传 inheritMode）授父查子 deny / TYPE_LEVEL item + 仅 depend_on scopeAll + 请求级父上下文 deny / 同批 MENU VIEW+USER scopeAll VIEW 混合 → MENU item deny（跨类型位泄漏）；④空目标集批（纯 TYPE_LEVEL 1000 项 / 全幽灵 code）→ 200 全 deny 禁 500；⑤互斥真锁（VIEW 行+UPDATE 行+VIEW↔UPDATE 规则，断言逐 item 评估双 allowed）；⑥reason 边界——幽灵 code+仅子行 scopeAll+无父上下文 → DEPENDENT_NOT_IN_PARENT_CONTEXT；⑦时间窗边界锁（mockStatic now() 依次 t1/t2，断言批内一致——旧逐 item 路径下红）；⑧通知次数锁+内容锁。现有 PermissionCheckAppServiceImplTest mock 引擎须改 stub 到新入口（不作等价证据）。
+容器轨落位（GoldenFixturePgIT/TargetModeClosurePgIT 先例）：①**等价差分**——同一 fixtures 上 query()×N vs queryBatch 逐 item 对拍 allowed/reason/matched（按集合比较）；②**共享计数锁**——N=10 与 N=100 下 selectScopeAllPermsByBitsBatch/selectInstancePermsByBitsBatch/selectSelfAndAncestorClosureBatch 调用次数不变（防批量入口内部仍循环 query() 的假绿）；③**投影谓词否定锁**——默认模式（不传 inheritMode）授父查子 deny / TYPE_LEVEL item + 仅 depend_on scopeAll + 请求级父上下文 deny / 同批 MENU VIEW+USER scopeAll VIEW 混合 → MENU item deny（跨类型位泄漏）；④空目标集批（纯 TYPE_LEVEL 1000 项 / 全幽灵 code）→ 200 全 deny 禁 500；⑤互斥真锁（VIEW 行+UPDATE 行+VIEW↔UPDATE 规则，断言逐 item 评估双 allowed）；⑥reason 边界——幽灵 code+仅子行 scopeAll+无父上下文 → DEPENDENT_NOT_IN_PARENT_CONTEXT；⑦时间窗边界锁（mockStatic now() 依次 t1/t2，断言批内一致——旧逐 item 路径下红）；⑧通知次数锁+内容锁；⑨**禁用条件 fail-close 锁**（scopeAll/实例两轨：授权行挂 enabled=false 且规则体可评估为真的条件 → 必须 deny，禁止批量快照把禁用条件当有效——RED 在朴素批量实现下失败）；⑩**条件-互斥顺序锁**（VIEW 行挂不满足条件 + 无条件 UPDATE 行（inherit_mask 覆盖 VIEW）+ VIEW↔UPDATE 互斥 → 断言条件先摘、互斥不成立、UPDATE 仍放行且零通知——锁「depend_on→条件→互斥」序）；⑪**条件增量快照次数锁**（每阶段至多一批次、同 conditionId 请求内至多回源一次）。现有 PermissionCheckAppServiceImplTest mock 引擎须改 stub 到新入口（不作等价证据）。
 
 ### 七、设计评审记录（2026-09-11）
 
 - **首轮**（claude P1×3+P2×2+P3×1；codex P1×1+P2×6+P3×1）：全部代码级核实成立，处置=v2 全面修订（换挂载点/评估编排/闭包切分/反例修正/账本重列/reason 补 NO_ROLE）+ 三定案（a2/b2/c1，registry 2026-09-11 行）。
 - **复审轮**（claude P1×1+P2×2+P3×6；codex P2×6+P3×1；grok P1×1+P2×2+P3×1）：三轨合并处置=v3——claude/grok 共同 P1「闭包映射未按 inheritClosure 分档（默认档越权）」→ 投影谓词不变量表+分档规则+否定锁；「空目标集 CTE IN()/实例 SQL 无界」三轨收敛 → 空集守卫（codex 附带的闭包规模上限为 registry 已登记改进项，重报撤回）；reason 树漏 DEPENDENT 支+TYPE_LEVEL 缺轨（claude/grok）→ 双轨规格；grok 独有「resource_type 谓词显式化（种子 CROSS JOIN 同位值）+TYPE_LEVEL 无条件丢 depend_on」并入谓词表；codex 独有「条件预取缺批量接口/a2 强制注入全链/行号锚点漂移」采纳；codex「DB 一致性时点未定义」经三轨交叉裁决降级为登记句（READ COMMITTED 批内同源与 a2 同向，claude/grok 均核为非缺陷）；claude「父类型并入共享 ResolveContext 不兼容且与⑦重复」→ 修正为只经既有注入面；b2 聚合机制（三轨收敛：现有 notify 原语 OR 过滤宽松+无计数+计算通知绑死）→ ledger 解耦方案。
+- **第三轮**（codex sol xhigh，read-only，session 01a090b0）：判定「v3 需修订暂不可定稿」——P1×1+P2×2+P3×1 全部代码级核实成立并处置为 v4：①P1 批量条件快照未保留 DISABLED/NOT_FOUND/INVALID fail-close 语义（selectValidByIds 不滤 enabled，朴素批量把禁用条件当有效规则入缓存=权限绕过）→ 四态建模 + 仅 OK 入正缓存 + fail-close 锁；②P2 分段装载与「条件预取 ×1」数据依赖环（scopeAll 放行判定需条件、实例/父条件 ID 要后续阶段才知）→ 请求级**增量**条件快照（每阶段至多一批次、同 ID 至多回源一次）+ 次数锁；③P2 评估顺序未钉（条件先于互斥是 evaluateIfNeeded 现状序，重排致 false deny + 虚假审计）→ 顺序不变量 + 条件-互斥组合锁；④P3 父判定递归绕过 ledger → **父判定审计桶登记口径**（每请求 ≤1 次无去重需求，维持现有通知形态，不入 ledger——纳入需穿透递归 query 与既有决策冲突）。sol 同时确认投影谓词/inheritClosure 分档/空集守卫/reason 双轨/a2 传递四件 v3 核心物本轮无新缺陷。
+- 存量观察（sol r3）：`TypeResolutionServiceImpl.batchResolveDomainIds` 结果计算后未参与过滤（batchResolveResourceIds 路径不校验 domainCode 存在性，与单条 resolveResourceId 的域存在性检查不一致）——登记待后续核实处置，不属本卡范围。
 - **随批修复**：BatchAuthCheckReq.items 双副本 @Valid（1cebf1ad9）；SDK 副本级联用例补强 blank operationCode+null 元素（grok 建议，防双副本漂移）。
 - 1cebf1ad9 三轨独立评审均零缺陷（双副本逐字段一致/元素级注解正确/连带面全仓零消费方）。
 
