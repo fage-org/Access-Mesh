@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，四轮外评处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -478,7 +478,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 
 **共享装载（BatchEvalContext）**——per-request 实例经方法参数传递，**禁止落引擎字段**（@Component 单例并发串数据）；全部 DB 新鲜读，**不引入 ROLE_PERM_SNAPSHOT**（L2_ONLY 10s 陈旧窗口不进运行时鉴权面，T-ACCESS-008 边界）：角色 ×1（空=整批 NO_ROLE 前置）＋「已尝试解析」显式状态（resolveRoleIds/resolveEntityIds/resolveOperationIds 三处空集哨兵）；全类型与全 (type,op) 对一次解析；scopeAll 行全组 BitMaskEntry 合并一次；**分段化**——实例装载仅对 scopeAll 段未放行的组（短路是既有优化，两阶段保持）；entity 预解析合并一次按 Map 键取（resolveEntityIds 现状 values() 合并丢 key 不可复用）；闭包 CTE 仅对 inheritClosure=true 档目标发一次；共享父判定 ×1（惰性保留，只经既有 roleIds+evalContext 注入面，父类型/操作解析不并入共享上下文）；PERM_MUTEX 静态数据 ×1（规则一次+操作索引 O(distinct types)，只共享装载不共享计算）；**唯一非空 PermEvalContext(ip, now(), attrs) 强制注入全链**（item/父递归/条件评估共用，a2 定案——禁各 item 重钉禁 now() 回退）；批量路径不调 loadAncillary（matched 字段族由条目派生）；**空目标集守卫**——可解析 entityId 并集为空（纯 TYPE_LEVEL 批/全幽灵 code）禁调闭包 CTE（空 foreach `IN ()`=500）与实例 SQL（`<if>` 空集丢实体过滤=无界装载），queryInstance 空 entityIds 直接 List.of()。
 
-**条件快照 = 请求级增量、四态建模**（sol r3 定稿口径）：快照形态 `conditionId → LoadedRules 四态（OK/NOT_FOUND/DISABLED/INVALID）`，仅 enabled=true 且解析成功作为 OK 写 CONDITION_RULES 正缓存（putBatch 带 beginRead 剩余 TTL）；失败态请求级记忆、评估 fail-close（与单条 loadRules 语义一致——selectValidByIds 不滤 enabled，朴素批量把禁用条件当有效规则入缓存=权限绕过）。**增量装载**：scopeAll/实例/父判定各阶段只批量加载新出现的 conditionId（每阶段至多一批次、同 ID 请求内至多回源一次——分段化与预取严格 ×1 存在数据依赖环，弃 ×1 口径）。
+**条件快照 = 请求级增量、四态建模**（设计定稿口径；**需新增批量条件快照接口**——PermissionConditionDomainService 扩展，见 §2.5 面的改动归属）：快照形态 `conditionId → LoadedRules 四态（OK/NOT_FOUND/DISABLED/INVALID）`，仅 enabled=true 且解析成功作为 OK 写 CONDITION_RULES 正缓存（putBatch 带 beginRead 剩余 TTL）；失败态请求级记忆、评估 fail-close（与单条 loadRules 语义一致——selectValidByIds 不滤 enabled，朴素批量把禁用条件当有效规则入缓存=权限绕过）。**增量装载**：scopeAll/实例/父判定各阶段只批量加载新出现的 conditionId（每阶段至多一批次、同 ID 请求内至多回源一次——分段化与预取严格 ×1 存在数据依赖环，弃 ×1 口径）。
 
 **分组键**：`(targetMode, resourceTypeCode, operationCode, codeType, domainCode, inheritMode)`；parentResource 请求级共享不进键。
 
@@ -489,13 +489,15 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 | 组 scopeAll 子集 | `resourceType == 组类型` AND `(granted_bits & 组 coveringMask) != 0`；TYPE_LEVEL 组再 `dependOn == null`（**无条件**丢子行，queryTypeLevel 现状）；INSTANCE 组再 filterDependentEntries |
 | item 实例子集 | 同类型+掩码谓词；`entityId ∈ (inheritClosure ? cteClosure[target] ∪ {target} : {target})`（**false 档含缺省恒 {自身}——不分档=默认模式获得祖先继承=越权**）；再 filterDependentEntries |
 
-**评估粒度与顺序不变量**：scopeAll 段组内一次（子集与 item 无关）；实例段逐 item（PERM_MUTEX 集合语义：filterPermMutex 对子集整体算 opIds、两端同场才冲突且两端全丢——合并评估必不等价；computeInstanceDenied 的并集互斥回映射不可复用于 check 族）；每个投影子集固定 `depend_on 过滤 → 条件评估 → PERM_MUTEX 计算`（evaluateIfNeeded 现状序，重排致条件摘掉互斥一端前两端同场全丢=false deny+虚假审计）。
+**评估粒度与顺序不变量**：scopeAll 段组内一次（子集与 item 无关）；实例段逐 item（PERM_MUTEX 集合语义：filterPermMutex 对子集整体算 opIds、两端同场才冲突且两端全丢——合并评估必不等价；computeInstanceDenied 的并集互斥回映射不可复用于 check 族）；每个投影子集固定 `depend_on 过滤 → 条件评估 → PERM_MUTEX 计算`（现状序：depend_on 过滤在调用方——TYPE_LEVEL 组 queryTypeLevel 无条件丢子行、INSTANCE 组 filterDependentEntries；条件→互斥在 evaluateIfNeeded；重排致条件摘掉互斥一端前两端同场全丢=false deny+虚假审计）。
+
+**数据时点（登记）**：READ COMMITTED 下批量化把「逐 item 各语句各看各的」变为「批内一次装载同源」——与 a2 同向的行为变化，随定案接受（非缺陷）。
 
 **reason 双轨**：TYPE_LEVEL 组二值（scopeAllMatchedBeforeEval ? CONDITION_NOT_MET_OR_CONFLICT : NO_PERMISSION，无 DEPENDENT 支无目标不可解析支）；INSTANCE 组两段各三支——目标空：scopeAllEvaluatedEmpty→CONDITION ＞ dependentOnlyExcluded→DEPENDENT ＞ NO_PERMISSION；评估清空：(评估前有行||scopeAllEvaluatedEmpty)→CONDITION ＞ dependentOnlyExcluded→DEPENDENT ＞ NO_PERMISSION。组 scopeAll 评估通过→组内全 allowed（code 可不可解析都放行，短路优先）。NO_ROLE/USER_NOT_FOUND 整批前置；ResultSlot 按原始输入序输出；拒绝项 matched 字段族恒空列表。
 
 **互斥通知（b2 定案）**：计算与通知解耦；批量层维护 `(组, ruleId) → 命中 originalIndex 列表` ledger，scopeAll 段与实例段分桶写入、scopeAll 短路 return 前 flush；每 (组, ruleId) 一条审计行，detail 由实际命中规则集（AND 两端）构造 + hitItemCount（item 去重段间合并）；**父判定审计桶**——共享父判定每请求 ≤1 次触发，其内部互斥通知维持现有形态不入 ledger（无去重需求；纳入需穿透递归 query 与既有注入面决策冲突）。
 
-**回归锁（容器轨，GoldenFixturePgIT/TargetModeClosurePgIT 先例）**：等价差分（query()×N vs queryBatch 逐 item 对拍 allowed/reason/matched 按集合比较）＋共享计数锁（N=10/100 mapper 调用次数不变）＋投影谓词否定锁（默认模式授父查子 deny / TYPE_LEVEL+depend_on+父上下文 deny / 跨类型位泄漏 deny）＋空目标集批 200 全 deny ＋互斥真锁（VIEW 行+UPDATE 行（inherit_mask 覆盖）+互斥规则→逐 item 双 allowed）＋reason 边界＋时间窗边界＋通知次数/内容锁＋禁用条件 fail-close 两轨锁＋条件-互斥顺序锁＋条件增量快照次数锁。
+**回归锁（容器轨，GoldenFixturePgIT/TargetModeClosurePgIT 先例）**：等价差分（query()×N vs queryBatch 逐 item 对拍 allowed/reason/matched 按集合比较）＋共享计数锁（N=10/100 mapper 调用次数不变）＋投影谓词否定锁（默认模式授父查子 deny / TYPE_LEVEL+depend_on+父上下文 deny / 跨类型位泄漏 deny）＋空目标集批（1000 项上限形态）200 全 deny 禁 500 ＋互斥真锁（VIEW 行+UPDATE 行（inherit_mask 覆盖）+互斥规则→逐 item 双 allowed）＋reason 边界（幽灵 code+仅子行 scopeAll→DEPENDENT_NOT_IN_PARENT_CONTEXT）＋时间窗边界＋通知次数/内容锁＋禁用条件 fail-close 两轨锁＋条件-互斥顺序锁＋条件增量快照次数锁。现有 PermissionCheckAppServiceImplTest mock 了引擎——改 stub 到新入口，不作等价证据。
 
 ---
 
@@ -646,10 +648,10 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
 | 缓存内容                    | Catalog / Key 模式                                                                 | 模式      | L1 TTL    | L2 TTL   |
 | --------------------------- | ---------------------------------------------------------------------------------- | --------- | --------- | -------- |
-| 用户有效角色集合            | `PermCacheCatalog.EFFECTIVE_ROLES` / `{tenantId}:perm:effective-roles:{userId}`    | `L1_L2`   | 5 分钟    | 30 分钟  |
-| 角色权限快照（资源+操作位） | `PermCacheCatalog.ROLE_PERM_SNAPSHOT` / `{tenantId}:perm:role-perm-snapshot:{roleId}` | `L1_L2` | 5 分钟    | 30 分钟  |
-| 条件规则                    | `PermCacheCatalog.CONDITION_RULES` / `{tenantId}:perm:condition-rules:{conditionId}` | `L1_L2` | 10 分钟   | 30 分钟  |
-| 角色互斥规则                | `PermCacheCatalog.ROLE_MUTEX_RULE` / `{tenantId}:perm:role-mutex-rule:all`         | `L1_L2`   | 10 分钟   | 30 分钟  |
+| 用户有效角色集合            | `PermCacheCatalog.EFFECTIVE_ROLES` / `{tenantId}:perm:effective-roles:{userId}`    | `L2_ONLY` | —         | 10 秒（快照链路安全边界，T-ACCESS-008） |
+| 角色权限快照（资源+操作位） | `PermCacheCatalog.ROLE_PERM_SNAPSHOT` / `{tenantId}:perm:role-perm-snapshot:{roleId}` | `L2_ONLY` | — | 10 秒（仅 LIST 管线消费；forAuthCheck 鉴权面不经快照，见 §3.10） |
+| 条件规则                    | `PermCacheCatalog.CONDITION_RULES` / `{tenantId}:perm:condition-rules:{conditionId}` | `L2_ONLY` | —       | 10 秒（快照链路安全边界） |
+| 角色互斥规则                | `PermCacheCatalog.ROLE_MUTEX_RULE` / `{tenantId}:perm:role-mutex-rule:all`         | `L2_ONLY`   | —       | 10 秒（快照链路安全边界） |
 | 操作权限按资源类型索引      | `PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE` / `{tenantId}:perm:operation-permissions-by-type:op_perm:{resourceType}` | `L1_L2` | 60 分钟   | 120 分钟 |
 | Gateway 接口快照            | `PermissionFilter.buildCacheKey` / `perm:snapshot:{tenantId}:{subjectTypeCode}:{userId}:{serviceCode}` | `L1_ONLY` | 默认 30 秒 | 无       |
 

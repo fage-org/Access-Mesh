@@ -12,10 +12,10 @@ depends_on: []
 blocks: []
 acceptance:
   - "背景（审计 S-024 EXT-7，2026-09-11 立项核实）：PermissionCheckAppServiceImpl.batchCheck（:118）逐 item 构造 PermQuery.forAuthCheck 调 engine.query——每 item 一次完整管线，主体级数据重复装载 N 次"
-  - "设计定稿（2026-09-11 v3，三轮外评处置后）：A+ = 分组 + 请求级共享装载，挂真实 SQL 路径（不引入 ROLE_PERM_SNAPSHOT 陈旧语义）；核心不变量 = 合并 SQL 切回投影谓词表（类型+组掩码+inheritClosure 分档闭包+targetMode 分轨 depend 过滤）+ 评估粒度（scopeAll 段组内一次/实例段逐 item）+ 空目标集守卫（禁 CTE IN()/实例 SQL 无界扫描）+ reason 树双轨规格"
-  - "三项定案（2026-09-11 用户拍板）：A=evaluatedAt 请求级单一时刻（唯一非空 PermEvalContext 强制注入全链，禁 now() 回退）；B=notifyPermConflict 组级去重（(组,ruleId) ledger，detail 按实际命中规则集构造携 hitItemCount，短路 return 前 flush）；C=items 缺 @Valid 已随批修复（commit 1cebf1ad9）"
-  - "回归要求：容器轨等价差分（GoldenFixturePgIT/TargetModeClosurePgIT 先例，query()×N vs queryBatch 对拍）+ 共享计数锁（N=10 与 N=100 下 mapper 调用次数不变）+ 投影谓词否定锁（默认模式授父查子 deny/TYPE_LEVEL+depend_on deny/跨类型位泄漏 deny）+ 空目标集批 200 全 deny 禁 500 + 互斥真锁（VIEW 行+UPDATE 行（inherit_mask 覆盖 VIEW）+VIEW↔UPDATE 规则）+ 时间窗边界锁；matched 按集合比较"
-  - "性能项非阻断：当前无已知大 item 批量消费方；SDK batch-check 契约不变（a2 时刻语义实施时补 api-contract §6.1 批量口径注记）"
+  - "设计定稿（2026-09-11 v4，用户确认，经多轨外部评审逐条核实处置）：A+ = 分组 + 请求级共享装载，挂真实 SQL 路径（不引入 ROLE_PERM_SNAPSHOT 陈旧语义）；核心不变量 = 合并 SQL 切回投影谓词表（类型+组掩码+inheritClosure 分档闭包+targetMode 分轨 depend 过滤）+ 评估粒度（scopeAll 段组内一次/实例段逐 item）与顺序（depend_on 过滤→条件→互斥）+ 空目标集守卫（禁 CTE IN()/实例 SQL 无界扫描）+ reason 树双轨规格 + 条件四态增量快照 fail-close + 父判定审计桶口径；设计正文已回写 implementation §3.10"
+  - "三项定案（2026-09-11 用户确认）：A=evaluatedAt 请求级单一时刻（唯一非空 PermEvalContext 强制注入全链，禁 now() 回退）；B=notifyPermConflict 组级去重（(组,ruleId) ledger，detail 按实际命中规则集构造携 hitItemCount，短路 return 前 flush）；C=items 缺 @Valid 已随批修复（commit 1cebf1ad9）"
+  - "回归要求（§六 ①-⑪ 全量为准）：容器轨等价差分（GoldenFixturePgIT/TargetModeClosurePgIT 先例，query()×N vs queryBatch 对拍）+ 共享计数锁（N=10 与 N=100 下 mapper 调用次数不变）+ 投影谓词否定锁（默认模式授父查子 deny/TYPE_LEVEL+depend_on deny/跨类型位泄漏 deny）+ 空目标集批（1000 项上限形态）200 全 deny 禁 500 + 互斥真锁（VIEW 行+UPDATE 行（inherit_mask 覆盖 VIEW）+VIEW↔UPDATE 规则）+ reason 边界（幽灵 code+仅子行 scopeAll→DEPENDENT_NOT_IN_PARENT_CONTEXT）+ 时间窗边界锁 + 通知次数/内容锁 + 禁用条件 fail-close 两轨锁 + 条件-互斥顺序锁 + 条件增量快照次数锁；matched 按集合比较；现有引擎 mock 测试改 stub 新入口（不作等价证据）"
+  - "性能项非阻断：当前无已知大 item 批量消费方；SDK batch-check 契约不变（a2 时刻语义实施时补 api-contract §6.1 批量口径注记）；实施含 permission-center-coding-standards「engine.query() 或四个显式入口」句扩写与 permission-query-pipeline skill 双副本（.claude/.agents）逐 item 示例同步"
 design_writeback:
   required: true
   status: pending
@@ -24,7 +24,7 @@ last_updated: 2026-09-11
 
 # T-PERM-061 EXT-7：batchCheck 逐条 engine.query 收敛——A+ 形态
 
-> 状态：proposed（2026-09-11 立项；同日**设计定稿（v4，用户确认）**——首轮双评 + 三轨复审 + codex sol 第三轮处置；设计已回写 implementation §3.10，实施未开始）
+> 状态：proposed（2026-09-11 立项；同日**设计定稿（v4，用户确认）**——经多轨外部评审（claude/codex-luna/grok/codex-sol）逐条核实处置，处置详情见 decision-registry 2026-09-11 T-PERM-061 行；设计已回写 implementation §3.10，实施未开始）
 > 依赖：无硬依赖
 
 ## 背景
@@ -65,7 +65,7 @@ last_updated: 2026-09-11
 | item 实例子集 | `resourceType == 组类型` AND 位掩码命中；`entityId ∈ (item.inheritClosure ? cteClosure[target] ∪ {target} : {target})`；再 filterDependentEntries |
 | 空并集 | 可解析 entityId 为空 → 不调用 CTE 与实例 SQL（见上守卫） |
 
-**评估粒度不变量**：scopeAll 段组内一次评估（子集与 item 无关）；实例段逐 item（PERM_MUTEX 集合语义——filterPermMutex 对传入条目整体算 opIds，规则两端都在场才冲突且两端全丢；合并评估必不等价）。**评估顺序不变量**：每个投影子集固定 `depend_on 过滤 → 条件评估 → PERM_MUTEX 计算`（evaluateIfNeeded 现状序 :921-928，新批量路径不得重排）——反例：同一资源 VIEW 行挂不满足条件 + 无条件 UPDATE 行（inherit_mask 覆盖 VIEW）+ VIEW↔UPDATE 互斥规则：现状先摘 VIEW → 互斥两端不齐 → UPDATE 仍放行 VIEW；若先算互斥 → 两行全丢 = false deny + 虚假冲突审计。可达反例（修正构造）：同组两 item 各持不同单 bit 行（如 VIEW 行与 UPDATE 行，UPDATE 的 inherit_mask=2 覆盖 VIEW 位 → 查 VIEW 时 coveringMask 把 UPDATE 位纳入）构成互斥对——逐 item 评估各自 allowed、合并评估双 denied。**MANUAL 行单 bit 依据 = DDL CHECK 为来源条件式（非 MANUAL 不受约束）+ 当前全部写入口仅 MANUAL 单 bit 两条（apply-grant-plan/bootstrap）；未来 AUTO_DEP 落地是复合位唯一潜在来源**。存量语义记录：无精确 op 匹配的 granted_bits 行被静默排除出互斥判定（findIndexedByResourceTypeAndBinaryBit 精确查表 null → filter 掉）——不可用「位掩码命中」近似「opIds 命中」；**computeInstanceDenied（getDenied 族的并集互斥回映射）不可复用于 check 族实例段**。
+**评估粒度不变量**：scopeAll 段组内一次评估（子集与 item 无关）；实例段逐 item（PERM_MUTEX 集合语义——filterPermMutex 对传入条目整体算 opIds，规则两端都在场才冲突且两端全丢；合并评估必不等价）。**评估顺序不变量**：每个投影子集固定 `depend_on 过滤 → 条件评估 → PERM_MUTEX 计算`（现状序：depend_on 过滤在调用方——TYPE_LEVEL 组 queryTypeLevel:161 无条件丢子行、INSTANCE 组 filterDependentEntries:194/:232；条件→互斥在 evaluateIfNeeded:921-928；新批量路径不得重排）——反例：同一资源 VIEW 行挂不满足条件 + 无条件 UPDATE 行（inherit_mask 覆盖 VIEW）+ VIEW↔UPDATE 互斥规则：现状先摘 VIEW → 互斥两端不齐 → UPDATE 仍放行 VIEW；若先算互斥 → 两行全丢 = false deny + 虚假冲突审计。可达反例（修正构造）：同组两 item 各持不同单 bit 行（如 VIEW 行与 UPDATE 行，UPDATE 的 inherit_mask=2 覆盖 VIEW 位 → 查 VIEW 时 coveringMask 把 UPDATE 位纳入）构成互斥对——逐 item 评估各自 allowed、合并评估双 denied。**MANUAL 行单 bit 依据 = DDL CHECK 为来源条件式（非 MANUAL 不受约束）+ 当前全部写入口仅 MANUAL 单 bit 两条（apply-grant-plan/bootstrap）；未来 AUTO_DEP 落地是复合位唯一潜在来源**。存量语义记录：无精确 op 匹配的 granted_bits 行被静默排除出互斥判定（findIndexedByResourceTypeAndBinaryBit 精确查表 null → filter 掉）——不可用「位掩码命中」近似「opIds 命中」；**computeInstanceDenied（getDenied 族的并集互斥回映射）不可复用于 check 族实例段**。
 
 ### 三、结果拆分（reason 树双轨规格）
 
@@ -81,7 +81,7 @@ last_updated: 2026-09-11
 
 ### 四、互斥通知（定案 b2 聚合机制）
 
-- **计算与通知解耦**：filterPermMutex 现状每次调用即通知且 detail 用「任一端点命中」OR 过滤（loose，跨 item 并集放大误报）——批量层**不复用**该聚合原语。
+- **计算与通知解耦**：filterPermMutex 现状检出冲突即通知（通知与计算绑死）且 detail 用「任一端点命中」OR 过滤（loose，跨 item 并集放大误报）——批量层**不复用**该聚合原语。
 - 批量层维护 **`(组, ruleId) → 命中 originalIndex 列表` ledger**：scopeAll 段（组内一次）与实例段（逐 item）分桶写入；**scopeAll 短路 return 前必须 flush**（否则短路放行路径漏记）。
 - 通知形态：每 (组, ruleId) 一条审计行，detail 由**实际命中规则集**（first ∈ opIds && second ∈ opIds 的 AND 判定）构造 + `hitItemCount`（item 去重、段间合并）；**次数锁**按 (组, ruleId) 计、**内容锁**断言未触发规则不出现在 detail。
 - **父判定审计桶（登记口径）**：共享父判定（每请求至多触发一次）经既有 `query(parentQuery)` 递归，其内部互斥通知**维持现有形态、不入 ledger**——理由：每请求 ≤1 次无 N→1 去重需求；纳入 ledger 需把冲突快照/ledger sink 穿透递归 query（与「父判定共享只经既有注入面」决策冲突，工程面不成比例）；其 detail 端点 OR 宽松过滤为存量缺陷维持现状（登记于遗留节）。
@@ -95,22 +95,21 @@ last_updated: 2026-09-11
 | PermissionConditionDomainService | **批量条件快照接口**（getBatch+beginRead+putBatch） | 小 |
 | PermissionConflictDomainService | 规则/操作索引预载注入 + 计算通知解耦 + (组,ruleId) ledger 聚合 | 小-中 |
 | PermissionCheckAppServiceImpl | batchCheck 编排重写（分组+注入+ResultSlot 拆分+唯一 PermEvalContext） | 中 |
-| api-contract §6.1 / implementation §3 / permission-center-coding-standards | a2 批量口径注记 + queryBatch 入口成文（「engine.query() 或四个显式入口」句扩写） | 小 |
+| api-contract §6.1 / permission-center-coding-standards | a2 批量口径注记（随实施）+「engine.query() 或四个显式入口」句扩写（随实施） | 小 |
+| permission-query-pipeline skill 双副本（.claude/.agents） | batchCheck 逐 item 示例改 queryBatch 形态（随实施，双副本同步） | 小 |
+
+（implementation §3.10 回写已随定稿完成。）
 
 ### 六、回归锁计划（v4）
 
 容器轨落位（GoldenFixturePgIT/TargetModeClosurePgIT 先例）：①**等价差分**——同一 fixtures 上 query()×N vs queryBatch 逐 item 对拍 allowed/reason/matched（按集合比较）；②**共享计数锁**——N=10 与 N=100 下 selectScopeAllPermsByBitsBatch/selectInstancePermsByBitsBatch/selectSelfAndAncestorClosureBatch 调用次数不变（防批量入口内部仍循环 query() 的假绿）；③**投影谓词否定锁**——默认模式（不传 inheritMode）授父查子 deny / TYPE_LEVEL item + 仅 depend_on scopeAll + 请求级父上下文 deny / 同批 MENU VIEW+USER scopeAll VIEW 混合 → MENU item deny（跨类型位泄漏）；④空目标集批（纯 TYPE_LEVEL 1000 项 / 全幽灵 code）→ 200 全 deny 禁 500；⑤互斥真锁（VIEW 行+UPDATE 行+VIEW↔UPDATE 规则，断言逐 item 评估双 allowed）；⑥reason 边界——幽灵 code+仅子行 scopeAll+无父上下文 → DEPENDENT_NOT_IN_PARENT_CONTEXT；⑦时间窗边界锁（mockStatic now() 依次 t1/t2，断言批内一致——旧逐 item 路径下红）；⑧通知次数锁+内容锁；⑨**禁用条件 fail-close 锁**（scopeAll/实例两轨：授权行挂 enabled=false 且规则体可评估为真的条件 → 必须 deny，禁止批量快照把禁用条件当有效——RED 在朴素批量实现下失败）；⑩**条件-互斥顺序锁**（VIEW 行挂不满足条件 + 无条件 UPDATE 行（inherit_mask 覆盖 VIEW）+ VIEW↔UPDATE 互斥 → 断言条件先摘、互斥不成立、UPDATE 仍放行且零通知——锁「depend_on→条件→互斥」序）；⑪**条件增量快照次数锁**（每阶段至多一批次、同 conditionId 请求内至多回源一次）。现有 PermissionCheckAppServiceImplTest mock 引擎须改 stub 到新入口（不作等价证据）。
 
-### 七、设计评审记录（2026-09-11）
+### 七、随批修复与存量登记（终态）
 
-- **首轮**（claude P1×3+P2×2+P3×1；codex P1×1+P2×6+P3×1）：全部代码级核实成立，处置=v2 全面修订（换挂载点/评估编排/闭包切分/反例修正/账本重列/reason 补 NO_ROLE）+ 三定案（a2/b2/c1，registry 2026-09-11 行）。
-- **复审轮**（claude P1×1+P2×2+P3×6；codex P2×6+P3×1；grok P1×1+P2×2+P3×1）：三轨合并处置=v3——claude/grok 共同 P1「闭包映射未按 inheritClosure 分档（默认档越权）」→ 投影谓词不变量表+分档规则+否定锁；「空目标集 CTE IN()/实例 SQL 无界」三轨收敛 → 空集守卫（codex 附带的闭包规模上限为 registry 已登记改进项，重报撤回）；reason 树漏 DEPENDENT 支+TYPE_LEVEL 缺轨（claude/grok）→ 双轨规格；grok 独有「resource_type 谓词显式化（种子 CROSS JOIN 同位值）+TYPE_LEVEL 无条件丢 depend_on」并入谓词表；codex 独有「条件预取缺批量接口/a2 强制注入全链/行号锚点漂移」采纳；codex「DB 一致性时点未定义」经三轨交叉裁决降级为登记句（READ COMMITTED 批内同源与 a2 同向，claude/grok 均核为非缺陷）；claude「父类型并入共享 ResolveContext 不兼容且与⑦重复」→ 修正为只经既有注入面；b2 聚合机制（三轨收敛：现有 notify 原语 OR 过滤宽松+无计数+计算通知绑死）→ ledger 解耦方案。
-- **第三轮**（codex sol xhigh，read-only，session 01a090b0）：判定「v3 需修订暂不可定稿」——P1×1+P2×2+P3×1 全部代码级核实成立并处置为 v4：①P1 批量条件快照未保留 DISABLED/NOT_FOUND/INVALID fail-close 语义（selectValidByIds 不滤 enabled，朴素批量把禁用条件当有效规则入缓存=权限绕过）→ 四态建模 + 仅 OK 入正缓存 + fail-close 锁；②P2 分段装载与「条件预取 ×1」数据依赖环（scopeAll 放行判定需条件、实例/父条件 ID 要后续阶段才知）→ 请求级**增量**条件快照（每阶段至多一批次、同 ID 至多回源一次）+ 次数锁；③P2 评估顺序未钉（条件先于互斥是 evaluateIfNeeded 现状序，重排致 false deny + 虚假审计）→ 顺序不变量 + 条件-互斥组合锁；④P3 父判定递归绕过 ledger → **父判定审计桶登记口径**（每请求 ≤1 次无去重需求，维持现有通知形态，不入 ledger——纳入需穿透递归 query 与既有决策冲突）。sol 同时确认投影谓词/inheritClosure 分档/空集守卫/reason 双轨/a2 传递四件 v3 核心物本轮无新缺陷。
-- 存量观察（sol r3）：`TypeResolutionServiceImpl.batchResolveDomainIds` 结果计算后未参与过滤（batchResolveResourceIds 路径不校验 domainCode 存在性，与单条 resolveResourceId 的域存在性检查不一致）——登记待后续核实处置，不属本卡范围。
-- **随批修复**：BatchAuthCheckReq.items 双副本 @Valid（1cebf1ad9）；SDK 副本级联用例补强 blank operationCode+null 元素（grok 建议，防双副本漂移）。
-- 1cebf1ad9 三轨独立评审均零缺陷（双副本逐字段一致/元素级注解正确/连带面全仓零消费方）。
+- 随批修复（2026-09-11，随设计评审批次落地）：`BatchAuthCheckReq.items` 双副本补 @Valid 嵌套级联（commit 1cebf1ad9，空白嵌套字段 deny→400，独立评审零缺陷）；SDK 副本级联用例补强 blank operationCode+null 元素（commit eaea2d75a，防双副本漂移）。
+- 评审处置全程（各轮发现→修复映射、撤回裁决）登记于 decision-registry 2026-09-11 T-PERM-061 行（v2/v3/v4/定稿四行），此处不复制过程流水。
 
 ## 非目标 / 遗留
 
 - 单条 `check()` 不并入批量入口（留待实测证据；与批量在时间窗边界的分叉已由 a2 接受）。
-- 存量观察登记（评审累积，不属本卡实施范围）：resolveEntityIds values() 合并丢 key（单条无害）；PERM_MUTEX 规则查询不消费 resource_type_value 列（靠 op id 类型归属，无误判面）；复合 granted_bits 行静默排除出互斥判定（唯一潜在来源=未来 AUTO_DEP 落地）；notifyPermConflict detail 的端点 OR 过滤（b2 聚合机制以 AND 命中集绕开，单条路径维持现状）。
+- 存量观察登记（评审累积，不属本卡实施范围）：resolveEntityIds values() 合并丢 key（单条无害）；PERM_MUTEX 规则查询不消费 resource_type_value 列（靠 op id 类型归属，无误判面）；复合 granted_bits 行静默排除出互斥判定（唯一潜在来源=未来 AUTO_DEP 落地）；notifyPermConflict detail 的端点 OR 过滤（b2 聚合机制以 AND 命中集绕开，单条路径维持现状）；`TypeResolutionServiceImpl.batchResolveDomainIds` 结果计算后未参与过滤（批量解析路径不校验 domainCode 存在性，与单条 resolveResourceId 的域存在性检查不一致——待后续核实处置）。
