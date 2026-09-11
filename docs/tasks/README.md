@@ -9,7 +9,7 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 032 |
-| permission-center | `T-PERM` | 060 |
+| permission-center | `T-PERM` | 062 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 009 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
@@ -120,6 +120,8 @@
 | [T-PERM-057](T-PERM-057.md) | 权限查询统一引擎重构——收编六套形态 + 目标模式三态 + 判定面继承 + 评估拉平（已收口 2026-09-09，三条实施定案与终态见任务卡实现记录；query-engine-unification 已并入 implementation §3） | [permission-query-unification](../plans/permission-query-unification-plan.md) | implementation §3/§5.2；core-flows §7；overview 鉴权与查询入口节；api-contract §6.1 inheritMode；permission-query-pipeline skill 双副本；permission-center-coding-standards rule；runbook §3 | — | ✅ | ✓ |
 | [T-PERM-058](T-PERM-058.md) | depend_on 子权限单点门禁闭合——单点主资源上下文 + fail-closed + 四面排除（已收口 2026-09-10，四项定案与终态见任务卡实现记录） | [permission-query-unification](../plans/permission-query-unification-plan.md) | implementation §3.1/§3.3；api-contract §6.1/§6.6 | T-PERM-057 | ✅ | ✓ |
 | [T-PERM-059](T-PERM-059.md) | 权限视图/排查删除重设计——删除收口（全删 8 端点+前端排查页；新设计方向另立任务，2026-09-10 三项定案） | [permission-query-unification](../plans/permission-query-unification-plan.md) | api-contract §5.8；access-service-architecture §14；query-engine-unification.md §9 | — | ✅ | ✓ |
+| [T-PERM-060](T-PERM-060.md) | 工程健康小批次——权限视图域映射批量化 + T-PERM-055 误读观察撤回 + EXT-7/8 处置登记 | — | implementation §2.7 | — | 🔨 | — |
+| [T-PERM-061](T-PERM-061.md) | EXT-7：batchCheck 逐条 engine.query 收敛——异构项分组批量化设计（暂缓；实施前先定分组键与引擎批量入口） | — | implementation §3；api-contract §6.1 | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 
@@ -140,7 +142,7 @@
 
 _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`（用户角色代理修复）已全部完成并归档，见下方"已完成"区。_
 
-> EXT-7（PermissionCheckAppServiceImpl.batchCheck 逐条循环）/ EXT-8（SyncTaskDomainServiceImpl.enqueueAll 逐条 insert）为 DEFERRED 无主项（审计 S-024），未纳入本批任务，待单独立项。
+> EXT-7（PermissionCheckAppServiceImpl.batchCheck 逐条 engine.query）已立项 [T-PERM-061](T-PERM-061.md)（2026-09-11 核实仍在，异构项分组设计待定）；EXT-8（SyncTaskDomainServiceImpl.enqueueAll 逐条 insert）已失效——宿主随内部同步子系统删除（T-ACCESS-005 同事务投影替代），2026-09-11 全仓实核零命中。
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
@@ -342,7 +344,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 
 ### 不排期（待立项）
 
-EXT-7（batchCheck 逐条循环）/ EXT-8（enqueueAll 逐条 insert）— 审计 S-024 无主，性能项，待单独立项。
+EXT-7（batchCheck 逐条循环）— 已立项 T-PERM-061（2026-09-11，proposed 暂缓）。EXT-8（enqueueAll 逐条 insert）— 已失效：宿主 SyncTaskDomainServiceImpl 随内部同步子系统删除（T-ACCESS-005），2026-09-11 全仓实核零命中。
 
 ### 已完成的三个枢纽
 

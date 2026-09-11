@@ -54,4 +54,5 @@ T-PERM-046 收口的双轨代码轨评审发现：`DomainClassifyService.matches
 
 ## 非目标 / 遗留
 
-- `PermissionQueryAppServiceImplTest` 单独运行 0 tests：先于本任务存在（HEAD stash 复现、类内 7 个 @Test 无 @Tag 过滤迹象），与本次改动无关；如需排查另行立项。
+- ~~`PermissionQueryAppServiceImplTest` 单独运行 0 tests~~ **撤回（2026-09-11，T-PERM-060 复核证伪）**：系误读 surefire 对 `@Nested` 类的分桶报告——控制台 `Tests run: 0 -- in OuterClass` 行只统计外层容器自有用例（该类外层恰好 0 个），7 个用例实际全在 `@Nested` 容器行报告（QueryResourcesTests=5 / InterfaceSnapshotTests=2）；surefire XML 报告铁证 7 用例全执行全绿（`TEST-...PermissionQueryAppServiceImplTest.xml` testcase 条目 3+2+2）。无代码问题，不立项。
+- claude 外评存量观察 ①（buildDomainCodeMap 逐 distinct typeCode 循环 findDomainIdByTypeCode）→ 已立项 T-PERM-060 处置（2026-09-11）。

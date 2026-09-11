@@ -19,6 +19,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -285,19 +286,22 @@ public class PermViewAssembler {
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
 
-        Map<String, Long> domainIdByTypeCode = new HashMap<>();
+        // T-PERM-060：distinct typeCode 一次批量反查（登录权限串热路径，
+        // 逐类型点查为 ≤12 类型 × 3 查询的放大源）
+        Set<String> distinctTypeCodes = new LinkedHashSet<>();
         for (Long resId : resourceIds) {
             ResourceEntity res = resourceMap.get(resId);
             if (res == null || res.getResourceType() == null) {
                 continue;
             }
             String typeCode = resourceTypeCodeMap.get(res.getResourceType());
-            if (typeCode == null || domainIdByTypeCode.containsKey(typeCode)) {
-                continue;
+            if (typeCode != null) {
+                distinctTypeCodes.add(typeCode);
             }
-            domainIdByTypeCode.put(typeCode,
-                domainClassifyService.findDomainIdByTypeCode(tenantId, typeCode));
         }
+        Map<String, Long> domainIdByTypeCode = distinctTypeCodes.isEmpty()
+            ? Map.of()
+            : domainClassifyService.findDomainIdsByTypeCodes(tenantId, distinctTypeCodes);
 
         Set<Long> domainIds = domainIdByTypeCode.values().stream()
             .filter(Objects::nonNull)
