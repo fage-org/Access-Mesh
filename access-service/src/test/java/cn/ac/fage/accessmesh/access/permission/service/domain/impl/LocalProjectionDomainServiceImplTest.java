@@ -601,4 +601,39 @@ class LocalProjectionDomainServiceImplTest {
             .hasMessageContaining("缺少所属组织上下文");
         verify(userRoleMapper, never()).softDeleteBatch(any(), any(), any());
     }
+
+    @org.junit.jupiter.api.Test
+    void backfillConditionShouldIgnoreNonDefaultCodeTypeRows() {
+        org.mockito.Mockito.when(
+                typeResolutionService.resolveTypeValue(1L, "resource_type", "CONDITION"))
+            .thenReturn(13);
+        cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition managed =
+            new cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition();
+        managed.setId(9L);
+        managed.setTenantId(1L);
+        managed.setCode("cond-a");
+        managed.setName("条件A");
+        managed.setEnabled(true);
+        managed.setSource("MANAGED");
+        org.mockito.Mockito.when(permissionConditionMapper.selectByTenantId(1L))
+            .thenReturn(java.util.List.of(managed));
+        cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity nonDefaultRow =
+            new cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity();
+        nonDefaultRow.setId(501L);
+        nonDefaultRow.setCode("cond-a");
+        nonDefaultRow.setCodeType("external");
+        org.mockito.Mockito.when(resourceEntityMapper.selectValidByResourceTypes(1L, java.util.Set.of(13)))
+            .thenReturn(java.util.List.of(nonDefaultRow));
+        org.mockito.Mockito.when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+                org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.eq(13),
+                org.mockito.ArgumentMatchers.anySet(), org.mockito.ArgumentMatchers.eq(java.util.Set.of("default"))))
+            .thenReturn(java.util.List.of());
+
+        int inserted = service.backfillConditionProjections(1L);
+
+        org.junit.jupiter.api.Assertions.assertEquals(1, inserted);
+        org.mockito.Mockito.verify(resourceEntityMapper)
+            .insertBatch(org.mockito.ArgumentMatchers.argThat((java.util.List<cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity> rows) ->
+                rows.size() == 1 && "default".equals(rows.get(0).getCodeType()) && "cond-a".equals(rows.get(0).getCode())));
+    }
 }

@@ -527,7 +527,11 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         if (validManaged.isEmpty()) {
             return 0;
         }
-        Set<String> existingCodes = existingRows.stream()
+        // 已有投影判定严格限定 code_type=default（codex 外评 P2-5：与 upsert/softDelete 定位对称；
+        // 按 selectValidByResourceTypes 裸 code 去重会被同 code 非 default 编码行误跳补种，
+        // 对齐 backfillTypeDefinitionProjections 先例的 default 过滤查询）
+        Set<String> existingCodes = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+            tenantId, resourceType, expectedCodes, Set.of(CODE_TYPE_DEFAULT)).stream()
             .map(ResourceEntity::getCode)
             .collect(Collectors.toSet());
         LocalDateTime now = LocalDateTime.now();

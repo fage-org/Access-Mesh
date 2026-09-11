@@ -72,6 +72,31 @@ describe("授权页类型候选降级判定", () => {
     getConditionList.mockResolvedValue({ items: [] });
   });
 
+  it("T-PERM-048 codex P2-4：refreshConditions 乱序守卫——旧响应晚归被丢弃（旧实现覆盖回过期列表）", async () => {
+    const hook = usePermissionGrant();
+    hook.retryLoadDeps();
+    await flush();
+    let resolveOld!: (v: unknown) => void;
+    getConditionList.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          resolveOld = () =>
+            resolve({
+              items: [{ id: 1, code: "stale", source: "INLINE" }]
+            });
+        })
+    );
+    getConditionList.mockResolvedValueOnce({
+      items: [{ id: 2, code: "fresh", source: "INLINE" }]
+    });
+    const p1 = hook.refreshConditions();
+    const p2c = hook.refreshConditions();
+    await p2c;
+    resolveOld(null);
+    await p1;
+    expect(hook.conditions.value.map(c => c.code)).toEqual(["fresh"]);
+  });
+
   it("T-PERM-048 P2-1：refreshConditions 独立于 depsLoaded 闩锁（保存后内联条件回流通道，旧实现无此入口）", async () => {
     const hook = usePermissionGrant();
     hook.retryLoadDeps();

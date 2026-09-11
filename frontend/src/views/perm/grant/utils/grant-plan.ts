@@ -1197,7 +1197,11 @@ export function resumeSlot(
       if (
         baselineRecord &&
         (baselineRecord.canGrant !== after.canGrant ||
-          baselineRecord.conditionCode !== after.conditionCode)
+          baselineRecord.conditionCode !== after.conditionCode ||
+          // codex 外评 P2-3：内联编辑态恒有差异——原绑定无论 null/MANAGED/INLINE，
+          // after.inlineCondition 非空即表达「最终条件为内联定义」，不比对内容
+          //（后端 editInlineCondition 同 id 幂等重写，误发 update 无数据副作用）
+          after.inlineCondition != null)
       ) {
         changes.push(
           buildUpdateChange({
@@ -1534,23 +1538,34 @@ export function copySlotAttributes(
  */
 export function validateInlineDefs(
   changes: DraftChange[],
-  parse: (json: string) => { items?: unknown[] }
+  parse: (json: string) => { items?: unknown[] },
+  /** item 参数完整性校验（codex 外评 P2-2：items 非空≠参数完整——空 DATE_RANGE 的
+   *  start/end 缺失经非聚焦草稿提交后引擎恒拒绝静默失效；传 validateRulesComplete） */
+  rulesComplete?: (parsed: { items?: unknown[] }) => boolean
 ): string | null {
   for (const change of changes) {
     if (change.kind === "add" && change.recordKey.inlineCondition != null) {
       const def = change.recordKey.inlineCondition;
       const label = change.summary.resourceLabel ?? "新增授权";
       if (!def.name.trim()) return `「${label}」的内联条件名称不能为空`;
-      if ((parse(def.conditionRules).items?.length ?? 0) === 0) {
+      const parsed = parse(def.conditionRules);
+      if ((parsed.items?.length ?? 0) === 0) {
         return `「${label}」的内联条件规则不完整（至少一项）`;
+      }
+      if (rulesComplete && !rulesComplete(parsed)) {
+        return `「${label}」的内联条件规则参数不完整（存在未填写的条件项）`;
       }
     }
     if (change.kind === "update" && change.after.inlineCondition != null) {
       const def = change.after.inlineCondition;
       const label = change.summary.resourceLabel ?? "授权记录";
       if (!def.name.trim()) return `「${label}」的内联条件名称不能为空`;
-      if ((parse(def.conditionRules).items?.length ?? 0) === 0) {
+      const parsed = parse(def.conditionRules);
+      if ((parsed.items?.length ?? 0) === 0) {
         return `「${label}」的内联条件规则不完整（至少一项）`;
+      }
+      if (rulesComplete && !rulesComplete(parsed)) {
+        return `「${label}」的内联条件规则参数不完整（存在未填写的条件项）`;
       }
     }
   }

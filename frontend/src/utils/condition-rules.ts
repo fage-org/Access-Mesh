@@ -123,6 +123,25 @@ function normalizeItem(raw: any): ConditionItem {
 
 /** 生成规则可读摘要（表格列展示用）。
  *  如 "AND · 2 项（日期范围、IP 白名单）" */
+/**
+ * 规则完整性校验（T-PERM-048 codex 外评 P2-2 收敛共享）：
+ * 至少 1 项 + 每项参数完整（DATE_RANGE/TIME_RANGE 需 start/end；IP 类需 cidrs 非空；
+ * 未知类型 fail-close 不完整）——与 ReConditionEditor.itemsValid 同口径（原为组件私有，
+ * 半成品 item 经非聚焦草稿提交绕过编辑器校验致引擎恒拒绝静默失效）。
+ */
+export function validateRulesComplete(rules: ConditionRules): boolean {
+  if (rules.items.length === 0) return false;
+  return rules.items.every(item => {
+    if (item.type === "DATE_RANGE" || item.type === "TIME_RANGE") {
+      return !!item.params.start && !!item.params.end;
+    }
+    if (item.type === "IP_WHITELIST" || item.type === "IP_BLACKLIST") {
+      return (item.params.cidrs?.length ?? 0) > 0;
+    }
+    return false;
+  });
+}
+
 export function summarizeRules(json: string | null | undefined): string {
   const rules = parseRules(json);
   if (rules.items.length === 0) return "无规则";

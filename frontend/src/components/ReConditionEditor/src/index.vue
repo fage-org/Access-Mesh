@@ -6,6 +6,7 @@ import {
   CONDITION_TYPE_OPTIONS,
   createEmptyItem,
   serializeRules,
+  validateRulesComplete,
   type ConditionRules,
   type ConditionItem
 } from "@/utils/condition-rules";
@@ -57,18 +58,9 @@ watch(
 );
 
 /** 规则项自定义校验：至少 1 项且每项 params 完整（前端 UX 约束，对齐 mock validateRules） */
-const itemsValid = computed(() => {
-  if (rules.items.length === 0) return false;
-  return rules.items.every(item => {
-    if (item.type === "DATE_RANGE" || item.type === "TIME_RANGE") {
-      return !!item.params.start && !!item.params.end;
-    }
-    if (item.type === "IP_WHITELIST" || item.type === "IP_BLACKLIST") {
-      return (item.params.cidrs?.length ?? 0) > 0;
-    }
-    return false;
-  });
-});
+// T-PERM-048 codex 外评 P2-2：完整性口径收敛 condition-rules.validateRulesComplete
+//（与授权页全草稿内联校验同源——此前组件私有副本与非聚焦草稿校验分叉）
+const itemsValid = computed(() => validateRulesComplete(rules));
 
 /** gatewayEvaluable=true 时，规则含非白名单类型则不可保存（前端预校验，对齐后端 validateGatewayPushable）。
  *  当前 4 类全在白名单，实际总能通过；保留以防未来扩展类型。 */

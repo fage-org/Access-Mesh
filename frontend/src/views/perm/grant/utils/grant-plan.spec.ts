@@ -2102,6 +2102,98 @@ describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
     ).toBeNull();
   });
 
+  it("validateInlineDefs：半成品 item（参数不完整）被拒——codex 外评 P2-2（旧实现只查 items 数量，空 DATE_RANGE 落库后引擎恒拒绝）", () => {
+    const parse = (json: string) => JSON.parse(json) as { items: unknown[] };
+    const complete = (parsed: { items?: unknown[] }) =>
+      (parsed.items ?? []).every(item => {
+        const it = item as { type: string; params: Record<string, unknown> };
+        if (it.type === "DATE_RANGE" || it.type === "TIME_RANGE") {
+          return !!it.params.start && !!it.params.end;
+        }
+        return false;
+      });
+    const halfBaked =
+      "{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{}}]}";
+    const baseSummary = {
+      operationCode: "VIEW",
+      conditionCode: null,
+      canGrant: false,
+      scopeMode: "INSTANCE",
+      label: "数据一",
+      resourceLabel: "数据一",
+      resourceTypeCode: "DATA",
+      resourceCode: "data:r1",
+      codeType: "default"
+    };
+    const addWith = (rules: string) =>
+      ({
+        kind: "add",
+        changeId: "c1",
+        recordKey: {
+          resourceTypeCode: "DATA",
+          resourceCode: "data:r1",
+          codeType: "default",
+          operationCode: "VIEW",
+          scopeMode: "INSTANCE",
+          conditionCode: null,
+          inlineCondition: { name: "内联", conditionRules: rules },
+          canGrant: false
+        },
+        summary: baseSummary
+      }) as never;
+    // items 数量通过、参数不完整 → 拒绝（旧实现放行）
+    expect(validateInlineDefs([addWith(halfBaked)], parse, complete)).toContain(
+      "参数不完整"
+    );
+    // 完整参数通过
+    const full =
+      "{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\"2026-01-01\",\"end\":\"2026-12-31\"}}]}";
+    expect(validateInlineDefs([addWith(full)], parse, complete)).toBeNull();
+  });
+
+  it("resumeSlot baseline 路径：内联编辑态恢复恒生成 update——codex 外评 P2-3（旧实现差异判断漏 inlineCondition，编辑静默丢弃）", () => {
+    const baseline = makeRecord({ id: 7001, conditionCode: null });
+    const edited = buildUpdateChange({
+      before: baseline,
+      after: {
+        canGrant: false,
+        conditionCode: null,
+        inlineCondition: { ...INLINE_DEF }
+      },
+      summary: summaryOf(baseline)
+    });
+    const state = createSlotDraftState([edited]);
+    const view = applyDraftToRecords({
+      baseline: [baseline],
+      changes: state.changes,
+      operations: OPS
+    });
+    const slot: FocusSlot = {
+      resourceTypeCode: "DATA",
+      resourceCode: baseline.resourceCode ?? "",
+      codeType: "default",
+      operationCode: "VIEW",
+      scopeMode: "INSTANCE"
+    };
+    const unchecked = uncheckSlot(state, { slot, view });
+    const resumedView = applyDraftToRecords({
+      baseline: [baseline],
+      changes: unchecked.changes,
+      operations: OPS
+    });
+    const resumed = resumeSlot(unchecked, {
+      slot,
+      view: resumedView,
+      baseline: [baseline],
+      operations: OPS
+    });
+    const update = resumed.changes.find(c => c.kind === "update");
+    expect(update).toBeDefined();
+    expect(
+      update?.kind === "update" && update.after.inlineCondition
+    ).toEqual(INLINE_DEF);
+  });
+
   it("buildSummary：内联键标签显示 内联:name（清单展示）", () => {
     const summary = buildSummary({
       recordKey: {

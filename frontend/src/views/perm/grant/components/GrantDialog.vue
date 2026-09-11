@@ -22,6 +22,7 @@ import {
   createEmptyRules,
   parseRules,
   serializeRules,
+  validateRulesComplete,
   type ConditionRules
 } from "@/utils/condition-rules";
 import type { OperationDefInput } from "../utils/source-chain";
@@ -432,9 +433,14 @@ function validateInlineBeforeConfirm(): string | null {
   return null;
 }
 
-/** 全草稿内联校验（claude 外评 P2-2）：纯函数 validateInlineDefs（grant-plan.ts，可单测） */
+/** 全草稿内联校验（claude/codex 外评 P2-2）：纯函数 validateInlineDefs（grant-plan.ts，可单测；
+ *  第三参传 item 参数完整性校验——半成品条件项（空 start/end/cidrs）一并拦截） */
 function validateAllDraftInline(): string | null {
-  return validateInlineDefs(slotDraft.value.changes, parseRules);
+  return validateInlineDefs(
+    slotDraft.value.changes,
+    parseRules,
+    validateRulesComplete
+  );
 }
 
 function handleCanGrantChange(value: boolean | string | number) {

@@ -137,9 +137,15 @@ export function usePermissionGrant() {
    * 独立于 depsLoaded 闩锁——保存成功后新建/回收的内联条件必须回流，否则新内联 code
    * 在 conditions 缺失：回显回落「无条件」、复制误判停用、误点无条件会清除并回收该内联。
    */
+  /** 条件刷新单调代际（codex 外评 P2-4：连续保存/与首载并发时旧响应晚归会回写过期列表，
+   *  主从页请求序号守卫先例同款——过期响应丢弃） */
+  let conditionsSeq = 0;
+
   async function refreshConditions() {
+    const seq = ++conditionsSeq;
     try {
       const conditionResp = await getConditionList(true);
+      if (seq !== conditionsSeq) return; // 已有更新请求在途/完成，本响应过期
       conditions.value = conditionResp.items ?? [];
     } catch {
       // 刷新失败保持旧列表：回显退化为裸 code，不阻断保存主流程
