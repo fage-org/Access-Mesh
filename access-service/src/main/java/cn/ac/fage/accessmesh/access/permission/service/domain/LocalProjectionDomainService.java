@@ -259,4 +259,37 @@ public interface LocalProjectionDomainService {
      * @return 本次补种行数（0=已齐备）
      */
     int backfillTypeDefinitionProjections(Long tenantId);
+
+    /**
+     * UPSERT resource_entity(CONDITION)——管理页条件写路径投影（T-PERM-048）。
+     * <p>
+     * 条件事实由调用方（ConditionAppService 编排）维护，本方法只写资源投影：
+     * code = 条件 code（租户内唯一，直传无需复合键，architecture §12.3 口径）。
+     * 无树形语义：parent 恒 null；status 镜像条件 enabled（停用条件自动隐出
+     * 授权资源树 selectResourceTree status=1 过滤）。仅 MANAGED 来源条件调用
+     * （INLINE 内联条件不投影——无资源身份消费者，2026-09-11 定案⑤）。
+     * </p>
+     */
+    void upsertConditionResource(Long tenantId, String code, String name, boolean enabled);
+
+    /**
+     * 批量软删 resource_entity(CONDITION)（按条件 code 定位；调用方删除条件行后同事务调用，
+     * 仅 code_type=default 与 upsert 定位对称）。
+     */
+    void softDeleteConditionResources(Long tenantId, Set<String> codes);
+
+    /**
+     * CONDITION 实例投影自愈补种（T-PERM-048，bootstrap 启动调用，幂等可重跑，对齐
+     * {@link #backfillTypeDefinitionProjections} 先例）：为全部有效 MANAGED 条件行中
+     * 缺少投影的行 insert-if-absent。INLINE 条件不投影（定案⑤）。
+     * <p>
+     * 同款豁免口径——缺失只可能是库先于本特性存在（存量条件行无写路径联动可补），
+     * 无运营意图可保护。附带野行告警：CONDITION 类型下 code 不匹配任何有效 MANAGED
+     * 条件的存量资源行（特性上线前管理面手工可建，现为 SYNC 族 20055 只读僵尸）WARN 日志，
+     * 清理语句见 rebuild-runbook FAQ。
+     * </p>
+     *
+     * @return 本次补种行数（0=已齐备）
+     */
+    int backfillConditionProjections(Long tenantId);
 }

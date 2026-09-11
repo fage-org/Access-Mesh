@@ -37,11 +37,12 @@ import java.util.stream.Collectors;
  *       自定义类型在类型下存在有效资源行时有效值不得变更（20056，含删除键隐式切回
  *       MANAGED）。</li>
  *   <li>内部来源声明（2026-09-05 补充定案；T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增
- *       TYPE_DEFINITION）：事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION）
+ *       TYPE_DEFINITION、T-PERM-048 增 CONDITION）：事实链路类型
+ *       （USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION）
  *       由种子声明 SYNC + syncSourceService=access-service——外部同步一律拒绝（来源不匹配）、
  *       管理面资源 CRUD 一律 20055（行由用户/组织/菜单/角色管理、文件夹预置/惰性登记、
- *       类型定义管理自动维护），收编原类型保留清单与行级 owner=access-service
- *       投影防线两套旧机制。</li>
+ *       类型定义管理、条件管理（MANAGED 条件投影，T-PERM-048）自动维护），收编原类型保留
+ *       清单与行级 owner=access-service 投影防线两套旧机制。</li>
  * </ul>
  * <p>
  * 保存边界（type-definition create/update）由 {@link #validateExtraDeclaration} 校验结构，
@@ -406,11 +407,11 @@ public class ResourceTypeOwnershipGuard {
 
     private static void rejectIfSyncOwned(Ownership ownership, String resourceTypeCode) {
         if (ownership != null && MODE_SYNC.equals(ownership.managedMode())) {
-            // 内部来源（事实链路类型：USER/ORG/MENU/ROLE、ADMIN_FILE 文件夹（T-ADMIN-025）及
-            // TYPE_DEFINITION 类型定义实例投影（T-PERM-051））
+            // 内部来源（事实链路类型：USER/ORG/MENU/ROLE、ADMIN_FILE 文件夹（T-ADMIN-025）、
+            // TYPE_DEFINITION 类型定义实例投影（T-PERM-051）及 CONDITION 管理页条件投影（T-PERM-048））
             if (LocalProjectionOwner.SERVICE_CODE.equals(ownership.syncSourceService())) {
                 throw new BizException(PermissionErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),
-                        "资源由系统事实链路维护（用户/组织/菜单/角色/类型定义管理、文件上传/预置），资源管理面只读: resourceTypeCode="
+                        "资源由系统事实链路维护（用户/组织/菜单/角色/类型定义/条件管理、文件上传/预置），资源管理面只读: resourceTypeCode="
                                 + resourceTypeCode);
             }
             throw new BizException(PermissionErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),

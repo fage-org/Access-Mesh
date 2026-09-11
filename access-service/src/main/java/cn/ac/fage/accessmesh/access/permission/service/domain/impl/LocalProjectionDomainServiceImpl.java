@@ -4,12 +4,15 @@ import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
+import cn.ac.fage.accessmesh.access.permission.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;
+import cn.ac.fage.accessmesh.access.permission.enums.ConditionSource;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.AbstractUserMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
@@ -18,6 +21,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionServ
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import com.mybatisflex.core.util.UpdateEntity;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -34,6 +38,7 @@ import java.util.stream.Collectors;
  * {@link UserRoleProjectionWriter}，批量用户投影委托 {@link BatchAdminUserProjectionWriter}。
  * </p>
  */
+@Slf4j
 @Service
 public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainService {
 
@@ -46,6 +51,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     private final AbstractRoleMapper abstractRoleMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final TypeDefinitionMapper typeDefinitionMapper;
+    private final PermissionConditionMapper permissionConditionMapper;
     private final UserRoleProjectionWriter userRoleProjectionWriter;
     private final BatchAdminUserProjectionWriter batchAdminUserProjectionWriter;
 
@@ -54,12 +60,14 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
                                             AbstractRoleMapper abstractRoleMapper,
                                             ResourceEntityMapper resourceEntityMapper,
                                             TypeDefinitionMapper typeDefinitionMapper,
+                                            PermissionConditionMapper permissionConditionMapper,
                                             UserRoleMapper userRoleMapper) {
         this.typeResolutionService = typeResolutionService;
         this.abstractUserMapper = abstractUserMapper;
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.typeDefinitionMapper = typeDefinitionMapper;
+        this.permissionConditionMapper = permissionConditionMapper;
         this.userRoleProjectionWriter = new UserRoleProjectionWriter(
             typeResolutionService, abstractUserMapper, abstractRoleMapper, userRoleMapper);
         this.batchAdminUserProjectionWriter = new BatchAdminUserProjectionWriter(
@@ -450,6 +458,81 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             resource.setName(type.getName());
             resource.setParentId(null);
             resource.setStatus(STATUS_ENABLED);
+            resource.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
+            // DDL maintain_source NOT NULL：显式 NULL 会绕过列默认值触发约束（同 upsertResource）
+            resource.setMaintainSource(PermConstants.MaintainSource.MANUAL);
+            resource.setCreatedAt(now);
+            resource.setUpdatedAt(now);
+            resource.setDeleteFlag(0L);
+            toInsert.add(resource);
+        }
+        if (toInsert.isEmpty()) {
+            return 0;
+        }
+        resourceEntityMapper.insertBatch(toInsert);
+        return toInsert.size();
+    }
+
+    @Override
+    public void upsertConditionResource(Long tenantId, String code, String name, boolean enabled) {
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.CONDITION);
+        // status 镜像条件 enabled：停用条件投影行 status=0，授权资源树 status=1 过滤自动隐出
+        upsertResource(tenantId, resourceType, code, name, null,
+            enabled ? STATUS_ENABLED : STATUS_DISABLED, LocalDateTime.now());
+    }
+
+    @Override
+    public void softDeleteConditionResources(Long tenantId, Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return;
+        }
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.CONDITION);
+        softDeleteOwnResources(tenantId, resourceType, codes);
+    }
+
+    @Override
+    public int backfillConditionProjections(Long tenantId) {
+        Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.CONDITION);
+        // 仅 MANAGED 条件投影（T-PERM-048 定案⑤：INLINE 内联条件无资源身份消费者，不投影）
+        List<PermissionCondition> validManaged = permissionConditionMapper.selectByTenantId(tenantId)
+            .stream()
+            .filter(condition -> ConditionSource.MANAGED.getValue().equals(condition.getSource()))
+            .toList();
+        Set<String> expectedCodes = validManaged.stream()
+            .map(PermissionCondition::getCode)
+            .collect(Collectors.toSet());
+        List<ResourceEntity> existingRows = resourceEntityMapper
+            .selectValidByResourceTypes(tenantId, Set.of(resourceType));
+        // 野行告警：CONDITION 类型下 code 不匹配任何有效 MANAGED 条件的存量资源行——
+        // 特性上线前 CONDITION 为 MANAGED 类型管理面手工可建，现入 SYNC 族 20055 只读成僵尸；
+        // 不自动清理（软删行可能是有效授权目标），清理语句见 rebuild-runbook FAQ
+        for (ResourceEntity row : existingRows) {
+            if (CODE_TYPE_DEFAULT.equals(row.getCodeType()) && !expectedCodes.contains(row.getCode())) {
+                log.warn("CONDITION 资源行无对应有效条件（存量手工行或孤儿投影，不自动清理）: "
+                    + "tenantId={}, resourceEntityId={}, code={}", tenantId, row.getId(), row.getCode());
+            }
+        }
+        if (validManaged.isEmpty()) {
+            return 0;
+        }
+        Set<String> existingCodes = existingRows.stream()
+            .map(ResourceEntity::getCode)
+            .collect(Collectors.toSet());
+        LocalDateTime now = LocalDateTime.now();
+        List<ResourceEntity> toInsert = new ArrayList<>();
+        for (PermissionCondition condition : validManaged) {
+            if (existingCodes.contains(condition.getCode())) {
+                continue;
+            }
+            ResourceEntity resource = new ResourceEntity();
+            resource.setTenantId(tenantId);
+            resource.setResourceType(resourceType);
+            resource.setCode(condition.getCode());
+            resource.setCodeType(CODE_TYPE_DEFAULT);
+            resource.setName(condition.getName());
+            resource.setParentId(null);
+            resource.setStatus(Boolean.TRUE.equals(condition.getEnabled())
+                ? STATUS_ENABLED : STATUS_DISABLED);
             resource.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
             // DDL maintain_source NOT NULL：显式 NULL 会绕过列默认值触发约束（同 upsertResource）
             resource.setMaintainSource(PermConstants.MaintainSource.MANUAL);

@@ -73,6 +73,16 @@ public class PermissionCondition {
     private Boolean gatewayEvaluable;
 
     /**
+     * 条件来源（T-PERM-048 双轨制，值域见 {@link cn.ac.fage.accessmesh.access.permission.enums.ConditionSource}）。
+     * <p>
+     * MANAGED=权限条件页管理（有 CONDITION 实例投影）；INLINE=授权页内联
+     * （随 apply-grant-plan 同事务创建/回收，1:1 属于授权记录，无投影行）。
+     * 存量行默认 MANAGED（DDL 列默认值）。
+     * </p>
+     */
+    private String source;
+
+    /**
      * 条件描述，说明条件用途和效果
      */
     private String description;

@@ -143,6 +143,14 @@ public class AccessBootstrapInitializer {
             log.info("TYPE_DEFINITION 实例投影自愈补种 {} 行（存量类型行缺投影，T-PERM-051）",
                 backfilledTypeProjections);
         }
+        // CONDITION 实例投影自愈补种（T-PERM-048）：为全部有效 MANAGED 条件行幂等补投影
+        // （INLINE 内联条件不投影——定案⑤）。同款豁免口径：缺失只可能是库先于本特性存在；
+        // 附带野行（CONDITION 类型下无对应条件的手工资源行）WARN 告警，不参与固定图检测
+        int backfilledConditionProjections = localProjectionDomainService.backfillConditionProjections(tenantId);
+        if (backfilledConditionProjections > 0) {
+            log.info("CONDITION 实例投影自愈补种 {} 行（存量管理页条件缺投影，T-PERM-048）",
+                backfilledConditionProjections);
+        }
         Map<String, Integer> resourceTypes = resolveGrantResourceTypes(tenantId);
         Integer basicRoleType = requireType(tenantId, TYPE_KEY_ROLE, BootstrapGraphDefinition.ADMIN_ROLE_TYPE_CODE);
         Integer localUserType = requireType(tenantId, TYPE_KEY_USER, LocalProjectionOwner.SUBJECT_LOCAL_USER);
