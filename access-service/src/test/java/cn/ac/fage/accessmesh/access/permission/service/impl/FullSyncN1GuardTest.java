@@ -293,7 +293,10 @@ class FullSyncN1GuardTest {
 
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, userRoleMapper,
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService.class),
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService.class),
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper.class));
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
                 new UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "1"), items);
 

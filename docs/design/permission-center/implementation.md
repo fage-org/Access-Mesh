@@ -223,7 +223,7 @@ public interface PermissionConflictDomainService {
 }
 ```
 
-角色互斥三面（T-PERM-063，2026-09-12 落地，用户三项拍板见 registry 同日行）：①**授予守卫**——`user-role/assign`、`batch-assign` 写路径事务内校验授予后状态，命中即整批原子拒绝 **20062**（对齐入口既有 errors 整批抛风格）；②**存量守卫**——`conflict-rule/create`、`update` 的 ROLE_MUTEX 分支写入前检查存量双持，非空拒绝 **20063**（message 含用户 id 清单截断 20），PERM_MUTEX 分支与 remove 不适用；③**运行时可观测**——双删补 CONFLICT_DETECTED 日志（此前静默无痕）。并发双开两笔授予的窄竞态窗口接受（运行时双删兜底 fail-closed，无安全回退）。
+角色互斥三面（T-PERM-063，2026-09-12 落地，用户三项拍板见 registry 同日行；T-PERM-064 补全通道面）：①**授予守卫**——`user-role/assign`、`batch-assign` 写路径事务内校验授予后状态，命中即整批原子拒绝 **20062**（对齐入口既有 errors 整批抛风格）；**sync 通道面（T-PERM-064）**——`UserRoleSyncAppServiceImpl.doSyncOneInternal` BIND 分支（sync 与 full-sync 共用单点）同款校验，仅「新增当前有效持有」时检查（新建行或非当前有效行重激活；幂等改期不触发），冲突 item 逐条 `NON_RETRYABLE` + `ROLE_MUTEX_CONFLICT`；规则面 create/update 拒绝 ORG/POSITION 角色对（结构角色对由本地投影通道维护，规则面拒绝即闭合投影通道）；②**存量守卫**——`conflict-rule/create`、`update` 的 ROLE_MUTEX 分支写入前检查存量双持，非空拒绝 **20063**（message 含用户 id 清单截断 20），候选经 `findUserIdsByEffectiveRoles` 三路反查（含组角色间接持有），PERM_MUTEX 分支与 remove 不适用；③**运行时可观测**——双删补 CONFLICT_DETECTED 日志（此前静默无痕）。并发双开两笔授予的窄竞态窗口接受（运行时双删兜底 fail-closed，无安全回退）。
 
 ---
 

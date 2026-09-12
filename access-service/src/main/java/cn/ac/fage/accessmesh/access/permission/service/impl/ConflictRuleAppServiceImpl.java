@@ -70,6 +70,8 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     private final PermissionConflictRuleMapper conflictRuleMapper;
     private final PermQueryEngine engine;
     private final PermissionConflictDomainService permissionConflictDomainService;
+    private final cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper abstractRoleMapper;
+    private final cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService typeResolutionService;
 
     /**
      * 构造函数注入依赖
@@ -80,10 +82,37 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      */
     public ConflictRuleAppServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
                                       PermQueryEngine engine,
-                                      PermissionConflictDomainService permissionConflictDomainService) {
+                                      PermissionConflictDomainService permissionConflictDomainService,
+                                      cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper abstractRoleMapper,
+                                      cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService typeResolutionService) {
         this.conflictRuleMapper = conflictRuleMapper;
         this.engine = engine;
         this.permissionConflictDomainService = permissionConflictDomainService;
+        this.abstractRoleMapper = abstractRoleMapper;
+        this.typeResolutionService = typeResolutionService;
+    }
+
+    /**
+     * 结构角色对拒绝（T-PERM-064）：ROLE_MUTEX 规则角色对不得为 ORG/POSITION 类型——
+     * 本地投影通道（组织/岗位成员关系投影）只写 ORG/POSITION 目标行，规则面拒绝后
+     * 该通道结构性造不出违规持有；UI 选择器本就只提供 BASIC_ROLE/GROUP_ROLE。
+     * 角色行缺失时不拒（维持既有惰性规则语义，存在性校验属存量观察不随本任务收口）。
+     */
+    private void rejectStructuralRolePair(Long tenantId, Long firstRoleId, Long secondRoleId) {
+        List<cn.ac.fage.accessmesh.access.permission.entity.AbstractRole> roles = abstractRoleMapper.selectValidByIds(
+            tenantId, java.util.Set.of(firstRoleId, secondRoleId));
+        if (roles.size() < 2) {
+            return;
+        }
+        Set<Integer> structuralTypes = new java.util.HashSet<>(
+            typeResolutionService.batchResolveTypeValues(tenantId, "role_type",
+                java.util.Set.of("ORG", "POSITION")).values());
+        boolean structural = roles.stream().anyMatch(r -> structuralTypes.contains(r.getRoleType()));
+        if (structural) {
+            throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                "角色互斥规则不支持 ORG/POSITION 结构角色对（结构角色由组织/岗位成员关系投影维护，"
+                    + "请改用功能角色）");
+        }
     }
 
     /**
@@ -240,8 +269,10 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
         }
 
-        // T-PERM-063：ROLE_MUTEX 存量守卫——有用户同时持有两角色则拒绝立规（20063）
+        // T-PERM-063：ROLE_MUTEX 存量守卫——有用户同时持有两角色则拒绝立规（20063）；
+        // T-PERM-064：结构角色对拒绝（ORG/POSITION——投影通道闭合）
         if (ROLE_MUTEX.equals(req.conflictType())) {
+            rejectStructuralRolePair(tenantId, req.firstAbstractRoleId(), req.secondAbstractRoleId());
             rejectExistingMutexHolders(tenantId, req.firstAbstractRoleId(), req.secondAbstractRoleId());
         }
 
@@ -378,8 +409,10 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         }
 
         // T-PERM-063：ROLE_MUTEX 存量守卫——有用户同时持有两角色则拒绝改规（20063）；
-        // 同对重写幂等：系统干净时持有清单为空自然放行
+        // 同对重写幂等：系统干净时持有清单为空自然放行；
+        // T-PERM-064：结构角色对拒绝（ORG/POSITION——投影通道闭合）
         if (ROLE_MUTEX.equals(conflictType)) {
+            rejectStructuralRolePair(tenantId, firstRole, secondRole);
             rejectExistingMutexHolders(tenantId, firstRole, secondRole);
         }
 

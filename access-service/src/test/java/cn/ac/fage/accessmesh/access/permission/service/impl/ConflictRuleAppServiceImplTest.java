@@ -67,6 +67,8 @@ class ConflictRuleAppServiceImplTest {
     @Mock private PermissionConflictRuleMapper conflictRuleMapper;
     @Mock private PermQueryEngine engine;
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper abstractRoleMapper;
+    @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService typeResolutionService;
 
     private static ValidatorFactory validatorFactory;
 
@@ -86,7 +88,8 @@ class ConflictRuleAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ConflictRuleAppServiceImpl(conflictRuleMapper, engine, permissionConflictDomainService);
+        service = new ConflictRuleAppServiceImpl(conflictRuleMapper, engine, permissionConflictDomainService,
+            abstractRoleMapper, typeResolutionService);
     }
 
     private PermissionConflictRule newRoleRule(long id, long firstRole, long secondRole) {
@@ -684,6 +687,82 @@ class ConflictRuleAppServiceImplTest {
                 .extracting(ex -> ((BizException) ex).getErrorCode())
                 .isEqualTo(PermissionErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
             verify(conflictRuleMapper, never()).update(any(PermissionConflictRule.class));
+        }
+    }
+
+    @Nested
+    class StructuralRolePairRejection {
+
+        private cn.ac.fage.accessmesh.access.permission.entity.AbstractRole role(long id, int roleType) {
+            cn.ac.fage.accessmesh.access.permission.entity.AbstractRole r =
+                new cn.ac.fage.accessmesh.access.permission.entity.AbstractRole();
+            r.setId(id);
+            r.setTenantId(TENANT_ID);
+            r.setRoleType(roleType);
+            return r;
+        }
+
+        private void stubStructuralTypes() {
+            when(typeResolutionService.batchResolveTypeValues(TENANT_ID, "role_type", Set.of("ORG", "POSITION")))
+                .thenReturn(Map.of("ORG", 1, "POSITION", 2));
+        }
+
+        @Test
+        void shouldRejectCreate_whenPairContainsStructuralRole() {
+            // T-PERM-064：ORG/POSITION 对拒绝（投影通道闭合）；旧实现直接立规必红
+            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            when(abstractRoleMapper.selectValidByIds(TENANT_ID, Set.of(101L, 102L)))
+                .thenReturn(List.of(role(101L, 6), role(102L, 1)));
+            stubStructuralTypes();
+
+            assertThatThrownBy(() -> service.createConflictRule(
+                    TENANT_ID, new ConflictRuleReq("ROLE_MUTEX", null, null, null, 101L, 102L, null), OPERATOR_ID))
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getErrorCode())
+                .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode());
+            verify(conflictRuleMapper, never()).insert(any(PermissionConflictRule.class));
+            verify(permissionConflictDomainService, never()).findUsersHoldingBothRoles(anyLong(), anyLong(), anyLong());
+        }
+
+        @Test
+        void shouldRejectUpdate_whenSwitchingToStructuralPair() {
+            PermissionConflictRule existing = newRoleRule(RULE_ID, 101L, 102L);
+            when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID)).thenReturn(existing);
+            when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of(existing));
+            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            when(abstractRoleMapper.selectValidByIds(TENANT_ID, Set.of(301L, 302L)))
+                .thenReturn(List.of(role(301L, 2), role(302L, 6)));
+            stubStructuralTypes();
+
+            assertThatThrownBy(() -> service.updateConflictRule(
+                    TENANT_ID, new ConflictRuleUpdateReq(RULE_ID, "ROLE_MUTEX", null, null, null, 301L, 302L, null), OPERATOR_ID))
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getErrorCode())
+                .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode());
+            verify(conflictRuleMapper, never()).update(any(PermissionConflictRule.class));
+        }
+
+        @Test
+        void shouldAllowFunctionalRolePair() {
+            // 全功能角色对（role_type=6 BASIC）放行；角色行缺失维持惰性语义（默认空集→跳过类型检查）
+            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            when(abstractRoleMapper.selectValidByIds(TENANT_ID, Set.of(101L, 102L)))
+                .thenReturn(List.of(role(101L, 6), role(102L, 6)));
+            stubStructuralTypes();
+            when(permissionConflictDomainService.findUsersHoldingBothRoles(TENANT_ID, 101L, 102L))
+                .thenReturn(List.of());
+            when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of());
+            // mock insert 需回填主键（生产由 DB 生成回写实体）
+            org.mockito.Mockito.doAnswer(inv -> {
+                inv.getArgument(0, PermissionConflictRule.class).setId(77L);
+                return 1;
+            }).when(conflictRuleMapper).insert(any(PermissionConflictRule.class));
+
+            ConflictRuleResp resp = service.createConflictRule(
+                TENANT_ID, new ConflictRuleReq("ROLE_MUTEX", null, null, null, 101L, 102L, null), OPERATOR_ID);
+
+            assertThat(resp.id()).isEqualTo(77L);
+            verify(conflictRuleMapper).insert(any(PermissionConflictRule.class));
         }
     }
 

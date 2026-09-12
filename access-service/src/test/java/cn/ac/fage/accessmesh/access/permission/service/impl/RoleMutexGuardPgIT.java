@@ -235,6 +235,34 @@ class RoleMutexGuardPgIT {
         assertThat(countRule(roleH, roleI)).isZero();
     }
 
+    @Test
+    @DisplayName("T-PERM-064：结构角色对立规拒绝——ORG 角色对 VALIDATION_FAILED（投影通道闭合），功能角色对放行")
+    void createRuleShouldRejectStructuralRolePair() {
+        Long operator = insertSubject("t064-op-structural");
+        Long operatorRole = insertBasicRole("t064-holder-structural");
+        insertUserRole(operator, operatorRole);
+        insertScopeAllRolePerm(operatorRole, RESOURCE_TYPE_CONFLICT_RULE, CREATE_BIT);
+        bindOperator(operator);
+
+        // role_type 种子：ORG=1、POSITION=2；抽象角色行经 jdbc 直插（结构角色无管理面写入口）
+        Long orgRoleA = insertRoleOfType("t064-org-role-a", 1);
+        Long orgRoleB = insertRoleOfType("t064-org-role-b", 1);
+
+        assertThatThrownBy(() -> conflictRuleAppService.createConflictRule(
+                TENANT, new ConflictRuleReq("ROLE_MUTEX", null, null, null, orgRoleA, orgRoleB, null), operator))
+            .isInstanceOf(BizException.class)
+            .extracting(ex -> ((BizException) ex).getErrorCode())
+            .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode());
+        assertThat(countRule(orgRoleA, orgRoleB)).isZero();
+
+        // 功能角色对（BASIC_ROLE=6）不受影响
+        Long basicA = insertBasicRole("t064-basic-a");
+        Long basicB = insertBasicRole("t064-basic-b");
+        ConflictRuleResp created = conflictRuleAppService.createConflictRule(
+            TENANT, new ConflictRuleReq("ROLE_MUTEX", null, null, null, basicA, basicB, null), operator);
+        assertThat(created.id()).isNotNull();
+    }
+
     // ===== 数据装配（jdbc 直插事实/授权，先于相关主体首次引擎调用） =====
 
     private void bindOperator(Long operatorId) {
@@ -254,6 +282,14 @@ class RoleMutexGuardPgIT {
             "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, parent_id, extra) "
                 + "VALUES (?, ?, ?, ?, 1, NULL, '{}') RETURNING id",
             Long.class, TENANT, ROLE_TYPE_BASIC, externalId, externalId);
+    }
+
+    /** T-PERM-064：按 role_type 值直插结构角色行（ORG=1/POSITION=2，无管理面写入口）。 */
+    private Long insertRoleOfType(String externalId, int roleTypeValue) {
+        return jdbc.queryForObject(
+            "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, parent_id, extra) "
+                + "VALUES (?, ?, ?, ?, 1, NULL, '{}') RETURNING id",
+            Long.class, TENANT, roleTypeValue, externalId, externalId);
     }
 
     private void insertUserRole(Long abstractUserId, Long targetRoleId) {

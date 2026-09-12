@@ -251,7 +251,10 @@ class FullSyncResponseContractTest {
 
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, userRoleMapper,
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService.class),
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService.class),
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper.class));
         // scope.roleTypeCode 与 item.roleTypeCode 不一致 → item 级 NON_RETRYABLE（顶层 accepted；
         // 契约 §6.2.2.3：不进入 markStatus 路径，避免污染 metadata）
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
@@ -275,7 +278,10 @@ class FullSyncResponseContractTest {
         mockHeaderMatch();
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, userRoleMapper,
-                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard);
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService.class),
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService.class),
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper.class));
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
                 new UserRoleSyncScope(SOURCE_SERVICE, "SYS_USER_ORG", "ORG", "ROOT"),
                 List.of(new UserRoleSyncItem("USER", "u1", "POSITION", "pos-1",

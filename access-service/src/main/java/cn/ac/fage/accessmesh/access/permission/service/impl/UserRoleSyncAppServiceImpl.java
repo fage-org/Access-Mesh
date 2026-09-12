@@ -56,17 +56,27 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     private final UserRoleMapper userRoleMapper;
     private final LocalProjectionGuard localProjectionGuard;
     private final SyncTypeGuard syncTypeGuard;
+    // T-PERM-064：sync 通道角色互斥授予守卫（生效判定 + 冲突检测）
+    private final cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService;
+    private final cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService permissionConflictDomainService;
+    private final cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper abstractRoleMapper;
 
     public UserRoleSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                        TypeResolutionService typeResolutionService,
                                        UserRoleMapper userRoleMapper,
                                        LocalProjectionGuard localProjectionGuard,
-                                       SyncTypeGuard syncTypeGuard) {
+                                       SyncTypeGuard syncTypeGuard,
+                                       cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService,
+                                       cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService permissionConflictDomainService,
+                                       cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper abstractRoleMapper) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.userRoleMapper = userRoleMapper;
         this.localProjectionGuard = localProjectionGuard;
         this.syncTypeGuard = syncTypeGuard;
+        this.subjectDomainService = subjectDomainService;
+        this.permissionConflictDomainService = permissionConflictDomainService;
+        this.abstractRoleMapper = abstractRoleMapper;
     }
 
     @Override
@@ -380,6 +390,14 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     scopeKeyHash, businessKeyHash, ownedTargetIdsByBusinessKeyHash)) {
                 return SyncResultBuilder.nonRetryable("OWNERSHIP_CONFLICT");
             }
+            // T-PERM-064：角色互斥授予守卫（sync 通道面）——冲突按通道语义逐条 NON_RETRYABLE
+            // 拒绝（管理面 20062 整批语义不适用：sync 是逐 item 错误信封协议）。
+            // 仅在「upsert 将新增当前有效持有」时检查：新建行或非当前有效行重激活；
+            // 已有效行幂等改期不检查（违规已存在，拒更新不消除既有状态）
+            if (bindIntroducesEffectiveHolding(tenantId, abstractUserId, roleId, req, existingForUpsert, now)
+                    && hitsRoleMutexOnBind(tenantId, abstractUserId, roleId)) {
+                return SyncResultBuilder.nonRetryable("ROLE_MUTEX_CONFLICT");
+            }
             UserRole upserted = upsertUserRoleWithExisting(tenantId, abstractUserId, roleId, relationId, req,
                     existingForUpsert, now);
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
@@ -407,6 +425,48 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     scopeKeyHash, businessKeyHash, STATUS_UNBOUND);
         }
         return SyncResultBuilder.applied();
+    }
+
+    /**
+     * T-PERM-064：BIND 是否将新增「当前有效持有」。
+     * <p>
+     * 生效谓词镜像运行时 selectValidByUserIdsWithValidity 与管理面守卫（T-PERM-063）：
+     * (valid_from <= now OR NULL) AND (valid_to >= now OR NULL)。新建行按请求有效期判定；
+     * 既有行按「改写前非当前有效 && 改写后当前有效」（重激活）判定。
+     * </p>
+     */
+    private boolean bindIntroducesEffectiveHolding(Long tenantId, Long userId, Long roleId,
+                                                   UserRoleSyncReq req, UserRole existing, LocalDateTime now) {
+        boolean postValid = (req.validFrom() == null || !req.validFrom().isAfter(now))
+                && (req.validTo() == null || !req.validTo().isBefore(now));
+        if (!postValid) {
+            return false;
+        }
+        if (existing == null) {
+            return true;
+        }
+        boolean preValid = (existing.getValidFrom() == null || !existing.getValidFrom().isAfter(now))
+                && (existing.getValidTo() == null || !existing.getValidTo().isBefore(now));
+        return !preValid;
+    }
+
+    /**
+     * T-PERM-064：授予后状态命中 ROLE_MUTEX 对检测。
+     * <p>
+     * postState = 现有效角色（批量解析含组展开/启用态）∪ 本目标（仅计启用角色），
+     * 与管理面 {@code UserManageAppServiceImpl#rejectRoleMutexOnAssign} 同源；
+     * 规则读取复用 {@code findAssignMutexConflicts} DB 直查（新规则即刻生效）。
+     * </p>
+     */
+    private boolean hitsRoleMutexOnBind(Long tenantId, Long userId, Long roleId) {
+        if (!new HashSet<>(abstractRoleMapper.selectEnabledIdsByIds(tenantId, Set.of(roleId))).contains(roleId)) {
+            return false;
+        }
+        Set<Long> effective = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
+        Set<Long> postState = new HashSet<>(effective);
+        postState.add(roleId);
+        return !permissionConflictDomainService
+                .findAssignMutexConflicts(tenantId, Map.of(userId, postState)).isEmpty();
     }
 
     private Long resolveRelationRoleId(Long tenantId, String relationKey) {
