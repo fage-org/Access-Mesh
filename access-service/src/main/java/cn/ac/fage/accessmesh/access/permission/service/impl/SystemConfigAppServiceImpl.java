@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.access.permission.service.SystemConfigAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.JsonValidationUtils;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
+import cn.ac.fage.accessmesh.access.permission.util.StringUtils;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -143,7 +144,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
-        return systemConfigMapper.countByCondition(tenantId, normalize(keyword));
+        return systemConfigMapper.countByCondition(tenantId, StringUtils.normalizeFilterParam(keyword));
     }
 
     /**
@@ -166,15 +167,8 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
-        return systemConfigMapper.selectPageByCondition(tenantId, normalize(keyword), limit, offset)
+        return systemConfigMapper.selectPageByCondition(tenantId, StringUtils.normalizeFilterParam(keyword), limit, offset)
             .stream().map(this::toSystemConfigResp).collect(Collectors.toList());
-    }
-
-    /**
-     * 过滤参数规整：空白串归一为 null（与 SQL <if> 判空语义一致）
-     */
-    private String normalize(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**

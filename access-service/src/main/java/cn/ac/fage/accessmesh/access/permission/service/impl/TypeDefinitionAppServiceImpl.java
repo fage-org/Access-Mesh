@@ -31,6 +31,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngi
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
+import cn.ac.fage.accessmesh.access.permission.util.StringUtils;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -367,7 +368,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     public long countTypes(Long tenantId, String typeKey, String keyword) {
         Long operatorId = OperatorContext.getOperatorId();
         requireTypeViewPermission(tenantId, operatorId);
-        return typeDefinitionMapper.countByCondition(tenantId, normalize(typeKey), normalize(keyword));
+        return typeDefinitionMapper.countByCondition(tenantId, StringUtils.normalizeFilterParam(typeKey), StringUtils.normalizeFilterParam(keyword));
     }
 
     /**
@@ -388,7 +389,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     public List<TypeDefinitionResp> listTypes(Long tenantId, String typeKey, String keyword, int offset, int limit) {
         Long operatorId = OperatorContext.getOperatorId();
         requireTypeViewPermission(tenantId, operatorId);
-        return typeDefinitionMapper.selectPageByCondition(tenantId, normalize(typeKey), normalize(keyword), limit, offset)
+        return typeDefinitionMapper.selectPageByCondition(tenantId, StringUtils.normalizeFilterParam(typeKey), StringUtils.normalizeFilterParam(keyword), limit, offset)
             .stream().map(this::toTypeResp).collect(Collectors.toList());
     }
 
@@ -431,13 +432,6 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      */
     private String instanceBusinessKey(TypeDefinition type) {
         return BusinessKeys.typeInstanceBusinessKey(type.getTypeKey(), type.getTypeCode());
-    }
-
-    /**
-     * 过滤参数规整：空白串归一为 null（与 SQL <if> 判空语义一致）
-     */
-    private String normalize(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**

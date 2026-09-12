@@ -1340,9 +1340,6 @@ public class PermQueryEngine {
      * 解析查询参数中的操作ID（使用 ResolveContext）
      */
     private Set<Long> resolveOperationIds(PermQuery q, ResolveContext ctx) {
-        if (q.operationPermissionIds() != null && !q.operationPermissionIds().isEmpty()) {
-            return q.operationPermissionIds();
-        }
         if (q.operationCodes() == null || q.operationCodes().isEmpty()) return Set.of();
         if (q.resourceTypeCodes() == null || q.resourceTypeCodes().isEmpty()) return Set.of();
         return ctx.getOperationIds(q.resourceTypeCodes(), q.operationCodes());
@@ -1352,9 +1349,6 @@ public class PermQueryEngine {
      * 解析操作ID集合为映射（loadAncillary 目标操作装配用，批量）
      */
     private Set<Long> resolveOperationIdsForAncillary(PermQuery q) {
-        if (q.operationPermissionIds() != null && !q.operationPermissionIds().isEmpty()) {
-            return q.operationPermissionIds();
-        }
         if (q.operationCodes() == null || q.operationCodes().isEmpty()) return Set.of();
         if (q.resourceTypeCodes() == null || q.resourceTypeCodes().isEmpty()) return Set.of();
         Set<Long> result = new HashSet<>();

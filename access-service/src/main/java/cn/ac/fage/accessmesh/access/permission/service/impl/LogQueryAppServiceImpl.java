@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.access.permission.service.LogQueryAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.PageUtil;
+import cn.ac.fage.accessmesh.access.permission.util.StringUtils;
 import org.springframework.stereotype.Service;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
@@ -86,9 +87,9 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             throw new SecurityException("Permission denied: VIEW on PERMISSION_CHANGE_LOG");
         }
 
-        return changeLogMapper.selectPageByCondition(tenantId, normalize(entityType), entityId,
+        return changeLogMapper.selectPageByCondition(tenantId, StringUtils.normalizeFilterParam(entityType), entityId,
                 affectedUserId, affectedRoleId, since, until,
-                toEventTypeList(eventType), normalize(changeSource), offset, limit)
+                toEventTypeList(eventType), StringUtils.normalizeFilterParam(changeSource), offset, limit)
             .stream().map(this::toChangeLogResp).collect(Collectors.toList());
     }    /**
      * 统计变更日志数量（条件与 {@link #listChangeLogs} 一致）
@@ -106,9 +107,9 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             throw new SecurityException("Permission denied: VIEW on PERMISSION_CHANGE_LOG");
         }
 
-        return changeLogMapper.countByCondition(tenantId, normalize(entityType), entityId,
+        return changeLogMapper.countByCondition(tenantId, StringUtils.normalizeFilterParam(entityType), entityId,
                 affectedUserId, affectedRoleId, since, until,
-                toEventTypeList(eventType), normalize(changeSource));
+                toEventTypeList(eventType), StringUtils.normalizeFilterParam(changeSource));
     }
 
     // ===== 操作日志查询 =====
@@ -141,8 +142,8 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
         }
 
-        return operationLogMapper.selectPageByCondition(tenantId, normalize(module), normalize(action),
-                operatorId, since, until, normalize(targetType), offset, limit)
+        return operationLogMapper.selectPageByCondition(tenantId, StringUtils.normalizeFilterParam(module), StringUtils.normalizeFilterParam(action),
+                operatorId, since, until, StringUtils.normalizeFilterParam(targetType), offset, limit)
             .stream().map(this::toOperationLogResp).collect(Collectors.toList());
     }
 
@@ -171,8 +172,8 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
         }
 
-        return operationLogMapper.countByCondition(tenantId, normalize(module), normalize(action),
-            operatorId, since, until, normalize(targetType));
+        return operationLogMapper.countByCondition(tenantId, StringUtils.normalizeFilterParam(module), StringUtils.normalizeFilterParam(action),
+            operatorId, since, until, StringUtils.normalizeFilterParam(targetType));
     }
 
     /**
@@ -196,14 +197,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
             throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
         }
 
-        return operationLogMapper.selectDistinctActions(tenantId, normalize(module));
-    }
-
-    /**
-     * 过滤参数规整：空白串归一为 null（与 SQL <if> 判空语义一致）
-     */
-    private String normalize(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
+        return operationLogMapper.selectDistinctActions(tenantId, StringUtils.normalizeFilterParam(module));
     }
 
     // ===== 实体转换方法 =====

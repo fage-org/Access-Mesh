@@ -45,4 +45,18 @@ public final class StringUtils {
     public static boolean isNotEmpty(String str) {
         return str != null && !str.isEmpty();
     }
+
+    /**
+     * 过滤参数规整：空白串归一为 null，其余去首尾空白
+     * <p>
+     * 与 SQL {@code <if>} 判空语义一致（规整为 null 走 Mapper 动态 SQL 的空分支），
+     * 管理查询入口的过滤参数规整统一复用本方法。
+     * </p>
+     *
+     * @param value 待规整字符串
+     * @return null 或纯空白返回 null，否则返回去除首尾空白的结果
+     */
+    public static String normalizeFilterParam(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
 }

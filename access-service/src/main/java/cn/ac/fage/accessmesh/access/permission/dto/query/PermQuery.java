@@ -81,11 +81,6 @@ public class PermQuery {
      */
     private Set<String> operationCodes;
 
-    /**
-     * 操作权限ID集合（内部直给形态，优先于 operationCodes 解析）
-     */
-    private Set<Long> operationPermissionIds;
-
     // ── INSTANCE 精确模式（explain scopeMode=INSTANCE 契约：只认直接实例授权，不回退 scopeAll 类型级） ──
 
     /**
@@ -426,7 +421,6 @@ public class PermQuery {
     public Set<Long> resourceEntityIds() { return resourceEntityIds; }
     public String domainCode() { return domainCode; }
     public Set<String> operationCodes() { return operationCodes; }
-    public Set<Long> operationPermissionIds() { return operationPermissionIds; }
     public boolean inheritClosure() { return inheritClosure; }
     public boolean exactInstanceOnly() { return exactInstanceOnly; }
     public boolean inheritParents() { return inheritParents; }

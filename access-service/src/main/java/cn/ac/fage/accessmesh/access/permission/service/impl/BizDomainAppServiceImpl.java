@@ -17,6 +17,7 @@ import cn.ac.fage.accessmesh.access.permission.service.BizDomainAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
+import cn.ac.fage.accessmesh.access.permission.util.StringUtils;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -173,7 +174,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DOMAIN, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DOMAIN");
         }
-        return bizDomainMapper.countByCondition(tenantId, normalize(keyword));
+        return bizDomainMapper.countByCondition(tenantId, StringUtils.normalizeFilterParam(keyword));
     }
 
     /**
@@ -197,7 +198,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
             throw new SecurityException("Permission denied: VIEW on DOMAIN");
         }
 
-        return bizDomainMapper.selectPageByCondition(tenantId, normalize(keyword), limit, offset)
+        return bizDomainMapper.selectPageByCondition(tenantId, StringUtils.normalizeFilterParam(keyword), limit, offset)
             .stream().map(this::toBizDomainResp).collect(Collectors.toList());
     }
 
@@ -314,13 +315,6 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         LocalDateTime now = LocalDateTime.now();
         bizDomainMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " biz_domain row(s)");
-    }
-
-    /**
-     * 过滤参数规整：空白串归一为 null（与 SQL <if> 判空语义一致，system-config 同范式）
-     */
-    private String normalize(String value) {
-        return value == null || value.isBlank() ? null : value.trim();
     }
 
     /**
