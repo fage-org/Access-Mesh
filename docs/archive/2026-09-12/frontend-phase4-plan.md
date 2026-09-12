@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 前端 Phase 4 — 扩展性验证 + 代码清理 + 文档
-status: proposed
+status: archived
 domain: common
 design_refs:
   - docs/design/architecture.md
@@ -13,12 +13,12 @@ tasks:
   - T-PERM-038
   - T-PERM-039
 acceptance: "扩展点验证通过；扩展指南文档完成；access-service admin 域 CRUD 清理；全局 TODO 收口；测试补充达标。"
-last_updated: 2026-08-22
+last_updated: 2026-09-12
 ---
 
 # 前端 Phase 4 — 扩展性验证 + 代码清理 + 文档
 
-> 状态：proposed
+> 状态：archived（2026-09-12 归档：五任务全 done，批次收口全量回归含 E2E 全绿 + 双轨评审处置完成；任务卡随迁本目录 `tasks/`）
 > 来源：`docs/archive/2026-08-27/improvement-plan.md` §4 Phase 4 拆分（roadmap 已归档，拆分产物即本 plan）
 > 准入：Phase 3 联调通过
 

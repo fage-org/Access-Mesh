@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-038
 title: 全局 TODO 收口（improvement-plan 附录 A 全量核实与处置）
 status: done
-plan: docs/plans/frontend-phase4-plan.md
+plan: docs/archive/2026-09-12/frontend-phase4-plan.md
 domain: permission-center
 design_refs: []
 depends_on: []

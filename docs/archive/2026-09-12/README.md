@@ -13,8 +13,11 @@
 | 2026-06-28 / 07-12 / 08-22 / 08-27 / 09-07 各历史批次任务卡（10/6/12/22/11 张） | 各日期目录 `tasks/`（补迁，含 T-ACCESS-021 证据目录 `tasks/evidence/t-access-021/`） |
 | 侧挂归档 `docs/plans/archive/2026-07/` 两计划（ux-refactor/v2，2026-07-26 取消）+ 任务卡 11 张 | `docs/archive/2026-07-26/` 及其 `tasks/` |
 | 侧挂归档 `docs/plans/archive/2026-06/` v3.0~v3.3 设计史 | `docs/archive/2026-06-18/` |
+| （同日追加批次）frontend-phase4-plan.md | 本目录（status → archived；五任务 T-FE-023/T-FE-024/T-ADMIN-020/T-PERM-038/T-PERM-039 全 done 2026-09-12 收口，批次全量回归含 E2E 全绿 + 双轨评审处置完成；卡随迁 `tasks/`） |
+| （同日追加批次）permission-grant-record-level-editing-proposal.md | 本目录（决策记录 status → archived；实施任务 T-FE-040 已 done，权威设计 permission-grant.md v3.1 + api-contract §6.5.2；无附属卡） |
+| （同日追加批次）无计划归属终态单卡 T-PERM-062（2026-09-12 收口 done） | 本目录 `tasks/` |
 
-留守 `docs/tasks/` 的 28 张卡 = 未终态卡（T-PERM-021/035/036/054、T-ADMIN-020、T-FE-023 等无卡或占行）+ 活跃计划（frontend-phase2 / phase4 / design-audit-followup / design-review-def-followup）附属的 done/cancelled 卡。
+追加批次后留守 `docs/tasks/` 的 27 张卡 = 未终态卡（T-PERM-021/035/036/054）+ 活跃计划（frontend-phase2 / design-audit-followup / design-review-def-followup）附属的 done/cancelled 卡。
 
 ## 归档自检执行记录
 

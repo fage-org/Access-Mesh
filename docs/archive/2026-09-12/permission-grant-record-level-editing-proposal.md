@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 权限授予记录级属性编辑方案
-status: confirmed
+status: archived
 domain: frontend-permission-grant
 design_refs:
   - docs/design/frontend/permission-grant.md
@@ -9,7 +9,7 @@ design_refs:
   - docs/design/schema/access-service.sql
 tasks: []
 acceptance: "方案经产品确认后，先回写权威设计，再拆分任务与实施"
-last_updated: 2026-08-09
+last_updated: 2026-09-12
 note: |
   2026-08-08 已确认（D1~D6 及补充决策，确认记录见 §11.1）：
   决策结论见 §11.1，权威设计已回写（permission-grant.md v3.1 记录级聚焦编辑 +
@@ -19,9 +19,9 @@ note: |
 
 # 权限授予记录级属性编辑方案（决策记录）
 
-> 状态：已确认（confirmed，2026-08-08）
+> 状态：已确认（confirmed，2026-08-08）→ 已归档（archived，2026-09-12：实施任务 T-FE-040 已 done）
 > 文档性质：决策记录；不再作为实现依据
-> 当前权威设计：[`docs/design/frontend/permission-grant.md`](../design/frontend/permission-grant.md)（v3.1 记录级聚焦编辑）
+> 当前权威设计：[`docs/design/frontend/permission-grant.md`](../../design/frontend/permission-grant.md)（v3.1 记录级聚焦编辑）
 > 确认后的处理：已回写权威设计（permission-grant.md + api-contract.md §6.5.2）；创建任务并实施；实施完成后归档本文
 
 ## 1. 背景与问题

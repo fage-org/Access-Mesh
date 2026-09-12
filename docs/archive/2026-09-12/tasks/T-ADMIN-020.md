@@ -3,7 +3,7 @@ doc_type: task
 id: T-ADMIN-020
 title: access-service admin 域 CRUD 代码清理（规范清单重排查零可清扫描项，零代码变更收口）
 status: done
-plan: docs/plans/frontend-phase4-plan.md
+plan: docs/archive/2026-09-12/frontend-phase4-plan.md
 domain: admin-service
 design_refs: []
 depends_on: []

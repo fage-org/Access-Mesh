@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-039
 title: 测试补充（覆盖现状重估 + 缺口定性——原「新增改造接口逐接口测试」口径已被各任务回归锁实质取代）
 status: done
-plan: docs/plans/frontend-phase4-plan.md
+plan: docs/archive/2026-09-12/frontend-phase4-plan.md
 domain: permission-center
 design_refs: []
 depends_on: []

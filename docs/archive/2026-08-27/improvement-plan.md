@@ -173,8 +173,8 @@ Phase 4: 扩展性验证 + 代码清理 + 文档完善
 > **4 阶段执行编排已拆为独立 plan**（本文件保留为 roadmap，tasks:[] 保持空）：
 > - Phase 1 -> [frontend-phase1-plan.md](../2026-07-12/frontend-phase1-plan.md)（archived）
 > - Phase 2 → [frontend-phase2-plan.md](../../plans/frontend-phase2-plan.md)（proposed）
-> - Phase 3 → [frontend-phase3-plan.md](../2026-09-07/frontend-phase3-plan.md)（proposed）
-> - Phase 4 → [frontend-phase4-plan.md](../../plans/frontend-phase4-plan.md)（proposed）
+> - Phase 3 → [frontend-phase3-plan.md](../2026-09-07/frontend-phase3-plan.md)（archived）
+> - Phase 4 → [frontend-phase4-plan.md](../2026-09-12/frontend-phase4-plan.md)（archived）
 > 任务清单见各 phase plan 与 [tasks/README.md](../../tasks/README.md) 看板。
 
 ### 4.1 Phase 1 工作流（两阶段推进）
