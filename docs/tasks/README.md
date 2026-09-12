@@ -11,7 +11,7 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 032 |
-| permission-center | `T-PERM` | 065 |
+| permission-center | `T-PERM` | 066 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 009 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
@@ -83,7 +83,7 @@
 | [T-PERM-018](../archive/2026-06-28/tasks/T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | perm-cache-invalidation | v3.5 §5.1/§7.2；api-contract §6.x | T-PERM-002 | ✅ | ✓ |
 | [T-PERM-019](T-PERM-019.md) | 工作单 D：防呆机制（已收口 2026-09-07，终态见任务卡实现记录与 implementation §8） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation §8；schema；admin sync | — | ✅ | ✓ |
 | [T-PERM-020](T-PERM-020.md) | 工作单 E：清理预设能力（死工厂删除 + domain_config/RocketMQ/auto-grant 口径收口） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；architecture | — | ✅ | ✓ |
-| [T-PERM-021](T-PERM-021.md) | 工作单 F：文档准确性与代码简化（范围与冲突标记见任务卡） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | ⚙️ | ⏳ |
+| [T-PERM-021](T-PERM-021.md) | 工作单 F：文档准确性与代码简化（范围与冲突标记见任务卡；2026-09-12 执行门禁三项拍板启动，定案见卡定案节+registry） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | 🔨 | ⏳ |
 | T-PERM-022 | 2.2 角色管理后端（已收口 2026-08-28，终态见 design/frontend/role-manage.md §8） | frontend-phase2 | api-contract §5.2/§6.10.3；implementation §2.1；design/frontend/role-manage.md §8 | T-FE-002 | ✅ | ✓ |
 | T-PERM-023 | 6.1 类型定义后端（已收口 2026-08-28，终态见 design/frontend/type-definition.md §8） | frontend-phase2 | api-contract §5.1；design/frontend/type-definition.md §8 | T-FE-003 | ✅ | ✓ |
 | T-PERM-024 | 6.2 系统配置后端（已收口 2026-08-28，终态见 design/frontend/system-config.md §8） | frontend-phase2 | api-contract §5.8 | T-FE-004 | ✅ | ✓ |
@@ -127,6 +127,7 @@
 | [T-PERM-062](../archive/2026-09-12/tasks/T-PERM-062.md) | 新类型首笔授权生命周期种子——createType/createOperation 同事务种 AUTHORITY_ROOT 首授行（✅ 2026-09-12 收口：实施期四项补充定案（reason 仅自定义类型/无历史数据/owner 可变更+同事务迁移/不加角色删除守卫）+ 双轨评审处置，全量回归含 E2E 全绿） | — | api-contract §5.1/§6.5.1；schema；architecture §14.2；extension-guide §3.5 | — | ✅ | ✅ |
 | [T-PERM-063](../archive/2026-09-12/tasks/T-PERM-063.md) | 角色互斥授权时校验——写路径拦截 + 存量立规守卫 + 双删日志与 detect 扩展（✅ 2026-09-12 收口：双轨评审 7+7 项全处置——含组角色间接持有盲区 P1；全量回归含 E2E 全绿，终态见任务卡完成记录） | — | api-contract §5.5/§5.6；core-flows §7 评估口径；implementation §2/§3 | — | ✅ | ✓ |
 | [T-PERM-064](../archive/2026-09-12/tasks/T-PERM-064.md) | 角色互斥守卫通道补全——sync/full-sync BIND 逐条守卫 + 互斥规则拒 ORG/POSITION 对（✅ 2026-09-12 收口：claude 外评 P2-1 处置落地，全量回归含 E2E 全绿，终态见任务卡完成记录） | — | api-contract §5.6/§6.2.2.3；implementation §2.4；AGENTS.md | — | ✅ | ✓ |
+| [T-PERM-065](T-PERM-065.md) | Req DTO 副本双轨收敛——14 对同名 Req 与 perm-common 统一（T-PERM-021 F1.b 盘点定性后另立；含 UserAssignRoleReq.items @Size 现役分叉实例） | —（2026-09-12 用户拍板另立任务） | api-contract；project-rules | — | ⚙️ | ⏳ |
 
 ### gateway（工作单 C 失联兜底）
 

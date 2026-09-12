@@ -56,8 +56,8 @@ last_reviewed: 2026-09-07   # 规范性文件审查修复（traceId 口径/log4j
 | `code`      | `int`    | 200 = 成功；非零为错误码，见 §1.2                             |
 | `message`   | `String` | 面向前端展示的提示文本，不得包含堆栈信息                      |
 | `data`      | `Object` | 业务数据；失败时为 `null`                                     |
-| `requestId` | `String` | 请求追踪 ID，由 Gateway 生成                                  |
-| `traceId`   | `String` | 链路追踪 ID，`RResponseAdvice` 回填：优先取上游 `X-Trace-Id` 请求头，缺省与 `requestId` 相同（`X-Request-Id` 由 Gateway `RequestIdFilter` 生成/透传） |
+| `requestId` | `String` | 请求 ID，由 Gateway 生成/透传 `X-Request-Id`（直连时 `RResponseAdvice` 兜底）；审计两表 `request_id` 同源（T-PERM-021 F1.d） |
+| `traceId`   | `String` | 与 `requestId` 同值的响应字段别名（T-PERM-021 F1.d 单 ID 收敛：原 `X-Trace-Id` 头偏好路径删除，无第二套追踪体系）；`RResponseAdvice` 回填 |
 
 > 响应壳构造统一使用 `R.ok(data)` / `R.fail(code, message)`；`requestId/traceId` 由 `RResponseAdvice` 在序列化前回填，业务代码不写入。
 

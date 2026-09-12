@@ -37,7 +37,7 @@ last_reviewed: 2026-08-28
 | 文件存储 | 本地磁盘（file.storage.path）       | 文件上传下载；单实例约束（多实例本地盘不可共享，access-service-architecture §15，T-ADMIN-023 登记） |
 | 任务调度 | Spring Scheduler                   | 轻量定时任务（兼演示权限控制）       |
 | 认证框架 | Sa-Token + OAuth2                  | 多种授权模式并存                     |
-| 链路追踪 | X-Request-Id / X-Trace-Id 头链     | 请求关联：Gateway 生成/透传 X-Request-Id + RResponseAdvice 回填 traceId；完整分布式 tracing 未接线（otel 桥依赖已引、头链路未消费，演进登记见 project-rules §4.3） |
+| 链路追踪 | X-Request-Id 头链（单 ID）          | 请求关联：Gateway 生成/透传 X-Request-Id，traceId 为其响应字段别名（T-PERM-021 F1.d 单 ID 收敛，原 X-Trace-Id 头偏好删除）；完整分布式 tracing 未接线（otel 桥依赖已引、头链路未消费，演进登记见 project-rules §4.3） |
 | 前端框架 | Vue 3 + Element Plus               | 管理端 + example 演示端              |
 
 ### 1.3 架构拓扑图
@@ -206,7 +206,7 @@ last_reviewed: 2026-08-28
 | 10   | 任务调度    | ~5         | sys_job, sys_job_log, sys_task_execution | Spring Scheduler + 数据库租约（多实例抢占/续租/接管），兼演示定时任务中的权限控制 |
 | 11   | 系统设置    | ~3         | system_config（合并表）      | 系统级参数配置 CRUD（`admin.*`/`permission.*`/`access.*` 命名空间） |
 
-**预估总接口数：75 个（admin 域 sys_* 14 张表；sys_config/sys_audit_log 已并入合并表 system_config/operation_log，sys_sync_task 已随 T-ACCESS-005 退役）**
+**接口总数不在此维护**（2026-08 口径：文档不携带活计数，实际路径/DTO 清单以 `HttpApiPathSnapshotTest` 快照为唯一载体；admin 域 sys_* 14 张表；sys_config/sys_audit_log 已并入合并表 system_config/operation_log，sys_sync_task 已随 T-ACCESS-005 退役）
 
 ### 3.3 核心模型设计概要
 

@@ -42,7 +42,7 @@ last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§5.1 类型授权�
 | ---------------- | ------------- | ----------------------------------------------------------------- |
 | `Authorization`  | 管理 API 必填 | `Bearer <token>`                                                  |
 | `X-Tenant-Id`    | 必填          | 当前租户 ID，由 Gateway 或可信服务注入；请求体不再保留 `tenantId` |
-| `X-Request-Id`   | 可选          | 未传时由 Gateway 生成                                             |
+| `X-Request-Id`   | 可选          | 未传时由 Gateway 生成（access-service 直连由拦截器兜底生成 UUID）；全链路单 ID，兼作链路追踪 ID——响应 `traceId`/日志 MDC `traceId` 为同一值（T-PERM-021 F1.d 定案） |
 | `X-Service-Code` | 内部/SDK 必填 | 调用方服务编码，用于内部来源校验                                  |
 | `X-Api-Version`  | 可选          | 契约版本，默认 `2026-04-26`                                       |
 

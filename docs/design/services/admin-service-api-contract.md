@@ -24,7 +24,7 @@ last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事�
 > - `../../archive/2026-08-22/admin-service.md` (原 admin-service 服务设计，已 superseded；同步任务模型已随 T-ACCESS-005 退役)
 > - `../schema/access-service.sql` (字段事实，唯一权威 DDL)
 >
-> 当前 16 个接口处于"契约已定稿, 待 Phase 2 后端实现"状态; 另 6 个接口与前端 mock 已对齐, 见 §5 已对齐汇总.
+> 原历史注记「16 个接口待 Phase 2 后端实现」已随 Phase 2 完成失效（2026-08-31 后端全就绪、Phase 3 联调 2026-09-04 收口）；接口现状以 `HttpApiPathSnapshotTest` 快照为准, 本契约不维护计数.
 >
 > 本契约不重复 `project-rules.md` 全文; 仅复述与本契约直接相关的强约束条款 (§1).
 
@@ -34,7 +34,7 @@ last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事�
 
 引用 `project-rules.md`:
 
-- **§1.1 统一响应壳**: 所有接口返回 `R<T> { code, message, data, requestId, traceId }`. `code=200` 为成功, 失败时 `data=null`. `requestId/traceId` 由 `RResponseAdvice` 在序列化前回填（`X-Request-Id` 由网关生成/透传；`traceId` 优先上游 `X-Trace-Id` 头、缺省同 `requestId`）, 业务侧不写入.
+- **§1.1 统一响应壳**: 所有接口返回 `R<T> { code, message, data, requestId, traceId }`. `code=200` 为成功, 失败时 `data=null`. `requestId/traceId` 由 `RResponseAdvice` 在序列化前回填（`X-Request-Id` 由网关生成/透传；`traceId` 与 `requestId` 同值——单 ID 收敛，T-PERM-021 F1.d 删除原 `X-Trace-Id` 头偏好路径）, 业务侧不写入.
 - **§1.3 分页**: 入参 `{ pageNum, pageSize, sort? }`, `pageNum>=1`, `1<=pageSize<=100`, `sort` 形如 `"createdAt,desc"`. 出参分页对象统一为 `PageResp<T> { items: T[], total, pageNum, pageSize, hasNext }`（承载类 perm-common `perm.common.dto.resp.PageResp`，admin/permission 域与 SDK 单一来源）. 非分页列表也必须用 `{ items: [...] }` 包装, 禁止顶层数组.
 - **§2.1 HTTP 方法**: 所有接口 `POST + application/json + @RequestBody DTO`. 禁止 `@GetMapping/@PutMapping/@DeleteMapping/@PatchMapping`, 禁止 `@RequestParam` (除文件上传/下载), 禁止路径参数. 业务 ID 必须放 JSON Body.
 - **§2.2 路径**: access-service admin 域挂载在网关路由 `/admin/api/**` 下, 实际控制器映射为 `/user`, `/org`, `/user-org`, `/user-role`, `/role` 等资源根. 本契约文档中所有路径均为服务内部映射 (前端经网关访问).
@@ -943,7 +943,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 ## 6. 验收标准
 
-Phase 2 后端实现以上 19 个接口后, 必须满足:
+后端实现本契约接口（原历史计数「19 个」不维护, 现状以 `HttpApiPathSnapshotTest` 快照为准; Phase 2 已于 2026-08-31 完成）后, 必须满足:
 
 1. **字段对齐**: 前端 `frontend/src/api/user-manage.ts` 中所有类型与本契约 record 字段名/类型一一对齐, 不允许不一致.
 2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `PermQueryEngine`; 实现不短路判断 (除自我修改豁免).

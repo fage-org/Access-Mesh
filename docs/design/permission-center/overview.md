@@ -42,10 +42,10 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
                                          └── AOP（@OperationLog 自动记录入口日志）
 ```
 
-- **Controller**（22 个）：接收请求、解析 Header 中的 tenant/operator、将业务键（code）转换为内部 ID。
-- **AppService**（23 个实现）：调度/编排层，组合多个 DomainService 完成业务流程。每个 Service 按单一职责拆分（如 PermissionCheck/PermissionGrant/PermissionView 等）。
-- **DomainService**（11 个接口 + `ResolveContext` + `PermQueryEngine`）：领域逻辑层，封装可复用的业务规则（角色解析、条件评估、冲突过滤、类型解析、域分类、同步元数据、授权传递等）。`PermQueryEngine` 是统一权限查询引擎的唯一入口。
-- **Mapper**（18 个）：MyBatis-Flex 数据访问，使用 `Tables` 类引用 TableDef（禁止静态导入 APT 生成的 `*TableDef` 类）。`RolePermEntryMapper` 是工具类（位于 `util` 包），负责 `RoleResourcePermission→RolePermEntry` 的转换。
+- **Controller**：接收请求、解析 Header 中的 tenant/operator、将业务键（code）转换为内部 ID。
+- **AppService**（实现类，个数不在此维护）：调度/编排层，组合多个 DomainService 完成业务流程。每个 Service 按单一职责拆分（如 PermissionCheck/PermissionGrant 等）。
+- **DomainService**（领域服务接口 + `ResolveContext` + `PermQueryEngine`，个数不在此维护）：领域逻辑层，封装可复用的业务规则（角色解析、条件评估、冲突过滤、类型解析、域分类、同步元数据、授权传递等）。`PermQueryEngine` 是统一权限查询引擎的唯一入口。
+- **Mapper**（MyBatis-Flex 数据访问，个数不在此维护）：使用 `Tables` 类引用 TableDef（禁止静态导入 APT 生成的 `*TableDef` 类）。`RolePermEntryMapper` 是工具类（位于 `util` 包），负责 `RoleResourcePermission→RolePermEntry` 的转换。
 - **AOP**：`@OperationLog` 注解 + `OperationLogAspect` 切面自动拦截 AppService 写方法并记录入口级操作日志。`OperationLogRuntimeContext` 允许方法体内通过 `markSkip()`/`setSummary()`/`setTargetType()`/`setTargetId()` 覆盖注解值。
 
 ## 角色模型

@@ -94,7 +94,7 @@ cn.ac.fage.accessmesh.permission
 │   │   ├── TypeDefinitionAppServiceImpl
 │   │   ├── UserManageAppServiceImpl
 │   │   └── UserRoleSyncAppServiceImpl
-│   └── domain (11 个接口 + 11 个实现，另含同步策略、ResolveContext 与 PermQueryEngine)
+│   └── domain（领域服务接口 + 实现，另含同步策略、守卫、ResolveContext 与 PermQueryEngine；个数不在此维护）
 │       ├── AuditDomainService / *Impl
 │       ├── DomainClassifyService / *Impl
 │       ├── MappingSyncHandler / *Impl

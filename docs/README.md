@@ -31,6 +31,8 @@ docs/
 ├── plans/                             # 执行计划（编排层，任务清单仅引用 ID）
 │   ├── README.md
 │   └── <plan>.md
+├── ops/                               # 运维手册（外部通道操作规程；契约权威仍在 design/）
+│   └── runbook-full-sync.md           # 外部业务服务 sync/full-sync 运维手册（T-PERM-021 F1.e）
 ├── tasks/                             # 任务（原子执行单元，看板为唯一权威清单）
 │   └── README.md
 └── archive/                           # 归档文档（仅追溯，不作为实现依据）
