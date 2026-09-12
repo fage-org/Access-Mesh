@@ -31,4 +31,8 @@ T-ACCESS-026（验证证据登记与文档状态收口）完成，`product-verti
 
 - 归并后目标架构：`docs/design/access-service-architecture.md`
 - 唯一权威 DDL：`docs/design/schema/access-service.sql`
-- 外部验证与 CI 口径：CI 以 GitHub Actions（`.github/workflows/ci.yml`）退出状态判定成功；68 项为 2026-08-22 外部 Docker 主机历史验证基线（证据登记见任务卡 [T-ACCESS-026](../../tasks/T-ACCESS-026.md)）。
+- 外部验证与 CI 口径：CI 以 GitHub Actions（`.github/workflows/ci.yml`）退出状态判定成功；68 项为 2026-08-22 外部 Docker 主机历史验证基线（证据登记见任务卡 [T-ACCESS-026](tasks/T-ACCESS-026.md)）。
+
+## 2026-09-12 补充归档：任务卡随迁
+
+按 design-plan-task-lifecycle skill §6.5 归档规范（2026-09-12 定案），本批次计划的全部终态任务卡（product-vertical-slice 19 张 + access-post-merge 3 张）自 `docs/tasks/` 补迁至本目录 `tasks/` 子目录，T-ACCESS-021 的 GUI 验收证据随卡迁入 `tasks/evidence/t-access-021/`；任务看板行保留终态图标、链接已改指归档位置。

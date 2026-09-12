@@ -45,7 +45,7 @@ last_updated: 2026-06-28
 |---|---|---|---|
 | T-GW-001 | Gateway `gateway.permission.fail-mode` 配置项 + `stale-grace-seconds` | C1 | ✅ |
 | T-GW-002 | fail-closed 实现：perm-center 不可达 → 403/503 拒绝 | C1 | ✅ |
-| [T-GW-003](../../tasks/T-GW-003.md) | stale-allow 实现：过期快照续命，超 stale-grace-seconds 转 closed | C1 / C2 | ✅ |
+| [T-GW-003](tasks/T-GW-003.md) | stale-allow 实现：过期快照续命，超 stale-grace-seconds 转 closed | C1 / C2 | ✅ |
 | T-GW-004 | 监控指标：`unreachable.count` / `fallback.{closed,open,stale}.count` + Prometheus 告警 | C2 | ✅ |
 | T-GW-005 | 失效标记与订阅恢复策略设计（S-006 规范产出；T-PERM-008 落地依赖本任务）| A'-4 / S-006 | ✅ |
 | T-GW-006 | 集成测试基线："杀 permission-center → Gateway 应 503"（重新界定：不在项目内做集成测试，改为独立仓库测试服务） | C1 | ✅ |

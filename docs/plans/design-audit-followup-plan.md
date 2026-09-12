@@ -48,10 +48,10 @@ last_updated: 2026-09-06
 
 | 任务卡 | 回写内容 |
 |---|---|
-| [T-PERM-051](../tasks/T-PERM-051.md) | 投影范围=全部三族；业务键=`{typeKey}:{typeCode}` 复合；TYPE_DEFINITION 加入创建保留清单 |
+| [T-PERM-051](../archive/2026-09-12/tasks/T-PERM-051.md) | 投影范围=全部三族；业务键=`{typeKey}:{typeCode}` 复合；TYPE_DEFINITION 加入创建保留清单 |
 | [T-PERM-019](../tasks/T-PERM-019.md) | 重基线：D1 标完成（已落地）、D3 废注解收窄核对、D2 BusinessKeys 收敛为唯一实质交付 |
-| [T-ADMIN-025](../tasks/T-ADMIN-025.md) | +ADMIN_FILE 加入创建保留清单；登记「新文件夹需首传才可授权」后续优化点 |
-| [T-PERM-046](../tasks/T-PERM-046.md) | 设计项定案：create 加可选 global（默认 false）、补集语义维持、global 不可变 |
+| [T-ADMIN-025](../archive/2026-08-27/tasks/T-ADMIN-025.md) | +ADMIN_FILE 加入创建保留清单；登记「新文件夹需首传才可授权」后续优化点 |
+| [T-PERM-046](../archive/2026-09-12/tasks/T-PERM-046.md) | 设计项定案：create 加可选 global（默认 false）、补集语义维持、global 不可变 |
 
 ## 登记项（非任务）
 

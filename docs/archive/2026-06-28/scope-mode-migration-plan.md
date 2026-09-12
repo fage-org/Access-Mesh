@@ -46,7 +46,7 @@ last_updated: 2026-06-27
 
 | 任务 ID | 标题 | 关联决策 | 状态 |
 |---|---|---|---|
-| [T-PERM-009](../../tasks/T-PERM-009.md) | 定义 `scopeMode` 枚举 + 响应结构改造 | B2 | ✅ |
+| [T-PERM-009](tasks/T-PERM-009.md) | 定义 `scopeMode` 枚举 + 响应结构改造 | B2 | ✅ |
 | T-PERM-010 | api-contract.md §6.7 query-scopes 响应改造（范围已合并进 T-PERM-009 完成，§6.7 已回写） | B2 / S-005 | ✅ |
 | T-PERM-011 | api-contract.md 约 30+ 处 `scopeAll` 全量推广到 `scopeMode` | S-005=A | ✅ |
 | T-PERM-012 | 管理端授权配置 / 排查页响应改造 | S-005=A | ✅ |

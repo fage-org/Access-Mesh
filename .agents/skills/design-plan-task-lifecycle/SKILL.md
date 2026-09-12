@@ -56,10 +56,14 @@ docs/
 ├── tasks/                     # 任务（原子单元）
 │   ├── README.md              # 看板（任务总表，唯一权威任务清单）
 │   └── <T-领域-NNN>.md        # 仅复杂任务开独立文件
-└── archive/YYYY-MM-DD/        # 归档（已完成/被取代的过程文档）
+└── archive/YYYY-MM-DD/        # 归档（内部按日期分批；已完成/被取代的过程文档）
+    ├── <plan>-plan.md         # 归档计划平铺于日期目录
+    └── tasks/                 # 归档任务卡（随计划归档或终态单卡归档，见 §6.5）
 ```
 
 > `tasks/README.md` 看板是任务清单的**唯一权威源**。计划 frontmatter 的 `tasks:[]` 与看板必须同步——创建/改任务时同步两边。
+
+> **归档滞留禁令（2026-09-12 定案）**：`docs/tasks/` 只保留**未终态**（proposed/in-progress/review）任务卡与**所属计划仍活跃**的 done/cancelled 卡；已终态且无活跃计划归属的卡按 §6.5 归档，不与在办任务混放。`docs/plans/` 同理只保留未归档计划——归档统一住 `docs/archive/YYYY-MM-DD/`，禁止 `plans/archive/` 等侧挂归档目录。
 
 ---
 
@@ -215,16 +219,21 @@ proposed ──准入满足──▶ active ──阻塞──▶ blocked ──
 ```
 
 - 计划 `completed` 的硬条件：其 `tasks:[]` 中无 `proposed/in-progress/review` 状态任务（全部 `done` 或 `cancelled`）。
-- 归档：移入 `docs/archive/YYYY-MM-DD/`，更新三处索引。
+- 归档：计划文件移入 `docs/archive/YYYY-MM-DD/`（平铺于日期目录），其 `tasks:[]` 全部任务卡随迁至同目录 `tasks/` 子目录；更新 `docs/README` + `plans/README` + `tasks/README`（看板行链接改指归档位置）。步骤与自检见 §6.5。
 
 ### 3.3 任务
 
 ```
-proposed ──▶ in-progress ──▶ review ──回写done──▶ done ──计划归档──▶ archived
+proposed ──▶ in-progress ──▶ review ──回写done──▶ done ──随计划归档 / 单卡归档──▶ archived
                 ▲                              │
                 └──阻塞/重连────────────────────┤
                                                cancelled ──▶ archived
 ```
+
+- **归档触发（2026-09-12 定案）**：
+  - 附属于**活跃计划**的任务卡：单卡 `done`/`cancelled` 后**不单独归档**（留在 `docs/tasks/`，看板记录终态），待所属计划归档时随计划一并迁入 `archive/<日期>/tasks/`。
+  - **无所属计划**（`plan` 为空/`—`）或所属计划**已归档**的任务卡：`done`/`cancelled` 即达单卡归档条件，迁入当次归档批次日期目录的 `tasks/`。
+  - `archived` 由**文件位置**表达：卡 frontmatter 与看板行保留 `done`/`cancelled` 终态事实，不回改状态标记；归档只改文件位置与链接（含卡内 `plan` 字段指向已归档计划的新路径）。
 
 - `review → done` 硬条件：
   1. `acceptance` 全部勾选；
@@ -323,9 +332,28 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 
 ### 6.5 归档
 
-- 计划 `completed` → 移入 `docs/archive/YYYY-MM-DD/`，更新 `docs/README` + `design/README` + `plans/README` + `tasks/README`；
-- 设计 `superseded` 长期保留后可 `archived` 移入归档；
-- 归档自检清单见 `docs/plans/README.md` §"归档/迁移自检"（链接修复、grep 残留、索引刷新）。
+**统一落点**：`docs/archive/YYYY-MM-DD/`（日期 = 归档执行日；同日多批次共存，归档夹内部按日期目录区分）。日期目录内布局：归档计划/设计等过程文档**平铺**于日期目录；任务卡统一住 `tasks/` 子目录，卡附属证据目录随卡迁入 `tasks/evidence/`。禁止 `plans/archive/` 等侧挂归档目录——存量侧挂归档发现即并入 `docs/archive/` 对应日期目录。
+
+**计划归档**（前置：计划 `completed`，即 `tasks:[]` 全部 done/cancelled）：
+
+1. 建当日日期目录（不存在则新建并补批次 README）；计划文件 `git mv` 至日期目录，frontmatter `status: archived`；
+2. 该计划 `tasks:[]` 对应的全部任务卡 `git mv` 至同目录 `tasks/` 子目录（早已 done 的卡也在本步一并补迁）；卡 `plan` 字段改写为归档后路径；
+3. 修复计划文件内部链接：`](../tasks/T-X.md)` → `](tasks/T-X.md)`，`](../design/` → `](../../design/`；
+4. 更新索引：`docs/README`、`plans/README`、`tasks/README`（看板行链接 `](T-X.md)` → `](../archive/<日期>/tasks/T-X.md)`）、`design/README`（若涉及）；
+5. 跑 `docs/plans/README.md` §"归档/迁移自检"。
+
+**单卡归档**（无所属计划或所属计划已归档的任务卡，`done`/`cancelled` 即触发）：
+
+1. `git mv` 卡至当次批次日期目录 `tasks/`；
+2. 看板行保留终态图标，链接改指归档位置；
+3. 随批执行同一自检清单。
+
+**设计归档**：`superseded` 长期保留后可移入归档（同落 `docs/archive/YYYY-MM-DD/`）。
+
+**归档自检**（`docs/plans/README.md` §"归档/迁移自检"：链接修复、grep 残留、索引刷新），另加两条：
+
+- 归档后全仓 grep `plans/archive/` 应为零；看板（`docs/tasks/README.md`）中 `](T-*.md)` 形式的卡链接应全部指向仍留在 `docs/tasks/` 的卡；
+- `docs/tasks/` 剩余内容 = 看板 README + 未终态卡 + 活跃计划附属卡；`docs/plans/` 剩余内容 = README + 未归档计划。
 
 ---
 
@@ -409,6 +437,8 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 - [ ] 任务卡与 `design_refs` 无轮次词（扫描见 `project-rules` §文档治理）？
 - [ ] 新建遗留任务的 ID 由看板计数器新分配且主题与已有卡一致（未占用）？
 - [ ] 计划 `completed` 前所有任务 `done`/`cancelled`？
+- [ ] 已终态且无活跃计划归属的任务卡、已归档计划（含侧挂归档）已移入 `docs/archive/<日期>/`（卡住 `tasks/` 子目录），`docs/tasks/`、`docs/plans/` 无归档滞留？
+- [ ] 归档后看板/索引链接已改指归档位置，全仓 grep 无 `plans/archive/` 与悬空卡链接残留？
 - [ ] `depends_on` 改动后无循环？
 - [ ] 任务 `cancelled` / 设计 `superseded` 后已触发 §4 扫描并在看板登记？
 

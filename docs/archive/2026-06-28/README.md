@@ -25,3 +25,7 @@
 ## 任务看板
 
 权威任务清单见 [docs/tasks/README.md](../../tasks/README.md)，归档文件内的任务状态快照可能滞后。
+
+## 2026-09-12 补充归档：任务卡随迁
+
+按 design-plan-task-lifecycle skill §6.5 归档规范（2026-09-12 定案），本批次计划的全部终态任务卡自 `docs/tasks/` 补迁至本目录 `tasks/` 子目录；任务看板（`docs/tasks/README.md`）行保留终态图标、链接已改指归档位置。

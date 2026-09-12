@@ -7,7 +7,7 @@
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
 | ~~design-review-2026-06-17~~ | （已归档）| — | 设计评审已完成并归档至 [../archive/2026-06-17/](../archive/2026-06-17/)。评审结论沉淀至 `docs/design/`，工作单 A/B/C 已完成并归档，工作单 D/E/F 暂缓项已拆分至 [design-review-def-followup-plan.md](design-review-def-followup-plan.md)。详见归档批次 README |
-| [archive/2026-06/](archive/2026-06/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。**仅作历史追溯，不再作为开发依据** |
+| [../archive/2026-06-18/](../archive/2026-06-18/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。原侧挂 `plans/archive/2026-06/`，2026-09-12 并入统一归档目录。**仅作历史追溯，不再作为开发依据** |
 | ~~improvement-plan~~ | （已归档）| — | 项目级路线图：诊断与四阶段拆分使命完成（Phase 1 已归档、Phase 2-4 由独立 plan 承载），§2 完成度为 2026-06 时点快照，2026-08-27 归档至 [../archive/2026-08-27/](../archive/2026-08-27/)；痛点 #3/#4 暂缓决策溯源仍被 T-PERM-035/036 引用 |
 | ~~access-service-merge-plan~~ | （已归档）| — | `admin-service` + `permission-center` 归并为模块化单体 `access-service`；T-ACCESS-001~012 全部 done（2026-08-22），计划归档至 [../archive/2026-08-22/](../archive/2026-08-22/)。权威约束见 `design/access-service-architecture.md` |
 | ~~access-post-merge-plan~~ | （已归档）| — | 归并后续强化 T-ACCESS-013~015 全部 done（2026-08-22），CI 准入前置由 T-ACCESS-017 最小 CI 关闭，计划随 T-ACCESS-026 归档至 [../archive/2026-08-27/](../archive/2026-08-27/) |
@@ -17,11 +17,11 @@
 | ~~frontend-phase3-plan~~ | （已归档）| — | 前端 Phase 3 前后端联调（2026-06-29 立项 → 2026-09-04 收口）：T-FE-015~022 + T-FE-037 九任务全 done（menus 接线/固定图扩容/逐页 mock 退役/keyword CAST 系统修复/组织二期入口），2026-09-07 归档门禁（统一全页导航/F5/直达 URL 冒烟 21/21）执行通过后归档至 [../archive/2026-09-07/](../archive/2026-09-07/) |
 | [frontend-phase4-plan.md](frontend-phase4-plan.md) | 前端 Phase 4 执行编排 | proposed | 扩展验证 + 代码清理 + 测试 + 文档。任务 T-FE-023/T-ADMIN-020/T-PERM-038/039 |
 | [permission-grant-record-level-editing-proposal.md](permission-grant-record-level-editing-proposal.md) | 权限授予交互提案 | **confirmed（2026-08-08 确认）** | 条件、再授予与子权限按具体父授权记录编辑（记录级聚焦编辑）。D1~D6 决策结论见提案 §11.1；权威设计已回写（`permission-grant.md` v3.1 + `api-contract.md` §6.5.2），实施完成后归档 |
-| ~~permission-grant-ux-refactor-plan~~ | （已归档）| - | 权限授予页授权弹窗与右栏变更重构。因交互不满意，v1+v2 两套页面 2026-07-26 整体删除重做；设计文档归档至 [../archive/2026-07-26/](../archive/2026-07-26/)，任务 T-FE-024~026 保持 done（产出废弃）、T-FE-027/028 cancelled（`ReConditionEditor` 保留，`ReConditionPicker` 已删）。plan 归档至 [archive/2026-07/](archive/2026-07/) |
-| ~~permission-grant-v2-plan~~ | （已归档）| - | 权限授予页 V2（方案A多条件分支模型）。因交互不满意，v1+v2 两套页面 2026-07-26 整体删除重做；三份设计文档归档至 [../archive/2026-07-26/](../archive/2026-07-26/)，任务 T-FE-029~034 保持 done（产出废弃）、T-FE-035 cancelled。plan 归档至 [archive/2026-07/](archive/2026-07/) |
+| ~~permission-grant-ux-refactor-plan~~ | （已归档）| - | 权限授予页授权弹窗与右栏变更重构。因交互不满意，v1+v2 两套页面 2026-07-26 整体删除重做；设计文档归档至 [../archive/2026-07-26/](../archive/2026-07-26/)，任务 T-FE-024~026 保持 done（产出废弃）、T-FE-027/028 cancelled（`ReConditionEditor` 保留，`ReConditionPicker` 已删）。plan 与任务卡 2026-09-12 归档至 [../archive/2026-07-26/](../archive/2026-07-26/)（卡住 `tasks/` 子目录） |
+| ~~permission-grant-v2-plan~~ | （已归档）| - | 权限授予页 V2（方案A多条件分支模型）。因交互不满意，v1+v2 两套页面 2026-07-26 整体删除重做；三份设计文档归档至 [../archive/2026-07-26/](../archive/2026-07-26/)，任务 T-FE-029~034 保持 done（产出废弃）、T-FE-035 cancelled。plan 与任务卡 2026-09-12 归档至 [../archive/2026-07-26/](../archive/2026-07-26/)（卡住 `tasks/` 子目录） |
 | [design-review-def-followup-plan.md](design-review-def-followup-plan.md) | 设计评审 D/E/F 后续任务拆分 | proposed | D/E/F 暂缓项拆分为 `T-PERM-019~021`；冲突项已标记，执行前必须确认。T-PERM-020 已收口（2026-08-28）；T-PERM-019 已 2026-09-05 重基线（D1 完成/D3 废注解/D2 收敛） |
 | [design-audit-followup-plan.md](design-audit-followup-plan.md) | codex 项目级设计体检处置批次 | proposed | 2026-09-05 体检新发现 P1×1+P2×2 拆为 T-PERM-052/053/054、T-API-002、T-ACCESS-029；预置五题定案回写既有卡与 §14.2；T-PERM-054 暂缓（2026-09-09 方向已定、方案未定，见 registry） |
-| ~~[permission-query-unification-plan.md](permission-query-unification-plan.md)~~ | 权限查询统一引擎重构编排（已归档） | archived | 2026-09-10 四任务全 done 归档（T-PERM-057/T-API-003/T-PERM-058/T-PERM-059）；终态设计 `design/permission-center/query-engine-unification.md`（已转 superseded，落地并入 implementation §3） |
+| ~~[permission-query-unification-plan.md](../archive/2026-09-12/permission-query-unification-plan.md)~~ | 权限查询统一引擎重构编排（已归档） | archived | 2026-09-10 四任务全 done 归档（T-PERM-057/T-API-003/T-PERM-058/T-PERM-059），2026-09-12 物理归档至 [../archive/2026-09-12/](../archive/2026-09-12/)（任务卡随迁 `tasks/`）；终态设计 `design/permission-center/query-engine-unification.md`（已转 superseded，落地并入 implementation §3） |
 | ~~product-positioning-landing-plan~~ | （已归档）| — | 产品定位落地：三档叙事整改 + 名实对齐收尾。T-ACCESS-027/028 全 done（2026-08-28）；2026-08-28 定位定案：开源通用 IAM（三档口径入口 `design/README`）。2026-09-07 归档至 [../archive/2026-09-07/](../archive/2026-09-07/) |
 | ~~org-user-page-impl-plan~~ | （已归档）| — | 「组织与用户」融合页 P0/P1/P2 三阶段全 100%，联动验收（T-ADMIN-001~019）已完成，2026-06-21 归档至 [../archive/2026-06-21/](../archive/2026-06-21/)。权威契约以 `design/org-user-permission-contract.md` v1.2 + `design/services/admin-service-api-contract.md` v1.0 为准 |
 | ~~user-role-proxy-fix-plan~~ | （已归档）| — | 用户角色代理修复（M1-M13+S1-S3 主线 + P1/P2 补充批次）均已完成验收 + 设计回写，2026-06-20 归档至 [../archive/2026-06-20/](../archive/2026-06-20/)。任务 `T-ADMIN-001~019` + `T-PERM-016` 见 [../tasks/README.md](../tasks/README.md) 已完成区。原 EXT-7/EXT-8 DEFERRED 无主（审计 S-024）已处置：EXT-7 立项 T-PERM-061、EXT-8 失效（宿主随内部同步子系统删除），2026-09-11 见任务看板 |
@@ -70,6 +70,8 @@
 - 阶段性任务已完成，且稳定结论已沉淀到 `docs/design/`。
 - 计划被新计划替代。
 - 计划只剩历史追溯价值。
+
+计划归档时其 `tasks:[]` 全部任务卡随迁至同目录 `tasks/` 子目录；终态任务卡（done/cancelled 且无活跃计划归属）随归档批次单卡归档。规则、目录布局与自检见 `.claude/skills/design-plan-task-lifecycle/SKILL.md` §6.5（2026-09-12 定案）。
 
 归档后必须在归档批次目录新增或更新 `README.md`，说明归档原因、原始文档定位和当前权威设计入口。
 

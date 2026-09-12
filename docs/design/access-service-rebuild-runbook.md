@@ -10,7 +10,7 @@
 >   针对已有数据卷的重新初始化（Nacos 仅服务启动需要，重建流程不依赖）。
 > - 权威 DDL：`docs/design/schema/access-service.sql`（唯一权威，含 type_definition / operation_permission 全量种子）。
 > - DDL 只含类型种子、**不含任何管理员账号**：首管理员由 access-service 幂等 bootstrap 提供
->   （[T-ACCESS-020](../tasks/T-ACCESS-020.md) 已交付，`access.bootstrap.enabled` 默认关闭）——
+>   （[T-ACCESS-020](../archive/2026-08-27/tasks/T-ACCESS-020.md) 已交付，`access.bootstrap.enabled` 默认关闭）——
 >   重建后以 enabled=true 重启 access-service 即自动种子 `admin` 首管理员与管理用功能角色
 >   （幂等三状态：全图不存在单事务创建 / 完整匹配 no-op / 部分存在 fail-fast，见 architecture §14.2；
 >   2026-09-02 起授权属性漂移（canGrant/condition 等管理端运营修改）改为 warn 告警放行、不再拒启；
@@ -121,4 +121,4 @@
 
 - `docs/design/access-service-architecture.md` §12（主体身份模型）、§4（管理事实与权限投影）、§14（空库 bootstrap 首管理员权限模型）
 - `docs/design/schema/access-service.sql`（唯一权威 DDL）
-- 任务卡 `docs/tasks/T-ORG-001.md`；bootstrap 任务卡 `docs/tasks/T-ACCESS-020.md`
+- 任务卡 `docs/archive/2026-08-27/tasks/T-ORG-001.md`；bootstrap 任务卡 `docs/archive/2026-08-27/tasks/T-ACCESS-020.md`

@@ -23,3 +23,7 @@
 ## 历史追溯
 
 本批次归档前端 Phase 1 执行计划，仅作历史记录。Phase 1 实现成果沉淀于 `frontend/` 代码 + `docs/design/frontend/` 设计文档，不再以本 plan 为实现依据。
+
+## 2026-09-12 补充归档：任务卡随迁
+
+按 design-plan-task-lifecycle skill §6.5 归档规范（2026-09-12 定案），本批次计划的全部终态任务卡自 `docs/tasks/` 补迁至本目录 `tasks/` 子目录；任务看板（`docs/tasks/README.md`）行保留终态图标、链接已改指归档位置。

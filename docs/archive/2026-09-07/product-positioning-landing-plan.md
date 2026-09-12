@@ -43,8 +43,8 @@ last_updated: 2026-09-07
 
 | 任务 | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ACCESS-027](../../tasks/T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改 | ✅ | — |
-| [T-ACCESS-028](../../tasks/T-ACCESS-028.md) | perm-data 空装配模块删除 | ✅ | — |
+| [T-ACCESS-027](tasks/T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改 | ✅ | — |
+| [T-ACCESS-028](tasks/T-ACCESS-028.md) | perm-data 空装配模块删除 | ✅ | — |
 
 ## 当前进度
 

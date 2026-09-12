@@ -17,7 +17,7 @@
 
 ## 关联处置
 
-- **plan 归档**：`docs/plans/archive/2026-07/`（`permission-grant-v2-plan.md`、`permission-grant-ux-refactor-plan.md`），status: cancelled
+- **plan 归档**：`docs/archive/2026-07-26/`（`permission-grant-v2-plan.md`、`permission-grant-ux-refactor-plan.md`），status: cancelled
 - **任务处置**：见 `docs/tasks/README.md` 前端段废弃说明块
   - done 保持历史事实但产出废弃：T-FE-014、T-FE-024~026、T-FE-029~034
   - cancelled：T-FE-018、T-FE-027、T-FE-028、T-FE-035
@@ -27,3 +27,7 @@
 ## 当前状态
 
 **仅作历史追溯，不再作为实现依据。** 重新设计后另立新设计文档与新任务（T-FE 下一编号 036）。
+
+## 2026-09-12 补充归档：plan 与任务卡随迁
+
+按 design-plan-task-lifecycle skill §6.5 归档规范（2026-09-12 定案），侧挂归档 `docs/plans/archive/2026-07/`（permission-grant-ux-refactor-plan、permission-grant-v2-plan）并入本目录，两计划全部终态任务卡（T-FE-025~028、T-FE-029~035 共 11 张）自 `docs/tasks/` 补迁至本目录 `tasks/` 子目录；任务看板行保留终态图标、链接已改指归档位置。

@@ -52,16 +52,16 @@ last_updated: 2026-06-28
 
 | 任务 ID | 标题 | 关联决策 | 状态 |
 |---|---|---|---|
-| [T-PERM-001](../../tasks/T-PERM-001.md) | Gateway 缓存改快照模式（`user → InterfaceSnapshot`）| A'-1 | ✅ |
+| [T-PERM-001](tasks/T-PERM-001.md) | Gateway 缓存改快照模式（`user → InterfaceSnapshot`）| A'-1 | ✅ |
 | T-PERM-002 | `PermissionChangeContext` ThreadLocal + AppService AOP afterCommit | A'-2 | ✅ |
 | T-PERM-003 | 删除 `permission_version` 表 + 实体 + Service + Mapper + Controller + DTO；存量环境 `DROP TABLE permission_version` 为外部 DBA/运维动作（当前仓库无 migration 框架） | A'-3 / S-001 | ✅ |
 | T-PERM-004 | 删除 4 处 `permissionVersionDomainService.increment` 调用 | A'-3 / S-001 | ✅ |
 | T-PERM-005 | 删除缓存目录 `PermCacheCatalog.PERMISSION_VERSION` + key 后缀 `:{permissionVersion}` | A'-3 | ✅ |
-| [T-PERM-006](../../tasks/T-PERM-006.md) | Gateway 订阅 `perm:invalidate`，按 tenant+serviceCodes/userIds evict 本地 INTERFACE_SNAPSHOT（roleIds-only 事件按租户级安全清理） | A'-4 | ✅ |
+| [T-PERM-006](tasks/T-PERM-006.md) | Gateway 订阅 `perm:invalidate`，按 tenant+serviceCodes/userIds evict 本地 INTERFACE_SNAPSHOT（roleIds-only 事件按租户级安全清理） | A'-4 | ✅ |
 | T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对）| S-001 | ✅ |
 | T-PERM-008 | Gateway 失效标记与订阅恢复策略（S-006 已设计，规范见 gateway.md §快照失效标记与订阅恢复；依赖 T-GW-005 ✅）| S-006 | ✅ |
-| [T-PERM-017](../../tasks/T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 `gateway_evaluable` + 未下发回退 check-interface）| 工作单 A 扩展 | ✅ |
-| [T-PERM-018](../../tasks/T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | A'-5（T-PERM-018 派生）| ✅ |
+| [T-PERM-017](tasks/T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 `gateway_evaluable` + 未下发回退 check-interface）| 工作单 A 扩展 | ✅ |
+| [T-PERM-018](tasks/T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | A'-5（T-PERM-018 派生）| ✅ |
 
 ## 准入条件
 

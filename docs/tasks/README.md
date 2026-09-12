@@ -4,6 +4,8 @@
 
 > 治理规则见 skill：`.claude/skills/design-plan-task-lifecycle/SKILL.md`。任务 ID 格式 `T-<DOMAIN>-<NNN>`，各领域独立递增、ID 冻结不回收。
 
+> **归档约定（2026-09-12 定案）**：终态任务卡（done/cancelled 且无活跃计划归属）与随计划归档的卡物理存放于 `docs/archive/<日期>/tasks/`，本表行保留终态图标、链接直指归档位置；`docs/tasks/` 只留未终态卡与活跃计划附属卡。
+
 ## 领域计数器
 
 | 领域 | 前缀 | 下一编号 |
@@ -28,46 +30,46 @@
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-ACCESS-001](T-ACCESS-001.md) | 建立 access-service 工程骨架并物理归并源码 | access-service-merge（已归档） | design/access-service-architecture.md §2/§3/§9；project-rules | — | ✅ | ✓ |
-| [T-ACCESS-002](T-ACCESS-002.md) | 建立 access_db 最终 DDL 并收敛持久层模型 | access-service-merge | access-service-architecture §4/§5/§8.1；schema/access-service.sql（本任务产出） | T-ACCESS-001 | ✅ | ✓ |
-| [T-ACCESS-003](T-ACCESS-003.md) | 收敛单数据源、MyBatis、Redis、JSON等运行基础配置 | access-service-merge | access-service-architecture §2/§6/§7.1；project-rules；gateway | T-ACCESS-001, T-ACCESS-002 | ✅ | ✓ |
-| [T-ACCESS-004](T-ACCESS-004.md) | 实现可信请求上下文和统一安全策略矩阵 | access-service-merge | access-service-architecture §6；admin/permission API 契约；gateway | T-ACCESS-003 | ✅ | ✓ |
-| [T-ACCESS-005](T-ACCESS-005.md) | 实现强事务权限投影并删除内部同步子系统 | access-service-merge | access-service-architecture §3/§4；permission core-flows；用户生命周期；admin-service-api-contract §3/§4/§6/§7 | T-ACCESS-002, T-ACCESS-004 | ✅ | ✓ |
-| [T-ACCESS-006](T-ACCESS-006.md) | 建立跨域只读查询模型 | access-service-merge | access-service-architecture §3；org-user/permission 契约 | T-ACCESS-002, T-ACCESS-005 | ✅ | ✓ |
-| [T-ACCESS-007](T-ACCESS-007.md) | 合并系统配置与操作审计并落实日志事务分级 | access-service-merge | access-service-architecture §5.2/§8.2；project-rules | T-ACCESS-002, T-ACCESS-004 | ✅ | ✓ |
-| [T-ACCESS-008](T-ACCESS-008.md) | 统一缓存并实现多实例失效及30秒安全边界 | access-service-merge | access-service-architecture §7；project-rules §12；v3.5 §7.2；gateway | T-ACCESS-003, T-ACCESS-005 | ✅ | ✓ |
-| [T-ACCESS-009](T-ACCESS-009.md) | 建立数据库任务租约、幂等和异步执行治理 | access-service-merge | access-service-architecture §8；admin-service | T-ACCESS-002, T-ACCESS-004 | ✅ | ✓ |
-| [T-ACCESS-010](T-ACCESS-010.md) | 切换 Gateway、SDK、Nacos和部署配置 | access-service-merge | access-service-architecture §2/§9；architecture；gateway | T-ACCESS-004, T-ACCESS-005, T-ACCESS-008 | ✅ | ✓ |
-| [T-ACCESS-011](T-ACCESS-011.md) | 完成契约、回滚、架构、空库和双实例验收 | access-service-merge | access-service-architecture §10；项目与 API 契约；gateway | T-ACCESS-006, T-ACCESS-007, T-ACCESS-009, T-ACCESS-010 | ✅ | ✓ |
-| [T-ACCESS-012](T-ACCESS-012.md) | 删除残留引用、回写设计并重基线任务看板 | access-service-merge（已归档） | access-service-architecture；architecture；project-rules；admin-service-api-contract；permission-center 设计；schema/access-service.sql；文档索引 | T-ACCESS-011 | ✅ | ✓ |
-| [T-ACCESS-013](T-ACCESS-013.md) | OAuth2 资源服务器与 scope 授权模型（委托令牌访问业务 API 显式开放） | access-post-merge（已归档） | access-service-architecture §6；admin-service-api-contract | T-ACCESS-012 | ✅ | ✅ |
-| [T-ACCESS-014](T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | access-post-merge（已归档） | access-service-architecture §8.2；project-rules | T-ACCESS-007 | ✅ | ✓ |
-| [T-ACCESS-015](T-ACCESS-015.md) | 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL（sys_menu DDL-实体漂移收口） | access-post-merge（已归档） | access-service-architecture §3；v3.5-design §2.1/§4.1；schema/access-service.sql；admin-service-api-contract | T-ACCESS-012 | ✅ | ✓ |
-| [T-ACCESS-016](T-ACCESS-016.md) | 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约） | product-vertical-slice（已归档） | access-service-architecture（新增章节）；schema/access-service.sql；api-contract；implementation；admin-service-api-contract | — | ✅ | ✓ |
-| [T-ACCESS-017](T-ACCESS-017.md) | 窄回归安全网与最小 CI | product-vertical-slice（已归档） | access-service-architecture；core-flows | — | ✅ | ✓ |
-| [T-ACCESS-018](T-ACCESS-018.md) | 资源类型收敛（五组合并 + 双常量合一 + 前端权限串） | product-vertical-slice（已归档） | schema/access-service.sql；access-service-architecture；api-contract；admin-service-api-contract；frontend/README；access-service-rebuild-runbook | T-ORG-001 | ✅ | ✓ |
-| [T-ACCESS-019](T-ACCESS-019.md) | USER/ROLE 全写路径同事务资源投影 | product-vertical-slice（已归档） | access-service-architecture；schema/access-service.sql；admin-service-api-contract | T-ACCESS-018 | ✅ | ✓ |
-| [T-ACCESS-020](T-ACCESS-020.md) | 空库 bootstrap（一键基础设施 + 幂等首管理员种子） | product-vertical-slice（已归档） | schema/access-service.sql；access-service-architecture；architecture | T-ACCESS-019 | ✅ | ✓ |
-| [T-ACCESS-021](T-ACCESS-021.md) | BASIC_ROLE 授权垂直切片 E2E 验收 + README 回写 | product-vertical-slice（已归档） | core-flows；gateway；access-service-architecture | T-ACCESS-020, T-FE-041 | ✅ | ✅ |
-| [T-ACCESS-024](T-ACCESS-024.md) | 时间语义 UTC 统一（TypeHandler/JDBC/JVM） | product-vertical-slice（已归档） | project-rules；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |
-| [T-ACCESS-025](T-ACCESS-025.md) | 操作日志收敛（默认不序列化参数，裁剪覆盖要求） | product-vertical-slice（已归档） | access-service-architecture；project-rules；admin-service-api-contract | T-ACCESS-021 | ✅ | ✓ |
-| [T-ACCESS-026](T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | product-vertical-slice（已归档） | architecture；access-post-merge-plan；project-rules | T-API-001 + 里程碑 B 全部 | ✅ | ✓ |
-| [T-ACCESS-027](T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改（开源通用 IAM 定案） | product-positioning-landing（已归档） | README；docs/README；design/README；architecture；access-service-architecture；permission-center overview/implementation | — | ✅ | ✓ |
-| [T-ACCESS-028](T-ACCESS-028.md) | perm-data 空装配模块删除（SDK 面名实对齐） | product-positioning-landing（已归档） | architecture；README；example-service | — | ✅ | ✓ |
+| [T-ACCESS-001](../archive/2026-08-22/tasks/T-ACCESS-001.md) | 建立 access-service 工程骨架并物理归并源码 | access-service-merge（已归档） | design/access-service-architecture.md §2/§3/§9；project-rules | — | ✅ | ✓ |
+| [T-ACCESS-002](../archive/2026-08-22/tasks/T-ACCESS-002.md) | 建立 access_db 最终 DDL 并收敛持久层模型 | access-service-merge | access-service-architecture §4/§5/§8.1；schema/access-service.sql（本任务产出） | T-ACCESS-001 | ✅ | ✓ |
+| [T-ACCESS-003](../archive/2026-08-22/tasks/T-ACCESS-003.md) | 收敛单数据源、MyBatis、Redis、JSON等运行基础配置 | access-service-merge | access-service-architecture §2/§6/§7.1；project-rules；gateway | T-ACCESS-001, T-ACCESS-002 | ✅ | ✓ |
+| [T-ACCESS-004](../archive/2026-08-22/tasks/T-ACCESS-004.md) | 实现可信请求上下文和统一安全策略矩阵 | access-service-merge | access-service-architecture §6；admin/permission API 契约；gateway | T-ACCESS-003 | ✅ | ✓ |
+| [T-ACCESS-005](../archive/2026-08-22/tasks/T-ACCESS-005.md) | 实现强事务权限投影并删除内部同步子系统 | access-service-merge | access-service-architecture §3/§4；permission core-flows；用户生命周期；admin-service-api-contract §3/§4/§6/§7 | T-ACCESS-002, T-ACCESS-004 | ✅ | ✓ |
+| [T-ACCESS-006](../archive/2026-08-22/tasks/T-ACCESS-006.md) | 建立跨域只读查询模型 | access-service-merge | access-service-architecture §3；org-user/permission 契约 | T-ACCESS-002, T-ACCESS-005 | ✅ | ✓ |
+| [T-ACCESS-007](../archive/2026-08-22/tasks/T-ACCESS-007.md) | 合并系统配置与操作审计并落实日志事务分级 | access-service-merge | access-service-architecture §5.2/§8.2；project-rules | T-ACCESS-002, T-ACCESS-004 | ✅ | ✓ |
+| [T-ACCESS-008](../archive/2026-08-22/tasks/T-ACCESS-008.md) | 统一缓存并实现多实例失效及30秒安全边界 | access-service-merge | access-service-architecture §7；project-rules §12；v3.5 §7.2；gateway | T-ACCESS-003, T-ACCESS-005 | ✅ | ✓ |
+| [T-ACCESS-009](../archive/2026-08-22/tasks/T-ACCESS-009.md) | 建立数据库任务租约、幂等和异步执行治理 | access-service-merge | access-service-architecture §8；admin-service | T-ACCESS-002, T-ACCESS-004 | ✅ | ✓ |
+| [T-ACCESS-010](../archive/2026-08-22/tasks/T-ACCESS-010.md) | 切换 Gateway、SDK、Nacos和部署配置 | access-service-merge | access-service-architecture §2/§9；architecture；gateway | T-ACCESS-004, T-ACCESS-005, T-ACCESS-008 | ✅ | ✓ |
+| [T-ACCESS-011](../archive/2026-08-22/tasks/T-ACCESS-011.md) | 完成契约、回滚、架构、空库和双实例验收 | access-service-merge | access-service-architecture §10；项目与 API 契约；gateway | T-ACCESS-006, T-ACCESS-007, T-ACCESS-009, T-ACCESS-010 | ✅ | ✓ |
+| [T-ACCESS-012](../archive/2026-08-22/tasks/T-ACCESS-012.md) | 删除残留引用、回写设计并重基线任务看板 | access-service-merge（已归档） | access-service-architecture；architecture；project-rules；admin-service-api-contract；permission-center 设计；schema/access-service.sql；文档索引 | T-ACCESS-011 | ✅ | ✓ |
+| [T-ACCESS-013](../archive/2026-08-27/tasks/T-ACCESS-013.md) | OAuth2 资源服务器与 scope 授权模型（委托令牌访问业务 API 显式开放） | access-post-merge（已归档） | access-service-architecture §6；admin-service-api-contract | T-ACCESS-012 | ✅ | ✅ |
+| [T-ACCESS-014](../archive/2026-08-27/tasks/T-ACCESS-014.md) | admin/application 域 AppService 操作日志强制覆盖 | access-post-merge（已归档） | access-service-architecture §8.2；project-rules | T-ACCESS-007 | ✅ | ✓ |
+| [T-ACCESS-015](../archive/2026-08-27/tasks/T-ACCESS-015.md) | 菜单 CRUD 写链路对齐 v3.5 最终态与权威 DDL（sys_menu DDL-实体漂移收口） | access-post-merge（已归档） | access-service-architecture §3；v3.5-design §2.1/§4.1；schema/access-service.sql；admin-service-api-contract | T-ACCESS-012 | ✅ | ✓ |
+| [T-ACCESS-016](../archive/2026-08-27/tasks/T-ACCESS-016.md) | 身份与资源模型设计定稿（B-lite 终态 + 类型收敛映射 + 引擎显式 API 契约） | product-vertical-slice（已归档） | access-service-architecture（新增章节）；schema/access-service.sql；api-contract；implementation；admin-service-api-contract | — | ✅ | ✓ |
+| [T-ACCESS-017](../archive/2026-08-27/tasks/T-ACCESS-017.md) | 窄回归安全网与最小 CI | product-vertical-slice（已归档） | access-service-architecture；core-flows | — | ✅ | ✓ |
+| [T-ACCESS-018](../archive/2026-08-27/tasks/T-ACCESS-018.md) | 资源类型收敛（五组合并 + 双常量合一 + 前端权限串） | product-vertical-slice（已归档） | schema/access-service.sql；access-service-architecture；api-contract；admin-service-api-contract；frontend/README；access-service-rebuild-runbook | T-ORG-001 | ✅ | ✓ |
+| [T-ACCESS-019](../archive/2026-08-27/tasks/T-ACCESS-019.md) | USER/ROLE 全写路径同事务资源投影 | product-vertical-slice（已归档） | access-service-architecture；schema/access-service.sql；admin-service-api-contract | T-ACCESS-018 | ✅ | ✓ |
+| [T-ACCESS-020](../archive/2026-08-27/tasks/T-ACCESS-020.md) | 空库 bootstrap（一键基础设施 + 幂等首管理员种子） | product-vertical-slice（已归档） | schema/access-service.sql；access-service-architecture；architecture | T-ACCESS-019 | ✅ | ✓ |
+| [T-ACCESS-021](../archive/2026-08-27/tasks/T-ACCESS-021.md) | BASIC_ROLE 授权垂直切片 E2E 验收 + README 回写 | product-vertical-slice（已归档） | core-flows；gateway；access-service-architecture | T-ACCESS-020, T-FE-041 | ✅ | ✅ |
+| [T-ACCESS-024](../archive/2026-08-27/tasks/T-ACCESS-024.md) | 时间语义 UTC 统一（TypeHandler/JDBC/JVM） | product-vertical-slice（已归档） | project-rules；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |
+| [T-ACCESS-025](../archive/2026-08-27/tasks/T-ACCESS-025.md) | 操作日志收敛（默认不序列化参数，裁剪覆盖要求） | product-vertical-slice（已归档） | access-service-architecture；project-rules；admin-service-api-contract | T-ACCESS-021 | ✅ | ✓ |
+| [T-ACCESS-026](../archive/2026-08-27/tasks/T-ACCESS-026.md) | 验证证据登记与文档状态收口（含 post-merge 归档） | product-vertical-slice（已归档） | architecture；access-post-merge-plan；project-rules | T-API-001 + 里程碑 B 全部 | ✅ | ✓ |
+| [T-ACCESS-027](../archive/2026-09-07/tasks/T-ACCESS-027.md) | 产品定位定稿回写与文档三档叙事整改（开源通用 IAM 定案） | product-positioning-landing（已归档） | README；docs/README；design/README；architecture；access-service-architecture；permission-center overview/implementation | — | ✅ | ✓ |
+| [T-ACCESS-028](../archive/2026-09-07/tasks/T-ACCESS-028.md) | perm-data 空装配模块删除（SDK 面名实对齐） | product-positioning-landing（已归档） | architecture；README；example-service | — | ✅ | ✓ |
 | [T-ACCESS-029](T-ACCESS-029.md) | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | [design-audit-followup](../plans/design-audit-followup-plan.md) | access-service-architecture §14.2 | — | ✅ | ✓ |
-| [T-ACCESS-030](T-ACCESS-030.md) | 容器测试轨道提速——单例容器 + 按类建库 + 复用 + fork 级并行 | —（2026-09-06 用户决策提速定案） | docs/tasks/T-ACCESS-030.md 设计口径（工程改进，无设计文档回写） | — | ✅ | ✓ |
-| [T-ACCESS-031](T-ACCESS-031.md) | E2E 独立模块分轨——gateway 解除 test 依赖 + skipE2E 日常口径 + -T 模块并行恢复 | —（2026-09-06 用户决策 B+结构性拆分） | docs/tasks/T-ACCESS-031.md 设计口径；gateway.md §测试域、access-service-architecture §14.8（E2E 落位回写） | — | ✅ | ✓ |
+| [T-ACCESS-030](../archive/2026-09-12/tasks/T-ACCESS-030.md) | 容器测试轨道提速——单例容器 + 按类建库 + 复用 + fork 级并行 | —（2026-09-06 用户决策提速定案） | docs/tasks/T-ACCESS-030.md 设计口径（工程改进，无设计文档回写） | — | ✅ | ✓ |
+| [T-ACCESS-031](../archive/2026-09-12/tasks/T-ACCESS-031.md) | E2E 独立模块分轨——gateway 解除 test 依赖 + skipE2E 日常口径 + -T 模块并行恢复 | —（2026-09-06 用户决策 B+结构性拆分） | docs/tasks/T-ACCESS-031.md 设计口径；gateway.md §测试域、access-service-architecture §14.8（E2E 落位回写） | — | ✅ | ✓ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 待确认 + 前端 Phase 1/2/4 后端任务）
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-PERM-001](T-PERM-001.md) | Gateway 缓存改快照模式（user → InterfaceSnapshot） | [perm-cache-invalidation](../archive/2026-06-28/perm-cache-invalidation-plan.md) | design/permission-center-v3.5-design.md §7.2；design/services/gateway.md | — | ✅ | ✓ |
+| [T-PERM-001](../archive/2026-06-28/tasks/T-PERM-001.md) | Gateway 缓存改快照模式（user → InterfaceSnapshot） | [perm-cache-invalidation](../archive/2026-06-28/perm-cache-invalidation-plan.md) | design/permission-center-v3.5-design.md §7.2；design/services/gateway.md | — | ✅ | ✓ |
 | T-PERM-002 | PermissionChangeContext ThreadLocal + AppService AOP afterCommit | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2 | T-PERM-001 | ✅ | ✓ |
 | T-PERM-003 | 删除 permission_version 表+实体+Service+Mapper+Controller+DTO（存量环境 DROP TABLE 为外部 DBA/运维动作，仓库无 migration 框架） | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2；design/permission-center/overview.md；implementation.md §5.1/5.2 | — | ✅ | ✓ |
 | T-PERM-004 | 删除 4 处 permissionVersionDomainService.increment 调用 | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ✅ | ✓ |
 | T-PERM-005 | 删除缓存目录 PermCacheCatalog.PERMISSION_VERSION + key 后缀 :{permissionVersion} | perm-cache-invalidation | design/permission-center-v3.5-design.md §9.2 | T-PERM-003 | ✅ | ✓ |
-| [T-PERM-006](T-PERM-006.md) | Gateway 订阅 perm:invalidate topic，按 tenant+serviceCodes/userIds evict 本地 INTERFACE_SNAPSHOT（roleIds-only 事件按租户级安全清理） | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2；design/services/gateway.md | T-PERM-018 | ✅ | ✓ |
+| [T-PERM-006](../archive/2026-06-28/tasks/T-PERM-006.md) | Gateway 订阅 perm:invalidate topic，按 tenant+serviceCodes/userIds evict 本地 INTERFACE_SNAPSHOT（roleIds-only 事件按租户级安全清理） | perm-cache-invalidation | design/permission-center-v3.5-design.md §7.2；design/services/gateway.md | T-PERM-018 | ✅ | ✓ |
 | T-PERM-007 | 同步修订 overview/core-flows/implementation/api-contract/coding-standards §5（代码层一致性核对） | perm-cache-invalidation | design/permission-center/{overview,core-flows,implementation,api-contract}.md | T-PERM-003 | ✅ | ✓ |
 | T-PERM-008 | Gateway 失效标记与订阅恢复策略（S-006 已设计，规范见 gateway.md §快照失效标记与订阅恢复） | perm-cache-invalidation | design/services/gateway.md §快照失效标记与订阅恢复 | T-GW-005（S-006 设计 ✅）| ✅ | ✓ |
 | T-PERM-009 | scopeMode 4 态枚举(DENIED/INSTANCE/ALL/EMPTY) + QueryScopesResp 分类模型重构(按 resourceType×operation 分桶) | [scope-mode-migration](../archive/2026-06-28/scope-mode-migration-plan.md) | design/permission-center-v3.5-design.md §3 | T-PERM-003 | ✅ | ✓ |
@@ -77,8 +79,8 @@
 | T-PERM-013 | schema scope_all 字段保留（仅内部存储），协议层映射逻辑实现 | scope-mode-migration | design/schema/access-service.sql | T-PERM-009 | ✅ | ✓ |
 | T-PERM-014 | 同步修订 api-contract.md 顶部 scopeMode 迁移注记（移除注记改为正式定义） | scope-mode-migration | design/permission-center/api-contract.md | T-PERM-010, T-PERM-011 | ✅ | ✓ |
 | T-PERM-015 | 前端 ScopeMode 类型定义 + composable（hasPerms/Perms 不涉及 L2 数据权限，无需改造） | scope-mode-migration | design/permission-center-v3.5-design.md §3 | T-PERM-009 | ✅ | ✓ |
-| [T-PERM-017](T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 gateway_evaluable + 未下发回退 check-interface） | perm-cache-invalidation | design/services/gateway.md；v3.5 §7.2 | T-PERM-002, T-PERM-018 | ✅ | ✓ |
-| [T-PERM-018](T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | perm-cache-invalidation | v3.5 §5.1/§7.2；api-contract §6.x | T-PERM-002 | ✅ | ✓ |
+| [T-PERM-017](../archive/2026-06-28/tasks/T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 gateway_evaluable + 未下发回退 check-interface） | perm-cache-invalidation | design/services/gateway.md；v3.5 §7.2 | T-PERM-002, T-PERM-018 | ✅ | ✓ |
+| [T-PERM-018](../archive/2026-06-28/tasks/T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | perm-cache-invalidation | v3.5 §5.1/§7.2；api-contract §6.x | T-PERM-002 | ✅ | ✓ |
 | [T-PERM-019](T-PERM-019.md) | 工作单 D：防呆机制（已收口 2026-09-07，终态见任务卡实现记录与 implementation §8） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation §8；schema；admin sync | — | ✅ | ✓ |
 | [T-PERM-020](T-PERM-020.md) | 工作单 E：清理预设能力（死工厂删除 + domain_config/RocketMQ/auto-grant 口径收口） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；architecture | — | ✅ | ✓ |
 | [T-PERM-021](T-PERM-021.md) | 工作单 F：文档准确性与代码简化（范围与冲突标记见任务卡） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | ⚙️ | ⏳ |
@@ -102,26 +104,26 @@
 | T-PERM-039 | 测试补充（access-service permission 域新增改造接口测试） | frontend-phase4 | api-contract；implementation | T-PERM-037 | ⚙️ | ⏳ |
 | [T-PERM-040](T-PERM-040.md) | 4.1 权限授予单资源类型后端支持（已收口 2026-08-31，终态见任务卡完成记录） | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract §5.3/§6.4/§6.5.1；core-flows §6；permission-grant.md §3.2/§12 | T-PERM-028, T-PERM-034 | ✅ | ✓ |
 | [T-PERM-041](T-PERM-041.md) | 主权限条件不变量（20041 不可转授 + 20042 启用状态） | [frontend-phase2](../plans/frontend-phase2-plan.md) | api-contract §6.5.1；core-flows §6；permission-grant.md §4/§12；access-service.sql | T-PERM-034 | ✅ | ✓ |
-| [T-PERM-042](T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | product-vertical-slice（已归档） | api-contract；implementation；access-service-architecture | T-ACCESS-016, T-ACCESS-017 | ✅ | ✓ |
-| [T-PERM-043](T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | product-vertical-slice（已归档） | api-contract；implementation；frontend/role-manage；frontend/permission-grant | T-ACCESS-019, T-ACCESS-021 | ✅ | ✓ |
-| [T-PERM-044](T-PERM-044.md) | 四棵树（角色/组织/菜单/资源实体）move 并发成环窗口与递归 CTE 遇环不收敛统一加固（已收口 2026-09-04，终态见 architecture §17） | — | [T-PERM-044](T-PERM-044.md) | — | ✅ | ✓ |
-| [T-PERM-045](T-PERM-045.md) | 内部管理门禁统一启用子级继承——❌ 已取消（2026-09-09 范围并入 T-PERM-057 统一引擎重构，终态设计 query-engine-unification.md） | — | query-engine-unification.md | — | ❌ | — |
-| [T-PERM-046](T-PERM-046.md) | 业务域后端三项加固（已收口 2026-09-09，执行定案与终态见任务卡） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ✅ | ✓ |
-| [T-PERM-047](T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ✅ | ✓ |
-| [T-PERM-048](T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（已收口 2026-09-11，五项定案与终态见任务卡完成记录与 registry 同日行） | — | api-contract §5.6；access-service.sql | — | ✅ | ✓ |
-| [T-PERM-049](T-PERM-049.md) | 全局操作概念整体退役（操作位空间按类型隔离 + DDL CHECK 焊死；外部复审 P1 越权根治） | — | api-contract §5.3；access-service.sql | — | ✅ | ✓ |
-| [T-PERM-050](T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（已收口 2026-09-09，级联定案与终态见任务卡） | — | schema；api-contract §5.1/§5.3 | — | ✅ | ✓ |
-| [T-PERM-051](T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一（已收口，定案与终态见任务卡） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ✅ | ✓ |
+| [T-PERM-042](../archive/2026-08-27/tasks/T-PERM-042.md) | 权限引擎显式资源 API 与实例门禁修复 | product-vertical-slice（已归档） | api-contract；implementation；access-service-architecture | T-ACCESS-016, T-ACCESS-017 | ✅ | ✓ |
+| [T-PERM-043](../archive/2026-08-27/tasks/T-PERM-043.md) | GROUP_ROLE 写入口删除与前端隐藏 | product-vertical-slice（已归档） | api-contract；implementation；frontend/role-manage；frontend/permission-grant | T-ACCESS-019, T-ACCESS-021 | ✅ | ✓ |
+| [T-PERM-044](../archive/2026-09-12/tasks/T-PERM-044.md) | 四棵树（角色/组织/菜单/资源实体）move 并发成环窗口与递归 CTE 遇环不收敛统一加固（已收口 2026-09-04，终态见 architecture §17） | — | [T-PERM-044](../archive/2026-09-12/tasks/T-PERM-044.md) | — | ✅ | ✓ |
+| [T-PERM-045](../archive/2026-09-12/tasks/T-PERM-045.md) | 内部管理门禁统一启用子级继承——❌ 已取消（2026-09-09 范围并入 T-PERM-057 统一引擎重构，终态设计 query-engine-unification.md） | — | query-engine-unification.md | — | ❌ | — |
+| [T-PERM-046](../archive/2026-09-12/tasks/T-PERM-046.md) | 业务域后端三项加固（已收口 2026-09-09，执行定案与终态见任务卡） | — | schema；api-contract §5.1/§5.6；design/frontend/biz-domain.md §9 | — | ✅ | ✓ |
+| [T-PERM-047](../archive/2026-09-12/tasks/T-PERM-047.md) | 操作定义缓存失效接线（OPERATION_PERMISSIONS_BY_TYPE 写路径 evict；T-PERM-028 收口登记） | — | implementation §5；dual-layer-cache-framework | — | ✅ | ✓ |
+| [T-PERM-048](../archive/2026-09-12/tasks/T-PERM-048.md) | 权限条件实例投影与双轨制——管理页条件 vs 授权页内联条件（已收口 2026-09-11，五项定案与终态见任务卡完成记录与 registry 同日行） | — | api-contract §5.6；access-service.sql | — | ✅ | ✓ |
+| [T-PERM-049](../archive/2026-09-12/tasks/T-PERM-049.md) | 全局操作概念整体退役（操作位空间按类型隔离 + DDL CHECK 焊死；外部复审 P1 越权根治） | — | api-contract §5.3；access-service.sql | — | ✅ | ✓ |
+| [T-PERM-050](../archive/2026-09-12/tasks/T-PERM-050.md) | resource_type 删除级联清理与引用保护——预置操作定义孤儿根治（已收口 2026-09-09，级联定案与终态见任务卡） | — | schema；api-contract §5.1/§5.3 | — | ✅ | ✓ |
+| [T-PERM-051](../archive/2026-09-12/tasks/T-PERM-051.md) | TYPE_DEFINITION 实例投影与业务键统一（已收口，定案与终态见任务卡） | — | api-contract §5.1；access-service.sql；access-service-architecture §12.3 | — | ✅ | ✓ |
 | [T-PERM-052](T-PERM-052.md) | 资源类型级所有权边界——类型声明门禁（已收口，定案与终态见任务卡） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.1/§5.3/§6.2.2/§6.3.1；architecture §4.3；schema | — | ✅ | ✅ |
 | [T-PERM-053](T-PERM-053.md) | service-config 同步 ApiItem.operationCode 无效字段删除 | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §6.3；schema | — | ✅ | ✓ |
 | [T-PERM-054](T-PERM-054.md) | 手工 API 映射绑定非 API 资源处置（暂缓——关联权限自动授权方向已定、方案未定，见任务卡） | [design-audit-followup](../plans/design-audit-followup-plan.md) | api-contract §5.4；schema | — | ⚙️ | ⏳ |
-| [T-PERM-055](T-PERM-055.md) | 域分类查询批量预载优化（matchesTypeCode 循环点查放大收敛；已收口 2026-09-11，终态见任务卡完成记录） | — | access-service-architecture §13；api-contract §3.4 | — | ✅ | ✓ |
-| [T-PERM-056](T-PERM-056.md) | user_type/role_type 删除零检查——主体/角色类型引用面保护（已收口 2026-09-09，删除保护定案与终态见任务卡） | — | schema；api-contract §5.1 | — | ✅ | ✓ |
-| [T-PERM-057](T-PERM-057.md) | 权限查询统一引擎重构——收编六套形态 + 目标模式三态 + 判定面继承 + 评估拉平（已收口 2026-09-09，三条实施定案与终态见任务卡实现记录；query-engine-unification 已并入 implementation §3） | [permission-query-unification](../plans/permission-query-unification-plan.md) | implementation §3/§5.2；core-flows §7；overview 鉴权与查询入口节；api-contract §6.1 inheritMode；permission-query-pipeline skill 双副本；permission-center-coding-standards rule；runbook §3 | — | ✅ | ✓ |
-| [T-PERM-058](T-PERM-058.md) | depend_on 子权限单点门禁闭合——单点主资源上下文 + fail-closed + 四面排除（已收口 2026-09-10，四项定案与终态见任务卡实现记录） | [permission-query-unification](../plans/permission-query-unification-plan.md) | implementation §3.1/§3.3；api-contract §6.1/§6.6 | T-PERM-057 | ✅ | ✓ |
-| [T-PERM-059](T-PERM-059.md) | 权限视图/排查删除重设计——删除收口（全删 8 端点+前端排查页；新设计方向另立任务，2026-09-10 三项定案） | [permission-query-unification](../plans/permission-query-unification-plan.md) | api-contract §5.8；access-service-architecture §14；query-engine-unification.md §9 | — | ✅ | ✓ |
-| [T-PERM-060](T-PERM-060.md) | 工程健康小批次——权限视图域映射批量化 + T-PERM-055 误读观察撤回 + EXT-7/8 处置登记（已收口 2026-09-11，终态见任务卡实施记录） | — | implementation §2.7 | — | ✅ | — |
-| [T-PERM-061](T-PERM-061.md) | EXT-7：batchCheck 逐条 engine.query 收敛——A+ 形态「分组 + 请求级共享装载」（已收口 2026-09-11：queryBatch + 条件四态增量快照 + 互斥 ledger 聚合 + 回归锁①-⑪ 全绿；双轨评审处置与父段装载定案见 registry 实施收口行、遗留登记见任务卡遗留节；实施落点见 implementation §3.10） | — | implementation §3；api-contract §6.1 | — | ✅ | ✓ |
+| [T-PERM-055](../archive/2026-09-12/tasks/T-PERM-055.md) | 域分类查询批量预载优化（matchesTypeCode 循环点查放大收敛；已收口 2026-09-11，终态见任务卡完成记录） | — | access-service-architecture §13；api-contract §3.4 | — | ✅ | ✓ |
+| [T-PERM-056](../archive/2026-09-12/tasks/T-PERM-056.md) | user_type/role_type 删除零检查——主体/角色类型引用面保护（已收口 2026-09-09，删除保护定案与终态见任务卡） | — | schema；api-contract §5.1 | — | ✅ | ✓ |
+| [T-PERM-057](../archive/2026-09-12/tasks/T-PERM-057.md) | 权限查询统一引擎重构——收编六套形态 + 目标模式三态 + 判定面继承 + 评估拉平（已收口 2026-09-09，三条实施定案与终态见任务卡实现记录；query-engine-unification 已并入 implementation §3） | [permission-query-unification](../archive/2026-09-12/permission-query-unification-plan.md) | implementation §3/§5.2；core-flows §7；overview 鉴权与查询入口节；api-contract §6.1 inheritMode；permission-query-pipeline skill 双副本；permission-center-coding-standards rule；runbook §3 | — | ✅ | ✓ |
+| [T-PERM-058](../archive/2026-09-12/tasks/T-PERM-058.md) | depend_on 子权限单点门禁闭合——单点主资源上下文 + fail-closed + 四面排除（已收口 2026-09-10，四项定案与终态见任务卡实现记录） | [permission-query-unification](../archive/2026-09-12/permission-query-unification-plan.md) | implementation §3.1/§3.3；api-contract §6.1/§6.6 | T-PERM-057 | ✅ | ✓ |
+| [T-PERM-059](../archive/2026-09-12/tasks/T-PERM-059.md) | 权限视图/排查删除重设计——删除收口（全删 8 端点+前端排查页；新设计方向另立任务，2026-09-10 三项定案） | [permission-query-unification](../archive/2026-09-12/permission-query-unification-plan.md) | api-contract §5.8；access-service-architecture §14；query-engine-unification.md §9 | — | ✅ | ✓ |
+| [T-PERM-060](../archive/2026-09-12/tasks/T-PERM-060.md) | 工程健康小批次——权限视图域映射批量化 + T-PERM-055 误读观察撤回 + EXT-7/8 处置登记（已收口 2026-09-11，终态见任务卡实施记录） | — | implementation §2.7 | — | ✅ | — |
+| [T-PERM-061](../archive/2026-09-12/tasks/T-PERM-061.md) | EXT-7：batchCheck 逐条 engine.query 收敛——A+ 形态「分组 + 请求级共享装载」（已收口 2026-09-11：queryBatch + 条件四态增量快照 + 互斥 ledger 聚合 + 回归锁①-⑪ 全绿；双轨评审处置与父段装载定案见 registry 实施收口行、遗留登记见任务卡遗留节；实施落点见 implementation §3.10） | — | implementation §3；api-contract §6.1 | — | ✅ | ✓ |
 
 ### gateway（工作单 C 失联兜底）
 
@@ -129,12 +131,12 @@
 |---|---|---|---|---|---|---|
 | T-GW-001 | gateway.permission.fail-mode 配置项（closed/open/stale-allow，默认 closed）+ stale-grace-seconds | [gateway-fail-mode](../archive/2026-06-28/gateway-fail-mode-plan.md) | design/permission-center-v3.5-design.md §7.2；design/services/gateway.md | — | ✅ | ✓ |
 | T-GW-002 | fail-closed 实现：perm-center 不可达 → 403/503 拒绝 | gateway-fail-mode | design/services/gateway.md | T-GW-001 | ✅ | ✓ |
-| [T-GW-003](T-GW-003.md) | stale-allow 实现：用过期未驱逐快照续命，超 stale-grace-seconds 转 closed | gateway-fail-mode | design/services/gateway.md | T-PERM-001（快照模式）, T-GW-001 | ✅ | ✓ |
+| [T-GW-003](../archive/2026-06-28/tasks/T-GW-003.md) | stale-allow 实现：用过期未驱逐快照续命，超 stale-grace-seconds 转 closed | gateway-fail-mode | design/services/gateway.md | T-PERM-001（快照模式）, T-GW-001 | ✅ | ✓ |
 | T-GW-004 | 监控指标：unreachable.count / fallback.{closed,open,stale}.count + WARN + Prometheus 告警 | gateway-fail-mode | design/services/gateway.md | T-GW-002 | ✅ | ✓ |
 | T-GW-005 | 失效标记与订阅恢复策略设计（S-006 规范产出，已完成） | gateway-fail-mode | design/services/gateway.md §快照失效标记与订阅恢复 | T-PERM-006（广播事件载荷）| ✅ | ✓ |
-| [T-GW-006](T-GW-006.md) | 集成测试基线："杀 permission-center → Gateway 应 503"（重新界定：不在项目内做集成测试，改为独立仓库测试服务） | gateway-fail-mode | — | T-GW-002 | ✅ | ✓ |
-| [T-GW-007](T-GW-007.md) | Gateway CORS 环境化与 actuator 暴露收口（origin 明确列表、credentials 禁 `*`、独立 management 端口） | product-vertical-slice（已归档） | design/services/gateway.md | T-ACCESS-021 | ✅ | ✓ |
-| [T-GW-008](T-GW-008.md) | Gateway XFF 清洗与客户端 IP 重建——IP 条件信任面收口（已收口 2026-09-10，实施定案与存量缺陷修正见任务卡实现记录与 registry） | — | security-standards；gateway.md；rebuild-runbook | — | ✅ | ✓ |
+| [T-GW-006](../archive/2026-06-28/tasks/T-GW-006.md) | 集成测试基线："杀 permission-center → Gateway 应 503"（重新界定：不在项目内做集成测试，改为独立仓库测试服务） | gateway-fail-mode | — | T-GW-002 | ✅ | ✓ |
+| [T-GW-007](../archive/2026-08-27/tasks/T-GW-007.md) | Gateway CORS 环境化与 actuator 暴露收口（origin 明确列表、credentials 禁 `*`、独立 management 端口） | product-vertical-slice（已归档） | design/services/gateway.md | T-ACCESS-021 | ✅ | ✓ |
+| [T-GW-008](../archive/2026-09-12/tasks/T-GW-008.md) | Gateway XFF 清洗与客户端 IP 重建——IP 条件信任面收口（已收口 2026-09-10，实施定案与存量缺陷修正见任务卡实现记录与 registry） | — | security-standards；gateway.md；rebuild-runbook | — | ✅ | ✓ |
 
 > 注：T-PERM-008（代码侧 Gateway 失效标记）依赖 T-GW-005（设计侧 S-006 规范）产出，二者构成"设计先行 → 代码落地"链。
 
@@ -142,37 +144,37 @@
 
 _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`（用户角色代理修复）已全部完成并归档，见下方"已完成"区。_
 
-> EXT-7（PermissionCheckAppServiceImpl.batchCheck 逐条 engine.query）已立项 [T-PERM-061](T-PERM-061.md)（2026-09-11 核实仍在；设计定稿 v4 同日用户确认，同日实施完成——queryBatch A+ 形态落地，见 implementation §3.10）；EXT-8（SyncTaskDomainServiceImpl.enqueueAll 逐条 insert）已失效——宿主随内部同步子系统删除（T-ACCESS-005 同事务投影替代），2026-09-11 全仓实核零命中。
+> EXT-7（PermissionCheckAppServiceImpl.batchCheck 逐条 engine.query）已立项 [T-PERM-061](../archive/2026-09-12/tasks/T-PERM-061.md)（2026-09-11 核实仍在；设计定稿 v4 同日用户确认，同日实施完成——queryBatch A+ 形态落地，见 implementation §3.10）；EXT-8（SyncTaskDomainServiceImpl.enqueueAll 逐条 insert）已失效——宿主随内部同步子系统删除（T-ACCESS-005 同事务投影替代），2026-09-11 全仓实核零命中。
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
 | T-ADMIN-020 | access-service admin 域 CRUD 代码清理（痛点 #6，低优先级） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；access-service-architecture | — | ⚙️ | ⏳ |
 | T-ADMIN-021 | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源；已收口 2026-09-03，终态见任务卡完成记录——T-FE-037 依赖解锁） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §9；admin-service-api-contract §4.2.1 | — | ✅ | ✓ |
-| [T-ADMIN-022](T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | product-vertical-slice（已归档） | admin-service-api-contract；schema/access-service.sql；default-org-tree-user-lifecycle | T-ORG-001, T-ACCESS-021 | ✅ | ✓ |
-| [T-ADMIN-023](T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |
-| [T-ADMIN-024](T-ADMIN-024.md) | 恒拒绝退役 API 直接删除（含 /role/revoke-menu 共 5 个） | product-vertical-slice（已归档） | admin-service-api-contract；org-user-permission-contract；access-service-architecture；architecture；default-org-tree-user-lifecycle | T-ACCESS-021 | ✅ | ✓ |
-| [T-ADMIN-025](T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture；schema/access-service.sql | T-ADMIN-023 | ✅ | ✅ |
-| [T-ADMIN-026](T-ADMIN-026.md) | XML 映射 mapper 的 Page 参数不生效族统一改造（已收口 2026-09-06，终态见任务卡完成记录） | — | admin-service-api-contract；rebuild-runbook | T-FE-022 | ✅ | ✓ |
-| [T-ADMIN-027](T-ADMIN-027.md) | 响应分页信封统一——admin 嵌套方言退役 + PaginatedResp 更名 PageResp + 裸数组收编 ItemsResp（已收口，终态见任务卡） | — | admin-service-api-contract；api-contract §3.3；project-rules §1.3 | — | ✅ | ✓ |
+| [T-ADMIN-022](../archive/2026-08-27/tasks/T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | product-vertical-slice（已归档） | admin-service-api-contract；schema/access-service.sql；default-org-tree-user-lifecycle | T-ORG-001, T-ACCESS-021 | ✅ | ✓ |
+| [T-ADMIN-023](../archive/2026-08-27/tasks/T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |
+| [T-ADMIN-024](../archive/2026-08-27/tasks/T-ADMIN-024.md) | 恒拒绝退役 API 直接删除（含 /role/revoke-menu 共 5 个） | product-vertical-slice（已归档） | admin-service-api-contract；org-user-permission-contract；access-service-architecture；architecture；default-org-tree-user-lifecycle | T-ACCESS-021 | ✅ | ✓ |
+| [T-ADMIN-025](../archive/2026-08-27/tasks/T-ADMIN-025.md) | 文件夹级授权（bizType 即文件夹实例，全链路 CREATE/VIEW/DELETE） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture；schema/access-service.sql | T-ADMIN-023 | ✅ | ✅ |
+| [T-ADMIN-026](../archive/2026-09-12/tasks/T-ADMIN-026.md) | XML 映射 mapper 的 Page 参数不生效族统一改造（已收口 2026-09-06，终态见任务卡完成记录） | — | admin-service-api-contract；rebuild-runbook | T-FE-022 | ✅ | ✓ |
+| [T-ADMIN-027](../archive/2026-09-12/tasks/T-ADMIN-027.md) | 响应分页信封统一——admin 嵌套方言退役 + PaginatedResp 更名 PageResp + 裸数组收编 ItemsResp（已收口，终态见任务卡） | — | admin-service-api-contract；api-contract §3.3；project-rules §1.3 | — | ✅ | ✓ |
 
 ### 组织/用户与跨服务 API
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-ORG-001](T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | product-vertical-slice（已归档） | access-service-architecture；schema/access-service.sql；implementation；default-org-tree-user-lifecycle；access-service-rebuild-runbook | T-PERM-042 | ✅ | ✓ |
-| [T-API-001](T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | product-vertical-slice（已归档） | example-service；gateway；architecture | T-ACCESS-021 | ✅ | ✓ |
+| [T-ORG-001](../archive/2026-08-27/tasks/T-ORG-001.md) | 统一本地主体 ID（B-lite：共享主体 ID，删除 OperatorSubjectResolver） | product-vertical-slice（已归档） | access-service-architecture；schema/access-service.sql；implementation；default-org-tree-user-lifecycle；access-service-rebuild-runbook | T-PERM-042 | ✅ | ✓ |
+| [T-API-001](../archive/2026-08-27/tasks/T-API-001.md) | example 单受保护接口接入（Gateway 主线）与 Starter 名实对齐 | product-vertical-slice（已归档） | example-service；gateway；architecture | T-ACCESS-021 | ✅ | ✓ |
 | [T-API-002](T-API-002.md) | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（已收口 2026-09-06，终态见任务卡完成记录；其内部 id 裁剪的 check 族部分 2026-09-09 被推翻，见 T-API-003 与 registry 已推翻节） | [design-audit-followup](../plans/design-audit-followup-plan.md) | core-flows §15；api-contract；perm-sdk | — | ✅ | ✓ |
-| [T-API-003](T-API-003.md) | check 族三端点结果记录全量回传（推翻 T-API-002 check 族裁剪；Query* 六字段维持；已收口 2026-09-10，终态见任务卡实现记录） | [permission-query-unification](../plans/permission-query-unification-plan.md) | api-contract §6.1/§6.2/§6.6；core-flows §15；T-API-002.md | — | ✅ | ✓ |
+| [T-API-003](../archive/2026-09-12/tasks/T-API-003.md) | check 族三端点结果记录全量回传（推翻 T-API-002 check 族裁剪；Query* 六字段维持；已收口 2026-09-10，终态见任务卡实现记录） | [permission-query-unification](../archive/2026-09-12/permission-query-unification-plan.md) | api-contract §6.1/§6.2/§6.6；core-flows §15；T-API-002.md | — | ✅ | ✓ |
 
 ### 前端（前端 Phase 1/3/4 拆分）
 
 > 来源：`docs/archive/2026-08-27/improvement-plan.md` §4 各 Phase 拆分（roadmap 已归档，拆分产物即各 phase plan）。Phase 1 archived（2026-07-12 归档）；Phase 3 联调九任务 2026-09-04 全部收口、2026-09-07 物理归档（[archive/2026-09-07](../archive/2026-09-07/frontend-phase3-plan.md)）；Phase 4 proposed。页面任务 design_refs 先指后端契约，UI 设计随任务回写到 `docs/design/frontend/<page>.md`。
 
-> ⚠️ **权限授予页 v1/v2 产物废弃（2026-07-26）；T-FE-018 已于 2026-08-01 按 v3 恢复（2026-09-02 收口 done）**：因对现有交互不满意，v1（`permission-grant`）+ v2（`permission-grant-v2`）两套页面及专属代码（`PermissionSummaryCell` / `ChildPermissionInline` / `RePermissionCell` / `ReConditionPicker` / `permission-grant-types` / `api/permission-grant` / `mock/permission-grant`）已删除，4 份设计文档归档至 `archive/2026-07-26/`，两个 plan 归档至 `plans/archive/2026-07/`。下表 T-FE-014 / T-FE-024~026 / T-FE-029~034 保持 ✅（历史完成事实）但产出代码已废弃；T-FE-027 / T-FE-028 / T-FE-035 标 ❌ cancelled（不再恢复）；**T-FE-018 已于 2026-08-01 按 v3 恢复、2026-09-02 收口 done（v3 设计 `design/frontend/permission-grant.md`，终态见表格行）**。注：`ReConditionEditor` / `condition-rules` 保留，仍被 `permission-condition` 页使用。
+> ⚠️ **权限授予页 v1/v2 产物废弃（2026-07-26）；T-FE-018 已于 2026-08-01 按 v3 恢复（2026-09-02 收口 done）**：因对现有交互不满意，v1（`permission-grant`）+ v2（`permission-grant-v2`）两套页面及专属代码（`PermissionSummaryCell` / `ChildPermissionInline` / `RePermissionCell` / `ReConditionPicker` / `permission-grant-types` / `api/permission-grant` / `mock/permission-grant`）已删除，4 份设计文档归档至 `archive/2026-07-26/`，两个 plan 归档至 `archive/2026-07-26/`。下表 T-FE-014 / T-FE-024~026 / T-FE-029~034 保持 ✅（历史完成事实）但产出代码已废弃；T-FE-027 / T-FE-028 / T-FE-035 标 ❌ cancelled（不再恢复）；**T-FE-018 已于 2026-08-01 按 v3 恢复、2026-09-02 收口 done（v3 设计 `design/frontend/permission-grant.md`，终态见表格行）**。注：`ReConditionEditor` / `condition-rules` 保留，仍被 `permission-condition` 页使用。
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-FE-001](T-FE-001.md) | 跨页组件抽象池（清单维护 + 派生子任务） | [frontend-phase1](../archive/2026-07-12/frontend-phase1-plan.md) | design/frontend/README.md | — | ✅ | — |
+| [T-FE-001](../archive/2026-07-12/tasks/T-FE-001.md) | 跨页组件抽象池（清单维护 + 派生子任务） | [frontend-phase1](../archive/2026-07-12/frontend-phase1-plan.md) | design/frontend/README.md | — | ✅ | — |
 | T-FE-002 | 2.2 角色管理页（5 种角色类型 CRUD，本页仅消费功能角色） | frontend-phase1 | api-contract §5.2/§6.10.3；design/frontend/role-manage.md | T-FE-001 | ✅ | ✓ |
 | T-FE-003 | 6.1 类型定义页（type_definition code↔value 映射 CRUD） | frontend-phase1 | api-contract §5.1；design/frontend/type-definition.md | — | ✅ | ✓ |
 | T-FE-004 | 6.2 系统配置页（租户级 key-value 配置字典；标题校正与端点口径见 design/frontend/system-config.md） | frontend-phase1 | api-contract §5.8；design/frontend/system-config.md | — | ✅ | ✓ |
@@ -181,40 +183,40 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 | T-FE-007 | 5.2 服务+接口映射页（服务注册 + 接口同步 + API 映射；边界/门控口径见 design/frontend/service-interface-mapping.md） | frontend-phase1 | api-contract §5.4/§6.3/§6.10.4；design/frontend/service-interface-mapping.md | — | ✅ | ✓ |
 | T-FE-008 | 3.1 资源+操作定义页（资源树 CRUD + 操作定义 + 关联） | frontend-phase1 | api-contract §5.3；design/frontend/resource-operation.md | — | ✅ | ✓ |
 | T-FE-009 | 3.2 权限条件页（通用条件模板 CRUD；门禁史与收口口径见 design/frontend/permission-condition.md） | frontend-phase1 | api-contract §5.6；design/frontend/permission-condition.md | - | ✅ | ✓ |
-| [T-FE-010](T-FE-010.md) | 3.3 冲突规则页（ROLE_MUTEX 角色互斥/PERM_MUTEX 权限互斥 CRUD + 冲突检测对话框；门禁口径见 design/frontend/conflict-rule.md） | frontend-phase1 | api-contract §5.6；design/frontend/conflict-rule.md | T-FE-001 | ✅ | ✓ |
-| [T-FE-011](T-FE-011.md) | 3.4 资源依赖页（依赖 CRUD + 依赖图 echarts graph + 环检测；门禁/契约口径见 design/frontend/resource-dependency.md） | frontend-phase1 | api-contract §5.6/§6.9；design/frontend/resource-dependency.md | T-FE-001, T-FE-008 | ✅ | ✓ |
-| [T-FE-012](T-FE-012.md) | 7.2 权限变更日志页（diff 快照 + before/after + 影响评估） | frontend-phase1 | api-contract §5.8/§6.8；design/frontend/permission-change-log.md | T-FE-001 | ✅ | ✅ |
-| [T-FE-013](T-FE-013.md) | 4.2 权限查询/校验页（多维度查询 + 权限解释 + 拒绝原因） | frontend-phase1 | api-contract §5.7/§6.6/§6.7/§6.8；design/frontend/permission-query.md | T-FE-001 | ✅ | ✅ |
-| [T-FE-014](T-FE-014.md) | 4.1 权限授予页（选角色→勾资源树→操作矩阵→绑条件→批量保存） | frontend-phase1 | api-contract §5.5/§6.4/§6.5；design/frontend/permission-grant.md | T-FE-001, T-FE-002, T-FE-008 | ✅ | ✅ |
-| [T-FE-015](T-FE-015.md) | Phase 3 联调：组织与用户（2.1 mock→真实接口；已收口 2026-08-31，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
-| [T-FE-016](T-FE-016.md) | Phase 3 联调：角色管理（2.2 mock→真实收口；已收口 2026-09-01，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract | T-FE-002, T-PERM-022 | ✅ | ✓ |
-| [T-FE-017](T-FE-017.md) | Phase 3 联调：资源/操作定义（3.1 mock→真实收口；已收口 2026-09-02，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract | T-FE-008, T-PERM-028 | ✅ | ✓ |
-| [T-FE-018](T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract；design/frontend/permission-grant.md（v3） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ✅ | ✓ |
-| [T-FE-037](T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期）；已收口 2026-09-04，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ✅ | ✓ |
-| [T-FE-019](T-FE-019.md) | Phase 3 联调：权限查询/校验（4.2）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-013, T-PERM-033 | ✅ | ✓ |
-| [T-FE-020](T-FE-020.md) | Phase 3 联调：条件/冲突规则（3.2/3.3）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ✅ | ✓ |
-| [T-FE-021](T-FE-021.md) | Phase 3 联调：业务域配置（5.1）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-006, T-PERM-026 | ✅ | ✓ |
-| [T-FE-022](T-FE-022.md) | Phase 3 联调：系统/服务配置与日志（6.x/5.2/7.x）；已收口 2026-09-03，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 | ✅ | ✓ |
+| [T-FE-010](../archive/2026-07-12/tasks/T-FE-010.md) | 3.3 冲突规则页（ROLE_MUTEX 角色互斥/PERM_MUTEX 权限互斥 CRUD + 冲突检测对话框；门禁口径见 design/frontend/conflict-rule.md） | frontend-phase1 | api-contract §5.6；design/frontend/conflict-rule.md | T-FE-001 | ✅ | ✓ |
+| [T-FE-011](../archive/2026-07-12/tasks/T-FE-011.md) | 3.4 资源依赖页（依赖 CRUD + 依赖图 echarts graph + 环检测；门禁/契约口径见 design/frontend/resource-dependency.md） | frontend-phase1 | api-contract §5.6/§6.9；design/frontend/resource-dependency.md | T-FE-001, T-FE-008 | ✅ | ✓ |
+| [T-FE-012](../archive/2026-07-12/tasks/T-FE-012.md) | 7.2 权限变更日志页（diff 快照 + before/after + 影响评估） | frontend-phase1 | api-contract §5.8/§6.8；design/frontend/permission-change-log.md | T-FE-001 | ✅ | ✅ |
+| [T-FE-013](../archive/2026-07-12/tasks/T-FE-013.md) | 4.2 权限查询/校验页（多维度查询 + 权限解释 + 拒绝原因） | frontend-phase1 | api-contract §5.7/§6.6/§6.7/§6.8；design/frontend/permission-query.md | T-FE-001 | ✅ | ✅ |
+| [T-FE-014](../archive/2026-07-12/tasks/T-FE-014.md) | 4.1 权限授予页（选角色→勾资源树→操作矩阵→绑条件→批量保存） | frontend-phase1 | api-contract §5.5/§6.4/§6.5；design/frontend/permission-grant.md | T-FE-001, T-FE-002, T-FE-008 | ✅ | ✅ |
+| [T-FE-015](../archive/2026-09-07/tasks/T-FE-015.md) | Phase 3 联调：组织与用户（2.1 mock→真实接口；已收口 2026-08-31，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract；admin-service-api-contract | T-PERM-037 | ✅ | ✓ |
+| [T-FE-016](../archive/2026-09-07/tasks/T-FE-016.md) | Phase 3 联调：角色管理（2.2 mock→真实收口；已收口 2026-09-01，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract | T-FE-002, T-PERM-022 | ✅ | ✓ |
+| [T-FE-017](../archive/2026-09-07/tasks/T-FE-017.md) | Phase 3 联调：资源/操作定义（3.1 mock→真实收口；已收口 2026-09-02，终态见任务卡完成记录） | frontend-phase3（已归档） | api-contract | T-FE-008, T-PERM-028 | ✅ | ✓ |
+| [T-FE-018](../archive/2026-09-07/tasks/T-FE-018.md) | Phase 3 联调：权限授予（4.1）- 角色联调（首期）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract；design/frontend/permission-grant.md（v3） | T-FE-036, T-FE-038, T-FE-039, **T-FE-040**, T-PERM-040, T-PERM-041, T-PERM-034, T-PERM-022/028/029/031 | ✅ | ✓ |
+| [T-FE-037](../archive/2026-09-07/tasks/T-FE-037.md) | Phase 3 联调：权限授予（4.1）- 组织联调（二期）；已收口 2026-09-04，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract；design/frontend/permission-grant.md（v3） | T-FE-018, T-ADMIN-021 | ✅ | ✓ |
+| [T-FE-019](../archive/2026-09-07/tasks/T-FE-019.md) | Phase 3 联调：权限查询/校验（4.2）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-013, T-PERM-033 | ✅ | ✓ |
+| [T-FE-020](../archive/2026-09-07/tasks/T-FE-020.md) | Phase 3 联调：条件/冲突规则（3.2/3.3）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-009, T-FE-010, T-PERM-029, T-PERM-030 | ✅ | ✓ |
+| [T-FE-021](../archive/2026-09-07/tasks/T-FE-021.md) | Phase 3 联调：业务域配置（5.1）；已收口 2026-09-02，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-006, T-PERM-026 | ✅ | ✓ |
+| [T-FE-022](../archive/2026-09-07/tasks/T-FE-022.md) | Phase 3 联调：系统/服务配置与日志（6.x/5.2/7.x）；已收口 2026-09-03，终态见任务卡完成记录 | frontend-phase3（已归档） | api-contract | T-FE-003, T-FE-004, T-FE-007, T-FE-005, T-FE-012, T-PERM-023, T-PERM-024, T-PERM-025, T-PERM-027, T-PERM-032 | ✅ | ✓ |
 | T-FE-023 | Phase 4：SPI 策略扩展验证 + 扩展指南（design/frontend/extension-guide.md） | [frontend-phase4](../plans/frontend-phase4-plan.md) | architecture；design/frontend/extension-guide.md | — | ⚙️ | ⏳ |
 | [T-FE-024](T-FE-024.md) | ReConditionPicker + ReConditionEditor + ChildPermissionInline 条件/子权限组件抽取 | [frontend-phase4](../plans/frontend-phase4-plan.md) | design/frontend/permission-condition.md；permission-grant.md | T-FE-001, T-FE-009, T-FE-014 | ✅ | ✅ |
-| [T-FE-025](T-FE-025.md) | 权限授予中栏资源权限概览与授权入口 | [permission-grant-ux-refactor](../plans/archive/2026-07/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.3/§16.8 | T-FE-014 | ✅ | ✅ |
-| [T-FE-026](T-FE-026.md) | 权限授予授权弹窗（批量授权任务） | [permission-grant-ux-refactor](../plans/archive/2026-07/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.4/§16.8 | T-FE-024, T-FE-025 | ✅ | ✅ |
-| [T-FE-028](T-FE-028.md) | 权限授予右栏本次变更记录 | [permission-grant-ux-refactor](../plans/archive/2026-07/permission-grant-ux-refactor-plan.md) | ~~permission-grant.md §16.5/§16.8~~（已删） | T-FE-026 | ❌ | ⏳ |
-| [T-FE-029](T-FE-029.md) | 权限授予V2页面骨架+路由+三栏+角色树+能力门控 | [permission-grant-v2](../plans/archive/2026-07/permission-grant-v2-plan.md) | design/frontend/permission-grant-{state-model,interaction}.md | - | ✅ | — |
-| [T-FE-030](T-FE-030.md) | 方案A前端模型（GrantVariantId+replay+聚合摘要） | permission-grant-v2 | design/frontend/permission-grant-state-model.md §0/§1/§2.2/§7.1 | T-FE-029 | ✅ | — |
-| [T-FE-031](T-FE-031.md) | V2中栏直接操作矩阵+单元格聚合摘要+分支列表就地展开 | permission-grant-v2 | design/frontend/permission-grant-interaction.md §2/§4.1/§4.2；state-model §6.2 | T-FE-030 | ✅ | — |
-| [T-FE-032](T-FE-032.md) | V2授权交互（点击/添加分支/逐分支编辑撤销/批量新增分支）+R11 | permission-grant-v2 | design/frontend/permission-grant-{interaction,state-model}.md §3.4/§4.1/§4.3 | T-FE-031 | ✅ | ✅ |
-| [T-FE-033](T-FE-033.md) | V2子权限矩阵展开（parentVariantId）+两步保存+条件清除wire | permission-grant-v2 | design/frontend/permission-grant-{state-model,interaction,error-flow}.md §4.2 | T-FE-032 | ✅ | ✅ |
-| [T-FE-034](T-FE-034.md) | V2保存前总览+失败两子态+STALE_WITH_CHILD_FAILURE+fetchBaseline+离开保护 | permission-grant-v2 | design/frontend/permission-grant-{state-model,error-flow,interaction}.md §2/§2.5/§4.5 | T-FE-033 | ✅ | ✅ |
-| [T-FE-035](T-FE-035.md) | 扩展V2 transport（多条件+失败模拟）+失格降级+回归验证+设计回写 | [permission-grant-v2](../plans/archive/2026-07/permission-grant-v2-plan.md) | design/frontend/permission-grant-{error-flow,state-model}.md §2.8/§8 | T-FE-034 | ❌ | ⏳ |
-| [T-FE-027](T-FE-027.md) | 权限授予三栏状态整合、回归验证与设计回写 | [permission-grant-ux-refactor](../plans/archive/2026-07/permission-grant-ux-refactor-plan.md) | ~~permission-grant.md §16.6~§16.9~~（已删） | T-FE-025, T-FE-026, T-FE-028 | ❌ | ⏳ |
+| [T-FE-025](../archive/2026-07-26/tasks/T-FE-025.md) | 权限授予中栏资源权限概览与授权入口 | [permission-grant-ux-refactor](../archive/2026-07-26/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.3/§16.8 | T-FE-014 | ✅ | ✅ |
+| [T-FE-026](../archive/2026-07-26/tasks/T-FE-026.md) | 权限授予授权弹窗（批量授权任务） | [permission-grant-ux-refactor](../archive/2026-07-26/permission-grant-ux-refactor-plan.md) | design/frontend/permission-grant.md §16.4/§16.8 | T-FE-024, T-FE-025 | ✅ | ✅ |
+| [T-FE-028](../archive/2026-07-26/tasks/T-FE-028.md) | 权限授予右栏本次变更记录 | [permission-grant-ux-refactor](../archive/2026-07-26/permission-grant-ux-refactor-plan.md) | ~~permission-grant.md §16.5/§16.8~~（已删） | T-FE-026 | ❌ | ⏳ |
+| [T-FE-029](../archive/2026-07-26/tasks/T-FE-029.md) | 权限授予V2页面骨架+路由+三栏+角色树+能力门控 | [permission-grant-v2](../archive/2026-07-26/permission-grant-v2-plan.md) | design/frontend/permission-grant-{state-model,interaction}.md | - | ✅ | — |
+| [T-FE-030](../archive/2026-07-26/tasks/T-FE-030.md) | 方案A前端模型（GrantVariantId+replay+聚合摘要） | permission-grant-v2 | design/frontend/permission-grant-state-model.md §0/§1/§2.2/§7.1 | T-FE-029 | ✅ | — |
+| [T-FE-031](../archive/2026-07-26/tasks/T-FE-031.md) | V2中栏直接操作矩阵+单元格聚合摘要+分支列表就地展开 | permission-grant-v2 | design/frontend/permission-grant-interaction.md §2/§4.1/§4.2；state-model §6.2 | T-FE-030 | ✅ | — |
+| [T-FE-032](../archive/2026-07-26/tasks/T-FE-032.md) | V2授权交互（点击/添加分支/逐分支编辑撤销/批量新增分支）+R11 | permission-grant-v2 | design/frontend/permission-grant-{interaction,state-model}.md §3.4/§4.1/§4.3 | T-FE-031 | ✅ | ✅ |
+| [T-FE-033](../archive/2026-07-26/tasks/T-FE-033.md) | V2子权限矩阵展开（parentVariantId）+两步保存+条件清除wire | permission-grant-v2 | design/frontend/permission-grant-{state-model,interaction,error-flow}.md §4.2 | T-FE-032 | ✅ | ✅ |
+| [T-FE-034](../archive/2026-07-26/tasks/T-FE-034.md) | V2保存前总览+失败两子态+STALE_WITH_CHILD_FAILURE+fetchBaseline+离开保护 | permission-grant-v2 | design/frontend/permission-grant-{state-model,error-flow,interaction}.md §2/§2.5/§4.5 | T-FE-033 | ✅ | ✅ |
+| [T-FE-035](../archive/2026-07-26/tasks/T-FE-035.md) | 扩展V2 transport（多条件+失败模拟）+失格降级+回归验证+设计回写 | [permission-grant-v2](../archive/2026-07-26/permission-grant-v2-plan.md) | design/frontend/permission-grant-{error-flow,state-model}.md §2.8/§8 | T-FE-034 | ❌ | ⏳ |
+| [T-FE-027](../archive/2026-07-26/tasks/T-FE-027.md) | 权限授予三栏状态整合、回归验证与设计回写 | [permission-grant-ux-refactor](../archive/2026-07-26/permission-grant-ux-refactor-plan.md) | ~~permission-grant.md §16.6~§16.9~~（已删） | T-FE-025, T-FE-026, T-FE-028 | ❌ | ⏳ |
 | [T-FE-036](T-FE-036.md) | 4.1 权限授予页重设计（v3：查看为主+操作中心授权弹窗+详情层+变更清单；范围与 DoD 见任务卡） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md（v3）；api-contract §5.5/§6.4/§6.5/§6.5.1 | T-FE-001, T-FE-002, T-FE-008, T-FE-009 | ✅ | ✓ |
 | [T-FE-038](T-FE-038.md) | 4.1 权限授予页单类型矩阵上下文 | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §2.2/§3.1/§3.2/§3.5/§3.6/§11/§13.2/§13.4；api-contract §5.1/§5.3/§6.4 | T-FE-036 | ✅ | ✅ |
 | [T-FE-039](T-FE-039.md) | 4.1 矩阵图标正交状态模型与图标精简 | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §3.3/§6.2/§11（S2/S5/S6/S10/S11）/§13.5；api-contract §6.5.1（20041 配套） | T-FE-038 | ✅ | ✅ |
 | [T-FE-040](T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录见任务卡；mock-first） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md（v3.1）；api-contract §6.5.1/§6.5.2；plans/permission-grant-record-level-editing-proposal.md | T-FE-039 | ✅ | ✓ |
-| [T-FE-041](T-FE-041.md) | 前端真实登录链路与默认导航收敛 | product-vertical-slice（已归档） | admin-service-api-contract；gateway；frontend/README；frontend/login | T-ACCESS-020 | ✅ | ✓ |
+| [T-FE-041](../archive/2026-08-27/tasks/T-FE-041.md) | 前端真实登录链路与默认导航收敛 | product-vertical-slice（已归档） | admin-service-api-contract；gateway；frontend/README；frontend/login | T-ACCESS-020 | ✅ | ✓ |
 | T-FE-042 | ~~前端默认导航收敛~~（❌ cancelled 2026-08-23：范围并入 T-FE-041，同为前端发布面避免任务碎片化） | product-vertical-slice（已归档） | frontend/README | — | ❌ | — |
-| [T-FE-043](T-FE-043.md) | 权限排查页（permission-query）重做——暂停期问题与功能登记（已 cancel：页面随 T-PERM-059 删除，重做考虑事项随卡归档，新形态另立任务） | — | design/frontend/permission-query.md（已归档）；api-contract §6.7 | — | ❌ | — |
+| [T-FE-043](../archive/2026-09-12/tasks/T-FE-043.md) | 权限排查页（permission-query）重做——暂停期问题与功能登记（已 cancel：页面随 T-PERM-059 删除，重做考虑事项随卡归档，新形态另立任务） | — | design/frontend/permission-query.md（已归档）；api-contract §6.7 | — | ❌ | — |
 
 ---
 
@@ -308,7 +310,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 
 ### P7 — 权限授予授权弹窗与右栏变更重构（❌ 已取消 2026-07-26）
 
-> 页面交互不满意，v1+v2 两套整体删除重做。T-FE-024~026 保持 done（产出已废），T-FE-027/028 cancelled；**T-FE-018 已于 2026-08-01 按 v3 恢复（不再 cancelled）、2026-09-02 收口 done（见表格行）**。详见上方"前端"段废弃说明。plan 已归档至 `plans/archive/2026-07/permission-grant-ux-refactor-plan.md`。
+> 页面交互不满意，v1+v2 两套整体删除重做。T-FE-024~026 保持 done（产出已废），T-FE-027/028 cancelled；**T-FE-018 已于 2026-08-01 按 v3 恢复（不再 cancelled）、2026-09-02 收口 done（见表格行）**。详见上方"前端"段废弃说明。plan 已归档至 `archive/2026-07-26/permission-grant-ux-refactor-plan.md`。
 
 1. `T-FE-024` 条件/子权限组件抽取（含 ChildPermissionDrawer 内联化）← T-FE-014（外部前置，可与 T-FE-025 并行）
 2. `T-FE-025` 中栏资源权限概览 + 授权入口 ← T-FE-014
@@ -321,7 +323,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 
 ### P8 - 权限授予 V2（方案A多条件分支模型，❌ 已取消 2026-07-26）
 
-> 页面交互不满意，v1+v2 两套整体删除重做。T-FE-029~034 保持 done（产出已废），T-FE-035 cancelled。详见上方"前端"段废弃说明。plan 已归档至 `plans/archive/2026-07/permission-grant-v2-plan.md`。
+> 页面交互不满意，v1+v2 两套整体删除重做。T-FE-029~034 保持 done（产出已废），T-FE-035 cancelled。详见上方"前端"段废弃说明。plan 已归档至 `archive/2026-07-26/permission-grant-v2-plan.md`。
 
 1. `T-FE-029` V2 页面骨架+路由+三栏+角色树+能力门控 ✅ ← -
 2. `T-FE-030` 方案A前端模型（GrantVariantId+replay+聚合摘要） ✅ ← T-FE-029
@@ -331,7 +333,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 6. `T-FE-034` 保存前总览+失败两子态+STALE_WITH_CHILD_FAILURE+fetchBaseline+离开保护 ← T-FE-033
 7. `T-FE-035` 扩展V2 transport（多条件+失败模拟）+失格降级+回归验证+设计回写 ← T-FE-034
 
-准入门禁：~~已关闭~~（plan 已归档取消，2026-07-26）。详见 [归档 plan](../plans/archive/2026-07/permission-grant-v2-plan.md)。v1+v2 两套页面整体删除重做，T-FE-029~034 保持 done（产出废弃）、T-FE-035 cancelled。
+准入门禁：~~已关闭~~（plan 已归档取消，2026-07-26）。详见 [归档 plan](../archive/2026-07-26/permission-grant-v2-plan.md)。v1+v2 两套页面整体删除重做，T-FE-029~034 保持 done（产出废弃）、T-FE-035 cancelled。
 
 ### P9 — 产品定位落地（2026-08-28 立项，定位定案：开源通用 IAM）
 

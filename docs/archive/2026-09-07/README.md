@@ -35,3 +35,7 @@
 - 产品定位与三档口径入口：`docs/design/README.md`
 - 前端页面契约与 UI 终态：`docs/design/permission-center/api-contract.md` + `docs/design/frontend/*.md`
 - menus 接线与 bootstrap 固定图：`docs/design/access-service-architecture.md` §14
+
+## 2026-09-12 补充归档：任务卡随迁
+
+按 design-plan-task-lifecycle skill §6.5 归档规范（2026-09-12 定案），本批次计划的全部终态任务卡自 `docs/tasks/` 补迁至本目录 `tasks/` 子目录；任务看板（`docs/tasks/README.md`）行保留终态图标、链接已改指归档位置。
