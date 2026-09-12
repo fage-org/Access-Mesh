@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <ul>
  *   <li>送进判定面闭包 CTE（UserAssignRoleReq/UserRoleBatchRevokeReq 角色集 →
  *       getDeniedResourceCodes；ResourceKeysReq/IdsReq → getDenied\* 直连）；</li>
- *   <li>逐项执行完整引擎管线（BatchAuthCheckReq.items，双副本同契约）；</li>
+ *   <li>逐项执行完整引擎管线（BatchAuthCheckReq.items，perm-common 单源——T-PERM-065 收敛后服务端与 SDK 共用一类）；</li>
  *   <li>内存网格笛卡尔组装（QueryScopesReq 三列表）。</li>
  * </ul>
  * 旧实现（仅 @NotEmpty）下 1001 条用例失败。
@@ -73,24 +73,18 @@ class BatchEntrySizeValidationTest {
     }
 
     @Test
-    void batchAuthCheckItemsMustBeCappedAt1000InBothCopies() {
+    void batchAuthCheckItemsMustBeCappedAt1000() {
         Validator validator = validatorFactory.getValidator();
-        cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq sdkOver =
-            new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq("LOCAL_USER", "1",
-                items(1001, i -> new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
-                    "MENU", null, "VIEW", null, null, null)), null, null, null, null, null);
-        assertFalse(validator.validate(sdkOver).isEmpty(), "SDK 契约副本同款上限（逐项执行完整引擎管线）");
-
         BatchAuthCheckReq over = new BatchAuthCheckReq("LOCAL_USER", "1",
             items(1001, i -> new BatchAuthCheckReq.AuthCheckItem("MENU", null, "VIEW", null, null, null)), null, null, null, null, null);
-        assertFalse(validator.validate(over).isEmpty(), "服务端校验副本同款上限");
+        assertFalse(validator.validate(over).isEmpty(), "逐项执行完整引擎管线，超限须 400");
         BatchAuthCheckReq exact = new BatchAuthCheckReq("LOCAL_USER", "1",
             items(1000, i -> new BatchAuthCheckReq.AuthCheckItem("MENU", null, "VIEW", null, null, null)), null, null, null, null, null);
         assertTrue(validator.validate(exact).isEmpty());
     }
 
     @Test
-    void parentContextPairingMustBeValidatedInBothCopies() {
+    void parentContextPairingMustBeValidated() {
         // T-PERM-058：parentResourceTypeCode 与 parentResourceCode 必须成对——半传 400
         // （Bean Validation 生效性锁：校验方法是 isXxx getter，非 public 不被 HV 拾取，双轨评审 P2-2）
         Validator validator = validatorFactory.getValidator();
@@ -124,18 +118,16 @@ class BatchEntrySizeValidationTest {
             null, null, null, null, "report:1", null, null, null);
         assertFalse(validator.validate(halfCode).isEmpty(), "半传 code 须 400");
 
-        // SDK 契约副本同款（batch-check 请求级）
-        cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq sdkHalf =
-            new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq("USER", "u-1",
-                List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
-                    "MENU", "m-1", "VIEW", null, null, null)),
-                "REPORT", null, null, null, null);
-        assertFalse(validator.validate(sdkHalf).isEmpty(), "SDK 副本半传同款 400");
+        // batch-check 请求级父上下文同款成对约束
+        BatchAuthCheckReq batchHalf = new BatchAuthCheckReq("USER", "u-1",
+            List.of(new BatchAuthCheckReq.AuthCheckItem("MENU", "m-1", "VIEW", null, null, null)),
+            "REPORT", null, null, null, null);
+        assertFalse(validator.validate(batchHalf).isEmpty(), "batch-check 请求级父上下文半传同款 400");
     }
 
     @Test
-    void batchAuthCheckItemFieldsMustCascadeValidateInBothCopies() {
-        // codex 外评存量观察（2026-09-11）：items 双副本缺 @Valid 时嵌套 @NotBlank 不级联，
+    void batchAuthCheckItemFieldsMustCascadeValidate() {
+        // codex 外评存量观察（2026-09-11）：items 缺 @Valid 时嵌套 @NotBlank 不级联，
         // 空白 resourceTypeCode/operationCode 穿透到引擎走 fail-closed deny 而非 400。
         // 旧实现（无 @Valid）下本用例失败。
         Validator validator = validatorFactory.getValidator();
@@ -159,25 +151,6 @@ class BatchEntrySizeValidationTest {
         BatchAuthCheckReq valid = new BatchAuthCheckReq("LOCAL_USER", "1",
             List.of(new BatchAuthCheckReq.AuthCheckItem("MENU", "m-1", "VIEW", null, null, null)), null, null, null, null, null);
         assertTrue(validator.validate(valid).isEmpty());
-
-        // SDK 契约副本同款级联
-        cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq sdkBlank =
-            new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq("LOCAL_USER", "1",
-                List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
-                    "", "m-1", "VIEW", null, null, null)), null, null, null, null, null);
-        assertFalse(validator.validate(sdkBlank).isEmpty(), "SDK 副本嵌套空白同款 400");
-
-        // SDK 副本补强（grok r2 复审 2026-09-11）：服务端副本有而副本面缺的 blank op 与 null 元素，防双副本漂移
-        cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq sdkBlankOp =
-            new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq("LOCAL_USER", "1",
-                List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem(
-                    "MENU", "m-1", " ", null, null, null)), null, null, null, null, null);
-        assertFalse(validator.validate(sdkBlankOp).isEmpty(), "SDK 副本嵌套空白 operationCode 同款 400");
-        cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq sdkNullElement =
-            new cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq("LOCAL_USER", "1",
-                java.util.Arrays.asList((cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.AuthCheckItem) null),
-                null, null, null, null, null);
-        assertFalse(validator.validate(sdkNullElement).isEmpty(), "SDK 副本 items null 元素同款 400");
     }
 
     @Test

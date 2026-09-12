@@ -127,7 +127,7 @@
 | [T-PERM-062](../archive/2026-09-12/tasks/T-PERM-062.md) | 新类型首笔授权生命周期种子——createType/createOperation 同事务种 AUTHORITY_ROOT 首授行（✅ 2026-09-12 收口：实施期四项补充定案（reason 仅自定义类型/无历史数据/owner 可变更+同事务迁移/不加角色删除守卫）+ 双轨评审处置，全量回归含 E2E 全绿） | — | api-contract §5.1/§6.5.1；schema；architecture §14.2；extension-guide §3.5 | — | ✅ | ✅ |
 | [T-PERM-063](../archive/2026-09-12/tasks/T-PERM-063.md) | 角色互斥授权时校验——写路径拦截 + 存量立规守卫 + 双删日志与 detect 扩展（✅ 2026-09-12 收口：双轨评审 7+7 项全处置——含组角色间接持有盲区 P1；全量回归含 E2E 全绿，终态见任务卡完成记录） | — | api-contract §5.5/§5.6；core-flows §7 评估口径；implementation §2/§3 | — | ✅ | ✓ |
 | [T-PERM-064](../archive/2026-09-12/tasks/T-PERM-064.md) | 角色互斥守卫通道补全——sync/full-sync BIND 逐条守卫 + 互斥规则拒 ORG/POSITION 对（✅ 2026-09-12 收口：claude 外评 P2-1 处置落地，全量回归含 E2E 全绿，终态见任务卡完成记录） | — | api-contract §5.6/§6.2.2.3；implementation §2.4；AGENTS.md | — | ✅ | ✓ |
-| [T-PERM-065](T-PERM-065.md) | Req DTO 副本双轨收敛——14 对同名 Req 与 perm-common 统一（T-PERM-021 F1.b 盘点定性后另立；含 UserAssignRoleReq.items @Size 现役分叉实例） | —（2026-09-12 用户拍板另立任务） | api-contract；project-rules | — | 🔨 | ⏳ |
+| [T-PERM-065](T-PERM-065.md) | Req DTO 副本双轨收敛——14 对同名 Req 与 perm-common 统一（T-PERM-021 F1.b 盘点定性后另立；✅ 2026-09-12 收口：换绑单源 + SDK 契约对齐 + ResourceUpdateReq 业务键形态修复 + 守卫重写注解签名快照；双轨评审全处置，两项拍板见 registry 同日行） | —（2026-09-12 用户拍板另立任务） | api-contract；project-rules | — | ✅ | ✓ |
 
 ### gateway（工作单 C 失联兜底）
 

@@ -485,8 +485,8 @@ class HttpApiPathSnapshotTest {
     /**
      * 域标记消歧归一化（与快照生成口径一致）。
      * <p>
-     * 评审修复：仓库存在多个跨包同名 DTO（admin/permission 两个 UserRoleListReq、
-     * common.model.IdReq 与 access.permission.dto.req.IdReq），仅比较简单类名
+     * 评审修复：仓库存在多个跨包同名 DTO（admin 与 perm-common 两个 UserRoleListReq、
+     * common.model.IdReq 与 perm.common.dto.req.IdReq），仅比较简单类名
      * 或仅二域标记时误换同名类型仍通过——归一化只剥离固定仓前缀
      * （cn.ac.fage.accessmesh.）与 java 容器/基础包，其余包路径全保留，
      * 任意跨包同名类型互替都会导致快照失败。
