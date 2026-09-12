@@ -9,7 +9,7 @@ disable-model-invocation: true
 origin: project
 metadata:
   project: AccessMesh
-  version: "2.0.0"
+  version: "2.1.0"
 ---
 
 # 外部 AI 评审（claude / grok / codex；仅用户触发；全程禁止子代理）
@@ -26,8 +26,8 @@ metadata:
 
 | 通道   | 硬关开关                  | 说明                                                                                       |
 | ------ | ------------------------- | ------------------------------------------------------------------------------------------ |
-| codex  | `--disable multi_agent`   | = `-c features.multi_agent=false`（`codex features list` 实证 multi_agent 默认 stable/true）；resume 续跑用 `-c` 形态 |
-| claude | `--disallowedTools Task`  | 拒绝 Task 工具（子代理派生入口）                                                           |
+| codex  | `--disable multi_agent`   | = `-c features.multi_agent=false`（`codex features list` 实证 multi_agent 默认 stable/true）；resume 用 `--disable`/`-c` 均可 |
+| claude | `--disallowedTools Task Workflow` | 拒绝 Task（子代理派生）与 Workflow（多代理编排扇出）两工具；plan 模式系统指示会主动要求并行 Explore 子代理（2026-09-12 外评会话实证），双拒后其余入口由提示词禁令兜底 |
 | grok   | `--no-subagents`          | Disable subagent spawning                                                                  |
 
 - 原「codex 实跑测试时 spawn_agent 委派子代理隔离长输出」手法**退役**：子代理禁令下测试长命令只能落主上下文（占额度），大输出测试优先本机自跑、评审只引用落盘报告。
@@ -69,13 +69,13 @@ codex exec -m gpt-5.6-luna -c 'model_reasoning_effort="max"' -c model_context_wi
 | 要 codex 实跑测试        | `-s workspace-write` + 提示词约束逻辑只读（禁改任何 git 跟踪文件、结束 git status 须与开始一致）；测试长命令在主上下文跑（子代理禁令），大输出优先本机自跑后引用落盘报告                    |
 
 - 跑完必须实核 `git status` 干净。
-- **额度中断 → resume 续跑不从头**（用户定规省额度）：`codex exec resume <session-id> "继续…"`；resume 子命令只认 `-c`、不认 `--color`/`-s`/`--disable`——模型用 `-m`、沙箱用 `-c sandbox_mode="workspace-write"`、上下文用 `-c model_context_window=872000`、子代理禁令用 `-c features.multi_agent=false`，`-o <file>` 可把最终报告单独落盘。**先报告中断并等用户定续跑时刻**（codex 报的重试窗口未必等于实际额度重置点）；续跑前先最小探针确认额度已重置（一句话探针数秒返回服务端判定，口头「应该重置了」不作数）；session-id 在日志头 `session id:` 行。
+- **额度中断 → resume 续跑不从头**（用户定规省额度）：`codex exec resume <session-id> "继续…"`；resume 子命令不认 `--color`/`-s`（feature 开关 `--disable` 与 `-c` 均可用）——模型用 `-m`、沙箱用 `-c sandbox_mode="workspace-write"`、上下文用 `-c model_context_window=872000`、子代理禁令用 `--disable multi_agent` 或 `-c features.multi_agent=false`，`-o <file>` 可把最终报告单独落盘。**先报告中断并等用户定续跑时刻**（codex 报的重试窗口未必等于实际额度重置点）；续跑前先最小探针确认额度已重置（一句话探针数秒返回服务端判定，口头「应该重置了」不作数）；session-id 在日志头 `session id:` 行。
 - 沙箱环境限制要澄清勿误采信：workspace-write 无 Docker（Testcontainers 全 skip）、esbuild spawn EPERM（vitest/build 起不来）——「无法复验」≠声明造假，以本机实跑记录为准、本地补跑定向测试。
 
 ### claude
 
 ```bash
-cat prompt.md | claude -p --permission-mode plan --output-format text --disallowedTools Task
+cat prompt.md | claude -p --permission-mode plan --output-format text --disallowedTools Task Workflow
 ```
 
 - 默认模型随 `~/.claude/settings.json` 漂移，报告注明当时值；用户点名则显式指定。
@@ -85,18 +85,20 @@ cat prompt.md | claude -p --permission-mode plan --output-format text --disallow
 ### grok
 
 ```bash
-~/.grok/bin/grok --prompt-file prompt.md -m grok-4.6 --permission-mode plan --max-turns 40 --no-subagents
+~/.grok/bin/grok --prompt-file prompt.md -m grok-4.6 --reasoning-effort xhigh --always-approve --sandbox read-only --max-turns 40 --no-subagents
 ```
 
-- grok 是独立 CLI，**不在 codex models_cache 里**；模型默认 grok-4.6，用户点名另定。
+- **headless 后台跑禁用 plan/dontAsk 权限模式**：无 TTY 下工具审批无人应答，会话存档实证工具调用全部「User cancelled」（2026-09-12 plan/dontAsk 两形态复现；dontAsk 语义=仅预批工具的严格白名单）——免审批用 `--always-approve`、只读用 `--sandbox read-only`（读全盘、只写 ~/.grok+temp，产品定位即 code review）双闸，跑完实核 `git status` 干净兜底。
+- 推理档显式钉 `--reasoning-effort`（本机 config `default_reasoning_effort` 会漂移；先例 xhigh），用户点名另定；模型默认 grok-4.6。
+- grok 是独立 CLI，**不在 codex models_cache 里**；stdout 会混排中途叙述与最终报告，落盘后取报告段。
 
 ## 提示词框架（三通道共用；评审对象 → 豁免 → 专项清单 → 报告规格）
 
-正文模板与三个槽位见下节「默认评审提示词模板」；本框架 1~4 点的产出填入对应槽位后整段投喂，报告规格已内置于模板。**多通道并行评审共用同一提示词文件**（同评审对象 + 同专项清单）。
+正文模板与三个槽位见下节「默认评审提示词模板」；槽位映射：第 1 点→`{{评审对象}}`，第 2、3 点→`{{豁免注入}}`，第 4 点→`{{专项清单}}`，填入后整段投喂，报告规格已内置于模板。**多通道并行评审共用同一提示词文件**（同评审对象 + 同专项清单）。
 
 1. **评审对象**：具体提交 hash + diff 范围（重点末提交）；复评轮 = 上轮收口增量 commit + 上层 commit 作背景（复核上轮修复 + 增量 + 残余扫描）。
 2. **背景设计定案清单**：本任务相关定案摘要，防与既定口径冲突的误报。
-3. **已知豁免清单**：整段注入 `docs/design/decision-registry.md` 当前内容（替代从任务卡/记忆拼装），另附本任务卡「已知边界」——预置有效有实证（BIGSERIAL number 线格式先例当轮防住误报）。
+3. **已知豁免清单**：整段注入 `docs/design/decision-registry.md` 当前内容（替代从任务卡/记忆拼装），另附本任务卡「已知边界」与 AGENTS.md 核心硬约束摘要——预置有效有实证（BIGSERIAL number 线格式先例当轮防住误报）。
 4. **专项核查清单**（复评轮必设，首轮可选）：
    - 全部**写入口 × 全部读入口**枚举（不是「上轮改过的方法」——按修复清单枚举漏入口是三轮 P1 主因）；
    - 不变量**逐分支对照实现**（回退/fail-open 语义要按保存侧校验清单逐分支镜像并逐分支测试，不能只写「损坏回退」一句）；
@@ -108,7 +110,7 @@ cat prompt.md | claude -p --permission-mode plan --output-format text --disallow
 
 ## 默认评审提示词模板（三通道共用，2026-09-08 定案；槽位填入后整段投喂）
 
-「提示词框架」1~4 点的产出分别填入 `{{评审对象}}`、`{{豁免注入}}`、`{{专项清单}}` 三个槽位，其余正文固定逐字使用；首轮与复评轮共用本模板，差异只在槽位内容。
+「提示词框架」第 1 点填入 `{{评审对象}}`、第 2、3 点填入 `{{豁免注入}}`、第 4 点填入 `{{专项清单}}`，其余正文固定逐字使用；首轮与复评轮共用本模板，差异只在槽位内容。
 
 ```markdown
 你是一名资深软件工程师和代码审查专家。请对「〇、本次评审范围与背景」中指定的代码变更进行严格、面向生产环境的代码评审。
@@ -129,7 +131,7 @@ cat prompt.md | claude -p --permission-mode plan --output-format text --disallow
 
 ### 本次专项核查清单（复评轮必填；首轮可留空）
 
-{{专项清单：全部写入口×全部读入口枚举 / 不变量逐分支对照实现 / 本任务可能破坏的既有测试与入口 / 其他}}
+{{专项清单：全部写入口×全部读入口枚举 / 不变量逐分支对照实现 / 本任务可能破坏的既有测试与入口 / 复核上一轮外部评审处置 / 其他}}
 
 ## 一、评审原则
 
@@ -440,8 +442,8 @@ cat prompt.md | claude -p --permission-mode plan --output-format text --disallow
 
 ## 重要执行要求
 
-- 只读评审：不修改任何文件与 git 状态，不主动运行构建或测试；验证仅用只读命令（git log/show/diff、搜索、读文件）；引用测试结果时只引用仓库既有 surefire/vitest 报告，不重新构建。
-- 禁止使用任何子代理/多代理/并行代理机制（如 spawn_agent、Task、子代理会话）执行评审的任何部分；全部检索、验证与推理在你的主会话内完成。
+- 只读评审：不修改任何文件与 git 状态，不主动运行构建或测试；验证仅用只读命令（git log/show/diff、搜索、读文件、CLI --help 类查询）；引用测试结果时只引用仓库既有 surefire/vitest 报告，不重新构建。
+- 禁止使用任何子代理/多代理/并行代理机制（如 spawn_agent、Task、Workflow、子代理会话）执行评审的任何部分；全部检索、验证与推理在你的主会话内完成。
 - 不要在发现前几个问题后停止。
 - 完成第一轮检查后，进行第二轮**换方法**复查——不是把第一轮清单再过一遍，而是：
   1. 若〇节有专项核查清单，逐条执行并报告执行结果；
