@@ -18,7 +18,7 @@
 
 ## 归档自检执行记录
 
-- [x] 看板（docs/tasks/README.md）94 张卡链接改指 `../archive/<日期>/tasks/<ID>.md`；计划链接与 `plans/archive/` 文本残留同步改写。
+- [x] 看板（docs/tasks/README.md）94 张卡物理迁移，其中 90 张卡行链接改指 `../archive/<日期>/tasks/<ID>.md`（T-PERM-002/T-GW-004/T-GW-005/T-PERM-009 四行本为纯文本无链接）；计划链接与 `plans/archive/` 文本残留同步改写。仓库根 README.md 两处卡链接为初批扫描盲区（只扫了 docs/），已随同日双轨评审处置批次修复。
 - [x] `../../tasks/T-X.md` 形式的卡链接改指同目录 `tasks/T-X.md`；permission-query-unification-plan 内链按新深度修正。
 - [x] 迁移卡 frontmatter `plan` 字段改写为归档后路径（21 张：phase1×6、2026-07 两计划×11、query-unification×4）。
 - [x] 全仓 grep `plans/archive/`、`docs/tasks/evidence`、悬空卡链接清零（见当日会话验证记录）。

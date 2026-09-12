@@ -3,13 +3,14 @@ name: design-plan-task-lifecycle
 description: >-
   AccessMesh 设计文档 / 计划 / 任务三层解耦与生命周期管理。
   TRIGGER when: 讨论项目问题或设计方案时需要产出/更新文档；新建或推进计划；拆分/登记/验收任务；
-  设计变更后回写设计或重连任务依赖；归档计划或设计；判定一段产出该落 design/plan/task 哪一层。
+  设计变更后回写设计或重连任务依赖；任务/计划终态归档（含单卡归档、任务卡随计划迁移）；归档计划或设计；
+  判定一段产出该落 design/plan/task 哪一层。
   NOT for: 权限查询实现细节（改看 permission-query-pipeline）、缓存实现细节（改看 dual-layer-cache-framework）、
   仓库通用编码模式（改看 accessmesh-patterns）。
 origin: project
 metadata:
   project: AccessMesh
-  version: "1.0.1"
+  version: "1.1.0"
 ---
 
 # 设计 / 计划 / 任务 三层生命周期管理
@@ -274,7 +275,7 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 
 ## 依赖告警（dangling）
 ## 设计变更待核对
-## 已完成（done，待计划归档时清理）
+## 已完成（终态历史摘要，仅作索引）
 ```
 
 ---
@@ -352,7 +353,7 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 
 **归档自检**（`docs/plans/README.md` §"归档/迁移自检"：链接修复、grep 残留、索引刷新），另加两条：
 
-- 归档后全仓 grep `plans/archive/` 应为零；看板（`docs/tasks/README.md`）中 `](T-*.md)` 形式的卡链接应全部指向仍留在 `docs/tasks/` 的卡；
+- 归档后全仓 grep `plans/archive/` 无**活引用**（迁移注记/历史描述文本除外）；看板（`docs/tasks/README.md`）中 `](T-*.md)` 形式的卡链接应全部指向仍留在 `docs/tasks/` 的卡；
 - `docs/tasks/` 剩余内容 = 看板 README + 未终态卡 + 活跃计划附属卡；`docs/plans/` 剩余内容 = README + 未归档计划。
 
 ---
@@ -438,7 +439,7 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 - [ ] 新建遗留任务的 ID 由看板计数器新分配且主题与已有卡一致（未占用）？
 - [ ] 计划 `completed` 前所有任务 `done`/`cancelled`？
 - [ ] 已终态且无活跃计划归属的任务卡、已归档计划（含侧挂归档）已移入 `docs/archive/<日期>/`（卡住 `tasks/` 子目录），`docs/tasks/`、`docs/plans/` 无归档滞留？
-- [ ] 归档后看板/索引链接已改指归档位置，全仓 grep 无 `plans/archive/` 与悬空卡链接残留？
+- [ ] 归档后看板/索引链接已改指归档位置，全仓 grep 无 `plans/archive/` 活引用（迁移注记除外）与悬空卡链接残留？
 - [ ] `depends_on` 改动后无循环？
 - [ ] 任务 `cancelled` / 设计 `superseded` 后已触发 §4 扫描并在看板登记？
 
