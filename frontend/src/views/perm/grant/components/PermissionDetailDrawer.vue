@@ -133,7 +133,9 @@ function handleClose() {
               :key="record.id"
               class="record-item"
               :class="{
-                'auto-dep': record.grantSource === 'AUTO_DEP',
+                'auto-dep':
+                  record.grantSource === 'AUTO_DEP' ||
+                  record.grantSource === 'AUTHORITY_ROOT',
                 removed: record.draftMark === 'remove'
               }"
             >
@@ -142,14 +144,16 @@ function handleClose() {
                   <el-tag
                     size="small"
                     :type="
-                      record.grantSource === 'AUTO_DEP' ? 'info' : 'primary'
+                      record.grantSource === 'MANUAL' ? 'primary' : 'info'
                     "
                     effect="plain"
                   >
                     {{
                       record.grantSource === "AUTO_DEP"
                         ? "自动补全"
-                        : "直接授权"
+                        : record.grantSource === "AUTHORITY_ROOT"
+                          ? "授权根"
+                          : "直接授权"
                     }}
                   </el-tag>
                   <span>{{ conditionName(record) }}</span>
@@ -179,10 +183,17 @@ function handleClose() {
                 </span>
               </div>
               <div
-                v-if="record.grantSource === 'AUTO_DEP'"
+                v-if="
+                  record.grantSource === 'AUTO_DEP' ||
+                  record.grantSource === 'AUTHORITY_ROOT'
+                "
                 class="readonly-hint"
               >
-                由资源依赖自动补全，只读不可修改
+                {{
+                  record.grantSource === "AUTHORITY_ROOT"
+                    ? "类型授权根种子，随类型生命周期维护，只读不可修改"
+                    : "由资源依赖自动补全，只读不可修改"
+                }}
               </div>
             </article>
           </div>
@@ -194,7 +205,7 @@ function handleClose() {
             type="info"
             :closable="false"
             title="没有可挂载子权限的直接授权"
-            description="自动补全记录只读，不能作为子权限父记录。"
+            description="非手动授权记录（自动补全/授权根种子）只读，不能作为子权限父记录。"
           />
           <div v-else class="children-section">
             <div class="parent-context">

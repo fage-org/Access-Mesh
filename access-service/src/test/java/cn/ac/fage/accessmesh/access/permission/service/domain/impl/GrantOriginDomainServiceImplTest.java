@@ -113,6 +113,16 @@ class GrantOriginDomainServiceImplTest {
     }
 
     @Test
+    void shouldRejectNonBasicRoleOwnerTypeCode() {
+        // 值域定案（2026-09-12 claude 外评拍板）：所有者仅 BASIC_ROLE 功能角色——容器角色
+        //（ORG/POSITION/GROUP_ROLE）携带拒绝 20044（授权根是类型级可转授行，容器角色全体
+        // 成员获得转授权且种子 20061 只读无逐行移除通道）；旧实现接受任意角色类型本用例必红
+        BizException ex = assertThrows(BizException.class, () -> service.resolveOwnerRoleId(1L,
+            "{\"grantOriginRole\":{\"roleTypeCode\":\"ORG\",\"roleExternalId\":\"org-x\"}}"));
+        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+    }
+
+    @Test
     void shouldRejectMissingAndDisabledOwner() {
         when(typeResolutionService.resolveRoleId(anyLong(), any(), any(), isNull())).thenReturn(null);
         BizException missing = assertThrows(BizException.class, () -> service.resolveOwnerRoleId(1L, POINTER_JSON));

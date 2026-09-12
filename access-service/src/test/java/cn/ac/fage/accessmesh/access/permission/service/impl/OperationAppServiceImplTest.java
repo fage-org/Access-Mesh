@@ -300,6 +300,9 @@ class OperationAppServiceImplTest {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
+        // T-PERM-062 后 createOperation 锁内重读类型行（is_system 系统类型不补种，只验证缓存失效接线）
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "USER"))
+            .thenReturn(customType(7, true));
 
         service.createOperation(1L, "USER", "EXPORT", "导出", 64L, 0L, 100L);
 

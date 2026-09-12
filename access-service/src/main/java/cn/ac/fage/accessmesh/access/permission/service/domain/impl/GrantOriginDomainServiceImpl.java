@@ -108,6 +108,15 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
         if (pointer == null) {
             pointer = new GrantOriginRole(DEFAULT_OWNER_ROLE_TYPE_CODE, DEFAULT_OWNER_ROLE_EXTERNAL_ID);
         }
+        // 值域定案（2026-09-12 claude 外评拍板）：所有者仅接受 BASIC_ROLE 功能角色——授权根是
+        // 「该类型全部实例可转授」的类型级行，挂 ORG/POSITION/GROUP_ROLE 容器角色等于给全体
+        // 容器成员发转授权，且种子行 20061 只读无逐行移除通道，放大面与回收成本不成比例
+        if (!DEFAULT_OWNER_ROLE_TYPE_CODE.equals(pointer.roleTypeCode())) {
+            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+                PermissionErrorCode.INVALID_PARAM.getMessage()
+                    + ": 类型所有者角色类型仅接受 " + DEFAULT_OWNER_ROLE_TYPE_CODE
+                    + "（功能角色）: " + pointer.roleTypeCode());
+        }
         Long roleId = typeResolutionService.resolveRoleId(
             tenantId, pointer.roleTypeCode(), pointer.roleExternalId(), null);
         if (roleId == null) {

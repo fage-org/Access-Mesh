@@ -125,6 +125,13 @@ public class OperationAppServiceImpl implements OperationAppService {
         // 漏级联在途操作行。锁内重读类型行（extra/isSystem 以锁内快照为准）
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         TypeDefinition typeDef = typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, "resource_type", resourceTypeCode);
+        // claude 外评 P2 附带缺陷：锁前 resolveTypeValue 命中但锁内重读为空=类型在取锁窗口内被并发
+        // 删除（删除入口持同锁，提交早于本事务取锁）——fail-closed 拒绝（20021），不得静默跳过
+        // 种子后把操作行插成「已删类型的永久孤儿」（T-PERM-050 前的旧缺陷形态）
+        if (typeDef == null) {
+            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
+                "Unknown resourceTypeCode: " + resourceTypeCode);
+        }
         OperationPermission op = new OperationPermission();
         op.setTenantId(tenantId);
         op.setResourceType(resourceType);

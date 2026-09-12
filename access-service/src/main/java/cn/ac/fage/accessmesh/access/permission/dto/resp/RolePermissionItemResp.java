@@ -21,7 +21,7 @@ import java.time.LocalDateTime;
  * @param conditionCode    条件编码，无条件时为null
  * @param scopeMode        范围模式
  * @param dependOn         依赖的权限ID，无依赖时为null
- * @param grantSource      授权来源，MANUAL/AUTO_DEP
+ * @param grantSource      授权来源，MANUAL/AUTO_DEP/AUTHORITY_ROOT（授权根种子，只读）
  * @param grantedBits      授予操作位的十进制字符串
  * @param createdAt        创建时间
  * @param childCount       直接子权限数量
