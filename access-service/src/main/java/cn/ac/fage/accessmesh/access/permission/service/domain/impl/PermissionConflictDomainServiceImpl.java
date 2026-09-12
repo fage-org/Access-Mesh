@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflict
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
@@ -150,7 +151,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 String.format("Role mutex dropped: tenantId=%d, userId=%d, roles=%d vs %d "
                     + "(both roles removed from effective set at snapshot build)",
                     tenantId, userId, pair.first(), pair.second()),
-                null, null, null, null, null, null, null
+                null, null, null, OperatorContext.getRequestId(), null, null, null
             ));
         } catch (Exception e) {
             // 仅提交期异常（如线程池拒绝）回滚去重标记允许窗口内重试（外评 P3 补充口径）；
@@ -365,7 +366,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                         tenantId, "PERMISSION", "CONFLICT_DETECTED", "permission_conflict_rule", null,
                         String.format("Perm conflict blocked (batch): tenantId=%d, group=%s, hitItemCount=%d, detail=%s",
                             tenantId, hit.groupKey(), hit.hitItemCount(), detail),
-                        null, null, null, null, null, null, null
+                        null, null, null, OperatorContext.getRequestId(), null, null, null
                     ));
                 } catch (Exception e) {
                     log.error("Failed to record batch permission conflict notification: tenantId={}, group={}",
@@ -500,7 +501,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             auditDomainService.asyncRecordLog(new AuditDomainService.OperationLogEntry(
                 tenantId, "PERMISSION", "CONFLICT_DETECTED", "permission_conflict_rule", null,
                 String.format("Perm conflict blocked: tenantId=%d, ops=%s", tenantId, conflictingOpIds),
-                null, null, null, null, null, null, null
+                null, null, null, OperatorContext.getRequestId(), null, null, null
             ));
         } catch (Exception e) {
             log.error("Failed to record permission conflict notification: tenantId={}", tenantId, e);

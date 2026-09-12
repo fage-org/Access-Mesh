@@ -333,11 +333,11 @@ class AccessServiceSchemaPostgresTest {
     void eventTypeFilterShouldUseExpressionIndex() throws SQLException {
         try (java.sql.Statement st = conn.createStatement()) {
             st.execute("SET LOCAL enable_seqscan = off");
-                    st.executeUpdate("INSERT INTO permission_change_log "
-                            + "(tenant_id, entity_type, operation, change_source, request_id, diff_snapshot) "
-                            + "SELECT 1, 'user_role', 'INSERT', 'MANUAL', 'req-schema-test', "
-                            + "jsonb_build_object('eventType', 'USER_ROLE_CHANGE', 'items', '[]'::jsonb) "
-                            + "FROM generate_series(1, 50)");
+            st.executeUpdate("INSERT INTO permission_change_log "
+                    + "(tenant_id, entity_type, operation, change_source, request_id, diff_snapshot) "
+                    + "SELECT 1, 'user_role', 'INSERT', 'MANUAL', 'req-schema-test', "
+                    + "jsonb_build_object('eventType', 'USER_ROLE_CHANGE', 'items', '[]'::jsonb) "
+                    + "FROM generate_series(1, 50)");
             StringBuilder plan = new StringBuilder();
             try (java.sql.ResultSet rs = st.executeQuery(
                     "EXPLAIN SELECT count(*) FROM permission_change_log WHERE tenant_id = 1 "

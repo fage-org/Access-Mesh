@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-09-07   # 规范性文件审查修复（traceId 口径/log4j2 单文件/N+1 表指针化/软删例外/租户入口/openfeign 前缀/路径模板）；2026-09-06 T-ADMIN-027：§1.3 补信封承载类单源指引；2026-08-12 access-service 归并：错误码继续按管理域/权限域分段
+last_reviewed: 2026-09-12   # T-PERM-021 F1.d：requestId/traceId 单 ID 口径（§1.1 两行 + §4.3 MDC 行同步）；2026-09-07 规范性文件审查修复（traceId 口径/log4j2 单文件/N+1 表指针化/软删例外/租户入口/openfeign 前缀/路径模板）；2026-09-06 T-ADMIN-027：§1.3 补信封承载类单源指引；2026-08-12 access-service 归并：错误码继续按管理域/权限域分段
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -286,7 +286,7 @@ RuntimeException
 
 | MDC Key       | 来源                                                            |
 | ------------- | --------------------------------------------------------------- |
-| `traceId`     | `RequestContextInterceptor` 写入 MDC：取 `X-Request-Id` 头，缺省生成 UUID（截断 64 字符） |
+| `traceId`     | `RequestContextInterceptor` 写入 MDC：与上下文第六要素 requestId 单源同值（`X-Request-Id` 头值，缺省兜底生成 UUID，截断 64 字符——T-PERM-021 F1.d，MDC 不再独立解析） |
 | `userId`      | 网关解析 Token 后写入请求 Header，服务层从 SecurityContext 读取 |
 | `tenantId`    | 同上                                                            |
 | `serviceCode` | 服务启动时从配置文件读取                                        |

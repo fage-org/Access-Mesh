@@ -165,7 +165,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         if (bearerToken != null && bearerToken.indexOf('.') >= 0) {
             Optional<OAuth2ResourcePathProperties.ResourcePathRule> rule = oauth2ResourcePaths.match(uri);
             if (rule.isPresent()) {
-                return authenticateOAuth2Jwt(request, response, bearerToken, rule.get());
+                return authenticateOAuth2Jwt(request, response, bearerToken, rule.get(), requestId);
             }
         }
 
@@ -325,7 +325,8 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      */
     private boolean authenticateOAuth2Jwt(HttpServletRequest request, HttpServletResponse response,
                                           String token,
-                                          OAuth2ResourcePathProperties.ResourcePathRule rule)
+                                          OAuth2ResourcePathProperties.ResourcePathRule rule,
+                                          String requestId)
         throws IOException {
         if (jwtSecretKey == null || jwtSecretKey.isBlank()) {
             logSecurity(request, "oauth2 jwt auth attempted without jwt secret configured");
@@ -411,7 +412,6 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         }
         Long tenantId = OAuth2JwtSupport.tenantIdOf(payloads);
 
-        String requestId = resolveRequestId(request);
         AccessRequestContext.bind(
             RequestContext.delegatedUser(tenantId, operatorId, clientId).withRequestId(requestId));
         setMdc(requestId, String.valueOf(operatorId),

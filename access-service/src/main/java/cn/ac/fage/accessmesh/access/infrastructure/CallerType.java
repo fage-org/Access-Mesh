@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
 /**
- * 调用方类型（T-ACCESS-004 可信请求上下文四要素之一）。
+ * 调用方类型（T-ACCESS-004 可信请求上下文身份要素之一；上下文现为六要素，见 {@link RequestContext}）。
  * <p>
  * 由统一安全入口（{@link RequestContextInterceptor}）按认证结果绑定，
  * 业务代码只读不写。语义：

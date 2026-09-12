@@ -4,7 +4,7 @@ package cn.ac.fage.accessmesh.access.infrastructure;
  * 唯一可信请求上下文持有者（T-ACCESS-004）。
  * <p>
  * 使用 ThreadLocal 承载当前执行线程的 {@link RequestContext}（tenantId / operatorId /
- * callerType / verifiedServiceCode 四要素）。只有统一安全入口
+ * callerType / verifiedServiceCode / delegatedClientId / requestId 六要素）。只有统一安全入口
  * （{@link RequestContextInterceptor}）可以绑定；业务代码只能读取。
  * </p>
  * <p>

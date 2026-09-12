@@ -63,6 +63,9 @@ public class AuditDomainServiceImpl implements AuditDomainService {
 
         List<PermissionChangeLog> logs = new ArrayList<>(changes.size());
         LocalDateTime now = LocalDateTime.now();
+        // 循环外解析一次：同一批多条 entry 共享同一 request_id（schema 列语义「同一次操作的
+        // 多条记录通过此关联」；无上下文时合成单个 UUID，避免逐条分裂）
+        String requestId = resolveRequestId(context.requestId());
 
         for (ChangeLogEntry entry : changes) {
             PermissionChangeLog cl = new PermissionChangeLog();
@@ -80,7 +83,7 @@ public class AuditDomainServiceImpl implements AuditDomainService {
             cl.setAffectedAbstractRoleIds(entry.affectedRoleIds());
             cl.setChangeReason(context.changeReason());
             cl.setChangeSource(context.changeSource());
-            cl.setRequestId(resolveRequestId(context.requestId()));
+            cl.setRequestId(requestId);
             cl.setCreatedBy(context.operatorId());
             cl.setCreatedAt(now);
             logs.add(cl);

@@ -65,10 +65,10 @@ F 来自归档设计评审 §11 的暂缓项，目标是补齐文档准确性、
 | F1.a | **定性收口**：不建 `_metrics.md`+CI 对账管道（与 2026-08「文档不携带活计数、CI 以退出状态判定」既定口径相抵）；替代处置=清扫活文档四处残留活计数措辞改指 `HttpApiPathSnapshotTest`/源码目录 | architecture（75 接口预估）、admin 契约（16/19 待实现注记）、overview（22/23/11/18 个）、implementation（11+11） |
 | F1.b | **定性收口**（用户拍板另立任务）：14 对同名 Req 双轨现状盘点钉死，含 `UserAssignRoleReq.items @Size(max=1000)` 现役分叉实证（SDK 副本缺失该约束；守卫测试只覆盖必填性抓不到）；统一改造另立 [T-PERM-065](T-PERM-065.md) | 盘点结论与消费面（40+ 文件）见 065 卡 |
 | F1.c | 零 schema 改动：schema 注释/api-contract §6.2.2.1 经核对已含口径（T-PERM-052 回写）；架构 §4.3 补终态钉死句（判定靠类型声明、记录靠两列、外部同步以 sync_metadata 为单源——评审勿再建议删列收敛） | access-service-architecture §4.3 |
-| F1.d | requestId 全链路单 ID 收敛 + 两列 NOT NULL（详见下节） | 代码 12 文件 + schema + 四文档 + 回归锁 6 用例 |
+| F1.d | requestId 全链路单 ID 收敛 + 两列 NOT NULL（详见下节） | 代码 16 文件 + schema + 五文档 + 回归锁 6 用例 |
 | F1.e | `docs/ops/runbook-full-sync.md` 新建：通道总览/前置清单/执行步骤/retryClass 决策表/验收/回滚（不可逆声明+反向补数据）/故障处置；`docs/README.md` 目录树登记 ops/ | docs/ops/ |
 | F1.f | `PermQuery.operationPermissionIds` 字段+getter+`PermQueryEngine` 两分支删除（全仓零残留实证，含测试） | PermQuery/PermQueryEngine |
-| F1.g | 四副本（TypeDefinition/SystemConfig/LogQuery/**BizDomain**——卡面原记三处，+1 为 2026-09-12 核实新增）抽 `StringUtils.normalizeFilterParam`，16 调用点换用 | StringUtils + 四 AppServiceImpl |
+| F1.g | 四副本（TypeDefinition/SystemConfig/LogQuery/**BizDomain**——卡面原记三处，+1 为 2026-09-12 核实新增）抽 `StringUtils.normalizeFilterParam`，19 处调用换用（LogQuery 11/BizDomain 2/TypeDefinition 4/SystemConfig 2） | StringUtils + 四 AppServiceImpl |
 
 ### F1.d 实施明细
 
@@ -78,8 +78,27 @@ F 来自归档设计评审 §11 的暂缓项，目标是补齐文档准确性、
 - `OperationLogAspect` requestId 改上下文优先（HTTP 头回退）；`RResponseAdvice` 删除 X-Trace-Id 头偏好路径（全仓无生产方，traceId≡requestId）+ requestId 取值链 头→MDC→UUID（common 不依赖 access 基础设施）；Gateway `GlobalExceptionHandler` traceId 从 otel span 改同值 requestId（Tracer 依赖删除；tracing 未接线时原值恒 null）。
 - DDL：`operation_log.request_id`/`permission_change_log.request_id` 改 NOT NULL + 两列注释统一单 ID 口径 + 部分索引 `WHERE request_id IS NOT NULL` 谓词冗余去除；`AccessServiceSchemaPostgresTest` 直插语句补列。
 - 文档：api-contract §3.1 X-Request-Id 行、project-rules §1.1 requestId/traceId 行、architecture 链路追踪行、admin 契约 §1.1、access-service-architecture §6.1「四要素」→六要素清单。
-- 回归锁（旧实现下均失败）：拦截器 3 用例（头透传同源 MDC / 无头兜底 UUID 与 MDC 同值 / 超长截断 64）；审计 3 用例（两落点 null 合成 UUID / 上游非空原样透传不覆盖——JOIN 语义基础）。
+- 回归锁 6 用例：5 用例旧实现下失败（拦截器头透传/兜底 UUID 同源 MDC/截断 64 + 审计两落点 null 合成），1 用例为防退化行为锁（上游非空原样透传——旧实现同样透传，锁「合成不覆盖真实值」性质）。
 - 测试：单测轨道（common+gateway+access-service，`-DskipTestcontainers -DskipE2E`）全绿；收口全量（含容器+E2E）见完成记录。
+
+### 双轨评审处置（2026-09-12，代码轨+文档轨并行子代理，结论逐条核实后处置）
+
+**P0/P1 = 0**。处置明细：
+
+| 发现 | 核实 | 处置 |
+|---|---|---|
+| 代码 P2-1 冲突通知三处 asyncRecordLog 传 null（PermissionConflictDomainServiceImpl:148/364/500）——请求线程上下文可用却传 null，落点合成独立 UUID，CONFLICT_DETECTED 行与当次请求审计行失去 JOIN 关联 | 属实（三处 13 参构造第 10 参字面量 null） | **已修**：三处改 `OperatorContext.getRequestId()`（与切面「上下文优先」语义闭环；无上下文仍走落点合成） |
+| 代码 P2-2 recordChangeLog 循环内逐条合成 UUID——null 批多条 entry 每条不同 UUID，违反 schema 列语义「同一次操作多条记录通过此关联」 | 属实（当前 16 调用点全 HTTP 上下文恒非空、生产不可达，防御性缺陷） | **已修**：循环外解析一次共享 |
+| 文档 P2-1 runbook §1 表端点误写 `service-api/sync`（正确为 `service-config/sync`，§6 自身正确自相矛盾） | 属实（api-contract §6.3:1164 + BootstrapGraphDefinition 路由实证） | **已修** |
+| 代码 P3×7/文档 P3×7 | 逐条核实 | 已修：AccessRequestContext/JobServiceImpl/CallerType「四要素」注释升位、GlobalExceptionHandler 虚假 §4.3 锚点删除、切面重复取值局部变量化、OAuth2 分支双解析收敛为参数传递、StringUtils 尾换行、schema 测试缩进、任务卡三处计数失真（16→19 调用/12→16 文件/四→五文档）、回归锁声明修正（5 失败锁+1 防退化锁）、project-rules §4.3 MDC 行单源口径 + frontmatter last_reviewed 推进、runbook NON_RETRYABLE 版本表述对齐契约（不推进版本、同版本重发不被挡）、docs/README 治理类型表补 ops 行 |
+| 代码 P3-9 两测试类断言风格不一（assertThatCode vs assertDoesNotThrow） | 属实 | **不处置**：各随所在测试文件既有断解库风格（拦截器文件 assertj、审计文件 junit），对齐反而引入跨库 import |
+| 文档存疑-1 architecture:337「18 个 @PostMapping」是否纳入 F1.a 计数清扫 | 核实：计数与 PermissionFeignClientContractTest 快照一致且句性为「对测试的描述」（非待实现状态注记），性质异于已清扫项 | **维持现状**（评审轨推荐 A：零成本，快照测试在侧不会静默漂移） |
+| 代码存疑-3 拒绝路径响应体硬编码 requestId:null/traceId:null（writeJson）——已解析的 requestId 未回传，客户端拿不到排障 ID | 属实（存量行为，本批未变） | **登记遗留**（见下）：拒绝路径响应契约不在本卡验收面 |
+
+## 遗留登记
+
+- **拒绝路径响应回传 requestId**（writeJson 401/403/400 响应体硬编码 `requestId:null,traceId:null`）：拦截器已解析 requestId 却未回传，拒绝路径客户端无排障句柄。属响应壳契约面（api-contract §3.2），超本卡验收，后续小改进任务处置。
+- **Gateway RequestIdFilter 与 access-service 直连的头值口径不对称**（存量）：Gateway 对非 UUID 格式头值强制重生成、直连接受任意 ≤64 字符。无安全影响（列宽+MDC 截断兜底），登记观察。
 
 ## 执行前确认（已全部确认，2026-09-12）
 

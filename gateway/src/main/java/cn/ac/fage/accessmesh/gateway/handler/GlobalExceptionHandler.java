@@ -96,7 +96,7 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
 
         // 从交换属性设置请求ID；traceId 与 requestId 同值（T-PERM-021 F1.d 全链路单 ID
         // 收敛——traceId 仅为响应字段别名，otel span 追踪未接线，接线后如需独立
-        // trace 语义再拆分，演进登记见 project-rules §4.3）
+        // trace 语义再拆分）
         Object requestId = exchange.getAttribute("requestId");
         if (requestId != null) {
             resp.setRequestId(requestId.toString());

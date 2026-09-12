@@ -12,7 +12,7 @@
 | 资源实体全量 | `POST /api/perm/resource-entity/full-sync` | scope 内全量校准 | 补缺失 + 清多余 |
 | 主体/角色/成员逐条 | `POST /api/perm/abstract-user/sync`、`abstract-role/sync`、`user-role/sync` | 主体/角色 UPSERT/DISABLE/DELETE、成员 BIND/UNBIND | 幂等单条 |
 | 主体/角色/成员全量 | 对应 `/full-sync` | scope 内全量校准 | 补缺失 + 清多余 |
-| 服务接口清单 | `POST /api/perm/service-api/sync`（§6.3） | API 清单登记（service-config 声明通道） | 全量替换 |
+| 服务接口清单 | `POST /api/perm/service-config/sync`（§6.3） | API 清单登记（service-config 声明通道） | 全量替换 |
 
 **选择规则**：常态增量事件 → 逐条 `sync`；对账/初始化/源侧发生过批量修复 → `full-sync`（单请求 = scope 内完整事实声明，**缺失即删除**）。组织树等有树依赖的数据按足够小的 scope 拆分调用，避免单请求过大。
 
@@ -30,7 +30,7 @@
 2. full-sync：构造单请求完整事实清单（含每个 item 的 `syncVersion`），父资源非 scope 默认类型/codeType 时显式传 `parentResourceTypeCode/parentCodeType`。
 3. 解析响应：**信封恒 `code=200`，勿以信封判失败**——失败判定 = `data.accepted=false || data.stale=true`（2026-09-12 契约勘误口径）。
 4. full-sync 逐 item 核对 `data.detail.itemResults`（businessKey 级明细）；sync 接口 `data.detail=null`，只看顶层。
-5. 对 `RETRYABLE`/`DEPENDENCY_MISSING` 项按 §4 表重发；对 `NON_RETRYABLE` 项修正请求或源数据后重发（修正后是新事件，需**推进 `syncVersion`**，旧版本会被 STALE 挡住）。
+5. 对 `RETRYABLE`/`DEPENDENCY_MISSING` 项按 §4 表重发；对 `NON_RETRYABLE` 项修正请求或源数据后重发——环路/互斥/依赖类拒绝不推进同步版本，修正后同版本重发不会被 STALE 挡；推进 `syncVersion` 作为新事件发送是可选保险（便于区分修复轮次）。
 
 ## 4. 响应分类与重试决策表
 
@@ -39,7 +39,7 @@
 | `RETRYABLE` | 瞬时失败（部分失败时顶层 `FULL_SYNC_PARTIAL_FAILURE`） | 指数退避重发**原请求**（同版本原样重发不会被 STALE 挡） |
 | `DEPENDENCY_MISSING` | 父资源/关联角色不存在（依赖与判环先于版本写入，不推进版本） | 短退避重发原请求；持续失败先补齐依赖侧 sync |
 | `STALE_VERSION` | 旧版本 no-op（唯一 `accepted=true` 的失败：`applied=false, stale=true`） | **不重试**——服务端已持更新事实，调度器置 SUCCESS |
-| `NON_RETRYABLE` | 参数/结构错误：父环路 `RESOURCE_PARENT_INVALID`、成员关系互斥 `ROLE_MUTEX_CONFLICT`、保留键 20045 等 | 不盲目重试；修正请求/源数据并**推进版本**后作为新事件发送 |
+| `NON_RETRYABLE` | 参数/结构错误：父环路 `RESOURCE_PARENT_INVALID`、成员关系互斥 `ROLE_MUTEX_CONFLICT`、保留键 20045 等 | 不盲目重试；修正请求/源数据后重发（此类拒绝不推进同步版本，同版本重发不会被 STALE 挡；推进版本作新事件为可选保险） |
 | `SECURITY_DENIED` | 服务身份不匹配 / 类型所有权门禁拒绝 / 白名单未命中 / 未注册停用 | **先排根因再动**：核对类型声明、syncTypes 白名单、服务注册状态；排除配置前重发只会继续被拒 |
 
 ## 5. 验收检查

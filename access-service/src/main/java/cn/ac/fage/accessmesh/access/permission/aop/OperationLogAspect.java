@@ -150,8 +150,9 @@ public class OperationLogAspect {
         String ipAddress = HttpRequestUtils.getClientIp(request);
         // T-PERM-021 F1.d：requestId 上下文优先（拦截器已绑定头值或兜底 UUID，与
         // MDC traceId/变更日志同源）；无绑定（测试/非 HTTP 线程）回退请求头，最终由审计落点合成。
-        String requestId = AccessRequestContext.getRequestId() != null
-            ? AccessRequestContext.getRequestId()
+        String contextRequestId = AccessRequestContext.getRequestId();
+        String requestId = contextRequestId != null
+            ? contextRequestId
             : HttpRequestUtils.getRequestId(request);
 
         auditDomainService.asyncRecordLog(new AuditDomainService.OperationLogEntry(

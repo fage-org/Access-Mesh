@@ -665,7 +665,7 @@ public class JobServiceImpl implements JobService {
         Integer status = 1;
         String message = "Executed successfully";
         try {
-            // 显式建立 TASK 可信上下文（四要素之 callerType=TASK），不继承调度/请求线程
+            // 显式建立 TASK 可信上下文（六要素之 callerType=TASK），不继承调度/请求线程
             AccessRequestContext.bind(RequestContext.task(context.tenantId()));
             TenantContextHolder.setTenantId(context.tenantId());
 
