@@ -23,9 +23,16 @@ last_reviewed: 2026-09-12
 | 2 | 自有资源类型 | 「我要按门店/项目/单据控制权限，怎么建模？」 | api-contract §5.1/§5.3/§6.2.2/§6.3；类型所有权声明见 api-contract §5.1 | `CustomResourceTypeSlicePgIT`（本指南配套） |
 | 3 | 主体/角色体系 | 「我的用户/角色体系与标准设计不一致」 | api-contract §5.2 + §6.3.1（syncTypes 白名单） | AbstractUserSyncAppServiceTest 等单测组 |
 | 4 | 条件与范围 | 「时间/IP 限制、数据范围怎么配？边界在哪？」 | api-contract §5.6/§6.7；core-flows | 条件双轨制用例组（T-PERM-048） |
-| 5 | 前端页面 | 「我想在管理台加自己的页面」 | `frontend/README.md` 及各页面设计 | 前端 view hook 测试组 |
+| 5 | 前端页面 | 「我想在管理台加自己的页面」 | `docs/design/frontend/README.md` 及各页面设计 | 前端 view hook 测试组 |
 
 **架构原则**：AccessMesh 的扩展模型是**数据声明式**，不是代码插件式。除前端页面外，所有扩展通过「声明类型 + 同步数据 + 配置授权」完成，不要求接入方编写平台内代码。无权限判定 SPI 插槽——判定语义由统一引擎（`PermQueryEngine`）唯一承载（见 §6 能力边界）。
+
+**开始之前（全部场景的最小前置）**：
+
+1. **环境初始化**：空库按 `docs/design/access-service-rebuild-runbook.md` 重建数据库，并以 `ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD` 启动 access-service——自动种子首管理员（`admin`，tenantId=1）与管理用功能角色；未启用则空库无管理员，下述管理链全部 401。既有库固定图升级须按 runbook 重建。
+2. **管理 API 均需管理员会话身份**并过对应门禁：如 service-config 写操作=SERVICE:MANAGE、type-definition/create=TYPE_DEFINITION:CREATE、apply-grant-plan=ROLE:MANAGE。授权写入口**不收服务身份**（服务身份无操作者，一律 403）。
+3. **授权页入口**在角色管理页「权限授予」按钮（授权路由不在侧栏单独暴露）。
+4. **被授权主体**：场景二第 ⑥ 步判定需要一个有角色的用户——可经管理台组织与用户页创建用户并挂角色，或把权限授给既有功能角色（如 `BASIC_ROLE`）再绑用户。
 
 ## 2. 场景一：业务服务接入接口鉴权（example 模式）
 
@@ -35,8 +42,9 @@ last_reviewed: 2026-09-12
 
 1. **注册服务**：管理台「服务+接口映射」页（`POST /api/perm/service-config/save`）登记 `serviceCode`/`name`/`status=1`。
 2. **声明接口**：`POST /api/perm/service-config/sync`（FULL 模式）上报接口清单——一步创建 **API 资源**与 **Gateway 路由映射**（`pathPattern = basePath + path`，行归属标记 `maintainSource=SERVICE_SYNC`）。API 类型恒为 MANAGED，**不要**走 `resource-entity/sync` 通道（会被 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝）。
-3. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 按映射做接口级判定（`check-interface`）并对可下发条件做本地重评。
-4. **服务侧防直调**：业务服务部署 Gateway 签名校验过滤器（example 的 `GatewaySignatureFilter` 模式）——拒绝未带有效网关签名的请求，防止绕过 Gateway 直调后端。
+3. **授权**：未授权前 Gateway 对该接口一律拒绝（403）。经管理台授权页（入口见前置 3）对目标角色授该 API 实例（或 API 类型级）的 `ACCESS` 操作——授权写入口须用户身份（ROLE:MANAGE），不收服务身份。
+4. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 按映射做接口级判定（`check-interface`）并对可下发条件做本地重评。授权生效受 Gateway 快照刷新窗口约束（上界 30s）。
+5. **服务侧防直调**：业务服务部署 Gateway 签名校验过滤器（example 的 `GatewaySignatureFilter` 模式）——拒绝未带有效网关签名的请求，防止绕过 Gateway 直调后端。
 
 ### 2.2 服务身份调用（auth/check 等平台 API）
 
@@ -52,7 +60,7 @@ last_reviewed: 2026-09-12
 
 ### 2.3 SDK 现状
 
-- `perm-client-spring-boot-starter`：**Feign 远程查询 SDK**（`PermissionFeignClient`：auth/check 族调用入口 + 内部同步拦截器）。适合需要在服务内主动查询权限/范围的场景。
+- `perm-client-spring-boot-starter`：**Feign 远程查询 SDK**（`PermissionFeignClient`：auth/check 族调用入口 + 内部同步拦截器）。适合需要在服务内主动查询权限/范围的场景。拦截器自动注入 `X-Internal-Secret`/`X-Service-Code` 两个头；**`X-Tenant-Id` 须调用方业务侧自行注入**（服务调用缺失即 400）。
 - `perm-gateway-spring-boot-starter`：网关侧装配（本项目 Gateway 自用）。
 - example-service **有意不消费** starter——接口级鉴权完全由 Gateway 承担，服务内零权限代码。这是当前推荐的轻接入形态。
 - 纯 HTTP 对接（非 Java 技术栈）：直接按 api-contract §6 契约调用，不要求 SDK。
@@ -72,7 +80,9 @@ last_reviewed: 2026-09-12
 
 声明约束（api-contract §5.1 类型所有权声明段 + §6.2.2 同步入口门禁）：SYNC 来源必须为已注册、未软删、`status=1` 的服务；类型下存在有效资源行时声明不可变更（20056），**系统预置类型（is_system=true）所有权声明一律钉死不可变更**（20056）；API 类型禁止声明 SYNC。
 
-### 3.2 完整链路（六步）
+### 3.2 完整链路（六步，SYNC 模式）
+
+以下六步是 **SYNC 模式**（资源事实在业务系统，§3.1 表右行）的链路。**MANAGED 模式（缺省）不走此链路**：其写入口是管理面资源 CRUD（`POST /api/perm/resource-entity/create|batch-create|update|move|remove`，管理台「资源+操作定义」页）——**禁止**走 `resource-entity/sync|full-sync`（类型非 SYNC 一律 `RESOURCE_TYPE_OWNERSHIP_DENIED`，且信封 `code=200` 但 `accepted=false`，只看 HTTP 状态会误判成功）；两模式互斥方向由 20055/所有权门禁双向焊死。
 
 ```text
 ① 注册服务（service-config/save，status=1）
@@ -103,7 +113,7 @@ last_reviewed: 2026-09-12
 
 ### 3.4 资源树与父子关系
 
-资源可声明跨类型父子边（`parentResourceTypeCode` 可与 item 类型不同）；SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。依赖补全（depend_on 触发自动授权）**当前不生效**——`autoGrant` 全入口拒绝（见 §6）。
+资源可声明跨类型父子边（`parentResourceTypeCode` 可与 item 类型不同）；SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**= `resource_dependency` + `autoGrant`，**当前不生效**（`autoGrant` 全入口拒绝，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定面单点门禁见 api-contract §6.1/§6.7 DEPENDENT 轨道，二者不是一回事。
 
 ### 3.5 首笔授权引导（创建即建授权根，T-PERM-062）
 
@@ -113,8 +123,8 @@ last_reviewed: 2026-09-12
 
 - **创建即建基座**：`type-definition/create` 同事务向「类型所有者角色」写 CRUD 四操作位首授行（`grant_source=AUTHORITY_ROOT`，类型级 scopeAll + 可转授）；所有者缺省引导角色 `bootstrap-admin`，可经请求字段 `ownerRoleTypeCode/ownerRoleExternalId` 指定（roleTypeCode 仅接受 BASIC_ROLE 功能角色；类型定义页「所有者角色」选择器同入口），指针持久化于 `type_definition.extra.grantOriginRole`。
 - **追加操作自动补种**：后续经 `operation-permission/create` 追加的操作（如 `EXPORT` 位 16）同事务向同一所有者补种——不会出现「CRUD 能授、EXPORT 仍 20040」。
-- **所有者可迁移**：`type-definition/update` 变更 `extra.grantOriginRole` = 同事务「先清后种」迁移（旧所有者种子清理、新所有者补齐全部操作位）；所有者角色被误删时经重指所有者即可恢复授权能力。种子行在授权页只读（20061），类型删除时级联清理。
-- **可发现性**：所有者的成员在授权页可见这些种子行（标注「授权根」），并可正常收窄为实例级授权；非所有者成员对无授权根类型发起授权仍 20040——message 中 `reason=TYPE_GRANT_ORIGIN_MISSING` 表示「类型未初始化」（去类型定义页确认所有者），`reason=NO_PERMISSION/NO_GRANT_RIGHT` 表示「你的持有面不够」（找所有者角色成员操作）。
+- **所有者可迁移**：`type-definition/update` 变更 `extra.grantOriginRole` = 同事务「先清后种」迁移（旧所有者种子清理、新所有者补齐全部操作位）；所有者角色被误删时经重指所有者即可恢复授权能力。种子行在授权页只读（20061），类型删除时级联清理。**注意 extra 为整串替换语义**：经 API 迁移时提交的 extra 必须保留现有 `managedMode`/`syncSourceService` 声明键——只提交 `grantOriginRole` 等于删掉所有权声明（类型下有资源行时 20056 拒绝、无资源行时隐式切回 MANAGED）；未携带 `grantOriginRole` 键则保留现值。管理台「所有者角色」选择器自动 merge 进现有 extra，无此风险。
+- **可发现性**：所有者的成员在授权页可见这些种子行（标注「授权根」），并可**向其他角色转授时**收窄为实例级授权（种子行本身只读 20061，不可就地改删）。20040 的 reason 分两种：非所有者成员对**已有授权根**的类型发起授权 → `NO_PERMISSION`/`NO_GRANT_RIGHT`（你的持有面不够——找所有者角色成员操作或加入该角色）；`TYPE_GRANT_ORIGIN_MISSING` 仅出现在**自定义类型且租户内零条可转授行**时（种子被直改库清除、所有者角色被删未重指——去类型定义页确认/重指所有者）。
 
 回归锁：`CustomResourceTypeSlicePgIT` 全链路固化——创建即落 4 条种子、追加操作补种第 5 条、管理员直接首授成功（原「部署方种子后放行」步骤已随修复退役）、非所有者仍 20040、种子行改删 20061、所有者迁移清理+补齐、零授权根时 reason=TYPE_GRANT_ORIGIN_MISSING。
 
@@ -131,7 +141,7 @@ last_reviewed: 2026-09-12
 
 ### 5.1 条件（时间/IP 类环境断言）
 
-- **封闭操作符集**：`DATE_RANGE`（日期区间）、`TIME_RANGE`（时段）、IP 白名单、IP 黑名单，共 4 类。**不可自定义条件操作符**（求值器 `ConditionEvalUtils` 为 perm-common 静态实现，Gateway 与 access-service 共享同语义；无扩展插槽）。
+- **封闭操作符集**（填条件时的 `type` 代码名）：`DATE_RANGE`（日期区间）、`TIME_RANGE`（时段）、`IP_WHITELIST`（IP 白名单）、`IP_BLACKLIST`（IP 黑名单），共 4 类。**不可自定义条件操作符**（求值器 `ConditionEvalUtils` 为 perm-common 静态实现，Gateway 与 access-service 共享同语义；无扩展插槽；填白名单外的类型名评估 fail-closed 恒拒绝）。
 - **双轨制**（T-PERM-048）：管理页条件（source=MANAGED，独立 CRUD、可复用）vs 授权 INLINE 内联条件（随授权记录声明，仅 source=INLINE）。
 - 时钟语义：`evaluatedAt` 由引擎统一注入（跨进程一致性靠 NTP，业务粒度按天/小时）。
 
@@ -141,7 +151,7 @@ last_reviewed: 2026-09-12
 
 ### 5.3 特殊判定逻辑（外部审批等）怎么落地
 
-无代码级判定插槽（§6）。推荐路径：审批流转在接入方系统内完成后，由接入方服务身份或管理员经授权写入口（apply-grant-plan）落授权——权限生效路径与人工授权完全一致，可审计、可回收。
+无代码级判定插槽（§6）。推荐路径：审批流转在接入方系统内完成后，由**持有 ROLE:MANAGE 且对目标键有可转授覆盖的用户身份**（管理台会话）经授权写入口（apply-grant-plan）落授权——权限生效路径与人工授权完全一致，可审计、可回收。授权写入口不收服务身份（服务身份无操作者，403；服务身份仅适用 §2.2 查询类 API）。
 
 ## 6. 能力边界（不可扩展项清单）
 
@@ -160,8 +170,8 @@ last_reviewed: 2026-09-12
 管理台基于 pure-admin-thin（Vue 3 + Element Plus）。新增一个管理页面的标准模式（以现有 13 页为活例）：
 
 1. **权限串声明**：`src/views/system/<page>/utils/perms.ts` 导出 `<PAGE>_PERM_LIST`（操作码常量，对齐后端 `OperationCodeConstants`）。
-2. **路由注册**：`src/router/modules/*.ts` 路由项 `meta` 引用 PERM_LIST（按钮级 `auths` / 页面级门禁）。注意侧栏菜单已切后端派生（T-FE-015）：**可见性由菜单数据的 ∃op 派生决定，`meta.showLink` 不再控制侧栏**。
-3. **菜单种子**：sys_menu 行（bootstrap 固定图或管理台菜单管理页创建）；菜单可见性 = 该类型**存在任一可授权操作**（∃op 派生）自动可见，无需逐菜单授权。
+2. **路由注册**：`src/router/modules/*.ts` 路由项 `meta` 引用 PERM_LIST（按钮级 `auths` / 页面级门禁）。注意侧栏菜单已切后端派生（T-FE-015）：**可见性按用户持有面经菜单数据 ∃op 派生（见下条），`meta.showLink` 不再控制侧栏**。
+3. **菜单种子**：sys_menu 行——当前唯一造数入口是 bootstrap 固定图种子（`BootstrapGraphDefinition` 菜单种子；菜单管理页尚未开发，仅有先行契约 `/menu/create`；既有库固定图升级须按 rebuild-runbook 重建）。菜单可见性 = **用户**对菜单挂接资源持有任一有效操作权限（类型级 scopeAll 授权或该资源实例授权，∃op 派生）——无持有面则 fail-closed 不可见；菜单行不单独授 MENU 码、无需逐菜单授权。
 4. **API 层**：`src/api/<page>.ts`——全部 POST + JSON Request DTO（禁 GET/RESTful，project-rules §API），响应统一信封 `{code, data, message}`。
 5. **页面分组**（可选）：业务域页为资源类型配置 `CLASSIFY`（domain_config），管理查询按域过滤（ALL/GLOBAL_PLUS/DOMAIN_ONLY 三模式）。
 
