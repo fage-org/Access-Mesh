@@ -12,7 +12,7 @@ last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§5.1 类型授权�
 
 > **全局注记（2026-06-20 审计 S-001 + T-PERM-018 收尾）**：`permissionVersion` 字段已随 T-PERM-018（缓存下沉）从所有响应体移除——令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」已核实，permission-center 侧该 L2 缓存已删，令牌随之失效，连带 304/notModified 死代码一并清除。本文档历史段落保留的字段描述仅作演进记录，**以代码为准**（`InterfaceSnapshotResp`/`InterfaceSnapshotReq`/`QueryResourcesResp`/`QueryScopesResp`/`PermissionTreeResp` 均不再含 `permissionVersion`）。
 
-> **scopeMode 协议定义（2026-06-27 T-PERM-011，T-PERM-013 落地完成）**：对外协议字段统一使用 `scopeMode`，不再暴露旧 boolean 范围字段。`auth/query-scopes.scopeGroups[]` 使用四态 `DENIED / INSTANCE / ALL / EMPTY`：无权限、具体实例、全量范围、有权限但过滤后为空；授权请求、授权配置响应、接口快照项和 `query-resources` 等权限事实列表项只使用 `INSTANCE / ALL`（原 `effective-permissions` 已随 T-PERM-059 删除，2026-09-10）。授权请求侧 `INSTANCE` 表示具体实例范围且必须传 `resourceCode/codeType`，`ALL` 表示资源类型 + 操作下全量范围且不传 `resourceCode/codeType`。数据库内部仍保留 `role_resource_permission.scope_all` 作为存储字段，由服务端完成协议层映射（`ScopeModeSupport`）。所有对外协议 DTO（含 `InterfaceSnapshotResp.ApiPermissionEntry` 和 `QueryResourcesResp.ResourceEntry`）已完成迁移，旧 `scopeAll` boolean 字段不再出现在任何外部响应中。
+> **scopeMode 协议定义（2026-06-27 T-PERM-011，T-PERM-013 落地完成）**：对外协议字段统一使用 `scopeMode`，不再暴露旧 boolean 范围字段。`auth/query-scopes.scopeGroups[]` 使用四态 `DENIED / INSTANCE / ALL / EMPTY`：无权限、具体实例、全量范围、有权限但过滤后为空；授权请求、授权配置响应、接口快照项和 `query-resources` 等权限事实列表项只使用 `INSTANCE / ALL`（原 `effective-permissions` 已随 T-PERM-059 删除，2026-09-10）。授权请求侧 `INSTANCE` 表示具体实例范围且必须传 `resourceCode/codeType`，`ALL` 表示资源类型 + 操作下全量范围且不传 `resourceCode/codeType`。授权写入口（apply-grant-plan 的 `key.scopeMode`）DTO 类型与查询侧共享四态枚举，但写入口仅接受 `INSTANCE/ALL`——`DENIED/EMPTY` 提交按参数校验拒绝（20027 `VALIDATION_FAILED`，`ScopeModeSupport.validateGrantScopeMode` 值域校验）。数据库内部仍保留 `role_resource_permission.scope_all` 作为存储字段，由服务端完成协议层映射（`ScopeModeSupport`）。所有对外协议 DTO（含 `InterfaceSnapshotResp.ApiPermissionEntry` 和 `QueryResourcesResp.ResourceEntry`）已完成迁移，旧 `scopeAll` boolean 字段不再出现在任何外部响应中。
 
 ## 1. 设计目标
 
@@ -835,7 +835,7 @@ last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§5.1 类型授权�
 }
 ```
 
-失败时 `code != 200`，并在 `data.retryClass` 中显式返回调度分类：
+失败不走信封错误码（2026-09-12 勘误：原文「失败时 `code != 200`」与实现漂移，随扩展指南外评修正）：sync/full-sync 端点信封恒 `code=200`（含 `SECURITY_DENIED` 拒绝与条目级失败，Controller 一律 `R.ok` 包裹），同步失败以 `data.accepted=false` + `data.retryClass`/`data.reason` 判定：
 
 ```json
 {
@@ -847,7 +847,7 @@ last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§5.1 类型授权�
 }
 ```
 
-`retryClass` 固定枚举：`RETRYABLE`、`DEPENDENCY_MISSING`、`NON_RETRYABLE`、`SECURITY_DENIED`、`STALE_VERSION`。其中 `STALE_VERSION` 必须使用成功响应，表示请求已接受但未覆盖更新版本。
+`retryClass` 固定枚举：`RETRYABLE`、`DEPENDENCY_MISSING`、`NON_RETRYABLE`、`SECURITY_DENIED`、`STALE_VERSION`。`STALE_VERSION` 是唯一 `accepted=true` 的失败分类（`accepted=true, applied=false, stale=true`，reason=`SYNC_VERSION_STALE`）——表示请求已接受但未覆盖旧版本。调用方判定失败以 `accepted=false || stale=true` 为准，勿依赖信封 code。
 
 旧版本 no-op 必须返回成功响应壳，调度器据 `stale=true` 直接把任务置为 `SUCCESS`，不得重试：
 

@@ -31,6 +31,8 @@ class ScopeModeSupportTest {
             () -> ScopeModeSupport.toScopeAllForGrant(ScopeMode.ALL, "res-1", null));
         assertThrows(BizException.class,
             () -> ScopeModeSupport.toScopeAllForGrant(ScopeMode.DENIED, "res-1", "default"));
+        assertThrows(BizException.class,
+            () -> ScopeModeSupport.toScopeAllForGrant(ScopeMode.EMPTY, null, null));
     }
 
 }
