@@ -1,8 +1,5 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(rm -f .claude/skills/resource-permission-validator/SKILL.md)",
-      "Bash(rmdir .claude/skills/resource-permission-validator)"
-    ]
+    "allow": []
   }
 }
