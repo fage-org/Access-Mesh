@@ -362,9 +362,9 @@ last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§5.1 类型授权�
 | `POST /api/perm/user-role/list`                        | 查询用户角色关系                               |
 | `POST /api/perm/user-role/sync`                        | 幂等同步组织/岗位用户角色关系                   |
 | `POST /api/perm/user-role/full-sync`                   | 按 scope 全量校准组织/岗位用户角色关系           |
-| `POST /api/perm/user-role/assign`                      | 批量分配角色或分组                             |
-| `POST /api/perm/user-role/revoke`                      | 批量回收角色关系                               |
-| `POST /api/perm/user-role/batch-assign`                | 按角色视角批量分配多个用户                     |
+| `POST /api/perm/user-role/assign`                      | 批量分配角色或分组；**角色互斥守卫（T-PERM-063）**：事务内校验「授予后有效角色集（现有效 ∪ 本批新增、仅计启用角色）」，命中 ROLE_MUTEX 对整批原子拒绝 **20062**（message 列出冲突用户与角色对），规则 DB 直查即时生效 |
+| `POST /api/perm/user-role/revoke`                      | 批量回收角色关系（回收不产生互斥，无守卫）                               |
+| `POST /api/perm/user-role/batch-assign`                | 按角色视角批量分配多个用户；同款互斥守卫 **20062**（批内任一用户命中即整批拒绝） |
 | `POST /api/perm/role-resource-permission/list`         | 查询角色权限配置（§6.4）                                       |
 | `POST /api/perm/role-resource-permission/apply-grant-plan` | **授权页面唯一写入口**（§6.5.1）：记录级 creates/updates/removes + 单事务原子 + 受影响行数断言（无 CAS/无幂等表，收窄） |
 | `POST /api/perm/role-resource-permission/sub-perm-allowed-types` | **授权页只读契约（v3.1，已随 T-PERM-034 落地 2026-08-30）**：按父资源类型返回 SUB_PERM 允许的子资源类型（§6.5.2） |
@@ -424,7 +424,8 @@ last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§5.1 类型授权�
 - **list 全量不分页**：`{}` 返回全量 `ItemsResp<ConflictRuleResp>`（量小非流水表，对齐 condition/domain-config 定案）；类型/关键词过滤由前端本地完成。
 - **门禁四档类型级**（2026-08-30 口径，经决策）：读 list/detail/detect = CONFLICT_RULE:VIEW、写 create/update/remove = CONFLICT_RULE:CREATE/UPDATE/DELETE，全部类型级（scope_all）——CONFLICT_RULE 无 resource_entity 实例投影，实例级授权无从配置，原「编码轨传内部 id」的实例级声称系 ID 空间错位已废弃（原与 CONDITION 同口径收窄；CONDITION 已随 T-PERM-048 落地实例投影与实例级写门禁，CONFLICT_RULE 维持类型级——投影如需另立任务）。remove 类型级全有或全无，幽灵 id 静默跳过（幂等，对齐 resource-entity/condition remove）。
 - **update 全量覆盖语义**（PUT）：`conflictType` 必填，按类型字段集全量覆盖、对侧字段强制 null（UpdateEntity 显式写列）；PERM_MUTEX 下 `resourceTypeValue` 显式传（null=清空"全部"）；对象对写库前规范化 first&lt;second（对齐 uk_conflict_rule_perm/role 唯一索引）；审计 updatedBy/updatedAt 随写。等价规则（同类型+同对象对双向+同 rtv）拒绝 **20032** `CONFLICT_RULE_DUPLICATE`（业务层预查 + DB 唯一约束兜底，NULLS NOT DISTINCT 覆盖 NULL 全局规则）。
-- **detect**：仅操作权限对（PERM_MUTEX 场景），双向匹配（规则 (A,B) 对请求 (A,B)/(B,A) 均命中）；`resourceTypeValue` 可空过滤，`resource_type_value IS NULL` 的全局规则始终参与（schema「NULL=所有」语义，SQL 层保证）；响应 `{conflictDetected, matchedRules[]}`，纯查询无副作用。
+- **detect**（T-PERM-063 扩展双形态二选一）：**操作权限对**（`firstOperationPermissionId` + `secondOperationPermissionId`，PERM_MUTEX 场景——双向匹配（规则 (A,B) 对请求 (A,B)/(B,A) 均命中）；`resourceTypeValue` 可空过滤，`resource_type_value IS NULL` 的全局规则始终参与（schema「NULL=所有」语义，SQL 层保证））；**角色对**（`firstAbstractRoleId` + `secondAbstractRoleId`，ROLE_MUTEX 场景——立规前预检：回传当前有效角色集同时含两角色的用户清单）。两对都传或都不传（或任一对只传一端）拒绝 VALIDATION_FAILED。响应 `{conflictDetected, matchedRules[], conflictedUserIds[]}`——角色对形态 `conflictDetected` 以 `conflictedUserIds` 非空判定（非空 = create/update 该规则将被 20063 存量守卫拒绝），操作权限对形态 `conflictedUserIds` 恒空列表、`conflictDetected` 以 matchedRules 非空判定；纯查询无副作用。
+- **角色互斥三面守卫（T-PERM-063 收口，2026-09-12 三项用户拍板见 registry 同日行）**：①**授予守卫**——`user-role/assign`、`batch-assign` 事务内校验「授予后有效角色集」（现有效 ∪ 本批新增、仅计启用角色——与运行时 `filterRoleMutex` 判定集合同源；同批双端由集合语义覆盖），命中互斥对整批原子拒绝 **20062** `ROLE_MUTEX_ASSIGN_CONFLICT`；规则 DB 直查（不经 ROLE_MUTEX_RULE 缓存），新建规则即刻生效；并发双开两笔授予的窄竞态窗口接受（运行时双删兜底 fail-closed）。②**存量守卫**——create/update 的 ROLE_MUTEX 分支写入前检查存量双持（经有效角色解析收敛：有效期窗口/启用态/组角色展开同源），非空拒绝 **20063** `ROLE_MUTEX_EXISTING_HOLDERS`（message 含用户 id 清单截断上限 20；同对重写幂等——系统干净时自然放行）；PERM_MUTEX 分支与 remove 不适用。③**运行时可观测**——快照构建 `filterRoleMutex` 双删命中记 CONFLICT_DETECTED 操作日志（对齐 PERM_MUTEX 先例；每「租户×用户×规则对」每 JVM 1 小时至多一条，Caffeine 有界去重，多实例独立记账）。
 - **ConflictRuleResp**：`{id, tenantId, conflictType, firstOperationPermissionId, secondOperationPermissionId, resourceTypeValue, firstAbstractRoleId, secondAbstractRoleId, description, createdAt, updatedAt}`——`updatedAt` 为本次补齐（entity 列本就存在）；description ≤512 列宽校验（create/update）。
 - **bootstrap 固定图**：CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE 四条类型级不可转授随本批补入（空库无授予起点死锁防护，同 DOMAIN/SERVICE 先例）；顺带补 CONDITION:CREATE/UPDATE/DELETE 三条（T-PERM-029 遗漏的同款缺口，读取无门禁故无 VIEW 条目）。
 

@@ -158,7 +158,7 @@ PermQueryEngine.query(PermQuery)
            └─ loadAncillaryForView + rawEntries/parentMatched 回传（四态组装事实源）
 ```
 
-**评估口径**（2026-09-09 定案）：管理面写门禁条件评估拉平为评估（入口自动装配当前请求 clientIp，`PermEvalContext` 多层条件上下文）；条目互斥（PERM_MUTEX）入参化按入口开关；**角色互斥（ROLE_MUTEX）不归引擎**——授权时校验另行立项，快照/权限树的 `filterRoleMutex` 调用方自理。
+**评估口径**（2026-09-09 定案）：管理面写门禁条件评估拉平为评估（入口自动装配当前请求 clientIp，`PermEvalContext` 多层条件上下文）；条目互斥（PERM_MUTEX）入参化按入口开关；**角色互斥（ROLE_MUTEX）不归引擎**——快照构建的 `filterRoleMutex` 调用方自理（双删命中记 CONFLICT_DETECTED 日志，T-PERM-063）；授权时校验已落地：`user-role/assign`、`batch-assign` 写路径守卫 20062 + 规则 create/update 存量守卫 20063（T-PERM-063，2026-09-12，详见 implementation §2.4）。
 
 **内部 `scopeAll` 作为一等权限维度，对外统一映射为 `scopeMode`**：
 
@@ -220,7 +220,7 @@ PermQueryEngine.query(PermQuery)
 | `NO_ROLE`            | 用户无有效角色               |
 | `NO_PERMISSION`      | 有角色但无接口资源权限       |
 | `CONDITION_NOT_MET`  | 条件不满足                   |
-| `CONFLICT_DETECTED`  | 权限互斥导致失效             |
+| `CONFLICT_DETECTED`  | 权限/角色互斥导致失效（角色互斥双删自 T-PERM-063 起同样记日志） |
 
 **Gateway 接口权限检查**：Gateway 调用 `POST /api/perm/auth/check-interface`，服务端匹配 API 映射后直接走 `PermQueryEngine.query(PermQuery.forInterfaceCheck())` 做 `API.ACCESS` 判定，不额外叠加其他资源类型 VIEW 门禁。
 

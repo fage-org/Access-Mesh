@@ -209,12 +209,21 @@ public interface AuditDomainService {
 
 ```java
 public interface PermissionConflictDomainService {
-    Set<Long> filterRoleMutex(Long tenantId, Set<Long> effectiveRoleIds);
+    // 运行时双删（快照构建调用方自理，2026-09-09 定案）；双删命中记 CONFLICT_DETECTED
+    // 操作日志（T-PERM-063，每「租户×用户×规则对」每 JVM 1 小时至多一条，Caffeine 去重限流）
+    Set<Long> filterRoleMutex(Long tenantId, Long userId, Set<Long> effectiveRoleIds);
     List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries);
     // T-PERM-061 批量判定：请求级互斥评估器（静态数据共享 + 计算通知解耦，见 §3.10）
     BatchPermMutexEvaluator openBatchMutexEvaluator(Long tenantId);
+    // T-PERM-063 授予前校验：规则 DB 直查（不经 ROLE_MUTEX_RULE 缓存，新规则即刻生效），
+    // 调用方组装「授予后状态」（现有效 ∪ 本批新增、仅计启用角色），命中互斥对整批原子拒绝 20062
+    List<RoleMutexAssignConflict> findAssignMutexConflicts(Long tenantId, Map<Long, Set<Long>> postStateRoleIdsByUser);
+    // T-PERM-063 存量守卫：当前有效角色集同时含两角色的用户（规则 create/update 前 20063 检查）
+    List<Long> findUsersHoldingBothRoles(Long tenantId, Long firstRoleId, Long secondRoleId);
 }
 ```
+
+角色互斥三面（T-PERM-063，2026-09-12 落地，用户三项拍板见 registry 同日行）：①**授予守卫**——`user-role/assign`、`batch-assign` 写路径事务内校验授予后状态，命中即整批原子拒绝 **20062**（对齐入口既有 errors 整批抛风格）；②**存量守卫**——`conflict-rule/create`、`update` 的 ROLE_MUTEX 分支写入前检查存量双持，非空拒绝 **20063**（message 含用户 id 清单截断 20），PERM_MUTEX 分支与 remove 不适用；③**运行时可观测**——双删补 CONFLICT_DETECTED 日志（此前静默无痕）。并发双开两笔授予的窄竞态窗口接受（运行时双删兜底 fail-closed，无安全回退）。
 
 ---
 
@@ -301,7 +310,7 @@ public interface PermissionGrantDomainService {
 
 ## 3. 鉴权查询模块（PermQueryEngine）
 
-> **统一引擎已落地（T-PERM-057，2026-09-09 定案 → 本日实施）**：一个引擎、一套入参、一个结果模型；多入口 = 参数预设的封装。原六套执行形态（query() 六工厂形态分叉 / getDenied\* 手写管线 / query-resources 的 expandResourceScope / deleteRoles 局部级联 / canGrant 直查 / query-scopes AppService 自评管线）全部收编。三条实施定案（2026-09-09 用户拍板）：①**角色互斥不归引擎**——授权时校验另行立项，快照/权限树的 `filterRoleMutex` 由调用方自理，引擎只做条目互斥（入参开关）；②**条件上下文为多层对象** `PermEvalContext`（用户环境 clientIp + 服务器环境 evaluatedAt + 调用方上下文）；③**判定面闭包止步同类型**（sync 通道允许跨类型父子边，跨类型祖先不参与闭包；「后续禁止资源树跨类型」登记改进项）。OAuth2 委托用户链路维持不接入引擎（2026-08-22 用户决策，见 §3.9）。
+> **统一引擎已落地（T-PERM-057，2026-09-09 定案 → 本日实施）**：一个引擎、一套入参、一个结果模型；多入口 = 参数预设的封装。原六套执行形态（query() 六工厂形态分叉 / getDenied\* 手写管线 / query-resources 的 expandResourceScope / deleteRoles 局部级联 / canGrant 直查 / query-scopes AppService 自评管线）全部收编。三条实施定案（2026-09-09 用户拍板）：①**角色互斥不归引擎**——快照/权限树的 `filterRoleMutex` 由调用方自理，引擎只做条目互斥（入参开关）；授权时校验已随 T-PERM-063 落地（写路径守卫 20062/20063 + 双删日志，见 §2.4，2026-09-12）；②**条件上下文为多层对象** `PermEvalContext`（用户环境 clientIp + 服务器环境 evaluatedAt + 调用方上下文）；③**判定面闭包止步同类型**（sync 通道允许跨类型父子边，跨类型祖先不参与闭包；「后续禁止资源树跨类型」登记改进项）。OAuth2 委托用户链路维持不接入引擎（2026-08-22 用户决策，见 §3.9）。
 
 ### 3.1 统一入口
 
