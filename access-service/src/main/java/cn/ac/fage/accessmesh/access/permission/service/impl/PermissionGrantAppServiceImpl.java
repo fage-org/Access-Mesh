@@ -323,7 +323,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             roleSummary.put("roleName", role.getName());
         }
         auditDomainService.recordChangeLog(new AuditDomainService.ChangeLogContext(
-            tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL,
+            tenantId, operatorId, OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL,
             "apply-grant-plan"), List.of(new AuditDomainService.ChangeLogEntry(
             "role_resource_permission", role.getId(), "APPLY_GRANT_PLAN",
             null, null, snapshot.toString(), null, new Long[]{role.getId()})));

@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockStatic;
@@ -743,6 +744,53 @@ class RequestContextInterceptorTest {
         assertThat(MDC.get("userId")).isNull();
         assertThat(MDC.get("tenantId")).isNull();
         assertThat(MDC.get("serviceCode")).isNull();
+    }
+
+    @Test
+    @DisplayName("T-PERM-021 F1.d：X-Request-Id 头 → 上下文第六要素与 MDC traceId 同源头值")
+    void shouldBindRequestIdFromHeader() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/abstract-user/sync");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("X-Tenant-Id", "1");
+        req.addHeader("X-Service-Code", "example-service");
+        req.addHeader("X-Request-Id", "550e8400-e29b-41d4-a716-446655440000");
+        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(AccessRequestContext.getRequestId()).isEqualTo("550e8400-e29b-41d4-a716-446655440000");
+        assertThat(MDC.get("traceId")).isEqualTo("550e8400-e29b-41d4-a716-446655440000");
+    }
+
+    @Test
+    @DisplayName("T-PERM-021 F1.d：无 X-Request-Id 头 → 上下文兜底生成 UUID 且与 MDC traceId 同值（单源）")
+    void shouldSynthesizeRequestIdWhenHeaderAbsent() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/login");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        String requestId = AccessRequestContext.getRequestId();
+        assertThat(requestId).isNotBlank();
+        // 合法 UUID（与 Gateway RequestIdFilter 生成口径一致）
+        assertThatCode(() -> java.util.UUID.fromString(requestId)).doesNotThrowAnyException();
+        // 上下文与 MDC 单源同值（旧实现 MDC 独立生成，漂移源）
+        assertThat(MDC.get("traceId")).isEqualTo(requestId);
+    }
+
+    @Test
+    @DisplayName("T-PERM-021 F1.d：超长 X-Request-Id 头 → 截断 64 对齐审计列宽")
+    void shouldTruncateOverlongRequestIdHeader() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/login");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader("X-Request-Id", "x".repeat(100));
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(AccessRequestContext.getRequestId()).hasSize(64);
     }
 
     /** 与生产相同算法生成 HMAC-SHA256（payload = userId|tenantId|timestamp）。 */

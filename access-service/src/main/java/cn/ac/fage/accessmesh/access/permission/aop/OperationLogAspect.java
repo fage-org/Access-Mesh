@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.aop;
 
+import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
@@ -147,6 +148,11 @@ public class OperationLogAspect {
 
         HttpServletRequest request = HttpRequestUtils.currentRequest();
         String ipAddress = HttpRequestUtils.getClientIp(request);
+        // T-PERM-021 F1.d：requestId 上下文优先（拦截器已绑定头值或兜底 UUID，与
+        // MDC traceId/变更日志同源）；无绑定（测试/非 HTTP 线程）回退请求头，最终由审计落点合成。
+        String requestId = AccessRequestContext.getRequestId() != null
+            ? AccessRequestContext.getRequestId()
+            : HttpRequestUtils.getRequestId(request);
 
         auditDomainService.asyncRecordLog(new AuditDomainService.OperationLogEntry(
             tenantId,
@@ -158,7 +164,7 @@ public class OperationLogAspect {
             operatorId,
             operatorName,
             ipAddress,
-            HttpRequestUtils.getRequestId(request),
+            requestId,
             request != null ? request.getRequestURI() : null,
             200,
             costTime

@@ -573,7 +573,7 @@ CREATE TABLE operation_log (
     operator_id    BIGINT,                 -- 原 permission operation_log
     operator_name  VARCHAR(256),           -- 原 permission operation_log（user_id/username 旧 admin 双轨列已删，T-ACCESS-007 切面只写 operator 字段）
     ip_address     VARCHAR(64),
-    request_id     VARCHAR(64),
+    request_id     VARCHAR(64) NOT NULL,    -- 请求 ID：Gateway X-Request-Id 或 access-service 直连兜底 UUID；无请求上下文写入由审计落点合成（T-PERM-021 F1.d 收紧）
     request_url    VARCHAR(256),           -- 原 admin sys_audit_log
     request_body   VARCHAR(4000),          -- 停用恒 NULL（T-ACCESS-025：方法参数不再序列化入库）
     response_code  INT,                    -- 原 admin sys_audit_log
@@ -585,7 +585,7 @@ CREATE INDEX idx_operation_log_tenant_time ON operation_log (tenant_id, created_
 CREATE INDEX idx_operation_log_operator ON operation_log (tenant_id, operator_id, created_at DESC);  -- 原 permission
 CREATE INDEX idx_operation_log_target ON operation_log (tenant_id, target_type, target_id);   -- 原 permission
 CREATE INDEX idx_operation_log_tenant_module_time ON operation_log (tenant_id, module, created_at DESC);  -- T-ACCESS-007：module 三值化后按模块边界分页过滤
-CREATE INDEX idx_operation_log_request ON operation_log (request_id) WHERE request_id IS NOT NULL;  -- 原 permission
+CREATE INDEX idx_operation_log_request ON operation_log (request_id);  -- 原 permission（T-PERM-021 F1.d：列 NOT NULL 后谓词冗余去除）
 
 COMMENT ON TABLE operation_log IS '操作日志：轻量全量记录所有写操作，不做软删除，永久保留；与 permission_change_log 区分：本表记所有操作，permission_change_log 只记权限变更详情';
 COMMENT ON COLUMN operation_log.module IS '所属模块，模块标识约定：ADMIN=管理域 / PERMISSION=权限域 / ACCESS=跨域编排';
@@ -599,7 +599,7 @@ COMMENT ON COLUMN operation_log.request_url IS '请求URL（admin 侧语义）';
 COMMENT ON COLUMN operation_log.request_body IS '停用恒 NULL（T-ACCESS-025 操作日志参数序列化收敛；列保留兼容既有数据）';
 COMMENT ON COLUMN operation_log.response_code IS '响应状态码（admin 侧语义）';
 COMMENT ON COLUMN operation_log.cost_time IS '耗时（毫秒）';
-COMMENT ON COLUMN operation_log.request_id IS '请求/追踪ID';
+COMMENT ON COLUMN operation_log.request_id IS '请求 ID（Gateway X-Request-Id 或 access-service 直连兜底生成 UUID；兼作链路追踪 ID——日志 MDC traceId 与网关响应 traceId 字段为同一值，无第二套追踪体系。T-PERM-021 F1.d 定案 2026-09-12：全链路单 ID 语义收敛 + NOT NULL 收紧，无请求上下文写入由审计落点合成 UUID）';
 
 -- -----------------------------------------------------------------------------
 -- 17. type_definition - 类型定义表（预置 + 租户可扩展，is_system 区分）
@@ -1328,7 +1328,7 @@ CREATE TABLE permission_change_log (
     affected_abstract_role_ids BIGINT[] DEFAULT '{}',
     change_reason              VARCHAR(512),
     change_source              VARCHAR(32) NOT NULL,
-    request_id                 VARCHAR(64),
+    request_id                 VARCHAR(64) NOT NULL,   -- 与 operation_log.request_id 同语义（T-PERM-021 F1.d 收紧）
     created_by                 BIGINT,
     created_at                 TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -1337,7 +1337,7 @@ CREATE INDEX idx_change_log_tenant_users ON permission_change_log USING GIN (aff
 CREATE INDEX idx_change_log_tenant_roles ON permission_change_log USING GIN (affected_abstract_role_ids);
 CREATE INDEX idx_change_log_tenant_time ON permission_change_log (tenant_id, created_at DESC);
 CREATE INDEX idx_change_log_entity ON permission_change_log (tenant_id, entity_type, entity_id);
-CREATE INDEX idx_change_log_request_id ON permission_change_log (request_id) WHERE request_id IS NOT NULL;
+CREATE INDEX idx_change_log_request_id ON permission_change_log (request_id);  -- T-PERM-021 F1.d：列 NOT NULL 后谓词冗余去除
 CREATE INDEX idx_change_log_event_time ON permission_change_log (tenant_id, (diff_snapshot->>'eventType'), created_at DESC) WHERE diff_snapshot IS NOT NULL;
 
 COMMENT ON TABLE permission_change_log IS '权限变更记录：详细记录权限相关变更的 before/after/diff，方便排查用户因配置问题导致权限失效';
@@ -1347,7 +1347,7 @@ COMMENT ON COLUMN permission_change_log.old_snapshot IS '变更前快照(JSON)';
 COMMENT ON COLUMN permission_change_log.new_snapshot IS '变更后快照(JSON)';
 COMMENT ON COLUMN permission_change_log.diff_snapshot IS '结构化变更摘要(JSON)，用于权限排查展示和筛选。顶层包含 eventType + items[]，eventType/changeType 使用契约固定枚举；只描述本次写操作直接改变了什么，不计算用户最终有效权限 diff';
 COMMENT ON COLUMN permission_change_log.change_source IS '变更来源：MANUAL/SERVICE_SYNC（复用 PermConstants.MaintainSource）';
-COMMENT ON COLUMN permission_change_log.request_id IS '请求/追踪ID(trace_id)，同一次操作的多条记录通过此关联';
+COMMENT ON COLUMN permission_change_log.request_id IS '请求 ID（Gateway X-Request-Id 或 access-service 直连兜底生成 UUID；兼作链路追踪 ID——日志 MDC traceId 与网关响应 traceId 字段为同一值，无第二套追踪体系。T-PERM-021 F1.d 定案 2026-09-12：全链路单 ID 语义收敛 + NOT NULL 收紧，无请求上下文写入由审计落点合成 UUID）。同一次操作的多条记录通过此关联，并与当次 operation_log.request_id 同值——JOIN 复原完整审计链';
 
 -- -----------------------------------------------------------------------------
 -- 33. sys_task_execution - 任务执行表（T-ACCESS-009 任务租约预建）

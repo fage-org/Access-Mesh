@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * 审计领域服务实现类
@@ -79,7 +80,7 @@ public class AuditDomainServiceImpl implements AuditDomainService {
             cl.setAffectedAbstractRoleIds(entry.affectedRoleIds());
             cl.setChangeReason(context.changeReason());
             cl.setChangeSource(context.changeSource());
-            cl.setRequestId(context.requestId());
+            cl.setRequestId(resolveRequestId(context.requestId()));
             cl.setCreatedBy(context.operatorId());
             cl.setCreatedAt(now);
             logs.add(cl);
@@ -120,7 +121,7 @@ public class AuditDomainServiceImpl implements AuditDomainService {
         opLog.setOperatorId(entry.operatorId());
         opLog.setOperatorName(truncate(entry.operatorName(), OPERATOR_NAME_MAX_LEN));
         opLog.setIpAddress(entry.ipAddress());
-        opLog.setRequestId(entry.requestId());
+        opLog.setRequestId(resolveRequestId(entry.requestId()));
         opLog.setRequestUrl(entry.requestUrl());
         // request_body 列随 T-ACCESS-025 参数序列化收敛停用（恒 NULL），不再写入
         opLog.setResponseCode(entry.responseCode());
@@ -135,6 +136,19 @@ public class AuditDomainServiceImpl implements AuditDomainService {
     private static final int SUMMARY_MAX_LEN = 512;
     /** operation_log.operator_name 列上限（VARCHAR(256)） */
     private static final int OPERATOR_NAME_MAX_LEN = 256;
+
+    /**
+     * 审计 request_id 兜底合成（T-PERM-021 F1.d 定案：两列收紧 NOT NULL）。
+     * <p>
+     * HTTP 链路的上游已带真实请求 ID（RequestContext 第六要素）；无请求上下文的写入方
+     * （内部动态日志/异步任务/bootstrap 等）为 null/空白时在此合成 UUID，
+     * 保证落库恒非空。同一次请求的 operation_log 与 permission_change_log 行
+     * 由上游同源值关联（JOIN 语义），仅无上下文行各自独立合成。
+     * </p>
+     */
+    private static String resolveRequestId(String requestId) {
+        return requestId != null && !requestId.isBlank() ? requestId : UUID.randomUUID().toString();
+    }
 
     /**
      * 按列上限截断字符串；null 或未超长原样返回。

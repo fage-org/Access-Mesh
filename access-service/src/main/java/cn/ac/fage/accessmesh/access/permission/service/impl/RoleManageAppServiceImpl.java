@@ -420,7 +420,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             .collect(Collectors.toList());
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId, OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             projectionDeletes);
         OperationLogRuntimeContext.setSummary(
             "soft-deleted " + allIdsToDelete.size() + " role(s), rootPermitted="
@@ -455,7 +455,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         Long[] roleArr = permittedIds.toArray(Long[]::new);
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "abstract-role-batch-remove"),
+                tenantId, operatorId, OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "abstract-role-batch-remove"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "abstract_role",
                 0L,
@@ -544,7 +544,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     private void recordProjectionChange(Long tenantId, Long operatorId, Long roleId, String operation) {
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId, OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "abstract_role", roleId, operation, null, null, null,
                 new Long[0], new Long[]{roleId})));

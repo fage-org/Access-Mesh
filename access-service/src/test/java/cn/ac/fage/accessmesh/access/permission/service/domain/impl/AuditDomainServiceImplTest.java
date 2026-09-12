@@ -76,4 +76,52 @@ class AuditDomainServiceImplTest {
                 "created role", 100L, null, null, null, null, 200, 5)));
     }
 
+    // ===== T-PERM-021 F1.d：request_id 兜底合成 + 上游透传（两列收紧 NOT NULL 的落库保证） =====
+
+    @Test
+    void shouldSynthesizeRequestIdWhenOperationLogEntryHasNull() {
+        // 无请求上下文写入方（内部动态日志/异步任务）requestId 为 null → 落库前合成 UUID
+        service.asyncRecordLog(new AuditDomainService.OperationLogEntry(
+            1L, "perm", "CONFLICT_NOTIFY", "conflict_rule", "1",
+            "mutex double-delete", null, null, null, null, null, 200, 5));
+
+        ArgumentCaptor<OperationLog> captor = ArgumentCaptor.forClass(OperationLog.class);
+        verify(operationLogMapper).insert(captor.capture());
+        String requestId = captor.getValue().getRequestId();
+        assertNotNull(requestId);
+        assertDoesNotThrow(() -> java.util.UUID.fromString(requestId));
+    }
+
+    @Test
+    void shouldSynthesizeRequestIdWhenChangeLogContextHasNull() {
+        // ChangeLogContext.requestId 为 null（TASK/bootstrap 等无 HTTP 上下文）→ 落库前合成
+        service.recordChangeLog(
+            new AuditDomainService.ChangeLogContext(1L, 100L, null, "MANUAL", "local-projection"),
+            List.of(new AuditDomainService.ChangeLogEntry(
+                "resource_entity", 10L, "UPSERT", null, null, null, new Long[0], new Long[0])));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PermissionChangeLog>> captor = ArgumentCaptor.forClass(List.class);
+        verify(changeLogMapper).insertBatch(captor.capture());
+        String requestId = captor.getValue().get(0).getRequestId();
+        assertNotNull(requestId);
+        assertDoesNotThrow(() -> java.util.UUID.fromString(requestId));
+    }
+
+    @Test
+    void shouldPassThroughUpstreamRequestIdUnchanged() {
+        // HTTP 链路上游（RequestContext 第六要素）已带真实请求 ID → 原样透传不覆盖，
+        // 与当次 operation_log.request_id 同值（JOIN 复原审计链的语义基础）
+        service.recordChangeLog(
+            new AuditDomainService.ChangeLogContext(1L, 100L, "req-from-context", "MANUAL", "apply-grant-plan"),
+            List.of(new AuditDomainService.ChangeLogEntry(
+                "role_resource_permission", 20L, "APPLY_GRANT_PLAN",
+                null, null, "{}", null, new Long[]{20L})));
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<PermissionChangeLog>> captor = ArgumentCaptor.forClass(List.class);
+        verify(changeLogMapper).insertBatch(captor.capture());
+        assertEquals("req-from-context", captor.getValue().get(0).getRequestId());
+    }
+
 }

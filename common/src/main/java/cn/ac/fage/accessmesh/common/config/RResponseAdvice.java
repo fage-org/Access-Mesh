@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.common.config;
 
 import cn.ac.fage.accessmesh.common.model.R;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.MDC;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -17,16 +18,19 @@ import java.util.UUID;
 /**
  * R响应体增强
  * <p>
- * 自动填充requestId和traceId字段。
- * requestId从X-Request-Id请求头获取，若不存在则生成UUID。
- * traceId从X-Trace-Id请求头获取，若不存在则与requestId相同。
+ * 自动填充requestId和traceId字段。T-PERM-021 F1.d 单 ID 收敛（2026-09-12）：
+ * traceId 仅为 requestId 的响应字段别名，无第二套追踪体系——原 X-Trace-Id 头
+ * 偏好路径删除（全仓无该头生产方，行为上恒等于 requestId）。
+ * requestId 取值链：X-Request-Id 请求头（Gateway 生成/透传）→ 日志 MDC traceId
+ * （access-service 内与上下文/审计 request_id 同源）→ 兜底 UUID。
  * </p>
  */
 @ControllerAdvice
 public class RResponseAdvice implements ResponseBodyAdvice<Object> {
 
     private static final String REQUEST_ID_HEADER = "X-Request-Id";
-    private static final String TRACE_ID_HEADER = "X-Trace-Id";
+    /** access-service RequestContextInterceptor 的 MDC 键（值 = 上下文第六要素 requestId）。 */
+    private static final String MDC_TRACE_ID = "traceId";
 
     @Override
     public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
@@ -40,7 +44,7 @@ public class RResponseAdvice implements ResponseBodyAdvice<Object> {
         if (body instanceof R<?> result) {
             String requestId = resolveRequestId();
             result.setRequestId(requestId);
-            result.setTraceId(resolveTraceId(requestId));
+            result.setTraceId(requestId);
         }
         return body;
     }
@@ -54,18 +58,10 @@ public class RResponseAdvice implements ResponseBodyAdvice<Object> {
                 return fromHeader;
             }
         }
-        return UUID.randomUUID().toString();
-    }
-
-    private String resolveTraceId(String fallback) {
-        ServletRequestAttributes attrs = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        if (attrs != null) {
-            HttpServletRequest req = attrs.getRequest();
-            String fromHeader = req.getHeader(TRACE_ID_HEADER);
-            if (fromHeader != null && !fromHeader.isBlank()) {
-                return fromHeader;
-            }
+        String fromMdc = MDC.get(MDC_TRACE_ID);
+        if (fromMdc != null && !fromMdc.isBlank()) {
+            return fromMdc;
         }
-        return fallback;
+        return UUID.randomUUID().toString();
     }
 }

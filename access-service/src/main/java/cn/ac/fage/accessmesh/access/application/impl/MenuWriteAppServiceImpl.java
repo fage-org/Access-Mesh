@@ -18,6 +18,7 @@ import cn.ac.fage.accessmesh.access.permission.constant.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.stp.StpUtil;
 import org.springframework.dao.DuplicateKeyException;
@@ -212,7 +213,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         localProjectionDomainService.deleteAdminMenu(tenantId, id);
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "resource_entity", resourceId, "DELETE", null, null, null, new Long[0], new Long[0])));
     }
@@ -262,7 +263,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
             menu.getStatus(), menu.getSortOrder());
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "resource_entity", resourceId, "UPSERT", null, null, null, new Long[0], new Long[0])));
     }

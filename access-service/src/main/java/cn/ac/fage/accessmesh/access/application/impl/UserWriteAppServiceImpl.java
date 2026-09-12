@@ -28,6 +28,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.dev33.satoken.secure.BCrypt;
@@ -285,7 +286,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         if (!deleteEntries.isEmpty()) {
             auditDomainService.recordChangeLog(
                 new AuditDomainService.ChangeLogContext(
-                    tenantId, currentOperatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                    tenantId, currentOperatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
                 deleteEntries);
         }
         if (!abstractUserIds.isEmpty()) {
@@ -353,7 +354,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         if (!statusEntries.isEmpty()) {
             auditDomainService.recordChangeLog(
                 new AuditDomainService.ChangeLogContext(
-                    tenantId, currentOperatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                    tenantId, currentOperatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
                 statusEntries);
         }
     }
@@ -362,7 +363,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
                                         Long[] affectedUsers, Long[] affectedRoles) {
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, currentOperatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, currentOperatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 entityType, entityId, operation, null, null, null, affectedUsers, affectedRoles)));
     }

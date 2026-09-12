@@ -22,6 +22,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.dev33.satoken.stp.StpUtil;
@@ -362,7 +363,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         // entity_id 记录投影主键；投影缺失时记 null（不再冒用 sys_org.id）
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "abstract_role", roleId, "DELETE", null, null, null,
                 new Long[0], roleId == null ? new Long[]{} : new Long[]{roleId})));
@@ -378,7 +379,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
             parentOrgType, org.getStatus(), org.getSortOrder(), extraOrgType(org.getOrgType()));
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "abstract_role", roleId, operation, null, null, null, new Long[0], new Long[]{roleId})));
         PermissionChangeContext.markRoles(tenantId, roleId);

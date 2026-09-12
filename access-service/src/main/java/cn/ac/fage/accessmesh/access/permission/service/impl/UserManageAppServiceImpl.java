@@ -369,7 +369,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             .collect(Collectors.toList());
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId, OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             deleteEntries);
 
         // 登记受影响用户，afterCommit 失效与广播由 @PermissionChange AOP 统一处理（铁律 P1-B）
@@ -809,7 +809,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Set<Long> uniqueRoles = new LinkedHashSet<>(affectedRoleIds);
         Long[] roleArr = uniqueRoles.toArray(Long[]::new);
         auditDomainService.recordChangeLog(
-            new AuditDomainService.ChangeLogContext(tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "user-role-revoke"),
+            new AuditDomainService.ChangeLogContext(tenantId, operatorId, OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "user-role-revoke"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "user_role",
                 0L,
@@ -938,7 +938,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     private void recordProjectionChange(Long tenantId, Long operatorId, Long userId, String operation) {
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId, null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId, OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "abstract_user", userId, operation, null, null, null,
                 new Long[]{userId}, new Long[0])));

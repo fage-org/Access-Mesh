@@ -21,6 +21,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
+import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.stp.StpUtil;
 import org.springframework.stereotype.Service;
@@ -141,7 +142,7 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
             Long[] affected = abstractUserId == null ? new Long[]{} : new Long[]{abstractUserId};
             auditDomainService.recordChangeLog(
                 new AuditDomainService.ChangeLogContext(
-                    tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                    tenantId, operatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
                 bindKeys.stream()
                     .map(key -> new AuditDomainService.ChangeLogEntry(
                         "user_role", roleIdByKey.get(key), "BIND", null, null, null, affected, new Long[0]))
@@ -199,7 +200,7 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
             tenantId, userId, orgId, roleTypeCode, org.getParentId());
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                tenantId, operatorId(), null, PermConstants.MaintainSource.MANUAL, "local-projection"),
+                tenantId, operatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "user_role", userRoleId, "UNBIND", null, null, null,
                 abstractUserId == null ? new Long[]{} : new Long[]{abstractUserId}, new Long[0])));

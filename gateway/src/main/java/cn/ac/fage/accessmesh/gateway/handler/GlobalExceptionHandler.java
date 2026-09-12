@@ -3,8 +3,6 @@ package cn.ac.fage.accessmesh.gateway.handler;
 import cn.ac.fage.accessmesh.gateway.model.GatewayResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
@@ -31,20 +29,17 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     private final ObjectMapper objectMapper;
-    private final Tracer tracer;
 
     /**
      * 构造全局异常处理器
      * <p>
-     * 注入ObjectMapper用于JSON序列化，Tracer用于获取链路追踪ID。
+     * 注入ObjectMapper用于JSON序列化。
      * </p>
      *
      * @param objectMapper JSON序列化器
-     * @param tracer       链路追踪器
      */
-    public GlobalExceptionHandler(ObjectMapper objectMapper, Tracer tracer) {
+    public GlobalExceptionHandler(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
-        this.tracer = tracer;
     }
 
     /**
@@ -99,16 +94,13 @@ public class GlobalExceptionHandler implements WebExceptionHandler {
 
         GatewayResponse resp = GatewayResponse.error(code, message);
 
-        // 从交换属性设置请求ID
+        // 从交换属性设置请求ID；traceId 与 requestId 同值（T-PERM-021 F1.d 全链路单 ID
+        // 收敛——traceId 仅为响应字段别名，otel span 追踪未接线，接线后如需独立
+        // trace 语义再拆分，演进登记见 project-rules §4.3）
         Object requestId = exchange.getAttribute("requestId");
         if (requestId != null) {
             resp.setRequestId(requestId.toString());
-        }
-
-        // 从当前span设置追踪ID
-        Span currentSpan = tracer.currentSpan();
-        if (currentSpan != null) {
-            resp.setTraceId(currentSpan.context().traceId());
+            resp.setTraceId(requestId.toString());
         }
 
         try {

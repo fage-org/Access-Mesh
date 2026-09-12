@@ -32,4 +32,16 @@ public final class OperatorContext {
         }
         return operatorId;
     }
+
+    /**
+     * 获取当前请求 ID（T-PERM-021 F1.d：审计 request_id 关联的统一取值入口）。
+     * <p>
+     * HTTP 入口由 RequestContextInterceptor 绑定（X-Request-Id 头值或兜底 UUID，
+     * 兼作链路追踪 ID）；未绑定上下文（TASK/bootstrap/异步无快照）返回 null，
+     * 由审计落库点（AuditDomainServiceImpl）合成 UUID——本方法 null 安全、不抛异常。
+     * </p>
+     */
+    public static String getRequestId() {
+        return AccessRequestContext.getRequestId();
+    }
 }

@@ -46,7 +46,9 @@ import java.util.UUID;
  * </ol>
  * <p>
  * 同时注入日志 MDC（traceId / userId / tenantId / serviceCode，配合 log4j2 JsonLayout
- * properties=true 输出），afterCompletion 统一清理上下文与 MDC，防线程池泄漏。
+ * properties=true 输出）与上下文第六要素 requestId（X-Request-Id 头值或兜底 UUID，
+ * 与 MDC traceId 单源同值，T-PERM-021 F1.d——审计 request_id 关联取值入口），
+ * afterCompletion 统一清理上下文与 MDC，防线程池泄漏。
  * </p>
  */
 @Component
@@ -104,11 +106,13 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         }
 
         String uri = request.getRequestURI();
+        // T-PERM-021 F1.d：请求 ID 单点解析（头值或兜底 UUID），上下文第六要素与 MDC traceId 同源。
+        String requestId = resolveRequestId(request);
 
         // 1. 公开路径：匿名上下文（/auth/** 公开子集 + /actuator/**，评审 P1-1 精确化）
         if (isPublicPath(uri)) {
-            AccessRequestContext.bind(RequestContext.anonymous());
-            setMdc(request, null, null, null);
+            AccessRequestContext.bind(RequestContext.anonymous().withRequestId(requestId));
+            setMdc(requestId, null, null, null);
             return true;
         }
 
@@ -135,8 +139,8 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                     writeJson(response, HttpServletResponse.SC_BAD_REQUEST, "无效的请求头格式");
                     return false;
                 }
-                AccessRequestContext.bind(RequestContext.user(tenantId, operatorId));
-                setMdc(request, String.valueOf(operatorId), String.valueOf(tenantId), null);
+                AccessRequestContext.bind(RequestContext.user(tenantId, operatorId).withRequestId(requestId));
+                setMdc(requestId, String.valueOf(operatorId), String.valueOf(tenantId), null);
                 return true;
             }
             // 纯服务调用：serviceCode 在凭证通过后绑定（防无凭证外部伪造）
@@ -147,8 +151,8 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                 writeJson(response, HttpServletResponse.SC_BAD_REQUEST, "缺少必要请求头: X-Tenant-Id");
                 return false;
             }
-            AccessRequestContext.bind(RequestContext.service(tenantId, serviceCode));
-            setMdc(request, null, String.valueOf(tenantId), serviceCode);
+            AccessRequestContext.bind(RequestContext.service(tenantId, serviceCode).withRequestId(requestId));
+            setMdc(requestId, null, String.valueOf(tenantId), serviceCode);
             return true;
         }
 
@@ -218,8 +222,8 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                 }
             }
 
-            AccessRequestContext.bind(RequestContext.user(sessionTenantId, loginId));
-            setMdc(request, String.valueOf(loginId),
+            AccessRequestContext.bind(RequestContext.user(sessionTenantId, loginId).withRequestId(requestId));
+            setMdc(requestId, String.valueOf(loginId),
                 sessionTenantId == null ? null : String.valueOf(sessionTenantId), null);
             return true;
         }
@@ -234,8 +238,8 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
                 writeJson(response, HttpServletResponse.SC_BAD_REQUEST, "无效的请求头格式");
                 return false;
             }
-            AccessRequestContext.bind(RequestContext.user(tenantId, operatorId));
-            setMdc(request, String.valueOf(operatorId), String.valueOf(tenantId), null);
+            AccessRequestContext.bind(RequestContext.user(tenantId, operatorId).withRequestId(requestId));
+            setMdc(requestId, String.valueOf(operatorId), String.valueOf(tenantId), null);
             return true;
         }
 
@@ -407,8 +411,10 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         }
         Long tenantId = OAuth2JwtSupport.tenantIdOf(payloads);
 
-        AccessRequestContext.bind(RequestContext.delegatedUser(tenantId, operatorId, clientId));
-        setMdc(request, String.valueOf(operatorId),
+        String requestId = resolveRequestId(request);
+        AccessRequestContext.bind(
+            RequestContext.delegatedUser(tenantId, operatorId, clientId).withRequestId(requestId));
+        setMdc(requestId, String.valueOf(operatorId),
             tenantId == null ? null : String.valueOf(tenantId), null);
         return true;
     }
@@ -435,16 +441,27 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
     }
 
     /**
-     * 注入日志 MDC（traceId 取 X-Request-Id，无则生成 UUID）。
-     * 评审 P2-4（2026-08-14）：外部可控值（X-Request-Id / X-Service-Code）写入前截断 64 字符，
+     * 解析请求 ID（T-PERM-021 F1.d）：X-Request-Id 头值，缺失/空白兜底生成 UUID；
+     * 超长截断 64 对齐审计 request_id 列宽与 MDC 防膨胀口径（评审 P2-4）。
+     * 返回值恒非 null——上下文第六要素与 MDC traceId 单源同值。
+     */
+    private static String resolveRequestId(HttpServletRequest request) {
+        String header = request.getHeader(HEADER_REQUEST_ID);
+        if (header == null || header.isBlank()) {
+            return UUID.randomUUID().toString();
+        }
+        return truncate(header.trim());
+    }
+
+    /**
+     * 注入日志 MDC（traceId 与上下文 requestId 同源单值，T-PERM-021 F1.d 收敛——
+     * 原实现独立读头+独立兜底生成，与上下文值可能漂移）。
+     * 评审 P2-4（2026-08-14）：外部可控值（traceId / serviceCode）写入前截断 64 字符，
      * 防止日志膨胀与伪造 traceId 干扰日志关联。
      */
-    private static void setMdc(HttpServletRequest request, String userId, String tenantId,
+    private static void setMdc(String requestId, String userId, String tenantId,
                                String serviceCode) {
-        String requestId = request.getHeader(HEADER_REQUEST_ID);
-        String traceId = requestId != null && !requestId.isBlank() ? requestId
-            : UUID.randomUUID().toString();
-        MDC.put(MDC_TRACE_ID, truncate(traceId));
+        MDC.put(MDC_TRACE_ID, truncate(requestId));
         if (userId != null) {
             MDC.put(MDC_USER_ID, userId);
         }

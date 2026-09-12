@@ -37,7 +37,7 @@ public class GatewayResponse {
     private String requestId;
 
     /**
-     * 链路追踪ID
+     * 链路追踪ID（与 requestId 同值的响应字段别名，T-PERM-021 F1.d 单 ID 收敛——无第二套追踪体系）
      */
     @Setter
     private String traceId;

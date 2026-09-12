@@ -79,6 +79,16 @@ public final class AccessRequestContext {
     }
 
     /**
+     * 请求 ID（X-Request-Id 头值或拦截器兜底生成的 UUID；T-PERM-021 F1.d）。
+     * 未绑定、TASK 上下文或工厂缺省时返回 null——审计落库点对 null 合成 UUID，
+     * 业务读取方不得假定非 null。
+     */
+    public static String getRequestId() {
+        RequestContext ctx = CTX.get();
+        return ctx == null ? null : ctx.requestId();
+    }
+
+    /**
      * 当前上下文快照（异步 / 嵌套任务显式传递用）。
      *
      * @return 当前上下文；未绑定时返回 null
