@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-063
 title: 角色互斥授权时校验——写路径拦截 + 存量立规守卫 + 双删日志与 detect 扩展
-status: in-progress
+status: done
 plan:
 domain: permission-center
 design_refs:
@@ -20,7 +20,7 @@ acceptance:
   - "api-contract §5.5/§5.6、core-flows 评估口径注记、implementation §2/§3 定案注记回写完成"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-12
 ---
 
@@ -49,6 +49,13 @@ T-PERM-057 实施定案一（2026-09-09）将角色互斥（ROLE_MUTEX）从引�
 ## 验收对照
 
 见 frontmatter `acceptance`；回归锁要求旧实现下失败（新校验断言拒绝，旧代码放行即红）。
+
+## 完成记录
+
+- **实施提交**：e00180288（三面守卫落地 + 前端 detect 双形态）→ 36bf21428（立项与设计回写）→ 96630b6aa（双轨评审处置）。
+- **双轨评审处置（全部核实成立后修复）**：代码轨 P1×1+P2×3+P3×3、文档轨 P2×1+P3×5。最重项 P1-1——存量守卫/detect 的直授行候选漏经组角色展开的间接持有，修复=候选改走 `SubjectDomainService.findUserIdsByEffectiveRoles` 三路反查（ROLE 直授+GROUP_ROLE 直绑+祖先组展开），并消除 UserRoleMapper 直查（§11）；其余：detect 两端相同拒绝 + 半传形态 fail-closed、20062 message 截断 20、双删日志失败回滚去重标记、混合批全新用户零落库锁、禁用目标角色 postState captor 锁、前端设计文档 detect 旧口径同步、三设计文档 last_reviewed、AGENTS.md 补登守卫硬约束、存量注释「权限树」死引用清扫。
+- **评审存疑定性（维持现状不另立项）**：EFFECTIVE_ROLES 跨 JVM 广播陈旧窗口与 ROLE_MUTEX_RULE 运行时 10s 无主动失效——均属既有快照链路「10+5+15≤30s」安全边界的等价窗口（写路径规则读取已 DB 直查消除最大陈旧源），与定案「并发窄竞态接受」同质。
+- **回归证据**：定向单测六类全绿（含新增组角色/混合批/禁用角色/A==A 用例）；`RoleMutexGuardPgIT` 4 用例（真实 PG/Redis，Docker 29.7.2）全绿；收口全量 `mvn clean test -T 1C`（2026-09-12）BUILD SUCCESS——3306 项测试 0 失败 0 错误，E2E 轨 `BasicRoleGrantVerticalSliceE2EIT` 8 + `ExampleProtectedApiE2EIT` 6 全绿。前端 `pnpm typecheck/lint/build` 全绿。
 
 ## 非目标 / 遗留
 

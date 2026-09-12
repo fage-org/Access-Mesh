@@ -125,7 +125,7 @@
 | [T-PERM-060](../archive/2026-09-12/tasks/T-PERM-060.md) | 工程健康小批次——权限视图域映射批量化 + T-PERM-055 误读观察撤回 + EXT-7/8 处置登记（已收口 2026-09-11，终态见任务卡实施记录） | — | implementation §2.7 | — | ✅ | — |
 | [T-PERM-061](../archive/2026-09-12/tasks/T-PERM-061.md) | EXT-7：batchCheck 逐条 engine.query 收敛——A+ 形态「分组 + 请求级共享装载」（已收口 2026-09-11：queryBatch + 条件四态增量快照 + 互斥 ledger 聚合 + 回归锁①-⑪ 全绿；双轨评审处置与父段装载定案见 registry 实施收口行、遗留登记见任务卡遗留节；实施落点见 implementation §3.10） | — | implementation §3；api-contract §6.1 | — | ✅ | ✓ |
 | [T-PERM-062](../archive/2026-09-12/tasks/T-PERM-062.md) | 新类型首笔授权生命周期种子——createType/createOperation 同事务种 AUTHORITY_ROOT 首授行（✅ 2026-09-12 收口：实施期四项补充定案（reason 仅自定义类型/无历史数据/owner 可变更+同事务迁移/不加角色删除守卫）+ 双轨评审处置，全量回归含 E2E 全绿） | — | api-contract §5.1/§6.5.1；schema；architecture §14.2；extension-guide §3.5 | — | ✅ | ✅ |
-| [T-PERM-063](T-PERM-063.md) | 角色互斥授权时校验——写路径拦截 + 存量立规守卫 + 双删日志与 detect 扩展（T-PERM-057 定案一登记的待补能力立项；三项口径见任务卡） | — | api-contract §5.5/§5.6；core-flows §7 评估口径；implementation §2/§3 | — | 🔨 | ⏳ |
+| [T-PERM-063](../archive/2026-09-12/tasks/T-PERM-063.md) | 角色互斥授权时校验——写路径拦截 + 存量立规守卫 + 双删日志与 detect 扩展（✅ 2026-09-12 收口：双轨评审 7+7 项全处置——含组角色间接持有盲区 P1；全量回归含 E2E 全绿，终态见任务卡完成记录） | — | api-contract §5.5/§5.6；core-flows §7 评估口径；implementation §2/§3 | — | ✅ | ✓ |
 
 ### gateway（工作单 C 失联兜底）
 
