@@ -95,6 +95,17 @@ F 来自归档设计评审 §11 的暂缓项，目标是补齐文档准确性、
 | 文档存疑-1 architecture:337「18 个 @PostMapping」是否纳入 F1.a 计数清扫 | 核实：计数与 PermissionFeignClientContractTest 快照一致且句性为「对测试的描述」（非待实现状态注记），性质异于已清扫项 | **维持现状**（评审轨推荐 A：零成本，快照测试在侧不会静默漂移） |
 | 代码存疑-3 拒绝路径响应体硬编码 requestId:null/traceId:null（writeJson）——已解析的 requestId 未回传，客户端拿不到排障 ID | 属实（存量行为，本批未变） | **登记遗留**（见下）：拒绝路径响应契约不在本卡验收面 |
 
+### 外部评审处置（2026-09-12，claude + grok 双通道首轮，收口后追加）
+
+双通道**结论完全收敛**：P0/P1/P2 = 0，且两家独立发现同样两条 P3——
+
+| 发现 | 核实 | 处置 |
+|---|---|---|
+| Gateway `AuthTokenFilter.writeUnauthorized`/`PermissionFilter.writeError`（401/403/503）只 setRequestId 未 setTraceId——`GatewayResponse` 标 NON_NULL，traceId 字段在过滤器拒绝路径消失，与「traceId≡requestId 别名」定案在异常处理器路径（GlobalExceptionHandler 已改）之外不成立 | 属实（两处 L207-211/L454-458 实证） | **已修**：两处补 `setTraceId(requestId.toString())` 对齐 GlobalExceptionHandler 同款 |
+| `RResponseAdvice.resolveRequestId` 命中头时原样返回，未对齐拦截器 trim+64 截断口径——直连 + 非规范头（带空白/超 64）时响应壳 requestId 与 MDC/审计落库值分叉（经 Gateway 路径头恒为规范 UUID 不触发） | 属实（本批实现即如此） | **已修**：common 侧施加同款 `trim()+截断 64`（不引 common→access 依赖） |
+
+两轨复核确认：851eb7e4f 双轨处置批逐条成立、NOT NULL 写入闭合（唯一写入方+唯一合成点+无 mapper 直插）、F1.f/F1.g 语义等价零残留、文档七处口径互恰、runbook 硬事实与契约一致、既有消费面（前端 envelope/e2e/perm-sdk/路径快照/example-service）零破坏。grok 存量观察（不处置登记）：common `GlobalExceptionHandler:128` IllegalArgumentException 日志仍读原始头值；TASK 线程同批 operation_log/change_log 各自合成不同 ID（与定案一致）。修复后 common+gateway 154 用例零失败。
+
 ## 遗留登记
 
 - **拒绝路径响应回传 requestId**（writeJson 401/403/400 响应体硬编码 `requestId:null,traceId:null`）：拦截器已解析 requestId 却未回传，拒绝路径客户端无排障句柄。属响应壳契约面（api-contract §3.2），超本卡验收，后续小改进任务处置。

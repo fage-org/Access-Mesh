@@ -55,7 +55,9 @@ public class RResponseAdvice implements ResponseBodyAdvice<Object> {
             HttpServletRequest req = attrs.getRequest();
             String fromHeader = req.getHeader(REQUEST_ID_HEADER);
             if (fromHeader != null && !fromHeader.isBlank()) {
-                return fromHeader;
+                // 与 access-service 拦截器同款规整（trim + 64 截断，T-PERM-021 F1.d 外评处置）：
+                // 直连非规范头时响应壳与 MDC/审计 request_id 保持同一字符串
+                return truncate(fromHeader.trim());
             }
         }
         String fromMdc = MDC.get(MDC_TRACE_ID);
@@ -63,5 +65,10 @@ public class RResponseAdvice implements ResponseBodyAdvice<Object> {
             return fromMdc;
         }
         return UUID.randomUUID().toString();
+    }
+
+    /** 对齐审计 request_id 列宽与拦截器截断口径。 */
+    private static String truncate(String value) {
+        return value.length() > 64 ? value.substring(0, 64) : value;
     }
 }

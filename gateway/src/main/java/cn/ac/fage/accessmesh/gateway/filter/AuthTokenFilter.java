@@ -208,6 +208,9 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
         Object requestId = exchange.getAttribute("requestId");
         if (requestId != null) {
             resp.setRequestId(requestId.toString());
+            // traceId 与 requestId 同值别名（T-PERM-021 F1.d 外评处置：对齐 GlobalExceptionHandler，
+            // NON_NULL 下缺省即字段消失，401 路径不落单）
+            resp.setTraceId(requestId.toString());
         }
 
         try {
