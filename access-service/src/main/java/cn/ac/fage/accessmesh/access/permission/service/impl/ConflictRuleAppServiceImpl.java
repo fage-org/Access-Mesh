@@ -10,10 +10,12 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ConflictRuleUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConflictDetectResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConflictRuleResp;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionConflictRule;
+import cn.ac.fage.accessmesh.access.permission.enums.ConflictType;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.ConflictRuleAppService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
@@ -62,19 +64,44 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     private static final String ROLE_MUTEX = "ROLE_MUTEX";
     private static final String PERM_MUTEX = "PERM_MUTEX";
 
+    /** 20063 message 中冲突用户 id 清单的截断上限 */
+    private static final int EXISTING_HOLDERS_MESSAGE_LIMIT = 20;
+
     private final PermissionConflictRuleMapper conflictRuleMapper;
     private final PermQueryEngine engine;
+    private final PermissionConflictDomainService permissionConflictDomainService;
 
     /**
      * 构造函数注入依赖
      *
-     * @param conflictRuleMapper 权限冲突规则数据访问层
-     * @param engine             权限查询引擎
+     * @param conflictRuleMapper             权限冲突规则数据访问层
+     * @param engine                         权限查询引擎
+     * @param permissionConflictDomainService 权限冲突领域服务（T-PERM-063 存量双持守卫）
      */
     public ConflictRuleAppServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
-                                      PermQueryEngine engine) {
+                                      PermQueryEngine engine,
+                                      PermissionConflictDomainService permissionConflictDomainService) {
         this.conflictRuleMapper = conflictRuleMapper;
         this.engine = engine;
+        this.permissionConflictDomainService = permissionConflictDomainService;
+    }
+
+    /**
+     * 存量双持守卫（T-PERM-063）：ROLE_MUTEX 规则 create/update 写入前检查——
+     * 存在同时持有两角色的用户即拒绝 20063（message 含冲突用户 id 清单，截断上限 20），
+     * 管理员先解绑再立规；立规后系统内无违规持有，运行时双删不再是常态兜底。
+     */
+    private void rejectExistingMutexHolders(Long tenantId, Long firstRoleId, Long secondRoleId) {
+        List<Long> holders = permissionConflictDomainService.findUsersHoldingBothRoles(
+            tenantId, firstRoleId, secondRoleId);
+        if (holders.isEmpty()) {
+            return;
+        }
+        List<Long> shown = holders.size() > EXISTING_HOLDERS_MESSAGE_LIMIT
+            ? holders.subList(0, EXISTING_HOLDERS_MESSAGE_LIMIT) : holders;
+        throw new BizException(PermissionErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode(),
+            "users holding both roles (" + holders.size() + " total): " + shown
+                + (holders.size() > shown.size() ? " ..." : ""));
     }
 
     /**
@@ -213,6 +240,11 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
         }
 
+        // T-PERM-063：ROLE_MUTEX 存量守卫——有用户同时持有两角色则拒绝立规（20063）
+        if (ROLE_MUTEX.equals(req.conflictType())) {
+            rejectExistingMutexHolders(tenantId, req.firstAbstractRoleId(), req.secondAbstractRoleId());
+        }
+
         PermissionConflictRule rule = new PermissionConflictRule();
         rule.setTenantId(tenantId);
         rule.setConflictType(req.conflictType());
@@ -345,6 +377,12 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
         }
 
+        // T-PERM-063：ROLE_MUTEX 存量守卫——有用户同时持有两角色则拒绝改规（20063）；
+        // 同对重写幂等：系统干净时持有清单为空自然放行
+        if (ROLE_MUTEX.equals(conflictType)) {
+            rejectExistingMutexHolders(tenantId, firstRole, secondRole);
+        }
+
         // UpdateEntity 全量覆盖（T-PERM-030 从 UpdateChain 对齐 T-PERM-028 extraClear 标准方式）：
         // 按 conflictType 写入对应字段集（规范化顺序），对侧强制 null。
         // PERM_MUTEX 下 resourceTypeValue 直接用 req 值（null=全部，可清空）。
@@ -393,17 +431,23 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     /**
      * 检测权限冲突
      * <p>
-     * 根据给定的两个操作权限ID检测是否存在冲突规则。
-     * 支持双向匹配：如果规则定义了(A,B)冲突，则(A,B)和(B,A)都视为冲突。
-     * 可按资源类型过滤冲突规则；resource_type_value IS NULL 的全局规则
-     * 始终参与匹配（对齐 schema「NULL=所有」语义，由 Mapper SQL 保证）。
-     * 类型级 CONFLICT_RULE:VIEW 门禁（T-PERM-030，matchedRules 同样透出规则数据）。
+     * 两种形态二选一（T-PERM-063 扩展）：
+     * <ul>
+     *   <li>操作权限对（PERM_MUTEX 场景）：按给定的两个操作权限ID检测冲突规则，
+     *       支持双向匹配；可按资源类型过滤，NULL 全局规则始终参与（schema「NULL=所有」语义）。</li>
+     *   <li>角色对（ROLE_MUTEX 场景）：检测当前有效角色集同时含两角色的存量用户
+     *       （conflictedUserIds 回传，conflictDetected = 清单非空——立规前预检语义，
+     *       非空 = create/update 将被 20063 存量守卫拒绝）；同时双向匹配既有规则回传 matchedRules。</li>
+     * </ul>
+     * 两对都传或都不传拒绝 VALIDATION_FAILED。
+     * 类型级 CONFLICT_RULE:VIEW 门禁（T-PERM-030，matchedRules/conflictedUserIds 同样透出数据）。
      * </p>
      *
      * @param tenantId 租户ID
-     * @param req      冲突检测请求，包含两个操作权限ID和可选的资源类型
-     * @return 冲突检测结果，包含是否冲突和匹配的冲突规则列表
+     * @param req      冲突检测请求（操作权限对或角色对，二选一）
+     * @return 冲突检测结果（conflictDetected + matchedRules + conflictedUserIds）
      * @throws SecurityException 无 VIEW 权限时抛出
+     * @throws BizException      请求形态不合法（两对都传/都不传）时抛出
      */
     @Override
     public ConflictDetectResp detectConflictRule(Long tenantId, ConflictRuleDetectReq req) {
@@ -411,6 +455,28 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on CONFLICT_RULE");
         }
+
+        boolean opPairPresent = req.firstOperationPermissionId() != null && req.secondOperationPermissionId() != null;
+        boolean rolePairPresent = req.firstAbstractRoleId() != null && req.secondAbstractRoleId() != null;
+        if (opPairPresent == rolePairPresent) {
+            throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                "detect 需二选一：操作权限对（first/secondOperationPermissionId）或角色对（first/secondAbstractRoleId），且两端必填");
+        }
+
+        if (rolePairPresent) {
+            List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
+                tenantId, ConflictType.ROLE_MUTEX.getValue());
+            List<ConflictRuleResp> matched = rules.stream().filter(rule ->
+                (Objects.equals(rule.getFirstAbstractRoleId(), req.firstAbstractRoleId())
+                    && Objects.equals(rule.getSecondAbstractRoleId(), req.secondAbstractRoleId()))
+                || (Objects.equals(rule.getFirstAbstractRoleId(), req.secondAbstractRoleId())
+                    && Objects.equals(rule.getSecondAbstractRoleId(), req.firstAbstractRoleId()))
+            ).map(this::toConflictRuleResp).collect(Collectors.toList());
+            List<Long> conflictedUserIds = permissionConflictDomainService.findUsersHoldingBothRoles(
+                tenantId, req.firstAbstractRoleId(), req.secondAbstractRoleId());
+            return new ConflictDetectResp(!conflictedUserIds.isEmpty(), matched, conflictedUserIds);
+        }
+
         Integer resourceTypeValue = req.resourceTypeValue();
         List<PermissionConflictRule> rules = conflictRuleMapper.selectByTenantAndResourceType(tenantId, resourceTypeValue);
         List<ConflictRuleResp> matched = rules.stream().filter(rule ->
@@ -419,7 +485,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
                 || (Objects.equals(rule.getFirstOperationPermissionId(), req.secondOperationPermissionId())
                 && Objects.equals(rule.getSecondOperationPermissionId(), req.firstOperationPermissionId()))
         ).map(this::toConflictRuleResp).collect(Collectors.toList());
-        return new ConflictDetectResp(!matched.isEmpty(), matched);
+        return new ConflictDetectResp(!matched.isEmpty(), matched, List.of());
     }
 
     /**

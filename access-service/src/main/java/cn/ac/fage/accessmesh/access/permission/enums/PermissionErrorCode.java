@@ -332,7 +332,23 @@ public enum PermissionErrorCode {
      * 种子行由类型生命周期维护：创建类型/追加操作自动补种、所有者变更同事务迁移
      * （先清后种重整化）、类型删除级联清理（T-PERM-050）。
      */
-    AUTHORITY_ROOT_READONLY(20061, "授权根种子行只读（经类型生命周期维护：类型创建/追加操作补种、所有者变更迁移、类型删除清理）");
+    AUTHORITY_ROOT_READONLY(20061, "授权根种子行只读（经类型生命周期维护：类型创建/追加操作补种、所有者变更迁移、类型删除清理）"),
+
+    /**
+     * 角色互斥授予冲突（T-PERM-063）：user-role/assign、batch-assign 写路径事务内校验
+     * 「授予后有效角色集（现有效 ∪ 本批新增，仅计启用角色）」命中 ROLE_MUTEX 对即整批原子
+     * 拒绝（对齐本入口既有逐项收集 errors 整批抛风格），message 列出冲突用户与角色对。
+     * 规则读取走 DB 直查不经 ROLE_MUTEX_RULE 缓存，新建规则即刻生效。
+     */
+    ROLE_MUTEX_ASSIGN_CONFLICT(20062, "授予后用户将同时持有互斥角色，已整批拒绝（冲突用户与角色对见 message）"),
+
+    /**
+     * 角色互斥规则存量持有守卫（T-PERM-063）：conflict-rule/create、update 的 ROLE_MUTEX
+     * 分支在写入前检查存量——存在同时持有两角色的用户即拒绝立规（message 含冲突用户 id
+     * 清单，截断上限 20），管理员先解绑再立规；立规后系统内无违规持有，运行时双删不再是
+     * 常态兜底。PERM_MUTEX 分支与 remove 不适用。
+     */
+    ROLE_MUTEX_EXISTING_HOLDERS(20063, "存在同时持有互斥角色对的用户，不可创建/更新该规则（请先解绑，用户清单见 message）");
 
     private final int code;
     private final String message;

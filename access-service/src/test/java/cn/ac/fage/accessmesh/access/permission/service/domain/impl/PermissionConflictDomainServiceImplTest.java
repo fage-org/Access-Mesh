@@ -1,33 +1,47 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.common.cache.CacheService;
+import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionConflictRule;
+import cn.ac.fage.accessmesh.access.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.access.permission.enums.ConflictType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConflictRuleMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
- * {@link PermissionConflictDomainServiceImpl} 权限互斥过滤测试（保留面 filterPermMutex 运行时路径）。
+ * {@link PermissionConflictDomainServiceImpl} 互斥域测试。
  * <p>
- * 原 filterPermMutexWithDrops 明细用例族已随 explain 端点删除（T-PERM-059，2026-09-10）；
- * 本文件重写为 filterPermMutex（引擎运行时过滤）驱动的行为锁：规则命中两侧同丢、
- * 单侧在场不生效、无规则全保留、冲突触发异步通知。
+ * filterPermMutex（引擎运行时过滤）：规则命中两侧同丢、单侧在场不生效、无规则全保留、
+ * 冲突触发异步通知（原明细用例族已随 explain 端点删除，T-PERM-059）。
+ * T-PERM-063 补：filterRoleMutex 双删 + CONFLICT_DETECTED 日志去重限流（旧实现双删
+ * 静默无痕，日志断言在旧实现下必红）、授予前冲突检测（DB 直查）、存量双持查询
+ * （有效角色集收敛）。
  * </p>
  */
 @ExtendWith(MockitoExtension.class)
@@ -39,13 +53,16 @@ class PermissionConflictDomainServiceImplTest {
     @Mock private CacheService cacheService;
     @Mock private AuditDomainService auditDomainService;
     @Mock private OperationPermissionMapper operationPermissionMapper;
+    @Mock private UserRoleMapper userRoleMapper;
+    @Mock private SubjectDomainService subjectDomainService;
 
     private PermissionConflictDomainServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new PermissionConflictDomainServiceImpl(conflictRuleMapper, cacheService,
-            new ObjectMapper(), auditDomainService, operationPermissionMapper);
+            new ObjectMapper(), auditDomainService, operationPermissionMapper,
+            userRoleMapper, subjectDomainService);
     }
 
     private OperationPermission op(Long id, Integer resourceType, long bit, String code) {
@@ -124,5 +141,122 @@ class PermissionConflictDomainServiceImplTest {
 
         assertEquals(1, survivors.size());
         verifyNoInteractions(auditDomainService);
+    }
+
+    @Nested
+    class RoleMutexFilterAndLogging {
+
+        /** 双删命中记日志且去重：同用户同规则对窗口内重复快照不重复记（旧实现无日志，必红） */
+        @Test
+        void shouldDropBothRolesAndLogOncePerUserRuleWithinDedupWindow() {
+            when(cacheService.get(PermCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+                .thenReturn("[{\"first\":100,\"second\":200}]");
+
+            Set<Long> first = service.filterRoleMutex(TENANT, 20L, Set.of(100L, 200L, 300L));
+            assertEquals(Set.of(300L), first);
+
+            Set<Long> second = service.filterRoleMutex(TENANT, 20L, Set.of(100L, 200L, 300L));
+            assertEquals(Set.of(300L), second);
+
+            verify(auditDomainService, times(1)).asyncRecordLog(any(AuditDomainService.OperationLogEntry.class));
+        }
+
+        /** 不同用户/不同规则对各自记日志 */
+        @Test
+        void shouldLogAgainForDifferentUserOrPair() {
+            when(cacheService.get(PermCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+                .thenReturn("[{\"first\":100,\"second\":200},{\"first\":300,\"second\":400}]");
+
+            service.filterRoleMutex(TENANT, 20L, Set.of(100L, 200L));
+            service.filterRoleMutex(TENANT, 21L, Set.of(100L, 200L));
+            service.filterRoleMutex(TENANT, 20L, Set.of(300L, 400L));
+
+            verify(auditDomainService, times(3)).asyncRecordLog(any(AuditDomainService.OperationLogEntry.class));
+        }
+
+        /** 单侧在场不构成互斥：保留且不记日志 */
+        @Test
+        void shouldNotLogWhenNoPairBothPresent() {
+            when(cacheService.get(PermCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+                .thenReturn("[{\"first\":100,\"second\":200}]");
+
+            Set<Long> result = service.filterRoleMutex(TENANT, 20L, Set.of(100L, 300L));
+
+            assertEquals(Set.of(100L, 300L), result);
+            verifyNoInteractions(auditDomainService);
+        }
+    }
+
+    @Nested
+    class AssignMutexConflictDetection {
+
+        /** 写路径校验走 DB 直查（不经缓存），授予后集合双端在场命中（同批双端由集合语义覆盖） */
+        @Test
+        void shouldFindAssignConflictsFromFreshDbRules() {
+            PermissionConflictRule roleRule = new PermissionConflictRule();
+            roleRule.setId(9L);
+            roleRule.setConflictType(ConflictType.ROLE_MUTEX.getValue());
+            roleRule.setFirstAbstractRoleId(100L);
+            roleRule.setSecondAbstractRoleId(200L);
+            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.ROLE_MUTEX.getValue()))
+                .thenReturn(List.of(roleRule));
+
+            List<PermissionConflictDomainService.RoleMutexAssignConflict> conflicts =
+                service.findAssignMutexConflicts(TENANT, Map.of(
+                    20L, Set.of(100L, 200L),
+                    21L, Set.of(100L),
+                    22L, Set.of(500L)));
+
+            assertEquals(1, conflicts.size());
+            assertEquals(20L, conflicts.get(0).userId());
+            assertEquals(9L, conflicts.get(0).ruleId());
+            verify(cacheService, never()).get(any(), any(), any());
+        }
+
+        /** 空入参/无规则零成本短路 */
+        @Test
+        void shouldShortCircuitWhenNoInputOrNoRules() {
+            assertEquals(List.of(), service.findAssignMutexConflicts(TENANT, Map.of()));
+            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.ROLE_MUTEX.getValue()))
+                .thenReturn(List.of());
+            assertEquals(List.of(), service.findAssignMutexConflicts(TENANT, Map.of(20L, Set.of(100L, 200L))));
+        }
+    }
+
+    @Nested
+    class UsersHoldingBothRoles {
+
+        /** 原始行双持 + 有效角色集收敛：一端禁用/过期的用户不计存量持有 */
+        @Test
+        void shouldFindHoldersByEffectiveSet() {
+            when(userRoleMapper.selectValidByTargetIdsAndType(TENANT, Set.of(100L, 200L), ResourceTypeCode.ROLE))
+                .thenReturn(List.of(userRole(20L, 100L), userRole(20L, 200L),
+                    userRole(21L, 100L), userRole(21L, 200L)));
+            when(subjectDomainService.batchResolveEffectiveRoles(TENANT, Set.of(20L, 21L)))
+                .thenReturn(Map.of(20L, Set.of(100L, 200L), 21L, Set.of(100L)));
+
+            List<Long> holders = service.findUsersHoldingBothRoles(TENANT, 100L, 200L);
+
+            assertEquals(List.of(20L), holders);
+        }
+
+        /** 原始行单持：无候选用户，不触有效角色解析 */
+        @Test
+        void shouldReturnEmptyWhenNoRawRowsForBoth() {
+            when(userRoleMapper.selectValidByTargetIdsAndType(TENANT, Set.of(100L, 200L), ResourceTypeCode.ROLE))
+                .thenReturn(List.of(userRole(20L, 100L)));
+
+            assertEquals(List.of(), service.findUsersHoldingBothRoles(TENANT, 100L, 200L));
+            verifyNoInteractions(subjectDomainService);
+        }
+    }
+
+    private UserRole userRole(Long userId, Long targetId) {
+        UserRole row = new UserRole();
+        row.setTenantId(TENANT);
+        row.setAbstractUserId(userId);
+        row.setTargetType(ResourceTypeCode.ROLE);
+        row.setTargetId(targetId);
+        return row;
     }
 }

@@ -432,7 +432,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         Set<Long> effectiveRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
         Set<Long> validRoleIds = effectiveRoleIds.isEmpty()
             ? Set.of()
-            : permissionConflictDomainService.filterRoleMutex(tenantId, effectiveRoleIds);
+            : permissionConflictDomainService.filterRoleMutex(tenantId, userId, effectiveRoleIds);
 
         if (validRoleIds.isEmpty()) {
             // 无有效角色 → 空快照。Gateway 缓存空快照，靠 TTL + 广播最终一致。

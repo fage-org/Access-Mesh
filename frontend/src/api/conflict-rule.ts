@@ -99,17 +99,25 @@ export type ConflictRuleCreateReq = ConflictRulePayload;
 /** 冲突规则更新请求（对齐 ConflictRuleUpdateReq，id 必填，全量替换语义） */
 export type ConflictRuleUpdateReq = { id: number } & ConflictRulePayload;
 
-/** 冲突检测结果响应（对齐 ConflictDetectResp） */
+/** 冲突检测结果响应（对齐 ConflictDetectResp）。
+ *  角色对形态（T-PERM-063）额外回传 conflictedUserIds：当前有效角色集同时含
+ *  两角色的用户——conflictDetected 即以该清单非空判定（立规前预检语义：
+ *  非空 = create/update 将被 20063 存量守卫拒绝）；操作权限对形态恒为空数组。 */
 export type ConflictDetectResp = {
   conflictDetected: boolean;
   matchedRules: ConflictRuleResp[];
+  conflictedUserIds: number[];
 };
 
-/** 冲突检测请求（对齐 ConflictRuleDetectReq） */
+/** 冲突检测请求（对齐 ConflictRuleDetectReq）。
+ *  两种形态二选一：操作权限对（PERM_MUTEX）或角色对（ROLE_MUTEX），
+ *  两对都传或都不传后端拒绝 VALIDATION_FAILED。 */
 export type ConflictDetectReq = {
-  firstOperationPermissionId: number;
-  secondOperationPermissionId: number;
+  firstOperationPermissionId?: number | null;
+  secondOperationPermissionId?: number | null;
   resourceTypeValue?: number | null;
+  firstAbstractRoleId?: number | null;
+  secondAbstractRoleId?: number | null;
 };
 
 // ========== API 函数 ==========
@@ -172,11 +180,9 @@ export const updateConflictRule = async (
  *  幂等：幽灵 id 静默跳过；无类型级 DELETE 权限整批拒绝。 */
 export const removeConflictRules = async (ids: number[]): Promise<void> => {
   unwrap(
-    await http.request<R<void>>(
-      "post",
-      "/perm/api/perm/conflict-rule/remove",
-      { data: { ids } }
-    )
+    await http.request<R<void>>("post", "/perm/api/perm/conflict-rule/remove", {
+      data: { ids }
+    })
   );
 };
 

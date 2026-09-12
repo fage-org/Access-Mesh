@@ -2,11 +2,15 @@ package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionConflictRule;
+import cn.ac.fage.accessmesh.access.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.access.permission.enums.ConflictType;
+import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConflictRuleMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.BatchPermMutexEvaluator;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
@@ -15,10 +19,13 @@ import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -44,6 +51,18 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     private final ObjectMapper objectMapper;
     private final AuditDomainService auditDomainService;
     private final OperationPermissionMapper operationPermissionMapper;
+    private final UserRoleMapper userRoleMapper;
+    private final SubjectDomainService subjectDomainService;
+
+    /**
+     * 双删日志去重表（T-PERM-063）：每「租户×用户×角色对」每 JVM 1 小时至多一条
+     * CONFLICT_DETECTED。快照链路是高频读路径，无去重会随 TTL 过期反复刷屏；
+     * 有界（10000 条）+ expireAfterWrite 自淘汰，多实例各自独立记账。
+     */
+    private final Cache<String, Boolean> mutexDropNotified = Caffeine.newBuilder()
+        .maximumSize(10_000)
+        .expireAfterWrite(Duration.ofHours(1))
+        .build();
 
     /**
      * 构造函数注入依赖
@@ -53,17 +72,23 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * @param objectMapper              JSON解析器
      * @param auditDomainService        审计领域服务，用于记录冲突通知
      * @param operationPermissionMapper 操作权限数据访问层，用于查找冲突操作权限
+     * @param userRoleMapper            用户角色数据访问层，用于存量双持查询
+     * @param subjectDomainService      主体领域服务，用于有效角色解析（存量双持判定与运行时同源）
      */
     public PermissionConflictDomainServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
                                                 CacheService cacheService,
                                                 ObjectMapper objectMapper,
                                                 AuditDomainService auditDomainService,
-                                                OperationPermissionMapper operationPermissionMapper) {
+                                                OperationPermissionMapper operationPermissionMapper,
+                                                UserRoleMapper userRoleMapper,
+                                                SubjectDomainService subjectDomainService) {
         this.conflictRuleMapper = conflictRuleMapper;
         this.cacheService = cacheService;
         this.objectMapper = objectMapper;
         this.auditDomainService = auditDomainService;
         this.operationPermissionMapper = operationPermissionMapper;
+        this.userRoleMapper = userRoleMapper;
+        this.subjectDomainService = subjectDomainService;
     }
 
     /**
@@ -72,14 +97,17 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * 根据角色互斥规则过滤有效角色集合。
      * 如果用户同时拥有互斥的两个角色，则同时移除这两个角色。
      * 角色互斥规则通过 CacheService 缓存（JSON格式）。
+     * 双删命中时记录 CONFLICT_DETECTED 操作日志（T-PERM-063，对齐 PERM_MUTEX 先例；
+     * 去重限流见 {@link #mutexDropNotified}）——此前双删静默无痕，用户权限消失无任何可查记录。
      * </p>
      *
      * @param tenantId        租户ID
+     * @param userId          用户ID（快照构建方已知，日志归因用）
      * @param effectiveRoleIds 有效角色ID集合
      * @return 过滤后的有效角色ID集合（移除互斥角色）
      */
     @Override
-    public Set<Long> filterRoleMutex(Long tenantId, Set<Long> effectiveRoleIds) {
+    public Set<Long> filterRoleMutex(Long tenantId, Long userId, Set<Long> effectiveRoleIds) {
         // 从缓存获取角色互斥规则（JSON格式）
         String cachedJson = cacheService.get(PermCacheCatalog.ROLE_MUTEX_RULE, tenantId, "all");
 
@@ -101,13 +129,114 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
 
         Set<Long> result = new HashSet<>(effectiveRoleIds);
         for (RoleMutexPair pair : mutexPairs) {
-            if (pair.first != null && pair.second != null
-                && result.contains(pair.first) && result.contains(pair.second)) {
-                result.remove(pair.first);
-                result.remove(pair.second);
+            if (pair.first() != null && pair.second() != null
+                && result.contains(pair.first()) && result.contains(pair.second())) {
+                result.remove(pair.first());
+                result.remove(pair.second());
+                notifyRoleMutexDrop(tenantId, userId, pair);
             }
         }
         return result;
+    }
+
+    /**
+     * 双删日志（T-PERM-063）：异步记录 CONFLICT_DETECTED，去重限流。
+     * <p>
+     * 审计写入经 {@link AuditDomainService#asyncRecordLog} 有界线程池异步执行，不阻塞快照链路。
+     * </p>
+     */
+    private void notifyRoleMutexDrop(Long tenantId, Long userId, RoleMutexPair pair) {
+        String dedupKey = tenantId + ":" + userId + ":" + pair.first() + ":" + pair.second();
+        if (mutexDropNotified.getIfPresent(dedupKey) != null) {
+            return;
+        }
+        mutexDropNotified.put(dedupKey, Boolean.TRUE);
+        try {
+            auditDomainService.asyncRecordLog(new AuditDomainService.OperationLogEntry(
+                tenantId, "PERMISSION", "CONFLICT_DETECTED", "permission_conflict_rule", null,
+                String.format("Role mutex dropped: tenantId=%d, userId=%d, roles=%d vs %d "
+                    + "(both roles removed from effective set at snapshot build)",
+                    tenantId, userId, pair.first(), pair.second()),
+                null, null, null, null, null, null, null
+            ));
+        } catch (Exception e) {
+            log.error("Failed to record role mutex drop notification: tenantId={}, userId={}", tenantId, userId, e);
+        }
+    }
+
+    /**
+     * 授予前互斥冲突检测（T-PERM-063 写路径校验）。
+     * <p>
+     * 规则 DB 直查（不经缓存），新建规则即刻生效于授予校验。
+     * 冲突判定与运行时 filterRoleMutex 同语义：集合同时含两端即命中。
+     * </p>
+     */
+    @Override
+    public List<RoleMutexAssignConflict> findAssignMutexConflicts(Long tenantId,
+                                                                  Map<Long, Set<Long>> postStateRoleIdsByUser) {
+        if (postStateRoleIdsByUser == null || postStateRoleIdsByUser.isEmpty()) {
+            return List.of();
+        }
+        List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
+            tenantId, ConflictType.ROLE_MUTEX.getValue());
+        if (rules.isEmpty()) {
+            return List.of();
+        }
+        List<RoleMutexAssignConflict> conflicts = new ArrayList<>();
+        for (Map.Entry<Long, Set<Long>> entry : postStateRoleIdsByUser.entrySet()) {
+            Set<Long> postState = entry.getValue();
+            if (postState == null || postState.size() < 2) {
+                continue;
+            }
+            for (PermissionConflictRule rule : rules) {
+                if (rule.getFirstAbstractRoleId() != null && rule.getSecondAbstractRoleId() != null
+                    && postState.contains(rule.getFirstAbstractRoleId())
+                    && postState.contains(rule.getSecondAbstractRoleId())) {
+                    conflicts.add(new RoleMutexAssignConflict(
+                        entry.getKey(), rule.getId(),
+                        rule.getFirstAbstractRoleId(), rule.getSecondAbstractRoleId()));
+                }
+            }
+        }
+        return conflicts;
+    }
+
+    /**
+     * 存量双持查询（T-PERM-063 规则写路径守卫）。
+     * <p>
+     * 先按 user_role 原始行筛出「两角色都有行」的候选用户，再经
+     * {@link SubjectDomainService#batchResolveEffectiveRoles} 收敛到有效角色集
+     * （覆盖有效性窗口、启用态、组角色展开）——与运行时 filterRoleMutex 的判定集合同源，
+     * 避免把已过期/已禁用关系的持有误计为存量违规。
+     * </p>
+     */
+    @Override
+    public List<Long> findUsersHoldingBothRoles(Long tenantId, Long firstRoleId, Long secondRoleId) {
+        List<UserRole> rows = userRoleMapper.selectValidByTargetIdsAndType(
+            tenantId, Set.of(firstRoleId, secondRoleId), ResourceTypeCode.ROLE);
+        Map<Long, Set<Long>> targetsByUser = new HashMap<>();
+        for (UserRole row : rows) {
+            targetsByUser.computeIfAbsent(row.getAbstractUserId(), k -> new HashSet<>())
+                .add(row.getTargetId());
+        }
+        Set<Long> candidates = new LinkedHashSet<>();
+        for (Map.Entry<Long, Set<Long>> entry : targetsByUser.entrySet()) {
+            if (entry.getValue().contains(firstRoleId) && entry.getValue().contains(secondRoleId)) {
+                candidates.add(entry.getKey());
+            }
+        }
+        if (candidates.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Set<Long>> effective = subjectDomainService.batchResolveEffectiveRoles(tenantId, candidates);
+        List<Long> holders = new ArrayList<>();
+        for (Long userId : candidates) {
+            Set<Long> roles = effective.getOrDefault(userId, Set.of());
+            if (roles.contains(firstRoleId) && roles.contains(secondRoleId)) {
+                holders.add(userId);
+            }
+        }
+        return holders;
     }
 
     /**
@@ -128,7 +257,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
         if (!mutexPairs.isEmpty()) {
             try {
                 List<Map<String, Long>> toCache = mutexPairs.stream()
-                    .map(p -> Map.of("first", p.first, "second", p.second))
+                    .map(p -> Map.of("first", p.first(), "second", p.second()))
                     .collect(Collectors.toList());
                 String json = objectMapper.writeValueAsString(toCache);
                 cacheService.put(readToken, tenantId, "all", json);

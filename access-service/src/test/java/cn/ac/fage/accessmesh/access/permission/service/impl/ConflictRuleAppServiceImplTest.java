@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.access.permission.entity.PermissionConflictRule;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConflictRuleMapper;
+import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import jakarta.validation.Validation;
@@ -65,6 +66,7 @@ class ConflictRuleAppServiceImplTest {
 
     @Mock private PermissionConflictRuleMapper conflictRuleMapper;
     @Mock private PermQueryEngine engine;
+    @Mock private PermissionConflictDomainService permissionConflictDomainService;
 
     private static ValidatorFactory validatorFactory;
 
@@ -84,7 +86,7 @@ class ConflictRuleAppServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new ConflictRuleAppServiceImpl(conflictRuleMapper, engine);
+        service = new ConflictRuleAppServiceImpl(conflictRuleMapper, engine, permissionConflictDomainService);
     }
 
     private PermissionConflictRule newRoleRule(long id, long firstRole, long secondRole) {
@@ -534,7 +536,7 @@ class ConflictRuleAppServiceImplTest {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
                 stubTypeLevelPermission(OperationCodeConstants.VIEW, false);
 
-                ConflictRuleDetectReq req = new ConflictRuleDetectReq(501L, 504L, null);
+                ConflictRuleDetectReq req = new ConflictRuleDetectReq(501L, 504L, null, null, null);
 
                 assertThatThrownBy(() -> service.detectConflictRule(TENANT_ID, req))
                     .isInstanceOf(SecurityException.class);
@@ -554,7 +556,7 @@ class ConflictRuleAppServiceImplTest {
 
                 // 请求 (504,501) 反序 → 规则 (501,504) 双向命中
                 ConflictDetectResp resp = service.detectConflictRule(TENANT_ID,
-                    new ConflictRuleDetectReq(504L, 501L, 3));
+                    new ConflictRuleDetectReq(504L, 501L, 3, null, null));
 
                 assertThat(resp.conflictDetected()).isTrue();
                 assertThat(resp.matchedRules()).hasSize(1);
@@ -571,7 +573,7 @@ class ConflictRuleAppServiceImplTest {
                     .thenReturn(List.of(newPermRule(RULE_ID, 501L, 504L, null)));
 
                 ConflictDetectResp resp = service.detectConflictRule(TENANT_ID,
-                    new ConflictRuleDetectReq(501L, 509L, null));
+                    new ConflictRuleDetectReq(501L, 509L, null, null, null));
 
                 assertThat(resp.conflictDetected()).isFalse();
                 assertThat(resp.matchedRules()).isEmpty();
@@ -613,9 +615,138 @@ class ConflictRuleAppServiceImplTest {
         }
 
         @Test
-        void shouldRejectNullOperationIds_onDetect() {
-            assertThat(validator.validate(new ConflictRuleDetectReq(null, 504L, null))).isNotEmpty();
-            assertThat(validator.validate(new ConflictRuleDetectReq(501L, null, null))).isNotEmpty();
+        void shouldAcceptRolePairFields_onDetect() {
+            // T-PERM-063：detect 扩展为二选一形态，DTO 层不再有 @NotNull（对形态的约束移服务层）
+            assertThat(validator.validate(new ConflictRuleDetectReq(101L, 102L, null, null, null))).isEmpty();
+            assertThat(validator.validate(new ConflictRuleDetectReq(null, null, null, 201L, 202L))).isEmpty();
+        }
+    }
+
+    @Nested
+    class RoleMutexExistingHoldersGuard {
+
+        @Test
+        void shouldRejectCreate_whenUsersHoldBothRoles() {
+            // T-PERM-063 存量守卫：旧实现无此校验、直接落库，本用例在旧实现下必红
+            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            when(permissionConflictDomainService.findUsersHoldingBothRoles(TENANT_ID, 101L, 102L))
+                .thenReturn(List.of(20L, 21L, 22L));
+
+            ConflictRuleReq req = new ConflictRuleReq("ROLE_MUTEX", null, null, null, 101L, 102L, null);
+
+            assertThatThrownBy(() -> service.createConflictRule(TENANT_ID, req, OPERATOR_ID))
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getErrorCode())
+                .isEqualTo(PermissionErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
+            verify(conflictRuleMapper, never()).insert(any(PermissionConflictRule.class));
+        }
+
+        @Test
+        void shouldCreate_whenNoExistingHolders() {
+            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            // 请求反序 (102,101)：守卫在 first&lt;second 规范化前按原始请求序查询
+            when(permissionConflictDomainService.findUsersHoldingBothRoles(TENANT_ID, 102L, 101L))
+                .thenReturn(List.of());
+            when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of());
+
+            ConflictRuleResp resp = service.createConflictRule(
+                TENANT_ID, new ConflictRuleReq("ROLE_MUTEX", null, null, null, 102L, 101L, null), OPERATOR_ID);
+
+            assertThat(resp.firstAbstractRoleId()).isEqualTo(101L);
+            verify(conflictRuleMapper).insert(any(PermissionConflictRule.class));
+        }
+
+        @Test
+        void shouldNotCheckHolders_onPermMutexCreate() {
+            // PERM_MUTEX 分支不适用存量守卫（守卫只针对角色对）
+            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of());
+
+            service.createConflictRule(
+                TENANT_ID, new ConflictRuleReq("PERM_MUTEX", 501L, 504L, null, null, null, null), OPERATOR_ID);
+
+            verify(permissionConflictDomainService, never()).findUsersHoldingBothRoles(anyLong(), anyLong(), anyLong());
+        }
+
+        @Test
+        void shouldRejectUpdate_whenUsersHoldBothRoles() {
+            PermissionConflictRule existing = newRoleRule(RULE_ID, 101L, 102L);
+            when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID)).thenReturn(existing);
+            when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of(existing));
+            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            when(permissionConflictDomainService.findUsersHoldingBothRoles(TENANT_ID, 301L, 302L))
+                .thenReturn(List.of(20L));
+
+            ConflictRuleUpdateReq req = new ConflictRuleUpdateReq(RULE_ID, "ROLE_MUTEX", null, null, null, 301L, 302L, null);
+
+            assertThatThrownBy(() -> service.updateConflictRule(TENANT_ID, req, OPERATOR_ID))
+                .isInstanceOf(BizException.class)
+                .extracting(ex -> ((BizException) ex).getErrorCode())
+                .isEqualTo(PermissionErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
+            verify(conflictRuleMapper, never()).update(any(PermissionConflictRule.class));
+        }
+    }
+
+    @Nested
+    class DetectRoleMutexPair {
+
+        @Test
+        void shouldReturnHolders_whenRolePairDetected() {
+            // T-PERM-063：角色对形态 = 立规前预检，conflictDetected 以存量持有清单判定
+            try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
+                opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
+                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                when(conflictRuleMapper.selectByConflictType(TENANT_ID,
+                    cn.ac.fage.accessmesh.access.permission.enums.ConflictType.ROLE_MUTEX.getValue()))
+                    .thenReturn(List.of());
+                when(permissionConflictDomainService.findUsersHoldingBothRoles(TENANT_ID, 101L, 102L))
+                    .thenReturn(List.of(20L, 21L));
+
+                ConflictDetectResp resp = service.detectConflictRule(
+                    TENANT_ID, new ConflictRuleDetectReq(null, null, null, 101L, 102L));
+
+                assertThat(resp.conflictDetected()).isTrue();
+                assertThat(resp.conflictedUserIds()).containsExactly(20L, 21L);
+            }
+        }
+
+        @Test
+        void shouldReturnNoConflict_whenNoHolders() {
+            try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
+                opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
+                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                when(conflictRuleMapper.selectByConflictType(TENANT_ID,
+                    cn.ac.fage.accessmesh.access.permission.enums.ConflictType.ROLE_MUTEX.getValue()))
+                    .thenReturn(List.of());
+                when(permissionConflictDomainService.findUsersHoldingBothRoles(TENANT_ID, 101L, 102L))
+                    .thenReturn(List.of());
+
+                ConflictDetectResp resp = service.detectConflictRule(
+                    TENANT_ID, new ConflictRuleDetectReq(null, null, null, 101L, 102L));
+
+                assertThat(resp.conflictDetected()).isFalse();
+                assertThat(resp.conflictedUserIds()).isEmpty();
+            }
+        }
+
+        @Test
+        void shouldReject_whenBothPairsOrNeitherPresent() {
+            try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
+                opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
+                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+
+                assertThatThrownBy(() -> service.detectConflictRule(
+                        TENANT_ID, new ConflictRuleDetectReq(501L, 504L, null, 101L, 102L)))
+                    .isInstanceOf(BizException.class)
+                    .extracting(ex -> ((BizException) ex).getErrorCode())
+                    .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode());
+                assertThatThrownBy(() -> service.detectConflictRule(
+                        TENANT_ID, new ConflictRuleDetectReq(null, null, null, null, null)))
+                    .isInstanceOf(BizException.class);
+                assertThatThrownBy(() -> service.detectConflictRule(
+                        TENANT_ID, new ConflictRuleDetectReq(501L, null, null, null, 202L)))
+                    .isInstanceOf(BizException.class);
+            }
         }
     }
 }

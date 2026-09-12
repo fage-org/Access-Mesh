@@ -2,7 +2,9 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.permission.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserCreateReq;
+import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleBatchAssignReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
@@ -15,6 +17,7 @@ import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
+import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
@@ -52,6 +55,7 @@ class UserManageAppServiceImplTest {
     @Mock private AuditDomainService auditDomainService;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private PermQueryEngine engine;
+    @Mock private PermissionConflictDomainService permissionConflictDomainService;
 
     private UserManageAppServiceImpl service;
 
@@ -68,7 +72,8 @@ class UserManageAppServiceImplTest {
             new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
             localProjectionDomainService,
             new ObjectMapper(),
-            engine
+            engine,
+            permissionConflictDomainService
         );
     }
 
@@ -192,5 +197,95 @@ class UserManageAppServiceImplTest {
 
         verify(localProjectionDomainService).softDeleteUserResources(1L, Set.of(77L));
         verify(auditDomainService).recordChangeLog(any(), any());
+    }
+
+    /** 装配 assignRole 公共依赖：用户/角色解析、门禁放行、无既有关系。 */
+    private void stubAssignRoleBasics() {
+        when(typeResolutionService.batchResolveUserIds(eq(1L), eq("USER"), eq(Set.of("u-1"))))
+            .thenReturn(Map.of("u-1", 20L));
+        when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("r-200")), eq((String) null)))
+            .thenReturn(Map.of("r-200", 200L));
+        when(userRoleMapper.selectValidByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
+            .thenReturn(List.<UserRole>of());
+        when(abstractRoleMapper.selectEnabledIdsByIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of(200L));
+        when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, Set.of(100L)));
+    }
+
+    /** T-PERM-063：授予后状态命中互斥对 → 整批原子拒绝 20062（旧实现直接落库，本用例必红）。 */
+    @Test
+    void shouldRejectAssignRoleWhenPostStateHitsMutexPair() {
+        UserAssignRoleReq req = new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem(
+                "USER", "u-1", null, "BASIC_ROLE", "r-200", null, null, null)
+        ));
+        stubAssignRoleBasics();
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq(Set.of("200")), eq(OperationCodeConstants.MANAGE))).thenReturn(Set.of());
+            when(permissionConflictDomainService.findAssignMutexConflicts(eq(1L), any()))
+                .thenReturn(List.of(new PermissionConflictDomainService.RoleMutexAssignConflict(
+                    20L, 9L, 100L, 200L)));
+
+            BizException exception = assertThrows(BizException.class, () -> service.assignRole(1L, req));
+
+            assertEquals(PermissionErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
+            org.mockito.Mockito.verify(userRoleMapper, org.mockito.Mockito.never()).insertBatch(any());
+        }
+    }
+
+    /** T-PERM-063：无冲突照常落库（守卫不拦截正常授予）。 */
+    @Test
+    void shouldAssignRoleWhenNoMutexConflict() {
+        UserAssignRoleReq req = new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem(
+                "USER", "u-1", null, "BASIC_ROLE", "r-200", null, null, null)
+        ));
+        stubAssignRoleBasics();
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq(Set.of("200")), eq(OperationCodeConstants.MANAGE))).thenReturn(Set.of());
+            when(permissionConflictDomainService.findAssignMutexConflicts(eq(1L), any()))
+                .thenReturn(List.of());
+
+            service.assignRole(1L, req);
+
+            org.mockito.Mockito.verify(userRoleMapper).insertBatch(any());
+        }
+    }
+
+    /** T-PERM-063：batch-assign（单角色×多用户）同款守卫——用户现持有互斥对端角色时整批拒绝。 */
+    @Test
+    void shouldRejectBatchAssignWhenPostStateHitsMutexPair() {
+        UserRoleBatchAssignReq req =
+            new UserRoleBatchAssignReq(
+                List.of("u-1"), "USER", null, "BASIC_ROLE", "r-200", null);
+        when(typeResolutionService.batchResolveUserIds(eq(1L), eq("USER"), eq(Set.of("u-1"))))
+            .thenReturn(Map.of("u-1", 20L));
+        when(typeResolutionService.resolveRoleId(eq(1L), eq("BASIC_ROLE"), eq("r-200"), eq((String) null)))
+            .thenReturn(200L);
+        when(userRoleMapper.selectValidByUserIdsAndTargetId(eq(1L), eq(Set.of(20L)), eq(200L), eq(ResourceTypeCode.ROLE)))
+            .thenReturn(List.<UserRole>of());
+        when(abstractRoleMapper.selectEnabledIdsByIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of(200L));
+        when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, Set.of(100L)));
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq(Set.of("200")), eq(OperationCodeConstants.MANAGE))).thenReturn(Set.of());
+            when(permissionConflictDomainService.findAssignMutexConflicts(eq(1L), any()))
+                .thenReturn(List.of(new PermissionConflictDomainService.RoleMutexAssignConflict(
+                    20L, 9L, 100L, 200L)));
+
+            BizException exception = assertThrows(BizException.class, () -> service.assignRolesBatch(1L, req));
+
+            assertEquals(PermissionErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
+            org.mockito.Mockito.verify(userRoleMapper, org.mockito.Mockito.never()).insertBatch(any());
+        }
     }
 }

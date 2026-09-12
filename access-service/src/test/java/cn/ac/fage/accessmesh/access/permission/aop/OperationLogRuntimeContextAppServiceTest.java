@@ -94,6 +94,9 @@ class OperationLogRuntimeContextAppServiceTest {
     private SubjectDomainService subjectDomainService;
 
     @Mock
+    private cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService permissionConflictDomainService;
+
+    @Mock
     private AuditDomainService auditDomainService;
 
     @Mock
@@ -198,7 +201,8 @@ class OperationLogRuntimeContextAppServiceTest {
             new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(),
             localProjectionDomainService,
             new ObjectMapper(),
-            engine
+            engine,
+            permissionConflictDomainService
         );
 
         UserRoleBatchRevokeReq req = new UserRoleBatchRevokeReq(List.of(

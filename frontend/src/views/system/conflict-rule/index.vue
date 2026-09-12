@@ -153,7 +153,8 @@ function openDetect() {
     contentRenderer: () =>
       h(DetectDialog, {
         operationOptions: operationOptions.value,
-        resourceTypeOptions: resourceTypeOptions.value
+        resourceTypeOptions: resourceTypeOptions.value,
+        roleOptions: roleOptions.value
       })
   });
 }
