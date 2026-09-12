@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.permission.service.domain;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -99,6 +100,33 @@ public interface GrantOriginDomainService {
      */
     Set<Long> rematerializeAuthorityRootGrants(Long tenantId, Integer typeValue,
                                                Long newOwnerRoleId, Long operatorId);
+
+    /**
+     * 操作位变更联动迁移（updateOperation 位变更时同事务调用，用户定案 2026-09-12「补联动」）：
+     * 软删该类型旧操作位的种子行并向所有者补种新操作位——不迁则旧位成指向无定义位的
+     * 永久死行（20061 不可改删）、新位零种子令该操作回到无人能首授的死锁。
+     *
+     * @param tenantId    租户ID
+     * @param ownerRoleId 所有者角色 id（调用方已解析有效）
+     * @param typeValue   resource_type 内部类型值
+     * @param fromBit     旧操作位
+     * @param toBit       新操作位
+     * @param operatorId  操作者ID
+     * @return 被清理旧位行涉及的角色 id 集合（供调用方 markRoles 失效快照）
+     */
+    Set<Long> migrateOperationAuthorityRootGrants(Long tenantId, Long ownerRoleId, Integer typeValue,
+                                                  Long fromBit, Long toBit, Long operatorId);
+
+    /**
+     * 操作删除级联清理（deleteOperations 时同事务调用，用户定案 2026-09-12「补联动」）：
+     * 软删指定「类型 × 操作位」的全部种子行（生命周期通道回收，与 apply-grant-plan 20061
+     * 只读边界不冲突——同 T-PERM-050 类型删除级联先例）。
+     *
+     * @param tenantId       租户ID
+     * @param bitsByTypeValue resource_type 内部类型值 → 被删操作的操作位集合
+     * @return 被清理行涉及的角色 id 集合（供调用方 markRoles 失效快照）
+     */
+    Set<Long> removeOperationAuthorityRootGrants(Long tenantId, Map<Integer, Set<Long>> bitsByTypeValue);
 
     /** 所有者指针值对象 */
     record GrantOriginRole(String roleTypeCode, String roleExternalId) {}

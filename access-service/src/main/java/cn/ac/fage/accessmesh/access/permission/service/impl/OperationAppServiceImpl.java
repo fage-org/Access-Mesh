@@ -132,6 +132,10 @@ public class OperationAppServiceImpl implements OperationAppService {
             throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
                 "Unknown resourceTypeCode: " + resourceTypeCode);
         }
+        // grok 外评 P2：锁内重绑 typeValue——锁前 resolveTypeValue 可走 TYPE_VALUE 缓存/在锁外读，
+        // 「删类型→同码重建（typeValue 全量行 max+1 不复用）」交错下旧值指向已级联清理的死号
+        //（操作行+种子落孤儿、活类型缺该操作死锁复发）；锁内 typeDef 是权威快照
+        resourceType = typeDef.getTypeValue();
         OperationPermission op = new OperationPermission();
         op.setTenantId(tenantId);
         op.setResourceType(resourceType);
@@ -272,6 +276,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_UPDATE", targetType = "operation_permission", targetId = "#req.code()", summary = "'update operation permission ' + #req.resourceTypeCode + ':' + #req.code()")
     public OperationPermissionResp updateOperation(Long tenantId, OperationUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -281,13 +286,31 @@ public class OperationAppServiceImpl implements OperationAppService {
             throw new SecurityException("No permission to update operation");
         }
 
+        // T-PERM-062 用户定案「补联动」：操作目标恒属 resource_type 族，与类型生命周期写路径
+        //（createType/createOperation/updateType/deleteTypesByIds）共持 RESOURCE_ENTITY 树写锁并
+        // 锁内重读——位变更迁移种子与所有者迁移/类型删除的两两交错由此闭合
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         OperationPermission op = selectOperationByBusinessKey(tenantId, new OperationKeyReq(req.resourceTypeCode(), req.code()));
+        Long fromBit = op.getBinaryBit();
         if (req.name() != null) op.setName(req.name());
         if (req.binaryBit() != null) op.setBinaryBit(req.binaryBit());
         if (req.inheritMask() != null) op.setInheritMask(req.inheritMask());
         op.setUpdatedAt(LocalDateTime.now());
         op.setUpdatedBy(operatorId);
         operationPermissionMapper.update(op);
+        // 操作位变更联动迁移（grok 外评存量升级定案）：不迁则旧位成指向无定义位的永久死行
+        //（20061 不可改删）、新位零种子令该操作回到无人能首授的死锁；is_system 类型无种子不联动
+        boolean bitChanged = req.binaryBit() != null && !req.binaryBit().equals(fromBit);
+        TypeDefinition typeDef = bitChanged
+            ? typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, "resource_type", req.resourceTypeCode())
+            : null;
+        if (bitChanged && typeDef != null && !Boolean.TRUE.equals(typeDef.getIsSystem())) {
+            Long ownerRoleId = grantOriginDomainService.resolveOwnerRoleId(tenantId, typeDef.getExtra());
+            Set<Long> affected = grantOriginDomainService.migrateOperationAuthorityRootGrants(
+                tenantId, ownerRoleId, op.getResourceType(), fromBit, op.getBinaryBit(), operatorId);
+            PermissionChangeContext.markRoles(tenantId, affected);
+            PermissionChangeContext.markRoles(tenantId, ownerRoleId);
+        }
         // T-PERM-047：位值/继承掩码变更改变覆盖判定输入，提交后失效 per-type 缓存
         // （否则 TTL 窗口内引擎按旧位值判定，已授权角色语义静默翻转）
         cacheService.evictAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
@@ -309,6 +332,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_REMOVE", targetType = "operation_permission", targetId = "", summary = "'batch remove operation permissions'")
     public void deleteOperations(Long tenantId, List<OperationKeyReq> keys, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -322,6 +346,10 @@ public class OperationAppServiceImpl implements OperationAppService {
             OperationLogRuntimeContext.markSkip();
             return;
         }
+
+        // T-PERM-062 用户定案「补联动」：与类型生命周期写路径共持 RESOURCE_ENTITY 树写锁，
+        // 锁内解析（原锁前解析的查重窗口与种子清理交错由此闭合）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
 
         // 业务键解析为实体：专属按 resourceTypeCode 分组批量查询，全局单独批量（避免N+1）
         List<OperationPermission> entities = resolveOperationsByKeys(tenantId, keys);
@@ -339,6 +367,23 @@ public class OperationAppServiceImpl implements OperationAppService {
         // 批量软删除（性能修复：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         operationPermissionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
+        // T-PERM-062 用户定案「补联动」：被删自定义类型操作的种子行同事务级联清理——不清则
+        // 残留行指向已删操作定义成 inert 死行且 20061 不可改删（对齐 T-PERM-050 类型删除级联）；
+        // 类型行一次批量装载（类型码批量反解 + 按码批量查行，循环内禁单条解析 §8.4.8/§10）
+        Map<Integer, TypeDefinition> customTypeDefs = loadCustomTypeDefs(tenantId, entities);
+        Map<Integer, Set<Long>> seedBitsByTypeValue = new java.util.LinkedHashMap<>();
+        for (OperationPermission op : entities) {
+            if (op.getResourceType() != null && customTypeDefs.containsKey(op.getResourceType())) {
+                seedBitsByTypeValue
+                    .computeIfAbsent(op.getResourceType(), k -> new java.util.LinkedHashSet<>())
+                    .add(op.getBinaryBit());
+            }
+        }
+        if (!seedBitsByTypeValue.isEmpty()) {
+            Set<Long> affected = grantOriginDomainService
+                .removeOperationAuthorityRootGrants(tenantId, seedBitsByTypeValue);
+            PermissionChangeContext.markRoles(tenantId, affected);
+        }
         // T-PERM-047：已删操作在 TTL 窗口内仍参与覆盖判定（陈旧 Map 含已删行），
         // 按受影响类型集合批量失效 per-type 缓存（同类型去重一次提交）
         Set<String> affectedTypeKeys = entities.stream()
@@ -350,6 +395,34 @@ public class OperationAppServiceImpl implements OperationAppService {
             cacheService.evictBatchAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, affectedTypeKeys);
         }
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " operation_permission row(s)");
+    }
+
+    /** 一次性装载涉及的「自定义 resource_type」类型行（键=typeValue；操作删除的种子级联清理用，is_system 跳过） */
+    private Map<Integer, TypeDefinition> loadCustomTypeDefs(Long tenantId, List<OperationPermission> entities) {
+        Set<Integer> typeValues = entities.stream()
+            .map(OperationPermission::getResourceType)
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
+        if (typeValues.isEmpty()) {
+            return Map.of();
+        }
+        Map<Integer, String> typeCodes = typeResolutionService.batchResolveTypeCodes(tenantId, "resource_type", typeValues);
+        if (typeCodes.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, TypeDefinition> customByCode = typeDefinitionMapper
+            .selectByTypeKeyAndCodes(tenantId, "resource_type",
+                new java.util.LinkedHashSet<>(typeCodes.values())).stream()
+            .filter(td -> !Boolean.TRUE.equals(td.getIsSystem()))
+            .collect(Collectors.toMap(TypeDefinition::getTypeCode, td -> td, (a, b) -> a));
+        Map<Integer, TypeDefinition> customByValue = new java.util.HashMap<>();
+        for (Map.Entry<Integer, String> entry : typeCodes.entrySet()) {
+            TypeDefinition typeDef = customByCode.get(entry.getValue());
+            if (typeDef != null) {
+                customByValue.put(entry.getKey(), typeDef);
+            }
+        }
+        return customByValue;
     }
 
     /**

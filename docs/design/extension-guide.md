@@ -111,7 +111,7 @@ last_reviewed: 2026-09-12
 
 **T-PERM-062（2026-09-12 定案）后该缺口在产品内自举闭环**，接入方按 §3.2 走完「创建类型 → 追加操作 → 授权页」即可首授，**无需部署方种子或手工 SQL**：
 
-- **创建即建基座**：`type-definition/create` 同事务向「类型所有者角色」写 CRUD 四操作位首授行（`grant_source=AUTHORITY_ROOT`，类型级 scopeAll + 可转授）；所有者缺省引导角色 `bootstrap-admin`，可经请求字段 `ownerRoleTypeCode/ownerRoleExternalId` 指定（类型定义页「所有者角色」选择器同入口），指针持久化于 `type_definition.extra.grantOriginRole`。
+- **创建即建基座**：`type-definition/create` 同事务向「类型所有者角色」写 CRUD 四操作位首授行（`grant_source=AUTHORITY_ROOT`，类型级 scopeAll + 可转授）；所有者缺省引导角色 `bootstrap-admin`，可经请求字段 `ownerRoleTypeCode/ownerRoleExternalId` 指定（roleTypeCode 仅接受 BASIC_ROLE 功能角色；类型定义页「所有者角色」选择器同入口），指针持久化于 `type_definition.extra.grantOriginRole`。
 - **追加操作自动补种**：后续经 `operation-permission/create` 追加的操作（如 `EXPORT` 位 16）同事务向同一所有者补种——不会出现「CRUD 能授、EXPORT 仍 20040」。
 - **所有者可迁移**：`type-definition/update` 变更 `extra.grantOriginRole` = 同事务「先清后种」迁移（旧所有者种子清理、新所有者补齐全部操作位）；所有者角色被误删时经重指所有者即可恢复授权能力。种子行在授权页只读（20061），类型删除时级联清理。
 - **可发现性**：所有者的成员在授权页可见这些种子行（标注「授权根」），并可正常收窄为实例级授权；非所有者成员对无授权根类型发起授权仍 20040——message 中 `reason=TYPE_GRANT_ORIGIN_MISSING` 表示「类型未初始化」（去类型定义页确认所有者），`reason=NO_PERMISSION/NO_GRANT_RIGHT` 表示「你的持有面不够」（找所有者角色成员操作）。

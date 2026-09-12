@@ -368,6 +368,138 @@ class OperationAppServiceImplTest {
             () -> service.createOperation(1L, "ORDER", "EXPORT", "导出订单", 16L, 0L, 100L));
     }
 
+    @Test
+    @DisplayName("锁内 typeDef 为空（取锁窗口内类型被并发删除）→ 20021 fail-closed 不落库（claude 外评附带缺陷）")
+    void shouldFailClosedWhenTypeDeletedBeforeLockAcquired() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
+            .thenReturn(null);
+
+        assertThrows(cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.createOperation(1L, "ORDER", "EXPORT", "导出订单", 16L, 0L, 100L));
+        verify(operationPermissionMapper, never()).insert(any(OperationPermission.class));
+        verify(grantOriginDomainService, never()).seedAuthorityRootGrants(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("锁前解析值与锁内重读不一致（删类型→同码重建，typeValue 不复用）→ 写入必须落锁内值（grok 外评 P2）")
+    void shouldRebindValueFromInLockRereadWhenTypeRebuilt() {
+        // 旧实现用锁前 resourceType=12 落库（孤儿操作行+种子）而活类型 15 缺操作——本用例必红
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
+            .thenReturn(customType(15, false));
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
+
+        service.createOperation(1L, "ORDER", "EXPORT", "导出订单", 16L, 0L, 100L);
+
+        org.mockito.ArgumentCaptor<OperationPermission> opCaptor =
+            org.mockito.ArgumentCaptor.forClass(OperationPermission.class);
+        verify(operationPermissionMapper).insert(opCaptor.capture());
+        assertEquals(15, opCaptor.getValue().getResourceType());
+        verify(grantOriginDomainService).seedAuthorityRootGrants(eq(1L), eq(55L), eq(15),
+            eq(List.of(16L)), eq(100L));
+        verify(cacheService).evictAfterCommit(
+            eq(cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
+            eq(1L), eq("op_perm:15"));
+    }
+
+    @Test
+    @DisplayName("自定义类型操作位变更 → 同事务迁移种子（软删旧位+补种新位，grok 外评存量升级定案）")
+    void shouldMigrateSeedWhenCustomTypeOperationBitChanged() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        cn.ac.fage.accessmesh.access.permission.entity.OperationPermission op =
+            new cn.ac.fage.accessmesh.access.permission.entity.OperationPermission();
+        op.setResourceType(12);
+        op.setCode("EXPORT");
+        op.setBinaryBit(16L);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
+        when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 12, "EXPORT")).thenReturn(op);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
+            .thenReturn(customType(12, false));
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
+        when(grantOriginDomainService.migrateOperationAuthorityRootGrants(1L, 55L, 12, 16L, 32L, 100L))
+            .thenReturn(java.util.Set.of(55L));
+
+        service.updateOperation(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq(
+            "ORDER", "EXPORT", "导出订单", 32L, 0L), 100L);
+
+        verify(grantOriginDomainService).migrateOperationAuthorityRootGrants(1L, 55L, 12, 16L, 32L, 100L);
+    }
+
+    @Test
+    @DisplayName("位未变更或系统预置类型 → 不触发种子迁移")
+    void shouldNotMigrateSeedWhenBitUnchangedOrSystemType() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        cn.ac.fage.accessmesh.access.permission.entity.OperationPermission op =
+            new cn.ac.fage.accessmesh.access.permission.entity.OperationPermission();
+        op.setResourceType(12);
+        op.setCode("EXPORT");
+        op.setBinaryBit(16L);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
+        when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 12, "EXPORT")).thenReturn(op);
+
+        // 位未变更（仅改名）：不触发
+        service.updateOperation(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq(
+            "ORDER", "EXPORT", "改名", null, null), 100L);
+        // 系统预置类型改位：无种子不联动
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
+            .thenReturn(customType(12, true));
+        service.updateOperation(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq(
+            "ORDER", "EXPORT", null, 32L, null), 100L);
+
+        verify(grantOriginDomainService, never()).migrateOperationAuthorityRootGrants(
+            any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("删除自定义类型操作 → 同事务级联清理该操作位种子行；系统预置类型不清理")
+    void shouldCascadeSeedRemovalOnCustomTypeOperationDelete() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+        // 自定义类型 ORDER(12):EXPORT(16) + 系统类型 SERVICE(4):AUDIT(64)
+        cn.ac.fage.accessmesh.access.permission.entity.OperationPermission export =
+            new cn.ac.fage.accessmesh.access.permission.entity.OperationPermission();
+        export.setId(31L);
+        export.setResourceType(12);
+        export.setCode("EXPORT");
+        export.setBinaryBit(16L);
+        cn.ac.fage.accessmesh.access.permission.entity.OperationPermission audit =
+            new cn.ac.fage.accessmesh.access.permission.entity.OperationPermission();
+        audit.setId(32L);
+        audit.setResourceType(4);
+        audit.setCode("AUDIT");
+        audit.setBinaryBit(64L);
+        when(typeResolutionService.batchResolveTypeValues(eq(1L), eq("resource_type"),
+                eq(java.util.Set.of("ORDER", "SERVICE"))))
+            .thenReturn(java.util.Map.of("ORDER", 12, "SERVICE", 4));
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(eq(1L),
+                eq(java.util.Set.of(12, 4)), eq(java.util.Set.of("EXPORT", "AUDIT"))))
+            .thenReturn(java.util.List.of(export, audit));
+        when(typeResolutionService.batchResolveTypeCodes(1L, "resource_type", java.util.Set.of(12, 4)))
+            .thenReturn(java.util.Map.of(12, "ORDER", 4, "SERVICE"));
+        cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition orderTd = customType(12, false);
+        orderTd.setTypeCode("ORDER");
+        when(typeDefinitionMapper.selectByTypeKeyAndCodes(1L, "resource_type", java.util.Set.of("ORDER", "SERVICE")))
+            .thenReturn(java.util.List.of(orderTd));
+        when(grantOriginDomainService.removeOperationAuthorityRootGrants(1L, java.util.Map.of(12, java.util.Set.of(16L))))
+            .thenReturn(java.util.Set.of(55L));
+
+        service.deleteOperations(1L, java.util.List.of(
+            new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("ORDER", "EXPORT"),
+            new cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq("SERVICE", "AUDIT")), 100L);
+
+        // 仅自定义类型操作位进清理面（系统类型 SERVICE 不入）
+        verify(grantOriginDomainService).removeOperationAuthorityRootGrants(1L,
+            java.util.Map.of(12, java.util.Set.of(16L)));
+        verify(operationPermissionMapper).softDeleteBatch(eq(1L), any(), any());
+    }
+
     private cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition customType(int typeValue, boolean isSystem) {
         cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition type =
             new cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition();

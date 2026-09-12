@@ -231,6 +231,46 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
         return affectedRoleIds;
     }
 
+    @Override
+    public Set<Long> migrateOperationAuthorityRootGrants(Long tenantId, Long ownerRoleId, Integer typeValue,
+                                                         Long fromBit, Long toBit, Long operatorId) {
+        Set<Long> affectedRoleIds = softDeleteAuthorityRootsOfBit(tenantId, typeValue, fromBit);
+        seedAuthorityRootGrants(tenantId, ownerRoleId, typeValue, java.util.List.of(toBit), operatorId);
+        return affectedRoleIds;
+    }
+
+    @Override
+    public Set<Long> removeOperationAuthorityRootGrants(Long tenantId, java.util.Map<Integer, Set<Long>> bitsByTypeValue) {
+        if (bitsByTypeValue == null || bitsByTypeValue.isEmpty()) {
+            return Set.of();
+        }
+        List<RoleResourcePermission> roots = roleResourcePermissionMapper
+            .selectValidAuthorityRootsByTypes(tenantId, bitsByTypeValue.keySet()).stream()
+            .filter(row -> bitsByTypeValue.getOrDefault(row.getResourceType(), Set.of())
+                .contains(row.getGrantedBits()))
+            .toList();
+        return softDeleteAuthorityRoots(tenantId, roots);
+    }
+
+    /** 软删该类型指定操作位的全部种子行，返回受影响角色集合（操作位变更联动用） */
+    private Set<Long> softDeleteAuthorityRootsOfBit(Long tenantId, Integer typeValue, Long bit) {
+        List<RoleResourcePermission> roots = roleResourcePermissionMapper
+            .selectValidAuthorityRootsByTypes(tenantId, Set.of(typeValue)).stream()
+            .filter(row -> java.util.Objects.equals(row.getGrantedBits(), bit))
+            .toList();
+        return softDeleteAuthorityRoots(tenantId, roots);
+    }
+
+    private Set<Long> softDeleteAuthorityRoots(Long tenantId, List<RoleResourcePermission> roots) {
+        if (roots.isEmpty()) {
+            return Set.of();
+        }
+        roleResourcePermissionMapper.softDeleteBatch(tenantId,
+            roots.stream().map(RoleResourcePermission::getId).toList(), LocalDateTime.now());
+        return roots.stream().map(RoleResourcePermission::getAbstractRoleId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
     private JsonNode readTree(String extraJson) {
         try {
             return objectMapper.readTree(extraJson);

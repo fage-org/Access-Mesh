@@ -244,6 +244,51 @@ class GrantOriginDomainServiceImplTest {
         verify(permissionGrantPlanDomainService).seedGrants(eq(1L), eq(77L), any());
     }
 
+    @Test
+    void shouldMigrateOperationSeedOnBitChange() {
+        RoleResourcePermission oldBitRow = new RoleResourcePermission();
+        oldBitRow.setId(900L);
+        oldBitRow.setAbstractRoleId(66L);
+        oldBitRow.setResourceType(12);
+        oldBitRow.setGrantedBits(16L);
+        RoleResourcePermission otherBitRow = new RoleResourcePermission();
+        otherBitRow.setId(901L);
+        otherBitRow.setAbstractRoleId(66L);
+        otherBitRow.setResourceType(12);
+        otherBitRow.setGrantedBits(2L);
+        when(roleResourcePermissionMapper.selectValidAuthorityRootsByTypes(1L, Set.of(12)))
+            .thenReturn(List.of(oldBitRow, otherBitRow));
+
+        Set<Long> affected = service.migrateOperationAuthorityRootGrants(1L, 77L, 12, 16L, 32L, 100L);
+
+        // 仅旧位（16）行被清理，他位（2=VIEW）不动；新位补种到新所有者
+        assertEquals(Set.of(66L), affected);
+        verify(roleResourcePermissionMapper).softDeleteBatch(eq(1L), eq(List.of(900L)), any());
+        verify(permissionGrantPlanDomainService).seedGrants(eq(1L), eq(77L), any());
+    }
+
+    @Test
+    void shouldRemoveOperationSeedsByBitsMapOnly() {
+        RoleResourcePermission target = new RoleResourcePermission();
+        target.setId(900L);
+        target.setAbstractRoleId(66L);
+        target.setResourceType(12);
+        target.setGrantedBits(16L);
+        RoleResourcePermission otherType = new RoleResourcePermission();
+        otherType.setId(901L);
+        otherType.setAbstractRoleId(66L);
+        otherType.setResourceType(5);
+        otherType.setGrantedBits(16L);
+        when(roleResourcePermissionMapper.selectValidAuthorityRootsByTypes(1L, Set.of(12)))
+            .thenReturn(List.of(target, otherType));
+
+        Set<Long> affected = service.removeOperationAuthorityRootGrants(
+            1L, java.util.Map.of(12, Set.of(16L)));
+
+        assertEquals(Set.of(66L), affected);
+        verify(roleResourcePermissionMapper).softDeleteBatch(eq(1L), eq(List.of(900L)), any());
+    }
+
     private AbstractRole enabledRole(Long id) {
         AbstractRole role = new AbstractRole();
         role.setId(id);

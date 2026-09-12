@@ -118,7 +118,7 @@ function parseOwnerPointer(extra: string | null | undefined) {
  * 编辑态把选择器值同步进 extra JSON（后端按 extra.grantOriginRole 判定所有者变更并同事务
  * 迁移种子）；清空选择 = 不变更（指针无清除语义，回写原值）。
  * externalId 未变（含表单初始化触发）时回写原指针整体——保留原 roleTypeCode，
- * 防止非 BASIC_ROLE 所有者被静默改写成 BASIC_ROLE（API 建型可指定任意角色类型）。
+ * 防止非 BASIC_ROLE 所有者被静默改写（值域仅 BASIC_ROLE，但保留原指针整体回写防漂移）。
  */
 function syncOwnerPointerIntoExtra(externalId: string) {
   if (!isEdit.value) return;

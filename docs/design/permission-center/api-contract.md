@@ -281,6 +281,8 @@ last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§5.1 类型授权�
 
 **resource_type 创建联动预置（T-PERM-028 实现定案）**：`type-definition/create` 在 `typeKey=resource_type` 时同事务预置 CRUD 四操作位 `CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)`（DDL CROSS JOIN 预置组模板同款；新类型位段空闲无 uk 冲突）；非 resource_type 类型不预置。
 
+**操作生命周期与授权根联动（T-PERM-062，2026-09-12 grok 外评存量升级用户定案「补联动」）**：`operation-permission/update` 的 `binaryBit` 有效变更（自定义 resource_type 目标）同事务迁移授权根种子——软删旧操作位种子行、向所有者补种新操作位（不迁则旧位成指向无定义位的永久死行、新位零种子令该操作回到无人能首授的死锁）；`operation-permission/remove` 对被删自定义类型操作同事务级联清理该操作位种子行（生命周期通道回收，与 apply-grant-plan 20061 只读边界不冲突——同 T-PERM-050 类型删除级联先例；is_system 类型无种子不联动）。两入口与类型生命周期写路径共持 RESOURCE_ENTITY 树写锁并锁内重读（update 锁内重读操作行 + 锁内重绑 typeValue——「删类型→同码重建」交错下锁前解析值指向已级联清理的死号）。
+
 **类型授权根生命周期（T-PERM-062，2026-09-12 定案——新类型首笔授权自举）**：全新自定义类型在租户内初始可转授行为 0，apply-grant-plan 委托校验（checkCanGrant 严格无旁路，§14.1 红线维持）下无人能完成首笔授权——固定图内 `API:ACCESS` 类型级 canGrant（T-API-001「鸡生蛋」解法）的模式推广到类型生命周期：
 
 - **创建即建基座**：`type-definition/create`（typeKey=resource_type）同事务向所有者角色写 CRUD 四操作位 `AUTHORITY_ROOT` 首授行（`grant_source=AUTHORITY_ROOT`；scopeAll + canGrant + 无条件 + 无实例 + 单操作位，形状由 DDL CHECK `ck_role_resource_permission_authority_root` 焊死）；所有者指针持久化于 `type_definition.extra.grantOriginRole`（`{"roleTypeCode":..,"roleExternalId":..}`，roleTypeCode 值域仅 BASIC_ROLE）——**服务端管理键**：create 请求 extra 自带该键拒绝 **20044**（合法输入通道是 `ownerRoleTypeCode/ownerRoleExternalId` 请求字段）。
