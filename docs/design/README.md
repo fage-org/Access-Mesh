@@ -19,7 +19,7 @@
 | 默认组织树与用户生命周期 | [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)               |
 | 组织与用户·权限契约    | [org-user-permission-contract.md](org-user-permission-contract.md)                     |
 | 跨服务设计              | [cross-service/](cross-service/)                                                       |
-| 扩展指南（接入与二开全景） | [extension-guide.md](extension-guide.md)（T-FE-023 产出；场景驱动的接入方导引层，契约细节以 api-contract 等权威文档为准） |
+| 扩展指南（接入与二开全景） | [extension-guide.md](extension-guide.md)（T-FE-023 产出，2026-09-12 定稿 adopted——双通道外评两轮处置收口；场景驱动的接入方导引层，契约细节以 api-contract 等权威文档为准） |
 | admin 域对前端 API 契约 | [services/admin-service-api-contract.md](services/admin-service-api-contract.md)（`/admin/**`、`/auth/**` 契约由 access-service 管理域承载，文件名保留历史叫法） |
 | 前端页面级设计 | [frontend/](frontend/)（UI 设计，随 T-FE 任务产出回写） |
 | PostgreSQL 表结构     | [schema/access-service.sql](schema/access-service.sql)（唯一权威 DDL）；[schema/example-service.sql](schema/example-service.sql)（演示库） |

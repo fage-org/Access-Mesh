@@ -1,7 +1,7 @@
 ---
 doc_type: design
 title: AccessMesh 扩展指南（接入与二次开发全景）
-status: 待确认（评审稿，T-FE-023 产出）
+status: adopted（2026-09-12 用户确认定稿；双通道外评两轮处置收口）
 domain: common
 design_refs:
   - docs/design/architecture.md
