@@ -4,11 +4,11 @@ description: >-
   AccessMesh 任务本地评审与收口工作流（双轨并行子代理）。
   TRIGGER when: 任务转入 review/收口、用户要求评审/复审/双轨评审、fix 后自审、
   收口前残留清扫与回归锁自查、关键词「评审」「收口」「双轨」「残留」「回归锁」；
-  NOT for: codex/外部 AI 评审——仅用户显式触发，改看 codex-external-review。
+  NOT for: 外部 AI 评审（claude/grok/codex）——仅用户显式触发，改看 external-review。
 origin: project
 metadata:
   project: AccessMesh
-  version: "1.0.0"
+  version: "1.0.1"
 ---
 
 # 任务本地评审与收口（双轨子代理）
@@ -16,7 +16,7 @@ metadata:
 ## 定位与两轨分离（2026-09-06 用户定案）
 
 - 本 skill 覆盖**本地评审**：双轨并行子代理评审 + 结论处置 + 收口 checklist，是任务收口的默认动作，无需用户额外指令。
-- codex / 外部 AI 评审是**独立轨道，执行时机由用户决定**（见 `codex-external-review` skill）。本 skill 任何环节不得自动串联 codex，也不得以「还差一轮外部评审」为由阻塞收口——外部评审是否跑、跑几轮由用户拍板。
+- 外部 AI 评审（claude/grok/codex）是**独立轨道，执行时机由用户决定**（见 `external-review` skill）。本 skill 任何环节不得自动串联外部评审，也不得以「还差一轮外部评审」为由阻塞收口——外部评审是否跑、跑几轮由用户拍板。
 
 ## 双轨评审执行
 

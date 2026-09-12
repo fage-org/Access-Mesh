@@ -1,58 +1,98 @@
 ---
-name: codex-external-review
+name: external-review
 description: >-
-  codex CLI 外部 AI 评审执行规范（默认 luna max 只读评审 + 800k 级上下文显式注入；本机运行或用户贴回结论两种形态）。
-  TRIGGER when: 用户显式要求 codex 评审/复评（「用codex评审」「codex 复评」、逐字给出提示词、
+  外部 AI 评审执行规范（claude / grok / codex 三通道；codex 默认 luna max、点名 sol xhigh 等；
+  800k 级上下文显式注入；全程禁止子代理；本机运行或用户贴回结论两种形态）。
+  TRIGGER when: 用户显式要求外部 AI 评审/复评（「用codex/claude/grok评审」「codex 复评」、逐字给出提示词、
   贴回外部 AI 结论要求「核实并修复」）；仅用户触发，收口流程不得自动串联。
 disable-model-invocation: true
 origin: project
 metadata:
   project: AccessMesh
-  version: "1.1.0"
+  version: "2.0.0"
 ---
 
-# codex 外部评审（仅用户触发）
+# 外部 AI 评审（claude / grok / codex；仅用户触发；全程禁止子代理）
 
 ## 触发纪律（2026-09-06 用户定案）
 
-- **仅当用户显式指令时执行**：如「用codex评审」「codex 复评」、用户逐字给出提示词、用户贴回外部 AI 结论并要求核实修复（此形态不必本机运行 codex）。
+- **仅当用户显式指令时执行**：如「用codex评审」「claude/grok 复评」、用户逐字给出提示词、用户贴回外部 AI 结论并要求核实修复（此形态不必本机运行 CLI）。
+- **通道与模型由用户点名**：可单通道也可多通道并行（先例 2026-09-12：codex sol xhigh + grok 双轨共用同一提示词文件）。codex 模型与推理档逐轮点名，无点名时默认 luna max；claude/grok 一般用各自默认模型，用户点名另定。
 - 收口流程（`dual-track-local-review`）不得自动串联本轨道；复评是否续跑、跑几轮**由用户拍板**，无自动收敛轮数——每轮报告后停下等指令，不自行发起下一轮。
 
-## 默认模型与上下文（2026-09-08 定案：luna max）
+## 禁止子代理（2026-09-12 用户定案，三通道统一硬约束）
 
-评审默认模型 **`gpt-5.6-luna` + reasoning effort `max`**（「luna max」= luna 模型挂 max 推理档；不存在名为 luna-max 的模型 ID）。一律**显式注入**、不依赖 `~/.codex/config.toml` 默认值：
+外部评审全程禁止子代理：子代理上下文不继承注入的豁免段与专项清单，结论不可归因、过程不可追溯。三个 CLI 均有官方开关，一律**开关硬关 + 提示词禁令**双保险（禁令已内置模板「重要执行要求」节）：
+
+| 通道   | 硬关开关                  | 说明                                                                                       |
+| ------ | ------------------------- | ------------------------------------------------------------------------------------------ |
+| codex  | `--disable multi_agent`   | = `-c features.multi_agent=false`（`codex features list` 实证 multi_agent 默认 stable/true）；resume 续跑用 `-c` 形态 |
+| claude | `--disallowedTools Task`  | 拒绝 Task 工具（子代理派生入口）                                                           |
+| grok   | `--no-subagents`          | Disable subagent spawning                                                                  |
+
+- 原「codex 实跑测试时 spawn_agent 委派子代理隔离长输出」手法**退役**：子代理禁令下测试长命令只能落主上下文（占额度），大输出测试优先本机自跑、评审只引用落盘报告。
+- 本地双轨评审（`dual-track-local-review`）的并行子代理不受本禁令影响——禁令只约束外部评审三通道。
+
+## 三通道调用形态（大提示词 stdin/文件投喂；输出整文件落盘）
+
+- **大提示词必须 stdin/文件投喂**：豁免段整段注入 decision-registry 后提示词 ~90KB 级，argv `"$(cat file)"` 形式在 Git Bash 报 `Argument list too long` **静默零输出**。
+- 三通道可同批并行：各自后台跑 + 输出整文件落盘，互不干扰。
+- **后台跑的 stdin 语义（codex）**：argv 传短提示词且后台运行时必须 `< /dev/null`（run_in_background 的 stdin 是永不关闭的管道，codex 打印 `Reading additional input from stdin...` 后无限等待）；用 `- < prompt.md` 投喂时 stdin 即提示词文件、EOF 正常到达，无需 `< /dev/null`。
+
+### codex（默认 luna max；点名形态如 sol xhigh）
 
 ```bash
-codex exec -m gpt-5.6-luna -c 'model_reasoning_effort="max"' -c model_context_window=872000 -s read-only --color never "<组装后的提示词>"
+codex exec -m gpt-5.6-luna -c 'model_reasoning_effort="max"' -c model_context_window=872000 --disable multi_agent -s read-only --color never - < prompt.md
 ```
 
+#### 模型与上下文（2026-09-08 定案：默认 luna max）
+
+- 评审默认模型 **`gpt-5.6-luna` + reasoning effort `max`**（「luna max」= luna 模型挂 max 推理档；不存在名为 luna-max 的模型 ID）。一律**显式注入**、不依赖 `~/.codex/config.toml` 默认值。
 - **800k 级上下文的写法是 `872000`，不是 `800000`**（2026-09-08 三探针实证，证据为 rollout 会话文件 `model_context_window` 字段）：
   - luna@max 无覆盖：272k×95% = **258.4k**（此前桌面端 828.4k 会话是桌面端自行注入的窗口，CLI 不带覆盖拿不到）；
   - `-c model_context_window=800000`：800k×95% = **760k**——95% 有效窗口折扣同样作用于覆盖值，字面 800k 反而不达标；
   - `-c model_context_window=872000`（= models_cache 中 luna 的 `max_context_window`）：**828.4k** ✅。
-- resume 续跑同样显式带 `-m` 与两个 `-c`（resume 只认 `-c`，不认 `-s`/`--color`）。
-- 启动后核对 banner `model:` / `reasoning effort:` 行与点名一致，不符即停。
+- **点名形态**（2026-09-11 起）：模型与推理档由用户逐轮点名（如「codex sol xhigh 评审」= `gpt-5.6-sol` + effort `xhigh`，写法 `-m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"' -c model_context_window=872000`）。点名模型探针：`codex models` 无 tty 直接报错（`Error: stdin is not a terminal`），改读 `~/.codex/models_cache.json`——gpt-5.6-sol 的 `max_context_window` 同为 872000，覆盖写法与 luna 一致。
+- 启动后核对 banner `model:` / `reasoning effort:` 行与点名一致，不符即停；启动时 `failed to refresh available models: timeout` ERROR 行为良性噪声，不阻断。
 
-## 运行前检查
+#### 运行前检查
 
-- **模型漂移**：本机 `~/.codex/config.toml` 默认模型会变（gpt-5.6-sol → gpt-6-astra 实证）。因此一律按「默认模型与上下文」显式 `-m` + `-c` 注入；启动后核对 banner `model:` 行与点名模型一致，不符即停，探针确认点名模型可用后重跑。
+- **模型漂移**：本机 `~/.codex/config.toml` 默认模型会变（gpt-5.6-sol → gpt-6-astra 实证）。因此一律显式 `-m` + `-c` 注入；banner 不符即停，探针确认点名模型可用后重跑。
 - **进程清理**：清理 codex.exe「残留」前先查父进程——Codex 桌面应用常驻 app-server 会持续再生 codex.exe，那是用户自己的进程，勿误杀；仅 TaskStop 后日志停止增长但进程存活的情况才需要 taskkill。
 - **404 故障窗口**：chatgpt.com 后端 404 可持续数十分钟后自愈，先最小探针确认，别急着归因本机。
 
-## 沙箱与额度
+#### 沙箱与额度
 
-| 场景                       | 选择                                                                                                                                        |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| 纯评审轮（预期不跑测试）   | `--sandbox read-only`（Maven/Testcontainers 跑不了，只能引用既有 surefire 报告，验证靠本地自跑）                                            |
-| 要 codex 实跑测试          | `-s workspace-write` + 提示词两层约束：①逻辑只读（禁改任何 git 跟踪文件、结束 git status 须与开始一致）②测试类长命令 spawn_agent 委派子代理（长输出隔离在子代理上下文，主模型只吃简明结论） |
+| 场景                     | 选择                                                                                                                                                                                     |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 纯评审轮（预期不跑测试） | `--sandbox read-only`（Maven/Testcontainers 跑不了，只能引用既有 surefire 报告，验证靠本地自跑）                                                                                          |
+| 要 codex 实跑测试        | `-s workspace-write` + 提示词约束逻辑只读（禁改任何 git 跟踪文件、结束 git status 须与开始一致）；测试长命令在主上下文跑（子代理禁令），大输出优先本机自跑后引用落盘报告                    |
 
 - 跑完必须实核 `git status` 干净。
-- **额度中断 → resume 续跑不从头**（用户定规省额度）：`codex exec resume <session-id> "继续…"`；resume 子命令不认 `--color`/`-s`，模型用 `-m`、沙箱用 `-c sandbox_mode="workspace-write"`、上下文用 `-c model_context_window=872000`，`-o <file>` 可把最终报告单独落盘。
+- **额度中断 → resume 续跑不从头**（用户定规省额度）：`codex exec resume <session-id> "继续…"`；resume 子命令只认 `-c`、不认 `--color`/`-s`/`--disable`——模型用 `-m`、沙箱用 `-c sandbox_mode="workspace-write"`、上下文用 `-c model_context_window=872000`、子代理禁令用 `-c features.multi_agent=false`，`-o <file>` 可把最终报告单独落盘。**先报告中断并等用户定续跑时刻**（codex 报的重试窗口未必等于实际额度重置点）；续跑前先最小探针确认额度已重置（一句话探针数秒返回服务端判定，口头「应该重置了」不作数）；session-id 在日志头 `session id:` 行。
 - 沙箱环境限制要澄清勿误采信：workspace-write 无 Docker（Testcontainers 全 skip）、esbuild spawn EPERM（vitest/build 起不来）——「无法复验」≠声明造假，以本机实跑记录为准、本地补跑定向测试。
 
-## 提示词框架（评审对象 → 豁免 → 专项清单 → 报告规格）
+### claude
 
-正文模板与三个槽位见下节「默认评审提示词模板」；本框架 1~4 点的产出填入对应槽位后整段投喂，报告规格已内置于模板。
+```bash
+cat prompt.md | claude -p --permission-mode plan --output-format text --disallowedTools Task
+```
+
+- 默认模型随 `~/.claude/settings.json` 漂移，报告注明当时值；用户点名则显式指定。
+- headless plan 模式 ExitPlanMode 不可用时完整产出落 `~/.claude/plans/*.md`、stdout 只有摘要——**必须去读 plan 文件**。
+- stderr 的 `claude.ai connectors are disabled` 警告为良性噪声。
+
+### grok
+
+```bash
+~/.grok/bin/grok --prompt-file prompt.md -m grok-4.6 --permission-mode plan --max-turns 40 --no-subagents
+```
+
+- grok 是独立 CLI，**不在 codex models_cache 里**；模型默认 grok-4.6，用户点名另定。
+
+## 提示词框架（三通道共用；评审对象 → 豁免 → 专项清单 → 报告规格）
+
+正文模板与三个槽位见下节「默认评审提示词模板」；本框架 1~4 点的产出填入对应槽位后整段投喂，报告规格已内置于模板。**多通道并行评审共用同一提示词文件**（同评审对象 + 同专项清单）。
 
 1. **评审对象**：具体提交 hash + diff 范围（重点末提交）；复评轮 = 上轮收口增量 commit + 上层 commit 作背景（复核上轮修复 + 增量 + 残余扫描）。
 2. **背景设计定案清单**：本任务相关定案摘要，防与既定口径冲突的误报。
@@ -61,10 +101,12 @@ codex exec -m gpt-5.6-luna -c 'model_reasoning_effort="max"' -c model_context_wi
    - 全部**写入口 × 全部读入口**枚举（不是「上轮改过的方法」——按修复清单枚举漏入口是三轮 P1 主因）；
    - 不变量**逐分支对照实现**（回退/fail-open 语义要按保存侧校验清单逐分支镜像并逐分支测试，不能只写「损坏回退」一句）；
    - 本任务**可能破坏的既有测试/入口**清单；
+   - **复核上一轮外部评审处置的正确性**（撤回依据论证/修法完备性/错误码选择——多轮外评形态）；
    - **给评审写的核查清单必须先自己逐条过一遍实现**（五轮实证：清单里点名了「来源超长」却没在实现里自查，照样漏）。
-5. **报告规格**：P0~P3 分级 + 每条证据 + 最小修法优先复用既有机制 + 引用既有 surefire/vitest 报告数字不重新构建；中文 stdout、`--color never`。
+5. **报告规格**：P0~P3 分级 + 每条证据 + 最小修法优先复用既有机制 + 引用既有 surefire/vitest 报告数字不重新构建；中文 stdout（codex 加 `--color never`）。
+6. **送评对象未定稿时**（配合「方案定稿以用户确认为准」定规）：提示词明示「用户尚未确认定稿，本轮结论直接影响是否定稿，勿因前轮已处置而降低强度」，并要求评审末尾给出「可定稿 / 需修订（列必改项）」的明确判断。
 
-## 默认评审提示词模板（2026-09-08 定案；槽位填入后整段投喂）
+## 默认评审提示词模板（三通道共用，2026-09-08 定案；槽位填入后整段投喂）
 
 「提示词框架」1~4 点的产出分别填入 `{{评审对象}}`、`{{豁免注入}}`、`{{专项清单}}` 三个槽位，其余正文固定逐字使用；首轮与复评轮共用本模板，差异只在槽位内容。
 
@@ -399,6 +441,7 @@ codex exec -m gpt-5.6-luna -c 'model_reasoning_effort="max"' -c model_context_wi
 ## 重要执行要求
 
 - 只读评审：不修改任何文件与 git 状态，不主动运行构建或测试；验证仅用只读命令（git log/show/diff、搜索、读文件）；引用测试结果时只引用仓库既有 surefire/vitest 报告，不重新构建。
+- 禁止使用任何子代理/多代理/并行代理机制（如 spawn_agent、Task、子代理会话）执行评审的任何部分；全部检索、验证与推理在你的主会话内完成。
 - 不要在发现前几个问题后停止。
 - 完成第一轮检查后，进行第二轮**换方法**复查——不是把第一轮清单再过一遍，而是：
   1. 若〇节有专项核查清单，逐条执行并报告执行结果；
@@ -410,5 +453,6 @@ codex exec -m gpt-5.6-luna -c 'model_reasoning_effort="max"' -c model_context_wi
 
 - 逐条代码级核实（历史多轮零误报为常态，但确有整条撤回先例）：命中 `docs/design/decision-registry.md` 已登记定案或任务卡「已知边界」→ 直接引用出处撤回，不进存疑队列；证据瑕疵（举例对象在代码中不存在）→ 整条撤回或降级。
 - 外部修法建议对照任务卡/契约权威裁定，可只部分采纳（先例：checkAndThrow 统一 99999 与任务卡定稿冲突，只取测试装配部分）。
+- **多通道结论矛盾处由主代理亲核代码裁决**，不偏信任何一家。
 - 存疑项按 `.claude/rules/decision-question-protocol.md` 举例提问，一次一条等表态。
 - 收敛判定参考：P1 降至个位且全为机械修零决策项 = 接近收敛；每轮仍有新边界分支被发现 = 未收敛。**是否继续跑由用户决定。**
