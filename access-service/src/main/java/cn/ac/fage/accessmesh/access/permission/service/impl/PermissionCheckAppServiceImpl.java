@@ -4,9 +4,9 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
-import cn.ac.fage.accessmesh.access.permission.dto.req.AuthCheckReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.BatchAuthCheckReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.CheckInterfaceReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.CheckInterfaceReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.AuthCheckResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp.AuthCheckItemResult;

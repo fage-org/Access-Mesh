@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DomainConfigGetReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DomainConfigListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DomainConfigReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.DomainConfigResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.service.DomainConfigAppService;

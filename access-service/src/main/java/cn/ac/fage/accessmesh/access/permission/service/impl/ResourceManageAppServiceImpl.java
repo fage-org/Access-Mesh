@@ -14,7 +14,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngi
 
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingUpdateReq;
 
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq;
 
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq;
 
@@ -24,7 +24,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveKey;
 
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceResolveRequest;
 
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq;
 
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ApiMappingResp;
 

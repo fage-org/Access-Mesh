@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.query.PermBatchResult;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermEvalContext;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
-import cn.ac.fage.accessmesh.access.permission.dto.req.BatchAuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.ResourceEntityMapper;

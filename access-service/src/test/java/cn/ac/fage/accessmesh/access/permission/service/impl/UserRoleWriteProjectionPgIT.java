@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.permission.dto.req.RoleCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleResp;

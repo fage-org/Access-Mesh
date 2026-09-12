@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeysReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationCreateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.OperationListReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.OperationListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationPermissionResp;

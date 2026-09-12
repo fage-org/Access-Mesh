@@ -2,11 +2,11 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserAssignRoleReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleBatchAssignReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleBatchRevokeReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;

@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.permission.aop;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleBatchRevokeReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.access.permission.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.permission.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;

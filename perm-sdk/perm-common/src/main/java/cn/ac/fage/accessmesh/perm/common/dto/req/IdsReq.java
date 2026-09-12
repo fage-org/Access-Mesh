@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.perm.common.dto.req;
 
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -13,7 +14,7 @@ import java.util.List;
  */
 public record IdsReq(
     /**
-     * 主键ID列表
+     * 主键ID列表（批量上限 1000，project-rules §分批约束）
      */
-    @NotEmpty List<Long> ids
+    @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）") List<Long> ids
 ) {}

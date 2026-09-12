@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingListReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;

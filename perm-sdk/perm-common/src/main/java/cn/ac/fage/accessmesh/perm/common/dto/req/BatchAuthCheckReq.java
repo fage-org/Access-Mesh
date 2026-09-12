@@ -26,15 +26,15 @@ public record BatchAuthCheckReq(
     /**
      * 主体类型码
      */
-    @NotBlank String subjectTypeCode,
+    @NotBlank(message = "主体类型编码不能为空") String subjectTypeCode,
     /**
      * 主体外部ID
      */
-    @NotBlank String subjectExternalId,
+    @NotBlank(message = "主体外部标识不能为空") String subjectExternalId,
     /**
      * 批量校验项列表
      */
-    @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
+    @NotEmpty(message = "检查项不能为空") @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
     List<@NotNull @Valid AuthCheckItem> items,
     /**
      * 主资源类型码（可选，T-PERM-058）：与 parentResourceCode 成对提供

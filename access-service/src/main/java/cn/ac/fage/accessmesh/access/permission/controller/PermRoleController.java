@@ -2,12 +2,12 @@ package cn.ac.fage.accessmesh.access.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleTreeReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.RoleCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleDetailReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleMoveReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.RoleListReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.RoleListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.RoleUpdateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;

@@ -1,12 +1,12 @@
 package cn.ac.fage.accessmesh.access.permission.service.impl;
 
-import cn.ac.fage.accessmesh.access.permission.dto.req.AuthCheckReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.BatchAuthCheckReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeysReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserAssignRoleReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleBatchRevokeReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;

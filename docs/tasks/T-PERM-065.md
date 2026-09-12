@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-065
 title: Req DTO 副本双轨收敛——access-service permission/dto/req 14 对与 perm-sdk/perm-common 统一
-status: proposed
+status: in-progress
 plan: —
 domain: permission-center
 design_refs:

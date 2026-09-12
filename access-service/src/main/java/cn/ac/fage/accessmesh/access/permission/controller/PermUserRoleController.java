@@ -2,10 +2,10 @@ package cn.ac.fage.accessmesh.access.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserAssignRoleReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleBatchAssignReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleBatchRevokeReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleListReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleBatchRevokeReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.UserRolesResp;
 import cn.ac.fage.accessmesh.access.permission.service.UserManageAppService;
 import jakarta.validation.Valid;

@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConflictRuleDetectReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ConflictRuleReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.UserAssignRoleReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleBatchAssignReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConflictDetectResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ConflictRuleResp;

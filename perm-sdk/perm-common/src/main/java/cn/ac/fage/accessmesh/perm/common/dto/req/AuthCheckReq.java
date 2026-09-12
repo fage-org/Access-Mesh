@@ -24,15 +24,15 @@ public record AuthCheckReq(
     /**
      * 主体类型码，如 "LOCAL_USER"
      */
-    @NotBlank String subjectTypeCode,
+    @NotBlank(message = "主体类型编码不能为空") String subjectTypeCode,
     /**
      * 主体外部ID，如 userId.toString() 或外部用户标识
      */
-    @NotBlank String subjectExternalId,
+    @NotBlank(message = "主体外部标识不能为空") String subjectExternalId,
     /**
      * 资源类型码，如 "USER"、"ORG"
      */
-    @NotBlank String resourceTypeCode,
+    @NotBlank(message = "资源类型编码不能为空") String resourceTypeCode,
     /**
      * 资源码，类型级权限（CREATE）时为null，实例级权限时为具体编码
      */
@@ -40,7 +40,7 @@ public record AuthCheckReq(
     /**
      * 操作码，如 "CREATE"、"UPDATE"、"DELETE"
      */
-    @NotBlank String operationCode,
+    @NotBlank(message = "操作编码不能为空") String operationCode,
     /**
      * 业务域码（可选），指定权限范围
      */

@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.permission.controller;
 
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigGetReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigApisReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigReq;

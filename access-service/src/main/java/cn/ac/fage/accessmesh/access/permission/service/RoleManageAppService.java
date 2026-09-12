@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.service;
 
-import cn.ac.fage.accessmesh.access.permission.dto.req.RoleCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleTreeResp;
 

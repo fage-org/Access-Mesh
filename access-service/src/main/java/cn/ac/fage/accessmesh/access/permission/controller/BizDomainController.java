@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainDetailReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainListReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.BizDomainUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.BizDomainResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import cn.ac.fage.accessmesh.access.permission.service.BizDomainAppService;

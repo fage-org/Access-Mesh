@@ -21,8 +21,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * record 组件名快照精确比对，任何字段增删/改名都必须显式更新本清单并过设计评审。
  * </p>
  * <p>
- * check 族三个响应 DTO 在 access-service（服务端）与 perm-common（SDK）各有一份副本，
- * 双副本任意一侧漂移即破坏 HTTP 契约——本测试同时钉死两副本的组件名清单与互相同形。
+ * check 族请求 DTO 已随 T-PERM-065 收敛 perm-common 单源（服务端 Controller 与 SDK 共用一类）；
+ * 三个响应 DTO 在 access-service（服务端）与 perm-common（SDK）仍各有一份副本，
+ * 双副本任意一侧漂移即破坏 HTTP 契约——本测试同时钉死两侧的组件名清单与互相同形。
  * </p>
  */
 class CheckFamilyWireShapeTest {
@@ -101,25 +102,21 @@ class CheckFamilyWireShapeTest {
     }
 
     @Test
-    @DisplayName("check 族请求入参快照（T-PERM-058 增主资源上下文四字段后终态）+ 双副本同形")
+    @DisplayName("check 族请求入参快照（T-PERM-058 增主资源上下文四字段后终态；T-PERM-065 收敛 perm-common 单源）")
     void checkRequestShapesAreFrozenWithParentContext() {
         List<String> expected = List.of("subjectTypeCode", "subjectExternalId", "resourceTypeCode",
             "resourceCode", "operationCode", "domainCode", "codeType", "inheritMode",
             "parentResourceTypeCode", "parentResourceCode", "parentCodeType", "parentOperationCodes",
             "context");
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.req.AuthCheckReq.class))
-            .containsExactlyElementsOf(expected);
         assertThat(components(cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq.class))
-            .as("AuthCheckReq 双副本漂移会破坏 SDK 消费方序列化")
+            .as("AuthCheckReq 是 perm-common 单源契约（服务端 Controller 与 SDK 共用），漂移破坏 SDK 消费方序列化")
             .containsExactlyElementsOf(expected);
 
         List<String> batchExpected = List.of("subjectTypeCode", "subjectExternalId", "items",
             "parentResourceTypeCode", "parentResourceCode", "parentCodeType", "parentOperationCodes",
             "context");
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.req.BatchAuthCheckReq.class))
-            .containsExactlyElementsOf(batchExpected);
         assertThat(components(cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.class))
-            .as("BatchAuthCheckReq 双副本漂移会破坏 SDK 消费方序列化")
+            .as("BatchAuthCheckReq 是 perm-common 单源契约，漂移破坏 SDK 消费方序列化")
             .containsExactlyElementsOf(batchExpected);
     }
 

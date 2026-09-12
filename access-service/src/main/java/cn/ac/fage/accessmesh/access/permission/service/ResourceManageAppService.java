@@ -2,10 +2,10 @@ package cn.ac.fage.accessmesh.access.permission.service;
 
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingAddReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ApiMappingUpdateReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourceResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.ResourceTreeResp;

@@ -81,7 +81,7 @@ class ResourceManageAppServiceImplTest {
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 0, "m1", "default")).thenReturn(null);
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.updateResource(1L,
-                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq(
+                new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq(
                     "MENU", "m1", "default", null, null, null, null, null, null), 9L))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
         org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(1L,
@@ -141,14 +141,14 @@ class ResourceManageAppServiceImplTest {
         when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "API")).thenReturn(apiType());
 
         // 带空白 codeType：落库前 trim，否则该行无法经业务键（归一 trim）寻址
-        service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+        service.createResource(1L, new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
             null, null, null, null, null, "API", "res-a", " X ", "资源A", null, null, null, null), 100L);
         org.mockito.ArgumentCaptor<ResourceEntity> captor1 = org.mockito.ArgumentCaptor.forClass(ResourceEntity.class);
         verify(resourceEntityMapper, org.mockito.Mockito.times(1)).insert(captor1.capture());
         assertEquals("X", captor1.getValue().getCodeType());
 
         // null codeType：落库 default
-        service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+        service.createResource(1L, new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
             null, null, null, null, null, "API", "res-b", null, "资源B", null, null, null, null), 100L);
         org.mockito.ArgumentCaptor<ResourceEntity> captor2 = org.mockito.ArgumentCaptor.forClass(ResourceEntity.class);
         verify(resourceEntityMapper, org.mockito.Mockito.times(2)).insert(captor2.capture());
@@ -214,7 +214,7 @@ class ResourceManageAppServiceImplTest {
             .thenReturn(true);
 
         var resp = service.updateResource(1L,
-            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq(
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq(
                 "MENU", "x", null, null, null, null, null, null, Boolean.TRUE), 100L);
 
         assertEquals(null, resp.extra());
@@ -233,7 +233,7 @@ class ResourceManageAppServiceImplTest {
             .thenReturn(true);
 
         var resp = service.updateResource(1L,
-            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq(
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq(
                 "MENU", "x", null, "新名称", null, null, null, null, null), 100L);
 
         assertEquals("{\"k\":1}", resp.extra());
@@ -319,7 +319,7 @@ class ResourceManageAppServiceImplTest {
 
         cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
             cn.ac.fage.accessmesh.common.exception.BizException.class,
-            () -> service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+            () -> service.createResource(1L, new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
                 null, null, null, null, null, "API", "res-a", null, "资源A", null, null, null, null), 100L));
         assertEquals(20055, ex.getErrorCode());
         verify(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, "API");
@@ -338,7 +338,7 @@ class ResourceManageAppServiceImplTest {
         cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
             cn.ac.fage.accessmesh.common.exception.BizException.class,
             () -> service.batchCreateResources(1L, java.util.List.of(
-                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+                new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
                     null, null, null, null, null, "HR_ORG", "org-a", null, "部门A", null, null, null, null)), 100L));
         assertEquals(20055, ex.getErrorCode());
         verify(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("HR_ORG"));
@@ -352,7 +352,7 @@ class ResourceManageAppServiceImplTest {
             isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
         when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "API")).thenReturn(apiType());
 
-        service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+        service.createResource(1L, new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
             null, null, null, null, null, "API", "res-lock", null, "资源锁序", null, null, null, null), 100L);
 
         // codex 三轮复评 P2-1：engine 入序（钉「权限在锁前」）；旧实现无锁/门禁在锁前时失败
@@ -375,7 +375,7 @@ class ResourceManageAppServiceImplTest {
         when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
 
         service.batchCreateResources(1L, java.util.List.of(
-            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
                 null, null, null, null, null, "API", "res-lock-b", null, "资源B", null, null, null, null)), 100L);
 
         org.mockito.InOrder batchOrder = org.mockito.Mockito.inOrder(
@@ -401,7 +401,7 @@ class ResourceManageAppServiceImplTest {
 
         cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
             cn.ac.fage.accessmesh.common.exception.BizException.class,
-            () -> service.createResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceCreateReq(
+            () -> service.createResource(1L, new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
                 null, null, null, null, null, "GHOST", "res-ghost", null, "幽灵类型", null, null, null, null), 100L));
         assertEquals(20021, ex.getErrorCode());
         verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
@@ -436,7 +436,7 @@ class ResourceManageAppServiceImplTest {
         cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
             cn.ac.fage.accessmesh.common.exception.BizException.class,
             () -> service.updateResource(1L,
-                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceUpdateReq(
+                new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq(
                     "HR_ORG", "x", null, "改名", null, null, null, null, null), 100L));
         assertEquals(20055, ex.getErrorCode());
         verify(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, "HR_ORG");

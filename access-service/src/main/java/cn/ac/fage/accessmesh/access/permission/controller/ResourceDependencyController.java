@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DependencyBatchSyncReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.DependencyListReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceDependencyCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceDependencyCheckReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceDependencyUpdateReq;

@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.permission.constant.PermConstants;
 import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
-import cn.ac.fage.accessmesh.access.permission.dto.req.RoleCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleTreeResp;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.RoleTreeResp.RoleTreeNode;
