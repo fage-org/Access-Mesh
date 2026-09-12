@@ -34,6 +34,9 @@ docs/
 ├── tasks/                             # 任务（原子执行单元，看板为唯一权威清单）
 │   └── README.md
 └── archive/                           # 归档文档（仅追溯，不作为实现依据）
+    ├── 2026-09-12/
+    ├── 2026-09-10/
+    ├── 2026-09-07/
     ├── 2026-08-27/
     ├── 2026-08-22/
     ├── 2026-08-15/
@@ -42,6 +45,7 @@ docs/
     ├── 2026-06-28/
     ├── 2026-06-21/
     ├── 2026-06-20/
+    ├── 2026-06-18/
     ├── 2026-06-17/
     ├── 2026-06-14/
     ├── 2026-06-05/
@@ -131,9 +135,12 @@ docs/
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
 | `archive/2026-09-12/` | 任务/计划归档制落地批次：94 张终态任务卡按所属计划归档日期补迁至各日期目录 `tasks/` 子目录（06-28/07-12/07-26/08-22/08-27/09-07/09-12）；permission-query-unification-plan 物理归档（status 已 archived，四任务全 done）；侧挂归档 `plans/archive/2026-07/`（两取消计划）与 `plans/archive/2026-06/`（v3.0~v3.3 设计史）并入统一归档目录 `archive/2026-07-26/`、`archive/2026-06-18/`。 | [archive/2026-09-12/README.md](archive/2026-09-12/README.md) |
+| `archive/2026-09-10/` | 权限排查页设计（`design/frontend/permission-query.md`）归档——页面与 permission-view 8 端点随 T-PERM-059 删除重设计（2026-09-10 三项定案见 decision-registry），重做新形态另立任务。 | [archive/2026-09-10/README.md](archive/2026-09-10/README.md) |
 | `archive/2026-09-07/` | 计划治理收尾归档批次：product-positioning-landing-plan（T-ACCESS-027/028 全 done，2026-08-28 completed）+ frontend-phase3-plan（T-FE-015~022/037 九任务全 done 2026-09-04；归档门禁「统一全页导航/F5/直达 URL 冒烟」2026-09-07 执行通过 21/21，Edge headless）。门禁执行记录见批次 README。 | [archive/2026-09-07/README.md](archive/2026-09-07/README.md) |
 | `archive/2026-08-27/` | product-vertical-slice 计划收口归档（T-ACCESS-026）：产品垂直切片与试点加固计划（18 项全 done，里程碑 A+B 达成）+ access-post-merge-plan（T-ACCESS-013~015 全 done，CI 准入前置关闭）+ improvement-plan 项目级路线图归档（诊断与四阶段拆分使命完成，完成度口径截至 2026-06，痛点 #3/#4 暂缓溯源仍有效）。外部 Docker 验证证据与 CI 口径见任务卡 T-ACCESS-026。权威入口：`design/access-service-architecture.md` | [archive/2026-08-27/README.md](archive/2026-08-27/README.md) |
 | `archive/2026-08-22/` | access-service 归并收口归档（T-ACCESS-012）：四份旧 DDL、原 admin-service 服务设计（superseded）、归并主计划（T-ACCESS-001~012 全部完成）。权威入口：`design/access-service-architecture.md` + `design/schema/access-service.sql` + `design/services/admin-service-api-contract.md` |
+| `archive/2026-08-15/` | 跨服务异步同步设计 `admin-permission-sync.md` 归档——被 access-service 单库强事务目标架构（`design/access-service-architecture.md` §4）取代，仅历史追溯。 |
+| `archive/2026-07-26/` | 权限授予页 v1/v2 交互设计四份归档（permission-grant + state-model/interaction/error-flow；页面 2026-07-26 因交互不满意整体删除重做，v3 见 `design/frontend/permission-grant.md`）；2026-09-12 侧挂 `plans/archive/2026-07/` 两取消计划（ux-refactor/v2）与 11 张任务卡并入本目录 `tasks/`。 | [archive/2026-07-26/README.md](archive/2026-07-26/README.md) |
 | `archive/2026-07-12/` | 前端 Phase 1 归档：13 页 T-FE 任务（T-FE-001~014）全 done，API 核对清单产出（🔧❌ 登记 T-PERM-022~034 归 Phase 2），组件池确认（派生 T-FE-024 归 Phase 4），设计回写完成（13 份全 adopted）。build/lint/typecheck + mvn test 均通过。 | [archive/2026-07-12/README.md](archive/2026-07-12/README.md) |
 | `archive/2026-06-28/` | 工作单 A/B/C 归档：权限缓存失效改造（T-PERM-001~008·017·018）、scopeMode 协议迁移（T-PERM-009~015）、Gateway 失联兜底（T-GW-001~006）均已完成。稳定结论已沉淀至 v3.5-design §7.2 / api-contract scopeMode / gateway.md 失联兜底模式与快照失效标记。 | [archive/2026-06-28/README.md](archive/2026-06-28/README.md) |
 | `archive/2026-06-21/` | API 核对清单 + 「组织与用户」融合页实现计划归档：16 个 🔧 接口经代码核实已由 admin-service 实现，与 org-user-page P1=100% 一致；org-user-page P0/P1/P2 三阶段全 100%，联动验收（T-ADMIN-001~019）已完成。权威契约以 `design/org-user-permission-contract.md` v1.2 + `design/services/admin-service-api-contract.md` v1.0 为准。 | [archive/2026-06-21/README.md](archive/2026-06-21/README.md) |

@@ -21,7 +21,7 @@
 - [x] 看板（docs/tasks/README.md）94 张卡物理迁移，其中 90 张卡行链接改指 `../archive/<日期>/tasks/<ID>.md`（T-PERM-002/T-GW-004/T-GW-005/T-PERM-009 四行本为纯文本无链接）；计划链接与 `plans/archive/` 文本残留同步改写。仓库根 README.md 两处卡链接为初批扫描盲区（只扫了 docs/），已随同日双轨评审处置批次修复。
 - [x] `../../tasks/T-X.md` 形式的卡链接改指同目录 `tasks/T-X.md`；permission-query-unification-plan 内链按新深度修正。
 - [x] 迁移卡 frontmatter `plan` 字段改写为归档后路径（21 张：phase1×6、2026-07 两计划×11、query-unification×4）。
-- [x] 全仓 grep `plans/archive/`、`docs/tasks/evidence`、悬空卡链接清零（见当日会话验证记录）。
+- [x] 全仓无 `plans/archive/` 活引用（迁移注记/历史描述文本除外）、无 `docs/tasks/evidence` 残留、无悬空卡链接（非归档区真实悬空为零，见外评全量枚举：归档区存量悬空为 2026-06-03 源码链接 92 条 + 已知豁免 4 条）。
 - [x] skill 双副本（.claude/.agents）同步一致；docs/README 归档规范与归档记录、plans/README 索引行同步。
 
 ## 当前权威入口

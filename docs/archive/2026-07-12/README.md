@@ -10,8 +10,8 @@
 
 - 前端页面设计：`docs/design/frontend/*.md`（13 份，全 adopted，Phase 3 联调仍需引用）
 - 任务看板：`docs/tasks/README.md`（T-FE-001~014 全 ✅）
-- 任务详情：`docs/tasks/T-FE-*.md`（各页面任务文件，含 API 核对清单 + 组件识别记录）
-- 组件池权威：`docs/tasks/T-FE-001.md` + `docs/design/frontend/permission-grant.md` §15.4
+- 任务详情：`tasks/T-FE-*.md`（各页面任务文件，含 API 核对清单 + 组件识别记录；2026-09-12 随本批迁入）
+- 组件池权威：`tasks/T-FE-001.md` + `docs/design/frontend/permission-grant.md` §15.4
 - Phase 2 后端任务：`docs/plans/frontend-phase2-plan.md`（T-PERM-022~034，proposed）
 - 项目路线图：`docs/plans/improvement-plan.md`（Phase 1 已标记 archived）
 

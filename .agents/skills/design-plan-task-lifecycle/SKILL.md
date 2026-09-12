@@ -135,7 +135,7 @@ Plan 正文结构（**禁止**重写契约）：
 doc_type: task
 id: T-PERM-001
 title: Gateway 缓存改快照模式
-status: proposed        # proposed | in-progress | review | done | cancelled | archived
+status: proposed        # proposed | in-progress | review | done | cancelled | archived（archived 由文件位置表达、不回写状态，见 §3.3）
 plan: docs/plans/perm-cache-invalidation.md
 domain: permission-center
 design_refs:            # 本任务将改动的设计章节；done 前必须回写
@@ -439,7 +439,7 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 - [ ] 新建遗留任务的 ID 由看板计数器新分配且主题与已有卡一致（未占用）？
 - [ ] 计划 `completed` 前所有任务 `done`/`cancelled`？
 - [ ] 已终态且无活跃计划归属的任务卡、已归档计划（含侧挂归档）已移入 `docs/archive/<日期>/`（卡住 `tasks/` 子目录），`docs/tasks/`、`docs/plans/` 无归档滞留？
-- [ ] 归档后看板/索引链接已改指归档位置，全仓 grep 无 `plans/archive/` 活引用（迁移注记除外）与悬空卡链接残留？
+- [ ] 归档后看板/索引链接已改指归档位置，全仓 grep 无 `plans/archive/` 活引用（迁移注记/历史描述文本除外）与悬空卡链接残留？
 - [ ] `depends_on` 改动后无循环？
 - [ ] 任务 `cancelled` / 设计 `superseded` 后已触发 §4 扫描并在看板登记？
 
