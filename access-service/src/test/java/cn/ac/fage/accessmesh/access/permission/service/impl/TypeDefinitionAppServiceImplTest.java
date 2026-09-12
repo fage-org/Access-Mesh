@@ -54,6 +54,7 @@ class TypeDefinitionAppServiceImplTest {
     @Mock private cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper apiMappingMapper;
     @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
     @Mock private cn.ac.fage.accessmesh.common.cache.CacheService cacheService;
+    @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.GrantOriginDomainService grantOriginDomainService;
 
     private TypeDefinitionAppServiceImpl service;
 
@@ -67,7 +68,8 @@ class TypeDefinitionAppServiceImplTest {
         service = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, engine, ownershipGuard,
             resourceEntityDomainService, localProjectionDomainService, subjectDomainService,
-            rolePermMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService.class), apiMappingMapper, treeWriteLockSupport, cacheService
+            rolePermMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService.class), apiMappingMapper, treeWriteLockSupport, cacheService,
+            grantOriginDomainService
         );
         // list/count 走 OperatorContext（读 AccessRequestContext），绑定用户上下文
         AccessRequestContext.bind(RequestContext.user(1L, 100L));
@@ -83,10 +85,13 @@ class TypeDefinitionAppServiceImplTest {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
             .thenReturn(true);
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(5);
+        when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any())).thenReturn(null);
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
+
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "CUSTOM")).thenReturn(null);
 
         TypeCreateReq req = new TypeCreateReq(
-            "resource_type", "CUSTOM", "TestType", "A test type", 0, null
+            "resource_type", "CUSTOM", "TestType", "A test type", 0, null, null, null
         );
 
         TypeDefinitionResp result = service.createType(1L, req, 100L);
@@ -107,9 +112,11 @@ class TypeDefinitionAppServiceImplTest {
         // 回归锁：typeValue 由服务端分配，且 max 查询必须含软删行（软删不复用，T-PERM-019 D1）
         when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
             .thenReturn(true);
+        when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any())).thenReturn(null);
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(7);
 
-        TypeCreateReq req = new TypeCreateReq("resource_type", null, "AutoCode", null, null, null);
+        TypeCreateReq req = new TypeCreateReq("resource_type", null, "AutoCode", null, null, null, null, null);
 
         service.createType(1L, req, 100L);
 
@@ -130,7 +137,7 @@ class TypeDefinitionAppServiceImplTest {
             .thenReturn(true);
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(null);
 
-        service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null), 100L);
+        service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null, null, null), 100L);
 
         ArgumentCaptor<TypeDefinition> captor = ArgumentCaptor.forClass(TypeDefinition.class);
         verify(typeDefinitionMapper).insert(captor.capture());
@@ -146,7 +153,7 @@ class TypeDefinitionAppServiceImplTest {
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "MENU"))
             .thenReturn(new TypeDefinition());
 
-        TypeCreateReq req = new TypeCreateReq("resource_type", "MENU", "Dup", null, null, null);
+        TypeCreateReq req = new TypeCreateReq("resource_type", "MENU", "Dup", null, null, null, null, null);
 
         BizException exception = assertThrows(BizException.class,
             () -> service.createType(1L, req, 100L));
@@ -166,7 +173,7 @@ class TypeDefinitionAppServiceImplTest {
             .thenThrow(new DataIntegrityViolationException(
                 "duplicate key value violates unique constraint \"uk_type_definition_code\""));
 
-        TypeCreateReq req = new TypeCreateReq("group_type", null, "Auto", null, null, null);
+        TypeCreateReq req = new TypeCreateReq("group_type", null, "Auto", null, null, null, null, null);
 
         BizException exception = assertThrows(BizException.class, () -> service.createType(1L, req, 100L));
         assertEquals(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
@@ -184,7 +191,7 @@ class TypeDefinitionAppServiceImplTest {
             .thenThrow(new DataIntegrityViolationException(
                 "duplicate key value violates unique constraint \"uk_type_definition_value\""));
 
-        TypeCreateReq req = new TypeCreateReq("group_type", "EXPLICIT", "Concurrent", null, null, null);
+        TypeCreateReq req = new TypeCreateReq("group_type", "EXPLICIT", "Concurrent", null, null, null, null, null);
 
         BizException exception = assertThrows(BizException.class, () -> service.createType(1L, req, 100L));
         assertEquals(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
@@ -198,7 +205,7 @@ class TypeDefinitionAppServiceImplTest {
         when(typeDefinitionMapper.insert(any(TypeDefinition.class)))
             .thenThrow(new DataIntegrityViolationException("some other constraint"));
 
-        TypeCreateReq req = new TypeCreateReq("group_type", null, "First", null, null, null);
+        TypeCreateReq req = new TypeCreateReq("group_type", null, "First", null, null, null, null, null);
 
         assertThrows(DataIntegrityViolationException.class, () -> service.createType(1L, req, 100L));
     }
@@ -209,7 +216,7 @@ class TypeDefinitionAppServiceImplTest {
             .thenReturn(false);
 
         TypeCreateReq req = new TypeCreateReq(
-            "resource_type", null, "TestType", "A test type", 0, null
+            "resource_type", null, "TestType", "A test type", 0, null, null, null
         );
 
         assertThrows(SecurityException.class, () -> service.createType(1L, req, 100L));
@@ -220,9 +227,11 @@ class TypeDefinitionAppServiceImplTest {
         // T-PERM-028：resource_type 新类型联动预置 CRUD 四操作位（DDL 预置组模板同款）
         when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any()))
             .thenReturn(true);
+        when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any())).thenReturn(null);
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(9);
 
-        service.createType(1L, new TypeCreateReq("resource_type", null, "NewRes", null, null, null), 100L);
+        service.createType(1L, new TypeCreateReq("resource_type", null, "NewRes", null, null, null, null, null), 100L);
 
         ArgumentCaptor<List<cn.ac.fage.accessmesh.access.permission.entity.OperationPermission>> opCaptor =
             ArgumentCaptor.forClass(List.class);
@@ -245,7 +254,7 @@ class TypeDefinitionAppServiceImplTest {
             .thenReturn(true);
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(null);
 
-        service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null), 100L);
+        service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null, null, null), 100L);
 
         verify(operationPermissionMapper, never()).insertBatch(any());
     }
@@ -406,11 +415,14 @@ class TypeDefinitionAppServiceImplTest {
     void shouldCreateSyncDeclaredResourceType_whenSourceServiceRegistered() {
         when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(5);
+        when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any()))
+            .thenReturn(SYNC_DECLARATION);
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "hr-service"))
             .thenReturn(registeredEnabledService());
 
         service.createType(1L, new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
-            SYNC_DECLARATION), 100L);
+            SYNC_DECLARATION, null, null), 100L);
 
         ArgumentCaptor<TypeDefinition> captor = ArgumentCaptor.forClass(TypeDefinition.class);
         verify(typeDefinitionMapper).insert(captor.capture());
@@ -422,7 +434,7 @@ class TypeDefinitionAppServiceImplTest {
         when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
 
         BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
-            new TypeCreateReq("group_type", "G1", "组", null, null, SYNC_DECLARATION), 100L));
+            new TypeCreateReq("group_type", "G1", "组", null, null, SYNC_DECLARATION, null, null), 100L));
         assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
     }
@@ -433,7 +445,7 @@ class TypeDefinitionAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
             new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
-                "{\"managedMode\":\"SYNC\"}"), 100L));
+                "{\"managedMode\":\"SYNC\"}", null, null), 100L));
         assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
     }
@@ -444,7 +456,7 @@ class TypeDefinitionAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
             new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
-                "{\"managedMode\":\"AUTO\"}"), 100L));
+                "{\"managedMode\":\"AUTO\"}", null, null), 100L));
         assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
     }
 
@@ -455,7 +467,7 @@ class TypeDefinitionAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
             new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
-                SYNC_DECLARATION), 100L));
+                SYNC_DECLARATION, null, null), 100L));
         assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
     }
@@ -550,9 +562,11 @@ class TypeDefinitionAppServiceImplTest {
         // 管理面门禁对「类型不存在」放行，创建类型不持锁时在途资源插入可落进并发新建的 SYNC 类型）；
         // 非 resource_type 类型创建不持锁
         when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any())).thenReturn(null);
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(5);
 
-        service.createType(1L, new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null, null), 100L);
+        service.createType(1L, new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null, null, null, null), 100L);
 
         // codex 四轮复评 P2-2：engine 入序（钉「权限→锁→首次类型读取」完整顺序）
         org.mockito.InOrder order = org.mockito.Mockito.inOrder(engine, treeWriteLockSupport, typeDefinitionMapper);
@@ -563,7 +577,7 @@ class TypeDefinitionAppServiceImplTest {
 
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "role_type")).thenReturn(2);
         org.mockito.Mockito.clearInvocations(treeWriteLockSupport);
-        service.createType(1L, new TypeCreateReq("role_type", "TEAM_ROLE", "团队角色类型", null, null, null), 100L);
+        service.createType(1L, new TypeCreateReq("role_type", "TEAM_ROLE", "团队角色类型", null, null, null, null, null), 100L);
         verify(treeWriteLockSupport, never()).lockTreeWrites(anyLong(), any());
     }
 
@@ -573,7 +587,7 @@ class TypeDefinitionAppServiceImplTest {
         when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "role_type")).thenReturn(2);
 
-        service.createType(1L, new TypeCreateReq("role_type", "TEAM_ROLE", "团队角色类型", null, null, null), 100L);
+        service.createType(1L, new TypeCreateReq("role_type", "TEAM_ROLE", "团队角色类型", null, null, null, null, null), 100L);
 
         verify(cacheService).evictAfterCommit(
             cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.TYPE_VALUE, 1L, "role_type:TEAM_ROLE");
@@ -739,7 +753,7 @@ class TypeDefinitionAppServiceImplTest {
         when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(null);
 
-        service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null), 100L);
+        service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null, null, null), 100L);
 
         verify(localProjectionDomainService).upsertTypeDefinitionResource(
             1L, "group_type", "GROUP_TYPE_1", "First");
@@ -1050,5 +1064,176 @@ class TypeDefinitionAppServiceImplTest {
         verify(subjectDomainService, never()).findUserTypesWithValidRows(anyLong(), any());
         verify(subjectDomainService, never()).findRoleTypesWithValidRows(anyLong(), any());
         verify(typeDefinitionMapper).softDeleteBatch(eq(1L), any(), any());
+    }
+
+    // ========== T-PERM-062：授权根生命周期钩子（创建即建基座 / 所有者指针变更迁移） ==========
+
+    @Test
+    void shouldSeedAuthorityRootGrantsOnResourceTypeCreate() {
+        // 创建 resource_type 即向所有者角色种 CRUD 四操作位首授行（缺省引导角色；旧实现无钩子本用例必红）
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(9);
+        when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any())).thenReturn(null);
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
+
+        service.createType(1L, new TypeCreateReq("resource_type", null, "NewRes", null, null, null, null, null), 100L);
+
+        // 缺省引导角色经 merge 注入指针；种子位与预置操作位单一来源（CRUD 1/2/4/8）
+        verify(grantOriginDomainService).mergeGrantOriginPointer(isNull(), eq("BASIC_ROLE"), eq("bootstrap-admin"));
+        verify(grantOriginDomainService).seedAuthorityRootGrants(eq(1L), eq(55L), eq(10),
+            eq(List.of(1L, 2L, 4L, 8L)), eq(100L));
+    }
+
+    @Test
+    void shouldPassExplicitOwnerRoleToGrantOriginMerge() {
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(9);
+        when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any())).thenReturn(null);
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(66L);
+
+        service.createType(1L, new TypeCreateReq("resource_type", null, "NewRes", null, null, null,
+            "BASIC_ROLE", "order-admin"), 100L);
+
+        verify(grantOriginDomainService).mergeGrantOriginPointer(isNull(), eq("BASIC_ROLE"), eq("order-admin"));
+    }
+
+    @Test
+    void shouldRejectHalfProvidedOwnerRoleFields() {
+        // ownerRoleTypeCode 与 ownerRoleExternalId 必须成对（缺一 20044；先于类型行落库）
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(9);
+
+        BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
+            new TypeCreateReq("resource_type", null, "NewRes", null, null, null, "BASIC_ROLE", null), 100L));
+
+        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
+        verify(grantOriginDomainService, never()).seedAuthorityRootGrants(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void shouldRollbackCreateWhenOwnerRoleUnresolvable() {
+        // 所有者角色不存在/停用 → 整单回滚，不存在「已建类型但无所有者」中间态
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(9);
+        when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any())).thenReturn(null);
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any()))
+            .thenThrow(new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "类型授权根角色不存在"));
+
+        BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
+            new TypeCreateReq("resource_type", null, "NewRes", null, null, null, null, null), 100L));
+
+        assertEquals(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), ex.getErrorCode());
+        verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldRejectClientSuppliedPointerKeyOnAnyTypeKeyCreate() {
+        // 评审批次 P3-2：指针键统一拒绝——非 resource_type 类型的 create extra 自带
+        // grantOriginRole 也拒绝（服务端管理键不得绕道入库成脏键）；旧实现静默落库本用例必红
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(null);
+        when(grantOriginDomainService.hasGrantOriginPointerKey(any()))
+            .thenReturn(true);
+
+        BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
+            new TypeCreateReq("group_type", "G1", "组", null, null,
+                "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"x\"}}",
+                null, null), 100L));
+
+        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldNotTouchGrantOriginForNonResourceTypeKey() {
+        // 非 resource_type 类型键不注入指针、不落种子（typeKey 分组维度的钩子边界）
+        when(engine.hasPermissionByCode(anyLong(), anyLong(), any(), any(), any())).thenReturn(true);
+        when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "group_type")).thenReturn(null);
+
+        service.createType(1L, new TypeCreateReq("group_type", null, "First", null, null, null, null, null), 100L);
+
+        verify(grantOriginDomainService, never()).mergeGrantOriginPointer(any(), any(), any());
+        verify(grantOriginDomainService, never()).resolveOwnerRoleId(anyLong(), any());
+        verify(grantOriginDomainService, never()).seedAuthorityRootGrants(anyLong(), anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void shouldMigrateAuthorityRootWhenOwnerPointerChanged() {
+        // 用户定案 2026-09-12「允许变更并补齐种子」：指针变更 → 类型行更新后同事务先清后种迁移
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
+        String oldExtra = "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"bootstrap-admin\"}}";
+        String newExtra = "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"order-admin\"}}";
+        TypeDefinition existing = new TypeDefinition();
+        existing.setId(9L);
+        existing.setTenantId(1L);
+        existing.setTypeKey("resource_type");
+        existing.setTypeCode("HR_ORG");
+        existing.setTypeValue(5);
+        existing.setIsSystem(false);
+        existing.setExtra(oldExtra);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
+        when(grantOriginDomainService.parseGrantOriginPointer(oldExtra))
+            .thenReturn(new cn.ac.fage.accessmesh.access.permission.service.domain.GrantOriginDomainService.GrantOriginRole(
+                "BASIC_ROLE", "bootstrap-admin"));
+        when(grantOriginDomainService.parseGrantOriginPointer(newExtra))
+            .thenReturn(new cn.ac.fage.accessmesh.access.permission.service.domain.GrantOriginDomainService.GrantOriginRole(
+                "BASIC_ROLE", "order-admin"));
+        when(grantOriginDomainService.resolveOwnerRoleId(1L, newExtra)).thenReturn(77L);
+
+        service.updateType(1L, new TypeUpdateReq(9L, null, null, null, newExtra), 100L);
+
+        verify(grantOriginDomainService).rematerializeAuthorityRootGrants(1L, 5, 77L, 100L);
+    }
+
+    @Test
+    void shouldPreserveOwnerPointerWhenExtraOmitted() {
+        // 客户端 extra 未带指针键：服务端保留现值（指针无清除语义），不触发迁移
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
+        String oldExtra = "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"bootstrap-admin\"}}";
+        TypeDefinition existing = new TypeDefinition();
+        existing.setId(9L);
+        existing.setTenantId(1L);
+        existing.setTypeKey("resource_type");
+        existing.setTypeCode("HR_ORG");
+        existing.setTypeValue(5);
+        existing.setIsSystem(false);
+        existing.setExtra(oldExtra);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
+        when(grantOriginDomainService.parseGrantOriginPointer(oldExtra))
+            .thenReturn(new cn.ac.fage.accessmesh.access.permission.service.domain.GrantOriginDomainService.GrantOriginRole(
+                "BASIC_ROLE", "bootstrap-admin"));
+        when(grantOriginDomainService.parseGrantOriginPointer("{\"k\":1}")).thenReturn(null);
+        when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any())).thenReturn(oldExtra);
+
+        service.updateType(1L, new TypeUpdateReq(9L, null, null, null, "{\"k\":1}"), 100L);
+
+        verify(grantOriginDomainService).mergeGrantOriginPointer("{\"k\":1}", "BASIC_ROLE", "bootstrap-admin");
+        verify(grantOriginDomainService, never()).rematerializeAuthorityRootGrants(anyLong(), any(), any(), any());
+        verify(typeDefinitionMapper).update(any(TypeDefinition.class));
+    }
+
+    @Test
+    void shouldRejectOwnerPointerOnNonCustomResourceType() {
+        // 指针仅自定义 resource_type 可携带：is_system 类型（及其他 typeKey）携带即 20044
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
+        TypeDefinition user = new TypeDefinition();
+        user.setId(9L);
+        user.setTenantId(1L);
+        user.setTypeKey("resource_type");
+        user.setTypeCode("USER");
+        user.setTypeValue(6);
+        user.setIsSystem(true);
+        when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(user);
+        when(grantOriginDomainService.parseGrantOriginPointer(any()))
+            .thenReturn(new cn.ac.fage.accessmesh.access.permission.service.domain.GrantOriginDomainService.GrantOriginRole(
+                "BASIC_ROLE", "order-admin"));
+
+        BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
+            new TypeUpdateReq(9L, null, null, null, "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"order-admin\"}}"), 100L));
+
+        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        verify(typeDefinitionMapper, never()).update(any(TypeDefinition.class));
+        verify(grantOriginDomainService, never()).rematerializeAuthorityRootGrants(anyLong(), any(), any(), any());
     }
 }

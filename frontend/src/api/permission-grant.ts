@@ -34,7 +34,9 @@ export type GrantScopeMode =
 /** 授权来源（对齐 access-service GrantSource 枚举；INHERITED 为查询时克隆、不落库不返回） */
 export const GRANT_SOURCE = {
   MANUAL: "MANUAL",
-  AUTO_DEP: "AUTO_DEP"
+  AUTO_DEP: "AUTO_DEP",
+  /** 🔧 T-PERM-062：类型授权根种子（类型生命周期维护，授权页只读） */
+  AUTHORITY_ROOT: "AUTHORITY_ROOT"
 } as const;
 
 export type GrantSource = (typeof GRANT_SOURCE)[keyof typeof GRANT_SOURCE];
@@ -64,7 +66,9 @@ export const GRANT_ERROR_CODE = {
   /** 🔧 T-FE-040 v3.1：条件已停用（主权限 conditionCode 新写入或变更时必须 enabled=true，api-contract §6.5.1 20042） */
   CONDITION_DISABLED: 20042,
   /** 🔧 T-FE-040 v3.1：子权限属性系统不变量（conditionCode 必须 null、canGrant 必须 false；子权限 update 不支持），错误优先级先于 20041/20042（api-contract §6.5.1 20043） */
-  SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED: 20043
+  SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED: 20043,
+  /** 🔧 T-PERM-062：授权根种子行只读（updates/removes/挂子权限拒绝；随类型生命周期维护） */
+  AUTHORITY_ROOT_READONLY: 20061
 } as const;
 
 export type GrantErrorCode =
@@ -98,7 +102,9 @@ export const GRANT_ERROR_MESSAGES: Readonly<Record<number, string>> = {
   [GRANT_ERROR_CODE.CONDITION_DISABLED]:
     "该权限条件已停用，请重新选择启用中的条件后重试",
   [GRANT_ERROR_CODE.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED]:
-    "子权限不承载条件与再授予属性（系统不变量），仅可删除，请修正后重试"
+    "子权限不承载条件与再授予属性（系统不变量），仅可删除，请修正后重试",
+  [GRANT_ERROR_CODE.AUTHORITY_ROOT_READONLY]:
+    "授权根种子行只读（随类型生命周期维护：创建类型/追加操作补种、所有者变更迁移、类型删除清理），不可在授权页修改或删除"
 };
 
 // ========== 类型定义 ==========
@@ -128,7 +134,7 @@ export type RolePermissionItem = {
   scopeMode: GrantScopeMode;
   /** 父权限 id；主权限为 null */
   dependOn: number | null;
-  /** 授权来源 MANUAL / AUTO_DEP */
+  /** 授权来源 MANUAL / AUTO_DEP / AUTHORITY_ROOT（授权根种子，只读） */
   grantSource: GrantSource;
   /** 63 位操作位图，十进制字符串（如 "9223372036854775807"），必有值；前端 BigInt 解析 */
   grantedBits: string;

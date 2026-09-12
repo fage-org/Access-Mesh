@@ -133,7 +133,10 @@ class ResourceOperationKeyPgIT {
 
     private OperationAppServiceImpl newOperationAppService(PermQueryEngine engine) {
         return new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine,
-            mock(cn.ac.fage.accessmesh.common.cache.CacheService.class));
+            mock(cn.ac.fage.accessmesh.common.cache.CacheService.class),
+            typeDefinitionMapper,
+            mock(cn.ac.fage.accessmesh.access.permission.service.domain.GrantOriginDomainService.class),
+            mock(TreeWriteLockSupport.class));
     }
 
     @BeforeEach
@@ -307,6 +310,11 @@ class ResourceOperationKeyPgIT {
     @DisplayName("resource_type 创建联动预置 CRUD 四操作位（真实 uk 约束 + DDL 模板位值）+ 预置后失效 per-type 操作缓存（T-PERM-047）")
     void shouldPresetCrudOperationsWhenCreatingResourceTypeOnRealPostgres() {
         var cacheService = mock(cn.ac.fage.accessmesh.common.cache.CacheService.class);
+        // 授权根通道走 mock（本 IT 聚焦操作预置行落真实 PG；种子链路由切片 IT 全链路锁定），
+        // lenient 放行：merge 透传 extra、resolve 返回占位角色，种子 no-op
+        var grantOrigin = mock(cn.ac.fage.accessmesh.access.permission.service.domain.GrantOriginDomainService.class);
+        lenient().when(grantOrigin.mergeGrantOriginPointer(any(), any(), any())).thenReturn(null);
+        lenient().when(grantOrigin.resolveOwnerRoleId(anyLong(), any())).thenReturn(66L);
         TypeDefinitionAppServiceImpl typeService = new TypeDefinitionAppServiceImpl(
             typeDefinitionMapper, operationPermissionMapper, permitAllEngine(), ownershipGuard(),
             resourceEntityDomainService,
@@ -316,10 +324,11 @@ class ResourceOperationKeyPgIT {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.ResourceApiMappingMapper.class),
             mock(TreeWriteLockSupport.class),
-            cacheService);
+            cacheService,
+            grantOrigin);
 
         var resp = typeService.createType(TENANT,
-            new TypeCreateReq("resource_type", "PGIT28_TYPE", "联调测试类型", null, null, null), 100L);
+            new TypeCreateReq("resource_type", "PGIT28_TYPE", "联调测试类型", null, null, null, null, null), 100L);
 
         List<OperationPermission> preset = operationPermissionMapper
             .selectByTenantAndResourceType(TENANT, resp.typeValue());

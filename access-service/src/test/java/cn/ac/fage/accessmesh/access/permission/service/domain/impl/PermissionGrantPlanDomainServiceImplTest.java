@@ -919,6 +919,47 @@ class PermissionGrantPlanDomainServiceImplTest {
             assertEquals(20034, exception.getErrorCode());
         }
 
+        // ========== T-PERM-062：AUTHORITY_ROOT 种子行只读（20061，对齐 AUTO_DEP 只读三面） ==========
+
+        @Test
+        void shouldRejectUpdateOnAuthorityRootRecord() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "AUTHORITY_ROOT")));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null, null)), List.of())));
+
+            assertEquals(20061, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectRemoveOnAuthorityRootRecord() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "AUTHORITY_ROOT")));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(5L))));
+
+            assertEquals(20061, exception.getErrorCode());
+        }
+
+        @Test
+        void shouldRejectChildCreateUnderAuthorityRootParent() {
+            when(rolePermissionMapper.selectValidByRoleId(TENANT, ROLE))
+                .thenReturn(List.of(existing(5L, null, "AUTHORITY_ROOT")));
+
+            BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                    key("city:shanghai", ScopeMode.INSTANCE, null, false), 5L, List.of())),
+                    List.of(), List.of())));
+
+            assertEquals(20061, exception.getErrorCode());
+        }
+
         @Test
         void shouldRejectRemoveWhenAffectedRowCountChanges() {
             PermissionGrantPlanDomainService.PreparedGrantPlan prepared =

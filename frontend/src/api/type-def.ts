@@ -87,7 +87,10 @@ export type TypeDefListQuery = {
 /** 类型定义创建请求（T-PERM-023 收口，对齐后端 TypeCreateReq）：
  *  - 不含 typeValue：服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）。
  *  - typeCode 可选：留空则服务端按 <TYPEKEY大写>_<typeValue> 生成（如 RESOURCE_TYPE_12）；显式提供时后端查重（20049）。
- *  - 不含 isSystem：系统预置仅走租户初始化种子，API 创建固定 isSystem=false。 */
+ *  - 不含 isSystem：系统预置仅走租户初始化种子，API 创建固定 isSystem=false。
+ *  - ownerRole*（T-PERM-062，仅 typeKey=resource_type 消费）：类型所有者角色业务键，缺省
+ *    BASIC_ROLE/bootstrap-admin；创建即向所有者落 AUTHORITY_ROOT 首授基座（extra 携带
+ *    grantOriginRole 键由服务端维护，客户端自带拒绝 20044）。 */
 export type TypeDefCreateReq = {
   typeKey: string;
   typeCode?: string | null;
@@ -95,10 +98,14 @@ export type TypeDefCreateReq = {
   description?: string | null;
   sortOrder?: number;
   extra?: string | null;
+  ownerRoleTypeCode?: string;
+  ownerRoleExternalId?: string;
 };
 
 /** 类型定义更新请求（对齐 TypeUpdateReq，仅可改 name/description/sortOrder/extra；
- *  typeKey/typeCode/typeValue 不可改——稳定编码设计） */
+ *  typeKey/typeCode/typeValue 不可改——稳定编码设计。
+ *  T-PERM-062：自定义 resource_type 的 extra.grantOriginRole 变更 = 所有者迁移（后端同事务
+ *  先清后种重整化 AUTHORITY_ROOT 行）；未携带该键 = 保留现值，指针无清除语义） */
 export type TypeDefUpdateReq = {
   typeId: number;
   name?: string;

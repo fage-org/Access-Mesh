@@ -214,7 +214,7 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                                   @Param("resourceTypes") Set<Integer> resourceTypes);
 
     /**
-     * 查询指定资源类型值集合涉及的受影响角色ID集合（resource_type 删除级联场景，
+     * 查询指定资源类型值集合的有效角色ID集合（resource_type 删除级联场景，
      * 登记 ROLE_PERM_SNAPSHOT 失效，与 {@link #selectRoleIdsByResourceIds} 同口径）。
      *
      * @param tenantId     租户ID
@@ -223,6 +223,33 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
      */
     Set<Long> selectRoleIdsByResourceTypes(@Param("tenantId") Long tenantId,
                                             @Param("resourceTypes") Set<Integer> resourceTypes);
+
+    /**
+     * 查询指定资源类型值集合的有效授权根种子行（T-PERM-062 所有者变更迁移：先清后种
+     * 重整化——软删前取行（角色面 + 行 id）供受影响角色登记与批量清理；仅限
+     * typeKey=resource_type 的类型值调用，同 {@link #selectValidPermIdsByResourceTypes} 口径）。
+     *
+     * @param tenantId     租户ID
+     * @param resourceTypes 资源类型值集合
+     * @return grant_source=AUTHORITY_ROOT 的有效行
+     */
+    List<RoleResourcePermission> selectValidAuthorityRootsByTypes(@Param("tenantId") Long tenantId,
+                                                                   @Param("resourceTypes") Set<Integer> resourceTypes);
+
+    /**
+     * 查询指定资源类型值集合的可转授覆盖候选行（T-PERM-062 20040 reason 细分：
+     * 判定目标类型在租户内是否存在任一 canGrant=true 且无条件的覆盖行——失败路径专用，
+     * scopeAll 行覆盖两类键、实例行仅覆盖对应实例键）。
+     *
+     * @param tenantId         租户ID
+     * @param resourceTypes    资源类型值集合
+     * @param resourceEntityIds 失败实例键解析出的资源实体ID集合（可为 null/空=仅 scopeAll 行）
+     * @return 候选行（覆盖判定在调用方内存完成）
+     */
+    List<RoleResourcePermission> selectGrantableCoveringCandidates(
+        @Param("tenantId") Long tenantId,
+        @Param("resourceTypes") Set<Integer> resourceTypes,
+        @Param("resourceEntityIds") Set<Long> resourceEntityIds);
 
     /**
      * 根据角色ID和资源实体ID查询有效的权限记录

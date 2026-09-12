@@ -43,13 +43,17 @@ class OperationAppServiceImplTest {
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private PermQueryEngine engine;
     @Mock private cn.ac.fage.accessmesh.common.cache.CacheService cacheService;
+    @Mock private cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper typeDefinitionMapper;
+    @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.GrantOriginDomainService grantOriginDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
 
     private OperationAppServiceImpl service;
 
     @BeforeEach
     void setUp() {
         // 测试简化：投影主体 = 传入 operatorId
-        service = new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine, cacheService);
+        service = new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine,
+            cacheService, typeDefinitionMapper, grantOriginDomainService, treeWriteLockSupport);
     }
 
     @Test
@@ -304,6 +308,71 @@ class OperationAppServiceImplTest {
         verify(cacheService).evictAfterCommit(
             eq(cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
             eq(1L), eq("op_perm:7"));
+    }
+
+    // ========== T-PERM-062：自定义类型追加操作同事务补种授权根 ==========
+
+    @Test
+    @DisplayName("向自定义 resource_type 追加操作 → 同事务向所有者补种该操作位首授行")
+    void shouldSeedAuthorityRootWhenAppendingOperationToCustomType() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
+            .thenReturn(customType(12, false));
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
+
+        service.createOperation(1L, "ORDER", "EXPORT", "导出订单", 16L, 0L, 100L);
+
+        // 不钩追加操作则死锁转移到第五个操作（EXPORT 位 16 先例）；种子单操作位与操作行同事务
+        verify(grantOriginDomainService).seedAuthorityRootGrants(eq(1L), eq(55L), eq(12),
+            eq(List.of(16L)), eq(100L));
+        // 评审批次 P2-1：操作创建与类型生命周期写路径共持 RESOURCE_ENTITY 树写锁
+        //（锁内重读类型行——无锁时与所有者变更/类型删除交错产生不可回收种子行/漏级联）
+        verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+    }
+
+    @Test
+    @DisplayName("向系统预置类型追加操作 → 不补种（内置类型转授链收窄不动，T-PERM-027 口径）")
+    void shouldSkipSeedWhenAppendingOperationToSystemType() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "SERVICE")).thenReturn(4);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "SERVICE"))
+            .thenReturn(customType(4, true));
+
+        service.createOperation(1L, "SERVICE", "AUDIT", "审计", 64L, 0L, 100L);
+
+        verify(grantOriginDomainService, never()).seedAuthorityRootGrants(any(), any(), any(), any(), any());
+        verify(operationPermissionMapper).insert(any(OperationPermission.class));
+    }
+
+    @Test
+    @DisplayName("所有者角色解析失败 → 整单回滚（追加操作与种子同为单事务）")
+    void shouldRollbackWhenOwnerUnresolvableOnOperationCreate() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
+            .thenReturn(customType(12, false));
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any()))
+            .thenThrow(new cn.ac.fage.accessmesh.common.exception.BizException(
+                cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode.ROLE_NOT_FOUND.getCode(),
+                "类型授权根角色不存在"));
+
+        assertThrows(cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.createOperation(1L, "ORDER", "EXPORT", "导出订单", 16L, 0L, 100L));
+    }
+
+    private cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition customType(int typeValue, boolean isSystem) {
+        cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition type =
+            new cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition();
+        type.setTenantId(1L);
+        type.setTypeKey("resource_type");
+        type.setTypeValue(typeValue);
+        type.setIsSystem(isSystem);
+        return type;
     }
 
     @Test

@@ -8,9 +8,12 @@ import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
 import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.permission.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.util.OperationPermissionUtils;
@@ -53,6 +56,8 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine permQueryEngine;
     private final OperationPermissionMapper operationPermissionMapper;
+    private final RoleResourcePermissionMapper roleResourcePermissionMapper;
+    private final TypeDefinitionMapper typeDefinitionMapper;
 
     /**
      * 构造函数注入依赖服务
@@ -60,13 +65,20 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
      * @param typeResolutionService     类型解析服务
      * @param permQueryEngine           统一权限查询引擎（授权事实唯一来源）
      * @param operationPermissionMapper 操作权限数据访问层（目标操作定义加载，非权限判定）
+     * @param roleResourcePermissionMapper 授权数据访问层（20040 reason 细分的租户级可转授行
+     *                                     存在性查询，T-PERM-062；失败路径专用，不参与委托判定本身）
+     * @param typeDefinitionMapper      类型定义数据访问层（reason 细分的自定义类型过滤，T-PERM-062）
      */
     public PermissionGrantDomainServiceImpl(TypeResolutionService typeResolutionService,
                                             PermQueryEngine permQueryEngine,
-                                            OperationPermissionMapper operationPermissionMapper) {
+                                            OperationPermissionMapper operationPermissionMapper,
+                                            RoleResourcePermissionMapper roleResourcePermissionMapper,
+                                            TypeDefinitionMapper typeDefinitionMapper) {
         this.typeResolutionService = typeResolutionService;
         this.permQueryEngine = permQueryEngine;
         this.operationPermissionMapper = operationPermissionMapper;
+        this.roleResourcePermissionMapper = roleResourcePermissionMapper;
+        this.typeDefinitionMapper = typeDefinitionMapper;
     }
 
     // ===== canGrant 权限检查 =====
@@ -249,10 +261,22 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         }
 
         // 5. 逐键评估转授资格
+        Map<GrantCheckKey, GrantCheckResult> delegationFailedKeys = new LinkedHashMap<>();
         for (GrantCheckKey key : validPermissions) {
             GrantCheckResult result = evaluateGrantPermission(key, resourceTypeByCode, targetOpByKey,
                 resourceEntityIdByKey, entriesByOpAndEntity, entriesByOpKey);
             results.put(grantCheckKeyText(key), result);
+            if (!result.canGrant()
+                    && ("NO_PERMISSION".equals(result.reason()) || "NO_GRANT_RIGHT".equals(result.reason()))) {
+                delegationFailedKeys.put(key, result);
+            }
+        }
+        // T-PERM-062：20040 reason 细分（失败路径专用）——目标为自定义类型且租户内零条可转授
+        // 覆盖行时改判 TYPE_GRANT_ORIGIN_MISSING（区分「类型未初始化」与「操作者持有面不够」；
+        // 内置类型零可转授行是转授链收窄的设计状态，reason 维持原值，用户定案 2026-09-12）
+        if (!delegationFailedKeys.isEmpty()) {
+            refineGrantOriginMissing(tenantId, results, delegationFailedKeys,
+                resourceTypeByCode, targetOpByKey, resourceEntityIdByKey);
         }
         return results;
     }
@@ -364,6 +388,89 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         }
 
         return new GrantCheckResult(false, "NO_GRANT_RIGHT");
+    }
+
+    /**
+     * T-PERM-062 20040 reason 细分：失败键中目标为「自定义 resource_type（is_system=false）」
+     * 且该类型在租户内不存在任一可转授覆盖行（canGrant=true + 无条件 + 范围匹配 + 位覆盖，
+     * 任意角色）时，reason 改判 TYPE_GRANT_ORIGIN_MISSING——区分「类型未初始化（创建未落种子/
+     * 种子被直改库清除）」与「操作者持有面不够」两类 20040，供 message 归因与前端引导。
+     * <p>
+     * 仅失败路径触发（成功键零额外查询）；内置类型不参与（零可转授行是 T-PERM-027 转授链
+     * 收窄的设计状态，非种子缺失）。覆盖/范围匹配语义与 {@link #evaluateGrantPermission}
+     * 逐分支镜像（scopeAll 键只认 scopeAll 行；实例键认 scopeAll 行或同实例行；位覆盖 covers）。
+     * </p>
+     */
+    private void refineGrantOriginMissing(Long tenantId, Map<String, GrantCheckResult> results,
+                                          Map<GrantCheckKey, GrantCheckResult> delegationFailedKeys,
+                                          Map<String, Integer> resourceTypeByCode,
+                                          Map<String, OperationPermission> targetOpByKey,
+                                          Map<String, Long> resourceEntityIdByKey) {
+        // 失败键涉及的类型值（仅自定义 resource_type 参与；type_definition 全租户有效行一次
+        // 装载内存过滤——resource_type 行数量为个位到十位级，无逐键查询）
+        Set<Integer> failedTypeValues = delegationFailedKeys.keySet().stream()
+            .map(key -> resourceTypeByCode.get(key.resourceTypeCode().toUpperCase()))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (failedTypeValues.isEmpty()) {
+            return;
+        }
+        Set<Integer> customTypeValues = typeDefinitionMapper.selectValidByTenant(tenantId).stream()
+            .filter(td -> "resource_type".equals(td.getTypeKey())
+                && !Boolean.TRUE.equals(td.getIsSystem())
+                && failedTypeValues.contains(td.getTypeValue()))
+            .map(TypeDefinition::getTypeValue)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (customTypeValues.isEmpty()) {
+            return;
+        }
+        // 候选行（租户级任意角色）+ 失败类型操作定义索引（覆盖判定）
+        Set<Long> failedInstanceEntityIds = delegationFailedKeys.keySet().stream()
+            .filter(key -> !key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank())
+            .map(key -> resourceEntityIdByKey.get(BusinessKeys.resourceTripleCodeKey(
+                key.resourceTypeCode().toUpperCase(), key.resourceCode(), key.codeType())))
+            .filter(Objects::nonNull)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<RoleResourcePermission> candidates = roleResourcePermissionMapper
+            .selectGrantableCoveringCandidates(tenantId, customTypeValues, failedInstanceEntityIds);
+        Map<String, OperationPermission> candidateOpsByBit = OperationPermissionUtils
+            .indexByResourceTypeAndBinaryBit(operationPermissionMapper
+                .selectByTenantAndResourceTypes(tenantId, customTypeValues));
+        for (Map.Entry<GrantCheckKey, GrantCheckResult> entry : delegationFailedKeys.entrySet()) {
+            GrantCheckKey key = entry.getKey();
+            Integer typeValue = resourceTypeByCode.get(key.resourceTypeCode().toUpperCase());
+            if (typeValue == null || !customTypeValues.contains(typeValue)) {
+                continue;
+            }
+            OperationPermission targetOp = targetOpByKey.get(
+                BusinessKeys.operationCodeKey(typeValue, key.operationCode().toUpperCase()));
+            if (targetOp == null) {
+                continue;
+            }
+            Long keyEntityId = key.scopeAll() ? null : resourceEntityIdByKey.get(BusinessKeys.resourceTripleCodeKey(
+                key.resourceTypeCode().toUpperCase(), key.resourceCode(), key.codeType()));
+            boolean originExists = candidates.stream().anyMatch(row -> grantableRowCovers(
+                row, targetOp, candidateOpsByBit, key.scopeAll(), keyEntityId));
+            if (!originExists) {
+                results.put(grantCheckKeyText(key), new GrantCheckResult(false, "TYPE_GRANT_ORIGIN_MISSING"));
+            }
+        }
+    }
+
+    /** 候选行是否构成键的授权根（范围匹配 + 位覆盖，与 evaluateGrantPermission 同口径镜像） */
+    private boolean grantableRowCovers(RoleResourcePermission row, OperationPermission targetOp,
+                                       Map<String, OperationPermission> opsByBit,
+                                       boolean keyScopeAll, Long keyEntityId) {
+        if (keyScopeAll && !Boolean.TRUE.equals(row.getScopeAll())) {
+            return false;
+        }
+        if (!keyScopeAll && !Boolean.TRUE.equals(row.getScopeAll())
+                && !Objects.equals(row.getResourceEntityId(), keyEntityId)) {
+            return false;
+        }
+        OperationPermission grantedOp = opsByBit.get(
+            BusinessKeys.operationBitKey(row.getResourceType(), row.getGrantedBits()));
+        return grantedOp != null && OperationPermissionUtils.covers(grantedOp, targetOp);
     }
 
     /** K8 转授检查五段键（经 BusinessKeys 构造，格式 golden 锁定）。 */

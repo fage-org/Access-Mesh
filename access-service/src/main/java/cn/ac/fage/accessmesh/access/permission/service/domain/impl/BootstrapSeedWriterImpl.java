@@ -171,15 +171,9 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
         if (grants.isEmpty()) {
             return;
         }
-        List<RoleResourcePermission> existing = roleResourcePermissionMapper.selectValidByRoleIds(
-            tenantId, Set.of(roleId));
-        permissionGrantDomainService.validateSingleManualGrants(existing, grants, Set.of());
-        grants.forEach(permissionGrantDomainService::validateGrantAttributes);
-
-        List<PermissionGrantPlanDomainService.PreparedCreate> creates = grants.stream()
-            .map(grant -> new PermissionGrantPlanDomainService.PreparedCreate(grant, List.of()))
-            .toList();
-        permissionGrantPlanDomainService.apply(new PermissionGrantPlanDomainService.PreparedGrantPlan(
-            tenantId, roleId, creates, List.of(), List.of(), Set.of(), List.of(), Set.of()));
+        // T-PERM-062：种子直写通道下沉至 PermissionGrantPlanDomainService.seedGrants
+        // （bootstrap 固定图与类型授权根共用；保留两条领域校验 + apply 落库管线，幂等
+        // insert-if-absent），本组件不再各自持有一份行构造校验逻辑
+        permissionGrantPlanDomainService.seedGrants(tenantId, roleId, grants);
     }
 }

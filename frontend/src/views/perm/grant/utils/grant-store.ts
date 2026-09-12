@@ -27,6 +27,7 @@ import { defineStore } from "pinia";
 import {
   applyGrantPlan,
   getRolePermissionList,
+  GRANT_ERROR_CODE,
   GRANT_ERROR_MESSAGES,
   type RolePermissionItem
 } from "@/api/permission-grant";
@@ -86,6 +87,18 @@ export function classifySaveError(error: unknown): {
 } {
   // 统一信封业务错（unwrap 抛出）：按错误码映射文案（DoD-1）
   if (error instanceof RequestError && error.kind === "business") {
+    // T-PERM-062：20040 reason 细分——目标自定义类型在租户内零可转授覆盖行（授权根缺失）
+    // 与正常委托失败（操作者持有面不够）分流，给类型定义页引导而非泛化拒绝文案
+    if (
+      error.appCode === GRANT_ERROR_CODE.GRANT_CANNOT_DELEGATE &&
+      (error.message ?? "").includes("TYPE_GRANT_ORIGIN_MISSING")
+    ) {
+      return {
+        message:
+          "该资源类型尚无授权根（首授基座未初始化或已被清除），请到「类型定义」页确认该类型所有者角色后重试",
+        unknownOutcome: false
+      };
+    }
     const mapped =
       error.appCode != null ? GRANT_ERROR_MESSAGES[error.appCode] : undefined;
     return {

@@ -324,7 +324,15 @@ public enum PermissionErrorCode {
      * ③apply-grant-plan 的 conditionCode 引用轨遇 INLINE 行拒绝（内联条件 1:1 属于创建它的
      * 授权记录，不可被显式 code 引用或共享——引用轨值域=MANAGED）。
      */
-    CONDITION_INLINE_NOT_MANAGEABLE(20060, "内联条件不可在管理面管理/不可被显式引用（只能在授权页随记录更改）");
+    CONDITION_INLINE_NOT_MANAGEABLE(20060, "内联条件不可在管理面管理/不可被显式引用（只能在授权页随记录更改）"),
+
+    /**
+     * 授权根种子行只读（T-PERM-062）：grant_source=AUTHORITY_ROOT 的行经 apply-grant-plan
+     * updates/removes（含向其挂子权限）一律拒绝——对齐 AUTO_DEP 只读（20034）先例。
+     * 种子行由类型生命周期维护：创建类型/追加操作自动补种、所有者变更同事务迁移
+     * （先清后种重整化）、类型删除级联清理（T-PERM-050）。
+     */
+    AUTHORITY_ROOT_READONLY(20061, "授权根种子行只读（经类型生命周期维护：类型创建/追加操作补种、所有者变更迁移、类型删除清理）");
 
     private final int code;
     private final String message;

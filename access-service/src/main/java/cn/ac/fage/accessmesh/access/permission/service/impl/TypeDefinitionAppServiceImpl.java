@@ -22,6 +22,7 @@ import cn.ac.fage.accessmesh.access.permission.service.TypeDefinitionAppService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
+import cn.ac.fage.accessmesh.access.permission.service.domain.GrantOriginDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwnershipGuard;
@@ -65,6 +66,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final ResourceApiMappingMapper apiMappingMapper;
     private final TreeWriteLockSupport treeWriteLockSupport;
     private final CacheService cacheService;
+    private final GrantOriginDomainService grantOriginDomainService;
 
     /**
      * 构造函数注入依赖
@@ -79,6 +81,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * @param rolePermMapper            授权数据访问层（类型软删级联处置投影行下授权行，T-PERM-051）
      * @param apiMappingMapper          API 映射数据访问层（删除级联的受影响服务查询，deleteResources 同款）
      * @param cacheService              统一缓存入口（类型解析缓存提交后失效，codex 三轮复评 P1-2）
+     * @param grantOriginDomainService  类型授权根域服务（resource_type 创建即落 AUTHORITY_ROOT 首授基座，T-PERM-062）
      */
     public TypeDefinitionAppServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                          OperationPermissionMapper operationPermissionMapper,
@@ -91,7 +94,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                                          cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConditionDomainService conditionDomainService,
                                          ResourceApiMappingMapper apiMappingMapper,
                                          TreeWriteLockSupport treeWriteLockSupport,
-                                         CacheService cacheService) {
+                                         CacheService cacheService,
+                                         GrantOriginDomainService grantOriginDomainService) {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.engine = engine;
@@ -104,6 +108,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         this.apiMappingMapper = apiMappingMapper;
         this.treeWriteLockSupport = treeWriteLockSupport;
         this.cacheService = cacheService;
+        this.grantOriginDomainService = grantOriginDomainService;
     }
 
     /**
@@ -125,6 +130,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_CREATE", targetType = "type_definition", targetId = "#result.id()", summary = "'create type definition ' + #req.typeKey() + ':' + #result.typeCode()")
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -166,6 +172,36 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());
         }
 
+        // T-PERM-062 评审批次（文档轨 P3-2）：指针键统一拒绝——任意 typeKey 的 create 请求
+        // extra 自带 grantOriginRole 均拒绝（服务端管理键不得经非 resource_type 类型绕道入库成脏键）
+        if (grantOriginDomainService.hasGrantOriginPointerKey(req.extra())) {
+            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+                PermissionErrorCode.INVALID_PARAM.getMessage()
+                    + ": extra.grantOriginRole 由服务端维护，请使用请求字段 ownerRoleTypeCode/ownerRoleExternalId（仅 resource_type 消费）");
+        }
+
+        // T-PERM-062：resource_type 创建即建授权基座——所有者指针（extra.grantOriginRole）服务端注入
+        //（客户端自带该键拒绝 20044，合法输入通道是请求字段 ownerRoleTypeCode/ownerRoleExternalId），
+        // 所有者角色解析失败（不存在/停用）整单回滚，不存在「已建类型但无所有者」中间态；
+        // 非 resource_type 类型键不注入指针、不落种子
+        String effectiveExtra = req.extra();
+        Long grantOriginRoleId = null;
+        if ("resource_type".equals(req.typeKey())) {
+            boolean hasTypeCode = req.ownerRoleTypeCode() != null && !req.ownerRoleTypeCode().isBlank();
+            boolean hasExternalId = req.ownerRoleExternalId() != null && !req.ownerRoleExternalId().isBlank();
+            if (hasTypeCode != hasExternalId) {
+                throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+                    PermissionErrorCode.INVALID_PARAM.getMessage() + ": ownerRoleTypeCode 与 ownerRoleExternalId 必须成对提供");
+            }
+            String ownerRoleTypeCode = hasTypeCode ? req.ownerRoleTypeCode().trim()
+                : GrantOriginDomainService.DEFAULT_OWNER_ROLE_TYPE_CODE;
+            String ownerRoleExternalId = hasExternalId ? req.ownerRoleExternalId().trim()
+                : GrantOriginDomainService.DEFAULT_OWNER_ROLE_EXTERNAL_ID;
+            effectiveExtra = grantOriginDomainService.mergeGrantOriginPointer(
+                req.extra(), ownerRoleTypeCode, ownerRoleExternalId);
+            grantOriginRoleId = grantOriginDomainService.resolveOwnerRoleId(tenantId, effectiveExtra);
+        }
+
         TypeDefinition type = new TypeDefinition();
         type.setTenantId(tenantId);
         type.setTypeKey(req.typeKey());
@@ -175,7 +211,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         type.setDescription(req.description());
         type.setIsSystem(false);
         type.setSortOrder(req.sortOrder() != null ? req.sortOrder() : 0);
-        type.setExtra(req.extra());
+        type.setExtra(effectiveExtra);
         type.setCreatedBy(operatorId);
         LocalDateTime now = LocalDateTime.now();
         type.setCreatedAt(now);
@@ -205,7 +241,13 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)；新类型位段空闲无 uk_typed_bit 冲突。
         // 跨域写入先例：ServiceConfig 删除级联直写 apiMappingMapper（T-PERM-027）。
         if ("resource_type".equals(req.typeKey())) {
-            insertPresetOperations(tenantId, typeValue, operatorId, now);
+            List<Long> presetBits = insertPresetOperations(tenantId, typeValue, operatorId, now);
+            // T-PERM-062：创建即建授权根——向所有者角色写 CRUD 四操作位 AUTHORITY_ROOT 首授行
+            //（scopeAll+canGrant+单 bit 形状由 DDL CHECK 焊死；委托校验零改动，种子经系统侧直写通道
+            // seedGrants 幂等落库）。markRoles 失效所有者角色快照（授权页展示面缓存卫生）
+            grantOriginDomainService.seedAuthorityRootGrants(
+                tenantId, grantOriginRoleId, typeValue, presetBits, operatorId);
+            PermissionChangeContext.markRoles(tenantId, grantOriginRoleId);
             // T-PERM-047：预置操作位同样改变该类型操作集合，提交后失效 per-type 缓存。
             // 当前 typeValue 为全量行（含软删）max+1、软删不复用，新值键必为冷键——
             // 此处失效是语义完备性接线（写路径变更集合即失效），不依赖分配策略不变
@@ -238,8 +280,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * @param typeValue  新类型的内部值（operation_permission.resource_type）
      * @param operatorId 操作者ID（created_by）
      * @param now        创建时间（与类型定义行同时刻）
+     * @return 预置操作位集合（T-PERM-062：同事务作为该类型 AUTHORITY_ROOT 首授位的单一来源）
      */
-    private void insertPresetOperations(Long tenantId, int typeValue, Long operatorId, LocalDateTime now) {
+    private List<Long> insertPresetOperations(Long tenantId, int typeValue, Long operatorId, LocalDateTime now) {
         String[][] preset = {
             {"CREATE", "创建", "1", "0"},
             {"VIEW", "查看", "2", "0"},
@@ -247,6 +290,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             {"DELETE", "删除", "8", "2"}
         };
         List<OperationPermission> toInsert = new java.util.ArrayList<>(preset.length);
+        List<Long> presetBits = new ArrayList<>(preset.length);
         for (String[] row : preset) {
             OperationPermission op = new OperationPermission();
             op.setTenantId(tenantId);
@@ -260,8 +304,10 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             op.setUpdatedAt(now);
             op.setDeleteFlag(0L);
             toInsert.add(op);
+            presetBits.add(Long.parseLong(row[2]));
         }
         operationPermissionMapper.insertBatch(toInsert);
+        return presetBits;
     }
 
     /**
@@ -413,6 +459,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "TYPE_DEFINITION_UPDATE", targetType = "type_definition", targetId = "#req.typeId()", summary = "'update type definition ' + #req.typeId()")
     public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -447,9 +494,55 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         if (req.name() != null) type.setName(req.name());
         if (req.description() != null) type.setDescription(req.description());
         if (req.sortOrder() != null) type.setSortOrder(req.sortOrder());
-        if (req.extra() != null) type.setExtra(req.extra());
+        // T-PERM-062：所有者指针（extra.grantOriginRole）保留/门禁/变更判定——
+        // ①未携带键：服务端保留现值（指针无「清除」语义，所有权无空态；改 managedMode 等场景零感知）；
+        // ②携带键仅自定义 resource_type 允许（其他 typeKey / is_system 类型 20044）；
+        // ③变更（新增/改值，用户定案 2026-09-12「允许变更并补齐种子」）：新所有者先行解析
+        //   （不存在/停用整单回滚），类型行落库后同事务「先清后种」迁移
+        Long grantOriginMigrationTarget = null;
+        if (req.extra() != null) {
+            GrantOriginDomainService.GrantOriginRole oldPointer;
+            try {
+                oldPointer = grantOriginDomainService.parseGrantOriginPointer(type.getExtra());
+            } catch (BizException e) {
+                // T-PERM-052 口径：存量 extra 损坏按缺省处理、管理面可写=可恢复方向——
+                // 旧 extra 坏 JSON/坏指针降级为无指针（新 extra 侧维持 fail-closed），
+                // 本次携带合法 extra 即可覆盖修复
+                oldPointer = null;
+            }
+            GrantOriginDomainService.GrantOriginRole newPointer =
+                grantOriginDomainService.parseGrantOriginPointer(req.extra());
+            if (newPointer == null) {
+                type.setExtra(oldPointer != null
+                    ? grantOriginDomainService.mergeGrantOriginPointer(req.extra(),
+                        oldPointer.roleTypeCode(), oldPointer.roleExternalId())
+                    : req.extra());
+            } else {
+                boolean customResourceType = "resource_type".equals(type.getTypeKey())
+                    && !Boolean.TRUE.equals(type.getIsSystem());
+                if (!customResourceType) {
+                    throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+                        PermissionErrorCode.INVALID_PARAM.getMessage()
+                            + ": extra." + GrantOriginDomainService.EXTRA_KEY_GRANT_ORIGIN_ROLE
+                            + " 仅自定义 resource_type 类型可携带");
+                }
+                type.setExtra(req.extra());
+                if (!newPointer.equals(oldPointer)) {
+                    grantOriginMigrationTarget = grantOriginDomainService.resolveOwnerRoleId(tenantId, req.extra());
+                }
+            }
+        }
         type.setUpdatedAt(LocalDateTime.now());
         typeDefinitionMapper.update(type);
+        // T-PERM-062：所有者变更同事务迁移（「同事务迁移」定案）：先清后种重整化——软删该类型
+        // 全部 AUTHORITY_ROOT 行（含已删角色/误配旧 owner 残留，杜绝误配 owner 的一次性永久扩权），
+        // 向新所有者补齐该类型全部有效操作位种子；markRoles 覆盖旧 owners 与新 owner
+        if (grantOriginMigrationTarget != null) {
+            Set<Long> affectedOldOwnerRoleIds = grantOriginDomainService.rematerializeAuthorityRootGrants(
+                tenantId, type.getTypeValue(), grantOriginMigrationTarget, operatorId);
+            PermissionChangeContext.markRoles(tenantId, affectedOldOwnerRoleIds);
+            PermissionChangeContext.markRoles(tenantId, grantOriginMigrationTarget);
+        }
         // T-PERM-051：name 变更同步投影展示名（投影无 description/sortOrder 语义；
         // upsert 幂等——名称未实际变化时重写同值无害，与 ROLE/USER 投影同款）
         if (req.name() != null) {

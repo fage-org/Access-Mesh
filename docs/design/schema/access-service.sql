@@ -638,7 +638,7 @@ COMMENT ON COLUMN type_definition.name IS '显示名称';
 COMMENT ON COLUMN type_definition.description IS '描述';
 COMMENT ON COLUMN type_definition.is_system IS '是否系统预置：true=预置不可删改，false=租户自定义可扩展';
 COMMENT ON COLUMN type_definition.sort_order IS '排序';
-COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）——系统预置类型钉死不可变更、自定义类型在类型下存在有效资源行时拒绝（20056），保存边界校验已知键结构（显式 null 拒绝），未知键开放不视为声明（拼错键=无声明按缺省 MANAGED）；读取侧 extra 损坏按 MANAGED 处理（对外部同步 fail-closed、对管理面可写=可恢复方向）。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 七类事实链路类型，种子声明 SYNC+access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 类型定义实例投影由写路径同事务维护+bootstrap 自愈补种产出，T-PERM-051；CONDITION 管理页条件投影由条件写路径同事务维护+bootstrap 自愈补种产出（仅 source=MANAGED），T-PERM-048）';
+COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）——系统预置类型钉死不可变更、自定义类型在类型下存在有效资源行时拒绝（20056），保存边界校验已知键结构（显式 null 拒绝），未知键开放不视为声明（拼错键=无声明按缺省 MANAGED）；读取侧 extra 损坏按 MANAGED 处理（对外部同步 fail-closed、对管理面可写=可恢复方向）。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 七类事实链路类型，种子声明 SYNC+access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 类型定义实例投影由写路径同事务维护+bootstrap 自愈补种产出，T-PERM-051；CONDITION 管理页条件投影由条件写路径同事务维护+bootstrap 自愈补种产出（仅 source=MANAGED），T-PERM-048）。授权根所有者指针（T-PERM-062）：grantOriginRole={"roleTypeCode":..,"roleExternalId":..}（服务端管理键——create 请求经 ownerRoleTypeCode/ownerRoleExternalId 字段注入、extra 自带该键拒绝 20044；仅自定义 resource_type 携带，缺省 BASIC_ROLE/bootstrap-admin；指针无清除语义，变更=所有者迁移（同事务先清后种重整化 AUTHORITY_ROOT 行））';
 COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- 预置类型种子（tenant 1；type_value 为权威数值，与文件头 type_value 终值分配表一致——
@@ -1178,6 +1178,14 @@ CREATE TABLE role_resource_permission (
     CONSTRAINT ck_role_resource_permission_manual_single_operation CHECK (
         COALESCE(grant_source, 'MANUAL') <> 'MANUAL'
         OR (granted_bits > 0 AND (granted_bits & (granted_bits - 1)) = 0)
+    ),
+    -- 授权根种子形状焊死（T-PERM-062）：类型生命周期写路径（createType/createOperation/所有者
+    -- 变更迁移）落库的 AUTHORITY_ROOT 行恒为「类型级 scopeAll + 可转授 + 无条件 + 无实例 + 单操作位」
+    CONSTRAINT ck_role_resource_permission_authority_root CHECK (
+        COALESCE(grant_source, 'MANUAL') <> 'AUTHORITY_ROOT'
+        OR (scope_all = true AND can_grant = true AND condition_id IS NULL
+            AND resource_entity_id IS NULL AND depend_on IS NULL
+            AND granted_bits > 0 AND (granted_bits & (granted_bits - 1)) = 0)
     )
 );
 
@@ -1200,7 +1208,7 @@ COMMENT ON COLUMN role_resource_permission.depend_on IS '父权限ID（本表自
 COMMENT ON COLUMN role_resource_permission.scope_all IS '是否覆盖该 resource_type 下全部范围资源；true 时 resource_entity_id 必须为空';
 COMMENT ON COLUMN role_resource_permission.can_grant IS '是否可授权(该权限可被当前角色关联的用户授予他人)';
 COMMENT ON COLUMN role_resource_permission.condition_id IS '生效条件ID（引用 permission_condition），NULL 表示始终生效';
-COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUAL=手动授权，AUTO_DEP=resource_dependency 自动补全';
+COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUAL=手动授权，AUTO_DEP=resource_dependency 自动补全，AUTHORITY_ROOT=类型授权根种子（T-PERM-062：自定义 resource_type 的首授基座，类型创建/追加操作自动补种、所有者变更同事务迁移（先清后种）、类型删除级联清理（T-PERM-050）；apply-grant-plan 不可改删 20061，形状由 ck_role_resource_permission_authority_root 焊死）';
 COMMENT ON COLUMN role_resource_permission.grant_dep_id IS '依赖规则ID（grant_source=AUTO_DEP 时记录触发的 resource_dependency.id）';
 
 -- -----------------------------------------------------------------------------

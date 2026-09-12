@@ -7,13 +7,19 @@ import cn.ac.fage.accessmesh.access.permission.dto.req.OperationKeyReq;
 import cn.ac.fage.accessmesh.access.permission.dto.req.OperationUpdateReq;
 import cn.ac.fage.accessmesh.access.permission.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
+import cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceType;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.permission.service.OperationAppService;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
+import cn.ac.fage.accessmesh.access.permission.service.domain.GrantOriginDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.permission.util.OperatorUtil;
@@ -47,6 +53,9 @@ public class OperationAppServiceImpl implements OperationAppService {
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
     private final CacheService cacheService;
+    private final TypeDefinitionMapper typeDefinitionMapper;
+    private final GrantOriginDomainService grantOriginDomainService;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     /**
      * 构造函数注入依赖
@@ -55,15 +64,24 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @param typeResolutionService     类型解析服务
      * @param engine                    权限查询引擎
      * @param cacheService              统一缓存服务（OPERATION_PERMISSIONS_BY_TYPE 写路径失效，T-PERM-047）
+     * @param typeDefinitionMapper      类型定义数据访问层（追加操作的授权根钩子目标类型装载，T-PERM-062）
+     * @param grantOriginDomainService  类型授权根域服务（自定义类型追加操作同事务补种，T-PERM-062）
+     * @param treeWriteLockSupport      树写锁（resource_type 类型生命周期写路径共持 RESOURCE_ENTITY 锁，T-PERM-062 评审批次）
      */
     public OperationAppServiceImpl(OperationPermissionMapper operationPermissionMapper,
                                       TypeResolutionService typeResolutionService,
                                       PermQueryEngine engine,
-                                      CacheService cacheService) {
+                                      CacheService cacheService,
+                                      TypeDefinitionMapper typeDefinitionMapper,
+                                      GrantOriginDomainService grantOriginDomainService,
+                                      TreeWriteLockSupport treeWriteLockSupport) {
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
         this.cacheService = cacheService;
+        this.typeDefinitionMapper = typeDefinitionMapper;
+        this.grantOriginDomainService = grantOriginDomainService;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     /**
@@ -86,6 +104,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @PermissionChange
     @OperationLog(module = "PERMISSION", action = "OPERATION_PERMISSION_CREATE", targetType = "operation_permission", targetId = "#result.id()", summary = "'create operation permission ' + #resourceTypeCode + ':' + #code")
     public OperationPermissionResp createOperation(Long tenantId, String resourceTypeCode, String code, String name, Long binaryBit, Long inheritMask, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -99,6 +118,13 @@ public class OperationAppServiceImpl implements OperationAppService {
         if (resourceType == null) {
             throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + resourceTypeCode);
         }
+        // T-PERM-062 评审批次（代码轨 P2-1）：操作创建目标恒属 resource_type 族，与类型生命周期
+        // 写路径（createType/updateType/deleteTypesByIds 均持 RESOURCE_ENTITY 树写锁）共持同锁——
+        // 闭合并发交错：无锁时「追加操作读旧 owner → 所有者变更先提交 → 补种落旧 owner」造成旧
+        // owner 持不可经 apply-grant-plan 移除的种子行、新 owner 缺该操作位；与类型删除交错亦会
+        // 漏级联在途操作行。锁内重读类型行（extra/isSystem 以锁内快照为准）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        TypeDefinition typeDef = typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, "resource_type", resourceTypeCode);
         OperationPermission op = new OperationPermission();
         op.setTenantId(tenantId);
         op.setResourceType(resourceType);
@@ -112,6 +138,16 @@ public class OperationAppServiceImpl implements OperationAppService {
         op.setUpdatedAt(now);
         op.setDeleteFlag(0L);
         operationPermissionMapper.insert(op);
+        // T-PERM-062：自定义 resource_type 追加操作同事务向类型所有者补种该操作位首授行——
+        // 不钩则死锁转移到第五个操作（EXPORT 位 16 先例：类型创建只种 CRUD 四位）；is_system
+        // 类型不钩（内置类型转授链收窄是既有产品选择，T-PERM-027 口径维持）。所有者以
+        // type_definition.extra.grantOriginRole 为准（缺失缺省引导角色；解析失败整单回滚）
+        if (typeDef != null && !Boolean.TRUE.equals(typeDef.getIsSystem())) {
+            Long ownerRoleId = grantOriginDomainService.resolveOwnerRoleId(tenantId, typeDef.getExtra());
+            grantOriginDomainService.seedAuthorityRootGrants(
+                tenantId, ownerRoleId, resourceType, List.of(op.getBinaryBit()), operatorId);
+            PermissionChangeContext.markRoles(tenantId, ownerRoleId);
+        }
         // T-PERM-047：新增操作改变该类型的操作集合，提交后失效 per-type 缓存
         // （引擎位掩码按 op_perm:{type} 缓存全量操作 Map，L1 60m/L2 120m TTL 不兜底变更）
         cacheService.evictAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,

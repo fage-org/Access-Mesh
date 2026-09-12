@@ -43,6 +43,10 @@ class PermissionGrantDomainServiceImplTest {
     private OperationPermissionMapper operationPermissionMapper;
     @Mock
     private PermQueryEngine permQueryEngine;
+    @Mock
+    private cn.ac.fage.accessmesh.access.permission.mapper.RoleResourcePermissionMapper roleResourcePermissionMapper;
+    @Mock
+    private cn.ac.fage.accessmesh.access.permission.mapper.TypeDefinitionMapper typeDefinitionMapper;
 
     private PermissionGrantDomainServiceImpl service;
 
@@ -51,7 +55,9 @@ class PermissionGrantDomainServiceImplTest {
         service = new PermissionGrantDomainServiceImpl(
             typeResolutionService,
             permQueryEngine,
-            operationPermissionMapper
+            operationPermissionMapper,
+            roleResourcePermissionMapper,
+            typeDefinitionMapper
         );
     }
 
@@ -173,6 +179,107 @@ class PermissionGrantDomainServiceImplTest {
 
         assertEquals("INVALID_PERMISSION_KEY", results.values().iterator().next().reason());
         verify(permQueryEngine, never()).query(any(PermQuery.class));
+    }
+
+    // ========== T-PERM-062：20040 reason 细分（TYPE_GRANT_ORIGIN_MISSING，仅自定义类型） ==========
+
+    @Test
+    void shouldRefineToGrantOriginMissingForCustomTypeWithZeroGrantableRows() {
+        // 自定义类型租户内零条可转授覆盖行（种子缺失/被清除）→ NO_PERMISSION 改判
+        // TYPE_GRANT_ORIGIN_MISSING（旧实现无细分，本用例必红）
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("ORDER")))
+            .thenReturn(Map.of("ORDER", 12));
+        OperationPermission orderView = operation(201L, 12, "VIEW", 2L, 0L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(12), Set.of("VIEW")))
+            .thenReturn(List.of(orderView));
+        // 操作者持有另一类型（typeValue=5）的条目：有角色有授权行，但对目标类型零覆盖 → 主路径 NO_PERMISSION
+        OperationPermission otherView = operation(202L, 5, "VIEW", 1L, 0L);
+        RolePermEntry otherEntry = new RolePermEntry(
+            500L, 20L, null, null, 5, 1L, "VIEW", 1L, "MANUAL", false, null, true, null, false);
+        when(permQueryEngine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null)
+            .instanceEntries(List.of(otherEntry))
+            .operationMap(Map.of(otherView.getId(), otherView))
+            .build());
+        when(typeDefinitionMapper.selectValidByTenant(1L)).thenReturn(List.of(customTypeRow(12)));
+        when(roleResourcePermissionMapper.selectGrantableCoveringCandidates(eq(1L), eq(Set.of(12)), any()))
+            .thenReturn(List.of());
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(12)))
+            .thenReturn(List.of(orderView));
+
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+            1L, 10L, Set.of(new GrantCheckKey("ORDER", null, null, "VIEW", true)), null);
+
+        assertEquals("TYPE_GRANT_ORIGIN_MISSING",
+            results.values().iterator().next().reason());
+    }
+
+    @Test
+    void shouldKeepNoPermissionWhenGrantableOriginExistsTenantWide() {
+        // 候选行存在（任意角色持有覆盖可转授行）→ 授权根在，操作者持有面不够维持 NO_PERMISSION
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("ORDER")))
+            .thenReturn(Map.of("ORDER", 12));
+        OperationPermission orderView = operation(201L, 12, "VIEW", 2L, 0L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(12), Set.of("VIEW")))
+            .thenReturn(List.of(orderView));
+        OperationPermission otherView = operation(202L, 5, "VIEW", 1L, 0L);
+        RolePermEntry otherEntry = new RolePermEntry(
+            500L, 20L, null, null, 5, 1L, "VIEW", 1L, "MANUAL", false, null, true, null, false);
+        when(permQueryEngine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null)
+            .instanceEntries(List.of(otherEntry))
+            .operationMap(Map.of(otherView.getId(), otherView))
+            .build());
+        when(typeDefinitionMapper.selectValidByTenant(1L)).thenReturn(List.of(customTypeRow(12)));
+        RoleResourcePermission originRow = permission(900L, "AUTHORITY_ROOT", null, 2L);
+        originRow.setResourceType(12);
+        originRow.setScopeAll(true);
+        originRow.setCanGrant(true);
+        when(roleResourcePermissionMapper.selectGrantableCoveringCandidates(eq(1L), eq(Set.of(12)), any()))
+            .thenReturn(List.of(originRow));
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(1L, Set.of(12)))
+            .thenReturn(List.of(orderView));
+
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+            1L, 10L, Set.of(new GrantCheckKey("ORDER", null, null, "VIEW", true)), null);
+
+        assertEquals("NO_PERMISSION", results.values().iterator().next().reason());
+    }
+
+    @Test
+    void shouldNotRefineBuiltinTypeZeroGrantableRows() {
+        // is_system 类型零可转授行是转授链收窄的设计状态（T-PERM-027），reason 维持原值；
+        // 且不触发租户级候选行查询（用户定案 2026-09-12：细分仅自定义类型）
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("SERVICE")))
+            .thenReturn(Map.of("SERVICE", 4));
+        OperationPermission serviceView = operation(203L, 4, "VIEW", 2L, 0L);
+        when(operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(1L, Set.of(4), Set.of("VIEW")))
+            .thenReturn(List.of(serviceView));
+        OperationPermission otherView = operation(202L, 5, "VIEW", 1L, 0L);
+        RolePermEntry otherEntry = new RolePermEntry(
+            500L, 20L, null, null, 5, 1L, "VIEW", 1L, "MANUAL", false, null, true, null, false);
+        when(permQueryEngine.query(any(PermQuery.class))).thenReturn(PermResult.builder(true, null)
+            .instanceEntries(List.of(otherEntry))
+            .operationMap(Map.of(otherView.getId(), otherView))
+            .build());
+        cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition builtin = customTypeRow(4);
+        builtin.setIsSystem(true);
+        when(typeDefinitionMapper.selectValidByTenant(1L)).thenReturn(List.of(builtin));
+
+        Map<String, PermissionGrantDomainService.GrantCheckResult> results = service.checkCanGrant(
+            1L, 10L, Set.of(new GrantCheckKey("SERVICE", null, null, "VIEW", true)), null);
+
+        assertEquals("NO_PERMISSION", results.values().iterator().next().reason());
+        verify(roleResourcePermissionMapper, never()).selectGrantableCoveringCandidates(any(), any(), any());
+    }
+
+    private cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition customTypeRow(int typeValue) {
+        cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition row =
+            new cn.ac.fage.accessmesh.access.permission.entity.TypeDefinition();
+        row.setTenantId(1L);
+        row.setTypeKey("resource_type");
+        row.setTypeCode("ORDER");
+        row.setTypeValue(typeValue);
+        row.setIsSystem(false);
+        return row;
     }
 
     private RoleResourcePermission permission(Long id, String source, Long conditionId, Long bits) {

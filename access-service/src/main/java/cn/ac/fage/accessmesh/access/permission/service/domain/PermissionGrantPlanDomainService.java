@@ -30,6 +30,26 @@ public interface PermissionGrantPlanDomainService {
     void apply(PreparedGrantPlan preparedPlan);
 
     /**
+     * 系统侧种子直写通道（T-PERM-062 下沉；bootstrap 固定图与类型授权根共用）。
+     * <p>
+     * 「在委托不变量之外建立引导」的专用入口：跳过 prevalidate/verifyDelegation
+     * （无操作者、无委托校验），但保留 {@code validateSingleManualGrants} 与
+     * {@code validateGrantAttributes} 两条领域校验，并复用 {@link #apply} 落库管线。
+     * 幂等 insert-if-absent：与既有有效行同身份键（资源/范围+操作位+父权限+来源）的
+     * 种子行跳过不写、不覆盖（operation 软删后同位重建场景旧种子行仍有效，直插会撞
+     * uk_role_resource_permission 误报 20033）。
+     * 仅限种子类写入调用方（bootstrap / 类型生命周期钩子）；通用授权链禁止经本入口
+     * 绕过委托校验（architecture §14.1/§14.2，种子类写入措辞随 T-PERM-062 扩为
+     * 「bootstrap / 类型首授」）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param roleId   种子接收角色ID
+     * @param grants   种子行（grant_source 由调用方携带：bootstrap=MANUAL / 类型首授=AUTHORITY_ROOT）
+     */
+    void seedGrants(Long tenantId, Long roleId, List<RoleResourcePermission> grants);
+
+    /**
      * SUB_PERM 策略唯一公开解析入口（§6.5.2）：读接口（sub-perm-allowed-types）
      * 直接序列化策略结果，写链路 prevalidate 复用同一解析器——读写同源，
      * 禁止在 AppService/Controller 另行编写 SUB_PERM 判断。

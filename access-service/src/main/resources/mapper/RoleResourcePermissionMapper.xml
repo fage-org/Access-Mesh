@@ -286,4 +286,38 @@
           AND delete_flag = 0
     </select>
 
+    <!-- T-PERM-062：授权根种子行（所有者变更迁移先清后种重整化——软删前取行供受影响角色登记与清理） -->
+    <select id="selectValidAuthorityRootsByTypes" resultType="cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND resource_type IN
+        <foreach collection="resourceTypes" item="rt" open="(" separator="," close=")">
+            #{rt}
+        </foreach>
+          AND grant_source = 'AUTHORITY_ROOT'
+          AND delete_flag = 0
+    </select>
+
+    <!-- T-PERM-062：20040 reason 细分——目标类型租户内可转授覆盖候选行（失败路径专用；
+         scopeAll 行覆盖两类键、实例行仅覆盖对应实例键，覆盖判定在调用方内存完成） -->
+    <select id="selectGrantableCoveringCandidates" resultType="cn.ac.fage.accessmesh.access.permission.entity.RoleResourcePermission">
+        SELECT * FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND resource_type IN
+        <foreach collection="resourceTypes" item="rt" open="(" separator="," close=")">
+            #{rt}
+        </foreach>
+          AND can_grant = true
+          AND condition_id IS NULL
+          AND delete_flag = 0
+          AND (scope_all = true
+          <if test="resourceEntityIds != null and !resourceEntityIds.isEmpty()">
+              OR resource_entity_id IN
+              <foreach collection="resourceEntityIds" item="reid" open="(" separator="," close=")">
+                  #{reid}
+              </foreach>
+          </if>
+          )
+    </select>
+
 </mapper>

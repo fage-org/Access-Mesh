@@ -17,6 +17,13 @@ export interface TypeDefFormData {
   sortOrder: number;
   /** 扩展属性 JSON（可空） */
   extra: string;
+  /**
+   * 类型所有者角色 externalId（T-PERM-062，仅 typeKey=resource_type 表单项可见）；
+   * 空串 = 未指定（create 走后端缺省引导角色 bootstrap-admin；update 不变更指针）。
+   * 选项固定 BASIC_ROLE 功能角色（启用态），提交时 create 走 ownerRole* 请求字段、
+   * update 由表单将指针同步进 extra JSON（后端按 extra.grantOriginRole 变更触发同事务迁移）。
+   */
+  ownerRoleExternalId: string;
 }
 
 /** 新建默认表单 */
@@ -30,7 +37,8 @@ export function createEmptyTypeDefForm(
     description: "",
     isSystem: false,
     sortOrder: 0,
-    extra: ""
+    extra: "",
+    ownerRoleExternalId: ""
   };
 }
 

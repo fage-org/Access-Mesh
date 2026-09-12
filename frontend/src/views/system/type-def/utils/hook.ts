@@ -80,7 +80,13 @@ export function useTypeDef() {
           name: form.name,
           description: form.description || null,
           sortOrder: form.sortOrder,
-          extra: form.extra || null
+          extra: form.extra || null,
+          // T-PERM-062：resource_type 所有者角色（选择器值；空=后端缺省引导角色），
+          // 选项固定 BASIC_ROLE 功能角色；非 resource_type 后端忽略该字段
+          ownerRoleTypeCode: form.ownerRoleExternalId
+            ? "BASIC_ROLE"
+            : undefined,
+          ownerRoleExternalId: form.ownerRoleExternalId || undefined
         });
         message("创建成功", { type: "success" });
       } else if (editingId) {

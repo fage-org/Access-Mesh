@@ -27,7 +27,18 @@ public enum GrantSource {
      * grant_source=AUTO_DEP 时，grant_dep_id 记录触发的 resource_dependency.id。
      * </p>
      */
-    AUTO_DEP("AUTO_DEP");
+    AUTO_DEP("AUTO_DEP"),
+
+    /**
+     * 授权根种子（类型生命周期维护，T-PERM-062）
+     * <p>
+     * 表示权限行是自定义 resource_type 的首授基座：类型创建/追加操作/所有者变更时
+     * 由类型生命周期写路径同事务落库（scopeAll + canGrant + 单操作位，DDL CHECK 焊死形状），
+     * apply-grant-plan 不可改删（20061，对齐 AUTO_DEP 只读先例）；类型删除级联清理
+     * （T-PERM-050）。写入通道为系统侧种子直写（跳过委托校验），非管理员豁免。
+     * </p>
+     */
+    AUTHORITY_ROOT("AUTHORITY_ROOT");
 
     private final String value;
 

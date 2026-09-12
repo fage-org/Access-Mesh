@@ -17,7 +17,11 @@ import jakarta.validation.constraints.Size;
  * @param name        类型名称，必填（≤128）
  * @param description 类型描述，可选（≤512）
  * @param sortOrder   排序顺序，可选
- * @param extra       扩展属性JSON，可选
+ * @param extra       扩展属性JSON，可选（grantOriginRole 键由服务端维护，客户端携带拒绝 20044）
+ * @param ownerRoleTypeCode   类型所有者角色类型编码，可选（仅 typeKey=resource_type 消费；
+ *                            缺省 BASIC_ROLE；与授权页同一套角色业务键，T-PERM-062）
+ * @param ownerRoleExternalId 类型所有者角色外部ID，可选（缺省 bootstrap-admin；持久化于
+ *                            extra.grantOriginRole，创建即落 AUTHORITY_ROOT 首授基座）
  */
 public record TypeCreateReq(
     @NotBlank @Size(max = 64) String typeKey,
@@ -25,5 +29,7 @@ public record TypeCreateReq(
     @NotBlank @Size(max = 128) String name,
     @Size(max = 512) String description,
     Integer sortOrder,
-    String extra
+    String extra,
+    @Size(max = 64) String ownerRoleTypeCode,
+    @Size(max = 64) String ownerRoleExternalId
 ) {}

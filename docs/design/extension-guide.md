@@ -105,11 +105,18 @@ last_reviewed: 2026-09-12
 
 资源可声明跨类型父子边（`parentResourceTypeCode` 可与 item 类型不同）；SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。依赖补全（depend_on 触发自动授权）**当前不生效**——`autoGrant` 全入口拒绝（见 §6）。
 
-### 3.5 首笔授权引导（部署方责任，重要边界）
+### 3.5 首笔授权引导（创建即建授权根，T-PERM-062）
 
-授权委托校验（`checkCanGrant`）**严格无旁路**：授予者必须已持有覆盖目标键且 `canGrant=true`、无条件的授权行。bootstrap 固定图只覆盖**种子类型**——一个全新自定义类型在创建后，**没有任何人能经 apply-grant-plan 完成首笔授权**（授予者对新类型零授权行，一律 20040 `GRANT_CANNOT_DELEGATE`）。
+授权委托校验（`checkCanGrant`）**严格无旁路**：授予者必须已持有覆盖目标键且 `canGrant=true`、无条件的授权行。bootstrap 固定图只覆盖**种子类型**——若无生命周期钩子，一个全新自定义类型在创建后**没有任何人能经 apply-grant-plan 完成首笔授权**（一律 20040 `GRANT_CANNOT_DELEGATE`）。
 
-实际落地方式：部署方为新类型向管理员引导角色种子一条**类型级（scopeAll）可转授权限**（固定图扩展或 DB 种子，`role_resource_permission` 一行 `scope_all=true, can_grant=true`），之后管理员即可在授权页正常转授该类型的实例权限（类型级行覆盖实例键）。回归锁：`CustomResourceTypeSlicePgIT` 阶段 5a/5b 双向固化——未种子时 apply-grant-plan 拒绝（20040）、种子后放行。
+**T-PERM-062（2026-09-12 定案）后该缺口在产品内自举闭环**，接入方按 §3.2 走完「创建类型 → 追加操作 → 授权页」即可首授，**无需部署方种子或手工 SQL**：
+
+- **创建即建基座**：`type-definition/create` 同事务向「类型所有者角色」写 CRUD 四操作位首授行（`grant_source=AUTHORITY_ROOT`，类型级 scopeAll + 可转授）；所有者缺省引导角色 `bootstrap-admin`，可经请求字段 `ownerRoleTypeCode/ownerRoleExternalId` 指定（类型定义页「所有者角色」选择器同入口），指针持久化于 `type_definition.extra.grantOriginRole`。
+- **追加操作自动补种**：后续经 `operation-permission/create` 追加的操作（如 `EXPORT` 位 16）同事务向同一所有者补种——不会出现「CRUD 能授、EXPORT 仍 20040」。
+- **所有者可迁移**：`type-definition/update` 变更 `extra.grantOriginRole` = 同事务「先清后种」迁移（旧所有者种子清理、新所有者补齐全部操作位）；所有者角色被误删时经重指所有者即可恢复授权能力。种子行在授权页只读（20061），类型删除时级联清理。
+- **可发现性**：所有者的成员在授权页可见这些种子行（标注「授权根」），并可正常收窄为实例级授权；非所有者成员对无授权根类型发起授权仍 20040——message 中 `reason=TYPE_GRANT_ORIGIN_MISSING` 表示「类型未初始化」（去类型定义页确认所有者），`reason=NO_PERMISSION/NO_GRANT_RIGHT` 表示「你的持有面不够」（找所有者角色成员操作）。
+
+回归锁：`CustomResourceTypeSlicePgIT` 全链路固化——创建即落 4 条种子、追加操作补种第 5 条、管理员直接首授成功（原「部署方种子后放行」步骤已随修复退役）、非所有者仍 20040、种子行改删 20061、所有者迁移清理+补齐、零授权根时 reason=TYPE_GRANT_ORIGIN_MISSING。
 
 ## 4. 场景三：主体/角色体系适配
 
@@ -164,7 +171,7 @@ last_reviewed: 2026-09-12
 
 | 资产 | 轨道 | 覆盖 |
 |---|---|---|
-| `CustomResourceTypeSlicePgIT` | access-service 容器组 | 场景二完整链路（本指南 §3 的回归锁；负向组：未种子首授 20040 / 裸用户 NO_ROLE / 未同步资源 fail-closed） |
+| `CustomResourceTypeSlicePgIT` | access-service 容器组 | 场景二完整链路（本指南 §3 的回归锁；含 T-PERM-062 授权根锁组：创建即落种子/追加操作补种/非所有者 20040/种子行改删 20061/所有者迁移/零授权根 reason=TYPE_GRANT_ORIGIN_MISSING；负向组：裸用户 NO_ROLE / 未同步资源 fail-closed） |
 | `ExampleProtectedApiE2EIT` | e2e 模块 | 场景一完整链路（注册→接口声明→403→授权→30s 内生效） |
 | `BasicRoleGrantVerticalSliceE2EIT` | e2e 模块 | 内置类型授权垂直切片（bootstrap→建号→授权→判定） |
 

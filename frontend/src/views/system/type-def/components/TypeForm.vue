@@ -2,6 +2,7 @@
 import { ref, reactive, computed, watch } from "vue";
 import type { FormInstance, FormRules } from "element-plus";
 import { TYPE_KEY_LABEL, type TypeDefResp, type TypeKey } from "@/api/type-def";
+import { getRoleList, type RoleResp } from "@/api/role-manage";
 import type { TypeDefFormData } from "../utils/types";
 import { TYPE_KEY_OPTIONS, isSystemPreset } from "../utils/types";
 
@@ -25,7 +26,8 @@ const defaultFormData = (): TypeDefFormData => ({
   description: "",
   isSystem: false,
   sortOrder: 0,
-  extra: ""
+  extra: "",
+  ownerRoleExternalId: ""
 });
 
 const formData = reactive<TypeDefFormData>({ ...defaultFormData() });
@@ -38,6 +40,112 @@ const isEdit = computed(() => props.mode === "edit");
 /** 编辑态是否系统预置（name 只读，仅 description/sortOrder/extra 可改） */
 const isSystemRow = computed(
   () => isEdit.value && isSystemPreset(props.initialData)
+);
+
+// ========== 类型所有者角色（T-PERM-062，仅 resource_type 表单项可见） ==========
+
+/** 所有者选择器可见：resource_type 且（新建 或 编辑自定义类型——内置类型转授链收窄不暴露） */
+const ownerSelectorVisible = computed(
+  () =>
+    formData.typeKey === "resource_type" && (!isEdit.value || !formData.isSystem)
+);
+
+/** BASIC_ROLE 启用角色选项（所有者接收方；后端解析要求启用态） */
+const ownerRoleOptions = ref<RoleResp[]>([]);
+const ownerRoleLoading = ref(false);
+let ownerRolesLoaded = false;
+
+/** 分页循环拉全（后端单页上限 200，只取首页超页角色静默截断——conflict-rule loadAllRoles 先例）；
+ *  list 端点无 enabledOnly 过滤，启用态在客户端过滤（后端所有者解析要求启用角色） */
+async function loadOwnerRoles() {
+  if (ownerRolesLoaded) return;
+  ownerRoleLoading.value = true;
+  try {
+    const roles: RoleResp[] = [];
+    let pageNum = 1;
+    for (;;) {
+      const res = await getRoleList({
+        roleTypeCodes: ["BASIC_ROLE"],
+        pageNum,
+        pageSize: 200
+      });
+      roles.push(...res.items);
+      if (!res.hasNext) break;
+      pageNum++;
+    }
+    ownerRoleOptions.value = roles.filter(
+      role => role.status === 1 && !!role.externalId
+    );
+    ownerRolesLoaded = true;
+  } catch {
+    ownerRoleOptions.value = [];
+  } finally {
+    ownerRoleLoading.value = false;
+  }
+}
+
+watch(ownerSelectorVisible, visible => visible && loadOwnerRoles(), {
+  immediate: true
+});
+
+/** extra JSON 内既有所有者指针（编辑态初值；解析失败按无指针处理，后端 20044 兜底） */
+let originalOwnerPointer: {
+  roleTypeCode: string;
+  roleExternalId: string;
+} | null = null;
+
+function parseOwnerPointer(extra: string | null | undefined) {
+  if (!extra) return null;
+  try {
+    const pointer = JSON.parse(extra)?.grantOriginRole;
+    if (
+      pointer &&
+      typeof pointer.roleTypeCode === "string" &&
+      typeof pointer.roleExternalId === "string"
+    ) {
+      return {
+        roleTypeCode: pointer.roleTypeCode,
+        roleExternalId: pointer.roleExternalId
+      };
+    }
+  } catch {
+    /* extra 坏 JSON：选择器按未指定处理，提交由后端校验拒绝 */
+  }
+  return null;
+}
+
+/**
+ * 编辑态把选择器值同步进 extra JSON（后端按 extra.grantOriginRole 判定所有者变更并同事务
+ * 迁移种子）；清空选择 = 不变更（指针无清除语义，回写原值）。
+ * externalId 未变（含表单初始化触发）时回写原指针整体——保留原 roleTypeCode，
+ * 防止非 BASIC_ROLE 所有者被静默改写成 BASIC_ROLE（API 建型可指定任意角色类型）。
+ */
+function syncOwnerPointerIntoExtra(externalId: string) {
+  if (!isEdit.value) return;
+  const pointer = externalId
+    ? externalId === originalOwnerPointer?.roleExternalId
+      ? originalOwnerPointer
+      : { roleTypeCode: "BASIC_ROLE", roleExternalId: externalId }
+    : originalOwnerPointer;
+  if (!pointer) return;
+  let root: Record<string, unknown> = {};
+  if (formData.extra.trim()) {
+    try {
+      const parsed = JSON.parse(formData.extra);
+      if (parsed && typeof parsed === "object") root = parsed;
+    } catch {
+      return; // extra 坏 JSON 不强写，提交由后端校验拒绝
+    }
+  }
+  root.grantOriginRole = pointer;
+  formData.extra = JSON.stringify(root);
+}
+
+watch(
+  () => formData.ownerRoleExternalId,
+  externalId => {
+    if (ownerSelectorVisible.value) syncOwnerPointerIntoExtra(externalId);
+  }
 );
 
 /** 表单校验规则。
@@ -63,6 +171,7 @@ const rules = computed<FormRules>(() => ({
 /** 初始化表单数据 */
 function initFormData() {
   if (props.mode === "edit" && props.initialData) {
+    originalOwnerPointer = parseOwnerPointer(props.initialData.extra);
     Object.assign(formData, {
       typeKey: props.initialData.typeKey as TypeKey,
       typeCode: props.initialData.typeCode,
@@ -70,9 +179,11 @@ function initFormData() {
       description: props.initialData.description ?? "",
       isSystem: props.initialData.isSystem,
       sortOrder: props.initialData.sortOrder,
-      extra: props.initialData.extra ?? ""
+      extra: props.initialData.extra ?? "",
+      ownerRoleExternalId: originalOwnerPointer?.roleExternalId ?? ""
     });
   } else {
+    originalOwnerPointer = null;
     Object.assign(formData, defaultFormData());
   }
 }
@@ -217,6 +328,33 @@ defineExpose({
         placeholder="可空，JSON 格式扩展属性"
       />
     </el-form-item>
+
+    <!-- T-PERM-062 类型所有者（仅 resource_type 可见；创建即向所有者落首授基座，
+         编辑变更所有者=同事务迁移授权根种子） -->
+    <el-form-item
+      v-if="ownerSelectorVisible"
+      label="所有者角色"
+      prop="ownerRoleExternalId"
+    >
+      <el-select
+        v-model="formData.ownerRoleExternalId"
+        :loading="ownerRoleLoading"
+        placeholder="缺省引导角色（bootstrap-admin）"
+        clearable
+        filterable
+        class="w-full!"
+      >
+        <el-option
+          v-for="role in ownerRoleOptions"
+          :key="role.id"
+          :label="`${role.name}（${role.externalId ?? role.id}）`"
+          :value="role.externalId!"
+        />
+      </el-select>
+      <div v-if="isEdit" class="owner-role-hint">
+        变更所有者将同事务迁移该类型的授权根种子（旧所有者行清理、新所有者补齐全部操作位）
+      </div>
+    </el-form-item>
   </el-form>
 </template>
 
@@ -229,5 +367,13 @@ defineExpose({
   :deep(.el-form-item:last-child) {
     margin-bottom: 0;
   }
+}
+
+.owner-role-hint {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--el-text-color-secondary);
 }
 </style>

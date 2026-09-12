@@ -124,7 +124,7 @@
 | [T-PERM-059](../archive/2026-09-12/tasks/T-PERM-059.md) | 权限视图/排查删除重设计——删除收口（全删 8 端点+前端排查页；新设计方向另立任务，2026-09-10 三项定案） | [permission-query-unification](../archive/2026-09-12/permission-query-unification-plan.md) | api-contract §5.8；access-service-architecture §14；query-engine-unification.md §9 | — | ✅ | ✓ |
 | [T-PERM-060](../archive/2026-09-12/tasks/T-PERM-060.md) | 工程健康小批次——权限视图域映射批量化 + T-PERM-055 误读观察撤回 + EXT-7/8 处置登记（已收口 2026-09-11，终态见任务卡实施记录） | — | implementation §2.7 | — | ✅ | — |
 | [T-PERM-061](../archive/2026-09-12/tasks/T-PERM-061.md) | EXT-7：batchCheck 逐条 engine.query 收敛——A+ 形态「分组 + 请求级共享装载」（已收口 2026-09-11：queryBatch + 条件四态增量快照 + 互斥 ledger 聚合 + 回归锁①-⑪ 全绿；双轨评审处置与父段装载定案见 registry 实施收口行、遗留登记见任务卡遗留节；实施落点见 implementation §3.10） | — | implementation §3；api-contract §6.1 | — | ✅ | ✓ |
-| [T-PERM-062](T-PERM-062.md) | 新类型首笔授权生命周期种子——createType/createOperation 同事务种 AUTHORITY_ROOT 首授行（⚙️ 2026-09-12 立项：T-FE-023 产品发现，经 claude/grok/codex-sol 三路方案咨询收敛后用户四项拍板，设计定案见任务卡与 registry） | — | api-contract §5.1/§6.5；schema；architecture §14.2；extension-guide §3.5 | — | ⚙️ | ⏳ |
+| [T-PERM-062](T-PERM-062.md) | 新类型首笔授权生命周期种子——createType/createOperation 同事务种 AUTHORITY_ROOT 首授行（✅ 2026-09-12 收口：实施期四项补充定案（reason 仅自定义类型/无历史数据/owner 可变更+同事务迁移/不加角色删除守卫）+ 双轨评审处置，全量回归含 E2E 全绿） | — | api-contract §5.1/§6.5.1；schema；architecture §14.2；extension-guide §3.5 | — | ✅ | ✅ |
 
 ### gateway（工作单 C 失联兜底）
 

@@ -14,6 +14,7 @@ import cn.ac.fage.accessmesh.access.permission.service.domain.ResourceTypeOwners
 import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -101,6 +102,18 @@ class TypeDefinitionProjectionPgIT {
     @SpyBean
     private OperationPermissionMapper operationPermissionSpy;
 
+    @BeforeEach
+    void seedBootstrapAdminRole() {
+        // T-PERM-062：resource_type 创建即建授权根，缺省所有者=引导角色 bootstrap-admin——
+        // 本 IT 不跑 bootstrap 初始化，这里直接补出该角色行（幂等，role_type=6 与种子同值）
+        jdbc.update(
+            "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, parent_id, extra) "
+                + "SELECT ?, 6, 'bootstrap-admin', '引导角色', 1, NULL, '{}' WHERE NOT EXISTS "
+                + "(SELECT 1 FROM abstract_role WHERE tenant_id = ? AND role_type = 6 "
+                + "AND external_id = 'bootstrap-admin' AND delete_flag = 0)",
+            TENANT, TENANT);
+    }
+
     @AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -142,7 +155,7 @@ class TypeDefinitionProjectionPgIT {
         bindOperator(creator);
 
         TypeDefinitionResp created = typeDefinitionAppService.createType(TENANT,
-            new TypeCreateReq("group_type", "PGIT051_TYPE", "投影联调类型", null, null, null), creator);
+            new TypeCreateReq("group_type", "PGIT051_TYPE", "投影联调类型", null, null, null, null, null), creator);
         assertThat(created.typeCode()).isEqualTo("PGIT051_TYPE");
 
         Map<String, Object> projection = projectionRow("group_type:PGIT051_TYPE");
@@ -154,7 +167,7 @@ class TypeDefinitionProjectionPgIT {
         doThrow(new RuntimeException("projection boom"))
             .when(localProjectionSpy).upsertTypeDefinitionResource(anyLong(), anyString(), anyString(), anyString());
         assertThatThrownBy(() -> typeDefinitionAppService.createType(TENANT,
-            new TypeCreateReq("group_type", "PGIT051_ROLLBACK", "回滚类型", null, null, null), creator))
+            new TypeCreateReq("group_type", "PGIT051_ROLLBACK", "回滚类型", null, null, null, null, null), creator))
             .hasMessageContaining("projection boom");
         Long rolledBack = jdbc.queryForObject(
             "SELECT COUNT(*) FROM type_definition WHERE tenant_id = ? AND type_key = 'group_type' "
@@ -172,7 +185,7 @@ class TypeDefinitionProjectionPgIT {
         insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_TYPE_DEFINITION, CREATE_BIT);
         bindOperator(creator);
         TypeDefinitionResp grantedType = typeDefinitionAppService.createType(TENANT,
-            new TypeCreateReq("group_type", "PGIT051_LIST_A", "列表授权类型", null, null, null), creator);
+            new TypeCreateReq("group_type", "PGIT051_LIST_A", "列表授权类型", null, null, null, null, null), creator);
         long grantedProjectionId = projectionId("group_type:PGIT051_LIST_A");
 
         // viewer：仅对这一个实例有 VIEW（无类型级授权）——list 门禁第二段经真实投影命中
@@ -205,9 +218,9 @@ class TypeDefinitionProjectionPgIT {
         insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_TYPE_DEFINITION, CREATE_BIT);
         bindOperator(creator);
         TypeDefinitionResp target = typeDefinitionAppService.createType(TENANT,
-            new TypeCreateReq("group_type", "PGIT051_MGR_A", "被管类型", null, null, null), creator);
+            new TypeCreateReq("group_type", "PGIT051_MGR_A", "被管类型", null, null, null, null, null), creator);
         TypeDefinitionResp other = typeDefinitionAppService.createType(TENANT,
-            new TypeCreateReq("group_type", "PGIT051_MGR_B", "旁观类型", null, null, null), creator);
+            new TypeCreateReq("group_type", "PGIT051_MGR_B", "旁观类型", null, null, null, null, null), creator);
         long targetProjectionId = projectionId("group_type:PGIT051_MGR_A");
 
         // manager：仅对 target 实例有 VIEW 与 MANAGE（无类型级授权）——MANUAL 授权一行单操作位
@@ -243,7 +256,7 @@ class TypeDefinitionProjectionPgIT {
         insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_TYPE_DEFINITION, CREATE_BIT);
         bindOperator(creator);
         TypeDefinitionResp doomed = typeDefinitionAppService.createType(TENANT,
-            new TypeCreateReq("group_type", "PGIT051_DEL_A", "待删类型", null, null, null), creator);
+            new TypeCreateReq("group_type", "PGIT051_DEL_A", "待删类型", null, null, null, null, null), creator);
         long doomedProjectionId = projectionId("group_type:PGIT051_DEL_A");
 
         // holder 角色持有该实例的 VIEW——删除后授权行须级联软删
@@ -296,7 +309,7 @@ class TypeDefinitionProjectionPgIT {
         insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_TYPE_DEFINITION, CREATE_BIT);
         bindOperator(creator);
         TypeDefinitionResp doomed = typeDefinitionAppService.createType(TENANT,
-            new TypeCreateReq("resource_type", "PGIT050_RT", "待删资源类型", null, null, null), creator);
+            new TypeCreateReq("resource_type", "PGIT050_RT", "待删资源类型", null, null, null, null, null), creator);
         int doomedTypeValue = doomed.typeValue();
         assertThat(countValidRows("operation_permission", "resource_type = " + doomedTypeValue))
             .as("创建 resource_type 联动预置 CRUD 四操作位").isEqualTo(4);
@@ -326,7 +339,7 @@ class TypeDefinitionProjectionPgIT {
         // 原子性：级联中段（操作行软删）失败 → 类型行/投影行/操作行整体回滚，不留半删状态
         bindOperator(creator);
         TypeDefinitionResp doomed2 = typeDefinitionAppService.createType(TENANT,
-            new TypeCreateReq("resource_type", "PGIT050_RB", "回滚资源类型", null, null, null), creator);
+            new TypeCreateReq("resource_type", "PGIT050_RB", "回滚资源类型", null, null, null, null, null), creator);
         doThrow(new RuntimeException("op cascade boom"))
             .when(operationPermissionSpy).softDeleteBatch(anyLong(), anyList(), any());
         bindOperator(deleter);
@@ -350,9 +363,9 @@ class TypeDefinitionProjectionPgIT {
         insertScopeAllRolePerm(creatorRole, RESOURCE_TYPE_TYPE_DEFINITION, CREATE_BIT);
         bindOperator(creator);
         TypeDefinitionResp userType = typeDefinitionAppService.createType(TENANT,
-            new TypeCreateReq("user_type", "PGIT056_UT", "外包人员类型", null, null, null), creator);
+            new TypeCreateReq("user_type", "PGIT056_UT", "外包人员类型", null, null, null, null, null), creator);
         TypeDefinitionResp roleType = typeDefinitionAppService.createType(TENANT,
-            new TypeCreateReq("role_type", "PGIT056_RT", "扩展角色类型", null, null, null), creator);
+            new TypeCreateReq("role_type", "PGIT056_RT", "扩展角色类型", null, null, null, null, null), creator);
 
         // deleter：类型级 MANAGE（批删门禁复合键轨，类型级 scopeAll 放行）
         Long deleter = insertSubject("t056-op-deleter", "主体类型删除者");

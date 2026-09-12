@@ -470,6 +470,39 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         }
     }
 
+    @Override
+    public void seedGrants(Long tenantId, Long roleId, List<RoleResourcePermission> grants) {
+        if (grants == null || grants.isEmpty()) {
+            return;
+        }
+        List<RoleResourcePermission> existing = rolePermissionMapper.selectValidByRoleIds(tenantId, Set.of(roleId));
+        // 幂等 insert-if-absent：同身份键（对齐 uk_role_resource_permission 身份列）种子行跳过；
+        // 双向去重——与既有有效行重复、或本批内部重复，均只留首行
+        Set<SeedIdentity> occupied = existing.stream().map(SeedIdentity::of)
+            .collect(Collectors.toCollection(HashSet::new));
+        List<RoleResourcePermission> toInsert = grants.stream()
+            .filter(grant -> occupied.add(SeedIdentity.of(grant)))
+            .toList();
+        if (toInsert.isEmpty()) {
+            return;
+        }
+        permissionGrantDomainService.validateSingleManualGrants(existing, toInsert, Set.of());
+        toInsert.forEach(permissionGrantDomainService::validateGrantAttributes);
+        List<PreparedCreate> creates = toInsert.stream()
+            .map(grant -> new PreparedCreate(grant, List.of()))
+            .toList();
+        apply(new PreparedGrantPlan(tenantId, roleId, creates, List.of(), List.of(), Set.of(), List.of(), Set.of()));
+    }
+
+    /** 种子身份键（uk_role_resource_permission 身份列；不含可变属性 condition_id/can_grant） */
+    private record SeedIdentity(Long resourceEntityId, Integer resourceType, Long grantedBits, Long dependOn,
+                                boolean scopeAll, String grantSource) {
+        static SeedIdentity of(RoleResourcePermission p) {
+            return new SeedIdentity(p.getResourceEntityId(), p.getResourceType(), p.getGrantedBits(),
+                p.getDependOn(), Boolean.TRUE.equals(p.getScopeAll()), p.getGrantSource());
+        }
+    }
+
     private RoleResourcePermission toPermission(
             Long tenantId,
             Long roleId,
@@ -851,8 +884,16 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     }
 
     private void assertMutable(RoleResourcePermission permission) {
-        if (permission != null && GrantSource.AUTO_DEP.getValue().equals(permission.getGrantSource())) {
+        if (permission == null) {
+            return;
+        }
+        if (GrantSource.AUTO_DEP.getValue().equals(permission.getGrantSource())) {
             throw biz(PermissionErrorCode.AUTO_DEP_READONLY);
+        }
+        // T-PERM-062：授权根种子同属只读边界——updates/removes/向其挂子权限一律拒绝；
+        // 种子行经类型生命周期通道维护（创建/追加操作补种、所有者变更迁移、类型删除级联清理）
+        if (GrantSource.AUTHORITY_ROOT.getValue().equals(permission.getGrantSource())) {
+            throw biz(PermissionErrorCode.AUTHORITY_ROOT_READONLY);
         }
     }
 
