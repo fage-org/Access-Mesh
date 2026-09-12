@@ -49,6 +49,7 @@ claude 外评 T-PERM-063（e7c972338 处置轮）P2-1 经代码级核实成立�
 - **来源**：claude 外评 T-PERM-063（deepseek-flash[1M]，headless plan 禁子代理）P2-1 经代码级核实成立——`rejectReservedRoleType` 只拒 ORG/POSITION，sync 通道接受 BASIC_ROLE/PERSONAL/自定义类型写入且 BIND 无守卫；用户拍板守卫补全（弃「登记不适用」与「只堵 sync」两案，registry 2026-09-12 行）。
 - **回归证据**：sync 守卫四用例（冲突逐条拒/禁用放行/future 生效跳过/幂等改期跳过——旧实现下冲突用例必红）+ 结构角色对三用例 + `RoleMutexGuardPgIT` 第 5 用例（ORG 对拒绝/BASIC 对放行，真实 PG）全绿；收口全量 `mvn clean test -T 1C`（2026-09-12）BUILD SUCCESS——3324 项测试 0 失败 0 错误，E2E 模块 SUCCESS。
 - **回写**：api-contract §5.6 要点（①′sync 面守卫 + 结构角色对值域）+ §6.2.2.3（ROLE_MUTEX_CONFLICT item reason）、implementation §2.4、AGENTS.md（全部用户-角色持有写入口必须挂守卫）、registry 当轮拍板行。
+- **grok 复评处置（2026-09-12，grok-4.6 xhigh，P1×1 其余全复核通过）**：full-sync 同批同用户多 BIND 无批内累积——postState 只并当前 item，互斥两端两条 BIND 都 applied 落库（守卫经 resolveEffectiveRoles 还会回填插入前快照，冷缓存下第二条命中脏集）。已修：fullSync 请求级 `appliedThisBatch` 累积（BIND 新增有效持有成功后记入，postState=现有效∪批内已 apply∪本目标）；单条 sync 语义不变。回归锁 `FullSyncN1GuardTest.userRoleFullSync_shouldRejectSecondBindWhenSameUserMutexPairInBatch`（无累积旧实现必红）。评审建议「规则表/enabled 查询提循环外」未采纳（小表租户索引、与管理面存量守卫同量级，避免过度设计）；「写路径不走回填缓存」定性为既有 T-ACCESS-019「sync 不 markUsers」遗留的等价窗口（批内累积后仅剩跨请求 10s 窗口，registry 已定性接受）。
 
 ## 非目标 / 遗留
 

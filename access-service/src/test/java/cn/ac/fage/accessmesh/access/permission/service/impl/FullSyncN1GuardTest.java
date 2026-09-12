@@ -233,6 +233,77 @@ class FullSyncN1GuardTest {
                 .isLessThan(5);
     }
 
+    /** grok 复评 T-PERM-064 P1 回归锁：full-sync 同批同用户 BIND 互斥两端——
+     *  第二条必须 ROLE_MUTEX_CONFLICT 拒绝且零写库（无批内累积的旧实现两条都 applied，必红）。 */
+    @Test
+    void userRoleFullSync_shouldRejectSecondBindWhenSameUserMutexPairInBatch() {
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(LocalDateTime.class), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        // 同用户 e-0：BIND 角色对 team-a(200) / team-b(201)，relation rel-0(300)；全为新建行
+        when(typeResolutionService.batchResolveUserIds(TENANT_ID, "EMP", java.util.Set.of("e-0")))
+                .thenReturn(java.util.Map.of("e-0", 100L));
+        when(typeResolutionService.batchResolveRoleIds(TENANT_ID, "TEAM_ROLE", java.util.Set.of("team-a", "team-b"), null))
+                .thenReturn(java.util.Map.of("team-a", 200L, "team-b", 201L));
+        when(typeResolutionService.batchResolveRoleIds(TENANT_ID, "TEAM_ROLE", java.util.Set.of("rel-0"), null))
+                .thenReturn(java.util.Map.of("rel-0", 300L));
+        when(userRoleMapper.selectValidByUserTargetRelation(anyLong(), any(), any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(userRoleMapper.insert(any(cn.ac.fage.accessmesh.access.permission.entity.UserRole.class))).thenReturn(1);
+
+        cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService =
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService.class);
+        cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService conflictDomainService =
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService.class);
+        cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper abstractRoleMapper =
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper.class);
+        // 目标角色启用；用户现有效角色为空（冷缓存形态——最不利：批内第一条写入对第二条不可见）
+        when(abstractRoleMapper.selectEnabledIdsByIds(eq(TENANT_ID), any()))
+                .thenAnswer(inv -> new ArrayList<>((java.util.Set<Long>) inv.getArgument(1)));
+        when(subjectDomainService.resolveEffectiveRoles(TENANT_ID, 100L))
+                .thenReturn(java.util.Set.of());
+        // 冲突判定镜像真实语义：postState 同时含 200 与 201 才命中规则 (200,201)
+        when(conflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
+                .thenAnswer(inv -> {
+                    java.util.Map<Long, java.util.Set<Long>> postState = inv.getArgument(1);
+                    java.util.Set<Long> ps = postState.getOrDefault(100L, java.util.Set.of());
+                    return ps.contains(200L) && ps.contains(201L
+                    ) ? java.util.List.of(new cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService.RoleMutexAssignConflict(
+                            100L, 9L, 200L, 201L))
+                      : java.util.List.of();
+                });
+
+        UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
+                syncMetadataDomainService, typeResolutionService, userRoleMapper,
+                new cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionGuard(), syncTypeGuard,
+                subjectDomainService, conflictDomainService, abstractRoleMapper);
+
+        UserRoleFullSyncReq req = new UserRoleFullSyncReq(
+                new cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "ROOT"),
+                List.of(
+                        new cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncItem("EMP", "e-0", "TEAM_ROLE", "team-a",
+                                "TEAM_ROLE:rel-0", null, null, null, null,
+                                new SyncVersionRef(OCCURRED_AT, 1L)),
+                        new cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncItem("EMP", "e-0", "TEAM_ROLE", "team-b",
+                                "TEAM_ROLE:rel-0", null, null, null, null,
+                                new SyncVersionRef(OCCURRED_AT, 2L))));
+
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        // 第一条 applied、第二条 ROLE_MUTEX_CONFLICT；仅一条 insert（第二条零写库）
+        assertThat(resp.detail().itemResults().get(0).applied()).isTrue();
+        assertThat(resp.detail().itemResults().get(1).applied()).isFalse();
+        assertThat(resp.detail().itemResults().get(1).reason()).isEqualTo("ROLE_MUTEX_CONFLICT");
+        assertThat(resp.detail().itemResults().get(1).retryClass())
+                .isEqualTo(cn.ac.fage.accessmesh.access.permission.service.sync.SyncResultBuilder.RETRY_NON_RETRYABLE);
+        verify(userRoleMapper, times(1)).insert(any(cn.ac.fage.accessmesh.access.permission.entity.UserRole.class));
+        org.mockito.ArgumentCaptor<cn.ac.fage.accessmesh.access.permission.entity.UserRole> cap =
+                org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.access.permission.entity.UserRole.class);
+        verify(userRoleMapper).insert(cap.capture());
+        assertThat(cap.getValue().getTargetId()).isEqualTo(200L);
+    }
+
     @Test
     void userRoleFullSync_shouldNotResolveOwnershipPerItem_whenExistingRows() {
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, SOURCE_SERVICE));
@@ -298,7 +369,7 @@ class FullSyncN1GuardTest {
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.permission.mapper.AbstractRoleMapper.class));
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
-                new UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "1"), items);
+                new cn.ac.fage.accessmesh.access.permission.dto.req.UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "1"), items);
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
 

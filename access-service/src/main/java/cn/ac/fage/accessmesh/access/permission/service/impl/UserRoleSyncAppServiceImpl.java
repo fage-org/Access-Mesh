@@ -217,6 +217,9 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         int applied = 0, stale = 0, failed = 0, deactivated = 0;
         List<SyncResultResp.ItemResult> itemResults = new ArrayList<>(req.items().size());
         Set<String> seenBusinessKeyHashes = new HashSet<>();
+        // grok 复评 P1 修复：请求级「本批已 apply 的新增有效持有」——同批同用户多 BIND
+        // 的互斥两端经批内集合语义命中（doSyncOneInternal BIND 成功后记入，仅新增有效持有）
+        Map<Long, Set<Long>> appliedThisBatch = new HashMap<>();
         LocalDateTime now = LocalDateTime.now();
 
         for (UserRoleSyncItem item : req.items()) {
@@ -262,7 +265,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
 
             SyncResultResp r = doSyncOneInternal(tenantId, oneReq,
                     preUserId, preRoleId, preRelId, preExisting, true, now,
-                    ownedTargetIdsByBusinessKeyHash);
+                    ownedTargetIdsByBusinessKeyHash, appliedThisBatch);
             if (r.applied()) {
                 applied++;
                 // backfillTargetId 已在 doSyncOneInternal 内完成（upserted.getId()），无需额外查 DB。
@@ -317,7 +320,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
      * 执行单次 sync 写入（不做身份/payload 预检，调用方负责）。
      */
     private SyncResultResp doSyncOne(Long tenantId, UserRoleSyncReq req) {
-        return doSyncOneInternal(tenantId, req, null, null, null, null, false, LocalDateTime.now(), null);
+        return doSyncOneInternal(tenantId, req, null, null, null, null, false, LocalDateTime.now(), null, null);
     }
 
     /**
@@ -333,7 +336,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                                               Long preAbstractUserId, Long preRoleId, Long preRelationId,
                                               UserRole preExisting, boolean preExistingResolved,
                                               LocalDateTime now,
-                                              Map<String, Long> ownedTargetIdsByBusinessKeyHash) {
+                                              Map<String, Long> ownedTargetIdsByBusinessKeyHash,
+                                              Map<Long, Set<Long>> batchAppliedByUser) {
         String businessKey = SyncKeyCodec.userRoleBusinessKey(
                 req.subjectTypeCode(), req.subjectExternalId(),
                 req.roleTypeCode(), req.roleExternalId(), req.relationKey());
@@ -393,13 +397,20 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             // T-PERM-064：角色互斥授予守卫（sync 通道面）——冲突按通道语义逐条 NON_RETRYABLE
             // 拒绝（管理面 20062 整批语义不适用：sync 是逐 item 错误信封协议）。
             // 仅在「upsert 将新增当前有效持有」时检查：新建行或非当前有效行重激活；
-            // 已有效行幂等改期不检查（违规已存在，拒更新不消除既有状态）
-            if (bindIntroducesEffectiveHolding(tenantId, abstractUserId, roleId, req, existingForUpsert, now)
-                    && hitsRoleMutexOnBind(tenantId, abstractUserId, roleId)) {
+            // 已有效行幂等改期不检查（违规已存在，拒更新不消除既有状态）。
+            // postState 并入「本批已 apply 的持有」（grok 复评 P1：full-sync 同批同用户
+            // 多 BIND 无累积时，互斥两端可都 applied——批内集合语义与管理面同构）
+            boolean introducesEffectiveHolding =
+                    bindIntroducesEffectiveHolding(tenantId, abstractUserId, roleId, req, existingForUpsert, now);
+            if (introducesEffectiveHolding
+                    && hitsRoleMutexOnBind(tenantId, abstractUserId, roleId, batchAppliedByUser)) {
                 return SyncResultBuilder.nonRetryable("ROLE_MUTEX_CONFLICT");
             }
             UserRole upserted = upsertUserRoleWithExisting(tenantId, abstractUserId, roleId, relationId, req,
                     existingForUpsert, now);
+            if (introducesEffectiveHolding && batchAppliedByUser != null) {
+                batchAppliedByUser.computeIfAbsent(abstractUserId, k -> new HashSet<>()).add(roleId);
+            }
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, STATUS_ACTIVE);
             // upserted 由 mapper.insert/update 内联返回（含主键），无需再查 DB
@@ -458,12 +469,16 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
      * 规则读取复用 {@code findAssignMutexConflicts} DB 直查（新规则即刻生效）。
      * </p>
      */
-    private boolean hitsRoleMutexOnBind(Long tenantId, Long userId, Long roleId) {
+    private boolean hitsRoleMutexOnBind(Long tenantId, Long userId, Long roleId,
+                                        Map<Long, Set<Long>> batchAppliedByUser) {
         if (!new HashSet<>(abstractRoleMapper.selectEnabledIdsByIds(tenantId, Set.of(roleId))).contains(roleId)) {
             return false;
         }
         Set<Long> effective = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
         Set<Long> postState = new HashSet<>(effective);
+        if (batchAppliedByUser != null) {
+            postState.addAll(batchAppliedByUser.getOrDefault(userId, Set.of()));
+        }
         postState.add(roleId);
         return !permissionConflictDomainService
                 .findAssignMutexConflicts(tenantId, Map.of(userId, postState)).isEmpty();

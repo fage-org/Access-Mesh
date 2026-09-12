@@ -1045,7 +1045,7 @@ last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§5.1 类型授权�
 
 > `items[].roleTypeCode` 为必填字段，且必须与 `scope.roleTypeCode` 严格相等；不一致时该 item 返回 `NON_RETRYABLE`（`reason=ROLE_TYPE_CODE_MISMATCH_WITH_SCOPE`），不进入 `markStatus` 路径。调用方必须按 binding 对应的角色类型拆分为多个 envelope，每个 envelope 内 item.roleTypeCode 与 scope.roleTypeCode 对齐。
 
-> **角色互斥守卫（T-PERM-064，sync/full-sync 共用）**：BIND 将新增「启用且有效期覆盖当前时刻」的持有时（新建行或非当前有效行重激活），授予后有效角色集命中 ROLE_MUTEX 对 → 该 item 返回 `NON_RETRYABLE`（`reason=ROLE_MUTEX_CONFLICT`）零写库——走通道逐条错误信封而非管理面 20062 整批语义；已当前有效行的幂等改期与 future 生效不触发检查。UNBIND 不适用。
+> **角色互斥守卫（T-PERM-064，sync/full-sync 共用）**：BIND 将新增「启用且有效期覆盖当前时刻」的持有时（新建行或非当前有效行重激活），授予后有效角色集命中 ROLE_MUTEX 对 → 该 item 返回 `NON_RETRYABLE`（`reason=ROLE_MUTEX_CONFLICT`）零写库——走通道逐条错误信封而非管理面 20062 整批语义；已当前有效行的幂等改期与 future 生效不触发检查。**full-sync 同批同用户多 BIND 经请求级批内累积判定**（postState=现有效∪本批已 apply 的新增有效持有∪本目标，grok 复评 P1 修复）——同批互斥两端第二条即拒，不依赖缓存可见性。UNBIND 不适用。
 
 非资源实体 full-sync 规则：
 
