@@ -148,7 +148,7 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-ADMIN-020](T-ADMIN-020.md) | access-service admin 域 CRUD 代码清理（已收口 2026-09-12：重排查 17 项规范清单零可清扫描项，零代码变更定性收口；痛点 #6 口径漂移见任务卡） | [frontend-phase4](../plans/frontend-phase4-plan.md) | —（工程改进，无设计回写） | — | ✅ | — |
+| [T-ADMIN-020](T-ADMIN-020.md) | access-service admin 域 CRUD 代码清理（已收口 2026-09-12：规范清单重排查零可清扫描项，零代码变更定性收口；痛点 #6 口径漂移见任务卡） | [frontend-phase4](../plans/frontend-phase4-plan.md) | —（工程改进，无设计回写） | — | ✅ | — |
 | T-ADMIN-021 | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源；已收口 2026-09-03，终态见任务卡完成记录——T-FE-037 依赖解锁） | [frontend-phase2](../plans/frontend-phase2-plan.md) | design/frontend/permission-grant.md §9；admin-service-api-contract §4.2.1 | — | ✅ | ✓ |
 | [T-ADMIN-022](../archive/2026-08-27/tasks/T-ADMIN-022.md) | 登录锁定临时化与账号状态语义统一 | product-vertical-slice（已归档） | admin-service-api-contract；schema/access-service.sql；default-org-tree-user-lifecycle | T-ORG-001, T-ACCESS-021 | ✅ | ✓ |
 | [T-ADMIN-023](../archive/2026-08-27/tasks/T-ADMIN-023.md) | 文件服务安全加固（VIEW 门禁 + 路径安全 + 删除顺序） | product-vertical-slice（已归档） | admin-service-api-contract；access-service-architecture | T-ACCESS-021 | ✅ | ✓ |

@@ -32,7 +32,7 @@
 | 6.2 系统配置 | `system-config.md` | T-FE-004 | ✅ |
 | 7.1 操作日志 | `operation-log.md` | T-FE-005 | ✅ |
 | 7.2 权限变更日志 | `permission-change-log.md` | T-FE-012 | ✅ |
-| 扩展指南 | `extension-guide.md` | T-FE-023（Phase 4） | 待产出 |
+| 扩展指南 | [`../extension-guide.md`](../extension-guide.md)（design 根，跨端全景；前端页面扩展为其 §7） | T-FE-023 | ✅ |
 
 ## 页面设计文档结构（建议）
 

@@ -1,7 +1,7 @@
 ---
 doc_type: task
 id: T-ADMIN-020
-title: access-service admin 域 CRUD 代码清理（2026-09-12 重排查——17 项规范清单零可清扫描项，零代码变更收口）
+title: access-service admin 域 CRUD 代码清理（规范清单重排查零可清扫描项，零代码变更收口）
 status: done
 plan: docs/plans/frontend-phase4-plan.md
 domain: admin-service
@@ -9,7 +9,7 @@ design_refs: []
 depends_on: []
 blocks: []
 acceptance:
-  - "按现行规范对 admin+application 域（197 源文件）重排查问题面（用户定案 2026-09-12：重新排查核对范围，并清扫）"
+  - "按现行规范对 admin+application 域（197 源文件）重排查问题面（范围口径：重核对后清扫，见 decision-registry 2026-09-12 行）"
   - "有则清扫、无则登记定性依据；原痛点 #6 口径（2026-06）与现状的漂移成表"
 design_writeback:
   required: false
@@ -18,10 +18,10 @@ last_updated: 2026-09-12
 
 # T-ADMIN-020 admin 域 CRUD 代码清理
 
-> 状态：done（2026-09-12 重排查收口，**零代码变更**——17 项检查零可清扫描项，定性依据见下表）
+> 状态：done（2026-09-12 收口，**零代码变更**——规范清单重排查零可清扫描项，定性依据见下表；排查范围口径见 decision-registry 2026-09-12 行）
 > 原始定位（2026-06 立项）：improvement-plan 痛点 #6——「AI 生成的样板代码臃肿、一致性差」，主张：风格不一致 / 缺少校验与错误处理 / 冗余死代码 / 185 文件零测试。
 
-## 重排查结论（2026-09-12，用户定案「重新排查核对范围，并清扫」）
+## 重排查结论（2026-09-12，范围重核对后清扫）
 
 对 `access.admin` + `access.application` 两包（197 源文件 / 37 测试文件）按现行规范清单逐项扫描：
 
@@ -48,4 +48,4 @@ last_updated: 2026-09-12
 
 ## 完成记录
 
-- 2026-09-12：17 项重排查（含无过滤复核）+ N+1 启发式 8 命中逐处人工核实（全误报）+ 5 个无校验注解 DTO 逐个定性；零代码变更收口。
+- 2026-09-12：规范清单重排查（含无过滤复核）+ N+1 启发式命中逐处人工核实（全误报）+ 无校验注解 DTO 逐个定性；零代码变更收口。

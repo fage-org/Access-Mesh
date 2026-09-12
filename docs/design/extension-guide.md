@@ -20,8 +20,8 @@ last_reviewed: 2026-09-12
 | # | 扩展面 | 回答的场景提问 | 权威契约 | 验证资产 |
 |---|---|---|---|---|
 | 1 | 业务服务接入 | 「我的服务怎么接入 AccessMesh 鉴权？」 | api-contract §6.3；`services/example-service.md` | `ExampleProtectedApiE2EIT` |
-| 2 | 自有资源类型 | 「我要按门店/项目/单据控制权限，怎么建模？」 | api-contract §5.1/§5.3/§6.3；architecture §4.3 | `CustomResourceTypeSlicePgIT`（本指南配套） |
-| 3 | 主体/角色体系 | 「我的用户/角色体系与标准设计不一致」 | api-contract §6.3（user/role sync 通道） | AbstractUserSyncAppServiceTest 等单测组 |
+| 2 | 自有资源类型 | 「我要按门店/项目/单据控制权限，怎么建模？」 | api-contract §5.1/§5.3/§6.2.2/§6.3；类型所有权声明见 api-contract §5.1 | `CustomResourceTypeSlicePgIT`（本指南配套） |
+| 3 | 主体/角色体系 | 「我的用户/角色体系与标准设计不一致」 | api-contract §5.2 + §6.3.1（syncTypes 白名单） | AbstractUserSyncAppServiceTest 等单测组 |
 | 4 | 条件与范围 | 「时间/IP 限制、数据范围怎么配？边界在哪？」 | api-contract §5.6/§6.7；core-flows | 条件双轨制用例组（T-PERM-048） |
 | 5 | 前端页面 | 「我想在管理台加自己的页面」 | `frontend/README.md` 及各页面设计 | 前端 view hook 测试组 |
 
@@ -70,7 +70,7 @@ last_reviewed: 2026-09-12
 | `MANAGED`（缺省） | 管理台手工 CRUD 维护资源 | 资源量小、人工维护（如自定义目录） |
 | `SYNC` | 声明来源服务（`syncSourceService`）独占同步，管理面只读（写操作 20055） | 资源事实在业务系统里（订单、门店、项目） |
 
-声明约束（architecture §4.3）：SYNC 来源必须为已注册、未软删、`status=1` 的服务；类型下存在有效资源行时声明不可变更（20056）；API 类型禁止声明 SYNC。
+声明约束（api-contract §5.1 类型所有权声明段 + §6.2.2 同步入口门禁）：SYNC 来源必须为已注册、未软删、`status=1` 的服务；类型下存在有效资源行时声明不可变更（20056）；API 类型禁止声明 SYNC。
 
 ### 3.2 完整链路（六步）
 
@@ -81,8 +81,8 @@ last_reviewed: 2026-09-12
    ——创建即自动预置 CRUD 四操作（CREATE/VIEW/UPDATE/DELETE，位 1/2/4/8）
 ③ 按需追加自定义操作（operation-permission/create：resourceTypeCode=自有码 + code
    + binaryBit——操作位空间按类型隔离，binaryBit 类型内唯一，避开预置位）
-④ 同步资源（resource-entity/sync 单条 UPSERT/DELETE 或 full-sync 全量 diff；
-   服务身份请求头见 §2.2）
+④ 同步资源（resource-entity/sync 单条 UPSERT/DISABLE/DELETE 或 full-sync 全量 diff；
+   服务身份请求头见 §2.2；DISABLE 为幂等停用，非删除）
 ⑤ 授权（管理台授权页 apply-grant-plan，或 API：roleTypeCode+roleExternalId
    + key{resourceTypeCode, resourceCode, codeType, operationCode, scopeMode}）
 ⑥ 判定（业务侧 auth/check：subjectTypeCode + subjectExternalId + resourceTypeCode=自有码
@@ -109,14 +109,14 @@ last_reviewed: 2026-09-12
 
 授权委托校验（`checkCanGrant`）**严格无旁路**：授予者必须已持有覆盖目标键且 `canGrant=true`、无条件的授权行。bootstrap 固定图只覆盖**种子类型**——一个全新自定义类型在创建后，**没有任何人能经 apply-grant-plan 完成首笔授权**（授予者对新类型零授权行，一律 20040 `GRANT_CANNOT_DELEGATE`）。
 
-实际落地方式：部署方为新类型向管理员/管理角色种子一条**类型级（scopeAll）可转授权限**（固定图扩展或 DB 种子，`role_resource_permission` 一行 `scope_all=true, can_grant=true`），之后管理员即可在授权页正常转授该类型的实例权限（类型级行覆盖实例键）。回归锁：`CustomResourceTypeSlicePgIT` 阶段 5b 固化该引导语义。
+实际落地方式：部署方为新类型向管理员引导角色种子一条**类型级（scopeAll）可转授权限**（固定图扩展或 DB 种子，`role_resource_permission` 一行 `scope_all=true, can_grant=true`），之后管理员即可在授权页正常转授该类型的实例权限（类型级行覆盖实例键）。回归锁：`CustomResourceTypeSlicePgIT` 阶段 5a/5b 双向固化——未种子时 apply-grant-plan 拒绝（20040）、种子后放行。
 
 ## 4. 场景三：主体/角色体系适配
 
 「接入方用户体系与标准设计不一致」的两条路：
 
 1. **本地主体**：平台自管用户（管理台组织与用户页创建，`LOCAL_USER`）；适合接入方把账号体系交给 AccessMesh。
-2. **自有主体类型 + user-sync 通道**：接入方在 `service_config.extra.syncTypes.subjectTypeCodes` 白名单声明自有 subject_type，经 user-sync 通道同步主体（同 §2.2 服务身份）。角色同理：自有 role_type + role-sync（`roleTypeCodes` 白名单）。
+2. **自有主体类型 + 用户同步通道**：接入方在 `service_config.extra.syncTypes.subjectTypeCodes` 白名单声明自有 subject_type，经 `POST /api/perm/abstract-user/sync` 同步主体（同 §2.2 服务身份）。角色同理：自有 role_type + `POST /api/perm/abstract-role/sync`（`roleTypeCodes` 白名单）。
 
 边界：内置事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 等）已声明为 access-service 内部 SYNC——**外部同步一律拒绝**，需要差异化建模时请声明自有类型（如 `BI_MENU`），不要试图写公共类型。
 
@@ -130,7 +130,7 @@ last_reviewed: 2026-09-12
 
 ### 5.2 范围权限（scopeMode 四态）
 
-资源范围语义：`INSTANCE`（单实例）/ `ALL`（类型全量）/ `LIST`（清单）/ `DENIED`（显式拒绝），契约见 api-contract §6.7。
+资源范围判定四态（契约见 api-contract §6.7）：`INSTANCE`（单实例）/ `ALL`（类型全量）/ `DENIED`（无操作权限）/ `EMPTY`（有权限但条件/互斥过滤后无数据——返回空结果不发 SQL）。注意**授权配置侧只用 `INSTANCE`/`ALL` 二态**（apply-grant-plan 的 scopeMode），`DENIED`/`EMPTY` 是查询响应侧的判定结果。
 
 ### 5.3 特殊判定逻辑（外部审批等）怎么落地
 
@@ -152,7 +152,7 @@ last_reviewed: 2026-09-12
 管理台基于 pure-admin-thin（Vue 3 + Element Plus）。新增一个管理页面的标准模式（以现有 13 页为活例）：
 
 1. **权限串声明**：`src/views/system/<page>/utils/perms.ts` 导出 `<PAGE>_PERM_LIST`（操作码常量，对齐后端 `OperationCodeConstants`）。
-2. **路由注册**：`src/router/modules/*.ts` 路由项 `meta` 引用 PERM_LIST（按钮级 `auths` / 页面级门禁）；`meta.showLink` 控制导航可见性。
+2. **路由注册**：`src/router/modules/*.ts` 路由项 `meta` 引用 PERM_LIST（按钮级 `auths` / 页面级门禁）。注意侧栏菜单已切后端派生（T-FE-015）：**可见性由菜单数据的 ∃op 派生决定，`meta.showLink` 不再控制侧栏**。
 3. **菜单种子**：sys_menu 行（bootstrap 固定图或管理台菜单管理页创建）；菜单可见性 = 该类型**存在任一可授权操作**（∃op 派生）自动可见，无需逐菜单授权。
 4. **API 层**：`src/api/<page>.ts`——全部 POST + JSON Request DTO（禁 GET/RESTful，project-rules §API），响应统一信封 `{code, data, message}`。
 5. **页面分组**（可选）：业务域页为资源类型配置 `CLASSIFY`（domain_config），管理查询按域过滤（ALL/GLOBAL_PLUS/DOMAIN_ONLY 三模式）。
@@ -163,7 +163,7 @@ last_reviewed: 2026-09-12
 
 | 资产 | 轨道 | 覆盖 |
 |---|---|---|
-| `CustomResourceTypeSlicePgIT` | access-service 容器组 | 场景二完整链路（本指南 §3 的回归锁；含裸用户 fail-closed 与未同步资源 fail-closed 两条负向） |
+| `CustomResourceTypeSlicePgIT` | access-service 容器组 | 场景二完整链路（本指南 §3 的回归锁；负向组：未种子首授 20040 / 裸用户 NO_ROLE / 未同步资源 fail-closed） |
 | `ExampleProtectedApiE2EIT` | e2e 模块 | 场景一完整链路（注册→接口声明→403→授权→30s 内生效） |
 | `BasicRoleGrantVerticalSliceE2EIT` | e2e 模块 | 内置类型授权垂直切片（bootstrap→建号→授权→判定） |
 

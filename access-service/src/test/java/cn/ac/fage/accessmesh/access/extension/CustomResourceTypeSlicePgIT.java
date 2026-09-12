@@ -162,27 +162,65 @@ class CustomResourceTypeSlicePgIT {
         // —— 阶段 5：主体装配（jdbc 直插：本地用户 + BASIC_ROLE + 绑定 + 对照裸用户） ——
         long grantedUserId = insertLocalUserWithBasicRole("ext-slice-granted");
         long bareUserId = insertLocalUser("ext-slice-bare");
+        String roleExternalId = jdbc.queryForObject(
+            "SELECT r.external_id FROM abstract_role r JOIN user_role ur ON ur.tenant_id = r.tenant_id "
+                + "AND ur.target_type = 'ROLE' AND ur.target_id = r.id "
+                + "WHERE ur.tenant_id = ? AND ur.abstract_user_id = ? AND r.delete_flag = 0",
+            String.class, TENANT, grantedUserId);
 
-        // —— 阶段 5b：部署方种子——给管理员的引导角色插新类型类型级可转授权（EXPORT 位 16）。
-        //     委托校验（checkCanGrant）严格无旁路：全新类型上无人持有可转授覆盖权限，
-        //     首笔授权必须由部署方种子引导（固定图只覆盖种子类型；extension-guide §3.5 同口径） ——
+        // —— 阶段 5a：未种子先授权 → 20040（首笔授权引导的必要性锁：checkCanGrant 严格无旁路，
+        //     若实现侧引入操作者豁免/旁路，本断言失败——extension-guide §3.5 承诺的回归锁） ——
+        performExpectCode("/api/perm/role-resource-permission/apply-grant-plan", adminUserId,
+            grantPlanReq(roleExternalId), 20040);
+
+        // —— 阶段 5b：部署方种子——给管理员引导角色（bootstrap-admin）插新类型类型级可转授权
+        //     （EXPORT 位 16）。全新类型上无人持有可转授覆盖权限，首笔授权必须由部署方种子引导
+        //     （固定图只覆盖种子类型；extension-guide §3.5 同口径） ——
         Long adminRoleId = jdbc.queryForObject(
-            "SELECT ur.target_id FROM user_role ur WHERE ur.tenant_id = ? AND ur.abstract_user_id = ? "
-                + "AND ur.target_type = 'ROLE' LIMIT 1",
-            Long.class, TENANT, adminUserId);
-        assertThat(adminRoleId).as("bootstrap 管理员必须绑定引导角色").isNotNull();
+            "SELECT r.id FROM abstract_role r JOIN user_role ur ON ur.tenant_id = r.tenant_id "
+                + "AND ur.target_type = 'ROLE' AND ur.target_id = r.id "
+                + "WHERE ur.tenant_id = ? AND ur.abstract_user_id = ? AND r.external_id = ?",
+            Long.class, TENANT, adminUserId, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID);
+        assertThat(adminRoleId).as("bootstrap 管理员必须绑定引导角色（bootstrap-admin）").isNotNull();
         jdbc.update(
             "INSERT INTO role_resource_permission "
                 + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, can_grant, grant_source) "
                 + "VALUES (?, ?, NULL, 16, ?, true, true, 'MANUAL')",
             TENANT, adminRoleId, typeValue);
 
-        // —— 阶段 6：管理员经授权页同源写入口授予实例级 VIEW ——
-        String roleExternalId = jdbc.queryForObject(
-            "SELECT r.external_id FROM abstract_role r JOIN user_role ur ON ur.tenant_id = r.tenant_id "
-                + "AND ur.target_type = 'ROLE' AND ur.target_id = r.id "
-                + "WHERE ur.tenant_id = ? AND ur.abstract_user_id = ? AND r.delete_flag = 0",
-            String.class, TENANT, grantedUserId);
+        // —— 阶段 6：管理员经授权页同源写入口授予实例级 EXPORT（种子后转授资格成立） ——
+        JsonNode grantItems = postAsAdmin("/api/perm/role-resource-permission/apply-grant-plan", adminUserId,
+                grantPlanReq(roleExternalId))
+            .path("items");
+        assertThat(grantItems.isArray() && grantItems.size() == 1)
+            .as("授权计划必须对自定义类型资源产生恰好一条记录").isTrue();
+
+        // —— 阶段 7：接入方经 auth/check 取得引擎判定 ——
+        JsonNode allowed = postAsService("/api/perm/auth/check",
+            checkReq(String.valueOf(grantedUserId), RESOURCE_CODE));
+        assertThat(allowed.path("allowed").asBoolean())
+            .as("绑定角色 + 实例级授权后必须 allowed：" + allowed).isTrue();
+
+        // —— 负向锁①：未绑定任何角色的主体拒绝（reason=NO_ROLE 钉死主体装配正确——
+        //     主体装配失败走 USER_NOT_FOUND，同样 allowed=false 但语义不同） ——
+        JsonNode bareDenied = postAsService("/api/perm/auth/check",
+            checkReq(String.valueOf(bareUserId), RESOURCE_CODE));
+        assertThat(bareDenied.path("allowed").asBoolean())
+            .as("裸用户必须被拒绝：" + bareDenied).isFalse();
+        assertThat(bareDenied.path("reason").asText())
+            .as("裸用户拒绝原因必须是零角色而非主体缺失").isEqualTo("NO_ROLE");
+
+        // —— 负向锁②：未同步的资源编码 fail-closed 拒绝（资源不存在不给权限） ——
+        JsonNode unknownDenied = postAsService("/api/perm/auth/check",
+            checkReq(String.valueOf(grantedUserId), "ORDER-9999"));
+        assertThat(unknownDenied.path("allowed").asBoolean())
+            .as("未同步资源编码必须 fail-closed 拒绝：" + unknownDenied).isFalse();
+    }
+
+    // ===== 请求助手 =====
+
+    /** apply-grant-plan 请求体（BASIC_ROLE + 目标资源实例级 EXPORT 单条 create）。 */
+    private ObjectNode grantPlanReq(String roleExternalId) {
         var key = JSON.objectNode();
         key.put("resourceTypeCode", CUSTOM_TYPE);
         key.put("resourceCode", RESOURCE_CODE);
@@ -197,36 +235,13 @@ class CustomResourceTypeSlicePgIT {
         plan.set("creates", JSON.arrayNode().add(createItem));
         plan.putNull("updates");
         plan.putNull("removes");
-        var grantReq = JSON.objectNode();
-        grantReq.putNull("domainCode");
-        grantReq.put("roleTypeCode", "BASIC_ROLE");
-        grantReq.put("roleExternalId", roleExternalId);
-        grantReq.set("plan", plan);
-        JsonNode grantItems = postAsAdmin("/api/perm/role-resource-permission/apply-grant-plan", adminUserId, grantReq)
-            .path("items");
-        assertThat(grantItems.isArray() && grantItems.size() == 1)
-            .as("授权计划必须对自定义类型资源产生恰好一条记录").isTrue();
-
-        // —— 阶段 7：接入方经 auth/check 取得引擎判定 ——
-        JsonNode allowed = postAsService("/api/perm/auth/check",
-            checkReq(String.valueOf(grantedUserId), RESOURCE_CODE));
-        assertThat(allowed.path("allowed").asBoolean())
-            .as("绑定角色 + 实例级授权后必须 allowed：" + allowed).isTrue();
-
-        // —— 负向锁①：未绑定任何角色的主体拒绝（授权经角色链生效，非全局放行） ——
-        JsonNode bareDenied = postAsService("/api/perm/auth/check",
-            checkReq(String.valueOf(bareUserId), RESOURCE_CODE));
-        assertThat(bareDenied.path("allowed").asBoolean())
-            .as("裸用户必须被拒绝：" + bareDenied).isFalse();
-
-        // —— 负向锁②：未同步的资源编码 fail-closed 拒绝（资源不存在不给权限） ——
-        JsonNode unknownDenied = postAsService("/api/perm/auth/check",
-            checkReq(String.valueOf(grantedUserId), "ORDER-9999"));
-        assertThat(unknownDenied.path("allowed").asBoolean())
-            .as("未同步资源编码必须 fail-closed 拒绝：" + unknownDenied).isFalse();
+        var req = JSON.objectNode();
+        req.putNull("domainCode");
+        req.put("roleTypeCode", "BASIC_ROLE");
+        req.put("roleExternalId", roleExternalId);
+        req.set("plan", plan);
+        return req;
     }
-
-    // ===== 请求助手 =====
 
     private ObjectNode checkReq(String subjectExternalId, String resourceCode) {
         return JSON.objectNode()
@@ -238,7 +253,7 @@ class CustomResourceTypeSlicePgIT {
             .put("operationCode", OP_EXPORT);
     }
 
-    /** 管理员操作请求（Gateway 转发形态：内部凭证 + HMAC 验签 X-User-Id → USER 上下文）。断言业务信封 200 并返回 data 节点。 */
+    /** 管理员操作请求，断言业务信封 200 并返回 data 节点（Gateway 转发形态：内部凭证 + HMAC 验签 X-User-Id → USER 上下文）。 */
     private JsonNode postAsAdmin(String path, long operatorUserId, ObjectNode body) throws Exception {
         long ts = System.currentTimeMillis() / 1000;
         String userId = String.valueOf(operatorUserId);
@@ -247,18 +262,31 @@ class CustomResourceTypeSlicePgIT {
             "X-Tenant-Id", String.valueOf(TENANT),
             "X-User-Id", userId,
             "X-User-Signature", hmac(userId, String.valueOf(TENANT), ts),
-            "X-Signature-Timestamp", String.valueOf(ts)));
+            "X-Signature-Timestamp", String.valueOf(ts)), 200);
     }
 
-    /** 接入方服务身份请求（X-Internal-Secret 凭证 + X-Service-Code + X-Tenant-Id → SERVICE 上下文）。 */
+    /** 管理员操作请求，断言业务信封为指定错误码（负向锁）。 */
+    private void performExpectCode(String path, long operatorUserId, ObjectNode body, int expectedCode) throws Exception {
+        long ts = System.currentTimeMillis() / 1000;
+        String userId = String.valueOf(operatorUserId);
+        performAndUnwrap(path, body, Map.of(
+            "X-Internal-Secret", INTERNAL_SECRET,
+            "X-Tenant-Id", String.valueOf(TENANT),
+            "X-User-Id", userId,
+            "X-User-Signature", hmac(userId, String.valueOf(TENANT), ts),
+            "X-Signature-Timestamp", String.valueOf(ts)), expectedCode);
+    }
+
+    /** 接入方服务身份请求（X-Internal-Secret 凭证 + X-Service-Code + X-Tenant-Id → SERVICE 上下文），断言业务信封 200。 */
     private JsonNode postAsService(String path, ObjectNode body) throws Exception {
         return performAndUnwrap(path, body, Map.of(
             "X-Internal-Secret", INTERNAL_SECRET,
             "X-Service-Code", SOURCE_SERVICE,
-            "X-Tenant-Id", String.valueOf(TENANT)));
+            "X-Tenant-Id", String.valueOf(TENANT)), 200);
     }
 
-    private JsonNode performAndUnwrap(String path, ObjectNode body, Map<String, String> headers) throws Exception {
+    private JsonNode performAndUnwrap(String path, ObjectNode body, Map<String, String> headers,
+                                      int expectedEnvelopeCode) throws Exception {
         var request = post(path).contentType(MediaType.APPLICATION_JSON)
             .content(mapper.writeValueAsString(body));
         headers.forEach(request::header);
@@ -266,7 +294,7 @@ class CustomResourceTypeSlicePgIT {
         String raw = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
         JsonNode envelope = mapper.readTree(raw);
         assertThat(envelope.path("code").asInt())
-            .as("请求必须成功，path=%s，响应：%s", path, raw).isEqualTo(200);
+            .as("业务信封码必须匹配，path=%s，响应：%s", path, raw).isEqualTo(expectedEnvelopeCode);
         return envelope.path("data");
     }
 
