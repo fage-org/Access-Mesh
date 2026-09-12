@@ -49,13 +49,6 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
     private final OperationPermissionMapper operationPermissionMapper;
     private final CacheService cacheService;
 
-    /**
-     * 构造函数注入依赖
-     * <p>
-     * TODO: 构造函数依赖过多(7个)，违反单一职责原则
-     * 建议：按类型拆分解析服务（如用户解析、角色解析、资源解析分离）
-     * </p>
-     */
     public TypeResolutionServiceImpl(TypeDefinitionMapper typeDefinitionMapper,
                                      AbstractUserMapper abstractUserMapper,
                                      ResourceEntityMapper resourceEntityMapper,

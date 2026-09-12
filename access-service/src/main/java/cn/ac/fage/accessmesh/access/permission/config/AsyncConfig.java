@@ -126,7 +126,6 @@ public class AsyncConfig implements AsyncConfigurer {
             public void handleUncaughtException(Throwable ex, Method method, Object... params) {
                 log.error("异步方法 {} 执行失败，参数: {}",
                     method.getName(), params, ex);
-                // TODO: 可扩展为发送告警通知（钉钉、邮件等）
             }
         };
     }
