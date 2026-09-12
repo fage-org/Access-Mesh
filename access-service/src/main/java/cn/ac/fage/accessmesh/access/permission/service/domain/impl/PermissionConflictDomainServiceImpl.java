@@ -2,12 +2,9 @@ package cn.ac.fage.accessmesh.access.permission.service.domain.impl;
 
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionConflictRule;
-import cn.ac.fage.accessmesh.access.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.access.permission.enums.ConflictType;
-import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConflictRuleMapper;
-import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.BatchPermMutexEvaluator;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
@@ -51,7 +48,6 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     private final ObjectMapper objectMapper;
     private final AuditDomainService auditDomainService;
     private final OperationPermissionMapper operationPermissionMapper;
-    private final UserRoleMapper userRoleMapper;
     private final SubjectDomainService subjectDomainService;
 
     /**
@@ -72,22 +68,19 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * @param objectMapper              JSON解析器
      * @param auditDomainService        审计领域服务，用于记录冲突通知
      * @param operationPermissionMapper 操作权限数据访问层，用于查找冲突操作权限
-     * @param userRoleMapper            用户角色数据访问层，用于存量双持查询
-     * @param subjectDomainService      主体领域服务，用于有效角色解析（存量双持判定与运行时同源）
+     * @param subjectDomainService      主体领域服务，用于按角色反查用户与有效角色解析（存量双持判定与运行时同源）
      */
     public PermissionConflictDomainServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
                                                 CacheService cacheService,
                                                 ObjectMapper objectMapper,
                                                 AuditDomainService auditDomainService,
                                                 OperationPermissionMapper operationPermissionMapper,
-                                                UserRoleMapper userRoleMapper,
                                                 SubjectDomainService subjectDomainService) {
         this.conflictRuleMapper = conflictRuleMapper;
         this.cacheService = cacheService;
         this.objectMapper = objectMapper;
         this.auditDomainService = auditDomainService;
         this.operationPermissionMapper = operationPermissionMapper;
-        this.userRoleMapper = userRoleMapper;
         this.subjectDomainService = subjectDomainService;
     }
 
@@ -160,6 +153,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 null, null, null, null, null, null, null
             ));
         } catch (Exception e) {
+            // 提交失败回滚去重标记：该日志是双删唯一可查记录，允许窗口内重试（评审 P3-6）
+            mutexDropNotified.invalidate(dedupKey);
             log.error("Failed to record role mutex drop notification: tenantId={}, userId={}", tenantId, userId, e);
         }
     }
@@ -204,27 +199,18 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     /**
      * 存量双持查询（T-PERM-063 规则写路径守卫）。
      * <p>
-     * 先按 user_role 原始行筛出「两角色都有行」的候选用户，再经
-     * {@link SubjectDomainService#batchResolveEffectiveRoles} 收敛到有效角色集
+     * 候选超集经 {@link SubjectDomainService#findUserIdsByEffectiveRoles} 按角色反查用户
+     * （ROLE 直授 + GROUP_ROLE 直绑 + 祖先组展开三路——组角色间接持有同入候选，
+     * 双轨评审 P1-1：直授行查询会漏经组展开的持有），再经
+     * {@link SubjectDomainService#batchResolveEffectiveRoles} 收敛到有效角色集做 AND 判定
      * （覆盖有效性窗口、启用态、组角色展开）——与运行时 filterRoleMutex 的判定集合同源，
      * 避免把已过期/已禁用关系的持有误计为存量违规。
      * </p>
      */
     @Override
     public List<Long> findUsersHoldingBothRoles(Long tenantId, Long firstRoleId, Long secondRoleId) {
-        List<UserRole> rows = userRoleMapper.selectValidByTargetIdsAndType(
-            tenantId, Set.of(firstRoleId, secondRoleId), ResourceTypeCode.ROLE);
-        Map<Long, Set<Long>> targetsByUser = new HashMap<>();
-        for (UserRole row : rows) {
-            targetsByUser.computeIfAbsent(row.getAbstractUserId(), k -> new HashSet<>())
-                .add(row.getTargetId());
-        }
-        Set<Long> candidates = new LinkedHashSet<>();
-        for (Map.Entry<Long, Set<Long>> entry : targetsByUser.entrySet()) {
-            if (entry.getValue().contains(firstRoleId) && entry.getValue().contains(secondRoleId)) {
-                candidates.add(entry.getKey());
-            }
-        }
+        Set<Long> candidates = subjectDomainService.findUserIdsByEffectiveRoles(
+            tenantId, Set.of(firstRoleId, secondRoleId));
         if (candidates.isEmpty()) {
             return List.of();
         }

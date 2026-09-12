@@ -730,6 +730,23 @@ class ConflictRuleAppServiceImplTest {
         }
 
         @Test
+        void shouldReject_whenRolePairSameOnBothEnds() {
+            // 评审 P2-2：A==A 恒真命中会导致「返回全部持 A 用户且 conflictDetected=true」，
+            // 与预检语义矛盾（实际 create 会因「两个角色不能相同」被拒）
+            try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
+                opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
+                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+
+                assertThatThrownBy(() -> service.detectConflictRule(
+                        TENANT_ID, new ConflictRuleDetectReq(null, null, null, 101L, 101L)))
+                    .isInstanceOf(BizException.class)
+                    .extracting(ex -> ((BizException) ex).getErrorCode())
+                    .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode());
+                verify(permissionConflictDomainService, never()).findUsersHoldingBothRoles(anyLong(), anyLong(), anyLong());
+            }
+        }
+
+        @Test
         void shouldReject_whenBothPairsOrNeitherPresent() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);

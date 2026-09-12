@@ -49,7 +49,6 @@ class BatchPermMutexEvaluatorTest {
     @Mock private CacheService cacheService;
     @Mock private AuditDomainService auditDomainService;
     @Mock private OperationPermissionMapper operationPermissionMapper;
-    @Mock private cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper userRoleMapper;
     @Mock private cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService subjectDomainService;
 
     private PermissionConflictDomainServiceImpl service;
@@ -58,7 +57,7 @@ class BatchPermMutexEvaluatorTest {
     void setUp() {
         service = new PermissionConflictDomainServiceImpl(conflictRuleMapper, cacheService,
             new ObjectMapper(), auditDomainService, operationPermissionMapper,
-            userRoleMapper, subjectDomainService);
+            subjectDomainService);
     }
 
     private void stubRule(Long ruleId, Long firstOpId, Long secondOpId) {

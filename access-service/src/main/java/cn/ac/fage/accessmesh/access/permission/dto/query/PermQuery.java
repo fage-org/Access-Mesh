@@ -160,7 +160,7 @@ public class PermQuery {
     /**
      * 是否评估条目级冲突过滤（PERM_MUTEX 条目互斥，入参化按需开启，2026-09-09 定案；
      * 默认按入口：运行时面开、配置面关。角色互斥不归引擎——授权时校验另立项，
-     * 快照/权限树的 filterRoleMutex 由调用方自理）
+     * 快照构建的 filterRoleMutex 由调用方自理（权限树端点已随 T-PERM-059 删除））
      */
     private boolean evaluateConflicts = true;
 

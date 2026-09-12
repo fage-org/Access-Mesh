@@ -76,6 +76,9 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
     private static final Set<String> ROLE_TYPES_REQUIRING_DOMAIN = Set.of("ORG", "POSITION");
 
+    /** 20062 message 中冲突条目的截断上限（对齐 20063 先例） */
+    private static final int ROLE_MUTEX_MESSAGE_LIMIT = 20;
+
     private final AbstractUserMapper abstractUserMapper;
     private final UserRoleMapper userRoleMapper;
     private final AbstractRoleMapper abstractRoleMapper;
@@ -172,11 +175,16 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         List<PermissionConflictDomainService.RoleMutexAssignConflict> conflicts =
             permissionConflictDomainService.findAssignMutexConflicts(tenantId, postStateByUser);
         if (!conflicts.isEmpty()) {
-            String detail = conflicts.stream()
+            // message 截断对齐 20063 先例（batch-assign 大租户下命中用户可达千级，评审 P3-5）
+            List<PermissionConflictDomainService.RoleMutexAssignConflict> shown =
+                conflicts.size() > ROLE_MUTEX_MESSAGE_LIMIT
+                    ? conflicts.subList(0, ROLE_MUTEX_MESSAGE_LIMIT) : conflicts;
+            String detail = shown.stream()
                 .map(c -> "user " + c.userId() + ": role " + c.firstRoleId() + " vs role " + c.secondRoleId())
                 .collect(Collectors.joining("; "));
             throw new BizException(PermissionErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(),
-                "Role mutex conflict: " + detail);
+                "Role mutex conflict (" + conflicts.size() + " total): " + detail
+                    + (conflicts.size() > shown.size() ? " ..." : ""));
         }
     }
 

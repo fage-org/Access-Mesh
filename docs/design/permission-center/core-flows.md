@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-061 实施：§7 batch-check 组装形态改 queryBatch 口径（原逐 item 表述随实施过期）；此前 2026-09-10 T-PERM-059 收口：§13 场景十收口为审计双日志面（permission-view 排查端点族删除说明 + 用户/角色排查链路改为 check 族+变更日志两步形态 + 能力表六行删）；此前 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+last_reviewed: 2026-09-12（T-PERM-063：§7 评估口径行补授权时校验落地注记 + CONFLICT_DETECTED reason 行与操作日志语义分立）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施：§7 batch-check 组装形态改 queryBatch 口径（原逐 item 表述随实施过期）；此前 2026-09-10 T-PERM-059 收口：§13 场景十收口为审计双日志面（permission-view 排查端点族删除说明 + 用户/角色排查链路改为 check 族+变更日志两步形态 + 能力表六行删）；此前 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
@@ -220,7 +220,7 @@ PermQueryEngine.query(PermQuery)
 | `NO_ROLE`            | 用户无有效角色               |
 | `NO_PERMISSION`      | 有角色但无接口资源权限       |
 | `CONDITION_NOT_MET`  | 条件不满足                   |
-| `CONFLICT_DETECTED`  | 权限/角色互斥导致失效（角色互斥双删自 T-PERM-063 起同样记日志） |
+| `CONFLICT_DETECTED`  | 权限互斥导致失效（角色互斥不产生本 reason——双删后无角色走 `NO_ROLE`；角色互斥双删另行记 CONFLICT_DETECTED **操作日志**，T-PERM-063） |
 
 **Gateway 接口权限检查**：Gateway 调用 `POST /api/perm/auth/check-interface`，服务端匹配 API 映射后直接走 `PermQueryEngine.query(PermQuery.forInterfaceCheck())` 做 `API.ACCESS` 判定，不额外叠加其他资源类型 VIEW 门禁。
 

@@ -4,12 +4,9 @@ import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.access.permission.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.permission.entity.PermissionConflictRule;
-import cn.ac.fage.accessmesh.access.permission.entity.UserRole;
 import cn.ac.fage.accessmesh.access.permission.enums.ConflictType;
-import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.permission.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.permission.mapper.PermissionConflictRuleMapper;
-import cn.ac.fage.accessmesh.access.permission.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.permission.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
@@ -28,6 +25,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -53,7 +51,6 @@ class PermissionConflictDomainServiceImplTest {
     @Mock private CacheService cacheService;
     @Mock private AuditDomainService auditDomainService;
     @Mock private OperationPermissionMapper operationPermissionMapper;
-    @Mock private UserRoleMapper userRoleMapper;
     @Mock private SubjectDomainService subjectDomainService;
 
     private PermissionConflictDomainServiceImpl service;
@@ -62,7 +59,7 @@ class PermissionConflictDomainServiceImplTest {
     void setUp() {
         service = new PermissionConflictDomainServiceImpl(conflictRuleMapper, cacheService,
             new ObjectMapper(), auditDomainService, operationPermissionMapper,
-            userRoleMapper, subjectDomainService);
+            subjectDomainService);
     }
 
     private OperationPermission op(Long id, Integer resourceType, long bit, String code) {
@@ -226,12 +223,11 @@ class PermissionConflictDomainServiceImplTest {
     @Nested
     class UsersHoldingBothRoles {
 
-        /** 原始行双持 + 有效角色集收敛：一端禁用/过期的用户不计存量持有 */
+        /** 候选反查 + 有效角色集 AND 收敛：一端禁用/过期的用户不计存量持有 */
         @Test
         void shouldFindHoldersByEffectiveSet() {
-            when(userRoleMapper.selectValidByTargetIdsAndType(TENANT, Set.of(100L, 200L), ResourceTypeCode.ROLE))
-                .thenReturn(List.of(userRole(20L, 100L), userRole(20L, 200L),
-                    userRole(21L, 100L), userRole(21L, 200L)));
+            when(subjectDomainService.findUserIdsByEffectiveRoles(TENANT, Set.of(100L, 200L)))
+                .thenReturn(Set.of(20L, 21L));
             when(subjectDomainService.batchResolveEffectiveRoles(TENANT, Set.of(20L, 21L)))
                 .thenReturn(Map.of(20L, Set.of(100L, 200L), 21L, Set.of(100L)));
 
@@ -240,23 +236,28 @@ class PermissionConflictDomainServiceImplTest {
             assertEquals(List.of(20L), holders);
         }
 
-        /** 原始行单持：无候选用户，不触有效角色解析 */
+        /** 组角色间接持有入候选（评审 P1-1）：经组展开持有对端同样计双持——
+         *  直授行候选的旧实现在此用例下漏判必红 */
         @Test
-        void shouldReturnEmptyWhenNoRawRowsForBoth() {
-            when(userRoleMapper.selectValidByTargetIdsAndType(TENANT, Set.of(100L, 200L), ResourceTypeCode.ROLE))
-                .thenReturn(List.of(userRole(20L, 100L)));
+        void shouldFindHolderViaGroupRoleExpansion() {
+            // 用户 30 无 (100,200) 直授行：100 经 GROUP_ROLE 展开获得、200 直授——
+            // 候选必须来自按角色反查（含组路径）才会包含 30
+            when(subjectDomainService.findUserIdsByEffectiveRoles(TENANT, Set.of(100L, 200L)))
+                .thenReturn(Set.of(30L));
+            when(subjectDomainService.batchResolveEffectiveRoles(TENANT, Set.of(30L)))
+                .thenReturn(Map.of(30L, Set.of(100L, 200L)));
+
+            assertEquals(List.of(30L), service.findUsersHoldingBothRoles(TENANT, 100L, 200L));
+        }
+
+        /** 候选为空：短路不触有效角色解析 */
+        @Test
+        void shouldReturnEmptyWhenNoCandidates() {
+            when(subjectDomainService.findUserIdsByEffectiveRoles(TENANT, Set.of(100L, 200L)))
+                .thenReturn(Set.of());
 
             assertEquals(List.of(), service.findUsersHoldingBothRoles(TENANT, 100L, 200L));
-            verifyNoInteractions(subjectDomainService);
+            verify(subjectDomainService, never()).batchResolveEffectiveRoles(anyLong(), any());
         }
-    }
-
-    private UserRole userRole(Long userId, Long targetId) {
-        UserRole row = new UserRole();
-        row.setTenantId(TENANT);
-        row.setAbstractUserId(userId);
-        row.setTargetType(ResourceTypeCode.ROLE);
-        row.setTargetId(targetId);
-        return row;
     }
 }

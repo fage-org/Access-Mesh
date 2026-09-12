@@ -43,7 +43,7 @@ import java.util.stream.Stream;
  * 统一权限查询引擎 -- 所有权限校验的唯一入口（T-PERM-057 统一引擎：一个引擎、一套入参、一个结果模型）。
  *
  * <h3>管线阶段（query-engine-unification.md §4；角色互斥不归引擎——授权时校验另立项，
- * 快照/权限树的 filterRoleMutex 由调用方自理，2026-09-09 定案）</h3>
+ * 快照构建的 filterRoleMutex 由调用方自理（权限树端点已随 T-PERM-059 删除），2026-09-09 定案）</h3>
  * <ol>
  *   <li>入口封装：userId → roleIds（EFFECTIVE_ROLES 缓存）+ 条件上下文装配（四便捷入口自动取当前请求 clientIp）</li>
  *   <li>解析：类型值 / 操作 id / 位掩码（位覆盖并入掩码，常开）</li>

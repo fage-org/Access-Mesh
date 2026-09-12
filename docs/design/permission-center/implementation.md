@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -439,7 +439,7 @@ PermQueryEngine.query(PermQuery q)
 ### 3.5 条件评估三态、条目互斥与条件上下文
 
 - **条件评估三态**：评估（运行时/门禁面默认，含拉平后的管理面写门禁）/ 不评估（配置视图面——canGrant 转授资格看原始授权行）/ 标记下发（快照专用 `markConditionsOnly`，条件在网关用真实请求上下文评，T-PERM-017 C3）。
-- **条目互斥（PERM_MUTEX）入参化**：`evaluateConflicts` 开关，默认按入口（运行时面开、配置面关）。**角色互斥（ROLE_MUTEX）不归引擎**（2026-09-09 定案）：授权时校验另行立项；`interfaceSnapshot`/`prepareTreeContext` 的 `filterRoleMutex` 调用点保留为调用方自理。
+- **条目互斥（PERM_MUTEX）入参化**：`evaluateConflicts` 开关，默认按入口（运行时面开、配置面关）。**角色互斥（ROLE_MUTEX）不归引擎**（2026-09-09 定案）：授权时校验已随 T-PERM-063 落地（§2.4 三面守卫）；快照构建的 `filterRoleMutex` 调用点保留为调用方自理（权限树端点已随 T-PERM-059 删除，生产调用点仅剩快照一处）。
 - **条件上下文 `PermEvalContext`**（多层对象）：`clientIp`（用户环境，入口封装层从当前请求装配）/ `evaluatedAt`（服务器环境，展平时补当前时钟）/ `attributes`（调用方上下文，SDK `context` Map 经 `fromCallerMap` 转换——clientIp 键提取、其余归 attributes）。展平 Map 键：`clientIp`（既有契约）、`evaluatedAt`（ISO-8601，`ConditionEvalUtils` 时间类条件优先消费、缺省回退本机时钟——Gateway 快照重评等无服务器环境上下文的调用方维持既有行为）。原 explain 判定与明细评估共用同一 `PermEvalContext`（同一时钟；该端点已随 T-PERM-059 删除，2026-09-10）。
 
 ### 3.6 PermResult 双轨与回传字段
@@ -483,7 +483,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 - **缓存键不变**（§5.2 核对）：ROLE_PERM_SNAPSHOT / OPERATION_PERMISSIONS_BY_TYPE / EFFECTIVE_ROLES / 网关 gw:interface-snapshot 均不因闭包下推改变键与失效；ORG_VISIBILITY 已由 PermissionChangeAspect 租户级 evictAll 覆盖（继承后可见闭包语义确变但失效机制已闭合）。
 - **OAuth2 委托链路显式排除**（2026-08-22 用户决策维持）：OAuth2 资源服务器链路（access.oauth2.resource-paths 显式开放路径 + delegatedClientId 独立映射，T-ACCESS-013）不接入统一引擎——重构不得误接入。
 - **回归面**：四个门禁入口族（admin 域门面 / permission 域 code 轨 / 资源树 entityId 轨 / SDK auth-check 族）语义回归 + targetMode 三态互不串义锁 + 判定面闭包锁（`TargetModeClosurePgIT`：TYPE_LEVEL 串义拒绝 / 单点闭包 / 批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）+ golden fixtures（`GoldenFixturePgIT` 单点判定收敛，nodeClosure 语义=引擎原生闭包）。
-- **遗留**：角色互斥授权时校验 → 另行立项；（原列两项已收口 2026-09-10：check 族全量回传 → T-API-003 done；权限视图/排查删除 → T-PERM-059 done，新形态另立任务）；「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）→ 改进项登记 decision-registry。
+- **遗留**：~~角色互斥授权时校验 → 另行立项~~（已由 T-PERM-063 落地，2026-09-12）；（原列两项已收口 2026-09-10：check 族全量回传 → T-API-003 done；权限视图/排查删除 → T-PERM-059 done，新形态另立任务）；「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）→ 改进项登记 decision-registry。
 
 ### 3.10 batchCheck 批量化（queryBatch 入口）——A+ 形态（T-PERM-061 设计定稿 2026-09-11，同日实施落地）
 

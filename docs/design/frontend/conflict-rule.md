@@ -4,7 +4,7 @@
 > 任务：T-FE-010（mock 驱动）
 > 后端契约：api-contract.md §5.6（`conflict-rule/*` 含 detect；T-PERM-030 收口契约要点）
 > 后端任务：T-PERM-030（depends_on 本任务，已收口 2026-08-30）
-> last_reviewed: 2026-09-02（T-FE-020 联调收口：前端 API 路径修正 + Gateway +5 端点注册 + mock 退役；§4 🔧 六项全收口 + §5 权限接线四档类型级口径——2026-08-30）
+> last_reviewed: 2026-09-12（T-PERM-063：detect 扩展角色对形态——检测对话框双形态切换 + conflictedUserIds 存量持有展示，§5 el-alert 文案与 §Q2 第 8 行同步）；此前 2026-09-02（T-FE-020 联调收口：前端 API 路径修正 + Gateway +5 端点注册 + mock 退役；§4 🔧 六项全收口 + §5 权限接线四档类型级口径——2026-08-30）
 
 > **联调注记（T-FE-020，2026-09-02）**：本页 6 端点全部经 Gateway 真实链路收口。联调发现前端 `api/conflict-rule.ts` 仍用裸 `/api/perm/conflict-rule/*`（T-FE-041 全局切 Gateway 外部路径时漏改本页；Gateway 仅路由 /admin/**、/perm/**，裸路径必 404）——已统一修正为 `/perm/api/perm/conflict-rule/*`。list/create/update/remove/detect +5 端点补注册 bootstrap 清单（detail 本页不消费未注册）；引用数据 abstract-role/list +1 注册（T-FE-016 登记的届时事项），type-definition/list 与 operation-permission/list 先在册。逐 DTO 比对零漂移；CONFLICT_RULE 四档固定图原持（T-PERM-030 预置，零新增）。
 
@@ -61,7 +61,7 @@
 
 ### 检测对话框（DetectDialog.vue）
 
-- el-alert 标注"仅检测权限互斥（PERM_MUTEX）"--后端 detect 仅支持操作权限对
+- el-alert 标注双形态（操作权限对 / 角色对二选一，T-PERM-063 扩展 detect）——角色对=立规前预检，回传同时持有两角色的用户清单
 - 两个操作权限选择器 + 资源类型选择器（可空）
 - 检测按钮 → 调用 `detectConflictRule` API
 - 结果：`conflictDetected`（success/error alert）+ `matchedRules[]`（对象对 + 资源类型 + 描述）
@@ -158,4 +158,4 @@
 | 5 | design_writeback（本文件 status: adopted） | ✅ |
 | 6 | resourceTypeValue 映射（getTypeDefList 筛 resource_type，设计 §Q1） | ✅ |
 | 7 | 表格名称映射（role/operation map，设计 §Q3） | ✅ |
-| 8 | detect 仅操作权限对（设计 §Q2，UI 标注） | ✅ |
+| 8 | detect 双形态：操作权限对 + 角色对预检（T-PERM-063 扩展，UI 模式切换） | ✅ |

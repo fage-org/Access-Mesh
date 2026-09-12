@@ -126,13 +126,16 @@ class RoleMutexGuardPgIT {
         )));
         assertThat(countUserRole(bystander, roleB)).isEqualTo(1);
 
-        // batch-assign（单角色×多用户）同款守卫：batch 内含已持 A 的用户 → 20062 整批拒绝
+        // batch-assign（单角色×多用户）同款守卫：batch 内含已持 A 的用户 → 20062 整批拒绝；
+        // 混合批原子性（评审 P2-3）：批内全新用户 fresh 同批被拒零落库（部分成功形态在此必红）
+        Long fresh = insertSubject("t063-u-fresh");
         assertThatThrownBy(() -> userManageAppService.assignRolesBatch(TENANT, new UserRoleBatchAssignReq(
-            List.of("t063-u-holder", "t063-u-bystander"), "USER", null, "BASIC_ROLE", "t063-role-b", null)))
+            List.of("t063-u-holder", "t063-u-fresh"), "USER", null, "BASIC_ROLE", "t063-role-b", null)))
             .isInstanceOf(BizException.class)
             .extracting(ex -> ((BizException) ex).getErrorCode())
             .isEqualTo(PermissionErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode());
         assertThat(countUserRole(holder, roleB)).isZero();
+        assertThat(countUserRole(fresh, roleB)).isZero();
     }
 
     @Test
@@ -196,6 +199,40 @@ class RoleMutexGuardPgIT {
             TENANT, new ConflictRuleDetectReq(null, null, null, roleE, roleG));
         assertThat(miss.conflictDetected()).isFalse();
         assertThat(miss.conflictedUserIds()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("存量守卫覆盖组角色间接持有：经 GROUP_ROLE 展开持有对端角色同样计双持（评审 P1-1，直授行候选的旧实现必红）")
+    void createRuleShouldRejectWhenHolderViaGroupRoleExpansion() {
+        Long operator = insertSubject("t063-op-group");
+        Long operatorRole = insertBasicRole("t063-holder-group");
+        insertUserRole(operator, operatorRole);
+        insertScopeAllRolePerm(operatorRole, RESOURCE_TYPE_CONFLICT_RULE, CREATE_BIT);
+        bindOperator(operator);
+
+        Long roleH = insertBasicRole("t063-role-h");
+        Long roleI = insertBasicRole("t063-role-i");
+        // 组角色 G（写入口已随 T-PERM-043 删除，读模型冻结保留）挂组内基础角色 H
+        Long groupId = jdbc.queryForObject(
+            "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, parent_id, extra) "
+                + "VALUES (?, ?, ?, ?, 1, NULL, '{}') RETURNING id",
+            Long.class, TENANT, 5, "t063-group", "组角色");
+        jdbc.update("UPDATE abstract_role SET parent_id = ? WHERE id = ? AND tenant_id = ?", groupId, roleH, TENANT);
+
+        // 用户经 GROUP_ROLE 绑定 G（展开得 H）+ 直授 I：有效角色集 = {H, I}，无 (H,I) 直授行
+        Long holder = insertSubject("t063-u-group");
+        jdbc.update(
+            "INSERT INTO user_role (tenant_id, abstract_user_id, target_type, target_id) VALUES (?, ?, 'GROUP_ROLE', ?)",
+            TENANT, holder, groupId);
+        insertUserRole(holder, roleI);
+
+        // 对 (H, I) 立规 → 20063：候选必须经按角色反查（含组路径）才会包含该用户
+        assertThatThrownBy(() -> conflictRuleAppService.createConflictRule(
+                TENANT, new ConflictRuleReq("ROLE_MUTEX", null, null, null, roleH, roleI, null), operator))
+            .isInstanceOf(BizException.class)
+            .extracting(ex -> ((BizException) ex).getErrorCode())
+            .isEqualTo(PermissionErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
+        assertThat(countRule(roleH, roleI)).isZero();
     }
 
     // ===== 数据装配（jdbc 直插事实/授权，先于相关主体首次引擎调用） =====

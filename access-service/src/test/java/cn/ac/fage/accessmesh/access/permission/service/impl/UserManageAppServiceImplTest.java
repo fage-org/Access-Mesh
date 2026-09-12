@@ -258,6 +258,40 @@ class UserManageAppServiceImplTest {
         }
     }
 
+    /** T-PERM-063：目标角色禁用不参与互斥判定（与运行时有效角色集合同源），授予放行。 */
+    @Test
+    void shouldAssignRoleWhenTargetRoleDisabled() {
+        UserAssignRoleReq req = new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("USER", "u-1", null, "BASIC_ROLE", "r-200", null, null, null)
+        ));
+        when(typeResolutionService.batchResolveUserIds(eq(1L), eq("USER"), eq(Set.of("u-1"))))
+            .thenReturn(Map.of("u-1", 20L));
+        when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("r-200")), eq((String) null)))
+            .thenReturn(Map.of("r-200", 200L));
+        when(userRoleMapper.selectValidByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
+            .thenReturn(List.<UserRole>of());
+        // 目标角色 200 禁用：postState 不并入 → 即使用户已持互斥对端 100 也放行
+        when(abstractRoleMapper.selectEnabledIdsByIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of());
+        when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, Set.of(100L)));
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq(Set.of("200")), eq(OperationCodeConstants.MANAGE))).thenReturn(Set.of());
+
+            service.assignRole(1L, req);
+
+            // 锁「仅计启用角色」分支：postState 不含禁用目标 200（去掉过滤的实现在此必红）
+            org.mockito.ArgumentCaptor<Map<Long, Set<Long>>> postStateCaptor =
+                org.mockito.ArgumentCaptor.forClass(Map.class);
+            org.mockito.Mockito.verify(permissionConflictDomainService)
+                .findAssignMutexConflicts(eq(1L), postStateCaptor.capture());
+            assertEquals(Set.of(100L), postStateCaptor.getValue().get(20L));
+            org.mockito.Mockito.verify(userRoleMapper).insertBatch(any());
+        }
+    }
+
     /** T-PERM-063：batch-assign（单角色×多用户）同款守卫——用户现持有互斥对端角色时整批拒绝。 */
     @Test
     void shouldRejectBatchAssignWhenPostStateHitsMutexPair() {

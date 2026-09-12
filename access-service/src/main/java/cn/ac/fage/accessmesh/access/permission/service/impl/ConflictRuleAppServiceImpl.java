@@ -456,14 +456,25 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             throw new SecurityException("Permission denied: VIEW on CONFLICT_RULE");
         }
 
-        boolean opPairPresent = req.firstOperationPermissionId() != null && req.secondOperationPermissionId() != null;
-        boolean rolePairPresent = req.firstAbstractRoleId() != null && req.secondAbstractRoleId() != null;
-        if (opPairPresent == rolePairPresent) {
+        boolean firstOpPresent = req.firstOperationPermissionId() != null;
+        boolean secondOpPresent = req.secondOperationPermissionId() != null;
+        boolean firstRolePresent = req.firstAbstractRoleId() != null;
+        boolean secondRolePresent = req.secondAbstractRoleId() != null;
+        boolean opPairPresent = firstOpPresent && secondOpPresent;
+        boolean rolePairPresent = firstRolePresent && secondRolePresent;
+        // 形态完整性 fail-closed（双轨评审 P2-2/P3-1）：任一字段出现即要求配对字段同现
+        // （半传拒绝，静默忽略会与「两端必填」契约矛盾），且两对恰现其一
+        if ((firstOpPresent != secondOpPresent) || (firstRolePresent != secondRolePresent)
+            || opPairPresent == rolePairPresent) {
             throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
                 "detect 需二选一：操作权限对（first/secondOperationPermissionId）或角色对（first/secondAbstractRoleId），且两端必填");
         }
 
         if (rolePairPresent) {
+            if (req.firstAbstractRoleId().equals(req.secondAbstractRoleId())) {
+                throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                    "两个角色不能相同");
+            }
             List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
                 tenantId, ConflictType.ROLE_MUTEX.getValue());
             List<ConflictRuleResp> matched = rules.stream().filter(rule ->
