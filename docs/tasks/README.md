@@ -60,7 +60,7 @@
 | [T-ACCESS-030](../archive/2026-09-12/tasks/T-ACCESS-030.md) | 容器测试轨道提速——单例容器 + 按类建库 + 复用 + fork 级并行 | —（2026-09-06 用户决策提速定案） | docs/archive/2026-09-12/tasks/T-ACCESS-030.md 设计口径（工程改进，无设计文档回写） | — | ✅ | ✓ |
 | [T-ACCESS-031](../archive/2026-09-12/tasks/T-ACCESS-031.md) | E2E 独立模块分轨——gateway 解除 test 依赖 + skipE2E 日常口径 + -T 模块并行恢复 | —（2026-09-06 用户决策 B+结构性拆分） | docs/archive/2026-09-12/tasks/T-ACCESS-031.md 设计口径；gateway.md §测试域、access-service-architecture §14.8（E2E 落位回写） | — | ✅ | ✓ |
 
-### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 待确认 + 前端 Phase 1/2/4 后端任务）
+### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 全收口（计划已归档 2026-09-12）+ 前端 Phase 1/2/4 后端任务）
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
@@ -81,9 +81,9 @@
 | T-PERM-015 | 前端 ScopeMode 类型定义 + composable（hasPerms/Perms 不涉及 L2 数据权限，无需改造） | scope-mode-migration | design/permission-center-v3.5-design.md §3 | T-PERM-009 | ✅ | ✓ |
 | [T-PERM-017](../archive/2026-06-28/tasks/T-PERM-017.md) | 条件权限 Gateway 侧重评（部分下发 gateway_evaluable + 未下发回退 check-interface） | perm-cache-invalidation | design/services/gateway.md；v3.5 §7.2 | T-PERM-002, T-PERM-018 | ✅ | ✓ |
 | [T-PERM-018](../archive/2026-06-28/tasks/T-PERM-018.md) | 缓存下沉——移除 INTERFACE_SNAPSHOT(L2)/permissionVersion，激活 ROLE_PERM_SNAPSHOT engine 读缓存，扩展失效事件 serviceCodes | perm-cache-invalidation | v3.5 §5.1/§7.2；api-contract §6.x | T-PERM-002 | ✅ | ✓ |
-| [T-PERM-019](T-PERM-019.md) | 工作单 D：防呆机制（已收口 2026-09-07，终态见任务卡实现记录与 implementation §8） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation §8；schema；admin sync | — | ✅ | ✓ |
-| [T-PERM-020](T-PERM-020.md) | 工作单 E：清理预设能力（死工厂删除 + domain_config/RocketMQ/auto-grant 口径收口） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；core-flows；implementation；schema；architecture | — | ✅ | ✓ |
-| [T-PERM-021](T-PERM-021.md) | 工作单 F：文档准确性与代码简化（范围与冲突标记见任务卡；2026-09-12 执行门禁三项拍板启动，定案见卡定案节+registry） | [design-review-def-followup](../plans/design-review-def-followup-plan.md) | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | 🔨 | ⏳ |
+| [T-PERM-019](../archive/2026-09-12/tasks/T-PERM-019.md) | 工作单 D：防呆机制（已收口 2026-09-07，终态见任务卡实现记录与 implementation §8） | [design-review-def-followup](../archive/2026-09-12/design-review-def-followup-plan.md)（已归档） | design-review §11；api-contract；core-flows；implementation §8；schema；admin sync | — | ✅ | ✓ |
+| [T-PERM-020](../archive/2026-09-12/tasks/T-PERM-020.md) | 工作单 E：清理预设能力（死工厂删除 + domain_config/RocketMQ/auto-grant 口径收口） | [design-review-def-followup](../archive/2026-09-12/design-review-def-followup-plan.md)（已归档） | design-review §11；api-contract；core-flows；implementation；schema；architecture | — | ✅ | ✓ |
+| [T-PERM-021](../archive/2026-09-12/tasks/T-PERM-021.md) | 工作单 F：文档准确性与代码简化（✅ 2026-09-12 收口：F1.a/b 定性（b 另立 T-PERM-065）、F1.c/e 文档面、F1.d requestId 单 ID 收敛+审计两列 NOT NULL、F1.f/g 代码卫生；双轨评审处置+全量回归含 E2E 全绿，终态见任务卡） | [design-review-def-followup](../archive/2026-09-12/design-review-def-followup-plan.md)（已归档） | design-review §11；api-contract；implementation；schema；admin sync；project-rules | — | ✅ | ✓ |
 | T-PERM-022 | 2.2 角色管理后端（已收口 2026-08-28，终态见 design/frontend/role-manage.md §8） | frontend-phase2 | api-contract §5.2/§6.10.3；implementation §2.1；design/frontend/role-manage.md §8 | T-FE-002 | ✅ | ✓ |
 | T-PERM-023 | 6.1 类型定义后端（已收口 2026-08-28，终态见 design/frontend/type-definition.md §8） | frontend-phase2 | api-contract §5.1；design/frontend/type-definition.md §8 | T-FE-003 | ✅ | ✓ |
 | T-PERM-024 | 6.2 系统配置后端（已收口 2026-08-28，终态见 design/frontend/system-config.md §8） | frontend-phase2 | api-contract §5.8 | T-FE-004 | ✅ | ✓ |
@@ -288,11 +288,11 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 6. `T-GW-006` 集成测试 ← 002（重新界定：不在项目内做集成测试，改为独立仓库测试服务）
 7. `T-PERM-008` 失效标记代码 ← T-GW-005（已完成，回到 A 链收尾）
 
-### P4 — 工作单 D/E/F（执行前确认；E 已于 2026-08-28 收口）
+### P4 — 工作单 D/E/F（✅ 全收口 2026-09-12：D/E/F 三任务全 done，计划随 T-PERM-021 收口归档 archive/2026-09-12）
 
 1. `T-PERM-019` 工作单 D 防呆机制 — ✅ 已收口（2026-09-07）：D1 已随 T-PERM-023/api-contract 收口（原 DESIGN_DRIFT 不存在）、D2 BusinessKeys 收敛、D3 三方一致性核对落地。完成记录见任务卡。
 2. `T-PERM-020` 工作单 E 清理预设 — ✅ 已收口（2026-08-28）：删除零调用 `forResourceQuery`/`forResourceCheck`（`forValidate` 保留，有生产调用）；domain_config schema 表头注释、AGENTS/copilot MQ 口径同步；auto-grant 禁用态核实已收敛。完成记录见任务卡。
-3. `T-PERM-021` 工作单 F 文档准确性与代码简化：ownership 字段删除、`request_id NOT NULL` 均存在当前设计约束，且 `requestId`/`traceId` 语义需先收敛；执行前必须确认 F1.c/F1.d。
+3. `T-PERM-021` 工作单 F 文档准确性与代码简化 — ✅ 已收口（2026-09-12）：执行门禁三项拍板（registry 同日行）后七子项全处置——F1.a 清残留活计数定性收口、F1.b 盘点另立 T-PERM-065、F1.c 两列归属口径钉死、F1.d requestId 单 ID 收敛+审计两列 NOT NULL（含回归锁 6 用例）、F1.e ops runbook 新建、F1.f 死分支删除、F1.g 四副本抽取；双轨评审 P2×3+P3×13 处置；全量回归含 E2E 全绿。完成记录见任务卡。
 
 ### P5 — 前端 Phase 1（archived，2026-07-12 归档）
 

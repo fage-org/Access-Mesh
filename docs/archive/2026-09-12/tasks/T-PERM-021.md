@@ -2,8 +2,8 @@
 doc_type: task
 id: T-PERM-021
 title: 工作单 F：文档准确性与代码简化（指标自动化、DTO 单源、ownership、日志链路、full-sync runbook）
-status: in-progress
-plan: docs/plans/design-review-def-followup-plan.md
+status: done
+plan: docs/plans/design-review-def-followup-plan.md（已随本卡归档 2026-09-12）
 domain: permission-center
 design_refs:
   - docs/archive/2026-06-17/design-review.md#§11
@@ -21,13 +21,13 @@ acceptance:
   - "full-sync runbook 收窄为外部业务服务 sync/full-sync 运维手册（/api/perm/**/sync、/full-sync；内部 full-sync 编排已随 T-ACCESS-005 删除）；默认按归档评审新建 docs/ops/runbook-full-sync.md，如调整位置需执行前确认"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-12
 ---
 
 # T-PERM-021 工作单 F：文档准确性与代码简化
 
-> 状态：in-progress（2026-09-12 执行门禁三项拍板后启动，定案见下节；registry 同日行）
+> 状态：done（✅ 2026-09-12 收口：七子项全处置——F1.a/b 定性收口（b 另立 T-PERM-065）、F1.c/e 文档面、F1.d requestId 单 ID 收敛+两列 NOT NULL、F1.f/g 代码卫生；双轨评审 P2×3+P3×13 处置完毕；全量回归含 E2E 全绿（BUILD SUCCESS，容器组+E2E 14 用例零失败））
 > ~~执行门禁：进入 `in-progress` 前必须确认 F1.c/F1.d 的设计取舍。~~ 已确认（2026-09-12）。
 
 ## 执行门禁定案（2026-09-12 用户逐项拍板，registry 同日行）

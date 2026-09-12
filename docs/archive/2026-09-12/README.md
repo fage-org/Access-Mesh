@@ -16,8 +16,9 @@
 | （同日追加批次）frontend-phase4-plan.md | 本目录（status → archived；五任务 T-FE-023/T-FE-024/T-ADMIN-020/T-PERM-038/T-PERM-039 全 done 2026-09-12 收口，批次全量回归含 E2E 全绿 + 双轨评审处置完成；卡随迁 `tasks/`） |
 | （同日追加批次）permission-grant-record-level-editing-proposal.md | 本目录（决策记录 status → archived；实施任务 T-FE-040 已 done，权威设计 permission-grant.md v3.1 + api-contract §6.5.2；无附属卡） |
 | （同日追加批次）无计划归属终态单卡 T-PERM-062（2026-09-12 收口 done） | 本目录 `tasks/` |
+| （同日追加批次）design-review-def-followup-plan.md | 本目录（status → archived；三任务 T-PERM-019/020/021 全 done，末卡 T-PERM-021 七子项收口——F1.a/b 定性（b 另立 T-PERM-065）、F1.c/e 文档面、F1.d requestId 单 ID 收敛+审计两列 NOT NULL、F1.f/g 代码卫生；双轨评审处置+全量回归含 E2E 全绿；三卡随迁 `tasks/`） |
 
-追加批次后留守 `docs/tasks/` 的 27 张卡 = 未终态卡（T-PERM-021/035/036/054）+ 活跃计划（frontend-phase2 / design-audit-followup / design-review-def-followup）附属的 done/cancelled 卡。
+追加批次后留守 `docs/tasks/` 的卡 = 未终态卡（T-PERM-035/036/054/065）+ 活跃计划（frontend-phase2 / design-audit-followup）附属卡——design-review-def-followup 计划与 T-PERM-019/020/021 三卡已于 2026-09-12 同日追加批次归档（见上表）。
 
 ## 归档自检执行记录
 
@@ -33,3 +34,4 @@
 - 本批次计划对应终态设计：`docs/design/permission-center/implementation.md` §3（query-engine-unification.md 已 superseded）
 - 任务卡：T-PERM-063（角色互斥授权时校验，done 2026-09-12 单卡归档，`tasks/T-PERM-063.md`）
 - 任务卡：T-PERM-064（角色互斥守卫通道补全，done 2026-09-12 单卡归档，`tasks/T-PERM-064.md`）
+- 计划+三卡：design-review-def-followup（D/E/F 工作单收口批次，done 2026-09-12，`design-review-def-followup-plan.md` + `tasks/T-PERM-019~021.md`）

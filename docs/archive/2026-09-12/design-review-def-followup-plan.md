@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 设计评审 D/E/F 后续任务拆分
-status: proposed
+status: archived
 domain: permission-center
 design_refs:
   - docs/archive/2026-06-17/design-review.md
@@ -16,12 +16,12 @@ tasks:
   - T-PERM-020
   - T-PERM-021
 acceptance: "D/E/F 三个暂缓工作单拆成 proposed 任务；冲突项已标注；每个任务进入 in-progress 前必须二次确认 scope 与设计回写目标。"
-last_updated: 2026-08-28
+last_updated: 2026-09-12
 ---
 
 # 设计评审 D/E/F 后续任务拆分
 
-> 状态：proposed
+> 状态：archived（✅ 2026-09-12 归档：三任务全 done——T-PERM-019 2026-09-07、T-PERM-020 2026-08-28、T-PERM-021 2026-09-12；稳定结论沉淀 design/（T-PERM-021 落 requestId 单 ID 口径/schema NOT NULL/两列归属钉死句/ops runbook），看板与计划索引已同步）
 > 来源：`docs/archive/2026-06-17/design-review.md` §11 的 D/E/F 暂缓项
 > 约束：本计划只建立任务跟踪入口，不授权实现；任何任务进入 `in-progress` 前必须重新确认。
 
@@ -47,9 +47,9 @@ last_updated: 2026-08-28
 
 | 任务 | 工作单 | 范围 | 冲突状态 | 执行门禁 |
 |---|---|---|---|---|
-| [T-PERM-019](../tasks/T-PERM-019.md) | D 防呆机制 | `type_value` 自动分配、`BusinessKeys`、`@AppliesTo`（D4 SyncHandler 版本声明已移除——T-ACCESS-012 重基线） | 已消解（2026-09-05 重基线 + 2026-09-07 收口核实） | ✅ 2026-09-07 收口：D1 已落地 / D3 注解废弃+三方核对零缺失 / D2 BusinessKeys 19 方法族+golden 锁（实现记录见任务卡） |
-| [T-PERM-020](../tasks/T-PERM-020.md) | E 清理预设 | `domain_config` 旧配置、PermQuery 工厂、RocketMQ 脚注、`auto-grant` TODO | ✅ 已收口（2026-08-28）：删除零调用 `forResourceQuery`/`forResourceCheck`（`forValidate` 保留——有生产调用）；E1 schema 表头注释、E3 AGENTS/copilot MQ 口径同步；E4 核实已收敛 | — |
-| [T-PERM-021](../tasks/T-PERM-021.md) | F 文档准确性 + 代码简化 | 指标自动化、DTO 单源、ownership 单源、日志链路、外部 sync/full-sync runbook（T-ACCESS-012 收窄） | `CONFLICT_REQUIRES_DECISION`：ownership 字段删除与 request_id NOT NULL 有当前设计约束；`requestId`/`traceId` 语义存在漂移 | 执行前确认 F1.c/F1.d 取舍 |
+| [T-PERM-019](tasks/T-PERM-019.md) | D 防呆机制 | `type_value` 自动分配、`BusinessKeys`、`@AppliesTo`（D4 SyncHandler 版本声明已移除——T-ACCESS-012 重基线） | 已消解（2026-09-05 重基线 + 2026-09-07 收口核实） | ✅ 2026-09-07 收口：D1 已落地 / D3 注解废弃+三方核对零缺失 / D2 BusinessKeys 19 方法族+golden 锁（实现记录见任务卡） |
+| [T-PERM-020](tasks/T-PERM-020.md) | E 清理预设 | `domain_config` 旧配置、PermQuery 工厂、RocketMQ 脚注、`auto-grant` TODO | ✅ 已收口（2026-08-28）：删除零调用 `forResourceQuery`/`forResourceCheck`（`forValidate` 保留——有生产调用）；E1 schema 表头注释、E3 AGENTS/copilot MQ 口径同步；E4 核实已收敛 | — |
+| [T-PERM-021](tasks/T-PERM-021.md) | F 文档准确性 + 代码简化 | 指标自动化、DTO 单源、ownership 单源、日志链路、外部 sync/full-sync runbook（T-ACCESS-012 收窄） | ~~`CONFLICT_REQUIRES_DECISION`~~ 已拍板（2026-09-12 三项门禁，registry 同日行） | ✅ 2026-09-12 收口：F1.a/b 定性（b 另立 T-PERM-065）、F1.c/e 文档、F1.d requestId 单 ID+NOT NULL、F1.f/g 代码卫生；双轨评审处置 + 全量回归含 E2E 全绿（完成记录见任务卡） |
 
 ## 当前进度
 
@@ -57,6 +57,7 @@ last_updated: 2026-08-28
 - 2026-08-22（T-ACCESS-012 重基线）：三卡 design_refs 切换 `access-service.sql` 与 `access-service-architecture.md`（原 cross-service/admin-permission-sync.md 与 services/admin-service.md 已归档 superseded）；T-PERM-019 移除 D4、T-PERM-021 F1.e 收窄为外部 sync runbook。
 - 2026-08-28：T-PERM-020 执行收口（E1-E4 全处置，完成记录见任务卡）；T-PERM-019/021 保持 proposed。
 - 2026-09-07：T-PERM-019 执行收口（D2 perm-common BusinessKeys 唯一入口 + BusinessKeysParityTest golden 锁 + D3 三方一致性核对；双轨评审修正 6 项后落定，完成记录见任务卡）；计划内仅余 T-PERM-021（执行前须确认 F1.c/F1.d）。
+- 2026-09-12：T-PERM-021 收口（执行门禁三项拍板后七子项全处置，F1.b 盘点另立 T-PERM-065）——三任务全 done，计划归档（本文件与三卡迁 `archive/2026-09-12/`）。
 - 冲突项只登记，不执行。
 
 ## 归档条件
