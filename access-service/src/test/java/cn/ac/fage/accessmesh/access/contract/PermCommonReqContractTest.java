@@ -73,7 +73,7 @@ CheckInterfaceReq#subjectTypeCode -> [@NotBlank]
 IdReq#id -> [@NotNull]
 IdsReq#ids -> [@NotEmpty, @Size(max=1000, message="批量上限 1000（project-rules §分批约束，超限分批提交）")]
 OperationListReq#resourceTypeCode -> []
-ResourceBatchCreateReq#items -> [@NotEmpty, @Size(max=1000, message="批量上限 1000（project-rules §分批约束，超限分批提交）")]
+ResourceBatchCreateReq#items -> [@NotEmpty, @Size(max=1000, message="批量上限 1000（project-rules §分批约束，超限分批提交）"), element::@NotNull]
 ResourceCreateReq#code -> [@NotBlank]
 ResourceCreateReq#codeType -> []
 ResourceCreateReq#extra -> []
@@ -87,6 +87,10 @@ ResourceCreateReq#path -> []
 ResourceCreateReq#resourceTypeCode -> [@NotBlank]
 ResourceCreateReq#sortOrder -> []
 ResourceCreateReq#status -> []
+ResourceKeyReq#code -> [@NotBlank]
+ResourceKeyReq#codeType -> []
+ResourceKeyReq#resourceTypeCode -> [@NotBlank]
+ResourceKeysReq#items -> [@NotEmpty, @Size(max=1000, message="批量上限 1000（project-rules §分批约束，超限分批提交）"), element::@Valid]
 ResourceUpdateReq#code -> [@NotBlank]
 ResourceUpdateReq#codeType -> []
 ResourceUpdateReq#extra -> []
@@ -102,6 +106,8 @@ RoleCreateReq#name -> [@NotBlank(message="角色名称不能为空")]
 RoleCreateReq#parentId -> []
 RoleCreateReq#roleTypeCode -> [@NotBlank(message="角色类型不能为空")]
 RoleCreateReq#sortOrder -> []
+RoleDetailReq#roleExternalId -> [@NotBlank(message="角色外部标识不能为空"), @Size(max=128)]
+RoleDetailReq#roleTypeCode -> [@NotBlank(message="角色类型编码不能为空"), @Size(max=64)]
 RoleListReq#domainCode -> []
 RoleListReq#keyword -> []
 RoleListReq#pageNum -> []
@@ -109,7 +115,7 @@ RoleListReq#pageSize -> []
 RoleListReq#roleTypeCode -> []
 RoleListReq#roleTypeCodes -> []
 RoleListReq#sort -> []
-UserAssignRoleReq#items -> [@NotEmpty, @Size(max=1000, message="批量上限 1000（project-rules §分批约束，超限分批提交）"), element::@Valid]
+UserAssignRoleReq#items -> [@NotEmpty, @Size(max=1000, message="批量上限 1000（project-rules §分批约束，超限分批提交）"), element::@NotNull, element::@Valid]
 UserAssignRoleReq.AssignItem#domainCode -> []
 UserAssignRoleReq.AssignItem#relationId -> []
 UserAssignRoleReq.AssignItem#roleExternalId -> [@NotBlank]
@@ -118,7 +124,7 @@ UserAssignRoleReq.AssignItem#subjectExternalId -> [@NotBlank]
 UserAssignRoleReq.AssignItem#subjectTypeCode -> [@NotBlank]
 UserAssignRoleReq.AssignItem#validFrom -> []
 UserAssignRoleReq.AssignItem#validTo -> []
-UserRoleBatchRevokeReq#items -> [@NotEmpty, @Size(max=1000, message="批量上限 1000（project-rules §分批约束，超限分批提交）"), @Valid]
+UserRoleBatchRevokeReq#items -> [@NotEmpty, @Size(max=1000, message="批量上限 1000（project-rules §分批约束，超限分批提交）"), @Valid, element::@NotNull]
 UserRoleBatchRevokeReq.RevokeItem#domainCode -> []
 UserRoleBatchRevokeReq.RevokeItem#relationId -> []
 UserRoleBatchRevokeReq.RevokeItem#roleExternalId -> [@NotBlank]
@@ -138,12 +144,39 @@ UserRoleListReq#subjectTypeCode -> [@NotBlank]
         cn.ac.fage.accessmesh.perm.common.dto.req.OperationListReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.ResourceBatchCreateReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq.class,
+        cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq.class,
+        cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeysReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq.class,
+        cn.ac.fage.accessmesh.perm.common.dto.req.RoleDetailReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.RoleListReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleBatchRevokeReq.class,
         cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleListReq.class);
+
+    /** 14 类（含嵌套）组件序与组件类型快照——record 位置构造器被 SDK Feign/Gateway/测试大量使用，字段重排或改型会静默改变语义（注解签名快照不含此两面）。 */
+    private static final List<String> EXPECTED_COMPONENT_ORDER_AND_TYPES = List.of("""
+AuthCheckReq: String subjectTypeCode, String subjectExternalId, String resourceTypeCode, String resourceCode, String operationCode, String domainCode, String codeType, String inheritMode, String parentResourceTypeCode, String parentResourceCode, String parentCodeType, List<String> parentOperationCodes, Map<String, Object> context
+BatchAuthCheckReq: String subjectTypeCode, String subjectExternalId, List<BatchAuthCheckReq$AuthCheckItem> items, String parentResourceTypeCode, String parentResourceCode, String parentCodeType, List<String> parentOperationCodes, Map<String, Object> context
+BatchAuthCheckReq.AuthCheckItem: String resourceTypeCode, String resourceCode, String operationCode, String domainCode, String codeType, String inheritMode
+CheckInterfaceReq: String subjectTypeCode, String subjectExternalId, String serviceCode, String httpMethod, String path, Map<String, Object> context
+IdReq: Long id
+IdsReq: List<Long> ids
+OperationListReq: String resourceTypeCode
+ResourceBatchCreateReq: List<ResourceCreateReq> items
+ResourceCreateReq: Long parentId, String parentResourceTypeCode, String parentResourceCode, String parentCodeType, String parentDomainCode, String resourceTypeCode, String code, String codeType, String name, String path, Integer status, Integer sortOrder, String extra
+ResourceKeyReq: String resourceTypeCode, String code, String codeType
+ResourceKeysReq: List<ResourceKeyReq> items
+ResourceUpdateReq: String resourceTypeCode, String code, String codeType, String name, String path, Integer status, Integer sortOrder, String extra, Boolean extraClear
+RoleCreateReq: Long parentId, String roleTypeCode, String externalId, String name, Integer sortOrder, String extra
+RoleDetailReq: String roleTypeCode, String roleExternalId
+RoleListReq: String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword, Integer pageNum, Integer pageSize, String sort
+UserAssignRoleReq: List<UserAssignRoleReq$AssignItem> items
+UserAssignRoleReq.AssignItem: String subjectTypeCode, String subjectExternalId, String domainCode, String roleTypeCode, String roleExternalId, Long relationId, java.time.LocalDateTime validFrom, java.time.LocalDateTime validTo
+UserRoleBatchRevokeReq: List<UserRoleBatchRevokeReq$RevokeItem> items
+UserRoleBatchRevokeReq.RevokeItem: String subjectTypeCode, String subjectExternalId, String domainCode, String roleTypeCode, String roleExternalId, Long relationId
+UserRoleListReq: String subjectTypeCode, String subjectExternalId
+""".strip().split("\n"));
 
     @Test
     @DisplayName("perm-common 14 个单源 Req 的 Bean Validation 注解签名快照（含容器元素位置与批量上限）")
@@ -165,6 +198,42 @@ UserRoleListReq#subjectTypeCode -> [@NotBlank]
         assertThat(snapshotExtra)
             .as("快照声明了实际不存在的注解签名（注解被删/漂移，须核对 SDK 契约）: %s", snapshotExtra)
             .isEmpty();
+    }
+
+    @Test
+    @DisplayName("perm-common 14 个单源 Req 的组件序与组件类型快照（位置构造器消费方防字段重排/改型静默漂移）")
+    void permCommonReqComponentOrderAndTypesAreFrozen() {
+        List<String> actual = new ArrayList<>();
+        for (Class<?> top : GUARDED_CLASSES) {
+            collectComponentTypes(top, top.getSimpleName(), actual);
+            for (Class<?> nested : top.getDeclaredClasses()) {
+                collectComponentTypes(nested, top.getSimpleName() + "." + nested.getSimpleName(), actual);
+            }
+        }
+        assertThat(actual)
+            .as("组件序与类型快照有序精确比对（record 规范构造器按位置传参，重排/改型=消费方静默语义漂移）")
+            .containsExactlyElementsOf(EXPECTED_COMPONENT_ORDER_AND_TYPES);
+    }
+
+    /** 提取一个 record 的「路径: 类型 名, 类型 名...」行（类型去包前缀归一化）。 */
+    private void collectComponentTypes(Class<?> recordClass, String path, List<String> out) {
+        StringBuilder sb = new StringBuilder(path).append(':');
+        RecordComponent[] components = recordClass.getRecordComponents();
+        for (int i = 0; i < components.length; i++) {
+            if (i > 0) {
+                sb.append(',');
+            }
+            sb.append(' ').append(normalizeTypeName(components[i].getGenericType().getTypeName()))
+                .append(' ').append(components[i].getName());
+        }
+        out.add(sb.toString());
+    }
+
+    private String normalizeTypeName(String typeName) {
+        return typeName
+            .replace("java.lang.", "")
+            .replace("java.util.", "")
+            .replace("cn.ac.fage.accessmesh.perm.common.dto.req.", "");
     }
 
     /** 提取一个 record 的「路径#组件 → [声明注解 + element::容器元素注解]」签名行。 */

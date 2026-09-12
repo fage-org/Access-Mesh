@@ -19,7 +19,7 @@ import java.util.Map;
  * T-PERM-058 主资源上下文（可选，请求级）：与 query-scopes 的父入参对齐——批量项
  * 通常查询同一主资源上下文下的多个目标（如报表A上下文内的广东/杭州/上海）；
  * 传入时子权限行要求父 INSTANCE 判定通过且 dependOn ∈ 父命中集合，不传时
- * 子权限行不参与判定（fail-closed）。与服务端 access-service 副本双副本同形（HTTP 契约等价）。
+ * 子权限行不参与判定（fail-closed）。perm-common 单源契约——服务端 Controller 与 SDK 消费方共用本类（T-PERM-065，PermCommonReqContractTest 快照守卫）。
  * </p>
  */
 public record BatchAuthCheckReq(

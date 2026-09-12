@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.permission.dto.req;
 
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 

@@ -113,7 +113,7 @@ class ResourceDeletePermChangeRegistrationTest {
         when(rolePermMapper.selectValidPermIdsByResourceIds(eq(1L), anyList()))
             .thenReturn(List.of(501L, 502L));
 
-        service.deleteResources(1L, List.of(new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "x", null)), 99L);
+        service.deleteResources(1L, List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("MENU", "x", null)), 99L);
 
         // 双重登记已落入 ThreadLocal accumulator
         PermissionChangeContext.Accumulator acc = PermissionChangeContext.snapshot();
@@ -147,7 +147,7 @@ class ResourceDeletePermChangeRegistrationTest {
         when(rolePermMapper.selectConditionIdsByPermIds(eq(1L), eq(List.of(501L))))
             .thenReturn(Set.of(77L));
 
-        service.deleteResources(1L, List.of(new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "x", null)), 99L);
+        service.deleteResources(1L, List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("MENU", "x", null)), 99L);
 
         verify(conditionDomainService).recycleOrphanInlineConditions(1L, Set.of(77L));
     }
@@ -174,7 +174,7 @@ class ResourceDeletePermChangeRegistrationTest {
         when(apiMappingMapper.selectByResourceEntityIds(eq(1L), anySet())).thenReturn(List.of());
         when(rolePermMapper.selectValidPermIdsByResourceIds(eq(1L), anyList())).thenReturn(List.of());
 
-        service.deleteResources(1L, List.of(new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "x", null)), 99L);
+        service.deleteResources(1L, List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("MENU", "x", null)), 99L);
 
         PermissionChangeContext.Accumulator acc = PermissionChangeContext.snapshot();
         org.junit.jupiter.api.Assertions.assertTrue(acc.roleIds().isEmpty());

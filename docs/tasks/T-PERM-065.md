@@ -41,7 +41,7 @@ access-service `permission/dto/req` 与 perm-sdk `perm-common` 双轨维护 **14
 
 ## 范围
 
-- 见 acceptance；本卡只收敛 Req（Resp 副本现状未盘点，实施时一并盘点定性——SDK 契约测试已覆盖 18 路径封闭）。
+- 见 acceptance；本卡只收敛 Req（Resp 副本现状未盘点，实施时一并盘点定性——SDK 契约测试已覆盖 17 路径封闭）。
 
 ## 完成记录（2026-09-12）
 
@@ -49,5 +49,6 @@ access-service `permission/dto/req` 与 perm-sdk `perm-common` 双轨维护 **14
 - **守卫重写**：`PermCommonReqContractTest` 由「必填性守卫」重写为 perm-common 单源**注解签名快照**（admin.contract → contract 包；声明位置注解 + `element::` 容器元素位置注解双提取——实施期实证 `AnnotatedArrayType` API 用错会致容器元素注解静默漏抓，已用 `AnnotatedParameterizedType` 修正）；`CheckFamilyWireShapeTest` check 族请求侧单源化（响应侧双副本同形守卫保留，Resp 面收敛另定）；`HttpApiPathSnapshotTest` 快照刷新 24 行。
 - **双轨评审处置**（代码轨零 P0-P2/P3×3 + 文档轨 P2×2/P3×4，全处置）：快照归一化注释举例改指 perm-common；`BatchEntrySizeValidationTest` 三个 InBothCopies 方法合并去重（换绑后两段断言解析到同一类）+ javadoc 单源化；任务卡计数订正（SDK 契约 17 路径、快照 179 条，非 18/198）；api-contract last_reviewed 注记补 T-PERM-065 句；任务卡正文状态行同步。**叙述更正**：盘点期「P 侧 BatchAuthCheckReq items 元素级注解比 A 侧更严格」失实——`git show` 实证被删 A 侧副本原本即 `List<@NotNull @Valid AuthCheckItem>` 元素级同形，换绑零行为变化。
 - **两项拍板**（registry 同日行）：①`ResourceBatchCreateReq.items` **只补 @Size(max=1000) 不补元素级 @Valid**——仅封规模（10 万条循环放大面），嵌套畸形项宽容收集逐条跳过、部分成功语义为有意设计维持；②project-rules §7.1 登记「permission 域对外 Req 复用 perm-common 单源、不建域内副本」纪律（对齐 T-ADMIN-027 分页信封先例）。
+- **外部评审处置**（claude+grok 双通道只读，2026-09-12 收口后首轮）：claude P3×4 全处置——①batch-create `items` null 元素穿透 NPE 500（`map(ResourceCreateReq::resourceTypeCode)` 对 null 元素在 filter 前即炸，与拍板句「宽容收集」冲突）：三个批量 items（ResourceBatchCreateReq/UserAssignRoleReq/UserRoleBatchRevokeReq）补元素级 `@NotNull`（只拦 null 不级联嵌套字段，不触碰宽容收集拍板语义）+ `BatchEntrySizeValidationTest` 补 null 元素 400 行为锁；②注解签名快照不含组件类型与顺序（位置构造器消费方防字段重排/改型静默漂移）：`PermCommonReqContractTest` 补组件序与类型快照锁（有序 containsExactly，17→20 类全锁）；③perm-common 三处 javadoc「双副本同形」现在时残留改单源口径；④计数订正不彻底（范围节 18 残留/registry 90→91 失实）订正去计数化。grok 全零缺陷（专项 6 项独立全过）。**双通道同发现存量→用户拍板顺手修**：SDK `getRole(IdReq)`/`deleteResources(IdsReq)` 为 T-PERM-028 同批第三、四处漏改（SDK 调用必 400、仓内零 Java 调用方、拒绝方向安全）——perm-common 新增 `RoleDetailReq`/`ResourceKeysReq`/`ResourceKeyReq` 三共享类型 + `PermissionFeignClient` 两签名对齐 + 服务端同步换绑删副本（收敛面 14→17 对；ResourceMoveReq 嵌套引用同批换绑），api-contract §3.5/project-rules §7.1 同步 17 对口径。
 - **回归**：access-service 单测轨道全绿（BUILD SUCCESS，0 失败 0 错误）；SDK starter 契约测试全绿；守卫/行为锁/快照测试组全绿；收口全量（含 E2E + 容器组）随收口提交执行。
 - **设计回写**：api-contract §3.5（批量上限 1000 全端点清单 + Req 单源登记）+ project-rules §7.1（单源纪律句）。

@@ -234,7 +234,7 @@ class HttpApiPathSnapshotTest {
     /** 路径 → 请求体类型 | 响应类型 签名快照（类型级 DTO 契约；条数与 Controller 扫描强制一致）。 */
     private static final Set<String> EXPECTED_SIGNATURES = Set.of("""
 /api/perm/abstract-role/create|perm.common.dto.req.RoleCreateReq|common.model.R<access.permission.dto.resp.RoleResp>
-/api/perm/abstract-role/detail|access.permission.dto.req.RoleDetailReq|common.model.R<access.permission.dto.resp.RoleResp>
+/api/perm/abstract-role/detail|perm.common.dto.req.RoleDetailReq|common.model.R<access.permission.dto.resp.RoleResp>
 /api/perm/abstract-role/full-sync|access.permission.dto.req.AbstractRoleFullSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/perm/abstract-role/list|perm.common.dto.req.RoleListReq|common.model.R<perm.common.dto.resp.PageResp<access.permission.dto.resp.RoleResp>>
 /api/perm/abstract-role/move|access.permission.dto.req.RoleMoveReq|common.model.R<Void>
@@ -297,11 +297,11 @@ class HttpApiPathSnapshotTest {
 /api/perm/resource-dependency/update|access.permission.dto.req.ResourceDependencyUpdateReq|common.model.R<access.permission.dto.resp.ResourceDependencyResp>
 /api/perm/resource-entity/batch-create|perm.common.dto.req.ResourceBatchCreateReq|common.model.R<perm.common.dto.resp.ItemsResp<access.permission.dto.resp.ResourceResp>>
 /api/perm/resource-entity/create|perm.common.dto.req.ResourceCreateReq|common.model.R<access.permission.dto.resp.ResourceResp>
-/api/perm/resource-entity/detail|access.permission.dto.req.ResourceKeyReq|common.model.R<access.permission.dto.resp.ResourceResp>
+/api/perm/resource-entity/detail|perm.common.dto.req.ResourceKeyReq|common.model.R<access.permission.dto.resp.ResourceResp>
 /api/perm/resource-entity/full-sync|access.permission.dto.req.ResourceEntityFullSyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/perm/resource-entity/list|access.permission.dto.req.ResourceListReq|common.model.R<perm.common.dto.resp.PageResp<access.permission.dto.resp.ResourceResp>>
 /api/perm/resource-entity/move|access.permission.dto.req.ResourceMoveReq|common.model.R<Void>
-/api/perm/resource-entity/remove|access.permission.dto.req.ResourceKeysReq|common.model.R<Void>
+/api/perm/resource-entity/remove|perm.common.dto.req.ResourceKeysReq|common.model.R<Void>
 /api/perm/resource-entity/sync|access.permission.dto.req.ResourceEntitySyncReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/perm/resource-entity/tree|access.permission.dto.req.ResourceTreeReq|common.model.R<perm.common.dto.resp.ItemsResp<access.permission.dto.resp.ResourceTreeResp>>
 /api/perm/resource-entity/update|perm.common.dto.req.ResourceUpdateReq|common.model.R<access.permission.dto.resp.ResourceResp>

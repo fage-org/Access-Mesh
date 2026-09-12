@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.perm.common.dto.req;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -18,7 +19,7 @@ public record UserRoleBatchRevokeReq(
      * 撤销项列表
      */
     @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
-    @Valid List<RevokeItem> items
+    @Valid List<@NotNull RevokeItem> items
 ) {
     /**
      * 单个撤销项

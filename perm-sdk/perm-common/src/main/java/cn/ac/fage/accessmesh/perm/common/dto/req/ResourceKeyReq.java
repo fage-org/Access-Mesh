@@ -1,22 +1,28 @@
-package cn.ac.fage.accessmesh.access.permission.dto.req;
+package cn.ac.fage.accessmesh.perm.common.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * 资源实体业务键请求体
+ * 资源实体业务键请求
  * <p>
- * 以业务键 (resourceTypeCode, code, codeType) 定位资源实体
- * （schema uk_resource_entity 保证租户内唯一，T-PERM-028 切换内部 id 定位）。
+ * 以业务键 (resourceTypeCode, code, codeType) 定位资源实体（T-PERM-028 定稿，
+ * 契约见 api-contract §5.3「业务键定位」）。perm-common 单源契约——服务端
+ * Controller/AppService 与 SDK 消费方共用本类（T-PERM-065，PermCommonReqContractTest 快照守卫）。
  * 用作 detail 请求体、move 的 resource/parent 嵌套组件与 remove 的 items 元素。
  * </p>
- *
- * @param resourceTypeCode 资源类型编码，必填
- * @param code             资源编码，必填
- * @param codeType         编码类型，可选；null/空白按 {@link #normalizedCodeType()} 归一为 default
  */
 public record ResourceKeyReq(
+    /**
+     * 资源类型编码，必填
+     */
     @NotBlank String resourceTypeCode,
+    /**
+     * 资源编码，必填
+     */
     @NotBlank String code,
+    /**
+     * 编码类型，可选；null/空白按 {@link #normalizedCodeType()} 归一为 default
+     */
     String codeType
 ) {
 

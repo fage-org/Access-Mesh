@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.perm.common.dto.req;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDateTime;
@@ -12,14 +13,14 @@ import java.util.List;
  * 用户分配角色请求体（perm-common 共享）。
  * <p>
  * 用于分配用户与角色的关联关系，支持有效期配置。
- * 与 access-service 内部 UserAssignRoleReq 同构。
+ * perm-common 单源契约——服务端 Controller 与 SDK 消费方共用本类（T-PERM-065，PermCommonReqContractTest 快照守卫）。
  * </p>
  *
  * @param items 分配条目列表，必填且不能为空
  */
 public record UserAssignRoleReq(
     @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
-    List<@Valid AssignItem> items
+    List<@NotNull @Valid AssignItem> items
 ) {
     /**
      * 分配条目

@@ -3,8 +3,10 @@ package cn.ac.fage.accessmesh.access.permission.service.impl;
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeysReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeysReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceBatchCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserAssignRoleReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
@@ -184,6 +186,23 @@ class BatchEntrySizeValidationTest {
             .mapToObj(Long::valueOf).toList())).isEmpty());
         assertFalse(validator.validate(new IdsReq(IntStream.rangeClosed(1, 1001)
             .mapToObj(Long::valueOf).toList())).isEmpty());
+    }
+
+    @Test
+    void itemsNullElementMustBeRejectedAt400() {
+        // claude 外评（2026-09-12）：items 无元素级 @NotNull 时 null 元素穿透到服务端 stream 解引用 NPE 500
+        // （ResourceBatchCreateReq 的 map(ResourceCreateReq::resourceTypeCode) 对 null 元素在 filter 前即炸）。
+        // 元素级 @NotNull 只拦 null 本身、不级联嵌套字段校验（不触碰 batch-create 宽容收集拍板语义）。
+        Validator validator = validatorFactory.getValidator();
+        assertFalse(validator.validate(new ResourceBatchCreateReq(
+            java.util.Arrays.asList((ResourceCreateReq) null))).isEmpty(),
+            "batch-create items null 元素须 400");
+        assertFalse(validator.validate(new UserAssignRoleReq(
+            java.util.Arrays.asList((UserAssignRoleReq.AssignItem) null))).isEmpty(),
+            "assign items null 元素须 400");
+        assertFalse(validator.validate(new UserRoleBatchRevokeReq(
+            java.util.Arrays.asList((UserRoleBatchRevokeReq.RevokeItem) null))).isEmpty(),
+            "revoke items null 元素须 400");
     }
 
     private static <T> List<T> items(int count, java.util.function.IntFunction<T> factory) {

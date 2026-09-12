@@ -90,7 +90,7 @@ class ResourceManageAppServiceImplTest {
         org.mockito.Mockito.clearInvocations(treeWriteLockSupport);
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.moveResource(1L,
                 new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq(
-                    new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "m1", "default"),
+                    new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("MENU", "m1", "default"),
                     null), 9L))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class);
         org.mockito.Mockito.verify(treeWriteLockSupport).lockTreeWrites(1L,
@@ -127,8 +127,8 @@ class ResourceManageAppServiceImplTest {
 
     // ========== T-PERM-028：业务键定位 + 读门禁补齐 + extraClear + move 校验 ==========
 
-    private static cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq key(String code) {
-        return new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", code, null);
+    private static cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq key(String code) {
+        return new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("MENU", code, null);
     }
 
     @Test
@@ -256,7 +256,7 @@ class ResourceManageAppServiceImplTest {
         cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
             cn.ac.fage.accessmesh.common.exception.BizException.class,
             () -> service.moveResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq(
-                key("x"), new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("BUTTON", "y", null)), 100L));
+                key("x"), new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("BUTTON", "y", null)), 100L));
         assertEquals(20053, ex.getErrorCode());
         verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
     }
@@ -456,7 +456,7 @@ class ResourceManageAppServiceImplTest {
         cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
             cn.ac.fage.accessmesh.common.exception.BizException.class,
             () -> service.moveResource(1L, new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceMoveReq(
-                new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("HR_ORG", "x", null), null), 100L));
+                new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("HR_ORG", "x", null), null), 100L));
         assertEquals(20055, ex.getErrorCode());
         verify(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, "HR_ORG");
         verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
@@ -490,7 +490,7 @@ class ResourceManageAppServiceImplTest {
         cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
             cn.ac.fage.accessmesh.common.exception.BizException.class,
             () -> service.deleteResources(1L,
-                List.of(new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("HR_MENU", "x", null)), 99L));
+                List.of(new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("HR_MENU", "x", null)), 99L));
         assertEquals(20055, ex.getErrorCode());
         // 守卫以删除全集（含展开后代）的类型值调用——旧实现无此调用且后代被软删
         verify(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByValues(1L, Set.of(1, 7));

@@ -411,7 +411,7 @@ XxxVO                 ← 特殊场景的视图对象（如聚合多表的展示
 - **Entity 禁止出现在 Controller 入参/出参中**（防止字段过度暴露）。
 - Service 层向 Controller 层返回 `XxxResp` 对象，不直接返回 Entity。
 - Service 内部调用可传递 Entity，但跨服务 Feign 接口必须使用 DTO。
-- **permission 域对外 Req 复用 perm-common 单源，不建域内副本**（T-PERM-065，14 对同名 Req 收敛；SDK 与服务端 Controller/AppService 共用 `perm.common.dto.req` 类型，注解契约由 `PermCommonReqContractTest` 注解签名快照守卫；admin 域同名 `IdsReq`/`UserRoleListReq` 为合法独立形态——后者与 perm-common 同名异义）。
+- **permission 域对外 Req 复用 perm-common 单源，不建域内副本**（T-PERM-065，17 对同名 Req 收敛；SDK 与服务端 Controller/AppService 共用 `perm.common.dto.req` 类型，注解契约由 `PermCommonReqContractTest` 注解签名快照守卫；admin 域同名 `IdsReq`/`UserRoleListReq` 为合法独立形态——后者与 perm-common 同名异义）。
 
 ### 7.2 命名规范
 

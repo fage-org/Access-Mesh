@@ -179,8 +179,8 @@ class OperationLogRuntimeContextAppServiceTest {
             .thenReturn(Set.of(10L, 20L));
 
         service.deleteResources(1L, List.of(
-            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "a", null),
-            new cn.ac.fage.accessmesh.access.permission.dto.req.ResourceKeyReq("MENU", "b", null)), 99L);
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("MENU", "a", null),
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("MENU", "b", null)), 99L);
 
         OperationLogRuntimeContext.Snapshot snapshot = OperationLogRuntimeContext.snapshot();
         assertTrue(snapshot.skip());

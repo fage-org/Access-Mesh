@@ -5,6 +5,8 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.permission.dto.req.*;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceBatchCreateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeysReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;

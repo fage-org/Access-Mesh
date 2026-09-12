@@ -113,7 +113,7 @@ public interface PermissionFeignClient {
     R<PageResp<RoleResp>> listRoles(@RequestBody RoleListReq req);
 
     @PostMapping("/api/perm/abstract-role/detail")
-    R<RoleResp> getRole(@RequestBody IdReq req);
+    R<RoleResp> getRole(@RequestBody RoleDetailReq req);
 
     /**
      * 查询用户角色列表
@@ -178,13 +178,13 @@ public interface PermissionFeignClient {
     R<ResourceResp> updateResource(@RequestBody ResourceUpdateReq req);
 
     /**
-     * 批量删除资源
+     * 批量删除资源（按业务键集合，T-PERM-028 定稿；原 IdsReq 内部 id 形态已废弃）
      *
-     * @param req 资源ID列表请求
+     * @param req 资源业务键集合请求
      * @return 删除结果
      */
     @PostMapping("/api/perm/resource-entity/remove")
-    R<Void> deleteResources(@RequestBody IdsReq req);
+    R<Void> deleteResources(@RequestBody ResourceKeysReq req);
 
     // ========== 操作权限 ==========
 
