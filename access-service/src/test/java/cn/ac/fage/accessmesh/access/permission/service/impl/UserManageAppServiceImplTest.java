@@ -292,6 +292,45 @@ class UserManageAppServiceImplTest {
         }
     }
 
+    /** T-PERM-063（外评 P3）：生效期未到的目标不计入授予后状态——有效期谓词镜像运行时。 */
+    @Test
+    void shouldExcludeFutureValidFromTargetFromPostState() {
+        // 混合批：r-200 带 7 天后生效的 validFrom、r-300 即时生效——postState 应含 300 不含 200
+        UserAssignRoleReq req = new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("USER", "u-1", null, "BASIC_ROLE", "r-200",
+                null, java.time.LocalDateTime.now().plusDays(7), null),
+            new UserAssignRoleReq.AssignItem("USER", "u-1", null, "BASIC_ROLE", "r-300",
+                null, null, null)
+        ));
+        when(typeResolutionService.batchResolveUserIds(eq(1L), eq("USER"), eq(Set.of("u-1"))))
+            .thenReturn(Map.of("u-1", 20L));
+        when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("r-200", "r-300")), eq((String) null)))
+            .thenReturn(Map.of("r-200", 200L, "r-300", 300L));
+        when(userRoleMapper.selectValidByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L, 300L)), eq(ResourceTypeCode.ROLE)))
+            .thenReturn(List.<UserRole>of());
+        // 有效期过滤先行：future validFrom 的 200 已不入目标集，启用查询只见 300
+        when(abstractRoleMapper.selectEnabledIdsByIds(eq(1L), eq(Set.of(300L)))).thenReturn(List.of(300L));
+        when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, Set.of(100L)));
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq(Set.of("200", "300")), eq(OperationCodeConstants.MANAGE))).thenReturn(Set.of());
+
+            service.assignRole(1L, req);
+
+            // 锁有效期谓词：future validFrom 的 200 不入 postState、即时的 300 入（无谓词实现
+            // postState={100,200,300}——若存在规则 (100,200) 即被误拒，断言不等于此形态必红）
+            org.mockito.ArgumentCaptor<Map<Long, Set<Long>>> postStateCaptor =
+                org.mockito.ArgumentCaptor.forClass(Map.class);
+            org.mockito.Mockito.verify(permissionConflictDomainService)
+                .findAssignMutexConflicts(eq(1L), postStateCaptor.capture());
+            assertEquals(Set.of(100L, 300L), postStateCaptor.getValue().get(20L));
+            org.mockito.Mockito.verify(userRoleMapper).insertBatch(any());
+        }
+    }
+
     /** T-PERM-063：batch-assign（单角色×多用户）同款守卫——用户现持有互斥对端角色时整批拒绝。 */
     @Test
     void shouldRejectBatchAssignWhenPostStateHitsMutexPair() {

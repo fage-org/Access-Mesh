@@ -153,7 +153,9 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 null, null, null, null, null, null, null
             ));
         } catch (Exception e) {
-            // 提交失败回滚去重标记：该日志是双删唯一可查记录，允许窗口内重试（评审 P3-6）
+            // 仅提交期异常（如线程池拒绝）回滚去重标记允许窗口内重试（外评 P3 补充口径）；
+            // asyncRecordLog 经 @Async 代理立即返回，异步线程内的落库失败不经此 catch，
+            // 由 AsyncUncaughtExceptionHandler 告警通道兜底——去重标记维持，窗口后自然重试
             mutexDropNotified.invalidate(dedupKey);
             log.error("Failed to record role mutex drop notification: tenantId={}, userId={}", tenantId, userId, e);
         }

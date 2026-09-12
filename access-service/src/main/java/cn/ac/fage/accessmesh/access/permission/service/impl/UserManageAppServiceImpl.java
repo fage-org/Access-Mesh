@@ -142,14 +142,31 @@ public class UserManageAppServiceImpl implements UserManageAppService {
      * 角色互斥授予校验（T-PERM-063）：授予后状态命中 ROLE_MUTEX 对即整批原子拒绝 20062。
      * <p>
      * 授予后状态 = 现有效角色（批量解析，已含组角色展开与启用态过滤）∪ 本批新增目标
-     * （仅计启用角色——与运行时 filterRoleMutex 判定集合同源，禁用角色不参与运行时判定）。
+     * （仅计启用且有效期覆盖当前时刻的角色——与运行时 filterRoleMutex 判定集合同源：
+     * 禁用角色、生效期未到/已过期关系均不参与运行时判定，外评 P3：仅过滤启用会把
+     * 带 future validFrom 的授予误拒）。
      * 同批内两个互斥角色由集合语义天然覆盖；规则 DB 直查，新建规则即刻生效。
      * 并发双开两笔授予的窄竞态窗口接受（运行时双删兜底，fail-closed 无安全回退）。
      * </p>
      *
-     * @param newTargetsByUser 本批将新增的（用户 → 角色目标集）映射，仅含有新增关系的用户
+     * @param toInsert 本批将新增的用户-角色关系行
      */
-    private void rejectRoleMutexOnAssign(Long tenantId, Map<Long, Set<Long>> newTargetsByUser) {
+    private void rejectRoleMutexOnAssign(Long tenantId, List<UserRole> toInsert) {
+        if (toInsert.isEmpty()) {
+            return;
+        }
+        // 有效期谓词镜像运行时 selectValidByUserIdsWithValidity：
+        // (valid_from <= now OR NULL) AND (valid_to >= now OR NULL)
+        LocalDateTime now = LocalDateTime.now();
+        Map<Long, Set<Long>> newTargetsByUser = new HashMap<>();
+        for (UserRole ur : toInsert) {
+            boolean withinValidity = (ur.getValidFrom() == null || !ur.getValidFrom().isAfter(now))
+                && (ur.getValidTo() == null || !ur.getValidTo().isBefore(now));
+            if (withinValidity) {
+                newTargetsByUser.computeIfAbsent(ur.getAbstractUserId(), k -> new HashSet<>())
+                    .add(ur.getTargetId());
+            }
+        }
         if (newTargetsByUser.isEmpty()) {
             return;
         }
@@ -497,12 +514,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         // T-PERM-063：角色互斥授予校验（授予后状态命中互斥对 → 整批原子拒绝 20062）
         if (!toInsert.isEmpty()) {
-            Map<Long, Set<Long>> newTargetsByUser = new HashMap<>();
-            for (UserRole ur : toInsert) {
-                newTargetsByUser.computeIfAbsent(ur.getAbstractUserId(), k -> new HashSet<>())
-                    .add(ur.getTargetId());
-            }
-            rejectRoleMutexOnAssign(tenantId, newTargetsByUser);
+            rejectRoleMutexOnAssign(tenantId, toInsert);
         }
 
         if (!toInsert.isEmpty()) {
@@ -613,12 +625,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         // T-PERM-063：角色互斥授予校验（授予后状态命中互斥对 → 整批原子拒绝 20062）
         if (!toInsert.isEmpty()) {
-            Map<Long, Set<Long>> newTargetsByUser = new HashMap<>();
-            for (UserRole ur : toInsert) {
-                newTargetsByUser.computeIfAbsent(ur.getAbstractUserId(), k -> new HashSet<>())
-                    .add(ur.getTargetId());
-            }
-            rejectRoleMutexOnAssign(tenantId, newTargetsByUser);
+            rejectRoleMutexOnAssign(tenantId, toInsert);
             userRoleMapper.insertBatch(toInsert);
             OperationLogRuntimeContext.setSummary(
                 "assigned " + toInsert.size() + " user-role relation(s) to role " + req.roleExternalId()

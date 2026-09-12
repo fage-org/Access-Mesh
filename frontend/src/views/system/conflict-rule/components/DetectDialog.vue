@@ -126,7 +126,7 @@ async function onDetect() {
 
     <el-form label-width="100px" class="detect-form">
       <el-form-item label="检测形态">
-        <el-radio-group v-model="mode">
+        <el-radio-group v-model="mode" @change="result = null">
           <el-radio-button value="PERM_MUTEX">操作权限对</el-radio-button>
           <el-radio-button value="ROLE_MUTEX">角色对</el-radio-button>
         </el-radio-group>
