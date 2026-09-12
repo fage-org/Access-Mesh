@@ -70,7 +70,7 @@ last_reviewed: 2026-09-12
 | `MANAGED`（缺省） | 管理台手工 CRUD 维护资源 | 资源量小、人工维护（如自定义目录） |
 | `SYNC` | 声明来源服务（`syncSourceService`）独占同步，管理面只读（写操作 20055） | 资源事实在业务系统里（订单、门店、项目） |
 
-声明约束（api-contract §5.1 类型所有权声明段 + §6.2.2 同步入口门禁）：SYNC 来源必须为已注册、未软删、`status=1` 的服务；类型下存在有效资源行时声明不可变更（20056）；API 类型禁止声明 SYNC。
+声明约束（api-contract §5.1 类型所有权声明段 + §6.2.2 同步入口门禁）：SYNC 来源必须为已注册、未软删、`status=1` 的服务；类型下存在有效资源行时声明不可变更（20056），**系统预置类型（is_system=true）所有权声明一律钉死不可变更**（20056）；API 类型禁止声明 SYNC。
 
 ### 3.2 完整链路（六步）
 
@@ -96,7 +96,7 @@ last_reviewed: 2026-09-12
 |---|---|---|
 | `RESOURCE_TYPE_OWNERSHIP_DENIED` | sync/full-sync 入口 | 类型非 SYNC / 来源不匹配 / 来源服务未注册或停用 |
 | `20055 RESOURCE_EXTERNALLY_MAINTAINED` | 管理面 create/update/move/remove | SYNC 类型管理面只读 |
-| `20056 TYPE_OWNERSHIP_CHANGE_CONFLICT` | 声明变更/类型删除 | 类型下有有效资源行 |
+| `20056 TYPE_OWNERSHIP_CHANGE_CONFLICT` | 声明变更/类型删除 | 类型下有有效资源行；系统预置类型（is_system）声明一律钉死 |
 | `20040 GRANT_CANNOT_DELEGATE` | apply-grant-plan | 授予者未持有覆盖目标键的可转授权限（新类型首笔授权见 §3.5） |
 | `20048 AUTO_GRANT_NOT_SUPPORTED` | create/update/batch-sync | 自动授权暂缓（T-PERM-035），`autoGrant=true` 一律拒绝 |
 | `20005 / 20044` | 操作码解析/清单校验 | 未知操作码 fail-closed / 畸形清单零副作用 |
@@ -145,6 +145,7 @@ last_reviewed: 2026-09-12
 | 自动授权（依赖补全） | **暂缓** | T-PERM-035 未排期；写入口 `autoGrant=true` 全拒（20048）；`resource_dependency` 数据模型已就绪 |
 | 动态数据权限端到端 | **延后** | T-PERM-036 延后至 example-service 演示；scopeMode→SQL 映射契约已定（api-contract §6.7） |
 | 内置事实链路类型写入 | **禁止** | USER/ORG/MENU/ROLE 等归 access-service 内部 SYNC，外部同步一律拒（§4） |
+| 异常告警通知渠道 | **不做** | 异步异常可观测性由 log.error 承载；钉钉/邮件等告警渠道不在开源 IAM 核心范围（T-PERM-038 定性），接入方经日志采集侧自行对接 |
 | resource-dependency batch-sync 前端 UI | **P0 不做** | 后端端点已收口可用；前端不暴露按钮（Q5=B 决策） |
 
 ## 7. 场景五：前端页面扩展（管理台二开）

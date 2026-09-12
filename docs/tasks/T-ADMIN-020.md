@@ -34,12 +34,12 @@ last_updated: 2026-09-12
 | 5 | Lombok @Data/@Value | 零命中（命中均为 Spring @Value 属性注入注解） |
 | 6 | Hutool / FastJSON 禁库 | 零命中 |
 | 7 | *ManageService / *ManageController 旧命名 | 零命中 |
-| 8 | 裸 IllegalArgumentException/IllegalStateException | 命中均为规则豁免面：AccessBootstrap 固定图冲突/种子缺失（启动 fail-fast）、JobInvokeDomainServiceImpl（框架适配层反射调用编程契约校验） |
+| 8 | 裸 IllegalArgumentException/IllegalStateException | 命中均为规则豁免面：AccessBootstrap 固定图冲突/种子缺失（启动 fail-fast）、JobInvokeDomainServiceImpl（框架适配层反射调用编程契约校验）、FileServiceImpl @PostConstruct（启动配置校验 fail-fast） |
 | 9 | @Deprecated 死代码标记 | 零命中 |
 | 10 | System.out / printStackTrace | 零命中 |
 | 11 | @OperationLog 写方法覆盖（MenuWrite/OrgWrite/UserOrgWrite/UserWrite 抽样） | Transactional:OperationLog 1:1 全覆盖（T-ACCESS-014 强制覆盖生效） |
 | 12 | N+1（for 循环内 mapper 调用启发式，8 处命中） | 全为误报：Menu/Org batchGetDescendantIds 为单次批量 CTE+内存组装、OrgTreeConfig 一次加载全表、Config/Job 批量查+批量软删（Job 循环仅 Quartz 逐任务取消调度——调度器无批量 API，合理形态）、UserOrgWrite 显式批量化注释（batchBindUserOrg）、UserRoleQuery 批量解析+内存映射 |
-| 13 | Req DTO 校验注解覆盖（33/38） | 5 个无注解者均为可选分页参数 DTO（FilePage/JobLogPage/Oauth2ClientPage/OrgPage/UserPage——T-ADMIN-026 先例，服务层默认值与下限处理） |
+| 13 | Req DTO 校验注解覆盖（38/38 全覆盖） | 33 个带 @Not/@Size/@Pattern 族；5 个分页 DTO（FilePage/JobLogPage/Oauth2ClientPage/OrgPage/UserPage）带 @Min(1)/@Max(100)+默认 getter（T-ADMIN-026 落地）+ 入口 @Valid——覆盖面无缺口（2026-09-12 claude 外评纠正：原登记「5 个无注解」系扫描 pattern 漏 @Min/@Max 的误判） |
 | 14 | admin 域 TODO/FIXME | 零命中 |
 
 **定性：零可清扫描项。** 原痛点 #6 主张与现状漂移：①「185 文件零测试」失真——现为 197 源/37 测试文件（组织/用户/菜单/文件/任务链路均有直接测试与 PgIT）；②「冗余死代码」在已删概念/废弃标记/TODO 三个历史来源上零残留；③「风格不一致/缺校验」在现行规范机械清单上零命中（异常类型、校验注解、操作日志、批量加载、端点形态全部合规）。
@@ -48,4 +48,5 @@ last_updated: 2026-09-12
 
 ## 完成记录
 
-- 2026-09-12：规范清单重排查（含无过滤复核）+ N+1 启发式命中逐处人工核实（全误报）+ 无校验注解 DTO 逐个定性；零代码变更收口。
+- 2026-09-12：规范清单重排查（含无过滤复核）+ N+1 启发式命中逐处人工核实（全误报）+ 分页 DTO 校验形态定性；零代码变更收口。
+- 2026-09-12 claude 外评纠正一处：排查表第 13 行原登记「5 个分页 DTO 无校验注解」为扫描 pattern 误判（漏 @Min/@Max）——实际 38/38 全覆盖（T-ADMIN-026 已补齐分页注解），该行已按实测改写；裸异常行归因同步补全第三类豁免面（@PostConstruct 启动配置校验，FileServiceImpl）。其余抽样行独立复核属实。
