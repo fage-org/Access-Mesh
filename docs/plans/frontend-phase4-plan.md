@@ -35,7 +35,7 @@ last_updated: 2026-08-22
 |---|---|---|---|
 | T-FE-023 | 扩展性验证 + 扩展指南（✅ done 2026-09-12：全景指南落 design/extension-guide.md + CustomResourceTypeSlicePgIT 全绿；产品发现=新类型首笔授权引导缺口登记遗留） | frontend | 🔴 |
 | T-FE-024 | ReConditionPicker + ReConditionEditor + ChildPermissionInline 条件/子权限组件抽取（✅ done 2026-07-12；2026-07-26 权限授予页删除重做，`ReConditionPicker` / `ChildPermissionInline` 随之删除，`ReConditionEditor` / `condition-rules` 保留） | frontend | 🟡 |
-| T-ADMIN-020 | access-service admin 域 CRUD 代码清理（痛点 #6） | admin-service | 🟢 低 |
+| T-ADMIN-020 | access-service admin 域 CRUD 代码清理（✅ done 2026-09-12：用户定案重排查+清扫——17 项规范清单零可清扫描项，零代码变更定性收口） | admin-service | 🟢 低 |
 | T-PERM-038 | 全局 TODO 收口（✅ done 2026-09-12：附录 A 七条定性，3 消解/2 保留 T-PERM-035 预留/2 删失效注释） | permission-center | 🟡 |
 | T-PERM-039 | 测试补充（✅ done 2026-09-12：覆盖重估 + 旧「每接口 1+2」口径定性收口，见任务卡） | permission-center | 🟡 |
 
@@ -54,3 +54,4 @@ last_updated: 2026-08-22
 - 2026-07-26：权限授予页 v1+v2 整体删除重做，T-FE-024 产出部分废弃：`ReConditionPicker` / `ChildPermissionInline` / `RePermissionCell` 随权限授予页删除，`ReConditionEditor` / `condition-rules` 保留（被 `permission-condition` 页使用）。tasks 列表保留 T-FE-024（历史完成事实），不重新打开。
 - 2026-09-12：批次启动（Phase 3 已收口，准入满足）。T-PERM-038 done——附录 A 七条定性（3 条随 29f2602b2/5757ea59b 等批次消解、2 条 T-PERM-035 预留保留、TypeResolutionServiceImpl 7 依赖 TODO 与 rule §4/§10 定案冲突删除、AsyncConfig 告警 TODO 无排期删除）+ 全仓扫描零未定性条目，处置记录见任务卡。
 - 2026-09-12：T-FE-023 done（两项用户定案：指南全景落 design 根 + 补自有类型链路用例）——extension-guide.md 成文（待确认评审稿）+ CustomResourceTypeSlicePgIT 全绿；三处事实修正进指南（创建类型预置 CRUD 四操作/新类型首笔授权部署方种子引导 §3.5/本地用户主体类型 LOCAL_USER）。T-PERM-039 done——覆盖重估（157 测试文件 vs 附录 B 27+；permission 域 33/36 有直接测试）+ 旧「每接口 1+2」口径定性收口。批次剩余：T-ADMIN-020（低优先级，范围待用户定夺）+ 收口全量回归。
+- 2026-09-12：T-ADMIN-020 done（用户定案「重新排查核对范围，并清扫」）——17 项规范清单重排查（残留/端点形态/Date/禁库/命名/异常/死代码/日志输出/操作日志/N+1 启发式/DTO 校验）零可清扫描项，零代码变更定性收口；原痛点 #6 口径（185 文件零测试等）漂移登记任务卡。**Phase 4 四项任务全部 done**；收口全量回归执行。
