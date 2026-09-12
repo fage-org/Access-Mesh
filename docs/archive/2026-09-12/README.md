@@ -32,3 +32,4 @@
 - 任务清单唯一权威：`docs/tasks/README.md`（看板）；归档规范：`.claude/skills/design-plan-task-lifecycle/SKILL.md` §6.5
 - 本批次计划对应终态设计：`docs/design/permission-center/implementation.md` §3（query-engine-unification.md 已 superseded）
 - 任务卡：T-PERM-063（角色互斥授权时校验，done 2026-09-12 单卡归档，`tasks/T-PERM-063.md`）
+- 任务卡：T-PERM-064（角色互斥守卫通道补全，done 2026-09-12 单卡归档，`tasks/T-PERM-064.md`）
