@@ -32,7 +32,7 @@ last_reviewed: 2026-09-12
 1. **环境初始化**：空库按 `docs/design/access-service-rebuild-runbook.md` 重建数据库，并以 `ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD` 启动 access-service——自动种子首管理员（`admin`，tenantId=1）与管理用功能角色；未启用则空库无管理员，下述管理链全部 401。既有库固定图升级须按 runbook 重建。
 2. **管理 API 均需管理员会话身份**并过对应门禁：如 service-config 写操作=SERVICE:MANAGE、type-definition/create=TYPE_DEFINITION:CREATE、apply-grant-plan=ROLE:MANAGE。授权写入口**不收服务身份**（服务身份无操作者，一律 403）。
 3. **授权页入口**在角色管理页「权限授予」按钮（授权路由不在侧栏单独暴露）。
-4. **被授权主体**：场景二第 ⑥ 步判定需要一个有角色的用户——可经管理台组织与用户页创建用户并挂角色，或把权限授给既有功能角色（如 `BASIC_ROLE`）再绑用户。
+4. **被授权主体**：场景二第 ⑥ 步判定需要一个有角色的用户——可经管理台组织与用户页创建用户并挂角色，或把权限授给既有功能角色（`BASIC_ROLE` **类型**下的 `bootstrap-admin` 等角色）再绑用户。
 
 ## 2. 场景一：业务服务接入接口鉴权（example 模式）
 
@@ -124,7 +124,7 @@ last_reviewed: 2026-09-12
 - **创建即建基座**：`type-definition/create` 同事务向「类型所有者角色」写 CRUD 四操作位首授行（`grant_source=AUTHORITY_ROOT`，类型级 scopeAll + 可转授）；所有者缺省引导角色 `bootstrap-admin`，可经请求字段 `ownerRoleTypeCode/ownerRoleExternalId` 指定（roleTypeCode 仅接受 BASIC_ROLE 功能角色；类型定义页「所有者角色」选择器同入口），指针持久化于 `type_definition.extra.grantOriginRole`。
 - **追加操作自动补种**：后续经 `operation-permission/create` 追加的操作（如 `EXPORT` 位 16）同事务向同一所有者补种——不会出现「CRUD 能授、EXPORT 仍 20040」。
 - **所有者可迁移**：`type-definition/update` 变更 `extra.grantOriginRole` = 同事务「先清后种」迁移（旧所有者种子清理、新所有者补齐全部操作位）；所有者角色被误删时经重指所有者即可恢复授权能力。种子行在授权页只读（20061），类型删除时级联清理。**注意 extra 为整串替换语义**：经 API 迁移时提交的 extra 必须保留现有 `managedMode`/`syncSourceService` 声明键——只提交 `grantOriginRole` 等于删掉所有权声明（类型下有资源行时 20056 拒绝、无资源行时隐式切回 MANAGED）；未携带 `grantOriginRole` 键则保留现值。管理台「所有者角色」选择器自动 merge 进现有 extra，无此风险。
-- **可发现性**：所有者的成员在授权页可见这些种子行（标注「授权根」），并可**向其他角色转授时**收窄为实例级授权（种子行本身只读 20061，不可就地改删）。20040 的 reason 分两种：非所有者成员对**已有授权根**的类型发起授权 → `NO_PERMISSION`/`NO_GRANT_RIGHT`（你的持有面不够——找所有者角色成员操作或加入该角色）；`TYPE_GRANT_ORIGIN_MISSING` 仅出现在**自定义类型且租户内零条可转授行**时（种子被直改库清除、所有者角色被删未重指——去类型定义页确认/重指所有者）。
+- **可发现性**：所有者的成员在授权页可见这些种子行（标注「授权根」），并可**向其他角色转授时**收窄为实例级授权（种子行本身只读 20061，不可就地改删）。20040 的 reason 分两种：非所有者成员对**已有授权根**的类型发起授权 → `NO_PERMISSION`/`NO_GRANT_RIGHT`（你的持有面不够——找所有者角色成员操作或加入该角色）；`TYPE_GRANT_ORIGIN_MISSING` 仅出现在**自定义类型且租户内零条可转授行**时（种子行被直改库清除——产品链路内种子不可销毁，正常运维不应出现；去类型定义页确认/重指所有者）。注意所有者角色被删**不会**触发该 reason（角色删除不级联种子行，残留行仍算可转授覆盖）——此时 reason 仍是 `NO_PERMISSION`/`NO_GRANT_RIGHT`，恢复动作同样是经类型定义页重指所有者（迁移语义自动清理已删角色残留行）。
 
 回归锁：`CustomResourceTypeSlicePgIT` 全链路固化——创建即落 4 条种子、追加操作补种第 5 条、管理员直接首授成功（原「部署方种子后放行」步骤已随修复退役）、非所有者仍 20040、种子行改删 20061、所有者迁移清理+补齐、零授权根时 reason=TYPE_GRANT_ORIGIN_MISSING。
 
@@ -151,7 +151,7 @@ last_reviewed: 2026-09-12
 
 ### 5.3 特殊判定逻辑（外部审批等）怎么落地
 
-无代码级判定插槽（§6）。推荐路径：审批流转在接入方系统内完成后，由**持有 ROLE:MANAGE 且对目标键有可转授覆盖的用户身份**（管理台会话）经授权写入口（apply-grant-plan）落授权——权限生效路径与人工授权完全一致，可审计、可回收。授权写入口不收服务身份（服务身份无操作者，403；服务身份仅适用 §2.2 查询类 API）。
+无代码级判定插槽（§6）。推荐路径：审批流转在接入方系统内完成后，由**持有 ROLE:MANAGE 且对目标键有可转授覆盖的用户身份**（管理台会话）经授权写入口（apply-grant-plan）落授权——权限生效路径与人工授权完全一致，可审计、可回收。授权写入口不收服务身份（服务身份无操作者，403；服务身份适用 §2.2 查询类 API 与 §3.2 第 ④ 步同步写通道）。
 
 ## 6. 能力边界（不可扩展项清单）
 
@@ -170,8 +170,8 @@ last_reviewed: 2026-09-12
 管理台基于 pure-admin-thin（Vue 3 + Element Plus）。新增一个管理页面的标准模式（以现有 13 页为活例）：
 
 1. **权限串声明**：`src/views/system/<page>/utils/perms.ts` 导出 `<PAGE>_PERM_LIST`（操作码常量，对齐后端 `OperationCodeConstants`）。
-2. **路由注册**：`src/router/modules/*.ts` 路由项 `meta` 引用 PERM_LIST（按钮级 `auths` / 页面级门禁）。注意侧栏菜单已切后端派生（T-FE-015）：**可见性按用户持有面经菜单数据 ∃op 派生（见下条），`meta.showLink` 不再控制侧栏**。
-3. **菜单种子**：sys_menu 行——当前唯一造数入口是 bootstrap 固定图种子（`BootstrapGraphDefinition` 菜单种子；菜单管理页尚未开发，仅有先行契约 `/menu/create`；既有库固定图升级须按 rebuild-runbook 重建）。菜单可见性 = **用户**对菜单挂接资源持有任一有效操作权限（类型级 scopeAll 授权或该资源实例授权，∃op 派生）——无持有面则 fail-closed 不可见；菜单行不单独授 MENU 码、无需逐菜单授权。
+2. **路由注册**：`src/router/modules/*.ts` 路由项 `meta` 引用 PERM_LIST（按钮级 `auths` / 页面级门禁）。注意侧栏菜单已切后端派生（T-FE-015）：**可见性按菜单形态派生（见下条），`meta.showLink` 不再控制侧栏**。
+3. **菜单种子**：sys_menu 行，三条通道按场景选：① bootstrap 固定图种子（平台内置页与默认树，`BootstrapGraphDefinition.menuSeeds()`——固定图**版本升级**须按 rebuild-runbook 重建库，与单加一条菜单无关）；② 后端管理 API `POST /menu/create`（**已实现**，runbook 记载直连 access-service 的造数用法；注意 Gateway 固定图未注册 `/admin/menu/**` 路由——经 Gateway 调用会 403，须直连）；③ 管理台菜单管理**页面**尚未开发（前端无 menu 页），二开者当前走 ①/②。菜单可见性按形态分三支：**挂接资源的业务菜单** = 用户对该资源持有任一有效操作权限（类型级 scopeAll 或实例授权，∃op 派生），无持有面 fail-closed 不可见（自定义页要按权隐藏必须挂资源类型）；**纯展示菜单**（resource_type 为空）= 全员可见；**目录 DIR** = 恒候选（有可见子节点才渲染）。菜单行不单独授 MENU 码、无需逐菜单授权。
 4. **API 层**：`src/api/<page>.ts`——全部 POST + JSON Request DTO（禁 GET/RESTful，project-rules §API），响应统一信封 `{code, data, message}`。
 5. **页面分组**（可选）：业务域页为资源类型配置 `CLASSIFY`（domain_config），管理查询按域过滤（ALL/GLOBAL_PLUS/DOMAIN_ONLY 三模式）。
 
