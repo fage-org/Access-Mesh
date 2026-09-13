@@ -68,8 +68,8 @@ system_config 表双管理入口：admin /config（ConfigServiceImpl，UPDATE/DE
 
 ### 契约回写（总册，不写旧册）
 
-- §17.3：族清单 6→5 组（/config 出列），新增退役注记块（删除面/单入口收敛/负向锁/操作码处置四要点）。
-- 覆盖面说明（行首）：六组→五组 + 退役指引。
+- §17.3：族清单 5→4 组（/config 出列，dict/notice/job/login-log 余四组），新增退役注记块（删除面/单入口收敛/负向锁/操作码处置四要点）。
+- 覆盖面说明（行首）：六组→五组 + 退役指引（行首含 /auth 登录族故计数差一）。
 - §17.2：新增「单入口口径」注记（T-ACCESS-037，无迁移端点、无兼容层）。
 
 ### 验证链
@@ -78,6 +78,14 @@ system_config 表双管理入口：admin /config（ConfigServiceImpl，UPDATE/DE
 - 单测轨道 `-DskipTestcontainers=true`：1228 用例 0 失败 0 错误。
 - 全量收口 `mvn test -T 1C`（含 E2E）：BUILD SUCCESS（06:36）——perm-common 30 / common 65 / starter 15 / example 10 / gateway 106 / access-service 单测 1228 / 容器组 210 / e2e 14，全轨道 0 失败 0 错误；容器组 212→210 与删除的 AdminXmlPaginationPgIT 两用例精确对应。
 - 双轨评审处置后复跑：HttpApiPathSnapshotTest（含新增 RETIRED_PATHS 四条）+ ErrorCodeContractTest 定向全绿（见评审处置节）。
+
+### 外部评审处置（2026-09-13，claude + grok 双通道，均 read-only + 禁子代理）
+
+评审范围 `2c25c2403..ad896c1dc`（9c8d1a2f9 本任务主体 + ad896c1dc 036 遗留注释修正）。claude（默认模型，stdout 全文报告）P0-P2 零 + P3×1；grok（grok-4.6 xhigh）P0-P2 零 + P3×1；两通道零矛盾，八项专项清单全过、复核 ①-⑥ 本地处置均确认修对、`ad896c1dc` 注释表述与两测试载荷/断言吻合（含 GlobalExceptionHandler 双通道同码 :91-94/:143-147 引证）。处置：
+
+- **claude P3（采纳，已修）**：任务卡与计划进度行「§17.3 族清单 6→5」计数归属错误——§17.3 自身清单 5→4（dict/notice/job/login-log），6→5 是行首覆面说明（含 /auth 登录族）的变更，同卡两行对同一事实两种归属。两处已改为「§17.3 5→4 / 覆面说明 6→5」并注明计数差一原因。
+- **grok P3（采纳，已修）**：pending-problems.md frontmatter `counter` 未随 Q-010 登记上调（仍 Q-009，下一号将与 Q-010 撞号破坏 ID 冻结协议）——已改 Q-010。
+- **存量观察（两通道，登记不处置）**：①`SystemConfigAppServiceImpl.upsertSystemConfig` update 分支无 `is_system` 守卫——「系统内置配置不可改」在全仓已无运行时强制（admin 侧 CONFIG_SYSTEM_IMMUTABLE 随僵尸端点消亡、perm 侧从未有守卫；可达状态集本任务前后不变，非放大）——待用户拍板处置方向；②AdminPageRespShapeTest 零集短路「不查列表」性质未被严格锁定（Mockito 默认空列表可通过，T-ADMIN-027 既有形态）；③同文件 javadoc 边界用例枚举与三用例形态不完全对应（既有表述）；④AdminErrorCode:9 类头摘要散文仍列「配置」类（107xx 段已空并加退役注记，轻微不称）；⑤T-PERM-053 完成记录保留「归因钉死」历史字样（时点快照，修正谱系以 036 卡闭环句为准）；⑥ErrorCodeContractTest 退役名换新码值复活不拦（既有机制边界，卡内已登记）。
 
 ### 存量观察（不在本任务范围）
 

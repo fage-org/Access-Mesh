@@ -1,7 +1,7 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-009            # 已分配最大问题号；分配后冻结，不复用不重排
+counter: Q-010           # 已分配最大问题号；分配后冻结，不复用不重排
 last_updated: 2026-09-13
 ---
 
