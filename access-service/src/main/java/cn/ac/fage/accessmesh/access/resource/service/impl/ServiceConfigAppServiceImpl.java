@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ApiMappingResp;
@@ -101,7 +101,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
 
@@ -158,7 +158,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @Transactional(readOnly = true)
     public ServiceConfigResp getServiceConfig(Long tenantId, String serviceCode) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCode, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE:" + serviceCode);
         }
 
@@ -181,7 +181,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @Transactional(readOnly = true)
     public List<ServiceConfigResp> listServiceConfigs(Long tenantId) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE");
         }
 
@@ -211,7 +211,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     public void deleteServiceConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
 

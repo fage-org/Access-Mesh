@@ -37,7 +37,7 @@
    psql -h <host> -U <用户> -d <库> -f docs/design/schema/access-service.sql
    ```
    种子包含租户 1 的 type_definition（user_type/role_type/resource_type）与 operation_permission
-   预置操作码（含 USER:MANAGE / ROLE:MANAGE 等运行时必需码）。
+   预置操作码（含 ROLE:MANAGE 等运行时必需码；USER 轨已细码化，USER:MANAGE 随 T-ACCESS-034 退役删除）。
 3. **清理 Redis（必做）**：统一主体 ID 后缓存键数值与重建前可能重叠（主体键缓存以
    `abstract_user.id` 为标识符；重建后序列从头取号，旧键会命中错误数据）。
    缓存键格式为**租户优先**：`{tenantId}:{catalogCode}:{identifier}`（如 `1:perm:effective-roles:456`）。

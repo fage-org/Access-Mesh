@@ -5,7 +5,7 @@ import java.util.Map;
 /**
  * orgType → 操作码声明式映射（单一事实源）。
  * <p>
- * 将 {@code SysOrg.orgType} 到 {@link AdminOperationCode} 的分发关系集中到一处，
+ * 将 {@code SysOrg.orgType} 到 {@link OperationCode} 的分发关系集中到一处，
  * 避免在 OrgAppServiceImpl / UserOrgAppServiceImpl 中散落 if-else 分支。
  * 新增 orgType 子类型时只需扩展本映射表。
  *
@@ -40,18 +40,18 @@ public final class OrgOperationCodeMapper {
     // ===== CRUD 操作码映射（OrgAppServiceImpl 使用） =====
 
     private static final Map<String, String> CREATE_MAP = Map.of(
-        ORG_TYPE_POSITION_NUM, AdminOperationCode.CREATE_POSITION,
-        ORG_TYPE_POSITION_LABEL, AdminOperationCode.CREATE_POSITION
+        ORG_TYPE_POSITION_NUM, OperationCode.CREATE_POSITION,
+        ORG_TYPE_POSITION_LABEL, OperationCode.CREATE_POSITION
     );
 
     private static final Map<String, String> UPDATE_MAP = Map.of(
-        ORG_TYPE_POSITION_NUM, AdminOperationCode.UPDATE_POSITION,
-        ORG_TYPE_POSITION_LABEL, AdminOperationCode.UPDATE_POSITION
+        ORG_TYPE_POSITION_NUM, OperationCode.UPDATE_POSITION,
+        ORG_TYPE_POSITION_LABEL, OperationCode.UPDATE_POSITION
     );
 
     private static final Map<String, String> DELETE_MAP = Map.of(
-        ORG_TYPE_POSITION_NUM, AdminOperationCode.DELETE_POSITION,
-        ORG_TYPE_POSITION_LABEL, AdminOperationCode.DELETE_POSITION
+        ORG_TYPE_POSITION_NUM, OperationCode.DELETE_POSITION,
+        ORG_TYPE_POSITION_LABEL, OperationCode.DELETE_POSITION
     );
 
     /**
@@ -59,8 +59,8 @@ public final class OrgOperationCodeMapper {
      * 与 CREATE/UPDATE/DELETE 同构，实现「读普通组织 ≠ 读岗位」独立配权。
      */
     private static final Map<String, String> VIEW_MAP = Map.of(
-        ORG_TYPE_POSITION_NUM, AdminOperationCode.VIEW_POSITION,
-        ORG_TYPE_POSITION_LABEL, AdminOperationCode.VIEW_POSITION
+        ORG_TYPE_POSITION_NUM, OperationCode.VIEW_POSITION,
+        ORG_TYPE_POSITION_LABEL, OperationCode.VIEW_POSITION
     );
 
     // ===== 成员关系操作码映射（UserOrgAppServiceImpl 使用） =====
@@ -70,10 +70,10 @@ public final class OrgOperationCodeMapper {
      * v1.4 起普通组织从 UPDATE 拆出 MANAGE_MEMBER，便于独立配权。
      */
     private static final Map<String, String> USER_ORG_UPDATE_MAP = Map.of(
-        ORG_TYPE_REGULAR_NUM, AdminOperationCode.MANAGE_MEMBER,
-        ORG_TYPE_REGULAR_LABEL, AdminOperationCode.MANAGE_MEMBER,
-        ORG_TYPE_POSITION_NUM, AdminOperationCode.ASSIGN_POSITION_USER,
-        ORG_TYPE_POSITION_LABEL, AdminOperationCode.ASSIGN_POSITION_USER
+        ORG_TYPE_REGULAR_NUM, OperationCode.MANAGE_MEMBER,
+        ORG_TYPE_REGULAR_LABEL, OperationCode.MANAGE_MEMBER,
+        ORG_TYPE_POSITION_NUM, OperationCode.ASSIGN_POSITION_USER,
+        ORG_TYPE_POSITION_LABEL, OperationCode.ASSIGN_POSITION_USER
     );
 
     /**
@@ -88,10 +88,10 @@ public final class OrgOperationCodeMapper {
      */
     public static String resolve(String orgType, String baseOperation) {
         Map<String, String> map = switch (baseOperation) {
-            case AdminOperationCode.CREATE -> CREATE_MAP;
-            case AdminOperationCode.UPDATE -> UPDATE_MAP;
-            case AdminOperationCode.DELETE -> DELETE_MAP;
-            case AdminOperationCode.VIEW -> VIEW_MAP;
+            case OperationCode.CREATE -> CREATE_MAP;
+            case OperationCode.UPDATE -> UPDATE_MAP;
+            case OperationCode.DELETE -> DELETE_MAP;
+            case OperationCode.VIEW -> VIEW_MAP;
             default -> Map.of();
         };
         return map.getOrDefault(normalize(orgType), baseOperation);
@@ -109,10 +109,10 @@ public final class OrgOperationCodeMapper {
      * @return 对应 orgType 的成员关系操作码
      */
     public static String resolveForUserOrg(String orgType, String baseOperation) {
-        if (AdminOperationCode.UPDATE.equals(baseOperation)) {
+        if (OperationCode.UPDATE.equals(baseOperation)) {
             // null / 未匹配的 orgType 默认按普通组织处理 → MANAGE_MEMBER
             String mapped = USER_ORG_UPDATE_MAP.get(normalize(orgType));
-            return mapped != null ? mapped : AdminOperationCode.MANAGE_MEMBER;
+            return mapped != null ? mapped : OperationCode.MANAGE_MEMBER;
         }
         return resolve(orgType, baseOperation);
     }

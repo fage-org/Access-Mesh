@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode + §8.3 死常量注记口径变更——统一常量面=注册表镜像）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -48,7 +48,7 @@ cn.ac.fage.accessmesh.permission
 │   └── OperationLogRuntimeContext    ← ThreadLocal 上下文
 ├── cache                             ← CacheService 缓存目录
 ├── config                            ← 配置类
-├── constant                          ← 常量（OperationCodeConstants 等）
+├── constant                          ← 常量（OperationCode 等）
 ├── controller (22)
 │   ├── AbstractRoleSyncController
 │   ├── AbstractUserSyncController
@@ -325,21 +325,21 @@ public interface PermissionGrantDomainService {
 
 // 单目标鉴权（boolean）
 boolean ok = engine.hasPermissionByCode(tenantId, subjectId,
-    ResourceTypeCode.ROLE, roleId.toString(), OperationCodeConstants.MANAGE);
+    ResourceTypeCode.ROLE, roleId.toString(), OperationCode.MANAGE);
 
 // 批量获取被拒绝的业务编码集合（纯查询，不抛异常）
 Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId,
-    ResourceTypeCode.USER, userCodes, OperationCodeConstants.MANAGE);
+    ResourceTypeCode.ROLE, roleCodes, OperationCode.MANAGE);
 
 // —— 内部 / 已完成解析的调用方：resource_entity.id 语义 ——
 // （仅限引擎内部与直接管理资源实体的后台链路：资源树、API 映射、资源依赖、权限树等，
 //   这些入口手里的 id 本就是 resource_entity.id）
 
 boolean okEntity = engine.hasPermissionByEntityId(tenantId, subjectId,
-    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.MANAGE);
+    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCode.MANAGE);
 
 Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
-    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCodeConstants.DELETE);
+    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCode.DELETE);
 ```
 
 **拉平后四便捷入口预设（T-PERM-057，Q12/Q13 定案）**：
@@ -617,7 +617,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         // ① 鉴权（先于一切分支；hasPermissionByCode 返回 boolean，必须显式判断 false 并抛异常）
         Long roleId = typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), ...);
-        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorSubjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
 
@@ -858,18 +858,18 @@ permission-center 内部各 Service 的常规鉴权统一通过 `PermQueryEngine
 ```java
 // 单目标鉴权（业务编码语义）
 if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE,
-        roleId.toString(), OperationCodeConstants.MANAGE)) {
+        roleId.toString(), OperationCode.MANAGE)) {
     throw new SecurityException("Permission denied");
 }
 
 // 批量获取拒绝集合（业务编码语义，纯查询）
-Set<String> deniedUserCodes = engine.getDeniedResourceCodes(
-    tenantId, subjectId, ResourceTypeCode.USER, userCodes, OperationCodeConstants.MANAGE
+Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
+    tenantId, subjectId, ResourceTypeCode.ROLE, roleCodes, OperationCode.MANAGE
 );
 
 // 资源实体管理链路（req.id() 本就是 resource_entity.id）
 if (!engine.hasPermissionByEntityId(tenantId, subjectId, ResourceTypeCode.RESOURCE,
-        req.id(), OperationCodeConstants.MANAGE)) {
+        req.id(), OperationCode.MANAGE)) {
     throw new SecurityException("Permission denied");
 }
 
@@ -895,7 +895,7 @@ PermResult r = engine.query(q);
 
 ```java
 Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
-    tenantId, subjectId, ResourceTypeCode.ROLE, roleCodes, OperationCodeConstants.MANAGE
+    tenantId, subjectId, ResourceTypeCode.ROLE, roleCodes, OperationCode.MANAGE
 );
 if (!deniedRoleCodes.isEmpty()) {
     throw new SecurityException("No permission to manage roles: " + deniedRoleCodes);
@@ -935,7 +935,7 @@ if (!deniedRoleCodes.isEmpty()) {
 
 ### 7.6 实现注意事项
 
-1. **移除 `CAN_MANAGE` 误用**：不再使用 `CAN_MANAGE` 作为权限判断条件，统一使用 `OperationCodeConstants.MANAGE`
+1. **移除 `CAN_MANAGE` 误用**：不再使用 `CAN_MANAGE` 作为权限判断条件，统一使用 `OperationCode.MANAGE`
 2. **`canGrant` 只用于授权流程**：在 `PermissionGrantAppServiceImpl` 中通过 `PermissionGrantDomainService.checkCanGrant()` 校验，不在普通鉴权时使用
 3. **统一入口**：内部权限检查统一调用 `PermQueryEngine.hasPermissionByCode/getDeniedResourceCodes`（业务编码）或 `hasPermissionByEntityId/getDeniedEntityIds`（资源实体管理链路）或 `query(PermQuery)`，避免各 Service 分散实现（T-ACCESS-016 终态，旧 `hasPermission/validateBatch/getDeniedIds` 随 T-PERM-042 删除）
 4. **批量检查避免 N+1**：批量操作（删除、修改）使用 `getDeniedResourceCodes`/`getDeniedEntityIds`，一次统一管线完成全部权限校验
@@ -995,5 +995,5 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 ### 8.3 D3 一致性核对结论（2026-09-07）
 
 - 代码门禁调用对 36 组 + bootstrap GrantSpec 33 组逐一比对 DDL 种子：**全部有对应 `operation_permission` 种子行，零缺失**。
-- `OperationCodeConstants.ASSIGN/REVOKE` 为死常量（DDL 有 ROLE:ASSIGN/REVOKE 种子、授权矩阵可见可授予，但无任何代码门禁消费——历史用户角色代理门禁遗物）：常量已删、种子保留（数据面不动）。
+- 原旧册 `OperationCodeConstants.ASSIGN/REVOKE` 曾按本口径删除（死常量：DDL 有 ROLE:ASSIGN/REVOKE 种子、授权矩阵可见可授予，但无任何代码门禁消费——历史用户角色代理门禁遗物），种子保留（数据面不动）。**T-ACCESS-034 口径变更（2026-09-13）**：两册常量类合一为 `OperationCode`（engine.constant 唯一常量源）后改为「统一常量面=注册表镜像」——DDL 种子在册即收录（ASSIGN/REVOKE 恢复常量收录、另补录 API:ACCESS），「常量类只镜像代码引用面」约束随之退役；变更登记见 T-ACCESS-034 任务卡。
 - typeCode 服务端生成码确认为 `<TYPEKEY大写>_<typeValue>`（如 `RESOURCE_TYPE_12`）；原 javadoc `TYPEKEY_<typeValue>` 为占位示意写法，已订正为准确表述。

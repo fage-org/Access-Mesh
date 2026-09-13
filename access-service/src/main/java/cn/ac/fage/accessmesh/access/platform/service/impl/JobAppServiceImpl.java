@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.task.SysTaskExecution;
 import cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionContext;
 import cn.ac.fage.accessmesh.access.platform.dto.resp.JobLogResp;
 import cn.ac.fage.accessmesh.access.platform.dto.resp.JobResp;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.common.model.IdReq;
@@ -206,7 +206,7 @@ public class JobAppServiceImpl implements JobAppService {
     public Long createJob(JobCreateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.CREATE);
 
         SysJob job = new SysJob();
         job.setTenantId(tenantId);
@@ -251,7 +251,7 @@ public class JobAppServiceImpl implements JobAppService {
         }
 
         // 权限检查 — 实例级 UPDATE
-        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, req.id().toString(), AdminOperationCode.UPDATE);
+        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, req.id().toString(), OperationCode.UPDATE);
 
         // 若当前正在运行，先取消调度
         if (existing.getStatus() == JOB_STATUS_ENABLED) {
@@ -292,7 +292,7 @@ public class JobAppServiceImpl implements JobAppService {
 
         // 权限检查 — 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
-        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_JOB, resourceCodes, AdminOperationCode.DELETE);
+        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_JOB, resourceCodes, OperationCode.DELETE);
 
         // 先取消调度（必须循环执行调度器操作）
         for (Long id : req.ids()) {
@@ -334,7 +334,7 @@ public class JobAppServiceImpl implements JobAppService {
         }
 
         // 权限检查 — 实例级 ENABLE（启用/禁用共用，toggle 语义，v1.4 合并）
-        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, id.toString(), AdminOperationCode.ENABLE);
+        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, id.toString(), OperationCode.ENABLE);
 
         job.setStatus(status);
         job.setUpdatedAt(LocalDateTime.now());
@@ -361,7 +361,7 @@ public class JobAppServiceImpl implements JobAppService {
         targetId = "#id", summary = "'trigger job ' + #id")
     public void triggerJob(Long id) {
         // 权限检查 — 实例级 TRIGGER
-        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, id.toString(), AdminOperationCode.TRIGGER);
+        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, id.toString(), OperationCode.TRIGGER);
 
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob job = jobMapper.selectValidById(tenantId, id);

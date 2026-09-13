@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ServiceConfigSyncResp;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
@@ -131,7 +131,7 @@ public class ServiceSyncAppServiceImpl implements ServiceSyncAppService {
      * @throws SecurityException 无权限时抛出
      */
     private void validatePermission(Long tenantId, Long operatorId, ServiceConfigSyncReq req) {
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.SYNC_INTERFACE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCode.SYNC_INTERFACE)) {
             throw new SecurityException("Permission denied: SYNC_INTERFACE on SERVICE:" + req.serviceCode());
         }
     }

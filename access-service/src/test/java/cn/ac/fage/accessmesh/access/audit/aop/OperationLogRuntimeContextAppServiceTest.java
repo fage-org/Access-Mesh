@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.audit.aop;
 
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
@@ -175,7 +175,7 @@ class OperationLogRuntimeContextAppServiceTest {
             .thenReturn(Map.of("MENU", 1));
         when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(1)), anySet(), anySet()))
             .thenReturn(List.of(first, second));
-        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L, 20L), OperationCodeConstants.MANAGE))
+        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L, 20L), OperationCode.MANAGE))
             .thenReturn(Set.of(10L, 20L));
 
         service.deleteResources(1L, List.of(
@@ -223,7 +223,7 @@ class OperationLogRuntimeContextAppServiceTest {
             .thenReturn(Map.of("r-1", 11L));
         when(typeResolutionService.batchResolveUserIds(1L, "USER", Set.of("u-1")))
             .thenReturn(Map.of("u-1", 22L));
-        when(engine.getDeniedResourceCodes(1L, 200L, ResourceTypeCode.ROLE, Set.of("11"), OperationCodeConstants.MANAGE))
+        when(engine.getDeniedResourceCodes(1L, 200L, ResourceTypeCode.ROLE, Set.of("11"), OperationCode.MANAGE))
             .thenReturn(Set.of());
         when(abstractRoleMapper.selectValidByIds(1L, Set.of(11L))).thenReturn(List.of(role));
         when(userRoleMapper.selectValidByUserIdsTypeAndTargetIds(1L, Set.of(22L), ResourceTypeCode.ROLE, Set.of(11L)))

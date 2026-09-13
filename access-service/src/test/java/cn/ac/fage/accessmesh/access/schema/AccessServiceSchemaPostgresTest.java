@@ -115,10 +115,10 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("种子数据齐备（type_definition 33 / operation_permission 125 / system_config 9 / oauth2 3）")
+    @DisplayName("种子数据齐备（type_definition 33 / operation_permission 124 / system_config 9 / oauth2 3）")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(33, countRows("type_definition"));
-        assertEquals(125, countRows("operation_permission"));
+        assertEquals(124, countRows("operation_permission")); // USER:MANAGE 随 T-ACCESS-034 退役删除（125→124）
         assertEquals(9, countRows("system_config"));
         assertEquals(3, countRows("sys_oauth2_client"));
     }
@@ -162,10 +162,10 @@ class AccessServiceSchemaPostgresTest {
     @Test
     @DisplayName("运行时必需操作对完整性：代码实际校验的非 CRUD 操作全部有种子")
     void shouldHaveAllRuntimeRequiredOperations() throws SQLException {
-        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 25 对 = 权限中心 13 + Admin 12；
-        // T-ACCESS-018 收敛：ADMIN_ORG 六码迁 ORG、ADMIN_USER 两码迁 USER、ADMIN_ROLE:GRANT/REVOKE 删除）
+        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 24 对 = 权限中心 12 + Admin 12；
+        // T-ACCESS-018 收敛：ADMIN_ORG 六码迁 ORG、ADMIN_USER 两码迁 USER、ADMIN_ROLE:GRANT/REVOKE 删除；
+        // USER:MANAGE 随 T-ACCESS-034 USER 轨细粒度化退役——update/remove 门禁换绑 UPDATE/DELETE 通用码，种子删除）
         String[][] required = {
-            {"USER", "MANAGE"},
             {"ROLE", "MANAGE"}, {"ROLE", "ASSIGN"}, {"ROLE", "REVOKE"},
             {"RESOURCE", "MANAGE"},
             {"SERVICE", "MANAGE"}, {"SERVICE", "MANAGE_API_MAPPING"}, {"SERVICE", "SYNC_INTERFACE"},

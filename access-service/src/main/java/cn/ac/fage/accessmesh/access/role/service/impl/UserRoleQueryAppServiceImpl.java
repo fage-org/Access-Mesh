@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.role.service.impl;
 import cn.ac.fage.accessmesh.access.role.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.access.role.dto.resp.UserRoleItemResp;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.role.service.UserRoleQueryAppService;
@@ -66,7 +66,7 @@ public class UserRoleQueryAppServiceImpl implements UserRoleQueryAppService {
     @Override
     @Transactional(readOnly = true)
     public List<RoleListItemResp> listRoles(List<String> roleTypeCodes) {
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ROLE, AdminOperationCode.VIEW);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ROLE, OperationCode.VIEW);
         List<String> typeCodes = (roleTypeCodes != null && !roleTypeCodes.isEmpty())
             ? roleTypeCodes
             : FUNCTIONAL_ROLE_TYPES;
@@ -109,7 +109,7 @@ public class UserRoleQueryAppServiceImpl implements UserRoleQueryAppService {
     @Transactional(readOnly = true)
     public List<UserRoleItemResp> listUserRoles(Long userId) {
         permissionValidator.checkInstanceLevel(
-            ResourceTypeCode.USER, String.valueOf(userId), AdminOperationCode.VIEW);
+            ResourceTypeCode.USER, String.valueOf(userId), OperationCode.VIEW);
         Long tenantId = TenantContextHolder.getTenantId();
         Long abstractUserId = typeResolutionService.resolveUserId(
             tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(userId));

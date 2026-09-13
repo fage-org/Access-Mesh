@@ -31,6 +31,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 
 /**
  * 权限检查应用服务实现
@@ -179,7 +180,7 @@ public class PermissionCheckAppServiceImpl implements PermissionCheckAppService 
         Set<Long> entityIds = matched.stream()
             .map(ResourceApiMapping::getResourceEntityId).filter(Objects::nonNull).collect(Collectors.toSet());
 
-        PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, "ACCESS");
+        PermQuery q = PermQuery.forInterfaceCheck(tenantId, userId, Set.of("API"), entityIds, OperationCode.ACCESS);
         q.setEvalContext(PermEvalContext.fromCallerMap(req.context()));
         return PermResultUtils.toCheckInterfaceResp(engine.query(q), 30);
     }

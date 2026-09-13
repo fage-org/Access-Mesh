@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.platform.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq;
@@ -84,7 +84,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         targetId = "#result", summary = "'create notice'")
     public Long createNotice(NoticeCreateReq req) {
         // 权限检查 — 类型级 CREATE
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_NOTICE, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_NOTICE, OperationCode.CREATE);
 
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -133,7 +133,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
 
         // 权限检查 — 实例级 UPDATE
         permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_NOTICE,
-            String.valueOf(req.id()), AdminOperationCode.UPDATE);
+            String.valueOf(req.id()), OperationCode.UPDATE);
 
         // FIX: Parse and validate targetUserIds before updating
         parseAndValidateUserIds(tenantId, req.targetUserIds());
@@ -164,7 +164,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
 
         // 权限检查 — 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
-        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_NOTICE, resourceCodes, AdminOperationCode.DELETE);
+        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_NOTICE, resourceCodes, OperationCode.DELETE);
 
         // 批量查询有效通知（性能优化：避免 N+1 查询）
         List<SysNotice> notices = noticeMapper.selectByIdsSafe(tenantId, req.ids());
@@ -249,7 +249,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         }
 
         // 权限检查 — 实例级 PUBLISH
-        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_NOTICE, notice.getId().toString(), AdminOperationCode.PUBLISH);
+        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_NOTICE, notice.getId().toString(), OperationCode.PUBLISH);
 
         notice.setStatus(2);
         notice.setPublishedAt(LocalDateTime.now());

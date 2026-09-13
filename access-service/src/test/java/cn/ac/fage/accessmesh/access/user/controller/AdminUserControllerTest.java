@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.user.controller;
 
 import cn.ac.fage.accessmesh.access.auth.dto.UserInfoResp;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.user.service.UserAppService;
@@ -81,7 +81,7 @@ class AdminUserControllerTest {
         R<UserInfoResp> result = controller.getUserMenus(new IdReq(OTHER_ID));
 
         verify(permissionValidator).checkInstanceLevel(
-            ResourceTypeCode.USER, String.valueOf(OTHER_ID), AdminOperationCode.VIEW);
+            ResourceTypeCode.USER, String.valueOf(OTHER_ID), OperationCode.VIEW);
         assertEquals(OTHER_ID, result.getData().userId());
     }
 
@@ -90,7 +90,7 @@ class AdminUserControllerTest {
     void getUserMenus_other_withoutPermission_propagates() {
         doThrow(new SecurityException("Permission denied"))
             .when(permissionValidator)
-            .checkInstanceLevel(ResourceTypeCode.USER, String.valueOf(OTHER_ID), AdminOperationCode.VIEW);
+            .checkInstanceLevel(ResourceTypeCode.USER, String.valueOf(OTHER_ID), OperationCode.VIEW);
 
         assertThrows(SecurityException.class, () -> controller.getUserMenus(new IdReq(OTHER_ID)));
         verify(userMenuQueryService, never()).loadUserRolesAndPermissions(OTHER_ID);

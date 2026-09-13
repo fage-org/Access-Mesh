@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
 
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService;
@@ -92,7 +92,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     @OperationLog(module = "ACCESS", action = "USER_CREATE", targetType = "sys_user",
         targetId = "#result.id()", summary = "'create user ' + #req.username()")
     public UserCreateResp createUser(UserCreateReq req) {
-        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, OperationCode.CREATE);
         Long tenantId = TenantContextHolder.getTenantId();
 
         // status 仅接纳 0/1（T-ADMIN-022 语义收口：0=停用，1=启用；写入口全部拦截非法值）
@@ -144,7 +144,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         if (req.orgId() != null) {
             validateOrgInDefaultTree(tenantId, req.orgId());
             permissionValidator.checkInstanceLevel(
-                ResourceTypeCode.ORG, String.valueOf(req.orgId()), AdminOperationCode.UPDATE);
+                ResourceTypeCode.ORG, String.valueOf(req.orgId()), OperationCode.UPDATE);
 
             SysUserOrg userOrg = new SysUserOrg();
             userOrg.setTenantId(tenantId);
@@ -179,7 +179,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         Long currentUserId = currentOperatorId();
         if (!req.id().equals(currentUserId)) {
             permissionValidator.checkInstanceLevel(
-                ResourceTypeCode.USER, String.valueOf(req.id()), AdminOperationCode.UPDATE);
+                ResourceTypeCode.USER, String.valueOf(req.id()), OperationCode.UPDATE);
         }
         Long tenantId = TenantContextHolder.getTenantId();
         SysUser user = userDomainService.selectValidById(tenantId, req.id());
@@ -237,7 +237,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         permissionValidator.checkBatchInstanceLevel(
             ResourceTypeCode.USER,
             req.ids().stream().map(String::valueOf).collect(Collectors.toList()),
-            AdminOperationCode.DELETE);
+            OperationCode.DELETE);
         validateUsersInDefaultTreeScope(tenantId, Set.copyOf(req.ids()));
 
         List<SysUser> users = userDomainService.selectValidByIds(tenantId, Set.copyOf(req.ids()));
@@ -315,7 +315,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         permissionValidator.checkBatchInstanceLevel(
             ResourceTypeCode.USER,
             req.ids().stream().map(String::valueOf).collect(Collectors.toList()),
-            AdminOperationCode.ENABLE);
+            OperationCode.ENABLE);
         Long tenantId = TenantContextHolder.getTenantId();
         validateUsersInDefaultTreeScope(tenantId, Set.copyOf(req.ids()));
 

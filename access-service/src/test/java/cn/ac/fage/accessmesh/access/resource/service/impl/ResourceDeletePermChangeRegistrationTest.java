@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -85,7 +85,7 @@ class ResourceDeletePermChangeRegistrationTest {
             .thenReturn(java.util.Map.of("MENU", 1));
         when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(1)), anySet(), anySet()))
             .thenReturn(List.of(root));
-        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
+        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCode.MANAGE))
             .thenReturn(Set.of());
         when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
             .thenReturn(java.util.Map.of(10L, List.of(11L)));
@@ -135,7 +135,7 @@ class ResourceDeletePermChangeRegistrationTest {
             .thenReturn(java.util.Map.of("MENU", 1));
         when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(1)), anySet(), anySet()))
             .thenReturn(List.of(root));
-        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
+        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCode.MANAGE))
             .thenReturn(Set.of());
         when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
             .thenReturn(java.util.Map.of(10L, List.of()));
@@ -163,7 +163,7 @@ class ResourceDeletePermChangeRegistrationTest {
             .thenReturn(java.util.Map.of("MENU", 1));
         when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(1)), anySet(), anySet()))
             .thenReturn(List.of(root));
-        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
+        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCode.MANAGE))
             .thenReturn(Set.of());
         when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
             .thenReturn(java.util.Map.of(10L, List.of()));

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access;
 
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AdminCacheCatalog;
+import cn.ac.fage.accessmesh.access.platform.dto.resp.DictTypeResp;
 import cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionDomainService;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
@@ -25,7 +26,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
-import java.util.Map;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -180,19 +181,21 @@ class DualInstanceContainerTest {
     @DisplayName("跨实例缓存：A 写入 B 可读（共享 L2），A 失效后 B 读取为 null（L1 广播失效）")
     void crossInstanceCache_sharedL2AndInvalidationBroadcast() throws Exception {
         Object key = "dual-instance-probe";
-        Map<String, Long> value = Map.of("USER:VIEW", 1L);
+        // T-ACCESS-034：原验通样例 AdminCacheCatalog.OPERATION_CODE（操作码 → ID 映射缓存）为
+        // 死条目已删除，换同目录 L1_L2 活条目 DICT_TYPES 验证同一机制（跨实例 L2 共享 + L1 广播失效）
+        List<DictTypeResp> value = List.of(new DictTypeResp(1L, "双实例探针", "dual-instance-probe", 0, null, null, null));
 
         // 实例 A 写入（L1+L2）；实例 B 首读 miss L1 → 命中共享 L2 并回填 B 的 L1
-        cacheServiceA.put(AdminCacheCatalog.OPERATION_CODE, TENANT_ID, key, value);
-        Map<String, Long> seenByB = cacheServiceB.get(AdminCacheCatalog.OPERATION_CODE, TENANT_ID, key);
-        assertThat(seenByB).as("实例 B 必须经共享 Redis L2 读到实例 A 写入的值").containsExactlyEntriesOf(value);
+        cacheServiceA.put(AdminCacheCatalog.DICT_TYPES, TENANT_ID, key, value);
+        List<DictTypeResp> seenByB = cacheServiceB.get(AdminCacheCatalog.DICT_TYPES, TENANT_ID, key);
+        assertThat(seenByB).as("实例 B 必须经共享 Redis L2 读到实例 A 写入的值").containsExactlyElementsOf(value);
 
         // 实例 A 失效（清 L2 + RTopic 广播清各实例 L1）；广播为异步，轮询等待 B 侧清空
-        cacheServiceA.evict(AdminCacheCatalog.OPERATION_CODE, TENANT_ID, key);
+        cacheServiceA.evict(AdminCacheCatalog.DICT_TYPES, TENANT_ID, key);
         long deadline = System.currentTimeMillis() + 5_000;
-        Map<String, Long> afterEvict;
+        List<DictTypeResp> afterEvict;
         do {
-            afterEvict = cacheServiceB.get(AdminCacheCatalog.OPERATION_CODE, TENANT_ID, key);
+            afterEvict = cacheServiceB.get(AdminCacheCatalog.DICT_TYPES, TENANT_ID, key);
             if (afterEvict == null) {
                 break;
             }

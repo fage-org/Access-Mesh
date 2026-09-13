@@ -15,7 +15,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgMapper;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgTreeConfigMapper;
 import cn.ac.fage.accessmesh.access.org.mapper.SysUserOrgMapper;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapper;
@@ -114,7 +114,7 @@ public class OrgAppServiceImpl implements OrgAppService {
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG,
             String.valueOf(id),
-            OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.VIEW)
+            OrgOperationCodeMapper.resolve(org.getOrgType(), OperationCode.VIEW)
         );
 
         return toResp(org, List.of());
@@ -132,7 +132,7 @@ public class OrgAppServiceImpl implements OrgAppService {
         // 类型级 VIEW，按 orgType 分发
         permissionValidator.checkTypeLevel(
             ResourceTypeCode.ORG,
-            OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.VIEW)
+            OrgOperationCodeMapper.resolve(orgType, OperationCode.VIEW)
         );
 
         int pageNum = req.getPageNum();
@@ -167,11 +167,11 @@ public class OrgAppServiceImpl implements OrgAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         boolean mixed = Boolean.TRUE.equals(q.includePositions());
         String operationCode = q.operationCode() == null
-            ? AdminOperationCode.VIEW : q.operationCode();
-        boolean createSemantics = AdminOperationCode.CREATE.equals(operationCode);
+            ? OperationCode.VIEW : q.operationCode();
+        boolean createSemantics = OperationCode.CREATE.equals(operationCode);
 
         // 参数校验：非法 operationCode / 冲突组合 → 10008（枚举缝隙 fail-closed）
-        if (!AdminOperationCode.VIEW.equals(operationCode) && !createSemantics) {
+        if (!OperationCode.VIEW.equals(operationCode) && !createSemantics) {
             throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
                 "operationCode 仅支持 VIEW / CREATE，实际: " + operationCode);
         }
@@ -188,9 +188,9 @@ public class OrgAppServiceImpl implements OrgAppService {
         // 单类型按 orgType 分发（D2=B，OrgOperationCodeMapper 单一事实源）
         boolean includePositionNodes = false;
         if (mixed) {
-            permissionValidator.checkTypeLevel(ResourceTypeCode.ORG, AdminOperationCode.VIEW);
+            permissionValidator.checkTypeLevel(ResourceTypeCode.ORG, OperationCode.VIEW);
             includePositionNodes = permissionValidator.hasTypeLevel(
-                ResourceTypeCode.ORG, AdminOperationCode.VIEW_POSITION);
+                ResourceTypeCode.ORG, OperationCode.VIEW_POSITION);
         } else {
             // D2=B 强制要求显式 orgType，否则无法分发 VIEW / VIEW_POSITION 做细粒度门控
             if (q.orgType() == null) {
@@ -361,7 +361,7 @@ public class OrgAppServiceImpl implements OrgAppService {
 
         // D3=A 组织成员列表归属 USER:VIEW（契约 §4 B 区：「看成员 = 看用户」），
         // 与组织实例的 VIEW / VIEW_POSITION 解耦
-        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.VIEW);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, OperationCode.VIEW);
 
         cn.ac.fage.accessmesh.access.org.entity.table.SysUserOrgTableDef suo = cn.ac.fage.accessmesh.access.org.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
         com.mybatisflex.core.query.QueryWrapper qw = com.mybatisflex.core.query.QueryWrapper.create()

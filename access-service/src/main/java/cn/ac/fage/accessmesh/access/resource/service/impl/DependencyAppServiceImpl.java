@@ -27,7 +27,7 @@ import com.mybatisflex.core.util.UpdateEntity;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 
 import java.time.LocalDateTime;
@@ -107,7 +107,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @OperationLog(module = "PERMISSION", action = "RESOURCE_DEPENDENCY_CREATE", targetType = "resource_dependency", targetId = "#result.id()", summary = "'create resource dependency'")
     public ResourceDependencyResp createDependency(Long tenantId, ResourceDependencyCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on DEPENDENCY");
         }
         rejectAutoGrantTrue(req.autoGrant());
@@ -176,7 +176,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @Override
     public List<ResourceDependencyResp> listDependencies(Long tenantId, Long resourceEntityId) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DEPENDENCY");
         }
         List<ResourceDependency> dependencies = dependencyMapper.selectByTenantAndResourceEntityId(tenantId, resourceEntityId);
@@ -198,7 +198,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @Override
     public List<ResourceDependencyResp> listAllDependencies(Long tenantId) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DEPENDENCY");
         }
         List<ResourceDependency> dependencies = dependencyMapper.selectByTenantId(tenantId);
@@ -234,7 +234,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         // 类型级门禁（T-PERM-031 口径收窄，同 CONDITION/CONFLICT_RULE：DEPENDENCY 无
         // resource_entity 实例投影，原「编码轨传内部 id」的实例级声称系 ID 空间错位
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.UPDATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on DEPENDENCY:" + req.id());
         }
         rejectAutoGrantTrue(req.autoGrant());
@@ -363,7 +363,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @Override
     public boolean hasDependencyCycle(Long tenantId, ResourceDependencyCheckReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on DEPENDENCY");
         }
         Long sourceId = typeResolutionService.resolveResourceId(
@@ -442,7 +442,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         }
 
         // 类型级门禁（T-PERM-031 口径收窄，同 CONDITION/CONFLICT_RULE 全有或全无）
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.DELETE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.DELETE)) {
             throw new SecurityException("Permission denied: DELETE on DEPENDENCY");
         }
 
@@ -481,7 +481,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     @OperationLog(module = "PERMISSION", action = "RESOURCE_DEPENDENCY_SYNC", targetType = "resource_dependency", targetId = "#req.serviceCode()", summary = "'sync resource dependencies for service ' + #req.serviceCode()")
     public void batchSyncDependencies(Long tenantId, DependencyBatchSyncReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCodeConstants.SYNC)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.SYNC)) {
             throw new SecurityException("Permission denied: SYNC on DEPENDENCY");
         }
 

@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.rule.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.rule.dto.req.ConflictRuleDetectReq;
 import cn.ac.fage.accessmesh.access.rule.dto.req.ConflictRuleReq;
 import cn.ac.fage.accessmesh.access.rule.dto.req.ConflictRuleUpdateReq;
@@ -129,7 +129,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldNormalizePair_whenRoleMutexCreatedInReverseOrder() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of());
 
             ConflictRuleReq req = new ConflictRuleReq("ROLE_MUTEX", null, null, null, 102L, 101L, "d");
@@ -148,7 +148,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldSetResourceTypeValue_whenPermMutexCreated() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of());
 
             ConflictRuleReq req = new ConflictRuleReq("PERM_MUTEX", 501L, 504L, 3, null, null, null);
@@ -164,7 +164,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldReject_whenConflictTypeInvalid() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
 
             ConflictRuleReq req = new ConflictRuleReq("PRIORITY", null, null, null, 101L, 102L, null);
 
@@ -177,7 +177,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldReject_whenRoleMutexMissingRoleIds() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
 
             ConflictRuleReq req = new ConflictRuleReq("ROLE_MUTEX", null, null, null, 101L, null, null);
 
@@ -189,7 +189,7 @@ class ConflictRuleAppServiceImplTest {
         @Test
         void shouldReject_whenPermMutexSameOperationIds() {
             // 同 id 校验先于去重查询（validateFields → isDuplicate），不触达 DB
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
 
             ConflictRuleReq req = new ConflictRuleReq("PERM_MUTEX", 501L, 501L, null, null, null, null);
 
@@ -200,7 +200,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldRejectDuplicate_whenEquivalentRuleExistsBidirectionally() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             // 既有 (501,504,rtv=1)，请求 (504,501,rtv=1) 双向等价 → 20032
             when(conflictRuleMapper.selectByTenantId(TENANT_ID))
                 .thenReturn(List.of(newPermRule(8L, 501L, 504L, 1)));
@@ -216,7 +216,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldTranslateUniqueViolation_toDuplicateCode() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of());
             when(conflictRuleMapper.insert(any(PermissionConflictRule.class)))
                 .thenThrow(new org.springframework.dao.DataIntegrityViolationException(
@@ -232,7 +232,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldRethrow_whenIntegrityViolationIsOtherConstraint() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of());
             when(conflictRuleMapper.insert(any(PermissionConflictRule.class)))
                 .thenThrow(new org.springframework.dao.DataIntegrityViolationException(
@@ -246,7 +246,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldReject_whenNoTypeLevelCreatePermission() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, false);
+            stubTypeLevelPermission(OperationCode.CREATE, false);
 
             ConflictRuleReq req = new ConflictRuleReq("ROLE_MUTEX", null, null, null, 101L, 102L, null);
 
@@ -264,7 +264,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldReturnDetail_withUpdatedAt_whenViewAllowed() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                stubTypeLevelPermission(OperationCode.VIEW, true);
                 when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID))
                     .thenReturn(newPermRule(RULE_ID, 501L, 504L, 1));
 
@@ -281,7 +281,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldThrow20020_whenDetailRuleMissing() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                stubTypeLevelPermission(OperationCode.VIEW, true);
                 when(conflictRuleMapper.selectValidById(999L, TENANT_ID)).thenReturn(null);
 
                 assertThatThrownBy(() -> service.getConflictRule(TENANT_ID, 999L))
@@ -295,7 +295,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldRejectDetail_whenNoViewPermission() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, false);
+                stubTypeLevelPermission(OperationCode.VIEW, false);
 
                 assertThatThrownBy(() -> service.getConflictRule(TENANT_ID, RULE_ID))
                     .isInstanceOf(SecurityException.class);
@@ -307,7 +307,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldListAll_whenViewAllowed() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                stubTypeLevelPermission(OperationCode.VIEW, true);
                 when(conflictRuleMapper.selectByTenantId(TENANT_ID))
                     .thenReturn(List.of(newRoleRule(1L, 101L, 102L), newPermRule(2L, 501L, 504L, 1)));
 
@@ -323,7 +323,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldRejectList_whenNoViewPermission() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, false);
+                stubTypeLevelPermission(OperationCode.VIEW, false);
 
                 assertThatThrownBy(() -> service.listConflictRules(TENANT_ID))
                     .isInstanceOf(SecurityException.class);
@@ -337,7 +337,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldFullOverwriteAndClearOppositeFields_whenTypeSwitchedToRoleMutex() {
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            stubTypeLevelPermission(OperationCode.UPDATE, true);
             // 既有 PERM_MUTEX (501,504,rtv=1)，切换为 ROLE_MUTEX (102,101)
             when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID))
                 .thenReturn(newPermRule(RULE_ID, 501L, 504L, 1));
@@ -376,7 +376,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldClearResourceTypeValue_whenPermMutexUpdatePassesNull() {
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            stubTypeLevelPermission(OperationCode.UPDATE, true);
             when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID))
                 .thenReturn(newPermRule(RULE_ID, 501L, 504L, 1));
             when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of());
@@ -417,7 +417,7 @@ class ConflictRuleAppServiceImplTest {
         @Test
         void shouldThrow20020_whenReselectReturnsNullAfterUpdate() {
             // 极小并发窗口：更新成功后 re-select 为 null（窗口内被并发软删）→ 20020 收口而非 NPE
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            stubTypeLevelPermission(OperationCode.UPDATE, true);
             when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID))
                 .thenReturn(newRoleRule(RULE_ID, 101L, 102L))
                 .thenReturn(null);
@@ -434,7 +434,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldReject_whenNoTypeLevelUpdatePermission() {
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, false);
+            stubTypeLevelPermission(OperationCode.UPDATE, false);
             when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID))
                 .thenReturn(newRoleRule(RULE_ID, 101L, 102L));
 
@@ -448,7 +448,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldRejectDuplicate_whenEquivalentRuleExistsExcludingSelf() {
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            stubTypeLevelPermission(OperationCode.UPDATE, true);
             when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID))
                 .thenReturn(newPermRule(RULE_ID, 501L, 504L, 1));
             // 另一条等价规则（id 不同）→ 20032
@@ -473,7 +473,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldSoftDeleteResolvedIds_whenTypeLevelDeleteAllowed() {
             when(conflictRuleMapper.selectValidByIds(eq(TENANT_ID), anySet()))
                 .thenReturn(List.of(newRoleRule(RULE_ID, 101L, 102L), newPermRule(8L, 501L, 504L, 1)));
-            stubTypeLevelPermission(OperationCodeConstants.DELETE, true);
+            stubTypeLevelPermission(OperationCode.DELETE, true);
 
             service.deleteConflictRulesByIds(TENANT_ID, List.of(RULE_ID, 8L), OPERATOR_ID);
 
@@ -485,7 +485,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldRejectWholeBatch_whenNoTypeLevelDeletePermission() {
             when(conflictRuleMapper.selectValidByIds(eq(TENANT_ID), anySet()))
                 .thenReturn(List.of(newRoleRule(RULE_ID, 101L, 102L)));
-            stubTypeLevelPermission(OperationCodeConstants.DELETE, false);
+            stubTypeLevelPermission(OperationCode.DELETE, false);
 
             assertThatThrownBy(() -> service.deleteConflictRulesByIds(TENANT_ID, List.of(RULE_ID), OPERATOR_ID))
                 .isInstanceOf(SecurityException.class);
@@ -497,7 +497,7 @@ class ConflictRuleAppServiceImplTest {
             // 幂等语义：不存在的 id 在解析阶段静默跳过，只软删解析出的实体
             when(conflictRuleMapper.selectValidByIds(eq(TENANT_ID), anySet()))
                 .thenReturn(List.of(newRoleRule(RULE_ID, 101L, 102L)));
-            stubTypeLevelPermission(OperationCodeConstants.DELETE, true);
+            stubTypeLevelPermission(OperationCode.DELETE, true);
 
             service.deleteConflictRulesByIds(TENANT_ID, List.of(RULE_ID, 999L), OPERATOR_ID);
 
@@ -537,7 +537,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldReject_whenNoViewPermission() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, false);
+                stubTypeLevelPermission(OperationCode.VIEW, false);
 
                 ConflictRuleDetectReq req = new ConflictRuleDetectReq(501L, 504L, null, null, null);
 
@@ -551,7 +551,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldMatchBidirectionally_includingGlobalRulesFromMapper() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                stubTypeLevelPermission(OperationCode.VIEW, true);
                 // rtv=3 请求：Mapper SQL 语义保证 rtv 匹配或 IS NULL（全局）规则入选，
                 // 服务层只做双向对象对匹配
                 when(conflictRuleMapper.selectByTenantAndResourceType(TENANT_ID, 3))
@@ -571,7 +571,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldReturnEmpty_whenNoPairMatches() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                stubTypeLevelPermission(OperationCode.VIEW, true);
                 when(conflictRuleMapper.selectByTenantAndResourceType(TENANT_ID, null))
                     .thenReturn(List.of(newPermRule(RULE_ID, 501L, 504L, null)));
 
@@ -631,7 +631,7 @@ class ConflictRuleAppServiceImplTest {
         @Test
         void shouldRejectCreate_whenUsersHoldBothRoles() {
             // T-PERM-063 存量守卫：旧实现无此校验、直接落库，本用例在旧实现下必红
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(permissionConflictDomainService.findUsersHoldingBothRoles(TENANT_ID, 101L, 102L))
                 .thenReturn(List.of(20L, 21L, 22L));
 
@@ -646,7 +646,7 @@ class ConflictRuleAppServiceImplTest {
 
         @Test
         void shouldCreate_whenNoExistingHolders() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             // 请求反序 (102,101)：守卫在 first&lt;second 规范化前按原始请求序查询
             when(permissionConflictDomainService.findUsersHoldingBothRoles(TENANT_ID, 102L, 101L))
                 .thenReturn(List.of());
@@ -662,7 +662,7 @@ class ConflictRuleAppServiceImplTest {
         @Test
         void shouldNotCheckHolders_onPermMutexCreate() {
             // PERM_MUTEX 分支不适用存量守卫（守卫只针对角色对）
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of());
 
             service.createConflictRule(
@@ -676,7 +676,7 @@ class ConflictRuleAppServiceImplTest {
             PermissionConflictRule existing = newRoleRule(RULE_ID, 101L, 102L);
             when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID)).thenReturn(existing);
             when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of(existing));
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            stubTypeLevelPermission(OperationCode.UPDATE, true);
             when(permissionConflictDomainService.findUsersHoldingBothRoles(TENANT_ID, 301L, 302L))
                 .thenReturn(List.of(20L));
 
@@ -710,7 +710,7 @@ class ConflictRuleAppServiceImplTest {
         @Test
         void shouldRejectCreate_whenPairContainsStructuralRole() {
             // T-PERM-064：ORG/POSITION 对拒绝（投影通道闭合）；旧实现直接立规必红
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(abstractRoleMapper.selectValidByIds(TENANT_ID, Set.of(101L, 102L)))
                 .thenReturn(List.of(role(101L, 6), role(102L, 1)));
             stubStructuralTypes();
@@ -729,7 +729,7 @@ class ConflictRuleAppServiceImplTest {
             PermissionConflictRule existing = newRoleRule(RULE_ID, 101L, 102L);
             when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID)).thenReturn(existing);
             when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of(existing));
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            stubTypeLevelPermission(OperationCode.UPDATE, true);
             when(abstractRoleMapper.selectValidByIds(TENANT_ID, Set.of(301L, 302L)))
                 .thenReturn(List.of(role(301L, 2), role(302L, 6)));
             stubStructuralTypes();
@@ -745,7 +745,7 @@ class ConflictRuleAppServiceImplTest {
         @Test
         void shouldAllowFunctionalRolePair() {
             // 全功能角色对（role_type=6 BASIC）放行；角色行缺失维持惰性语义（默认空集→跳过类型检查）
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(abstractRoleMapper.selectValidByIds(TENANT_ID, Set.of(101L, 102L)))
                 .thenReturn(List.of(role(101L, 6), role(102L, 6)));
             stubStructuralTypes();
@@ -774,7 +774,7 @@ class ConflictRuleAppServiceImplTest {
             // T-PERM-063：角色对形态 = 立规前预检，conflictDetected 以存量持有清单判定
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                stubTypeLevelPermission(OperationCode.VIEW, true);
                 when(conflictRuleMapper.selectByConflictType(TENANT_ID,
                     cn.ac.fage.accessmesh.access.rule.enums.ConflictType.ROLE_MUTEX.getValue()))
                     .thenReturn(List.of());
@@ -793,7 +793,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldReturnNoConflict_whenNoHolders() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                stubTypeLevelPermission(OperationCode.VIEW, true);
                 when(conflictRuleMapper.selectByConflictType(TENANT_ID,
                     cn.ac.fage.accessmesh.access.rule.enums.ConflictType.ROLE_MUTEX.getValue()))
                     .thenReturn(List.of());
@@ -814,7 +814,7 @@ class ConflictRuleAppServiceImplTest {
             // 与预检语义矛盾（实际 create 会因「两个角色不能相同」被拒）
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                stubTypeLevelPermission(OperationCode.VIEW, true);
 
                 assertThatThrownBy(() -> service.detectConflictRule(
                         TENANT_ID, new ConflictRuleDetectReq(null, null, null, 101L, 101L)))
@@ -829,7 +829,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldReject_whenBothPairsOrNeitherPresent() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR_ID);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                stubTypeLevelPermission(OperationCode.VIEW, true);
 
                 assertThatThrownBy(() -> service.detectConflictRule(
                         TENANT_ID, new ConflictRuleDetectReq(501L, 504L, null, 101L, 102L)))

@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.org.service;
 
 import cn.ac.fage.accessmesh.access.org.dto.req.OrgUpdateReq;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService;

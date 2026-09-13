@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.user.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapper;
@@ -89,7 +89,7 @@ public class UserOrgAppServiceImpl implements UserOrgAppService {
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG,
             String.valueOf(orgId),
-            OrgOperationCodeMapper.resolveForUserOrg(targetOrg.getOrgType(), AdminOperationCode.UPDATE)
+            OrgOperationCodeMapper.resolveForUserOrg(targetOrg.getOrgType(), OperationCode.UPDATE)
         );
 
         // 首期主组织仅表示默认组织树下的主归属

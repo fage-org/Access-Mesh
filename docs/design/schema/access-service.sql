@@ -41,7 +41,8 @@
 --     ADMIN_ORG、USER:ENABLE bit 重分配 32、USER:RESET_PASSWORD bit 64 不变、
 --     ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移；bit 与 CRUD 不冲突）；③权限中心运行时必需
 --     操作（代码实际校验的 MANAGE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE/ACCESS，
---     缺失时权限引擎 fail-closed 全量拒绝）
+--     缺失时权限引擎 fail-closed 全量拒绝；原 USER:MANAGE 已随 T-ACCESS-034 USER 轨细粒度化
+--     退役——update/remove 门禁换绑 UPDATE/DELETE 通用码，16 位空闲不复用）
 --
 -- 执行：从空 PostgreSQL 一次性执行本文件即可获得完整结构；本阶段不引入 migration 框架。
 --
@@ -68,7 +69,8 @@
 --     退役段 16/17/18/19/22/28 不复用；ADMIN_DICT/ADMIN_DICT_DATA/ADMIN_OAUTH2_CLIENT/
 --     ADMIN_NOTICE/ADMIN_FILE/ADMIN_JOB/ADMIN_ORG_TREE_CONFIG 无重复对象不改名
 --   扩展操作归属与 bit 终值（uk_operation_permission_typed_bit 要求同类型 code/bit 均唯一）：
---     ADMIN_USER:ENABLE bit16→USER:ENABLE bit32（USER 下 16 被 MANAGE 占用）；
+--     ADMIN_USER:ENABLE bit16→USER:ENABLE bit32（USER 下 16 曾被 MANAGE 占用，该码随
+--     T-ACCESS-034 退役后位空闲不复用）；
 --     ADMIN_USER:RESET_PASSWORD bit64→USER:RESET_PASSWORD bit64（不变，USER 下空闲）；
 --     ADMIN_ROLE:GRANT/REVOKE 删除不迁移（零生产消费者，职责由 ROLE:MANAGE 承担；bit 与
 --     ROLE:MANAGE@16/ASSIGN@32 冲突、REVOKE 与既有 ROLE:REVOKE@64 code 冲突）；
@@ -866,7 +868,8 @@ ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND
 
 -- 非预置操作码种子（按 T-ACCESS-016 §13.3 bit 终值表随类型收敛重新归属；
 -- ADMIN_ORG 六码同名同 bit 迁移 ORG(29)、ADMIN_USER 两码迁 USER(6)（ENABLE bit 16→32 重分配，
--- USER 下 16 已被 MANAGE 占用）、ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移；
+-- 历史上 USER 下 16 曾被 MANAGE 占用——该码已随 T-ACCESS-034 USER 轨细粒度化退役，位空闲不复用）、
+-- ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移；
 -- binary_bit 从 16 起分配，inherit_mask 读类=0、写类继承 VIEW=2）
 -- ORG(29)：岗位 CRUD 精化 + 成员关系（普通组织 VIEW 由 CRUD 预置覆盖）
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
@@ -876,8 +879,8 @@ INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_b
     (1, 29, 'ASSIGN_POSITION_USER','岗位用户挂载/卸载/设主', 128, 2, 0, 0, 0),
     (1, 29, 'MANAGE_MEMBER',       '管理组织成员',   256, 2, 0, 0, 0),
     (1, 29, 'VIEW_POSITION',       '查看岗位',       512, 0, 0, 0, 0),
-    -- USER(6)：启停 + 重置密码（bit 重分配：USER 下 16 被 MANAGE 占用，ENABLE 取 32；
-    -- 用户列表查看由 CRUD 预置 VIEW 覆盖）
+    -- USER(6)：启停 + 重置密码（bit 重分配：ENABLE 取 32——16 曾被 MANAGE 占用，
+    -- T-ACCESS-034 退役后空闲不复用；用户列表查看由 CRUD 预置 VIEW 覆盖）
     (1, 6,  'ENABLE',              '启用/禁用用户',  32,  2, 0, 0, 0),
     (1, 6,  'RESET_PASSWORD',      '重置密码',       64,  2, 0, 0, 0),
     -- ADMIN_NOTICE(24)：发布公告
@@ -895,8 +898,6 @@ ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND
 -- 缺失时 TypeResolutionServiceImpl 解析返回 null → PermQueryEngine fail-closed 全量拒绝。
 -- bit 16 起按类型避让，写类 mask=2（继承 VIEW），API:ACCESS 为接口鉴权专用（mask=0）。
 INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_bit, inherit_mask, created_by, updated_by, delete_flag) VALUES
-    -- USER(6)：更新/删除用户门禁
-    (1, 6,  'MANAGE',             '管理用户',         16, 2, 0, 0, 0),
     -- ROLE(5)：分组角色分配/撤销（MANAGE 已占 16）
     (1, 5,  'ASSIGN',             '分配角色',         32, 2, 0, 0, 0),
     (1, 5,  'REVOKE',             '撤销角色',         64, 2, 0, 0, 0),

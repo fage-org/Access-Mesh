@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-09-12
+last_reviewed: 2026-09-13   # T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
@@ -64,6 +64,7 @@ last_reviewed: 2026-09-12
 - `perm-gateway-spring-boot-starter`：网关侧装配（本项目 Gateway 自用）。
 - example-service **有意不消费** starter——接口级鉴权完全由 Gateway 承担，服务内零权限代码。这是当前推荐的轻接入形态。
 - 纯 HTTP 对接（非 Java 技术栈）：直接按 api-contract §6 契约调用，不要求 SDK。
+- **已知差异（T-ACCESS-034 登记）**：SDK `DefaultOpCode` 的 `EDIT` 在服务端操作码注册表**无预置种子**（服务端仅有 VIEW/UPDATE/DELETE 等）——接入方若以 `EDIT` 发起授权/校验，解析将 fail-closed 拒绝；服务端等价语义用 `UPDATE`。SDK 枚举本身不动（接入方契约）。
 
 ## 3. 场景二：自有资源类型（自定义数据权限维度）
 
@@ -169,7 +170,7 @@ last_reviewed: 2026-09-12
 
 管理台基于 pure-admin-thin（Vue 3 + Element Plus）。新增一个管理页面的标准模式（以现有 13 页为活例）：
 
-1. **权限串声明**：`src/views/system/<page>/utils/perms.ts` 导出 `<PAGE>_PERM_LIST`（操作码常量，对齐后端 `OperationCodeConstants`）。
+1. **权限串声明**：`src/views/system/<page>/utils/perms.ts` 导出 `<PAGE>_PERM_LIST`（操作码常量，对齐后端 `OperationCode`，engine.constant 唯一常量源）。
 2. **路由注册**：`src/router/modules/*.ts` 路由项 `meta` 引用 PERM_LIST（按钮级 `auths` / 页面级门禁）。注意侧栏菜单已切后端派生（T-FE-015）：**可见性按菜单形态派生（见下条），`meta.showLink` 不再控制侧栏**。
 3. **菜单种子**：sys_menu 行，三条通道按场景选：① bootstrap 固定图种子（平台内置页与默认树，`BootstrapGraphDefinition.menuSeeds()`——固定图**版本升级**须按 rebuild-runbook 重建库，与单加一条菜单无关）；② 后端管理 API `POST /menu/create`（**已实现**，runbook 记载直连 access-service 的造数用法；注意 Gateway 固定图未注册 `/admin/menu/**` 路由——经 Gateway 调用会 403，须直连）；③ 管理台菜单管理**页面**尚未开发（前端无 menu 页），二开者当前走 ①/②。菜单可见性按形态分三支：**挂接资源的业务菜单** = 用户对该资源持有任一有效操作权限（类型级 scopeAll 或实例授权，∃op 派生），无持有面 fail-closed 不可见（自定义页要按权隐藏必须挂资源类型）；**纯展示菜单**（resource_type 为空）= 全员可见；**目录 DIR** = 恒候选（有可见子节点才渲染）。菜单行不单独授 MENU 码、无需逐菜单授权。
 4. **API 层**：`src/api/<page>.ts`——全部 POST + JSON Request DTO（禁 GET/RESTful，project-rules §API），响应统一信封 `{code, data, message}`。

@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.platform.entity.SysDictType;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysDictDataMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysDictTypeMapper;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.platform.service.DictAppService;
@@ -82,7 +82,7 @@ public class DictAppServiceImpl implements DictAppService {
         targetId = "#req.dictType()", summary = "'create dict type'")
     public Long createDictType(DictTypeCreateReq req) {
         // 权限检查 — 类型级 CREATE
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_DICT, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_DICT, OperationCode.CREATE);
 
         SysDictType type = new SysDictType();
         type.setTenantId(TenantContextHolder.getTenantId());
@@ -124,7 +124,7 @@ public class DictAppServiceImpl implements DictAppService {
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
             .collect(Collectors.toList());
-        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_DICT, resourceCodes, AdminOperationCode.DELETE);
+        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_DICT, resourceCodes, OperationCode.DELETE);
 
         // 批量查询检查数据并过滤有效ID（性能优化：避免 N+1 查询）
         List<SysDictType> types = dictTypeMapper.selectByIdsAndTenant(tenantId, req.ids());
@@ -258,7 +258,7 @@ public class DictAppServiceImpl implements DictAppService {
         Long tenantId = TenantContextHolder.getTenantId();
 
         // 权限检查 — 字典数据类型级 CREATE
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_DICT_DATA, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_DICT_DATA, OperationCode.CREATE);
 
         SysDictType type = dictTypeMapper.selectByIdSafe(tenantId, req.dictTypeId());
         if (type == null) {
@@ -303,7 +303,7 @@ public class DictAppServiceImpl implements DictAppService {
 
         // 权限检查 — 字典数据实例级 UPDATE
         permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_DICT_DATA,
-            String.valueOf(req.id()), AdminOperationCode.UPDATE);
+            String.valueOf(req.id()), OperationCode.UPDATE);
 
         SysDictData data = dictDataMapper.selectByIdSafe(tenantId, req.id());
         if (data == null) {
@@ -355,7 +355,7 @@ public class DictAppServiceImpl implements DictAppService {
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ADMIN_DICT_DATA,
             String.valueOf(req.id()),
-            AdminOperationCode.DELETE
+            OperationCode.DELETE
         );
 
         SysDictData data = dictDataMapper.selectByIdSafe(tenantId, req.id());

@@ -603,7 +603,7 @@ class ConditionAppServiceImplTest {
             verify(engine).hasPermissionByCode(eq(TENANT_ID), eq(OPERATOR_ID),
                 eq(cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode.CONDITION),
                 eq(CONDITION_CODE),
-                eq(cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants.UPDATE));
+                eq(cn.ac.fage.accessmesh.access.engine.constant.OperationCode.UPDATE));
         }
 
         @Test

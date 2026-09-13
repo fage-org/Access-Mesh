@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.platform.entity.SysFile;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysFileMapper;
 import cn.ac.fage.accessmesh.access.platform.service.AdminFileFolderRegistrar;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.platform.service.FileAppService;
@@ -232,7 +232,7 @@ public class FileAppServiceImpl implements FileAppService {
 
         // 2. 权限检查 — 目标文件夹实例级 CREATE（T-ADMIN-025；scopeAll 短路在引擎内）
         permissionValidator.checkInstanceLevel(
-            ResourceTypeCode.ADMIN_FILE, normalizedBizType, AdminOperationCode.CREATE);
+            ResourceTypeCode.ADMIN_FILE, normalizedBizType, OperationCode.CREATE);
 
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -362,7 +362,7 @@ public class FileAppServiceImpl implements FileAppService {
             .map(SysFile::getBucketName)
             .distinct()
             .toList();
-        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_FILE, folderCodes, AdminOperationCode.DELETE);
+        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_FILE, folderCodes, OperationCode.DELETE);
 
         // 1. 先同事务提交元数据软删除（回滚安全：文件尚未物理删除）
         LocalDateTime now = LocalDateTime.now();
@@ -426,7 +426,7 @@ public class FileAppServiceImpl implements FileAppService {
         }
         // 权限检查 — 文件所属文件夹实例级 VIEW（T-ADMIN-025）
         permissionValidator.checkInstanceLevel(
-            ResourceTypeCode.ADMIN_FILE, f.getBucketName(), AdminOperationCode.VIEW);
+            ResourceTypeCode.ADMIN_FILE, f.getBucketName(), OperationCode.VIEW);
         return toResp(f);
     }
 
@@ -460,7 +460,7 @@ public class FileAppServiceImpl implements FileAppService {
         // 2. 引擎批量判定可见集；拒绝集为空（scopeAll 或实例授权覆盖全集）时可见集=全集，
         //    仍走 IN 过滤——NULL bucket 行不进任何授权形态的结果（与 detail/download 统一）
         Set<String> denied = permissionValidator.getDeniedResourceCodes(
-            ResourceTypeCode.ADMIN_FILE, universe, AdminOperationCode.VIEW);
+            ResourceTypeCode.ADMIN_FILE, universe, OperationCode.VIEW);
         List<String> visibleBuckets = denied.isEmpty() ? List.copyOf(universe)
             : universe.stream().filter(code -> !denied.contains(code)).toList();
         if (visibleBuckets.isEmpty()) {
@@ -522,7 +522,7 @@ public class FileAppServiceImpl implements FileAppService {
         }
         // 权限检查 — 文件所属文件夹实例级 VIEW（T-ADMIN-025）
         permissionValidator.checkInstanceLevel(
-            ResourceTypeCode.ADMIN_FILE, f.getBucketName(), AdminOperationCode.VIEW);
+            ResourceTypeCode.ADMIN_FILE, f.getBucketName(), OperationCode.VIEW);
         Path filePath = securePath(f.getFilePath());
         if (!Files.exists(filePath)) {
             throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), "物理文件不存在");

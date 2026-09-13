@@ -1,8 +1,7 @@
 package cn.ac.fage.accessmesh.access.bootstrap;
 
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 
 import java.util.List;
@@ -223,103 +222,101 @@ public final class BootstrapGraphDefinition {
      */
     public static List<GrantSpec> businessGrants() {
         return List.of(
-            new GrantSpec(ResourceTypeCode.USER, OperationCodeConstants.CREATE, null, false),
-            new GrantSpec(ResourceTypeCode.ROLE, OperationCodeConstants.CREATE, null, false),
-            new GrantSpec(ResourceTypeCode.ROLE, OperationCodeConstants.MANAGE, null, false),
+            new GrantSpec(ResourceTypeCode.USER, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.ROLE, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.ROLE, OperationCode.MANAGE, null, false),
             // T-API-001：类型级（scopeAll）——接入新服务（如 example-service）的首条 API 映射
             // 创建必须由首管理员完成，实例级会造成鸡生蛋（无正规入口补授新服务实例）
-            new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.MANAGE_API_MAPPING,
+            new GrantSpec(ResourceTypeCode.SERVICE, OperationCode.MANAGE_API_MAPPING,
                 null, false),
             // T-PERM-027：服务与接口映射页门禁——checkCanGrant 要求操作者先持有才能转授，
             // 固定图不持 SERVICE:VIEW/MANAGE/SYNC_INTERFACE 则空库上该页读写路径无授予起点
             // （死锁，同 DOMAIN:VIEW 先例）。死锁防护=持有解锁首管理员页面读写；三条与全部
             // 业务门禁同口径不可转授（转授链仅 API:ACCESS），实例粒度由租户后续自行收紧
-            new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.VIEW, null, false),
-            new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.MANAGE, null, false),
-            new GrantSpec(ResourceTypeCode.SERVICE, OperationCodeConstants.SYNC_INTERFACE, null, false),
-            new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.SERVICE, OperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.SERVICE, OperationCode.MANAGE, null, false),
+            new GrantSpec(ResourceTypeCode.SERVICE, OperationCode.SYNC_INTERFACE, null, false),
+            new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCode.VIEW, null, false),
             // T-FE-022：类型定义页写门禁（T-PERM-023 收口：create 类型级 CREATE、update/remove
             // 实例级 MANAGE——实例业务键已由 T-PERM-051 统一为复合键 {typeKey}:{typeCode}（type_definition.id 直填系 ID 空间错位，已迁移）；
             // scopeAll 覆盖实例校验，实例粒度由租户后续自行收紧）
-            new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.CREATE, null, false),
-            new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCodeConstants.MANAGE, null, false),
-            new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.VIEW, null, false),
-            new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCode.MANAGE, null, false),
+            new GrantSpec(ResourceTypeCode.RESOURCE, OperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.OPERATION, OperationCode.VIEW, null, false),
             // T-FE-017：资源与操作定义页写门禁——固定图不持 CREATE/MANAGE 则空库上
             // 该页写路径无授予起点（死锁，同 T-PERM-027 先例）。RESOURCE 的 update/move/
             // remove 为实例级校验，类型级 scopeAll 覆盖（实例粒度由租户后续自行收紧）
-            new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.CREATE, null, false),
-            new GrantSpec(ResourceTypeCode.RESOURCE, OperationCodeConstants.MANAGE, null, false),
-            new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.CREATE, null, false),
-            new GrantSpec(ResourceTypeCode.OPERATION, OperationCodeConstants.MANAGE, null, false),
+            new GrantSpec(ResourceTypeCode.RESOURCE, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.RESOURCE, OperationCode.MANAGE, null, false),
+            new GrantSpec(ResourceTypeCode.OPERATION, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.OPERATION, OperationCode.MANAGE, null, false),
             // T-PERM-025 审计分离：操作日志查询独立门禁——新权限码需固定图持否则无授予起点（死锁）
-            new GrantSpec(ResourceTypeCode.OPERATION_LOG, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.OPERATION_LOG, OperationCode.VIEW, null, false),
             // T-PERM-032 审计分离：变更日志页查询门禁（对齐 OPERATION_LOG 先例）
-            new GrantSpec(ResourceTypeCode.PERMISSION_CHANGE_LOG, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.PERMISSION_CHANGE_LOG, OperationCode.VIEW, null, false),
             // T-PERM-026：业务域页读门禁——checkCanGrant 要求操作者先持有才能转授，
             // 固定图不持 DOMAIN:VIEW 则空库上业务域页读路径无授予起点（死锁，同 OPERATION_LOG 先例）
-            new GrantSpec(ResourceTypeCode.DOMAIN, OperationCodeConstants.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.DOMAIN, OperationCode.VIEW, null, false),
             // T-PERM-030：冲突规则页读写四档——固定图不持则空库上该页读写路径无授予起点
             // （死锁，同 DOMAIN 先例）。读取（list/detail/detect）亦有 VIEW 门禁，
             // 故 VIEW 与写三档同补；不可转授与全部业务门禁同口径
-            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCodeConstants.VIEW, null, false),
-            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCodeConstants.CREATE, null, false),
-            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCodeConstants.UPDATE, null, false),
-            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCodeConstants.DELETE, null, false),
+            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCode.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCode.DELETE, null, false),
             // T-PERM-030 顺带补授（T-PERM-029 遗漏）：条件页写门禁三档类型级——固定图不持则
             // 空库上条件页写路径与 CONDITION:* 转授无授予起点（死锁，同款机制）。
             // 读取无门禁（2026-08-08 产品确认条件全租户开放），故无 VIEW 条目
-            new GrantSpec(ResourceTypeCode.CONDITION, OperationCodeConstants.CREATE, null, false),
-            new GrantSpec(ResourceTypeCode.CONDITION, OperationCodeConstants.UPDATE, null, false),
-            new GrantSpec(ResourceTypeCode.CONDITION, OperationCodeConstants.DELETE, null, false),
+            new GrantSpec(ResourceTypeCode.CONDITION, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.CONDITION, OperationCode.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.CONDITION, OperationCode.DELETE, null, false),
             // T-PERM-031：资源依赖页读写五档（VIEW/CREATE/UPDATE/DELETE/SYNC）——固定图不持则
             // 空库上该页读写路径无授予起点（死锁，同 DOMAIN/CONFLICT_RULE 先例）。
             // SYNC 随四档同补：batch-sync 端点存在且门禁为 SYNC，前端 P0 未接入不改变端点门禁事实；
             // 不可转授与全部业务门禁同口径（转授链仅 API:ACCESS）
-            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.VIEW, null, false),
-            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.CREATE, null, false),
-            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.UPDATE, null, false),
-            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.DELETE, null, false),
-            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCodeConstants.SYNC, null, false),
+            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.DELETE, null, false),
+            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.SYNC, null, false),
             // T-FE-015：组织与用户页读写门禁全档——固定图不持则空库上该页读写路径无授予起点
             // （死锁，同 DEPENDENCY 先例；菜单种子挂 ORG 资源类型走 v3.5 派生同样要求先持有）。
-            // ORG 系/USER 系操作码取 AdminOperationCode（admin 域门禁常量；DDL 扩展码组 L855-865 全有种子），
+            // ORG 系/USER 系操作码（OperationCode 唯一常量源，T-ACCESS-034 合一；DDL 非预置扩展码组全有种子），
             // 不可转授与全部业务门禁同口径（转授链仅 API:ACCESS）
-            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.VIEW, null, false),
-            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.CREATE, null, false),
-            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.UPDATE, null, false),
-            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.DELETE, null, false),
-            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.MANAGE_MEMBER, null, false),
-            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.VIEW_POSITION, null, false),
-            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.CREATE_POSITION, null, false),
-            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.UPDATE_POSITION, null, false),
-            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.DELETE_POSITION, null, false),
-            new GrantSpec(ResourceTypeCode.ORG, AdminOperationCode.ASSIGN_POSITION_USER, null, false),
-            // USER:CREATE 已在图（L98）；此处补页面读写全档（ENABLE/RESET_PASSWORD DDL L864-865 有种子）
-            new GrantSpec(ResourceTypeCode.USER, AdminOperationCode.VIEW, null, false),
-            new GrantSpec(ResourceTypeCode.USER, AdminOperationCode.UPDATE, null, false),
-            new GrantSpec(ResourceTypeCode.USER, AdminOperationCode.DELETE, null, false),
-            new GrantSpec(ResourceTypeCode.USER, AdminOperationCode.ENABLE, null, false),
-            new GrantSpec(ResourceTypeCode.USER, AdminOperationCode.RESET_PASSWORD, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.DELETE, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.MANAGE_MEMBER, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.VIEW_POSITION, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.CREATE_POSITION, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.UPDATE_POSITION, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.DELETE_POSITION, null, false),
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.ASSIGN_POSITION_USER, null, false),
+            // USER:CREATE 已在图（上方管理 API 段）；此处补页面读写全档（ENABLE/RESET_PASSWORD DDL 非预置扩展码组有种子）
+            new GrantSpec(ResourceTypeCode.USER, OperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.USER, OperationCode.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.USER, OperationCode.DELETE, null, false),
+            new GrantSpec(ResourceTypeCode.USER, OperationCode.ENABLE, null, false),
+            new GrantSpec(ResourceTypeCode.USER, OperationCode.RESET_PASSWORD, null, false),
             // T-FE-015：系统配置页读写门禁（T-PERM-024 收口 SYSTEM_CONFIG:VIEW/MANAGE）——菜单种子挂
             // SYSTEM_CONFIG 类型走派生则管理员必须先持有其操作位，否则菜单行恒不可见（死锁同款，
-            // T-FE-022 联调同样受益；MANAGE 为 DDL 运行时必需码组 L895 既有种子）
-            new GrantSpec(ResourceTypeCode.SYSTEM_CONFIG, OperationCodeConstants.VIEW, null, false),
-            new GrantSpec(ResourceTypeCode.SYSTEM_CONFIG, OperationCodeConstants.MANAGE, null, false),
+            // T-FE-022 联调同样受益；MANAGE 为 DDL 运行时必需码组既有种子）
+            new GrantSpec(ResourceTypeCode.SYSTEM_CONFIG, OperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.SYSTEM_CONFIG, OperationCode.MANAGE, null, false),
             // T-API-001：类型级 API:ACCESS + canGrant——新接入服务接口的授权必须由首管理员完成，
             // 实例级（仅清单内管理接口）会造成鸡生蛋（无正规入口给新接口授权）。
-            // ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子），此处按契约字符串声明
-            new GrantSpec(ResourceTypeCode.API, "ACCESS", null, true));
+            new GrantSpec(ResourceTypeCode.API, OperationCode.ACCESS, null, true));
     }
 
     /**
      * Gateway 层实例级 API:ACCESS 授权（由管理 API 清单派生）。
-     * ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子），OperationCodeConstants
-     * 未收录该码，此处按契约字符串声明。
+     * ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子，OperationCode.API 段常量）。
      */
     public static List<GrantSpec> apiAccessGrants() {
         return apiRoutes().stream()
-            .map(route -> new GrantSpec(ResourceTypeCode.API, "ACCESS",
+            .map(route -> new GrantSpec(ResourceTypeCode.API, OperationCode.ACCESS,
                 apiResourceCode(route.method(), route.path()), route.grantCanGrant()))
             .toList();
     }

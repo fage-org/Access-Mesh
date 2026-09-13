@@ -36,7 +36,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @Transactional(rollbackFor = Exception.class)
     public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
         // 1. 门禁校验
-        if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, null, OperationCode.CREATE)) {
             throw new SecurityException("Permission denied");
         }
         // 2. 调用 DomainService
@@ -64,10 +64,10 @@ public R<RoleResp> create(@RequestBody RoleCreateReq req) {
 
 ```java
 // ✅ 正确 — 权限判定走 PermQueryEngine 显式入口
-if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
+if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE)) {
     throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
 }
-Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId, ResourceTypeCode.DOMAIN, domainCodes, OperationCodeConstants.VIEW);
+Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId, ResourceTypeCode.DOMAIN, domainCodes, OperationCode.VIEW);
 if (!denied.isEmpty()) {
     throw new SecurityException("Permission denied: VIEW on DOMAIN:" + denied);
 }
@@ -133,7 +133,7 @@ if (!r.allowed()) {
 
 ```java
 // ✅ 鉴权失败
-if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
+if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE)) {
     throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
 }
 
@@ -469,16 +469,16 @@ import cn.ac.fage.accessmesh.access.permission.entity.table.Tables;
 
 ## 16. 常量类使用
 
-### OperationCodeConstants（操作码）
+### OperationCode（操作码）
 
-**MUST** 使用 `OperationCodeConstants`，禁止使用已删除的 `OperationType` 枚举。
+**MUST** 使用 `OperationCode`，禁止使用已删除的 `OperationType` 枚举。
 
 ```java
 // ✅ 正确
-import cn.ac.fage.accessmesh.access.permission.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 
-engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE);
-engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.CREATE);
+engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE);
+engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.USER, String.valueOf(userId), OperationCode.CREATE);
 
 // ❌ 禁止
 OperationType.MANAGE  // 类已删除
@@ -492,7 +492,7 @@ OperationType.MANAGE  // 类已删除
 // ✅ 正确
 import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
 
-engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE);
+engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE);
 
 // ❌ 禁止
 engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), "MANAGE");  // 拼写错误风险
@@ -505,7 +505,7 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 | `EntityBatchLoadDomainService`                    | 使用对应 Mapper 批量查询方法                                 |
 | `EntityBatchLoadDomainServiceImpl`                | 使用对应 Mapper 批量查询方法                                 |
 | `ResourcePermissionValidator`                     | 使用 `PermQueryEngine`                                       |
-| `OperationType` 枚举                              | 使用 `OperationCodeConstants`                                |
+| `OperationType` 枚举                              | 使用 `OperationCode`                                |
 | `ResourcePermissionStrategy` 接口                 | ID 转换由 Engine 内部处理                                    |
 | `ServicePermissionStrategy`                       | 无需替代                                                     |
 | `DomainPermissionStrategy`                        | 无需替代                                                     |

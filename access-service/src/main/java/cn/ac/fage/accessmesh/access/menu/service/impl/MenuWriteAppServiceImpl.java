@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.menu.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.access.menu.dto.req.MenuUpdateReq;
 import cn.ac.fage.accessmesh.access.menu.entity.SysMenu;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.menu.service.domain.MenuDomainService;
@@ -71,7 +71,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
     @OperationLog(module = "ACCESS", action = "MENU_CREATE", targetType = "sys_menu",
         targetId = "#result", summary = "'create menu ' + #req.displayName()")
     public Long createMenu(MenuCreateReq req) {
-        permissionValidator.checkTypeLevel(ResourceTypeCode.MENU, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.MENU, OperationCode.CREATE);
         Long tenantId = TenantContextHolder.getTenantId();
         // 空白字符串规范化为 null（用户决策 2026-08-22）：空串入库会命中部分唯一索引
         // （WHERE col IS NOT NULL 对 '' 生效）并被读链路误判为业务菜单 fail-closed
@@ -123,7 +123,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         // 移动+回写可闭合成环——锁覆盖读与写后，锁内快照在临界区内无并发变更
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
         permissionValidator.checkInstanceLevel(
-            ResourceTypeCode.MENU, String.valueOf(req.id()), AdminOperationCode.UPDATE);
+            ResourceTypeCode.MENU, String.valueOf(req.id()), OperationCode.UPDATE);
         SysMenu menu = menuDomainService.selectValidById(tenantId, req.id());
         if (menu == null) {
             throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(),
@@ -196,7 +196,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         targetId = "#id", summary = "'delete menu ' + #id")
     public void deleteMenu(Long id) {
         permissionValidator.checkInstanceLevel(
-            ResourceTypeCode.MENU, String.valueOf(id), AdminOperationCode.DELETE);
+            ResourceTypeCode.MENU, String.valueOf(id), OperationCode.DELETE);
         Long tenantId = TenantContextHolder.getTenantId();
         SysMenu menu = menuDomainService.selectValidById(tenantId, id);
         if (menu == null) {

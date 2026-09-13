@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.domain.service.impl;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.domain.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.access.domain.dto.resp.DomainConfigResp;
 import cn.ac.fage.accessmesh.access.domain.entity.BizDomain;
@@ -86,7 +86,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     @OperationLog(module = "PERMISSION", action = "DOMAIN_CONFIG_UPSERT", targetType = "domain_config", targetId = "#result.id()", summary = "'upsert domain config ' + #req.domainCode() + ':' + #req.configType()")
     public DomainConfigResp upsertDomainConfig(Long tenantId, DomainConfigReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to manage domain config");
         }
 
@@ -153,7 +153,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     @Transactional(readOnly = true)
     public DomainConfigResp getDomainConfig(Long tenantId, String domainCode, String configType) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -181,7 +181,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     @Transactional(readOnly = true)
     public List<DomainConfigResp> listDomainConfigs(Long tenantId, String domainCode) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SYSTEM_CONFIG");
         }
 
@@ -216,7 +216,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
     public void deleteDomainConfigsByIds(Long tenantId, List<Long> ids, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SYSTEM_CONFIG, null, OperationCode.MANAGE)) {
             throw new SecurityException("No permission to delete domain configs");
         }
 

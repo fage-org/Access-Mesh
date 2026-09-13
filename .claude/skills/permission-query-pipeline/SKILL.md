@@ -3,7 +3,7 @@ name: permission-query-pipeline
 description: >-
   统一权限查询引擎使用规范。
   TRIGGER when: 涉及 PermQueryEngine、PermQuery、PermResult、权限查询、权限校验、
-  OperationCodeConstants、ResourceTypeCode、批量权限检查、validate、hasPermission、getDeniedIds。
+  OperationCode、ResourceTypeCode、批量权限检查、validate、hasPermission、getDeniedIds。
 origin: project
 metadata:
   project: AccessMesh
@@ -22,7 +22,7 @@ metadata:
 | `TargetMode` | 目标模式三态枚举：TYPE_LEVEL/INSTANCE/LIST（T-PERM-057） | targetMode 三态判别 |
 | `PermBatchQuery` / `PermBatchResult` | 批量判定入参/结果（T-PERM-061 A+ 形态：item 参数与 forAuthCheck 对齐 + 请求级 parentResource + 唯一 PermEvalContext；结果与 items 下标对齐） | batch-check 族批量判定 |
 | `PermEvalContext` | 条件评估多层上下文（clientIp 用户环境 + evaluatedAt 服务器环境 + attributes 调用方上下文，T-PERM-057） | 条件评估入参 |
-| `OperationCodeConstants` | 操作码常量（CREATE/MANAGE/DELETE等） | 业务层权限校验参数 |
+| `OperationCode` | 操作码常量（CREATE/MANAGE/DELETE等） | 业务层权限校验参数 |
 | `ResourceTypeCode` | 资源类型常量（ROLE/USER/SERVICE等） | 业务层权限校验参数 |
 
 ## 业务层 API（Service Impl 使用）
@@ -42,11 +42,11 @@ private final PermQueryEngine engine;
 
 // 非抛出检查（返回 boolean；code 传 null = 类型级校验）
 boolean allowed = engine.hasPermissionByCode(tenantId, subjectId,
-    ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.MANAGE);
+    ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE);
 
 // 获取被拒绝的业务编码集合（批量非抛出；引擎纯查询，异常由调用方显式抛出）
 Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId,
-    ResourceTypeCode.DOMAIN, domainCodes, OperationCodeConstants.VIEW);
+    ResourceTypeCode.DOMAIN, domainCodes, OperationCode.VIEW);
 if (!denied.isEmpty()) {
     throw new SecurityException("Permission denied: ...");
 }
@@ -54,10 +54,10 @@ if (!denied.isEmpty()) {
 // —— entityId 轨（仅引擎内部或已完成解析的调用方：资源树、API 映射、资源依赖、权限树等）——
 
 boolean ok = engine.hasPermissionByEntityId(tenantId, subjectId,
-    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.MANAGE);
+    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCode.MANAGE);
 
 Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
-    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCodeConstants.DELETE);
+    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCode.DELETE);
 ```
 
 > **T-PERM-042 终态**：旧 `hasPermission(Object)` / `validateBatch` / `getDeniedIds` / `toLongId` 已从引擎删除。
@@ -179,17 +179,17 @@ queryBatch(PermBatchQuery) — 批量判定 A+ 形态（T-PERM-061，语义与�
 
 ## 常量类
 
-### OperationCodeConstants（操作码）
+### OperationCode（操作码）
 
 ```java
-OperationCodeConstants.CREATE      // 创建
-OperationCodeConstants.VIEW        // 查看
-OperationCodeConstants.MANAGE      // 管理
-OperationCodeConstants.UPDATE      // 更新
-OperationCodeConstants.DELETE      // 删除
-OperationCodeConstants.SYNC        // 同步
-OperationCodeConstants.MANAGE_API_MAPPING // API映射管理
-OperationCodeConstants.SYNC_INTERFACE     // 接口同步
+OperationCode.CREATE      // 创建
+OperationCode.VIEW        // 查看
+OperationCode.MANAGE      // 管理
+OperationCode.UPDATE      // 更新
+OperationCode.DELETE      // 删除
+OperationCode.SYNC        // 同步
+OperationCode.MANAGE_API_MAPPING // API映射管理
+OperationCode.SYNC_INTERFACE     // 接口同步
 ```
 
 ### ResourceTypeCode（资源类型）
@@ -207,7 +207,7 @@ ResourceTypeCode.API               // API接口
 ## 禁止事项
 
 - ❌ 禁止使用 `ResourcePermissionValidator`（已删除）— 使用 `PermQueryEngine`
-- ❌ 禁止使用 `OperationType` 枚举（已删除）— 使用 `OperationCodeConstants`
+- ❌ 禁止使用 `OperationType` 枚举（已删除）— 使用 `OperationCode`
 - ❌ 禁止使用 `ResourcePermissionStrategy`（已删除）— ID转换由 Engine 内部处理
 - ❌ 禁止直接调 `rolePermMapper.selectListByQuery()` 做权限判定 — 通过 Engine
 - ❌ 禁止在 service impl 中写权限查询逻辑 — 通过 Engine
@@ -222,7 +222,7 @@ ResourceTypeCode.API               // API接口
 | `PermQuery.java` | 入参DTO+工厂 |
 | `PermResult.java` | 返回对象 |
 | `PermResultUtils.java` | 转换工具 |
-| `OperationCodeConstants.java` | 操作码常量 |
+| `OperationCode.java` | 操作码常量 |
 | `ResourceTypeCode.java` | 资源类型常量 |
 | `OperationPermissionUtils.java` | 位运算 |
 | `ConditionEvalUtils.java` | 条件评估 |

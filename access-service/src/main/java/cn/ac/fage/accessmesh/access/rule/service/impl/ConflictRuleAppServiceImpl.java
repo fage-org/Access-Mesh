@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.rule.service.impl;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.rule.dto.req.ConflictRuleDetectReq;
 import cn.ac.fage.accessmesh.access.rule.dto.req.ConflictRuleReq;
 import cn.ac.fage.accessmesh.access.rule.dto.req.ConflictRuleUpdateReq;
@@ -256,7 +256,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     @OperationLog(module = "PERMISSION", action = "CONFLICT_RULE_CREATE", targetType = "permission_conflict_rule", targetId = "#result.id()", summary = "'create conflict rule'")
     public ConflictRuleResp createConflictRule(Long tenantId, ConflictRuleReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCode.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on CONFLICT_RULE");
         }
 
@@ -324,7 +324,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     @Override
     public ConflictRuleResp getConflictRule(Long tenantId, Long ruleId) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on CONFLICT_RULE");
         }
         PermissionConflictRule rule = conflictRuleMapper.selectValidById(ruleId, tenantId);
@@ -351,7 +351,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     @Override
     public List<ConflictRuleResp> listConflictRules(Long tenantId) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on CONFLICT_RULE");
         }
         return conflictRuleMapper.selectByTenantId(tenantId).stream().map(this::toConflictRuleResp).collect(Collectors.toList());
@@ -388,7 +388,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         // 类型级门禁（T-PERM-030 口径收窄，同 T-PERM-029 CONDITION）：CONFLICT_RULE 无
         // resource_entity 实例投影，实例级授权无从配置，与 OPERATION/CONDITION 同款类型级
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.UPDATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCode.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONFLICT_RULE:" + req.id());
         }
 
@@ -485,7 +485,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     @Override
     public ConflictDetectResp detectConflictRule(Long tenantId, ConflictRuleDetectReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on CONFLICT_RULE");
         }
 
@@ -573,7 +573,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
 
         // 类型级门禁（T-PERM-030 口径收窄，同 T-PERM-029 CONDITION）：CONFLICT_RULE 无实例投影，
         // 类型级全有或全无——幽灵 id 已在解析阶段静默跳过，不进入门禁
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCodeConstants.DELETE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONFLICT_RULE, null, OperationCode.DELETE)) {
             throw new SecurityException("Permission denied: DELETE on CONFLICT_RULE:" + validIds);
         }
 

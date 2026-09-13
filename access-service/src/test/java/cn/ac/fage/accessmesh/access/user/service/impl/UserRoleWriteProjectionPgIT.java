@@ -75,11 +75,14 @@ class UserRoleWriteProjectionPgIT {
     private static final int USER_TYPE_EXTERNAL = 1;
     private static final int ROLE_TYPE_BASIC = 6;
     private static final int ROLE_TYPE_GROUP = 5;
-    /** resource_type 种子：USER=6、ROLE=5；CRUD 预置 CREATE=1，ROLE/USER:MANAGE=16 */
+    /** resource_type 种子：USER=6、ROLE=5；CRUD 预置 CREATE=1/UPDATE=4/DELETE=8，ROLE:MANAGE=16（USER:MANAGE 已随 T-ACCESS-034 退役） */
     private static final int RESOURCE_TYPE_USER = 6;
     private static final int RESOURCE_TYPE_ROLE = 5;
     private static final long CREATE_BIT = 1L;
+    private static final long UPDATE_BIT = 4L;
+    private static final long DELETE_BIT = 8L;
     private static final long MANAGE_BIT = 16L;
+    private static final long ENABLE_BIT = 32L;
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
@@ -179,6 +182,9 @@ class UserRoleWriteProjectionPgIT {
             TENANT, new AbstractUserCreateReq("USER", "t019-ext-target", "目标用户", true, null));
         AbstractUserResp other = userManageAppService.createUser(
             TENANT, new AbstractUserCreateReq("USER", "t019-ext-other", "其他用户", true, null));
+        // 字段分档锁用户：与 other 同批创建（creator 持类型级 CREATE）
+        AbstractUserResp tiered = userManageAppService.createUser(
+            TENANT, new AbstractUserCreateReq("USER", "t019-ext-tiered", "分档锁用户", true, null));
 
         // 写路径产出的投影：code=subjectId（abstract_user.id）、owner=access-service
         Map<String, Object> targetProjection = resourceRow(RESOURCE_TYPE_USER, String.valueOf(target.id()));
@@ -188,16 +194,21 @@ class UserRoleWriteProjectionPgIT {
         Long manager = insertSubject("t019-op-manage-user", "用户管理员");
         Long managerRole = insertBasicRole("t019-holder-manage-user", "管理员角色");
         insertUserRole(manager, managerRole);
-        insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, MANAGE_BIT,
-            ((Number) targetProjection.get("id")).longValue());
+        // T-ACCESS-034 字段分档：本流程覆盖 updateUser(name+enabled → UPDATE+ENABLE)、
+        // deleteUsers(→DELETE) 与引擎断言(UPDATE)；MANUAL 授权行 DDL CHECK 限单操作位
+        // （ck_role_resource_permission_manual_single_operation），三个细码分三行授予
+        long targetEntityId = ((Number) targetProjection.get("id")).longValue();
+        insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, UPDATE_BIT, targetEntityId);
+        insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, ENABLE_BIT, targetEntityId);
+        insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, DELETE_BIT, targetEntityId);
 
         bindOperator(manager);
         assertThat(permQueryEngine.hasPermissionByCode(
-            TENANT, manager, "USER", String.valueOf(target.id()), "MANAGE")).isTrue();
+            TENANT, manager, "USER", String.valueOf(target.id()), "UPDATE")).isTrue();
         assertThat(permQueryEngine.hasPermissionByCode(
-            TENANT, manager, "USER", String.valueOf(other.id()), "MANAGE")).isFalse();
+            TENANT, manager, "USER", String.valueOf(other.id()), "UPDATE")).isFalse();
 
-        // updateUser 实例级门禁经生产投影命中（无 MANAGE 实例授权的其他用户被拒）
+        // updateUser 实例级门禁经生产投影命中（无 UPDATE 实例授权的其他用户被拒）
         userManageAppService.updateUser(TENANT, new AbstractUserUpdateReq(target.id(), "目标用户-改名", false, null));
         Map<String, Object> updated = resourceRow(RESOURCE_TYPE_USER, String.valueOf(target.id()));
         assertThat(updated.get("name")).isEqualTo("目标用户-改名");
@@ -205,13 +216,24 @@ class UserRoleWriteProjectionPgIT {
         assertThatThrownBy(() -> userManageAppService.updateUser(
             TENANT, new AbstractUserUpdateReq(other.id(), "其他用户-改名", null, null)))
             .isInstanceOf(SecurityException.class);
+        // 字段分档回归锁（T-ACCESS-034）：第三用户仅授 UPDATE 位——name-only 放行、
+        // enabled-only 拒绝（防 UPDATE 绕过启停分权），name+enabled 组合亦拒（须全过）
+        insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, UPDATE_BIT,
+            ((Number) resourceRow(RESOURCE_TYPE_USER, String.valueOf(tiered.id())).get("id")).longValue());
+        userManageAppService.updateUser(TENANT, new AbstractUserUpdateReq(tiered.id(), "分档锁用户-改名", null, null));
+        assertThatThrownBy(() -> userManageAppService.updateUser(
+            TENANT, new AbstractUserUpdateReq(tiered.id(), null, false, null)))
+            .isInstanceOf(SecurityException.class);
+        assertThatThrownBy(() -> userManageAppService.updateUser(
+            TENANT, new AbstractUserUpdateReq(tiered.id(), "再改名", true, null)))
+            .isInstanceOf(SecurityException.class);
 
         // deleteUsers 软删主体与投影；被删编码经引擎 fail-closed 拒绝
         userManageAppService.deleteUsers(TENANT, List.of(target.id()));
         assertThat(((Number) resourceRow(RESOURCE_TYPE_USER, String.valueOf(target.id()))
             .get("delete_flag")).longValue()).isNotZero();
         assertThat(permQueryEngine.hasPermissionByCode(
-            TENANT, manager, "USER", String.valueOf(target.id()), "MANAGE")).isFalse();
+            TENANT, manager, "USER", String.valueOf(target.id()), "DELETE")).isFalse();
     }
 
     @Test
@@ -325,11 +347,11 @@ class UserRoleWriteProjectionPgIT {
         assertThat(permQueryEngine.hasPermissionByCode(
             TENANT, target, "ROLE", null, "CREATE")).isTrue();
 
-        // 管理员实例 MANAGE 装配后禁用目标主体
+        // 管理员实例 ENABLE 装配后禁用目标主体（T-ACCESS-034：enabled 变更查 USER:ENABLE）
         Long manager = insertSubject("t019-op-disable-mgr", "禁用管理员");
         Long managerRole = insertBasicRole("t019-holder-disable-mgr", "禁用管理员角色");
         insertUserRole(manager, managerRole);
-        insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, MANAGE_BIT,
+        insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, ENABLE_BIT,
             ((Number) resourceRow(RESOURCE_TYPE_USER, String.valueOf(target)).get("id")).longValue());
         bindOperator(manager);
         userManageAppService.updateUser(TENANT, new AbstractUserUpdateReq(target, null, false, null));

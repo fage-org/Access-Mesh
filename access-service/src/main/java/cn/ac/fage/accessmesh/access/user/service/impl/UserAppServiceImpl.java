@@ -20,7 +20,7 @@ import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.user.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.access.org.mapper.SysUserOrgMapper;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.user.service.UserAppService;
@@ -191,7 +191,7 @@ public class UserAppServiceImpl implements UserAppService {
     @Override
     public UserResp getUser(Long id) {
         // v1.4 类型级 VIEW 门禁：前端隐藏不是安全边界
-        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.VIEW);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, OperationCode.VIEW);
 
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -233,7 +233,7 @@ public class UserAppServiceImpl implements UserAppService {
     @Override
     public PageResp<UserPageItemResp> pageUsers(UserPageReq req) {
         // v1.4 类型级 VIEW 门禁：前端隐藏不是安全边界
-        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.VIEW);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.USER, OperationCode.VIEW);
 
         Long tenantId = TenantContextHolder.getTenantId();
 
@@ -355,7 +355,7 @@ public class UserAppServiceImpl implements UserAppService {
             permissionValidator.checkInstanceLevel(
                 ResourceTypeCode.USER,
                 String.valueOf(userId),
-                AdminOperationCode.RESET_PASSWORD
+                OperationCode.RESET_PASSWORD
             );
 
             // 默认树边界二次校验（非自我修改时）
@@ -452,7 +452,7 @@ public class UserAppServiceImpl implements UserAppService {
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG,
             String.valueOf(req.targetOrgId()),
-            AdminOperationCode.UPDATE
+            OperationCode.UPDATE
         );
 
         // 校验目标组织存在

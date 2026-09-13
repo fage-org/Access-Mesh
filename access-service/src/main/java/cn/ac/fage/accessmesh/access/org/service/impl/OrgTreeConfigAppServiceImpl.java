@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.org.dto.resp.OrgTreeConfigResp;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgTreeConfigMapper;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.org.service.OrgTreeConfigAppService;
@@ -75,7 +75,7 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
         PermissionChangeContext.markVisibility(TenantContextHolder.getTenantId());
         Long tenantId = TenantContextHolder.getTenantId();
 
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, OperationCode.CREATE);
 
         SysOrgTreeConfig config = new SysOrgTreeConfig();
         config.setTenantId(tenantId);
@@ -111,7 +111,7 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
         Long tenantId = TenantContextHolder.getTenantId();
 
         // 权限检查 — ORG_TREE_CONFIG 实例级 UPDATE
-        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, req.id().toString(), AdminOperationCode.UPDATE);
+        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, req.id().toString(), OperationCode.UPDATE);
 
         SysOrgTreeConfig existing = orgTreeConfigMapper.selectByIdSafe(tenantId, req.id());
         if (existing == null) {
@@ -151,7 +151,7 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
         }
         // 权限检查 — ORG_TREE_CONFIG 批量实例级 DELETE
         List<String> resourceCodes = req.ids().stream().map(String::valueOf).toList();
-        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, resourceCodes, AdminOperationCode.DELETE);
+        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, resourceCodes, OperationCode.DELETE);
 
         // 性能优化：使用批量软删除替代循环更新
         LocalDateTime now = LocalDateTime.now();
@@ -179,7 +179,7 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
     public void setDefault(Long id) {
         PermissionChangeContext.markVisibility(TenantContextHolder.getTenantId());
         // 权限检查 — ORG_TREE_CONFIG 实例级 UPDATE
-        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, id.toString(), AdminOperationCode.TOGGLE);
+        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, id.toString(), OperationCode.TOGGLE);
 
         SysOrgTreeConfig config = orgTreeConfigMapper.selectByIdSafe(TenantContextHolder.getTenantId(), id);
         if (config == null) {

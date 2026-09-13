@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.menu.dto.resp.MenuResp;
 import cn.ac.fage.accessmesh.access.menu.entity.SysMenu;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.menu.mapper.SysMenuMapper;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.menu.service.MenuAppService;

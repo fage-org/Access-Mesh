@@ -3,13 +3,13 @@ doc_type: design
 title: 「组织与用户」融合页 · 权限契约
 status: adopted
 domain: org-user
-last_reviewed: 2026-06-20
+last_reviewed: 2026-09-13   # T-ACCESS-034：操作码常量源改挂合一后 OperationCode（原 AdminOperationCode/OperationCodeConstants 两册删除，正文类名机械改挂；备注¹ 定稿考古段保留当时旧类名并加历史限定）；此前 2026-06-20
 ---
 
 # 「组织与用户」融合页 · 权限契约
 
 > 状态：**v1.4 定稿**（2026-06-14 双轨并行 + 命名空间统一：sys_menu 不再承载可用操作权限，前后端共用 `资源类型:操作码` 词法；VIEW 类细化到资源类型；启用/禁用合并 toggle 语义；普通组织成员关系拆出 `MANAGE_MEMBER`）。本文是「组织管理 + 用户管理」融合页（菜单名：**组织与用户**）的权限设计基线。
-> 操作码以 admin-service `AdminOperationCode`（`CREATE/UPDATE/DELETE/VIEW/ENABLE/RESET_PASSWORD/GRANT/REVOKE/MANAGE_MEMBER/CREATE_POSITION/UPDATE_POSITION/DELETE_POSITION/VIEW_POSITION/ASSIGN_POSITION_USER`）为准；前端 perm 串自 v1.4 起改用乙层格式 `资源类型:操作码`（如 `ORG:CREATE_POSITION`）。
+> 操作码以 `OperationCode`（engine.constant 唯一常量源，T-ACCESS-034 两册合一后；GRANT/REVOKE 为已删除的历史码）为准；前端 perm 串自 v1.4 起改用乙层格式 `资源类型:操作码`（如 `ORG:CREATE_POSITION`）。
 >
 > 关联文档：`docs/design/default-org-tree-user-lifecycle.md`（多组织树与用户生命周期总契约）、`docs/archive/2026-08-27/improvement-plan.md`（页面地图，已合并 2.1 用户管理 + 3.1 组织架构 → 组织与用户；路线图已归档，仅作历史追溯）。原 `docs/plans/api-gap-analysis.md`（接口核对清单）16 个 🔧 接口已实现，2026-06-21 归档至 `docs/archive/2026-06-21/`。
 
@@ -40,7 +40,7 @@ last_reviewed: 2026-06-20
    ▼
 access-service（甲层后端门禁）
    │  AdminPermissionValidator.check{Type|Instance|BatchInstance}Level(
-   │      ResourceTypeCode, [resourceCode], AdminOperationCode)
+   │      ResourceTypeCode, [resourceCode], OperationCode)
    │  └─ 本地 PermQueryEngine（同库同进程，不再经 Feign /checkAuth）
    ▼
 permission-center 域（被管理的权限模型，同库）
@@ -56,7 +56,7 @@ permission-center 域（被管理的权限模型，同库）
 
 | 层 | 含义 | 本页落点 |
 |----|------|----------|
-| **甲层** | 操作本页所需的权限 | 前端按钮门控（`hasPerms`）+ `AdminPermissionValidator`（`ResourceTypeCode × AdminOperationCode`，本地 `PermQueryEngine` 鉴权） |
+| **甲层** | 操作本页所需的权限 | 前端按钮门控（`hasPerms`）+ `AdminPermissionValidator`（`ResourceTypeCode × OperationCode`，本地 `PermQueryEngine` 鉴权） |
 | **乙层** | AccessMesh 被管理的权限模型本身 | permission-center 注册的资源类型（`ORG/USER/ROLE` 等，T-ACCESS-018 收敛后单一常量源 ResourceTypeCode）、操作码、业务域、角色定义；组织/岗位同步为内部角色 |
 
 ### v1.4「双轨并行」下发机制（命名空间统一）
@@ -161,7 +161,7 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 
 | 备注 | 规则（核对后定稿） |
 |------|------|
-| ¹ | **改类操作在本页甲层用粒度操作码**：admin-service 对组织（含岗位）的编辑、移动、改状态统一用 `UPDATE`（无独立 ORG ENABLE，状态改由 `/org/update` 承载），用户启用用 `ENABLE`。`OperationCodeConstants` 虽含 `UPDATE`，但 permission-center 内部角色管理把改/删折叠为 `MANAGE`——该折叠是乙层底层细节，不在本页甲层暴露 |
+| ¹ | **改类操作在本页甲层用粒度操作码**：admin-service 对组织（含岗位）的编辑、移动、改状态统一用 `UPDATE`（无独立 ORG ENABLE，状态改由 `/org/update` 承载），用户启用用 `ENABLE`。`OperationCode` 虽含 `UPDATE`，但 permission-center 内部角色管理把改/删折叠为 `MANAGE`——该折叠是乙层底层细节，不在本页甲层暴露 |
 | ² | **成员增删 / 岗位用户 = 组织成员管理（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。**普通组织（orgType=1）** → `ORG:MANAGE_MEMBER`（v1.4 起从 `UPDATE` 拆出独立操作码，与组织树结构修改解耦，便于"HR 只管成员、不动结构"细粒度配权）；**岗位**（orgType=2） → `ORG:ASSIGN_POSITION_USER`（精化操作码，与组织成员增删进一步解耦，便于"岗位用户运营"独立配权）。但默认组织树是用户目录：默认树新增/移除/设主组织具有身份目录含义，必须按 `docs/design/default-org-tree-user-lifecycle.md` 的高危规则处理；非默认树只能添加/移除已有用户关系，禁止删除用户身份或清理该用户其他组织树关系。`UserOrgAppServiceImpl` 通过 `OrgOperationCodeMapper.resolveForUserOrg(orgType, UPDATE)` 声明式分发：普通组织走 `MANAGE_MEMBER`，岗位走 `ASSIGN_POSITION_USER`。 |
 | ³ | **功能角色分配（C 区，BASIC_ROLE 等）= `ROLE:MANAGE`（目标角色实例）**——须有权管理该角色，才能授予他人（AccessMesh 敏感面，宁严勿松）。permission-center `UserManageAppServiceImpl.assignRole/revokeRolesBatch` 已用 `getDeniedResourceCodes(..., ROLE, 目标角色, MANAGE)` 强制；**T-ACCESS-006 起分配/回收直接由 permission 域 `/api/perm/user-role/assign|revoke` 提供**（admin 侧原 `/user-role/assign|revoke` 写代理已删除，T-ADMIN-024，无映射 404），且**不得**复用 `ROLE:MANAGE/REVOKE`（那是配权语义，属红线） |
 | ⁴ | **岗位作为特殊组织**：岗位实例的 CRUD 属组织管理（`ORG:*`，经 `/org/*`，本页允许），与"配置岗位权限"（红线）严格分离。岗位是挂在组织树下的 `orgType=2` 节点，页面单列 Tab 平铺展示，不混入左侧组织树；由 org 能力写编排同一事务维护本地投影（内部对应 `RoleType.POSITION`）。**乙层操作码精化**：为支持"组织管理员 ≠ 岗位管理员"的细粒度配权，岗位 CRUD 与岗位用户挂载使用独立操作码（`CREATE_POSITION` / `UPDATE_POSITION` / `DELETE_POSITION` / `ASSIGN_POSITION_USER`），资源类型仍为 `ORG`（不新增独立岗位资源类型以避免锚点分裂、user-org 关系双写）；与 `RESET_PASSWORD` 之于 `UPDATE`、`SYNC_INTERFACE` 之于 `SYNC` 同构。orgType 字段不可变，禁止经 `/org/update` 在普通组织/岗位间互转。**声明式映射**：`OrgAppServiceImpl` / `UserOrgAppServiceImpl` 不再手写 if-else 分发 orgType → 操作码，而是通过 `OrgOperationCodeMapper`（单一事实源）统一解析：`resolve(orgType, baseOp)` 用于组织 CRUD（`OrgAppServiceImpl`），`resolveForUserOrg(orgType, UPDATE)` 用于成员关系（`UserOrgAppServiceImpl`，岗位走 `ASSIGN_POSITION_USER`）。新增 orgType 子类型只需扩展映射表，不需逐个 ServiceImpl 检查。|
@@ -207,7 +207,7 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 > 其中成员/岗位归属按设计意图（岗位=特殊组织、成员归组织管理）定稿；当前后端门禁已与备注 ² 对齐，未落地项列入「剩余实现项」。
 
 1. **操作码** ✅
-   `engine.constant/OperationCodeConstants.java`（T-ACCESS-033 迁移后包位） 含 `CREATE/VIEW/MANAGE/UPDATE/DELETE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE`——**`UPDATE` 存在**（注释为"某些场景下是 MANAGE 别名"）。但 `RoleManageAppServiceImpl` 实测：角色 `create→CREATE`，`update/delete/move→MANAGE`。本页甲层门禁实际取自 admin-service `AdminOperationCode.java`：`CREATE/UPDATE/DELETE/VIEW/ENABLE/DISABLE/RESET_PASSWORD/GRANT/REVOKE/PUBLISH/TRIGGER/TOGGLE`——**粒度齐全、无 MANAGE**。→ 矩阵改类操作用 `UPDATE/DELETE/ENABLE/DISABLE`，备注 ¹ 据此定稿。
+   （以下为 2026-06-20 定稿核对时的历史记录——当时两套常量类并存，T-ACCESS-034 已合一为 engine.constant `OperationCode` 唯一常量源。）当时 permission 侧 `engine.constant/OperationCodeConstants.java`（T-ACCESS-033 迁移后包位） 含 `CREATE/VIEW/MANAGE/UPDATE/DELETE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE`——**`UPDATE` 存在**（注释为"某些场景下是 MANAGE 别名"）。但 `RoleManageAppServiceImpl` 实测：角色 `create→CREATE`，`update/delete/move→MANAGE`。本页甲层门禁实际取自当时 admin-service `AdminOperationCode.java`：`CREATE/UPDATE/DELETE/VIEW/ENABLE/DISABLE/RESET_PASSWORD/GRANT/REVOKE/PUBLISH/TRIGGER/TOGGLE`——**粒度齐全、无 MANAGE**。→ 矩阵改类操作用 `UPDATE/DELETE/ENABLE/DISABLE`，备注 ¹ 据此定稿（现行常量面见契约总册 §4：GRANT/REVOKE 已删除、DISABLE 已并入 ENABLE）。
 
 2. **资源类型** ✅
    `access/permission/enums/ResourceTypeCode.java` 终态 23 码（含 `ORG`/`MENU`/`DATA`/`BUTTON` 与 ADMIN_DICT 等 7 个保留名，T-ACCESS-018 扩位后）——资源类型不含 POSITION（POSITION 是 role_type）。`enums/RoleType.java` 表明 `ORG(1)`、`POSITION(2)` 是角色类型（同步落地形态）。T-ACCESS-018 常量合一后甲层资源类型统一取自 `access/permission/enums/ResourceTypeCode.java`（原 admin `AdminResourceType` 已删除，五组 ADMIN_* 管理类型并入 USER/ORG/ROLE/MENU/SYSTEM_CONFIG）→ 矩阵乙层列用 `ORG/USER/ROLE`。

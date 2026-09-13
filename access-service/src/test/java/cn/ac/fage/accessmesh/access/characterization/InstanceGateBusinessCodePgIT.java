@@ -51,10 +51,11 @@ class InstanceGateBusinessCodePgIT {
     /** type_definition 种子：user_type/LOCAL_USER = 3；role_type/BASIC_ROLE = 6 */
     private static final int USER_TYPE_ADMIN = 3;
     private static final int ROLE_TYPE_BASIC = 6;
-    /** resource_type 种子：USER = 6、ROLE = 5；操作种子：USER:MANAGE bit=16、ROLE:MANAGE bit=16 */
+    /** resource_type 种子：USER = 6、ROLE = 5；操作种子：ROLE:MANAGE bit=16、USER 细码走 CRUD 预置（UPDATE bit=4，T-ACCESS-034 USER:MANAGE 退役） */
     private static final int RESOURCE_TYPE_USER = 6;
     private static final int RESOURCE_TYPE_ROLE = 5;
     private static final long MANAGE_BIT = 16L;
+    private static final long UPDATE_BIT = 4L;
 
     /** 自装配投影显式 id 段：远离 abstract_user/abstract_role 序列，杜绝跨空间撞值干扰断言 */
     private static final long USER_ENTITY_OPERATOR = 900101L;
@@ -83,22 +84,22 @@ class InstanceGateBusinessCodePgIT {
         insertResourceEntity(USER_ENTITY_OPERATOR, RESOURCE_TYPE_USER, String.valueOf(operator), "门禁测试-操作者投影");
         insertResourceEntity(USER_ENTITY_TARGET, RESOURCE_TYPE_USER, String.valueOf(targetUser), "门禁测试-目标用户投影");
         // 实例授权只挂在操作者自己的投影上
-        insertRolePerm(role, RESOURCE_TYPE_USER, MANAGE_BIT, USER_ENTITY_OPERATOR);
+        insertRolePerm(role, RESOURCE_TYPE_USER, UPDATE_BIT, USER_ENTITY_OPERATOR);
 
         // 被授权编码（操作者自身）放行，未授权编码（目标用户）拒绝
         assertThat(permQueryEngine.getDeniedResourceCodes(
             TENANT, operator, "USER",
-            Set.of(String.valueOf(operator), String.valueOf(targetUser)), "MANAGE"))
+            Set.of(String.valueOf(operator), String.valueOf(targetUser)), "UPDATE"))
             .containsExactly(String.valueOf(targetUser));
         assertThat(permQueryEngine.hasPermissionByCode(
-            TENANT, operator, "USER", String.valueOf(operator), "MANAGE")).isTrue();
+            TENANT, operator, "USER", String.valueOf(operator), "UPDATE")).isTrue();
         assertThat(permQueryEngine.hasPermissionByCode(
-            TENANT, operator, "USER", String.valueOf(targetUser), "MANAGE")).isFalse();
+            TENANT, operator, "USER", String.valueOf(targetUser), "UPDATE")).isFalse();
 
         // 错参防线：修复前 abstract_user.id 被当 resource_entity.id 直查——显式高位投影 id 装配下，
         // 主体 id 落在 entity 空间必为未授权实体 → 全量拒绝（fail-closed，不再可能跨空间撞值误放行）
         assertThat(permQueryEngine.getDeniedEntityIds(
-            TENANT, operator, "USER", Set.of(operator, targetUser), "MANAGE"))
+            TENANT, operator, "USER", Set.of(operator, targetUser), "UPDATE"))
             .containsExactlyInAnyOrder(operator, targetUser);
     }
 
@@ -134,10 +135,10 @@ class InstanceGateBusinessCodePgIT {
         insertResourceEntity(900103L, RESOURCE_TYPE_USER, String.valueOf(outsider), "门禁测试-无角色用户投影");
 
         assertThat(permQueryEngine.getDeniedResourceCodes(
-            TENANT, outsider, "USER", Set.of(String.valueOf(outsider)), "MANAGE"))
+            TENANT, outsider, "USER", Set.of(String.valueOf(outsider)), "UPDATE"))
             .containsExactly(String.valueOf(outsider));
         assertThat(permQueryEngine.hasPermissionByCode(
-            TENANT, outsider, "USER", String.valueOf(outsider), "MANAGE")).isFalse();
+            TENANT, outsider, "USER", String.valueOf(outsider), "UPDATE")).isFalse();
     }
 
     @Test
@@ -147,16 +148,16 @@ class InstanceGateBusinessCodePgIT {
         Long role = insertAbstractRole("920105", "门禁测试-scopeAll角色");
         insertUserRole(operator, role);
         // 仅类型级 scope_all=true 授权（resource_entity_id 必须为 NULL），不做任何实例投影授权
-        insertScopeAllRolePerm(role, RESOURCE_TYPE_USER, MANAGE_BIT);
+        insertScopeAllRolePerm(role, RESOURCE_TYPE_USER, UPDATE_BIT);
         Long projected = insertAbstractUser("920006", "门禁测试-有投影用户");
         insertResourceEntity(900104L, RESOURCE_TYPE_USER, String.valueOf(projected), "门禁测试-有投影用户投影");
 
         // 有投影 + 无投影编码混合：scopeAll 命中全部放行（投影缺失不得误拒）
         assertThat(permQueryEngine.getDeniedResourceCodes(
             TENANT, operator, "USER",
-            Set.of(String.valueOf(projected), "920099"), "MANAGE")).isEmpty();
+            Set.of(String.valueOf(projected), "920099"), "UPDATE")).isEmpty();
         assertThat(permQueryEngine.hasPermissionByCode(
-            TENANT, operator, "USER", "920099", "MANAGE")).isTrue();
+            TENANT, operator, "USER", "920099", "UPDATE")).isTrue();
     }
 
     // ===== 数据装配（自装配投影，不依赖生产写路径） =====

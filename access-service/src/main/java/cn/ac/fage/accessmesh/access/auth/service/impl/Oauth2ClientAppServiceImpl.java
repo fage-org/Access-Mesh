@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientResp;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.auth.mapper.SysOauth2ClientMapper;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.auth.service.Oauth2ClientAppService;
@@ -69,7 +69,7 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
         targetId = "#req.clientId()", summary = "'create oauth2 client ' + #req.clientId()")
     public Long createClient(Oauth2ClientCreateReq req) {
         // 权限检查 — 类型级 CREATE
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_OAUTH2_CLIENT, AdminOperationCode.CREATE);
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_OAUTH2_CLIENT, OperationCode.CREATE);
 
         // 检查clientId是否已存在
         SysOauth2Client existing = oauth2ClientMapper.selectByClientId(TenantContextHolder.getTenantId(), req.clientId());
@@ -118,7 +118,7 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ADMIN_OAUTH2_CLIENT,
             String.valueOf(req.id()),
-            AdminOperationCode.UPDATE
+            OperationCode.UPDATE
         );
 
         SysOauth2Client existing = oauth2ClientMapper.selectByIdSafe(TenantContextHolder.getTenantId(), req.id());
@@ -177,7 +177,7 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
         List<String> resourceCodes = req.ids().stream()
             .map(String::valueOf)
             .collect(Collectors.toList());
-        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_OAUTH2_CLIENT, resourceCodes, AdminOperationCode.DELETE);
+        permissionValidator.checkBatchInstanceLevel(ResourceTypeCode.ADMIN_OAUTH2_CLIENT, resourceCodes, OperationCode.DELETE);
 
         // 批量软删除（性能优化：单次 SQL 替代循环）
         LocalDateTime now = LocalDateTime.now();

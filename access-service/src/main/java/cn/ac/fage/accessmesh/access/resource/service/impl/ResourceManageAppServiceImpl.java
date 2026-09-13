@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingAddReq;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 
@@ -183,7 +183,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     public ResourceResp createResource(Long tenantId, ResourceCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.CREATE)) {
             throw new SecurityException("无创建资源的权限");
         }
         // codex 二轮复评 P1-2：管理面创建与声明变更/删除（type-definition 侧同持本锁）互斥，
@@ -232,7 +232,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     public List<ResourceResp> batchCreateResources(Long tenantId, List<ResourceCreateReq> reqs, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.CREATE)) {
             throw new SecurityException("无批量创建资源的权限");
         }
 
@@ -342,7 +342,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     public ResourceResp getResource(Long tenantId, ResourceKeyReq key) {
         // T-PERM-028：详情读门禁（类型级 RESOURCE:VIEW，对齐 tree 门禁先例）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on RESOURCE");
         }
         return toResourceResp(selectResourceByBusinessKey(tenantId, key));
@@ -394,7 +394,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         resourceTypeOwnershipGuard.rejectIfSyncManagedType(tenantId, req.resourceTypeCode());
 
         // T-PERM-042：资源实体管理链路按 resource_entity.id 门禁（entityId 轨，§12.3 边界）
-        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, entity.getId(), OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, entity.getId(), OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + entity.getId());
         }
 
@@ -440,7 +440,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         resourceTypeOwnershipGuard.rejectIfSyncManagedType(tenantId, req.resource().resourceTypeCode());
 
         // T-PERM-042：资源实体管理链路按 resource_entity.id 门禁（entityId 轨，§12.3 边界）
-        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, entity.getId(), OperationCodeConstants.MANAGE)) {
+        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, entity.getId(), OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on RESOURCE:" + entity.getId());
         }
 
@@ -504,7 +504,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             .map(ResourceEntity::getId)
             .collect(Collectors.toSet());
 
-        Set<Long> deniedIds = engine.getDeniedEntityIds(tenantId, operatorId, ResourceTypeCode.RESOURCE, existingResourceIds, OperationCodeConstants.MANAGE);
+        Set<Long> deniedIds = engine.getDeniedEntityIds(tenantId, operatorId, ResourceTypeCode.RESOURCE, existingResourceIds, OperationCode.MANAGE);
 
         Set<Long> permittedIds = existingResourceIds.stream()
             .filter(id -> !deniedIds.contains(id))
@@ -634,7 +634,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     public List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode, String domainCode) {
         // T-PERM-042：授权页资源树读门禁（architecture §14.5 终态，类型级 RESOURCE:VIEW）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on RESOURCE");
         }
         Integer resourceType = null;
@@ -674,7 +674,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     public List<ResourceResp> listResources(Long tenantId, String resourceTypeCode, String domainCode, int offset, int limit) {
         // T-PERM-028：列表读门禁（类型级 RESOURCE:VIEW，对齐 tree 门禁先例）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on RESOURCE");
         }
         Integer resourceType = null;
@@ -696,7 +696,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     public long countResources(Long tenantId, String resourceTypeCode, String domainCode) {
         // T-PERM-028：列表读门禁（类型级 RESOURCE:VIEW，与 listResources 同口径；list 端点先调本方法）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on RESOURCE");
         }
         Integer resourceType = null;
@@ -719,7 +719,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     @OperationLog(module = "PERMISSION", action = "RESOURCE_API_MAPPING_ADD", targetType = "resource_api_mapping", targetId = "#result.id()", summary = "'add api mapping for service ' + #req.serviceCode()")
     public ApiMappingResp addApiMapping(Long tenantId, ApiMappingAddReq req) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCodeConstants.MANAGE_API_MAPPING)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, req.serviceCode(), OperationCode.MANAGE_API_MAPPING)) {
             throw new SecurityException("Permission denied: MANAGE_API_MAPPING on SERVICE:" + req.serviceCode());
         }
 
@@ -782,7 +782,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         // T-PERM-042：SERVICE 业务码门禁（serviceCode 即 resource_entity(SERVICE).code）。
         // 引擎纯查询，拒绝时由调用方显式抛出
         Set<String> deniedServiceCodes = engine.getDeniedResourceCodes(
-            tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCodes, OperationCodeConstants.MANAGE_API_MAPPING);
+            tenantId, operatorId, ResourceTypeCode.SERVICE, serviceCodes, OperationCode.MANAGE_API_MAPPING);
         if (!deniedServiceCodes.isEmpty()) {
             throw new SecurityException("Permission denied: MANAGE_API_MAPPING on SERVICE:" + deniedServiceCodes);
         }
@@ -817,10 +817,10 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         String normalizedServiceCode = serviceCode == null || serviceCode.isBlank() ? null : serviceCode;
         boolean filteredByService = normalizedServiceCode != null;
         if (filteredByService) {
-            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, normalizedServiceCode, OperationCodeConstants.VIEW)) {
+            if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, normalizedServiceCode, OperationCode.VIEW)) {
                 throw new SecurityException("Permission denied: VIEW on SERVICE:" + normalizedServiceCode);
             }
-        } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCodeConstants.VIEW)) {
+        } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on SERVICE");
         }
 
@@ -833,7 +833,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 .collect(Collectors.toSet());
             if (!mappingServiceCodes.isEmpty()) {
                 Set<String> denied = engine.getDeniedResourceCodes(
-                    tenantId, operatorId, ResourceTypeCode.SERVICE, mappingServiceCodes, OperationCodeConstants.VIEW);
+                    tenantId, operatorId, ResourceTypeCode.SERVICE, mappingServiceCodes, OperationCode.VIEW);
                 if (!denied.isEmpty()) {
                     mappings = mappings.stream()
                         .filter(mapping -> !denied.contains(mapping.getServiceCode()))
@@ -857,7 +857,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "API映射不存在: " + req.mappingId());
         }
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, mapping.getServiceCode(), OperationCodeConstants.MANAGE_API_MAPPING)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, mapping.getServiceCode(), OperationCode.MANAGE_API_MAPPING)) {
             throw new SecurityException("Permission denied: MANAGE_API_MAPPING on SERVICE:" + mapping.getServiceCode());
         }
 

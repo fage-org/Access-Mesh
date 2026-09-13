@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -103,7 +103,7 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class, () -> service.getResourceTree(1L, null, null));
         }
@@ -117,7 +117,7 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false)))
                 .thenReturn(List.<ResourceEntity>of());
 
@@ -135,7 +135,7 @@ class ResourceManageAppServiceImplTest {
     @DisplayName("create 落库前归一 codeType：空白→default、去首尾空白（键路径 trim 对称，双轨评审 P2 回归锁）")
     void shouldNormalizeCodeTypeOnCreate() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         // API 为非保留类型（USER/ORG/MENU/ROLE 保留给管理事实链路，create 被 guard 拒绝）；
         // codex 三轮复评 P1-2：create 消费门禁返回的权威类型行（不再经 TYPE_VALUE 类型缓存）
         when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "API")).thenReturn(apiType());
@@ -161,7 +161,7 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class, () -> service.getResource(1L, key("x")));
         }
@@ -175,7 +175,7 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
             when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default"))
                 .thenReturn(resourceWithKey(10L));
@@ -195,7 +195,7 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class, () -> service.listResources(1L, null, null, 0, 10));
             assertThrows(SecurityException.class, () -> service.countResources(1L, null, null));
@@ -210,7 +210,7 @@ class ResourceManageAppServiceImplTest {
         entity.setExtra("{\"k\":1}");
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
-        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCode.MANAGE))
             .thenReturn(true);
 
         var resp = service.updateResource(1L,
@@ -229,7 +229,7 @@ class ResourceManageAppServiceImplTest {
         entity.setExtra("{\"k\":1}");
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
-        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCode.MANAGE))
             .thenReturn(true);
 
         var resp = service.updateResource(1L,
@@ -250,7 +250,7 @@ class ResourceManageAppServiceImplTest {
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "BUTTON")).thenReturn(2);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 2, "y", "default")).thenReturn(parent);
-        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCode.MANAGE))
             .thenReturn(true);
 
         cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
@@ -269,7 +269,7 @@ class ResourceManageAppServiceImplTest {
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "child", "default")).thenReturn(descendant);
-        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCode.MANAGE))
             .thenReturn(true);
         when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
             .thenReturn(java.util.Map.of(10L, List.of(11L)));
@@ -289,7 +289,7 @@ class ResourceManageAppServiceImplTest {
         entity.setParentId(20L);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
-        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+        when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCode.MANAGE))
             .thenReturn(true);
 
         service.moveResource(1L, new cn.ac.fage.accessmesh.access.resource.dto.req.ResourceMoveReq(
@@ -314,7 +314,7 @@ class ResourceManageAppServiceImplTest {
     @DisplayName("create 命中 SYNC 类型 → 20055 拒绝，不落库（资源事实归声明来源服务）")
     void shouldRejectCreateOnSyncManagedType() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         stubSyncTypeRejection("API");
 
         cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
@@ -330,7 +330,7 @@ class ResourceManageAppServiceImplTest {
     @DisplayName("batch-create 命中 SYNC 类型 → 20055 拒绝，不落库（评审批次补回归锁）")
     void shouldRejectBatchCreateOnSyncManagedType() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         org.mockito.Mockito.doThrow(new cn.ac.fage.accessmesh.common.exception.BizException(20055,
                 "资源由外部来源维护，请到来源系统操作: resourceTypeCode=HR_ORG"))
             .when(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("HR_ORG"));
@@ -349,7 +349,7 @@ class ResourceManageAppServiceImplTest {
     @DisplayName("create/batch-create 与声明变更互斥：权限→树写锁→所有权门禁→落库（codex 二轮复评 P1-2 + 三轮 P2-1 回归锁）")
     void createResources_shouldLockTreeWritesBeforeOwnershipGate() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "API")).thenReturn(apiType());
 
         service.createResource(1L, new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
@@ -359,7 +359,7 @@ class ResourceManageAppServiceImplTest {
         org.mockito.InOrder createOrder = org.mockito.Mockito.inOrder(
             engine, treeWriteLockSupport, resourceTypeOwnershipGuard, resourceEntityMapper);
         createOrder.verify(engine).hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-            isNull(), eq(OperationCodeConstants.CREATE));
+            isNull(), eq(OperationCode.CREATE));
         createOrder.verify(treeWriteLockSupport).lockTreeWrites(1L,
             cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         createOrder.verify(resourceTypeOwnershipGuard).rejectIfSyncManagedType(1L, "API");
@@ -381,7 +381,7 @@ class ResourceManageAppServiceImplTest {
         org.mockito.InOrder batchOrder = org.mockito.Mockito.inOrder(
             engine, treeWriteLockSupport, resourceTypeOwnershipGuard, resourceEntityMapper);
         batchOrder.verify(engine).hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-            isNull(), eq(OperationCodeConstants.CREATE));
+            isNull(), eq(OperationCode.CREATE));
         batchOrder.verify(treeWriteLockSupport).lockTreeWrites(1L,
             cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         batchOrder.verify(resourceTypeOwnershipGuard).rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("API"));
@@ -394,7 +394,7 @@ class ResourceManageAppServiceImplTest {
         // 场景：类型已删但 TYPE_VALUE 缓存（10s L2）仍返回旧值——门禁库内直查 null 必须当场拒绝；
         // 旧实现（resolveTypeValue 兜底）下会以陈旧值 35 落库，产出引用不到有效 type_definition 的孤儿行
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "GHOST")).thenReturn(null);
         // lenient：新实现不消费类型缓存（该桩仅用于证明「陈旧缓存存在时旧实现会落库」——回归锁语义）
         org.mockito.Mockito.lenient().when(typeResolutionService.resolveTypeValue(1L, "resource_type", "GHOST")).thenReturn(35);
@@ -429,7 +429,7 @@ class ResourceManageAppServiceImplTest {
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "HR_ORG")).thenReturn(1);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
         // 旧实现放行至写库的对照：门禁拒绝不依赖引擎权限结果
-        lenient().when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+        lenient().when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCode.MANAGE))
             .thenReturn(true);
         stubSyncTypeRejection("HR_ORG");
 
@@ -449,7 +449,7 @@ class ResourceManageAppServiceImplTest {
         ResourceEntity entity = resourceWithKey(10L);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "HR_ORG")).thenReturn(1);
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default")).thenReturn(entity);
-        lenient().when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCodeConstants.MANAGE))
+        lenient().when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L, OperationCode.MANAGE))
             .thenReturn(true);
         stubSyncTypeRejection("HR_ORG");
 
@@ -477,7 +477,7 @@ class ResourceManageAppServiceImplTest {
             .thenReturn(java.util.Map.of("HR_MENU", 1));
         when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(1)), anySet(), anySet()))
             .thenReturn(List.of(root));
-        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCodeConstants.MANAGE))
+        when(engine.getDeniedEntityIds(1L, 99L, ResourceTypeCode.RESOURCE, Set.of(10L), OperationCode.MANAGE))
             .thenReturn(Set.of());
         when(resourceEntityDomainService.batchGetDescendantIds(1L, Set.of(10L)))
             .thenReturn(java.util.Map.of(10L, List.of(11L)));
@@ -517,7 +517,7 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.SERVICE),
-                eq("svc-a"), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+                eq("svc-a"), eq(OperationCode.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class,
                 () -> service.listApiMappings(1L, null, "svc-a"));
@@ -531,7 +531,7 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.SERVICE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class,
                 () -> service.listApiMappings(1L, null, null));
@@ -545,11 +545,11 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.SERVICE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(apiMappingMapper.selectValidList(1L, null, null))
                 .thenReturn(List.of(mapping(301L, 1001L, "svc-a"), mapping(302L, 1002L, "svc-b")));
             when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.SERVICE),
-                eq(Set.of("svc-a", "svc-b")), eq(OperationCodeConstants.VIEW)))
+                eq(Set.of("svc-a", "svc-b")), eq(OperationCode.VIEW)))
                 .thenReturn(Set.of("svc-b"));
             when(resourceEntityMapper.selectValidByIds(eq(1L), any())).thenReturn(List.of(resource(1001L)));
 
@@ -566,7 +566,7 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.SERVICE),
-                eq("svc-a"), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                eq("svc-a"), eq(OperationCode.VIEW))).thenReturn(true);
             when(apiMappingMapper.selectValidList(1L, null, "svc-a"))
                 .thenReturn(List.of(mapping(301L, 1001L, "svc-a")));
             ResourceEntity resource = resource(1001L);
@@ -589,7 +589,7 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.SERVICE),
-                eq("svc-a"), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                eq("svc-a"), eq(OperationCode.VIEW))).thenReturn(true);
             when(apiMappingMapper.selectValidList(1L, null, "svc-a"))
                 .thenReturn(List.of(mapping(301L, 9999L, "svc-a")));
             when(resourceEntityMapper.selectValidByIds(eq(1L), any())).thenReturn(List.of());
@@ -608,7 +608,7 @@ class ResourceManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.SERVICE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(apiMappingMapper.selectValidList(eq(1L), isNull(), isNull()))
                 .thenReturn(List.of());
 

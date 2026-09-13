@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.org.dto.req.OrgCreateReq;
 import cn.ac.fage.accessmesh.access.org.dto.req.OrgUpdateReq;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapper;
@@ -100,12 +100,12 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
             }
             permissionValidator.checkInstanceLevel(
                 ResourceTypeCode.ORG, String.valueOf(req.parentOrgId()),
-                OrgOperationCodeMapper.resolve(parent.getOrgType(), AdminOperationCode.UPDATE));
+                OrgOperationCodeMapper.resolve(parent.getOrgType(), OperationCode.UPDATE));
             // 父节点必须可解析到树（游离拒绝）
             orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, req.parentOrgId());
         } else {
             permissionValidator.checkTypeLevel(
-                ResourceTypeCode.ORG, OrgOperationCodeMapper.resolve(orgType, AdminOperationCode.CREATE));
+                ResourceTypeCode.ORG, OrgOperationCodeMapper.resolve(orgType, OperationCode.CREATE));
         }
         // 岗位拓扑约束：岗位必须有父（非顶级）且父必须是普通组织；任何节点不能挂在岗位下
         validatePositionTopology(orgType, req.parentOrgId(), parent);
@@ -159,7 +159,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG, String.valueOf(req.id()),
-            OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.UPDATE));
+            OrgOperationCodeMapper.resolve(org.getOrgType(), OperationCode.UPDATE));
         // 请求携带 parent（含表单回传原值）时按锁内快照重判换父：parent 已被改到请求值时
         // 视为 no-op 移动（跳过校验），否则走完整移动校验——快照在锁内，无需二次读取
         Long newParentId = req.parentOrgId();
@@ -269,7 +269,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         // 新父级 UPDATE 门禁：防止把组织移动到调用者无权管理的节点下
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG, String.valueOf(newParentId),
-            OrgOperationCodeMapper.resolve(newParent.getOrgType(), AdminOperationCode.UPDATE));
+            OrgOperationCodeMapper.resolve(newParent.getOrgType(), OperationCode.UPDATE));
         // 岗位拓扑约束：新父必须是普通组织（岗位自身无下级——岗位下挂节点拒绝；
         // 未知类型（如 orgType=3）也不能作为父节点；岗位移动到组织下满足"岗位必须作为组织的直接子节点"）
         if (!isRegularOrgType(newParent.getOrgType())) {
@@ -329,7 +329,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG, String.valueOf(id),
-            OrgOperationCodeMapper.resolve(org.getOrgType(), AdminOperationCode.DELETE));
+            OrgOperationCodeMapper.resolve(org.getOrgType(), OperationCode.DELETE));
         if (orgDomainService.hasChildren(tenantId, id)) {
             throw new BizException(AdminErrorCode.ORG_HAS_CHILDREN.getCode(),
                 AdminErrorCode.ORG_HAS_CHILDREN.getMessage());

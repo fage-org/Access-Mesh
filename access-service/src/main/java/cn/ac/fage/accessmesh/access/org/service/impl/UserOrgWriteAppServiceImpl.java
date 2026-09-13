@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapper;
@@ -90,12 +90,12 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         if (!regularOrgCodes.isEmpty()) {
             permissionValidator.checkBatchInstanceLevel(
                 ResourceTypeCode.ORG, regularOrgCodes,
-                OrgOperationCodeMapper.resolveForUserOrg(null, AdminOperationCode.UPDATE));
+                OrgOperationCodeMapper.resolveForUserOrg(null, OperationCode.UPDATE));
         }
         if (!positionCodes.isEmpty()) {
             permissionValidator.checkBatchInstanceLevel(
                 ResourceTypeCode.ORG, positionCodes,
-                OrgOperationCodeMapper.resolveForUserOrg("2", AdminOperationCode.UPDATE));
+                OrgOperationCodeMapper.resolveForUserOrg("2", OperationCode.UPDATE));
         }
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         for (SysOrgTreeConfig config : defaultConfigs) {
@@ -178,7 +178,7 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         boolean isDefaultTreeOrg = defaultTreeOrgIds.contains(orgId);
         if (isDefaultTreeOrg) {
             permissionValidator.checkInstanceLevel(
-                ResourceTypeCode.USER, String.valueOf(userId), AdminOperationCode.UPDATE);
+                ResourceTypeCode.USER, String.valueOf(userId), OperationCode.UPDATE);
             List<SysUserOrg> userDefaultOrgs = userOrgDomainService.findByUserId(tenantId, userId).stream()
                 .filter(uo -> defaultTreeOrgIds.contains(uo.getOrgId()) && !uo.getOrgId().equals(orgId))
                 .collect(Collectors.toList());
@@ -189,7 +189,7 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         } else {
             permissionValidator.checkInstanceLevel(
                 ResourceTypeCode.ORG, String.valueOf(orgId),
-                OrgOperationCodeMapper.resolveForUserOrg(org.getOrgType(), AdminOperationCode.UPDATE));
+                OrgOperationCodeMapper.resolveForUserOrg(org.getOrgType(), OperationCode.UPDATE));
         }
         userOrgDomainService.deleteByUserIdAndOrgId(tenantId, userId, orgId);
         String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";

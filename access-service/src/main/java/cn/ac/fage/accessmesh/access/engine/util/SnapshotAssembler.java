@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import cn.ac.fage.accessmesh.perm.common.util.ConditionEvalUtils;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
@@ -42,9 +43,6 @@ import java.util.stream.Collectors;
 @Component
 public class SnapshotAssembler {
 
-    /** 网关接口鉴权专用操作码（api-contract/DDL 运行时种子；快照与 check-interface 双路径同口径） */
-    private static final String OPERATION_ACCESS = "ACCESS";
-
     /**
      * 解析「有效位覆盖 ACCESS 的操作位掩码」：ACCESS 自身位 ∪ 所有
      * {@code effectiveBits(binaryBit | inheritMask)} 覆盖 ACCESS 位的操作的 binaryBit——
@@ -56,7 +54,7 @@ public class SnapshotAssembler {
         List<OperationPermission> ops = operationPermissionMapper
             .selectByTenantAndResourceType(tenantId, apiType);
         long accessBit = ops.stream()
-            .filter(o -> OPERATION_ACCESS.equals(o.getCode()))
+            .filter(o -> OperationCode.ACCESS.equals(o.getCode()))
             .map(OperationPermission::getBinaryBit)
             .filter(Objects::nonNull)
             .mapToLong(Long::longValue)

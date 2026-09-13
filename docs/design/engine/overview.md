@@ -3,7 +3,7 @@ doc_type: design
 title: Permission Center 概念模型
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-10   # 2026-09-10 T-PERM-059 收口：运行时接口列表与「权限排查与变更日志」节（改「变更日志与审计」）更新删除口径；此前 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
+last_reviewed: 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-10   # 2026-09-10 T-PERM-059 收口：运行时接口列表与「权限排查与变更日志」节（改「变更日志与审计」）更新删除口径；此前 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
 ---
 
 # Permission Center 概念模型
@@ -125,16 +125,16 @@ effectiveScopes = DIRECT 直接范围权限 ∪ DEPENDENT 子权限范围权限
 
 // 单目标鉴权（code 传 null = 类型级）
 boolean allowed = engine.hasPermissionByCode(tenantId, subjectId,
-    ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.MANAGE);
+    ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE);
 // 批量获取拒绝的业务编码集合（引擎纯查询不抛异常，拒绝时调用方显式 throw）
 Set<String> denied = engine.getDeniedResourceCodes(tenantId, subjectId,
-    ResourceTypeCode.USER, userCodes, OperationCodeConstants.MANAGE);
+    ResourceTypeCode.ROLE, roleCodes, OperationCode.MANAGE);
 
 // —— entityId 轨（仅引擎内部或已完成解析的调用方：资源树、API 映射、资源依赖、权限树等）——
 boolean ok = engine.hasPermissionByEntityId(tenantId, subjectId,
-    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCodeConstants.MANAGE);
+    ResourceTypeCode.RESOURCE, resourceEntityId, OperationCode.MANAGE);
 Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
-    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCodeConstants.DELETE);
+    ResourceTypeCode.RESOURCE, resourceEntityIds, OperationCode.DELETE);
 ```
 
 **复杂查询 API（`PermQuery` 工厂方法 + `engine.query()`；T-PERM-057 统一引擎——targetMode 三态：TYPE_LEVEL 只消费 scopeAll / INSTANCE 目标下推+判定面闭包 / LIST 按角色全量）：**

@@ -68,7 +68,7 @@
 |---|---|---|---|---|---|---|
 | [T-ACCESS-032](T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | [capability-fusion](../plans/access-capability-fusion-plan.md) | capability-structure（产出 §8 并转 adopted）；access-service-architecture §1.2/§3/§9/§11；project-rules §8.2 | — | ✅ | ✓ |
 | [T-ACCESS-033](T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建（✅ 2026-09-13 收口：500 类搬迁 + 17 对改名 + 僵尸三件删除 + 五测试重建 + @MapperScan 14 包；全量回归含 E2E 绿，终态与遗留登记见任务卡完成记录） | capability-fusion | capability-structure §2/§8；access-service-architecture §3 | T-ACCESS-032 | ✅ | ✓ |
-| [T-ACCESS-034](T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | capability-fusion | capability-structure §5.1；契约总册 §12.1/§4；schema | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
+| [T-ACCESS-034](T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化（✅ 2026-09-13 收口：OperationCode 单一常量面 + USER 字段分档门禁 + USER:MANAGE 退役 + 空库首管理员放行） | capability-fusion | capability-structure §5.1；契约总册 §12.1/§4；schema | T-ACCESS-033, T-ACCESS-040 | ✅ | ✅ |
 | [T-ACCESS-035](T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | capability-fusion | capability-structure §5.2；schema | T-ACCESS-033 | ⚙️ | ⏳ |
 | [T-ACCESS-036](T-ACCESS-036.md) | resource_entity.sort_order 退役 | capability-fusion | capability-structure §5.2；契约总册 §12.1；schema；perm-common | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
 | [T-ACCESS-037](T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | capability-fusion | capability-structure §5.3；契约总册 §17.2/§17.3 | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |

@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigReq;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ServiceConfigResp;
@@ -65,7 +65,7 @@ class ServiceConfigAppServiceImplTest {
     @Test
     void shouldSaveServiceConfigWhenPermissionGranted() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L),
-            eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCodeConstants.MANAGE)))
+            eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCode.MANAGE)))
             .thenReturn(true);
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-service")).thenReturn(null);
 
@@ -85,7 +85,7 @@ class ServiceConfigAppServiceImplTest {
     @Test
     void shouldThrowWhenSaveServiceConfigPermissionDenied() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L),
-            eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCodeConstants.MANAGE)))
+            eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCode.MANAGE)))
             .thenReturn(false);
 
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1, null);
@@ -252,7 +252,7 @@ class ServiceConfigAppServiceImplTest {
 
     private void mockManagePermission() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L),
-            eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCodeConstants.MANAGE)))
+            eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCode.MANAGE)))
             .thenReturn(true);
     }
 }

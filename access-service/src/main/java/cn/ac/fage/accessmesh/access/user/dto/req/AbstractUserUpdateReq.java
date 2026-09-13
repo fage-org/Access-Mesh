@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.user.dto.req;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 
 /**
@@ -18,4 +19,14 @@ public record AbstractUserUpdateReq(
     String name,
     Boolean enabled,
     String extra
-) {}
+) {
+    /**
+     * 至少一个业务字段（T-ACCESS-034）：空 patch（仅 userId）在旧实现会无门禁落点地
+     * 走完写库/投影/审计/缓存失效全链路（无条件写副作用），经 Bean Validation 在
+     * Controller 层拒绝（MethodArgumentNotValidException → 90001，HTTP 400）。
+     */
+    @AssertTrue(message = "至少需要提供一个业务字段（name/enabled/extra）")
+    public boolean isAtLeastOneBusinessFieldPresent() {
+        return name != null || enabled != null || extra != null;
+    }
+}

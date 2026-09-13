@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.type.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.access.type.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.access.type.dto.resp.TypeDefinitionResp;
@@ -136,7 +136,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     public TypeDefinitionResp createType(Long tenantId, TypeCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, null, OperationCode.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on TYPE_DEFINITION");
         }
 
@@ -346,7 +346,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         Long operatorId = OperatorContext.getOperatorId();
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, typeId);
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
-                type != null ? instanceBusinessKey(type) : null, OperationCodeConstants.VIEW)) {
+                type != null ? instanceBusinessKey(type) : null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION:" + typeId);
         }
         return type != null ? toTypeResp(type) : null;
@@ -411,7 +411,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      */
     private void requireTypeViewPermission(Long tenantId, Long operatorId) {
         if (engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
-                null, OperationCodeConstants.VIEW)) {
+                null, OperationCode.VIEW)) {
             return;
         }
         // 全拒判定必须与引擎入参同一去重集合比较：复合键虽行级唯一，保持去重集合入参
@@ -420,7 +420,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             .map(this::instanceBusinessKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));
         Set<String> denied = engine.getDeniedResourceCodes(tenantId, operatorId,
-                ResourceTypeCode.TYPE_DEFINITION, codes, OperationCodeConstants.VIEW);
+                ResourceTypeCode.TYPE_DEFINITION, codes, OperationCode.VIEW);
         if (codes.isEmpty() || denied.size() >= codes.size()) {
             throw new SecurityException("Permission denied: VIEW on TYPE_DEFINITION");
         }
@@ -461,7 +461,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // T-PERM-051：复合业务键需先载行（typeCode/typeKey 不可变，锁内重读不改变键）
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
-                type != null ? instanceBusinessKey(type) : null, OperationCodeConstants.MANAGE)) {
+                type != null ? instanceBusinessKey(type) : null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + req.typeId());
         }
         if (type == null) throw new BizException(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
@@ -597,7 +597,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         List<TypeDefinition> entities = typeDefinitionMapper.selectValidByIds(tenantId, validInputIds);
         if (entities.isEmpty()) {
             if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
-                    null, OperationCodeConstants.MANAGE)) {
+                    null, OperationCode.MANAGE)) {
                 throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + validInputIds);
             }
             OperationLogRuntimeContext.markSkip();
@@ -608,7 +608,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             .map(this::instanceBusinessKey)
             .collect(Collectors.toCollection(LinkedHashSet::new));
         Set<String> deniedKeys = engine.getDeniedResourceCodes(
-            tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, keys, OperationCodeConstants.MANAGE);
+            tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION, keys, OperationCode.MANAGE);
         if (!deniedKeys.isEmpty()) {
             throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + deniedKeys);
         }

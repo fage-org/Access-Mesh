@@ -14,7 +14,7 @@ import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
@@ -103,7 +103,7 @@ class DependencyAppServiceImplTest {
 
     /** 覆盖 update 全链路的 stub：类型级 UPDATE 门禁 + 既有行存在 + 资源可解析 + 操作码可解析 + 无重复 */
     private void stubUpdateHappyPath(Long existingSourceBits) {
-        stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+        stubTypeLevelPermission(OperationCode.UPDATE, true);
         ResourceDependency existing = newDep(7L, SOURCE_ID, TARGET_ID, existingSourceBits, 2L);
         when(dependencyMapper.selectOneById(7L)).thenReturn(existing);
         when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
@@ -155,7 +155,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldRejectAutoGrantTrueOnCreate() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
 
             BizException ex = assertThrows(BizException.class,
                 () -> service.createDependency(TENANT, createReq(null, List.of("ACCESS"), true), OPERATOR));
@@ -166,7 +166,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldDefaultAutoGrantToFalseAndStampAdminUiOnCreate() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
             when(typeResolutionService.resolveResourceId(TENANT, "API", "api:hello", null, null)).thenReturn(TARGET_ID);
             stubOperationResolution("API", Map.of("ACCESS", 41L), Map.of(41L, 4L));
@@ -187,7 +187,7 @@ class DependencyAppServiceImplTest {
         void shouldRejectAutoGrantTrueOnUpdate() {
             ResourceDependency existing = newDep(7L, SOURCE_ID, TARGET_ID, 2L, 2L);
             when(dependencyMapper.selectOneById(7L)).thenReturn(existing);
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            stubTypeLevelPermission(OperationCode.UPDATE, true);
 
             BizException ex = assertThrows(BizException.class,
                 () -> service.updateDependency(TENANT, updateReq(null, List.of("ACCESS"), Boolean.TRUE, null), OPERATOR));
@@ -198,7 +198,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldRejectAutoGrantTrueOnBatchSyncItem() {
-            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            stubTypeLevelPermission(OperationCode.SYNC, true);
 
             DependencyBatchSyncReq req = new DependencyBatchSyncReq("example-service", "SERVICE_SYNC",
                 "INCREMENTAL", List.of(new DependencyBatchSyncReq.DependencySyncItem(
@@ -215,7 +215,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldRejectAutoGrantTrueBeforeFullDiffDeletion() {
-            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            stubTypeLevelPermission(OperationCode.SYNC, true);
 
             DependencyBatchSyncReq req = new DependencyBatchSyncReq("example-service", "SERVICE_SYNC",
                 "FULL", List.of(new DependencyBatchSyncReq.DependencySyncItem(
@@ -243,7 +243,7 @@ class DependencyAppServiceImplTest {
         void shouldRejectListWithoutViewPermission() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, false);
+                stubTypeLevelPermission(OperationCode.VIEW, false);
 
                 assertThrows(SecurityException.class, () -> service.listDependencies(TENANT, null));
                 verify(dependencyMapper, never()).selectByTenantAndResourceEntityId(anyLong(), any());
@@ -254,7 +254,7 @@ class DependencyAppServiceImplTest {
         void shouldRejectGraphFullListWithoutViewPermission() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, false);
+                stubTypeLevelPermission(OperationCode.VIEW, false);
 
                 assertThrows(SecurityException.class, () -> service.listAllDependencies(TENANT));
                 verify(dependencyMapper, never()).selectByTenantId(anyLong());
@@ -265,7 +265,7 @@ class DependencyAppServiceImplTest {
         void shouldRejectCycleCheckWithoutViewPermission() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, false);
+                stubTypeLevelPermission(OperationCode.VIEW, false);
 
                 assertThrows(SecurityException.class, () -> service.hasDependencyCycle(TENANT,
                     new cn.ac.fage.accessmesh.access.resource.dto.req.ResourceDependencyCheckReq(
@@ -278,7 +278,7 @@ class DependencyAppServiceImplTest {
         void shouldBackfillTypeCodeAndNameInListResp() {
             try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
                 opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
-                stubTypeLevelPermission(OperationCodeConstants.VIEW, true);
+                stubTypeLevelPermission(OperationCode.VIEW, true);
                 ResourceDependency dep = newDep(7L, SOURCE_ID, TARGET_ID, 2L, 4L);
                 dep.setMaintainSource("ADMIN_UI");
                 dep.setCreatedAt(LocalDateTime.of(2026, 1, 1, 0, 0));
@@ -326,7 +326,7 @@ class DependencyAppServiceImplTest {
         @Test
         void shouldRejectUpdateWithoutTypeLevelPermission() {
             when(dependencyMapper.selectOneById(7L)).thenReturn(newDep(7L, SOURCE_ID, TARGET_ID, 2L, 2L));
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, false);
+            stubTypeLevelPermission(OperationCode.UPDATE, false);
 
             assertThrows(SecurityException.class,
                 () -> service.updateDependency(TENANT, updateReq(null, List.of("ACCESS"), null, null), OPERATOR));
@@ -366,7 +366,7 @@ class DependencyAppServiceImplTest {
         void shouldThrow20054WhenEquivalentDependencyExists() {
             ResourceDependency existing = newDep(7L, SOURCE_ID, TARGET_ID, 2L, 2L);
             when(dependencyMapper.selectOneById(7L)).thenReturn(existing);
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            stubTypeLevelPermission(OperationCode.UPDATE, true);
             when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
             when(typeResolutionService.resolveResourceId(TENANT, "API", "api:hello", null, null)).thenReturn(TARGET_ID);
             stubOperationResolution("API", Map.of("ACCESS", 41L), Map.of(41L, 4L));
@@ -384,7 +384,7 @@ class DependencyAppServiceImplTest {
         @Test
         void shouldThrow20044WhenSourceEqualsTarget() {
             when(dependencyMapper.selectOneById(7L)).thenReturn(newDep(7L, SOURCE_ID, TARGET_ID, 2L, 2L));
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            stubTypeLevelPermission(OperationCode.UPDATE, true);
             when(typeResolutionService.resolveResourceId(anyLong(), anyString(), anyString(), any(), any()))
                 .thenReturn(SOURCE_ID);
 
@@ -398,7 +398,7 @@ class DependencyAppServiceImplTest {
         @Test
         void shouldThrow20005WhenOperationCodeUnknown() {
             when(dependencyMapper.selectOneById(7L)).thenReturn(newDep(7L, SOURCE_ID, TARGET_ID, 2L, 2L));
-            stubTypeLevelPermission(OperationCodeConstants.UPDATE, true);
+            stubTypeLevelPermission(OperationCode.UPDATE, true);
             when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
             when(typeResolutionService.resolveResourceId(TENANT, "API", "api:hello", null, null)).thenReturn(TARGET_ID);
             // 拼错码 ACCES 不解析：fail-closed 20005（原实现静默丢弃落 0）
@@ -427,7 +427,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldTranslateUniqueViolationTo20054OnCreate() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
             when(typeResolutionService.resolveResourceId(TENANT, "API", "api:hello", null, null)).thenReturn(TARGET_ID);
             stubOperationResolution("API", Map.of("ACCESS", 41L), Map.of(41L, 4L));
@@ -450,7 +450,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldThrow20005WhenOperationMissingOnSecondLoad() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
             when(typeResolutionService.resolveResourceId(TENANT, "API", "api:hello", null, null)).thenReturn(TARGET_ID);
             // code→id 解析成功，但按 id 二次加载落空（两查询间隙并发软删）：
@@ -468,7 +468,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldThrow20054WhenDuplicatePrecheckHits() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
             when(typeResolutionService.resolveResourceId(TENANT, "API", "api:hello", null, null)).thenReturn(TARGET_ID);
             // 两个类型（MENU/API）各自 stub，操作位表一次返回全部（避免后一次 stub 覆盖前一次）
@@ -491,7 +491,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldThrow20044WhenCreateSelfDependency() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(typeResolutionService.resolveResourceId(anyLong(), anyString(), anyString(), any(), any()))
                 .thenReturn(SOURCE_ID);
 
@@ -504,7 +504,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldThrow20005WhenCreateOperationCodePartiallyUnknown() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
             when(typeResolutionService.resolveResourceId(TENANT, "API", "api:hello", null, null)).thenReturn(TARGET_ID);
             // 部分解析成功：ACCESS 有、ACCES 无——原实现静默只合并已知位，现必须 fail-closed
@@ -520,7 +520,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldThrow20044WhenAllOperationCodesBlank() {
-            stubTypeLevelPermission(OperationCodeConstants.CREATE, true);
+            stubTypeLevelPermission(OperationCode.CREATE, true);
             when(typeResolutionService.resolveResourceId(TENANT, "MENU", "menu:sys", null, null)).thenReturn(SOURCE_ID);
             when(typeResolutionService.resolveResourceId(TENANT, "API", "api:hello", null, null)).thenReturn(TARGET_ID);
 
@@ -539,7 +539,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldRejectRemoveWithoutTypeLevelPermission() {
-            stubTypeLevelPermission(OperationCodeConstants.DELETE, false);
+            stubTypeLevelPermission(OperationCode.DELETE, false);
 
             assertThrows(SecurityException.class,
                 () -> service.deleteDependencies(TENANT, List.of(7L), OPERATOR));
@@ -548,7 +548,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldSkipAndMarkLogWhenAllGhostIds() {
-            stubTypeLevelPermission(OperationCodeConstants.DELETE, true);
+            stubTypeLevelPermission(OperationCode.DELETE, true);
             when(dependencyMapper.selectValidByIds(eq(TENANT), anySet())).thenReturn(List.of());
             OperationLogRuntimeContext.clear();
 
@@ -572,7 +572,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldDiffByTripleOnFullSync() {
-            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            stubTypeLevelPermission(OperationCode.SYNC, true);
             ResourceResolveKey sourceKey = new ResourceResolveKey("MENU", "menu:sys", null, null);
             ResourceResolveKey targetKey = new ResourceResolveKey("API", "api:hello", null, null);
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
@@ -606,7 +606,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldResolveOperationBitsOncePerResourceType() {
-            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            stubTypeLevelPermission(OperationCode.SYNC, true);
             ResourceResolveKey sourceKey1 = new ResourceResolveKey("MENU", "menu:sys", null, null);
             ResourceResolveKey sourceKey2 = new ResourceResolveKey("MENU", "menu:other", null, null);
             ResourceResolveKey targetKey = new ResourceResolveKey("API", "api:hello", null, null);
@@ -632,7 +632,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldThrow20005WhenSyncItemOperationCodeUnknown() {
-            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            stubTypeLevelPermission(OperationCode.SYNC, true);
             ResourceResolveKey sourceKey = new ResourceResolveKey("MENU", "menu:sys", null, null);
             ResourceResolveKey targetKey = new ResourceResolveKey("API", "api:hello", null, null);
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
@@ -651,7 +651,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldThrow20044WhenSyncItemMissingRequiredOperationCodes() {
-            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            stubTypeLevelPermission(OperationCode.SYNC, true);
 
             // 清单级预检先于资源解析与 FULL diff（P1 修复锁定）：资源未解析的畸形条目
             // 不得绕过 20044，FULL 差异删除亦不得执行——旧实现 continue 在必检查之前
@@ -668,7 +668,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldThrow20044WhenSyncItemRequiredCodesAllBlankBeforeResolution() {
-            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            stubTypeLevelPermission(OperationCode.SYNC, true);
 
             // 全空白 required 码与缺失同档，同样在清单级预检拒绝（先于资源解析）
             assertThatThrownBy(() -> service.batchSyncDependencies(TENANT, new DependencyBatchSyncReq(
@@ -682,7 +682,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldThrow20044WhenSyncItemAllOperationCodesBlank() {
-            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            stubTypeLevelPermission(OperationCode.SYNC, true);
             ResourceResolveKey sourceKey = new ResourceResolveKey("MENU", "menu:sys", null, null);
             ResourceResolveKey targetKey = new ResourceResolveKey("API", "api:hello", null, null);
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))
@@ -705,7 +705,7 @@ class DependencyAppServiceImplTest {
 
         @Test
         void shouldIgnoreBlankElementsInSyncItemCodes() {
-            stubTypeLevelPermission(OperationCodeConstants.SYNC, true);
+            stubTypeLevelPermission(OperationCode.SYNC, true);
             ResourceResolveKey sourceKey = new ResourceResolveKey("MENU", "menu:sys", null, null);
             ResourceResolveKey targetKey = new ResourceResolveKey("API", "api:hello", null, null);
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), anyList()))

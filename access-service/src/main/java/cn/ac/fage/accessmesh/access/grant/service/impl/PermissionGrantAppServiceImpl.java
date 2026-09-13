@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.grant.service.impl;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
@@ -109,7 +109,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         }
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
-            String.valueOf(roleId), OperationCodeConstants.MANAGE)) {
+            String.valueOf(roleId), OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
         AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
@@ -156,7 +156,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
         // 操作者授权校验 - 需要VIEW权限
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.VIEW)) {
             return List.of();
         }
 
@@ -351,7 +351,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         }
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
-            String.valueOf(roleId), OperationCodeConstants.VIEW)) {
+            String.valueOf(roleId), OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on ROLE:" + roleId);
         }
         PermissionGrantPlanDomainService.SubPermissionPolicy policy =

@@ -33,7 +33,7 @@ last_updated: 2026-09-13
 - **来源**：融合计划外部评审发现的门禁缺口，用户定案「豁免范围应限定、登记遗留，不在本计划解决」（decision-registry 2026-09-13 融合行处置；T-ACCESS-034 非目标/遗留）
 - **关联**：—
 
-**现象与证据**：两轨用户写入口对「操作者 == 目标用户」整段跳过门禁——perm 轨 `UserManageAppServiceImpl.updateUser` 以 `if (!operatorId.equals(req.userId()))` 包裹门禁（`:276-281`）；`deleteUsers` 的 `nonSelfUserIds` 只决定门禁集合、`softDeleteBatch` 用**含自身**的 `existingUserIds`（`:332-351`——现状校 `USER:MANAGE`，T-ACCESS-034 换绑后为 `USER:DELETE`）；admin 轨 `UserServiceImpl` 同款豁免。T-ACCESS-034 换绑后，自身路径仍零 USER 操作位即可改自己 name/extra/enabled 或删自己（LOCAL_USER 被 `localProjectionGuard` 拒；`abstract-user/update` 端点契约已发布但仓内零调用方——前端零消费、SDK 无该方法；`abstract-user/remove` 经 SDK `deleteUsers` 可达）。
+**现象与证据**：两轨用户写入口对「操作者 == 目标用户」整段跳过门禁——perm 轨 `UserManageAppServiceImpl.updateUser` 以 `if (!operatorId.equals(req.userId()))` 包裹门禁（`:276-281`）；`deleteUsers` 的 `nonSelfUserIds` 只决定门禁集合、`softDeleteBatch` 用**含自身**的 `existingUserIds`（`:345-362`——原校 `USER:MANAGE`，已随 T-ACCESS-034 换绑为 `USER:DELETE`）；admin 轨 `UserServiceImpl` 同款豁免。T-ACCESS-034 换绑后，自身路径仍零 USER 操作位即可改自己 name/extra/enabled 或删自己（LOCAL_USER 被 `localProjectionGuard` 拒；`abstract-user/update` 端点契约已发布但仓内零调用方——前端零消费、SDK 无该方法；`abstract-user/remove` 经 SDK `deleteUsers` 可达）。
 
 **影响**：操作者对自身操作时零权限通过——自身 `enabled` 变更绕过启停分权（USER:ENABLE）、自删绕过删除门禁，「改自己允许哪些字段/动作」的权限边界缺失。示例：已登录主体对自身 id 调 `/api/perm/abstract-user/remove`（SDK `deleteUsers` 可达）——自身被 `nonSelfUserIds` 剔除后门禁集合为空，软删直接生效。
 

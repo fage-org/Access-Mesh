@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-13   # T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
+last_reviewed: 2026-09-13   # T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
 ---
 
 # access-service API 契约总册
@@ -198,7 +198,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `ResourceTypeCode.ORG` | `ORG` | 被管理的组织/岗位实例 (resource_entity, code=sys_org.id；原 ADMIN_ORG 并入) |
 | `ResourceTypeCode.ROLE` | `ROLE` | (本契约只读: 仅 /role/list 用；原 ADMIN_ROLE 并入) |
 
-操作码常量 (`AdminOperationCode`): `CREATE / UPDATE / DELETE / VIEW / ENABLE / DISABLE / RESET_PASSWORD / GRANT / REVOKE`.
+操作码常量（`OperationCode`，`engine.constant` 单一常量源，T-ACCESS-034 合一——原 `AdminOperationCode` 与 `OperationCodeConstants` 两册已删除；按资源类型分节，共享码按值命名）：`CREATE / VIEW / UPDATE / DELETE / MANAGE / SYNC`（跨类型共享）+ `ENABLE / RESET_PASSWORD`（USER）+ `ASSIGN / REVOKE`（ROLE）+ `ACCESS`（API）+ `MANAGE_API_MAPPING / SYNC_INTERFACE`（SERVICE）+ ORG 六码（`MANAGE_MEMBER / CREATE_POSITION / VIEW_POSITION / UPDATE_POSITION / DELETE_POSITION / ASSIGN_POSITION_USER`）+ 平台三码（`PUBLISH / TRIGGER / TOGGLE`）。统一常量面 = 注册表镜像：DDL 种子在册即收录（含零代码引用的 ROLE:ASSIGN/REVOKE，取代 T-PERM-019 D3 只镜像代码引用面口径）。历史注：DISABLE 已并入 ENABLE（v1.4）、ADMIN_ROLE:GRANT/REVOKE 已删除（T-ACCESS-018）。
 
 本契约接口的门禁映射表:
 
@@ -604,6 +604,16 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `POST /api/perm/abstract-user/remove`             | 删除主体，支持批量       |
 
 > 主体 `sync`/`full-sync` 为外部事实源同步通道端点，契约详见 §19.4（主体、角色、用户角色同步接口）；`detail`/`list`/`create`/`update`/`remove` 为管理端点（DTO 名 `AbstractUser*`，T-ACCESS-033 裁决 1 改名消歧，JSON 契约零变化）。
+
+**管理端点门禁（T-ACCESS-034 USER 轨细粒度化，唯一权限语义变更）**：
+
+| 接口 | 门禁 | 口径 |
+|---|---|---|
+| `abstract-user/create` | `USER:CREATE` 类型级 | 保留主体类型守卫（LOCAL_USER 等保留键拒绝） |
+| `abstract-user/update` | **字段分档实例级**（`resource_entity(USER).code = subjectId`）：name/extra 变更查 `USER:UPDATE`、`enabled != null` 查 `USER:ENABLE` | 组合字段须同时通过全部涉及的操作码（防 UPDATE 绕过启停分权）；自身豁免保留（operatorId == targetId 跳过门禁，与 admin 轨 `/user/update` 同款；豁免范围限定为已知问题 Q-002）；空 patch（仅 userId 无任何业务字段）经 Bean Validation 拒绝 **90001**（HTTP 400，`@AssertTrue` 至少一个业务字段——堵无门禁落点的无条件写副作用） |
+| `abstract-user/remove` | `USER:DELETE` 实例级批量（getDeniedResourceCodes，任一拒绝整批拒绝） | 非自身目标走门禁；LOCAL_USER 目标拒绝（投影守卫） |
+
+> USER:MANAGE 操作位已退役（DDL 种子删除、位 16 空闲不复用）。bootstrap 固定图 USER 段本无 MANAGE 位——旧实现下空库首管理员经 update/remove 恒拒（死锁），换绑后**由拒转放行是预期行为变化**（FirstAdminUserTrackPgIT 正向锁）。粗细统一仅 USER 一处；ROLE/RESOURCE 等类型的 MANAGE 惯例维持。
 
 ## 8. org 能力（组织与用户-组织关系）
 ### 8.1 `POST /org/tree` ✅
@@ -1391,7 +1401,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 // operation-permission/detail|update（OperationKeyReq / OperationUpdateReq：resourceTypeCode 必填）
 { "resourceTypeCode": "USER", "code": "VIEW" }
 // operation-permission/remove（OperationKeysReq）
-{ "items": [ { "resourceTypeCode": "USER", "code": "VIEW" }, { "resourceTypeCode": "USER", "code": "MANAGE" } ] }
+{ "items": [ { "resourceTypeCode": "USER", "code": "VIEW" }, { "resourceTypeCode": "ROLE", "code": "MANAGE" } ] }
 ```
 
 | 规则 | 口径 |
@@ -1639,7 +1649,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - **list 全量不分页**（设计定案）：返回全量 `ItemsResp<ConditionResp>`——条件模板数量有界（租户内几十个量级，非流水表），与 domain-config/service-config「量小不分页」同款；keyword/enabled 过滤由前端本地完成（前端设计文档 §8 🔧3 登记的 ConditionListReq 分页方案据此反转）。**双轨制（T-PERM-048 收口 2026-09-11）**：list 请求体 `{includeInline?}`（ConditionListReq）——缺省/false 只返回 source=MANAGED 管理页条件（权限条件页口径：内联条件在管理页查不到也不能管理）；`includeInline=true` 含 INLINE（授权页回显内联条件名称/规则摘要用）。
 - **ConditionResp**：`{id, tenantId, code, name, conditionRules, enabled, gatewayEvaluable, source, description, createdAt, updatedAt}`——`updatedAt` 为 T-PERM-029 补齐、`source` 为 T-PERM-048 补齐（`MANAGED`/`INLINE`，值域 schema CHECK 焊死）；`conditionRules` 结构 `{logic, items[]}`（4 预置类型 DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST），语义等价可直接再提交——**注意来源差异**：list/detail 为 JSONB 回读的 DB 规范化文本，create/update 直接返回本次最终接受的规则文本（未做写后反查，调用方提交的空白/键序原样保留）。
 - **条件双轨制（T-PERM-048 收口，2026-09-11 五项定案见 decision-registry 同日行）**：条件分两类、管理边界互斥——①**MANAGED 管理页条件**：仅权限条件页 CRUD（create 固定 source=MANAGED，不接受请求指定来源），授权页只能 conditionCode 引用；有 resource_entity(CONDITION) 实例投影（code=条件 code，status 镜像 enabled），可被实例级授权；②**INLINE 内联条件**：仅授权页随 apply-grant-plan 产生（§11.4 inlineCondition），1:1 属于创建它的授权记录不可共享（code 自动生成 `inline-` 前缀、enabled 恒 true、**不建投影行**——无资源身份消费者），授权行删除/换绑时引用归零同事务回收。管理面防线（20060 `CONDITION_INLINE_NOT_MANAGEABLE`）：update/remove 遇 INLINE 行整批拒绝、detail 拒绝、apply-grant-plan 的 conditionCode 引用轨遇 INLINE 行拒绝（1:1 的 API 焊点——引用轨值域恒 MANAGED）。
-- **权限门禁（T-PERM-048 定案④升级实例级）**：读（list/detail）无门禁（2026-08-08 产品确认：条件规则全租户开放、非敏感）；写 create = CONDITION:CREATE **类型级**（scope_all）维持；update/remove 升**实例级** CONDITION:UPDATE@{code} / DELETE@{code}（经 resource_entity(CONDITION).code=条件 code 投影解析，USER:MANAGE 同款；投影行缺失 fail-closed）——bootstrap 固定图与存量授权全为 scope_all 三档，passesScopeAll 天然覆盖全部实例，升级**零破坏**（实例级授权此前配不进，不存在会被降权的存量行）。remove 实例级全有或全无（getDeniedResourceCodes 批量，任一 code 拒绝整批不变更）。CONDITION 的 CREATE/UPDATE/DELETE 三档独立，非 MANAGE 聚合（与 RESOURCE/OPERATION 的 CREATE+MANAGE 两档不同）。
+- **权限门禁（T-PERM-048 定案④升级实例级）**：读（list/detail）无门禁（2026-08-08 产品确认：条件规则全租户开放、非敏感）；写 create = CONDITION:CREATE **类型级**（scope_all）维持；update/remove 升**实例级** CONDITION:UPDATE@{code} / DELETE@{code}（经 resource_entity(CONDITION).code=条件 code 投影解析，业务编码轨同款——原参照系 USER:MANAGE 已随 T-ACCESS-034 退役，门禁细码化为 UPDATE/DELETE；投影行缺失 fail-closed）——bootstrap 固定图与存量授权全为 scope_all 三档，passesScopeAll 天然覆盖全部实例，升级**零破坏**（实例级授权此前配不进，不存在会被降权的存量行）。remove 实例级全有或全无（getDeniedResourceCodes 批量，任一 code 拒绝整批不变更）。CONDITION 的 CREATE/UPDATE/DELETE 三档独立，非 MANAGE 聚合（与 RESOURCE/OPERATION 的 CREATE+MANAGE 两档不同）。
 - **删除引用守卫（T-PERM-048 定案③，20059 `CONDITION_REFERENCED_BY_GRANTS`）**：remove 时两类引用任一命中**整批拒绝**（message 携带冲突 code 清单，T-PERM-056 删除保护先例）——① `role_resource_permission.condition_id` 挂靠引用（挂该条件的授权行评估 fail-close，静默删除会让授权「静默失效」）；② 投影行下实例授权引用（CONDITION:UPDATE/DELETE@code 等实例级授权行悬空防护）。零引用才放行；放行删除时条件行+投影行同事务软删。弃 TYPE_DEFINITION 级联软删方案（授权资产被删条件连带消失比要求显式解绑更危险）。
 - **gatewayEvaluable 联合校验**（T-PERM-017 C2.5）：create/update 取「最终状态」校验——只切 flag 不改 rules 用 DB 老 rules、同改用新 rules、已 true 改 rules 用新 rules；`gatewayEvaluable=true` 要求 `logic ∈ {AND, OR}`（缺省 AND）且 `items[].type` 全在 `ConditionEvalUtils.GATEWAY_PUSHABLE_TYPES` 白名单，不通过 20031 `CONDITION_RULES_INVALID`。update/delete 后经 `@PermissionChange` 反查受影响 serviceCodes 广播 Gateway 接口快照失效。
 - **remove 幂等语义**：请求中不存在或已删除的 code 静默跳过、重复 code 去重（幽灵键幂等语义与 resource-entity/remove 一致；拒绝语义为实例级全有或全无——无 CONDITION:DELETE 授权整批拒绝（T-PERM-048 升实例级），被引用时守卫 20059 整批拒绝，resource-entity 为实例级删有权部分）；remove 响应 Void 无行数，调用方以事后查询核对。

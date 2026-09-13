@@ -7,7 +7,6 @@ import cn.ac.fage.accessmesh.common.cache.TypeRef;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Admin 服务缓存目录
@@ -35,23 +34,6 @@ public final class AdminCacheCatalog {
             .l1MaxSize(500)
             .l2Ttl(Duration.ofMinutes(60))
             .valueType(new TypeRef<List<DictTypeResp>>() {})
-            .build();
-
-    /**
-     * 操作码缓存
-     * <p>
-     * Key: tenantId
-     * Value: Map&lt;String, Long&gt; 操作码 → 操作权限ID映射
-     * </p>
-     */
-    public static final CacheCatalogEntry<Map<String, Long>> OPERATION_CODE =
-        CacheCatalogEntry.<Map<String, Long>>builder()
-            .code("admin:operation-code")
-            .mode(CacheMode.L1_L2)
-            .l1Ttl(Duration.ofMinutes(30))
-            .l1MaxSize(100)
-            .l2Ttl(Duration.ofMinutes(120))
-            .valueType(new TypeRef<Map<String, Long>>() {})
             .build();
 
 }

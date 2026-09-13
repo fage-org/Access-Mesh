@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.grant.service.impl;
 
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.infrastructure.util.PermissionConstants;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.RolePermissionListReq;
@@ -107,7 +107,7 @@ class PermissionGrantAppServiceImplTest {
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
             opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
             when(engine.hasPermissionByCode(TENANT, OPERATOR, ResourceTypeCode.ROLE,
-                String.valueOf(ROLE_ID), OperationCodeConstants.VIEW)).thenReturn(false);
+                String.valueOf(ROLE_ID), OperationCode.VIEW)).thenReturn(false);
 
             // 无 VIEW 抛 SecurityException（不采用空结果掩盖鉴权失败，区别于 list）
             assertThrows(SecurityException.class, () -> service.subPermAllowedTypes(TENANT, subPermReq()));
@@ -126,7 +126,7 @@ class PermissionGrantAppServiceImplTest {
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
             opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
             when(engine.hasPermissionByCode(TENANT, OPERATOR, ResourceTypeCode.ROLE,
-                String.valueOf(ROLE_ID), OperationCodeConstants.VIEW)).thenReturn(true);
+                String.valueOf(ROLE_ID), OperationCode.VIEW)).thenReturn(true);
 
             SubPermAllowedTypesResp resp = service.subPermAllowedTypes(TENANT, subPermReq());
 
@@ -148,7 +148,7 @@ class PermissionGrantAppServiceImplTest {
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
             opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
             when(engine.hasPermissionByCode(TENANT, OPERATOR, ResourceTypeCode.ROLE,
-                String.valueOf(ROLE_ID), OperationCodeConstants.VIEW)).thenReturn(true);
+                String.valueOf(ROLE_ID), OperationCode.VIEW)).thenReturn(true);
 
             SubPermAllowedTypesResp resp = service.subPermAllowedTypes(TENANT, subPermReq());
 
@@ -188,7 +188,7 @@ class PermissionGrantAppServiceImplTest {
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
             opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
             when(engine.hasPermissionByCode(TENANT, OPERATOR, ResourceTypeCode.ROLE,
-                String.valueOf(ROLE_ID), OperationCodeConstants.MANAGE)).thenReturn(true);
+                String.valueOf(ROLE_ID), OperationCode.MANAGE)).thenReturn(true);
 
             service.applyGrantPlan(TENANT, req);
         }
@@ -266,7 +266,7 @@ class PermissionGrantAppServiceImplTest {
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
             opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
             when(engine.hasPermissionByCode(TENANT, OPERATOR, ResourceTypeCode.ROLE,
-                String.valueOf(ROLE_ID), OperationCodeConstants.VIEW)).thenReturn(true);
+                String.valueOf(ROLE_ID), OperationCode.VIEW)).thenReturn(true);
 
             List<RolePermissionItemResp> items = service.listPermissions(TENANT,
                 new RolePermissionListReq(null, "BASIC_ROLE", "role_editor", "ORG", null));
@@ -292,7 +292,7 @@ class PermissionGrantAppServiceImplTest {
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
             opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
             when(engine.hasPermissionByCode(TENANT, OPERATOR, ResourceTypeCode.ROLE,
-                String.valueOf(ROLE_ID), OperationCodeConstants.VIEW)).thenReturn(true);
+                String.valueOf(ROLE_ID), OperationCode.VIEW)).thenReturn(true);
 
             List<RolePermissionItemResp> items = service.listPermissions(TENANT,
                 new RolePermissionListReq(null, "BASIC_ROLE", "role_editor", "TYPO", null));
@@ -319,7 +319,7 @@ class PermissionGrantAppServiceImplTest {
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
             opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
             when(engine.hasPermissionByCode(TENANT, OPERATOR, ResourceTypeCode.ROLE,
-                String.valueOf(ROLE_ID), OperationCodeConstants.VIEW)).thenReturn(true);
+                String.valueOf(ROLE_ID), OperationCode.VIEW)).thenReturn(true);
 
             List<RolePermissionItemResp> items = service.listPermissions(TENANT,
                 new RolePermissionListReq(null, "BASIC_ROLE", "role_editor", "ORG", false));
@@ -339,7 +339,7 @@ class PermissionGrantAppServiceImplTest {
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
             opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
             when(engine.hasPermissionByCode(TENANT, OPERATOR, ResourceTypeCode.ROLE,
-                String.valueOf(ROLE_ID), OperationCodeConstants.VIEW)).thenReturn(true);
+                String.valueOf(ROLE_ID), OperationCode.VIEW)).thenReturn(true);
 
             List<RolePermissionItemResp> items = service.listPermissions(TENANT,
                 new RolePermissionListReq(null, "BASIC_ROLE", "role_editor", "ORG", null));
@@ -365,7 +365,7 @@ class PermissionGrantAppServiceImplTest {
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
             opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
             when(engine.hasPermissionByCode(TENANT, OPERATOR, ResourceTypeCode.ROLE,
-                String.valueOf(ROLE_ID), OperationCodeConstants.VIEW)).thenReturn(true);
+                String.valueOf(ROLE_ID), OperationCode.VIEW)).thenReturn(true);
 
             List<RolePermissionItemResp> items = service.listPermissions(TENANT,
                 new RolePermissionListReq(null, "BASIC_ROLE", "role_editor", null, null));

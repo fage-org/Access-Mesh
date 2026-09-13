@@ -203,10 +203,10 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
-    @DisplayName("种子数据：type_definition 33 行 / operation_permission 125 行 / system_config 9 行 / oauth2 3 行")
+    @DisplayName("种子数据：type_definition 33 行 / operation_permission 124 行 / system_config 9 行 / oauth2 3 行")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(33, countRows("type_definition"), "type_definition 系统种子 33 行（user_type 3 + role_type 5 + resource_type 25，T-ACCESS-018 收敛 + T-PERM-025 OPERATION_LOG + T-PERM-032 PERMISSION_CHANGE_LOG）");
-        assertEquals(125, countRows("operation_permission"), "operation_permission 种子 125 行（静态类型 CRUD 100 + 非预置扩展 13 + 权限中心运行时必需 12）");
+        assertEquals(124, countRows("operation_permission"), "operation_permission 种子 124 行（静态类型 CRUD 100 + 非预置扩展 13 + 权限中心运行时必需 11；USER:MANAGE 随 T-ACCESS-034 退役删除）");
         assertEquals(9, countRows("system_config"), "system_config 种子 9 条（T-ACCESS-007 迁移至 admin.* 前缀）");
         assertEquals(3, countRows("sys_oauth2_client"), "sys_oauth2_client 种子 3 条");
     }
@@ -228,12 +228,12 @@ class AccessServiceSchemaH2Test {
     @Test
     @DisplayName("运行时必需操作对完整性：代码实际校验的非 CRUD 操作全部有种子")
     void shouldHaveAllRuntimeRequiredOperations() throws SQLException {
-        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 25 对 = 权限中心 13 + Admin 12；
+        // 与代码调用点交叉核对的必需清单（非 CRUD 部分，共 24 对 = 权限中心 12 + Admin 12；
         // T-ACCESS-018 收敛：ADMIN_ORG 六码迁 ORG、ADMIN_USER 两码迁 USER（ENABLE bit 32）、
-        // ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移）
+        // ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移；USER:MANAGE 随 T-ACCESS-034 USER 轨
+        // 细粒度化退役——update/remove 门禁换绑 UPDATE/DELETE 通用码，种子删除）
         String[][] required = {
-            // 权限中心家族（13 对，含既有 ROLE:MANAGE；评审 11 缺失 + API:ACCESS 接口鉴权）
-            {"USER", "MANAGE"},
+            // 权限中心家族（12 对，含既有 ROLE:MANAGE；评审 11 缺失 + API:ACCESS 接口鉴权）
             {"ROLE", "MANAGE"}, {"ROLE", "ASSIGN"}, {"ROLE", "REVOKE"},
             {"RESOURCE", "MANAGE"},
             {"SERVICE", "MANAGE"}, {"SERVICE", "MANAGE_API_MAPPING"}, {"SERVICE", "SYNC_INTERFACE"},
@@ -346,11 +346,11 @@ class AccessServiceSchemaH2Test {
         assertOperationBit("MENU", "UPDATE", 4, 2);
         assertOperationBit("MENU", "DELETE", 8, 2);
         assertOperationBit("ORG", "CREATE", 1, 0);
-        // 扩展码与 CRUD 位不冲突（ORG:VIEW_POSITION 从 512 起；USER:ENABLE bit 重分配 32——16 被 MANAGE 占用）
+        // 扩展码与 CRUD 位不冲突（ORG:VIEW_POSITION 从 512 起；USER:ENABLE bit 32——
+        // 16 曾被 MANAGE 占用，T-ACCESS-034 退役后空闲不复用，位值断言随之删除）
         assertOperationBit("ORG", "VIEW_POSITION", 512, 0);
         assertOperationBit("USER", "ENABLE", 32, 2);
         assertOperationBit("USER", "RESET_PASSWORD", 64, 2);
-        assertOperationBit("USER", "MANAGE", 16, 2);
     }
 
     private void assertOperationBit(String typeCode, String opCode, long expectedBit, long expectedMask) throws SQLException {

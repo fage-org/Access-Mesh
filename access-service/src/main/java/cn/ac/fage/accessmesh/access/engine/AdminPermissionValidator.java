@@ -9,13 +9,13 @@ package cn.ac.fage.accessmesh.access.engine;
  * <p>使用示例：
  * <pre>
  * // 类型级校验（CREATE操作）
- * validator.checkTypeLevel(ResourceTypeCode.USER, AdminOperationCode.CREATE);
+ * validator.checkTypeLevel(ResourceTypeCode.USER, OperationCode.CREATE);
  *
  * // 实例级校验（UPDATE/DELETE操作）
- * validator.checkInstanceLevel(ResourceTypeCode.USER, "123", AdminOperationCode.UPDATE);
+ * validator.checkInstanceLevel(ResourceTypeCode.USER, "123", OperationCode.UPDATE);
  *
  * // 批量实例级校验
- * validator.checkBatchInstanceLevel(ResourceTypeCode.USER, List.of("123", "456"), AdminOperationCode.DELETE);
+ * validator.checkBatchInstanceLevel(ResourceTypeCode.USER, List.of("123", "456"), OperationCode.DELETE);
  * </pre>
  * </p>
  *
@@ -31,7 +31,7 @@ public interface AdminPermissionValidator {
      * </p>
      *
      * @param resourceTypeCode 资源类型码（如 ResourceTypeCode.USER）
-     * @param operationCode    操作码（如 AdminOperationCode.CREATE）
+     * @param operationCode    操作码（如 OperationCode.CREATE）
      */
     void checkTypeLevel(String resourceTypeCode, String operationCode);
 
@@ -58,7 +58,7 @@ public interface AdminPermissionValidator {
      *
      * @param resourceTypeCode 资源类型码（如 ResourceTypeCode.USER）
      * @param resourceCode     资源实例码（如 userId.toString()）
-     * @param operationCode    操作码（如 AdminOperationCode.UPDATE）
+     * @param operationCode    操作码（如 OperationCode.UPDATE）
      */
     void checkInstanceLevel(String resourceTypeCode, String resourceCode, String operationCode);
 

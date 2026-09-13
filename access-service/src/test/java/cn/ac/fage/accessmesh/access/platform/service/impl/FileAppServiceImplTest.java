@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.platform.entity.SysFile;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysFileMapper;
 import cn.ac.fage.accessmesh.access.platform.service.AdminFileFolderRegistrar;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -113,7 +113,7 @@ class FileAppServiceImplTest {
     void getFileDeniedWithoutFolderViewPermission() {
         when(fileMapper.selectValidById(TENANT, 1L)).thenReturn(fileRow(1L, "default/2026/08/25/uuid.txt"));
         doThrow(new SecurityException("denied")).when(permissionValidator)
-            .checkInstanceLevel(ResourceTypeCode.ADMIN_FILE, "default", AdminOperationCode.VIEW);
+            .checkInstanceLevel(ResourceTypeCode.ADMIN_FILE, "default", OperationCode.VIEW);
 
         assertThatThrownBy(() -> service.getFile(1L)).isInstanceOf(SecurityException.class);
         verify(fileMapper, never()).softDeleteBatch(any(), anyList(), any());
@@ -124,7 +124,7 @@ class FileAppServiceImplTest {
     void downloadFileDeniedWithoutFolderViewPermission() {
         when(fileMapper.selectValidById(TENANT, 1L)).thenReturn(fileRow(1L, "default/2026/08/25/uuid.txt"));
         doThrow(new SecurityException("denied")).when(permissionValidator)
-            .checkInstanceLevel(ResourceTypeCode.ADMIN_FILE, "default", AdminOperationCode.VIEW);
+            .checkInstanceLevel(ResourceTypeCode.ADMIN_FILE, "default", OperationCode.VIEW);
 
         assertThatThrownBy(() -> service.downloadFile(1L, new MockHttpServletResponse()))
             .isInstanceOf(SecurityException.class);
@@ -138,7 +138,7 @@ class FileAppServiceImplTest {
 
         assertThat(service.getFile(1L).id()).isEqualTo(1L);
         verify(permissionValidator).checkInstanceLevel(
-            ResourceTypeCode.ADMIN_FILE, "default", AdminOperationCode.VIEW);
+            ResourceTypeCode.ADMIN_FILE, "default", OperationCode.VIEW);
     }
 
     // ===== ①' page 过滤语义（T-ADMIN-025：过滤非门禁，不 403） =====
@@ -164,7 +164,7 @@ class FileAppServiceImplTest {
         when(fileMapper.selectDistinctBucketNames(TENANT, null))
             .thenReturn(List.of("avatar", "document"));
         when(permissionValidator.getDeniedResourceCodes(
-            eq(ResourceTypeCode.ADMIN_FILE), anySet(), eq(AdminOperationCode.VIEW)))
+            eq(ResourceTypeCode.ADMIN_FILE), anySet(), eq(OperationCode.VIEW)))
             .thenReturn(Set.of());
         when(fileMapper.countFilesByCondition(TENANT, null, List.of("avatar", "document"))).thenReturn(2L);
         when(fileMapper.selectFilesByCondition(TENANT, null, List.of("avatar", "document"), 0, 10))
@@ -185,7 +185,7 @@ class FileAppServiceImplTest {
         when(fileMapper.selectDistinctBucketNames(TENANT, null))
             .thenReturn(List.of("avatar", "document", "image"));
         when(permissionValidator.getDeniedResourceCodes(
-            eq(ResourceTypeCode.ADMIN_FILE), anySet(), eq(AdminOperationCode.VIEW)))
+            eq(ResourceTypeCode.ADMIN_FILE), anySet(), eq(OperationCode.VIEW)))
             .thenReturn(Set.of("document"));
         when(fileMapper.countFilesByCondition(TENANT, null, List.of("avatar", "image"))).thenReturn(3L);
         when(fileMapper.selectFilesByCondition(TENANT, null, List.of("avatar", "image"), 0, 10))
@@ -205,7 +205,7 @@ class FileAppServiceImplTest {
     void pageFilesReturnsEmptyPageWhenNoVisibleFolder() {
         when(fileMapper.selectDistinctBucketNames(TENANT, null)).thenReturn(List.of("avatar"));
         when(permissionValidator.getDeniedResourceCodes(
-            eq(ResourceTypeCode.ADMIN_FILE), anySet(), eq(AdminOperationCode.VIEW)))
+            eq(ResourceTypeCode.ADMIN_FILE), anySet(), eq(OperationCode.VIEW)))
             .thenReturn(Set.of("avatar"));
 
         PageResp<cn.ac.fage.accessmesh.access.platform.dto.resp.FileResp> page =
@@ -221,7 +221,7 @@ class FileAppServiceImplTest {
     void pageFilesNarrowsUniverseByBizTypeParam() {
         when(fileMapper.selectDistinctBucketNames(TENANT, "avatar")).thenReturn(List.of("avatar"));
         when(permissionValidator.getDeniedResourceCodes(
-            eq(ResourceTypeCode.ADMIN_FILE), anySet(), eq(AdminOperationCode.VIEW)))
+            eq(ResourceTypeCode.ADMIN_FILE), anySet(), eq(OperationCode.VIEW)))
             .thenReturn(Set.of());
         when(fileMapper.countFilesByCondition(TENANT, "avatar", List.of("avatar"))).thenReturn(1L);
         when(fileMapper.selectFilesByCondition(TENANT, "avatar", List.of("avatar"), 0, 10))
@@ -473,7 +473,7 @@ class FileAppServiceImplTest {
         service.deleteFiles(new IdsReq(List.of(1L, 2L, 3L)));
 
         verify(permissionValidator).checkBatchInstanceLevel(
-            ResourceTypeCode.ADMIN_FILE, List.of("avatar", "document"), AdminOperationCode.DELETE);
+            ResourceTypeCode.ADMIN_FILE, List.of("avatar", "document"), OperationCode.DELETE);
         verify(fileMapper).softDeleteBatch(eq(TENANT), eq(List.of(1L, 2L, 3L)), any());
     }
 

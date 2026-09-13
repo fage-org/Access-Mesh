@@ -20,7 +20,7 @@ import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomai
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorUtil;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 
 import java.time.LocalDateTime;
@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  * 读取（list/detail）无门禁（2026-08-08 产品确认：条件规则全租户开放、非敏感）；
  * list 缺省只回 MANAGED（管理页口径），includeInline=true 时含内联（授权页回显用）。
  * 写门禁（T-PERM-048 定案④升级）：create 维持类型级 CONDITION:CREATE（scope_all）；
- * update/delete 升实例级 CONDITION:UPDATE/DELETE@{code}（USER:MANAGE 同款；bootstrap 固定图
+ * update/delete 升实例级 CONDITION:UPDATE/DELETE@{code}（业务编码轨同款；bootstrap 固定图
  * 与存量授权全为 scope_all 天然覆盖全部实例，零破坏）。
  * 删除引用守卫（T-PERM-048 定案③，20059）：condition_id 挂靠引用或投影行下实例授权引用
  * 任一命中整批拒绝，零引用才放行——挂条件的授权评估 fail-close，静默删除会使其「静默失效」。
@@ -100,7 +100,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     @OperationLog(module = "PERMISSION", action = "PERMISSION_CONDITION_CREATE", targetType = "permission_condition", targetId = "#result.id()", summary = "'create permission condition ' + #req.code()")
     public ConditionResp createCondition(Long tenantId, ConditionCreateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCodeConstants.CREATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, null, OperationCode.CREATE)) {
             throw new SecurityException("Permission denied: CREATE on CONDITION");
         }
 
@@ -183,9 +183,9 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         // 双轨制（T-PERM-048 定案①）：内联条件只能在授权页随记录更改，管理面拒绝
         assertManageable(condition);
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
-        // 实例级门禁（T-PERM-048 定案④升级，USER:MANAGE 同款）：CONDITION 投影 code=条件 code；
+        // 实例级门禁（T-PERM-048 定案④升级，业务编码轨同款）：CONDITION 投影 code=条件 code；
         // scope_all 授权 passesScopeAll 全放行（bootstrap 固定图与存量授权零破坏）
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, req.code(), OperationCodeConstants.UPDATE)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.CONDITION, req.code(), OperationCode.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on CONDITION:" + req.code());
         }
 
@@ -293,7 +293,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
 
         // 实例级门禁（T-PERM-048 定案④升级，deleteUsers 批量先例）：T-PERM-042 引擎纯查询，拒绝由调用方显式抛出
         Set<String> deniedCodes = engine.getDeniedResourceCodes(tenantId, operatorId,
-            ResourceTypeCode.CONDITION, validCodes, OperationCodeConstants.DELETE);
+            ResourceTypeCode.CONDITION, validCodes, OperationCode.DELETE);
         if (!deniedCodes.isEmpty()) {
             throw new SecurityException("Permission denied: DELETE on CONDITION: " + deniedCodes);
         }

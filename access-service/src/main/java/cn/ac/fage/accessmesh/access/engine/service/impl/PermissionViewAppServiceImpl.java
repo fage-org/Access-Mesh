@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.engine.service.impl;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
@@ -68,7 +68,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
 
         // 门禁：自查豁免；查他人时操作者需对被查用户有 USER:VIEW，防任意登录用户枚举 ID 越权读取他人权限码。
         if (!Objects.equals(operatorId, userId)
-            && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCodeConstants.VIEW)) {
+            && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER, String.valueOf(userId), OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on USER:" + userId);
         }
         return getEffectivePermissionCodes(tenantId, req);

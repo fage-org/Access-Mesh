@@ -24,72 +24,72 @@ class OrgOperationCodeMapperTest {
         @DisplayName("null orgType + CREATE → 回退到基础操作码 CREATE（不 NPE）")
         void resolve_nullOrgType_CREATE_noNPE() {
             assertThatNoException().isThrownBy(() ->
-                OrgOperationCodeMapper.resolve(null, AdminOperationCode.CREATE));
-            assertThat(OrgOperationCodeMapper.resolve(null, AdminOperationCode.CREATE))
-                .isEqualTo(AdminOperationCode.CREATE);
+                OrgOperationCodeMapper.resolve(null, OperationCode.CREATE));
+            assertThat(OrgOperationCodeMapper.resolve(null, OperationCode.CREATE))
+                .isEqualTo(OperationCode.CREATE);
         }
 
         @Test
         @DisplayName("null orgType + UPDATE → 回退到 UPDATE（不 NPE）")
         void resolve_nullOrgType_UPDATE_noNPE() {
-            assertThat(OrgOperationCodeMapper.resolve(null, AdminOperationCode.UPDATE))
-                .isEqualTo(AdminOperationCode.UPDATE);
+            assertThat(OrgOperationCodeMapper.resolve(null, OperationCode.UPDATE))
+                .isEqualTo(OperationCode.UPDATE);
         }
 
         @Test
         @DisplayName("null orgType + DELETE → 回退到 DELETE")
         void resolve_nullOrgType_DELETE_noNPE() {
-            assertThat(OrgOperationCodeMapper.resolve(null, AdminOperationCode.DELETE))
-                .isEqualTo(AdminOperationCode.DELETE);
+            assertThat(OrgOperationCodeMapper.resolve(null, OperationCode.DELETE))
+                .isEqualTo(OperationCode.DELETE);
         }
 
         @Test
         @DisplayName("null orgType + VIEW → 回退到 VIEW")
         void resolve_nullOrgType_VIEW_noNPE() {
-            assertThat(OrgOperationCodeMapper.resolve(null, AdminOperationCode.VIEW))
-                .isEqualTo(AdminOperationCode.VIEW);
+            assertThat(OrgOperationCodeMapper.resolve(null, OperationCode.VIEW))
+                .isEqualTo(OperationCode.VIEW);
         }
 
         @Test
         @DisplayName("\"1\" orgType + CREATE → 回退到 CREATE（普通组织）")
         void resolve_regularNum_CREATE() {
-            assertThat(OrgOperationCodeMapper.resolve("1", AdminOperationCode.CREATE))
-                .isEqualTo(AdminOperationCode.CREATE);
+            assertThat(OrgOperationCodeMapper.resolve("1", OperationCode.CREATE))
+                .isEqualTo(OperationCode.CREATE);
         }
 
         @Test
         @DisplayName("\"ORG\" orgType + UPDATE → UPDATE")
         void resolve_regularLabel_UPDATE() {
-            assertThat(OrgOperationCodeMapper.resolve("ORG", AdminOperationCode.UPDATE))
-                .isEqualTo(AdminOperationCode.UPDATE);
+            assertThat(OrgOperationCodeMapper.resolve("ORG", OperationCode.UPDATE))
+                .isEqualTo(OperationCode.UPDATE);
         }
 
         @Test
         @DisplayName("\"2\" orgType + CREATE → CREATE_POSITION")
         void resolve_positionNum_CREATE() {
-            assertThat(OrgOperationCodeMapper.resolve("2", AdminOperationCode.CREATE))
-                .isEqualTo(AdminOperationCode.CREATE_POSITION);
+            assertThat(OrgOperationCodeMapper.resolve("2", OperationCode.CREATE))
+                .isEqualTo(OperationCode.CREATE_POSITION);
         }
 
         @Test
         @DisplayName("\"POSITION\" orgType + VIEW → VIEW_POSITION")
         void resolve_positionLabel_VIEW() {
-            assertThat(OrgOperationCodeMapper.resolve("POSITION", AdminOperationCode.VIEW))
-                .isEqualTo(AdminOperationCode.VIEW_POSITION);
+            assertThat(OrgOperationCodeMapper.resolve("POSITION", OperationCode.VIEW))
+                .isEqualTo(OperationCode.VIEW_POSITION);
         }
 
         @Test
         @DisplayName("\"2\" orgType + UPDATE → UPDATE_POSITION")
         void resolve_positionNum_UPDATE() {
-            assertThat(OrgOperationCodeMapper.resolve("2", AdminOperationCode.UPDATE))
-                .isEqualTo(AdminOperationCode.UPDATE_POSITION);
+            assertThat(OrgOperationCodeMapper.resolve("2", OperationCode.UPDATE))
+                .isEqualTo(OperationCode.UPDATE_POSITION);
         }
 
         @Test
         @DisplayName("\"2\" orgType + DELETE → DELETE_POSITION")
         void resolve_positionNum_DELETE() {
-            assertThat(OrgOperationCodeMapper.resolve("2", AdminOperationCode.DELETE))
-                .isEqualTo(AdminOperationCode.DELETE_POSITION);
+            assertThat(OrgOperationCodeMapper.resolve("2", OperationCode.DELETE))
+                .isEqualTo(OperationCode.DELETE_POSITION);
         }
     }
 
@@ -103,51 +103,51 @@ class OrgOperationCodeMapperTest {
         @DisplayName("null orgType + UPDATE → MANAGE_MEMBER（不 NPE，核心回归守卫）")
         void resolveForUserOrg_nullOrgType_UPDATE_noNPE() {
             assertThatNoException().isThrownBy(() ->
-                OrgOperationCodeMapper.resolveForUserOrg(null, AdminOperationCode.UPDATE));
-            assertThat(OrgOperationCodeMapper.resolveForUserOrg(null, AdminOperationCode.UPDATE))
-                .isEqualTo(AdminOperationCode.MANAGE_MEMBER);
+                OrgOperationCodeMapper.resolveForUserOrg(null, OperationCode.UPDATE));
+            assertThat(OrgOperationCodeMapper.resolveForUserOrg(null, OperationCode.UPDATE))
+                .isEqualTo(OperationCode.MANAGE_MEMBER);
         }
 
         @Test
         @DisplayName("\"1\" orgType + UPDATE → MANAGE_MEMBER")
         void resolveForUserOrg_regularNum_UPDATE() {
-            assertThat(OrgOperationCodeMapper.resolveForUserOrg("1", AdminOperationCode.UPDATE))
-                .isEqualTo(AdminOperationCode.MANAGE_MEMBER);
+            assertThat(OrgOperationCodeMapper.resolveForUserOrg("1", OperationCode.UPDATE))
+                .isEqualTo(OperationCode.MANAGE_MEMBER);
         }
 
         @Test
         @DisplayName("\"ORG\" orgType + UPDATE → MANAGE_MEMBER")
         void resolveForUserOrg_regularLabel_UPDATE() {
-            assertThat(OrgOperationCodeMapper.resolveForUserOrg("ORG", AdminOperationCode.UPDATE))
-                .isEqualTo(AdminOperationCode.MANAGE_MEMBER);
+            assertThat(OrgOperationCodeMapper.resolveForUserOrg("ORG", OperationCode.UPDATE))
+                .isEqualTo(OperationCode.MANAGE_MEMBER);
         }
 
         @Test
         @DisplayName("\"2\" orgType + UPDATE → ASSIGN_POSITION_USER")
         void resolveForUserOrg_positionNum_UPDATE() {
-            assertThat(OrgOperationCodeMapper.resolveForUserOrg("2", AdminOperationCode.UPDATE))
-                .isEqualTo(AdminOperationCode.ASSIGN_POSITION_USER);
+            assertThat(OrgOperationCodeMapper.resolveForUserOrg("2", OperationCode.UPDATE))
+                .isEqualTo(OperationCode.ASSIGN_POSITION_USER);
         }
 
         @Test
         @DisplayName("\"POSITION\" orgType + UPDATE → ASSIGN_POSITION_USER")
         void resolveForUserOrg_positionLabel_UPDATE() {
-            assertThat(OrgOperationCodeMapper.resolveForUserOrg("POSITION", AdminOperationCode.UPDATE))
-                .isEqualTo(AdminOperationCode.ASSIGN_POSITION_USER);
+            assertThat(OrgOperationCodeMapper.resolveForUserOrg("POSITION", OperationCode.UPDATE))
+                .isEqualTo(OperationCode.ASSIGN_POSITION_USER);
         }
 
         @Test
         @DisplayName("null orgType + CREATE → 回退到 resolve（CREATE）")
         void resolveForUserOrg_nullOrgType_CREATE_fallback() {
-            assertThat(OrgOperationCodeMapper.resolveForUserOrg(null, AdminOperationCode.CREATE))
-                .isEqualTo(AdminOperationCode.CREATE);
+            assertThat(OrgOperationCodeMapper.resolveForUserOrg(null, OperationCode.CREATE))
+                .isEqualTo(OperationCode.CREATE);
         }
 
         @Test
         @DisplayName("\"2\" orgType + DELETE → 回退到 resolve（DELETE_POSITION）")
         void resolveForUserOrg_positionNum_DELETE_fallback() {
-            assertThat(OrgOperationCodeMapper.resolveForUserOrg("2", AdminOperationCode.DELETE))
-                .isEqualTo(AdminOperationCode.DELETE_POSITION);
+            assertThat(OrgOperationCodeMapper.resolveForUserOrg("2", OperationCode.DELETE))
+                .isEqualTo(OperationCode.DELETE_POSITION);
         }
     }
 

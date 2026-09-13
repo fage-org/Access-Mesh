@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.role.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.perm.common.dto.req.RoleCreateReq;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.domain.enums.DomainQueryMode;
@@ -97,7 +97,7 @@ class RoleManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
 
             assertEquals(List.of(), service.getRoleTree(1L, "OPS", false));
         }
@@ -110,7 +110,7 @@ class RoleManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class, () -> service.getRoleTree(1L, null, false));
         }
@@ -133,7 +133,7 @@ class RoleManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
 
             List<cn.ac.fage.accessmesh.access.role.dto.resp.RoleTreeResp> tree = service.getRoleTree(1L, null, false);
             assertEquals(1, tree.size());
@@ -150,7 +150,7 @@ class RoleManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
 
             assertEquals(List.of(), service.getRoleTree(1L, null, true));
         }
@@ -174,7 +174,7 @@ class RoleManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
 
             cn.ac.fage.accessmesh.access.role.dto.resp.RoleResp resp = service.getRole(1L, "BASIC_ROLE", "ext-1");
             assertNotNull(resp);
@@ -192,7 +192,7 @@ class RoleManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
 
             assertNull(service.getRole(1L, "GHOST", "ext-1"));
         }
@@ -206,7 +206,7 @@ class RoleManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class, () -> service.getRole(1L, "BASIC_ROLE", "ext-1"));
             assertThrows(SecurityException.class, () -> service.listRoles(1L, null, null, null, null, 0, 10));
@@ -228,7 +228,7 @@ class RoleManageAppServiceImplTest {
         root.setExternalId("root");
         when(subjectDomainService.selectValidRolesByIds(1L, java.util.Set.of(123L))).thenReturn(List.of(root));
         when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq(java.util.Set.of("123")), eq(OperationCodeConstants.MANAGE))).thenReturn(java.util.Set.of());
+            eq(java.util.Set.of("123")), eq(OperationCode.MANAGE))).thenReturn(java.util.Set.of());
         when(subjectDomainService.resolveDescendantRoleIdsBatch(1L, java.util.Set.of(123L)))
             .thenReturn(List.of(456L));
         when(subjectDomainService.findUserIdsByEffectiveRoles(1L, java.util.Set.of(123L, 456L)))
@@ -247,7 +247,7 @@ class RoleManageAppServiceImplTest {
         // 项目规则「父有权子有权」（设计定案）：仅根做一次 MANAGE 检查，子孙不做独立权限过滤
         // （旧实现对子孙集合二次检查，本断言为回归锁）
         verify(engine, org.mockito.Mockito.times(1)).getDeniedResourceCodes(
-            eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), any(), eq(OperationCodeConstants.MANAGE));
+            eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), any(), eq(OperationCode.MANAGE));
     }
 
     /** T-ACCESS-019：createRole 同事务维护 resource_entity(ROLE) 投影（code=roleId）并登记变更日志。 */
@@ -255,7 +255,7 @@ class RoleManageAppServiceImplTest {
     void shouldProjectRoleResourceOnCreate() {
         RoleCreateReq req = new RoleCreateReq(null, "BASIC_ROLE", "ext-1", "运维角色", null, null);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(typeResolutionService.resolveTypeValue(1L, "role_type", "BASIC_ROLE")).thenReturn(6);
         when(subjectDomainService.createRole(eq(1L), isNull(), eq(6), eq("ext-1"), eq("运维角色"), isNull(), isNull()))
             .thenReturn(123L);
@@ -283,7 +283,7 @@ class RoleManageAppServiceImplTest {
     void shouldRejectCreateGroupRoleWithTypeMismatch() {
         RoleCreateReq req = new RoleCreateReq(null, "GROUP_ROLE", "ext-group", "分组角色", null, null);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
@@ -311,7 +311,7 @@ class RoleManageAppServiceImplTest {
         // 生产代码 GROUP_ROLE 判定先于 MANAGE 门禁（与 rejectIfLocalRole 同为权限前前置检查）；
         // lenient 使本用例对未来门禁前移也保持通过（此时 stub 才被消费）
         lenient().when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            eq("123"), eq(OperationCode.MANAGE))).thenReturn(true);
 
         org.assertj.core.api.Assertions.assertThatThrownBy(
                 () -> service.updateRole(1L, 123L, "新名", 0, null, null, null, 100L))
@@ -334,7 +334,7 @@ class RoleManageAppServiceImplTest {
         role.setExtra("{\"k\":1}");
         when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            eq("123"), eq(OperationCode.MANAGE))).thenReturn(true);
         when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
@@ -359,7 +359,7 @@ class RoleManageAppServiceImplTest {
         role.setExtra("{\"k\":1}");
         when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            eq("123"), eq(OperationCode.MANAGE))).thenReturn(true);
         when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
@@ -382,7 +382,7 @@ class RoleManageAppServiceImplTest {
         role.setStatus(1);
         when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            eq("123"), eq(OperationCode.MANAGE))).thenReturn(true);
         when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
@@ -405,7 +405,7 @@ class RoleManageAppServiceImplTest {
         role.setName("运维角色");
         when(subjectDomainService.selectValidRolesByIds(eq(1L), eq(java.util.Set.of(123L)))).thenReturn(List.of(role));
         when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq(java.util.Set.of("123")), eq(OperationCodeConstants.MANAGE))).thenReturn(java.util.Set.of());
+            eq(java.util.Set.of("123")), eq(OperationCode.MANAGE))).thenReturn(java.util.Set.of());
         when(subjectDomainService.findUserIdsByEffectiveRoles(1L, java.util.Set.of(123L)))
             .thenReturn(java.util.Set.of(55L));
         when(typeResolutionService.resolveTypeCode(1L, "role_type", 6)).thenReturn("BASIC_ROLE");
@@ -433,7 +433,7 @@ class RoleManageAppServiceImplTest {
         role.setStatus(1);
         when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            eq("123"), eq(OperationCode.MANAGE))).thenReturn(true);
         when(subjectDomainService.findUserIdsByEffectiveRoles(1L, java.util.Set.of(123L)))
             .thenReturn(java.util.Set.of(66L));
 
@@ -472,7 +472,7 @@ class RoleManageAppServiceImplTest {
         when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
         when(subjectDomainService.selectValidRoleById(1L, 200L)).thenReturn(newParent);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            eq("123"), eq(OperationCode.MANAGE))).thenReturn(true);
         when(subjectDomainService.findUserIdsByEffectiveRoles(1L, java.util.Set.of(123L)))
             .thenReturn(java.util.Set.of(66L));
 
@@ -500,7 +500,7 @@ class RoleManageAppServiceImplTest {
         when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
         when(subjectDomainService.selectValidRoleById(1L, 200L)).thenReturn(parent);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            eq("123"), eq(OperationCode.MANAGE))).thenReturn(true);
 
         BizException ex = assertThrows(BizException.class, () -> service.moveRole(1L, 123L, 200L, 100L));
         assertEquals(20022, ex.getErrorCode());
@@ -516,7 +516,7 @@ class RoleManageAppServiceImplTest {
         role.setRoleType(cn.ac.fage.accessmesh.access.type.enums.RoleType.BASIC_ROLE.getValue());
         when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            eq("123"), eq(OperationCode.MANAGE))).thenReturn(true);
 
         BizException ex = assertThrows(BizException.class, () -> service.moveRole(1L, 123L, 123L, 100L));
         assertEquals(20050, ex.getErrorCode());
@@ -537,7 +537,7 @@ class RoleManageAppServiceImplTest {
         when(subjectDomainService.selectValidRoleById(1L, 123L)).thenReturn(role);
         when(subjectDomainService.selectValidRoleById(1L, 300L)).thenReturn(parent);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-            eq("123"), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            eq("123"), eq(OperationCode.MANAGE))).thenReturn(true);
         when(subjectDomainService.resolveDescendantRoleIdsBatch(1L, java.util.Set.of(123L)))
             .thenReturn(List.of(300L));
 

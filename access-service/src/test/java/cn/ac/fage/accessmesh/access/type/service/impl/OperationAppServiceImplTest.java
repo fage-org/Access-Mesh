@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.type.service.impl;
 
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.type.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -62,7 +62,7 @@ class OperationAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class,
                 () -> service.listOperations(1L, null));
@@ -76,7 +76,7 @@ class OperationAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(operationPermissionMapper.selectByTenantAndResourceType(eq(1L), isNull()))
                 .thenReturn(List.<OperationPermission>of());
 
@@ -93,7 +93,7 @@ class OperationAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "TYPO")).thenReturn(null);
 
             assertEquals(List.of(), service.listOperations(1L, "TYPO"));
@@ -107,7 +107,7 @@ class OperationAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
             when(operationPermissionMapper.selectByTenantAndResourceType(eq(1L), eq(7)))
                 .thenReturn(List.of(op(7, "VIEW")));
@@ -131,7 +131,7 @@ class OperationAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             // 全量路径：USER(7) 正常 + 类型 9 的孤儿行（批量反解不含 9——类型定义已软删）
             when(operationPermissionMapper.selectByTenantAndResourceType(eq(1L), isNull()))
                 .thenReturn(List.of(op(7, "VIEW"), op(9, "ORPHAN_VIEW")));
@@ -167,7 +167,7 @@ class OperationAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class,
                 () -> service.getOperation(1L, new cn.ac.fage.accessmesh.access.type.dto.req.OperationKeyReq("ROLE", "VIEW")));
@@ -181,7 +181,7 @@ class OperationAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ROLE")).thenReturn(5);
             OperationPermission entity = op(5, "VIEW");
             when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 5, "VIEW")).thenReturn(entity);
@@ -197,7 +197,7 @@ class OperationAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ROLE")).thenReturn(5);
             when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 5, "VIEW")).thenReturn(null);
 
@@ -212,7 +212,7 @@ class OperationAppServiceImplTest {
     @DisplayName("update 按业务键定位更新（operationId 形态已删除）+ 提交后失效该类型操作缓存（T-PERM-047）")
     void shouldUpdateOperationByBusinessKey() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ROLE")).thenReturn(5);
         OperationPermission entity = op(5, "MANAGE");
         when(operationPermissionMapper.selectByResourceTypeAndCode(1L, 5, "MANAGE")).thenReturn(entity);
@@ -235,7 +235,7 @@ class OperationAppServiceImplTest {
     @DisplayName("remove 按业务键批量解析，未命中键静默跳过")
     void shouldDeleteOperationsByBusinessKeys() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", java.util.Set.of("ROLE")))
             .thenReturn(java.util.Map.of("ROLE", 5));
         OperationPermission typed = op(5, "VIEW");
@@ -260,7 +260,7 @@ class OperationAppServiceImplTest {
     @DisplayName("remove 多类型稀疏组合：仅删请求的 (type, code) 对，笛卡尔超集行（ROLE:DELETE/USER:VIEW）不误删（复评 P1 回归锁）")
     void shouldNotDeleteCartesianSupersetRowsForSparseMultiTypeKeys() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", java.util.Set.of("ROLE", "USER")))
             .thenReturn(java.util.Map.of("ROLE", 5, "USER", 6));
         // 跨类型 SQL 笛卡尔命中四行（ROLE:VIEW 请求、ROLE:DELETE 未请求、USER:VIEW 未请求、USER:DELETE 请求）
@@ -298,7 +298,7 @@ class OperationAppServiceImplTest {
     @DisplayName("create 落库后提交失效该类型操作缓存（T-PERM-047）")
     void shouldEvictOperationCacheAfterCreate() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "USER")).thenReturn(7);
         // T-PERM-062 后 createOperation 锁内重读类型行（is_system 系统类型不补种，只验证缓存失效接线）
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "USER"))
@@ -319,7 +319,7 @@ class OperationAppServiceImplTest {
     @DisplayName("向自定义 resource_type 追加操作 → 同事务向所有者补种该操作位首授行")
     void shouldSeedAuthorityRootWhenAppendingOperationToCustomType() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
             .thenReturn(customType(12, false));
@@ -340,7 +340,7 @@ class OperationAppServiceImplTest {
     @DisplayName("向系统预置类型追加操作 → 不补种（内置类型转授链收窄不动，T-PERM-027 口径）")
     void shouldSkipSeedWhenAppendingOperationToSystemType() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "SERVICE")).thenReturn(4);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "SERVICE"))
             .thenReturn(customType(4, true));
@@ -355,7 +355,7 @@ class OperationAppServiceImplTest {
     @DisplayName("所有者角色解析失败 → 整单回滚（追加操作与种子同为单事务）")
     void shouldRollbackWhenOwnerUnresolvableOnOperationCreate() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
             .thenReturn(customType(12, false));
@@ -372,7 +372,7 @@ class OperationAppServiceImplTest {
     @DisplayName("锁内 typeDef 为空（取锁窗口内类型被并发删除）→ 20021 fail-closed 不落库（claude 外评附带缺陷）")
     void shouldFailClosedWhenTypeDeletedBeforeLockAcquired() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
             .thenReturn(null);
@@ -388,7 +388,7 @@ class OperationAppServiceImplTest {
     void shouldRebindValueFromInLockRereadWhenTypeRebuilt() {
         // 旧实现用锁前 resourceType=12 落库（孤儿操作行+种子）而活类型 15 缺操作——本用例必红
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.CREATE))).thenReturn(true);
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
         when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
             .thenReturn(customType(15, false));
@@ -411,7 +411,7 @@ class OperationAppServiceImplTest {
     @DisplayName("自定义类型操作位变更 → 同事务迁移种子（软删旧位+补种新位，grok 外评存量升级定案）")
     void shouldMigrateSeedWhenCustomTypeOperationBitChanged() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
         cn.ac.fage.accessmesh.access.type.entity.OperationPermission op =
             new cn.ac.fage.accessmesh.access.type.entity.OperationPermission();
         op.setResourceType(12);
@@ -435,7 +435,7 @@ class OperationAppServiceImplTest {
     @DisplayName("位未变更或系统预置类型 → 不触发种子迁移")
     void shouldNotMigrateSeedWhenBitUnchangedOrSystemType() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
         cn.ac.fage.accessmesh.access.type.entity.OperationPermission op =
             new cn.ac.fage.accessmesh.access.type.entity.OperationPermission();
         op.setResourceType(12);
@@ -461,7 +461,7 @@ class OperationAppServiceImplTest {
     @DisplayName("删除自定义类型操作 → 同事务级联清理该操作位种子行；系统预置类型不清理")
     void shouldCascadeSeedRemovalOnCustomTypeOperationDelete() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
         // 自定义类型 ORDER(12):EXPORT(16) + 系统类型 SERVICE(4):AUDIT(64)
         cn.ac.fage.accessmesh.access.type.entity.OperationPermission export =
             new cn.ac.fage.accessmesh.access.type.entity.OperationPermission();
@@ -514,7 +514,7 @@ class OperationAppServiceImplTest {
     @DisplayName("remove 空键早退不失效（无数据变更，T-PERM-047）")
     void shouldSkipEvictionWhenDeleteHitsNothing() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
 
         service.deleteOperations(1L, List.of(), 100L);
 
@@ -526,7 +526,7 @@ class OperationAppServiceImplTest {
     @DisplayName("remove 键非空但零命中（类型解析空）早退不失效（T-PERM-047）")
     void shouldSkipEvictionWhenDeleteResolvesNoEntities() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
-            isNull(), eq(OperationCodeConstants.MANAGE))).thenReturn(true);
+            isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
         when(typeResolutionService.batchResolveTypeValues(eq(1L), eq("resource_type"), eq(java.util.Set.of("ROLE"))))
             .thenReturn(java.util.Map.of());
 

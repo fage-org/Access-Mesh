@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.audit.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.audit.dto.resp.ChangeLogResp;
 import cn.ac.fage.accessmesh.access.audit.entity.PermissionChangeLog;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -73,9 +73,9 @@ class LogQueryAppServiceImplChangeLogTest {
             // 旧实现走 SYSTEM_CONFIG 校验：显式放行使旧实现越过其门禁后在断言处失败，
             // 回归锁不依赖 Mockito 严格桩行为
             org.mockito.Mockito.lenient().when(engine.hasPermissionByCode(eq(TENANT), eq(100L),
-                eq(ResourceTypeCode.SYSTEM_CONFIG), isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                eq(ResourceTypeCode.SYSTEM_CONFIG), isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(engine.hasPermissionByCode(eq(TENANT), eq(100L), eq(ResourceTypeCode.PERMISSION_CHANGE_LOG),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(false);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(false);
 
             assertThrows(SecurityException.class,
                 () -> service.listChangeLogs(TENANT, null, null, null, null, null, null, null, null, 0, 10));
@@ -94,7 +94,7 @@ class LogQueryAppServiceImplChangeLogTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(TENANT), eq(100L), eq(ResourceTypeCode.PERMISSION_CHANGE_LOG),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(changeLogMapper.countByCondition(eq(TENANT), eq("abstract_role"), eq(5L), eq(100L), eq(6L),
                 eq(since), eq(until), eq(List.of("ROLE_PERMISSION_CHANGE")), eq("MANUAL")))
                 .thenReturn(1L);
@@ -112,7 +112,7 @@ class LogQueryAppServiceImplChangeLogTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(TENANT), eq(100L), eq(ResourceTypeCode.PERMISSION_CHANGE_LOG),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(changeLogMapper.selectPageByCondition(eq(TENANT), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), eq(0), eq(10)))
                 .thenReturn(List.of());
@@ -136,7 +136,7 @@ class LogQueryAppServiceImplChangeLogTest {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(TENANT), eq(100L), eq(ResourceTypeCode.PERMISSION_CHANGE_LOG),
-                isNull(), eq(OperationCodeConstants.VIEW))).thenReturn(true);
+                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
             when(changeLogMapper.selectPageByCondition(eq(TENANT), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), eq(0), eq(10)))
                 .thenReturn(List.of(entity));

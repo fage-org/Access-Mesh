@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
 import cn.ac.fage.accessmesh.access.infrastructure.util.StringUtils;
 import org.springframework.stereotype.Service;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 
 import java.time.LocalDateTime;
@@ -83,7 +83,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
                                        int offset, int limit) {
         // T-PERM-032 审计分离：变更日志页切独立 PERMISSION_CHANGE_LOG:VIEW（对齐 OPERATION_LOG 先例）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.PERMISSION_CHANGE_LOG, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.PERMISSION_CHANGE_LOG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on PERMISSION_CHANGE_LOG");
         }
 
@@ -103,7 +103,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
                          Long affectedUserId, Long affectedRoleId,
                          LocalDateTime since, LocalDateTime until) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.PERMISSION_CHANGE_LOG, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.PERMISSION_CHANGE_LOG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on PERMISSION_CHANGE_LOG");
         }
 
@@ -138,7 +138,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
                                                      Long operatorId, LocalDateTime since, LocalDateTime until,
                                                      String targetType, int offset, int limit) {
         Long operatorCtxId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
         }
 
@@ -168,7 +168,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     public long countOperationLogs(Long tenantId, String module, String action,
                                     Long operatorId, LocalDateTime since, LocalDateTime until, String targetType) {
         Long operatorCtxId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
         }
 
@@ -193,7 +193,7 @@ public class LogQueryAppServiceImpl implements LogQueryAppService {
     @Override
     public List<String> listActionOptions(Long tenantId, String module) {
         Long operatorCtxId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCodeConstants.VIEW)) {
+        if (!engine.hasPermissionByCode(tenantId, operatorCtxId, ResourceTypeCode.OPERATION_LOG, null, OperationCode.VIEW)) {
             throw new SecurityException("Permission denied: VIEW on OPERATION_LOG");
         }
 

@@ -8,7 +8,7 @@
  *
  * ## 权限锚点
  * 资源类型 `SYSTEM_CONFIG`（access-service ResourceTypeCode.SYSTEM_CONFIG），
- * 操作码对齐 OperationCodeConstants（后端 SystemConfigAppServiceImpl）。
+ * 操作码对齐 OperationCode（后端 SystemConfigAppServiceImpl）。
  * - `SYSTEM_CONFIG:VIEW` —— 列表/详情查看（listSystemConfigs / getSystemConfig 校验 VIEW）。
  * - `SYSTEM_CONFIG:MANAGE` —— 保存配置（upsertSystemConfig 校验 MANAGE）。
  *

@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.engine.service.impl;
 
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.access.engine.dto.PermViewResult;
@@ -168,7 +168,7 @@ class PermissionViewAppServiceImplTest {
     void getEffectivePermissionCodesForManageShouldDenyOthersWithoutUserView() {
         // 查他人：operator 投影主体=1001，subject "2" 投影=1002，无 USER:VIEW → SecurityException（门禁用 abstract 主体，非 sys id）
         when(typeResolutionService.resolveUserId(1L, "LOCAL_USER", "2")).thenReturn(1002L);
-        when(engine.hasPermissionByCode(1L, 1L, ResourceTypeCode.USER, "1002", OperationCodeConstants.VIEW))
+        when(engine.hasPermissionByCode(1L, 1L, ResourceTypeCode.USER, "1002", OperationCode.VIEW))
             .thenReturn(false);
 
         assertThrows(SecurityException.class, () ->
@@ -180,7 +180,7 @@ class PermissionViewAppServiceImplTest {
     void getEffectivePermissionCodesForManageShouldAllowOthersWithUserView() {
         // 查他人：operator 投影主体=1001，subject "2" 投影=1002，有 USER:VIEW → 正常下发
         when(typeResolutionService.resolveUserId(1L, "LOCAL_USER", "2")).thenReturn(1002L);
-        when(engine.hasPermissionByCode(1L, 1L, ResourceTypeCode.USER, "1002", OperationCodeConstants.VIEW))
+        when(engine.hasPermissionByCode(1L, 1L, ResourceTypeCode.USER, "1002", OperationCode.VIEW))
             .thenReturn(true);
         when(subjectDomainService.resolveEffectiveRoles(1L, 1002L)).thenReturn(Set.of());
 

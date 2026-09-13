@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCodeConstants;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
@@ -53,7 +53,7 @@ class ServiceSyncAppServiceImplTest {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L),
-                eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCodeConstants.SYNC_INTERFACE)))
+                eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCode.SYNC_INTERFACE)))
                 .thenReturn(true);
             when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-svc")).thenReturn(new cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig());
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", ResourceTypeCode.API))
@@ -75,7 +75,7 @@ class ServiceSyncAppServiceImplTest {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L),
-                eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCodeConstants.SYNC_INTERFACE)))
+                eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCode.SYNC_INTERFACE)))
                 .thenReturn(false);
 
             ServiceConfigSyncReq req = new ServiceConfigSyncReq("my-svc", null, "FULL",
@@ -91,7 +91,7 @@ class ServiceSyncAppServiceImplTest {
         try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
             ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L),
-                eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCodeConstants.SYNC_INTERFACE)))
+                eq(ResourceTypeCode.SERVICE), eq("my-svc"), eq(OperationCode.SYNC_INTERFACE)))
                 .thenReturn(true);
             when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-svc")).thenReturn(null);
 

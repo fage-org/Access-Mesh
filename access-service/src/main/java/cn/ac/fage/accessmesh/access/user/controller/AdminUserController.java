@@ -15,7 +15,7 @@ import cn.ac.fage.accessmesh.access.user.dto.resp.UserCreateResp;
 import cn.ac.fage.accessmesh.access.user.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.access.user.dto.resp.UserResp;
 import cn.ac.fage.accessmesh.access.user.service.UserAppService;
-import cn.ac.fage.accessmesh.access.engine.constant.AdminOperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.menu.service.UserMenuQueryAppService;
@@ -195,7 +195,7 @@ public class AdminUserController {
         Long currentUserId = StpUtil.getLoginIdAsLong();
         if (!java.util.Objects.equals(req.id(), currentUserId)) {
             permissionValidator.checkInstanceLevel(ResourceTypeCode.USER,
-                String.valueOf(req.id()), AdminOperationCode.VIEW);
+                String.valueOf(req.id()), OperationCode.VIEW);
         }
         return R.ok(userMenuQueryService.loadUserRolesAndPermissions(req.id()));
     }
