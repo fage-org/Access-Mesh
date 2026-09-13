@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.org.dto.req.UserOrgAssignReq;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -74,7 +74,7 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
             orgDomainService.batchSelectValidByIdsMap(tenantId, new LinkedHashSet<>(requestedOrgIds));
         for (Long orgId : requestedOrgIds) {
             if (!orgMap.containsKey(orgId)) {
-                throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
                     "org not found, orgId=" + orgId);
             }
         }
@@ -100,8 +100,8 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         for (SysOrgTreeConfig config : defaultConfigs) {
             if (Boolean.TRUE.equals(config.getSingleAssoc()) && requestedOrgIds.size() > 1) {
-                throw new BizException(AdminErrorCode.ORG_SINGLE_ASSOC_VIOLATION.getCode(),
-                    AdminErrorCode.ORG_SINGLE_ASSOC_VIOLATION.getMessage());
+                throw new BizException(AccessErrorCode.ORG_SINGLE_ASSOC_VIOLATION.getCode(),
+                    AccessErrorCode.ORG_SINGLE_ASSOC_VIOLATION.getMessage());
             }
         }
         Set<Long> existingOrgIds = userOrgDomainService.findByUserId(tenantId, req.userId()).stream()
@@ -170,7 +170,7 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysOrg org = orgDomainService.selectValidById(tenantId, orgId);
         if (org == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
                 "user-org unbind: org not found, orgId=" + orgId);
         }
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
@@ -183,8 +183,8 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
                 .filter(uo -> defaultTreeOrgIds.contains(uo.getOrgId()) && !uo.getOrgId().equals(orgId))
                 .collect(Collectors.toList());
             if (userDefaultOrgs.isEmpty()) {
-                throw new BizException(AdminErrorCode.USER_LOSE_DEFAULT_TREE_HOME.getCode(),
-                    AdminErrorCode.USER_LOSE_DEFAULT_TREE_HOME.getMessage());
+                throw new BizException(AccessErrorCode.USER_LOSE_DEFAULT_TREE_HOME.getCode(),
+                    AccessErrorCode.USER_LOSE_DEFAULT_TREE_HOME.getMessage());
             }
         } else {
             permissionValidator.checkInstanceLevel(

@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
@@ -76,7 +76,7 @@ class GrantOriginDomainServiceImplTest {
         // 显式 null 与缺键同歧义，fail-closed 拒绝（对齐 managedMode/syncSourceService 先例）
         BizException ex = assertThrows(BizException.class, () ->
             service.parseGrantOriginPointer("{\"grantOriginRole\":null}"));
-        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
     }
 
     @Test
@@ -89,7 +89,7 @@ class GrantOriginDomainServiceImplTest {
             "{bad json")) {
             BizException ex = assertThrows(BizException.class, () ->
                 service.parseGrantOriginPointer(bad));
-            assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+            assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
         }
     }
 
@@ -119,21 +119,21 @@ class GrantOriginDomainServiceImplTest {
         // 成员获得转授权且种子 20061 只读无逐行移除通道）；旧实现接受任意角色类型本用例必红
         BizException ex = assertThrows(BizException.class, () -> service.resolveOwnerRoleId(1L,
             "{\"grantOriginRole\":{\"roleTypeCode\":\"ORG\",\"roleExternalId\":\"org-x\"}}"));
-        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
     }
 
     @Test
     void shouldRejectMissingAndDisabledOwner() {
         when(typeResolutionService.resolveRoleId(anyLong(), any(), any(), isNull())).thenReturn(null);
         BizException missing = assertThrows(BizException.class, () -> service.resolveOwnerRoleId(1L, POINTER_JSON));
-        assertEquals(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), missing.getErrorCode());
+        assertEquals(AccessErrorCode.ROLE_NOT_FOUND.getCode(), missing.getErrorCode());
 
         when(typeResolutionService.resolveRoleId(anyLong(), any(), any(), isNull())).thenReturn(55L);
         AbstractRole disabled = enabledRole(55L);
         disabled.setStatus(0);
         when(abstractRoleMapper.selectValidById(55L, 1L)).thenReturn(disabled);
         BizException disabledEx = assertThrows(BizException.class, () -> service.resolveOwnerRoleId(1L, POINTER_JSON));
-        assertEquals(PermissionErrorCode.ROLE_DISABLED.getCode(), disabledEx.getErrorCode());
+        assertEquals(AccessErrorCode.ROLE_DISABLED.getCode(), disabledEx.getErrorCode());
     }
 
     // ===== 指针注入 =====
@@ -171,7 +171,7 @@ class GrantOriginDomainServiceImplTest {
         // 指针是服务端管理键：客户端自带一律拒绝（合法输入通道是请求字段）
         BizException ex = assertThrows(BizException.class, () ->
             service.mergeGrantOriginPointer(POINTER_JSON, "BASIC_ROLE", "order-admin"));
-        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
     }
 
     // ===== 种子行构造 =====

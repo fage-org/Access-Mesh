@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncItem;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractUserSyncReq;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.user.service.AbstractUserSyncAppService;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard;
@@ -357,7 +357,7 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
         try {
             return objectMapper.writeValueAsString(extra);
         } catch (JsonProcessingException e) {
-            throw new SystemException(PermissionErrorCode.SYSTEM_INIT_FAILED.getCode(),
+            throw new SystemException(AccessErrorCode.SYSTEM_INIT_FAILED.getCode(),
                     "serialize abstract_user extra failed", e);
         }
     }

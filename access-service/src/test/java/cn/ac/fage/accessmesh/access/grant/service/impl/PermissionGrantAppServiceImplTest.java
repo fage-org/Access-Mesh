@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.grant.dto.resp.SubPermAllowedTypesResp;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
@@ -96,7 +96,7 @@ class PermissionGrantAppServiceImplTest {
             cn.ac.fage.accessmesh.common.exception.BizException.class,
             () -> service.subPermAllowedTypes(TENANT, subPermReq()));
 
-        assertEquals(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), exception.getErrorCode());
+        assertEquals(AccessErrorCode.ROLE_NOT_FOUND.getCode(), exception.getErrorCode());
     }
 
     @Test

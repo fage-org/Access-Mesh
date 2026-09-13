@@ -209,7 +209,7 @@ class AbstractRoleSyncAppServiceTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
                 .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
                 .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
-                .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+                .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode.ROLE_TYPE_MISMATCH.getCode());
     }
 
     /** T-PERM-043：full-sync 通道同口径拒绝 GROUP_ROLE（20022），不落任何同步事实。 */
@@ -226,7 +226,7 @@ class AbstractRoleSyncAppServiceTest {
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.fullSync(TENANT_ID, req, httpRequest))
                 .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
                 .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
-                .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+                .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode.ROLE_TYPE_MISMATCH.getCode());
         org.mockito.Mockito.verifyNoInteractions(syncMetadataDomainService);
         org.mockito.Mockito.verifyNoInteractions(abstractRoleMapper);
     }

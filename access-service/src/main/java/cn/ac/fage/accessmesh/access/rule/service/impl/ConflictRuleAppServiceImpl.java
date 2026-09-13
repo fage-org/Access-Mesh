@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.rule.dto.resp.ConflictDetectResp;
 import cn.ac.fage.accessmesh.access.rule.dto.resp.ConflictRuleResp;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
 import cn.ac.fage.accessmesh.access.rule.enums.ConflictType;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.rule.service.ConflictRuleAppService;
@@ -109,7 +109,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
                 java.util.Set.of("ORG", "POSITION")).values());
         boolean structural = roles.stream().anyMatch(r -> structuralTypes.contains(r.getRoleType()));
         if (structural) {
-            throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+            throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                 "角色互斥规则不支持 ORG/POSITION 结构角色对（结构角色由组织/岗位成员关系投影维护，"
                     + "请改用功能角色）");
         }
@@ -128,7 +128,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         }
         List<Long> shown = holders.size() > EXISTING_HOLDERS_MESSAGE_LIMIT
             ? holders.subList(0, EXISTING_HOLDERS_MESSAGE_LIMIT) : holders;
-        throw new BizException(PermissionErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode(),
+        throw new BizException(AccessErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode(),
             "users holding both roles (" + holders.size() + " total): " + shown
                 + (holders.size() > shown.size() ? " ..." : ""));
     }
@@ -149,25 +149,25 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     private void validateFields(String conflictType, Long firstOp, Long secondOp,
                                 Long firstRole, Long secondRole) {
         if (!ROLE_MUTEX.equals(conflictType) && !PERM_MUTEX.equals(conflictType)) {
-            throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+            throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                 "conflictType 仅允许 ROLE_MUTEX 或 PERM_MUTEX");
         }
         if (ROLE_MUTEX.equals(conflictType)) {
             if (firstRole == null || secondRole == null) {
-                throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                     "角色互斥需指定两个角色");
             }
             if (firstRole.equals(secondRole)) {
-                throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                     "两个角色不能相同");
             }
         } else {
             if (firstOp == null || secondOp == null) {
-                throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                     "权限互斥需指定两个操作权限");
             }
             if (firstOp.equals(secondOp)) {
-                throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                     "两个操作权限不能相同");
             }
         }
@@ -266,7 +266,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         if (isDuplicate(tenantId, req.conflictType(), req.firstOperationPermissionId(), req.secondOperationPermissionId(),
             req.firstAbstractRoleId(), req.secondAbstractRoleId(),
             ROLE_MUTEX.equals(req.conflictType()) ? null : req.resourceTypeValue(), null)) {
-            throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
+            throw new BizException(AccessErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
         }
 
         // T-PERM-063：ROLE_MUTEX 存量守卫——有用户同时持有两角色则拒绝立规（20063）；
@@ -299,7 +299,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             conflictRuleMapper.insert(rule);
         } catch (DataIntegrityViolationException e) {
             if (isConflictRuleUniqueViolation(e)) {
-                throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
+                throw new BizException(AccessErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
             }
             throw e;
         }
@@ -329,7 +329,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         }
         PermissionConflictRule rule = conflictRuleMapper.selectValidById(ruleId, tenantId);
         if (rule == null) {
-            throw new BizException(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
                 "Conflict rule not found: " + ruleId);
         }
         return toConflictRuleResp(rule);
@@ -382,7 +382,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         // 先解析后门禁（T-PERM-029 模式：未知键 20020 优先于权限拒绝，零副作用）
         PermissionConflictRule rule = conflictRuleMapper.selectValidById(req.id(), tenantId);
         if (rule == null) {
-            throw new BizException(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
                 "Conflict rule not found: " + req.id());
         }
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
@@ -405,7 +405,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
 
         if (isDuplicate(tenantId, conflictType, firstOp, secondOp, firstRole, secondRole,
             ROLE_MUTEX.equals(conflictType) ? null : req.resourceTypeValue(), req.id())) {
-            throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
+            throw new BizException(AccessErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
         }
 
         // T-PERM-063：ROLE_MUTEX 存量守卫——有用户同时持有两角色则拒绝改规（20063）；
@@ -447,7 +447,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
             conflictRuleMapper.update(patch);
         } catch (DataIntegrityViolationException e) {
             if (isConflictRuleUniqueViolation(e)) {
-                throw new BizException(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
+                throw new BizException(AccessErrorCode.CONFLICT_RULE_DUPLICATE.getCode(), "等价冲突规则已存在");
             }
             throw e;
         }
@@ -455,7 +455,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         // 极小并发窗口内（本事务外）规则被并发软删时 re-select 可为 null——按 20020 收口而非 NPE 500
         PermissionConflictRule updated = conflictRuleMapper.selectValidById(req.id(), tenantId);
         if (updated == null) {
-            throw new BizException(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.CONFLICT_RULE_NOT_FOUND.getCode(),
                 "Conflict rule not found: " + req.id());
         }
         return toConflictRuleResp(updated);
@@ -499,13 +499,13 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
         // （半传拒绝，静默忽略会与「两端必填」契约矛盾），且两对恰现其一
         if ((firstOpPresent != secondOpPresent) || (firstRolePresent != secondRolePresent)
             || opPairPresent == rolePairPresent) {
-            throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+            throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                 "detect 需二选一：操作权限对（first/secondOperationPermissionId）或角色对（first/secondAbstractRoleId），且两端必填");
         }
 
         if (rolePairPresent) {
             if (req.firstAbstractRoleId().equals(req.secondAbstractRoleId())) {
-                throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                     "两个角色不能相同");
             }
             List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(

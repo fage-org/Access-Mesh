@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.role.service.impl;
 
 import cn.ac.fage.accessmesh.access.role.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.access.role.dto.resp.UserRoleItemResp;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.role.service.impl.UserRoleQueryAppServiceImpl;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper;
@@ -95,7 +95,7 @@ class UserRoleQueryAppServiceImplTest {
             assertThatThrownBy(() -> service.listRoles(List.of("ORG")))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(AdminErrorCode.INVALID_PARAM.getCode());
+                .isEqualTo(AccessErrorCode.ADMIN_INVALID_PARAM.getCode());
         }
 
         @Test

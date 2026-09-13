@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.platform.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.access.platform.dto.resp.SystemConfigResp;
 import cn.ac.fage.accessmesh.access.platform.entity.SystemConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.platform.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.access.platform.service.SystemConfigAppService;
@@ -85,8 +85,8 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
             // 系统内置配置仅走种子，保存入口不可覆盖（契约 §17.2「系统内置仅走种子」的运行时强制，
             // 20064；admin /config 侧 10702 校验随 T-ACCESS-037 僵尸端点退役后此处为唯一强制点）
             if (Boolean.TRUE.equals(existing.getIsSystem())) {
-                throw new BizException(PermissionErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getCode(),
-                    PermissionErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getMessage());
+                throw new BizException(AccessErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getCode(),
+                    AccessErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getMessage());
             }
             existing.setConfigValue(req.configValue());
             existing.setDescription(req.description());
@@ -191,16 +191,16 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
      */
     private void validateConfigKeyNamespace(String configKey) {
         if (configKey == null || configKey.isBlank()) {
-            throw new BizException(PermissionErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getCode(),
-                PermissionErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getMessage());
+            throw new BizException(AccessErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getCode(),
+                AccessErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getMessage());
         }
         for (String prefix : ALLOWED_CONFIG_KEY_PREFIXES) {
             if (configKey.startsWith(prefix)) {
                 return;
             }
         }
-        throw new BizException(PermissionErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getCode(),
-            PermissionErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getMessage());
+        throw new BizException(AccessErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getCode(),
+            AccessErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getMessage());
     }
 
     /**

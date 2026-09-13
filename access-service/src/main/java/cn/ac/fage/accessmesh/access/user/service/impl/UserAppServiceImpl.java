@@ -17,7 +17,7 @@ import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.user.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.access.org.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
@@ -203,7 +203,7 @@ public class UserAppServiceImpl implements UserAppService {
         // 使用 DomainService 获取用户
         SysUser user = userDomainService.selectValidById(tenantId, id);
         if (user == null) {
-            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(), AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
         }
 
         List<UserResp.OrgBrief> orgs = getUserOrgs(id);
@@ -248,8 +248,8 @@ public class UserAppServiceImpl implements UserAppService {
             Long operatorId = StpUtil.getLoginIdAsLong();
             Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
             if (!visibleOrgIds.contains(req.orgId())) {
-                throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                    AdminErrorCode.ORG_NOT_FOUND.getMessage());
+                throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
+                    AccessErrorCode.ORG_NOT_FOUND.getMessage());
             }
 
             List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, req.orgId());
@@ -368,7 +368,7 @@ public class UserAppServiceImpl implements UserAppService {
         // 使用 DomainService 获取用户
         SysUser user = userDomainService.selectValidById(tenantId, userId);
         if (user == null) {
-            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(), AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
         }
 
         // 如果未指定新密码，自动生成随机密码
@@ -458,8 +458,8 @@ public class UserAppServiceImpl implements UserAppService {
         // 校验目标组织存在
         SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.targetOrgId());
         if (targetOrg == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                AdminErrorCode.ORG_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
+                AccessErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
         // 1. 确定默认组织树中操作者可见的组织范围（P1-D 修复：按 ORG:VIEW 裁剪）
@@ -550,14 +550,14 @@ public class UserAppServiceImpl implements UserAppService {
     private void validateOrgInDefaultTree(Long tenantId, Long orgId) {
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         if (defaultConfigs.isEmpty()) {
-            throw new BizException(AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
-                AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
+            throw new BizException(AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
+                AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
         }
         Long rootOrgId = defaultConfigs.get(0).getRootOrgId();
         List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId);
         if (!subtreeIds.contains(orgId)) {
-            throw new BizException(AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
-                AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
+            throw new BizException(AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
+                AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
         }
     }
 
@@ -595,8 +595,8 @@ public class UserAppServiceImpl implements UserAppService {
         Long operatorId = StpUtil.getLoginIdAsLong();
         Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
         if (visibleOrgIds.isEmpty()) {
-            throw new BizException(AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
-                AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
+            throw new BizException(AccessErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
+                AccessErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
         }
 
         // 查操作者可见范围内的用户组织关系
@@ -609,8 +609,8 @@ public class UserAppServiceImpl implements UserAppService {
         // 任一目标用户不在操作者可见范围内则拒绝
         for (Long userId : userIds) {
             if (!usersInVisibleScope.contains(userId)) {
-                throw new BizException(AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
-                    AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
+                throw new BizException(AccessErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
+                    AccessErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
             }
         }
     }

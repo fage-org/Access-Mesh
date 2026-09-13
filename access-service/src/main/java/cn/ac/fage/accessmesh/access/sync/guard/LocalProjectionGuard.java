@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.springframework.stereotype.Component;
 
@@ -67,7 +67,7 @@ public class LocalProjectionGuard {
 
     private static BizException immutable(String detail) {
         return new BizException(
-            PermissionErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode(),
-            PermissionErrorCode.LOCAL_PROJECTION_IMMUTABLE.getMessage() + ": " + detail);
+            AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode(),
+            AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getMessage() + ": " + detail);
     }
 }

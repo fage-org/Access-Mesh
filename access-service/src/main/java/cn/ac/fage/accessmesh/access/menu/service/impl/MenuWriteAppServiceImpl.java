@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.menu.service.impl;
 import cn.ac.fage.accessmesh.access.menu.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.access.menu.dto.req.MenuUpdateReq;
 import cn.ac.fage.accessmesh.access.menu.entity.SysMenu;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -83,8 +83,8 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         checkParentExists(tenantId, req.parentId());
         // calculateDepth 返回父节点自身深度（顶级=1），新节点深度 = 父深度 + 1
         if (menuDomainService.calculateDepth(tenantId, req.parentId()) + 1 > MAX_MENU_DEPTH) {
-            throw new BizException(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode(),
-                AdminErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
+            throw new BizException(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode(),
+                AccessErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
         }
         SysMenu menu = new SysMenu();
         menu.setTenantId(tenantId);
@@ -126,8 +126,8 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
             ResourceTypeCode.MENU, String.valueOf(req.id()), OperationCode.UPDATE);
         SysMenu menu = menuDomainService.selectValidById(tenantId, req.id());
         if (menu == null) {
-            throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(),
-                AdminErrorCode.MENU_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.MENU_NOT_FOUND.getCode(),
+                AccessErrorCode.MENU_NOT_FOUND.getMessage());
         }
         // 空白规范化为 null；null 跳过保留原值（与部分更新语义一致）
         String path = normalize(req.path());
@@ -149,8 +149,8 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
             int parentDepth = req.parentId() == 0L ? 0
                 : menuDomainService.calculateDepth(tenantId, req.parentId());
             if (parentDepth + menuDomainService.subtreeHeight(tenantId, req.id()) > MAX_MENU_DEPTH) {
-                throw new BizException(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode(),
-                    AdminErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
+                throw new BizException(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode(),
+                    AccessErrorCode.MENU_DEPTH_EXCEEDED.getMessage());
             }
         }
         // 可选字段仅更新提供的字段（规范化后 null 跳过，保留原值）；sourceService 创建期追溯标识，不可改
@@ -200,12 +200,12 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysMenu menu = menuDomainService.selectValidById(tenantId, id);
         if (menu == null) {
-            throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(),
-                AdminErrorCode.MENU_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.MENU_NOT_FOUND.getCode(),
+                AccessErrorCode.MENU_NOT_FOUND.getMessage());
         }
         if (menuDomainService.hasChildren(tenantId, id)) {
-            throw new BizException(AdminErrorCode.MENU_HAS_CHILDREN.getCode(),
-                AdminErrorCode.MENU_HAS_CHILDREN.getMessage());
+            throw new BizException(AccessErrorCode.MENU_HAS_CHILDREN.getCode(),
+                AccessErrorCode.MENU_HAS_CHILDREN.getMessage());
         }
         menuDomainService.softDeleteBatch(tenantId, List.of(id));
         // entityId 用 MENU 投影主键（resource_entity.id），不再用 sys_menu.id
@@ -226,13 +226,13 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
                              Long excludeId) {
         if (path != null && !path.isBlank()
             && menuDomainService.pathExists(tenantId, path, excludeId)) {
-            throw new BizException(AdminErrorCode.MENU_PATH_EXISTS.getCode(),
-                AdminErrorCode.MENU_PATH_EXISTS.getMessage());
+            throw new BizException(AccessErrorCode.MENU_PATH_EXISTS.getCode(),
+                AccessErrorCode.MENU_PATH_EXISTS.getMessage());
         }
         if (resourceType != null && !resourceType.isBlank()
             && menuDomainService.resourceExists(tenantId, resourceType, resourceCode, excludeId)) {
-            throw new BizException(AdminErrorCode.MENU_RESOURCE_EXISTS.getCode(),
-                AdminErrorCode.MENU_RESOURCE_EXISTS.getMessage());
+            throw new BizException(AccessErrorCode.MENU_RESOURCE_EXISTS.getCode(),
+                AccessErrorCode.MENU_RESOURCE_EXISTS.getMessage());
         }
     }
 
@@ -244,12 +244,12 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         String message = e.getMostSpecificCause() != null && e.getMostSpecificCause().getMessage() != null
             ? e.getMostSpecificCause().getMessage() : String.valueOf(e.getMessage());
         if (message.contains(UK_MENU_PATH)) {
-            throw new BizException(AdminErrorCode.MENU_PATH_EXISTS.getCode(),
-                AdminErrorCode.MENU_PATH_EXISTS.getMessage());
+            throw new BizException(AccessErrorCode.MENU_PATH_EXISTS.getCode(),
+                AccessErrorCode.MENU_PATH_EXISTS.getMessage());
         }
         if (message.contains(UK_MENU_RESOURCE)) {
-            throw new BizException(AdminErrorCode.MENU_RESOURCE_EXISTS.getCode(),
-                AdminErrorCode.MENU_RESOURCE_EXISTS.getMessage());
+            throw new BizException(AccessErrorCode.MENU_RESOURCE_EXISTS.getCode(),
+                AccessErrorCode.MENU_RESOURCE_EXISTS.getMessage());
         }
         throw e;
     }
@@ -277,7 +277,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
             return;
         }
         if (menuDomainService.selectValidById(tenantId, parentId) == null) {
-            throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(), "父菜单不存在");
+            throw new BizException(AccessErrorCode.MENU_NOT_FOUND.getCode(), "父菜单不存在");
         }
     }
 
@@ -290,8 +290,8 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
         checkParentExists(tenantId, newParentId);
         if (newParentId != null && newParentId != 0L
             && menuDomainService.getDescendantIdsIncludingSelf(tenantId, menuId).contains(newParentId)) {
-            throw new BizException(AdminErrorCode.MENU_PARENT_INVALID.getCode(),
-                AdminErrorCode.MENU_PARENT_INVALID.getMessage());
+            throw new BizException(AccessErrorCode.MENU_PARENT_INVALID.getCode(),
+                AccessErrorCode.MENU_PARENT_INVALID.getMessage());
         }
     }
 

@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 能力包结构与两域融合
 status: adopted
 domain: cross-service
-last_reviewed: 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
+last_reviewed: 2026-09-13（T-ACCESS-038：§3/§8.2/§9 错误码合一收口——单册 AccessErrorCode、碰撞三组 ADMIN_/PERM_ 段前缀、能力无专属段规则成文）；此前 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
 ---
 
 # access-service 能力包结构与两域融合
@@ -69,7 +69,7 @@ last_reviewed: 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕
 
 ## 3. 设施收敛
 
-- **错误码**：合类不合号——AdminErrorCode / PermissionErrorCode 合一为单一错误码面，`1xxxx`、`2xxxx` 编号段原值保留、不重排（architecture §9 分段与不重编号的字面保持）；新增码归属段规则随 T-ACCESS-038 文档面明确。
+- **错误码**：合类不合号——已合一为单册 `infrastructure.enums.AccessErrorCode`（T-ACCESS-038，2026-09-13），`1xxxx`、`2xxxx` 编号段原值保留、不重排（architecture §9 分段与不重编号的字面保持）；同名异号三组（USER_NOT_FOUND/USER_ALREADY_EXISTS/INVALID_PARAM）以 `ADMIN_`/`PERM_` 段前缀消解；新增码归属段规则=**能力无专属段**、按错误业务语义选段（architecture §9 成文）。
 - **缓存目录**：AdminCacheCatalog 与 PermCacheCatalog 合一为一册（OPERATION_CODE 死条目先随 T-ACCESS-034 删除）；`admin:org-visibility` 越域命名随迁移归位。
 - **操作码**：见 §5.1。
 
@@ -410,7 +410,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | permission.util：OperatorContext、OperatorUtil、SecurityUtils、StringUtils、PageUtil、PermissionConstants、TreeBuilder；permission.util.SecurityEventType、SecurityLogUtil | infrastructure.util | 跨能力通用（Operator 族消费面横跨全部能力与写编排；PermissionConstants 消费面 grant/resource/role/user；TreeBuilder 消费面 role/resource；SecurityLog/EventType 随拦截器） |
 | **任务治理设施（裁决 4）**：admin.service.domain.TaskExecutionDomainService/Impl、JobInvokeDomainService/Impl；admin.config.TaskExecutorConfig；admin.schedule：JobScheduleReconciler、TaskLeaseTakeoverScheduler；infrastructure.entity.SysTaskExecution；infrastructure.task：JobInvocable、TaskExecutionContext；**SysTaskExecutionMapper → infrastructure.mapper**（§8.1 mapper 子包约定） | infrastructure.task（mapper 接口除外） | 唯一消费方=platform job 链（JobAppServiceImpl 跨包调用） |
 | admin.dto.req.**IdsReq** + permission.dto.req.**EmptyReq** | infrastructure.dto | 跨能力共享 DTO（IdsReq 消费面横跨 platform/user/org 诸能力 Controller 与 Service；EmptyReq 消费面 rule+resource） |
-| admin.enums.**AdminErrorCode** + permission.enums.**PermissionErrorCode** | infrastructure.enums | 033 两册随迁，038 合一为单册（合类不合号） |
+| admin.enums.**AdminErrorCode** + permission.enums.**PermissionErrorCode** | infrastructure.enums.**AccessErrorCode**（038 已合一，两旧类消亡） | 033 两册随迁；038 合一为单册（合类不合号，碰撞三组 ADMIN_/PERM_ 段前缀，编号零重排） |
 
 表：`sys_task_execution`（裁决 4，租约表随任务治理设施归底座）。
 
@@ -495,7 +495,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 |---|---|
 | access-service-architecture §1.2「本阶段不把两个领域立即完全扁平化」/ §11 演进方向 | 本文件承接启用（演进方向立项） |
 | access-service-architecture §3 模块边界（admin/permission 包、application 唯一跨域写编排层） | 重写为能力包口径（T-ACCESS-032） |
-| access-service-architecture §9 错误码两域分立、不得重编号 | 字面保持（分段 + 不重编号），枚举面合一表述更新（T-ACCESS-038） |
+| access-service-architecture §9 错误码两域分立、不得重编号 | 字面保持（分段 + 不重编号）；枚举面已合一为单册 AccessErrorCode（T-ACCESS-038 落地） |
 | project-rules §8.2 跨域 Mapper 边界 + `QueryBoundaryArchitectureTest` | 以能力为对象重建（T-ACCESS-032 设计、T-ACCESS-033 落地） |
 | access-service-architecture §5.2 管理事实表与权限计算表不强行合并 | **维持，无修订** |
 | 2026-09-12 T-PERM-065 admin Req DTO 不换绑 | **维持，无修订** |

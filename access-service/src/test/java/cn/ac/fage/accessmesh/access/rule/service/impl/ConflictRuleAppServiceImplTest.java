@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.rule.dto.req.ConflictRuleUpdateReq;
 import cn.ac.fage.accessmesh.access.rule.dto.resp.ConflictDetectResp;
 import cn.ac.fage.accessmesh.access.rule.dto.resp.ConflictRuleResp;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
@@ -171,7 +171,7 @@ class ConflictRuleAppServiceImplTest {
             assertThatThrownBy(() -> service.createConflictRule(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode()));
+                    .isEqualTo(AccessErrorCode.VALIDATION_FAILED.getCode()));
             verify(conflictRuleMapper, never()).insert(any(PermissionConflictRule.class));
         }
 
@@ -210,7 +210,7 @@ class ConflictRuleAppServiceImplTest {
             assertThatThrownBy(() -> service.createConflictRule(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode()));
+                    .isEqualTo(AccessErrorCode.CONFLICT_RULE_DUPLICATE.getCode()));
             verify(conflictRuleMapper, never()).insert(any(PermissionConflictRule.class));
         }
 
@@ -227,7 +227,7 @@ class ConflictRuleAppServiceImplTest {
             assertThatThrownBy(() -> service.createConflictRule(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode()));
+                    .isEqualTo(AccessErrorCode.CONFLICT_RULE_DUPLICATE.getCode()));
         }
 
         @Test
@@ -287,7 +287,7 @@ class ConflictRuleAppServiceImplTest {
                 assertThatThrownBy(() -> service.getConflictRule(TENANT_ID, 999L))
                     .isInstanceOf(BizException.class)
                     .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                        .isEqualTo(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode()));
+                        .isEqualTo(AccessErrorCode.CONFLICT_RULE_NOT_FOUND.getCode()));
             }
         }
 
@@ -409,7 +409,7 @@ class ConflictRuleAppServiceImplTest {
             assertThatThrownBy(() -> service.updateConflictRule(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode()));
+                    .isEqualTo(AccessErrorCode.CONFLICT_RULE_NOT_FOUND.getCode()));
             verify(engine, never()).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
             verify(conflictRuleMapper, never()).update(any(PermissionConflictRule.class));
         }
@@ -429,7 +429,7 @@ class ConflictRuleAppServiceImplTest {
             assertThatThrownBy(() -> service.updateConflictRule(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONFLICT_RULE_NOT_FOUND.getCode()));
+                    .isEqualTo(AccessErrorCode.CONFLICT_RULE_NOT_FOUND.getCode()));
         }
 
         @Test
@@ -461,7 +461,7 @@ class ConflictRuleAppServiceImplTest {
             assertThatThrownBy(() -> service.updateConflictRule(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONFLICT_RULE_DUPLICATE.getCode()));
+                    .isEqualTo(AccessErrorCode.CONFLICT_RULE_DUPLICATE.getCode()));
             verify(conflictRuleMapper, never()).update(any(PermissionConflictRule.class));
         }
     }
@@ -640,7 +640,7 @@ class ConflictRuleAppServiceImplTest {
             assertThatThrownBy(() -> service.createConflictRule(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
+                .isEqualTo(AccessErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
             verify(conflictRuleMapper, never()).insert(any(PermissionConflictRule.class));
         }
 
@@ -685,7 +685,7 @@ class ConflictRuleAppServiceImplTest {
             assertThatThrownBy(() -> service.updateConflictRule(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
+                .isEqualTo(AccessErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
             verify(conflictRuleMapper, never()).update(any(PermissionConflictRule.class));
         }
     }
@@ -719,7 +719,7 @@ class ConflictRuleAppServiceImplTest {
                     TENANT_ID, new ConflictRuleReq("ROLE_MUTEX", null, null, null, 101L, 102L, null), OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode());
+                .isEqualTo(AccessErrorCode.VALIDATION_FAILED.getCode());
             verify(conflictRuleMapper, never()).insert(any(PermissionConflictRule.class));
             verify(permissionConflictDomainService, never()).findUsersHoldingBothRoles(anyLong(), anyLong(), anyLong());
         }
@@ -738,7 +738,7 @@ class ConflictRuleAppServiceImplTest {
                     TENANT_ID, new ConflictRuleUpdateReq(RULE_ID, "ROLE_MUTEX", null, null, null, 301L, 302L, null), OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode());
+                .isEqualTo(AccessErrorCode.VALIDATION_FAILED.getCode());
             verify(conflictRuleMapper, never()).update(any(PermissionConflictRule.class));
         }
 
@@ -820,7 +820,7 @@ class ConflictRuleAppServiceImplTest {
                         TENANT_ID, new ConflictRuleDetectReq(null, null, null, 101L, 101L)))
                     .isInstanceOf(BizException.class)
                     .extracting(ex -> ((BizException) ex).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode());
+                    .isEqualTo(AccessErrorCode.VALIDATION_FAILED.getCode());
                 verify(permissionConflictDomainService, never()).findUsersHoldingBothRoles(anyLong(), anyLong(), anyLong());
             }
         }
@@ -835,7 +835,7 @@ class ConflictRuleAppServiceImplTest {
                         TENANT_ID, new ConflictRuleDetectReq(501L, 504L, null, 101L, 102L)))
                     .isInstanceOf(BizException.class)
                     .extracting(ex -> ((BizException) ex).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode());
+                    .isEqualTo(AccessErrorCode.VALIDATION_FAILED.getCode());
                 assertThatThrownBy(() -> service.detectConflictRule(
                         TENANT_ID, new ConflictRuleDetectReq(null, null, null, null, null)))
                     .isInstanceOf(BizException.class);

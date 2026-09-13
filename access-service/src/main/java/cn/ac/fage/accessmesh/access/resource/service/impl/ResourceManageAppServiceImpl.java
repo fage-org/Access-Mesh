@@ -42,7 +42,7 @@ import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceType;
 
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
@@ -198,7 +198,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         // 陈旧缓存会产出引用已删类型值的孤儿行）
         TypeDefinition ownedType = resourceTypeOwnershipGuard.rejectIfSyncManagedType(tenantId, req.resourceTypeCode());
         if (ownedType == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的resourceTypeCode: " + req.resourceTypeCode());
+            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的resourceTypeCode: " + req.resourceTypeCode());
         }
 
         Long parentId = resolveParentId(tenantId, req);
@@ -365,11 +365,11 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     private ResourceEntity selectResourceByBusinessKey(Long tenantId, ResourceKeyReq key) {
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", key.resourceTypeCode());
         if (resourceType == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + key.resourceTypeCode());
+            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + key.resourceTypeCode());
         }
         ResourceEntity entity = resourceEntityMapper.selectByTypeCodeAndCodeType(tenantId, resourceType, key.code(), key.normalizedCodeType());
         if (entity == null) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(),
                 "Resource not found: " + key.resourceTypeCode() + ":" + key.code() + "/" + key.normalizedCodeType());
         }
         return entity;
@@ -446,13 +446,13 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             // T-PERM-028：跨类型拦截 + 防环（目标父不得是自身或其子孙；原内部 id 实现缺失两项校验，
             // 对齐前端设计 §4 与 mock 语义——环节点从树构建静默消失，先例 ROLE_PARENT_INVALID）
             if (!parent.getResourceType().equals(entity.getResourceType())) {
-                throw new BizException(PermissionErrorCode.RESOURCE_PARENT_INVALID.getCode(),
+                throw new BizException(AccessErrorCode.RESOURCE_PARENT_INVALID.getCode(),
                     "不可跨资源类型移动: " + req.parent().resourceTypeCode() + " -> " + req.resource().resourceTypeCode());
             }
             if (parent.getId().equals(entity.getId())
                 || resourceEntityDomainService.batchGetDescendantIds(tenantId, Set.of(entity.getId()))
                     .getOrDefault(entity.getId(), List.of()).contains(parent.getId())) {
-                throw new BizException(PermissionErrorCode.RESOURCE_PARENT_INVALID.getCode(),
+                throw new BizException(AccessErrorCode.RESOURCE_PARENT_INVALID.getCode(),
                     "目标父资源不能是自身或其子孙节点: " + req.parent().code());
             }
             newParentId = parent.getId();
@@ -721,7 +721,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         ResourceEntity entity = resourceEntityDomainService.selectValidById(tenantId, req.resourceId());
         if (entity == null) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在: " + req.resourceId());
+            throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "资源不存在: " + req.resourceId());
         }
 
         ResourceApiMapping mapping = new ResourceApiMapping();
@@ -850,7 +850,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         ResourceApiMapping mapping = apiMappingMapper.selectValidById(req.mappingId(), tenantId);
         if (mapping == null || !Objects.equals(mapping.getResourceEntityId(), req.resourceId())) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "API映射不存在: " + req.mappingId());
+            throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "API映射不存在: " + req.mappingId());
         }
 
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, mapping.getServiceCode(), OperationCode.MANAGE_API_MAPPING)) {
@@ -897,7 +897,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         );
         if (parentId == null) {
             throw new BizException(
-                PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(),
+                AccessErrorCode.RESOURCE_NOT_FOUND.getCode(),
                 "parent resource not found: " + parentKeyText(parentReq)
             );
         }

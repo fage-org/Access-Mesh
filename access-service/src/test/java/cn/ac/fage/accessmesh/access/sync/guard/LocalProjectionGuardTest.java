@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.sync.guard;
 
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@ class LocalProjectionGuardTest {
         assertThatThrownBy(() -> guard.rejectIfLocalOwner(LocalProjectionOwner.SERVICE_CODE))
             .isInstanceOf(BizException.class)
             .extracting(ex -> ((BizException) ex).getErrorCode())
-            .isEqualTo(PermissionErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
+            .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
     }
 
     @Test

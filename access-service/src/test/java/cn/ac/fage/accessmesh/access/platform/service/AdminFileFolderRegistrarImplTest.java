@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.platform.service;
 
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,7 +57,7 @@ class AdminFileFolderRegistrarImplTest {
         assertThatThrownBy(() -> registrar.ensureFolder(TENANT, "brandnew", "brandnew"))
             .isInstanceOf(BizException.class)
             .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                .isEqualTo(AdminErrorCode.FILE_UPLOAD_FAILED.getCode()))
+                .isEqualTo(AccessErrorCode.FILE_UPLOAD_FAILED.getCode()))
             .hasMessageContaining("并发冲突")
             .hasMessageContaining("brandnew");
     }

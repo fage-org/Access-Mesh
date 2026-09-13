@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncScope;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
@@ -120,7 +120,7 @@ class UserRoleSyncAppServiceTest {
         assertThatThrownBy(() -> service.sync(TENANT_ID, bindReq(), httpRequest))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
+                .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
     }
 
     @Test
@@ -166,7 +166,7 @@ class UserRoleSyncAppServiceTest {
         assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
+                .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
     }
 
     @Test
@@ -180,7 +180,7 @@ class UserRoleSyncAppServiceTest {
         assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
+                .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
     }
 
     @Test
@@ -194,7 +194,7 @@ class UserRoleSyncAppServiceTest {
         assertThatThrownBy(() -> service.sync(TENANT_ID, req, httpRequest))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
+                .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
     }
 
     @Test
@@ -210,7 +210,7 @@ class UserRoleSyncAppServiceTest {
         assertThatThrownBy(() -> service.sync(TENANT_ID, externalBindReq(), httpRequest))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
+                .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
         verify(userRoleMapper, never()).update(any(UserRole.class));
     }
 
@@ -231,7 +231,7 @@ class UserRoleSyncAppServiceTest {
         assertThatThrownBy(() -> service.sync(TENANT_ID, unbindReq, httpRequest))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
+                .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
         verify(userRoleMapper, never()).softDeleteBatch(any(), any(), any());
     }
 
@@ -342,7 +342,7 @@ class UserRoleSyncAppServiceTest {
         assertThatThrownBy(() -> service.fullSync(TENANT_ID, req, httpRequest))
                 .isInstanceOf(BizException.class)
                 .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(PermissionErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
+                .isEqualTo(AccessErrorCode.LOCAL_PROJECTION_IMMUTABLE.getCode());
     }
 
     @Test

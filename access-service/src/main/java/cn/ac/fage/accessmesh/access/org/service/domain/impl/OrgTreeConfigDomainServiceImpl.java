@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.org.service.domain.impl;
 
 import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgTreeConfigMapper;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgTreeConfigDomainService;
@@ -67,19 +67,19 @@ public class OrgTreeConfigDomainServiceImpl implements OrgTreeConfigDomainServic
     @Override
     public String resolveTreeRootExternalId(Long tenantId, Long orgId) {
         if (tenantId == null || orgId == null) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
                 "tenantId/orgId required for tree root resolution");
         }
         // 1. 加载 org 自身（不存在则视为业务失败）
         SysOrg org = orgDomainService.selectValidById(tenantId, orgId);
         if (org == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                AdminErrorCode.ORG_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
+                AccessErrorCode.ORG_NOT_FOUND.getMessage());
         }
         // 2. 加载租户全部 SysOrgTreeConfig（不限 isDefault；user-org 关系适用于任何已配置树）
         List<SysOrgTreeConfig> configs = orgTreeConfigMapper.selectAllValid(tenantId);
         if (configs == null || configs.isEmpty()) {
-            throw new BizException(AdminErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode(),
+            throw new BizException(AccessErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode(),
                 "ORG_TREE_ROOT_NOT_RESOLVED: no tree config for tenantId=" + tenantId
                     + ", orgId=" + orgId);
         }
@@ -103,7 +103,7 @@ public class OrgTreeConfigDomainServiceImpl implements OrgTreeConfigDomainServic
             }
         }
         // 5. 未命中：游离 org，禁止参与 user-org / user_role 同步，禁止 fallback "1"
-        throw new BizException(AdminErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode(),
+        throw new BizException(AccessErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode(),
             "ORG_TREE_ROOT_NOT_RESOLVED: orgId=" + orgId
                 + " does not belong to any configured tree (tenantId=" + tenantId + ")");
     }
@@ -111,7 +111,7 @@ public class OrgTreeConfigDomainServiceImpl implements OrgTreeConfigDomainServic
     @Override
     public Map<Long, String> resolveTreeRootExternalIds(Long tenantId, Collection<Long> orgIds) {
         if (tenantId == null) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
                 "tenantId required for batch tree root resolution");
         }
         if (orgIds == null || orgIds.isEmpty()) {
@@ -183,7 +183,7 @@ public class OrgTreeConfigDomainServiceImpl implements OrgTreeConfigDomainServic
 
         if (!missing.isEmpty()) {
             // 禁止 fallback "1"，禁止部分返回；message 含全部缺失项
-            throw new BizException(AdminErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode(),
+            throw new BizException(AccessErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode(),
                 "ORG_TREE_ROOT_NOT_RESOLVED: missing tree root for orgIds=" + missing
                     + " (tenantId=" + tenantId + ")");
         }

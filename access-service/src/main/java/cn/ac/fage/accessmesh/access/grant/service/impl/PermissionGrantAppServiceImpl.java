@@ -18,7 +18,7 @@ import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
@@ -105,7 +105,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         Long roleId = typeResolutionService.resolveRoleId(
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         if (roleId == null) {
-            throw biz(PermissionErrorCode.ROLE_NOT_FOUND);
+            throw biz(AccessErrorCode.ROLE_NOT_FOUND);
         }
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
@@ -114,10 +114,10 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         }
         AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
         if (role == null) {
-            throw biz(PermissionErrorCode.ROLE_NOT_FOUND);
+            throw biz(AccessErrorCode.ROLE_NOT_FOUND);
         }
         if (role.getStatus() != PermissionConstants.ENABLED_STATUS) {
-            throw biz(PermissionErrorCode.ROLE_DISABLED);
+            throw biz(AccessErrorCode.ROLE_DISABLED);
         }
 
         PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
@@ -347,7 +347,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         Long roleId = typeResolutionService.resolveRoleId(
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         if (roleId == null) {
-            throw biz(PermissionErrorCode.ROLE_NOT_FOUND);
+            throw biz(AccessErrorCode.ROLE_NOT_FOUND);
         }
         Long operatorId = OperatorContext.getOperatorId();
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
@@ -364,7 +364,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                 ? policy.allowedTypeCodes() : List.of());
     }
 
-    private BizException biz(PermissionErrorCode errorCode) {
+    private BizException biz(AccessErrorCode errorCode) {
         return new BizException(errorCode.getCode(), errorCode.getMessage());
     }
 

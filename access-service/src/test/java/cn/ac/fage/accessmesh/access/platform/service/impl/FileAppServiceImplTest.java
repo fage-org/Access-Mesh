@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.platform.service.impl;
 import cn.ac.fage.accessmesh.access.platform.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq;
 import cn.ac.fage.accessmesh.access.platform.entity.SysFile;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysFileMapper;
 import cn.ac.fage.accessmesh.access.platform.service.AdminFileFolderRegistrar;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
@@ -244,7 +244,7 @@ class FileAppServiceImplTest {
         assertThatThrownBy(() -> service.downloadFile(1L, new MockHttpServletResponse()))
             .isInstanceOf(BizException.class)
             .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                .isEqualTo(AdminErrorCode.FILE_PATH_ILLEGAL.getCode()));
+                .isEqualTo(AccessErrorCode.FILE_PATH_ILLEGAL.getCode()));
     }
 
     @Test
@@ -255,7 +255,7 @@ class FileAppServiceImplTest {
         assertThatThrownBy(() -> service.downloadFile(1L, new MockHttpServletResponse()))
             .isInstanceOf(BizException.class)
             .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                .isEqualTo(AdminErrorCode.FILE_NOT_FOUND.getCode()));
+                .isEqualTo(AccessErrorCode.FILE_NOT_FOUND.getCode()));
     }
 
     @Test
@@ -283,7 +283,7 @@ class FileAppServiceImplTest {
                 .as("bizType=%s 应被拒绝", bizType)
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(AdminErrorCode.FILE_PATH_ILLEGAL.getCode()));
+                    .isEqualTo(AccessErrorCode.FILE_PATH_ILLEGAL.getCode()));
         }
         verifyNoInteractions(fileMapper);
         verifyNoInteractions(folderRegistrar);

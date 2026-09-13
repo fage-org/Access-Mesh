@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceDependencyMapper;
@@ -160,7 +160,7 @@ class DependencyAppServiceImplTest {
             BizException ex = assertThrows(BizException.class,
                 () -> service.createDependency(TENANT, createReq(null, List.of("ACCESS"), true), OPERATOR));
 
-            assertEquals(PermissionErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(), ex.getErrorCode());
+            assertEquals(AccessErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(), ex.getErrorCode());
             verify(dependencyMapper, never()).insert(any(ResourceDependency.class));
         }
 
@@ -192,7 +192,7 @@ class DependencyAppServiceImplTest {
             BizException ex = assertThrows(BizException.class,
                 () -> service.updateDependency(TENANT, updateReq(null, List.of("ACCESS"), Boolean.TRUE, null), OPERATOR));
 
-            assertEquals(PermissionErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(), ex.getErrorCode());
+            assertEquals(AccessErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(), ex.getErrorCode());
             verify(dependencyMapper, never()).update(any(ResourceDependency.class));
         }
 
@@ -208,7 +208,7 @@ class DependencyAppServiceImplTest {
             BizException ex = assertThrows(BizException.class,
                 () -> service.batchSyncDependencies(TENANT, req, OPERATOR));
 
-            assertEquals(PermissionErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(), ex.getErrorCode());
+            assertEquals(AccessErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(), ex.getErrorCode());
             verify(dependencyMapper, never()).insert(any(ResourceDependency.class));
             verify(dependencyMapper, never()).insertBatch(anyList());
         }
@@ -225,7 +225,7 @@ class DependencyAppServiceImplTest {
             BizException ex = assertThrows(BizException.class,
                 () -> service.batchSyncDependencies(TENANT, req, OPERATOR));
 
-            assertEquals(PermissionErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(), ex.getErrorCode());
+            assertEquals(AccessErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(), ex.getErrorCode());
             // 预检先于 FULL diff 全部数据库操作：存量查询与删除/写入均不得发生
             verify(dependencyMapper, never()).selectByOwnerService(anyLong(), anyString(), anyString());
             verify(dependencyMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
@@ -318,7 +318,7 @@ class DependencyAppServiceImplTest {
                 updateReq(null, List.of("ACCESS"), null, null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.DEPENDENCY_NOT_FOUND.getCode()));
+                    .isEqualTo(AccessErrorCode.DEPENDENCY_NOT_FOUND.getCode()));
             // 先解析后门禁（T-PERM-029 模式）：未知 id 优先 20019，权限引擎未被触达
             verifyNoInteractions(engine);
         }
@@ -378,7 +378,7 @@ class DependencyAppServiceImplTest {
                 updateReq(null, List.of("ACCESS"), null, null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.DEPENDENCY_DUPLICATE.getCode()));
+                    .isEqualTo(AccessErrorCode.DEPENDENCY_DUPLICATE.getCode()));
         }
 
         @Test
@@ -392,7 +392,7 @@ class DependencyAppServiceImplTest {
                 updateReq(null, List.of("ACCESS"), null, null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.INVALID_PARAM.getCode()));
+                    .isEqualTo(AccessErrorCode.PERM_INVALID_PARAM.getCode()));
         }
 
         @Test
@@ -409,7 +409,7 @@ class DependencyAppServiceImplTest {
                 updateReq(null, List.of("ACCES"), null, null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.OPERATION_NOT_FOUND.getCode()));
+                    .isEqualTo(AccessErrorCode.OPERATION_NOT_FOUND.getCode()));
             verify(dependencyMapper, never()).update(any(ResourceDependency.class));
         }
 
@@ -422,7 +422,7 @@ class DependencyAppServiceImplTest {
                 updateReq(null, List.of("ACCESS"), null, null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.DEPENDENCY_NOT_FOUND.getCode()));
+                    .isEqualTo(AccessErrorCode.DEPENDENCY_NOT_FOUND.getCode()));
         }
 
         @Test
@@ -439,7 +439,7 @@ class DependencyAppServiceImplTest {
             assertThatThrownBy(() -> service.createDependency(TENANT, createReq(null, List.of("ACCESS"), null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.DEPENDENCY_DUPLICATE.getCode()));
+                    .isEqualTo(AccessErrorCode.DEPENDENCY_DUPLICATE.getCode()));
         }
     }
 
@@ -462,7 +462,7 @@ class DependencyAppServiceImplTest {
             assertThatThrownBy(() -> service.createDependency(TENANT, createReq(null, List.of("ACCESS"), null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.OPERATION_NOT_FOUND.getCode()));
+                    .isEqualTo(AccessErrorCode.OPERATION_NOT_FOUND.getCode()));
             verify(dependencyMapper, never()).insert(any(ResourceDependency.class));
         }
 
@@ -485,7 +485,7 @@ class DependencyAppServiceImplTest {
                 createReq(List.of("VIEW"), List.of("ACCESS"), null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.DEPENDENCY_DUPLICATE.getCode()));
+                    .isEqualTo(AccessErrorCode.DEPENDENCY_DUPLICATE.getCode()));
             verify(dependencyMapper, never()).insert(any(ResourceDependency.class));
         }
 
@@ -499,7 +499,7 @@ class DependencyAppServiceImplTest {
                 createReq(null, List.of("ACCESS"), null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.INVALID_PARAM.getCode()));
+                    .isEqualTo(AccessErrorCode.PERM_INVALID_PARAM.getCode()));
         }
 
         @Test
@@ -515,7 +515,7 @@ class DependencyAppServiceImplTest {
                 createReq(null, List.of("ACCESS", "ACCES"), null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.OPERATION_NOT_FOUND.getCode()));
+                    .isEqualTo(AccessErrorCode.OPERATION_NOT_FOUND.getCode()));
         }
 
         @Test
@@ -528,7 +528,7 @@ class DependencyAppServiceImplTest {
                 createReq(null, List.of("  "), null), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.INVALID_PARAM.getCode()));
+                    .isEqualTo(AccessErrorCode.PERM_INVALID_PARAM.getCode()));
         }
     }
 
@@ -645,7 +645,7 @@ class DependencyAppServiceImplTest {
                 List.of(item("menu:sys", null, List.of("ACCES")))), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.OPERATION_NOT_FOUND.getCode()));
+                    .isEqualTo(AccessErrorCode.OPERATION_NOT_FOUND.getCode()));
             verify(dependencyMapper, never()).insertBatch(anyList());
         }
 
@@ -660,7 +660,7 @@ class DependencyAppServiceImplTest {
                 List.of(item("menu:sys", null, null))), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.INVALID_PARAM.getCode()));
+                    .isEqualTo(AccessErrorCode.PERM_INVALID_PARAM.getCode()));
             verify(typeResolutionService, never()).batchResolveResourceIds(anyLong(), anyList());
             verify(dependencyMapper, never()).selectByOwnerService(anyLong(), anyString(), anyString());
             verify(dependencyMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
@@ -676,7 +676,7 @@ class DependencyAppServiceImplTest {
                 List.of(item("menu:sys", null, List.of(" ")))), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.INVALID_PARAM.getCode()));
+                    .isEqualTo(AccessErrorCode.PERM_INVALID_PARAM.getCode()));
             verify(typeResolutionService, never()).batchResolveResourceIds(anyLong(), anyList());
         }
 
@@ -699,7 +699,7 @@ class DependencyAppServiceImplTest {
                 List.of(item("menu:sys", List.of(" "), List.of("ACCESS")))), OPERATOR))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.INVALID_PARAM.getCode()));
+                    .isEqualTo(AccessErrorCode.PERM_INVALID_PARAM.getCode()));
             verify(dependencyMapper, never()).insertBatch(anyList());
         }
 

@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.domain.dto.req.BizDomainUpdateReq;
 import cn.ac.fage.accessmesh.access.domain.dto.resp.BizDomainResp;
 import cn.ac.fage.accessmesh.access.domain.entity.BizDomain;
 import cn.ac.fage.accessmesh.access.domain.entity.DomainConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
@@ -104,7 +104,7 @@ class BizDomainAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class,
             () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null, null), 100L));
-        assertEquals(PermissionErrorCode.DOMAIN_CODE_DUPLICATE.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.DOMAIN_CODE_DUPLICATE.getCode(), ex.getErrorCode());
         verify(bizDomainMapper, never()).insert(any(BizDomain.class));
     }
 
@@ -120,7 +120,7 @@ class BizDomainAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class,
             () -> service.createBizDomain(1L, new BizDomainCreateReq("HR", "人力资源", null, null), 100L));
-        assertEquals(PermissionErrorCode.DOMAIN_CODE_DUPLICATE.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.DOMAIN_CODE_DUPLICATE.getCode(), ex.getErrorCode());
     }
 
     @Test
@@ -144,7 +144,7 @@ class BizDomainAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class,
             () -> service.createBizDomain(1L, new BizDomainCreateReq("GLOBAL", "全局域", null, true), 100L));
-        assertEquals(PermissionErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(), ex.getErrorCode());
         verify(bizDomainMapper, never()).insert(any(BizDomain.class));
     }
 
@@ -178,10 +178,10 @@ class BizDomainAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class,
             () -> service.createBizDomain(1L, new BizDomainCreateReq("GLOBAL", "全局域", null, true), 100L));
-        assertEquals(PermissionErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(), ex.getErrorCode());
         // 约束名带引号精确匹配：uk_biz_domain_global 违例不得误映射为 20052「编码重复」
         // （uk_biz_domain 是 uk_biz_domain_global 的前缀）
-        assertNotEquals(PermissionErrorCode.DOMAIN_CODE_DUPLICATE.getCode(), ex.getErrorCode());
+        assertNotEquals(AccessErrorCode.DOMAIN_CODE_DUPLICATE.getCode(), ex.getErrorCode());
     }
 
     // ===== detail（业务键 code + 类型级 DOMAIN:VIEW 门禁）=====
@@ -288,7 +288,7 @@ class BizDomainAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class,
             () -> service.updateBizDomain(1L, new BizDomainUpdateReq("NOPE", "新名", null), 100L));
-        assertEquals(PermissionErrorCode.DOMAIN_NOT_FOUND.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.DOMAIN_NOT_FOUND.getCode(), ex.getErrorCode());
     }
 
     // ===== remove（删除保护：全局域不可删 + 域配置引用检查拒删，20051）=====
@@ -302,7 +302,7 @@ class BizDomainAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class,
             () -> service.deleteBizDomainsByIds(1L, List.of(10L), 100L));
-        assertEquals(PermissionErrorCode.DOMAIN_DELETE_CONFLICT.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.DOMAIN_DELETE_CONFLICT.getCode(), ex.getErrorCode());
         assertTrue(ex.getMessage().contains("GLOBAL"));
         verify(bizDomainMapper, never()).softDeleteBatch(anyLong(), any(), any());
     }
@@ -322,7 +322,7 @@ class BizDomainAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class,
             () -> service.deleteBizDomainsByIds(1L, List.of(10L), 100L));
-        assertEquals(PermissionErrorCode.DOMAIN_DELETE_CONFLICT.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.DOMAIN_DELETE_CONFLICT.getCode(), ex.getErrorCode());
         verify(bizDomainMapper, never()).softDeleteBatch(anyLong(), any(), any());
     }
 

@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.auth.dto.*;
 import cn.ac.fage.accessmesh.access.infrastructure.OAuth2JwtSupport;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.auth.service.OAuth2AppService;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
@@ -123,14 +123,14 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
 
         // 2. Validate grant type
         if (!containsGrantType(client.getGrantTypes(), "authorization_code")) {
-            throw new BizException(AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
-                AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
+                AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
         }
 
         // 3. Validate response_type
         if (!"code".equals(req.responseType())) {
-            throw new BizException(AdminErrorCode.OAUTH2_RESPONSE_TYPE_INVALID.getCode(),
-                AdminErrorCode.OAUTH2_RESPONSE_TYPE_INVALID.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_RESPONSE_TYPE_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_RESPONSE_TYPE_INVALID.getMessage());
         }
 
         // 4. Validate redirectUri
@@ -145,7 +145,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         String codeChallengeMethod = req.codeChallengeMethod() != null ? req.codeChallengeMethod() : "S256";
         if (req.codeChallenge() != null && !req.codeChallenge().isBlank()) {
             if (!"S256".equals(codeChallengeMethod) && !"plain".equals(codeChallengeMethod)) {
-                throw new BizException(AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
+                throw new BizException(AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
                     "不支持的 code_challenge_method: " + codeChallengeMethod);
             }
         }
@@ -170,7 +170,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             redisTemplate.opsForValue().set(AUTH_CODE_PREFIX + code, json, AUTH_CODE_TTL_SECONDS, TimeUnit.SECONDS);
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize auth code data", e);
-            throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "授权码生成失败");
+            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "授权码生成失败");
         }
 
         return new AuthorizeResp(code, req.state());
@@ -196,8 +196,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             if ("authorization_code".equals(req.grantType())) {
                 return tokenByAuthorizationCode(req);
             } else {
-                throw new BizException(AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
-                    AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
+                throw new BizException(AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
+                    AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
             }
         } finally {
             TenantContextHolder.clear();
@@ -224,8 +224,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         try {
             if (refreshToken == null || refreshToken.isBlank()) {
                 recordOauth2Failure(clientId, "refresh token blank");
-                throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
-                    AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+                throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
             // 验证客户端存在且有效
@@ -239,8 +239,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
 
             if (refreshTokenDataJson == null) {
                 recordOauth2Failure(clientId, "refresh token invalid or expired");
-                throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
-                    AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+                throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
             RefreshTokenData refreshTokenData;
@@ -248,8 +248,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
                 refreshTokenData = objectMapper.readValue(refreshTokenDataJson, RefreshTokenData.class);
             } catch (JsonProcessingException e) {
                 recordOauth2Failure(clientId, "refresh token malformed");
-                throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
-                    AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+                throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
             // 从 refresh token 设置租户上下文
@@ -260,8 +260,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             // 验证 client_id 匹配（refreshToken 绑定特定客户端）
             if (!refreshTokenData.getClientId().equals(clientId)) {
                 recordOauth2Failure(clientId, "refresh token client mismatch");
-                throw new BizException(AdminErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
-                    AdminErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
+                throw new BizException(AccessErrorCode.OAUTH2_TOKEN_INVALID.getCode(),
+                    AccessErrorCode.OAUTH2_TOKEN_INVALID.getMessage());
             }
 
             // 生成新的访问令牌
@@ -284,7 +284,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             } catch (JsonProcessingException e) {
                 log.error("Failed to serialize refresh token data", e);
                 recordOauth2Failure(clientId, "refresh token generation failed");
-                throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "刷新令牌生成失败");
+                throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "刷新令牌生成失败");
             }
 
             // OAuth2 刷新令牌成功：记录 OAUTH2 登录日志（匿名端点，审计由 sys_login_log 承载）
@@ -361,8 +361,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysUser user = userDomainService.selectValidById(tenantId, userId);
         if (user == null) {
-            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(),
-                AdminErrorCode.USER_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(),
+                AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
         }
         return new OAuth2UserInfoResp(
             String.valueOf(user.getId()),
@@ -389,23 +389,23 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         // 1. Validate client
         if (req.clientId() == null || req.clientId().isBlank()) {
             recordOauth2Failure(req.clientId(), "missing client id");
-            throw new BizException(AdminErrorCode.OAUTH2_MISSING_CLIENT.getCode(),
-                AdminErrorCode.OAUTH2_MISSING_CLIENT.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_MISSING_CLIENT.getCode(),
+                AccessErrorCode.OAUTH2_MISSING_CLIENT.getMessage());
         }
         SysOauth2Client client = getValidClient(req.clientId());
 
         // 2. Validate client secret
         if (req.clientSecret() == null || !BCrypt.checkpw(req.clientSecret(), client.getClientSecret())) {
             recordOauth2Failure(req.clientId(), "client secret mismatch");
-            throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
-                AdminErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
         }
 
         // 3. Validate grant type
         if (!containsGrantType(client.getGrantTypes(), "authorization_code")) {
             recordOauth2Failure(req.clientId(), "grant type not supported");
-            throw new BizException(AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
-                AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
+                AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
         }
 
         // 4. 使用 Lua 脚本原子性地获取并删除 authorization code，确保一次性使用
@@ -417,8 +417,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
 
         if (codeDataJson == null) {
             recordOauth2Failure(req.clientId(), "authorization code invalid or expired");
-            throw new BizException(AdminErrorCode.OAUTH2_CODE_INVALID.getCode(),
-                AdminErrorCode.OAUTH2_CODE_INVALID.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
         }
 
         AuthCodeData codeData;
@@ -426,8 +426,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             codeData = objectMapper.readValue(codeDataJson, AuthCodeData.class);
         } catch (JsonProcessingException e) {
             recordOauth2Failure(req.clientId(), "authorization code malformed");
-            throw new BizException(AdminErrorCode.OAUTH2_CODE_INVALID.getCode(),
-                AdminErrorCode.OAUTH2_CODE_INVALID.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
         }
 
         // 从授权码设置租户上下文
@@ -438,21 +438,21 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         // 5. Validate redirect_uri matches
         if (!codeData.getRedirectUri().equals(req.redirectUri())) {
             recordOauth2Failure(req.clientId(), "redirect uri mismatch");
-            throw new BizException(AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
-                AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
+                AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
         }
 
         // 6. Validate PKCE if used
         if (codeData.getCodeChallenge() != null && !codeData.getCodeChallenge().isBlank()) {
             if (req.codeVerifier() == null || req.codeVerifier().isBlank()) {
                 recordOauth2Failure(req.clientId(), "missing code verifier");
-                throw new BizException(AdminErrorCode.OAUTH2_CODE_VERIFIER_MISMATCH.getCode(),
+                throw new BizException(AccessErrorCode.OAUTH2_CODE_VERIFIER_MISMATCH.getCode(),
                     "缺少 code_verifier");
             }
             if (!verifyPkce(codeData.getCodeChallenge(), req.codeVerifier(), codeData.getCodeChallengeMethod())) {
                 recordOauth2Failure(req.clientId(), "PKCE verification failed");
-                throw new BizException(AdminErrorCode.OAUTH2_CODE_VERIFIER_MISMATCH.getCode(),
-                    AdminErrorCode.OAUTH2_CODE_VERIFIER_MISMATCH.getMessage());
+                throw new BizException(AccessErrorCode.OAUTH2_CODE_VERIFIER_MISMATCH.getCode(),
+                    AccessErrorCode.OAUTH2_CODE_VERIFIER_MISMATCH.getMessage());
             }
         }
 
@@ -478,7 +478,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         } catch (JsonProcessingException e) {
             log.error("Failed to serialize refresh token data", e);
             recordOauth2Failure(req.clientId(), "refresh token generation failed");
-            throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "刷新令牌生成失败");
+            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(), "刷新令牌生成失败");
         }
 
         // OAuth2 授权码换取令牌成功：记录 OAUTH2 登录日志（匿名端点，审计由 sys_login_log 承载）
@@ -669,8 +669,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     private SysOauth2Client getValidClient(String clientId) {
         SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
         if (client == null) {
-            throw new BizException(AdminErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
-                AdminErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_CLIENT_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CLIENT_INVALID.getMessage());
         }
         return client;
     }
@@ -689,12 +689,12 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
     private void validateRedirectUri(SysOauth2Client client, String redirectUri) {
         // 添加 redirectUri 的 null/空校验
         if (redirectUri == null || redirectUri.isBlank()) {
-            throw new BizException(AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
-                AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
+                AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
         }
         if (client.getRedirectUris() == null || client.getRedirectUris().isBlank()) {
-            throw new BizException(AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
-                AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
+                AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
         }
         String[] uris = client.getRedirectUris().split(",");
         boolean matched = false;
@@ -718,8 +718,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             }
         }
         if (!matched) {
-            throw new BizException(AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
-                AdminErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
+                AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
         }
     }
 
@@ -784,7 +784,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      */
     private void validateScope(SysOauth2Client client, String scope) {
         if (client.getScopes() == null || client.getScopes().isBlank()) {
-            throw new BizException(AdminErrorCode.OAUTH2_SCOPE_INVALID.getCode(),
+            throw new BizException(AccessErrorCode.OAUTH2_SCOPE_INVALID.getCode(),
                 "客户端未注册任何可授予的授权范围");
         }
         String[] allowedScopes = client.getScopes().split(",");
@@ -795,8 +795,8 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         String[] requestedScopes = scope.split(" ");
         for (String s : requestedScopes) {
             if (!s.isBlank() && !allowedSet.contains(s.trim())) {
-                throw new BizException(AdminErrorCode.OAUTH2_SCOPE_INVALID.getCode(),
-                    AdminErrorCode.OAUTH2_SCOPE_INVALID.getMessage());
+                throw new BizException(AccessErrorCode.OAUTH2_SCOPE_INVALID.getCode(),
+                    AccessErrorCode.OAUTH2_SCOPE_INVALID.getMessage());
             }
         }
     }

@@ -25,7 +25,7 @@ import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.user.service.UserManageAppService;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
@@ -199,7 +199,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             String detail = shown.stream()
                 .map(c -> "user " + c.userId() + ": role " + c.firstRoleId() + " vs role " + c.secondRoleId())
                 .collect(Collectors.joining("; "));
-            throw new BizException(PermissionErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(),
+            throw new BizException(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(),
                 "Role mutex conflict (" + conflicts.size() + " total): " + detail
                     + (conflicts.size() > shown.size() ? " ..." : ""));
         }
@@ -213,7 +213,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (strictDomainCheck
             && ROLE_TYPES_REQUIRING_DOMAIN.contains(roleTypeCode)
             && (domainCode == null || domainCode.isBlank())) {
-            throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+            throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                 "ORG/POSITION 角色必须指定 domainCode");
         }
     }
@@ -232,11 +232,11 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         Integer userType = typeResolutionService.resolveTypeValue(tenantId, "user_type", req.subjectTypeCode());
         if (userType == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown subjectTypeCode: " + req.subjectTypeCode());
+            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown subjectTypeCode: " + req.subjectTypeCode());
         }
         AbstractUser existing = abstractUserMapper.selectByTypeAndExternalId(tenantId, userType, req.externalId());
         if (existing != null) {
-            throw new BizException(PermissionErrorCode.USER_ALREADY_EXISTS.getCode(), "User already exists");
+            throw new BizException(AccessErrorCode.PERM_USER_ALREADY_EXISTS.getCode(), "User already exists");
         }
         AbstractUser user = new AbstractUser();
         user.setTenantId(tenantId);
@@ -269,7 +269,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         AbstractUser existing = subjectDomainService.selectValidUserById(tenantId, req.userId());
         if (existing == null) {
-            throw new BizException(PermissionErrorCode.USER_NOT_FOUND.getCode(), "User not found: " + req.userId());
+            throw new BizException(AccessErrorCode.PERM_USER_NOT_FOUND.getCode(), "User not found: " + req.userId());
         }
         localProjectionGuard.rejectIfLocalUser(existing);
 
@@ -396,7 +396,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Long operatorId = OperatorContext.getOperatorId();
 
         if (req.items() == null || req.items().isEmpty()) {
-            throw new BizException(PermissionErrorCode.REQUEST_ITEMS_EMPTY.getCode(), "items must not be empty");
+            throw new BizException(AccessErrorCode.REQUEST_ITEMS_EMPTY.getCode(), "items must not be empty");
         }
 
         // M2: 跨字段业务校验 — ORG/POSITION 必带 domainCode
@@ -520,7 +520,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
 
         if (!errors.isEmpty()) {
-            throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(), String.join("; ", errors));
+            throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(), String.join("; ", errors));
         }
 
         // T-PERM-063：角色互斥授予校验（授予后状态命中互斥对 → 整批原子拒绝 20062）
@@ -568,7 +568,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         Long targetRoleId = typeResolutionService.resolveRoleId(
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         if (targetRoleId == null) {
-            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + req.roleTypeCode() + "/" + req.roleExternalId());
+            throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + req.roleTypeCode() + "/" + req.roleExternalId());
         }
 
         Set<String> deniedRoleCodes = engine.getDeniedResourceCodes(
@@ -591,7 +591,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
 
         if (!userNotFoundErrors.isEmpty()) {
-            throw new BizException(PermissionErrorCode.USER_NOT_FOUND.getCode(), String.join("; ", userNotFoundErrors));
+            throw new BizException(AccessErrorCode.PERM_USER_NOT_FOUND.getCode(), String.join("; ", userNotFoundErrors));
         }
 
         Map<String, UserRole> existingRelationMap = new HashMap<>();
@@ -761,12 +761,12 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             String userKey = BusinessKeys.subjectKey(item.subjectTypeCode(), item.subjectExternalId());
             Long abstractUserId = userIdMap.get(userKey);
             if (abstractUserId == null) {
-                throw new BizException(PermissionErrorCode.USER_NOT_FOUND.getCode(), "User not found: " + item.subjectTypeCode() + "/" + item.subjectExternalId());
+                throw new BizException(AccessErrorCode.PERM_USER_NOT_FOUND.getCode(), "User not found: " + item.subjectTypeCode() + "/" + item.subjectExternalId());
             }
             String roleKey = BusinessKeys.roleKey(item.roleTypeCode(), item.domainCode(), item.roleExternalId());
             Long targetRoleId = roleIdMap.get(roleKey);
             if (targetRoleId == null) {
-                throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
+                throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(), "Role not found: " + item.roleTypeCode() + "/" + item.roleExternalId());
             }
 
             if (deniedRoleCodes.contains(String.valueOf(targetRoleId))) {
@@ -777,7 +777,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             String urKey = BusinessKeys.userRoleRelationIdKey(abstractUserId, targetRoleId, item.relationId());
             UserRole ur = userRoleMap.get(urKey);
             if (ur == null) {
-                throw new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(), "User-role relation not found for item");
+                throw new BizException(AccessErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(), "User-role relation not found for item");
             }
             idsToDelete.add(ur.getId());
             revoked++;

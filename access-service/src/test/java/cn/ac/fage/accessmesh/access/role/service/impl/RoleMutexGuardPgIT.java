@@ -14,7 +14,7 @@ import cn.ac.fage.accessmesh.access.rule.service.ConflictRuleAppService;
 import cn.ac.fage.accessmesh.access.user.service.UserManageAppService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -117,7 +117,7 @@ class RoleMutexGuardPgIT {
         ))))
             .isInstanceOf(BizException.class)
             .extracting(ex -> ((BizException) ex).getErrorCode())
-            .isEqualTo(PermissionErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode());
+            .isEqualTo(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode());
         assertThat(countUserRole(holder, roleB)).isZero();
 
         // 无冲突用户照常落库（守卫不误伤正常授予）
@@ -133,7 +133,7 @@ class RoleMutexGuardPgIT {
             List.of("t063-u-holder", "t063-u-fresh"), "USER", null, "BASIC_ROLE", "t063-role-b", null)))
             .isInstanceOf(BizException.class)
             .extracting(ex -> ((BizException) ex).getErrorCode())
-            .isEqualTo(PermissionErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode());
+            .isEqualTo(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode());
         assertThat(countUserRole(holder, roleB)).isZero();
         assertThat(countUserRole(fresh, roleB)).isZero();
     }
@@ -158,7 +158,7 @@ class RoleMutexGuardPgIT {
                 TENANT, new ConflictRuleReq("ROLE_MUTEX", null, null, null, roleC, roleD, null), operator))
             .isInstanceOf(BizException.class)
             .extracting(ex -> ((BizException) ex).getErrorCode())
-            .isEqualTo(PermissionErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
+            .isEqualTo(AccessErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
         assertThatThrownBy(() -> conflictRuleAppService.createConflictRule(
                 TENANT, new ConflictRuleReq("ROLE_MUTEX", null, null, null, roleC, roleD, null), operator))
             .hasMessageContaining(String.valueOf(holder));
@@ -231,7 +231,7 @@ class RoleMutexGuardPgIT {
                 TENANT, new ConflictRuleReq("ROLE_MUTEX", null, null, null, roleH, roleI, null), operator))
             .isInstanceOf(BizException.class)
             .extracting(ex -> ((BizException) ex).getErrorCode())
-            .isEqualTo(PermissionErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
+            .isEqualTo(AccessErrorCode.ROLE_MUTEX_EXISTING_HOLDERS.getCode());
         assertThat(countRule(roleH, roleI)).isZero();
     }
 
@@ -252,7 +252,7 @@ class RoleMutexGuardPgIT {
                 TENANT, new ConflictRuleReq("ROLE_MUTEX", null, null, null, orgRoleA, orgRoleB, null), operator))
             .isInstanceOf(BizException.class)
             .extracting(ex -> ((BizException) ex).getErrorCode())
-            .isEqualTo(PermissionErrorCode.VALIDATION_FAILED.getCode());
+            .isEqualTo(AccessErrorCode.VALIDATION_FAILED.getCode());
         assertThat(countRule(orgRoleA, orgRoleB)).isZero();
 
         // 功能角色对（BASIC_ROLE=6）不受影响

@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.PermInvalidationPublisher;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.AfterEach;
@@ -130,7 +130,7 @@ class UserOrgWriteAppServiceFaultInjectionIT {
         insertUserOrg(userId, orgId);
 
         // 投影层注入「用户/角色投影缺失」故障（与单测 fail-closed 语义一致，但经真实 Spring 事务路径）
-        doThrow(new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
+        doThrow(new BizException(AccessErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
             "local projection missing for user-org unbind"))
             .when(localProjectionDomainService)
             .unbindUserOrg(anyLong(), anyLong(), anyLong(), anyString(), any());
@@ -156,7 +156,7 @@ class UserOrgWriteAppServiceFaultInjectionIT {
         insertOrg(orgId, "code-20002");
         insertUserOrg(userId, orgId);
 
-        doThrow(new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
+        doThrow(new BizException(AccessErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
             "local projection missing for user-org unbind"))
             .when(localProjectionDomainService)
             .batchUnbindUserOrg(anyLong(), any());

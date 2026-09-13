@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.org.service.impl;
 import cn.ac.fage.accessmesh.access.org.dto.req.OrgCreateReq;
 import cn.ac.fage.accessmesh.access.org.dto.req.OrgUpdateReq;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -68,7 +68,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     public Long createOrg(OrgCreateReq req) {
         // orgType 仅允许 1=组织 / 2=岗位（契约 §4.2.4；未知类型会被操作码/投影按普通组织处理，必须拒绝）
         if (req.orgType() == null || (req.orgType() != 1 && req.orgType() != 2)) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
                 "orgType 必须为 1（组织）或 2（岗位）");
         }
         String orgType = String.valueOf(req.orgType());
@@ -88,7 +88,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         if (req.parentOrgId() != null && req.parentOrgId() != 0L) {
             parent = orgDomainService.selectValidById(tenantId, req.parentOrgId());
             if (parent == null) {
-                throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+                throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
                     "父组织不存在: orgId=" + req.parentOrgId());
             }
             permissionValidator.checkInstanceLevel(
@@ -103,13 +103,13 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         // 岗位拓扑约束：岗位必须有父（非顶级）且父必须是普通组织；任何节点不能挂在岗位下
         validatePositionTopology(orgType, req.parentOrgId(), parent);
         if (orgDomainService.findByCode(tenantId, req.code()) != null) {
-            throw new BizException(AdminErrorCode.ORG_CODE_EXISTS.getCode(),
-                AdminErrorCode.ORG_CODE_EXISTS.getMessage());
+            throw new BizException(AccessErrorCode.ORG_CODE_EXISTS.getCode(),
+                AccessErrorCode.ORG_CODE_EXISTS.getMessage());
         }
         int level = parent != null && parent.getLevel() != null ? parent.getLevel() + 1 : 1;
         if (level > 10) {
-            throw new BizException(AdminErrorCode.ORG_LEVEL_EXCEEDED.getCode(),
-                AdminErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
+            throw new BizException(AccessErrorCode.ORG_LEVEL_EXCEEDED.getCode(),
+                AccessErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
         }
         SysOrg org = new SysOrg();
         org.setTenantId(tenantId);
@@ -147,8 +147,8 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         SysOrg org = orgDomainService.selectValidById(tenantId, req.id());
         if (org == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                AdminErrorCode.ORG_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
+                AccessErrorCode.ORG_NOT_FOUND.getMessage());
         }
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG, String.valueOf(req.id()),
@@ -173,8 +173,8 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         }
         if (req.code() != null && !req.code().equals(org.getCode())
             && orgDomainService.findByCode(tenantId, req.code()) != null) {
-            throw new BizException(AdminErrorCode.ORG_CODE_EXISTS.getCode(),
-                AdminErrorCode.ORG_CODE_EXISTS.getMessage());
+            throw new BizException(AccessErrorCode.ORG_CODE_EXISTS.getCode(),
+                AccessErrorCode.ORG_CODE_EXISTS.getMessage());
         }
         // 可选字段仅更新提供的字段（null 跳过，保留原值）
         if (req.orgName() != null) {
@@ -202,13 +202,13 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     private void validatePositionTopology(String orgType, Long parentOrgId, SysOrg parent) {
         if (OrgOperationCodeMapper.isPositionOrg(orgType)) {
             if (parentOrgId == null || parentOrgId == 0L) {
-                throw new BizException(AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
-                    AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
+                throw new BizException(AccessErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
+                    AccessErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
             }
         }
         if (parent != null && !isRegularOrgType(parent.getOrgType())) {
-            throw new BizException(AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
-                AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
+            throw new BizException(AccessErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
+                AccessErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
         }
     }
 
@@ -240,23 +240,23 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
      */
     private void validateOrgMove(Long tenantId, Long orgId, SysOrg org, Long newParentId) {
         if (newParentId.equals(orgId)) {
-            throw new BizException(AdminErrorCode.ORG_PARENT_CYCLE.getCode(),
-                AdminErrorCode.ORG_PARENT_CYCLE.getMessage());
+            throw new BizException(AccessErrorCode.ORG_PARENT_CYCLE.getCode(),
+                AccessErrorCode.ORG_PARENT_CYCLE.getMessage());
         }
         List<Long> descendants = orgDomainService.getDescendantIds(tenantId, orgId);
         if (descendants.contains(newParentId)) {
-            throw new BizException(AdminErrorCode.ORG_PARENT_CYCLE.getCode(),
-                AdminErrorCode.ORG_PARENT_CYCLE.getMessage());
+            throw new BizException(AccessErrorCode.ORG_PARENT_CYCLE.getCode(),
+                AccessErrorCode.ORG_PARENT_CYCLE.getMessage());
         }
         // 用户决策：移动到顶级（parentOrgId=0）拒绝——树根由 SysOrgTreeConfig 管理，
         // 移动为游离根会破坏树归属（原实现静默 level=1）
         if (newParentId == 0L) {
-            throw new BizException(AdminErrorCode.ORG_MOVE_TOP_LEVEL_FORBIDDEN.getCode(),
-                AdminErrorCode.ORG_MOVE_TOP_LEVEL_FORBIDDEN.getMessage());
+            throw new BizException(AccessErrorCode.ORG_MOVE_TOP_LEVEL_FORBIDDEN.getCode(),
+                AccessErrorCode.ORG_MOVE_TOP_LEVEL_FORBIDDEN.getMessage());
         }
         SysOrg newParent = orgDomainService.selectValidById(tenantId, newParentId);
         if (newParent == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
                 "父组织不存在: orgId=" + newParentId);
         }
         // 新父级 UPDATE 门禁：防止把组织移动到调用者无权管理的节点下
@@ -266,20 +266,20 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         // 岗位拓扑约束：新父必须是普通组织（岗位自身无下级——岗位下挂节点拒绝；
         // 未知类型（如 orgType=3）也不能作为父节点；岗位移动到组织下满足"岗位必须作为组织的直接子节点"）
         if (!isRegularOrgType(newParent.getOrgType())) {
-            throw new BizException(AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
-                AdminErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
+            throw new BizException(AccessErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getCode(),
+                AccessErrorCode.ORG_POSITION_TOPOLOGY_INVALID.getMessage());
         }
         // 用户决策：跨树移动拒绝（原树 ≠ 目标树，ORG_CROSS_TREE_MOVE 对齐契约 CROSS_TREE_MOVE_FORBIDDEN）
         String oldRoot = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, orgId);
         String newRoot = orgTreeConfigDomainService.resolveTreeRootExternalId(tenantId, newParentId);
         if (!oldRoot.equals(newRoot)) {
-            throw new BizException(AdminErrorCode.ORG_CROSS_TREE_MOVE.getCode(),
-                AdminErrorCode.ORG_CROSS_TREE_MOVE.getMessage());
+            throw new BizException(AccessErrorCode.ORG_CROSS_TREE_MOVE.getCode(),
+                AccessErrorCode.ORG_CROSS_TREE_MOVE.getMessage());
         }
         int newLevel = newParent.getLevel() != null ? newParent.getLevel() + 1 : 1;
         if (newLevel > 10) {
-            throw new BizException(AdminErrorCode.ORG_LEVEL_EXCEEDED.getCode(),
-                AdminErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
+            throw new BizException(AccessErrorCode.ORG_LEVEL_EXCEEDED.getCode(),
+                AccessErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
         }
         int oldLevel = org.getLevel() != null ? org.getLevel() : 1;
         int delta = newLevel - oldLevel;
@@ -291,8 +291,8 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
                 .mapToInt(o -> o.getLevel() != null ? o.getLevel() : 1)
                 .max().orElse(0);
             if (maxSubLevel + delta > 10) {
-                throw new BizException(AdminErrorCode.ORG_LEVEL_EXCEEDED.getCode(),
-                    AdminErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
+                throw new BizException(AccessErrorCode.ORG_LEVEL_EXCEEDED.getCode(),
+                    AccessErrorCode.ORG_LEVEL_EXCEEDED.getMessage());
             }
         }
         org.setLevel(newLevel);
@@ -317,15 +317,15 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         SysOrg org = orgDomainService.selectValidById(tenantId, id);
         if (org == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                AdminErrorCode.ORG_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
+                AccessErrorCode.ORG_NOT_FOUND.getMessage());
         }
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG, String.valueOf(id),
             OrgOperationCodeMapper.resolve(org.getOrgType(), OperationCode.DELETE));
         if (orgDomainService.hasChildren(tenantId, id)) {
-            throw new BizException(AdminErrorCode.ORG_HAS_CHILDREN.getCode(),
-                AdminErrorCode.ORG_HAS_CHILDREN.getMessage());
+            throw new BizException(AccessErrorCode.ORG_HAS_CHILDREN.getCode(),
+                AccessErrorCode.ORG_HAS_CHILDREN.getMessage());
         }
         List<SysUserOrg> members = userOrgDomainService.findByOrgIds(tenantId, List.of(id));
         String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";

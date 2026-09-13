@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.domain.dto.req.BizDomainUpdateReq;
 import cn.ac.fage.accessmesh.access.domain.dto.resp.BizDomainResp;
 import cn.ac.fage.accessmesh.access.domain.entity.BizDomain;
 import cn.ac.fage.accessmesh.access.domain.entity.DomainConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
@@ -91,13 +91,13 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         }
 
         if (bizDomainMapper.selectByCode(tenantId, req.code()) != null) {
-            throw new BizException(PermissionErrorCode.DOMAIN_CODE_DUPLICATE.getCode(),
+            throw new BizException(AccessErrorCode.DOMAIN_CODE_DUPLICATE.getCode(),
                 "Biz domain code already exists: " + req.code());
         }
 
         boolean global = Boolean.TRUE.equals(req.global());
         if (global && bizDomainMapper.selectGlobalByTenant(tenantId) != null) {
-            throw new BizException(PermissionErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(),
+            throw new BizException(AccessErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(),
                 "Global biz domain already exists (one per tenant), cannot create: " + req.code());
         }
 
@@ -119,12 +119,12 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
             // 约束名带引号精确匹配——uk_biz_domain 是 uk_biz_domain_global 的前缀，裸子串匹配会误吞
             // 全局域唯一索引违例
             if (isUniqueViolationOn(e, "\"uk_biz_domain\"")) {
-                throw new BizException(PermissionErrorCode.DOMAIN_CODE_DUPLICATE.getCode(),
+                throw new BizException(AccessErrorCode.DOMAIN_CODE_DUPLICATE.getCode(),
                     "Biz domain code already exists: " + req.code());
             }
             if (isUniqueViolationOn(e, "\"uk_biz_domain_global\"")) {
                 // global=true 并发创建窗口：两个请求同瞬通过预查，后落库者命中全局唯一索引（20057）
-                throw new BizException(PermissionErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(),
+                throw new BizException(AccessErrorCode.DOMAIN_GLOBAL_EXISTS.getCode(),
                     "Global biz domain already exists (one per tenant), cannot create: " + req.code());
             }
             throw e;
@@ -228,7 +228,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
         }
 
         BizDomain domain = bizDomainMapper.selectByCode(tenantId, req.domainCode());
-        if (domain == null) throw new BizException(PermissionErrorCode.DOMAIN_NOT_FOUND.getCode(), "BizDomain not found: " + req.domainCode());
+        if (domain == null) throw new BizException(AccessErrorCode.DOMAIN_NOT_FOUND.getCode(), "BizDomain not found: " + req.domainCode());
         if (req.name() != null) domain.setName(req.name());
         if (req.description() != null) domain.setDescription(req.description());
         domain.setUpdatedAt(LocalDateTime.now());
@@ -291,7 +291,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
             .map(BizDomain::getCode)
             .collect(Collectors.toList());
         if (!globalCodes.isEmpty()) {
-            throw new BizException(PermissionErrorCode.DOMAIN_DELETE_CONFLICT.getCode(),
+            throw new BizException(AccessErrorCode.DOMAIN_DELETE_CONFLICT.getCode(),
                 "Global biz domain cannot be deleted: " + String.join(",", globalCodes));
         }
 
@@ -308,7 +308,7 @@ public class BizDomainAppServiceImpl implements BizDomainAppService {
                 .map(BizDomain::getCode)
                 .sorted()
                 .collect(Collectors.joining(","));
-            throw new BizException(PermissionErrorCode.DOMAIN_DELETE_CONFLICT.getCode(),
+            throw new BizException(AccessErrorCode.DOMAIN_DELETE_CONFLICT.getCode(),
                 "Biz domain has domain configs, remove them first: " + referencedDomainCodes);
         }
 

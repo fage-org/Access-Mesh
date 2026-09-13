@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.menu.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.access.menu.dto.req.MenuUpdateReq;
 import cn.ac.fage.accessmesh.access.menu.dto.resp.MenuResp;
 import cn.ac.fage.accessmesh.access.menu.entity.SysMenu;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.menu.mapper.SysMenuMapper;
 import cn.ac.fage.accessmesh.access.menu.service.MenuAppService;
 import cn.ac.fage.accessmesh.access.menu.service.domain.MenuDomainService;
@@ -116,7 +116,7 @@ public class MenuAppServiceImpl implements MenuAppService {
         // 使用 DomainService 获取菜单
         SysMenu menu = menuDomainService.selectValidById(tenantId, id);
         if (menu == null) {
-            throw new BizException(AdminErrorCode.MENU_NOT_FOUND.getCode(), AdminErrorCode.MENU_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.MENU_NOT_FOUND.getCode(), AccessErrorCode.MENU_NOT_FOUND.getMessage());
         }
         return toResp(menu, List.of());
     }

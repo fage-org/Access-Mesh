@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.sync.metadata;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.sync.mapper.SyncMetadataMapper;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataDomainService;
 import org.springframework.stereotype.Service;
@@ -176,11 +176,11 @@ public class SyncMetadataDomainServiceImpl implements SyncMetadataDomainService 
      */
     private static void validateTargetStatus(String entityKind, String targetStatus) {
         if (entityKind == null) {
-            throw new BizException(PermissionErrorCode.SYNC_TARGET_STATUS_INVALID.getCode(),
+            throw new BizException(AccessErrorCode.SYNC_TARGET_STATUS_INVALID.getCode(),
                     "entityKind must not be null");
         }
         if (targetStatus == null) {
-            throw new BizException(PermissionErrorCode.SYNC_TARGET_STATUS_INVALID.getCode(),
+            throw new BizException(AccessErrorCode.SYNC_TARGET_STATUS_INVALID.getCode(),
                     "targetStatus must not be null");
         }
         Set<String> allowed = switch (entityKind) {
@@ -189,11 +189,11 @@ public class SyncMetadataDomainServiceImpl implements SyncMetadataDomainService 
             default -> null;
         };
         if (allowed == null) {
-            throw new BizException(PermissionErrorCode.SYNC_TARGET_STATUS_INVALID.getCode(),
+            throw new BizException(AccessErrorCode.SYNC_TARGET_STATUS_INVALID.getCode(),
                     "Unsupported entityKind for sync_metadata: " + entityKind);
         }
         if (!allowed.contains(targetStatus)) {
-            throw new BizException(PermissionErrorCode.SYNC_TARGET_STATUS_INVALID.getCode(),
+            throw new BizException(AccessErrorCode.SYNC_TARGET_STATUS_INVALID.getCode(),
                     "Invalid targetStatus '" + targetStatus + "' for entityKind " + entityKind
                             + ", allowed: " + allowed);
         }

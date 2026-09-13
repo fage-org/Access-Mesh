@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.sync.mapper.SyncMetadataMapper;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceEntitySyncAppService;
@@ -460,7 +460,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         try {
             return objectMapper.writeValueAsString(extra);
         } catch (JsonProcessingException e) {
-            throw new SystemException(PermissionErrorCode.SYSTEM_INIT_FAILED.getCode(),
+            throw new SystemException(AccessErrorCode.SYSTEM_INIT_FAILED.getCode(),
                     "serialize resource_entity extra failed", e);
         }
     }

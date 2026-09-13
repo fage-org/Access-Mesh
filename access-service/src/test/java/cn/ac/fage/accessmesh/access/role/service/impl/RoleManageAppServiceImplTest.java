@@ -291,7 +291,7 @@ class RoleManageAppServiceImplTest {
             org.assertj.core.api.Assertions.assertThatThrownBy(() -> service.createRole(1L, req, 100L))
                 .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
                 .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
-                .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+                .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode.ROLE_TYPE_MISMATCH.getCode());
         }
         verifyNoInteractions(typeResolutionService);
         verifyNoInteractions(subjectDomainService);
@@ -317,7 +317,7 @@ class RoleManageAppServiceImplTest {
                 () -> service.updateRole(1L, 123L, "新名", 0, null, null, null, 100L))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
             .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
-            .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+            .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode.ROLE_TYPE_MISMATCH.getCode());
         verifyNoInteractions(localProjectionDomainService);
         verifyNoInteractions(abstractRoleMapper);
     }

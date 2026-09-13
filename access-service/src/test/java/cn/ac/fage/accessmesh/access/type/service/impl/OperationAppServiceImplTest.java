@@ -361,7 +361,7 @@ class OperationAppServiceImplTest {
             .thenReturn(customType(12, false));
         when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any()))
             .thenThrow(new cn.ac.fage.accessmesh.common.exception.BizException(
-                cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode.ROLE_NOT_FOUND.getCode(),
+                cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode.ROLE_NOT_FOUND.getCode(),
                 "类型授权根角色不存在"));
 
         assertThrows(cn.ac.fage.accessmesh.common.exception.BizException.class,

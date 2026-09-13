@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgMapper;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgTreeConfigMapper;
 import cn.ac.fage.accessmesh.access.org.mapper.SysUserOrgMapper;
@@ -107,7 +107,7 @@ public class OrgAppServiceImpl implements OrgAppService {
         // 若先门禁后查存在，无 VIEW 权和不存在两种场景返回不同语义，可被用作存在性探测）
         SysOrg org = orgDomainService.selectValidById(tenantId, id);
         if (org == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(), AdminErrorCode.ORG_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(), AccessErrorCode.ORG_NOT_FOUND.getMessage());
         }
 
         // D1=A 实例级 VIEW，按 orgType 分发到 VIEW / VIEW_POSITION
@@ -125,7 +125,7 @@ public class OrgAppServiceImpl implements OrgAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         // D2=B 强制要求显式 orgType，否则无法分发 VIEW / VIEW_POSITION 做细粒度门控
         if (req.orgType() == null) {
-            throw new BizException(AdminErrorCode.ORG_TYPE_REQUIRED.getCode(), AdminErrorCode.ORG_TYPE_REQUIRED.getMessage());
+            throw new BizException(AccessErrorCode.ORG_TYPE_REQUIRED.getCode(), AccessErrorCode.ORG_TYPE_REQUIRED.getMessage());
         }
         String orgType = String.valueOf(req.orgType());
 
@@ -172,15 +172,15 @@ public class OrgAppServiceImpl implements OrgAppService {
 
         // 参数校验：非法 operationCode / 冲突组合 → 10008（枚举缝隙 fail-closed）
         if (!OperationCode.VIEW.equals(operationCode) && !createSemantics) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
                 "operationCode 仅支持 VIEW / CREATE，实际: " + operationCode);
         }
         if (mixed && createSemantics) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
                 "includePositions=true 仅支持 VIEW（CREATE+混合树语义互斥，P2-1）");
         }
         if (createSemantics && q.treeConfigId() != null) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
                 "operationCode=CREATE 限默认树，禁止传 treeConfigId");
         }
 
@@ -194,13 +194,13 @@ public class OrgAppServiceImpl implements OrgAppService {
         } else {
             // D2=B 强制要求显式 orgType，否则无法分发 VIEW / VIEW_POSITION 做细粒度门控
             if (q.orgType() == null) {
-                throw new BizException(AdminErrorCode.ORG_TYPE_REQUIRED.getCode(),
-                    AdminErrorCode.ORG_TYPE_REQUIRED.getMessage());
+                throw new BizException(AccessErrorCode.ORG_TYPE_REQUIRED.getCode(),
+                    AccessErrorCode.ORG_TYPE_REQUIRED.getMessage());
             }
             // orgType 值域白名单（1=组织/2=岗位，契约字段定义）：非法值 fail-closed，
             // 防止经 normalize 回退基础操作码后以空集悄悄绕过（枚举缝隙先例）
             if (q.orgType() != 1 && q.orgType() != 2) {
-                throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+                throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
                     "orgType 仅支持 1（普通组织）/ 2（岗位），实际: " + q.orgType());
             }
             permissionValidator.checkTypeLevel(
@@ -221,7 +221,7 @@ public class OrgAppServiceImpl implements OrgAppService {
             .collect(Collectors.toMap(SysOrg::getId, o -> o, (a, b) -> a));
         SysOrg root = byId.get(config.getRootOrgId());
         if (root == null) {
-            throw new BizException(AdminErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode(),
+            throw new BizException(AccessErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode(),
                 "树配置根组织不存在或已删除: configId=" + config.getId() + ", rootOrgId=" + config.getRootOrgId());
         }
         List<SysOrg> scoped = scopeToSubtree(all, byId, config.getRootOrgId());
@@ -276,7 +276,7 @@ public class OrgAppServiceImpl implements OrgAppService {
         if (treeConfigId != null) {
             SysOrgTreeConfig config = treeConfigMapper.selectByIdSafe(tenantId, treeConfigId);
             if (config == null) {
-                throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
+                throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
                     "组织树配置不存在: " + treeConfigId);
             }
             return config;
@@ -285,7 +285,7 @@ public class OrgAppServiceImpl implements OrgAppService {
         // 显式 id 为单行查询、无既有领域方法，保留 mapper 直查）
         List<SysOrgTreeConfig> defaults = treeConfigDomainService.findDefaultConfigs(tenantId);
         if (defaults.isEmpty()) {
-            throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
                 "默认组织树配置不存在（treeConfigId 未传时按默认树裁剪）");
         }
         return defaults.get(0);

@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.platform.dto.resp.NoticeResp;
 import cn.ac.fage.accessmesh.access.platform.entity.SysNotice;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.platform.entity.SysUserNotice;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysNoticeMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysUserNoticeMapper;
 import cn.ac.fage.accessmesh.access.platform.service.NoticeAppService;
@@ -127,8 +127,8 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         SysNotice notice = noticeMapper.selectByIdSafe(tenantId, req.id());
 
         if (notice == null) {
-            throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(),
-                AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.NOTICE_NOT_FOUND.getCode(),
+                AccessErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
 
         // 权限检查 — 实例级 UPDATE
@@ -190,7 +190,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysNotice notice = noticeMapper.selectByIdSafe(tenantId, id);
         if (notice == null) {
-            throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(), AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.NOTICE_NOT_FOUND.getCode(), AccessErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
         return new NoticeResp(notice.getId(), notice.getTitle(), notice.getContent(),
             notice.getNoticeType() != null ? Integer.parseInt(notice.getNoticeType()) : null, notice.getTargetIds(), notice.getStatus(),
@@ -245,7 +245,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysNotice notice = noticeMapper.selectByIdSafe(tenantId, id);
         if (notice == null) {
-            throw new BizException(AdminErrorCode.NOTICE_NOT_FOUND.getCode(), AdminErrorCode.NOTICE_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.NOTICE_NOT_FOUND.getCode(), AccessErrorCode.NOTICE_NOT_FOUND.getMessage());
         }
 
         // 权限检查 — 实例级 PUBLISH
@@ -358,7 +358,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         }
 
         if (!invalidIds.isEmpty()) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
                 "Invalid user ID format: " + String.join(", ", invalidIds));
         }
 
@@ -377,7 +377,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
             .collect(Collectors.toSet());
 
         if (!missingUserIds.isEmpty()) {
-            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(),
                 "User does not exist or does not belong to current tenant: " + missingUserIds.stream()
                     .map(String::valueOf)
                     .collect(Collectors.joining(", ")));

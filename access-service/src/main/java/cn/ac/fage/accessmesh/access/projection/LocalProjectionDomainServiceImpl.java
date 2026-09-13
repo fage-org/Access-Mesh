@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.rule.enums.ConditionSource;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
@@ -629,7 +629,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             tenantId, parentRoleType, String.valueOf(parentOrgId));
         if (parent == null) {
             // 父角色投影缺失 = 依赖缺失，抛错回滚（不再静默写 parentId=null 脱离父树）
-            throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+            throw new BizException(AccessErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
                 "父组织角色投影缺失: parentOrgId=" + parentOrgId);
         }
         return parent.getId();
@@ -643,7 +643,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             tenantId, resourceType, String.valueOf(parentExternalId), CODE_TYPE_DEFAULT);
         if (parent == null) {
             // 父资源投影缺失 = 依赖缺失，抛错回滚（与父角色同语义，不再静默写 parentId=null 脱离父树）
-            throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+            throw new BizException(AccessErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
                 "父资源投影缺失: parentId=" + parentExternalId);
         }
         return parent.getId();
@@ -652,7 +652,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     private Integer requireType(Long tenantId, String typeKey, String typeCode) {
         Integer value = typeResolutionService.resolveTypeValue(tenantId, typeKey, typeCode);
         if (value == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
                 "Unknown " + typeKey + ": " + typeCode);
         }
         return value;

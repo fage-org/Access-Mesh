@@ -12,7 +12,7 @@ import cn.ac.fage.accessmesh.access.resource.dto.resp.ResourceDependencyResp;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceDependencyMapper;
@@ -115,12 +115,12 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         Long sourceId = typeResolutionService.resolveResourceId(
             tenantId, req.sourceResourceTypeCode(), req.sourceResourceCode(), req.sourceCodeType(), null);
         if (sourceId == null) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
+            throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
         }
         Long targetId = typeResolutionService.resolveResourceId(
             tenantId, req.targetResourceTypeCode(), req.targetResourceCode(), req.targetCodeType(), null);
         if (targetId == null) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
+            throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
         }
         rejectSelfDependency(sourceId, targetId);
         Long sourceOperationBits = resolveOperationBits(tenantId, req.sourceOperationCodes(), req.sourceResourceTypeCode());
@@ -147,8 +147,8 @@ public class DependencyAppServiceImpl implements DependencyAppService {
             dependencyMapper.insert(dep);
         } catch (DataIntegrityViolationException e) {
             if (isDependencyUniqueViolation(e)) {
-                throw new BizException(PermissionErrorCode.DEPENDENCY_DUPLICATE.getCode(),
-                    PermissionErrorCode.DEPENDENCY_DUPLICATE.getMessage());
+                throw new BizException(AccessErrorCode.DEPENDENCY_DUPLICATE.getCode(),
+                    AccessErrorCode.DEPENDENCY_DUPLICATE.getMessage());
             }
             throw e;
         }
@@ -229,7 +229,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         // 先解析后门禁（T-PERM-029 模式）
         ResourceDependency existing = dependencyMapper.selectOneById(req.id());
         if (existing == null || existing.getDeleteFlag() != 0L || !tenantId.equals(existing.getTenantId())) {
-            throw new BizException(PermissionErrorCode.DEPENDENCY_NOT_FOUND.getCode(), "Dependency not found: " + req.id());
+            throw new BizException(AccessErrorCode.DEPENDENCY_NOT_FOUND.getCode(), "Dependency not found: " + req.id());
         }
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
         // 类型级门禁（T-PERM-031 口径收窄，同 CONDITION/CONFLICT_RULE：DEPENDENCY 无
@@ -242,12 +242,12 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         Long sourceId = typeResolutionService.resolveResourceId(
             tenantId, req.sourceResourceTypeCode(), req.sourceResourceCode(), req.sourceCodeType(), null);
         if (sourceId == null) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
+            throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
         }
         Long targetId = typeResolutionService.resolveResourceId(
             tenantId, req.targetResourceTypeCode(), req.targetResourceCode(), req.targetCodeType(), null);
         if (targetId == null) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
+            throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
         }
         rejectSelfDependency(sourceId, targetId);
         Long sourceOperationBits = resolveOperationBits(tenantId, req.sourceOperationCodes(), req.sourceResourceTypeCode());
@@ -271,8 +271,8 @@ public class DependencyAppServiceImpl implements DependencyAppService {
             dependencyMapper.update(patch);
         } catch (DataIntegrityViolationException e) {
             if (isDependencyUniqueViolation(e)) {
-                throw new BizException(PermissionErrorCode.DEPENDENCY_DUPLICATE.getCode(),
-                    PermissionErrorCode.DEPENDENCY_DUPLICATE.getMessage());
+                throw new BizException(AccessErrorCode.DEPENDENCY_DUPLICATE.getCode(),
+                    AccessErrorCode.DEPENDENCY_DUPLICATE.getMessage());
             }
             throw e;
         }
@@ -280,7 +280,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         // 极小并发窗口内（本事务外）行被并发软删时 re-select 可为 null——按 20019 收口而非 NPE 500
         ResourceDependency updated = dependencyMapper.selectOneById(req.id());
         if (updated == null || updated.getDeleteFlag() != 0L || !tenantId.equals(updated.getTenantId())) {
-            throw new BizException(PermissionErrorCode.DEPENDENCY_NOT_FOUND.getCode(), "Dependency not found: " + req.id());
+            throw new BizException(AccessErrorCode.DEPENDENCY_NOT_FOUND.getCode(), "Dependency not found: " + req.id());
         }
         Map<Long, ResourceEntity> entityMap = loadResourceEntityMap(tenantId,
             Stream.of(updated.getResourceEntityId(), updated.getDependsOnResourceEntityId())
@@ -294,8 +294,8 @@ public class DependencyAppServiceImpl implements DependencyAppService {
      */
     private static void rejectAutoGrantTrue(Boolean autoGrant) {
         if (Boolean.TRUE.equals(autoGrant)) {
-            throw new BizException(PermissionErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(),
-                PermissionErrorCode.AUTO_GRANT_NOT_SUPPORTED.getMessage());
+            throw new BizException(AccessErrorCode.AUTO_GRANT_NOT_SUPPORTED.getCode(),
+                AccessErrorCode.AUTO_GRANT_NOT_SUPPORTED.getMessage());
         }
     }
 
@@ -304,7 +304,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
      */
     private static void rejectSelfDependency(Long sourceId, Long targetId) {
         if (Objects.equals(sourceId, targetId)) {
-            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
                 "源资源与目标资源不能相同（自依赖成环）");
         }
     }
@@ -323,8 +323,8 @@ public class DependencyAppServiceImpl implements DependencyAppService {
             if (excludeId != null && excludeId.equals(row.getId())) continue;
             long rowBits = row.getSourceOperationBits() == null ? 0L : row.getSourceOperationBits();
             if (rowBits == newBits) {
-                throw new BizException(PermissionErrorCode.DEPENDENCY_DUPLICATE.getCode(),
-                    PermissionErrorCode.DEPENDENCY_DUPLICATE.getMessage());
+                throw new BizException(AccessErrorCode.DEPENDENCY_DUPLICATE.getCode(),
+                    AccessErrorCode.DEPENDENCY_DUPLICATE.getMessage());
             }
         }
     }
@@ -369,12 +369,12 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         Long sourceId = typeResolutionService.resolveResourceId(
             tenantId, req.sourceResourceTypeCode(), req.sourceResourceCode(), req.sourceCodeType(), null);
         if (sourceId == null) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
+            throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "Source resource not found: " + req.sourceResourceTypeCode() + "/" + req.sourceResourceCode());
         }
         Long targetId = typeResolutionService.resolveResourceId(
             tenantId, req.targetResourceTypeCode(), req.targetResourceCode(), req.targetCodeType(), null);
         if (targetId == null) {
-            throw new BizException(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), "Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
+            throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), "Target resource not found: " + req.targetResourceTypeCode() + "/" + req.targetResourceCode());
         }
         if (Objects.equals(sourceId, targetId)) {
             return true;
@@ -497,7 +497,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         for (DependencyBatchSyncReq.DependencySyncItem item : items) {
             rejectAutoGrantTrue(item.autoGrant());
             if (!hasCodes(item.requiredOperationCodes()) || nonBlankCodes(item.requiredOperationCodes()).isEmpty()) {
-                throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+                throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
                     "sync item missing requiredOperationCodes: " + item.sourceResourceCode() + " -> " + item.targetResourceCode());
             }
         }
@@ -609,8 +609,8 @@ public class DependencyAppServiceImpl implements DependencyAppService {
                 dependencyMapper.insertBatch(toInsert);
             } catch (DataIntegrityViolationException e) {
                 if (isDependencyUniqueViolation(e)) {
-                    throw new BizException(PermissionErrorCode.DEPENDENCY_DUPLICATE.getCode(),
-                        PermissionErrorCode.DEPENDENCY_DUPLICATE.getMessage());
+                    throw new BizException(AccessErrorCode.DEPENDENCY_DUPLICATE.getCode(),
+                        AccessErrorCode.DEPENDENCY_DUPLICATE.getMessage());
                 }
                 throw e;
             }
@@ -679,7 +679,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
 
     /** 全空白码列表拒绝 20044（三入口统一口径：混合空白忽略、全空白畸形参数） */
     private static void rejectBlankOnlyCodes(String resourceTypeCode) {
-        throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
+        throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
             "operationCodes 不能为全空白元素 (resourceType=" + resourceTypeCode + ")");
     }
 
@@ -695,7 +695,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
             anyCode = true;
             Long bit = codeToBit.get(code);
             if (bit == null) {
-                throw new BizException(PermissionErrorCode.OPERATION_NOT_FOUND.getCode(),
+                throw new BizException(AccessErrorCode.OPERATION_NOT_FOUND.getCode(),
                     "Operation permission not found: " + code + " (resourceType=" + resourceTypeCode + ")");
             }
             bits |= bit;
@@ -736,7 +736,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         Map<String, Long> codeToIdMap = typeResolutionService.batchResolveOperationIds(tenantId, resourceTypeCode, codeSet);
         for (String code : codeSet) {
             if (codeToIdMap.get(code) == null) {
-                throw new BizException(PermissionErrorCode.OPERATION_NOT_FOUND.getCode(),
+                throw new BizException(AccessErrorCode.OPERATION_NOT_FOUND.getCode(),
                     "Operation permission not found: " + code + " (resourceType=" + resourceTypeCode + ")");
             }
         }
@@ -747,7 +747,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
             if (op == null || op.getBinaryBit() == null) {
                 // 二次加载同样 fail-closed：code→id 解析与按 id 加载两查询间隙并发软删时拒绝，
                 // 不得静默丢位（否则 create/update 会写入部分位或 0，重现要消除的语义降级）
-                throw new BizException(PermissionErrorCode.OPERATION_NOT_FOUND.getCode(),
+                throw new BizException(AccessErrorCode.OPERATION_NOT_FOUND.getCode(),
                     "Operation permission not found: " + entry.getKey() + " (resourceType=" + resourceTypeCode + ")");
             }
             codeToBit.put(entry.getKey(), op.getBinaryBit());

@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.org.dto.req.UserOrgAssignReq;
 import cn.ac.fage.accessmesh.access.user.dto.resp.UserPageItemResp;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -83,8 +83,8 @@ public class UserOrgAppServiceImpl implements UserOrgAppService {
 
         cn.ac.fage.accessmesh.access.org.entity.SysOrg targetOrg = orgDomainService.selectValidById(tenantId, orgId);
         if (targetOrg == null) {
-            throw new BizException(AdminErrorCode.ORG_NOT_FOUND.getCode(),
-                AdminErrorCode.ORG_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
+                AccessErrorCode.ORG_NOT_FOUND.getMessage());
         }
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ORG,
@@ -95,21 +95,21 @@ public class UserOrgAppServiceImpl implements UserOrgAppService {
         // 首期主组织仅表示默认组织树下的主归属
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         if (defaultConfigs.isEmpty()) {
-            throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
-                AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
+                AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
         }
 
         List<Long> defaultOrgIds = resolveDefaultTreeOrgIds(tenantId, defaultConfigs);
         if (!defaultOrgIds.contains(orgId)) {
-            throw new BizException(AdminErrorCode.PRIMARY_MUST_BE_IN_DEFAULT_TREE.getCode(),
-                AdminErrorCode.PRIMARY_MUST_BE_IN_DEFAULT_TREE.getMessage());
+            throw new BizException(AccessErrorCode.PRIMARY_MUST_BE_IN_DEFAULT_TREE.getCode(),
+                AccessErrorCode.PRIMARY_MUST_BE_IN_DEFAULT_TREE.getMessage());
         }
 
         boolean targetAssigned = userOrgDomainService.findByUserId(tenantId, userId).stream()
             .anyMatch(userOrg -> orgId.equals(userOrg.getOrgId()));
         if (!targetAssigned) {
-            throw new BizException(AdminErrorCode.USER_ORG_RELATION_NOT_FOUND.getCode(),
-                AdminErrorCode.USER_ORG_RELATION_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.USER_ORG_RELATION_NOT_FOUND.getCode(),
+                AccessErrorCode.USER_ORG_RELATION_NOT_FOUND.getMessage());
         }
 
         // 仅在默认树内切换主标记，不影响其他组织树的 is_primary

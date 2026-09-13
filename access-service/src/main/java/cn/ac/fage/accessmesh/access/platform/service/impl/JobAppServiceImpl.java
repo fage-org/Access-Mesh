@@ -22,7 +22,7 @@ import cn.ac.fage.accessmesh.access.platform.dto.req.JobUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.platform.entity.SysJob;
 import cn.ac.fage.accessmesh.access.platform.entity.SysJobLog;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysJobLogMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysJobMapper;
 import cn.ac.fage.accessmesh.access.platform.service.JobAppService;
@@ -247,7 +247,7 @@ public class JobAppServiceImpl implements JobAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob existing = jobMapper.selectValidById(tenantId, req.id());
         if (existing == null) {
-            throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
 
         // 权限检查 — 实例级 UPDATE
@@ -330,7 +330,7 @@ public class JobAppServiceImpl implements JobAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob job = jobMapper.selectValidById(tenantId, id);
         if (job == null) {
-            throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
 
         // 权限检查 — 实例级 ENABLE（启用/禁用共用，toggle 语义，v1.4 合并）
@@ -366,7 +366,7 @@ public class JobAppServiceImpl implements JobAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysJob job = jobMapper.selectValidById(tenantId, id);
         if (job == null) {
-            throw new BizException(AdminErrorCode.JOB_NOT_FOUND.getCode(), AdminErrorCode.JOB_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
         executeJob(job, null);
     }

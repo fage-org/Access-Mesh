@@ -841,7 +841,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 new ApplyGrantPlanReq.GrantPlan(List.of(),
                     List.of(new ApplyGrantPlanReq.UpdateItem(5L, Boolean.TRUE, null, null)), List.of(5L))));
 
-            assertEquals(cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode
+            assertEquals(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode
                 .VALIDATION_FAILED.getCode(), exception.getErrorCode());
         }
 
@@ -851,7 +851,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 TENANT, SUBJECT, ROLE, null,
                 new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(5L, 5L))));
 
-            assertEquals(cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode
+            assertEquals(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode
                 .VALIDATION_FAILED.getCode(), exception.getErrorCode());
         }
 

@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.menu.service;
 
 import cn.ac.fage.accessmesh.access.menu.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.access.menu.dto.req.MenuUpdateReq;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.menu.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.access.menu.mapper.UserMenuQueryMapper;
@@ -167,7 +167,7 @@ class MenuWritePostgresIT {
             "MENU", "菜单B", null, "/dup/path", null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_PATH_EXISTS.getCode());
+            .isEqualTo(AccessErrorCode.MENU_PATH_EXISTS.getCode());
         // 第二条不落库
         Integer count = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM sys_menu WHERE tenant_id = ? AND path = '/dup/path'",
@@ -185,7 +185,7 @@ class MenuWritePostgresIT {
             "MENU", "菜单B", null, "/b", null, null, null, "ORG", "7", null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_RESOURCE_EXISTS.getCode());
+            .isEqualTo(AccessErrorCode.MENU_RESOURCE_EXISTS.getCode());
     }
 
     @Test
@@ -201,7 +201,7 @@ class MenuWritePostgresIT {
             "MENU", "菜单B", null, "/race/path", null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_PATH_EXISTS.getCode());
+            .isEqualTo(AccessErrorCode.MENU_PATH_EXISTS.getCode());
 
         // 事务回滚：第二条不落库
         Integer count = jdbcTemplate.queryForObject(
@@ -224,7 +224,7 @@ class MenuWritePostgresIT {
             "MENU", "菜单B", null, "/race/b", null, null, null, "ORG", "7", null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_RESOURCE_EXISTS.getCode());
+            .isEqualTo(AccessErrorCode.MENU_RESOURCE_EXISTS.getCode());
     }
 
     @Test
@@ -325,7 +325,7 @@ class MenuWritePostgresIT {
             "MENU", "孤儿", 99999L, "/orphan", null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_NOT_FOUND.getCode());
+            .isEqualTo(AccessErrorCode.MENU_NOT_FOUND.getCode());
         Integer orphans = jdbcTemplate.queryForObject(
             "SELECT COUNT(*) FROM sys_menu WHERE tenant_id = ? AND parent_id = 99999",
             Integer.class, TENANT);
@@ -342,7 +342,7 @@ class MenuWritePostgresIT {
             new MenuUpdateReq(id, null, null, id, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_PARENT_INVALID.getCode());
+            .isEqualTo(AccessErrorCode.MENU_PARENT_INVALID.getCode());
         // parent 未被改写（仍为根级 0）
         Long parent = jdbcTemplate.queryForObject(
             "SELECT parent_id FROM sys_menu WHERE id = ?", Long.class, id);
@@ -361,7 +361,7 @@ class MenuWritePostgresIT {
             new MenuUpdateReq(parent, null, null, child, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_PARENT_INVALID.getCode());
+            .isEqualTo(AccessErrorCode.MENU_PARENT_INVALID.getCode());
     }
 
     @Test
@@ -386,7 +386,7 @@ class MenuWritePostgresIT {
             new MenuUpdateReq(root, null, null, lv4, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode());
+            .isEqualTo(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode());
 
         // 移到 lv3（深度 3）下：子恰为第 5 层 → 允许
         menuWriteAppService.updateMenu(
@@ -415,7 +415,7 @@ class MenuWritePostgresIT {
             new MenuUpdateReq(s1, null, null, tmp, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode());
+            .isEqualTo(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode());
 
         // 模拟脏数据（绕过 API 直改 parent）：s1 挂到 tmp 下，s5 暂处第 6 层
         jdbcTemplate.update("UPDATE sys_menu SET parent_id = ? WHERE id = ? AND tenant_id = ?",
@@ -440,6 +440,6 @@ class MenuWritePostgresIT {
             "MENU", "第6层", fifthLevelParent, "/lv5", null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode());
+            .isEqualTo(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode());
     }
 }

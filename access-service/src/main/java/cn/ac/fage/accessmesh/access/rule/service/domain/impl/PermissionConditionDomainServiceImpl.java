@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.rule.enums.ConditionSource;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.engine.core.BatchConditionEvaluator;
@@ -495,18 +495,18 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             return;
         }
         if (conditionRules == null || conditionRules.isBlank()) {
-            throw new BizException(PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+            throw new BizException(AccessErrorCode.CONDITION_RULES_INVALID.getCode(),
                 "gatewayEvaluable=true 但 conditionRules 为空");
         }
         JsonNode tree;
         try {
             tree = objectMapper.readTree(conditionRules);
         } catch (Exception e) {
-            throw new BizException(PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+            throw new BizException(AccessErrorCode.CONDITION_RULES_INVALID.getCode(),
                 "conditionRules 解析失败: " + e.getMessage());
         }
         if (!ConditionEvalUtils.isGatewayPushable(tree)) {
-            throw new BizException(PermissionErrorCode.CONDITION_RULES_INVALID.getCode(),
+            throw new BizException(AccessErrorCode.CONDITION_RULES_INVALID.getCode(),
                 "gatewayEvaluable=true 仅允许 logic ∈ "
                     + ConditionEvalUtils.VALID_LOGIC
                     + "（或缺省=AND）且 items[].type ∈ "
@@ -543,7 +543,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     public void editInlineCondition(Long tenantId, Long operatorId, PermissionCondition condition,
         ApplyGrantPlanReq.InlineConditionDef def) {
         if (!ConditionSource.INLINE.getValue().equals(condition.getSource())) {
-            throw new BizException(PermissionErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode(),
+            throw new BizException(AccessErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode(),
                 "仅内联条件可在授权页编辑（管理页条件请在权限条件页更改）: " + condition.getCode());
         }
         boolean gatewayEvaluable = def.gatewayEvaluable() != null ? def.gatewayEvaluable()

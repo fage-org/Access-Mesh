@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceSyncHandler;
@@ -95,7 +95,7 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                     if (!PermConstants.MaintainSource.SERVICE_SYNC.equals(resource.getMaintainSource())
                         || resource.getOwnerServiceCode() == null
                         || !context.req().serviceCode().equals(resource.getOwnerServiceCode())) {
-                        throw new BizException(PermissionErrorCode.RESOURCE_STATE_CONFLICT.getCode(),
+                        throw new BizException(AccessErrorCode.RESOURCE_STATE_CONFLICT.getCode(),
                             "资源编码已由非同步源维护: " + api.resourceCode());
                     }
                     // 更新已有资源

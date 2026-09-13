@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.platform.dto.req.FilePageReq;
 import cn.ac.fage.accessmesh.access.infrastructure.dto.IdsReq;
 import cn.ac.fage.accessmesh.access.platform.dto.resp.FileResp;
 import cn.ac.fage.accessmesh.access.platform.entity.SysFile;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysFileMapper;
 import cn.ac.fage.accessmesh.access.platform.service.AdminFileFolderRegistrar;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
@@ -243,19 +243,19 @@ public class FileAppServiceImpl implements FileAppService {
 
         // 4. 检查文件是否为空
         if (file == null || file.isEmpty()) {
-            throw new BizException(AdminErrorCode.FILE_UPLOAD_FAILED.getCode(), "上传文件不能为空");
+            throw new BizException(AccessErrorCode.FILE_UPLOAD_FAILED.getCode(), "上传文件不能为空");
         }
 
         // 5. 检查文件大小
         if (file.getSize() > maxFileSize) {
-            throw new BizException(AdminErrorCode.FILE_TOO_LARGE.getCode(),
+            throw new BizException(AccessErrorCode.FILE_TOO_LARGE.getCode(),
                 "文件大小超出限制，最大允许 " + (maxFileSize / 1024 / 1024) + "MB");
         }
 
         // 6. 获取并验证原始文件名
         String originalName = file.getOriginalFilename();
         if (originalName == null || originalName.isBlank()) {
-            throw new BizException(AdminErrorCode.FILE_UPLOAD_FAILED.getCode(), "文件名不能为空");
+            throw new BizException(AccessErrorCode.FILE_UPLOAD_FAILED.getCode(), "文件名不能为空");
         }
 
         // 7. Sanitize 文件名（移除路径遍历字符和特殊字符）
@@ -264,14 +264,14 @@ public class FileAppServiceImpl implements FileAppService {
         // 8. 获取并验证文件扩展名
         String extension = getFileExtension(originalName);
         if (extension == null || extension.isBlank()) {
-            throw new BizException(AdminErrorCode.FILE_TYPE_NOT_ALLOWED.getCode(), "无法识别文件类型");
+            throw new BizException(AccessErrorCode.FILE_TYPE_NOT_ALLOWED.getCode(), "无法识别文件类型");
         }
         String lowerExtension = extension.toLowerCase();
 
         // 9. 检查危险扩展名（黑名单）
         if (DANGEROUS_EXTENSIONS.contains(lowerExtension)) {
             log.warn("Blocked dangerous file upload: originalName={}, extension={}", originalName, extension);
-            throw new BizException(AdminErrorCode.FILE_TYPE_NOT_ALLOWED.getCode(),
+            throw new BizException(AccessErrorCode.FILE_TYPE_NOT_ALLOWED.getCode(),
                 "禁止上传可执行文件: " + extension);
         }
 
@@ -280,7 +280,7 @@ public class FileAppServiceImpl implements FileAppService {
         if (!allowedExtensions.contains(lowerExtension)) {
             log.warn("Blocked unauthorized file type: originalName={}, extension={}, bizType={}",
                 originalName, extension, normalizedBizType);
-            throw new BizException(AdminErrorCode.FILE_TYPE_NOT_ALLOWED.getCode(),
+            throw new BizException(AccessErrorCode.FILE_TYPE_NOT_ALLOWED.getCode(),
                 "不允许的文件类型: " + extension + "，允许的类型: " + allowedExtensions);
         }
 
@@ -308,7 +308,7 @@ public class FileAppServiceImpl implements FileAppService {
 
         } catch (IOException e) {
             log.error("Failed to save file: originalName={}, error={}", originalName, e.getMessage());
-            throw new BizException(AdminErrorCode.FILE_UPLOAD_FAILED.getCode(), "文件保存失败: " + e.getMessage());
+            throw new BizException(AccessErrorCode.FILE_UPLOAD_FAILED.getCode(), "文件保存失败: " + e.getMessage());
         }
 
         // 14. 记录文件信息到数据库
@@ -422,7 +422,7 @@ public class FileAppServiceImpl implements FileAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysFile f = fileMapper.selectValidById(tenantId, id);
         if (f == null) {
-            throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.FILE_NOT_FOUND.getCode(), AccessErrorCode.FILE_NOT_FOUND.getMessage());
         }
         // 权限检查 — 文件所属文件夹实例级 VIEW（T-ADMIN-025）
         permissionValidator.checkInstanceLevel(
@@ -518,14 +518,14 @@ public class FileAppServiceImpl implements FileAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysFile f = fileMapper.selectValidById(tenantId, id);
         if (f == null) {
-            throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), AdminErrorCode.FILE_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.FILE_NOT_FOUND.getCode(), AccessErrorCode.FILE_NOT_FOUND.getMessage());
         }
         // 权限检查 — 文件所属文件夹实例级 VIEW（T-ADMIN-025）
         permissionValidator.checkInstanceLevel(
             ResourceTypeCode.ADMIN_FILE, f.getBucketName(), OperationCode.VIEW);
         Path filePath = securePath(f.getFilePath());
         if (!Files.exists(filePath)) {
-            throw new BizException(AdminErrorCode.FILE_NOT_FOUND.getCode(), "物理文件不存在");
+            throw new BizException(AccessErrorCode.FILE_NOT_FOUND.getCode(), "物理文件不存在");
         }
         try {
             // originalName 源于 DB（可能早于控制字符剥离落库），响应头拼接前防御性剥离
@@ -536,8 +536,8 @@ public class FileAppServiceImpl implements FileAppService {
             response.setContentType(f.getFileType() != null ? f.getFileType() : "application/octet-stream");
             return Files.readAllBytes(filePath);
         } catch (IOException e) {
-            throw new BizException(AdminErrorCode.FILE_READ_FAILED.getCode(),
-                AdminErrorCode.FILE_READ_FAILED.getMessage() + ": " + e.getMessage());
+            throw new BizException(AccessErrorCode.FILE_READ_FAILED.getCode(),
+                AccessErrorCode.FILE_READ_FAILED.getMessage() + ": " + e.getMessage());
         }
     }
 
@@ -562,8 +562,8 @@ public class FileAppServiceImpl implements FileAppService {
         resolved = resolved.normalize();
         if (!resolved.startsWith(root)) {
             log.warn("Blocked illegal file path outside storage root: segments={}", (Object) segments);
-            throw new BizException(AdminErrorCode.FILE_PATH_ILLEGAL.getCode(),
-                AdminErrorCode.FILE_PATH_ILLEGAL.getMessage());
+            throw new BizException(AccessErrorCode.FILE_PATH_ILLEGAL.getCode(),
+                AccessErrorCode.FILE_PATH_ILLEGAL.getMessage());
         }
         return resolved;
     }
@@ -584,7 +584,7 @@ public class FileAppServiceImpl implements FileAppService {
         String normalized = (bizType == null || bizType.isBlank()) ? "default" : bizType;
         if (!BIZ_TYPE_PATTERN.matcher(normalized).matches()) {
             log.warn("Blocked illegal bizType: bizType={}", bizType);
-            throw new BizException(AdminErrorCode.FILE_PATH_ILLEGAL.getCode(),
+            throw new BizException(AccessErrorCode.FILE_PATH_ILLEGAL.getCode(),
                 "非法的业务类型: " + bizType + "（仅允许字母/数字/下划线/连字符，长度1-32）");
         }
         return normalized;

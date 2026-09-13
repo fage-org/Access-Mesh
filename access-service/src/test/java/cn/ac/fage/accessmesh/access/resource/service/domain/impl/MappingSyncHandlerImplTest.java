@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.sync.strategy.SyncContext;
@@ -53,6 +53,6 @@ class MappingSyncHandlerImplTest {
 
         SystemException exception = assertThrows(SystemException.class, () -> handler.syncMappings(context));
 
-        assertEquals(PermissionErrorCode.SYNC_RESOURCE_NOT_FOUND.getCode(), exception.getErrorCode());
+        assertEquals(AccessErrorCode.SYNC_RESOURCE_NOT_FOUND.getCode(), exception.getErrorCode());
     }
 }

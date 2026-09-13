@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync;
 
 import cn.ac.fage.accessmesh.common.exception.SystemException;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -60,7 +60,7 @@ public final class SyncKeyCodec {
             }
             return sb.toString();
         } catch (NoSuchAlgorithmException e) {
-            throw new SystemException(PermissionErrorCode.SYSTEM_INIT_FAILED.getCode(),
+            throw new SystemException(AccessErrorCode.SYSTEM_INIT_FAILED.getCode(),
                     "SHA-256 algorithm not available", e);
         }
     }

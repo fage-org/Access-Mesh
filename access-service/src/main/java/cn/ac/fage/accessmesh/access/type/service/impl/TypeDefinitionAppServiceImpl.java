@@ -12,7 +12,7 @@ import cn.ac.fage.accessmesh.access.type.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
@@ -158,7 +158,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         } else {
             typeCode = typeCode.trim();
             if (typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, req.typeKey(), typeCode) != null) {
-                throw new BizException(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
+                throw new BizException(AccessErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
                     "Type code already exists: " + typeCode);
             }
         }
@@ -169,15 +169,15 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         try {
             resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, req.typeKey(), typeCode, req.extra(), false);
         } catch (IllegalArgumentException e) {
-            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                AccessErrorCode.PERM_INVALID_PARAM.getMessage() + ": " + e.getMessage());
         }
 
         // T-PERM-062 评审批次（文档轨 P3-2）：指针键统一拒绝——任意 typeKey 的 create 请求
         // extra 自带 grantOriginRole 均拒绝（服务端管理键不得经非 resource_type 类型绕道入库成脏键）
         if (grantOriginDomainService.hasGrantOriginPointerKey(req.extra())) {
-            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                PermissionErrorCode.INVALID_PARAM.getMessage()
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                AccessErrorCode.PERM_INVALID_PARAM.getMessage()
                     + ": extra.grantOriginRole 由服务端维护，请使用请求字段 ownerRoleTypeCode/ownerRoleExternalId（仅 resource_type 消费）");
         }
 
@@ -191,8 +191,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             boolean hasTypeCode = req.ownerRoleTypeCode() != null && !req.ownerRoleTypeCode().isBlank();
             boolean hasExternalId = req.ownerRoleExternalId() != null && !req.ownerRoleExternalId().isBlank();
             if (hasTypeCode != hasExternalId) {
-                throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                    PermissionErrorCode.INVALID_PARAM.getMessage() + ": ownerRoleTypeCode 与 ownerRoleExternalId 必须成对提供");
+                throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                    AccessErrorCode.PERM_INVALID_PARAM.getMessage() + ": ownerRoleTypeCode 与 ownerRoleExternalId 必须成对提供");
             }
             String ownerRoleTypeCode = hasTypeCode ? req.ownerRoleTypeCode().trim()
                 : GrantOriginDomainService.DEFAULT_OWNER_ROLE_TYPE_CODE;
@@ -224,11 +224,11 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             // DB 唯一索引兜底（ConflictRule 同模式）：显式码抢占未来生成码（生成路径不查重）、
             // check-then-insert 并发窗口、max+1 并发撞值——均映射 20049 而非裸 99999
             if (isUniqueViolationOn(e, "uk_type_definition_code")) {
-                throw new BizException(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
+                throw new BizException(AccessErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
                     "Type code already exists: " + typeCode);
             }
             if (isUniqueViolationOn(e, "uk_type_definition_value")) {
-                throw new BizException(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
+                throw new BizException(AccessErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
                     "类型值分配冲突（并发创建），请重试");
             }
             throw e;
@@ -464,14 +464,14 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 type != null ? instanceBusinessKey(type) : null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on TYPE_DEFINITION:" + req.typeId());
         }
-        if (type == null) throw new BizException(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
+        if (type == null) throw new BizException(AccessErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
         // codex 复评 P1：resource_type 类型的声明变更与资源写入口共持 (resource_entity, 租户)
         // 树写锁（锁内重读，T-PERM-044 先例）——堵「行数守卫查零行→并发资源插入→声明变更/删除
         // 落库」交错窗口；sync 入口门禁同样在锁后（见 ResourceEntitySyncAppServiceImpl）
         if ("resource_type".equals(type.getTypeKey())) {
             treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
             type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
-            if (type == null) throw new BizException(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
+            if (type == null) throw new BizException(AccessErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), "Type not found: " + req.typeId());
         }
         // T-PERM-052：extra 所有权声明结构校验 + 有效值变更守卫（类型下存在有效资源行时
         // managedMode/syncSourceService 不得变更，含删键隐式切回 MANAGED；20056）。
@@ -480,8 +480,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             resourceTypeOwnershipGuard.validateExtraDeclaration(tenantId, type.getTypeKey(),
                 type.getTypeCode(), req.extra(), Boolean.TRUE.equals(type.getIsSystem()));
         } catch (IllegalArgumentException e) {
-            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                AccessErrorCode.PERM_INVALID_PARAM.getMessage() + ": " + e.getMessage());
         }
         resourceTypeOwnershipGuard.rejectIfDeclarationChangeBlocked(
                 tenantId, type, req.extra() != null ? req.extra() : type.getExtra());
@@ -515,8 +515,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 boolean customResourceType = "resource_type".equals(type.getTypeKey())
                     && !Boolean.TRUE.equals(type.getIsSystem());
                 if (!customResourceType) {
-                    throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                        PermissionErrorCode.INVALID_PARAM.getMessage()
+                    throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                        AccessErrorCode.PERM_INVALID_PARAM.getMessage()
                             + ": extra." + GrantOriginDomainService.EXTRA_KEY_GRANT_ORIGIN_ROLE
                             + " 仅自定义 resource_type 类型可携带");
                 }
@@ -661,7 +661,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 .map(TypeDefinition::getTypeCode)
                 .toList();
             if (!conflictCodes.isEmpty()) {
-                throw new BizException(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
+                throw new BizException(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
                     "类型下存在有效资源行，不可删除: " + String.join(", ", conflictCodes));
             }
         }
@@ -801,7 +801,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             .map(TypeDefinition::getTypeCode)
             .toList();
         if (!conflictCodes.isEmpty()) {
-            throw new BizException(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
+            throw new BizException(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
                 "类型下存在有效" + rowLabel + "，不可删除: " + String.join(", ", conflictCodes));
         }
     }

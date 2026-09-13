@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.platform.dto.resp.DictDataResp;
 import cn.ac.fage.accessmesh.access.platform.dto.resp.DictTypeResp;
 import cn.ac.fage.accessmesh.access.platform.entity.SysDictData;
 import cn.ac.fage.accessmesh.access.platform.entity.SysDictType;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysDictDataMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysDictTypeMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
@@ -138,7 +138,7 @@ public class DictAppServiceImpl implements DictAppService {
             List<SysDictData> dataWithTypes = dictDataMapper.selectDistinctDictTypesByTenantAndTypes(tenantId, dictTypes);
 
             if (!dataWithTypes.isEmpty()) {
-                throw new BizException(AdminErrorCode.DICT_TYPE_HAS_DATA.getCode(), AdminErrorCode.DICT_TYPE_HAS_DATA.getMessage());
+                throw new BizException(AccessErrorCode.DICT_TYPE_HAS_DATA.getCode(), AccessErrorCode.DICT_TYPE_HAS_DATA.getMessage());
             }
         }
 
@@ -262,7 +262,7 @@ public class DictAppServiceImpl implements DictAppService {
 
         SysDictType type = dictTypeMapper.selectByIdSafe(tenantId, req.dictTypeId());
         if (type == null) {
-            throw new BizException(AdminErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AdminErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AccessErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
         }
         SysDictData data = new SysDictData();
         data.setTenantId(tenantId);
@@ -307,12 +307,12 @@ public class DictAppServiceImpl implements DictAppService {
 
         SysDictData data = dictDataMapper.selectByIdSafe(tenantId, req.id());
         if (data == null) {
-            throw new BizException(AdminErrorCode.DICT_DATA_NOT_FOUND.getCode(), AdminErrorCode.DICT_DATA_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.DICT_DATA_NOT_FOUND.getCode(), AccessErrorCode.DICT_DATA_NOT_FOUND.getMessage());
         }
 
         SysDictType type = dictTypeMapper.selectByIdSafe(tenantId, req.dictTypeId());
         if (type == null) {
-            throw new BizException(AdminErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AdminErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.DICT_TYPE_NOT_FOUND.getCode(), AccessErrorCode.DICT_TYPE_NOT_FOUND.getMessage());
         }
 
         data.setDictType(type.getDictType());

@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.type.dto.req.OperationUpdateReq;
 import cn.ac.fage.accessmesh.access.type.dto.resp.OperationPermissionResp;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceType;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
@@ -116,7 +116,7 @@ public class OperationAppServiceImpl implements OperationAppService {
 
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
         if (resourceType == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + resourceTypeCode);
+            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + resourceTypeCode);
         }
         // T-PERM-062 评审批次（代码轨 P2-1）：操作创建目标恒属 resource_type 族，与类型生命周期
         // 写路径（createType/updateType/deleteTypesByIds 均持 RESOURCE_ENTITY 树写锁）共持同锁——
@@ -129,7 +129,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         // 删除（删除入口持同锁，提交早于本事务取锁）——fail-closed 拒绝（20021），不得静默跳过
         // 种子后把操作行插成「已删类型的永久孤儿」（T-PERM-050 前的旧缺陷形态）
         if (typeDef == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
                 "Unknown resourceTypeCode: " + resourceTypeCode);
         }
         // grok 外评 P2：锁内重绑 typeValue——锁前 resolveTypeValue 可走 TYPE_VALUE 缓存/在锁外读，
@@ -201,11 +201,11 @@ public class OperationAppServiceImpl implements OperationAppService {
     private OperationPermission selectOperationByBusinessKey(Long tenantId, OperationKeyReq key) {
         Integer resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", key.resourceTypeCode());
         if (resourceType == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + key.resourceTypeCode());
+            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "Unknown resourceTypeCode: " + key.resourceTypeCode());
         }
         OperationPermission op = operationPermissionMapper.selectByResourceTypeAndCode(tenantId, resourceType, key.code());
         if (op == null) {
-            throw new BizException(PermissionErrorCode.OPERATION_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.OPERATION_NOT_FOUND.getCode(),
                 "Operation not found: " + key.resourceTypeCode() + ":" + key.code());
         }
         return op;

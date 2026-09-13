@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.resource.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ServiceConfigResp;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
@@ -110,8 +110,8 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         try {
             syncTypeGuard.validateSyncTypesExtra(req.extra());
         } catch (IllegalArgumentException e) {
-            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                PermissionErrorCode.INVALID_PARAM.getMessage() + ": " + e.getMessage());
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                AccessErrorCode.PERM_INVALID_PARAM.getMessage() + ": " + e.getMessage());
         }
 
         ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode());

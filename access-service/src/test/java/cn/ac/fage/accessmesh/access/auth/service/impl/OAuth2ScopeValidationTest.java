@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.auth.service.impl;
 import cn.ac.fage.accessmesh.access.auth.dto.AuthorizeReq;
 import cn.ac.fage.accessmesh.access.auth.dto.AuthorizeResp;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService;
 import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
@@ -100,7 +100,7 @@ class OAuth2ScopeValidationTest {
         assertThatThrownBy(() -> authorize("example:admin"))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.OAUTH2_SCOPE_INVALID.getCode());
+            .isEqualTo(AccessErrorCode.OAUTH2_SCOPE_INVALID.getCode());
     }
 
     @Test
@@ -111,7 +111,7 @@ class OAuth2ScopeValidationTest {
         assertThatThrownBy(() -> authorize("profile"))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.OAUTH2_SCOPE_INVALID.getCode());
+            .isEqualTo(AccessErrorCode.OAUTH2_SCOPE_INVALID.getCode());
     }
 
     @Test

@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.org.service.domain.impl;
 
 import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgTreeConfigMapper;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -140,7 +140,7 @@ class OrgTreeConfigDomainServiceResolveTest {
 
         assertThatThrownBy(() -> service.resolveTreeRootExternalId(TENANT_ID, 404L))
             .isInstanceOf(BizException.class)
-            .hasFieldOrPropertyWithValue("errorCode", AdminErrorCode.ORG_NOT_FOUND.getCode());
+            .hasFieldOrPropertyWithValue("errorCode", AccessErrorCode.ORG_NOT_FOUND.getCode());
     }
 
     @Test
@@ -151,7 +151,7 @@ class OrgTreeConfigDomainServiceResolveTest {
 
         assertThatThrownBy(() -> service.resolveTreeRootExternalId(TENANT_ID, 500L))
             .isInstanceOf(BizException.class)
-            .hasFieldOrPropertyWithValue("errorCode", AdminErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode())
+            .hasFieldOrPropertyWithValue("errorCode", AccessErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode())
             .hasMessageNotContaining("\"1\"");
     }
 
@@ -211,7 +211,7 @@ class OrgTreeConfigDomainServiceResolveTest {
         assertThatThrownBy(() -> service.resolveTreeRootExternalIds(
                 TENANT_ID, List.of(150L, 300L, 400L)))
             .isInstanceOf(BizException.class)
-            .hasFieldOrPropertyWithValue("errorCode", AdminErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode())
+            .hasFieldOrPropertyWithValue("errorCode", AccessErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode())
             .hasMessageContaining("300")
             .hasMessageContaining("400");
     }
@@ -245,7 +245,7 @@ class OrgTreeConfigDomainServiceResolveTest {
         assertThatThrownBy(() -> service.resolveTreeRootExternalIds(
                 TENANT_ID, List.of(150L, 999L)))
             .isInstanceOf(BizException.class)
-            .hasFieldOrPropertyWithValue("errorCode", AdminErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode())
+            .hasFieldOrPropertyWithValue("errorCode", AccessErrorCode.ORG_TREE_ROOT_NOT_RESOLVED.getCode())
             .hasMessageContaining("999");
     }
 

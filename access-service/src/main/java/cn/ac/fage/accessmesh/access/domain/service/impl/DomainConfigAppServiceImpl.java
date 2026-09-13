@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.domain.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.access.domain.dto.resp.DomainConfigResp;
 import cn.ac.fage.accessmesh.access.domain.entity.BizDomain;
 import cn.ac.fage.accessmesh.access.domain.entity.DomainConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
@@ -99,7 +99,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
             ? null
             : bizDomainMapper.selectByCodeForUpdate(tenantId, req.domainCode());
         if (domain == null) {
-            throw new BizException(PermissionErrorCode.DOMAIN_NOT_FOUND.getCode(), "Unknown domainCode: " + req.domainCode());
+            throw new BizException(AccessErrorCode.DOMAIN_NOT_FOUND.getCode(), "Unknown domainCode: " + req.domainCode());
         }
         Long bizDomainId = domain.getId();
         DomainConfig existing = domainConfigMapper.selectValidByTypeString(tenantId, bizDomainId, req.configType());
@@ -126,7 +126,7 @@ public class DomainConfigAppServiceImpl implements DomainConfigAppService {
                 // 同键保存（domainCode+configType）后落库者命中唯一索引，转 20058 提示重试
                 // （重试时另一事务已提交，selectValidByTypeString 命中转 update 分支）
                 if (isUniqueViolationOn(e, "\"uk_domain_config\"")) {
-                    throw new BizException(PermissionErrorCode.DOMAIN_CONFIG_CONCURRENT_CONFLICT.getCode(),
+                    throw new BizException(AccessErrorCode.DOMAIN_CONFIG_CONCURRENT_CONFLICT.getCode(),
                         "Concurrent save on same domainCode+configType, please retry: "
                             + req.domainCode() + ":" + req.configType());
                 }

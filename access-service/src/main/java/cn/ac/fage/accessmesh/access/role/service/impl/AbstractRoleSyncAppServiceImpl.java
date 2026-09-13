@@ -12,7 +12,7 @@ import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncItem;
 import cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncReq;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.role.service.AbstractRoleSyncAppService;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard;
@@ -98,7 +98,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         localProjectionGuard.rejectReservedRoleType(req.roleTypeCode());
         // T-PERM-043：GROUP_ROLE 生命周期冻结——外部同步通道与通用 create/update 同口径拒绝（20022）
         if (PermConstants.TargetType.GROUP_ROLE.equals(req.roleTypeCode())) {
-            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+            throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
                 "不支持同步 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
         }
         // 服务-类型白名单（service_config.extra.syncTypes，fail-closed）：服务须声明该角色类型
@@ -216,7 +216,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         localProjectionGuard.rejectReservedRoleType(req.scope().roleTypeCode());
         // T-PERM-043：GROUP_ROLE 生命周期冻结——外部同步通道与通用 create/update 同口径拒绝（20022）
         if (PermConstants.TargetType.GROUP_ROLE.equals(req.scope().roleTypeCode())) {
-            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+            throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
                 "不支持同步 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
         }
         // 服务-类型白名单（fail-closed）：scope 角色类型须在服务声明的 roleTypeCodes 内
@@ -540,7 +540,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         try {
             return objectMapper.writeValueAsString(extra);
         } catch (JsonProcessingException e) {
-            throw new SystemException(PermissionErrorCode.SYSTEM_INIT_FAILED.getCode(),
+            throw new SystemException(AccessErrorCode.SYSTEM_INIT_FAILED.getCode(),
                     "serialize abstract_role extra failed", e);
         }
     }

@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.type.service.domain;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
@@ -343,12 +343,12 @@ public class ResourceTypeOwnershipGuard {
         // （事实链路类型=SYNC+access-service）即使零行翻转为 MANAGED/外部来源，事实链路
         // 照旧无条件投影写入即成双 writer（顺序性破坏，无需并发）；先例：is_system 类型禁止删除
         if (Boolean.TRUE.equals(existingType.getIsSystem())) {
-            throw new BizException(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
+            throw new BizException(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
                     "系统预置类型所有权声明不可变更: " + existingType.getTypeCode()
                             + " " + oldDeclaration + " -> " + newDeclaration);
         }
         if (resourceEntityDomainService.hasValidRowsOfType(tenantId, existingType.getTypeValue())) {
-            throw new BizException(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
+            throw new BizException(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(),
                     "类型所有权声明不可变更（类型下存在有效资源行）: " + existingType.getTypeCode()
                             + " " + oldDeclaration + " -> " + newDeclaration);
         }
@@ -411,11 +411,11 @@ public class ResourceTypeOwnershipGuard {
             // 内部来源（事实链路类型：USER/ORG/MENU/ROLE、ADMIN_FILE 文件夹（T-ADMIN-025）、
             // TYPE_DEFINITION 类型定义实例投影（T-PERM-051）及 CONDITION 管理页条件投影（T-PERM-048））
             if (LocalProjectionOwner.SERVICE_CODE.equals(ownership.syncSourceService())) {
-                throw new BizException(PermissionErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),
+                throw new BizException(AccessErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),
                         "资源由系统事实链路维护（用户/组织/菜单/角色/类型定义/条件管理、文件上传/预置），资源管理面只读: resourceTypeCode="
                                 + resourceTypeCode);
             }
-            throw new BizException(PermissionErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),
+            throw new BizException(AccessErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),
                     "资源由外部来源维护，请到来源系统操作: resourceTypeCode=" + resourceTypeCode
                             + ", syncSourceService=" + ownership.syncSourceService());
         }

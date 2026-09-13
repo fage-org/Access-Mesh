@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
@@ -91,15 +91,15 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
 
         // status 仅接纳 0/1（T-ADMIN-022 语义收口：0=停用，1=启用；写入口全部拦截非法值）
         if (req.status() != null && req.status() != 0 && req.status() != 1) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
         }
         if (userDomainService.existsByUsername(tenantId, req.username())) {
-            throw new BizException(AdminErrorCode.USER_ALREADY_EXISTS.getCode(),
-                AdminErrorCode.USER_ALREADY_EXISTS.getMessage());
+            throw new BizException(AccessErrorCode.ADMIN_USER_ALREADY_EXISTS.getCode(),
+                AccessErrorCode.ADMIN_USER_ALREADY_EXISTS.getMessage());
         }
         if (req.phone() != null && userDomainService.existsByPhone(tenantId, req.phone())) {
-            throw new BizException(AdminErrorCode.PHONE_ALREADY_EXISTS.getCode(),
-                AdminErrorCode.PHONE_ALREADY_EXISTS.getMessage());
+            throw new BizException(AccessErrorCode.PHONE_ALREADY_EXISTS.getCode(),
+                AccessErrorCode.PHONE_ALREADY_EXISTS.getMessage());
         }
 
         // T-ORG-001（architecture §12.2）：预取主体 ID N → 显式同 ID 写 abstract_user(external_id=N)
@@ -185,17 +185,17 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         Long tenantId = TenantContextHolder.getTenantId();
         SysUser user = userDomainService.selectValidById(tenantId, req.id());
         if (user == null) {
-            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(),
-                AdminErrorCode.USER_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(),
+                AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
         }
         // status 仅接纳 0/1（T-ADMIN-022 语义收口：0=停用，1=启用，临时锁定不落库）
         if (req.status() != null && req.status() != 0 && req.status() != 1) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
         }
         if (req.phone() != null && !req.phone().equals(user.getPhone())
             && userDomainService.existsByPhone(tenantId, req.phone())) {
-            throw new BizException(AdminErrorCode.PHONE_ALREADY_EXISTS.getCode(),
-                AdminErrorCode.PHONE_ALREADY_EXISTS.getMessage());
+            throw new BizException(AccessErrorCode.PHONE_ALREADY_EXISTS.getCode(),
+                AccessErrorCode.PHONE_ALREADY_EXISTS.getMessage());
         }
         // 可选字段仅更新提供的字段（null 跳过，保留原值）。
         // 内存对象保持旧值 → 投影 upsert 使用事实最新值，管理事实与投影一致。
@@ -231,8 +231,8 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         long currentUserId = currentOperatorId();
         for (Long id : req.ids()) {
             if (id.equals(currentUserId)) {
-                throw new BizException(AdminErrorCode.CANNOT_DELETE_SELF.getCode(),
-                    AdminErrorCode.CANNOT_DELETE_SELF.getMessage());
+                throw new BizException(AccessErrorCode.CANNOT_DELETE_SELF.getCode(),
+                    AccessErrorCode.CANNOT_DELETE_SELF.getMessage());
             }
         }
         permissionValidator.checkBatchInstanceLevel(
@@ -302,14 +302,14 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         targetId = "", summary = "'enable/disable users'")
     public void updateStatus(UserUpdateStatusReq req) {
         if (req.status() == null || (req.status() != 0 && req.status() != 1)) {
-            throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
         }
         if (req.status() == 0) {
             long currentUserId = currentOperatorId();
             for (Long id : req.ids()) {
                 if (id.equals(currentUserId)) {
-                    throw new BizException(AdminErrorCode.CANNOT_DISABLE_SELF.getCode(),
-                        AdminErrorCode.CANNOT_DISABLE_SELF.getMessage());
+                    throw new BizException(AccessErrorCode.CANNOT_DISABLE_SELF.getCode(),
+                        AccessErrorCode.CANNOT_DISABLE_SELF.getMessage());
                 }
             }
         }
@@ -372,14 +372,14 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     private void validateOrgInDefaultTree(Long tenantId, Long orgId) {
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         if (defaultConfigs.isEmpty()) {
-            throw new BizException(AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
-                AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
+            throw new BizException(AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
+                AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
         }
         Long rootOrgId = defaultConfigs.get(0).getRootOrgId();
         List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId);
         if (!subtreeIds.contains(orgId)) {
-            throw new BizException(AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
-                AdminErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
+            throw new BizException(AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
+                AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
         }
     }
 
@@ -391,8 +391,8 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         Long operatorId = currentOperatorId();
         Set<Long> visibleOrgIds = orgVisibilityQueryService.getOperatorVisibleDefaultTreeOrgIds(tenantId, operatorId);
         if (visibleOrgIds.isEmpty()) {
-            throw new BizException(AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
-                AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
+            throw new BizException(AccessErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
+                AccessErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
         }
         List<SysUserOrg> visibleUserOrgs = userOrgDomainService.findByOrgIds(
             tenantId, List.copyOf(visibleOrgIds));
@@ -401,8 +401,8 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             .collect(Collectors.toSet());
         for (Long userId : userIds) {
             if (!usersInVisibleScope.contains(userId)) {
-                throw new BizException(AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
-                    AdminErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
+                throw new BizException(AccessErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getCode(),
+                    AccessErrorCode.USER_NOT_IN_OPERATOR_VISIBLE_SCOPE.getMessage());
             }
         }
     }

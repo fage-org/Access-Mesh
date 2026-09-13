@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
@@ -218,7 +218,7 @@ public class BatchAdminUserProjectionWriter {
     private Integer requireType(Long tenantId, String typeKey, String typeCode) {
         Integer value = typeResolutionService.resolveTypeValue(tenantId, typeKey, typeCode);
         if (value == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
                 "Unknown " + typeKey + ": " + typeCode);
         }
         return value;

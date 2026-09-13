@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.menu.service;
 import cn.ac.fage.accessmesh.access.menu.dto.req.MenuCreateReq;
 import cn.ac.fage.accessmesh.access.menu.dto.req.MenuUpdateReq;
 import cn.ac.fage.accessmesh.access.menu.entity.SysMenu;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.menu.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.access.menu.service.impl.MenuWriteAppServiceImpl;
@@ -118,7 +118,7 @@ class MenuWriteAppServiceTest {
             null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_PATH_EXISTS.getCode());
+            .isEqualTo(AccessErrorCode.MENU_PATH_EXISTS.getCode());
         verify(menuDomainService, never()).insert(any());
     }
 
@@ -131,7 +131,7 @@ class MenuWriteAppServiceTest {
             null, null, null, "USER", "5", null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_RESOURCE_EXISTS.getCode());
+            .isEqualTo(AccessErrorCode.MENU_RESOURCE_EXISTS.getCode());
         verify(menuDomainService, never()).insert(any());
     }
 
@@ -209,7 +209,7 @@ class MenuWriteAppServiceTest {
             new MenuUpdateReq(MENU_ID, null, null, null, "/y", null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_PATH_EXISTS.getCode());
+            .isEqualTo(AccessErrorCode.MENU_PATH_EXISTS.getCode());
         verify(menuDomainService, never()).update(any());
     }
 
@@ -278,7 +278,7 @@ class MenuWriteAppServiceTest {
             null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode());
+            .isEqualTo(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode());
         verify(menuDomainService, never()).insert(any());
     }
 
@@ -305,7 +305,7 @@ class MenuWriteAppServiceTest {
             null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_NOT_FOUND.getCode());
+            .isEqualTo(AccessErrorCode.MENU_NOT_FOUND.getCode());
         verify(menuDomainService, never()).insert(any());
     }
 
@@ -320,7 +320,7 @@ class MenuWriteAppServiceTest {
             new MenuUpdateReq(MENU_ID, null, null, MENU_ID, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_PARENT_INVALID.getCode());
+            .isEqualTo(AccessErrorCode.MENU_PARENT_INVALID.getCode());
         verify(menuDomainService, never()).update(any());
     }
 
@@ -336,7 +336,7 @@ class MenuWriteAppServiceTest {
             new MenuUpdateReq(MENU_ID, null, null, 21L, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_PARENT_INVALID.getCode());
+            .isEqualTo(AccessErrorCode.MENU_PARENT_INVALID.getCode());
         verify(menuDomainService, never()).update(any());
     }
 
@@ -350,7 +350,7 @@ class MenuWriteAppServiceTest {
             new MenuUpdateReq(MENU_ID, null, null, 999L, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_NOT_FOUND.getCode());
+            .isEqualTo(AccessErrorCode.MENU_NOT_FOUND.getCode());
         verify(menuDomainService, never()).update(any());
     }
 
@@ -368,7 +368,7 @@ class MenuWriteAppServiceTest {
             new MenuUpdateReq(MENU_ID, null, null, 40L, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode());
+            .isEqualTo(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode());
         verify(menuDomainService, never()).update(any());
     }
 
@@ -430,7 +430,7 @@ class MenuWriteAppServiceTest {
             new MenuUpdateReq(MENU_ID, null, null, 11L, null, null, null, null, null, null)))
             .isInstanceOf(BizException.class)
             .extracting(e -> ((BizException) e).getErrorCode())
-            .isEqualTo(AdminErrorCode.MENU_DEPTH_EXCEEDED.getCode());
+            .isEqualTo(AccessErrorCode.MENU_DEPTH_EXCEEDED.getCode());
         verify(menuDomainService, never()).update(any());
     }
 

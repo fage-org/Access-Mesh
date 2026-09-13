@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.access.role.entity.table.UserRoleTableDef;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
@@ -65,7 +65,7 @@ public class UserRoleProjectionWriter {
         AbstractRole role = abstractRoleMapper.selectByTypeAndExternalId(
             tenantId, roleType, String.valueOf(sysOrgId));
         if (user == null || role == null) {
-            throw new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
                 "local projection missing for user-org bind: userId=" + sysUserId + ", orgId=" + sysOrgId);
         }
         Long relationId = resolveRelationRoleId(tenantId, roleTypeCode, sysOrgId, relationSysOrgId);
@@ -103,7 +103,7 @@ public class UserRoleProjectionWriter {
         if (user == null || role == null) {
             // 请求类型的用户/角色投影缺失 = 依赖缺失，抛错回滚（与 bind 对称；不再静默返回 null
             // 造成管理事实已删但错类型/残留 user_role 存活）
-            throw new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
                 "local projection missing for user-org unbind: userId=" + sysUserId
                     + ", orgId=" + sysOrgId + ", roleTypeCode=" + roleTypeCode);
         }
@@ -177,14 +177,14 @@ public class UserRoleProjectionWriter {
             AbstractUser user = usersByExt.get(String.valueOf(key.sysUserId()));
             AbstractRole role = rolesByExt.get(BusinessKeys.roleProjectionIndexKey(key.roleTypeCode(), String.valueOf(key.sysOrgId())));
             if (user == null || role == null) {
-                throw new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
+                throw new BizException(AccessErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
                     "local projection missing for user-org bind: userId=" + key.sysUserId()
                         + ", orgId=" + key.sysOrgId());
             }
             // POSITION 所属组织角色缺失 = 依赖缺失，抛错回滚（不再回退 targetRole）
             AbstractRole relationRole = relationsByExt.get(String.valueOf(resolveRelationOrgId(key)));
             if (relationRole == null) {
-                throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+                throw new BizException(AccessErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
                     "POSITION 所属组织角色投影缺失: positionId=" + key.sysOrgId()
                         + ", relationOrgId=" + resolveRelationOrgId(key));
             }
@@ -279,7 +279,7 @@ public class UserRoleProjectionWriter {
             if (user == null || role == null) {
                 // 请求类型的用户/角色投影缺失 = 依赖缺失，抛错回滚（不再静默跳过：
                 // 否则调用方删除 sys_user_org/sys_org 管理事实后，错类型/残留 user_role 仍存活）
-                throw new BizException(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
+                throw new BizException(AccessErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(),
                     "local projection missing for user-org unbind: userId=" + key.sysUserId()
                         + ", orgId=" + key.sysOrgId() + ", roleTypeCode=" + key.roleTypeCode());
             }
@@ -287,7 +287,7 @@ public class UserRoleProjectionWriter {
             // 否则删除按错误三元组匹配不到旧记录导致投影残留）
             AbstractRole relationRole = relationsByExt.get(String.valueOf(resolveRelationOrgId(key)));
             if (relationRole == null) {
-                throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+                throw new BizException(AccessErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
                     "POSITION 所属组织角色投影缺失: positionId=" + key.sysOrgId()
                         + ", relationOrgId=" + resolveRelationOrgId(key));
             }
@@ -316,7 +316,7 @@ public class UserRoleProjectionWriter {
             tenantId, roleTypePosition, String.valueOf(sysPositionId));
         if (positionRole == null) {
             // 岗位角色投影缺失 = 依赖缺失（岗位移动必须迁移其成员 relation，无岗位角色无法定位成员）
-            throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+            throw new BizException(AccessErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
                 "岗位角色投影缺失: positionId=" + sysPositionId);
         }
         AbstractRole oldRelation = abstractRoleMapper.selectByTypeAndExternalId(
@@ -325,12 +325,12 @@ public class UserRoleProjectionWriter {
             tenantId, orgRoleType, String.valueOf(newRelationOrgId));
         if (newRelation == null) {
             // 新所属组织角色投影缺失 = 依赖缺失，整体回滚
-            throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+            throw new BizException(AccessErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
                 "新所属组织角色投影缺失: orgId=" + newRelationOrgId);
         }
         if (oldRelation == null) {
             // 旧所属组织角色投影缺失 = 依赖缺失（成员 relation 指向旧所属组织，缺失时无法判定待迁移成员）
-            throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+            throw new BizException(AccessErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
                 "旧所属组织角色投影缺失: orgId=" + oldRelationOrgId);
         }
         LocalDateTime now = LocalDateTime.now();
@@ -384,14 +384,14 @@ public class UserRoleProjectionWriter {
         Integer orgRoleType = requireType(tenantId, "role_type", LocalProjectionOwner.ROLE_ORG);
         boolean position = LocalProjectionOwner.ROLE_POSITION.equals(roleTypeCode);
         if (position && relationSysOrgId == null) {
-            throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+            throw new BizException(AccessErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
                 "POSITION 成员缺少所属组织上下文: positionId=" + sysOrgId);
         }
         Long relationOrgId = position ? relationSysOrgId : sysOrgId;
         AbstractRole relationRole = abstractRoleMapper.selectByTypeAndExternalId(
             tenantId, orgRoleType, String.valueOf(relationOrgId));
         if (relationRole == null) {
-            throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+            throw new BizException(AccessErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
                 "POSITION 所属组织角色投影缺失: positionId=" + sysOrgId + ", relationOrgId=" + relationOrgId);
         }
         return relationRole.getId();
@@ -404,7 +404,7 @@ public class UserRoleProjectionWriter {
      */
     private static Long resolveRelationOrgId(LocalProjectionDomainService.UserOrgBindKey key) {
         if (LocalProjectionOwner.ROLE_POSITION.equals(key.roleTypeCode()) && key.relationSysOrgId() == null) {
-            throw new BizException(PermissionErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
+            throw new BizException(AccessErrorCode.LOCAL_PROJECTION_DEPENDENCY_MISSING.getCode(),
                 "POSITION 成员缺少所属组织上下文: positionId=" + key.sysOrgId());
         }
         return LocalProjectionOwner.ROLE_POSITION.equals(key.roleTypeCode())
@@ -426,7 +426,7 @@ public class UserRoleProjectionWriter {
     private Integer requireType(Long tenantId, String typeKey, String typeCode) {
         Integer value = typeResolutionService.resolveTypeValue(tenantId, typeKey, typeCode);
         if (value == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(),
                 "Unknown " + typeKey + ": " + typeCode);
         }
         return value;

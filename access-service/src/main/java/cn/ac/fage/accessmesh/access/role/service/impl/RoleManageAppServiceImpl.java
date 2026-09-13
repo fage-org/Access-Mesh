@@ -14,7 +14,7 @@ import cn.ac.fage.accessmesh.access.role.dto.resp.RoleResp;
 import cn.ac.fage.accessmesh.access.role.dto.resp.RoleTreeResp;
 import cn.ac.fage.accessmesh.access.role.dto.resp.RoleTreeResp.RoleTreeNode;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.RoleType;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.role.service.RoleManageAppService;
@@ -141,18 +141,18 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         // T-PERM-043：GROUP_ROLE 写入口收口——create 显式拒绝（20022 类型不匹配语义），
         // 首期功能角色仅 BASIC_ROLE；delete/move 保持可用，作为存量 GROUP_ROLE 行的清理通道
         if (PermConstants.TargetType.GROUP_ROLE.equals(req.roleTypeCode())) {
-            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+            throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
                 "不支持创建 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
         }
 
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", req.roleTypeCode());
         if (roleType == null) {
-            throw new BizException(PermissionErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的roleTypeCode: " + req.roleTypeCode());
+            throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的roleTypeCode: " + req.roleTypeCode());
         }
         // 按值双保险：与 updateRole 同基准封死「自定义别名 type_code 映射 role_type=5」的
         // 理论绕过面（现实被 type_definition 唯一约束封死，此处防御纵深）
         if (roleType == RoleType.GROUP_ROLE.getValue()) {
-            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+            throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
                 "不支持创建 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
         }
         Long roleId = subjectDomainService.createRole(
@@ -202,14 +202,14 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
-            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);
+            throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);
         }
         localProjectionGuard.rejectIfLocalRole(role);
 
         // T-PERM-043：GROUP_ROLE 写入口收口——update 显式拒绝（20022 类型不匹配语义，
         // 请求体无 roleTypeCode，按目标角色现行类型判定）
         if (role.getRoleType() != null && role.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
-            throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+            throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
                 "不支持更新 GROUP_ROLE 分组角色（首期功能角色仅 BASIC_ROLE）");
         }
 
@@ -265,7 +265,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
-            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);
+            throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(), "角色不存在: " + roleId);
         }
         localProjectionGuard.rejectIfLocalRole(role);
 
@@ -276,23 +276,23 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         if (parentId != null) {
             AbstractRole parent = subjectDomainService.selectValidRoleById(tenantId, parentId);
             if (parent == null) {
-                throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "父角色不存在: " + parentId);
+                throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(), "父角色不存在: " + parentId);
             }
             // T-PERM-022：父子类型一致校验（同类型内嵌套合法，跨类型嵌套拒绝；
             // 前端拖拽 allowDrop 已拦截，此处为后端兜底）
             if (!Objects.equals(parent.getRoleType(), role.getRoleType())) {
-                throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
                     "不允许跨角色类型移动（父角色须与移动角色同类型）");
             }
             // T-PERM-022：环路防护——目标父为自身或其子孙时 parent 链成环
             // （环节点从树构建中静默消失、祖先/子孙查询语义受损），对齐 admin 域先例
             if (roleId.equals(parentId)) {
-                throw new BizException(PermissionErrorCode.ROLE_PARENT_INVALID.getCode(),
+                throw new BizException(AccessErrorCode.ROLE_PARENT_INVALID.getCode(),
                     "父角色不能是自身或该角色的子孙: " + parentId);
             }
             List<Long> descendants = subjectDomainService.resolveDescendantRoleIdsBatch(tenantId, Set.of(roleId));
             if (descendants.contains(parentId)) {
-                throw new BizException(PermissionErrorCode.ROLE_PARENT_INVALID.getCode(),
+                throw new BizException(AccessErrorCode.ROLE_PARENT_INVALID.getCode(),
                     "父角色不能是自身或该角色的子孙: " + parentId);
             }
         }

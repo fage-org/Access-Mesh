@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientPageReq;
 import cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientUpdateReq;
 import cn.ac.fage.accessmesh.access.auth.dto.Oauth2ClientResp;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.auth.mapper.SysOauth2ClientMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
@@ -74,7 +74,7 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
         // 检查clientId是否已存在
         SysOauth2Client existing = oauth2ClientMapper.selectByClientId(TenantContextHolder.getTenantId(), req.clientId());
         if (existing != null) {
-            throw new BizException(AdminErrorCode.CLIENT_ID_EXISTS.getCode(), AdminErrorCode.CLIENT_ID_EXISTS.getMessage());
+            throw new BizException(AccessErrorCode.CLIENT_ID_EXISTS.getCode(), AccessErrorCode.CLIENT_ID_EXISTS.getMessage());
         }
 
         SysOauth2Client client = new SysOauth2Client();
@@ -123,7 +123,7 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
 
         SysOauth2Client existing = oauth2ClientMapper.selectByIdSafe(TenantContextHolder.getTenantId(), req.id());
         if (existing == null) {
-            throw new BizException(AdminErrorCode.CLIENT_NOT_FOUND.getCode(), "OAuth2客户端不存在");
+            throw new BizException(AccessErrorCode.CLIENT_NOT_FOUND.getCode(), "OAuth2客户端不存在");
         }
 
         // 只更新非null字段
@@ -199,7 +199,7 @@ public class Oauth2ClientAppServiceImpl implements Oauth2ClientAppService {
     public Oauth2ClientResp getClientResp(Long id) {
         SysOauth2Client entity = oauth2ClientMapper.selectByIdSafe(TenantContextHolder.getTenantId(), id);
         if (entity == null) {
-            throw new BizException(AdminErrorCode.CLIENT_NOT_FOUND.getCode(), "OAuth2客户端不存在");
+            throw new BizException(AccessErrorCode.CLIENT_NOT_FOUND.getCode(), "OAuth2客户端不存在");
         }
         return Oauth2ClientResp.fromEntity(entity);
     }

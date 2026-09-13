@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionUpdateReq;
 import cn.ac.fage.accessmesh.access.rule.dto.resp.ConditionResp;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.rule.enums.ConditionSource;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
@@ -146,7 +146,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
     public ConditionResp getCondition(Long tenantId, String conditionCode) {
         PermissionCondition condition = conditionMapper.selectValidByCode(tenantId, conditionCode);
         if (condition == null) {
-            throw new BizException(PermissionErrorCode.CONDITION_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.CONDITION_NOT_FOUND.getCode(),
                 "Condition not found: " + conditionCode);
         }
         assertManageable(condition);
@@ -178,7 +178,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         // 业务键 code 定位（T-PERM-029 从内部主键切换；selectValidByCode 已含租户 + delete_flag=0 过滤）
         PermissionCondition condition = conditionMapper.selectValidByCode(tenantId, req.code());
         if (condition == null) {
-            throw new BizException(PermissionErrorCode.CONDITION_NOT_FOUND.getCode(), "Condition not found: " + req.code());
+            throw new BizException(AccessErrorCode.CONDITION_NOT_FOUND.getCode(), "Condition not found: " + req.code());
         }
         // 双轨制（T-PERM-048 定案①）：内联条件只能在授权页随记录更改，管理面拒绝
         assertManageable(condition);
@@ -284,7 +284,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
             .map(PermissionCondition::getCode)
             .toList();
         if (!inlineCodes.isEmpty()) {
-            throw new BizException(PermissionErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode(),
+            throw new BizException(AccessErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode(),
                 "内联条件不可在管理面删除（只能在授权页随记录更改）: " + String.join(", ", inlineCodes));
         }
 
@@ -306,14 +306,14 @@ public class ConditionAppServiceImpl implements ConditionAppService {
                 .filter(condition -> referencedIds.contains(condition.getId()))
                 .map(PermissionCondition::getCode)
                 .toList();
-            throw new BizException(PermissionErrorCode.CONDITION_REFERENCED_BY_GRANTS.getCode(),
+            throw new BizException(AccessErrorCode.CONDITION_REFERENCED_BY_GRANTS.getCode(),
                 "条件被授权记录引用，不可删除（请先解绑/换条件）: " + String.join(", ", conflictCodes));
         }
         // 引用守卫②：投影行下实例授权引用（CONDITION:UPDATE/DELETE@code 等实例级授权行悬空防护）
         List<Long> projectionIds = localProjectionDomainService.findConditionResourceIds(tenantId, validCodes);
         if (!projectionIds.isEmpty()
             && !rolePermMapper.selectValidPermIdsByResourceIds(tenantId, projectionIds).isEmpty()) {
-            throw new BizException(PermissionErrorCode.CONDITION_REFERENCED_BY_GRANTS.getCode(),
+            throw new BizException(AccessErrorCode.CONDITION_REFERENCED_BY_GRANTS.getCode(),
                 "条件存在实例级授权引用（投影行下授权行），不可删除: " + String.join(", ", validCodes));
         }
 
@@ -335,7 +335,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      */
     private void assertManageable(PermissionCondition condition) {
         if (ConditionSource.INLINE.getValue().equals(condition.getSource())) {
-            throw new BizException(PermissionErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode(),
+            throw new BizException(AccessErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode(),
                 "内联条件不可在管理面管理（只能在授权页随记录更改）: " + condition.getCode());
         }
     }

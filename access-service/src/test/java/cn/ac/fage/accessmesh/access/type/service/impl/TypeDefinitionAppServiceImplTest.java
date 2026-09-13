@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.type.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.access.type.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.access.type.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import org.junit.jupiter.api.AfterEach;
@@ -158,7 +158,7 @@ class TypeDefinitionAppServiceImplTest {
         BizException exception = assertThrows(BizException.class,
             () -> service.createType(1L, req, 100L));
 
-        assertEquals(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
+        assertEquals(AccessErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
     }
 
@@ -176,7 +176,7 @@ class TypeDefinitionAppServiceImplTest {
         TypeCreateReq req = new TypeCreateReq("group_type", null, "Auto", null, null, null, null, null);
 
         BizException exception = assertThrows(BizException.class, () -> service.createType(1L, req, 100L));
-        assertEquals(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
+        assertEquals(AccessErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
     }
 
     @Test
@@ -194,7 +194,7 @@ class TypeDefinitionAppServiceImplTest {
         TypeCreateReq req = new TypeCreateReq("group_type", "EXPLICIT", "Concurrent", null, null, null, null, null);
 
         BizException exception = assertThrows(BizException.class, () -> service.createType(1L, req, 100L));
-        assertEquals(PermissionErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
+        assertEquals(AccessErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(), exception.getErrorCode());
     }
 
     @Test
@@ -314,7 +314,7 @@ class TypeDefinitionAppServiceImplTest {
 
         BizException exception = assertThrows(BizException.class, () -> service.updateType(1L, req, 100L));
 
-        assertEquals(PermissionErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), exception.getErrorCode());
+        assertEquals(AccessErrorCode.TYPE_DEFINITION_NOT_FOUND.getCode(), exception.getErrorCode());
     }
 
     @Test
@@ -435,7 +435,7 @@ class TypeDefinitionAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
             new TypeCreateReq("group_type", "G1", "组", null, null, SYNC_DECLARATION, null, null), 100L));
-        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
     }
 
@@ -446,7 +446,7 @@ class TypeDefinitionAppServiceImplTest {
         BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
             new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
                 "{\"managedMode\":\"SYNC\"}", null, null), 100L));
-        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
     }
 
@@ -457,7 +457,7 @@ class TypeDefinitionAppServiceImplTest {
         BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
             new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
                 "{\"managedMode\":\"AUTO\"}", null, null), 100L));
-        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
     }
 
     @Test
@@ -468,7 +468,7 @@ class TypeDefinitionAppServiceImplTest {
         BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
             new TypeCreateReq("resource_type", "HR_ORG", "HR组织", null, null,
                 SYNC_DECLARATION, null, null), 100L));
-        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
     }
 
@@ -489,7 +489,7 @@ class TypeDefinitionAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
             new TypeUpdateReq(9L, null, null, null, "{\"managedMode\":\"MANAGED\"}"), 100L));
-        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).update(any(TypeDefinition.class));
     }
 
@@ -509,7 +509,7 @@ class TypeDefinitionAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
             new TypeUpdateReq(9L, "改名", null, null, "{\"k\":1}"), 100L));
-        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
     }
 
     @Test
@@ -612,7 +612,7 @@ class TypeDefinitionAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
             new TypeUpdateReq(9L, null, null, null, "{\"managedMode\":\"MANAGED\"}"), 100L));
-        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
         // 钉死判定先于行数查询
         verify(resourceEntityDomainService, never()).hasValidRowsOfType(anyLong(), any());
         verify(typeDefinitionMapper, never()).update(any(TypeDefinition.class));
@@ -681,7 +681,7 @@ class TypeDefinitionAppServiceImplTest {
 
         BizException ex = assertThrows(BizException.class,
             () -> service.deleteTypesByIds(1L, java.util.List.of(9L), 100L));
-        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
         // 批删 resource_type 同样持锁（codex P1）；codex 二轮复评 P2-2 回归锁：键构造读 →
         // 锁 → 锁内重读 → 行数守卫的完整顺序（删掉锁内重读/锁后置的旧实现下失败）
@@ -1003,7 +1003,7 @@ class TypeDefinitionAppServiceImplTest {
         BizException ex = assertThrows(BizException.class,
             () -> service.deleteTypesByIds(1L, java.util.List.of(9L), 100L));
 
-        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
         // 整批拒绝：类型行/投影行零写入
         verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
         verify(resourceEntityDomainService, never()).softDeleteBatch(anyLong(), any(), any());
@@ -1033,7 +1033,7 @@ class TypeDefinitionAppServiceImplTest {
         BizException ex = assertThrows(BizException.class,
             () -> service.deleteTypesByIds(1L, java.util.List.of(9L), 100L));
 
-        assertEquals(PermissionErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
         verify(treeWriteLockSupport).lockTreeWrites(1L,
             cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
         verify(treeWriteLockSupport, never()).lockTreeWrites(1L,
@@ -1106,7 +1106,7 @@ class TypeDefinitionAppServiceImplTest {
         BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
             new TypeCreateReq("resource_type", null, "NewRes", null, null, null, "BASIC_ROLE", null), 100L));
 
-        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
         verify(grantOriginDomainService, never()).seedAuthorityRootGrants(anyLong(), anyLong(), any(), any(), any());
     }
@@ -1118,12 +1118,12 @@ class TypeDefinitionAppServiceImplTest {
         when(typeDefinitionMapper.selectMaxTypeValueAllRows(1L, "resource_type")).thenReturn(9);
         when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any())).thenReturn(null);
         when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any()))
-            .thenThrow(new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "类型授权根角色不存在"));
+            .thenThrow(new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(), "类型授权根角色不存在"));
 
         BizException ex = assertThrows(BizException.class, () -> service.createType(1L,
             new TypeCreateReq("resource_type", null, "NewRes", null, null, null, null, null), 100L));
 
-        assertEquals(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.ROLE_NOT_FOUND.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
     }
 
@@ -1141,7 +1141,7 @@ class TypeDefinitionAppServiceImplTest {
                 "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"x\"}}",
                 null, null), 100L));
 
-        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).insert(any(TypeDefinition.class));
     }
 
@@ -1232,7 +1232,7 @@ class TypeDefinitionAppServiceImplTest {
         BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
             new TypeUpdateReq(9L, null, null, null, "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"order-admin\"}}"), 100L));
 
-        assertEquals(PermissionErrorCode.INVALID_PARAM.getCode(), ex.getErrorCode());
+        assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).update(any(TypeDefinition.class));
         verify(grantOriginDomainService, never()).rematerializeAuthorityRootGrants(anyLong(), any(), any(), any());
     }

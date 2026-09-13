@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.role.service.impl;
 
 import cn.ac.fage.accessmesh.access.role.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.access.role.dto.resp.UserRoleItemResp;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -73,7 +73,7 @@ public class UserRoleQueryAppServiceImpl implements UserRoleQueryAppService {
         // 显式传入 ORG/POSITION 时拒绝，防止通过 /role/list 绕过"仅功能角色"约束暴露本地投影角色
         for (String typeCode : typeCodes) {
             if (!FUNCTIONAL_ROLE_TYPES.contains(typeCode)) {
-                throw new BizException(AdminErrorCode.INVALID_PARAM.getCode(),
+                throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
                     "仅支持功能角色类型: BASIC_ROLE/GROUP_ROLE/PERSONAL，收到: " + typeCode);
             }
         }

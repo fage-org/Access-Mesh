@@ -479,7 +479,7 @@ class UserRoleWriteProjectionPgIT {
                 TENANT, new RoleCreateReq(null, "GROUP_ROLE", "t019-ext-reject-group", "被拒组角色", null, null), creator))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
             .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
-            .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+            .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode.ROLE_TYPE_MISMATCH.getCode());
         assertThat(countRoleByExternalId("t019-ext-reject-group")).isZero();
 
         // updateRole 按目标现行类型拒绝（JDBC 直插的存量组角色行），事实未被触碰
@@ -488,7 +488,7 @@ class UserRoleWriteProjectionPgIT {
                 TENANT, groupId, "改名被拒", null, null, null, null, creator))
             .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
             .extracting(ex -> ((cn.ac.fage.accessmesh.common.exception.BizException) ex).getErrorCode())
-            .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode());
+            .isEqualTo(cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode.ROLE_TYPE_MISMATCH.getCode());
         assertThat(jdbc.queryForMap(
             "SELECT name, status FROM abstract_role WHERE id = ?", groupId))
             .containsEntry("name", "存量组角色")

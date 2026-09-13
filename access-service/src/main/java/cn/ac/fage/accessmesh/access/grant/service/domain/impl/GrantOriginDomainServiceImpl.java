@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
@@ -112,25 +112,25 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
         // 「该类型全部实例可转授」的类型级行，挂 ORG/POSITION/GROUP_ROLE 容器角色等于给全体
         // 容器成员发转授权，且种子行 20061 只读无逐行移除通道，放大面与回收成本不成比例
         if (!DEFAULT_OWNER_ROLE_TYPE_CODE.equals(pointer.roleTypeCode())) {
-            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                PermissionErrorCode.INVALID_PARAM.getMessage()
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                AccessErrorCode.PERM_INVALID_PARAM.getMessage()
                     + ": 类型所有者角色类型仅接受 " + DEFAULT_OWNER_ROLE_TYPE_CODE
                     + "（功能角色）: " + pointer.roleTypeCode());
         }
         Long roleId = typeResolutionService.resolveRoleId(
             tenantId, pointer.roleTypeCode(), pointer.roleExternalId(), null);
         if (roleId == null) {
-            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(),
                 "类型授权根角色不存在: " + pointer.roleTypeCode() + "/" + pointer.roleExternalId());
         }
         // 有效性/启用态核验（applyGrantPlan 目标角色同序列先例：20001 → 20003）
         AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
         if (role == null) {
-            throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(),
+            throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(),
                 "类型授权根角色不存在: " + pointer.roleTypeCode() + "/" + pointer.roleExternalId());
         }
         if (!Integer.valueOf(PermissionConstants.ENABLED_STATUS).equals(role.getStatus())) {
-            throw new BizException(PermissionErrorCode.ROLE_DISABLED.getCode(),
+            throw new BizException(AccessErrorCode.ROLE_DISABLED.getCode(),
                 "类型授权根角色已停用: " + pointer.roleTypeCode() + "/" + pointer.roleExternalId());
         }
         return roleId;
@@ -144,13 +144,13 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
         } else {
             JsonNode parsed = readTree(clientExtraJson);
             if (parsed.has(EXTRA_KEY_GRANT_ORIGIN_ROLE)) {
-                throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                    PermissionErrorCode.INVALID_PARAM.getMessage()
+                throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                    AccessErrorCode.PERM_INVALID_PARAM.getMessage()
                         + ": extra." + EXTRA_KEY_GRANT_ORIGIN_ROLE + " 由服务端维护，请使用请求字段 ownerRoleTypeCode/ownerRoleExternalId");
             }
             if (!parsed.isObject()) {
-                throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                    PermissionErrorCode.INVALID_PARAM.getMessage() + ": extra 必须为 JSON 对象");
+                throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                    AccessErrorCode.PERM_INVALID_PARAM.getMessage() + ": extra 必须为 JSON 对象");
             }
             root = (ObjectNode) parsed;
         }
@@ -275,13 +275,13 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
         try {
             return objectMapper.readTree(extraJson);
         } catch (Exception e) {
-            throw new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-                PermissionErrorCode.INVALID_PARAM.getMessage() + ": extra 不是合法 JSON");
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                AccessErrorCode.PERM_INVALID_PARAM.getMessage() + ": extra 不是合法 JSON");
         }
     }
 
     private BizException invalidPointer(String detail) {
-        return new BizException(PermissionErrorCode.INVALID_PARAM.getCode(),
-            PermissionErrorCode.INVALID_PARAM.getMessage() + ": extra." + EXTRA_KEY_GRANT_ORIGIN_ROLE + " " + detail);
+        return new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+            AccessErrorCode.PERM_INVALID_PARAM.getMessage() + ": extra." + EXTRA_KEY_GRANT_ORIGIN_ROLE + " " + detail);
     }
 }

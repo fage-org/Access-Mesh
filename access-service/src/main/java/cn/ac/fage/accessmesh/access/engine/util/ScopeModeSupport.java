@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.engine.util;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 
 /**
  * 对外 scopeMode 协议与内部 scopeAll 存储字段之间的转换。
@@ -46,6 +46,6 @@ public final class ScopeModeSupport {
     }
 
     private static BizException validation(String message) {
-        return new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(), message);
+        return new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(), message);
     }
 }

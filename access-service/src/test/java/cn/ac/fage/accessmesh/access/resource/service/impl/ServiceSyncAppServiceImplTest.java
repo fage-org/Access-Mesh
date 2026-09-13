@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
@@ -100,7 +100,7 @@ class ServiceSyncAppServiceImplTest {
                     new ServiceConfigSyncReq.ApiItem("test", "GET", "/api/test", "test:read", "test api")
                 ))));
             BizException exception = assertThrows(BizException.class, () -> service.syncInterfaces(1L, req));
-            assertEquals(PermissionErrorCode.RESOURCE_NOT_FOUND.getCode(), exception.getErrorCode());
+            assertEquals(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(), exception.getErrorCode());
         }
     }
 

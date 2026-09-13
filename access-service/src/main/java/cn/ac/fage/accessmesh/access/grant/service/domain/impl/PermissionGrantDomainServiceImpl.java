@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
@@ -302,11 +302,11 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             }
             validateGrantAttributes(permission);
             if (!isSingleOperationBit(permission.getGrantedBits())) {
-                throw new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(),
+                throw new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(),
                     "MANUAL permission must contain exactly one operation bit");
             }
             if (!occupied.add(ManualGrantKey.of(permission))) {
-                throw new BizException(PermissionErrorCode.DIRECT_PERMISSION_CONFLICT.getCode(),
+                throw new BizException(AccessErrorCode.DIRECT_PERMISSION_CONFLICT.getCode(),
                     "Direct permission already exists for the same role, resource, operation, scope and parent");
             }
         }
@@ -316,8 +316,8 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
     public void validateGrantAttributes(RoleResourcePermission permission) {
         if (permission != null && permission.getConditionId() != null
             && Boolean.TRUE.equals(permission.getCanGrant())) {
-            throw new BizException(PermissionErrorCode.CONDITIONAL_PERMISSION_CANNOT_DELEGATE.getCode(),
-                PermissionErrorCode.CONDITIONAL_PERMISSION_CANNOT_DELEGATE.getMessage());
+            throw new BizException(AccessErrorCode.CONDITIONAL_PERMISSION_CANNOT_DELEGATE.getCode(),
+                AccessErrorCode.CONDITIONAL_PERMISSION_CANNOT_DELEGATE.getMessage());
         }
     }
 

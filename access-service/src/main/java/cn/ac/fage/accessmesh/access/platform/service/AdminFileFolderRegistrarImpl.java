@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.platform.service;
 
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.platform.service.AdminFileFolderRegistrar;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -45,7 +45,7 @@ public class AdminFileFolderRegistrarImpl implements AdminFileFolderRegistrar {
         } catch (DuplicateKeyException e) {
             log.warn("Folder registration concurrent conflict (uk_resource_entity), retryable: "
                 + "tenantId={}, folderCode={}", tenantId, folderCode);
-            throw new BizException(AdminErrorCode.FILE_UPLOAD_FAILED.getCode(),
+            throw new BizException(AccessErrorCode.FILE_UPLOAD_FAILED.getCode(),
                 "文件夹登记并发冲突，请重试上传: " + folderCode);
         }
     }

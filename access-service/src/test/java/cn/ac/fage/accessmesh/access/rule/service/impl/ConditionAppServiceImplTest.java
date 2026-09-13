@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionRemoveReq;
 import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionUpdateReq;
 import cn.ac.fage.accessmesh.access.rule.dto.resp.ConditionResp;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.rule.enums.ConditionSource;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
@@ -142,7 +142,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_RULES_INVALID.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_RULES_INVALID.getCode()));
         }
 
         @Test
@@ -156,7 +156,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_RULES_INVALID.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_RULES_INVALID.getCode()));
         }
 
         @Test
@@ -192,7 +192,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_RULES_INVALID.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_RULES_INVALID.getCode()));
         }
 
         @Test
@@ -224,7 +224,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_RULES_INVALID.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_RULES_INVALID.getCode()));
         }
     }
 
@@ -245,7 +245,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_RULES_INVALID.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_RULES_INVALID.getCode()));
         }
 
         @Test
@@ -262,7 +262,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_RULES_INVALID.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_RULES_INVALID.getCode()));
         }
 
         @Test
@@ -279,7 +279,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.createCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_RULES_INVALID.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_RULES_INVALID.getCode()));
         }
 
         @Test
@@ -407,7 +407,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.getCondition(TENANT_ID, "ghost"))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_NOT_FOUND.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_NOT_FOUND.getCode()));
         }
 
         @Test
@@ -420,7 +420,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_NOT_FOUND.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_NOT_FOUND.getCode()));
             verify(engine, never()).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
             verify(conditionMapper, never()).update(any(PermissionCondition.class));
         }
@@ -520,7 +520,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.updateCondition(TENANT_ID, req, OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode()));
             verify(engine, never()).hasPermissionByCode(anyLong(), anyLong(), any(), any(), any());
             verify(conditionMapper, never()).update(any(PermissionCondition.class));
         }
@@ -534,7 +534,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE), OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode()));
             verify(conditionMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
         }
 
@@ -547,7 +547,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.getCondition(TENANT_ID, CONDITION_CODE))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_INLINE_NOT_MANAGEABLE.getCode()));
         }
 
         @Test
@@ -564,7 +564,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE), OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_REFERENCED_BY_GRANTS.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_REFERENCED_BY_GRANTS.getCode()));
             verify(conditionMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
         }
 
@@ -585,7 +585,7 @@ class ConditionAppServiceImplTest {
             assertThatThrownBy(() -> service.deleteConditionsByCodes(TENANT_ID, List.of(CONDITION_CODE), OPERATOR_ID))
                 .isInstanceOf(BizException.class)
                 .satisfies(e -> assertThat(((BizException) e).getErrorCode())
-                    .isEqualTo(PermissionErrorCode.CONDITION_REFERENCED_BY_GRANTS.getCode()));
+                    .isEqualTo(AccessErrorCode.CONDITION_REFERENCED_BY_GRANTS.getCode()));
             verify(conditionMapper, never()).softDeleteBatch(anyLong(), anyList(), any());
         }
 

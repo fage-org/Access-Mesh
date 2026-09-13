@@ -9,7 +9,7 @@ import cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserUpdateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserRoleBatchRevokeReq;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
@@ -98,7 +98,7 @@ class UserManageAppServiceImplTest {
 
             BizException exception = assertThrows(BizException.class, () -> service.revokeRolesBatch(1L, req));
 
-            assertEquals(PermissionErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(), exception.getErrorCode());
+            assertEquals(AccessErrorCode.USER_ROLE_RELATION_NOT_FOUND.getCode(), exception.getErrorCode());
         }
     }
 
@@ -308,7 +308,7 @@ class UserManageAppServiceImplTest {
 
             BizException exception = assertThrows(BizException.class, () -> service.assignRole(1L, req));
 
-            assertEquals(PermissionErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
+            assertEquals(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
             org.mockito.Mockito.verify(userRoleMapper, org.mockito.Mockito.never()).insertBatch(any());
         }
     }
@@ -434,7 +434,7 @@ class UserManageAppServiceImplTest {
 
             BizException exception = assertThrows(BizException.class, () -> service.assignRolesBatch(1L, req));
 
-            assertEquals(PermissionErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
+            assertEquals(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
             org.mockito.Mockito.verify(userRoleMapper, org.mockito.Mockito.never()).insertBatch(any());
         }
     }

@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.domain.dto.req.DomainConfigReq;
 import cn.ac.fage.accessmesh.access.domain.dto.resp.DomainConfigResp;
 import cn.ac.fage.accessmesh.access.domain.entity.BizDomain;
 import cn.ac.fage.accessmesh.access.domain.entity.DomainConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
@@ -115,7 +115,7 @@ class DomainConfigAppServiceImplTest {
 
             BizException ex = assertThrows(BizException.class,
                 () -> service.upsertDomainConfig(1L, new DomainConfigReq("HR", "CLASSIFY", "{}")));
-            assertEquals(PermissionErrorCode.DOMAIN_CONFIG_CONCURRENT_CONFLICT.getCode(), ex.getErrorCode());
+            assertEquals(AccessErrorCode.DOMAIN_CONFIG_CONCURRENT_CONFLICT.getCode(), ex.getErrorCode());
         }
     }
 

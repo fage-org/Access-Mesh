@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.platform.dto.req.SystemConfigReq;
 import cn.ac.fage.accessmesh.access.platform.dto.resp.SystemConfigResp;
 import cn.ac.fage.accessmesh.access.platform.entity.SystemConfig;
 import cn.ac.fage.accessmesh.access.platform.mapper.SystemConfigMapper;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -84,7 +84,7 @@ class SystemConfigAppServiceImplTest {
             BizException ex = assertThrows(BizException.class,
                 () -> service.upsertSystemConfig(1L, new SystemConfigReq("admin.seed-key", "{\"k\":1}", "desc")));
 
-            assertEquals(PermissionErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getCode(), ex.getErrorCode());
+            assertEquals(AccessErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getCode(), ex.getErrorCode());
             // 拒绝必须发生在写之前（fail-closed）：种子值/描述零改动
             verify(systemConfigMapper, never()).update(any());
         }
@@ -102,7 +102,7 @@ class SystemConfigAppServiceImplTest {
             BizException ex = assertThrows(BizException.class,
                 () -> service.upsertSystemConfig(1L, new SystemConfigReq("key1", "{}", "desc")));
 
-            assertEquals(PermissionErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getCode(), ex.getErrorCode());
+            assertEquals(AccessErrorCode.CONFIG_KEY_NAMESPACE_INVALID.getCode(), ex.getErrorCode());
             // 校验失败必须在触达数据访问前 fail-closed
             verify(systemConfigMapper, never()).selectByConfigKey(anyLong(), anyString());
         }

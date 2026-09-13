@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.rule.enums.ConditionSource;
 import cn.ac.fage.accessmesh.access.domain.enums.ConfigType;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
@@ -94,7 +94,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         List<ApplyGrantPlanReq.UpdateItem> updateItems = plan.updateItems();
         List<Long> removeIds = plan.removeIds();
         if (createItems.isEmpty() && updateItems.isEmpty() && removeIds.isEmpty()) {
-            throw biz(PermissionErrorCode.GRANT_REQUEST_EMPTY);
+            throw biz(AccessErrorCode.GRANT_REQUEST_EMPTY);
         }
 
         assertDistinct(updateItems.stream().map(ApplyGrantPlanReq.UpdateItem::id).toList(),
@@ -119,10 +119,10 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             .filter(Objects::nonNull).forEach(referencedIds::add);
         for (Long referencedId : referencedIds) {
             if (!existingById.containsKey(referencedId)) {
-                PermissionErrorCode code = createItems.stream()
+                AccessErrorCode code = createItems.stream()
                     .anyMatch(item -> Objects.equals(item.parentPermissionId(), referencedId))
-                    ? PermissionErrorCode.PARENT_PERMISSION_NOT_FOUND
-                    : PermissionErrorCode.PERMISSION_NOT_FOUND;
+                    ? AccessErrorCode.PARENT_PERMISSION_NOT_FOUND
+                    : AccessErrorCode.PERMISSION_NOT_FOUND;
                 throw biz(code, "Permission id not found: " + referencedId);
             }
         }
@@ -132,7 +132,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             RoleResourcePermission permission = existingById.get(id);
             // 子权限 update 一律 20043（§6.5.1 错误优先级②：先于空变更/父被删等其余拒绝路径）
             if (permission.getDependOn() != null) {
-                throw biz(PermissionErrorCode.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED,
+                throw biz(AccessErrorCode.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED,
                     "Cannot update a child permission: " + id);
             }
         }
@@ -148,10 +148,10 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             if (create.parentPermissionId() != null) {
                 RoleResourcePermission parent = existingById.get(create.parentPermissionId());
                 if (parent.getDependOn() != null) {
-                    throw biz(PermissionErrorCode.PARENT_PERMISSION_NOT_TOP_LEVEL);
+                    throw biz(AccessErrorCode.PARENT_PERMISSION_NOT_TOP_LEVEL);
                 }
                 if (removeIdSet.contains(parent.getId())) {
-                    throw biz(PermissionErrorCode.PARENT_PERMISSION_NOT_FOUND,
+                    throw biz(AccessErrorCode.PARENT_PERMISSION_NOT_FOUND,
                         "Cannot add a child to a removed parent permission");
                 }
                 // 向 AUTO_DEP 父挂子权限同属 AUTO_DEP 只读边界（自动补全记录不承载手动子权限）
@@ -178,7 +178,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         Map<String, Integer> typeValues = normalizeTypeValues(rawTypeValues);
         for (String typeCode : resourceTypeCodes) {
             if (!typeValues.containsKey(normalize(typeCode))) {
-                throw biz(PermissionErrorCode.RESOURCE_TYPE_NOT_FOUND,
+                throw biz(AccessErrorCode.RESOURCE_TYPE_NOT_FOUND,
                     "resourceTypeCode not found: " + typeCode);
             }
         }
@@ -213,7 +213,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 // 双轨制定案①（T-PERM-048）：conditionCode 引用轨值域=MANAGED——内联条件 1:1
                 // 属于创建它的授权记录，不可被显式 code 引用或共享（1:1 的 API 焊点）
                 if (ConditionSource.INLINE.getValue().equals(condition.getSource())) {
-                    throw biz(PermissionErrorCode.CONDITION_INLINE_NOT_MANAGEABLE,
+                    throw biz(AccessErrorCode.CONDITION_INLINE_NOT_MANAGEABLE,
                         "conditionCode 不可引用内联条件（1:1 属于创建它的授权记录）: " + condition.getCode());
                 }
                 conditionsByCode.put(condition.getCode(), condition);
@@ -221,7 +221,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         }
         for (String conditionCode : conditionCodes) {
             if (!conditionsByCode.containsKey(conditionCode)) {
-                throw biz(PermissionErrorCode.CONDITION_NOT_FOUND,
+                throw biz(AccessErrorCode.CONDITION_NOT_FOUND,
                     "conditionCode not found: " + conditionCode);
             }
         }
@@ -398,7 +398,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             String resourceTypeCode = updateTypeCodes.get(permission.getResourceType());
             if (resourceTypeCode == null || operation == null
                 || (!Boolean.TRUE.equals(permission.getScopeAll()) && resource == null)) {
-                throw biz(PermissionErrorCode.PERMISSION_NOT_FOUND,
+                throw biz(AccessErrorCode.PERMISSION_NOT_FOUND,
                     "Permission definition has changed: " + permission.getId());
             }
             delegationKeys.add(new PermissionGrantDomainService.GrantCheckKey(
@@ -443,7 +443,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         if (!plan.removes().isEmpty()) {
             int affected = rolePermissionMapper.softDeleteBatch(plan.tenantId(), plan.removes(), now);
             if (affected != plan.removes().size()) {
-                throw biz(PermissionErrorCode.PERMISSION_NOT_FOUND);
+                throw biz(AccessErrorCode.PERMISSION_NOT_FOUND);
             }
             rolePermissionMapper.cascadeSoftDeleteChildren(plan.tenantId(), plan.removes(), now);
         }
@@ -451,7 +451,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             if (rolePermissionMapper.updateGrantAttributes(
                 plan.tenantId(), plan.roleId(), update.getId(), update.getCanGrant(),
                 update.getConditionId(), update.getUpdatedAt()) != 1) {
-                throw biz(PermissionErrorCode.PERMISSION_NOT_FOUND);
+                throw biz(AccessErrorCode.PERMISSION_NOT_FOUND);
             }
         }
         for (PreparedCreate create : plan.creates()) {
@@ -525,7 +525,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             resourceId = resourceIds.get(new ResourceResolveKey(
                 key.resourceTypeCode(), key.resourceCode(), key.codeType(), domainCode));
             if (resourceId == null) {
-                throw biz(PermissionErrorCode.RESOURCE_NOT_FOUND,
+                throw biz(AccessErrorCode.RESOURCE_NOT_FOUND,
                     "resource not found: " + key.resourceCode());
             }
         }
@@ -571,14 +571,14 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 }
             } else {
                 if (key.resourceCode() == null || key.resourceCode().isBlank()) {
-                    throw biz(PermissionErrorCode.RESOURCE_CODE_REQUIRED);
+                    throw biz(AccessErrorCode.RESOURCE_CODE_REQUIRED);
                 }
                 if (key.codeType() == null || key.codeType().isBlank()) {
                     throw validation("INSTANCE scope requires codeType");
                 }
             }
             if (key.conditionCode() != null && key.conditionCode().isBlank()) {
-                throw biz(PermissionErrorCode.CONDITION_NOT_FOUND,
+                throw biz(AccessErrorCode.CONDITION_NOT_FOUND,
                     "Create conditionCode cannot be blank");
             }
             // 条件绑定二选一（T-PERM-048）：conditionCode（引用轨）与 inlineCondition
@@ -645,7 +645,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         // 写链路复用读接口同一策略解析器（读写同源，§6.5.2 实现约束）
         SubPermissionPolicy policy = parseSubPermissionPolicy(config, parentTypeCode);
         if (!policy.allows(childTypeCode)) {
-            throw biz(PermissionErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
+            throw biz(AccessErrorCode.SUB_PERMISSION_RESOURCE_TYPE_NOT_ALLOWED,
                 "Child type " + childTypeCode + " is not allowed for parent type " + parentTypeCode
                     + " (" + policy.mode() + (policy.reason() == null ? "" : "/" + policy.reason()) + ")");
         }
@@ -667,7 +667,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     @Override
     public SubPermissionPolicy resolveSubPermissionPolicy(Long tenantId, String parentResourceTypeCode) {
         if (typeResolutionService.resolveTypeValue(tenantId, "resource_type", parentResourceTypeCode) == null) {
-            throw biz(PermissionErrorCode.RESOURCE_TYPE_NOT_FOUND,
+            throw biz(AccessErrorCode.RESOURCE_TYPE_NOT_FOUND,
                 "parentResourceTypeCode not found: " + parentResourceTypeCode);
         }
         DomainConfig config = findSubPermConfigForParentType(tenantId, parentResourceTypeCode);
@@ -769,7 +769,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
      * 20043 同口径覆盖内联条件（T-PERM-048）：子权限不承载任何形态的条件绑定 */
     private static void assertChildKeyAttributes(ApplyGrantPlanReq.GrantRecordKey key) {
         if (key.conditionCode() != null || key.inlineCondition() != null || Boolean.TRUE.equals(key.canGrant())) {
-            throw new BizException(PermissionErrorCode.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED.getCode(),
+            throw new BizException(AccessErrorCode.SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED.getCode(),
                 "Child permission does not carry conditionCode/canGrant: "
                     + key.resourceTypeCode() + "/" + key.operationCode());
         }
@@ -778,7 +778,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     /** 20042 条件启用状态：写入/变更的目标条件必须 enabled=true（存量保留豁免由调用方判定） */
     private static void assertConditionEnabled(PermissionCondition condition, String conditionCode) {
         if (!Boolean.TRUE.equals(condition.getEnabled())) {
-            throw new BizException(PermissionErrorCode.CONDITION_DISABLED.getCode(),
+            throw new BizException(AccessErrorCode.CONDITION_DISABLED.getCode(),
                 "conditionCode is disabled: " + conditionCode);
         }
     }
@@ -797,10 +797,10 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             return resolved;
         }
         if (knownOperationCodes.contains(normalizedCode)) {
-            throw biz(PermissionErrorCode.RESOURCE_TYPE_OPERATION_MISMATCH,
+            throw biz(AccessErrorCode.RESOURCE_TYPE_OPERATION_MISMATCH,
                 "operationCode does not apply to resourceTypeCode: " + operationCode);
         }
-        throw biz(PermissionErrorCode.OPERATION_NOT_FOUND,
+        throw biz(AccessErrorCode.OPERATION_NOT_FOUND,
             "operationCode not found: " + operationCode);
     }
 
@@ -859,7 +859,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         for (PermissionGrantDomainService.GrantCheckKey key : keys) {
             PermissionGrantDomainService.GrantCheckResult result = results.get(grantCheckKey(key));
             if (result == null || !result.canGrant()) {
-                throw biz(PermissionErrorCode.GRANT_CANNOT_DELEGATE,
+                throw biz(AccessErrorCode.GRANT_CANNOT_DELEGATE,
                     "Cannot delegate " + grantCheckKey(key)
                         + "; reason=" + (result == null ? "UNKNOWN" : result.reason()));
             }
@@ -888,12 +888,12 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             return;
         }
         if (GrantSource.AUTO_DEP.getValue().equals(permission.getGrantSource())) {
-            throw biz(PermissionErrorCode.AUTO_DEP_READONLY);
+            throw biz(AccessErrorCode.AUTO_DEP_READONLY);
         }
         // T-PERM-062：授权根种子同属只读边界——updates/removes/向其挂子权限一律拒绝；
         // 种子行经类型生命周期通道维护（创建/追加操作补种、所有者变更迁移、类型删除级联清理）
         if (GrantSource.AUTHORITY_ROOT.getValue().equals(permission.getGrantSource())) {
-            throw biz(PermissionErrorCode.AUTHORITY_ROOT_READONLY);
+            throw biz(AccessErrorCode.AUTHORITY_ROOT_READONLY);
         }
     }
 
@@ -906,7 +906,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     private void insertOne(RoleResourcePermission permission) {
         try {
             if (rolePermissionMapper.insert(permission) != 1) {
-                throw biz(PermissionErrorCode.PERMISSION_NOT_FOUND,
+                throw biz(AccessErrorCode.PERMISSION_NOT_FOUND,
                     "Permission create did not affect exactly one row");
             }
         } catch (DataIntegrityViolationException exception) {
@@ -917,7 +917,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     private void insertBatch(List<RoleResourcePermission> permissions) {
         try {
             if (rolePermissionMapper.insertBatch(permissions) != permissions.size()) {
-                throw biz(PermissionErrorCode.PERMISSION_NOT_FOUND,
+                throw biz(AccessErrorCode.PERMISSION_NOT_FOUND,
                     "Permission create count does not match the plan");
             }
         } catch (DataIntegrityViolationException exception) {
@@ -928,7 +928,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     private RuntimeException translateUniqueViolation(DataIntegrityViolationException exception) {
         if (DatabaseExceptionSupport.isUniqueViolation(exception,
             "uk_role_resource_permission_manual_direct", "uk_role_resource_permission")) {
-            return biz(PermissionErrorCode.DIRECT_PERMISSION_CONFLICT);
+            return biz(AccessErrorCode.DIRECT_PERMISSION_CONFLICT);
         }
         return exception;
     }
@@ -938,14 +938,14 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     }
 
     private BizException validation(String message) {
-        return new BizException(PermissionErrorCode.VALIDATION_FAILED.getCode(), message);
+        return new BizException(AccessErrorCode.VALIDATION_FAILED.getCode(), message);
     }
 
-    private BizException biz(PermissionErrorCode errorCode) {
+    private BizException biz(AccessErrorCode errorCode) {
         return new BizException(errorCode.getCode(), errorCode.getMessage());
     }
 
-    private BizException biz(PermissionErrorCode errorCode, String message) {
+    private BizException biz(AccessErrorCode errorCode, String message) {
         return new BizException(errorCode.getCode(), message);
     }
 

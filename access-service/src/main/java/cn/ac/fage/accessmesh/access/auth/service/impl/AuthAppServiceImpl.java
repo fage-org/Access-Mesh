@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.menu.dto.resp.UserMenuResp;
 import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.auth.service.AuthAppService;
@@ -186,26 +186,26 @@ public class AuthAppServiceImpl implements AuthAppService {
         if (user == null) {
             recordLoginFail(tenantId, req.username());
             safeRecordLoginLog(tenantId, null, req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户不存在");
-            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(), AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
         }
         // 停用检查用 status != 1 fail-closed：仅 0/1 收口后任何未定义值
         // 都不应进入会话（与投影 isEnabled(status)==1 对齐，防止认证放行+主体停用分裂）
         if (user.getStatus() == null || user.getStatus() != 1) {
             safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "用户已停用");
-            throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
+            throw new BizException(AccessErrorCode.USER_DISABLED.getCode(), AccessErrorCode.USER_DISABLED.getMessage());
         }
         if (isAccountLocked(tenantId, req.username())) {
             // T-ADMIN-022：计数键即锁（临时，键过期自动恢复），拒绝时补记登录日志留审计痕迹；
             // 停用（管理员事实）优先于临时锁定提示，避免重叠时误导「30分钟后重试」
             safeRecordLoginLog(tenantId, user.getId(), req.username(),
                 LOGIN_TYPE_PASSWORD, req.clientId(), 0, "登录失败次数过多，账号临时锁定");
-            throw new BizException(AdminErrorCode.USER_LOCKED.getCode(),
+            throw new BizException(AccessErrorCode.USER_LOCKED.getCode(),
                 "登录失败次数过多，账号已临时锁定，请" + LOCK_DURATION_MINUTES + "分钟后重试");
         }
         if (user.getPassword() == null || !BCrypt.checkpw(req.password(), user.getPassword())) {
             recordLoginFail(tenantId, req.username());
             safeRecordLoginLog(tenantId, user.getId(), req.username(), LOGIN_TYPE_PASSWORD, req.clientId(), 0, "密码错误");
-            throw new BizException(AdminErrorCode.PASSWORD_INCORRECT.getCode(), AdminErrorCode.PASSWORD_INCORRECT.getMessage());
+            throw new BizException(AccessErrorCode.PASSWORD_INCORRECT.getCode(), AccessErrorCode.PASSWORD_INCORRECT.getMessage());
         }
 
         clearLoginFail(tenantId, req.username());
@@ -278,11 +278,11 @@ public class AuthAppServiceImpl implements AuthAppService {
         if (user == null) {
             // 手机号为 PII：登录失败不落完整明文，仅存掩码（避免 sys_login_log.username 明文泄漏）
             safeRecordLoginLog(tenantId, null, maskPhone(req.phone()), LOGIN_TYPE_SMS, req.clientId(), 0, "用户不存在");
-            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(), AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
         }
         if (user.getStatus() == null || user.getStatus() != 1) {
             safeRecordLoginLog(tenantId, user.getId(), user.getUsername(), LOGIN_TYPE_SMS, req.clientId(), 0, "用户已停用");
-            throw new BizException(AdminErrorCode.USER_DISABLED.getCode(), AdminErrorCode.USER_DISABLED.getMessage());
+            throw new BizException(AccessErrorCode.USER_DISABLED.getCode(), AccessErrorCode.USER_DISABLED.getMessage());
         }
 
         StpUtil.login(user.getId());
@@ -337,7 +337,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         Long currentTenantId = TenantContextHolder.getTenantId();
         SysUser user = userDomainService.selectValidById(currentTenantId, userId);
         if (user == null) {
-            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(), AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
         }
 
         List<SysUserOrg> userOrgs = userOrgDomainService.findByUserId(currentTenantId, userId);
@@ -373,7 +373,7 @@ public class AuthAppServiceImpl implements AuthAppService {
      */
     private void validateCaptcha(String captchaId, String captchaCode) {
         if (captchaId == null || captchaCode == null) {
-            throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), "验证码参数缺失");
+            throw new BizException(AccessErrorCode.CAPTCHA_INCORRECT.getCode(), "验证码参数缺失");
         }
 
         String key = CAPTCHA_KEY_PREFIX + captchaId;
@@ -384,7 +384,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         );
 
         if (stored == null || !stored.equalsIgnoreCase(captchaCode)) {
-            throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), AdminErrorCode.CAPTCHA_INCORRECT.getMessage());
+            throw new BizException(AccessErrorCode.CAPTCHA_INCORRECT.getCode(), AccessErrorCode.CAPTCHA_INCORRECT.getMessage());
         }
     }
 
@@ -404,8 +404,8 @@ public class AuthAppServiceImpl implements AuthAppService {
         SysOauth2Client client = oauth2ClientDomainService.findActiveByClientId(clientId);
         if (client == null) return null;
         if (!containsGrantType(client.getGrantTypes(), "password")) {
-            throw new BizException(AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
-                AdminErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
+            throw new BizException(AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getCode(),
+                AccessErrorCode.OAUTH2_GRANT_TYPE_NOT_SUPPORTED.getMessage());
         }
         return client;
     }
@@ -522,7 +522,7 @@ public class AuthAppServiceImpl implements AuthAppService {
 
     private void validateSmsCode(String phone, String smsCode) {
         if (phone == null || smsCode == null) {
-            throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码参数缺失");
+            throw new BizException(AccessErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码参数缺失");
         }
 
         String key = SMS_CODE_PREFIX + phone;
@@ -533,7 +533,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         );
 
         if (stored == null || !stored.equals(smsCode)) {
-            throw new BizException(AdminErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码错误或已过期");
+            throw new BizException(AccessErrorCode.CAPTCHA_INCORRECT.getCode(), "短信验证码错误或已过期");
         }
     }
 
@@ -658,7 +658,7 @@ public class AuthAppServiceImpl implements AuthAppService {
         // 1. 获取用户信息
         SysUser user = userDomainService.selectValidById(tenantId, userId);
         if (user == null) {
-            throw new BizException(AdminErrorCode.USER_NOT_FOUND.getCode(), AdminErrorCode.USER_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(), AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
         }
 
         // 2. 跨域聚合：菜单树 + 角色 + 权限码（一次加载保证同一权限快照）

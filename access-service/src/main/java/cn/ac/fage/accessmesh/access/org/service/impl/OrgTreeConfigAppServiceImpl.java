@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.org.dto.req.OrgTreeConfigUpdateReq;
 import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.org.dto.resp.OrgTreeConfigResp;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgTreeConfigMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
@@ -115,7 +115,7 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
 
         SysOrgTreeConfig existing = orgTreeConfigMapper.selectByIdSafe(tenantId, req.id());
         if (existing == null) {
-            throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
         }
 
         String treeType = req.treeType() != null ? req.treeType() : existing.getTreeType();
@@ -183,7 +183,7 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
 
         SysOrgTreeConfig config = orgTreeConfigMapper.selectByIdSafe(TenantContextHolder.getTenantId(), id);
         if (config == null) {
-            throw new BizException(AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AdminErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
+            throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
         }
         clearDefault();
         config.setIsDefault(true);

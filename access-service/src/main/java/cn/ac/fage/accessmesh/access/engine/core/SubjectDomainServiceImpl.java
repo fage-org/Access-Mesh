@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.RoleType;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
@@ -127,10 +127,10 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         if (parentId != null) {
             AbstractRole parent = selectValidRoleById(tenantId, parentId);
             if (parent == null) {
-                throw new BizException(PermissionErrorCode.ROLE_NOT_FOUND.getCode(), "Parent role not found: " + parentId);
+                throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(), "Parent role not found: " + parentId);
             }
             if (!parent.getRoleType().equals(roleType)) {
-                throw new BizException(PermissionErrorCode.ROLE_TYPE_MISMATCH.getCode(),
+                throw new BizException(AccessErrorCode.ROLE_TYPE_MISMATCH.getCode(),
                     "Child roleType must match parent roleType: expected " + parent.getRoleType() + ", got " + roleType);
             }
         }
