@@ -1,7 +1,7 @@
 /**
  * 资源与操作定义页表单类型与常量。
  *
- * 字段对齐后端 DTO（api-contract.md §5.3）：
+ * 字段对齐后端 DTO（契约总册 access-service-api-contract.md §12.1）：
  * - 资源：ResourceCreateReq / ResourceUpdateReq / ResourceMoveReq
  * - 操作：OperationCreateReq / OperationUpdateReq
  */

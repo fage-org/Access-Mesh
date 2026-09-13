@@ -88,7 +88,7 @@ last_reviewed: 2026-09-13   # T-ACCESS-036：字段表删 sortOrder 行（resour
 
 ## 5. API 依赖
 
-对齐 `api-contract.md` §5.3。后端实现：`ResourceController` + `OperationController`。
+对齐契约总册 `access-service-api-contract.md` §12.1。后端实现：`ResourceController` + `OperationController`。
 
 > **联调注记（T-FE-017，2026-09-02）**：本页消费 9 端点全部经 Gateway 真实链路收口（tree/operation list 先在册，create/update/move/remove/detail 与 operation create/update/remove 共 +8 端点补注册 bootstrap 清单）；operation detail 与 resource list 本页不消费未注册（后续消费页按页注册）。联调逐 DTO 比对零漂移；发现的 maintain_source 落库缺陷（create 未设值致 NOT NULL 500）已在后端修复并加 PgIT 回归锁。
 

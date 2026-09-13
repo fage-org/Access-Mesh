@@ -9,7 +9,7 @@
 //
 // ⚠️ 禁止 import src/api：fake-server 静默吞加载错误会致 404，类型/常量本地声明。
 
-// ========== 本地类型（对齐后端 DTO，api-contract.md §5.3） ==========
+// ========== 本地类型（对齐后端 DTO，契约总册 access-service-api-contract.md §12.1） ==========
 
 type ResourceResp = {
   id: number;

@@ -68,3 +68,10 @@ resource 面 sortOrder 的列、实体、SDK 双册字段（含 ResourceEntitySy
 - **文档轨 P3（采纳，已修）**：frontend/resource-operation.md frontmatter `last_reviewed` 追加 T-ACCESS-036 注记（permission-condition.md 先例格式）。
 
 两轨存疑待决策项均零；实证通过项：写入点完备性（setSortOrder/getSortOrder 按实体归类终扫 ResourceEntity 为零）、位置参数实参序（全部降参构造点逐一对位）、负向锁判别力（旧实现下四负向载荷反序列化通过 → 200 非 400+90001，锁与删除语义同向）、DDL/实体/mapper 映射闭合、SDK 四模块影响面、前端链路无悬空引用、残留终扫（resource 面活引用为零，范围外五面保留）。
+
+## 外部评审处置（claude + grok 双通道，2026-09-13）
+
+共用提示词（模板 v2 + 六项专项清单）投喂 commit `1172663c0`；claude 通道为默认模型 deepseek-flash[1M]（headless plan，完整报告落 `~/.claude/plans/bubbly-meandering-mist.md`）、grok 通道 grok-4.6 + xhigh；均 read-only + 禁子代理。**两通道 P0-P3 全零、六项专项全过、零矛盾。**
+
+- **grok 存量观察（采纳一处，已修）**：`types.ts:4`、`resource-fixtures.ts:12`、`resource-operation.md:91` 三处 `api-contract.md §5.3` 旧册内层引用为 T-ACCESS-040 活引用重挂漏网（头部已挂总册、内层漏扫）——统一改指契约总册 §12.1；decision-registry 命中行为时点历史记录不改。
+- **claude 存量观察（均维持登记，不处置）**：①`ServiceConfigSyncOperationCodeRetiredTest:152-153` 信封码注释原句——与本地双轨登记一致，留待用户拍板；②capability-structure §5.2 六项通篇未来时无完成标记——设计文档记定案、执行状态以计划/任务卡为载体的既有分层，不加完成标记；③T-ACCESS-035.md:79 前瞻句——终态卡正文不回写约定；④`selectResourceTree` 无 ORDER BY（DB 返回序）——既有事实，不影响「零读取方」退役理由成立（claude/grok 均核）。
