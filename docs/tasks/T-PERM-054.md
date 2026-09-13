@@ -6,7 +6,7 @@ status: proposed
 plan: docs/plans/design-audit-followup-plan.md
 domain: permission-center
 design_refs:
-  - docs/design/permission-center/api-contract.md#§5.4
+  - docs/design/access-service-api-contract.md#§12.2（service-config / api-mapping；T-ACCESS-040 重挂总册）
   - docs/design/schema/access-service.sql
 depends_on: []
 blocks: []

@@ -6,9 +6,9 @@ status: proposed
 plan: docs/plans/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
-  - docs/design/permission-center/core-flows.md
-  - docs/design/permission-center/implementation.md
-  - docs/design/permission-center/api-contract.md
+  - docs/design/engine/core-flows.md
+  - docs/design/engine/implementation.md
+  - docs/design/access-service-api-contract.md#§12.4（autoGrant 预留段；T-ACCESS-040 重挂总册）
 depends_on:
   - T-PERM-034
 blocks: []
@@ -20,7 +20,7 @@ acceptance:
   - "依赖冲突处理：两个依赖路径对同一资源定义不同操作级别"
   - "区分手动/自动授权（GrantSource.MANUAL vs AUTO_DEP）"
   - "撤销授权级联处理：手动授权撤销时，仅当无其他路径依赖才撤销自动授权"
-  - "设计回写：自动授权流程回写 core-flows.md §12 场景九"
+  - "设计回写：自动授权流程回写 engine/core-flows.md §12 场景九"
 design_writeback:
   required: true
   status: pending

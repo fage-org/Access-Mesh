@@ -6,9 +6,9 @@ status: proposed
 plan: docs/plans/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
-  - docs/design/permission-center/api-contract.md#§6.7
-  - docs/design/permission-center/core-flows.md
-  - docs/design/permission-center/implementation.md
+  - docs/design/access-service-api-contract.md#§18.6（query-scopes；T-ACCESS-040 重挂总册）
+  - docs/design/engine/core-flows.md
+  - docs/design/engine/implementation.md
 depends_on:
   - T-FE-013
   - T-PERM-033
