@@ -479,8 +479,9 @@ Mapper（数据访问层）
 ### 8.2 调用方向规范
 
 - **禁止跳层调用**：Controller 不得直接调用 Mapper；逻辑级 Service 不得调用调度层 Service。
-- **允许同层横向调用（2026-08-22 用户确认全局放开）**：同层级之间允许互相复用（调度层 Service 互调、DomainService 互调、跨域 Service/AppService 注入复用，如 infrastructure 安全拦截器注入 admin 域 `OAuth2ClientDomainService`、`PermissionGrantPlanDomainServiceImpl` 组合 `PermissionGrantDomainService` 校验能力），无需逐一登记例外。通用约束：① 仅限同层之间（调度层↔调度层、DomainService↔DomainService；跨层仍遵守跳层禁令）；② 不得形成循环依赖；③ 复用方不重复实现被复用方已有的领域逻辑（与 §8.4 复用规范一致）；④ 跨域 Mapper 直读边界不变——admin/permission 域互不直读对方 Mapper（`QueryBoundaryArchitectureTest` 数据边界断言继续生效）。历史：2026-08-08 授权域、2026-08-15 query 包（T-ACCESS-006）、2026-08-20 审计门面三个单点例外的登记随全局放开废止，其限定语义（单向、只读复用、不承载事务）收敛为上述通用约束。
+- **允许同层横向调用（2026-08-22 用户确认全局放开）**：同层级之间允许互相复用（调度层 Service 互调、DomainService 互调、跨域 Service/AppService 注入复用，如 infrastructure 安全拦截器注入 admin 域 `OAuth2ClientDomainService`、`PermissionGrantPlanDomainServiceImpl` 组合 `PermissionGrantDomainService` 校验能力），无需逐一登记例外。通用约束：① 仅限同层之间（调度层↔调度层、DomainService↔DomainService；跨层仍遵守跳层禁令）；② 不得形成循环依赖；③ 复用方不重复实现被复用方已有的领域逻辑（与 §8.4 复用规范一致）；④ Mapper 直读边界——迁移前 admin/permission 域互不直读对方 Mapper；能力包迁移（T-ACCESS-033）后由下条能力口径取代。历史：2026-08-08 授权域、2026-08-15 query 包（T-ACCESS-006）、2026-08-20 审计门面三个单点例外的登记随全局放开废止，其限定语义（单向、只读复用、不承载事务）收敛为上述通用约束。
 - Mapper 层只做数据访问，禁止包含分支业务逻辑（`if`/`switch` 等）。
+- **能力包 Mapper 边界（T-ACCESS-032 能力口径，2026-09-13）**：access-service 迁移为能力包结构（T-ACCESS-033）后，「域」概念由 **12 能力包 + sync/engine/projection/bootstrap/infrastructure 顶层包**取代（终态契约 `access-service-capability-structure.md` §2/§8）——「域互不直读 Mapper」边界重判为「**能力包之间不互读 Mapper**（断言面=mapper 包，实体 import 不禁）」，豁免面（engine 输入面装载、projection 投影写路径、sync 记账、bootstrap 种子写入器、存量冻结白名单锁「不得新增」）与断言重建设计见 capability-structure §8.4；`QueryBoundaryArchitectureTest` 以能力为对象重建（T-ACCESS-033 落地）。同层横向调用通用约束（①~③）不变。
 
 **permission-center Controller（补充）：**
 

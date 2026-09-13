@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: access-service 能力包融合
-status: proposed
+status: active
 domain: cross-service
 design_refs:
   - docs/design/access-service-capability-structure.md
@@ -24,11 +24,11 @@ last_updated: 2026-09-13
 # access-service 能力包融合
 
 > 状态：proposed
-> 来源：2026-09-13 用户逐项拍板（定案与两轮外评处置记录见 decision-registry 同日行）；目标设计 [capability-structure.md](../design/access-service-capability-structure.md)（draft，T-ACCESS-032 完成细化后转 adopted）
+> 来源：2026-09-13 用户逐项拍板（定案与多轮外评处置记录见 decision-registry 同日行）；目标设计 [capability-structure.md](../design/access-service-capability-structure.md)（**adopted**——T-ACCESS-032 已完成 §8 归属清单与边界断言定稿，十项裁决登记 registry 同日行）
 
 ## 目标
 
-消灭 admin/permission 两域平行结构：能力包终态（12 能力包 + sync 通道包 + 引擎子系统 + infrastructure）+ 平行设施归零（错误码/缓存目录/操作码各一册）+ 概念单点收口（操作码 USER 细粒度化、字段消减、system_config 单入口），对外表面基本维持现状。验收五条见设计 §1。
+消灭 admin/permission 两域平行结构：能力包终态（17 顶层包 = 12 能力包 + sync 通道包 + 引擎子系统 + projection 投影门面 + bootstrap 空库自举 + infrastructure 底座，见 capability-structure §8.1）+ 平行设施归零（错误码/缓存目录/操作码各一册）+ 概念单点收口（操作码 USER 细粒度化、字段消减、system_config 单入口），对外表面基本维持现状。验收五条见设计 §1。
 
 ## 非目标
 
@@ -45,8 +45,8 @@ last_updated: 2026-09-13
 
 | ID | 标题 | 依赖 | 状态 |
 |---|---|---|---|
-| [T-ACCESS-032](../tasks/T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | — | ⚙️ |
-| [T-ACCESS-033](../tasks/T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 边界测试重建 | 032 | ⚙️ |
+| [T-ACCESS-032](../tasks/T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | — | ✅ |
+| [T-ACCESS-033](../tasks/T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建 | 032 | ⚙️ |
 | [T-ACCESS-034](../tasks/T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | 033, 040 | ⚙️ |
 | [T-ACCESS-035](../tasks/T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | 033 | ⚙️ |
 | [T-ACCESS-036](../tasks/T-ACCESS-036.md) | resource_entity.sort_order 退役 | 033, 040 | ⚙️ |
@@ -73,3 +73,4 @@ last_updated: 2026-09-13
 ## 当前进度
 
 - 2026-09-13：计划建立——设计稿 draft + 十张任务卡 proposed + decision-registry 定案登记 + 三处索引刷新。
+- 2026-09-13：T-ACCESS-032 收口——capability-structure §8 归属清单与边界断言定稿（十项裁决用户拍板，含双轨评审追加的冻结白名单与僵尸 DTO 扩面两项）、转 adopted；architecture §1.2/§3/§9/§11 与 project-rules §8.2 能力口径回写；T-ACCESS-033 准入条件达成。

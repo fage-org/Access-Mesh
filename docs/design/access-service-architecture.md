@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§14.2 种子类写入措辞扩为「bootstrap 固定图 + 类型授权根生命周期」（无操作者写入通道下沉 PermissionGrantPlanDomainService.seedGrants 共用，调用方限定；§14.1「闭环只能靠最小种子」推广到类型生命周期）；此前 2026-09-11 T-PERM-055 收口：§13.4 域分类批量预载成文（preloadCoveredTypeCodes 批量上下文一次预载模式覆盖集 + 认领集单次装配收敛 per-domain N+1，三模式判定结果不变）；此前 2026-09-10 T-PERM-059 收口：§14.4 门禁表注记改排查端点族已删除（bootstrap 固定图 effective-permissions/explain 两行与「权限排查」菜单种子同批移除，清单仍以 BootstrapGraphDefinition.apiRoutes() 为唯一权威）；此前 2026-09-07 T-PERM-051 收口：§4.3 事实链路族增 TYPE_DEFINITION（类型定义实例投影两条产出链 + 删除级联）、§12.3 补 TYPE_DEFINITION 复合业务键语义（{typeKey}:{typeCode}、code 列宽 256）；2026-09-06 §14.8 E2E 自动化轨落位改 e2e 独立模块（T-ACCESS-031：E2E 分轨迁出 gateway、skipE2E 日常/收口两形态口径）；2026-09-05 T-ACCESS-029 实现收口：§14.2 收缩通道墓碑三分落地（BootstrapSeedWriter 墓碑查询诊断例外 + 升级口径与重建换 id 边界成文、runbook 处置步骤交叉引用）；2026-09-05 §14.2 固定图收缩通道墓碑三分定案（缺行+软删墓碑=告警放行不补回/无墓碑=仍拒启，T-ACCESS-029 承接）+ 固定图→租户初始化演进方向登记；2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
+last_reviewed: 2026-09-13   # 2026-09-13 T-ACCESS-032 收口：§1.2/§11 融合演进方向启用注记、§3 重写为能力包口径（17 顶层包=12 能力包+sync+engine+projection+bootstrap+infrastructure；权威=capability-structure §2/§8，T-ACCESS-033 迁移完成前代码维持旧包结构）、§9 错误码「合类不合号」衔接说明、§11 增 URL 两风格 Q-001 指针行；此前 2026-09-12 T-PERM-062 收口：§14.2 种子类写入措辞扩为「bootstrap 固定图 + 类型授权根生命周期」（无操作者写入通道下沉 PermissionGrantPlanDomainService.seedGrants 共用，调用方限定；§14.1「闭环只能靠最小种子」推广到类型生命周期）；此前 2026-09-11 T-PERM-055 收口：§13.4 域分类批量预载成文（preloadCoveredTypeCodes 批量上下文一次预载模式覆盖集 + 认领集单次装配收敛 per-domain N+1，三模式判定结果不变）；此前 2026-09-10 T-PERM-059 收口：§14.4 门禁表注记改排查端点族已删除（bootstrap 固定图 effective-permissions/explain 两行与「权限排查」菜单种子同批移除，清单仍以 BootstrapGraphDefinition.apiRoutes() 为唯一权威）；此前 2026-09-07 T-PERM-051 收口：§4.3 事实链路族增 TYPE_DEFINITION（类型定义实例投影两条产出链 + 删除级联）、§12.3 补 TYPE_DEFINITION 复合业务键语义（{typeKey}:{typeCode}、code 列宽 256）；2026-09-06 §14.8 E2E 自动化轨落位改 e2e 独立模块（T-ACCESS-031：E2E 分轨迁出 gateway、skipE2E 日常/收口两形态口径）；2026-09-05 T-ACCESS-029 实现收口：§14.2 收缩通道墓碑三分落地（BootstrapSeedWriter 墓碑查询诊断例外 + 升级口径与重建换 id 边界成文、runbook 处置步骤交叉引用）；2026-09-05 §14.2 固定图收缩通道墓碑三分定案（缺行+软删墓碑=告警放行不补回/无墓碑=仍拒启，T-ACCESS-029 承接）+ 固定图→租户初始化演进方向登记；2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
 ---
 
 # access-service 目标架构与归并约束
@@ -31,7 +31,7 @@ last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§14.2 种子类写
 - 不提供 `admin-service`、`permission-center` 旧部署单元、旧服务名或旧端口的兼容代理。
 - 不迁移历史数据；项目尚未部署，数据库从空库创建。
 - 本阶段不引入 Flyway、Liquibase 或权限版本号机制。
-- 本阶段不把两个领域立即完全扁平化。
+- 本阶段不把两个领域立即完全扁平化。（**已启用**：两域能力包融合由 [access-service-capability-structure.md](access-service-capability-structure.md) 承接，2026-09-13 立项——T-ACCESS-032~041；终态结构契约见该文档 §2/§8，代码迁移由 T-ACCESS-033 执行。）
 
 ## 2. 目标工程与部署单元
 
@@ -52,51 +52,41 @@ last_reviewed: 2026-09-12   # 2026-09-12 T-PERM-062 收口：§14.2 种子类写
 
 ## 3. 模块边界
 
-目标包结构：
+> **能力包口径（T-ACCESS-032 重写，2026-09-13）**：目标结构契约唯一权威为 [access-service-capability-structure.md](access-service-capability-structure.md) §2（包结构）与 §8（归属清单与边界断言）；本节为其摘要。T-ACCESS-033 迁移完成前，代码仍为 admin/permission/application 三包旧结构，本节描述的是迁移后终态。
+
+目标包结构（17 顶层包 = 12 能力包 + sync 通道包 + engine 引擎子系统 + projection 投影门面 + bootstrap 空库自举 + infrastructure 底座）：
 
 ```text
 cn.ac.fage.accessmesh.access
 ├── AccessServiceApplication
-├── application          # 跨域写编排（User/Org/Menu/UserOrgWrite + RoleProxy/门禁）
-│   └── query            # 跨域只读模型（T-ACCESS-006）
-├── admin
-├── permission
-└── infrastructure
+├── auth user org menu role grant resource type domain rule audit platform   # 12 能力包
+├── sync          # sync 通道包（4 组 sync/full-sync Controller + 守卫 + 记账 + 策略）
+├── engine        # 权限引擎子系统（PermQueryEngine + 管线 + 对外查询编排 + 门禁门面/操作码册）
+├── projection    # 内部事实投影统一门面（LocalProjectionDomainService）
+├── bootstrap     # 空库自举（固定图种子，BootstrapSeedWriter 断言锁定）
+└── infrastructure # 底座（请求上下文/拦截器/TypeHandler/任务租约/横切 AOP/共享 DTO/错误码册）
 ```
 
-```mermaid
-flowchart LR
-    C["Controller / 调用入口"] --> A["access.application\n跨域写编排"]
-    A --> AD["admin DomainService"]
-    A --> PD["permission DomainService"]
-    Q["access.application.query\n跨域只读模型"] --> AT["admin tables"]
-    Q --> PT["permission tables"]
-    AD --> AM["admin Mapper"]
-    PD --> PM["permission Mapper"]
-    AM --> DB["access_db.public"]
-    PM --> DB
-    AT --> DB
-    PT --> DB
-```
+每个能力包内含 Controller → AppService → DomainService → Mapper 全链；逐类归属映射与八项结构裁决见 capability-structure §8。
 
-边界规则：
+边界规则（能力口径）：
 
-- `access.application` 是唯一跨域写事务编排层，只调用两个领域的 DomainService 接口。
-- `admin` 与 `permission` 禁止相互依赖实现类或 Mapper（跨域 Mapper 直读边界不变）；Service 层同层横向调用允许（2026-08-22 用户确认全局放开，通用约束见 project-rules §8.2：仅限同层、禁循环依赖、复用优先于重实现）。
-- 单域用例继续由各自 AppService 调度，不为形式统一搬入 `access.application`。
-- 跨域组合读取集中到 `access.application.query`。该包可以使用专用 QueryMapper 批量查询或 JOIN 两域表，但只能返回 Projection/DTO，严禁写 SQL。
-- QueryMapper 必须显式带租户条件、正确处理分页，并遵守 N+1 查询禁令。
-- 重名 Spring Bean 使用清晰的域前缀类名消除冲突，不依赖模糊的 Bean 覆盖。
-- 架构测试应将上述依赖白名单固化。
+- `application` 包解散：写编排随主实体归位各能力包 AppService；原跨域组合查询按主实体归位（UserMenuQuery→menu、UserRoleQuery→role、OrgVisibilityQuery→org，改名 `XxxQueryAppService`）。
+- **能力包之间不互读 Mapper**（数据边界断言面=mapper 包；`QueryBoundaryArchitectureTest` 以能力为对象重建，豁免面=engine 输入面装载、projection 投影写路径、sync 记账、bootstrap 种子写入器、存量 18 类 24 处冻结白名单「不得新增」，逐条声明见 capability-structure §8.4）。
+- AppService/DomainService 同层横向跨能力调用允许（2026-08-22 放开口径延续；仅限同层、禁循环依赖、复用优先于重实现，project-rules §8.2）。
+- 引擎核心（`engine.core`：PermQueryEngine/类型解析/主体装载/批量评估器）不依赖任何能力包；`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（query-resources 域分类过滤→`DomainClassifyService`、互斥检测→`PermissionConflictDomainService`）。能力包 → engine（门禁查码/校验）为既有依赖方向。
+- QueryMapper 归位各能力包（XML 随迁 `resources/mapper/{org,menu,role}/`）；只读前缀、显式租户条件、禁写 SQL 契约不变（`QueryMapperXmlContractTest`）。
+- URL 维持两风格（admin 裸路径 + perm `/api/perm/**`）——已知问题登记 [docs/pending-problems.md](../pending-problems.md) Q-001，后续单独改。
+- 架构测试将上述边界固化（五测试能力口径重建设计见 capability-structure §8.4）。
 
-`access.application.query` 落地形态（T-ACCESS-006）：
+`access.application.query` 落地形态（T-ACCESS-006；归位后类名随 §8 改名表更新，T-ACCESS-033 回写）：
 
 - 查询服务（接口 + `impl/` 同包实现，方法标注 `@Transactional(readOnly = true)`）：
   - `UserMenuQueryService`：`/auth/user-menu`、`/user/user-menus`、`/role/my-info` 聚合（sys_menu 树 + 角色/权限码 + 菜单可见性判定）。
   - `UserRoleQueryService`：`/role/list` 功能角色列表、`/user-role/list` 角色列表（POSITION 补所属组织名）。
   - `OrgVisibilityQueryService`：组织可见性过滤（含 ORG_VISIBILITY 缓存，租户级失效由 PermissionChangeAspect 统一执行）。
 - 专用 QueryMapper（`query/mapper`，XML 在 `resources/mapper/query/`）：只 SELECT、显式 `tenant_id` 条件、返回 `query/projection` 包 Projection record，不暴露或修改领域实体；权限判定一律经 `PermQueryEngine`/`TypeResolutionService`，不直查权限表判定。
-- 数据访问白名单（架构测试固化）：`admin`/`permission` 域互不使用对方 Mapper；`application` 非 query 包（写编排/门禁）不使用两域 Mapper；query 包不依赖两域实体/Mapper；组合查询数据读取只发生在 query 包。（Service 层横向依赖不限白名单，2026-08-22 同层调用全局放开。）
+- 数据访问白名单（架构测试固化，能力口径见 capability-structure §8.4）：能力包互不使用对方 Mapper/实体；QueryMapper 归位各能力包后只读前缀契约不变；组合查询的跨能力表读取经 QueryMapper XML 直读（非 Java 类依赖）；引擎输入面装载、projection 投影写路径、sync 记账封装、bootstrap 种子写入器为显式豁免。（Service 层横向依赖不限白名单，2026-08-22 同层调用全局放开。）
 
 菜单可见性判定（v3.5 §4.1 派生公式）：
 
@@ -324,7 +314,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 ## 9. API、SDK 与生态切换
 
 - 除 §4.3 明确退役的内部同步管理接口外，保持现有 POST + JSON Body、HTTP 路径、DTO、统一响应体和错误码分段；`/admin/sync-task/*` 不属于兼容范围。
-- 错误码继续按业务域归属：管理域保留并新增于 `1xxxx`，权限域保留并新增于 `2xxxx`；`access.application` 的跨域编排错误按对外入口所属领域取码，与领域无关的公共技术失败使用 `9xxxx`。不得为 `access-service` 新增 `4xxxx` 段，也不得因归并重编号既有错误码。
+- 错误码继续按业务域归属：管理域保留并新增于 `1xxxx`，权限域保留并新增于 `2xxxx`；`access.application` 的跨域编排错误按对外入口所属领域取码，与领域无关的公共技术失败使用 `9xxxx`。不得为 `access-service` 新增 `4xxxx` 段，也不得因归并重编号既有错误码。（**衔接说明（T-ACCESS-032，2026-09-13）**：分段与不重编号的字面保持；AdminErrorCode / PermissionErrorCode 两枚举面合类不合号由 T-ACCESS-038 落地——合一后单册落位 infrastructure.enums，新增码归属段规则随 038 文档面明确，见 capability-structure §3/§8.2。）
 - `/admin/**`、`/perm/**`、`/auth/**` 的 Gateway 目标统一为 `lb://access-service`。
 - `perm-sdk` 继续作为外部客户端，Feign 目标从 `permission-center` 改为 `access-service`。
 - access 内部代码禁止通过 `perm-sdk` 或 Feign 调用自身。
@@ -353,14 +343,15 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - 陈旧回填并发测试用闩锁制造“旧授权读取开始 → 权限事务提交并失效 → 旧读取完成并尝试回填”，验证回填仅获得从读取起点计算的剩余 TTL，预算耗尽时不写缓存，且批量与重试不能重新获得完整 TTL。
 - Gateway 权限回源不可达时固定返回 503；代码与配置中不存在 `open`、`stale-allow` 或可切换的 `gateway.permission.fail-mode`。
 - 多实例任务不存在同一执行键的并发执行，故障接管和幂等重试通过。
-- 架构测试证明跨域依赖只出现在允许的 application/query 边界。
+- 架构测试证明跨域依赖只出现在允许的 application/query 边界。（归并验收门禁历史口径，T-ACCESS-001~012 时代；现行边界规则见 §3 能力包口径，断言重建设计见 capability-structure §8.4。）
 - 非归档代码、配置和有效设计中不存在可运行的旧服务、旧数据库或内部同步链路残留。
 
 ## 11. 演进方向（非本阶段约束）
 
 完成模块化单体并获得运行数据后，可以按独立任务评估：
 
-- 将重复的领域模型进一步扁平化。
+- 将重复的领域模型进一步扁平化。（**已立项启用**：两域能力包融合，capability-structure 承接——T-ACCESS-032~041，2026-09-13。）
+- URL 路径风格统一（admin 裸路径 vs perm 前缀路径）——已知问题登记 [docs/pending-problems.md](../pending-problems.md) Q-001，后续单独改。
 - 在授权读取需要 L1 时引入租户级权限版本屏障。
 - 首次正式部署前引入数据库版本管理工具，并以 `access-service.sql` 作为 V1 基线。
 - 根据查询与变更热点细化缓存、权限版本和任务分片粒度。

@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-032
 title: 融合设计定稿——归属清单与边界断言
-status: proposed
+status: done
 plan: docs/plans/access-capability-fusion-plan.md
 domain: cross-service
 design_refs:
@@ -21,13 +21,13 @@ acceptance:
   - "project-rules §8.2 跨域 Mapper 边界表述更新为能力口径"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-13
 ---
 
 ## 背景
 
-两域融合定案已确认（decision-registry 2026-09-13 行），目标设计 capability-structure 为 draft。机械迁移前必须补齐逐类归属清单与边界断言设计，否则搬包无据、边界测试无对象。
+两域融合定案已确认（decision-registry 2026-09-13 行），目标设计 capability-structure 立项时为 draft（本任务定稿后转 adopted）。机械迁移前必须补齐逐类归属清单与边界断言设计，否则搬包无据、边界测试无对象。
 
 ## 范围
 
@@ -44,9 +44,21 @@ last_updated: 2026-09-13
 
 ## 验收对照
 
-见 frontmatter acceptance；全部满足方可 done。
+见 frontmatter acceptance；全部满足（逐条对照见完成记录）。
 
 ## 非目标 / 遗留
 
 - 不改任何生产代码；不执行搬包（T-ACCESS-033）。
 - URL 风格统一（docs/pending-problems.md Q-001）、USER:MANAGE 语义细节等由后续任务承接。
+- 存量跨能力 mapper 直读收敛（冻结白名单 24 处的消化）登记 docs/pending-problems.md Q-009，不在融合计划内。
+
+## 完成记录
+
+2026-09-13 收口，纯设计文档任务（零生产代码改动）：
+
+- **capability-structure §8 定稿**（§8.0 裁决汇总 + §8.1 终态 17 顶层包总览 + §8.2 逐包归属映射表 + §8.3 同名类清单裁决 + §8.4 五测试断言重建设计 + §8.5 实施顺序），全文转 `adopted`；§2.3/§2.4/§2.5 同步（projection/bootstrap 顶层包声明、QueryService 改名定案）。
+- **十项裁决用户拍板**（八项归属 + 双轨评审追加两项），登记 decision-registry 2026-09-13 T-ACCESS-032 行：①perm 轨用户 DTO 三组改名 AbstractUser*；②operation_permission→type；③service_config→resource；④任务治理设施→infrastructure.task；⑤QueryService 三对改名 XxxQueryAppService；⑥bootstrap 独立顶层包；⑦门禁门面+操作码册→engine；⑧LocalProjectionDomainService+PermConstants→projection 顶层包；⑨存量跨能力 mapper 直读 18 类 24 处冻结白名单（Q-009）；⑩僵尸 DTO 扩面删除（BatchResultResp、OperationDetailReq、PermissionCheckReq 三件）。
+- **access-service-architecture 回写**：§1.2/§11 演进方向启用注记、§3 重写为能力包口径（17 顶层包 + 边界规则 + 过渡注记「033 完成前代码维持旧包结构」）、§9 错误码合类不合号衔接说明、§11 Q-001 指针行、§10 门禁句历史注记；frontmatter last_reviewed 更新。
+- **project-rules §8.2 回写**：④ 条指针化 + 新增「能力包 Mapper 边界」条目（断言面=mapper 包、实体 import 不禁、豁免面与冻结白名单指针）。
+- **双轨评审（2026-09-13）全处置**：代码轨 P1-1 断言与迁移产出不兼容→裁决⑨冻结白名单；P1-2 13 类漏网+2 接口无行→全量补行；P2-1 sys_task_execution 表漏登→补；P2-2 SyncMetadata 直读措辞→如实登记；P3 四项（实体口径/计数/XML 措辞/文风）→全修。文档轨 P2×2（看板与计划 draft 残留）+P3×5（17 包列举缺口/标题统一/历史注记/去计数化）→全修。处置明细见 registry 同日行。
+- 索引同步：design/README、plans/README、docs/README（状态与列举）、看板行、fusion 计划正文与进度。

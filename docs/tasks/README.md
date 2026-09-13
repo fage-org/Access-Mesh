@@ -62,12 +62,12 @@
 
 ### access-service 能力包融合（2026-09-13 立项）
 
-> [access-capability-fusion-plan](../plans/access-capability-fusion-plan.md)；目标设计 [capability-structure](../design/access-service-capability-structure.md)（draft，T-ACCESS-032 转 adopted）；定案见 decision-registry 2026-09-13 行。
+> [access-capability-fusion-plan](../plans/access-capability-fusion-plan.md)；目标设计 [capability-structure](../design/access-service-capability-structure.md)（**adopted**，2026-09-13 T-ACCESS-032 §8 定稿、十项裁决登记 decision-registry 同日行；033 迁移完成前代码维持旧包结构）；定案见 decision-registry 2026-09-13 两行。
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-ACCESS-032](T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | [capability-fusion](../plans/access-capability-fusion-plan.md) | capability-structure（产出 §8 并转 adopted）；access-service-architecture §1.2/§3/§9/§11；project-rules §8.2 | — | ⚙️ | ⏳ |
-| [T-ACCESS-033](T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 边界测试重建 | capability-fusion | capability-structure §2/§8；access-service-architecture §3 | T-ACCESS-032 | ⚙️ | ⏳ |
+| [T-ACCESS-032](T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | [capability-fusion](../plans/access-capability-fusion-plan.md) | capability-structure（产出 §8 并转 adopted）；access-service-architecture §1.2/§3/§9/§11；project-rules §8.2 | — | ✅ | ✓ |
+| [T-ACCESS-033](T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建 | capability-fusion | capability-structure §2/§8；access-service-architecture §3 | T-ACCESS-032 | ⚙️ | ⏳ |
 | [T-ACCESS-034](T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | capability-fusion | capability-structure §5.1；api-contract §5.3；schema；admin-service-api-contract | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
 | [T-ACCESS-035](T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | capability-fusion | capability-structure §5.2；schema | T-ACCESS-033 | ⚙️ | ⏳ |
 | [T-ACCESS-036](T-ACCESS-036.md) | resource_entity.sort_order 退役 | capability-fusion | capability-structure §5.2；api-contract；schema；perm-common | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
