@@ -348,7 +348,15 @@ public enum PermissionErrorCode {
      * 清单，截断上限 20），管理员先解绑再立规；立规后系统内无违规持有，运行时双删不再是
      * 常态兜底。PERM_MUTEX 分支与 remove 不适用。
      */
-    ROLE_MUTEX_EXISTING_HOLDERS(20063, "存在同时持有互斥角色对的用户，不可创建/更新该规则（请先解绑，用户清单见 message）");
+    ROLE_MUTEX_EXISTING_HOLDERS(20063, "存在同时持有互斥角色对的用户，不可创建/更新该规则（请先解绑，用户清单见 message）"),
+
+    /**
+     * 系统内置配置不可经保存入口覆盖（T-ACCESS-037 外评存量观察修正，2026-09-13 用户拍板）：
+     * system-config/save 的 update 分支命中 is_system=true 种子行拒绝——契约「系统内置仅走种子」
+     * 的运行时强制（原 admin /config 侧 CONFIG_SYSTEM_IMMUTABLE(10702) 随僵尸端点退役，perm 侧
+     * 自落地起无守卫；本码不复用 10702 退役码值）。
+     */
+    CONFIG_KEY_SYSTEM_IMMUTABLE(20064, "系统内置配置不可修改（仅经种子维护，租户自定义键请换新键）");
 
     private final int code;
     private final String message;

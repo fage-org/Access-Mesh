@@ -67,6 +67,29 @@ class SystemConfigAppServiceImplTest {
         }
     }
 
+    @Test
+    void shouldRejectUpsertWhenExistingConfigIsSystem() {
+        // 回归锁：系统内置配置（is_system=true 种子行）不可经 save 覆盖——契约 §17.2
+        // 「系统内置仅走种子」的运行时强制（20064，T-ACCESS-037 外评存量观察修正，
+        // 2026-09-13 用户拍板；旧实现 update 分支无守卫，本用例在旧实现下失败）
+        try (MockedStatic<OperatorContext> ctx = mockStatic(OperatorContext.class)) {
+            ctx.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), eq((String) null), any()))
+                .thenReturn(true);
+            SystemConfig seed = new SystemConfig();
+            seed.setConfigKey("admin.seed-key");
+            seed.setIsSystem(true);
+            when(systemConfigMapper.selectByConfigKey(1L, "admin.seed-key")).thenReturn(seed);
+
+            BizException ex = assertThrows(BizException.class,
+                () -> service.upsertSystemConfig(1L, new SystemConfigReq("admin.seed-key", "{\"k\":1}", "desc")));
+
+            assertEquals(PermissionErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getCode(), ex.getErrorCode());
+            // 拒绝必须发生在写之前（fail-closed）：种子值/描述零改动
+            verify(systemConfigMapper, never()).update(any());
+        }
+    }
+
     // ---- T-ACCESS-007 §5.2 命名空间前缀校验 ----
 
     @Test

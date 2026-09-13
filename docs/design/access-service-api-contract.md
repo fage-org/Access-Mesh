@@ -1871,7 +1871,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `POST /api/perm/system-config/detail`                  | 查询系统配置详情                                       |
 | `POST /api/perm/system-config/save`                    | 保存系统配置                                           |
 
-> **system-config 错误码**：`system-config/save`（upsert）在权限校验后、触达数据前 fail-closed 校验配置键命名空间前缀（`admin.`/`permission.`/`access.`），非法键返回 **20047 `CONFIG_KEY_NAMESPACE_INVALID`**（配置键只能使用 admin./permission./access. 命名空间前缀，T-ACCESS-007）。
+> **system-config 错误码**：`system-config/save`（upsert）在权限校验后、触达数据前 fail-closed 校验配置键命名空间前缀（`admin.`/`permission.`/`access.`），非法键返回 **20047 `CONFIG_KEY_NAMESPACE_INVALID`**（配置键只能使用 admin./permission./access. 命名空间前缀，T-ACCESS-007）。update 分支命中已有系统内置行（`is_system=true` 种子行）返回 **20064 `CONFIG_KEY_SYSTEM_IMMUTABLE`**——「系统内置仅走种子」的运行时强制（T-ACCESS-037 外评存量观察修正，2026-09-13；原 admin `/config` 侧 10702 校验随僵尸端点退役，本码不复用其码值）。
 
 > **单入口口径（T-ACCESS-037，2026-09-13）**：本族为 system_config 唯一管理入口——原 admin `/config` 双入口（同表 ConfigController，UPDATE/DELETE 实例级门禁）已整链退役（见 §17.3 注记），无迁移端点、无兼容层。
 

@@ -64,6 +64,8 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
      * @param req      配置请求，包含配置键、配置值（JSON）、描述
      * @return 配置响应
      * @throws SecurityException 无权限时抛出
+     * @throws BizException 配置键命名空间非法（20047）/configValue 非法 JSON/
+     *                      命中系统内置配置（is_system=true，20064）时抛出
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -80,6 +82,12 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
         SystemConfig existing = systemConfigMapper.selectByConfigKey(tenantId, req.configKey());
 
         if (existing != null) {
+            // 系统内置配置仅走种子，保存入口不可覆盖（契约 §17.2「系统内置仅走种子」的运行时强制，
+            // 20064；admin /config 侧 10702 校验随 T-ACCESS-037 僵尸端点退役后此处为唯一强制点）
+            if (Boolean.TRUE.equals(existing.getIsSystem())) {
+                throw new BizException(PermissionErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getCode(),
+                    PermissionErrorCode.CONFIG_KEY_SYSTEM_IMMUTABLE.getMessage());
+            }
             existing.setConfigValue(req.configValue());
             existing.setDescription(req.description());
             existing.setUpdatedAt(LocalDateTime.now());
