@@ -23,7 +23,7 @@ last_updated: 2026-09-13
 
 # access-service 能力包融合
 
-> 状态：proposed
+> 状态：active
 > 来源：2026-09-13 用户逐项拍板（定案与多轮外评处置记录见 decision-registry 同日行）；目标设计 [capability-structure.md](../design/access-service-capability-structure.md)（**adopted**——T-ACCESS-032 已完成 §8 归属清单与边界断言定稿，十项裁决登记 registry 同日行）
 
 ## 目标

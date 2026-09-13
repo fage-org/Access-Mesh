@@ -67,12 +67,12 @@ cn.ac.fage.accessmesh.access
 └── infrastructure # 底座（请求上下文/拦截器/TypeHandler/任务租约/横切 AOP/共享 DTO/错误码册）
 ```
 
-每个能力包内含 Controller → AppService → DomainService → Mapper 全链；逐类归属映射与八项结构裁决见 capability-structure §8。
+每个能力包内含 Controller → AppService → DomainService → Mapper 全链；逐类归属映射与十项裁决见 capability-structure §8。
 
 边界规则（能力口径）：
 
 - `application` 包解散：写编排随主实体归位各能力包 AppService；原跨域组合查询按主实体归位（UserMenuQuery→menu、UserRoleQuery→role、OrgVisibilityQuery→org，改名 `XxxQueryAppService`）。
-- **能力包之间不互读 Mapper**（数据边界断言面=mapper 包；`QueryBoundaryArchitectureTest` 以能力为对象重建，豁免面=engine 输入面装载、projection 投影写路径、sync 记账、bootstrap 种子写入器、存量 18 类 24 处冻结白名单「不得新增」，逐条声明见 capability-structure §8.4）。
+- **能力包之间不互读 Mapper**（数据边界断言面=mapper 包；`QueryBoundaryArchitectureTest` 以能力为对象重建，豁免面=engine 输入面装载、projection 投影写路径、sync 记账、bootstrap 种子写入器、存量 19 类 30 边冻结白名单「不得新增」，逐条声明见 capability-structure §8.4）。
 - AppService/DomainService 同层横向跨能力调用允许（2026-08-22 放开口径延续；仅限同层、禁循环依赖、复用优先于重实现，project-rules §8.2）。
 - 引擎核心（`engine.core`：PermQueryEngine/类型解析/主体装载/批量评估器）不依赖任何能力包；`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（query-resources 域分类过滤→`DomainClassifyService`、互斥检测→`PermissionConflictDomainService`）。能力包 → engine（门禁查码/校验）为既有依赖方向。
 - QueryMapper 归位各能力包（XML 随迁 `resources/mapper/{org,menu,role}/`）；只读前缀、显式租户条件、禁写 SQL 契约不变（`QueryMapperXmlContractTest`）。
@@ -86,7 +86,7 @@ cn.ac.fage.accessmesh.access
   - `UserRoleQueryService`：`/role/list` 功能角色列表、`/user-role/list` 角色列表（POSITION 补所属组织名）。
   - `OrgVisibilityQueryService`：组织可见性过滤（含 ORG_VISIBILITY 缓存，租户级失效由 PermissionChangeAspect 统一执行）。
 - 专用 QueryMapper（`query/mapper`，XML 在 `resources/mapper/query/`）：只 SELECT、显式 `tenant_id` 条件、返回 `query/projection` 包 Projection record，不暴露或修改领域实体；权限判定一律经 `PermQueryEngine`/`TypeResolutionService`，不直查权限表判定。
-- 数据访问白名单（架构测试固化，能力口径见 capability-structure §8.4）：能力包互不使用对方 Mapper/实体；QueryMapper 归位各能力包后只读前缀契约不变；组合查询的跨能力表读取经 QueryMapper XML 直读（非 Java 类依赖）；引擎输入面装载、projection 投影写路径、sync 记账封装、bootstrap 种子写入器为显式豁免。（Service 层横向依赖不限白名单，2026-08-22 同层调用全局放开。）
+- 数据访问白名单（架构测试固化，能力口径见 capability-structure §8.4）：能力包互不使用对方 **Mapper**（实体 import 不禁，断言面=mapper 包）；QueryMapper 归位各能力包后只读前缀契约不变；组合查询的跨能力表读取经 QueryMapper XML 直读（非 Java 类依赖）；引擎输入面装载、projection 投影写路径、sync 记账封装、bootstrap 种子写入器为显式豁免。（Service 层横向依赖不限白名单，2026-08-22 同层调用全局放开。）
 
 菜单可见性判定（v3.5 §4.1 派生公式）：
 
