@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 032 |
+| access-service 归并（跨服务） | `T-ACCESS` | 042 |
 | permission-center | `T-PERM` | 066 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 009 |
@@ -59,6 +59,23 @@
 | [T-ACCESS-029](T-ACCESS-029.md) | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | [design-audit-followup](../plans/design-audit-followup-plan.md) | access-service-architecture §14.2 | — | ✅ | ✓ |
 | [T-ACCESS-030](../archive/2026-09-12/tasks/T-ACCESS-030.md) | 容器测试轨道提速——单例容器 + 按类建库 + 复用 + fork 级并行 | —（2026-09-06 用户决策提速定案） | docs/archive/2026-09-12/tasks/T-ACCESS-030.md 设计口径（工程改进，无设计文档回写） | — | ✅ | ✓ |
 | [T-ACCESS-031](../archive/2026-09-12/tasks/T-ACCESS-031.md) | E2E 独立模块分轨——gateway 解除 test 依赖 + skipE2E 日常口径 + -T 模块并行恢复 | —（2026-09-06 用户决策 B+结构性拆分） | docs/archive/2026-09-12/tasks/T-ACCESS-031.md 设计口径；gateway.md §测试域、access-service-architecture §14.8（E2E 落位回写） | — | ✅ | ✓ |
+
+### access-service 能力包融合（2026-09-13 立项）
+
+> [access-capability-fusion-plan](../plans/access-capability-fusion-plan.md)；目标设计 [capability-structure](../design/access-service-capability-structure.md)（draft，T-ACCESS-032 转 adopted）；定案见 decision-registry 2026-09-13 行。
+
+| ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
+|---|---|---|---|---|---|---|
+| [T-ACCESS-032](T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | [capability-fusion](../plans/access-capability-fusion-plan.md) | capability-structure（产出 §8 并转 adopted）；access-service-architecture §1.2/§3/§9/§11；project-rules §8.2 | — | ⚙️ | ⏳ |
+| [T-ACCESS-033](T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 边界测试重建 | capability-fusion | capability-structure §2/§8；access-service-architecture §3 | T-ACCESS-032 | ⚙️ | ⏳ |
+| [T-ACCESS-034](T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | capability-fusion | capability-structure §5.1；api-contract §5.3；schema；admin-service-api-contract | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
+| [T-ACCESS-035](T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | capability-fusion | capability-structure §5.2；schema | T-ACCESS-033 | ⚙️ | ⏳ |
+| [T-ACCESS-036](T-ACCESS-036.md) | resource_entity.sort_order 退役 | capability-fusion | capability-structure §5.2；api-contract；schema；perm-common | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
+| [T-ACCESS-037](T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | capability-fusion | capability-structure §5.3；admin-service-api-contract；api-contract §5.8 | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
+| [T-ACCESS-038](T-ACCESS-038.md) | 错误码合类不合号 | capability-fusion | capability-structure §3；access-service-architecture §9 | T-ACCESS-033 | ⚙️ | ⏳ |
+| [T-ACCESS-039](T-ACCESS-039.md) | 缓存目录合一 | capability-fusion | capability-structure §3；dual-layer-cache-framework skill（双副本） | T-ACCESS-033, T-ACCESS-034 | ⚙️ | ⏳ |
+| [T-ACCESS-040](T-ACCESS-040.md) | API 契约深合一与设计文档重组 | capability-fusion | capability-structure §7；api-contract；admin-service-api-contract（合并源） | T-ACCESS-033 | ⚙️ | ⏳ |
+| [T-ACCESS-041](T-ACCESS-041.md) | 规则与技能文件重写（能力 + 引擎口径） | capability-fusion | capability-structure §7；project-rules | T-ACCESS-033, T-ACCESS-034~039, T-ACCESS-040 | ⚙️ | ⏳ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 全收口（计划已归档 2026-09-12）+ 前端 Phase 1/2/4 后端任务）
 
@@ -250,6 +267,10 @@ _当前活跃 T-ADMIN 任务：`T-ADMIN-020`（见下表）。`T-ADMIN-001~019`�
 2. 后端门禁解除：重基线后的 T-PERM/T-ADMIN 任务按各自 `depends_on` 推进（T-PERM-022~041、T-ADMIN-020/021）。
 3. 前端真接口联调（T-FE-015~022）后端依赖已就绪（T-PERM-037 收口 2026-08-31，逐页后端 T-PERM-022~034/037/040/041 全部完成；T-FE-015/016 已收口 2026-08-31/09-01——menus 后端派生接线/默认树/固定图扩容落地，后续各页联调按 T-FE-015 模式扩 Gateway 端点清单；暂缓项 T-PERM-035/036 另行定夺；T-ADMIN-021 已收口 2026-09-03，T-FE-037 二期依赖全部就绪）；纯 mock/UI 任务不受影响。
 4. access-post-merge 准入前置已由 T-ACCESS-017 最小 CI 落地关闭（GitHub Actions 两 job 以退出状态判定成功；原登记 40 项与 68 项实测均为历史口径，不维护计数同步）。
+
+### access-service 能力包融合（2026-09-13 立项）
+
+执行顺序以 [access-capability-fusion-plan](../plans/access-capability-fusion-plan.md) 的「建议执行顺序」节为唯一权威（032 设计定稿 → 033 机械迁移 → 040 契约先行 → 收敛项并行 → 041 收尾）；依赖关系以各任务卡 frontmatter `depends_on` 为准。
 
 ### P0 — 验收闭环（✅ 已完成 2026-06-20）
 

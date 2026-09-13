@@ -9,6 +9,7 @@
 | 项目工程规范          | [project-rules.md](project-rules.md)                                                   |
 | 微服务整体架构        | [architecture.md](architecture.md)                                                     |
 | access-service 目标架构与归并约束 | [access-service-architecture.md](access-service-architecture.md)（`status: adopted`；归并拓扑、事务、数据、缓存和安全冲突时优先） |
+| access-service 能力包融合目标结构 | [access-service-capability-structure.md](access-service-capability-structure.md)（`status: draft`；2026-09-13 融合定案载体，T-ACCESS-032 细化归属清单后转 adopted；转 adopted 前现行结构以 access-service-architecture.md 为准） |
 | 权限中心概念模型      | [permission-center/overview.md](permission-center/overview.md)                         |
 | 权限中心外部 API 契约 | [permission-center/api-contract.md](permission-center/api-contract.md)                 |
 | 权限中心核心调用链路  | [permission-center/core-flows.md](permission-center/core-flows.md)                     |
