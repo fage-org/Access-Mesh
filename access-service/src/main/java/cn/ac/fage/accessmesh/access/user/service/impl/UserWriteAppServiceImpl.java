@@ -180,6 +180,13 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         if (!req.id().equals(currentUserId)) {
             permissionValidator.checkInstanceLevel(
                 ResourceTypeCode.USER, String.valueOf(req.id()), OperationCode.UPDATE);
+            // T-ACCESS-034 外评处置（claude/grok 双通道收敛，用户拍板本批补齐）：status 写入按
+            // 启停分权补查 USER:ENABLE——对齐 perm 轨字段分档与 /user/enable 门禁，防仅持
+            // UPDATE 旁路启停（停用清空目标有效角色 / 复活被停用账号）
+            if (req.status() != null) {
+                permissionValidator.checkInstanceLevel(
+                    ResourceTypeCode.USER, String.valueOf(req.id()), OperationCode.ENABLE);
+            }
         }
         Long tenantId = TenantContextHolder.getTenantId();
         SysUser user = userDomainService.selectValidById(tenantId, req.id());

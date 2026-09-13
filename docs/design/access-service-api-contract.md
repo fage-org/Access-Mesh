@@ -198,7 +198,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `ResourceTypeCode.ORG` | `ORG` | 被管理的组织/岗位实例 (resource_entity, code=sys_org.id；原 ADMIN_ORG 并入) |
 | `ResourceTypeCode.ROLE` | `ROLE` | (本契约只读: 仅 /role/list 用；原 ADMIN_ROLE 并入) |
 
-操作码常量（`OperationCode`，`engine.constant` 单一常量源，T-ACCESS-034 合一——原 `AdminOperationCode` 与 `OperationCodeConstants` 两册已删除；按资源类型分节，共享码按值命名）：`CREATE / VIEW / UPDATE / DELETE / MANAGE / SYNC`（跨类型共享）+ `ENABLE / RESET_PASSWORD`（USER）+ `ASSIGN / REVOKE`（ROLE）+ `ACCESS`（API）+ `MANAGE_API_MAPPING / SYNC_INTERFACE`（SERVICE）+ ORG 六码（`MANAGE_MEMBER / CREATE_POSITION / VIEW_POSITION / UPDATE_POSITION / DELETE_POSITION / ASSIGN_POSITION_USER`）+ 平台三码（`PUBLISH / TRIGGER / TOGGLE`）。统一常量面 = 注册表镜像：DDL 种子在册即收录（含零代码引用的 ROLE:ASSIGN/REVOKE，取代 T-PERM-019 D3 只镜像代码引用面口径）。历史注：DISABLE 已并入 ENABLE（v1.4）、ADMIN_ROLE:GRANT/REVOKE 已删除（T-ACCESS-018）。
+操作码常量（`OperationCode`，`engine.constant` 单一常量源，T-ACCESS-034 合一——原 `AdminOperationCode` 与 `OperationCodeConstants` 两册已删除；按资源类型分节，共享码按值命名）：`CREATE / VIEW / UPDATE / DELETE / MANAGE / SYNC / ENABLE`（跨类型共享；ENABLE 为 USER 启停与 ADMIN_JOB 任务启停共用值面）+ `RESET_PASSWORD`（USER）+ `ASSIGN / REVOKE`（ROLE）+ `ACCESS`（API）+ `MANAGE_API_MAPPING / SYNC_INTERFACE`（SERVICE）+ ORG 六码（`MANAGE_MEMBER / CREATE_POSITION / VIEW_POSITION / UPDATE_POSITION / DELETE_POSITION / ASSIGN_POSITION_USER`）+ 平台三码（`PUBLISH / TRIGGER / TOGGLE`）。统一常量面 = 注册表镜像：DDL 种子在册即收录（含零代码引用的 ROLE:ASSIGN/REVOKE，取代 T-PERM-019 D3 只镜像代码引用面口径）。历史注：DISABLE 已并入 ENABLE（v1.4）、ADMIN_ROLE:GRANT/REVOKE 已删除（T-ACCESS-018）。
 
 本契约接口的门禁映射表:
 
@@ -492,7 +492,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **响应**: `R<Void>`
 
-**门禁**: `USER:UPDATE@id` (实例级). 自我修改业务豁免在 AppService 调用门禁前判断 (operatorId == id 时跳过门禁).
+**门禁**: `USER:UPDATE@id` (实例级)；`status` 变更另需 `USER:ENABLE@id`（启停分权——T-ACCESS-034 外评处置补齐，对齐 perm 轨 §7.8 字段分档与 `/user/enable` 门禁，防仅持 UPDATE 旁路启停）. 自我修改业务豁免在 AppService 调用门禁前判断 (operatorId == id 时跳过门禁).
 
 **投影动作**: 同事务 `upsertAdminUser`（名称/状态变化一并投影）。
 

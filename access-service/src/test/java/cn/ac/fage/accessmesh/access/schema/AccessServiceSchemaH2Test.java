@@ -326,7 +326,7 @@ class AccessServiceSchemaH2Test {
     @Test
     @DisplayName("每个静态 resource_type 均预置 CRUD 四操作（CREATE/VIEW/UPDATE/DELETE）")
     void shouldHaveCrudOperationsForEveryStaticResourceType() throws SQLException {
-        // 24 个静态 resource_type 全部有 CRUD 四操作（冗余 VIEW 已合并消除，每个类型恰好 4 条）
+        // 25 个静态 resource_type 全部有 CRUD 四操作（冗余 VIEW 已合并消除，每个类型恰好 4 条）
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
                  "SELECT td.type_code, COUNT(*) FROM type_definition td " +

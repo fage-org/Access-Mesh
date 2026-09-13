@@ -6,7 +6,8 @@ package cn.ac.fage.accessmesh.access.engine.constant;
  * 原 {@code AdminOperationCode} 与 {@code OperationCodeConstants} 是同一物理注册表
  * {@code operation_permission} 的两个局部视图（admin 门禁轨 / permission 引擎轨），
  * 已随能力包融合合一为本类并删除（capability-structure §5.1 / 裁决 7）。按资源类型分节；
- * 共享码（CREATE/VIEW/UPDATE/DELETE/MANAGE/SYNC）多类型共用，按值命名。
+ * 共享码（CREATE/VIEW/UPDATE/DELETE/MANAGE/SYNC/ENABLE——ENABLE 为 USER 启停与
+ * ADMIN_JOB 任务启停共用值面）多类型共用，按值命名。
  * 替代早期 OperationType 枚举，采用字符串形式简化权限判定；操作码存储在
  * {@code operation_permission} 表（schema 见 docs/design/schema/access-service.sql）。
  * </p>
@@ -89,17 +90,19 @@ public final class OperationCode {
      */
     public static final String SYNC = "SYNC";
 
-    // ===== USER（启停 + 重置密码；update/remove 门禁用通用 UPDATE/DELETE，T-ACCESS-034 细粒度化） =====
-
     /**
-     * 启用/禁用状态切换（toggle）。
+     * 启用/禁用状态切换（toggle，共享码：USER 用户启停 + ADMIN_JOB 任务启停）。
      * <p>
      * 启用与禁用共用同一操作码：UI 上是同一个 toggle 控件，业务上无独立配权必要。
      * 调用方按目标状态设置实体字段，但权限校验只用 ENABLE 一个码。
      * 历史上的 DISABLE 已合并入此码（v1.4）。
+     * USER 轨为细粒度门禁位（perm 轨 updateUser enabled≠null、admin 轨 /user/enable——
+     * T-ACCESS-034 字段分档，防 UPDATE 绕过启停分权）。
      * </p>
      */
     public static final String ENABLE = "ENABLE";
+
+    // ===== USER（重置密码；update/remove/启停门禁用通用 UPDATE/DELETE/ENABLE，T-ACCESS-034 细粒度化） =====
 
     /**
      * 重置密码操作

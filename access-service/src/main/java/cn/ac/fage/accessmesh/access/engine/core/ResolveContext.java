@@ -18,7 +18,7 @@ import java.util.Set;
  * <pre>{@code
  * ResolveContext ctx = new ResolveContext(tenantId, typeResolutionService);
  * ctx.prepareResourceTypes(Set.of("USER", "ROLE", "RESOURCE"));
- * ctx.prepareOperations("USER", Set.of("VIEW", "MANAGE"));
+ * ctx.prepareOperations("ROLE", Set.of("VIEW", "MANAGE"));
  *
  * Integer userTypeValue = ctx.getResourceTypeValue("USER");
  * Long viewOpId = ctx.getOperationId("USER", "VIEW");

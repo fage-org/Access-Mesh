@@ -312,7 +312,7 @@ public final class BootstrapGraphDefinition {
 
     /**
      * Gateway 层实例级 API:ACCESS 授权（由管理 API 清单派生）。
-     * ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子，OperationCode.API 段常量）。
+     * ACCESS 为网关接口鉴权专用操作码（api-contract/DDL 运行时种子，OperationCode 的 API 段常量）。
      */
     public static List<GrantSpec> apiAccessGrants() {
         return apiRoutes().stream()
