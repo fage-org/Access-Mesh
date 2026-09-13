@@ -1,15 +1,15 @@
 ---
 name: external-review
 description: >-
-  外部 AI 评审执行规范（claude / grok / codex 三通道；codex 默认 luna max、点名 sol xhigh 等；
-  800k 级上下文显式注入；全程禁止子代理；本机运行或用户贴回结论两种形态）。
+  外部 AI 评审执行规范（claude / grok / codex 三通道；codex 默认 luna max、点名 sol 封顶 xhigh 等；
+  两模型分档——luna 显式注入 872k 上下文、sol 用默认 272k；全程禁止子代理；本机运行或用户贴回结论两种形态）。
   TRIGGER when: 用户显式要求外部 AI 评审/复评（「用codex/claude/grok评审」「codex 复评」、逐字给出提示词、
   贴回外部 AI 结论要求「核实并修复」）；仅用户触发，收口流程不得自动串联。
 disable-model-invocation: true
 origin: project
 metadata:
   project: AccessMesh
-  version: "2.2.0"
+  version: "2.3.0"
 ---
 
 # 外部 AI 评审（claude / grok / codex；仅用户触发；全程禁止子代理）
@@ -45,14 +45,22 @@ metadata:
 codex exec -m gpt-5.6-luna -c 'model_reasoning_effort="max"' -c model_context_window=872000 --disable multi_agent -s read-only --color never - < prompt.md
 ```
 
-#### 模型与上下文（2026-09-08 定案：默认 luna max）
+#### 模型与上下文（2026-09-08 定案默认 luna max；2026-09-13 定规两模型分档）
 
 - 评审默认模型 **`gpt-5.6-luna` + reasoning effort `max`**（「luna max」= luna 模型挂 max 推理档；不存在名为 luna-max 的模型 ID）。一律**显式注入**、不依赖 `~/.codex/config.toml` 默认值。
 - **800k 级上下文的写法是 `872000`，不是 `800000`**（2026-09-08 三探针实证，证据为 rollout 会话文件 `model_context_window` 字段）：
   - luna@max 无覆盖：272k×95% = **258.4k**（此前桌面端 828.4k 会话是桌面端自行注入的窗口，CLI 不带覆盖拿不到）；
   - `-c model_context_window=800000`：800k×95% = **760k**——95% 有效窗口折扣同样作用于覆盖值，字面 800k 反而不达标；
   - `-c model_context_window=872000`（= models_cache 中 luna 的 `max_context_window`）：**828.4k** ✅。
-- **点名形态**（2026-09-11 起）：模型与推理档由用户逐轮点名（如「codex sol xhigh 评审」= `gpt-5.6-sol` + effort `xhigh`，写法 `-m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"' -c model_context_window=872000`）。点名模型探针：`codex models` 无 tty 直接报错（`Error: stdin is not a terminal`），改读 `~/.codex/models_cache.json`——gpt-5.6-sol 的 `max_context_window` 同为 872000，覆盖写法与 luna 一致。
+- **两模型参数分档（2026-09-13 用户定规）**：luna 与 sol 能力不同，推理档与上下文注入按模型区分，勿套同一写法：
+
+  | 模型 | reasoning effort | 上下文注入 |
+  | ---- | ---------------- | ---------- |
+  | luna（`gpt-5.6-luna`） | `max` | `-c model_context_window=872000`（800k 级写法） |
+  | sol（`gpt-5.6-sol`） | **封顶 `xhigh`**，不越档 | **不注入**，按模型默认 272k（×95% ≈ 258.4k 有效） |
+
+  - sol 点名写法：`-m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'`（**不带** `-c model_context_window`）。models_cache 虽列出 sol 的 max/ultra 档位，但按用户定规封顶 xhigh；2026-09-13 缓存实证 sol `max_context_window=272000`——2026-09-11 曾探得 872000 系模型能力漂移，点名时先读 `~/.codex/models_cache.json` 核对当前值再定参数。
+  - 点名模型探针：`codex models` 无 tty 直接报错（`Error: stdin is not a terminal`），改读 `~/.codex/models_cache.json`。
 - 启动后核对 banner `model:` / `reasoning effort:` 行与点名一致，不符即停；启动时 `failed to refresh available models: timeout` ERROR 行为良性噪声，不阻断。
 
 #### 运行前检查
@@ -69,7 +77,7 @@ codex exec -m gpt-5.6-luna -c 'model_reasoning_effort="max"' -c model_context_wi
 | 要 codex 实跑测试        | `-s workspace-write` + 提示词约束逻辑只读（禁改任何 git 跟踪文件、结束 git status 须与开始一致）；测试长命令在主上下文跑（子代理禁令），大输出优先本机自跑后引用落盘报告                    |
 
 - 跑完必须实核 `git status` 干净。
-- **额度中断 → resume 续跑不从头**（用户定规省额度）：`codex exec resume <session-id> "继续…"`；resume 子命令不认 `--color`/`-s`（feature 开关 `--disable` 与 `-c` 均可用）——模型用 `-m`、沙箱用 `-c sandbox_mode="workspace-write"`、上下文用 `-c model_context_window=872000`、子代理禁令用 `--disable multi_agent` 或 `-c features.multi_agent=false`，`-o <file>` 可把最终报告单独落盘。**先报告中断并等用户定续跑时刻**（codex 报的重试窗口未必等于实际额度重置点）；续跑前先最小探针确认额度已重置（一句话探针数秒返回服务端判定，口头「应该重置了」不作数）；session-id 在日志头 `session id:` 行。
+- **额度中断 → resume 续跑不从头**（用户定规省额度）：`codex exec resume <session-id> "继续…"`；resume 子命令不认 `--color`/`-s`（feature 开关 `--disable` 与 `-c` 均可用）——模型用 `-m`、沙箱用 `-c sandbox_mode="workspace-write"`、上下文按模型分档（luna 用 `-c model_context_window=872000`、sol 不注入，见「模型与上下文」）、子代理禁令用 `--disable multi_agent` 或 `-c features.multi_agent=false`，`-o <file>` 可把最终报告单独落盘。**先报告中断并等用户定续跑时刻**（codex 报的重试窗口未必等于实际额度重置点）；续跑前先最小探针确认额度已重置（一句话探针数秒返回服务端判定，口头「应该重置了」不作数）；session-id 在日志头 `session id:` 行。
 - 沙箱环境限制要澄清勿误采信：workspace-write 无 Docker（Testcontainers 全 skip）、esbuild spawn EPERM（vitest/build 起不来）——「无法复验」≠声明造假，以本机实跑记录为准、本地补跑定向测试。
 
 ### claude
