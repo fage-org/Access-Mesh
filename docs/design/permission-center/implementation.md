@@ -986,7 +986,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 - **放置依据**：落 perm-common 而非 access-service 自身 util，依据 §3 单一来源先例（PageResp/ItemsResp 同款）——SDK 侧（starter 测试夹具、未来投影数据）需与 access-service 同格式构造 relationKey 等键；任务卡 acceptance 明写「收敛到 perm-common」。
 - **TYPE_DEFINITION 实例投影（T-PERM-051 已落地 2026-09-07）**：`typeInstanceBusinessKey(typeKey, typeCode)` 复合键是实例投影与门禁的唯一构造入口（`LocalProjectionDomainService.upsertTypeDefinitionResource`/`TypeDefinitionAppServiceImpl` 全部消费方经此构造，不得裸拼）；语义与级联细节见 architecture §12.3。
 
-### 8.2 大小写口径（登记待统一）
+### 8.2 大小写口径（登记待统一，docs/pending-problems.md Q-003）
 
 `operationCodeKey` 族**不做大小写归一**（2026-09-07 用户定案：保持各点现状语义，后续另行统一）。现状不一致事实：授权域（PermissionGrantDomainServiceImpl 及 Plan 域）先 `toUpperCase()` 再拼键——`applyGrantPlan` 传小写 `view` 可匹配 DB `VIEW` 授权成功；查询/解析域（TypeResolutionService、ResolveContext、PermissionQuery）裸拼——同一份小写 `view` 走 check/dependency 链路解析不到、按 20005 fail-closed 拒绝。当前无实际影响的原因：唯一活跃调用方为管理前端（全发大写常量），且 `operationCode` 入参仅 `@NotBlank` 无大写 `@Pattern` 锁。统一时的方向选择（raw 严格化 / 归一宽松化 + DTO Pattern 前置拒绝）属行为变更，需单独立项。
 

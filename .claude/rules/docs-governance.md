@@ -5,7 +5,7 @@
 
 详见 `docs/design/project-rules.md` 末尾「文档治理」章节：
 
-- 分层职责（API 契约/任务卡为唯一详细来源；phase plan/README 只留标题/状态/依赖/链接）
+- 分层职责（API 契约/任务卡为唯一详细来源；phase plan/README 只留标题/状态/依赖/链接；待解决问题登记走 `docs/pending-problems.md` 前置队列，不复制定案正文）
 - 写入口通用清单（事务/操作日志/@PermissionChange/审计记录/mark\*）
 - 定稿前关键词扫描
 - 测试适用性覆盖（禁止笛卡尔积）

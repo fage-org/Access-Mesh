@@ -1209,6 +1209,7 @@ Closes #123
 | `implementation.md`/`core-flows.md` | 实现设计/核心流程（引用 api-contract，不重复字段定义） | 重复字段表 |
 | `phase*-plan.md`/`tasks/README.md` | 任务清单（标题/状态/直接依赖/链接）+ 计数器 + 依赖图 | 复制"七项/八项/第几轮/完整字段清单/🔧 详细范围" |
 | `decision-registry.md` | 定案登记（日期+一句话口径+出处锚点+评审处置；会话内定案无仓库正文时口径写全） | 复制定案正文、讨论过程叙事 |
+| `pending-problems.md` | 待解决问题登记（现象/证据/影响/状态/关联任务；暂不足以立任务的问题唯一载体，可执行即转任务、收敛后压缩为索引行；机制见 `design-plan-task-lifecycle` skill §2.5） | 复制定案正文（定案走 decision-registry）、转出后维护方案细节（唯一详细来源是任务卡） |
 
 phase plan / README 任务行只保留：标题（简短）、状态、直接依赖、链接。详细范围写进任务卡，不复制到计划/索引。
 

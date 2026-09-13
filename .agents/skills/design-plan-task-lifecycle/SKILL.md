@@ -1,8 +1,9 @@
 ---
 name: design-plan-task-lifecycle
 description: >-
-  AccessMesh 设计文档 / 计划 / 任务三层解耦与生命周期管理。
+  AccessMesh 设计文档 / 计划 / 任务三层解耦与生命周期管理，含待解决问题前置队列（docs/pending-problems.md）。
   TRIGGER when: 讨论项目问题或设计方案时需要产出/更新文档；新建或推进计划；拆分/登记/验收任务；
+  登记或收敛待解决问题（发现但暂不足以立任务/计划的问题、任务卡「非目标/遗留」延期项、「记录问题后续单独改」类拍板）；
   设计变更后回写设计或重连任务依赖；任务/计划终态归档（含单卡归档、任务卡随计划迁移）；归档计划或设计；
   判定一段产出该落 design/plan/task 哪一层。
   NOT for: 权限查询实现细节（改看 permission-query-pipeline）、缓存实现细节（改看 dual-layer-cache-framework）、
@@ -10,7 +11,7 @@ description: >-
 origin: project
 metadata:
   project: AccessMesh
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # 设计 / 计划 / 任务 三层生命周期管理
@@ -21,7 +22,7 @@ metadata:
 2. **计划内嵌任务**——任务以表格行嵌在计划文件里（如 A-1~A-8、M1-M13），无独立状态/验收/进度，无法跨计划聚合，更新一处得编辑整个计划。
 3. **生命周期无锚点**——设计的"现有 vs 演进"无统一标记；任务完成后"回写设计"靠人记；任务间依赖不显式，设计变更时依赖无处重连。
 
-本技能定义三层解耦模型、frontmatter 契约、状态机、依赖与回写流程，以及一次性存量迁移 runbook。
+本技能定义三层解耦模型、frontmatter 契约、状态机、依赖与回写流程、待解决问题前置队列（`docs/pending-problems.md`，§2.5），以及一次性存量迁移 runbook。
 
 ---
 
@@ -54,6 +55,7 @@ docs/
 ├── plans/                     # 计划（编排层）
 │   ├── README.md              # 计划索引
 │   └── <plan>.md
+├── pending-problems.md        # 待解决问题清单（前置队列，见 §2.5）
 ├── tasks/                     # 任务（原子单元）
 │   ├── README.md              # 看板（任务总表，唯一权威任务清单）
 │   └── <T-领域-NNN>.md        # 仅复杂任务开独立文件
@@ -196,6 +198,48 @@ last_updated: 2026-06-20
 
 - 编号在每个领域内独立递增，由看板 `tasks/README.md` 顶部的计数器分配，分配后即冻结（任务 cancelled 后 ID 不回收）。
 
+### 2.5 待解决问题清单 Pending problems（前置队列）
+
+`docs/pending-problems.md`（单文件，docs 根）：登记**已确认存在、但暂不足以立任务/计划**的问题——方案未定、范围未明，或用户明示暂不解决。它是 task/plan 的前置队列：问题在此排队，可执行即转出，不在本文件长滞。
+
+frontmatter：
+
+```yaml
+---
+doc_type: problems
+title: 待解决问题清单
+counter: Q-002            # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-13
+---
+```
+
+**问题 ID**：`Q-NNN`，全局递增（不按领域分），由文件 frontmatter `counter` 分配，分配后冻结。
+
+条目模板（正文区只保留未收敛条目）：
+
+```markdown
+## Q-001 <标题>
+
+- **状态**：open            # open | converted | closed（语义见 §3.4）
+- **登记**：YYYY-MM-DD
+- **来源**：<发现场景与终态出处锚点：任务卡遗留项 / 设计文档已知问题句 / decision-registry 行>
+- **关联**：—               # converted 后必填：T-XXX 或 plan 路径
+
+**现象与证据**：<具体现象 + 代码/文档锚点（file:line 或复现路径）>
+
+**影响**：<不解决的实际后果，数据示例优先>
+
+**设想方向（可选，未定案）**：<候选思路；一旦拍板移 registry，不在本文件展开>
+```
+
+**登记规则**：
+
+- 触发场景：任务收口/评审中发现但不在当前任务范围（含用户拍板「记录问题、本次不解决」）；任务卡「非目标 / 遗留」延期项；设计讨论发现缺陷/风险但方案未定。
+- **已有任务/计划载体的事项不登记**（2026-09-13 定案；含 done/cancelled 卡定案中「另立任务 / 新形态另立任务」的安排——看板与 registry 已是其载体）；误登记的按重复收敛（closed 移入索引）。
+- 必含**现象 + 证据锚点**与**影响**；未核实的问题不登记（先核实再登记）。
+- **禁止**复制定案正文（定案唯一载体是 `decision-registry.md`）；问题转出后禁止在本文件维护方案细节（唯一详细来源是任务卡）。
+- 登记时在来源处（任务卡「非目标 / 遗留」、设计文档已知问题句）补 `(Q-NNN)` 指针，不复制正文。
+
 ---
 
 ## 3. 生命周期状态机与迁移规则
@@ -242,6 +286,18 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
   3. 无下游 `depends_on` 本任务且仍 `in-progress` 的任务存在未处理的 dangling（若本任务被依赖，需先确认下游已重连或接受阻断）；
   4. 任务卡与其 `design_refs` 通过 `project-rules` §文档治理的轮次词扫描（无「第 N 轮 / 评审修复 / 复评」等过程标记）；未完成项若另开任务，ID 必须是计数器新分配且主题一致的未占用号。
 - `cancelled`：触发**依赖重连扫描**（见 §4.1），下游任务标 dangling，由人/AI 决定重连到谁。
+
+### 3.4 问题条目（pending-problems.md）
+
+```
+open ──可执行（方案清晰/用户拍板启动）──▶ converted ──关联任务 done 且验收覆盖──▶ 收敛（移入已收敛索引）
+  └──不解决/重复/失效（用户定案）──▶ closed ──────────────────────────────▶ 收敛
+```
+
+- `open → converted`：按 §6.2 正常建任务（看板计数器取号，不占 Q-ID），条目填关联 ID；多个相关问题可合并转出一个 plan。
+- `converted → 收敛`：关联任务 `done` 且验收覆盖该问题 → 条目正文压缩为一行，移入文件底部「已收敛」索引表（Q-ID、标题、收敛形态、关联、收敛日期）。
+- `→ closed`：不解决/重复/失效须注明出处（registry 行或用户口径），同样移入「已收敛」索引表。
+- 文件正文区只保留 open/converted 条目，防止清单膨胀为第二个过程档案。
 
 ---
 
@@ -291,8 +347,9 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
    - 会话中刚拍板的规则：终态写入 design；任务卡不记讨论轮次，只写当前口径或链接设计
 2. 是**为一组任务编排目标、非目标、准入、顺序、归档**？→ `docs/plans/` 新建/更新 plan，任务清单只引用 ID
 3. 是**原子可执行改动，有明确验收 + 回写设计点**？→ `docs/tasks/` 看板登记（复杂则开文件）
-4. 一份产物**同时含多层**？→ **拆成多份**，分别落层，互相用链接关联。**绝不**把设计+计划+任务写进同一文件。
-5. 是**核对清单/gap 清单**？→ 每条 gap 转 task；清单本身若仍有跟踪价值，作为 plan 引用这些 task。
+4. 是**已确认、但暂不可执行的问题**（方案未定/范围未明/用户明示暂不解决）？→ `docs/pending-problems.md` 登记（§2.5，Q-ID 计数器 +1）
+5. 一份产物**同时含多层**？→ **拆成多份**，分别落层，互相用链接关联。**绝不**把设计+计划+任务写进同一文件。
+6. 是**核对清单/gap 清单**？→ 每条 gap 转 task；清单本身若仍有跟踪价值，作为 plan 引用这些 task。
 
 ---
 
@@ -355,6 +412,24 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 
 - 归档后全仓 grep `plans/archive/` 无**活引用**（迁移注记/历史描述文本除外）；看板（`docs/tasks/README.md`）中 `](T-*.md)` 形式的卡链接应全部指向仍留在 `docs/tasks/` 的卡；
 - `docs/tasks/` 剩余内容 = 看板 README + 未终态卡 + 活跃计划附属卡；`docs/plans/` 剩余内容 = README + 未归档计划。
+
+### 6.6 登记与收敛待解决问题
+
+**登记**：
+
+1. 核实现象与证据锚点（未核实不登记）；
+2. `counter` +1 分配 Q-NNN，按 §2.5 模板写入正文区（状态 `open`）；
+3. 来源处（任务卡「非目标 / 遗留」、设计文档已知问题句）补 `(Q-NNN)` 指针，不复制正文。
+
+**转出**（问题可执行时）：
+
+1. 按 §6.2 建任务/计划；任务卡「背景」回链 Q-ID；
+2. 条目状态改 `converted`、填关联；
+3. 用户「不解决」拍板当轮登记 `decision-registry.md`，条目改 `closed` 并注明出处。
+
+**收敛**：
+
+- 关联任务 `done` 且验收覆盖该问题 → 条目正文压缩为一行移入「已收敛」索引表（§3.4）。
 
 ---
 
@@ -427,6 +502,7 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 ### 落层
 - [ ] 已用 §5 决策树判定落层，未把设计+计划+任务写进同一文件？
 - [ ] 设计在 `docs/design/`、计划在 `docs/plans/`、任务在 `docs/tasks/`？
+- [ ] 暂不可执行的问题已入 `docs/pending-problems.md`（含现象/证据/影响），来源处留 Q-ID 指针？
 
 ### Frontmatter
 - [ ] 设计 `doc_type: design` + 正确 `status` + `domain`？
@@ -442,6 +518,7 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 - [ ] 归档后看板/索引链接已改指归档位置，全仓 grep 无 `plans/archive/` 活引用（迁移注记/历史描述文本除外）与悬空卡链接残留？
 - [ ] `depends_on` 改动后无循环？
 - [ ] 任务 `cancelled` / 设计 `superseded` 后已触发 §4 扫描并在看板登记？
+- [ ] 问题条目 open/converted/closed 状态与实际一致，已收敛条目已移入「已收敛」索引表？
 
 ### 索引与链接
 - [ ] 三处 README（design/plans/tasks）已同步？
@@ -456,4 +533,5 @@ proposed ──▶ in-progress ──▶ review ──回写done──▶ done �
 - 权限查询实现细节 → `permission-query-pipeline`
 - 缓存实现细节 → `dual-layer-cache-framework`
 - 仓库通用编码模式（分层/命名/提交规范）→ `accessmesh-patterns`
-- 本技能**只**管 design/plan/task 三层的解耦、生命周期、依赖与索引，不涉及各层的具体技术内容。
+- 定案登记（含「不解决问题」拍板）→ `docs/design/decision-registry.md`；`pending-problems.md` 只记问题本体与收敛状态，不复制定案正文
+- 本技能**只**管 design/plan/task 三层的解耦、生命周期、依赖与索引，以及待解决问题的登记/转出/收敛，不涉及各层的具体技术内容。

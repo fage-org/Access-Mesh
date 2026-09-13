@@ -17,7 +17,7 @@ acceptance:
   - "全部按包名扫描断言的重建设计落 §8：QueryBoundaryArchitectureTest、AccessServiceArchitectureTest、AppServiceOperationLogCoverageTest（覆盖下限自证）、HttpApiPathSnapshotTest 签名快照口径（query mapper 若随迁目录，QueryMapperXmlContractTest 一并列入）；每条规则附负向样例自证仍能拒绝违规。必裁决句：AccessServiceArchitectureTest 现行 admin↔permission 互不依赖族规则重判为能力口径——允许 AppService/DomainService 同层跨能力依赖（对齐 project-rules §8.2 与设计 §2.4），仅保留 Mapper/实体边界（QueryBoundary 同源）与 bootstrapSeedWriterIsBootstrapOnly 排除项重判后的包集合；现行规则目标侧对非实现类的排除细节（enums 等）重建时逐条核对"
   - "application.query 三对 QueryService（UserMenu/UserRole/OrgVisibility）归属与命名裁决（是否随迁改名 AppService 口径写死）"
   - "access-service-capability-structure.md 转 adopted（§8 填充完成）"
-  - "access-service-architecture 修订回写：§1.2/§11 演进方向启用注记、§3 重写为能力包口径、URL 两风格已知问题登记、§9 表述衔接说明"
+  - "access-service-architecture 修订回写：§1.2/§11 演进方向启用注记、§3 重写为能力包口径、URL 两风格已知问题登记（已落 docs/pending-problems.md Q-001，演进方向区仅留指针行）、§9 表述衔接说明"
   - "project-rules §8.2 跨域 Mapper 边界表述更新为能力口径"
 design_writeback:
   required: true
@@ -34,7 +34,7 @@ last_updated: 2026-09-13
 1. 逐类归属清单：现有全部类 / 表 → 目标包映射表；含 §2.4 application 包解散的归位映射与争议项裁决。
 2. `QueryBoundaryArchitectureTest` 能力口径断言设计（能力间不互读 Mapper；sync 记账 mapper 经 DomainService 封装的例外形态声明）。
 3. capability-structure §8 填充、状态转 adopted。
-4. access-service-architecture 修订：§1.2/§11 启用注记、§3 能力包口径重写、URL 两风格登记进演进方向区、§9 枚举面合一衔接说明（细节由 T-ACCESS-038 落地）。
+4. access-service-architecture 修订：§1.2/§11 启用注记、§3 能力包口径重写、URL 两风格登记指向 docs/pending-problems.md Q-001（演进方向区仅留指针行）、§9 枚举面合一衔接说明（细节由 T-ACCESS-038 落地）。
 5. project-rules §8.2 表述更新。
 
 ## 当前口径
@@ -49,4 +49,4 @@ last_updated: 2026-09-13
 ## 非目标 / 遗留
 
 - 不改任何生产代码；不执行搬包（T-ACCESS-033）。
-- URL 风格统一、USER:MANAGE 语义细节等由后续任务承接。
+- URL 风格统一（docs/pending-problems.md Q-001）、USER:MANAGE 语义细节等由后续任务承接。

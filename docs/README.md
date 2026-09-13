@@ -31,6 +31,7 @@ docs/
 ├── plans/                             # 执行计划（编排层，任务清单仅引用 ID）
 │   ├── README.md
 │   └── <plan>.md
+├── pending-problems.md                # 待解决问题清单（暂不足以立任务的问题登记与收敛）
 ├── ops/                               # 运维手册（外部通道操作规程；契约权威仍在 design/）
 │   └── runbook-full-sync.md           # 外部业务服务 sync/full-sync 运维手册（T-PERM-021 F1.e）
 ├── tasks/                             # 任务（原子执行单元，看板为唯一权威清单）
@@ -62,6 +63,7 @@ docs/
 | 主题                 | 权威文档                                                                                                                             |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | 项目工程规范         | [design/project-rules.md](design/project-rules.md)                                                                                   |
+| 待解决问题清单       | [pending-problems.md](pending-problems.md)（暂不足以立任务的问题登记；可执行即转任务，机制见 design-plan-task-lifecycle skill §2.5） |
 | 产品定位与能力叙事口径 | [design/README.md](design/README.md) §产品定位与能力叙事三档口径（开源通用 IAM，2026-08-28 定案）                                 |
 | 微服务整体架构       | [design/architecture.md](design/architecture.md)                                                                                     |
 | access-service 目标架构 | [design/access-service-architecture.md](design/access-service-architecture.md)（归并拓扑、事务、数据、缓存与安全的权威约束） |

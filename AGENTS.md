@@ -91,7 +91,7 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 | `accessmesh-patterns`         | 仓库级开发模式速查：分层边界/API 路径/DTO 命名/审计字段/N+1/禁止依赖/提交规范                                  |
 | `dual-track-local-review`     | 任务本地双轨评审与收口 checklist（收口默认动作；不自动串联外部评审）                                           |
 | `external-review`             | 外部 AI 评审执行规范：claude/grok/codex 三通道、全程禁止子代理（仅用户显式触发）                              |
-| `design-plan-task-lifecycle`  | 设计/计划/任务三层文档生命周期治理                                                                            |
+| `design-plan-task-lifecycle`  | 设计/计划/任务三层文档生命周期治理；待解决问题清单 `docs/pending-problems.md` 登记与收敛                        |
 | `grill`                       | 访谈式计划压力测试（当前仅 .claude 侧；ZCode 用户级另有 grill-me/grilling）                                  |
 
 ## 项目级 Rules（按场景先读）

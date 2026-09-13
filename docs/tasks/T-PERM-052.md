@@ -74,9 +74,9 @@ last_updated: 2026-09-05
 
 
 - **系统事实链路类型（USER/ORG/MENU/ROLE）声明被直改库损毁后的恢复**（2026-09-05 用户定案：暂不考虑人为极端情况）：损坏只能来自直改库（API 写入口已全结构校验、种子规范）；读取侧回退 MANAGED 期间存在双 writer 敞口，且 is_system 钉死使 API 无法恢复规范声明——不做豁免分支与恢复设计，评审勿再报；
-- **sync 通道跨类型父子边仍合法**（parentResourceTypeCode 可与 item 类型不同）：本卡以 remove 级联全集守卫防御，是否收紧为同类型父边另行评估；
+- **sync 通道跨类型父子边仍合法**（parentResourceTypeCode 可与 item 类型不同）：本卡以 remove 级联全集守卫防御，是否收紧为同类型父边另行评估（docs/pending-problems.md Q-007）；
 - **SYNC 类型声明来源服务被删除后**类型声明残留（service-config remove 不级联类型声明）：该类型同步入口持续拒绝（fail-closed 方向），人工清理类型声明即可；
-- **SERVICE/API 类型的固定图种子行维持 MANAGED**（手工 CRUD 现状允许，靠启动固定图校验保护）——是否也声明内部来源收紧另行评估；
+- **SERVICE/API 类型的固定图种子行维持 MANAGED**（手工 CRUD 现状允许，靠启动固定图校验保护）——是否也声明内部来源收紧另行评估（docs/pending-problems.md Q-008）；
 - **存量库迁移与硬性发布顺序**（dev 库可重建，DDL 为准）：`UPDATE type_definition SET extra='{"managedMode":"SYNC","syncSourceService":"access-service"}' WHERE tenant_id=1 AND type_key='resource_type' AND type_code IN ('USER','ORG','MENU','ROLE');` + `ALTER TABLE resource_entity DROP COLUMN IF EXISTS sync_key;`（dev 库 sync_key 全 NULL 零风险）。**必须先跑 UPDATE 再上线代码**（fail-closed 发布顺序，syncTypes 先例）：先代码后 DDL 的窗口内四类型解析为 MANAGED——外部同步侧收紧无害（无 SYNC 声明即拒），但管理面 create 对四类型放行、恢复旧保留清单阻止的投影孤儿行风险；上线前按 `SELECT * FROM resource_entity WHERE resource_type IN (四类型 type_value) AND owner_service_code IS DISTINCT FROM 'access-service' AND delete_flag=0;` 核对存量外部行（dev 库实查为 0；若有，被投影生命周期接管或成永久孤儿，需人工定夺）。
 
 ## 完成记录

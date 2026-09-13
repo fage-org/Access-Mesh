@@ -34,7 +34,7 @@ last_updated: 2026-09-13
 ## 当前口径
 
 - 缓存模式（L1/L2 配置、TTL、30 秒授权陈旧预算）零改动——T-ACCESS-008 定案形态维持。
-- 滚动发布登记：改名后新旧实例 evictAll 各自命名空间互不可删（RedissonBucketStore 按 catalog code 精确扫描实证）——本项目未正式部署、无新旧实例并存场景，不采双命名空间失效；若未来出现滚动发布需求，届时补双命名空间失效机制（本条为登记性已知边界）。
+- 滚动发布登记：改名后新旧实例 evictAll 各自命名空间互不可删（RedissonBucketStore 按 catalog code 精确扫描实证）——本项目未正式部署、无新旧实例并存场景，不采双命名空间失效；若未来出现滚动发布需求，届时补双命名空间失效机制（本条为登记性已知边界，docs/pending-problems.md Q-006）。
 - depends_on 含 034：OPERATION_CODE 死条目删除唯一归属 034，目录合并在其后进行。
 
 ## 验收对照
