@@ -39,9 +39,13 @@ class ErrorCodeContractTest {
      * MENU_PERM_CODE_EXISTS(10202) 随 v3.5 菜单零权限化退役，
      * 唯一性校验由 uk_sys_menu_tenant_path / uk_sys_menu_tenant_resource
      * 及错误码 10205/10206 承接（T-ACCESS-015）。
+     * CONFIG_NOT_FOUND(10701) / CONFIG_SYSTEM_IMMUTABLE(10702) 随 admin /config
+     * 僵尸端点退役删除（T-ACCESS-037：前端/e2e/gateway 主代码零消费，
+     * system_config 管理单入口 /api/perm/system-config，写面错误语义
+     * 20047 CONFIG_KEY_NAMESPACE_INVALID 不受影响）。
      */
     private static final java.util.Set<String> RETIRED_ADMIN_NAMES =
-        java.util.Set.of("MENU_PERM_CODE_EXISTS");
+        java.util.Set.of("MENU_PERM_CODE_EXISTS", "CONFIG_NOT_FOUND", "CONFIG_SYSTEM_IMMUTABLE");
 
     /**
      * 归并后新增码的退役登记（枚举名已从当前枚举移除，退役码值不得被复用）：

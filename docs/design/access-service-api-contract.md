@@ -21,7 +21,7 @@ last_reviewed: 2026-09-13   # T-ACCESS-034 操作码合一与 USER 轨细粒度�
 >
 > **关联文档（迁移自原 admin 册头部）**：`project-rules.md`（强约束：报文/接口/异常/错误码段）、`engine/` 三档与本文档（原 permission-center 设计内档，T-ACCESS-040 迁位）、`default-org-tree-user-lifecycle.md`（默认组织树身份目录边界）、`org-user-permission-contract.md` v1.2（页面门禁与岗位=特殊组织决策）、`schema/access-service.sql`（字段事实，唯一权威 DDL）、`../archive/2026-08-22/admin-service.md`（原 admin-service 服务设计，已 superseded）。
 >
-> **覆盖面说明（T-ACCESS-040 登记）**：本册承载原两册的全部成册契约。access-service 另有六组管理域端点族未在原两册成册（`/auth` 登录族、`/dict/*`、`/notice/*`、`/job/*`、`/config/*`、`/login-log/page`），维持现状以代码与 `HttpApiPathSnapshotTest` 快照为准——登记见 §6.4 与 §17.3，不在本册补写（不新增契约内容）。另有四个零散端点未单独成册（`/user/detail`、`/user/user-menus`、`/org/detail`、`/role/my-info`——仅存在于门禁表或快照，T-ACCESS-040 评审登记）
+> **覆盖面说明（T-ACCESS-040 登记）**：本册承载原两册的全部成册契约。access-service 另有五组管理域端点族未在原两册成册（`/auth` 登录族、`/dict/*`、`/notice/*`、`/job/*`、`/login-log/page`），维持现状以代码与 `HttpApiPathSnapshotTest` 快照为准——登记见 §6.4 与 §17.3，不在本册补写（不新增契约内容）。第六组 `/config/*` 已随 T-ACCESS-037 退役（2026-09-13，僵尸端点删除，见 §17.3 注记）。另有四个零散端点未单独成册（`/user/detail`、`/user/user-menus`、`/org/detail`、`/role/my-info`——仅存在于门禁表或快照，T-ACCESS-040 评审登记）
 
 ## 1. 设计目标与接口分层
 ### 1.1 设计目标（perm 家族）
@@ -136,7 +136,7 @@ last_reviewed: 2026-09-13   # T-ACCESS-034 操作码合一与 USER 轨细粒度�
 
 ### 2.5 批量请求上限与 Req 单源（T-PERM-065）
 
-**批量上限 1000（SDK 公开契约，2026-09-12 登记）**：进入权限引擎批量入口的列表型字段一律 `@Size(max = 1000)`（超限 400，Bean Validation 层拒绝，不进引擎）。覆盖：`user-role/assign` 的 `items`、`user-role/revoke` 的 `items`、`resource-entity/batch-create` 的 `items`（**仅封规模**——嵌套项不级联校验，畸形项走服务端宽容收集逐条跳过、部分成功语义为有意设计，2026-09-12 用户拍板维持）、permission 域 `IdsReq.ids` 批量端点族（abstract-role/remove、abstract-user/remove、biz-domain/remove、conflict-rule/remove、domain-config/remove、resource-api-mapping/remove、resource-dependency/remove、service-config/remove、type-definition/remove）、`auth/batch-check` 的 `items`、`AuthCheckReq/BatchAuthCheckReq` 的 `parentOperationCodes`。SDK 消费方（perm-common）与服务端同限值（`BatchEntrySizeValidationTest` 行为锁 + `PermCommonReqContractTest` 注解签名快照双守卫）。admin 域批删端点（`/config/delete` 等）不进引擎闭包，**不设此限**（2026-09-12 用户拍板不换绑）。
+**批量上限 1000（SDK 公开契约，2026-09-12 登记）**：进入权限引擎批量入口的列表型字段一律 `@Size(max = 1000)`（超限 400，Bean Validation 层拒绝，不进引擎）。覆盖：`user-role/assign` 的 `items`、`user-role/revoke` 的 `items`、`resource-entity/batch-create` 的 `items`（**仅封规模**——嵌套项不级联校验，畸形项走服务端宽容收集逐条跳过、部分成功语义为有意设计，2026-09-12 用户拍板维持）、permission 域 `IdsReq.ids` 批量端点族（abstract-role/remove、abstract-user/remove、biz-domain/remove、conflict-rule/remove、domain-config/remove、resource-api-mapping/remove、resource-dependency/remove、service-config/remove、type-definition/remove）、`auth/batch-check` 的 `items`、`AuthCheckReq/BatchAuthCheckReq` 的 `parentOperationCodes`。SDK 消费方（perm-common）与服务端同限值（`BatchEntrySizeValidationTest` 行为锁 + `PermCommonReqContractTest` 注解签名快照双守卫）。admin 域批删端点（`/dict/type/delete` 等）不进引擎闭包，**不设此限**（2026-09-12 用户拍板不换绑）。
 
 **Req 单源（DTO 双轨收敛）**：原 access-service `permission/dto/req` 与 perm-common `dto/req` 双轨维护的 17 对同名 Req 已收敛——服务端 Controller/AppService 与 SDK 消费方统一消费 perm-common 类型（`AuthCheckReq`、`BatchAuthCheckReq`、`CheckInterfaceReq`、`IdReq`、`IdsReq`、`OperationListReq`、`ResourceBatchCreateReq`、`ResourceCreateReq`、`ResourceKeyReq`、`ResourceKeysReq`、`ResourceUpdateReq`、`RoleCreateReq`、`RoleDetailReq`、`RoleListReq`、`UserAssignRoleReq`、`UserRoleBatchRevokeReq`、`UserRoleListReq`），access-service 侧副本删除。SDK 侧 T-PERM-028 同批漏改三处同步修复为服务端业务键定稿形态：`ResourceUpdateReq`（update，原 id 定位）、`PermissionFeignClient.getRole`（原 `IdReq`→`RoleDetailReq`）、`deleteResources`（原 `IdsReq`→`ResourceKeysReq`）——原形态发至服务端均必 400；`UserAssignRoleReq.items`/`UserRoleBatchRevokeReq.items`/`IdsReq.ids`/`ResourceBatchCreateReq.items` 补齐 `@Size(max=1000)`（原 SDK 契约缺失，外部服务按 SDK 构造超限请求会被服务端拒——现在 SDK 侧同限值，构造期即感知）。`UserAssignRoleReq`/`UserRoleBatchRevokeReq`/`ResourceBatchCreateReq` 的 `items` 另带元素级 `@NotNull`（null 元素 400，不级联嵌套字段——不触碰 batch-create 宽容收集拍板语义）。admin 域同名 `IdsReq`/`UserRoleListReq`（后者与 perm-common 同名异义：`userId` 内部 ID 查询）保持独立，不参与单源。check 族响应 DTO 仍双副本（`CheckFamilyWireShapeTest` 同形守卫），Resp 面收敛未盘点、另定。
 
@@ -1873,6 +1873,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 > **system-config 错误码**：`system-config/save`（upsert）在权限校验后、触达数据前 fail-closed 校验配置键命名空间前缀（`admin.`/`permission.`/`access.`），非法键返回 **20047 `CONFIG_KEY_NAMESPACE_INVALID`**（配置键只能使用 admin./permission./access. 命名空间前缀，T-ACCESS-007）。
 
+> **单入口口径（T-ACCESS-037，2026-09-13）**：本族为 system_config 唯一管理入口——原 admin `/config` 双入口（同表 ConfigController，UPDATE/DELETE 实例级门禁）已整链退役（见 §17.3 注记），无迁移端点、无兼容层。
+
 **system-config 契约要点（T-PERM-024 收口，2026-08-28）**：
 
 - `save`（upsert）：`{configKey, configValue, description?}`——按 `configKey` 查存在则 update、不存在则 insert（新建固定 `isSystem=false` 租户自定义，系统内置仅走种子）；`configValue` 为 JSON 字符串（`JsonValidationUtils` 校验合法性）；`configKey` 命名空间前缀校验 20047（见上）。无 create/update/remove——`save` 幂等覆盖新建/编辑，配置项不可删除（键稳定，防误删回退默认）。
@@ -1881,9 +1883,11 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - **configValue JSONB 语义（SystemConfigJsonbPgIT 实证）**：读出为 DB 规范化后的 JSON 文本——与提交值**语义等价**（解析树相等，含中文/嵌套/数组），但非字节回显（JSONB 规范化空白与键序）；展示值可直接再提交（规范化幂等），无截断/转义问题。
 - 权限门禁：`list`/`detail` 需 `SYSTEM_CONFIG:VIEW`，`save` 需 `SYSTEM_CONFIG:MANAGE`（操作位种子已由权威 DDL CRUD 预置组覆盖，租户 1）。
 
-### 17.3 未成册端点族登记（dict / notice / job / config / login-log）
+### 17.3 未成册端点族登记（dict / notice / job / login-log）
 
-> `/dict/*`（字典）、`/notice/*`（公告）、`/job/*`（任务调度）、`/config/*`（admin 系统配置——T-ACCESS-037 退役中）、`/login-log/page`（登录日志）五组管理域端点族未在原两册成册，契约以代码与 `HttpApiPathSnapshotTest` 快照为准（T-ACCESS-040 登记，不在本任务新增契约内容）。
+> `/dict/*`（字典）、`/notice/*`（公告）、`/job/*`（任务调度）、`/login-log/page`（登录日志）四组管理域端点族未在原两册成册，契约以代码与 `HttpApiPathSnapshotTest` 快照为准（T-ACCESS-040 登记，不在本任务新增契约内容）。
+>
+> **`/config/*` 退役（T-ACCESS-037，2026-09-13）**：原 admin `/config`（page/detail/update/delete，ConfigController + ConfigAppService + ConfigUpdateReq/ConfigResp + SystemConfigMapper 五个 admin 侧方法与 XML 语句 + 错误码 10701/10702）整链删除——消费面核实（2026-09-13）前端/e2e/gateway/example-service 主代码零引用，僵尸端点。system_config 管理**单入口**收敛到 §17.2 `/api/perm/system-config`（前端唯一消费方）。负向锁 = `HttpApiPathSnapshotTest` 快照（`/config/*` 四路径出快照，控制器扫描双向比对）+ `RETIRED_PATHS` 登记四条（`retiredPaths_haveNoControllerMappings` 断言零映射，capability-structure §8.4 指令兑现）；错误码 10701/10702 入 `ErrorCodeContractTest` RETIRED_ADMIN_NAMES（码值不复用）。SYSTEM_CONFIG 操作码不删（VIEW/MANAGE 为 perm 入口门禁与 bootstrap 固定图在用；UPDATE/DELETE 为 DDL CRUD 预置种子 CROSS JOIN 产物，随端点消亡转为未消费预置位，034 的 USER:MANAGE 类清理不涉此类预置码）。
 
 ## 18. engine 运行时鉴权与权限查询（/api/perm/auth/*）
 ### 18.1 端点清单与 SDK 入口

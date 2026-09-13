@@ -33,7 +33,9 @@ import static org.assertj.core.api.Assertions.assertThat;
  * T-ADMIN-024 再删 admin 侧角色写代理（/role/create、/role/grant-menu、
  * /role/revoke-menu、/user-role/assign、/user-role/revoke，无存量调用方）；
  * T-PERM-034 再删 role-resource-permission 旧写入口（save/revoke/children/
- * add-child/remove-child，2026-08-27 设计定案，apply-grant-plan 为唯一写入口）；T-PERM-025 增 action-options。计数不写注释（去计数化）。
+ * add-child/remove-child，2026-08-27 设计定案，apply-grant-plan 为唯一写入口）；T-PERM-025 增 action-options。
+ * T-ACCESS-037 再删 admin /config 全族（page/detail/update/delete——僵尸端点退役，
+ * system_config 管理单入口收敛到 /api/perm/system-config）。计数不写注释（去计数化）。
  * </p>
  * <p>
  * 契约断言封闭口径（评审修复：堵住空 method 数组与 path()[0] 逃逸）：
@@ -156,10 +158,6 @@ class HttpApiPathSnapshotTest {
 /auth/oauth2/userinfo
 /auth/user-menu
 /auth/userinfo
-/config/delete
-/config/detail
-/config/page
-/config/update
 /dict/data/create
 /dict/data/delete
 /dict/data/list
@@ -339,10 +337,6 @@ class HttpApiPathSnapshotTest {
 /auth/oauth2/userinfo|-|common.model.R<access.auth.dto.OAuth2UserInfoResp>
 /auth/user-menu|-|common.model.R<access.menu.dto.resp.UserMenuResp>
 /auth/userinfo|-|common.model.R<access.auth.dto.UserInfoResp>
-/config/delete|access.infrastructure.dto.IdsReq|common.model.R<Void>
-/config/detail|common.model.IdReq|common.model.R<access.platform.dto.resp.ConfigResp>
-/config/page|common.model.PageReq|common.model.R<perm.common.dto.resp.PageResp<access.platform.dto.resp.ConfigResp>>
-/config/update|access.platform.dto.req.ConfigUpdateReq|common.model.R<Void>
 /dict/data/create|access.platform.dto.req.DictDataCreateReq|common.model.R<Long>
 /dict/data/delete|common.model.IdReq|common.model.R<Void>
 /dict/data/list|common.model.IdReq|common.model.R<perm.common.dto.resp.ItemsResp<access.platform.dto.resp.DictDataResp>>
@@ -439,7 +433,13 @@ class HttpApiPathSnapshotTest {
         "/api/perm/role-resource-permission/revoke",
         "/api/perm/role-resource-permission/children",
         "/api/perm/role-resource-permission/add-child",
-        "/api/perm/role-resource-permission/remove-child"
+        "/api/perm/role-resource-permission/remove-child",
+        // T-ACCESS-037：admin /config 僵尸端点退役（前端/e2e/gateway 主代码零消费；
+        // system_config 管理单入口收敛到 /api/perm/system-config）
+        "/config/page",
+        "/config/detail",
+        "/config/update",
+        "/config/delete"
     );
 
     /** 扫描 classpath 上全部 Controller 并拼装「路径|请求类型|响应类型」签名（类级/方法级均枚举全部 path 值）。 */
@@ -586,7 +586,7 @@ class HttpApiPathSnapshotTest {
     }
 
     @Test
-    @DisplayName("退役接口负向断言：RETIRED_PATHS 全部路径（/sync-task/*、/audit-log/page、extra-roles/*、admin 侧角色写代理 5 条、role-resource-permission 旧写入口 5 条）无任何 Controller 映射")
+    @DisplayName("退役接口负向断言：RETIRED_PATHS 全部路径（/sync-task/*、/audit-log/page、extra-roles/*、admin 侧角色写代理 5 条、role-resource-permission 旧写入口 5 条、admin /config 4 条）无任何 Controller 映射")
     void retiredPaths_haveNoControllerMappings() throws Exception {
         Set<String> actual = new TreeSet<>();
         scanSignatures().forEach(s -> actual.add(s.substring(0, s.indexOf('|'))));

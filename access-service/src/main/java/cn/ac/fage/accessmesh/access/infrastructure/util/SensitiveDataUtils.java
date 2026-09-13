@@ -65,8 +65,8 @@ public final class SensitiveDataUtils {
     /** 密钥类配置键名匹配子串（大写、去下划线后 contains 匹配）。
      * 用于配置键的密钥类判定：键名命中任一子串（如 {@code admin.OAUTH_CLIENT_SECRET}、
      * {@code admin.API_TOKEN}）即视为敏感配置。原由服务端基于入库实体的真实 configKey 调用
-     * （{@code ConfigAppServiceImpl.updateConfig}，已随 T-ACCESS-025 删除），而非信任客户端请求字段；
-     * 当前无生产调用方，冻结保留判定规则。凭证独有词按 contains 匹配即可，
+     * （admin /config 更新入口——调用随 T-ACCESS-025 删除，入口整链随 T-ACCESS-037 退役），
+     * 而非信任客户端请求字段；当前无生产调用方，冻结保留判定规则。凭证独有词按 contains 匹配即可，
      * 不会误伤普通配置；通用词 {@code key} 见 {@link #SECRET_CONFIG_KEY_SUFFIX_TERMS}。 */
     private static final String[] SECRET_CONFIG_KEY_TERMS = {
         "password", "secret", "token", "apikey", "privatekey"
@@ -326,7 +326,7 @@ public final class SensitiveDataUtils {
      * 配置键名是否为密钥类（如 {@code admin.OAUTH_CLIENT_SECRET} / {@code admin.SIGNING_KEY}）。
      * <p>
      * 原供服务端基于入库实体的真实 {@code configKey} 判定是否需在审计请求体中掩码 {@code configValue}
-     * （{@code ConfigAppServiceImpl.updateConfig}，该调用已随 T-ACCESS-025 删除），而非信任客户端请求字段；
+     * （admin /config 更新入口——调用随 T-ACCESS-025 删除，入口整链随 T-ACCESS-037 退役），而非信任客户端请求字段；
      * 亦用于 {@code maskNode} 的 configKey+configValue 跨字段脱敏规则（冻结保留）。
      * 当前无生产调用方，随本工具冻结保留。归一化去下划线后，对 {@link #SECRET_CONFIG_KEY_TERMS}
      * 做 contains 匹配，对 {@link #SECRET_CONFIG_KEY_SUFFIX_TERMS}（通用词 {@code key}）做 endsWith
