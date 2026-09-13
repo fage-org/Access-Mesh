@@ -61,9 +61,9 @@ export type GrantStoreState = {
 
 /**
  * 按当前 MatrixContext 过滤 apply-grant-plan 响应（T-FE-038 review P1-1）。
- * 响应 = 角色**完整**权限集合（契约 §6.5.1，mock 亦然），单类型矩阵 baseline 不变量为
+ * 响应 = 角色**完整**权限集合（契约 总册 §11.4，mock 亦然），单类型矩阵 baseline 不变量为
  * "当前类型主权限 + 其全部子权限"（子权限按 depend_on 挂父、可跨类型，与 list 类型过滤
- * 语义一致，契约 §6.4）；不过滤会引入其他类型主权限，再次编辑全局 INSTANCE 操作时
+ * 语义一致，契约 总册 §11.2）；不过滤会引入其他类型主权限，再次编辑全局 INSTANCE 操作时
  * 被识别为"取消勾选"进入 removes —— 误删其他类型权限。
  */
 export function filterBaselineByType(
@@ -128,7 +128,7 @@ export function classifySaveError(error: unknown): {
 
 /**
  * 拉取主体基线（selectSubject/loadBaseline/switchMatrixType 共用；问题 3 共享 baselineToken 代域）。
- * list includeChildren=true 一次取全量；resourceTypeCode 按当前矩阵类型过滤主权限（T-PERM-040 契约 §6.4）。
+ * list includeChildren=true 一次取全量；resourceTypeCode 按当前矩阵类型过滤主权限（T-PERM-040 契约 总册 §11.2）。
  */
 async function fetchBaseline(
   context: GrantContext,
@@ -358,7 +358,7 @@ export const useGrantStore = defineStore("perm-grant", {
     },
 
     /**
-     * 保存全部 = 单请求 apply-grant-plan（唯一写入口，§6.4）。
+     * 保存全部 = 单请求 apply-grant-plan（唯一写入口，总册 §11.2）。
      * 成功 -> 全部条目移出清单并入 baseline（响应整体替换）；
      * 失败 -> 全部条目保留标红、整体重试（请求粒度，不可分割）。
      * 代际令牌 + 上下文身份双保险（问题 4）：过期响应不覆盖 baseline/changes/submit。

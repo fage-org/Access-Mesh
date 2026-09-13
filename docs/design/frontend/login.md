@@ -43,7 +43,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 ## API 依赖（链接后端契约章节）
 
-- `POST /auth/captcha` → `R<CaptchaResp{captchaId, image}>`（契约来源：后端 `AdminAuthController`/`CaptchaResp`——`admin-service-api-contract.md` 尚未收录平台登录端点，以代码为准）
+- `POST /auth/captcha` → `R<CaptchaResp{captchaId, image}>`（契约来源：后端 `AdminAuthController`/`CaptchaResp`——平台登录端点族未成册，契约总册 §6.4 已登记，以代码为准）
 - `POST /auth/login` → `R<LoginResp{accessToken, refreshToken(null), expiresIn(秒), tokenType, userId, username, tenantId, forceResetPwd}>`（契约来源同上：`LoginReq`/`LoginResp`）；业务失败 HTTP 200 + code≠200
 - `POST /auth/user-menu` → `R<UserMenuData{menus, roles, permissions}>`（登录成功后 store 拉取；HTTP 401 会话失效不降级 rethrow，其余异常仅 console.warn 不阻断登录）
 - 路径经 Gateway 外部约定（`/auth/**` StripPrefix=0 直通）；开发环境由 vite proxy 同路径转发（`VITE_PROXY_TARGET`）

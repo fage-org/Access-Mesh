@@ -8,7 +8,9 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口：运行时接口列�
 
 # Permission Center 概念模型
 
-本文档只描述权限中心的核心模型和关键规则。API 路径、请求体、响应体以 [api-contract.md](api-contract.md) 为准；表字段、索引、约束以 [../schema/access-service.sql](../schema/access-service.sql) 为准（唯一权威 DDL）；端到端调用链路见 [core-flows.md](core-flows.md)；实现细节和类清单见 [implementation.md](implementation.md)。
+> **迁位注记（2026-09-13，T-ACCESS-040）**：本文档自 `docs/design/permission-center/` 迁至 `docs/design/engine/`（permission-center 目录解散，引擎子系统文档位），内容与章节锚点原样保留；API 契约引用已重挂 [access-service-api-contract.md](../access-service-api-contract.md) 契约总册。
+
+本文档只描述权限中心的核心模型和关键规则。API 路径、请求体、响应体以 [access-service-api-contract.md](../access-service-api-contract.md) 为准（契约总册，T-ACCESS-040 两册合一）；表字段、索引、约束以 [../schema/access-service.sql](../schema/access-service.sql) 为准（唯一权威 DDL）；端到端调用链路见 [core-flows.md](core-flows.md)；实现细节和类清单见 [implementation.md](implementation.md)。
 
 > **术语（T-ACCESS-012，2026-08-22）**：原独立服务 `permission-center` 已归并为 access-service 的 permission 域。本文及权限中心系列文档中「permission-center / 权限中心」指该 permission 域（同进程同库，经 Gateway 以 `/api/perm/**` 对外），「admin-service / admin」指同服务的管理域；不再存在跨服务同步链路。
 
@@ -179,7 +181,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 
 | 文档                                                                                                 | 说明                                     |
 | ---------------------------------------------------------------------------------------------------- | ---------------------------------------- |
-| [api-contract.md](api-contract.md)                                                                   | 外部 API 路径、请求体、响应体、错误码    |
+| [access-service-api-contract.md](../access-service-api-contract.md)                                   | API 契约总册（两册合一，T-ACCESS-040）  |
 | [core-flows.md](core-flows.md)                                                                       | 核心场景端到端调用链路                   |
 | [implementation.md](implementation.md)                                                               | 分层架构、类清单、关键机制实现细节       |
 | [../../archive/2026-05-30/service-layer-review.md](../../archive/2026-05-30/service-layer-review.md) | Service 层重构分析（Phase 1-5 完成总结） |

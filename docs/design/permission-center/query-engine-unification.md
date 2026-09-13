@@ -2,14 +2,14 @@
 doc_type: design
 title: 权限查询统一引擎（演进终态设计）
 status: superseded
-superseded_by: docs/design/permission-center/implementation.md#§3
+superseded_by: docs/design/engine/implementation.md#§3
 domain: permission-center
 last_reviewed: 2026-09-10   # 2026-09-10 转 superseded：permission-query-unification 计划四任务全 done 归档（T-PERM-059 收尾触发，用户拍板）；此前 2026-09-09
 ---
 
 # 权限查询统一引擎（演进终态设计）
 
-> **定案说明**：本文件为 2026-09-09 用户 grill 访谈定案（Q1-Q15 + D1/D2；现状断言经代码级核验修订）的终态设计。**T-PERM-057 已落地（2026-09-09 实施）**：正文已并入 `implementation.md` §3（统一引擎版，含三条实施定案——角色互斥不归引擎/条件上下文多层对象/闭包止步同类型，registry 另行登记）；**实现以 `implementation.md` §3 为唯一权威，本文件仅存续为定案过程追溯**。T-PERM-058/059 的 design_refs 已重连 implementation §3；本文件已于 2026-09-10 转 superseded：permission-query-unification 计划四任务（T-PERM-057/T-API-003/T-PERM-058/T-PERM-059）全部 done、计划归档（T-PERM-059 收尾触发，用户拍板「随本卡收尾归档」）。
+> **定案说明**：本文件为 2026-09-09 用户 grill 访谈定案（Q1-Q15 + D1/D2；现状断言经代码级核验修订）的终态设计。**T-PERM-057 已落地（2026-09-09 实施）**：正文已并入 `engine/implementation.md` §3（2026-09-13 随 T-ACCESS-040 迁位）（统一引擎版，含三条实施定案——角色互斥不归引擎/条件上下文多层对象/闭包止步同类型，registry 另行登记）；**实现以 `engine/implementation.md` §3 为唯一权威，本文件仅存续为定案过程追溯**。T-PERM-058/059 的 design_refs 已重连 implementation §3；本文件已于 2026-09-10 转 superseded：permission-query-unification 计划四任务（T-PERM-057/T-API-003/T-PERM-058/T-PERM-059）全部 done、计划归档（T-PERM-059 收尾触发，用户拍板「随本卡收尾归档」）。
 
 ## 1. 现状与动机
 

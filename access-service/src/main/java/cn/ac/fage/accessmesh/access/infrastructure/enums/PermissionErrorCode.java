@@ -202,7 +202,7 @@ public enum PermissionErrorCode {
     CONDITIONAL_PERMISSION_CANNOT_DELEGATE(20041, "条件权限不可转授"),
 
     /**
-     * 条件启用状态不变量（2026-08-08 产品确认，api-contract §6.5.1，T-PERM-041）：
+     * 条件启用状态不变量（2026-08-08 产品确认，总册 §11.4，T-PERM-041）：
      * 主权限 conditionCode 新写入或变更时目标条件必须 enabled=true——停用条件不得
      * 新建绑定或改绑；存量绑定（update 未变更 conditionCode，含同 id 重写）允许保留。
      * 仅判主权限（子权限带条件由 20043 先行拒绝）。
@@ -210,7 +210,7 @@ public enum PermissionErrorCode {
     CONDITION_DISABLED(20042, "权限条件已停用"),
 
     /**
-     * 子权限属性系统不变量（2026-08-08 复审产品确认，api-contract §6.5.1）：
+     * 子权限属性系统不变量（2026-08-08 复审产品确认，总册 §11.4）：
      * 子权限不承载条件与再授予——create 的 conditionCode 非 null / canGrant 非 false、
      * 或 update 目标为子权限，一律拒绝（先于主权限 20041/20042 判定）。
      */
@@ -219,7 +219,7 @@ public enum PermissionErrorCode {
     /**
      * 禁止通过权限管理入口或外部同步直接修改 access-service 本地投影。
      * <p>
-     * 编号 20045/20046 段：20042 已由 CONDITION_DISABLED 承载（api-contract §6.5.1，
+     * 编号 20045/20046 段：20042 已由 CONDITION_DISABLED 承载（总册 §11.4，
      * T-PERM-041 落地），统一响应只暴露数字码，同一编号不得承载两种业务含义。
      * </p>
      */

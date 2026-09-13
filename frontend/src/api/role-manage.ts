@@ -7,7 +7,7 @@
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.2 / §6.10.3
+ * 契约依据：docs/design/access-service-api-contract.md §10.3 / §10.5
  * 后端实现：access-service RoleController + RoleManageAppService
  * Gateway 注册：bootstrap 管理 API 清单（BootstrapGraphDefinition.apiRoutes，
  * tree/create 先在册，update/remove/move/detail 随 T-FE-016 补注册）
@@ -95,7 +95,7 @@ export type RoleTreeNode = {
 
 /** 角色树查询参数（对齐 RoleTreeReq） */
 export type RoleTreeQuery = {
-  /** 业务域编码，可省略或 null：返回全部角色树；有值仅校验域覆盖性，不按域过滤（§6.10.3） */
+  /** 业务域编码，可省略或 null：返回全部角色树；有值仅校验域覆盖性，不按域过滤（§10.5） */
   domainCode?: string | null;
   /**
    * 仅返回启用角色（T-PERM-022 定案）：默认 false 返回全部有效角色（含禁用，

@@ -555,7 +555,7 @@ class PermissionGrantPlanDomainServiceImplTest {
 
         @Test
         void shouldPrefer20041WhenBothInvariantsViolated() {
-            // 契约优先级（api-contract §6.5.1）：20041 -> 20042，停用条件 + canGrant=true 首个命中 20041
+            // 契约优先级（api-contract 总册 §11.4）：20041 -> 20042，停用条件 + canGrant=true 首个命中 20041
             stubCreateBase();
             stubConditions(condition("biz-hours", 30L, false));
             callRealGrantAttributes();
@@ -730,7 +730,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         }
     }
 
-    // ========== 操作适用性校验（§6.5.1：类型隔离判定，20008/20005 区分） ==========
+    // ========== 操作适用性校验（总册 §11.4：类型隔离判定，20008/20005 区分） ==========
 
     @Nested
     class OperationApplicabilityValidation {

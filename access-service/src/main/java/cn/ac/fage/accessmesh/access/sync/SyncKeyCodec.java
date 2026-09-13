@@ -12,7 +12,7 @@ import java.util.LinkedHashMap;
 /**
  * 同步键编码工具
  * <p>
- * 严格遵循 docs/design/permission-center/api-contract.md §6.2.2.4 业务键与 scopeKey 规范：
+ * 严格遵循 docs/design/access-service-api-contract.md §19.7 业务键与 scopeKey 规范：
  * <ul>
  *   <li>使用 {@code key=value&key=value} 的有序参数串；</li>
  *   <li>参数名 camelCase，顺序由本节样例固定，不省略缺省字段；</li>
@@ -66,7 +66,7 @@ public final class SyncKeyCodec {
     }
 
     // ---------------------------------------------------------------------
-    // businessKey 静态构造方法（顺序与 api-contract §6.2.2.4 表格一致）
+    // businessKey 静态构造方法（顺序与 api-contract §19.7 表格一致）
     // ---------------------------------------------------------------------
 
     /**
@@ -120,7 +120,7 @@ public final class SyncKeyCodec {
     }
 
     // ---------------------------------------------------------------------
-    // scopeKey 静态构造方法（顺序与 api-contract §6.2.2.4 表格一致）
+    // scopeKey 静态构造方法（顺序与 api-contract §19.7 表格一致）
     // ---------------------------------------------------------------------
 
     /**
@@ -165,7 +165,7 @@ public final class SyncKeyCodec {
     }
 
     // ---------------------------------------------------------------------
-    // sync_key / 持久化同步定位串（api-contract §6.2.2.4；2026-09-08 codex 复评 P2-1 收编）
+    // sync_key / 持久化同步定位串（api-contract §19.7；2026-09-08 codex 复评 P2-1 收编）
     // ---------------------------------------------------------------------
 
     /**

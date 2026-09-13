@@ -36,7 +36,7 @@ public interface PermissionGrantAppService {
     List<RolePermissionItemResp> listPermissions(Long tenantId, RolePermissionListReq req);
 
     /**
-     * 子权限允许类型只读查询（api-contract §6.5.2）
+     * 子权限允许类型只读查询（总册 §11.5）
      * <p>
      * 门禁：目标角色 ROLE:VIEW 实例级（resolveRoleId 失败 20001，无 VIEW 抛
      * SecurityException——不采用空结果掩盖鉴权失败）；策略结果由

@@ -159,7 +159,7 @@ public final class BusinessKeys {
     }
 
     // ---------------------------------------------------------------------
-    // 关系族（relationKey：契约格式 TYPE:externalId，见 api-contract §6.2.2.4）
+    // 关系族（relationKey：契约格式 TYPE:externalId，见 api-contract 总册 §19.7）
     // ---------------------------------------------------------------------
 
     /** relationKey 解析结果。 */

@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * 资源实体同步请求
  * <p>
- * 详见 docs/design/permission-center/api-contract.md §6.2.2。
+ * 详见 docs/design/access-service-api-contract.md §19.1。
  * </p>
  */
 public record ResourceEntitySyncReq(

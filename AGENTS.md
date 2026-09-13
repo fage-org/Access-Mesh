@@ -43,10 +43,10 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 | 定案登记表         | `docs/design/decision-registry.md`（定案消费与评审豁免唯一入口；用户定案当轮登记） |
 | 整体架构           | `docs/design/architecture.md`              |
 | 归并后目标架构     | `docs/design/access-service-architecture.md` |
-| 权限中心概念模型   | `docs/design/permission-center/overview.md` |
-| 权限中心 API 契约  | `docs/design/permission-center/api-contract.md` |
-| 权限中心核心流程   | `docs/design/permission-center/core-flows.md` |
-| 权限中心实现设计   | `docs/design/permission-center/implementation.md` |
+| access-service API 契约总册 | `docs/design/access-service-api-contract.md`（两 URL 家族同册分列、按能力分章，T-ACCESS-040 两册合一） |
+| 引擎子系统概念模型 | `docs/design/engine/overview.md` |
+| 引擎子系统核心流程 | `docs/design/engine/core-flows.md` |
+| 引擎子系统实现设计 | `docs/design/engine/implementation.md` |
 | 服务设计           | `docs/design/services/*.md`                  |
 | 表结构             | `docs/design/schema/access-service.sql`（唯一权威；旧 admin/perm DDL 已归档 `docs/archive/2026-08-22/schema/`） |
 
@@ -68,9 +68,9 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 
 ## 权限中心实现提醒
 
-- API 路径、请求体、响应体、错误原因以 `docs/design/permission-center/api-contract.md` 为准。
+- API 路径、请求体、响应体、错误原因以 `docs/design/access-service-api-contract.md`（契约总册）为准。
 - 表字段、索引、约束以 `docs/design/schema/access-service.sql` 为准（admin/perm 旧 schema 已 superseded）。
-- 核心场景链路以 `docs/design/permission-center/core-flows.md` 为准。
+- 核心场景链路以 `docs/design/engine/core-flows.md` 为准。
 - 对外 API 使用 `subjectTypeCode/resourceTypeCode/roleTypeCode`；内部表继续使用 `type_value` 数字值。
 - `type_value` 在同一 `tenant_id + type_key` 内全局唯一；不要按业务域重复分配相同内部值。
 - `query-scopes`、`scope_all` 是当前范围权限模型；不要恢复旧的 `query-data-scopes`、`includeDataScope`、`dataScopes`。

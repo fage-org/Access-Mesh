@@ -87,7 +87,7 @@ public interface OrgAppService {
      * T-ADMIN-021：支持 includePositions 组织+岗位一体树（岗位作为所属组织子节点，
      * 岗位节点按调用者 ORG:VIEW_POSITION 后端裁剪）；operationCode（VIEW/CREATE，
      * CREATE 限默认树）；treeConfigId 树配置子树裁剪（不传=默认树子树，用户决策契约字面）；
-     * 响应统一包装 ItemsResp（控制器层）。契约：admin-service-api-contract §4.2.1。
+     * 响应统一包装 ItemsResp（控制器层）。契约：access-service-api-contract §8.1。
      * </p>
      *
      * @param query 组织查询条件

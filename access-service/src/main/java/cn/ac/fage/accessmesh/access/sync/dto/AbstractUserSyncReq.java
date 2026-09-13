@@ -10,7 +10,7 @@ import java.util.Map;
 /**
  * 抽象用户同步请求
  * <p>
- * 详见 docs/design/permission-center/api-contract.md §6.2.2.3。
+ * 详见 docs/design/access-service-api-contract.md §19.4。
  * </p>
  *
  * @param operation         UPSERT / DISABLE / DELETE

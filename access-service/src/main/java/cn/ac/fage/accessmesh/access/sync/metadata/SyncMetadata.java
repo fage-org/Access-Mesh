@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
  *   <li>full-sync 差异校准：按 (tenantId, entityKind, sourceService, scopeKeyHash) 圈定 ownership 范围；</li>
  *   <li>业务键到 target_id 的稳定映射，避免外部 ID 反复反查目标事实表。</li>
  * </ul>
- * scopeKey/businessKey/syncKey 的格式由 api-contract.md §6.2.2.4 规范化，不包含 tenantId/sourceService/entityKind。
+ * scopeKey/businessKey/syncKey 的格式由 api-contract.md 总册 §19.7 规范化，不包含 tenantId/sourceService/entityKind。
  * </p>
  *
  * @author AccessMesh Team
@@ -52,7 +52,7 @@ public class SyncMetadata {
     private String sourceService;
 
     /**
-     * full-sync 清理范围键原文（api-contract §6.2.2.4 规范化）
+     * full-sync 清理范围键原文（api-contract 总册 §19.7 规范化）
      */
     private String scopeKey;
 
@@ -62,7 +62,7 @@ public class SyncMetadata {
     private String scopeKeyHash;
 
     /**
-     * 同步对象业务键原文（api-contract §6.2.2.4 规范化）
+     * 同步对象业务键原文（api-contract 总册 §19.7 规范化）
      */
     private String businessKey;
 

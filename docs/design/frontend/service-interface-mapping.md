@@ -11,7 +11,7 @@ last_reviewed: 2026-09-05   # 2026-09-05 T-PERM-053 锁步补正（§3.2 同步�
 > **T-FE-022 联调注记（2026-09-03）**：api/service-interface.ts 十端点切 Gateway（service-config 6 + api-mapping 4；页面消费 9——detail 与 create 的注册归依：detail 页面不消费不注册、create 先期在册） `/perm/api/perm/*`；mock/service-interface.ts 整删；浏览器全链路实证——登记/选中/新增映射/FULL 同步清理边界（服务维护映射清理、手工映射保留）/移除/删除服务。
 
 > 任务：T-FE-007（Phase 1，mock 驱动）
-> 后端契约：`docs/design/permission-center/api-contract.md` §5.4、§6.3、§6.10.4
+> 后端契约：`docs/design/access-service-api-contract.md`（契约总册）§12.2、§19.8、§12.5
 > 对应后端改造：T-PERM-027（Phase 2）
 
 ## 1. 页面定位

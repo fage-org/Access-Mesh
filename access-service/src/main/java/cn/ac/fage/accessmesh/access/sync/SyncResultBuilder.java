@@ -8,7 +8,7 @@ import java.util.List;
  * SyncResultResp 构造工具
  * <p>
  * 统一同步操作响应壳的构造，避免散落 boolean 组合错误。
- * 字段语义详见 api-contract §6.2.2.2 / §6.2.2.6。
+ * 字段语义详见 api-contract 总册 §19.3 / §19.6。
  * </p>
  */
 public final class SyncResultBuilder {

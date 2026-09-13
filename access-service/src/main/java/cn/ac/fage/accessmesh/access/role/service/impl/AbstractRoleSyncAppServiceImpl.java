@@ -329,7 +329,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
             String syncKey = SyncKeyCodec.syncKey(req.scope().sourceService(), ENTITY_KIND, businessKey);
             String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
 
-            // 父角色解析（命中阶段 B 预加载结果；契约 §6.2.2.4：parentRoleTypeCode 缺省 = scope.roleTypeCode）
+            // 父角色解析（命中阶段 B 预加载结果；契约 总册 §19.7：parentRoleTypeCode 缺省 = scope.roleTypeCode）
             Long parentId = null;
             String itemParentTypeCode = effectiveParentTypeCode(item, req.scope().roleTypeCode());
             AbstractRole existing = existingByExternalId.get(item.roleExternalId());
@@ -427,7 +427,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     // helpers
     // ---------------------------------------------------------------------
 
-    /** 契约 §6.2.2.4：full-sync item 的父角色类型缺省 = scope.roleTypeCode（跨类型须显式传） */
+    /** 契约 总册 §19.7：full-sync item 的父角色类型缺省 = scope.roleTypeCode（跨类型须显式传） */
     private String effectiveParentTypeCode(AbstractRoleSyncItem item, String scopeRoleTypeCode) {
         return (item.parentRoleTypeCode() == null || item.parentRoleTypeCode().isBlank())
                 ? scopeRoleTypeCode : item.parentRoleTypeCode();

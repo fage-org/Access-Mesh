@@ -10,7 +10,7 @@ last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事�
 
 > 状态：**v1.0 定稿**（2026-06-10）。本文固化“默认组织树作为用户目录/身份池”的设计，用于约束多组织树场景下用户生命周期、组织成员关系、权限资源建模和同步逻辑。
 >
-> 关联文档：`architecture.md`、`org-user-permission-contract.md`、`../archive/2026-06-21/api-gap-analysis.md`（已归档，16 个 🔧 接口已实现）、`permission-center/overview.md`、`schema/access-service.sql`（唯一权威 DDL；原 admin-service 服务设计已归档至 `../archive/2026-08-22/admin-service.md`）。
+> 关联文档：`architecture.md`、`org-user-permission-contract.md`、`../archive/2026-06-21/api-gap-analysis.md`（已归档，16 个 🔧 接口已实现）、`engine/overview.md`、`schema/access-service.sql`（唯一权威 DDL；原 admin-service 服务设计已归档至 `../archive/2026-08-22/admin-service.md`）。
 
 ---
 
@@ -198,7 +198,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 外部业务服务的单次删除/禁用仍必须生成对应 `DISABLE/DELETE/UNBIND` envelope；全量校准是最终一致性兜底，不是跳过单次同步的理由。
 
-`businessKey` 与 `scopeKey` 编码格式统一以 `permission-center/api-contract.md` §6.2.2.4 为准；本文档只描述领域顺序，不维护另一套拼接规则。
+`businessKey` 与 `scopeKey` 编码格式统一以 `access-service-api-contract.md` §19.7 为准；本文档只描述领域顺序，不维护另一套拼接规则。
 
 ---
 

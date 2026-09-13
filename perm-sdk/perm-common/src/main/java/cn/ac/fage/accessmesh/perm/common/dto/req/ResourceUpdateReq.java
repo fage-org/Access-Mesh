@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotBlank;
  * 资源更新请求
  * <p>
  * 以业务键 (resourceTypeCode, code, codeType) 定位待更新资源（T-PERM-028 定稿，
- * 契约见 api-contract §5.3「业务键定位」），业务键字段不可更新（编码为稳定标识；
+ * 契约见 api-contract 总册 §12.1「业务键定位」），业务键字段不可更新（编码为稳定标识；
  * 原 id 定位 + code 可更新形态已删除）。extraClear 用于显式清空 extra（JSON null
  * 无法区分「未传」与「清空」）。
  * </p>

@@ -7,7 +7,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 同步模式策略工厂
  * <p>
- * 用于获取不同同步模式的策略实例。权威契约 §6.3 首期仅允许 FULL
+ * 用于获取不同同步模式的策略实例。权威契约 总册 §19.8 首期仅允许 FULL
  * （T-PERM-027 收口：DTO 校验层拒绝其他值，IncrementalSyncStrategy 已删除——
  * 全仓零生产调用，且增量模式与「FULL = 服务事实源覆盖」的清理边界语义分叉）。
  * </p>

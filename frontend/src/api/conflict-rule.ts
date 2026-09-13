@@ -7,7 +7,7 @@
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.6（T-PERM-030 收口契约要点）
+ * 契约依据：docs/design/access-service-api-contract.md §15.2（T-PERM-030 收口契约要点）
  * 后端实现：access-service ConflictRuleController + ConflictRuleAppService
  *
  * T-PERM-030 收口（原 🔧 登记全部处置）：

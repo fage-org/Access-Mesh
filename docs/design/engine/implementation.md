@@ -3,13 +3,15 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-12（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
 
+> **迁位注记（2026-09-13，T-ACCESS-040）**：本文档自 `docs/design/permission-center/` 迁至 `docs/design/engine/`（permission-center 目录解散，引擎子系统文档位），内容与章节锚点原样保留；API 契约引用已重挂 [access-service-api-contract.md](../access-service-api-contract.md) 契约总册。
+
 > 本文档是 `overview.md` 的**实现层补充**，聚焦于鉴权查询和权限授权管理两大核心模块的执行链路设计。
-> 本文档不定义对外 API 路径、请求体、响应体或错误原因；这些内容以 `api-contract.md` 为准。
+> 本文档不定义对外 API 路径、请求体、响应体或错误原因；这些内容以 [`access-service-api-contract.md`](../access-service-api-contract.md)（契约总册）为准。
 > 阅读本文档前请先阅读 `overview.md` 了解业务概念；表结构以 `../schema/access-service.sql` 为准（唯一权威 DDL；文中「permission-center」指 access-service permission 域，见 overview.md 术语注记）。
 
 ---
@@ -434,7 +436,7 @@ PermQueryEngine.query(PermQuery q)
 
 - `PermQuery.setInheritParents(true)` / `setInheritChildren(true)`（清单面 `includeInherited`/`includeChildren` 契约字段收编，语义不变）；scopeAll 条目不参与展开。
 - 实现 `expandByPresentMode`：上溯经闭包 CTE（排除自身）、下溯经 `selectDescendantIdsBatch`，均目标下推批量，不走全量图；query-resources 的树扩展（原 `expandResourceScope` AppService 重复实现）已收编本轨道。
-- `/auth/check` 的 `inheritMode` 契约参数（api-contract §6.1）从「对单点判定结论无效」接通为目标闭包真实语义：PARENT/BOTH → `inheritClosure=true`；NONE/CHILD 对判定面不适用（子授权不覆盖父判定）。
+- `/auth/check` 的 `inheritMode` 契约参数（总册 §18.2）从「对单点判定结论无效」接通为目标闭包真实语义：PARENT/BOTH → `inheritClosure=true`；NONE/CHILD 对判定面不适用（子授权不覆盖父判定）。
 
 ### 3.5 条件评估三态、条目互斥与条件上下文
 
@@ -487,7 +489,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 
 ### 3.10 batchCheck 批量化（queryBatch 入口）——A+ 形态（T-PERM-061 设计定稿 2026-09-11，同日实施落地）
 
-`batch-check` 原状逐 item 走完整管线（每 item ≈ 2-3× Redis + 6+K 条无缓存 SQL，主体级数据重复装载 N 次）。实施形态 = **分组 + 请求级共享装载（A+）**：装载共享收敛为常数、判定全部内存化、契约零变化（请求/响应 JSON、1000 上限、reason 词表、matched 字段族不变；api-contract §6.1 的 a2 批量口径注记已回写）。
+`batch-check` 原状逐 item 走完整管线（每 item ≈ 2-3× Redis + 6+K 条无缓存 SQL，主体级数据重复装载 N 次）。实施形态 = **分组 + 请求级共享装载（A+）**：装载共享收敛为常数、判定全部内存化、契约零变化（请求/响应 JSON、1000 上限、reason 词表、matched 字段族不变；总册 §18.2 的 a2 批量口径注记已回写）。
 
 **共享装载（BatchEvalContext）**——per-request 实例经方法参数传递，**禁止落引擎字段**（@Component 单例并发串数据）；全部 DB 新鲜读，**不引入 ROLE_PERM_SNAPSHOT**（L2_ONLY 10s 陈旧窗口不进运行时鉴权面，T-ACCESS-008 边界）：角色 ×1（空=整批 NO_ROLE 前置）＋「已尝试解析」显式状态（resolveRoleIds/resolveEntityIds/resolveOperationIds 三处空集哨兵）；全类型与全 (type,op) 对一次解析；scopeAll 行全组 BitMaskEntry 合并一次；**分段化**——实例装载仅对 scopeAll 段未放行的组（短路是既有优化，两阶段保持）；entity 预解析合并一次按 Map 键取（resolveEntityIds 现状 values() 合并丢 key 不可复用）；闭包 CTE 仅对 inheritClosure=true 档目标发一次；共享父判定 ×1（惰性保留，只经既有 roleIds+evalContext 注入面，父类型/操作解析不并入共享上下文）；PERM_MUTEX 静态数据 ×1（规则一次+操作索引 O(distinct types)，只共享装载不共享计算）；**唯一非空 PermEvalContext(ip, now(), attrs) 强制注入全链**（item/父递归/条件评估共用，a2 定案——禁各 item 重钉禁 now() 回退）；批量路径不调 loadAncillary（matched 字段族由条目派生）；**空目标集守卫**——可解析 entityId 并集为空（纯 TYPE_LEVEL 批/全幽灵 code）禁调闭包 CTE（空 foreach `IN ()`=500）与实例 SQL（`<if>` 空集丢实体过滤=无界装载），queryInstance 空 entityIds 直接 List.of()。
 
@@ -523,9 +525,9 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 
 授权页面写链路收敛为 **list + apply-grant-plan** 两个端点（另加只读契约 `sub-perm-allowed-types`，§6.5.2）。`save/revoke/children/add-child/remove-child` **已随 T-PERM-034 端点退役删除（2026-08-27 端点退役收口：仓库内外无存量调用方、项目未上线，不留兼容层，Controller 无映射 404；SDK 面 perm-common RoleGrantReq/BatchRevokeReq 与 perm-client PermissionFeignClient.batchGrant/batchRevoke 同步移除）**；`update-child/children-save/rebuild` 不实现。角色权限写入的唯一约束并发兜底优先按 PostgreSQL SQLState `23505` 分类，约束名消息仅作驱动包装兼容兜底。
 
-**SUB_PERM 共享策略对象（复审实现建议采纳，复审补公开入口）**：从 `assertSubPermissionAllowed` 抽取不可变策略对象 `SubPermissionPolicy { mode, reason, allowedTypeCodes, allows(childTypeCode) }`，**唯一公开解析入口 `PermissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, parentResourceTypeCode)`**——读接口（`sub-perm-allowed-types`）由 AppService 映射其结果直接序列化；写链路 `prevalidate` 内部复用同一解析器（`policy.allows(childTypeCode)`），**禁止在 AppService/Controller 另行编写 SUB_PERM 判断（读写同源）**；顶层通配、全量结构校验（任一 allowed 项非法 -> CONFIG_INVALID）、并集去重、大小写不敏感与错误原因均在策略内统一组装，读写不再各自编排判断（顶层通配当前经真实 jsonb 链路暂不可达——已知缺陷登记见 api-contract §6.5.2 判定步骤 1，2026-09-02；ALLOW_ALL 以嵌套通配替代）。**校验顺序**：先按主/子记录分类（子权限 create 非 null/false -> 20043、子权限 update -> 20043），主权限再评估 20041（条件不可转授）→ 20042（条件启用状态）→ 20033 → 其他。
+**SUB_PERM 共享策略对象（复审实现建议采纳，复审补公开入口）**：从 `assertSubPermissionAllowed` 抽取不可变策略对象 `SubPermissionPolicy { mode, reason, allowedTypeCodes, allows(childTypeCode) }`，**唯一公开解析入口 `PermissionGrantPlanDomainService.resolveSubPermissionPolicy(tenantId, parentResourceTypeCode)`**——读接口（`sub-perm-allowed-types`）由 AppService 映射其结果直接序列化；写链路 `prevalidate` 内部复用同一解析器（`policy.allows(childTypeCode)`），**禁止在 AppService/Controller 另行编写 SUB_PERM 判断（读写同源）**；顶层通配、全量结构校验（任一 allowed 项非法 -> CONFIG_INVALID）、并集去重、大小写不敏感与错误原因均在策略内统一组装，读写不再各自编排判断（顶层通配当前经真实 jsonb 链路暂不可达——已知缺陷登记见总册 §11.5 判定步骤 1，2026-09-02；ALLOW_ALL 以嵌套通配替代）。**校验顺序**：先按主/子记录分类（子权限 create 非 null/false -> 20043、子权限 update -> 20043），主权限再评估 20041（条件不可转授）→ 20042（条件启用状态）→ 20033 → 其他。
 
-> **落地状态（T-PERM-034 收口，2026-08-30；外部复评二轮同日修正）**：策略对象/端点/校验顺序均已实现（判定优先级 0-6 单测全分支覆盖）；20043 预检先于 20041（update 目标为子权限与两种 create 形态均拒），并补齐「向 AUTO_DEP 父挂子权限 → 20034」遗漏不变量；diff_snapshot 按 api-contract §5.8 diff_snapshot 规范聚合形状写侧落地（级联删除子权限同记 REMOVE 快照）；`GoldenFixturePgIT`（真库引擎级比对）落地并顺带修复引擎缺口——`resolveBitMasks` 此前不计全局操作位（授权侧允许的全局位运行时被忽略），已改为按类型合并「专属优先、全局回退」（`selectGlobal` mapper + OPERATION_PERMISSIONS_BY_TYPE 缓存合并，与写链路 mergeGlobalFallback 同源）；复评二轮修正两点：多类型查询的目标位按该类型合并结果中**同码实际生效定义**取值（同码专属取代全局后，全局定义的 binaryBit 属于另一位空间——uk_operation_permission_typed_bit 按 tenant+resource_type 隔离位值，沿用会双向出错），冷缓存回源改批量口径（getBatch 收集 miss 类型 → 1 次全局 + 1 次批量专属 IN → putBatch 分组回填）。**全局操作概念整体退役（2026-08-30 设计定案，T-PERM-049）**：上述全局位合并与同码覆盖目标位解析逻辑随概念一并简化——`resolveBitMasks` 回归纯类型专属位（冷缓存批量口径保留），`resolveOperationId`/`batchResolveOperationIds` 删除全局回退，`OperationResolutionDomainService`（mergeGlobalFallback）与 `selectGlobal*` mapper 删除，DDL 补 `ck_operation_permission_resource_type_required` CHECK 在数据层焊死（授权行只存 resource_type+granted_bits，全局位与专属位同值时授权身份不可区分——外部复审 P1 越权结论的根治）。
+> **落地状态（T-PERM-034 收口，2026-08-30；外部复评二轮同日修正）**：策略对象/端点/校验顺序均已实现（判定优先级 0-6 单测全分支覆盖）；20043 预检先于 20041（update 目标为子权限与两种 create 形态均拒），并补齐「向 AUTO_DEP 父挂子权限 → 20034」遗漏不变量；diff_snapshot 按总册 §16.4 diff_snapshot 规范聚合形状写侧落地（级联删除子权限同记 REMOVE 快照）；`GoldenFixturePgIT`（真库引擎级比对）落地并顺带修复引擎缺口——`resolveBitMasks` 此前不计全局操作位（授权侧允许的全局位运行时被忽略），已改为按类型合并「专属优先、全局回退」（`selectGlobal` mapper + OPERATION_PERMISSIONS_BY_TYPE 缓存合并，与写链路 mergeGlobalFallback 同源）；复评二轮修正两点：多类型查询的目标位按该类型合并结果中**同码实际生效定义**取值（同码专属取代全局后，全局定义的 binaryBit 属于另一位空间——uk_operation_permission_typed_bit 按 tenant+resource_type 隔离位值，沿用会双向出错），冷缓存回源改批量口径（getBatch 收集 miss 类型 → 1 次全局 + 1 次批量专属 IN → putBatch 分组回填）。**全局操作概念整体退役（2026-08-30 设计定案，T-PERM-049）**：上述全局位合并与同码覆盖目标位解析逻辑随概念一并简化——`resolveBitMasks` 回归纯类型专属位（冷缓存批量口径保留），`resolveOperationId`/`batchResolveOperationIds` 删除全局回退，`OperationResolutionDomainService`（mergeGlobalFallback）与 `selectGlobal*` mapper 删除，DDL 补 `ck_operation_permission_resource_type_required` CHECK 在数据层焊死（授权行只存 resource_type+granted_bits，全局位与专属位同值时授权身份不可区分——外部复审 P1 越权结论的根治）。
 
 | 接口         | 路径                                                             | 说明                                             |
 | ------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
@@ -533,11 +535,11 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 | 聚合授权提交 | `POST /api/perm/role-resource-permission/apply-grant-plan`       | **授权页面唯一写入口**：记录级 `plan{creates/updates/removes}` + 单事务原子 + 受影响行数断言 |
 | 子权限类型查询 | `POST /api/perm/role-resource-permission/sub-perm-allowed-types` | **授权页只读契约（§6.5.2）**：按父资源类型返回 SUB_PERM 允许策略（mode/reason/allowedChildResourceTypeCodes），AppService 直接映射 `resolveSubPermissionPolicy` 结果 |
 
-> wire 契约（请求/响应/错误码）以 `api-contract.md §6.4/§6.5/§6.5.1/§6.5.2` 为唯一权威；本文不重复完整字段定义。**砍**：expectedRevision CAS / grant_revision 列 / 幂等表 grant_plan_idempotency / clientRequestId / @Idempotent / 20037/20039 / `docs/contracts/perm-grant.schema.json`。
+> wire 契约（请求/响应/错误码）以 `access-service-api-contract.md §11.2/§11.3/§11.4/§11.5` 为唯一权威；本文不重复完整字段定义。**砍**：expectedRevision CAS / grant_revision 列 / 幂等表 grant_plan_idempotency / clientRequestId / @Idempotent / 20037/20039 / `docs/contracts/perm-grant.schema.json`。
 
 ### 4.2 聚合授权执行链路（apply-grant-plan）
 
-#### 入参 DTO（结构示意，字段定义以 api-contract 为准）
+#### 入参 DTO（结构示意，字段定义以契约总册为准）
 
 ```java
 /** POST /api/perm/role-resource-permission/apply-grant-plan */
@@ -630,7 +632,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         //    updates/removes 实际影响行数 ≠ 预期（记录被并发删除/修改）-> 20036 抛出整体回滚
         permissionGrantPlanDomainService.apply(prepared);
 
-        // ④ 变更审计：同事务内写一条聚合 permission_change_log（api-contract §5.8 diff_snapshot 规范形状——T-PERM-034 落地：
+        // ④ 变更审计：同事务内写一条聚合 permission_change_log（总册 §16.4 diff_snapshot 规范形状——T-PERM-034 落地：
         //    eventType=ROLE_PERMISSION_CHANGE + items[]{changeType, permission 6 字段业务键, role 摘要}，
         //    业务键快照由 prevalidate 期 AuditPermissionKey 装配，removes 悬挂引用降级 null 键字段）
         //    回滚随事务消失，不写日志
@@ -751,7 +753,7 @@ Gateway 本地接口快照未命中时：
 
 ## 6. DTO 与内部模型边界
 
-Controller Request/Response DTO 是对外契约的一部分，统一以 `api-contract.md` 为准；本节只说明实现层需要维护的转换边界，避免把内部数据库 ID 泄漏成外部接口依赖。
+Controller Request/Response DTO 是对外契约的一部分，统一以 [`access-service-api-contract.md`](../access-service-api-contract.md) 为准；本节只说明实现层需要维护的转换边界，避免把内部数据库 ID 泄漏成外部接口依赖。
 
 ### 6.1 Controller DTO 原则
 
@@ -798,8 +800,8 @@ record RolePermEntry(Long roleId, Long resourceEntityId, Long operationPermissio
 - Request DTO 不包含 `tenantId`；`tenantId` 只能来自 `X-Tenant-Id` 或安全上下文。
 - 运行时接口不要求调用方传 `abstractUserId/resourceEntityId/operationPermissionId`。
 - Controller 或 Assembler 负责把 `subjectExternalId/resourceCode/operationCode` 解析成内部 ID。
-- Response DTO 使用 `reason`，错误原因枚举以 `api-contract.md` 为准。
-- 列表响应统一包在 `data.items`；分页结构以最终项目规范和 `api-contract.md` 对齐后执行。
+- Response DTO 使用 `reason`，错误原因枚举以契约总册为准。
+- 列表响应统一包在 `data.items`；分页结构以最终项目规范和契约总册对齐后执行。
 
 ### 6.3 公共内部对象
 

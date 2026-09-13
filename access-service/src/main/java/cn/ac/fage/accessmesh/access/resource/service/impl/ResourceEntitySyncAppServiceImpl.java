@@ -244,7 +244,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         }
 
         // 差异校准（批量软删 targetIds）。清理范围按 sync_metadata(entityKind=RESOURCE_ENTITY,
-        // sourceService, scopeKey) 界定（api-contract §6.2.2）：本地投影不写 sync_metadata
+        // sourceService, scopeKey) 界定（总册 §19.1）：本地投影不写 sync_metadata
         // （§4.2），天然不在清理集合内——类型级保留取消后仍不触及本地投影行。
         List<SyncMetadata> existingScope = syncMetadataDomainService.listScopeForFullSync(
                 tenantId, ENTITY_KIND, req.scope().sourceService(), scopeKeyHash);

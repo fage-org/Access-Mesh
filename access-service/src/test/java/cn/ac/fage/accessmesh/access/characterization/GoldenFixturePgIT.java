@@ -202,7 +202,7 @@ class GoldenFixturePgIT {
                 // fixtures 的 nodeClosure 语义（记录资源覆盖其子孙）= 引擎判定面继承
                 // （T-PERM-057 落地后引擎原生闭包：查目标时 {目标}∪同类型祖先链入查询，
                 // 「父授权覆盖子」为引擎单点判定语义）——单点判定即为终态断言，
-                // 手工 selfAndAncestors 模拟已收敛（query-engine-unification.md §10.7）
+                // 手工 selfAndAncestors 模拟已收敛（engine/implementation.md §3.9）
                 boolean actual = permQueryEngine.hasPermissionByEntityId(TENANT, subjectId, typeCode,
                     entityIdByFixtureId.get(resource.path("id").asLong()), opCode);
                 assertThat(actual)

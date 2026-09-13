@@ -10,7 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
  * <p>
  * 负责 UPSERT / DISABLE / DELETE 增量事件，以及全量同步差异校准。
  * 父角色解析失败时返回 DEPENDENCY_MISSING。
- * 详见 docs/design/permission-center/api-contract.md §6.2.2.3。
+ * 详见 docs/design/access-service-api-contract.md §19.4。
  * </p>
  */
 public interface AbstractRoleSyncAppService {

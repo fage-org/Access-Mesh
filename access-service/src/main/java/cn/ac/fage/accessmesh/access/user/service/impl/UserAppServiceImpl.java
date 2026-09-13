@@ -150,7 +150,7 @@ public class UserAppServiceImpl implements UserAppService {
      * 执行批量实例级权限校验 + 默认树边界二次校验。
      * 先记录每条 user-org 的 UNBIND 同步任务，再本地软删除，最后入队 DELETE 同步。
      * <p>
-     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.5
+     * 契约依据：{@code docs/design/access-service-api-contract.md} §7.5
      *
      * @param req ID集合请求，包含待删除的用户ID列表
      * @throws BizException 不能删除自己、不在默认树可管范围、同步任务记录失败等
@@ -168,7 +168,7 @@ public class UserAppServiceImpl implements UserAppService {
      * 执行批量实例级权限校验 + 默认树边界二次校验。
      * 不允许禁用操作者本人。
      * <p>
-     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.6
+     * 契约依据：{@code docs/design/access-service-api-contract.md} §7.6
      *
      * @param req 用户状态变更请求，包含用户ID列表和目标状态
      * @throws BizException 状态参数无效、不能禁用自己、不在默认树范围、同步任务记录失败等
@@ -241,7 +241,7 @@ public class UserAppServiceImpl implements UserAppService {
         int pageSize = req.getPageSize();
         Set<Long> orgIds = null;
         if (req.orgId() != null) {
-            // 契约 §4.1.1：orgId 必须属于默认组织树（本接口只服务身份目录视图）
+            // 契约 §7.1：orgId 必须属于默认组织树（本接口只服务身份目录视图）
             validateOrgInDefaultTree(tenantId, req.orgId());
 
             // EXT-3 修复：验证操作者对该 orgId 有 ORG:VIEW 权限
@@ -336,7 +336,7 @@ public class UserAppServiceImpl implements UserAppService {
      * 如果 newPassword 为空，系统自动生成随机密码。
      * 使用BCrypt哈希后更新，响应中返回生效的密码明文。
      * <p>
-     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.7
+     * 契约依据：{@code docs/design/access-service-api-contract.md} §7.7
      *
      * @param userId      用户ID
      * @param newPassword 新密码（可为空，空时自动生成）
@@ -431,7 +431,7 @@ public class UserAppServiceImpl implements UserAppService {
         return password.toString();
     }
 
-    // ==================== 候选用户查询（§4.1.2） ====================
+    // ==================== 候选用户查询（§7.2） ====================
 
     /**
      * 查询候选用户（添加组织/岗位成员时使用）。
@@ -439,7 +439,7 @@ public class UserAppServiceImpl implements UserAppService {
      * 候选范围 = 默认组织树中操作者可见 ∩ 排除目标组织已有成员。
      * 门禁：ORG:UPDATE@targetOrgId（校验能管理目标组织成员）。
      * <p>
-     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.2
+     * 契约依据：{@code docs/design/access-service-api-contract.md} §7.2
      *
      * @param req 候选用户查询请求（含 targetOrgId）
      * @return 分页候选用户列表
@@ -578,7 +578,7 @@ public class UserAppServiceImpl implements UserAppService {
      * 验证每个目标用户在操作者 ORG:VIEW 可见的默认树组织范围内有至少一个归属关系。
      * 若任一用户不在操作者可见范围内，整批操作拒绝。
      * <p>
-     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §2 门禁规范
+     * 契约依据：{@code docs/design/access-service-api-contract.md} §4 门禁规范
      *
      * @param tenantId   租户 ID
      * @param userIds    目标用户 ID 集合

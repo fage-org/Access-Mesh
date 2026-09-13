@@ -156,7 +156,7 @@ private Long grantDepId;
 > - 调用方可用于字段级 DTO 裁切
 > - 调用方可用于其他维度（如导出脱敏 / 报表聚合等）
 >
-> 与 [permission-center/core-flows.md](permission-center/core-flows.md) line 178 立场一致：**"权限中心只返回数据范围事实，不生成业务 SQL，不解释业务字段"**。
+> 与 [engine/core-flows.md](engine/core-flows.md) line 178 立场一致：**"权限中心只返回数据范围事实，不生成业务 SQL，不解释业务字段"**。
 
 ---
 
@@ -190,9 +190,9 @@ visible(menu, user) :=
 
 ## §5. /auth/user-menu 单 RPC 原子契约
 
-> **服务归属（T-ACCESS-012 更新）**：本接口归 **access-service 管理域**（前端唯一后端聚合入口，见 [architecture.md §1.5](architecture.md)；原 admin-service 服务设计已归档至 `../archive/2026-08-22/admin-service.md`）。permission-center api-contract.md 不承载此端点（已移除）。聚合由 `access.application.query`（UserMenuQueryService）在本服务内完成：经 `PermissionViewAppService`/本地引擎获取权限事实，组装为 `menus + permissions` 返回前端，无跨服务调用。
+> **服务归属（T-ACCESS-012 更新）**：本接口归 **access-service 管理域**（前端唯一后端聚合入口，见 [architecture.md §1.5](architecture.md)；原 admin-service 服务设计已归档至 `../archive/2026-08-22/admin-service.md`）。permission-center api-contract.md 不承载此端点（已移除）。聚合由 `menu.service`（UserMenuQueryAppService，T-ACCESS-033 迁移改名）在本服务内完成：经 `PermissionViewAppService`/本地引擎获取权限事实，组装为 `menus + permissions` 返回前端，无跨服务调用。
 >
-> **落地状态**：本接口为 v3.5 规划契约，尚未在 admin-service-api-contract.md 与代码中落地。实施时需同步 admin-service-api-contract.md。
+> **落地状态**：本接口为 v3.5 规划契约，尚未在契约总册（access-service-api-contract.md）与代码中落地。实施时需同步契约总册。
 
 ### 5.1 接口签名
 
@@ -299,7 +299,7 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 
 ### 7.3 错误响应协议
 
-错误响应（reasonCode / HTTP 状态码 / 业务状态码）**不在本文档定义**，统一归 [permission-center/api-contract.md](permission-center/api-contract.md) §7 单源。
+错误响应（reasonCode / HTTP 状态码 / 业务状态码）**不在本文档定义**，统一归 [access-service-api-contract.md](access-service-api-contract.md) §20.2 单源。
 
 > v3.5 立场：HTTP 响应码不作为业务状态码。reasonCode 分层、HTTP 与业务状态码分离、业务键解析失败语义等，纳入「项目响应码规范」统一设计（待设计项，见 §9.4）。
 
@@ -352,7 +352,7 @@ R5 SIGN_OFF（2026-06-18）是基于含 L3 字段级维度 + 6 个实施章节 +
 | `CACHE_STALE` reasonCode | **删除**(本轮 Q2=是)| §7.3 删除该行；前端失效由 Redis pub/sub 主动广播触发，不依赖 reasonCode |
 | `permission_version` 表与机制 | **删除**(审计 S-001=B，落实 design-review §A'-3)| 删 schema 表 + Entity/Service/Mapper/Controller/DTO + 4 处 increment + `PermCacheCatalog.PERMISSION_VERSION` + `:{permissionVersion}` key 后缀；T-PERM-018 后不再保留 permission-derived ETag/令牌，interface-snapshot 每次实时构建，正确性由 engine `ROLE_PERM_SNAPSHOT` 读缓存 + Redis pub/sub 广播 + TTL 兜底保证；同步 overview/core-flows/implementation/api-contract/coding-standards §5 |
 | `perm_outbox` 表表述 | **删除**(审计 S-003=A)| §7.2 改为 Redis pub/sub + TTL 兜底现状声明 + 风险声明 |
-| v3.5 §7.3 reasonCode 表 | **删除**(审计 S-013)| 改为指针归 api-contract.md §7 单源；HTTP 码不作业务状态码 |
+| v3.5 §7.3 reasonCode 表 | **删除**(审计 S-013)| 改为指针归契约总册 §20.2 单源；HTTP 码不作业务状态码 |
 | 业务键解析失败语义 | **待设计**(审计 S-016)| 纳入「项目响应码规范」统一设计，见 §9.4 |
 | Gateway 失效标记与订阅恢复策略 | **已设计**(审计 S-006=D→T-GW-005 完成)| design/services/gateway.md §快照失效标记与订阅恢复 |
 | sync_task / sync_metadata 清理策略 | **拒绝**(审计 S-010=D)| 后续改进，目前不重要 |
@@ -370,5 +370,5 @@ R5 SIGN_OFF（2026-06-18）是基于含 L3 字段级维度 + 6 个实施章节 +
 
 | 待设计项 | 来源 | 范围 |
 |---|---|---|
-| **项目响应码规范** | S-013 + S-016 | reasonCode 分层（HTTP 响应头 vs body.reason）/ HTTP 状态码与业务状态码分离 / 业务键解析失败语义（类型未注册 / 格式错误 / 实例不存在）/ api-contract.md §7 单源化 |
+| **项目响应码规范** | S-013 + S-016 | reasonCode 分层（HTTP 响应头 vs body.reason）/ HTTP 状态码与业务状态码分离 / 业务键解析失败语义（类型未注册 / 格式错误 / 实例不存在）/ 契约总册 §20.2 单源化 |
 | **Gateway 失效标记与订阅恢复策略** | S-006 | ~~待设计~~ **已设计**(2026-06-28 T-GW-005)：失效标记采用独立 `Set<String> invalidatedKeys` 追踪显式失效条目，维度与 evict 一致；订阅恢复采用重连即全量清空策略；详见 `docs/design/services/gateway.md` §快照失效标记与订阅恢复 |

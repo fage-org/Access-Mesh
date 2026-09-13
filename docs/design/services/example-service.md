@@ -57,7 +57,7 @@ last_reviewed: 2026-08-28
 
 当前 starter 模块是接入形态与能力边界的参考实现；最终交付形态需要在核心主线稳定后再统一收敛与裁决。
 
-具体契约以 `../permission-center/api-contract.md` 为准。
+具体契约以 `../access-service-api-contract.md`（契约总册）为准。
 
 ## 数据库
 

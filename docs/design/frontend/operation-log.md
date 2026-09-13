@@ -11,7 +11,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 > **T-FE-022 联调注记（2026-09-03）**：api/operation-log.ts 两端点切 Gateway `/perm/api/perm/log/operation/*`；mock/operation-log.ts 整删；浏览器实证 list 服务端分页 + action-options 动态字典（下拉值与库内实际 action 去重集合精确对应）。
 
 > 任务：T-FE-005（Phase 1，mock 驱动，第 1 批末页）
-> 后端契约：`docs/design/permission-center/api-contract.md` §5.8（T-PERM-025 收口：两行条目 + operation-log 契约要点，路径为实现路径）
+> 后端契约：`docs/design/access-service-api-contract.md`（契约总册）§16（T-PERM-025 收口：两行条目 + operation-log 契约要点，路径为实现路径）
 > 参照范式：6.1 类型定义页 / 6.2 系统配置页（`type-definition.md` / `system-config.md`，PureTableBar 表格列表范式 + SSOT/降级/核对清单结构）
 
 ## 1. 页面定位

@@ -8,7 +8,7 @@ last_reviewed: 2026-09-02   # 2026-09-02 T-FE-017 联调收口（§5 补 Gateway
 
 # 资源与操作定义 前端设计
 
-> 对应任务 T-FE-008（3.1 资源+操作定义页）。后端契约见 `docs/design/permission-center/api-contract.md` §5.3。
+> 对应任务 T-FE-008（3.1 资源+操作定义页）。后端契约见 `docs/design/access-service-api-contract.md`（契约总册）§12.1。
 
 ## 1. 定位
 

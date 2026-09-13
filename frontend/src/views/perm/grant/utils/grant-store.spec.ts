@@ -462,7 +462,7 @@ describe("grant-store 四态状态机（DoD-3）", () => {
     expect(store.isDirty).toBe(true);
     const ok = await store.switchMatrixType("MENU");
     expect(ok).toBe(true);
-    // 请求体带 resourceTypeCode（T-PERM-040 契约 §6.4）
+    // 请求体带 resourceTypeCode（T-PERM-040 契约 总册 §11.2）
     const call = mockRequest.mock.calls[1];
     expect(call[1]).toBe("/perm/api/perm/role-resource-permission/list");
     expect(call[2].data).toMatchObject({
@@ -564,7 +564,7 @@ describe("grant-store 四态状态机（DoD-3）", () => {
     mockRequest
       .mockResolvedValueOnce(okEnvelope({ items: [makeRecord(1)] })) // selectSubject
       .mockResolvedValueOnce(
-        // saveAll 响应 = 角色完整权限集合（契约 §6.5.1，含其他类型主权限）
+        // saveAll 响应 = 角色完整权限集合（契约 总册 §11.4，含其他类型主权限）
         okEnvelope({
           items: [
             makeRecord(1),

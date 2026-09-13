@@ -175,9 +175,9 @@ docs(tasks): design-audit-followup 设计体检批次建卡与定案回写
 | ----------------- | ------------------------------------------ |
 | 工程规范          | `docs/design/project-rules.md`                    |
 | 项目上下文        | `AGENTS.md`                                |
-| 权限中心 API 契约 | `docs/design/permission-center/api-contract.md`   |
-| 权限中心核心流程  | `docs/design/permission-center/core-flows.md`     |
-| 权限中心实现设计  | `docs/design/permission-center/implementation.md` |
+| access-service API 契约总册 | `docs/design/access-service-api-contract.md` |
+| 引擎子系统核心流程  | `docs/design/engine/core-flows.md`     |
+| 引擎子系统实现设计  | `docs/design/engine/implementation.md` |
 | 表结构            | `docs/design/schema/*.sql`                        |
 
 ## 使用建议

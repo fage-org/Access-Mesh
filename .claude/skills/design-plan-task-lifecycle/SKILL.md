@@ -48,7 +48,7 @@ docs/
 ├── design/                    # 设计（权威 + 演进，frontmatter status 区分）
 │   ├── README.md              # 设计索引（含演进方向分区）
 │   ├── architecture.md
-│   ├── permission-center/*.md
+│   ├── engine/*.md                        # 引擎子系统设计（示例）
 │   ├── services/*.md
 │   ├── schema/*.sql
 │   └── <topic>-evolution.md   # status: evolution 的前瞻设计稿
@@ -80,8 +80,8 @@ doc_type: design
 title: 权限中心二层权限模型
 status: draft          # draft | adopted | evolution | superseded | archived
 domain: permission-center   # permission-center | admin-service | gateway | cross-service | org-user | frontend
-supersedes: docs/design/permission-center/overview.md   # 仅当本文件取代旧设计时填
-superseded_by: docs/design/permission-center/v3.6.md    # 仅 status:superseded 时填
+supersedes: docs/design/engine/overview.md             # 仅当本文件取代旧设计时填
+superseded_by: docs/design/engine/v3.6.md              # 仅 status:superseded 时填
 last_reviewed: 2026-06-20
 ---
 ```
@@ -107,8 +107,8 @@ title: 权限缓存失效改造
 status: proposed        # proposed | active | blocked | completed | archived
 domain: permission-center
 design_refs:
-  - docs/design/permission-center/overview.md
-  - docs/design/permission-center/core-flows.md
+  - docs/design/engine/overview.md
+  - docs/design/engine/core-flows.md
 tasks:
   - T-PERM-001
   - T-PERM-002
@@ -141,7 +141,7 @@ status: proposed        # proposed | in-progress | review | done | cancelled | a
 plan: docs/plans/perm-cache-invalidation.md
 domain: permission-center
 design_refs:            # 本任务将改动的设计章节；done 前必须回写
-  - docs/design/permission-center/core-flows.md#网关鉴权快照
+  - docs/design/engine/core-flows.md#网关鉴权快照
 depends_on:             # 依赖的任务 ID（可随设计变更重连）
   - T-PERM-006
 blocks: []              # 反向依赖，自动推导，不手填
@@ -469,7 +469,7 @@ open ──可执行（方案清晰/用户拍板启动）──▶ converted ─
 
 **Step 2 — 拆 design-review**
 `docs/plans/design-review-2026-06-17.md`（707 行）三段拆分：
-- **① 评审结论**（§1-3：信任锚点、设计意图、文档不一致清单）→ 作为勘误/补注沉淀进对应 `design/` 文档（`architecture.md` / `implementation.md` / `api-contract.md` 等的不一致项逐条修正或加注）。
+- **① 评审结论**（§1-3：信任锚点、设计意图、文档不一致清单）→ 作为勘误/补注沉淀进对应 `design/` 文档（`architecture.md` / `engine/implementation.md` / 契约总册等的不一致项逐条修正或加注）。
 - **② 工作单 A-F**（§4）→ 已有派生计划：工作单 A=perm-cache-invalidation、B=scope-mode-migration、C=gateway-fail-mode。核对这三个 plan 的 frontmatter 补全 `design_refs` + `tasks`；D/E/F 若无派生计划则新建 plan。
 - **③ 原文** → 移至 `docs/archive/2026-06-17/design-review.md`，作为评审记录（保留追溯，不再作实现依据）。
 

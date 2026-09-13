@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.MappingSyncHandler;
  * 同步模式策略接口
  * <p>
  * 定义不同同步模式的执行策略。
- * 权威契约 §6.3 首期仅支持全量同步（FULL）一种模式（T-PERM-027 收口）。
+ * 权威契约 总册 §19.8 首期仅支持全量同步（FULL）一种模式（T-PERM-027 收口）。
  * 策略模式保留以便后续扩展新模式。
  * </p>
  */

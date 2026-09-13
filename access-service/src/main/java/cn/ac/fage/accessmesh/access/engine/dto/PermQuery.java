@@ -6,7 +6,7 @@ import lombok.Setter;
 import java.util.*;
 
 /**
- * 统一权限查询输入类（T-PERM-057 统一引擎入参模型，query-engine-unification.md §3）
+ * 统一权限查询输入类（T-PERM-057 统一引擎入参模型，engine/implementation.md §3.1）
  * <p>
  * 一个引擎、一套入参、一个结果模型；多入口 = 参数预设的封装（六工厂 + 引擎四便捷入口）。
  * 目标模式三态互不串义：TYPE_LEVEL 只消费 scopeAll（不做实例查询）、INSTANCE 目标下推

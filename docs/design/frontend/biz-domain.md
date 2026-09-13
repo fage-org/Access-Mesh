@@ -9,7 +9,7 @@ last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-046 三项加固收口（§4.2 c
 # 5.1 业务域页 前端设计
 
 > 任务：T-FE-006（Phase 1，mock 驱动）；后端收口：T-PERM-026（2026-08-29，契约要点见 api-contract §5.1/§5.6）
-> 后端契约：`docs/design/permission-center/api-contract.md` §5.1（类型与域）/ §5.6（高级能力）
+> 后端契约：`docs/design/access-service-api-contract.md`（契约总册）§14.1（biz-domain）/ §14.2（domain-config）
 > 参照范式：6.2 系统配置页（`system-config.md`，PureTableBar 表格列表范式 + SSOT/降级/核对清单结构）
 
 > **T-FE-021 联调注记（2026-09-02）**：本页 9 端点（biz-domain 5 + domain-config 4）mock→真实收口——api 双文件路径由裸 `/api/perm/*` 切 Gateway `/perm/api/perm/*` 前缀（Gateway 仅路由 /admin/**、/perm/**，裸路径必 404，conflict-rule 页先例）；mock/biz-domain.ts + mock/domain-config.ts + 两个共享注册表整删；bootstrap 固定图 Gateway 端点 +9、业务门禁零新增（DOMAIN:VIEW 与 SYSTEM_CONFIG:VIEW/MANAGE 均已在图）；DTO 比对零漂移。

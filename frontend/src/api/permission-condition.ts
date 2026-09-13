@@ -6,7 +6,7 @@
  *（_shared/permission-condition-store 亦随 T-FE-018 授权页 mock 退役一并删除，条件链路全真实）。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.6（T-PERM-029 收口：detail/update/remove
+ * 契约依据：docs/design/access-service-api-contract.md §15.1（T-PERM-029 收口：detail/update/remove
  * 均以业务键 code 定位，uk tenant+code；ConditionResp 含 updatedAt；detail 查不到抛 20006）。
  * 后端实现：access-service ConditionController + ConditionAppServiceImpl。
  */

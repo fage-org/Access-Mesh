@@ -52,9 +52,9 @@ Gateway (8080)
 |------|------|
 | [文档索引](docs/README.md) | 设计文档入口、权威来源、阅读顺序 |
 | [架构设计](docs/design/architecture.md) | 微服务整体架构、服务职责、模块划分 |
-| [权限中心概念模型](docs/design/permission-center/overview.md) | 权限模型、角色模型、范围权限模型 |
-| [权限中心 API 契约](docs/design/permission-center/api-contract.md) | 对外 API 路径、请求体、响应体、错误原因 |
-| [权限中心核心流程](docs/design/permission-center/core-flows.md) | 核心权限管理场景与调用链路 |
+| [access-service API 契约总册](docs/design/access-service-api-contract.md) | 全部 API 路径、请求体、响应体、错误原因（两 URL 家族同册分列） |
+| [引擎子系统概念模型](docs/design/engine/overview.md) | 权限模型、角色模型、范围权限模型 |
+| [引擎子系统核心流程](docs/design/engine/core-flows.md) | 核心权限管理场景与调用链路 |
 | [开发规范](docs/design/project-rules.md) | 接口、异常、日志、事务、安全等规范 |
 
 ## 快速开始（开发中）

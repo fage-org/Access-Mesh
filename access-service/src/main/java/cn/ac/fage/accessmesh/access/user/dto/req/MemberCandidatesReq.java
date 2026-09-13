@@ -11,7 +11,7 @@ import jakarta.validation.constraints.NotNull;
  * 与 {@link UserPageReq} 的区别：本接口服务"给非默认组织/岗位添加成员"场景，
  * 不承载身份目录列表查询语义。
  * <p>
- * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.2
+ * 契约依据：{@code docs/design/access-service-api-contract.md} §7.2
  *
  * @param targetOrgId 目标组织/岗位 ID（必填，用户即将被加入的组织）
  * @param pageNum     页码（默认 1）

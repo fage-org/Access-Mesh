@@ -5,7 +5,7 @@
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.8 operation-log 契约要点
+ * 契约依据：docs/design/access-service-api-contract.md §16.2 operation-log 契约要点
  *  （T-PERM-025 收口：五维筛选 + action-options 字典 + OPERATION_LOG:VIEW 审计分离门禁）。
  * 后端实现：access-service LogQueryController（@RequestMapping("/api/perm/log")）
  *   + LogQueryAppServiceImpl（操作日志三方法均 OPERATION_LOG:VIEW 门禁）。

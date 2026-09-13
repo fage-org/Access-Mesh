@@ -15,7 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * T-PERM-028：operation-permission 位字段线格式契约测试。
  * <p>
  * binaryBit/inheritMask 为 63 位 bigint 列，JSON number 在 &gt;2^53 丢精度——
- * 响应序列化为十进制字符串（全项目 bigint 序列化策略首例，api-contract §5.3 定稿）；
+ * 响应序列化为十进制字符串（全项目 bigint 序列化策略首例，api-contract 总册 §12.1 定稿）；
  * 请求侧 Long 组件由 Jackson 宽容接受十进制字符串。
  * </p>
  */

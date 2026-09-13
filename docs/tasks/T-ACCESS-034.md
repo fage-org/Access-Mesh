@@ -7,9 +7,9 @@ plan: docs/plans/access-capability-fusion-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-capability-structure.md#§5.1
-  - docs/design/permission-center/api-contract.md#§5.3（操作注册与码表；040 完成后重挂新册）
+  - docs/design/access-service-api-contract.md#§12.1（资源与操作：操作注册与码表；T-ACCESS-040 重挂总册）
   - docs/design/schema/access-service.sql（操作码种子）
-  - docs/design/services/admin-service-api-contract.md（admin 门禁操作码段；040 完成后重挂新册）
+  - docs/design/access-service-api-contract.md#§4（管理域门禁规范：操作码常量段；T-ACCESS-040 重挂总册）
 depends_on:
   - T-ACCESS-033
   - T-ACCESS-040

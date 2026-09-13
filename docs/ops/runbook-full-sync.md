@@ -1,7 +1,7 @@
 # 外部业务服务 sync / full-sync 运维手册（runbook）
 
 > 适用对象：接入 AccessMesh 的**外部业务服务**（如 hr-service、bi-service）的同步运维人员与平台管理员。
-> 契约权威：`docs/design/permission-center/api-contract.md` §6.2.2~§6.2.2.6、§6.3；安全边界：`docs/design/access-service-architecture.md` §6.2。
+> 契约权威：`docs/design/access-service-api-contract.md`（契约总册）§19.1~§19.6、§19.8；安全边界：`docs/design/access-service-architecture.md` §6.2。
 > 产出任务：T-PERM-021 F1.e（2026-09-12）。内部 admin→permission full-sync 编排已随 T-ACCESS-005 删除——管理事实由 access.application 同事务本地投影维护，**不经本手册任何接口**。
 
 ## 1. 通道总览与选择

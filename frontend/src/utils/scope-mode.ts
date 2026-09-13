@@ -14,7 +14,7 @@
  * 授权请求侧和权限事实列表项只使用 INSTANCE / ALL 两态；
  * query-scopes.scopeGroups[] 使用完整四态。
  *
- * @see docs/design/permission-center/api-contract.md §6.6-6.7
+ * @see docs/design/access-service-api-contract.md §18.5-18.6
  * @see perm-sdk/perm-common/.../enums/ScopeMode.java
  */
 export enum ScopeMode {

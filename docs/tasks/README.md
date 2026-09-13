@@ -68,13 +68,13 @@
 |---|---|---|---|---|---|---|
 | [T-ACCESS-032](T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | [capability-fusion](../plans/access-capability-fusion-plan.md) | capability-structure（产出 §8 并转 adopted）；access-service-architecture §1.2/§3/§9/§11；project-rules §8.2 | — | ✅ | ✓ |
 | [T-ACCESS-033](T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建（✅ 2026-09-13 收口：500 类搬迁 + 17 对改名 + 僵尸三件删除 + 五测试重建 + @MapperScan 14 包；全量回归含 E2E 绿，终态与遗留登记见任务卡完成记录） | capability-fusion | capability-structure §2/§8；access-service-architecture §3 | T-ACCESS-032 | ✅ | ✓ |
-| [T-ACCESS-034](T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | capability-fusion | capability-structure §5.1；api-contract §5.3；schema；admin-service-api-contract | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
+| [T-ACCESS-034](T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | capability-fusion | capability-structure §5.1；契约总册 §12.1/§4；schema | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
 | [T-ACCESS-035](T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | capability-fusion | capability-structure §5.2；schema | T-ACCESS-033 | ⚙️ | ⏳ |
-| [T-ACCESS-036](T-ACCESS-036.md) | resource_entity.sort_order 退役 | capability-fusion | capability-structure §5.2；api-contract；schema；perm-common | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
-| [T-ACCESS-037](T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | capability-fusion | capability-structure §5.3；admin-service-api-contract；api-contract §5.8 | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
+| [T-ACCESS-036](T-ACCESS-036.md) | resource_entity.sort_order 退役 | capability-fusion | capability-structure §5.2；契约总册 §12.1；schema；perm-common | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
+| [T-ACCESS-037](T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | capability-fusion | capability-structure §5.3；契约总册 §17.2/§17.3 | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
 | [T-ACCESS-038](T-ACCESS-038.md) | 错误码合类不合号 | capability-fusion | capability-structure §3；access-service-architecture §9 | T-ACCESS-033 | ⚙️ | ⏳ |
 | [T-ACCESS-039](T-ACCESS-039.md) | 缓存目录合一 | capability-fusion | capability-structure §3；dual-layer-cache-framework skill（双副本） | T-ACCESS-033, T-ACCESS-034 | ⚙️ | ⏳ |
-| [T-ACCESS-040](T-ACCESS-040.md) | API 契约深合一与设计文档重组 | capability-fusion | capability-structure §7；api-contract；admin-service-api-contract（合并源） | T-ACCESS-033 | ⚙️ | ⏳ |
+| [T-ACCESS-040](T-ACCESS-040.md) | API 契约深合一与设计文档重组（✅ 2026-09-13 收口：总册 2856 行零丢失合并 + 目录解散迁 engine/ + 全仓重挂 49 代码文件 + 双轨评审处置完毕） | capability-fusion | capability-structure §7；契约总册（本任务产出） | T-ACCESS-033 | ✅ | ✓ |
 | [T-ACCESS-041](T-ACCESS-041.md) | 规则与技能文件重写（能力 + 引擎口径） | capability-fusion | capability-structure §7；project-rules | T-ACCESS-033, T-ACCESS-034~039, T-ACCESS-040 | ⚙️ | ⏳ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 全收口（计划已归档 2026-09-12）+ 前端 Phase 1/2/4 后端任务）

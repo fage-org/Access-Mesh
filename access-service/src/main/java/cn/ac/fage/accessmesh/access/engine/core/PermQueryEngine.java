@@ -43,7 +43,7 @@ import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomai
 /**
  * 统一权限查询引擎 -- 所有权限校验的唯一入口（T-PERM-057 统一引擎：一个引擎、一套入参、一个结果模型）。
  *
- * <h3>管线阶段（query-engine-unification.md §4；角色互斥不归引擎——授权时校验另立项，
+ * <h3>管线阶段（engine/implementation.md §3.3；角色互斥不归引擎——授权时校验另立项，
  * 快照构建的 filterRoleMutex 由调用方自理（权限树端点已随 T-PERM-059 删除），2026-09-09 定案）</h3>
  * <ol>
  *   <li>入口封装：userId → roleIds（EFFECTIVE_ROLES 缓存）+ 条件上下文装配（四便捷入口自动取当前请求 clientIp）</li>
@@ -903,7 +903,7 @@ public class PermQueryEngine {
      * depend_on 子权限行的主资源上下文过滤（T-PERM-058 单点面闭合）。
      * <p>
      * 子权限行（depend_on 非空）的授权语义是「只在父权限命中的主资源上下文内生效」
-     * （api-contract §6.7 DEPENDENT 公式；此前仅 LIST 带 parentResource 路径实现，
+     * （总册 §18.6 DEPENDENT 公式；此前仅 LIST 带 parentResource 路径实现，
      * 单点 INSTANCE 路径直接命中子行=绕过父绑定）。本过滤将同一语义接入 INSTANCE 路径：
      * <ul>
      *   <li>结果不含子行时原样返回（零开销，主行命中的常规路径不受影响）；</li>
@@ -1237,7 +1237,7 @@ public class PermQueryEngine {
      * 调用方须已完成角色/类型/操作解析与 scopeAll 检查（未命中路径的共享实例步骤）。
      * inheritClosure 开启时（管理面写门禁/读过滤面默认）：目标集扩为 {目标}∪同类型祖先链，
      * 实例条目可能挂在祖先实体上——拒绝判定按「目标的闭包集与条目实体集交集为空」回映射
-     * （实现成败点，query-engine-unification.md §10.2：条目挂祖先、请求目标不在条目实体集
+     * （实现成败点，engine/implementation.md §3.9：条目挂祖先、请求目标不在条目实体集
      * 不得误判 DENIED）。
      * </p>
      */

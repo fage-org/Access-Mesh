@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * {@link SyncKeyCodec} 单元测试。
  * <p>
- * 严格按 docs/design/permission-center/api-contract.md §6.2.2.4 表格断言：
+ * 严格按 docs/design/access-service-api-contract.md §19.7 表格断言：
  * <ul>
  *   <li>4 类 businessKey 与 4 类 scopeKey 字段顺序与样例一致；</li>
  *   <li>relationKey {@code ORG:2001} percent-encode 为 {@code ORG%3A2001}；</li>

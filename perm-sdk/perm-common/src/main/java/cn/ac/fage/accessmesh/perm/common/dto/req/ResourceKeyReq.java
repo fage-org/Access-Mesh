@@ -6,7 +6,7 @@ import jakarta.validation.constraints.NotBlank;
  * 资源实体业务键请求
  * <p>
  * 以业务键 (resourceTypeCode, code, codeType) 定位资源实体（T-PERM-028 定稿，
- * 契约见 api-contract §5.3「业务键定位」）。perm-common 单源契约——服务端
+ * 契约见 api-contract 总册 §12.1「业务键定位」）。perm-common 单源契约——服务端
  * Controller/AppService 与 SDK 消费方共用本类（T-PERM-065，PermCommonReqContractTest 快照守卫）。
  * 用作 detail 请求体、move 的 resource/parent 嵌套组件与 remove 的 items 元素。
  * </p>

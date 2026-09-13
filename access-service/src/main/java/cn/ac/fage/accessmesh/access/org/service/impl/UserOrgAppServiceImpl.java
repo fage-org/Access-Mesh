@@ -57,7 +57,7 @@ public class UserOrgAppServiceImpl implements UserOrgAppService {
     /**
      * 移除单条 user-org 关系。默认树关系按身份目录高危处理。
      * <p>
-     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.3.3
+     * 契约依据：{@code docs/design/access-service-api-contract.md} §8.9
      * <ul>
      *   <li>非默认树关系：ORG:UPDATE@orgId 门禁</li>
      *   <li>默认树关系：USER:UPDATE@userId 门禁（按身份目录边界）</li>
@@ -72,7 +72,7 @@ public class UserOrgAppServiceImpl implements UserOrgAppService {
     /**
      * 设置用户主组织（首期仅允许默认组织树主归属）。
      * <p>
-     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.3.4
+     * 契约依据：{@code docs/design/access-service-api-contract.md} §8.10
      */
     @Override
     @Transactional(rollbackFor = Exception.class)

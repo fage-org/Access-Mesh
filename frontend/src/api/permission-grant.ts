@@ -6,14 +6,14 @@
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.5 / §6.4 / §6.5 / §6.5.1
+ * 契约依据：docs/design/access-service-api-contract.md §11.1 / §11.2 / §11.3 / §11.4
  * 后端实现：access-service PermissionGrantController + PermissionGrantAppServiceImpl
  *
  * T-PERM-034 已实现的契约要点：
  * - `RolePermissionItem` 统一返回 14 字段；list 支持 resourceTypeCode/includeChildren。
  * - `apply-grant-plan` 是授权页面唯一写入口（记录级 creates/updates/removes，
  *   单事务原子 + 受影响行数断言；无 CAS/幂等表/clientRequestId，第十四轮收窄），
- *   旧写端点 save/revoke/children/add-child/remove-child 已删除（网关 403——注册清单外拦截，请求不达后端；§6.4 端点退役收口）。
+ *   旧写端点 save/revoke/children/add-child/remove-child 已删除（网关 403——注册清单外拦截，请求不达后端；§11.2 端点退役收口）。
  * - grantedBits 为 63 位位图十进制字符串（避免 JSON number 精度丢失），前端 BigInt 解析。
  */
 import { http } from "@/utils/http";
@@ -42,7 +42,7 @@ export const GRANT_SOURCE = {
 export type GrantSource = (typeof GRANT_SOURCE)[keyof typeof GRANT_SOURCE];
 
 /**
- * apply-grant-plan 链路错误码（api-contract §6.5.1 错误码枚举，第十四轮精简；
+ * apply-grant-plan 链路错误码（api-contract §11.4 错误码枚举，第十四轮精简；
  * 20037/20039 已砍）。用于页面错误提示映射（DoD-1）。
  */
 export const GRANT_ERROR_CODE = {
@@ -63,9 +63,9 @@ export const GRANT_ERROR_CODE = {
   GRANT_CANNOT_DELEGATE: 20040,
   /** 🔧 T-PERM-041：条件权限不可转授（conditionCode != null 时 canGrant 必须 false） */
   CONDITIONAL_PERMISSION_CANNOT_DELEGATE: 20041,
-  /** 🔧 T-FE-040 v3.1：条件已停用（主权限 conditionCode 新写入或变更时必须 enabled=true，api-contract §6.5.1 20042） */
+  /** 🔧 T-FE-040 v3.1：条件已停用（主权限 conditionCode 新写入或变更时必须 enabled=true，api-contract §11.4 20042） */
   CONDITION_DISABLED: 20042,
-  /** 🔧 T-FE-040 v3.1：子权限属性系统不变量（conditionCode 必须 null、canGrant 必须 false；子权限 update 不支持），错误优先级先于 20041/20042（api-contract §6.5.1 20043） */
+  /** 🔧 T-FE-040 v3.1：子权限属性系统不变量（conditionCode 必须 null、canGrant 必须 false；子权限 update 不支持），错误优先级先于 20041/20042（api-contract §11.4 20043） */
   SUB_PERMISSION_ATTRIBUTE_NOT_ALLOWED: 20043,
   /** 🔧 T-PERM-062：授权根种子行只读（updates/removes/挂子权限拒绝；随类型生命周期维护） */
   AUTHORITY_ROOT_READONLY: 20061
@@ -124,7 +124,7 @@ export type RolePermissionItem = {
   codeType: string | null;
   /** 资源名（展示用；scopeMode=ALL 时为 null） */
   resourceName: string | null;
-  /** 操作码；契约 §6.4 MANUAL 一行一操作恒有值（T-FE-018 收紧，不再容 null） */
+  /** 操作码；契约 §11.2 MANUAL 一行一操作恒有值（T-FE-018 收紧，不再容 null） */
   operationCode: string;
   /** 是否可再授予 */
   canGrant: boolean;
@@ -184,7 +184,7 @@ export type GrantRecordKey = {
   resourceTypeCode: string;
   resourceCode: string | null;
   codeType: string | null;
-  /** 操作码（必填非空白——MANUAL 一行只写一个操作位，契约 §6.5.1 validateKeyShapes；T-FE-018 收紧） */
+  /** 操作码（必填非空白——MANUAL 一行只写一个操作位，契约 §11.4 validateKeyShapes；T-FE-018 收紧） */
   operationCode: string;
   scopeMode: GrantScopeMode;
   conditionCode: string | null;
@@ -225,7 +225,7 @@ export type GrantPlan = {
   removes?: number[];
 };
 
-/** apply-grant-plan 请求（统一响应壳见 api-contract §0；请求体封闭对象） */
+/** apply-grant-plan 请求（统一响应壳见总册 §2.2；请求体封闭对象） */
 export type ApplyGrantPlanReq = {
   domainCode?: string | null;
   roleTypeCode: string;
@@ -270,12 +270,12 @@ export const applyGrantPlan = async (
   return unwrap(res);
 };
 
-// ========== v3.1 子权限类型只读契约（api-contract §6.5.2，T-FE-040） ==========
+// ========== v3.1 子权限类型只读契约（总册 §11.5，T-FE-040） ==========
 
 /** 子权限类型策略 mode（判定口径与写校验同源，前端不得硬编码允许集） */
 export type SubPermissionMode = "ALLOW_ALL" | "ALLOW_LIST" | "ALLOW_NONE";
 
-/** ALLOW_NONE 细分原因（api-contract §6.5.2；ALLOW_ALL/ALLOW_LIST 时为 null） */
+/** ALLOW_NONE 细分原因（总册 §11.5；ALLOW_ALL/ALLOW_LIST 时为 null） */
 export type SubPermissionDenyReason =
   | "CONFIG_MISSING"
   | "CONFIG_EMPTY"
@@ -307,7 +307,7 @@ export type SubPermAllowedTypesReq = {
 
 /**
  * 查询子权限允许类型（POST /perm/api/perm/role-resource-permission/sub-perm-allowed-types）。
- * 只读契约：判定口径与 §6.5 SUB_PERM fail-closed 写校验同一策略解析函数。
+ * 只读契约：判定口径与 §11.3 SUB_PERM fail-closed 写校验同一策略解析函数。
  *
  * 后端已随 T-PERM-034 落地（2026-08-30，PermissionGrantController 已有该端点），联调验证归 T-FE-018
  * （原 T-FE-041 遗留登记已解除，见该卡 2026-08-30 更新注记）。

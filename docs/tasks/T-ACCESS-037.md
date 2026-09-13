@@ -7,8 +7,8 @@ plan: docs/plans/access-capability-fusion-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-capability-structure.md#§5.3
-  - docs/design/services/admin-service-api-contract.md（/config 契约段）
-  - docs/design/permission-center/api-contract.md#§5.8（system-config）
+  - docs/design/access-service-api-contract.md#§17.3（/config 未成册登记位——原 admin 册无 /config 契约段，T-ACCESS-040 实核 0 命中；退役时同步收口该登记行）
+  - docs/design/access-service-api-contract.md#§17.2（system-config；T-ACCESS-040 重挂总册）
 depends_on:
   - T-ACCESS-033
   - T-ACCESS-040

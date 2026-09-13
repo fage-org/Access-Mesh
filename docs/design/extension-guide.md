@@ -5,7 +5,7 @@ status: adopted（2026-09-12 用户确认定稿；双通道外评两轮处置收
 domain: common
 design_refs:
   - docs/design/architecture.md
-  - docs/design/permission-center/api-contract.md
+  - docs/design/access-service-api-contract.md
 last_reviewed: 2026-09-12
 ---
 

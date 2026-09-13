@@ -6,7 +6,7 @@ package cn.ac.fage.accessmesh.access.user.dto.resp;
  * 候选用户已由服务端过滤（仅默认树可见 + 排除目标组织已有成员），
  * {@code alreadyAssigned} 固定为 false，保留字段用于一致性。
  * <p>
- * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.2
+ * 契约依据：{@code docs/design/access-service-api-contract.md} §7.2
  *
  * @param id              用户 ID
  * @param username        登录账号

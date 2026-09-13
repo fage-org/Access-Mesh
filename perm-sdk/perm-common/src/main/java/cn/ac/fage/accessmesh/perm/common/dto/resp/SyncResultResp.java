@@ -5,7 +5,7 @@ import java.util.List;
 /**
  * 同步操作响应壳
  * <p>
- * 详见 {@code docs/design/permission-center/api-contract.md §6.2.2.2}：
+ * 详见 {@code docs/design/access-service-api-contract.md §19.3}：
  * <ul>
  *   <li>成功：accepted=true, applied=true, stale=false, retryClass=null, reason=null</li>
  *   <li>STALE：accepted=true, applied=false, stale=true, retryClass=STALE_VERSION, reason=SYNC_VERSION_STALE</li>
@@ -15,7 +15,7 @@ import java.util.List;
  * </p>
  * <p>
  * sync 接口 detail 始终为 {@code null}；full-sync 接口 detail 非 null，包含批量明细。
- * 详见 §6.2.2.6 FullSyncDetail 结构。
+ * 详见 §19.6 FullSyncDetail 结构。
  * </p>
  *
  * @param accepted   服务端是否完成业务幂等校验

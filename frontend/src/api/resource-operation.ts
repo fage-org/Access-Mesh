@@ -6,14 +6,14 @@
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.3
+ * 契约依据：docs/design/access-service-api-contract.md §12.1
  * 后端实现：access-service ResourceController + OperationController
  *
  * T-PERM-028 收口：
  * - detail/update/move/remove 均切业务键定位（resource: resourceTypeCode+code+codeType，
  *   codeType 缺省 default；operation: resourceTypeCode+code），不再接受内部 id。
  * - binaryBit/inheritMask 线格式为十进制字符串（63 位 bigint 防 JSON number >2^53 丢精度，
- *   契约 §5.3 定稿）；表单内部可用数值控件，提交时转字符串。
+ *   契约总册 §12.1 定稿）；表单内部可用数值控件，提交时转字符串。
  * - update 支持 extraClear 显式清空 extra（JSON null 无法区分「未传」与「清空」）。
  */
 import { http } from "@/utils/http";

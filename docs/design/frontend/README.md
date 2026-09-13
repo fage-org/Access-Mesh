@@ -7,7 +7,7 @@
 ## 与后端契约的关系
 
 前端页面设计（本目录）描述 UI 层：布局、字段、交互、组件结构、权限接线。
-后端接口契约（`docs/design/permission-center/api-contract.md` 等）描述数据层：请求/响应结构、路径、方法。
+后端接口契约（`docs/design/access-service-api-contract.md`（契约总册） 等）描述数据层：请求/响应结构、路径、方法。
 
 前端任务的 `design_refs` 同时指向两者：本目录页面文档（UI）+ 后端契约（数据）。
 

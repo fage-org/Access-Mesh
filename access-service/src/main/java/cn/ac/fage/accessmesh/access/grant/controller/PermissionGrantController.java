@@ -69,7 +69,7 @@ public class PermissionGrantController {
     }
 
     /**
-     * 子权限允许类型只读查询（api-contract §6.5.2）
+     * 子权限允许类型只读查询（总册 §11.5）
      * <p>
      * 按父资源类型返回 SUB_PERM 允许的子资源类型（授权弹窗子权限配置器数据源）；
      * 判定口径与写链路 SUB_PERM fail-closed 校验同源（resolveSubPermissionPolicy）。

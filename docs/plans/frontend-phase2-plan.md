@@ -4,9 +4,9 @@ title: 前端 Phase 2 — 核心功能补齐 + 后端接口改造
 status: proposed
 domain: permission-center
 design_refs:
-  - docs/design/permission-center/api-contract.md
-  - docs/design/permission-center/core-flows.md
-  - docs/design/permission-center/implementation.md
+  - docs/design/access-service-api-contract.md
+  - docs/design/engine/core-flows.md
+  - docs/design/engine/implementation.md
 tasks:
   - T-PERM-022
   - T-PERM-023
@@ -120,8 +120,8 @@ last_updated: 2026-09-03
 ## 归档条件
 
 - T-PERM-022~034 + 037 + 040 + 041 done（或暂缓项 035/036 cancelled，需 PM 决策）+ T-FE-036 done（前端部分，见上）+ **T-FE-038 done（单类型矩阵上下文）** + **T-FE-039 done（图标正交模型）** + **T-FE-040 done（授权弹窗 v3.1 记录级聚焦编辑）** + **T-ADMIN-021 done（2026-08-01 补充）**
-- 改造接口回写 `docs/design/permission-center/api-contract.md`
-- 自动授权流程回写 `core-flows.md`（若 035 推进）
+- 改造接口回写 `docs/design/access-service-api-contract.md`（契约总册）
+- 自动授权流程回写 `engine/core-flows.md`（若 035 推进）
 
 ## 当前进度
 

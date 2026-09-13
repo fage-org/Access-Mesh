@@ -11,7 +11,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 > **T-FE-022 联调注记（2026-09-03）**：api/system-config.ts 三端点（detail 页面不消费）切 Gateway `/perm/api/perm/system-config/*`；mock/system-config.ts 整删；ConfigForm configKey 校验由 `^[A-Z][A-Z0-9_]*$` 对齐后端 T-ACCESS-007 §5.2 命名空间前缀强制（`^(admin|permission|access)\.[A-Z][A-Z0-9_]*$`，旧 Pattern 与后端互斥致新建链路必被前端挡死）；后端 list keyword 过滤 CAST 修复（见 TypeDefinitionMapper 锚点注释）。
 
 > 任务：T-FE-004（Phase 1，mock 驱动）
-> 后端契约：`docs/design/permission-center/api-contract.md` §5.8（系统配置仅 3 行表格条目，无独立字段契约章节——🔧 登记 T-PERM-024）
+> 后端契约：`docs/design/access-service-api-contract.md`（契约总册）§17.2（系统配置仅 3 行表格条目，无独立字段契约章节——🔧 登记 T-PERM-024）
 > 参照范式：6.1 类型定义页（`type-definition.md`，PureTableBar 表格列表范式 + SSOT/降级/核对清单结构）
 
 ## 1. 页面定位

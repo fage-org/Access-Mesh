@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.enums;
 
 /**
- * 权限查询目标模式三态（T-PERM-057 统一引擎，query-engine-unification.md §2）。
+ * 权限查询目标模式三态（T-PERM-057 统一引擎，engine/implementation.md §3.3）。
  * <p>
  * 「无实例目标」不是二义输入——现有契约里它同时承载两种语义，统一入参必须显式区分，
  * 三态互不串义：

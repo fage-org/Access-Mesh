@@ -150,7 +150,7 @@ public class AdminUserController {
      * 查询候选用户（添加组织/岗位成员时使用）
      * <p>
      * 候选范围 = 默认组织树中操作者可见 ∩ 排除目标组织已有成员。
-     * 契约依据：admin-service-api-contract.md §4.1.2
+     * 契约依据：access-service-api-contract.md §7.2
      * </p>
      *
      * @param req 候选用户查询请求（含 targetOrgId）

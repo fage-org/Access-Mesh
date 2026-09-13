@@ -332,7 +332,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     }
 
     /**
-     * 子权限允许类型只读查询（api-contract §6.5.2）
+     * 子权限允许类型只读查询（总册 §11.5）
      * <p>
      * 门禁：目标角色 ROLE:VIEW 实例级——resolveRoleId 失败明确抛 20001（本接口无
      * 「空列表即自然结果」语义，避免前端把角色不存在误判为 ALLOW_NONE）；无 VIEW

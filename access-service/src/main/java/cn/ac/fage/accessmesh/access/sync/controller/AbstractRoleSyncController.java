@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * abstract-role 同步入口控制器。
  * <p>
- * 严格遵循 docs/design/permission-center/api-contract.md §6.2.2.3。
+ * 严格遵循 docs/design/access-service-api-contract.md §19.4。
  * </p>
  */
 @RestController

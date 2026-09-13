@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * abstract-user 同步入口控制器。
  * <p>
- * 严格遵循 docs/design/permission-center/api-contract.md §6.2.2.3。
+ * 严格遵循 docs/design/access-service-api-contract.md §19.4。
  * 路径与既有 {@code UserController} 共享 base path，但仅暴露 sync/full-sync 端点。
  * </p>
  */

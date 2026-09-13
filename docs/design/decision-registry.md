@@ -108,6 +108,8 @@
 | 2026-09-13 | 待解决问题清单机制：新增 `docs/pending-problems.md`（单文件、Q-NNN 全局计数器）作为 design/plan/task 三层的**前置队列**——登记已确认但暂不足以立任务/计划的问题（含用户拍板「记录问题本次不解决」与任务卡「非目标/遗留」延期项），必含现象+证据锚点+影响；可执行即转任务（不占 Q-ID）、关联任务 done 且验收覆盖后收敛为索引行；定案结论仍唯一走本表，问题文件不复制定案正文。既有登记收编：URL 两风格→Q-001、自身豁免范围限定→Q-002（原「architecture 演进方向区登记」口径由 Q-001 承接）。机制全文见 skill §2.5/§3.4/§6.6 | docs/pending-problems.md、.claude/skills/design-plan-task-lifecycle/SKILL.md（双副本）、project-rules.md §文档治理分层职责表 | 报了先核出处 |
 | 2026-09-13 | 待解决问题清单登记边界补充：**已有任务/计划载体的事项不登记**（含 done/cancelled 卡定案中「另立任务 / 新形态另立任务」的安排——看板与 registry 已是其载体）；Q-005 权限视图重做按此收敛 closed（载体=T-FE-043 随卡归档「新形态另立任务」+ T-PERM-059 定案③，重做启动时从看板计数器取号） | docs/pending-problems.md（已收敛索引）、design-plan-task-lifecycle skill §2.5 | 报了先核出处 |
 
+| 2026-09-13 | T-ACCESS-040 契约深合一三项拍板：①契约总册路径=`docs/design/access-service-api-contract.md`（design 根，与 architecture/capability-structure 并列权威三件套；services/ 目录维持跨消费方服务视角）；②引擎子系统文档位=新建 `docs/design/engine/` 保裸文件名（目录名对齐代码 engine 包；overview/core-flows/implementation 内容原样迁移锚点不变；superseded 残件按既定口径留 permission-center 原位待物理归档）；③已终态任务卡【正文完成记录】旧路径引用=纳入显式允许清单（历史记录不改写，清单随 T-ACCESS-040 卡存档可审计） | docs/tasks/T-ACCESS-040.md（含 59 文件允许清单）、docs/design/access-service-api-contract.md | 报了先核出处 |
+
 ## 已推翻（superseded）
 
 | 原口径 | 出处 | 被取代 |

@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 能力包结构与两域融合
 status: adopted
 domain: cross-service
-last_reviewed: 2026-09-13
+last_reviewed: 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
 ---
 
 # access-service 能力包结构与两域融合
@@ -103,11 +103,11 @@ last_reviewed: 2026-09-13
 3. `abstract_role` 容器行 `extra.orgType` 停写（orgType 语义已由 role_type 承载，extra.orgType 键整体消亡）
 4. `resource_entity.sort_order` 全字段面退役（列 + SDK 双册 Create/Update Req 字段 + ResourceResp/ResourceTreeResp + 全部写入点 + 前端提交载荷停发——独立任务 T-ACCESS-036，涉对外契约与前端提交面）
 5. `AdminCacheCatalog.OPERATION_CODE` 死缓存条目删除（DualInstanceContainerTest 换验通样例）
-6. MenuServiceImpl / AuthServiceImpl 的 validator 死注入、死 import 清扫
+6. MenuAppServiceImpl / AuthAppServiceImpl 的 validator 死注入、死 import 清扫（T-ACCESS-033 改名后类名）
 
 ### 5.3 system_config 单入口化
 
-退役 admin `/config` 入口（ConfigController + ConfigService + 测试 + 契约段；前端与 e2e 零消费已核实）；保留 `/api/perm/system-config`（前端唯一消费方，T-PERM-024 收口）。
+退役 admin `/config` 入口（ConfigController + ConfigAppService + 测试 + 契约段（契约总册 §17.3 登记位）；前端与 e2e 零消费已核实）；保留 `/api/perm/system-config`（前端唯一消费方，T-PERM-024 收口）。
 
 ## 6. 对外表面
 
@@ -117,7 +117,9 @@ last_reviewed: 2026-09-13
 
 ## 7. 文档与叙事
 
-- **API 契约深合一**：两份契约并为一份 access-service 契约总册（按能力分章、两个 URL 家族同册分列）；`docs/design/permission-center/` 目录解散重组、`admin-service-api-contract.md` 退役并入；overview / core-flows / implementation 等设计内档归引擎子系统文档位；全仓引用一次更新。
+> **执行注记（T-ACCESS-040，2026-09-13）**：本节三项已执行——契约总册 `docs/design/access-service-api-contract.md` 落地（两册合一、按能力分章、锚点对照见总册附录 C）；本节所提 permission-center 旧目录与旧 admin 契约册已转 superseded 留原位；设计内档三份迁 `docs/design/engine/` 保裸文件名。
+
+- **API 契约深合一**：两份契约并为一份 access-service 契约总册（按能力分章、两个 URL 家族同册分列）；`docs/design/permission-center/` 目录解散重组、原 admin 契约册退役并入；overview / core-flows / implementation 等设计内档归引擎子系统文档位；全仓引用一次更新。
 - **任务 ID 前缀**：T-PERM / T-ADMIN 等不动（历史档案索引）。
 - **规则与技能文件**：按能力 + 引擎口径重写（.claude/rules 单副本、skills 双副本同步纪律不变、AGENTS.md 指针表随改）。
 

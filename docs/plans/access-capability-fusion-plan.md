@@ -53,7 +53,7 @@ last_updated: 2026-09-13
 | [T-ACCESS-037](../tasks/T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | 033, 040 | ⚙️ |
 | [T-ACCESS-038](../tasks/T-ACCESS-038.md) | 错误码合类不合号 | 033 | ⚙️ |
 | [T-ACCESS-039](../tasks/T-ACCESS-039.md) | 缓存目录合一 | 033, 034 | ⚙️ |
-| [T-ACCESS-040](../tasks/T-ACCESS-040.md) | API 契约深合一与设计文档重组 | 033 | ⚙️ |
+| [T-ACCESS-040](../tasks/T-ACCESS-040.md) | API 契约深合一与设计文档重组 | 033 | ✅ |
 | [T-ACCESS-041](../tasks/T-ACCESS-041.md) | 规则与技能文件重写（能力 + 引擎口径） | 033, 034~039, 040 | ⚙️ |
 
 ## 建议执行顺序
@@ -75,3 +75,4 @@ last_updated: 2026-09-13
 - 2026-09-13：计划建立——设计稿 draft + 十张任务卡 proposed + decision-registry 定案登记 + 三处索引刷新。
 - 2026-09-13：T-ACCESS-032 收口——capability-structure §8 归属清单与边界断言定稿（十项裁决用户拍板，含双轨评审追加的冻结白名单与僵尸 DTO 扩面两项）、转 adopted；architecture §1.2/§3/§9/§11 与 project-rules §8.2 能力口径回写；T-ACCESS-033 准入条件达成。
 - 2026-09-13：T-ACCESS-033 收口——机械迁移完成（17 顶层包落地、500 类搬迁、17 对改名、僵尸 DTO 三件删除、五测试重建、@MapperScan 14 包；单测轨道与全量回归含 E2E 全绿，双轨评审处置完毕）；architecture §3 迁移完成注记翻转与 query 族类名回写、§14.7 时态注记、capability-structure 时态句更新；035/038 依赖解锁、040 可启动（契约深合一先行）。
+- 2026-09-13：T-ACCESS-040 收口——契约总册 `docs/design/access-service-api-contract.md` 落地（两册合一按能力分章、内容零丢失）；permission-center 目录解散（三内档迁 `docs/design/engine/`、旧两册 superseded 留原位）；全仓活引用重挂（含 49 个代码文件注释）+ 下游卡 034/036/037 重挂总册；双轨评审 P2×9+P3×6 全处置。034/036/037 契约回写解锁落新册。

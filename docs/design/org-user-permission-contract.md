@@ -28,7 +28,7 @@ last_reviewed: 2026-06-20
 ### 核心抽象（核对后确立）
 
 - **默认组织树 = 用户目录/身份池**：`sys_org_tree_config.is_default=true` 的组织树负责用户生命周期。创建用户、禁用/启用、删除、重置密码等账号级操作只属于 `USER` 资源类型（T-ACCESS-018 收敛，原 ADMIN_USER）；非默认组织树不能创建或删除真实用户，只能添加/移除已有用户与本组织节点的关系。
-- **岗位 = 特殊组织**：admin-service 按 `SysOrg.orgType` 区分组织，岗位是挂在组织树下的特殊节点（`orgType=2`），与普通组织共享同一棵树但不混入左侧组织树展示；页面单列岗位 Tab 以平铺表管理。经 `/org/*` 管理、由 `access.application` 同一事务维护本地投影（`abstract_role(ORG/POSITION)` + `resource_entity(ORG)`，业务键定位；岗位必须作为普通组织的直接子节点且自身无下级）。故岗位的增删改与"分配用户"全部归**组织管理**（`ORG`），不是独立角色面。
+- **岗位 = 特殊组织**：admin-service 按 `SysOrg.orgType` 区分组织，岗位是挂在组织树下的特殊节点（`orgType=2`），与普通组织共享同一棵树但不混入左侧组织树展示；页面单列岗位 Tab 以平铺表管理。经 `/org/*` 管理、由 org/menu 能力写编排（原 access.application，T-ACCESS-033 解散入能力包）同一事务维护本地投影（`abstract_role(ORG/POSITION)` + `resource_entity(ORG)`，业务键定位；岗位必须作为普通组织的直接子节点且自身无下级）。故岗位的增删改与"分配用户"全部归**组织管理**（`ORG`），不是独立角色面。
 - **成员 = 组织成员关系**：用户与组织（含岗位）的归属是 `user-org` 关系，归"**组织成员管理**"，门禁锚定**组织实例**。
 - **功能角色 = 真正的角色**：用户详情面板里分配的 BASIC_ROLE 等功能角色，才走 `ROLE` 资源类型与 `user-role` 关系。
 
@@ -45,7 +45,7 @@ access-service（甲层后端门禁）
    ▼
 permission-center 域（被管理的权限模型，同库）
    按 资源类型 × 操作码 判定；
-   管理事实与投影由 access.application 同一事务维护：
+   管理事实与投影由 user/org/menu 能力写编排（原 access.application）同一事务维护：
    用户 → abstract_user + USER resource_entity（业务键，不回填内部 ID）；
    组织/岗位 → ORG resource_entity + abstract_role(ORG/POSITION)（业务键，不回填内部 ID）
 ```
@@ -74,7 +74,7 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 
 **收益**：① 单系统配权 —— 管理员只在权限中心一处配权；② 命名空间统一 —— 前端 `hasPerms("ORG:CREATE")` 与后端 `engine.hasPermissionByCode(ORG, ..., CREATE)` 同源，无翻译层；③ 重命名安全 —— 前端常量直接引用乙层操作码，重命名乙层时编译期可见；④ sys_menu 不再有 BUTTON 行，菜单管理简化。
 
-**实现（T-ACCESS-006 修订）**：`UserMenuQueryService`（`access.application.query`）经 `PermissionViewAppService` 查询用户在 `EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES` 白名单（即所有需要下发 perm 串的真实资源类型）上的最终可用操作权限，拼成 `resourceType:opCode` 返回（引擎封装在 permission 域内）；菜单可见性按 v3.5 §4.1 派生公式落地（评审 P1-1 修复）：`deriveVisibleMenuIds` 经 `PermissionViewAppService.getEffectiveResourceAccess`（scopeAll 类型 + 资源实例 ID 集合）与 `TypeResolutionService.batchResolveResourceIds` 匹配业务菜单，纯展示/DIR 全员可见，DIR 剪枝、HIDDEN 不进 menus[]（详见 access-service-architecture §3）。
+**实现（T-ACCESS-006 修订）**：`UserMenuQueryAppService`（`menu.service`，T-ACCESS-033 迁移改名）经 `PermissionViewAppService` 查询用户在 `EFFECTIVE_PERMISSION_CODE_RESOURCE_TYPES` 白名单（即所有需要下发 perm 串的真实资源类型）上的最终可用操作权限，拼成 `resourceType:opCode` 返回（引擎封装在 permission 域内）；菜单可见性按 v3.5 §4.1 派生公式落地（评审 P1-1 修复）：`deriveVisibleMenuIds` 经 `PermissionViewAppService.getEffectiveResourceAccess`（scopeAll 类型 + 资源实例 ID 集合）与 `TypeResolutionService.batchResolveResourceIds` 匹配业务菜单，纯展示/DIR 全员可见，DIR 剪枝、HIDDEN 不进 menus[]（详见 access-service-architecture §3）。
 
 ---
 
@@ -144,7 +144,7 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 | UI 动作 | 资源:操作（乙层 / 端点） | 前端 perm 码 | 无权降级 |
 |---|---|---|---|
 | 查看用户角色 | `USER:VIEW`（`/user-role/list`） | `USER:VIEW` | 角色区不显示 |
-| 分配/回收功能角色 | **`ROLE:MANAGE`** ³（目标角色实例；T-ACCESS-006 起由 permission 域 `/api/perm/user-role/assign|revoke` 直接提供，admin 侧原 `/user-role/assign|revoke` 写代理已删除（T-ADMIN-024，无映射 404）；`/user-role/list` 保留经 `access.application.query` 聚合） | `ROLE:MANAGE` | 角色区只读 |
+| 分配/回收功能角色 | **`ROLE:MANAGE`** ³（目标角色实例；T-ACCESS-006 起由 permission 域 `/api/perm/user-role/assign|revoke` 直接提供，admin 侧原 `/user-role/assign|revoke` 写代理已删除（T-ADMIN-024，无映射 404）；`/user-role/list` 保留经 `role.service` 聚合） | `ROLE:MANAGE` | 角色区只读 |
 
 ### D. 岗位（Tab：岗位管理）—— 岗位 = 特殊组织 `ORG`（按 `orgType=2` 区分）⚠️ 配权贴近红线
 
@@ -162,9 +162,9 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 | 备注 | 规则（核对后定稿） |
 |------|------|
 | ¹ | **改类操作在本页甲层用粒度操作码**：admin-service 对组织（含岗位）的编辑、移动、改状态统一用 `UPDATE`（无独立 ORG ENABLE，状态改由 `/org/update` 承载），用户启用用 `ENABLE`。`OperationCodeConstants` 虽含 `UPDATE`，但 permission-center 内部角色管理把改/删折叠为 `MANAGE`——该折叠是乙层底层细节，不在本页甲层暴露 |
-| ² | **成员增删 / 岗位用户 = 组织成员管理（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。**普通组织（orgType=1）** → `ORG:MANAGE_MEMBER`（v1.4 起从 `UPDATE` 拆出独立操作码，与组织树结构修改解耦，便于"HR 只管成员、不动结构"细粒度配权）；**岗位**（orgType=2） → `ORG:ASSIGN_POSITION_USER`（精化操作码，与组织成员增删进一步解耦，便于"岗位用户运营"独立配权）。但默认组织树是用户目录：默认树新增/移除/设主组织具有身份目录含义，必须按 `docs/design/default-org-tree-user-lifecycle.md` 的高危规则处理；非默认树只能添加/移除已有用户关系，禁止删除用户身份或清理该用户其他组织树关系。`UserOrgServiceImpl` 通过 `OrgOperationCodeMapper.resolveForUserOrg(orgType, UPDATE)` 声明式分发：普通组织走 `MANAGE_MEMBER`，岗位走 `ASSIGN_POSITION_USER`。 |
+| ² | **成员增删 / 岗位用户 = 组织成员管理（实例级，作用在目标组织/岗位实例上）**。语义是"管理选中组织/岗位的成员"，门禁锚定 **ORG 实例**，不归 `USER`。**普通组织（orgType=1）** → `ORG:MANAGE_MEMBER`（v1.4 起从 `UPDATE` 拆出独立操作码，与组织树结构修改解耦，便于"HR 只管成员、不动结构"细粒度配权）；**岗位**（orgType=2） → `ORG:ASSIGN_POSITION_USER`（精化操作码，与组织成员增删进一步解耦，便于"岗位用户运营"独立配权）。但默认组织树是用户目录：默认树新增/移除/设主组织具有身份目录含义，必须按 `docs/design/default-org-tree-user-lifecycle.md` 的高危规则处理；非默认树只能添加/移除已有用户关系，禁止删除用户身份或清理该用户其他组织树关系。`UserOrgAppServiceImpl` 通过 `OrgOperationCodeMapper.resolveForUserOrg(orgType, UPDATE)` 声明式分发：普通组织走 `MANAGE_MEMBER`，岗位走 `ASSIGN_POSITION_USER`。 |
 | ³ | **功能角色分配（C 区，BASIC_ROLE 等）= `ROLE:MANAGE`（目标角色实例）**——须有权管理该角色，才能授予他人（AccessMesh 敏感面，宁严勿松）。permission-center `UserManageAppServiceImpl.assignRole/revokeRolesBatch` 已用 `getDeniedResourceCodes(..., ROLE, 目标角色, MANAGE)` 强制；**T-ACCESS-006 起分配/回收直接由 permission 域 `/api/perm/user-role/assign|revoke` 提供**（admin 侧原 `/user-role/assign|revoke` 写代理已删除，T-ADMIN-024，无映射 404），且**不得**复用 `ROLE:MANAGE/REVOKE`（那是配权语义，属红线） |
-| ⁴ | **岗位作为特殊组织**：岗位实例的 CRUD 属组织管理（`ORG:*`，经 `/org/*`，本页允许），与"配置岗位权限"（红线）严格分离。岗位是挂在组织树下的 `orgType=2` 节点，页面单列 Tab 平铺展示，不混入左侧组织树；由 `access.application` 同一事务维护本地投影（内部对应 `RoleType.POSITION`）。**乙层操作码精化**：为支持"组织管理员 ≠ 岗位管理员"的细粒度配权，岗位 CRUD 与岗位用户挂载使用独立操作码（`CREATE_POSITION` / `UPDATE_POSITION` / `DELETE_POSITION` / `ASSIGN_POSITION_USER`），资源类型仍为 `ORG`（不新增独立岗位资源类型以避免锚点分裂、user-org 关系双写）；与 `RESET_PASSWORD` 之于 `UPDATE`、`SYNC_INTERFACE` 之于 `SYNC` 同构。orgType 字段不可变，禁止经 `/org/update` 在普通组织/岗位间互转。**声明式映射**：`OrgServiceImpl` / `UserOrgServiceImpl` 不再手写 if-else 分发 orgType → 操作码，而是通过 `OrgOperationCodeMapper`（单一事实源）统一解析：`resolve(orgType, baseOp)` 用于组织 CRUD（`OrgServiceImpl`），`resolveForUserOrg(orgType, UPDATE)` 用于成员关系（`UserOrgServiceImpl`，岗位走 `ASSIGN_POSITION_USER`）。新增 orgType 子类型只需扩展映射表，不需逐个 ServiceImpl 检查。|
+| ⁴ | **岗位作为特殊组织**：岗位实例的 CRUD 属组织管理（`ORG:*`，经 `/org/*`，本页允许），与"配置岗位权限"（红线）严格分离。岗位是挂在组织树下的 `orgType=2` 节点，页面单列 Tab 平铺展示，不混入左侧组织树；由 org 能力写编排同一事务维护本地投影（内部对应 `RoleType.POSITION`）。**乙层操作码精化**：为支持"组织管理员 ≠ 岗位管理员"的细粒度配权，岗位 CRUD 与岗位用户挂载使用独立操作码（`CREATE_POSITION` / `UPDATE_POSITION` / `DELETE_POSITION` / `ASSIGN_POSITION_USER`），资源类型仍为 `ORG`（不新增独立岗位资源类型以避免锚点分裂、user-org 关系双写）；与 `RESET_PASSWORD` 之于 `UPDATE`、`SYNC_INTERFACE` 之于 `SYNC` 同构。orgType 字段不可变，禁止经 `/org/update` 在普通组织/岗位间互转。**声明式映射**：`OrgAppServiceImpl` / `UserOrgAppServiceImpl` 不再手写 if-else 分发 orgType → 操作码，而是通过 `OrgOperationCodeMapper`（单一事实源）统一解析：`resolve(orgType, baseOp)` 用于组织 CRUD（`OrgAppServiceImpl`），`resolveForUserOrg(orgType, UPDATE)` 用于成员关系（`UserOrgAppServiceImpl`，岗位走 `ASSIGN_POSITION_USER`）。新增 orgType 子类型只需扩展映射表，不需逐个 ServiceImpl 检查。|
 
 ---
 
@@ -207,13 +207,13 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 > 其中成员/岗位归属按设计意图（岗位=特殊组织、成员归组织管理）定稿；当前后端门禁已与备注 ² 对齐，未落地项列入「剩余实现项」。
 
 1. **操作码** ✅
-   `permission-center/.../constant/OperationCodeConstants.java` 含 `CREATE/VIEW/MANAGE/UPDATE/DELETE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE`——**`UPDATE` 存在**（注释为"某些场景下是 MANAGE 别名"）。但 `RoleManageAppServiceImpl` 实测：角色 `create→CREATE`，`update/delete/move→MANAGE`。本页甲层门禁实际取自 admin-service `AdminOperationCode.java`：`CREATE/UPDATE/DELETE/VIEW/ENABLE/DISABLE/RESET_PASSWORD/GRANT/REVOKE/PUBLISH/TRIGGER/TOGGLE`——**粒度齐全、无 MANAGE**。→ 矩阵改类操作用 `UPDATE/DELETE/ENABLE/DISABLE`，备注 ¹ 据此定稿。
+   `engine.constant/OperationCodeConstants.java`（T-ACCESS-033 迁移后包位） 含 `CREATE/VIEW/MANAGE/UPDATE/DELETE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE`——**`UPDATE` 存在**（注释为"某些场景下是 MANAGE 别名"）。但 `RoleManageAppServiceImpl` 实测：角色 `create→CREATE`，`update/delete/move→MANAGE`。本页甲层门禁实际取自 admin-service `AdminOperationCode.java`：`CREATE/UPDATE/DELETE/VIEW/ENABLE/DISABLE/RESET_PASSWORD/GRANT/REVOKE/PUBLISH/TRIGGER/TOGGLE`——**粒度齐全、无 MANAGE**。→ 矩阵改类操作用 `UPDATE/DELETE/ENABLE/DISABLE`，备注 ¹ 据此定稿。
 
 2. **资源类型** ✅
    `access/permission/enums/ResourceTypeCode.java` 终态 23 码（含 `ORG`/`MENU`/`DATA`/`BUTTON` 与 ADMIN_DICT 等 7 个保留名，T-ACCESS-018 扩位后）——资源类型不含 POSITION（POSITION 是 role_type）。`enums/RoleType.java` 表明 `ORG(1)`、`POSITION(2)` 是角色类型（同步落地形态）。T-ACCESS-018 常量合一后甲层资源类型统一取自 `access/permission/enums/ResourceTypeCode.java`（原 admin `AdminResourceType` 已删除，五组 ADMIN_* 管理类型并入 USER/ORG/ROLE/MENU/SYSTEM_CONFIG）→ 矩阵乙层列用 `ORG/USER/ROLE`。
 
 3. **岗位边界** ✅（按"岗位=特殊组织"定稿）
-   admin-service 已按 `SysOrg.orgType` 区分组织，岗位是挂在组织树下的 `orgType=2` 节点，经 `/org/*` 管理，由 `access.application` 同一事务维护本地投影（ORG/POSITION 角色）。故：
+   admin-service 已按 `SysOrg.orgType` 区分组织，岗位是挂在组织树下的 `orgType=2` 节点，经 `/org/*` 管理，由 org 能力写编排同一事务维护本地投影（ORG/POSITION 角色）。故：
    - **岗位实例 CRUD + 分配用户（本页允许）**：组织管理面 `ORG:*`、组织成员管理 `ORG:MANAGE_MEMBER`/`ORG:ASSIGN_POSITION_USER`。
    - **配置岗位/角色权限（红线）**：admin 侧原 `/role/grant-menu`、`/role/revoke-menu`、`/role/create` 端点已删除（T-ADMIN-024，无映射 404），配权统一走 permission 域 `/api/perm/role-resource-permission/*` 与 `/api/perm/abstract-role/*`（`ROLE:MANAGE/REVOKE/CREATE` 语义由 permission 域 enforce）。
    → 红线收窄为"配权与独立角色定义"，岗位的组织管理本身在本页内；矩阵 D 区据此定稿。
@@ -224,10 +224,10 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 ### 剩余实现项（不阻塞契约定稿，落 Phase 2）
 
 - **【默认树身份目录】** `sys_org_tree_config.is_default=true` 的树作为用户目录，用户创建只能绑定默认树；非默认树添加成员只能从默认树可见候选集中选择已有用户。
-- **【本地投影闭环（T-ACCESS-005 已落地）】** `access.application` 同一事务维护本地投影：用户 → `abstract_user` + `resource_entity(USER)`；组织/岗位 → `resource_entity(ORG)` + `abstract_role(ORG/POSITION)`；`user-org` 变更 → `user_role`。投影使用业务键定位（不写 sync_metadata，owner=access-service），admin-service 不存储权限中心内部 ID。
-- **【ORG_ROLE 旧口径清理（T-ACCESS-006 已随代理删除完成）】** 原 admin-service `RoleProxyServiceImpl` 中 4 处硬编码 `ORG_ROLE` 已随代理类删除（T-ACCESS-006）；组织角色类型映射现由 `UserRoleQueryServiceImpl`（`ORG`/`POSITION`）与 `OrgOperationCodeMapper` 统一承载，`ORG_ROLE` 口径在代理层不再存在。
+- **【本地投影闭环（T-ACCESS-005 已落地）】** 能力写编排层（原 access.application）同一事务维护本地投影：用户 → `abstract_user` + `resource_entity(USER)`；组织/岗位 → `resource_entity(ORG)` + `abstract_role(ORG/POSITION)`；`user-org` 变更 → `user_role`。投影使用业务键定位（不写 sync_metadata，owner=access-service），admin-service 不存储权限中心内部 ID。
+- **【ORG_ROLE 旧口径清理（T-ACCESS-006 已随代理删除完成）】** 原 admin-service `RoleProxyServiceImpl` 中 4 处硬编码 `ORG_ROLE` 已随代理类删除（T-ACCESS-006）；组织角色类型映射现由 `UserRoleQueryAppServiceImpl`（`ORG`/`POSITION`，T-ACCESS-033 迁移改名）与 `OrgOperationCodeMapper` 统一承载，`ORG_ROLE` 口径在代理层不再存在。
 - **【跨树关系修正】** `/user-org/assign` 禁止删除用户所有组织关系；必须改为关系级追加或显式树内替换。`set-primary` 首期只作用默认树。
-- **【功能角色分配（T-ACCESS-006 已落地）】**：分配/回收由 permission 域 `/api/perm/user-role/assign|revoke` 直接提供（门禁 `ROLE:MANAGE` 备注 ³）；admin 侧原 `/user-role/assign|revoke` 写代理已删除（T-ADMIN-024，无映射 404），`/user-role/list` 保留经 `access.application.query` 的 `UserRoleQueryService` 聚合。
+- **【功能角色分配（T-ACCESS-006 已落地）】**：分配/回收由 permission 域 `/api/perm/user-role/assign|revoke` 直接提供（门禁 `ROLE:MANAGE` 备注 ³）；admin 侧原 `/user-role/assign|revoke` 写代理已删除（T-ADMIN-024，无映射 404），`/user-role/list` 保留经 `role.service` 的 `UserRoleQueryAppService`（T-ACCESS-033 迁移改名）聚合。
 - **【岗位接线】**：岗位 Tab 经 `/org/*`（按 `orgType=2` 过滤）管理；用户↔岗位经 `/user-org/*`。前端 mock 若把岗位归 `/user-role/*`（roleTypeCode=POSITION），须按本契约校正为组织成员关系。
 - **【其他】** 菜单/按钮配置补齐本页 perm 码（§8.4）。
 

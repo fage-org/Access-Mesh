@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.grant.dto.req;
 import jakarta.validation.constraints.NotBlank;
 
 /**
- * 子权限允许类型只读查询请求体（api-contract §6.5.2）
+ * 子权限允许类型只读查询请求体（总册 §11.5）
  * <p>
  * 目标角色业务键仅用于门禁定位（resolveRoleId 失败 20001、无 ROLE:VIEW 抛
  * SecurityException——本接口不采用空结果掩盖鉴权失败）；parentResourceTypeCode

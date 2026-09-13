@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 证明 Feign 目标切换为 {@code access-service} 后，SDK 声明的对外 HTTP 契约
  * （路径、POST + JSON Body 形态、方法清单）与切换前完全一致——外部接入方
  * 仅受服务发现名变化影响，不受契约漂移影响。契约权威来源为
- * {@code docs/design/permission-center/api-contract.md}。
+ * {@code docs/design/access-service-api-contract.md}。
  * </p>
  * <p>
  * 封闭语义（评审 P2 修复）：接口的**全部**声明方法都必须满足 POST + 单一

@@ -106,7 +106,7 @@ cn.ac.fage.accessmesh.access
 
 - `RoleProxyService`/`RoleProxyServiceImpl`、`OrgVisibilityService`/`OrgVisibilityServiceImpl`（Feign 时代遗留的 admin 接口 + application 实现代理形态）已删除，admin 域直接依赖 `application.query` 查询服务。
 - admin 侧角色写代理端点已删除（T-ADMIN-024，无存量调用方直删、无映射 404）：`/role/create`、`/role/grant-menu`、`/role/revoke-menu`、`/user-role/assign`、`/user-role/revoke`；错误码 `10111`（ROLE_API_RETIRED）随端点删除退役、码值不复用（退役登记见 ErrorCodeContractTest）；运行时观察值按入口区分——匿名直连 admin 路径族 401（RequestContextInterceptor）、带身份直连 404、经 Gateway 未注册路径 403（快照 `unregistered-policy=DENY`），无 Handler 映射的注册表证据见 HttpApiPathSnapshotTest。角色与授权管理由 permission 域直接提供（`/api/perm/abstract-role`、`/api/perm/user-role`、`/api/perm/role-resource-permission`）。
-- 菜单查询按权威 schema（`display_name`/DIR-MENU 枚举）读取；schema 收敛后 `sys_menu` 无 `component`/`visible`/`perm_code` 等旧列，菜单树构建对缺失字段取默认值（component=null、showLink=true、keepAlive=false、auths=null；EXTERNAL/IFRAME 类型 frameSrc=path；HIDDEN 不进 menus[]）。存量 DDL-实体漂移已由 T-ACCESS-015 收口（2026-08-22）：菜单 CRUD 写路径（实体/Mapper/DTO/`MenuWriteAppServiceImpl`）对齐权威 DDL，BUTTON 类型与 `perm_code` 唯一性退役，唯一性由 `uk_sys_menu_tenant_path`/`uk_sys_menu_tenant_resource` 及错误码 10205/10206 承接，MENU 投影对五值枚举全量维护；对外契约见 admin-service-api-contract §4.6。
+- 菜单查询按权威 schema（`display_name`/DIR-MENU 枚举）读取；schema 收敛后 `sys_menu` 无 `component`/`visible`/`perm_code` 等旧列，菜单树构建对缺失字段取默认值（component=null、showLink=true、keepAlive=false、auths=null；EXTERNAL/IFRAME 类型 frameSrc=path；HIDDEN 不进 menus[]）。存量 DDL-实体漂移已由 T-ACCESS-015 收口（2026-08-22）：菜单 CRUD 写路径（实体/Mapper/DTO/`MenuWriteAppServiceImpl`）对齐权威 DDL，BUTTON 类型与 `perm_code` 唯一性退役，唯一性由 `uk_sys_menu_tenant_path`/`uk_sys_menu_tenant_resource` 及错误码 10205/10206 承接，MENU 投影对五值枚举全量维护；对外契约见本文件所引契约总册 access-service-api-contract.md §9（menu 章）。
 
 ## 4. 管理事实与权限投影
 
@@ -325,7 +325,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 - **Gateway 路由合并（设计定案①）**：`/admin/**` 与 `/perm/**` 合并为一条路由 `id=access-service`（`lb://access-service`、`StripPrefix=1`、`metadata.serviceCode=access-service`），`/auth/**` 独立路由同目标（`StripPrefix=0`）；`gateway.permission.service-url` 默认值切换为 `lb://access-service`（`GatewayProperties` 与 YAML 同步）。路由契约由 `GatewayApplicationConfigTest` 固化：3 条路由（access-service/example-service/auth-routes）、合并路由的 Path/StripPrefix/serviceCode、以及旧服务名不得出现在路由 id 或发现目标（负向断言）。
 - **perm-sdk（设计定案②③）**：`PermissionFeignClient` 的 `@FeignClient` name 切换为 `access-service`，18 个 `@PostMapping` 路径契约由新增 `PermissionFeignClientContractTest` 封闭清单固化（含 POST + 单一 `@RequestBody` 形态断言），证明切换不产生契约漂移。`SyncTaskFeignClient`（admin-service S5 内部同步调度器定制、Map 请求体、仓库内无使用者）删除；其封装的 8 个 sync/full-sync 端点对外部服务继续由服务端保留，外部服务按需经 `PermissionFeignClient` 或自行调用。`FeignInternalSyncInterceptor` 的 `perm.service-code` 去除默认值 `admin-service`（设计定案③）：配置了 `perm.internal-secret` 但未显式声明 `perm.service-code` 时 Spring 占位符解析失败启动失败（fail-fast，与 `jwt-secret-key` 同模式），防止调用方冒充已退役服务身份。
-- **旧名清理（设计定案④全量清理）**：主代码/测试的 Javadoc 与日志文本、Micrometer 指标 description（`gateway.perm.unreachable` 等 3 项）、测试 serviceCode 数据（统一中性值 `example-service`）、前端 mock/src 注释与 `serviceCode` mock 值（注册服务列表两条旧服务记录合并为一条 `access-service`）全部更新；`GatewayApplication` 侧无 `@LoadBalanced RestTemplate` 残留（无使用者的 `RestTemplateConfig` 已删除）。权威 DDL `access-service.sql` 表注释中"admin-service 事实源"更新为"access-service admin 域事实源"。**保留项**：`LocalProjectionOwner.LEGACY_ADMIN_SOURCE="admin-service"`（安全拒绝列表值，外部 sync 冒充旧来源仍被拒绝，含 `LocalProjectionGuardTest`/`AbstractUserSyncAppServiceTest.shouldRejectInternalSourceService` 负向断言）；`docs/design/services/admin-service-api-contract.md` 等真实文档路径引用（T-ACCESS-012 重基线处理）；归并历史陈述（如 `AccessServiceApplication` Javadoc）。
+- **旧名清理（设计定案④全量清理）**：主代码/测试的 Javadoc 与日志文本、Micrometer 指标 description（`gateway.perm.unreachable` 等 3 项）、测试 serviceCode 数据（统一中性值 `example-service`）、前端 mock/src 注释与 `serviceCode` mock 值（注册服务列表两条旧服务记录合并为一条 `access-service`）全部更新；`GatewayApplication` 侧无 `@LoadBalanced RestTemplate` 残留（无使用者的 `RestTemplateConfig` 已删除）。权威 DDL `access-service.sql` 表注释中"admin-service 事实源"更新为"access-service admin 域事实源"。**保留项**：`LocalProjectionOwner.LEGACY_ADMIN_SOURCE="admin-service"`（安全拒绝列表值，外部 sync 冒充旧来源仍被拒绝，含 `LocalProjectionGuardTest`/`AbstractUserSyncAppServiceTest.shouldRejectInternalSourceService` 负向断言）；`docs/design/access-service-api-contract.md`（契约总册） 等真实文档路径引用（T-ACCESS-012 重基线处理）；归并历史陈述（如 `AccessServiceApplication` Javadoc）。
 - **部署单元**：根 Maven 聚合自 T-ACCESS-001 起即不含旧模块，本任务核验无旧启动类/运行配置/源码目录/docker-compose 残留（仓库无容器编排文件，AGENTS.md 基础设施命令示例不涉及服务名）；`common/GlobalErrorCode` 错误码分段注释更新为管理域/权限域措辞，分段值不变。
 
 ## 10. 验收门禁
@@ -389,7 +389,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - **`resource_entity(TYPE_DEFINITION).code` = 复合业务键 `{typeKey}:{typeCode}`（T-PERM-051，2026-09-05 定案）**：typeCode 仅 `tenant+type_key` 内唯一（种子 user_type 与 resource_type 均有 USER/SERVICE 同名行），裸 code 跨族撞 `uk_resource_entity`，故以复合键消歧；格式构造唯一入口 `BusinessKeys.typeInstanceBusinessKey`（golden 锁）。投影由 type-definition 写路径同事务维护（create 联动 / name 变更同步 / 软删级联投影行与投影行下授权行）+ bootstrap 自愈补种（存量种子行，幂等）两条事实链产出（类型所有权 SYNC+access-service，见 §4.3）；无树形语义（parent 恒 null、status 恒启用）。实例级门禁（list 第二段 / detail / update / remove 批量）全部按该复合键编码轨判定（经 `hasPermissionByCode`/`getDeniedResourceCodes`，投影缺失的键 fail-closed 计入拒绝）；`resource_entity.code` 列宽 256 即为容纳最坏 64+1+64=129 复合键而加宽（2026-09-07 用户定案）。
 - **`resource_entity(CONDITION).code` = 条件业务键 code（T-PERM-048，2026-09-11 定案）**：条件 code 在 `uk_permission_condition(tenant_id, code)` 租户内唯一（不像 typeCode 仅 type_key 内唯一），投影 code 直传无需复合键（无拼接不涉 BusinessKeys 构造）；投影 status 镜像条件 enabled（停用条件自动隐出授权资源树 status=1 过滤）、parent 恒 null。仅 source=MANAGED 条件投影（INLINE 内联条件不投影）；实例级写门禁 CONDITION:UPDATE/DELETE@{code}（create 维持类型级）经该投影编码轨判定，scope_all 存量授权天然覆盖全部实例零破坏。
 - **`resource_entity.id` 边界**：USER/ROLE 等业务对象门禁与跨服务 SDK **不得使用** `resource_entity.id`，统一使用业务 code/externalId；权限域内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等 `resource_entity` 自身的管理链路）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp` 等契约不因此重构（原 `ResourcePermissionTreeResp` 已随 T-PERM-059 删除，2026-09-10）。
-- 引擎门禁按业务编码判定的契约（`hasPermissionByCode`/`getDeniedResourceCodes` 等）以 permission-center `implementation.md` §3.1 为准。
+- 引擎门禁按业务编码判定的契约（`hasPermissionByCode`/`getDeniedResourceCodes` 等）以 `engine/implementation.md` §3.1 为准。
 
 ## 13. 资源类型注册表（T-ACCESS-016 定稿）
 
@@ -576,7 +576,7 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
   实例由 bootstrap 预置 default/avatar/document/image 四文件夹 + 上传惰性登记两条事实链产出
   （ADMIN_FILE 种子声明 SYNC+access-service，管理面资源 CRUD 20055），新文件夹需先有一次上传才可配置
   实例级授权（预登记机制为后续优化点，未设计）。
-- 接口契约与错误码（10501-10507）见 `docs/design/services/admin-service-api-contract.md` §4.7。
+- 接口契约与错误码（10501-10507）见 `docs/design/access-service-api-contract.md`（契约总册） §17.1。
 
 ## 16. 时间语义 UTC 统一（T-ACCESS-024，2026-08-25）
 

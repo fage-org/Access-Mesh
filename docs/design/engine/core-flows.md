@@ -3,12 +3,14 @@ doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-12（T-PERM-063：§7 评估口径行补授权时校验落地注记 + CONFLICT_DETECTED reason 行与操作日志语义分立）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施：§7 batch-check 组装形态改 queryBatch 口径（原逐 item 表述随实施过期）；此前 2026-09-10 T-PERM-059 收口：§13 场景十收口为审计双日志面（permission-view 排查端点族删除说明 + 用户/角色排查链路改为 check 族+变更日志两步形态 + 能力表六行删）；此前 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+last_reviewed: 2026-09-12（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）（T-PERM-063：§7 评估口径行补授权时校验落地注记 + CONFLICT_DETECTED reason 行与操作日志语义分立）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施：§7 batch-check 组装形态改 queryBatch 口径（原逐 item 表述随实施过期）；此前 2026-09-10 T-PERM-059 收口：§13 场景十收口为审计双日志面（permission-view 排查端点族删除说明 + 用户/角色排查链路改为 check 族+变更日志两步形态 + 能力表六行删）；此前 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
 
-> 本文档把权限管理的核心场景串成接口调用链路，用于确认 API 契约、产品目标和实现方向是否一致。接口契约以 `api-contract.md` 为准。文中「permission-center / 权限中心」指 access-service 的 permission 域、「admin-service / admin」指同服务管理域（术语注记见 `overview.md`，T-ACCESS-012）。
+> **迁位注记（2026-09-13，T-ACCESS-040）**：本文档自 `docs/design/permission-center/` 迁至 `docs/design/engine/`（permission-center 目录解散，引擎子系统文档位），内容与章节锚点原样保留；API 契约引用已重挂 [access-service-api-contract.md](../access-service-api-contract.md) 契约总册。
+
+> 本文档把权限管理的核心场景串成接口调用链路，用于确认 API 契约、产品目标和实现方向是否一致。接口契约以 [`access-service-api-contract.md`](../access-service-api-contract.md)（契约总册）为准。文中「permission-center / 权限中心」指 access-service 的 permission 域、「admin-service / admin」指同服务管理域（术语注记见 `overview.md`，T-ACCESS-012）。
 
 ## 1. 全局约定
 
@@ -115,15 +117,15 @@ flowchart LR
 | 5    | `POST /api/perm/role-resource-permission/apply-grant-plan` | `roleTypeCode + roleExternalId + plan{creates/updates/removes}` | 单事务提交全部写意图             |
 | 6    | `POST /api/perm/role-resource-permission/list` | `domainCode + roleTypeCode + roleExternalId + resourceTypeCode`  | 验证角色权限（提交后刷新验证**继续沿用当前 MatrixContext 的单个 `resourceTypeCode`**，与第 4 步同口径） |
 
-关键逻辑（`apply-grant-plan`，详见 api-contract §6.5/§6.5.1）：
+关键逻辑（`apply-grant-plan`，详见总册 §11.3/§11.4）：
 
 - **单事务**：`creates`（新建记录：主权限可带 children 一次性建树；子权限用 `parentPermissionId` 挂父）+ `updates`（现有**主权限** canGrant/conditionCode 微变更；**目标为子权限的 update 一律拒绝 -> 20043**，复审）+ `removes`（删除记录：主权限级联删子、子权限单条删）在**同一事务**内执行，任一失败整体回滚，无部分成功。
 - **跨键替换**（范围/资源/操作变化）= removes 旧 + creates 新（同事务原子）；**子权限不迁移**，随旧主权限级联删除（预期行为），新主权限子权限在 creates 中显式配置。
 - **无 CAS/无乐观锁**（收窄）：砍 expectedRevision/grant_revision/20037；后端靠单事务原子 + uk 约束 + 受影响行数断言保证一致性。
-- **统一预检**：所有规则（记录存在及角色/父归属、段间互斥、AUTO_DEP 只读 20034、canGrant 授权传递、SUB_PERM fail-closed 20011（父域解析走记录自身 resource_type）、MANUAL 单直接授权唯一性 20033、scopeMode/资源兼容、**主权限条件不变量 20041/20042（复审：仅主权限）**、**子权限属性系统不变量 20043（两种 create 形态非 null/false 拒绝、update 目标为子权限拒绝；优先级先于 20041/20042，见 api-contract §6.5.1）**）经 `prevalidateGrantPlan` 唯一预检入口执行。
+- **统一预检**：所有规则（记录存在及角色/父归属、段间互斥、AUTO_DEP 只读 20034、canGrant 授权传递、SUB_PERM fail-closed 20011（父域解析走记录自身 resource_type）、MANUAL 单直接授权唯一性 20033、scopeMode/资源兼容、**主权限条件不变量 20041/20042（复审：仅主权限）**、**子权限属性系统不变量 20043（两种 create 形态非 null/false 拒绝、update 目标为子权限拒绝；优先级先于 20041/20042，见总册 §11.4）**）经 `prevalidateGrantPlan` 唯一预检入口执行。
 - **受影响行数断言**：updates/removes 实际影响行数 ≠ 预期（并发删除/修改）-> 20036 整体回滚；plan 至少含一项变更，update 至少改 canGrant/conditionCode，拒绝重复 ID 与 update/remove 交叉 ID。
 - **无 CAS/无幂等表/无 clientRequestId**（收窄）：前端 saving 期间按钮 disabled 防重复点击；超时提示刷新确认；后端靠单事务原子 + uk 约束 + 受影响行数断言。
-- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；`operationCode` 必填并按类型专属定义校验适用性（全局操作已退役），不匹配 -> **20008**；MANUAL 新授权一行只写一个操作位，不接受组合位。同一角色 + 资源/范围 + 操作 + 父权限最多一条 MANUAL 直接授权，`conditionCode/canGrant` 作为该记录的可变属性直接更新，重复 create -> **20033**（conditionCode/canGrant 不参与身份）。**属性不变量按主/子记录分类（复审）**：**主权限**条件不可转授（`conditionCode != null` -> `canGrant=false`，creates 主权限 + updates 结果态，违反 -> **20041**）且条件启用状态合规（**20042**，仅新写入/变更时校验——update 同 id 重写=存量保留豁免，见 api-contract §6.5.1）；**子权限**不承载条件/再授予（create 的 `conditionCode` 必须 null、`canGrant` 必须 false，违反 -> **20043**；update 目标为子权限一律 **20043**）。条件可选，create 填写 `conditionCode` 时必须存在且启用，update 变更到的新条件必须启用（同 id 重写豁免）。
+- 授权项用 `domainCode + resourceTypeCode + resourceCode + codeType + operationCode + scopeMode` 定位资源和操作；`operationCode` 必填并按类型专属定义校验适用性（全局操作已退役），不匹配 -> **20008**；MANUAL 新授权一行只写一个操作位，不接受组合位。同一角色 + 资源/范围 + 操作 + 父权限最多一条 MANUAL 直接授权，`conditionCode/canGrant` 作为该记录的可变属性直接更新，重复 create -> **20033**（conditionCode/canGrant 不参与身份）。**属性不变量按主/子记录分类（复审）**：**主权限**条件不可转授（`conditionCode != null` -> `canGrant=false`，creates 主权限 + updates 结果态，违反 -> **20041**）且条件启用状态合规（**20042**，仅新写入/变更时校验——update 同 id 重写=存量保留豁免，见总册 §11.4）；**子权限**不承载条件/再授予（create 的 `conditionCode` 必须 null、`canGrant` 必须 false，违反 -> **20043**；update 目标为子权限一律 **20043**）。条件可选，create 填写 `conditionCode` 时必须存在且启用，update 变更到的新条件必须启用（同 id 重写豁免）。
 - 写入后记录 `operation_log` 和 `permission_change_log`，并通过 Redis pub/sub 广播 `PermInvalidateEvent` 失效相关缓存（afterCommit）。（**已删除 `permission_version` 递增**，2026-06-20 审计 S-001/S-018；收窄：apply-grant-plan 单事务原子 + 受影响行数断言，无 CAS/幂等表）
 
 ## 7. 权限查询引擎（PermQueryEngine）

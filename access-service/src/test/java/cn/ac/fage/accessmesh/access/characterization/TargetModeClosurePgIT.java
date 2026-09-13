@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * targetMode 三态与判定面继承闭包的引擎级回归锁（T-PERM-057，真实 PostgreSQL 递归 CTE）。
  * <p>
- * 锁定口径（query-engine-unification.md §2/§5/§10.3）：
+ * 锁定口径（engine/implementation.md §3.3/§3.4/§3.9）：
  * </p>
  * <ul>
  *   <li>TYPE_LEVEL 只消费 scopeAll——实例授权不得放行类型级门禁（三态互不串义）；</li>

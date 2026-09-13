@@ -128,7 +128,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
         }
         // 判定面继承（读过滤面默认开，Q12 矩阵；T-PERM-057 落位）：对授权实例集做一次
         // 子孙扩展（而非逐目标闭包）——授父分组 VIEW → 子报表/子菜单实例可见
-        // （query-engine-unification.md §5 读过滤面继承落位）
+        // （engine/implementation.md §3.4 读过滤面继承落位）
         if (!resourceEntityIds.isEmpty()) {
             for (ResourceEntityMapper.DescendantResult pair :
                 resourceEntityMapper.selectDescendantIdsBatch(tenantId, resourceEntityIds)) {

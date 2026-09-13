@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.grant.dto.resp;
 import java.util.List;
 
 /**
- * 子权限允许类型只读查询响应体（api-contract §6.5.2）
+ * 子权限允许类型只读查询响应体（总册 §11.5）
  * <p>
  * 策略结果直接序列化（读写同源：与写链路 SUB_PERM fail-closed 校验同一解析器）；
  * 前端据 mode 过滤子权限配置器的资源类型选择器，不得硬编码允许集。

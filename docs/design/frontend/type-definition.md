@@ -11,7 +11,7 @@ last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-019：create 生成码措辞订�
 > **T-FE-022 联调注记（2026-09-03）**：本页 list 端点先期在册，create/update/remove 三端点随本任务注册 Gateway 清单；TYPE_DEFINITION:CREATE/MANAGE 补入固定图（写路径死锁防护）；api/type-def.ts 已先期为 Gateway 路径（mock 已随 T-FE-018 退役）；浏览器 CRUD+搜索全链路实证（typeValue 自动分配/系统预置不可删/软删）。
 
 > 任务：T-FE-003（Phase 1，mock 驱动）
-> 后端契约：`docs/design/permission-center/api-contract.md` §5.1
+> 后端契约：`docs/design/access-service-api-contract.md`（契约总册）§13
 > 参照范式：2.1 组织与用户页（`docs/archive/2026-06-21/org-user-page-impl-plan.md` §1/§4 表格列表范式）、2.2 角色管理页（`role-manage.md` SSOT/降级/核对清单结构）
 
 ## 1. 页面定位

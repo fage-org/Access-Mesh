@@ -184,7 +184,7 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 
 ## 与权限中心的约定
 
-- 接口级鉴权契约以 `../permission-center/api-contract.md` 为准（§6.5 check-interface、§6.6 interface-snapshot）。
+- 接口级鉴权契约以 `../access-service-api-contract.md`（契约总册）为准（§18.3 check-interface、§18.4 interface-snapshot）。
 - 限流、请求体大小、安全响应头按网关配置实现；CORS 见上文「CORS 配置终态」段。
 
 ## 测试域与 E2E IT（T-ACCESS-021 建链，T-ACCESS-031 分轨）
@@ -196,5 +196,5 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
 ## 实现参考
 
 - 整体架构见 `../architecture.md`。
-- 权限中心流程见 `../permission-center/core-flows.md`。
+- 权限中心流程见 `../engine/core-flows.md`。
 - 旧版详细过滤器链和配置样例见归档文档。

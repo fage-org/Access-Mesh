@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  * /user-role/revoke）已删除（T-ADMIN-024，无映射 404）。
  * </p>
  * <p>
- * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4
+ * 契约依据：{@code docs/design/access-service-api-contract.md} §10.1
  * </p>
  */
 @RestController

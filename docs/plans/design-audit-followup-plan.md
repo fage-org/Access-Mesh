@@ -4,8 +4,8 @@ title: codex 项目级设计体检处置批次
 status: proposed
 domain: permission-center
 design_refs:
-  - docs/design/permission-center/api-contract.md
-  - docs/design/permission-center/core-flows.md
+  - docs/design/access-service-api-contract.md
+  - docs/design/engine/core-flows.md
   - docs/design/access-service-architecture.md
   - docs/design/schema/access-service.sql
 tasks:

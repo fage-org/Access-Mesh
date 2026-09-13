@@ -112,7 +112,7 @@ public interface UserAppService {
      * 候选范围 = 默认组织树中操作者可见 ∩ 排除目标组织已有成员。
      * 门禁：ORG:UPDATE@targetOrgId（校验能管理目标组织成员）。
      * <p>
-     * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.1.2
+     * 契约依据：{@code docs/design/access-service-api-contract.md} §7.2
      *
      * @param req 候选用户查询请求（含 targetOrgId）
      * @return 分页候选用户列表

@@ -7,7 +7,7 @@
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *
- * 契约依据：docs/design/permission-center/api-contract.md §5.1
+ * 契约依据：docs/design/access-service-api-contract.md §13.1
  * 后端实现：access-service TypeDefinitionController + TypeDefinitionAppService
  */
 import { http } from "@/utils/http";

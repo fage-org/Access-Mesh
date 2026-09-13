@@ -9,7 +9,7 @@ import java.time.LocalDateTime;
  * 前端按 roleTypeCode 区分展示区域。
  * 使用业务键（roleTypeCode + roleExternalId）标识角色，不暴露内部 ID。
  * <p>
- * 契约依据：{@code docs/design/services/admin-service-api-contract.md} §4.4.1
+ * 契约依据：{@code docs/design/access-service-api-contract.md} §10.1
  *
  * @param roleTypeCode    角色类型码（ORG/POSITION/PERSONAL/GROUP_ROLE/BASIC_ROLE）
  * @param roleExternalId  角色外部标识（access-service 业务键）
