@@ -58,6 +58,8 @@ last_updated: 2026-09-13
 
 **双轨评审**：代码轨 P0-P2 零项；文档轨 P1×3（本卡回写项）+ P2×3（六测试类名/负向自证口径/状态流转）全处置；评审实证「全仓能力包间 mapper 依赖边恰好等于 19 类 30 边白名单（无多无漏）」。
 
+**外部评审（2026-09-13，claude+grok 双通道，收口后追加，均 read-only + 禁子代理）**：claude P0-P2 零项 + P3×1、grok 全零——两通道均独立复扫确认白名单 30 边双向吻合、@MapperScan 14 包对 36 mapper 零漏注册、HttpApiPathSnapshot 路径与签名双快照零漂移、机械判据违反为零。处置：①claude P3（OperationLogCoverage 全局总量下限 `>=40` 迁移后余量归零，037 计划内删 ConfigAppServiceImpl 时必误报）——已删全局魔数断言，覆盖哨兵收敛为逐能力包断言 + CAPABILITIES_WITHOUT_IMPL 登记；②grok 存量观察（capability-structure §8.2 与 architecture §3 的「engine.core 不依赖能力包 Service/DomainService」散文句与归属清单矛盾——PermQueryEngine 对 rule 域条件/冲突评估 DomainService 的既有依赖为清单必然产物）——两处散文已修正为「仅限 rule 域评估 DomainService」的事实口径；③grok 存量观察（6 处 Javadoc `access.application` 裸包名漏网 + 域互禁时代结构叙事失效）——已按现状口径改写、任务溯源保留；④claude 存量观察登记：`JobServiceImpl→JobAppServiceImpl` 改变 Spring 默认 bean 名，`sys_job.invoke_target` 为 bean 名引用面——当前生产零 `@JobInvocable` 方法无回归，后续把 `@JobInvocable` 挂到 JobAppServiceImpl 时 invoke_target 须写新 bean 名 `jobAppServiceImpl`。
+
 ## 非目标 / 遗留
 
 - 错误码/缓存目录/操作码合一、字段消减、system_config 入口退役——全部留给 034~039。

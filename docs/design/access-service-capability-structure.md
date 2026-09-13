@@ -381,7 +381,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | permission.dto.query：PermBatchQuery、PermBatchResult、PermEvalContext、PermQuery、PermResult、PermViewFilter、PermViewResult；permission.dto.resp：AuthCheckResp、BatchAuthCheckResp、CheckInterfaceResp | engine.dto | 查询模型 + check 族响应（消费面全在 engine：PermAuthController/PermissionCheckAppService/PermResultUtils） |
 | permission.dto.req.**PermissionCheckReq** | —（**删除**） | 实测零消费方（僵尸 DTO，按「无消费即删」政策随 033 清除） |
 
-引擎无自有 mapper；其直读投影/映射表 mapper（PermissionView/QueryAppServiceImpl→ResourceEntityMapper、PermissionCheckAppServiceImpl→ResourceApiMappingMapper 等既有输入面装载形态）属 §8.4 断言显式豁免。`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（`PermissionQueryAppServiceImpl`→`DomainClassifyService`/`PermissionConflictDomainService`）；`engine.core` 不依赖能力包的 Service/DomainService（对实体/DTO/枚举的跨包 import 与 mapper 直读为既有输入面形态，见 §8.4 豁免 1——非断言对象）。
+引擎无自有 mapper；其直读投影/映射表 mapper（PermissionView/QueryAppServiceImpl→ResourceEntityMapper、PermissionCheckAppServiceImpl→ResourceApiMappingMapper 等既有输入面装载形态）属 §8.4 断言显式豁免。`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（`PermissionQueryAppServiceImpl`→`DomainClassifyService`/`PermissionConflictDomainService`）；`engine.core` 对能力包 Service/DomainService 的依赖仅限 rule 域条件/冲突评估 DomainService（PermQueryEngine 条件四态与互斥评估的既有形态，拆包前同包直调、随本归属清单拆包显式化为 engine.core→rule.service.domain）；其余能力包的 Service/DomainService 不依赖（对实体/DTO/枚举的跨包 import 与 mapper 直读为既有输入面形态，见 §8.4 豁免 1——非断言对象）。
 
 #### projection（裁决 8）
 

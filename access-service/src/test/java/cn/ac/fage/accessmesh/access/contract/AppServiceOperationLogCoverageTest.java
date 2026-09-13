@@ -106,8 +106,9 @@ class AppServiceOperationLogCoverageTest {
         for (String pkg : CAPABILITY_IMPL_PACKAGES) {
             allCapabilities.addAll(scanPackage(pkg));
         }
-        assertTrue(allCapabilities.size() >= 40,
-            "12 能力包应扫描到全部 Service 实现，实际 " + allCapabilities.size());
+        // 覆盖下限哨兵=逐能力包断言（上方循环）+ CAPABILITIES_WITHOUT_IMPL 显式登记；
+        // 不设全局总量魔数——计划内入口退役（如 037 删 ConfigAppServiceImpl）会合法减员，
+        // 裸总量下限会误报（外评 P3，2026-09-13）。
 
         List<String> violations = new ArrayList<>();
         for (Class<?> clazz : allCapabilities) {

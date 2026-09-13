@@ -166,8 +166,8 @@ public class FileAppServiceImpl implements FileAppService {
      *
      * @param fileMapper 文件数据访问Mapper
      * @param permissionValidator 权限校验器，校验文件操作权限
-     * @param folderRegistrar 文件夹投影登记端口，上传惰性登记文件夹实例（T-ADMIN-025；
-     *                        admin 域禁依赖 permission，实现经 access.application 反转）
+     * @param folderRegistrar 文件夹投影登记端口，上传惰性登记文件夹实例（T-ADMIN-025；历史上经
+     *                        application 跨域桥接反转，T-ACCESS-033 能力包合一后接口与实现同在 platform）
      */
     public FileAppServiceImpl(SysFileMapper fileMapper, AdminPermissionValidator permissionValidator,
                            AdminFileFolderRegistrar folderRegistrar) {

@@ -6,8 +6,8 @@ package cn.ac.fage.accessmesh.access.sync.guard;
  * <p>
  * 管理事实派生的 abstract_user / abstract_role / resource_entity / user_role
  * 统一标记 {@link #SERVICE_CODE}，只能经 LocalProjectionDomainService 写入——
- * 调用方为 {@code access.application}（用户/组织/菜单编排）与 permission 域
- * 管理入口（角色/主体编排，T-ACCESS-019），事务由调用方 AppService 声明。
+ * 调用方为 user/org/menu 能力包写编排与
+ * role/user 管理入口（T-ACCESS-019），事务由调用方 AppService 声明。
  * </p>
  * <p>
  * 保留业务键终态（T-ACCESS-016 §4.3/§13.2，T-ACCESS-018 落地）：

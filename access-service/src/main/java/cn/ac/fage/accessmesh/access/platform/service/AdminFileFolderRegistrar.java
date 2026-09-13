@@ -3,10 +3,9 @@ package cn.ac.fage.accessmesh.access.platform.service;
 /**
  * ADMIN_FILE 文件夹投影登记端口（T-ADMIN-025）。
  * <p>
- * admin 域禁止依赖 permission 域（AccessServiceArchitectureTest：跨域编排必须经
- * access.application），文件夹投影登记能力经本端口做依赖反转——与
- * {@link AdminPermissionValidator} 同款形态：接口落 admin 域，实现落
- * {@code access.application}（application.security.AdminFileFolderRegistrarImpl），
+ * 历史上 admin 域禁依赖 permission 域（旧 AccessServiceArchitectureTest 域互斥
+ * 规则，T-ACCESS-033 随能力包合一废除），文件夹投影登记能力经本端口做依赖反转——
+ * 现接口与实现同落 platform.service（AdminFileFolderRegistrarImpl），
  * 委托 {@code LocalProjectionDomainService.ensureAdminFileFolder}。
  * 语义：insert-if-absent 登记文件夹投影（bootstrap 预置 default/avatar/document/image
  * 四文件夹 + 上传新 bizType 惰性登记两条事实链；bizType 即文件夹实例 = 

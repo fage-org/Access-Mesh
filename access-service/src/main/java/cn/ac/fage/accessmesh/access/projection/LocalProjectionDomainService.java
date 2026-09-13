@@ -8,8 +8,8 @@ import java.util.Set;
  * 管理事实对应的本地权限投影。
  * <p>
  * 只写权限计算表，不写 sync_metadata。owner_service_code 固定为 access-service。
- * 事务由调用方 AppService 声明（access.application 用户/组织/菜单编排与
- * permission 域角色/主体管理编排，T-ACCESS-019）。
+ * 事务由调用方 AppService 声明（user/org/menu 写编排与
+ * role/user 管理编排，T-ACCESS-019）。
  * </p>
  */
 public interface LocalProjectionDomainService {
@@ -18,7 +18,7 @@ public interface LocalProjectionDomainService {
      * 创建本地用户主体链（T-ORG-001，architecture §12.2）：预取主体 ID N 后显式写
      * abstract_user(id=N, external_id=N, LOCAL_USER) + resource_entity(USER, code=N)。
      * <p>
-     * 调用方（access.application 用户创建编排）随后以同一 N 写 sys_user(id=N)——
+     * 调用方（user 能力包用户创建编排）随后以同一 N 写 sys_user(id=N)——
      * 本方法只负责主体侧，不写 admin 域事实。与外部主体（仅 abstract_user 自增取号）
      * 共用同一 ID 生成源，任何创建顺序均不碰撞。
      * </p>

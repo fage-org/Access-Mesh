@@ -12,8 +12,8 @@ import org.springframework.stereotype.Service;
 /**
  * ADMIN_FILE 文件夹投影登记端口实现（T-ADMIN-025）。
  * <p>
- * 落位 access.application（admin 与 permission 禁止横向调用的跨域桥接层，
- * 与 {@link AdminPermissionValidatorImpl} 同款依赖反转），委托
+ * T-ACCESS-033 前落位 application（域互禁时代的跨域桥接层，现与接口
+ * 同在 platform.service），委托
  * {@link LocalProjectionDomainService#ensureAdminFileFolder}；事务由调用方
  * （FileAppServiceImpl 上传事务 / bootstrap 固定图事务）声明。
  * </p>

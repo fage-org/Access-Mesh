@@ -74,7 +74,7 @@ cn.ac.fage.accessmesh.access
 - `application` 包解散：写编排随主实体归位各能力包 AppService；原跨域组合查询按主实体归位（UserMenuQuery→menu、UserRoleQuery→role、OrgVisibilityQuery→org，改名 `XxxQueryAppService`）。
 - **能力包之间不互读 Mapper**（数据边界断言面=mapper 包；`QueryBoundaryArchitectureTest` 以能力为对象重建，豁免面=engine 输入面装载、projection 投影写路径、sync 记账、bootstrap 种子写入器、存量 19 类 30 边冻结白名单「不得新增」，逐条声明见 capability-structure §8.4）。
 - AppService/DomainService 同层横向跨能力调用允许（2026-08-22 放开口径延续；仅限同层、禁循环依赖、复用优先于重实现，project-rules §8.2）。
-- 引擎核心（`engine.core`：PermQueryEngine/类型解析/主体装载/批量评估器）不依赖能力包的 **Service/DomainService**（对实体/DTO/枚举的跨包 import 与 mapper 直读为既有输入面形态，capability-structure §8.4 豁免 1，非断言对象）；`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（query-resources 域分类过滤→`DomainClassifyService`、互斥检测→`PermissionConflictDomainService`）。能力包 → engine（门禁查码/校验）为既有依赖方向。
+- 引擎核心（`engine.core`：PermQueryEngine/类型解析/主体装载/批量评估器）对能力包 **Service/DomainService** 的依赖仅限 rule 域条件/冲突评估 DomainService（引擎管线内条件四态与互斥评估的既有形态，拆包前同包直调）；其余能力包的 Service/DomainService 不依赖（对实体/DTO/枚举的跨包 import 与 mapper 直读为既有输入面形态，capability-structure §8.4 豁免 1，非断言对象）；`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（query-resources 域分类过滤→`DomainClassifyService`、互斥检测→`PermissionConflictDomainService`）。能力包 → engine（门禁查码/校验）为既有依赖方向。
 - QueryMapper 归位各能力包（XML 随迁 `resources/mapper/{org,menu,role}/`）；只读前缀、显式租户条件、禁写 SQL 契约不变（`QueryMapperXmlContractTest`）。
 - URL 维持两风格（admin 裸路径 + perm `/api/perm/**`）——已知问题登记 [docs/pending-problems.md](../pending-problems.md) Q-001，后续单独改。
 - 架构测试将上述边界固化（五测试能力口径重建设计见 capability-structure §8.4）。
