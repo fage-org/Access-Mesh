@@ -56,3 +56,11 @@ last_updated: 2026-09-13
 - **验证链**：`mvn compile test-compile` 零告警；定向重绑单测组 13 类 171/171；单轨 `-DskipTestcontainers=true` 1232/1232（038 基线 1229 + 3 新锁）；全量收口 `mvn test -T 1C`（含 E2E，2026-09-13）BUILD SUCCESS——模块计数与 038 基线一致（perm-common 30 / common 65 / starter 15 / example 10 / gateway 106 / access-service 单测 1232 + 容器 210 / e2e 14，日志 /c/Users/li/AppData/Local/Temp/full_039.log）。
 - **文档回写**：capability-structure §3/§8.2/§9 + frontmatter；engine/overview（缓存目录册引用）+ engine/implementation §5.1 表与 §8.3 措辞（last_reviewed 历史链内 2026-09-11 时点注记保留旧册名原文）；pending-problems Q-006 时态（「将改名」→ 已落地）；decision-registry 2026-09-13 拍板行（两项命名 + 弃案）；dual-layer-cache-framework skill 双副本 v3.1.0（示例改挂 AccessCacheCatalog、键格式示例补 access: 前缀条目，cp+diff 验证同步）。
 - **背景勘误**：卡内「合并后全目录 10 条」为计数笔误，实际 9 条（原 perm 8 + dict 1），完成记录随批订正。
+
+## 外部评审处置（claude+grok，2026-09-13）
+
+共用提示词（三槽位：评审对象=36b3fecd1 首轮 / 任务相关定案与边界 / 九项专项清单含复核本地双轨处置），双通道并行只读，输出落盘 ext_review_039/。九项专项清单双通道全过（合并零漂移、消费面闭合、机械替换无副作用、判据零改动、三锁旧实现必红、残留全合法、双轨 P3 处置复核、skill 双副本 SHA256 一致、文档回写自洽）。
+
+- **claude P3×1（运维可见面未登记）**：catalog code 同时是 Micrometer `catalog` 标签 series 与日志取值键，ORG_VISIBILITY 改名后这些 series 随之切换，Q-006 原登记只覆盖 Nacos 覆盖键与滚动发布失效两类面。亲核属实（RedissonBucketStore `.tag("catalog", k)` 等实证）——已按建议在 Q-006 现象与证据补登指标/日志面一句（纯文档，不改代码）。
+- **grok 存量观察×2**：① engine/implementation.md §5.1 Gateway 快照行 L1 TTL 写「默认 30 秒」，实际 `GatewayCacheCatalog.INTERFACE_SNAPSHOT` l1Ttl=15s（T-ACCESS-008 边界 ≤15s；30s 是 10+5+15 总预算）——存量过时非本批引入，亲核属实，已改 15 秒；② common CacheCatalogEntry javadoc 前缀格式示例未列 `access:`——已补示例值。
+- **结论**：claude P0-P2=0、P3=1，grok P0-P3 全零；双通道均为「可定稿、无必改项」。claude 附注（非缺陷）：`mergedCatalog_codesShouldBeDistinct` 为字面 9 项列表，未来新增条目需同步该列表（如需强锁可改反射枚举，未采纳——字面列表即本卡合一形态锁，新增条目时更新列表是预期维护动作）。

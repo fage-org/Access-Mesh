@@ -37,7 +37,7 @@ public final class CacheCatalogEntry<V> {
     /**
      * 缓存键中间段
      * <p>
-     * 格式建议：业务域:数据类型，如 "perm:effective-roles"、"admin:dict-types"
+     * 格式建议：业务域:数据类型，如 "perm:effective-roles"、"admin:dict-types"、"access:org-visibility"
      * </p>
      */
     private final String code;
