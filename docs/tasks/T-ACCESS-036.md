@@ -64,7 +64,7 @@ resource 面 sortOrder 的列、实体、SDK 双册字段（含 ResourceEntitySy
 
 代码轨 P0-P2 零 + P3×1、文档轨 P0-P2 零 + P3×1，逐条核实后全处置：
 
-- **代码轨 P3（采纳，已修）**：新测试内联注释「信封码断言把 400 归因钉死…防前置校验意外通过」措辞夸大——MethodArgumentNotValidException 与 HttpMessageNotReadableException 同返 400 + 90001（GlobalExceptionHandler:92-94/:143-148 实证），信封码不唯一钉通道。该句系从 T-PERM-053 先例文件逐字复刻（评审员称先例无此声明系只看类 Javadoc 的误判，行内注释 :152-153 原句仍在）；本文件注释已收敛为准确表述（负向载荷不触发 @Valid + 正向用例补证通道组合），先例文件属 T-PERM-053 范围未动——同句措辞夸大为两处同款锁测试共享的已知瑕疵，是否统一修正先例由用户拍板。
+- **代码轨 P3（采纳，已修）**：新测试内联注释「信封码断言把 400 归因钉死…防前置校验意外通过」措辞夸大——MethodArgumentNotValidException 与 HttpMessageNotReadableException 同返 400 + 90001（GlobalExceptionHandler:92-94/:143-148 实证），信封码不唯一钉通道。该句系从 T-PERM-053 先例文件逐字复刻（评审员称先例无此声明系只看类 Javadoc 的误判，行内注释 :152-153 原句仍在）；本文件注释已收敛为准确表述（负向载荷不触发 @Valid + 正向用例补证通道组合），先例文件属 T-PERM-053 范围未动——同句措辞夸大为两处同款锁测试共享的已知瑕疵，是否统一修正先例由用户拍板。**后续闭环（2026-09-13 用户拍板「顺手修正」）**：先例 ServiceConfigSyncOperationCodeRetiredTest 行内注释已按本卡收敛口径修正（负向载荷与正向同构仅多一个未知字段、90001 与 MethodArgumentNotValid 同码不分辨通道、正向用例补证通道组合），全仓「归因钉死」措辞清零。
 - **文档轨 P3（采纳，已修）**：frontend/resource-operation.md frontmatter `last_reviewed` 追加 T-ACCESS-036 注记（permission-condition.md 先例格式）。
 
 两轨存疑待决策项均零；实证通过项：写入点完备性（setSortOrder/getSortOrder 按实体归类终扫 ResourceEntity 为零）、位置参数实参序（全部降参构造点逐一对位）、负向锁判别力（旧实现下四负向载荷反序列化通过 → 200 非 400+90001，锁与删除语义同向）、DDL/实体/mapper 映射闭合、SDK 四模块影响面、前端链路无悬空引用、残留终扫（resource 面活引用为零，范围外五面保留）。

@@ -149,8 +149,10 @@ class ServiceConfigSyncOperationCodeRetiredTest {
                 .header("X-Service-Code", "my-svc")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body))
-            // 信封码断言把 400 归因钉死在 HttpMessageNotReadable → 90001 通道，
-            // 防未来新增其它 400 来源（如前置校验）时本用例意外通过
+            // 信封码断言锁定 400 + 90001 形态（HttpMessageNotReadable 通道；负向载荷
+            // 与正向同构仅多一个未知字段、@NotBlank 全提供不触发 @Valid，400 只能来自
+            // 反序列化拒绝——90001 与 MethodArgumentNotValidException 同码，信封码自身
+            // 不分辨通道；通道组合由正向用例经同一请求链到达业务层补证）
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.code").value(GlobalErrorCode.VALIDATION_FAILED.code()));
 
