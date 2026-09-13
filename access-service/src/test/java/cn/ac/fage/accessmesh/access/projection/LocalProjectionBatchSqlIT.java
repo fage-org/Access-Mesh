@@ -77,8 +77,8 @@ class LocalProjectionBatchSqlIT {
         assertThat(jdbcTemplate.queryForObject(
             "SELECT extra FROM abstract_user WHERE id = ?", Object.class, abstractUserId)).isNull();
 
-        // 模拟 permission 域主体管理写入 extra（req.extra 通道，T-ACCESS-035 后本地投影行的
-        // 唯一 extra 写入方；外部主体同步行另写自身 extra，不在本投影面）
+        // jdbc 直写构造非空 extra——锁 batchUpdateValues 的 COALESCE 值保留与 42804 非空
+        // CAST 载体（SQL 级防御性质；LOCAL_USER 行无 permission 域写入口，非生产通道模拟）
         jdbcTemplate.update(
             "UPDATE abstract_user SET extra = CAST('{\"k\":\"perm-track\"}' AS JSONB) WHERE id = ?", abstractUserId);
 
@@ -102,6 +102,30 @@ class LocalProjectionBatchSqlIT {
             TENANT, String.valueOf(sysUserId));
         assertThat(resRow.get("name")).isEqualTo("张三丰");
         assertThat(resRow.get("status")).isEqualTo(0);
+    }
+
+    @Test
+    @DisplayName("batchUpsert 已有行 extra=NULL：真实 PG 批量刷新不报 42804 且保持 NULL（T-ACCESS-035 后新建行的生产形态）")
+    void batchUpsertKeepsNullExtraOnRealPostgres() {
+        Long sysUserId = 900003L;
+
+        // 新建行：投影不写 extra → 显式 NULL（T-ACCESS-035 后全部新行形态）
+        Map<Long, Long> first = localProjectionDomainService.batchUpsertAdminUsers(TENANT,
+            List.of(new LocalProjectionDomainService.UpsertUserKey(sysUserId, "李四", true)));
+        Long abstractUserId = first.get(sysUserId);
+        assertThat(abstractUserId).isNotNull();
+
+        // 已有行批量刷新：v.extra=NULL 走 CAST(NULL AS JSONB) + COALESCE——缺 CAST 时全 unknown
+        // 参数推断为 text 的 42804 路径在该组合下同样可达，本用例补齐此前无真实 PG 覆盖的组合
+        Map<Long, Long> second = localProjectionDomainService.batchUpsertAdminUsers(TENANT,
+            List.of(new LocalProjectionDomainService.UpsertUserKey(sysUserId, "李四丰", false)));
+        assertThat(second).containsEntry(sysUserId, abstractUserId);
+
+        Map<String, Object> row = jdbcTemplate.queryForMap(
+            "SELECT name, enabled, extra FROM abstract_user WHERE id = ?", abstractUserId);
+        assertThat(row.get("name")).isEqualTo("李四丰");
+        assertThat(row.get("enabled")).isEqualTo(Boolean.FALSE);
+        assertThat(row.get("extra")).isNull();
     }
 
     @Test

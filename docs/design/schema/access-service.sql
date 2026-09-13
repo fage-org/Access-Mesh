@@ -809,7 +809,7 @@ COMMENT ON COLUMN abstract_role.external_id IS '外部业务标识；对外接�
 COMMENT ON COLUMN abstract_role.name IS '名称';
 COMMENT ON COLUMN abstract_role.status IS '状态：0=停用 1=启用，预留扩展空间';
 COMMENT ON COLUMN abstract_role.sort_order IS '排序序号，功能角色管理面使用；ORG/POSITION 容器行投影停写（零读取方，T-ACCESS-035），列本体保留';
-COMMENT ON COLUMN abstract_role.extra IS '扩展属性(JSON)，GROUP_ROLE basicIds 等读取；容器行 orgType 键已消亡（语义由 role_type 承载，T-ACCESS-035）';
+COMMENT ON COLUMN abstract_role.extra IS '扩展属性(JSON)，GROUP_ROLE basicRoleIds 等读取（键名与表注释一致，该键零写入方为 T-PERM-043 登记的历史事实）；容器行 orgType 键已消亡（语义由 role_type 承载，T-ACCESS-035）';
 COMMENT ON COLUMN abstract_role.owner_service_code IS '所有权标识：access-service=管理事实派生的本地投影（禁止权限管理 API 直接修改）；NULL=人工维护或外部同步';
 COMMENT ON COLUMN abstract_role.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 

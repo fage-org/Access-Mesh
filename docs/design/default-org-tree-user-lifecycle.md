@@ -133,7 +133,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 1. 组织作为可管理资源：`resource_entity(resourceTypeCode=ORG, resourceCode=sys_org.id)`
    - `codeType = default`
    - 父节点通过 `resourceTypeCode=ORG + resourceCode=父sys_org.id` 定位，permission-center 内部解析 parentId
-   - `extra` 建议包含 `orgType`、`treeConfigId`、`rootOrgId`、`isDefaultTree`、`level`、`leaderId`
+   - `extra` 建议包含 `orgType`、`treeConfigId`、`rootOrgId`、`isDefaultTree`、`level`、`leaderId`（历史设计建议，投影实现从未写 resource_entity(ORG).extra——orgType 语义由 sys_org.org_type 承载，T-ACCESS-035 实核注记）
 
 2. 组织作为角色容器：
    - 普通组织 → `abstract_role(roleTypeCode=ORG, roleExternalId=sys_org.id)`

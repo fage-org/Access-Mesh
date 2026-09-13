@@ -57,12 +57,12 @@ last_updated: 2026-09-13
 
 **实施期实证修正（flex 全列插入语义）**：MyBatis-Flex `insert(entity)/insertBatch` 对 null 字段写显式 NULL 而非走列默认（与 sys_user gender 显式赋值先例同源现象，两处 IT 断言实证）——停写字段落库为 NULL 不是 DEFAULT。两列均可空且零读取方，NULL 即「无投影值」语义，回归锁按 NULL 断言。
 
-**顺带的正确性收益（非目标、已锁行为）**：此前 admin 轨 `/user/update`、`/user/update-status` 每次都会用 username JSON 覆写 `abstract_user.extra`（upsertAdminUser 传恒非空 extraJson），permission 域主体管理 API 写入的 `req.extra` 会被清掉；停写后 extra 在投影刷新中保留——批量路径靠读改写不覆盖（第一性）+ `batchUpdateValues` 的 `COALESCE(v.extra, u.extra)` 防御性保留，单条 update 路径靠 flex update(entity) 忽略 null 列。`LocalProjectionBatchSqlIT` 以 jdbc 预置非空 extra + 批量刷新断言值保留（同时保住 42804 JSONB CAST 回归的非空参数载体）。
+**行为面注记（外评修正后口径）**：此前 admin 轨 `/user/update`、`/user/update-status` 每次都会用 username JSON 覆写 `abstract_user.extra`；停写后该覆写消失。**不存在「被拯救的 permission 域数据」**——LOCAL_USER 行的 permission 域写入口本被 `LocalProjectionGuard` 双向封死（create 走 `rejectReservedSubjectType`、update/delete 走 `rejectIfLocalUser`，外评 claude P3 指正），存量行上唯一存在的值是旧代码自写的 username 残值（零读取方）。`batchUpdateValues` 的 `COALESCE(v.extra, u.extra)` 与单条 update(entity) 忽略 null 列构成「停写不清存量」的保留机制，`LocalProjectionBatchSqlIT` 以 jdbc 直写非空 extra + 批量刷新锁该 SQL 级防御性质（并保住 42804 JSONB CAST 回归的非空参数载体）。
 
 **回归锁**：
 - `LocalProjectionDomainServiceImplTest`：upsertAdminUser insert 实体 `getExtra()` null 断言；upsertAdminOrg insert 实体 `getSortOrder()/getExtra()` null 断言（容器行死字段停写）。
 - `UserOrgWriteAppServiceFaultInjectionIT`：真实 PG 断言容器行 `sort_order/extra` 均 NULL、用户投影行 `extra` NULL（DB 级锁）。
-- `LocalProjectionBatchSqlIT`：首插 extra NULL（投影不携带 extra）+ permission 域 extra 环回保留（见上）。
+- `LocalProjectionBatchSqlIT`：首插 extra NULL（投影不携带 extra）+ 非空 extra 值经批量刷新保留（SQL 级防御性质锁，见上）。
 - 签名收敛本身即编译期锁（死参数无处可传）。
 
 **测试证据**：单测轨道与定向容器组（BatchSql/FaultInjection×2/BootstrapPg/SchemaH2/SchemaPG）全绿；全量回归 `mvn test -T 1C`（含 E2E 两垂直切片）BUILD SUCCESS、0 失败 0 错误。
@@ -72,8 +72,18 @@ last_updated: 2026-09-13
 代码轨 P0-P2 零、P3×2；文档轨 P2×2、P3×3；两轨存疑决策项均为无。逐条核实后全处置：
 
 - 「落库走列默认」注释残留×3（LocalProjectionDomainServiceImplTest×2、UserOrgWriteAppServiceFaultInjectionIT 调用点注释）与显式 NULL 实证矛盾——已统一为「flex 全列插入落显式 NULL」。
-- 「唯一 extra 写入方」未限定行归属（外部主体同步行另写自身 extra）——已限定「本地投影行的唯一 extra 写入方」。
+- 「唯一 extra 写入方」未限定行归属（外部主体同步行另写自身 extra）——先行限定为「本地投影行的唯一写入方」，该限定后被外评进一步修正（见下节：perm 轨对 LOCAL_USER 行根本无写入口）。
 - COALESCE 归因精确化：批量路径的值保留第一性是读改写不覆盖，COALESCE 为防御性保留（防未来改构造-only 实体数据流）——schema 注释与完成记录已按此改写；单条 update(entity) 忽略 null 列的保留机制同步补入 schema 注释。
 - 看板/计划行未同步为本评审时点中间态（卡 review vs 看板 ⚙️），收口时随状态终翻一并落——非缺陷。
 - 完成记录「单测轨道 1226 用例」去数字化（防逐轮漂移，对齐 033/034 先例）。
 - 存量观察（不入 P 级、归 T-ACCESS-036）：`upsertAdminMenu` 的 `sortOrder` 参数在 impl 零消费——resource_entity.sort_order 退役面死参数，随 036「全部写入点」清扫收口。
+
+## 外部评审处置（2026-09-13，claude + grok 双通道，均 read-only + 禁子代理）
+
+用户显式触发；共用提示词（模板 + 三槽位含七项专项清单），对象 = commit `3a0db0d3d`。结果：claude P0-P2 零 + P3×1、grok 全零（「未发现具有明确证据的生产级缺陷」）；双通道矛盾为零（grok 专项 1 的 LOCAL_USER 写入口封死结论与 claude P3① 一致）。逐条核实后处置：
+
+- **claude P3①（采纳，归因修正）**：「permission 域 req.extra 会被 admin 轨覆写清掉」描述的状态不可达——LOCAL_USER 行的 permission 域写入口被 `LocalProjectionGuard` 双向封死（create `rejectReservedSubjectType` / update·delete `rejectIfLocalUser`，主代理亲核 `UserManageAppServiceImpl:231/274/341` 成立）。真实行为面 = 存量行 username 残值不再被刷新覆写；「被拯救的 perm 域数据」不存在。已修正：任务卡「行为面注记」段重写、计划进度条目、BatchSqlIT 注释（jdbc 直写定位为 SQL 级防御性质锁，非生产通道模拟）、提交 `3a0db0d3d` body 同句（amend，本地未推送）。
+- **claude P3②（采纳）**：schema `abstract_role.extra` 注释键名 `basicIds` 误写，实际键 `basicRoleIds`（`SubjectDomainServiceImpl:435` + 表注释一致）；已改并附「该键零写入方为 T-PERM-043 登记的历史事实」。
+- **claude 专项5 建议（采纳其一）**：补「已有行 extra=NULL + 批量刷新」真实 PG 用例（`batchUpsertKeepsNullExtraOnRealPostgres`）——T-ACCESS-035 后全部新建行的生产形态，CAST(NULL AS JSONB) 组合此前无 PG 级覆盖。另一建议（FaultInjectionIT 用户行断言非判别性：旧调用点本传 null）不采纳改动——判别锁已由 impl 单测（旧实参 `{"username":"zhang"}` 下必红）与 BatchSqlIT 承担，该 DB 断言保留作未来新写入面的守卫。
+- **claude 存量观察（采纳一处）**：`default-org-tree-user-lifecycle.md` 组织资源 extra「建议包含 orgType…」为从未实现的旧建议，已加注记防误读为应复活该键。其余两条（implementation.md basicRoleIds 零写入方双事实源、upsertAdminMenu sortOrder 死参数）维持既有登记（后者已归 036）。
+- **grok**：零缺陷零存疑新增（专项七项执行结果与本地双轨一致）；无处置项。
