@@ -30,11 +30,8 @@ import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -64,7 +61,6 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     private final OrgVisibilityQueryAppService orgVisibilityQueryService;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final AuditDomainService auditDomainService;
-    private final ObjectMapper objectMapper;
 
     public UserWriteAppServiceImpl(UserDomainService userDomainService,
                                    UserOrgDomainService userOrgDomainService,
@@ -73,8 +69,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
                                    AdminPermissionValidator permissionValidator,
                                    OrgVisibilityQueryAppService orgVisibilityQueryService,
                                    LocalProjectionDomainService localProjectionDomainService,
-                                   AuditDomainService auditDomainService,
-                                   ObjectMapper objectMapper) {
+                                   AuditDomainService auditDomainService) {
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
@@ -83,7 +78,6 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         this.orgVisibilityQueryService = orgVisibilityQueryService;
         this.localProjectionDomainService = localProjectionDomainService;
         this.auditDomainService = auditDomainService;
-        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -115,7 +109,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         // 权限管线按禁用主体解析 → 快照恒空 → 全接口 403）。语义以 DDL 为准：1=启用，0=停用。
         Integer status = req.status() != null ? req.status() : 1;
         Long subjectId = localProjectionDomainService.createLocalUserSubject(
-            tenantId, req.name(), isEnabled(status), extraUsername(req.username()));
+            tenantId, req.name(), isEnabled(status));
 
         SysUser user = new SysUser();
         user.setId(subjectId);
@@ -221,7 +215,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         userDomainService.update(user);
 
         Long abstractUserId = localProjectionDomainService.upsertAdminUser(
-            tenantId, user.getId(), user.getName(), isEnabled(user.getStatus()), extraUsername(user.getUsername()));
+            tenantId, user.getId(), user.getName(), isEnabled(user.getStatus()));
         recordProjectionChange(tenantId, "abstract_user", abstractUserId, "UPSERT",
             new Long[]{abstractUserId}, new Long[0]);
         PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
@@ -338,7 +332,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         if (enabled) {
             List<LocalProjectionDomainService.UpsertUserKey> upsertKeys = existingUsers.stream()
                 .map(u -> new LocalProjectionDomainService.UpsertUserKey(
-                    u.getId(), u.getName(), true, extraUsername(u.getUsername())))
+                    u.getId(), u.getName(), true))
                 .collect(Collectors.toList());
             abstractIdBySysId = localProjectionDomainService.batchUpsertAdminUsers(tenantId, upsertKeys);
         } else {
@@ -422,15 +416,6 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             return "POSITION";
         }
         return "ORG";
-    }
-
-    private String extraUsername(String username) {
-        try {
-            return objectMapper.writeValueAsString(Map.of("username", username == null ? "" : username));
-        } catch (JsonProcessingException e) {
-            throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
-                "serialize user extra failed", e);
-        }
     }
 
     private static boolean isEnabled(Integer status) {

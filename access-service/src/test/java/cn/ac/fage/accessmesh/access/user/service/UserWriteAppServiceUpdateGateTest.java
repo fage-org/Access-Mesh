@@ -16,7 +16,6 @@ import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -68,8 +67,7 @@ class UserWriteAppServiceUpdateGateTest {
             permissionValidator,
             orgVisibilityQueryService,
             localProjectionDomainService,
-            auditDomainService,
-            new ObjectMapper()
+            auditDomainService
         );
         AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));
     }
@@ -113,7 +111,7 @@ class UserWriteAppServiceUpdateGateTest {
     void updateWithoutStatusSkipsEnableGate() {
         when(userDomainService.selectValidById(TENANT, TARGET)).thenReturn(target());
         when(localProjectionDomainService.upsertAdminUser(
-            anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean(), any()))
+            anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
             .thenReturn(901L);
 
         service.updateUser(new UserUpdateReq(TARGET, "新名", null, null, null));
@@ -129,7 +127,7 @@ class UserWriteAppServiceUpdateGateTest {
     void statusChangeWithBothCodesPasses() {
         when(userDomainService.selectValidById(TENANT, TARGET)).thenReturn(target());
         when(localProjectionDomainService.upsertAdminUser(
-            anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean(), any()))
+            anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
             .thenReturn(901L);
 
         service.updateUser(new UserUpdateReq(TARGET, null, null, null, 0));
@@ -146,7 +144,7 @@ class UserWriteAppServiceUpdateGateTest {
     void selfUpdateSkipsAllGatesEvenWithStatus() {
         when(userDomainService.selectValidById(TENANT, OPERATOR)).thenReturn(target());
         when(localProjectionDomainService.upsertAdminUser(
-            anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean(), any()))
+            anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
             .thenReturn(901L);
 
         service.updateUser(new UserUpdateReq(OPERATOR, "自改名", null, null, 0));

@@ -77,7 +77,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     }
 
     @Override
-    public Long createLocalUserSubject(Long tenantId, String name, boolean enabled, String extraJson) {
+    public Long createLocalUserSubject(Long tenantId, String name, boolean enabled) {
         Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
         Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
         // T-ORG-001（§12.2）：abstract_user.id 序列预取主体 ID，external_id 终态 = 主体 ID 字符串化，
@@ -93,7 +93,6 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         user.setExternalId(externalId);
         user.setName(name);
         user.setEnabled(enabled);
-        user.setExtra(extraJson);
         user.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
         user.setCreatedAt(now);
         user.setUpdatedAt(now);
@@ -106,7 +105,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     }
 
     @Override
-    public Long upsertAdminUser(Long tenantId, Long sysUserId, String name, boolean enabled, String extraJson) {
+    public Long upsertAdminUser(Long tenantId, Long sysUserId, String name, boolean enabled) {
         Integer userType = requireType(tenantId, "user_type", LocalProjectionOwner.SUBJECT_LOCAL_USER);
         Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.USER);
         String externalId = String.valueOf(sysUserId);
@@ -120,7 +119,6 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             user.setExternalId(externalId);
             user.setName(name);
             user.setEnabled(enabled);
-            user.setExtra(extraJson);
             user.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
             user.setCreatedAt(now);
             user.setUpdatedAt(now);
@@ -129,9 +127,6 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         } else {
             user.setName(name);
             user.setEnabled(enabled);
-            if (extraJson != null) {
-                user.setExtra(extraJson);
-            }
             user.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
             user.setUpdatedAt(now);
             abstractUserMapper.update(user);
@@ -185,8 +180,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Long upsertAdminOrg(Long tenantId, Long sysOrgId, String orgType, String name,
-                               Long parentOrgId, String parentOrgType, Integer status, Integer sortOrder,
-                               String extraJson) {
+                               Long parentOrgId, String parentOrgType, Integer status) {
         String roleTypeCode = resolveOrgRoleType(orgType);
         Integer roleType = requireType(tenantId, "role_type", roleTypeCode);
         Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.ORG);
@@ -206,8 +200,6 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             role.setName(name);
             role.setParentId(parentRoleId);
             role.setStatus(statusVal);
-            role.setSortOrder(sortOrder);
-            role.setExtra(extraJson);
             role.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
             role.setCreatedAt(now);
             role.setUpdatedAt(now);
@@ -217,12 +209,6 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             role.setName(name);
             role.setParentId(parentRoleId);
             role.setStatus(statusVal);
-            if (sortOrder != null) {
-                role.setSortOrder(sortOrder);
-            }
-            if (extraJson != null) {
-                role.setExtra(extraJson);
-            }
             role.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
             role.setUpdatedAt(now);
             abstractRoleMapper.update(role);

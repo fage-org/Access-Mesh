@@ -25,14 +25,14 @@ public interface LocalProjectionDomainService {
      *
      * @return 预取并落库的主体 ID（= 调用方 sys_user.id）
      */
-    Long createLocalUserSubject(Long tenantId, String name, boolean enabled, String extraJson);
+    Long createLocalUserSubject(Long tenantId, String name, boolean enabled);
 
     /**
      * UPSERT abstract_user(LOCAL_USER) + resource_entity(USER)。
      *
      * @return abstract_user.id
      */
-    Long upsertAdminUser(Long tenantId, Long sysUserId, String name, boolean enabled, String extraJson);
+    Long upsertAdminUser(Long tenantId, Long sysUserId, String name, boolean enabled);
 
     /**
      * 停用 abstract_user 与 USER 资源。
@@ -53,7 +53,7 @@ public interface LocalProjectionDomainService {
      * @return abstract_role.id
      */
     Long upsertAdminOrg(Long tenantId, Long sysOrgId, String orgType, String name,
-                        Long parentOrgId, String parentOrgType, Integer status, Integer sortOrder, String extraJson);
+                        Long parentOrgId, String parentOrgType, Integer status);
 
     /**
      * 软删除组织角色与 ORG 资源。
@@ -158,9 +158,10 @@ public interface LocalProjectionDomainService {
     Map<Long, Long> batchUpsertAdminUsers(Long tenantId, List<UpsertUserKey> keys);
 
     /**
-     * 批量 upsert 键：管理事实侧 (sys_user.id, name, enabled, extraJson)。
+     * 批量 upsert 键：管理事实侧 (sys_user.id, name, enabled)。extra 不参与投影
+     * （username 投影已退役，T-ACCESS-035；permission 域写入的 extra 经 COALESCE 环回保留）。
      */
-    record UpsertUserKey(Long sysUserId, String name, boolean enabled, String extraJson) {}
+    record UpsertUserKey(Long sysUserId, String name, boolean enabled) {}
 
     /**
      * 批量 UNBIND（删除路径循环单条 unbind 的 N+1）。

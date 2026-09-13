@@ -48,7 +48,7 @@ last_updated: 2026-09-13
 | [T-ACCESS-032](../tasks/T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | — | ✅ |
 | [T-ACCESS-033](../tasks/T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建 | 032 | ✅ |
 | [T-ACCESS-034](../tasks/T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | 033, 040 | ✅ |
-| [T-ACCESS-035](../tasks/T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | 033 | ⚙️ |
+| [T-ACCESS-035](../tasks/T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | 033 | ✅ |
 | [T-ACCESS-036](../tasks/T-ACCESS-036.md) | resource_entity.sort_order 退役 | 033, 040 | ⚙️ |
 | [T-ACCESS-037](../tasks/T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | 033, 040 | ⚙️ |
 | [T-ACCESS-038](../tasks/T-ACCESS-038.md) | 错误码合类不合号 | 033 | ⚙️ |
@@ -77,3 +77,4 @@ last_updated: 2026-09-13
 - 2026-09-13：T-ACCESS-033 收口——机械迁移完成（17 顶层包落地、500 类搬迁、17 对改名、僵尸 DTO 三件删除、五测试重建、@MapperScan 14 包；单测轨道与全量回归含 E2E 全绿，双轨评审处置完毕）；architecture §3 迁移完成注记翻转与 query 族类名回写、§14.7 时态注记、capability-structure 时态句更新；035/038 依赖解锁、040 可启动（契约深合一先行）。
 - 2026-09-13：T-ACCESS-034 收口——操作码常量面合一为 engine.constant.OperationCode（两旧册删除、57 文件改指、ACCESS/ASSIGN/REVOKE 补录、注册表镜像口径取代 T-PERM-019 D3）；UserManageAppServiceImpl 字段分档换绑（UPDATE/ENABLE/DELETE + 空 patch 90001）；USER:MANAGE 退役（DDL 种子 125→124、schema/表征测试迁移、注释残留清扫）；OPERATION_CODE 死缓存条目删除（039 前置达成）；空库首管理员 perm 轨放行正向锁（FirstAdminUserTrackPgIT）；双轨评审 P2×1+P3×8 全处置；全量回归 -T 1C 含 E2E 绿。
 - 2026-09-13：T-ACCESS-040 收口——契约总册 `docs/design/access-service-api-contract.md` 落地（两册合一按能力分章、内容零丢失）；permission-center 目录解散（三内档迁 `docs/design/engine/`、旧两册 superseded 留原位）；全仓活引用重挂（含 64 个代码文件注释）+ 下游卡 034/036/037 重挂总册；双轨评审 P2×9+P3×6 全处置。034/036/037 契约回写解锁落新册。
+- 2026-09-13：T-ACCESS-035 收口——四项死字段签名级消减（createLocalUserSubject/upsertAdminUser/UpsertUserKey 去 extraJson、upsertAdminOrg 去 sortOrder+extraJson；extraUsername/extraOrgType helper 与 bootstrap 两处字面量删除；MenuAppServiceImpl 死注入 + 两类死 import 清除）；实施期实证 flex 全列插入落显式 NULL 非列默认；顺带收益：admin 轨用户更新不再覆写 permission 域 req.extra（COALESCE/忽略 null 保留，BatchSqlIT 锁行为）；schema 三处注释同步；双轨评审代码轨 P3×2+文档轨 P2×2+P3×3 全处置；全量回归 -T 1C 含 E2E 绿。存量观察归 036：upsertAdminMenu 的 sortOrder 参数 impl 零消费。

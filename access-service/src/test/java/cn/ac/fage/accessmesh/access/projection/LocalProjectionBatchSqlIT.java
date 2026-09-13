@@ -63,31 +63,38 @@ class LocalProjectionBatchSqlIT {
     private JdbcTemplate jdbcTemplate;
 
     @Test
-    @DisplayName("batchUpsert 已有行路径：batchUpdateValues 真实 PG 执行（JSONB extra + boolean enabled 不报 42804）")
+    @DisplayName("batchUpsert 已有行路径：batchUpdateValues 真实 PG 执行（JSONB extra 环回 + boolean enabled 不报 42804）")
     void batchUpsertUpdatesExistingRowsOnRealPostgres() {
         Long sysUserId = 900001L;
 
-        // 第一次：插入新投影行（含 JSONB extra）
+        // 第一次：插入新投影行。投影不写 extra（username 投影退役，T-ACCESS-035）——
+        // flex 全列插入落显式 NULL（同 SysUser gender 显式赋值先例的反面），断言锁住「投影不携带 extra」
         Map<Long, Long> first = localProjectionDomainService.batchUpsertAdminUsers(TENANT,
-            List.of(new LocalProjectionDomainService.UpsertUserKey(
-                sysUserId, "张三", true, "{\"username\":\"zhang\"}")));
+            List.of(new LocalProjectionDomainService.UpsertUserKey(sysUserId, "张三", true)));
         assertThat(first).containsKey(sysUserId);
         Long abstractUserId = first.get(sysUserId);
         assertThat(abstractUserId).isNotNull();
+        assertThat(jdbcTemplate.queryForObject(
+            "SELECT extra FROM abstract_user WHERE id = ?", Object.class, abstractUserId)).isNull();
+
+        // 模拟 permission 域主体管理写入 extra（req.extra 通道，T-ACCESS-035 后本地投影行的
+        // 唯一 extra 写入方；外部主体同步行另写自身 extra，不在本投影面）
+        jdbcTemplate.update(
+            "UPDATE abstract_user SET extra = CAST('{\"k\":\"perm-track\"}' AS JSONB) WHERE id = ?", abstractUserId);
 
         // 第二次：走已有行批量刷新（batchUpdateValues：CAST 后的 VALUES 单条 SQL）。
-        // 若 VALUES 缺 CAST，PG 报 42804 整批回滚 → 本调用抛异常即测试失败
+        // 若 VALUES 缺 CAST，PG 报 42804 整批回滚 → 本调用抛异常即测试失败。
+        // 加载值 extra 非空 → CAST(#{u.extra} AS JSONB) 被非空参数覆盖（42804 载体保留）
         Map<Long, Long> second = localProjectionDomainService.batchUpsertAdminUsers(TENANT,
-            List.of(new LocalProjectionDomainService.UpsertUserKey(
-                sysUserId, "张三丰", false, "{\"username\":\"zhang3\"}")));
+            List.of(new LocalProjectionDomainService.UpsertUserKey(sysUserId, "张三丰", false)));
         assertThat(second).containsEntry(sysUserId, abstractUserId);
 
-        // 落库断言：name/enabled/extra 均已刷新（JSONB 更新生效）
+        // 落库断言：name/enabled 已刷新；extra 经 COALESCE 环回保留 permission 域写入值（不被投影批量刷新清空）
         Map<String, Object> row = jdbcTemplate.queryForMap(
             "SELECT name, enabled, extra FROM abstract_user WHERE id = ?", abstractUserId);
         assertThat(row.get("name")).isEqualTo("张三丰");
         assertThat(row.get("enabled")).isEqualTo(Boolean.FALSE);
-        assertThat(String.valueOf(row.get("extra"))).contains("zhang3");
+        assertThat(String.valueOf(row.get("extra"))).contains("perm-track");
 
         Map<String, Object> resRow = jdbcTemplate.queryForMap(
             "SELECT name, status FROM resource_entity WHERE tenant_id = ? AND resource_type = 6"
@@ -102,7 +109,7 @@ class LocalProjectionBatchSqlIT {
     void batchDeleteCascadesUserRoles() {
         Long sysUserId = 900002L;
         Map<Long, Long> ids = localProjectionDomainService.batchUpsertAdminUsers(TENANT,
-            List.of(new LocalProjectionDomainService.UpsertUserKey(sysUserId, "级联测试", true, null)));
+            List.of(new LocalProjectionDomainService.UpsertUserKey(sysUserId, "级联测试", true)));
         Long abstractUserId = ids.get(sysUserId);
 
         // 造一条功能角色关系（非 ORG/POSITION 成员关系，验证级联覆盖）

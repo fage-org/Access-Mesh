@@ -16,7 +16,6 @@ import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -67,8 +66,7 @@ class UserWriteAppServiceFaultInjectionTest {
             permissionValidator,
             orgVisibilityQueryService,
             localProjectionDomainService,
-            auditDomainService,
-            new ObjectMapper()
+            auditDomainService
         );
         TenantContextHolder.setTenantId(TENANT);
         AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));
@@ -85,7 +83,7 @@ class UserWriteAppServiceFaultInjectionTest {
     void projectionFailureStopsChangeLog() {
         when(userDomainService.existsByUsername(TENANT, "alice")).thenReturn(false);
         // T-ORG-001：主体链（预取 + abstract_user + 资源投影）先行，失败时管理事实 insert 不再发生
-        when(localProjectionDomainService.createLocalUserSubject(anyLong(), anyString(), anyBoolean(), any()))
+        when(localProjectionDomainService.createLocalUserSubject(anyLong(), anyString(), anyBoolean()))
             .thenThrow(new SystemException(90001, "projection failed"));
 
         assertThatThrownBy(() -> service.createUser(createReq()))
@@ -100,7 +98,7 @@ class UserWriteAppServiceFaultInjectionTest {
     @DisplayName("permission_change_log 失败时异常向上抛出以便事务回滚")
     void changeLogFailurePropagates() {
         when(userDomainService.existsByUsername(TENANT, "alice")).thenReturn(false);
-        when(localProjectionDomainService.createLocalUserSubject(anyLong(), anyString(), anyBoolean(), any()))
+        when(localProjectionDomainService.createLocalUserSubject(anyLong(), anyString(), anyBoolean()))
             .thenReturn(501L);
         doThrow(new SystemException(90001, "change log failed"))
             .when(auditDomainService).recordChangeLog(any(), any());
@@ -109,7 +107,7 @@ class UserWriteAppServiceFaultInjectionTest {
             .isInstanceOf(SystemException.class)
             .hasMessageContaining("change log failed");
 
-        verify(localProjectionDomainService).createLocalUserSubject(anyLong(), anyString(), anyBoolean(), any());
+        verify(localProjectionDomainService).createLocalUserSubject(anyLong(), anyString(), anyBoolean());
         verify(userDomainService).insert(any(SysUser.class));
     }
 
@@ -118,14 +116,14 @@ class UserWriteAppServiceFaultInjectionTest {
     void factInsertFailureRollsBackProjection() {
         when(userDomainService.existsByUsername(TENANT, "alice")).thenReturn(false);
         // T-ORG-001：主体链先行（同事务），管理事实 insert 失败时整体回滚
-        when(localProjectionDomainService.createLocalUserSubject(anyLong(), anyString(), anyBoolean(), any()))
+        when(localProjectionDomainService.createLocalUserSubject(anyLong(), anyString(), anyBoolean()))
             .thenReturn(501L);
         doThrow(new BizException(10120, "insert failed")).when(userDomainService).insert(any(SysUser.class));
 
         assertThatThrownBy(() -> service.createUser(createReq()))
             .isInstanceOf(BizException.class);
 
-        verify(localProjectionDomainService).createLocalUserSubject(anyLong(), anyString(), anyBoolean(), any());
+        verify(localProjectionDomainService).createLocalUserSubject(anyLong(), anyString(), anyBoolean());
         verify(auditDomainService, never()).recordChangeLog(any(), any());
     }
 

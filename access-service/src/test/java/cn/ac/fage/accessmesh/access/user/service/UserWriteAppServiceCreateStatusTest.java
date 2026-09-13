@@ -15,7 +15,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -65,8 +64,7 @@ class UserWriteAppServiceCreateStatusTest {
             permissionValidator,
             orgVisibilityQueryService,
             localProjectionDomainService,
-            auditDomainService,
-            new ObjectMapper()
+            auditDomainService
         );
         // 绑定带操作者的用户上下文：operatorId 非 null 时 currentOperatorId 跳过 StpUtil 兜底（纯单测无 Sa-Token 上下文）
         AccessRequestContext.bind(RequestContext.user(TENANT, 900L));
@@ -94,7 +92,7 @@ class UserWriteAppServiceCreateStatusTest {
         verify(userDomainService, never()).existsByUsername(anyLong(), anyString());
         verify(userDomainService, never()).insert(any(SysUser.class));
         verify(localProjectionDomainService, never()).createLocalUserSubject(
-            anyLong(), anyString(), anyBoolean(), anyString());
+            anyLong(), anyString(), anyBoolean());
     }
 
     @Test
@@ -102,14 +100,14 @@ class UserWriteAppServiceCreateStatusTest {
     void createWithDisabledStatusKeepsFactAndProjectionAligned() {
         when(userDomainService.existsByUsername(TENANT, "carol")).thenReturn(false);
         when(localProjectionDomainService.createLocalUserSubject(
-            anyLong(), anyString(), anyBoolean(), anyString())).thenReturn(601L);
+            anyLong(), anyString(), anyBoolean())).thenReturn(601L);
 
         UserCreateResp resp = service.createUser(req(0));
 
         assertThat(resp.id()).isEqualTo(601L);
         ArgumentCaptor<Boolean> enabled = ArgumentCaptor.forClass(Boolean.class);
         verify(localProjectionDomainService).createLocalUserSubject(
-            anyLong(), anyString(), enabled.capture(), anyString());
+            anyLong(), anyString(), enabled.capture());
         assertThat(enabled.getValue()).as("status=0 投影必须同步停用").isFalse();
         ArgumentCaptor<SysUser> user = ArgumentCaptor.forClass(SysUser.class);
         verify(userDomainService).insert(user.capture());

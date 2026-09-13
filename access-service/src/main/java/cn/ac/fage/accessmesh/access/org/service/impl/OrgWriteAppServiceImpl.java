@@ -24,16 +24,12 @@ import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.dev33.satoken.stp.StpUtil;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -46,7 +42,6 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     private final AdminPermissionValidator permissionValidator;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final AuditDomainService auditDomainService;
-    private final ObjectMapper objectMapper;
     private final TreeWriteLockSupport treeWriteLockSupport;
 
     public OrgWriteAppServiceImpl(OrgDomainService orgDomainService,
@@ -55,7 +50,6 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
                                   AdminPermissionValidator permissionValidator,
                                   LocalProjectionDomainService localProjectionDomainService,
                                   AuditDomainService auditDomainService,
-                                  ObjectMapper objectMapper,
                                   TreeWriteLockSupport treeWriteLockSupport) {
         this.orgDomainService = orgDomainService;
         this.userOrgDomainService = userOrgDomainService;
@@ -63,7 +57,6 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         this.permissionValidator = permissionValidator;
         this.localProjectionDomainService = localProjectionDomainService;
         this.auditDomainService = auditDomainService;
-        this.objectMapper = objectMapper;
         this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
@@ -376,22 +369,13 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     private void projectOrg(Long tenantId, SysOrg org, String operation, String parentOrgType) {
         Long roleId = localProjectionDomainService.upsertAdminOrg(
             tenantId, org.getId(), org.getOrgType(), org.getName(), org.getParentId(),
-            parentOrgType, org.getStatus(), org.getSortOrder(), extraOrgType(org.getOrgType()));
+            parentOrgType, org.getStatus());
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
                 tenantId, operatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "abstract_role", roleId, operation, null, null, null, new Long[0], new Long[]{roleId})));
         PermissionChangeContext.markRoles(tenantId, roleId);
-    }
-
-    private String extraOrgType(String orgType) {
-        try {
-            return objectMapper.writeValueAsString(Map.of("orgType", orgType == null ? "" : orgType));
-        } catch (JsonProcessingException e) {
-            throw new SystemException(AdminErrorCode.EXTERNAL_SERVICE_ERROR.getCode(),
-                "serialize org extra failed", e);
-        }
     }
 
     private static Long operatorId() {

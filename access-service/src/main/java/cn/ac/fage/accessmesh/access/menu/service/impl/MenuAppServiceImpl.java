@@ -7,9 +7,6 @@ import cn.ac.fage.accessmesh.access.menu.dto.resp.MenuResp;
 import cn.ac.fage.accessmesh.access.menu.entity.SysMenu;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
 import cn.ac.fage.accessmesh.access.menu.mapper.SysMenuMapper;
-import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
-import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.menu.service.MenuAppService;
 import cn.ac.fage.accessmesh.access.menu.service.domain.MenuDomainService;
 import cn.ac.fage.accessmesh.access.menu.service.MenuWriteAppService;
@@ -39,7 +36,6 @@ public class MenuAppServiceImpl implements MenuAppService {
 
     private final SysMenuMapper menuMapper;
     private final MenuDomainService menuDomainService;
-    private final AdminPermissionValidator permissionValidator;
     private final MenuWriteAppService menuWriteAppService;
 
     /**
@@ -47,16 +43,13 @@ public class MenuAppServiceImpl implements MenuAppService {
      *
      * @param menuMapper 菜单数据访问Mapper
      * @param menuDomainService 菜单领域服务，处理菜单数据查询
-     * @param permissionValidator 权限校验器，校验菜单操作权限
      * @param menuWriteAppService 菜单写编排，同一事务维护 MENU 投影
      */
     public MenuAppServiceImpl(SysMenuMapper menuMapper,
                            MenuDomainService menuDomainService,
-                           AdminPermissionValidator permissionValidator,
                            MenuWriteAppService menuWriteAppService) {
         this.menuMapper = menuMapper;
         this.menuDomainService = menuDomainService;
-        this.permissionValidator = permissionValidator;
         this.menuWriteAppService = menuWriteAppService;
     }
 

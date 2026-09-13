@@ -134,7 +134,6 @@ public class BatchAdminUserProjectionWriter {
                 user.setExternalId(externalId);
                 user.setName(key.name());
                 user.setEnabled(key.enabled());
-                user.setExtra(key.extraJson());
                 user.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
                 user.setCreatedAt(now);
                 user.setUpdatedAt(now);
@@ -143,9 +142,6 @@ public class BatchAdminUserProjectionWriter {
             } else {
                 user.setName(key.name());
                 user.setEnabled(key.enabled());
-                if (key.extraJson() != null) {
-                    user.setExtra(key.extraJson());
-                }
                 user.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
                 user.setUpdatedAt(now);
                 toUpdateUsers.add(user);

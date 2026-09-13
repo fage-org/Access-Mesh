@@ -16,7 +16,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -74,7 +73,6 @@ class OrgWriteAppServiceTest {
             permissionValidator,
             localProjectionDomainService,
             auditDomainService,
-            new ObjectMapper(),
             treeWriteLockSupport
         );
         TenantContextHolder.setTenantId(TENANT);
@@ -232,7 +230,7 @@ class OrgWriteAppServiceTest {
             return null;
         }).when(orgDomainService).insert(any(SysOrg.class));
         when(localProjectionDomainService.upsertAdminOrg(anyLong(), anyLong(), anyString(), anyString(),
-            any(), any(), any(), any(), any())).thenReturn(700L);
+            any(), any(), any())).thenReturn(700L);
 
         service.createOrg(orgCreateReq(999L));
 
@@ -384,7 +382,7 @@ class OrgWriteAppServiceTest {
             return null;
         }).when(orgDomainService).insert(any(SysOrg.class));
         when(localProjectionDomainService.upsertAdminOrg(anyLong(), anyLong(), anyString(), anyString(),
-            anyLong(), any(), any(), any(), any())).thenReturn(700L);
+            anyLong(), any(), any())).thenReturn(700L);
 
         service.createOrg(orgCreateReq(999L));
 
@@ -402,7 +400,7 @@ class OrgWriteAppServiceTest {
             return null;
         }).when(orgDomainService).insert(any(SysOrg.class));
         when(localProjectionDomainService.upsertAdminOrg(anyLong(), anyLong(), anyString(), anyString(),
-            any(), any(), any(), any(), any())).thenReturn(700L);
+            any(), any(), any())).thenReturn(700L);
 
         service.createOrg(new cn.ac.fage.accessmesh.access.org.dto.req.OrgCreateReq(1, "新组织", null, "NEW", 1, 1));
 
@@ -454,7 +452,7 @@ class OrgWriteAppServiceTest {
         assertThat(updated.getLevel()).isEqualTo(2);        // 不移动 → level 不变
         // 投影按更新后事实同步（名称保持旧值）；parentOrgType 由 resolveParentOrgType 解析（父查询 null → null）
         verify(localProjectionDomainService).upsertAdminOrg(
-            eq(TENANT), eq(ORG_ID), eq("1"), eq("旧名称"), eq(1L), eq(null), eq(1), eq(5), any());
+            eq(TENANT), eq(ORG_ID), eq("1"), eq("旧名称"), eq(1L), eq(null), eq(1));
         // 无条件持锁回归锁：不带 parentOrgId 的普通编辑同样接锁（外部评审 P2——
         // 旧「仅带 parent 才持锁」实现下本断言失败）
         verify(treeWriteLockSupport).lockTreeWrites(TENANT,
@@ -531,7 +529,7 @@ class OrgWriteAppServiceTest {
             return null;
         }).when(orgDomainService).insert(any(SysOrg.class));
         when(localProjectionDomainService.upsertAdminOrg(anyLong(), anyLong(), anyString(), anyString(),
-            any(), any(), any(), any(), any())).thenReturn(700L);
+            any(), any(), any())).thenReturn(700L);
 
         service.createOrg(new cn.ac.fage.accessmesh.access.org.dto.req.OrgCreateReq(2, "岗位", 999L, "POS1", 1, 1));
 

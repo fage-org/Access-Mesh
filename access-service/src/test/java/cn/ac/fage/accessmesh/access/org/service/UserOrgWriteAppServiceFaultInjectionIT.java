@@ -26,6 +26,8 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
@@ -179,8 +181,12 @@ class UserOrgWriteAppServiceFaultInjectionIT {
         insertOrg(orgId, "code-20003");
         insertUserOrg(userId, orgId);
         // 准备完整投影（spy 默认走真实实现）：用户/组织角色投影齐全，解绑不会 fail-closed
-        localProjectionDomainService.upsertAdminUser(TENANT, userId, "解绑用户", true, null);
-        localProjectionDomainService.upsertAdminOrg(TENANT, orgId, "1", "解绑组织", null, null, 1, 0, "{}");
+        localProjectionDomainService.upsertAdminUser(TENANT, userId, "解绑用户", true);
+        localProjectionDomainService.upsertAdminOrg(TENANT, orgId, "1", "解绑组织", null, null, 1);
+        // 容器行/用户投影死字段停写（T-ACCESS-035）：sort_order/extra 落显式 NULL
+        // （flex 全列插入，非列默认）——真实 PG 断言锁住「投影不再写死字段」
+        orgProjectionDeadFieldAssertions(String.valueOf(orgId));
+        userProjectionExtraAssertion(String.valueOf(userId));
 
         userOrgWriteAppService.removeUserFromOrg(userId, orgId);
 
@@ -188,6 +194,29 @@ class UserOrgWriteAppServiceFaultInjectionIT {
         assertThat(countRows("permission_change_log")).isEqualTo(1);
         // 提交后 @PermissionChange afterCommit flush → 广播失效
         verify(publisher, atLeastOnce()).publish(anyLong(), any(), any(), any());
+    }
+
+    /** T-ACCESS-035 回归锁：容器行（ORG/POSITION 投影）不写 sort_order/extra——flex 全列插入落显式 NULL（非列默认），无 orgType 键。 */
+    private void orgProjectionDeadFieldAssertions(String orgExternalId) {
+        Map<String, Object> roleRow = jdbcTemplate.queryForMap(
+            "SELECT sort_order, extra FROM abstract_role"
+                + " WHERE tenant_id = ? AND role_type = (SELECT type_value FROM type_definition"
+                + " WHERE tenant_id = ? AND type_key = 'role_type' AND type_code = 'ORG')"
+                + " AND external_id = ? AND delete_flag = 0",
+            TENANT, TENANT, orgExternalId);
+        assertThat(roleRow.get("sort_order")).isNull();
+        assertThat(roleRow.get("extra")).isNull();
+    }
+
+    /** T-ACCESS-035 回归锁：abstract_user 投影行不写 extra（username 投影退役，落显式 NULL）。 */
+    private void userProjectionExtraAssertion(String userExternalId) {
+        Map<String, Object> userRow = jdbcTemplate.queryForMap(
+            "SELECT extra FROM abstract_user"
+                + " WHERE tenant_id = ? AND user_type = (SELECT type_value FROM type_definition"
+                + " WHERE tenant_id = ? AND type_key = 'user_type' AND type_code = 'LOCAL_USER')"
+                + " AND external_id = ? AND delete_flag = 0",
+            TENANT, TENANT, userExternalId);
+        assertThat(userRow.get("extra")).isNull();
     }
 
     /** 构造管理事实：sys_org 行（普通组织 orgType=1，非默认树）。 */

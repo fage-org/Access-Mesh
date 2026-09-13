@@ -762,7 +762,7 @@ COMMENT ON COLUMN abstract_user.user_type IS '用户类型枚举值：USER(1)外
 COMMENT ON COLUMN abstract_user.external_id IS '外部业务系统唯一标识；本地投影使用 external_id = sys_user.id.toString()';
 COMMENT ON COLUMN abstract_user.name IS '显示名';
 COMMENT ON COLUMN abstract_user.enabled IS '是否启用：false 时鉴权不通过';
-COMMENT ON COLUMN abstract_user.extra IS '扩展属性(JSON)';
+COMMENT ON COLUMN abstract_user.extra IS '扩展属性(JSON)，permission 域主体管理 API 读写；本地投影不写 extra（username 投影零读取方已退役，T-ACCESS-035），已有行值在投影刷新中保留（update(entity) 忽略 null 列；batchUpdateValues 以 COALESCE 防御性保留）';
 COMMENT ON COLUMN abstract_user.owner_service_code IS '所有权标识：access-service=管理事实派生的本地投影（禁止权限管理 API 直接修改）；NULL=人工维护或外部同步（外部同步所有权以 sync_metadata 为准）';
 COMMENT ON COLUMN abstract_user.delete_flag IS '逻辑删除：0=未删除，删除时填本行id。删除级联：user_role + 个人角色的 role_resource_permission + 失效缓存';
 
@@ -808,6 +808,8 @@ COMMENT ON COLUMN abstract_role.role_type IS '角色类型枚举：ORG(1)组织/
 COMMENT ON COLUMN abstract_role.external_id IS '外部业务标识；对外接口按 tenant_id + role_type + external_id 定位角色；本地投影使用 external_id = sys_org.id 等管理事实 ID';
 COMMENT ON COLUMN abstract_role.name IS '名称';
 COMMENT ON COLUMN abstract_role.status IS '状态：0=停用 1=启用，预留扩展空间';
+COMMENT ON COLUMN abstract_role.sort_order IS '排序序号，功能角色管理面使用；ORG/POSITION 容器行投影停写（零读取方，T-ACCESS-035），列本体保留';
+COMMENT ON COLUMN abstract_role.extra IS '扩展属性(JSON)，GROUP_ROLE basicIds 等读取；容器行 orgType 键已消亡（语义由 role_type 承载，T-ACCESS-035）';
 COMMENT ON COLUMN abstract_role.owner_service_code IS '所有权标识：access-service=管理事实派生的本地投影（禁止权限管理 API 直接修改）；NULL=人工维护或外部同步';
 COMMENT ON COLUMN abstract_role.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 

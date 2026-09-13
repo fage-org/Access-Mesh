@@ -59,7 +59,7 @@ class LocalProjectionDomainServiceImplTest {
     }
 
     @Test
-    @DisplayName("upsertAdminUser 插入 abstract_user 与 USER 资源，owner=access-service")
+    @DisplayName("upsertAdminUser 插入 abstract_user 与 USER 资源，owner=access-service；不再写 extra（T-ACCESS-035）")
     void upsertAdminUser_insertsOwnedProjection() {
         when(typeResolutionService.resolveTypeValue(TENANT, "user_type", "LOCAL_USER")).thenReturn(3);
         when(typeResolutionService.resolveTypeValue(TENANT, "resource_type", "USER")).thenReturn(6);
@@ -71,7 +71,7 @@ class LocalProjectionDomainServiceImplTest {
             return 1;
         });
 
-        Long id = service.upsertAdminUser(TENANT, 10L, "张三", true, "{\"username\":\"zhang\"}");
+        Long id = service.upsertAdminUser(TENANT, 10L, "张三", true);
 
         assertThat(id).isEqualTo(100L);
         ArgumentCaptor<AbstractUser> userCap = ArgumentCaptor.forClass(AbstractUser.class);
@@ -79,6 +79,8 @@ class LocalProjectionDomainServiceImplTest {
         assertThat(userCap.getValue().getOwnerServiceCode()).isEqualTo(LocalProjectionOwner.SERVICE_CODE);
         assertThat(userCap.getValue().getExternalId()).isEqualTo("10");
         assertThat(userCap.getValue().getEnabled()).isTrue();
+        // username 投影退役（T-ACCESS-035）：投影实体不得携带 extra（flex 全列插入落显式 NULL）
+        assertThat(userCap.getValue().getExtra()).isNull();
 
         ArgumentCaptor<ResourceEntity> resCap = ArgumentCaptor.forClass(ResourceEntity.class);
         verify(resourceEntityMapper).insert(resCap.capture());
@@ -161,7 +163,7 @@ class LocalProjectionDomainServiceImplTest {
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT, 6, "123", "default"))
             .thenReturn(existing);
 
-        service.upsertAdminUser(TENANT, 123L, "张三", true, null);
+        service.upsertAdminUser(TENANT, 123L, "张三", true);
 
         // parentId=null 须走 UpdateEntity 显式清列（update(entity) 忽略 null 字段，flex 语义）。
         // codex 复评 P2：只断言 Java 字段 null 在旧实现下同样通过（旧实现 set null 但 SQL 忽略该列），
@@ -186,7 +188,7 @@ class LocalProjectionDomainServiceImplTest {
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT, 6, "123", "default"))
             .thenReturn(foreignResource(900L, "123"));
 
-        service.upsertAdminUser(TENANT, 123L, "张三", true, null);
+        service.upsertAdminUser(TENANT, 123L, "张三", true);
 
         verify(resourceEntityMapper).update(any(ResourceEntity.class));
         verify(resourceEntityMapper, never()).insert(any(ResourceEntity.class));
@@ -218,7 +220,7 @@ class LocalProjectionDomainServiceImplTest {
             .thenReturn(List.of(foreignResource(900L, "123")));
 
         service.batchUpsertAdminUsers(TENANT,
-                List.of(new LocalProjectionDomainService.UpsertUserKey(123L, "张三", true, null)));
+                List.of(new LocalProjectionDomainService.UpsertUserKey(123L, "张三", true)));
 
         // 已有资源行进入批量刷新，不再因行级归属判定整批回滚
         verify(resourceEntityMapper).batchUpdateValues(eq(TENANT), eq(LocalProjectionOwner.SERVICE_CODE),
@@ -333,12 +335,16 @@ class LocalProjectionDomainServiceImplTest {
         });
         when(resourceEntityMapper.insert(any(ResourceEntity.class))).thenReturn(1);
 
-        Long id = service.upsertAdminOrg(TENANT, 200L, "2", "岗位", 100L, "1", 1, 1, "{}");
+        Long id = service.upsertAdminOrg(TENANT, 200L, "2", "岗位", 100L, "1", 1);
 
         assertThat(id).isEqualTo(300L);
         ArgumentCaptor<AbstractRole> roleCap = ArgumentCaptor.forClass(AbstractRole.class);
         verify(abstractRoleMapper).insert(roleCap.capture());
         assertThat(roleCap.getValue().getParentId()).isEqualTo(110L); // ORG 父角色，非岗位类型查询
+        // 容器行死字段停投影（T-ACCESS-035）：sort_order/extra 不随投影写入（flex 全列插入落显式 NULL）；
+        // orgType 语义由 role_type 承载，extra.orgType 键已消亡
+        assertThat(roleCap.getValue().getSortOrder()).isNull();
+        assertThat(roleCap.getValue().getExtra()).isNull();
     }
 
     @Test
@@ -347,7 +353,7 @@ class LocalProjectionDomainServiceImplTest {
         mockTypes();
         when(abstractRoleMapper.selectByTypeAndExternalId(TENANT, 10, "100")).thenReturn(null);
 
-        assertThatThrownBy(() -> service.upsertAdminOrg(TENANT, 200L, "2", "岗位", 100L, "1", 1, 1, "{}"))
+        assertThatThrownBy(() -> service.upsertAdminOrg(TENANT, 200L, "2", "岗位", 100L, "1", 1))
             .isInstanceOf(BizException.class)
             .hasMessageContaining("父组织角色投影缺失");
         verify(abstractRoleMapper, never()).insert(any(AbstractRole.class));
@@ -426,7 +432,7 @@ class LocalProjectionDomainServiceImplTest {
         // 父 ORG 资源投影缺失（父角色存在但资源缺失的异常状态）
         when(resourceEntityMapper.selectByTypeCodeAndCodeType(any(), any(), any(), any())).thenReturn(null);
 
-        assertThatThrownBy(() -> service.upsertAdminOrg(TENANT, 200L, "2", "岗位", 100L, "1", 1, 1, "{}"))
+        assertThatThrownBy(() -> service.upsertAdminOrg(TENANT, 200L, "2", "岗位", 100L, "1", 1))
             .isInstanceOf(BizException.class)
             .hasMessageContaining("父资源投影缺失");
         // 角色侧 insert 已发生、资源侧 fail-closed 抛错——整体回滚由 AppService 事务保证（强事务投影）
@@ -447,7 +453,7 @@ class LocalProjectionDomainServiceImplTest {
             .thenReturn(List.of(res));
 
         Map<Long, Long> result = service.batchUpsertAdminUsers(TENANT,
-            List.of(new LocalProjectionDomainService.UpsertUserKey(10L, "张三", true, null)));
+            List.of(new LocalProjectionDomainService.UpsertUserKey(10L, "张三", true)));
 
         assertThat(result).containsEntry(10L, 100L);
         verify(abstractUserMapper, never()).update(any(AbstractUser.class));

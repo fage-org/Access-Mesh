@@ -507,8 +507,7 @@ public class AccessBootstrapInitializer {
                              Map<String, Long> operationBits, String adminPassword) {
         // 主体 + USER 投影（同 ID 双表的前半：abstract_user + resource_entity(USER)）
         Long subjectId = localProjectionDomainService.createLocalUserSubject(
-            tenantId, BootstrapGraphDefinition.ADMIN_NAME, true,
-            "{\"username\":\"" + BootstrapGraphDefinition.ADMIN_USERNAME + "\"}");
+            tenantId, BootstrapGraphDefinition.ADMIN_NAME, true);
 
         // sys_user（id=主体 ID，T-ORG-001 同 ID 双表；密码 BCrypt 哈希落库，无明文）
         SysUser admin = new SysUser();
@@ -616,8 +615,7 @@ public class AccessBootstrapInitializer {
         orgDomainService.insert(rootOrg);
         Long orgRoleId = localProjectionDomainService.upsertAdminOrg(
             tenantId, rootOrg.getId(), rootOrg.getOrgType(), rootOrg.getName(),
-            rootOrg.getParentId(), null, rootOrg.getStatus(), rootOrg.getSortOrder(),
-            "{\"orgType\":\"1\"}");
+            rootOrg.getParentId(), null, rootOrg.getStatus());
         PermissionChangeContext.markRoles(tenantId, orgRoleId);
 
         SysOrgTreeConfig treeConfig = new SysOrgTreeConfig();
