@@ -46,7 +46,7 @@ last_updated: 2026-09-13
 | ID | 标题 | 依赖 | 状态 |
 |---|---|---|---|
 | [T-ACCESS-032](../tasks/T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | — | ✅ |
-| [T-ACCESS-033](../tasks/T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建 | 032 | ⚙️ |
+| [T-ACCESS-033](../tasks/T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建 | 032 | ✅ |
 | [T-ACCESS-034](../tasks/T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | 033, 040 | ⚙️ |
 | [T-ACCESS-035](../tasks/T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | 033 | ⚙️ |
 | [T-ACCESS-036](../tasks/T-ACCESS-036.md) | resource_entity.sort_order 退役 | 033, 040 | ⚙️ |
@@ -74,3 +74,4 @@ last_updated: 2026-09-13
 
 - 2026-09-13：计划建立——设计稿 draft + 十张任务卡 proposed + decision-registry 定案登记 + 三处索引刷新。
 - 2026-09-13：T-ACCESS-032 收口——capability-structure §8 归属清单与边界断言定稿（十项裁决用户拍板，含双轨评审追加的冻结白名单与僵尸 DTO 扩面两项）、转 adopted；architecture §1.2/§3/§9/§11 与 project-rules §8.2 能力口径回写；T-ACCESS-033 准入条件达成。
+- 2026-09-13：T-ACCESS-033 收口——机械迁移完成（17 顶层包落地、500 类搬迁、17 对改名、僵尸 DTO 三件删除、五测试重建、@MapperScan 14 包；单测轨道与全量回归含 E2E 全绿，双轨评审处置完毕）；architecture §3 迁移完成注记翻转与 query 族类名回写、§14.7 时态注记、capability-structure 时态句更新；035/038 依赖解锁、040 可启动（契约深合一先行）。

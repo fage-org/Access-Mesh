@@ -126,6 +126,37 @@ class AccessServiceApplicationTest {
     }
 
     /**
+     * T-ACCESS-033 验收：@MapperScan 包清单=17 顶层包结构下全部 {@code *.mapper} 子包
+     * （12 能力包 mapper + sync.mapper + infrastructure.mapper，共 14 包；
+     * capability-structure §8.1——Mapper 接口一律落 mapper 子包，按包清单扫描不漏注册）。
+     */
+    @Test
+    @DisplayName("T-ACCESS-033：@MapperScan 覆盖能力包结构全部 14 个 mapper 子包")
+    void mapperScanCoversAllCapabilityMapperPackages() {
+        org.mybatis.spring.annotation.MapperScan scan = AccessServiceApplication.class.getAnnotation(
+            org.mybatis.spring.annotation.MapperScan.class);
+        assertNotNull(scan, "@MapperScan 注解应存在");
+        java.util.Set<String> expected = new java.util.LinkedHashSet<>(java.util.List.of(
+            "cn.ac.fage.accessmesh.access.auth.mapper",
+            "cn.ac.fage.accessmesh.access.user.mapper",
+            "cn.ac.fage.accessmesh.access.org.mapper",
+            "cn.ac.fage.accessmesh.access.menu.mapper",
+            "cn.ac.fage.accessmesh.access.role.mapper",
+            "cn.ac.fage.accessmesh.access.grant.mapper",
+            "cn.ac.fage.accessmesh.access.resource.mapper",
+            "cn.ac.fage.accessmesh.access.type.mapper",
+            "cn.ac.fage.accessmesh.access.domain.mapper",
+            "cn.ac.fage.accessmesh.access.rule.mapper",
+            "cn.ac.fage.accessmesh.access.audit.mapper",
+            "cn.ac.fage.accessmesh.access.platform.mapper",
+            "cn.ac.fage.accessmesh.access.sync.mapper",
+            "cn.ac.fage.accessmesh.access.infrastructure.mapper"));
+        java.util.Set<String> actual = new java.util.LinkedHashSet<>(java.util.List.of(scan.value()));
+        org.junit.jupiter.api.Assertions.assertEquals(expected, actual,
+            "@MapperScan 包清单必须与 032 归属清单的全部 *.mapper 子包一致（14 包）");
+    }
+
+    /**
      * T-ACCESS-003 验收：基础设施 Bean 唯一（单数据源、单事务管理器、唯一 CacheService、唯一 ObjectMapper）。
      */
     @Test
@@ -196,7 +227,7 @@ class AccessServiceApplicationTest {
 
     /**
      * T-ACCESS-003 评审 P2 修复（2026-08-14）：expiresIn 单一权威来源防漂移。
-     * AuthServiceImpl 的 LoginResp.expiresIn 直接读 SaManager.getConfig().getTimeout()（sa-token.timeout），
+     * AuthAppServiceImpl 的 LoginResp.expiresIn 直接读 SaManager.getConfig().getTimeout()（sa-token.timeout），
      * 无独立 expiresIn 配置键——Nacos 只覆盖 sa-token.timeout 时展示自动跟随真实 TTL。
      * 此断言确保 sa-token.timeout 为权威值（见 saTokenConfigMatchesAuthority），并确认独立键已移除
      * （防旧配置残留漂移）。

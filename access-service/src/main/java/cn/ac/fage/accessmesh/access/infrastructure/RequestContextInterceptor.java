@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
-import cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client;
-import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
+import cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client;
+import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
 import cn.dev33.satoken.exception.SaTokenException;
 import cn.dev33.satoken.jwt.SaJwtTemplate;
 import cn.dev33.satoken.jwt.SaJwtUtil;

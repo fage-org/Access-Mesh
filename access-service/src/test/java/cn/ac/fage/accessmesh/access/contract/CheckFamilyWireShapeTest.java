@@ -68,17 +68,17 @@ class CheckFamilyWireShapeTest {
     @Test
     @DisplayName("check 族线格式字段快照（T-API-003 恢复结果记录全量回传后终态）")
     void checkWireShapesAreFrozen() {
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.AuthCheckResp.class))
+        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp.class))
             .containsExactly("allowed", "reason", "matchedRoleIds", "matchedPermissionIds",
                 "conditionEvaluated");
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp.class))
+        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp.class))
             .containsExactly("items");
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class))
+        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp.AuthCheckItemResult.class))
             .containsExactly("resourceTypeCode", "resourceCode", "operationCode", "allowed", "reason",
                 "matchedRoleIds", "matchedPermissionIds");
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp.class))
+        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp.class))
             .containsExactly("allowed", "reason", "matchedResources", "cacheTtlSeconds");
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp.MatchedResource.class))
+        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp.MatchedResource.class))
             .containsExactly("resourceId", "resourceTypeCode", "resourceCode", "operationCode", "allowed",
                 "matchedRoleIds", "matchedPermissionIds");
     }
@@ -86,18 +86,18 @@ class CheckFamilyWireShapeTest {
     @Test
     @DisplayName("check 族双副本同形：access-service 与 perm-common 副本组件名完全一致（HTTP 契约等价）")
     void checkFamilyDualCopiesStayShapeEqual() {
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.AuthCheckResp.class))
+        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.AuthCheckResp.class))
             .as("AuthCheckResp 双副本漂移会破坏 SDK 消费方反序列化")
             .isEqualTo(components(cn.ac.fage.accessmesh.perm.common.dto.resp.AuthCheckResp.class));
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp.class))
+        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp.class))
             .as("BatchAuthCheckResp 双副本漂移会破坏 SDK 消费方反序列化")
             .isEqualTo(components(cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.class));
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class))
+        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.BatchAuthCheckResp.AuthCheckItemResult.class))
             .isEqualTo(components(cn.ac.fage.accessmesh.perm.common.dto.resp.BatchAuthCheckResp.AuthCheckItemResult.class));
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp.class))
+        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp.class))
             .as("CheckInterfaceResp 双副本漂移会破坏 Gateway 反序列化")
             .isEqualTo(components(cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp.class));
-        assertThat(components(cn.ac.fage.accessmesh.access.permission.dto.resp.CheckInterfaceResp.MatchedResource.class))
+        assertThat(components(cn.ac.fage.accessmesh.access.engine.dto.CheckInterfaceResp.MatchedResource.class))
             .isEqualTo(components(cn.ac.fage.accessmesh.perm.common.dto.resp.CheckInterfaceResp.MatchedResource.class));
     }
 

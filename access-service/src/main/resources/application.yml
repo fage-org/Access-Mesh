@@ -109,7 +109,7 @@ sa-token:
 
 mybatis-flex:
   mapper-locations: classpath*:/mapper/**/*.xml
-  type-aliases-package: cn.ac.fage.accessmesh.access.admin.entity,cn.ac.fage.accessmesh.access.permission.entity
+  type-aliases-package: cn.ac.fage.accessmesh.access.auth.entity,cn.ac.fage.accessmesh.access.user.entity,cn.ac.fage.accessmesh.access.org.entity,cn.ac.fage.accessmesh.access.menu.entity,cn.ac.fage.accessmesh.access.role.entity,cn.ac.fage.accessmesh.access.grant.entity,cn.ac.fage.accessmesh.access.resource.entity,cn.ac.fage.accessmesh.access.type.entity,cn.ac.fage.accessmesh.access.domain.entity,cn.ac.fage.accessmesh.access.rule.entity,cn.ac.fage.accessmesh.access.audit.entity,cn.ac.fage.accessmesh.access.platform.entity
   configuration:
     map-underscore-to-camel-case: true
     log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl

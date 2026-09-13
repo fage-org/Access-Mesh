@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.platform.mapper.SystemConfigMapper">
+
+    <select id="selectByConfigKey" resultType="cn.ac.fage.accessmesh.access.platform.entity.SystemConfig">
+        SELECT * FROM system_config
+        WHERE tenant_id = #{tenantId}
+          AND config_key = #{configKey}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTenantId" resultType="cn.ac.fage.accessmesh.access.platform.entity.SystemConfig">
+        SELECT * FROM system_config
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
+    <sql id="listCondition">
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="keyword != null and keyword != ''">
+          AND (config_key LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%') OR description LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%'))
+        </if>
+    </sql>
+
+    <select id="countByCondition" resultType="long">
+        SELECT COUNT(*) FROM system_config
+        <include refid="listCondition"/>
+    </select>
+
+    <select id="selectPageByCondition" resultType="cn.ac.fage.accessmesh.access.platform.entity.SystemConfig">
+        SELECT * FROM system_config
+        <include refid="listCondition"/>
+        ORDER BY config_key, id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <!-- T-ACCESS-002 归并：以下语句自原 admin SysConfigMapper.xml 并入，表名统一为 system_config -->
+    <update id="softDeleteBatch">
+        UPDATE system_config
+        SET delete_flag = id, deleted_at = #{deletedAt}
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND delete_flag = 0 AND tenant_id = #{tenantId}
+    </update>
+
+    <!-- XML 分页统一 offset/limit + count 双查询（T-ADMIN-026；id 作 tie-breaker 保证分页稳定） -->
+    <select id="selectPageByTenantId" resultType="cn.ac.fage.accessmesh.access.platform.entity.SystemConfig">
+        SELECT * FROM system_config
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+        ORDER BY created_at ASC, id ASC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByTenantId" resultType="long">
+        SELECT COUNT(*) FROM system_config
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0
+    </select>
+
+    <select id="selectListByIdsAndTenantId" resultType="cn.ac.fage.accessmesh.access.platform.entity.SystemConfig">
+        SELECT * FROM system_config
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND tenant_id = #{tenantId} AND delete_flag = 0
+    </select>
+
+    <select id="selectOneByIdAndTenantId" resultType="cn.ac.fage.accessmesh.access.platform.entity.SystemConfig">
+        SELECT * FROM system_config
+        WHERE id = #{id} AND tenant_id = #{tenantId} AND delete_flag = 0
+    </select>
+
+</mapper>

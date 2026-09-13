@@ -1,0 +1,241 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper">
+
+    <update id="batchDisableStatus">
+        UPDATE resource_entity
+        SET status = 0, updated_at = #{updatedAt}
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND tenant_id = #{tenantId} AND delete_flag = 0
+    </update>
+
+    <update id="softDeleteBatch">
+        UPDATE resource_entity
+        SET delete_flag = id, deleted_at = #{deletedAt}
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        AND delete_flag = 0 AND tenant_id = #{tenantId}
+    </update>
+
+    <!-- 批量刷新已有投影行的 name/status（batchUpsert 已有行路径，单条 SQL 替代循环 update）。
+         PostgreSQL FROM (VALUES ...) 惯用法，与 AbstractUserMapper.batchUpdateValues 同构。
+         status 必须显式 CAST：全 unknown 参数的 VALUES 列表被 PG 推断为 text 列，text→int 无赋值 cast
+         会报 42804。 -->
+    <update id="batchUpdateValues">
+        UPDATE resource_entity r
+        SET name = v.name,
+            status = v.status,
+            owner_service_code = #{owner},
+            updated_at = #{updatedAt}
+        FROM (VALUES
+        <foreach collection="resources" item="r" separator=",">
+            (CAST(#{r.id} AS BIGINT), CAST(#{r.name} AS VARCHAR), CAST(#{r.status} AS INT))
+        </foreach>
+        ) AS v(id, name, status)
+        WHERE r.id = v.id AND r.tenant_id = #{tenantId} AND r.delete_flag = 0
+    </update>
+
+    <!-- CTE recursive query to get all descendant IDs for multiple resources in batch -->
+    <select id="selectDescendantIdsBatch" resultType="cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper$DescendantResult">
+        WITH RECURSIVE descendants AS (
+            SELECT id, parent_id, id as original_id FROM resource_entity
+            WHERE id IN
+            <foreach collection="resourceEntityIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+            AND tenant_id = #{tenantId} AND delete_flag = 0
+            <!-- UNION 去重防 parent 环迭代不收敛（T-PERM-044）；(id, parent_id, original_id)
+                 组合去重，环上重复组合不再加入工作表、迭代自终止 -->
+            UNION
+            SELECT r.id, r.parent_id, d.original_id FROM resource_entity r
+            INNER JOIN descendants d ON r.parent_id = d.id
+            WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0
+        )
+        SELECT original_id as resourceId, id as descendantId FROM descendants WHERE id != original_id
+    </select>
+
+    <!-- T-PERM-057 判定面继承目标闭包：{目标}∪同类型祖先链（含自身行）；上溯止步同类型（sync 通道
+         允许跨类型父子边，跨类型祖先不参与闭包）；软删祖先截断；UNION 组合去重防环（T-PERM-044 先例） -->
+    <select id="selectSelfAndAncestorClosureBatch" resultType="cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper$AncestorClosureResult">
+        WITH RECURSIVE closure AS (
+            SELECT id, parent_id, resource_type, id as target_id FROM resource_entity
+            WHERE id IN
+            <foreach collection="resourceEntityIds" item="id" open="(" separator="," close=")">
+                #{id}
+            </foreach>
+            AND tenant_id = #{tenantId} AND delete_flag = 0
+            UNION
+            SELECT r.id, r.parent_id, r.resource_type, c.target_id FROM resource_entity r
+            INNER JOIN closure c ON r.id = c.parent_id
+            WHERE r.tenant_id = #{tenantId} AND r.delete_flag = 0
+              AND r.resource_type = c.resource_type
+        )
+        SELECT target_id as targetId, id as closureId FROM closure
+    </select>
+
+    <select id="selectValidById" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE id = #{resourceId}
+          AND tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByIds" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND id IN
+        <foreach collection="resourceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectExistingCodes" resultType="java.lang.String">
+        SELECT code FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND code IN
+        <foreach collection="codes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTypeCodeAndCodeType" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND resource_type = #{resourceType}
+          AND code = #{code}
+          AND code_type = #{codeType}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTypeAndCodes" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND resource_type = #{resourceType}
+          AND code IN
+        <foreach collection="codes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTypeAndCodesAndCodeTypes" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND resource_type = #{resourceType}
+          AND code IN
+        <foreach collection="codes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+          AND code_type IN
+        <foreach collection="codeTypes" item="ct" open="(" separator="," close=")">
+            #{ct}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectByTypesAndCodesAndCodeTypes" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND resource_type IN
+        <foreach collection="resourceTypes" item="rt" open="(" separator="," close=")">
+            #{rt}
+        </foreach>
+          AND code IN
+        <foreach collection="codes" item="code" open="(" separator="," close=")">
+            #{code}
+        </foreach>
+          AND code_type IN
+        <foreach collection="codeTypes" item="ct" open="(" separator="," close=")">
+            #{ct}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectApiResourcesByType" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND resource_type = #{resourceType}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectAllValid" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectValidByResourceTypes" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND resource_type IN
+        <foreach collection="resourceTypes" item="type" open="(" separator="," close=")">
+            #{type}
+        </foreach>
+          AND delete_flag = 0
+    </select>
+
+    <select id="selectResourceTree" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND status = 1
+        <if test="matchNone">
+          AND id = -1
+        </if>
+        <if test="!matchNone and resourceType != null">
+          AND resource_type = #{resourceType}
+        </if>
+    </select>
+
+    <select id="selectResourceListPaged" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
+        SELECT * FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="matchNone">
+          AND id = -1
+        </if>
+        <if test="!matchNone and resourceType != null">
+          AND resource_type = #{resourceType}
+        </if>
+        ORDER BY id
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="selectResourceListCount" resultType="long">
+        SELECT COUNT(*) FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+        <if test="matchNone">
+          AND id = -1
+        </if>
+        <if test="!matchNone and resourceType != null">
+          AND resource_type = #{resourceType}
+        </if>
+    </select>
+
+    <select id="existsValidByType" resultType="int">
+        SELECT COUNT(*) FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND resource_type = #{resourceType}
+    </select>
+
+    <select id="selectDistinctTypesWithValidRows" resultType="int">
+        SELECT DISTINCT resource_type FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+          AND resource_type IN
+        <foreach collection="resourceTypes" item="type" open="(" separator="," close=")">
+            #{type}
+        </foreach>
+    </select>
+
+</mapper>

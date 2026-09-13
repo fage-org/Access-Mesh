@@ -498,7 +498,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
             "--spring.cloud.nacos.config.import-check.enabled=false",
             "--spring.cloud.nacos.discovery.enabled=false",
             "--accessmesh.sync.scheduler.enabled=false",
-            // 必须绝对路径：access-service 的 FileServiceImpl 启动校验（@PostConstruct，T-ADMIN-023）
+            // 必须绝对路径：access-service 的 FileAppServiceImpl 启动校验（@PostConstruct，T-ADMIN-023）
             // fail-fast 拒绝相对配置，相对值会使子进程起不来
             "--file.storage.path=" + Path.of("files").toAbsolutePath(),
             // 共享类路径带入了 spring-cloud-gateway 自动配置：servlet 上下文会触发
@@ -866,7 +866,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
         return sb.toString();
     }
 
-    /** 只读读取验证码答案（键 captcha:{captchaId}，与 AuthServiceImpl 键契约一致） */
+    /** 只读读取验证码答案（键 captcha:{captchaId}，与 AuthAppServiceImpl 键契约一致） */
     private static String readCaptchaFromRedis(String captchaId) {
         RedisURI uri = RedisURI.builder()
             .withHost(redis.getHost())

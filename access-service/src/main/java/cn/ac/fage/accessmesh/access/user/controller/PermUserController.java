@@ -1,0 +1,124 @@
+package cn.ac.fage.accessmesh.access.user.controller;
+
+import cn.ac.fage.accessmesh.common.model.R;
+import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
+import cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserCreateReq;
+import cn.ac.fage.accessmesh.access.user.dto.req.UserListReq;
+import cn.ac.fage.accessmesh.access.user.dto.req.AbstractUserUpdateReq;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
+import cn.ac.fage.accessmesh.access.user.dto.resp.AbstractUserResp;
+import cn.ac.fage.accessmesh.access.user.service.UserManageAppService;
+import cn.ac.fage.accessmesh.access.infrastructure.util.PageUtil;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/**
+ * 抽象用户（主体）管理控制器
+ * <p>
+ * 提供用户的同步、创建、更新、删除、查询等功能。
+ * 用户是权限系统中的主体，可以是个人用户、组织用户等类型。
+ * 所有接口采用POST + JSON Body方式。
+ * 租户ID通过TenantContextHolder从X-Tenant-Id请求头获取。
+ * </p>
+ */
+@RestController
+@RequestMapping("/api/perm/abstract-user")
+public class PermUserController {
+
+    private final UserManageAppService userManageService;
+
+    /**
+     * 构造函数注入依赖
+     *
+     * @param userManageService 用户管理服务
+     */
+    public PermUserController(UserManageAppService userManageService) {
+        this.userManageService = userManageService;
+    }
+
+    /**
+     * 创建用户
+     * <p>
+     * 在权限中心直接创建新用户。
+     * </p>
+     *
+     * @param req 用户创建请求，包含用户基本信息
+     * @return 创建成功的用户详情
+     */
+    @PostMapping("/create")
+    public R<AbstractUserResp> createUser(@Valid @RequestBody AbstractUserCreateReq req) {
+        return R.ok(userManageService.createUser(TenantContextHolder.getTenantId(), req));
+    }
+
+    /**
+     * 更新用户信息
+     * <p>
+     * 更新用户的名称、状态、类型等属性。
+     * </p>
+     *
+     * @param req 用户更新请求，包含用户ID和新属性值
+     * @return 更新后的用户详情
+     */
+    @PostMapping("/update")
+    public R<AbstractUserResp> updateUser(@Valid @RequestBody AbstractUserUpdateReq req) {
+        return R.ok(userManageService.updateUser(TenantContextHolder.getTenantId(), req));
+    }
+
+    /**
+     * 获取用户详情
+     * <p>
+     * 根据用户ID查询用户的完整信息。
+     * </p>
+     *
+     * @param req ID请求，包含用户ID
+     * @return 用户详情信息
+     */
+    @PostMapping("/detail")
+    public R<AbstractUserResp> getUser(@Valid @RequestBody IdReq req) {
+        return R.ok(userManageService.getUser(TenantContextHolder.getTenantId(), req.id()));
+    }
+
+    /**
+     * 删除用户
+     * <p>
+     * 批量删除用户，会同时处理用户的角色关联和权限配置。
+     * </p>
+     *
+     * @param req ID集合请求，包含待删除的用户ID列表
+     * @return 操作成功结果
+     */
+    @PostMapping("/remove")
+    public R<Void> deleteUser(@Valid @RequestBody IdsReq req) {
+        userManageService.deleteUsers(TenantContextHolder.getTenantId(), req.ids());
+        return R.ok();
+    }
+
+    /**
+     * 分页查询用户列表
+     * <p>
+     * 支持按主体类型、域、关键字过滤，返回分页结果。
+     * </p>
+     *
+     * @param req 用户列表查询请求，包含分页参数和过滤条件
+     * @return 分页用户列表结果
+     */
+    @PostMapping("/list")
+    public R<PageResp<AbstractUserResp>> listUsers(@Valid @RequestBody UserListReq req) {
+        int pageNum = PageUtil.pageNum(req.pageNum());
+        int pageSize = PageUtil.pageSize(req.pageSize());
+        int offset = PageUtil.offset(pageNum, pageSize);
+        Long tenantId = TenantContextHolder.getTenantId();
+        long total = userManageService.countUsers(tenantId, req.subjectTypeCode(), req.domainCode(), req.keyword());
+        List<AbstractUserResp> items = userManageService.listUsers(
+            tenantId, req.subjectTypeCode(), req.domainCode(), req.keyword(), offset, pageSize
+        );
+        return R.ok(new PageResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+    }
+}

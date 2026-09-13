@@ -40,7 +40,7 @@ import static org.mockito.Mockito.when;
  * 无条件抛 ApiDisabledException（仅 sa-token-jwt 插件支持），原实现导致所有合法令牌
  * 请求恒 401「租户信息缺失」。修复后身份读取走共享 Redis 会话
  * {@code StpUtil.getSessionByLoginId(loginId,false)}，键为 access-service
- * AuthServiceImpl 登录时写入的 tenantId/subjectTypeCode/operatorName。
+ * AuthAppServiceImpl 登录时写入的 tenantId/subjectTypeCode/operatorName。
  * </p>
  * <p>
  * 本测试以 SaTokenDaoDefaultImpl（内存）+ ThreadLocal 上下文模拟 access-service 登录
@@ -91,7 +91,7 @@ class AuthTokenFilterTest {
     }
 
     /**
-     * 模拟 access-service AuthServiceImpl.login 的会话写入：
+     * 模拟 access-service AuthAppServiceImpl.login 的会话写入：
      * StpUtil.login(userId) + session.set(tenantId/subjectTypeCode/operatorName)。
      */
     private String loginAsAccessService(boolean withTenantId, boolean withSubjectTypeCode,

@@ -1,0 +1,61 @@
+package cn.ac.fage.accessmesh.access.resource.service.domain;
+
+import cn.ac.fage.accessmesh.access.sync.strategy.SyncContext;
+import cn.ac.fage.accessmesh.access.sync.strategy.SyncResourcesResult;
+
+import java.util.Set;
+
+/**
+ * 资源同步处理器接口
+ * <p>
+ * 提供服务接口同步过程中的资源同步操作。
+ * 根据同步上下文同步API资源实体，创建新资源、更新已有资源。
+ * 同时清理孤立资源（无关联映射的资源）。
+ * </p>
+ */
+public interface ResourceSyncHandler {
+
+    /**
+     * 同步资源
+     * <p>
+     * 根据同步上下文同步API资源实体。
+     * 创建新资源、更新已有资源，返回同步结果统计和活跃资源ID集合。
+     * </p>
+     *
+     * @param context 同步上下文，包含租户ID、服务配置、接口列表等
+     * @return 同步结果，包含创建/更新的资源数量和活跃资源ID集合
+     */
+    SyncResourcesResult syncResources(SyncContext context);
+
+    /**
+     * 清理孤立资源
+     * <p>
+     * 删除无关联映射的资源实体。
+     * 根据活跃资源ID集合，删除不在集合中的资源（孤立资源）。
+     * 用于全量同步模式下清理废弃资源。
+     * </p>
+     *
+     * @param tenantId        租户ID
+     * @param serviceCode     服务编码
+     * @param apiType         API资源类型值
+     * @param activeResourceIds 应保留活跃的资源ID集合
+     * @return 删除的资源数量
+     */
+    int cleanupOrphanedResources(Long tenantId, String serviceCode, Integer apiType, Set<Long> activeResourceIds);
+
+    /**
+     * 清理服务归属的同步维护资源（服务删除级联）
+     * <p>
+     * T-PERM-027：软删 owner_service_code ∈ serviceCodes 且 maintainSource=SERVICE_SYNC
+     * 的 API 资源中已无任何剩余有效映射的孤立资源（调用前已删除被删服务自身的全部映射，
+     * 剩余映射只可能来自其他服务的跨服务手工映射——此类资源保留，避免悬挂他服务映射）。
+     * 与 {@link #cleanupOrphanedResources} 的 FULL diff 清理边界一致，仅作用范围为服务集合。
+     * </p>
+     *
+     * @param tenantId     租户ID
+     * @param serviceCodes 被删除服务的编码集合
+     * @param apiType      API资源类型值
+     * @return 删除的资源数量
+     */
+    int cleanupServiceOwnedResources(Long tenantId, Set<String> serviceCodes, Integer apiType);
+}

@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure.mapper;
 
 import com.mybatisflex.core.BaseMapper;
-import cn.ac.fage.accessmesh.access.infrastructure.entity.SysTaskExecution;
+import cn.ac.fage.accessmesh.access.infrastructure.task.SysTaskExecution;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;

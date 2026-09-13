@@ -1,0 +1,20 @@
+package cn.ac.fage.accessmesh.access.type.dto.req;
+
+/**
+ * 类型定义列表查询请求体
+ * <p>
+ * 支持按类型键精确过滤、按名称/编码关键字模糊过滤与服务端分页。
+ * 不传分页参数时返回字典全量（上限 PageUtil.MAX_PAGE_SIZE，先例 /role/list）。
+ * </p>
+ *
+ * @param typeKey  类型键，可选，精确过滤
+ * @param keyword  关键字，可选，匹配 name/typeCode（LIKE，大小写敏感，与全仓关键字过滤先例一致）
+ * @param pageNum  页码，可选，默认 1
+ * @param pageSize 每页条数，可选，默认 10；pageNum/pageSize 均未传时取上限全量
+ */
+public record TypeListReq(
+    String typeKey,
+    String keyword,
+    Integer pageNum,
+    Integer pageSize
+) {}

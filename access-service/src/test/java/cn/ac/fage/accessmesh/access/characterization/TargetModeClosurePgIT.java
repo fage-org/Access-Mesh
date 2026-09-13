@@ -1,9 +1,9 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
-import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
-import cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
+import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;

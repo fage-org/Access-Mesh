@@ -1,13 +1,13 @@
 package cn.ac.fage.accessmesh.access.bootstrap;
 
-import cn.ac.fage.accessmesh.access.admin.dto.auth.LoginReq;
-import cn.ac.fage.accessmesh.access.admin.dto.auth.LoginResp;
-import cn.ac.fage.accessmesh.access.admin.service.AuthService;
-import cn.ac.fage.accessmesh.access.application.bootstrap.AccessBootstrapInitializer;
-import cn.ac.fage.accessmesh.access.application.bootstrap.BootstrapGraphDefinition;
+import cn.ac.fage.accessmesh.access.auth.dto.LoginReq;
+import cn.ac.fage.accessmesh.access.auth.dto.LoginResp;
+import cn.ac.fage.accessmesh.access.auth.service.AuthAppService;
+import cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapInitializer;
+import cn.ac.fage.accessmesh.access.bootstrap.BootstrapGraphDefinition;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.permission.service.domain.BootstrapSeedWriter;
-import cn.ac.fage.accessmesh.access.permission.service.domain.LocalProjectionDomainService;
+import cn.ac.fage.accessmesh.access.bootstrap.BootstrapSeedWriter;
+import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.dev33.satoken.secure.BCrypt;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
@@ -86,7 +86,7 @@ class AccessBootstrapPgIT {
     @Autowired
     private AccessBootstrapInitializer initializer;
     @Autowired
-    private AuthService authService;
+    private AuthAppService authService;
     @Autowired
     private StringRedisTemplate stringRedisTemplate;
     @Autowired

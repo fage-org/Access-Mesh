@@ -1,9 +1,9 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
-import cn.ac.fage.accessmesh.access.admin.dto.req.UserCreateReq;
-import cn.ac.fage.accessmesh.access.admin.dto.resp.UserCreateResp;
-import cn.ac.fage.accessmesh.access.admin.security.AdminPermissionValidator;
-import cn.ac.fage.accessmesh.access.application.UserWriteAppService;
+import cn.ac.fage.accessmesh.access.user.dto.req.UserCreateReq;
+import cn.ac.fage.accessmesh.access.user.dto.resp.UserCreateResp;
+import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.access.user.service.UserWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;

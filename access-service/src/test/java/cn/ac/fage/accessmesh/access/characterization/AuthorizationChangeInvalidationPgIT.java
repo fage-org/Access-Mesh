@@ -3,13 +3,13 @@ package cn.ac.fage.accessmesh.access.characterization;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.permission.cache.PermCacheCatalog;
-import cn.ac.fage.accessmesh.access.permission.dto.query.PermQuery;
-import cn.ac.fage.accessmesh.access.permission.dto.query.PermResult;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ApplyGrantPlanReq;
-import cn.ac.fage.accessmesh.access.permission.service.domain.SubjectDomainService;
-import cn.ac.fage.accessmesh.access.permission.service.PermissionGrantAppService;
-import cn.ac.fage.accessmesh.access.permission.vo.RolePermEntry;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
+import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
+import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
+import cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService;
+import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import org.junit.jupiter.api.DisplayName;
@@ -82,7 +82,7 @@ class AuthorizationChangeInvalidationPgIT {
     @Autowired
     private SubjectDomainService subjectDomainService;
     @Autowired
-    private cn.ac.fage.accessmesh.access.permission.service.domain.impl.PermQueryEngine permQueryEngine;
+    private cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine permQueryEngine;
     @Autowired
     private CacheService cacheService;
     @Autowired

@@ -4,7 +4,7 @@ title: access-service 目标架构与归并约束
 status: adopted
 domain: cross-service
 supersedes: docs/archive/2026-08-15/admin-permission-sync.md
-last_reviewed: 2026-09-13   # 2026-09-13 T-ACCESS-032 收口：§1.2/§11 融合演进方向启用注记、§3 重写为能力包口径（17 顶层包=12 能力包+sync+engine+projection+bootstrap+infrastructure；权威=capability-structure §2/§8，T-ACCESS-033 迁移完成前代码维持旧包结构）、§9 错误码「合类不合号」衔接说明、§11 增 URL 两风格 Q-001 指针行；此前 2026-09-12 T-PERM-062 收口：§14.2 种子类写入措辞扩为「bootstrap 固定图 + 类型授权根生命周期」（无操作者写入通道下沉 PermissionGrantPlanDomainService.seedGrants 共用，调用方限定；§14.1「闭环只能靠最小种子」推广到类型生命周期）；此前 2026-09-11 T-PERM-055 收口：§13.4 域分类批量预载成文（preloadCoveredTypeCodes 批量上下文一次预载模式覆盖集 + 认领集单次装配收敛 per-domain N+1，三模式判定结果不变）；此前 2026-09-10 T-PERM-059 收口：§14.4 门禁表注记改排查端点族已删除（bootstrap 固定图 effective-permissions/explain 两行与「权限排查」菜单种子同批移除，清单仍以 BootstrapGraphDefinition.apiRoutes() 为唯一权威）；此前 2026-09-07 T-PERM-051 收口：§4.3 事实链路族增 TYPE_DEFINITION（类型定义实例投影两条产出链 + 删除级联）、§12.3 补 TYPE_DEFINITION 复合业务键语义（{typeKey}:{typeCode}、code 列宽 256）；2026-09-06 §14.8 E2E 自动化轨落位改 e2e 独立模块（T-ACCESS-031：E2E 分轨迁出 gateway、skipE2E 日常/收口两形态口径）；2026-09-05 T-ACCESS-029 实现收口：§14.2 收缩通道墓碑三分落地（BootstrapSeedWriter 墓碑查询诊断例外 + 升级口径与重建换 id 边界成文、runbook 处置步骤交叉引用）；2026-09-05 §14.2 固定图收缩通道墓碑三分定案（缺行+软删墓碑=告警放行不补回/无墓碑=仍拒启，T-ACCESS-029 承接）+ 固定图→租户初始化演进方向登记；2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
+last_reviewed: 2026-09-13   # 2026-09-13 T-ACCESS-033 收口：机械迁移完成——17 顶层包落地（500 类搬迁+17 对改名+僵尸 DTO 三件删除+五测试重建+@MapperScan 14 包），§3 迁移完成注记翻转与 query 族类名回写、§14.7 加时态注记；此前 §1.2/§11 融合演进方向启用注记、§3 重写为能力包口径（17 顶层包=12 能力包+sync+engine+projection+bootstrap+infrastructure；权威=capability-structure §2/§8，T-ACCESS-033 迁移完成前代码维持旧包结构）、§9 错误码「合类不合号」衔接说明、§11 增 URL 两风格 Q-001 指针行；此前 2026-09-12 T-PERM-062 收口：§14.2 种子类写入措辞扩为「bootstrap 固定图 + 类型授权根生命周期」（无操作者写入通道下沉 PermissionGrantPlanDomainService.seedGrants 共用，调用方限定；§14.1「闭环只能靠最小种子」推广到类型生命周期）；此前 2026-09-11 T-PERM-055 收口：§13.4 域分类批量预载成文（preloadCoveredTypeCodes 批量上下文一次预载模式覆盖集 + 认领集单次装配收敛 per-domain N+1，三模式判定结果不变）；此前 2026-09-10 T-PERM-059 收口：§14.4 门禁表注记改排查端点族已删除（bootstrap 固定图 effective-permissions/explain 两行与「权限排查」菜单种子同批移除，清单仍以 BootstrapGraphDefinition.apiRoutes() 为唯一权威）；此前 2026-09-07 T-PERM-051 收口：§4.3 事实链路族增 TYPE_DEFINITION（类型定义实例投影两条产出链 + 删除级联）、§12.3 补 TYPE_DEFINITION 复合业务键语义（{typeKey}:{typeCode}、code 列宽 256）；2026-09-06 §14.8 E2E 自动化轨落位改 e2e 独立模块（T-ACCESS-031：E2E 分轨迁出 gateway、skipE2E 日常/收口两形态口径）；2026-09-05 T-ACCESS-029 实现收口：§14.2 收缩通道墓碑三分落地（BootstrapSeedWriter 墓碑查询诊断例外 + 升级口径与重建换 id 边界成文、runbook 处置步骤交叉引用）；2026-09-05 §14.2 固定图收缩通道墓碑三分定案（缺行+软删墓碑=告警放行不补回/无墓碑=仍拒启，T-ACCESS-029 承接）+ 固定图→租户初始化演进方向登记；2026-09-04 新增 §17 四棵树环防护定案（T-PERM-044：树级 Redisson 锁 + 递归 CTE UNION 去重/深度上限 + 内存 visited；同日定案由 advisory lock 变更为 Redisson，双轨评审后补 resource-entity 同步防护与组织/菜单锁内重读）；2026-09-03 §14.2 建立固定图已知边界待议清单（删行不可撤销登记 + 后续固定图问题持续登记点，用户定规）；同日外部评审处置：§4.3 管理入口保留清单口径精化（create/batch-create 查清单，update 走本地投影所有权保护）；2026-09-02 T-FE-018 评审补：§14.2 幂等三状态补授权属性漂移放行口径（缺行 fail-fast / 漂移 warn 不重种，用户决策）；此前：2026-08-28 决策过程标注统一为「设计定案」当前口径（23 处，三档叙事整改 T-ACCESS-027）；2026-08-23
 ---
 
 # access-service 目标架构与归并约束
@@ -52,7 +52,7 @@ last_reviewed: 2026-09-13   # 2026-09-13 T-ACCESS-032 收口：§1.2/§11 融合
 
 ## 3. 模块边界
 
-> **能力包口径（T-ACCESS-032 重写，2026-09-13）**：目标结构契约唯一权威为 [access-service-capability-structure.md](access-service-capability-structure.md) §2（包结构）与 §8（归属清单与边界断言）；本节为其摘要。T-ACCESS-033 迁移完成前，代码仍为 admin/permission/application 三包旧结构，本节描述的是迁移后终态。
+> **能力包口径（T-ACCESS-032 重写，2026-09-13；T-ACCESS-033 迁移完成注记）**：目标结构契约唯一权威为 [access-service-capability-structure.md](access-service-capability-structure.md) §2（包结构）与 §8（归属清单与边界断言）；本节为其摘要。T-ACCESS-033 已于 2026-09-13 完成机械迁移（500 类搬迁 + 17 对改名 + 旧包清零），代码包结构即本节所述能力包结构，本节与代码同步生效。
 
 目标包结构（17 顶层包 = 12 能力包 + sync 通道包 + engine 引擎子系统 + projection 投影门面 + bootstrap 空库自举 + infrastructure 底座）：
 
@@ -79,18 +79,18 @@ cn.ac.fage.accessmesh.access
 - URL 维持两风格（admin 裸路径 + perm `/api/perm/**`）——已知问题登记 [docs/pending-problems.md](../pending-problems.md) Q-001，后续单独改。
 - 架构测试将上述边界固化（五测试能力口径重建设计见 capability-structure §8.4）。
 
-`access.application.query` 落地形态（T-ACCESS-006；归位后类名随 §8 改名表更新，T-ACCESS-033 回写）：
+组合查询族归位形态（T-ACCESS-006 建立；T-ACCESS-033 归位能力包并改名，接口在 `{menu,role,org}.service`、实现 `impl/` 同构）：
 
 - 查询服务（接口 + `impl/` 同包实现，方法标注 `@Transactional(readOnly = true)`）：
-  - `UserMenuQueryService`：`/auth/user-menu`、`/user/user-menus`、`/role/my-info` 聚合（sys_menu 树 + 角色/权限码 + 菜单可见性判定）。
-  - `UserRoleQueryService`：`/role/list` 功能角色列表、`/user-role/list` 角色列表（POSITION 补所属组织名）。
-  - `OrgVisibilityQueryService`：组织可见性过滤（含 ORG_VISIBILITY 缓存，租户级失效由 PermissionChangeAspect 统一执行）。
-- 专用 QueryMapper（`query/mapper`，XML 在 `resources/mapper/query/`）：只 SELECT、显式 `tenant_id` 条件、返回 `query/projection` 包 Projection record，不暴露或修改领域实体；权限判定一律经 `PermQueryEngine`/`TypeResolutionService`，不直查权限表判定。
+  - `UserMenuQueryAppService`（menu.service）：`/auth/user-menu`、`/user/user-menus`、`/role/my-info` 聚合（sys_menu 树 + 角色/权限码 + 菜单可见性判定）。
+  - `UserRoleQueryAppService`（role.service）：`/role/list` 功能角色列表、`/user-role/list` 角色列表（POSITION 补所属组织名）。
+  - `OrgVisibilityQueryAppService`（org.service）：组织可见性过滤（含 ORG_VISIBILITY 缓存，租户级失效由 PermissionChangeAspect 统一执行）。
+- 专用 QueryMapper（`{menu,role,org}.mapper`，XML 在 `resources/mapper/{org,menu,role}/`）：只 SELECT、显式 `tenant_id` 条件、返回 `dto/projection` 包 Projection record，不暴露或修改领域实体；权限判定一律经 `PermQueryEngine`/`TypeResolutionService`，不直查权限表判定。
 - 数据访问白名单（架构测试固化，能力口径见 capability-structure §8.4）：能力包互不使用对方 **Mapper**（实体 import 不禁，断言面=mapper 包）；QueryMapper 归位各能力包后只读前缀契约不变；组合查询的跨能力表读取经 QueryMapper XML 直读（非 Java 类依赖）；引擎输入面装载、projection 投影写路径、sync 记账封装、bootstrap 种子写入器为显式豁免。（Service 层横向依赖不限白名单，2026-08-22 同层调用全局放开。）
 
 菜单可见性判定（v3.5 §4.1 派生公式）：
 
-- `UserMenuQueryServiceImpl` 不再按「用户菜单 = 角色授权的子集」的 ADMIN_MENU 模型（v3.5 已删除 ADMIN_MENU 资源类型），改为按 v3.5 §4.1 派生：业务菜单（`resource_type` 非空；`resource_code` 为空按不可解析资源 fail-closed，评审 P2-1）→ 用户对该资源有任意有效操作码即可见；纯展示菜单（`resource_type IS NULL`）→ 全员可见；DIR → 存在可见子节点（树构建剪枝）；HIDDEN/EXTERNAL/IFRAME → 派生方式同业务菜单（HIDDEN 不进 `menus[]`）。
+- `UserMenuQueryAppServiceImpl` 不再按「用户菜单 = 角色授权的子集」的 ADMIN_MENU 模型（v3.5 已删除 ADMIN_MENU 资源类型），改为按 v3.5 §4.1 派生：业务菜单（`resource_type` 非空；`resource_code` 为空按不可解析资源 fail-closed，评审 P2-1）→ 用户对该资源有任意有效操作码即可见；纯展示菜单（`resource_type IS NULL`）→ 全员可见；DIR → 存在可见子节点（树构建剪枝）；HIDDEN/EXTERNAL/IFRAME → 派生方式同业务菜单（HIDDEN 不进 `menus[]`）。
 - 有效操作码判定经 `PermissionViewAppService.getEffectiveResourceAccess`（评审新增）：复用 `buildEffectiveView` 公共 pipeline 收集两类事实——资源类型 `scopeAll` 全范围授权（`allScopeTypes`）与用户有任意有效操作码的资源实例 ID 集合（`resourceEntityIds`）；菜单资源实例经 `TypeResolutionService.batchResolveResourceIds` 解析后匹配（未解析 fail-closed 不可见）。权限事实查询失败降级为纯展示菜单（登录链路容错）。
 - 递归环保护（P2-4）：菜单树构建以 `visited` 集合防脏数据 parent 环/重复（重复祖先导致死循环时停止递归），避免脏数据引发栈溢出。
 
@@ -99,7 +99,7 @@ cn.ac.fage.accessmesh.access
 - `/user/user-menus` 查询他人时需 `USER:VIEW@目标用户`，查自己豁免（方案1+2，P1-2；T-ACCESS-018 类型收敛后为 USER）：`AdminUserController.getUserMenus` 在 `req.id() != 当前登录用户` 时经 `AdminPermissionValidator.checkInstanceLevel(USER, id, VIEW)` 门禁。
 - 权限码下发门禁下放入口（方案「门禁下放入口」）：`PermissionViewAppService.buildEffectiveView` 公共管线不再设 `USER:VIEW` 门禁；permission 域独立 HTTP 入口 `/effective-permission-codes` 走 `getEffectivePermissionCodesForManage`（自查豁免 + 查他人需 `USER:VIEW`）；query 包内部调用由其入口 Controller 门禁（自查豁免 + `USER:VIEW`，P1-2）兜底。（原 `getEffectivePermissions` 管理员视图已随 T-PERM-059 删除，2026-09-10）
 - `/role/list` 保持 `LIMIT 0,200` 上限并在 `UserRoleQueryService` Javadoc 声明（P2-3，设计定案「保持 + 文档声明上限」）：功能角色面向前端下拉，超出 200 属配置异常，由组织治理收敛。
-- `OrgVisibilityQueryServiceImpl` 缓存读写故障旁路 DB（P2-1）：`CacheService.get/put` 异常时记 `log.warn` 并降级直查 DB，不阻断可见性计算（fail-open 至数据库层，权限判定本身仍经 engine fail-closed）。
+- `OrgVisibilityQueryAppServiceImpl` 缓存读写故障旁路 DB（P2-1）：`CacheService.get/put` 异常时记 `log.warn` 并降级直查 DB，不阻断可见性计算（fail-open 至数据库层，权限判定本身仍经 engine fail-closed）。
 - 角色数据走 query 服务（P2-2，设计定案「角色走 query 服务 + 权限保留 AppService」）：`UserRoleQueryService` 经 `UserRoleQueryMapper` 直读 `user_role ⨝ abstract_role`（跨域只读），权限事实（有效权限码/资源访问）保留经 `PermissionViewAppService`。
 
 角色代理退役（T-ACCESS-006，设计定案「角色直接由 permission 管理」）：
@@ -542,6 +542,8 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 - E2E 目标用户与普通功能角色由 E2E 场景内经管理链路创建（双角色双用户模型，配合 T-ACCESS-020/T-ACCESS-021）。
 
 ### 14.7 实施终态（T-ACCESS-020，2026-08-24）
+
+> 时态注记（T-ACCESS-033，2026-09-13）：本段为 T-ACCESS-020 时点实施记录。能力包迁移后组件落位已变——bootstrap 独立为顶层 `bootstrap` 包（BootstrapSeedWriter 接口与实现随包迁入）、「放 application 层」的两域互禁前提已随域互斥架构测试删除而不复存在，现行结构见 §3 与 capability-structure §8。
 
 - **组件落位**：`access.application.bootstrap` 包承载 `AccessBootstrapRunner`（`@ConditionalOnProperty` 装配 + 密码 fail-fast + 租户上下文绑定）、`AccessBootstrapInitializer`（事务化 initializer，`@Transactional` + `@PermissionChange` 单事务）、`AccessBootstrapProperties`、`BootstrapGraphDefinition`（固定图唯一定义源：API 清单 + 全量固定图授权）；无操作者写入组件为 `permission.service.domain.BootstrapSeedWriter`（接口）+ `impl` 包内可见实现（非 public 类，仅经接口被 bootstrap initializer 注入）。放 application 层原因：需同时依赖 admin 域（UserDomainService）与 permission 域领域服务，两域互依赖为架构测试所禁。
 - **领域服务复用**：主体+USER 投影（`createLocalUserSubject`）、sys_user（`UserDomainService.insert`，字段形态对齐 createUser 链）、角色（`SubjectDomainService.createRole` + `upsertRoleResource` ROLE 投影）；授权写入复用 `PermissionGrantPlanDomainService.apply(PreparedGrantPlan)`（公开 record 可直接构造，apply 为纯写入；写前经 `validateSingleManualGrants`/`validateGrantAttributes` 不变量校验）——未给任何通用授权服务新增无操作者公开入口。类型值经 `TypeResolutionService` 解析、操作位从 `operation_permission.binary_bit` 读取，bootstrap 代码不硬编码内部数值。

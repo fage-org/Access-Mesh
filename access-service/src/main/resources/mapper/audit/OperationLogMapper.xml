@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.audit.mapper.OperationLogMapper">
+
+    <sql id="listCondition">
+        WHERE tenant_id = #{tenantId}
+        <if test="module != null">
+          AND module = #{module}
+        </if>
+        <if test="action != null">
+          AND action = #{action}
+        </if>
+        <if test="operatorId != null">
+          AND operator_id = #{operatorId}
+        </if>
+        <if test="since != null">
+          AND created_at &gt;= #{since}
+        </if>
+        <if test="until != null">
+          AND created_at &lt;= #{until}
+        </if>
+        <if test="targetType != null">
+          AND target_type = #{targetType}
+        </if>
+    </sql>
+
+    <select id="selectPageByCondition" resultType="cn.ac.fage.accessmesh.access.audit.entity.OperationLog">
+        SELECT * FROM operation_log
+        <include refid="listCondition"/>
+        ORDER BY created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countByCondition" resultType="long">
+        SELECT COUNT(*) FROM operation_log
+        <include refid="listCondition"/>
+    </select>
+
+    <!-- action 字典（T-PERM-025）：返回当前实际存在的事件码去重集合，非维护端枚举 -->
+    <select id="selectDistinctActions" resultType="java.lang.String">
+        SELECT DISTINCT action FROM operation_log
+        WHERE tenant_id = #{tenantId}
+          AND action IS NOT NULL
+        <if test="module != null">
+          AND module = #{module}
+        </if>
+        ORDER BY action
+    </select>
+
+    <!-- T-ACCESS-002 归并自原 admin SysAuditLogMapper.xml 的 paginateByTenantId 因无调用方删除（T-ADMIN-026） -->
+
+</mapper>

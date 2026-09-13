@@ -1,0 +1,179 @@
+package cn.ac.fage.accessmesh.access.org.service.impl;
+
+import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.access.org.service.impl.OrgVisibilityQueryAppServiceImpl;
+import cn.ac.fage.accessmesh.access.org.mapper.OrgVisibilityQueryMapper;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
+import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.List;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+
+/**
+ * 组织可见性查询服务（跨域只读）行为测试。
+ */
+@ExtendWith(MockitoExtension.class)
+class OrgVisibilityQueryAppServiceImplTest {
+
+    @Mock private TypeResolutionService typeResolutionService;
+    @Mock private PermQueryEngine engine;
+    @Mock private OrgVisibilityQueryMapper orgVisibilityQueryMapper;
+    @Mock private CacheService cacheService;
+
+    private OrgVisibilityQueryAppServiceImpl service;
+
+    @BeforeEach
+    void setUp() {
+        service = new OrgVisibilityQueryAppServiceImpl(
+            typeResolutionService, engine, orgVisibilityQueryMapper, cacheService);
+    }
+
+    @Nested
+    @DisplayName("filterVisibleOrgIds")
+    class FilterVisibleOrgIds {
+
+        @Test
+        @DisplayName("空集合返回空结果")
+        void emptyInput_returnsEmpty() {
+            Set<Long> result = service.filterVisibleOrgIds(1L, 100L, List.of());
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("engine 允许的 orgId 被保留（一次 getDeniedResourceCodes 业务编码批量门禁）")
+        void allowedOrgs_kept() {
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
+                .thenReturn(1000L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
+                anySet(), eq("VIEW")))
+                .thenReturn(new java.util.LinkedHashSet<>(List.of("300"))); // 300 → denied
+
+            Set<Long> result = service.filterVisibleOrgIds(1L, 100L, List.of(100L, 200L, 300L));
+
+            assertThat(result).containsExactlyInAnyOrder(100L, 200L);
+            assertThat(result).doesNotContain(300L);
+            verify(engine).getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
+                anySet(), eq("VIEW"));
+        }
+
+        @Test
+        @DisplayName("批量引擎异常整体传播（fail-closed，不再单条静默跳过）")
+        void engineFailure_propagates() {
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
+                .thenReturn(1000L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
+                anySet(), eq("VIEW")))
+                .thenThrow(new RuntimeException("timeout"));
+
+            assertThatThrownBy(() -> service.filterVisibleOrgIds(1L, 100L, List.of(100L)))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("timeout");
+        }
+    }
+
+    @Nested
+    @DisplayName("getOperatorVisibleDefaultTreeOrgIds")
+    class GetOperatorVisibleDefaultTreeOrgIds {
+
+        @Test
+        @DisplayName("缓存命中时不再查权限引擎与树查询")
+        void cacheHit_skipsEngine() {
+            when(cacheService.get(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L)))
+                .thenReturn(Set.of(100L, 200L));
+
+            Set<Long> result = service.getOperatorVisibleDefaultTreeOrgIds(1L, 100L);
+
+            assertThat(result).containsExactlyInAnyOrder(100L, 200L);
+            verifyNoInteractions(engine);
+            verifyNoInteractions(orgVisibilityQueryMapper);
+        }
+
+        @Test
+        @DisplayName("无默认树配置时返回空集")
+        void noDefaultConfigs_returnsEmpty() {
+            when(cacheService.get(any(), any(), any())).thenReturn(null);
+            when(orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(1L)).thenReturn(List.of());
+
+            Set<Long> result = service.getOperatorVisibleDefaultTreeOrgIds(1L, 100L);
+
+            assertThat(result).isEmpty();
+        }
+
+        @Test
+        @DisplayName("默认树子树批量查询后按引擎过滤并回填缓存")
+        void descendantFiltered_thenCached() {
+            when(cacheService.get(any(), any(), any())).thenReturn(null);
+            when(orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(1L)).thenReturn(List.of(50L));
+            when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L, 60L));
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
+                .thenReturn(1000L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
+                anySet(), eq("VIEW")))
+                .thenReturn(new java.util.LinkedHashSet<>(List.of("60"))); // 60 → denied
+
+            Set<Long> result = service.getOperatorVisibleDefaultTreeOrgIds(1L, 100L);
+
+            assertThat(result).containsExactly(50L);
+            verify(cacheService).put(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L), eq(Set.of(50L)));
+        }
+
+        @Test
+        @DisplayName("缓存 get 异常旁路 DB（fail-open 至数据库层，权限判定仍经 engine，评审修复 P2-1）")
+        void cacheGetFailure_bypassesToDb() {
+            when(cacheService.get(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L)))
+                .thenThrow(new RuntimeException("redis down"));
+            when(orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(1L)).thenReturn(List.of(50L));
+            when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L, 60L));
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
+                .thenReturn(1000L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
+                anySet(), eq("VIEW")))
+                .thenReturn(new java.util.LinkedHashSet<>(List.of("60"))); // 60 → denied
+
+            Set<Long> result = service.getOperatorVisibleDefaultTreeOrgIds(1L, 100L);
+
+            // 旁路 DB 后仍按引擎过滤，且正常回填缓存
+            assertThat(result).containsExactly(50L);
+            verify(cacheService).put(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L), eq(Set.of(50L)));
+        }
+
+        @Test
+        @DisplayName("缓存 put 异常不阻断结果（DB 直查结果正常返回，评审修复 P2-1）")
+        void cachePutFailure_servesFromDb() {
+            when(cacheService.get(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L))).thenReturn(null);
+            when(orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(1L)).thenReturn(List.of(50L));
+            when(orgVisibilityQueryMapper.selectDescendantOrgIds(1L, 50L)).thenReturn(List.of(50L));
+            when(typeResolutionService.resolveUserId(1L, LocalProjectionOwner.SUBJECT_LOCAL_USER, "100"))
+                .thenReturn(1000L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(1000L), eq(ResourceTypeCode.ORG),
+                anySet(), eq("VIEW")))
+                .thenReturn(new java.util.LinkedHashSet<>());
+            doThrow(new RuntimeException("redis down"))
+                .when(cacheService).put(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L), eq(100L), anySet());
+
+            Set<Long> result = service.getOperatorVisibleDefaultTreeOrgIds(1L, 100L);
+
+            assertThat(result).containsExactly(50L);
+        }
+    }
+}

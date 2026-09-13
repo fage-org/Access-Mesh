@@ -125,7 +125,7 @@ public class AuthTokenFilter implements GlobalFilter, Ordered {
 
             exchange.getAttributes().put(USER_ID_ATTR, loginId);
 
-            // 会话身份从共享 Redis 的 SaSession 读取（access-service AuthServiceImpl 登录时
+            // 会话身份从共享 Redis 的 SaSession 读取（access-service AuthAppServiceImpl 登录时
             // 写入 tenantId/subjectTypeCode/operatorName；键格式 Authorization:login:session:<loginId>）。
             // T-ACCESS-011 P0 修复：不可使用 StpUtil.getExtra(loginId,key)——默认 StpLogic
             // 下该 API 无条件抛 ApiDisabledException（仅 sa-token-jwt 插件支持），导致

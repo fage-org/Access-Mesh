@@ -1,11 +1,11 @@
 package cn.ac.fage.accessmesh.access;
 
-import cn.ac.fage.accessmesh.access.admin.entity.SysUser;
-import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
-import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
+import cn.ac.fage.accessmesh.access.user.entity.SysUser;
+import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService;
+import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
+import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
+import cn.ac.fage.accessmesh.access.org.service.domain.UserOrgDomainService;
+import cn.ac.fage.accessmesh.access.menu.service.UserMenuQueryAppService;
 import cn.dev33.satoken.dao.SaTokenDao;
 import cn.dev33.satoken.dao.SaTokenDaoDefaultImpl;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -90,7 +90,7 @@ class PlatformSessionAbsoluteTimeoutTest {
     @MockBean
     private LoginLogDomainService loginLogDomainService;
     @MockBean
-    private UserMenuQueryService userMenuQueryService;
+    private UserMenuQueryAppService userMenuQueryService;
     /** 验证码/失败计数 Redis：mock（验证码脚本返回固定值）。 */
     @MockBean
     private StringRedisTemplate stringRedisTemplate;
@@ -156,7 +156,7 @@ class PlatformSessionAbsoluteTimeoutTest {
         String token = login();
         assertThat(token).isNotBlank();
 
-        // 立即身份绑定：真实会话经拦截器绑定（非 mock AuthService）
+        // 立即身份绑定：真实会话经拦截器绑定（非 mock AuthAppService）
         SysUser user = mockUser();
         when(userDomainService.selectValidById(anyLong(), anyLong())).thenReturn(user);
 

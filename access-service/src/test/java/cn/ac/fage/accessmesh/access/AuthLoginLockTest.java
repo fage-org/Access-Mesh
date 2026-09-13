@@ -1,12 +1,12 @@
 package cn.ac.fage.accessmesh.access;
 
-import cn.ac.fage.accessmesh.access.admin.entity.SysUser;
-import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.domain.LoginLogDomainService.LoginLogEntry;
-import cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService;
-import cn.ac.fage.accessmesh.access.admin.service.domain.UserOrgDomainService;
-import cn.ac.fage.accessmesh.access.application.query.UserMenuQueryService;
+import cn.ac.fage.accessmesh.access.user.entity.SysUser;
+import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService;
+import cn.ac.fage.accessmesh.access.audit.service.domain.LoginLogDomainService.LoginLogEntry;
+import cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService;
+import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
+import cn.ac.fage.accessmesh.access.org.service.domain.UserOrgDomainService;
+import cn.ac.fage.accessmesh.access.menu.service.UserMenuQueryAppService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import cn.dev33.satoken.dao.SaTokenDao;
@@ -100,7 +100,7 @@ class AuthLoginLockTest {
     @MockBean
     private LoginLogDomainService loginLogDomainService;
     @MockBean
-    private UserMenuQueryService userMenuQueryService;
+    private UserMenuQueryAppService userMenuQueryService;
     @MockBean
     private StringRedisTemplate stringRedisTemplate;
 

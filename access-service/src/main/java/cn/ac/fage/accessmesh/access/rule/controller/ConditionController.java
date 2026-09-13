@@ -1,0 +1,121 @@
+package cn.ac.fage.accessmesh.access.rule.controller;
+
+import cn.ac.fage.accessmesh.common.model.R;
+import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionCreateReq;
+import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionDetailReq;
+import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionListReq;
+import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionRemoveReq;
+import cn.ac.fage.accessmesh.access.rule.dto.req.ConditionUpdateReq;
+import cn.ac.fage.accessmesh.access.rule.dto.resp.ConditionResp;
+import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
+import cn.ac.fage.accessmesh.access.rule.service.ConditionAppService;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+/**
+ * 权限条件管理控制器
+ * <p>
+ * 提供权限条件的CRUD操作和查询功能。
+ * 权限条件用于定义动态权限规则，如时间范围、地域限制等。
+ * 条件权限可以在角色权限配置中关联，实现细粒度的访问控制。
+ * 所有接口采用POST + JSON Body方式。
+ * </p>
+ */
+@RestController
+@RequestMapping("/api/perm/permission-condition")
+public class ConditionController {
+
+    private final ConditionAppService conditionAppService;
+
+    /**
+     * 构造函数注入依赖
+     *
+     * @param conditionAppService 条件管理服务
+     */
+    public ConditionController(ConditionAppService conditionAppService) {
+        this.conditionAppService = conditionAppService;
+    }
+
+    /**
+     * 创建权限条件
+     * <p>
+     * 创建新的权限条件定义，用于动态权限规则配置。
+     * 条件类型包括：时间范围、地域限制、组织归属等。
+     * </p>
+     *
+     * @param req 条件创建请求，包含条件类型、名称、规则配置
+     * @return 创建成功的条件详情
+     */
+    @PostMapping("/create")
+    public R<ConditionResp> createCondition(@Valid @RequestBody ConditionCreateReq req) {
+        return R.ok(conditionAppService.createCondition(TenantContextHolder.getTenantId(), req, null));
+    }
+
+    /**
+     * 获取权限条件详情
+     * <p>
+     * 根据条件编码（业务键，T-PERM-029 从内部主键切换）查询条件的完整信息，
+     * 包括规则配置和评估逻辑。读取无门禁（条件规则全租户开放、非敏感）。
+     * 条件不存在抛 20006。
+     * </p>
+     *
+     * @param req 详情请求，包含条件编码
+     * @return 条件详情信息
+     */
+    @PostMapping("/detail")
+    public R<ConditionResp> getCondition(@Valid @RequestBody ConditionDetailReq req) {
+        return R.ok(conditionAppService.getCondition(TenantContextHolder.getTenantId(), req.conditionCode()));
+    }
+
+    /**
+     * 查询权限条件列表
+     * <p>
+     * 返回租户下的权限条件列表（全量不分页，T-PERM-029 定案）。
+     * 双轨制（T-PERM-048）：缺省只返回 MANAGED 管理页条件（权限条件页口径）；
+     * includeInline=true 时含授权页内联条件（授权页回显用）。读取无门禁维持。
+     * </p>
+     *
+     * @param req 列表请求（includeInline 可选）
+     * @return 条件列表
+     */
+    @PostMapping("/list")
+    public R<ItemsResp<ConditionResp>> listConditions(@Valid @RequestBody ConditionListReq req) {
+        return R.ok(new ItemsResp<>(
+            conditionAppService.listConditions(TenantContextHolder.getTenantId(), req.includeInline())
+        ));
+    }
+
+    /**
+     * 删除权限条件
+     * <p>
+     * 按条件编码集合（业务键，T-PERM-029 从内部主键切换）批量软删除，
+     * 会同时处理条件关联的数据；请求中不存在的编码静默跳过。
+     * </p>
+     *
+     * @param req 条件编码集合请求，包含待删除的条件编码列表
+     * @return 操作成功结果
+     */
+    @PostMapping("/remove")
+    public R<Void> deleteCondition(@Valid @RequestBody ConditionRemoveReq req) {
+        conditionAppService.deleteConditionsByCodes(TenantContextHolder.getTenantId(), req.codes(), null);
+        return R.ok();
+    }
+
+    /**
+     * 更新权限条件信息
+     * <p>
+     * 更新条件的名称、规则配置等属性。
+     * </p>
+     *
+     * @param req 条件更新请求，以业务键 code 定位，包含要更新的属性值
+     * @return 更新后的条件详情
+     */
+    @PostMapping("/update")
+    public R<ConditionResp> updateCondition(@Valid @RequestBody ConditionUpdateReq req) {
+        return R.ok(conditionAppService.updateCondition(TenantContextHolder.getTenantId(), req, null));
+    }
+}

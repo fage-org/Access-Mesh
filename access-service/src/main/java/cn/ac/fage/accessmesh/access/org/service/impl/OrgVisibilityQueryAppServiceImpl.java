@@ -1,0 +1,110 @@
+package cn.ac.fage.accessmesh.access.org.service.impl;
+
+import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.access.org.service.OrgVisibilityQueryAppService;
+import cn.ac.fage.accessmesh.access.org.mapper.OrgVisibilityQueryMapper;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
+import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.common.cache.CacheService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+/**
+ * 组织可见性查询实现（跨域只读）。
+ * <p>
+ * 组织树与组织树配置读取经 {@link OrgVisibilityQueryMapper}，操作者主体解析与
+ * ORG:VIEW 判定经 {@link TypeResolutionService} / {@link PermQueryEngine}；
+ * 默认树可见范围按操作者缓存（ORG_VISIBILITY 目录，L2_ONLY，租户级失效由
+ * PermissionChangeAspect 统一执行）。
+ * </p>
+ */
+@Service
+public class OrgVisibilityQueryAppServiceImpl implements OrgVisibilityQueryAppService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrgVisibilityQueryAppServiceImpl.class);
+
+    private static final String OPERATION_VIEW = "VIEW";
+
+    private final TypeResolutionService typeResolutionService;
+    private final PermQueryEngine engine;
+    private final OrgVisibilityQueryMapper orgVisibilityQueryMapper;
+    private final CacheService cacheService;
+
+    public OrgVisibilityQueryAppServiceImpl(TypeResolutionService typeResolutionService,
+                                         PermQueryEngine engine,
+                                         OrgVisibilityQueryMapper orgVisibilityQueryMapper,
+                                         CacheService cacheService) {
+        this.typeResolutionService = typeResolutionService;
+        this.engine = engine;
+        this.orgVisibilityQueryMapper = orgVisibilityQueryMapper;
+        this.cacheService = cacheService;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<Long> filterVisibleOrgIds(Long tenantId, Long operatorId, Collection<Long> orgIds) {
+        if (orgIds == null || orgIds.isEmpty()) {
+            return Set.of();
+        }
+        Long userId = typeResolutionService.resolveUserId(
+            tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(operatorId));
+        if (userId == null) {
+            return Set.of();
+        }
+        // T-PERM-042：一次 engine.getDeniedResourceCodes 批量业务编码门禁——
+        // code → entity 解析下沉引擎（无 N+1）；未解析（无投影）的组织进入拒绝集合 → 不可见
+        Set<String> orgCodes = orgIds.stream()
+            .map(String::valueOf)
+            .collect(java.util.stream.Collectors.toSet());
+        Set<String> deniedOrgCodes = engine.getDeniedResourceCodes(
+            tenantId, userId, ResourceTypeCode.ORG, orgCodes, OPERATION_VIEW);
+        Set<Long> visible = new LinkedHashSet<>();
+        for (Long orgId : orgIds) {
+            if (!deniedOrgCodes.contains(String.valueOf(orgId))) {
+                visible.add(orgId);
+            }
+        }
+        return visible;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<Long> getOperatorVisibleDefaultTreeOrgIds(Long tenantId, Long operatorId) {
+        // 缓存不可用时旁路数据库（architecture §7.2：缓存仅加速，查询结果以 DB 与权限引擎为准）
+        Set<Long> cached = null;
+        try {
+            cached = cacheService.get(PermCacheCatalog.ORG_VISIBILITY, tenantId, operatorId);
+        } catch (Exception e) {
+            log.warn("ORG_VISIBILITY cache get failed, bypassing to DB: tenantId={}, operatorId={}",
+                tenantId, operatorId, e);
+        }
+        if (cached != null) {
+            return cached;
+        }
+        List<Long> rootOrgIds = orgVisibilityQueryMapper.selectDefaultTreeRootOrgIds(tenantId);
+        if (rootOrgIds.isEmpty()) {
+            return Set.of();
+        }
+        List<Long> descendantIds = orgVisibilityQueryMapper.selectDescendantOrgIds(tenantId, rootOrgIds.get(0));
+        if (descendantIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> visible = filterVisibleOrgIds(tenantId, operatorId, descendantIds);
+        try {
+            cacheService.put(PermCacheCatalog.ORG_VISIBILITY, tenantId, operatorId, visible);
+        } catch (Exception e) {
+            log.warn("ORG_VISIBILITY cache put failed, result served from DB: tenantId={}, operatorId={}",
+                tenantId, operatorId, e);
+        }
+        return visible;
+    }
+}

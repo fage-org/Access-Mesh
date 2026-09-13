@@ -17,9 +17,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.fail;
 
 /**
- * QueryMapper XML 契约静态测试（T-ACCESS-006 验收标准 2/3/4）。
+ * QueryMapper XML 契约静态测试（T-ACCESS-006 验收标准 2/3/4；T-ACCESS-033 目录随 QueryMapper 归位更新）。
  * <p>
- * 断言专用 QueryMapper（resources/mapper/query/）：
+ * 断言专用 QueryMapper XML（resources/mapper/{org,menu,role}/ 下文件名 {@code *QueryMapper.xml}，
+ * capability-structure §8.4——迁移后能力包目录混装普通 mapper XML，按文件名圈定 query 面，
+ * 与 ArchUnit 规则 3 的 {@code *QueryMapper} 类名口径一致）：
  * 1. 只包含 select 标签，禁止 insert/update/delete（验收标准 2「只包含 SELECT」+ 验收标准 5「禁止写 SQL」）；
  * 2. 每个 select 显式携带 tenant_id 条件（验收标准 3「列表、树和详情查询显式包含 tenant_id 条件」）；
  * 3. 分页查询带 ORDER BY + LIMIT/OFFSET（分页语义完整，总数由调用方按同一条件统计时与结果一致）；
@@ -35,14 +37,23 @@ class QueryMapperXmlContractTest {
     private static final Pattern SELECT_CLOSE = Pattern.compile(
         "</select>", Pattern.CASE_INSENSITIVE);
 
+    /** QueryMapper XML 落位目录（T-ACCESS-033：query/ 解散，三件随 QueryMapper 归位能力包） */
+    private static final List<String> QUERY_MAPPER_DIRS = List.of("org", "menu", "role");
+
     private List<String> queryXmlFiles() throws IOException {
-        Path mapperDir = Paths.get("src", "main", "resources", "mapper", "query");
-        if (!Files.isDirectory(mapperDir)) {
-            fail("query mapper 目录不存在: " + mapperDir.toAbsolutePath());
+        List<String> files = new ArrayList<>();
+        for (String dir : QUERY_MAPPER_DIRS) {
+            Path mapperDir = Paths.get("src", "main", "resources", "mapper", dir);
+            if (!Files.isDirectory(mapperDir)) {
+                fail("query mapper 归位目录不存在: " + mapperDir.toAbsolutePath());
+            }
+            try (Stream<Path> paths = Files.list(mapperDir)) {
+                paths.filter(p -> p.getFileName().toString().endsWith("QueryMapper.xml"))
+                    .map(Path::toString).forEach(files::add);
+            }
         }
-        try (Stream<Path> paths = Files.list(mapperDir)) {
-            return paths.filter(p -> p.toString().endsWith(".xml")).map(Path::toString).toList();
-        }
+        assertThat(files).as("三个 QueryMapper XML 应各归其位（org/menu/role）").hasSize(3);
+        return files;
     }
 
     @Test

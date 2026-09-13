@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access;
 
-import cn.ac.fage.accessmesh.access.admin.cache.AdminCacheCatalog;
-import cn.ac.fage.accessmesh.access.admin.service.domain.TaskExecutionDomainService;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AdminCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionDomainService;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import org.junit.jupiter.api.AfterAll;
@@ -86,7 +86,7 @@ class DualInstanceContainerTest {
         // @BeforeAll 先于 Spring 上下文装配执行：先占位建库（空库，register 复用同一绑定）
         ItInfra.prepare(DualInstanceContainerTest.class, false);
         // 容器已启动、两个 Spring 上下文均未创建：先建全部依赖表
-        // （JobServiceImpl @PostConstruct 启动时跨租户查询 sys_job）
+        // （JobAppServiceImpl @PostConstruct 启动时跨租户查询 sys_job）
         try (Connection conn = DriverManager.getConnection(
                  ItInfra.jdbcUrl(DualInstanceContainerTest.class), ItInfra.username(), ItInfra.password());
              Statement st = conn.createStatement()) {

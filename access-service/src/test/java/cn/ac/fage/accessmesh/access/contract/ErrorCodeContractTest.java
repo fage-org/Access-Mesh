@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.contract;
 
-import cn.ac.fage.accessmesh.access.admin.enums.AdminErrorCode;
-import cn.ac.fage.accessmesh.access.permission.enums.PermissionErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AdminErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.PermissionErrorCode;
 import cn.ac.fage.accessmesh.common.enums.GlobalErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

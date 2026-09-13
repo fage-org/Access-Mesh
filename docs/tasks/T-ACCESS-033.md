@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-033
 title: 机械迁移——能力包搬包 + 命名收敛 + 断言面重建
-status: proposed
+status: done
 plan: docs/plans/access-capability-fusion-plan.md
 domain: cross-service
 design_refs:
@@ -21,7 +21,7 @@ acceptance:
   - "零语义变更（可判定判据）：diff 允许且仅允许机械替换——包声明/import、类型标识符改名及其声明/implements/构造器与字段类型行、@MapperScan 与 type-aliases 等包扫描字符串、mapper XML 的 namespace/resultType、零消费 DTO 文件删除、测试断言与快照；禁止控制流、调用参数、事务/权限/日志注解、SQL 语义变化；以「类名 → 新包/新名」映射表 + 规范化 diff 验收；迁移前后测试基线一致；编译 + 全量回归（-T 1C 含 E2E）绿"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-13
 ---
 
@@ -46,7 +46,20 @@ last_updated: 2026-09-13
 
 见 frontmatter acceptance；diff 审查以「仅移动/改名/import/包声明/测试断言与快照」为硬标准。
 
+## 完成记录（2026-09-13 收口）
+
+**实施口径**：类映射 = capability-structure §8.2 逐行落地（503 项映射，主源码 525 文件完整性校验全过：500 搬迁 + 3 删除 + 17 原位 + 启动类保根）。测试树 159 文件 = 121 随被测主类 + 20 横切按性质集中（contract 6 / characterization 3 / infrastructure.cache 6 / it 2 / sync 3，2026-09-13 用户拍板）+ 38 横切组织包原位；两处按「随主实现类」归位修正（package-private 可见性保持，无可见性扩面）：TaskExecutionLeaseConcurrencyTest→`platform.service.impl`（随 JobAppServiceImpl）、JobInvokeDomainServiceTest→`infrastructure.task.impl`（随 JobInvokeDomainServiceImpl）。六件 `XxxServiceImplTest` 测试类名随主类改名为 `XxxAppServiceImplTest`（File/Job/OrgTreeConfig/OrgVisibilityQuery/UserMenuQuery/UserRoleQuery，acceptance 第 2 条「含测试与注入点」字面达成）。
+
+**断言面**：五测试重建 + 启动类测试 @MapperScan 14 包精确断言。QueryBoundaryArchitectureTest——12 能力包全组合 mapper 边界以**字节码级依赖遍历**实现（`getDirectDependenciesFromSelf` 覆盖 import 与内联 FQCN 全形态；ArchUnit 1.3.0 的 `ignoreDependency` 不在 fluent 接口上故未用该 API），冻结白名单 30 边逐行落地，嵌套类 `$` 归一到外部类匹配（`PermissionConflictDomainServiceImpl$BatchPermMutexEvaluatorImpl`→OperationPermissionMapper 边按源文件级口径归入 §8.4 表对应行）；负向自证三例（剪白名单存量边必被拒 / 写方法前缀必被拒 / 允许集收窄必被拒）+ 白名单形状锁（30 边 19 类）。AccessServiceArchitectureTest——四条旧域互斥规则删除、bootstrap 排除集=「bootstrap 包 + architecture 测试包」、Mapper 边界同源复检（静态方法直调同规则文本）、负向自证一例。AppServiceOperationLogCoverageTest（contract 包）——12 能力包 service.impl 扫描 + 逐能力包下限自证（无实现显式登记集合，当前为空）；engine.service 非能力包不在扫描面（engine 包零 @OperationLog 实证）。HttpApiPathSnapshotTest——EXPECTED_PATHS 零变化（URL 两风格维持）、EXPECTED_SIGNATURES 191 行全量机械重生成（FQCN 包替换 + 裁决 1 改名），normalize() 不变。QueryMapperXmlContractTest——三目录 + `*QueryMapper.xml` 文件名圈定（能力包目录混装普通 XML 后按名圈定 query 面，与 §8.4 规则 3 类名口径一致）。
+
+**配置面**：@MapperScan 14 包（12 能力包 mapper + sync.mapper + infrastructure.mapper，与 38 个 mapper 接口落位吻合）；type-aliases-package=12 能力包 entity——SyncMetadata 别名注册随迁移消失（曾有→今无），全仓 XML 零简单名实体引用、SysTaskExecution 迁移前即不在册，零运行时影响（定性收窄，不补包）。**Nacos**：本机 Nacos（8848）未运行、同键不可达未核——type-aliases 权威定义在仓库 `application.yml`；部署面若存在覆盖键需同批同步（未按「无」口径记录，按实际不可达记录）。
+
+**验证**：单测轨道（-DskipTestcontainers）全绿；全量回归 `mvn test -T 1C`（clean 因 Windows 文件锁跳过，classes 全新生成）BUILD SUCCESS——reactor 10 模块全过含 E2E。机械判据自检：git 配对 656 rename + 4 delete + 1 add + 33 modify；规范化对照（剥离 package/import + 改名归一）下生产代码与 XML 剥离 FQCN 段后 byte 级一致，注解增删 0，控制流可疑行全为允许面。
+
+**双轨评审**：代码轨 P0-P2 零项；文档轨 P1×3（本卡回写项）+ P2×3（六测试类名/负向自证口径/状态流转）全处置；评审实证「全仓能力包间 mapper 依赖边恰好等于 19 类 30 边白名单（无多无漏）」。
+
 ## 非目标 / 遗留
 
 - 错误码/缓存目录/操作码合一、字段消减、system_config 入口退役——全部留给 034~039。
-- 文档重组（040）与规则重写（041）不在本任务。
+- 文档重组（040）与规则重写（041）不在本任务；活文档旧包/旧类名残留归属清单（040：org-user-permission-contract 3 处、v3.5-design 1 处、admin-service-api-contract 全册、capability-structure §5.2 旧名句、architecture §8/§10 组件级旧名与 §14.7[已加时态注记]；041：.claude/rules/permission-center-coding-standards 5 处 FQCN、project-rules §XML 示例 1 处、AGENTS.md 架构图注）。
+- **断言硬化两项登记不实施**（超出 032 §8.4 已设计形态的机械面）：① `mapperCapabilityOf` 深层子包形态（`{cap}.mapper.sub`）不拦截——现状 38 mapper 全平铺无逃逸面，硬化改前缀匹配；② 冻结白名单陈旧条目不可检——负向自证仅证 entry[0] 在用，可加「实测边集==白名单集合」双向锁防条目失活。后续断言硬化随 Q-009 收敛或单独硬化任务落地。

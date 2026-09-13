@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.infrastructure;
 
-import cn.ac.fage.accessmesh.access.infrastructure.entity.SystemConfig;
-import cn.ac.fage.accessmesh.access.infrastructure.mapper.SystemConfigMapper;
+import cn.ac.fage.accessmesh.access.platform.entity.SystemConfig;
+import cn.ac.fage.accessmesh.access.platform.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;

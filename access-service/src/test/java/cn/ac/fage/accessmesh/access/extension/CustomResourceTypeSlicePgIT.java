@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.extension;
 
-import cn.ac.fage.accessmesh.access.application.bootstrap.AccessBootstrapInitializer;
-import cn.ac.fage.accessmesh.access.application.bootstrap.BootstrapGraphDefinition;
+import cn.ac.fage.accessmesh.access.bootstrap.AccessBootstrapInitializer;
+import cn.ac.fage.accessmesh.access.bootstrap.BootstrapGraphDefinition;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

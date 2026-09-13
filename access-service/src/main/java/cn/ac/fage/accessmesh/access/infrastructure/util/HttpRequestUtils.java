@@ -8,7 +8,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
  * HTTP 请求上下文工具（跨 admin/permission 域通用）。
  * <p>
  * 集中提取客户端 IP、请求 ID、User-Agent 等审计字段，并统一限长对齐列上限，
- * 避免 OperationLogAspect 与登录日志（AuthServiceImpl）各写一份重复逻辑且口径漂移。
+ * 避免 OperationLogAspect 与登录日志（AuthAppServiceImpl）各写一份重复逻辑且口径漂移。
  * </p>
  */
 public final class HttpRequestUtils {

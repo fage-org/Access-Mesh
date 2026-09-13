@@ -2,9 +2,9 @@ package cn.ac.fage.accessmesh.access;
 
 import cn.ac.fage.accessmesh.access.AccessServiceApplication;
 import cn.ac.fage.accessmesh.access.AccessServiceApplicationTest;
-import cn.ac.fage.accessmesh.access.permission.dto.req.ServiceConfigSyncReq;
-import cn.ac.fage.accessmesh.access.permission.dto.resp.ServiceConfigSyncResp;
-import cn.ac.fage.accessmesh.access.permission.service.ServiceSyncAppService;
+import cn.ac.fage.accessmesh.access.resource.dto.req.ServiceConfigSyncReq;
+import cn.ac.fage.accessmesh.access.resource.dto.resp.ServiceConfigSyncResp;
+import cn.ac.fage.accessmesh.access.resource.service.ServiceSyncAppService;
 import cn.ac.fage.accessmesh.common.enums.GlobalErrorCode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

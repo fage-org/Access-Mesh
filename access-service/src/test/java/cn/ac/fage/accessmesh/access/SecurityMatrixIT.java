@@ -2,8 +2,8 @@ package cn.ac.fage.accessmesh.access;
 
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.CallerType;
-import cn.ac.fage.accessmesh.access.permission.service.AbstractUserSyncAppService;
-import cn.ac.fage.accessmesh.access.permission.service.DomainConfigAppService;
+import cn.ac.fage.accessmesh.access.user.service.AbstractUserSyncAppService;
+import cn.ac.fage.accessmesh.access.domain.service.DomainConfigAppService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -76,15 +76,15 @@ class SecurityMatrixIT {
 
     /** 认证业务层 mock（/auth/captcha 走真实服务会触达 Redis——mock 连接工厂无 connection）。 */
     @MockBean
-    private cn.ac.fage.accessmesh.access.admin.service.AuthService authService;
+    private cn.ac.fage.accessmesh.access.auth.service.AuthAppService authService;
 
     /** OAuth2 userinfo 正向链路：mock 用户查询（评审 P1 修复验证）。 */
     @MockBean
-    private cn.ac.fage.accessmesh.access.admin.service.domain.UserDomainService userDomainService;
+    private cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService userDomainService;
 
     /** T-ACCESS-013：OAuth2 JWT 分支客户端启用动态校验依赖（mock 返回启用客户端）。 */
     @MockBean
-    private cn.ac.fage.accessmesh.access.admin.service.domain.OAuth2ClientDomainService oauth2ClientDomainService;
+    private cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService oauth2ClientDomainService;
 
     /** OAuth2 JWT 黑名单检查依赖（底层 mock 连接工厂无 connection，hasKey 默认 false=未撤销）。 */
     @MockBean
@@ -142,8 +142,8 @@ class SecurityMatrixIT {
     @DisplayName("评审 P1：OAuth2 签发 JWT → /auth/oauth2/userinfo 200（正向链路修复验证）")
     void oauth2Userinfo_withIssuedJwt_allowed() throws Exception {
         // T-ACCESS-013：客户端启用动态校验（mock 返回启用客户端）
-        cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client client =
-            new cn.ac.fage.accessmesh.access.admin.entity.SysOauth2Client();
+        cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client client =
+            new cn.ac.fage.accessmesh.access.auth.entity.SysOauth2Client();
         client.setClientId("admin-web");
         client.setStatus(1);
         when(oauth2ClientDomainService.findActiveByClientId("admin-web")).thenReturn(client);
@@ -152,7 +152,7 @@ class SecurityMatrixIT {
         long ts = System.currentTimeMillis() / 1000;
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
             java.util.Map.of("tenant_id", "1", "jti", "jti-it-" + ts, "client_id", "admin-web"), JWT_SECRET);
-        cn.ac.fage.accessmesh.access.admin.entity.SysUser user = new cn.ac.fage.accessmesh.access.admin.entity.SysUser();
+        cn.ac.fage.accessmesh.access.user.entity.SysUser user = new cn.ac.fage.accessmesh.access.user.entity.SysUser();
         user.setId(100L);
         user.setTenantId(1L);
         user.setUsername("oauth2-user");
