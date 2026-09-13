@@ -12,7 +12,7 @@ design_refs:
 depends_on: []
 blocks: []
 acceptance:
-  - "归属清单覆盖 access-service 全部现有类与表 → 目标包（12 能力包 + sync + 引擎 + infrastructure）的完整映射，争议项（sys_task_execution 等任务治理设施、query mapper、OrgTreeConfig、service_config/operation_permission 全链归属等）逐一裁决"
+  - "归属清单覆盖 access-service 全部现有类与表 → 目标包的完整映射（任务发布时为 12 能力包 + sync + 引擎 + infrastructure；执行中裁决 6/8 扩充 projection/bootstrap 后终态 17 顶层包），争议项（sys_task_execution 等任务治理设施、query mapper、OrgTreeConfig、service_config/operation_permission 全链归属等）逐一裁决"
   - "跨域同名类清单 + 逐组裁决：至少 UserCreateReq / UserUpdateReq（admin 与 permission 两份且字段形状不同——同包必崩）与 UserResp（admin / permission / perm-common SDK 三份），保留（=继续分设子包）/改名/分设子包三选一写死进设计 §8；perm-common 副本是否动（T-PERM-065 单源纪律边界）一并写死"
   - "全部按包名扫描断言的重建设计落 §8：QueryBoundaryArchitectureTest、AccessServiceArchitectureTest、AppServiceOperationLogCoverageTest（覆盖下限自证）、HttpApiPathSnapshotTest 签名快照口径（query mapper 若随迁目录，QueryMapperXmlContractTest 一并列入）；每条规则附负向样例自证仍能拒绝违规。必裁决句：AccessServiceArchitectureTest 现行 admin↔permission 互不依赖族规则重判为能力口径——允许 AppService/DomainService 同层跨能力依赖（对齐 project-rules §8.2 与设计 §2.4），仅保留 Mapper 数据边界（QueryBoundary 同源、实体面不禁——外评后定稿口径）与 bootstrapSeedWriterIsBootstrapOnly 排除项重判后的包集合；现行规则目标侧对非实现类的排除细节（enums 等）重建时逐条核对"
   - "application.query 三对 QueryService（UserMenu/UserRole/OrgVisibility）归属与命名裁决（是否随迁改名 AppService 口径写死）"
@@ -57,7 +57,7 @@ last_updated: 2026-09-13
 2026-09-13 收口，纯设计文档任务（零生产代码改动）：
 
 - **capability-structure §8 定稿**（§8.0 裁决汇总 + §8.1 终态 17 顶层包总览 + §8.2 逐包归属映射表 + §8.3 同名类清单裁决 + §8.4 五测试断言重建设计 + §8.5 实施顺序），全文转 `adopted`；§2.3/§2.4/§2.5 同步（projection/bootstrap 顶层包声明、QueryService 改名定案）。
-- **十项裁决用户拍板**（八项归属 + 双轨评审追加两项），登记 decision-registry 2026-09-13 T-ACCESS-032 行：①perm 轨用户 DTO 三组改名 AbstractUser*；②operation_permission→type；③service_config→resource；④任务治理设施→infrastructure.task；⑤QueryService 三对改名 XxxQueryAppService；⑥bootstrap 独立顶层包；⑦门禁门面+操作码册→engine；⑧LocalProjectionDomainService+PermConstants→projection 顶层包；⑨存量跨能力 mapper 直读 18 类 24 处冻结白名单（Q-009）；⑩僵尸 DTO 扩面删除（BatchResultResp、OperationDetailReq、PermissionCheckReq 三件）。
+- **十项裁决用户拍板**（八项归属 + 双轨评审追加两项），登记 decision-registry 2026-09-13 T-ACCESS-032 行：①perm 轨用户 DTO 三组改名 AbstractUser*；②operation_permission→type；③service_config→resource；④任务治理设施→infrastructure.task；⑤QueryService 三对改名 XxxQueryAppService；⑥bootstrap 独立顶层包；⑦门禁门面+操作码册→engine；⑧LocalProjectionDomainService+PermConstants→projection 顶层包；⑨存量跨能力 mapper 直读冻结白名单（时点计数 18 类 24 处，外评复扫修正为 19 类 30 边；Q-009）；⑩僵尸 DTO 扩面删除（BatchResultResp、OperationDetailReq、PermissionCheckReq 三件）。
 - **access-service-architecture 回写**：§1.2/§11 演进方向启用注记、§3 重写为能力包口径（17 顶层包 + 边界规则 + 过渡注记「033 完成前代码维持旧包结构」）、§9 错误码合类不合号衔接说明、§11 Q-001 指针行、§10 门禁句历史注记；frontmatter last_reviewed 更新。
 - **project-rules §8.2 回写**：④ 条指针化 + 新增「能力包 Mapper 边界」条目（断言面=mapper 包、实体 import 不禁、豁免面与冻结白名单指针）。
 - **双轨评审（2026-09-13）全处置**：代码轨 P1-1 断言与迁移产出不兼容→裁决⑨冻结白名单；P1-2 13 类漏网+2 接口无行→全量补行；P2-1 sys_task_execution 表漏登→补；P2-2 SyncMetadata 直读措辞→如实登记；P3 四项（实体口径/计数/XML 措辞/文风）→全修。文档轨 P2×2（看板与计划 draft 残留）+P3×5（17 包列举缺口/标题统一/历史注记/去计数化）→全修。处置明细见 registry 同日行。

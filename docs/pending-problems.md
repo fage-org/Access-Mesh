@@ -108,14 +108,14 @@ last_updated: 2026-09-13
 
 - **状态**：open
 - **登记**：2026-09-13
-- **来源**：T-ACCESS-032 双轨评审发现 + 用户拍板「冻结白名单」（decision-registry 2026-09-13 T-ACCESS-032 行裁决⑨；capability-structure §8.4 豁免 6）
-- **关联**：T-ACCESS-033（白名单落地载体）
+- **来源**：T-ACCESS-032 双轨评审发现 + 用户拍板「冻结白名单」（decision-registry 2026-09-13 T-ACCESS-032 行裁决⑨；capability-structure §8.4 豁免 6；白名单实体由 T-ACCESS-033 落地冻结、不承接本问题的收敛）
+- **关联**：—
 
 **现象与证据**：存量代码既有 DomainService/AppService 直读他实体 mapper 共 **19 类 30 边**（闭合清单见 capability-structure §8.4 豁免 6 表；如 `PermissionGrantAppServiceImpl` 直读 role/type/rule/resource 四 mapper、`UserMenuQueryServiceImpl` 直读 `UserRoleQueryMapper`、`UserServiceImpl` 直读 `SysUserOrgMapper`、`PermissionGrantPlanDomainServiceImpl` 直读 domain/type/rule/resource 四 mapper）——同域内今日全部合法；T-ACCESS-033 拆包后成为「能力包 A import 能力包 B 的 mapper」，按裁决⑨进 `QueryBoundaryArchitectureTest` 冻结白名单（断言锁「不得新增」，033 落地时在测试内按 §8.4 表逐行落 ArchUnit ignoreDependency）。采集口径：字节码级全形态（import 行 + 内联 FQCN），禁单 import 扫描（内联 FQCN 形态实证存在于 ConflictRuleAppServiceImpl 等）。
 
-**影响**：现在为什么没出事——白名单锁死增量，存量不扩大；但这 24 处仍是能力包间数据边界豁免点，边界语义靠白名单维持而非结构收敛。数据示例：grant 包的授权编排直读 role/type/rule/resource 四包 mapper，任何一处表结构变更的耦合面横跨五个能力包。
+**影响**：现在为什么没出事——白名单锁死增量，存量不扩大；但这 30 边仍是能力包间数据边界豁免点，边界语义靠白名单维持而非结构收敛。数据示例：grant 包的授权编排直读 role/type/rule/resource 四包 mapper，任何一处表结构变更的耦合面横跨五个能力包。
 
-**设想方向（未定案）**：逐处改走对方 DomainService 封装（24 处改写涉及事务语义，须逐处评估）；或部分收敛（高频变更面优先）；不在融合计划（T-ACCESS-032~041）内，收敛任务启动时从看板计数器取号。
+**设想方向（未定案）**：逐边改走对方 DomainService 封装（30 边改写涉及事务语义，须逐处评估）；或部分收敛（高频变更面优先）；不在融合计划（T-ACCESS-032~041）内，收敛任务启动时从看板计数器取号。
 
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 

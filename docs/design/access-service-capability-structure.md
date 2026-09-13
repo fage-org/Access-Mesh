@@ -20,7 +20,7 @@ last_reviewed: 2026-09-13
 
 验收五条（融合完成判定）：
 
-1. 新增一个纯管理对象（无权限语义，如公告分类）：只碰 platform 一个包，零跨包协调。（可判定形态：ArchUnit 规则——platform 包类零 import 其他能力包，032 设计、033 落地）
+1. 新增一个纯管理对象（无权限语义，如公告分类）：只碰 platform 一个包，零跨包协调。（可判定形态：ArchUnit 规则——**platform 包类不 import 其他能力包的 mapper 包**；Service/DomainService/枚举/DTO 依赖为既有形态允许（ResourceTypeCode 查码、Notice 用户投递等 2026-09-13 拍板弱化——原「零 import 其他能力包」绝对规则与归属清单保留的既有依赖冲突、机械迁移不可满足），032 设计、033 落地）
 2. 新增一个权限资源对象：type 登记 + 资源维护 + 门禁调用三步，全程不出现「属于哪个域」的问题。（可判定形态：032 归属清单含 type 登记/资源维护/门禁调用三步的落地类映射）
 3. 平行设施归零：错误码一册、缓存目录一册、操作码一册（§5.1 结果）；审计写入入口维持 `@OperationLog` 单入口（permission_change_log 为权限事实变更语义并存，见 §4.2）。
 4. `QueryBoundaryArchitectureTest` 以能力为对象重建（能力间不互读 Mapper）且通过。
@@ -143,6 +143,8 @@ last_reviewed: 2026-09-13
 ### 8.1 终态顶层包总览
 
 17 个顶层包 = 12 能力包（§2.1）+ sync 通道包（§2.2）+ engine 引擎子系统 + infrastructure 底座 + **032 裁决新增 bootstrap / projection 两顶层包**（裁决 6/8，对 §2.3「引擎子系统与 infrastructure」结构的扩充）。
+
+启动类 `AccessServiceApplication` **保留根包**（architecture §2 启动类锚点；e2e 以 FQCN 字符串引用，不迁 17 包）。
 
 能力包统一子结构（sync / engine / projection / bootstrap / infrastructure 形态见 8.2 各节）：
 
@@ -463,7 +465,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 
      **采集口径（写死）**：字节码级依赖形态全采集（import 行 + 内联 FQCN 字段声明，同 ArchUnit 字节码分析口径）——禁用单 import 行扫描（内联 FQCN 形态实证存在于 ConflictRuleAppServiceImpl 等）；引擎（engine）/projection/bootstrap/sync 记账（含 ResourceEntitySyncAppServiceImpl→sync.mapper 直读一处，豁免 3）不在此表（非能力包源集或另有豁免）。
 3. 原「query 包」五条规则（admin/permission mapper 互禁、application 非 query 禁 mapper、query mapper 只读前缀、query 包不依赖域实体/Mapper）中：前三条随包结构消失（application 解散），只读前缀规则改为「QueryMapper（**按类名 `*QueryMapper` 匹配**，非整包——避免误杀同包写 Mapper）接口方法 select/count/list 前缀」继续生效。
-4. **落位兜底断言（外评补充，033 落地）**：全部主源码类必须落在 17 顶层包（`..access..` 下类 `resideInAnyPackage(..access.auth.., ..access.user.., …, ..access.infrastructure..)` 全枚举）——防漏行类静默残留旧包；负向样例：类残留 `..access.admin..` → 拒绝。
+4. **落位兜底断言（外评补充，033 落地）**：全部主源码类必须落在 17 顶层包（`..access..` 下类 `resideInAnyPackage(..access.auth.., ..access.user.., …, ..access.infrastructure..)` 全枚举；根包唯一例外=启动类 `AccessServiceApplication`——断言精确豁免该类，并反向锁根包仅允许它存在）——防漏行类静默残留旧包；负向样例：类残留 `..access.admin..` → 拒绝。
 
 **AccessServiceArchitectureTest**：现行 admin↔permission 互不依赖族（adminShouldNotDependOnPermission / adminServiceImplShouldNotDependOnPermission / permissionShouldNotDependOnAdmin / applicationMayDependOnBothDomains 四条）**删除**——能力口径允许 AppService/DomainService 同层跨能力依赖（project-rules §8.2、设计 §2.4）。保留并重判：
 

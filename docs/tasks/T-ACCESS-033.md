@@ -15,7 +15,7 @@ acceptance:
   - "按归属清单完成搬包：17 顶层包 = 12 能力包 + sync + engine + projection + bootstrap + infrastructure（以 capability-structure §8.2 为唯一清单）；application 包解散归位；主源码全部类落在 17 顶层包内（§8.4 落位兜底断言），旧包（admin/permission/application）清零"
   - "命名收敛：admin 域 14 对 XxxService/Impl 改名 XxxAppService/Impl；application.query 三对 QueryService（UserMenu/UserRole/OrgVisibility）按 032 裁决随迁改名，全仓不留第二套调度层命名（含测试与注入点）"
   - "僵尸 DTO 三件删除（032 裁决 10：PermissionCheckReq、BatchResultResp、OperationDetailReq，全仓零消费实测）——文件删除列入机械 diff 允许面"
-  - "旧包残留收窄至源码与资源：`.java` 包声明/import、`resources/mapper/*.xml` 的 namespace/resultType/resultMap@type（parameterType 当前零 FQCN 命中、实施时确认）、`application.yml` 的 @MapperScan（覆盖 032 归属清单全部 `*.mapper` 子包——含 sync.mapper 与 infrastructure.mapper 两处非能力包 mapper 落点，§8.1 约定）与 type-aliases-package 零残留；Nacos access-service.yml 不在仓库——同键有则同步更新、无覆盖记「无」；规则与文档中的包路径归 040/041"
+  - "旧包残留收窄至源码与资源：`.java` 包声明/import、`resources/mapper/**/*.xml`（递归，含迁移后 `mapper/{org,menu,role}/` 子目录）的 namespace/resultType/resultMap@type（parameterType 当前零 FQCN 命中、实施时确认）、`AccessServiceApplication` 的 **@MapperScan 包清单**（注解在启动类 Java 源码、非 yml；覆盖 032 归属清单全部 `*.mapper` 子包——含 sync.mapper 与 infrastructure.mapper 两处非能力包 mapper 落点，§8.1 约定）与 `application.yml` 的 type-aliases-package 零残留；启动类测试扩展断言扫描包集合；Nacos access-service.yml 不在仓库——同键有则同步更新、无覆盖记「无」；规则与文档中的包路径归 040/041"
   - "断言与快照按 032 设计重建并通过（五个文件：QueryBoundaryArchitectureTest——含 19 类 30 边冻结白名单逐行落地与「不得新增」锁、AccessServiceArchitectureTest——含 bootstrapSeedWriterIsBootstrapOnly 排除项重判、AppServiceOperationLogCoverageTest——域包串改能力口径、覆盖下限自证、HttpApiPathSnapshotTest 签名快照、QueryMapperXmlContractTest——query XML 目录迁 `resources/mapper/{org,menu,role}/` 后路径断言更新）；每条重建规则以负向样例自证仍能拒绝违规；032 指定重建的断言/快照文件列入机械 diff 豁免——规则改写必然变更测试控制流，生产代码仍只允许机械替换"
   - "跨域同名类（UserCreateReq/UserUpdateReq/UserResp 三组等，以 032 裁决清单为准）按裁决落地，契约快照同步"
   - "零语义变更（可判定判据）：diff 允许且仅允许机械替换——包声明/import、类型标识符改名及其声明/implements/构造器与字段类型行、@MapperScan 与 type-aliases 等包扫描字符串、mapper XML 的 namespace/resultType、零消费 DTO 文件删除、测试断言与快照；禁止控制流、调用参数、事务/权限/日志注解、SQL 语义变化；以「类名 → 新包/新名」映射表 + 规范化 diff 验收；迁移前后测试基线一致；编译 + 全量回归（-T 1C 含 E2E）绿"
@@ -34,7 +34,7 @@ last_updated: 2026-09-13
 1. 按 T-ACCESS-032 归属清单（capability-structure §8.2，17 顶层包）搬包 + 改 import；零消费僵尸 DTO 三件删除。
 2. 命名收敛（admin 14 对 + application.query 三对按裁决）。
 3. 断言与快照重建（五个文件，设计来自 032 §8.4；验收含负向样例自证与冻结白名单逐行落地）。
-4. `@MapperScan`（全部 `*.mapper` 子包，含 sync.mapper/infrastructure.mapper）、`type-aliases-package`（yml 与 Nacos）、mapper XML namespace/resultType 同步。
+4. `AccessServiceApplication` 的 `@MapperScan` 包清单（全部 `*.mapper` 子包，含 sync.mapper/infrastructure.mapper）、`type-aliases-package`（yml 与 Nacos）、mapper XML namespace/resultType 同步（mapper-locations 已是 `classpath*:/mapper/**/*.xml` 递归通配、无需改）。
 
 ## 当前口径
 
