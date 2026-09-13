@@ -150,7 +150,6 @@ class ServiceConfigCascadePgIT {
         entity.setName(code + " 资源");
         entity.setPath("/api/" + code.toLowerCase());
         entity.setStatus(1);
-        entity.setSortOrder(0);
         entity.setExtra("{}");
         entity.setOwnerServiceCode(ownerServiceCode);
         entity.setMaintainSource(maintainSource);

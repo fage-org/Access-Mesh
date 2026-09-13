@@ -67,7 +67,7 @@ public interface LocalProjectionDomainService {
      * @return resource_entity.id
      */
     Long upsertAdminMenu(Long tenantId, Long sysMenuId, String name, Long parentMenuId,
-                         Integer status, Integer sortOrder);
+                         Integer status);
 
     /**
      * 软删除 MENU 资源。

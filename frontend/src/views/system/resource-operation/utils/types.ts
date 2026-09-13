@@ -31,7 +31,6 @@ export type ResourceFormData = {
   name: string;
   parentId: number | null;
   status: number;
-  sortOrder: number;
   extra: string;
 };
 
@@ -72,7 +71,6 @@ export function createEmptyResourceForm(
     name: "",
     parentId,
     status: 1,
-    sortOrder: 0,
     extra: ""
   };
 }

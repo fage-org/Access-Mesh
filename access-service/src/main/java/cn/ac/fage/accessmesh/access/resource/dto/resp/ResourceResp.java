@@ -19,7 +19,6 @@ import java.time.LocalDateTime;
  * @param name             资源名称，用于显示
  * @param path             资源路径
  * @param status           资源状态，0=禁用，1=启用
- * @param sortOrder        排序顺序
  * @param extra            扩展属性JSON
  * @param createdAt        创建时间
  * @param updatedAt        更新时间
@@ -35,7 +34,6 @@ public record ResourceResp(
     String name,
     String path,
     Integer status,
-    Integer sortOrder,
     String extra,
     LocalDateTime createdAt,
     LocalDateTime updatedAt

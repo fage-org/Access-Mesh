@@ -195,7 +195,7 @@ class FullSyncN1GuardTest {
         List<ResourceEntitySyncItem> items = new ArrayList<>(ITEM_COUNT);
         for (int i = 0; i < ITEM_COUNT; i++) {
             items.add(new ResourceEntitySyncItem("menu-" + i, "default", "Menu " + i,
-                    null, null, null, "/menu/" + i, 1, 0, null, null, null,
+                    null, null, null, "/menu/" + i, 1, null, null, null,
                     new SyncVersionRef(OCCURRED_AT, (long) i + 1)));
         }
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(

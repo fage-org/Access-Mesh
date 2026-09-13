@@ -19,7 +19,6 @@ public record ResourceEntitySyncItem(
         String parentCodeType,
         String path,
         Integer status,
-        Integer sortOrder,
         Map<String, Object> extra,
         String sourceEntityType,
         String sourceEntityId,

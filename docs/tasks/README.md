@@ -70,7 +70,7 @@
 | [T-ACCESS-033](T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建（✅ 2026-09-13 收口：500 类搬迁 + 17 对改名 + 僵尸三件删除 + 五测试重建 + @MapperScan 14 包；全量回归含 E2E 绿，终态与遗留登记见任务卡完成记录） | capability-fusion | capability-structure §2/§8；access-service-architecture §3 | T-ACCESS-032 | ✅ | ✓ |
 | [T-ACCESS-034](T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化（✅ 2026-09-13 收口：OperationCode 单一常量面 + USER 字段分档门禁 + USER:MANAGE 退役 + 空库首管理员放行） | capability-fusion | capability-structure §5.1；契约总册 §12.1/§4；schema | T-ACCESS-033, T-ACCESS-040 | ✅ | ✅ |
 | [T-ACCESS-035](T-ACCESS-035.md) | 双轨死字段消减（✅ 2026-09-13 收口：username 投影/容器行 sort_order+extra.orgType 签名级停写 + 死注入死 import 清除；flex 全列插入显式 NULL 实证） | capability-fusion | capability-structure §5.2；schema | T-ACCESS-033 | ✅ | ✓ |
-| [T-ACCESS-036](T-ACCESS-036.md) | resource_entity.sort_order 退役 | capability-fusion | capability-structure §5.2；契约总册 §12.1；schema；perm-common | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
+| [T-ACCESS-036](T-ACCESS-036.md) | resource_entity.sort_order 退役（✅ 2026-09-13 收口：列/实体/SDK 双册/sync 两 DTO/树响应/五面写入点/前端与 mock 同批退役 + 严格 mapper 400 负向锁四 DTO 面） | capability-fusion | capability-structure §5.2；契约总册 §12.1；schema；perm-common | T-ACCESS-033, T-ACCESS-040 | ✅ | ✓ |
 | [T-ACCESS-037](T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | capability-fusion | capability-structure §5.3；契约总册 §17.2/§17.3 | T-ACCESS-033, T-ACCESS-040 | ⚙️ | ⏳ |
 | [T-ACCESS-038](T-ACCESS-038.md) | 错误码合类不合号 | capability-fusion | capability-structure §3；access-service-architecture §9 | T-ACCESS-033 | ⚙️ | ⏳ |
 | [T-ACCESS-039](T-ACCESS-039.md) | 缓存目录合一 | capability-fusion | capability-structure §3；dual-layer-cache-framework skill（双副本） | T-ACCESS-033, T-ACCESS-034 | ⚙️ | ⏳ |

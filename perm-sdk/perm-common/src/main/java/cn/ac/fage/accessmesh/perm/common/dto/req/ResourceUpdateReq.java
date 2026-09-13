@@ -37,10 +37,6 @@ public record ResourceUpdateReq(
      */
     Integer status,
     /**
-     * 排序顺序，可选
-     */
-    Integer sortOrder,
-    /**
      * 扩展属性 JSON，可选；null=不更新
      */
     String extra,

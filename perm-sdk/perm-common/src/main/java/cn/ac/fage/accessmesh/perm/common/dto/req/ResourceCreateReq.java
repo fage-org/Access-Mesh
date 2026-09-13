@@ -43,10 +43,6 @@ public record ResourceCreateReq(
      */
     Integer status,
     /**
-     * 排序号
-     */
-    Integer sortOrder,
-    /**
      * 扩展信息
      */
     String extra

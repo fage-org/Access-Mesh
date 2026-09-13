@@ -24,7 +24,6 @@ public record ResourceEntitySyncReq(
         String parentCodeType,
         String path,
         Integer status,
-        Integer sortOrder,
         Map<String, Object> extra,
         @NotBlank String sourceService,
         String sourceEntityType,

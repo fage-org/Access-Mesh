@@ -212,7 +212,6 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         entity.setName(req.name());
         entity.setPath(req.path());
         entity.setStatus(req.status() != null ? req.status() : 1);
-        entity.setSortOrder(req.sortOrder() != null ? req.sortOrder() : 0);
         entity.setExtra(req.extra());
         // maintain_source NOT NULL（DDL DEFAULT 'MANUAL' 不生效——flex insert 显式带列），
         // 与其余全部本地写入方同款（bootstrap/投影/sync 各自设值）
@@ -315,7 +314,6 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             entity.setName(req.name());
             entity.setPath(req.path());
             entity.setStatus(req.status() != null ? req.status() : 1);
-            entity.setSortOrder(req.sortOrder() != null ? req.sortOrder() : 0);
             entity.setExtra(req.extra());
             entity.setMaintainSource(PermConstants.MaintainSource.MANUAL);
             entity.setCreatedBy(operatorId);
@@ -401,7 +399,6 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         if (req.name() != null) entity.setName(req.name());
         if (req.path() != null) entity.setPath(req.path());
         if (req.status() != null) entity.setStatus(req.status());
-        if (req.sortOrder() != null) entity.setSortOrder(req.sortOrder());
         entity.setUpdatedAt(LocalDateTime.now());
         entity.setUpdatedBy(operatorId);
         // T-PERM-028：extraClear 显式清空（JSON null 无法区分「未传」与「清空」），优先于 extra。
@@ -414,7 +411,6 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             patch.setName(entity.getName());
             patch.setPath(entity.getPath());
             patch.setStatus(entity.getStatus());
-            patch.setSortOrder(entity.getSortOrder());
             patch.setExtra(null);
             patch.setUpdatedAt(entity.getUpdatedAt());
             patch.setUpdatedBy(entity.getUpdatedBy());
@@ -657,7 +653,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 entity.getId(), entity.getParentId(),
                 typeResolutionService.resolveTypeCode(entity.getTenantId(), "resource_type", entity.getResourceType()),
                 entity.getCode(), entity.getCodeType(), entity.getName(),
-                entity.getPath(), entity.getStatus(), entity.getSortOrder(), children
+                entity.getPath(), entity.getStatus(), children
             )
         );
 
@@ -937,7 +933,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             entity.getId(), entity.getTenantId(),
             entity.getParentId(), typeResolutionService.resolveTypeCode(entity.getTenantId(), "resource_type", entity.getResourceType()), resourceTypeName,
             entity.getCode(), entity.getCodeType(), entity.getName(),
-            entity.getPath(), entity.getStatus(), entity.getSortOrder(),
+            entity.getPath(), entity.getStatus(),
             entity.getExtra(), entity.getCreatedAt(), entity.getUpdatedAt()
         );
     }

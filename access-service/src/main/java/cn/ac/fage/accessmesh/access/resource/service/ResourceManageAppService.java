@@ -63,7 +63,7 @@ public interface ResourceManageAppService {
     /**
      * 更新资源
      * <p>
-     * 以业务键定位后更新资源实体的可编辑字段（name/path/status/sortOrder/extra）。
+     * 以业务键定位后更新资源实体的可编辑字段（name/path/status/extra）。
      * 业务键字段不可更新；extraClear=true 显式清空 extra（T-PERM-028）。
      * </p>
      *

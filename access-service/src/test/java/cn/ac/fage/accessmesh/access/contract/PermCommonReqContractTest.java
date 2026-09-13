@@ -85,7 +85,6 @@ ResourceCreateReq#parentResourceCode -> []
 ResourceCreateReq#parentResourceTypeCode -> []
 ResourceCreateReq#path -> []
 ResourceCreateReq#resourceTypeCode -> [@NotBlank]
-ResourceCreateReq#sortOrder -> []
 ResourceCreateReq#status -> []
 ResourceKeyReq#code -> [@NotBlank]
 ResourceKeyReq#codeType -> []
@@ -98,7 +97,6 @@ ResourceUpdateReq#extraClear -> []
 ResourceUpdateReq#name -> []
 ResourceUpdateReq#path -> []
 ResourceUpdateReq#resourceTypeCode -> [@NotBlank]
-ResourceUpdateReq#sortOrder -> []
 ResourceUpdateReq#status -> []
 RoleCreateReq#externalId -> []
 RoleCreateReq#extra -> []
@@ -164,10 +162,10 @@ IdReq: Long id
 IdsReq: List<Long> ids
 OperationListReq: String resourceTypeCode
 ResourceBatchCreateReq: List<ResourceCreateReq> items
-ResourceCreateReq: Long parentId, String parentResourceTypeCode, String parentResourceCode, String parentCodeType, String parentDomainCode, String resourceTypeCode, String code, String codeType, String name, String path, Integer status, Integer sortOrder, String extra
+ResourceCreateReq: Long parentId, String parentResourceTypeCode, String parentResourceCode, String parentCodeType, String parentDomainCode, String resourceTypeCode, String code, String codeType, String name, String path, Integer status, String extra
 ResourceKeyReq: String resourceTypeCode, String code, String codeType
 ResourceKeysReq: List<ResourceKeyReq> items
-ResourceUpdateReq: String resourceTypeCode, String code, String codeType, String name, String path, Integer status, Integer sortOrder, String extra, Boolean extraClear
+ResourceUpdateReq: String resourceTypeCode, String code, String codeType, String name, String path, Integer status, String extra, Boolean extraClear
 RoleCreateReq: Long parentId, String roleTypeCode, String externalId, String name, Integer sortOrder, String extra
 RoleDetailReq: String roleTypeCode, String roleExternalId
 RoleListReq: String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword, Integer pageNum, Integer pageSize, String sort

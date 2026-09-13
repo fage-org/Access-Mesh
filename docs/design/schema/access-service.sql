@@ -936,7 +936,6 @@ CREATE TABLE resource_entity (
     name          VARCHAR(256) NOT NULL,
     path          VARCHAR(1024),
     status        INT NOT NULL DEFAULT 1,
-    sort_order    INT DEFAULT 0,
     extra         JSONB DEFAULT '{}',
     owner_service_code VARCHAR(128),
     maintain_source    VARCHAR(32) NOT NULL DEFAULT 'MANUAL',

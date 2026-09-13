@@ -593,7 +593,7 @@ public class AccessBootstrapInitializer {
         }
         for (SysMenu menu : seedMenus) {
             localProjectionDomainService.upsertAdminMenu(tenantId, menu.getId(),
-                menu.getDisplayName(), menu.getParentId(), menu.getStatus(), menu.getSortOrder());
+                menu.getDisplayName(), menu.getParentId(), menu.getStatus());
         }
 
         // 默认组织树（T-FE-015 设计定案）：根组织 + 默认树配置 + 首管理员挂根组织（镜像

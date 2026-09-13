@@ -310,7 +310,7 @@ class FullSyncResponseContractTest {
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu 1",
-                        null, null, null, null, 1, 0, null, null, null,
+                        null, null, null, null, 1, null, null, null,
                         new SyncVersionRef(OCCURRED_AT, 1L))));
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);

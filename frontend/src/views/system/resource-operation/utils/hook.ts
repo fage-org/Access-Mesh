@@ -191,7 +191,6 @@ export function useResourceOperation() {
           codeType: form.codeType || undefined,
           name: form.name,
           status: form.status,
-          sortOrder: form.sortOrder,
           extra: form.extra || null
         });
         message("资源创建成功", { type: "success" });
@@ -202,7 +201,6 @@ export function useResourceOperation() {
           codeType: editing.codeType,
           name: form.name,
           status: form.status,
-          sortOrder: form.sortOrder,
           // 原有 extra 被清空 → extraClear 显式清空（JSON null 无法区分「未传」与「清空」）
           extra: form.extra || null,
           extraClear: editing.extra != null && !form.extra

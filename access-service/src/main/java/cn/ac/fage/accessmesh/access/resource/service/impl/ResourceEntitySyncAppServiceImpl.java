@@ -214,7 +214,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             ResourceEntitySyncReq oneReq = new ResourceEntitySyncReq(
                     OP_UPSERT, req.scope().resourceTypeCode(), item.resourceCode(), codeType,
                     item.name(), item.parentResourceTypeCode(), item.parentResourceCode(),
-                    item.parentCodeType(), item.path(), item.status(), item.sortOrder(), item.extra(),
+                    item.parentCodeType(), item.path(), item.status(), item.extra(),
                     req.scope().sourceService(), item.sourceEntityType(), item.sourceEntityId(),
                     item.syncVersion());
             // T-PERM-044 评审 P1：环路防护（写入前逐项判定，先于版本写入——拒绝不推进同步版本）：
@@ -406,7 +406,6 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 re.setName(req.name() == null ? req.resourceCode() : req.name());
                 re.setPath(req.path());
                 re.setStatus(req.status() == null ? 1 : req.status());
-                re.setSortOrder(req.sortOrder() == null ? 0 : req.sortOrder());
                 re.setMaintainSource(MAINTAIN_SOURCE_SYNC);
                 // 外部业务服务同步的行所有权保持 NULL（owner 由本地投影独占，见 LocalProjectionOwner）
                 re.setExtra(serializeExtra(req.extra()));
@@ -420,7 +419,6 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 if (req.name() != null) existing.setName(req.name());
                 if (req.path() != null) existing.setPath(req.path());
                 if (req.status() != null) existing.setStatus(req.status());
-                if (req.sortOrder() != null) existing.setSortOrder(req.sortOrder());
                 if (req.extra() != null) existing.setExtra(serializeExtra(req.extra()));
                 existing.setUpdatedAt(now);
                 resourceEntityMapper.update(existing);

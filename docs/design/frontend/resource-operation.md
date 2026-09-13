@@ -3,7 +3,7 @@ doc_type: design
 title: 资源与操作定义 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-02   # 2026-09-02 T-FE-017 联调收口（§5 补 Gateway 注册登记与联调注记、§7 权限接线补固定图口径、§8 mock 校验句终态化、联调发现 maintain_source 落库缺陷已修）；2026-08-29 §5/§8 全量收口（T-PERM-028 落地：业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁补齐/resource_type 联动预置）；2026-08-28 §8 增补第 6 项：resource_type 联动预置操作位自 T-PERM-023 改归属登记
+last_reviewed: 2026-09-13   # T-ACCESS-036：字段表删 sortOrder 行（resource_entity.sort_order 全字段面退役，前端类型/提交载荷/表单/mock 同批清理）；此前 2026-09-02 T-FE-017 联调收口（§5 补 Gateway 注册登记与联调注记、§7 权限接线补固定图口径、§8 mock 校验句终态化、联调发现 maintain_source 落库缺陷已修）；2026-08-29 §5/§8 全量收口（T-PERM-028 落地：业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁补齐/resource_type 联动预置）；2026-08-28 §8 增补第 6 项：resource_type 联动预置操作位自 T-PERM-023 改归属登记
 ---
 
 # 资源与操作定义 前端设计
@@ -56,7 +56,6 @@ last_reviewed: 2026-09-02   # 2026-09-02 T-FE-017 联调收口（§5 补 Gateway
 | name | 资源名称 | 可编辑 |
 | parentId | 父资源 id | 只读（走移动弹窗） |
 | status | 状态（1=启用/0=停用） | 可编辑 |
-| sortOrder | 排序号 | 可编辑 |
 | extra | 扩展属性 JSON | 可编辑 |
 
 ### 操作权限（OperationPermissionResp）

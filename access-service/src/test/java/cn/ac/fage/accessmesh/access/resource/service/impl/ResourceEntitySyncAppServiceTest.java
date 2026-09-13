@@ -87,7 +87,7 @@ class ResourceEntitySyncAppServiceTest {
 
     private ResourceEntitySyncReq upsertReq() {
         return new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
-                "Menu One", null, null, null, "/menu/one", 1, 0, null,
+                "Menu One", null, null, null, "/menu/one", 1, null,
                 SOURCE_SERVICE, "menu", "menu-1",
                 new SyncVersionRef(OCCURRED_AT, 1L));
     }
@@ -122,7 +122,7 @@ class ResourceEntitySyncAppServiceTest {
     void shouldKeepOwnerNull_whenExternalSourceService() {
         // 外部业务服务来源（sourceService 非 access-service）：所有权保持 NULL，以 sync_metadata 为准
         ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
-                "Menu One", null, null, null, "/menu/one", 1, 0, null,
+                "Menu One", null, null, null, "/menu/one", 1, null,
                 "example-service", "menu", "menu-1",
                 new SyncVersionRef(OCCURRED_AT, 1L));
         AccessRequestContext.bind(RequestContext.service(TENANT_ID, "example-service"));
@@ -169,7 +169,7 @@ class ResourceEntitySyncAppServiceTest {
                 .thenReturn(null);
 
         ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
-                "Menu One", "MENU", "parent-x", "default", "/menu/one", 1, 0, null,
+                "Menu One", "MENU", "parent-x", "default", "/menu/one", 1, null,
                 SOURCE_SERVICE, "menu", "menu-1",
                 new SyncVersionRef(OCCURRED_AT, 1L));
 
@@ -269,7 +269,7 @@ class ResourceEntitySyncAppServiceTest {
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
-                        null, null, null, null, 1, 0, null, null, null,
+                        null, null, null, null, 1, null, null, null,
                         new SyncVersionRef(OCCURRED_AT, 1L))));
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
@@ -301,7 +301,7 @@ class ResourceEntitySyncAppServiceTest {
         mockHeaderMatch();
         // USER 类型声明 SYNC+access-service（事实链路类型种子声明）——外部来源入口即拒
         ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "USER", "1001", "default",
-                "张三", null, null, null, null, 1, 0, null,
+                "张三", null, null, null, null, 1, null,
                 SOURCE_SERVICE, "user", "1001", new SyncVersionRef(OCCURRED_AT, 1L));
         when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(TENANT_ID, "USER", SOURCE_SERVICE))
                 .thenReturn(false);
@@ -340,7 +340,7 @@ class ResourceEntitySyncAppServiceTest {
                 .thenReturn(java.util.Map.of(5L, java.util.List.of(9L)));
 
         ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
-                "Menu One", "MENU", "child-x", "default", "/menu/one", 1, 0, null,
+                "Menu One", "MENU", "child-x", "default", "/menu/one", 1, null,
                 SOURCE_SERVICE, "menu", "menu-1",
                 new SyncVersionRef(OCCURRED_AT, 1L));
 
@@ -392,7 +392,7 @@ class ResourceEntitySyncAppServiceTest {
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
-                        "MENU", "child-x", "default", null, 1, 0, null, null, null,
+                        "MENU", "child-x", "default", null, 1, null, null, null,
                         new SyncVersionRef(OCCURRED_AT, 1L))));
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
@@ -446,7 +446,7 @@ class ResourceEntitySyncAppServiceTest {
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
-                        "MENU", "parent-x", "default", null, 1, 0, null, null, null,
+                        "MENU", "parent-x", "default", null, 1, null, null, null,
                         new SyncVersionRef(OCCURRED_AT, 1L))));
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);

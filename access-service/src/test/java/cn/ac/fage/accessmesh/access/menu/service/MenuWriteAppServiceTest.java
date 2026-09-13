@@ -98,13 +98,13 @@ class MenuWriteAppServiceTest {
     void createProjectsAllMenuTypes() {
         when(menuDomainService.calculateDepth(eq(TENANT), isNull())).thenReturn(1);
         when(localProjectionDomainService.upsertAdminMenu(
-            eq(TENANT), isNull(), eq("菜单X"), eq(0L), eq(1), eq(0))).thenReturn(400L);
+            eq(TENANT), isNull(), eq("菜单X"), eq(0L), eq(1))).thenReturn(400L);
 
         service.createMenu(new MenuCreateReq("HIDDEN", "菜单X", null, "/hidden/x",
             null, null, null, null, null, null));
 
         verify(localProjectionDomainService).upsertAdminMenu(
-            anyLong(), isNull(), eq("菜单X"), anyLong(), any(), any());
+            anyLong(), isNull(), eq("菜单X"), anyLong(), any());
         verify(localProjectionDomainService, never()).deleteAdminMenu(anyLong(), anyLong());
         verify(auditDomainService).recordChangeLog(any(), any());
     }
@@ -143,11 +143,11 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
         when(localProjectionDomainService.upsertAdminMenu(
-            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1), eq(3))).thenReturn(400L);
+            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1))).thenReturn(400L);
 
         service.updateMenu(new MenuUpdateReq(MENU_ID, "DIR", null, null, null, null, null, null, null, null));
 
-        verify(localProjectionDomainService).upsertAdminMenu(anyLong(), anyLong(), anyString(), anyLong(), any(), any());
+        verify(localProjectionDomainService).upsertAdminMenu(anyLong(), anyLong(), anyString(), anyLong(), any());
         verify(localProjectionDomainService, never()).deleteAdminMenu(anyLong(), anyLong());
     }
 
@@ -177,7 +177,7 @@ class MenuWriteAppServiceTest {
         assertThat(updated.getSourceService()).isEqualTo("access-service"); // 不可改
         // 投影按更新后事实同步（名称保持旧值）
         verify(localProjectionDomainService).upsertAdminMenu(
-            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1), eq(3));
+            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1));
     }
 
     @Test
@@ -222,7 +222,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
         when(localProjectionDomainService.upsertAdminMenu(
-            eq(TENANT), eq(MENU_ID), eq("新名称"), eq(0L), eq(1), eq(3))).thenReturn(400L);
+            eq(TENANT), eq(MENU_ID), eq("新名称"), eq(0L), eq(1))).thenReturn(400L);
 
         service.updateMenu(new MenuUpdateReq(MENU_ID, null, "新名称", null, null, null, null, null, null, null));
 
@@ -234,7 +234,7 @@ class MenuWriteAppServiceTest {
     void createNormalizesBlankStringsToNull() {
         when(menuDomainService.calculateDepth(eq(TENANT), isNull())).thenReturn(1);
         when(localProjectionDomainService.upsertAdminMenu(
-            anyLong(), isNull(), eq("菜单X"), eq(0L), eq(1), eq(0))).thenReturn(400L);
+            anyLong(), isNull(), eq("菜单X"), eq(0L), eq(1))).thenReturn(400L);
 
         service.createMenu(new MenuCreateReq("MENU", "菜单X", null, "  ",
             " ", null, null, "", "", "  "));
@@ -259,7 +259,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
         when(localProjectionDomainService.upsertAdminMenu(
-            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1), eq(3))).thenReturn(400L);
+            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1))).thenReturn(400L);
 
         service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, null, "  ", null, null, null, null, null));
 
@@ -288,7 +288,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.selectValidById(TENANT, 40L)).thenReturn(menu("MENU"));
         when(menuDomainService.calculateDepth(TENANT, 40L)).thenReturn(4);
         when(localProjectionDomainService.upsertAdminMenu(
-            anyLong(), isNull(), eq("第5层"), eq(40L), eq(1), eq(0))).thenReturn(400L);
+            anyLong(), isNull(), eq("第5层"), eq(40L), eq(1))).thenReturn(400L);
 
         service.createMenu(new MenuCreateReq("MENU", "第5层", 40L, "/lv5",
             null, null, null, null, null, null));
@@ -387,7 +387,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
         when(localProjectionDomainService.upsertAdminMenu(
-            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(30L), eq(1), eq(3))).thenReturn(400L);
+            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(30L), eq(1))).thenReturn(400L);
 
         service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, 30L, null, null, null, null, null, null));
 
@@ -405,7 +405,7 @@ class MenuWriteAppServiceTest {
         when(menuDomainService.resourceExists(eq(TENANT), eq("USER"), eq("5"), eq(MENU_ID)))
             .thenReturn(false);
         when(localProjectionDomainService.upsertAdminMenu(
-            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1), eq(3))).thenReturn(400L);
+            eq(TENANT), eq(MENU_ID), eq("菜单X"), eq(0L), eq(1))).thenReturn(400L);
 
         service.updateMenu(new MenuUpdateReq(MENU_ID, null, null, 0L, null, null, null, null, null, null));
 

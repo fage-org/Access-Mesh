@@ -39,7 +39,6 @@ const defaultFormData = (): ResourceFormData => ({
   name: "",
   parentId: props.parentNode?.id ?? null,
   status: 1,
-  sortOrder: 0,
   extra: ""
 });
 
@@ -73,7 +72,6 @@ const rules = computed<FormRules>(() => ({
     { required: true, message: "请输入资源名称", trigger: "blur" },
     { max: 256, message: "最长 256 字符", trigger: "blur" }
   ],
-  sortOrder: [{ required: true, message: "请输入排序号", trigger: "blur" }],
   status: [{ required: true, message: "请选择状态", trigger: "change" }]
 }));
 
@@ -145,7 +143,6 @@ function initFormData() {
       name: props.initialData.name,
       parentId: props.initialData.parentId,
       status: props.initialData.status,
-      sortOrder: props.initialData.sortOrder,
       extra: props.initialData.extra ?? ""
     });
     selectedParentName.value = "";
@@ -294,16 +291,6 @@ defineExpose({ validate, getFormData });
           </el-scrollbar>
         </div>
       </el-popover>
-    </el-form-item>
-
-    <el-form-item label="排序号" prop="sortOrder">
-      <el-input-number
-        v-model="formData.sortOrder"
-        :min="0"
-        :max="9999"
-        controls-position="right"
-        class="w-full!"
-      />
     </el-form-item>
 
     <el-form-item label="状态" prop="status">

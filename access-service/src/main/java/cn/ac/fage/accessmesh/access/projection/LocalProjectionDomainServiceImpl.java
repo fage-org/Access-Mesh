@@ -240,7 +240,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
 
     @Override
     public Long upsertAdminMenu(Long tenantId, Long sysMenuId, String name, Long parentMenuId,
-                                Integer status, Integer sortOrder) {
+                                Integer status) {
         Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.MENU);
         String externalId = String.valueOf(sysMenuId);
         LocalDateTime now = LocalDateTime.now();

@@ -80,7 +80,6 @@ public class ResourceSyncHandlerImpl implements ResourceSyncHandler {
                     resource.setName(api.name());
                     resource.setPath(fullPath);
                     resource.setStatus(1);
-                    resource.setSortOrder(0);
                     resource.setOwnerServiceCode(context.req().serviceCode());
                     resource.setMaintainSource(PermConstants.MaintainSource.SERVICE_SYNC);
                     resource.setExtra("{}");

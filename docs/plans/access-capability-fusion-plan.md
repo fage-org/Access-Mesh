@@ -49,7 +49,7 @@ last_updated: 2026-09-13
 | [T-ACCESS-033](../tasks/T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建 | 032 | ✅ |
 | [T-ACCESS-034](../tasks/T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | 033, 040 | ✅ |
 | [T-ACCESS-035](../tasks/T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | 033 | ✅ |
-| [T-ACCESS-036](../tasks/T-ACCESS-036.md) | resource_entity.sort_order 退役 | 033, 040 | ⚙️ |
+| [T-ACCESS-036](../tasks/T-ACCESS-036.md) | resource_entity.sort_order 退役 | 033, 040 | ✅ |
 | [T-ACCESS-037](../tasks/T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | 033, 040 | ⚙️ |
 | [T-ACCESS-038](../tasks/T-ACCESS-038.md) | 错误码合类不合号 | 033 | ⚙️ |
 | [T-ACCESS-039](../tasks/T-ACCESS-039.md) | 缓存目录合一 | 033, 034 | ⚙️ |
@@ -78,3 +78,4 @@ last_updated: 2026-09-13
 - 2026-09-13：T-ACCESS-034 收口——操作码常量面合一为 engine.constant.OperationCode（两旧册删除、57 文件改指、ACCESS/ASSIGN/REVOKE 补录、注册表镜像口径取代 T-PERM-019 D3）；UserManageAppServiceImpl 字段分档换绑（UPDATE/ENABLE/DELETE + 空 patch 90001）；USER:MANAGE 退役（DDL 种子 125→124、schema/表征测试迁移、注释残留清扫）；OPERATION_CODE 死缓存条目删除（039 前置达成）；空库首管理员 perm 轨放行正向锁（FirstAdminUserTrackPgIT）；双轨评审 P2×1+P3×8 全处置；全量回归 -T 1C 含 E2E 绿。
 - 2026-09-13：T-ACCESS-040 收口——契约总册 `docs/design/access-service-api-contract.md` 落地（两册合一按能力分章、内容零丢失）；permission-center 目录解散（三内档迁 `docs/design/engine/`、旧两册 superseded 留原位）；全仓活引用重挂（含 64 个代码文件注释）+ 下游卡 034/036/037 重挂总册；双轨评审 P2×9+P3×6 全处置。034/036/037 契约回写解锁落新册。
 - 2026-09-13：T-ACCESS-035 收口——四项死字段签名级消减（createLocalUserSubject/upsertAdminUser/UpsertUserKey 去 extraJson、upsertAdminOrg 去 sortOrder+extraJson；extraUsername/extraOrgType helper 与 bootstrap 两处字面量删除；MenuAppServiceImpl 死注入 + 两类死 import 清除）；实施期实证 flex 全列插入落显式 NULL 非列默认；行为面：admin 轨用户更新不再用 username JSON 覆写 extra（LOCAL_USER 行本无 permission 域写入口——guard 双向封死，外评修正归因；停写不清存量，BatchSqlIT 锁 COALESCE 防御性质）；schema 三处注释同步；双轨评审代码轨 P3×2+文档轨 P2×2+P3×3 全处置；全量回归 -T 1C 含 E2E 绿。存量观察归 036：upsertAdminMenu 的 sortOrder 参数 impl 零消费。
+- 2026-09-13：T-ACCESS-036 收口——resource 面 sortOrder 全字段面退役（schema 列 + ResourceEntity 实体字段 + SDK 双册 Create/Update Req/ResourceResp + 服务端 ResourceResp/ResourceTreeNode + ResourceEntitySyncReq/full-sync item；写入点五面含 ResourceSyncHandlerImpl service-config 通道与 upsertAdminMenu 零消费死参数——035 存量观察兑现；前端类型/提交载荷/表单链路 + mock fixtures 同批清理）；契约总册 §12.1 退役注记 + §19.1 补条 + 三示例回写；ResourceSortOrderRetiredTest 四 DTO 面 400 负向锁（严格 mapper 机制零改动）；双轨评审 P3×2 全处置（新测试注释措辞收敛 + 前端设计 frontmatter 注记）；全量回归 -T 1C 含 E2E 绿。

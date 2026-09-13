@@ -50,7 +50,6 @@ export type ResourceResp = {
   name: string;
   path: string | null;
   status: number;
-  sortOrder: number;
   extra: string | null;
   createdAt: string;
   updatedAt: string;
@@ -66,7 +65,6 @@ export type ResourceTreeNode = {
   name: string;
   path: string | null;
   status: number;
-  sortOrder: number;
   children: ResourceTreeNode[] | null;
 };
 
@@ -99,7 +97,6 @@ export type ResourceCreateReq = {
   name: string;
   path?: string | null;
   status?: number;
-  sortOrder?: number;
   extra?: string | null;
 };
 
@@ -111,7 +108,6 @@ export type ResourceUpdateReq = {
   name?: string;
   path?: string | null;
   status?: number;
-  sortOrder?: number;
   extra?: string | null;
   /** true=清空 extra 为 null（优先于 extra；JSON null 无法区分「未传」与「清空」） */
   extraClear?: boolean;

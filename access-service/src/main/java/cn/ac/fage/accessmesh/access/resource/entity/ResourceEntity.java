@@ -73,11 +73,6 @@ public class ResourceEntity {
     private Integer status;
 
     /**
-     * 排序顺序，用于资源列表展示排序
-     */
-    private Integer sortOrder;
-
-    /**
      * 所属服务编码，标识资源所属的服务
      */
     private String ownerServiceCode;

@@ -260,7 +260,7 @@ public class MenuWriteAppServiceImpl implements MenuWriteAppService {
     private void projectMenu(Long tenantId, SysMenu menu) {
         Long resourceId = localProjectionDomainService.upsertAdminMenu(
             tenantId, menu.getId(), menu.getDisplayName(), menu.getParentId(),
-            menu.getStatus(), menu.getSortOrder());
+            menu.getStatus());
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
                 tenantId, operatorId(), OperatorContext.getRequestId(), PermConstants.MaintainSource.MANUAL, "local-projection"),

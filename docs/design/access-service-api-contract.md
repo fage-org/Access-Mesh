@@ -1391,7 +1391,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 { "resourceTypeCode": "MENU", "code": "sys-mgmt", "codeType": "default" }
 // resource-entity/update（ResourceUpdateReq：键平铺 + 可编辑字段；code 为业务键不可更新）
 { "resourceTypeCode": "MENU", "code": "sys-mgmt", "codeType": "default",
-  "name": "系统管理", "path": null, "status": 1, "sortOrder": 10,
+  "name": "系统管理", "path": null, "status": 1,
   "extra": "{\"k\":1}", "extraClear": false }
 // resource-entity/move（ResourceMoveReq 嵌套；parent null=移动到顶层）
 { "resource": { "resourceTypeCode": "MENU", "code": "sys-mgmt", "codeType": "default" },
@@ -1412,6 +1412,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | move 校验 | 跨资源类型 / 目标父为自身或子孙 → 20053 RESOURCE_PARENT_INVALID（一类码两因，message 区分） |
 | remove 未命中键 | 静默跳过（对齐原 ids 批删语义），级联软删子孙 |
 | SYNC 类型只读（T-PERM-052） | 目标类型声明 `extra.managedMode=SYNC` 时 create/batch-create/update/move/remove 一律拒绝 **20055** `RESOURCE_EXTERNALLY_MAINTAINED`（资源由外部来源维护，请到来源系统操作）；**remove 的级联守卫覆盖删除全集（含展开的后代）**——sync 通道允许跨类型父子边，MANAGED 根的子树可能含 SYNC 类型后代，命中即整批拒绝不软删；读路径（tree/list/detail）不受限 |
+
+> **resource 面 sortOrder 字段退役（T-ACCESS-036，2026-09-13）**：`resource_entity.sort_order` 全仓零读取方（列表分页 `ORDER BY id`、资源树不按该列排序），列与实体字段、SDK 双册 `ResourceCreateReq/ResourceUpdateReq/ResourceResp`、服务端 `ResourceResp/ResourceTreeResp`、`ResourceEntitySyncReq` 与 full-sync item、`ResourceTreeResp.ResourceTreeNode` 及全部写入点（管理面 create/batch-create/update、资源同步通道、service-config/sync 资源落库）一次性退役；前端提交与表单链路同批清理。仍携带 `sortOrder` 的旧载荷在反序列化层被拒（全局 ObjectMapper 严格模式，未知字段 → 400/90001 信封，与 T-PERM-053 operationCode 退役同机制）；`ResourceSortOrderRetiredTest` 锁定四 DTO 面行为。role/menu/org/type_definition 的 `sortOrder` 不在退役范围（各自在用）。
 
 **读门禁（T-PERM-028 补齐，类型级）**：`resource-entity/list`、`resource-entity/detail` 补 `RESOURCE:VIEW`，`operation-permission/detail` 补 `OPERATION:VIEW`（与既有 tree/list 门禁同口径；bootstrap §14.4 最小集已持有，不阻断首管理员）。
 
@@ -2230,7 +2232,6 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
   "parentResourceCode": "1000",
   "path": null,
   "status": 1,
-  "sortOrder": 10,
   "extra": {
     "region": "CN"
   },
@@ -2255,6 +2256,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - **类型级所有权门禁（T-PERM-052，2026-09-05 定案，取代原 syncTypes.resourceTypeCodes 白名单维度）**：目标 `resourceTypeCode` 必须在类型定义上声明 `extra.managedMode=SYNC` 且 `extra.syncSourceService` 等于调用服务身份，且调用服务在 service_config 注册、未软删、`status=1` 启用（评审批次补强：服务停用/注销即四个同步通道一起断，与主体/角色/user_role 白名单语义一致）——任一不满足返回 `SECURITY_DENIED`/`RESOURCE_TYPE_OWNERSHIP_DENIED`（类型不存在一并 fail-closed 拒绝，真实原因仅记服务端日志）。每个资源类型单一所有权：MANAGED（缺省，管理面维护）/ SYNC（声明来源独占同步，管理面只读）；事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 由种子声明 SYNC+access-service（内部来源，见 §13；ADMIN_FILE 为 T-ADMIN-025 增补——文件夹实例由 bootstrap 预置+上传惰性登记产出；TYPE_DEFINITION 为 T-PERM-051 增补——类型定义实例投影由写路径同事务维护+bootstrap 自愈补种产出；CONDITION 为 T-PERM-048 增补——管理页条件投影由条件写路径同事务维护+bootstrap 自愈补种产出，仅 MANAGED 来源）。外部服务接入先经 `type-definition/create` 建自有类型（如 `HR_ORG`、`BI_MENU`）并声明来源，再调用本接口同步。
 - 外部业务服务同步自有资源类型时调用本接口（`resourceTypeCode` 须经类型级所有权门禁，见上条；T-ACCESS-018 的「公共类型外部同步合法」口径已随 T-PERM-052 类型级所有权定案收紧——外部服务同步自身用户/菜单须建自有类型，公共 `USER`/`MENU` 类型不再对同步开放）；事实链路七类型 `USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION` 由种子声明 `SYNC + syncSourceService=access-service`（内部来源，2026-09-05 内部来源统一；ADMIN_FILE 为 T-ADMIN-025 增补、TYPE_DEFINITION 为 T-PERM-051 增补、CONDITION 为 T-PERM-048 增补——管理页条件投影）——本接口对该七类型一律入口拒绝（来源不匹配，较旧口径「不撞投影行即放行」更严），其资源行由 user/org/menu 能力写编排（原 access.application）与角色/主体管理入口（T-ACCESS-019）经 LocalProjectionDomainService 同事务独占维护（ADMIN_FILE 文件夹投影走 ensureAdminFileFolder 两条事实链：bootstrap 预置 + 上传惰性登记；TYPE_DEFINITION 实例投影走写路径同事务维护 + bootstrap 自愈补种两条事实链，T-PERM-051）；原类型保留清单与行级投影防线（rejectIfLocalResource 20045）已收编删除，管理面 `create|batch-create|update|move|remove` 对 SYNC 类型（含七类型）统一 20055 只读（见 §12）。
 - 外部业务服务的全量校准同步走 `resource-entity/full-sync`，不是逐条调用本接口。
+- `sortOrder` 已随 resource 面字段退役删除（T-ACCESS-036）：本接口与 full-sync item 的旧载荷仍携带该字段 → 400（严格 mapper 未知字段拒绝，见 §12.1 退役注记）。
 
 ### 19.2 资源实体分领域全量校准 resource-entity/full-sync
 
@@ -2277,7 +2279,6 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
       "parentResourceCode": "1000",
       "parentCodeType": "default",
       "status": 1,
-      "sortOrder": 10,
       "extra": {
         "region": "CN"
       },

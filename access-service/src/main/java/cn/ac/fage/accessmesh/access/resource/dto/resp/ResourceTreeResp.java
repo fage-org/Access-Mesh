@@ -28,7 +28,6 @@ public record ResourceTreeResp(
      * @param name             资源名称
      * @param path             资源路径
      * @param status           资源状态，0=禁用，1=启用
-     * @param sortOrder        排序顺序
      * @param children         子节点列表
      */
     public record ResourceTreeNode(
@@ -40,7 +39,6 @@ public record ResourceTreeResp(
         String name,
         String path,
         Integer status,
-        Integer sortOrder,
         List<ResourceTreeNode> children
     ) {}
 }

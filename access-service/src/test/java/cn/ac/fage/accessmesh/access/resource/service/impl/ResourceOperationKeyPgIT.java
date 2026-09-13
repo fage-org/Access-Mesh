@@ -159,7 +159,6 @@ class ResourceOperationKeyPgIT {
         entity.setCodeType(codeType);
         entity.setName(code + " 资源");
         entity.setStatus(1);
-        entity.setSortOrder(0);
         entity.setExtra("{}");
         entity.setParentId(parentId);
         entity.setMaintainSource("MANUAL");
@@ -194,7 +193,7 @@ class ResourceOperationKeyPgIT {
             // BUTTON 未声明 SYNC（事实链路四类型之外），管理面可建（原保留清单已收编进类型门禁）
             var resp = service.createResource(TENANT, new ResourceCreateReq(
                 null, null, null, null, null, "BUTTON", "PGIT17_CREATE", null,
-                "冒烟资源", null, null, null, "{}"), 100L);
+                "冒烟资源", null, null, "{}"), 100L);
             ResourceEntity saved = resourceEntityMapper.selectValidById(TENANT, resp.id());
             assertThat(saved).isNotNull();
             assertThat(saved.getMaintainSource()).isEqualTo("MANUAL");
@@ -224,7 +223,7 @@ class ResourceOperationKeyPgIT {
 
             // update：业务键定位 + extraClear 清空
             service.updateResource(TENANT, new ResourceUpdateReq("DATA", "PGIT28_CHILD", null,
-                "子资源改名", null, null, null, null, Boolean.TRUE), 100L);
+                "子资源改名", null, null, null, Boolean.TRUE), 100L);
             ResourceEntity updated = resourceEntityMapper.selectValidById(TENANT, child.getId());
             assertThat(updated.getName()).isEqualTo("子资源改名");
             assertThat(updated.getExtra()).isNull();
