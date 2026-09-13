@@ -17,7 +17,7 @@ import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.platform.service.DictAppService;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.AdminCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
@@ -96,7 +96,7 @@ public class DictAppServiceImpl implements DictAppService {
         dictTypeMapper.insert(type);
 
         // 提交后失效缓存
-        cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, TenantContextHolder.getTenantId(), "all");
+        cacheService.evictAfterCommit(AccessCacheCatalog.DICT_TYPES, TenantContextHolder.getTenantId(), "all");
 
         return type.getId();
     }
@@ -150,7 +150,7 @@ public class DictAppServiceImpl implements DictAppService {
         }
 
         // 提交后失效缓存
-        cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
+        cacheService.evictAfterCommit(AccessCacheCatalog.DICT_TYPES, tenantId, "all");
     }
 
     /**
@@ -168,7 +168,7 @@ public class DictAppServiceImpl implements DictAppService {
         Long tenantId = TenantContextHolder.getTenantId();
 
         // ① 查缓存
-        List<DictTypeResp> cached = cacheService.get(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
+        List<DictTypeResp> cached = cacheService.get(AccessCacheCatalog.DICT_TYPES, tenantId, "all");
         if (cached != null) {
             return cached;
         }
@@ -203,7 +203,7 @@ public class DictAppServiceImpl implements DictAppService {
         }).collect(Collectors.toList());
 
         // ③ 回填缓存
-        cacheService.put(AdminCacheCatalog.DICT_TYPES, tenantId, "all", result);
+        cacheService.put(AccessCacheCatalog.DICT_TYPES, tenantId, "all", result);
 
         return result;
     }
@@ -278,7 +278,7 @@ public class DictAppServiceImpl implements DictAppService {
         dictDataMapper.insert(data);
 
         // 提交后失效缓存
-        cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
+        cacheService.evictAfterCommit(AccessCacheCatalog.DICT_TYPES, tenantId, "all");
 
         return data.getId();
     }
@@ -331,7 +331,7 @@ public class DictAppServiceImpl implements DictAppService {
         dictDataMapper.update(data);
 
         // 提交后失效缓存
-        cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
+        cacheService.evictAfterCommit(AccessCacheCatalog.DICT_TYPES, tenantId, "all");
     }
 
     /**
@@ -365,7 +365,7 @@ public class DictAppServiceImpl implements DictAppService {
         dictDataMapper.update(data);
 
         // 提交后失效缓存
-        cacheService.evictAfterCommit(AdminCacheCatalog.DICT_TYPES, tenantId, "all");
+        cacheService.evictAfterCommit(AccessCacheCatalog.DICT_TYPES, tenantId, "all");
     }
 
     /**

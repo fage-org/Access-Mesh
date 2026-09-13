@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.rule.service.domain.impl;
 
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
@@ -53,9 +53,9 @@ class PermissionConditionDomainServiceImplTest {
     void setUp() {
         service = new PermissionConditionDomainServiceImpl(conditionMapper,
             rolePermMapper, new ObjectMapper(), cacheService);
-        lenient().when(cacheService.beginRead(PermCacheCatalog.CONDITION_RULES)).thenReturn(readToken);
+        lenient().when(cacheService.beginRead(AccessCacheCatalog.CONDITION_RULES)).thenReturn(readToken);
         // 默认缓存全 miss（loadRules 单条路径走 get；各用例按需覆写为命中）
-        lenient().when(cacheService.get(eq(PermCacheCatalog.CONDITION_RULES), eq(TENANT), anyLong()))
+        lenient().when(cacheService.get(eq(AccessCacheCatalog.CONDITION_RULES), eq(TENANT), anyLong()))
             .thenReturn(null);
     }
 

@@ -22,7 +22,7 @@ import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper.Bi
 import cn.ac.fage.accessmesh.access.engine.core.BatchConditionEvaluator;
 import cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator;
 import cn.ac.fage.accessmesh.access.engine.core.ResolveContext;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.engine.util.OperationPermissionUtils;
 import cn.ac.fage.accessmesh.access.engine.util.PermResultUtils;
 import cn.ac.fage.accessmesh.access.engine.util.RolePermEntryMapper;
@@ -1629,13 +1629,13 @@ public class PermQueryEngine {
         }
         Set<String> cacheKeys = new LinkedHashSet<>();
         for (Integer resourceType : resourceTypes) {
-            cacheKeys.add(PermCacheCatalog.operationPermissionsByTypeKey(resourceType));
+            cacheKeys.add(AccessCacheCatalog.operationPermissionsByTypeKey(resourceType));
         }
         Map<String, Map<Long, OperationPermission>> opMapsByCacheKey = new LinkedHashMap<>(cacheService.getBatch(
-            PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKeys));
+            AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, cacheKeys));
         List<Integer> missTypes = new ArrayList<>();
         for (Integer resourceType : resourceTypes) {
-            if (!opMapsByCacheKey.containsKey(PermCacheCatalog.operationPermissionsByTypeKey(resourceType))) {
+            if (!opMapsByCacheKey.containsKey(AccessCacheCatalog.operationPermissionsByTypeKey(resourceType))) {
                 missTypes.add(resourceType);
             }
         }
@@ -1646,18 +1646,18 @@ public class PermQueryEngine {
                 if (specific.getResourceType() == null) {
                     continue;
                 }
-                toPut.computeIfAbsent(PermCacheCatalog.operationPermissionsByTypeKey(specific.getResourceType()),
+                toPut.computeIfAbsent(AccessCacheCatalog.operationPermissionsByTypeKey(specific.getResourceType()),
                         key -> new LinkedHashMap<>())
                     .put(specific.getId(), specific);
             }
             if (!toPut.isEmpty()) {
-                cacheService.putBatch(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, toPut);
+                cacheService.putBatch(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, toPut);
             }
             opMapsByCacheKey.putAll(toPut);
         }
         for (Integer resourceType : resourceTypes) {
             result.put(resourceType, opMapsByCacheKey.getOrDefault(
-                PermCacheCatalog.operationPermissionsByTypeKey(resourceType), Map.of()));
+                AccessCacheCatalog.operationPermissionsByTypeKey(resourceType), Map.of()));
         }
         return result;
     }
@@ -1839,7 +1839,7 @@ public class PermQueryEngine {
                 .map(entryMapper::toEntry).toList();
         }
         // 1. 批量读缓存
-        Map<Long, List<RolePermEntry>> cached = cacheService.getBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIds);
+        Map<Long, List<RolePermEntry>> cached = cacheService.getBatch(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIds);
         List<RolePermEntry> allEntries = new ArrayList<>();
         Set<Long> miss = new LinkedHashSet<>();
         for (Long roleId : roleIds) {
@@ -1855,7 +1855,7 @@ public class PermQueryEngine {
         // 2. miss 集合回源 1 SQL（读取起点在 SQL 前——剩余 TTL 从此刻起算）
         if (!miss.isEmpty()) {
             CacheReadToken<List<RolePermEntry>> readToken =
-                cacheService.beginRead(PermCacheCatalog.ROLE_PERM_SNAPSHOT);
+                cacheService.beginRead(AccessCacheCatalog.ROLE_PERM_SNAPSHOT);
             List<RoleResourcePermission> dbRows = rolePermMapper.selectValidByRoleIds(tenantId, miss);
             Map<Long, List<RolePermEntry>> perRole = new LinkedHashMap<>();
             for (RoleResourcePermission p : dbRows) {

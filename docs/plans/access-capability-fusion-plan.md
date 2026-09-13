@@ -52,7 +52,7 @@ last_updated: 2026-09-13
 | [T-ACCESS-036](../tasks/T-ACCESS-036.md) | resource_entity.sort_order 退役 | 033, 040 | ✅ |
 | [T-ACCESS-037](../tasks/T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | 033, 040 | ✅ |
 | [T-ACCESS-038](../tasks/T-ACCESS-038.md) | 错误码合类不合号 | 033 | ✅ |
-| [T-ACCESS-039](../tasks/T-ACCESS-039.md) | 缓存目录合一 | 033, 034 | ⚙️ |
+| [T-ACCESS-039](../tasks/T-ACCESS-039.md) | 缓存目录合一 | 033, 034 | ✅ |
 | [T-ACCESS-040](../tasks/T-ACCESS-040.md) | API 契约深合一与设计文档重组 | 033 | ✅ |
 | [T-ACCESS-041](../tasks/T-ACCESS-041.md) | 规则与技能文件重写（能力 + 引擎口径） | 033, 034~039, 040 | ⚙️ |
 
@@ -81,3 +81,4 @@ last_updated: 2026-09-13
 - 2026-09-13：T-ACCESS-036 收口——resource 面 sortOrder 全字段面退役（schema 列 + ResourceEntity 实体字段 + SDK 双册 Create/Update Req/ResourceResp + 服务端 ResourceResp/ResourceTreeNode + ResourceEntitySyncReq/full-sync item；写入点五面含 ResourceSyncHandlerImpl service-config 通道与 upsertAdminMenu 零消费死参数——035 存量观察兑现；前端类型/提交载荷/表单链路 + mock fixtures 同批清理）；契约总册 §12.1 退役注记 + §19.1 补条 + 三示例回写；ResourceSortOrderRetiredTest 四 DTO 面 400 负向锁（严格 mapper 机制零改动）；双轨评审 P3×2 全处置（新测试注释措辞收敛 + 前端设计 frontmatter 注记）；全量回归 -T 1C 含 E2E 绿。
 - 2026-09-13：T-ACCESS-037 收口——admin /config 僵尸入口整链退役（ConfigController/ConfigAppService(Impl)/ConfigUpdateReq/ConfigResp 五文件；SystemConfigMapper admin 侧五方法与 XML 语句；AdminErrorCode 10701/10702 入 RETIRED_ADMIN_NAMES）；测试四面适配（HttpApiPathSnapshot 双快照删 4 路径 + RETIRED_PATHS 补登（§8.4 指令兑现）=双件套负向锁、ErrorCodeContract 退役登记、AdminPageRespShape 删 Config 嵌套类语义锁移交 OrgTreeConfig、AdminXmlPaginationPgIT 删两用例）；SYSTEM_CONFIG 门禁收敛 perm 口径（VIEW/MANAGE）零悬空，操作码预置位不删；契约总册 §17.2 单入口注记 + §17.3 族清单 5→4 + 覆面说明 6→5 同步。
 - 2026-09-13：T-ACCESS-038 收口——错误码合类不合号：合一为单册 `infrastructure.enums.AccessErrorCode`（两旧枚举 118 项=112 原名平移+六碰撞常量 ADMIN_/PERM_ 段前缀，编号段零重排；形态与新册名实施期用户拍板入 registry）；两旧枚举删除、80 文件机械收敛（含测试内联 FQCN 与 `biz()` 类型引用）；ErrorCodeContractTest 重写（单映射键基线 92 条逐条保持——原「53+37/90」为存量计数漂移按去计数化定规收口、segments 判据改编号段、COLLISION_PAIR_LOCK 碰撞对专项锁）；architecture §9/§10 + capability-structure §3/§8.2/§9 回写；project-rules §1.2:80「不得合并」互斥句归 041 承接（卡内登记）；本地双轨 + claude/grok 外评全处置（claude P3×2/grok P3×0，均「可定稿」）；全量回归 -T 1C 含 E2E 绿。
+- 2026-09-13：T-ACCESS-039 收口——缓存目录合一：合一为单册 `infrastructure.cache.AccessCacheCatalog`（原 perm 8 条 + DICT_TYPES 迁入共 9 条，mode/TTL 零改动；类名与越域 code 归位实施期用户拍板入 registry）；`admin:org-visibility` → `access:org-visibility` 不做兼容双读（仓内无 YAML 覆盖键，Nacos 仓外面见 Q-006）；PermCacheBoundaryValidator 六条重绑判据零改动，PermCacheCatalogBoundaryTest 更名并补三条合一回归锁；27 消费文件 + common javadoc 4 处 + BusinessKeys 措辞机械收敛；capability-structure §3/§8.2/§9 + engine 两册 + skill 双副本 v3.1.0 回写；全量回归 -T 1C 含 E2E 绿。

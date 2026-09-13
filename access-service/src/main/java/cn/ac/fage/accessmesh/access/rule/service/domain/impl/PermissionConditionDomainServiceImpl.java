@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * 权限条件领域服务实现类
  * <p>
  * 负责权限条件的评估与缓存管理，支持日期范围、时间范围、IP黑白名单等条件类型。
- * 使用统一 CacheService + PermCacheCatalog 管理缓存。
+ * 使用统一 CacheService + AccessCacheCatalog 管理缓存。
  * </p>
  */
 @Service
@@ -140,7 +140,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
                 return;
             }
             // ① 批量读缓存（命中视为 OK——禁用/删除条件经写路径 evict）
-            Map<Long, JsonNode> cached = cacheService.getBatch(PermCacheCatalog.CONDITION_RULES, tenantId, toLoad);
+            Map<Long, JsonNode> cached = cacheService.getBatch(AccessCacheCatalog.CONDITION_RULES, tenantId, toLoad);
             Set<Long> miss = new LinkedHashSet<>();
             for (Long id : toLoad) {
                 JsonNode rules = cached.get(id);
@@ -156,7 +156,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             // ② miss 批量回源：selectValidByIds 只滤租户+软删不滤 enabled——禁用/缺失/解析
             //    失败记请求级失败状态，仅 OK 入正缓存（朴素批量把禁用条件当有效规则入缓存
             //    = 权限绕过方向，T-PERM-061 设计定稿四态 fail-close）
-            CacheReadToken<JsonNode> readToken = cacheService.beginRead(PermCacheCatalog.CONDITION_RULES);
+            CacheReadToken<JsonNode> readToken = cacheService.beginRead(AccessCacheCatalog.CONDITION_RULES);
             List<PermissionCondition> rows = conditionMapper.selectValidByIds(tenantId, miss);
             Map<Long, PermissionCondition> rowById = new LinkedHashMap<>();
             for (PermissionCondition condition : rows) {
@@ -263,13 +263,13 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      */
     private LoadedRules loadRules(Long tenantId, Long conditionId) {
         // ① 查缓存（null = miss）
-        JsonNode rules = cacheService.get(PermCacheCatalog.CONDITION_RULES, tenantId, conditionId);
+        JsonNode rules = cacheService.get(AccessCacheCatalog.CONDITION_RULES, tenantId, conditionId);
         if (rules != null) {
             return new LoadedRules(LoadedRules.STATUS_OK, rules);
         }
 
         // ② miss 后查 DB（T-ACCESS-008：DB 读取前记录读取起点，回填只写剩余 TTL）
-        CacheReadToken<JsonNode> readToken = cacheService.beginRead(PermCacheCatalog.CONDITION_RULES);
+        CacheReadToken<JsonNode> readToken = cacheService.beginRead(AccessCacheCatalog.CONDITION_RULES);
         PermissionCondition condition = conditionMapper.selectOneById(conditionId);
         if (condition == null || !tenantId.equals(condition.getTenantId())) {
             return new LoadedRules(LoadedRules.STATUS_NOT_FOUND, null);
@@ -462,7 +462,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      * @param conditionId 条件ID
      */
     public void evictConditionCache(Long tenantId, Long conditionId) {
-        cacheService.evictAfterCommit(PermCacheCatalog.CONDITION_RULES, tenantId, conditionId);
+        cacheService.evictAfterCommit(AccessCacheCatalog.CONDITION_RULES, tenantId, conditionId);
     }
 
     /**
@@ -478,7 +478,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
         if (conditionIds == null || conditionIds.isEmpty()) {
             return;
         }
-        cacheService.evictBatchAfterCommit(PermCacheCatalog.CONDITION_RULES, tenantId, conditionIds);
+        cacheService.evictBatchAfterCommit(AccessCacheCatalog.CONDITION_RULES, tenantId, conditionIds);
     }
 
     /**

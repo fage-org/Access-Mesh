@@ -144,7 +144,7 @@ class StaleBackfillLatchTest {
 
     private String fullKey(Object identifier) {
         return cn.ac.fage.accessmesh.common.cache.CacheKeyUtil.build(
-            TENANT_ID, PermCacheCatalog.EFFECTIVE_ROLES.getCode(), identifier);
+            TENANT_ID, AccessCacheCatalog.EFFECTIVE_ROLES.getCode(), identifier);
     }
 
     private UserRole role(Long userId, Long roleId) {
@@ -183,7 +183,7 @@ class StaleBackfillLatchTest {
             assertThat(dbReadStarted.await(5, TimeUnit.SECONDS)).isTrue();
             // 此时读取已开始（令牌起点 T0=0）；模拟权限事务提交后的失效
             advanceMs(1_000);
-            cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT_ID, Set.of(USER_ID));
+            cacheService.evictBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT_ID, Set.of(USER_ID));
             // 旧读取完成前再耗时 2s（累计 3s）
             advanceMs(2_000);
             invalidationDone.countDown();
@@ -223,7 +223,7 @@ class StaleBackfillLatchTest {
 
             assertThat(dbReadStarted.await(5, TimeUnit.SECONDS)).isTrue();
             advanceMs(1_000);
-            cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT_ID, Set.of(USER_ID));
+            cacheService.evictBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT_ID, Set.of(USER_ID));
             // 累计超过 catalog 10s 预算
             advanceMs(9_500);
             invalidationDone.countDown();
@@ -259,7 +259,7 @@ class StaleBackfillLatchTest {
 
             assertThat(dbReadStarted.await(5, TimeUnit.SECONDS)).isTrue();
             advanceMs(1_000);
-            cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT_ID, Set.of(10L, 11L, 12L));
+            cacheService.evictBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT_ID, Set.of(10L, 11L, 12L));
             advanceMs(2_000);
             invalidationDone.countDown();
             read.get(5, TimeUnit.SECONDS);

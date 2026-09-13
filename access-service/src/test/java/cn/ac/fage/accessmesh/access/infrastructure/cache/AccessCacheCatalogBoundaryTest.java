@@ -6,32 +6,35 @@ import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * 授权缓存目录与安全边界启动校验测试（T-ACCESS-008）。
+ * 统一缓存目录与授权安全边界启动校验测试（T-ACCESS-008 / T-ACCESS-039 合一）。
  * <p>
  * 快照链路 6 目录（用户决策 2026-08-21）必须 L2_ONLY 且 TTL=10s（不创建授权 L1）；
- * OPERATION_PERMISSIONS_BY_TYPE 保持 L1_L2；ORG_VISIBILITY 保持 L2_ONLY 60s。
- * YAML 运维覆盖使有效 L2 TTL 超过 10s 时启动失败。
+ * OPERATION_PERMISSIONS_BY_TYPE 保持 L1_L2；ORG_VISIBILITY 保持 L2_ONLY 60s
+ * （code 于 039 越域归位为 access:org-visibility）；DICT_TYPES 自 AdminCacheCatalog
+ * 迁入（code admin:dict-types 不变）。YAML 运维覆盖使有效 L2 TTL 超过 10s 时启动失败。
  * 安全预算：上游授权 L2(10s) + Gateway 回源截止(5s) + Gateway L1(15s) ≤ 30s
  * ——后两项上限由 gateway 模块 GatewayCacheBoundaryValidator 强制。
  * </p>
  */
-class PermCacheCatalogBoundaryTest {
+class AccessCacheCatalogBoundaryTest {
 
     @Test
     void snapshotCatalogs_shouldBeL2OnlyWith10sTtl() {
         CacheCatalogEntry<?>[] catalogs = {
-            PermCacheCatalog.EFFECTIVE_ROLES,
-            PermCacheCatalog.ROLE_PERM_SNAPSHOT,
-            PermCacheCatalog.TYPE_VALUE,
-            PermCacheCatalog.TYPE_CODE,
-            PermCacheCatalog.CONDITION_RULES,
-            PermCacheCatalog.ROLE_MUTEX_RULE
+            AccessCacheCatalog.EFFECTIVE_ROLES,
+            AccessCacheCatalog.ROLE_PERM_SNAPSHOT,
+            AccessCacheCatalog.TYPE_VALUE,
+            AccessCacheCatalog.TYPE_CODE,
+            AccessCacheCatalog.CONDITION_RULES,
+            AccessCacheCatalog.ROLE_MUTEX_RULE
         };
         assertThat(catalogs).hasSize(6);
         for (CacheCatalogEntry<?> catalog : catalogs) {
@@ -46,9 +49,45 @@ class PermCacheCatalogBoundaryTest {
 
     @Test
     void nonSnapshotCatalogs_shouldKeepOrdinaryModes() {
-        assertThat(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE.getMode()).isEqualTo(CacheMode.L1_L2);
-        assertThat(PermCacheCatalog.ORG_VISIBILITY.getMode()).isEqualTo(CacheMode.L2_ONLY);
-        assertThat(PermCacheCatalog.ORG_VISIBILITY.getL2Ttl()).isEqualTo(Duration.ofSeconds(60));
+        assertThat(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE.getMode()).isEqualTo(CacheMode.L1_L2);
+        assertThat(AccessCacheCatalog.ORG_VISIBILITY.getMode()).isEqualTo(CacheMode.L2_ONLY);
+        assertThat(AccessCacheCatalog.ORG_VISIBILITY.getL2Ttl()).isEqualTo(Duration.ofSeconds(60));
+        assertThat(AccessCacheCatalog.DICT_TYPES.getMode()).isEqualTo(CacheMode.L1_L2);
+        assertThat(AccessCacheCatalog.DICT_TYPES.getL1Ttl()).isEqualTo(Duration.ofMinutes(10));
+        assertThat(AccessCacheCatalog.DICT_TYPES.getL2Ttl()).isEqualTo(Duration.ofMinutes(60));
+    }
+
+    @Test
+    void orgVisibilityCode_shouldBeRelocatedToAccessPrefix() {
+        // T-ACCESS-039 越域归位回归锁：原 admin:org-visibility（越域）→ access:org-visibility
+        assertThat(AccessCacheCatalog.ORG_VISIBILITY.getCode()).isEqualTo("access:org-visibility");
+    }
+
+    @Test
+    void dictTypesCode_shouldSurviveCatalogMergeUnchanged() {
+        // T-ACCESS-039 合一回归锁：DICT_TYPES 自 AdminCacheCatalog 迁入，code 与容量形态不变
+        assertThat(AccessCacheCatalog.DICT_TYPES.getCode()).isEqualTo("admin:dict-types");
+        assertThat(AccessCacheCatalog.DICT_TYPES.getL1MaxSize()).isEqualTo(500);
+    }
+
+    @Test
+    void mergedCatalog_codesShouldBeDistinct() {
+        // 单册合一回归锁：全部条目 code 两两不同（防止合并/新增条目时 code 撞车）
+        List<CacheCatalogEntry<?>> catalogs = Arrays.asList(
+            AccessCacheCatalog.EFFECTIVE_ROLES,
+            AccessCacheCatalog.ROLE_PERM_SNAPSHOT,
+            AccessCacheCatalog.TYPE_VALUE,
+            AccessCacheCatalog.TYPE_CODE,
+            AccessCacheCatalog.CONDITION_RULES,
+            AccessCacheCatalog.ROLE_MUTEX_RULE,
+            AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE,
+            AccessCacheCatalog.ORG_VISIBILITY,
+            AccessCacheCatalog.DICT_TYPES
+        );
+        long distinctCodes = catalogs.stream().map(CacheCatalogEntry::getCode).distinct().count();
+        assertThat(distinctCodes)
+            .as("合一目录册内条目 code 必须两两不同")
+            .isEqualTo(catalogs.size());
     }
 
     @Test

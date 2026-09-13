@@ -227,7 +227,7 @@ class OperationAppServiceImplTest {
         // T-PERM-047 回归锁：旧实现（写路径无失效，靠 L1 60m/L2 120m TTL 兜底）下 verify 失败——
         // 位值变更后引擎最长 1-2 小时按旧位值判定
         verify(cacheService).evictAfterCommit(
-            eq(cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
+            eq(cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
             eq(1L), eq("op_perm:5"));
     }
 
@@ -288,7 +288,7 @@ class OperationAppServiceImplTest {
                 && !ids.contains(12L) && !ids.contains(21L)), any());
         // T-PERM-047 回归锁：批量软删后按受影响类型集合批量失效（同类型去重）
         verify(cacheService).evictBatchAfterCommit(
-            eq(cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
+            eq(cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
             eq(1L), eq(java.util.Set.of("op_perm:5", "op_perm:6")));
     }
 
@@ -309,7 +309,7 @@ class OperationAppServiceImplTest {
         // 旧实现（无失效接线）下 verify 失败：新增操作在 TTL 窗口内不参与覆盖判定
         verify(operationPermissionMapper).insert(any(OperationPermission.class));
         verify(cacheService).evictAfterCommit(
-            eq(cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
+            eq(cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
             eq(1L), eq("op_perm:7"));
     }
 
@@ -403,7 +403,7 @@ class OperationAppServiceImplTest {
         verify(grantOriginDomainService).seedAuthorityRootGrants(eq(1L), eq(55L), eq(15),
             eq(List.of(16L)), eq(100L));
         verify(cacheService).evictAfterCommit(
-            eq(cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
+            eq(cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
             eq(1L), eq("op_perm:15"));
     }
 

@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.type.service.impl;
 
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.type.dto.req.OperationKeyReq;
 import cn.ac.fage.accessmesh.access.type.dto.req.OperationUpdateReq;
 import cn.ac.fage.accessmesh.access.type.dto.resp.OperationPermissionResp;
@@ -161,8 +161,8 @@ public class OperationAppServiceImpl implements OperationAppService {
         }
         // T-PERM-047：新增操作改变该类型的操作集合，提交后失效 per-type 缓存
         // （引擎位掩码按 op_perm:{type} 缓存全量操作 Map，L1 60m/L2 120m TTL 不兜底变更）
-        cacheService.evictAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
-            PermCacheCatalog.operationPermissionsByTypeKey(resourceType));
+        cacheService.evictAfterCommit(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
+            AccessCacheCatalog.operationPermissionsByTypeKey(resourceType));
         return toResp(op);
     }
 
@@ -313,8 +313,8 @@ public class OperationAppServiceImpl implements OperationAppService {
         }
         // T-PERM-047：位值/继承掩码变更改变覆盖判定输入，提交后失效 per-type 缓存
         // （否则 TTL 窗口内引擎按旧位值判定，已授权角色语义静默翻转）
-        cacheService.evictAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
-            PermCacheCatalog.operationPermissionsByTypeKey(op.getResourceType()));
+        cacheService.evictAfterCommit(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
+            AccessCacheCatalog.operationPermissionsByTypeKey(op.getResourceType()));
         return toResp(op);
     }
 
@@ -389,10 +389,10 @@ public class OperationAppServiceImpl implements OperationAppService {
         Set<String> affectedTypeKeys = entities.stream()
             .map(OperationPermission::getResourceType)
             .filter(Objects::nonNull)
-            .map(PermCacheCatalog::operationPermissionsByTypeKey)
+            .map(AccessCacheCatalog::operationPermissionsByTypeKey)
             .collect(Collectors.toSet());
         if (!affectedTypeKeys.isEmpty()) {
-            cacheService.evictBatchAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, affectedTypeKeys);
+            cacheService.evictBatchAfterCommit(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId, affectedTypeKeys);
         }
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " operation_permission row(s)");
     }

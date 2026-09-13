@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.rule.service.domain.impl;
 
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
 import cn.ac.fage.accessmesh.access.rule.enums.ConflictType;
@@ -146,7 +146,7 @@ class PermissionConflictDomainServiceImplTest {
         /** 双删命中记日志且去重：同用户同规则对窗口内重复快照不重复记（旧实现无日志，必红） */
         @Test
         void shouldDropBothRolesAndLogOncePerUserRuleWithinDedupWindow() {
-            when(cacheService.get(PermCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
                 .thenReturn("[{\"first\":100,\"second\":200}]");
 
             Set<Long> first = service.filterRoleMutex(TENANT, 20L, Set.of(100L, 200L, 300L));
@@ -161,7 +161,7 @@ class PermissionConflictDomainServiceImplTest {
         /** 不同用户/不同规则对各自记日志 */
         @Test
         void shouldLogAgainForDifferentUserOrPair() {
-            when(cacheService.get(PermCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
                 .thenReturn("[{\"first\":100,\"second\":200},{\"first\":300,\"second\":400}]");
 
             service.filterRoleMutex(TENANT, 20L, Set.of(100L, 200L));
@@ -174,7 +174,7 @@ class PermissionConflictDomainServiceImplTest {
         /** 单侧在场不构成互斥：保留且不记日志 */
         @Test
         void shouldNotLogWhenNoPairBothPresent() {
-            when(cacheService.get(PermCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
                 .thenReturn("[{\"first\":100,\"second\":200}]");
 
             Set<Long> result = service.filterRoleMutex(TENANT, 20L, Set.of(100L, 300L));

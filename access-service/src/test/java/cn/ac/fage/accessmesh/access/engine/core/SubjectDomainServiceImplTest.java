@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.core;
 
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
@@ -60,7 +60,7 @@ class SubjectDomainServiceImplTest {
     void batchResolveEffectiveRolesShouldUseBatchCacheGetAndPut() {
         Set<Long> userIds = new LinkedHashSet<>(Set.of(1L, 2L));
 
-        when(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, userIds))
+        when(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, 1L, userIds))
             .thenReturn(Map.of(1L, Set.of(10L)));
         when(userRoleMapper.selectValidByUserIdsWithValidity(eq(1L), eq(Set.of(2L)), any(LocalDateTime.class)))
             .thenReturn(List.of());
@@ -69,12 +69,12 @@ class SubjectDomainServiceImplTest {
 
         assertEquals(Set.of(10L), result.get(1L));
         assertEquals(Set.of(), result.get(2L));
-        verify(cacheService).getBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, userIds);
+        verify(cacheService).getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, 1L, userIds);
         // T-ACCESS-008：回填走读取令牌（剩余 TTL），验证令牌绑定同一 catalog
         var tokenCaptor = org.mockito.ArgumentCaptor.forClass(
             cn.ac.fage.accessmesh.common.cache.CacheReadToken.class);
         verify(cacheService).putBatch(tokenCaptor.capture(), eq(1L), eq(Map.of(2L, Set.of())));
-        assertEquals(PermCacheCatalog.EFFECTIVE_ROLES, tokenCaptor.getValue().catalog());
+        assertEquals(AccessCacheCatalog.EFFECTIVE_ROLES, tokenCaptor.getValue().catalog());
     }
 
     /**
@@ -85,7 +85,7 @@ class SubjectDomainServiceImplTest {
     void batchResolveEffectiveRolesShouldSkipDbAndBackfillWhenAllCached() {
         Set<Long> userIds = Set.of(1L, 2L);
 
-        when(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, userIds))
+        when(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, 1L, userIds))
             .thenReturn(Map.of(1L, Set.of(10L), 2L, Set.of(20L)));
 
         Map<Long, Set<Long>> result = service.batchResolveEffectiveRoles(1L, userIds);
@@ -106,7 +106,7 @@ class SubjectDomainServiceImplTest {
 
         service.invalidateRoleCacheBatch(1L, userIds);
 
-        verify(cacheService).evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, 1L, userIds);
+        verify(cacheService).evictBatch(AccessCacheCatalog.EFFECTIVE_ROLES, 1L, userIds);
     }
 
     /**
@@ -136,7 +136,7 @@ class SubjectDomainServiceImplTest {
         service.invalidateRoleCacheByRoles(1L, roleIds);
 
         // 合并直接用户 + 组直绑用户 + 组角色用户，一次 evictBatch
-        verify(cacheService).evictBatch(eq(PermCacheCatalog.EFFECTIVE_ROLES), eq(1L), eq(Set.of(1L, 2L, 3L)));
+        verify(cacheService).evictBatch(eq(AccessCacheCatalog.EFFECTIVE_ROLES), eq(1L), eq(Set.of(1L, 2L, 3L)));
     }
 
     @Test

@@ -11,7 +11,7 @@ description: >-
 origin: project
 metadata:
   project: AccessMesh
-  version: "3.0.0"
+  version: "3.1.0"
 ---
 
 # 统一缓存框架规范
@@ -68,6 +68,7 @@ metadata:
 - `1:perm:effective-roles:456`
 - `1:perm:role-perm-snapshot:1001`
 - `1:admin:dict-types:all`
+- `1:access:org-visibility:789`（T-ACCESS-039 越域归位条目）
 
 要求：
 
@@ -80,11 +81,11 @@ metadata:
 业务侧统一采用显式 Cache Aside 四步模式，**不提供 loader 回调**：
 
 ```java
-Set<Long> roles = cacheService.get(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
+Set<Long> roles = cacheService.get(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
 if (roles == null) {
     roles = userRoleMapper.selectRoleIds(tenantId, userId);
     if (roles != null) {
-        cacheService.put(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId, roles);
+        cacheService.put(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userId, roles);
     }
 }
 return roles;
@@ -93,8 +94,8 @@ return roles;
 写路径统一在事务提交后失效：
 
 ```java
-cacheService.evictAfterCommit(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
-cacheService.evictBatchAfterCommit(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
+cacheService.evictAfterCommit(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
+cacheService.evictBatchAfterCommit(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
 ```
 
 订阅重连等不依赖租户枚举的恢复场景可使用 catalog 级跨租户全清（L2 走 SCAN，禁止高频调用）：
@@ -108,10 +109,10 @@ cacheService.evictAll(GatewayCacheCatalog.INTERFACE_SNAPSHOT);
 授权 L2 目录 miss 后，**在开始数据库读取事务或快照查询之前**调用 `beginRead` 记录单调时钟起点，回填只写「读取起点 + catalog TTL」扣除耗时后的剩余 TTL：
 
 ```java
-Map<Long, Set<Long>> cached = cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
+Map<Long, Set<Long>> cached = cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
 // ... 计算 miss 集合 ...
 if (!miss.isEmpty()) {
-    CacheReadToken<Set<Long>> token = cacheService.beginRead(PermCacheCatalog.EFFECTIVE_ROLES); // DB 读取前
+    CacheReadToken<Set<Long>> token = cacheService.beginRead(AccessCacheCatalog.EFFECTIVE_ROLES); // DB 读取前
     Map<Long, Set<Long>> loaded = loadFromDb(miss);                                            // 1 SQL
     cacheService.putBatch(token, tenantId, loaded);                                            // 只写剩余 TTL
 }
@@ -141,7 +142,7 @@ if (!miss.isEmpty()) {
 每个模块维护自己的 catalog 常量类，不在业务代码里传字符串：
 
 ```java
-public final class PermCacheCatalog {
+public final class AccessCacheCatalog {
     // 快照链路目录：L2_ONLY ≤10s（不创建授权 L1）
     public static final CacheCatalogEntry<Set<Long>> EFFECTIVE_ROLES =
         CacheCatalogEntry.<Set<Long>>builder()

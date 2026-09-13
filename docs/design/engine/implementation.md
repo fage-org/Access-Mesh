@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: permission-center
-last_reviewed: 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode + §8.3 死常量注记口径变更——统一常量面=注册表镜像）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-13（T-ACCESS-039：§5.1 缓存表与正文目录册引用改挂合一后 AccessCacheCatalog——mode/TTL 与键格式零改动；last_reviewed 历史链内 2026-09-11 时点注记保留旧册名原文）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode + §8.3 死常量注记口径变更——统一常量面=注册表镜像）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -665,14 +665,14 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
 | 缓存内容                    | Catalog / Key 模式                                                                 | 模式      | L1 TTL    | L2 TTL   |
 | --------------------------- | ---------------------------------------------------------------------------------- | --------- | --------- | -------- |
-| 用户有效角色集合            | `PermCacheCatalog.EFFECTIVE_ROLES` / `{tenantId}:perm:effective-roles:{userId}`    | `L2_ONLY` | —         | 10 秒（快照链路安全边界，T-ACCESS-008） |
-| 角色权限快照（资源+操作位） | `PermCacheCatalog.ROLE_PERM_SNAPSHOT` / `{tenantId}:perm:role-perm-snapshot:{roleId}` | `L2_ONLY` | — | 10 秒（仅 LIST 管线消费；forAuthCheck 鉴权面不经快照，见 §3.10） |
-| 条件规则                    | `PermCacheCatalog.CONDITION_RULES` / `{tenantId}:perm:condition-rules:{conditionId}` | `L2_ONLY` | —       | 10 秒（快照链路安全边界） |
-| 角色互斥规则                | `PermCacheCatalog.ROLE_MUTEX_RULE` / `{tenantId}:perm:role-mutex-rule:all`         | `L2_ONLY`   | —       | 10 秒（快照链路安全边界） |
-| 操作权限按资源类型索引      | `PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE` / `{tenantId}:perm:operation-permissions-by-type:op_perm:{resourceType}` | `L1_L2` | 60 分钟   | 120 分钟 |
+| 用户有效角色集合            | `AccessCacheCatalog.EFFECTIVE_ROLES` / `{tenantId}:perm:effective-roles:{userId}`    | `L2_ONLY` | —         | 10 秒（快照链路安全边界，T-ACCESS-008） |
+| 角色权限快照（资源+操作位） | `AccessCacheCatalog.ROLE_PERM_SNAPSHOT` / `{tenantId}:perm:role-perm-snapshot:{roleId}` | `L2_ONLY` | — | 10 秒（仅 LIST 管线消费；forAuthCheck 鉴权面不经快照，见 §3.10） |
+| 条件规则                    | `AccessCacheCatalog.CONDITION_RULES` / `{tenantId}:perm:condition-rules:{conditionId}` | `L2_ONLY` | —       | 10 秒（快照链路安全边界） |
+| 角色互斥规则                | `AccessCacheCatalog.ROLE_MUTEX_RULE` / `{tenantId}:perm:role-mutex-rule:all`         | `L2_ONLY`   | —       | 10 秒（快照链路安全边界） |
+| 操作权限按资源类型索引      | `AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE` / `{tenantId}:perm:operation-permissions-by-type:op_perm:{resourceType}` | `L1_L2` | 60 分钟   | 120 分钟 |
 | Gateway 接口快照            | `PermissionFilter.buildCacheKey` / `perm:snapshot:{tenantId}:{subjectTypeCode}:{userId}:{serviceCode}` | `L1_ONLY` | 默认 30 秒 | 无       |
 
-> **缓存 key 修订（2026-06-20 审计 S-001 + T-PERM-018）**：已删除"角色权限版本号"缓存条目（`perm:permission-version:role:*`，原"永不过期（主动更新）"）。T-PERM-018 缓存下沉后，permission-center 侧不再缓存 INTERFACE_SNAPSHOT(L2)，Gateway 接口快照由 Gateway 本地 Caffeine 按 `(tenantId,subjectTypeCode,userId,serviceCode)` 缓存（key 不再含 `permissionVersion`/`permissionDigest`，令牌机制已整体移除），靠 Redis 广播 `PermInvalidateEvent`（含 serviceCodes）+ TTL 兜底失效。permission-center 缓存 key 以 `PermCacheCatalog` + `CacheKeyUtil` 为准；Gateway 本地快照实际 key 由 `PermissionFilter.buildCacheKey` 构造，`GatewayCacheCatalog.INTERFACE_SNAPSHOT` 仅声明 `L1_ONLY` 目录语义。
+> **缓存 key 修订（2026-06-20 审计 S-001 + T-PERM-018）**：已删除"角色权限版本号"缓存条目（`perm:permission-version:role:*`，原"永不过期（主动更新）"）。T-PERM-018 缓存下沉后，permission-center 侧不再缓存 INTERFACE_SNAPSHOT(L2)，Gateway 接口快照由 Gateway 本地 Caffeine 按 `(tenantId,subjectTypeCode,userId,serviceCode)` 缓存（key 不再含 `permissionVersion`/`permissionDigest`，令牌机制已整体移除），靠 Redis 广播 `PermInvalidateEvent`（含 serviceCodes）+ TTL 兜底失效。缓存 key 以 `AccessCacheCatalog` + `CacheKeyUtil` 为准；Gateway 本地快照实际 key 由 `PermissionFilter.buildCacheKey` 构造，`GatewayCacheCatalog.INTERFACE_SNAPSHOT` 仅声明 `L1_ONLY` 目录语义。
 
 ### 5.2 缓存失效触发点
 
@@ -722,7 +722,7 @@ GROUP_ROLE 树结构变更（moveRole 调整 parent_id；extra.basicRoleIds 无�
   resource_type 创建联动预置 CRUD 四操作位同口径，T-PERM-047；
   type-definition/remove 级联软删被删类型操作行同口径按类型集合 evictBatchAfterCommit，T-PERM-050）
   → 写路径事务提交后 evictAfterCommit(OPERATION_PERMISSIONS_BY_TYPE, tenantId,
-    "op_perm:" + resourceType)——键构造统一走 PermCacheCatalog.operationPermissionsByTypeKey，
+    "op_perm:" + resourceType)——键构造统一走 AccessCacheCatalog.operationPermissionsByTypeKey，
     deleteOperations 按受影响类型集合一次 evictBatchAfterCommit（同类型去重）
   → 失效粒度 = 缓存 identifier 粒度（per-type；L1_L2 目录，evict 时框架同步清 L2 + 广播各实例清 L1）
   → 兜底：广播丢失时最长陈旧 = L1 TTL 60m（本实例即时）；预置路径当前 typeValue 软删不复用、
@@ -982,7 +982,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> grantResults =
 
 后端全部业务键的统一构造/解析入口为 `perm-common` 的 `cn.ac.fage.accessmesh.perm.common.util.BusinessKeys`（2026-09-07 收敛，格式由 `BusinessKeysParityTest` 以 golden 值锁定——改格式即测试失败，不是运行时静默错配）。
 
-- **为什么收敛**：同一格式的构造与消费曾分散多类（类型解析缓存键由 TypeResolutionServiceImpl 写入、TypeDefinitionAppServiceImpl 失效，靠 PermCacheCatalog 注释口头约定一致；转授检查五段键在授权域/授权计划域逐字重复实现），任一侧手改格式即静默错配。
+- **为什么收敛**：同一格式的构造与消费曾分散多类（类型解析缓存键由 TypeResolutionServiceImpl 写入、TypeDefinitionAppServiceImpl 失效，靠缓存目录册注释口头约定一致；转授检查五段键在授权域/授权计划域逐字重复实现），任一侧手改格式即静默错配。
 - **范围**：跨类格式契约键（类型解析缓存、操作位/操作编码、资源三段、转授五段、relationKey 解析、typeCode 生成码、对外权限串）+ 单文件内部映射键（主体/角色定位、关系去重、diff 去重、API 路由）——2026-09-07 用户定案 A+B 全收。**补收（2026-09-08，codex 复评 P2-1 用户拍板全量收敛）**：竖线分隔八族入 BusinessKeys——`permEntrySourceKey`（权限条目生效来源六段，三处逐字重复实现收编）/`inheritedEntryKey`（继承展开去重）/`roleProjectionIndexKey`/`userRoleTripleKey`（投影三元组）/`apiRouteResourceKey`（映射同步活跃键）/`scopeItemKey`/`apiEntryDedupKey`（快照去重四段）/`apiMappingPresenceKey`（bootstrap 缺行判定）；`sync_metadata.sync_key` 三段与 `resource_api_mapping.extra.syncKey` 两段归 `SyncKeyCodec.syncKey/apiMappingSyncKey`（同步通道族）。
 - **出界（不经 BusinessKeys）**：sync API 契约键（percent-encoded）归 access-service `SyncKeyCodec`；缓存框架存储信封（common cache）；Gateway 本地快照键；登录计数/任务幂等/树写锁等基础设施键；错误文案与日志 summary 拼接。
 - **放置依据**：落 perm-common 而非 access-service 自身 util，依据 §3 单一来源先例（PageResp/ItemsResp 同款）——SDK 侧（starter 测试夹具、未来投影数据）需与 access-service 同格式构造 relationKey 等键；任务卡 acceptance 明写「收敛到 perm-common」。

@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.type.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
@@ -252,8 +252,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             // T-PERM-047：预置操作位同样改变该类型操作集合，提交后失效 per-type 缓存。
             // 当前 typeValue 为全量行（含软删）max+1、软删不复用，新值键必为冷键——
             // 此处失效是语义完备性接线（写路径变更集合即失效），不依赖分配策略不变
-            cacheService.evictAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
-                PermCacheCatalog.operationPermissionsByTypeKey(typeValue));
+            cacheService.evictAfterCommit(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
+                AccessCacheCatalog.operationPermissionsByTypeKey(typeValue));
         }
         // codex 三轮复评 P1-2：新建类型提交后失效双向解析缓存键（删建同码不同值时旧 code→value
         // 与新值反向键都不得残留）
@@ -268,9 +268,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * 此处失效保护其余全部解析消费方）。updateType 不涉及（typeCode/typeValue 不可变）。
      */
     private void evictTypeResolutionCachesAfterCommit(Long tenantId, String typeKey, String typeCode, Integer typeValue) {
-        cacheService.evictAfterCommit(PermCacheCatalog.TYPE_VALUE, tenantId, BusinessKeys.typeValueCacheKey(typeKey, typeCode));
+        cacheService.evictAfterCommit(AccessCacheCatalog.TYPE_VALUE, tenantId, BusinessKeys.typeValueCacheKey(typeKey, typeCode));
         if (typeValue != null) {
-            cacheService.evictAfterCommit(PermCacheCatalog.TYPE_CODE, tenantId, BusinessKeys.typeCodeCacheKey(typeKey, typeValue));
+            cacheService.evictAfterCommit(AccessCacheCatalog.TYPE_CODE, tenantId, BusinessKeys.typeCodeCacheKey(typeKey, typeValue));
         }
     }
 
@@ -746,8 +746,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 rolePermMapper.softDeleteBatch(tenantId, typeGrantPermIds, now);
             }
             // T-PERM-047 终态复用：操作集合变更提交后按被删类型集合 per-type 失效
-            cacheService.evictBatchAfterCommit(PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
-                deletableTypeValues.stream().map(PermCacheCatalog::operationPermissionsByTypeKey)
+            cacheService.evictBatchAfterCommit(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,
+                deletableTypeValues.stream().map(AccessCacheCatalog::operationPermissionsByTypeKey)
                     .collect(Collectors.toCollection(LinkedHashSet::new)));
         }
         // T-PERM-048：级联授权行已软删，引用归零的内联条件同事务回收（含 markConditions）
@@ -766,8 +766,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 }
             }
         }
-        cacheService.evictBatchAfterCommit(PermCacheCatalog.TYPE_VALUE, tenantId, valueCacheKeys);
-        cacheService.evictBatchAfterCommit(PermCacheCatalog.TYPE_CODE, tenantId, codeCacheKeys);
+        cacheService.evictBatchAfterCommit(AccessCacheCatalog.TYPE_VALUE, tenantId, valueCacheKeys);
+        cacheService.evictBatchAfterCommit(AccessCacheCatalog.TYPE_CODE, tenantId, codeCacheKeys);
         OperationLogRuntimeContext.setSummary("soft-deleted " + validIds.size() + " type_definition row(s)");
     }
 

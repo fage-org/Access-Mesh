@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.engine.core;
 
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
@@ -56,9 +56,9 @@ class BatchConditionEvaluatorTest {
     void setUp() {
         service = new PermissionConditionDomainServiceImpl(conditionMapper,
             rolePermMapper, new ObjectMapper(), cacheService);
-        lenient().when(cacheService.beginRead(PermCacheCatalog.CONDITION_RULES)).thenReturn(readToken);
+        lenient().when(cacheService.beginRead(AccessCacheCatalog.CONDITION_RULES)).thenReturn(readToken);
         // 默认缓存全 miss（各用例按需覆写为命中）
-        lenient().when(cacheService.getBatch(eq(PermCacheCatalog.CONDITION_RULES), eq(TENANT), anySet()))
+        lenient().when(cacheService.getBatch(eq(AccessCacheCatalog.CONDITION_RULES), eq(TENANT), anySet()))
             .thenReturn(Map.of());
     }
 
@@ -148,7 +148,7 @@ class BatchConditionEvaluatorTest {
         evaluator.preload(TENANT, Set.of(10L));
         evaluator.preload(TENANT, Set.of(10L));
 
-        verify(cacheService, times(1)).getBatch(eq(PermCacheCatalog.CONDITION_RULES), eq(TENANT), anySet());
+        verify(cacheService, times(1)).getBatch(eq(AccessCacheCatalog.CONDITION_RULES), eq(TENANT), anySet());
     }
 
     @Test
@@ -160,7 +160,7 @@ class BatchConditionEvaluatorTest {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
-        lenient().when(cacheService.getBatch(eq(PermCacheCatalog.CONDITION_RULES), eq(TENANT), eq(Set.of(10L))))
+        lenient().when(cacheService.getBatch(eq(AccessCacheCatalog.CONDITION_RULES), eq(TENANT), eq(Set.of(10L))))
             .thenReturn(Map.of(10L, rules));
 
         BatchConditionEvaluator evaluator = service.openBatchEvaluator(TENANT);

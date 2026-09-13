@@ -40,12 +40,12 @@ public class PermCacheBoundaryValidator implements InitializingBean {
      * OPERATION_PERMISSIONS_BY_TYPE 不进快照内容，保持 L1_L2 普通缓存）。
      */
     private static final Set<CacheCatalogEntry<?>> SNAPSHOT_CATALOGS = Set.of(
-        PermCacheCatalog.EFFECTIVE_ROLES,
-        PermCacheCatalog.ROLE_PERM_SNAPSHOT,
-        PermCacheCatalog.TYPE_VALUE,
-        PermCacheCatalog.TYPE_CODE,
-        PermCacheCatalog.CONDITION_RULES,
-        PermCacheCatalog.ROLE_MUTEX_RULE
+        AccessCacheCatalog.EFFECTIVE_ROLES,
+        AccessCacheCatalog.ROLE_PERM_SNAPSHOT,
+        AccessCacheCatalog.TYPE_VALUE,
+        AccessCacheCatalog.TYPE_CODE,
+        AccessCacheCatalog.CONDITION_RULES,
+        AccessCacheCatalog.ROLE_MUTEX_RULE
     );
 
     private final CacheProperties cacheProperties;

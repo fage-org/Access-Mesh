@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.infrastructure.cache;
 
+import cn.ac.fage.accessmesh.access.platform.dto.resp.DictTypeResp;
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheMode;
 import cn.ac.fage.accessmesh.common.cache.TypeRef;
@@ -11,12 +12,17 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 权限中心缓存目录
+ * access-service 统一缓存目录（T-ACCESS-039 合一）
  * <p>
- * 定义 permission 域的所有缓存条目。TTL 为 {@link Duration} 秒级精度。
+ * 原 AdminCacheCatalog / PermCacheCatalog 两册合一为单册（2026-09-13 定案）：
+ * 全部条目 mode/TTL 零改动；`admin:org-visibility` 越域命名归位为
+ * `access:org-visibility`——该条目读写在 org 能力、失效由权限变更触发，
+ * 跨能力归属取服务级前缀；空库无存量键迁移负担（L2 键随 TTL 自然消亡），
+ * 不做兼容双读（滚动发布边界登记见 docs/pending-problems.md Q-006）。
+ * TTL 为 {@link Duration} 秒级精度。
  * </p>
  *
- * <h3>目录清单（T-ACCESS-008）：</h3>
+ * <h3>目录清单（T-ACCESS-008 定案形态，039 合一维持）：</h3>
  * <table border="1">
  *   <tr><th>常量名</th><th>code</th><th>模式</th><th>TTL</th><th>说明</th></tr>
  *   <tr><td>EFFECTIVE_ROLES</td><td>perm:effective-roles</td><td>L2_ONLY</td><td>10s</td><td>快照链路</td></tr>
@@ -26,7 +32,8 @@ import java.util.Set;
  *   <tr><td>CONDITION_RULES</td><td>perm:condition-rules</td><td>L2_ONLY</td><td>10s</td><td>快照链路（内联进快照）</td></tr>
  *   <tr><td>ROLE_MUTEX_RULE</td><td>perm:role-mutex-rule</td><td>L2_ONLY</td><td>10s</td><td>快照链路</td></tr>
  *   <tr><td>OPERATION_PERMISSIONS_BY_TYPE</td><td>perm:operation-permissions-by-type</td><td>L1_L2</td><td>60m/120m</td><td>不进快照内容（位掩码计算），普通缓存 + 跨实例 L1 失效广播</td></tr>
- *   <tr><td>ORG_VISIBILITY</td><td>admin:org-visibility</td><td>L2_ONLY</td><td>60s</td><td>不影响接口快照</td></tr>
+ *   <tr><td>ORG_VISIBILITY</td><td>access:org-visibility</td><td>L2_ONLY</td><td>60s</td><td>不影响接口快照；039 越域归位（原 admin:org-visibility）</td></tr>
+ *   <tr><td>DICT_TYPES</td><td>admin:dict-types</td><td>L1_L2</td><td>10m/60m</td><td>自 AdminCacheCatalog 迁入（039），code 不变</td></tr>
  * </table>
  *
  * <h3>快照链路安全边界（T-ACCESS-008 用户决策 2026-08-21）：</h3>
@@ -37,9 +44,9 @@ import java.util.Set;
  * 读路径 miss 回填必须使用 {@code CacheService.beginRead} 令牌写入剩余 TTL。
  * </p>
  */
-public final class PermCacheCatalog {
+public final class AccessCacheCatalog {
 
-    private PermCacheCatalog() {
+    private AccessCacheCatalog() {
     }
 
     /**
@@ -177,12 +184,32 @@ public final class PermCacheCatalog {
      * L2_ONLY（用户决策）：安全敏感目录，L1 本地缓存会造成跨实例旧可见范围；
      * 纯 Redis 共享存储 + 权限变更后租户级 evictAll 保证全实例一致。
      * 不影响接口权限快照——TTL 不受 10 秒边界约束，60 秒吸收高频查询。
+     * code 于 T-ACCESS-039 越域归位：admin:org-visibility → access:org-visibility
+     * （org 能力读写 + 权限变更触发失效的跨能力条目，取服务级前缀）。
+     * </p>
      */
     public static final CacheCatalogEntry<Set<Long>> ORG_VISIBILITY =
         CacheCatalogEntry.<Set<Long>>builder()
-            .code("admin:org-visibility")
+            .code("access:org-visibility")
             .mode(CacheMode.L2_ONLY)
             .l2Ttl(Duration.ofSeconds(60))
             .valueType(new TypeRef<Set<Long>>() {})
+            .build();
+
+    /**
+     * 字典类型缓存（T-ACCESS-039 自 AdminCacheCatalog 迁入，code 不变）
+     * <p>
+     * Key: "all"（全局键）
+     * Value: List&lt;DictTypeResp&gt; 字典数据列表
+     * </p>
+     */
+    public static final CacheCatalogEntry<List<DictTypeResp>> DICT_TYPES =
+        CacheCatalogEntry.<List<DictTypeResp>>builder()
+            .code("admin:dict-types")
+            .mode(CacheMode.L1_L2)
+            .l1Ttl(Duration.ofMinutes(10))
+            .l1MaxSize(500)
+            .l2Ttl(Duration.ofMinutes(60))
+            .valueType(new TypeRef<List<DictTypeResp>>() {})
             .build();
 }

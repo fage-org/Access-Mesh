@@ -590,9 +590,9 @@ class TypeDefinitionAppServiceImplTest {
         service.createType(1L, new TypeCreateReq("role_type", "TEAM_ROLE", "团队角色类型", null, null, null, null, null), 100L);
 
         verify(cacheService).evictAfterCommit(
-            cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.TYPE_VALUE, 1L, "role_type:TEAM_ROLE");
+            cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.TYPE_VALUE, 1L, "role_type:TEAM_ROLE");
         verify(cacheService).evictAfterCommit(
-            cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.TYPE_CODE, 1L, "role_type:3");
+            cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.TYPE_CODE, 1L, "role_type:3");
     }
 
     @Test
@@ -715,10 +715,10 @@ class TypeDefinitionAppServiceImplTest {
         // codex 三轮复评 P1-2：被删类型提交后失效双向解析缓存键；codex 四轮复评 P2：
         // 码键/值键各合并一次批量失效（逐项 evictAfterCommit = 2N 个事务回调）
         verify(cacheService).evictBatchAfterCommit(
-            cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.TYPE_VALUE, 1L,
+            cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.TYPE_VALUE, 1L,
             java.util.Set.of("resource_type:HR_ORG"));
         verify(cacheService).evictBatchAfterCommit(
-            cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.TYPE_CODE, 1L,
+            cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.TYPE_CODE, 1L,
             java.util.Set.of("resource_type:5"));
     }
 
@@ -944,7 +944,7 @@ class TypeDefinitionAppServiceImplTest {
         verify(rolePermMapper).selectValidPermIdsByResourceTypes(1L, java.util.Set.of(5));
         // 操作集合变更提交后按被删类型 per-type 失效（T-PERM-047 终态复用）
         verify(cacheService).evictBatchAfterCommit(
-            cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE,
+            cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE,
             1L, java.util.Set.of("op_perm:5"));
     }
 
@@ -975,7 +975,7 @@ class TypeDefinitionAppServiceImplTest {
         verify(rolePermMapper, never()).selectRoleIdsByResourceTypes(anyLong(), any());
         verify(rolePermMapper, never()).selectValidPermIdsByResourceTypes(anyLong(), any());
         verify(cacheService, never()).evictBatchAfterCommit(
-            eq(cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
+            eq(cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE),
             anyLong(), any());
         verify(subjectDomainService, never()).findRoleTypesWithValidRows(anyLong(), any());
     }

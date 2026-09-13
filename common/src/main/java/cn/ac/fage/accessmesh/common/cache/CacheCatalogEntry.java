@@ -18,7 +18,7 @@ import java.time.Duration;
  *
  * <h3>使用示例：</h3>
  * <pre>{@code
- * public final class PermCacheCatalog {
+ * public final class AccessCacheCatalog {
  *     public static final CacheCatalogEntry<Set<Long>> EFFECTIVE_ROLES =
  *         CacheCatalogEntry.<Set<Long>>builder()
  *             .code("perm:effective-roles")

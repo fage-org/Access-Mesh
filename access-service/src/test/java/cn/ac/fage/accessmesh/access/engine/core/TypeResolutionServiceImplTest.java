@@ -131,7 +131,7 @@ class TypeResolutionServiceImplTest {
         var tokenCaptor = org.mockito.ArgumentCaptor.forClass(
             cn.ac.fage.accessmesh.common.cache.CacheReadToken.class);
         verify(cacheService).put(tokenCaptor.capture(), eq(1L), eq("user_type:LOCAL_USER"), any());
-        assertEquals(cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.TYPE_VALUE,
+        assertEquals(cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.TYPE_VALUE,
             tokenCaptor.getValue().catalog());
     }
 }

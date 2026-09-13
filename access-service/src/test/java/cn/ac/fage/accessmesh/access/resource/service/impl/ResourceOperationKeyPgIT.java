@@ -348,7 +348,7 @@ class ResourceOperationKeyPgIT {
         // T-PERM-047 回归锁：预置路径同样接线失效（当前 typeValue 软删不复用、新值必为冷键，
         // 此锁保证「写路径变更集合即失效」语义不随分配策略漂移）
         org.mockito.Mockito.verify(cacheService).evictAfterCommit(
-            cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE,
+            cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE,
             TENANT, "op_perm:" + resp.typeValue());
     }
 }

@@ -18,7 +18,7 @@ import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
 import org.springframework.stereotype.Service;
 
@@ -82,13 +82,13 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         String cacheKey = BusinessKeys.typeValueCacheKey(typeKey, typeCode);
 
         // ① 查缓存
-        Map<String, Integer> cached = cacheService.get(PermCacheCatalog.TYPE_VALUE, tenantId, cacheKey);
+        Map<String, Integer> cached = cacheService.get(AccessCacheCatalog.TYPE_VALUE, tenantId, cacheKey);
         if (cached != null && cached.containsKey(typeCode)) {
             return cached.get(typeCode);
         }
 
         // ② miss 后查数据库（T-ACCESS-008：SQL 前记录读取起点，回填只写剩余 TTL）
-        CacheReadToken<Map<String, Integer>> readToken = cacheService.beginRead(PermCacheCatalog.TYPE_VALUE);
+        CacheReadToken<Map<String, Integer>> readToken = cacheService.beginRead(AccessCacheCatalog.TYPE_VALUE);
         TypeDefinition td = typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, typeKey, typeCode);
         Integer result = td != null ? td.getTypeValue() : null;
 
@@ -130,13 +130,13 @@ public class TypeResolutionServiceImpl implements TypeResolutionService {
         String cacheKey = BusinessKeys.typeCodeCacheKey(typeKey, typeValue);
 
         // ① 查缓存
-        String cached = cacheService.get(PermCacheCatalog.TYPE_CODE, tenantId, cacheKey);
+        String cached = cacheService.get(AccessCacheCatalog.TYPE_CODE, tenantId, cacheKey);
         if (cached != null) {
             return cached;
         }
 
         // ② miss 后查数据库（T-ACCESS-008：SQL 前记录读取起点，回填只写剩余 TTL）
-        CacheReadToken<String> readToken = cacheService.beginRead(PermCacheCatalog.TYPE_CODE);
+        CacheReadToken<String> readToken = cacheService.beginRead(AccessCacheCatalog.TYPE_CODE);
         TypeDefinition td = typeDefinitionMapper.selectByTypeKeyAndValue(tenantId, typeKey, typeValue);
         String result = td != null ? td.getTypeCode() : null;
 

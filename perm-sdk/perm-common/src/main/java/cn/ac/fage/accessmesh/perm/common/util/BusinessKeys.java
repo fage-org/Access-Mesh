@@ -33,7 +33,7 @@ public final class BusinessKeys {
     /**
      * TYPE_VALUE 解析缓存键：{@code typeKey:typeCode}。
      * <p>构造方 TypeResolutionServiceImpl（写入）、失效方 TypeDefinitionAppServiceImpl（写路径 evict），
-     * 两处必须同格式（原靠 PermCacheCatalog 注释口头约定）。</p>
+     * 两处必须同格式（原靠缓存目录册注释口头约定）。</p>
      */
     public static String typeValueCacheKey(String typeKey, String typeCode) {
         return typeKey + ":" + typeCode;

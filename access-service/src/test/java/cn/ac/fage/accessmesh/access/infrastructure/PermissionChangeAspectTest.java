@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.infrastructure;
 
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.PermInvalidationPublisher;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
@@ -117,8 +117,8 @@ class PermissionChangeAspectTest {
         // 提交后（afterCommit）：失效 + 广播执行
         sync.afterCommit();
         verify(subjectDomainService).invalidateRoleCacheByRoles(eq(1L), eq(Set.of(200L)));
-        verify(cacheService).evictBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(200L)));
-        verify(cacheService).evictAll(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L));
+        verify(cacheService).evictBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(200L)));
+        verify(cacheService).evictAll(eq(AccessCacheCatalog.ORG_VISIBILITY), eq(1L));
         verify(publisher).publish(eq(1L), eq(Set.of(200L)), any(), any());
 
         // 完成后（afterCompletion）：ThreadLocal 清理
@@ -147,8 +147,8 @@ class PermissionChangeAspectTest {
 
         // flush 执行：批量失效角色缓存 + 失效 ROLE_PERM_SNAPSHOT + 租户级清除 ORG_VISIBILITY + 广播
         verify(subjectDomainService).invalidateRoleCacheByRoles(eq(1L), eq(Set.of(200L)));
-        verify(cacheService).evictBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(200L)));
-        verify(cacheService).evictAll(eq(PermCacheCatalog.ORG_VISIBILITY), eq(1L));
+        verify(cacheService).evictBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(200L)));
+        verify(cacheService).evictAll(eq(AccessCacheCatalog.ORG_VISIBILITY), eq(1L));
         verify(publisher).publish(eq(1L), eq(Set.of(200L)), any(), any());
         // clear 执行
         assertNull(PermissionChangeContext.snapshot());

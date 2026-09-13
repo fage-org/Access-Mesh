@@ -72,7 +72,7 @@ last_updated: 2026-09-13
 - **来源**：T-ACCESS-039 当前口径（登记性已知边界）；decision-registry 2026-09-13 融合行处置④
 - **关联**：—
 
-**现象与证据**：T-ACCESS-039 将 catalog code `admin:org-visibility` 改名后，新旧实例的 `evictAll` 各扫自身 catalog code 命名空间互不可删（RedissonBucketStore 按 `{tenantId}:{catalogCode}:*` 精确扫描实证）；Nacos 旧键 TTL 覆盖同批被静默忽略。
+**现象与证据**：T-ACCESS-039 已将 catalog code `admin:org-visibility` 改名为 `access:org-visibility`（2026-09-13 落地，不做兼容双读）——此后若发生新旧实例并存的滚动发布，双方 `evictAll` 各扫自身 catalog code 命名空间互不可删（RedissonBucketStore 按 `{tenantId}:{catalogCode}:*` 精确扫描实证）；Nacos 按旧 code 配置的 TTL 覆盖同批被静默忽略。
 
 **影响**：现在为什么没出事——项目未正式部署、无新旧实例并存场景；首次滚动发布时若不补，权限/组织关系变更后另一版本命名空间的 org-visibility 缓存不失效，最长旧 TTL 60s 的越界可见/错误拒绝（该条目非安全快照链路，影响有界）。
 

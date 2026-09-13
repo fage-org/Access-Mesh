@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.infrastructure;
 
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.perm.common.event.PermInvalidateEvent;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.PermInvalidationPublisher;
@@ -123,7 +123,7 @@ public class PermissionChangeAspect {
             }
             // 角色权限变更（grant/revoke/资源删除）→ 失效 ROLE_PERM_SNAPSHOT（roleId 级精确）
             if (!roleIds.isEmpty()) {
-                cacheService.evictBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIds);
+                cacheService.evictBatch(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleIds);
             }
             // 2. 用户维度失效
             if (!userIds.isEmpty()) {
@@ -131,16 +131,16 @@ public class PermissionChangeAspect {
             }
             // 3. 条件规则失效（即时 evictBatch，消除原 evictConditionCache 的双重注册）
             if (!conditionIds.isEmpty()) {
-                cacheService.evictBatch(PermCacheCatalog.CONDITION_RULES, tenantId, conditionIds);
+                cacheService.evictBatch(AccessCacheCatalog.CONDITION_RULES, tenantId, conditionIds);
             }
             // 4. 角色权限快照直清（角色删除场景）
             if (!roleSnapshotIds.isEmpty()) {
-                cacheService.evictBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleSnapshotIds);
+                cacheService.evictBatch(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleSnapshotIds);
             }
             // 4.5 （用户决策：租户级失效）：任何权限/角色/成员变更后清除
             // 操作者可见组织范围缓存（ORG_VISIBILITY）——可见范围依赖全部权限，操作者集合不可枚举，
             // 租户级目录清除保证权限回收/组织树变更后旧范围不继续暴露
-            cacheService.evictAll(PermCacheCatalog.ORG_VISIBILITY, tenantId);
+            cacheService.evictAll(AccessCacheCatalog.ORG_VISIBILITY, tenantId);
             // 5. 广播失效事件（含 serviceCodes：API mapping/资源/sync 变更触发 Gateway 清本地快照，T-PERM-006 实现）
             publisher.publish(tenantId, roleIds, userIds, serviceCodes);
         } catch (Exception e) {

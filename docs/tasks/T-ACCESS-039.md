@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-039
 title: 缓存目录合一
-status: proposed
+status: done
 plan: docs/plans/access-capability-fusion-plan.md
 domain: cross-service
 design_refs:
@@ -19,13 +19,13 @@ acceptance:
   - "dual-layer-cache-framework skill 双副本同步；全量回归绿"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-13
 ---
 
 ## 背景
 
-两套缓存目录（AdminCacheCatalog / PermCacheCatalog）是平行设施；ORG_VISIBILITY 条目物理在 PermCacheCatalog 而 code 叫 admin:org-visibility——命名越域实证。验收第 3 条要求缓存目录一册。注意：PermCacheBoundaryValidator 的语义是 T-ACCESS-008 授权快照安全边界（仅快照链路 6 条强制 L2_ONLY≤10s），不是「目录合法性」校验——合并后全目录 10 条中 3 条（DICT_TYPES L1_L2、OPERATION_PERMISSIONS_BY_TYPE L1_L2、ORG_VISIBILITY L2_ONLY 60s）按定案必然不满足该判据，纳入校验会导致启动失败。
+两套缓存目录（AdminCacheCatalog / PermCacheCatalog）是平行设施；ORG_VISIBILITY 条目物理在 PermCacheCatalog 而 code 叫 admin:org-visibility——命名越域实证。验收第 3 条要求缓存目录一册。注意：PermCacheBoundaryValidator 的语义是 T-ACCESS-008 授权快照安全边界（仅快照链路 6 条强制 L2_ONLY≤10s），不是「目录合法性」校验——合并后全目录 9 条中 3 条（DICT_TYPES L1_L2、OPERATION_PERMISSIONS_BY_TYPE L1_L2、ORG_VISIBILITY L2_ONLY 60s）按定案必然不满足该判据，纳入校验会导致启动失败。
 
 ## 范围
 
@@ -34,6 +34,7 @@ last_updated: 2026-09-13
 ## 当前口径
 
 - 缓存模式（L1/L2 配置、TTL、30 秒授权陈旧预算）零改动——T-ACCESS-008 定案形态维持。
+- 2026-09-13 实施拍板（AskUserQuestion 两项，registry 同日 T-ACCESS-039 行）：统一目录册类名=`AccessCacheCatalog`（落 infrastructure.cache，AdminCacheCatalog/PermCacheCatalog 两旧册消亡，弃保持 PermCacheCatalog 类名/AccessServiceCacheCatalog）；ORG_VISIBILITY code 归位=`access:org-visibility`（跨能力条目取服务级前缀，弃 perm:/org: 前缀）。PermCacheBoundaryValidator 名称与判据维持（语义=授权快照安全边界，非目录合法性）。
 - 滚动发布登记：改名后新旧实例 evictAll 各自命名空间互不可删（RedissonBucketStore 按 catalog code 精确扫描实证）——本项目未正式部署、无新旧实例并存场景，不采双命名空间失效；若未来出现滚动发布需求，届时补双命名空间失效机制（本条为登记性已知边界，docs/pending-problems.md Q-006）。
 - depends_on 含 034：OPERATION_CODE 死条目删除唯一归属 034，目录合并在其后进行。
 
@@ -44,3 +45,14 @@ last_updated: 2026-09-13
 ## 非目标 / 遗留
 
 - 不改任何缓存条目的 mode/TTL。
+- 规则文件旧类名残留归 041 承接（032 定案「残留面收窄——规则文档归 040/041」同款处置，2026-09-13 本地双轨代码轨实证）：`.claude/rules/permission-center-coding-standards.md` §5 反例示例仍写 `PermCacheCatalog.ROLE_PERM_SNAPSHOT`——041 重写该文件时清扫面须含旧类名（`PermCacheCatalog`/`AdminCacheCatalog`）而不仅域叙事关键词（041 验收「AdminCacheCatalog 等双轨设施已消亡」前置核对句已含此意）。
+
+## 完成记录（2026-09-13）
+
+- **目录合一**：`infrastructure.cache.AccessCacheCatalog` 单册（git 识别为 PermCacheCatalog 更名扩展），9 条目=原 PermCacheCatalog 8 条 mode/TTL 原样 + DICT_TYPES 自 AdminCacheCatalog 迁入（code `admin:dict-types` 不变）；`operationPermissionsByTypeKey` 键构造随册迁移；AdminCacheCatalog/PermCacheCatalog 两旧册删除。
+- **越域键归位**：ORG_VISIBILITY code `admin:org-visibility` → `access:org-visibility`，全消费点走常量引用（仅目录册内 code 字符串一字改）；仓内已核无 `accessmesh.cache.catalogs.*` 覆盖键（application.yml 仅机制注释），Nacos 仓外运维面见 Q-006。
+- **消费面重绑**：access-service 27 文件（main 11 + test 16）脚本机械改名（护栏断言 + 逐文件后置校验，旧名零残留）；common 框架 javadoc 示例 4 处（CacheService 3 + CacheCatalogEntry 1）；perm-common `BusinessKeys` javadoc 历史注记改中性措辞（「原靠缓存目录册注释口头约定」）；`DualInstanceContainerTest` 的 T-ACCESS-034 历史注记行保留旧类名原文（dated 出处不改写）。
+- **边界校验器重绑**：`PermCacheBoundaryValidator.SNAPSHOT_CATALOGS` 六条改挂 AccessCacheCatalog，isValid 判据（L2_ONLY 且有效 L2 TTL≤10s）与类名零改动；`PermCacheCatalogBoundaryTest` 更名 `AccessCacheCatalogBoundaryTest`（9 用例=原 6 + 新增三条合一回归锁：ORG_VISIBILITY 新 code、DICT_TYPES 迁入形态（code/L1 容量）、全册条目 code 两两不同）。
+- **验证链**：`mvn compile test-compile` 零告警；定向重绑单测组 13 类 171/171；单轨 `-DskipTestcontainers=true` 1232/1232（038 基线 1229 + 3 新锁）；全量收口 `mvn test -T 1C`（含 E2E，2026-09-13）BUILD SUCCESS——模块计数与 038 基线一致（perm-common 30 / common 65 / starter 15 / example 10 / gateway 106 / access-service 单测 1232 + 容器 210 / e2e 14，日志 /c/Users/li/AppData/Local/Temp/full_039.log）。
+- **文档回写**：capability-structure §3/§8.2/§9 + frontmatter；engine/overview（缓存目录册引用）+ engine/implementation §5.1 表与 §8.3 措辞（last_reviewed 历史链内 2026-09-11 时点注记保留旧册名原文）；pending-problems Q-006 时态（「将改名」→ 已落地）；decision-registry 2026-09-13 拍板行（两项命名 + 弃案）；dual-layer-cache-framework skill 双副本 v3.1.0（示例改挂 AccessCacheCatalog、键格式示例补 access: 前缀条目，cp+diff 验证同步）。
+- **背景勘误**：卡内「合并后全目录 10 条」为计数笔误，实际 9 条（原 perm 8 + dict 1），完成记录随批订正。

@@ -15,19 +15,19 @@ import java.util.Set;
  * <h3>业务使用模式：</h3>
  * <pre>{@code
  * // ① 查缓存（null = miss）
- * Set<Long> roles = cacheService.get(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
+ * Set<Long> roles = cacheService.get(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
  * // ② miss 后查 DB
  * if (roles == null) {
  *     roles = userRoleMapper.selectRoleIds(tenantId, userId);
  *     // ③ 回填缓存（value 为 null 时忽略）
  *     if (roles != null) {
- *         cacheService.put(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId, roles);
+ *         cacheService.put(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userId, roles);
  *     }
  * }
  * return roles;
  *
  * // ④ 事务提交后失效
- * cacheService.evictAfterCommit(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
+ * cacheService.evictAfterCommit(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userId);
  * }</pre>
  *
  * <h3>核心约束：</h3>

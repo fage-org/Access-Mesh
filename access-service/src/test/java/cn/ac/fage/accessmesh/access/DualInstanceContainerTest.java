@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access;
 
-import cn.ac.fage.accessmesh.access.infrastructure.cache.AdminCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.platform.dto.resp.DictTypeResp;
 import cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionDomainService;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
@@ -186,16 +186,16 @@ class DualInstanceContainerTest {
         List<DictTypeResp> value = List.of(new DictTypeResp(1L, "双实例探针", "dual-instance-probe", 0, null, null, null));
 
         // 实例 A 写入（L1+L2）；实例 B 首读 miss L1 → 命中共享 L2 并回填 B 的 L1
-        cacheServiceA.put(AdminCacheCatalog.DICT_TYPES, TENANT_ID, key, value);
-        List<DictTypeResp> seenByB = cacheServiceB.get(AdminCacheCatalog.DICT_TYPES, TENANT_ID, key);
+        cacheServiceA.put(AccessCacheCatalog.DICT_TYPES, TENANT_ID, key, value);
+        List<DictTypeResp> seenByB = cacheServiceB.get(AccessCacheCatalog.DICT_TYPES, TENANT_ID, key);
         assertThat(seenByB).as("实例 B 必须经共享 Redis L2 读到实例 A 写入的值").containsExactlyElementsOf(value);
 
         // 实例 A 失效（清 L2 + RTopic 广播清各实例 L1）；广播为异步，轮询等待 B 侧清空
-        cacheServiceA.evict(AdminCacheCatalog.DICT_TYPES, TENANT_ID, key);
+        cacheServiceA.evict(AccessCacheCatalog.DICT_TYPES, TENANT_ID, key);
         long deadline = System.currentTimeMillis() + 5_000;
         List<DictTypeResp> afterEvict;
         do {
-            afterEvict = cacheServiceB.get(AdminCacheCatalog.DICT_TYPES, TENANT_ID, key);
+            afterEvict = cacheServiceB.get(AccessCacheCatalog.DICT_TYPES, TENANT_ID, key);
             if (afterEvict == null) {
                 break;
             }

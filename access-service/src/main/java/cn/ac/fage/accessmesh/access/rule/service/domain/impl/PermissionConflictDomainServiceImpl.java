@@ -14,7 +14,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.benmanes.caffeine.cache.Cache;
@@ -103,7 +103,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     @Override
     public Set<Long> filterRoleMutex(Long tenantId, Long userId, Set<Long> effectiveRoleIds) {
         // 从缓存获取角色互斥规则（JSON格式）
-        String cachedJson = cacheService.get(PermCacheCatalog.ROLE_MUTEX_RULE, tenantId, "all");
+        String cachedJson = cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, tenantId, "all");
 
         List<RoleMutexPair> mutexPairs;
         if (cachedJson != null) {
@@ -235,7 +235,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * </p>
      */
     private List<RoleMutexPair> loadMutexRulesFromDb(Long tenantId) {
-        CacheReadToken<String> readToken = cacheService.beginRead(PermCacheCatalog.ROLE_MUTEX_RULE);
+        CacheReadToken<String> readToken = cacheService.beginRead(AccessCacheCatalog.ROLE_MUTEX_RULE);
         List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
             tenantId, ConflictType.ROLE_MUTEX.getValue());
         List<RoleMutexPair> mutexPairs = rules.stream()

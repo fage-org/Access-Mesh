@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
@@ -92,7 +92,7 @@ class PermissionCharacterizationPgIT {
 
         // miss：首查回源 DB，结果回填 L2（EFFECTIVE_ROLES）
         assertThat(subjectDomainService.resolveEffectiveRoles(TENANT, user)).containsExactlyInAnyOrder(role);
-        assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(user)))
+        assertThat(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(user)))
             .containsKey(user);
 
         // hit 证明：不失效缓存的情况下软删关系——二次读仍返回缓存的旧值；

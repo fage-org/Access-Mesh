@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.org.service.impl;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.org.service.OrgVisibilityQueryAppService;
 import cn.ac.fage.accessmesh.access.org.mapper.OrgVisibilityQueryMapper;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
@@ -82,7 +82,7 @@ public class OrgVisibilityQueryAppServiceImpl implements OrgVisibilityQueryAppSe
         // 缓存不可用时旁路数据库（architecture §7.2：缓存仅加速，查询结果以 DB 与权限引擎为准）
         Set<Long> cached = null;
         try {
-            cached = cacheService.get(PermCacheCatalog.ORG_VISIBILITY, tenantId, operatorId);
+            cached = cacheService.get(AccessCacheCatalog.ORG_VISIBILITY, tenantId, operatorId);
         } catch (Exception e) {
             log.warn("ORG_VISIBILITY cache get failed, bypassing to DB: tenantId={}, operatorId={}",
                 tenantId, operatorId, e);
@@ -100,7 +100,7 @@ public class OrgVisibilityQueryAppServiceImpl implements OrgVisibilityQueryAppSe
         }
         Set<Long> visible = filterVisibleOrgIds(tenantId, operatorId, descendantIds);
         try {
-            cacheService.put(PermCacheCatalog.ORG_VISIBILITY, tenantId, operatorId, visible);
+            cacheService.put(AccessCacheCatalog.ORG_VISIBILITY, tenantId, operatorId, visible);
         } catch (Exception e) {
             log.warn("ORG_VISIBILITY cache put failed, result served from DB: tenantId={}, operatorId={}",
                 tenantId, operatorId, e);

@@ -20,7 +20,7 @@ import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.util.RolePermEntryMapper;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.common.cache.CacheCatalogEntry;
@@ -230,7 +230,7 @@ class PermQueryEngineTest {
         when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
 
         // T-PERM-018：forUserView 走 ROLE_PERM_SNAPSHOT 读缓存；缓存 miss → 回源 selectValidByRoleIds
-        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
+        when(cacheService.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
             .thenReturn(Map.of());
 
         RoleResourcePermission perm1 = new RoleResourcePermission();
@@ -319,7 +319,7 @@ class PermQueryEngineTest {
     @Test
     void testForUserViewEmptyPermissionsShouldDeny() {
         when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
-        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
+        when(cacheService.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
             .thenReturn(Map.of());
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
 
@@ -339,7 +339,7 @@ class PermQueryEngineTest {
         RolePermEntry cachedEntry = new RolePermEntry(
             501L, 20L, 200L, null, 1, 8L, null, null,
             "DIRECT", true, null, false, null, true);
-        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
+        when(cacheService.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
             .thenReturn(Map.of(20L, List.of(cachedEntry)));
         when(conditionDomainService.evaluate(eq(1L), any(), any())).thenAnswer(inv -> inv.getArgument(1));
         when(conflictDomainService.filterPermMutex(eq(1L), any())).thenAnswer(inv -> inv.getArgument(1));
@@ -362,7 +362,7 @@ class PermQueryEngineTest {
     @Test
     void forUserViewShouldMissCacheAndBackfillBatch() {
         when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L, 21L));
-        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L, 21L))))
+        when(cacheService.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L, 21L))))
             .thenReturn(Map.of());
 
         RoleResourcePermission perm1 = new RoleResourcePermission();
@@ -384,7 +384,7 @@ class PermQueryEngineTest {
         org.mockito.ArgumentCaptor<cn.ac.fage.accessmesh.common.cache.CacheReadToken<List<RolePermEntry>>> tokenCaptor =
             org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.common.cache.CacheReadToken.class);
         verify(cacheService).putBatch(tokenCaptor.capture(), eq(1L), captor.capture());
-        assertEquals(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tokenCaptor.getValue().catalog());
+        assertEquals(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, tokenCaptor.getValue().catalog());
         Map<Long, List<RolePermEntry>> backfilled = captor.getValue();
         assertEquals(2, backfilled.size());
         assertEquals(1, backfilled.get(20L).size());
@@ -399,7 +399,7 @@ class PermQueryEngineTest {
         RolePermEntry cachedEntry = new RolePermEntry(
             501L, 20L, 200L, null, 1, 8L, null, null,
             "DIRECT", true, null, false, null, true);
-        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L, 21L))))
+        when(cacheService.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L, 21L))))
             .thenReturn(Map.of(20L, List.of(cachedEntry)));
 
         RoleResourcePermission perm2 = new RoleResourcePermission();
@@ -421,7 +421,7 @@ class PermQueryEngineTest {
     @Test
     void forUserViewShouldCacheEmptyListForRoleWithNoPermissions() {
         when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
-        when(cacheService.getBatch(eq(PermCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
+        when(cacheService.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
             .thenReturn(Map.of());
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
 

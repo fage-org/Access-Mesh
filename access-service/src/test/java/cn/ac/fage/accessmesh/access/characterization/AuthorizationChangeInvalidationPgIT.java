@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.characterization;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
@@ -111,10 +111,10 @@ class AuthorizationChangeInvalidationPgIT {
             .containsExactlyInAnyOrder(targetRole);
         RolePermEntry revokedEntry = new RolePermEntry(revokedPermId, targetRole, 929001L, null,
             RESOURCE_TYPE_SERVICE, SERVICE_VIEW_BIT, null, SERVICE_VIEW_BIT, "MANUAL", false, null, false, null, false);
-        cacheService.put(PermCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, targetRole, List.of(revokedEntry));
-        assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+        cacheService.put(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, targetRole, List.of(revokedEntry));
+        assertThat(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
             .containsKey(affectedUser);
-        assertThat(cacheService.getBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, Set.of(targetRole)))
+        assertThat(cacheService.getBatch(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, Set.of(targetRole)))
             .containsKey(targetRole);
 
         // -- 真实调用：操作者上下文绑定 + batchRevoke（真实事务 + 切面 + afterCommit）--
@@ -136,15 +136,15 @@ class AuthorizationChangeInvalidationPgIT {
         assertThat(keptFlag).isZero();
 
         // -- afterCommit 失效断言：两类缓存均被清除（方法返回时 afterCommit 已同步执行）--
-        assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+        assertThat(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
             .doesNotContainKey(affectedUser);
-        assertThat(cacheService.getBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, Set.of(targetRole)))
+        assertThat(cacheService.getBatch(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, Set.of(targetRole)))
             .doesNotContainKey(targetRole);
 
         // -- 重查回源断言：有效角色重建回填；引擎视角权限快照为撤销后的新状态（无 P、有 P2）--
         assertThat(subjectDomainService.resolveEffectiveRoles(TENANT, affectedUser))
             .containsExactlyInAnyOrder(targetRole);
-        assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+        assertThat(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
             .containsKey(affectedUser);
 
         PermResult afterRevoke = permQueryEngine.query(PermQuery.forUserView(TENANT, affectedUser));
@@ -178,7 +178,7 @@ class AuthorizationChangeInvalidationPgIT {
         // 预热缓存（afterCommit 失效断言用）
         assertThat(subjectDomainService.resolveEffectiveRoles(TENANT, affectedUser))
             .containsExactlyInAnyOrder(targetRole);
-        assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+        assertThat(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
             .containsKey(affectedUser);
 
         AccessRequestContext.bind(RequestContext.user(TENANT, 920011L));
@@ -227,9 +227,9 @@ class AuthorizationChangeInvalidationPgIT {
                 && "target-role-920211".equals(item.path("role").path("roleExternalId").asText()));
 
         // afterCommit 缓存失效
-        assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+        assertThat(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
             .doesNotContainKey(affectedUser);
-        assertThat(cacheService.getBatch(PermCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, Set.of(targetRole)))
+        assertThat(cacheService.getBatch(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, TENANT, Set.of(targetRole)))
             .doesNotContainKey(targetRole);
     }
 
@@ -265,7 +265,7 @@ class AuthorizationChangeInvalidationPgIT {
             // 预热缓存（失败不得失效）
             assertThat(subjectDomainService.resolveEffectiveRoles(TENANT, affectedUser))
                 .containsExactlyInAnyOrder(targetRole);
-            assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+            assertThat(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
                 .containsKey(affectedUser);
 
             AccessRequestContext.bind(RequestContext.user(TENANT, 920021L));
@@ -300,7 +300,7 @@ class AuthorizationChangeInvalidationPgIT {
                 Integer.class, TENANT, targetRole);
             assertThat(logCount).isZero();
             // 失败不触发缓存失效（仍命中预热值）
-            assertThat(cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
+            assertThat(cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, TENANT, Set.of(affectedUser)))
                 .containsKey(affectedUser);
         } finally {
             jdbc.update("DROP TRIGGER IF EXISTS trg_golden_fail ON role_resource_permission");

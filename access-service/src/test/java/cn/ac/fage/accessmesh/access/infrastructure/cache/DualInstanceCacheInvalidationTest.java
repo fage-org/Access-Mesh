@@ -333,7 +333,7 @@ class DualInstanceCacheInvalidationTest {
      * 授权 L2 回填的绝对过期时刻锚定读取起点（读取起点 + catalog TTL），
      * 与写入时刻无关——即使回填发生在读取起点 + TTL - 0.5s，条目也只在剩余 0.5s 内可用；
      * Gateway 侧「回源 5s 截止 + L1 15s」由 gateway 模块测试与启动校验强制，
-     * 三者合计 ≤ 30s（见 PermCacheCatalogBoundaryTest.safetyBudget_shouldStayWithin30Seconds）。
+     * 三者合计 ≤ 30s（见 AccessCacheCatalogBoundaryTest.safetyBudget_shouldStayWithin30Seconds）。
      */
     @Test
     void upstreamL2Backfill_shouldAnchorAbsoluteExpiryToReadStart() throws InterruptedException {

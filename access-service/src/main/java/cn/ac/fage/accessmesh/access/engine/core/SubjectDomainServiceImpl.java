@@ -12,7 +12,7 @@ import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
-import cn.ac.fage.accessmesh.access.infrastructure.cache.PermCacheCatalog;
+import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.util.StringUtils;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -238,7 +238,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
      */
     private Map<Long, Set<Long>> resolveEffectiveRolesBatch(Long tenantId, Set<Long> userIds) {
         Map<Long, Set<Long>> result = new HashMap<>(
-            cacheService.getBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds));
+            cacheService.getBatch(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds));
         Set<Long> uncachedUserIds = new HashSet<>(userIds);
         uncachedUserIds.removeAll(result.keySet());
 
@@ -247,7 +247,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         }
 
         // T-ACCESS-008：授权 L2 miss——数据库读取前记录单调时钟起点，回填只写剩余 TTL
-        CacheReadToken<Set<Long>> readToken = cacheService.beginRead(PermCacheCatalog.EFFECTIVE_ROLES);
+        CacheReadToken<Set<Long>> readToken = cacheService.beginRead(AccessCacheCatalog.EFFECTIVE_ROLES);
 
         // T-ACCESS-019：DDL 语义 enabled=false 时鉴权不通过——禁用主体有效角色置空
         // （空集同样回填缓存，重新启用由写路径 markUsers 失效）
@@ -456,7 +456,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         if (userIds == null || userIds.isEmpty()) {
             return;
         }
-        cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
+        cacheService.evictBatch(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
     }
 
     /**
@@ -478,7 +478,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
             return;
         }
 
-        cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
+        cacheService.evictBatch(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
     }
 
     /**
@@ -498,7 +498,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         if (userIds.isEmpty()) {
             return;
         }
-        cacheService.evictBatch(PermCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
+        cacheService.evictBatch(AccessCacheCatalog.EFFECTIVE_ROLES, tenantId, userIds);
     }
 
     @Override
