@@ -213,6 +213,15 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/perm/api/perm/log/operation/list", "bootstrap:操作日志列表", true, false),
             new ApiRoute("POST", "/perm/api/perm/log/operation/action-options", "bootstrap:操作类型字典", true, false),
             new ApiRoute("POST", "/perm/api/perm/log/change/list", "bootstrap:权限变更日志列表", true, false),
+            // T-FE-044：资源依赖页消费端点（引用数据 resource-entity/tree、operation-permission/list
+            // 已在上方清单）。batch-sync 前端不消费不注册（同步侧通道）；业务门禁零新增
+            // （DEPENDENCY 五档 T-PERM-031 已预置在图）
+            new ApiRoute("POST", "/perm/api/perm/resource-dependency/list", "bootstrap:资源依赖列表", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-dependency/graph", "bootstrap:资源依赖图", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-dependency/check", "bootstrap:依赖循环检测", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-dependency/create", "bootstrap:创建资源依赖", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-dependency/update", "bootstrap:更新资源依赖", true, false),
+            new ApiRoute("POST", "/perm/api/perm/resource-dependency/remove", "bootstrap:删除资源依赖", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/admin/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }

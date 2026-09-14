@@ -39,3 +39,11 @@ frontend-phase2（2026-06-29 立项）与 design-audit-followup（2026-09-05 立
 ### 暂缓项去向
 
 T-PERM-035/036/054 留 `docs/tasks/`（⚙️ proposed、plan 字段 —，看板行已标注脱出来源）；重启经 PM 重申 / 方案定案后直接以看板任务推进，不再依赖已归档计划。
+
+## 批次三：T-FE-044 单卡归档
+
+| 内容 | 去向 |
+|------|------|
+| T-FE-044.md（Phase 3 补遗联调：资源依赖 3.4 mock→真实收口） | 本目录 `tasks/`（done 即单卡归档——Q-011/Q-012 转出任务，无所属计划） |
+
+关联收敛：pending-problems Q-011/Q-012 随卡 done 收敛入索引；业务页 mock 全部退役（mock/ 仅剩 login.ts 开关门控件与 asyncRoutes.ts 模板参考件）。

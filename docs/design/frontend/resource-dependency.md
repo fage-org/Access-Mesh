@@ -1,10 +1,10 @@
 # 3.4 资源依赖页前端设计
 
 > status: adopted
-> 任务：T-FE-011（mock 驱动）
-> 后端契约：api-contract.md §5.6（`resource-dependency/*`）/ §6.9（batch-sync）
-> 后端任务：T-PERM-031（depends_on 本任务；已收口 2026-08-30，终态见 api-contract §5.6 resource-dependency 契约要点）
-> last_reviewed: 2026-08-30（T-PERM-031 收口回写：🔧 清单 8 项处置、门禁五档类型级、Resp 补静态字段+bits 字符串线格式、PUT 全量替换落地）
+> 任务：T-FE-011（mock 驱动）→ T-FE-044（Phase 3 补遗联调收口，2026-09-14：mock 退役 + Gateway 端点注册 + 真实链路六场景冒烟）
+> 后端契约：access-service-api-contract.md §12.3 / §12.4（`resource-dependency/*`；T-ACCESS-040 契约总册合并后现行锚点）
+> 后端任务：T-PERM-031（depends_on 本任务；已收口 2026-08-30，终态见总册 §12.3 resource-dependency 契约要点）
+> last_reviewed: 2026-09-14（T-FE-044 联调回写：mock 终态化、api 路径 /perm 前缀缺陷修复、六端点入 bootstrap 固定图）
 
 ## 1. 背景
 
@@ -95,7 +95,7 @@
 - 颜色：从 CSS 变量取色（`getComputedStyle`），深色模式自适应
 - 空数据显示 el-empty
 
-## 4. API 核对（基线：mock 请求/响应；T-PERM-031 已收口 2026-08-30）
+## 4. API 核对（T-FE-044 联调收口 2026-09-14：基线=真实链路，mock 已退役）
 
 | 端点 | 请求 | 响应 | 状态 |
 |------|------|------|------|
@@ -119,6 +119,12 @@
 - **batch-sync FULL diff 匹配只比 sourceCode+targetCode**：**已修**（三元组匹配：源+目标+COALESCE(source_bits,0)，对齐 uk 语义）。
 - **batch-sync P0 标 TODO**（Q5=B）：前端不实现 UI 与 mock（后端端点已收口），维持后续阶段。
 
+### T-FE-044 联调注记（2026-09-14）
+
+- **外部路径约定（联调修复的实质缺陷）**：api 层六端点路径误写 `/api/perm/resource-dependency/*`（缺 Gateway `/perm` 前缀）——mock 拦截 url 与错误路径逐字一致，dev 下从未暴露；真实链路 `create` 404 后修正为 `/perm/api/perm/resource-dependency/*`（vite proxy `/perm` → Gateway `Path=/perm/**` StripPrefix=1 → access-service `/api/perm/...`，resource-operation/role-manage 同款约定）。
+- **Gateway 端点注册**：六端点入 `BootstrapGraphDefinition.apiRoutes()`（batch-sync 前端不消费不注册）；业务门禁零新增（DEPENDENCY 五档 T-PERM-031 已预置）。
+- **冒烟证据链**（重建库后浏览器实测）：list 空态（bootstrap 不种子依赖）→ create 落表（maintain_source=ADMIN_UI、操作位 bits=2）→ update 全量替换（触发操作 任意→查看=bits 2）→ graph 200 + echarts canvas 渲染 → check 成环对 hasCycle=true / 无环对 false → remove 软删（delete_flag=id）+ 空态回显；操作日志 CREATE/UPDATE/REMOVE 三条 200。错误路径：等价重复 20054（真实 R 信封）；自依赖由前端表单防呆拦截（「源资源与目标资源不能相同」，后端 20044 兜底有单测锁）。
+
 ## 5. 权限接线
 
 资源类型 `DEPENDENCY`，门禁五档类型级（读 VIEW + 写 CREATE/UPDATE/DELETE 三档独立非 MANAGE + SYNC batch-sync 专用，T-PERM-031 收口口径，对齐后端 DependencyAppServiceImpl）：
@@ -133,7 +139,7 @@
 
 - SSOT：`views/system/resource-dependency/utils/perms.ts`（RESOURCE_DEPENDENCY_PERMS / PERM_LIST / VIEW_PERMS）
 - 路由 `meta.auths`：`[...RESOURCE_DEPENDENCY_PERM_LIST]`
-- mock 角色矩阵：admin 全权；sec（安全管理员）VIEW+CREATE+UPDATE+DELETE+SYNC；hr/auditor 只读 VIEW
+- bootstrap 固定图：管理用功能角色持 DEPENDENCY 五档类型级（T-PERM-031 预置；冒烟以 admin 实测五档生效）
 - 环检测/依赖图按钮复用 VIEW 门控（后端 check/graph 已补类型级 VIEW 校验，T-PERM-031）
 
 ## 6. 组件
@@ -154,7 +160,7 @@
 - 依赖图：echarts graph，本页独有，不抽取
 - 不抽取共享组件，不登记 T-FE-001 组件池
 
-## 7. mock 种子
+## 7. mock 种子（已退役——T-FE-044 联调收口 2026-09-14，`mock/resource-dependency.ts` 与 `mock/_shared/resource-fixtures.ts` 整删；本节仅作 Phase 1 种子历史参考，以下 mock 行为描述均为历史形态）
 
 对齐 resource-operation mock 资源 ID（201-232）和操作 binaryBit（CREATE=1/VIEW=2/UPDATE=4/DELETE=8）：
 
@@ -185,3 +191,4 @@
 | 8 | 依赖图可视化（echarts graph 力导向布局，注册 GraphChart） | ✅ |
 | 9 | 编辑表单资源对可改（全量替换契约 Q3=B，后端已落地 PUT 语义） | ✅ |
 | 10 | batch-sync 标 TODO（Q5=B，不实现 UI 与 mock） | ✅ |
+| 11 | T-FE-044 联调收口（mock 退役 + Gateway 六端点注册 + api 路径 /perm 前缀修复 + 真实链路六场景冒烟，见 §4 联调注记） | ✅ |

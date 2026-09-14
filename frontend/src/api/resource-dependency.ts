@@ -1,8 +1,12 @@
 /**
  * 资源依赖 API
  * 经 @/utils/http 调用 access-service 端点
- * （`/api/perm/resource-dependency/*`）；
- * Phase 1 由 mock/resource-dependency.ts（vite-plugin-fake-server）提供假数据。
+ * （`/perm/api/perm/resource-dependency/*`——Gateway 外部路径约定：
+ * vite proxy `/perm` → Gateway `Path=/perm/**` StripPrefix=1 → access-service `/api/perm/...`，
+ * resource-operation/role-manage 同款；联调修复：Phase 1 误写 `/api/perm/...` 缺 /perm 前缀，
+ * mock 拦截 url 与错误路径一致致 dev 从未暴露，T-FE-044 真实链路 404 修正）。
+ * T-FE-044 联调收口：Phase 1 mock（vite-plugin-fake-server）已退役，全端点走真实链路
+ * （Gateway → access-service；六端点已入 bootstrap 固定图 apiRoutes）。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
@@ -132,20 +136,20 @@ export type DependencyGraphReq = DependencyListReq;
 
 // ========== API 函数 ==========
 
-/** 查询资源依赖列表（POST /api/perm/resource-dependency/list）。
+/** 查询资源依赖列表（POST /perm/api/perm/resource-dependency/list）。
  *  门禁 DEPENDENCY:VIEW 类型级；全量不分页（关键词过滤前端本地完成）。 */
 export const getDependencyList = async (
   params: DependencyListReq = {}
 ): Promise<ItemsResp<ResourceDependencyResp>> => {
   const res = await http.request<R<ItemsResp<ResourceDependencyResp>>>(
     "post",
-    "/api/perm/resource-dependency/list",
+    "/perm/api/perm/resource-dependency/list",
     { data: params }
   );
   return unwrap(res);
 };
 
-/** 创建资源依赖（POST /api/perm/resource-dependency/create，业务键）。
+/** 创建资源依赖（POST /perm/api/perm/resource-dependency/create，业务键）。
  *  错误码：20004 资源不存在 / 20005 操作码不存在（fail-closed）/ 20044 自依赖 /
  *  20054 等价重复 / 20048 autoGrant=true。 */
 export const createDependency = async (
@@ -153,58 +157,58 @@ export const createDependency = async (
 ): Promise<ResourceDependencyResp> => {
   const res = await http.request<R<ResourceDependencyResp>>(
     "post",
-    "/api/perm/resource-dependency/create",
+    "/perm/api/perm/resource-dependency/create",
     { data }
   );
   return unwrap(res);
 };
 
-/** 更新资源依赖（POST /api/perm/resource-dependency/update，PUT 全量替换）。
+/** 更新资源依赖（POST /perm/api/perm/resource-dependency/update，PUT 全量替换）。
  *  错误码：20019 依赖不存在（先解析后门禁）/ 20004/20005/20044/20054/20048 同 create。 */
 export const updateDependency = async (
   data: ResourceDependencyUpdateReq
 ): Promise<ResourceDependencyResp> => {
   const res = await http.request<R<ResourceDependencyResp>>(
     "post",
-    "/api/perm/resource-dependency/update",
+    "/perm/api/perm/resource-dependency/update",
     { data }
   );
   return unwrap(res);
 };
 
-/** 删除资源依赖，支持批量（POST /api/perm/resource-dependency/remove，IdsReq{ids}）。
+/** 删除资源依赖，支持批量（POST /perm/api/perm/resource-dependency/remove，IdsReq{ids}）。
  *  类型级 DELETE 全有或全无；幽灵 id 幂等跳过，响应 data=null 无行数。 */
 export const removeDependencies = async (ids: number[]): Promise<void> => {
   unwrap(
     await http.request<R<void>>(
       "post",
-      "/api/perm/resource-dependency/remove",
+      "/perm/api/perm/resource-dependency/remove",
       { data: { ids } }
     )
   );
 };
 
-/** 查询依赖图（POST /api/perm/resource-dependency/graph）。
+/** 查询依赖图（POST /perm/api/perm/resource-dependency/graph）。
  *  门禁 DEPENDENCY:VIEW；返回扁平依赖列表，前端自行构建 nodes/edges（设计定案维持）。 */
 export const getDependencyGraph = async (
   params: DependencyGraphReq = {}
 ): Promise<ItemsResp<ResourceDependencyResp>> => {
   const res = await http.request<R<ItemsResp<ResourceDependencyResp>>>(
     "post",
-    "/api/perm/resource-dependency/graph",
+    "/perm/api/perm/resource-dependency/graph",
     { data: params }
   );
   return unwrap(res);
 };
 
-/** 检测循环依赖（POST /api/perm/resource-dependency/check，业务键）。
+/** 检测循环依赖（POST /perm/api/perm/resource-dependency/check，业务键）。
  *  门禁 DEPENDENCY:VIEW；资源不存在 20004。 */
 export const checkDependencyCycle = async (
   data: ResourceDependencyCheckReq
 ): Promise<DependencyCycleCheckResp> => {
   const res = await http.request<R<DependencyCycleCheckResp>>(
     "post",
-    "/api/perm/resource-dependency/check",
+    "/perm/api/perm/resource-dependency/check",
     { data }
   );
   return unwrap(res);
