@@ -26,14 +26,6 @@ public interface SystemConfigMapper extends BaseMapper<SystemConfig> {
                                     @Param("configKey") String configKey);
 
     /**
-     * 根据租户ID查询所有有效系统配置列表
-     *
-     * @param tenantId 租户ID
-     * @return 系统配置列表
-     */
-    List<SystemConfig> selectByTenantId(@Param("tenantId") Long tenantId);
-
-    /**
      * 按条件统计有效系统配置数量
      *
      * @param tenantId 租户ID
