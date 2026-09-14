@@ -62,10 +62,7 @@ export type LoginFormData = Pick<
  * 验证码 5 分钟有效且一次性消费。
  */
 export const getCaptcha = async (): Promise<CaptchaResp> => {
-  const res = await http.request<R<CaptchaResp>>(
-    "post",
-    "/auth/captcha"
-  );
+  const res = await http.request<R<CaptchaResp>>("post", "/auth/captcha");
   return unwrap(res);
 };
 

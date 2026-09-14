@@ -231,11 +231,9 @@ export const updateResource = async (
  *  parent 为 null 表示移动到顶层。 */
 export const moveResource = async (data: ResourceMoveReq): Promise<void> => {
   unwrap(
-    await http.request<R<void>>(
-      "post",
-      "/perm/api/perm/resource-entity/move",
-      { data }
-    )
+    await http.request<R<void>>("post", "/perm/api/perm/resource-entity/move", {
+      data
+    })
   );
 };
 
@@ -255,9 +253,11 @@ export const removeResources = async (keys: ResourceKey[]): Promise<void> => {
 export const getOperationList = async (
   params: OperationListQuery
 ): Promise<ItemsResp<OperationPermissionResp>> => {
-  const res = await http.request<
-    R<ItemsResp<OperationPermissionResp>>
-  >("post", "/perm/api/perm/operation-permission/list", { data: params });
+  const res = await http.request<R<ItemsResp<OperationPermissionResp>>>(
+    "post",
+    "/perm/api/perm/operation-permission/list",
+    { data: params }
+  );
   return unwrap(res);
 };
 

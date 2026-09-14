@@ -119,7 +119,9 @@ const popoverVisible = ref(false);
         >
           <span class="item-name">
             内联条件…
-            <el-tag size="small" type="warning" effect="plain">随授权保存创建</el-tag>
+            <el-tag size="small" type="warning" effect="plain"
+              >随授权保存创建</el-tag
+            >
           </span>
           <span class="item-summary">
             就地定义规则，随本条授权记录保存/回收（管理页不可见）
@@ -156,7 +158,8 @@ const popoverVisible = ref(false);
         />
       </div>
       <div class="picker-footer">
-        复用型条件请在「3.2 权限条件」页维护后引用；单条授权专用的条件用内联条件就地定义。
+        复用型条件请在「3.2
+        权限条件」页维护后引用；单条授权专用的条件用内联条件就地定义。
       </div>
     </div>
   </el-popover>

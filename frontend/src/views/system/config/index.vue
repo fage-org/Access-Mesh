@@ -196,7 +196,10 @@ function openForm(mode: "create" | "edit", row?: SystemConfigResp) {
               >
                 编辑
               </el-button>
-              <span v-if="!canSave || row.isSystem" class="text-sm text-gray-400">
+              <span
+                v-if="!canSave || row.isSystem"
+                class="text-sm text-gray-400"
+              >
                 —
               </span>
             </template>

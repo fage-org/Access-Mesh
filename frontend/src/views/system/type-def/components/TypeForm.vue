@@ -47,7 +47,8 @@ const isSystemRow = computed(
 /** 所有者选择器可见：resource_type 且（新建 或 编辑自定义类型——内置类型转授链收窄不暴露） */
 const ownerSelectorVisible = computed(
   () =>
-    formData.typeKey === "resource_type" && (!isEdit.value || !formData.isSystem)
+    formData.typeKey === "resource_type" &&
+    (!isEdit.value || !formData.isSystem)
 );
 
 /** BASIC_ROLE 启用角色选项（所有者接收方；后端解析要求启用态） */

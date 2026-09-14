@@ -109,9 +109,9 @@ const focusInline = ref<InlineConditionDef | null>(null);
 /** 内联规则编辑模型（结构化，ReConditionEditor v-model；序列化进 focusInline.conditionRules） */
 const inlineRulesModel = ref<ConditionRules>(createEmptyRules());
 /** 内联编辑器实例（确认前校验入口） */
-const inlineEditorRef = ref<InstanceType<
-  typeof ReConditionEditor
-> | null>(null);
+const inlineEditorRef = ref<InstanceType<typeof ReConditionEditor> | null>(
+  null
+);
 
 // ========== 操作权限（按资源类型分组；专属与全局分组展示） ==========
 
@@ -381,7 +381,11 @@ function handleConditionChange(value: string | null) {
 /** 切换内联编辑模式（T-PERM-048）：当前非内联态时以空定义进入；内联态重复点击为 no-op */
 function handleSwitchToInline() {
   if (focusInline.value != null) return;
-  focusInline.value = { name: "", conditionRules: "{}", gatewayEvaluable: false };
+  focusInline.value = {
+    name: "",
+    conditionRules: "{}",
+    gatewayEvaluable: false
+  };
   inlineRulesModel.value = createEmptyRules();
   focusConditionCode.value = null;
   focusCanGrant.value = false; // 内联条件不可转授（20041 同口径）
@@ -1134,8 +1138,7 @@ function handleRestoreChild(record: EffectiveRecord) {
 /** 确定：expandSuspended 双路径展开（baseline→remove / add→取消变更组）后提交完整草稿。
  *  内联定义在场时先校验（名称必填 + 规则完整性），不合法阻断提交（T-PERM-048）。 */
 function handleConfirm() {
-  const inlineError =
-    validateAllDraftInline() ?? validateInlineBeforeConfirm();
+  const inlineError = validateAllDraftInline() ?? validateInlineBeforeConfirm();
   if (inlineError != null) {
     message(inlineError, { type: "warning" });
     return;
@@ -1309,33 +1312,38 @@ function handleClose() {
             </span>
           </el-tooltip>
         </div>
-            <div v-if="focusInline != null" class="inline-condition-editor">
-              <div class="inline-editor-heading">
-                <span class="field-label">内联条件（随本条授权保存创建）</span>
-                <el-button size="small" text type="danger" @click="handleRemoveInline">
-                  移除内联条件
-                </el-button>
-              </div>
-              <el-input
-                :model-value="focusInline.name"
-                placeholder="内联条件名称（必填）"
-                size="small"
-                class="inline-name-input"
-                @update:model-value="handleInlineNameChange"
-              />
-              <ReConditionEditor
-                ref="inlineEditorRef"
-                :model-value="inlineRulesModel"
-                :gateway-evaluable="focusInline.gatewayEvaluable === true"
-                @update:model-value="handleInlineRulesChange"
-              />
-              <el-checkbox
-                :model-value="focusInline.gatewayEvaluable === true"
-                @update:model-value="handleInlineGatewayChange"
-              >
-                可下发 Gateway 评估
-              </el-checkbox>
-            </div>
+        <div v-if="focusInline != null" class="inline-condition-editor">
+          <div class="inline-editor-heading">
+            <span class="field-label">内联条件（随本条授权保存创建）</span>
+            <el-button
+              size="small"
+              text
+              type="danger"
+              @click="handleRemoveInline"
+            >
+              移除内联条件
+            </el-button>
+          </div>
+          <el-input
+            :model-value="focusInline.name"
+            placeholder="内联条件名称（必填）"
+            size="small"
+            class="inline-name-input"
+            @update:model-value="handleInlineNameChange"
+          />
+          <ReConditionEditor
+            ref="inlineEditorRef"
+            :model-value="inlineRulesModel"
+            :gateway-evaluable="focusInline.gatewayEvaluable === true"
+            @update:model-value="handleInlineRulesChange"
+          />
+          <el-checkbox
+            :model-value="focusInline.gatewayEvaluable === true"
+            @update:model-value="handleInlineGatewayChange"
+          >
+            可下发 Gateway 评估
+          </el-checkbox>
+        </div>
         <!-- D4 有效来源提示（v3.1，措辞限定） -->
         <div v-if="sourceHint" class="source-hint">{{ sourceHint }}</div>
       </section>

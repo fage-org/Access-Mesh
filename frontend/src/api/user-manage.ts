@@ -77,7 +77,6 @@ export type UserPageQuery = {
   orgId?: number;
 };
 
-
 export type UserRoleItem = {
   roleTypeCode: string;
   roleExternalId: string;
@@ -250,9 +249,7 @@ export const updateUser = async (data: {
   phone?: string | null;
   email?: string | null;
 }): Promise<void> => {
-  unwrap(
-    await http.request<R<void>>("post", "/admin/user/update", { data })
-  );
+  unwrap(await http.request<R<void>>("post", "/admin/user/update", { data }));
 };
 
 /** 删除用户（POST /admin/user/delete，IdsReq 批量） */
@@ -308,13 +305,9 @@ export const setPrimaryOrg = async (data: {
   orgId: number;
 }): Promise<void> => {
   unwrap(
-    await http.request<R<void>>(
-      "post",
-      "/admin/user-org/set-primary",
-      {
-        data
-      }
-    )
+    await http.request<R<void>>("post", "/admin/user-org/set-primary", {
+      data
+    })
   );
 };
 
@@ -343,26 +336,22 @@ export const assignRole = async (data: {
   validTo?: string;
 }): Promise<void> => {
   unwrap(
-    await http.request<R<void>>(
-      "post",
-      "/perm/api/perm/user-role/assign",
-      {
-        data: {
-          items: [
-            {
-              // 本地管理页用户为 LOCAL_USER 主体（user_type 种子：USER=外部人员 /
-              // LOCAL_USER=本地访问主体，T-ORG-001 external_id=主体 ID 字符串化）
-              subjectTypeCode: "LOCAL_USER",
-              subjectExternalId: String(data.userId),
-              roleTypeCode: data.roleTypeCode,
-              roleExternalId: data.roleExternalId,
-              validFrom: data.validFrom,
-              validTo: data.validTo
-            }
-          ]
-        }
+    await http.request<R<void>>("post", "/perm/api/perm/user-role/assign", {
+      data: {
+        items: [
+          {
+            // 本地管理页用户为 LOCAL_USER 主体（user_type 种子：USER=外部人员 /
+            // LOCAL_USER=本地访问主体，T-ORG-001 external_id=主体 ID 字符串化）
+            subjectTypeCode: "LOCAL_USER",
+            subjectExternalId: String(data.userId),
+            roleTypeCode: data.roleTypeCode,
+            roleExternalId: data.roleExternalId,
+            validFrom: data.validFrom,
+            validTo: data.validTo
+          }
+        ]
       }
-    )
+    })
   );
 };
 
@@ -373,22 +362,18 @@ export const revokeRole = async (data: {
   roleExternalId: string;
 }): Promise<void> => {
   unwrap(
-    await http.request<R<void>>(
-      "post",
-      "/perm/api/perm/user-role/revoke",
-      {
-        data: {
-          items: [
-            {
-              subjectTypeCode: "LOCAL_USER",
-              subjectExternalId: String(data.userId),
-              roleTypeCode: data.roleTypeCode,
-              roleExternalId: data.roleExternalId
-            }
-          ]
-        }
+    await http.request<R<void>>("post", "/perm/api/perm/user-role/revoke", {
+      data: {
+        items: [
+          {
+            subjectTypeCode: "LOCAL_USER",
+            subjectExternalId: String(data.userId),
+            roleTypeCode: data.roleTypeCode,
+            roleExternalId: data.roleExternalId
+          }
+        ]
       }
-    )
+    })
   );
 };
 
@@ -396,19 +381,15 @@ export const revokeRole = async (data: {
 
 /** 创建组织（POST /admin/org/create；响应 data 为裸 Long——新组织 ID） */
 export const createOrg = async (data: OrgCreateReq): Promise<number> => {
-  const res = await http.request<R<number>>(
-    "post",
-    "/admin/org/create",
-    { data }
-  );
+  const res = await http.request<R<number>>("post", "/admin/org/create", {
+    data
+  });
   return unwrap(res);
 };
 
 /** 更新组织（POST /admin/org/update，仅传变更字段；类型不可改） */
 export const updateOrg = async (data: OrgUpdateReq): Promise<void> => {
-  unwrap(
-    await http.request<R<void>>("post", "/admin/org/update", { data })
-  );
+  unwrap(await http.request<R<void>>("post", "/admin/org/update", { data }));
 };
 
 /** 删除组织（POST /admin/org/delete，IdReq） */
@@ -467,9 +448,11 @@ export const resetUserPassword = async (data: {
 export const getMemberCandidates = async (
   params: MemberCandidatesQuery
 ): Promise<PageResp<MemberCandidateItem>> => {
-  const res = await http.request<
-    R<PageResp<MemberCandidateItem>>
-  >("post", "/admin/user/member-candidates", { data: params });
+  const res = await http.request<R<PageResp<MemberCandidateItem>>>(
+    "post",
+    "/admin/user/member-candidates",
+    { data: params }
+  );
   return unwrap(res);
 };
 

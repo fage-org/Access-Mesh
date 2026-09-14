@@ -1954,7 +1954,7 @@ describe("评审修复回归（ALL 勾选 / add 恢复 / update 恢复去重 / �
 describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
   const INLINE_DEF = {
     name: "工作时间",
-    conditionRules: "{\"logic\":\"AND\",\"items\":[]}",
+    conditionRules: '{"logic":"AND","items":[]}',
     gatewayEvaluable: false
   };
 
@@ -1992,7 +1992,7 @@ describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
     expect(plan.updates![0].conditionCode).toBeUndefined();
   });
 
-  it("update 清除内联：before=inline code → after 全空 → conditionCode 映射为 \"\"", () => {
+  it('update 清除内联：before=inline code → after 全空 → conditionCode 映射为 ""', () => {
     const before = makeRecord({ id: 5002, conditionCode: "inline-abc" });
     const change = buildUpdateChange({
       before,
@@ -2088,15 +2088,17 @@ describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
       "规则不完整"
     );
     expect(
-      validateInlineDefs(
-        [addWith("内联", "{\"logic\":\"AND\",\"items\":[]}")],
-        parse
-      )
+      validateInlineDefs([addWith("内联", '{"logic":"AND","items":[]}')], parse)
     ).toContain("规则不完整");
     // 完整定义通过
     expect(
       validateInlineDefs(
-        [addWith("内联", "{\"logic\":\"AND\",\"items\":[{\"type\":\"IP_WHITELIST\",\"params\":{\"cidrs\":[\"10.0.0.0/8\"]}}]}")],
+        [
+          addWith(
+            "内联",
+            '{"logic":"AND","items":[{"type":"IP_WHITELIST","params":{"cidrs":["10.0.0.0/8"]}}]}'
+          )
+        ],
         parse
       )
     ).toBeNull();
@@ -2113,7 +2115,7 @@ describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
         return false;
       });
     const halfBaked =
-      "{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{}}]}";
+      '{"logic":"AND","items":[{"type":"DATE_RANGE","params":{}}]}';
     const baseSummary = {
       operationCode: "VIEW",
       conditionCode: null,
@@ -2147,7 +2149,7 @@ describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
     );
     // 完整参数通过
     const full =
-      "{\"logic\":\"AND\",\"items\":[{\"type\":\"DATE_RANGE\",\"params\":{\"start\":\"2026-01-01\",\"end\":\"2026-12-31\"}}]}";
+      '{"logic":"AND","items":[{"type":"DATE_RANGE","params":{"start":"2026-01-01","end":"2026-12-31"}}]}';
     expect(validateInlineDefs([addWith(full)], parse, complete)).toBeNull();
   });
 
@@ -2189,9 +2191,9 @@ describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
     });
     const update = resumed.changes.find(c => c.kind === "update");
     expect(update).toBeDefined();
-    expect(
-      update?.kind === "update" && update.after.inlineCondition
-    ).toEqual(INLINE_DEF);
+    expect(update?.kind === "update" && update.after.inlineCondition).toEqual(
+      INLINE_DEF
+    );
   });
 
   it("buildSummary：内联键标签显示 内联:name（清单展示）", () => {
@@ -2272,9 +2274,9 @@ describe("T-PERM-048 内联轨（inlineCondition 语义）", () => {
       sourceInline: { ...INLINE_DEF }
     });
     const update = next.changes.find(c => c.kind === "update")!;
-    expect(
-      update.kind === "update" && update.after.inlineCondition
-    ).toEqual(INLINE_DEF);
+    expect(update.kind === "update" && update.after.inlineCondition).toEqual(
+      INLINE_DEF
+    );
     // 引用独立锁：目标 after 的定义对象不与源共享引用（未来引入原地变异写法即红）
     expect(update.kind === "update" && update.after.inlineCondition).not.toBe(
       INLINE_DEF

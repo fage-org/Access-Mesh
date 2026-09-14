@@ -42,11 +42,11 @@ const addGroups = computed<AddGroup[]>(() => {
   return [...map.values()].map(items => {
     const first = items[0];
     const condition =
-      first.summary.conditionCode
-      ?? (first.summary.inlineName != null
+      first.summary.conditionCode ??
+      (first.summary.inlineName != null
         ? `内联:${first.summary.inlineName}`
-        : null)
-      ?? "无条件";
+        : null) ??
+      "无条件";
     return {
       key: changeGroupKey(first.summary),
       items,

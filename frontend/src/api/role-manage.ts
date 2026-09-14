@@ -240,26 +240,18 @@ export const updateRole = async (data: RoleUpdateReq): Promise<RoleResp> => {
 /** 移动角色树节点（POST /perm/api/perm/abstract-role/move） */
 export const moveRole = async (data: RoleMoveReq): Promise<void> => {
   unwrap(
-    await http.request<R<void>>(
-      "post",
-      "/perm/api/perm/abstract-role/move",
-      {
-        data
-      }
-    )
+    await http.request<R<void>>("post", "/perm/api/perm/abstract-role/move", {
+      data
+    })
   );
 };
 
 /** 删除角色，支持批量（POST /perm/api/perm/abstract-role/remove） */
 export const removeRoles = async (ids: number[]): Promise<void> => {
   unwrap(
-    await http.request<R<void>>(
-      "post",
-      "/perm/api/perm/abstract-role/remove",
-      {
-        data: { ids }
-      }
-    )
+    await http.request<R<void>>("post", "/perm/api/perm/abstract-role/remove", {
+      data: { ids }
+    })
   );
 };
 

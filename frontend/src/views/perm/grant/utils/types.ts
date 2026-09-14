@@ -117,7 +117,9 @@ export type UpdateChange = {
   after: {
     canGrant: boolean;
     conditionCode: string | null;
-    inlineCondition?: import("@/api/permission-grant").InlineConditionDef | null;
+    inlineCondition?:
+      | import("@/api/permission-grant").InlineConditionDef
+      | null;
   };
   summary: ChangeSummary;
 };

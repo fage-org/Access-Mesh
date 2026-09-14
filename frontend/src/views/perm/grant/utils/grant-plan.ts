@@ -212,7 +212,7 @@ export function applyDraftToRecords(input: {
       conditionCode: update ? update.after.conditionCode : record.conditionCode,
       draftMark: mark?.mark ?? null,
       changeId: mark?.changeId,
-      inlineCondition: update ? update.after.inlineCondition ?? null : null
+      inlineCondition: update ? (update.after.inlineCondition ?? null) : null
     };
     if (record.dependOn == null) {
       mains.push(effective);
@@ -348,9 +348,7 @@ export function buildGrantPlan(changes: DraftChange[]): GrantPlan | null {
         // T-PERM-048 内联轨：最终条件为该内联定义（后端语义——现绑 INLINE 就地编辑 /
         // 现绑 null/MANAGED 新建换绑）；与 conditionCode 互斥不并发
         item.inlineCondition = change.after.inlineCondition;
-      } else if (
-        change.before.conditionCode !== change.after.conditionCode
-      ) {
+      } else if (change.before.conditionCode !== change.after.conditionCode) {
         // 三态：null → 清除映射为 ""；非空 → 覆盖（值域=MANAGED）
         item.conditionCode = change.after.conditionCode ?? "";
       }
@@ -383,8 +381,9 @@ export function buildSummary(input: {
   conditionName?: string | null;
 }): ChangeSummary {
   const { recordKey } = input;
-  const conditionLabel = recordKey.conditionCode
-    ?? (recordKey.inlineCondition != null
+  const conditionLabel =
+    recordKey.conditionCode ??
+    (recordKey.inlineCondition != null
       ? `内联:${recordKey.inlineCondition.name}`
       : "无条件");
   return {

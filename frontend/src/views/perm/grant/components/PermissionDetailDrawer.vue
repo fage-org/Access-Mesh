@@ -143,9 +143,7 @@ function handleClose() {
                 <div class="record-title">
                   <el-tag
                     size="small"
-                    :type="
-                      record.grantSource === 'MANUAL' ? 'primary' : 'info'
-                    "
+                    :type="record.grantSource === 'MANUAL' ? 'primary' : 'info'"
                     effect="plain"
                   >
                     {{
