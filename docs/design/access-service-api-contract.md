@@ -1880,6 +1880,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `save`（upsert）：`{configKey, configValue, description?}`——按 `configKey` 查存在则 update、不存在则 insert（新建固定 `isSystem=false` 租户自定义，系统内置仅走种子）；`configValue` 为 JSON 字符串（`JsonValidationUtils` 校验合法性）；`configKey` 命名空间前缀校验 20047（见上）。无 create/update/remove——`save` 幂等覆盖新建/编辑，配置项不可删除（键稳定，防误删回退默认）。
 - `detail`：`{configKey}`（按业务键 configKey 查询，非 id）。
 - `list`：`{keyword?, pageNum?, pageSize?}` → 分页结构（§2.3）；`keyword` 匹配 configKey/description（LIKE，大小写敏感），排序 `config_key, id`；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`）。
+- **isSystem 行标识（T-ACCESS-037 后续修正，2026-09-13）**：detail/save 响应与 list 行均携带 `isSystem`（Boolean，映射 `is_system` 列）——`true` 为系统内置（仅走种子，save 拒改 20064，见上）；前端据此以「系统预置/自定义」标签展示并对内置行隐藏编辑入口（type-def 同款形态）。
 - **configValue JSONB 语义（SystemConfigJsonbPgIT 实证）**：读出为 DB 规范化后的 JSON 文本——与提交值**语义等价**（解析树相等，含中文/嵌套/数组），但非字节回显（JSONB 规范化空白与键序）；展示值可直接再提交（规范化幂等），无截断/转义问题。
 - 权限门禁：`list`/`detail` 需 `SYSTEM_CONFIG:VIEW`，`save` 需 `SYSTEM_CONFIG:MANAGE`（操作位种子已由权威 DDL CRUD 预置组覆盖，租户 1）。
 

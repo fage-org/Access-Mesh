@@ -48,6 +48,7 @@ const columns = [
     slot: "configValue"
   },
   { label: "描述", prop: "description", minWidth: 200 },
+  { label: "属性", prop: "isSystem", width: 90, slot: "isSystem" },
   { label: "更新时间", prop: "updatedAt", width: 170 },
   {
     label: "操作",
@@ -173,9 +174,19 @@ function openForm(mode: "create" | "edit", row?: SystemConfigResp) {
                 </span>
               </el-tooltip>
             </template>
+            <template #isSystem="{ row }">
+              <el-tag
+                size="small"
+                :type="row.isSystem ? 'info' : 'success'"
+                effect="light"
+              >
+                {{ row.isSystem ? "系统预置" : "自定义" }}
+              </el-tag>
+            </template>
             <template #operation="{ row }">
+              <!-- 系统内置行仅走种子，save 拒改 20064——编辑入口按行隐藏（type-def 同款形态） -->
               <el-button
-                v-if="canSave"
+                v-if="canSave && !row.isSystem"
                 class="reset-margin"
                 link
                 type="primary"
@@ -185,7 +196,9 @@ function openForm(mode: "create" | "edit", row?: SystemConfigResp) {
               >
                 编辑
               </el-button>
-              <span v-if="!canSave" class="text-sm text-gray-400"> — </span>
+              <span v-if="!canSave || row.isSystem" class="text-sm text-gray-400">
+                —
+              </span>
             </template>
           </pure-table>
         </template>

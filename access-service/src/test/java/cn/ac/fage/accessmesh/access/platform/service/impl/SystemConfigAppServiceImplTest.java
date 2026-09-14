@@ -52,6 +52,8 @@ class SystemConfigAppServiceImplTest {
             assertEquals("admin.key1", inserted.getConfigKey());
             // 回归锁：is_system NOT NULL——API 新建必须显式置 false，否则 insert 违反非空约束（T-PERM-024 PgIT 发现）
             assertEquals(Boolean.FALSE, inserted.getIsSystem());
+            // 回归锁：Resp 暴露 isSystem——前端据此隐藏内置行编辑入口（20064 守卫的展示面闭环）
+            assertEquals(Boolean.FALSE, result.isSystem());
         }
     }
 
@@ -162,6 +164,7 @@ class SystemConfigAppServiceImplTest {
             row.setTenantId(1L);
             row.setConfigKey("admin.key1");
             row.setConfigValue("{}");
+            row.setIsSystem(true);
             when(systemConfigMapper.selectPageByCondition(eq(1L), eq("cache"), eq(10), eq(0)))
                 .thenReturn(java.util.List.of(row));
 
@@ -169,6 +172,8 @@ class SystemConfigAppServiceImplTest {
 
             assertEquals(1, result.size());
             assertEquals("admin.key1", result.get(0).configKey());
+            // 回归锁：list 行结构携带 isSystem（内置种子行 true）——展示面据此区分系统预置/自定义
+            assertEquals(Boolean.TRUE, result.get(0).isSystem());
             verify(systemConfigMapper).selectPageByCondition(eq(1L), eq("cache"), eq(10), eq(0));
         }
     }

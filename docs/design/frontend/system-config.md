@@ -18,8 +18,8 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 
 系统配置页管理 `system_config` 表的**租户级配置项**：扁平 `tenant_id + config_key + config_value(JSONB)` 键值表，每条是 `(configKey 唯一键, configValue JSON, description)`。
 
-- **扁平 key-value 字典，非分组表单**：`system_config` 表无 `config_group` 字段（schema:635-656），设计为扁平键值存储。任务原标题「租户级配置分组表单」与实际后端契约不符，本页按实际扁平 key-value 字典实现。
-- **无 is_system 字段**：与 `type_definition` 不同，`system_config` 无系统预置概念，所有配置项均为租户级可编辑。
+- **扁平 key-value 字典，非分组表单**：`system_config` 表无 `config_group` 字段（schema `system_config` 表），设计为扁平键值存储。任务原标题「租户级配置分组表单」与实际后端契约不符，本页按实际扁平 key-value 字典实现。
+- **is_system 内置行只读（T-ACCESS-037 后续修正，2026-09-13）**：`system_config` 有系统内置概念——`is_system=true` 种子行（`admin.LOGIN_CAPTCHA_ENABLED` 等）仅走种子，save 拒改（20064，契约总册 §17.2）。响应携带 `isSystem`，本页以「属性」列展示系统预置/自定义标签（type-def 同款形态），内置行隐藏编辑入口（编辑按钮 `v-if="canSave && !row.isSystem"`）；新增固定为租户自定义（`isSystem=false`）。
 - **无 status 字段**：无启停概念，本页无启停列/启停按钮。
 - **save upsert 幂等**：后端仅 `list/detail/save` 三端点，`save` 按 `configKey` upsert（存在则 update 不存在则 insert），**无 create/update/remove 独立接口、无删除接口**。新建/编辑统一走 `save`。
 - **configValue 是 JSON**：schema `config_value JSONB NOT NULL DEFAULT '{}'`，前端按 JSON 字符串编辑 + 提交前 `JSON.parse` 校验（对齐后端 `JsonValidationUtils.validateJson`）。

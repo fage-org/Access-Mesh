@@ -31,6 +31,8 @@ export type SystemConfigResp = {
   configValue: string;
   /** 描述（可空） */
   description: string | null;
+  /** 是否系统内置（内置行仅走种子，save 拒改 20064；列表据此展示属性标签并隐藏编辑入口） */
+  isSystem: boolean;
   updatedAt?: string;
   createdAt?: string;
 };

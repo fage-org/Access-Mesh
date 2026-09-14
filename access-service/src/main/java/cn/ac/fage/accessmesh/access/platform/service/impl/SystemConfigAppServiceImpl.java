@@ -212,7 +212,7 @@ public class SystemConfigAppServiceImpl implements SystemConfigAppService {
     private SystemConfigResp toSystemConfigResp(SystemConfig c) {
         return new SystemConfigResp(
             c.getId(), c.getTenantId(), c.getConfigKey(),
-            c.getConfigValue(), c.getDescription(), c.getUpdatedAt()
+            c.getConfigValue(), c.getDescription(), c.getIsSystem(), c.getUpdatedAt()
         );
     }
 }
