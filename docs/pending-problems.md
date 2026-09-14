@@ -26,19 +26,6 @@ last_updated: 2026-09-14
 
 **设想方向（未定案）**：统一为一套前缀风格（如 `/api/<域>/**`）+ 前端/Gateway/接口资源注册同批迁移；或维持现状仅在文档明确两风格边界。
 
-## Q-002 USER 写入口自身豁免的范围限定
-
-- **状态**：open
-- **登记**：2026-09-13
-- **来源**：融合计划外部评审发现的门禁缺口，用户定案「豁免范围应限定、登记遗留，不在本计划解决」（decision-registry 2026-09-13 融合行处置；T-ACCESS-034 非目标/遗留）
-- **关联**：—
-
-**现象与证据**：两轨用户写入口对「操作者 == 目标用户」整段跳过门禁——perm 轨 `UserManageAppServiceImpl.updateUser` 以 `if (!operatorId.equals(req.userId()))` 包裹门禁（`:276-281`）；`deleteUsers` 的 `nonSelfUserIds` 只决定门禁集合、`softDeleteBatch` 用**含自身**的 `existingUserIds`（`:345-362`——原校 `USER:MANAGE`，已随 T-ACCESS-034 换绑为 `USER:DELETE`）；admin 轨 `UserServiceImpl` 同款豁免。T-ACCESS-034 换绑后，自身路径仍零 USER 操作位即可改自己 name/extra/enabled 或删自己（LOCAL_USER 被 `localProjectionGuard` 拒；`abstract-user/update` 端点契约已发布但仓内零调用方——前端零消费、SDK 无该方法；`abstract-user/remove` 经 SDK `deleteUsers` 可达）。
-
-**影响**：操作者对自身操作时零权限通过——自身 `enabled` 变更绕过启停分权（USER:ENABLE）、自删绕过删除门禁，「改自己允许哪些字段/动作」的权限边界缺失。示例：已登录主体对自身 id 调 `/api/perm/abstract-user/remove`（SDK `deleteUsers` 可达）——自身被 `nonSelfUserIds` 剔除后门禁集合为空，软删直接生效。
-
-**设想方向（未定案）**：豁免收窄为档案字段（name/extra），enabled 变更与删除不豁免（须 ENABLE/DELETE 操作位）；或取消豁免统一按字段分档查码；两轨须同步定案（两轨一致是既有豁免的保留依据）。
-
 ## Q-006 ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效（登记不实施）
 
 - **状态**：open
@@ -95,6 +82,7 @@ last_updated: 2026-09-14
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-002 | USER 写入口自身豁免的范围限定 | closed（T-PERM-067 done：收窄为档案字段——档案字段豁免保留、启停/删除不豁免（admin 轨 /user/update 自禁对齐 CANNOT_DISABLE_SELF 硬禁 + perm 轨死分支语义统一）、/user/reset-password 定位自助改密通道；定案见 registry 2026-09-14 行；盘点修正=可达暴露面全在 admin 轨） | [T-PERM-067](../archive/2026-09-14/tasks/T-PERM-067.md) | 2026-09-14 |
 | Q-003 | operationCodeKey 族大小写口径不一致（授权域归一 vs 查询域裸拼） | closed（T-PERM-066 done：raw 严格化——入站 DTO @Pattern 大写 400/90001 + 定义侧锁死 + 授权域归一退役两域统一 raw；定案见 registry 2026-09-14 行，契约总册 §2.5 集中注记） | [T-PERM-066](../archive/2026-09-14/tasks/T-PERM-066.md) | 2026-09-14 |
 | Q-004 | BusinessKeys / SyncKeyCodec 命名偏离 XxxUtil 规范 | closed（2026-09-14 轻量清扫批次：`BusinessKeys`→`BusinessKeyUtil`、`SyncKeyCodec`→`SyncKeyCodecUtil`，按 project-rules §6.2「去掉末尾 s」规则机械改名；代码+测试+XML 注释+skills 双副本+AGENTS+活设计文档（34+17 文件）同批替换，decision-registry 带日期历史行不改写；golden 锁测试随类更名 `BusinessKeyUtilParityTest`） | [2026-09-14 批次四](../archive/2026-09-14/README.md) | 2026-09-14 |
 | Q-011 | 资源依赖页（3.4）页面级真实联调与 mock 退役缺口 | closed（T-FE-044 done 且验收覆盖：Gateway +6 端点 + mock 退役 + 六场景冒烟；联调并修复 api 路径 /perm 前缀缺陷——登记时「api 层已按契约对齐」断言的路径部分被证伪，URL 契约锁 6 用例钉住） | [T-FE-044](../archive/2026-09-14/tasks/T-FE-044.md) | 2026-09-14 |

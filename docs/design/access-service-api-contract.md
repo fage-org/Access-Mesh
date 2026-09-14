@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-14   # T-PERM-066 operationCodeKey 族入参大写：§2.4 操作行注记 + §2.5 新增集中注记（@Pattern 覆盖面/边界/守卫/SDK 生效），授权域归一退役两域统一 raw；此前 2026-09-14 T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
+last_reviewed: 2026-09-14   # T-PERM-067 USER 写入口自身豁免收窄（Q-002 转出）：§4 表 /user/update 行、§7.4 门禁、§7.7 门禁/force_reset_pwd/验收要点（自身=自助改密通道定位，证伪「走另外的修改密码接口」旧句）、§7.8 abstract-user update/remove 行（perm 轨死分支语义统一）、§21.2 验收 2、§22.2 决策 13——档案字段自我豁免保留、启停/删除不豁免；此前 2026-09-14 T-PERM-066 operationCodeKey 族入参大写：§2.4 操作行注记 + §2.5 新增集中注记（@Pattern 覆盖面/边界/守卫/SDK 生效），授权域归一退役两域统一 raw；此前 2026-09-14 T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
 ---
 
 # access-service API 契约总册
@@ -209,7 +209,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `/user/page` | `USER` | 类型级 | `VIEW` | 默认树身份目录范围内列表 |
 | `/user/member-candidates` | `ORG` | 实例级 (目标 orgId) | `UPDATE` | 仅校验"能管理目标组织的成员"; 候选用户范围由默认树可见性二次裁剪 |
 | `/user/create` | `USER` | 类型级 | `CREATE` | 若入参带 orgId, 同时需 `ORG:UPDATE@orgId` |
-| `/user/update` | `USER` | 实例级 (userId) | `UPDATE` | 自我修改业务豁免在调用前处理 |
+| `/user/update` | `USER` | 实例级 (userId) | `UPDATE` | 档案字段自我豁免保留（T-PERM-067 Q-002 收窄）；`status` 变更不豁免（自身 status=0 硬拒 `CANNOT_DISABLE_SELF`、status=1 须 `USER:ENABLE`） |
 | `/user/delete` | `USER` | 实例级批量 (ids) | `DELETE` | 默认树身份目录边界 |
 | `/user/enable` | `USER` | 实例级批量 (ids) | `ENABLE` | 启停共用一码（toggle），按入参 `status` 设置实体字段 |
 | `/user/reset-password` | `USER` | 实例级 (userId) | `RESET_PASSWORD` | 默认树身份目录边界 |
@@ -494,7 +494,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **响应**: `R<Void>`
 
-**门禁**: `USER:UPDATE@id` (实例级)；`status` 变更另需 `USER:ENABLE@id`（启停分权——T-ACCESS-034 外评处置补齐，对齐 perm 轨 §7.8 字段分档与 `/user/enable` 门禁，防仅持 UPDATE 旁路启停）. 自我修改业务豁免在 AppService 调用门禁前判断 (operatorId == id 时跳过门禁).
+**门禁**: `USER:UPDATE@id` (实例级，仅非自身——档案字段自我豁免保留，T-PERM-067 Q-002 收窄)；`status` 变更无论自身与否均查 `USER:ENABLE@id`（启停分权——T-ACCESS-034 外评处置补齐，对齐 perm 轨 §7.8 字段分档与 `/user/enable` 门禁，防仅持 UPDATE 旁路启停；T-PERM-067 起自身 `status=0` 对齐 `/user/enable` 硬拒 `CANNOT_DISABLE_SELF`——此前自身全免旁路该硬禁，自身 `status=1` 须持 `USER:ENABLE`).
 
 **投影动作**: 同事务 `upsertAdminUser`（名称/状态变化一并投影）。
 
@@ -581,16 +581,16 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 |------|------|------|
 | `newPassword` | `String` | 生效的密码明文, **仅本次返回** |
 
-**门禁**: `USER:RESET_PASSWORD@userId` 实例级 + 默认树边界二次校验.
+**门禁**: `USER:RESET_PASSWORD@userId` 实例级 + 默认树边界二次校验（均仅非自身；自身路径为自助改密通道免门禁——T-PERM-067 Q-002 定位保留，旧密码验证另立任务）.
 
-**同步动作**: 无 (密码不进入 permission-center). 重置成功后 `sys_user.force_reset_pwd` 置 `true`（DDL 语义「首次登录/管理员重置后须改密」——T-ADMIN-022 收口，登录页据此提示联系管理员；系统无自助改密通道）.
+**同步动作**: 无 (密码不进入 permission-center). 重置成功后 `sys_user.force_reset_pwd` 置 `true`（DDL 语义「首次登录/管理员重置后须改密」——T-ADMIN-022 收口，登录页据此提示；自助改密通道同样置 true 维持「重置产物是临时密码」语义）.
 
 **错误码段**: 10210-10229
 
 **当前差距**: 无——`newPassword` 可选 + `ResetPasswordResp` 返回 + 非自我修改时默认树边界二次校验（`validateUsersInDefaultTreeScope`）均已实现.
 
 **验收要点**:
-- 操作者本人重置自己密码走另外的"修改密码"接口, 不复用本接口.
+- 操作者本人重置自己密码**复用本接口**（自助改密通道，T-PERM-067 Q-002 定位：自身路径免门禁；旧句「走另外的『修改密码』接口」所指接口从未实现，已证伪删除）.
 - 自定义 `newPassword` 不满足策略时抛 `BizException(PASSWORD_TOO_WEAK)`.
 
 ### 7.8 perm 家族主体端点（/api/perm/abstract-user/*）
@@ -612,8 +612,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | 接口 | 门禁 | 口径 |
 |---|---|---|
 | `abstract-user/create` | `USER:CREATE` 类型级 | 保留主体类型守卫（LOCAL_USER 等保留键拒绝） |
-| `abstract-user/update` | **字段分档实例级**（`resource_entity(USER).code = subjectId`）：name/extra 变更查 `USER:UPDATE`、`enabled != null` 查 `USER:ENABLE` | 组合字段须同时通过全部涉及的操作码（防 UPDATE 绕过启停分权）；自身豁免保留（operatorId == targetId 跳过门禁，与 admin 轨 `/user/update` 同款；豁免范围限定为已知问题 Q-002）；空 patch（仅 userId 无任何业务字段）经 Bean Validation 拒绝 **90001**（HTTP 400，`@AssertTrue` 至少一个业务字段——堵无门禁落点的无条件写副作用） |
-| `abstract-user/remove` | `USER:DELETE` 实例级批量（getDeniedResourceCodes，任一拒绝整批拒绝） | 非自身目标走门禁；LOCAL_USER 目标拒绝（投影守卫） |
+| `abstract-user/update` | **字段分档实例级**（`resource_entity(USER).code = subjectId`）：name/extra 变更查 `USER:UPDATE`、`enabled != null` 查 `USER:ENABLE` | 组合字段须同时通过全部涉及的操作码（防 UPDATE 绕过启停分权）；自身档案字段豁免保留、`enabled` 变更不豁免（自身也须持 `USER:ENABLE`——T-PERM-067 Q-002 收窄；生产面操作者==目标必被 LOCAL_USER 投影守卫先拒，该分支为死分支语义统一）；空 patch（仅 userId 无任何业务字段）经 Bean Validation 拒绝 **90001**（HTTP 400，`@AssertTrue` 至少一个业务字段——堵无门禁落点的无条件写副作用） |
+| `abstract-user/remove` | `USER:DELETE` 实例级批量（getDeniedResourceCodes，任一拒绝整批拒绝） | 全量目标走门禁（含操作者自身——T-PERM-067 删除 nonSelfUserIds 静默剔除特例，对齐 admin 轨 CANNOT_DELETE_SELF 硬禁口径）；LOCAL_USER 目标拒绝（投影守卫，生产面批量含自身必被先拒） |
 
 > USER:MANAGE 操作位已退役（DDL 种子删除、位 16 空闲不复用）。bootstrap 固定图 USER 段本无 MANAGE 位——旧实现下空库首管理员经 update/remove 恒拒（死锁），换绑后**由拒转放行是预期行为变化**（FirstAdminUserTrackPgIT 正向锁）。粗细统一仅 USER 一处；ROLE/RESOURCE 等类型的 MANAGE 惯例维持。
 
@@ -2757,7 +2757,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 后端实现本契约接口（原历史计数「19 个」不维护, 现状以 `HttpApiPathSnapshotTest` 快照为准; Phase 2 已于 2026-08-31 完成）后, 必须满足:
 
 1. **字段对齐**: 前端 `frontend/src/api/user-manage.ts` 中所有类型与本契约 record 字段名/类型一一对齐, 不允许不一致.
-2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `PermQueryEngine`; 实现不短路判断 (除自我修改豁免).
+2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `PermQueryEngine`; 实现不短路判断 (除档案字段自我豁免与自助改密通道——T-PERM-067 Q-002 收窄口径: 启停/删除不豁免).
 3. **本地投影**: 所有写操作 (除 /user/reset-password, /user-org/set-primary) 在主事务内维护对应权限投影与 `permission_change_log`。
 4. **错误码段**: 管理面家族业务错误使用 10001-19999 段, 系统错误使用 90001-99999 段; 单册 `AccessErrorCode` 不重复定义系统段.
 5. **响应壳统一**: 所有接口返回 `R<T>`, 列表不直接返回数组 (由 `RResponseAdvice` 强制); ~~现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`)~~ 已清零（`/org/tree` 已由 T-ADMIN-021 切 `R<ItemsResp<OrgResp>>`；台账见附录 B）.
@@ -2801,7 +2801,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 | 10 | 管理面不存储权限面内部 ID | 跨面统一用业务键; 业务键格式严格按 本册 §19.7 |
 | 11 | `IdReq` 入参字段名为 `id` 而非 `orgId/userId` | 复用公共 record; 前端在 Phase 2 调整 mock 字段 (例如 `/org/users` 入参 `{ id }`) |
 | 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (`/role/list` 已收编; `/user-org/list`、`/org/users` 已由 T-ADMIN-027 收编; **`/org/tree` 已由 T-ADMIN-021 消化, P1-3**) |
-| 13 | `/user/update` 自我修改业务豁免 | 在 AppService 调用门禁前判断 `operatorId == id` 跳过门禁; 不放在门禁层 |
+| 13 | `/user/update` 自我修改业务豁免 | 在 AppService 调用门禁前判断 `operatorId == id`; T-PERM-067 Q-002 收窄后豁免仅限档案字段（name/phone/email），`status` 变更不豁免（自禁硬拒/自启用须持码）; 不放在门禁层 |
 | 14 | 错误码段 admin-service 子分配 | 用户域 10001-10299 / 组织域 10300-10499 / 关系域 10400-10499 / 10500 用户-角色代理段（历史分配，无活跃错误码；10111 已退役且码值不复用）+ 10501-10599 文件模块（附录 B，T-ADMIN-023 起） / 其他保留 10600-19999 |
 
 ## 23. 实施建议

@@ -242,7 +242,7 @@ export const createUser = async (data: {
   return unwrap(res);
 };
 
-/** 更新用户（POST /admin/user/update；改己豁免门禁） */
+/** 更新用户（POST /admin/user/update；改己豁免仅限档案字段——T-PERM-067 收窄，status 变更不豁免） */
 export const updateUser = async (data: {
   id: number;
   name?: string;

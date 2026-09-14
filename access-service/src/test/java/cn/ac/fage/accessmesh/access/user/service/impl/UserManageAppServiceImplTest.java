@@ -185,12 +185,11 @@ class UserManageAppServiceImplTest {
         verify(abstractUserMapper, org.mockito.Mockito.never()).update(any(AbstractUser.class));
     }
 
-    /** T-ACCESS-034 组合字段：name+enabled 须同时通过 UPDATE 与 ENABLE（UPDATE 过、ENABLE 拒 → 拒）。 */
+    /** T-ACCESS-034 组合字段：name+enabled 须同时通过 UPDATE 与 ENABLE（ENABLE 拒 → 拒）。
+     * T-PERM-067 重排后启停门禁先行：ENABLE 拒绝即短路，UPDATE 门禁不再到达。 */
     @Test
     void shouldRejectCombinedPatchWhenEitherOperationDenied() {
         when(subjectDomainService.selectValidUserById(1L, 77L)).thenReturn(externalUser(77L));
-        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
-            eq("77"), eq(OperationCode.UPDATE))).thenReturn(true);
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
             eq("77"), eq(OperationCode.ENABLE))).thenReturn(false);
 
@@ -201,27 +200,45 @@ class UserManageAppServiceImplTest {
                 () -> service.updateUser(1L, new AbstractUserUpdateReq(77L, "新名", false, null)));
         }
         verify(engine).hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
-            eq("77"), eq(OperationCode.UPDATE));
-        verify(engine).hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
             eq("77"), eq(OperationCode.ENABLE));
+        verify(engine, org.mockito.Mockito.never()).hasPermissionByCode(eq(1L), eq(100L),
+            eq(ResourceTypeCode.USER), eq("77"), eq(OperationCode.UPDATE));
         verify(abstractUserMapper, org.mockito.Mockito.never()).update(any(AbstractUser.class));
     }
 
-    /** T-ACCESS-034 自身豁免：operatorId==targetId 跳过字段分档门禁——自身更新零 USER 操作位仍成功。 */
+    /** T-PERM-067（Q-002 收窄）：自身档案字段豁免保留——self+name 零门禁直接落库。
+     * （生产面操作者==目标必被 rejectIfLocalUser 先拒，此处经 mock 守卫直测门禁语义。） */
     @Test
-    void shouldAllowSelfUpdateWithoutAnyUserOperation() {
+    void shouldAllowSelfProfileEditWithoutAnyUserOperation() {
         when(subjectDomainService.selectValidUserById(1L, 100L)).thenReturn(externalUser(100L));
         when(typeResolutionService.resolveTypeCode(1L, "user_type", 1)).thenReturn("USER");
 
         try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
-            service.updateUser(1L, new AbstractUserUpdateReq(100L, "自改名", false, null));
+            service.updateUser(1L, new AbstractUserUpdateReq(100L, "自改名", null, null));
         }
         verify(engine, org.mockito.Mockito.never()).hasPermissionByCode(anyLong(), anyLong(),
             org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
             org.mockito.ArgumentMatchers.anyString());
         verify(abstractUserMapper).update(any(AbstractUser.class));
+    }
+
+    /** T-PERM-067（Q-002 收窄）：自身 enabled 变更不豁免——零 USER:ENABLE 操作位被拒
+     * （旧实现自身整段跳过门禁，本用例必红）。 */
+    @Test
+    void shouldRejectSelfEnabledChangeWithoutEnableBit() {
+        when(subjectDomainService.selectValidUserById(1L, 100L)).thenReturn(externalUser(100L));
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
+            eq("100"), eq(OperationCode.ENABLE))).thenReturn(false);
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            assertThrows(SecurityException.class,
+                () -> service.updateUser(1L, new AbstractUserUpdateReq(100L, null, false, null)));
+        }
+        verify(abstractUserMapper, org.mockito.Mockito.never()).update(any(AbstractUser.class));
     }
 
     /** T-ACCESS-019：updateUser 同事务镜像 name/enabled 到 USER 投影（门禁按 T-ACCESS-034 字段分档）。 */
@@ -274,6 +291,45 @@ class UserManageAppServiceImplTest {
 
         verify(localProjectionDomainService).softDeleteUserResources(1L, Set.of(77L));
         verify(auditDomainService).recordChangeLog(any(), any());
+    }
+
+    /** T-PERM-067（Q-002 收窄）：删除不豁免——门禁查全量 existing ids 含操作者自身，
+     * nonSelfUserIds 静默剔除特例退役（旧实现门禁集 Set.of("77")，本用例参数断言必红）。
+     * （生产面批量含自身必被 rejectIfLocalUser 先拒，此处经 mock 守卫直测门禁语义。） */
+    @Test
+    void shouldGateAllExistingIdsIncludingSelfOnRemove() {
+        when(abstractUserMapper.selectValidByIds(eq(1L), eq(Set.of(100L, 77L))))
+            .thenReturn(List.of(externalUser(100L), externalUser(77L)));
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
+            eq(Set.of("100", "77")), eq(OperationCode.DELETE))).thenReturn(Set.of());
+        when(userRoleMapper.selectValidByUserIds(eq(1L), eq(Set.of(100L, 77L)))).thenReturn(List.<UserRole>of());
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            service.deleteUsers(1L, List.of(100L, 77L));
+        }
+
+        verify(engine).getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
+            eq(Set.of("100", "77")), eq(OperationCode.DELETE));
+        verify(localProjectionDomainService).softDeleteUserResources(1L, Set.of(100L, 77L));
+    }
+
+    /** T-PERM-067（Q-002 收窄）：自身 DELETE 被拒 → 整批拒绝（旧实现自身被剔出门禁集随批量软删，本用例必红）。 */
+    @Test
+    void shouldRejectWholeBatchWhenSelfDeleteDenied() {
+        when(abstractUserMapper.selectValidByIds(eq(1L), eq(Set.of(100L, 77L))))
+            .thenReturn(List.of(externalUser(100L), externalUser(77L)));
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
+            eq(Set.of("100", "77")), eq(OperationCode.DELETE))).thenReturn(Set.of("100"));
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            assertThrows(SecurityException.class, () -> service.deleteUsers(1L, List.of(100L, 77L)));
+        }
+        verify(abstractUserMapper, org.mockito.Mockito.never()).softDeleteBatch(anyLong(), any(), any());
+        verify(localProjectionDomainService, org.mockito.Mockito.never()).softDeleteUserResources(anyLong(), any());
     }
 
     /** 装配 assignRole 公共依赖：用户/角色解析、门禁放行、无既有关系。 */

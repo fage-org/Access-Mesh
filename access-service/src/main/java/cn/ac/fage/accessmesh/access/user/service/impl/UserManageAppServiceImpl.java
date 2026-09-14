@@ -273,22 +273,23 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
         localProjectionGuard.rejectIfLocalUser(existing);
 
-        if (!operatorId.equals(req.userId())) {
-            // T-ACCESS-034 字段分档门禁（细粒度化）：name/extra 变更查 USER:UPDATE、
-            // enabled 查 USER:ENABLE（防 UPDATE 绕过启停分权）；组合字段须同时通过全部涉及的操作码。
-            // 实例级门禁沿 T-ACCESS-019 业务编码语义（resource_entity(USER).code = subjectId）。
-            // 自身豁免（operatorId==targetId 跳过门禁）与 admin 轨 UserServiceImpl 同款保留；
-            // 豁免范围限定登记 docs/pending-problems.md Q-002，不在本任务解决。
-            if ((req.name() != null || req.extra() != null)
-                && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER,
-                    String.valueOf(req.userId()), OperationCode.UPDATE)) {
-                throw new SecurityException("Permission denied: UPDATE on USER:" + req.userId());
-            }
-            if (req.enabled() != null
-                && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER,
-                    String.valueOf(req.userId()), OperationCode.ENABLE)) {
-                throw new SecurityException("Permission denied: ENABLE on USER:" + req.userId());
-            }
+        // T-ACCESS-034 字段分档门禁（细粒度化）：name/extra 变更查 USER:UPDATE、
+        // enabled 查 USER:ENABLE（防 UPDATE 绕过启停分权）；组合字段须同时通过全部涉及的操作码。
+        // 实例级门禁沿 T-ACCESS-019 业务编码语义（resource_entity(USER).code = subjectId）。
+        // T-PERM-067（Q-002 收窄定案）：enabled 变更不豁免（自身也须持 USER:ENABLE），
+        // 档案字段（name/extra）自身豁免保留。当前操作者==目标必被上方 rejectIfLocalUser
+        // 先拒（登录主体必为 LOCAL_USER），自身分支为死分支语义统一——LOCAL_USER 语义
+        // 变化时豁免不会静默重开。
+        if (req.enabled() != null
+            && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER,
+                String.valueOf(req.userId()), OperationCode.ENABLE)) {
+            throw new SecurityException("Permission denied: ENABLE on USER:" + req.userId());
+        }
+        if (!operatorId.equals(req.userId())
+            && (req.name() != null || req.extra() != null)
+            && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER,
+                String.valueOf(req.userId()), OperationCode.UPDATE)) {
+            throw new SecurityException("Permission denied: UPDATE on USER:" + req.userId());
         }
 
         if (req.name() != null) {
@@ -342,21 +343,18 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         Set<Long> existingUserIds = users.stream().map(AbstractUser::getId).collect(Collectors.toSet());
 
-        Set<Long> nonSelfUserIds = existingUserIds.stream()
-            .filter(id -> !operatorId.equals(id))
+        // T-PERM-067（Q-002 收窄定案）：删除不豁免——门禁查全量 existing ids，删除 nonSelfUserIds
+        // 静默剔除特例（此前自身被剔出门禁集仍随批量软删，与 admin 轨 CANNOT_DELETE_SELF 硬禁口径
+        // 不一致）。当前批量含自身必被上方 rejectIfLocalUser 先拒，此处为死分支语义统一。
+        // T-ACCESS-034：USER:DELETE（原 USER:MANAGE 退役）；T-PERM-042 业务编码语义
+        // （resource_entity(USER).code = subjectId），不再把 abstract_user.id 当 resource_entity.id 直查
+        Set<String> targetUserCodes = existingUserIds.stream()
+            .map(String::valueOf)
             .collect(Collectors.toSet());
-
-        if (!nonSelfUserIds.isEmpty()) {
-            // T-ACCESS-034：换绑 USER:DELETE（原 USER:MANAGE 退役）；T-PERM-042 业务编码语义
-            // （resource_entity(USER).code = subjectId），不再把 abstract_user.id 当 resource_entity.id 直查
-            Set<String> nonSelfUserCodes = nonSelfUserIds.stream()
-                .map(String::valueOf)
-                .collect(Collectors.toSet());
-            Set<String> deniedCodes = engine.getDeniedResourceCodes(
-                tenantId, operatorId, ResourceTypeCode.USER, nonSelfUserCodes, OperationCode.DELETE);
-            if (!deniedCodes.isEmpty()) {
-                throw new SecurityException("No permission to delete users: " + deniedCodes);
-            }
+        Set<String> deniedCodes = engine.getDeniedResourceCodes(
+            tenantId, operatorId, ResourceTypeCode.USER, targetUserCodes, OperationCode.DELETE);
+        if (!deniedCodes.isEmpty()) {
+            throw new SecurityException("No permission to delete users: " + deniedCodes);
         }
 
         abstractUserMapper.softDeleteBatch(tenantId, existingUserIds.stream().toList(), now);

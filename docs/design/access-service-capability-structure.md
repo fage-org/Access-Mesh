@@ -91,7 +91,7 @@ last_reviewed: 2026-09-14（T-ACCESS-041：§7 文档与叙事第三项落地 + 
 ### 5.1 操作码（唯一权限语义变更）
 
 - **常量面合一**：AdminOperationCode 与 OperationCodeConstants 并为单一操作码常量面（按资源类型分节）；补录 `API:ACCESS`（消除 bootstrap/快照装配/接口判定四处裸字符串）与 `ROLE:ASSIGN`/`ROLE:REVOKE`（DDL 种子在册、后端零代码引用——按「统一常量面=注册表镜像」收录，与既有「常量类只镜像代码引用面」口径的关系随 T-ACCESS-034 登记）。
-- **USER 轨细粒度化**：UserManageAppServiceImpl 换绑——updateUser 按字段分档（name/extra 变更查 `USER:UPDATE`；`enabled != null` 查 `USER:ENABLE`，防 UPDATE 绕过启停分权）、deleteUsers 查 `USER:DELETE`；`USER:MANAGE` 退役（无消费即删，仓库既有政策）。bootstrap 固定图 USER 段本无 MANAGE 位（空库上 perm 轨 update/remove 恒拒不可用）——换绑后由拒转放行是**预期的行为变化**（修复该死锁），非等价改写。自身豁免（两轨同款 operatorId==targetId 跳过门禁）保留；豁免**范围限定**（改自己的可变字段/动作边界）登记为已知遗留（docs/pending-problems.md Q-002）、不在本计划解决（2026-09-13 定案）。
+- **USER 轨细粒度化**：UserManageAppServiceImpl 换绑——updateUser 按字段分档（name/extra 变更查 `USER:UPDATE`；`enabled != null` 查 `USER:ENABLE`，防 UPDATE 绕过启停分权）、deleteUsers 查 `USER:DELETE`；`USER:MANAGE` 退役（无消费即删，仓库既有政策）。bootstrap 固定图 USER 段本无 MANAGE 位（空库上 perm 轨 update/remove 恒拒不可用）——换绑后由拒转放行是**预期的行为变化**（修复该死锁），非等价改写。自身豁免（两轨同款 operatorId==targetId 跳过门禁）保留；豁免**范围限定**（改自己的可变字段/动作边界）登记为已知遗留（docs/pending-problems.md Q-002）、不在本计划解决（2026-09-13 定案）【已收敛：2026-09-14 T-PERM-067 定案豁免收窄为档案字段，启停/删除不豁免，见同日 registry 行】。
 - 粗细粒度双轨仅统一 USER 一处；ROLE / RESOURCE 等的 `MANAGE` 惯例不动。
 - SDK `DefaultOpCode`（VIEW/EDIT/DELETE）维持（SDK 自身契约）；EDIT 在服务端操作码注册表无预置，登记为已知差异。
 - 影响面：DDL 种子与 schema/表征测试（InstanceGate/UserRoleWriteProjectionPgIT 的 MANAGE 行迁细码）、注释残留清扫、契约文档；bootstrap 固定图零变更（仅加无 MANAGE 断言）；前端 user 页已用细粒度且零 abstract-user 消费、e2e 无 MANAGE 断言（均已核实，无迁移项）。

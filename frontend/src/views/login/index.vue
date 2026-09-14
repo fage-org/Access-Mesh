@@ -84,7 +84,8 @@ const onLogin = async (formEl: FormInstance | undefined) => {
               .push(getTopMenu(true).path)
               .then(() => {
                 message("登录成功", { type: "success" });
-                // 初始密码/管理员重置后待改密：系统暂无自助改密通道，
+                // 初始密码/管理员重置后待改密：前端暂无自助改密 UI
+                // （API 层自助通道为 /user/reset-password 自身路径，T-PERM-067 定位），
                 // 非阻断提示引导联系管理员（T-ADMIN-022，归属自 T-FE-041 移入）
                 if (loginData?.forceResetPwd) {
                   message("当前密码为初始密码，请联系管理员重置", {

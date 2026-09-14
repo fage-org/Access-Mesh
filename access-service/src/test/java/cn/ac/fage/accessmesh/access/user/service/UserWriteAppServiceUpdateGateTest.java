@@ -3,6 +3,8 @@ package cn.ac.fage.accessmesh.access.user.service;
 import cn.ac.fage.accessmesh.access.user.dto.req.UserUpdateReq;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
@@ -38,6 +40,11 @@ import static org.mockito.Mockito.when;
  * 双通道收敛，用户拍板本批补齐）：admin 轨非自身 status 写入须同时过 USER:UPDATE 与
  * USER:ENABLE，对齐 perm 轨字段分档（§7.8）与 /user/enable；旧实现（仅 UPDATE）下
  * 「仅持 UPDATE 改 status 被拒」两用例必红。
+ * <p>
+ * T-PERM-067（Q-002 收窄定案）新增自身面：档案字段豁免保留、status 变更不豁免——
+ * 自身 status=0 硬拒 CANNOT_DISABLE_SELF、自身 status=1 须持 USER:ENABLE；
+ * 旧实现（自身全免）下「自禁被拒/自启用过门禁」两用例必红。
+ * </p>
  */
 @ExtendWith(MockitoExtension.class)
 class UserWriteAppServiceUpdateGateTest {
@@ -99,10 +106,11 @@ class UserWriteAppServiceUpdateGateTest {
         assertThatThrownBy(() -> service.updateUser(new UserUpdateReq(TARGET, "新名", null, null, 0)))
             .isInstanceOf(SecurityException.class);
 
-        verify(permissionValidator).checkInstanceLevel(
-            eq(ResourceTypeCode.USER), eq(String.valueOf(TARGET)), eq(OperationCode.UPDATE));
+        // T-PERM-067 重排后启停门禁先行：ENABLE 拒绝即短路，UPDATE 门禁不再到达
         verify(permissionValidator).checkInstanceLevel(
             eq(ResourceTypeCode.USER), eq(String.valueOf(TARGET)), eq(OperationCode.ENABLE));
+        verify(permissionValidator, never()).checkInstanceLevel(
+            any(), any(), eq(OperationCode.UPDATE));
         verify(userDomainService, never()).update(any(SysUser.class));
     }
 
@@ -140,16 +148,69 @@ class UserWriteAppServiceUpdateGateTest {
     }
 
     @Test
-    @DisplayName("自身更新（含 status）零门禁——自身豁免语义与 perm 轨/Q-002 同款保留")
-    void selfUpdateSkipsAllGatesEvenWithStatus() {
-        when(userDomainService.selectValidById(TENANT, OPERATOR)).thenReturn(target());
+    @DisplayName("自身档案字段豁免保留：self+name 零门禁直接落库（T-PERM-067 收窄定案）")
+    void selfProfileEditKeepsExemption() {
+        when(userDomainService.selectValidById(TENANT, OPERATOR)).thenReturn(self());
         when(localProjectionDomainService.upsertAdminUser(
             anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
             .thenReturn(901L);
 
-        service.updateUser(new UserUpdateReq(OPERATOR, "自改名", null, null, 0));
+        service.updateUser(new UserUpdateReq(OPERATOR, "自改名", null, null, null));
 
         verify(permissionValidator, never()).checkInstanceLevel(any(), any(), any());
         verify(userDomainService).update(any(SysUser.class));
+    }
+
+    @Test
+    @DisplayName("自身 status=0 硬拒 CANNOT_DISABLE_SELF（对齐 /user/enable，旧实现自身全免必红）")
+    void selfStatusDisableHardRejected() {
+        assertThatThrownBy(() -> service.updateUser(new UserUpdateReq(OPERATOR, null, null, null, 0)))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining(AccessErrorCode.CANNOT_DISABLE_SELF.getMessage());
+
+        // 硬禁先于门禁与落库：无任何校验、无任何写
+        verify(permissionValidator, never()).checkInstanceLevel(any(), any(), any());
+        verify(userDomainService, never()).update(any(SysUser.class));
+    }
+
+    @Test
+    @DisplayName("自身 status=1 不豁免：须过 USER:ENABLE 门禁（旧实现自身全免必红）")
+    void selfStatusEnableRequiresGate() {
+        org.mockito.Mockito.lenient().doThrow(new SecurityException("denied: ENABLE"))
+            .when(permissionValidator).checkInstanceLevel(
+                eq(ResourceTypeCode.USER), eq(String.valueOf(OPERATOR)), eq(OperationCode.ENABLE));
+
+        assertThatThrownBy(() -> service.updateUser(new UserUpdateReq(OPERATOR, null, null, null, 1)))
+            .isInstanceOf(SecurityException.class);
+
+        verify(permissionValidator).checkInstanceLevel(
+            eq(ResourceTypeCode.USER), eq(String.valueOf(OPERATOR)), eq(OperationCode.ENABLE));
+        verify(permissionValidator, never()).checkInstanceLevel(
+            any(), any(), eq(OperationCode.UPDATE));
+        verify(userDomainService, never()).update(any(SysUser.class));
+    }
+
+    @Test
+    @DisplayName("自身 status=1 持码放行：过 ENABLE 门禁且档案字段免 UPDATE 门禁")
+    void selfStatusEnableWithCodePasses() {
+        when(userDomainService.selectValidById(TENANT, OPERATOR)).thenReturn(self());
+        when(localProjectionDomainService.upsertAdminUser(
+            anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
+            .thenReturn(901L);
+
+        service.updateUser(new UserUpdateReq(OPERATOR, null, null, null, 1));
+
+        verify(permissionValidator).checkInstanceLevel(
+            eq(ResourceTypeCode.USER), eq(String.valueOf(OPERATOR)), eq(OperationCode.ENABLE));
+        verify(permissionValidator, never()).checkInstanceLevel(
+            any(), any(), eq(OperationCode.UPDATE));
+        verify(userDomainService).update(any(SysUser.class));
+    }
+
+    private SysUser self() {
+        SysUser user = target();
+        user.setId(OPERATOR);
+        user.setUsername("u900");
+        return user;
     }
 }

@@ -85,3 +85,11 @@ pending-problems Q-004 → 已收敛索引（关联本条目）。
 | T-PERM-066.md（operationCodeKey 族大小写口径统一——raw 严格化） | 本目录 `tasks/`（done 即单卡归档——Q-003 转出任务，无所属计划） |
 
 Q-003 随卡收敛（pending-problems 已收敛索引）；定案见 decision-registry 2026-09-14 行，契约总册 §2.4/§2.5 集中注记。
+
+## 批次六：T-PERM-067 单卡归档
+
+| 归档物 | 去向 |
+|---|---|
+| T-PERM-067.md（USER 写入口自身豁免收窄——Q-002 转出） | 本目录 `tasks/`（done 即单卡归档——无所属计划） |
+
+Q-002 随卡收敛（pending-problems 已收敛索引）；定案见 decision-registry 2026-09-14 行（收窄为档案字段 + reset-password 定位自助改密通道）。行为变化与收口全量回归（含 E2E 全绿）见任务卡完成记录。

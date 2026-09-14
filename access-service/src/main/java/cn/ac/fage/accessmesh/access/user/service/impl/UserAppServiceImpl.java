@@ -52,7 +52,8 @@ import java.util.stream.Collectors;
  * 提供用户的CRUD操作、批量操作、密码重置、状态管理等功能。
  * 写操作委托 {@code UserWriteAppService} 同一事务维护本地权限投影（管理事实、投影与
  * permission_change_log 同一事务，不再有跨服务同步任务）。
- * 用户修改自己的信息无需权限校验，其他操作需要相应权限。
+ * 用户修改自己的档案字段（name/phone/email）无需权限校验（T-PERM-067 Q-002 收窄：
+ * 档案豁免保留）；启停/删除不豁免，改密自身路径为自助通道，其他操作需要相应权限。
  * 使用BCrypt进行密码哈希，SecureRandom生成随机密码。
  *
  * @implNote v1.4 起所有读接口（{@link #getUser}、{@link #pageUsers}）必须经过
@@ -131,7 +132,8 @@ public class UserAppServiceImpl implements UserAppService {
      * 更新用户信息
      * <p>
      * 更新用户的姓名、手机号、邮箱、状态等信息。
-     * 用户修改自己的信息无需权限校验（自我修改豁免）。
+     * 自身档案字段（name/phone/email）豁免保留；status 变更不豁免——自身 status=0
+     * 对齐 /user/enable 硬禁、status=1 须持 USER:ENABLE（T-PERM-067 Q-002 收窄）。
      * 修改手机号时校验新手机号唯一性。
      * </p>
      *
@@ -332,7 +334,8 @@ public class UserAppServiceImpl implements UserAppService {
      * 重置用户密码（高危生命周期操作）
      * <p>
      * 管理员重置用户密码，需默认树边界二次校验。
-     * 用户重置自己的密码无需权限校验（自我修改豁免）。
+     * 自身路径为自助改密通道（T-PERM-067 Q-002 收窄定案：豁免保留并显式定位）——
+     * 持登录 token 即可重置自己的密码，无需权限位；旧密码验证另立任务加固。
      * 如果 newPassword 为空，系统自动生成随机密码。
      * 使用BCrypt哈希后更新，响应中返回生效的密码明文。
      * <p>
@@ -350,7 +353,8 @@ public class UserAppServiceImpl implements UserAppService {
     public ResetPasswordResp resetPassword(Long userId, String newPassword) {
         Long currentUserId = StpUtil.getLoginIdAsLong();
 
-        // 自我修改豁免：用户可重置自己的密码无需权限检查
+        // 自助改密通道：自身路径免 RESET_PASSWORD 门禁与默认树边界（T-PERM-067 定位保留）；
+        // 非自身为管理员重置，须持 USER:RESET_PASSWORD 实例级操作位
         if (!userId.equals(currentUserId)) {
             permissionValidator.checkInstanceLevel(
                 ResourceTypeCode.USER,
@@ -378,7 +382,8 @@ public class UserAppServiceImpl implements UserAppService {
 
         user.setPassword(BCrypt.hashpw(effectivePassword));
         // DDL force_reset_pwd 语义：首次登录/管理员重置后须改密（T-ADMIN-022 二轮评审修复：
-        // 重置后置 true，登录页 warning 对被重置账号才闭环；系统无自助改密通道，改密仍由管理员执行）
+        // 重置后置 true，登录页 warning 对被重置账号才闭环）；自助改密通道同样置 true
+        // 维持「重置产物是临时密码」语义（旧密码验证加固另立任务，T-PERM-067 遗留）
         user.setForceResetPwd(true);
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.update(user);

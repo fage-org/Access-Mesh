@@ -19,7 +19,7 @@ package cn.ac.fage.accessmesh.access.engine;
  * </pre>
  * </p>
  *
- * <p>自我修改豁免应在业务层调用验证器之前处理。
+ * <p>自我修改豁免应在业务层调用验证器之前处理（豁免范围 T-PERM-067 收窄：仅档案字段与自助改密通道，启停/删除不豁免）。
  * </p>
  */
 public interface AdminPermissionValidator {

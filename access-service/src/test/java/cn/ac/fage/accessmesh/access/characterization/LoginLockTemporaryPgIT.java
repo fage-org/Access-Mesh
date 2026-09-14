@@ -149,7 +149,7 @@ class LoginLockTemporaryPgIT {
     }
 
     @Test
-    @DisplayName("/user/update status 仅接纳 0/1：status=2 拒绝（10008）且库值不变")
+    @DisplayName("/user/update status 仅接纳 0/1：status=2 拒绝（10008）且库值不变；合法值自身写须持 USER:ENABLE")
     void userUpdateRejectsStatusOutsideZeroAndOne() throws Exception {
         long userId = insertUser("特征测试-status收口");
         String username = usernameOf(userId);
@@ -158,7 +158,8 @@ class LoginLockTemporaryPgIT {
         assertThat(loginBody.get("code").asInt()).isEqualTo(200);
         String token = loginBody.get("data").get("accessToken").asText();
 
-        // 自我修改豁免门禁（operatorId == id），直接命中 status 校验
+        // 非法值域校验先于门禁（T-PERM-067 对齐 updateStatus 先验参后门禁）：
+        // 无操作位主体 status=2 仍得 10008 业务拒绝而非安全拒绝
         MvcResult rejected = mockMvc.perform(post("/user/update")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -171,16 +172,13 @@ class LoginLockTemporaryPgIT {
         assertThat(rejectBody.get("message").asText()).contains("0(停用)或1(启用)");
         assertThat(dbStatus(userId)).as("status=2 被拒后库值不变").isEqualTo(1);
 
-        // 合法值 1 幂等写回成功（证明拒绝只针对非法值而非接口本身）
-        MvcResult accepted = mockMvc.perform(post("/user/update")
+        // 合法值 1 自身写不豁免：零 USER:ENABLE 操作位 → 安全拒绝且库值不变
+        // （T-PERM-067 Q-002 收窄——旧实现自身全免幂等写回成功，本段为新语义锁）
+        mockMvc.perform(post("/user/update")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("id", userId, "status", 1))))
-            .andExpect(status().isOk())
-            .andReturn();
-        JsonNode acceptBody = mapper.readTree(
-            accepted.getResponse().getContentAsString(StandardCharsets.UTF_8));
-        assertThat(acceptBody.get("code").asInt()).isEqualTo(200);
-        assertThat(dbStatus(userId)).isEqualTo(1);
+            .andExpect(status().isForbidden());
+        assertThat(dbStatus(userId)).as("无操作位自身启停被拒后库值不变").isEqualTo(1);
     }
 }

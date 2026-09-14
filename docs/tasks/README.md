@@ -11,7 +11,7 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 042 |
-| permission-center | `T-PERM` | 067 |
+| permission-center | `T-PERM` | 068 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 009 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
@@ -146,6 +146,7 @@
 | [T-PERM-064](../archive/2026-09-12/tasks/T-PERM-064.md) | 角色互斥守卫通道补全——sync/full-sync BIND 逐条守卫 + 互斥规则拒 ORG/POSITION 对（✅ 2026-09-12 收口：claude 外评 P2-1 处置落地，全量回归含 E2E 全绿，终态见任务卡完成记录） | — | api-contract §5.6/§6.2.2.3；implementation §2.4；AGENTS.md | — | ✅ | ✓ |
 | [T-PERM-065](../archive/2026-09-14/tasks/T-PERM-065.md) | Req DTO 副本双轨收敛——14 对同名 Req 与 perm-common 统一（T-PERM-021 F1.b 盘点定性后另立；✅ 2026-09-12 收口：换绑单源 + SDK 契约对齐 + ResourceUpdateReq 业务键形态修复 + 守卫重写注解签名快照；双轨评审全处置，两项拍板见 registry 同日行） | —（2026-09-12 用户拍板另立任务） | api-contract；project-rules | — | ✅ | ✓ |
 | [T-PERM-066](../archive/2026-09-14/tasks/T-PERM-066.md) | operationCodeKey 族大小写口径统一——raw 严格化（Q-003 转出；✅ 2026-09-14 收口：入站 DTO @Pattern 大写 400/90001 + 定义侧锁死 + 授权域归一退役两域统一 raw，双轨评审全处置，全量回归含 E2E 全绿，终态见任务卡完成记录） | —（Q-003 单卡转出） | 契约总册 §2.4/§2.5；engine/implementation §8.2 | — | ✅ | ✓ |
+| [T-PERM-067](../archive/2026-09-14/tasks/T-PERM-067.md) | USER 写入口自身豁免收窄——档案字段豁免保留、启停/删除不豁免、reset-password 定位自助改密通道（Q-002 转出；✅ 2026-09-14 收口：admin 轨 /user/update 自禁对齐硬禁 + perm 轨死分支语义统一 + characterization 改锁新语义，双轨评审全处置，全量回归含 E2E 全绿，终态见任务卡完成记录） | —（Q-002 单卡转出） | 契约总册 §4 表/§7.4/§7.7/§7.8/§21.2/§22.2 决策 13 | — | ✅ | ✓ |
 
 ### gateway（工作单 C 失联兜底）
 

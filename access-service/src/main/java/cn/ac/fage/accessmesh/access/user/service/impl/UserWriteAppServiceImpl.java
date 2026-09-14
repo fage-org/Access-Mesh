@@ -171,26 +171,35 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         targetId = "#req.id()", summary = "'update user ' + #req.id()")
     public void updateUser(UserUpdateReq req) {
         Long currentUserId = currentOperatorId();
-        if (!req.id().equals(currentUserId)) {
+        boolean self = req.id().equals(currentUserId);
+        // status 仅接纳 0/1（T-ADMIN-022 语义收口：0=停用，1=启用，临时锁定不落库）。
+        // 值域校验先于门禁（对齐 updateStatus 先验参后门禁顺序；T-PERM-067 处置：门禁先行会使
+        // 非法 status 值报安全拒绝而非 10008 业务拒绝——LoginLockTemporaryPgIT 锁定该形态）
+        if (req.status() != null && req.status() != 0 && req.status() != 1) {
+            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
+        }
+        // T-PERM-067（Q-002 收窄定案）：启停不豁免——status 写入无论自身与否均走启停分权。
+        // 自身 status=0 对齐 /user/enable 的 CANNOT_DISABLE_SELF 硬禁（此前本入口自身全免，
+        // 旁路了同规则硬禁）；自身 status=1 与非自身一致须持 USER:ENABLE
+        // （T-ACCESS-034 字段分档：防仅持 UPDATE 旁路启停——停用清空目标有效角色 / 复活被停用账号）
+        if (req.status() != null) {
+            if (self && req.status() == 0) {
+                throw new BizException(AccessErrorCode.CANNOT_DISABLE_SELF.getCode(),
+                    AccessErrorCode.CANNOT_DISABLE_SELF.getMessage());
+            }
+            permissionValidator.checkInstanceLevel(
+                ResourceTypeCode.USER, String.valueOf(req.id()), OperationCode.ENABLE);
+        }
+        // 档案字段（name/phone/email）自身豁免保留——自助资料编辑基线能力；非自身须持 USER:UPDATE
+        if (!self) {
             permissionValidator.checkInstanceLevel(
                 ResourceTypeCode.USER, String.valueOf(req.id()), OperationCode.UPDATE);
-            // T-ACCESS-034 外评处置（claude/grok 双通道收敛，用户拍板本批补齐）：status 写入按
-            // 启停分权补查 USER:ENABLE——对齐 perm 轨字段分档与 /user/enable 门禁，防仅持
-            // UPDATE 旁路启停（停用清空目标有效角色 / 复活被停用账号）
-            if (req.status() != null) {
-                permissionValidator.checkInstanceLevel(
-                    ResourceTypeCode.USER, String.valueOf(req.id()), OperationCode.ENABLE);
-            }
         }
         Long tenantId = TenantContextHolder.getTenantId();
         SysUser user = userDomainService.selectValidById(tenantId, req.id());
         if (user == null) {
             throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(),
                 AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
-        }
-        // status 仅接纳 0/1（T-ADMIN-022 语义收口：0=停用，1=启用，临时锁定不落库）
-        if (req.status() != null && req.status() != 0 && req.status() != 1) {
-            throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(), "状态值无效，必须为0(停用)或1(启用)");
         }
         if (req.phone() != null && !req.phone().equals(user.getPhone())
             && userDomainService.existsByPhone(tenantId, req.phone())) {
