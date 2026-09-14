@@ -1,7 +1,7 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-010           # 已分配最大问题号；分配后冻结，不复用不重排
+counter: Q-012           # 已分配最大问题号；分配后冻结，不复用不重排
 last_updated: 2026-09-14
 ---
 
@@ -116,6 +116,32 @@ last_updated: 2026-09-14
 **影响**：现在为什么没出事——白名单锁死增量，存量不扩大；但这 30 边仍是能力包间数据边界豁免点，边界语义靠白名单维持而非结构收敛。数据示例：grant 包的授权编排直读 role/type/rule/resource 四包 mapper，任何一处表结构变更的耦合面横跨五个能力包。
 
 **设想方向（未定案）**：逐边改走对方 DomainService 封装（30 边改写涉及事务语义，须逐处评估）；或部分收敛（高频变更面优先）；不在融合计划（T-ACCESS-032~041）内，收敛任务启动时从看板计数器取号。
+
+## Q-011 资源依赖页（3.4）页面级真实联调与 mock 退役缺口
+
+- **状态**：open
+- **登记**：2026-09-14
+- **来源**：2026-09-14 轻量清扫批次 README 交付状态核实（根 README 未交付清单句已补 Q-011 指针）
+- **关联**：Q-012
+
+**现象与证据**：资源依赖页（T-FE-011，Phase 1 mock 驱动交付）未含于前端 Phase 3 联调批次——T-FE-015~022 + T-FE-037 九任务覆盖组织/用户、角色、资源+操作、权限授予（角色+组织）、权限查询、条件/冲突规则、业务域、系统/服务配置与日志，3.4 不在清单。api 层 `frontend/src/api/resource-dependency.ts` 已按契约对齐 T-PERM-031 后端收口（真实 http 形态，`/api/perm/resource-dependency/*`）；但 `frontend/mock/resource-dependency.ts` 六端点（list/graph/create/update/remove/check）的拦截 url 与真实 API 路径逐字一致且 defineFakeRoute 无条件注册，dev 下经 vite-plugin-fake-server 全量拦截（`build/plugins.ts` include:"mock"）——dev 中该页面始终吃 mock 数据，页面级真实链路（proxy → Gateway → access-service）从未验证。
+
+**影响**：现在为什么没出事——项目未正式部署，dev 下页面经 mock 数据可用；api 层与后端同批对齐（T-PERM-031，2026-08-30）降低了契约偏差概率。出事时长什么样——首次真实环境使用该页（或 dev 关 mock 调试）时，页面交互链路与真实数据形态的偏差一次性暴露（对照各 Phase 3 页联调均修出过真实缺陷，未联调页面无此保障）；dev 与生产行为分叉持续存在。
+
+**设想方向（未定案）**：按 T-FE-015~022 联调模式立小任务（页面真实联调 + `mock/resource-dependency.ts` 与 `mock/_shared/resource-fixtures.ts` 退役 + 冒烟），启动时从看板 T-FE 计数器取号。
+
+## Q-012 mock/refreshToken.ts 模板死文件（拦截虚构端点、零调用）
+
+- **状态**：open
+- **登记**：2026-09-14
+- **来源**：2026-09-14 轻量清扫批次 mock 目录核实（Q-011 排查顺带发现）
+- **关联**：Q-011
+
+**现象与证据**：`frontend/mock/refreshToken.ts`（pure-admin 模板自带演示）拦 `POST /refresh-token`、响应壳为模板 `{success,data}` 形态（非 R 信封）；前端无 refresh-token 体系——`src/utils/http/index.ts` 会话到期分支注释明确「T-FE-041：无 refresh-token 体系，会话到期即清本地会话回登录页，由 Gateway 401 兜底」，`src/store/modules/user.ts` `refreshToken: loginData.refreshToken ?? ""` 仅模板字段占位（注释「不接 OAuth2 刷新令牌」）；全仓 `src/` 对 `/refresh-token` 端点零调用。
+
+**影响**：零行为面（拦截无人调用的端点），纯维护噪音——mock 目录内 `asyncRoutes.ts` 有注释说明保留理由（模板机制参考），本文件无保留依据，读者需自行辨别其与真实登录链路（Sa-Token `/auth`）的关系。
+
+**设想方向（未定案）**：随 Q-011 联调批次顺带删除（Q-010 同款「无消费即删」口径）；不单独立任务。
 
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 
