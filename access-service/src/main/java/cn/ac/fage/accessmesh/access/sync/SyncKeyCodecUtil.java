@@ -24,9 +24,9 @@ import java.util.LinkedHashMap;
  * 本类只负责字符串编码，不感知任何业务上下文（不持有 tenantId/sourceService）。
  * </p>
  */
-public final class SyncKeyCodec {
+public final class SyncKeyCodecUtil {
 
-    private SyncKeyCodec() {
+    private SyncKeyCodecUtil() {
     }
 
     /**

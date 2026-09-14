@@ -22,7 +22,7 @@ import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
-import cn.ac.fage.accessmesh.access.sync.SyncKeyCodec;
+import cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -128,8 +128,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         }
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
 
-        String scopeKey = SyncKeyCodec.resourceEntityScopeKey(req.scope().resourceTypeCode());
-        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
+        String scopeKey = SyncKeyCodecUtil.resourceEntityScopeKey(req.scope().resourceTypeCode());
+        String scopeKeyHash = SyncKeyCodecUtil.sha256Hex(scopeKey);
 
         // T-PERM-044 评审 P1：全量同步批量写 parent，与 moveResource/sync 共持树写锁（对齐角色域）
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
@@ -195,9 +195,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
 
         for (ResourceEntitySyncItem item : req.items()) {
             String codeType = (item.codeType() == null || item.codeType().isBlank()) ? DEFAULT_CODE_TYPE : item.codeType();
-            String businessKey = SyncKeyCodec.resourceEntityBusinessKey(
+            String businessKey = SyncKeyCodecUtil.resourceEntityBusinessKey(
                     req.scope().resourceTypeCode(), item.resourceCode(), codeType);
-            seenBusinessKeyHashes.add(SyncKeyCodec.sha256Hex(businessKey));
+            seenBusinessKeyHashes.add(SyncKeyCodecUtil.sha256Hex(businessKey));
 
             // 通过 doFullSyncOne 复用 single-sync 的所有版本/依赖语义，但 existing 与 parentId 命中阶段 B 缓存。
             ResourceEntity existing = existingByCodeKey.get(new CodeKey(item.resourceCode(), codeType));
@@ -336,13 +336,13 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                                              boolean cyclePreChecked,
                                              LocalDateTime now) {
         String codeType = (req.codeType() == null || req.codeType().isBlank()) ? DEFAULT_CODE_TYPE : req.codeType();
-        String businessKey = SyncKeyCodec.resourceEntityBusinessKey(
+        String businessKey = SyncKeyCodecUtil.resourceEntityBusinessKey(
                 req.resourceTypeCode(), req.resourceCode(), codeType);
-        String scopeKey = SyncKeyCodec.resourceEntityScopeKey(req.resourceTypeCode());
-        String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
-        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
-        String syncKey = SyncKeyCodec.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
-        String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
+        String scopeKey = SyncKeyCodecUtil.resourceEntityScopeKey(req.resourceTypeCode());
+        String businessKeyHash = SyncKeyCodecUtil.sha256Hex(businessKey);
+        String scopeKeyHash = SyncKeyCodecUtil.sha256Hex(scopeKey);
+        String syncKey = SyncKeyCodecUtil.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
+        String syncKeyHash = SyncKeyCodecUtil.sha256Hex(syncKey);
 
         Integer resourceTypeValue = preResolvedTypeValue != null
                 ? preResolvedTypeValue

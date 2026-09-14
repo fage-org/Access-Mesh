@@ -342,11 +342,11 @@ class FullSyncN1GuardTest {
             row.setRelationId(300L + i);
             existingRows.add(row);
             // 当前 scope metadata：businessKeyHash -> targetId 与行一致（归属预加载命中）
-            String bk = cn.ac.fage.accessmesh.access.sync.SyncKeyCodec.userRoleBusinessKey(
+            String bk = cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil.userRoleBusinessKey(
                     "EMP", ue, "TEAM_ROLE", re, "TEAM_ROLE:" + rke);
             cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata md =
                     new cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata();
-            md.setBusinessKeyHash(cn.ac.fage.accessmesh.access.sync.SyncKeyCodec.sha256Hex(bk));
+            md.setBusinessKeyHash(cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil.sha256Hex(bk));
             md.setTargetId(1000L + i);
             md.setTargetStatus("ACTIVE");
             scopeMetadata.add(md);

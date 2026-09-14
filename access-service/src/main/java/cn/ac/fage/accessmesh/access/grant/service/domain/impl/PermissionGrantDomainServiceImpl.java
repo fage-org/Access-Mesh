@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.service.domain.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
@@ -212,7 +212,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             if (target.getResourceType() == null || target.getCode() == null) {
                 continue;
             }
-            targetOpByKey.put(BusinessKeys.operationCodeKey(
+            targetOpByKey.put(BusinessKeyUtil.operationCodeKey(
                 target.getResourceType(), target.getCode().toUpperCase()), target);
         }
 
@@ -226,7 +226,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         Map<String, Long> resourceEntityIdByKey = new HashMap<>();
         for (Map.Entry<ResourceResolveKey, Long> entry : resolvedResourceIds.entrySet()) {
             ResourceResolveKey key = entry.getKey();
-            resourceEntityIdByKey.put(BusinessKeys.resourceTripleCodeKey(key.resourceTypeCode(), key.resourceCode(), key.codeType()), entry.getValue());
+            resourceEntityIdByKey.put(BusinessKeyUtil.resourceTripleCodeKey(key.resourceTypeCode(), key.resourceCode(), key.codeType()), entry.getValue());
         }
 
         // 4. 授权条目按（类型值×操作码）与（类型值×操作码×实体）索引（位覆盖语义：授予操作覆盖目标操作即匹配）
@@ -240,7 +240,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                 continue;
             }
             OperationPermission grantedOp = grantedOpIndex.get(
-                BusinessKeys.operationBitKey(perm.resourceType(), perm.grantedBits()));
+                BusinessKeyUtil.operationBitKey(perm.resourceType(), perm.grantedBits()));
             if (grantedOp == null) {
                 continue;
             }
@@ -249,12 +249,12 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                     || !OperationPermissionUtils.covers(grantedOp, targetOp)) {
                     continue;
                 }
-                String opKey = BusinessKeys.operationCodeKey(perm.resourceType(), targetOp.getCode().toUpperCase());
+                String opKey = BusinessKeyUtil.operationCodeKey(perm.resourceType(), targetOp.getCode().toUpperCase());
                 if (Boolean.TRUE.equals(perm.scopeAll())) {
                     entriesByOpKey.computeIfAbsent(opKey, _unused -> new ArrayList<>()).add(perm);
                 } else if (perm.resourceEntityId() != null) {
                     entriesByOpAndEntity.computeIfAbsent(
-                        BusinessKeys.grantEntryKey(perm.resourceType(), targetOp.getCode().toUpperCase(), perm.resourceEntityId()),
+                        BusinessKeyUtil.grantEntryKey(perm.resourceType(), targetOp.getCode().toUpperCase(), perm.resourceEntityId()),
                         _unused -> new ArrayList<>()).add(perm);
                     // scopeAll=false 的实例行同样满足类型级转授键？否——scopeAll 键只认 scopeAll 行（与既有语义一致）
                 }
@@ -349,7 +349,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return new GrantCheckResult(false, "INVALID_RESOURCE_TYPE");
         }
 
-        String opPermKey = BusinessKeys.operationCodeKey(resourceTypeValue, opCodeUpper);
+        String opPermKey = BusinessKeyUtil.operationCodeKey(resourceTypeValue, opCodeUpper);
         OperationPermission opPerm = opPermByKey.get(opPermKey);
         if (opPerm == null) {
             return new GrantCheckResult(false, "INVALID_OPERATION");
@@ -357,20 +357,20 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
         Long resourceEntityId = null;
         if (!key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank()) {
-            String resKey = BusinessKeys.resourceTripleCodeKey(resTypeCodeUpper, key.resourceCode(), key.codeType());
+            String resKey = BusinessKeyUtil.resourceTripleCodeKey(resTypeCodeUpper, key.resourceCode(), key.codeType());
             resourceEntityId = resourceEntityIdByKey.get(resKey);
             if (resourceEntityId == null) {
                 return new GrantCheckResult(false, "RESOURCE_NOT_FOUND");
             }
         }
 
-        String baseKey = BusinessKeys.operationCodeKey(resourceTypeValue, opCodeUpper);
+        String baseKey = BusinessKeyUtil.operationCodeKey(resourceTypeValue, opCodeUpper);
         List<RolePermEntry> matchingPerms = new ArrayList<>();
 
         if (key.scopeAll()) {
             matchingPerms.addAll(permsByScopeAll.getOrDefault(baseKey, List.of()));
         } else {
-            String specificKey = BusinessKeys.grantEntryKey(resourceTypeValue, opCodeUpper, resourceEntityId);
+            String specificKey = BusinessKeyUtil.grantEntryKey(resourceTypeValue, opCodeUpper, resourceEntityId);
             matchingPerms.addAll(permsBySpecificResource.getOrDefault(specificKey, List.of()));
             matchingPerms.addAll(permsByScopeAll.getOrDefault(baseKey, List.of()));
         }
@@ -428,7 +428,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         // 候选行（租户级任意角色）+ 失败类型操作定义索引（覆盖判定）
         Set<Long> failedInstanceEntityIds = delegationFailedKeys.keySet().stream()
             .filter(key -> !key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank())
-            .map(key -> resourceEntityIdByKey.get(BusinessKeys.resourceTripleCodeKey(
+            .map(key -> resourceEntityIdByKey.get(BusinessKeyUtil.resourceTripleCodeKey(
                 key.resourceTypeCode().toUpperCase(), key.resourceCode(), key.codeType())))
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(LinkedHashSet::new));
@@ -444,11 +444,11 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                 continue;
             }
             OperationPermission targetOp = targetOpByKey.get(
-                BusinessKeys.operationCodeKey(typeValue, key.operationCode().toUpperCase()));
+                BusinessKeyUtil.operationCodeKey(typeValue, key.operationCode().toUpperCase()));
             if (targetOp == null) {
                 continue;
             }
-            Long keyEntityId = key.scopeAll() ? null : resourceEntityIdByKey.get(BusinessKeys.resourceTripleCodeKey(
+            Long keyEntityId = key.scopeAll() ? null : resourceEntityIdByKey.get(BusinessKeyUtil.resourceTripleCodeKey(
                 key.resourceTypeCode().toUpperCase(), key.resourceCode(), key.codeType()));
             boolean originExists = candidates.stream().anyMatch(row -> grantableRowCovers(
                 row, targetOp, candidateOpsByBit, key.scopeAll(), keyEntityId));
@@ -470,13 +470,13 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return false;
         }
         OperationPermission grantedOp = opsByBit.get(
-            BusinessKeys.operationBitKey(row.getResourceType(), row.getGrantedBits()));
+            BusinessKeyUtil.operationBitKey(row.getResourceType(), row.getGrantedBits()));
         return grantedOp != null && OperationPermissionUtils.covers(grantedOp, targetOp);
     }
 
-    /** K8 转授检查五段键（经 BusinessKeys 构造，格式 golden 锁定）。 */
+    /** K8 转授检查五段键（经 BusinessKeyUtil 构造，格式 golden 锁定）。 */
     private static String grantCheckKeyText(GrantCheckKey key) {
-        return BusinessKeys.grantCheckKey(key.resourceTypeCode(), key.resourceCode(),
+        return BusinessKeyUtil.grantCheckKey(key.resourceTypeCode(), key.resourceCode(),
             key.codeType(), key.operationCode(), key.scopeAll());
     }
 

@@ -556,15 +556,15 @@ class AbstractRoleSyncAppServiceTest {
                 .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
     }
 
-    /** 测试夹具：角色业务键（与实现 SyncKeyCodec 同构） */
+    /** 测试夹具：角色业务键（与实现 SyncKeyCodecUtil 同构） */
     private String businessKey(String externalId) {
-        return cn.ac.fage.accessmesh.access.sync.SyncKeyCodec
+        return cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil
                 .abstractRoleBusinessKey("BASIC_ROLE", externalId);
     }
 
     /** 测试夹具：预载「现存版本严格更新」的元数据（使该角色的事件按 STALE 钝化） */
     private void stubNewerExistingMetadata(String externalId) {
-        String hash = cn.ac.fage.accessmesh.access.sync.SyncKeyCodec
+        String hash = cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil
                 .sha256Hex(businessKey(externalId));
         cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata meta =
                 new cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata();

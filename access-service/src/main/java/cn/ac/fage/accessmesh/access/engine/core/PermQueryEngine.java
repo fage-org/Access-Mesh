@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.engine.core;
 
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.infrastructure.util.HttpRequestUtils;
 import cn.ac.fage.accessmesh.access.engine.dto.PermBatchQuery;
 import cn.ac.fage.accessmesh.access.engine.dto.PermBatchResult;
@@ -1555,7 +1555,7 @@ public class PermQueryEngine {
     }
 
     private String effectiveOperationKey(PermResult.EffectiveOperationEntry entry) {
-        return BusinessKeys.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
+        return BusinessKeyUtil.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
             entry.resourceType(), entry.operationBinaryBit(), entry.scopeAll());
     }
 
@@ -1771,13 +1771,13 @@ public class PermQueryEngine {
                 continue; // scopeAll 条目不参与展开
             }
             for (Long ancestorId : ancestorsByEntity.getOrDefault(srcEntityId, List.of())) {
-                String key = BusinessKeys.inheritedEntryKey(ancestorId, entry.permissionId());
+                String key = BusinessKeyUtil.inheritedEntryKey(ancestorId, entry.permissionId());
                 if (expandedKeys.add(key)) {
                     expandedEntries.add(cloneWithInherited(entry, ancestorId));
                 }
             }
             for (Long descendantId : descendantsByEntity.getOrDefault(srcEntityId, List.of())) {
-                String key = BusinessKeys.inheritedEntryKey(descendantId, entry.permissionId());
+                String key = BusinessKeyUtil.inheritedEntryKey(descendantId, entry.permissionId());
                 if (expandedKeys.add(key)) {
                     expandedEntries.add(cloneWithInherited(entry, descendantId));
                 }

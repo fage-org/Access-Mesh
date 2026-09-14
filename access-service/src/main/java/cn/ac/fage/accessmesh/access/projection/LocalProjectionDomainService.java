@@ -235,7 +235,7 @@ public interface LocalProjectionDomainService {
      * 类型定义事实由调用方（TypeDefinitionAppService 编排）维护，本方法只写资源投影：
      * code = {@code {typeKey}:{typeCode}} 复合业务键（typeCode 仅 tenant+type_key 内唯一，
      * 种子 user_type 与 resource_type 均有 USER/SERVICE 同名行，裸 code 跨族撞
-     * uk_resource_entity；格式经 BusinessKeys.typeInstanceBusinessKey 构造，2026-09-05 定案）。
+     * uk_resource_entity；格式经 BusinessKeyUtil.typeInstanceBusinessKey 构造，2026-09-05 定案）。
      * 无树形语义：parent 恒 null、status 恒启用，name 随类型定义名称同步。
      * </p>
      */

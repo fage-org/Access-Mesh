@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.engine.service.impl;
 
 import cn.ac.fage.accessmesh.perm.common.dto.req.InterfaceSnapshotReq;
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.InterfaceSnapshotResp;
@@ -155,7 +155,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         // 先构建 code→OperationPermission 索引用于 opMatch
         Map<String, OperationPermission> opByCode = opMap.values().stream()
             .collect(Collectors.toMap(
-                o -> BusinessKeys.operationCodeKey(o.getResourceType(), o.getCode()),
+                o -> BusinessKeyUtil.operationCodeKey(o.getResourceType(), o.getCode()),
                 o -> o, (a, b) -> a));
 
         // 使用引擎的 covers() 覆盖判定：MANAGE 覆盖 VIEW 等
@@ -167,7 +167,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
             if (granted == null) return false;
             // 检查授予的操作是否覆盖请求中的任一操作
             return operationCodes.stream().anyMatch(reqOp -> {
-                OperationPermission target = opByCode.get(BusinessKeys.operationCodeKey(entry.resourceType(), reqOp));
+                OperationPermission target = opByCode.get(BusinessKeyUtil.operationCodeKey(entry.resourceType(), reqOp));
                 return target != null && OperationPermissionUtils.covers(granted, target);
             });
         };
@@ -394,7 +394,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
                     if (entry.resourceEntityId() == null) continue;
                     ResourceEntity resource = resourceMap.get(entry.resourceEntityId());
                     if (resource == null || resource.getDeleteFlag() != 0L) continue;
-                    String itemKey = BusinessKeys.scopeItemKey(resource.getCodeType(), resource.getCode());
+                    String itemKey = BusinessKeyUtil.scopeItemKey(resource.getCodeType(), resource.getCode());
                     items.putIfAbsent(itemKey, new QueryScopesResp.ScopeItem(
                         resource.getCode(), resource.getCodeType(), resource.getName()));
                 }
@@ -455,7 +455,7 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
                 // T-PERM-017 C4 修 P1-②：去重 key 加 conditionId，避免同 API 多授权（无条件+含条件）
                 // 被折叠成单条。Gateway InterfaceSnapshotMatcher 用 OR 语义合并多条 entry。
                 // conditionId=null（无条件）参与 key，使无条件分支与任何条件分支独立保留。
-                item -> BusinessKeys.apiEntryDedupKey(
+                item -> BusinessKeyUtil.apiEntryDedupKey(
                     item.serviceCode(), item.httpMethod(), item.pathPattern(), item.conditionId()),
                 item -> item,
                 (left, right) -> left,

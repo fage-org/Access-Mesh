@@ -109,7 +109,7 @@
     </select>
 
     <!-- T-PERM-051：TYPE_DEFINITION 实例门禁按复合业务键 {typeKey}:{typeCode} 批量判定，
-         需 (type_key, type_code) 对（格式构造唯一入口 BusinessKeys.typeInstanceBusinessKey，
+         需 (type_key, type_code) 对（格式构造唯一入口 BusinessKeyUtil.typeInstanceBusinessKey，
          禁止在 SQL 内拼串） -->
     <select id="selectValidByTenant" resultType="cn.ac.fage.accessmesh.access.type.entity.TypeDefinition">
         SELECT * FROM type_definition

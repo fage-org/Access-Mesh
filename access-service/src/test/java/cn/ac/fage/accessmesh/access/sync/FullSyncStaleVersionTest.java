@@ -16,7 +16,7 @@ import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
-import cn.ac.fage.accessmesh.access.sync.SyncKeyCodec;
+import cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -277,10 +277,10 @@ class FullSyncStaleVersionTest {
         md.setTenantId(TENANT_ID);
         md.setEntityKind(ENTITY_KIND);
         md.setSourceService(SOURCE_SERVICE);
-        String businessKey = SyncKeyCodec.abstractUserBusinessKey("USER", externalId);
+        String businessKey = SyncKeyCodecUtil.abstractUserBusinessKey("USER", externalId);
         md.setBusinessKey(businessKey);
-        // 与 service 内部 SyncKeyCodec.sha256Hex(businessKey) 一致，确保 seenBusinessKeyHashes 命中
-        md.setBusinessKeyHash(SyncKeyCodec.sha256Hex(businessKey));
+        // 与 service 内部 SyncKeyCodecUtil.sha256Hex(businessKey) 一致，确保 seenBusinessKeyHashes 命中
+        md.setBusinessKeyHash(SyncKeyCodecUtil.sha256Hex(businessKey));
         md.setTargetId(targetId);
         md.setTargetStatus(status);
         md.setLastSyncOccurredAt(lastOccurredAt);

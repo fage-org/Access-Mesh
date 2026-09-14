@@ -84,7 +84,7 @@ public final class AccessCacheCatalog {
     /**
      * 类型值映射缓存（快照链路）
      * <p>
-     * Key: typeKey + ":" + typeCode（经 BusinessKeys.typeValueCacheKey 构造，格式 golden 锁定）
+     * Key: typeKey + ":" + typeCode（经 BusinessKeyUtil.typeValueCacheKey 构造，格式 golden 锁定）
      * Value: Map&lt;String, Integer&gt; 类型码 -&gt; 类型值
      * </p>
      */
@@ -99,7 +99,7 @@ public final class AccessCacheCatalog {
     /**
      * 类型码缓存（快照链路）
      * <p>
-     * Key: typeKey + ":" + typeValue（经 BusinessKeys.typeCodeCacheKey 构造，格式 golden 锁定）
+     * Key: typeKey + ":" + typeValue（经 BusinessKeyUtil.typeCodeCacheKey 构造，格式 golden 锁定）
      * Value: String 类型码
      * </p>
      */

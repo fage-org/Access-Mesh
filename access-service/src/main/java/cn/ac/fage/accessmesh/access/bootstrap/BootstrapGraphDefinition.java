@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.bootstrap;
 
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 
@@ -382,6 +382,6 @@ public final class BootstrapGraphDefinition {
 
     /** API 资源稳定业务键 */
     public static String apiResourceCode(String method, String path) {
-        return BusinessKeys.apiRouteKey(method, path);
+        return BusinessKeyUtil.apiRouteKey(method, path);
     }
 }

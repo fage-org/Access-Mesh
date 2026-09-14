@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.grant.service.domain.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest;
@@ -866,9 +866,9 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         }
     }
 
-    /** K8 转授检查五段键（经 BusinessKeys 构造，与 PermissionGrantDomainServiceImpl 共享同一格式锁）。 */
+    /** K8 转授检查五段键（经 BusinessKeyUtil 构造，与 PermissionGrantDomainServiceImpl 共享同一格式锁）。 */
     private String grantCheckKey(PermissionGrantDomainService.GrantCheckKey key) {
-        return BusinessKeys.grantCheckKey(key.resourceTypeCode(), key.resourceCode(),
+        return BusinessKeyUtil.grantCheckKey(key.resourceTypeCode(), key.resourceCode(),
             key.codeType(), key.operationCode(), key.scopeAll());
     }
 

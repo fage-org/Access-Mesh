@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.type.service.impl;
 
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.type.dto.req.OperationKeyReq;
@@ -469,14 +469,14 @@ public class OperationAppServiceImpl implements OperationAppService {
                 continue;
             }
             for (String code : entry.getValue()) {
-                pairs.add(BusinessKeys.operationCodeKey(typeValue, code));
+                pairs.add(BusinessKeyUtil.operationCodeKey(typeValue, code));
             }
         }
         Set<String> allTypedCodes = typedByTypeCode.values().stream()
             .flatMap(Set::stream).collect(Collectors.toSet());
         List<OperationPermission> entities = new java.util.ArrayList<>();
         for (OperationPermission op : operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(tenantId, resolvedTypes, allTypedCodes)) {
-            if (pairs.contains(BusinessKeys.operationCodeKey(op.getResourceType(), op.getCode()))) {
+            if (pairs.contains(BusinessKeyUtil.operationCodeKey(op.getResourceType(), op.getCode()))) {
                 entities.add(op);
             }
         }

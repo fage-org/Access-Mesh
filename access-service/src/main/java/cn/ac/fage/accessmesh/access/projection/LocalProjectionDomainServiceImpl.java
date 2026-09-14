@@ -19,7 +19,7 @@ import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import com.mybatisflex.core.util.UpdateEntity;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -401,7 +401,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
     @Override
     public void upsertTypeDefinitionResource(Long tenantId, String typeKey, String typeCode, String name) {
         Integer resourceType = requireType(tenantId, "resource_type", ResourceTypeCode.TYPE_DEFINITION);
-        upsertResource(tenantId, resourceType, BusinessKeys.typeInstanceBusinessKey(typeKey, typeCode),
+        upsertResource(tenantId, resourceType, BusinessKeyUtil.typeInstanceBusinessKey(typeKey, typeCode),
             name, null, STATUS_ENABLED, LocalDateTime.now());
     }
 
@@ -425,7 +425,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
             return 0;
         }
         Set<String> expectedCodes = validTypes.stream()
-            .map(t -> BusinessKeys.typeInstanceBusinessKey(t.getTypeKey(), t.getTypeCode()))
+            .map(t -> BusinessKeyUtil.typeInstanceBusinessKey(t.getTypeKey(), t.getTypeCode()))
             .collect(Collectors.toSet());
         Set<String> existingCodes = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
             tenantId, resourceType, expectedCodes, Set.of(CODE_TYPE_DEFAULT)).stream()
@@ -434,7 +434,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         LocalDateTime now = LocalDateTime.now();
         List<ResourceEntity> toInsert = new ArrayList<>();
         for (TypeDefinition type : validTypes) {
-            String code = BusinessKeys.typeInstanceBusinessKey(type.getTypeKey(), type.getTypeCode());
+            String code = BusinessKeyUtil.typeInstanceBusinessKey(type.getTypeKey(), type.getTypeCode());
             if (existingCodes.contains(code)) {
                 continue;
             }

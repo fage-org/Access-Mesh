@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.role.service.impl;
 
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.sync.dto.UserRoleFullSyncReq;
@@ -19,7 +19,7 @@ import cn.ac.fage.accessmesh.access.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard.SyncTypes;
-import cn.ac.fage.accessmesh.access.sync.SyncKeyCodec;
+import cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.stereotype.Service;
@@ -125,9 +125,9 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         localProjectionGuard.rejectInternalSourceService(req.scope().sourceService());
         localProjectionGuard.rejectReservedUserRoleSource(req.scope().sourceType());
 
-        String scopeKey = SyncKeyCodec.userRoleScopeKey(
+        String scopeKey = SyncKeyCodecUtil.userRoleScopeKey(
                 req.scope().sourceType(), req.scope().roleTypeCode(), req.scope().treeRootExternalId());
-        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
+        String scopeKeyHash = SyncKeyCodecUtil.sha256Hex(scopeKey);
 
         // ---- 阶段 A：按 typeCode 分桶收集 subject/role/relation 的 externalId ----
         // subjectTypeCode -> Set<externalId>
@@ -145,7 +145,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     .add(item.subjectExternalId());
             roleExternalIdsByType.computeIfAbsent(item.roleTypeCode(), k -> new HashSet<>())
                     .add(item.roleExternalId());
-            BusinessKeys.RelationKeyRef rk = BusinessKeys.parseRelationKey(item.relationKey());
+            BusinessKeyUtil.RelationKeyRef rk = BusinessKeyUtil.parseRelationKey(item.relationKey());
             if (rk != null) {
                 relationExternalIdsByType.computeIfAbsent(rk.typeCode(), k -> new HashSet<>())
                         .add(rk.externalId());
@@ -223,12 +223,12 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         LocalDateTime now = LocalDateTime.now();
 
         for (UserRoleSyncItem item : req.items()) {
-            String businessKey = SyncKeyCodec.userRoleBusinessKey(
+            String businessKey = SyncKeyCodecUtil.userRoleBusinessKey(
                     item.subjectTypeCode(), item.subjectExternalId(),
                     item.roleTypeCode(), item.roleExternalId(), item.relationKey());
             // 同批重复 businessKey：写入前拒绝（existingByTriKey 为循环前一次性加载，
             // 重复项二次 INSERT 会触发 uk_user_role 唯一约束整批回滚）
-            if (!seenBusinessKeyHashes.add(SyncKeyCodec.sha256Hex(businessKey))) {
+            if (!seenBusinessKeyHashes.add(SyncKeyCodecUtil.sha256Hex(businessKey))) {
                 failed++;
                 itemResults.add(new SyncResultResp.ItemResult(businessKey, false, false,
                         SyncResultBuilder.RETRY_NON_RETRYABLE, "DUPLICATE_BUSINESS_KEY"));
@@ -305,7 +305,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
 
     private static Long resolveRelationFromCache(String relationKey,
                                                   Map<String, Map<String, Long>> relationResolved) {
-        BusinessKeys.RelationKeyRef ref = BusinessKeys.parseRelationKey(relationKey);
+        BusinessKeyUtil.RelationKeyRef ref = BusinessKeyUtil.parseRelationKey(relationKey);
         if (ref == null) return null;
         Map<String, Long> bucket = relationResolved.get(ref.typeCode());
         return bucket == null ? null : bucket.get(ref.externalId());
@@ -338,15 +338,15 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                                               LocalDateTime now,
                                               Map<String, Long> ownedTargetIdsByBusinessKeyHash,
                                               Map<Long, Set<Long>> batchAppliedByUser) {
-        String businessKey = SyncKeyCodec.userRoleBusinessKey(
+        String businessKey = SyncKeyCodecUtil.userRoleBusinessKey(
                 req.subjectTypeCode(), req.subjectExternalId(),
                 req.roleTypeCode(), req.roleExternalId(), req.relationKey());
-        String scopeKey = SyncKeyCodec.userRoleScopeKey(
+        String scopeKey = SyncKeyCodecUtil.userRoleScopeKey(
                 req.sourceType(), req.roleTypeCode(), req.treeRootExternalId());
-        String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
-        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
-        String syncKey = SyncKeyCodec.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
-        String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
+        String businessKeyHash = SyncKeyCodecUtil.sha256Hex(businessKey);
+        String scopeKeyHash = SyncKeyCodecUtil.sha256Hex(scopeKey);
+        String syncKey = SyncKeyCodecUtil.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
+        String syncKeyHash = SyncKeyCodecUtil.sha256Hex(syncKey);
 
         // applyVersion (atomic compare)
         SyncMetadataDomainService.ApplyVersionResult vr = syncMetadataDomainService.applyVersion(
@@ -485,7 +485,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     }
 
     private Long resolveRelationRoleId(Long tenantId, String relationKey) {
-        BusinessKeys.RelationKeyRef ref = BusinessKeys.parseRelationKey(relationKey);
+        BusinessKeyUtil.RelationKeyRef ref = BusinessKeyUtil.parseRelationKey(relationKey);
         if (ref == null) return null;
         return typeResolutionService.resolveRoleId(tenantId, ref.typeCode(), ref.externalId(), null);
     }
@@ -519,7 +519,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         if (relationKey == null || relationKey.isBlank()) {
             return;
         }
-        // 不用 BusinessKeys.parseRelationKey：守卫语义只看类型段是否存在（idx > 0），
+        // 不用 BusinessKeyUtil.parseRelationKey：守卫语义只看类型段是否存在（idx > 0），
         // "ORG:" 这类空 id 段的畸形键也要拒绝保留类型，parseRelationKey 则将其归为 null
         int idx = relationKey.indexOf(':');
         if (idx > 0) {

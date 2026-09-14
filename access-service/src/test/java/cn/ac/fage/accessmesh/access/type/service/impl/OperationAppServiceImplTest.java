@@ -233,7 +233,7 @@ class OperationAppServiceImplTest {
 
     @Test
     @DisplayName("remove 按业务键批量解析，未命中键静默跳过")
-    void shouldDeleteOperationsByBusinessKeys() {
+    void shouldDeleteOperationsByBusinessKeyUtil() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
             isNull(), eq(OperationCode.MANAGE))).thenReturn(true);
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", java.util.Set.of("ROLE")))

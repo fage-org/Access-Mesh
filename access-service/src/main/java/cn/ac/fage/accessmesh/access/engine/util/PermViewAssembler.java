@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.engine.util;
 
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult.EffectiveOperationEntry;
 import cn.ac.fage.accessmesh.access.engine.dto.PermViewFilter;
@@ -165,12 +165,12 @@ public class PermViewAssembler {
     }
 
     private String effectiveSourceKey(RolePermEntry entry) {
-        return BusinessKeys.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
+        return BusinessKeyUtil.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
             entry.resourceType(), entry.grantedBits(), entry.scopeAll());
     }
 
     private String effectiveSourceKey(EffectiveOperationEntry entry) {
-        return BusinessKeys.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
+        return BusinessKeyUtil.permEntrySourceKey(entry.permissionId(), entry.roleId(), entry.resourceEntityId(),
             entry.resourceType(), entry.grantedBits(), entry.scopeAll());
     }
 

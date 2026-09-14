@@ -116,7 +116,7 @@ public interface TypeDefinitionMapper extends BaseMapper<TypeDefinition> {
      * 查询租户内全部有效类型定义行（跨 type_key，T-PERM-051）
      * <p>
      * 用于 TYPE_DEFINITION 实例门禁的复合业务键构造（{typeKey}:{typeCode}，经
-     * {@code BusinessKeys.typeInstanceBusinessKey} 拼装，格式不在 SQL 内拼串）与
+     * {@code BusinessKeyUtil.typeInstanceBusinessKey} 拼装，格式不在 SQL 内拼串）与
      * bootstrap 投影自愈补种。替换已退役的 {@code selectValidCodesByTenant}
      * （裸 typeCode 在跨 type_key 重码下无法唯一命中投影行）。
      * </p>

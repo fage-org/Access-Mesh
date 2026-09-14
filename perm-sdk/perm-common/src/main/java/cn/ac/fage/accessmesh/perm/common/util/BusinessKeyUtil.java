@@ -6,13 +6,13 @@ package cn.ac.fage.accessmesh.perm.common.util;
  * 收敛 access-service 后端散落的业务键拼接点，消灭「读代码才知道格式」的隐式约定：
  * 同一格式的构造与消费分散在多个类时（如类型解析缓存键由 TypeResolutionServiceImpl 写入、
  * TypeDefinitionAppServiceImpl 失效），任何一侧手改格式都会造成静默错配。本类是这些键族的
- * 唯一构造点，格式由 {@code BusinessKeysParityTest} 以 golden 值锁定，改格式即测试失败。
+ * 唯一构造点，格式由 {@code BusinessKeyUtilParityTest} 以 golden 值锁定，改格式即测试失败。
  * </p>
  *
  * <ul>
  *   <li>范围：后端全部业务键（跨类格式契约键 + 单文件内部映射键）；前端 TS 辅助不动。</li>
  *   <li>出界：sync API 契约键（percent-encoded businessKey/scopeKey）归 access-service 的
- *       {@code SyncKeyCodec}，与本类互不替代；缓存框架存储信封、Gateway 本地快照键、
+ *       {@code SyncKeyCodecUtil}，与本类互不替代；缓存框架存储信封、Gateway 本地快照键、
  *       登录计数/任务幂等/树写锁等基础设施键、错误文案拼接均不经本类。</li>
  *   <li>大小写口径（2026-09-07 定案：保持各点现状语义，后续另行统一）：本类不做大小写归一，
  *       原样拼接；授权域调用点历史上先 {@code toUpperCase()} 再拼键的，继续在调用点显式转换；
@@ -21,9 +21,9 @@ package cn.ac.fage.accessmesh.perm.common.util;
  *       与被收敛的原始实现逐字节一致。</li>
  * </ul>
  */
-public final class BusinessKeys {
+public final class BusinessKeyUtil {
 
-    private BusinessKeys() {
+    private BusinessKeyUtil() {
     }
 
     // ---------------------------------------------------------------------

@@ -47,3 +47,31 @@ T-PERM-035/036/054 留 `docs/tasks/`（⚙️ proposed、plan 字段 —，看�
 | T-FE-044.md（Phase 3 补遗联调：资源依赖 3.4 mock→真实收口） | 本目录 `tasks/`（done 即单卡归档——Q-011/Q-012 转出任务，无所属计划） |
 
 关联收敛：pending-problems Q-011/Q-012 随卡 done 收敛入索引；业务页 mock 全部退役（mock/ 仅剩 login.ts 开关门控件与 asyncRoutes.ts 模板参考件）。
+
+## 批次四：轻量代码清扫（前端 GROUP_ROLE 死面 + 工具类改名，2026-09-14 用户拍板）
+
+> 无归档物、无任务卡载体（仿批次二 Q-010 顺带删形态——本批次即清扫本身为载体）；零行为变更。
+
+### 内容一：GROUP_ROLE extra-roles 前端死面全删（推翻 T-PERM-043 实现期「代码保留不删」处置）
+
+T-PERM-043 删除后端 extra-roles/* 三接口与 GROUP_ROLE 写入口时，前端死码曾按「待 role_inclusion 立项恢复」保留（仅代码注释口径，decision-registry 无对应定案行）；本次清扫全删（恢复走 git 历史）：
+
+- `api/role-manage.ts`：`listExtraRoles/addExtraRole/removeExtraRole` 三封装 + `RoleSummaryResp/GroupRoleExtraRolesQuery/GroupRoleExtraRoleReq` 三类型
+- 角色页：`hook.ts` 死分支（loadTree/handleNodeClick/handleDelete 的 GROUP_ROLE 支 + 三函数 + 两 ref）、`index.vue` 额外基本角色面板（script computed 区 + 模板区块 + 样式）、`perms.ts` `ROLE:ASSIGN/ROLE:REVOKE` 两键（后端操作已零引用）、`mock/login.ts` sec 矩阵两串
+- 授权页：`SubjectTreePanel.vue`（`handleNodeExpand` 整函数、`requestSelectGroup` 死 emit 零消费、分组/基础角色 tag）、`subject-tree.ts` `buildExtraContainer`、`types.ts` kind 收窄（删 `EXTRA_CONTAINER/EXTRA_ROLE` 与 `expandedFromGroup/groupRoleName/expandedLoaded/fromGroupRoleName` 四字段）、`hook.ts` 死高亮支、`subject-tree.spec.ts` 对应 2 用例
+- 设计文档回写：`role-manage.md`（§1/§2 布局图/§4.2/§5 注记/§6/§7 表与门禁/降级/mock 矩阵）、`permission-grant.md`（§0-13/§1.1/§2.1 表/§6.5）
+
+### 内容二：Q-004 工具类改名（按 project-rules §6.2「XxxUtil 去末尾 s」）
+
+- `BusinessKeys` → `BusinessKeyUtil`（perm-common；golden 锁测试随类更名 `BusinessKeyUtilParityTest`）
+- `SyncKeyCodec` → `SyncKeyCodecUtil`（access-service sync；两测试类随更名）
+- 同批替换 34+17 文件：代码+测试+`TypeDefinitionMapper.xml` 注释+skills 双副本（accessmesh-patterns）+AGENTS.md+活设计文档；decision-registry 带日期历史行与 docs/archive 不改写
+
+### 验证
+
+- 前端：vue-tsc 0 错、vitest 229/229（231−2 为删除的 buildExtraContainer 用例）、eslint 0 问题
+- 后端：全仓 `mvn clean compile` 通过；全量回归 `mvn test -T 1C`（收口形态含 E2E）全绿——perm-common 30（`BusinessKeyUtilParityTest` 更名后 golden 锁绿）/ common 65+15+10+106 / access-service 1232 单测 + 210 容器 / e2e 14，BUILD SUCCESS 6:36（日志整文件落盘解析，零失败字串）
+
+### 关联收敛
+
+pending-problems Q-004 → 已收敛索引（关联本条目）。

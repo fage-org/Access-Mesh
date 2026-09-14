@@ -12,15 +12,15 @@ import static org.assertj.core.api.Assertions.assertThat;
  * </p>
  * <p>
  * 等价性条件：给定相同的 (sourceType, roleTypeCode, treeRootExternalId)，
- * 调用 {@link SyncKeyCodec#userRoleScopeKey(String, String, String)} 必须输出字面相同的字符串。
+ * 调用 {@link SyncKeyCodecUtil#userRoleScopeKey(String, String, String)} 必须输出字面相同的字符串。
  * </p>
  */
-class SyncKeyCodecEquivalenceTest {
+class SyncKeyCodecUtilEquivalenceTest {
 
     @Test
     void shouldProduceIdenticalScopeKey_whenRoleTypeIsOrg() {
-        String incremental = SyncKeyCodec.userRoleScopeKey("HR_MEMBER", "ORG", "1");
-        String fullSync = SyncKeyCodec.userRoleScopeKey("HR_MEMBER", "ORG", "1");
+        String incremental = SyncKeyCodecUtil.userRoleScopeKey("HR_MEMBER", "ORG", "1");
+        String fullSync = SyncKeyCodecUtil.userRoleScopeKey("HR_MEMBER", "ORG", "1");
 
         assertThat(incremental).isEqualTo(fullSync);
         assertThat(incremental)
@@ -29,8 +29,8 @@ class SyncKeyCodecEquivalenceTest {
 
     @Test
     void shouldProduceIdenticalScopeKey_whenRoleTypeIsPosition() {
-        String incremental = SyncKeyCodec.userRoleScopeKey("HR_MEMBER", "POSITION", "tree-root-42");
-        String fullSync = SyncKeyCodec.userRoleScopeKey("HR_MEMBER", "POSITION", "tree-root-42");
+        String incremental = SyncKeyCodecUtil.userRoleScopeKey("HR_MEMBER", "POSITION", "tree-root-42");
+        String fullSync = SyncKeyCodecUtil.userRoleScopeKey("HR_MEMBER", "POSITION", "tree-root-42");
 
         assertThat(incremental).isEqualTo(fullSync);
         assertThat(incremental)
@@ -40,8 +40,8 @@ class SyncKeyCodecEquivalenceTest {
     @Test
     void shouldProduceDifferentScopeKey_whenTreeRootDiffers() {
         // 防回归：保证 treeRootExternalId 真正参与了 scopeKey 编码
-        String tree1 = SyncKeyCodec.userRoleScopeKey("HR_MEMBER", "ORG", "1");
-        String tree2 = SyncKeyCodec.userRoleScopeKey("HR_MEMBER", "ORG", "2");
+        String tree1 = SyncKeyCodecUtil.userRoleScopeKey("HR_MEMBER", "ORG", "1");
+        String tree2 = SyncKeyCodecUtil.userRoleScopeKey("HR_MEMBER", "ORG", "2");
 
         assertThat(tree1).isNotEqualTo(tree2);
     }
@@ -49,8 +49,8 @@ class SyncKeyCodecEquivalenceTest {
     @Test
     void shouldProduceDifferentScopeKey_whenSourceTypeDiffers() {
         // 防回归：不同调用方 sourceType 的成员关系不得共享 scopeKey（否则 full-sync 差异校准互相误清理）
-        String src1 = SyncKeyCodec.userRoleScopeKey("HR_MEMBER", "TEAM_ROLE", "1");
-        String src2 = SyncKeyCodec.userRoleScopeKey("PROJECT_MEMBER", "TEAM_ROLE", "1");
+        String src1 = SyncKeyCodecUtil.userRoleScopeKey("HR_MEMBER", "TEAM_ROLE", "1");
+        String src2 = SyncKeyCodecUtil.userRoleScopeKey("PROJECT_MEMBER", "TEAM_ROLE", "1");
 
         assertThat(src1).isNotEqualTo(src2);
     }

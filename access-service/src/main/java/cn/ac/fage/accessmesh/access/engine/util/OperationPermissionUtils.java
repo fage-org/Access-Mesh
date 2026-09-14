@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.engine.util;
 
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 
 import java.util.*;
 
@@ -216,6 +216,6 @@ public final class OperationPermissionUtils {
     }
 
     private static String composeKey(Integer resourceType, Long binaryBit) {
-        return BusinessKeys.operationBitKey(resourceType, binaryBit);
+        return BusinessKeyUtil.operationBitKey(resourceType, binaryBit);
     }
 }

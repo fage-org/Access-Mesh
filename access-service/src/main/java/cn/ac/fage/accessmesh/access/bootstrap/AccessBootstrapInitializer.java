@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.bootstrap;
 
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.menu.entity.SysMenu;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
@@ -460,7 +460,7 @@ public class AccessBootstrapInitializer {
     /** 映射存在键（与 resource_api_mapping 唯一索引同构——Gateway 快照按 serviceCode 过滤）。 */
     private static String mappingKey(String serviceCode, Long resourceEntityId,
                                      String httpMethod, String pathPattern) {
-        return BusinessKeys.apiMappingPresenceKey(serviceCode, resourceEntityId, httpMethod, pathPattern);
+        return BusinessKeyUtil.apiMappingPresenceKey(serviceCode, resourceEntityId, httpMethod, pathPattern);
     }
 
     /**
@@ -679,7 +679,7 @@ public class AccessBootstrapInitializer {
                     continue;
                 }
             }
-            Long bits = operationBits.get(BusinessKeys.operationCodeKey(spec.resourceTypeCode(), spec.operationCode()));
+            Long bits = operationBits.get(BusinessKeyUtil.operationCodeKey(spec.resourceTypeCode(), spec.operationCode()));
             if (bits == null) {
                 continue;
             }
@@ -767,11 +767,11 @@ public class AccessBootstrapInitializer {
         for (OperationPermission op : seedWriter.findOperations(tenantId, typeValues, operationCodes)) {
             String typeCode = typeValueToCode.get(op.getResourceType());
             if (typeCode != null) {
-                bits.put(BusinessKeys.operationCodeKey(typeCode, op.getCode()), op.getBinaryBit());
+                bits.put(BusinessKeyUtil.operationCodeKey(typeCode, op.getCode()), op.getBinaryBit());
             }
         }
         for (BootstrapGraphDefinition.GrantSpec spec : BootstrapGraphDefinition.allGrants()) {
-            String key = BusinessKeys.operationCodeKey(spec.resourceTypeCode(), spec.operationCode());
+            String key = BusinessKeyUtil.operationCodeKey(spec.resourceTypeCode(), spec.operationCode());
             if (!bits.containsKey(key)) {
                 throw new IllegalStateException("operation_permission 种子缺失: " + key
                     + " —— 请确认唯一权威 DDL 已完整执行（docs/design/schema/access-service.sql）");

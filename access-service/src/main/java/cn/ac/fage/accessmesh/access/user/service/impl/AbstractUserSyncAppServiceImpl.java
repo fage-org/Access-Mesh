@@ -19,7 +19,7 @@ import cn.ac.fage.accessmesh.access.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard.SyncTypes;
-import cn.ac.fage.accessmesh.access.sync.SyncKeyCodec;
+import cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -100,12 +100,12 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
         }
 
         // 4. 计算 keys
-        String businessKey = SyncKeyCodec.abstractUserBusinessKey(req.subjectTypeCode(), req.subjectExternalId());
-        String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
-        String scopeKey = SyncKeyCodec.abstractUserScopeKey(req.subjectTypeCode());
-        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
-        String syncKey = SyncKeyCodec.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
-        String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
+        String businessKey = SyncKeyCodecUtil.abstractUserBusinessKey(req.subjectTypeCode(), req.subjectExternalId());
+        String businessKeyHash = SyncKeyCodecUtil.sha256Hex(businessKey);
+        String scopeKey = SyncKeyCodecUtil.abstractUserScopeKey(req.subjectTypeCode());
+        String scopeKeyHash = SyncKeyCodecUtil.sha256Hex(scopeKey);
+        String syncKey = SyncKeyCodecUtil.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
+        String syncKeyHash = SyncKeyCodecUtil.sha256Hex(syncKey);
 
         // 5. applyVersion
         SyncMetadataDomainService.ApplyVersionResult ver = syncMetadataDomainService.applyVersion(
@@ -183,8 +183,8 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
                     req.items().size(), List.of(denied));
         }
 
-        String scopeKey = SyncKeyCodec.abstractUserScopeKey(req.scope().subjectTypeCode());
-        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
+        String scopeKey = SyncKeyCodecUtil.abstractUserScopeKey(req.scope().subjectTypeCode());
+        String scopeKeyHash = SyncKeyCodecUtil.sha256Hex(scopeKey);
 
         // ---- 阶段 A：收集所有 externalIds ----
         Set<String> externalIds = new HashSet<>(req.items().size());
@@ -209,12 +209,12 @@ public class AbstractUserSyncAppServiceImpl implements AbstractUserSyncAppServic
 
         LocalDateTime now = LocalDateTime.now();
         for (AbstractUserSyncItem item : req.items()) {
-            String businessKey = SyncKeyCodec.abstractUserBusinessKey(
+            String businessKey = SyncKeyCodecUtil.abstractUserBusinessKey(
                     req.scope().subjectTypeCode(), item.subjectExternalId());
-            String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
+            String businessKeyHash = SyncKeyCodecUtil.sha256Hex(businessKey);
             seenBusinessKeyHashes.add(businessKeyHash);
-            String syncKey = SyncKeyCodec.syncKey(req.scope().sourceService(), ENTITY_KIND, businessKey);
-            String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
+            String syncKey = SyncKeyCodecUtil.syncKey(req.scope().sourceService(), ENTITY_KIND, businessKey);
+            String syncKeyHash = SyncKeyCodecUtil.sha256Hex(syncKey);
 
             SyncVersionRef ver = item.syncVersion();
             SyncMetadataDomainService.ApplyVersionResult result = syncMetadataDomainService.applyVersion(

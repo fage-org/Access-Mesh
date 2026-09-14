@@ -52,19 +52,6 @@ last_updated: 2026-09-14
 
 **设想方向（未定案）**：raw 严格化 / 归一宽松化 + DTO `@Pattern` 大写前置拒绝——均属行为变更，需单独立项（2026-09-07 定案原文）。
 
-## Q-004 BusinessKeys / SyncKeyCodec 命名偏离 XxxUtil 规范
-
-- **状态**：open
-- **登记**：2026-09-13（历史登记收编——原 2026-09-07 定案「用户已知、后续 IDE 统一改名」）
-- **来源**：decision-registry 2026-09-07 行；project-rules §6.2（规范原文）
-- **关联**：—
-
-**现象与证据**：project-rules §6.2 要求工具类命名 `XxxUtil`；`perm-common util/BusinessKeys.java`（业务键唯一入口）与 `access-service permission/util/SyncKeyCodec.java`（sync 契约键）为名词命名。
-
-**影响**：纯规范层面（命名不一致），无行为影响；评审已按 registry 豁免不再报，改名落地前规则例外句不写。
-
-**设想方向（未定案）**：IDE 统一改名（机械替换 + import 面）；时机未定。
-
 ## Q-006 ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效（登记不实施）
 
 - **状态**：open
@@ -121,6 +108,7 @@ last_updated: 2026-09-14
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-004 | BusinessKeys / SyncKeyCodec 命名偏离 XxxUtil 规范 | closed（2026-09-14 轻量清扫批次：`BusinessKeys`→`BusinessKeyUtil`、`SyncKeyCodec`→`SyncKeyCodecUtil`，按 project-rules §6.2「去掉末尾 s」规则机械改名；代码+测试+XML 注释+skills 双副本+AGENTS+活设计文档（34+17 文件）同批替换，decision-registry 带日期历史行不改写；golden 锁测试随类更名 `BusinessKeyUtilParityTest`） | [2026-09-14 批次四](../archive/2026-09-14/README.md) | 2026-09-14 |
 | Q-011 | 资源依赖页（3.4）页面级真实联调与 mock 退役缺口 | closed（T-FE-044 done 且验收覆盖：Gateway +6 端点 + mock 退役 + 六场景冒烟；联调并修复 api 路径 /perm 前缀缺陷——登记时「api 层已按契约对齐」断言的路径部分被证伪，URL 契约锁 6 用例钉住） | [T-FE-044](../archive/2026-09-14/tasks/T-FE-044.md) | 2026-09-14 |
 | Q-012 | mock/refreshToken.ts 模板死文件（拦截虚构端点、零调用） | closed（随 Q-011 并入 T-FE-044 顺带删除） | [T-FE-044](../archive/2026-09-14/tasks/T-FE-044.md) | 2026-09-14 |
 | Q-010 | SystemConfigMapper.selectByTenantId 零消费死方法 | closed（随 2026-09-14 轻量清扫批次顺带删除：接口方法 + XML 语句；全仓零调用 T-ACCESS-037 已双轨核实，删除后 SystemConfigAppServiceImplTest 10/10 绿；无任务卡载体，登记口径即顺带删） | —（2026-09-14 归档清扫批次，见 archive/2026-09-14/README.md 批次二） | 2026-09-14 |

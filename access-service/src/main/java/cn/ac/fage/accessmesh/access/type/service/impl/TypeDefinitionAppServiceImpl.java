@@ -28,7 +28,7 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomain
 import cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorUtil;
 import cn.ac.fage.accessmesh.access.infrastructure.util.StringUtils;
@@ -116,7 +116,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * 创建类型定义
      * <p>
      * typeValue 由服务端在 tenant+typeKey 内自动分配（全量行含软删行 max+1，软删不复用）；
-     * typeCode 留空时按 {@code <TYPEKEY大写>_<typeValue>} 生成（如 resource_type 的 12 号 → RESOURCE_TYPE_12，经 BusinessKeys.generatedTypeCode 构造），显式提供时校验 tenant+typeKey 内唯一；
+     * typeCode 留空时按 {@code <TYPEKEY大写>_<typeValue>} 生成（如 resource_type 的 12 号 → RESOURCE_TYPE_12，经 BusinessKeyUtil.generatedTypeCode 构造），显式提供时校验 tenant+typeKey 内唯一；
      * isSystem 固定 false——系统预置类型仅走租户初始化种子，不可由 API 创建。
      * 同事务维护 TYPE_DEFINITION 实例投影（code={typeKey}:{typeCode}，T-PERM-051）。
      * 需要TYPE_DEFINITION_CREATE权限。
@@ -154,7 +154,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
         String typeCode = req.typeCode();
         if (typeCode == null || typeCode.isBlank()) {
-            typeCode = BusinessKeys.generatedTypeCode(req.typeKey(), typeValue);
+            typeCode = BusinessKeyUtil.generatedTypeCode(req.typeKey(), typeValue);
         } else {
             typeCode = typeCode.trim();
             if (typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, req.typeKey(), typeCode) != null) {
@@ -268,9 +268,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * 此处失效保护其余全部解析消费方）。updateType 不涉及（typeCode/typeValue 不可变）。
      */
     private void evictTypeResolutionCachesAfterCommit(Long tenantId, String typeKey, String typeCode, Integer typeValue) {
-        cacheService.evictAfterCommit(AccessCacheCatalog.TYPE_VALUE, tenantId, BusinessKeys.typeValueCacheKey(typeKey, typeCode));
+        cacheService.evictAfterCommit(AccessCacheCatalog.TYPE_VALUE, tenantId, BusinessKeyUtil.typeValueCacheKey(typeKey, typeCode));
         if (typeValue != null) {
-            cacheService.evictAfterCommit(AccessCacheCatalog.TYPE_CODE, tenantId, BusinessKeys.typeCodeCacheKey(typeKey, typeValue));
+            cacheService.evictAfterCommit(AccessCacheCatalog.TYPE_CODE, tenantId, BusinessKeyUtil.typeCodeCacheKey(typeKey, typeValue));
         }
     }
 
@@ -428,10 +428,10 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
     /**
      * TYPE_DEFINITION 实例复合业务键（T-PERM-051 定案 {typeKey}:{typeCode}，
-     * 构造唯一入口 BusinessKeys.typeInstanceBusinessKey，格式 golden 锁定）
+     * 构造唯一入口 BusinessKeyUtil.typeInstanceBusinessKey，格式 golden 锁定）
      */
     private String instanceBusinessKey(TypeDefinition type) {
-        return BusinessKeys.typeInstanceBusinessKey(type.getTypeKey(), type.getTypeCode());
+        return BusinessKeyUtil.typeInstanceBusinessKey(type.getTypeKey(), type.getTypeCode());
     }
 
     /**
@@ -760,9 +760,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         java.util.Set<String> codeCacheKeys = new LinkedHashSet<>();
         for (TypeDefinition deleted : entities) {
             if (validIds.contains(deleted.getId())) {
-                valueCacheKeys.add(BusinessKeys.typeValueCacheKey(deleted.getTypeKey(), deleted.getTypeCode()));
+                valueCacheKeys.add(BusinessKeyUtil.typeValueCacheKey(deleted.getTypeKey(), deleted.getTypeCode()));
                 if (deleted.getTypeValue() != null) {
-                    codeCacheKeys.add(BusinessKeys.typeCodeCacheKey(deleted.getTypeKey(), deleted.getTypeValue()));
+                    codeCacheKeys.add(BusinessKeyUtil.typeCodeCacheKey(deleted.getTypeKey(), deleted.getTypeValue()));
                 }
             }
         }

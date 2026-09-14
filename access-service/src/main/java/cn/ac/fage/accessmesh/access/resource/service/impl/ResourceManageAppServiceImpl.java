@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
@@ -607,7 +607,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             Map<String, Set<String>> codes = grouped.getOrDefault(entry.getKey(), Map.of());
             for (Map.Entry<String, Set<String>> codeEntry : codes.entrySet()) {
                 for (String codeType : codeEntry.getValue()) {
-                    triples.add(BusinessKeys.resourceTripleValueKey(entry.getValue(), codeEntry.getKey(), codeType));
+                    triples.add(BusinessKeyUtil.resourceTripleValueKey(entry.getValue(), codeEntry.getKey(), codeType));
                 }
             }
         }
@@ -619,7 +619,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         List<ResourceEntity> entities = new ArrayList<>();
         for (ResourceEntity entity : resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(tenantId, resolvedTypes, allCodes, allCodeTypes)) {
-            if (triples.contains(BusinessKeys.resourceTripleValueKey(entity.getResourceType(), entity.getCode(), entity.getCodeType()))) {
+            if (triples.contains(BusinessKeyUtil.resourceTripleValueKey(entity.getResourceType(), entity.getCode(), entity.getCodeType()))) {
                 entities.add(entity);
             }
         }

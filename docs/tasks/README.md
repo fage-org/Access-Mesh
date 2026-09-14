@@ -312,7 +312,7 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 
 ### P4 — 工作单 D/E/F（✅ 全收口 2026-09-12：D/E/F 三任务全 done，计划随 T-PERM-021 收口归档 archive/2026-09-12）
 
-1. `T-PERM-019` 工作单 D 防呆机制 — ✅ 已收口（2026-09-07）：D1 已随 T-PERM-023/api-contract 收口（原 DESIGN_DRIFT 不存在）、D2 BusinessKeys 收敛、D3 三方一致性核对落地。完成记录见任务卡。
+1. `T-PERM-019` 工作单 D 防呆机制 — ✅ 已收口（2026-09-07）：D1 已随 T-PERM-023/api-contract 收口（原 DESIGN_DRIFT 不存在）、D2 BusinessKeyUtil 收敛、D3 三方一致性核对落地。完成记录见任务卡。
 2. `T-PERM-020` 工作单 E 清理预设 — ✅ 已收口（2026-08-28）：删除零调用 `forResourceQuery`/`forResourceCheck`（`forValidate` 保留，有生产调用）；domain_config schema 表头注释、AGENTS/copilot MQ 口径同步；auto-grant 禁用态核实已收敛。完成记录见任务卡。
 3. `T-PERM-021` 工作单 F 文档准确性与代码简化 — ✅ 已收口（2026-09-12）：执行门禁三项拍板（registry 同日行）后七子项全处置——F1.a 清残留活计数定性收口、F1.b 盘点另立 T-PERM-065、F1.c 两列归属口径钉死、F1.d requestId 单 ID 收敛+审计两列 NOT NULL（含回归锁 6 用例）、F1.e ops runbook 新建、F1.f 死分支删除、F1.g 四副本抽取；双轨评审 P2×3+P3×13 处置；全量回归含 E2E 全绿。完成记录见任务卡。
 

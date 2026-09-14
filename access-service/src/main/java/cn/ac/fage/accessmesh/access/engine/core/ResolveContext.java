@@ -1,6 +1,6 @@
 package cn.ac.fage.accessmesh.access.engine.core;
 
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeys;
+import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -89,7 +89,7 @@ public class ResolveContext {
         }
         Set<String> toResolve = new HashSet<>();
         for (String opCode : operationCodes) {
-            if (!operationIdCache.containsKey(BusinessKeys.operationCodeKey(resourceTypeCode, opCode))) {
+            if (!operationIdCache.containsKey(BusinessKeyUtil.operationCodeKey(resourceTypeCode, opCode))) {
                 toResolve.add(opCode);
             }
         }
@@ -99,7 +99,7 @@ public class ResolveContext {
         Map<String, Long> resolved = typeResolutionService.batchResolveOperationIds(
             tenantId, resourceTypeCode, toResolve);
         for (Map.Entry<String, Long> entry : resolved.entrySet()) {
-            operationIdCache.put(BusinessKeys.operationCodeKey(resourceTypeCode, entry.getKey()), entry.getValue());
+            operationIdCache.put(BusinessKeyUtil.operationCodeKey(resourceTypeCode, entry.getKey()), entry.getValue());
         }
     }
 
@@ -163,7 +163,7 @@ public class ResolveContext {
         if (resourceTypeCode == null || operationCode == null) {
             return null;
         }
-        return operationIdCache.get(BusinessKeys.operationCodeKey(resourceTypeCode, operationCode));
+        return operationIdCache.get(BusinessKeyUtil.operationCodeKey(resourceTypeCode, operationCode));
     }
 
     /**
@@ -177,7 +177,7 @@ public class ResolveContext {
         if (resourceTypeCode == null || operationCode == null) {
             return null;
         }
-        String cacheKey = BusinessKeys.operationCodeKey(resourceTypeCode, operationCode);
+        String cacheKey = BusinessKeyUtil.operationCodeKey(resourceTypeCode, operationCode);
         if (operationIdCache.containsKey(cacheKey)) {
             return operationIdCache.get(cacheKey);
         }
@@ -227,7 +227,7 @@ public class ResolveContext {
         Set<Long> result = new HashSet<>();
         for (String rtCode : resourceTypeCodes) {
             for (String opCode : operationCodes) {
-                Long id = operationIdCache.get(BusinessKeys.operationCodeKey(rtCode, opCode));
+                Long id = operationIdCache.get(BusinessKeyUtil.operationCodeKey(rtCode, opCode));
                 if (id != null) {
                     result.add(id);
                 }

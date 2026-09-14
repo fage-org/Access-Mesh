@@ -23,7 +23,7 @@ import cn.ac.fage.accessmesh.access.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard.SyncTypes;
-import cn.ac.fage.accessmesh.access.sync.SyncKeyCodec;
+import cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletRequest;
@@ -123,12 +123,12 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         }
 
         // 4. 计算 keys（版本预判需 businessKeyHash/scopeKeyHash，前移）
-        String businessKey = SyncKeyCodec.abstractRoleBusinessKey(req.roleTypeCode(), req.roleExternalId());
-        String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
-        String scopeKey = SyncKeyCodec.abstractRoleScopeKey(req.roleTypeCode(), req.treeRootExternalId());
-        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
-        String syncKey = SyncKeyCodec.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
-        String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
+        String businessKey = SyncKeyCodecUtil.abstractRoleBusinessKey(req.roleTypeCode(), req.roleExternalId());
+        String businessKeyHash = SyncKeyCodecUtil.sha256Hex(businessKey);
+        String scopeKey = SyncKeyCodecUtil.abstractRoleScopeKey(req.roleTypeCode(), req.treeRootExternalId());
+        String scopeKeyHash = SyncKeyCodecUtil.sha256Hex(scopeKey);
+        String syncKey = SyncKeyCodecUtil.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
+        String syncKeyHash = SyncKeyCodecUtil.sha256Hex(syncKey);
 
         // 4.5 版本预判（只读）：旧版本无条件按 STALE 钝化（契约：成功 no-op，调度器置
         // SUCCESS 不重试），先于父解析/判环——旧事件的数据缺陷不应改变响应分类；
@@ -246,8 +246,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                     req.items().size(), List.of(denied));
         }
 
-        String scopeKey = SyncKeyCodec.abstractRoleScopeKey(req.scope().roleTypeCode(), req.scope().treeRootExternalId());
-        String scopeKeyHash = SyncKeyCodec.sha256Hex(scopeKey);
+        String scopeKey = SyncKeyCodecUtil.abstractRoleScopeKey(req.scope().roleTypeCode(), req.scope().treeRootExternalId());
+        String scopeKeyHash = SyncKeyCodecUtil.sha256Hex(scopeKey);
 
         // ---- 阶段 A：收集 externalIds 与按 parentTypeCode 分桶的 parent externalIds ----
         Set<String> selfExternalIds = new HashSet<>(req.items().size());
@@ -256,8 +256,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         Set<String> itemBusinessKeyHashes = new HashSet<>(req.items().size());
         for (AbstractRoleSyncItem item : req.items()) {
             selfExternalIds.add(item.roleExternalId());
-            itemBusinessKeyHashes.add(SyncKeyCodec.sha256Hex(
-                    SyncKeyCodec.abstractRoleBusinessKey(req.scope().roleTypeCode(), item.roleExternalId())));
+            itemBusinessKeyHashes.add(SyncKeyCodecUtil.sha256Hex(
+                    SyncKeyCodecUtil.abstractRoleBusinessKey(req.scope().roleTypeCode(), item.roleExternalId())));
             if (item.parentRoleExternalId() != null && !item.parentRoleExternalId().isBlank()) {
                 parentExternalIdsByType
                         .computeIfAbsent(effectiveParentTypeCode(item, req.scope().roleTypeCode()), k -> new HashSet<>())
@@ -304,8 +304,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         LocalDateTime now = LocalDateTime.now();
 
         for (AbstractRoleSyncItem item : req.items()) {
-            String businessKey = SyncKeyCodec.abstractRoleBusinessKey(req.scope().roleTypeCode(), item.roleExternalId());
-            String businessKeyHash = SyncKeyCodec.sha256Hex(businessKey);
+            String businessKey = SyncKeyCodecUtil.abstractRoleBusinessKey(req.scope().roleTypeCode(), item.roleExternalId());
+            String businessKeyHash = SyncKeyCodecUtil.sha256Hex(businessKey);
             // 同批重复 businessKey 写入前拒绝（对齐 user-role/full-sync 先例，用户决策 2026-08-28；
             // add 恒执行，尾部差异校准的「已出现键不钝化」语义不变）
             if (!seenBusinessKeyHashes.add(businessKeyHash)) {
@@ -326,8 +326,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                         SyncResultBuilder.RETRY_STALE_VERSION, SyncResultBuilder.REASON_STALE));
                 continue;
             }
-            String syncKey = SyncKeyCodec.syncKey(req.scope().sourceService(), ENTITY_KIND, businessKey);
-            String syncKeyHash = SyncKeyCodec.sha256Hex(syncKey);
+            String syncKey = SyncKeyCodecUtil.syncKey(req.scope().sourceService(), ENTITY_KIND, businessKey);
+            String syncKeyHash = SyncKeyCodecUtil.sha256Hex(syncKey);
 
             // 父角色解析（命中阶段 B 预加载结果；契约 总册 §19.7：parentRoleTypeCode 缺省 = scope.roleTypeCode）
             Long parentId = null;

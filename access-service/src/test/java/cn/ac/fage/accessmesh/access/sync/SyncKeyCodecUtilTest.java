@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * {@link SyncKeyCodec} 单元测试。
+ * {@link SyncKeyCodecUtil} 单元测试。
  * <p>
  * 严格按 docs/design/access-service-api-contract.md §19.7 表格断言：
  * <ul>
@@ -18,29 +18,29 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>SHA-256 hex 长度 64 且全小写。</li>
  * </ul>
  */
-class SyncKeyCodecTest {
+class SyncKeyCodecUtilTest {
 
     @Test
     void abstractUserBusinessKey_shouldUseFixedFieldOrder() {
-        String key = SyncKeyCodec.abstractUserBusinessKey("USER", "u-001");
+        String key = SyncKeyCodecUtil.abstractUserBusinessKey("USER", "u-001");
         assertEquals("subjectTypeCode=USER&subjectExternalId=u-001", key);
     }
 
     @Test
     void abstractRoleBusinessKey_shouldUseFixedFieldOrder() {
-        String key = SyncKeyCodec.abstractRoleBusinessKey("ORG", "org-100");
+        String key = SyncKeyCodecUtil.abstractRoleBusinessKey("ORG", "org-100");
         assertEquals("roleTypeCode=ORG&roleExternalId=org-100", key);
     }
 
     @Test
     void resourceEntityBusinessKey_shouldIncludeCodeType() {
-        String key = SyncKeyCodec.resourceEntityBusinessKey("ORG", "1001", "default");
+        String key = SyncKeyCodecUtil.resourceEntityBusinessKey("ORG", "1001", "default");
         assertEquals("resourceTypeCode=ORG&resourceCode=1001&codeType=default", key);
     }
 
     @Test
     void userRoleBusinessKey_shouldPercentEncodeRelationKey() {
-        String key = SyncKeyCodec.userRoleBusinessKey(
+        String key = SyncKeyCodecUtil.userRoleBusinessKey(
                 "USER", "u-001", "ORG", "org-100", "ORG:2001");
         // relationKey=ORG:2001 必须写为 relationKey=ORG%3A2001
         assertEquals(
@@ -53,26 +53,26 @@ class SyncKeyCodecTest {
 
     @Test
     void abstractUserScopeKey_shouldUseSubjectTypeCodeOnly() {
-        assertEquals("subjectTypeCode=USER", SyncKeyCodec.abstractUserScopeKey("USER"));
+        assertEquals("subjectTypeCode=USER", SyncKeyCodecUtil.abstractUserScopeKey("USER"));
     }
 
     @Test
     void abstractRoleScopeKey_shouldIncludeTreeRoot() {
         assertEquals(
                 "roleTypeCode=ORG&treeRootExternalId=root",
-                SyncKeyCodec.abstractRoleScopeKey("ORG", "root"));
+                SyncKeyCodecUtil.abstractRoleScopeKey("ORG", "root"));
     }
 
     @Test
     void resourceEntityScopeKey_shouldUseResourceTypeCodeOnly() {
         assertEquals(
                 "resourceTypeCode=ORG",
-                SyncKeyCodec.resourceEntityScopeKey("ORG"));
+                SyncKeyCodecUtil.resourceEntityScopeKey("ORG"));
     }
 
     @Test
     void userRoleScopeKey_shouldUseCallerSourceType() {
-        String key = SyncKeyCodec.userRoleScopeKey("HR_MEMBER", "ORG", "root-1");
+        String key = SyncKeyCodecUtil.userRoleScopeKey("HR_MEMBER", "ORG", "root-1");
         assertEquals(
                 "sourceType=HR_MEMBER&roleTypeCode=ORG&treeRootExternalId=root-1",
                 key);
@@ -83,15 +83,15 @@ class SyncKeyCodecTest {
         LinkedHashMap<String, String> map = new LinkedHashMap<>();
         map.put("b", "2");
         map.put("a", "1");
-        assertEquals("b=2&a=1", SyncKeyCodec.encodeBusinessKey(map));
+        assertEquals("b=2&a=1", SyncKeyCodecUtil.encodeBusinessKey(map));
     }
 
     @Test
     void sha256Hex_shouldBeLowerCaseAndLength64() {
-        String hex = SyncKeyCodec.sha256Hex("subjectTypeCode=USER&subjectExternalId=u-001");
+        String hex = SyncKeyCodecUtil.sha256Hex("subjectTypeCode=USER&subjectExternalId=u-001");
         assertEquals(64, hex.length());
         assertEquals(hex.toLowerCase(), hex);
         // 正确性检查：不同输入产生不同 hash
-        assertNotEquals(hex, SyncKeyCodec.sha256Hex("different"));
+        assertNotEquals(hex, SyncKeyCodecUtil.sha256Hex("different"));
     }
 }
