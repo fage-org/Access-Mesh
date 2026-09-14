@@ -167,7 +167,7 @@ views/system/resource-operation/
 - `remove` 级联软删子孙（resource，真实递归 CTE）。
 - `operation-permission list` 无分页，前端本地过滤，量小可接受。
 
-> mock 终态（T-FE-017，2026-09-02）：`mock/resource-operation.ts` 的 11 个 fake-server 路由（旧 `/api/perm/**`，自 T-FE-041 失配）已删除；仅保留数据导出（resources/operations/presetOperationsForType/InternalResource），待 resource-dependency/type-def/permission-grant 三页联调时随各自 mock 退役（设计定案）。
+> mock 终态（T-FE-017，2026-09-02；2026-09-14 T-FE-044 更新）：`mock/resource-operation.ts` 的 11 个 fake-server 路由（旧 `/api/perm/**`，自 T-FE-041 失配）已删除；原保留的数据导出（resources/operations/presetOperationsForType/InternalResource）已随三个消费页联调全部退役——type-def/permission-grant 随各自 Phase 3 联调任务退役，resource-dependency 页 T-FE-044 收官时 `mock/_shared/resource-fixtures.ts` 整删，mock 目录仅剩 login.ts（开关门控）与 asyncRoutes.ts（模板参考）。
 
 ## 9. 验收记录
 

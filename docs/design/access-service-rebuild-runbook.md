@@ -17,7 +17,7 @@
 >   2026-09-05（T-ACCESS-029）起授权缺行墓碑三分：缺行 + 同身份键软删墓碑（管理端整行撤销）→
 >   WARN 列明授权键放行不补回，仅缺行且无任何历史（硬删/残缺）fail-fast）。
 >   2026-08-31（T-FE-015）起固定图同时种子：业务门禁 +17 至 43（T-FE-015）、+4 至 47（T-FE-017 补 RESOURCE/OPERATION CREATE+MANAGE）、+2 至 49（T-FE-022 补 TYPE_DEFINITION CREATE+MANAGE）、sys_menu 菜单 15 行（含 MENU 投影）、
->   Gateway 管理 API 清单（T-FE-015 +20 至 33、T-FE-016 +4 至 37、T-FE-017 +8 至 45、T-FE-020 +9 至 54、T-FE-019 +3 至 57、T-FE-021 +9 至 66、T-FE-022 +16 至 82 端点；T-PERM-059（2026-09-10）删排查两路由后现值 80 路由/79 映射、菜单 14 行——现值以 `BootstrapGraphDefinition` 与 `AccessBootstrapPgIT` 断言为准，本段为历史增长叙述）、默认组织树（根组织 `root` + 默认树配置 + admin 挂根组织）。
+>   Gateway 管理 API 清单（T-FE-015 +20 至 33、T-FE-016 +4 至 37、T-FE-017 +8 至 45、T-FE-020 +9 至 54、T-FE-019 +3 至 57、T-FE-021 +9 至 66、T-FE-022 +16 至 82 端点；T-PERM-059（2026-09-10）删排查两路由后 80 路由、T-FE-044（2026-09-14）资源依赖页 +6 后现值 86 路由/85 映射、菜单 14 行——现值以 `BootstrapGraphDefinition` 与 `AccessBootstrapPgIT` 断言为准，本段为历史增长叙述）、默认组织树（根组织 `root` + 默认树配置 + admin 挂根组织）。
 > - 服务启动密钥环境变量（T-FE-016 实操确认的完整清单；Nacos 配置中心为空不托管，均须启动时注入）：
 >   `ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（bootstrap 种子）、
 >   `JWT_SECRET_KEY`（access-service OAuth2 域，HS256 应 ≥32 字符——RFC 7518 建议，代码不强制长度）、

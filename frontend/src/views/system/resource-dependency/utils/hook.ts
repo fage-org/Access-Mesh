@@ -7,11 +7,9 @@ import {
   createDependency,
   updateDependency,
   removeDependencies,
-  checkDependencyCycle,
   type ResourceDependencyResp,
   type ResourceDependencyCreateReq,
-  type ResourceDependencyUpdateReq,
-  type DependencyCycleCheckResp
+  type ResourceDependencyUpdateReq
 } from "@/api/resource-dependency";
 import {
   getResourceTree,
@@ -333,35 +331,8 @@ export function useResourceDependency() {
   }
 
   // ========== 循环检测 ==========
-
-  async function checkCycle(
-    sourceResourceEntityId: number | null,
-    targetResourceEntityId: number | null
-  ): Promise<DependencyCycleCheckResp | null> {
-    if (sourceResourceEntityId == null || targetResourceEntityId == null) {
-      message("请选择源资源与目标资源", { type: "warning" });
-      return null;
-    }
-    const source = resourceMap.value.get(sourceResourceEntityId);
-    const target = resourceMap.value.get(targetResourceEntityId);
-    if (!source || !target) {
-      message("资源选择无效", { type: "warning" });
-      return null;
-    }
-    try {
-      return await checkDependencyCycle({
-        sourceResourceTypeCode: source.resourceTypeCode,
-        sourceResourceCode: source.code,
-        sourceCodeType: source.codeType,
-        targetResourceTypeCode: target.resourceTypeCode,
-        targetResourceCode: target.code,
-        targetCodeType: target.codeType
-      });
-    } catch (e: any) {
-      message(e.message || "循环检测失败", { type: "error" });
-      return null;
-    }
-  }
+  // 环检测交互由 CycleCheckDialog 直调 checkDependencyCycle API（业务键经自身资源映射构造），
+  // hook 不再重复封装（原 checkCycle 死导出已随外评清扫删除）。
 
   onMounted(() => {
     loadList();
@@ -381,7 +352,6 @@ export function useResourceDependency() {
     loadList,
     submitDependency,
     deleteDependency,
-    checkCycle,
     // 引用数据
     resourceMap,
     resourceList,

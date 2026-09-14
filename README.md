@@ -42,7 +42,7 @@ Gateway (8080)
 
 **试点加固完成（里程碑 B，2026-08-27 随 T-ACCESS-026 收口）**：登录锁定临时化（T-ADMIN-022）、GROUP_ROLE 写入口删除（T-PERM-043）、文件服务安全加固（T-ADMIN-023）、Gateway CORS 环境化（T-GW-007）、时间语义 UTC 统一（T-ACCESS-024）、操作日志收敛（T-ACCESS-025）、退役 API 直接删除（T-ADMIN-024）、example 单受保护接口接入（T-API-001）全部交付；外部 Docker 验证证据登记与 product-vertical-slice / access-post-merge 双计划归档随 T-ACCESS-026 完成（CI 以 GitHub Actions 退出状态判定成功，68 项为 2026-08-22 外部主机历史基线）。
 
-**未交付清单**：租户开通/运营能力（首期固定单租户）；PERSONAL/GROUP_ROLE 角色生命周期（首期功能角色仅 BASIC_ROLE；GROUP_ROLE 写入口已随 T-PERM-043 删除，create/update/sync/full-sync 拒绝 20022、extra-roles/* 退役、前端选项隐藏，读模型保留冻结，存量行可经 delete/move 清理）；example 报表数据范围与动态数据权限（暂缓，等 PM 重申——T-PERM-035/036）。全部管理页面均已切换真实接口（前端 Phase 3 九任务 2026-09-04 收口 + 资源依赖页补遗联调 2026-09-14 收口 T-FE-044——组织/用户、角色、资源+操作、权限授予、条件/冲突规则、业务域、系统/服务配置与日志、资源依赖；权限查询页已随 T-PERM-059 删除待新形态另立任务；业务页 mock 全部退役）；文件夹级授权已交付（T-ADMIN-025，ADMIN_FILE 文件夹实例 bootstrap 预置 + 上传惰性登记）。设计文档入口见 [docs/README.md](docs/README.md)。
+**未交付清单**：租户开通/运营能力（首期固定单租户）；PERSONAL/GROUP_ROLE 角色生命周期（首期功能角色仅 BASIC_ROLE；GROUP_ROLE 写入口已随 T-PERM-043 删除，create/update/sync/full-sync 拒绝 20022、extra-roles/* 退役、前端选项隐藏，读模型保留冻结，存量行可经 delete/move 清理）；example 报表数据范围与动态数据权限（暂缓，等 PM 重申——T-PERM-035/036）。全部管理页面均已切换真实接口（前端 Phase 3 九任务 2026-09-04 收口 + 资源依赖页补遗联调 2026-09-14 收口 T-FE-044——组织/用户、角色、资源+操作、权限授予、类型定义、条件/冲突规则、业务域、系统/服务配置与日志、资源依赖；权限查询页已随 T-PERM-059 删除待新形态另立任务；业务页 mock 全部退役）；文件夹级授权已交付（T-ADMIN-025，ADMIN_FILE 文件夹实例 bootstrap 预置 + 上传惰性登记）。设计文档入口见 [docs/README.md](docs/README.md)。
 
 **技术债遗留登记——GROUP_ROLE 双事实源**（T-PERM-043 登记）：管理侧曾以 `user_role(target_type=GROUP_ROLE, relation_id=基础角色)` 表达组-角色包含（专用写入口已删，该路径从未成功写入），运行时前向授权展开则消费角色树 + `abstract_role.extra(JSONB).basicRoleIds`（现行无任何写入方——create/update/sync/full-sync 均已拒绝 GROUP_ROLE(20022)；历史管理侧 extra 透传通道曾可写，存量不保证为空）——两套读路径互不同步。未来出现真实组角色需求时按 `role_inclusion(group_role_id, included_role_id)` 单事实源表重新立项，删除 `extra.basicRoleIds`，禁止继续滥用 `user_role` 表达角色包含关系（详见 [T-PERM-043 任务卡](docs/archive/2026-08-27/tasks/T-PERM-043.md)）。
 
@@ -77,7 +77,7 @@ Gateway (8080)
 - **启动顺序**：基础设施 → access-service (9100) → Gateway (8080) → example-service (9300，可选) → 前端（`frontend/`，开发模式 `pnpm dev`；`preinstall` 强制 pnpm，禁用 npm/yarn 安装）。example-service 演示受保护接口 `POST /api/example/demo/hello`（经 Gateway `/example/**` 访问）：启动须与 Gateway 同源注入 `ACCESSMESH_SIGNATURE_SECRET`（身份签名校验，密钥不一致或缺失时所有经 Gateway 的请求返回信封 30003）；接口需先在 access-service 注册 API 资源与映射并授权后方可 200（接入步骤见 [example-service 设计](docs/design/services/example-service.md)）。
 - **时间语义（部署说明，T-ACCESS-024）**：全链路 UTC 墙钟——JVM 默认时区由 common 启动即强制 UTC（代码级，日志时间戳与 cron 调度随之统一 UTC；部署无需 `-Duser.timezone`/`TZ` 约定），TIMESTAMPTZ 读写经全局 TypeHandler 显式 UTC 换算（连接串无时区参数，禁带 `serverTimezone`）；API 返回 ISO-8601 无偏移字符串（语义=UTC 墙钟），前端展示时区转换按需另行处理。切换前由非 UTC JVM 写入的开发数据卷读取墙钟会整体偏移，`docker compose down -v` 重建即可（无生产数据、不做迁移）。详见 [归并后目标架构 §16](docs/design/access-service-architecture.md)。
 - **前端**：真实登录链路已通（T-FE-041）——`pnpm dev` 默认走真实 `/auth` 链路（vite 代理 `/auth`、`/admin`、`/perm`、`/example` → Gateway 8080，目标可经 `VITE_PROXY_TARGET` 覆盖）；纯 mock 联调可置 `VITE_MOCK_LOGIN=true`（.env.development）。注意默认端口 8848 与 Nacos 控制台端口相同，本机同时起 Nacos 容器时以 `VITE_PORT=8890` 等覆盖启动。默认导航仅显示登录/主页/授权页（其余管理页路由保留隐藏，Phase 3 逐页开放）。
-- **当前限制**：E2E 目标用户与普通角色不在 bootstrap 范围（随 T-ACCESS-021 授权 E2E 创建）；管理页面（组织与用户、角色管理等）仍为 mock 联调。
+- **当前限制**：E2E 目标用户与普通角色不在 bootstrap 范围（随 T-ACCESS-021 授权 E2E 创建）；管理页面均已切换真实接口（业务页 mock 已全部退役，2026-09-14 T-FE-044 资源依赖页收官）。
 
 ## License
 
