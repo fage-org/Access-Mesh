@@ -369,7 +369,7 @@ Set<String> typeCodes = domainClassifyService.getClassifiedTypeCodes(tenantId, "
 Map<String, Long> domainIds = domainClassifyService.findDomainIdsByTypeCodes(tenantId, Set.of("ORG"));
 
 // ❌ 禁止 — 在实体上使用 bizDomainId 字段（已从 abstract_role, resource_entity 等表中删除）
-role.setBizDomainId(domainId);  // 字段已删除
+role.setBizDomainId(domainIds.get("ORG"));  // 字段已删除
 role.getBizDomainId();           // 字段已删除
 ```
 

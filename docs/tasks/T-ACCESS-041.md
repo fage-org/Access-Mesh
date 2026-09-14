@@ -67,6 +67,17 @@ rules（单副本）、skills（双副本同步纪律）、AGENTS.md 指针表�
 - 代码轨「accessmesh-patterns 仅版本号变更」经 git diff 亲核撤回（:42 能力包 Mapper 边界实改，评审员看漏）。
 - v3.5 两册 frontmatter `domain: permission-center`→`access-service`（与 engine 三册一致，退役服务名不作 domain 值）。
 
+## 外部评审处置（claude + grok 双通道，2026-09-14，0835826b3 首轮）
+
+claude P3×4（判「需修订」——必改项=4 条一行级）/ grok P3×1 合并多项（判「可定稿」），逐条亲核后全处置：
+- 两通道共报（属实，修）：`docs/design/README.md:12` 与看板 §05 区注记「033 完成前代码维持 admin/permission 旧包结构」条件句前提已消失——改完成态（033 已于 2026-09-13 完成）。
+- claude P3（属实，修）：AGENTS.md 融合完成日期 2026-09-13→09-13~09-14（041 收口在 09-14）；计划行评审计数「P2×3」与任务卡两轨合计 P2×6 不相容——改去计数化引两轨明细；规则 §9 反例行 `setBizDomainId(domainId)` 悬挂标识符（改名声明后未跟）→`domainIds.get("ORG")`。
+- grok P3（属实，修）：口径重写触达行的相邻过期句——skill Domain 层「禁止直接传 sys_user.id」与同文件业务层节 T-ORG-001 终态（两 ID 同值、无转换层）矛盾→对齐同口径；architecture §3「query 包内部调用」→「menu/role/org 查询入口（原 application.query）」；architecture §4.2 `access.application` 现行时→「能力写编排层（原 access.application，现为 user/org/menu 能力包 Write AppService）」；project-rules §1.2:79 同款。
+- 顺手修（claude 存量观察、038 漏回写的事实项）：契约总册 §20.1/§22.2「由各模块的 `XxxErrorCode` 枚举类落地」「admin-service 后续模块」→单册 AccessErrorCode 与管理面家族口径；permission-condition.md last_reviewed 未随本批正文改动递增→补。
+- claude「schema 表数头注 33 与分项 32 差一」经亲核**撤回**（头注四行 14+16+2+1=33 恰好吻合，评审员漏加「基础设施 1 张」行）。
+- 回归命令（改完零命中）：`rg -n "完成前代码维持|2026-09-13 完成能力包融合|P2×3|setBizDomainId\(domainId\)|禁止直接传"`（剩余唯一命中为 T-PERM-021 看板历史行，档案允许）；skill 双副本 re-cp+diff 一致。
+- 修后状态：claude 必改项 4/4 闭环、grok 建议项全采纳——两通道「需修订/可定稿」分歧收敛为**可定稿待用户确认**。
+
 ## 非目标 / 遗留
 
 - 不动任务 ID 前缀体系（看板计数器维持）。

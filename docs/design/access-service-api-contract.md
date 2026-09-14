@@ -2719,9 +2719,9 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 | 10300-10399 | 组织 CRUD |
 | 10400-10499 | 用户-组织关系 |
 | 10500 | 用户-角色代理段（历史分配，无活跃错误码；`10111` 已随端点删除退役、码值不复用；`10501-10599` 文件模块：`10501` 不存在 / `10502` 上传失败 / `10503` 超限 / `10504` 类型不允许 / `10505` 删除失败（删除顺序反转后仅保留枚举，正常链路不再抛出）/ `10506` 路径非法（T-ADMIN-023）/ `10507` 读取失败（T-ADMIN-023）） |
-| 10600-19999 | 保留给 admin-service 后续模块 (字典/通知/任务/审计等) |
+| 10600-19999 | 保留给管理面家族后续模块 (字典/通知/任务/审计等) |
 
-具体码值由各模块的 `XxxErrorCode` 枚举类落地; 90001-99999 段 (参数校验/系统异常) 由 `common` 模块统一定义.
+具体码值由单册 `AccessErrorCode` 落地（T-ACCESS-038 合一，原两域枚举已删）; 90001-99999 段 (参数校验/系统异常) 由 `common` 模块统一定义.
 
 ### 20.2 perm 家族错误原因建议（reason 词表）
 | reason                  | 说明                                     |
@@ -2757,7 +2757,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 1. **字段对齐**: 前端 `frontend/src/api/user-manage.ts` 中所有类型与本契约 record 字段名/类型一一对齐, 不允许不一致.
 2. **门禁**: 所有写操作经 `AdminPermissionValidator` 本地调用 `PermQueryEngine`; 实现不短路判断 (除自我修改豁免).
 3. **本地投影**: 所有写操作 (除 /user/reset-password, /user-org/set-primary) 在主事务内维护对应权限投影与 `permission_change_log`。
-4. **错误码段**: admin-service 业务错误使用 10001-19999 段, 系统错误使用 90001-99999 段; `XxxErrorCode` 枚举类不重复定义系统段.
+4. **错误码段**: 管理面家族业务错误使用 10001-19999 段, 系统错误使用 90001-99999 段; 单册 `AccessErrorCode` 不重复定义系统段.
 5. **响应壳统一**: 所有接口返回 `R<T>`, 列表不直接返回数组 (由 `RResponseAdvice` 强制); ~~现有违反此规则的接口 (例如 `/org/tree` 直接返回 `List<OrgResp>`)~~ 已清零（`/org/tree` 已由 T-ADMIN-021 切 `R<ItemsResp<OrgResp>>`；台账见附录 B）.
 6. **异常映射**: 业务拒绝抛 `BizException`; 安全拒绝抛 `SecurityException`; 技术故障抛 `SystemException`. 不允许用 `SecurityException` 表达"资源不存在".
 7. **默认树身份目录边界**: `/user/create` (带 orgId), `/user/delete`, `/user/enable`, `/user/reset-password`, `/user-org/set-primary` 必须在 AppService 内做默认树边界二次校验, 失败抛 `BizException`.

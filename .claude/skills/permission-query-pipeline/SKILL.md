@@ -68,7 +68,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 复杂查询使用 `PermQuery`，授权传递校验使用 `PermissionGrantDomainService`。
 
 > **主体契约**：Domain 层 API（forAuthCheck/forInterfaceCheck/forValidate/forValidateByEntityId/forScopeQuery/forUserView）与
-> canGrant 委托链的 `userId`/`subjectId` 均指权限面投影主体（`abstract_user.id`），禁止直接传 `sys_user.id`。
+> canGrant 委托链的 `userId`/`subjectId` 均指权限面投影主体（`abstract_user.id`）——T-ORG-001 统一后 `sys_user.id` 与之同值，操作者 ID 直接传入即可（与业务层 API 节同口径，无运行时 ID 空间转换层）。
 
 ```java
 // check — 权限判定

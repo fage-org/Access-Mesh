@@ -75,7 +75,7 @@ last_reviewed: 2026-09-14   # T-ACCESS-041：§1.2 互斥句承接（单册 Acce
 
 - `9xxxx` 段系统公共错误由 `common` 模块统一定义枚举，各业务模块**不得重复定义**。
 - `admin-service` 与 `permission-center` 物理归并后不改变错误码的分段归属：既有码值原样保留，管理面新增错误继续使用 `1xxxx`，权限面新增错误继续使用 `2xxxx`。
-- `access.application` 不单独占用错误码段；跨域编排错误按对外入口所属领域选择 `1xxxx` 或 `2xxxx`，与具体领域无关的公共技术失败使用 `9xxxx`。
+- 能力写编排（原 access.application，现为 user/org/menu 能力包 Write AppService）不单独占用错误码段；跨面编排错误按对外入口所属面选择 `1xxxx` 或 `2xxxx`，与两面无关的公共技术失败使用 `9xxxx`。
 - 禁止因服务重命名而重编号，禁止为 `access-service` 新增 `4xxxx` 错误码段。
 - 每个服务维护一个错误码枚举册（access-service 单册 `infrastructure.enums.AccessErrorCode`，T-ACCESS-038 合类不合号——原两域枚举已合一，`1xxxx`/`2xxxx` 两段同册、编号零重排；`common` 模块 `GlobalErrorCode` 承载 `9xxxx` 公共段，各业务模块不得重复定义），字段格式：`CODE(int code, String msg)`。
 

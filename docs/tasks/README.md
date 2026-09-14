@@ -62,7 +62,7 @@
 
 ### access-service 能力包融合（2026-09-13 立项）
 
-> [access-capability-fusion-plan](../plans/access-capability-fusion-plan.md)；目标设计 [capability-structure](../design/access-service-capability-structure.md)（**adopted**，2026-09-13 T-ACCESS-032 §8 定稿、十项裁决登记 decision-registry 同日行；033 迁移完成前代码维持旧包结构）；定案见 decision-registry 2026-09-13 两行。
+> [access-capability-fusion-plan](../plans/access-capability-fusion-plan.md)；目标设计 [capability-structure](../design/access-service-capability-structure.md)（**adopted**，2026-09-13 T-ACCESS-032 §8 定稿、十项裁决登记 decision-registry 同日行；033 迁移已于 2026-09-13 完成，代码即能力包结构）；定案见 decision-registry 2026-09-13 两行。
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|

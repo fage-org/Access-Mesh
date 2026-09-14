@@ -34,7 +34,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
                -> example-service (9300)   对接演示
 ```
 
-`admin-service` 与 `permission-center` 已归并为 `access-service`（T-ACCESS-001~010），并于 2026-09-13 完成能力包融合（T-ACCESS-032~041，原两域叙事由「管理面/权限面 + 能力包」口径取代）。整体架构见 `docs/design/architecture.md`，归并后目标架构见 `docs/design/access-service-architecture.md`。
+`admin-service` 与 `permission-center` 已归并为 `access-service`（T-ACCESS-001~010），并于 2026-09-13~09-14 完成能力包融合（T-ACCESS-032~041，原两域叙事由「管理面/权限面 + 能力包」口径取代）。整体架构见 `docs/design/architecture.md`，归并后目标架构见 `docs/design/access-service-architecture.md`。
 
 ## 权威来源
 

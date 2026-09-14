@@ -97,7 +97,7 @@ cn.ac.fage.accessmesh.access
 门禁与限额：
 
 - `/user/user-menus` 查询他人时需 `USER:VIEW@目标用户`，查自己豁免（方案1+2，P1-2；T-ACCESS-018 类型收敛后为 USER）：`AdminUserController.getUserMenus` 在 `req.id() != 当前登录用户` 时经 `AdminPermissionValidator.checkInstanceLevel(USER, id, VIEW)` 门禁。
-- 权限码下发门禁下放入口（方案「门禁下放入口」）：`PermissionViewAppService.buildEffectiveView` 公共管线不再设 `USER:VIEW` 门禁；权限面独立 HTTP 入口 `/effective-permission-codes` 走 `getEffectivePermissionCodesForManage`（自查豁免 + 查他人需 `USER:VIEW`）；query 包内部调用由其入口 Controller 门禁（自查豁免 + `USER:VIEW`，P1-2）兜底。（原 `getEffectivePermissions` 管理员视图已随 T-PERM-059 删除，2026-09-10）
+- 权限码下发门禁下放入口（方案「门禁下放入口」）：`PermissionViewAppService.buildEffectiveView` 公共管线不再设 `USER:VIEW` 门禁；权限面独立 HTTP 入口 `/effective-permission-codes` 走 `getEffectivePermissionCodesForManage`（自查豁免 + 查他人需 `USER:VIEW`）；menu/role/org 查询入口（原 application.query，T-ACCESS-033 随能力包归位）内部调用由其入口 Controller 门禁（自查豁免 + `USER:VIEW`，P1-2）兜底。（原 `getEffectivePermissions` 管理员视图已随 T-PERM-059 删除，2026-09-10）
 - `/role/list` 保持 `LIMIT 0,200` 上限并在 `UserRoleQueryAppService` Javadoc 声明（P2-3，设计定案「保持 + 文档声明上限」）：功能角色面向前端下拉，超出 200 属配置异常，由组织治理收敛。
 - `OrgVisibilityQueryAppServiceImpl` 缓存读写故障旁路 DB（P2-1）：`CacheService.get/put` 异常时记 `log.warn` 并降级直查 DB，不阻断可见性计算（fail-open 至数据库层，权限判定本身仍经 engine fail-closed）。
 - 角色数据走 query 服务（P2-2，设计定案「角色走 query 服务 + 权限保留 AppService」）：`UserRoleQueryAppService` 经 `UserRoleQueryMapper` 直读 `user_role ⨝ abstract_role`（原 query 包跨域只读形态，T-ACCESS-033 后随 role 能力包归位包内），权限事实（有效权限码/资源访问）保留经 `PermissionViewAppService`。
@@ -122,7 +122,7 @@ cn.ac.fage.accessmesh.access
 - 管理事实和权限投影保留独立主键，不强制共享数值 ID（本条为统一前口径；本地用户已由 §12.2 定稿取代——`sys_user.id = abstract_user.id` 序列预取共享主体 ID。其余管理事实表如 `sys_org`/`sys_menu` 与投影仍保持独立主键、以稳定外部键关联，不受 §12 影响）。
 - 本地投影通过稳定外部键关联，例如本地用户投影的 `external_id = sys_user.id.toString()`。
 - 权限投影必须具有明确的来源/所有权标识，AccessMesh 本地投影统一标记为 `access-service` 管理。
-- `access.application` 在同一 PostgreSQL 事务内更新管理事实、权限投影和强事务审计；任一步骤失败，全部回滚。
+- 能力写编排层（原 access.application，现为 user/org/menu 能力包 Write AppService）在同一 PostgreSQL 事务内更新管理事实、权限投影和强事务审计；任一步骤失败，全部回滚。
 - 内部投影不写 `sync_metadata`。`sync_metadata` 仅保留给外部服务的增量/全量同步。
 - **门禁主体（两套 ID 空间 → 已由 §12 终态取代）**：本段为统一前过渡态口径。登录会话 / 签名代理主体持有的操作者 ID 是 admin 域 `sys_user.id`；权限引擎按 `abstract_user.id` 匹配 `user_role.abstract_user_id`；所有 engine 门禁（`hasPermission` / `validateBatch` / `getDeniedIds`）与投影空间自查逻辑，操作者 ID 必须先经 `OperatorSubjectResolver.requireSubjectId(tenantId, operatorId, engine)` 转换为投影主体；转换失败（投影不存在）fail-closed 抛 `SecurityException`。非门禁用途（createdBy 戳记、审计 `ChangeLogContext`、日志消息）保留 `sys_user.id`。**终态（T-ACCESS-016 定稿，T-ORG-001 已实施）**：`sys_user.id = abstract_user.id`（§12.2 唯一 ID 源），操作者 ID 即主体 ID，`OperatorSubjectResolver`/`resolveOperatorSubjectId` 已删除，上述转换与"非门禁用途保留 sys_user.id"的区分整体消失——本段仅为统一前过渡口径的历史记录。
 
