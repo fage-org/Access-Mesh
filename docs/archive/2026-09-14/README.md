@@ -77,3 +77,11 @@ T-PERM-043 删除后端 extra-roles/* 三接口与 GROUP_ROLE 写入口时，前
 ### 关联收敛
 
 pending-problems Q-004 → 已收敛索引（关联本条目）。
+
+## 批次五：T-PERM-066 单卡归档
+
+| 归档物 | 去向 |
+|---|---|
+| T-PERM-066.md（operationCodeKey 族大小写口径统一——raw 严格化） | 本目录 `tasks/`（done 即单卡归档——Q-003 转出任务，无所属计划） |
+
+Q-003 随卡收敛（pending-problems 已收敛索引）；定案见 decision-registry 2026-09-14 行，契约总册 §2.4/§2.5 集中注记。

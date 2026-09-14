@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.perm.common.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -29,15 +30,17 @@ import java.util.Map;
 public record QueryScopesReq(
     @NotBlank String subjectTypeCode,
     @NotBlank String subjectExternalId,
-    @NotBlank String parentResourceTypeCode,
+    @NotBlank
+    @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+    String parentResourceTypeCode,
     @NotBlank String parentResourceCode,
     String parentCodeType,
     @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
-    List<String> parentOperationCodes,
+    List<@Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线") String> parentOperationCodes,
     @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
-    List<String> scopeResourceTypeCodes,
+    List<@Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线") String> scopeResourceTypeCodes,
     @NotEmpty @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
-    List<String> scopeOperationCodes,
+    List<@Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线") String> scopeOperationCodes,
     String scopeCodeType,
     String domainCode,
     Map<String, Object> context

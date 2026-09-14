@@ -43,14 +43,18 @@ public record DependencyBatchSyncReq(
      * @param description            依赖描述，可选（≤512）
      */
     public record DependencySyncItem(
-        @NotBlank String sourceResourceTypeCode,
+        @NotBlank
+        @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+        String sourceResourceTypeCode,
         @NotBlank String sourceResourceCode,
         String sourceCodeType,
-        List<String> sourceOperationCodes,
-        @NotBlank String targetResourceTypeCode,
+        List<@Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线") String> sourceOperationCodes,
+        @NotBlank
+        @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+        String targetResourceTypeCode,
         @NotBlank String targetResourceCode,
         String targetCodeType,
-        List<String> requiredOperationCodes,
+        List<@Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线") String> requiredOperationCodes,
         Boolean autoGrant,
         @Size(max = 512) String description
     ) {}

@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
 
@@ -69,10 +70,14 @@ public record ApplyGrantPlanReq(
     }
 
     public record GrantRecordKey(
-        @NotBlank String resourceTypeCode,
+        @NotBlank
+        @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+        String resourceTypeCode,
         String resourceCode,
         String codeType,
-        @NotBlank String operationCode,
+        @NotBlank
+        @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线")
+        String operationCode,
         @NotNull ScopeMode scopeMode,
         String conditionCode,
         @Valid InlineConditionDef inlineCondition,

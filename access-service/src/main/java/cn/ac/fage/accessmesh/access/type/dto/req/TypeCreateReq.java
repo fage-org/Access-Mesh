@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.type.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -25,7 +26,9 @@ import jakarta.validation.constraints.Size;
  */
 public record TypeCreateReq(
     @NotBlank @Size(max = 64) String typeKey,
-    @Size(max = 64) String typeCode,
+    @Size(max = 64)
+    @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+    String typeCode,
     @NotBlank @Size(max = 128) String name,
     @Size(max = 512) String description,
     Integer sortOrder,

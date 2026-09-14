@@ -156,7 +156,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         if (typeCode == null || typeCode.isBlank()) {
             typeCode = BusinessKeyUtil.generatedTypeCode(req.typeKey(), typeValue);
         } else {
-            typeCode = typeCode.trim();
+            // 显式 typeCode 经 DTO @Pattern 已保证无首尾空白（T-PERM-066），不再 trim
             if (typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, req.typeKey(), typeCode) != null) {
                 throw new BizException(AccessErrorCode.TYPE_DEFINITION_CODE_DUPLICATE.getCode(),
                     "Type code already exists: " + typeCode);

@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.perm.common.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Pattern;
 
 import java.util.List;
 import java.util.Map;
@@ -26,8 +27,8 @@ import java.util.Map;
 public record QueryResourcesReq(
     @NotBlank String subjectTypeCode,
     @NotBlank String subjectExternalId,
-    @NotEmpty List<String> resourceTypeCodes,
-    @NotEmpty List<String> operationCodes,
+    @NotEmpty List<@Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线") String> resourceTypeCodes,
+    @NotEmpty List<@Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线") String> operationCodes,
     String domainCode,
     String codeType,
     Boolean includeInherited,

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.type.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
 /**
  * 操作权限更新请求体
@@ -17,8 +18,12 @@ import jakarta.validation.constraints.NotBlank;
  * @param inheritMask      继承掩码，可选，用于权限继承计算
  */
 public record OperationUpdateReq(
-    @NotBlank String resourceTypeCode,
-    @NotBlank String code,
+    @NotBlank
+    @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+    String resourceTypeCode,
+    @NotBlank
+    @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线")
+    String code,
     String name,
     Long binaryBit,
     Long inheritMask

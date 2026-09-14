@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.perm.common.dto.req;
 
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -32,7 +33,9 @@ public record AuthCheckReq(
     /**
      * 资源类型码，如 "USER"、"ORG"
      */
-    @NotBlank(message = "资源类型编码不能为空") String resourceTypeCode,
+    @NotBlank(message = "资源类型编码不能为空")
+    @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+    String resourceTypeCode,
     /**
      * 资源码，类型级权限（CREATE）时为null，实例级权限时为具体编码
      */
@@ -40,7 +43,9 @@ public record AuthCheckReq(
     /**
      * 操作码，如 "CREATE"、"UPDATE"、"DELETE"
      */
-    @NotBlank(message = "操作编码不能为空") String operationCode,
+    @NotBlank(message = "操作编码不能为空")
+    @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线")
+    String operationCode,
     /**
      * 业务域码（可选），指定权限范围
      */
@@ -57,6 +62,7 @@ public record AuthCheckReq(
      * 主资源类型码（可选，T-PERM-058）：与 parentResourceCode 成对提供，
      * 查询 depend_on 子权限实例时声明父上下文
      */
+    @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
     String parentResourceTypeCode,
     /**
      * 主资源码（可选，T-PERM-058）：与 parentResourceTypeCode 成对提供
@@ -70,7 +76,7 @@ public record AuthCheckReq(
      * 主资源操作码集合（T-PERM-058）：给出父上下文时必填非空（与 query-scopes 对齐）
      */
     @Size(max = 1000, message = "批量上限 1000（project-rules §分批约束，超限分批提交）")
-    List<String> parentOperationCodes,
+    List<@Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线") String> parentOperationCodes,
     /**
      * 条件评估上下文（可选）
      */

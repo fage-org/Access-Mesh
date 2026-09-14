@@ -745,7 +745,9 @@ class DependencyAppServiceImplTest {
         void shouldValidateUpdateReqRequiredFields() {
             var violations = validator.validate(new ResourceDependencyUpdateReq(
                 7L, " ", " ", null, null, " ", " ", null, List.<String>of(), null, "x".repeat(513)));
-            assertThat(violations).hasSize(6);
+            // 6 = 原 NotBlank/@NotEmpty/@Size 族；+2 = " " 类型码额外交付 T-PERM-066 @Pattern
+            // 大写锁违例（同属性多约束各计一条）
+            assertThat(violations).hasSize(8);
             assertThat(violations).extracting(v -> v.getPropertyPath().toString())
                 .contains("sourceResourceTypeCode", "sourceResourceCode", "targetResourceTypeCode",
                     "targetResourceCode", "requiredOperationCodes", "description");
@@ -773,7 +775,7 @@ class DependencyAppServiceImplTest {
                     null,
                     new DependencyBatchSyncReq.DependencySyncItem(
                         " ", null, null, null, " ", null, null, null, null, "x".repeat(513)))));
-            assertThat(violations).hasSize(6);
+            assertThat(violations).hasSize(8);
             assertThat(violations).extracting(v -> v.getPropertyPath().toString())
                 .contains("items[0].<list element>",
                     "items[1].sourceResourceTypeCode", "items[1].sourceResourceCode",

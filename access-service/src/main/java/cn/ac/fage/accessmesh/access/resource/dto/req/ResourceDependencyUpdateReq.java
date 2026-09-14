@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access.resource.dto.req;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 
@@ -28,14 +29,18 @@ import java.util.List;
  */
 public record ResourceDependencyUpdateReq(
     @NotNull Long id,
-    @NotBlank String sourceResourceTypeCode,
+    @NotBlank
+    @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+    String sourceResourceTypeCode,
     @NotBlank String sourceResourceCode,
     String sourceCodeType,
-    List<String> sourceOperationCodes,
-    @NotBlank String targetResourceTypeCode,
+    List<@Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线") String> sourceOperationCodes,
+    @NotBlank
+    @Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "资源类型编码必须以大写字母开头，仅含大写字母/数字/下划线")
+    String targetResourceTypeCode,
     @NotBlank String targetResourceCode,
     String targetCodeType,
-    @NotEmpty List<String> requiredOperationCodes,
+    @NotEmpty List<@Pattern(regexp = "^[A-Z][A-Z0-9_]*$", message = "操作编码必须以大写字母开头，仅含大写字母/数字/下划线") String> requiredOperationCodes,
     Boolean autoGrant,
     @Size(max = 512) String description
 ) {}

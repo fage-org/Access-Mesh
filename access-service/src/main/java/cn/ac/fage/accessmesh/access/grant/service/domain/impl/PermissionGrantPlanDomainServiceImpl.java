@@ -40,7 +40,6 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -175,9 +174,9 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             .collect(Collectors.toCollection(LinkedHashSet::new));
         Map<String, Integer> rawTypeValues = typeResolutionService.batchResolveTypeValues(
             tenantId, "resource_type", resourceTypeCodes);
-        Map<String, Integer> typeValues = normalizeTypeValues(rawTypeValues);
+        Map<String, Integer> typeValues = rawTypeValues;
         for (String typeCode : resourceTypeCodes) {
-            if (!typeValues.containsKey(normalize(typeCode))) {
+            if (!typeValues.containsKey(typeCode)) {
                 throw biz(AccessErrorCode.RESOURCE_TYPE_NOT_FOUND,
                     "resourceTypeCode not found: " + typeCode);
             }
@@ -196,7 +195,6 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             .selectByTenantAndResourceType(tenantId, null);
         Set<String> knownOperationCodes = allOperations.stream()
             .map(OperationPermission::getCode).filter(Objects::nonNull)
-            .map(PermissionGrantPlanDomainServiceImpl::normalize)
             .collect(Collectors.toSet());
 
         Set<String> conditionCodes = new LinkedHashSet<>();
@@ -516,7 +514,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             Map<String, PermissionCondition> conditionsByCode,
             Map<ApplyGrantPlanReq.GrantRecordKey, String> inlineCodesByCreateKey,
             LocalDateTime now) {
-        Integer resourceType = typeValues.get(normalize(key.resourceTypeCode()));
+        Integer resourceType = typeValues.get(key.resourceTypeCode());
         OperationPermission operation = resolveOperation(
             operations, resourceType, key.operationCode(), knownOperationCodes);
         boolean scopeAll = isScopeAll(key);
@@ -788,15 +786,15 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                                                  String operationCode,
                                                  Set<String> knownOperationCodes) {
         // 操作位空间按类型完全隔离（全局操作概念已退役）：仅匹配目标类型的专属定义
-        String normalizedCode = normalize(operationCode);
+        // （入参与 DB 码均 raw 比对——大写由 DTO @Pattern 与定义侧锁保证，T-PERM-066）
         OperationPermission resolved = operations.stream()
             .filter(operation -> Objects.equals(operation.getResourceType(), resourceType))
-            .filter(operation -> normalizedCode.equals(normalize(operation.getCode())))
+            .filter(operation -> operationCode.equals(operation.getCode()))
             .findFirst().orElse(null);
         if (resolved != null) {
             return resolved;
         }
-        if (knownOperationCodes.contains(normalizedCode)) {
+        if (knownOperationCodes.contains(operationCode)) {
             throw biz(AccessErrorCode.RESOURCE_TYPE_OPERATION_MISMATCH,
                 "operationCode does not apply to resourceTypeCode: " + operationCode);
         }
@@ -877,12 +875,6 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             key.scopeMode(), key.resourceCode(), key.codeType());
     }
 
-    private Map<String, Integer> normalizeTypeValues(Map<String, Integer> values) {
-        Map<String, Integer> normalized = new HashMap<>();
-        values.forEach((code, value) -> normalized.put(normalize(code), value));
-        return normalized;
-    }
-
     private void assertMutable(RoleResourcePermission permission) {
         if (permission == null) {
             return;
@@ -931,10 +923,6 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             return biz(AccessErrorCode.DIRECT_PERMISSION_CONFLICT);
         }
         return exception;
-    }
-
-    private static String normalize(String value) {
-        return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
     }
 
     private BizException validation(String message) {

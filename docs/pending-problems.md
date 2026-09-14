@@ -39,19 +39,6 @@ last_updated: 2026-09-14
 
 **设想方向（未定案）**：豁免收窄为档案字段（name/extra），enabled 变更与删除不豁免（须 ENABLE/DELETE 操作位）；或取消豁免统一按字段分档查码；两轨须同步定案（两轨一致是既有豁免的保留依据）。
 
-## Q-003 operationCodeKey 族大小写口径不一致（授权域归一 vs 查询域裸拼）
-
-- **状态**：open
-- **登记**：2026-09-13（历史登记收编——原 2026-09-07 定案「保持现状待统一」）
-- **来源**：`docs/design/engine/implementation.md` §8.2（登记待统一）；decision-registry 2026-09-07 行
-- **关联**：—
-
-**现象与证据**：授权域（PermissionGrantDomainServiceImpl 及 Plan 域）先 `toUpperCase()` 再拼键——`applyGrantPlan` 传小写 `view` 可匹配 DB `VIEW` 授权成功；查询/解析域（TypeResolutionService / ResolveContext / PermissionQuery）裸拼——同一份小写 `view` 走 check/dependency 链路解析不到、按 20005 fail-closed 拒绝。`operationCode` 入参仅 `@NotBlank`、无大写 `@Pattern` 锁。
-
-**影响**：现在为什么没出事——唯一活跃调用方为管理前端（全发大写常量）；一旦出现小写调用方（SDK 消费者/脚本/新前端页），同一操作码双语义：授权面成功、查询面拒绝。数据示例：`apply-grant-plan` 提交 `code="view"` 落库成功，运行时 `check` 提交 `code="view"` 却 20005 拒绝。
-
-**设想方向（未定案）**：raw 严格化 / 归一宽松化 + DTO `@Pattern` 大写前置拒绝——均属行为变更，需单独立项（2026-09-07 定案原文）。
-
 ## Q-006 ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效（登记不实施）
 
 - **状态**：open
@@ -108,6 +95,7 @@ last_updated: 2026-09-14
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-003 | operationCodeKey 族大小写口径不一致（授权域归一 vs 查询域裸拼） | closed（T-PERM-066 done：raw 严格化——入站 DTO @Pattern 大写 400/90001 + 定义侧锁死 + 授权域归一退役两域统一 raw；定案见 registry 2026-09-14 行，契约总册 §2.5 集中注记） | [T-PERM-066](../archive/2026-09-14/tasks/T-PERM-066.md) | 2026-09-14 |
 | Q-004 | BusinessKeys / SyncKeyCodec 命名偏离 XxxUtil 规范 | closed（2026-09-14 轻量清扫批次：`BusinessKeys`→`BusinessKeyUtil`、`SyncKeyCodec`→`SyncKeyCodecUtil`，按 project-rules §6.2「去掉末尾 s」规则机械改名；代码+测试+XML 注释+skills 双副本+AGENTS+活设计文档（34+17 文件）同批替换，decision-registry 带日期历史行不改写；golden 锁测试随类更名 `BusinessKeyUtilParityTest`） | [2026-09-14 批次四](../archive/2026-09-14/README.md) | 2026-09-14 |
 | Q-011 | 资源依赖页（3.4）页面级真实联调与 mock 退役缺口 | closed（T-FE-044 done 且验收覆盖：Gateway +6 端点 + mock 退役 + 六场景冒烟；联调并修复 api 路径 /perm 前缀缺陷——登记时「api 层已按契约对齐」断言的路径部分被证伪，URL 契约锁 6 用例钉住） | [T-FE-044](../archive/2026-09-14/tasks/T-FE-044.md) | 2026-09-14 |
 | Q-012 | mock/refreshToken.ts 模板死文件（拦截虚构端点、零调用） | closed（随 Q-011 并入 T-FE-044 顺带删除） | [T-FE-044](../archive/2026-09-14/tasks/T-FE-044.md) | 2026-09-14 |

@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-14   # T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
+last_reviewed: 2026-09-14   # T-PERM-066 operationCodeKey 族入参大写：§2.4 操作行注记 + §2.5 新增集中注记（@Pattern 覆盖面/边界/守卫/SDK 生效），授权域归一退役两域统一 raw；此前 2026-09-14 T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
 ---
 
 # access-service API 契约总册
@@ -118,7 +118,7 @@ last_reviewed: 2026-09-14   # T-ACCESS-041 域叙事改管理面/权限面口径
 > **跨字段校验（assign/revoke，2026-06-15 M2 落地）**：`domainCode` 可空仅对**功能角色**（BASIC_ROLE / GROUP_ROLE / PERSONAL）成立——为空表示全局域。对 `roleTypeCode ∈ {ORG, POSITION}` 的组织/岗位角色，`domainCode` **必填**（标识所属业务域）。服务端 `UserManageAppServiceImpl.assignRole/assignRolesBatch/revokeRolesBatch` 通过 Feature flag `permission.assign.strict-domain-check`（默认 `true`）强制：`strict-domain-check=true` 时违反上述约束抛 `BizException`；`false` 时仅兜底为空串放行（上线灰度用）。
 
 | 资源      | `domainCode` + `resourceTypeCode` + `resourceCode` + `codeType` | `codeType` 默认 `default`                                                |
-| 操作      | `operationCode`                                                 | 在 `resourceTypeCode` 范围内解析（操作定义按类型隔离，全局操作已退役）      |
+| 操作      | `operationCode`                                                 | 在 `resourceTypeCode` 范围内解析（操作定义按类型隔离，全局操作已退役）；入参大写（@Pattern，见下方 T-PERM-066 注记） |
 | 条件      | `conditionCode`                                                 | 可空                                                                     |
 | 明细记录  | `id` 或 `ids`                                                   | 仅用于更新/删除权限关系、日志详情等权限中心已返回的记录                  |
 
@@ -134,7 +134,9 @@ last_reviewed: 2026-09-14   # T-ACCESS-041 域叙事改管理面/权限面口径
 - `domainCode` 用于**管理查询的域过滤与同步命名空间**：管理查询经 `DomainClassifyService.matchesTypeCode/getClassifiedTypeCodes` 按 **ALL / GLOBAL_PLUS / DOMAIN_ONLY** 三种模式过滤（`domain_config` 表 `CLASSIFY` 配置按 `resourceTypeCode` 关联）；批量上下文（逐条目循环/列表过滤）必须走 `preloadCoveredTypeCodes` 一次预载模式覆盖集、循环内 `Set.contains` 复用（T-PERM-055，与 `matchesTypeCode` 同语义的批量形态，三模式判定结果不变）；**查询管线不做按域的对象过滤，仅按域分类过滤资源类型**（`queryResources`/`queryScopes` 经 `DomainClassifyService(GLOBAL_PLUS)` 分类过滤，非按 domainCode 定位对象）；角色/资源实体不内嵌域列，`domainCode` 不参与角色/资源定位（仅域存在性校验，见 §11.2/§10.4）。**不存在"传域查域+全局，不传只查全局"的旧命名空间语义**——如有接口确需旧语义，须逐项列出并标注迁移（ P2-2 修正）。
 - Gateway 必须清洗外部伪造的 `X-Tenant-Id/X-User-Id/X-Service-Code`，再基于 Token 或可信服务身份重新注入；permission-center 不信任客户端原始 Header。
 
-### 2.5 批量请求上限与 Req 单源（T-PERM-065）
+### 2.5 入参约束集中注记（批量上限与 Req 单源 T-PERM-065 / 码值大写 T-PERM-066）
+
+**operationCode/resourceTypeCode 族入参大写（T-PERM-066，2026-09-14 定案 raw 严格化）**：operationCode 族字段（`operationCode`/`operationCodes`/`parentOperationCodes`/`sourceOperationCodes`/`requiredOperationCodes`/`scopeOperationCodes` 等）与同链路的 `resourceTypeCode` 族字段（含 `resourceTypeCodes`/`scopeResourceTypeCodes` 复数形）统一 `@Pattern("^[A-Z][A-Z0-9_]*$")`——小写/混合大小写/含首尾空格一律 **400（90001，Bean Validation 层）**，不进解析链路。覆盖：`auth/check`、`auth/batch-check`（含 item 与请求级 parent 链）、`auth/query-scopes`（parent/scope 四列表）、`auth/query-resources`、`user-effective-permission-codes`、`role-resource-permission/apply-grant-plan`（`recordKey` 主键与 `children` 嵌套级联）、`resource-dependency` create/update/batch-sync、`operation-permission` create/update/detail/remove（`code`）、`type-definition` create（`typeCode`，可选字段非空时才校验）。**定义侧同款锁死**：小写操作码/类型码定义自本批不可再建（未部署零存量迁移；服务端自动生成的 typeCode 恒大写）。授权域旧 `toUpperCase/trim` 归一已随本批退役——两域统一 raw 裸拼，小写不再存在「授权面（apply-grant-plan 经归一）静默成功、查询面 20005 fail-closed 拒绝」的双语义。守卫：`OperationCodeCaseValidationTest` 行为锁（旧实现无注解必红）+ `PermCommonReqContractTest` 注解签名快照。边界（不锁面）：`roleTypeCode`/`subjectTypeCode`/`domainCode`/`typeKey` 不在本锁范围（两域一致 raw，值域口径另议）；**仅含 `resourceTypeCode` 的纯查询/资源实体 CRUD 面不加锁**（`operation-permission/list`、`resource-entity` list/tree/detail/create/update/key 族、`resource-dependency/check` 等——两域一致 raw，非授权/查询不对称面）。`/org/tree` 的 `operationCode`（VIEW/CREATE 白名单 10008）与 check-interface 固定 `ACCESS` 维持既有严格口径。SDK 消费方（perm-common 单源）随注解同批生效——客户端启用 bean validation 时构造期即拒绝。
 
 **批量上限 1000（SDK 公开契约，2026-09-12 登记）**：进入权限引擎批量入口的列表型字段一律 `@Size(max = 1000)`（超限 400，Bean Validation 层拒绝，不进引擎）。覆盖：`user-role/assign` 的 `items`、`user-role/revoke` 的 `items`、`resource-entity/batch-create` 的 `items`（**仅封规模**——嵌套项不级联校验，畸形项走服务端宽容收集逐条跳过、部分成功语义为有意设计，2026-09-12 用户拍板维持）、perm 家族 `IdsReq.ids` 批量端点族（abstract-role/remove、abstract-user/remove、biz-domain/remove、conflict-rule/remove、domain-config/remove、resource-api-mapping/remove、resource-dependency/remove、service-config/remove、type-definition/remove）、`auth/batch-check` 的 `items`、`AuthCheckReq/BatchAuthCheckReq` 的 `parentOperationCodes`。SDK 消费方（perm-common）与服务端同限值（`BatchEntrySizeValidationTest` 行为锁 + `PermCommonReqContractTest` 注解签名快照双守卫）。管理面家族批删端点（`/dict/type/delete` 等）不进引擎闭包，**不设此限**（2026-09-12 用户拍板不换绑）。
 

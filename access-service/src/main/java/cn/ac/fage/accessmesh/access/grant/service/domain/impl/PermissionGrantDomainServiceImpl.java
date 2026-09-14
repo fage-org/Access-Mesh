@@ -177,14 +177,14 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return results;
         }
 
-        // 2. 类型值与目标操作解析（批量）
+        // 2. 类型值与目标操作解析（批量；入参大写由 DTO @Pattern 保证，T-PERM-066 后两域统一 raw 裸拼）
         Map<String, Integer> rawResourceTypeByCode = typeResolutionService.batchResolveTypeValues(
             tenantId, "resource_type",
             validPermissions.stream().map(GrantCheckKey::resourceTypeCode).collect(Collectors.toSet()));
         Map<String, Integer> resourceTypeByCode = new HashMap<>();
         for (Map.Entry<String, Integer> entry : rawResourceTypeByCode.entrySet()) {
             if (entry.getKey() != null && entry.getValue() != null) {
-                resourceTypeByCode.put(entry.getKey().toUpperCase(), entry.getValue());
+                resourceTypeByCode.put(entry.getKey(), entry.getValue());
             }
         }
         if (resourceTypeByCode.isEmpty()) {
@@ -195,13 +195,13 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
             return results;
         }
 
-        // 目标操作索引（键=类型值+操作码大写）。目标操作独立于引擎辅助 map 加载——
+        // 目标操作索引（键=类型值+操作码）。目标操作独立于引擎辅助 map 加载——
         // 操作者无该类型授权行时该类型不进引擎 operationMap，目标操作仍须可解析（→NO_PERMISSION 而非误报 INVALID_OPERATION）
         Map<String, OperationPermission> targetOpByKey = new HashMap<>();
         Map<String, Set<String>> opCodesByTypeCode = new HashMap<>();
         for (GrantCheckKey key : validPermissions) {
-            opCodesByTypeCode.computeIfAbsent(key.resourceTypeCode().toUpperCase(), _unused -> new LinkedHashSet<>())
-                .add(key.operationCode().toUpperCase());
+            opCodesByTypeCode.computeIfAbsent(key.resourceTypeCode(), _unused -> new LinkedHashSet<>())
+                .add(key.operationCode());
         }
         Set<Integer> targetTypeValues = new LinkedHashSet<>(resourceTypeByCode.values());
         Set<String> allTargetOpCodes = opCodesByTypeCode.values().stream()
@@ -213,7 +213,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                 continue;
             }
             targetOpByKey.put(BusinessKeyUtil.operationCodeKey(
-                target.getResourceType(), target.getCode().toUpperCase()), target);
+                target.getResourceType(), target.getCode()), target);
         }
 
         // 3. 实例目标批量解析（非 scopeAll 键）
@@ -249,12 +249,12 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                     || !OperationPermissionUtils.covers(grantedOp, targetOp)) {
                     continue;
                 }
-                String opKey = BusinessKeyUtil.operationCodeKey(perm.resourceType(), targetOp.getCode().toUpperCase());
+                String opKey = BusinessKeyUtil.operationCodeKey(perm.resourceType(), targetOp.getCode());
                 if (Boolean.TRUE.equals(perm.scopeAll())) {
                     entriesByOpKey.computeIfAbsent(opKey, _unused -> new ArrayList<>()).add(perm);
                 } else if (perm.resourceEntityId() != null) {
                     entriesByOpAndEntity.computeIfAbsent(
-                        BusinessKeyUtil.grantEntryKey(perm.resourceType(), targetOp.getCode().toUpperCase(), perm.resourceEntityId()),
+                        BusinessKeyUtil.grantEntryKey(perm.resourceType(), targetOp.getCode(), perm.resourceEntityId()),
                         _unused -> new ArrayList<>()).add(perm);
                     // scopeAll=false 的实例行同样满足类型级转授键？否——scopeAll 键只认 scopeAll 行（与既有语义一致）
                 }
@@ -341,15 +341,12 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                                                       Map<String, Long> resourceEntityIdByKey,
                                                       Map<String, List<RolePermEntry>> permsBySpecificResource,
                                                       Map<String, List<RolePermEntry>> permsByScopeAll) {
-        String resTypeCodeUpper = key.resourceTypeCode().toUpperCase();
-        String opCodeUpper = key.operationCode().toUpperCase();
-
-        Integer resourceTypeValue = resourceTypeByCode.get(resTypeCodeUpper);
+        Integer resourceTypeValue = resourceTypeByCode.get(key.resourceTypeCode());
         if (resourceTypeValue == null) {
             return new GrantCheckResult(false, "INVALID_RESOURCE_TYPE");
         }
 
-        String opPermKey = BusinessKeyUtil.operationCodeKey(resourceTypeValue, opCodeUpper);
+        String opPermKey = BusinessKeyUtil.operationCodeKey(resourceTypeValue, key.operationCode());
         OperationPermission opPerm = opPermByKey.get(opPermKey);
         if (opPerm == null) {
             return new GrantCheckResult(false, "INVALID_OPERATION");
@@ -357,20 +354,20 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
         Long resourceEntityId = null;
         if (!key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank()) {
-            String resKey = BusinessKeyUtil.resourceTripleCodeKey(resTypeCodeUpper, key.resourceCode(), key.codeType());
+            String resKey = BusinessKeyUtil.resourceTripleCodeKey(key.resourceTypeCode(), key.resourceCode(), key.codeType());
             resourceEntityId = resourceEntityIdByKey.get(resKey);
             if (resourceEntityId == null) {
                 return new GrantCheckResult(false, "RESOURCE_NOT_FOUND");
             }
         }
 
-        String baseKey = BusinessKeyUtil.operationCodeKey(resourceTypeValue, opCodeUpper);
+        String baseKey = BusinessKeyUtil.operationCodeKey(resourceTypeValue, key.operationCode());
         List<RolePermEntry> matchingPerms = new ArrayList<>();
 
         if (key.scopeAll()) {
             matchingPerms.addAll(permsByScopeAll.getOrDefault(baseKey, List.of()));
         } else {
-            String specificKey = BusinessKeyUtil.grantEntryKey(resourceTypeValue, opCodeUpper, resourceEntityId);
+            String specificKey = BusinessKeyUtil.grantEntryKey(resourceTypeValue, key.operationCode(), resourceEntityId);
             matchingPerms.addAll(permsBySpecificResource.getOrDefault(specificKey, List.of()));
             matchingPerms.addAll(permsByScopeAll.getOrDefault(baseKey, List.of()));
         }
@@ -410,7 +407,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         // 失败键涉及的类型值（仅自定义 resource_type 参与；type_definition 全租户有效行一次
         // 装载内存过滤——resource_type 行数量为个位到十位级，无逐键查询）
         Set<Integer> failedTypeValues = delegationFailedKeys.keySet().stream()
-            .map(key -> resourceTypeByCode.get(key.resourceTypeCode().toUpperCase()))
+            .map(key -> resourceTypeByCode.get(key.resourceTypeCode()))
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(LinkedHashSet::new));
         if (failedTypeValues.isEmpty()) {
@@ -429,7 +426,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         Set<Long> failedInstanceEntityIds = delegationFailedKeys.keySet().stream()
             .filter(key -> !key.scopeAll() && key.resourceCode() != null && !key.resourceCode().isBlank())
             .map(key -> resourceEntityIdByKey.get(BusinessKeyUtil.resourceTripleCodeKey(
-                key.resourceTypeCode().toUpperCase(), key.resourceCode(), key.codeType())))
+                key.resourceTypeCode(), key.resourceCode(), key.codeType())))
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(LinkedHashSet::new));
         List<RoleResourcePermission> candidates = roleResourcePermissionMapper
@@ -439,17 +436,17 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
                 .selectByTenantAndResourceTypes(tenantId, customTypeValues));
         for (Map.Entry<GrantCheckKey, GrantCheckResult> entry : delegationFailedKeys.entrySet()) {
             GrantCheckKey key = entry.getKey();
-            Integer typeValue = resourceTypeByCode.get(key.resourceTypeCode().toUpperCase());
+            Integer typeValue = resourceTypeByCode.get(key.resourceTypeCode());
             if (typeValue == null || !customTypeValues.contains(typeValue)) {
                 continue;
             }
             OperationPermission targetOp = targetOpByKey.get(
-                BusinessKeyUtil.operationCodeKey(typeValue, key.operationCode().toUpperCase()));
+                BusinessKeyUtil.operationCodeKey(typeValue, key.operationCode()));
             if (targetOp == null) {
                 continue;
             }
             Long keyEntityId = key.scopeAll() ? null : resourceEntityIdByKey.get(BusinessKeyUtil.resourceTripleCodeKey(
-                key.resourceTypeCode().toUpperCase(), key.resourceCode(), key.codeType()));
+                key.resourceTypeCode(), key.resourceCode(), key.codeType()));
             boolean originExists = candidates.stream().anyMatch(row -> grantableRowCovers(
                 row, targetOp, candidateOpsByBit, key.scopeAll(), keyEntityId));
             if (!originExists) {
