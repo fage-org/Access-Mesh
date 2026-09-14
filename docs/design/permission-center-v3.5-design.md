@@ -2,8 +2,8 @@
 doc_type: design
 title: 权限中心 v3.5 端到端设计（简化版）
 status: adopted
-domain: permission-center
-last_reviewed: 2026-08-27
+domain: access-service
+last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面措辞 + frontmatter domain 改 access-service）；此前 2026-08-27
 ---
 
 # AccessMesh 权限中心 v3.5 端到端设计（简化版）
@@ -190,7 +190,7 @@ visible(menu, user) :=
 
 ## §5. /auth/user-menu 单 RPC 原子契约
 
-> **服务归属（T-ACCESS-012 更新）**：本接口归 **access-service 管理域**（前端唯一后端聚合入口，见 [architecture.md §1.5](architecture.md)；原 admin-service 服务设计已归档至 `../archive/2026-08-22/admin-service.md`）。permission-center api-contract.md 不承载此端点（已移除）。聚合由 `menu.service`（UserMenuQueryAppService，T-ACCESS-033 迁移改名）在本服务内完成：经 `PermissionViewAppService`/本地引擎获取权限事实，组装为 `menus + permissions` 返回前端，无跨服务调用。
+> **服务归属（T-ACCESS-012 更新；T-ACCESS-041 措辞）**：本接口归 **access-service 管理面**（前端唯一后端聚合入口，见 [architecture.md §1.5](architecture.md)；原 admin-service 服务设计已归档至 `../archive/2026-08-22/admin-service.md`）。permission-center api-contract.md 不承载此端点（已移除）。聚合由 `menu.service`（UserMenuQueryAppService，T-ACCESS-033 迁移改名）在本服务内完成：经 `PermissionViewAppService`/本地引擎获取权限事实，组装为 `menus + permissions` 返回前端，无跨服务调用。
 >
 > **落地状态**：本接口为 v3.5 规划契约，尚未在契约总册（access-service-api-contract.md）与代码中落地。实施时需同步契约总册。
 

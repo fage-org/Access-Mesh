@@ -67,7 +67,7 @@ docs/
 | 微服务整体架构       | [design/architecture.md](design/architecture.md)                                                                                     |
 | access-service 目标架构 | [design/access-service-architecture.md](design/access-service-architecture.md)（归并拓扑、事务、数据、缓存与安全的权威约束） |
 | 空库重建 runbook      | [design/access-service-rebuild-runbook.md](design/access-service-rebuild-runbook.md)（DDL 重建 + 种子 + Redis 清理 + 主体链验证） |
-| access-service API 契约总册 | [design/access-service-api-contract.md](design/access-service-api-contract.md)（T-ACCESS-040 两册合一：管理域家族 + perm 家族同册分列、按能力分章） |
+| access-service API 契约总册 | [design/access-service-api-contract.md](design/access-service-api-contract.md)（T-ACCESS-040 两册合一：管理面家族（裸路径族）+ perm 家族同册分列、按能力分章） |
 | 引擎子系统概念模型     | [design/engine/overview.md](design/engine/overview.md)                                                                              |
 | 引擎子系统核心调用链路 | [design/engine/core-flows.md](design/engine/core-flows.md)                                                                          |
 | 引擎子系统实现设计     | [design/engine/implementation.md](design/engine/implementation.md)                                                                  |

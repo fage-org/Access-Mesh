@@ -6,8 +6,8 @@
 --       （四份旧文件已随 T-ACCESS-012 归档至 docs/archive/2026-08-22/schema/，不再作为实现依据）
 --
 -- 范围：33 张表
---   admin 域 14 张（sys_*，原 17 张：sys_config/sys_audit_log 并入合并表；sys_sync_task 已随 T-ACCESS-005 退役）
---   permission 域 16 张（原 18 张：system_config/operation_log 由合并表承接）
+--   管理事实表（sys_*）14 张（管理面，原 17 张：sys_config/sys_audit_log 并入合并表；sys_sync_task 已随 T-ACCESS-005 退役）
+--   权限事实表 16 张（权限面，原 18 张：system_config/operation_log 由合并表承接）
 --   合并表 2 张（system_config、operation_log）
 --   基础设施 1 张（sys_task_execution，T-ACCESS-009 任务租约预建）
 --
@@ -150,7 +150,7 @@ COMMENT ON COLUMN sys_login_log.login_type IS '登录方式：PASSWORD/SMS/OAUTH
 COMMENT ON COLUMN sys_login_log.status IS '结果：0=失败，1=成功';
 
 -- -----------------------------------------------------------------------------
--- 3. sys_user - 用户表（事实源，投影到权限域 abstract_user）
+-- 3. sys_user - 用户表（管理面事实源，投影到权限面 abstract_user）
 -- -----------------------------------------------------------------------------
 CREATE TABLE sys_user (
     id              BIGINT PRIMARY KEY,
@@ -177,7 +177,7 @@ CREATE TABLE sys_user (
 CREATE UNIQUE INDEX uk_user_username ON sys_user (tenant_id, username) WHERE delete_flag = 0;
 CREATE UNIQUE INDEX uk_user_phone ON sys_user (tenant_id, phone) WHERE delete_flag = 0 AND phone IS NOT NULL;
 
-COMMENT ON TABLE sys_user IS '用户表，access-service admin 域事实源；默认组织树是用户目录/身份池，负责用户生命周期。id = abstract_user.id 同值（主体 ID，T-ORG-001 已落地）：列 BIGINT 显式赋值（无自增），本地用户创建先 nextval(pg_get_serial_sequence(abstract_user.id)) 预取主体 ID N，再显式插 abstract_user(id=N, external_id=N) 与本表(id=N)；外部主体仅插 abstract_user（自增取号），两向创建顺序均不碰撞（architecture §12.2）';
+COMMENT ON TABLE sys_user IS '用户表，access-service 管理面事实源；默认组织树是用户目录/身份池，负责用户生命周期。id = abstract_user.id 同值（主体 ID，T-ORG-001 已落地）：列 BIGINT 显式赋值（无自增），本地用户创建先 nextval(pg_get_serial_sequence(abstract_user.id)) 预取主体 ID N，再显式插 abstract_user(id=N, external_id=N) 与本表(id=N)；外部主体仅插 abstract_user（自增取号），两向创建顺序均不碰撞（architecture §12.2）';
 COMMENT ON COLUMN sys_user.username IS '登录账号，租户内唯一';
 COMMENT ON COLUMN sys_user.password IS '密码（BCrypt 加密，前端 SHA256 摘要传输）';
 COMMENT ON COLUMN sys_user.gender IS '性别：0=未知，1=男，2=女';
@@ -214,7 +214,7 @@ CREATE UNIQUE INDEX uk_org_code ON sys_org (tenant_id, code) WHERE delete_flag =
 CREATE INDEX idx_org_parent ON sys_org (tenant_id, parent_id) WHERE delete_flag = 0;
 CREATE INDEX idx_org_path ON sys_org (tenant_id, path) WHERE delete_flag = 0;
 
-COMMENT ON TABLE sys_org IS '统一组织表：部门/岗位/团队同表；默认组织树承担用户目录语义，非默认树只管理成员关系；组织/岗位同步为 ORG resource_entity（管理权限，T-ACCESS-018 收敛，原 ADMIN_ORG 并入）和 ORG/POSITION abstract_role（角色容器），均使用业务键定位，不存 permission 域内部 ID';
+COMMENT ON TABLE sys_org IS '统一组织表：部门/岗位/团队同表；默认组织树承担用户目录语义，非默认树只管理成员关系；组织/岗位同步为 ORG resource_entity（管理权限，T-ACCESS-018 收敛，原 ADMIN_ORG 并入）和 ORG/POSITION abstract_role（角色容器），均使用业务键定位，不存权限面内部 ID';
 COMMENT ON COLUMN sys_org.parent_id IS '父节点ID，NULL=根节点';
 COMMENT ON COLUMN sys_org.org_type IS '组织类型标签（字典管理），仅分类用';
 COMMENT ON COLUMN sys_org.code IS '组织编码，租户内唯一';
@@ -307,7 +307,7 @@ CREATE UNIQUE INDEX uk_sys_menu_tenant_resource ON sys_menu (tenant_id, resource
 CREATE UNIQUE INDEX uk_sys_menu_tenant_path ON sys_menu (tenant_id, path) WHERE delete_flag = 0 AND path IS NOT NULL;
 CREATE INDEX idx_menu_parent ON sys_menu (tenant_id, parent_id) WHERE delete_flag = 0;
 
-COMMENT ON TABLE sys_menu IS '菜单表：access-service admin 域事实源，仅承载 UI 路由元数据 + 关联资源 link（v3.5 菜单零权限化，不承载权限语义）';
+COMMENT ON TABLE sys_menu IS '菜单表：access-service 管理面事实源，仅承载 UI 路由元数据 + 关联资源 link（v3.5 菜单零权限化，不承载权限语义）';
 COMMENT ON COLUMN sys_menu.menu_type IS '类型：DIR=目录，MENU=菜单，EXTERNAL=外链，IFRAME=嵌入，HIDDEN=隐藏路由（派生同 MENU，不进 menus[] 下发 hiddenRoutes[]）';
 COMMENT ON COLUMN sys_menu.status IS '状态：0=DISABLED，1=ENABLED';
 COMMENT ON COLUMN sys_menu.resource_type IS '关联业务资源类型（不参与鉴权决策，仅 link；v3.5 §4.1 派生公式用）';
@@ -590,7 +590,7 @@ CREATE INDEX idx_operation_log_tenant_module_time ON operation_log (tenant_id, m
 CREATE INDEX idx_operation_log_request ON operation_log (request_id);  -- 原 permission（T-PERM-021 F1.d：列 NOT NULL 后谓词冗余去除）
 
 COMMENT ON TABLE operation_log IS '操作日志：轻量全量记录所有写操作，不做软删除，永久保留；与 permission_change_log 区分：本表记所有操作，permission_change_log 只记权限变更详情';
-COMMENT ON COLUMN operation_log.module IS '所属模块，模块标识约定：ADMIN=管理域 / PERMISSION=权限域 / ACCESS=跨域编排';
+COMMENT ON COLUMN operation_log.module IS '所属模块，模块标识约定：ADMIN=管理面写 / PERMISSION=权限面写 / ACCESS=跨面写编排（T-ACCESS-041 措辞，枚举值不变）';
 COMMENT ON COLUMN operation_log.action IS '操作类型，`{业务对象}_{动作}` 大写事件码，如 USER_CREATE / CONFIG_UPDATE / ROLE_RESOURCE_PERMISSION_GRANT 等（各业务 @OperationLog 维护）';
 COMMENT ON COLUMN operation_log.target_type IS '操作目标类型';
 COMMENT ON COLUMN operation_log.target_id IS '操作目标ID（字符串，兼容业务键与数值 ID）';
@@ -762,7 +762,7 @@ COMMENT ON COLUMN abstract_user.user_type IS '用户类型枚举值：USER(1)外
 COMMENT ON COLUMN abstract_user.external_id IS '外部业务系统唯一标识；本地投影使用 external_id = sys_user.id.toString()';
 COMMENT ON COLUMN abstract_user.name IS '显示名';
 COMMENT ON COLUMN abstract_user.enabled IS '是否启用：false 时鉴权不通过';
-COMMENT ON COLUMN abstract_user.extra IS '扩展属性(JSON)，permission 域主体管理 API 读写；本地投影不写 extra（username 投影零读取方已退役，T-ACCESS-035），已有行值在投影刷新中保留（update(entity) 忽略 null 列；batchUpdateValues 以 COALESCE 防御性保留）';
+COMMENT ON COLUMN abstract_user.extra IS '扩展属性(JSON)，权限面主体管理 API 读写；本地投影不写 extra（username 投影零读取方已退役，T-ACCESS-035），已有行值在投影刷新中保留（update(entity) 忽略 null 列；batchUpdateValues 以 COALESCE 防御性保留）';
 COMMENT ON COLUMN abstract_user.owner_service_code IS '所有权标识：access-service=管理事实派生的本地投影（禁止权限管理 API 直接修改）；NULL=人工维护或外部同步（外部同步所有权以 sync_metadata 为准）';
 COMMENT ON COLUMN abstract_user.delete_flag IS '逻辑删除：0=未删除，删除时填本行id。删除级联：user_role + 个人角色的 role_resource_permission + 失效缓存';
 

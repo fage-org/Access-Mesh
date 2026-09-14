@@ -3,14 +3,14 @@ doc_type: design
 title: 微服务架构设计
 status: adopted
 domain: common
-last_reviewed: 2026-08-28
+last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径——§1 服务清单与拓扑图、§3 章节标题与正文、§6 决策表的域前缀表述清扫；结构契约 capability-structure）
 ---
 
 # 微服务架构设计
 
-本文档定义项目整体微服务架构、各服务职责、模块划分及服务间交互方式。权限中心概念模型见 `engine/overview.md`。
+本文档定义项目整体微服务架构、各服务职责、模块划分及服务间交互方式。引擎子系统概念模型见 `engine/overview.md`。
 
-> **归并提示（T-ACCESS-012 全量回写，2026-08-22）**：`admin-service` 与 `permission-center` 已物理归并为模块化单体 `access-service`（唯一部署单元，T-ACCESS-001~012）。本文已按归并后实现回写；access-service 内部模块边界、事务、缓存与安全细节以 [`access-service-architecture.md`](access-service-architecture.md) 为准，对外接口契约以 [`access-service-api-contract.md`](access-service-api-contract.md)（契约总册，管理域 + perm 两家族）为准。
+> **归并提示（T-ACCESS-012 全量回写，2026-08-22）**：`admin-service` 与 `permission-center` 已物理归并为模块化单体 `access-service`（唯一部署单元，T-ACCESS-001~012）。本文已按归并后实现回写；access-service 内部模块边界、事务、缓存与安全细节以 [`access-service-architecture.md`](access-service-architecture.md) 为准，对外接口契约以 [`access-service-api-contract.md`](access-service-api-contract.md)（契约总册，裸路径 + `/api/perm` 两家族）为准。
 
 ---
 
@@ -23,7 +23,7 @@ last_reviewed: 2026-08-28
 | 服务                          | 技术栈                         | 数据库                 | 端口(建议) | 说明                                                                   |
 | ----------------------------- | ------------------------------ | ---------------------- | ---------- | ---------------------------------------------------------------------- |
 | gateway                       | Spring Cloud Gateway (WebFlux) | 无（纯网关）           | 8080       | 流量入口：路由转发、Token 校验、接口鉴权                               |
-| access-service（访问控制服务）| Spring Boot 3 (WebMVC)         | PostgreSQL（access_db，public schema） | 9100 | 用户、组织、菜单、认证、字典/通知/文件/审计/调度（admin 域）+ 通用权限管理与鉴权引擎（permission 域）；模块化单体，默认组织树是用户目录；组织既是业务树也是角色容器 |
+| access-service（访问控制服务）| Spring Boot 3 (WebMVC)         | PostgreSQL（access_db，public schema） | 9100 | 用户、组织、菜单、认证、字典/通知/文件/审计/调度（管理面）+ 通用权限管理与鉴权引擎（权限面）；能力包模块化单体（12 能力包 + sync/engine/projection/bootstrap/infrastructure，T-ACCESS-033），默认组织树是用户目录；组织既是业务树也是角色容器 |
 | example-service（演示服务）   | Spring Boot 3 (WebMVC)         | 无（瘦身后无数据源，T-API-001） | 9300       | 权限中心接入示例：单受保护接口 `POST /api/example/demo/hello`（身份回显，经 Gateway `/example/**` 路由鉴权，3xxxx 错误码段）；接口级鉴权完全由 Gateway 承担（规范 §2.4），业务服务不引入权限 SDK |
 
 ### 1.2 基础设施
@@ -63,12 +63,12 @@ last_reviewed: 2026-08-28
        ┌────────▼─────────────────┐          ┌────────▼────────┐
        │      access-service      │          │  example-service│
        │  （模块化单体，9100）    │          │    （9300）     │
-       │ admin 域：               │          │                 │
-       │ · 用户/组织/菜单         │          │ · 对接演示      │
-       │ · 认证/OAuth2            │          │ · 权限展示      │
+       │ 管理面：                 │          │                 │
+       │ · 用户/组织/菜单         │          │                 │
+       │ · 认证/OAuth2            │          │                 │
        │ · 字典/通知/文件         │          │                 │
        │ · 审计/任务调度          │          │                 │
-       │ permission 域：          │          │                 │
+       │ 权限面：                 │          │                 │
        │ · 权限管理/鉴权引擎      │          │                 │
        └───────────┬──────────────┘          └────────┬────────┘
                    │                                  │
@@ -92,16 +92,16 @@ last_reviewed: 2026-08-28
 
 - 管理端前端统一通过 Gateway 访问 access-service（`/admin/**`、`/perm/**`、`/auth/**` 路由目标统一），由 access-service 作为前端唯一后端聚合入口；前端不直接调用后端服务。
 - 认证链采用“最小登录返回 + 后续聚合拉取”模型：前端调用 `/auth/login` 获取 token 与最小身份信息后，再调用 `/auth/userinfo` 与 `/auth/user-menu` 获取用户上下文、菜单、角色和权限结果。
-- 业务路由、菜单和按钮权限的真实来源是后端聚合结果。其中菜单和路由由 access-service admin 域聚合下发，按钮权限由稳定 `permissions` 权限码表达。
+- 业务路由、菜单和按钮权限的真实来源是后端聚合结果。其中菜单和路由由 access-service 管理面聚合下发，按钮权限由稳定 `permissions` 权限码表达。
 - 前端本地 mock 可以保留并改造，用于基础前端验证、联调兜底和组件级演示，但不作为长期生产契约或路由权限事实源。
 - 管理端前端最终只保留一套权限呈现模型；模板式 `auths`、`meta.roles` 等逻辑仅允许作为过渡兼容，不再作为新增设计的基准。
 
 ### 1.6 主体、业务域与接入层原则
 
-- access-service admin 域中的默认组织树是租户内用户目录/身份池，负责用户生命周期；非默认组织树只维护“已有用户与组织节点的关系”。完整规则见 `default-org-tree-user-lifecycle.md`。
-- 组织既是业务树，也是角色容器。组织结构由 admin 域主维护；与组织相关的角色、用户角色事实最终落在 permission 域（同进程同库，能力写编排层同事务写入）。
-- `user-org` 变更需要稳定映射到 `user-role`。组织默认角色、岗位映射角色等规则由能力写编排层（原 access.application）编排，permission 域保存最终权限事实。
-- 权限模型内必须区分四类事实：`abstract_user` 表示访问主体，`resource_entity(USER)` 表示被管理用户资源，`resource_entity(ORG)` 表示被管理组织资源（T-ACCESS-018 类型收敛后），`abstract_role(ORG/POSITION)` 表示组织/岗位角色容器。admin 域不存储这些事实的内部 ID，所有跨域操作使用业务键。
+- access-service 管理面的默认组织树是租户内用户目录/身份池，负责用户生命周期；非默认组织树只维护“已有用户与组织节点的关系”。完整规则见 `default-org-tree-user-lifecycle.md`。
+- 组织既是业务树，也是角色容器。组织结构由管理面主维护；与组织相关的角色、用户角色事实最终落在权限面（同进程同库，能力写编排层同事务写入）。
+- `user-org` 变更需要稳定映射到 `user-role`。组织默认角色、岗位映射角色等规则由能力写编排层（原 access.application）编排，权限面保存最终权限事实。
+- 权限模型内必须区分四类事实：`abstract_user` 表示访问主体，`resource_entity(USER)` 表示被管理用户资源，`resource_entity(ORG)` 表示被管理组织资源（T-ACCESS-018 类型收敛后），`abstract_role(ORG/POSITION)` 表示组织/岗位角色容器。管理面不存储这些事实的内部 ID，所有跨面操作使用业务键。
 - 业务域只承担角色、权限分类和后台管理视角隔离职责，不承担数据权限载体、运行时鉴权主链或资源归属重构职责。
 - 对外交付分层建设：核心主线稳定后，example-service 作为真实接入示例补齐；SDK 交付目标分为 Spring Boot starter、普通 Java client SDK 和其他语言对接文档三层。
 
@@ -128,7 +128,7 @@ last_reviewed: 2026-08-28
 | 5   | 请求头增强       | 注入标准请求头（X-Tenant-Id、X-User-Id、X-Request-Id），清洗外部伪造头                         |
 | 6   | 异常处理         | 统一 JSON 错误响应格式，鉴权失败/服务不可用等不同错误码                                        |
 
-### 2.3 鉴权流程（快照模式，与权限域 core-flows 场景六对齐）
+### 2.3 鉴权流程（快照模式，与引擎 core-flows 场景六对齐）
 
 ```
 请求到达 Gateway
@@ -172,9 +172,9 @@ last_reviewed: 2026-08-28
 
 ---
 
-## 3. access-service 管理域（admin 域）
+## 3. access-service 管理面
 
-> access-service 是模块化单体（详见 [`access-service-architecture.md`](access-service-architecture.md)），本节概述其 admin 域职责；对外接口契约见 [`access-service-api-contract.md`](access-service-api-contract.md)（契约总册）。表结构权威 DDL 为 [`schema/access-service.sql`](schema/access-service.sql)。
+> access-service 是模块化单体（详见 [`access-service-architecture.md`](access-service-architecture.md)），本节概述其管理面职责（权限面与引擎子系统见 engine 三册与 access-service-architecture；原「admin 域」称谓已随 T-ACCESS-041 能力包口径退役）；对外接口契约见 [`access-service-api-contract.md`](access-service-api-contract.md)（契约总册）。表结构权威 DDL 为 [`schema/access-service.sql`](schema/access-service.sql)。
 
 ### 3.1 职责边界
 
@@ -182,7 +182,7 @@ last_reviewed: 2026-08-28
 - **用户管理**：完整用户生命周期（CRUD、密码、头像、启停），是用户数据的事实源
 - **组织管理**：统一组织模型（部门/岗位/团队同表，按组织类型区分），支持多棵组织树和一人多岗
 - **菜单管理**：菜单树维护，前端路由配置
-- **角色管理**：角色与授权由 permission 域直接提供（`/api/perm/abstract-role` 等），管理端不重复建设
+- **角色管理**：角色与授权由权限面直接提供（`/api/perm/abstract-role` 等），管理端不重复建设
 - **字典管理**：系统字典/枚举值维护
 - **通知/消息**：系统公告 + 站内信
 - **文件管理**：本地磁盘文件上传下载（单实例约束，无对象存储）
@@ -198,7 +198,7 @@ last_reviewed: 2026-08-28
 | 2   | 用户管理    | ~8         | sys_user                     | 含密码、手机、邮箱等业务字段；CRUD + 启停 + 重置密码 + 个人中心 |
 | 3   | 组织管理    | ~8         | sys_org, sys_user_org        | 统一组织表(type区分)，树形结构；用户-组织多对多关联             |
 | 4   | 菜单管理    | ~6         | sys_menu                     | 菜单树CRUD + 权限标识配置                                       |
-| 5   | 角色管理    | ~4         | -（permission 域表）         | 功能角色列表经 role 能力只读查询（UserRoleQueryAppService，原 application.query）；角色/授权管理直接使用 permission 域接口，旧 admin 侧代理端点已删除（T-ADMIN-024，无映射 404） |
+| 5   | 角色管理    | ~4         | -（权限面表）               | 功能角色列表经 role 能力只读查询（UserRoleQueryAppService，原 application.query）；角色/授权管理直接使用权限面接口，旧 admin 侧代理端点已删除（T-ADMIN-024，无映射 404） |
 | 6   | 字典管理    | ~6         | sys_dict_type, sys_dict_data | 字典类型 + 字典数据CRUD，支持缓存                              |
 | 7   | 通知管理    | ~6         | sys_notice, sys_user_notice  | 系统公告 + 站内信，含已读/未读状态                              |
 | 8   | 文件管理    | ~4         | sys_file                     | 本地磁盘上传/下载/删除（单实例约束），文件元信息持久化                          |
@@ -206,17 +206,17 @@ last_reviewed: 2026-08-28
 | 10   | 任务调度    | ~5         | sys_job, sys_job_log, sys_task_execution | Spring Scheduler + 数据库租约（多实例抢占/续租/接管），兼演示定时任务中的权限控制 |
 | 11   | 系统设置    | ~3         | system_config（合并表）      | 系统级参数配置 CRUD（`admin.*`/`permission.*`/`access.*` 命名空间） |
 
-**接口总数不在此维护**（2026-08 口径：文档不携带活计数，实际路径/DTO 清单以 `HttpApiPathSnapshotTest` 快照为唯一载体；admin 域 sys_* 14 张表；sys_config/sys_audit_log 已并入合并表 system_config/operation_log，sys_sync_task 已随 T-ACCESS-005 退役）
+**接口总数不在此维护**（2026-08 口径：文档不携带活计数，实际路径/DTO 清单以 `HttpApiPathSnapshotTest` 快照为唯一载体；管理面 sys_* 14 张表；sys_config/sys_audit_log 已并入合并表 system_config/operation_log，sys_sync_task 已随 T-ACCESS-005 退役）
 
 ### 3.3 核心模型设计概要
 
 #### 3.3.1 用户模型 (sys_user)
 
-与 permission 域 `abstract_user` 的关系：
+与权限面 `abstract_user` 的关系：
 
-- `sys_user` 是 **admin 域事实源**，存完整业务信息（账号、密码哈希、姓名、手机、邮箱、头像等）。
+- `sys_user` 是 **管理面事实源**，存完整业务信息（账号、密码哈希、姓名、手机、邮箱、头像等）。
 - 用户生命周期由默认组织树承载。创建用户时必须绑定默认组织树中的组织节点；禁用、删除、重置密码等高危账号操作不属于非默认组织树成员管理。
-- 用户创建/更新/删除时，由能力写编排层（原 access.application）在**同一 PostgreSQL 事务**内写入/更新权限域本地投影（`abstract_user` + `resource_entity(USER)`），无跨服务同步链路（T-ACCESS-005）。
+- 用户创建/更新/删除时，由能力写编排层（原 access.application）在**同一 PostgreSQL 事务**内写入/更新权限面本地投影（`abstract_user` + `resource_entity(USER)`），无跨服务同步链路（T-ACCESS-005）。
 - 若需要 `USER:{userId}` 实例级管理权限，用户投影同时维护 `resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)`，使用业务键 `resourceTypeCode=USER + resourceCode=sys_user.id` 定位。
 - 投影字段映射：`sys_user.id → external_id`，`sys_user.username → name`，`sys_user.status → enabled`
 
@@ -294,14 +294,14 @@ sys_menu 的权威 DDL 见 [`schema/access-service.sql`](schema/access-service.s
 
 > **已废弃字段**（迁移期物理删除）：`perm_code` / `operations` / `primary_operation` / `default_preset` / `visible` / `is_external` / `is_frame` / `is_cache` / `component`（前端组件路径归前端路由配置，不在 sys_menu） / `extra`（JSONB 扩展，按需迁移） / `service_code`（被 `source_service` 替代）。
 
-### 3.4 与 permission 域的关系（同事务本地投影）
+### 3.4 与权限面的关系（同事务本地投影）
 
-admin 域管理事实（`sys_user`/`sys_org`/`sys_menu`）与 permission 域权限事实（`abstract_user`/`abstract_role`/`resource_entity`/`user_role`）位于同一进程、同一数据库（`access_db.public`）。跨域写操作由能力写编排层（原 access.application）在同一 PostgreSQL 事务内编排：更新管理事实的同事务写入对应权限投影，任一步失败整体回滚。原跨服务 API 同步、消息通知与补偿链路（内部同步子系统）已随 T-ACCESS-005 退役。
+管理面管理事实（`sys_user`/`sys_org`/`sys_menu`）与权限面权限事实（`abstract_user`/`abstract_role`/`resource_entity`/`user_role`）位于同一进程、同一数据库（`access_db.public`）。跨面写操作由能力写编排层（原 access.application）在同一 PostgreSQL 事务内编排：更新管理事实的同事务写入对应权限投影，任一步失败整体回滚。原跨服务 API 同步、消息通知与补偿链路（内部同步子系统）已随 T-ACCESS-005 退役。
 
 - **用户投影（双事实，不可混淆）**：
   - `abstract_user` 用于主体解析，业务键为 `subjectTypeCode=LOCAL_USER + externalId=sys_user.id`（原 ADMIN_USER 更名，T-ACCESS-016）；
   - `resource_entity(USER)` 用于实例级用户管理权限，业务键为 `resourceTypeCode=USER + resourceCode=sys_user.id`。只维护 `abstract_user` 时用户可参与鉴权，但 `USER:{userId}` 的更新/删除/启停等实例级权限无法稳定解析。
-- **组织投影（双事实）**：`resource_entity(ORG)`（组织作为可管理资源，支撑 `ORG:{orgId}` 实例级校验与 `auth/query-resources`）+ `abstract_role(ORG/POSITION)`（普通组织→`role_type=ORG`，岗位→`role_type=POSITION`，组织/岗位作为角色容器）。用户关联组织时，能力写编排层同事务写入对应 `user_role`；组织树层级由 permission 域自动维护，编排层只传当前节点和父节点业务键。
+- **组织投影（双事实）**：`resource_entity(ORG)`（组织作为可管理资源，支撑 `ORG:{orgId}` 实例级校验与 `auth/query-resources`）+ `abstract_role(ORG/POSITION)`（普通组织→`role_type=ORG`，岗位→`role_type=POSITION`，组织/岗位作为角色容器）。用户关联组织时，能力写编排层同事务写入对应 `user_role`；组织树层级由权限面自动维护，编排层只传当前节点和父节点业务键。
 - **菜单**：sys_menu 仅承载 UI 路由元数据 + 关联资源 link（`resource_type`/`resource_code`），不承载权限语义；菜单可见性由 v3.5 §4.1 派生公式（`∃ op`）计算，前端经 `/auth/user-menu` 单 RPC 获取 `menus[] + permissions[]`，动态注册 Vue Router 路由。
 - **投影所有权**：本地投影统一标记 `owner_service_code='access-service'`，只能经 `LocalProjectionDomainService` 写入；权限管理 API 不得直接修改本地投影，外部 sync 不得冒充本地来源（`sourceService=access-service/admin-service` 被拒绝）。
 
@@ -384,8 +384,8 @@ perm-sdk/
 
 | #   | 事项              | 决策                                                                 |
 | --- | ----------------- | -------------------------------------------------------------------- |
-| Q1  | 菜单数据归属      | sys_menu 由 access-service admin 域维护（UI 路由元数据 + 关联资源 link）；关联资源经同事务本地投影落 permission 域 resource_entity |
-| Q2  | 组织-权限域映射   | 组织以 `resource_entity(ORG)` + `abstract_role(ORG/POSITION)` 双事实投影，由能力写编排层（原 access.application）同事务维护，均使用业务键定位 |
+| Q1  | 菜单数据归属      | sys_menu 由 access-service 管理面维护（UI 路由元数据 + 关联资源 link）；关联资源经同事务本地投影落权限面 resource_entity |
+| Q2  | 组织-权限面映射   | 组织以 `resource_entity(ORG)` + `abstract_role(ORG/POSITION)` 双事实投影，由能力写编排层（原 access.application）同事务维护，均使用业务键定位 |
 | Q3  | 限流方案          | 首期不做，后续按需集成                                               |
 | Q4  | 任务调度          | Spring Scheduler（轻量），兼演示定时任务的权限控制                   |
 | Q5  | 前端技术栈        | Vue 3 + Element Plus                                                 |

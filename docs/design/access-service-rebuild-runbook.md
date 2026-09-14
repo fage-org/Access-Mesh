@@ -59,8 +59,8 @@
 
 ## 2. 主体链验证（用户/角色/组织/菜单样例）
 
-以下路径均为**直连 access-service**（默认 9100，控制器真实映射——admin 域无 `/admin` 前缀）；
-经 Gateway 时 admin 域外部路径加前缀 `/admin`（如 `/admin/user/create`）、权限域加 `/perm/api/perm`。
+以下路径均为**直连 access-service**（默认 9100，控制器真实映射——管理面裸路径族无 `/admin` 前缀）；
+经 Gateway 时管理面家族外部路径加前缀 `/admin`（如 `/admin/user/create`）、perm 家族加 `/perm/api/perm`。
 以 bootstrap 首管理员（`username=admin`，`tenantId=1`，clientId=`admin-web`，密码为 bootstrap
 环境变量密码；其主体 ID 记为 **N**）登录后按序执行并断言：
 

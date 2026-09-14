@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 能力包结构与两域融合
 status: adopted
 domain: cross-service
-last_reviewed: 2026-09-13（T-ACCESS-039：§3/§8.2/§9 缓存目录合一收口——单册 AccessCacheCatalog、admin:org-visibility 越域归位 access:org-visibility、mode/TTL 零改动）；此前 2026-09-13（T-ACCESS-038：§3/§8.2/§9 错误码合一收口——单册 AccessErrorCode、碰撞三组 ADMIN_/PERM_ 段前缀、能力无专属段规则成文）；此前 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
+last_reviewed: 2026-09-14（T-ACCESS-041：§7 文档与叙事第三项落地 + §9 补三行修订对照；域叙事词汇=管理面/权限面）；此前 2026-09-13（T-ACCESS-039：§3/§8.2/§9 缓存目录合一收口——单册 AccessCacheCatalog、admin:org-visibility 越域归位 access:org-visibility、mode/TTL 零改动）；此前 2026-09-13（T-ACCESS-038：§3/§8.2/§9 错误码合一收口——单册 AccessErrorCode、碰撞三组 ADMIN_/PERM_ 段前缀、能力无专属段规则成文）；此前 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
 ---
 
 # access-service 能力包结构与两域融合
@@ -499,4 +499,6 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | dual-layer-cache-framework skill「Catalog 设计规范」 | 模块级单册口径维持（access-service=AccessCacheCatalog、Gateway=GatewayCacheCatalog）；条目 mode/TTL 与快照链路 6 条安全边界判据零改动（T-ACCESS-039 落地） |
 | project-rules §8.2 跨域 Mapper 边界 + `QueryBoundaryArchitectureTest` | 以能力为对象重建（T-ACCESS-032 设计、T-ACCESS-033 落地） |
 | access-service-architecture §5.2 管理事实表与权限计算表不强行合并 | **维持，无修订** |
-| 2026-09-12 T-PERM-065 admin Req DTO 不换绑 | **维持，无修订** |
+| 2026-09-12 T-PERM-065 admin Req DTO 不换绑 | **维持，无修订**（实质口径随 T-ACCESS-041 改述为「管理面家族同名 `IdsReq`/`UserRoleListReq` 合法独立形态」） |
+| project-rules §1.2「管理域和权限域枚举不得合并」互斥句 | 已随 T-ACCESS-038 单册落地废止，T-ACCESS-041 承接改写（单册 AccessErrorCode + 服务级册制表述） |
+| 规则/skills/AGENTS/adopted 设计的 admin/permission 域现行结构叙事 | T-ACCESS-041 全量清扫，替换词汇=管理面/权限面（registry 2026-09-14 行）；带日期历史句与「原 X 域」出处注记保留 |

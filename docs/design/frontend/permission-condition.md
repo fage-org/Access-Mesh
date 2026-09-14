@@ -112,7 +112,7 @@ code / name / enabled（开关）/ gatewayEvaluable（开关）/ description（t
 | /api/perm/permission-condition/remove | POST | ConditionRemoveReq{codes} | Void | CONDITION:DELETE@{code} 实例级全有或全无（T-PERM-048）+ 引用守卫 20059 |
 
 后端实现：ConditionController + ConditionAppServiceImpl。
-conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 access-service permission 域共享）。
+conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 access-service 权限面共享）。
 
 > **联调注记（T-FE-020，2026-09-02）**：本页消费 4 端点（list/create/update/remove）经 Gateway 真实链路收口——list 先在册（授权页消费），create/update/remove +3 端点补注册 bootstrap 清单；detail 本页不消费未注册。逐 DTO 比对零漂移。条件读端点无门禁（产品定案），写三档 CONDITION:CREATE/UPDATE/DELETE 固定图原持（T-PERM-030 预置，本任务零新增）。
 

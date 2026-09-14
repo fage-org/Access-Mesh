@@ -20,7 +20,7 @@ last_updated: 2026-09-13
 - **来源**：两域融合定案——表面项拍板「URL 两风格维持，仅登记，后续单独改」（decision-registry 2026-09-13 融合行③；capability-structure §6）
 - **关联**：—
 
-**现象与证据**：access-service 同一服务两套 URL 风格并存——admin 域控制器裸路径（`@RequestMapping("/org")`、`"/user-org"`、`"/oauth2/client"` 等，契约见 `docs/design/access-service-api-contract.md`（契约总册，原 admin 册已并入））；permission 域前缀路径（`/api/perm/abstract-role`、`/api/perm/auth/**` 等）。Gateway 快照鉴权按路径匹配接口资源（注册面：access-service 自有路由由 bootstrap 固定图写入、外部接入服务经 service-config sync FULL 声明，见 access-service-architecture §14.2/§14.3），前端 API 层按两风格分别拼路径。
+**现象与证据**：access-service 同一服务两套 URL 风格并存——管理面家族裸路径（控制器 `@RequestMapping("/org")`、`"/user-org"`、`"/oauth2/client"` 等，原 admin 域入口，契约见 `docs/design/access-service-api-contract.md`（契约总册））；perm 家族前缀路径（`/api/perm/abstract-role`、`/api/perm/auth/**` 等，原 permission 域入口）。Gateway 快照鉴权按路径匹配接口资源（注册面：access-service 自有路由由 bootstrap 固定图写入、外部接入服务经 service-config sync FULL 声明，见 access-service-architecture §14.2/§14.3），前端 API 层按两风格分别拼路径。
 
 **影响**：调用方与文档心智分裂（同一平台两套入口风格）；统一属对外契约破坏性变更——牵动前端全部调用点、Gateway 路由、已注册接口资源与 SDK 端点，需一次性迁移窗口与兼容策略，未定案前不动。
 

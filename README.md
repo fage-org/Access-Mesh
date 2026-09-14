@@ -29,8 +29,8 @@
 
 ```text
 Gateway (8080)
-  ├── access-service (9100)    admin 域：用户/组织/菜单/认证/字典/通知/文件/审计/调度
-  │                             permission 域：核心权限管理与鉴权引擎
+  ├── access-service (9100)    能力包单体：管理面（用户/组织/菜单/认证/字典等）+ 权限面（权限事实 + 鉴权引擎）
+  │                             （17 顶层包 = 12 能力包 + sync/engine/projection/bootstrap/infrastructure）
   └── example-service (9300)    对接演示（单受保护接口 /api/example/demo/hello 已随 T-API-001 交付，经 Gateway 鉴权）
 ```
 

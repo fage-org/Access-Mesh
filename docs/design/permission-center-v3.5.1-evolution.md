@@ -2,8 +2,8 @@
 doc_type: design
 title: 权限中心 v3.5.1+ 演进方向
 status: evolution
-domain: permission-center
-last_reviewed: 2026-06-20
+domain: access-service
+last_reviewed: 2026-09-14（T-ACCESS-041：frontmatter domain 改 access-service）；此前 2026-06-20
 ---
 
 # 权限中心 v3.5.1+ 演进方向

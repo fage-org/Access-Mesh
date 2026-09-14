@@ -1,19 +1,21 @@
 ---
-name: permission-center-coding-standards
+name: permission-coding-standards
 description: >-
-  权限中心（access-service permission 域）编码规范。
-  Rule type: ALWAYS — applies to all access-service permission-domain code changes
-  (package cn.ac.fage.accessmesh.access.permission; 原独立 permission-center 模块已于 T-ACCESS-001~012 归并入 access-service).
+  权限面（access-service engine 引擎子系统 + 权限事实能力包）编码规范。
+  Rule type: ALWAYS — applies to all access-service permission-face code changes
+  (engine 子系统、role/grant/resource/type/domain/rule/sync 能力包、user/org 的主体与投影轨、projection 门面；
+  原独立 permission-center 模块经 T-ACCESS-001~012 归并、又经 T-ACCESS-033 能力包融合，
+  「permission 域」口径已随 T-ACCESS-041 重写为能力+引擎口径).
   Covers: layered architecture, PermQueryEngine, naming conventions, transaction boundaries,
   batch loading, operation logging, domain classification, type resolution.
 origin: project
 metadata:
   project: AccessMesh
   module: access-service
-  version: "6.1.0"
+  version: "7.0.0"
 ---
 
-# 权限中心（access-service permission 域）编码规范
+# 权限面（engine + 权限事实能力包）编码规范
 
 ## 1. 分层职责
 
@@ -40,7 +42,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
             throw new SecurityException("Permission denied");
         }
         // 2. 调用 DomainService
-        Long roleId = subjectDomainService.createRole(tenantId, req.parentId(), roleType, req.externalId(), req.name());
+        Long roleId = subjectDomainService.createRole(tenantId, req.parentId(), roleType, req.externalId(), req.name(), req.sortOrder(), req.extra());
         // 3. 返回
         return toRoleResp(abstractRoleMapper.selectOneById(roleId));
     }
@@ -74,7 +76,7 @@ if (!denied.isEmpty()) {
 
 // ✅ 正确 — 管理查询可直查 Mapper（不涉及权限判定）
 List<ResourceEntity> resources = resourceEntityMapper.selectResourceListPaged(tenantId, resourceType, matchNone, offset, limit);
-List<ChangeLogResp> logs = changeLogMapper.selectByTenantEntityTypeEntityId(tenantId, entityType, entityId, offset, limit);
+List<PermissionChangeLog> logs = permissionChangeLogMapper.selectPageByCondition(tenantId, entityType, entityId, null, null, null, null, null, null, offset, limit);
 
 // ❌ 禁止 — 直接查 DB 做权限判定
 rolePermMapper.selectListByQuery(QueryWrapper.create().where(ROLE_RESOURCE_PERMISSION.ABSTRACT_ROLE_ID.in(roleIds))...)
@@ -113,9 +115,9 @@ if (!r.allowed()) {
 }
 ```
 
-### 异常边界（permission-center）
+### 异常边界（权限面）
 
-**MUST** 在 permission-center 新增/修改代码时明确区分三类公开异常，**不要**把所有失败都收敛为 `SecurityException`：
+**MUST** 在权限面能力包/引擎新增或修改代码时明确区分三类公开异常，**不要**把所有失败都收敛为 `SecurityException`：
 
 - `SecurityException`：仅用于操作者身份缺失、Gateway 签名失败、权限不足、越权访问等安全拒绝。
 - `BizException`：用于资源不存在、业务键无效、角色已禁用、状态冲突、重复创建、配置不满足业务规则等**预期内业务拒绝**。
@@ -178,7 +180,7 @@ public class UserManageController { }
 
 ### Engine 层
 
-权限查询引擎统一使用 `PermQueryEngine`，位于 `service.domain.impl` 包。
+权限查询引擎统一使用 `PermQueryEngine`，位于 `engine.core` 包（引擎子系统独立于能力包，T-ACCESS-033 终态结构）。
 
 ## 4. 构造函数依赖
 
@@ -235,8 +237,9 @@ public List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlan
 //   subjectDomainService.invalidateRoleCacheBatch(tenantId, userIds);   // userIds
 //   cacheService.evictBatch(CONDITION_RULES, tenantId, conditionIds);   // conditionIds
 //   cacheService.evictBatch(ROLE_PERM_SNAPSHOT, tenantId, roleSnapshotIds); // roleSnapshotIds（角色删除直清）
+//   cacheService.evictAll(ORG_VISIBILITY, tenantId);                  // 可见范围依赖全部权限，操作者不可枚举——租户级无条件清除
 //   publisher.publish(tenantId, roleIds, userIds, serviceCodes);        // 广播 PermInvalidateEvent
-// 注：markServiceCodes 仅触发广播（Gateway 侧清本地快照，T-PERM-006），不清 permission-center 缓存。
+// 注：markServiceCodes 仅触发广播（Gateway 侧清本地快照，T-PERM-006），不清权限面缓存。
 
 // ✅ mark API（PermissionChangeContext，ThreadLocal 累积器，同 TenantContextHolder 语义）：
 //   markRoles(tenantId, roleIds|roleId)          // 角色权限变更 → 失效 EFFECTIVE_ROLES + ROLE_PERM_SNAPSHOT
@@ -244,6 +247,7 @@ public List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlan
 //   markConditions(tenantId, conditionIds)       // 条件规则变更 → 失效 CONDITION_RULES
 //   markRoleSnapshots(tenantId, roleIds)         // 角色删除 → 直清 ROLE_PERM_SNAPSHOT
 //   markServiceCodes(tenantId, serviceCodes|serviceCode) // API mapping/资源/sync 变更 → 广播（Gateway 清本地快照）
+//   markVisibility(tenantId)                    // 可见范围配置变更 → 触发 flush（ORG_VISIBILITY 租户级清除由 flush 无条件执行）
 
 // ❌ 禁止 — 业务侧手写同步（违反 P1-B，已由 @PermissionChange AOP 取代）
 if (TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -253,7 +257,7 @@ if (TransactionSynchronizationManager.isSynchronizationActive()) {
 }
 
 // ❌ 禁止 — 事务提交前失效缓存（缓存可能被回滚数据污染）
-cacheService.evict(PermCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleId);
+cacheService.evict(AccessCacheCatalog.ROLE_PERM_SNAPSHOT, tenantId, roleId);
 // 如果后续回滚，缓存已被错误清理
 ```
 
@@ -268,7 +272,7 @@ Map<Long, ResourceEntity> resourceMap = resourceEntityMapper.selectValidByIds(te
 Map<Long, OperationPermission> opMap = operationPermissionMapper.selectValidByIds(tenantId, opIds)
     .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op));
 Map<Long, AbstractRole> roleMap = abstractRoleMapper.selectValidByIds(tenantId, roleIds)
-    .stream().collect(Collectors.toMap(AbstractRole::getId, role -> role));
+    .stream().collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
 // ✅ 正确 — 按资源类型批量加载操作权限
 Map<Integer, List<OperationPermission>> opByType = new LinkedHashMap<>();
@@ -325,7 +329,7 @@ auditDomainService.asyncRecordLog(...); // 仅在非入口级场景
 
 ## 8. 同层横向调用边界
 
-同层横向调用**允许**（project-rules §8.2，2026-08-22 全局放开）：AppService 互调、DomainService 互调、跨域 Service/AppService 注入复用（如 `ServiceConfigAppServiceImpl` 注入 `ResourceManageAppService`）均可，无需登记例外。通用约束：仅限同层（跳层禁令不变）、**不得形成循环依赖**、复用方不得重复实现被复用方已有的领域逻辑、跨域 Mapper 直读边界不变（admin/permission 域互不直读对方 Mapper）。
+同层横向调用**允许**（project-rules §8.2，2026-08-22 全局放开）：AppService 互调、DomainService 互调、跨能力 Service/AppService 注入复用（如 `ServiceConfigAppServiceImpl` 注入 `ResourceManageAppService`）均可，无需登记例外。通用约束：仅限同层（跳层禁令不变）、**不得形成循环依赖**、复用方不得重复实现被复用方已有的领域逻辑、**能力包 Mapper 边界不变**（能力包之间不互读 Mapper，断言面=mapper 包；豁免面与存量冻结白名单见 capability-structure §8.4，白名单锁「不得新增」，T-ACCESS-032 裁决 9）。
 
 ```java
 // ✅ 允许 — 同层横向注入复用（无循环依赖即可；字段为各类型示意，非该类完整依赖清单）
@@ -361,8 +365,8 @@ boolean visibleInBatch = covered.contains(ResourceTypeCode.USER);
 // ✅ 正确 — 获取域声明的类型码范围
 Set<String> typeCodes = domainClassifyService.getClassifiedTypeCodes(tenantId, "HR");
 
-// ✅ 正确 — 通过资源类型码反查域
-Long domainId = domainClassifyService.findDomainIdByTypeCode(tenantId, "ORG");
+// ✅ 正确 — 通过资源类型码批量反查域（返回 类型码→域ID 映射）
+Map<String, Long> domainIds = domainClassifyService.findDomainIdsByTypeCodes(tenantId, Set.of("ORG"));
 
 // ❌ 禁止 — 在实体上使用 bizDomainId 字段（已从 abstract_role, resource_entity 等表中删除）
 role.setBizDomainId(domainId);  // 字段已删除
@@ -405,8 +409,8 @@ for (String code : codes) {
 
 ```java
 // ✅ 正确
-Set<Long> roles = userRoleDomainService.resolveEffectiveRoles(tenantId, userId);
-Map<Long, Set<Long>> roles = userRoleDomainService.batchResolveEffectiveRoles(tenantId, userIds);
+Set<Long> roles = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
+Map<Long, Set<Long>> roles = subjectDomainService.batchResolveEffectiveRoles(tenantId, userIds);
 
 // ❌ 禁止 — 自己查 UserRole 表
 userRoleMapper.selectListByQuery(...)
@@ -454,24 +458,24 @@ boolean ok = ConditionEvalUtils.evalItem(jsonNode, context, ...);
 
 ```java
 // ✅ 正确 — 普通导入 TableDef + 类名引用（本仓唯一可用形态）
-import cn.ac.fage.accessmesh.access.permission.entity.table.AbstractRoleTableDef;
+import cn.ac.fage.accessmesh.access.role.entity.table.AbstractRoleTableDef;
 
 QueryWrapper qw = QueryWrapper.create()
     .where(AbstractRoleTableDef.ABSTRACT_ROLE.ID.eq(roleId));
 
 // ❌ 禁止 — 静态导入
-import static cn.ac.fage.accessmesh.access.permission.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
+import static cn.ac.fage.accessmesh.access.role.entity.table.AbstractRoleTableDef.ABSTRACT_ROLE;
 // mvn clean 后编译失败
 
 // ❌ 勿引用 — 聚合 Tables 类本仓未生成（无 Tables.java），照抄必编译失败
-import cn.ac.fage.accessmesh.access.permission.entity.table.Tables;
+import cn.ac.fage.accessmesh.access.role.entity.table.Tables;
 ```
 
 ## 16. 常量类使用
 
 ### OperationCode（操作码）
 
-**MUST** 使用 `OperationCode`，禁止使用已删除的 `OperationType` 枚举。
+**MUST** 使用统一操作码常量面 `engine.constant.OperationCode`（T-ACCESS-034 两旧册合一），禁止使用已删除的 `OperationType` 枚举、`AdminOperationCode`、`OperationCodeConstants`。
 
 ```java
 // ✅ 正确
@@ -481,16 +485,18 @@ engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.va
 engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.USER, String.valueOf(userId), OperationCode.CREATE);
 
 // ❌ 禁止
-OperationType.MANAGE  // 类已删除
+OperationType.MANAGE          // 类已删除
+AdminOperationCode.XXX        // 册已删除（T-ACCESS-034 并入 OperationCode）
+OperationCodeConstants.XXX    // 册已删除（T-ACCESS-034 并入 OperationCode）
 ```
 
 ### ResourceTypeCode（资源类型）
 
-**MUST** 使用 `ResourceTypeCode` 常量，禁止字符串硬编码。
+**MUST** 使用 `ResourceTypeCode` 常量（`type.enums` 包，按资源类型分节），禁止字符串硬编码。
 
 ```java
 // ✅ 正确
-import cn.ac.fage.accessmesh.access.permission.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 
 engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE);
 
@@ -498,14 +504,25 @@ engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.va
 engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), "MANAGE");  // 拼写错误风险
 ```
 
+### AccessErrorCode（错误码）
+
+**MUST** 使用单册 `infrastructure.enums.AccessErrorCode`（T-ACCESS-038 合类不合号：两旧枚举合一，编号段零重排；能力无专属段——新增码按错误业务语义选 `1xxxx`/`2xxxx` 段），禁止使用已删除的 `AdminErrorCode` / `PermissionErrorCode`。
+
+### AccessCacheCatalog（缓存目录）
+
+**MUST** 使用单册 `infrastructure.cache.AccessCacheCatalog`（T-ACCESS-039 目录合一，9 条目），禁止使用已删除的 `AdminCacheCatalog` / `PermCacheCatalog`、禁止业务侧新建目录册。
+
 ## 17. 已删除的类（禁止引用）
 
 | 类                                                | 替代方案                                                     |
-| ------------------------------------------------- | ------------------------------------------------------------ |
+| -------------------------------------------------- | ------------------------------------------------------------ |
 | `EntityBatchLoadDomainService`                    | 使用对应 Mapper 批量查询方法                                 |
 | `EntityBatchLoadDomainServiceImpl`                | 使用对应 Mapper 批量查询方法                                 |
 | `ResourcePermissionValidator`                     | 使用 `PermQueryEngine`                                       |
-| `OperationType` 枚举                              | 使用 `OperationCode`                                |
+| `OperationType` 枚举                              | 使用 `OperationCode`                                         |
+| `AdminOperationCode` / `OperationCodeConstants`   | 统一操作码册 `engine.constant.OperationCode`（T-ACCESS-034） |
+| `AdminErrorCode` / `PermissionErrorCode`          | 单册 `infrastructure.enums.AccessErrorCode`（T-ACCESS-038）  |
+| `AdminCacheCatalog` / `PermCacheCatalog`          | 单册 `infrastructure.cache.AccessCacheCatalog`（T-ACCESS-039） |
 | `ResourcePermissionStrategy` 接口                 | ID 转换由 Engine 内部处理                                    |
 | `ServicePermissionStrategy`                       | 无需替代                                                     |
 | `DomainPermissionStrategy`                        | 无需替代                                                     |
@@ -513,6 +530,7 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 | `PermissionCheckUtils`                            | 使用 `PermQueryEngine` 或 `PermResultUtils`                  |
 | `AuthorizationService`                            | 已删除（Phase 3），授权校验已合并到各 AppService             |
 | `ConfigManageController` / `ConfigManageService`  | 已拆分为 TypeDefinitionController + TypeDefinitionAppService |
+| `ConfigController` / `ConfigAppService(Impl)` / `ConfigUpdateReq` / `ConfigResp` | 已随 admin `/config` 入口退役删除（T-ACCESS-037，system_config 单入口 `/api/perm/system-config`） |
 | `*ManageService` / `*ManageServiceImpl`（旧命名） | 已重命名为 `*AppService` / `*AppServiceImpl`                 |
 | `*ManageController`（旧命名）                     | 已重命名为 `*Controller`                                     |
 
@@ -533,7 +551,7 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 
 ## 19. AI 代码生成检查清单
 
-在 permission-center 模块生成或修改代码时，**必须**逐项检查：
+在权限面能力包/引擎生成或修改代码时，**必须**逐项检查：
 
 ### 编码前检查
 
@@ -554,7 +572,7 @@ engine.hasPermissionByCode(tenantId, subjectId, "ROLE", String.valueOf(roleId), 
 | 8 | 异常类型是否正确（BizException / SystemException / SecurityException）？ | §2 异常边界 |
 | 9 | 操作日志是否使用 `@OperationLog` AOP（入口级）或 `AuditDomainService`（内部动态）？ | §7 操作日志 |
 | 10 | 缓存失效是否绑定事务提交后执行（`evictAfterCommit`）？ | §5 事务边界 |
-| 11 | 同层横向调用是否合规（无循环依赖、不重复实现被复用逻辑、跨域 Mapper 直读边界不变）？ | §8 同层横向调用边界 |
+| 11 | 同层横向调用是否合规（无循环依赖、不重复实现被复用逻辑、能力包 Mapper 边界不新增直读）？ | §8 同层横向调用边界 |
 | 12 | 业务域过滤是否通过 `DomainClassifyService`（而非直查 `bizDomainId`）？ | §9 业务域分类 |
 
 ### 文档与提交检查

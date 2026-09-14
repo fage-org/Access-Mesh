@@ -6,14 +6,14 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-13   # T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
+last_reviewed: 2026-09-14   # T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
 ---
 
 # access-service API 契约总册
 
-> 本总册由 T-ACCESS-040（2026-09-13）将两份契约深合一而来：**管理域家族**（原《Admin Service 对前端 API 契约》，控制器裸路径 `/user`、`/org` 等，前端经网关 `/admin/api/**` 访问）与 **perm 家族**（原《Permission Center 外部 API 契约》，`/api/perm/**` 命名空间）同册分列，按能力分章（第 6~18 章 = auth/user/org/menu/role/grant/resource/type/domain/rule/audit/platform + engine 引擎子系统，第 19 章 sync 同步通道）。两 URL 风格并存登记为已知问题（docs/pending-problems.md Q-001）。章节锚点映射与合并源对照见文末「附录 C 合并源对照」。
+> 本总册由 T-ACCESS-040（2026-09-13）将两份契约深合一而来：**管理面家族（裸路径族）**（原《Admin Service 对前端 API 契约》，T-ACCESS-040 原称「管理域家族」，控制器裸路径 `/user`、`/org` 等，前端经网关 `/admin/api/**` 访问）与 **perm 家族**（原《Permission Center 外部 API 契约》，`/api/perm/**` 命名空间）同册分列，按能力分章（第 6~18 章 = auth/user/org/menu/role/grant/resource/type/domain/rule/audit/platform + engine 引擎子系统，第 19 章 sync 同步通道）。两 URL 风格并存登记为已知问题（docs/pending-problems.md Q-001）。章节锚点映射与合并源对照见文末「附录 C 合并源对照」。
 >
-> **归并定位（T-ACCESS-012，2026-08-22）**：原独立服务 `permission-center` 与 `admin-service` 已归并为 access-service——原 permission-center 即该服务的 permission 域（同进程同库，经 Gateway 以 `/api/perm/**` 对外），原 admin-service 即同服务的管理域（admin 域）；不再存在跨服务同步链路。文中「admin / admin 域」「permission-center / permission 域」按此映射阅读；access-service 内部包结构已随 T-ACCESS-033 重构为能力包（本文提及的旧包名按能力包口径理解，`access.application` 写编排已解散入 user/org/menu 能力）。
+> **归并定位（T-ACCESS-012，2026-08-22；T-ACCESS-041 更新，2026-09-14）**：原独立服务 `permission-center` 与 `admin-service` 已归并为 access-service，两服务的「permission 域 / admin 域」称谓又已随能力包融合（T-ACCESS-033）退役——文中「admin / admin 域」按**管理面**理解（管理能力包，裸路径族经 Gateway `/admin/api/**` 对外）、「permission-center / permission 域」按**权限面**理解（引擎子系统 + 权限事实能力包，`/api/perm/**`）；不再存在跨服务同步链路。access-service 内部包结构已随 T-ACCESS-033 重构为能力包（本文提及的旧包名按能力包口径理解，`access.application` 写编排已解散入 user/org/menu 能力）。
 >
 > **全局注记（2026-06-20 审计 S-001 + T-PERM-018 收尾）**：`permissionVersion` 字段已随 T-PERM-018（缓存下沉）从所有响应体移除——令牌「唯一真正作用是 INTERFACE_SNAPSHOT 缓存 key」已核实，permission-center 侧该 L2 缓存已删，令牌随之失效，连带 304/notModified 死代码一并清除。历史段落保留的字段描述仅作演进记录，以代码为准。
 >
@@ -21,7 +21,7 @@ last_reviewed: 2026-09-13   # T-ACCESS-034 操作码合一与 USER 轨细粒度�
 >
 > **关联文档（迁移自原 admin 册头部）**：`project-rules.md`（强约束：报文/接口/异常/错误码段）、`engine/` 三档与本文档（原 permission-center 设计内档，T-ACCESS-040 迁位）、`default-org-tree-user-lifecycle.md`（默认组织树身份目录边界）、`org-user-permission-contract.md` v1.2（页面门禁与岗位=特殊组织决策）、`schema/access-service.sql`（字段事实，唯一权威 DDL）、`../archive/2026-08-22/admin-service.md`（原 admin-service 服务设计，已 superseded）。
 >
-> **覆盖面说明（T-ACCESS-040 登记）**：本册承载原两册的全部成册契约。access-service 另有五组管理域端点族未在原两册成册（`/auth` 登录族、`/dict/*`、`/notice/*`、`/job/*`、`/login-log/page`），维持现状以代码与 `HttpApiPathSnapshotTest` 快照为准——登记见 §6.4 与 §17.3，不在本册补写（不新增契约内容）。第六组 `/config/*` 已随 T-ACCESS-037 退役（2026-09-13，僵尸端点删除，见 §17.3 注记）。另有四个零散端点未单独成册（`/user/detail`、`/user/user-menus`、`/org/detail`、`/role/my-info`——仅存在于门禁表或快照，T-ACCESS-040 评审登记）
+> **覆盖面说明（T-ACCESS-040 登记）**：本册承载原两册的全部成册契约。access-service 另有五组管理面端点族未在原两册成册（`/auth` 登录族、`/dict/*`、`/notice/*`、`/job/*`、`/login-log/page`），维持现状以代码与 `HttpApiPathSnapshotTest` 快照为准——登记见 §6.4 与 §17.3，不在本册补写（不新增契约内容）。第六组 `/config/*` 已随 T-ACCESS-037 退役（2026-09-13，僵尸端点删除，见 §17.3 注记）。另有四个零散端点未单独成册（`/user/detail`、`/user/user-menus`、`/org/detail`、`/role/my-info`——仅存在于门禁表或快照，T-ACCESS-040 评审登记）
 
 ## 1. 设计目标与接口分层
 ### 1.1 设计目标（perm 家族）
@@ -38,14 +38,14 @@ last_reviewed: 2026-09-13   # T-ACCESS-034 操作码合一与 USER 轨细粒度�
 
 | 分层                    | 路径前缀                     | 调用方                              | 特点                                 |
 | ----------------------- | ---------------------------- | ----------------------------------- | ------------------------------------ |
-| 管理配置 API            | `/api/perm/*`                | 管理端、access-service 管理域、接入系统后台 | 资源、角色、授权、条件、域配置、日志 |
+| 管理配置 API            | `/api/perm/*`                | 管理端、access-service 管理面、接入系统后台 | 资源、角色、授权、条件、域配置、日志 |
 | 运行时鉴权/权限查询 API | `/api/perm/auth/*`           | Gateway、业务服务 SDK               | 高 QPS、可缓存、强稳定               |
 | 服务接入 API            | `/api/perm/service-config/*` | 接入服务、SDK Starter、管理端       | 服务注册、接口同步、接口资源树       |
 
 > 不再定义 `/internal/perm/*` 主契约；本项目未上线，后续实现直接以 `/api/perm/*` 为准。
 
 
-> **管理域家族路径分层（并入说明）**：管理域家族控制器为裸资源根映射（`/user`、`/org`、`/user-org`、`/user-role`、`/role`、`/menu`、`/file`、`/auth/**`、`/oauth2/client` 等），前端经网关 `/admin/api/**`（StripPrefix）访问；本册各能力章内两家族端点分节列出。
+> **管理面家族路径分层（并入说明）**：管理面家族控制器为裸资源根映射（`/user`、`/org`、`/user-org`、`/user-role`、`/role`、`/menu`、`/file`、`/auth/**`、`/oauth2/client` 等），前端经网关 `/admin/api/**`（StripPrefix）访问；本册各能力章内两家族端点分节列出。
 
 ## 2. 通用协议
 ### 2.1 Header
@@ -129,27 +129,27 @@ last_reviewed: 2026-09-13   # T-ACCESS-034 操作码合一与 USER 轨细粒度�
 - 同一接口不同时接受 `id/code/externalId` 多套定位方式，避免歧义。
 - 所有请求体禁止出现 `tenantId`；服务端统一从 `X-Tenant-Id` 和安全上下文读取租户。
 - 对外 API 使用稳定字符串 `typeCode`；数据库实体继续保存 `type_value INT`，由服务端通过缓存解析，避免外部系统依赖内部数字枚举。
-- **实例授权业务编码语义（T-ACCESS-016 定稿）**：`resource_entity(USER).code = subjectId`（主体 ID 字符串化）、`resource_entity(ROLE).code = roleId`（`abstract_role.id` 字符串化）；业务对象门禁与跨服务 SDK 统一使用业务 `resourceCode`，不得使用 `resource_entity.id`——权限域内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp` 等契约不因此重构（原 `ResourcePermissionTreeResp` 已随 T-PERM-059 删除，2026-09-10）。引擎内部 Java API 契约见 engine/implementation.md §3.1（`hasPermissionByCode`/`getDeniedResourceCodes` 对外，`getDeniedEntityIds`/`hasPermissionByEntityId` 仅引擎内部或已完成解析的调用方）。
+- **实例授权业务编码语义（T-ACCESS-016 定稿）**：`resource_entity(USER).code = subjectId`（主体 ID 字符串化）、`resource_entity(ROLE).code = roleId`（`abstract_role.id` 字符串化）；业务对象门禁与跨服务 SDK 统一使用业务 `resourceCode`，不得使用 `resource_entity.id`——权限面内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp` 等契约不因此重构（原 `ResourcePermissionTreeResp` 已随 T-PERM-059 删除，2026-09-10）。引擎内部 Java API 契约见 engine/implementation.md §3.1（`hasPermissionByCode`/`getDeniedResourceCodes` 对外，`getDeniedEntityIds`/`hasPermissionByEntityId` 仅引擎内部或已完成解析的调用方）。
 - `type_value` 在同一 `tenant_id + type_key` 内全局唯一，不随 `domainCode/biz_domain_id` 重复；`type_code` 仍可按业务域和全局分别定义。
 - `domainCode` 用于**管理查询的域过滤与同步命名空间**：管理查询经 `DomainClassifyService.matchesTypeCode/getClassifiedTypeCodes` 按 **ALL / GLOBAL_PLUS / DOMAIN_ONLY** 三种模式过滤（`domain_config` 表 `CLASSIFY` 配置按 `resourceTypeCode` 关联）；批量上下文（逐条目循环/列表过滤）必须走 `preloadCoveredTypeCodes` 一次预载模式覆盖集、循环内 `Set.contains` 复用（T-PERM-055，与 `matchesTypeCode` 同语义的批量形态，三模式判定结果不变）；**查询管线不做按域的对象过滤，仅按域分类过滤资源类型**（`queryResources`/`queryScopes` 经 `DomainClassifyService(GLOBAL_PLUS)` 分类过滤，非按 domainCode 定位对象）；角色/资源实体不内嵌域列，`domainCode` 不参与角色/资源定位（仅域存在性校验，见 §11.2/§10.4）。**不存在"传域查域+全局，不传只查全局"的旧命名空间语义**——如有接口确需旧语义，须逐项列出并标注迁移（ P2-2 修正）。
 - Gateway 必须清洗外部伪造的 `X-Tenant-Id/X-User-Id/X-Service-Code`，再基于 Token 或可信服务身份重新注入；permission-center 不信任客户端原始 Header。
 
 ### 2.5 批量请求上限与 Req 单源（T-PERM-065）
 
-**批量上限 1000（SDK 公开契约，2026-09-12 登记）**：进入权限引擎批量入口的列表型字段一律 `@Size(max = 1000)`（超限 400，Bean Validation 层拒绝，不进引擎）。覆盖：`user-role/assign` 的 `items`、`user-role/revoke` 的 `items`、`resource-entity/batch-create` 的 `items`（**仅封规模**——嵌套项不级联校验，畸形项走服务端宽容收集逐条跳过、部分成功语义为有意设计，2026-09-12 用户拍板维持）、permission 域 `IdsReq.ids` 批量端点族（abstract-role/remove、abstract-user/remove、biz-domain/remove、conflict-rule/remove、domain-config/remove、resource-api-mapping/remove、resource-dependency/remove、service-config/remove、type-definition/remove）、`auth/batch-check` 的 `items`、`AuthCheckReq/BatchAuthCheckReq` 的 `parentOperationCodes`。SDK 消费方（perm-common）与服务端同限值（`BatchEntrySizeValidationTest` 行为锁 + `PermCommonReqContractTest` 注解签名快照双守卫）。admin 域批删端点（`/dict/type/delete` 等）不进引擎闭包，**不设此限**（2026-09-12 用户拍板不换绑）。
+**批量上限 1000（SDK 公开契约，2026-09-12 登记）**：进入权限引擎批量入口的列表型字段一律 `@Size(max = 1000)`（超限 400，Bean Validation 层拒绝，不进引擎）。覆盖：`user-role/assign` 的 `items`、`user-role/revoke` 的 `items`、`resource-entity/batch-create` 的 `items`（**仅封规模**——嵌套项不级联校验，畸形项走服务端宽容收集逐条跳过、部分成功语义为有意设计，2026-09-12 用户拍板维持）、perm 家族 `IdsReq.ids` 批量端点族（abstract-role/remove、abstract-user/remove、biz-domain/remove、conflict-rule/remove、domain-config/remove、resource-api-mapping/remove、resource-dependency/remove、service-config/remove、type-definition/remove）、`auth/batch-check` 的 `items`、`AuthCheckReq/BatchAuthCheckReq` 的 `parentOperationCodes`。SDK 消费方（perm-common）与服务端同限值（`BatchEntrySizeValidationTest` 行为锁 + `PermCommonReqContractTest` 注解签名快照双守卫）。管理面家族批删端点（`/dict/type/delete` 等）不进引擎闭包，**不设此限**（2026-09-12 用户拍板不换绑）。
 
-**Req 单源（DTO 双轨收敛）**：原 access-service `permission/dto/req` 与 perm-common `dto/req` 双轨维护的 17 对同名 Req 已收敛——服务端 Controller/AppService 与 SDK 消费方统一消费 perm-common 类型（`AuthCheckReq`、`BatchAuthCheckReq`、`CheckInterfaceReq`、`IdReq`、`IdsReq`、`OperationListReq`、`ResourceBatchCreateReq`、`ResourceCreateReq`、`ResourceKeyReq`、`ResourceKeysReq`、`ResourceUpdateReq`、`RoleCreateReq`、`RoleDetailReq`、`RoleListReq`、`UserAssignRoleReq`、`UserRoleBatchRevokeReq`、`UserRoleListReq`），access-service 侧副本删除。SDK 侧 T-PERM-028 同批漏改三处同步修复为服务端业务键定稿形态：`ResourceUpdateReq`（update，原 id 定位）、`PermissionFeignClient.getRole`（原 `IdReq`→`RoleDetailReq`）、`deleteResources`（原 `IdsReq`→`ResourceKeysReq`）——原形态发至服务端均必 400；`UserAssignRoleReq.items`/`UserRoleBatchRevokeReq.items`/`IdsReq.ids`/`ResourceBatchCreateReq.items` 补齐 `@Size(max=1000)`（原 SDK 契约缺失，外部服务按 SDK 构造超限请求会被服务端拒——现在 SDK 侧同限值，构造期即感知）。`UserAssignRoleReq`/`UserRoleBatchRevokeReq`/`ResourceBatchCreateReq` 的 `items` 另带元素级 `@NotNull`（null 元素 400，不级联嵌套字段——不触碰 batch-create 宽容收集拍板语义）。admin 域同名 `IdsReq`/`UserRoleListReq`（后者与 perm-common 同名异义：`userId` 内部 ID 查询）保持独立，不参与单源。check 族响应 DTO 仍双副本（`CheckFamilyWireShapeTest` 同形守卫），Resp 面收敛未盘点、另定。
+**Req 单源（DTO 双轨收敛）**：原 access-service `permission/dto/req` 与 perm-common `dto/req` 双轨维护的 17 对同名 Req 已收敛——服务端 Controller/AppService 与 SDK 消费方统一消费 perm-common 类型（`AuthCheckReq`、`BatchAuthCheckReq`、`CheckInterfaceReq`、`IdReq`、`IdsReq`、`OperationListReq`、`ResourceBatchCreateReq`、`ResourceCreateReq`、`ResourceKeyReq`、`ResourceKeysReq`、`ResourceUpdateReq`、`RoleCreateReq`、`RoleDetailReq`、`RoleListReq`、`UserAssignRoleReq`、`UserRoleBatchRevokeReq`、`UserRoleListReq`），access-service 侧副本删除。SDK 侧 T-PERM-028 同批漏改三处同步修复为服务端业务键定稿形态：`ResourceUpdateReq`（update，原 id 定位）、`PermissionFeignClient.getRole`（原 `IdReq`→`RoleDetailReq`）、`deleteResources`（原 `IdsReq`→`ResourceKeysReq`）——原形态发至服务端均必 400；`UserAssignRoleReq.items`/`UserRoleBatchRevokeReq.items`/`IdsReq.ids`/`ResourceBatchCreateReq.items` 补齐 `@Size(max=1000)`（原 SDK 契约缺失，外部服务按 SDK 构造超限请求会被服务端拒——现在 SDK 侧同限值，构造期即感知）。`UserAssignRoleReq`/`UserRoleBatchRevokeReq`/`ResourceBatchCreateReq` 的 `items` 另带元素级 `@NotNull`（null 元素 400，不级联嵌套字段——不触碰 batch-create 宽容收集拍板语义）。管理面家族同名 `IdsReq`/`UserRoleListReq`（后者与 perm-common 同名异义：`userId` 内部 ID 查询）保持独立，不参与单源。check 族响应 DTO 仍双副本（`CheckFamilyWireShapeTest` 同形守卫），Resp 面收敛未盘点、另定。
 
-### 2.6 管理域家族通用约束
+### 2.6 管理面家族通用约束
 
 引用 `project-rules.md`:
 
 - **§1.1 统一响应壳**: 所有接口返回 `R<T> { code, message, data, requestId, traceId }`. `code=200` 为成功, 失败时 `data=null`. `requestId/traceId` 由 `RResponseAdvice` 在序列化前回填（`X-Request-Id` 由网关生成/透传；`traceId` 与 `requestId` 同值——单 ID 收敛，T-PERM-021 F1.d 删除原 `X-Trace-Id` 头偏好路径）, 业务侧不写入.
-- **§2.3 分页**: 入参 `{ pageNum, pageSize, sort? }`, `pageNum>=1`, `1<=pageSize<=100`, `sort` 形如 `"createdAt,desc"`. 出参分页对象统一为 `PageResp<T> { items: T[], total, pageNum, pageSize, hasNext }`（承载类 perm-common `perm.common.dto.resp.PageResp`，admin/permission 域与 SDK 单一来源）. 非分页列表也必须用 `{ items: [...] }` 包装, 禁止顶层数组.
+- **§2.3 分页**: 入参 `{ pageNum, pageSize, sort? }`, `pageNum>=1`, `1<=pageSize<=100`, `sort` 形如 `"createdAt,desc"`. 出参分页对象统一为 `PageResp<T> { items: T[], total, pageNum, pageSize, hasNext }`（承载类 perm-common `perm.common.dto.resp.PageResp`，两家族与 SDK 单一来源）. 非分页列表也必须用 `{ items: [...] }` 包装, 禁止顶层数组.
 - **§2.1 HTTP 方法**: 所有接口 `POST + application/json + @RequestBody DTO`. 禁止 `@GetMapping/@PutMapping/@DeleteMapping/@PatchMapping`, 禁止 `@RequestParam` (除文件上传/下载), 禁止路径参数. 业务 ID 必须放 JSON Body.
-- **§2.2 路径**: access-service admin 域挂载在网关路由 `/admin/api/**` 下, 实际控制器映射为 `/user`, `/org`, `/user-org`, `/user-role`, `/role` 等资源根. 本契约文档中所有路径均为服务内部映射 (前端经网关访问).
+- **§2.2 路径**: access-service 管理面家族挂载在网关路由 `/admin/api/**` 下, 实际控制器映射为 `/user`, `/org`, `/user-org`, `/user-role`, `/role` 等资源根. 本契约文档中所有路径均为服务内部映射 (前端经网关访问).
 - **请求体禁止 `tenantId`**: 服务端统一从 `X-Tenant-Id` Header 与 SecurityContext 读取. 前端经网关后无需感知.
-- **§1.2 业务错误码**: access-service 管理域（admin 域）业务错误使用 `10001-19999` 段; 系统公共错误 (参数校验/系统异常) 使用 `90001-99999` 段, 由 `common` 模块统一定义.
+- **§1.2 业务错误码**: access-service 管理面（裸路径族）业务错误使用 `10001-19999` 段; 系统公共错误 (参数校验/系统异常) 使用 `90001-99999` 段, 由 `common` 模块统一定义.
 - **§3.2 异常**: 业务拒绝 (资源不存在/状态冲突/默认树边界违规等) 抛 `BizException`; 安全拒绝 (操作者身份缺失/权限不足/越权) 抛 `SecurityException`; 技术故障 (DB/RPC/序列化) 抛 `SystemException`. **禁止**用 `SecurityException` 表达"资源不存在"或"参数非法".
 
 ## 3. 动词规范
@@ -177,7 +177,7 @@ last_reviewed: 2026-09-13   # T-ACCESS-034 操作码合一与 USER 轨细粒度�
 - **适用范围**：`domain-config/remove`、`service-config/remove`、`resource-api-mapping/remove` 以及其它已声明支持批量的 `remove` 接口。
 - **与业务键的关系**：`ids` 中的主键**不**用于「首次定位外部主体/角色」；主体与角色在其它接口中仍使用 `subjectTypeCode + subjectExternalId`、`domainCode + roleTypeCode + roleExternalId` 等稳定键。调用方应先通过列表或详情拿到待删行的 `id`，再调用 `remove`。
 
-## 4. 管理域门禁规范
+## 4. 管理面门禁规范
 
 admin 门禁通过 `AdminPermissionValidator` 本地调用 `PermQueryEngine` 完成，不再 Feign 自调用。接口形态:
 
@@ -227,7 +227,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 > **默认树身份目录边界二次校验**: `/user/create`、`/user/delete`、`/user/enable`、`/user/reset-password`、`/user-org/set-primary` 在通过 `AdminPermissionValidator` 后, AppService 内部还要二次确认目标用户的默认树关系存在 (通过 `sys_user_org` 推导), 且操作者在默认树该子树下具备可见性. 不满足时抛 `BizException(ErrorCode.NOT_IN_DEFAULT_TREE_SCOPE)`. 这一层不能用 `SecurityException` 表达.
 
-## 5. 管理域写入口的本地投影
+## 5. 管理面写入口的本地投影
 
 > **目标架构（T-ACCESS-005，2026-08-15，迁移自原 admin 册头部）**：管理域各写接口的投影动作已改为同事务本地权限投影。HTTP 路径、DTO 与错误码继续有效。access 内部不再写 `sys_sync_task`、不再 Feign 自调用。
 
@@ -262,7 +262,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `/user-org/remove` | DELETE `sys_user_org` | `unbindUserOrg` |
 | `/user-org/set-primary` | UPDATE `sys_user_org.is_primary` | 无（`is_primary` 不映射 `user_role` 拓扑） |
 
-> 功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）的分配/回收走 `/api/perm/user-role/*`（permission 域），admin 侧 `/user-role/*` 仅保留 `/user-role/list` 读聚合。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
+> 功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）的分配/回收走 `/api/perm/user-role/*`（perm 家族），管理面 `/user-role/*` 仅保留 `/user-role/list` 读聚合。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
 
 ## 6. auth 能力（登录会话与 OAuth2）
 
@@ -978,8 +978,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `MENU_PERM_CODE_EXISTS(10202)` 已退役（perm_code 列移除），由 `MENU_PATH_EXISTS(10205)` / `MENU_RESOURCE_EXISTS(10206)` 承接
 
 ## 10. role 能力（角色管理）
-### 10.1 管理域用户-角色读聚合（/user-role/list）
-> **核心决策（T-ACCESS-006 修订，T-ADMIN-024 删除收口）**: 合并后角色管理由 permission 域直接提供（`/api/perm/user-role/*`），admin 侧不再维护角色代理。`/user-role/list` 保留为读接口（经 `role.service` 的 `UserRoleQueryAppService`（T-ACCESS-033 迁移改名） 聚合，POSITION 补所属组织名）；原 `/user-role/assign`、`/user-role/revoke` 写代理已删除（无存量调用方，不留兼容层，无映射 404），角色分配/回收走 `/api/perm/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由 permission 域 enforce）。注：已删端点在 access-service 无任何 Handler 映射（注册表证据见 HttpApiPathSnapshotTest 负向断言与 RetiredRoleApiContractTest）；运行时观察值按入口区分——匿名直连 admin 路径族先被 RequestContextInterceptor 拒为 401（不泄露路径存在性），通过拦截后无映射即 404，经 Gateway 的未注册路径先被接口快照按 `unregistered-policy=DENY` 拦为 403（fail-closed）。
+### 10.1 管理面用户-角色读聚合（/user-role/list）
+> **核心决策（T-ACCESS-006 修订，T-ADMIN-024 删除收口）**: 合并后角色管理由权限面直接提供（`/api/perm/user-role/*`），管理面不再维护角色代理。`/user-role/list` 保留为读接口（经 `role.service` 的 `UserRoleQueryAppService`（T-ACCESS-033 迁移改名） 聚合，POSITION 补所属组织名）；原 `/user-role/assign`、`/user-role/revoke` 写代理已删除（无存量调用方，不留兼容层，无映射 404），角色分配/回收走 `/api/perm/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由权限面 enforce）。注：已删端点在 access-service 无任何 Handler 映射（注册表证据见 HttpApiPathSnapshotTest 负向断言与 RetiredRoleApiContractTest）；运行时观察值按入口区分——匿名直连管理面路径族先被 RequestContextInterceptor 拒为 401（不泄露路径存在性），通过拦截后无映射即 404，经 Gateway 的未注册路径先被接口快照按 `unregistered-policy=DENY` 拦为 403（fail-closed）。
 > 接口使用业务键 `(roleTypeCode, roleExternalId)` 标识角色。仅服务功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL); 排除 ORG/POSITION (后者走 /user-org/*)。
 
 #### 10.1.1 `POST /user-role/list` 🔧
@@ -1087,7 +1087,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 **角色管理契约要点**（T-PERM-022 收口，2026-08-28）：
 
 - `detail`：业务键二元组定位 `{roleTypeCode, roleExternalId}`（tenantId 走上下文，不含 domainCode；原 `IdReq{id}` 内部主键废弃）。依据唯一索引 `uk_abstract_role_external (tenant_id, role_type, external_id)`（`external_id` 非空部分索引——`externalId` 为空的角色不可经本接口定位，管理端新建表单已强制必填）；未命中返回 `data=null`（未知 roleTypeCode 与 list 空分页同口径，不抛错）。
-- `move`：目标父须与移动角色**同角色类型**（同类型内嵌套合法，跨类型嵌套拒绝 **20022** `ROLE_TYPE_MISMATCH`）；目标父为移动角色**自身或其子孙**拒绝 **20050** `ROLE_PARENT_INVALID`（新增错误码，perm 段顺延——parent 链成环后祖先/子孙递归 CTE 不收敛、环节点从树构建中静默消失；对齐 admin 域 `ORG_PARENT_CYCLE`/`MENU_PARENT_INVALID` 先例）。`parentId=null`（移到顶层）不受两者限制。存量 GROUP_ROLE 组树为冻结读模型，跨类型装配自本任务起无 API 通道。并发语义（T-PERM-044 收口）：校验前先取 (abstract_role, 租户) 树级分布式锁（Redisson，事务提交/回滚后经 afterCompletion 释放），同树 parent 写路径（含 sync/full-sync）串行化，交叉移动的后进锁者校验时可见先提交的 parent——环无法落库；环脏数据下递归 CTE/祖先链遍历亦有防环止损（architecture §17）。
+- `move`：目标父须与移动角色**同角色类型**（同类型内嵌套合法，跨类型嵌套拒绝 **20022** `ROLE_TYPE_MISMATCH`）；目标父为移动角色**自身或其子孙**拒绝 **20050** `ROLE_PARENT_INVALID`（新增错误码，perm 段顺延——parent 链成环后祖先/子孙递归 CTE 不收敛、环节点从树构建中静默消失；对齐管理面 `ORG_PARENT_CYCLE`/`MENU_PARENT_INVALID` 先例）。`parentId=null`（移到顶层）不受两者限制。存量 GROUP_ROLE 组树为冻结读模型，跨类型装配自本任务起无 API 通道。并发语义（T-PERM-044 收口）：校验前先取 (abstract_role, 租户) 树级分布式锁（Redisson，事务提交/回滚后经 afterCompletion 释放），同树 parent 写路径（含 sync/full-sync）串行化，交叉移动的后进锁者校验时可见先提交的 parent——环无法落库；环脏数据下递归 CTE/祖先链遍历亦有防环止损（architecture §17）。
 - `list`/`detail` 读门禁：类型级 `ROLE:VIEW`（评审收口补齐，与 `tree` 同款——`list` 信息量不低于 `tree`，不设门禁会使 tree 门禁事实可绕；无权抛 SecurityException）。
 - `update` 补 `extraClear` 显式清空标志（T-FE-016 联调收口，对齐 §12 resource-entity 同款口径）：boolean 可选，`true`=清空 `extra` 为 null、优先于 `extra`（JSON null 无法区分「未传」与「清空」）；其余字段 null=不更新维持。前端编辑表单按「原 extra 非空且表单清空」判定传 `true`（resource-operation 同构公式）。
 - `sync`/`full-sync` 的 parent 同款环路判定（评审收口补齐）：parent 为目标角色自身或其子孙时拒绝（单条 nonRetryable、批量该项 failed + `ROLE_PARENT_INVALID`）；只读版本预判先行——旧版本无条件按 STALE 钝化（§19.5 成功 no-op，含携带非法父边的旧事件），新版本才进入父解析/判环，判环拒绝不推进版本（上游修正后同版本重试不被判 STALE；预判与写入间的并发交错由 applyVersion 原子判定兜底）。full-sync 为**写入前逐项判定**：当前生效图 = 库内既有关系 + 本事务已应用项的边，内存图严格镜像写入语义（未携带父字段的更新不清图内旧边）——STALE 项不落边、天然保持旧边（含同批次多边共同成环、批内/库内混合、STALE+APPLIED 混合的组合均覆盖），仅拒绝真正闭合环的项、指向环的前缀安全项放行。同批重复 `businessKey` 的后续项写入前拒绝（`DUPLICATE_BUSINESS_KEY`，对齐 user-role/full-sync 先例）。item 省略 `parentRoleTypeCode` 时缺省 = `scope.roleTypeCode`（§19.7 既有规则，父解析/判环/写入均按缺省类型）。
@@ -1170,7 +1170,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | `POST /api/perm/role-resource-permission/list`         | 查询角色权限配置（§11.2）                                       |
 | `POST /api/perm/role-resource-permission/apply-grant-plan` | **授权页面唯一写入口**（§11.4）：记录级 creates/updates/removes + 单事务原子 + 受影响行数断言（无 CAS/无幂等表，收窄） |
 | `POST /api/perm/role-resource-permission/sub-perm-allowed-types` | **授权页只读契约（v3.1，已随 T-PERM-034 落地 2026-08-30）**：按父资源类型返回 SUB_PERM 允许的子资源类型（§11.5） |
-| `POST /api/perm/role-resource-permission/save` ~~已删除~~ | 旧批量授予（已随 T-PERM-034 删除，2026-08-27 端点退役收口，无映射 404；管理域存量调用经核实为零） |
+| `POST /api/perm/role-resource-permission/save` ~~已删除~~ | 旧批量授予（已随 T-PERM-034 删除，2026-08-27 端点退役收口，无映射 404；管理面存量调用经核实为零） |
 | `POST /api/perm/role-resource-permission/revoke` ~~已删除~~ | 旧批量撤销（同上删除；删除语义由 apply-grant-plan.removes 覆盖） |
 | `POST /api/perm/role-resource-permission/children` ~~已删除~~ | 旧子权限查询（同上删除；查询由 list includeChildren 覆盖） |
 | `POST /api/perm/role-resource-permission/add-child` ~~已删除~~ | 旧子权限新增（同上删除；新增由 creates + parentPermissionId 覆盖） |
@@ -1199,7 +1199,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 ```
 
 - `domainCode` 可选：非空时仅校验域存在性（域不存在 → 解析失败返回空列表）；**不按域过滤**——`abstract_role` 无域列（`biz_domain_id` 已移除），角色按 `roleTypeCode + roleExternalId` 唯一解析（`uk_abstract_role_external`）。授权页可恒传 null。（修正 2026-08-01  review P1-1：原"为空时只定位全局角色"为旧模型残留文字）
-- **`resourceTypeCode`（可选；已落地 T-PERM-040，单类型矩阵上下文定稿）**：按资源类型过滤主权限（`depend_on IS NULL` 且 `resource_type` 匹配当前类型）——过滤下沉专用 Mapper 查询（`selectValidMainByRoleIdAndResourceType`，避免 N+1），子权限按 `depend_on` 批量挂父取回（`selectValidByRoleIdAndDependIds`，双重约束在 SQL 层满足）。**授权矩阵调用时必填**（矩阵一次只呈现一个类型，见 frontend/permission-grant.md §2.2）；null/缺省/空白串 = 不过滤（空白串视同缺省；兼容既有调用方，如管理域菜单授权按角色取全量）；**指定但类型不存在 = 空列表**（fail-closed 不回退全量，2026-08-31 定案）。
+- **`resourceTypeCode`（可选；已落地 T-PERM-040，单类型矩阵上下文定稿）**：按资源类型过滤主权限（`depend_on IS NULL` 且 `resource_type` 匹配当前类型）——过滤下沉专用 Mapper 查询（`selectValidMainByRoleIdAndResourceType`，避免 N+1），子权限按 `depend_on` 批量挂父取回（`selectValidByRoleIdAndDependIds`，双重约束在 SQL 层满足）。**授权矩阵调用时必填**（矩阵一次只呈现一个类型，见 frontend/permission-grant.md §2.2）；null/缺省/空白串 = 不过滤（空白串视同缺省；兼容既有调用方，如管理面菜单授权按角色取全量）；**指定但类型不存在 = 空列表**（fail-closed 不回退全量，2026-08-31 定案）。
 - `includeChildren`（可选，默认 `true` 兼容现行为）：
   - `false`：只返回该类型主权限（`depend_on IS NULL` + 上述类型过滤），子权限不进列表（辅助查询用）；
   - `true`：返回**该类型主权限及其全部子权限**——子权限按 `depend_on` 挂在其父主权限下返回，**子权限自身可能属于其他资源类型，不能按子记录自身 `resource_type` 过滤**（如父为 `ORG` 权限、子为 `BUTTON`/`DATA` 权限是合法配置）；**子权限集合双重约束：`depend_on` ∈ 主权限集合 且 `abstract_role_id` = 目标角色**（跨类型返回不引入其他角色或其他主权限下的记录）；`resourceTypeCode=null` 时按现状返回全量主权限 + 全部子权限。
@@ -1886,7 +1886,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 17.3 未成册端点族登记（dict / notice / job / login-log）
 
-> `/dict/*`（字典）、`/notice/*`（公告）、`/job/*`（任务调度）、`/login-log/page`（登录日志）四组管理域端点族未在原两册成册，契约以代码与 `HttpApiPathSnapshotTest` 快照为准（T-ACCESS-040 登记，不在本任务新增契约内容）。
+> `/dict/*`（字典）、`/notice/*`（公告）、`/job/*`（任务调度）、`/login-log/page`（登录日志）四组管理面端点族未在原两册成册，契约以代码与 `HttpApiPathSnapshotTest` 快照为准（T-ACCESS-040 登记，不在本任务新增契约内容）。
 >
 > **`/config/*` 退役（T-ACCESS-037，2026-09-13）**：原 admin `/config`（page/detail/update/delete，ConfigController + ConfigAppService + ConfigUpdateReq/ConfigResp + SystemConfigMapper 五个 admin 侧方法与 XML 语句 + 错误码 10701/10702）整链删除——消费面核实（2026-09-13）前端/e2e/gateway/example-service 主代码零引用，僵尸端点。system_config 管理**单入口**收敛到 §17.2 `/api/perm/system-config`（前端唯一消费方）。负向锁 = `HttpApiPathSnapshotTest` 快照（`/config/*` 四路径出快照，控制器扫描双向比对）+ `RETIRED_PATHS` 登记四条（`retiredPaths_haveNoControllerMappings` 断言零映射，capability-structure §8.4 指令兑现）；错误码 10701/10702 入 `ErrorCodeContractTest` RETIRED_ADMIN_NAMES（码值不复用）。SYSTEM_CONFIG 操作码不删（VIEW/MANAGE 为 perm 入口门禁与 bootstrap 固定图在用；UPDATE/DELETE 为 DDL CRUD 预置种子 CROSS JOIN 产物，随端点消亡转为未消费预置位，034 的 USER:MANAGE 类清理不涉此类预置码）。
 
@@ -2051,7 +2051,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 `POST /api/perm/auth/query-resources`
 
-用于业务服务查询某个主体在指定资源类型和操作下的有效权限集合。典型场景包括管理域查询用户能管理哪些组织、哪些角色、哪些菜单。前提是这些业务对象已经作为 `resource_entity` 同步或创建到权限中心。
+用于业务服务查询某个主体在指定资源类型和操作下的有效权限集合。典型场景包括管理面查询用户能管理哪些组织、哪些角色、哪些菜单。前提是这些业务对象已经作为 `resource_entity` 同步或创建到权限中心。
 
 请求：
 
@@ -2105,7 +2105,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 > **DTO 公共化与内部 id 裁剪（T-API-002 收口，2026-09-06）**：`QueryResourcesReq/Resp` 已迁入 perm-common（SDK `PermissionFeignClient.queryResources` 直连）；条目的 `matchedRoleIds` / `matchedPermissionIds`（role / role_resource_permission 内部行 id）已裁剪（engine/core-flows.md §15 口径），线格式字段快照由 SDK 契约测试钉死。
 > **子权限行不进清单面（T-PERM-058，2026-09-10 落地）**：depend_on 子权限行不出现在 `items[]`——其授权只在 §18.6 query-scopes 主资源上下文内生效/可见，独立 INSTANCE 条目呈现会误导调用方（子行实例 ≠ 独立可访问）。Gateway 接口快照（§18.4）同口径：API 类型子权限行不下发（接口鉴权无主资源上下文概念）。
 
-管理域查询示例：
+管理面查询示例：
 
 | 查询目标   | 建模方式                                                                           | 查询参数                                                                  |
 | ---------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
@@ -2116,10 +2116,10 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 规则：
 
-- 查询接口只返回权限事实和资源业务键，不查询 admin 域的组织、角色、菜单业务表。
+- 查询接口只返回权限事实和资源业务键，不查询管理面的组织、角色、菜单业务表。
 - 调用方拿到 `resourceCode` 后，由业务服务映射成本服务内的组织树、角色列表或菜单树。
-- AccessMesh 管理端中，`USER`/`ORG` 的 `resourceCode` 固定使用 admin 域本地主键字符串（T-ACCESS-018 收敛后类型码），避免与组织编码、用户名等可变业务字段混用。
-- AccessMesh 管理端中，USER/ORG 的 resourceCode 固定使用 admin 域本地主键字符串。所有接口均支持业务键参数，permission-center 内部通过 TypeResolutionService 解析为内部 ID。调用方不应存储 permission-center 的内部主键 ID。
+- AccessMesh 管理端中，`USER`/`ORG` 的 `resourceCode` 固定使用管理面本地主键字符串（T-ACCESS-018 收敛后类型码），避免与组织编码、用户名等可变业务字段混用。
+- AccessMesh 管理端中，USER/ORG 的 resourceCode 固定使用管理面本地主键字符串。所有接口均支持业务键参数，权限面内部通过 TypeResolutionService 解析为内部 ID。调用方不应存储权限面的内部主键 ID。
 - `scopeMode=ALL` 的条目表示该 `resourceTypeCode` 下全量资源权限，此时 `resourceCode`、`resourceName`、`codeType` 均为 null；不展开全量范围为逐条资源实例。实例级条目（`scopeMode=INSTANCE`）按 `resourceCode + codeType` 精确表示。
 - 多个角色命中同一资源时，按 `resourceTypeCode + resourceCode + codeType + scopeMode` 去重，并合并 `operations`、`grantSources`。
 - 条件、冲突规则、停用状态、角色继承、资源继承必须与 `auth/check` 使用同一套计算逻辑。
@@ -2708,7 +2708,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **上线准备（fail-closed 发布顺序）**：先为各同步服务通过 `service-config/save` 补齐 `syncTypes` 声明（并确认 `status=1`），再部署严格校验代码；未声明类型的存量服务在严格校验上线后同步全部拒绝，属预期行为。
 
 ## 20. 错误码与错误原因
-### 20.1 管理域家族错误码段（10001-10599 / 90001-99999）
+### 20.1 管理面家族错误码段（10001-10599 / 90001-99999）
 | 子段 | 含义 |
 |------|------|
 | 10001-10099 | 用户查询 (page/detail/member-candidates 业务错误) |
@@ -2748,10 +2748,10 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - 当同一路径映射存在于多个租户时，接口级鉴权应只在 `X-Tenant-Id` 对应租户内匹配。
 - 当 SDK 调用权限中心时，Feign 返回类型应与服务端 Controller 响应 DTO 完全一致。
 - 当调用任意接口时，请求体不得包含 `tenantId`；租户统一从 `X-Tenant-Id` 读取。
-- 当管理域查询用户能管理哪些组织、角色、菜单时，应通过 `POST /api/perm/auth/query-resources` 返回资源业务键集合。
+- 当管理面查询用户能管理哪些组织、角色、菜单时，应通过 `POST /api/perm/auth/query-resources` 返回资源业务键集合。
 - 当 example-service 查询报表范围权限时，应通过 `POST /api/perm/auth/query-scopes` 返回同一主资源下的直接范围权限和子权限并集。
 
-### 21.2 管理域家族验收标准
+### 21.2 管理面家族验收标准
 后端实现本契约接口（原历史计数「19 个」不维护, 现状以 `HttpApiPathSnapshotTest` 快照为准; Phase 2 已于 2026-08-31 完成）后, 必须满足:
 
 1. **字段对齐**: 前端 `frontend/src/api/user-manage.ts` 中所有类型与本契约 record 字段名/类型一一对齐, 不允许不一致.
@@ -2782,12 +2782,12 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 15. **变更摘要枚举**：`diff_snapshot.eventType` 与 `items[].changeType` 使用固定枚举（原 `recent-changes.impactLevel` 枚举随端点删除，2026-09-10 T-PERM-059），不使用开放字符串。
 16. **子权限类型只读契约（v3.1，D5，2026-08-08 收口修订）**：授权页面子权限配置器通过 `POST /api/perm/role-resource-permission/sub-perm-allowed-types`（§11.5）按父资源类型获取 SUB_PERM 允许的子资源类型并过滤选择器；请求携带目标角色业务键（domainCode/roleTypeCode/roleExternalId），门禁使用与 §11.2 list **相同的 ROLE:VIEW 权限资源与操作码，但失败响应不同**（list 失败返回空列表，本接口角色定位失败 20001、无 VIEW 抛 SecurityException 走统一访问拒绝）；`mode` 判定（ALLOW_ALL / ALLOW_LIST / ALLOW_NONE + reason 细分）与写校验 `assertSubPermissionAllowed` 完全同口径——覆盖顶层与嵌套 `"*"` 通配、多匹配项并集去重、大小写不敏感，**读写复用同一策略解析函数**；前端不硬编码允许集；本契约不改变任何写语义，不新增错误码（复用 20007/20001）。
 17. **子权限属性系统不变量（2026-08-08 复审产品确认）**：子权限不承载条件与再授予是**系统不变量而非 UI 限制**——两种子权限 create 形态（`creates[].children[]` 与 `parentPermissionId` 挂父）的 `conditionCode` 必须为 null、`canGrant` 必须为 false（违反 -> **20043**）；`updates[]` 目标为子权限一律拒绝（20043，仅可删除）；历史异常记录只兼容读取与删除，不允许继续属性编辑；20042 不再描述 child create（子权限带条件 -> 20043 而非 20042）。
-18. **引擎显式资源 API 与实例门禁业务编码（T-ACCESS-016 定稿，2026-08-23）**：引擎便捷 API 拆分为 `hasPermissionByCode(...)`/`getDeniedResourceCodes(...)`（对外，业务编码语义）与 `getDeniedEntityIds(...)`/`hasPermissionByEntityId(...)`（仅引擎内部或已完成解析的调用方）；泛型 `<ID>`、`Object resourceId`、`toLongId()` 运行时猜测全部删除，抛异常便捷方法从引擎移除（引擎纯查询不抛 `SecurityException`，异常由调用方显式抛出：admin 域经 `AdminPermissionValidator` 门面、permission 域 AppService if-throw）。`resource_entity(USER).code = subjectId`、`resource_entity(ROLE).code = roleId` 业务编码定稿（§2.4）；资源类型收敛映射、`type_value` 终值与扩展操作 bit 终值以 access-service-architecture §13 资源类型注册表为准（实施 T-PERM-042/T-ACCESS-018）。
+18. **引擎显式资源 API 与实例门禁业务编码（T-ACCESS-016 定稿，2026-08-23）**：引擎便捷 API 拆分为 `hasPermissionByCode(...)`/`getDeniedResourceCodes(...)`（对外，业务编码语义）与 `getDeniedEntityIds(...)`/`hasPermissionByEntityId(...)`（仅引擎内部或已完成解析的调用方）；泛型 `<ID>`、`Object resourceId`、`toLongId()` 运行时猜测全部删除，抛异常便捷方法从引擎移除（引擎纯查询不抛 `SecurityException`，异常由调用方显式抛出：管理面能力 AppService 经 `AdminPermissionValidator` 门面、权限面 AppService if-throw）。`resource_entity(USER).code = subjectId`、`resource_entity(ROLE).code = roleId` 业务编码定稿（§2.4）；资源类型收敛映射、`type_value` 终值与扩展操作 bit 终值以 access-service-architecture §13 资源类型注册表为准（实施 T-PERM-042/T-ACCESS-018）。
 
-### 22.2 管理域家族已确认决策
+### 22.2 管理面家族已确认决策
 | # | 决策 | 理由 |
 |---|------|------|
-| 1 | `/user-role/list` 读接口保留 admin 域聚合（跨域只读）；`/user-role/assign`/`revoke` 已删除（T-ADMIN-024，无映射 404），角色管理由 permission 域 `/api/perm/abstract-role`、`/api/perm/user-role/*` 直接提供 | 原代理方案避免业务键暴露（api-gap-analysis §4 A 方案，已归档）；T-ACCESS-006 起单服务内不再需要写代理，读聚合保留供前端组合查询 |
+| 1 | `/user-role/list` 读接口保留管理面聚合（跨面只读）；`/user-role/assign`/`revoke` 已删除（T-ADMIN-024，无映射 404），角色管理由权限面 `/api/perm/abstract-role`、`/api/perm/user-role/*` 直接提供 | 原代理方案避免业务键暴露（api-gap-analysis §4 A 方案，已归档）；T-ACCESS-006 起单服务内不再需要写代理，读聚合保留供前端组合查询 |
 | 2 | `/user/create` 一次性返回 `initialPassword` (明文) | 仅本次返回, 由前端弹窗展示给操作者; 后续无法再获取 |
 | 3 | `/user/enable` 启停一体 (`status=0/1`), 不拆 `/user/disable` | 前端 mock 已采用此形态; AppService 内部按 status 派发 ENABLE/DISABLE 门禁码 |
 | 4 | `/user-org/assign` 关系级追加, 禁止 wipe 模式 | 防止跨树意外清除 (default-org-tree §3.2); 已存在关系幂等忽略 |
@@ -2796,7 +2796,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 | 7 | 候选用户来自默认树可见范围, 新增 `/user/member-candidates` 接口与 `/user/page` 解耦 | api-gap-analysis §2（已归档）; 默认树 = 用户目录/身份池, 不暴露全租户用户 |
 | 8 | 写操作必须在同一事务内维护管理事实、本地权限投影和 permission_change_log | access-service-architecture §4；任一步失败整体回滚；缓存失效仅提交后发生 |
 | 9 | 功能角色分配/回收由 `/api/perm/user-role/assign|revoke` 提供，仅处理功能角色 | ORG/POSITION 由组织与成员关系投影产生；外部 sync 的 SYS_USER_ORG 来源一律拒绝（原 admin 代理端点已删除） |
-| 10 | admin 域不存储 permission 域内部 ID | 跨域统一用业务键; 业务键格式严格按 本册 §19.7 |
+| 10 | 管理面不存储权限面内部 ID | 跨面统一用业务键; 业务键格式严格按 本册 §19.7 |
 | 11 | `IdReq` 入参字段名为 `id` 而非 `orgId/userId` | 复用公共 record; 前端在 Phase 2 调整 mock 字段 (例如 `/org/users` 入参 `{ id }`) |
 | 12 | 列表响应统一用 `{ items: [...] }` 包装, 即便是非分页列表 | project-rules.md §1.3 强约束; 现有违反此规则的接口列入 Phase 2 修正项 (`/role/list` 已收编; `/user-org/list`、`/org/users` 已由 T-ADMIN-027 收编; **`/org/tree` 已由 T-ADMIN-021 消化, P1-3**) |
 | 13 | `/user/update` 自我修改业务豁免 | 在 AppService 调用门禁前判断 `operatorId == id` 跳过门禁; 不放在门禁层 |
@@ -2810,7 +2810,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 5. 首期 `service-config/sync` 仅实现 FULL 全量同步。
 6. `auth/query-resources` 和 `auth/query-scopes` 必须复用 `auth/check` 的角色解析、条件评估、冲突处理、租户过滤和缓存失效逻辑。
 
-## 附录 A. 接口与前端 API 一一对照表（管理域家族）
+## 附录 A. 接口与前端 API 一一对照表（管理面家族）
 | 后端接口 | 前端 `user-manage.ts` 函数 | 状态 |
 |----------|-----------------------------|------|
 | `POST /user/page` | `getUserPage` | 🔧 |
@@ -2835,7 +2835,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 合计: 19 项接口 (13 🔧 + 6 ✅)。原 `/user-role/assign`、`/user-role/revoke` 两行已随 T-ADMIN-024 端点删除移除（前端 `assignRole`/`revokeRole` 已随 T-FE-015 联调 2026-08-31 切换至 `/perm/api/perm/user-role/assign|revoke` items[] 契约）；api-gap-analysis.md "已核对接口汇总" 2026-06-21 归档至 `docs/archive/2026-06-21/`（其时点 16 个 🔧 已由 admin-service 实现，当前实数 13）. 另：后端 `OrgTreeConfigController` 存在 `/org-tree-config/{page,create,update,detail,delete,set-default}` 六端点（前端仅消费 `page`，已随 T-FE-015 注册 Gateway），本契约未展开登记——待树配置管理 UI 立项时补 §8.x 契约段（登记项，T-FE-015 联调发现）.
 
-## 附录 B. 已对齐接口汇总（管理域家族，✅ 6 项）
+## 附录 B. 已对齐接口汇总（管理面家族，✅ 6 项）
 | # | 接口 | 来源 record | 备注 |
 |---|------|-------------|------|
 | 1 | `POST /org/tree` | `OrgQuery` | **已对齐（T-ADMIN-021 全字段落地：operationCode + treeConfigId + includePositions + 响应 `{ items }` 包装）** |

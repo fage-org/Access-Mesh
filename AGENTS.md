@@ -28,11 +28,13 @@
 ## 服务架构
 
 ```text
-Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认证）+ permission 域（权限引擎）
+Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/组织/菜单/认证/字典等）+ 权限面（权限事实 + 鉴权引擎）
+                                            （17 顶层包 = 12 能力包 + sync + engine + projection + bootstrap + infrastructure，
+                                            结构契约见 docs/design/access-service-capability-structure.md）
                -> example-service (9300)   对接演示
 ```
 
-`admin-service` 与 `permission-center` 已归并为 `access-service`（T-ACCESS-001~010）。整体架构见 `docs/design/architecture.md`，归并后目标架构见 `docs/design/access-service-architecture.md`。
+`admin-service` 与 `permission-center` 已归并为 `access-service`（T-ACCESS-001~010），并于 2026-09-13 完成能力包融合（T-ACCESS-032~041，原两域叙事由「管理面/权限面 + 能力包」口径取代）。整体架构见 `docs/design/architecture.md`，归并后目标架构见 `docs/design/access-service-architecture.md`。
 
 ## 权威来源
 
@@ -101,7 +103,7 @@ Gateway (8080) -> access-service (9100)    admin 域（用户/组织/菜单/认�
 | 规则                                 | 定位                                                                                                     |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------- |
 | `decision-question-protocol`         | 决策提问协议：任何要求用户决策/表态的提问（AskUserQuestion 选项、评审存疑上报、修法选择、定案讨论）必须举例——场景+数据示例+实际后果（含「现在为什么没出事」）；事实性最小修正直接修并汇报，不过度提问 |
-| `permission-center-coding-standards` | 权限中心编码规范：access-service permission 域代码改动必读（分层/PermQueryEngine/命名/事务边界/批量加载/操作日志/域分类/类型解析） |
+| `permission-coding-standards`      | 权限面编码规范：access-service 权限面（engine 引擎子系统 + role/grant/resource/type/domain/rule/sync 权限事实能力包 + user/org 主体与投影轨 + projection 门面）代码改动必读（分层/PermQueryEngine/命名/事务边界/批量加载/操作日志/域分类/类型解析） |
 | `security-standards`                 | 安全标准：全部后端服务与 API 端点（密钥管理/HTTPS/CSRF/限流/安全头/依赖扫描）                                |
 | `testing-standards`                  | 测试标准：全部测试代码（TDD/覆盖率/独立性/mock/命名/边界用例/行为测试/测试数据工厂；§10 项目级轨道归属——容器测试用 ItInfra、跨服务 E2E 只进 e2e 模块、时序用例禁裸 sleep 余量） |
 | `frontend-coding-standards`          | 前端编码规范（pure-admin-thin）：pnpm 强制等工程约束                                                        |

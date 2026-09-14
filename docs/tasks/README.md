@@ -75,7 +75,7 @@
 | [T-ACCESS-038](T-ACCESS-038.md) | 错误码合类不合号（✅ 2026-09-13 收口：合一为单册 AccessErrorCode（118 项=112 平移+6 碰撞段前缀）+ 80 文件机械收敛；ErrorCodeContractTest 单键基线+碰撞对专项锁；双轨+claude/grok 外评全处置） | capability-fusion | capability-structure §3；access-service-architecture §9 | T-ACCESS-033 | ✅ | ✓ |
 | [T-ACCESS-039](T-ACCESS-039.md) | 缓存目录合一（✅ 2026-09-13 收口：AccessCacheCatalog 单册 9 条目 mode/TTL 零改动 + admin:org-visibility 越域归位 access:org-visibility 不做兼容双读 + 边界校验器六条重绑判据不变 + 三条合一回归锁；双轨+claude/grok 外评全处置（claude P3×1/grok P3×0，均可定稿）） | capability-fusion | capability-structure §3；dual-layer-cache-framework skill（双副本） | T-ACCESS-033, T-ACCESS-034 | ✅ | ✓ |
 | [T-ACCESS-040](T-ACCESS-040.md) | API 契约深合一与设计文档重组（✅ 2026-09-13 收口：总册 2856 行零丢失合并 + 目录解散迁 engine/ + 全仓重挂 64 代码文件 + 双轨评审处置完毕） | capability-fusion | capability-structure §7；契约总册（本任务产出） | T-ACCESS-033 | ✅ | ✓ |
-| [T-ACCESS-041](T-ACCESS-041.md) | 规则与技能文件重写（能力 + 引擎口径） | capability-fusion | capability-structure §7；project-rules | T-ACCESS-033, T-ACCESS-034~039, T-ACCESS-040 | ⚙️ | ⏳ |
+| [T-ACCESS-041](T-ACCESS-041.md) | 规则与技能文件重写（能力 + 引擎口径）（✅ 2026-09-14 收口：规则改名 permission-coding-standards.md v7.0.0 权限面口径 + skills 双副本同步 + AGENTS 指针表/架构图 + project-rules 互斥句承接 + adopted 设计约 80 处域叙事改管理面/权限面（词汇用户拍板）；残留二分判定闭合、旧文件名活引用为零；双轨评审全处置） | capability-fusion | capability-structure §7；project-rules | T-ACCESS-033, T-ACCESS-034~039, T-ACCESS-040 | ✅ | ✓ |
 
 ### permission-center（工作单 A 缓存失效 + 工作单 B scopeMode + 工作单 D/E/F 全收口（计划已归档 2026-09-12）+ 前端 Phase 1/2/4 后端任务）
 

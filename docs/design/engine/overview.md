@@ -2,8 +2,8 @@
 doc_type: design
 title: Permission Center 概念模型
 status: adopted
-domain: permission-center
-last_reviewed: 2026-09-13（T-ACCESS-039：缓存目录册引用改挂合一后 AccessCacheCatalog）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-10   # 2026-09-10 T-PERM-059 收口：运行时接口列表与「权限排查与变更日志」节（改「变更日志与审计」）更新删除口径；此前 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
+domain: access-service
+last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径——术语注记重定向、§角色模型叙事、frontmatter domain 改 access-service；同批修正分层架构节 TableDef 表述与仓库规则相反的存量错误）；此前 2026-09-13（T-ACCESS-039：缓存目录册引用改挂合一后 AccessCacheCatalog）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-10   # 2026-09-10 T-PERM-059 收口：运行时接口列表与「权限排查与变更日志」节（改「变更日志与审计」）更新删除口径；此前 2026-09-09   # 2026-09-09 T-PERM-057 统一引擎落地：鉴权与查询入口节改 targetMode 三态工厂表 + 两语义拆分注记；此前 2026-08-28 复杂查询工厂表收敛（forResourceQuery/forResourceCheck 删除、补 forValidateByEntityId）；此前：2026-08-27 缓存 TTL 口径修正（Gateway L1 ≤15s、30s=10+5+15 总预算）
 ---
 
 # Permission Center 概念模型
@@ -12,7 +12,7 @@ last_reviewed: 2026-09-13（T-ACCESS-039：缓存目录册引用改挂合一后 
 
 本文档只描述权限中心的核心模型和关键规则。API 路径、请求体、响应体以 [access-service-api-contract.md](../access-service-api-contract.md) 为准（契约总册，T-ACCESS-040 两册合一）；表字段、索引、约束以 [../schema/access-service.sql](../schema/access-service.sql) 为准（唯一权威 DDL）；端到端调用链路见 [core-flows.md](core-flows.md)；实现细节和类清单见 [implementation.md](implementation.md)。
 
-> **术语（T-ACCESS-012，2026-08-22）**：原独立服务 `permission-center` 已归并为 access-service 的 permission 域。本文及权限中心系列文档中「permission-center / 权限中心」指该 permission 域（同进程同库，经 Gateway 以 `/api/perm/**` 对外），「admin-service / admin」指同服务的管理域；不再存在跨服务同步链路。
+> **术语（T-ACCESS-012，2026-08-22；T-ACCESS-041 更新，2026-09-14）**：原独立服务 `permission-center` 已归并为 access-service，其「permission 域」称谓又已随能力包融合（T-ACCESS-033）退役。本文及引擎系列文档中「permission-center / 权限中心」按**权限面**理解（引擎子系统 + 权限事实能力包，同进程同库，经 Gateway 以 `/api/perm/**` 对外），「admin-service / admin」按**管理面**理解（管理能力包）；不再存在跨服务同步链路。
 
 ## 设计原则
 
@@ -47,7 +47,7 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 - **Controller**：接收请求、解析 Header 中的 tenant/operator、将业务键（code）转换为内部 ID。
 - **AppService**（实现类，个数不在此维护）：调度/编排层，组合多个 DomainService 完成业务流程。每个 Service 按单一职责拆分（如 PermissionCheck/PermissionGrant 等）。
 - **DomainService**（领域服务接口 + `ResolveContext` + `PermQueryEngine`，个数不在此维护）：领域逻辑层，封装可复用的业务规则（角色解析、条件评估、冲突过滤、类型解析、域分类、同步元数据、授权传递等）。`PermQueryEngine` 是统一权限查询引擎的唯一入口。
-- **Mapper**（MyBatis-Flex 数据访问，个数不在此维护）：使用 `Tables` 类引用 TableDef（禁止静态导入 APT 生成的 `*TableDef` 类）。`RolePermEntryMapper` 是工具类（位于 `util` 包），负责 `RoleResourcePermission→RolePermEntry` 的转换。
+- **Mapper**（MyBatis-Flex 数据访问，个数不在此维护）：使用普通导入的 `*TableDef` 类名引用（禁止静态导入 APT 生成的 `*TableDef` 类；聚合 `Tables` 类本仓未生成，勿引用）。`RolePermEntryMapper` 是工具类（位于 `util` 包），负责 `RoleResourcePermission→RolePermEntry` 的转换。
 - **AOP**：`@OperationLog` 注解 + `OperationLogAspect` 切面自动拦截 AppService 写方法并记录入口级操作日志。`OperationLogRuntimeContext` 允许方法体内通过 `markSkip()`/`setSummary()`/`setTargetType()`/`setTargetId()` 覆盖注解值。
 
 ## 角色模型
@@ -58,9 +58,9 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 - `GROUP_ROLE`：分组角色，用于组织角色集合，不直接配置权限。首期通过 `extra.basicRoleIds` 简化关联，缓存构建阶段展开。
 - `BASIC_ROLE`：基础角色，承载可复用权限配置。
 
-在 AccessMesh 管理端语义中，组织既是业务树节点，也是角色容器。admin 域主维护组织树和 `user-org` 关系；permission 域保存由组织与岗位规则映射出的 ORG/POSITION 角色及最终 `user_role` 权限事实。
+在 AccessMesh 管理端语义中，组织既是业务树节点，也是角色容器。管理面主维护组织树和 `user-org` 关系；权限面保存由组织与岗位规则映射出的 ORG/POSITION 角色及最终 `user_role` 权限事实。
 
-默认组织树是 admin 域的用户目录/身份池。permission 域不判断某个组织树是否是默认树，也不直接管理用户生命周期；它只保存 `access.application` 在管理事实写入同一事务内维护的本地投影主体、资源、角色和授权事实（不再有跨服务同步链路；外部业务服务经 `/api/perm/**/sync` 写入自有类型事实）。permission 域的所有接口接受业务键（subjectTypeCode + subjectExternalId / resourceTypeCode + resourceCode / roleTypeCode + roleExternalId），内部通过 TypeResolutionService 解析为内部 ID。外部调用方不应存储或使用 permission 域的内部主键。
+默认组织树是管理面的用户目录/身份池。权限面不判断某个组织树是否是默认树，也不直接管理用户生命周期；它只保存能力写编排层（原 access.application）在管理事实写入同一事务内维护的本地投影主体、资源、角色和授权事实（不再有跨服务同步链路；外部业务服务经 `/api/perm/**/sync` 写入自有类型事实）。权限面的所有接口接受业务键（subjectTypeCode + subjectExternalId / resourceTypeCode + resourceCode / roleTypeCode + roleExternalId），内部通过 TypeResolutionService 解析为内部 ID。外部调用方不应存储或使用权限面的内部主键。
 
 用户有效角色由 `SubjectDomainService.resolveEffectiveRoles()` 统一解析（L1 CacheService → L2 Redis → DB），禁止在 Service 中直接查询 `user_role` 表或自己写角色解析逻辑。角色层级用于管理和分组，不默认表示权限继承。
 
@@ -82,7 +82,7 @@ AccessMesh 管理端的用户与组织需要使用以下资源建模：
 | 被管理用户 | `resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)` | 支撑 `USER:{userId}` 的更新、删除、启停、重置密码等实例级校验（T-ACCESS-018 收敛：原 ADMIN_USER 并入 USER）。 |
 | 被管理组织/岗位 | `resource_entity(resourceTypeCode=ORG, resourceCode=sys_org.id)` | 支撑 `ORG:{orgId}` 的组织 CRUD、成员管理和可管理组织查询（原 ADMIN_ORG 并入）。 |
 
-注意：`abstract_user` 只表示访问主体，不能替代 `USER` 被管理资源；`abstract_role(ORG/POSITION)` 只表示组织/岗位角色容器，不能替代 `ORG` 被管理资源。所有资源通过 `resourceTypeCode + resourceCode` 或 `roleTypeCode + roleExternalId` 定位，调用方无需感知 permission 域内部主键。
+注意：`abstract_user` 只表示访问主体，不能替代 `USER` 被管理资源；`abstract_role(ORG/POSITION)` 只表示组织/岗位角色容器，不能替代 `ORG` 被管理资源。所有资源通过 `resourceTypeCode + resourceCode` 或 `roleTypeCode + roleExternalId` 定位，调用方无需感知权限面内部主键。
 
 ## 资源依赖
 

@@ -3,7 +3,7 @@ doc_type: design
 title: 默认组织树与用户生命周期设计
 status: adopted
 domain: org-user
-last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-08-15
+last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径清扫）；此前 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-08-15
 ---
 
 # 默认组织树与用户生命周期设计
@@ -166,7 +166,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 | `sys_user_org` | `bindUserOrg` / `unbindUserOrg` |
 | `sys_menu`（非按钮） | `upsertAdminMenu` / `deleteAdminMenu` |
 
-本地投影 `owner_service_code=access-service`，不写 `sync_metadata`。外部业务服务仍使用 `/api/perm/**/sync` 与 `sync_metadata`。`role_resource_permission` 属于权限管理域，不由管理事实投影产生。
+本地投影 `owner_service_code=access-service`，不写 `sync_metadata`。外部业务服务仍使用 `/api/perm/**/sync` 与 `sync_metadata`。`role_resource_permission` 属于权限面授权事实，不由管理事实投影产生。
 
 ### 5.5 全量校准同步（仅外部业务服务）
 

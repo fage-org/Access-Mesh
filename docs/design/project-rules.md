@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-09-12   # T-PERM-021 F1.d：requestId/traceId 单 ID 口径（§1.1 两行 + §4.3 MDC 行同步）；2026-09-07 规范性文件审查修复（traceId 口径/log4j2 单文件/N+1 表指针化/软删例外/租户入口/openfeign 前缀/路径模板）；2026-09-06 T-ADMIN-027：§1.3 补信封承载类单源指引；2026-08-12 access-service 归并：错误码继续按管理域/权限域分段
+last_reviewed: 2026-09-14   # T-ACCESS-041：§1.2 互斥句承接（单册 AccessErrorCode 册制表述）+分段表归属措辞管理面/权限面、§2.1/§2.2/§7.1/§8.2/§8.4.7/§16.2/§17.2 域叙事清扫（规则文件改名 permission-coding-standards 引用同步）；此前 2026-09-12 T-PERM-021 F1.d：requestId/traceId 单 ID 口径（§1.1 两行 + §4.3 MDC 行同步）；2026-09-07 规范性文件审查修复（traceId 口径/log4j2 单文件/N+1 表指针化/软删例外/租户入口/openfeign 前缀/路径模板）；2026-09-06 T-ADMIN-027：§1.3 补信封承载类单源指引；2026-08-12 access-service 归并：错误码继续按管理域/权限域分段
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -68,16 +68,16 @@ last_reviewed: 2026-09-12   # T-PERM-021 F1.d：requestId/traceId 单 ID 口径�
 | 范围          | 归属模块          | 说明                             |
 | ------------- | ----------------- | -------------------------------- |
 | `200`         | 全局              | 成功                             |
-| `10001–19999` | access-service 管理域 | 兼容原 admin 管理业务错误      |
-| `20001–29999` | access-service 权限域 | 兼容原 permission 权限业务错误 |
+| `10001–19999` | access-service 管理面 | 兼容原 admin 管理业务错误      |
+| `20001–29999` | access-service 权限面 | 兼容原 permission 权限业务错误 |
 | `30001–39999` | example-service   | 演示服务业务错误                 |
 | `90001–99999` | 全局系统错误      | 参数校验失败、系统异常等公共错误 |
 
 - `9xxxx` 段系统公共错误由 `common` 模块统一定义枚举，各业务模块**不得重复定义**。
-- `admin-service` 与 `permission-center` 物理归并后不改变错误码的领域归属：既有码值原样保留，管理域新增错误继续使用 `1xxxx`，权限域新增错误继续使用 `2xxxx`。
+- `admin-service` 与 `permission-center` 物理归并后不改变错误码的分段归属：既有码值原样保留，管理面新增错误继续使用 `1xxxx`，权限面新增错误继续使用 `2xxxx`。
 - `access.application` 不单独占用错误码段；跨域编排错误按对外入口所属领域选择 `1xxxx` 或 `2xxxx`，与具体领域无关的公共技术失败使用 `9xxxx`。
 - 禁止因服务重命名而重编号，禁止为 `access-service` 新增 `4xxxx` 错误码段。
-- 每个业务域维护一个 `XxxErrorCode` 枚举类，字段格式：`CODE(int code, String msg)`；管理域和权限域枚举不得合并。
+- 每个服务维护一个错误码枚举册（access-service 单册 `infrastructure.enums.AccessErrorCode`，T-ACCESS-038 合类不合号——原两域枚举已合一，`1xxxx`/`2xxxx` 两段同册、编号零重排；`common` 模块 `GlobalErrorCode` 承载 `9xxxx` 公共段，各业务模块不得重复定义），字段格式：`CODE(int code, String msg)`。
 
 ### 1.3 分页入参与响应规范
 
@@ -117,7 +117,7 @@ last_reviewed: 2026-09-12   # T-PERM-021 F1.d：requestId/traceId 单 ID 口径�
 
 `data.items` 为数据列表，`total/pageNum/pageSize/hasNext` 为分页元数据。非分页列表也必须使用 `{ "items": [...] }` 包装，不直接返回数组。
 
-分页信封承载类为 perm-common `PageResp<T>`，无分页列表承载类为 `ItemsResp`（`perm.common.dto.resp`，admin/permission 域与 SDK 单一来源，全仓不建同构副本）。
+分页信封承载类为 perm-common `PageResp<T>`，无分页列表承载类为 `ItemsResp`（`perm.common.dto.resp`，access-service 全部端点家族与 SDK 单一来源，全仓不建同构副本）。
 
 ---
 
@@ -157,7 +157,7 @@ last_reviewed: 2026-09-12   # T-PERM-021 F1.d：requestId/traceId 单 ID 口径�
 /api/{module}/{resource}/{action}
 ```
 
-示例（permission 域现行 Controller 实际形态）：
+示例（`/api/perm` 端点族现行 Controller 实际形态）：
 
 | 路径                              | 说明       |
 | --------------------------------- | ---------- |
@@ -167,7 +167,7 @@ last_reviewed: 2026-09-12   # T-PERM-021 F1.d：requestId/traceId 单 ID 口径�
 | `/api/perm/abstract-role/list`    | 分页列表   |
 | `/api/perm/log/operation/list`    | 操作日志   |
 
-> admin 域存量为资源根三段形态（Controller 挂 `/user`、`/org` 等，如 `/user/create`），外部经 Gateway 路由 `/admin/**`（StripPrefix=1）访问；新增接口（含 admin 域）统一按上方四段模板。
+> 裸路径族存量为资源根三段形态（Controller 挂 `/user`、`/org` 等，如 `/user/create`，原 admin 域入口），外部经 Gateway 路由 `/admin/**`（StripPrefix=1）访问；新增接口（含裸路径族）统一按上方四段模板。
 
 规则：
 
@@ -411,7 +411,7 @@ XxxVO                 ← 特殊场景的视图对象（如聚合多表的展示
 - **Entity 禁止出现在 Controller 入参/出参中**（防止字段过度暴露）。
 - Service 层向 Controller 层返回 `XxxResp` 对象，不直接返回 Entity。
 - Service 内部调用可传递 Entity，但跨服务 Feign 接口必须使用 DTO。
-- **permission 域对外 Req 复用 perm-common 单源，不建域内副本**（T-PERM-065，17 对同名 Req 收敛；SDK 与服务端 Controller/AppService 共用 `perm.common.dto.req` 类型，注解契约由 `PermCommonReqContractTest` 注解签名快照守卫；admin 域同名 `IdsReq`/`UserRoleListReq` 为合法独立形态——后者与 perm-common 同名异义）。
+- **`/api/perm` 端点族对外 Req 复用 perm-common 单源，不建域内副本**（T-PERM-065，17 对同名 Req 收敛；SDK 与服务端 Controller/AppService 共用 `perm.common.dto.req` 类型，注解契约由 `PermCommonReqContractTest` 注解签名快照守卫；裸路径端点族同名 `IdsReq`/`UserRoleListReq` 为合法独立形态——后者与 perm-common 同名异义）。
 
 ### 7.2 命名规范
 
@@ -479,11 +479,11 @@ Mapper（数据访问层）
 ### 8.2 调用方向规范
 
 - **禁止跳层调用**：Controller 不得直接调用 Mapper；逻辑级 Service 不得调用调度层 Service。
-- **允许同层横向调用（2026-08-22 用户确认全局放开）**：同层级之间允许互相复用（调度层 Service 互调、DomainService 互调、跨域 Service/AppService 注入复用，如 infrastructure 安全拦截器注入 admin 域 `OAuth2ClientDomainService`、`PermissionGrantPlanDomainServiceImpl` 组合 `PermissionGrantDomainService` 校验能力），无需逐一登记例外。通用约束：① 仅限同层之间（调度层↔调度层、DomainService↔DomainService；跨层仍遵守跳层禁令）；② 不得形成循环依赖；③ 复用方不重复实现被复用方已有的领域逻辑（与 §8.4 复用规范一致）；④ Mapper 直读边界——迁移前 admin/permission 域互不直读对方 Mapper；能力包迁移（T-ACCESS-033）后由下条能力口径取代。历史：2026-08-08 授权域、2026-08-15 query 包（T-ACCESS-006）、2026-08-20 审计门面三个单点例外的登记随全局放开废止，其限定语义（单向、只读复用、不承载事务）收敛为上述通用约束。
+- **允许同层横向调用（2026-08-22 用户确认全局放开）**：同层级之间允许互相复用（调度层 Service 互调、DomainService 互调、跨能力 Service/AppService 注入复用，如 infrastructure 安全拦截器注入 auth 能力包 `OAuth2ClientDomainService`、`PermissionGrantPlanDomainServiceImpl` 组合 `PermissionGrantDomainService` 校验能力），无需逐一登记例外。通用约束：① 仅限同层之间（调度层↔调度层、DomainService↔DomainService；跨层仍遵守跳层禁令）；② 不得形成循环依赖；③ 复用方不重复实现被复用方已有的领域逻辑（与 §8.4 复用规范一致）；④ Mapper 直读边界——迁移前 admin/permission 域互不直读对方 Mapper；能力包迁移（T-ACCESS-033）后由下条能力口径取代。历史：2026-08-08 授权域、2026-08-15 query 包（T-ACCESS-006）、2026-08-20 审计门面三个单点例外的登记随全局放开废止，其限定语义（单向、只读复用、不承载事务）收敛为上述通用约束。
 - Mapper 层只做数据访问，禁止包含分支业务逻辑（`if`/`switch` 等）。
 - **能力包 Mapper 边界（T-ACCESS-032 能力口径，2026-09-13）**：access-service 迁移为能力包结构（T-ACCESS-033）后，「域」概念由 **12 能力包 + sync/engine/projection/bootstrap/infrastructure 顶层包**取代（终态契约 `access-service-capability-structure.md` §2/§8）——「域互不直读 Mapper」边界重判为「**能力包之间不互读 Mapper**（断言面=mapper 包，实体 import 不禁）」，豁免面（engine 输入面装载、projection 投影写路径、sync 记账、bootstrap 种子写入器、存量冻结白名单锁「不得新增」）与断言重建设计见 capability-structure §8.4；`QueryBoundaryArchitectureTest` 以能力为对象重建（T-ACCESS-033 落地）。同层横向调用通用约束（①~③）不变。
 
-**permission-center Controller（补充）：**
+**`/api/perm` 端点族 Controller（补充）：**
 
 - 查询编排类接口（如 `query-resources`、`operation-log/list`）的分页过滤、JSON 解析、多表组装须在**调度层 Service**（如 `PermissionQueryAppService`、`LogQueryAppService`）完成；Controller 仅做校验与 `R` 包装。（原举例 permission-view/explain 已随 T-PERM-059 删除，2026-09-10）
 
@@ -603,7 +603,7 @@ cn.ac.fage.accessmesh.{service}
 
 #### 8.4.7 已识别的复用案例
 
-以下为当前 permission-center 已实现的复用模式，**后续开发必须沿用**：
+以下为当前权限面（引擎 + 权限事实能力包）已实现的复用模式，**后续开发必须沿用**：
 
 ```
 调度层 PermissionGrantAppServiceImpl
@@ -1145,7 +1145,7 @@ spring:
 **示例：**
 
 ```
-feat(permission-center): 新增分组角色批量删除接口
+feat(access): 新增分组角色批量删除接口
 
 - 支持批量删除，子角色递归清理
 - 增加引用检查，有角色关联时拒绝删除
@@ -1184,7 +1184,7 @@ Closes #123
 
 - [ ] 是否存在可复用的 DomainService 方法但未使用？
 - [ ] 是否存在 N+1 查询风险（循环 + DB 查询）？
-- [ ] 是否使用了已删除的类或字段（见 `.claude/rules/permission-center-coding-standards.md` §17-18）？
+- [ ] 是否使用了已删除的类或字段（见 `.claude/rules/permission-coding-standards.md` §17-18）？
 - [ ] 异常类型是否正确（BizException / SystemException / SecurityException）？
 - [ ] 事务边界是否在 AppService 层声明？
 - [ ] 缓存失效是否绑定事务提交后执行？

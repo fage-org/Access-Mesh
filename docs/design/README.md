@@ -10,7 +10,7 @@
 | 微服务整体架构        | [architecture.md](architecture.md)                                                     |
 | access-service 目标架构与归并约束 | [access-service-architecture.md](access-service-architecture.md)（`status: adopted`；归并拓扑、事务、数据、缓存和安全冲突时优先） |
 | access-service 能力包融合目标结构 | [access-service-capability-structure.md](access-service-capability-structure.md)（`status: adopted`，2026-09-13 T-ACCESS-032 完成 §8 归属清单与边界断言定稿、十项裁决登记 decision-registry 同日行；结构迁移由 T-ACCESS-033 执行，完成前代码维持 admin/permission 旧包结构） |
-| access-service API 契约总册 | [access-service-api-contract.md](access-service-api-contract.md)（`status: adopted`，2026-09-13 T-ACCESS-040 两册合一——管理域家族与 perm 家族同册分列、按能力分章；原两契约册转 superseded 留原位，锚点对照见总册附录 C） |
+| access-service API 契约总册 | [access-service-api-contract.md](access-service-api-contract.md)（`status: adopted`，2026-09-13 T-ACCESS-040 两册合一——管理面家族（T-ACCESS-040 时称「管理域家族」，裸路径族）与 perm 家族同册分列、按能力分章；原两契约册转 superseded 留原位，锚点对照见总册附录 C） |
 | 引擎子系统概念模型      | [engine/overview.md](engine/overview.md)                                             |
 | 引擎子系统核心调用链路  | [engine/core-flows.md](engine/core-flows.md)                                         |
 | 引擎子系统实现设计      | [engine/implementation.md](engine/implementation.md)                                 |

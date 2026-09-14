@@ -2,8 +2,8 @@
 doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
-domain: permission-center
-last_reviewed: 2026-09-13（T-ACCESS-039：§5.1 缓存表与正文目录册引用改挂合一后 AccessCacheCatalog——mode/TTL 与键格式零改动；last_reviewed 历史链内 2026-09-11 时点注记保留旧册名原文）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode + §8.3 死常量注记口径变更——统一常量面=注册表镜像）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+domain: access-service
+last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径——术语指针、§3.4 门禁入口族叙事、§4.3 门面表述、frontmatter domain 改 access-service）；此前 2026-09-13（T-ACCESS-039：§5.1 缓存表与正文目录册引用改挂合一后 AccessCacheCatalog——mode/TTL 与键格式零改动；last_reviewed 历史链内 2026-09-11 时点注记保留旧册名原文）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode + §8.3 死常量注记口径变更——统一常量面=注册表镜像）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -12,7 +12,7 @@ last_reviewed: 2026-09-13（T-ACCESS-039：§5.1 缓存表与正文目录册引�
 
 > 本文档是 `overview.md` 的**实现层补充**，聚焦于鉴权查询和权限授权管理两大核心模块的执行链路设计。
 > 本文档不定义对外 API 路径、请求体、响应体或错误原因；这些内容以 [`access-service-api-contract.md`](../access-service-api-contract.md)（契约总册）为准。
-> 阅读本文档前请先阅读 `overview.md` 了解业务概念；表结构以 `../schema/access-service.sql` 为准（唯一权威 DDL；文中「permission-center」指 access-service permission 域，见 overview.md 术语注记）。
+> 阅读本文档前请先阅读 `overview.md` 了解业务概念；表结构以 `../schema/access-service.sql` 为准（唯一权威 DDL；文中「permission-center」按权限面理解（引擎子系统 + 权限事实能力包），见 overview.md 术语注记（T-ACCESS-041 更新））。
 
 ---
 
@@ -346,7 +346,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 
 - **管理面写门禁**（forValidate / forValidateByEntityId 内部构造）：条件评估**开**（入口自动装配当前请求 clientIp——explain 先例 `HttpRequestUtils.getClientIp(currentRequest())`；无请求上下文的内部调用 IP 类条件按 `ConditionEvalUtils.evalIpList` 既有 fail-closed 拒绝）、条目互斥**开**、判定面继承**开**（授权在父资源、查子资源判定通过）。
 - **`getDenied*` 批量轨**：同上拉平口径 + **判定面闭包回映射**——目标集扩为 {目标}∪同类型祖先链，条目挂祖先实体经「目标闭包集 ∩ 条目实体集 ≠ ∅」回映射判允许（实现成败点：条目挂祖先、请求目标不在条目实体集不得误判 DENIED）。
-- 抛异常语义仍在调用方（admin 域 `AdminPermissionValidator` 门面、permission 域 AppService if-throw）；主体参数即主体 ID（T-ORG-001）；未知类型/未知操作 fail-closed 全量拒绝——三项均为 T-PERM-042 既有终态，不变。
+- 抛异常语义仍在调用方（管理面能力 AppService 经引擎门面 `AdminPermissionValidator` 抛出、权限面 AppService if-throw）；主体参数即主体 ID（T-ORG-001）；未知类型/未知操作 fail-closed 全量拒绝——三项均为 T-PERM-042 既有终态，不变。
 
 **`getDeniedResourceCodes` 优化策略**（与 `getDeniedEntityIds` 相同管线）：
 
@@ -484,7 +484,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 - **收编清零**（全仓无引擎外权限查询独立管线）：getDenied\* 手写管线（共享引擎步骤+闭包回映射）、query-resources 的 `expandResourceScope`（展示面展开轨道）、deleteRoles 局部级联（闭包语义等价，注释锚定）、`PermissionGrantDomainServiceImpl` canGrant 直查（引擎 LIST 授权事实 + 内存转授资格判定）、query-scopes AppService 自评管线（条件/互斥/depend_on 过滤全进引擎；位覆盖语义由组装层复用引擎同一 covers 判定做 (type×op) 线格分桶——分桶即线格式组装的一部分，不归引擎，亦非引擎外自评）。
 - **缓存键不变**（§5.2 核对）：ROLE_PERM_SNAPSHOT / OPERATION_PERMISSIONS_BY_TYPE / EFFECTIVE_ROLES / 网关 gw:interface-snapshot 均不因闭包下推改变键与失效；ORG_VISIBILITY 已由 PermissionChangeAspect 租户级 evictAll 覆盖（继承后可见闭包语义确变但失效机制已闭合）。
 - **OAuth2 委托链路显式排除**（2026-08-22 用户决策维持）：OAuth2 资源服务器链路（access.oauth2.resource-paths 显式开放路径 + delegatedClientId 独立映射，T-ACCESS-013）不接入统一引擎——重构不得误接入。
-- **回归面**：四个门禁入口族（admin 域门面 / permission 域 code 轨 / 资源树 entityId 轨 / SDK auth-check 族）语义回归 + targetMode 三态互不串义锁 + 判定面闭包锁（`TargetModeClosurePgIT`：TYPE_LEVEL 串义拒绝 / 单点闭包 / 批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）+ golden fixtures（`GoldenFixturePgIT` 单点判定收敛，nodeClosure 语义=引擎原生闭包）。
+- **回归面**：四个门禁入口族（管理面门面 / 权限面 code 轨 / 资源树 entityId 轨 / SDK auth-check 族）语义回归 + targetMode 三态互不串义锁 + 判定面闭包锁（`TargetModeClosurePgIT`：TYPE_LEVEL 串义拒绝 / 单点闭包 / 批量回映射 / 止步同类型 / 软删截断 / inheritMode 接通）+ golden fixtures（`GoldenFixturePgIT` 单点判定收敛，nodeClosure 语义=引擎原生闭包）。
 - **遗留**：~~角色互斥授权时校验 → 另行立项~~（已由 T-PERM-063 落地，2026-09-12）；（原列两项已收口 2026-09-10：check 族全量回传 → T-API-003 done；权限视图/排查删除 → T-PERM-059 done，新形态另立任务）；「后续禁止资源节点树跨类型」（sync 通道跨类型边治理）→ 改进项登记 decision-registry。
 
 ### 3.10 batchCheck 批量化（queryBatch 入口）——A+ 形态（T-PERM-061 设计定稿 2026-09-11，同日实施落地）
@@ -820,7 +820,7 @@ record RolePermBitmap(Map<Long, Long> resourceEffectiveBits) {}
 > **下一步建议**：
 >
 > - 在此基础上补充用户管理（abstract_user + user_role）模块的执行链路设计
-> - 或直接开始 access-service permission 域代码骨架搭建（pom.xml + 主启动类 + 基础配置）
+> - 或直接开始 access-service 权限面代码骨架搭建（pom.xml + 主启动类 + 基础配置）
 
 ---
 

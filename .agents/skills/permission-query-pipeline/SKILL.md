@@ -7,7 +7,7 @@ description: >-
 origin: project
 metadata:
   project: AccessMesh
-  version: "5.2.0"
+  version: "5.3.0"
 ---
 
 # 统一权限查询引擎规范
@@ -61,14 +61,14 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 ```
 
 > **T-PERM-042 终态**：旧 `hasPermission(Object)` / `validateBatch` / `getDeniedIds` / `toLongId` 已从引擎删除。
-> 引擎纯查询不抛 `SecurityException`——admin 域经 `AdminPermissionValidator` 门面（`checkTypeLevel` / `checkInstanceLevel` / `checkBatchInstanceLevel`）抛出；permission 域 AppService 显式 `if-throw`。
+> 引擎纯查询不抛 `SecurityException`——管理轨 AppService（auth/menu/user/org/platform 管理入口与 role 包 `UserRoleQueryAppService` 读聚合）经引擎门面 `AdminPermissionValidator`（`checkTypeLevel` / `checkInstanceLevel` / `checkBatchInstanceLevel`）抛出；权限轨 AppService（角色/主体/授权/资源/类型/条件等管理入口）显式 `if-throw`——按调用入口的轨道分，不按能力包分（role 包内两轨并存）。
 
 ## Domain 层 API（复杂查询场景）
 
 复杂查询使用 `PermQuery`，授权传递校验使用 `PermissionGrantDomainService`。
 
 > **主体契约**：Domain 层 API（forAuthCheck/forInterfaceCheck/forValidate/forValidateByEntityId/forScopeQuery/forUserView）与
-> canGrant 委托链的 `userId`/`subjectId` 均指权限域投影主体（`abstract_user.id`），禁止直接传 `sys_user.id`。
+> canGrant 委托链的 `userId`/`subjectId` 均指权限面投影主体（`abstract_user.id`），禁止直接传 `sys_user.id`。
 
 ```java
 // check — 权限判定
@@ -96,7 +96,7 @@ return PermResultUtils.toCheckInterfaceResp(engine.query(q), cacheTtl);
 PermQuery q = PermQuery.forUserView(tenantId, userId);
 return buildQueryResourcesResponse(engine.query(q), req, tenantId);
 
-// validate — 管理操作校验（引擎纯查询，拒绝由调用方显式抛出；admin 域经 AdminPermissionValidator 门面）
+// validate — 管理操作校验（引擎纯查询，拒绝由调用方显式抛出；管理轨入口经 AdminPermissionValidator 门面）
 PermQuery q = PermQuery.forValidate(tenantId, subjectId, resourceTypeCode, resourceCode, operationCode);
 PermResult r = engine.query(q);
 if (!r.allowed()) {

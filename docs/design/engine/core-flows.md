@@ -2,15 +2,15 @@
 doc_type: design
 title: Permission Center 核心流程链路
 status: adopted
-domain: permission-center
-last_reviewed: 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§7 评估口径行补授权时校验落地注记 + CONFLICT_DETECTED reason 行与操作日志语义分立）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施：§7 batch-check 组装形态改 queryBatch 口径（原逐 item 表述随实施过期）；此前 2026-09-10 T-PERM-059 收口：§13 场景十收口为审计双日志面（permission-view 排查端点族删除说明 + 用户/角色排查链路改为 check 族+变更日志两步形态 + 能力表六行删）；此前 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
+domain: access-service
+last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径——§2/§7/§10 步骤表与叙事、术语注记重定向、frontmatter domain 改 access-service）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§7 评估口径行补授权时校验落地注记 + CONFLICT_DETECTED reason 行与操作日志语义分立）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施：§7 batch-check 组装形态改 queryBatch 口径（原逐 item 表述随实施过期）；此前 2026-09-10 T-PERM-059 收口：§13 场景十收口为审计双日志面（permission-view 排查端点族删除说明 + 用户/角色排查链路改为 check 族+变更日志两步形态 + 能力表六行删）；此前 2026-09-10 T-API-003 收口：§10 目标句与 §15「SDK 可接入」行改分族口径（check 族 check/batch-check/check-interface 恢复结果记录全量回传——matchedRoleIds/matchedPermissionIds/matchedResources[].resourceId，推翻 T-API-002 check 族裁剪；入参不依赖内部 ID 口径维持；Query\* 响应族不泄漏维持）；此前 2026-09-09 T-PERM-057 §7 引擎流程重写为 targetMode 三态统一管线 + 两语义拆分（判定面闭包/展示面展开）；此前 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-09-06 T-API-002：§10.1 步骤 4 响应字段对齐裁剪终态（matchedRoleIds/matchedPermissionIds→grantSources）+ §15 SDK 可接入行补「不泄漏」口径（响应侧裁剪定案）；2026-08-30 §6 L127 20042 口径限定（T-PERM-041：仅新写入/变更时校验、update 同 id 重写=存量保留豁免，对齐 api-contract §6.5.1）；2026-08-28 §3 管线图工厂分支收敛（forResourceQuery/forResourceCheck 删除）、§3 场景一 type-definition/create 入参收口（typeValue 服务端分配）；此前：2026-08-27 §6 端点退役收口、§10.1 treeMode 移除
 ---
 
 # Permission Center 核心流程链路
 
 > **迁位注记（2026-09-13，T-ACCESS-040）**：本文档自 `docs/design/permission-center/` 迁至 `docs/design/engine/`（permission-center 目录解散，引擎子系统文档位），内容与章节锚点原样保留；API 契约引用已重挂 [access-service-api-contract.md](../access-service-api-contract.md) 契约总册。
 
-> 本文档把权限管理的核心场景串成接口调用链路，用于确认 API 契约、产品目标和实现方向是否一致。接口契约以 [`access-service-api-contract.md`](../access-service-api-contract.md)（契约总册）为准。文中「permission-center / 权限中心」指 access-service 的 permission 域、「admin-service / admin」指同服务管理域（术语注记见 `overview.md`，T-ACCESS-012）。
+> 本文档把权限管理的核心场景串成接口调用链路，用于确认 API 契约、产品目标和实现方向是否一致。接口契约以 [`access-service-api-contract.md`](../access-service-api-contract.md)（契约总册）为准。文中「permission-center / 权限中心」按**权限面**理解（引擎子系统 + 权限事实能力包）、「admin-service / admin」按**管理面**理解（术语注记见 `overview.md`，T-ACCESS-012 立、T-ACCESS-041 更新）。
 
 ## 1. 全局约定
 
@@ -95,11 +95,11 @@ flowchart LR
 
 关键逻辑：
 
-- 用户同步以 `subjectTypeCode + subjectExternalId` 幂等定位。调用方全程使用业务键引用主体和资源，permission-center 内部解析为内部 ID，调用方无需回填或存储内部 ID。
-- 在 AccessMesh 管理端场景中，`sys_user` 的本地投影由 `access.application` 同一事务维护：`abstract_user(subjectTypeCode=LOCAL_USER, subjectExternalId=sys_user.id)` + `resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)`，两类事实均使用业务键定位，不再走 sync API。
+- 用户同步以 `subjectTypeCode + subjectExternalId` 幂等定位。调用方全程使用业务键引用主体和资源，权限面内部解析为内部 ID，调用方无需回填或存储内部 ID。
+- 在 AccessMesh 管理端场景中，`sys_user` 的本地投影由能力写编排层（原 access.application）同一事务维护：`abstract_user(subjectTypeCode=LOCAL_USER, subjectExternalId=sys_user.id)` + `resource_entity(resourceTypeCode=USER, resourceCode=sys_user.id)`，两类事实均使用业务键定位，不再走 sync API。
 - 对外可调用的角色建议必须有 `roleExternalId`，后续授权和分配可以不用内部角色 ID。
-- 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。`access.application` 同一事务维护本地投影：`sys_org` → `resource_entity(ORG)` + `abstract_role(ORG/POSITION)`（父角色按父节点实际 orgType 解析，业务键定位，不回填内部 ID）；`sys_user_org` 成员关系同事务写入 `user_role`（POSITION 成员 `relation_id` 指向所属组织角色）。`user-role/assign` 仅用于功能角色等正式用户角色管理操作。
-- 管理端（`access.application`）不再有同步任务：投影、`permission_change_log` 与缓存失效登记在同一事务内完成，删除用户即级联软删其全部 `user_role`（含功能角色），投影依赖缺失整体回滚（fail-closed）。外部业务服务仍通过 `/api/perm/**/sync|full-sync` 维护自有类型投影（保留业务键：subject `LOCAL_USER`（原 ADMIN_USER 更名）/role `ORG|POSITION`/`SYS_USER_ORG` 20045 拒绝；resource 侧为**类型级所有权**（T-PERM-052 定案，2026-09-05，取代 T-ACCESS-018 的行级口径：类型声明 `extra.managedMode=SYNC`+来源服务独占同步、MANAGED 类型管理面维护；事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION （T-PERM-048 增 CONDITION——管理页条件投影，仅 source=MANAGED）种子声明 SYNC+access-service 内部来源（T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION），原保留清单与行级投影防线已收编删除）。`role_resource_permission` 属于 permission-center 授权管理域，不进入管理端写入。
+- 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。能力写编排层（原 access.application）同一事务维护本地投影：`sys_org` → `resource_entity(ORG)` + `abstract_role(ORG/POSITION)`（父角色按父节点实际 orgType 解析，业务键定位，不回填内部 ID）；`sys_user_org` 成员关系同事务写入 `user_role`（POSITION 成员 `relation_id` 指向所属组织角色）。`user-role/assign` 仅用于功能角色等正式用户角色管理操作。
+- 管理端（能力写编排层，原 access.application）不再有同步任务：投影、`permission_change_log` 与缓存失效登记在同一事务内完成，删除用户即级联软删其全部 `user_role`（含功能角色），投影依赖缺失整体回滚（fail-closed）。外部业务服务仍通过 `/api/perm/**/sync|full-sync` 维护自有类型投影（保留业务键：subject `LOCAL_USER`（原 ADMIN_USER 更名）/role `ORG|POSITION`/`SYS_USER_ORG` 20045 拒绝；resource 侧为**类型级所有权**（T-PERM-052 定案，2026-09-05，取代 T-ACCESS-018 的行级口径：类型声明 `extra.managedMode=SYNC`+来源服务独占同步、MANAGED 类型管理面维护；事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION （T-PERM-048 增 CONDITION——管理页条件投影，仅 source=MANAGED）种子声明 SYNC+access-service 内部来源（T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION），原保留清单与行级投影防线已收编删除）。`role_resource_permission` 属于权限面授权事实，不进入管理端写入。
 - `GROUP_ROLE` 本身不直接配置权限，通过子角色或额外基本角色产生有效权限。首期用 `extra.basicRoleIds` 简化表达，缓存构建阶段展开，运行时不频繁解析 JSON。
 - `POSITION` 类型分配时可带组织关系字段，用于表达职位在某组织下的上下文。
 - 分配或回收用户角色后，失效该用户有效角色缓存。
@@ -208,9 +208,9 @@ PermQueryEngine.query(PermQuery)
 | 2    | Gateway           | 提取 `serviceCode + httpMethod + 原始 path`                                                    |
 | 3    | Gateway           | 查询本地 L1 缓存                                                                               |
 | 4    | Gateway           | 缓存未命中时调用 `POST /api/perm/auth/check-interface`                                         |
-| 5    | permission 域（access-service） | 按租户、服务、方法、路径匹配 `resource_api_mapping`                                            |
-| 6    | permission 域（access-service） | 解析资源、操作、用户有效角色、条件和冲突规则                                                   |
-| 7    | permission 域（access-service） | 返回 `allowed/reason/matchedResources[]/cacheTtlSeconds`                                       |
+| 5    | 权限面（access-service） | 按租户、服务、方法、路径匹配 `resource_api_mapping`                                            |
+| 6    | 权限面（access-service） | 解析资源、操作、用户有效角色、条件和冲突规则                                                   |
+| 7    | 权限面（access-service） | 返回 `allowed/reason/matchedResources[]/cacheTtlSeconds`                                       |
 | 8    | Gateway           | 允许则转发业务服务，拒绝则返回 403                                                             |
 
 拒绝原因示例：
@@ -236,12 +236,12 @@ PermQueryEngine.query(PermQuery)
 | -------------- | ------------------------------------- | ------------------------------------------------------------ | ----------------------------- |
 | 布尔鉴权       | `POST /api/perm/auth/check`           | 打开报表前判断是否有 `VIEW` 权限                             | `allowed/reason`              |
 | 批量鉴权       | `POST /api/perm/auth/batch-check`     | 列表页按钮批量置灰                                           | 每个检查项的 `allowed/reason` |
-| 可操作资源查询 | `POST /api/perm/auth/query-resources` | 管理域查询可管理组织、角色、菜单                             | 资源业务键集合和命中操作      |
+| 可操作资源查询 | `POST /api/perm/auth/query-resources` | 管理面查询可管理组织、角色、菜单                             | 资源业务键集合和命中操作      |
 | 范围权限查询   | `POST /api/perm/auth/query-scopes`    | example-service 查询报表可读、可编辑的城市、部门、门店等范围 | 范围权限集合                  |
 
-### 10.1 管理域查询可管理对象
+### 10.1 管理面查询可管理对象
 
-管理域可被权限控制的组织、角色、菜单资源由 `access.application` 在管理事实写入的同一事务内维护为本地权限投影（ORG/USER/MENU 资源与 ORG/POSITION 角色，T-ACCESS-018 收敛后类型码），运行时查询直接命中本地引擎。
+管理面可被权限控制的组织、角色、菜单资源由能力写编排层（原 access.application）在管理事实写入的同一事务内维护为本地权限投影（ORG/USER/MENU 资源与 ORG/POSITION 角色，T-ACCESS-018 收敛后类型码），运行时查询直接命中本地引擎。
 
 | 查询目标           | 资源建模                                                      | 运行时查询                                                                                     |
 | ------------------ | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -252,17 +252,17 @@ PermQueryEngine.query(PermQuery)
 
 调用链路：
 
-1. 管理域入口从登录态取 `subjectTypeCode + subjectExternalId` 和 `X-Tenant-Id`。
-2. 同进程调用 permission 域 `POST /api/perm/auth/query-resources` 语义（本地 AppService/engine 直调，非跨服务 HTTP），传资源类型、操作码、业务域和上下文。
-3. permission 域解析用户有效角色、角色继承、资源继承、条件、冲突规则。
-4. permission 域返回命中的 `resourceCode`、`operations`、`grantSources`（内部 id 字段族已随 T-API-002 裁剪，2026-09-06）。
-5. 管理域用 `resourceCode` 回查本服务组织、角色、菜单表，过滤列表或组装树。
+1. 管理面入口从登录态取 `subjectTypeCode + subjectExternalId` 和 `X-Tenant-Id`。
+2. 同进程调用权限面 `POST /api/perm/auth/query-resources` 语义（本地 AppService/engine 直调，非跨服务 HTTP），传资源类型、操作码、业务域和上下文。
+3. 权限面（引擎）解析用户有效角色、角色继承、资源继承、条件、冲突规则。
+4. 权限面返回命中的 `resourceCode`、`operations`、`grantSources`（内部 id 字段族已随 T-API-002 裁剪，2026-09-06）。
+5. 管理面用 `resourceCode` 回查本服务组织、角色、菜单表，过滤列表或组装树。
 
 关键逻辑：
 
-- permission 域不直接查询 admin 域业务表，只返回权限事实。
+- 权限面不直接查询管理面业务表（引擎零直读 sys_*），只返回权限事实。
 - 如果角色本身也是被管理对象，就必须把角色建模成 `resource_entity`；`abstract_role` 只表示授权主体，不等同于“可被管理的角色资源”。
-- 菜单树展示基于 `query-resources` 平面列表由调用方自建（`treeMode` 树模式响应已于 2026-08-27 从契约移除，无真实消费方；最终排序、隐藏字段、路由元信息仍由管理域控制）。
+- 菜单树展示基于 `query-resources` 平面列表由调用方自建（`treeMode` 树模式响应已于 2026-08-27 从契约移除，无真实消费方；最终排序、隐藏字段、路由元信息仍由管理面控制）。
 
 ### 10.2 example-service 查询报表范围权限
 
@@ -280,7 +280,7 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 
 运行时规则：
 
-- permission-center 先判断用户是否拥有主资源操作，例如 `report:sales + DATA_READ` 或 `report:sales + DATA_EDIT`。
+- 权限面（引擎）先判断用户是否拥有主资源操作，例如 `report:sales + DATA_READ` 或 `report:sales + DATA_EDIT`。
 - 主权限全部不通过时，顶层 `reason="NO_PERMISSION"`，请求笛卡尔积对应的 `scopeGroups[]` 均返回 `scopeMode=DENIED`；响应不再包含旧 `allowed` 字段。
 - 直接范围权限 `DIRECT` 与当前主权限下的子权限 `DEPENDENT` 按并集返回。
 - 多个主操作和多个范围操作可以一次查询；范围操作必须被一个已通过的主操作激活。
