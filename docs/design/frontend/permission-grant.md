@@ -27,7 +27,7 @@ last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-048 条件双轨制：§1.2 分�
 10. **继承默认**：默认**开**（显示含继承，页头标注"模拟 CHILD 展开视图，非运行时默认"）；**直接授权与继承用颜色区分**（直接=实色/深色，继承=淡色，来源类型用图标区分）；开关用于"只看直接授权"的干净视图（与运行时默认一致）。
 11. **条件模型（v3.1 记录级聚焦编辑）**：同一角色在同一资源/范围 + 操作 + 父权限下最多一条 MANUAL 直接授权；弹窗内**单条件**（无条件或一个条件）与 canGrant 是**聚焦授权记录**的可编辑属性。资源树复选框只控制授权的新增/保留/撤销，点击资源行聚焦后，设置区只读取和修改该聚焦记录；新勾选资源使用固定默认值（无条件、不可再授予、无子权限），不继承设置区当前值；修改任一记录不产生其他记录的变更；不做隐式覆盖——批量效率由**显式复制**（源=聚焦记录，确认覆盖）承担（§4）。
 12. **主体入口**：**两入口共用一套组件**（路由/参数区分主体类型）：角色（T-PERM-043 后仅 BASIC_ROLE，GROUP_ROLE 已隐藏）/ 组织（ORG + POSITION）；**PERSONAL 预留**（首期移除：个人 `abstract_role` 生命周期待后端同步链路落地后恢复，见 §1.1/§12 注）。原因：有角色权限的主体不一定有组织/用户权限，两类授权是独立领域能力。
-13. **分组角色（T-PERM-043 已隐藏）**：GROUP_ROLE 主体树节点不再展示（写入口已删除、extra-roles/list 已退役）；原「只读展开为基础角色」交互的代码保留为不可达，待 role_inclusion 单事实源立项后恢复。
+13. **分组角色（T-PERM-043 已隐藏）**：GROUP_ROLE 主体树节点不再展示（写入口已删除、extra-roles/list 已退役）；原「只读展开为基础角色」交互代码已随 2026-09-14 轻量清扫批次删除（role_inclusion 单事实源立项时从 git 历史恢复）。
 14. **来源链计算**：**前端自算**（资源树 + `inheritMask` + list 主权限，纯函数对齐引擎语义）；list 主权限 = baseline（`includeChildren=true` 一次取全量，§6.1 加载口径）结果中过滤 `dependOn==null` 的记录——**不再单独以 `includeChildren=false` 拉取来源链输入**；仅"已有权限类型"辅助查询（T-FE-038 注记）单独使用 `includeChildren=false`；T-PERM-034 另补小字段（§12）。
 15. **页面密度与图例**：移除独立页面标题卡片，主体选择状态由左栏承担；矩阵工具栏图例拆分为“形态”和“颜色”两组：形态覆盖直接/资源继承/操作继承/组合继承/条件/可转授，颜色说明有效/新增、待更新、待撤销；子权限使用独立蓝色数量标识。
 16. **验收**：场景清单驱动（§11）。
@@ -44,7 +44,7 @@ last_reviewed: 2026-09-11   # 2026-09-11 T-PERM-048 条件双轨制：§1.2 分�
 
 - 路由约定：`/perm/grant?subjectType=ROLE|ORG`（前端同一页面组件，`subjectType` 驱动主体数据源与左栏文案；`PERSONAL` 预留，首期不挂路由）。**多标签直切边界（2026-09-04 定案登记）**：multiTags 按 path+query 去重，两入口形成并存标签；直接点击切换时组件实例复用（不触发 onActivated/onMounted/query-watch），左栏树立即切换但矩阵维持旧入口主体——可见不一致态，点任意主体节点即自愈（不补 subjectType watch，避免三路刷新触发点并发的新竞态面；详见任务卡已知边界）。
 - 主体切换：左栏树选中即切换查看目标；**未保存变更在切换主体/离开时拦截**（§6.4）。
-- **GROUP_ROLE 展开（T-PERM-043 隐藏）**：主体树过滤仅保留 BASIC_ROLE，GROUP_ROLE 节点整棵裁掉（`extra-roles/list` 已退役，展开代码保留为不可达，待 role_inclusion 立项恢复）。
+- **GROUP_ROLE 展开（T-PERM-043 隐藏）**：主体树过滤仅保留 BASIC_ROLE，GROUP_ROLE 节点整棵裁掉（`extra-roles/list` 已退役；展开虚拟容器机制随 2026-09-14 轻量清扫批次删除）。
 - **树启用态过滤（T-PERM-022，设计定案）**：角色入口 `getRoleTree({domainCode: null, enabledOnly: true})`——树接口默认返回全部有效角色（角色管理页需见禁用、可再启用），授权页主体树仅取启用（前端入参后端 SQL 过滤，api-contract §6.10.3）；T-FE-036 既有的节点禁用标记渲染保留为防御展示（正常链路禁用节点不达前端）。**组织入口同口径**（2026-09-04 定案）：`getOrgTree({includePositions: true, status: 1})` 仅启用组织/岗位可作授权目标（对齐角色入口先例；接受节点级过滤副作用——停用父组织下启用子树在本页不可见，用户管理页组织树不受影响）；`ORG:VIEW` 缺失时左栏占位不发请求（§10 轨道 1），岗位按调用者 `ORG:VIEW_POSITION` 后端裁剪（前端不探查）。
 - **组织入口 GrantContext 派生（T-FE-037 已实现）**：组织节点（orgType=1）→ `roleTypeCode: "ORG"`、岗位节点（orgType=2）→ `"POSITION"`；`roleExternalId = String(sys_org.id)`（对齐 abstract_role 投影 external_id，`LocalProjectionDomainServiceImpl.upsertAdminOrg`）；两入口 list/apply-grant-plan 请求结构一致（`domainCode` 恒 null）。
 - 权限接线：各入口按 `subjectType` 映射能力门控（§10）。
@@ -88,7 +88,7 @@ GrantContext = { domainCode, roleTypeCode, roleExternalId }
 | 入口 | 选中节点                     | roleTypeCode | roleExternalId                                                                            | domainCode          |
 | ---- | ---------------------------- | ------------ | ----------------------------------------------------------------------------------------- | ------------------- |
 | ROLE | BASIC_ROLE 角色              | `BASIC_ROLE` | 角色 `externalId`（角色树接口返回）                                                       | **恒 null**（P1-1） |
-| ROLE | ~~GROUP_ROLE 展开子节点~~（T-PERM-043 后不可达：主体树不展示 GROUP_ROLE，展开代码保留待恢复） | `BASIC_ROLE` | 子节点（基础角色）`externalId` | 同上 |
+| ROLE | ~~GROUP_ROLE 展开子节点~~（T-PERM-043 后不可达，展开机制 2026-09-14 已删） | `BASIC_ROLE` | 子节点（基础角色）`externalId` | 同上 |
 | ORG  | 组织节点（orgType=ORG）      | `ORG`        | `String(节点 id)`（即 `sys_org.id`，对齐 api-contract L656 示例 `roleExternalId:"2001"`） | **恒 null**（P1-1） |
 | ORG  | 岗位节点（orgType=POSITION） | `POSITION`   | `String(节点 id)`                                                                         | 同上                |
 
@@ -350,7 +350,7 @@ interface MatrixContext {
 ### 6.5 提交状态机（工程加固简化，2026-08-02 确认）
 
 - **Pinia store `grant-store.ts`**（T-FE-036 内新建，不复用现有全局 store）：提交状态用 **discriminated union** 表达，保持 `idle` / `dirty` / `saving` / `saveFailed` 四态；内部管理页低频，超时由“提示刷新确认”覆盖，不做自动恢复 machinery。
-- **页面 capability 与状态正交**：顶层 `capability: 'edit' | 'view'` **仅由门禁派生**（ROLE:VIEW -> view；ROLE:MANAGE -> edit；GROUP_ROLE 主体 -> view 一支随 T-PERM-043 主体树隐藏而不可达，代码保留）；**不再由 AUTO_DEP 派生**。AUTO_DEP 降为**记录级** `readonlyReason: 'AUTO_DEP' | null`：AUTO_DEP 记录禁编辑/删除 + 悬浮标注（**不禁用整个单元格**，并存 MANUAL 记录仍可编辑/添加），与页面状态机互不干扰（同一页 MANUAL 可编辑 + AUTO_DEP 记录只读共存）。
+- **页面 capability 与状态正交**：顶层 `capability: 'edit' | 'view'` **仅由门禁派生**（ROLE:VIEW -> view；ROLE:MANAGE -> edit；GROUP_ROLE 主体 -> view 一支随 T-PERM-043 主体树隐藏而不可达）；**不再由 AUTO_DEP 派生**。AUTO_DEP 降为**记录级** `readonlyReason: 'AUTO_DEP' | null`：AUTO_DEP 记录禁编辑/删除 + 悬浮标注（**不禁用整个单元格**，并存 MANUAL 记录仍可编辑/添加），与页面状态机互不干扰（同一页 MANUAL 可编辑 + AUTO_DEP 记录只读共存）。
 - **baseline 迁移规则**：`baseline` 只在 `apply-grant-plan` **明确成功**后切换（响应返回新权限结果）；失败 -> 条目保留标红，提示“保存失败，请重试”（整体重试，前端 saving 期间按钮 disabled 防重复提交）；**超时/网络未知** -> 提示“网络异常，请刷新页面确认当前状态”，管理员刷新 list 自行判断（不做自动 list 对比 + 重放）。
 - **readonly 派生**：页面 capability 由门禁（ROLE:VIEW/MANAGE）派生（GROUP_ROLE 主体派生支随 T-PERM-043 不可达）；记录级 readonlyReason 由 AUTO_DEP 派生，两者正交。
 - 状态机为 T-FE-036 实现要点（DoD：S5 相关场景必须走状态机路径验证）。

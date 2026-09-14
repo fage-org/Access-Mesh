@@ -1,8 +1,8 @@
 /**
- * 主体树构造纯函数（评审问题 5：递归保留真实 children + 虚拟容器装 extra-roles）。
+ * 主体树构造纯函数（评审问题 5：递归保留真实 children）。
  *
  * 从 filterVisibleTree 提取为独立模块，便于单测；不依赖响应式/this。
- * 设计依据：docs/design/frontend/permission-grant.md §1.1（角色入口两类型 + 分组展开；
+ * 设计依据：docs/design/frontend/permission-grant.md §1.1（角色入口 BASIC_ROLE；
  * 组织入口 ORG/POSITION 一体树，T-FE-037）。
  */
 import type { RoleTreeNode } from "@/api/role-manage";
@@ -14,7 +14,8 @@ import type { SubjectTreeNode } from "./types";
  * 存量节点整棵裁掉；ORG/POSITION/PERSONAL 不属角色入口，§1.1）。
  * 递归保留真实 children（评审问题 5）。
  * ROOT 为分组根容器，透明下钻不入结果。
- * buildExtraContainer 等 GROUP_ROLE 展开代码保留（不可达），待 role_inclusion 立项恢复。
+ * GROUP_ROLE 展开虚拟容器（buildExtraContainer）已随 2026-09-14 轻量清扫批次删除
+ * （role_inclusion 立项时从 git 历史恢复）。
  */
 export function filterVisibleTree(nodes: RoleTreeNode[]): SubjectTreeNode[] {
   const result: SubjectTreeNode[] = [];
@@ -37,37 +38,6 @@ export function filterVisibleTree(nodes: RoleTreeNode[]): SubjectTreeNode[] {
     });
   }
   return result;
-}
-
-/**
- * 构造"关联基础角色"虚拟容器（GROUP_ROLE 展开时装 extra-roles，评审问题 5）。
- * 异步加载完成后由组件层追加到 GROUP_ROLE 节点 children 末尾，不覆盖真实 children。
- * 容器自身不可选（kind=EXTRA_CONTAINER），其子节点 kind=EXTRA_ROLE。
- */
-export function buildExtraContainer(
-  parentExternalId: string,
-  parentName: string,
-  basics: Array<{ externalId: string; name: string }>
-): SubjectTreeNode {
-  return {
-    key: `extra-container:role:${parentExternalId}`,
-    kind: "EXTRA_CONTAINER",
-    roleTypeCode: "GROUP_ROLE",
-    externalId: null,
-    name: "关联基础角色",
-    status: 1,
-    children: basics.map(b => ({
-      key: `role:${b.externalId}@${parentExternalId}`,
-      kind: "EXTRA_ROLE" as const,
-      roleTypeCode: "BASIC_ROLE",
-      externalId: b.externalId,
-      name: b.name,
-      status: 1,
-      expandedFromGroup: true,
-      groupRoleName: parentName,
-      children: []
-    }))
-  };
 }
 
 // ========== 组织入口主体树（T-FE-037，§1.1/§2.1） ==========

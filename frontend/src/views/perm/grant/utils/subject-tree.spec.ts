@@ -1,11 +1,10 @@
 /**
- * 主体树构造纯函数测试（评审问题 5：递归保留真实 children + 虚拟容器）。
+ * 主体树构造纯函数测试（评审问题 5：递归保留真实 children）。
  */
 import { describe, it, expect } from "vitest";
 import type { RoleTreeNode } from "@/api/role-manage";
 import type { OrgTreeNode } from "@/api/user-manage";
 import {
-  buildExtraContainer,
   buildOrgSubjectTree,
   decideRefreshAction,
   filterVisibleTree,
@@ -176,32 +175,6 @@ describe("filterVisibleTree（评审问题 5；T-PERM-043 后仅 BASIC_ROLE）",
       })
     ]);
     expect(result[0].children).toEqual([]);
-  });
-});
-
-describe("buildExtraContainer（评审问题 5）", () => {
-  it("构造虚拟容器：EXTRA_CONTAINER 不可选，子节点 EXTRA_ROLE 带分组来源", () => {
-    const container = buildExtraContainer("GROUP_401", "核心开发组", [
-      { externalId: "BASIC_201", name: "基础用户" },
-      { externalId: "BASIC_202", name: "高级用户" }
-    ]);
-    expect(container.kind).toBe("EXTRA_CONTAINER");
-    expect(container.externalId).toBeNull();
-    expect(container.name).toBe("关联基础角色");
-    expect(container.children).toHaveLength(2);
-    const child = container.children![0];
-    expect(child.kind).toBe("EXTRA_ROLE");
-    expect(child.externalId).toBe("BASIC_201");
-    expect(child.roleTypeCode).toBe("BASIC_ROLE");
-    expect(child.expandedFromGroup).toBe(true);
-    expect(child.groupRoleName).toBe("核心开发组");
-    expect(child.key).toBe("role:BASIC_201@GROUP_401");
-  });
-
-  it("空 basics 列表：容器存在但无子节点", () => {
-    const container = buildExtraContainer("GROUP_402", "运维保障组", []);
-    expect(container.kind).toBe("EXTRA_CONTAINER");
-    expect(container.children).toEqual([]);
   });
 });
 

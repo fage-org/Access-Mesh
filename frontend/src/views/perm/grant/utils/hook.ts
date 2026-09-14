@@ -749,10 +749,6 @@ export function usePermissionGrant() {
         case "syncName":
           // 角色仍存在：同步改名，不重载 baseline（问题 6）
           grantStore.syncDisplayName(action.displayName);
-          // EXTRA_ROLE 选中刷新后高亮转移到顶层 BASIC_ROLE（评审问题 1B）
-          if (ctx?.fromGroupRoleName != null && node) {
-            activeKey.value = node.key;
-          }
           break;
         case "clearSubject":
           // 主体已删除：清空主体 + 提示（review 复核 should-fix：先作废 hook 代际与

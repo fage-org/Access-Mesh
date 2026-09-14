@@ -15,7 +15,7 @@ last_reviewed: 2026-09-04   # 2026-09-04 §8 T-PERM-044 收口句终态化（Red
 ## 1. 页面定位
 
 角色管理页**仅管理可手工创建的功能角色**：`BASIC_ROLE`（基础角色，首期唯一功能角色）。
-`GROUP_ROLE`（分组角色）自 T-PERM-043 起后端写入口删除（extra-roles/* 退役、create/update 拒绝 20022），本页选项隐藏、存量节点不展示（代码保留，见 §4.2）。
+`GROUP_ROLE`（分组角色）自 T-PERM-043 起后端写入口删除（extra-roles/* 退役、create/update 拒绝 20022），本页选项隐藏、存量节点不展示（额外角色面板与封装已随 2026-09-14 轻量清扫批次删除，见 §4.2）。
 
 5 种抽象角色类型中，其余 3 类不在本页展示：
 
@@ -39,12 +39,11 @@ last_reviewed: 2026-09-04   # 2026-09-04 §8 T-PERM-044 收口句终态化（Red
 │ [角色树面板 minmax(220px,280px)] [详情区 1fr]            │
 │  ├─ header（标题+新增下拉）     ├─ 角色信息卡片          │
 │  ├─ 搜索框                      │   ├─ 名称/类型/状态标签 │
-│  └─ el-scrollbar 树(flex:1)     │   └─ 编辑/启停/删除 │
-│     └─ el-tree（draggable）     ├─ meta（排序/ID/只读提示）│
-│                                 └─ 额外基本角色区*        │
+│  └─ el-scrollbar 树(flex:1)     │   ├─ 编辑/启停/删除 │
+│     └─ el-tree（draggable）     └─ meta（排序/ID/只读提示）│
 └─────────────────────────────────────────────────────────┘
-* 额外基本角色区仅当选中分组角色（GROUP_ROLE）时显示；T-PERM-043 后 GROUP_ROLE 节点
-  不展示，该区不可达（代码保留，见 §4.2）
+* 原「额外基本角色区」（选中 GROUP_ROLE 时显示）已随 2026-09-14 轻量清扫批次删除——
+  T-PERM-043 后 GROUP_ROLE 节点不展示、面板不可达（历史形态见 §4.2）
 ```
 
 - 页面层 `display: grid; grid-template-columns: minmax(220px, 280px) 1fr`（响应式宽度，禁止固定 px）。
@@ -103,11 +102,11 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 - **类型切换**：新建时切换角色类型，父角色自动重置为顶层（跨类型父子不合法）。
 - **编辑态只读（P3）**：父角色渲染为纯只读 input，无 popover、不可点选。**编辑不修改 parentId**，层级调整只走拖拽/move 接口（`updateRole` 不含 parentId 字段）。
 
-### 4.2 分组角色额外基本角色（T-PERM-043 已退役，代码保留）
+### 4.2 分组角色额外基本角色（T-PERM-043 已退役；死码 2026-09-14 删除）
 
 后端 `extra-roles/list|add|remove` 三接口已删除（写入口 `add` 自实现起写 `user_role.abstract_user_id=null` 违反 NOT NULL 从未成功，`list` 恒空；管理侧 user_role 关系与运行时 `abstract_role.extra.basicRoleIds` 双事实源遗留登记见仓库 README「技术债遗留登记」段）。未来按 `role_inclusion(group_role_id, included_role_id)` 单事实源另行立项后恢复。
 
-前端处置：**代码保留不删**——`index.vue` 额外基本角色面板（`v-if` GROUP_ROLE 选中）、`hook.ts` 的 `loadExtraRoles/addExtraRole/removeExtraRole`、`api/role-manage.ts` 的 extra-roles 封装与 `ROLE:ASSIGN/REVOKE` perm 串均保留；`MANAGEABLE_ROLE_TYPES` 收窄为 `[BASIC_ROLE]` 后 GROUP_ROLE 节点不进树、选项不进下拉，面板不可达（死代码，待恢复时随常量放开）。
+前端处置（2026-09-14 轻量清扫批次终态）：**死码全删**——原 T-PERM-043 处置为「代码保留不删」（`index.vue` 面板、`hook.ts` 三函数、`api/role-manage.ts` extra-roles 封装与 `ROLE:ASSIGN/REVOKE` perm 串），因 GROUP_ROLE 节点不进树（`MANAGEABLE_ROLE_TYPES` 收窄 `[BASIC_ROLE]`）全部不可达；2026-09-14 用户拍板轻量清扫，上述面（含授权页 GROUP_ROLE 展开虚拟容器机制，见 permission-grant.md §1.1）全部删除，恢复时从 git 历史找回。
 
 ### 4.3 配权
 
@@ -125,7 +124,7 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 | 删除 | `POST /api/perm/abstract-role/remove` | `{ids:[]}` | `Void` | ✅ |
 | 详情 | `POST /api/perm/abstract-role/detail` | `{roleTypeCode,roleExternalId}` | `RoleResp` | ✅ |
 
-> T-PERM-043：`extra-roles/list|add|remove` 三行移除（后端接口删除，前端封装保留为不可达代码，见 §4.2）。`create`/`update` 后端显式拒绝 GROUP_ROLE（20022），与本页仅 BASIC_ROLE 的口径一致。
+> T-PERM-043：`extra-roles/list|add|remove` 三行移除（后端接口删除）；2026-09-14 轻量清扫批次前端死封装同步删除（见 §4.2）。`create`/`update` 后端显式拒绝 GROUP_ROLE（20022），与本页仅 BASIC_ROLE 的口径一致。
 
 > **T-FE-016 联调收口（2026-09-01）**：api 层真实链路（T-FE-041 切路径）经联调验证零漂移；Gateway bootstrap 清单注册本页消费 6 端点中的 4 个增量（update/remove/move/detail——tree/create 先在册；list 本页不消费留 T-FE-020）；`detail` 由编辑弹窗按业务键拉取回填 extra（树节点契约无 extra 字段，§8 第 1 条既定路径接线）；`update` 接入 `extraClear` 显式清空标志（清空 extra 无协议通道的冒烟缺口，对齐资源域 T-PERM-028 口径与同构提交公式，见契约 §5.2）；mock/role-manage.ts 退役删除。
 
@@ -137,7 +136,7 @@ views/system/role/
 ├── components/
 │   └── RoleForm.vue           # 角色表单弹窗（新建/编辑）
 └── utils/
-    ├── hook.ts                # useRoleManage（树加载/CRUD/移动/额外角色）
+    ├── hook.ts                # useRoleManage（树加载/CRUD/移动）
     ├── perms.ts               # ROLE_MANAGE_PERMS（SSOT）
     └── types.ts               # RoleFormData + 辅助判定
 ```
@@ -160,27 +159,26 @@ views/system/role/
 | `ROLE:VIEW` | VIEW | ROLE | 路由可达 + 树可见 |
 | `ROLE:CREATE` | CREATE | ROLE | 新增角色下拉 |
 | `ROLE:MANAGE` | MANAGE | ROLE | 编辑 / 启停 / 删除 / 移动 |
-| `ROLE:ASSIGN` | ASSIGN | ROLE | 分组角色添加额外基本角色（T-PERM-043 后不可达，代码保留） |
-| `ROLE:REVOKE` | REVOKE | ROLE | 分组角色移除额外基本角色（T-PERM-043 后不可达，代码保留） |
+
+> 原 `ROLE:ASSIGN`/`ROLE:REVOKE` 两行（分组角色添加/移除额外基本角色）已随 2026-09-14 轻量清扫批次删除（T-PERM-043 后不可达死码，历史形态见 §4.2）。
 
 > **B1 口径**：后端 `RoleManageAppServiceImpl` 的 updateRole/moveRole/deleteRoles 均以 `ROLE:MANAGE` 做门禁，无独立 UPDATE/DELETE/MOVE 操作码；detail/list/tree 读接口以类型级 `ROLE:VIEW` 做门禁（T-PERM-022 收口）。前端 EDIT/DELETE/GRANT 统一映射到 `ROLE:MANAGE`（评审 P2 修正）。`ROLE_MANAGE_PERM_LIST` 用 `Set` 去重，确保路由 `meta.auths` 无冗余。
 >
-> **额外角色独立门禁（评审 P1-额外角色；T-PERM-043 后接口已删）**：原后端 addExtraRole/removeExtraRole 分别校验 `ASSIGN`/`REVOKE` 的入口已删除；前端 `canAssign`/`canRevoke` 门控与 perm 串保留（面板不可达），待 role_inclusion 立项恢复接线。
+> 原「额外角色独立门禁」（canAssign/canRevoke，评审 P1-额外角色）已随 2026-09-14 轻量清扫批次删除（T-PERM-043 后面板不可达，见 §4.2）。
 
 ### 降级策略
 
 - 无 `ROLE:VIEW` → 菜单仍可见、路由可达（路由过滤 `filterNoPermissionTree` 只认 `meta.roles` 不消费 `meta.auths`，本项目未设 roles），进入页面后由后端 VIEW 校验拒绝（403 兜底）；菜单级可见性随 Phase 3 联调 T-FE-015 user-menu menus 轨道接线切 v3.5 ∃op 派生（T-PERM-037 收口定案，2026-08-31）。
 - 无 `ROLE:CREATE` → 隐藏「新增角色」下拉。
 - 无 `ROLE:MANAGE` → 隐藏编辑/启停/删除按钮。
-- 无 `ROLE:ASSIGN` / `ROLE:REVOKE` → 隐藏额外角色「添加/移除」按钮（T-PERM-043 后面板不可达，门控保留）。
 - ORG/POSITION/PERSONAL 只读类型 → 无论权限如何，均不展示编辑/删除按钮（业务约束，非权限）；GROUP_ROLE 节点整体不展示（写入口已删除）。
 
 ### mock 角色矩阵（`mock/login.ts`）
 
 | 账号 | 角色管理权限 |
 |---|---|
-| admin | 全权（ROLE:VIEW/CREATE/MANAGE/ASSIGN/REVOKE） |
-| sec（安全管理员） | 全权（与 C 功能角色分配同源；含 ROLE_ADD/EDIT(MANAGE)/ASSIGN/REVOKE） |
+| admin | 全权（ROLE:VIEW/CREATE/MANAGE） |
+| sec（安全管理员） | 全权（与 C 功能角色分配同源；含 ROLE_ADD/EDIT(MANAGE)） |
 | hr（组织人事管理员） | 只读（ROLE:VIEW） |
 | auditor（审计员） | 只读（ROLE:VIEW） |
 

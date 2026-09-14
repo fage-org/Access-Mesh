@@ -2,9 +2,8 @@
 /**
  * 左栏主体树（§1.1 两入口共用一套组件）。
  * - 角色入口：abstract-role/tree（权限中心）；T-PERM-043 后主体树仅展示 BASIC_ROLE
- *   （GROUP_ROLE 写入口已删除、节点整棵裁掉；extra-roles/list 已退役）。
- *   GROUP_ROLE 展开/选中分支代码保留为不可达（expandGroup、requestSelectGroup 等），
- *   待未来 role_inclusion 单事实源立项后随 subject-tree 过滤恢复。
+ *   （GROUP_ROLE 写入口已删除、节点整棵裁掉；extra-roles 展开机制与 requestSelectGroup
+ *   随 2026-09-14 轻量清扫批次删除，role_inclusion 立项时从 git 历史恢复）。
  * - 组织入口（T-FE-037）：admin-service org-tree（includePositions=true，岗位为所属组织
  *   子节点，T-ADMIN-021）；status=1 仅启用（2026-09-04 用户决策，对齐角色入口 enabledOnly
  *   先例）；ORG:VIEW 缺失时左栏占位（§10 轨道 1 数据源门禁），岗位由后端按
@@ -12,8 +11,8 @@
  *
  * 受控协议（评审问题 3 组件部分）：组件不持有选中态，由父组件通过 activeKey/selectingKey
  * 两阶段提交--点击候选 emit requestSelect，父组件确认成功才设 activeKey；saving 期间
- * disabled 冻结点击。节点 kind（ROLE/EXTRA_CONTAINER/EXTRA_ROLE/ORG/POSITION）不依赖
- * roleTypeCode 猜测，嵌套真实 children 递归保留，extra-roles 装入虚拟容器追加不覆盖（评审问题 5）。
+ * disabled 冻结点击。节点 kind（ROLE/ORG/POSITION）不依赖 roleTypeCode 猜测，嵌套真实
+ * children 递归保留（评审问题 5）。
  *
  * 树加载由父组件 onActivated 驱动（问题 6：keep-alive 重入刷新树覆盖新建/改名/删除/层级变化）；
  * 本组件不自行 onMounted 加载，暴露 loadTree/findNode/preselect 供父组件编排一次性入口指令。
@@ -21,11 +20,7 @@
 import { computed, nextTick, ref, watch } from "vue";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
-import {
-  getRoleTree,
-  listExtraRoles,
-  type RoleTreeNode
-} from "@/api/role-manage";
+import { getRoleTree, type RoleTreeNode } from "@/api/role-manage";
 import { getOrgTree } from "@/api/user-manage";
 import { PERMISSION_GRANT_PERMS } from "../utils/perms";
 import type {
@@ -33,11 +28,7 @@ import type {
   SubjectTreeNode,
   SubjectType
 } from "../utils/types";
-import {
-  buildExtraContainer,
-  buildOrgSubjectTree,
-  filterVisibleTree
-} from "../utils/subject-tree";
+import { buildOrgSubjectTree, filterVisibleTree } from "../utils/subject-tree";
 
 const props = defineProps<{
   subjectType: SubjectType;
@@ -52,8 +43,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   /** 请求选中可授权主体（BASIC_ROLE / ORG / POSITION）；父组件确认成功才设 activeKey */
   (e: "requestSelect", payload: { key: string; context: GrantContext }): void;
-  /** 请求选中 GROUP_ROLE 节点本身（无独立权限矩阵，提示展开选择基础角色；T-PERM-043 后不可达） */
-  (e: "requestSelectGroup", payload: { key: string; name: string }): void;
 }>();
 
 const isOrg = computed(() => props.subjectType === "ORG");
@@ -128,7 +117,7 @@ async function loadOrgTree() {
   }
 }
 
-/** 递归查找节点（含嵌套真实 children；EXTRA_ROLE 未展开时不在树中） */
+/** 递归查找节点（含嵌套真实 children） */
 function findInTree(
   nodes: SubjectTreeNode[],
   externalId: string,
@@ -166,42 +155,11 @@ function preselect(externalId: string) {
   if (hit) handleNodeClick(hit);
 }
 
-/**
- * GROUP_ROLE 展开 -> 加载其关联基础角色为虚拟容器子节点（extra-roles/list）。
- * 追加到真实 children 末尾，不覆盖嵌套真实子节点（评审问题 5）。
- */
-async function handleNodeExpand(node: SubjectTreeNode) {
-  if (node.kind !== "ROLE" || node.roleTypeCode !== "GROUP_ROLE") return;
-  if (!node.externalId || node.expandedLoaded) return;
-  try {
-    const basics = await listExtraRoles({
-      domainCode: null,
-      groupRoleTypeCode: node.roleTypeCode,
-      groupRoleExternalId: node.externalId
-    });
-    const container = buildExtraContainer(node.externalId, node.name, basics);
-    // 真实 children（嵌套角色）+ 虚拟容器并存，不覆盖
-    const realChildren = node.children ?? [];
-    node.children = [...realChildren, container];
-    // 成功后才标记已加载（失败可重试，评审问题 2）
-    node.expandedLoaded = true;
-  } catch (error: any) {
-    message(error.message || "加载分组基础角色失败", { type: "error" });
-  }
-}
-
 /** 节点点击：受控 emit，不本地设选中态（评审问题 3） */
 function handleNodeClick(node: SubjectTreeNode) {
   if (props.disabled) return;
-  // 虚拟容器不可选
-  if (node.kind === "EXTRA_CONTAINER") return;
-  if (node.kind === "ROLE" && node.roleTypeCode === "GROUP_ROLE") {
-    emit("requestSelectGroup", { key: node.key, name: node.name });
-    return;
-  }
   if (!node.externalId) return;
-  // 角色入口：BASIC_ROLE（ROLE/EXTRA_ROLE，主体均为 BASIC_ROLE）；
-  // 组织入口：ORG / POSITION（roleTypeCode 即主体类型，§2.1）
+  // 角色入口：BASIC_ROLE（ROLE）；组织入口：ORG / POSITION（roleTypeCode 即主体类型，§2.1）
   emit("requestSelect", {
     key: node.key,
     context: {
@@ -211,10 +169,7 @@ function handleNodeClick(node: SubjectTreeNode) {
           ? node.kind
           : "BASIC_ROLE",
       roleExternalId: node.externalId,
-      displayName: node.name,
-      fromGroupRoleName: node.expandedFromGroup
-        ? (node.groupRoleName ?? null)
-        : null
+      displayName: node.name
     }
   });
 }
@@ -266,42 +221,20 @@ defineExpose({ loadTree, findNode, preselect });
           :expand-on-click-node="false"
           :highlight-current="true"
           :current-node-key="activeKey ?? undefined"
-          @node-expand="handleNodeExpand"
           @node-click="handleNodeClick"
         >
           <template #default="{ data }">
             <span
               class="node-label"
               :class="{
-                'is-selecting': data.key === selectingKey,
-                'is-container': data.kind === 'EXTRA_CONTAINER'
+                'is-selecting': data.key === selectingKey
               }"
             >
               <span :class="{ 'is-disabled': data.status === 0 }">
                 {{ data.name }}
               </span>
               <el-tag
-                v-if="
-                  data.kind === 'ROLE' && data.roleTypeCode === 'GROUP_ROLE'
-                "
-                size="small"
-                type="info"
-                effect="plain"
-                class="node-tag"
-              >
-                分组
-              </el-tag>
-              <el-tag
-                v-else-if="data.kind === 'EXTRA_ROLE'"
-                size="small"
-                type="success"
-                effect="plain"
-                class="node-tag"
-              >
-                基础角色
-              </el-tag>
-              <el-tag
-                v-else-if="data.kind === 'POSITION'"
+                v-if="data.kind === 'POSITION'"
                 size="small"
                 type="warning"
                 effect="plain"
@@ -377,11 +310,6 @@ defineExpose({ loadTree, findNode, preselect });
     &.is-selecting {
       font-weight: 600;
       color: var(--el-color-primary);
-    }
-
-    &.is-container {
-      font-style: italic;
-      color: var(--el-text-color-secondary);
     }
 
     .is-disabled {

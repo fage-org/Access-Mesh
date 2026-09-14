@@ -7,11 +7,7 @@ import {
   updateRole,
   moveRole,
   removeRoles,
-  listExtraRoles,
-  addExtraRole,
-  removeExtraRole,
   type RoleTreeNode,
-  type RoleSummaryResp,
   type RoleTypeCode
 } from "@/api/role-manage";
 import {
@@ -25,9 +21,6 @@ export function useRoleManage() {
   const roleTree = ref<RoleTreeNode[]>([]);
   const loading = ref(false);
   const selectedRole = ref<RoleTreeNode | null>(null);
-  /** 分组角色额外基本角色列表 */
-  const extraRoles = ref<RoleSummaryResp[]>([]);
-  const extraRolesLoading = ref(false);
 
   /** 树过滤关键词 */
   const filterText = ref("");
@@ -44,7 +37,7 @@ export function useRoleManage() {
    * 过滤树：仅保留角色管理页可管理的类型（MANAGEABLE_ROLE_TYPES，T-PERM-043 后仅
    * BASIC_ROLE）。ORG/POSITION/PERSONAL 由外部同步生成，不在本页展示（归权限授予/
    * 用户详情）；GROUP_ROLE 写入口已删除、选项隐藏，存量节点整棵裁掉（额外角色
-   * 面板随选中类型不触发，extra-roles API 保留但不可达）。
+   * 面板与 extra-roles API 已随 2026-09-14 轻量清扫批次删除）。
    *
    * C2 后树为扁平森林（parentId=null 真实角色为根，无类型虚拟根）：
    * 递归裁剪——节点类型不在可见集合则整棵裁掉，同类型子树保留。
@@ -89,16 +82,9 @@ export function useRoleManage() {
         const refreshed = findNodeInTree(roleTree.value, currentId);
         if (refreshed) {
           selectedRole.value = refreshed;
-          // 分组角色额外角色列表也需按新节点刷新
-          if (refreshed.roleTypeCode === "GROUP_ROLE" && refreshed.externalId) {
-            loadExtraRoles(refreshed);
-          } else {
-            extraRoles.value = [];
-          }
         } else {
           // 节点已不在树中（被删/被过滤）→ 清空选中
           selectedRole.value = null;
-          extraRoles.value = [];
         }
       }
     } catch (error: any) {
@@ -132,69 +118,6 @@ export function useRoleManage() {
   /** 选中节点 */
   function handleNodeClick(node: RoleTreeNode) {
     selectedRole.value = node;
-    // 分组角色选中且为真实角色（有 externalId 业务键）时加载额外角色
-    if (node.roleTypeCode === "GROUP_ROLE" && node.externalId) {
-      loadExtraRoles(node);
-    } else {
-      extraRoles.value = [];
-    }
-  }
-
-  // ========== 额外角色（分组角色专属） ==========
-
-  async function loadExtraRoles(node: RoleTreeNode) {
-    if (!node.externalId) return;
-    extraRolesLoading.value = true;
-    try {
-      extraRoles.value = await listExtraRoles({
-        domainCode: null,
-        groupRoleTypeCode: node.roleTypeCode,
-        groupRoleExternalId: node.externalId
-      });
-    } catch (error: any) {
-      message(error.message || "加载额外角色失败", { type: "error" });
-      extraRoles.value = [];
-    } finally {
-      extraRolesLoading.value = false;
-    }
-  }
-
-  async function handleAddExtraRole(basicRole: RoleSummaryResp) {
-    const node = selectedRole.value;
-    if (!node?.externalId) return;
-    try {
-      await addExtraRole({
-        groupDomainCode: null,
-        groupRoleTypeCode: node.roleTypeCode,
-        groupRoleExternalId: node.externalId,
-        basicDomainCode: null,
-        basicRoleTypeCode: basicRole.roleTypeCode,
-        basicRoleExternalId: basicRole.externalId
-      });
-      message("添加额外角色成功", { type: "success" });
-      loadExtraRoles(node);
-    } catch (error: any) {
-      message(error.message || "添加失败", { type: "error" });
-    }
-  }
-
-  async function handleRemoveExtraRole(basicRole: RoleSummaryResp) {
-    const node = selectedRole.value;
-    if (!node?.externalId) return;
-    try {
-      await removeExtraRole({
-        groupDomainCode: null,
-        groupRoleTypeCode: node.roleTypeCode,
-        groupRoleExternalId: node.externalId,
-        basicDomainCode: null,
-        basicRoleTypeCode: basicRole.roleTypeCode,
-        basicRoleExternalId: basicRole.externalId
-      });
-      message("移除额外角色成功", { type: "success" });
-      loadExtraRoles(node);
-    } catch (error: any) {
-      message(error.message || "移除失败", { type: "error" });
-    }
   }
 
   // ========== CRUD ==========
@@ -277,7 +200,6 @@ export function useRoleManage() {
       message("删除成功", { type: "success" });
       if (selectedRole.value?.id === node.id) {
         selectedRole.value = null;
-        extraRoles.value = [];
       }
       await loadTree();
     } catch (error: any) {
@@ -331,16 +253,11 @@ export function useRoleManage() {
     roleTree,
     loading,
     selectedRole,
-    extraRoles,
-    extraRolesLoading,
     filterText,
     treeProps,
     loadTree,
     filterNode,
     handleNodeClick,
-    loadExtraRoles,
-    handleAddExtraRole,
-    handleRemoveExtraRole,
     handleSubmitForm,
     handleToggleStatus,
     handleDelete,

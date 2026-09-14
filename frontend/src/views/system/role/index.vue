@@ -13,8 +13,7 @@ import {
   MANAGEABLE_ROLE_TYPES,
   getRoleDetail,
   type RoleTreeNode,
-  type RoleTypeCode,
-  type RoleSummaryResp
+  type RoleTypeCode
 } from "@/api/role-manage";
 import { message } from "@/utils/message";
 import { isReadonlyRoleType } from "./utils/types";
@@ -28,15 +27,11 @@ const {
   roleTree,
   loading,
   selectedRole,
-  extraRoles,
-  extraRolesLoading,
   filterText,
   treeProps,
   loadTree,
   filterNode,
   handleNodeClick,
-  handleAddExtraRole,
-  handleRemoveExtraRole,
   handleSubmitForm,
   handleToggleStatus,
   handleDelete,
@@ -52,9 +47,6 @@ const canView = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_VIEW));
 const canAdd = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_ADD));
 const canEdit = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_EDIT));
 const canDelete = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_DELETE));
-/** 分组角色额外角色：添加对齐后端 ASSIGN，移除对齐 REVOKE（评审 P1-额外角色） */
-const canAssign = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_ASSIGN));
-const canRevoke = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_REVOKE));
 
 // 监听过滤文本
 function onFilterInput(val: string) {
@@ -150,45 +142,6 @@ const addTypeMenu = computed(() =>
 function onAddByType(type: RoleTypeCode) {
   // C2 后无类型虚拟根：新建顶层角色，parentId=null（顶层森林），类型由下拉决定。
   openRoleForm("create", null, type);
-}
-
-// ========== 可用基本角色（分组角色添加额外角色候选） ==========
-
-const availableBasicRoles = computed<RoleSummaryResp[]>(() => {
-  const result: RoleSummaryResp[] = [];
-  function collect(node: RoleTreeNode) {
-    // C2 后树根即真实角色，全部收集（含顶层 BASIC_ROLE）；
-    // 但排除无 externalId 的 BASIC_ROLE——额外角色 add 接口 DTO @NotBlank basicRoleExternalId，
-    // 空串发给后端会 400（评审 P2-基础候选）。
-    if (node.roleTypeCode === ROLE_TYPE_CODE.BASIC_ROLE && node.externalId) {
-      result.push({
-        id: node.id,
-        roleTypeCode: node.roleTypeCode,
-        externalId: node.externalId,
-        name: node.name
-      });
-    }
-    for (const child of node.children || []) collect(child);
-  }
-  for (const root of roleTree.value) collect(root);
-  return result;
-});
-
-/** 当前分组角色未添加的基本角色候选 */
-const candidateBasicRoles = computed(() => {
-  const addedIds = new Set(extraRoles.value.map(r => r.id));
-  return availableBasicRoles.value.filter(r => !addedIds.has(r.id));
-});
-
-/** 额外角色功能是否可用：分组角色须有非空 externalId（后端 DTO @NotBlank，评审 P2-externalId）。
- *  表单已强制可管理类型 externalId 必填，此为脏数据/历史数据兜底提示。 */
-const extraRolesAvailable = computed(() => !!selectedRole.value?.externalId);
-
-const showAddExtraPopover = ref(false);
-
-function onAddExtra(basic: RoleSummaryResp) {
-  handleAddExtraRole(basic);
-  showAddExtraPopover.value = false;
 }
 
 // ========== 树节点操作权限 ==========
@@ -404,81 +357,6 @@ function statusTagType(status: number) {
             </span>
           </div>
         </div>
-
-        <!-- 分组角色额外角色管理 -->
-        <div
-          v-if="selectedRole.roleTypeCode === 'GROUP_ROLE'"
-          class="extra-roles-section"
-        >
-          <div class="section-header">
-            <span class="section-title">额外基本角色</span>
-            <el-popover
-              v-model:visible="showAddExtraPopover"
-              trigger="click"
-              placement="bottom-end"
-              :width="280"
-              :show-arrow="false"
-            >
-              <template #reference>
-                <el-button
-                  v-if="canAssign"
-                  type="primary"
-                  size="small"
-                  plain
-                  :icon="Plus"
-                  :disabled="
-                    candidateBasicRoles.length === 0 || !extraRolesAvailable
-                  "
-                >
-                  添加
-                </el-button>
-              </template>
-              <div class="extra-candidate-list">
-                <div
-                  v-for="basic in candidateBasicRoles"
-                  :key="basic.id"
-                  class="candidate-item"
-                  @click="onAddExtra(basic)"
-                >
-                  <span>{{ basic.name }}</span>
-                  <span class="candidate-ext">{{ basic.externalId }}</span>
-                </div>
-                <div v-if="candidateBasicRoles.length === 0" class="empty-tip">
-                  无可添加的基本角色
-                </div>
-              </div>
-            </el-popover>
-          </div>
-          <div v-if="!extraRolesAvailable" class="extra-unavailable-tip">
-            该分组角色缺少外部标识，额外角色功能不可用（后端依赖业务键定位）
-          </div>
-          <el-table
-            v-loading="extraRolesLoading"
-            :data="extraRoles"
-            size="small"
-            empty-text="暂无额外角色"
-          >
-            <el-table-column prop="name" label="角色名称" min-width="120" />
-            <el-table-column
-              prop="externalId"
-              label="外部标识"
-              min-width="120"
-            />
-            <el-table-column label="操作" width="80" fixed="right">
-              <template #default="{ row }">
-                <el-button
-                  v-if="canRevoke"
-                  link
-                  type="danger"
-                  size="small"
-                  @click="handleRemoveExtraRole(row)"
-                >
-                  移除
-                </el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-        </div>
       </template>
 
       <!-- 空状态 -->
@@ -609,67 +487,6 @@ function statusTagType(status: number) {
 
 .meta-readonly {
   color: var(--el-color-warning);
-}
-
-/* 额外角色区 */
-.extra-roles-section {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-}
-
-.section-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-2);
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-
-.extra-unavailable-tip {
-  padding: var(--space-2) var(--space-3);
-  margin-bottom: var(--space-2);
-  font-size: 13px;
-  color: var(--el-color-warning);
-  background: var(--el-fill-color-light);
-  border-radius: var(--radius-sm);
-}
-
-.extra-candidate-list {
-  max-height: var(--popover-max-height);
-  overflow-y: auto;
-}
-
-.candidate-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--space-2);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-
-  &:hover {
-    background: var(--el-fill-color-light);
-  }
-
-  .candidate-ext {
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-  }
-}
-
-.empty-tip {
-  padding: var(--space-3);
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  text-align: center;
 }
 
 .empty-state {
