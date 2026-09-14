@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-054
 title: 手工 API 映射绑定非 API 资源的处置——暂缓（关联权限自动授权方向已定、方案未定）
 status: proposed
-plan: docs/plans/design-audit-followup-plan.md
+plan: —（2026-09-14 脱出 design-audit-followup 随计划归档；启动门禁不变，等方案定案）
 domain: permission-center
 design_refs:
   - docs/design/access-service-api-contract.md#§12.2（service-config / api-mapping；T-ACCESS-040 重挂总册）

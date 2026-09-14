@@ -3,7 +3,7 @@ doc_type: task
 id: T-API-002
 title: perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口
 status: done
-plan: docs/plans/design-audit-followup-plan.md
+plan: docs/archive/2026-09-14/design-audit-followup-plan.md
 domain: cross-service
 design_refs:
   - docs/design/permission-center/core-flows.md#§15

@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-028
 title: 3.1 资源+操作定义后端——业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁补齐/类型联动预置（resource-entity + operation-permission）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.3

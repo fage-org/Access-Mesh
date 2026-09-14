@@ -3,7 +3,7 @@ doc_type: task
 id: T-ADMIN-021
 title: org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: admin-service
 design_refs:
   - docs/design/frontend/permission-grant.md#§9

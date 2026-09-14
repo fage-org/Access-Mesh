@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-052
 title: 资源类型级所有权边界——类型声明门禁（sync 独占 + 管理面只读 + 声明变更守卫）
 status: done
-plan: docs/plans/design-audit-followup-plan.md
+plan: docs/archive/2026-09-14/design-audit-followup-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.1

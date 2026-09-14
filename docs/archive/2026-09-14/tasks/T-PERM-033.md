@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-033
 title: 权限排查后端门禁统一 + DTO 扩展（直连 /api/perm/*，无聚合层）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§6.6

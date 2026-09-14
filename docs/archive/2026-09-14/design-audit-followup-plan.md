@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: codex 项目级设计体检处置批次
-status: proposed
+status: archived
 domain: permission-center
 design_refs:
   - docs/design/access-service-api-contract.md
@@ -11,16 +11,15 @@ design_refs:
 tasks:
   - T-PERM-052
   - T-PERM-053
-  - T-PERM-054
   - T-API-002
   - T-ACCESS-029
 acceptance: "体检新发现（P1×1、P2×2）逐条代码级核实并定案后拆为可追踪任务；五条预置题的执行口径已定并回写对应任务卡/架构文档；暂缓项与演进方向单独登记不混入执行面；各任务实现按任务卡验收执行。"
-last_updated: 2026-09-06
+last_updated: 2026-09-14
 ---
 
 # codex 项目级设计体检处置批次
 
-> 状态：proposed
+> 状态：archived（2026-09-14 归档）
 > 来源：2026-09-05 codex（gpt-5.6-sol xhigh，read-only，探索/核实全经 luna 子代理双交叉）项目级设计体检报告；全部结论经代码级逐条核实与逐项讨论定案。报告全文仅存于当日会话历史（未归档），其 §A/§B 编号以本计划任务拆分表为准
 > 约束：本计划只建立任务跟踪入口与定案登记，不授权实现；各任务进入 in-progress 前按任务卡验收执行
 
@@ -38,20 +37,20 @@ last_updated: 2026-09-06
 
 | 任务 | 来源 | 范围一句话 | 状态 |
 |---|---|---|---|
-| [T-PERM-052](../tasks/T-PERM-052.md) | §B P1 | 资源类型级所有权边界——类型声明门禁（2026-09-05 用户四项定案改定类型级方案：sync 独占 + 管理面只读含级联守卫 + 声明变更守卫 + syncTypes 资源维度退役） | ✅ |
-| [T-PERM-053](../tasks/T-PERM-053.md) | §B P2-3a | service-config 同步 ApiItem.operationCode 无效字段删除（前后端同批锁步） | ✅ |
-| [T-API-002](../tasks/T-API-002.md) | §B P2-2 | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（含内部 id 字段族全裁——2026-09-06 用户决策扩大到 check 族三接口——+ 排查页同批改造，页面暂停重做登记 T-FE-043） | ✅ |
-| [T-ACCESS-029](../tasks/T-ACCESS-029.md) | §A-5 | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | ✅ |
-| [T-PERM-054](../tasks/T-PERM-054.md) | §B P2-3b | 手工 API 映射绑定非 API 资源处置——**暂缓**（关联权限自动授权方向已定、方案未定，2026-09-09 registry 登记） | ⚙️（暂缓） |
+| [T-PERM-052](tasks/T-PERM-052.md) | §B P1 | 资源类型级所有权边界——类型声明门禁（2026-09-05 用户四项定案改定类型级方案：sync 独占 + 管理面只读含级联守卫 + 声明变更守卫 + syncTypes 资源维度退役） | ✅ |
+| [T-PERM-053](tasks/T-PERM-053.md) | §B P2-3a | service-config 同步 ApiItem.operationCode 无效字段删除（前后端同批锁步） | ✅ |
+| [T-API-002](tasks/T-API-002.md) | §B P2-2 | perm-sdk 补齐 auth/query-resources 与 auth/query-scopes 调用入口（含内部 id 字段族全裁——2026-09-06 用户决策扩大到 check 族三接口——+ 排查页同批改造，页面暂停重做登记 T-FE-043） | ✅ |
+| [T-ACCESS-029](tasks/T-ACCESS-029.md) | §A-5 | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | ✅ |
+| [T-PERM-054](../../tasks/T-PERM-054.md) | §B P2-3b | 手工 API 映射绑定非 API 资源处置——**暂缓**（关联权限自动授权方向已定、方案未定，2026-09-09 registry 登记） | ⚙️（2026-09-14 脱出本计划挂看板） |
 
 ## 既有任务卡口径回写（非本计划新建）
 
 | 任务卡 | 回写内容 |
 |---|---|
-| [T-PERM-051](../archive/2026-09-12/tasks/T-PERM-051.md) | 投影范围=全部三族；业务键=`{typeKey}:{typeCode}` 复合；TYPE_DEFINITION 加入创建保留清单 |
-| [T-PERM-019](../archive/2026-09-12/tasks/T-PERM-019.md) | 重基线：D1 标完成（已落地）、D3 废注解收窄核对、D2 BusinessKeys 收敛为唯一实质交付 |
-| [T-ADMIN-025](../archive/2026-08-27/tasks/T-ADMIN-025.md) | +ADMIN_FILE 加入创建保留清单；登记「新文件夹需首传才可授权」后续优化点 |
-| [T-PERM-046](../archive/2026-09-12/tasks/T-PERM-046.md) | 设计项定案：create 加可选 global（默认 false）、补集语义维持、global 不可变 |
+| [T-PERM-051](../2026-09-12/tasks/T-PERM-051.md) | 投影范围=全部三族；业务键=`{typeKey}:{typeCode}` 复合；TYPE_DEFINITION 加入创建保留清单 |
+| [T-PERM-019](../2026-09-12/tasks/T-PERM-019.md) | 重基线：D1 标完成（已落地）、D3 废注解收窄核对、D2 BusinessKeys 收敛为唯一实质交付 |
+| [T-ADMIN-025](../2026-08-27/tasks/T-ADMIN-025.md) | +ADMIN_FILE 加入创建保留清单；登记「新文件夹需首传才可授权」后续优化点 |
+| [T-PERM-046](../2026-09-12/tasks/T-PERM-046.md) | 设计项定案：create 加可选 global（默认 false）、补集语义维持、global 不可变 |
 
 ## 登记项（非任务）
 
@@ -73,3 +72,4 @@ last_updated: 2026-09-06
 ## 归档条件
 
 - tasks 清单内四张执行任务全部收口、暂缓卡按其启动门禁另行处置后，随最后一张任务收口归档。
+- 2026-09-14：**计划归档**——四张执行任务全部收口；暂缓卡 T-PERM-054 脱出挂任务看板（启动门禁不变，等方案定案后重写验收），四张任务卡随迁本目录 `tasks/`。

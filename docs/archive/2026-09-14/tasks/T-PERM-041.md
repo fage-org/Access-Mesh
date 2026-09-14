@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-041
 title: 主权限条件不变量（20041 不可转授 + 20042 启用状态 + 主权限 DDL CHECK + 全形态校验 + 测试）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§6.5.1

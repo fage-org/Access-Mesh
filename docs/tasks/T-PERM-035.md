@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-035
 title: 自动授权（resolveAutoGrants + autoGrantForInsert + 循环依赖检测）
 status: proposed
-plan: docs/plans/frontend-phase2-plan.md
+plan: —（2026-09-14 脱出 frontend-phase2 随计划归档；暂缓门禁不变，等 PM 重申）
 domain: permission-center
 design_refs:
   - docs/design/engine/core-flows.md

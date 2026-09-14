@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-037
 title: 跨页共性接口改造 + api-contract 回写收尾
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md

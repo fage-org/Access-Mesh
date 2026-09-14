@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-010           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-13
+last_updated: 2026-09-14
 ---
 
 # 待解决问题清单（pending problems）
@@ -117,21 +117,9 @@ last_updated: 2026-09-13
 
 **设想方向（未定案）**：逐边改走对方 DomainService 封装（30 边改写涉及事务语义，须逐处评估）；或部分收敛（高频变更面优先）；不在融合计划（T-ACCESS-032~041）内，收敛任务启动时从看板计数器取号。
 
-## Q-010 SystemConfigMapper.selectByTenantId 零消费死方法
-
-- **状态**：open
-- **登记**：2026-09-13
-- **来源**：T-ACCESS-037 收口盘点存量观察（非本任务引入——先于 /config 退役即存在；本任务删除 admin 侧五方法时实核其零调用）
-- **关联**：—
-
-**现象与证据**：`SystemConfigMapper.selectByTenantId`（+ 同名 XML 语句）在全仓主代码与测试树零调用点（T-ACCESS-037 双轨评审独立复核属实；perm 侧列表走 `selectPageByCondition`，全量场景无消费方）。
-
-**影响**：现在为什么没出事——零消费即零行为面，纯死代码；影响仅为维护噪音（读者需辨别其与 perm 侧四方法的在役边界）。
-
-**设想方向（未定案）**：随下次触达该 mapper 的任务顺带删除（方法 + XML 语句，与 T-ACCESS-037 同款「无消费即删」）；不单独立任务。
-
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-010 | SystemConfigMapper.selectByTenantId 零消费死方法 | closed（随 2026-09-14 轻量清扫批次顺带删除：接口方法 + XML 语句；全仓零调用 T-ACCESS-037 已双轨核实，删除后 SystemConfigAppServiceImplTest 10/10 绿；无任务卡载体，登记口径即顺带删） | —（2026-09-14 归档清扫批次，见 archive/2026-09-14/README.md 批次二） | 2026-09-14 |
 | Q-005 | 权限视图/排查页删除后新形态重做 | closed（重复——任务层已有安排载体：T-FE-043 随卡归档「新形态另立任务」+ T-PERM-059 定案③「另立任务」；2026-09-13 用户裁定：已有任务载体的事项不登记问题清单，重做启动时从看板计数器取号） | T-PERM-059（done）、T-FE-043（cancelled，已归档） | 2026-09-13 |

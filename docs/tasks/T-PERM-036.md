@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-036
 title: 动态数据权限端到端验证（scopeMode → SQL 映射链路）
 status: proposed
-plan: docs/plans/frontend-phase2-plan.md
+plan: —（2026-09-14 脱出 frontend-phase2 随计划归档；暂缓门禁不变，等 PM 重申）
 domain: permission-center
 design_refs:
   - docs/design/access-service-api-contract.md#§18.6（query-scopes；T-ACCESS-040 重挂总册）

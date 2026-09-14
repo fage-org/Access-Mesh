@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-031
 title: 3.4 资源依赖后端——门禁五档类型级/update PUT 全量替换+资源对业务键/等价重复 20054/操作码 fail-closed/bootstrap 死锁补授（resource-dependency）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.6

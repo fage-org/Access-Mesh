@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 前端 Phase 2 — 核心功能补齐 + 后端接口改造
-status: proposed
+status: archived
 domain: permission-center
 design_refs:
   - docs/design/access-service-api-contract.md
@@ -21,8 +21,6 @@ tasks:
   - T-PERM-032
   - T-PERM-033
   - T-PERM-034
-  - T-PERM-035
-  - T-PERM-036
   - T-PERM-037
   - T-PERM-040
   - T-PERM-041
@@ -31,13 +29,13 @@ tasks:
   - T-FE-039
   - T-FE-040
   - T-ADMIN-021
-acceptance: "13 页后端接口改造完成（T-PERM-022~034 逐页实现）；跨页共性接口改造 + api-contract 回写完成（T-PERM-037）；自动授权实现 + 测试通过（T-PERM-035）；动态数据权限链路验证通过（T-PERM-036）；T-FE-036 前端权限授予页（mock 驱动）实现完成（本 plan 关联的前端部分，见正文前端重建任务节；含 DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机）；单类型矩阵上下文完成（T-FE-038 前端 + T-PERM-040 后端，2026-08-03 定稿，2026-08-05 扩展 list 类型过滤 + 嵌套 20008）；条件权限不可转授完成（T-PERM-041，20041 + **20042 条件启用状态** + 主权限 DDL CHECK）；矩阵图标正交模型完成（T-FE-039）；**授权弹窗 v3.1 记录级聚焦编辑完成（T-FE-040，mock-first，包含：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要/20042-20043 提示，联调见 T-FE-018）**；T-ADMIN-021 org-tree includePositions **二期**（首期只角色入口）。注：T-PERM-035/036 受 design-review §11 暂缓门禁约束，需 PM 重申后才能进入 in-progress。"
-last_updated: 2026-09-03
+acceptance: "13 页后端接口改造完成（T-PERM-022~034 逐页实现）；跨页共性接口改造 + api-contract 回写完成（T-PERM-037）；T-FE-036 前端权限授予页（mock 驱动）实现完成（本 plan 关联的前端部分，见正文前端重建任务节；含 DoD：api-contract 对齐/引擎 fixtures 比对/四态状态机）；单类型矩阵上下文完成（T-FE-038 前端 + T-PERM-040 后端，2026-08-03 定稿，2026-08-05 扩展 list 类型过滤 + 嵌套 20008）；条件权限不可转授完成（T-PERM-041，20041 + **20042 条件启用状态** + 主权限 DDL CHECK）；矩阵图标正交模型完成（T-FE-039）；**授权弹窗 v3.1 记录级聚焦编辑完成（T-FE-040，mock-first，包含：焦点生命周期/显式复制/停用条件/CONDITION:VIEW 移除/子权限记录级入口/节点摘要/20042-20043 提示，联调见 T-FE-018）**；T-ADMIN-021 org-tree includePositions **二期**（首期只角色入口）。（2026-09-14 归档：T-PERM-035/036 因 design-review §11 暂缓门禁脱出本计划、挂任务看板等 PM 重申；其余任务全部完成后按剩余范围归档。）"
+last_updated: 2026-09-14
 ---
 
 # 前端 Phase 2 — 核心功能补齐 + 后端接口改造
 
-> 状态：proposed
+> 状态：archived（2026-09-14 归档）
 > 来源：`docs/archive/2026-08-27/improvement-plan.md` §4 Phase 2 拆分（roadmap 已归档，拆分产物即本 plan）
 > ⚠️ 暂缓门禁：自动授权（T-PERM-035）/ 动态数据权限（T-PERM-036）受 design-review §11 E4 / Q7-B 决策约束，近期不推进，需 PM 重申后才能重启。
 
@@ -88,8 +86,8 @@ last_updated: 2026-09-03
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-PERM-040](../tasks/T-PERM-040.md) | 4.1 权限授予单资源类型后端支持 | ✅ | T-PERM-028, T-PERM-034 |
-| [T-PERM-041](../tasks/T-PERM-041.md) | 主权限条件不变量（20041 不可转授 + 20042 启用状态） | ✅ | T-PERM-034 |
+| [T-PERM-040](tasks/T-PERM-040.md) | 4.1 权限授予单资源类型后端支持 | ✅ | T-PERM-028, T-PERM-034 |
+| [T-PERM-041](tasks/T-PERM-041.md) | 主权限条件不变量（20041 不可转授 + 20042 启用状态） | ✅ | T-PERM-034 |
 
 ### 前端重建任务（T-FE-036/T-FE-038/T-FE-039，本 plan 关联的前端部分）
 
@@ -97,14 +95,16 @@ last_updated: 2026-09-03
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-FE-036](../tasks/T-FE-036.md) | 4.1 权限授予页重设计（v3） | ✅ | T-FE-001/002/008/009 |
-| [T-FE-038](../tasks/T-FE-038.md) | 4.1 权限授予页单类型矩阵上下文 | ✅ | T-FE-036 |
-| [T-FE-039](../tasks/T-FE-039.md) | 4.1 矩阵图标正交状态模型与图标精简 | ✅ | T-FE-038 |
-| [T-FE-040](../tasks/T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录已确认，mock-first） | ✅ | T-FE-039 |
-| [T-ADMIN-021](../tasks/T-ADMIN-021.md) | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源） | ✅ | — |
+| [T-FE-036](tasks/T-FE-036.md) | 4.1 权限授予页重设计（v3） | ✅ | T-FE-001/002/008/009 |
+| [T-FE-038](tasks/T-FE-038.md) | 4.1 权限授予页单类型矩阵上下文 | ✅ | T-FE-036 |
+| [T-FE-039](tasks/T-FE-039.md) | 4.1 矩阵图标正交状态模型与图标精简 | ✅ | T-FE-038 |
+| [T-FE-040](tasks/T-FE-040.md) | 4.1 授权弹窗 v3.1 记录级聚焦编辑（决策记录已确认，mock-first） | ✅ | T-FE-039 |
+| [T-ADMIN-021](tasks/T-ADMIN-021.md) | org-tree 扩展 includePositions（组织+岗位一体树，授权页主体树数据源） | ✅ | — |
 
 
 ### 暂缓核心能力（T-PERM-035/036）
+
+> 2026-09-14：两项脱出本计划（卡留 `docs/tasks/`，plan 字段 —），暂缓门禁不变；本节保留作立项时快照。
 
 | ID | 内容 | status | 门禁 |
 |---|---|---|---|
@@ -115,7 +115,7 @@ last_updated: 2026-09-03
 
 | ID | 内容 | status | 门禁 |
 |---|---|---|---|
-| [T-PERM-037](../tasks/T-PERM-037.md) | 跨页共性接口改造 + api-contract 回写收尾（**不重复逐页改造**，仅处理多页共用接口与契约回写） | ✅（2026-08-31 审计型零代码变更收口） | depends_on T-PERM-022~034 |
+| [T-PERM-037](tasks/T-PERM-037.md) | 跨页共性接口改造 + api-contract 回写收尾（**不重复逐页改造**，仅处理多页共用接口与契约回写） | ✅（2026-08-31 审计型零代码变更收口） | depends_on T-PERM-022~034 |
 
 ## 归档条件
 
@@ -143,3 +143,4 @@ last_updated: 2026-09-03
 - 2026-08-31：**T-PERM-040 单资源类型后端支持收口**——调研核实三块交付物实现面先行存在（operation-permission/list `resourceTypeCode` 过滤归并前已带、listPermissions 类型过滤+跨类型子权限挂父已实现、creates 20008 由 resolveOperation 承载且三形态全覆盖），includeGlobalFallback 合并语义已随 T-PERM-049 退役；实际缺口收口（三项设计定案）：①未知 resourceTypeCode 统一空列表 fail-closed（listOperations 原回退全量，与 listPermissions 口径相反）②类型过滤下沉专用 Mapper 查询（新增 `selectValidMainByRoleIdAndResourceType` 主权限 SQL + 复用 `selectValidByRoleIdAndDependIds` 子权限双重约束，childCount 计数源含全部直接子权限）③`OperationListReq.domainCode` 死参数删除（从未实现过滤、契约未登记、前端零传参，DTO+签名+前端类型同步）；操作适用性测试矩阵补齐（20008 三形态+20005 区分锁定、grant list 过滤五用例、operation list fail-closed 两用例）。剩余逐页任务：T-PERM-037。T-FE-018 后端依赖全部就绪。
 - 2026-08-31：**T-PERM-037 共性收口（审计型零代码变更）——Phase 2 逐页后端任务全部完成**（T-PERM-022~034/037/040/041；暂缓项 035/036 与 T-ADMIN-021 另行定夺）。全量审计结论：各页 🔧❌ 全处置零补漏（admin 契约 13 个 🔧 为已实现历史变更标记，抽验在案）、四组跨页共用接口消费侧零不一致（type-definition/list 四处消费全传 typeKey、资源树四处消费、condition/list 两页、operation-permission/list 随 040 收口）、api-contract 零占位残留、Phase 1 核对状态已随逐页任务回写。唯一悬空项「路由级 auths 拦截缺失」经用户决策定案：菜单可见性 v3.5 ∃op 派生方案后端已实现（user-menu 双轨下发过滤后 menus 树）、前端未接线（T-FE-041 纯静态路由模式，initRouter 传空数组、menus 存 user store 备用），**user-menu menus 轨道前端接线归入 Phase 3 联调 T-FE-015**（不立独立任务、不改 filterNoPermissionTree——与既定后端派生方案重复且可绕过）；三处页设文档登记同步收口。本 plan 归档另待 T-ADMIN-021（前端部分）与暂缓项定夺；T-FE-015~022 联调解锁。
 - 2026-09-03：**T-ADMIN-021 org-tree includePositions 收口——本 plan 后端任务全部完成，仅剩暂缓项 035/036 待定夺**。四项用户决策落地：债务①全顺带（OrgQuery 补 operationCode+treeConfigId，"CREATE+混合树拒绝"不再空转）、treeConfigId 缺省=默认树子树（契约字面；无默认配置 11001 fail-closed）、CREATE×treeConfigId 同传拒绝 10008、响应复用 perm-common ItemsResp<OrgResp>（线格式与 P1-3 定稿相同）。岗位节点后端裁剪（hasTypeLevel 非抛出判定，引擎技术故障/主体缺失 SystemException 99999 不静默降级）；顺带修正 orgName/parentOrgId 死参数与契约 OrgResp phone/email 陈旧行；前端 getOrgTree 解包 items（调用方零改动）+ ReOrgTreePanel 树配置切换真实生效。回归：OrgTreeIncludePositionsPgIT 21 用例（否定性裁剪/故障/兼容/多树/参数拒绝/过滤语义守卫/裁剪旁路锁/组合剪枝/门禁路径区分，红绿双证）+ hasTypeLevel 单测 4 用例 + 快照更新 + 前端 tsc/vitest 202 基线；过滤语义定案——根存在性守卫基于未过滤全量（11002 仅真缺失/软删），orgType/status 节点级内存过滤（根不豁免），orgType 值域白名单 10008。T-FE-037（Phase 3 最后一项联调）依赖全部就绪。
+- 2026-09-14：**计划归档**——除暂缓项 T-PERM-035/036（脱出挂看板，门禁不变）外全部任务 done；21 张任务卡随迁本目录 `tasks/`。暂缓项经 PM 重申后直接以看板任务推进，不再依赖本计划。

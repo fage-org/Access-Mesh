@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-025
 title: 7.1 操作日志后端——action 字典/枚举接口 + 补充筛选维度（前端筛选能力闭环）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.8

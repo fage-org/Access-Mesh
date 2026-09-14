@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-029
 title: bootstrap 固定图授权收缩通道——软删墓碑三分判定
 status: done
-plan: docs/plans/design-audit-followup-plan.md
+plan: docs/archive/2026-09-14/design-audit-followup-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-architecture.md#§14.2

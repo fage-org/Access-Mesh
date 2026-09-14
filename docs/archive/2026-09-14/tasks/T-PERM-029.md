@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-029
 title: 3.2 权限条件后端——业务键切换/detail 20006 收紧/updatedAt 补齐/list 全量定案（permission-condition）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.6

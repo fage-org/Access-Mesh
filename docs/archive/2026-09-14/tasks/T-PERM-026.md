@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-026
 title: 5.1 业务域后端——业务键/分页/global/删除保护收口（biz-domain + domain-config）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.1

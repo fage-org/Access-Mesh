@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-030
 title: 3.3 冲突规则后端——读三端点 VIEW 门禁/detail 20020 收紧/类型级写门禁收窄/updatedAt 补齐/bootstrap 死锁补授（conflict-rule）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.6

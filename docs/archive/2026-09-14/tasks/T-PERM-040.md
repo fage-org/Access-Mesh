@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-040
 title: 4.1 权限授予单资源类型后端支持（operation-permission/list 类型查询 + role-resource-permission/list 类型过滤 + 全部 create 形态 20008 校验）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.3

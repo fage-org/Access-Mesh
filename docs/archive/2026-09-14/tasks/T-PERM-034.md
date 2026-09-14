@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-034
 title: 4.1 权限授予后端改造（七项 + 工程加固收窄 + 全链路迁移简化）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.5

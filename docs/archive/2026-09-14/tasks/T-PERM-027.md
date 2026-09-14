@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-027
 title: 5.2 服务+接口映射后端——删除级联/资源业务字段/FULL-only/映射门禁收口（service-config + resource-api-mapping）
 status: done
-plan: docs/plans/frontend-phase2-plan.md
+plan: docs/archive/2026-09-14/frontend-phase2-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§5.4

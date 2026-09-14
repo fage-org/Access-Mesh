@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-053
 title: service-config 同步 ApiItem.operationCode 无效字段删除（前后端同批锁步）
 status: done
-plan: docs/plans/design-audit-followup-plan.md
+plan: docs/archive/2026-09-14/design-audit-followup-plan.md
 domain: permission-center
 design_refs:
   - docs/design/permission-center/api-contract.md#§6.3
