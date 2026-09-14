@@ -42,11 +42,7 @@ rules（单副本）、skills（双副本同步纪律）、AGENTS.md 指针表�
 
 - 只改口径与路径，不改规范的技术实质（分层铁律、引擎调用形态等维持各自规范内容）。
 - 历史任务卡与归档文档中的域前缀描述属档案事实，不回改。
-
-## 实施期用户拍板（2026-09-14，registry 当轮登记）
-
-- 规则文件改名 `permission-coding-standards.md`（去退役独立服务名、保留权限主题；定位=access-service 权限面（engine 引擎子系统 + role/grant/resource/type/domain/rule/sync 权限事实能力包 + user/org 主体与投影轨 + projection 门面）代码改动必读）。弃 access-service-coding-standards（与 project-rules §8 重叠两处维护必漂移）、弃保名（退役服务名残留）。
-- 域叙事替换词汇=**管理面 / 权限面**（表级「管理事实表/权限事实表」沿 capability-structure §4.1 既有；精确处直呼能力包名；URL 家族标签「管理域家族」→「管理面家族（裸路径族）」）。
+- 2026-09-14 实施拍板（AskUserQuestion 两项，registry 同日 T-ACCESS-041 行）：规则文件改名=`permission-coding-standards.md`（去退役独立服务名、保留权限主题；定位=access-service 权限面（engine 引擎子系统 + role/grant/resource/type/domain/rule/sync 权限事实能力包 + user/org 主体与投影轨 + projection 门面）代码改动必读；弃 access-service-coding-standards——与 project-rules §8 重叠两处维护必漂移、弃保名——退役服务名残留）；域叙事替换词汇=**管理面 / 权限面**（表级「管理事实表/权限事实表」沿 capability-structure §4.1 既有；精确处直呼能力包名；URL 家族标签「管理域家族」→「管理面家族（裸路径族）」）。
 
 ## 完成记录（2026-09-14）
 
@@ -67,7 +63,7 @@ rules（单副本）、skills（双副本同步纪律）、AGENTS.md 指针表�
 - 代码轨「accessmesh-patterns 仅版本号变更」经 git diff 亲核撤回（:42 能力包 Mapper 边界实改，评审员看漏）。
 - v3.5 两册 frontmatter `domain: permission-center`→`access-service`（与 engine 三册一致，退役服务名不作 domain 值）。
 
-## 外部评审处置（claude + grok 双通道，2026-09-14，0835826b3 首轮）
+## 外部评审处置（claude + grok 双通道，2026-09-14）
 
 claude P3×4（判「需修订」——必改项=4 条一行级）/ grok P3×1 合并多项（判「可定稿」），逐条亲核后全处置：
 - 两通道共报（属实，修）：`docs/design/README.md:12` 与看板 §05 区注记「033 完成前代码维持 admin/permission 旧包结构」条件句前提已消失——改完成态（033 已于 2026-09-13 完成）。
@@ -77,6 +73,15 @@ claude P3×4（判「需修订」——必改项=4 条一行级）/ grok P3×1 �
 - claude「schema 表数头注 33 与分项 32 差一」经亲核**撤回**（头注四行 14+16+2+1=33 恰好吻合，评审员漏加「基础设施 1 张」行）。
 - 回归命令（改完零命中）：`rg -n "完成前代码维持|2026-09-13 完成能力包融合|P2×3|setBizDomainId\(domainId\)|禁止直接传"`（剩余唯一命中为 T-PERM-021 看板历史行，档案允许）；skill 双副本 re-cp+diff 一致。
 - 修后状态：claude 必改项 4/4 闭环、grok 建议项全采纳——两通道「需修订/可定稿」分歧收敛为**可定稿待用户确认**。
+
+### codex sol 通道（gpt-5.6-sol xhigh 只读，2026-09-14，评审范围 6f871528f..a9a69f714）
+
+P3×4、判「需修订」；逐条亲核后处置（两条全采纳、两条部分采纳）：
+- **[采纳·属实·已修] architecture.md 拓扑图改词时误删 example-service 职责**：右列「· 对接演示 / · 权限展示」两行随本批 ASCII 块替换丢失（git show 基线对照实证；此前 Read 渲染把右列中文显示为空致 Edit 带走）——恢复两行。
+- **[采纳·属实·已修] 规则 §1 createRole 示例混用未定义的 `subjectId` 且漏操作者解析**：改 `operatorId` 一致 + 补 `OperatorUtil.resolveOrDefault(operatorId)` 前置行（镜像 live `RoleManageAppServiceImpl:130`——Controller 免登通道传 null 时从上下文回填；§2 片段级 `subjectId` 为 skill 文档既有占位符惯例不动）。
+- **[部分采纳·已修] 任务卡治理**：实点=外部评审处置节标题以「0835826b3 + 轮次标记」点名评审时点（轮次词扫描禁令对象）、「实施期用户拍板」独立节形态——去轮次词、拍板内容并入「当前口径」节（对齐 T-ACCESS-039 卡先例形态）。不采纳部分=「本地双轨评审处置/外部评审处置节违反治理」——lifecycle skill 2026-08-28 收敛明文「禁令对象是过程叙事，不是终态事实」，处置节为终态记录且 T-ACCESS-037/T-PERM-065（双轨处置节）/T-ACCESS-039（外评处置节）均系已收口先例；「计划在未满足收口条件下被视为全部完成」推论以先例驳回。
+- **[部分采纳·已修] lifecycle skill domain 值清单**：skill frontmatter 示例注释补 `access-service`（并补齐 `example-service`/`common`、标注两退役历史值，双副本同步）——消除歧义。不采纳部分=「两套 domain 元数据契约」定性——该清单为示例注释非硬契约，`common`（architecture.md）/`example-service`（services/example-service.md）先于本批就不在列，清单欠维护是存量事实非本批引入的分裂。
+- sol 专项六项自查与 claude/grok 一致：上轮处置全落位（schema 33 计数撤回维持）、双副本一致、残余扫描净、技术断言抽验过、实质口径保住。
 
 ## 非目标 / 遗留
 

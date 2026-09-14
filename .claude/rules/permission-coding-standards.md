@@ -37,8 +37,10 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public RoleResp createRole(Long tenantId, RoleCreateReq req, Long operatorId) {
-        // 1. 门禁校验
-        if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, null, OperationCode.CREATE)) {
+        // 1. 操作者解析（Controller 免登通道传 null 时从上下文回填，成熟先例 RoleManageAppServiceImpl）
+        operatorId = OperatorUtil.resolveOrDefault(operatorId);
+        // 2. 门禁校验
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCode.CREATE)) {
             throw new SecurityException("Permission denied");
         }
         // 2. 调用 DomainService

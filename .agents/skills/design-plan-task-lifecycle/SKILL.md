@@ -79,7 +79,7 @@ docs/
 doc_type: design
 title: 权限中心二层权限模型
 status: draft          # draft | adopted | evolution | superseded | archived
-domain: permission-center   # permission-center | admin-service | gateway | cross-service | org-user | frontend
+domain: access-service      # access-service | gateway | example-service | cross-service | org-user | frontend | common（permission-center/admin-service 为退役历史值，仅供 superseded/归档文档）
 supersedes: docs/design/engine/overview.md             # 仅当本文件取代旧设计时填
 superseded_by: docs/design/engine/v3.6.md              # 仅 status:superseded 时填
 last_reviewed: 2026-06-20
