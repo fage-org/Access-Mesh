@@ -67,7 +67,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），非左�
 | 字段 | 校验 | 说明 |
 |---|---|---|
 | typeKey | 必填 | 新建下拉选 4 分组；编辑只读（稳定分组键，不可改） |
-| typeCode | 可空，字母数字下划线中划线，最长 64 | 新建可填（留空=服务端按规则自动生成）；编辑只读（对外稳定编码，改它破坏既有引用，与 typeKey 同口径）；update 请求不含 typeCode 字段 |
+| typeCode | 可空，大写字母/数字/下划线且大写开头（与 T-PERM-066 大写 @Pattern 对齐，2026-09-14 外评处置），最长 64 | 新建可填（留空=服务端按规则自动生成）；编辑只读（对外稳定编码，改它破坏既有引用，与 typeKey 同口径）；update 请求不含 typeCode 字段 |
 | name | 必填，2-64 字符 | 显示名称；系统预置项编辑态只读（不可改名），仅 description/sortOrder/extra 可改 |
 | description | 可空 | 描述 |
 | isSystem | — | 仅编辑态只读展示；**新建不暴露开关**——前端创建固定 isSystem=false（租户自定义），系统预置走初始化种子（schema:47 语义，见 §8 备注） |

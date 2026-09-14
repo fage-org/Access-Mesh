@@ -205,8 +205,16 @@ class OperationCodeCaseValidationTest {
         assertFalse(validator().validate(new TypeCreateReq(
             "resource_type", "data", "数据", null, null, null, null, null)).isEmpty(),
             "小写 typeCode 定义须拒绝");
+        assertFalse(validator().validate(new TypeCreateReq(
+            "resource_type", "MY-TYPE", "数据", null, null, null, null, null)).isEmpty(),
+            "中划线 typeCode 定义须拒绝（T-PERM-066 外评 grok P2：charset 收敛大写族）");
         assertTrue(validator().validate(new TypeCreateReq(
             "resource_type", null, "数据", null, null, null, null, null)).isEmpty(),
             "typeCode 可选缺省放行（服务端生成大写）");
+        // 留空生成语义（grok P2）：@Pattern 只对 null 跳过、"" 参与匹配——正则须显式放行空串，
+        // 否则 HTTP "typeCode": "" 在进服务层 isBlank() 生成分支前即被 400（旧实现下本用例必红）
+        assertTrue(validator().validate(new TypeCreateReq(
+            "resource_type", "", "数据", null, null, null, null, null)).isEmpty(),
+            "typeCode 空串放行走留空生成分支（§12.1 留空按规则生成）");
     }
 }

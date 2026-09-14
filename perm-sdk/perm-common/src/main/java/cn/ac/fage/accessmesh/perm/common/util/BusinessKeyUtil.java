@@ -14,9 +14,11 @@ package cn.ac.fage.accessmesh.perm.common.util;
  *   <li>出界：sync API 契约键（percent-encoded businessKey/scopeKey）归 access-service 的
  *       {@code SyncKeyCodecUtil}，与本类互不替代；缓存框架存储信封、Gateway 本地快照键、
  *       登录计数/任务幂等/树写锁等基础设施键、错误文案拼接均不经本类。</li>
- *   <li>大小写口径（2026-09-07 定案：保持各点现状语义，后续另行统一）：本类不做大小写归一，
- *       原样拼接；授权域调用点历史上先 {@code toUpperCase()} 再拼键的，继续在调用点显式转换；
- *       唯一例外 {@link #resourceTripleCodeKey} 的大写归一是原实现自带语义，随方法整体迁入。</li>
+ *   <li>大小写口径（2026-09-07 定案：保持各点现状语义，后续另行统一；【已统一：2026-09-14
+ *       T-PERM-066 定案 raw 严格化】）：本类不做大小写归一，原样拼接；授权域调用点历史上先
+ *       {@code toUpperCase()} 再拼键的归一已随 T-PERM-066 退役——入参经 DTO @Pattern 锁大写，
+ *       全部调用点 raw 直拼；唯一例外 {@link #resourceTripleCodeKey} 的大写归一是原实现
+ *       自带语义，随方法整体迁入。</li>
  *   <li>方法一律用字符串拼接表达 null（null 引用拼出 {@code "null"}、显式分支拼出 {@code ""}），
  *       与被收敛的原始实现逐字节一致。</li>
  * </ul>
@@ -79,8 +81,8 @@ public final class BusinessKeyUtil {
 
     /**
      * 操作编码键（类型值轨）：{@code resourceTypeValue:operationCode}。
-     * <p>操作定义/权限查询/授权域的内部映射；不做大小写归一，授权域调用点需要容错时先显式
-     * {@code toUpperCase()} 再进本方法。</p>
+     * <p>操作定义/权限查询/授权域的内部映射；不做大小写归一——HTTP 入参经 DTO @Pattern
+     * 锁大写（T-PERM-066），各调用点 raw 直拼（授权域调用点历史 toUpperCase 容错已退役）。</p>
      */
     public static String operationCodeKey(Integer resourceTypeValue, String operationCode) {
         return resourceTypeValue + ":" + operationCode;

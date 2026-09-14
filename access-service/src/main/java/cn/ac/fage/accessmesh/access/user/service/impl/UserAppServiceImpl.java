@@ -381,10 +381,12 @@ public class UserAppServiceImpl implements UserAppService {
             : generateRandomPassword();
 
         user.setPassword(BCrypt.hashpw(effectivePassword));
-        // DDL force_reset_pwd 语义：首次登录/管理员重置后须改密（T-ADMIN-022 二轮评审修复：
-        // 重置后置 true，登录页 warning 对被重置账号才闭环）；自助改密通道同样置 true
-        // 维持「重置产物是临时密码」语义（旧密码验证加固另立任务，T-PERM-067 遗留）
-        user.setForceResetPwd(true);
+        // DDL force_reset_pwd 语义（T-ADMIN-022）：非自身重置（密码经管理员之手）置 true——
+        // 「管理员重置后须改密」，登录页 warning 据此闭环；自身自助改密置 false——用户亲手
+        // 完成改密（密码经响应当即已知），与归档设计「修改个人密码成功后置 false」口径回归
+        // （T-PERM-067 外评 claude P3 处置：此前一律置 true 且全仓无清除通道，自助改密后
+        // 「初始密码」提示永久失真）
+        user.setForceResetPwd(!userId.equals(currentUserId));
         user.setUpdatedAt(LocalDateTime.now());
         userMapper.update(user);
 

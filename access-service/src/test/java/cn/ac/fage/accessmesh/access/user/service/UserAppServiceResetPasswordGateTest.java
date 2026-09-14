@@ -81,6 +81,10 @@ class UserAppServiceResetPasswordGateTest {
         }
 
         verify(permissionValidator, never()).checkInstanceLevel(any(), any(), any());
+        // T-PERM-067 外评 claude P3 处置：自身改密置 false（旧实现一律置 true，本断言必红）
+        var captor = org.mockito.ArgumentCaptor.forClass(SysUser.class);
+        verify(userMapper).update(captor.capture());
+        assertThat(captor.getValue().getForceResetPwd()).isFalse();
     }
 
     @Test
@@ -114,6 +118,10 @@ class UserAppServiceResetPasswordGateTest {
 
         verify(permissionValidator).checkInstanceLevel(
             eq(ResourceTypeCode.USER), eq(String.valueOf(TARGET)), eq(OperationCode.RESET_PASSWORD));
+        // 非自身重置维持「管理员重置后须改密」语义（密码经管理员之手）
+        var captor = org.mockito.ArgumentCaptor.forClass(SysUser.class);
+        verify(userMapper).update(captor.capture());
+        assertThat(captor.getValue().getForceResetPwd()).isTrue();
     }
 
     @Test

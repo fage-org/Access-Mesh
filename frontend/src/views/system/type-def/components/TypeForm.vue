@@ -150,7 +150,8 @@ watch(
 );
 
 /** 表单校验规则。
- *  typeCode 对外稳定编码，新建可空（留空由服务端按 <TYPEKEY大写>_<typeValue> 生成），格式仅字母数字下划线中划线。
+ *  typeCode 对外稳定编码，新建可空（留空由服务端按 <TYPEKEY大写>_<typeValue> 生成），
+ *  格式与大写 @Pattern 对齐（T-PERM-066 大写族，OperationForm 同款；空串放行）。
  *  不含 typeValue（服务端自动分配，D1）。 */
 const rules = computed<FormRules>(() => ({
   typeKey: [{ required: true, message: "请选择类型分组", trigger: "change" }],
@@ -160,8 +161,8 @@ const rules = computed<FormRules>(() => ({
   ],
   typeCode: [
     {
-      pattern: /^[a-zA-Z0-9_-]*$/,
-      message: "仅支持字母、数字、下划线、中划线",
+      pattern: /^$|^[A-Z][A-Z0-9_]*$/,
+      message: "仅支持大写字母、数字、下划线（留空自动生成）",
       trigger: "blur"
     },
     { max: 64, message: "最长 64 字符", trigger: "blur" }
