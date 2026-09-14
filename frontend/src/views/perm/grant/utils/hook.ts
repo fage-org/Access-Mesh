@@ -627,7 +627,6 @@ export function usePermissionGrant() {
   const subjectTreeRef = ref<SubjectTreeExpose | null>(null);
   const activeKey = ref<string | null>(null);
   const selectingKey = ref<string | null>(null);
-  const groupHint = ref<string | null>(null);
   const refreshInFlight = ref(false);
 
   /** 冻结态（saving/切换期间，评审问题 3+4：禁用所有写入口） */
@@ -656,31 +655,12 @@ export function usePermissionGrant() {
       const ok = await handleSelectSubject(payload.context);
       if (ok) {
         activeKey.value = payload.key;
-        groupHint.value = null;
       }
     } finally {
       // 仅最新调用清理（过期流程的 finally 不清新流程的选择状态）
       if (seq === selectSeq) {
         selectingKey.value = null;
       }
-    }
-  }
-
-  async function onSelectGroup(payload: { key: string; name: string }) {
-    if (!(await confirmDiscardIfDirty())) return;
-    // 交互所有权转移（review P1-1 场景 2）：空候选主体 A 的标记/补加载在途时切分组，
-    // 必须作废其全部后处理（否则 A 仍会恢复并重新激活矩阵）——hook 代际 + store 在途双作废；
-    // 同步复位 matrixLoading/baselineLoading（被作废请求的 finally 不再清理）
-    ++matrixToken;
-    matrixLoading.value = false;
-    grantStore.cancelPending();
-    selectingKey.value = payload.key;
-    try {
-      grantStore.resetAll();
-      activeKey.value = payload.key;
-      groupHint.value = payload.name;
-    } finally {
-      selectingKey.value = null;
     }
   }
 
@@ -1032,9 +1012,7 @@ export function usePermissionGrant() {
     subjectTreeRef,
     activeKey,
     selectingKey,
-    groupHint,
     onSelectSubject,
-    onSelectGroup,
     frozen,
     /** 树刷新+预选编排（生命周期驱动；暴露供回归测试锁定预选失败分支的状态清理） */
     refreshAndPreset,

@@ -364,7 +364,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | permission.service.domain.SyncMetadataDomainService/Impl + permission.entity.SyncMetadata + permission.dto.common.SyncVersionRef | sync.metadata（**SyncMetadataMapper → sync.mapper**，§8.1 mapper 子包约定） | 记账设施，全仓仅同步通道消费（实测 4 个执行层 AppServiceImpl） |
 | permission.service.sync：SyncAuthVerifier、SyncResultBuilder | sync | |
 | permission.service.domain.sync：FullSyncStrategy、SyncContext、SyncMappingsResult、SyncModeStrategy、SyncModeStrategyFactory、SyncResourcesResult、SyncResult | sync.strategy | 同步策略族；执行层（user/role/resource 包内 4 个 XxxSyncAppServiceImpl）跨包调用 |
-| permission.util.SyncKeyCodecUtil | sync | sync API 契约键 |
+| permission.util.SyncKeyCodec | sync | sync API 契约键（类 2026-09-14 Q-004 改名 SyncKeyCodecUtil，现居 access.sync） |
 | permission.dto.req：AbstractUserFullSyncReq、AbstractUserSyncItem、AbstractUserSyncReq、AbstractUserSyncScope、AbstractRoleFullSyncReq、AbstractRoleSyncItem、AbstractRoleSyncReq、AbstractRoleSyncScope、ResourceEntityFullSyncReq、ResourceEntitySyncItem、ResourceEntitySyncReq、ResourceEntitySyncScope、UserRoleFullSyncReq、UserRoleSyncItem、UserRoleSyncReq、UserRoleSyncScope | sync.dto | 通道契约 DTO 随 Controller；执行层跨包 import（能力→sync 边，§2.2 双向边接受） |
 
 表：`sync_metadata`。

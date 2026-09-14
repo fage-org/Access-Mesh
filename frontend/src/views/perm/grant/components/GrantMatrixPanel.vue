@@ -51,8 +51,6 @@ const props = defineProps<{
   hasSubject: boolean;
   /** 当前主体展示名；紧凑展示在矩阵标题行，避免恢复占高的页面标题卡片 */
   subjectName: string | null;
-  /** GROUP_ROLE 选中提示（分组节点本身无权限矩阵） */
-  groupHint: string | null;
   locateRequest: {
     resourceTypeCode: string;
     resourceCode: string | null;
@@ -493,17 +491,7 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
     <!-- 主体区 -->
     <div ref="tableWrapRef" class="matrix-body">
       <!-- 未选主体（文案中性：两入口通用，不按 subjectType 指称） -->
-      <el-empty
-        v-if="!hasSubject && !groupHint"
-        description="请选择左侧主体查看权限矩阵"
-      />
-      <!-- GROUP_ROLE 节点本身无权限矩阵 -->
-      <el-result
-        v-else-if="groupHint"
-        icon="info"
-        :title="`分组角色「${groupHint}」无独立权限矩阵`"
-        sub-title="请展开该分组，选择其基础角色查看/授予权限（授权目标 = 基础角色本身）"
-      />
+      <el-empty v-if="!hasSubject" description="请选择左侧主体查看权限矩阵" />
       <!-- 🔧 T-FE-018（理解 A）：TYPE_DEFINITION:VIEW 软依赖缺失——明确提示权限不足并允许重试，
            不得误报为「暂无资源类型配置」空态（设计 §10 已知缺口的联调定案落地） -->
       <el-result

@@ -48,9 +48,7 @@ const {
   subjectTreeRef,
   activeKey,
   selectingKey,
-  groupHint,
   onSelectSubject,
-  onSelectGroup,
   frozen,
   dialogVisible,
   dialogInitial,
@@ -108,7 +106,6 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
             :selecting-key="selectingKey"
             :disabled="grantStore.isSaving"
             @request-select="onSelectSubject"
-            @request-select-group="onSelectGroup"
           />
         </aside>
 
@@ -131,7 +128,6 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
             :matrix-loading="matrixLoading"
             :has-subject="hasSubject"
             :subject-name="grantStore.context?.displayName ?? null"
-            :group-hint="groupHint"
             :locate-request="locateRequest"
             @switch-type="handleSwitchType"
             @retry-deps="retryLoadDeps"

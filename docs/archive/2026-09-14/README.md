@@ -58,7 +58,9 @@ T-PERM-043 删除后端 extra-roles/* 三接口与 GROUP_ROLE 写入口时，前
 
 - `api/role-manage.ts`：`listExtraRoles/addExtraRole/removeExtraRole` 三封装 + `RoleSummaryResp/GroupRoleExtraRolesQuery/GroupRoleExtraRoleReq` 三类型
 - 角色页：`hook.ts` 死分支（loadTree/handleNodeClick/handleDelete 的 GROUP_ROLE 支 + 三函数 + 两 ref）、`index.vue` 额外基本角色面板（script computed 区 + 模板区块 + 样式）、`perms.ts` `ROLE:ASSIGN/ROLE:REVOKE` 两键（后端操作已零引用）、`mock/login.ts` sec 矩阵两串
-- 授权页：`SubjectTreePanel.vue`（`handleNodeExpand` 整函数、`requestSelectGroup` 死 emit 零消费、分组/基础角色 tag）、`subject-tree.ts` `buildExtraContainer`、`types.ts` kind 收窄（删 `EXTRA_CONTAINER/EXTRA_ROLE` 与 `expandedFromGroup/groupRoleName/expandedLoaded/fromGroupRoleName` 四字段）、`hook.ts` 死高亮支、`subject-tree.spec.ts` 对应 2 用例
+- 授权页：`SubjectTreePanel.vue`（`handleNodeExpand` 整函数、`requestSelectGroup` 死 emit、分组/基础角色 tag）、`subject-tree.ts` `buildExtraContainer`、`types.ts` kind 收窄（删 `EXTRA_CONTAINER/EXTRA_ROLE` 与 `expandedFromGroup/groupRoleName/expandedLoaded/fromGroupRoleName` 四字段）、`hook.ts` 死高亮支、`subject-tree.spec.ts` 对应 2 用例
+
+**外部评审处置**（2026-09-14，claude + grok 双通道，各自 P0~P2 全零）：①claude P3-1 = grok P3（双通道同源交叉证实）——批次初判「requestSelectGroup 零消费」有误，父组件为 kebab 形 `@request-select-group`（camel 检索漏扫），消费链 `onSelectGroup`/`groupHint`（hook + index.vue 绑定传参）与 `GrantMatrixPanel` 的 groupHint prop/`v-else-if` 展示支已在处置提交补删（空态简化回 `v-if="!hasSubject"`）；②claude P3-2——`engine/implementation.md` frontmatter 历史链内 2026-09-07 条目被机械改名污染，已还原旧类名 `BusinessKeys` 并加更名注记、头部补登 Q-004 改名条目；③grok 存量观察（同性质随处置修）——`capability-structure.md` §sync 融合映射表源列历史 FQCN `permission.util.SyncKeyCodec` 被机械替换，已还原并注记现名。两通道均确认改名提交纯机械（归一多重集比对/blob 精确 diff/skills 双副本 SHA256 一致）、死面删除可达性判断成立（`filterVisibleTree` 只放行 BASIC_ROLE）。grok 首跑 40 轮耗尽未出报告，80 轮重跑产出。
 - 设计文档回写：`role-manage.md`（§1/§2 布局图/§4.2/§5 注记/§6/§7 表与门禁/降级/mock 矩阵）、`permission-grant.md`（§0-13/§1.1/§2.1 表/§6.5）
 
 ### 内容二：Q-004 工具类改名（按 project-rules §6.2「XxxUtil 去末尾 s」）
