@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: access-service 能力包融合
-status: active
+status: archived
 domain: cross-service
 design_refs:
   - docs/design/access-service-capability-structure.md
@@ -24,7 +24,7 @@ last_updated: 2026-09-14
 # access-service 能力包融合
 
 > 状态：active
-> 来源：2026-09-13 用户逐项拍板（定案与多轮外评处置记录见 decision-registry 同日行）；目标设计 [capability-structure.md](../design/access-service-capability-structure.md)（**adopted**——T-ACCESS-032 已完成 §8 归属清单与边界断言定稿，十项裁决登记 registry 同日行）
+> 来源：2026-09-13 用户逐项拍板（定案与多轮外评处置记录见 decision-registry 同日行）；目标设计 [capability-structure.md](../../design/access-service-capability-structure.md)（**adopted**——T-ACCESS-032 已完成 §8 归属清单与边界断言定稿，十项裁决登记 registry 同日行）
 
 ## 目标
 
@@ -45,16 +45,16 @@ last_updated: 2026-09-14
 
 | ID | 标题 | 依赖 | 状态 |
 |---|---|---|---|
-| [T-ACCESS-032](../tasks/T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | — | ✅ |
-| [T-ACCESS-033](../tasks/T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建 | 032 | ✅ |
-| [T-ACCESS-034](../tasks/T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | 033, 040 | ✅ |
-| [T-ACCESS-035](../tasks/T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | 033 | ✅ |
-| [T-ACCESS-036](../tasks/T-ACCESS-036.md) | resource_entity.sort_order 退役 | 033, 040 | ✅ |
-| [T-ACCESS-037](../tasks/T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | 033, 040 | ✅ |
-| [T-ACCESS-038](../tasks/T-ACCESS-038.md) | 错误码合类不合号 | 033 | ✅ |
-| [T-ACCESS-039](../tasks/T-ACCESS-039.md) | 缓存目录合一 | 033, 034 | ✅ |
-| [T-ACCESS-040](../tasks/T-ACCESS-040.md) | API 契约深合一与设计文档重组 | 033 | ✅ |
-| [T-ACCESS-041](../tasks/T-ACCESS-041.md) | 规则与技能文件重写（能力 + 引擎口径） | 033, 034~039, 040 | ✅ |
+| [T-ACCESS-032](tasks/T-ACCESS-032.md) | 融合设计定稿——归属清单与边界断言 | — | ✅ |
+| [T-ACCESS-033](tasks/T-ACCESS-033.md) | 机械迁移——能力包搬包 + 命名收敛 + 断言面重建 | 032 | ✅ |
+| [T-ACCESS-034](tasks/T-ACCESS-034.md) | 操作码合一与 USER 轨细粒度化 | 033, 040 | ✅ |
+| [T-ACCESS-035](tasks/T-ACCESS-035.md) | 双轨死字段消减（无契约联动四项） | 033 | ✅ |
+| [T-ACCESS-036](tasks/T-ACCESS-036.md) | resource_entity.sort_order 退役 | 033, 040 | ✅ |
+| [T-ACCESS-037](tasks/T-ACCESS-037.md) | system_config 单入口化（admin /config 退役） | 033, 040 | ✅ |
+| [T-ACCESS-038](tasks/T-ACCESS-038.md) | 错误码合类不合号 | 033 | ✅ |
+| [T-ACCESS-039](tasks/T-ACCESS-039.md) | 缓存目录合一 | 033, 034 | ✅ |
+| [T-ACCESS-040](tasks/T-ACCESS-040.md) | API 契约深合一与设计文档重组 | 033 | ✅ |
+| [T-ACCESS-041](tasks/T-ACCESS-041.md) | 规则与技能文件重写（能力 + 引擎口径） | 033, 034~039, 040 | ✅ |
 
 ## 建议执行顺序
 
@@ -83,4 +83,5 @@ last_updated: 2026-09-14
 - 2026-09-13：T-ACCESS-038 收口——错误码合类不合号：合一为单册 `infrastructure.enums.AccessErrorCode`（两旧枚举 118 项=112 原名平移+六碰撞常量 ADMIN_/PERM_ 段前缀，编号段零重排；形态与新册名实施期用户拍板入 registry）；两旧枚举删除、80 文件机械收敛（含测试内联 FQCN 与 `biz()` 类型引用）；ErrorCodeContractTest 重写（单映射键基线 92 条逐条保持——原「53+37/90」为存量计数漂移按去计数化定规收口、segments 判据改编号段、COLLISION_PAIR_LOCK 碰撞对专项锁）；architecture §9/§10 + capability-structure §3/§8.2/§9 回写；project-rules §1.2:80「不得合并」互斥句归 041 承接（卡内登记）；本地双轨 + claude/grok 外评全处置（claude P3×2/grok P3×0，均「可定稿」）；全量回归 -T 1C 含 E2E 绿。
 - 2026-09-13：T-ACCESS-039 收口——缓存目录合一：合一为单册 `infrastructure.cache.AccessCacheCatalog`（原 perm 8 条 + DICT_TYPES 迁入共 9 条，mode/TTL 零改动；类名与越域 code 归位实施期用户拍板入 registry）；`admin:org-visibility` → `access:org-visibility` 不做兼容双读（仓内无 YAML 覆盖键，Nacos 仓外面见 Q-006）；PermCacheBoundaryValidator 六条重绑判据零改动，PermCacheCatalogBoundaryTest 更名并补三条合一回归锁；27 消费文件 + common javadoc 4 处 + BusinessKeys 措辞机械收敛；capability-structure §3/§8.2/§9 + engine 两册 + skill 双副本 v3.1.0 回写；全量回归 -T 1C 含 E2E 绿。
 - 2026-09-13：融合批次终评（codex luna max，d356120cd..HEAD 18 提交/802 文件，九项批次级专项；041 启动前闸门）——P0/P1/P3=0、P2×1：037 is_system 守卫与展示面不一致（Resp/前端未暴露 isSystem、编辑入口未行级隐藏、设计文档矛盾句），逐点亲核属实，用户拍板随批直接修——Resp+映射 isSystem、前端属性列+行级隐藏（type-def 先例）、两文档同步、两条回归锁（8d75c3efc）；其余八项专项全过（平行设施归零/能力包边界/表级维持/唯一语义变更面/退役零悬空/契约抽验/回归锁存量/外评处置复核）。批次待用户定稿确认。
-- 2026-09-14：T-ACCESS-041 收口——规则文件改名 permission-coding-standards.md（v7.0.0 权限面口径：engine + role/grant/resource/type/domain/rule/sync + user/org 主体投影轨 + projection；两项实施期拍板入 registry：文件名与「管理面/权限面」替换词汇）；skills 双副本同步（accessmesh-patterns v1.1.0 / permission-query-pipeline v5.3.0）；AGENTS.md 指针表/架构图/融合注记；project-rules 十处改写含 §1.2:80 互斥句承接（038 移交项）；adopted 设计约 80 处域叙事清扫（architecture/access-service-architecture/契约总册/engine 三册/schema/两级 README/runbook/org-user-permission-contract/v3.5 两册/pending-problems 等，含 033 漏回写的事实项：audit.aop 设施位置、UserRoleQueryAppService 类名、TableDef 表述存量错误）；残留二分判定闭合（剩余命中全落允许清单）、旧规则文件名活引用为零；本地双轨评审全处置（代码轨 P2×2+P3×5、文档轨 P1×1+P2×4+P3×4；含漏扫五文件补修、skill 门面/if-throw 改按轨道二分）。**至此融合计划十任务全部 done，验收五条达成、定案修订对照（capability-structure §9）全部落地——计划待用户确认后归档。**
+- 2026-09-14：T-ACCESS-041 收口——规则文件改名 permission-coding-standards.md（v7.0.0 权限面口径：engine + role/grant/resource/type/domain/rule/sync + user/org 主体投影轨 + projection；两项实施期拍板入 registry：文件名与「管理面/权限面」替换词汇）；skills 双副本同步（accessmesh-patterns v1.1.0 / permission-query-pipeline v5.3.0）；AGENTS.md 指针表/架构图/融合注记；project-rules 十处改写含 §1.2:80 互斥句承接（038 移交项）；adopted 设计约 80 处域叙事清扫（architecture/access-service-architecture/契约总册/engine 三册/schema/两级 README/runbook/org-user-permission-contract/v3.5 两册/pending-problems 等，含 033 漏回写的事实项：audit.aop 设施位置、UserRoleQueryAppService 类名、TableDef 表述存量错误）；残留二分判定闭合（剩余命中全落允许清单）、旧规则文件名活引用为零；本地双轨评审全处置（代码轨 P2×2+P3×5、文档轨 P1×1+P2×4+P3×4；含漏扫五文件补修、skill 门面/if-throw 改按轨道二分）。**至此融合计划十任务全部 done，验收五条达成、定案修订对照（capability-structure §9）全部落地。**
+- 2026-09-14：用户确认定稿并归档——T-ACCESS-041 收口后经 claude/grok/codex-sol 三通道外评全处置（P3 级共 9 项，处置明细见 T-ACCESS-041 卡），批次终态确认；计划物理归档至 `docs/archive/2026-09-14/`，十张任务卡随迁 `tasks/` 子目录。目标设计 capability-structure 维持 adopted 作现行结构契约。

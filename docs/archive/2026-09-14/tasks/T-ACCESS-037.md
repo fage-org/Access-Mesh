@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-037
 title: system_config 单入口化（admin /config 退役）
 status: done
-plan: docs/plans/access-capability-fusion-plan.md
+plan: docs/archive/2026-09-14/access-capability-fusion-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-capability-structure.md#§5.3

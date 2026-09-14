@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-033
 title: 机械迁移——能力包搬包 + 命名收敛 + 断言面重建
 status: done
-plan: docs/plans/access-capability-fusion-plan.md
+plan: docs/archive/2026-09-14/access-capability-fusion-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-capability-structure.md#§2/§8

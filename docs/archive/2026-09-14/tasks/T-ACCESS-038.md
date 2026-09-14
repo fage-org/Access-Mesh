@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-038
 title: 错误码合类不合号
 status: done
-plan: docs/plans/access-capability-fusion-plan.md
+plan: docs/archive/2026-09-14/access-capability-fusion-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-capability-structure.md#§3

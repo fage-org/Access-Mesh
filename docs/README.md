@@ -78,7 +78,7 @@ docs/
 
 | 主题 | 文档 |
 |------|------|
-| access-service 能力包融合 | [plans/access-capability-fusion-plan.md](plans/access-capability-fusion-plan.md)（active；2026-09-13 立项，T-ACCESS-032 设计定稿已收口；目标设计 [design/access-service-capability-structure.md](design/access-service-capability-structure.md) 已 adopted） |
+| ~~access-service 能力包融合~~ | （已归档 2026-09-14）T-ACCESS-032~041 十任务全 done（能力包终态 + 平行设施归零 + 概念单点收口 + 契约/规则口径收尾），三通道外评处置后用户确认定稿，见 [archive/2026-09-14/](archive/2026-09-14/)；结构契约 [design/access-service-capability-structure.md](design/access-service-capability-structure.md)（adopted） |
 | ~~access-service 归并计划~~ | （已归档 2026-08-22）T-ACCESS-001~012 全部 done，见 [archive/2026-08-22/](archive/2026-08-22/) |
 | ~~access-service 归并后续强化~~ | （已归档 2026-08-27）T-ACCESS-013~015 全 done，CI 准入前置由 T-ACCESS-017 关闭，见 [archive/2026-08-27/](archive/2026-08-27/) |
 | ~~产品垂直切片与试点加固~~ | （已归档 2026-08-27）18 项任务全 done（里程碑 A E2E 八步全绿 + 里程碑 B 加固与收口），见 [archive/2026-08-27/](archive/2026-08-27/) |

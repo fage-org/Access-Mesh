@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-034
 title: 操作码合一与 USER 轨细粒度化
 status: done
-plan: docs/plans/access-capability-fusion-plan.md
+plan: docs/archive/2026-09-14/access-capability-fusion-plan.md
 domain: cross-service
 design_refs:
   - docs/design/access-service-capability-structure.md#§5.1
