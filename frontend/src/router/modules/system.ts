@@ -16,7 +16,7 @@ const Layout = () => import("@/layout/index.vue");
 /**
  * 系统管理路由（T-FE-041 静态注册 + T-FE-015 菜单后端派生）。
  * <p>
- * T-FE-015（2026-08-31）起侧栏菜单由 /auth/user-menu 下发的 menus 树直接渲染
+ * T-FE-015（2026-08-31）起侧栏菜单由 /api/access/auth/user-menu 下发的 menus 树直接渲染
  * （sys_menu bootstrap 种子，可见性 = v3.5 §4.1 ∃op 派生），路由 meta.showLink
  * 不再控制侧栏——本文件只承担路由注册与页面元信息：菜单不可见 ≠ 路由不可达，
  * 越权直达 URL 由后端 VIEW 403 兜底。各子页 showLink:false 为 T-FE-041 导航收敛期

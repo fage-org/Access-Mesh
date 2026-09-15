@@ -241,11 +241,11 @@ function buildSidebarMenus(
  * <p>
  * T-FE-041 起为纯静态路由模式：所有业务路由由 `src/router/modules/*.ts` 本地声明，
  * 不再请求模板遗留的 `/get-async-routes`。
- * T-FE-015 起侧栏菜单切换为后端派生（/auth/user-menu menus 树直接渲染，
+ * T-FE-015 起侧栏菜单切换为后端派生（/api/access/auth/user-menu menus 树直接渲染，
  * 标题/图标/层级/排序来自 sys_menu，可见性 = v3.5 §4.1 ∃op 派生）：
  * <ul>
  *   <li>登录路径：loginByUsername 已拉取 user-menu，此处复用 store 内存结果不重复请求</li>
- *   <li>已登录 F5/启动（menus 内存态丢失）：重取 /auth/user-menu；失败 fail-closed 空菜单 +
+ *   <li>已登录 F5/启动（menus 内存态丢失）：重取 /api/access/auth/user-menu；失败 fail-closed 空菜单 +
  *       侧栏「菜单加载失败，点击重试」占位项（跳 /menu-retry 重试页），
  *       不持久化 menus、不回退全量静态菜单</li>
  *   <li>路由仍全部静态注册：菜单不可见 ≠ 路由不可达，越权直达由后端 VIEW 403 兜底</li>
@@ -258,7 +258,7 @@ async function initRouter() {
       await userStore.refreshUserMenu();
     } catch (err) {
       // fail-closed：拉取失败按空菜单处理（下方占位项给出显式重试入口）
-      console.warn("[initRouter] failed to load /auth/user-menu", err);
+      console.warn("[initRouter] failed to load /api/access/auth/user-menu", err);
     }
   }
   handleAsyncRoutes([]);

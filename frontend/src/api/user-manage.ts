@@ -1,7 +1,7 @@
 /**
  * 用户管理 API（T-FE-015 联调收口：mock 退役，直连 access-service 真实端点）
  * 经 @/utils/http 调用外部路径（Gateway：/admin StripPrefix=1 → access-service 裸路径 /org、/user 等；
- * 角色分配走 permission 域 /perm/api/perm/user-role/*）。
+ * 角色分配走 permission 域 /perm/api/access/user-role/*）。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`。
  */
@@ -197,7 +197,7 @@ export type MemberCandidateItem = {
 export const getOrgTreeConfigs = async (): Promise<OrgTreeConfig[]> => {
   const res = await http.request<R<PageResp<OrgTreeConfig>>>(
     "post",
-    "/admin/org-tree-config/page",
+    "/api/access/org-tree-config/page",
     { data: { pageNum: 1, pageSize: 100 } }
   );
   return unwrap(res).items;
@@ -207,7 +207,7 @@ export const getOrgTreeConfigs = async (): Promise<OrgTreeConfig[]> => {
 export const getOrgTree = async (params: OrgQuery): Promise<OrgTreeNode[]> => {
   const res = await http.request<R<{ items: OrgTreeNode[] }>>(
     "post",
-    "/admin/org/tree",
+    "/api/access/org/tree",
     { data: params }
   );
   return unwrap(res).items;
@@ -219,7 +219,7 @@ export const getUserPage = async (
 ): Promise<PageResp<UserItem>> => {
   const res = await http.request<R<PageResp<UserItem>>>(
     "post",
-    "/admin/user/page",
+    "/api/access/user/page",
     { data: params }
   );
   return unwrap(res);
@@ -236,7 +236,7 @@ export const createUser = async (data: {
 }): Promise<CreateUserResult> => {
   const res = await http.request<R<CreateUserResult>>(
     "post",
-    "/admin/user/create",
+    "/api/access/user/create",
     { data }
   );
   return unwrap(res);
@@ -249,13 +249,13 @@ export const updateUser = async (data: {
   phone?: string | null;
   email?: string | null;
 }): Promise<void> => {
-  unwrap(await http.request<R<void>>("post", "/admin/user/update", { data }));
+  unwrap(await http.request<R<void>>("post", "/api/access/user/update", { data }));
 };
 
 /** 删除用户（POST /admin/user/delete，IdsReq 批量） */
 export const deleteUser = async (ids: number[]): Promise<void> => {
   unwrap(
-    await http.request<R<void>>("post", "/admin/user/delete", {
+    await http.request<R<void>>("post", "/api/access/user/delete", {
       data: { ids }
     })
   );
@@ -267,7 +267,7 @@ export const deleteUser = async (ids: number[]): Promise<void> => {
 export const getUserOrgs = async (userId: number): Promise<OrgBrief[]> => {
   const res = await http.request<R<{ items: OrgBrief[] }>>(
     "post",
-    "/admin/user-org/list",
+    "/api/access/user-org/list",
     { data: { id: userId } }
   );
   // T-ADMIN-027：后端改 {items:[...]} 包装，此处解包保持调用方数组契约
@@ -281,7 +281,7 @@ export const assignUserOrgs = async (data: {
   primaryOrgId?: number;
 }): Promise<void> => {
   unwrap(
-    await http.request<R<void>>("post", "/admin/user-org/assign", {
+    await http.request<R<void>>("post", "/api/access/user-org/assign", {
       data
     })
   );
@@ -293,7 +293,7 @@ export const removeUserOrg = async (data: {
   orgId: number;
 }): Promise<void> => {
   unwrap(
-    await http.request<R<void>>("post", "/admin/user-org/remove", {
+    await http.request<R<void>>("post", "/api/access/user-org/remove", {
       data
     })
   );
@@ -305,7 +305,7 @@ export const setPrimaryOrg = async (data: {
   orgId: number;
 }): Promise<void> => {
   unwrap(
-    await http.request<R<void>>("post", "/admin/user-org/set-primary", {
+    await http.request<R<void>>("post", "/api/access/user-org/set-primary", {
       data
     })
   );
@@ -317,14 +317,14 @@ export const setPrimaryOrg = async (data: {
 export const getUserRoles = async (userId: number): Promise<UserRoleItem[]> => {
   const res = await http.request<R<{ items: UserRoleItem[] }>>(
     "post",
-    "/admin/user-role/list",
+    "/api/access/user-role/view",
     { data: { userId } }
   );
   return unwrap(res).items;
 };
 
 /**
- * 分配功能角色（POST /perm/api/perm/user-role/assign，items[] 批量、业务键标识；
+ * 分配功能角色（POST /perm/api/access/user-role/assign，items[] 批量、业务键标识；
  * permission 域外部前缀为 /perm 非 /admin——与 bootstrap 映射注册及全部 perm 域页面一致）。
  * 门禁 ROLE:MANAGE（目标角色实例）；domainCode 功能角色可空。
  */
@@ -336,7 +336,7 @@ export const assignRole = async (data: {
   validTo?: string;
 }): Promise<void> => {
   unwrap(
-    await http.request<R<void>>("post", "/perm/api/perm/user-role/assign", {
+    await http.request<R<void>>("post", "/api/access/user-role/assign", {
       data: {
         items: [
           {
@@ -355,14 +355,14 @@ export const assignRole = async (data: {
   );
 };
 
-/** 回收功能角色（POST /perm/api/perm/user-role/revoke，items[] 批量、业务键标识） */
+/** 回收功能角色（POST /perm/api/access/user-role/revoke，items[] 批量、业务键标识） */
 export const revokeRole = async (data: {
   userId: number;
   roleTypeCode: string;
   roleExternalId: string;
 }): Promise<void> => {
   unwrap(
-    await http.request<R<void>>("post", "/perm/api/perm/user-role/revoke", {
+    await http.request<R<void>>("post", "/api/access/user-role/revoke", {
       data: {
         items: [
           {
@@ -381,7 +381,7 @@ export const revokeRole = async (data: {
 
 /** 创建组织（POST /admin/org/create；响应 data 为裸 Long——新组织 ID） */
 export const createOrg = async (data: OrgCreateReq): Promise<number> => {
-  const res = await http.request<R<number>>("post", "/admin/org/create", {
+  const res = await http.request<R<number>>("post", "/api/access/org/create", {
     data
   });
   return unwrap(res);
@@ -389,13 +389,13 @@ export const createOrg = async (data: OrgCreateReq): Promise<number> => {
 
 /** 更新组织（POST /admin/org/update，仅传变更字段；类型不可改） */
 export const updateOrg = async (data: OrgUpdateReq): Promise<void> => {
-  unwrap(await http.request<R<void>>("post", "/admin/org/update", { data }));
+  unwrap(await http.request<R<void>>("post", "/api/access/org/update", { data }));
 };
 
 /** 删除组织（POST /admin/org/delete，IdReq） */
 export const deleteOrg = async (id: number): Promise<void> => {
   unwrap(
-    await http.request<R<void>>("post", "/admin/org/delete", {
+    await http.request<R<void>>("post", "/api/access/org/delete", {
       data: { id }
     })
   );
@@ -407,7 +407,7 @@ export const getOrgPage = async (
 ): Promise<PageResp<OrgPageItem>> => {
   const res = await http.request<R<PageResp<OrgPageItem>>>(
     "post",
-    "/admin/org/page",
+    "/api/access/org/page",
     { data: params }
   );
   return unwrap(res);
@@ -421,7 +421,7 @@ export const enableUsers = async (data: {
   status: 0 | 1;
 }): Promise<void> => {
   unwrap(
-    await http.request<R<void>>("post", "/admin/user/enable", {
+    await http.request<R<void>>("post", "/api/access/user/enable", {
       data
     })
   );
@@ -434,7 +434,7 @@ export const resetUserPassword = async (data: {
 }): Promise<{ newPassword: string }> => {
   const res = await http.request<R<{ newPassword: string }>>(
     "post",
-    "/admin/user/reset-password",
+    "/api/access/user/reset-password",
     { data }
   );
   return unwrap(res);
@@ -450,7 +450,7 @@ export const getMemberCandidates = async (
 ): Promise<PageResp<MemberCandidateItem>> => {
   const res = await http.request<R<PageResp<MemberCandidateItem>>>(
     "post",
-    "/admin/user/member-candidates",
+    "/api/access/user/member-candidates",
     { data: params }
   );
   return unwrap(res);
@@ -462,7 +462,7 @@ export const getMemberCandidates = async (
 export const getRoleList = async (): Promise<RoleItem[]> => {
   const res = await http.request<R<{ items: RoleItem[] }>>(
     "post",
-    "/admin/role/list",
+    "/api/access/role/list",
     {
       data: {}
     }
@@ -476,7 +476,7 @@ export const getRoleList = async (): Promise<RoleItem[]> => {
 export const getOrgUsers = async (orgId: number): Promise<OrgUserItem[]> => {
   const res = await http.request<R<{ items: OrgUserItem[] }>>(
     "post",
-    "/admin/org/users",
+    "/api/access/org/users",
     { data: { id: orgId } }
   );
   // T-ADMIN-027：后端改 {items:[...]} 包装，此处解包保持调用方数组契约

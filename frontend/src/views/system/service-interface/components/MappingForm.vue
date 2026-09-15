@@ -254,7 +254,7 @@ defineExpose({ validate, getFormData });
     <el-form-item label="路径模式" prop="pathPattern">
       <el-input
         v-model.trim="formData.pathPattern"
-        placeholder="如 /admin/api/user/list"
+        placeholder="如 /api/example/demo/hello（外部路径=服务路径）"
         maxlength="512"
         class="font-mono"
       />

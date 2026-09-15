@@ -281,7 +281,7 @@ export default defineFakeRoute(
            * 缺本路由则"纯 mock 联调"仍依赖真实后端。返回假 ID + SVG 占位图
            * （mock 登录不校验验证码，任意 4 位输入即可）。
            */
-          url: "/auth/captcha",
+          url: "/api/access/auth/captcha",
           method: "post",
           response: () => {
             const svg =
@@ -297,7 +297,7 @@ export default defineFakeRoute(
           }
         },
         {
-          url: "/auth/login",
+          url: "/api/access/auth/login",
           method: "post",
           response: ({ body }) => {
             const username = body?.username as string;
@@ -329,7 +329,7 @@ export default defineFakeRoute(
            * 响应壳与真后端 `R<UserMenuResp>`（code=200/message/data）一致 ——
            * 前端 store/user.ts 通过 `unwrap` 解包。
            */
-          url: "/auth/user-menu",
+          url: "/api/access/auth/user-menu",
           method: "post",
           response: ({ headers }) => {
             const auth = (headers?.authorization ??

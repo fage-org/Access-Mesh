@@ -30,23 +30,10 @@ export default ({ mode }: ConfigEnv): UserConfigExport => {
       port: VITE_PORT,
       host: "0.0.0.0",
       // 本地跨域代理 https://cn.vitejs.dev/config/server-options.html#server-proxy
-      // T-FE-041：与 Gateway 外部路径同约定转发（无开发环境语义 rewrite，
-      // StripPrefix 由 Gateway 侧负责）——/auth(StripPrefix=0 直通)、
-      // /admin、/perm、/example(StripPrefix=1)。唯一例外见 VITE_PROXY_TARGET 覆写。
+      // T-ACCESS-042：URL 单命名空间——外部路径=服务路径 /api/<服务命名空间>/**，
+      // Gateway 无 StripPrefix，dev 代理单条 /api 同路径转发即可。唯一例外见 VITE_PROXY_TARGET 覆写。
       proxy: {
-        "/auth": {
-          target: VITE_PROXY_TARGET,
-          changeOrigin: true
-        },
-        "/admin": {
-          target: VITE_PROXY_TARGET,
-          changeOrigin: true
-        },
-        "/perm": {
-          target: VITE_PROXY_TARGET,
-          changeOrigin: true
-        },
-        "/example": {
+        "/api": {
           target: VITE_PROXY_TARGET,
           changeOrigin: true
         }

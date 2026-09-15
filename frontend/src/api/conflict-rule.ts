@@ -1,8 +1,8 @@
 /**
  * 冲突规则 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/conflict-rule/*`
- *（Gateway StripPrefix=1 后到 access-service `/api/perm/conflict-rule`）。
- * T-FE-020 修正：本文件原用裸 `/api/perm/conflict-rule/*`（T-FE-041 全局切 Gateway 路径时漏改
+ * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/access/conflict-rule/*`
+ *（Gateway StripPrefix=1 后到 access-service `/api/access/conflict-rule`）。
+ * T-FE-020 修正：本文件原用裸 `/api/access/conflict-rule/*`（T-FE-041 全局切 Gateway 路径时漏改
  * 本页），Gateway 仅路由 /admin/**、/perm/**，裸路径必 404；mock/conflict-rule.ts 已随真实链路退役删除。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
@@ -122,20 +122,20 @@ export type ConflictDetectReq = {
 
 // ========== API 函数 ==========
 
-/** 查询冲突规则列表（POST /api/perm/conflict-rule/list，EmptyReq）。
+/** 查询冲突规则列表（POST /api/access/conflict-rule/list，EmptyReq）。
  *  后端返回 ItemsResp（无分页），前端本地处理。 */
 export const getConflictRuleList = async (): Promise<
   ItemsResp<ConflictRuleResp>
 > => {
   const res = await http.request<R<ItemsResp<ConflictRuleResp>>>(
     "post",
-    "/perm/api/perm/conflict-rule/list",
+    "/api/access/conflict-rule/list",
     { data: {} }
   );
   return unwrap(res);
 };
 
-/** 查询冲突规则详情（POST /perm/api/perm/conflict-rule/detail，IdReq{id}）。
+/** 查询冲突规则详情（POST /perm/api/access/conflict-rule/detail，IdReq{id}）。
  *  内部主键 id 定位（T-PERM-030 评估定案：冲突规则无业务键）；查不到抛 20020。
  *  ⚠️ 该端点未注册 bootstrap Gateway 清单（本页不消费，T-FE-020 口径）——
  *  后续页面接入前须先在 BootstrapGraphDefinition.apiRoutes() 补注册，否则 fail-closed 403。 */
@@ -144,25 +144,25 @@ export const getConflictRuleDetail = async (
 ): Promise<ConflictRuleResp> => {
   const res = await http.request<R<ConflictRuleResp>>(
     "post",
-    "/perm/api/perm/conflict-rule/detail",
+    "/api/access/conflict-rule/detail",
     { data: { id } }
   );
   return unwrap(res);
 };
 
-/** 创建冲突规则（POST /api/perm/conflict-rule/create） */
+/** 创建冲突规则（POST /api/access/conflict-rule/create） */
 export const createConflictRule = async (
   data: ConflictRuleCreateReq
 ): Promise<ConflictRuleResp> => {
   const res = await http.request<R<ConflictRuleResp>>(
     "post",
-    "/perm/api/perm/conflict-rule/create",
+    "/api/access/conflict-rule/create",
     { data }
   );
   return unwrap(res);
 };
 
-/** 更新冲突规则（POST /api/perm/conflict-rule/update）。
+/** 更新冲突规则（POST /api/access/conflict-rule/update）。
  *  全量替换语义（PUT）：须传完整字段集（按 conflictType），rtv 显式传（null=清空"全部"）。
  *  内部主键 id 定位（T-PERM-030 评估定案）；查不到抛 20020。 */
 export const updateConflictRule = async (
@@ -170,23 +170,23 @@ export const updateConflictRule = async (
 ): Promise<ConflictRuleResp> => {
   const res = await http.request<R<ConflictRuleResp>>(
     "post",
-    "/perm/api/perm/conflict-rule/update",
+    "/api/access/conflict-rule/update",
     { data }
   );
   return unwrap(res);
 };
 
-/** 删除冲突规则，支持批量（POST /api/perm/conflict-rule/remove，IdsReq{ids}）。
+/** 删除冲突规则，支持批量（POST /api/access/conflict-rule/remove，IdsReq{ids}）。
  *  幂等：幽灵 id 静默跳过；无类型级 DELETE 权限整批拒绝。 */
 export const removeConflictRules = async (ids: number[]): Promise<void> => {
   unwrap(
-    await http.request<R<void>>("post", "/perm/api/perm/conflict-rule/remove", {
+    await http.request<R<void>>("post", "/api/access/conflict-rule/remove", {
       data: { ids }
     })
   );
 };
 
-/** 冲突检测（POST /api/perm/conflict-rule/detect）。
+/** 冲突检测（POST /api/access/conflict-rule/detect）。
  *  仅检测操作权限对（PERM_MUTEX 场景），双向匹配（A-B 和 B-A 都算）。
  *  T-PERM-030：后端已补类型级 CONFLICT_RULE:VIEW 门禁（与 list/detail 同款）。 */
 export const detectConflictRule = async (
@@ -194,7 +194,7 @@ export const detectConflictRule = async (
 ): Promise<ConflictDetectResp> => {
   const res = await http.request<R<ConflictDetectResp>>(
     "post",
-    "/perm/api/perm/conflict-rule/detect",
+    "/api/access/conflict-rule/detect",
     { data }
   );
   return unwrap(res);

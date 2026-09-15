@@ -1,8 +1,8 @@
 /**
  * 资源与操作定义 API
  * 经 @/utils/http 调用 Gateway 外部路径
- * （`/perm/api/perm/resource-entity/*` + `/perm/api/perm/operation-permission/*`，
- * Gateway StripPrefix=1 后到 access-service `/api/perm/...`）。
+ * （`/perm/api/access/resource-entity/*` + `/perm/api/access/operation-permission/*`，
+ * Gateway StripPrefix=1 后到 access-service `/api/access/...`）。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页/列表包络复用 role-manage 定义。
  *
@@ -164,7 +164,7 @@ export type OperationUpdateReq = {
 
 // ========== API 函数 ==========
 
-/** 查询资源树（POST /perm/api/perm/resource-entity/tree）。
+/** 查询资源树（POST /perm/api/access/resource-entity/tree）。
  *  后端返回 ItemsResp<ResourceTreeResp>，每个 item.root 为一棵树的根；
  *  按 resourceTypeCode 过滤后，顶层资源各自作为 root 返回（森林）。 */
 export const getResourceTree = async (
@@ -172,138 +172,138 @@ export const getResourceTree = async (
 ): Promise<ItemsResp<ResourceTreeResp>> => {
   const res = await http.request<R<ItemsResp<ResourceTreeResp>>>(
     "post",
-    "/perm/api/perm/resource-entity/tree",
+    "/api/access/resource-entity/tree",
     { data: params }
   );
   return unwrap(res);
 };
 
-/** 查询资源列表（POST /perm/api/perm/resource-entity/list，分页）。
+/** 查询资源列表（POST /perm/api/access/resource-entity/list，分页）。
  *  本页以树为主不消费，保留对齐契约。 */
 export const getResourceList = async (
   params: ResourceListQuery
 ): Promise<PageResp<ResourceResp>> => {
   const res = await http.request<R<PageResp<ResourceResp>>>(
     "post",
-    "/perm/api/perm/resource-entity/list",
+    "/api/access/resource-entity/list",
     { data: params }
   );
   return unwrap(res);
 };
 
-/** 查询资源详情（POST /perm/api/perm/resource-entity/detail，业务键定位）。 */
+/** 查询资源详情（POST /perm/api/access/resource-entity/detail，业务键定位）。 */
 export const getResourceDetail = async (
   key: ResourceKey
 ): Promise<ResourceResp> => {
   const res = await http.request<R<ResourceResp>>(
     "post",
-    "/perm/api/perm/resource-entity/detail",
+    "/api/access/resource-entity/detail",
     { data: key }
   );
   return unwrap(res);
 };
 
-/** 创建资源（POST /perm/api/perm/resource-entity/create） */
+/** 创建资源（POST /perm/api/access/resource-entity/create） */
 export const createResource = async (
   data: ResourceCreateReq
 ): Promise<ResourceResp> => {
   const res = await http.request<R<ResourceResp>>(
     "post",
-    "/perm/api/perm/resource-entity/create",
+    "/api/access/resource-entity/create",
     { data }
   );
   return unwrap(res);
 };
 
-/** 更新资源（POST /perm/api/perm/resource-entity/update，业务键定位）。 */
+/** 更新资源（POST /perm/api/access/resource-entity/update，业务键定位）。 */
 export const updateResource = async (
   data: ResourceUpdateReq
 ): Promise<ResourceResp> => {
   const res = await http.request<R<ResourceResp>>(
     "post",
-    "/perm/api/perm/resource-entity/update",
+    "/api/access/resource-entity/update",
     { data }
   );
   return unwrap(res);
 };
 
-/** 移动资源（POST /perm/api/perm/resource-entity/move，业务键对定位）。
+/** 移动资源（POST /perm/api/access/resource-entity/move，业务键对定位）。
  *  parent 为 null 表示移动到顶层。 */
 export const moveResource = async (data: ResourceMoveReq): Promise<void> => {
   unwrap(
-    await http.request<R<void>>("post", "/perm/api/perm/resource-entity/move", {
+    await http.request<R<void>>("post", "/api/access/resource-entity/move", {
       data
     })
   );
 };
 
-/** 删除资源，支持批量（POST /perm/api/perm/resource-entity/remove，业务键集合）。 */
+/** 删除资源，支持批量（POST /perm/api/access/resource-entity/remove，业务键集合）。 */
 export const removeResources = async (keys: ResourceKey[]): Promise<void> => {
   unwrap(
     await http.request<R<void>>(
       "post",
-      "/perm/api/perm/resource-entity/remove",
+      "/api/access/resource-entity/remove",
       { data: { items: keys } }
     )
   );
 };
 
-/** 查询操作权限列表（POST /perm/api/perm/operation-permission/list）。
+/** 查询操作权限列表（POST /perm/api/access/operation-permission/list）。
  *  后端返回 ItemsResp（无分页），前端本地处理。 */
 export const getOperationList = async (
   params: OperationListQuery
 ): Promise<ItemsResp<OperationPermissionResp>> => {
   const res = await http.request<R<ItemsResp<OperationPermissionResp>>>(
     "post",
-    "/perm/api/perm/operation-permission/list",
+    "/api/access/operation-permission/list",
     { data: params }
   );
   return unwrap(res);
 };
 
-/** 查询操作权限详情（POST /perm/api/perm/operation-permission/detail，业务键定位）。
+/** 查询操作权限详情（POST /perm/api/access/operation-permission/detail，业务键定位）。
  *  resourceTypeCode 必填（全局操作概念已退役）。 */
 export const getOperationDetail = async (
   key: OperationKey
 ): Promise<OperationPermissionResp> => {
   const res = await http.request<R<OperationPermissionResp>>(
     "post",
-    "/perm/api/perm/operation-permission/detail",
+    "/api/access/operation-permission/detail",
     { data: key }
   );
   return unwrap(res);
 };
 
-/** 创建操作权限（POST /perm/api/perm/operation-permission/create） */
+/** 创建操作权限（POST /perm/api/access/operation-permission/create） */
 export const createOperation = async (
   data: OperationCreateReq
 ): Promise<OperationPermissionResp> => {
   const res = await http.request<R<OperationPermissionResp>>(
     "post",
-    "/perm/api/perm/operation-permission/create",
+    "/api/access/operation-permission/create",
     { data }
   );
   return unwrap(res);
 };
 
-/** 更新操作权限（POST /perm/api/perm/operation-permission/update，业务键定位）。 */
+/** 更新操作权限（POST /perm/api/access/operation-permission/update，业务键定位）。 */
 export const updateOperation = async (
   data: OperationUpdateReq
 ): Promise<OperationPermissionResp> => {
   const res = await http.request<R<OperationPermissionResp>>(
     "post",
-    "/perm/api/perm/operation-permission/update",
+    "/api/access/operation-permission/update",
     { data }
   );
   return unwrap(res);
 };
 
-/** 删除操作权限，支持批量（POST /perm/api/perm/operation-permission/remove，业务键集合）。 */
+/** 删除操作权限，支持批量（POST /perm/api/access/operation-permission/remove，业务键集合）。 */
 export const removeOperations = async (keys: OperationKey[]): Promise<void> => {
   unwrap(
     await http.request<R<void>>(
       "post",
-      "/perm/api/perm/operation-permission/remove",
+      "/api/access/operation-permission/remove",
       { data: { items: keys } }
     )
   );

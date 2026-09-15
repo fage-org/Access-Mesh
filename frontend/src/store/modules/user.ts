@@ -31,7 +31,7 @@ export const useUserStore = defineStore("pure-user", {
     // 按钮级别权限
     permissions:
       storageLocal().getItem<DataInfo<number>>(userKey)?.permissions ?? [],
-    /** 后端下发的菜单树（v1.4 双轨并行：菜单可见性轨道，登录后由 /auth/user-menu 填充） */
+    /** 后端下发的菜单树（v1.4 双轨并行：菜单可见性轨道，登录后由 /api/access/auth/user-menu 填充） */
     menus: [],
     // 是否勾选了登录页的免登录
     isRemembered: false,
@@ -79,7 +79,7 @@ export const useUserStore = defineStore("pure-user", {
      *  2. `expiresIn`（秒）转换为绝对时间后 `setToken` 写 cookie（普通 Sa-Token 会话
      *     `refreshToken` 为 null，不接 OAuth2 刷新令牌）；`roles: []` 占位使 `setToken`
      *     走传入分支——登录用户名立即落位 Pinia/localStorage（roles 由第 3 步填充）
-     *  3. 调 `/auth/user-menu` 拿 menus + roles + permissions，写 Pinia + localStorage
+     *  3. 调 `/api/access/auth/user-menu` 拿 menus + roles + permissions，写 Pinia + localStorage
      *  4. 失败语义：第 1 步失败整体 reject；第 3 步 HTTP 401（会话失效，拦截器已清会话
      *     回登录页）同样 reject——不能按登录成功处理；其余异常（网络等）仅记录，仍 resolve
      */
@@ -102,7 +102,7 @@ export const useUserStore = defineStore("pure-user", {
           throw err;
         }
         // 不阻断登录流程；前端可在路由守卫层做兜底（如重定向到错误页）
-        console.warn("[loginByUsername] failed to load /auth/user-menu", err);
+        console.warn("[loginByUsername] failed to load /api/access/auth/user-menu", err);
       }
       return loginData;
     },

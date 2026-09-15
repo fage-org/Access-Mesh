@@ -1,8 +1,8 @@
 /**
  * 服务注册与接口映射 API。
- * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/service-config/*` 与
- * `/perm/api/perm/resource-api-mapping/*`（Gateway StripPrefix=1 后到
- * access-service 的 `/api/perm/service-config`、`/api/perm/resource-api-mapping`）。
+ * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/access/service-config/*` 与
+ * `/perm/api/access/resource-api-mapping/*`（Gateway StripPrefix=1 后到
+ * access-service 的 `/api/access/service-config`、`/api/access/resource-api-mapping`）。
  * 接口形状对齐 api-contract 契约（T-PERM-027 收口）。
  */
 import { http } from "@/utils/http";
@@ -115,7 +115,7 @@ export const getServiceConfigList = async (): Promise<
 > => {
   const res = await http.request<R<ItemsResp<ServiceConfigResp>>>(
     "post",
-    "/perm/api/perm/service-config/list",
+    "/api/access/service-config/list",
     { data: {} }
   );
   return unwrap(res);
@@ -126,7 +126,7 @@ export const getServiceConfigDetail = async (
 ): Promise<ServiceConfigResp> => {
   const res = await http.request<R<ServiceConfigResp>>(
     "post",
-    "/perm/api/perm/service-config/detail",
+    "/api/access/service-config/detail",
     { data: { serviceCode } }
   );
   return unwrap(res);
@@ -137,7 +137,7 @@ export const saveServiceConfig = async (
 ): Promise<ServiceConfigResp> => {
   const res = await http.request<R<ServiceConfigResp>>(
     "post",
-    "/perm/api/perm/service-config/save",
+    "/api/access/service-config/save",
     { data }
   );
   return unwrap(res);
@@ -146,7 +146,7 @@ export const saveServiceConfig = async (
 export const removeServiceConfigs = async (ids: number[]): Promise<void> => {
   const res = await http.request<R<void>>(
     "post",
-    "/perm/api/perm/service-config/remove",
+    "/api/access/service-config/remove",
     { data: { ids } }
   );
   unwrap(res);
@@ -158,7 +158,7 @@ export const getServiceApis = async (
 ): Promise<ItemsResp<ApiMappingResp>> => {
   const res = await http.request<R<ItemsResp<ApiMappingResp>>>(
     "post",
-    "/perm/api/perm/service-config/apis",
+    "/api/access/service-config/apis",
     { data: { serviceCode } }
   );
   return unwrap(res);
@@ -171,7 +171,7 @@ export const getApiMappingList = async (data: {
 }): Promise<ItemsResp<ApiMappingResp>> => {
   const res = await http.request<R<ItemsResp<ApiMappingResp>>>(
     "post",
-    "/perm/api/perm/resource-api-mapping/list",
+    "/api/access/resource-api-mapping/list",
     { data }
   );
   return unwrap(res);
@@ -182,7 +182,7 @@ export const createApiMapping = async (
 ): Promise<ApiMappingResp> => {
   const res = await http.request<R<ApiMappingResp>>(
     "post",
-    "/perm/api/perm/resource-api-mapping/create",
+    "/api/access/resource-api-mapping/create",
     { data }
   );
   return unwrap(res);
@@ -193,7 +193,7 @@ export const updateApiMapping = async (
 ): Promise<ApiMappingResp> => {
   const res = await http.request<R<ApiMappingResp>>(
     "post",
-    "/perm/api/perm/resource-api-mapping/update",
+    "/api/access/resource-api-mapping/update",
     { data }
   );
   return unwrap(res);
@@ -202,7 +202,7 @@ export const updateApiMapping = async (
 export const removeApiMappings = async (ids: number[]): Promise<void> => {
   const res = await http.request<R<void>>(
     "post",
-    "/perm/api/perm/resource-api-mapping/remove",
+    "/api/access/resource-api-mapping/remove",
     { data: { ids } }
   );
   unwrap(res);
@@ -213,7 +213,7 @@ export const syncServiceInterfaces = async (
 ): Promise<ServiceConfigSyncResp> => {
   const res = await http.request<R<ServiceConfigSyncResp>>(
     "post",
-    "/perm/api/perm/service-config/sync",
+    "/api/access/service-config/sync",
     { data }
   );
   return unwrap(res);

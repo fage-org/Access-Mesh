@@ -1,6 +1,6 @@
 /**
  * 域配置 API
- * 经 @/utils/http 调用 access-service 端点（`/perm/api/perm/domain-config/*`，Gateway /perm 前缀——T-FE-021 切换）；
+ * 经 @/utils/http 调用 access-service 端点（`/perm/api/access/domain-config/*`，Gateway /perm 前缀——T-FE-021 切换）；
  * mock/domain-config.ts 已于 T-FE-021 联调退役删除。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
@@ -58,33 +58,33 @@ export type DomainConfigGetReq = {
 
 // ========== API 函数 ==========
 
-/** 查询域配置列表（POST /api/perm/domain-config/list，DomainConfigListReq{domainCode?}）。
+/** 查询域配置列表（POST /api/access/domain-config/list，DomainConfigListReq{domainCode?}）。
  *  按 domainCode 过滤（不传则全量），返回 ItemsResp<DomainConfigResp>（无分页）。 */
 export const getDomainConfigList = async (
   domainCode?: string | null
 ): Promise<ItemsResp<DomainConfigResp>> => {
   const res = await http.request<R<ItemsResp<DomainConfigResp>>>(
     "post",
-    "/perm/api/perm/domain-config/list",
+    "/api/access/domain-config/list",
     { data: { domainCode: domainCode ?? null } satisfies DomainConfigListReq }
   );
   return unwrap(res);
 };
 
-/** 查询域配置详情（POST /api/perm/domain-config/detail，DomainConfigGetReq{domainCode, configType}）。 */
+/** 查询域配置详情（POST /api/access/domain-config/detail，DomainConfigGetReq{domainCode, configType}）。 */
 export const getDomainConfigDetail = async (
   domainCode: string,
   configType: string
 ): Promise<DomainConfigResp | null> => {
   const res = await http.request<R<DomainConfigResp | null>>(
     "post",
-    "/perm/api/perm/domain-config/detail",
+    "/api/access/domain-config/detail",
     { data: { domainCode, configType } satisfies DomainConfigGetReq }
   );
   return unwrap(res);
 };
 
-/** 保存域配置（POST /api/perm/domain-config/save，upsert 幂等）。
+/** 保存域配置（POST /api/access/domain-config/save，upsert 幂等）。
  *  按 domainCode+configType 查存在则 update extra，不存在则 insert。
  *  新建/编辑统一走本接口——前端无需区分 create/update 调用。 */
 export const saveDomainConfig = async (
@@ -92,17 +92,17 @@ export const saveDomainConfig = async (
 ): Promise<DomainConfigResp> => {
   const res = await http.request<R<DomainConfigResp>>(
     "post",
-    "/perm/api/perm/domain-config/save",
+    "/api/access/domain-config/save",
     { data }
   );
   return unwrap(res);
 };
 
-/** 删除域配置（POST /api/perm/domain-config/remove，IdsReq 批量软删）。 */
+/** 删除域配置（POST /api/access/domain-config/remove，IdsReq 批量软删）。 */
 export const removeDomainConfig = async (ids: number[]): Promise<void> => {
   const res = await http.request<R<void>>(
     "post",
-    "/perm/api/perm/domain-config/remove",
+    "/api/access/domain-config/remove",
     { data: { ids } }
   );
   unwrap(res);

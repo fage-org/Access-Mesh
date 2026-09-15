@@ -1,14 +1,14 @@
 /**
  * 权限变更日志 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/perm/log/change/list`
- *（Gateway StripPrefix=1 后到 access-service `/api/perm/log/change/list`）。
+ * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/access/log/change/list`
+ *（Gateway StripPrefix=1 后到 access-service `/api/access/log/change/list`）。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
  *
  * 契约依据：docs/design/access-service-api-contract.md §16.3 permission-change-log 契约要点
- *   （T-PERM-032 收口：端点 /api/perm/log/change/list/筛选全集/createdBy/独立
+ *   （T-PERM-032 收口：端点 /api/access/log/change/list/筛选全集/createdBy/独立
  *   PERMISSION_CHANGE_LOG:VIEW 门禁）+ 总册 §16.4 diff_snapshot 规范 diff_snapshot 规范。
- * 后端实现：access-service LogQueryController（@RequestMapping("/api/perm/log")
+ * 后端实现：access-service LogQueryController（@RequestMapping("/api/access/log")
  *   + @PostMapping("/change/list")）+ LogQueryAppServiceImpl.listChangeLogs。
  *
  * 后端仅 1 个端点（list），无 detail--ChangeLogResp 已含全部字段（含 diffSnapshot/oldSnapshot/newSnapshot），
@@ -131,7 +131,7 @@ export type ChangeLogListReq = {
 
 // ========== API 函数 ==========
 
-/** 查询权限变更日志列表（POST /perm/api/perm/log/change/list，契约路径已随 T-PERM-032 修正）。
+/** 查询权限变更日志列表（POST /perm/api/access/log/change/list，契约路径已随 T-PERM-032 修正）。
  *  多维度过滤 + 服务端分页，返回 PageResp<ChangeLogResp>。
  *  权限门禁：独立 PERMISSION_CHANGE_LOG:VIEW（T-PERM-032 审计分离，对齐操作日志 OPERATION_LOG:VIEW 先例）。 */
 export const getChangeLogList = async (
@@ -139,7 +139,7 @@ export const getChangeLogList = async (
 ): Promise<PageResp<ChangeLogResp>> => {
   const res = await http.request<R<PageResp<ChangeLogResp>>>(
     "post",
-    "/perm/api/perm/log/change/list",
+    "/api/access/log/change/list",
     { data: params }
   );
   return unwrap(res);

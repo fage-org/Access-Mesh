@@ -31,7 +31,7 @@ export function usePermissionChangeLog() {
     const seq = ++reqSeq;
     loading.value = true;
     try {
-      // 后端 /api/perm/log/change/list 返回 PageResp（服务端分页 + 全维度过滤）。
+      // 后端 /api/access/log/change/list 返回 PageResp（服务端分页 + 全维度过滤）。
       // 前端不做本地过滤/切片--服务端已分页。
       const res = await getChangeLogList({
         entityType: searchForm.entityType || undefined,
