@@ -2,7 +2,7 @@ package cn.ac.fage.accessmesh.access.engine.core;
 
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator;
@@ -49,7 +49,7 @@ class BatchPermMutexEvaluatorTest {
     @Mock private PermissionConflictRuleMapper conflictRuleMapper;
     @Mock private CacheService cacheService;
     @Mock private AuditDomainService auditDomainService;
-    @Mock private OperationPermissionMapper operationPermissionMapper;
+    @Mock private OperationPermissionDomainService operationPermissionMapper;
     @Mock private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
 
     private PermissionConflictDomainServiceImpl service;
@@ -81,7 +81,7 @@ class BatchPermMutexEvaluatorTest {
             op.setInheritMask(0L);
             ops.add(op);
         }
-        lenient().when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, TYPE))
+        lenient().when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, java.util.Set.of(TYPE)))
             .thenReturn(ops);
     }
 
@@ -103,7 +103,7 @@ class BatchPermMutexEvaluatorTest {
         verify(auditDomainService, never()).asyncRecordLog(any());
         verify(conflictRuleMapper, times(1)).selectByConflictType(eq(TENANT), eq("PERM_MUTEX"));
         // 操作索引按 distinct 类型装载一次
-        verify(operationPermissionMapper, times(1)).selectByTenantAndResourceType(TENANT, TYPE);
+        verify(operationPermissionMapper, times(1)).selectByTenantAndResourceTypes(TENANT, java.util.Set.of(TYPE));
     }
 
     @Test

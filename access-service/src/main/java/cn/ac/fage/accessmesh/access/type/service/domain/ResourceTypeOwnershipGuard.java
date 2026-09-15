@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -69,16 +69,16 @@ public class ResourceTypeOwnershipGuard {
     private static final int SOURCE_SERVICE_MAX_LENGTH = 128;
 
     private final TypeDefinitionMapper typeDefinitionMapper;
-    private final ServiceConfigMapper serviceConfigMapper;
+    private final ServiceConfigDomainService serviceConfigDomainService;
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final ObjectMapper objectMapper;
 
     public ResourceTypeOwnershipGuard(TypeDefinitionMapper typeDefinitionMapper,
-                                      ServiceConfigMapper serviceConfigMapper,
+                                      ServiceConfigDomainService serviceConfigDomainService,
                                       ResourceEntityDomainService resourceEntityDomainService,
                                       ObjectMapper objectMapper) {
         this.typeDefinitionMapper = typeDefinitionMapper;
-        this.serviceConfigMapper = serviceConfigMapper;
+        this.serviceConfigDomainService = serviceConfigDomainService;
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.objectMapper = objectMapper;
     }
@@ -199,7 +199,7 @@ public class ResourceTypeOwnershipGuard {
                     ownership.syncSourceService(), sourceService);
             return false;
         }
-        ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, sourceService);
+        ServiceConfig config = serviceConfigDomainService.selectByTenantAndServiceCode(tenantId, sourceService);
         if (config == null || (config.getDeleteFlag() != null && config.getDeleteFlag() != 0L)) {
             log.warn("resource type ownership gate: source service not registered or deleted, "
                     + "tenantId={}, serviceCode={}", tenantId, sourceService);
@@ -317,7 +317,7 @@ public class ResourceTypeOwnershipGuard {
             // codex 二轮复评 P2：保存侧与运行时入口（isSyncEntranceAllowed）同规则——
             // 已注册、未软删且 status=1 启用；仅查注册非空会保存出「管理面 20055、
             // 同步入口 status 拒绝」的无人可写类型
-            ServiceConfig sourceService = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, sourceText);
+            ServiceConfig sourceService = serviceConfigDomainService.selectByTenantAndServiceCode(tenantId, sourceText);
             if (sourceService == null || (sourceService.getDeleteFlag() != null && sourceService.getDeleteFlag() != 0L)
                     || !Integer.valueOf(1).equals(sourceService.getStatus())) {
                 throw new IllegalArgumentException("来源服务未注册或未启用: " + sourceText);

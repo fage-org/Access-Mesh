@@ -86,8 +86,8 @@
 |---|---|---|---|---|---|---|
 | [T-ACCESS-043](T-ACCESS-043.md) | 收敛批次①——既有服务直换 + 死边清理（9 边）（✅ 2026-09-15 收口：模块双 fork 1249+210 全绿；白名单 30→21） | capability-mapper-convergence | capability-structure §8.4（豁免 6 行缩减） | — | ✅ | ✓ |
 | [T-ACCESS-044](T-ACCESS-044.md) | 收敛批次②——grant 授权事实服务 + rule 条件读（6 边）（✅ 2026-09-15 收口：RoleResourcePermissionDomainService 落地 + 条件三读；模块双 fork 全绿；白名单 21→15） | 同 | 同 | T-ACCESS-043 | ✅ | ✓ |
-| [T-ACCESS-045](T-ACCESS-045.md) | 收敛批次③——type/resource/domain 供给读服务（11 边） | 同 | 同 | T-ACCESS-044 | 🔨 | ⏳ |
-| [T-ACCESS-046](T-ACCESS-046.md) | 收敛批次④——user-role 原始行/投影 + 白名单退役收口（4 边） | 同 | capability-structure §8.4；project-rules §8.2 | T-ACCESS-045 | ⚙️ | ⏳ |
+| [T-ACCESS-045](T-ACCESS-045.md) | 收敛批次③——type/resource/domain 供给读服务（11 边）（✅ 2026-09-15 收口：五新服务落地 + 全租户/IN 双口径；模块双 fork 全绿；白名单 15→4） | 同 | 同 | T-ACCESS-044 | ✅ | ✓ |
+| [T-ACCESS-046](T-ACCESS-046.md) | 收敛批次④——user-role 原始行/投影 + 白名单退役收口（4 边） | 同 | capability-structure §8.4；project-rules §8.2 | T-ACCESS-045 | 🔨 | ⏳ |
 
 ### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——未终态仅剩暂缓项 T-PERM-035/036/054 挂本表等 PM 重申）
 

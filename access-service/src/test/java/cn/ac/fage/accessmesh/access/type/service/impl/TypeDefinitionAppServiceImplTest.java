@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.type.dto.req.TypeUpdateReq;
 import cn.ac.fage.accessmesh.access.type.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
-import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -43,15 +43,15 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class TypeDefinitionAppServiceImplTest {
 
-    @Mock private TypeDefinitionMapper typeDefinitionMapper;
+    @Mock private cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper typeDefinitionMapper;
     @Mock private cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper operationPermissionMapper;
     @Mock private PermQueryEngine engine;
-    @Mock private cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper serviceConfigMapper;
+    @Mock private cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService serviceConfigMapper;
     @Mock private cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService resourceEntityDomainService;
     @Mock private cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService localProjectionDomainService;
     @Mock private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
     @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService rolePermMapper;
-    @Mock private cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper apiMappingMapper;
+    @Mock private cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService apiMappingMapper;
     @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
     @Mock private cn.ac.fage.accessmesh.common.cache.CacheService cacheService;
     @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService grantOriginDomainService;

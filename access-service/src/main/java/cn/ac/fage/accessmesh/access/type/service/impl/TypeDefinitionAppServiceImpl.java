@@ -15,7 +15,7 @@ import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.type.service.TypeDefinitionAppService;
@@ -64,7 +64,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final SubjectDomainService subjectDomainService;
     private final RoleResourcePermissionDomainService roleResourcePermissionDomainService;
     private final cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService;
-    private final ResourceApiMappingMapper apiMappingMapper;
+    private final ResourceApiMappingDomainService apiMappingDomainService;
     private final TreeWriteLockSupport treeWriteLockSupport;
     private final CacheService cacheService;
     private final GrantOriginDomainService grantOriginDomainService;
@@ -80,7 +80,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * @param localProjectionDomainService 本地投影域服务（TYPE_DEFINITION 实例投影同事务维护，T-PERM-051）
      * @param subjectDomainService      主体域服务（user_type/role_type 删除引用面行数守卫，T-PERM-056）
      * @param roleResourcePermissionDomainService 授权事实领域服务（类型软删级联处置投影行下授权行，T-PERM-051；Q-009 收敛注入）
-     * @param apiMappingMapper          API 映射数据访问层（删除级联的受影响服务查询，deleteResources 同款）
+     * @param apiMappingDomainService  API 映射事实领域服务（删除级联的受影响服务查询，deleteResources 同款；Q-009 收敛注入）
      * @param cacheService              统一缓存入口（类型解析缓存提交后失效，codex 三轮复评 P1-2）
      * @param grantOriginDomainService  类型授权根域服务（resource_type 创建即落 AUTHORITY_ROOT 首授基座，T-PERM-062）
      */
@@ -93,7 +93,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                                          SubjectDomainService subjectDomainService,
                                          RoleResourcePermissionDomainService roleResourcePermissionDomainService,
                                          cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService,
-                                         ResourceApiMappingMapper apiMappingMapper,
+                                         ResourceApiMappingDomainService apiMappingDomainService,
                                          TreeWriteLockSupport treeWriteLockSupport,
                                          CacheService cacheService,
                                          GrantOriginDomainService grantOriginDomainService) {
@@ -106,7 +106,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         this.subjectDomainService = subjectDomainService;
         this.roleResourcePermissionDomainService = roleResourcePermissionDomainService;
         this.conditionDomainService = conditionDomainService;
-        this.apiMappingMapper = apiMappingMapper;
+        this.apiMappingDomainService = apiMappingDomainService;
         this.treeWriteLockSupport = treeWriteLockSupport;
         this.cacheService = cacheService;
         this.grantOriginDomainService = grantOriginDomainService;
@@ -695,7 +695,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             if (!affectedRoleIds.isEmpty()) {
                 PermissionChangeContext.markRoles(tenantId, affectedRoleIds);
             }
-            Set<String> affectedServiceCodes = apiMappingMapper.selectByResourceEntityIds(
+            Set<String> affectedServiceCodes = apiMappingDomainService.selectByResourceEntityIds(
                 tenantId, new HashSet<>(projectionIds)).stream()
                 .map(ResourceApiMapping::getServiceCode)
                 .filter(code -> code != null && !code.isBlank())

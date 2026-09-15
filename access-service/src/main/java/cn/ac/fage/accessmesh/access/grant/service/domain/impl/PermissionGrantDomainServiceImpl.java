@@ -11,9 +11,9 @@ import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
-import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.util.OperationPermissionUtils;
@@ -56,30 +56,30 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
 
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine permQueryEngine;
-    private final OperationPermissionMapper operationPermissionMapper;
+    private final OperationPermissionDomainService operationPermissionDomainService;
     private final RoleResourcePermissionMapper roleResourcePermissionMapper;
-    private final TypeDefinitionMapper typeDefinitionMapper;
+    private final TypeDefinitionDomainService typeDefinitionDomainService;
 
     /**
      * 构造函数注入依赖服务
      *
      * @param typeResolutionService     类型解析服务
      * @param permQueryEngine           统一权限查询引擎（授权事实唯一来源）
-     * @param operationPermissionMapper 操作权限数据访问层（目标操作定义加载，非权限判定）
+     * @param operationPermissionDomainService 操作定义事实领域服务（目标操作定义加载，非权限判定；Q-009 收敛注入）
      * @param roleResourcePermissionMapper 授权数据访问层（20040 reason 细分的租户级可转授行
      *                                     存在性查询，T-PERM-062；失败路径专用，不参与委托判定本身）
-     * @param typeDefinitionMapper      类型定义数据访问层（reason 细分的自定义类型过滤，T-PERM-062）
+     * @param typeDefinitionDomainService 类型定义事实领域服务（reason 细分的自定义类型过滤，T-PERM-062；Q-009 收敛注入）
      */
     public PermissionGrantDomainServiceImpl(TypeResolutionService typeResolutionService,
                                             PermQueryEngine permQueryEngine,
-                                            OperationPermissionMapper operationPermissionMapper,
+                                            OperationPermissionDomainService operationPermissionDomainService,
                                             RoleResourcePermissionMapper roleResourcePermissionMapper,
-                                            TypeDefinitionMapper typeDefinitionMapper) {
+                                            TypeDefinitionDomainService typeDefinitionDomainService) {
         this.typeResolutionService = typeResolutionService;
         this.permQueryEngine = permQueryEngine;
-        this.operationPermissionMapper = operationPermissionMapper;
+        this.operationPermissionDomainService = operationPermissionDomainService;
         this.roleResourcePermissionMapper = roleResourcePermissionMapper;
-        this.typeDefinitionMapper = typeDefinitionMapper;
+        this.typeDefinitionDomainService = typeDefinitionDomainService;
     }
 
     // ===== canGrant 权限检查 =====
@@ -206,7 +206,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         Set<Integer> targetTypeValues = new LinkedHashSet<>(resourceTypeByCode.values());
         Set<String> allTargetOpCodes = opCodesByTypeCode.values().stream()
             .flatMap(Set::stream).collect(Collectors.toCollection(LinkedHashSet::new));
-        List<OperationPermission> targetOperations = operationPermissionMapper
+        List<OperationPermission> targetOperations = operationPermissionDomainService
             .selectByTenantResourceTypesAndOpCodes(tenantId, targetTypeValues, allTargetOpCodes);
         for (OperationPermission target : targetOperations) {
             if (target.getResourceType() == null || target.getCode() == null) {
@@ -413,7 +413,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         if (failedTypeValues.isEmpty()) {
             return;
         }
-        Set<Integer> customTypeValues = typeDefinitionMapper.selectValidByTenant(tenantId).stream()
+        Set<Integer> customTypeValues = typeDefinitionDomainService.selectValidByTenant(tenantId).stream()
             .filter(td -> "resource_type".equals(td.getTypeKey())
                 && !Boolean.TRUE.equals(td.getIsSystem())
                 && failedTypeValues.contains(td.getTypeValue()))
@@ -432,7 +432,7 @@ public class PermissionGrantDomainServiceImpl implements PermissionGrantDomainSe
         List<RoleResourcePermission> candidates = roleResourcePermissionMapper
             .selectGrantableCoveringCandidates(tenantId, customTypeValues, failedInstanceEntityIds);
         Map<String, OperationPermission> candidateOpsByBit = OperationPermissionUtils
-            .indexByResourceTypeAndBinaryBit(operationPermissionMapper
+            .indexByResourceTypeAndBinaryBit(operationPermissionDomainService
                 .selectByTenantAndResourceTypes(tenantId, customTypeValues));
         for (Map.Entry<GrantCheckKey, GrantCheckResult> entry : delegationFailedKeys.entrySet()) {
             GrantCheckKey key = entry.getKey();

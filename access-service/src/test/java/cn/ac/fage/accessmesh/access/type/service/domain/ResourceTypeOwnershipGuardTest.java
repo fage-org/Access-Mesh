@@ -1,8 +1,8 @@
 package cn.ac.fage.accessmesh.access.type.service.domain;
 
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
-import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
-import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
+import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,9 +35,9 @@ class ResourceTypeOwnershipGuardTest {
     private static final Long TENANT = 1L;
 
     @Mock
-    private TypeDefinitionMapper typeDefinitionMapper;
+    private cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper typeDefinitionMapper;
     @Mock
-    private ServiceConfigMapper serviceConfigMapper;
+    private ServiceConfigDomainService serviceConfigMapper;
     @Mock
     private ResourceEntityDomainService resourceEntityDomainService;
 

@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
 import cn.ac.fage.accessmesh.access.rule.enums.ConflictType;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
@@ -50,7 +50,7 @@ class PermissionConflictDomainServiceImplTest {
     @Mock private PermissionConflictRuleMapper conflictRuleMapper;
     @Mock private CacheService cacheService;
     @Mock private AuditDomainService auditDomainService;
-    @Mock private OperationPermissionMapper operationPermissionMapper;
+    @Mock private OperationPermissionDomainService operationPermissionMapper;
     @Mock private SubjectDomainService subjectDomainService;
 
     private PermissionConflictDomainServiceImpl service;
@@ -90,7 +90,7 @@ class PermissionConflictDomainServiceImplTest {
     void shouldDropBothSidesAndNotifyWhenRuleFires() {
         when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
             .thenReturn(List.of(rule(9L, 11L, 12L)));
-        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, 1))
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, java.util.Set.of(1)))
             .thenReturn(List.of(
                 op(11L, 1, 1L, "VIEW"),
                 op(12L, 1, 2L, "MANAGE"),
@@ -114,7 +114,7 @@ class PermissionConflictDomainServiceImplTest {
     void shouldKeepAllEntriesWhenNoRuleFires() {
         when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
             .thenReturn(List.of());
-        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, 1))
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, java.util.Set.of(1)))
             .thenReturn(List.of(op(11L, 1, 1L, "VIEW")));
 
         List<RolePermEntry> survivors = service.filterPermMutex(TENANT, List.of(entry(501L, 20L, 1L)));
@@ -128,7 +128,7 @@ class PermissionConflictDomainServiceImplTest {
     void shouldKeepEntriesWhenOnlyOneSidePresent() {
         when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.PERM_MUTEX.getValue()))
             .thenReturn(List.of(rule(9L, 11L, 12L)));
-        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, 1))
+        when(operationPermissionMapper.selectByTenantAndResourceTypes(TENANT, java.util.Set.of(1)))
             .thenReturn(List.of(
                 op(11L, 1, 1L, "VIEW"),
                 op(12L, 1, 2L, "MANAGE")));

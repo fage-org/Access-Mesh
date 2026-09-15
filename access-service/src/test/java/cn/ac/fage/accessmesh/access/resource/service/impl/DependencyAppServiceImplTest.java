@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
@@ -70,7 +70,7 @@ class DependencyAppServiceImplTest {
 
     @Mock private ResourceDependencyMapper dependencyMapper;
     @Mock private ResourceEntityMapper resourceEntityMapper;
-    @Mock private OperationPermissionMapper operationPermissionMapper;
+    @Mock private OperationPermissionDomainService operationPermissionMapper;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private PermQueryEngine engine;
 

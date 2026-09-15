@@ -11,10 +11,10 @@ import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
-import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
-import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
@@ -58,7 +58,7 @@ import static org.mockito.Mockito.mockStatic;
 class OperationLogRuntimeContextAppServiceTest {
 
     @Mock
-    private TypeDefinitionMapper typeDefinitionMapper;
+    private cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper typeDefinitionMapper;
 
     @Mock
     private cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper operationPermissionMapper;
@@ -67,7 +67,7 @@ class OperationLogRuntimeContextAppServiceTest {
     private ResourceEntityMapper resourceEntityMapper;
 
     @Mock
-    private ResourceApiMappingMapper resourceApiMappingMapper;
+    private cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper resourceApiMappingMapper;
 
     @Mock
     private ResourceEntityDomainService resourceEntityDomainService;
@@ -120,7 +120,7 @@ class OperationLogRuntimeContextAppServiceTest {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class),
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.common.cache.CacheService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService.class));

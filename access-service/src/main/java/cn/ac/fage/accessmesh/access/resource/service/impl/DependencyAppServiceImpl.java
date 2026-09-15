@@ -14,7 +14,7 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
@@ -61,7 +61,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
 
     private final ResourceDependencyMapper dependencyMapper;
     private final ResourceEntityMapper resourceEntityMapper;
-    private final OperationPermissionMapper operationPermissionMapper;
+    private final OperationPermissionDomainService operationPermissionDomainService;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
 
@@ -70,18 +70,18 @@ public class DependencyAppServiceImpl implements DependencyAppService {
      *
      * @param dependencyMapper            资源依赖数据访问层
      * @param resourceEntityMapper        资源实体数据访问层
-     * @param operationPermissionMapper   操作权限数据访问层
+     * @param operationPermissionDomainService 操作定义事实领域服务（Q-009 收敛注入）
      * @param typeResolutionService       类型解析服务
      * @param engine                      权限查询引擎
      */
     public DependencyAppServiceImpl(ResourceDependencyMapper dependencyMapper,
                                         ResourceEntityMapper resourceEntityMapper,
-                                        OperationPermissionMapper operationPermissionMapper,
+                                        OperationPermissionDomainService operationPermissionDomainService,
                                         TypeResolutionService typeResolutionService,
                                         PermQueryEngine engine) {
         this.dependencyMapper = dependencyMapper;
         this.resourceEntityMapper = resourceEntityMapper;
-        this.operationPermissionMapper = operationPermissionMapper;
+        this.operationPermissionDomainService = operationPermissionDomainService;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
     }
@@ -863,7 +863,7 @@ public class DependencyAppServiceImpl implements DependencyAppService {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyMap();
         }
-        return operationPermissionMapper.selectValidByIds(tenantId, ids)
+        return operationPermissionDomainService.selectValidByIds(tenantId, ids)
             .stream().collect(Collectors.toMap(OperationPermission::getId, op -> op, (a, b) -> a));
     }
 }

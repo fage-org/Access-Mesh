@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-046
 title: 跨能力 mapper 收敛批次④——user-role 原始行/投影 + 白名单退役收口（4 边）
-status: proposed
+status: in-progress
 plan: docs/plans/capability-mapper-convergence-plan.md
 domain: access-service
 design_refs:

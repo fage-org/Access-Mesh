@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService;
@@ -47,7 +47,7 @@ class GrantOriginDomainServiceImplTest {
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private SubjectDomainService subjectDomainService;
     @Mock private RoleResourcePermissionMapper roleResourcePermissionMapper;
-    @Mock private OperationPermissionMapper operationPermissionMapper;
+    @Mock private OperationPermissionDomainService operationPermissionMapper;
     @Mock private PermissionGrantPlanDomainService permissionGrantPlanDomainService;
 
     private GrantOriginDomainServiceImpl service;

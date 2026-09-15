@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainService;
@@ -41,13 +41,13 @@ class PermissionGrantDomainServiceImplTest {
     @Mock
     private TypeResolutionService typeResolutionService;
     @Mock
-    private OperationPermissionMapper operationPermissionMapper;
+    private OperationPermissionDomainService operationPermissionMapper;
     @Mock
     private PermQueryEngine permQueryEngine;
     @Mock
     private cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper roleResourcePermissionMapper;
     @Mock
-    private cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper typeDefinitionMapper;
+    private cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService typeDefinitionMapper;
 
     private PermissionGrantDomainServiceImpl service;
 

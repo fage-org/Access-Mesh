@@ -8,8 +8,8 @@ import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
-import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.domain.service.domain.DomainConfigDomainService;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
@@ -65,8 +65,8 @@ class PermissionGrantPlanDomainServiceImplTest {
     @Mock private cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService;
     @Mock private RoleResourcePermissionMapper rolePermissionMapper;
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
-    @Mock private OperationPermissionMapper operationPermissionMapper;
-    @Mock private DomainConfigMapper domainConfigMapper;
+    @Mock private OperationPermissionDomainService operationPermissionMapper;
+    @Mock private DomainConfigDomainService domainConfigMapper;
 
     private PermissionGrantPlanDomainServiceImpl service;
 
@@ -120,7 +120,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             .thenReturn(Map.of(
                 new ResourceResolveKey("DATA", "report:sales", "default", null), 101L,
                 new ResourceResolveKey("DATA", "city:shanghai", "default", null), 102L));
-        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+        when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
             .thenReturn(List.of(dataView()));
     }
 
@@ -167,7 +167,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         resource.setCodeType("default");
         when(resourceEntityDomainService.selectValidByIds(eq(TENANT), anySet()))
             .thenReturn(List.of(resource));
-        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+        when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
             .thenReturn(List.of(dataView()));
     }
 
@@ -238,7 +238,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 .thenReturn(Map.of(4, "DATA"));
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), any()))
                 .thenReturn(Map.of(new ResourceResolveKey("DATA", "city:shanghai", "default", null), 102L));
-            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+            when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
                 .thenReturn(List.of(dataView()));
             stubDelegationAllowed();
             stubSubPermConfig("*", 7L);
@@ -298,7 +298,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 .thenReturn(Map.of(4, "DATA"));
             when(resourceEntityDomainService.selectValidByIds(eq(TENANT), anySet()))
                 .thenReturn(List.of(resource(101L, "report:sales"), resource(102L, "city:shanghai")));
-            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+            when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
                 .thenReturn(List.of(dataView()));
             RoleResourcePermission cascadedChild = existing(6L, 5L, "MANUAL");
             cascadedChild.setResourceEntityId(102L);
@@ -328,7 +328,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 .thenReturn(Map.of(4, "DATA"));
             when(resourceEntityDomainService.selectValidByIds(eq(TENANT), anySet()))
                 .thenReturn(List.of(resource(101L, "report:sales")));
-            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+            when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
                 .thenReturn(List.of(dataView()));
             // 级联查询同样命中子权限 6（depend_on=5），但其已在显式 removes 中：业务键只快照一次
             when(rolePermissionMapper.selectValidByDependOns(TENANT, java.util.Set.of(5L, 6L)))
@@ -659,7 +659,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 .thenReturn(List.of(existing(5L, null, "MANUAL")));
             when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("resource_type"), anySet()))
                 .thenReturn(Map.of("DATA", 4));
-            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+            when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
                 .thenReturn(List.of(dataView()));
             when(conditionDomainService.selectValidConditionsByCodes(eq(TENANT), anySet()))
                 .thenReturn(List.of());
@@ -757,7 +757,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 .thenReturn(Map.of(
                     new ResourceResolveKey("DATA", "report:sales", "default", null), 101L,
                     new ResourceResolveKey("DATA", "city:shanghai", "default", null), 102L));
-            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+            when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
                 .thenReturn(operations);
         }
 
@@ -799,7 +799,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 .thenReturn(Map.of("DATA", 4));
             when(typeResolutionService.batchResolveResourceIds(eq(TENANT), any()))
                 .thenReturn(Map.of(new ResourceResolveKey("DATA", "report:sales", "default", null), 101L));
-            when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+            when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
                 .thenReturn(List.of(typedOp(7, "VIEW", 2L)));
             ApplyGrantPlanReq.GrantPlan plan = new ApplyGrantPlanReq.GrantPlan(
                 List.of(new ApplyGrantPlanReq.CreateItem(
@@ -1006,7 +1006,7 @@ class PermissionGrantPlanDomainServiceImplTest {
 
             service.prevalidate(TENANT, SUBJECT, ROLE, null, nestedCreatePlan());
 
-            verify(operationPermissionMapper, times(1)).selectByTenantAndResourceType(TENANT, null);
+            verify(operationPermissionMapper, times(1)).selectAllOperationsByTenant(TENANT);
             verify(permissionGrantDomainService, times(1)).checkCanGrant(eq(TENANT), eq(SUBJECT), any(), eq(null));
         }
     }

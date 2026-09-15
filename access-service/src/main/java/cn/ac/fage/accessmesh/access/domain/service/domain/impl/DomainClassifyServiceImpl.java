@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.domain.enums.ConfigType;
 import cn.ac.fage.accessmesh.access.domain.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
-import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -36,7 +36,7 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
 
     private final BizDomainMapper bizDomainMapper;
     private final DomainConfigMapper domainConfigMapper;
-    private final TypeDefinitionMapper typeDefinitionMapper;
+    private final TypeDefinitionDomainService typeDefinitionDomainService;
     private final TypeResolutionService typeResolutionService;
     private final ObjectMapper objectMapper;
 
@@ -50,12 +50,12 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
      */
     public DomainClassifyServiceImpl(BizDomainMapper bizDomainMapper,
                                       DomainConfigMapper domainConfigMapper,
-                                      TypeDefinitionMapper typeDefinitionMapper,
+                                      TypeDefinitionDomainService typeDefinitionDomainService,
                                       TypeResolutionService typeResolutionService,
                                       ObjectMapper objectMapper) {
         this.bizDomainMapper = bizDomainMapper;
         this.domainConfigMapper = domainConfigMapper;
-        this.typeDefinitionMapper = typeDefinitionMapper;
+        this.typeDefinitionDomainService = typeDefinitionDomainService;
         this.typeResolutionService = typeResolutionService;
         this.objectMapper = objectMapper;
     }
@@ -309,7 +309,7 @@ public class DomainClassifyServiceImpl implements DomainClassifyService {
      * 加载租户下所有 resource_type 类型码
      */
     private Set<String> loadAllResourceTypeCodes(Long tenantId) {
-        return typeDefinitionMapper.selectByTenantAndTypeKey(tenantId, "resource_type")
+        return typeDefinitionDomainService.selectByTenantAndTypeKey(tenantId, "resource_type")
             .stream().map(TypeDefinition::getTypeCode).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 

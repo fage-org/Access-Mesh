@@ -3,7 +3,7 @@ package cn.ac.fage.accessmesh.access.rule.service.domain.impl;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
 import cn.ac.fage.accessmesh.access.rule.enums.ConflictType;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConflictRuleMapper;
 import cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
@@ -48,7 +48,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     private final CacheService cacheService;
     private final ObjectMapper objectMapper;
     private final AuditDomainService auditDomainService;
-    private final OperationPermissionMapper operationPermissionMapper;
+    private final OperationPermissionDomainService operationPermissionDomainService;
     private final SubjectDomainService subjectDomainService;
 
     /**
@@ -68,20 +68,20 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      * @param cacheService              统一缓存服务，用于缓存角色互斥规则
      * @param objectMapper              JSON解析器
      * @param auditDomainService        审计领域服务，用于记录冲突通知
-     * @param operationPermissionMapper 操作权限数据访问层，用于查找冲突操作权限
+     * @param operationPermissionDomainService 操作定义事实领域服务，用于查找冲突操作权限（Q-009 收敛注入）
      * @param subjectDomainService      主体领域服务，用于按角色反查用户与有效角色解析（存量双持判定与运行时同源）
      */
     public PermissionConflictDomainServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
                                                 CacheService cacheService,
                                                 ObjectMapper objectMapper,
                                                 AuditDomainService auditDomainService,
-                                                OperationPermissionMapper operationPermissionMapper,
+                                                OperationPermissionDomainService operationPermissionDomainService,
                                                 SubjectDomainService subjectDomainService) {
         this.conflictRuleMapper = conflictRuleMapper;
         this.cacheService = cacheService;
         this.objectMapper = objectMapper;
         this.auditDomainService = auditDomainService;
-        this.operationPermissionMapper = operationPermissionMapper;
+        this.operationPermissionDomainService = operationPermissionDomainService;
         this.subjectDomainService = subjectDomainService;
     }
 
@@ -397,10 +397,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
                 return;
             }
             indexedTypes.addAll(missing);
-            List<OperationPermission> loaded = missing.stream()
-                .flatMap(type -> operationPermissionMapper
-                    .selectByTenantAndResourceType(tenantId, type).stream())
-                .toList();
+            List<OperationPermission> loaded = operationPermissionDomainService
+                .selectByTenantAndResourceTypes(tenantId, missing);
             opByTypeAndBit.putAll(OperationPermissionUtils.indexByResourceTypeAndBinaryBit(loaded));
         }
     }
@@ -418,9 +416,8 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
 
-        List<OperationPermission> allOps = resourceTypes.stream()
-            .flatMap(resourceType -> operationPermissionMapper.selectByTenantAndResourceType(tenantId, resourceType).stream())
-            .toList();
+        List<OperationPermission> allOps = operationPermissionDomainService
+            .selectByTenantAndResourceTypes(tenantId, resourceTypes);
         Map<String, OperationPermission> opByTypeAndBit = OperationPermissionUtils.indexByResourceTypeAndBinaryBit(allOps);
 
         Set<Long> opIds = passedEntries.stream()

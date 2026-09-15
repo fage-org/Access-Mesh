@@ -6,7 +6,7 @@ import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService;
@@ -48,7 +48,7 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
     private final TypeResolutionService typeResolutionService;
     private final SubjectDomainService subjectDomainService;
     private final RoleResourcePermissionMapper roleResourcePermissionMapper;
-    private final OperationPermissionMapper operationPermissionMapper;
+    private final OperationPermissionDomainService operationPermissionDomainService;
     private final PermissionGrantPlanDomainService permissionGrantPlanDomainService;
 
     /**
@@ -58,20 +58,20 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
      * @param typeResolutionService          类型解析（角色业务键 → 角色行）
      * @param subjectDomainService           主体域服务（所有者有效性/启用态，Q-009 收敛读）
      * @param roleResourcePermissionMapper   授权数据访问层（迁移清理面查询）
-     * @param operationPermissionMapper      操作定义数据访问层（迁移补种全操作位）
+     * @param operationPermissionDomainService 操作定义事实领域服务（迁移补种全操作位；Q-009 收敛注入）
      * @param permissionGrantPlanDomainService 授权计划领域服务（种子直写通道）
      */
     public GrantOriginDomainServiceImpl(ObjectMapper objectMapper,
                                         TypeResolutionService typeResolutionService,
                                         SubjectDomainService subjectDomainService,
                                         RoleResourcePermissionMapper roleResourcePermissionMapper,
-                                        OperationPermissionMapper operationPermissionMapper,
+                                        OperationPermissionDomainService operationPermissionDomainService,
                                         PermissionGrantPlanDomainService permissionGrantPlanDomainService) {
         this.objectMapper = objectMapper;
         this.typeResolutionService = typeResolutionService;
         this.subjectDomainService = subjectDomainService;
         this.roleResourcePermissionMapper = roleResourcePermissionMapper;
-        this.operationPermissionMapper = operationPermissionMapper;
+        this.operationPermissionDomainService = operationPermissionDomainService;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
     }
 
@@ -222,7 +222,7 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
                 + "(affected roles: {})", existingRoots.size(), typeValue, affectedRoleIds);
         }
         // 向新所有者补齐该类型全部有效操作位（幂等；操作位唯一性由 uk_operation_permission_typed 保证）
-        Set<Long> operationBits = operationPermissionMapper
+        Set<Long> operationBits = operationPermissionDomainService
             .selectByTenantAndResourceTypes(tenantId, Set.of(typeValue)).stream()
             .map(OperationPermission::getBinaryBit)
             .filter(bit -> bit != null && bit > 0)

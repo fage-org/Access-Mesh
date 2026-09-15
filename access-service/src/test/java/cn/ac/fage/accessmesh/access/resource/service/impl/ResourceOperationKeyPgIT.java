@@ -14,11 +14,11 @@ import cn.ac.fage.accessmesh.access.type.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
-import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
+import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
@@ -106,7 +106,7 @@ class ResourceOperationKeyPgIT {
     @Autowired
     private TypeDefinitionMapper typeDefinitionMapper;
     @Autowired
-    private cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper serviceConfigMapper;
+    private cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService serviceConfigMapper;
 
     private cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard ownershipGuard() {
         return new cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard(
@@ -323,7 +323,7 @@ class ResourceOperationKeyPgIT {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class),
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService.class),
             mock(TreeWriteLockSupport.class),
             cacheService,
             grantOrigin);

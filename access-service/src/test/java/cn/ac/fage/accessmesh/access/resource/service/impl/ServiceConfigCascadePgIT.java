@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceManageAppService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
@@ -81,6 +82,8 @@ class ServiceConfigCascadePgIT {
     @Autowired
     private ResourceApiMappingMapper resourceApiMappingMapper;
     @Autowired
+    private ServiceConfigDomainService serviceConfigDomainService;
+    @Autowired
     private ResourceEntityMapper resourceEntityMapper;
     @Autowired
     private TypeResolutionService typeResolutionService;
@@ -99,7 +102,7 @@ class ServiceConfigCascadePgIT {
 
     private cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard ownershipGuard() {
         return new cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard(
-                typeDefinitionMapper, serviceConfigMapper, resourceEntityDomainService, new com.fasterxml.jackson.databind.ObjectMapper());
+                typeDefinitionMapper, serviceConfigDomainService, resourceEntityDomainService, new com.fasterxml.jackson.databind.ObjectMapper());
     }
 
     private PermQueryEngine permitAllEngine() {

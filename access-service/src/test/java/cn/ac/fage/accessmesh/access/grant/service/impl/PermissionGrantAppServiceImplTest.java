@@ -12,7 +12,7 @@ import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
@@ -61,7 +61,7 @@ class PermissionGrantAppServiceImplTest {
     private static final Long OPERATOR = 10L;
     private static final Long ROLE_ID = 20L;
 
-    @Mock private OperationPermissionMapper operationPermissionMapper;
+    @Mock private OperationPermissionDomainService operationPermissionMapper;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
     @Mock private PermissionGrantPlanDomainService permissionGrantPlanDomainService;
     @Mock private AuditDomainService auditDomainService;
@@ -261,7 +261,7 @@ class PermissionGrantAppServiceImplTest {
             .thenReturn(List.of(perm(2L, 9, 1L, 4L)));
         when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
             .thenReturn(java.util.Map.of(7, "ORG", 9, "BUTTON"));
-        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+        when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
             .thenReturn(List.of(typeOp(7, "VIEW", 2L), typeOp(9, "EDIT", 4L)));
 
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
@@ -314,7 +314,7 @@ class PermissionGrantAppServiceImplTest {
             .thenReturn(List.of(perm(2L, 9, 1L, 4L), perm(3L, 9, 1L, 8L)));
         when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
             .thenReturn(java.util.Map.of(7, "ORG"));
-        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+        when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
             .thenReturn(List.of(typeOp(7, "VIEW", 2L)));
 
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
@@ -360,7 +360,7 @@ class PermissionGrantAppServiceImplTest {
             perm(2L, 9, 1L, 4L)));
         when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
             .thenReturn(java.util.Map.of(7, "ORG", 9, "BUTTON"));
-        when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
+        when(operationPermissionMapper.selectAllOperationsByTenant(TENANT))
             .thenReturn(List.of(typeOp(7, "VIEW", 2L), typeOp(9, "EDIT", 4L)));
 
         try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {

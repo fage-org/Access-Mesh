@@ -19,7 +19,7 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService;
@@ -62,7 +62,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
     private static final Logger log = LoggerFactory.getLogger(PermissionGrantAppServiceImpl.class);
 
-    private final OperationPermissionMapper operationPermissionMapper;
+    private final OperationPermissionDomainService operationPermissionDomainService;
     private final RoleResourcePermissionMapper rolePermMapper;
     private final PermissionGrantPlanDomainService permissionGrantPlanDomainService;
     private final AuditDomainService auditDomainService;
@@ -73,7 +73,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private final PermissionConditionDomainService conditionDomainService;
     private final ResourceEntityDomainService resourceEntityDomainService;
 
-    public PermissionGrantAppServiceImpl(OperationPermissionMapper operationPermissionMapper,
+    public PermissionGrantAppServiceImpl(OperationPermissionDomainService operationPermissionDomainService,
                                       RoleResourcePermissionMapper rolePermMapper,
                                       PermissionConditionDomainService conditionDomainService,
                                       PermissionGrantPlanDomainService permissionGrantPlanDomainService,
@@ -83,7 +83,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                                       ObjectMapper objectMapper,
                                       SubjectDomainService subjectDomainService,
                                       ResourceEntityDomainService resourceEntityDomainService) {
-        this.operationPermissionMapper = operationPermissionMapper;
+        this.operationPermissionDomainService = operationPermissionDomainService;
         this.rolePermMapper = rolePermMapper;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
         this.auditDomainService = auditDomainService;
@@ -280,8 +280,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         if (resourceTypes == null || resourceTypes.isEmpty()) {
             return Map.of();
         }
-        List<OperationPermission> allOperations = operationPermissionMapper
-            .selectByTenantAndResourceType(tenantId, null);
+        List<OperationPermission> allOperations = operationPermissionDomainService
+            .selectAllOperationsByTenant(tenantId);
         Map<String, OperationPermission> result = new LinkedHashMap<>();
         for (Integer resourceType : resourceTypes) {
             for (OperationPermission operation : allOperations.stream()

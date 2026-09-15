@@ -5,8 +5,8 @@ import cn.ac.fage.accessmesh.access.domain.entity.DomainConfig;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.domain.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.access.domain.mapper.BizDomainMapper;
-import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
-import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
+import cn.ac.fage.accessmesh.access.domain.service.domain.DomainConfigDomainService;
+import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,8 +34,8 @@ import static org.mockito.Mockito.when;
 class DomainClassifyServiceImplTest {
 
     @Mock private BizDomainMapper bizDomainMapper;
-    @Mock private DomainConfigMapper domainConfigMapper;
-    @Mock private TypeDefinitionMapper typeDefinitionMapper;
+    @Mock private cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper domainConfigMapper;
+    @Mock private TypeDefinitionDomainService typeDefinitionMapper;
     @Mock private TypeResolutionService typeResolutionService;
 
     private DomainClassifyServiceImpl service;

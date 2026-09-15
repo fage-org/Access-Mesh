@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * 断言面 = mapper 包：能力包类不得依赖<b>其他能力包</b>的 mapper 包（12 能力包全组合），
  * 唯一例外为 2026-09-13 拍板的「存量跨能力 mapper 直读冻结白名单」（T-ACCESS-032 裁决 9）——
  * 断言锁「不得新增」，存量按 Q-009 收敛（capability-mapper-convergence-plan 四批推进，
- * 闭合清单基线见 capability-structure §8.4 豁免 6 表；批次①② 后余 12 类 15 边）。
+ * 闭合清单基线见 capability-structure §8.4 豁免 6 表；批次①②③ 后余 3 类 4 边——全部为 user/menu 投影轨，批次④ 收敛）。
  * 跨能力实体/Service/DTO import 为既有普遍形态、不在断言面（§8.4 规则 1 口径）。
  * engine / projection / bootstrap / sync 非能力包，其豁免面见 §8.4 豁免 1-4，不在本规则对象内。
  * </p>
@@ -52,33 +52,18 @@ class QueryBoundaryArchitectureTest {
      * <p>
      * 行格式 {消费方 FQCN, 被直读的他能力包 mapper FQCN}。断言语义=「不得新增」：白名单外的
      * 任何能力包间 mapper 依赖即违规。存量收敛（改走被读方 DomainService 封装）按
-     * capability-mapper-convergence-plan 四批推进：批次①②（T-ACCESS-043/044）已收敛 15 边
-     * （30→15 边、19→12 消费类），收敛行随代码同 commit 删除。
+     * capability-mapper-convergence-plan 四批推进：批次①②③（T-ACCESS-043/044/045）已收敛 26 边
+     * （30→4 边、19→4 消费类），收敛行随代码同 commit 删除。
      * 采集口径=字节码级全形态（import 行 + 内联 FQCN 字段声明），ArchUnit 字节码分析天然覆盖。
      * </p>
      */
     static final String[][] FROZEN_WHITELIST = {
-        // grant（4 类 6 边，批次①② 后）
-        {BASE + ".grant.service.impl.PermissionGrantAppServiceImpl", BASE + ".type.mapper.OperationPermissionMapper"},
-        {BASE + ".grant.service.domain.impl.PermissionGrantPlanDomainServiceImpl", BASE + ".domain.mapper.DomainConfigMapper"},
-        {BASE + ".grant.service.domain.impl.PermissionGrantPlanDomainServiceImpl", BASE + ".type.mapper.OperationPermissionMapper"},
-        {BASE + ".grant.service.domain.impl.PermissionGrantDomainServiceImpl", BASE + ".type.mapper.OperationPermissionMapper"},
-        {BASE + ".grant.service.domain.impl.PermissionGrantDomainServiceImpl", BASE + ".type.mapper.TypeDefinitionMapper"},
-        {BASE + ".grant.service.domain.impl.GrantOriginDomainServiceImpl", BASE + ".type.mapper.OperationPermissionMapper"},
-        // user（2 类 3 边，批次① 后）
+        // user（2 类 3 边，批次①②③ 后）
         {BASE + ".user.service.impl.UserManageAppServiceImpl", BASE + ".role.mapper.UserRoleMapper"},
         {BASE + ".user.service.domain.impl.BatchAdminUserProjectionWriter", BASE + ".role.mapper.UserRoleMapper"},
         {BASE + ".user.service.domain.impl.BatchAdminUserProjectionWriter", BASE + ".resource.mapper.ResourceEntityMapper"},
-        // menu / domain（2 类 2 边）
+        // menu（1 类 1 边，批次③ 后）
         {BASE + ".menu.service.impl.UserMenuQueryAppServiceImpl", BASE + ".role.mapper.UserRoleQueryMapper"},
-        {BASE + ".domain.service.domain.impl.DomainClassifyServiceImpl", BASE + ".type.mapper.TypeDefinitionMapper"},
-        // type（2 类 2 边，批次② 后）
-        {BASE + ".type.service.impl.TypeDefinitionAppServiceImpl", BASE + ".resource.mapper.ResourceApiMappingMapper"},
-        {BASE + ".type.service.domain.ResourceTypeOwnershipGuard", BASE + ".resource.mapper.ServiceConfigMapper"},
-        // resource（1 类 1 边，批次①② 后）
-        {BASE + ".resource.service.impl.DependencyAppServiceImpl", BASE + ".type.mapper.OperationPermissionMapper"},
-        // rule（1 类 1 边，批次①② 后）
-        {BASE + ".rule.service.domain.impl.PermissionConflictDomainServiceImpl", BASE + ".type.mapper.OperationPermissionMapper"},
     };
 
     private static JavaClasses classes;
@@ -177,7 +162,7 @@ class QueryBoundaryArchitectureTest {
     }
 
     @Test
-    @DisplayName("能力包不得直读其他能力包 mapper（全组合，冻结白名单 15 边除外、不得新增）")
+    @DisplayName("能力包不得直读其他能力包 mapper（全组合，冻结白名单 4 边除外、不得新增）")
     void capabilityPackagesMustNotReadOtherCapabilityMappers() {
         checkCapabilityMapperBoundary(classes);
     }
@@ -228,16 +213,16 @@ class QueryBoundaryArchitectureTest {
     @Test
     @DisplayName("负向自证：去掉白名单后存量边必被拒绝（规则有牙 + 白名单必要）")
     void mapperBoundaryRuleRejectsUnwhitelistedEdge() {
-        // 取冻结白名单第一条真实边（批次② 后为 grant.PermissionGrantAppServiceImpl →
-        // type.OperationPermissionMapper），注入被移除该边的白名单——该边必须出现在违规集合中
+        // 取冻结白名单第一条真实边（批次③ 后为 user.UserManageAppServiceImpl →
+        // role.UserRoleMapper），注入被移除该边的白名单——该边必须出现在违规集合中
         // （AssertionError），证明规则具备拒绝能力且白名单是必要豁免而非摆设。
         String[] sample = FROZEN_WHITELIST[0];
         java.util.Map<String, java.util.Set<String>> pruned = frozenWhitelistAsMap();
         pruned.get(sample[0]).remove(sample[1]);
-        assertThat(sample[0]).endsWith("PermissionGrantAppServiceImpl");
+        assertThat(sample[0]).endsWith("UserManageAppServiceImpl");
         assertThatThrownBy(() -> checkCapabilityMapperBoundary(classes, pruned))
             .isInstanceOf(AssertionError.class)
-            .hasMessageContaining("OperationPermissionMapper");
+            .hasMessageContaining("UserRoleMapper");
     }
 
     @Test
@@ -268,10 +253,10 @@ class QueryBoundaryArchitectureTest {
     }
 
     @Test
-    @DisplayName("白名单完整性：15 边与 §8.4 豁免 6 表收敛中状态对齐（12 消费类，批次② 后）")
+    @DisplayName("白名单完整性：4 边与 §8.4 豁免 6 表收敛中状态对齐（3 消费类，批次③ 后）")
     void frozenWhitelistShapeIsLocked() {
-        assertThat(FROZEN_WHITELIST.length).isEqualTo(15);
+        assertThat(FROZEN_WHITELIST.length).isEqualTo(4);
         long consumers = java.util.Arrays.stream(FROZEN_WHITELIST).map(p -> p[0]).distinct().count();
-        assertThat(consumers).as("12 消费类 15 边（Q-009 收敛中，capability-mapper-convergence-plan）").isEqualTo(12);
+        assertThat(consumers).as("3 消费类 4 边（Q-009 收敛中，批次④ 待收敛 user/menu 投影轨）").isEqualTo(3);
     }
 }

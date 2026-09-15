@@ -14,8 +14,8 @@ import cn.ac.fage.accessmesh.access.rule.enums.ConditionSource;
 import cn.ac.fage.accessmesh.access.domain.enums.ConfigType;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
-import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
-import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
+import cn.ac.fage.accessmesh.access.domain.service.domain.DomainConfigDomainService;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
@@ -57,8 +57,8 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     private final PermissionConditionDomainService conditionDomainService;
     private final RoleResourcePermissionMapper rolePermissionMapper;
     private final ResourceEntityDomainService resourceEntityDomainService;
-    private final OperationPermissionMapper operationPermissionMapper;
-    private final DomainConfigMapper domainConfigMapper;
+    private final OperationPermissionDomainService operationPermissionDomainService;
+    private final DomainConfigDomainService domainConfigDomainService;
     private final ObjectMapper objectMapper;
 
     public PermissionGrantPlanDomainServiceImpl(
@@ -68,8 +68,8 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             PermissionConditionDomainService conditionDomainService,
             RoleResourcePermissionMapper rolePermissionMapper,
             ResourceEntityDomainService resourceEntityDomainService,
-            OperationPermissionMapper operationPermissionMapper,
-            DomainConfigMapper domainConfigMapper,
+            OperationPermissionDomainService operationPermissionDomainService,
+            DomainConfigDomainService domainConfigDomainService,
             ObjectMapper objectMapper) {
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
@@ -77,8 +77,8 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         this.conditionDomainService = conditionDomainService;
         this.rolePermissionMapper = rolePermissionMapper;
         this.resourceEntityDomainService = resourceEntityDomainService;
-        this.operationPermissionMapper = operationPermissionMapper;
-        this.domainConfigMapper = domainConfigMapper;
+        this.operationPermissionDomainService = operationPermissionDomainService;
+        this.domainConfigDomainService = domainConfigDomainService;
         this.objectMapper = objectMapper;
     }
 
@@ -187,8 +187,8 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         Map<ResourceResolveKey, Long> resourceIds = typeResolutionService
             .batchResolveResourceIds(tenantId, resourceRequests);
 
-        List<OperationPermission> allOperations = operationPermissionMapper
-            .selectByTenantAndResourceType(tenantId, null);
+        List<OperationPermission> allOperations = operationPermissionDomainService
+            .selectAllOperationsByTenant(tenantId);
         Set<String> knownOperationCodes = allOperations.stream()
             .map(OperationPermission::getCode).filter(Objects::nonNull)
             .collect(Collectors.toSet());
@@ -621,7 +621,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             .filter(Objects::nonNull).collect(Collectors.toSet());
         Map<String, Long> domainIds = domainClassifyService.findDomainIdsByTypeCodes(
             tenantId, parentTypeCodes);
-        Map<Long, DomainConfig> subPermByDomain = domainConfigMapper.selectByTenantId(tenantId).stream()
+        Map<Long, DomainConfig> subPermByDomain = domainConfigDomainService.selectByTenantId(tenantId).stream()
             .filter(config -> ConfigType.SUB_PERM.getValue().equals(config.getConfigType()))
             .collect(Collectors.toMap(DomainConfig::getBizDomainId, Function.identity(),
                 (left, right) -> left));
@@ -676,7 +676,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         if (domainId == null) {
             return null;
         }
-        return domainConfigMapper.selectByTenantId(tenantId).stream()
+        return domainConfigDomainService.selectByTenantId(tenantId).stream()
             .filter(existing -> ConfigType.SUB_PERM.getValue().equals(existing.getConfigType()))
             .filter(existing -> domainId.equals(existing.getBizDomainId()))
             .findFirst().orElse(null);
