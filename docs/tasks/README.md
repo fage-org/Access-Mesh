@@ -59,7 +59,7 @@
 | [T-ACCESS-029](../archive/2026-09-14/tasks/T-ACCESS-029.md) | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | [design-audit-followup](../archive/2026-09-14/design-audit-followup-plan.md)（已归档） | access-service-architecture §14.2 | — | ✅ | ✓ |
 | [T-ACCESS-030](../archive/2026-09-12/tasks/T-ACCESS-030.md) | 容器测试轨道提速——单例容器 + 按类建库 + 复用 + fork 级并行 | —（2026-09-06 用户决策提速定案） | docs/archive/2026-09-12/tasks/T-ACCESS-030.md 设计口径（工程改进，无设计文档回写） | — | ✅ | ✓ |
 | [T-ACCESS-031](../archive/2026-09-12/tasks/T-ACCESS-031.md) | E2E 独立模块分轨——gateway 解除 test 依赖 + skipE2E 日常口径 + -T 模块并行恢复 | —（2026-09-06 用户决策 B+结构性拆分） | docs/archive/2026-09-12/tasks/T-ACCESS-031.md 设计口径；gateway.md §测试域、access-service-architecture §14.8（E2E 落位回写） | — | ✅ | ✓ |
-| [T-ACCESS-042](T-ACCESS-042.md) | URL 单命名空间统一 /api/access/**——外部路径=服务路径（Q-001 转出：37 控制器 + Gateway 路由 + 固定图 86 条 + SDK 17 端点 + 前端 94 端点 + 契约总册同批迁移） | —（Q-001 单卡转出） | 契约总册 §2 URL 形态总述；capability-structure §6；services/gateway.md；engine/core-flows.md | — | 🔨 | ⏳ |
+| [T-ACCESS-042](T-ACCESS-042.md) | URL 单命名空间统一 /api/access/**——外部路径=服务路径（✅ 2026-09-15 收口：全量回归 1699 全绿含 E2E + dev 冒烟九项 + 双轨评审处置完毕；Q-001 收敛） | —（Q-001 单卡转出） | 契约总册 §2 URL 形态总述；capability-structure §6；services/gateway.md；engine/core-flows.md | — | ✅ | ✓ |
 
 ### access-service 能力包融合（2026-09-13 立项）
 

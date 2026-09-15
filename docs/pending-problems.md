@@ -13,19 +13,6 @@ last_updated: 2026-09-15
 
 ## 未收敛问题
 
-## Q-001 URL 路径风格统一（admin 裸路径 vs perm 前缀路径）
-
-- **状态**：converted
-- **登记**：2026-09-13
-- **来源**：两域融合定案——表面项拍板「URL 两风格维持，仅登记，后续单独改」（decision-registry 2026-09-13 融合行③；capability-structure §6）
-- **关联**：[T-ACCESS-042](tasks/T-ACCESS-042.md)（2026-09-15 用户拍板目标形态后转出）
-
-**现象与证据**：access-service 同一服务两套 URL 风格并存——管理面家族裸路径（控制器 `@RequestMapping("/org")`、`"/user-org"`、`"/oauth2/client"` 等，原 admin 域入口，契约见 `docs/design/access-service-api-contract.md`（契约总册））；perm 家族前缀路径（`/api/perm/abstract-role`、`/api/perm/auth/**` 等，原 permission 域入口）。Gateway 快照鉴权按路径匹配接口资源（注册面：access-service 自有路由由 bootstrap 固定图写入、外部接入服务经 service-config sync FULL 声明，见 access-service-architecture §14.2/§14.3），前端 API 层按两风格分别拼路径。
-
-**影响**：调用方与文档心智分裂（同一平台两套入口风格）；统一属对外契约破坏性变更——牵动前端全部调用点、Gateway 路由、已注册接口资源与 SDK 端点，需一次性迁移窗口与兼容策略，未定案前不动。
-
-**设想方向（未定案）**：统一为一套前缀风格（如 `/api/<域>/**`）+ 前端/Gateway/接口资源注册同批迁移；或维持现状仅在文档明确两风格边界。
-
 ## Q-006 ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效（登记不实施）
 
 - **状态**：open
@@ -82,6 +69,7 @@ last_updated: 2026-09-15
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-001 | URL 路径风格统一（admin 裸路径 vs perm 前缀路径） | closed（T-ACCESS-042 done：全链路单命名空间 /api/access/**——外部=服务路径、无 Gateway StripPrefix、无 admin/perm 家族段；登录族并入 /api/access/auth/**；user-role/list 双轨碰撞管理轨改名 view；一次性切换零兼容。定案与实施期裁决见 registry 2026-09-15 行） | [T-ACCESS-042](../tasks/T-ACCESS-042.md) | 2026-09-15 |
 | Q-002 | USER 写入口自身豁免的范围限定 | closed（T-PERM-067 done：收窄为档案字段——档案字段豁免保留、启停/删除不豁免（admin 轨 /user/update 自禁对齐 CANNOT_DISABLE_SELF 硬禁 + perm 轨死分支语义统一）、/user/reset-password 定位自助改密通道；定案见 registry 2026-09-14 行；盘点修正=可达暴露面全在 admin 轨） | [T-PERM-067](../archive/2026-09-14/tasks/T-PERM-067.md) | 2026-09-14 |
 | Q-003 | operationCodeKey 族大小写口径不一致（授权域归一 vs 查询域裸拼） | closed（T-PERM-066 done：raw 严格化——入站 DTO @Pattern 大写 400/90001 + 定义侧锁死 + 授权域归一退役两域统一 raw；定案见 registry 2026-09-14 行，契约总册 §2.5 集中注记） | [T-PERM-066](../archive/2026-09-14/tasks/T-PERM-066.md) | 2026-09-14 |
 | Q-004 | BusinessKeys / SyncKeyCodec 命名偏离 XxxUtil 规范 | closed（2026-09-14 轻量清扫批次：`BusinessKeys`→`BusinessKeyUtil`、`SyncKeyCodec`→`SyncKeyCodecUtil`，按 project-rules §6.2「去掉末尾 s」规则机械改名；代码+测试+XML 注释+skills 双副本+AGENTS+活设计文档（34+17 文件）同批替换，decision-registry 带日期历史行不改写；golden 锁测试随类更名 `BusinessKeyUtilParityTest`） | [2026-09-14 批次四](../archive/2026-09-14/README.md) | 2026-09-14 |
