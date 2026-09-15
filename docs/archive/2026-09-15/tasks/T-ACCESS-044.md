@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-044
 title: 跨能力 mapper 收敛批次②——grant 授权事实服务 + rule 条件读（6 边）
 status: done
-plan: docs/plans/capability-mapper-convergence-plan.md
+plan: docs/archive/2026-09-15/capability-mapper-convergence-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-capability-structure.md#8-架构断言重建设计（§8.4 豁免 6 冻结白名单行缩减）

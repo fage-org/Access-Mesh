@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-043
 title: 跨能力 mapper 收敛批次①——既有服务直换 + 死边清理（9 边）
 status: done
-plan: docs/plans/capability-mapper-convergence-plan.md
+plan: docs/archive/2026-09-15/capability-mapper-convergence-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-capability-structure.md#8-架构断言重建设计（§8.4 豁免 6 冻结白名单行缩减）
@@ -22,7 +22,7 @@ last_updated: 2026-09-15
 
 ## 背景
 
-Q-009（2026-09-13 登记）转出：冻结白名单 19 类 30 边全量收敛至零（计划 [capability-mapper-convergence-plan](../plans/capability-mapper-convergence-plan.md)，定案见 decision-registry 2026-09-15 行）。批次①是零语义判断面的直换与死边清理，先行降风险。
+Q-009（2026-09-13 登记）转出：冻结白名单 19 类 30 边全量收敛至零（计划 [capability-mapper-convergence-plan](../capability-mapper-convergence-plan.md)，定案见 decision-registry 2026-09-15 行）。批次①是零语义判断面的直换与死边清理，先行降风险。
 
 ## 范围
 

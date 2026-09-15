@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 跨能力 mapper 直读收敛（Q-009 转出）
-status: completed
+status: archived
 domain: access-service
 design_refs:
   - docs/design/access-service-capability-structure.md#8-架构断言重建设计（§8.4 豁免 6 冻结白名单）

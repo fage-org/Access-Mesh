@@ -37,6 +37,7 @@ docs/
 │   └── README.md
 └── archive/                           # 归档文档（仅追溯，不作为实现依据）
     ├── 2026-09-14/
+    ├── 2026-09-15/
     ├── 2026-09-12/
     ├── 2026-09-10/
     ├── 2026-09-07/
@@ -79,6 +80,7 @@ docs/
 
 | 主题 | 文档 |
 |------|------|
+| ~~Q-009 跨能力 mapper 直读收敛~~ | （已归档 2026-09-15）T-ACCESS-043~046 四批全 done——冻结白名单 19 类 30 边全量收敛至零、断言退役为零容忍绝对禁断（负向自证改测试源集夹具），见 [archive/2026-09-15/](archive/2026-09-15/)；结构契约 [design/access-service-capability-structure.md](design/access-service-capability-structure.md) §8.4（冻结表转历史基线注记，adopted） |
 | ~~access-service 能力包融合~~ | （已归档 2026-09-14）T-ACCESS-032~041 十任务全 done（能力包终态 + 平行设施归零 + 概念单点收口 + 契约/规则口径收尾），三通道外评处置后用户确认定稿，见 [archive/2026-09-14/](archive/2026-09-14/)；结构契约 [design/access-service-capability-structure.md](design/access-service-capability-structure.md)（adopted） |
 | ~~前端 Phase 2 核心功能补齐 + 后端接口改造~~ | （已归档 2026-09-14）逐页后端 T-PERM-022~034/037/040/041 与前端 T-FE-036/038~040、组织树 T-ADMIN-021 全 done；暂缓项 T-PERM-035/036 脱出挂任务看板（暂缓门禁不变），见 [archive/2026-09-14/](archive/2026-09-14/) |
 | ~~codex 项目级设计体检处置批次~~ | （已归档 2026-09-14）T-PERM-052/053、T-API-002、T-ACCESS-029 全 done；暂缓卡 T-PERM-054 脱出挂任务看板（等方案定案），见 [archive/2026-09-14/](archive/2026-09-14/) |
@@ -141,6 +143,7 @@ docs/
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `archive/2026-09-15/` | Q-009 跨能力 mapper 直读收敛归档：capability-mapper-convergence-plan（T-ACCESS-043~046 四批全 done——冻结白名单 19 类 30 边全量收敛至零、断言退役为零容忍绝对禁断、负向自证改测试源集夹具）+ 四任务卡随迁 `tasks/`。同日 T-ACCESS-042（Q-001 URL 单命名空间）单卡收口暂留 tasks/ 待下批单卡归档。 | [archive/2026-09-15/README.md](archive/2026-09-15/README.md) |
 | `archive/2026-09-12/` | 任务/计划归档制落地批次：94 张终态任务卡按所属计划归档日期补迁至各日期目录 `tasks/` 子目录（06-28/07-12/07-26/08-22/08-27/09-07/09-12）；permission-query-unification-plan 物理归档（status 已 archived，四任务全 done）；侧挂归档 `plans/archive/2026-07/`（两取消计划）与 `plans/archive/2026-06/`（v3.0~v3.3 设计史）并入统一归档目录 `archive/2026-07-26/`、`archive/2026-06-18/`。同日追加批次：frontend-phase4-plan（五任务全 done 归档，5 卡随迁）+ permission-grant-record-level-editing-proposal（决策记录，T-FE-040 已实施）+ 无归属终态单卡 T-PERM-062 + design-review-def-followup-plan（D/E/F 工作单三任务全 done，末卡 T-PERM-021 收口含 requestId 单 ID 收敛/审计两列 NOT NULL/ops runbook 建立，3 卡随迁）。 | [archive/2026-09-12/README.md](archive/2026-09-12/README.md) |
 | `archive/2026-09-10/` | 权限排查页设计（`design/frontend/permission-query.md`）归档——页面与 permission-view 8 端点随 T-PERM-059 删除重设计（2026-09-10 三项定案见 decision-registry），重做新形态另立任务。 | [archive/2026-09-10/README.md](archive/2026-09-10/README.md) |
 | `archive/2026-09-07/` | 计划治理收尾归档批次：product-positioning-landing-plan（T-ACCESS-027/028 全 done，2026-08-28 completed）+ frontend-phase3-plan（T-FE-015~022/037 九任务全 done 2026-09-04；归档门禁「统一全页导航/F5/直达 URL 冒烟」2026-09-07 执行通过 21/21，Edge headless）。门禁执行记录见批次 README。 | [archive/2026-09-07/README.md](archive/2026-09-07/README.md) |

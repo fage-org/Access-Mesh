@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-045
 title: 跨能力 mapper 收敛批次③——type/resource/domain 供给读服务（11 边）
 status: done
-plan: docs/plans/capability-mapper-convergence-plan.md
+plan: docs/archive/2026-09-15/capability-mapper-convergence-plan.md
 domain: access-service
 design_refs:
   - docs/design/access-service-capability-structure.md#8-架构断言重建设计（§8.4 豁免 6 冻结白名单行缩减）
