@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 043 |
+| access-service 归并（跨服务） | `T-ACCESS` | 047 |
 | permission-center | `T-PERM` | 068 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 009 |
@@ -77,6 +77,17 @@
 | [T-ACCESS-039](../archive/2026-09-14/tasks/T-ACCESS-039.md) | 缓存目录合一（✅ 2026-09-13 收口：AccessCacheCatalog 单册 9 条目 mode/TTL 零改动 + admin:org-visibility 越域归位 access:org-visibility 不做兼容双读 + 边界校验器六条重绑判据不变 + 三条合一回归锁；双轨+claude/grok 外评全处置（claude P3×1/grok P3×0，均可定稿）） | capability-fusion | capability-structure §3；dual-layer-cache-framework skill（双副本） | T-ACCESS-033, T-ACCESS-034 | ✅ | ✓ |
 | [T-ACCESS-040](../archive/2026-09-14/tasks/T-ACCESS-040.md) | API 契约深合一与设计文档重组（✅ 2026-09-13 收口：总册 2856 行零丢失合并 + 目录解散迁 engine/ + 全仓重挂 64 代码文件 + 双轨评审处置完毕） | capability-fusion | capability-structure §7；契约总册（本任务产出） | T-ACCESS-033 | ✅ | ✓ |
 | [T-ACCESS-041](../archive/2026-09-14/tasks/T-ACCESS-041.md) | 规则与技能文件重写（能力 + 引擎口径）（✅ 2026-09-14 收口：规则改名 permission-coding-standards.md v7.0.0 权限面口径 + skills 双副本同步 + AGENTS 指针表/架构图 + project-rules 互斥句承接 + adopted 设计约 80 处域叙事改管理面/权限面（词汇用户拍板）；残留二分判定闭合、旧文件名活引用为零；双轨评审全处置） | capability-fusion | capability-structure §7；project-rules | T-ACCESS-033, T-ACCESS-034~039, T-ACCESS-040 | ✅ | ✓ |
+
+### access-service 跨能力 mapper 直读收敛（Q-009 转出，2026-09-15 立项）
+
+> [capability-mapper-convergence-plan](../plans/capability-mapper-convergence-plan.md)（active）：冻结白名单 19 类 30 边全量收敛至零并退役断言白名单；定案与新服务硬契约见 decision-registry 2026-09-15 行；计划内四任务串行（白名单记账串行化），边清单以计划文件「消费类:行号 → mapper#方法」定位为准。
+
+| ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
+|---|---|---|---|---|---|---|
+| [T-ACCESS-043](T-ACCESS-043.md) | 收敛批次①——既有服务直换 + 死边清理（9 边） | capability-mapper-convergence | capability-structure §8.4（豁免 6 行缩减） | — | 🔨 | ⏳ |
+| [T-ACCESS-044](T-ACCESS-044.md) | 收敛批次②——grant 授权事实服务 + rule 条件读（6 边） | 同 | 同 | T-ACCESS-043 | ⚙️ | ⏳ |
+| [T-ACCESS-045](T-ACCESS-045.md) | 收敛批次③——type/resource/domain 供给读服务（11 边） | 同 | 同 | T-ACCESS-044 | ⚙️ | ⏳ |
+| [T-ACCESS-046](T-ACCESS-046.md) | 收敛批次④——user-role 原始行/投影 + 白名单退役收口（4 边） | 同 | capability-structure §8.4；project-rules §8.2 | T-ACCESS-045 | ⚙️ | ⏳ |
 
 ### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——未终态仅剩暂缓项 T-PERM-035/036/054 挂本表等 PM 重申）
 

@@ -6,6 +6,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [capability-mapper-convergence-plan](capability-mapper-convergence-plan.md) | 跨能力 mapper 直读收敛 | active | Q-009 转出（2026-09-15 立项）：冻结白名单 19 类 30 边全量收敛至零 + 断言白名单退役；T-ACCESS-043~046 四批串行；claude+grok 双通道外评处置后用户确认开工；定案见 decision-registry 2026-09-15 行 |
 | ~~design-review-2026-06-17~~ | （已归档）| — | 设计评审已完成并归档至 [../archive/2026-06-17/](../archive/2026-06-17/)。评审结论沉淀至 `docs/design/`，工作单 A/B/C 已完成并归档，工作单 D/E/F 暂缓项已拆分至 design-review-def-followup-plan（该计划亦已于 2026-09-12 收口归档）。详见归档批次 README |
 | [../archive/2026-06-18/](../archive/2026-06-18/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。原侧挂 `plans/archive/2026-06/`，2026-09-12 并入统一归档目录。**仅作历史追溯，不再作为开发依据** |
 | ~~improvement-plan~~ | （已归档）| — | 项目级路线图：诊断与四阶段拆分使命完成（Phase 1 已归档、Phase 2-4 由独立 plan 承载），§2 完成度为 2026-06 时点快照，2026-08-27 归档至 [../archive/2026-08-27/](../archive/2026-08-27/)；痛点 #3/#4 暂缓决策溯源仍被 T-PERM-035/036 引用 |
