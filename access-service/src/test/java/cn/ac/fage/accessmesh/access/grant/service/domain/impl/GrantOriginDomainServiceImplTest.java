@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
-import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService;
@@ -45,7 +45,7 @@ class GrantOriginDomainServiceImplTest {
         "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"bootstrap-admin\"}}";
 
     @Mock private TypeResolutionService typeResolutionService;
-    @Mock private AbstractRoleMapper abstractRoleMapper;
+    @Mock private SubjectDomainService subjectDomainService;
     @Mock private RoleResourcePermissionMapper roleResourcePermissionMapper;
     @Mock private OperationPermissionMapper operationPermissionMapper;
     @Mock private PermissionGrantPlanDomainService permissionGrantPlanDomainService;
@@ -55,7 +55,7 @@ class GrantOriginDomainServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new GrantOriginDomainServiceImpl(new ObjectMapper(), typeResolutionService,
-            abstractRoleMapper, roleResourcePermissionMapper, operationPermissionMapper,
+            subjectDomainService, roleResourcePermissionMapper, operationPermissionMapper,
             permissionGrantPlanDomainService);
     }
 
@@ -98,7 +98,7 @@ class GrantOriginDomainServiceImplTest {
     @Test
     void shouldResolveOwnerWithPointer() {
         when(typeResolutionService.resolveRoleId(1L, "BASIC_ROLE", "bootstrap-admin", null)).thenReturn(55L);
-        when(abstractRoleMapper.selectValidById(55L, 1L)).thenReturn(enabledRole(55L));
+        when(subjectDomainService.selectValidRoleById(1L, 55L)).thenReturn(enabledRole(55L));
         assertEquals(55L, service.resolveOwnerRoleId(1L, POINTER_JSON));
     }
 
@@ -108,7 +108,7 @@ class GrantOriginDomainServiceImplTest {
         when(typeResolutionService.resolveRoleId(1L,
             GrantOriginDomainService.DEFAULT_OWNER_ROLE_TYPE_CODE,
             GrantOriginDomainService.DEFAULT_OWNER_ROLE_EXTERNAL_ID, null)).thenReturn(55L);
-        when(abstractRoleMapper.selectValidById(55L, 1L)).thenReturn(enabledRole(55L));
+        when(subjectDomainService.selectValidRoleById(1L, 55L)).thenReturn(enabledRole(55L));
         assertEquals(55L, service.resolveOwnerRoleId(1L, null));
     }
 
@@ -131,7 +131,7 @@ class GrantOriginDomainServiceImplTest {
         when(typeResolutionService.resolveRoleId(anyLong(), any(), any(), isNull())).thenReturn(55L);
         AbstractRole disabled = enabledRole(55L);
         disabled.setStatus(0);
-        when(abstractRoleMapper.selectValidById(55L, 1L)).thenReturn(disabled);
+        when(subjectDomainService.selectValidRoleById(1L, 55L)).thenReturn(disabled);
         BizException disabledEx = assertThrows(BizException.class, () -> service.resolveOwnerRoleId(1L, POINTER_JSON));
         assertEquals(AccessErrorCode.ROLE_DISABLED.getCode(), disabledEx.getErrorCode());
     }

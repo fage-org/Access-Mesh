@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
-import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService;
@@ -46,7 +46,7 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
 
     private final ObjectMapper objectMapper;
     private final TypeResolutionService typeResolutionService;
-    private final AbstractRoleMapper abstractRoleMapper;
+    private final SubjectDomainService subjectDomainService;
     private final RoleResourcePermissionMapper roleResourcePermissionMapper;
     private final OperationPermissionMapper operationPermissionMapper;
     private final PermissionGrantPlanDomainService permissionGrantPlanDomainService;
@@ -56,20 +56,20 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
      *
      * @param objectMapper                   JSON 处理（extra 指针解析/注入）
      * @param typeResolutionService          类型解析（角色业务键 → 角色行）
-     * @param abstractRoleMapper             角色数据访问层（所有者有效性/启用态）
+     * @param subjectDomainService           主体域服务（所有者有效性/启用态，Q-009 收敛读）
      * @param roleResourcePermissionMapper   授权数据访问层（迁移清理面查询）
      * @param operationPermissionMapper      操作定义数据访问层（迁移补种全操作位）
      * @param permissionGrantPlanDomainService 授权计划领域服务（种子直写通道）
      */
     public GrantOriginDomainServiceImpl(ObjectMapper objectMapper,
                                         TypeResolutionService typeResolutionService,
-                                        AbstractRoleMapper abstractRoleMapper,
+                                        SubjectDomainService subjectDomainService,
                                         RoleResourcePermissionMapper roleResourcePermissionMapper,
                                         OperationPermissionMapper operationPermissionMapper,
                                         PermissionGrantPlanDomainService permissionGrantPlanDomainService) {
         this.objectMapper = objectMapper;
         this.typeResolutionService = typeResolutionService;
-        this.abstractRoleMapper = abstractRoleMapper;
+        this.subjectDomainService = subjectDomainService;
         this.roleResourcePermissionMapper = roleResourcePermissionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
@@ -124,7 +124,7 @@ public class GrantOriginDomainServiceImpl implements GrantOriginDomainService {
                 "类型授权根角色不存在: " + pointer.roleTypeCode() + "/" + pointer.roleExternalId());
         }
         // 有效性/启用态核验（applyGrantPlan 目标角色同序列先例：20001 → 20003）
-        AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
+        AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
             throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(),
                 "类型授权根角色不存在: " + pointer.roleTypeCode() + "/" + pointer.roleExternalId());

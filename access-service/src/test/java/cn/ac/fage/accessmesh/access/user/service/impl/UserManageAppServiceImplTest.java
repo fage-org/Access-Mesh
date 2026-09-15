@@ -11,7 +11,6 @@ import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
@@ -48,7 +47,6 @@ class UserManageAppServiceImplTest {
 
     @Mock private AbstractUserMapper abstractUserMapper;
     @Mock private UserRoleMapper userRoleMapper;
-    @Mock private AbstractRoleMapper abstractRoleMapper;
     @Mock private SubjectDomainService subjectDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
@@ -64,7 +62,6 @@ class UserManageAppServiceImplTest {
         service = new UserManageAppServiceImpl(
             abstractUserMapper,
             userRoleMapper,
-            abstractRoleMapper,
             subjectDomainService,
             typeResolutionService,
             domainClassifyService,
@@ -92,7 +89,7 @@ class UserManageAppServiceImplTest {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), eq(Set.of("10")), eq(OperationCode.MANAGE)))
                 .thenReturn(Set.of());
-            when(abstractRoleMapper.selectValidByIds(eq(1L), eq(Set.of(10L)))).thenReturn(List.of());
+            when(subjectDomainService.selectValidRolesByIds(eq(1L), eq(Set.of(10L)))).thenReturn(List.of());
             when(userRoleMapper.selectValidByUserIdsTypeAndTargetIds(eq(1L), eq(Set.of(20L)), eq(ResourceTypeCode.ROLE), eq(Set.of(10L))))
                 .thenReturn(List.<UserRole>of());
 
@@ -340,7 +337,7 @@ class UserManageAppServiceImplTest {
             .thenReturn(Map.of("r-200", 200L));
         when(userRoleMapper.selectValidByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
-        when(abstractRoleMapper.selectEnabledIdsByIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of(200L));
+        when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of(200L));
         when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
             .thenReturn(Map.of(20L, Set.of(100L)));
     }
@@ -404,7 +401,7 @@ class UserManageAppServiceImplTest {
         when(userRoleMapper.selectValidByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
         // 目标角色 200 禁用：postState 不并入 → 即使用户已持互斥对端 100 也放行
-        when(abstractRoleMapper.selectEnabledIdsByIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of());
+        when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of());
         when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
             .thenReturn(Map.of(20L, Set.of(100L)));
 
@@ -442,7 +439,7 @@ class UserManageAppServiceImplTest {
         when(userRoleMapper.selectValidByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L, 300L)), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
         // 有效期过滤先行：future validFrom 的 200 已不入目标集，启用查询只见 300
-        when(abstractRoleMapper.selectEnabledIdsByIds(eq(1L), eq(Set.of(300L)))).thenReturn(List.of(300L));
+        when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(300L)))).thenReturn(List.of(300L));
         when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
             .thenReturn(Map.of(20L, Set.of(100L)));
 
@@ -476,7 +473,7 @@ class UserManageAppServiceImplTest {
             .thenReturn(200L);
         when(userRoleMapper.selectValidByUserIdsAndTargetId(eq(1L), eq(Set.of(20L)), eq(200L), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
-        when(abstractRoleMapper.selectEnabledIdsByIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of(200L));
+        when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of(200L));
         when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
             .thenReturn(Map.of(20L, Set.of(100L)));
 

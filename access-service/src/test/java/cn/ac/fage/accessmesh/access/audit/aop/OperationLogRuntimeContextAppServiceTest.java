@@ -88,9 +88,6 @@ class OperationLogRuntimeContextAppServiceTest {
     private UserRoleMapper userRoleMapper;
 
     @Mock
-    private AbstractRoleMapper abstractRoleMapper;
-
-    @Mock
     private SubjectDomainService subjectDomainService;
 
     @Mock
@@ -193,7 +190,6 @@ class OperationLogRuntimeContextAppServiceTest {
         UserManageAppServiceImpl service = new UserManageAppServiceImpl(
             abstractUserMapper,
             userRoleMapper,
-            abstractRoleMapper,
             subjectDomainService,
             typeResolutionService,
             domainClassifyService,
@@ -225,7 +221,7 @@ class OperationLogRuntimeContextAppServiceTest {
             .thenReturn(Map.of("u-1", 22L));
         when(engine.getDeniedResourceCodes(1L, 200L, ResourceTypeCode.ROLE, Set.of("11"), OperationCode.MANAGE))
             .thenReturn(Set.of());
-        when(abstractRoleMapper.selectValidByIds(1L, Set.of(11L))).thenReturn(List.of(role));
+        when(subjectDomainService.selectValidRolesByIds(1L, Set.of(11L))).thenReturn(List.of(role));
         when(userRoleMapper.selectValidByUserIdsTypeAndTargetIds(1L, Set.of(22L), ResourceTypeCode.ROLE, Set.of(11L)))
             .thenReturn(List.of(relation));
 

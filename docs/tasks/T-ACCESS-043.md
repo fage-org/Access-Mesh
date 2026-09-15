@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-043
 title: 跨能力 mapper 收敛批次①——既有服务直换 + 死边清理（9 边）
-status: in-progress
+status: done
 plan: docs/plans/capability-mapper-convergence-plan.md
 domain: access-service
 design_refs:
@@ -16,7 +16,7 @@ acceptance:
   - "mvn test -pl access-service 全绿（含容器组）；计划文件「测试装配适配清单」批次①列出的测试构造/verify 改挂完成"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-15
 ---
 
@@ -34,4 +34,10 @@ Q-009（2026-09-13 登记）转出：冻结白名单 19 类 30 边全量收敛�
 
 ## 完成记录
 
-（进行中）
+2026-09-15 收口。9 边全部落地：E5 死注入删除（字段/构造参数/import）；grant#1/#12 → `SubjectDomainService.selectValidRoleById`；grant#4/#9 → `ResourceEntityDomainService.selectValidByIds`；U1 四点 → `selectValidRolesByIds`×3 + 新增 `selectEnabledRoleIds`（接口+实现+DB 侧过滤保持）；U3 六点 → `UserOrgDomainService.findByUserId/findByUserIds/findByOrgIds`（启用既有注入）；R6 四点 → writer 私有 `requireUserProjectionId/batchResolveUserProjectionIds`（requireType 保留保 TYPE_CODE_NOT_FOUND fail-fast；行读取经 TypeResolutionService 直查同事务可见，javadoc 标注禁接结果缓存）；E9 内联 FQCN → `SubjectDomainService.selectValidRolesByIds`。装配方 `LocalProjectionDomainServiceImpl` writer 构造同步改线。
+
+测试装配适配 8 文件：UserManageAppServiceImplTest、UserAppServiceResetPasswordGateTest、OperationLogRuntimeContextAppServiceTest、ConflictRuleAppServiceImplTest、PermissionGrantAppServiceImplTest、PermissionGrantPlanDomainServiceImplTest、GrantOriginDomainServiceImplTest、LocalProjectionDomainServiceImplTest（stub 换挂 8 处，装配方自身读保留）。
+
+白名单同 commit 删 9 行（30→21 边/19→15 类），shape 断言与负向自证样例行同步（改取 App→PermissionConditionMapper 首行）。
+
+回归证据：`mvn test -pl access-service -DskipTestcontainers=true` → Tests run: 1249, Failures: 0, Errors: 0（2026-09-15，日志 t043_unit2.log）；`mvn test -pl access-service` → 双 fork 1249 + 210 全绿 BUILD SUCCESS（2026-09-15，日志 t043_full_module.log；运行前核 9100 端口空闲）。设计回写：capability-structure §8.4 豁免 6 表下补收敛进度注记。

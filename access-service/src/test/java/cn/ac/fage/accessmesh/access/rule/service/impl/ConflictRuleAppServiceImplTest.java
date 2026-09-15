@@ -67,7 +67,7 @@ class ConflictRuleAppServiceImplTest {
     @Mock private PermissionConflictRuleMapper conflictRuleMapper;
     @Mock private PermQueryEngine engine;
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
-    @Mock private cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper abstractRoleMapper;
+    @Mock private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
     @Mock private cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService typeResolutionService;
 
     private static ValidatorFactory validatorFactory;
@@ -89,7 +89,7 @@ class ConflictRuleAppServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new ConflictRuleAppServiceImpl(conflictRuleMapper, engine, permissionConflictDomainService,
-            abstractRoleMapper, typeResolutionService);
+            subjectDomainService, typeResolutionService);
     }
 
     private PermissionConflictRule newRoleRule(long id, long firstRole, long secondRole) {
@@ -711,7 +711,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldRejectCreate_whenPairContainsStructuralRole() {
             // T-PERM-064：ORG/POSITION 对拒绝（投影通道闭合）；旧实现直接立规必红
             stubTypeLevelPermission(OperationCode.CREATE, true);
-            when(abstractRoleMapper.selectValidByIds(TENANT_ID, Set.of(101L, 102L)))
+            when(subjectDomainService.selectValidRolesByIds(TENANT_ID, Set.of(101L, 102L)))
                 .thenReturn(List.of(role(101L, 6), role(102L, 1)));
             stubStructuralTypes();
 
@@ -730,7 +730,7 @@ class ConflictRuleAppServiceImplTest {
             when(conflictRuleMapper.selectValidById(RULE_ID, TENANT_ID)).thenReturn(existing);
             when(conflictRuleMapper.selectByTenantId(TENANT_ID)).thenReturn(List.of(existing));
             stubTypeLevelPermission(OperationCode.UPDATE, true);
-            when(abstractRoleMapper.selectValidByIds(TENANT_ID, Set.of(301L, 302L)))
+            when(subjectDomainService.selectValidRolesByIds(TENANT_ID, Set.of(301L, 302L)))
                 .thenReturn(List.of(role(301L, 2), role(302L, 6)));
             stubStructuralTypes();
 
@@ -746,7 +746,7 @@ class ConflictRuleAppServiceImplTest {
         void shouldAllowFunctionalRolePair() {
             // 全功能角色对（role_type=6 BASIC）放行；角色行缺失维持惰性语义（默认空集→跳过类型检查）
             stubTypeLevelPermission(OperationCode.CREATE, true);
-            when(abstractRoleMapper.selectValidByIds(TENANT_ID, Set.of(101L, 102L)))
+            when(subjectDomainService.selectValidRolesByIds(TENANT_ID, Set.of(101L, 102L)))
                 .thenReturn(List.of(role(101L, 6), role(102L, 6)));
             stubStructuralTypes();
             when(permissionConflictDomainService.findUsersHoldingBothRoles(TENANT_ID, 101L, 102L))

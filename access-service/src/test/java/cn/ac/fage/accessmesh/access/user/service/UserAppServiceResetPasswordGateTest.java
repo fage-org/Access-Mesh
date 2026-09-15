@@ -55,7 +55,7 @@ class UserAppServiceResetPasswordGateTest {
     @BeforeEach
     void setUp() {
         service = new UserAppServiceImpl(
-            userMapper, null, userDomainService, userOrgDomainService,
+            userMapper, userDomainService, userOrgDomainService,
             orgTreeConfigDomainService, orgDomainService, userWriteAppService,
             permissionValidator, orgVisibilityQueryService);
     }

@@ -17,8 +17,8 @@ import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
-import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainService;
@@ -57,7 +57,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     private final PermissionGrantDomainService permissionGrantDomainService;
     private final PermissionConditionDomainService conditionDomainService;
     private final RoleResourcePermissionMapper rolePermissionMapper;
-    private final ResourceEntityMapper resourceEntityMapper;
+    private final ResourceEntityDomainService resourceEntityDomainService;
     private final OperationPermissionMapper operationPermissionMapper;
     private final PermissionConditionMapper permissionConditionMapper;
     private final DomainConfigMapper domainConfigMapper;
@@ -69,7 +69,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             PermissionGrantDomainService permissionGrantDomainService,
             PermissionConditionDomainService conditionDomainService,
             RoleResourcePermissionMapper rolePermissionMapper,
-            ResourceEntityMapper resourceEntityMapper,
+            ResourceEntityDomainService resourceEntityDomainService,
             OperationPermissionMapper operationPermissionMapper,
             PermissionConditionMapper permissionConditionMapper,
             DomainConfigMapper domainConfigMapper,
@@ -79,7 +79,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         this.permissionGrantDomainService = permissionGrantDomainService;
         this.conditionDomainService = conditionDomainService;
         this.rolePermissionMapper = rolePermissionMapper;
-        this.resourceEntityMapper = resourceEntityMapper;
+        this.resourceEntityDomainService = resourceEntityDomainService;
         this.operationPermissionMapper = operationPermissionMapper;
         this.permissionConditionMapper = permissionConditionMapper;
         this.domainConfigMapper = domainConfigMapper;
@@ -330,7 +330,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             }
         }
         Map<Long, ResourceEntity> updateResources = updateResourceIds.isEmpty() ? Map.of()
-            : resourceEntityMapper.selectValidByIds(tenantId, updateResourceIds).stream()
+            : resourceEntityDomainService.selectValidByIds(tenantId, updateResourceIds).stream()
                 .collect(Collectors.toMap(ResourceEntity::getId, Function.identity()));
 
         List<RoleResourcePermission> preparedUpdates = new ArrayList<>();

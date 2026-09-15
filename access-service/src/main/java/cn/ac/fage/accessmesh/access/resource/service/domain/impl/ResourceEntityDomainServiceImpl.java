@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.access.resource.service.domain.impl;
 
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,18 +33,14 @@ import java.util.Set;
 public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainService {
 
     private final ResourceEntityMapper resourceEntityMapper;
-    private final RoleResourcePermissionMapper rolePermMapper;
 
     /**
      * 构造函数注入依赖
      *
      * @param resourceEntityMapper 资源实体数据访问层
-     * @param rolePermMapper       角色权限数据访问层
      */
-    public ResourceEntityDomainServiceImpl(ResourceEntityMapper resourceEntityMapper,
-                                            RoleResourcePermissionMapper rolePermMapper) {
+    public ResourceEntityDomainServiceImpl(ResourceEntityMapper resourceEntityMapper) {
         this.resourceEntityMapper = resourceEntityMapper;
-        this.rolePermMapper = rolePermMapper;
     }
 
     /**

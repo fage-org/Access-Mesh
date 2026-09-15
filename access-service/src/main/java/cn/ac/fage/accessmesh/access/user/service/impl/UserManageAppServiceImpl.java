@@ -21,7 +21,6 @@ import cn.ac.fage.accessmesh.access.role.dto.resp.UserRolesResp.RoleSummary;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
-import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.user.service.UserManageAppService;
@@ -81,7 +80,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
     private final AbstractUserMapper abstractUserMapper;
     private final UserRoleMapper userRoleMapper;
-    private final AbstractRoleMapper abstractRoleMapper;
     private final SubjectDomainService subjectDomainService;
     private final TypeResolutionService typeResolutionService;
     private final DomainClassifyService domainClassifyService;
@@ -104,7 +102,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
      *
      * @param abstractUserMapper    抽象用户数据访问层
      * @param userRoleMapper        用户角色数据访问层
-     * @param abstractRoleMapper    抽象角色数据访问层
      * @param subjectDomainService  主体领域服务
      * @param typeResolutionService 类型解析服务
      * @param domainClassifyService 域分类服务
@@ -114,7 +111,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
      */
     public UserManageAppServiceImpl(AbstractUserMapper abstractUserMapper,
                                  UserRoleMapper userRoleMapper,
-                                 AbstractRoleMapper abstractRoleMapper,
                                  SubjectDomainService subjectDomainService,
                                  TypeResolutionService typeResolutionService,
                                  DomainClassifyService domainClassifyService,
@@ -126,7 +122,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                                  PermissionConflictDomainService permissionConflictDomainService) {
         this.abstractUserMapper = abstractUserMapper;
         this.userRoleMapper = userRoleMapper;
-        this.abstractRoleMapper = abstractRoleMapper;
         this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
@@ -174,7 +169,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             .flatMap(Set::stream).collect(Collectors.toSet());
         // 新增目标收敛到启用角色（运行时判定集合同源；禁用角色即使授予也不参与互斥判定）
         Set<Long> enabledNewTargets = new HashSet<>(
-            abstractRoleMapper.selectEnabledIdsByIds(tenantId, allNewTargets));
+            subjectDomainService.selectEnabledRoleIds(tenantId, allNewTargets));
 
         Map<Long, Set<Long>> effectiveByUser =
             subjectDomainService.batchResolveEffectiveRoles(tenantId, newTargetsByUser.keySet());
@@ -722,7 +717,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             OperationCode.MANAGE);
 
         Map<Long, AbstractRole> roleMap = targetRoleIds.isEmpty() ? Map.of()
-            : abstractRoleMapper.selectValidByIds(tenantId, targetRoleIds)
+            : subjectDomainService.selectValidRolesByIds(tenantId, targetRoleIds)
                 .stream().collect(Collectors.toMap(AbstractRole::getId, r -> r));
 
         Set<Long> allUserIds = new LinkedHashSet<>();
@@ -849,7 +844,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 .map(UserRole::getTargetId)
                 .collect(Collectors.toSet());
 
-            List<AbstractRole> roles = abstractRoleMapper.selectValidByIds(tenantId, targetIds);
+            List<AbstractRole> roles = subjectDomainService.selectValidRolesByIds(tenantId, targetIds);
 
             Map<Long, AbstractRole> roleMap = roles.stream()
                 .collect(Collectors.toMap(AbstractRole::getId, r -> r));
@@ -869,7 +864,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                 Set<Long> missing = new java.util.HashSet<>(relationRoleIds);
                 missing.removeAll(roleMap.keySet());
                 if (!missing.isEmpty()) {
-                    abstractRoleMapper.selectValidByIds(tenantId, missing)
+                    subjectDomainService.selectValidRolesByIds(tenantId, missing)
                         .forEach(r -> roleMap.put(r.getId(), r));
                 }
                 relationExternalIdMap = new java.util.HashMap<>();

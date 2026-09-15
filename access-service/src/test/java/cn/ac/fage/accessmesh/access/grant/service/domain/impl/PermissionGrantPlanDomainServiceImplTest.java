@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
-import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainService;
@@ -65,7 +65,7 @@ class PermissionGrantPlanDomainServiceImplTest {
     // T-PERM-048 内联轨：接口 mock（默认 no-op——既有用例不触内联；内联专项用例单独装配）
     @Mock private cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService;
     @Mock private RoleResourcePermissionMapper rolePermissionMapper;
-    @Mock private ResourceEntityMapper resourceEntityMapper;
+    @Mock private ResourceEntityDomainService resourceEntityDomainService;
     @Mock private OperationPermissionMapper operationPermissionMapper;
     @Mock private PermissionConditionMapper permissionConditionMapper;
     @Mock private DomainConfigMapper domainConfigMapper;
@@ -76,7 +76,7 @@ class PermissionGrantPlanDomainServiceImplTest {
     void setUp() {
         service = new PermissionGrantPlanDomainServiceImpl(
             typeResolutionService, domainClassifyService, permissionGrantDomainService,
-            conditionDomainService, rolePermissionMapper, resourceEntityMapper, operationPermissionMapper,
+            conditionDomainService, rolePermissionMapper, resourceEntityDomainService, operationPermissionMapper,
             permissionConditionMapper, domainConfigMapper, new ObjectMapper());
     }
 
@@ -167,7 +167,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         resource.setTenantId(TENANT);
         resource.setCode("report:sales");
         resource.setCodeType("default");
-        when(resourceEntityMapper.selectValidByIds(eq(TENANT), anySet()))
+        when(resourceEntityDomainService.selectValidByIds(eq(TENANT), anySet()))
             .thenReturn(List.of(resource));
         when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
             .thenReturn(List.of(dataView()));
@@ -298,7 +298,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 .thenReturn(Map.of("DATA", 4));
             when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
                 .thenReturn(Map.of(4, "DATA"));
-            when(resourceEntityMapper.selectValidByIds(eq(TENANT), anySet()))
+            when(resourceEntityDomainService.selectValidByIds(eq(TENANT), anySet()))
                 .thenReturn(List.of(resource(101L, "report:sales"), resource(102L, "city:shanghai")));
             when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
                 .thenReturn(List.of(dataView()));
@@ -328,7 +328,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 .thenReturn(Map.of("DATA", 4));
             when(typeResolutionService.batchResolveTypeCodes(eq(TENANT), eq("resource_type"), anySet()))
                 .thenReturn(Map.of(4, "DATA"));
-            when(resourceEntityMapper.selectValidByIds(eq(TENANT), anySet()))
+            when(resourceEntityDomainService.selectValidByIds(eq(TENANT), anySet()))
                 .thenReturn(List.of(resource(101L, "report:sales")));
             when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
                 .thenReturn(List.of(dataView()));

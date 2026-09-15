@@ -12,16 +12,16 @@ import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
-import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
-import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
@@ -61,8 +61,6 @@ class PermissionGrantAppServiceImplTest {
     private static final Long OPERATOR = 10L;
     private static final Long ROLE_ID = 20L;
 
-    @Mock private AbstractRoleMapper abstractRoleMapper;
-    @Mock private ResourceEntityMapper resourceEntityMapper;
     @Mock private OperationPermissionMapper operationPermissionMapper;
     @Mock private PermissionConditionMapper permissionConditionMapper;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
@@ -70,15 +68,18 @@ class PermissionGrantAppServiceImplTest {
     @Mock private AuditDomainService auditDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private PermQueryEngine engine;
+    @Mock private SubjectDomainService subjectDomainService;
+    @Mock private ResourceEntityDomainService resourceEntityDomainService;
 
     private PermissionGrantAppService service;
 
     @BeforeEach
     void setUp() {
         service = new PermissionGrantAppServiceImpl(
-            abstractRoleMapper, resourceEntityMapper, operationPermissionMapper,
+            operationPermissionMapper,
             permissionConditionMapper, rolePermMapper, permissionGrantPlanDomainService,
-            auditDomainService, typeResolutionService, engine, new ObjectMapper());
+            auditDomainService, typeResolutionService, engine, new ObjectMapper(),
+            subjectDomainService, resourceEntityDomainService);
     }
 
     private SubPermAllowedTypesReq subPermReq() {
@@ -169,7 +170,7 @@ class PermissionGrantAppServiceImplTest {
         role.setTenantId(TENANT);
         role.setName("报表编辑员");
         role.setStatus(PermissionConstants.ENABLED_STATUS);
-        when(abstractRoleMapper.selectValidById(ROLE_ID, TENANT)).thenReturn(role);
+        when(subjectDomainService.selectValidRoleById(TENANT, ROLE_ID)).thenReturn(role);
         PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
             new PermissionGrantPlanDomainService.PreparedGrantPlan(
                 TENANT, ROLE_ID, List.of(), List.of(), List.of(5L), java.util.Set.of(),

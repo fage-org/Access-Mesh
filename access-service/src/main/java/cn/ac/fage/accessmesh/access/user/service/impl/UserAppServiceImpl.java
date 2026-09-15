@@ -19,7 +19,6 @@ import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.user.mapper.SysUserMapper;
-import cn.ac.fage.accessmesh.access.org.mapper.SysUserOrgMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -71,7 +70,6 @@ public class UserAppServiceImpl implements UserAppService {
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     private final SysUserMapper userMapper;
-    private final SysUserOrgMapper userOrgMapper;
     private final UserDomainService userDomainService;
     private final UserOrgDomainService userOrgDomainService;
     private final OrgTreeConfigDomainService orgTreeConfigDomainService;
@@ -84,14 +82,13 @@ public class UserAppServiceImpl implements UserAppService {
      * 构造函数注入依赖
      *
      * @param userMapper 用户数据访问Mapper
-     * @param userOrgMapper 用户组织关联Mapper
      * @param userDomainService 用户领域服务，处理用户数据查询和批量操作
      * @param userOrgDomainService 用户组织关联领域服务，处理组织分配
      * @param orgTreeConfigDomainService 组织树配置领域服务，校验默认树归属
      * @param orgDomainService 组织领域服务，校验组织是否属于默认树
      * @param permissionValidator 权限校验器，校验用户操作权限
      */
-    public UserAppServiceImpl(SysUserMapper userMapper, SysUserOrgMapper userOrgMapper,
+    public UserAppServiceImpl(SysUserMapper userMapper,
                            UserDomainService userDomainService,
                            UserOrgDomainService userOrgDomainService,
                            OrgTreeConfigDomainService orgTreeConfigDomainService,
@@ -100,7 +97,6 @@ public class UserAppServiceImpl implements UserAppService {
                            AdminPermissionValidator permissionValidator,
                            OrgVisibilityQueryAppService orgVisibilityQueryService) {
         this.userMapper = userMapper;
-        this.userOrgMapper = userOrgMapper;
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
@@ -291,7 +287,7 @@ public class UserAppServiceImpl implements UserAppService {
         }
 
         // 批量查询用户组织关系
-        List<SysUserOrg> allUserOrgs = userOrgMapper.selectByUserIdsAndTenant(tenantId, List.copyOf(userIds));
+        List<SysUserOrg> allUserOrgs = userOrgDomainService.findByUserIds(tenantId, List.copyOf(userIds));
 
         // 收集所有 orgId，批量查询 org 信息以填充 orgName/orgType
         Set<Long> allOrgIds = allUserOrgs.stream()
@@ -404,7 +400,7 @@ public class UserAppServiceImpl implements UserAppService {
      */
     private List<UserResp.OrgBrief> getUserOrgs(Long userId) {
         Long tenantId = TenantContextHolder.getTenantId();
-        return userOrgMapper.selectByUserIdAndTenant(tenantId, userId).stream()
+        return userOrgDomainService.findByUserId(tenantId, userId).stream()
             .map(uo -> new UserResp.OrgBrief(uo.getOrgId(), null, null, Boolean.TRUE.equals(uo.getIsPrimary())))
             .collect(Collectors.toList());
     }
@@ -478,7 +474,7 @@ public class UserAppServiceImpl implements UserAppService {
 
         // 2. 收集默认树可见范围内的用户 ID
         Set<Long> defaultTreeOrgIdSet = visibleOrgIds;
-        List<SysUserOrg> defaultTreeUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
+        List<SysUserOrg> defaultTreeUserOrgs = userOrgDomainService.findByOrgIds(
             tenantId, List.copyOf(defaultTreeOrgIdSet));
         Set<Long> candidateUserIds = defaultTreeUserOrgs.stream()
             .map(SysUserOrg::getUserId)
@@ -488,7 +484,7 @@ public class UserAppServiceImpl implements UserAppService {
         }
 
         // 3. 排除目标组织已有成员
-        List<SysUserOrg> targetOrgUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
+        List<SysUserOrg> targetOrgUserOrgs = userOrgDomainService.findByOrgIds(
             tenantId, List.of(req.targetOrgId()));
         Set<Long> existingMemberIds = targetOrgUserOrgs.stream()
             .map(SysUserOrg::getUserId)
@@ -516,7 +512,7 @@ public class UserAppServiceImpl implements UserAppService {
         }
 
         // 查用户主组织关系
-        List<SysUserOrg> primaryOrgs = userOrgMapper.selectByUserIdsAndTenant(tenantId, List.copyOf(resultUserIds));
+        List<SysUserOrg> primaryOrgs = userOrgDomainService.findByUserIds(tenantId, List.copyOf(resultUserIds));
         // 过滤主组织 & 在默认树范围内
         Map<Long, Long> userPrimaryOrgIdMap = primaryOrgs.stream()
             .filter(uo -> Boolean.TRUE.equals(uo.getIsPrimary()) && defaultTreeOrgIdSet.contains(uo.getOrgId()))
@@ -607,7 +603,7 @@ public class UserAppServiceImpl implements UserAppService {
         }
 
         // 查操作者可见范围内的用户组织关系
-        List<SysUserOrg> visibleUserOrgs = userOrgMapper.selectByOrgIdsAndTenant(
+        List<SysUserOrg> visibleUserOrgs = userOrgDomainService.findByOrgIds(
             tenantId, List.copyOf(visibleOrgIds));
         Set<Long> usersInVisibleScope = visibleUserOrgs.stream()
             .map(SysUserOrg::getUserId)

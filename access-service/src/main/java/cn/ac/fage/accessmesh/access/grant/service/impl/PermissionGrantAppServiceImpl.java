@@ -19,10 +19,8 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
-import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
-import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService;
@@ -46,6 +44,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 
 /**
@@ -62,8 +62,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
 
     private static final Logger log = LoggerFactory.getLogger(PermissionGrantAppServiceImpl.class);
 
-    private final AbstractRoleMapper abstractRoleMapper;
-    private final ResourceEntityMapper resourceEntityMapper;
     private final OperationPermissionMapper operationPermissionMapper;
     private final PermissionConditionMapper permissionConditionMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
@@ -72,19 +70,19 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
     private final ObjectMapper objectMapper;
+    private final SubjectDomainService subjectDomainService;
+    private final ResourceEntityDomainService resourceEntityDomainService;
 
-    public PermissionGrantAppServiceImpl(AbstractRoleMapper abstractRoleMapper,
-                                      ResourceEntityMapper resourceEntityMapper,
-                                      OperationPermissionMapper operationPermissionMapper,
+    public PermissionGrantAppServiceImpl(OperationPermissionMapper operationPermissionMapper,
                                       PermissionConditionMapper permissionConditionMapper,
                                       RoleResourcePermissionMapper rolePermMapper,
                                       PermissionGrantPlanDomainService permissionGrantPlanDomainService,
                                       AuditDomainService auditDomainService,
                                       TypeResolutionService typeResolutionService,
                                       PermQueryEngine engine,
-                                      ObjectMapper objectMapper) {
-        this.abstractRoleMapper = abstractRoleMapper;
-        this.resourceEntityMapper = resourceEntityMapper;
+                                      ObjectMapper objectMapper,
+                                      SubjectDomainService subjectDomainService,
+                                      ResourceEntityDomainService resourceEntityDomainService) {
         this.operationPermissionMapper = operationPermissionMapper;
         this.permissionConditionMapper = permissionConditionMapper;
         this.rolePermMapper = rolePermMapper;
@@ -93,6 +91,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
         this.objectMapper = objectMapper;
+        this.subjectDomainService = subjectDomainService;
+        this.resourceEntityDomainService = resourceEntityDomainService;
     }
 
     @Override
@@ -112,7 +112,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             String.valueOf(roleId), OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
-        AbstractRole role = abstractRoleMapper.selectValidById(roleId, tenantId);
+        AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
             throw biz(AccessErrorCode.ROLE_NOT_FOUND);
         }
@@ -377,7 +377,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyMap();
         }
-        return resourceEntityMapper.selectValidByIds(tenantId, ids)
+        return resourceEntityDomainService.selectValidByIds(tenantId, ids)
             .stream().collect(Collectors.toMap(ResourceEntity::getId, r -> r, (a, b) -> a));
     }
 }

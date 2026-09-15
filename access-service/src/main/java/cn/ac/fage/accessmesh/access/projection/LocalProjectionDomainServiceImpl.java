@@ -71,7 +71,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.permissionConditionMapper = permissionConditionMapper;
         this.userRoleProjectionWriter = new UserRoleProjectionWriter(
-            typeResolutionService, abstractUserMapper, abstractRoleMapper, userRoleMapper);
+            typeResolutionService, abstractRoleMapper, userRoleMapper);
         this.batchAdminUserProjectionWriter = new BatchAdminUserProjectionWriter(
             typeResolutionService, abstractUserMapper, resourceEntityMapper, userRoleMapper);
     }

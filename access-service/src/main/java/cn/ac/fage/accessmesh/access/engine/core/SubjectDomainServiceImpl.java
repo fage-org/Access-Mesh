@@ -179,6 +179,14 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     }
 
     @Override
+    public List<Long> selectEnabledRoleIds(Long tenantId, Set<Long> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return abstractRoleMapper.selectEnabledIdsByIds(tenantId, roleIds);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void softDeleteRoleBatch(Long tenantId, Set<Long> roleIds) {
         if (roleIds == null || roleIds.isEmpty()) {

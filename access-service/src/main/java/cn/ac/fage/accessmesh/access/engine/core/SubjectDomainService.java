@@ -84,6 +84,15 @@ public interface SubjectDomainService {
     List<AbstractRole> selectValidRolesByIds(Long tenantId, Set<Long> roleIds);
 
     /**
+     * 批量查询启用（status=1）角色 ID（Q-009 收敛读：无缓存直查、DB 侧过滤，供写路径互斥判定等消费）。
+     *
+     * @param tenantId 租户ID
+     * @param roleIds  角色ID集合
+     * @return 启用态角色 ID 列表（空集入参返回空列表）
+     */
+    List<Long> selectEnabledRoleIds(Long tenantId, Set<Long> roleIds);
+
+    /**
      * 批量软删除角色
      *
      * @param tenantId 租户ID

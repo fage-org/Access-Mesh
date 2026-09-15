@@ -70,7 +70,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     private final PermissionConflictRuleMapper conflictRuleMapper;
     private final PermQueryEngine engine;
     private final PermissionConflictDomainService permissionConflictDomainService;
-    private final cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper abstractRoleMapper;
+    private final cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
     private final cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService typeResolutionService;
 
     /**
@@ -83,12 +83,12 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
     public ConflictRuleAppServiceImpl(PermissionConflictRuleMapper conflictRuleMapper,
                                       PermQueryEngine engine,
                                       PermissionConflictDomainService permissionConflictDomainService,
-                                      cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper abstractRoleMapper,
+                                      cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService,
                                       cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService typeResolutionService) {
         this.conflictRuleMapper = conflictRuleMapper;
         this.engine = engine;
         this.permissionConflictDomainService = permissionConflictDomainService;
-        this.abstractRoleMapper = abstractRoleMapper;
+        this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
     }
 
@@ -99,7 +99,7 @@ public class ConflictRuleAppServiceImpl implements ConflictRuleAppService {
      * 角色行缺失时不拒（维持既有惰性规则语义，存在性校验属存量观察不随本任务收口）。
      */
     private void rejectStructuralRolePair(Long tenantId, Long firstRoleId, Long secondRoleId) {
-        List<cn.ac.fage.accessmesh.access.role.entity.AbstractRole> roles = abstractRoleMapper.selectValidByIds(
+        List<cn.ac.fage.accessmesh.access.role.entity.AbstractRole> roles = subjectDomainService.selectValidRolesByIds(
             tenantId, java.util.Set.of(firstRoleId, secondRoleId));
         if (roles.size() < 2) {
             return;
