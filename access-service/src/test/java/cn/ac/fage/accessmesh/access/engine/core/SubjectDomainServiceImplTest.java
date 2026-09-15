@@ -32,6 +32,7 @@ import static org.mockito.Mockito.when;
 class SubjectDomainServiceImplTest {
 
     @Mock private UserRoleMapper userRoleMapper;
+    @Mock private cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper userRoleQueryMapper;
     @Mock private AbstractRoleMapper abstractRoleMapper;
     @Mock private AbstractUserMapper abstractUserMapper;
     @Mock private CacheService cacheService;
@@ -44,6 +45,7 @@ class SubjectDomainServiceImplTest {
             abstractUserMapper,
             abstractRoleMapper,
             userRoleMapper,
+            userRoleQueryMapper,
             cacheService,
             new ObjectMapper()
         );

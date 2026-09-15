@@ -15,7 +15,6 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDo
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
-import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
@@ -83,9 +82,6 @@ class OperationLogRuntimeContextAppServiceTest {
 
     @Mock
     private AbstractUserMapper abstractUserMapper;
-
-    @Mock
-    private UserRoleMapper userRoleMapper;
 
     @Mock
     private SubjectDomainService subjectDomainService;
@@ -189,7 +185,6 @@ class OperationLogRuntimeContextAppServiceTest {
     void shouldRecordActualSummaryForUserRoleBatchRevoke() {
         UserManageAppServiceImpl service = new UserManageAppServiceImpl(
             abstractUserMapper,
-            userRoleMapper,
             subjectDomainService,
             typeResolutionService,
             domainClassifyService,
@@ -222,7 +217,7 @@ class OperationLogRuntimeContextAppServiceTest {
         when(engine.getDeniedResourceCodes(1L, 200L, ResourceTypeCode.ROLE, Set.of("11"), OperationCode.MANAGE))
             .thenReturn(Set.of());
         when(subjectDomainService.selectValidRolesByIds(1L, Set.of(11L))).thenReturn(List.of(role));
-        when(userRoleMapper.selectValidByUserIdsTypeAndTargetIds(1L, Set.of(22L), ResourceTypeCode.ROLE, Set.of(11L)))
+        when(subjectDomainService.selectValidUserRolesByUserIdsTypeAndTargetIds(1L, Set.of(22L), ResourceTypeCode.ROLE, Set.of(11L)))
             .thenReturn(List.of(relation));
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
@@ -234,7 +229,7 @@ class OperationLogRuntimeContextAppServiceTest {
         OperationLogRuntimeContext.Snapshot snapshot = OperationLogRuntimeContext.snapshot();
         assertEquals("revoked 1 user-role relation(s), denied=0", snapshot.summaryOverride());
         assertTrue(!snapshot.skip());
-        verify(userRoleMapper).softDeleteBatch(eq(1L), eq(List.of(88L)), any(LocalDateTime.class));
+        verify(subjectDomainService).softDeleteUserRolesBatch(eq(1L), eq(List.of(88L)), any(LocalDateTime.class));
         verify(auditDomainService).recordChangeLog(any(AuditDomainService.ChangeLogContext.class), anyList());
     }
 }

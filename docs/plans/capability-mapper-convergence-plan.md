@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 跨能力 mapper 直读收敛（Q-009 转出）
-status: active
+status: completed
 domain: access-service
 design_refs:
   - docs/design/access-service-capability-structure.md#8-架构断言重建设计（§8.4 豁免 6 冻结白名单）
@@ -97,7 +97,7 @@ last_updated: 2026-09-15
 
 ## 归档条件
 
-四任务全 done：白名单退役为绝对断言 + fixture 负向自证（`src/test/java/.../architecture/fixture/` 违规样例包 + 专用 ClassFileImporter 单独导入，绕开 DO_NOT_INCLUDE_TESTS）、治理回写完成（capability-structure §8.4 豁免 6 表+§4 裁决表 row9、project-rules §8.2 白名单指针句、access-service-architecture「存量 19 类 30 边」句、permission-coding-standards §8、全仓残留清扫）、Q-009 收敛、全量回归含 E2E 绿。
+四任务全 done：白名单退役为绝对断言 + fixture 负向自证（实施落 `src/test/java/.../menu/fixture/BoundaryViolationFixture`——capabilityOf 仅认 12 能力包首段，architecture.fixture 形态自证空转，较立项口径实施调整；专用 ClassFileImporter 单独导入，绕开 DO_NOT_INCLUDE_TESTS）、治理回写完成（capability-structure §8.4 豁免 6 表+§4 裁决表 row9、project-rules §8.2 白名单指针句、access-service-architecture「存量 19 类 30 边」句、permission-coding-standards §8、全仓残留清扫）、Q-009 收敛、全量回归含 E2E 绿。
 
 ## 当前进度
 
@@ -105,3 +105,4 @@ last_updated: 2026-09-15
 - 2026-09-15：T-ACCESS-043 批次① done（9 边收敛、白名单 30→21、模块双 fork 1249+210 全绿）；批次② in-progress。
 - 2026-09-15：T-ACCESS-044 批次② done（6 边收敛、RoleResourcePermissionDomainService + 条件三读落地、白名单 21→15、模块双 fork 全绿）；批次③ in-progress。
 - 2026-09-15：T-ACCESS-045 批次③ done（11 边收敛、五新服务落地、白名单 15→4、模块双 fork 全绿）；批次④ in-progress（末批：4 边 + 白名单退役 + 治理回写收口）。
+- 2026-09-15：T-ACCESS-046 批次④ done——30 边全量收敛，白名单退役为零容忍绝对断言 + menu.fixture 负向自证，治理回写/last_reviewed/Q-009 收敛/registry 补记全落；全量回归 mvn test -T 1C 含 E2E 1698/0F/0E/0S BUILD SUCCESS（首跑 e2e 随机端口竞态隔离复跑定性为抖动）；双轨本地评审处置完毕（代码轨 P3×5、文档轨 P1×1+P2×1+P3×6 全处置）。计划四任务全 done，达归档条件。

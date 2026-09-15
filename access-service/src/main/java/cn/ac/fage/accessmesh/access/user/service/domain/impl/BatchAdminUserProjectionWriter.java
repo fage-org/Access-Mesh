@@ -7,8 +7,8 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
-import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
-import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -40,17 +40,17 @@ public class BatchAdminUserProjectionWriter {
 
     private final TypeResolutionService typeResolutionService;
     private final AbstractUserMapper abstractUserMapper;
-    private final ResourceEntityMapper resourceEntityMapper;
-    private final UserRoleMapper userRoleMapper;
+    private final ResourceEntityDomainService resourceEntityDomainService;
+    private final SubjectDomainService subjectDomainService;
 
     public BatchAdminUserProjectionWriter(TypeResolutionService typeResolutionService,
                                           AbstractUserMapper abstractUserMapper,
-                                          ResourceEntityMapper resourceEntityMapper,
-                                          UserRoleMapper userRoleMapper) {
+                                          ResourceEntityDomainService resourceEntityDomainService,
+                                          SubjectDomainService subjectDomainService) {
         this.typeResolutionService = typeResolutionService;
         this.abstractUserMapper = abstractUserMapper;
-        this.resourceEntityMapper = resourceEntityMapper;
-        this.userRoleMapper = userRoleMapper;
+        this.resourceEntityDomainService = resourceEntityDomainService;
+        this.subjectDomainService = subjectDomainService;
     }
 
     public void batchDeleteAdminUsers(Long tenantId, Set<Long> sysUserIds) {
@@ -65,14 +65,14 @@ public class BatchAdminUserProjectionWriter {
         if (!users.isEmpty()) {
             List<Long> userIds = users.stream().map(AbstractUser::getId).collect(Collectors.toList());
             // 同一事务级联软删该用户的全部 user_role（含功能角色，不再依赖延迟补偿）
-            userRoleMapper.softDeleteByAbstractUserIds(tenantId, new java.util.HashSet<>(userIds), now);
+            subjectDomainService.softDeleteUserRolesByAbstractUserIds(tenantId, new java.util.HashSet<>(userIds), now);
             abstractUserMapper.softDeleteBatch(tenantId, userIds, now);
         }
         // T-PERM-052：USER 类型种子声明 SYNC+access-service，行内只可能是本投影的行
-        List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+        List<ResourceEntity> resources = resourceEntityDomainService.selectByTypeAndCodesAndCodeTypes(
             tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT));
         if (!resources.isEmpty()) {
-            resourceEntityMapper.softDeleteBatch(tenantId,
+            resourceEntityDomainService.softDeleteBatch(tenantId,
                 resources.stream().map(ResourceEntity::getId).collect(Collectors.toList()), now);
         }
     }
@@ -91,10 +91,10 @@ public class BatchAdminUserProjectionWriter {
                 users.stream().map(AbstractUser::getId).collect(Collectors.toSet()), now);
         }
         // T-PERM-052：USER 类型种子声明 SYNC+access-service，行内只可能是本投影的行
-        List<ResourceEntity> resources = resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+        List<ResourceEntity> resources = resourceEntityDomainService.selectByTypeAndCodesAndCodeTypes(
             tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT));
         if (!resources.isEmpty()) {
-            resourceEntityMapper.batchDisableStatus(tenantId,
+            resourceEntityDomainService.batchDisableResourcesStatus(tenantId,
                 resources.stream().map(ResourceEntity::getId).collect(Collectors.toSet()), now);
         }
     }
@@ -113,7 +113,7 @@ public class BatchAdminUserProjectionWriter {
         Map<String, AbstractUser> usersByExt = abstractUserMapper
             .selectByTypeAndExternalIds(tenantId, userType, extIds)
             .stream().collect(Collectors.toMap(AbstractUser::getExternalId, u -> u, (a, b) -> a));
-        Map<String, ResourceEntity> resourcesByCode = resourceEntityMapper
+        Map<String, ResourceEntity> resourcesByCode = resourceEntityDomainService
             .selectByTypeAndCodesAndCodeTypes(tenantId, resourceType, extIds, Set.of(CODE_TYPE_DEFAULT))
             .stream()
             .collect(Collectors.toMap(ResourceEntity::getCode, r -> r, (a, b) -> a));
@@ -177,14 +177,14 @@ public class BatchAdminUserProjectionWriter {
             abstractUserMapper.insertBatch(toInsertUsers);
         }
         if (!toInsertResources.isEmpty()) {
-            resourceEntityMapper.insertBatch(toInsertResources);
+            resourceEntityDomainService.insertResourceEntities(toInsertResources);
         }
         // 已有行统一批量刷新（每行值不同，PG VALUES 单条 SQL，替代循环 update）
         if (!toUpdateUsers.isEmpty()) {
             abstractUserMapper.batchUpdateValues(tenantId, LocalProjectionOwner.SERVICE_CODE, toUpdateUsers, now);
         }
         if (!toUpdateResources.isEmpty()) {
-            resourceEntityMapper.batchUpdateValues(tenantId, LocalProjectionOwner.SERVICE_CODE, toUpdateResources, now);
+            resourceEntityDomainService.batchUpdateResourceValues(tenantId, LocalProjectionOwner.SERVICE_CODE, toUpdateResources, now);
         }
         // 统一回查全部 abstract_user.id（含 insertBatch 新行——JDBC batch 无法回填主键）
         Map<Long, Long> result = new HashMap<>();

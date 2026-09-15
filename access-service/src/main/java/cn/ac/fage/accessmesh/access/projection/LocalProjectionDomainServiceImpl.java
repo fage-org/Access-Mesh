@@ -16,6 +16,8 @@ import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -63,7 +65,9 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
                                             ResourceEntityMapper resourceEntityMapper,
                                             TypeDefinitionMapper typeDefinitionMapper,
                                             PermissionConditionMapper permissionConditionMapper,
-                                            UserRoleMapper userRoleMapper) {
+                                            UserRoleMapper userRoleMapper,
+                                            SubjectDomainService subjectDomainService,
+                                            ResourceEntityDomainService resourceEntityDomainService) {
         this.typeResolutionService = typeResolutionService;
         this.abstractUserMapper = abstractUserMapper;
         this.abstractRoleMapper = abstractRoleMapper;
@@ -73,7 +77,7 @@ public class LocalProjectionDomainServiceImpl implements LocalProjectionDomainSe
         this.userRoleProjectionWriter = new UserRoleProjectionWriter(
             typeResolutionService, abstractRoleMapper, userRoleMapper);
         this.batchAdminUserProjectionWriter = new BatchAdminUserProjectionWriter(
-            typeResolutionService, abstractUserMapper, resourceEntityMapper, userRoleMapper);
+            typeResolutionService, abstractUserMapper, resourceEntityDomainService, subjectDomainService);
     }
 
     @Override

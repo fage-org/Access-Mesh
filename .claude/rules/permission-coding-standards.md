@@ -331,7 +331,7 @@ auditDomainService.asyncRecordLog(...); // 仅在非入口级场景
 
 ## 8. 同层横向调用边界
 
-同层横向调用**允许**（project-rules §8.2，2026-08-22 全局放开）：AppService 互调、DomainService 互调、跨能力 Service/AppService 注入复用（如 `ServiceConfigAppServiceImpl` 注入 `ResourceManageAppService`）均可，无需登记例外。通用约束：仅限同层（跳层禁令不变）、**不得形成循环依赖**、复用方不得重复实现被复用方已有的领域逻辑、**能力包 Mapper 边界不变**（能力包之间不互读 Mapper，断言面=mapper 包；豁免面与存量冻结白名单见 capability-structure §8.4，白名单锁「不得新增」，T-ACCESS-032 裁决 9）。
+同层横向调用**允许**（project-rules §8.2，2026-08-22 全局放开）：AppService 互调、DomainService 互调、跨能力 Service/AppService 注入复用（如 `ServiceConfigAppServiceImpl` 注入 `ResourceManageAppService`）均可，无需登记例外。通用约束：仅限同层（跳层禁令不变）、**不得形成循环依赖**、复用方不得重复实现被复用方已有的领域逻辑、**能力包 Mapper 边界不变**（能力包之间不互读 Mapper，断言面=mapper 包、零容忍；豁免面见 capability-structure §8.4——存量冻结白名单已随 Q-009 收敛退役，T-ACCESS-043~046，跨包读改走被读方 DomainService/engine 主体域服务，新服务硬契约=mapper-only+无缓存直读+不声明事务）。
 
 ```java
 // ✅ 允许 — 同层横向注入复用（无循环依赖即可；字段为各类型示意，非该类完整依赖清单）

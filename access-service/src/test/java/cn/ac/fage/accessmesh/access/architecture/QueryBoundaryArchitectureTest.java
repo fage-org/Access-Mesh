@@ -19,10 +19,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * 能力包数据边界架构测试（T-ACCESS-033 按 capability-structure §8.4 重建，能力口径）。
  * <p>
- * 断言面 = mapper 包：能力包类不得依赖<b>其他能力包</b>的 mapper 包（12 能力包全组合），
- * 唯一例外为 2026-09-13 拍板的「存量跨能力 mapper 直读冻结白名单」（T-ACCESS-032 裁决 9）——
- * 断言锁「不得新增」，存量按 Q-009 收敛（capability-mapper-convergence-plan 四批推进，
- * 闭合清单基线见 capability-structure §8.4 豁免 6 表；批次①②③ 后余 3 类 4 边——全部为 user/menu 投影轨，批次④ 收敛）。
+ * 断言面 = mapper 包：能力包类不得依赖<b>其他能力包</b>的 mapper 包（12 能力包全组合，
+ * <b>零容忍无白名单</b>——Q-009 收敛完成后终态，T-ACCESS-043~046 四批将 2026-09-13 冻结的
+ * 19 类 30 边全量收敛为零；冻结期历史基线见 capability-structure §8.4 豁免 6 表）。
  * 跨能力实体/Service/DTO import 为既有普遍形态、不在断言面（§8.4 规则 1 口径）。
  * engine / projection / bootstrap / sync 非能力包，其豁免面见 §8.4 豁免 1-4，不在本规则对象内。
  * </p>
@@ -47,25 +46,6 @@ class QueryBoundaryArchitectureTest {
         "resource", "type", "domain", "rule", "audit", "platform",
         "sync", "engine", "projection", "bootstrap", "infrastructure");
 
-    /**
-     * 存量跨能力 mapper 直读冻结白名单（T-ACCESS-032 裁决 9；2026-09-13 拍板、Q-009 收敛中）。
-     * <p>
-     * 行格式 {消费方 FQCN, 被直读的他能力包 mapper FQCN}。断言语义=「不得新增」：白名单外的
-     * 任何能力包间 mapper 依赖即违规。存量收敛（改走被读方 DomainService 封装）按
-     * capability-mapper-convergence-plan 四批推进：批次①②③（T-ACCESS-043/044/045）已收敛 26 边
-     * （30→4 边、19→4 消费类），收敛行随代码同 commit 删除。
-     * 采集口径=字节码级全形态（import 行 + 内联 FQCN 字段声明），ArchUnit 字节码分析天然覆盖。
-     * </p>
-     */
-    static final String[][] FROZEN_WHITELIST = {
-        // user（2 类 3 边，批次①②③ 后）
-        {BASE + ".user.service.impl.UserManageAppServiceImpl", BASE + ".role.mapper.UserRoleMapper"},
-        {BASE + ".user.service.domain.impl.BatchAdminUserProjectionWriter", BASE + ".role.mapper.UserRoleMapper"},
-        {BASE + ".user.service.domain.impl.BatchAdminUserProjectionWriter", BASE + ".resource.mapper.ResourceEntityMapper"},
-        // menu（1 类 1 边，批次③ 后）
-        {BASE + ".menu.service.impl.UserMenuQueryAppServiceImpl", BASE + ".role.mapper.UserRoleQueryMapper"},
-    };
-
     private static JavaClasses classes;
 
     @BeforeAll
@@ -80,16 +60,16 @@ class QueryBoundaryArchitectureTest {
      * 能力包 Mapper 数据边界（§8.4 规则 1，12 能力包全组合 + 冻结白名单）。
      * <p>
      * 实现=字节码级依赖遍历（{@code getDirectDependenciesFromSelf} 覆盖 import 行与内联 FQCN
-     * 全形态）：消费方能力包 → 他能力包 {@code {cap}.mapper} 的每条依赖必须在冻结白名单内，
-     * 否则违规（「不得新增」锁）。
+     * 全形态）：消费方能力包 → 他能力包 {@code {cap}.mapper} 的任何依赖即违规
+     * （Q-009 收敛完成，冻结白名单退役为零容忍）。
      * 供 {@link AccessServiceArchitectureTest} 以同一规则文本复检（§8.4「同断言两处引用同一规则文本」）。
      * </p>
      */
     static void checkCapabilityMapperBoundary(JavaClasses imported) {
-        checkCapabilityMapperBoundary(imported, frozenWhitelistAsMap());
+        checkCapabilityMapperBoundary(imported, java.util.Map.of());
     }
 
-    /** 负向自证入口：可注入被裁剪的白名单，验证规则的拒绝能力。 */
+    /** 负向自证入口：可注入白名单（终态恒空注入），供夹具自证规则的拒绝能力。 */
     static void checkCapabilityMapperBoundary(JavaClasses imported, java.util.Map<String, java.util.Set<String>> whitelist) {
         Set<String> violations = new java.util.TreeSet<>();
         for (JavaClass clazz : imported) {
@@ -113,7 +93,7 @@ class QueryBoundaryArchitectureTest {
                     + "（" + consumerCap + " 直读 " + targetCap + " mapper）");
             }
         }
-        assertThat(violations).as("能力包互读他包 mapper（冻结白名单 30 边外不得新增，Q-009）").isEmpty();
+        assertThat(violations).as("能力包互读他包 mapper（Q-009 收敛完成，零容忍无白名单）").isEmpty();
     }
 
     /** FQCN 包 → 所属能力包（12 能力包之一，否则 null） */
@@ -153,16 +133,8 @@ class QueryBoundaryArchitectureTest {
         return firstDot < 0 ? rest : rest.substring(0, firstDot);
     }
 
-    private static java.util.Map<String, java.util.Set<String>> frozenWhitelistAsMap() {
-        java.util.Map<String, java.util.Set<String>> map = new java.util.LinkedHashMap<>();
-        for (String[] pair : FROZEN_WHITELIST) {
-            map.computeIfAbsent(pair[0], k -> new java.util.LinkedHashSet<>()).add(pair[1]);
-        }
-        return map;
-    }
-
     @Test
-    @DisplayName("能力包不得直读其他能力包 mapper（全组合，冻结白名单 4 边除外、不得新增）")
+    @DisplayName("能力包不得直读其他能力包 mapper（全组合零容忍，Q-009 白名单已退役）")
     void capabilityPackagesMustNotReadOtherCapabilityMappers() {
         checkCapabilityMapperBoundary(classes);
     }
@@ -211,16 +183,16 @@ class QueryBoundaryArchitectureTest {
     // ------------------------------------------------------------------
 
     @Test
-    @DisplayName("负向自证：去掉白名单后存量边必被拒绝（规则有牙 + 白名单必要）")
+    @DisplayName("负向自证：夹具违规边必被拒绝（规则有牙；白名单退役后零容忍）")
     void mapperBoundaryRuleRejectsUnwhitelistedEdge() {
-        // 取冻结白名单第一条真实边（批次③ 后为 user.UserManageAppServiceImpl →
-        // role.UserRoleMapper），注入被移除该边的白名单——该边必须出现在违规集合中
-        // （AssertionError），证明规则具备拒绝能力且白名单是必要豁免而非摆设。
-        String[] sample = FROZEN_WHITELIST[0];
-        java.util.Map<String, java.util.Set<String>> pruned = frozenWhitelistAsMap();
-        pruned.get(sample[0]).remove(sample[1]);
-        assertThat(sample[0]).endsWith("UserManageAppServiceImpl");
-        assertThatThrownBy(() -> checkCapabilityMapperBoundary(classes, pruned))
+        // 白名单退役后无真实存量边可裁剪——以测试源集夹具（menu.fixture.BoundaryViolationFixture，
+        // 故意 import role.mapper.UserRoleMapper）经专用 ClassFileImporter 单独导入自证：
+        // 零容忍规则必须拒绝该违规边（DO_NOT_INCLUDE_TESTS 使其永不进入主扫描面，双重不干扰）。
+        JavaClasses fixture = new ClassFileImporter()
+            .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
+            .importPackages(BASE + ".menu.fixture");
+        assertThat(fixture.size()).as("夹具类必须被导入").isGreaterThan(0);
+        assertThatThrownBy(() -> checkCapabilityMapperBoundary(fixture, java.util.Map.of()))
             .isInstanceOf(AssertionError.class)
             .hasMessageContaining("UserRoleMapper");
     }
@@ -252,11 +224,4 @@ class QueryBoundaryArchitectureTest {
             .isInstanceOf(AssertionError.class);
     }
 
-    @Test
-    @DisplayName("白名单完整性：4 边与 §8.4 豁免 6 表收敛中状态对齐（3 消费类，批次③ 后）")
-    void frozenWhitelistShapeIsLocked() {
-        assertThat(FROZEN_WHITELIST.length).isEqualTo(4);
-        long consumers = java.util.Arrays.stream(FROZEN_WHITELIST).map(p -> p[0]).distinct().count();
-        assertThat(consumers).as("3 消费类 4 边（Q-009 收敛中，批次④ 待收敛 user/menu 投影轨）").isEqualTo(3);
-    }
 }

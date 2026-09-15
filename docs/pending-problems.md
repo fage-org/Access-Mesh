@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-012           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-15（Q-009 转出）
+last_updated: 2026-09-15（Q-009 收敛）
 ---
 
 # 待解决问题清单（pending problems）
@@ -52,23 +52,11 @@ last_updated: 2026-09-15（Q-009 转出）
 
 **设想方向（未定案）**：声明内部来源收紧（对齐四类型）或维持 MANAGED 依赖固定图校验——另行评估。
 
-## Q-009 存量跨能力 mapper 直读收敛（19 类 30 边冻结白名单的后续消化）
-
-- **状态**：converted（2026-09-15 立计划开工）
-- **登记**：2026-09-13
-- **来源**：T-ACCESS-032 双轨评审发现 + 用户拍板「冻结白名单」（decision-registry 2026-09-13 T-ACCESS-032 行裁决⑨；capability-structure §8.4 豁免 6；白名单实体由 T-ACCESS-033 落地冻结、不承接本问题的收敛）
-- **关联**：[capability-mapper-convergence-plan](plans/capability-mapper-convergence-plan.md)（T-ACCESS-043~046 四批）
-
-**现象与证据**：存量代码既有 DomainService/AppService 直读他实体 mapper 共 **19 类 30 边**（闭合清单见 capability-structure §8.4 豁免 6 表；如 `PermissionGrantAppServiceImpl` 直读 role/type/rule/resource 四 mapper、`UserMenuQueryServiceImpl` 直读 `UserRoleQueryMapper`、`UserServiceImpl` 直读 `SysUserOrgMapper`、`PermissionGrantPlanDomainServiceImpl` 直读 domain/type/rule/resource 四 mapper）——同域内今日全部合法；T-ACCESS-033 拆包后成为「能力包 A import 能力包 B 的 mapper」，按裁决⑨进 `QueryBoundaryArchitectureTest` 冻结白名单（断言锁「不得新增」，033 落地时在测试内按 §8.4 表逐行落 ArchUnit ignoreDependency）。采集口径：字节码级全形态（import 行 + 内联 FQCN），禁单 import 扫描（内联 FQCN 形态实证存在于 ConflictRuleAppServiceImpl 等）。
-
-**影响**：现在为什么没出事——白名单锁死增量，存量不扩大；但这 30 边仍是能力包间数据边界豁免点，边界语义靠白名单维持而非结构收敛。数据示例：grant 包的授权编排直读 role/type/rule/resource 四包 mapper，任何一处表结构变更的耦合面横跨五个能力包。
-
-**设想方向（未定案）**：逐边改走对方 DomainService 封装（30 边改写涉及事务语义，须逐处评估）；或部分收敛（高频变更面优先）；不在融合计划（T-ACCESS-032~041）内，收敛任务启动时从看板计数器取号。→ 已转出：方向与批次设计经 claude+grok 双通道外评修订后用户确认（2026-09-15），定案见 decision-registry 同日行。
-
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-009 | 存量跨能力 mapper 直读收敛（19 类 30 边冻结白名单的后续消化） | closed（T-ACCESS-043~046 done：四批全量收敛 30 边至零、白名单退役为零容忍绝对禁断、负向自证改测试源集夹具；全量回归含 E2E 绿 + 双轨评审；定案与硬契约见 registry 2026-09-15 两行） | [capability-mapper-convergence-plan](plans/capability-mapper-convergence-plan.md)（T-ACCESS-043~046） | 2026-09-15 |
 | Q-001 | URL 路径风格统一（admin 裸路径 vs perm 前缀路径） | closed（T-ACCESS-042 done：全链路单命名空间 /api/access/**——外部=服务路径、无 Gateway StripPrefix、无 admin/perm 家族段；登录族并入 /api/access/auth/**；user-role/list 双轨碰撞管理轨改名 view；一次性切换零兼容。定案与实施期裁决见 registry 2026-09-15 行） | [T-ACCESS-042](../tasks/T-ACCESS-042.md) | 2026-09-15 |
 | Q-002 | USER 写入口自身豁免的范围限定 | closed（T-PERM-067 done：收窄为档案字段——档案字段豁免保留、启停/删除不豁免（admin 轨 /user/update 自禁对齐 CANNOT_DISABLE_SELF 硬禁 + perm 轨死分支语义统一）、/user/reset-password 定位自助改密通道；定案见 registry 2026-09-14 行；盘点修正=可达暴露面全在 admin 轨） | [T-PERM-067](../archive/2026-09-14/tasks/T-PERM-067.md) | 2026-09-14 |
 | Q-003 | operationCodeKey 族大小写口径不一致（授权域归一 vs 查询域裸拼） | closed（T-PERM-066 done：raw 严格化——入站 DTO @Pattern 大写 400/90001 + 定义侧锁死 + 授权域归一退役两域统一 raw；定案见 registry 2026-09-14 行，契约总册 §2.5 集中注记） | [T-PERM-066](../archive/2026-09-14/tasks/T-PERM-066.md) | 2026-09-14 |

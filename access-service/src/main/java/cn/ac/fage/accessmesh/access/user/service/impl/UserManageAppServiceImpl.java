@@ -22,7 +22,6 @@ import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
-import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.user.service.UserManageAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -79,7 +78,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     private static final int ROLE_MUTEX_MESSAGE_LIMIT = 20;
 
     private final AbstractUserMapper abstractUserMapper;
-    private final UserRoleMapper userRoleMapper;
     private final SubjectDomainService subjectDomainService;
     private final TypeResolutionService typeResolutionService;
     private final DomainClassifyService domainClassifyService;
@@ -101,7 +99,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
      * 构造函数注入依赖
      *
      * @param abstractUserMapper    抽象用户数据访问层
-     * @param userRoleMapper        用户角色数据访问层
      * @param subjectDomainService  主体领域服务
      * @param typeResolutionService 类型解析服务
      * @param domainClassifyService 域分类服务
@@ -110,7 +107,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
      * @param engine                权限查询引擎
      */
     public UserManageAppServiceImpl(AbstractUserMapper abstractUserMapper,
-                                 UserRoleMapper userRoleMapper,
                                  SubjectDomainService subjectDomainService,
                                  TypeResolutionService typeResolutionService,
                                  DomainClassifyService domainClassifyService,
@@ -121,7 +117,6 @@ public class UserManageAppServiceImpl implements UserManageAppService {
                                  PermQueryEngine engine,
                                  PermissionConflictDomainService permissionConflictDomainService) {
         this.abstractUserMapper = abstractUserMapper;
-        this.userRoleMapper = userRoleMapper;
         this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
@@ -354,10 +349,10 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         abstractUserMapper.softDeleteBatch(tenantId, existingUserIds.stream().toList(), now);
 
-        List<UserRole> userRoles = userRoleMapper.selectValidByUserIds(tenantId, existingUserIds);
+        List<UserRole> userRoles = subjectDomainService.selectValidUserRolesByUserIds(tenantId, existingUserIds);
         List<Long> userRoleIds = userRoles.stream().map(UserRole::getId).toList();
         if (!userRoleIds.isEmpty()) {
-            userRoleMapper.softDeleteBatch(tenantId, userRoleIds, now);
+            subjectDomainService.softDeleteUserRolesBatch(tenantId, userRoleIds, now);
         }
 
         // T-ACCESS-019：USER 资源投影同事务软删，实例授权目标随之不可解析（fail-closed）
@@ -460,7 +455,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         Map<String, UserRole> existingRelationMap = new HashMap<>();
         if (!allUserIds.isEmpty() && !targetRoleIds.isEmpty()) {
-            List<UserRole> existingRelations = userRoleMapper.selectValidByUserIdsAndTargetIds(tenantId, allUserIds, targetRoleIds, ResourceTypeCode.ROLE);
+            List<UserRole> existingRelations = subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(tenantId, allUserIds, targetRoleIds, ResourceTypeCode.ROLE);
             for (UserRole ur : existingRelations) {
                 String key = BusinessKeyUtil.userRoleRelationKey(ur.getAbstractUserId(), ur.getTargetId());
                 existingRelationMap.put(key, ur);
@@ -522,7 +517,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         }
 
         if (!toInsert.isEmpty()) {
-            userRoleMapper.insertBatch(toInsert);
+            subjectDomainService.insertUserRoles(toInsert);
             OperationLogRuntimeContext.setSummary("assigned " + toInsert.size() + " user-role relation(s)");
         } else {
             OperationLogRuntimeContext.markSkip();
@@ -589,7 +584,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         Map<String, UserRole> existingRelationMap = new HashMap<>();
         if (!allUserIds.isEmpty()) {
-            List<UserRole> existingRelations = userRoleMapper.selectValidByUserIdsAndTargetId(tenantId, allUserIds, targetRoleId, ResourceTypeCode.ROLE);
+            List<UserRole> existingRelations = subjectDomainService.selectValidUserRolesByUserIdsAndTargetId(tenantId, allUserIds, targetRoleId, ResourceTypeCode.ROLE);
             for (UserRole ur : existingRelations) {
                 String key = BusinessKeyUtil.userRoleRelationKey(ur.getAbstractUserId(), ur.getTargetId());
                 existingRelationMap.put(key, ur);
@@ -630,7 +625,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         // T-PERM-063：角色互斥授予校验（授予后状态命中互斥对 → 整批原子拒绝 20062）
         if (!toInsert.isEmpty()) {
             rejectRoleMutexOnAssign(tenantId, toInsert);
-            userRoleMapper.insertBatch(toInsert);
+            subjectDomainService.insertUserRoles(toInsert);
             OperationLogRuntimeContext.setSummary(
                 "assigned " + toInsert.size() + " user-role relation(s) to role " + req.roleExternalId()
             );
@@ -735,7 +730,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
 
         Map<String, UserRole> userRoleMap = new HashMap<>();
         if (!allUserIds.isEmpty() && !allRoleIds.isEmpty()) {
-            List<UserRole> userRoles = userRoleMapper.selectValidByUserIdsTypeAndTargetIds(tenantId, allUserIds, ResourceTypeCode.ROLE, allRoleIds);
+            List<UserRole> userRoles = subjectDomainService.selectValidUserRolesByUserIdsTypeAndTargetIds(tenantId, allUserIds, ResourceTypeCode.ROLE, allRoleIds);
             for (UserRole ur : userRoles) {
                 String key = BusinessKeyUtil.userRoleRelationIdKey(ur.getAbstractUserId(), ur.getTargetId(), ur.getRelationId());
                 userRoleMap.put(key, ur);
@@ -786,7 +781,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             itemsJson.add(it);
         }
         if (!idsToDelete.isEmpty()) {
-            userRoleMapper.softDeleteBatch(tenantId, idsToDelete, now);
+            subjectDomainService.softDeleteUserRolesBatch(tenantId, idsToDelete, now);
         }
 
         if (!deniedItems.isEmpty()) {
@@ -834,7 +829,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             return new UserRolesResp(req.subjectTypeCode(), req.subjectExternalId(), List.of());
         }
         LocalDateTime now = LocalDateTime.now();
-        List<UserRole> userRoles = userRoleMapper.selectValidByUserIdWithValidity(userId, tenantId, now);
+        List<UserRole> userRoles = subjectDomainService.selectValidUserRolesByUserIdWithValidity(userId, tenantId, now);
 
         List<RoleSummary> summaries;
         if (userRoles.isEmpty()) {

@@ -12,7 +12,6 @@ import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
-import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
@@ -46,7 +45,6 @@ import static org.mockito.Mockito.when;
 class UserManageAppServiceImplTest {
 
     @Mock private AbstractUserMapper abstractUserMapper;
-    @Mock private UserRoleMapper userRoleMapper;
     @Mock private SubjectDomainService subjectDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
@@ -61,7 +59,6 @@ class UserManageAppServiceImplTest {
     void setUp() {
         service = new UserManageAppServiceImpl(
             abstractUserMapper,
-            userRoleMapper,
             subjectDomainService,
             typeResolutionService,
             domainClassifyService,
@@ -90,7 +87,7 @@ class UserManageAppServiceImplTest {
             when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE), eq(Set.of("10")), eq(OperationCode.MANAGE)))
                 .thenReturn(Set.of());
             when(subjectDomainService.selectValidRolesByIds(eq(1L), eq(Set.of(10L)))).thenReturn(List.of());
-            when(userRoleMapper.selectValidByUserIdsTypeAndTargetIds(eq(1L), eq(Set.of(20L)), eq(ResourceTypeCode.ROLE), eq(Set.of(10L))))
+            when(subjectDomainService.selectValidUserRolesByUserIdsTypeAndTargetIds(eq(1L), eq(Set.of(20L)), eq(ResourceTypeCode.ROLE), eq(Set.of(10L))))
                 .thenReturn(List.<UserRole>of());
 
             BizException exception = assertThrows(BizException.class, () -> service.revokeRolesBatch(1L, req));
@@ -278,7 +275,7 @@ class UserManageAppServiceImplTest {
         when(abstractUserMapper.selectValidByIds(eq(1L), eq(Set.of(77L)))).thenReturn(List.of(existing));
         when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
             eq(Set.of("77")), eq(OperationCode.DELETE))).thenReturn(Set.of());
-        when(userRoleMapper.selectValidByUserIds(eq(1L), eq(Set.of(77L)))).thenReturn(List.<UserRole>of());
+        when(subjectDomainService.selectValidUserRolesByUserIds(eq(1L), eq(Set.of(77L)))).thenReturn(List.<UserRole>of());
 
         try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
@@ -299,7 +296,7 @@ class UserManageAppServiceImplTest {
             .thenReturn(List.of(externalUser(100L), externalUser(77L)));
         when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
             eq(Set.of("100", "77")), eq(OperationCode.DELETE))).thenReturn(Set.of());
-        when(userRoleMapper.selectValidByUserIds(eq(1L), eq(Set.of(100L, 77L)))).thenReturn(List.<UserRole>of());
+        when(subjectDomainService.selectValidUserRolesByUserIds(eq(1L), eq(Set.of(100L, 77L)))).thenReturn(List.<UserRole>of());
 
         try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
@@ -335,7 +332,7 @@ class UserManageAppServiceImplTest {
             .thenReturn(Map.of("u-1", 20L));
         when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("r-200")), eq((String) null)))
             .thenReturn(Map.of("r-200", 200L));
-        when(userRoleMapper.selectValidByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
+        when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
         when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of(200L));
         when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
@@ -362,7 +359,7 @@ class UserManageAppServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.assignRole(1L, req));
 
             assertEquals(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
-            org.mockito.Mockito.verify(userRoleMapper, org.mockito.Mockito.never()).insertBatch(any());
+            org.mockito.Mockito.verify(subjectDomainService, org.mockito.Mockito.never()).insertUserRoles(any());
         }
     }
 
@@ -384,7 +381,7 @@ class UserManageAppServiceImplTest {
 
             service.assignRole(1L, req);
 
-            org.mockito.Mockito.verify(userRoleMapper).insertBatch(any());
+            org.mockito.Mockito.verify(subjectDomainService).insertUserRoles(any());
         }
     }
 
@@ -398,7 +395,7 @@ class UserManageAppServiceImplTest {
             .thenReturn(Map.of("u-1", 20L));
         when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("r-200")), eq((String) null)))
             .thenReturn(Map.of("r-200", 200L));
-        when(userRoleMapper.selectValidByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
+        when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
         // 目标角色 200 禁用：postState 不并入 → 即使用户已持互斥对端 100 也放行
         when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of());
@@ -418,7 +415,7 @@ class UserManageAppServiceImplTest {
             org.mockito.Mockito.verify(permissionConflictDomainService)
                 .findAssignMutexConflicts(eq(1L), postStateCaptor.capture());
             assertEquals(Set.of(100L), postStateCaptor.getValue().get(20L));
-            org.mockito.Mockito.verify(userRoleMapper).insertBatch(any());
+            org.mockito.Mockito.verify(subjectDomainService).insertUserRoles(any());
         }
     }
 
@@ -436,7 +433,7 @@ class UserManageAppServiceImplTest {
             .thenReturn(Map.of("u-1", 20L));
         when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("r-200", "r-300")), eq((String) null)))
             .thenReturn(Map.of("r-200", 200L, "r-300", 300L));
-        when(userRoleMapper.selectValidByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L, 300L)), eq(ResourceTypeCode.ROLE)))
+        when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L, 300L)), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
         // 有效期过滤先行：future validFrom 的 200 已不入目标集，启用查询只见 300
         when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(300L)))).thenReturn(List.of(300L));
@@ -457,7 +454,7 @@ class UserManageAppServiceImplTest {
             org.mockito.Mockito.verify(permissionConflictDomainService)
                 .findAssignMutexConflicts(eq(1L), postStateCaptor.capture());
             assertEquals(Set.of(100L, 300L), postStateCaptor.getValue().get(20L));
-            org.mockito.Mockito.verify(userRoleMapper).insertBatch(any());
+            org.mockito.Mockito.verify(subjectDomainService).insertUserRoles(any());
         }
     }
 
@@ -471,7 +468,7 @@ class UserManageAppServiceImplTest {
             .thenReturn(Map.of("u-1", 20L));
         when(typeResolutionService.resolveRoleId(eq(1L), eq("BASIC_ROLE"), eq("r-200"), eq((String) null)))
             .thenReturn(200L);
-        when(userRoleMapper.selectValidByUserIdsAndTargetId(eq(1L), eq(Set.of(20L)), eq(200L), eq(ResourceTypeCode.ROLE)))
+        when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetId(eq(1L), eq(Set.of(20L)), eq(200L), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
         when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of(200L));
         when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
@@ -488,7 +485,7 @@ class UserManageAppServiceImplTest {
             BizException exception = assertThrows(BizException.class, () -> service.assignRolesBatch(1L, req));
 
             assertEquals(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
-            org.mockito.Mockito.verify(userRoleMapper, org.mockito.Mockito.never()).insertBatch(any());
+            org.mockito.Mockito.verify(subjectDomainService, org.mockito.Mockito.never()).insertUserRoles(any());
         }
     }
 }

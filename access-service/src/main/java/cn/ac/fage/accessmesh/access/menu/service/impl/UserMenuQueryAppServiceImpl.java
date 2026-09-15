@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.access.menu.dto.resp.UserMenuResp;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.menu.service.UserMenuQueryAppService;
 import cn.ac.fage.accessmesh.access.menu.mapper.UserMenuQueryMapper;
-import cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.menu.dto.projection.MenuProjection;
 import cn.ac.fage.accessmesh.access.menu.dto.projection.UserOrgProjection;
 import cn.ac.fage.accessmesh.access.role.dto.projection.UserRoleProjection;
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
  * 用户菜单聚合查询实现（跨域只读）。
  * <p>
  * 聚合 admin 域（sys_user_org、sys_menu）与 permission 域（角色、有效权限码、资源实例访问事实）。
- * 数据读取经 {@link UserMenuQueryMapper} / {@link UserRoleQueryMapper}；
+ * 数据读取经 {@link UserMenuQueryMapper}；用户角色投影经 {@link SubjectDomainService}（Q-009 收敛）；
  * 权限事实经 {@link PermissionViewAppService}（管理查询入口，引擎封装在 permission 域）。
  * </p>
  * <p>
@@ -97,16 +97,16 @@ public class UserMenuQueryAppServiceImpl implements UserMenuQueryAppService {
     );
 
     private final UserMenuQueryMapper userMenuQueryMapper;
-    private final UserRoleQueryMapper userRoleQueryMapper;
+    private final SubjectDomainService subjectDomainService;
     private final PermissionViewAppService permissionViewAppService;
     private final TypeResolutionService typeResolutionService;
 
     public UserMenuQueryAppServiceImpl(UserMenuQueryMapper userMenuQueryMapper,
-                                    UserRoleQueryMapper userRoleQueryMapper,
+                                    SubjectDomainService subjectDomainService,
                                     PermissionViewAppService permissionViewAppService,
                                     TypeResolutionService typeResolutionService) {
         this.userMenuQueryMapper = userMenuQueryMapper;
-        this.userRoleQueryMapper = userRoleQueryMapper;
+        this.subjectDomainService = subjectDomainService;
         this.permissionViewAppService = permissionViewAppService;
         this.typeResolutionService = typeResolutionService;
     }
@@ -339,7 +339,7 @@ public class UserMenuQueryAppServiceImpl implements UserMenuQueryAppService {
                 return List.of();
             }
             List<UserRoleProjection> projections =
-                userRoleQueryMapper.selectUserRoleProjections(tenantId, abstractUserId, java.time.LocalDateTime.now());
+                subjectDomainService.selectUserRoleProjections(tenantId, abstractUserId, java.time.LocalDateTime.now());
             return projections.stream()
                 .filter(p -> p.roleName() != null)
                 .map(p -> new UserInfoResp.RoleInfo(null, p.roleName()))

@@ -105,4 +105,50 @@ public interface ResourceEntityDomainService {
      */
     int softDeleteBatch(Long tenantId, List<Long> ids, LocalDateTime deletedAt);
 
-    }
+    // ===== 投影轨方法（Q-009 收敛，T-ACCESS-046）：主体投影 writer 的 upsert 专用形态 =====
+    // 无缓存直读直写；code_type=default 维度是投影轨专用语义（防误伤外部同步行）；
+    // 写方法不声明事务（REQUIRED 跟随调用方投影写事务）。
+
+    /**
+     * 按类型值 + code 集合 + codeType 集合查有效资源行（投影 upsert 判存在性专用，
+     * code_type=default 防误伤外部同步行；无缓存直读）。
+     *
+     * @param tenantId     租户ID
+     * @param resourceType resource_type 内部类型值
+     * @param codes        code 集合
+     * @param codeTypes    codeType 集合
+     * @return 命中的有效资源行
+     */
+    List<ResourceEntity> selectByTypeAndCodesAndCodeTypes(Long tenantId, Integer resourceType,
+                                                          Set<String> codes, Set<String> codeTypes);
+
+    /**
+     * 批量插入资源行（投影轨新增；不声明事务）。
+     *
+     * @param resources 待插入资源行
+     */
+    void insertResourceEntities(List<ResourceEntity> resources);
+
+    /**
+     * 批量置禁用状态（投影轨用户停用级联；单条 SQL）。
+     *
+     * @param tenantId  租户ID
+     * @param ids       资源行ID集合
+     * @param updatedAt 更新时间
+     * @return 影响行数
+     */
+    int batchDisableResourcesStatus(Long tenantId, Set<Long> ids, LocalDateTime updatedAt);
+
+    /**
+     * 批量刷新投影行 name/status（PG VALUES 单 SQL，替代循环 update；行须含主键）。
+     *
+     * @param tenantId  租户ID
+     * @param owner     所有者服务编码
+     * @param resources 待刷新行（须含主键 id）
+     * @param updatedAt 更新时间
+     * @return 影响行数
+     */
+    int batchUpdateResourceValues(Long tenantId, String owner, List<ResourceEntity> resources,
+                                  LocalDateTime updatedAt);
+
+}

@@ -92,6 +92,74 @@ public interface SubjectDomainService {
      */
     List<Long> selectEnabledRoleIds(Long tenantId, Set<Long> roleIds);
 
+    // ===== user_role 原始行层（Q-009 收敛读/写，T-ACCESS-046）=====
+    // 与上方 effectiveRoles 缓存层同服务两档一致性：缓存档（EFFECTIVE_ROLES，afterCommit 失效）
+    // 服务运行时判定；原始行档无缓存直读直写，服务管理面写路径的「读点在写前」去重/定位/展示
+    // 与投影写路径（同事务可见）。写方法不声明事务（REQUIRED 跟随调用方 AppService）。
+
+    /**
+     * 批量查用户的有效角色关系原始行（无缓存直读；管理面删除用户级联盘点）。
+     *
+     * @param tenantId 租户ID
+     * @param userIds  抽象用户ID集合
+     * @return 关系原始行列表
+     */
+    java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> selectValidUserRolesByUserIds(
+        Long tenantId, Set<Long> userIds);
+
+    /**
+     * 按用户集合 + 目标集合查有效关系原始行（授予去重；无缓存直读）。
+     */
+    java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> selectValidUserRolesByUserIdsAndTargetIds(
+        Long tenantId, Set<Long> userIds, Set<Long> targetIds, String targetType);
+
+    /**
+     * 按用户集合 + 单目标查有效关系原始行（批量授予去重的单目标变体，独立 SQL；无缓存直读）。
+     */
+    java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> selectValidUserRolesByUserIdsAndTargetId(
+        Long tenantId, Set<Long> userIds, Long targetId, String targetType);
+
+    /**
+     * 按用户集合 + 目标类型 + 目标集合查有效关系原始行（撤销按三元组定位；无缓存直读）。
+     */
+    java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> selectValidUserRolesByUserIdsTypeAndTargetIds(
+        Long tenantId, Set<Long> userIds, String targetType, Set<Long> targetIds);
+
+    /**
+     * 单用户有效期窗口内的有效关系原始行（用户角色展示；无缓存直读）。
+     */
+    java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> selectValidUserRolesByUserIdWithValidity(
+        Long userId, Long tenantId, java.time.LocalDateTime now);
+
+    /**
+     * 用户角色关系投影读（user_role JOIN abstract_role 双投影形态；无门禁版，menu 登录链路
+     * 与 role 查询服务共用；无缓存直读，失败降级由调用方处理）。
+     *
+     * @param tenantId       租户ID
+     * @param abstractUserId 抽象用户ID
+     * @param now            有效期窗口判定基准
+     * @return 关系投影列表（角色投影缺失时保留关系行、角色字段为 null）
+     */
+    java.util.List<cn.ac.fage.accessmesh.access.role.dto.projection.UserRoleProjection> selectUserRoleProjections(
+        Long tenantId, Long abstractUserId, java.time.LocalDateTime now);
+
+    /**
+     * 批量插入关系行（授予路径；不声明事务，REQUIRED 跟随调用方）。
+     *
+     * @param userRoles 待插入关系行
+     */
+    void insertUserRoles(java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> userRoles);
+
+    /**
+     * 按关系行 ID 批量软删（撤销路径）。
+     */
+    void softDeleteUserRolesBatch(Long tenantId, java.util.List<Long> ids, java.time.LocalDateTime deletedAt);
+
+    /**
+     * 按抽象用户集合批量软删关系行（投影轨删除用户级联）。
+     */
+    void softDeleteUserRolesByAbstractUserIds(Long tenantId, Set<Long> userIds, java.time.LocalDateTime deletedAt);
+
     /**
      * 批量软删除角色
      *

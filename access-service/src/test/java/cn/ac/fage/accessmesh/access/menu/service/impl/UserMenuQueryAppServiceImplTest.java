@@ -4,7 +4,7 @@ import cn.ac.fage.accessmesh.access.auth.dto.UserInfoResp;
 import cn.ac.fage.accessmesh.access.menu.dto.resp.UserMenuResp;
 import cn.ac.fage.accessmesh.access.menu.service.impl.UserMenuQueryAppServiceImpl;
 import cn.ac.fage.accessmesh.access.menu.mapper.UserMenuQueryMapper;
-import cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.menu.dto.projection.MenuProjection;
 import cn.ac.fage.accessmesh.access.menu.dto.projection.UserOrgProjection;
 import cn.ac.fage.accessmesh.access.role.dto.projection.UserRoleProjection;
@@ -50,7 +50,7 @@ class UserMenuQueryAppServiceImplTest {
     private static final String SUBJECT = LocalProjectionOwner.SUBJECT_LOCAL_USER;
 
     @Mock private UserMenuQueryMapper userMenuQueryMapper;
-    @Mock private UserRoleQueryMapper userRoleQueryMapper;
+    @Mock private SubjectDomainService subjectDomainService;
     @Mock private PermissionViewAppService permissionViewAppService;
     @Mock private TypeResolutionService typeResolutionService;
 
@@ -59,7 +59,7 @@ class UserMenuQueryAppServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new UserMenuQueryAppServiceImpl(
-            userMenuQueryMapper, userRoleQueryMapper, permissionViewAppService, typeResolutionService);
+            userMenuQueryMapper, subjectDomainService, permissionViewAppService, typeResolutionService);
         TenantContextHolder.setTenantId(TENANT);
     }
 
@@ -96,7 +96,7 @@ class UserMenuQueryAppServiceImplTest {
                     new UserOrgProjection(USER, 10L, true),
                     new UserOrgProjection(USER, 20L, false)));
             when(typeResolutionService.resolveUserId(TENANT, SUBJECT, "100")).thenReturn(9000L);
-            when(userRoleQueryMapper.selectUserRoleProjections(eq(TENANT), eq(9000L), any()))
+            when(subjectDomainService.selectUserRoleProjections(eq(TENANT), eq(9000L), any()))
                 .thenReturn(List.of(new UserRoleProjection(null, "ROLE", 6, "r-1", "基础管理员", null, null, null)));
             when(permissionViewAppService.getEffectivePermissionCodes(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenReturn(new UserEffectivePermissionCodesResp(List.of("USER:VIEW", "ORG:VIEW")));
@@ -135,7 +135,7 @@ class UserMenuQueryAppServiceImplTest {
         private void mockUserContext() {
             when(userMenuQueryMapper.selectUserOrgsByUserIds(TENANT, List.of(USER))).thenReturn(List.of());
             when(typeResolutionService.resolveUserId(TENANT, SUBJECT, "100")).thenReturn(9000L);
-            when(userRoleQueryMapper.selectUserRoleProjections(eq(TENANT), eq(9000L), any()))
+            when(subjectDomainService.selectUserRoleProjections(eq(TENANT), eq(9000L), any()))
                 .thenReturn(List.of());
             when(permissionViewAppService.getEffectivePermissionCodes(eq(TENANT), any(UserEffectivePermissionCodesReq.class)))
                 .thenReturn(new UserEffectivePermissionCodesResp(List.of()));

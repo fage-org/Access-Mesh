@@ -42,6 +42,10 @@ public class OperationPermissionDomainServiceImpl implements OperationPermission
     public List<OperationPermission> selectByTenantResourceTypesAndOpCodes(Long tenantId,
                                                                            Set<Integer> resourceTypeValues,
                                                                            Set<String> operationCodes) {
+        if (resourceTypeValues == null || resourceTypeValues.isEmpty()
+            || operationCodes == null || operationCodes.isEmpty()) {
+            return Collections.emptyList();
+        }
         return operationPermissionMapper.selectByTenantResourceTypesAndOpCodes(
             tenantId, resourceTypeValues, operationCodes);
     }

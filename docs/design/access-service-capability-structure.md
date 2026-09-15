@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 能力包结构与两域融合
 status: adopted
 domain: cross-service
-last_reviewed: 2026-09-15 文档与叙事第三项落地 + §9 补三行修订对照；域叙事词汇=管理面/权限面）；此前 2026-09-13（T-ACCESS-039：§3/§8.2/§9 缓存目录合一收口——单册 AccessCacheCatalog、admin:org-visibility 越域归位 access:org-visibility、mode/TTL 零改动）；此前 2026-09-13（T-ACCESS-038：§3/§8.2/§9 错误码合一收口——单册 AccessErrorCode、碰撞三组 ADMIN_/PERM_ 段前缀、能力无专属段规则成文）；此前 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
+last_reviewed: 2026-09-15 Q-009 收敛退役：§4 裁决表 row9 与 §8.4 豁免 6 冻结基线转历史注记 + 规则 1 零容忍化（负向样例改 menu.fixture 夹具）+ 四批收敛进度注记（T-ACCESS-043~046）；此前 2026-09-15 文档与叙事第三项落地 + §9 补三行修订对照；域叙事词汇=管理面/权限面）；此前 2026-09-13（T-ACCESS-039：§3/§8.2/§9 缓存目录合一收口——单册 AccessCacheCatalog、admin:org-visibility 越域归位 access:org-visibility、mode/TTL 零改动）；此前 2026-09-13（T-ACCESS-038：§3/§8.2/§9 错误码合一收口——单册 AccessErrorCode、碰撞三组 ADMIN_/PERM_ 段前缀、能力无专属段规则成文）；此前 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
 ---
 
 # access-service 能力包结构与两域融合
@@ -139,7 +139,7 @@ last_reviewed: 2026-09-15 文档与叙事第三项落地 + §9 补三行修订�
 | 6 | bootstrap 设施 | **独立顶层 bootstrap 包**（BootstrapSeedWriter 接口与实现随包迁入；断言排除集收敛为单包） |
 | 7 | 门禁设施与操作码常量面 | **都归 engine**：AdminPermissionValidator（含 Impl）为引擎门面；AdminOperationCode + OperationCodeConstants 033 先两册随迁 engine、034 合一为单册 |
 | 8 | LocalProjectionDomainService + PermConstants | **独立顶层 projection 包**（内部事实投影统一门面，横跨五能力不可拆；两个 ProjectionWriter 各随实体） |
-| 9 | 存量跨能力 mapper 直读（双轨评审发现） | **冻结白名单**（2026-09-13 拍板）：§8.4 第六条豁免——存量引用机械原样保留（闭合清单实测 19 类 30 边，见 §8.4 表），断言锁「不得新增」；存量收敛（改走对方 DomainService）另立后续任务（docs/pending-problems.md Q-009 登记） |
+| 9 | 存量跨能力 mapper 直读（双轨评审发现） | **已收敛退役**（2026-09-13 拍板冻结白名单锁「不得新增」；2026-09-15 Q-009 转出 T-ACCESS-043~046 四批全量收敛 19 类 30 边至零，白名单退役为**零容忍绝对禁断**，断言负向自证改测试源集夹具形态；定案与硬契约见 decision-registry 2026-09-15 两行） |
 | 10 | 僵尸 DTO 扩面（双轨评审发现） | `BatchResultResp`、`OperationDetailReq` 与 `PermissionCheckReq` 同批随 033 删除（全仓零消费实测，「无消费即删」政策） |
 
 ### 8.1 终态顶层包总览
@@ -434,14 +434,14 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 
 **QueryBoundaryArchitectureTest（验收 4 载体）**：断言对象从「admin/permission 两域」改为 12 能力包枚举集合。
 
-1. 能力包类不依赖**其他能力包**的 mapper 包（`..{capA}..` → `..{capB}.mapper..` 全组合禁断，唯白名单除外，见豁免 6）。**断言面=mapper 包**：跨能力实体 import（如 grant 侧 import AbstractRole）为既有普遍形态、不禁止——「互不直读 Mapper/实体」的「实体」半句不落断言（architecture §3 / project-rules §8.2 同口径）。负向样例：在 menu 包新增类 import `role.mapper.UserRoleMapper`（不在冻结白名单）→ 拒绝。
+1. 能力包类不依赖**其他能力包**的 mapper 包（`..{capA}..` → `..{capB}.mapper..` 全组合禁断、**零容忍**——Q-009 收敛后冻结白名单已退役，见豁免 6 终态注记）。**断言面=mapper 包**：跨能力实体 import（如 grant 侧 import AbstractRole）为既有普遍形态、不禁止——「互不直读 Mapper/实体」的「实体」半句不落断言（architecture §3 / project-rules §8.2 同口径）。负向样例=测试源集夹具 `menu.fixture.BoundaryViolationFixture`（import `role.mapper.UserRoleMapper`，专用 ClassFileImporter 导入自证拒绝能力；DO_NOT_INCLUDE_TESTS 使其不进主扫描面）。
 2. 豁免声明（显式白名单，逐条注释依据）：
    - **engine** 直读投影/映射表 mapper（PermissionView/QueryAppServiceImpl→ResourceEntityMapper、PermissionCheckAppServiceImpl→ResourceApiMappingMapper 等既有输入面装载形态）与 `engine.service`→能力包 DomainService 同层调用（DomainClassifyService/PermissionConflictDomainService）——engine 非能力包，mapper 豁免面之外的类依赖走同层通用约束；
    - **projection**（LocalProjectionDomainServiceImpl）直读投影目标表 mapper——投影写路径职责（裁决 8）；
    - **sync.metadata** 记账数据访问以 SyncMetadataDomainService 封装为主；ResourceEntitySyncAppServiceImpl 存量同时直读 SyncMetadataMapper 一处（033 机械保留，白名单登记）；
    - **bootstrap**（BootstrapSeedWriterImpl）直读 6 mapper——既有豁免，由 bootstrapSeedWriterIsBootstrapOnly 断言单独锁定；
    - **QueryMapper XML 直读跨能力表**（UserMenuQueryMapper.xml 读 sys_user_org 等）是 XML 面非 Java 类依赖，不属本断言；XML 语义由 QueryMapperXmlContractTest 继续 lock。
-   - **存量跨能力 mapper 引用冻结集合（裁决 9，2026-09-13 拍板）**：存量代码既有 DomainService/AppService 直读他实体 mapper 共 **19 类 30 边**，闭合清单如下（033 落地时在测试内按目标包类名逐行落 ArchUnit `ignoreDependency` 白名单，断言锁「**不得新增**」；存量收敛改走对方 DomainService 封装不在融合计划内，docs/pending-problems.md Q-009 登记）：
+   - **存量跨能力 mapper 引用冻结集合（裁决 9，2026-09-13 拍板；2026-09-15 已全量收敛退役——下表为冻结期历史基线，现行断言零容忍无白名单）**：存量代码既有 DomainService/AppService 直读他实体 mapper 共 **19 类 30 边**，闭合清单如下（033 落地时在测试内按目标包类名逐行落 ArchUnit `ignoreDependency` 白名单，断言锁「**不得新增**」；存量收敛改走对方 DomainService 封装不在融合计划内，docs/pending-problems.md Q-009 登记，**该问题已于 2026-09-15 收敛**）：
 
      | 消费方（目标包.类） | 直读的其他能力包 mapper |
      |---|---|
@@ -465,9 +465,9 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
      | rule.ConflictRuleAppServiceImpl | role.AbstractRoleMapper（内联 FQCN） |
      | rule.PermissionConflictDomainServiceImpl | type.OperationPermissionMapper |
 
-     > **收敛进度（Q-009 转出，[capability-mapper-convergence-plan](../plans/capability-mapper-convergence-plan.md)）**：上表为 2026-09-13 冻结基线（19 类 30 边）。批次①（T-ACCESS-043，2026-09-15）收敛 9 边——ResourceEntityDomainServiceImpl→grant（死注入删除）、PermissionGrantAppServiceImpl→role+resource、PermissionGrantPlanDomainServiceImpl→resource、GrantOriginDomainServiceImpl→role、UserManageAppServiceImpl→role.AbstractRoleMapper、UserAppServiceImpl→org、UserRoleProjectionWriter→user、ConflictRuleAppServiceImpl→role；批次②（T-ACCESS-044，2026-09-15）收敛 6 边——TypeDefinitionAppServiceImpl→grant、ResourceManageAppServiceImpl→grant、ConditionAppServiceImpl→grant、PermissionConditionDomainServiceImpl→grant（E8 同事务写后读经新 `RoleResourcePermissionDomainService` 无缓存直读保持）、PermissionGrantAppServiceImpl→rule、PermissionGrantPlanDomainServiceImpl→rule（`PermissionConditionDomainService` 新增三读，禁复用 loadRules 缓存路径）。批次③（T-ACCESS-045，2026-09-15）收敛 11 边——grant 三类 5 边（App/Plan 全租户操作读走 `OperationPermissionDomainService.selectAllOperationsByTenant` 保 20008/20005 区分、GrantDom 双点含刻意缓存回避面、Origin IN 形态）、Plan→domain（SUB_PERM 走 `DomainConfigDomainService`）、Dependency→type、PermissionConflict 两处逐类型循环合并单 IN、DomainClassify→type（`TypeDefinitionDomainService`）、TypeDefinitionApp→resource.ApiMapping、OwnershipGuard→resource.ServiceConfig（`ServiceConfigDomainService`）。剩余 3 类 4 边的权威清单以 `QueryBoundaryArchitectureTest.FROZEN_WHITELIST` 现值为准，批次④随代码同 commit 删行后本表退役为绝对禁断叙事（T-ACCESS-046）。
+     > **收敛进度（Q-009 转出，[capability-mapper-convergence-plan](../plans/capability-mapper-convergence-plan.md)）**：上表为 2026-09-13 冻结基线（19 类 30 边）。批次①（T-ACCESS-043，2026-09-15）收敛 9 边——ResourceEntityDomainServiceImpl→grant（死注入删除）、PermissionGrantAppServiceImpl→role+resource、PermissionGrantPlanDomainServiceImpl→resource、GrantOriginDomainServiceImpl→role、UserManageAppServiceImpl→role.AbstractRoleMapper、UserAppServiceImpl→org、UserRoleProjectionWriter→user、ConflictRuleAppServiceImpl→role；批次②（T-ACCESS-044，2026-09-15）收敛 6 边——TypeDefinitionAppServiceImpl→grant、ResourceManageAppServiceImpl→grant、ConditionAppServiceImpl→grant、PermissionConditionDomainServiceImpl→grant（E8 同事务写后读经新 `RoleResourcePermissionDomainService` 无缓存直读保持）、PermissionGrantAppServiceImpl→rule、PermissionGrantPlanDomainServiceImpl→rule（`PermissionConditionDomainService` 新增三读，禁复用 loadRules 缓存路径）。批次③（T-ACCESS-045，2026-09-15）收敛 11 边——grant 三类 5 边（App/Plan 全租户操作读走 `OperationPermissionDomainService.selectAllOperationsByTenant` 保 20008/20005 区分、GrantDom 双点含刻意缓存回避面、Origin IN 形态）、Plan→domain（SUB_PERM 走 `DomainConfigDomainService`）、Dependency→type、PermissionConflict 两处逐类型循环合并单 IN、DomainClassify→type（`TypeDefinitionDomainService`）、TypeDefinitionApp→resource.ApiMapping、OwnershipGuard→resource.ServiceConfig（`ServiceConfigDomainService`）。批次④（T-ACCESS-046，2026-09-15）收敛末 4 边——UserManageAppServiceImpl 5 读 4 写与 BatchAdminUserProjectionWriter 删除级联改走 `SubjectDomainService` user_role 原始行层（无缓存档与 effectiveRoles 缓存档同服务两档一致性）、投影 writer 资源读写改走 `ResourceEntityDomainService` 投影轨方法（code_type=default 语义保持）、UserMenuQueryAppServiceImpl 投影读改走 `SubjectDomainService.selectUserRoleProjections` 无门禁版。**至此 30 边全量收敛，FROZEN_WHITELIST 清空退役，断言改零容忍绝对禁断，负向自证改测试源集夹具形态；上表冻结为历史基线仅作追溯。**
 
-     **采集口径（写死）**：字节码级依赖形态全采集（import 行 + 内联 FQCN 字段声明，同 ArchUnit 字节码分析口径）——禁用单 import 行扫描（内联 FQCN 形态实证存在于 ConflictRuleAppServiceImpl 等）；引擎（engine）/projection/bootstrap/sync 记账（含 ResourceEntitySyncAppServiceImpl→sync.mapper 直读一处，豁免 3）不在此表（非能力包源集或另有豁免）。
+     **采集口径（写死）**：字节码级依赖形态全采集（import 行 + 内联 FQCN 字段声明，同 ArchUnit 字节码分析口径）——禁用单 import 行扫描（内联 FQCN 形态实证存在于 ConflictRuleAppServiceImpl 等）；引擎（engine）/projection/bootstrap/sync 记账（含 ResourceEntitySyncAppServiceImpl→sync.mapper 直读一处，豁免 3 登记）不在此表（非能力包源集或另有豁免）。
 3. 原「query 包」五条规则（admin/permission mapper 互禁、application 非 query 禁 mapper、query mapper 只读前缀、query 包不依赖域实体/Mapper）中：前三条随包结构消失（application 解散），只读前缀规则改为「QueryMapper（**按类名 `*QueryMapper` 匹配**，非整包——避免误杀同包写 Mapper）接口方法 select/count/list 前缀」继续生效。
 4. **落位兜底断言（外评补充，033 落地）**：全部主源码类必须落在 17 顶层包（`..access..` 下类 `resideInAnyPackage(..access.auth.., ..access.user.., …, ..access.infrastructure..)` 全枚举；根包唯一例外=启动类 `AccessServiceApplication`——断言精确豁免该类，并反向锁根包仅允许它存在）——防漏行类静默残留旧包；负向样例：类残留 `..access.admin..` → 拒绝。
 

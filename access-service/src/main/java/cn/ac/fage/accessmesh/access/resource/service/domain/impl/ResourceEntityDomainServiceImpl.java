@@ -175,4 +175,40 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
         return resourceEntityMapper.softDeleteBatch(tenantId, ids, deletedAt);
     }
 
+    // ===== 投影轨方法（Q-009 收敛，T-ACCESS-046）：一致性档位见接口 javadoc =====
+
+    @Override
+    public List<ResourceEntity> selectByTypeAndCodesAndCodeTypes(Long tenantId, Integer resourceType,
+                                                                 Set<String> codes, Set<String> codeTypes) {
+        if (codes == null || codes.isEmpty() || codeTypes == null || codeTypes.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(tenantId, resourceType, codes, codeTypes);
+    }
+
+    @Override
+    public void insertResourceEntities(List<ResourceEntity> resources) {
+        if (resources == null || resources.isEmpty()) {
+            return;
+        }
+        resourceEntityMapper.insertBatch(resources);
+    }
+
+    @Override
+    public int batchDisableResourcesStatus(Long tenantId, Set<Long> ids, LocalDateTime updatedAt) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        return resourceEntityMapper.batchDisableStatus(tenantId, ids, updatedAt);
+    }
+
+    @Override
+    public int batchUpdateResourceValues(Long tenantId, String owner, List<ResourceEntity> resources,
+                                         LocalDateTime updatedAt) {
+        if (resources == null || resources.isEmpty()) {
+            return 0;
+        }
+        return resourceEntityMapper.batchUpdateValues(tenantId, owner, resources, updatedAt);
+    }
+
     }

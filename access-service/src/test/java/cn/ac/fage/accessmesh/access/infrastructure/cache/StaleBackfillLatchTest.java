@@ -135,7 +135,8 @@ class StaleBackfillLatchTest {
         abstractRoleMapper = mock(AbstractRoleMapper.class);
         AbstractUserMapper abstractUserMapper = mock(AbstractUserMapper.class);
         subjectDomainService = new SubjectDomainServiceImpl(abstractUserMapper, abstractRoleMapper,
-            userRoleMapper, cacheService, new ObjectMapper());
+            userRoleMapper, mock(cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper.class),
+            cacheService, new ObjectMapper());
     }
 
     private void advanceMs(long millis) {

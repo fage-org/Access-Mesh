@@ -47,6 +47,8 @@ class LocalProjectionDomainServiceImplTest {
     @Mock private ResourceEntityMapper resourceEntityMapper;
     @Mock private cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper typeDefinitionMapper;
     @Mock private UserRoleMapper userRoleMapper;
+    @Mock private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService resourceEntityDomainService;
     @Mock private cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper permissionConditionMapper;
 
     private LocalProjectionDomainServiceImpl service;
@@ -55,7 +57,8 @@ class LocalProjectionDomainServiceImplTest {
     void setUp() {
         service = new LocalProjectionDomainServiceImpl(
             typeResolutionService, abstractUserMapper, abstractRoleMapper,
-            resourceEntityMapper, typeDefinitionMapper, permissionConditionMapper, userRoleMapper);
+            resourceEntityMapper, typeDefinitionMapper, permissionConditionMapper, userRoleMapper,
+            subjectDomainService, resourceEntityDomainService);
     }
 
     @Test
@@ -216,14 +219,14 @@ class LocalProjectionDomainServiceImplTest {
         mockTypes();
         when(abstractUserMapper.selectByTypeAndExternalIds(TENANT, 3, Set.of("123")))
             .thenReturn(List.of(user(100L, "123")));
-        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("123"), Set.of("default")))
+        when(resourceEntityDomainService.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("123"), Set.of("default")))
             .thenReturn(List.of(foreignResource(900L, "123")));
 
         service.batchUpsertAdminUsers(TENANT,
                 List.of(new LocalProjectionDomainService.UpsertUserKey(123L, "张三", true)));
 
         // 已有资源行进入批量刷新，不再因行级归属判定整批回滚
-        verify(resourceEntityMapper).batchUpdateValues(eq(TENANT), eq(LocalProjectionOwner.SERVICE_CODE),
+        verify(resourceEntityDomainService).batchUpdateResourceValues(eq(TENANT), eq(LocalProjectionOwner.SERVICE_CODE),
             org.mockito.ArgumentMatchers.<java.util.List<ResourceEntity>>argThat(
                 list -> list.size() == 1 && list.get(0).getId().equals(900L)),
             any());
@@ -240,14 +243,14 @@ class LocalProjectionDomainServiceImplTest {
         own.setCode("456");
         own.setCodeType("default");
         own.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
-        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("123", "456"), Set.of("default")))
+        when(resourceEntityDomainService.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("123", "456"), Set.of("default")))
             .thenReturn(List.of(foreignResource(900L, "123"), own));
 
         service.batchDeleteAdminUsers(TENANT, Set.of(123L, 456L));
 
         verify(abstractUserMapper).softDeleteBatch(eq(TENANT), eq(List.of(100L, 101L)), any());
         // 命中的两行资源全部软删（不再按 owner 过滤）
-        verify(resourceEntityMapper).softDeleteBatch(eq(TENANT), eq(List.of(900L, 800L)), any());
+        verify(resourceEntityDomainService).softDeleteBatch(eq(TENANT), eq(List.of(900L, 800L)), any());
     }
 
     @Test
@@ -449,7 +452,7 @@ class LocalProjectionDomainServiceImplTest {
         res.setCode("10");
         res.setCodeType("default");
         res.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
-        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("10"), Set.of("default")))
+        when(resourceEntityDomainService.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("10"), Set.of("default")))
             .thenReturn(List.of(res));
 
         Map<Long, Long> result = service.batchUpsertAdminUsers(TENANT,
@@ -461,7 +464,7 @@ class LocalProjectionDomainServiceImplTest {
         verify(abstractUserMapper).batchUpdateValues(eq(TENANT), anyString(),
             org.mockito.ArgumentMatchers.argThat(users -> users.size() == 1 && users.get(0).getId() == 100L),
             any());
-        verify(resourceEntityMapper).batchUpdateValues(eq(TENANT), anyString(),
+        verify(resourceEntityDomainService).batchUpdateResourceValues(eq(TENANT), anyString(),
             org.mockito.ArgumentMatchers.argThat(resources -> resources.size() == 1 && resources.get(0).getId() == 50L),
             any());
     }
@@ -476,18 +479,19 @@ class LocalProjectionDomainServiceImplTest {
         res.setCode("10");
         res.setCodeType("default");
         res.setOwnerServiceCode(LocalProjectionOwner.SERVICE_CODE);
-        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("10"), Set.of("default")))
+        when(resourceEntityDomainService.selectByTypeAndCodesAndCodeTypes(TENANT, 6, Set.of("10"), Set.of("default")))
             .thenReturn(List.of(res));
 
         service.batchDeleteAdminUsers(TENANT, Set.of(10L));
 
-        verify(resourceEntityMapper, never()).selectByTypeAndCodes(any(), any(), any());
-        verify(resourceEntityMapper).selectByTypeAndCodesAndCodeTypes(
+        // code_type 限定已结构性保证：Q-009 收敛后投影 writer 经 ResourceEntityDomainService
+        // 只暴露 selectByTypeAndCodesAndCodeTypes（无无限制变体），旧 never(selectByTypeAndCodes) 锁退役
+        verify(resourceEntityDomainService).selectByTypeAndCodesAndCodeTypes(
             eq(TENANT), eq(6), eq(Set.of("10")), eq(Set.of("default")));
         // 同一事务级联软删该用户全部 user_role（含功能角色，不再依赖延迟补偿）
-        verify(userRoleMapper).softDeleteByAbstractUserIds(eq(TENANT), eq(Set.of(100L)), any());
+        verify(subjectDomainService).softDeleteUserRolesByAbstractUserIds(eq(TENANT), eq(Set.of(100L)), any());
         verify(abstractUserMapper).softDeleteBatch(eq(TENANT), eq(List.of(100L)), any());
-        verify(resourceEntityMapper).softDeleteBatch(eq(TENANT), eq(List.of(50L)), any());
+        verify(resourceEntityDomainService).softDeleteBatch(eq(TENANT), eq(List.of(50L)), any());
     }
 
     @Test

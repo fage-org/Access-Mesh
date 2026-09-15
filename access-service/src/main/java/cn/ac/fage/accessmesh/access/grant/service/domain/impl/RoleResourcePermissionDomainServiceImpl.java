@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionD
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -27,41 +28,65 @@ public class RoleResourcePermissionDomainServiceImpl implements RoleResourcePerm
 
     @Override
     public List<Long> selectValidPermIdsByResourceIds(Long tenantId, List<Long> resourceIds) {
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return Collections.emptyList();
+        }
         return roleResourcePermissionMapper.selectValidPermIdsByResourceIds(tenantId, resourceIds);
     }
 
     @Override
     public Set<Long> selectRoleIdsByResourceIds(Long tenantId, List<Long> resourceIds) {
+        if (resourceIds == null || resourceIds.isEmpty()) {
+            return Collections.emptySet();
+        }
         return roleResourcePermissionMapper.selectRoleIdsByResourceIds(tenantId, resourceIds);
     }
 
     @Override
     public List<Long> selectValidPermIdsByResourceTypes(Long tenantId, Set<Integer> resourceTypes) {
+        if (resourceTypes == null || resourceTypes.isEmpty()) {
+            return Collections.emptyList();
+        }
         return roleResourcePermissionMapper.selectValidPermIdsByResourceTypes(tenantId, resourceTypes);
     }
 
     @Override
     public Set<Long> selectRoleIdsByResourceTypes(Long tenantId, Set<Integer> resourceTypes) {
+        if (resourceTypes == null || resourceTypes.isEmpty()) {
+            return Collections.emptySet();
+        }
         return roleResourcePermissionMapper.selectRoleIdsByResourceTypes(tenantId, resourceTypes);
     }
 
     @Override
     public Set<Long> selectConditionIdsByPermIds(Long tenantId, List<Long> permissionIds) {
+        if (permissionIds == null || permissionIds.isEmpty()) {
+            return Collections.emptySet();
+        }
         return roleResourcePermissionMapper.selectConditionIdsByPermIds(tenantId, permissionIds);
     }
 
     @Override
     public Set<Long> selectReferencedConditionIds(Long tenantId, Set<Long> conditionIds) {
+        if (conditionIds == null || conditionIds.isEmpty()) {
+            return Collections.emptySet();
+        }
         return roleResourcePermissionMapper.selectReferencedConditionIds(tenantId, conditionIds);
     }
 
     @Override
     public Set<String> selectServiceCodesByConditionIds(Long tenantId, Set<Long> conditionIds) {
+        if (conditionIds == null || conditionIds.isEmpty()) {
+            return Collections.emptySet();
+        }
         return roleResourcePermissionMapper.selectServiceCodesByConditionIds(tenantId, conditionIds);
     }
 
     @Override
     public int softDeleteBatch(Long tenantId, List<Long> ids, LocalDateTime deletedAt) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
         return roleResourcePermissionMapper.softDeleteBatch(tenantId, ids, deletedAt);
     }
 }

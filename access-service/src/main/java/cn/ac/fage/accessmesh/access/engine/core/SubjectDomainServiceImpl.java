@@ -10,10 +10,11 @@ import cn.ac.fage.accessmesh.access.type.enums.RoleType;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
+import cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper;
+import cn.ac.fage.accessmesh.access.role.dto.projection.UserRoleProjection;
 import cn.ac.fage.accessmesh.common.cache.CacheReadToken;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
-import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.util.StringUtils;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -51,6 +52,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     private final AbstractUserMapper abstractUserMapper;
     private final AbstractRoleMapper abstractRoleMapper;
     private final UserRoleMapper userRoleMapper;
+    private final UserRoleQueryMapper userRoleQueryMapper;
     private final CacheService cacheService;
     private final ObjectMapper objectMapper;
 
@@ -66,11 +68,13 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     public SubjectDomainServiceImpl(AbstractUserMapper abstractUserMapper,
                                     AbstractRoleMapper abstractRoleMapper,
                                     UserRoleMapper userRoleMapper,
+                                    UserRoleQueryMapper userRoleQueryMapper,
                                     CacheService cacheService,
                                     ObjectMapper objectMapper) {
         this.abstractUserMapper = abstractUserMapper;
         this.abstractRoleMapper = abstractRoleMapper;
         this.userRoleMapper = userRoleMapper;
+        this.userRoleQueryMapper = userRoleQueryMapper;
         this.cacheService = cacheService;
         this.objectMapper = objectMapper;
     }
@@ -184,6 +188,86 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
             return Collections.emptyList();
         }
         return abstractRoleMapper.selectEnabledIdsByIds(tenantId, roleIds);
+    }
+
+    // ===== user_role 原始行层（Q-009，T-ACCESS-046）：无缓存直读直写，一致性档位见接口 javadoc =====
+
+    @Override
+    public List<UserRole> selectValidUserRolesByUserIds(Long tenantId, Set<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return userRoleMapper.selectValidByUserIds(tenantId, userIds);
+    }
+
+    @Override
+    public List<UserRole> selectValidUserRolesByUserIdsAndTargetIds(Long tenantId, Set<Long> userIds,
+                                                                     Set<Long> targetIds, String targetType) {
+        if (userIds == null || userIds.isEmpty() || targetIds == null || targetIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return userRoleMapper.selectValidByUserIdsAndTargetIds(tenantId, userIds, targetIds, targetType);
+    }
+
+    @Override
+    public List<UserRole> selectValidUserRolesByUserIdsAndTargetId(Long tenantId, Set<Long> userIds,
+                                                                    Long targetId, String targetType) {
+        if (userIds == null || userIds.isEmpty() || targetId == null) {
+            return Collections.emptyList();
+        }
+        return userRoleMapper.selectValidByUserIdsAndTargetId(tenantId, userIds, targetId, targetType);
+    }
+
+    @Override
+    public List<UserRole> selectValidUserRolesByUserIdsTypeAndTargetIds(Long tenantId, Set<Long> userIds,
+                                                                         String targetType, Set<Long> targetIds) {
+        if (userIds == null || userIds.isEmpty() || targetIds == null || targetIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return userRoleMapper.selectValidByUserIdsTypeAndTargetIds(tenantId, userIds, targetType, targetIds);
+    }
+
+    @Override
+    public List<UserRole> selectValidUserRolesByUserIdWithValidity(Long userId, Long tenantId,
+                                                                    LocalDateTime now) {
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+        return userRoleMapper.selectValidByUserIdWithValidity(userId, tenantId, now);
+    }
+
+    @Override
+    public List<UserRoleProjection> selectUserRoleProjections(Long tenantId, Long abstractUserId,
+                                                              LocalDateTime now) {
+        if (abstractUserId == null) {
+            return Collections.emptyList();
+        }
+        return userRoleQueryMapper.selectUserRoleProjections(tenantId, abstractUserId, now);
+    }
+
+    @Override
+    public void insertUserRoles(List<UserRole> userRoles) {
+        if (userRoles == null || userRoles.isEmpty()) {
+            return;
+        }
+        userRoleMapper.insertBatch(userRoles);
+    }
+
+    @Override
+    public void softDeleteUserRolesBatch(Long tenantId, List<Long> ids, LocalDateTime deletedAt) {
+        if (ids == null || ids.isEmpty()) {
+            return;
+        }
+        userRoleMapper.softDeleteBatch(tenantId, ids, deletedAt);
+    }
+
+    @Override
+    public void softDeleteUserRolesByAbstractUserIds(Long tenantId, Set<Long> userIds,
+                                                      LocalDateTime deletedAt) {
+        if (userIds == null || userIds.isEmpty()) {
+            return;
+        }
+        userRoleMapper.softDeleteByAbstractUserIds(tenantId, userIds, deletedAt);
     }
 
     @Override
