@@ -829,7 +829,7 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             return new UserRolesResp(req.subjectTypeCode(), req.subjectExternalId(), List.of());
         }
         LocalDateTime now = LocalDateTime.now();
-        List<UserRole> userRoles = subjectDomainService.selectValidUserRolesByUserIdWithValidity(userId, tenantId, now);
+        List<UserRole> userRoles = subjectDomainService.selectValidUserRolesByUserIdWithValidity(tenantId, userId, now);
 
         List<RoleSummary> summaries;
         if (userRoles.isEmpty()) {

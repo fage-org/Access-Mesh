@@ -228,11 +228,12 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     }
 
     @Override
-    public List<UserRole> selectValidUserRolesByUserIdWithValidity(Long userId, Long tenantId,
+    public List<UserRole> selectValidUserRolesByUserIdWithValidity(Long tenantId, Long userId,
                                                                     LocalDateTime now) {
         if (userId == null) {
             return Collections.emptyList();
         }
+        // mapper 既有签名为 (userId, tenantId)——服务面归一 tenantId 领先后在此转序
         return userRoleMapper.selectValidByUserIdWithValidity(userId, tenantId, now);
     }
 

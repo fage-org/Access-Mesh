@@ -44,4 +44,6 @@ Q-009 转出批次④（收口）：user-role 原始行/投影读写收敛到 en
 
 双轨本地评审处置：代码轨零 P0-P2，P3×5 全处置（P3-1/P3-2 两服务空集守卫补齐 9 处、P3-3 重复 import/同包冗余 import 清理、P3-4 mock 变量名沿用为既定最小 diff 策略不修、P3-5 存量文件尾格式不动）；文档轨 P1（046 终态化时序——即本记录）、P2（fixture 位置口径订正 plan+卡）、P3×6 全修（架构测试类 javadoc 终态、豁免 3 措辞、豁免 6 注记、last_reviewed、registry 清单补 design/README、git add -A 覆盖 untracked 夹具）。
 
+外部评审轮（2026-09-15 claude+grok 双通道，范围 10d901db6..HEAD）：两通道均判「无需补救修复（可维持收口）」，零 P0-P2；claude P3×5 / grok P3×1（交叉命中归档死链族），全部逐条核实成立并同批修复——①归档后四处活文档死链改挂（看板分区导语 active 标签、Q-009 索引行、capability-structure 进度注记、registry 两行出处列）+ registry 日志锚点对齐 t046_reactor3.log（首跑失败为 t046_reactor2.log 已注明）；②架构断言删除可注入 whitelist 重载活口（负向自证改调单参、javadoc 去「+ 冻结白名单」残留）；③ResourceEntityDomainServiceImpl 存量「所有写操作均使用事务」句对齐收敛契约 + 未用 Transactional import 删除；④SubjectDomainService.selectValidUserRolesByUserIdWithValidity 参数序归一 tenantId 领先（同族一致，防 @Param 按名绑定下的静默取反）。修复后 `mvn test -pl access-service -DskipTestcontainers=true` → 1248/0/0（t046_unit3.log）。
+
 回归证据：`mvn test -pl access-service -DskipTestcontainers=true` → 1248/0/0（2026-09-15，t046_unit2.log；较批次③ 少 1=frozenWhitelistShapeIsLocked 退役）；`mvn test -pl access-service` → 1248+210 双 fork 全绿 BUILD SUCCESS（t046_full.log）；收口全量 `mvn test -T 1C`（E2E 必跑，先核 9100/端口）→ 首跑 e2e 随机端口竞态（子进程绑定 56018 撞 TIME_WAIT 残留，已知抖动族），处置修复后终态代码复跑 **1698/0F/0E/0S BUILD SUCCESS**（2026-09-15，t046_reactor3.log）。

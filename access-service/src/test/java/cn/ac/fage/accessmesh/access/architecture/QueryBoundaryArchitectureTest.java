@@ -57,20 +57,15 @@ class QueryBoundaryArchitectureTest {
     }
 
     /**
-     * 能力包 Mapper 数据边界（§8.4 规则 1，12 能力包全组合 + 冻结白名单）。
+     * 能力包 Mapper 数据边界（§8.4 规则 1，12 能力包全组合，零容忍无白名单）。
      * <p>
      * 实现=字节码级依赖遍历（{@code getDirectDependenciesFromSelf} 覆盖 import 行与内联 FQCN
      * 全形态）：消费方能力包 → 他能力包 {@code {cap}.mapper} 的任何依赖即违规
-     * （Q-009 收敛完成，冻结白名单退役为零容忍）。
+     * （Q-009 收敛完成，冻结白名单退役为零容忍——无任何可注入豁免通道）。
      * 供 {@link AccessServiceArchitectureTest} 以同一规则文本复检（§8.4「同断言两处引用同一规则文本」）。
      * </p>
      */
     static void checkCapabilityMapperBoundary(JavaClasses imported) {
-        checkCapabilityMapperBoundary(imported, java.util.Map.of());
-    }
-
-    /** 负向自证入口：可注入白名单（终态恒空注入），供夹具自证规则的拒绝能力。 */
-    static void checkCapabilityMapperBoundary(JavaClasses imported, java.util.Map<String, java.util.Set<String>> whitelist) {
         Set<String> violations = new java.util.TreeSet<>();
         for (JavaClass clazz : imported) {
             String consumerCap = capabilityOf(clazz.getPackageName());
@@ -83,13 +78,7 @@ class QueryBoundaryArchitectureTest {
                 if (targetCap == null || targetCap.equals(consumerCap)) {
                     continue;
                 }
-                // 嵌套类（编译产物 $ 形态）归一到外部类再查白名单——§8.4 表按源文件级「19 类 30 边」计数
-                String consumerKey = outerClassName(clazz.getFullName());
-                String targetKey = outerClassName(target.getFullName());
-                if (whitelist.getOrDefault(consumerKey, Set.of()).contains(targetKey)) {
-                    continue;
-                }
-                violations.add(clazz.getFullName() + " -> " + target.getFullName()
+                violations.add(outerClassName(clazz.getFullName()) + " -> " + outerClassName(target.getFullName())
                     + "（" + consumerCap + " 直读 " + targetCap + " mapper）");
             }
         }
@@ -192,7 +181,7 @@ class QueryBoundaryArchitectureTest {
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_JARS)
             .importPackages(BASE + ".menu.fixture");
         assertThat(fixture.size()).as("夹具类必须被导入").isGreaterThan(0);
-        assertThatThrownBy(() -> checkCapabilityMapperBoundary(fixture, java.util.Map.of()))
+        assertThatThrownBy(() -> checkCapabilityMapperBoundary(fixture))
             .isInstanceOf(AssertionError.class)
             .hasMessageContaining("UserRoleMapper");
     }

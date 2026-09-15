@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,7 +25,7 @@ import java.util.Set;
  * - 获取子孙ID（使用CTE递归查询）
  * - 批量查询、批量软删除
  * 使用CTE递归查询高效获取子孙ID，避免N+1问题。
- * 所有写操作均使用事务保证数据一致性。
+ * 写操作不自行声明事务（REQUIRED 跟随调用方事务，Q-009 收敛契约）。
  * </p>
  */
 @Service

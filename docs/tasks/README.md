@@ -80,7 +80,7 @@
 
 ### access-service 跨能力 mapper 直读收敛（Q-009 转出，2026-09-15 立项）
 
-> [capability-mapper-convergence-plan](../plans/capability-mapper-convergence-plan.md)（active）：冻结白名单 19 类 30 边全量收敛至零并退役断言白名单；定案与新服务硬契约见 decision-registry 2026-09-15 行；计划内四任务串行（白名单记账串行化），边清单以计划文件「消费类:行号 → mapper#方法」定位为准。
+> [capability-mapper-convergence-plan](../archive/2026-09-15/capability-mapper-convergence-plan.md)（已归档 2026-09-15，四任务全 done）：冻结白名单 19 类 30 边全量收敛至零并退役断言白名单；定案与新服务硬契约见 decision-registry 2026-09-15 行；计划内四任务串行（白名单记账串行化），边清单以计划文件「消费类:行号 → mapper#方法」定位为准。
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|

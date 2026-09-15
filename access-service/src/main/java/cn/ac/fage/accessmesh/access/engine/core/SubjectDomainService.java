@@ -129,7 +129,7 @@ public interface SubjectDomainService {
      * 单用户有效期窗口内的有效关系原始行（用户角色展示；无缓存直读）。
      */
     java.util.List<cn.ac.fage.accessmesh.access.role.entity.UserRole> selectValidUserRolesByUserIdWithValidity(
-        Long userId, Long tenantId, java.time.LocalDateTime now);
+        Long tenantId, Long userId, java.time.LocalDateTime now);
 
     /**
      * 用户角色关系投影读（user_role JOIN abstract_role 双投影形态；无门禁版，menu 登录链路
