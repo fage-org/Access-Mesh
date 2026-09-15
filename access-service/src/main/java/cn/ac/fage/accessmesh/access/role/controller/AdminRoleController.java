@@ -24,7 +24,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/role")
+@RequestMapping("/api/access/role")
 public class AdminRoleController {
 
     private final UserRoleQueryAppService userRoleQueryService;

@@ -101,7 +101,7 @@ class SecurityMatrixIT {
     @Test
     @DisplayName("公开认证：/auth/** 匿名可访问（ANONYMOUS 上下文）")
     void authPublicPath_allowsAnonymous() throws Exception {
-        mockMvc.perform(post("/auth/captcha"))
+        mockMvc.perform(post("/api/access/auth/captcha"))
             .andExpect(status().isOk());
         assertThat(AccessRequestContext.getCallerType()).isNull();
     }
@@ -116,18 +116,24 @@ class SecurityMatrixIT {
     }
 
     @Test
-    @DisplayName("用户管理：无会话 /user/** → 401 显式门禁（G3 修复：不依赖服务层隐式异常）")
-    void userAdmin_withoutSession_rejected401() throws Exception {
-        mockMvc.perform(post("/user/page")
+    @DisplayName("用户管理：持密无用户身份（SERVICE 上下文）→ 403 显式拒绝（G3 门禁保持，T-ACCESS-042 边界收口）")
+    void userAdmin_serviceContextWithoutUser_rejected403() throws Exception {
+        mockMvc.perform(post("/api/access/user/page")
+                // T-ACCESS-042：管理面并入内部密钥边界。无密钥直连由 InternalApiSecretInterceptor
+                // 403（transport 边界）；用户面无会话 401 由 Gateway AuthTokenFilter 前置（gateway
+                // 模块测试锁定）；本用例锁服务层身份门禁——持密但无用户操作者（SERVICE 上下文）
+                // 触达用户态端点必须显式拒绝（旧实现环境性异常 500，已收敛）
+                .header("X-Internal-Secret", INTERNAL_SECRET)
+                .header("X-Tenant-Id", "1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
-            .andExpect(status().isUnauthorized());
+            .andExpect(status().isForbidden());
     }
 
     @Test
     @DisplayName("评审 P1-1：会话型认证端点 /auth/userinfo 无会话 → 401（不再匿名放行）")
     void authSessionEndpoint_withoutLogin_rejected401() throws Exception {
-        mockMvc.perform(post("/auth/userinfo"))
+        mockMvc.perform(post("/api/access/auth/userinfo"))
             .andExpect(status().isUnauthorized());
     }
 
@@ -158,7 +164,7 @@ class SecurityMatrixIT {
         user.setUsername("oauth2-user");
         when(userDomainService.selectValidById(1L, 100L)).thenReturn(user);
 
-        mockMvc.perform(post("/auth/oauth2/userinfo")
+        mockMvc.perform(post("/api/access/auth/oauth2/userinfo")
                 .header("Authorization", "Bearer " + jwt))
             .andExpect(status().isOk())
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
@@ -176,7 +182,7 @@ class SecurityMatrixIT {
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
             java.util.Map.of("tenant_id", "1", "jti", "jti-disabled-" + ts, "client_id", "admin-web"), JWT_SECRET);
 
-        mockMvc.perform(post("/auth/oauth2/userinfo")
+        mockMvc.perform(post("/api/access/auth/oauth2/userinfo")
                 .header("Authorization", "Bearer " + jwt))
             .andExpect(status().isUnauthorized());
     }
@@ -193,7 +199,7 @@ class SecurityMatrixIT {
     @Test
     @DisplayName("外部 sync：内部凭证 + sourceService 与 X-Service-Code 一致 → 身份层放行（G2）")
     void sync_withInternalSecret_bindsServiceContext() throws Exception {
-        mockMvc.perform(post("/api/perm/abstract-user/sync")
+        mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", "example-service")
@@ -212,7 +218,7 @@ class SecurityMatrixIT {
     @Test
     @DisplayName("外部 sync：无内部凭证 → 403（服务身份认证强制）")
     void sync_withoutInternalSecret_rejected403() throws Exception {
-        mockMvc.perform(post("/api/perm/abstract-user/sync")
+        mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header("X-Tenant-Id", "1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
@@ -222,7 +228,7 @@ class SecurityMatrixIT {
     @Test
     @DisplayName("权限管理：内部凭证 + 伪造 X-User-Id 无签名 → 403（G1：验签才绑定操作者）")
     void permManage_withInternalSecretAndForgedUserId_rejected403() throws Exception {
-        mockMvc.perform(post("/api/perm/domain-config/list")
+        mockMvc.perform(post("/api/access/domain-config/list")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-User-Id", "999")
@@ -237,7 +243,7 @@ class SecurityMatrixIT {
     void permManage_withInternalSecretAndVerifiedUserId_allowed() throws Exception {
         long ts = System.currentTimeMillis() / 1000;
         String sig = hmac("100", "1", ts);
-        mockMvc.perform(post("/api/perm/domain-config/list")
+        mockMvc.perform(post("/api/access/domain-config/list")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-User-Id", "100")
@@ -255,7 +261,7 @@ class SecurityMatrixIT {
     @DisplayName("跨请求隔离：前一请求 afterCompletion 清理后，后一请求绑定自己的租户（防租户串扰）")
     void requestIsolation_preventsTenantCrosstalk() throws Exception {
         // 请求 A：租户 1（SERVICE 上下文）
-        mockMvc.perform(post("/api/perm/abstract-user/sync")
+        mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", "svc-a")
@@ -270,7 +276,7 @@ class SecurityMatrixIT {
         assertThat(AccessRequestContext.getTenantId()).isNull();
 
         // 请求 B：租户 2（SERVICE 上下文）
-        mockMvc.perform(post("/api/perm/abstract-user/sync")
+        mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header("X-Tenant-Id", "2")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", "svc-b")

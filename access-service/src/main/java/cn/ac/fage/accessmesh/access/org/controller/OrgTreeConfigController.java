@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/org-tree-config")
+@RequestMapping("/api/access/org-tree-config")
 public class OrgTreeConfigController {
 
     private final OrgTreeConfigAppService orgTreeConfigService;

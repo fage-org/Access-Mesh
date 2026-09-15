@@ -30,7 +30,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/resource-dependency")
+@RequestMapping("/api/access/resource-dependency")
 public class ResourceDependencyController {
 
     private final DependencyAppService dependencyManageService;

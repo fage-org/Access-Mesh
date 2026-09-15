@@ -49,10 +49,10 @@ class OAuth2PassthroughFilterTest {
     @Test
     @DisplayName("命中透传路径 + Bearer 三段式 JWT → 设置 skipAuth=true")
     void matchedPathWithJwt_setsSkipAuth() {
-        OAuth2PassthroughFilter filter = filterWith(List.of("/admin/api/example/**"));
+        OAuth2PassthroughFilter filter = filterWith(List.of("/api/example/**"));
         GatewayFilterChain chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
-        MockServerWebExchange exchange = exchange("/admin/api/example/resource/action", OAUTH2_JWT);
+        MockServerWebExchange exchange = exchange("/api/example/resource/action", OAUTH2_JWT);
 
         filter.filter(exchange, chain).block();
 
@@ -63,10 +63,10 @@ class OAuth2PassthroughFilterTest {
     @Test
     @DisplayName("评审 P1：命中路径 + 平台 uuid 会话令牌（无 '.'）→ 不设 skipAuth，走正常会话校验与 Gateway 鉴权")
     void matchedPathWithUuidSessionToken_doesNotSetSkipAuth() {
-        OAuth2PassthroughFilter filter = filterWith(List.of("/admin/api/example/**"));
+        OAuth2PassthroughFilter filter = filterWith(List.of("/api/example/**"));
         GatewayFilterChain chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
-        MockServerWebExchange exchange = exchange("/admin/api/example/resource/action", UUID_SESSION_TOKEN);
+        MockServerWebExchange exchange = exchange("/api/example/resource/action", UUID_SESSION_TOKEN);
 
         filter.filter(exchange, chain).block();
 
@@ -77,10 +77,10 @@ class OAuth2PassthroughFilterTest {
     @Test
     @DisplayName("评审 P1：命中路径 + 无 Authorization 头 → 不设 skipAuth（由 AuthTokenFilter 401）")
     void matchedPathWithoutAuthorization_doesNotSetSkipAuth() {
-        OAuth2PassthroughFilter filter = filterWith(List.of("/admin/api/example/**"));
+        OAuth2PassthroughFilter filter = filterWith(List.of("/api/example/**"));
         GatewayFilterChain chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
-        MockServerWebExchange exchange = exchange("/admin/api/example/resource/action", null);
+        MockServerWebExchange exchange = exchange("/api/example/resource/action", null);
 
         filter.filter(exchange, chain).block();
 
@@ -91,10 +91,10 @@ class OAuth2PassthroughFilterTest {
     @Test
     @DisplayName("命中路径 + 非 Bearer 前缀 Authorization → 不设 skipAuth")
     void matchedPathWithNonBearerAuthorization_doesNotSetSkipAuth() {
-        OAuth2PassthroughFilter filter = filterWith(List.of("/admin/api/example/**"));
+        OAuth2PassthroughFilter filter = filterWith(List.of("/api/example/**"));
         GatewayFilterChain chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
-        MockServerWebExchange exchange = exchange("/admin/api/example/resource/action", "Basic dXNlcjpwYXNz");
+        MockServerWebExchange exchange = exchange("/api/example/resource/action", "Basic dXNlcjpwYXNz");
 
         filter.filter(exchange, chain).block();
 
@@ -105,10 +105,10 @@ class OAuth2PassthroughFilterTest {
     @Test
     @DisplayName("未命中路径（携带 JWT）→ 不设置 skipAuth（身份过滤器正常执行）")
     void unmatchedPath_doesNotSetSkipAuth() {
-        OAuth2PassthroughFilter filter = filterWith(List.of("/admin/api/example/**"));
+        OAuth2PassthroughFilter filter = filterWith(List.of("/api/example/**"));
         GatewayFilterChain chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
-        MockServerWebExchange exchange = exchange("/admin/api/user/page", OAUTH2_JWT);
+        MockServerWebExchange exchange = exchange("/api/access/user/page", OAUTH2_JWT);
 
         filter.filter(exchange, chain).block();
 
@@ -123,7 +123,7 @@ class OAuth2PassthroughFilterTest {
         GatewayFilterChain chain = mock(GatewayFilterChain.class);
         when(chain.filter(any())).thenReturn(Mono.empty());
 
-        MockServerWebExchange matched = exchange("/admin/api/example/resource/action", OAUTH2_JWT);
+        MockServerWebExchange matched = exchange("/api/example/resource/action", OAUTH2_JWT);
         filter.filter(matched, chain).block();
 
         Boolean matchedSkipAuth = matched.getAttribute("skipAuth");

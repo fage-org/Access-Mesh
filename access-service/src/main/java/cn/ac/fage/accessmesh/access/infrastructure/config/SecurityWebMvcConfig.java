@@ -11,10 +11,11 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * 全库唯一 WebMvcConfigurer，注册统一安全链，执行顺序如下：
  * </p>
  * <ol>
- *   <li>order=1 InternalApiSecretInterceptor — 仅作用于 /api/perm/**。
+ *   <li>order=1 InternalApiSecretInterceptor — 作用于 /api/access/**（豁免 /api/access/auth/**
+ *       会话入口族，T-ACCESS-042 URL 单命名空间）。
  *       内部凭证（X-Internal-Secret）通过则在 request 写 INTERNAL_AUTHENTICATED=true；
  *       失败直接 403 阻断后续。</li>
- *   <li>order=2 HeaderSignatureInterceptor — 覆盖 /api/**, /internal/**, /actuator/**。
+ *   <li>order=2 HeaderSignatureInterceptor — 覆盖 /api/access/**, /internal/**。
  *       X-User-Id 头恒需验签（含内部凭证场景）；通过后写 SIGNATURE_VERIFIED attribute。</li>
  *   <li>order=3 RequestContextInterceptor — 覆盖 /**。唯一绑定
  *       {@link cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext} 的入口：
@@ -47,9 +48,13 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         // order=1：内部密钥拦截器必须最先执行，成功时写 attribute 供后续决策。
-        // 仅覆盖 /api/perm/**（不跨 actuator/internal）；失败直接 403 终止链。
+        // 覆盖 /api/access/**（T-ACCESS-042 前为 /api/perm/**——管理面并入后统一「仅经
+        // Gateway 或持密服务可达」）；豁免 /api/access/auth/**（会话入口族保留自有信任
+        // 模型：公开子集匿名、userinfo/user-menu 走 Sa-Token 会话分支、oauth2/userinfo
+        // 走 JWT 分支——密钥拦截会架空服务层会话校验）。失败直接 403 终止链。
         registry.addInterceptor(internalApiSecretInterceptor)
-                .addPathPatterns("/api/perm/**")
+                .addPathPatterns("/api/access/**")
+                .excludePathPatterns("/api/access/auth/**")
                 .order(1);
 
         // order=2：签名拦截器，覆盖所有受控路径。
@@ -57,7 +62,7 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
         // 评审 P2-2（2026-08-14）：/actuator/** 排除出签名链——公开端点契约不依赖头，
         // 监控探针带 X-Tenant-Id 头访问 health 时不被路径 4 误拒。
         registry.addInterceptor(headerSignatureInterceptor)
-                .addPathPatterns("/api/**", "/internal/**")
+                .addPathPatterns("/api/access/**", "/internal/**")
                 .order(2);
 
         // order=3：统一请求上下文拦截器，覆盖全部路径（公开路径内部放行）。

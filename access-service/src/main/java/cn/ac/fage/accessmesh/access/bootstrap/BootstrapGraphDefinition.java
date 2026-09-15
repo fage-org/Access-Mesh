@@ -14,9 +14,10 @@ import java.util.List;
  * 定义为唯一事实源，禁止在检测/创建两侧各自维护清单。
  * </p>
  * <p>
- * API 资源 {@code resource_entity(API).code = "{METHOD}:{外部路径}"}（外部路径含 Gateway 路由
- * 前缀 /perm、/admin——Gateway PermissionFilter 以原始请求路径匹配 resource_api_mapping.path_pattern）；
- * 目标接口 {@code POST /admin/role/my-info} 仅预建资源并预授 API:ACCESS+canGrant，不建映射
+ * API 资源 {@code resource_entity(API).code = "{METHOD}:{外部路径}"}（T-ACCESS-042 起 URL 单命名空间，
+ * 外部路径 = 服务路径 /api/access/**，无 Gateway 路由前缀与 StripPrefix——Gateway PermissionFilter
+ * 以原始请求路径匹配 resource_api_mapping.path_pattern，注册值即控制器真实路径）；
+ * 目标接口 {@code POST /api/access/role/my-info} 仅预建资源并预授 API:ACCESS+canGrant，不建映射
  * （映射由 E2E 真实创建，T-ACCESS-021）。
  * </p>
  */
@@ -62,7 +63,7 @@ public final class BootstrapGraphDefinition {
      * bootstrap 管理 API 清单条目。
      *
      * @param method         HTTP 方法
-     * @param path           外部路径（Gateway 视角，含 /perm、/admin 前缀）
+     * @param path           外部路径（T-ACCESS-042 起外部=服务路径 /api/access/**，无路由前缀）
      * @param name           资源显示名（授权页资源树可见）
      * @param withMapping    是否预建 resource_api_mapping（目标接口 false，映射归 E2E 真实创建）
      * @param grantCanGrant  该 API 实例授权是否携带 canGrant=true（仅目标接口，授权传递用）
@@ -110,120 +111,120 @@ public final class BootstrapGraphDefinition {
      */
     public static List<ApiRoute> apiRoutes() {
         return List.of(
-            new ApiRoute("POST", "/perm/api/perm/abstract-role/tree", "bootstrap:授权页角色树", true, false),
-            new ApiRoute("POST", "/perm/api/perm/type-definition/list", "bootstrap:授权页类型定义列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-entity/tree", "bootstrap:授权页资源树", true, false),
-            new ApiRoute("POST", "/perm/api/perm/operation-permission/list", "bootstrap:授权页操作列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/permission-condition/list", "bootstrap:授权页条件列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/role-resource-permission/list", "bootstrap:授权页既有授权查询", true, false),
-            new ApiRoute("POST", "/perm/api/perm/role-resource-permission/sub-perm-allowed-types", "bootstrap:授权页子权限类型查询", true, false),
-            new ApiRoute("POST", "/admin/user/create", "bootstrap:创建用户", true, false),
-            new ApiRoute("POST", "/perm/api/perm/abstract-role/create", "bootstrap:创建角色", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-api-mapping/create", "bootstrap:创建API映射", true, false),
-            new ApiRoute("POST", "/perm/api/perm/role-resource-permission/apply-grant-plan", "bootstrap:授权与回收", true, false),
-            new ApiRoute("POST", "/perm/api/perm/user-role/assign", "bootstrap:分配角色", true, false),
+            new ApiRoute("POST", "/api/access/abstract-role/tree", "bootstrap:授权页角色树", true, false),
+            new ApiRoute("POST", "/api/access/type-definition/list", "bootstrap:授权页类型定义列表", true, false),
+            new ApiRoute("POST", "/api/access/resource-entity/tree", "bootstrap:授权页资源树", true, false),
+            new ApiRoute("POST", "/api/access/operation-permission/list", "bootstrap:授权页操作列表", true, false),
+            new ApiRoute("POST", "/api/access/permission-condition/list", "bootstrap:授权页条件列表", true, false),
+            new ApiRoute("POST", "/api/access/role-resource-permission/list", "bootstrap:授权页既有授权查询", true, false),
+            new ApiRoute("POST", "/api/access/role-resource-permission/sub-perm-allowed-types", "bootstrap:授权页子权限类型查询", true, false),
+            new ApiRoute("POST", "/api/access/user/create", "bootstrap:创建用户", true, false),
+            new ApiRoute("POST", "/api/access/abstract-role/create", "bootstrap:创建角色", true, false),
+            new ApiRoute("POST", "/api/access/resource-api-mapping/create", "bootstrap:创建API映射", true, false),
+            new ApiRoute("POST", "/api/access/role-resource-permission/apply-grant-plan", "bootstrap:授权与回收", true, false),
+            new ApiRoute("POST", "/api/access/user-role/assign", "bootstrap:分配角色", true, false),
             // T-FE-015：组织与用户页消费端点（Gateway 层逐端点精确注册——未映射路径
             // fail-closed 403，Phase 3 首次真实联调暴露的系统性缺口；端点级粒度对齐
             // 产品 API 级授权能力，后续联调任务按页同样扩展）。/admin/user/create 已在上方清单
-            new ApiRoute("POST", "/admin/org-tree-config/page", "bootstrap:组织树配置分页", true, false),
-            new ApiRoute("POST", "/admin/org/tree", "bootstrap:组织树查询", true, false),
-            new ApiRoute("POST", "/admin/org/page", "bootstrap:组织分页", true, false),
-            new ApiRoute("POST", "/admin/org/create", "bootstrap:创建组织", true, false),
-            new ApiRoute("POST", "/admin/org/update", "bootstrap:更新组织", true, false),
-            new ApiRoute("POST", "/admin/org/delete", "bootstrap:删除组织", true, false),
-            new ApiRoute("POST", "/admin/org/users", "bootstrap:组织成员查询", true, false),
-            new ApiRoute("POST", "/admin/user/page", "bootstrap:用户分页", true, false),
-            new ApiRoute("POST", "/admin/user/update", "bootstrap:更新用户", true, false),
-            new ApiRoute("POST", "/admin/user/delete", "bootstrap:删除用户", true, false),
-            new ApiRoute("POST", "/admin/user/enable", "bootstrap:用户启停", true, false),
-            new ApiRoute("POST", "/admin/user/reset-password", "bootstrap:重置密码", true, false),
-            new ApiRoute("POST", "/admin/user/member-candidates", "bootstrap:成员候选查询", true, false),
-            new ApiRoute("POST", "/admin/user-org/list", "bootstrap:用户组织查询", true, false),
-            new ApiRoute("POST", "/admin/user-org/assign", "bootstrap:分配组织", true, false),
-            new ApiRoute("POST", "/admin/user-org/remove", "bootstrap:移除组织关联", true, false),
-            new ApiRoute("POST", "/admin/user-org/set-primary", "bootstrap:设置主组织", true, false),
-            new ApiRoute("POST", "/admin/user-role/list", "bootstrap:用户角色查询", true, false),
-            new ApiRoute("POST", "/perm/api/perm/user-role/revoke", "bootstrap:回收角色", true, false),
-            new ApiRoute("POST", "/admin/role/list", "bootstrap:功能角色列表", true, false),
+            new ApiRoute("POST", "/api/access/org-tree-config/page", "bootstrap:组织树配置分页", true, false),
+            new ApiRoute("POST", "/api/access/org/tree", "bootstrap:组织树查询", true, false),
+            new ApiRoute("POST", "/api/access/org/page", "bootstrap:组织分页", true, false),
+            new ApiRoute("POST", "/api/access/org/create", "bootstrap:创建组织", true, false),
+            new ApiRoute("POST", "/api/access/org/update", "bootstrap:更新组织", true, false),
+            new ApiRoute("POST", "/api/access/org/delete", "bootstrap:删除组织", true, false),
+            new ApiRoute("POST", "/api/access/org/users", "bootstrap:组织成员查询", true, false),
+            new ApiRoute("POST", "/api/access/user/page", "bootstrap:用户分页", true, false),
+            new ApiRoute("POST", "/api/access/user/update", "bootstrap:更新用户", true, false),
+            new ApiRoute("POST", "/api/access/user/delete", "bootstrap:删除用户", true, false),
+            new ApiRoute("POST", "/api/access/user/enable", "bootstrap:用户启停", true, false),
+            new ApiRoute("POST", "/api/access/user/reset-password", "bootstrap:重置密码", true, false),
+            new ApiRoute("POST", "/api/access/user/member-candidates", "bootstrap:成员候选查询", true, false),
+            new ApiRoute("POST", "/api/access/user-org/list", "bootstrap:用户组织查询", true, false),
+            new ApiRoute("POST", "/api/access/user-org/assign", "bootstrap:分配组织", true, false),
+            new ApiRoute("POST", "/api/access/user-org/remove", "bootstrap:移除组织关联", true, false),
+            new ApiRoute("POST", "/api/access/user-org/set-primary", "bootstrap:设置主组织", true, false),
+            new ApiRoute("POST", "/api/access/user-role/view", "bootstrap:用户角色管理视图", true, false),
+            new ApiRoute("POST", "/api/access/user-role/revoke", "bootstrap:回收角色", true, false),
+            new ApiRoute("POST", "/api/access/role/list", "bootstrap:功能角色列表", true, false),
             // T-FE-016：角色管理页消费端点（tree/create 已在上方清单）——update/remove/move
             // 写路径 + detail 编辑回显（树节点无 extra 字段，编辑表单按业务键拉 detail 回填，
             // role-manage.md §8 既定路径）。list 端点本页不消费（冲突规则页 T-FE-020 届时注册）
-            new ApiRoute("POST", "/perm/api/perm/abstract-role/update", "bootstrap:更新角色", true, false),
-            new ApiRoute("POST", "/perm/api/perm/abstract-role/remove", "bootstrap:删除角色", true, false),
-            new ApiRoute("POST", "/perm/api/perm/abstract-role/move", "bootstrap:移动角色", true, false),
-            new ApiRoute("POST", "/perm/api/perm/abstract-role/detail", "bootstrap:角色详情", true, false),
+            new ApiRoute("POST", "/api/access/abstract-role/update", "bootstrap:更新角色", true, false),
+            new ApiRoute("POST", "/api/access/abstract-role/remove", "bootstrap:删除角色", true, false),
+            new ApiRoute("POST", "/api/access/abstract-role/move", "bootstrap:移动角色", true, false),
+            new ApiRoute("POST", "/api/access/abstract-role/detail", "bootstrap:角色详情", true, false),
             // T-FE-017：资源与操作定义页消费端点（tree、operation-permission/list 已在上方清单）。
             // resource-entity/detail 编辑回显（树节点无 extra，按业务键拉 detail）；operation detail
             // 与 resource list 本页不消费不注册（后续消费页按页注册）；remove 为批量端点（items 集合）
-            new ApiRoute("POST", "/perm/api/perm/resource-entity/detail", "bootstrap:资源详情", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-entity/create", "bootstrap:创建资源", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-entity/update", "bootstrap:更新资源", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-entity/move", "bootstrap:移动资源", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-entity/remove", "bootstrap:删除资源", true, false),
-            new ApiRoute("POST", "/perm/api/perm/operation-permission/create", "bootstrap:创建操作权限", true, false),
-            new ApiRoute("POST", "/perm/api/perm/operation-permission/update", "bootstrap:更新操作权限", true, false),
-            new ApiRoute("POST", "/perm/api/perm/operation-permission/remove", "bootstrap:删除操作权限", true, false),
+            new ApiRoute("POST", "/api/access/resource-entity/detail", "bootstrap:资源详情", true, false),
+            new ApiRoute("POST", "/api/access/resource-entity/create", "bootstrap:创建资源", true, false),
+            new ApiRoute("POST", "/api/access/resource-entity/update", "bootstrap:更新资源", true, false),
+            new ApiRoute("POST", "/api/access/resource-entity/move", "bootstrap:移动资源", true, false),
+            new ApiRoute("POST", "/api/access/resource-entity/remove", "bootstrap:删除资源", true, false),
+            new ApiRoute("POST", "/api/access/operation-permission/create", "bootstrap:创建操作权限", true, false),
+            new ApiRoute("POST", "/api/access/operation-permission/update", "bootstrap:更新操作权限", true, false),
+            new ApiRoute("POST", "/api/access/operation-permission/remove", "bootstrap:删除操作权限", true, false),
             // T-FE-020：条件与冲突规则页消费端点（condition/list、type-definition/list、
             // operation-permission/list 已在上方清单）。condition/detail 页面不消费不注册；
             // abstract-role/list 为冲突规则页角色选择器消费（T-FE-016 登记的届时注册事项）；
             // 业务门禁零新增（CONFLICT_RULE 四档与 CONDITION 写三档已在图，T-PERM-029/030 预置）
-            new ApiRoute("POST", "/perm/api/perm/abstract-role/list", "bootstrap:冲突规则页角色列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/permission-condition/create", "bootstrap:创建条件", true, false),
-            new ApiRoute("POST", "/perm/api/perm/permission-condition/update", "bootstrap:更新条件", true, false),
-            new ApiRoute("POST", "/perm/api/perm/permission-condition/remove", "bootstrap:删除条件", true, false),
-            new ApiRoute("POST", "/perm/api/perm/conflict-rule/list", "bootstrap:冲突规则列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/conflict-rule/create", "bootstrap:创建冲突规则", true, false),
-            new ApiRoute("POST", "/perm/api/perm/conflict-rule/update", "bootstrap:更新冲突规则", true, false),
-            new ApiRoute("POST", "/perm/api/perm/conflict-rule/remove", "bootstrap:删除冲突规则", true, false),
-            new ApiRoute("POST", "/perm/api/perm/conflict-rule/detect", "bootstrap:冲突检测", true, false),
+            new ApiRoute("POST", "/api/access/abstract-role/list", "bootstrap:冲突规则页角色列表", true, false),
+            new ApiRoute("POST", "/api/access/permission-condition/create", "bootstrap:创建条件", true, false),
+            new ApiRoute("POST", "/api/access/permission-condition/update", "bootstrap:更新条件", true, false),
+            new ApiRoute("POST", "/api/access/permission-condition/remove", "bootstrap:删除条件", true, false),
+            new ApiRoute("POST", "/api/access/conflict-rule/list", "bootstrap:冲突规则列表", true, false),
+            new ApiRoute("POST", "/api/access/conflict-rule/create", "bootstrap:创建冲突规则", true, false),
+            new ApiRoute("POST", "/api/access/conflict-rule/update", "bootstrap:更新冲突规则", true, false),
+            new ApiRoute("POST", "/api/access/conflict-rule/remove", "bootstrap:删除冲突规则", true, false),
+            new ApiRoute("POST", "/api/access/conflict-rule/detect", "bootstrap:冲突检测", true, false),
             // query-scopes 运行时 SDK 契约端点（§6.7，无排查门禁）——固定图注册维持空库 API 映射种子。
             // 权限排查页及其消费的 effective-permissions/explain 已删除（T-PERM-059，2026-09-10 删除重设计定案）
-            new ApiRoute("POST", "/perm/api/perm/auth/query-scopes", "bootstrap:范围权限四态", true, false),
+            new ApiRoute("POST", "/api/access/auth/query-scopes", "bootstrap:范围权限四态", true, false),
             // T-FE-021：业务域配置页消费端点（biz-domain 5 + domain-config 4，T-PERM-026 实现）。
             // biz-domain list/detail 门禁 DOMAIN:VIEW、写操作与 domain-config 门禁 SYSTEM_CONFIG:VIEW/MANAGE
             // ——两类均已在固定图（OPERATION_LOG 先例/系统配置页门禁），业务门禁零新增
-            new ApiRoute("POST", "/perm/api/perm/biz-domain/list", "bootstrap:业务域列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/biz-domain/detail", "bootstrap:业务域详情", true, false),
-            new ApiRoute("POST", "/perm/api/perm/biz-domain/create", "bootstrap:创建业务域", true, false),
-            new ApiRoute("POST", "/perm/api/perm/biz-domain/update", "bootstrap:更新业务域", true, false),
-            new ApiRoute("POST", "/perm/api/perm/biz-domain/remove", "bootstrap:删除业务域", true, false),
-            new ApiRoute("POST", "/perm/api/perm/domain-config/list", "bootstrap:域配置列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/domain-config/detail", "bootstrap:域配置详情", true, false),
-            new ApiRoute("POST", "/perm/api/perm/domain-config/save", "bootstrap:保存域配置", true, false),
-            new ApiRoute("POST", "/perm/api/perm/domain-config/remove", "bootstrap:删除域配置", true, false),
+            new ApiRoute("POST", "/api/access/biz-domain/list", "bootstrap:业务域列表", true, false),
+            new ApiRoute("POST", "/api/access/biz-domain/detail", "bootstrap:业务域详情", true, false),
+            new ApiRoute("POST", "/api/access/biz-domain/create", "bootstrap:创建业务域", true, false),
+            new ApiRoute("POST", "/api/access/biz-domain/update", "bootstrap:更新业务域", true, false),
+            new ApiRoute("POST", "/api/access/biz-domain/remove", "bootstrap:删除业务域", true, false),
+            new ApiRoute("POST", "/api/access/domain-config/list", "bootstrap:域配置列表", true, false),
+            new ApiRoute("POST", "/api/access/domain-config/detail", "bootstrap:域配置详情", true, false),
+            new ApiRoute("POST", "/api/access/domain-config/save", "bootstrap:保存域配置", true, false),
+            new ApiRoute("POST", "/api/access/domain-config/remove", "bootstrap:删除域配置", true, false),
             // T-FE-022：系统/服务配置与日志五页消费端点（type-definition/list、
             // resource-api-mapping/create 已在上方清单）。type-definition/detail、system-config/detail、
             // service-config/detail 页面不消费不注册——类型定义编辑用行数据、系统配置 save 幂等无
             // detail 需要、服务详情由 list 行数据展开；业务门禁仅 TYPE_DEFINITION:CREATE/MANAGE
             // 需本任务补授（见下方），其余（SYSTEM_CONFIG/OPERATION_LOG/PERMISSION_CHANGE_LOG/
             // SERVICE 四条）已在图
-            new ApiRoute("POST", "/perm/api/perm/type-definition/create", "bootstrap:创建类型定义", true, false),
-            new ApiRoute("POST", "/perm/api/perm/type-definition/update", "bootstrap:更新类型定义", true, false),
-            new ApiRoute("POST", "/perm/api/perm/type-definition/remove", "bootstrap:删除类型定义", true, false),
-            new ApiRoute("POST", "/perm/api/perm/system-config/list", "bootstrap:系统配置列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/system-config/save", "bootstrap:保存系统配置", true, false),
-            new ApiRoute("POST", "/perm/api/perm/service-config/list", "bootstrap:服务配置列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/service-config/save", "bootstrap:保存服务配置", true, false),
-            new ApiRoute("POST", "/perm/api/perm/service-config/remove", "bootstrap:删除服务配置", true, false),
-            new ApiRoute("POST", "/perm/api/perm/service-config/apis", "bootstrap:服务接口映射查询", true, false),
-            new ApiRoute("POST", "/perm/api/perm/service-config/sync", "bootstrap:服务接口FULL同步", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-api-mapping/list", "bootstrap:接口映射列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-api-mapping/update", "bootstrap:更新接口映射", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-api-mapping/remove", "bootstrap:删除接口映射", true, false),
-            new ApiRoute("POST", "/perm/api/perm/log/operation/list", "bootstrap:操作日志列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/log/operation/action-options", "bootstrap:操作类型字典", true, false),
-            new ApiRoute("POST", "/perm/api/perm/log/change/list", "bootstrap:权限变更日志列表", true, false),
+            new ApiRoute("POST", "/api/access/type-definition/create", "bootstrap:创建类型定义", true, false),
+            new ApiRoute("POST", "/api/access/type-definition/update", "bootstrap:更新类型定义", true, false),
+            new ApiRoute("POST", "/api/access/type-definition/remove", "bootstrap:删除类型定义", true, false),
+            new ApiRoute("POST", "/api/access/system-config/list", "bootstrap:系统配置列表", true, false),
+            new ApiRoute("POST", "/api/access/system-config/save", "bootstrap:保存系统配置", true, false),
+            new ApiRoute("POST", "/api/access/service-config/list", "bootstrap:服务配置列表", true, false),
+            new ApiRoute("POST", "/api/access/service-config/save", "bootstrap:保存服务配置", true, false),
+            new ApiRoute("POST", "/api/access/service-config/remove", "bootstrap:删除服务配置", true, false),
+            new ApiRoute("POST", "/api/access/service-config/apis", "bootstrap:服务接口映射查询", true, false),
+            new ApiRoute("POST", "/api/access/service-config/sync", "bootstrap:服务接口FULL同步", true, false),
+            new ApiRoute("POST", "/api/access/resource-api-mapping/list", "bootstrap:接口映射列表", true, false),
+            new ApiRoute("POST", "/api/access/resource-api-mapping/update", "bootstrap:更新接口映射", true, false),
+            new ApiRoute("POST", "/api/access/resource-api-mapping/remove", "bootstrap:删除接口映射", true, false),
+            new ApiRoute("POST", "/api/access/log/operation/list", "bootstrap:操作日志列表", true, false),
+            new ApiRoute("POST", "/api/access/log/operation/action-options", "bootstrap:操作类型字典", true, false),
+            new ApiRoute("POST", "/api/access/log/change/list", "bootstrap:权限变更日志列表", true, false),
             // T-FE-044：资源依赖页消费端点（引用数据 resource-entity/tree、operation-permission/list
             // 已在上方清单）。batch-sync 前端不消费不注册（同步侧通道）；业务门禁零新增
             // （DEPENDENCY 五档 T-PERM-031 已预置在图）
-            new ApiRoute("POST", "/perm/api/perm/resource-dependency/list", "bootstrap:资源依赖列表", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-dependency/graph", "bootstrap:资源依赖图", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-dependency/check", "bootstrap:依赖循环检测", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-dependency/create", "bootstrap:创建资源依赖", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-dependency/update", "bootstrap:更新资源依赖", true, false),
-            new ApiRoute("POST", "/perm/api/perm/resource-dependency/remove", "bootstrap:删除资源依赖", true, false),
+            new ApiRoute("POST", "/api/access/resource-dependency/list", "bootstrap:资源依赖列表", true, false),
+            new ApiRoute("POST", "/api/access/resource-dependency/graph", "bootstrap:资源依赖图", true, false),
+            new ApiRoute("POST", "/api/access/resource-dependency/check", "bootstrap:依赖循环检测", true, false),
+            new ApiRoute("POST", "/api/access/resource-dependency/create", "bootstrap:创建资源依赖", true, false),
+            new ApiRoute("POST", "/api/access/resource-dependency/update", "bootstrap:更新资源依赖", true, false),
+            new ApiRoute("POST", "/api/access/resource-dependency/remove", "bootstrap:删除资源依赖", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
-            new ApiRoute("POST", "/admin/role/my-info", "bootstrap:目标接口(my-info)", false, true));
+            new ApiRoute("POST", "/api/access/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }
 
     /**

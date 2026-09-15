@@ -128,7 +128,7 @@ public class PermissionClient {
     /**
      * 拉取用户接口权限快照（T-PERM-001 快照模式 / T-PERM-018 缓存下沉）
      * <p>
-     * 调用 {@code POST /api/perm/auth/interface-snapshot}，获取用户在指定服务下可访问的接口集合，
+     * 调用 {@code POST /api/access/auth/interface-snapshot}，获取用户在指定服务下可访问的接口集合，
      * 供 Gateway 本地内存匹配。access-service 每次实时构建全量快照返回；Gateway 本地 Caffeine
      * 缓存 + Redis 广播（perm:invalidate，T-PERM-006）+ TTL 兜底保证一致性。
      * </p>

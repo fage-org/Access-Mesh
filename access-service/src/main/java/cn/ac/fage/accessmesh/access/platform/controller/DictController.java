@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/dict")
+@RequestMapping("/api/access/dict")
 public class DictController {
 
     private final DictAppService dictService;

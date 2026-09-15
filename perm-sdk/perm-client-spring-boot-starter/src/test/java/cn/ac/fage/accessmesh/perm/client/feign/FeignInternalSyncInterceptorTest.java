@@ -44,7 +44,7 @@ class FeignInternalSyncInterceptorTest {
 
     @Test
     void apply_injectsSecretAndServiceCode_forSyncPath() {
-        RequestTemplate t = template("/api/perm/abstract-user/sync");
+        RequestTemplate t = template("/api/access/abstract-user/sync");
 
         interceptor.apply(t);
 
@@ -56,7 +56,7 @@ class FeignInternalSyncInterceptorTest {
     void apply_injectsSecretAndServiceCode_forAuthCheckPath() {
         // PermissionFeignClient.checkAuth 也走 /api/perm/auth/check；同样注入是合理副作用
         // 现有 Gateway 链路本身也通过 X-Internal-Secret 校验，此处统一注入即可
-        RequestTemplate t = template("/api/perm/auth/check");
+        RequestTemplate t = template("/api/access/auth/check");
 
         interceptor.apply(t);
 
@@ -66,7 +66,7 @@ class FeignInternalSyncInterceptorTest {
 
     @Test
     void apply_preservesExistingServiceCode_whenCallerProvidesOne() {
-        RequestTemplate t = template("/api/perm/abstract-role/full-sync");
+        RequestTemplate t = template("/api/access/abstract-role/full-sync");
         // 调用方已显式声明（向后兼容场景）
         t.header("X-Service-Code", "external-importer");
 
@@ -91,7 +91,7 @@ class FeignInternalSyncInterceptorTest {
     @Test
     void apply_doesNotInjectSecret_whenSecretIsBlank() throws Exception {
         setField("internalSecret", "");
-        RequestTemplate t = template("/api/perm/abstract-user/sync");
+        RequestTemplate t = template("/api/access/abstract-user/sync");
 
         interceptor.apply(t);
 

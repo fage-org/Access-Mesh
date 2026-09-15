@@ -86,7 +86,7 @@ class ExampleProtectedApiE2EIT {
 
     /** E2E 目标接口（外部路径口径：Gateway 匹配 StripPrefix 前路径，example 内部路径为去 /example 前缀） */
     private static final String TARGET_API_METHOD = "POST";
-    private static final String TARGET_API_PATH = "/example/api/example/demo/hello";
+    private static final String TARGET_API_PATH = "/api/example/demo/hello";
     /** API 资源业务码：service-config 声明通道 DTO @Pattern（^[a-zA-Z0-9_:.-]+$）禁斜杠，冒号段式 */
     private static final String TARGET_API_RESOURCE_CODE = "example:demo:hello";
 
@@ -148,7 +148,7 @@ class ExampleProtectedApiE2EIT {
 
         accessService = startService("access-service", ACCESS_MAIN_CLASS,
             accessServiceArgs(accessPort), accessServiceEnv(),
-            URI.create("http://localhost:" + accessPort + "/auth/captcha"), ACCESS_SERVICE_CLASSES_DIR);
+            URI.create("http://localhost:" + accessPort + "/api/access/auth/captcha"), ACCESS_SERVICE_CLASSES_DIR);
         waitAdminSeeded();
 
         // ACCESSMESH_SIGNATURE_SECRET 与 Gateway 同源：example 的 GatewaySignatureFilter
@@ -193,14 +193,14 @@ class ExampleProtectedApiE2EIT {
     @Order(2)
     @DisplayName("② 创建目标用户（initialPassword 取令牌）与空权限 BASIC_ROLE 并分配给目标用户")
     void step2_createTargetUserAndEmptyBasicRole() {
-        JsonNode created = postForData(gateway() + "/admin/user/create", adminToken,
+        JsonNode created = postForData(gateway() + "/api/access/user/create", adminToken,
             JSON.createObjectNode().put("username", TARGET_USERNAME).put("name", "E2E Example Target"));
         targetUserId = created.path("id").asLong();
         targetInitialPassword = created.path("initialPassword").asText();
         assertThat(targetUserId).as("目标用户必须取得新 ID").isPositive();
         assertThat(targetInitialPassword).as("initialPassword 必须在创建响应中返回一次").isNotBlank();
 
-        JsonNode role = postForData(gateway() + "/perm/api/perm/abstract-role/create", adminToken,
+        JsonNode role = postForData(gateway() + "/api/access/abstract-role/create", adminToken,
             JSON.createObjectNode()
                 .put("roleTypeCode", ROLE_TYPE)
                 .put("externalId", ROLE_EXTERNAL_ID)
@@ -216,7 +216,7 @@ class ExampleProtectedApiE2EIT {
             .put("roleExternalId", ROLE_EXTERNAL_ID);
         JsonNode assignReq = JSON.createObjectNode().set("items",
             JSON.createArrayNode().add(assignItem));
-        postForData(gateway() + "/perm/api/perm/user-role/assign", adminToken, assignReq);
+        postForData(gateway() + "/api/access/user-role/assign", adminToken, assignReq);
     }
 
     @Test
@@ -228,7 +228,7 @@ class ExampleProtectedApiE2EIT {
         // maintainSource=SERVICE_SYNC、pathPattern=basePath+path）。T-PERM-052 类型级所有权后
         // API 类型恒 MANAGED——resource-entity/sync 通道对其一律 RESOURCE_TYPE_OWNERSHIP_DENIED，
         // 旧 syncTypes.resourceTypeCodes 白名单已退役，经 Gateway 走管理面（bootstrap 固定图含本路径）
-        JsonNode syncResp = postForData(gateway() + "/perm/api/perm/service-config/sync", adminToken,
+        JsonNode syncResp = postForData(gateway() + "/api/access/service-config/sync", adminToken,
             JSON.createObjectNode()
                 .put("serviceCode", "example-service")
                 .put("basePath", "")
@@ -248,7 +248,7 @@ class ExampleProtectedApiE2EIT {
             .as("接口声明通道必须自动创建 Gateway 映射，响应：" + syncResp).isPositive();
 
         // 经授权页同款资源树定位新资源 id（bootstrap 固定图含 tree），树按资源类型返回多棵
-        JsonNode treeData = postForData(gateway() + "/perm/api/perm/resource-entity/tree", adminToken,
+        JsonNode treeData = postForData(gateway() + "/api/access/resource-entity/tree", adminToken,
             JSON.createObjectNode().putNull("resourceTypeCode").putNull("domainCode"));
         long resourceId = 0;
         for (JsonNode tree : treeData.path("items")) {
@@ -314,7 +314,7 @@ class ExampleProtectedApiE2EIT {
         req.set("plan", plan);
 
         JsonNode items = postForData(
-            gateway() + "/perm/api/perm/role-resource-permission/apply-grant-plan", adminToken, req)
+            gateway() + "/api/access/role-resource-permission/apply-grant-plan", adminToken, req)
             .path("items");
         grantResponseAtNanos = System.nanoTime();
         assertThat(items.isArray() && items.size() == 1)
@@ -581,7 +581,7 @@ class ExampleProtectedApiE2EIT {
     private static void waitReady(String name, URI url, ServiceHandle handle) throws InterruptedException {
         // /auth/captcha 与 example 就绪探针走 POST（example 探针带合法 name，无身份头 → 200）；
         // Gateway 管理端口 health 探针走 GET
-        boolean postProbe = url.getPath().endsWith("/auth/captcha")
+        boolean postProbe = url.getPath().endsWith("/api/access/auth/captcha")
             || url.getPath().endsWith("/api/example/demo/hello");
         long deadline = System.nanoTime() + Duration.ofMinutes(4).toNanos();
         IOException lastError = null;
@@ -751,13 +751,13 @@ class ExampleProtectedApiE2EIT {
     }
 
     private static String realLogin(String username, String password) {
-        JsonNode captcha = postForData(gateway() + "/auth/captcha", null, JSON.createObjectNode());
+        JsonNode captcha = postForData(gateway() + "/api/access/auth/captcha", null, JSON.createObjectNode());
         String captchaId = captcha.path("captchaId").asText();
         assertThat(captchaId).as("验证码必须真实签发").isNotBlank();
         String code = readCaptchaFromRedis(captchaId);
         assertThat(code).as("Redis 必须存有验证码答案（真实签发链路）").isNotBlank();
 
-        JsonNode login = postForData(gateway() + "/auth/login", null,
+        JsonNode login = postForData(gateway() + "/api/access/auth/login", null,
             JSON.createObjectNode()
                 .put("tenantId", TENANT_ID)
                 .put("username", username)

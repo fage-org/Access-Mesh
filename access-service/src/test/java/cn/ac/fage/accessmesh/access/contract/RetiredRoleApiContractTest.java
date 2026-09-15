@@ -45,59 +45,59 @@ class RetiredRoleApiContractTest {
     }
 
     @Test
-    @DisplayName("/role/create 已删除：POST 无映射 404")
+    @DisplayName("/api/access/role/create 已删除：POST 无映射 404")
     void roleCreate_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/role/create")
+        mockMvc.perform(post("/api/access/role/create")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"roleName\":\"x\",\"orgId\":1}"))
             .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("/role/grant-menu 已删除：POST 无映射 404")
+    @DisplayName("/api/access/role/grant-menu 已删除：POST 无映射 404")
     void roleGrantMenu_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/role/grant-menu")
+        mockMvc.perform(post("/api/access/role/grant-menu")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"roleId\":1,\"menuId\":10}"))
             .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("/role/revoke-menu 已删除：POST 无映射 404")
+    @DisplayName("/api/access/role/revoke-menu 已删除：POST 无映射 404")
     void roleRevokeMenu_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/role/revoke-menu")
+        mockMvc.perform(post("/api/access/role/revoke-menu")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"roleId\":1,\"menuId\":10}"))
             .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("/user-role/assign 已删除：POST 无映射 404")
+    @DisplayName("/api/access/user-role/assign 已删除：POST 无映射 404")
     void userRoleAssign_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/user-role/assign")
+        mockMvc.perform(post("/api/access/user-role/assign")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"userId\":1,\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"r-1\"}"))
             .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("/user-role/revoke 已删除：POST 无映射 404")
+    @DisplayName("/api/access/user-role/revoke 已删除：POST 无映射 404")
     void userRoleRevoke_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/user-role/revoke")
+        mockMvc.perform(post("/api/access/user-role/revoke")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"userId\":1,\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"r-1\"}"))
             .andExpect(status().isNotFound());
     }
 
     @Test
-    @DisplayName("读端点保留：/role/list、/user-role/list 委托跨域只读查询服务")
+    @DisplayName("读端点保留：/role/list、/user-role/view 委托跨域只读查询服务")
     void readEndpoints_delegateToQueryService() throws Exception {
-        mockMvc.perform(post("/role/list")
+        mockMvc.perform(post("/api/access/role/list")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(200));
-        mockMvc.perform(post("/user-role/list")
+        mockMvc.perform(post("/api/access/user-role/view")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"userId\":1}"))
             .andExpect(status().isOk())

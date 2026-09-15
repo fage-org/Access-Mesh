@@ -34,7 +34,7 @@ import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceListReq;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/resource-entity")
+@RequestMapping("/api/access/resource-entity")
 public class ResourceController {
 
     private final ResourceManageAppService resourceManageAppService;

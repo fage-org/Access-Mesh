@@ -29,7 +29,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/biz-domain")
+@RequestMapping("/api/access/biz-domain")
 public class BizDomainController {
 
     private final BizDomainAppService bizDomainAppService;

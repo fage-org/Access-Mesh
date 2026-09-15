@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/conflict-rule")
+@RequestMapping("/api/access/conflict-rule")
 public class ConflictRuleController {
 
     private final ConflictRuleAppService conflictRuleAppService;

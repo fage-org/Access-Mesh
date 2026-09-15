@@ -126,27 +126,27 @@ class RetiredSyncTaskEndpointTest {
     }
 
     @Test
-    @DisplayName("运行时负向：POST /api/perm/abstract-role/extra-roles/list 被拒（T-PERM-043）")
+    @DisplayName("运行时负向：POST /api/access/abstract-role/extra-roles/list 被拒（T-PERM-043）")
     void extraRolesList_rejected() throws Exception {
-        mockMvc.perform(MockMvcRequestBuilders.post("/api/perm/abstract-role/extra-roles/list")
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/access/abstract-role/extra-roles/list")
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(retiredPathRejected());
     }
 
     @Test
-    @DisplayName("运行时负向：POST /api/perm/abstract-role/extra-roles/add 被拒（T-PERM-043）")
+    @DisplayName("运行时负向：POST /api/access/abstract-role/extra-roles/add 被拒（T-PERM-043）")
     void extraRolesAdd_rejected() throws Exception {
-        mockMvc.perform(MockMvcRequestBuilders.post("/api/perm/abstract-role/extra-roles/add")
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/access/abstract-role/extra-roles/add")
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(retiredPathRejected());
     }
 
     @Test
-    @DisplayName("运行时负向：POST /api/perm/abstract-role/extra-roles/remove 被拒（T-PERM-043）")
+    @DisplayName("运行时负向：POST /api/access/abstract-role/extra-roles/remove 被拒（T-PERM-043）")
     void extraRolesRemove_rejected() throws Exception {
-        mockMvc.perform(MockMvcRequestBuilders.post("/api/perm/abstract-role/extra-roles/remove")
+        mockMvc.perform(MockMvcRequestBuilders.post("/api/access/abstract-role/extra-roles/remove")
                 .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
                 .content("{}"))
             .andExpect(retiredPathRejected());

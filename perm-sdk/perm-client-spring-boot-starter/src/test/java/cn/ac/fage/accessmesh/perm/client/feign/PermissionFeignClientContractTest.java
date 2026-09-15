@@ -38,23 +38,23 @@ class PermissionFeignClientContractTest {
 
     /** SDK 对外契约的封闭路径清单（与方法一一对应）。 */
     private static final Set<String> CONTRACT_PATHS = Set.of(
-        "/api/perm/abstract-user/remove",
-        "/api/perm/auth/check",
-        "/api/perm/auth/batch-check",
-        "/api/perm/auth/query-resources",
-        "/api/perm/auth/query-scopes",
-        "/api/perm/abstract-role/create",
-        "/api/perm/abstract-role/list",
-        "/api/perm/abstract-role/detail",
-        "/api/perm/user-role/list",
-        "/api/perm/user-role/assign",
-        "/api/perm/user-role/revoke",
-        "/api/perm/resource-entity/create",
-        "/api/perm/resource-entity/batch-create",
-        "/api/perm/resource-entity/update",
-        "/api/perm/resource-entity/remove",
-        "/api/perm/operation-permission/list",
-        "/api/perm/permission-view/effective-permission-codes"
+        "/api/access/abstract-user/remove",
+        "/api/access/auth/check",
+        "/api/access/auth/batch-check",
+        "/api/access/auth/query-resources",
+        "/api/access/auth/query-scopes",
+        "/api/access/abstract-role/create",
+        "/api/access/abstract-role/list",
+        "/api/access/abstract-role/detail",
+        "/api/access/user-role/list",
+        "/api/access/user-role/assign",
+        "/api/access/user-role/revoke",
+        "/api/access/resource-entity/create",
+        "/api/access/resource-entity/batch-create",
+        "/api/access/resource-entity/update",
+        "/api/access/resource-entity/remove",
+        "/api/access/operation-permission/list",
+        "/api/access/permission-view/effective-permission-codes"
     );
 
     /** 接口的全部实例方法（不做注解预过滤——封闭检查必须覆盖每一个方法）。 */

@@ -92,7 +92,7 @@ class ResourceSortOrderRetiredTest {
               "extra": "{}"
             }
             """;
-        mockMvc.perform(post("/api/perm/resource-entity/update")
+        mockMvc.perform(post("/api/access/resource-entity/update")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", SERVICE_CODE)
@@ -122,7 +122,7 @@ class ResourceSortOrderRetiredTest {
               "sortOrder": 10
             }
             """;
-        mockMvc.perform(post("/api/perm/resource-entity/create")
+        mockMvc.perform(post("/api/access/resource-entity/create")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", SERVICE_CODE)
@@ -150,7 +150,7 @@ class ResourceSortOrderRetiredTest {
               "sortOrder": 10
             }
             """;
-        mockMvc.perform(post("/api/perm/resource-entity/update")
+        mockMvc.perform(post("/api/access/resource-entity/update")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", SERVICE_CODE)
@@ -178,7 +178,7 @@ class ResourceSortOrderRetiredTest {
               "syncVersion": { "occurredAt": "2026-06-12T10:00:00.123", "sequenceNo": 1024 }
             }
             """;
-        mockMvc.perform(post("/api/perm/resource-entity/sync")
+        mockMvc.perform(post("/api/access/resource-entity/sync")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", SERVICE_CODE)
@@ -208,7 +208,7 @@ class ResourceSortOrderRetiredTest {
               ]
             }
             """;
-        mockMvc.perform(post("/api/perm/resource-entity/full-sync")
+        mockMvc.perform(post("/api/access/resource-entity/full-sync")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", SERVICE_CODE)

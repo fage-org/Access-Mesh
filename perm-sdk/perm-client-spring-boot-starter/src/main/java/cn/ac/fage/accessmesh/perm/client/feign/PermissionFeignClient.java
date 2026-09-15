@@ -37,7 +37,7 @@ public interface PermissionFeignClient {
      * @param req 用户ID列表请求
      * @return 删除结果
      */
-    @PostMapping("/api/perm/abstract-user/remove")
+    @PostMapping("/api/access/abstract-user/remove")
     R<Void> deleteUsers(@RequestBody IdsReq req);
 
     // ========== 权限校验（新API，使用稳定业务键） ==========
@@ -51,7 +51,7 @@ public interface PermissionFeignClient {
      * @param req 权限校验请求
      * @return 权限校验结果，包含是否允许和拒绝原因
      */
-    @PostMapping("/api/perm/auth/check")
+    @PostMapping("/api/access/auth/check")
     R<AuthCheckResp> checkAuth(@RequestBody AuthCheckReq req);
 
     /**
@@ -63,7 +63,7 @@ public interface PermissionFeignClient {
      * @param req 批量权限校验请求
      * @return 批量校验结果，包含每个项目的权限状态
      */
-    @PostMapping("/api/perm/auth/batch-check")
+    @PostMapping("/api/access/auth/batch-check")
     R<BatchAuthCheckResp> batchCheckAuth(@RequestBody BatchAuthCheckReq req);
 
     /**
@@ -76,7 +76,7 @@ public interface PermissionFeignClient {
      * @param req 资源查询请求
      * @return 资源条目列表与缓存有效期
      */
-    @PostMapping("/api/perm/auth/query-resources")
+    @PostMapping("/api/access/auth/query-resources")
     R<QueryResourcesResp> queryResources(@RequestBody QueryResourcesReq req);
 
     /**
@@ -89,7 +89,7 @@ public interface PermissionFeignClient {
      * @param req 范围查询请求
      * @return 范围分组与缓存有效期
      */
-    @PostMapping("/api/perm/auth/query-scopes")
+    @PostMapping("/api/access/auth/query-scopes")
     R<QueryScopesResp> queryScopes(@RequestBody QueryScopesReq req);
 
     // ========== 角色管理 ==========
@@ -100,7 +100,7 @@ public interface PermissionFeignClient {
      * @param req 角色创建请求
      * @return 创建结果，包含角色详细信息
      */
-    @PostMapping("/api/perm/abstract-role/create")
+    @PostMapping("/api/access/abstract-role/create")
     R<RoleResp> createRole(@RequestBody RoleCreateReq req);
 
     /**
@@ -109,10 +109,10 @@ public interface PermissionFeignClient {
      * @param req 角色列表查询请求，支持按角色类型过滤
      * @return 角色列表
      */
-    @PostMapping("/api/perm/abstract-role/list")
+    @PostMapping("/api/access/abstract-role/list")
     R<PageResp<RoleResp>> listRoles(@RequestBody RoleListReq req);
 
-    @PostMapping("/api/perm/abstract-role/detail")
+    @PostMapping("/api/access/abstract-role/detail")
     R<RoleResp> getRole(@RequestBody RoleDetailReq req);
 
     /**
@@ -121,7 +121,7 @@ public interface PermissionFeignClient {
      * @param req 用户角色列表查询请求
      * @return 用户角色列表响应
      */
-    @PostMapping("/api/perm/user-role/list")
+    @PostMapping("/api/access/user-role/list")
     R<UserRolesResp> getUserRoles(@RequestBody UserRoleListReq req);
 
     /**
@@ -133,7 +133,7 @@ public interface PermissionFeignClient {
      * @param req 用户角色分配请求
      * @return 操作成功结果
      */
-    @PostMapping("/api/perm/user-role/assign")
+    @PostMapping("/api/access/user-role/assign")
     R<Void> assignRole(@RequestBody UserAssignRoleReq req);
 
     /**
@@ -145,7 +145,7 @@ public interface PermissionFeignClient {
      * @param req 批量角色撤销请求
      * @return 操作成功结果
      */
-    @PostMapping("/api/perm/user-role/revoke")
+    @PostMapping("/api/access/user-role/revoke")
     R<Void> revokeRoles(@RequestBody UserRoleBatchRevokeReq req);
 
     // ========== 赋源同步 ==========
@@ -156,7 +156,7 @@ public interface PermissionFeignClient {
      * @param req 资源创建请求
      * @return 创建结果，包含资源详细信息
      */
-    @PostMapping("/api/perm/resource-entity/create")
+    @PostMapping("/api/access/resource-entity/create")
     R<ResourceResp> createResource(@RequestBody ResourceCreateReq req);
 
     /**
@@ -165,7 +165,7 @@ public interface PermissionFeignClient {
      * @param req 资源批量创建请求
      * @return 创建结果，包含资源列表
      */
-    @PostMapping("/api/perm/resource-entity/batch-create")
+    @PostMapping("/api/access/resource-entity/batch-create")
     R<ItemsResp<ResourceResp>> batchCreateResources(@RequestBody ResourceBatchCreateReq req);
 
     /**
@@ -174,7 +174,7 @@ public interface PermissionFeignClient {
      * @param req 资源更新请求
      * @return 更新结果，包含资源详细信息
      */
-    @PostMapping("/api/perm/resource-entity/update")
+    @PostMapping("/api/access/resource-entity/update")
     R<ResourceResp> updateResource(@RequestBody ResourceUpdateReq req);
 
     /**
@@ -183,7 +183,7 @@ public interface PermissionFeignClient {
      * @param req 资源业务键集合请求
      * @return 删除结果
      */
-    @PostMapping("/api/perm/resource-entity/remove")
+    @PostMapping("/api/access/resource-entity/remove")
     R<Void> deleteResources(@RequestBody ResourceKeysReq req);
 
     // ========== 操作权限 ==========
@@ -194,7 +194,7 @@ public interface PermissionFeignClient {
      * @param req 操作列表查询请求
      * @return 操作权限列表
      */
-    @PostMapping("/api/perm/operation-permission/list")
+    @PostMapping("/api/access/operation-permission/list")
     R<ItemsResp<OperationPermissionResp>> listOperations(@RequestBody OperationListReq req);
 
     // ========== 权限授予/撤销 ==========
@@ -211,7 +211,7 @@ public interface PermissionFeignClient {
      * @param req 有效权限码聚合请求（含 resourceTypeCodes 白名单）
      * @return perm 串列表
      */
-    @PostMapping("/api/perm/permission-view/effective-permission-codes")
+    @PostMapping("/api/access/permission-view/effective-permission-codes")
     R<UserEffectivePermissionCodesResp> getEffectivePermissionCodes(
         @RequestBody UserEffectivePermissionCodesReq req);
 }

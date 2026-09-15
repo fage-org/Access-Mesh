@@ -32,7 +32,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/service-config")
+@RequestMapping("/api/access/service-config")
 public class ServiceConfigController {
 
     private final ServiceConfigAppService serviceConfigAppService;

@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
  * 资源实体同步控制器。
  */
 @RestController
-@RequestMapping("/api/perm/resource-entity")
+@RequestMapping("/api/access/resource-entity")
 public class ResourceEntitySyncController {
 
     private final ResourceEntitySyncAppService resourceEntitySyncAppService;

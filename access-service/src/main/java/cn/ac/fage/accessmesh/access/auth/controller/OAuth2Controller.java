@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/auth/oauth2")
+@RequestMapping("/api/access/auth/oauth2")
 public class OAuth2Controller {
 
     private final OAuth2AppService oauth2Service;

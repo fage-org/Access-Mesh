@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/abstract-role")
+@RequestMapping("/api/access/abstract-role")
 public class AbstractRoleSyncController {
 
     private final AbstractRoleSyncAppService abstractRoleSyncAppService;

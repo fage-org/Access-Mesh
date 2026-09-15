@@ -53,7 +53,7 @@ class HeaderCleanFilterTest {
     @Test
     @DisplayName("直连来源（无 XFF）：下游可见 XFF=Gateway 观测的 remoteAddr 单值")
     void directConnectionWithoutXffDownstreamSeesRemoteAddr() {
-        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/admin/api/user/page")
+        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/api/access/user/page")
             .header("Authorization", "Bearer token")
             .header("User-Agent", "curl/8.0"));
 
@@ -67,7 +67,7 @@ class HeaderCleanFilterTest {
     @Test
     @DisplayName("经代理来源（伪造 XFF 链）：下游可见 XFF=remoteAddr，伪造链不透传")
     void proxiedSourceWithSpoofedXffChainNotForwarded() {
-        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/admin/api/user/page")
+        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/api/access/user/page")
             .header("X-Forwarded-For", SPOOFED_IP + ", 10.0.0.5"));
 
         runFilter(exchange);
@@ -82,7 +82,7 @@ class HeaderCleanFilterTest {
     @Test
     @DisplayName("小写变体伪造 XFF 同样清洗重建（头名大小写不敏感）")
     void lowercaseXffVariantAlsoCleaned() {
-        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/admin/api/user/page")
+        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/api/access/user/page")
             .header("x-forwarded-for", SPOOFED_IP));
 
         runFilter(exchange);
@@ -96,7 +96,7 @@ class HeaderCleanFilterTest {
     @Test
     @DisplayName("外部 X-Real-IP（含小写变体）删除，不重建")
     void externalRealIpHeaderRemoved() {
-        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/admin/api/user/page")
+        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/api/access/user/page")
             .header("X-Real-IP", SPOOFED_IP)
             .header("x-real-ip", SPOOFED_IP));
 
@@ -108,7 +108,7 @@ class HeaderCleanFilterTest {
     @Test
     @DisplayName("内部头小写变体同样清除（变体绕过缝隙锁，惠及存量 clean 列表）")
     void lowercaseInternalHeaderVariantAlsoCleaned() {
-        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/admin/api/user/page")
+        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/api/access/user/page")
             .header("x-internal-secret", "spoofed-secret")
             .header("X-USER-ID", "1"));
 
@@ -122,7 +122,7 @@ class HeaderCleanFilterTest {
     @Test
     @DisplayName("其余转发声明头（X-Forwarded-Host/Port/Proto/Prefix/Forwarded，含小写变体）删除不透传")
     void forwardedVariantHeadersRemoved() {
-        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/admin/api/user/page")
+        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/api/access/user/page")
             .header("X-Forwarded-Host", "evil.com")
             .header("x-forwarded-proto", "https")
             .header("X-Forwarded-Port", "8443")
@@ -144,7 +144,7 @@ class HeaderCleanFilterTest {
     @Test
     @DisplayName("无关头原样透传，不被清洗波及")
     void unrelatedHeadersPassedThrough() {
-        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/admin/api/user/page")
+        ServerWebExchange exchange = exchangeWithRemote(MockServerHttpRequest.post("/api/access/user/page")
             .header("Authorization", "Bearer token")
             .header("User-Agent", "curl/8.0")
             .header("Content-Type", "application/json"));
@@ -160,7 +160,7 @@ class HeaderCleanFilterTest {
     @Test
     @DisplayName("remoteAddr 不可得时不写回 XFF（防御分支，交由下游自身兜底）")
     void noXffWrittenWhenRemoteAddrUnavailable() {
-        MockServerHttpRequest request = MockServerHttpRequest.post("/admin/api/user/page")
+        MockServerHttpRequest request = MockServerHttpRequest.post("/api/access/user/page")
             .header("X-Forwarded-For", SPOOFED_IP)
             .build();
         ServerWebExchange exchange = MockServerWebExchange.from(request);

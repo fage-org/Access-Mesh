@@ -24,7 +24,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/login-log")
+@RequestMapping("/api/access/login-log")
 public class LoginLogController {
 
     private final LoginLogAppService loginLogService;

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/user-role")
+@RequestMapping("/api/access/user-role")
 public class PermUserRoleController {
 
     private final UserManageAppService userManageService;

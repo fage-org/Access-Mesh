@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/job")
+@RequestMapping("/api/access/job")
 public class JobController {
 
     private final JobAppService jobService;

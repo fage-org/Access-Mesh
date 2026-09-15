@@ -18,13 +18,13 @@ import org.springframework.web.bind.annotation.RestController;
  * <p>
  * 端点：
  * <ul>
- *   <li>POST /api/perm/user-role/sync —— BIND/UNBIND 增量同步</li>
- *   <li>POST /api/perm/user-role/full-sync —— 全量同步</li>
+ *   <li>POST /api/access/user-role/sync —— BIND/UNBIND 增量同步</li>
+ *   <li>POST /api/access/user-role/full-sync —— 全量同步</li>
  * </ul>
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/user-role")
+@RequestMapping("/api/access/user-role")
 public class UserRoleSyncController {
 
     private final UserRoleSyncAppService userRoleSyncAppService;

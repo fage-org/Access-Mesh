@@ -50,7 +50,7 @@ public class GatewayProperties {
     @Setter
     public static class Whitelist {
         private List<String> paths = List.of(
-            "/auth/**",
+            "/api/access/auth/**",
             "/public/**",
             "/captcha/**"
         );
@@ -62,8 +62,9 @@ public class GatewayProperties {
      * 命中路径的请求跳过会话校验/权限校验/身份头注入/身份头签名，
      * Authorization 头（OAuth2 JWT）原样透传给下游，由下游 access-service 的
      * OAuth2 JWT 认证分支验签 + 开放路径门禁（scope/audience/client_id 启用校验）判定。
-     * 路径为 Gateway 外部口径（如 /admin/api/**，StripPrefix 后由下游按自身口径
-     * 匹配 access.oauth2.resource-paths）；/auth/** 已在白名单中透传，无需重复配置。
+     * 路径为 Gateway 外部口径（T-ACCESS-042 起无 StripPrefix，外部路径=服务路径，如
+     * /api/access/**，由下游按同形路径匹配 access.oauth2.resource-paths）；
+     * /api/access/auth/** 已在白名单中透传，无需重复配置。
      * 默认为空（无业务路径默认开放）。
      * </p>
      */
@@ -135,9 +136,9 @@ public class GatewayProperties {
     public static class Permission {
         // T-ACCESS-010：目标由 permission-center 统一切换为 access-service
         private String serviceUrl = "lb://access-service";
-        private String checkInterfacePath = "/api/perm/auth/check-interface";
+        private String checkInterfacePath = "/api/access/auth/check-interface";
         // T-PERM-001：快照模式接口，Gateway 拉取用户全量接口权限快照用于本地匹配
-        private String interfaceSnapshotPath = "/api/perm/auth/interface-snapshot";
+        private String interfaceSnapshotPath = "/api/access/auth/interface-snapshot";
         private String unregisteredPolicy = "DENY";
         /**
          * 权限快照加载全链路墙钟硬截止时间（T-ACCESS-008，默认/上限 5 秒）。

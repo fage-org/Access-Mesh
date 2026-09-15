@@ -35,7 +35,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/abstract-role")
+@RequestMapping("/api/access/abstract-role")
 public class PermRoleController {
 
     private final RoleManageAppService roleManageAppService;

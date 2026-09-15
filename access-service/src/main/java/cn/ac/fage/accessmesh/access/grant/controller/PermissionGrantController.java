@@ -28,7 +28,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/role-resource-permission")
+@RequestMapping("/api/access/role-resource-permission")
 public class PermissionGrantController {
 
     private final PermissionGrantAppService permissionGrantService;

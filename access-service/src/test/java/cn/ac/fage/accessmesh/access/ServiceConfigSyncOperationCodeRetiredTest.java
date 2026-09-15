@@ -98,7 +98,7 @@ class ServiceConfigSyncOperationCodeRetiredTest {
               ]
             }
             """;
-        mockMvc.perform(post("/api/perm/service-config/sync")
+        mockMvc.perform(post("/api/access/service-config/sync")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", "my-svc")
@@ -143,7 +143,7 @@ class ServiceConfigSyncOperationCodeRetiredTest {
               ]
             }
             """;
-        mockMvc.perform(post("/api/perm/service-config/sync")
+        mockMvc.perform(post("/api/access/service-config/sync")
                 .header("X-Tenant-Id", "1")
                 .header("X-Internal-Secret", INTERNAL_SECRET)
                 .header("X-Service-Code", "my-svc")

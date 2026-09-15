@@ -24,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/menu")
+@RequestMapping("/api/access/menu")
 public class MenuController {
 
     private final MenuAppService menuService;

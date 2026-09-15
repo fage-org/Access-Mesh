@@ -33,34 +33,24 @@ spring:
         locator:
           enabled: false
       routes:
-        # 管理与权限服务（T-ACCESS-010：admin-service/permission-center 归并为唯一部署单元，
-        # /admin/** 与 /perm/** 路径行为不变，目标统一为 access-service）
+        # T-ACCESS-042：URL 单命名空间——外部路径 = 服务路径 /api/<服务命名空间>/**，
+        # 按第二段路由，无 StripPrefix（/admin、/perm 外部前缀与 auth-routes 直通路由退役）。
+        # 外部服务经 service-config 声明接口时不得占用 /api/access 命名空间
+        # （按第二段路由，外部声明值对本命名空间天然不可达）。
         - id: access-service
           uri: lb://access-service
           predicates:
-            - Path=/admin/**,/perm/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/access/**
           metadata:
             serviceCode: access-service
 
-        # 演示服务
+        # 演示服务（同规则：第二段 = 服务命名空间，无 StripPrefix）
         - id: example-service
           uri: lb://example-service
           predicates:
-            - Path=/example/**
-          filters:
-            - StripPrefix=1
+            - Path=/api/example/**
           metadata:
             serviceCode: example-service
-
-        # 认证接口（转发到 access-service）
-        - id: auth-routes
-          uri: lb://access-service
-          predicates:
-            - Path=/auth/**
-          filters:
-            - StripPrefix=0
 
       default-filters:
         - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials, RETAIN_UNIQUE
@@ -113,7 +103,7 @@ gateway:
     paths:
       # T-GW-007：/actuator/** 已全部移出主端口白名单——actuator 经独立管理端口提供
       # （management.server.port，见下方 management 段），主端口 8080 不再暴露任何 /actuator/** 端点
-      - /auth/**
+      - /api/access/auth/**
       - /public/**
       - /captcha/**
 
@@ -121,8 +111,8 @@ gateway:
   # 命中路径且 Authorization 为 Bearer 三段式 JWT 时跳过会话/权限校验与身份头注入，
   # Authorization 原样透传下游，由 access-service 开放路径门禁（access.oauth2.resource-paths
   # + scope/audience/client_id 启用校验）判定；平台 uuid 会话令牌不启用透传（走正常
-  # 会话校验与接口鉴权，防绕过 Gateway 权限）；/auth/** 已由白名单覆盖无需重复配置。
-  # 注意：下游匹配的是 StripPrefix 后路径（如 /admin/api/** → 下游 /api/**），双侧需人工对应。
+  # 会话校验与接口鉴权，防绕过 Gateway 权限）；/api/access/auth/** 已由白名单覆盖无需重复配置。
+  # 注意：T-ACCESS-042 起无 StripPrefix，下游匹配路径即外部路径，双侧天然同形。
   oauth2:
     passthrough-paths: []
 
@@ -167,9 +157,9 @@ gateway:
   permission:
     # T-ACCESS-010：目标统一为 access-service
     service-url: lb://access-service
-    check-interface-path: /api/perm/auth/check-interface
+    check-interface-path: /api/access/auth/check-interface
     # T-PERM-001 快照模式：Gateway 拉取用户全量接口权限快照用于本地匹配
-    interface-snapshot-path: /api/perm/auth/interface-snapshot
+    interface-snapshot-path: /api/access/auth/interface-snapshot
     unregistered-policy: DENY
     # T-ACCESS-008：快照加载全链路墙钟硬截止（服务发现/LB、连接、发送、处理、
     # 响应读取解码及失效竞争重试共享同一截止）；超时不写缓存固定 fail-closed 503。

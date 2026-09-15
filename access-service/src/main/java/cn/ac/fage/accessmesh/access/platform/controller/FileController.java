@@ -25,7 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
  * </p>
  */
 @RestController
-@RequestMapping("/file")
+@RequestMapping("/api/access/file")
 public class FileController {
 
     private static final Logger log = LoggerFactory.getLogger(FileController.class);

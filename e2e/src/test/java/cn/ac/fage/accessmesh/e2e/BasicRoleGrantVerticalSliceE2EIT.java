@@ -94,7 +94,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
     /** E2E 目标接口（外部路径口径，bootstrap 预建资源未建映射） */
     private static final String TARGET_API_CODE = "POST:/admin/role/my-info";
     private static final String TARGET_API_METHOD = "POST";
-    private static final String TARGET_API_PATH = "/admin/role/my-info";
+    private static final String TARGET_API_PATH = "/api/access/role/my-info";
 
     /** E2E 目标角色/用户（空库每次全新容器，固定业务键无碰撞） */
     private static final String ROLE_TYPE = "BASIC_ROLE";
@@ -163,7 +163,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
         // access-service：bootstrap 首启创建固定图（步骤①的空库侧）
         accessService = startService("access-service", ACCESS_MAIN_CLASS,
             accessServiceArgs(accessPort), accessServiceEnv(),
-            URI.create("http://localhost:" + accessPort + "/auth/captcha"), true);
+            URI.create("http://localhost:" + accessPort + "/api/access/auth/captcha"), true);
 
         // bootstrap 完成前 Web 已就绪（runner 在 context refresh 后执行），轮询首管理员
         // 主体落库后再进入步骤①，避免登录与种子竞态
@@ -203,7 +203,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
     @DisplayName("② 创建目标用户（initialPassword 取令牌）与空权限 BASIC_ROLE 并分配给目标用户")
     void step2_createTargetUserAndEmptyBasicRole() {
         // 创建目标用户：initialPassword 仅本次返回
-        JsonNode created = postForData(gateway() + "/admin/user/create", adminToken,
+        JsonNode created = postForData(gateway() + "/api/access/user/create", adminToken,
             JSON.createObjectNode().put("username", TARGET_USERNAME).put("name", "E2E Target User"));
         targetUserId = created.path("id").asLong();
         targetInitialPassword = created.path("initialPassword").asText();
@@ -211,7 +211,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
         assertThat(targetInitialPassword).as("initialPassword 必须在创建响应中返回一次").isNotBlank();
 
         // 创建普通 BASIC_ROLE（不含任何 API 权限）
-        JsonNode role = postForData(gateway() + "/perm/api/perm/abstract-role/create", adminToken,
+        JsonNode role = postForData(gateway() + "/api/access/abstract-role/create", adminToken,
             JSON.createObjectNode()
                 .put("roleTypeCode", ROLE_TYPE)
                 .put("externalId", ROLE_EXTERNAL_ID)
@@ -228,7 +228,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
             .put("roleExternalId", ROLE_EXTERNAL_ID);
         JsonNode assignReq = JSON.createObjectNode().set("items",
             JSON.createArrayNode().add(assignItem));
-        postForData(gateway() + "/perm/api/perm/user-role/assign", adminToken, assignReq);
+        postForData(gateway() + "/api/access/user-role/assign", adminToken, assignReq);
     }
 
     @Test
@@ -237,7 +237,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
     void step3_createTargetApiMapping() {
         // 经授权页同款资源树定位 bootstrap 预建的 API 资源（同时验证授权页读链路可用）；
         // 树接口按资源类型返回多棵树（ItemsResp<ResourceTreeResp>），逐棵遍历
-        JsonNode treeData = postForData(gateway() + "/perm/api/perm/resource-entity/tree", adminToken,
+        JsonNode treeData = postForData(gateway() + "/api/access/resource-entity/tree", adminToken,
             JSON.createObjectNode().putNull("resourceTypeCode").putNull("domainCode"));
         for (JsonNode tree : treeData.path("items")) {
             targetApiResourceId = findApiResourceId(tree.path("root"));
@@ -249,7 +249,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
             .as("bootstrap 预建的 my-info API 资源必须可见，实际树响应：%s", treeData)
             .isPositive();
 
-        JsonNode mapping = postForData(gateway() + "/perm/api/perm/resource-api-mapping/create", adminToken,
+        JsonNode mapping = postForData(gateway() + "/api/access/resource-api-mapping/create", adminToken,
             JSON.createObjectNode()
                 .put("resourceId", targetApiResourceId)
                 .put("serviceCode", "access-service")
@@ -296,7 +296,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
         req.set("plan", plan);
 
         JsonNode items = postForData(
-            gateway() + "/perm/api/perm/role-resource-permission/apply-grant-plan", adminToken, req)
+            gateway() + "/api/access/role-resource-permission/apply-grant-plan", adminToken, req)
             .path("items");
         // ⑥的 30 秒陈旧窗口自授权响应到达时刻起算（与⑧撤权同口径）
         grantResponseAtNanos = System.nanoTime();
@@ -360,7 +360,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
         int accessPort = accessService.port();
         accessService = startService("access-service", ACCESS_MAIN_CLASS,
             accessServiceArgs(accessPort), accessServiceEnv(),
-            URI.create("http://localhost:" + accessPort + "/auth/captcha"), true);
+            URI.create("http://localhost:" + accessPort + "/api/access/auth/captcha"), true);
 
         int gatewayPort = gatewayService.port();
         gatewayService.destroy();
@@ -407,7 +407,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
             .put("roleTypeCode", ROLE_TYPE)
             .put("roleExternalId", ROLE_EXTERNAL_ID)
             .set("plan", plan);
-        postForData(gateway() + "/perm/api/perm/role-resource-permission/apply-grant-plan", adminToken, req);
+        postForData(gateway() + "/api/access/role-resource-permission/apply-grant-plan", adminToken, req);
 
         // 自撤权响应起单调计时
         long start = System.nanoTime();
@@ -620,7 +620,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
 
     /** 就绪等待：端点轮询至 HTTP 200（/auth/captcha 走 POST，其余按 GET health）；进程提前退出立即失败并带日志尾部 */
     private static void waitReady(String name, URI url, ServiceHandle handle) throws InterruptedException {
-        boolean postProbe = "/auth/captcha".equals(url.getPath());
+        boolean postProbe = "/api/access/auth/captcha".equals(url.getPath());
         long deadline = System.nanoTime() + Duration.ofMinutes(4).toNanos();
         IOException lastError = null;
         while (System.nanoTime() < deadline) {
@@ -813,13 +813,13 @@ class BasicRoleGrantVerticalSliceE2EIT {
      * 验证码与令牌均为服务真实签发校验，测试不注入任何凭据。
      */
     private static String realLogin(String username, String password) {
-        JsonNode captcha = postForData(gateway() + "/auth/captcha", null, JSON.createObjectNode());
+        JsonNode captcha = postForData(gateway() + "/api/access/auth/captcha", null, JSON.createObjectNode());
         String captchaId = captcha.path("captchaId").asText();
         assertThat(captchaId).as("验证码必须真实签发").isNotBlank();
         String code = readCaptchaFromRedis(captchaId);
         assertThat(code).as("Redis 必须存有验证码答案（真实签发链路）").isNotBlank();
 
-        JsonNode login = postForData(gateway() + "/auth/login", null,
+        JsonNode login = postForData(gateway() + "/api/access/auth/login", null,
             JSON.createObjectNode()
                 .put("tenantId", TENANT_ID)
                 .put("username", username)
@@ -887,7 +887,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
     private static String probeInternalSnapshot() {
         try {
             HttpRequest request = HttpRequest.newBuilder(
-                    URI.create("http://localhost:" + accessService.port() + "/api/perm/auth/interface-snapshot"))
+                    URI.create("http://localhost:" + accessService.port() + "/api/access/auth/interface-snapshot"))
                 .timeout(Duration.ofSeconds(10))
                 .header("Content-Type", "application/json")
                 .header("X-Tenant-Id", TENANT_ID)

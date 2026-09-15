@@ -167,7 +167,7 @@ class TargetModeClosurePgIT {
     }
 
     @Test
-    @DisplayName("/auth/check inheritMode 接通闭包真实语义：NONE 关 / PARENT 开")
+    @DisplayName("/api/access/auth/check inheritMode 接通闭包真实语义：NONE 关 / PARENT 开")
     void authCheckInheritModeParameterWiresClosure() {
         Integer type = ensureResourceType("TMCL_E");
         ensureOperation(type, "VIEW", 1L, 0L);

@@ -36,7 +36,7 @@ import java.util.UUID;
  *       X-User-Id 存在（恒已验签，防御纵深再校验）→ USER（签名代理主体）；
  *       无 X-User-Id → SERVICE（serviceCode 绑定 X-Service-Code 头，凭证通过即可信）</li>
  *   <li>OAuth2 JWT（Bearer 三段式，仅显式配置的开放路径 access.oauth2.resource-paths，
- *       默认仅 /auth/oauth2/userinfo）→ 验签 + 撤销黑名单 + 客户端启用校验 + 路径门禁
+ *       默认仅 /api/access/auth/oauth2/userinfo）→ 验签 + 撤销黑名单 + 客户端启用校验 + 路径门禁
  *       （clientIds/scope/audience，T-ACCESS-013 独立映射）→ USER + delegatedClientId；
  *       未配置路径上委托令牌默认拒绝（业务 API 逐项显式放开，不得通配 /auth/oauth2/**）</li>
  *   <li>Sa-Token 会话 → USER（会话权威：operatorId=loginId、tenantId=session 租户；
@@ -158,9 +158,10 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
 
         // 2.5 OAuth2 JWT 认证（2026-08-14 实现；T-ACCESS-013 白名单配置化）：
         // 第三方 OAuth2 访问令牌（三段式 JWT，SaJwtUtil 独立签发）与平台 uuid 会话互斥。
-        // 仅显式配置的开放路径（access.oauth2.resource-paths，默认仅 /auth/oauth2/userinfo）
+        // 仅显式配置的开放路径（access.oauth2.resource-paths，默认仅 /api/access/auth/oauth2/userinfo）
         // 走本分支，其余路径委托令牌默认拒绝（落到会话分支 → 401）；
-        // 开放路径不得覆盖 /auth/** 会话端点与 /api/perm/**（启动防护 fail-fast）。
+        // 开放路径不得覆盖平台会话端点（启动防护 fail-fast）；内部凭证路径重叠防护已随
+        // T-ACCESS-042 单命名空间退役（双凭证并存不构成机制冲突）。
         String bearerToken = extractBearerToken(request.getHeader(HEADER_AUTHORIZATION));
         if (bearerToken != null && bearerToken.indexOf('.') >= 0) {
             Optional<OAuth2ResourcePathProperties.ResourcePathRule> rule = oauth2ResourcePaths.match(uri);
@@ -293,7 +294,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         if (uri.equals("/actuator") || uri.startsWith("/actuator/")) {
             return true;
         }
-        if (uri.startsWith("/auth/")) {
+        if (uri.startsWith("/api/access/auth/")) {
             return isPublicAuthEndpoint(uri);
         }
         return false;
@@ -314,7 +315,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      * OAuth2 JWT 认证（2026-08-14 用户决策限定路径）：SaJwtUtil 验签
      * （HS256 + loginType 匹配 + 超时）→ 撤销黑名单检查 → 绑定 USER 上下文
      * （operatorId=JWT loginId、tenantId=JWT 载荷）。验签失败/黑名单命中 → 401。
-     * 仅对显式配置的开放路径（access.oauth2.resource-paths，默认仅 /auth/oauth2/userinfo）
+     * 仅对显式配置的开放路径（access.oauth2.resource-paths，默认仅 /api/access/auth/oauth2/userinfo）
      * 生效；开放路径不得覆盖 /auth/** 会话端点与 /api/perm/**（启动防护 fail-fast）。
      * 委托令牌在其他路径默认拒绝；授权链（2026-08-22 用户决策，T-ACCESS-013）：
      * 验签 → 必填 claim（loginId/jti/client_id）→ 撤销黑名单 → 客户端启用动态校验
@@ -424,12 +425,12 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      * logout 匿名放行保持未登录 200 幂等语义（无租户需求，StpUtil 自保护，用户决策）。
      */
     private static boolean isPublicAuthEndpoint(String uri) {
-        return uri.equals("/auth/captcha")
-            || uri.equals("/auth/login") || uri.equals("/auth/login/sms")
-            || uri.equals("/auth/oauth2/token")
-            || uri.equals("/auth/oauth2/refresh")
-            || uri.equals("/auth/oauth2/revoke")
-            || uri.equals("/auth/logout");
+        return uri.equals("/api/access/auth/captcha")
+            || uri.equals("/api/access/auth/login") || uri.equals("/api/access/auth/login/sms")
+            || uri.equals("/api/access/auth/oauth2/token")
+            || uri.equals("/api/access/auth/oauth2/refresh")
+            || uri.equals("/api/access/auth/oauth2/revoke")
+            || uri.equals("/api/access/auth/logout");
     }
 
     /**

@@ -115,7 +115,7 @@ class AuthTokenFilterTest {
     }
 
     private MockServerWebExchange exchangeWithBearer(String token) {
-        MockServerHttpRequest request = MockServerHttpRequest.post("/admin/user/page")
+        MockServerHttpRequest request = MockServerHttpRequest.post("/api/access/user/page")
             .header("Authorization", "Bearer " + token)
             .build();
         return MockServerWebExchange.from(request);
@@ -156,7 +156,7 @@ class AuthTokenFilterTest {
     @DisplayName("无令牌：401 未登录")
     void missingToken_rejected401() {
         MockServerWebExchange exchange = MockServerWebExchange.from(
-            MockServerHttpRequest.post("/admin/user/page").build());
+            MockServerHttpRequest.post("/api/access/user/page").build());
         AtomicBoolean chained = new AtomicBoolean(false);
 
         filter.filter(exchange, chainOf(chained)).block();
@@ -239,7 +239,7 @@ class AuthTokenFilterTest {
     @DisplayName("skipAuth 白名单属性：直接放行，不校验令牌")
     void skipAuthAttribute_passesThrough() {
         MockServerWebExchange exchange = MockServerWebExchange.from(
-            MockServerHttpRequest.post("/admin/auth/login").build());
+            MockServerHttpRequest.post("/api/access/auth/login").build());
         exchange.getAttributes().put("skipAuth", Boolean.TRUE);
         AtomicBoolean chained = new AtomicBoolean(false);
 
@@ -256,7 +256,7 @@ class AuthTokenFilterTest {
         // 本用例在旧实现下失败；令牌只经 Authorization 头传递，Cookie 承载构成
         // CSRF 面（浏览器跨站自动携带）必须拒绝
         String token = loginAsAccessService(true, true, true);
-        MockServerHttpRequest request = MockServerHttpRequest.post("/admin/user/page")
+        MockServerHttpRequest request = MockServerHttpRequest.post("/api/access/user/page")
             .cookie(new org.springframework.http.HttpCookie("Authorization", token))
             .build();
         MockServerWebExchange exchange = MockServerWebExchange.from(request);
@@ -304,7 +304,7 @@ class AuthTokenFilterTest {
     @DisplayName("401 响应体为统一 GatewayResponse JSON 结构")
     void unauthorizedBody_isUnifiedJson() {
         MockServerWebExchange exchange = MockServerWebExchange.from(
-            MockServerHttpRequest.post("/admin/user/page").build());
+            MockServerHttpRequest.post("/api/access/user/page").build());
         AtomicBoolean chained = new AtomicBoolean(false);
 
         filter.filter(exchange, chainOf(chained)).block();

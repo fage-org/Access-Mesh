@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 登录与会话建立特征测试（T-ACCESS-017·链路 1，真实 PostgreSQL + Redis）。
  * <p>
- * 固化 {@code POST /auth/login} 的当前正确行为：真实 sys_user 表校验（BCrypt）、
+ * 固化 {@code POST /api/access/auth/login} 的当前正确行为：真实 sys_user 表校验（BCrypt）、
  * 真实 Redis 验证码（Lua GET+DEL）与失败计数、Sa-Token 会话建立（redis-jackson dao）、
  * token 颁发（expiresIn = sa-token.timeout 单一权威来源）、userinfo 会话消费、logout 失效。
  * 单测层等价特征断言已由 PlatformSessionIdleTimeoutTest / PlatformSessionAbsoluteTimeoutTest
@@ -95,7 +95,7 @@ class LoginSessionPgIT {
         stringRedisTemplate.opsForValue().set("captcha:" + captchaId, captchaCode, 5, TimeUnit.MINUTES);
 
         // 登录成功：code=200 + accessToken + expiresIn = sa-token.timeout（单一权威来源）
-        MvcResult loginResult = mockMvc.perform(post("/auth/login")
+        MvcResult loginResult = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                     "tenantId", "1", "username", USERNAME, "password", PASSWORD,
@@ -111,7 +111,7 @@ class LoginSessionPgIT {
             .isEqualTo(cn.dev33.satoken.SaManager.getConfig().getTimeout());
 
         // 验证码一次性消费：同 captchaId 二次登录必失败（Lua 已 DEL）
-        MvcResult replay = mockMvc.perform(post("/auth/login")
+        MvcResult replay = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                     "tenantId", "1", "username", USERNAME, "password", PASSWORD,
@@ -122,15 +122,15 @@ class LoginSessionPgIT {
         assertThat(replayBody.get("code").asInt()).isNotEqualTo(200);
 
         // 会话消费：userinfo 200（RequestContextInterceptor 经 Sa-Token 会话绑定身份）
-        mockMvc.perform(post("/auth/userinfo")
+        mockMvc.perform(post("/api/access/auth/userinfo")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
 
         // 注销后立即失效：userinfo 401
-        mockMvc.perform(post("/auth/logout")
+        mockMvc.perform(post("/api/access/auth/logout")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isOk());
-        mockMvc.perform(post("/auth/userinfo")
+        mockMvc.perform(post("/api/access/auth/userinfo")
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().is(401));
     }

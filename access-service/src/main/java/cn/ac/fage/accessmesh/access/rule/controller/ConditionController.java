@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/permission-condition")
+@RequestMapping("/api/access/permission-condition")
 public class ConditionController {
 
     private final ConditionAppService conditionAppService;

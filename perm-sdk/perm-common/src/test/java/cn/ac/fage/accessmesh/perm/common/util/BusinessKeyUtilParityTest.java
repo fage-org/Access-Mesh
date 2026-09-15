@@ -132,7 +132,7 @@ class BusinessKeyUtilParityTest {
 
     @Test
     void apiRouteKeyShouldLockMethodPathFormat() {
-        assertThat(BusinessKeyUtil.apiRouteKey("POST", "/api/perm/x/list")).isEqualTo("POST:/api/perm/x/list");
+        assertThat(BusinessKeyUtil.apiRouteKey("POST", "/api/access/x/list")).isEqualTo("POST:/api/access/x/list");
     }
 
     // -------------------- 竖线族（2026-09-08 codex 复评 P2-1 收编） --------------------

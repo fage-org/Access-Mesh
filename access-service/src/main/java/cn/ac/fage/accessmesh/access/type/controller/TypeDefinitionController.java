@@ -27,7 +27,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/type-definition")
+@RequestMapping("/api/access/type-definition")
 public class TypeDefinitionController {
 
     private final TypeDefinitionAppService typeDefinitionAppService;

@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/permission-view")
+@RequestMapping("/api/access/permission-view")
 public class PermissionViewController {
 
     private final PermissionViewAppService permissionViewAppService;

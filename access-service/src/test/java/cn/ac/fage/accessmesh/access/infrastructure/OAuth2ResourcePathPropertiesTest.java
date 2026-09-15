@@ -12,8 +12,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * OAuth2 资源服务器开放路径配置测试（T-ACCESS-013）。
  * <p>
- * 覆盖：默认值（仅 /auth/oauth2/userinfo）、Ant 通配匹配、启动防护 fail-fast
- * （覆盖 /auth/** 会话端点 / /api/perm/** 内部凭证路径 / 空模式 → 启动失败）。
+ * 覆盖：默认值（仅 userinfo）、Ant 通配匹配、启动防护 fail-fast
+ * （覆盖平台会话端点 / 空模式 / 业务路径缺门禁 → 启动失败）。
+ * T-ACCESS-042：原「内部凭证路径重叠」防护退役——URL 单命名空间后开放路径与内部
+ * 凭证路径同住 /api/access/**，合法流量恒经 Gateway 注入密钥，OAuth2 JWT 验证在
+ * InternalApiSecretInterceptor 之后独立执行，双凭证并存不构成机制冲突；本类
+ * 「深路径/中段通配/宽通配/URI 模板」四组用例随之改锁新语义（曾为旧防护拒绝项，
+ * 退役后必须通过——旧实现下必红，为退役回归锁）。
  * </p>
  */
 class OAuth2ResourcePathPropertiesTest {
@@ -27,9 +32,9 @@ class OAuth2ResourcePathPropertiesTest {
         assertThat(props.getResourcePaths()).hasSize(1);
         assertThat(props.getResourcePaths().get(0).getPath())
             .isEqualTo(OAuth2ResourcePathProperties.DEFAULT_USERINFO_PATH);
-        assertThat(props.match("/auth/oauth2/userinfo")).isPresent();
-        assertThat(props.match("/auth/oauth2/authorize")).isEmpty();
-        assertThat(props.match("/user/page")).isEmpty();
+        assertThat(props.match("/api/access/auth/oauth2/userinfo")).isPresent();
+        assertThat(props.match("/api/access/auth/oauth2/authorize")).isEmpty();
+        assertThat(props.match("/api/access/user/page")).isEmpty();
         assertThat(props.match("/api/example/resource/action")).isEmpty();
     }
 
@@ -42,7 +47,7 @@ class OAuth2ResourcePathPropertiesTest {
         wildcard.getRequiredScopes().add("example:read");
         wildcard.setAudience("example-service");
         props.setResourcePaths(new ArrayList<>(List.of(
-            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/auth/oauth2/userinfo"), wildcard)));
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/access/auth/oauth2/userinfo"), wildcard)));
         props.afterPropertiesSet();
 
         assertThat(props.match("/api/example/resource/action")).isPresent();
@@ -55,11 +60,11 @@ class OAuth2ResourcePathPropertiesTest {
     void guardRejects_patternCoveringAuthorize() {
         OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
         props.setResourcePaths(List.of(
-            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/auth/oauth2/**")));
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/access/auth/oauth2/**")));
 
         assertThatThrownBy(props::afterPropertiesSet)
             .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("/auth/oauth2/authorize");
+            .hasMessageContaining("/api/access/auth/oauth2/authorize");
     }
 
     @Test
@@ -67,7 +72,7 @@ class OAuth2ResourcePathPropertiesTest {
     void guardRejects_patternCoveringSessionUserinfo() {
         OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
         props.setResourcePaths(List.of(
-            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/auth/**")));
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/access/auth/**")));
 
         // Set.of 保留端点遍历顺序不定，断言不绑定具体端点，命中任一保留端点即视为防护生效
         assertThatThrownBy(props::afterPropertiesSet)
@@ -77,36 +82,23 @@ class OAuth2ResourcePathPropertiesTest {
     }
 
     @Test
-    @DisplayName("启动防护：模式覆盖 /api/perm/**（内部凭证路径）→ 启动失败")
-    void guardRejects_patternCoveringInternalApi() {
-        OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
-        props.setResourcePaths(List.of(
-            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/perm/**")));
-
-        assertThatThrownBy(props::afterPropertiesSet)
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("/api/perm");
-    }
-
-    @Test
-    @DisplayName("评审 P2：/api/**/sync（不匹配字面量样本但命中 /api/perm/abstract-user/sync）→ 启动失败")
-    void guardRejects_midPatternWildcardCoveringInternalApi() {
+    @DisplayName("T-ACCESS-042 退役回归锁：中段通配 /api/**/sync 通过防护并命中内部深路径（旧防护必拒）")
+    void guardAccepts_midPatternWildcard_afterInternalOverlapGuardRetired() {
         OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
         OAuth2ResourcePathProperties.ResourcePathRule rule =
             OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/**/sync");
         rule.getRequiredScopes().add("example:read");
         rule.setAudience("example-service");
         props.setResourcePaths(List.of(rule));
+        props.afterPropertiesSet();
 
-        assertThatThrownBy(props::afterPropertiesSet)
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("/api/perm");
+        assertThat(props.match("/api/access/abstract-user/sync")).isPresent();
     }
 
     @Test
-    @DisplayName("评审 P2：宽通配 /** 与 /api/* → 启动失败（可能覆盖内部凭证空间）")
-    void guardRejects_broadWildcardsCoveringInternalApi() {
-        // /** 同时覆盖平台会话端点，先被会话端点防护拒绝（同为启动失败，防护目标一致）
+    @DisplayName("T-ACCESS-042 退役回归锁：/api/* 宽通配通过；/** 因覆盖会话端点仍拒")
+    void guardAccepts_apiSingleWildcard_butRootWildcardStillRejected() {
+        // /** 同时覆盖平台会话端点，被会话端点防护拒绝（防护目标不变）
         OAuth2ResourcePathProperties rootWildcard = new OAuth2ResourcePathProperties();
         OAuth2ResourcePathProperties.ResourcePathRule root =
             OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/**");
@@ -114,24 +106,24 @@ class OAuth2ResourcePathPropertiesTest {
         root.setAudience("example-service");
         rootWildcard.setResourcePaths(List.of(root));
         assertThatThrownBy(rootWildcard::afterPropertiesSet)
-            .isInstanceOf(IllegalStateException.class);
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("覆盖平台会话端点");
 
-        // /api/* 静态前缀 /api 是 /api/perm 的字符前缀 → 内部凭证防护拒绝
+        // /api/* 单段通配不覆盖任何保留端点 → 通过（旧「内部凭证前缀」防护的拒绝项退役）
         OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
         OAuth2ResourcePathProperties.ResourcePathRule rule =
             OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/*");
         rule.getRequiredScopes().add("example:read");
         rule.setAudience("example-service");
         props.setResourcePaths(List.of(rule));
-        assertThatThrownBy(props::afterPropertiesSet)
-            .isInstanceOf(IllegalStateException.class)
-            .hasMessageContaining("/api/perm");
+        props.afterPropertiesSet();
+        assertThat(props.getResourcePaths()).hasSize(1);
     }
 
     @Test
-    @DisplayName("评审 P2：精确/深层深入内部空间（/api/perm/abstract-user/**、/api/per?/**）→ 启动失败")
-    void guardRejects_deepOrQuestionMarkCoveringInternalApi() {
-        for (String pattern : List.of("/api/perm/abstract-user/**", "/api/perm/abstract-user/sync", "/api/per?/**")) {
+    @DisplayName("T-ACCESS-042 退役回归锁：精确/深层/单字符通配深入命名空间（旧防护必拒项）→ 通过")
+    void guardAccepts_deepOrQuestionMarkPatterns_afterInternalOverlapGuardRetired() {
+        for (String pattern : List.of("/api/access/abstract-user/**", "/api/access/abstract-user/sync", "/api/per?/**")) {
             OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
             OAuth2ResourcePathProperties.ResourcePathRule rule =
                 OAuth2ResourcePathProperties.ResourcePathRule.exactPath(pattern);
@@ -139,27 +131,36 @@ class OAuth2ResourcePathPropertiesTest {
             rule.setAudience("example-service");
             props.setResourcePaths(List.of(rule));
 
-            assertThatThrownBy(props::afterPropertiesSet)
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("/api/perm");
+            props.afterPropertiesSet();
+            assertThat(props.getResourcePaths()).hasSize(1);
         }
     }
 
     @Test
-    @DisplayName("复评 P2：URI 模板变量 /api/{module}/abstract-user/sync（运行时命中内部端点）→ 启动失败")
-    void guardRejects_uriTemplateCoveringInternalApi() {
-        for (String pattern : List.of("/api/{module}/abstract-user/sync", "/api/{module}/**",
-            "/api/{m:[a-z]+}/**")) {
-            OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
-            OAuth2ResourcePathProperties.ResourcePathRule rule =
-                OAuth2ResourcePathProperties.ResourcePathRule.exactPath(pattern);
-            rule.getRequiredScopes().add("example:read");
-            rule.setAudience("example-service");
-            props.setResourcePaths(List.of(rule));
+    @DisplayName("T-ACCESS-042 退役回归锁：URI 模板变量模式通过（覆盖保留端点的形态仍拒）")
+    void guardAccepts_uriTemplatePatterns_butReservedCoverageStillRejected() {
+        // 深层精确模板不覆盖任何保留端点 → 通过（旧「内部凭证前缀」防护的拒绝项退役）
+        OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
+        OAuth2ResourcePathProperties.ResourcePathRule deep =
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/{module}/abstract-user/sync");
+        deep.getRequiredScopes().add("example:read");
+        deep.setAudience("example-service");
+        props.setResourcePaths(List.of(deep));
+        props.afterPropertiesSet();
+        assertThat(props.getResourcePaths()).hasSize(1);
 
-            assertThatThrownBy(props::afterPropertiesSet)
+        // 宽模板 /api/{module}/**、/api/{m:[a-z]+}/** 运行时命中 /api/access/auth/userinfo
+        // 等平台会话端点 → 仍被会话端点防护拒绝（防护语义与新旧前缀无关）
+        for (String pattern : List.of("/api/{module}/**", "/api/{m:[a-z]+}/**")) {
+            OAuth2ResourcePathProperties reserved = new OAuth2ResourcePathProperties();
+            OAuth2ResourcePathProperties.ResourcePathRule coversReserved =
+                OAuth2ResourcePathProperties.ResourcePathRule.exactPath(pattern);
+            coversReserved.getRequiredScopes().add("example:read");
+            coversReserved.setAudience("example-service");
+            reserved.setResourcePaths(List.of(coversReserved));
+            assertThatThrownBy(reserved::afterPropertiesSet)
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("/api/perm");
+                .hasMessageContaining("覆盖平台会话端点");
         }
     }
 
@@ -179,7 +180,7 @@ class OAuth2ResourcePathPropertiesTest {
         props.afterPropertiesSet();
 
         assertThat(props.match("/example/123")).isPresent();
-        assertThat(props.match("/api/perm/abstract-user/sync")).isEmpty();
+        assertThat(props.match("/api/access/abstract-user/sync")).isEmpty();
     }
 
     @Test
@@ -220,7 +221,7 @@ class OAuth2ResourcePathPropertiesTest {
         business.getRequiredScopes().add("example:read");
         business.setAudience("example-service");
         props.setResourcePaths(List.of(
-            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/auth/oauth2/userinfo"), business));
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/access/auth/oauth2/userinfo"), business));
         props.afterPropertiesSet();
 
         assertThat(props.match("/api/example/resource/action")).isPresent();
@@ -259,10 +260,10 @@ class OAuth2ResourcePathPropertiesTest {
     void guardAccepts_userinfoWithoutGates() {
         OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();
         props.setResourcePaths(List.of(
-            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/auth/oauth2/userinfo")));
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/access/auth/oauth2/userinfo")));
         props.afterPropertiesSet();
 
-        assertThat(props.match("/auth/oauth2/userinfo")).isPresent();
+        assertThat(props.match("/api/access/auth/oauth2/userinfo")).isPresent();
     }
 
     @Test
@@ -272,6 +273,6 @@ class OAuth2ResourcePathPropertiesTest {
         props.setResourcePaths(new ArrayList<>());
         props.afterPropertiesSet();
 
-        assertThat(props.match("/auth/oauth2/userinfo")).isEmpty();
+        assertThat(props.match("/api/access/auth/oauth2/userinfo")).isEmpty();
     }
 }

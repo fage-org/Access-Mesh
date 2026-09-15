@@ -204,7 +204,7 @@ class OrgTreeIncludePositionsPgIT {
         String captchaId = UUID.randomUUID().toString();
         String captchaCode = "5926";
         stringRedisTemplate.opsForValue().set("captcha:" + captchaId, captchaCode, 5, TimeUnit.MINUTES);
-        MvcResult result = mockMvc.perform(post("/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                     "tenantId", "1", "username", usernameOf(userId), "password", PASSWORD,
@@ -217,7 +217,7 @@ class OrgTreeIncludePositionsPgIT {
     }
 
     private JsonNode tree(String token, Object body) throws Exception {
-        MvcResult result = mockMvc.perform(post("/org/tree")
+        MvcResult result = mockMvc.perform(post("/api/access/org/tree")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(body)))
@@ -335,7 +335,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUnprivilegedUser("组织树-投影缺失用户");
         String token = login(userId);
 
-        MvcResult result = mockMvc.perform(post("/org/tree")
+        MvcResult result = mockMvc.perform(post("/api/access/org/tree")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("includePositions", true))))
@@ -401,7 +401,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-仅VIEW用户", BIT_VIEW);
         String token = login(userId);
 
-        MvcResult result = mockMvc.perform(post("/org/tree")
+        MvcResult result = mockMvc.perform(post("/api/access/org/tree")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("orgType", 1, "operationCode", "CREATE"))))
@@ -572,7 +572,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertSubjectOnlyUser("组织树-主体无授权用户");
         String token = login(userId);
 
-        MvcResult result = mockMvc.perform(post("/org/tree")
+        MvcResult result = mockMvc.perform(post("/api/access/org/tree")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("includePositions", true))))

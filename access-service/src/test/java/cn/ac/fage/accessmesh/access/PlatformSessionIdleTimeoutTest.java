@@ -114,7 +114,7 @@ class PlatformSessionIdleTimeoutTest {
         org.mockito.Mockito.lenient().when(stringRedisTemplate.opsForValue()).thenReturn(valueOperations);
         org.mockito.Mockito.lenient().when(valueOperations.get(anyString())).thenReturn(null);
 
-        MvcResult result = mockMvc.perform(post("/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(MAPPER.writeValueAsString(java.util.Map.of(
                     "tenantId", "1", "username", "alice", "password", PASSWORD,
@@ -127,8 +127,8 @@ class PlatformSessionIdleTimeoutTest {
     }
 
     private int userinfoStatus(String token) throws Exception {
-        return mockMvc.perform(post("/auth/userinfo")
-                .header("Authorization", "Bearer " + token))
+        return mockMvc.perform(post("/api/access/auth/userinfo")
+                                .header("Authorization", "Bearer " + token))
             .andReturn().getResponse().getStatus();
     }
 

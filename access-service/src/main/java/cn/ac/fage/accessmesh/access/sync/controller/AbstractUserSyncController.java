@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/abstract-user")
+@RequestMapping("/api/access/abstract-user")
 public class AbstractUserSyncController {
 
     private final AbstractUserSyncAppService abstractUserSyncAppService;

@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/org")
+@RequestMapping("/api/access/org")
 public class OrgController {
 
     private final OrgAppService orgService;

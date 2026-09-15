@@ -88,7 +88,7 @@ class SyncEndpointAuthIT {
         // order=1 InternalApi(/api/perm/**) → order=2 HeaderSignature(/api/**,/internal/**，
         //   评审 P2-2 后 /actuator/** 已排除出签名链——公开端点契约不依赖头) → order=3 RequestContext
         mockMvc = MockMvcBuilders.standaloneSetup(new StubSyncController(), new StubActuatorController())
-            .addMappedInterceptors(new String[]{"/api/perm/**"}, internalInterceptor)
+            .addMappedInterceptors(new String[]{"/api/access/**"}, internalInterceptor)
             .addMappedInterceptors(new String[]{"/api/**", "/internal/**"}, sigInterceptor)
             .addMappedInterceptors(new String[]{"/**"}, ctxInterceptor)
             .build();
@@ -97,7 +97,7 @@ class SyncEndpointAuthIT {
     @Test
     @DisplayName("用例1：调度 Feign 调用（X-Tenant-Id + 正确 X-Internal-Secret） → 200")
     void case1_internalSecretCorrect_shouldPass() throws Exception {
-        mockMvc.perform(post("/api/perm/abstract-user/sync")
+        mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header(HEADER_TENANT_ID, "1")
                 .header(HEADER_INTERNAL_SECRET, INTERNAL_SECRET)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -108,7 +108,7 @@ class SyncEndpointAuthIT {
     @Test
     @DisplayName("用例2：错误的 X-Internal-Secret → 403")
     void case2_internalSecretWrong_shouldReject() throws Exception {
-        mockMvc.perform(post("/api/perm/abstract-user/sync")
+        mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header(HEADER_TENANT_ID, "1")
                 .header(HEADER_INTERNAL_SECRET, "wrong-secret")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -119,7 +119,7 @@ class SyncEndpointAuthIT {
     @Test
     @DisplayName("用例3：仅 X-Tenant-Id 无 secret 无 user → 403（InternalApi 拒绝）")
     void case3_tenantOnlyNoSecret_shouldReject() throws Exception {
-        mockMvc.perform(post("/api/perm/abstract-user/sync")
+        mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header(HEADER_TENANT_ID, "1")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"))
@@ -131,7 +131,7 @@ class SyncEndpointAuthIT {
     void case4_userIdNoSignature_shouldReject() throws Exception {
         // T-ACCESS-004 修复 G1：内部凭证不再无条件信任用户身份头——X-User-Id 恒需验签。
         // 凭证持有者携带伪造 X-User-Id 冒充操作者的路径被 403 阻断（原为路径 1 直接放行 200）。
-        mockMvc.perform(post("/api/perm/abstract-user/sync")
+        mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header(HEADER_USER_ID, "100")
                 .header(HEADER_TENANT_ID, "1")
                 .header(HEADER_INTERNAL_SECRET, INTERNAL_SECRET)
@@ -144,7 +144,7 @@ class SyncEndpointAuthIT {
     @DisplayName("用例4b：X-User-Id + X-Tenant-Id 无 HMAC 无 InternalSecret → 403")
     void case4b_userIdNoSignatureNoSecret_shouldReject() throws Exception {
         // /api/perm/** 路径下，无 InternalSecret 会先被 InternalApiSecretInterceptor 在 order=1 拒绝
-        mockMvc.perform(post("/api/perm/abstract-user/sync")
+        mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header(HEADER_USER_ID, "100")
                 .header(HEADER_TENANT_ID, "1")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -157,7 +157,7 @@ class SyncEndpointAuthIT {
     void case5_userIdWithValidHmac_shouldPass() throws Exception {
         long ts = System.currentTimeMillis() / 1000;
         String sig = computeHmac("100", "1", ts);
-        mockMvc.perform(post("/api/perm/abstract-user/sync")
+        mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header(HEADER_USER_ID, "100")
                 .header(HEADER_TENANT_ID, "1")
                 .header(HEADER_SIGNATURE, sig)
@@ -207,7 +207,7 @@ class SyncEndpointAuthIT {
 
     /** 测试 stub：模拟 sync 业务端点 */
     @RestController
-    @RequestMapping("/api/perm/abstract-user")
+    @RequestMapping("/api/access/abstract-user")
     static class StubSyncController {
         @PostMapping("/sync")
         public String sync(@RequestBody(required = false) String body) {

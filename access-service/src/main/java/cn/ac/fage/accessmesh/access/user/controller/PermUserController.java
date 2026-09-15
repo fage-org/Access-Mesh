@@ -29,7 +29,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/abstract-user")
+@RequestMapping("/api/access/abstract-user")
 public class PermUserController {
 
     private final UserManageAppService userManageService;

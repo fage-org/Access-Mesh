@@ -27,7 +27,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/domain-config")
+@RequestMapping("/api/access/domain-config")
 public class DomainConfigController {
 
     private final DomainConfigAppService domainConfigAppService;

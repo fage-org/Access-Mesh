@@ -67,12 +67,12 @@ access:
   # 业务开放路径（非 userinfo）必须声明 requiredScopes 与 audience——缺失启动失败
   # （防配置遗漏静默放行）；userinfo 默认豁免两项（仅验签+黑名单+客户端启用）。
   # 显式配置为全量替换（非合并），新增业务路径必须保留 userinfo 条目；
-  # 非 /auth/** 前缀的开放路径需同步在 Gateway gateway.oauth2.passthrough-paths
+  # 非 /api/access/auth/** 前缀的开放路径需同步在 Gateway gateway.oauth2.passthrough-paths
   # 放行透传（仅 Bearer 三段式 JWT 透传；平台会话仍走 Gateway 正常鉴权）。
   # client_id 启用状态动态校验（禁用立即失效）对所有开放路径恒定生效，无需配置。
   oauth2:
     resource-paths:
-      - path: /auth/oauth2/userinfo
+      - path: /api/access/auth/oauth2/userinfo
   # T-ACCESS-020：空库 bootstrap（幂等首管理员种子）。默认关闭；仅单实例启用
   # （无分布式锁，多实例同时启用存在并发建号风险，唯一约束仅兜底）。
   # enabled=true 时 ACCESS_BOOTSTRAP_ADMIN_PASSWORD 缺失/空白启动失败（fail-fast，密码不写日志）。

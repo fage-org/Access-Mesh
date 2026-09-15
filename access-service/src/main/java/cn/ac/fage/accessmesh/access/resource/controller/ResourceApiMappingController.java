@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/resource-api-mapping")
+@RequestMapping("/api/access/resource-api-mapping")
 public class ResourceApiMappingController {
 
     private final ResourceManageAppService resourceManageService;

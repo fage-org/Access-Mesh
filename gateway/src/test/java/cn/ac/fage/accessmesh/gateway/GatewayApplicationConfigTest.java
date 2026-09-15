@@ -160,14 +160,14 @@ class GatewayApplicationConfigTest {
     }
 
     @Test
-    @DisplayName("路由契约：恰为 access-service/example-service/auth-routes 3 条，旧路径行为不变（T-ACCESS-010）")
+    @DisplayName("路由契约：恰为 access-service/example-service 2 条，单命名空间无 StripPrefix（T-ACCESS-042）")
     void routesAreDefined() {
         RouteDefinitionLocator locator = applicationContext.getBean(RouteDefinitionLocator.class);
         assertNotNull(locator, "RouteDefinitionLocator 必须存在");
         var routes = locator.getRouteDefinitions().collectList().block();
         assertNotNull(routes, "路由定义必须可加载");
-        // T-ACCESS-010：/admin/** 与 /perm/** 合并为一条 access-service 路由（StripPrefix=1），
-        // /auth/** 独立（StripPrefix=0）；旧服务名不得残留为路由 id 或发现目标
+        // T-ACCESS-042：URL 单命名空间——外部路径=服务路径 /api/<服务命名空间>/**，
+        // 按第二段路由、无 StripPrefix；/admin、/perm 外部前缀与 auth-routes 直通路由退役
         var byId = new java.util.HashSet<String>();
         var byUri = new java.util.HashSet<String>();
         routes.forEach(r -> {
@@ -175,43 +175,32 @@ class GatewayApplicationConfigTest {
             byUri.add(r.getUri().toString());
         });
         // 路由定义总数直接断言（byId 是 Set，重复 ID 的额外路由会被折叠，Set 大小证明不了定义数）
-        assertTrue(routes.size() == 3, "路由定义总数必须恰为 3（access-service/example-service/auth-routes，防增删路由静默漂移），实际 " + routes.size());
-        assertTrue(byId.size() == 3, "路由 ID 不得重复（重复 ID 的多条定义会被 Set 折叠），实际不同 ID " + byId);
-        assertTrue(byId.contains("access-service"), "必须存在合并路由 access-service，实际 " + byId);
+        assertTrue(routes.size() == 2, "路由定义总数必须恰为 2（access-service/example-service，防增删路由静默漂移），实际 " + routes.size());
+        assertTrue(byId.size() == 2, "路由 ID 不得重复（重复 ID 的多条定义会被 Set 折叠），实际不同 ID " + byId);
+        assertTrue(byId.contains("access-service"), "必须存在路由 access-service，实际 " + byId);
         assertTrue(byId.contains("example-service"), "必须存在路由 example-service，实际 " + byId);
-        assertTrue(byId.contains("auth-routes"), "必须存在路由 auth-routes，实际 " + byId);
+        assertTrue(!byId.contains("auth-routes"), "auth-routes 直通路由必须删除（/api/access/auth/** 并入统一路由），实际 " + byId);
         assertTrue(byUri.contains("lb://access-service"), "发现目标必须包含 lb://access-service，实际 " + byUri);
         routes.stream().filter(r -> "access-service".equals(r.getId())).findFirst().ifPresent(r -> {
             assertTrue(r.getUri().toString().equals("lb://access-service"),
                 "access-service 路由目标必须为 lb://access-service，实际 " + r.getUri());
             assertTrue(r.getPredicates().stream()
                     .anyMatch(p -> "Path".equals(p.getName())
-                        && p.getArgs().containsValue("/admin/**") && p.getArgs().containsValue("/perm/**")),
-                "合并路由必须同时覆盖 /admin/** 与 /perm/**，实际 " + r.getPredicates());
+                        && p.getArgs().containsValue("/api/access/**")),
+                "access-service 路由必须覆盖 /api/access/**（单命名空间），实际 " + r.getPredicates());
             assertTrue(r.getFilters().stream()
-                    .anyMatch(f -> "StripPrefix".equals(f.getName()) && "1".equals(f.getArgs().get("_genkey_0"))),
-                "合并路由 StripPrefix 必须为 1（原路径行为不变），实际 " + r.getFilters());
+                    .noneMatch(f -> "StripPrefix".equals(f.getName())),
+                "单命名空间外部路径=服务路径，不得存在 StripPrefix（T-ACCESS-042 退役），实际 " + r.getFilters());
             assertTrue("access-service".equals(r.getMetadata().get("serviceCode")),
-                "合并路由 metadata.serviceCode 必须为 access-service，实际 " + r.getMetadata().get("serviceCode"));
-        });
-        // 评审 P2：auth-routes 与 example-service 的原路径行为（Path + StripPrefix）一并固化
-        routes.stream().filter(r -> "auth-routes".equals(r.getId())).findFirst().ifPresent(r -> {
-            assertTrue(r.getUri().toString().equals("lb://access-service"),
-                "auth-routes 目标必须为 lb://access-service（原 lb://admin-service），实际 " + r.getUri());
-            assertTrue(r.getPredicates().stream()
-                    .anyMatch(p -> "Path".equals(p.getName()) && p.getArgs().containsValue("/auth/**")),
-                "auth-routes 必须覆盖 /auth/**（原路径行为不变），实际 " + r.getPredicates());
-            assertTrue(r.getFilters().stream()
-                    .anyMatch(f -> "StripPrefix".equals(f.getName()) && "0".equals(f.getArgs().get("_genkey_0"))),
-                "auth-routes StripPrefix 必须为 0（/auth/** 不剥前缀直传，原路径行为不变），实际 " + r.getFilters());
+                "access-service 路由 metadata.serviceCode 必须为 access-service，实际 " + r.getMetadata().get("serviceCode"));
         });
         routes.stream().filter(r -> "example-service".equals(r.getId())).findFirst().ifPresent(r -> {
             assertTrue(r.getPredicates().stream()
-                    .anyMatch(p -> "Path".equals(p.getName()) && p.getArgs().containsValue("/example/**")),
-                "example-service 必须覆盖 /example/**，实际 " + r.getPredicates());
+                    .anyMatch(p -> "Path".equals(p.getName()) && p.getArgs().containsValue("/api/example/**")),
+                "example-service 必须覆盖 /api/example/**（外部=服务路径），实际 " + r.getPredicates());
             assertTrue(r.getFilters().stream()
-                    .anyMatch(f -> "StripPrefix".equals(f.getName()) && "1".equals(f.getArgs().get("_genkey_0"))),
-                "example-service StripPrefix 必须为 1，实际 " + r.getFilters());
+                    .noneMatch(f -> "StripPrefix".equals(f.getName())),
+                "example-service 同规则无 StripPrefix，实际 " + r.getFilters());
         });
         assertTrue(byUri.stream().noneMatch(u -> u.contains("admin-service") || u.contains("permission-center")),
             "路由发现目标不得残留旧服务名，实际 " + byUri);
@@ -226,7 +215,7 @@ class GatewayApplicationConfigTest {
         assertNotNull(props, "GatewayProperties 必须存在");
         assertTrue("lb://access-service".equals(props.getPermission().getServiceUrl()),
             "permission.service-url 必须为 lb://access-service（T-ACCESS-010 切换），实际 " + props.getPermission().getServiceUrl());
-        assertTrue(props.getWhitelist().getPaths().contains("/auth/**"),
+        assertTrue(props.getWhitelist().getPaths().contains("/api/access/auth/**"),
             "whitelist 必须包含 /auth/**");
         // T-GW-007：主端口白名单不得含任何 /actuator 路径（actuator 经独立管理端口提供）
         assertTrue(props.getWhitelist().getPaths().stream().noneMatch(p -> p.startsWith("/actuator")),

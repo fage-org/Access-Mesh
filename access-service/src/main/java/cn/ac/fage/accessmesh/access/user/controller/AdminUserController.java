@@ -35,7 +35,7 @@ import org.springframework.web.bind.annotation.*;
  * </p>
  */
 @RestController
-@RequestMapping("/user")
+@RequestMapping("/api/access/user")
 public class AdminUserController {
 
     private final UserAppService userService;

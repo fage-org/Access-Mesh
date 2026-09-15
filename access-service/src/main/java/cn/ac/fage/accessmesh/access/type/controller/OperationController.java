@@ -28,7 +28,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/operation-permission")
+@RequestMapping("/api/access/operation-permission")
 public class OperationController {
 
     private final OperationAppService operationAppService;

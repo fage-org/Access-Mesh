@@ -27,7 +27,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/system-config")
+@RequestMapping("/api/access/system-config")
 public class SystemConfigController {
 
     private final SystemConfigAppService systemConfigAppService;

@@ -29,7 +29,7 @@ import java.util.List;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/log")
+@RequestMapping("/api/access/log")
 public class LogQueryController {
 
     private final LogQueryAppService logQueryService;

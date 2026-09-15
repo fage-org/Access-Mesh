@@ -32,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
  * </p>
  */
 @RestController
-@RequestMapping("/api/perm/auth")
+@RequestMapping("/api/access/auth")
 public class PermAuthController {
 
     private final PermissionCheckAppService permissionCheckAppService;

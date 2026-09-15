@@ -134,7 +134,7 @@ class AuthLoginLockTest {
     }
 
     private JsonNode login(String password) throws Exception {
-        MvcResult result = mockMvc.perform(post("/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(MAPPER.writeValueAsString(java.util.Map.of(
                     "tenantId", "1", "username", USERNAME, "password", password,
@@ -253,7 +253,7 @@ class AuthLoginLockTest {
         // 短信验证码 Lua（2 参 execute）与验证码共用 stub，返回 "123456" 即校验通过
         when(stringRedisTemplate.execute(any(DefaultRedisScript.class), anyList())).thenReturn("123456");
 
-        MvcResult result = mockMvc.perform(post("/auth/login/sms")
+        MvcResult result = mockMvc.perform(post("/api/access/auth/login/sms")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(MAPPER.writeValueAsString(java.util.Map.of(
                     "tenantId", "1", "phone", "13800000001",

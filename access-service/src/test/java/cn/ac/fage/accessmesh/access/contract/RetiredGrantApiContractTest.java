@@ -47,7 +47,7 @@ class RetiredGrantApiContractTest {
     @Test
     @DisplayName("/role-resource-permission/save 已删除：POST 无映射 404")
     void save_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/api/perm/role-resource-permission/save")
+        mockMvc.perform(post("/api/access/role-resource-permission/save")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"r-1\",\"adds\":[]}"))
             .andExpect(status().isNotFound());
@@ -56,7 +56,7 @@ class RetiredGrantApiContractTest {
     @Test
     @DisplayName("/role-resource-permission/revoke 已删除：POST 无映射 404")
     void revoke_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/api/perm/role-resource-permission/revoke")
+        mockMvc.perform(post("/api/access/role-resource-permission/revoke")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"r-1\",\"permissionIds\":[1]}"))
             .andExpect(status().isNotFound());
@@ -65,7 +65,7 @@ class RetiredGrantApiContractTest {
     @Test
     @DisplayName("/role-resource-permission/children 已删除：POST 无映射 404")
     void children_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/api/perm/role-resource-permission/children")
+        mockMvc.perform(post("/api/access/role-resource-permission/children")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"permissionId\":10}"))
             .andExpect(status().isNotFound());
@@ -74,7 +74,7 @@ class RetiredGrantApiContractTest {
     @Test
     @DisplayName("/role-resource-permission/add-child 已删除：POST 无映射 404")
     void addChild_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/api/perm/role-resource-permission/add-child")
+        mockMvc.perform(post("/api/access/role-resource-permission/add-child")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"parentPermissionId\":10,\"children\":[]}"))
             .andExpect(status().isNotFound());
@@ -83,7 +83,7 @@ class RetiredGrantApiContractTest {
     @Test
     @DisplayName("/role-resource-permission/remove-child 已删除：POST 无映射 404")
     void removeChild_deletedReturns404() throws Exception {
-        mockMvc.perform(post("/api/perm/role-resource-permission/remove-child")
+        mockMvc.perform(post("/api/access/role-resource-permission/remove-child")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"permissionId\":11}"))
             .andExpect(status().isNotFound());
@@ -96,12 +96,12 @@ class RetiredGrantApiContractTest {
         when(permissionGrantAppService.applyGrantPlan(isNull(), any())).thenReturn(List.of());
         when(permissionGrantAppService.listPermissions(isNull(), any())).thenReturn(List.of());
 
-        mockMvc.perform(post("/api/perm/role-resource-permission/apply-grant-plan")
+        mockMvc.perform(post("/api/access/role-resource-permission/apply-grant-plan")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"r-1\",\"plan\":{\"creates\":[],\"updates\":[],\"removes\":[]}}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.code").value(200));
-        mockMvc.perform(post("/api/perm/role-resource-permission/list")
+        mockMvc.perform(post("/api/access/role-resource-permission/list")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"r-1\"}"))
             .andExpect(status().isOk())

@@ -96,7 +96,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("公开路径 /auth/** → 匿名上下文放行")
     void shouldBindAnonymous_whenAuthPath() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/login");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/login");
         MockHttpServletResponse resp = new MockHttpServletResponse();
 
         boolean result = interceptor.preHandle(req, resp, new Object());
@@ -154,7 +154,7 @@ class RequestContextInterceptorTest {
         when(stringRedisTemplate.hasKey(anyString())).thenReturn(false);
         String jwt = jwt(oauth2Claims(null, null));
 
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("Authorization", "Bearer " + jwt);
 
@@ -174,7 +174,7 @@ class RequestContextInterceptorTest {
     void shouldBindUser_whenLegacyJwtWithoutAudOnUserinfo() throws Exception {
         String jwt = jwt(oauth2Claims(null, null));
 
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("Authorization", "Bearer " + jwt);
 
@@ -190,7 +190,7 @@ class RequestContextInterceptorTest {
         when(oauth2ClientDomainService.findActiveByClientId(CLIENT_ID)).thenReturn(null);
         String jwt = jwt(oauth2Claims(null, null));
 
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("Authorization", "Bearer " + jwt);
 
@@ -208,7 +208,7 @@ class RequestContextInterceptorTest {
         claims.remove("client_id");
         String jwt = jwt(claims);
 
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("Authorization", "Bearer " + jwt);
 
@@ -307,7 +307,7 @@ class RequestContextInterceptorTest {
         rule.getRequiredScopes().add("example:read");
         rule.setAudience("example-service");
         oauth2ResourcePaths.setResourcePaths(new ArrayList<>(List.of(
-            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/auth/oauth2/userinfo"), rule)));
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/access/auth/oauth2/userinfo"), rule)));
         String jwt = jwt(oauth2Claims("example:read", "example-service"));
 
         MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/example/resource/action");
@@ -326,7 +326,7 @@ class RequestContextInterceptorTest {
         when(stringRedisTemplate.hasKey(anyString())).thenReturn(true);
         String jwt = jwt(oauth2Claims(null, null));
 
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("Authorization", "Bearer " + jwt);
 
@@ -343,7 +343,7 @@ class RequestContextInterceptorTest {
         String jwt = cn.dev33.satoken.jwt.SaJwtUtil.createToken("oauth2", 100L, "oauth2", 3600,
             oauth2Claims(null, null), "wrong-secret-key");
 
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/userinfo");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/userinfo");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("Authorization", "Bearer " + jwt);
 
@@ -360,7 +360,7 @@ class RequestContextInterceptorTest {
             mocked.when(StpUtil::isLogin).thenReturn(false);
             String jwt = jwt(oauth2Claims(null, null));
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/oauth2/authorize");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/oauth2/authorize");
             MockHttpServletResponse resp = new MockHttpServletResponse();
             req.addHeader("Authorization", "Bearer " + jwt);
 
@@ -379,7 +379,7 @@ class RequestContextInterceptorTest {
             mocked.when(StpUtil::isLogin).thenReturn(false);
             String jwt = jwt(oauth2Claims(null, null));
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/user/page");
             MockHttpServletResponse resp = new MockHttpServletResponse();
             req.addHeader("Authorization", "Bearer " + jwt);
 
@@ -397,7 +397,7 @@ class RequestContextInterceptorTest {
         try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
             mocked.when(StpUtil::isLogin).thenReturn(false);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/userinfo");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/userinfo");
             MockHttpServletResponse resp = new MockHttpServletResponse();
 
             boolean result = interceptor.preHandle(req, resp, new Object());
@@ -418,7 +418,7 @@ class RequestContextInterceptorTest {
             when(session.get("tenantId")).thenReturn(1L);
             mocked.when(StpUtil::getSession).thenReturn(session);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/userinfo");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/userinfo");
             MockHttpServletResponse resp = new MockHttpServletResponse();
 
             boolean result = interceptor.preHandle(req, resp, new Object());
@@ -436,7 +436,7 @@ class RequestContextInterceptorTest {
         try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
             mocked.when(StpUtil::isLogin).thenReturn(false);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/logout");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/logout");
             MockHttpServletResponse resp = new MockHttpServletResponse();
 
             boolean result = interceptor.preHandle(req, resp, new Object());
@@ -449,7 +449,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("评审 P2：afterConcurrentHandlingStarted 清理上下文与 MDC（异步线程切换防串扰）")
     void afterConcurrentHandlingStartedShouldClearContextAndMdc() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/abstract-user/sync");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/abstract-user/sync");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("X-Tenant-Id", "1");
         req.addHeader("X-Service-Code", "example-service");
@@ -467,7 +467,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("内部凭证 + X-User-Id 无 SIGNATURE_VERIFIED → 403（纵深防链序绕过）")
     void shouldReject_whenInternalWithUserIdWithoutVerifiedAttribute() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/domain-config/list");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/domain-config/list");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("X-User-Id", "100");
         req.addHeader("X-Tenant-Id", "1");
@@ -483,7 +483,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("内部凭证 + X-User-Id + 验签通过 → USER 上下文（G1 修复：验签才绑定操作者）")
     void shouldBindUser_whenInternalWithVerifiedUserId() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/domain-config/list");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/domain-config/list");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         long ts = System.currentTimeMillis() / 1000;
         req.addHeader("X-User-Id", "100");
@@ -505,7 +505,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("内部凭证 + 无 X-User-Id → SERVICE 上下文（serviceCode 凭证通过后绑定）")
     void shouldBindService_whenInternalWithoutUserId() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/abstract-user/sync");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/abstract-user/sync");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("X-Tenant-Id", "1");
         req.addHeader("X-Service-Code", "example-service");
@@ -523,7 +523,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("内部凭证 + 无 X-Tenant-Id → 400（服务调用租户必填）")
     void shouldReject_whenInternalWithoutTenantHeader() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/abstract-user/sync");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/abstract-user/sync");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
 
@@ -540,7 +540,7 @@ class RequestContextInterceptorTest {
         try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
             mocked.when(StpUtil::isLogin).thenReturn(false);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/auth/check");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/check");
             MockHttpServletResponse resp = new MockHttpServletResponse();
             long ts = System.currentTimeMillis() / 1000;
             req.addHeader("X-User-Id", "100");
@@ -564,7 +564,7 @@ class RequestContextInterceptorTest {
         try (MockedStatic<StpUtil> mocked = mockStatic(StpUtil.class)) {
             mocked.when(StpUtil::isLogin).thenReturn(false);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/user/page");
             MockHttpServletResponse resp = new MockHttpServletResponse();
 
             boolean result = interceptor.preHandle(req, resp, new Object());
@@ -585,7 +585,7 @@ class RequestContextInterceptorTest {
             when(session.get("tenantId")).thenReturn(1L);
             mocked.when(StpUtil::getSession).thenReturn(session);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/user/page");
             MockHttpServletResponse resp = new MockHttpServletResponse();
             req.addHeader("X-Tenant-Id", "2");
 
@@ -607,7 +607,7 @@ class RequestContextInterceptorTest {
             when(session.get("tenantId")).thenReturn(1L);
             mocked.when(StpUtil::getSession).thenReturn(session);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/user/page");
             MockHttpServletResponse resp = new MockHttpServletResponse();
             req.addHeader("X-Tenant-Id", "abc");
 
@@ -628,7 +628,7 @@ class RequestContextInterceptorTest {
             when(session.get("tenantId")).thenReturn(1L);
             mocked.when(StpUtil::getSession).thenReturn(session);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/user/page");
             MockHttpServletResponse resp = new MockHttpServletResponse();
             req.addHeader("X-User-Id", "abc");
 
@@ -649,7 +649,7 @@ class RequestContextInterceptorTest {
             when(session.get("tenantId")).thenReturn(1L);
             mocked.when(StpUtil::getSession).thenReturn(session);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/user/page");
             MockHttpServletResponse resp = new MockHttpServletResponse();
             req.addHeader("X-User-Id", "999");
 
@@ -671,7 +671,7 @@ class RequestContextInterceptorTest {
             when(session.get("tenantId")).thenReturn(1L);
             mocked.when(StpUtil::getSession).thenReturn(session);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/user/page");
             MockHttpServletResponse resp = new MockHttpServletResponse();
             req.addHeader("X-Tenant-Id", "1");
             req.addHeader("X-User-Id", "100");
@@ -695,7 +695,7 @@ class RequestContextInterceptorTest {
             when(session.get("tenantId")).thenReturn(1L);
             mocked.when(StpUtil::getSession).thenReturn(session);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/user/page");
             MockHttpServletResponse resp = new MockHttpServletResponse();
 
             boolean result = interceptor.preHandle(req, resp, new Object());
@@ -716,7 +716,7 @@ class RequestContextInterceptorTest {
             when(session.get("tenantId")).thenReturn(null);
             mocked.when(StpUtil::getSession).thenReturn(session);
 
-            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/user/page");
+            MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/user/page");
             MockHttpServletResponse resp = new MockHttpServletResponse();
 
             boolean result = interceptor.preHandle(req, resp, new Object());
@@ -729,7 +729,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("afterCompletion 清理上下文与 MDC（异常路径亦执行）")
     void afterCompletionShouldClearContextAndMdc() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/abstract-user/sync");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/abstract-user/sync");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("X-Tenant-Id", "1");
         req.addHeader("X-Service-Code", "example-service");
@@ -749,7 +749,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("T-PERM-021 F1.d：X-Request-Id 头 → 上下文第六要素与 MDC traceId 同源头值")
     void shouldBindRequestIdFromHeader() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/perm/abstract-user/sync");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/abstract-user/sync");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("X-Tenant-Id", "1");
         req.addHeader("X-Service-Code", "example-service");
@@ -766,7 +766,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("T-PERM-021 F1.d：无 X-Request-Id 头 → 上下文兜底生成 UUID 且与 MDC traceId 同值（单源）")
     void shouldSynthesizeRequestIdWhenHeaderAbsent() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/login");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/login");
         MockHttpServletResponse resp = new MockHttpServletResponse();
 
         boolean result = interceptor.preHandle(req, resp, new Object());
@@ -783,7 +783,7 @@ class RequestContextInterceptorTest {
     @Test
     @DisplayName("T-PERM-021 F1.d：超长 X-Request-Id 头 → 截断 64 对齐审计列宽")
     void shouldTruncateOverlongRequestIdHeader() throws Exception {
-        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/auth/login");
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/auth/login");
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader("X-Request-Id", "x".repeat(100));
 
@@ -835,6 +835,6 @@ class RequestContextInterceptorTest {
             rule.setClientIds(new LinkedHashSet<>(List.of(allowedClientId)));
         }
         oauth2ResourcePaths.setResourcePaths(new ArrayList<>(List.of(
-            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/auth/oauth2/userinfo"), rule)));
+            OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/access/auth/oauth2/userinfo"), rule)));
     }
 }

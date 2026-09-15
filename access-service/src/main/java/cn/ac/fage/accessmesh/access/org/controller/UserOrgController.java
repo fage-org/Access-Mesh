@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.*;
  * </p>
  */
 @RestController
-@RequestMapping("/user-org")
+@RequestMapping("/api/access/user-org")
 public class UserOrgController {
 
     private final UserOrgAppService userOrgService;

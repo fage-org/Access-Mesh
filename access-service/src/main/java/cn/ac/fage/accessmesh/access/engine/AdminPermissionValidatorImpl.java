@@ -110,6 +110,13 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
     private void checkAndThrow(String resourceTypeCode, String resourceCode, String operationCode) {
         Long tenantId = TenantContextHolder.getTenantId();
         Long operatorId = currentOperatorId();
+        if (operatorId == null) {
+            // 无操作者=无判定主体（SERVICE 上下文/未登录直连）——显式 403 拒绝，
+            // 不落 resolveUserId 的 null 主体技术故障路径
+            log.warn("Permission check without user operator: resourceType={}, resourceCode={}, operation={}",
+                resourceTypeCode, resourceCode, operationCode);
+            throw new SecurityException("权限校验失败: 请求无用户操作者身份");
+        }
         Long userId = typeResolutionService.resolveUserId(
             tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(operatorId));
         if (userId == null) {
@@ -133,6 +140,13 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
         if (operatorId != null) {
             return operatorId;
         }
-        return StpUtil.getLoginIdAsLong();
+        // 直连会话回退（无 HTTP 上下文绑定的场景）；未登录/无 sa-token 上下文归一为 null，
+        // 由调用方显式拒绝（T-ACCESS-042：SERVICE 上下文——内部凭证无用户身份——触达
+        // 用户态门禁曾在此抛环境性异常 → 500，收敛为 403 显式拒绝）
+        try {
+            return StpUtil.getLoginIdAsLong();
+        } catch (cn.dev33.satoken.exception.SaTokenException e) {
+            return null;
+        }
     }
 }

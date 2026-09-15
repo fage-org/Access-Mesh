@@ -117,7 +117,7 @@ class CustomResourceTypeSlicePgIT {
         assertThat(adminRoleId).as("bootstrap 管理员必须绑定引导角色（bootstrap-admin）").isNotNull();
 
         // —— 阶段 1：注册接入方服务（status=1 启用；SYNC 类型声明的来源门禁前置） ——
-        JsonNode service = postAsAdmin("/api/perm/service-config/save", adminUserId,
+        JsonNode service = postAsAdmin("/api/access/service-config/save", adminUserId,
             JSON.objectNode()
                 .put("serviceCode", SOURCE_SERVICE)
                 .put("name", "订单服务（扩展链路验证）")
@@ -126,7 +126,7 @@ class CustomResourceTypeSlicePgIT {
         assertThat(service.path("serviceCode").asText()).isEqualTo(SOURCE_SERVICE);
 
         // —— 阶段 2：声明自有资源类型（SYNC 所有权 + 来源服务；缺省所有者=引导角色） ——
-        postAsAdmin("/api/perm/type-definition/create", adminUserId,
+        postAsAdmin("/api/access/type-definition/create", adminUserId,
             JSON.objectNode()
                 .put("typeKey", "resource_type")
                 .put("typeCode", CUSTOM_TYPE)
@@ -157,7 +157,7 @@ class CustomResourceTypeSlicePgIT {
                 + "AND code = 'VIEW' AND delete_flag = 0",
             Integer.class, TENANT, typeValue);
         assertThat(seededView).as("resource_type 创建必须自动预置 CRUD 操作（VIEW 在列）").isEqualTo(2);
-        postAsAdmin("/api/perm/operation-permission/create", adminUserId,
+        postAsAdmin("/api/access/operation-permission/create", adminUserId,
             JSON.objectNode()
                 .put("resourceTypeCode", CUSTOM_TYPE)
                 .put("code", OP_EXPORT)
@@ -170,7 +170,7 @@ class CustomResourceTypeSlicePgIT {
             .containsExactlyInAnyOrder(1L, 2L, 4L, 8L, 16L);
 
         // —— 阶段 4：接入方服务身份同步资源（内部凭证 → SERVICE 上下文 + sourceService 一致性） ——
-        JsonNode syncResult = postAsService("/api/perm/resource-entity/sync",
+        JsonNode syncResult = postAsService("/api/access/resource-entity/sync",
             JSON.objectNode()
                 .put("operation", "UPSERT")
                 .put("resourceTypeCode", CUSTOM_TYPE)
@@ -203,21 +203,21 @@ class CustomResourceTypeSlicePgIT {
 
         // —— 阶段 5a（T-PERM-062 翻转锁）：创建即建基座后管理员直接可首授——
         //     原必要性锁（未种子→20040）随产品修复翻转，部署方 jdbc 种子步骤退役 ——
-        JsonNode grantItems = postAsAdmin("/api/perm/role-resource-permission/apply-grant-plan", adminUserId,
+        JsonNode grantItems = postAsAdmin("/api/access/role-resource-permission/apply-grant-plan", adminUserId,
                 grantPlanReq(roleExternalId, OP_EXPORT))
             .path("items");
         assertThat(grantItems.isArray() && grantItems.size() == 1)
             .as("授权计划必须对自定义类型资源产生恰好一条记录").isTrue();
 
         // —— 阶段 7：接入方经 auth/check 取得引擎判定 ——
-        JsonNode allowed = postAsService("/api/perm/auth/check",
+        JsonNode allowed = postAsService("/api/access/auth/check",
             checkReq(String.valueOf(grantedUserId), RESOURCE_CODE));
         assertThat(allowed.path("allowed").asBoolean())
             .as("绑定角色 + 实例级授权后必须 allowed：" + allowed).isTrue();
 
         // —— 负向锁①：未绑定任何角色的主体拒绝（reason=NO_ROLE 钉死主体装配正确——
         //     主体装配失败走 USER_NOT_FOUND，同样 allowed=false 但语义不同） ——
-        JsonNode bareDenied = postAsService("/api/perm/auth/check",
+        JsonNode bareDenied = postAsService("/api/access/auth/check",
             checkReq(String.valueOf(bareUserId), RESOURCE_CODE));
         assertThat(bareDenied.path("allowed").asBoolean())
             .as("裸用户必须被拒绝：" + bareDenied).isFalse();
@@ -225,7 +225,7 @@ class CustomResourceTypeSlicePgIT {
             .as("裸用户拒绝原因必须是零角色而非主体缺失").isEqualTo("NO_ROLE");
 
         // —— 负向锁②：未同步的资源编码 fail-closed 拒绝（资源不存在不给权限） ——
-        JsonNode unknownDenied = postAsService("/api/perm/auth/check",
+        JsonNode unknownDenied = postAsService("/api/access/auth/check",
             checkReq(String.valueOf(grantedUserId), "ORDER-9999"));
         assertThat(unknownDenied.path("allowed").asBoolean())
             .as("未同步资源编码必须 fail-closed 拒绝：" + unknownDenied).isFalse();
@@ -252,7 +252,7 @@ class CustomResourceTypeSlicePgIT {
                 + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, can_grant, grant_source) "
                 + "VALUES (?, ?, NULL, ?, ?, true, false, 'MANUAL')",
             TENANT, nonOwnerRoleId, manageBit, roleTypeValue);
-        performExpectCode("/api/perm/role-resource-permission/apply-grant-plan", nonOwnerUserId,
+        performExpectCode("/api/access/role-resource-permission/apply-grant-plan", nonOwnerUserId,
             grantPlanReq(roleExternalId, "VIEW"), 20040);
 
         // —— 锁④：AUTHORITY_ROOT 行经 apply-grant-plan 改删拒绝（20061，对齐 AUTO_DEP 只读先例）；
@@ -262,13 +262,13 @@ class CustomResourceTypeSlicePgIT {
             "SELECT id FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND resource_type = ? AND grant_source = 'AUTHORITY_ROOT' AND granted_bits = 16 AND delete_flag = 0",
             Long.class, TENANT, adminRoleId, typeValue);
-        performExpectCode("/api/perm/role-resource-permission/apply-grant-plan", adminUserId,
+        performExpectCode("/api/access/role-resource-permission/apply-grant-plan", adminUserId,
             updatePlanReq(BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, seedRowId), 20061);
-        performExpectCode("/api/perm/role-resource-permission/apply-grant-plan", adminUserId,
+        performExpectCode("/api/access/role-resource-permission/apply-grant-plan", adminUserId,
             removePlanReq(BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, seedRowId), 20061);
 
         // —— 锁⑤：所有者变更同事务先清后种迁移（用户定案：变更=转移而非叠加） ——
-        postAsAdmin("/api/perm/abstract-role/create", adminUserId,
+        postAsAdmin("/api/access/abstract-role/create", adminUserId,
             JSON.objectNode()
                 .put("roleTypeCode", "BASIC_ROLE")
                 .put("externalId", NEW_OWNER_EXTERNAL_ID)
@@ -278,7 +278,7 @@ class CustomResourceTypeSlicePgIT {
                 + "AND external_id = ? AND delete_flag = 0", Long.class, TENANT, NEW_OWNER_EXTERNAL_ID);
         // 声明保持不变（SYNC + 同来源，类型下已有资源行——20056 守卫只拦有效值变更），
         // 仅变更 grantOriginRole 指针
-        postAsAdmin("/api/perm/type-definition/update", adminUserId,
+        postAsAdmin("/api/access/type-definition/update", adminUserId,
             JSON.objectNode()
                 .put("typeId", typeId)
                 .put("extra", "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"" + SOURCE_SERVICE + "\","
@@ -290,7 +290,7 @@ class CustomResourceTypeSlicePgIT {
             .as("新所有者必须补齐该类型全部有效操作位（含追加操作 EXPORT）")
             .containsExactlyInAnyOrder(1L, 2L, 4L, 8L, 16L);
         // 旧所有者成员（首管理员）随之失去该类型转授资格——转移而非叠加
-        performExpectCode("/api/perm/role-resource-permission/apply-grant-plan", adminUserId,
+        performExpectCode("/api/access/role-resource-permission/apply-grant-plan", adminUserId,
             grantPlanReq(roleExternalId, "VIEW"), 20040);
 
         // —— 锁⑥：种子被直改库清除后 20040 reason=TYPE_GRANT_ORIGIN_MISSING（类型未初始化
@@ -299,14 +299,14 @@ class CustomResourceTypeSlicePgIT {
             "UPDATE role_resource_permission SET delete_flag = id, deleted_at = now() "
                 + "WHERE tenant_id = ? AND resource_type = ? AND grant_source = 'AUTHORITY_ROOT' AND delete_flag = 0",
             TENANT, typeValue);
-        String deniedRaw = performRaw("/api/perm/role-resource-permission/apply-grant-plan", adminUserId,
+        String deniedRaw = performRaw("/api/access/role-resource-permission/apply-grant-plan", adminUserId,
             grantPlanReq(roleExternalId, "VIEW"));
         assertThat(deniedRaw)
             .as("零可转授覆盖行时 20040 必须携带专用 reason")
             .contains("20040").contains("TYPE_GRANT_ORIGIN_MISSING");
 
         // —— 锁⑦：所有者解析失败整单回滚（不存在「已建类型但无所有者」中间态） ——
-        performExpectCode("/api/perm/type-definition/create", adminUserId,
+        performExpectCode("/api/access/type-definition/create", adminUserId,
             JSON.objectNode()
                 .put("typeKey", "resource_type")
                 .put("typeCode", "E2E_GHOST_OWNER")
@@ -319,7 +319,7 @@ class CustomResourceTypeSlicePgIT {
         assertThat(ghostTypeValue).as("所有者解析失败必须整单回滚（类型行零残留）").isZero();
 
         // —— 锁⑧：非 resource_type 类型键不触发钩子（无指针注入、零种子行） ——
-        postAsAdmin("/api/perm/type-definition/create", adminUserId,
+        postAsAdmin("/api/access/type-definition/create", adminUserId,
             JSON.objectNode()
                 .put("typeKey", "role_type")
                 .put("typeCode", "E2E_TEAM_ROLE")

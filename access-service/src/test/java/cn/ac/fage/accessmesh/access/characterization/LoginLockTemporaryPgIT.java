@@ -80,7 +80,7 @@ class LoginLockTemporaryPgIT {
         String captchaId = UUID.randomUUID().toString();
         String captchaCode = "5926";
         stringRedisTemplate.opsForValue().set("captcha:" + captchaId, captchaCode, 5, TimeUnit.MINUTES);
-        MvcResult result = mockMvc.perform(post("/auth/login")
+        MvcResult result = mockMvc.perform(post("/api/access/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of(
                     "tenantId", "1", "username", username, "password", password,
@@ -149,7 +149,7 @@ class LoginLockTemporaryPgIT {
     }
 
     @Test
-    @DisplayName("/user/update status 仅接纳 0/1：status=2 拒绝（10008）且库值不变；合法值自身写须持 USER:ENABLE")
+    @DisplayName("/api/access/user/update status 仅接纳 0/1：status=2 拒绝（10008）且库值不变；合法值自身写须持 USER:ENABLE")
     void userUpdateRejectsStatusOutsideZeroAndOne() throws Exception {
         long userId = insertUser("特征测试-status收口");
         String username = usernameOf(userId);
@@ -160,7 +160,7 @@ class LoginLockTemporaryPgIT {
 
         // 非法值域校验先于门禁（T-PERM-067 对齐 updateStatus 先验参后门禁）：
         // 无操作位主体 status=2 仍得 10008 业务拒绝而非安全拒绝
-        MvcResult rejected = mockMvc.perform(post("/user/update")
+        MvcResult rejected = mockMvc.perform(post("/api/access/user/update")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("id", userId, "status", 2))))
@@ -174,7 +174,7 @@ class LoginLockTemporaryPgIT {
 
         // 合法值 1 自身写不豁免：零 USER:ENABLE 操作位 → 安全拒绝且库值不变
         // （T-PERM-067 Q-002 收窄——旧实现自身全免幂等写回成功，本段为新语义锁）
-        mockMvc.perform(post("/user/update")
+        mockMvc.perform(post("/api/access/user/update")
                 .header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("id", userId, "status", 1))))

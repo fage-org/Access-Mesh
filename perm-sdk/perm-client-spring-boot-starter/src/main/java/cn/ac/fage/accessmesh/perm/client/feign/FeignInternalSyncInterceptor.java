@@ -38,7 +38,7 @@ public class FeignInternalSyncInterceptor implements RequestInterceptor {
     private static final String HEADER_INTERNAL_SECRET = "X-Internal-Secret";
     private static final String HEADER_SERVICE_CODE = "X-Service-Code";
     /** 内部调用统一路径前缀；仅匹配该前缀的请求才注入 secret，避免污染其他 Feign 调用。 */
-    private static final String SYNC_PATH_MARKER = "/api/perm/";
+    private static final String SYNC_PATH_MARKER = "/api/access/";
 
     @Value("${perm.internal-secret:}")
     private String internalSecret;
