@@ -50,7 +50,7 @@ class TypeDefinitionAppServiceImplTest {
     @Mock private cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService resourceEntityDomainService;
     @Mock private cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService localProjectionDomainService;
     @Mock private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
-    @Mock private cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper rolePermMapper;
+    @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService rolePermMapper;
     @Mock private cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper apiMappingMapper;
     @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
     @Mock private cn.ac.fage.accessmesh.common.cache.CacheService cacheService;

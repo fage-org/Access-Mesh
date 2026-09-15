@@ -49,7 +49,7 @@ import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 
 import cn.ac.fage.accessmesh.access.resource.service.ResourceManageAppService;
 
@@ -125,7 +125,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     private final PermQueryEngine engine;
 
-    private final RoleResourcePermissionMapper rolePermMapper;
+    private final RoleResourcePermissionDomainService roleResourcePermissionDomainService;
     private final cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService;
     private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     private final TreeWriteLockSupport treeWriteLockSupport;
@@ -139,7 +139,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
      * @param typeResolutionService       类型解析服务
      * @param domainClassifyService       域分类服务
      * @param engine                      权限查询引擎
-     * @param rolePermMapper              角色资源权限数据访问层
+     * @param roleResourcePermissionDomainService 授权事实领域服务（Q-009 收敛注入）
      * @param resourceTypeOwnershipGuard  资源类型所有权守卫（SYNC 类型管理面只读，T-PERM-052）
      */
     public ResourceManageAppServiceImpl(ResourceEntityMapper resourceEntityMapper,
@@ -148,7 +148,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                                      TypeResolutionService typeResolutionService,
                                      DomainClassifyService domainClassifyService,
                                      PermQueryEngine engine,
-                                     RoleResourcePermissionMapper rolePermMapper,
+                                     RoleResourcePermissionDomainService roleResourcePermissionDomainService,
                                      cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService,
                                      ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                      TreeWriteLockSupport treeWriteLockSupport) {
@@ -158,7 +158,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
         this.engine = engine;
-        this.rolePermMapper = rolePermMapper;
+        this.roleResourcePermissionDomainService = roleResourcePermissionDomainService;
         this.conditionDomainService = conditionDomainService;
         this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.treeWriteLockSupport = treeWriteLockSupport;
@@ -531,7 +531,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         // T-PERM-018 (C9)：软删 perm 前登记受影响范围。资源软删会级联软删 role_resource_permission，
         // ROLE_PERM_SNAPSHOT 缓存含旧 perm → 软删前查受影响 roleIds + serviceCodes 双重登记，afterCommit AOP 失效与广播
         List<Long> resourceIdsToDelete = new ArrayList<>(allIdsToDelete);
-        Set<Long> affectedRoleIds = rolePermMapper.selectRoleIdsByResourceIds(tenantId, resourceIdsToDelete);
+        Set<Long> affectedRoleIds = roleResourcePermissionDomainService.selectRoleIdsByResourceIds(tenantId, resourceIdsToDelete);
         if (!affectedRoleIds.isEmpty()) {
             PermissionChangeContext.markRoles(tenantId, affectedRoleIds);
         }
@@ -544,17 +544,17 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             PermissionChangeContext.markServiceCodes(tenantId, affectedServiceCodes);
         }
 
-        List<Long> permIds = rolePermMapper.selectValidPermIdsByResourceIds(tenantId, resourceIdsToDelete);
+        List<Long> permIds = roleResourcePermissionDomainService.selectValidPermIdsByResourceIds(tenantId, resourceIdsToDelete);
         // T-PERM-048 claude 外评 P3-2：级联删授权行前收集行上内联条件候选，删后引用归零同事务回收
         //（apply-grant-plan 之外的内联生命周期完整性——不留管理页不可见的孤儿 INLINE 行）
         Set<Long> cascadeConditionIds = permIds.isEmpty() ? Set.of()
-            : rolePermMapper.selectConditionIdsByPermIds(tenantId, permIds);
+            : roleResourcePermissionDomainService.selectConditionIdsByPermIds(tenantId, permIds);
 
         LocalDateTime now = LocalDateTime.now();
         resourceEntityDomainService.softDeleteBatch(tenantId, resourceIdsToDelete, now);
 
         if (!permIds.isEmpty()) {
-            rolePermMapper.softDeleteBatch(tenantId, permIds, now);
+            roleResourcePermissionDomainService.softDeleteBatch(tenantId, permIds, now);
         }
         if (!cascadeConditionIds.isEmpty()) {
             conditionDomainService.recycleOrphanInlineConditions(tenantId, cascadeConditionIds);

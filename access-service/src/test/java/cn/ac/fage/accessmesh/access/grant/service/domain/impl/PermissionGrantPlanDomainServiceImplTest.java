@@ -10,7 +10,6 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
@@ -67,7 +66,6 @@ class PermissionGrantPlanDomainServiceImplTest {
     @Mock private RoleResourcePermissionMapper rolePermissionMapper;
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
     @Mock private OperationPermissionMapper operationPermissionMapper;
-    @Mock private PermissionConditionMapper permissionConditionMapper;
     @Mock private DomainConfigMapper domainConfigMapper;
 
     private PermissionGrantPlanDomainServiceImpl service;
@@ -77,7 +75,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         service = new PermissionGrantPlanDomainServiceImpl(
             typeResolutionService, domainClassifyService, permissionGrantDomainService,
             conditionDomainService, rolePermissionMapper, resourceEntityDomainService, operationPermissionMapper,
-            permissionConditionMapper, domainConfigMapper, new ObjectMapper());
+            domainConfigMapper, new ObjectMapper());
     }
 
     // ========== 辅助 ==========
@@ -487,7 +485,7 @@ class PermissionGrantPlanDomainServiceImplTest {
         }
 
         private void stubConditions(PermissionCondition... items) {
-            when(permissionConditionMapper.selectValidByCodes(eq(TENANT), anySet()))
+            when(conditionDomainService.selectValidConditionsByCodes(eq(TENANT), anySet()))
                 .thenReturn(List.of(items));
         }
 
@@ -663,7 +661,7 @@ class PermissionGrantPlanDomainServiceImplTest {
                 .thenReturn(Map.of("DATA", 4));
             when(operationPermissionMapper.selectByTenantAndResourceType(TENANT, null))
                 .thenReturn(List.of(dataView()));
-            when(permissionConditionMapper.selectValidByCodes(eq(TENANT), anySet()))
+            when(conditionDomainService.selectValidConditionsByCodes(eq(TENANT), anySet()))
                 .thenReturn(List.of());
 
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
@@ -1251,7 +1249,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             // update 轨同款互斥（双轨评审 P1 补拒）：conditionCode 非空 + inlineCondition 同传拒绝
             // ——旧实现静默落内联丢弃引用（20006 存在性预检仍跑，本用例用已知条件短路无关面）
             stubUpdateRemoveBase(existing(5L, null, "MANUAL"));
-            when(permissionConditionMapper.selectValidByCodes(eq(TENANT), anySet()))
+            when(conditionDomainService.selectValidConditionsByCodes(eq(TENANT), anySet()))
                 .thenReturn(List.of(managedCondition(31L, "work-time")));
 
             assertThrows(BizException.class, () -> service.prevalidate(
@@ -1282,7 +1280,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             // 1:1 的 API 焊点：conditionCode 引用轨值域=MANAGED（旧实现可引用任意条件）
             stubCreateBase();
             PermissionCondition inline = inlineCondition(99L, "inline-abc");
-            when(permissionConditionMapper.selectValidByCodes(eq(TENANT), anySet()))
+            when(conditionDomainService.selectValidConditionsByCodes(eq(TENANT), anySet()))
                 .thenReturn(List.of(inline));
 
             BizException exception = assertThrows(BizException.class, () -> service.prevalidate(
@@ -1302,7 +1300,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             row.setConditionId(99L);
             stubUpdateRemoveBase(row);
             PermissionCondition current = inlineCondition(99L, "inline-abc");
-            when(permissionConditionMapper.selectValidByIds(eq(TENANT), anySet()))
+            when(conditionDomainService.selectValidConditionsByIds(eq(TENANT), anySet()))
                 .thenReturn(List.of(current));
 
             stubDelegationAllowed();
@@ -1342,7 +1340,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             RoleResourcePermission row = existing(5L, null, "MANUAL");
             row.setConditionId(99L);
             stubUpdateRemoveBase(row);
-            when(permissionConditionMapper.selectValidByIds(eq(TENANT), anySet()))
+            when(conditionDomainService.selectValidConditionsByIds(eq(TENANT), anySet()))
                 .thenReturn(List.of(inlineCondition(99L, "inline-abc")));
             stubDelegationAllowed();
 
@@ -1375,7 +1373,7 @@ class PermissionGrantPlanDomainServiceImplTest {
             RoleResourcePermission row = existing(5L, null, "MANUAL");
             row.setConditionId(31L);
             stubUpdateRemoveBase(row);
-            when(permissionConditionMapper.selectValidByIds(eq(TENANT), anySet()))
+            when(conditionDomainService.selectValidConditionsByIds(eq(TENANT), anySet()))
                 .thenReturn(List.of(managedCondition(31L, "work-time")));
             when(conditionDomainService.createInlineCondition(eq(TENANT), eq(SUBJECT), any()))
                 .thenReturn(inlineCondition(100L, "inline-new"));

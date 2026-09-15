@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
@@ -79,7 +79,7 @@ class OperationLogRuntimeContextAppServiceTest {
     private DomainClassifyService domainClassifyService;
 
     @Mock
-    private RoleResourcePermissionMapper roleResourcePermissionMapper;
+    private RoleResourcePermissionDomainService roleResourcePermissionMapper;
 
     @Mock
     private AbstractUserMapper abstractUserMapper;
@@ -118,7 +118,7 @@ class OperationLogRuntimeContextAppServiceTest {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class),
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class),

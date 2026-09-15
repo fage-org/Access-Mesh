@@ -5,7 +5,7 @@ import cn.ac.fage.accessmesh.common.cache.CacheService;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.BatchConditionEvaluator;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -46,7 +46,7 @@ class BatchConditionEvaluatorTest {
     private static final Long TENANT = 1L;
 
     @Mock private PermissionConditionMapper conditionMapper;
-    @Mock private RoleResourcePermissionMapper rolePermMapper;
+    @Mock private RoleResourcePermissionDomainService rolePermMapper;
     @Mock private CacheService cacheService;
     @Mock private CacheReadToken<JsonNode> readToken;
 

@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.rule.enums.ConditionSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.BatchConditionEvaluator;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.audit.util.JsonValidationUtils;
@@ -51,7 +51,7 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
     private static final String INLINE_CODE_PREFIX = "inline-";
 
     private final PermissionConditionMapper conditionMapper;
-    private final RoleResourcePermissionMapper rolePermMapper;
+    private final RoleResourcePermissionDomainService roleResourcePermissionDomainService;
     private final ObjectMapper objectMapper;
     private final CacheService cacheService;
 
@@ -59,16 +59,16 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
      * 构造函数注入依赖
      *
      * @param conditionMapper 条件数据访问层
-     * @param rolePermMapper  授权数据访问层（内联回收引用归零判定，T-PERM-048）
+     * @param roleResourcePermissionDomainService 授权事实领域服务（内联回收引用归零判定，T-PERM-048；Q-009 收敛注入）
      * @param objectMapper    JSON解析器
      * @param cacheService    统一缓存服务
      */
     public PermissionConditionDomainServiceImpl(PermissionConditionMapper conditionMapper,
-                                                 RoleResourcePermissionMapper rolePermMapper,
+                                                 RoleResourcePermissionDomainService roleResourcePermissionDomainService,
                                                  ObjectMapper objectMapper,
                                                  CacheService cacheService) {
         this.conditionMapper = conditionMapper;
-        this.rolePermMapper = rolePermMapper;
+        this.roleResourcePermissionDomainService = roleResourcePermissionDomainService;
         this.objectMapper = objectMapper;
         this.cacheService = cacheService;
     }
@@ -577,8 +577,9 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             return Set.of();
         }
         // 引用归零判定：apply 已落库（removes/updates 均已生效）后调用，仍被引用的跳过
-        // （conditionCode 引用轨对 INLINE 已 20060 焊死，仍被引用=防御分支）
-        Set<Long> stillReferenced = rolePermMapper.selectReferencedConditionIds(tenantId, inlineIds);
+        // （conditionCode 引用轨对 INLINE 已 20060 焊死，仍被引用=防御分支）；
+        // Q-009 收敛读：经授权事实领域服务无缓存直读，同事务写后读语义保持（禁接缓存/REQUIRES_NEW）
+        Set<Long> stillReferenced = roleResourcePermissionDomainService.selectReferencedConditionIds(tenantId, inlineIds);
         Set<Long> recyclable = inlineIds.stream()
             .filter(id -> !stillReferenced.contains(id))
             .collect(Collectors.toSet());
@@ -589,5 +590,31 @@ public class PermissionConditionDomainServiceImpl implements PermissionCondition
             java.time.LocalDateTime.now());
         PermissionChangeContext.markConditions(tenantId, recyclable);
         return recyclable;
+    }
+
+    // ===== Q-009 收敛读（T-ACCESS-044）：无缓存直读、不声明事务——供 grant 授权链路消费 =====
+
+    @Override
+    public List<PermissionCondition> selectValidConditionsByIds(Long tenantId, Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return conditionMapper.selectValidByIds(tenantId, ids);
+    }
+
+    @Override
+    public List<PermissionCondition> selectValidConditionsByCodes(Long tenantId, Set<String> codes) {
+        if (codes == null || codes.isEmpty()) {
+            return List.of();
+        }
+        return conditionMapper.selectValidByCodes(tenantId, codes);
+    }
+
+    @Override
+    public List<PermissionCondition> selectValidConditionsByIdsNoTenant(Set<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return conditionMapper.selectValidByIdsNoTenant(ids);
     }
 }

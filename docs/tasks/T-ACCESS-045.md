@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-045
 title: 跨能力 mapper 收敛批次③——type/resource/domain 供给读服务（11 边）
-status: proposed
+status: in-progress
 plan: docs/plans/capability-mapper-convergence-plan.md
 domain: access-service
 design_refs:

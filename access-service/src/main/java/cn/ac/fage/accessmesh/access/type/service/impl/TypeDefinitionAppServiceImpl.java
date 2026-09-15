@@ -16,7 +16,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.type.service.TypeDefinitionAppService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
@@ -62,7 +62,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final SubjectDomainService subjectDomainService;
-    private final RoleResourcePermissionMapper rolePermMapper;
+    private final RoleResourcePermissionDomainService roleResourcePermissionDomainService;
     private final cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService;
     private final ResourceApiMappingMapper apiMappingMapper;
     private final TreeWriteLockSupport treeWriteLockSupport;
@@ -79,7 +79,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
      * @param resourceEntityDomainService 资源实体域服务（行数守卫查询 + 投影行软删）
      * @param localProjectionDomainService 本地投影域服务（TYPE_DEFINITION 实例投影同事务维护，T-PERM-051）
      * @param subjectDomainService      主体域服务（user_type/role_type 删除引用面行数守卫，T-PERM-056）
-     * @param rolePermMapper            授权数据访问层（类型软删级联处置投影行下授权行，T-PERM-051）
+     * @param roleResourcePermissionDomainService 授权事实领域服务（类型软删级联处置投影行下授权行，T-PERM-051；Q-009 收敛注入）
      * @param apiMappingMapper          API 映射数据访问层（删除级联的受影响服务查询，deleteResources 同款）
      * @param cacheService              统一缓存入口（类型解析缓存提交后失效，codex 三轮复评 P1-2）
      * @param grantOriginDomainService  类型授权根域服务（resource_type 创建即落 AUTHORITY_ROOT 首授基座，T-PERM-062）
@@ -91,7 +91,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                                          ResourceEntityDomainService resourceEntityDomainService,
                                          LocalProjectionDomainService localProjectionDomainService,
                                          SubjectDomainService subjectDomainService,
-                                         RoleResourcePermissionMapper rolePermMapper,
+                                         RoleResourcePermissionDomainService roleResourcePermissionDomainService,
                                          cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService,
                                          ResourceApiMappingMapper apiMappingMapper,
                                          TreeWriteLockSupport treeWriteLockSupport,
@@ -104,7 +104,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.localProjectionDomainService = localProjectionDomainService;
         this.subjectDomainService = subjectDomainService;
-        this.rolePermMapper = rolePermMapper;
+        this.roleResourcePermissionDomainService = roleResourcePermissionDomainService;
         this.conditionDomainService = conditionDomainService;
         this.apiMappingMapper = apiMappingMapper;
         this.treeWriteLockSupport = treeWriteLockSupport;
@@ -691,7 +691,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // 删除影响 Gateway 本地快照构建——正常无映射，防御性登记）
         List<Long> permIds = List.of();
         if (!projectionIds.isEmpty()) {
-            Set<Long> affectedRoleIds = rolePermMapper.selectRoleIdsByResourceIds(tenantId, projectionIds);
+            Set<Long> affectedRoleIds = roleResourcePermissionDomainService.selectRoleIdsByResourceIds(tenantId, projectionIds);
             if (!affectedRoleIds.isEmpty()) {
                 PermissionChangeContext.markRoles(tenantId, affectedRoleIds);
             }
@@ -703,18 +703,18 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             if (!affectedServiceCodes.isEmpty()) {
                 PermissionChangeContext.markServiceCodes(tenantId, affectedServiceCodes);
             }
-            permIds = rolePermMapper.selectValidPermIdsByResourceIds(tenantId, projectionIds);
+            permIds = roleResourcePermissionDomainService.selectValidPermIdsByResourceIds(tenantId, projectionIds);
         }
 
         // T-PERM-048 claude 外评 P3-2：级联删授权行前收集内联条件候选（两段级联面合并收集，删后统一回收）
         List<Long> cascadePermIds = new ArrayList<>(permIds);
         List<Long> typeGrantPermIds = List.of();
         if (!deletableResourceTypes.isEmpty()) {
-            typeGrantPermIds = rolePermMapper.selectValidPermIdsByResourceTypes(tenantId, deletableTypeValues);
+            typeGrantPermIds = roleResourcePermissionDomainService.selectValidPermIdsByResourceTypes(tenantId, deletableTypeValues);
             cascadePermIds.addAll(typeGrantPermIds);
         }
         Set<Long> cascadeConditionIds = cascadePermIds.isEmpty() ? Set.of()
-            : rolePermMapper.selectConditionIdsByPermIds(tenantId, cascadePermIds);
+            : roleResourcePermissionDomainService.selectConditionIdsByPermIds(tenantId, cascadePermIds);
 
         LocalDateTime now = LocalDateTime.now();
         typeDefinitionMapper.softDeleteBatch(tenantId, new ArrayList<>(validIds), now);
@@ -722,7 +722,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             resourceEntityDomainService.softDeleteBatch(tenantId, projectionIds, now);
         }
         if (!permIds.isEmpty()) {
-            rolePermMapper.softDeleteBatch(tenantId, permIds, now);
+            roleResourcePermissionDomainService.softDeleteBatch(tenantId, permIds, now);
         }
         // T-PERM-050（2026-09-09 定案级联）：被删 resource_type 的操作定义行与类型级授权行同事务
         // 级联软删——对称于创建联动预置（建时自动生 4 行、删时自动清），与上方投影级联同款。
@@ -738,12 +738,12 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             }
             // 正常流仅剩 scope_all 类型级行（资源行被行数守卫拒绝、实例级授权随资源删除级联）；
             // 防御性含引用已软删资源行的残留实例行
-            Set<Long> typeGrantRoleIds = rolePermMapper.selectRoleIdsByResourceTypes(tenantId, deletableTypeValues);
+            Set<Long> typeGrantRoleIds = roleResourcePermissionDomainService.selectRoleIdsByResourceTypes(tenantId, deletableTypeValues);
             if (!typeGrantRoleIds.isEmpty()) {
                 PermissionChangeContext.markRoles(tenantId, typeGrantRoleIds);
             }
             if (!typeGrantPermIds.isEmpty()) {
-                rolePermMapper.softDeleteBatch(tenantId, typeGrantPermIds, now);
+                roleResourcePermissionDomainService.softDeleteBatch(tenantId, typeGrantPermIds, now);
             }
             // T-PERM-047 终态复用：操作集合变更提交后按被删类型集合 per-type 失效
             cacheService.evictBatchAfterCommit(AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE, tenantId,

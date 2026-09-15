@@ -16,7 +16,6 @@ import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.domain.mapper.DomainConfigMapper;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
@@ -59,7 +58,6 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
     private final RoleResourcePermissionMapper rolePermissionMapper;
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final OperationPermissionMapper operationPermissionMapper;
-    private final PermissionConditionMapper permissionConditionMapper;
     private final DomainConfigMapper domainConfigMapper;
     private final ObjectMapper objectMapper;
 
@@ -71,7 +69,6 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             RoleResourcePermissionMapper rolePermissionMapper,
             ResourceEntityDomainService resourceEntityDomainService,
             OperationPermissionMapper operationPermissionMapper,
-            PermissionConditionMapper permissionConditionMapper,
             DomainConfigMapper domainConfigMapper,
             ObjectMapper objectMapper) {
         this.typeResolutionService = typeResolutionService;
@@ -81,7 +78,6 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         this.rolePermissionMapper = rolePermissionMapper;
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.operationPermissionMapper = operationPermissionMapper;
-        this.permissionConditionMapper = permissionConditionMapper;
         this.domainConfigMapper = domainConfigMapper;
         this.objectMapper = objectMapper;
     }
@@ -207,7 +203,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         // 可变 map：内联轨随后并入同批创建的内联条件（T-PERM-048）
         Map<String, PermissionCondition> conditionsByCode = new LinkedHashMap<>();
         if (!conditionCodes.isEmpty()) {
-            for (PermissionCondition condition : permissionConditionMapper.selectValidByCodes(tenantId, conditionCodes)) {
+            for (PermissionCondition condition : conditionDomainService.selectValidConditionsByCodes(tenantId, conditionCodes)) {
                 // 双轨制定案①（T-PERM-048）：conditionCode 引用轨值域=MANAGED——内联条件 1:1
                 // 属于创建它的授权记录，不可被显式 code 引用或共享（1:1 的 API 焊点）
                 if (ConditionSource.INLINE.getValue().equals(condition.getSource())) {
@@ -253,7 +249,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             }
         }
         Map<Long, PermissionCondition> currentConditionsById = currentConditionIds.isEmpty() ? Map.of()
-            : permissionConditionMapper.selectValidByIds(tenantId, currentConditionIds).stream()
+            : conditionDomainService.selectValidConditionsByIds(tenantId, currentConditionIds).stream()
                 .collect(Collectors.toMap(PermissionCondition::getId, Function.identity()));
         // 内联回收候选（T-PERM-048 定案①回收轨）：原绑定条件随换绑/清除/删行失去引用的，
         // 收集其 id 交 apply 段在 removes/updates 落库后判定归零回收（来源过滤在回收侧）

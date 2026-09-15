@@ -8,7 +8,7 @@ import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceManageAppService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
@@ -93,7 +93,7 @@ class ServiceConfigCascadePgIT {
     @Autowired
     private DomainClassifyService domainClassifyService;
     @Autowired
-    private RoleResourcePermissionMapper rolePermMapper;
+    private RoleResourcePermissionDomainService rolePermMapper;
     @Autowired
     private cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper typeDefinitionMapper;
 

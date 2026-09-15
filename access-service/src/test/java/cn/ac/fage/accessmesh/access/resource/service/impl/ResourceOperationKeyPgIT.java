@@ -17,7 +17,7 @@ import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.type.mapper.TypeDefinitionMapper;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
@@ -100,7 +100,7 @@ class ResourceOperationKeyPgIT {
     @Autowired
     private DomainClassifyService domainClassifyService;
     @Autowired
-    private RoleResourcePermissionMapper rolePermMapper;
+    private RoleResourcePermissionDomainService rolePermMapper;
     @Autowired
     private OperationPermissionMapper operationPermissionMapper;
     @Autowired
@@ -321,7 +321,7 @@ class ResourceOperationKeyPgIT {
             resourceEntityDomainService,
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class),
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper.class),
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper.class),
             mock(TreeWriteLockSupport.class),

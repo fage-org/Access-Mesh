@@ -7,7 +7,7 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard;
@@ -51,7 +51,7 @@ class ResourceManageAppServiceImplTest {
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private DomainClassifyService domainClassifyService;
     @Mock private PermQueryEngine engine;
-    @Mock private RoleResourcePermissionMapper rolePermMapper;
+    @Mock private RoleResourcePermissionDomainService rolePermMapper;
     @Mock private ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     @Mock private TreeWriteLockSupport treeWriteLockSupport;
 

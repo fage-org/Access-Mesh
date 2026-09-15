@@ -13,7 +13,6 @@ import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
@@ -21,6 +20,7 @@ import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainSe
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
@@ -62,7 +62,6 @@ class PermissionGrantAppServiceImplTest {
     private static final Long ROLE_ID = 20L;
 
     @Mock private OperationPermissionMapper operationPermissionMapper;
-    @Mock private PermissionConditionMapper permissionConditionMapper;
     @Mock private RoleResourcePermissionMapper rolePermMapper;
     @Mock private PermissionGrantPlanDomainService permissionGrantPlanDomainService;
     @Mock private AuditDomainService auditDomainService;
@@ -70,6 +69,7 @@ class PermissionGrantAppServiceImplTest {
     @Mock private PermQueryEngine engine;
     @Mock private SubjectDomainService subjectDomainService;
     @Mock private ResourceEntityDomainService resourceEntityDomainService;
+    @Mock private PermissionConditionDomainService conditionDomainService;
 
     private PermissionGrantAppService service;
 
@@ -77,7 +77,7 @@ class PermissionGrantAppServiceImplTest {
     void setUp() {
         service = new PermissionGrantAppServiceImpl(
             operationPermissionMapper,
-            permissionConditionMapper, rolePermMapper, permissionGrantPlanDomainService,
+            rolePermMapper, conditionDomainService, permissionGrantPlanDomainService,
             auditDomainService, typeResolutionService, engine, new ObjectMapper(),
             subjectDomainService, resourceEntityDomainService);
     }

@@ -103,3 +103,4 @@ last_updated: 2026-09-15
 
 - 2026-09-15：计划立项（Q-009 转出）；claude+grok 双通道外评处置完毕（P2×3+P3×4 / P2×2+P3×1，全采纳），用户确认修订版后开工。
 - 2026-09-15：T-ACCESS-043 批次① done（9 边收敛、白名单 30→21、模块双 fork 1249+210 全绿）；批次② in-progress。
+- 2026-09-15：T-ACCESS-044 批次② done（6 边收敛、RoleResourcePermissionDomainService + 条件三读落地、白名单 21→15、模块双 fork 全绿）；批次③ in-progress。

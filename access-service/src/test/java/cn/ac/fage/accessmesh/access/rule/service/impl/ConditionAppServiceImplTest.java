@@ -11,7 +11,7 @@ import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.rule.enums.ConditionSource;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.impl.PermissionConditionDomainServiceImpl;
@@ -71,7 +71,7 @@ class ConditionAppServiceImplTest {
     private static final String CONDITION_CODE = "test";
 
     @Mock private PermissionConditionMapper conditionMapper;
-    @Mock private RoleResourcePermissionMapper rolePermMapper;
+    @Mock private RoleResourcePermissionDomainService rolePermMapper;
     @Mock private PermQueryEngine engine;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private CacheService cacheService;

@@ -111,4 +111,39 @@ public interface PermissionConditionDomainService {
      */
     Set<Long> recycleOrphanInlineConditions(Long tenantId, Set<Long> candidateIds);
 
+    /**
+     * 按 ID 集合批量查有效条件行（Q-009 收敛读，T-ACCESS-044：无缓存直读、REQUIRED 跟随调用方）。
+     * <p>
+     * grant 授权链路消费（prevalidate 存量行快照装载）。禁接 CONDITION_RULES 缓存
+     * （该轨带 enabled 过滤 + 缓存旧值，语义不符）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param ids      条件ID集合
+     * @return 有效条件行列表
+     */
+    List<PermissionCondition> selectValidConditionsByIds(Long tenantId, Set<Long> ids);
+
+    /**
+     * 按 code 集合批量查有效条件行（Q-009 收敛读；INLINE 来源过滤由调用方按业务口径做）。
+     *
+     * @param tenantId 租户ID
+     * @param codes    条件 code 集合
+     * @return 有效条件行列表
+     */
+    List<PermissionCondition> selectValidConditionsByCodes(Long tenantId, Set<String> codes);
+
+    /**
+     * 按 ID 集合查有效条件行（无租户过滤形态，Q-009 收敛读——T-PERM-048 内联轨既有口径：
+     * ids 来自同事务刚 INSERT 的内联条件行，行级租户约束已由写入方保证，读取侧无租户谓词）。
+     * <p>
+     * <b>同事务新鲜读红线</b>：apply-grant-plan 在 apply() 插入/软删内联条件之后经响应组装调用，
+     * 必须读到本事务未提交行——无缓存直读、禁 REQUIRES_NEW。
+     * </p>
+     *
+     * @param ids 条件ID集合
+     * @return 有效条件行列表
+     */
+    List<PermissionCondition> selectValidConditionsByIdsNoTenant(Set<Long> ids);
+
 }

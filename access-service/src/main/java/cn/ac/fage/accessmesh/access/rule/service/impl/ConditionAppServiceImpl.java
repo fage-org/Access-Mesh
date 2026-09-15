@@ -13,7 +13,7 @@ import cn.ac.fage.accessmesh.access.rule.enums.ConditionSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
-import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.ConditionAppService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
@@ -55,7 +55,7 @@ import java.util.stream.Collectors;
 public class ConditionAppServiceImpl implements ConditionAppService {
 
     private final PermissionConditionMapper conditionMapper;
-    private final RoleResourcePermissionMapper rolePermMapper;
+    private final RoleResourcePermissionDomainService roleResourcePermissionDomainService;
     private final PermQueryEngine engine;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final PermissionConditionDomainService conditionDomainService;
@@ -64,18 +64,18 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      * 构造函数注入依赖
      *
      * @param conditionMapper             权限条件数据访问层
-     * @param rolePermMapper              角色资源权限数据访问层（引用守卫 + T-PERM-017 P2-A 反查 serviceCodes）
+     * @param roleResourcePermissionDomainService 授权事实领域服务（引用守卫 + T-PERM-017 P2-A 反查 serviceCodes；Q-009 收敛注入）
      * @param engine                      权限查询引擎
      * @param localProjectionDomainService 本地投影领域服务（CONDITION 实例投影，T-PERM-048）
      * @param conditionDomainService      条件领域服务（规则写入口径校验双轨共享）
      */
     public ConditionAppServiceImpl(PermissionConditionMapper conditionMapper,
-                                       RoleResourcePermissionMapper rolePermMapper,
+                                       RoleResourcePermissionDomainService roleResourcePermissionDomainService,
                                        PermQueryEngine engine,
                                        LocalProjectionDomainService localProjectionDomainService,
                                        PermissionConditionDomainService conditionDomainService) {
         this.conditionMapper = conditionMapper;
-        this.rolePermMapper = rolePermMapper;
+        this.roleResourcePermissionDomainService = roleResourcePermissionDomainService;
         this.engine = engine;
         this.localProjectionDomainService = localProjectionDomainService;
         this.conditionDomainService = conditionDomainService;
@@ -300,7 +300,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
 
         // 引用守卫①（T-PERM-048 定案③）：condition_id 挂靠引用——挂该条件的授权行评估
         // fail-close，静默删除会使授权「静默失效」，零引用才放行（整批拒绝，message 带冲突 code）
-        Set<Long> referencedIds = rolePermMapper.selectReferencedConditionIds(tenantId, validIds);
+        Set<Long> referencedIds = roleResourcePermissionDomainService.selectReferencedConditionIds(tenantId, validIds);
         if (!referencedIds.isEmpty()) {
             List<String> conflictCodes = entities.stream()
                 .filter(condition -> referencedIds.contains(condition.getId()))
@@ -312,7 +312,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
         // 引用守卫②：投影行下实例授权引用（CONDITION:UPDATE/DELETE@code 等实例级授权行悬空防护）
         List<Long> projectionIds = localProjectionDomainService.findConditionResourceIds(tenantId, validCodes);
         if (!projectionIds.isEmpty()
-            && !rolePermMapper.selectValidPermIdsByResourceIds(tenantId, projectionIds).isEmpty()) {
+            && !roleResourcePermissionDomainService.selectValidPermIdsByResourceIds(tenantId, projectionIds).isEmpty()) {
             throw new BizException(AccessErrorCode.CONDITION_REFERENCED_BY_GRANTS.getCode(),
                 "条件存在实例级授权引用（投影行下授权行），不可删除: " + String.join(", ", validCodes));
         }
@@ -344,7 +344,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      * 反查受影响条件引用的 serviceCodes 并登记进 PermissionChangeContext（T-PERM-017 P2-A）。
      * <p>
      * 用于条件 update/delete 后通知 Gateway 失效已下发的内联 conditionRules 接口快照。
-     * 委托 {@link RoleResourcePermissionMapper#selectServiceCodesByConditionIds}（JOIN 一次 SQL），
+     * 委托 {@link RoleResourcePermissionDomainService#selectServiceCodesByConditionIds}（JOIN 一次 SQL），
      * 空结果（条件未被任何 grant 引用）→ no-op，不无谓登记。
      * </p>
      *
@@ -353,7 +353,7 @@ public class ConditionAppServiceImpl implements ConditionAppService {
      */
     private void markServiceCodesForConditions(Long tenantId, Set<Long> conditionIds) {
         if (conditionIds == null || conditionIds.isEmpty()) return;
-        Set<String> serviceCodes = rolePermMapper.selectServiceCodesByConditionIds(tenantId, conditionIds);
+        Set<String> serviceCodes = roleResourcePermissionDomainService.selectServiceCodesByConditionIds(tenantId, conditionIds);
         if (serviceCodes != null && !serviceCodes.isEmpty()) {
             PermissionChangeContext.markServiceCodes(tenantId, serviceCodes);
         }

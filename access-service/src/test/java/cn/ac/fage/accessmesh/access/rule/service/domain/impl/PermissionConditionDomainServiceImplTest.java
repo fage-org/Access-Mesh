@@ -43,7 +43,7 @@ class PermissionConditionDomainServiceImplTest {
     private static final Long TENANT = 1L;
 
     @Mock private PermissionConditionMapper conditionMapper;
-    @Mock private cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper rolePermMapper;
+    @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService rolePermMapper;
     @Mock private CacheService cacheService;
     @Mock private CacheReadToken<JsonNode> readToken;
 

@@ -20,7 +20,6 @@ import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
-import cn.ac.fage.accessmesh.access.rule.mapper.PermissionConditionMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.grant.service.PermissionGrantAppService;
@@ -47,6 +46,7 @@ import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
 
 /**
  * 权限授予服务实现类
@@ -63,7 +63,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private static final Logger log = LoggerFactory.getLogger(PermissionGrantAppServiceImpl.class);
 
     private final OperationPermissionMapper operationPermissionMapper;
-    private final PermissionConditionMapper permissionConditionMapper;
     private final RoleResourcePermissionMapper rolePermMapper;
     private final PermissionGrantPlanDomainService permissionGrantPlanDomainService;
     private final AuditDomainService auditDomainService;
@@ -71,11 +70,12 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private final PermQueryEngine engine;
     private final ObjectMapper objectMapper;
     private final SubjectDomainService subjectDomainService;
+    private final PermissionConditionDomainService conditionDomainService;
     private final ResourceEntityDomainService resourceEntityDomainService;
 
     public PermissionGrantAppServiceImpl(OperationPermissionMapper operationPermissionMapper,
-                                      PermissionConditionMapper permissionConditionMapper,
                                       RoleResourcePermissionMapper rolePermMapper,
+                                      PermissionConditionDomainService conditionDomainService,
                                       PermissionGrantPlanDomainService permissionGrantPlanDomainService,
                                       AuditDomainService auditDomainService,
                                       TypeResolutionService typeResolutionService,
@@ -84,7 +84,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                                       SubjectDomainService subjectDomainService,
                                       ResourceEntityDomainService resourceEntityDomainService) {
         this.operationPermissionMapper = operationPermissionMapper;
-        this.permissionConditionMapper = permissionConditionMapper;
         this.rolePermMapper = rolePermMapper;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
         this.auditDomainService = auditDomainService;
@@ -92,6 +91,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         this.engine = engine;
         this.objectMapper = objectMapper;
         this.subjectDomainService = subjectDomainService;
+        this.conditionDomainService = conditionDomainService;
         this.resourceEntityDomainService = resourceEntityDomainService;
     }
 
@@ -232,7 +232,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             .filter(java.util.Objects::nonNull)
             .collect(java.util.stream.Collectors.toSet());
         Map<Long, PermissionCondition> conditionMap = conditionIds.isEmpty() ? Map.of() :
-            permissionConditionMapper.selectValidByIdsNoTenant(conditionIds).stream()
+            conditionDomainService.selectValidConditionsByIdsNoTenant(conditionIds).stream()
                 .collect(java.util.stream.Collectors.toMap(PermissionCondition::getId, Function.identity()));
 
         // 批量解析资源类型编码（避免N+1）
