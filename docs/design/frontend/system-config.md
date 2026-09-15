@@ -3,7 +3,7 @@ doc_type: design
 title: 6.2 系统配置页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——ConfigForm 键名 Pattern 对齐后端命名空间前缀强制；keyword LIKE CAST 修复；2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-024 收口：§5/§8/§9 终态化（契约要点补全、种子误报澄清、JSONB 实证+isSystem 修复、list 服务端分页）
+last_reviewed: 2026-09-15   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——ConfigForm 键名 Pattern 对齐后端命名空间前缀强制；keyword LIKE CAST 修复；2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-024 收口：§5/§8/§9 终态化（契约要点补全、种子误报澄清、JSONB 实证+isSystem 修复、list 服务端分页）
 ---
 
 # 6.2 系统配置页 前端设计

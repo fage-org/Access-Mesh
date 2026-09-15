@@ -16,9 +16,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  * （覆盖平台会话端点 / 空模式 / 业务路径缺门禁 → 启动失败）。
  * T-ACCESS-042：原「内部凭证路径重叠」防护退役——URL 单命名空间后开放路径与内部
  * 凭证路径同住 /api/access/**，合法流量恒经 Gateway 注入密钥，OAuth2 JWT 验证在
- * InternalApiSecretInterceptor 之后独立执行，双凭证并存不构成机制冲突；本类
- * 「深路径/中段通配/宽通配/URI 模板」四组用例随之改锁新语义（曾为旧防护拒绝项，
- * 退役后必须通过——旧实现下必红，为退役回归锁）。
+ * InternalApiSecretInterceptor 之后独立执行，双凭证并存不构成机制冲突；本类四组
+ * 「退役回归锁」用例锁住退役形态（/api/&#42;&#42;/sync、/api/*、/api/per?/**、/api/{module}/...
+ * 四类形态曾为旧防护必拒项——若按新前缀 /api/access 复活守卫即红）；deep 组精确
+ * 路径类用例在旧实现下亦通过，仅锁现行可配置性，不构成旧必红断言。
  * </p>
  */
 class OAuth2ResourcePathPropertiesTest {

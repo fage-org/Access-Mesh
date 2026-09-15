@@ -11,8 +11,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * 全库唯一 WebMvcConfigurer，注册统一安全链，执行顺序如下：
  * </p>
  * <ol>
- *   <li>order=1 InternalApiSecretInterceptor — 作用于 /api/access/**（豁免 /api/access/auth/**
- *       会话入口族，T-ACCESS-042 URL 单命名空间）。
+ *   <li>order=1 InternalApiSecretInterceptor — 作用于 /api/access/** 豁免会话入口族
+ *       （登录/登出/会话查询/OAuth2 端点；运行时鉴权六端点维持覆盖，T-ACCESS-042 URL 单命名空间）。
  *       内部凭证（X-Internal-Secret）通过则在 request 写 INTERNAL_AUTHENTICATED=true；
  *       失败直接 403 阻断后续。</li>
  *   <li>order=2 HeaderSignatureInterceptor — 覆盖 /api/access/**, /internal/**。
@@ -49,12 +49,22 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         // order=1：内部密钥拦截器必须最先执行，成功时写 attribute 供后续决策。
         // 覆盖 /api/access/**（T-ACCESS-042 前为 /api/perm/**——管理面并入后统一「仅经
-        // Gateway 或持密服务可达」）；豁免 /api/access/auth/**（会话入口族保留自有信任
-        // 模型：公开子集匿名、userinfo/user-menu 走 Sa-Token 会话分支、oauth2/userinfo
-        // 走 JWT 分支——密钥拦截会架空服务层会话校验）。失败直接 403 终止链。
+        // Gateway 或持密服务可达」）；豁免会话入口族（登录/登出/会话查询/OAuth2 端点——
+        // 保留公开/Sa-Token 会话/JWT 自有信任模型，密钥拦截会架空服务层会话分支与 JWT 分支）；
+        // 运行时鉴权六端点（check/batch-check/check-interface/query-resources/query-scopes/
+        // interface-snapshot）维持覆盖（服务凭证通道，与迁移前 /api/perm/auth/* 一致——
+        // INTERNAL_AUTHENTICATED 属性由本拦截器写入，豁免会使签名拦截器按 tenant-only 拒绝）。
+        // 失败直接 403 终止链。
         registry.addInterceptor(internalApiSecretInterceptor)
                 .addPathPatterns("/api/access/**")
-                .excludePathPatterns("/api/access/auth/**")
+                .excludePathPatterns(
+                        "/api/access/auth/captcha",
+                        "/api/access/auth/login",
+                        "/api/access/auth/login/sms",
+                        "/api/access/auth/logout",
+                        "/api/access/auth/userinfo",
+                        "/api/access/auth/user-menu",
+                        "/api/access/auth/oauth2/**")
                 .order(1);
 
         // order=2：签名拦截器，覆盖所有受控路径。

@@ -1,7 +1,7 @@
 /**
  * 服务注册与接口映射 API。
- * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/access/service-config/*` 与
- * `/perm/api/access/resource-api-mapping/*`（Gateway StripPrefix=1 后到
+ * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/service-config/*` 与
+ * `/api/access/resource-api-mapping/*`（T-ACCESS-042 起外部=服务路径，Gateway 无 StripPrefix 直达
  * access-service 的 `/api/access/service-config`、`/api/access/resource-api-mapping`）。
  * 接口形状对齐 api-contract 契约（T-PERM-027 收口）。
  */

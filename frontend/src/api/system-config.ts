@@ -1,6 +1,6 @@
 /**
  * 系统配置 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/access/system-config/*`
+ * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/system-config/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/access/system-config`）。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
@@ -63,7 +63,7 @@ export type SystemConfigSaveReq = {
 
 // ========== API 函数 ==========
 
-/** 查询系统配置列表（POST /perm/api/access/system-config/list）。
+/** 查询系统配置列表（POST /api/access/system-config/list）。
  *  T-PERM-024 收口：服务端 keyword 过滤（configKey/description，LIKE）+ 分页，返回 PageResp
  *  （ORDER BY configKey,id）；不传分页参数 = 字典全量（上限 200）。 */
 export const getSystemConfigList = async (
@@ -77,7 +77,7 @@ export const getSystemConfigList = async (
   return unwrap(res);
 };
 
-/** 查询系统配置详情（POST /perm/api/access/system-config/detail，SystemConfigGetReq{configKey}） */
+/** 查询系统配置详情（POST /api/access/system-config/detail，SystemConfigGetReq{configKey}） */
 export const getSystemConfigDetail = async (
   configKey: string
 ): Promise<SystemConfigResp> => {
@@ -89,7 +89,7 @@ export const getSystemConfigDetail = async (
   return unwrap(res);
 };
 
-/** 保存系统配置（POST /perm/api/access/system-config/save，upsert 幂等）。
+/** 保存系统配置（POST /api/access/system-config/save，upsert 幂等）。
  *  按 configKey 查存在则 update（configValue/description/updatedAt），不存在则 insert。
  *  新建/编辑统一走本接口——前端无需区分 create/update 调用。 */
 export const saveSystemConfig = async (

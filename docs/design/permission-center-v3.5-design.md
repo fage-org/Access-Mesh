@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 v3.5 端到端设计（简化版）
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面措辞 + frontmatter domain 改 access-service）；此前 2026-08-27
+last_reviewed: 2026-09-15 + frontmatter domain 改 access-service）；此前 2026-08-27
 ---
 
 # AccessMesh 权限中心 v3.5 端到端设计（简化版）

@@ -23,7 +23,7 @@
  * perm 串字面量全部为既有资源类型:操作码复用（无新增权限串）：
  * ROLE:VIEW / ROLE:MANAGE（access-service 乙层锚点）、CONDITION:VIEW（3.2 条件）。
  * 资源树/操作列等只读数据接口的门禁（RESOURCE:VIEW/OPERATION:VIEW）是后端类型级
- * 接口门禁，不经前端 capability 判定——这两个码不在 /api/access/auth/user-menu 权限串白名单内，
+ * 接口门禁，不经前端 capability 判定——这两个码不在 /api/access/api/access/auth/user-menu 权限串白名单内，
  * 登记为前端 capability 会造成真实链路与 mock 的环境差异（T-ACCESS-021 缺陷③口径）。
  */
 export const PERMISSION_GRANT_PERMS = {

@@ -3,7 +3,7 @@ doc_type: design
 title: 7.1 操作日志页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +2 端点；2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-025 收口：§5/§7/§8/§9 终态化（OPERATION_LOG:VIEW 审计分离、action 动态字典、五维筛选）
+last_reviewed: 2026-09-15   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +2 端点；2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-025 收口：§5/§7/§8/§9 终态化（OPERATION_LOG:VIEW 审计分离、action 动态字典、五维筛选）
 ---
 
 # 7.1 操作日志页 前端设计

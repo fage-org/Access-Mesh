@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-14   # T-PERM-066/067 外评处置（claude P3×1 + grok P2×1，全采纳修复）：§2.5 typeCode 注记修正（可选——null 与空串放行走留空生成分支，`^$` 显式放行；正则同步改 `^$|^[A-Z][A-Z0-9_]*$`）、§7.7 force_reset_pwd 置位口径（自身自助改密置 false、非自身置 true——归档设计「修改个人密码成功后置 false」回归）；此前 2026-09-14 T-PERM-067 USER 写入口自身豁免收窄（Q-002 转出）：§4 表 /user/update 行、§7.4 门禁、§7.7 门禁/force_reset_pwd/验收要点（自身=自助改密通道定位，证伪「走另外的修改密码接口」旧句）、§7.8 abstract-user update/remove 行（perm 轨死分支语义统一）、§21.2 验收 2、§22.2 决策 13——档案字段自我豁免保留、启停/删除不豁免；此前 2026-09-14 T-PERM-066 operationCodeKey 族入参大写：§2.4 操作行注记 + §2.5 新增集中注记（@Pattern 覆盖面/边界/守卫/SDK 生效），授权域归一退役两域统一 raw；此前 2026-09-14 T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
+last_reviewed: 2026-09-15   # T-PERM-066/067 外评处置（claude P3×1 + grok P2×1，全采纳修复）：§2.5 typeCode 注记修正（可选——null 与空串放行走留空生成分支，`^$` 显式放行；正则同步改 `^$|^[A-Z][A-Z0-9_]*$`）、§7.7 force_reset_pwd 置位口径（自身自助改密置 false、非自身置 true——归档设计「修改个人密码成功后置 false」回归）；此前 2026-09-14 T-PERM-067 USER 写入口自身豁免收窄（Q-002 转出）：§4 表 /user/update 行、§7.4 门禁、§7.7 门禁/force_reset_pwd/验收要点（自身=自助改密通道定位，证伪「走另外的修改密码接口」旧句）、§7.8 abstract-user update/remove 行（perm 轨死分支语义统一）、§21.2 验收 2、§22.2 决策 13——档案字段自我豁免保留、启停/删除不豁免；此前 2026-09-14 T-PERM-066 operationCodeKey 族入参大写：§2.4 操作行注记 + §2.5 新增集中注记（@Pattern 覆盖面/边界/守卫/SDK 生效），授权域归一退役两域统一 raw；此前 2026-09-14 T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
 ---
 
 # access-service API 契约总册
@@ -224,7 +224,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `/api/access/user-org/assign` | `ORG` | 实例级批量 (orgIds) | `UPDATE` | 关系级追加; 默认树关系受身份目录边界二次校验 |
 | `/api/access/user-org/remove` | `ORG` | 实例级 (orgId) | `UPDATE` | 非默认树仅删关系并回收对应 user_role; 默认树移除按身份目录高危处理 |
 | `/api/access/user-org/set-primary` | `ORG` | 实例级 (orgId) | `UPDATE` | 首期仅允许默认组织树主归属 |
-| `/api/access/user-role/list` | `USER` | 实例级 (userId) | `VIEW` | admin 代理直查; 不再额外要求 `ROLE:MANAGE` |
+| `/api/access/user-role/view` | `USER` | 实例级 (userId) | `VIEW` | admin 代理直查（T-ACCESS-042 由 list 改名 view——与权限轨持有角色 `/list` 统一命名空间后区分双轨）; 不再额外要求 `ROLE:MANAGE` |
 | `/api/access/role/list` | `ROLE` | 类型级 | `VIEW` | 仅功能角色 |
 
 > **默认树身份目录边界二次校验**: `/api/access/user/create`、`/api/access/user/delete`、`/api/access/user/enable`、`/api/access/user/reset-password`、`/api/access/user-org/set-primary` 在通过 `AdminPermissionValidator` 后, AppService 内部还要二次确认目标用户的默认树关系存在 (通过 `sys_user_org` 推导), 且操作者在默认树该子树下具备可见性. 不满足时抛 `BizException(ErrorCode.NOT_IN_DEFAULT_TREE_SCOPE)`. 这一层不能用 `SecurityException` 表达.
@@ -264,7 +264,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `/api/access/user-org/remove` | DELETE `sys_user_org` | `unbindUserOrg` |
 | `/api/access/user-org/set-primary` | UPDATE `sys_user_org.is_primary` | 无（`is_primary` 不映射 `user_role` 拓扑） |
 
-> 功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）的分配/回收走 `/api/access/user-role/*`（perm 家族），管理面 `/api/access/user-role/*` 仅保留 `/api/access/user-role/list` 读聚合。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
+> 功能角色（BASIC_ROLE/GROUP_ROLE/PERSONAL）的分配/回收走 `/api/access/user-role/*`（perm 家族），管理面 `/api/access/user-role/*` 仅保留 `/api/access/user-role/view` 读聚合（T-ACCESS-042 由 list 改名，与权限轨持有角色 `/list` 区分双轨）。组织/岗位角色只能由组织与成员关系写入投影产生，`createRoleForOrg` 与针对保留角色类型的菜单授权一律拒绝。
 
 ## 6. auth 能力（登录会话与 OAuth2）
 
@@ -980,11 +980,11 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `MENU_PERM_CODE_EXISTS(10202)` 已退役（perm_code 列移除），由 `MENU_PATH_EXISTS(10205)` / `MENU_RESOURCE_EXISTS(10206)` 承接
 
 ## 10. role 能力（角色管理）
-### 10.1 管理面用户-角色读聚合（/user-role/list）
-> **核心决策（T-ACCESS-006 修订，T-ADMIN-024 删除收口）**: 合并后角色管理由权限面直接提供（`/api/access/user-role/*`），管理面不再维护角色代理。`/api/access/user-role/list` 保留为读接口（经 `role.service` 的 `UserRoleQueryAppService`（T-ACCESS-033 迁移改名） 聚合，POSITION 补所属组织名）；原 `/api/access/user-role/assign`、`/api/access/user-role/revoke` 写代理已删除（无存量调用方，不留兼容层，无映射 404），角色分配/回收走 `/api/access/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由权限面 enforce）。注：已删端点在 access-service 无任何 Handler 映射（注册表证据见 HttpApiPathSnapshotTest 负向断言与 RetiredRoleApiContractTest）；运行时观察值按入口区分——匿名直连管理面路径族先被 RequestContextInterceptor 拒为 401（不泄露路径存在性），通过拦截后无映射即 404，经 Gateway 的未注册路径先被接口快照按 `unregistered-policy=DENY` 拦为 403（fail-closed）。
+### 10.1 管理面用户-角色读聚合（/user-role/view）
+> **核心决策（T-ACCESS-006 修订，T-ADMIN-024 删除收口）**: 合并后角色管理由权限面直接提供（`/api/access/user-role/*`），管理面不再维护角色代理。`/api/access/user-role/view` 保留为读接口（T-ACCESS-042 子路径由 list 改名 view——统一命名空间后与权限轨持有角色 `/list`（§10.4，SDK 消费、业务键入参）撞路径，管理轨改名对应 USER:VIEW 门禁语义；经 `role.service` 的 `UserRoleQueryAppService`（T-ACCESS-033 迁移改名） 聚合，POSITION 补所属组织名）；原 `/api/access/user-role/assign`、`/api/access/user-role/revoke` 写代理已删除（无存量调用方，不留兼容层，无映射 404），角色分配/回收走 `/api/access/user-role/assign|revoke`（门禁 `ROLE:MANAGE` 由权限面 enforce）。注：已删端点在 access-service 无任何 Handler 映射（注册表证据见 HttpApiPathSnapshotTest 负向断言与 RetiredRoleApiContractTest）；运行时观察值按入口区分——匿名直连管理面路径族先被 RequestContextInterceptor 拒为 401（不泄露路径存在性），通过拦截后无映射即 404，经 Gateway 的未注册路径先被接口快照按 `unregistered-policy=DENY` 拦为 403（fail-closed）。
 > 接口使用业务键 `(roleTypeCode, roleExternalId)` 标识角色。仅服务功能角色 (BASIC_ROLE/GROUP_ROLE/PERSONAL); 排除 ORG/POSITION (后者走 /user-org/*)。
 
-#### 10.1.1 `POST /api/access/user-role/list` 🔧
+#### 10.1.1 `POST /api/access/user-role/view` 🔧
 
 **目的**: 查询用户已分配的角色列表 (含组织/岗位/功能角色全集, 由 admin 代理拼接).
 
@@ -2789,7 +2789,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 ### 22.2 管理面家族已确认决策
 | # | 决策 | 理由 |
 |---|------|------|
-| 1 | `/api/access/user-role/list` 读接口保留管理面聚合（跨面只读）；`/api/access/user-role/assign`/`revoke` 已删除（T-ADMIN-024，无映射 404），角色管理由权限面 `/api/access/abstract-role`、`/api/access/user-role/*` 直接提供 | 原代理方案避免业务键暴露（api-gap-analysis §4 A 方案，已归档）；T-ACCESS-006 起单服务内不再需要写代理，读聚合保留供前端组合查询 |
+| 1 | `/api/access/user-role/view` 读接口保留管理面聚合（跨面只读；T-ACCESS-042 由 list 改名，权限轨 `/list` 为 SDK 持有角色查询）；`/api/access/user-role/assign`/`revoke` 已删除（T-ADMIN-024，无映射 404），角色管理由权限面 `/api/access/abstract-role`、`/api/access/user-role/*` 直接提供 | 原代理方案避免业务键暴露（api-gap-analysis §4 A 方案，已归档）；T-ACCESS-006 起单服务内不再需要写代理，读聚合保留供前端组合查询 |
 | 2 | `/api/access/user/create` 一次性返回 `initialPassword` (明文) | 仅本次返回, 由前端弹窗展示给操作者; 后续无法再获取 |
 | 3 | `/api/access/user/enable` 启停一体 (`status=0/1`), 不拆 `/api/access/user/disable` | 前端 mock 已采用此形态; AppService 内部按 status 派发 ENABLE/DISABLE 门禁码 |
 | 4 | `/api/access/user-org/assign` 关系级追加, 禁止 wipe 模式 | 防止跨树意外清除 (default-org-tree §3.2); 已存在关系幂等忽略 |
@@ -2832,7 +2832,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 | `POST /api/access/user-org/assign` | `assignUserOrgs` | 🔧 |
 | `POST /api/access/user-org/remove` | `removeUserOrg` | 🔧 |
 | `POST /api/access/user-org/set-primary` | `setPrimaryOrg` | 🔧 |
-| `POST /api/access/user-role/list` | `getUserRoles` | 🔧 |
+| `POST /api/access/user-role/view` | `getUserRoles` | 🔧 |
 | `POST /api/access/role/list` | `getRoleList` | ✅ |
 
 合计: 19 项接口 (13 🔧 + 6 ✅)。原 `/api/access/user-role/assign`、`/api/access/user-role/revoke` 两行已随 T-ADMIN-024 端点删除移除（前端 `assignRole`/`revokeRole` 已随 T-FE-015 联调 2026-08-31 切换至 `/api/access/user-role/assign|revoke` items[] 契约）；api-gap-analysis.md "已核对接口汇总" 2026-06-21 归档至 `docs/archive/2026-06-21/`（其时点 16 个 🔧 已由 admin-service 实现，当前实数 13）. 另：后端 `OrgTreeConfigController` 存在 `/api/access/org-tree-config/{page,create,update,detail,delete,set-default}` 六端点（前端仅消费 `page`，已随 T-FE-015 注册 Gateway），本契约未展开登记——待树配置管理 UI 立项时补 §8.x 契约段（登记项，T-FE-015 联调发现）.

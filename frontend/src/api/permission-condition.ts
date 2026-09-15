@@ -1,6 +1,6 @@
 /**
  * 权限条件 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/access/permission-condition/*`
+ * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/permission-condition/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/access/permission-condition`）。
  * T-FE-041 切换真实链路后，mock/permission-condition.ts 路由失配，已随 T-FE-020 退役删除
  *（_shared/permission-condition-store 亦随 T-FE-018 授权页 mock 退役一并删除，条件链路全真实）。
@@ -61,7 +61,7 @@ export type ConditionUpdateReq = {
   description?: string;
 };
 
-/** 查询条件列表（POST /perm/api/access/permission-condition/list）。
+/** 查询条件列表（POST /api/access/permission-condition/list）。
  *  后端返回 ItemsResp<ConditionResp> 全量不分页（T-PERM-029 设计定案：条件模板数量有界，
  *  与 domain-config/service-config 同款；keyword/enabled 过滤由前端本地完成）。
  *  双轨制（T-PERM-048）：缺省只返回 MANAGED 管理页条件（权限条件页口径——内联条件在管理页
@@ -77,7 +77,7 @@ export const getConditionList = async (
   return unwrap(res);
 };
 
-/** 查询条件详情（POST /perm/api/access/permission-condition/detail，ConditionDetailReq{conditionCode}）。
+/** 查询条件详情（POST /api/access/permission-condition/detail，ConditionDetailReq{conditionCode}）。
  *  读取无门禁（2026-08-08 产品确认：条件规则全租户开放）；查不到抛 20006 CONDITION_NOT_FOUND。
  *  ⚠️ 该端点未注册 bootstrap Gateway 清单（本页不消费，T-FE-020 口径）——
  *  后续页面接入前须先在 BootstrapGraphDefinition.apiRoutes() 补注册，否则 fail-closed 403。 */
@@ -92,7 +92,7 @@ export const getConditionDetail = async (
   return unwrap(res);
 };
 
-/** 创建条件（POST /perm/api/access/permission-condition/create） */
+/** 创建条件（POST /api/access/permission-condition/create） */
 export const createCondition = async (
   data: ConditionCreateReq
 ): Promise<ConditionResp> => {
@@ -104,7 +104,7 @@ export const createCondition = async (
   return unwrap(res);
 };
 
-/** 更新条件（POST /perm/api/access/permission-condition/update）。
+/** 更新条件（POST /api/access/permission-condition/update）。
  *  以业务键 code 定位（创建后不可改）。 */
 export const updateCondition = async (
   data: ConditionUpdateReq
@@ -117,7 +117,7 @@ export const updateCondition = async (
   return unwrap(res);
 };
 
-/** 按业务键删除条件，支持批量（POST /perm/api/access/permission-condition/remove，ConditionRemoveReq{codes}）。
+/** 按业务键删除条件，支持批量（POST /api/access/permission-condition/remove，ConditionRemoveReq{codes}）。
  *  请求中不存在的 code 静默跳过（幂等语义）。 */
 export const removeConditions = async (codes: string[]): Promise<void> => {
   unwrap(

@@ -68,8 +68,8 @@
 
 ## 8. 依据锚点
 
-- 响应信封恒 200 + 失败以 `accepted/retryClass` 判定：api-contract §6.2.2.2（2026-09-12 勘误，随扩展指南外评修正）。
-- 类型级所有权门禁与七内部类型：api-contract §6.2.2 规则条 + T-PERM-052 定案（decision-registry 2026-09-05 行）。
-- full-sync ownership 以 `sync_metadata` 为准、两记录列不作清理依据：api-contract §6.2.2.1 + access-service-architecture §4.3（T-PERM-021 F1.c 定案 2026-09-12）。
+- 响应信封恒 200 + 失败以 `accepted/retryClass` 判定：契约总册 §19.3（2026-09-12 勘误，随扩展指南外评修正）。
+- 类型级所有权门禁与七内部类型：契约总册 §19 规则条 + T-PERM-052 定案（decision-registry 2026-09-05 行）。
+- full-sync ownership 以 `sync_metadata` 为准、两记录列不作清理依据：契约总册 §19.1/§19.2 + access-service-architecture §4.3（T-PERM-021 F1.c 定案 2026-09-12）。
 - 角色/资源同步互斥守卫（BIND 逐条 `ROLE_MUTEX_CONFLICT`）：T-PERM-063/064（decision-registry 2026-09-12 两行）。
-- 服务间认证与凭证绑定：api-contract §6.2.2.5、access-service-architecture §6.2。
+- 服务间认证与凭证绑定：契约总册 §19.5、access-service-architecture §6.2。

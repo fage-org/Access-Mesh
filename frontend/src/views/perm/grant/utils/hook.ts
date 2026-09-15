@@ -184,7 +184,7 @@ export function usePermissionGrant() {
       const [treeResp, opResp] = await Promise.all([
         // 门控说明（T-ACCESS-021 GUI 段缺陷修复）：资源树/操作列不做前端 capability 前置
         // （访问控制由后端类型级 VIEW 门禁 T-PERM-042 承担，无权限者收到接口错误提示；
-        // RESOURCE/OPERATION 虽已随 T-PERM-025 补入 /api/access/auth/user-menu 权限串白名单，
+        // RESOURCE/OPERATION 虽已随 T-PERM-025 补入 /api/access/api/access/auth/user-menu 权限串白名单，
         // 仍维持不做前端前置的既有设计）
         getResourceTree({}),
         getOperationList({})

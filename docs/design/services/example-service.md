@@ -3,7 +3,7 @@ doc_type: design
 title: Example Service 设计
 status: adopted
 domain: example-service
-last_reviewed: 2026-08-28
+last_reviewed: 2026-09-15
 ---
 
 # Example Service 设计

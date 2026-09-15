@@ -3,7 +3,7 @@ doc_type: design
 title: 6.1 类型定义页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-07   # 2026-09-07 T-PERM-019：create 生成码措辞订正；此前 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——写路径三端点 Gateway 注册+TYPE_DEFINITION:CREATE/MANAGE 补授；2026-08-31   # 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正（403 兜底 + menus 接线归 T-FE-015）、§4.1 切服务端分页终态化、§8 消费方计数三处→四处；2026-08-29 §8 第 4 项收口（T-PERM-028：resource_type 创建联动预置已实现）；2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）
+last_reviewed: 2026-09-15   # 2026-09-07 T-PERM-019：create 生成码措辞订正；此前 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——写路径三端点 Gateway 注册+TYPE_DEFINITION:CREATE/MANAGE 补授；2026-08-31   # 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正（403 兜底 + menus 接线归 T-FE-015）、§4.1 切服务端分页终态化、§8 消费方计数三处→四处；2026-08-29 §8 第 4 项收口（T-PERM-028：resource_type 创建联动预置已实现）；2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）
 ---
 
 # 6.1 类型定义页 前端设计

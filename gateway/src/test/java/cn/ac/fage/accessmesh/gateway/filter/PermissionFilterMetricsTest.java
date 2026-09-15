@@ -146,7 +146,7 @@ class PermissionFilterMetricsTest {
     private static WebClientRequestException connectionRefused() {
         return new WebClientRequestException(
             new java.net.ConnectException("Connection refused"),
-            HttpMethod.GET, URI.create("http://access-service/api/perm/auth/interface-snapshot"),
+            HttpMethod.GET, URI.create("http://access-service/api/access/auth/interface-snapshot"),
             HttpHeaders.EMPTY);
     }
 

@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
  * <p>
  * 用于从其他服务调用access-service的远程接口（T-ACCESS-010：目标由 permission-center 切换为
  * access-service，服务发现名与部署单元统一，HTTP 契约不变）。
- * 所有接口路径遵循 {@code /api/perm/*} 契约，使用 POST + JSON Body 方式调用。
+ * 所有接口路径遵循 {@code /api/access/*} 契约（T-ACCESS-042 单命名空间，外部=服务路径），使用 POST + JSON Body 方式调用。
  * </p>
  */
 @FeignClient(name = "access-service")
@@ -199,7 +199,7 @@ public interface PermissionFeignClient {
 
     // ========== 权限授予/撤销 ==========
     // 旧写入口 batchGrant(/save)/batchRevoke(/revoke) 已随 T-PERM-034 端点退役删除（2026-08-27）；
-    // 授权写入唯一入口为 /api/perm/role-resource-permission/apply-grant-plan（记录级 plan 单事务原子）。
+    // 授权写入唯一入口为 /api/access/role-resource-permission/apply-grant-plan（记录级 plan 单事务原子）。
 
     /**
      * 查询用户有效权限码聚合（v1.4 双轨并行 / 命名空间统一）。

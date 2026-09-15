@@ -1,9 +1,9 @@
 /**
  * 冲突规则 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/access/conflict-rule/*`
+ * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/conflict-rule/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/access/conflict-rule`）。
  * T-FE-020 修正：本文件原用裸 `/api/access/conflict-rule/*`（T-FE-041 全局切 Gateway 路径时漏改
- * 本页），Gateway 仅路由 /admin/**、/perm/**，裸路径必 404；mock/conflict-rule.ts 已随真实链路退役删除。
+ * 本页），Gateway 仅路由 /api/**（T-ACCESS-042 单命名空间），旧双前缀/裸路径形态必 404；mock/conflict-rule.ts 已随真实链路退役删除。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
  *
@@ -135,7 +135,7 @@ export const getConflictRuleList = async (): Promise<
   return unwrap(res);
 };
 
-/** 查询冲突规则详情（POST /perm/api/access/conflict-rule/detail，IdReq{id}）。
+/** 查询冲突规则详情（POST /api/access/conflict-rule/detail，IdReq{id}）。
  *  内部主键 id 定位（T-PERM-030 评估定案：冲突规则无业务键）；查不到抛 20020。
  *  ⚠️ 该端点未注册 bootstrap Gateway 清单（本页不消费，T-FE-020 口径）——
  *  后续页面接入前须先在 BootstrapGraphDefinition.apiRoutes() 补注册，否则 fail-closed 403。 */

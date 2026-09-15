@@ -1,6 +1,6 @@
 /**
  * 业务域 API
- * 经 @/utils/http 调用 access-service 端点（`/perm/api/access/biz-domain/*`，Gateway /perm 前缀——T-FE-021 切换）；
+ * 经 @/utils/http 调用 access-service 端点（`/api/access/biz-domain/*`，Gateway /perm 前缀——T-FE-021 切换）；
  * mock/biz-domain.ts 已于 T-FE-021 联调退役删除。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。

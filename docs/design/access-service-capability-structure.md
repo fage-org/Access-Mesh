@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 能力包结构与两域融合
 status: adopted
 domain: cross-service
-last_reviewed: 2026-09-14（T-ACCESS-041：§7 文档与叙事第三项落地 + §9 补三行修订对照；域叙事词汇=管理面/权限面）；此前 2026-09-13（T-ACCESS-039：§3/§8.2/§9 缓存目录合一收口——单册 AccessCacheCatalog、admin:org-visibility 越域归位 access:org-visibility、mode/TTL 零改动）；此前 2026-09-13（T-ACCESS-038：§3/§8.2/§9 错误码合一收口——单册 AccessErrorCode、碰撞三组 ADMIN_/PERM_ 段前缀、能力无专属段规则成文）；此前 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
+last_reviewed: 2026-09-15 文档与叙事第三项落地 + §9 补三行修订对照；域叙事词汇=管理面/权限面）；此前 2026-09-13（T-ACCESS-039：§3/§8.2/§9 缓存目录合一收口——单册 AccessCacheCatalog、admin:org-visibility 越域归位 access:org-visibility、mode/TTL 零改动）；此前 2026-09-13（T-ACCESS-038：§3/§8.2/§9 错误码合一收口——单册 AccessErrorCode、碰撞三组 ADMIN_/PERM_ 段前缀、能力无专属段规则成文）；此前 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
 ---
 
 # access-service 能力包结构与两域融合

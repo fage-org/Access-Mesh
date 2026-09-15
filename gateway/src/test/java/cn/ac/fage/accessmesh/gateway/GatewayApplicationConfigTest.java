@@ -216,7 +216,9 @@ class GatewayApplicationConfigTest {
         assertTrue("lb://access-service".equals(props.getPermission().getServiceUrl()),
             "permission.service-url 必须为 lb://access-service（T-ACCESS-010 切换），实际 " + props.getPermission().getServiceUrl());
         assertTrue(props.getWhitelist().getPaths().contains("/api/access/auth/**"),
-            "whitelist 必须包含 /auth/**");
+            "whitelist 必须包含 /api/access/auth/**（T-ACCESS-042 单命名空间）");
+        assertTrue(!props.getWhitelist().getPaths().contains("/auth/**"),
+            "whitelist 不得残留旧形态 /auth/**（auth 家族已并入 /api/access/auth/**）");
         // T-GW-007：主端口白名单不得含任何 /actuator 路径（actuator 经独立管理端口提供）
         assertTrue(props.getWhitelist().getPaths().stream().noneMatch(p -> p.startsWith("/actuator")),
             "whitelist 不得包含 /actuator/**（T-GW-007 移至管理端口），实际 " + props.getWhitelist().getPaths());

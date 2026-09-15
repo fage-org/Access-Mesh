@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-09-10   # 2026-09-10 T-GW-008 codex 外评 P1 处置：§清洗承诺句修正（对 framework 策略清洗不生效）+ §forward-headers-strategy 启动护栏新增（ForwardHeadersStrategyGuard，framework/native 拒启）；同日早前 §请求头清洗与客户端 IP 重建新增（T-GW-008：XFF 清洗+remoteAddr 重建+清洗叠加语义缺陷修复）；此前：2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031）；2026-08-28（T-ACCESS-027）
+last_reviewed: 2026-09-15   # 2026-09-10 T-GW-008 codex 外评 P1 处置：§清洗承诺句修正（对 framework 策略清洗不生效）+ §forward-headers-strategy 启动护栏新增（ForwardHeadersStrategyGuard，framework/native 拒启）；同日早前 §请求头清洗与客户端 IP 重建新增（T-GW-008：XFF 清洗+remoteAddr 重建+清洗叠加语义缺陷修复）；此前：2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031）；2026-08-28（T-ACCESS-027）
 ---
 
 # Gateway 服务设计

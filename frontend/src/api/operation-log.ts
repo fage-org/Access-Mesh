@@ -1,6 +1,6 @@
 /**
  * 操作日志 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/access/log/operation/*`
+ * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/log/operation/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/access/log/operation`）。
  * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
  * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；分页包络复用 role-manage 定义。
@@ -70,7 +70,7 @@ export type LogActionOptionsReq = {
 
 // ========== API 函数 ==========
 
-/** 查询操作日志列表（POST /perm/api/access/log/operation/list）。
+/** 查询操作日志列表（POST /api/access/log/operation/list）。
  *  后端按 module/action/operatorId/时间范围/targetType 过滤 + 服务端分页，
  *  返回 PageResp<OperationLogResp>。
  *  权限门禁：独立 OPERATION_LOG:VIEW（T-PERM-025 审计分离，不再复用 SYSTEM_CONFIG:VIEW）。 */
@@ -85,7 +85,7 @@ export const getOperationLogList = async (
   return unwrap(res);
 };
 
-/** 查询操作日志 action 字典（POST /perm/api/access/log/operation/action-options，T-PERM-025）。
+/** 查询操作日志 action 字典（POST /api/access/log/operation/action-options，T-PERM-025）。
  *  返回 operation_log 当前实际存在的 action 去重集合（字典序），供筛选下拉动态拉取
  *  （替代前端硬编码子集——action 由 @OperationLog 注解开放增长，返回实际存在值避免双轨漂移）。
  *  权限门禁：OPERATION_LOG:VIEW。 */

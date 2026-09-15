@@ -1,6 +1,6 @@
 /**
  * 类型定义 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/access/type-definition/*`
+ * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/type-definition/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/access/type-definition`）。
  * T-FE-041 切换真实链路后，mock/type-def.ts 的旧 `/api/access/**` 路径已自然失配
  *（该 mock 已随 T-FE-018 授权页联调退役删除）。
@@ -116,7 +116,7 @@ export type TypeDefUpdateReq = {
 
 // ========== API 函数 ==========
 
-/** 查询类型定义列表（POST /perm/api/access/type-definition/list）。
+/** 查询类型定义列表（POST /api/access/type-definition/list）。
  *  T-PERM-023 收口：服务端 typeKey/keyword 过滤 + 分页，返回 PageResp
  *  （ORDER BY sortOrder,id）；不传分页参数 = 字典全量（上限 200）。 */
 export const getTypeDefList = async (
@@ -130,7 +130,7 @@ export const getTypeDefList = async (
   return unwrap(res);
 };
 
-/** 查询类型定义详情（POST /perm/api/access/type-definition/detail，IdReq{id}） */
+/** 查询类型定义详情（POST /api/access/type-definition/detail，IdReq{id}） */
 export const getTypeDefDetail = async (id: number): Promise<TypeDefResp> => {
   const res = await http.request<R<TypeDefResp>>(
     "post",
@@ -140,7 +140,7 @@ export const getTypeDefDetail = async (id: number): Promise<TypeDefResp> => {
   return unwrap(res);
 };
 
-/** 创建类型定义（POST /perm/api/access/type-definition/create） */
+/** 创建类型定义（POST /api/access/type-definition/create） */
 export const createTypeDef = async (
   data: TypeDefCreateReq
 ): Promise<TypeDefResp> => {
@@ -152,7 +152,7 @@ export const createTypeDef = async (
   return unwrap(res);
 };
 
-/** 更新类型定义（POST /perm/api/access/type-definition/update） */
+/** 更新类型定义（POST /api/access/type-definition/update） */
 export const updateTypeDef = async (
   data: TypeDefUpdateReq
 ): Promise<TypeDefResp> => {
@@ -164,7 +164,7 @@ export const updateTypeDef = async (
   return unwrap(res);
 };
 
-/** 删除类型定义，支持批量（POST /perm/api/access/type-definition/remove，IdsReq{ids}）。
+/** 删除类型定义，支持批量（POST /api/access/type-definition/remove，IdsReq{ids}）。
  *  isSystem=true 的系统预置项后端跳过删除。 */
 export const removeTypeDefs = async (ids: number[]): Promise<void> => {
   unwrap(

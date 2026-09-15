@@ -3,7 +3,7 @@ doc_type: design
 title: 7.2 权限变更日志页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-10   # 2026-09-10 T-PERM-059 收口（含 claude 外评处置）：与 recent-changes 分工叙述/门禁表句改删除口径 + diff_snapshot 规范引用改 api-contract §5.8 + 排查链路步骤引用改 §13.2 两步形态；此前 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +1 端点；assign 无变更日志登记已知差距；2026-08-29   # 2026-08-29 T-PERM-032 收口：§3/§4/§5/§7 终态化（独立 PERMISSION_CHANGE_LOG:VIEW/筛选全集/createdBy/ROLE_BATCH_DELETE 补枚举）
+last_reviewed: 2026-09-15   # 2026-09-10 T-PERM-059 收口（含 claude 外评处置）：与 recent-changes 分工叙述/门禁表句改删除口径 + diff_snapshot 规范引用改 api-contract §5.8 + 排查链路步骤引用改 §13.2 两步形态；此前 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——Gateway +1 端点；assign 无变更日志登记已知差距；2026-08-29   # 2026-08-29 T-PERM-032 收口：§3/§4/§5/§7 终态化（独立 PERMISSION_CHANGE_LOG:VIEW/筛选全集/createdBy/ROLE_BATCH_DELETE 补枚举）
 ---
 
 # 7.2 权限变更日志页设计

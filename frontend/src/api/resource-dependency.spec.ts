@@ -1,11 +1,11 @@
 /**
  * 资源依赖 API 层 URL 契约锁（T-FE-044）。
  *
- * 锁住的性质：六端点必须携带 Gateway 外部路径前缀 `/perm/api/access/...`
- * （vite proxy `/perm` → Gateway `Path=/perm/**` StripPrefix=1 → access-service `/api/access/...`）。
- * 缺前缀的旧形态（`/api/access/...`）dev 下读端点 404 被页面 catch 吞成空数据假象
- * （本缺陷曾因 mock 拦截 url 与误写路径一致而长期不可见，联调 create 404 才暴露）——
- * 本 spec 在旧形态下必红，防止新增端点/复制建页时复发。
+ * 锁住的性质：六端点必须为单命名空间形态 `/api/access/resource-dependency/...`
+ * （T-ACCESS-042 起外部=服务路径，vite proxy 单条 `/api` → Gateway 无 StripPrefix 直达）。
+ * 历史缺陷：曾误写缺前缀旧形态致 dev 下读端点 404 被页面 catch 吞成空数据假象
+ * （mock 拦截 url 与误写路径一致而长期不可见，联调 create 404 才暴露）——
+ * 本 spec 在回归旧形态（裸路径/`/perm` 双前缀）下必红，防止新增端点/复制建页时复发。
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 

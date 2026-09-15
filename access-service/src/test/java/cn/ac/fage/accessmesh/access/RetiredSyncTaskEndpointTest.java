@@ -26,14 +26,14 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 映射级排除由 HttpApiPathSnapshotTest（注解扫描 + 快照）覆盖；本测试从运行时
  * 补足另一半证据：全量 Spring Context 启动后，注册的 RequestMappingHandlerMapping
  * 不含任何 /sync-task、/audit-log 或 extra-roles 映射（含非注解注册通道），且经完整
- * 请求链实际请求被 pre-handler fail-closed 拒绝（admin 路径族 401、/api/perm/** 路径族
+ * 请求链实际请求被 pre-handler fail-closed 拒绝（旧 admin 裸路径族 401、/api/access/** 路径族
  * 403、无拦截覆盖路径 404），不命中任何业务处理器（详见 retiredPathRejected 说明）。
  * 外部口径：Gateway /admin/sync-task/*（StripPrefix=1）→ access-service /sync-task/*。
  * </p>
  * <ul>
  *   <li>/sync-task/*：T-ACCESS-005 删除内部同步子系统（sys_sync_task + Controller）。</li>
- *   <li>/audit-log/page：T-ACCESS-007 确认前端与代码零引用后删除，查询统一 /api/perm/log/*。</li>
- *   <li>/api/perm/abstract-role/extra-roles/*：T-PERM-043 删除 GROUP_ROLE 专用写入口
+ *   <li>/audit-log/page：T-ACCESS-007 确认前端与代码零引用后删除，查询统一 /api/access/log/*。</li>
+ *   <li>/api/access/abstract-role/extra-roles/*：T-PERM-043 删除 GROUP_ROLE 专用写入口
  *       （add 写 abstract_user_id=null 死路径；list 恒空；读模型保留冻结）。</li>
  * </ul>
  */
@@ -90,7 +90,7 @@ class RetiredSyncTaskEndpointTest {
     /**
      * 运行时口径：未知路径落到 fallback resource handler，/** 拦截器链仍会执行——
      * 匿名请求先被拦截器 fail-closed 拒绝（admin 路径族 RequestContextInterceptor 401、
-     * /api/perm/** 路径族内部鉴权拦截器 403，均不向匿名调用者泄露路径存在性），
+     * /api/access/** 路径族内部鉴权拦截器 403，均不向匿名调用者泄露路径存在性），
      * 无拦截器覆盖的路径则 404。三者都是「无法提供服务」的明确负向结果；
      * 「无路由」的权威证据是上方注册表断言（验收 5 的第一分支）。
      */

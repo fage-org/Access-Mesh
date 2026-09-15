@@ -42,7 +42,7 @@ class ErrorCodeContractTest {
      * 及错误码 10205/10206 承接（T-ACCESS-015）。
      * CONFIG_NOT_FOUND(10701) / CONFIG_SYSTEM_IMMUTABLE(10702) 随 admin /config
      * 僵尸端点退役删除（T-ACCESS-037：前端/e2e/gateway 主代码零消费，
-     * system_config 管理单入口 /api/perm/system-config，写面错误语义
+     * system_config 管理单入口 /api/access/system-config，写面错误语义
      * 20047 CONFIG_KEY_NAMESPACE_INVALID 不受影响）。
      */
     private static final java.util.Set<String> RETIRED_ADMIN_NAMES =

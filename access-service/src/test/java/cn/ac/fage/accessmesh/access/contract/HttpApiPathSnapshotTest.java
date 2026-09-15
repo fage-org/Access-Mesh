@@ -35,7 +35,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * T-PERM-034 再删 role-resource-permission 旧写入口（save/revoke/children/
  * add-child/remove-child，2026-08-27 设计定案，apply-grant-plan 为唯一写入口）；T-PERM-025 增 action-options。
  * T-ACCESS-037 再删 admin /config 全族（page/detail/update/delete——僵尸端点退役，
- * system_config 管理单入口收敛到 /api/perm/system-config）。计数不写注释（去计数化）。
+ * system_config 管理单入口收敛到 system-config 端点族）。计数不写注释（去计数化）。
  * </p>
  * <p>
  * 契约断言封闭口径（评审修复：堵住空 method 数组与 path()[0] 逃逸）：

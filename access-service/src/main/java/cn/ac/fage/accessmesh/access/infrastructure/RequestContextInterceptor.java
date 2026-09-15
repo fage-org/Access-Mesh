@@ -123,7 +123,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         String userIdHeader = request.getHeader(SignatureVerifier.HEADER_USER_ID);
         boolean hasUserIdHeader = userIdHeader != null && !userIdHeader.isBlank();
 
-        // 2. 内部凭证路径（仅 /api/perm/**，InternalApiSecretInterceptor 验证通过后）
+        // 2. 内部凭证路径（/api/access/** 豁免会话入口族，InternalApiSecretInterceptor 验证通过后）
         if (internalAuthenticated) {
             if (hasUserIdHeader) {
                 // 凭证 + 用户身份头：必须已验签（HeaderSignature 已拦截未验签者；纵深校验防链序绕过）
@@ -229,7 +229,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return true;
         }
 
-        // 4. 签名用户态（无会话：业务服务替用户调 /api/perm/auth/** 等，
+        // 4. 签名用户态（无会话：业务服务替用户调 /api/access/auth/** 等，
         //    HeaderSignatureInterceptor 已验签；admin 路径无验签保障不会到达此分支）
         if (hasUserIdHeader && signatureVerified) {
             Long operatorId = signatureVerifier.parseUserId(request);
@@ -316,7 +316,8 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
      * （HS256 + loginType 匹配 + 超时）→ 撤销黑名单检查 → 绑定 USER 上下文
      * （operatorId=JWT loginId、tenantId=JWT 载荷）。验签失败/黑名单命中 → 401。
      * 仅对显式配置的开放路径（access.oauth2.resource-paths，默认仅 /api/access/auth/oauth2/userinfo）
-     * 生效；开放路径不得覆盖 /auth/** 会话端点与 /api/perm/**（启动防护 fail-fast）。
+     * 生效；开放路径不得覆盖平台会话端点（启动防护 fail-fast；内部凭证空间重叠防护已随
+ * T-ACCESS-042 退役，见 OAuth2ResourcePathProperties）。
      * 委托令牌在其他路径默认拒绝；授权链（2026-08-22 用户决策，T-ACCESS-013）：
      * 验签 → 必填 claim（loginId/jti/client_id）→ 撤销黑名单 → 客户端启用动态校验
      * （sys_oauth2_client 唯一索引点查，不经缓存，禁用立即失效）→ 路径门禁

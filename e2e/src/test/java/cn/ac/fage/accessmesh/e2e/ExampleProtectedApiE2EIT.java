@@ -49,7 +49,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p><b>拓扑</b>：PG/Redis 为 Testcontainers；access-service、Gateway 与 example-service
  * 以<b>子进程</b>（独立 JVM、固定随机端口）从本测试的 java.class.path 启动（模式与
- * {@link BasicRoleGrantVerticalSliceE2EIT} 一致）。Gateway 路由 /example/**（StripPrefix=1、
+ * {@link BasicRoleGrantVerticalSliceE2EIT} 一致）。Gateway 路由 /api/example/**（无 StripPrefix、
  * serviceCode=example-service）经 SimpleDiscoveryClient 静态实例直连 example-service 子进程；
  * API 映射 pathPattern 按 Gateway 外部路径口径（/example/api/example/demo/hello）创建。
  * 业务服务不做服务内鉴权、不消费 perm-client——保护完全由 Gateway 承担（规范 §2.4）。
@@ -84,7 +84,7 @@ class ExampleProtectedApiE2EIT {
     private static final String GATEWAY_MAIN_CLASS = "cn.ac.fage.accessmesh.gateway.GatewayApplication";
     private static final String EXAMPLE_MAIN_CLASS = "cn.ac.fage.accessmesh.example.ExampleServiceApplication";
 
-    /** E2E 目标接口（外部路径口径：Gateway 匹配 StripPrefix 前路径，example 内部路径为去 /example 前缀） */
+    /** E2E 目标接口（T-ACCESS-042 起外部路径=服务路径，注册值即 /api/example/demo/hello） */
     private static final String TARGET_API_METHOD = "POST";
     private static final String TARGET_API_PATH = "/api/example/demo/hello";
     /** API 资源业务码：service-config 声明通道 DTO @Pattern（^[a-zA-Z0-9_:.-]+$）禁斜杠，冒号段式 */

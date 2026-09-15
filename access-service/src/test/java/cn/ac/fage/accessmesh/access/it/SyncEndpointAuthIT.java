@@ -39,11 +39,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>覆盖矩阵：</p>
  * <table>
  *   <tr><th>#</th><th>路径</th><th>Headers</th><th>期望</th></tr>
- *   <tr><td>1</td><td>/api/perm/abstract-user/sync</td><td>X-Tenant-Id + X-Internal-Secret(correct)</td><td>200</td></tr>
- *   <tr><td>2</td><td>/api/perm/abstract-user/sync</td><td>X-Tenant-Id + X-Internal-Secret(wrong)</td><td>403</td></tr>
- *   <tr><td>3</td><td>/api/perm/abstract-user/sync</td><td>仅 X-Tenant-Id 无 secret 无 user</td><td>403</td></tr>
- *   <tr><td>4</td><td>/api/perm/abstract-user/sync</td><td>X-User-Id + X-Tenant-Id 无 HMAC + InternalSecret</td><td>403（T-ACCESS-004 G1：用户头恒需验签）</td></tr>
- *   <tr><td>5</td><td>/api/perm/abstract-user/sync</td><td>X-User-Id + X-Tenant-Id + 有效 HMAC + secret</td><td>非 401/403</td></tr>
+ *   <tr><td>1</td><td>/api/access/abstract-user/sync</td><td>X-Tenant-Id + X-Internal-Secret(correct)</td><td>200</td></tr>
+ *   <tr><td>2</td><td>/api/access/abstract-user/sync</td><td>X-Tenant-Id + X-Internal-Secret(wrong)</td><td>403</td></tr>
+ *   <tr><td>3</td><td>/api/access/abstract-user/sync</td><td>仅 X-Tenant-Id 无 secret 无 user</td><td>403</td></tr>
+ *   <tr><td>4</td><td>/api/access/abstract-user/sync</td><td>X-User-Id + X-Tenant-Id 无 HMAC + InternalSecret</td><td>403（T-ACCESS-004 G1：用户头恒需验签）</td></tr>
+ *   <tr><td>5</td><td>/api/access/abstract-user/sync</td><td>X-User-Id + X-Tenant-Id + 有效 HMAC + secret</td><td>非 401/403</td></tr>
  *   <tr><td>6</td><td>/internal/health</td><td>X-Tenant-Id 无 secret 无 user</td><td>403（路径3 拒绝）</td></tr>
  *   <tr><td>7</td><td>/actuator/health</td><td>X-Tenant-Id + X-Internal-Secret</td><td>200（评审 P2-2：actuator 公开契约不依赖头）</td></tr>
  *   <tr><td>8</td><td>/actuator/health</td><td>完全无身份头</td><td>200</td></tr>
@@ -85,7 +85,7 @@ class SyncEndpointAuthIT {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.auth.service.domain.OAuth2ClientDomainService.class));
 
         // 复制 SecurityWebMvcConfig 的实际拦截器链顺序
-        // order=1 InternalApi(/api/perm/**) → order=2 HeaderSignature(/api/**,/internal/**，
+        // order=1 InternalApi(/api/access/**，豁免会话入口族) → order=2 HeaderSignature(/api/access/**,/internal/**，
         //   评审 P2-2 后 /actuator/** 已排除出签名链——公开端点契约不依赖头) → order=3 RequestContext
         mockMvc = MockMvcBuilders.standaloneSetup(new StubSyncController(), new StubActuatorController())
             .addMappedInterceptors(new String[]{"/api/access/**"}, internalInterceptor)
@@ -143,7 +143,7 @@ class SyncEndpointAuthIT {
     @Test
     @DisplayName("用例4b：X-User-Id + X-Tenant-Id 无 HMAC 无 InternalSecret → 403")
     void case4b_userIdNoSignatureNoSecret_shouldReject() throws Exception {
-        // /api/perm/** 路径下，无 InternalSecret 会先被 InternalApiSecretInterceptor 在 order=1 拒绝
+        // /api/access/** 路径下，无 InternalSecret 会先被 InternalApiSecretInterceptor 在 order=1 拒绝
         mockMvc.perform(post("/api/access/abstract-user/sync")
                 .header(HEADER_USER_ID, "100")
                 .header(HEADER_TENANT_ID, "1")

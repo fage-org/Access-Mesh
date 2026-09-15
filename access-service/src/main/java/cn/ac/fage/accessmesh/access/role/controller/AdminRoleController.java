@@ -17,8 +17,8 @@ import java.util.List;
 /**
  * 角色管理控制器
  * <p>
- * 合并后（T-ACCESS-006）角色与授权管理由 permission 域直接提供（/api/perm/abstract-role、
- * /api/perm/role-resource-permission），本控制器仅保留读接口（/role/list、/role/my-info）
+ * 合并后（T-ACCESS-006）角色与授权管理由权限面直接提供（/api/access/abstract-role、
+ * /api/access/role-resource-permission），本控制器仅保留读接口（/api/access/role/list、/role/my-info）
  * 经跨域只读查询服务聚合；原写代理接口（/role/create、/role/grant-menu、/role/revoke-menu）
  * 已删除（T-ADMIN-024，无映射 404）。
  * </p>

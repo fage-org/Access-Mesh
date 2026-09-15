@@ -1,6 +1,6 @@
 /**
  * 角色管理 API
- * 经 @/utils/http 调用 Gateway 外部路径 `/perm/api/access/abstract-role/*`
+ * 经 @/utils/http 调用 Gateway 外部路径 `/api/access/abstract-role/*`
  *（Gateway StripPrefix=1 后到 access-service `/api/access/abstract-role`）。
  * T-FE-041 切换真实链路后旧 `/api/access/**` mock 路径自然失配；T-FE-016 联调收口，
  * mock/role-manage.ts 已随切换退役删除（Phase 3 模式，同 mock/user-manage.ts）。
@@ -161,7 +161,7 @@ export type RoleMoveReq = {
 // ========== API 函数 ==========
 
 /**
- * 查询角色树（POST /perm/api/access/abstract-role/tree）
+ * 查询角色树（POST /api/access/abstract-role/tree）
  * 响应 ItemsResp<RoleTreeResp>，data.items[0].root 为根节点树。
  */
 export const getRoleTree = async (
@@ -177,7 +177,7 @@ export const getRoleTree = async (
   return items.map(it => it.root).filter(Boolean);
 };
 
-/** 分页查询角色列表（POST /perm/api/access/abstract-role/list） */
+/** 分页查询角色列表（POST /api/access/abstract-role/list） */
 export const getRoleList = async (
   params: RoleListQuery
 ): Promise<PageResp<RoleResp>> => {
@@ -189,7 +189,7 @@ export const getRoleList = async (
   return unwrap(res);
 };
 
-/** 创建角色（POST /perm/api/access/abstract-role/create） */
+/** 创建角色（POST /api/access/abstract-role/create） */
 export const createRole = async (data: RoleCreateReq): Promise<RoleResp> => {
   const res = await http.request<R<RoleResp>>(
     "post",
@@ -199,7 +199,7 @@ export const createRole = async (data: RoleCreateReq): Promise<RoleResp> => {
   return unwrap(res);
 };
 
-/** 更新角色（POST /perm/api/access/abstract-role/update） */
+/** 更新角色（POST /api/access/abstract-role/update） */
 export const updateRole = async (data: RoleUpdateReq): Promise<RoleResp> => {
   const res = await http.request<R<RoleResp>>(
     "post",
@@ -209,7 +209,7 @@ export const updateRole = async (data: RoleUpdateReq): Promise<RoleResp> => {
   return unwrap(res);
 };
 
-/** 移动角色树节点（POST /perm/api/access/abstract-role/move） */
+/** 移动角色树节点（POST /api/access/abstract-role/move） */
 export const moveRole = async (data: RoleMoveReq): Promise<void> => {
   unwrap(
     await http.request<R<void>>("post", "/api/access/abstract-role/move", {
@@ -218,7 +218,7 @@ export const moveRole = async (data: RoleMoveReq): Promise<void> => {
   );
 };
 
-/** 删除角色，支持批量（POST /perm/api/access/abstract-role/remove） */
+/** 删除角色，支持批量（POST /api/access/abstract-role/remove） */
 export const removeRoles = async (ids: number[]): Promise<void> => {
   unwrap(
     await http.request<R<void>>("post", "/api/access/abstract-role/remove", {
@@ -237,7 +237,7 @@ export type RoleDetailQuery = {
 };
 
 /**
- * 查询角色详情（POST /perm/api/access/abstract-role/detail）
+ * 查询角色详情（POST /api/access/abstract-role/detail）
  *
  * T-PERM-022 收口：业务键二元组定位（原 IdReq{id} 内部主键废弃——对齐
  * 「调用方不应存储 access-service 内部主键」口径）；未命中 data=null。

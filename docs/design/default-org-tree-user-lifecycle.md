@@ -3,7 +3,7 @@ doc_type: design
 title: 默认组织树与用户生命周期设计
 status: adopted
 domain: org-user
-last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径清扫）；此前 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-08-15
+last_reviewed: 2026-09-15 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-08-15
 ---
 
 # 默认组织树与用户生命周期设计

@@ -3,7 +3,7 @@ doc_type: design
 title: 登录页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-08-31   # 2026-08-31 T-FE-015 收口：menus 后端派生接线完成（侧栏直接渲染 user-menu 树、会话恢复 fail-closed、/menu-retry 重试页），mock 与静态路由口径段同步终态化；此前：2026-08-31 T-PERM-037（归入登记）、2026-08-24
+last_reviewed: 2026-09-15   # 2026-08-31 T-FE-015 收口：menus 后端派生接线完成（侧栏直接渲染 user-menu 树、会话恢复 fail-closed、/menu-retry 重试页），mock 与静态路由口径段同步终态化；此前：2026-08-31 T-PERM-037（归入登记）、2026-08-24
 ---
 
 # 登录页 前端设计（T-FE-041 真实登录链路）

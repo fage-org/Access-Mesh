@@ -30,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 空库首管理员经 perm 轨主体端点由恒拒转放行（T-ACCESS-034 正向锁，真实 PG + Redis）。
  * <p>
  * bootstrap 固定图 USER 段本无 MANAGE 位（六细码）——旧实现（updateUser/deleteUsers 查
- * USER:MANAGE）下空库首管理员经 /api/perm/abstract-user/update|remove 对任何非自身用户
+ * USER:MANAGE）下空库首管理员经 /api/access/abstract-user/update|remove 对任何非自身用户
  * 恒拒，两入口在空库不可用（死锁）。本任务换绑 UPDATE/DELETE/ENABLE 后由拒转放行是
  * <b>预期的行为变化</b>，非等价改写：本用例在旧实现下必红（SecurityException 恒拒），
  * 换绑后走通「创建外部用户 → 改名/改启停 → 删除」全链。

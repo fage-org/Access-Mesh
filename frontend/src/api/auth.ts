@@ -14,14 +14,14 @@ export const FIXED_TENANT_ID = "1";
  */
 export const FIXED_CLIENT_ID = "admin-web";
 
-/** `/auth/captcha` 响应：验证码图片（base64，含 data:image/png;base64, 前缀）+ 一次性 ID */
+/** `/api/access/auth/captcha` 响应：验证码图片（base64，含 data:image/png;base64, 前缀）+ 一次性 ID */
 export type CaptchaResp = {
   captchaId: string;
   image: string;
 };
 
 /**
- * `/auth/login` 请求体（对齐后端 LoginReq）。
+ * `/api/access/auth/login` 请求体（对齐后端 LoginReq）。
  * tenantId/clientId 由 api 层固定注入，页面只收集账号/密码/验证码。
  */
 export type LoginReq = {
@@ -34,7 +34,7 @@ export type LoginReq = {
 };
 
 /**
- * `/auth/login` 响应（对齐后端 LoginResp）。
+ * `/api/access/auth/login` 响应（对齐后端 LoginResp）。
  * - `expiresIn` 为秒数，调用方需转换为绝对时间供 `setToken` 使用
  * - 普通 Sa-Token 会话 `refreshToken` 为 null——不接 OAuth2 刷新令牌
  */
@@ -56,24 +56,24 @@ export type LoginFormData = Pick<
 >;
 
 /**
- * 获取登录验证码（POST /auth/captcha，无参）。
+ * 获取登录验证码（POST /api/access/auth/captcha，无参）。
  * <p>
  * 后端运行时强制校验验证码（无开关），页面加载与登录失败后均需调用刷新；
  * 验证码 5 分钟有效且一次性消费。
  */
 export const getCaptcha = async (): Promise<CaptchaResp> => {
-  const res = await http.request<R<CaptchaResp>>("post", "/api/access/auth/captcha");
+  const res = await http.request<R<CaptchaResp>>("post", "/api/access/api/access/auth/captcha");
   return unwrap(res);
 };
 
 /**
- * 账号密码登录（POST /auth/login）。
+ * 账号密码登录（POST /api/access/auth/login）。
  * <p>
  * 保留 R 信封返回，由 store 通过 `unwrap` 解包以走统一异常路径
  * （业务失败 HTTP 200 + code≠200，经 unwrap 抛 RequestError）。
  */
 export const login = (data: LoginFormData): Promise<R<LoginResp>> => {
-  return http.request<R<LoginResp>>("post", "/api/access/auth/login", {
+  return http.request<R<LoginResp>>("post", "/api/access/api/access/auth/login", {
     // 固定 tenantId/clientId 放在展开之后获得最终覆盖权（结构化类型下多余字段无法篡改）
     data: {
       ...data,
@@ -86,7 +86,7 @@ export const login = (data: LoginFormData): Promise<R<LoginResp>> => {
 // ========== 用户菜单（v1.4 双轨并行） ==========
 
 /**
- * `/auth/user-menu` 响应数据（v1.4 双轨并行）。
+ * `/api/access/auth/user-menu` 响应数据（v1.4 双轨并行）。
  * - `menus`：菜单可见性轨道（DIR/MENU 树）
  * - `roles`：用户角色（pure-admin-thin 模板按角色名 string 处理）
  * - `permissions`：按钮权限轨道，形如 `"ORG:CREATE_POSITION"` 的 perm 串
@@ -125,5 +125,5 @@ export type UserMenuRoute = {
  * 通过 `unwrap` 解包并以 try/catch 处理失败。
  */
 export const getUserMenu = () => {
-  return http.request<R<UserMenuData>>("post", "/api/access/auth/user-menu");
+  return http.request<R<UserMenuData>>("post", "/api/access/api/access/auth/user-menu");
 };

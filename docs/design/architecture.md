@@ -3,14 +3,14 @@ doc_type: design
 title: 微服务架构设计
 status: adopted
 domain: common
-last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径——§1 服务清单与拓扑图、§3 章节标题与正文、§6 决策表的域前缀表述清扫；结构契约 capability-structure）
+last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文、§6 决策表的域前缀表述清扫；结构契约 capability-structure）
 ---
 
 # 微服务架构设计
 
 本文档定义项目整体微服务架构、各服务职责、模块划分及服务间交互方式。引擎子系统概念模型见 `engine/overview.md`。
 
-> **归并提示（T-ACCESS-012 全量回写，2026-08-22）**：`admin-service` 与 `permission-center` 已物理归并为模块化单体 `access-service`（唯一部署单元，T-ACCESS-001~012）。本文已按归并后实现回写；access-service 内部模块边界、事务、缓存与安全细节以 [`access-service-architecture.md`](access-service-architecture.md) 为准，对外接口契约以 [`access-service-api-contract.md`](access-service-api-contract.md)（契约总册，裸路径 + `/api/perm` 两家族）为准。
+> **归并提示（T-ACCESS-012 全量回写，2026-08-22）**：`admin-service` 与 `permission-center` 已物理归并为模块化单体 `access-service`（唯一部署单元，T-ACCESS-001~012）。本文已按归并后实现回写；access-service 内部模块边界、事务、缓存与安全细节以 [`access-service-architecture.md`](access-service-architecture.md) 为准，对外接口契约以 [`access-service-api-contract.md`](access-service-api-contract.md)（契约总册，T-ACCESS-042 起单命名空间 `/api/access/**`）为准。
 
 ---
 

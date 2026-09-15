@@ -3,7 +3,7 @@ doc_type: design
 title: 项目开发规范（PROJECT RULES）
 status: adopted
 domain: common
-last_reviewed: 2026-09-14   # T-ACCESS-041：§1.2 互斥句承接（单册 AccessErrorCode 册制表述）+分段表归属措辞管理面/权限面、§2.1/§2.2/§7.1/§8.2/§8.4.7/§16.2/§17.2 域叙事清扫（规则文件改名 permission-coding-standards 引用同步）；此前 2026-09-12 T-PERM-021 F1.d：requestId/traceId 单 ID 口径（§1.1 两行 + §4.3 MDC 行同步）；2026-09-07 规范性文件审查修复（traceId 口径/log4j2 单文件/N+1 表指针化/软删例外/租户入口/openfeign 前缀/路径模板）；2026-09-06 T-ADMIN-027：§1.3 补信封承载类单源指引；2026-08-12 access-service 归并：错误码继续按管理域/权限域分段
+last_reviewed: 2026-09-15   # T-ACCESS-041：§1.2 互斥句承接（单册 AccessErrorCode 册制表述）+分段表归属措辞管理面/权限面、§2.1/§2.2/§7.1/§8.2/§8.4.7/§16.2/§17.2 域叙事清扫（规则文件改名 permission-coding-standards 引用同步）；此前 2026-09-12 T-PERM-021 F1.d：requestId/traceId 单 ID 口径（§1.1 两行 + §4.3 MDC 行同步）；2026-09-07 规范性文件审查修复（traceId 口径/log4j2 单文件/N+1 表指针化/软删例外/租户入口/openfeign 前缀/路径模板）；2026-09-06 T-ADMIN-027：§1.3 补信封承载类单源指引；2026-08-12 access-service 归并：错误码继续按管理域/权限域分段
 ---
 
 # 项目开发规范（PROJECT RULES）
@@ -157,7 +157,7 @@ last_reviewed: 2026-09-14   # T-ACCESS-041：§1.2 互斥句承接（单册 Acce
 /api/{module}/{resource}/{action}
 ```
 
-示例（`/api/perm` 端点族现行 Controller 实际形态）：
+示例（T-ACCESS-042 前为 `/api/perm` 端点族，现行统一 `/api/access/**` 的 Controller 实际形态）：
 
 | 路径                              | 说明       |
 | --------------------------------- | ---------- |
@@ -411,7 +411,7 @@ XxxVO                 ← 特殊场景的视图对象（如聚合多表的展示
 - **Entity 禁止出现在 Controller 入参/出参中**（防止字段过度暴露）。
 - Service 层向 Controller 层返回 `XxxResp` 对象，不直接返回 Entity。
 - Service 内部调用可传递 Entity，但跨服务 Feign 接口必须使用 DTO。
-- **`/api/perm` 端点族对外 Req 复用 perm-common 单源，不建域内副本**（T-PERM-065，17 对同名 Req 收敛；SDK 与服务端 Controller/AppService 共用 `perm.common.dto.req` 类型，注解契约由 `PermCommonReqContractTest` 注解签名快照守卫；裸路径端点族同名 `IdsReq`/`UserRoleListReq` 为合法独立形态——后者与 perm-common 同名异义）。
+- **原 `/api/perm` 端点族（现 `/api/access/**`）对外 Req 复用 perm-common 单源，不建域内副本**（T-PERM-065，17 对同名 Req 收敛；SDK 与服务端 Controller/AppService 共用 `perm.common.dto.req` 类型，注解契约由 `PermCommonReqContractTest` 注解签名快照守卫；裸路径端点族同名 `IdsReq`/`UserRoleListReq` 为合法独立形态——后者与 perm-common 同名异义）。
 
 ### 7.2 命名规范
 
@@ -483,7 +483,7 @@ Mapper（数据访问层）
 - Mapper 层只做数据访问，禁止包含分支业务逻辑（`if`/`switch` 等）。
 - **能力包 Mapper 边界（T-ACCESS-032 能力口径，2026-09-13）**：access-service 迁移为能力包结构（T-ACCESS-033）后，「域」概念由 **12 能力包 + sync/engine/projection/bootstrap/infrastructure 顶层包**取代（终态契约 `access-service-capability-structure.md` §2/§8）——「域互不直读 Mapper」边界重判为「**能力包之间不互读 Mapper**（断言面=mapper 包，实体 import 不禁）」，豁免面（engine 输入面装载、projection 投影写路径、sync 记账、bootstrap 种子写入器、存量冻结白名单锁「不得新增」）与断言重建设计见 capability-structure §8.4；`QueryBoundaryArchitectureTest` 以能力为对象重建（T-ACCESS-033 落地）。同层横向调用通用约束（①~③）不变。
 
-**`/api/perm` 端点族 Controller（补充）：**
+**原 `/api/perm` 端点族（现 `/api/access/**`）Controller（补充）：**
 
 - 查询编排类接口（如 `query-resources`、`operation-log/list`）的分页过滤、JSON 解析、多表组装须在**调度层 Service**（如 `PermissionQueryAppService`、`LogQueryAppService`）完成；Controller 仅做校验与 `R` 包装。（原举例 permission-view/explain 已随 T-PERM-059 删除，2026-09-10）
 

@@ -3,7 +3,7 @@ doc_type: design
 title: 「组织与用户」融合页 · 权限契约
 status: adopted
 domain: org-user
-last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径清扫）；此前 2026-09-13   # T-ACCESS-034：操作码常量源改挂合一后 OperationCode（原 AdminOperationCode/OperationCodeConstants 两册删除，正文类名机械改挂；备注¹ 定稿考古段保留当时旧类名并加历史限定）；此前 2026-06-20
+last_reviewed: 2026-09-15 2026-09-13   # T-ACCESS-034：操作码常量源改挂合一后 OperationCode（原 AdminOperationCode/OperationCodeConstants 两册删除，正文类名机械改挂；备注¹ 定稿考古段保留当时旧类名并加历史限定）；此前 2026-06-20
 ---
 
 # 「组织与用户」融合页 · 权限契约

@@ -3,7 +3,7 @@ doc_type: design
 title: 5.1 业务域页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-046 三项加固收口（§4.2 create「全局域」开关 + 20057 兜底、§8/§9 全局域范围新口径=CLASSIFY 声明或动态补集 + domain_config 唯一键 20058 + remove/save 域行锁）；2026-09-02 T-FE-021 联调收口（mock 四文件退役、api 切 Gateway /perm 前缀路径，见 §6/§9 联调注记）；2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-29 T-PERM-026 后端收口终态化（业务键/分页/global/删除保护/JSON 校验/JSONB 确认）；原文 2026-07-01 Phase 1 前端设计定稿
+last_reviewed: 2026-09-15   # 2026-09-09 T-PERM-046 三项加固收口（§4.2 create「全局域」开关 + 20057 兜底、§8/§9 全局域范围新口径=CLASSIFY 声明或动态补集 + domain_config 唯一键 20058 + remove/save 域行锁）；2026-09-02 T-FE-021 联调收口（mock 四文件退役、api 切 Gateway /perm 前缀路径，见 §6/§9 联调注记）；2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-29 T-PERM-026 后端收口终态化（业务键/分页/global/删除保护/JSON 校验/JSONB 确认）；原文 2026-07-01 Phase 1 前端设计定稿
 ---
 
 # 5.1 业务域页 前端设计
@@ -173,7 +173,7 @@ last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-046 三项加固收口（§4.2 c
 
 ## 6. 组件结构
 
-> 路径说明（T-FE-021 起）：下文及 §5/§8 中的端点路径 `/api/access/...` 为后端服务内路径；前端请求经 Gateway 统一加 `/perm` 前缀（如 `/api/access/biz-domain/list`），与仓库统一口径一致。
+> 路径说明（T-FE-021 起；T-ACCESS-042 起外部路径=服务路径）：下文及 §5/§8 中的端点路径 `/api/access/...` 即前端实际请求路径（如 `/api/access/biz-domain/list`，无 Gateway 前缀/StripPrefix），与仓库统一口径一致。
 
 
 ```

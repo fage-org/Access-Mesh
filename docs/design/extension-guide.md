@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-09-13   # T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
+last_reviewed: 2026-09-15   # T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）

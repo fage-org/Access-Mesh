@@ -11,7 +11,7 @@ import java.util.Collection;
 /**
  * 服务间内部调用拦截器
  * <p>
- * 当调用 access-service 的 {@code /api/perm/**} 路径时（典型为 sync/full-sync
+ * 当调用 access-service 的 {@code /api/access/**} 路径时（典型为 sync/full-sync
  * 同步接口、auth/check 鉴权接口等），自动注入 {@code X-Internal-Secret}
  * 与 {@code X-Service-Code} 两个 Header，用于通过 access-service 端的
  * {@code InternalApiSecretInterceptor} 校验。
