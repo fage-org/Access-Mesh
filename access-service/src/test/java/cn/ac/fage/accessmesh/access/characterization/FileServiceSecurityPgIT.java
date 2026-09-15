@@ -66,6 +66,41 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class FileServiceSecurityPgIT {
 
     private static final Long TENANT = 1L;
+    private static final String INTERNAL_SECRET = "test-internal-secret-for-access-service";
+    private static final String SIGN_SECRET = "test-signature-secret-for-access-service";
+
+    /** Gateway 转发签名（与 SecurityMatrixIT 同算法：HmacSHA256("userId|tenantId|timestamp") 十六进制）。 */
+    private static String hmac(String userId, String tenantId, long timestamp) throws Exception {
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(
+            SIGN_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+        byte[] digest = mac.doFinal((userId + "|" + tenantId + "|" + timestamp)
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        for (byte b : digest) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
+    /** Gateway 转发形态身份头（T-ACCESS-042：/api/access/** 统一内部密钥边界，MockMvc 直连按 Gateway 注入形态模拟；泛型自类型兼容 multipart 构造器。 */
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder gatewayHeaders(
+            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder, long userId) throws Exception {
+        long ts = System.currentTimeMillis() / 1000;
+        return builder
+            .header("X-Internal-Secret", INTERNAL_SECRET)
+            .header("X-Tenant-Id", String.valueOf(TENANT))
+            .header("X-User-Id", String.valueOf(userId))
+            .header("X-User-Signature", hmac(String.valueOf(userId), String.valueOf(TENANT), ts))
+            .header("X-Signature-Timestamp", String.valueOf(ts));
+    }
+
+    /** multipart 构造器 overload——header() 返回父类型，故委托父实现原地变更后返回原 multipart 引用（保 .file()/.param() 链式）。 */
+    private org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder gatewayHeaders(
+            org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder builder, long userId) throws Exception {
+        gatewayHeaders((org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder) builder, userId);
+        return builder;
+    }
     private static final String PASSWORD = "Pass@123";
     /** 文件存储根（单实例本地盘语义，测试临时目录；static 先于 @DynamicPropertySource 注册） */
     private static final Path STORAGE_ROOT = createStorageRoot();
@@ -247,19 +282,17 @@ class FileServiceSecurityPgIT {
     }
 
     /** 上传真实文件（multipart），返回响应信封。 */
-    private JsonNode upload(String token, String filename, String contentType, String bizType) throws Exception {
-        MvcResult result = mockMvc.perform(multipart("/api/access/file/upload")
+    private JsonNode upload(long userId, String filename, String contentType, String bizType) throws Exception {
+        MvcResult result = mockMvc.perform(gatewayHeaders(multipart("/api/access/file/upload"), userId)
                 .file(new MockMultipartFile("file", filename, contentType, "content".getBytes()))
-                .param("bizType", bizType)
-                .header("Authorization", "Bearer " + token))
+                .param("bizType", bizType))
             .andExpect(status().isOk())
             .andReturn();
         return mapper.readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
     }
 
-    private JsonNode postJson(String token, String path, Object body) throws Exception {
-        MvcResult result = mockMvc.perform(post(path)
-                .header("Authorization", "Bearer " + token)
+    private JsonNode postJson(long userId, String path, Object body) throws Exception {
+        MvcResult result = mockMvc.perform(gatewayHeaders(post(path), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(body)))
             .andReturn();
@@ -281,8 +314,7 @@ class FileServiceSecurityPgIT {
             "/api/access/file/detail", "{\"id\":" + existingFile + "}",
             "/api/access/file/download", "{\"id\":" + existingFile + "}");
         for (Map.Entry<String, String> c : deniedCases.entrySet()) {
-            MvcResult result = mockMvc.perform(post(c.getKey())
-                    .header("Authorization", "Bearer " + token)
+            MvcResult result = mockMvc.perform(gatewayHeaders(post(c.getKey()), userId)
                     .contentType(MediaType.APPLICATION_JSON)
                     .content(c.getValue()))
                 .andExpect(status().isForbidden())
@@ -293,7 +325,7 @@ class FileServiceSecurityPgIT {
 
         // page 过滤语义不是门禁：bizType 收窄到无文件的唯一 bucket → 空全集直接空页（不触发主体判定）；
         // 「有文件但全部无权 → 空页」由 pageBizTypeOfDeniedFolderReturnsEmptySilently 用有主体用户覆盖
-        JsonNode page = postJson(token, "/api/access/file/page", Map.of("bizType", "vg-empty"));
+        JsonNode page = postJson(userId, "/api/access/file/page", Map.of("bizType", "vg-empty"));
         assertThat(page.get("code").asInt()).as("page 过滤语义返回空页而非 403").isEqualTo(200);
         assertThat(page.get("data").get("total").asLong()).isZero();
         assertThat(page.get("data").get("items").size()).isZero();
@@ -305,16 +337,15 @@ class FileServiceSecurityPgIT {
         long userId = insertFileAdminUser("文件安全-授权用户");
         String token = login(userId);
 
-        JsonNode uploaded = upload(token, "a.txt", "text/plain", "default");
+        JsonNode uploaded = upload(userId, "a.txt", "text/plain", "default");
         assertThat(uploaded.get("code").asInt()).isEqualTo(200);
         long fileId = uploaded.get("data").asLong();
 
-        JsonNode detail = postJson(token, "/api/access/file/detail", Map.of("id", fileId));
+        JsonNode detail = postJson(userId, "/api/access/file/detail", Map.of("id", fileId));
         assertThat(detail.get("code").asInt()).isEqualTo(200);
         assertThat(detail.get("data").get("originalName").asText()).isEqualTo("a.txt");
 
-        MvcResult download = mockMvc.perform(post("/api/access/file/download")
-                .header("Authorization", "Bearer " + token)
+        MvcResult download = mockMvc.perform(gatewayHeaders(post("/api/access/file/download"), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("id", fileId))))
             .andExpect(status().isOk())
@@ -331,7 +362,7 @@ class FileServiceSecurityPgIT {
         String token = login(userId);
         long fileId = insertFileRow("evil.txt", "../evil.txt", "default");
 
-        JsonNode body = postJson(token, "/api/access/file/download", Map.of("id", fileId));
+        JsonNode body = postJson(userId, "/api/access/file/download", Map.of("id", fileId));
         assertThat(body.get("code").asInt()).isEqualTo(10506);
         assertThat(body.get("message").asText()).contains("文件路径非法");
     }
@@ -344,7 +375,7 @@ class FileServiceSecurityPgIT {
         Integer countBefore = jdbc.queryForObject(
             "SELECT COUNT(*) FROM sys_file WHERE tenant_id = ? AND delete_flag = 0", Integer.class, TENANT);
 
-        JsonNode body = upload(token, "a.txt", "text/plain", "../x");
+        JsonNode body = upload(userId, "a.txt", "text/plain", "../x");
         assertThat(body.get("code").asInt()).isEqualTo(10506);
 
         Integer countAfter = jdbc.queryForObject(
@@ -360,14 +391,14 @@ class FileServiceSecurityPgIT {
         long userId = insertFileAdminUser("文件安全-正常删除");
         String token = login(userId);
 
-        JsonNode uploaded = upload(token, "a.txt", "text/plain", "default");
+        JsonNode uploaded = upload(userId, "a.txt", "text/plain", "default");
         long fileId = uploaded.get("data").asLong();
         String filePath = jdbc.queryForObject(
             "SELECT file_path FROM sys_file WHERE id = ?", String.class, fileId);
         Path physical = STORAGE_ROOT.resolve(filePath);
         assertThat(Files.exists(physical)).as("上传后物理文件存在").isTrue();
 
-        JsonNode deleted = postJson(token, "/api/access/file/delete", Map.of("ids", List.of(fileId)));
+        JsonNode deleted = postJson(userId, "/api/access/file/delete", Map.of("ids", List.of(fileId)));
         assertThat(deleted.get("code").asInt()).isEqualTo(200);
 
         Long deleteFlag = jdbc.queryForObject(
@@ -388,7 +419,7 @@ class FileServiceSecurityPgIT {
         Files.writeString(orphanDir.resolve("child.txt"), "x");
         long fileId = insertFileRow("orphan.txt", "orphan/dir", "orphan");
 
-        JsonNode deleted = postJson(token, "/api/access/file/delete", Map.of("ids", List.of(fileId)));
+        JsonNode deleted = postJson(userId, "/api/access/file/delete", Map.of("ids", List.of(fileId)));
         assertThat(deleted.get("code").asInt())
             .as("物理清理失败不回滚已提交软删、不使接口失败").isEqualTo(200);
 
@@ -411,16 +442,15 @@ class FileServiceSecurityPgIT {
         // 白名单前落库的历史脏桶（无投影）——page 过滤语义下不可见（fail-closed 落入不可见侧）
         insertFileRow("脏桶.txt", "../fv-legacy/x.txt", "../fv-legacy");
 
-        JsonNode page = postJson(token, "/api/access/file/page", Map.of());
+        JsonNode page = postJson(userId, "/api/access/file/page", Map.of());
         assertThat(page.get("code").asInt()).isEqualTo(200);
         assertThat(page.get("data").get("total").asLong()).as("只见本文件夹文件").isEqualTo(1L);
         assertThat(page.get("data").get("items").get(0).get("id").asLong()).isEqualTo(mineFile);
 
-        assertThat(postJson(token, "/api/access/file/detail", Map.of("id", mineFile)).get("code").asInt())
+        assertThat(postJson(userId, "/api/access/file/detail", Map.of("id", mineFile)).get("code").asInt())
             .as("本文件夹 detail 放行").isEqualTo(200);
 
-        MvcResult denied = mockMvc.perform(post("/api/access/file/detail")
-                .header("Authorization", "Bearer " + token)
+        MvcResult denied = mockMvc.perform(gatewayHeaders(post("/api/access/file/detail"), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("id", otherFile))))
             .andExpect(status().isForbidden())
@@ -436,7 +466,7 @@ class FileServiceSecurityPgIT {
         String token = login(userId);
         insertFileRow("报告.pdf", "pv-other/2026/09/06/r.pdf", "pv-other");
 
-        JsonNode page = postJson(token, "/api/access/file/page", Map.of("bizType", "pv-other"));
+        JsonNode page = postJson(userId, "/api/access/file/page", Map.of("bizType", "pv-other"));
         assertThat(page.get("code").asInt()).as("无权文件夹过滤为空页而非 403").isEqualTo(200);
         assertThat(page.get("data").get("total").asLong()).isZero();
         assertThat(page.get("data").get("items").size()).isZero();
@@ -448,15 +478,14 @@ class FileServiceSecurityPgIT {
         long userId = insertFolderUser("文件夹-仅本夹CREATE", Map.of("ug-mine", List.of(BIT_CREATE)));
         String token = login(userId);
 
-        JsonNode uploaded = upload(token, "a.jpg", "image/jpeg", "ug-mine");
+        JsonNode uploaded = upload(userId, "a.jpg", "image/jpeg", "ug-mine");
         assertThat(uploaded.get("code").asInt()).as("已授权文件夹上传放行").isEqualTo(200);
 
         Integer filesBefore = jdbc.queryForObject(
             "SELECT count(*) FROM sys_file WHERE tenant_id = ? AND delete_flag = 0", Integer.class, TENANT);
-        MvcResult denied = mockMvc.perform(multipart("/api/access/file/upload")
+        MvcResult denied = mockMvc.perform(gatewayHeaders(multipart("/api/access/file/upload"), userId)
                 .file(new MockMultipartFile("file", "b.txt", "text/plain", "content".getBytes()))
-                .param("bizType", "ug-brandnew")
-                .header("Authorization", "Bearer " + token))
+                .param("bizType", "ug-brandnew"))
             .andExpect(status().isForbidden())
             .andReturn();
         assertThat(mapper.readTree(denied.getResponse().getContentAsString(StandardCharsets.UTF_8))
@@ -474,11 +503,11 @@ class FileServiceSecurityPgIT {
         long userId = insertFileAdminUser("文件夹-惰性登记");
         String token = login(userId);
 
-        JsonNode first = upload(token, "a.txt", "text/plain", "ul-lazyreg");
+        JsonNode first = upload(userId, "a.txt", "text/plain", "ul-lazyreg");
         assertThat(first.get("code").asInt()).isEqualTo(200);
         assertThat(countFolderProjection("ul-lazyreg")).as("首传即成为可授权实例").isEqualTo(1L);
 
-        JsonNode second = upload(token, "b.txt", "text/plain", "ul-lazyreg");
+        JsonNode second = upload(userId, "b.txt", "text/plain", "ul-lazyreg");
         assertThat(second.get("code").asInt()).isEqualTo(200);
         assertThat(countFolderProjection("ul-lazyreg")).as("重复上传不重复登记").isEqualTo(1L);
     }
@@ -490,14 +519,13 @@ class FileServiceSecurityPgIT {
         String token = login(userId);
         long mineFile = insertFileRow("本夹.png", "dg-mine/2026/09/06/a.png", "dg-mine");
 
-        JsonNode deleted = postJson(token, "/api/access/file/delete", Map.of("ids", List.of(mineFile)));
+        JsonNode deleted = postJson(userId, "/api/access/file/delete", Map.of("ids", List.of(mineFile)));
         assertThat(deleted.get("code").asInt()).as("本文件夹删除放行").isEqualTo(200);
         assertThat(jdbc.queryForObject(
             "SELECT delete_flag FROM sys_file WHERE id = ?", Long.class, mineFile)).isEqualTo(mineFile);
 
         long otherFile = insertFileRow("他夹.pdf", "dg-other/2026/09/06/r.pdf", "dg-other");
-        MvcResult denied = mockMvc.perform(post("/api/access/file/delete")
-                .header("Authorization", "Bearer " + token)
+        MvcResult denied = mockMvc.perform(gatewayHeaders(post("/api/access/file/delete"), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("ids", List.of(otherFile)))))
             .andExpect(status().isForbidden())
@@ -509,8 +537,7 @@ class FileServiceSecurityPgIT {
             .as("拒绝路径不软删").isEqualTo(0L);
 
         long dirtyFile = insertFileRow("脏桶.txt", "../dg-legacy/y.txt", "../dg-legacy");
-        MvcResult dirtyDenied = mockMvc.perform(post("/api/access/file/delete")
-                .header("Authorization", "Bearer " + token)
+        MvcResult dirtyDenied = mockMvc.perform(gatewayHeaders(post("/api/access/file/delete"), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("ids", List.of(dirtyFile)))))
             .andExpect(status().isForbidden())

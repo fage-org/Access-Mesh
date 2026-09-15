@@ -91,8 +91,8 @@ class BasicRoleGrantVerticalSliceE2EIT {
     private static final String ACCESS_MAIN_CLASS = "cn.ac.fage.accessmesh.access.AccessServiceApplication";
     private static final String GATEWAY_MAIN_CLASS = "cn.ac.fage.accessmesh.gateway.GatewayApplication";
 
-    /** E2E 目标接口（外部路径口径，bootstrap 预建资源未建映射） */
-    private static final String TARGET_API_CODE = "POST:/admin/role/my-info";
+    /** E2E 目标接口（外部路径=服务路径，T-ACCESS-042 单命名空间；bootstrap 预建资源未建映射） */
+    private static final String TARGET_API_CODE = "POST:/api/access/role/my-info";
     private static final String TARGET_API_METHOD = "POST";
     private static final String TARGET_API_PATH = "/api/access/role/my-info";
 
@@ -881,7 +881,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
 
     /**
      * 服务端快照探针（失败诊断用）：以内部密钥直连 access-service 的
-     * /api/perm/auth/interface-snapshot，返回目标用户在 access-service 下的 allowedApis——
+     * /api/access/auth/interface-snapshot，返回目标用户在 access-service 下的 allowedApis——
      * 用于区分「服务端授权未生效」与「Gateway 快照未刷新」。
      */
     private static String probeInternalSnapshot() {

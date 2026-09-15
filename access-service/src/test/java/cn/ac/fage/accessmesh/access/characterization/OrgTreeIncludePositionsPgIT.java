@@ -71,6 +71,34 @@ class OrgTreeIncludePositionsPgIT {
 
     private static final Long TENANT = 1L;
     private static final String PASSWORD = "Pass@123";
+    private static final String INTERNAL_SECRET = "test-internal-secret-for-access-service";
+    private static final String SIGN_SECRET = "test-signature-secret-for-access-service";
+
+    /** Gateway 转发签名（与 SecurityMatrixIT 同算法：HmacSHA256("userId|tenantId|timestamp") 十六进制）。 */
+    private static String hmac(String userId, String tenantId, long timestamp) throws Exception {
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(
+            SIGN_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+        byte[] digest = mac.doFinal((userId + "|" + tenantId + "|" + timestamp)
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        for (byte b : digest) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
+    /** Gateway 转发形态身份头（T-ACCESS-042：/api/access/** 统一内部密钥边界，MockMvc 直连按 Gateway 注入形态模拟）。 */
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder gatewayHeaders(
+            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder, long userId) throws Exception {
+        long ts = System.currentTimeMillis() / 1000;
+        return builder
+            .header("X-Internal-Secret", INTERNAL_SECRET)
+            .header("X-Tenant-Id", String.valueOf(TENANT))
+            .header("X-User-Id", String.valueOf(userId))
+            .header("X-User-Signature", hmac(String.valueOf(userId), String.valueOf(TENANT), ts))
+            .header("X-Signature-Timestamp", String.valueOf(ts));
+    }
 
     /** ORG 资源类型值与操作位（schema 种子：CREATE=1 / VIEW=2 预置，VIEW_POSITION=512 扩展码） */
     private static final int RESOURCE_TYPE_ORG = 29;
@@ -216,9 +244,8 @@ class OrgTreeIncludePositionsPgIT {
         return body.get("data").get("accessToken").asText();
     }
 
-    private JsonNode tree(String token, Object body) throws Exception {
-        MvcResult result = mockMvc.perform(post("/api/access/org/tree")
-                .header("Authorization", "Bearer " + token)
+    private JsonNode tree(long userId, Object body) throws Exception {
+        MvcResult result = mockMvc.perform(gatewayHeaders(post("/api/access/org/tree"), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(body)))
             .andReturn();
@@ -267,7 +294,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("orgType", 1));
+        JsonNode body = tree(userId, Map.of("orgType", 1));
         assertThat(body.get("code").asInt()).isEqualTo(200);
         JsonNode root = singleRootOf(body);
         assertThat(root.get("id").asLong()).isEqualTo(ROOT_ID);
@@ -286,7 +313,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-校验用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("status", 1));
+        JsonNode body = tree(userId, Map.of("status", 1));
         assertThat(body.get("code").asInt()).isEqualTo(10107);
     }
 
@@ -298,7 +325,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("includePositions", true));
+        JsonNode body = tree(userId, Map.of("includePositions", true));
         assertThat(body.get("code").asInt()).isEqualTo(200);
         JsonNode root = singleRootOf(body);
 
@@ -318,7 +345,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-仅VIEW用户", BIT_VIEW);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("includePositions", true));
+        JsonNode body = tree(userId, Map.of("includePositions", true));
         assertThat(body.get("code").asInt()).isEqualTo(200);
         JsonNode root = singleRootOf(body);
 
@@ -335,8 +362,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUnprivilegedUser("组织树-投影缺失用户");
         String token = login(userId);
 
-        MvcResult result = mockMvc.perform(post("/api/access/org/tree")
-                .header("Authorization", "Bearer " + token)
+        MvcResult result = mockMvc.perform(gatewayHeaders(post("/api/access/org/tree"), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("includePositions", true))))
             .andExpect(status().isForbidden())
@@ -361,7 +387,7 @@ class OrgTreeIncludePositionsPgIT {
             return inv.callRealMethod();
         }).when(permQueryEngine).hasPermissionByCode(anyLong(), anyLong(), anyString(), any(), anyString());
 
-        JsonNode body = tree(token, Map.of("includePositions", true));
+        JsonNode body = tree(userId, Map.of("includePositions", true));
         assertThat(body.get("code").asInt())
             .as("技术故障以统一响应业务码标识（handleSystemException 无 @ResponseStatus → HTTP 200）")
             .isEqualTo(99999);
@@ -377,21 +403,21 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-CREATE用户", BIT_VIEW, BIT_CREATE);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("orgType", 1, "operationCode", "CREATE"));
+        JsonNode body = tree(userId, Map.of("orgType", 1, "operationCode", "CREATE"));
         assertThat(body.get("code").asInt()).isEqualTo(200);
         JsonNode root = singleRootOf(body);
         assertThat(root.get("id").asLong()).isEqualTo(ROOT_ID);
 
-        JsonNode conflict = tree(token, Map.of("orgType", 1, "operationCode", "CREATE",
+        JsonNode conflict = tree(userId, Map.of("orgType", 1, "operationCode", "CREATE",
             "treeConfigId", CFG_DEFAULT_ID));
         assertThat(conflict.get("code").asInt())
             .as("CREATE 限默认树，禁止传 treeConfigId（T-ADMIN-021 用户决策）").isEqualTo(10008);
 
-        JsonNode mixed = tree(token, Map.of("includePositions", true, "operationCode", "CREATE"));
+        JsonNode mixed = tree(userId, Map.of("includePositions", true, "operationCode", "CREATE"));
         assertThat(mixed.get("code").asInt())
             .as("CREATE+混合树语义互斥（P2-1）").isEqualTo(10008);
 
-        JsonNode illegal = tree(token, Map.of("orgType", 1, "operationCode", "SYNC"));
+        JsonNode illegal = tree(userId, Map.of("orgType", 1, "operationCode", "SYNC"));
         assertThat(illegal.get("code").asInt()).as("非法 operationCode fail-closed").isEqualTo(10008);
     }
 
@@ -401,8 +427,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-仅VIEW用户", BIT_VIEW);
         String token = login(userId);
 
-        MvcResult result = mockMvc.perform(post("/api/access/org/tree")
-                .header("Authorization", "Bearer " + token)
+        MvcResult result = mockMvc.perform(gatewayHeaders(post("/api/access/org/tree"), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("orgType", 1, "operationCode", "CREATE"))))
             .andExpect(status().isForbidden())
@@ -417,18 +442,18 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        JsonNode alt = tree(token, Map.of("orgType", 1, "treeConfigId", CFG_ALT_ID));
+        JsonNode alt = tree(userId, Map.of("orgType", 1, "treeConfigId", CFG_ALT_ID));
         assertThat(alt.get("code").asInt()).isEqualTo(200);
         JsonNode altRoot = singleRootOf(alt);
         assertThat(altRoot.get("id").asLong()).isEqualTo(ROOT2_ID);
         assertThat(findById(altRoot, ORG_C_ID)).isNotNull();
         assertThat(findById(altRoot, ORG_A_ID)).as("默认树节点不在非默认配置子树内").isNull();
 
-        JsonNode def = tree(token, Map.of("orgType", 1));
+        JsonNode def = tree(userId, Map.of("orgType", 1));
         assertThat(findById(singleRootOf(def), ORG_C_ID))
             .as("缺省 treeConfigId 只见默认树（契约字面，用户决策）").isNull();
 
-        JsonNode missing = tree(token, Map.of("orgType", 1, "treeConfigId", 999999L));
+        JsonNode missing = tree(userId, Map.of("orgType", 1, "treeConfigId", 999999L));
         assertThat(missing.get("code").asInt()).isEqualTo(11001);
     }
 
@@ -439,7 +464,7 @@ class OrgTreeIncludePositionsPgIT {
         String token = login(userId);
         jdbc.update("DELETE FROM sys_org_tree_config WHERE id = ?", CFG_DEFAULT_ID);
 
-        JsonNode body = tree(token, Map.of("orgType", 1));
+        JsonNode body = tree(userId, Map.of("orgType", 1));
         assertThat(body.get("code").asInt())
             .as("无默认配置 fail-closed（对齐 resolver 禁止 fallback 既有口径）").isEqualTo(11001);
     }
@@ -452,7 +477,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("includePositions", true, "orgName", "后端组"));
+        JsonNode body = tree(userId, Map.of("includePositions", true, "orgName", "后端组"));
         assertThat(body.get("code").asInt()).isEqualTo(200);
         JsonNode root = singleRootOf(body);
         assertThat(findById(root, ORG_B_ID)).as("命中节点保留").isNotNull();
@@ -467,7 +492,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("includePositions", true, "parentOrgId", ORG_A_ID));
+        JsonNode body = tree(userId, Map.of("includePositions", true, "parentOrgId", ORG_A_ID));
         assertThat(body.get("code").asInt()).isEqualTo(200);
         JsonNode items = body.get("data").get("items");
         assertThat(items.size()).isEqualTo(1);
@@ -476,7 +501,7 @@ class OrgTreeIncludePositionsPgIT {
         assertThat(findById(items.get(0), ORG_B_ID)).as("子树内后代组织保留").isNotNull();
         assertThat(findById(items.get(0), POS_P2_ID)).as("子树内深层岗位保留").isNotNull();
 
-        JsonNode outside = tree(token, Map.of("orgType", 1, "parentOrgId", ROOT2_ID));
+        JsonNode outside = tree(userId, Map.of("orgType", 1, "parentOrgId", ROOT2_ID));
         assertThat(outside.get("code").asInt()).isEqualTo(200);
         assertThat(outside.get("data").get("items").size())
             .as("默认树范围内取非默认树节点 → 空结果").isZero();
@@ -492,12 +517,12 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("orgType", 1, "status", 0));
+        JsonNode body = tree(userId, Map.of("orgType", 1, "status", 0));
         assertThat(body.get("code").asInt())
             .as("启用根不匹配 status=0 → 空树（过滤语义），不得误报 11002").isEqualTo(200);
         assertThat(body.get("data").get("items").size()).isZero();
 
-        JsonNode pivot = tree(token, Map.of("orgType", 1, "status", 0, "parentOrgId", disabledOrgId));
+        JsonNode pivot = tree(userId, Map.of("orgType", 1, "status", 0, "parentOrgId", disabledOrgId));
         assertThat(pivot.get("code").asInt()).isEqualTo(200);
         assertThat(pivot.get("data").get("items").size()).isEqualTo(1);
         assertThat(pivot.get("data").get("items").get(0).get("id").asLong())
@@ -510,7 +535,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("orgType", 2));
+        JsonNode body = tree(userId, Map.of("orgType", 2));
         assertThat(body.get("code").asInt())
             .as("orgType=2 单类型树为已知边界退化（空树），非配置漂移错误").isEqualTo(200);
         assertThat(body.get("data").get("items").size()).isZero();
@@ -522,9 +547,9 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        assertThat(tree(token, Map.of("orgType", 3)).get("code").asInt())
+        assertThat(tree(userId, Map.of("orgType", 3)).get("code").asInt())
             .as("orgType=3 fail-closed").isEqualTo(10008);
-        assertThat(tree(token, Map.of("orgType", 1, "operationCode", "view")).get("code").asInt())
+        assertThat(tree(userId, Map.of("orgType", 1, "operationCode", "view")).get("code").asInt())
             .as("operationCode 大小写敏感").isEqualTo(10008);
     }
 
@@ -535,7 +560,7 @@ class OrgTreeIncludePositionsPgIT {
         String token = login(userId);
         jdbc.update("UPDATE sys_org SET delete_flag = id WHERE id = ? AND tenant_id = ?", ROOT_ID, TENANT);
 
-        JsonNode body = tree(token, Map.of("orgType", 1));
+        JsonNode body = tree(userId, Map.of("orgType", 1));
         assertThat(body.get("code").asInt())
             .as("根行缺失是真实配置漂移，11002 而非空树").isEqualTo(11002);
     }
@@ -546,7 +571,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-仅VIEW用户", BIT_VIEW);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("includePositions", true, "orgName", "Java 工程师"));
+        JsonNode body = tree(userId, Map.of("includePositions", true, "orgName", "Java 工程师"));
         assertThat(body.get("code").asInt()).isEqualTo(200);
         assertThat(body.get("data").get("items").size())
             .as("名称命中岗位但其父组织名不匹配 → 整支不保留（裁剪先于名称剪枝）").isZero();
@@ -558,7 +583,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-仅VIEW用户", BIT_VIEW);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("includePositions", true, "parentOrgId", POS_P1_ID));
+        JsonNode body = tree(userId, Map.of("includePositions", true, "parentOrgId", POS_P1_ID));
         assertThat(body.get("code").asInt()).isEqualTo(200);
         assertThat(body.get("data").get("items").size())
             .as("岗位节点被裁剪后其 id 不在集合内 → 空结果（与不存在同形，无存在性 oracle）").isZero();
@@ -572,8 +597,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertSubjectOnlyUser("组织树-主体无授权用户");
         String token = login(userId);
 
-        MvcResult result = mockMvc.perform(post("/api/access/org/tree")
-                .header("Authorization", "Bearer " + token)
+        MvcResult result = mockMvc.perform(gatewayHeaders(post("/api/access/org/tree"), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("includePositions", true))))
             .andExpect(status().isForbidden())
@@ -590,7 +614,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of(
+        JsonNode body = tree(userId, Map.of(
             "orgType", 1, "status", 0, "parentOrgId", disabledOrgId, "orgName", "停用部门"));
         assertThat(body.get("code").asInt()).isEqualTo(200);
         assertThat(body.get("data").get("items").size())
@@ -604,7 +628,7 @@ class OrgTreeIncludePositionsPgIT {
         long userId = insertUserWithOrgGrants("组织树-全权用户", BIT_VIEW, BIT_VIEW_POSITION);
         String token = login(userId);
 
-        JsonNode body = tree(token, Map.of("orgType", 1, "orgName", "不存在的名字"));
+        JsonNode body = tree(userId, Map.of("orgType", 1, "orgName", "不存在的名字"));
         assertThat(body.get("code").asInt()).isEqualTo(200);
         assertThat(body.get("data").get("items").size()).isZero();
     }

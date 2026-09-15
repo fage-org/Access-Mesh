@@ -205,7 +205,7 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
-                + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 AND re.code = 'POST:/admin/role/my-info'",
+                + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 AND re.code = 'POST:/api/access/role/my-info'",
             Long.class, TENANT)).isEqualTo(0L);
 
         // 授权构成（总量以本测试计数断言为准，不在此注释维护）：业务门禁 scopeAll——
@@ -231,7 +231,7 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM role_resource_permission p JOIN resource_entity re "
                 + "ON p.resource_entity_id = re.id AND re.tenant_id = p.tenant_id "
                 + "WHERE p.tenant_id = ? AND p.abstract_role_id = ? AND p.delete_flag = 0 "
-                + "AND p.can_grant = true AND re.code = 'POST:/admin/role/my-info'",
+                + "AND p.can_grant = true AND re.code = 'POST:/api/access/role/my-info'",
             Long.class, TENANT, roleId)).isEqualTo(1L);
 
         // 重复执行不重复建号：admin 唯一、角色唯一
@@ -392,7 +392,7 @@ class AccessBootstrapPgIT {
         // 模拟管理端整行撤销两条固定图授权，软删形态与 softDeleteBatch 一致（delete_flag=id + deleted_at）：
         // ① OPERATION_LOG:VIEW 类型级 scopeAll——身份键 resource_entity_id=NULL（复评审补的 NULL
         //    语义回归锚：SQL = NULL 恒不命中，墓碑匹配若下推 SQL 等值条件本用例必红）；
-        // ② POST:/admin/user/create 的 API 实例 ACCESS——身份键带 resource_entity_id
+        // ② POST:/api/access/user/create 的 API 实例 ACCESS——身份键带 resource_entity_id
         jdbc.update("UPDATE role_resource_permission SET delete_flag = id, deleted_at = now() WHERE tenant_id = ? "
                 + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
                 + "AND delete_flag = 0 "
@@ -400,7 +400,7 @@ class AccessBootstrapPgIT {
                 + "  (scope_all = true AND resource_type = (SELECT type_value FROM type_definition "
                 + "    WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'OPERATION_LOG')) "
                 + "  OR (scope_all = false AND resource_entity_id = (SELECT re.id FROM resource_entity re "
-                + "    WHERE re.tenant_id = ? AND re.code = 'POST:/admin/user/create' "
+                + "    WHERE re.tenant_id = ? AND re.code = 'POST:/api/access/user/create' "
                 + "    AND re.resource_type = (SELECT type_value FROM type_definition "
                 + "    WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API')))"
                 + ")",
@@ -454,7 +454,7 @@ class AccessBootstrapPgIT {
                 + "AND abstract_role_id = (SELECT id FROM abstract_role WHERE tenant_id = ? AND external_id = ?) "
                 + "AND delete_flag = 0 AND scope_all = false "
                 + "AND resource_entity_id = (SELECT re.id FROM resource_entity re WHERE re.tenant_id = ? "
-                + "AND re.code = 'POST:/admin/user/create' "
+                + "AND re.code = 'POST:/api/access/user/create' "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 "
                 + "AND type_key = 'resource_type' AND type_code = 'API'))",
             Long.class, TENANT, TENANT, BootstrapGraphDefinition.ADMIN_ROLE_EXTERNAL_ID, TENANT)).isZero();
@@ -554,7 +554,7 @@ class AccessBootstrapPgIT {
     void disabledApiOrServiceResourceFailsFast() {
         jdbc.update("UPDATE resource_entity SET status = 0 WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
-                + "AND code = 'POST:/admin/user/create'",
+                + "AND code = 'POST:/api/access/user/create'",
             TENANT);
         assertThatThrownBy(() -> initializer.initialize(BOOTSTRAP_PASSWORD))
             .isInstanceOf(IllegalStateException.class)

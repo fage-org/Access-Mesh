@@ -57,6 +57,34 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class LoginLockTemporaryPgIT {
 
     private static final Long TENANT = 1L;
+    private static final String INTERNAL_SECRET = "test-internal-secret-for-access-service";
+    private static final String SIGN_SECRET = "test-signature-secret-for-access-service";
+
+    /** Gateway 转发签名（与 SecurityMatrixIT 同算法：HmacSHA256("userId|tenantId|timestamp") 十六进制）。 */
+    private static String hmac(String userId, String tenantId, long timestamp) throws Exception {
+        javax.crypto.Mac mac = javax.crypto.Mac.getInstance("HmacSHA256");
+        mac.init(new javax.crypto.spec.SecretKeySpec(
+            SIGN_SECRET.getBytes(java.nio.charset.StandardCharsets.UTF_8), "HmacSHA256"));
+        byte[] digest = mac.doFinal((userId + "|" + tenantId + "|" + timestamp)
+            .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        for (byte b : digest) {
+            sb.append(String.format("%02x", b));
+        }
+        return sb.toString();
+    }
+
+    /** Gateway 转发形态身份头（T-ACCESS-042：/api/access/** 统一内部密钥边界，MockMvc 直连按 Gateway 注入形态模拟）。 */
+    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder gatewayHeaders(
+            org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder builder, long userId) throws Exception {
+        long ts = System.currentTimeMillis() / 1000;
+        return builder
+            .header("X-Internal-Secret", INTERNAL_SECRET)
+            .header("X-Tenant-Id", String.valueOf(TENANT))
+            .header("X-User-Id", String.valueOf(userId))
+            .header("X-User-Signature", hmac(String.valueOf(userId), String.valueOf(TENANT), ts))
+            .header("X-Signature-Timestamp", String.valueOf(ts));
+    }
     private static final String PASSWORD = "Pass@123";
     /** 每用例独立用户名（UUID），避免 Redis 失败计数与租户内唯一约束跨用例冲突 */
     private static final java.util.concurrent.atomic.AtomicLong USER_SEQ = new java.util.concurrent.atomic.AtomicLong();
@@ -160,8 +188,7 @@ class LoginLockTemporaryPgIT {
 
         // 非法值域校验先于门禁（T-PERM-067 对齐 updateStatus 先验参后门禁）：
         // 无操作位主体 status=2 仍得 10008 业务拒绝而非安全拒绝
-        MvcResult rejected = mockMvc.perform(post("/api/access/user/update")
-                .header("Authorization", "Bearer " + token)
+        MvcResult rejected = mockMvc.perform(gatewayHeaders(post("/api/access/user/update"), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("id", userId, "status", 2))))
             .andExpect(status().isOk())
@@ -174,8 +201,7 @@ class LoginLockTemporaryPgIT {
 
         // 合法值 1 自身写不豁免：零 USER:ENABLE 操作位 → 安全拒绝且库值不变
         // （T-PERM-067 Q-002 收窄——旧实现自身全免幂等写回成功，本段为新语义锁）
-        mockMvc.perform(post("/api/access/user/update")
-                .header("Authorization", "Bearer " + token)
+        mockMvc.perform(gatewayHeaders(post("/api/access/user/update"), userId)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(mapper.writeValueAsString(Map.of("id", userId, "status", 1))))
             .andExpect(status().isForbidden());
