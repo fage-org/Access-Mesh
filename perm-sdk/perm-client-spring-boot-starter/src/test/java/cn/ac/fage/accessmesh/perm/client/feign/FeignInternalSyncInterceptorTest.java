@@ -9,7 +9,7 @@ import java.lang.reflect.Field;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * 验证 {@link FeignInternalSyncInterceptor} 仅对 {@code /api/perm/**} 路径注入
+ * 验证 {@link FeignInternalSyncInterceptor} 仅对 {@code /api/access/**} 路径注入
  * {@code X-Internal-Secret} 与 {@code X-Service-Code}，且不覆盖调用方已显式声明的
  * {@code X-Service-Code}。
  * <p>
@@ -54,7 +54,7 @@ class FeignInternalSyncInterceptorTest {
 
     @Test
     void apply_injectsSecretAndServiceCode_forAuthCheckPath() {
-        // PermissionFeignClient.checkAuth 也走 /api/perm/auth/check；同样注入是合理副作用
+        // PermissionFeignClient.checkAuth 也走 /api/access/auth/check；同样注入是合理副作用
         // 现有 Gateway 链路本身也通过 X-Internal-Secret 校验，此处统一注入即可
         RequestTemplate t = template("/api/access/auth/check");
 

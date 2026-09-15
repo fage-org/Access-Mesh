@@ -42,7 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *
  * <p>固定 6 步顺序：① 空库 bootstrap 首管理员真实登录 → ② 创建目标用户与空权限
  * BASIC_ROLE 并分配 → ③ 为 example 接口真实创建 API 资源实体与映射（bootstrap 固定图
- * 不含 example 资源）→ ④ 目标用户经 Gateway 调用 /example/api/example/demo/hello 断言
+ * 不含 example 资源）→ ④ 目标用户经 Gateway 调用 /api/example/demo/hello 断言
  * 403（授权前拒绝）→ ⑤ 授予 BASIC_ROLE 该 API 的 API:ACCESS → ⑥ 30 秒陈旧窗口内轮询至
  * HTTP 200 + 信封 code=200 + Gateway 身份头回显（userId=目标用户），并验证授权后参数
  * 非法仍返回信封 code=30001（业务错误不因放行被吞）。
@@ -51,7 +51,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * 以<b>子进程</b>（独立 JVM、固定随机端口）从本测试的 java.class.path 启动（模式与
  * {@link BasicRoleGrantVerticalSliceE2EIT} 一致）。Gateway 路由 /api/example/**（无 StripPrefix、
  * serviceCode=example-service）经 SimpleDiscoveryClient 静态实例直连 example-service 子进程；
- * API 映射 pathPattern 按 Gateway 外部路径口径（/example/api/example/demo/hello）创建。
+ * API 映射 pathPattern 按外部路径=服务路径口径（/api/example/demo/hello，T-ACCESS-042）创建。
  * 业务服务不做服务内鉴权、不消费 perm-client——保护完全由 Gateway 承担（规范 §2.4）。
  *
  * <p>example-service 无 actuator 依赖，就绪探针直接 POST /api/example/demo/hello：

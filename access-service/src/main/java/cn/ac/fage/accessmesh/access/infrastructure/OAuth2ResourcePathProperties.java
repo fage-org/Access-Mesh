@@ -45,6 +45,8 @@ import java.util.Set;
 @ConfigurationProperties(prefix = "access.oauth2")
 public class OAuth2ResourcePathProperties implements InitializingBean {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(OAuth2ResourcePathProperties.class);
+
     /** 默认开放路径：userinfo（T-ACCESS-004 唯一消费方口径，不声明门禁=仅验签+黑名单+客户端启用）。 */
     public static final String DEFAULT_USERINFO_PATH = "/api/access/auth/oauth2/userinfo";
 
@@ -106,6 +108,16 @@ public class OAuth2ResourcePathProperties implements InitializingBean {
                         "access.oauth2.resource-paths 模式 '%s' 覆盖平台会话端点 %s（JWT 分支不得覆盖），启动失败",
                         pattern, reserved));
                 }
+            }
+            // T-ACCESS-042 外评 P3：守卫退役后的可诊断信号（不拒启）——单命名空间下不在
+            // /api/access/auth/oauth2/** 的开放路径会被 RequestContextInterceptor 内部凭证
+            // 分支遮蔽（Gateway 恒注入密钥 → internalAuthenticated 先于 JWT 分支），
+            // 运行期表现为 400 缺 X-Tenant-Id 而非 JWT 判定，此处告警提示配置者
+            if (pathMatcher.match(pattern, "/api/access/**")
+                    && !pattern.startsWith("/api/access/auth/oauth2/")) {
+                log.warn("access.oauth2.resource-paths 模式 '{}' 位于 /api/access/** 且不在 auth/oauth2 下："
+                    + "该路径将被内部凭证分支遮蔽（JWT 分支不可达，运行期 400 缺 X-Tenant-Id）——"
+                    + "委托令牌开放路径须落在 /api/access/auth/oauth2/** 语义下", pattern);
             }
             // 业务开放路径强制双门禁（userinfo 默认路径豁免：旧令牌无 aud 兼容，且
             // userinfo 不做 scope 委托，仅验签 + 黑名单 + 客户端启用）

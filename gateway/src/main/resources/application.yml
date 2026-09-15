@@ -103,7 +103,16 @@ gateway:
     paths:
       # T-GW-007：/actuator/** 已全部移出主端口白名单——actuator 经独立管理端口提供
       # （management.server.port，见下方 management 段），主端口 8080 不再暴露任何 /actuator/** 端点
-      - /api/access/auth/**
+      # T-ACCESS-042（外评 P2 收窄）：会话入口族精确清单——运行时鉴权六端点
+      # （check/batch-check/check-interface/query-resources/query-scopes/interface-snapshot）
+      # 不放行（旧形态它们不匹配 /auth/**，非等价替换）；与 SecurityWebMvcConfig 密钥豁免同源
+      - /api/access/auth/captcha
+      - /api/access/auth/login
+      - /api/access/auth/login/sms
+      - /api/access/auth/logout
+      - /api/access/auth/userinfo
+      - /api/access/auth/user-menu
+      - /api/access/auth/oauth2/**
       - /public/**
       - /captcha/**
 

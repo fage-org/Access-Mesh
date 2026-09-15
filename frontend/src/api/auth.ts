@@ -62,7 +62,7 @@ export type LoginFormData = Pick<
  * 验证码 5 分钟有效且一次性消费。
  */
 export const getCaptcha = async (): Promise<CaptchaResp> => {
-  const res = await http.request<R<CaptchaResp>>("post", "/api/access/api/access/auth/captcha");
+  const res = await http.request<R<CaptchaResp>>("post", "/api/access/auth/captcha");
   return unwrap(res);
 };
 
@@ -73,7 +73,7 @@ export const getCaptcha = async (): Promise<CaptchaResp> => {
  * （业务失败 HTTP 200 + code≠200，经 unwrap 抛 RequestError）。
  */
 export const login = (data: LoginFormData): Promise<R<LoginResp>> => {
-  return http.request<R<LoginResp>>("post", "/api/access/api/access/auth/login", {
+  return http.request<R<LoginResp>>("post", "/api/access/auth/login", {
     // 固定 tenantId/clientId 放在展开之后获得最终覆盖权（结构化类型下多余字段无法篡改）
     data: {
       ...data,
@@ -125,5 +125,5 @@ export type UserMenuRoute = {
  * 通过 `unwrap` 解包并以 try/catch 处理失败。
  */
 export const getUserMenu = () => {
-  return http.request<R<UserMenuData>>("post", "/api/access/api/access/auth/user-menu");
+  return http.request<R<UserMenuData>>("post", "/api/access/auth/user-menu");
 };

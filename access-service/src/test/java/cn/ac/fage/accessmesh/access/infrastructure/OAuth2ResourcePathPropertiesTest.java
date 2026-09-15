@@ -185,7 +185,7 @@ class OAuth2ResourcePathPropertiesTest {
     }
 
     @Test
-    @DisplayName("评审 P2：无关节务通配（/api/example/**、/example/**）→ 通过启动防护（静态前缀无 /api/perm 前缀关系）")
+    @DisplayName("评审 P2：无关节务通配（/api/example/**、/example/**）→ 通过启动防护")
     void guardAccepts_unrelatedBusinessPatterns() {
         for (String pattern : List.of("/api/example/**", "/example/**", "/api/example/**/action")) {
             OAuth2ResourcePathProperties props = new OAuth2ResourcePathProperties();

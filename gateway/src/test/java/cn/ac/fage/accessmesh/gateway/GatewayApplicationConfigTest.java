@@ -215,10 +215,26 @@ class GatewayApplicationConfigTest {
         assertNotNull(props, "GatewayProperties 必须存在");
         assertTrue("lb://access-service".equals(props.getPermission().getServiceUrl()),
             "permission.service-url 必须为 lb://access-service（T-ACCESS-010 切换），实际 " + props.getPermission().getServiceUrl());
-        assertTrue(props.getWhitelist().getPaths().contains("/api/access/auth/**"),
-            "whitelist 必须包含 /api/access/auth/**（T-ACCESS-042 单命名空间）");
-        assertTrue(!props.getWhitelist().getPaths().contains("/auth/**"),
-            "whitelist 不得残留旧形态 /auth/**（auth 家族已并入 /api/access/auth/**）");
+        // T-ACCESS-042（外评 P2 收窄）：会话入口族精确清单——整族 /api/access/auth/** 放行会罩住
+        // 运时鉴权六端点（旧形态它们不匹配 /auth/**，非等价替换）；清单与 SecurityWebMvcConfig
+        // 密钥豁免同源
+        var wl = props.getWhitelist().getPaths();
+        for (String p : java.util.List.of("/api/access/auth/captcha", "/api/access/auth/login",
+                "/api/access/auth/login/sms", "/api/access/auth/logout", "/api/access/auth/userinfo",
+                "/api/access/auth/user-menu", "/api/access/auth/oauth2/**")) {
+            assertTrue(wl.contains(p), "whitelist 必须包含会话入口端点 " + p + "，实际 " + wl);
+        }
+        assertTrue(!wl.contains("/api/access/auth/**"),
+            "whitelist 不得整族放行 /api/access/auth/**（运行时鉴权六端点须走会话/权限校验），实际 " + wl);
+        assertTrue(!wl.contains("/auth/**"),
+            "whitelist 不得残留旧形态 /auth/**（auth 家族已并入 /api/access/auth/**），实际 " + wl);
+        org.springframework.util.AntPathMatcher m = new org.springframework.util.AntPathMatcher();
+        for (String runtime : java.util.List.of("/api/access/auth/check", "/api/access/auth/batch-check",
+                "/api/access/auth/check-interface", "/api/access/auth/query-resources",
+                "/api/access/auth/query-scopes", "/api/access/auth/interface-snapshot")) {
+            assertTrue(wl.stream().noneMatch(pat -> m.match(pat, runtime)),
+                "whitelist 不得放行运行时鉴权端点 " + runtime + "，实际 " + wl);
+        }
         // T-GW-007：主端口白名单不得含任何 /actuator 路径（actuator 经独立管理端口提供）
         assertTrue(props.getWhitelist().getPaths().stream().noneMatch(p -> p.startsWith("/actuator")),
             "whitelist 不得包含 /actuator/**（T-GW-007 移至管理端口），实际 " + props.getWhitelist().getPaths());

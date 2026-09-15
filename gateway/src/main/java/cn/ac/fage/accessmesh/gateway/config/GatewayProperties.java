@@ -44,13 +44,23 @@ public class GatewayProperties {
      * 配置不需要认证和权限校验的路径列表。
      * 这些路径直接放行，如认证接口、公开资源等。
      * T-GW-007：/actuator/** 移出白名单——actuator 经独立管理端口提供，主端口不再暴露。
+     * T-ACCESS-042（外评 P2 收窄）：/api/access/auth/** 整族放行会罩住运行时鉴权六端点
+     * （check/batch-check/check-interface/query-resources/query-scopes/interface-snapshot——
+     * 旧形态在 /perm/api/perm/auth/* 不匹配旧 /auth/**，非等价替换）；收窄为会话入口族
+     * 精确清单，与 access-service SecurityWebMvcConfig 密钥豁免清单同源。
      * </p>
      */
     @Getter
     @Setter
     public static class Whitelist {
         private List<String> paths = List.of(
-            "/api/access/auth/**",
+            "/api/access/auth/captcha",
+            "/api/access/auth/login",
+            "/api/access/auth/login/sms",
+            "/api/access/auth/logout",
+            "/api/access/auth/userinfo",
+            "/api/access/auth/user-menu",
+            "/api/access/auth/oauth2/**",
             "/public/**",
             "/captcha/**"
         );

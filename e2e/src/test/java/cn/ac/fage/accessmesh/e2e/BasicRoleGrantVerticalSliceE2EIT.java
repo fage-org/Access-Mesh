@@ -41,7 +41,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * BASIC_ROLE 授权垂直切片 E2E（T-ACCESS-021，里程碑 A 唯一产品验收链路）。
  *
  * <p>固定 8 步顺序（T-ACCESS-016 定稿，不可重排）：① 空库 bootstrap 首管理员真实登录 →
- * ② 创建目标用户与空权限 BASIC_ROLE 并分配 → ③ 为 POST /admin/role/my-info 真实创建
+ * ② 创建目标用户与空权限 BASIC_ROLE 并分配 → ③ 为 POST /api/access/role/my-info 真实创建
  * API 映射（bootstrap 仅预建资源未建映射）→ ④ 目标用户实测 403（授权前拒绝真实执行）→
  * ⑤ 授权（IT 轨经 apply-grant-plan——与授权页同一唯一写入口、同构请求体；授权页 GUI 场景
  * 由受控 runbook 另行覆盖）→ ⑥ 实测 200（30 秒陈旧窗口内轮询）→ ⑦ 重启 access-service
@@ -233,7 +233,7 @@ class BasicRoleGrantVerticalSliceE2EIT {
 
     @Test
     @Order(3)
-    @DisplayName("③ 为目标接口 POST /admin/role/my-info 真实创建 API 资源映射（bootstrap 未建映射）")
+    @DisplayName("③ 为目标接口 POST /api/access/role/my-info 真实创建 API 资源映射（bootstrap 未建映射）")
     void step3_createTargetApiMapping() {
         // 经授权页同款资源树定位 bootstrap 预建的 API 资源（同时验证授权页读链路可用）；
         // 树接口按资源类型返回多棵树（ItemsResp<ResourceTreeResp>），逐棵遍历

@@ -613,12 +613,12 @@ class HttpApiPathSnapshotTest {
         scanSignatures().forEach(s -> actual.add(s.substring(0, s.indexOf('|'))));
         List<String> violations = new ArrayList<>();
         for (String path : actual) {
-            if (!path.startsWith("/api/")) {
+            if (!path.startsWith("/api/access/")) {
                 violations.add(path);
             }
         }
         assertThat(violations)
-            .as("旧形态负向锁：裸管理面路径（/user/**、/auth/** 等）与 /api/perm/** 前缀一律不得回归")
+            .as("旧形态负向锁：裸管理面路径（/user/**、/auth/** 等）、/api/perm/** 前缀与双前缀形态一律不得回归")
             .isEmpty();
     }
 

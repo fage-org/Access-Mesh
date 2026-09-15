@@ -2,7 +2,7 @@
  * 资源依赖 API
  * 经 @/utils/http 调用 access-service 端点
  * （`/api/access/resource-dependency/*`——Gateway 外部路径约定：
- * vite proxy `/perm` → Gateway `Path=/perm/**` StripPrefix=1 → access-service `/api/access/...`，
+ * vite proxy 单条 `/api` → Gateway 无 StripPrefix 直达 access-service（T-ACCESS-042 外部=服务路径），
  * resource-operation/role-manage 同款；联调修复：Phase 1 误写 `/api/access/...` 缺 /perm 前缀，
  * mock 拦截 url 与错误路径一致致 dev 从未暴露，T-FE-044 真实链路 404 修正）。
  * T-FE-044 联调收口：Phase 1 mock（vite-plugin-fake-server）已退役，全端点走真实链路

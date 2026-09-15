@@ -125,7 +125,7 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/api/access/user-role/assign", "bootstrap:分配角色", true, false),
             // T-FE-015：组织与用户页消费端点（Gateway 层逐端点精确注册——未映射路径
             // fail-closed 403，Phase 3 首次真实联调暴露的系统性缺口；端点级粒度对齐
-            // 产品 API 级授权能力，后续联调任务按页同样扩展）。/admin/user/create 已在上方清单
+            // 产品 API 级授权能力，后续联调任务按页同样扩展）。/api/access/user/create 已在上方清单
             new ApiRoute("POST", "/api/access/org-tree-config/page", "bootstrap:组织树配置分页", true, false),
             new ApiRoute("POST", "/api/access/org/tree", "bootstrap:组织树查询", true, false),
             new ApiRoute("POST", "/api/access/org/page", "bootstrap:组织分页", true, false),

@@ -325,7 +325,7 @@ export const getUserRoles = async (userId: number): Promise<UserRoleItem[]> => {
 
 /**
  * 分配功能角色（POST /api/access/user-role/assign，items[] 批量、业务键标识；
- * permission 域外部前缀为 /perm 非 /admin——与 bootstrap 映射注册及全部 perm 域页面一致）。
+ * T-ACCESS-042 起单命名空间 /api/access/**（原 permission 域 /perm 前缀形态退役）——与 bootstrap 映射注册及全部页面一致）。
  * 门禁 ROLE:MANAGE（目标角色实例）；domainCode 功能角色可空。
  */
 export const assignRole = async (data: {

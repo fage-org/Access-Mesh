@@ -35,7 +35,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * </p>
  * <table>
  *   <tr><th>入口分类</th><th>用例</th><th>期望</th></tr>
- *   <tr><td>公开认证 /auth/**</td><td>匿名 /auth/captcha</td><td>200 ANONYMOUS</td></tr>
+ *   <tr><td>公开认证 /api/access/auth/*</td><td>匿名 /api/access/auth/captcha</td><td>200 ANONYMOUS</td></tr>
  *   <tr><td>运维 /actuator/**</td><td>匿名 /actuator/health</td><td>200 ANONYMOUS（G4）</td></tr>
  *   <tr><td>用户管理</td><td>无会话 /user/page</td><td>401 显式门禁（G3）</td></tr>
  *   <tr><td>外部 sync/full-sync</td><td>内部凭证 + sourceService 匹配</td><td>200 SERVICE + serviceCode 绑定（G2）</td></tr>
@@ -99,7 +99,7 @@ class SecurityMatrixIT {
     private DomainConfigAppService domainConfigAppService;
 
     @Test
-    @DisplayName("公开认证：/auth/** 匿名可访问（ANONYMOUS 上下文）")
+    @DisplayName("公开认证：/api/access/auth/captcha 匿名可访问（ANONYMOUS 上下文）")
     void authPublicPath_allowsAnonymous() throws Exception {
         mockMvc.perform(post("/api/access/auth/captcha"))
             .andExpect(status().isOk());

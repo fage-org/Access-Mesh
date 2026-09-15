@@ -35,7 +35,7 @@ import java.util.List;
  * 与 WhitelistFilter（匿名公开白名单）语义不同：本过滤器放行的是"由下游验证的
  * 委托令牌流量"，默认清单为空（无业务路径默认开放）；/auth/** 前缀已由白名单
  * 覆盖（userinfo 等端点无需重复配置）。路径为 Gateway 外部口径
- * （如 /admin/api/**，StripPrefix=1 后下游按 /api/** 匹配自身白名单）。
+ * （T-ACCESS-042 起外部=服务路径无 StripPrefix，如 /api/example/**，下游按同形路径匹配开放路径门禁）。
  * 执行顺序：-79（白名单之后、认证过滤器之前）。
  * </p>
  */

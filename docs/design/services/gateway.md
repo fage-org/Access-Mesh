@@ -44,7 +44,7 @@ last_reviewed: 2026-09-15   # 2026-09-10 T-GW-008 codex 外评 P1 处置：§清
 - 新增 `OAuth2PassthroughFilter`（order -79，白名单 -80 之后、会话校验 -70 之前）：命中 `gateway.oauth2.passthrough-paths`（Ant 通配，**外部路径口径**，默认空 = 无业务路径默认开放）**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时设 `skipAuth=true`，跳过会话校验/权限校验/身份头注入/身份头签名，`Authorization` 头原样透传下游（HeaderClean 清单不含 Authorization），由 access-service 开放路径门禁（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds）判定。
 - **平台 uuid 会话令牌与无 Authorization 头的请求不启用透传**（评审 P1 修复）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限。
 - `/api/access/auth/**` 已由白名单覆盖（userinfo 等端点透传，无需重复配置）。
-- **部署约束（T-ACCESS-042 更新）**：无 StripPrefix，Gateway 与 access-service 匹配同一路径（开放路径配置于 `access.oauth2.resource-paths`，双侧天然同形）；`InternalSecretFilter` 注入的 X-Internal-Secret 对开放路径同样携带（合法流量恒经 Gateway）——原「启动防护禁止开放路径位于内部凭证前缀」守卫已随单命名空间退役（双凭证并存不构成机制冲突，见 OAuth2ResourcePathProperties）。
+- **部署约束（T-ACCESS-042 更新）**：无 StripPrefix，Gateway 与 access-service 匹配同一路径（开放路径配置于 `access.oauth2.resource-paths`，双侧天然同形）；`InternalSecretFilter` 注入的 X-Internal-Secret 对开放路径同样携带（合法流量恒经 Gateway）——原「启动防护禁止开放路径位于内部凭证前缀」守卫已随单命名空间退役（双凭证并存不构成机制冲突，见 OAuth2ResourcePathProperties；注意不在 `/api/access/auth/oauth2/**` 下的开放路径会被内部凭证分支遮蔽——运行期 400 缺 X-Tenant-Id，access 侧启动告警提示）。
 - 门禁语义权威说明见 `../access-service-architecture.md` §6。
 
 

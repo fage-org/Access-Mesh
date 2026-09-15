@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * {@link OperatorContext} 单元测试（T-ACCESS-004 重构：只读可信上下文）。
  * <p>覆盖：USER 上下文返回操作者；SERVICE / 匿名 / 未绑定上下文拒绝（fail-closed，
- * 满足"内部凭证不能隐式获得 /api/perm/** 全权限"验收）。</p>
+ * 满足"内部凭证不能隐式获得 /api/access/** 全权限"验收）。</p>
  */
 class OperatorContextTest {
 

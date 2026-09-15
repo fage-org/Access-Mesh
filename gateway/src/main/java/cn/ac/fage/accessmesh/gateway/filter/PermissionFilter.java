@@ -51,7 +51,7 @@ import java.util.concurrent.TimeoutException;
  *   <li>本地匹配 ({@link InterfaceSnapshotMatcher}) 返回三态：
  *     <ul>
  *       <li>{@link Decision#ALLOW} → 直接放行</li>
- *       <li>{@link Decision#FALLBACK} → 同步调 {@code /perm/check-interface} 实时鉴权（仅传 clientIp）</li>
+ *       <li>{@link Decision#FALLBACK} → 同步调 {@code check-interface}（配置路径 /api/access/auth/check-interface）实时鉴权（仅传 clientIp）</li>
  *       <li>{@link Decision#DENY} → 403 拒绝</li>
  *     </ul>
  *   </li>
