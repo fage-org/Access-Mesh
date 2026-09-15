@@ -107,11 +107,11 @@ last_reviewed: 2026-09-14（T-ACCESS-041：§7 文档与叙事第三项落地 + 
 
 ### 5.3 system_config 单入口化
 
-退役 admin `/config` 入口（ConfigController + ConfigAppService + 测试 + 契约段（契约总册 §17.3 登记位）；前端与 e2e 零消费已核实）；保留 `/api/perm/system-config`（前端唯一消费方，T-PERM-024 收口）。
+退役 admin `/config` 入口（ConfigController + ConfigAppService + 测试 + 契约段（契约总册 §17.3 登记位）；前端与 e2e 零消费已核实）；保留 `/api/access/system-config`（前端唯一消费方，T-PERM-024 收口）。
 
 ## 6. 对外表面
 
-- **URL**：维持两风格（admin 裸路径 + perm `/api/perm/**`），登记为已知问题（docs/pending-problems.md Q-001），后续单独改。
+- **URL**：融合时点维持两风格并登记 Q-001——已由 T-ACCESS-042（2026-09-15）收敛：全链路单命名空间 `/api/access/**`，外部路径=服务路径（Q-001 转 T-ACCESS-042 实施）。
 - **错误码编号段**：维持 `1xxxx`/`2xxxx` 不重排。
 - **前端信息架构**：维持一棵「系统管理」树 + 隐藏授权入口，不纳入融合；菜单重组如做另独立立项（产品决策）。
 
@@ -131,7 +131,7 @@ last_reviewed: 2026-09-14（T-ACCESS-041：§7 文档与叙事第三项落地 + 
 
 | # | 裁决项 | 结论 |
 |---|---|---|
-| 1 | 跨域同名 DTO 三组（UserCreateReq / UserUpdateReq / UserResp） | perm 轨改名 `AbstractUserCreateReq` / `AbstractUserUpdateReq` / `AbstractUserResp`（与端点 `/api/perm/abstract-user/*` 语义对齐）；admin 轨保名；perm-common SDK 副本不动（T-PERM-065 单源纪律）。仅 Java 类名变，JSON 契约零变化 |
+| 1 | 跨域同名 DTO 三组（UserCreateReq / UserUpdateReq / UserResp） | perm 轨改名 `AbstractUserCreateReq` / `AbstractUserUpdateReq` / `AbstractUserResp`（与端点 `/api/access/abstract-user/*` 语义对齐）；admin 轨保名；perm-common SDK 副本不动（T-PERM-065 单源纪律）。仅 Java 类名变，JSON 契约零变化 |
 | 2 | operation_permission 全链 | **type 包**（操作位空间按类型隔离的核心语义；类型删除级联同包闭环） |
 | 3 | service_config 全链 | **resource 包**（MappingSyncHandler 直读 ResourceEntity/ApiMapping mapper，同步产物即资源行；resource 行既有「资源同步执行层」） |
 | 4 | 任务治理设施（sys_task_execution 链 11 类） | **infrastructure.task**（job 业务链归 platform；租约/执行/调度设施归底座，对齐 architecture §8.1 多实例协调定位） |
@@ -218,7 +218,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | application.query.UserMenuQueryService/Impl | menu.service.**UserMenuQueryAppService**/Impl | 裁决 5 改名 |
 | application.query.mapper.UserMenuQueryMapper + XML | menu.mapper + `resources/mapper/menu/` | XML 直读 sys_menu + sys_user_org（跨能力表 XML 直读，§8.4 豁免口径） |
 | application.query.projection：MenuProjection、UserOrgProjection | menu.dto.projection | 唯一消费方 UserMenuQueryMapper 链 |
-| admin.dto.auth.UserMenuResp | menu.dto.resp | `/auth/user-menu` 响应随查询族（auth 跨包 import） |
+| admin.dto.auth.UserMenuResp | menu.dto.resp | `/api/access/auth/user-menu` 响应随查询族（auth 跨包 import） |
 
 表：`sys_menu`。
 
@@ -328,7 +328,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | 源 | 目标 | 说明 |
 |---|---|---|
 | admin.controller：DictController、NoticeController、FileController、JobController、ConfigController | platform.controller | ConfigController（/config）037 退役，033 先随迁 |
-| permission.controller.SystemConfigController（/api/perm/system-config） | platform.controller | 保留入口（§5.3） |
+| permission.controller.SystemConfigController（/api/access/system-config） | platform.controller | 保留入口（§5.3） |
 | admin.dto req/resp：Dict 族（DictDataCreateReq/UpdateReq、DictTypeCreateReq、DictDataResp、DictTypeResp）、Notice 族（NoticeCreateReq/UpdateReq、NoticeResp）、File 族（FilePageReq、FileResp）、Job 族（JobCreateReq/UpdateReq、JobLogPageReq、JobResp、JobLogResp）、ConfigUpdateReq、ConfigResp | platform.dto | |
 | permission.dto req/resp：SystemConfigGetReq、SystemConfigListReq、SystemConfigReq、SystemConfigResp | platform.dto | |
 | admin.service：DictService→**DictAppService**、NoticeService→**NoticeAppService**、FileService→**FileAppService**、JobService→**JobAppService**、ConfigService→**ConfigAppService**（各含 Impl） | platform.service | 改名（§2.5） |

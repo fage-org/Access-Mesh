@@ -76,14 +76,14 @@ cn.ac.fage.accessmesh.access
 - AppService/DomainService 同层横向跨能力调用允许（2026-08-22 放开口径延续；仅限同层、禁循环依赖、复用优先于重实现，project-rules §8.2）。
 - 引擎核心（`engine.core`：PermQueryEngine/类型解析/主体装载/批量评估器）对能力包 **Service/DomainService** 的依赖仅限 rule 域条件/冲突评估 DomainService（引擎管线内条件四态与互斥评估的既有形态，拆包前同包直调）；其余能力包的 Service/DomainService 不依赖（对实体/DTO/枚举的跨包 import 与 mapper 直读为既有输入面形态，capability-structure §8.4 豁免 1，非断言对象）；`engine.service` 对外查询编排与能力包 DomainService 同层互调为既有形态（query-resources 域分类过滤→`DomainClassifyService`、互斥检测→`PermissionConflictDomainService`）。能力包 → engine（门禁查码/校验）为既有依赖方向。
 - QueryMapper 归位各能力包（XML 随迁 `resources/mapper/{org,menu,role}/`）；只读前缀、显式租户条件、禁写 SQL 契约不变（`QueryMapperXmlContractTest`）。
-- URL 维持两风格（admin 裸路径 + perm `/api/perm/**`）——已知问题登记 [docs/pending-problems.md](../pending-problems.md) Q-001，后续单独改。
+- URL 维持两风格（admin 裸路径 + perm `/api/access/**`）——已知问题登记 [docs/pending-problems.md](../pending-problems.md) Q-001，后续单独改。
 - 架构测试将上述边界固化（五测试能力口径重建设计见 capability-structure §8.4）。
 
 组合查询族归位形态（T-ACCESS-006 建立；T-ACCESS-033 归位能力包并改名，接口在 `{menu,role,org}.service`、实现 `impl/` 同构）：
 
 - 查询服务（接口 + `impl/` 同包实现，方法标注 `@Transactional(readOnly = true)`）：
-  - `UserMenuQueryAppService`（menu.service）：`/auth/user-menu`、`/user/user-menus`、`/role/my-info` 聚合（sys_menu 树 + 角色/权限码 + 菜单可见性判定）。
-  - `UserRoleQueryAppService`（role.service）：`/role/list` 功能角色列表、`/user-role/list` 角色列表（POSITION 补所属组织名）。
+  - `UserMenuQueryAppService`（menu.service）：`/api/access/auth/user-menu`、`/api/access/user/user-menus`、`/api/access/role/my-info` 聚合（sys_menu 树 + 角色/权限码 + 菜单可见性判定）。
+  - `UserRoleQueryAppService`（role.service）：`/api/access/role/list` 功能角色列表、`/api/access/user-role/list` 角色列表（POSITION 补所属组织名）。
   - `OrgVisibilityQueryAppService`（org.service）：组织可见性过滤（含 ORG_VISIBILITY 缓存，租户级失效由 PermissionChangeAspect 统一执行）。
 - 专用 QueryMapper（`{menu,role,org}.mapper`，XML 在 `resources/mapper/{org,menu,role}/`）：只 SELECT、显式 `tenant_id` 条件、返回 `dto/projection` 包 Projection record，不暴露或修改领域实体；权限判定一律经 `PermQueryEngine`/`TypeResolutionService`，不直查权限表判定。
 - 数据访问白名单（架构测试固化，能力口径见 capability-structure §8.4）：能力包互不使用对方 **Mapper**（实体 import 不禁，断言面=mapper 包）；QueryMapper 归位各能力包后只读前缀契约不变；组合查询的跨能力表读取经 QueryMapper XML 直读（非 Java 类依赖）；引擎输入面装载、projection 投影写路径、sync 记账封装、bootstrap 种子写入器为显式豁免。（Service 层横向依赖不限白名单，2026-08-22 同层调用全局放开。）
@@ -96,16 +96,16 @@ cn.ac.fage.accessmesh.access
 
 门禁与限额：
 
-- `/user/user-menus` 查询他人时需 `USER:VIEW@目标用户`，查自己豁免（方案1+2，P1-2；T-ACCESS-018 类型收敛后为 USER）：`AdminUserController.getUserMenus` 在 `req.id() != 当前登录用户` 时经 `AdminPermissionValidator.checkInstanceLevel(USER, id, VIEW)` 门禁。
+- `/api/access/user/user-menus` 查询他人时需 `USER:VIEW@目标用户`，查自己豁免（方案1+2，P1-2；T-ACCESS-018 类型收敛后为 USER）：`AdminUserController.getUserMenus` 在 `req.id() != 当前登录用户` 时经 `AdminPermissionValidator.checkInstanceLevel(USER, id, VIEW)` 门禁。
 - 权限码下发门禁下放入口（方案「门禁下放入口」）：`PermissionViewAppService.buildEffectiveView` 公共管线不再设 `USER:VIEW` 门禁；权限面独立 HTTP 入口 `/effective-permission-codes` 走 `getEffectivePermissionCodesForManage`（自查豁免 + 查他人需 `USER:VIEW`）；menu/role/org 查询入口（原 application.query，T-ACCESS-033 随能力包归位）内部调用由其入口 Controller 门禁（自查豁免 + `USER:VIEW`，P1-2）兜底。（原 `getEffectivePermissions` 管理员视图已随 T-PERM-059 删除，2026-09-10）
-- `/role/list` 保持 `LIMIT 0,200` 上限并在 `UserRoleQueryAppService` Javadoc 声明（P2-3，设计定案「保持 + 文档声明上限」）：功能角色面向前端下拉，超出 200 属配置异常，由组织治理收敛。
+- `/api/access/role/list` 保持 `LIMIT 0,200` 上限并在 `UserRoleQueryAppService` Javadoc 声明（P2-3，设计定案「保持 + 文档声明上限」）：功能角色面向前端下拉，超出 200 属配置异常，由组织治理收敛。
 - `OrgVisibilityQueryAppServiceImpl` 缓存读写故障旁路 DB（P2-1）：`CacheService.get/put` 异常时记 `log.warn` 并降级直查 DB，不阻断可见性计算（fail-open 至数据库层，权限判定本身仍经 engine fail-closed）。
 - 角色数据走 query 服务（P2-2，设计定案「角色走 query 服务 + 权限保留 AppService」）：`UserRoleQueryAppService` 经 `UserRoleQueryMapper` 直读 `user_role ⨝ abstract_role`（原 query 包跨域只读形态，T-ACCESS-033 后随 role 能力包归位包内），权限事实（有效权限码/资源访问）保留经 `PermissionViewAppService`。
 
 角色代理退役（T-ACCESS-006，设计定案「角色直接由 permission 管理」）：
 
 - `RoleProxyService`/`RoleProxyServiceImpl`、`OrgVisibilityService`/`OrgVisibilityServiceImpl`（Feign 时代遗留的 admin 接口 + application 实现代理形态）已删除，改直接依赖查询服务（原 `application.query`，T-ACCESS-033 后为 role 能力包 `UserRoleQueryAppService`）。
-- admin 侧角色写代理端点已删除（T-ADMIN-024，无存量调用方直删、无映射 404）：`/role/create`、`/role/grant-menu`、`/role/revoke-menu`、`/user-role/assign`、`/user-role/revoke`；错误码 `10111`（ROLE_API_RETIRED）随端点删除退役、码值不复用（退役登记见 ErrorCodeContractTest）；运行时观察值按入口区分——匿名直连 admin 路径族 401（RequestContextInterceptor）、带身份直连 404、经 Gateway 未注册路径 403（快照 `unregistered-policy=DENY`），无 Handler 映射的注册表证据见 HttpApiPathSnapshotTest。角色与授权管理由权限面直接提供（`/api/perm/abstract-role`、`/api/perm/user-role`、`/api/perm/role-resource-permission`）。
+- admin 侧角色写代理端点已删除（T-ADMIN-024，无存量调用方直删、无映射 404）：`/api/access/role/create`、`/api/access/role/grant-menu`、`/api/access/role/revoke-menu`、`/api/access/user-role/assign`、`/api/access/user-role/revoke`；错误码 `10111`（ROLE_API_RETIRED）随端点删除退役、码值不复用（退役登记见 ErrorCodeContractTest）；运行时观察值按入口区分——匿名直连 admin 路径族 401（RequestContextInterceptor）、带身份直连 404、经 Gateway 未注册路径 403（快照 `unregistered-policy=DENY`），无 Handler 映射的注册表证据见 HttpApiPathSnapshotTest。角色与授权管理由权限面直接提供（`/api/access/abstract-role`、`/api/access/user-role`、`/api/access/role-resource-permission`）。
 - 菜单查询按权威 schema（`display_name`/DIR-MENU 枚举）读取；schema 收敛后 `sys_menu` 无 `component`/`visible`/`perm_code` 等旧列，菜单树构建对缺失字段取默认值（component=null、showLink=true、keepAlive=false、auths=null；EXTERNAL/IFRAME 类型 frameSrc=path；HIDDEN 不进 menus[]）。存量 DDL-实体漂移已由 T-ACCESS-015 收口（2026-08-22）：菜单 CRUD 写路径（实体/Mapper/DTO/`MenuWriteAppServiceImpl`）对齐权威 DDL，BUTTON 类型与 `perm_code` 唯一性退役，唯一性由 `uk_sys_menu_tenant_path`/`uk_sys_menu_tenant_resource` 及错误码 10205/10206 承接，MENU 投影对五值枚举全量维护；对外契约见本文件所引契约总册 access-service-api-contract.md §9（menu 章）。
 
 ## 4. 管理事实与权限投影
@@ -135,7 +135,7 @@ cn.ac.fage.accessmesh.access
 - access 内部 `PermissionFeignClient` / `SyncTaskFeignClient` 及 `@EnableFeignClients`。
 - 为旧同步链路存在的配置、测试和运行手册。
 
-面向外部服务的 `/api/perm/**/sync`、`/full-sync` 契约和 `sync_metadata` 继续保留。外部 sync 不得使用 `sourceService∈{access-service,admin-service}`，也不得写入保留业务键（subject `LOCAL_USER`（原 ADMIN_USER 更名）/ `ORG|POSITION` / `SYS_USER_ORG`；resource 侧为类型级所有权——T-PERM-052 定案 2026-09-05，类型声明 `extra.managedMode=SYNC`+`syncSourceService` 独占同步，原行级防线已收编删除，终态见下方注记）。本地投影只能经 `LocalProjectionDomainService` 写入——调用方为管理面写编排（user/org/menu 能力包，原 access.application）与权限面管理入口（role/user 能力包 `RoleManageAppService`/`UserManageAppService`，T-ACCESS-019），事务由调用方 AppService 声明。
+面向外部服务的 `/api/access/**/sync`、`/full-sync` 契约和 `sync_metadata` 继续保留。外部 sync 不得使用 `sourceService∈{access-service,admin-service}`，也不得写入保留业务键（subject `LOCAL_USER`（原 ADMIN_USER 更名）/ `ORG|POSITION` / `SYS_USER_ORG`；resource 侧为类型级所有权——T-PERM-052 定案 2026-09-05，类型声明 `extra.managedMode=SYNC`+`syncSourceService` 独占同步，原行级防线已收编删除，终态见下方注记）。本地投影只能经 `LocalProjectionDomainService` 写入——调用方为管理面写编排（user/org/menu 能力包，原 access.application）与权限面管理入口（role/user 能力包 `RoleManageAppService`/`UserManageAppService`，T-ACCESS-019），事务由调用方 AppService 声明。
 
 **保留业务键终态（T-ACCESS-016 定稿，收敛后按所有权保护，实施归 T-ACCESS-018）**：
 
@@ -196,7 +196,7 @@ cn.ac.fage.accessmesh.access
 
 | order | 拦截器 | 覆盖 | 职责 |
 |---|---|---|---|
-| 1 | `InternalApiSecretInterceptor` | `/api/perm/**` | 内部凭证（X-Internal-Secret）验证，通过写 `INTERNAL_AUTHENTICATED` attribute |
+| 1 | `InternalApiSecretInterceptor` | `/api/access/**` | 内部凭证（X-Internal-Secret）验证，通过写 `INTERNAL_AUTHENTICATED` attribute |
 | 2 | `HeaderSignatureInterceptor` | `/api/**`、`/internal/**` | X-User-Id 头恒需验签（内部凭证路径不再无条件信任用户头），通过写 `SIGNATURE_VERIFIED` attribute |
 | 3 | `RequestContextInterceptor` | `/**` | 唯一上下文绑定入口：安全策略矩阵决策 + MDC 注入 + afterCompletion 清理；/error ERROR dispatch 放行（防真实错误被 401 掩蔽） |
 
@@ -204,14 +204,14 @@ cn.ac.fage.accessmesh.access
 
 OAuth2 资源服务器与开放路径清单（T-ACCESS-013 落地，2026-08-22 设计定案）：
 
-- **开放路径白名单配置化**（`access.oauth2.resource-paths`，application.yml 静态配置、全量替换语义）：默认仅 `/auth/oauth2/userinfo`；每条规则 = path（Ant 通配允许）+ `requiredScopes` + `audience` + `clientIds`。未配置路径上 OAuth2 JWT 默认拒绝（落到会话分支 → 401）。启动防护 fail-fast（`OAuth2ResourcePathProperties.afterPropertiesSet`）：① 模式不得覆盖 `/auth/**` 会话端点（userinfo/user-menu/oauth2/authorize——有限端点集逐样本匹配即完备）与 `/api/perm/**` 内部凭证空间（无限路径集合，按静态前缀保守判定：模式第一个通配符（`*`/`?`/URI 模板变量 `{`——AntPathMatcher 段内正则支持 `{name}`/`{name:regex}`）前的静态前缀为空、为 `/api/perm` 的字符前缀、或以 `/api/perm/` 开头即拒绝——`/api/**/sync`、`/api/*`、`/**`、`/api/per?/**`、`/api/{module}/**` 等形态均拦截，防双认证机制冲突；无关节务路径的 `{var}` 模板如 `/example/{id}` 为有效配置不受影响），不得以 `/auth/oauth2/**` 通配放开；② **业务开放路径（非 userinfo 豁免路径）必须声明 `requiredScopes` 与 `audience`**——空值在运行时直接跳过两项授权门禁，属配置遗漏放行面（fail-fast 拒绝启动）。
+- **开放路径白名单配置化**（`access.oauth2.resource-paths`，application.yml 静态配置、全量替换语义）：默认仅 `/api/access/auth/oauth2/userinfo`；每条规则 = path（Ant 通配允许）+ `requiredScopes` + `audience` + `clientIds`。未配置路径上 OAuth2 JWT 默认拒绝（落到会话分支 → 401）。启动防护 fail-fast（`OAuth2ResourcePathProperties.afterPropertiesSet`）：① 模式不得覆盖 `/api/access/auth/**` 会话端点（userinfo/user-menu/oauth2/authorize——有限端点集逐样本匹配即完备）与 `/api/access/**` 内部凭证空间（无限路径集合，按静态前缀保守判定：模式第一个通配符（`*`/`?`/URI 模板变量 `{`——AntPathMatcher 段内正则支持 `{name}`/`{name:regex}`）前的静态前缀为空、为 `/api/perm` 的字符前缀、或以 `/api/access/` 开头即拒绝——`/api/**/sync`、`/api/*`、`/**`、`/api/per?/**`、`/api/{module}/**` 等形态均拦截，防双认证机制冲突；无关节务路径的 `{var}` 模板如 `/example/{id}` 为有效配置不受影响），不得以 `/api/access/auth/oauth2/**` 通配放开；② **业务开放路径（非 userinfo 豁免路径）必须声明 `requiredScopes` 与 `audience`**——空值在运行时直接跳过两项授权门禁，属配置遗漏放行面（fail-fast 拒绝启动）。
 - **授权链**（`RequestContextInterceptor.authenticateOAuth2Jwt`）：验签 → 必填 claim（loginId/jti/client_id）→ 撤销黑名单（对全部开放路径生效，路径限定不产生绕过）→ 客户端启用动态校验（`OAuth2ClientDomainService.findActiveByClientId` 唯一索引点查，不经缓存保证禁用立即失效；客户端禁用/删除 → 401）→ 路径门禁三重校验（`clientIds` 限定 / `requiredScopes` 令牌 scope 子集校验 / `audience` 令牌 aud 匹配；不满足 → 403 授权不足）→ 绑定委托用户上下文。
 - **scope → 权限映射采用独立映射模型**（设计定案，不接入 PermQueryEngine）：scope 保持 OAuth2 标准委托范围语义（签发时空格分隔、授权时校验 ⊆ 客户端注册 scopes），授权判定即"开放路径声明所需 scope、令牌 scope 必须全部包含"；委托主体是客户端而非用户，与平台权限正交互不冲突。
-- **audience**（设计定案：客户端注册配置加列）：`sys_oauth2_client.audiences`（逗号分隔资源服务器标识）非空时签发写入 JWT `aud` claim（List 形态）；`/auth/oauth2/userinfo` 默认豁免 audience 校验（旧令牌无 aud 兼容）；其他开放路径**强制** audience 匹配（令牌 aud 缺失或不含路径声明的受众 → 403）。种子客户端 audiences=`access-service`。
+- **audience**（设计定案：客户端注册配置加列）：`sys_oauth2_client.audiences`（逗号分隔资源服务器标识）非空时签发写入 JWT `aud` claim（List 形态）；`/api/access/auth/oauth2/userinfo` 默认豁免 audience 校验（旧令牌无 aud 兼容）；其他开放路径**强制** audience 匹配（令牌 aud 缺失或不含路径声明的受众 → 403）。种子客户端 audiences=`access-service`。
 - **委托上下文第五要素**：`RequestContext` 增加 `delegatedClientId`（仅 OAuth2 JWT 分支非 null，callerType 维持 USER——operatorId=JWT loginId 委托用户身份）；审计/日志经 `AccessRequestContext.getDelegatedClientId()` 区分第三方委托调用与用户直调。
-- **Gateway 透传**（设计定案：同步支持；评审 P1 修复：仅委托 JWT 启用）：`gateway.oauth2.passthrough-paths`（外部路径口径，默认为空 = 无业务路径默认开放）命中**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时 `OAuth2PassthroughFilter`（order -79）设 skipAuth=true——跳过会话校验（否则 OAuth2 JWT 被 uuid 会话校验 401）、权限校验与身份头注入/签名，Authorization 头原样透传下游验签。**平台用户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（skipAuth 不设置）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限（评审 P1）。`/auth/**` 已由白名单覆盖（userinfo 无需重复配置）。**双侧路径口径差异部署约束**：Gateway 匹配外部路径（如 `/admin/api/**`），access-service 匹配 StripPrefix 后路径（`/api/**`），开放业务路径需双侧同步配置并人工对应；`InternalSecretFilter` 会向透传请求注入 X-Internal-Secret，因开放路径禁止位于 `/api/perm/**`（启动防护），该头在开放路径无消费者、无冲突。
+- **Gateway 透传**（设计定案：同步支持；评审 P1 修复：仅委托 JWT 启用）：`gateway.oauth2.passthrough-paths`（外部路径口径，默认为空 = 无业务路径默认开放）命中**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时 `OAuth2PassthroughFilter`（order -79）设 skipAuth=true——跳过会话校验（否则 OAuth2 JWT 被 uuid 会话校验 401）、权限校验与身份头注入/签名，Authorization 头原样透传下游验签。**平台用户 uuid 会话令牌与无 Authorization 头的请求不启用透传**（skipAuth 不设置）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限（评审 P1）。`/api/access/auth/**` 已由白名单覆盖（userinfo 无需重复配置）。**双侧路径口径（T-ACCESS-042 起同形）**：Gateway 与下游匹配同一路径（外部=服务路径，无 StripPrefix，如 `/admin/api/**` 旧双侧人工对应形态已退役），access-service 匹配 StripPrefix 后路径（`/api/**`），开放业务路径需双侧同步配置并人工对应；`InternalSecretFilter` 会向透传请求注入 X-Internal-Secret，因开放路径禁止位于 `/api/access/**`（启动防护），该头在开放路径无消费者、无冲突。
 
-平台用户会话只保留一套：`/auth/**` 是用户登录与会话签发入口，Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token 权威配置（T-ACCESS-003 落实）：`token-name=Authorization`、`token-style=uuid`（uuid 模式无会话密钥概念，会话有效性以共享 Redis 条目为唯一事实，Redis 清空后两端一致失效 fail-closed）、`timeout=7200`（2 小时绝对有效期）、`active-timeout=1800`（30 分钟无操作滑动续期）、`is-concurrent=true`、`is-share=false`、token-prefix 均为 `Bearer`（Gateway 配置，access 签发返回 tokenType=Bearer）；登录类型两侧均为 `StpUtil.login()` 默认 `login`（Sa-Token 无 login-type 配置键，文档口径而非配置项）。`jwt-secret-key` 仅用于 OAuth2 访问令牌签发（HS256，`SaJwtUtil`），不属于平台用户会话密钥。平台用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。两端配置一致性由部署配置约束保障，代码不实现跨进程启动校验（T-ACCESS-003 设计定案：运维部署部分不影响代码逻辑）；`jwt-secret-key` 配置无默认值（`${JWT_SECRET_KEY}`），缺失时 Spring 占位符解析失败导致启动失败。
+平台用户会话只保留一套：`/api/access/auth/**` 是用户登录与会话签发入口，Gateway 负责校验并向 `access-service` 注入可信身份。Gateway 与 `access-service` 在 Redis logical DB 0 上使用兼容且唯一的 Sa-Token 权威配置（T-ACCESS-003 落实）：`token-name=Authorization`、`token-style=uuid`（uuid 模式无会话密钥概念，会话有效性以共享 Redis 条目为唯一事实，Redis 清空后两端一致失效 fail-closed）、`timeout=7200`（2 小时绝对有效期）、`active-timeout=1800`（30 分钟无操作滑动续期）、`is-concurrent=true`、`is-share=false`、token-prefix 均为 `Bearer`（Gateway 配置，access 签发返回 tokenType=Bearer）；登录类型两侧均为 `StpUtil.login()` 默认 `login`（Sa-Token 无 login-type 配置键，文档口径而非配置项）。`jwt-secret-key` 仅用于 OAuth2 访问令牌签发（HS256，`SaJwtUtil`），不属于平台用户会话密钥。平台用户会话固定为 2 小时绝对有效期和 30 分钟无操作有效期，登录、校验、续期、注销和失效必须端到端一致。Sa-Token 键命名空间只与业务缓存隔离，不得在 Gateway 与 `access-service` 之间相互隔离。两端配置一致性由部署配置约束保障，代码不实现跨进程启动校验（T-ACCESS-003 设计定案：运维部署部分不影响代码逻辑）；`jwt-secret-key` 配置无默认值（`${JWT_SECRET_KEY}`），缺失时 Spring 占位符解析失败导致启动失败。
 
 登录响应 `LoginResp.expiresIn` 的单一权威来源为 `sa-token.timeout`（`SaManager.getConfig().getTimeout()`，即真实会话 TTL），无独立展示键——避免 Nacos 只覆盖一项配置时展示与真实会话漂移（T-ACCESS-003 评审 P2，2026-08-14）。Gateway 配置经 T-ACCESS-003 评审 P1 从 `bootstrap.yml` 迁移至 `application.yml`（Boot 3 标准 ConfigData + `spring.config.import: optional:nacos:gateway.yml`，与 access-service 同模式）；原 bootstrap.yml 在 Boot 3 默认不加载（无 starter-bootstrap），Gateway 的 sa-token/Redis/路由/Nacos 配置实际从未生效，且存在 7 个启动缺陷（WebMvc 组件冲突、Bean 名冲突、spring-webmvc 在 classpath 触发 SCG 异常、路由前缀错误等）已随迁移修复；Gateway 上下文配置测试（`GatewayApplicationConfigTest`）固化为回归保障。
 
@@ -223,12 +223,12 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 | 入口 | 调用方要求 | 关键约束 | 实现 |
 |---|---|---|---|
-| `/auth/**` 公开子集 | 匿名/会话/OAuth2 JWT | 精确拆分：{captcha, login, login/sms, oauth2/token, oauth2/refresh, oauth2/revoke, logout} 匿名放行（logout 保持未登录 200 幂等）；{userinfo, user-menu, oauth2/authorize} 需会话 → USER 分支；{oauth2/userinfo} 需 OAuth2 JWT（验签 + 撤销黑名单 + 客户端启用校验后绑定；revoke 验签后写黑名单防匿名 Redis 键 DoS） | ANONYMOUS / USER 上下文；登录会话键 tenantId + subjectTypeCode |
-| OAuth2 开放业务路径（`access.oauth2.resource-paths` 显式配置，默认零开放） | OAuth2 JWT（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds 门禁） | 默认拒绝；启动防护禁覆盖会话端点与 /api/perm/**；userinfo 豁免 audience、业务路径强制 | USER + delegatedClientId 委托上下文 |
-| 用户管理接口（`/user/**` 等） | 有效用户会话 | 租户与会话一致；X-Tenant-Id/X-User-Id 头存在必须与会话一致（不一致 403）；未登录显式 401 | 会话权威：operatorId=loginId、tenantId=session 租户 |
-| `/api/perm/auth/**` | 已验证 Gateway 或注册业务服务 | 保持现有 SDK 请求头兼容；按服务和操作授权 | 内部凭证 → SERVICE（或签名用户态）；请求体主体非操作者 |
-| `/api/perm/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于已验证服务身份（凭证通过后绑定的 X-Service-Code，`SyncAuthVerifier` 从上下文比对） | SERVICE 上下文；不匹配 → SECURITY_DENIED |
-| 其他 `/api/perm/**` 管理接口 | 已验证 Gateway + 用户身份，或显式服务白名单 | 内部凭证不隐式获得全量管理权限：纯凭证调用 operatorId=null → 权限判定 fail-closed；X-User-Id 恒需验签才绑定操作者 | USER（验签）/ SERVICE（无操作者） |
+| `/api/access/auth/**` 公开子集 | 匿名/会话/OAuth2 JWT | 精确拆分：{captcha, login, login/sms, oauth2/token, oauth2/refresh, oauth2/revoke, logout} 匿名放行（logout 保持未登录 200 幂等）；{userinfo, user-menu, oauth2/authorize} 需会话 → USER 分支；{oauth2/userinfo} 需 OAuth2 JWT（验签 + 撤销黑名单 + 客户端启用校验后绑定；revoke 验签后写黑名单防匿名 Redis 键 DoS） | ANONYMOUS / USER 上下文；登录会话键 tenantId + subjectTypeCode |
+| OAuth2 开放业务路径（`access.oauth2.resource-paths` 显式配置，默认零开放） | OAuth2 JWT（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds 门禁） | 默认拒绝；启动防护禁覆盖会话端点与 /api/access/**；userinfo 豁免 audience、业务路径强制 | USER + delegatedClientId 委托上下文 |
+| 用户管理接口（`/api/access/user/**` 等） | 有效用户会话 | 租户与会话一致；X-Tenant-Id/X-User-Id 头存在必须与会话一致（不一致 403）；未登录显式 401 | 会话权威：operatorId=loginId、tenantId=session 租户 |
+| `/api/access/auth/**` | 已验证 Gateway 或注册业务服务 | 保持现有 SDK 请求头兼容；按服务和操作授权 | 内部凭证 → SERVICE（或签名用户态）；请求体主体非操作者 |
+| `/api/access/**/sync`、`/full-sync` | 已验证服务身份 | `sourceService` 必须等于已验证服务身份（凭证通过后绑定的 X-Service-Code，`SyncAuthVerifier` 从上下文比对） | SERVICE 上下文；不匹配 → SECURITY_DENIED |
+| 其他 `/api/access/**` 管理接口 | 已验证 Gateway + 用户身份，或显式服务白名单 | 内部凭证不隐式获得全量管理权限：纯凭证调用 operatorId=null → 权限判定 fail-closed；X-User-Id 恒需验签才绑定操作者 | USER（验签）/ SERVICE（无操作者） |
 | `/internal/**` | 已签名/凭证调用 | 与 /api/** 同签名链；匿名放行后由 RequestContext 显式 401 | HeaderSignature 覆盖 |
 | `/actuator/**` | 匿名 | 健康检查匿名放行（不强制 X-Tenant-Id）；暴露面最小化 health,info | ANONYMOUS；不在签名链 |
 
@@ -315,7 +315,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 - 除 §4.3 明确退役的内部同步管理接口外，保持现有 POST + JSON Body、HTTP 路径、DTO、统一响应体和错误码分段；`/admin/sync-task/*` 不属于兼容范围。
 - 错误码按编号段归属：`1xxxx` 承载管理面语义错误（用户档案/组织/菜单/字典/通知/文件/任务/认证等），`2xxxx` 承载权限面语义错误（角色/授权/资源/类型/条件/域/同步投影等）；跨面编排错误按对外入口所属面取码，与两面无关的公共技术失败使用 `9xxxx`（common GlobalErrorCode）。不得为 `access-service` 新增 `4xxxx` 段，也不得重编号既有错误码。**（T-ACCESS-038，2026-09-13 落地）**原 AdminErrorCode / PermissionErrorCode 两枚举已合一为单册 `infrastructure.enums.AccessErrorCode`（合类不合号：编号段原值保留、零重排）；**能力无专属段**——同一能力包可同时承载两段语义的错误（如 user 能力包管理轨 `1xxxx`、同步轨 `2xxxx`），新增码按错误业务语义选段；同名异号碰撞三组（USER_NOT_FOUND/USER_ALREADY_EXISTS/INVALID_PARAM）以 `ADMIN_`/`PERM_` 段前缀消解，编号对与各自调用方语义原样保留（基线映射与分段断言载体=ErrorCodeContractTest）。
-- `/admin/**`、`/perm/**`、`/auth/**` 的 Gateway 目标统一为 `lb://access-service`。
+- T-ACCESS-042 起 URL 单命名空间：`/api/access/**`（含登录族）单路由 `lb://access-service`，无 StripPrefix（`/admin/**`、`/perm/**` 外部前缀与 auth-routes 直通路由退役）。
 - `perm-sdk` 继续作为外部客户端，Feign 目标从 `permission-center` 改为 `access-service`。
 - access 内部代码禁止通过 `perm-sdk` 或 Feign 调用自身。
 - `serviceCode`、服务配置、资源映射、owner code、缓存失效载荷、日志和指标中原本代表两个旧服务的值立即统一为 `access-service`；不保留历史别名。
@@ -323,7 +323,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 **落地实现（T-ACCESS-010，2026-08-22，4 项设计定案）**：
 
-- **Gateway 路由合并（设计定案①）**：`/admin/**` 与 `/perm/**` 合并为一条路由 `id=access-service`（`lb://access-service`、`StripPrefix=1`、`metadata.serviceCode=access-service`），`/auth/**` 独立路由同目标（`StripPrefix=0`）；`gateway.permission.service-url` 默认值切换为 `lb://access-service`（`GatewayProperties` 与 YAML 同步）。路由契约由 `GatewayApplicationConfigTest` 固化：3 条路由（access-service/example-service/auth-routes）、合并路由的 Path/StripPrefix/serviceCode、以及旧服务名不得出现在路由 id 或发现目标（负向断言）。
+- **Gateway 路由合并（设计定案①）**：T-ACCESS-010 曾将 `/admin/**` 与 `/perm/**` 合并为一条路由（StripPrefix=1）；T-ACCESS-042 起单命名空间 `id=access-service` 路由改为 `Path=/api/access/**` 无 StripPrefix（`metadata.serviceCode=access-service`），`/api/access/auth/**` 独立路由同目标（`StripPrefix=0`）；`gateway.permission.service-url` 默认值切换为 `lb://access-service`（`GatewayProperties` 与 YAML 同步）。路由契约由 `GatewayApplicationConfigTest` 固化：3 条路由（access-service/example-service/auth-routes）、合并路由的 Path/StripPrefix/serviceCode、以及旧服务名不得出现在路由 id 或发现目标（负向断言）。
 - **perm-sdk（设计定案②③）**：`PermissionFeignClient` 的 `@FeignClient` name 切换为 `access-service`，18 个 `@PostMapping` 路径契约由新增 `PermissionFeignClientContractTest` 封闭清单固化（含 POST + 单一 `@RequestBody` 形态断言），证明切换不产生契约漂移。`SyncTaskFeignClient`（admin-service S5 内部同步调度器定制、Map 请求体、仓库内无使用者）删除；其封装的 8 个 sync/full-sync 端点对外部服务继续由服务端保留，外部服务按需经 `PermissionFeignClient` 或自行调用。`FeignInternalSyncInterceptor` 的 `perm.service-code` 去除默认值 `admin-service`（设计定案③）：配置了 `perm.internal-secret` 但未显式声明 `perm.service-code` 时 Spring 占位符解析失败启动失败（fail-fast，与 `jwt-secret-key` 同模式），防止调用方冒充已退役服务身份。
 - **旧名清理（设计定案④全量清理）**：主代码/测试的 Javadoc 与日志文本、Micrometer 指标 description（`gateway.perm.unreachable` 等 3 项）、测试 serviceCode 数据（统一中性值 `example-service`）、前端 mock/src 注释与 `serviceCode` mock 值（注册服务列表两条旧服务记录合并为一条 `access-service`）全部更新；`GatewayApplication` 侧无 `@LoadBalanced RestTemplate` 残留（无使用者的 `RestTemplateConfig` 已删除）。权威 DDL `access-service.sql` 表注释中"admin-service 事实源"更新为"access-service admin 域事实源"（2026-09-14 T-ACCESS-041 起表注释为「管理面事实源」）。**保留项**：`LocalProjectionOwner.LEGACY_ADMIN_SOURCE="admin-service"`（安全拒绝列表值，外部 sync 冒充旧来源仍被拒绝，含 `LocalProjectionGuardTest`/`AbstractUserSyncAppServiceTest.shouldRejectInternalSourceService` 负向断言）；`docs/design/access-service-api-contract.md`（契约总册） 等真实文档路径引用（T-ACCESS-012 重基线处理）；归并历史陈述（如 `AccessServiceApplication` Javadoc）。
 - **部署单元**：根 Maven 聚合自 T-ACCESS-001 起即不含旧模块，本任务核验无旧启动类/运行配置/源码目录/docker-compose 残留（仓库无容器编排文件，AGENTS.md 基础设施命令示例不涉及服务名）；`common/GlobalErrorCode` 错误码分段注释更新为管理域/权限域措辞，分段值不变（该代码注释沿用旧两域词汇至今——代码注释面不在 T-ACCESS-041 文档口径清扫范围，存量观察登记见 T-ACCESS-041 任务卡）。
@@ -385,7 +385,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 ### 12.3 业务编码语义与 `resource_entity.id` 边界
 
-- `resource_entity(USER).code` = 主体 ID 字符串化（`subjectId.toString()`）；`resource_entity(ROLE).code` = roleId 字符串化（`abstract_role.id.toString()`）。二者是实例级授权的业务编码（`resourceCode`），由 USER/ROLE 全写路径同事务投影维护（T-ACCESS-019 已落地 2026-08-23：管理面 user 能力 `UserWriteAppService`（既有）与权限面 `RoleManageAppService`/`UserManageAppService` 的 create/update/move/remove/启停全量经 `LocalProjectionDomainService` 维护投影；ROLE 投影 `parent_id` 镜像角色树且父投影缺失 fail-closed 回滚；`abstract-user/update` 门禁实例级（T-ACCESS-034 USER 轨细码化：name/extra 查 `USER:UPDATE`、enabled 查 `USER:ENABLE`，`deleteUsers` 查 `USER:DELETE`——原 `USER:MANAGE@subjectId` 已退役）。范围口径：外部 `/api/perm/**/sync|full-sync` 三入口不产投影、亦无缓存失效登记，为登记遗留——外部主体的 USER 资源按 §4.3 由外部经 resource-entity sync 自行维护，`UserRoleSync` 缓存失效缺口见 T-ACCESS-019 任务卡遗留节）。
+- `resource_entity(USER).code` = 主体 ID 字符串化（`subjectId.toString()`）；`resource_entity(ROLE).code` = roleId 字符串化（`abstract_role.id.toString()`）。二者是实例级授权的业务编码（`resourceCode`），由 USER/ROLE 全写路径同事务投影维护（T-ACCESS-019 已落地 2026-08-23：管理面 user 能力 `UserWriteAppService`（既有）与权限面 `RoleManageAppService`/`UserManageAppService` 的 create/update/move/remove/启停全量经 `LocalProjectionDomainService` 维护投影；ROLE 投影 `parent_id` 镜像角色树且父投影缺失 fail-closed 回滚；`abstract-user/update` 门禁实例级（T-ACCESS-034 USER 轨细码化：name/extra 查 `USER:UPDATE`、enabled 查 `USER:ENABLE`，`deleteUsers` 查 `USER:DELETE`——原 `USER:MANAGE@subjectId` 已退役）。范围口径：外部 `/api/access/**/sync|full-sync` 三入口不产投影、亦无缓存失效登记，为登记遗留——外部主体的 USER 资源按 §4.3 由外部经 resource-entity sync 自行维护，`UserRoleSync` 缓存失效缺口见 T-ACCESS-019 任务卡遗留节）。
 - **`resource_entity(TYPE_DEFINITION).code` = 复合业务键 `{typeKey}:{typeCode}`（T-PERM-051，2026-09-05 定案）**：typeCode 仅 `tenant+type_key` 内唯一（种子 user_type 与 resource_type 均有 USER/SERVICE 同名行），裸 code 跨族撞 `uk_resource_entity`，故以复合键消歧；格式构造唯一入口 `BusinessKeyUtil.typeInstanceBusinessKey`（golden 锁）。投影由 type-definition 写路径同事务维护（create 联动 / name 变更同步 / 软删级联投影行与投影行下授权行）+ bootstrap 自愈补种（存量种子行，幂等）两条事实链产出（类型所有权 SYNC+access-service，见 §4.3）；无树形语义（parent 恒 null、status 恒启用）。实例级门禁（list 第二段 / detail / update / remove 批量）全部按该复合键编码轨判定（经 `hasPermissionByCode`/`getDeniedResourceCodes`，投影缺失的键 fail-closed 计入拒绝）；`resource_entity.code` 列宽 256 即为容纳最坏 64+1+64=129 复合键而加宽（2026-09-07 用户定案）。
 - **`resource_entity(CONDITION).code` = 条件业务键 code（T-PERM-048，2026-09-11 定案）**：条件 code 在 `uk_permission_condition(tenant_id, code)` 租户内唯一（不像 typeCode 仅 type_key 内唯一），投影 code 直传无需复合键（无拼接不涉 BusinessKeyUtil 构造）；投影 status 镜像条件 enabled（停用条件自动隐出授权资源树 status=1 过滤）、parent 恒 null。仅 source=MANAGED 条件投影（INLINE 内联条件不投影）；实例级写门禁 CONDITION:UPDATE/DELETE@{code}（create 维持类型级）经该投影编码轨判定，scope_all 存量授权天然覆盖全部实例零破坏。
 - **`resource_entity.id` 边界**：USER/ROLE 等业务对象门禁与跨服务 SDK **不得使用** `resource_entity.id`，统一使用业务 code/externalId；权限面内部及直接管理资源实体的后台接口（资源树、API 映射、资源依赖、权限树等 `resource_entity` 自身的管理链路）允许继续使用，现有 `ApiMappingResp`/`ResourceDependencyResp` 等契约不因此重构（原 `ResourcePermissionTreeResp` 已随 T-PERM-059 删除，2026-09-10）。
@@ -424,7 +424,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | --------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------ |
 | `ADMIN_USER:ENABLE`@16                                                                                    | `USER:ENABLE`@32               | bit 重分配：USER 下 16 已被 `MANAGE` 占用（bit 唯一索引），32 空闲 |
 | `ADMIN_USER:RESET_PASSWORD`@64                                                                            | `USER:RESET_PASSWORD`@64       | bit 不变：USER 下 1/2/4/8/16 被占，64 空闲                    |
-| `ADMIN_ROLE:GRANT`@16 / `ADMIN_ROLE:REVOKE`@32                                                            | —（删除，不迁移）              | 零生产消费者（原用于已删除的 `/user-role/assign|revoke` 门禁）；职责已由 `ROLE:MANAGE` 承担；且 bit 与 `ROLE:MANAGE`@16 / `ROLE:ASSIGN`@32 冲突、`REVOKE` 与既有 `ROLE:REVOKE`@64（撤用户角色，语义不同）code 冲突。`AdminOperationCode.GRANT/REVOKE` 常量随 T-ACCESS-018 删除 |
+| `ADMIN_ROLE:GRANT`@16 / `ADMIN_ROLE:REVOKE`@32                                                            | —（删除，不迁移）              | 零生产消费者（原用于已删除的 `/api/access/user-role/assign|revoke` 门禁）；职责已由 `ROLE:MANAGE` 承担；且 bit 与 `ROLE:MANAGE`@16 / `ROLE:ASSIGN`@32 冲突、`REVOKE` 与既有 `ROLE:REVOKE`@64（撤用户角色，语义不同）code 冲突。`AdminOperationCode.GRANT/REVOKE` 常量随 T-ACCESS-018 删除 |
 | `ADMIN_ORG:CREATE_POSITION`@16 / `UPDATE_POSITION`@32 / `DELETE_POSITION`@64 / `ASSIGN_POSITION_USER`@128 / `MANAGE_MEMBER`@256 / `VIEW_POSITION`@512 | `ORG:*` 同名同 bit 迁移 | ORG 为新类型，仅 CRUD 预置 1/2/4/8 占用，16-512 空闲无冲突     |
 | `ADMIN_ORG:VIEW` / `ADMIN_USER:VIEW`（与 CRUD 预置 VIEW 完全重复，同 code/bit/mask）                      | 由 CRUD 预置 VIEW 覆盖         | 既有去重语义保持，不单独立行                                  |
 
@@ -435,7 +435,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 - 引擎枚举 `ResourceTypeCode`（12 码）与管理门禁 `AdminResourceType`（14 码）**合一为单一常量类**（T-ACCESS-018 实施命名），全量生产代码、前端权限串、安全矩阵按终态类型码切换；无兼容别名双写。
 - 对外 API 只使用稳定字符串 `type_code`；内部表继续存 `type_value INT`（api-contract §3.4 原则不变）。
 - 业务域分类模型联动：`domain_config` 的 `CLASSIFY` 配置按 `resourceTypeCode` 关联，类型码切换后自然生效；全局域（`global=true`）范围=有 CLASSIFY 声明按声明（T-PERM-046 定案 2026-09-09）、无声明为未被其他域认领的资源类型动态补集，注册表收敛不改变三模式（ALL/GLOBAL_PLUS/DOMAIN_ONLY）过滤逻辑。批量上下文的域过滤经 `DomainClassifyService.preloadCoveredTypeCodes` 一次预载模式覆盖集（含全局域声明/补集与认领集单次装配），循环内 `Set.contains` 复用，三模式判定结果与逐条 `matchesTypeCode` 一致（T-PERM-055）。
-- **MENU 资源语义**：`MENU:CREATE/UPDATE/DELETE/VIEW` 仅保护菜单配置后台（`/menu/**` 管理链路）；普通用户菜单可见性仍按 `sys_menu.resource_type`/`resource_code` 关联业务权限派生（`UserMenuQueryService` v3.5 §4.1 语义，§3 已述），两者不混同。
+- **MENU 资源语义**：`MENU:CREATE/UPDATE/DELETE/VIEW` 仅保护菜单配置后台（`/api/access/menu/**` 管理链路）；普通用户菜单可见性仍按 `sys_menu.resource_type`/`resource_code` 关联业务权限派生（`UserMenuQueryService` v3.5 §4.1 语义，§3 已述），两者不混同。
 
 ## 14. 空库 bootstrap 首管理员权限模型（T-ACCESS-016 定稿）
 
@@ -458,7 +458,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
   - 首管理员：`username=admin`（租户 1 内唯一）；`abstract_user(user_type=LOCAL_USER, external_id=主体 ID)`（§12.2）；`sys_user.id=主体 ID`；`resource_entity(USER).code=主体 ID`（§12.3）。
   - 管理用功能角色：`roleTypeCode=BASIC_ROLE`、`domainCode=null`（全局域）、`externalId=bootstrap-admin`；首管理员经 `user_role` 绑定该角色。
   - `resource_entity(SERVICE, code=access-service)`（固定图对象 1）。
-  - 管理 API 与目标接口的 API 资源：`resource_entity(API).code = {METHOD}:{外部路径}`（如 `POST:/admin/role/my-info`、`POST:/perm/api/perm/abstract-role/tree`），`code_type=default`；`resource_api_mapping.serviceCode=access-service`、`httpMethod/pathPattern` 与外部路径的方法和路径一致。
+  - 管理 API 与目标接口的 API 资源：`resource_entity(API).code = {METHOD}:{外部路径}`（如 `POST:/api/access/role/my-info`、`POST:/api/access/abstract-role/tree`；T-ACCESS-042 起外部路径=服务路径），`code_type=default`；`resource_api_mapping.serviceCode=access-service`、`httpMethod/pathPattern` 与外部路径的方法和路径一致。
   - 幂等三状态的「完整匹配」按上述键定位对象后比对身份、角色、关联与授权；「业务键被占用」= 任一键被非本图数据持有（fail-fast 报告具体冲突）。
 - **幂等三状态**：① 固定图完全不存在——单事务创建完整固定图；② 完整存在且身份、角色、关联与授权行齐全——整体 no-op，绝不重置密码；③ 部分存在（含授权行缺失；授权缺行处置例外见下方「收缩通道」条）、关联缺失或固定业务键被其他数据占用——启动失败并报告具体冲突，不自动修复、不补权、不扩权。**授权属性漂移放行（2026-09-02 口径定案，T-FE-018 联调暴露）**：canGrant/conditionId/grantedBits/dependOn/grantSource 等授权可变属性的管理端运营修改是产品正常能力——身份行（资源实体/范围 + 类型）存在而属性不符仅 warn 告警放行，不构成冲突、不重种覆盖（区分「种子半成品/授权行被删」与「运营修改」两种情况）。不新增 ownership 字段、种子版本表或通用 bootstrap 框架；唯一约束仅并发兜底（仅单实例启用）。
   - **收缩通道（2026-09-05 定案，T-ACCESS-029 承接实现）——软删墓碑三分判定**：管理端经授权页整行撤销固定图授权（软删）后，bootstrap 校验对「缺行」按墓碑三分：缺行 + 同身份键存在软删墓碑（`delete_flag=id` 历史行）= 管理端撤销过 → **WARN（列明具体授权键）放行、不补回**；缺行 + 无任何历史记录 = 初始化残缺/键被占用/硬删 → **维持 fail-fast**。墓碑可靠性：bootstrap 单事务创建（崩溃整体回滚不留半图）；`role_resource_permission` 应用层软删路径即管理端（apply-grant-plan removes + 级联）。已知取舍（定案接受）：误删与故意撤销不可区分（同 2026-09-02 属性漂移放行先例）；全瘫场景（撤销全部管理 API 授权锁死）仍需人工恢复——fail-fast 亦不恢复权限。墓碑查询为 bootstrap 诊断例外，不外泄为通用查询面（`BootstrapSeedWriter` 按角色查软删历史、身份键含 `resource_entity_id` NULL 的 scopeAll 行在内存按 IS NULL 语义匹配）。升级边界（现状语义，T-ACCESS-029 已实现成文；处置步骤见 `access-service-rebuild-runbook.md`「常见问题」）：固定图随版本增长，「新版新增条目缺行且无墓碑」仍按残缺拒启（不自动补权，升级旧库按 runbook 重建）；**墓碑判定边界（2026-09-05 定案补充）**——资源实体删除后重建会换 `resource_entity_id`，旧墓碑身份键不匹配新行 → 仍按缺行 fail-fast（判定合理：重建的资源是新的授权对象，旧撤销不构成其缺行合法性证据，放行即把撤销静默补成幽灵授权）。**本条为固定图相关问题的持续登记点**——后续遇到的固定图冲突/边界/运营摩擦在此追加记录（含日期与现象），攒批讨论调整，不零散改口径。已记录：2026-09-02 fail-fast 误伤授权页合法写操作（已按「缺行拦截+属性漂移放行」调整，T-FE-018 任务卡）；2026-09-05 收缩通道墓碑三分定案（原「未终案」撤销）。
@@ -476,25 +476,25 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 3. 首管理员主体链：`abstract_user(LOCAL_USER)` + `sys_user`（同主体 ID，§12.2）+ `resource_entity(USER)` 投影。
 4. 管理 API 清单内每个接口的 `resource_entity(API)` 资源 + `resource_api_mapping`，并给管理角色精确授予实例级 `API:ACCESS`。
 5. 业务门禁最小集授权（§14.4）。
-6. 目标接口 `/admin/role/my-info` 的 `resource_entity(API)` 资源 + 管理角色上 `API:ACCESS + canGrant=true` 的实例授权（授权载体见 §14.1；`canGrant` 使首管理员可向 BASIC_ROLE 传递该权限），**不创建**其 `resource_api_mapping`（映射由 E2E 真实创建）。
+6. 目标接口 `/api/access/role/my-info` 的 `resource_entity(API)` 资源 + 管理角色上 `API:ACCESS + canGrant=true` 的实例授权（授权载体见 §14.1；`canGrant` 使首管理员可向 BASIC_ROLE 传递该权限），**不创建**其 `resource_api_mapping`（映射由 E2E 真实创建）。
 
-**bootstrap 管理 API 清单**（Gateway 外部路径口径：管理面 `/admin/**`、权限面 `/perm/api/perm/**`；目标 API 与管理 API 的 `resource_entity(API)` 资源均由 bootstrap 内部写入，E2E 外部管理链路只创建目标映射，不授予 `RESOURCE:CREATE`）：
+**bootstrap 管理 API 清单**（T-ACCESS-042 起外部路径=服务路径，全命名空间 `/api/access/**`；目标 API 与管理 API 的 `resource_entity(API)` 资源均由 bootstrap 内部写入，E2E 外部管理链路只创建目标映射，不授予 `RESOURCE:CREATE`）：
 
 | # | 外部路径（Gateway）                                              | 动作 | 用途                                   |
 | - | ---------------------------------------------------------------- | ---- | -------------------------------------- |
-| 1 | `POST /perm/api/perm/abstract-role/tree`                          | 读   | 授权页角色树（选择目标角色）           |
-| 2 | `POST /perm/api/perm/type-definition/list`                        | 读   | 授权页类型定义列表（无条件加载）       |
-| 3 | `POST /perm/api/perm/resource-entity/tree`                        | 读   | 授权页资源树                           |
-| 4 | `POST /perm/api/perm/operation-permission/list`                   | 读   | 授权页操作列表                         |
-| 5 | `POST /perm/api/perm/permission-condition/list`                   | 读   | 授权页条件列表（无业务读取门禁，api-contract §5.6：条件规则全租户开放、非敏感；访问控制仅由 Gateway 层实例授权承担） |
-| 6 | `POST /perm/api/perm/role-resource-permission/list`               | 读   | 授权页既有授权查询（baseline）         |
-| 7 | `POST /perm/api/perm/role-resource-permission/sub-perm-allowed-types` | 读 | 授权页子权限类型只读查询               |
-| 8 | `POST /admin/user/create`                                        | 写   | 创建 E2E 目标用户                      |
-| 9 | `POST /perm/api/perm/abstract-role/create`                        | 写   | 创建 BASIC_ROLE                        |
-| 10 | `POST /perm/api/perm/resource-api-mapping/create`                | 写   | E2E 真实创建目标 API 映射             |
-| 11 | `POST /perm/api/perm/role-resource-permission/apply-grant-plan`  | 写   | 授权与回收（removes 段；授权与撤权同接口族，bootstrap 不为回收单列接口） |
-| 12 | `POST /perm/api/perm/user-role/assign`                           | 写   | 将 BASIC_ROLE 分配给目标用户           |
-| T | `POST /admin/role/my-info`                                       | 目标 | 登录用户自查（无二层管理门禁）；仅预建资源 + 预授 `API:ACCESS+canGrant`，**无映射** |
+| 1 | `POST /api/access/abstract-role/tree`                          | 读   | 授权页角色树（选择目标角色）           |
+| 2 | `POST /api/access/type-definition/list`                        | 读   | 授权页类型定义列表（无条件加载）       |
+| 3 | `POST /api/access/resource-entity/tree`                        | 读   | 授权页资源树                           |
+| 4 | `POST /api/access/operation-permission/list`                   | 读   | 授权页操作列表                         |
+| 5 | `POST /api/access/permission-condition/list`                   | 读   | 授权页条件列表（无业务读取门禁，api-contract §5.6：条件规则全租户开放、非敏感；访问控制仅由 Gateway 层实例授权承担） |
+| 6 | `POST /api/access/role-resource-permission/list`               | 读   | 授权页既有授权查询（baseline）         |
+| 7 | `POST /api/access/role-resource-permission/sub-perm-allowed-types` | 读 | 授权页子权限类型只读查询               |
+| 8 | `POST /api/access/user/create`                                        | 写   | 创建 E2E 目标用户                      |
+| 9 | `POST /api/access/abstract-role/create`                        | 写   | 创建 BASIC_ROLE                        |
+| 10 | `POST /api/access/resource-api-mapping/create`                | 写   | E2E 真实创建目标 API 映射             |
+| 11 | `POST /api/access/role-resource-permission/apply-grant-plan`  | 写   | 授权与回收（removes 段；授权与撤权同接口族，bootstrap 不为回收单列接口） |
+| 12 | `POST /api/access/user-role/assign`                           | 写   | 将 BASIC_ROLE 分配给目标用户           |
+| T | `POST /api/access/role/my-info`                                       | 目标 | 登录用户自查（无二层管理门禁）；仅预建资源 + 预授 `API:ACCESS+canGrant`，**无映射** |
 
 > 读接口以授权页（`views/perm/grant`）实际加载链路为准逐项核定（role-manage/type-def/resource-operation/permission-condition/permission-grant 五个消费模块）；缺读接口则首管理员能进页面但初始化请求全 403。
 
@@ -529,15 +529,15 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 
 | 接口（服务内路径）                        | 终态门禁（类型级）     |
 | ----------------------------------------- | ---------------------- |
-| `/api/perm/abstract-role/tree`            | `ROLE:VIEW`            |
-| `/api/perm/resource-entity/tree`          | `RESOURCE:VIEW`        |
-| `/api/perm/operation-permission/list`     | `OPERATION:VIEW`       |
+| `/api/access/abstract-role/tree`            | `ROLE:VIEW`            |
+| `/api/access/resource-entity/tree`          | `RESOURCE:VIEW`        |
+| `/api/access/operation-permission/list`     | `OPERATION:VIEW`       |
 
 bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `ROLE:MANAGE` 掩码）以本终态为前提闭合。
 
 ### 14.6 E2E 目标接口定稿
 
-- 目标接口固定为 `POST /admin/role/my-info`（登录用户自查，无二层管理门禁）。
+- 目标接口固定为 `POST /api/access/role/my-info`（登录用户自查，无二层管理门禁）。
 - bootstrap 仅预建其 `resource_entity(API)` 资源并在管理角色上精确授予该 API 的 `API:ACCESS + canGrant=true`（首管理员经该角色预持，授权载体见 §14.1），不创建其 `resource_api_mapping`——映射由 E2E 真实创建：既保证「真实创建 API 映射」步骤成立，又使 `canGrant` 授权传递链合法、目标用户保持初始 403。
 - E2E 目标用户与普通功能角色由 E2E 场景内经管理链路创建（双角色双用户模型，配合 T-ACCESS-020/T-ACCESS-021）。
 
@@ -561,7 +561,7 @@ bootstrap 的 §14.4 最小集（`RESOURCE:VIEW`/`OPERATION:VIEW` scopeAll + `RO
 
 ## 15. 文件存储单实例本地盘约束（T-ADMIN-023 登记，2026-08-25）
 
-> 文件模块（`/file/*`，管理面）物理文件存储在**本地磁盘**（`file.storage.path`，默认 `${user.home}/accessmesh-files`），
+> 文件模块（`/api/access/file/*`，管理面）物理文件存储在**本地磁盘**（`file.storage.path`，默认 `${user.home}/accessmesh-files`），
 > 与 §1.1「支持至少两个 access-service 实例并行运行」目标的关系在此显式登记。
 
 - **已知限制**：多实例部署下本地盘不可共享——元数据（`sys_file`）在共享 PostgreSQL，物理文件在实例本地盘，

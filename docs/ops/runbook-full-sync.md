@@ -8,11 +8,11 @@
 
 | 通道 | 接口 | 用途 | 语义 |
 |---|---|---|---|
-| 资源实体逐条 | `POST /api/perm/resource-entity/sync` | 外部对象 ↔ 自有资源类型实例（UPSERT/DISABLE/DELETE） | 幂等单条 |
-| 资源实体全量 | `POST /api/perm/resource-entity/full-sync` | scope 内全量校准 | 补缺失 + 清多余 |
-| 主体/角色/成员逐条 | `POST /api/perm/abstract-user/sync`、`abstract-role/sync`、`user-role/sync` | 主体/角色 UPSERT/DISABLE/DELETE、成员 BIND/UNBIND | 幂等单条 |
+| 资源实体逐条 | `POST /api/access/resource-entity/sync` | 外部对象 ↔ 自有资源类型实例（UPSERT/DISABLE/DELETE） | 幂等单条 |
+| 资源实体全量 | `POST /api/access/resource-entity/full-sync` | scope 内全量校准 | 补缺失 + 清多余 |
+| 主体/角色/成员逐条 | `POST /api/access/abstract-user/sync`、`abstract-role/sync`、`user-role/sync` | 主体/角色 UPSERT/DISABLE/DELETE、成员 BIND/UNBIND | 幂等单条 |
 | 主体/角色/成员全量 | 对应 `/full-sync` | scope 内全量校准 | 补缺失 + 清多余 |
-| 服务接口清单 | `POST /api/perm/service-config/sync`（§6.3） | API 清单登记（service-config 声明通道） | 全量替换 |
+| 服务接口清单 | `POST /api/access/service-config/sync`（§6.3） | API 清单登记（service-config 声明通道） | 全量替换 |
 
 **选择规则**：常态增量事件 → 逐条 `sync`；对账/初始化/源侧发生过批量修复 → `full-sync`（单请求 = scope 内完整事实声明，**缺失即删除**）。组织树等有树依赖的数据按足够小的 scope 拆分调用，避免单请求过大。
 

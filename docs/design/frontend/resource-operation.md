@@ -94,19 +94,19 @@ last_reviewed: 2026-09-13   # T-ACCESS-036：字段表删 sortOrder 行（resour
 
 | 接口 | 用途 | 核对 |
 |---|---|---|
-| `POST /api/perm/resource-entity/tree` | 资源树（按 resourceTypeCode 过滤） | ✅ |
-| `POST /api/perm/resource-entity/detail` | 资源详情（编辑态拉 extra） | ✅ 业务键（T-PERM-028） |
-| `POST /api/perm/resource-entity/create` | 创建资源 | ✅ |
-| `POST /api/perm/resource-entity/update` | 更新资源 | ✅ 业务键 + extraClear（T-PERM-028） |
-| `POST /api/perm/resource-entity/move` | 移动资源 | ✅ 业务键对 {resource, parent\|null}（T-PERM-028） |
-| `POST /api/perm/resource-entity/remove` | 删除资源（批量） | ✅ {items:[业务键]}（T-PERM-028） |
-| `POST /api/perm/resource-entity/list` | 资源列表（分页） | ✅（本页不消费；已补 RESOURCE:VIEW 门禁） |
-| `POST /api/perm/resource-entity/batch-create` | 批量创建 | ✅（本页不消费） |
-| `POST /api/perm/operation-permission/list` | 操作权限列表 | ✅（无分页，前端本地处理） |
-| `POST /api/perm/operation-permission/detail` | 操作详情 | ✅ 业务键（resourceTypeCode 必填；全局操作概念已退役，T-PERM-028） |
-| `POST /api/perm/operation-permission/create` | 创建操作 | ✅ 位字段十进制字符串（T-PERM-028） |
-| `POST /api/perm/operation-permission/update` | 更新操作 | ✅ 业务键；code/type 不可改（T-PERM-028） |
-| `POST /api/perm/operation-permission/remove` | 删除操作（批量） | ✅ {items:[业务键]}（T-PERM-028） |
+| `POST /api/access/resource-entity/tree` | 资源树（按 resourceTypeCode 过滤） | ✅ |
+| `POST /api/access/resource-entity/detail` | 资源详情（编辑态拉 extra） | ✅ 业务键（T-PERM-028） |
+| `POST /api/access/resource-entity/create` | 创建资源 | ✅ |
+| `POST /api/access/resource-entity/update` | 更新资源 | ✅ 业务键 + extraClear（T-PERM-028） |
+| `POST /api/access/resource-entity/move` | 移动资源 | ✅ 业务键对 {resource, parent\|null}（T-PERM-028） |
+| `POST /api/access/resource-entity/remove` | 删除资源（批量） | ✅ {items:[业务键]}（T-PERM-028） |
+| `POST /api/access/resource-entity/list` | 资源列表（分页） | ✅（本页不消费；已补 RESOURCE:VIEW 门禁） |
+| `POST /api/access/resource-entity/batch-create` | 批量创建 | ✅（本页不消费） |
+| `POST /api/access/operation-permission/list` | 操作权限列表 | ✅（无分页，前端本地处理） |
+| `POST /api/access/operation-permission/detail` | 操作详情 | ✅ 业务键（resourceTypeCode 必填；全局操作概念已退役，T-PERM-028） |
+| `POST /api/access/operation-permission/create` | 创建操作 | ✅ 位字段十进制字符串（T-PERM-028） |
+| `POST /api/access/operation-permission/update` | 更新操作 | ✅ 业务键；code/type 不可改（T-PERM-028） |
+| `POST /api/access/operation-permission/remove` | 删除操作（批量） | ✅ {items:[业务键]}（T-PERM-028） |
 
 ## 6. 组件结构
 
@@ -167,7 +167,7 @@ views/system/resource-operation/
 - `remove` 级联软删子孙（resource，真实递归 CTE）。
 - `operation-permission list` 无分页，前端本地过滤，量小可接受。
 
-> mock 终态（T-FE-017，2026-09-02；2026-09-14 T-FE-044 更新）：`mock/resource-operation.ts` 的 11 个 fake-server 路由（旧 `/api/perm/**`，自 T-FE-041 失配）已删除；原保留的数据导出（resources/operations/presetOperationsForType/InternalResource）已随三个消费页联调全部退役——type-def/permission-grant 随各自 Phase 3 联调任务退役，resource-dependency 页 T-FE-044 收官时 `mock/_shared/resource-fixtures.ts` 整删，mock 目录仅剩 login.ts（开关门控）与 asyncRoutes.ts（模板参考）。
+> mock 终态（T-FE-017，2026-09-02；2026-09-14 T-FE-044 更新）：`mock/resource-operation.ts` 的 11 个 fake-server 路由（旧 `/api/access/**`，自 T-FE-041 失配）已删除；原保留的数据导出（resources/operations/presetOperationsForType/InternalResource）已随三个消费页联调全部退役——type-def/permission-grant 随各自 Phase 3 联调任务退役，resource-dependency 页 T-FE-044 收官时 `mock/_shared/resource-fixtures.ts` 整删，mock 目录仅剩 login.ts（开关门控）与 asyncRoutes.ts（模板参考）。
 
 ## 9. 验收记录
 

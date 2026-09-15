@@ -8,7 +8,7 @@ last_reviewed: 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api
 
 # 7.1 操作日志页 前端设计
 
-> **T-FE-022 联调注记（2026-09-03）**：api/operation-log.ts 两端点切 Gateway `/perm/api/perm/log/operation/*`；mock/operation-log.ts 整删；浏览器实证 list 服务端分页 + action-options 动态字典（下拉值与库内实际 action 去重集合精确对应）。
+> **T-FE-022 联调注记（2026-09-03）**：api/operation-log.ts 两端点切 Gateway `/api/access/log/operation/*`；mock/operation-log.ts 整删；浏览器实证 list 服务端分页 + action-options 动态字典（下拉值与库内实际 action 去重集合精确对应）。
 
 > 任务：T-FE-005（Phase 1，mock 驱动，第 1 批末页）
 > 后端契约：`docs/design/access-service-api-contract.md`（契约总册）§16（T-PERM-025 收口：两行条目 + operation-log 契约要点，路径为实现路径）
@@ -97,10 +97,10 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），与 6.1
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 列表 | `POST /api/perm/log/operation/list` | `{module?,action?,operatorId?,since?,until?,targetType?,pageNum,pageSize}` | `PageResp<OperationLogResp>`（服务端分页，排序 createdAt DESC） | ✅（T-PERM-025 收口） |
-| 字典 | `POST /api/perm/log/operation/action-options` | `{module?}` | `ItemsResp<String>`（action 去重集合，字典序） | ✅（T-PERM-025 新增） |
+| 列表 | `POST /api/access/log/operation/list` | `{module?,action?,operatorId?,since?,until?,targetType?,pageNum,pageSize}` | `PageResp<OperationLogResp>`（服务端分页，排序 createdAt DESC） | ✅（T-PERM-025 收口） |
+| 字典 | `POST /api/access/log/operation/action-options` | `{module?}` | `ItemsResp<String>`（action 去重集合，字典序） | ✅（T-PERM-025 新增） |
 
-> **路径说明**：api-contract §5.8 路径即实现路径 `/api/perm/log/operation/list`（历史误写 `/api/perm/operation-log/list` 已随 T-ACCESS-007 评审修复（提交 371d9d009）修正，T-PERM-025 核实无残留）。
+> **路径说明**：api-contract §5.8 路径即实现路径 `/api/access/log/operation/list`（历史误写 `/api/access/operation-log/list` 已随 T-ACCESS-007 评审修复（提交 371d9d009）修正，T-PERM-025 核实无残留）。
 >
 > **无 detail 接口**：后端只有 list 与 action-options，详情由前端抽屉展示 list 已返回字段。
 
@@ -140,16 +140,16 @@ views/system/operation-log/
 
 > **路由可达性与按钮门禁现状（项目共性，非本页独有）**：
 > - **路由可达性**：pure-admin-thin 的 `filterNoPermissionTree`（`router/utils.ts:85`）路由过滤**只基于 `meta.roles`，不使用 `meta.auths`**。本页及 user/role/type-def/system-config 等所有页 meta 均只有 `auths` 无 `roles`，故菜单对所有登录用户可见，**页面级拦截靠后端 403 兜底**。
-> - **按钮门禁**：本页按钮 `canView = hasPerms(OPERATION_LOG_PERMS.LOG_VIEW)`（`index.vue`），`hasPerms`（`utils/auth.ts:131`）读取**登录态 `permissions`**（`/auth/user-menu` 下发的 perm 串数组），**不是 `meta.auths`**。
+> - **按钮门禁**：本页按钮 `canView = hasPerms(OPERATION_LOG_PERMS.LOG_VIEW)`（`index.vue`），`hasPerms`（`utils/auth.ts:131`）读取**登录态 `permissions`**（`/api/access/auth/user-menu` 下发的 perm 串数组），**不是 `meta.auths`**。
 > - **`meta.auths` 的真实用途**：仅作为路由元信息清单（派生自 `OPERATION_LOG_PERM_LIST`），供 `hasAuth`（`router/utils.ts:366`，从当前路由 meta.auths 读）使用；本页按钮未用 `hasAuth`。即 `meta.auths` 是路由级元信息/`hasAuth` 清单，不参与本页按钮显隐。
 > 这与 role-manage.md / type-definition.md / system-config.md 同口径（既有文档同样把按钮门禁写成 auths 控制，属共性表述偏差）。
 
-- 无 `OPERATION_LOG:VIEW` → **菜单仍可见、路由可达**（路由过滤基于 roles，本项目未设 roles）；进入页面后 `loadTable` 调 `/api/perm/log/operation/list` 由后端 VIEW 校验拒绝（403），前端 `message` 报错。本页 VIEW 级按钮（「查看」）隐藏（`v-if="canView"`，`hasPerms` 读登录态 permissions 判定），操作列显示「—」。
+- 无 `OPERATION_LOG:VIEW` → **菜单仍可见、路由可达**（路由过滤基于 roles，本项目未设 roles）；进入页面后 `loadTable` 调 `/api/access/log/operation/list` 由后端 VIEW 校验拒绝（403），前端 `message` 报错。本页 VIEW 级按钮（「查看」）隐藏（`v-if="canView"`，`hasPerms` 读登录态 permissions 判定），操作列显示「—」。
 - 有 `OPERATION_LOG:VIEW` → 「查看」按钮可见，可打开详情抽屉。
 
 > ~~🔧 `SYSTEM_CONFIG:VIEW` 复用审计语义问题~~ 已随 T-PERM-025 审计分离收口（2026-08-28 设计定案）：独立 `OPERATION_LOG:VIEW`，前端常量已切换。
 >
-> ~~🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user/system-config 同）~~ **已收口（2026-08-31 设计定案，T-PERM-037）**：菜单可见性 v3.5 §4.1 ∃op 派生方案后端已实现（`/auth/user-menu` 双轨下发按权限过滤后的 menus 树），前端接线归入 Phase 3 联调 T-FE-015（登录链路切真实接口时菜单栏从本地静态路由切后端派生 menus 树）；不改 `filterNoPermissionTree` 按 `meta.auths` 过滤（与后端派生方案重复，且 auths 为前端静态声明可绕过）。联调前维持「菜单可见、路由可达、后端 VIEW 403 兜底」。
+> ~~🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user/system-config 同）~~ **已收口（2026-08-31 设计定案，T-PERM-037）**：菜单可见性 v3.5 §4.1 ∃op 派生方案后端已实现（`/api/access/auth/user-menu` 双轨下发按权限过滤后的 menus 树），前端接线归入 Phase 3 联调 T-FE-015（登录链路切真实接口时菜单栏从本地静态路由切后端派生 menus 树）；不改 `filterNoPermissionTree` 按 `meta.auths` 过滤（与后端派生方案重复，且 auths 为前端静态声明可绕过）。联调前维持「菜单可见、路由可达、后端 VIEW 403 兜底」。
 
 ### 角色矩阵（历史 mock 口径，真实链路 T-FE-041 后权限来自后端授权）
 
@@ -159,10 +159,10 @@ views/system/operation-log/
 
 Phase 1 登记的 🔧 项处置终态：
 
-1. ✅ **契约路径与字段契约**：路径误写已于 T-ACCESS-007 评审修复（提交 371d9d009）修正（§5.8 现为实现路径 `/api/perm/log/operation/list`）；operation-log 契约要点（字段/多维筛选/action-options/OPERATION_LOG:VIEW 门禁）已补入 api-contract §5.8。
+1. ✅ **契约路径与字段契约**：路径误写已于 T-ACCESS-007 评审修复（提交 371d9d009）修正（§5.8 现为实现路径 `/api/access/log/operation/list`）；operation-log 契约要点（字段/多维筛选/action-options/OPERATION_LOG:VIEW 门禁）已补入 api-contract §5.8。
 2. ✅ **筛选维度扩展**：`OperationLogListReq` 补 `operatorId`/`since`/`until`（created_at 闭区间）/`targetType`，均精确匹配（等值索引友好，schema 对应 idx_operation_log_operator/idx_operation_log_target）；前端筛选表单同步扩展（操作者 ID/时间范围/目标类型）。
 3. ✅ **审计分离（设计定案 2026-08-28）**：新增独立 `OPERATION_LOG:VIEW` 权限码——type_definition 种子 OPERATION_LOG=30（CRUD 预置组自动覆盖 VIEW）、`ResourceTypeCode.OPERATION_LOG` 枚举、`LogQueryAppServiceImpl` 操作日志查询（list/count/action-options）门禁切换；bootstrap 固定图管理角色补授（§14.4 最小集，新权限码须固定图持否则无授予起点死锁）；前端 `OPERATION_LOG_PERMS.LOG_VIEW` 切换。**边界**：变更日志（log/change/list）已随 T-PERM-032 切独立 `PERMISSION_CHANGE_LOG:VIEW`；权限排查视图（permission-view/explain/recent-changes）门禁历史口径（T-PERM-033：被查目标实例 `USER:VIEW`/`ROLE:VIEW`、不引入独立排查码；该端点族已随 T-PERM-059 删除，2026-09-10）。
-4. ✅ **action 字典（任务卡主项）**：新增 `POST /api/perm/log/operation/action-options`（module 可选过滤）返回 operation_log 实际存在的 action 去重集合（非维护端枚举，避免与 @OperationLog 注解清单双轨漂移）；前端 ACTION_OPTIONS 硬编码 12 项子集移除，hook 动态拉取全量字典（label=value=code，filterable 下拉）；LogDetailDrawer action 展示改原始编码。
+4. ✅ **action 字典（任务卡主项）**：新增 `POST /api/access/log/operation/action-options`（module 可选过滤）返回 operation_log 实际存在的 action 去重集合（非维护端枚举，避免与 @OperationLog 注解清单双轨漂移）；前端 ACTION_OPTIONS 硬编码 12 项子集移除，hook 动态拉取全量字典（label=value=code，filterable 下拉）；LogDetailDrawer action 展示改原始编码。
 5. ✅ **action 筛选语义（任务卡决策点，设计定案 2026-08-28）**：动态字典下拉 + 精确匹配——字典含全部实际存在事件码（约 102 个）检索已闭环，保持等值匹配索引语义；不做自由输入/模糊匹配（后端查询语义未改）。
 
 ### ✅ 满足

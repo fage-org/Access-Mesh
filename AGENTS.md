@@ -45,7 +45,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 | 定案登记表         | `docs/design/decision-registry.md`（定案消费与评审豁免唯一入口；用户定案当轮登记） |
 | 整体架构           | `docs/design/architecture.md`              |
 | 归并后目标架构     | `docs/design/access-service-architecture.md` |
-| access-service API 契约总册 | `docs/design/access-service-api-contract.md`（两 URL 家族同册分列、按能力分章，T-ACCESS-040 两册合一） |
+| access-service API 契约总册 | `docs/design/access-service-api-contract.md`（单命名空间 `/api/access/**`、按能力分章；T-ACCESS-040 两册合一、T-ACCESS-042 URL 统一——外部路径=服务路径，无 Gateway StripPrefix） |
 | 引擎子系统概念模型 | `docs/design/engine/overview.md` |
 | 引擎子系统核心流程 | `docs/design/engine/core-flows.md` |
 | 引擎子系统实现设计 | `docs/design/engine/implementation.md` |

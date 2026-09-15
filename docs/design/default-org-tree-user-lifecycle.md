@@ -166,14 +166,14 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 | `sys_user_org` | `bindUserOrg` / `unbindUserOrg` |
 | `sys_menu`（非按钮） | `upsertAdminMenu` / `deleteAdminMenu` |
 
-本地投影 `owner_service_code=access-service`，不写 `sync_metadata`。外部业务服务仍使用 `/api/perm/**/sync` 与 `sync_metadata`。`role_resource_permission` 属于权限面授权事实，不由管理事实投影产生。
+本地投影 `owner_service_code=access-service`，不写 `sync_metadata`。外部业务服务仍使用 `/api/access/**/sync` 与 `sync_metadata`。`role_resource_permission` 属于权限面授权事实，不由管理事实投影产生。
 
 ### 5.5 全量校准同步（仅外部业务服务）
 
 > T-ACCESS-005（2026-08-15）整改：内部同步子系统（`sys_sync_task`、Feign、调度重试）已删除，
 > access-service 对 `sys_user`/`sys_org`/`sys_user_org`/`sys_menu` 的写入由 `access.application`
 > 在同一事务内直接维护本地权限投影（见 §5.4），**不再需要也不应发起 full-sync 校准**。
-> 本节的 full-sync 语义仅适用于仍通过 `/api/perm/**/sync` + `sync_metadata` 同步的外部业务服务。
+> 本节的 full-sync 语义仅适用于仍通过 `/api/access/**/sync` + `sync_metadata` 同步的外部业务服务。
 
 全量同步用于修复外部业务服务单次同步漏发、重试耗尽、权限中心数据误删或多余同步事实残留，不替代单次同步。全量同步采用 permission-center 分领域校准接口：外部业务服务按强制 scope 上报该范围内完整事实，permission-center 在同一 source/scope 下对比自身同步事实，补齐缺失并清理多余数据。全量校准可以生成或执行 `UPSERT/BIND/DISABLE/DELETE/UNBIND`。
 
@@ -181,10 +181,10 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 
 | 领域 | 接口 | scope 示例 |
 |------|------|------------|
-| 主体 | `POST /api/perm/abstract-user/full-sync` | `subjectTypeCode={subjectTypeCode}` |
-| 角色 | `POST /api/perm/abstract-role/full-sync` | `roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
-| 用户角色关系 | `POST /api/perm/user-role/full-sync` | `sourceType={sourceType}&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
-| 资源实体 | `POST /api/perm/resource-entity/full-sync` | `resourceTypeCode={resourceTypeCode}` |
+| 主体 | `POST /api/access/abstract-user/full-sync` | `subjectTypeCode={subjectTypeCode}` |
+| 角色 | `POST /api/access/abstract-role/full-sync` | `roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+| 用户角色关系 | `POST /api/access/user-role/full-sync` | `sourceType={sourceType}&roleTypeCode={roleTypeCode}&treeRootExternalId={treeRootExternalId}` |
+| 资源实体 | `POST /api/access/resource-entity/full-sync` | `resourceTypeCode={resourceTypeCode}` |
 
 外部业务服务发起全量校准时必须按依赖顺序编排（**类型必须为外部业务服务自有类型**）：
 
@@ -214,7 +214,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 | 非默认树移除成员 | 只能删除目标关系，不得删除用户身份。 |
 | 设置主组织 | 首期只允许在默认组织树内操作；如果未来需要每棵树一个主节点，必须显式增加树维度。 |
 
-`/user-org/assign` 不得再采用“先删除用户所有组织关系再插入新关系”的全局替换语义。允许的实现方式只有两类：
+`/api/access/user-org/assign` 不得再采用“先删除用户所有组织关系再插入新关系”的全局替换语义。允许的实现方式只有两类：
 
 1. 纯追加/幂等添加目标关系。
 2. 在明确传入树上下文后，仅替换该树内关系。
@@ -260,11 +260,11 @@ user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 res
 | P0 | 补齐 `sys_user` 同步时同时创建 `resource_entity(USER)`，使用业务键定位。 |
 | P0 | 补齐 `sys_org -> resource_entity(ORG)` 与 `sys_org -> abstract_role(ORG/POSITION)` 双同步，均使用业务键定位。 |
 | P0 | 删除 `sys_user.perm_user_id`、`sys_org.perm_role_id` 字段及所有引用，改为业务键调用。 |
-| ~~P0~~ | ~~清理 `RoleProxyServiceImpl` 中 `ORG_ROLE` 旧口径~~ — **已完成（T-ACCESS-006）**：`RoleProxyServiceImpl` 已删除，admin 侧 `/role/*` 写端点已删除（T-ADMIN-024，无映射 404），组织/岗位角色由 `access.application` 组织写入事务统一维护 `abstract_role(ORG/POSITION)`；`ORG`→组织角色、`POSITION`→岗位角色映射由 `UserRoleQueryServiceImpl`/`OrgOperationCodeMapper` 承载。 |
+| ~~P0~~ | ~~清理 `RoleProxyServiceImpl` 中 `ORG_ROLE` 旧口径~~ — **已完成（T-ACCESS-006）**：`RoleProxyServiceImpl` 已删除，admin 侧 `/api/access/role/*` 写端点已删除（T-ADMIN-024，无映射 404），组织/岗位角色由 `access.application` 组织写入事务统一维护 `abstract_role(ORG/POSITION)`；`ORG`→组织角色、`POSITION`→岗位角色映射由 `UserRoleQueryServiceImpl`/`OrgOperationCodeMapper` 承载。 |
 | P0 | 补齐 `sys_user_org -> user_role` 同步和缓存失效。 |
 | P1 | 拆分用户目录、组织成员列表、添加成员候选集的查询语义。 |
 | P1 | 默认组织树切换、删除、根节点配置增加保护规则。 |
-| P1 | 内部同步任务模型已由 T-ACCESS-005 退役；管理事实与权限投影同事务维护。外部业务服务仍走 `/api/perm/**/sync|full-sync`。 |
+| P1 | 内部同步任务模型已由 T-ACCESS-005 退役；管理事实与权限投影同事务维护。外部业务服务仍走 `/api/access/**/sync|full-sync`。 |
 | P2 | 前端文案和按钮从”新增用户”区分为”创建用户”和”添加已有用户”。 |
 
 ---

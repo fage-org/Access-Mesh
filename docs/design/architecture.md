@@ -42,7 +42,7 @@ last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径
 
 ### 1.3 架构拓扑图
 
-> T-ACCESS-010（2026-08-22）起为归并后拓扑：Gateway 是用户流量唯一入口，`/admin/**`、`/perm/**`、`/auth/**` 统一路由到 `lb://access-service`。
+> T-ACCESS-010（2026-08-22）归并为单部署单元；T-ACCESS-042（2026-09-15）起 URL 单命名空间：Gateway 是用户流量唯一入口，`/api/access/**`（含登录族）单路由到 `lb://access-service`，无 StripPrefix（`/admin/**`、`/perm/**` 外部前缀退役）。
 
 ```
                           ┌──────────────────┐
@@ -83,15 +83,15 @@ last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径
 
 | 调用方          | 被调方        | 协议           | 场景                                                                                         |
 | --------------- | ------------- | -------------- | -------------------------------------------------------------------------------------------- |
-| gateway         | access-service | HTTP (转发)    | `/admin/**`、`/perm/**`（合并路由，StripPrefix=1）、`/auth/**`（StripPrefix=0）登录与管理接口转发 |
-| gateway         | access-service | HTTP (负载均衡 WebClient) | 快照鉴权：`POST /api/perm/auth/interface-snapshot` 拉取全量接口权限快照；未覆盖场景回退 `check-interface` 实时鉴权 |
+| gateway         | access-service | HTTP (转发)    | `/api/access/**` 单路由（外部路径=服务路径，无 StripPrefix；登录/管理/权限接口统一转发） |
+| gateway         | access-service | HTTP (负载均衡 WebClient) | 快照鉴权：`POST /api/access/auth/interface-snapshot` 拉取全量接口权限快照；未覆盖场景回退 `check-interface` 实时鉴权 |
 | gateway         | example-service | HTTP (转发)   | 演示服务接口转发                                                                             |
-| 管理员/运维（经 Gateway） | access-service | HTTP（管理面，运维期） | 接口资源注册：管理员经 `POST /api/perm/service-config/sync`（FULL 接口声明）一步创建 API 资源与映射（T-API-001 E2E 钉死；原 resource-entity/sync 直连通道已随 T-PERM-052 类型级所有权退役——API 类型恒 MANAGED，同步入口一律拒绝）。example-service 运行期对 access-service 零调用——接口级鉴权由 Gateway 承担（T-API-001：example 已删 perm-client/openfeign，无 Feign 鉴权查询） |
+| 管理员/运维（经 Gateway） | access-service | HTTP（管理面，运维期） | 接口资源注册：管理员经 `POST /api/access/service-config/sync`（FULL 接口声明）一步创建 API 资源与映射（T-API-001 E2E 钉死；原 resource-entity/sync 直连通道已随 T-PERM-052 类型级所有权退役——API 类型恒 MANAGED，同步入口一律拒绝）。example-service 运行期对 access-service 零调用——接口级鉴权由 Gateway 承担（T-API-001：example 已删 perm-client/openfeign，无 Feign 鉴权查询） |
 
 ### 1.5 管理端前后端交互原则
 
-- 管理端前端统一通过 Gateway 访问 access-service（`/admin/**`、`/perm/**`、`/auth/**` 路由目标统一），由 access-service 作为前端唯一后端聚合入口；前端不直接调用后端服务。
-- 认证链采用“最小登录返回 + 后续聚合拉取”模型：前端调用 `/auth/login` 获取 token 与最小身份信息后，再调用 `/auth/userinfo` 与 `/auth/user-menu` 获取用户上下文、菜单、角色和权限结果。
+- 管理端前端统一通过 Gateway 访问 access-service（`/api/access/**` 单命名空间路由，T-ACCESS-042），由 access-service 作为前端唯一后端聚合入口；前端不直接调用后端服务。
+- 认证链采用“最小登录返回 + 后续聚合拉取”模型：前端调用 `/api/access/auth/login` 获取 token 与最小身份信息后，再调用 `/api/access/auth/userinfo` 与 `/api/access/auth/user-menu` 获取用户上下文、菜单、角色和权限结果。
 - 业务路由、菜单和按钮权限的真实来源是后端聚合结果。其中菜单和路由由 access-service 管理面聚合下发，按钮权限由稳定 `permissions` 权限码表达。
 - 前端本地 mock 可以保留并改造，用于基础前端验证、联调兜底和组件级演示，但不作为长期生产契约或路由权限事实源。
 - 管理端前端最终只保留一套权限呈现模型；模板式 `auths`、`meta.roles` 等逻辑仅允许作为过渡兼容，不再作为新增设计的基准。
@@ -145,9 +145,9 @@ last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径
     │   │        ├─ 条件授权且条件规则已内联 → 本地评估，通过则放行
     │   │        └─ 条件规则未下发 → 标记 FALLBACK，回退实时鉴权
     │   └─ 未命中 → 在 5 秒全链路硬截止内回源拉取快照
-    │              POST /api/perm/auth/interface-snapshot（access-service）
+    │              POST /api/access/auth/interface-snapshot（access-service）
     │
-    ├─ FALLBACK：POST /api/perm/auth/check-interface（access-service 实时鉴权）
+    ├─ FALLBACK：POST /api/access/auth/check-interface（access-service 实时鉴权）
     │
     └─ 回源失败/超截止 → 固定 fail-closed 503；匹配拒绝 → 403
 ```
@@ -168,7 +168,7 @@ last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径
 - 使用 `sa-token-reactor-spring-boot3-starter`（WebFlux 版本）
 - Token 存储对接 Redis（`sa-token-redis-jackson`）
 - Gateway 只做 Token 解析和校验，**不做登录签发**
-- 登录接口 `/auth/**` 在白名单中，请求透传到 access-service
+- 登录接口 `/api/access/auth/**` 在白名单中，请求透传到 access-service
 
 ---
 
@@ -182,7 +182,7 @@ last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径
 - **用户管理**：完整用户生命周期（CRUD、密码、头像、启停），是用户数据的事实源
 - **组织管理**：统一组织模型（部门/岗位/团队同表，按组织类型区分），支持多棵组织树和一人多岗
 - **菜单管理**：菜单树维护，前端路由配置
-- **角色管理**：角色与授权由权限面直接提供（`/api/perm/abstract-role` 等），管理端不重复建设
+- **角色管理**：角色与授权由权限面直接提供（`/api/access/abstract-role` 等），管理端不重复建设
 - **字典管理**：系统字典/枚举值维护
 - **通知/消息**：系统公告 + 站内信
 - **文件管理**：本地磁盘文件上传下载（单实例约束，无对象存储）
@@ -302,7 +302,7 @@ sys_menu 的权威 DDL 见 [`schema/access-service.sql`](schema/access-service.s
   - `abstract_user` 用于主体解析，业务键为 `subjectTypeCode=LOCAL_USER + externalId=sys_user.id`（原 ADMIN_USER 更名，T-ACCESS-016）；
   - `resource_entity(USER)` 用于实例级用户管理权限，业务键为 `resourceTypeCode=USER + resourceCode=sys_user.id`。只维护 `abstract_user` 时用户可参与鉴权，但 `USER:{userId}` 的更新/删除/启停等实例级权限无法稳定解析。
 - **组织投影（双事实）**：`resource_entity(ORG)`（组织作为可管理资源，支撑 `ORG:{orgId}` 实例级校验与 `auth/query-resources`）+ `abstract_role(ORG/POSITION)`（普通组织→`role_type=ORG`，岗位→`role_type=POSITION`，组织/岗位作为角色容器）。用户关联组织时，能力写编排层同事务写入对应 `user_role`；组织树层级由权限面自动维护，编排层只传当前节点和父节点业务键。
-- **菜单**：sys_menu 仅承载 UI 路由元数据 + 关联资源 link（`resource_type`/`resource_code`），不承载权限语义；菜单可见性由 v3.5 §4.1 派生公式（`∃ op`）计算，前端经 `/auth/user-menu` 单 RPC 获取 `menus[] + permissions[]`，动态注册 Vue Router 路由。
+- **菜单**：sys_menu 仅承载 UI 路由元数据 + 关联资源 link（`resource_type`/`resource_code`），不承载权限语义；菜单可见性由 v3.5 §4.1 派生公式（`∃ op`）计算，前端经 `/api/access/auth/user-menu` 单 RPC 获取 `menus[] + permissions[]`，动态注册 Vue Router 路由。
 - **投影所有权**：本地投影统一标记 `owner_service_code='access-service'`，只能经 `LocalProjectionDomainService` 写入；权限管理 API 不得直接修改本地投影，外部 sync 不得冒充本地来源（`sourceService=access-service/admin-service` 被拒绝）。
 
 权威细节见 [`access-service-architecture.md`](access-service-architecture.md) §3/§4、[`access-service-api-contract.md`](access-service-api-contract.md) §5、[`default-org-tree-user-lifecycle.md`](default-org-tree-user-lifecycle.md)。
@@ -319,7 +319,7 @@ sys_menu 的权威 DDL 见 [`schema/access-service.sql`](schema/access-service.s
 
 | 模块               | 说明                                                                                          | 档位       |
 | ------------------ | --------------------------------------------------------------------------------------------- | ---------- |
-| 服务注册与接口同步 | 接口声明经 `/api/perm/service-config/sync`（FULL）注册 API 资源与映射（管理员经 Gateway 运维期操作；原 resource-entity/sync 通道已随 T-PERM-052 类型级所有权退役） | 当前可用   |
+| 服务注册与接口同步 | 接口声明经 `/api/access/service-config/sync`（FULL）注册 API 资源与映射（管理员经 Gateway 运维期操作；原 resource-entity/sync 通道已随 T-PERM-052 类型级所有权退役） | 当前可用   |
 | 接口权限演示       | 单受保护接口 `POST /api/example/demo/hello` 经 Gateway 快照鉴权 + 身份回显 + HMAC 签名校验演示 | 当前可用   |
 | 菜单/按钮权限演示  | 前端动态菜单与按钮级权限控制                                                                  | 已规划     |
 | 报表范围权限演示   | `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeMode=ALL`                                        | 已规划     |

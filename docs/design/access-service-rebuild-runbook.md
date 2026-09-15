@@ -60,22 +60,22 @@
 ## 2. 主体链验证（用户/角色/组织/菜单样例）
 
 以下路径均为**直连 access-service**（默认 9100，控制器真实映射——管理面裸路径族无 `/admin` 前缀）；
-经 Gateway 时管理面家族外部路径加前缀 `/admin`（如 `/admin/user/create`）、perm 家族加 `/perm/api/perm`。
+T-ACCESS-042 起 URL 单命名空间：全部端点统一 `/api/access/<资源>/<动作>`，外部路径=服务路径（如 `/api/access/user/create`），Gateway 无 StripPrefix。直连 access-service 调 `/api/access/**`（auth 家族除外）须携带有效 `X-Internal-Secret` 头（经 Gateway 则由其无条件注入）。
 以 bootstrap 首管理员（`username=admin`，`tenantId=1`，clientId=`admin-web`，密码为 bootstrap
 环境变量密码；其主体 ID 记为 **N**）登录后按序执行并断言：
 
-1. **创建本地用户**（直连 `POST /user/create`）：响应返回新用户 id = **M**（M 为序列新值，
+1. **创建本地用户**（直连 `POST /api/access/user/create`）：响应返回新用户 id = **M**（M 为序列新值，
    必然大于 N——不要复用 N 回查，否则命中的是 admin 已有数据）：
    - `SELECT id FROM sys_user WHERE username=...` = M；
      `SELECT id, external_id FROM abstract_user WHERE id=M` → external_id = M 的字符串；
      `SELECT code FROM resource_entity WHERE resource_type=6 AND code=M::text` 存在。
    - 同 ID 双表由序列预取保证（architecture §12.2）。
-2. **创建外部主体**（直连 `POST /api/perm/abstract-user/create`，外部 subjectTypeCode）：仅 `abstract_user` 行，
+2. **创建外部主体**（直连 `POST /api/access/abstract-user/create`，外部 subjectTypeCode）：仅 `abstract_user` 行，
    自增取号；与本地用户互不碰撞（两种创建顺序均安全，id 均大于已有主体最大 id）。
-3. **创建角色并分配**（直连 `POST /api/perm/abstract-role/create` + `POST /api/perm/user-role/assign`，
+3. **创建角色并分配**（直连 `POST /api/access/abstract-role/create` + `POST /api/access/user-role/assign`，
    步骤 1 用户 M 挂步骤 3 角色）：`user_role.abstract_user_id` = M（主体 ID）。
-4. **登录会话**（`/auth/login`）：Sa-Token loginId = N；直连 `POST /role/my-info` 正常返回。
-5. **创建组织并挂载用户/菜单**（直连 `/org/create`、`/user-org/assign`、`/menu/create`）：
+4. **登录会话**（`/api/access/auth/login`）：Sa-Token loginId = N；直连 `POST /api/access/role/my-info` 正常返回。
+5. **创建组织并挂载用户/菜单**（直连 `/api/access/org/create`、`/api/access/user-org/assign`、`/api/access/menu/create`）：
    组织角色投影（ORG/POSITION）与 MENU 资源行正常生成，菜单可见性派生正常。
 6. **权限抽查**：对步骤 3 角色授予任一权限后（SQL 或授权链），Redis 中 `1:perm:effective-roles:M` 命中
    （主体键即 M），变更后 afterCommit 失效可见。
@@ -103,7 +103,7 @@
 | bootstrap 启动报「管理角色授权缺失/菜单种子部分存在/默认树」等固定图冲突，但库是旧版固定图 | **固定图定义升级后既有库不兼容**（T-FE-015 起：业务门禁 +17、菜单种子 15 行、Gateway 端点 +20、默认组织树；幂等三状态不自动补权，旧图缺新条目即状态③ fail-fast） | 按步骤 1 重建库（未上线项目不做在线迁移）；不要手工往旧图补数——检测断言含结构键比对，手工行属性不匹配同样冲突。**注意（T-ACCESS-029，2026-09-05）**：固定图随版本增长的「新版新增条目缺行且无墓碑」仍按残缺拒启（不自动补权）；资源实体删除后重建会换 `resource_entity_id`，旧墓碑身份键不匹配新行 → 重建的实例授权缺行同样拒启（判定合理：新资源是新授权对象，旧撤销不构成缺行合法性证据） |
 | bootstrap 启动打印 WARN「固定图授权缺行且存在软删墓碑」但服务正常启动 | 管理端曾经授权页**整行撤销**固定图授权（软删 `delete_flag=id`），墓碑三分判定（T-ACCESS-029，2026-09-05）识别为合法收缩 → WARN 列明授权键、放行不补回 | 属预期行为，无需处置；告警列明的授权键即被撤销项（真实形态如 `30#bits=2@ALL`、`3#bits=16@instance197`——类型为 type_definition 内部 type_value、`@ALL`=类型级 scopeAll、`@instance`+资源实体 id=实例级）。如系误删需恢复：经授权页对该角色重新授予对应权限即可（重新授予后有效行存在，后续重启不再告警）；「全瘫」场景（撤销了全部管理 API 授权、管理链路锁死）无法经管理页自助恢复——用 SQL 复活墓碑行（`UPDATE role_resource_permission SET delete_flag = 0, deleted_at = NULL WHERE id = <墓碑行id> AND delete_flag = id;`）或按步骤 1 重建库 |
 | 前端浏览器请求全部 403 空响应体，但 curl 直连 Gateway 200 | **Gateway CORS 白名单不含前端 origin**（T-GW-007 环境化，默认仅 `http://localhost:8848`）；curl 不带 Origin 头不受影响，易误判为后端故障 | Gateway 启动带 `GATEWAY_CORS_ALLOWED_ORIGINS` 含前端实际 origin（本机 8848 被 Nacos 容器占用、前端以 `VITE_PORT=8890` 起时：`GATEWAY_CORS_ALLOWED_ORIGINS=http://localhost:8890,http://localhost:8848`） |
-| 组织与用户页用户列表恒空、成员候选恒空 | `/user/page` 与 `/user/member-candidates` 均为**默认组织树身份目录视图**——无默认树配置时可见组织集恒空（T-FE-015 起 bootstrap 已种子默认树 `root`，旧库重建前会命中） | 确认 `sys_org_tree_config` 存在 `is_default=true` 行且指向有效根组织；无则按步骤 1 重建（bootstrap 自动种子），或经管理链路建树配置并设默认 |
+| 组织与用户页用户列表恒空、成员候选恒空 | `/api/access/user/page` 与 `/api/access/user/member-candidates` 均为**默认组织树身份目录视图**——无默认树配置时可见组织集恒空（T-FE-015 起 bootstrap 已种子默认树 `root`，旧库重建前会命中） | 确认 `sys_org_tree_config` 存在 `is_default=true` 行且指向有效根组织；无则按步骤 1 重建（bootstrap 自动种子），或经管理链路建树配置并设默认 |
 | 四棵树（角色/组织/菜单/资源实体）树查询异常缓慢或连接堆积；树接口返回缺节点 | 库内存在 parent 环脏数据（move 并发窗口历史残留或直改库；写路径已加树级分布式锁串行化（Redisson，事务提交/回滚后释放），正常链路不会再产生，T-PERM-044 / architecture §17） | 检测定位（每树一条同构 SQL，表名替换 `abstract_role`/`sys_org`/`sys_menu`/`resource_entity`，输出为环上节点 id）：`WITH RECURSIVE up AS (SELECT id, parent_id, id AS origin, 0 AS depth FROM sys_menu WHERE tenant_id = 1 AND delete_flag = 0 UNION ALL SELECT m.id, m.parent_id, up.origin, up.depth + 1 FROM sys_menu m JOIN up ON m.id = up.parent_id WHERE up.depth < 200) SELECT DISTINCT origin FROM up WHERE id = origin AND depth > 0;` 而后按业务判断把其中一个环节点的 parent 订正回合理值（断哪条边是业务决策，系统不做自动自愈），重跑检测为空即收口 |
 | 含条件授权判定结果与预期不符 | 存量 `permission_condition.condition_rules` 含 `items: []` 空数组（条件写入口仅验 JSON 合法性、未拦空数组，2026-08-29 T-PERM-033 评审登记） | 空数组 + AND 按旧语义无条件满足（放行）；如需收紧为 fail-close 应先在条件写入口显式拒绝空 items（登记项），不建议直接订正数据前不改写入校验 |
 | 升级到 T-PERM-051（2026-09-07）后：授权页 TYPE_DEFINITION 类型下无实例可选 / 实例级门禁对种子类型不可达 / 建超长 typeKey+typeCode 类型报资源编码列宽溢出 | 存量库缺三件套：`resource_entity.code` 仍为旧列宽 128（复合键最坏 129）、TYPE_DEFINITION 类型未声明 SYNC、存量类型行无实例投影。**启用 bootstrap 的环境重启即自愈补投影**（幂等）；列宽与声明仍需手工订正 | 一次性订正（幂等可重跑）：① `ALTER TABLE resource_entity ALTER COLUMN code TYPE VARCHAR(256);` ② `UPDATE type_definition SET extra = '{"managedMode":"SYNC","syncSourceService":"access-service"}' WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'TYPE_DEFINITION' AND delete_flag = 0;` ③ 投影补种（bootstrap 未启用或跳过启动时的兜底，已存在行自动跳过）：`INSERT INTO resource_entity (tenant_id, resource_type, code, code_type, name, status, owner_service_code, maintain_source, created_at, updated_at, delete_flag) SELECT td.tenant_id, 10, td.type_key || ':' || td.type_code, 'default', td.name, 1, 'access-service', 'MANUAL', now(), now(), 0 FROM type_definition td WHERE td.delete_flag = 0 AND NOT EXISTS (SELECT 1 FROM resource_entity re WHERE re.tenant_id = td.tenant_id AND re.resource_type = 10 AND re.code_type = 'default' AND re.delete_flag = 0 AND re.code = td.type_key || ':' || td.type_code);`（②③执行前先核对 tenant 范围：bootstrap 自愈仅覆盖租户 1，多租户存量需按租户分别执行。另：自愈补种与旧实例 API 流量存在毫秒级 select-then-insert 交错窗，命中时新实例启动 fail-fast、重试即自愈——升级发布建议低峰期且 bootstrap 保持单实例启用） |

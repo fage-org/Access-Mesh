@@ -116,13 +116,13 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 角色树 | `POST /api/perm/abstract-role/tree` | `{domainCode?,enabledOnly?}` | `ItemsResp<{root:RoleTreeNode}>` | ✅ |
-| 角色列表 | `POST /api/perm/abstract-role/list` | `{domainCode?,roleTypeCode?,roleTypeCodes?,keyword?,pageNum,pageSize,sort?}` | `PageResp<RoleResp>` | ✅ |
-| 创建 | `POST /api/perm/abstract-role/create` | `{parentId?,roleTypeCode,externalId?,name,sortOrder?,extra?}` | `RoleResp` | ✅ |
-| 更新 | `POST /api/perm/abstract-role/update` | `{roleId,name?,status?,sortOrder?,extra?,extraClear?}` | `RoleResp` | ✅ |
-| 移动 | `POST /api/perm/abstract-role/move` | `{roleId,parentId?}` | `Void` | ✅ |
-| 删除 | `POST /api/perm/abstract-role/remove` | `{ids:[]}` | `Void` | ✅ |
-| 详情 | `POST /api/perm/abstract-role/detail` | `{roleTypeCode,roleExternalId}` | `RoleResp` | ✅ |
+| 角色树 | `POST /api/access/abstract-role/tree` | `{domainCode?,enabledOnly?}` | `ItemsResp<{root:RoleTreeNode}>` | ✅ |
+| 角色列表 | `POST /api/access/abstract-role/list` | `{domainCode?,roleTypeCode?,roleTypeCodes?,keyword?,pageNum,pageSize,sort?}` | `PageResp<RoleResp>` | ✅ |
+| 创建 | `POST /api/access/abstract-role/create` | `{parentId?,roleTypeCode,externalId?,name,sortOrder?,extra?}` | `RoleResp` | ✅ |
+| 更新 | `POST /api/access/abstract-role/update` | `{roleId,name?,status?,sortOrder?,extra?,extraClear?}` | `RoleResp` | ✅ |
+| 移动 | `POST /api/access/abstract-role/move` | `{roleId,parentId?}` | `Void` | ✅ |
+| 删除 | `POST /api/access/abstract-role/remove` | `{ids:[]}` | `Void` | ✅ |
+| 详情 | `POST /api/access/abstract-role/detail` | `{roleTypeCode,roleExternalId}` | `RoleResp` | ✅ |
 
 > T-PERM-043：`extra-roles/list|add|remove` 三行移除（后端接口删除）；2026-09-14 轻量清扫批次前端死封装同步删除（见 §4.2）。`create`/`update` 后端显式拒绝 GROUP_ROLE（20022），与本页仅 BASIC_ROLE 的口径一致。
 

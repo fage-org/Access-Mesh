@@ -106,11 +106,11 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），非左�
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 列表 | `POST /api/perm/type-definition/list` | `{typeKey?,keyword?,pageNum?,pageSize?}` | `PageResp<TypeDefResp>`（服务端过滤+分页，ORDER BY sortOrder,id） | ✅（T-PERM-023 收口） |
-| 详情 | `POST /api/perm/type-definition/detail` | `{id}` (IdReq) | `TypeDefResp` | ✅ |
-| 创建 | `POST /api/perm/type-definition/create` | `{typeKey,typeCode?,name,description?,sortOrder?,extra?}` | `TypeDefResp` | ✅（T-PERM-023 收口） |
-| 更新 | `POST /api/perm/type-definition/update` | `{typeId,name?,description?,sortOrder?,extra?}` | `TypeDefResp` | ✅ |
-| 删除 | `POST /api/perm/type-definition/remove` | `{ids:[]}` | `Void` | ✅ |
+| 列表 | `POST /api/access/type-definition/list` | `{typeKey?,keyword?,pageNum?,pageSize?}` | `PageResp<TypeDefResp>`（服务端过滤+分页，ORDER BY sortOrder,id） | ✅（T-PERM-023 收口） |
+| 详情 | `POST /api/access/type-definition/detail` | `{id}` (IdReq) | `TypeDefResp` | ✅ |
+| 创建 | `POST /api/access/type-definition/create` | `{typeKey,typeCode?,name,description?,sortOrder?,extra?}` | `TypeDefResp` | ✅（T-PERM-023 收口） |
+| 更新 | `POST /api/access/type-definition/update` | `{typeId,name?,description?,sortOrder?,extra?}` | `TypeDefResp` | ✅ |
+| 删除 | `POST /api/access/type-definition/remove` | `{ids:[]}` | `Void` | ✅ |
 
 ## 6. 组件结构
 
@@ -167,7 +167,7 @@ views/system/type-def/
 Phase 1 登记的 🔧 项处置终态：
 
 1. ✅ **typeValue 自动分配（收敛 T-PERM-019 D1）**：服务端在 tenant+typeKey 内按全量行（含软删行）max+1 分配，软删不复用；`TypeCreateReq` 已移除 `typeValue` 字段。
-2. ✅ **list 服务端过滤+分页**：`TypeListReq` = `{typeKey?, keyword?, pageNum?, pageSize?}`（移除从未生效的 `domainCode`），返回 `PageResp`（keyword 匹配 name/typeCode LIKE——大小写敏感，对齐全仓关键字过滤先例；ORDER BY sortOrder,id）；分页参数均不传 = 字典全量（上限 200，先例 `/role/list`，供授权页/冲突规则/资源操作下拉数据源消费——四处消费均传 `typeKey` 服务端过滤（授权页/冲突规则/资源操作/服务接口映射 MappingForm，T-PERM-037 核对订正））；本页 hook 已切服务端分页。
+2. ✅ **list 服务端过滤+分页**：`TypeListReq` = `{typeKey?, keyword?, pageNum?, pageSize?}`（移除从未生效的 `domainCode`），返回 `PageResp`（keyword 匹配 name/typeCode LIKE——大小写敏感，对齐全仓关键字过滤先例；ORDER BY sortOrder,id）；分页参数均不传 = 字典全量（上限 200，先例 `/api/access/role/list`，供授权页/冲突规则/资源操作下拉数据源消费——四处消费均传 `typeKey` 服务端过滤（授权页/冲突规则/资源操作/服务接口映射 MappingForm，T-PERM-037 核对订正））；本页 hook 已切服务端分页。
 3. ✅ **create 接收 typeCode**：可选，留空服务端按 `<TYPEKEY大写>_<typeValue>` 生成（如 `RESOURCE_TYPE_12`）；显式提供时 tenant+typeKey 内查重，重复拒绝 20049。
 4. ✅ **resource_type 创建联动预置 operation_permission**：已随 T-PERM-028 落地（2026-08-29 用户决策实现）——createType 在 typeKey=resource_type 时同事务预置 CRUD 四操作位 CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)，DDL 预置组模板同款。
 5. ✅ **create 移除 isSystem**：服务端固定 `isSystem=false`，系统预置仅走租户初始化种子，不可由 API 创建。

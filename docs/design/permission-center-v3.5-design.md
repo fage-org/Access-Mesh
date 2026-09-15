@@ -33,7 +33,7 @@ last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面措辞 + frontma
 ### 0.2 v3.5 范围
 
 - 菜单零权限化（删除 ADMIN_MENU 资源类型 + sys_menu.perm_code/operations 历史字段）
-- 单 RPC 原子契约（`/auth/user-menu`）
+- 单 RPC 原子契约（`/api/access/auth/user-menu`）
 - 多租户硬隔离（IR-1.4 沿用）
 - **二层权限模型**：L1 操作权限 + L2 数据权限（调用方自决如何应用）
 
@@ -188,7 +188,7 @@ visible(menu, user) :=
 
 ---
 
-## §5. /auth/user-menu 单 RPC 原子契约
+## §5. /api/access/auth/user-menu 单 RPC 原子契约
 
 > **服务归属（T-ACCESS-012 更新；T-ACCESS-041 措辞）**：本接口归 **access-service 管理面**（前端唯一后端聚合入口，见 [architecture.md §1.5](architecture.md)；原 admin-service 服务设计已归档至 `../archive/2026-08-22/admin-service.md`）。permission-center api-contract.md 不承载此端点（已移除）。聚合由 `menu.service`（UserMenuQueryAppService，T-ACCESS-033 迁移改名）在本服务内完成：经 `PermissionViewAppService`/本地引擎获取权限事实，组装为 `menus + permissions` 返回前端，无跨服务调用。
 >
@@ -197,7 +197,7 @@ visible(menu, user) :=
 ### 5.1 接口签名
 
 ```
-POST /auth/user-menu
+POST /api/access/auth/user-menu
 Headers: X-Tenant-Id, X-User-Id, If-None-Match: <ETag>
 
 Response 200:
@@ -247,7 +247,7 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
    ④ 选 Scope（全量范围 / 资源 ID 集合 / 自定义条件；对外协议为 scopeMode）  ← L2
    ⑤ 限时（可选）
    ⑥ dry-run 影响预览
-   ⑦ 保存 → POST /api/perm/role/grant（roleId 放 JSON Body，禁止路径参数，见 project-rules.md §API 规范）
+   ⑦ 保存 → POST /api/access/role/grant（roleId 放 JSON Body，禁止路径参数，见 project-rules.md §API 规范）
 ```
 
 ### 6.2 IR-7.2 按菜单视图便捷入口糖
@@ -290,7 +290,7 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 > - **`permission_condition` 新增 `gateway_evaluable` 字段**（BOOLEAN，默认 false）：标记规则可下发 Gateway 评估。创建/更新写入门禁仅允许 `IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类置 true（`ConditionEvalUtils.isGatewayPushable` 共用白名单），未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 fail-close 不下发。
 > - **`ConditionEvalUtils` 迁入 `perm-common`**（硬切，无 DB 依赖，纯静态函数）：Gateway 与 permission-center 共享同一份评估逻辑。跨进程时钟一致性由 **NTP 同步保证**（中小企业 Gateway 与 permission-center 通常同机房，亚秒漂移 << 业务粒度小时级），不通过 context 传递 `timestamp`。
 > - **`ApiPermissionEntry` 内联 `conditionRules` JSON**：`SnapshotAssembler` 仅对 `gateway_evaluable=true` 条目内联（防御性二次过滤），引擎层 `PermQueryEngine.evaluateIfNeeded` 新增"只标记不过滤"模式（`PermQuery.markConditionsOnly`）让条件条目保留进快照。实例级条目按 `(resourceEntityId, conditionId)` 组合展开，同一资源含条件+无条件多条授权各产出独立 entry（修 P1-② 折叠误拒绝）。
-> - **`InterfaceSnapshotMatcher` 改三态语义（ALLOW / FALLBACK / DENY） + OR 合并**：含条件 entry 不再直接放行——`conditionRules` 内联则本地用请求 `clientIp` + 本进程时钟重评通过即 ALLOW；缺失（`gateway_evaluable=false`）则标记 FALLBACK 由 `PermissionFilter` 同步调 `/api/perm/auth/check-interface` 实时鉴权（context 仅承载 `clientIp`）。`PermissionFilter` `clientIp`：直用 Gateway 自身观测的 remoteAddr（T-GW-008，2026-09-10——外部 XFF/X-Real-IP 已由 HeaderCleanFilter 清洗且不作为评估输入；下游消费 Gateway 重建的 XFF）。Fallback 失败 fail-close 503（与快照拉取一致）。
+> - **`InterfaceSnapshotMatcher` 改三态语义（ALLOW / FALLBACK / DENY） + OR 合并**：含条件 entry 不再直接放行——`conditionRules` 内联则本地用请求 `clientIp` + 本进程时钟重评通过即 ALLOW；缺失（`gateway_evaluable=false`）则标记 FALLBACK 由 `PermissionFilter` 同步调 `/api/access/auth/check-interface` 实时鉴权（context 仅承载 `clientIp`）。`PermissionFilter` `clientIp`：直用 Gateway 自身观测的 remoteAddr（T-GW-008，2026-09-10——外部 XFF/X-Real-IP 已由 HeaderCleanFilter 清洗且不作为评估输入；下游消费 Gateway 重建的 XFF）。Fallback 失败 fail-close 503（与快照拉取一致）。
 > - **DTO 暴露面控制**：内联 `conditionRules` JSON 扩大敏感配置（IP CIDR 白名单）下发面，靠 `gateway_evaluable` 标志最小化下发；未标记的规则永不离开 permission-center。
 
 > **风险声明**：Redis 重启 / 网络分区 / 订阅断线时，权限主动撤销（HR 禁用员工 / 越权 token 紧急回收）退化为纯 TTL 失效，最长 stale 窗口 = `stale-grace-seconds` + TTL。与 PM「分钟级延迟可接受」决策一致。持久化 outbox 重投作为 v3.5.1+ 增量评估项。
@@ -318,7 +318,7 @@ Response 304: 如 If-None-Match 与当前 ETag 匹配
 
 ### 8.2 业务侧零启动耦合（沿用 IR-1.3）
 
-业务服务**不向 perm-center 推送任何配置**。对外接口鉴权由 Gateway 快照模式统一执行（见 IR-1.3）；需要自主查询权限事实时经 Gateway 转发调用 `/api/perm/auth/*`，或按需引入 perm-client SDK。
+业务服务**不向 perm-center 推送任何配置**。对外接口鉴权由 Gateway 快照模式统一执行（见 IR-1.3）；需要自主查询权限事实时经 Gateway 转发调用 `/api/access/auth/*`，或按需引入 perm-client SDK。
 
 > v3.5 不约束业务侧实施方式 — 调用方拿到 perm-center 的数据权限**事实**（对外 `scopeMode` / `items` / `condition`）后，如何应用（行裁切 / 字段裁切 / 其他维度）由调用方自决。
 

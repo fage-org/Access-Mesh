@@ -12,14 +12,14 @@ last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-046 三项加固收口（§4.2 c
 > 后端契约：`docs/design/access-service-api-contract.md`（契约总册）§14.1（biz-domain）/ §14.2（domain-config）
 > 参照范式：6.2 系统配置页（`system-config.md`，PureTableBar 表格列表范式 + SSOT/降级/核对清单结构）
 
-> **T-FE-021 联调注记（2026-09-02）**：本页 9 端点（biz-domain 5 + domain-config 4）mock→真实收口——api 双文件路径由裸 `/api/perm/*` 切 Gateway `/perm/api/perm/*` 前缀（Gateway 仅路由 /admin/**、/perm/**，裸路径必 404，conflict-rule 页先例）；mock/biz-domain.ts + mock/domain-config.ts + 两个共享注册表整删；bootstrap 固定图 Gateway 端点 +9、业务门禁零新增（DOMAIN:VIEW 与 SYSTEM_CONFIG:VIEW/MANAGE 均已在图）；DTO 比对零漂移。
+> **T-FE-021 联调注记（2026-09-02）**：本页 9 端点（biz-domain 5 + domain-config 4）mock→真实收口——api 双文件路径由裸 `/api/perm/*` 切 Gateway `/perm/api/perm/*` 前缀（Gateway 仅路由 /admin/**、/perm/**，裸路径必 404，conflict-rule 页先例；该路径形态已于 T-ACCESS-042 统一为 `/api/access/**`，本注记保留联调时点原貌）；mock/biz-domain.ts + mock/domain-config.ts + 两个共享注册表整删；bootstrap 固定图 Gateway 端点 +9、业务门禁零新增（DOMAIN:VIEW 与 SYSTEM_CONFIG:VIEW/MANAGE 均已在图）；DTO 比对零漂移。
 
 ## 1. 页面定位
 
 业务域页管理两张表、两套接口，**主从同页**：
 
-- **主区 BizDomain**（`biz_domain` 表，`/api/perm/biz-domain/*`）：业务域本身 CRUD（create / detail / list / update / remove 批量软删）。业务域是权限系统的顶层分区概念，用于隔离不同业务场景的权限配置（如 HR 域、订单域、全局域）。
-- **从区 DomainConfig**（`domain_config` 表，`/api/perm/domain-config/*`）：域级配置，`CLASSIFY` 是其一个 `configType`（非 biz-domain 独立字段）。任务标题「域 CRUD + CLASSIFY 类型归属」把两者合并描述——经核实 CLASSIFY 是 `domain_config.config_type` 的一个取值，故「类型归属」实为「域配置的 CLASSIFY 配置项」。
+- **主区 BizDomain**（`biz_domain` 表，`/api/access/biz-domain/*`）：业务域本身 CRUD（create / detail / list / update / remove 批量软删）。业务域是权限系统的顶层分区概念，用于隔离不同业务场景的权限配置（如 HR 域、订单域、全局域）。
+- **从区 DomainConfig**（`domain_config` 表，`/api/access/domain-config/*`）：域级配置，`CLASSIFY` 是其一个 `configType`（非 biz-domain 独立字段）。任务标题「域 CRUD + CLASSIFY 类型归属」把两者合并描述——经核实 CLASSIFY 是 `domain_config.config_type` 的一个取值，故「类型归属」实为「域配置的 CLASSIFY 配置项」。
 
 关键特性：
 
@@ -159,21 +159,21 @@ last_reviewed: 2026-09-09   # 2026-09-09 T-PERM-046 三项加固收口（§4.2 c
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 域列表 | `POST /api/perm/biz-domain/list` | `{keyword?,pageNum?,pageSize?}` | `PageResp<BizDomainResp>` | ✅（T-PERM-026 服务端过滤+分页） |
-| 域详情 | `POST /api/perm/biz-domain/detail` | `{domainCode}` | `BizDomainResp`（未命中 data=null） | ✅（T-PERM-026 切业务键） |
-| 域创建 | `POST /api/perm/biz-domain/create` | `{code,name,description?}` | `BizDomainResp` | ✅（重复 20052） |
-| 域更新 | `POST /api/perm/biz-domain/update` | `{domainCode,name?,description?}` | `BizDomainResp` | ✅（T-PERM-026 切业务键；空串清空 description） |
-| 域删除 | `POST /api/perm/biz-domain/remove` | `{ids}` (IdsReq) | `void`（批量软删） | ✅（删除保护 20051：全局域/域下有配置） |
-| 配置列表 | `POST /api/perm/domain-config/list` | `{domainCode?}` | `ItemsResp<DomainConfigResp>` | ✅ |
-| 配置详情 | `POST /api/perm/domain-config/detail` | `{domainCode,configType}` | `DomainConfigResp` | ✅（业务键二元组） |
-| 配置保存 | `POST /api/perm/domain-config/save` | `{domainCode,configType,extra}` | `DomainConfigResp`（upsert） | ✅ |
-| 配置删除 | `POST /api/perm/domain-config/remove` | `{ids}` (IdsReq) | `void`（批量软删） | ✅ |
+| 域列表 | `POST /api/access/biz-domain/list` | `{keyword?,pageNum?,pageSize?}` | `PageResp<BizDomainResp>` | ✅（T-PERM-026 服务端过滤+分页） |
+| 域详情 | `POST /api/access/biz-domain/detail` | `{domainCode}` | `BizDomainResp`（未命中 data=null） | ✅（T-PERM-026 切业务键） |
+| 域创建 | `POST /api/access/biz-domain/create` | `{code,name,description?}` | `BizDomainResp` | ✅（重复 20052） |
+| 域更新 | `POST /api/access/biz-domain/update` | `{domainCode,name?,description?}` | `BizDomainResp` | ✅（T-PERM-026 切业务键；空串清空 description） |
+| 域删除 | `POST /api/access/biz-domain/remove` | `{ids}` (IdsReq) | `void`（批量软删） | ✅（删除保护 20051：全局域/域下有配置） |
+| 配置列表 | `POST /api/access/domain-config/list` | `{domainCode?}` | `ItemsResp<DomainConfigResp>` | ✅ |
+| 配置详情 | `POST /api/access/domain-config/detail` | `{domainCode,configType}` | `DomainConfigResp` | ✅（业务键二元组） |
+| 配置保存 | `POST /api/access/domain-config/save` | `{domainCode,configType,extra}` | `DomainConfigResp`（upsert） | ✅ |
+| 配置删除 | `POST /api/access/domain-config/remove` | `{ids}` (IdsReq) | `void`（批量软删） | ✅ |
 
 > 契约 §5.1/§5.6 路径与后端实现**一致**（无路径错误，与 operation-log 不同）。T-PERM-026 契约要点已回写 api-contract §5.1（biz-domain）/§5.6（domain-config）。
 
 ## 6. 组件结构
 
-> 路径说明（T-FE-021 起）：下文及 §5/§8 中的端点路径 `/api/perm/...` 为后端服务内路径；前端请求经 Gateway 统一加 `/perm` 前缀（如 `/perm/api/perm/biz-domain/list`），与仓库统一口径一致。
+> 路径说明（T-FE-021 起）：下文及 §5/§8 中的端点路径 `/api/access/...` 为后端服务内路径；前端请求经 Gateway 统一加 `/perm` 前缀（如 `/api/access/biz-domain/list`），与仓库统一口径一致。
 
 
 ```
@@ -221,7 +221,7 @@ views/system/biz-domain/
 
 > **路由可达性与按钮门禁现状（项目共性，非本页独有）**：
 > - **路由可达性**：pure-admin-thin 的 `filterNoPermissionTree`（`router/utils.ts:85`）路由过滤**只基于 `meta.roles`，不使用 `meta.auths`**。本页及 user/role/type-def 等所有页 meta 均只有 `auths` 无 `roles`，故菜单对所有登录用户可见，**页面级拦截靠后端 403 兜底**。
-> - **按钮门禁**：本页按钮 `canManage = hasPerms(BIZ_DOMAIN_PERMS.CONFIG_SAVE)` / `canView = hasPerms(BIZ_DOMAIN_PERMS.DOMAIN_VIEW)`，`hasPerms`（`utils/auth.ts:131`）读取**登录态 `permissions`**（`/auth/user-menu` 下发的 perm 串数组），**不是 `meta.auths`**。
+> - **按钮门禁**：本页按钮 `canManage = hasPerms(BIZ_DOMAIN_PERMS.CONFIG_SAVE)` / `canView = hasPerms(BIZ_DOMAIN_PERMS.DOMAIN_VIEW)`，`hasPerms`（`utils/auth.ts:131`）读取**登录态 `permissions`**（`/api/access/auth/user-menu` 下发的 perm 串数组），**不是 `meta.auths`**。
 > - **`meta.auths` 的真实用途**：仅作为路由元信息清单（派生自 `BIZ_DOMAIN_PERM_LIST`），供 `hasAuth` 使用；本页按钮未用 `hasAuth`。
 > 这与 system-config.md / role-manage.md / type-definition.md 同口径（既有文档同样把按钮门禁写成 auths 控制，属共性表述偏差）。
 
@@ -229,7 +229,7 @@ views/system/biz-domain/
 - 无 `SYSTEM_CONFIG:MANAGE` → 隐藏「新增业务域」/「编辑」/「删除」及子表「新增配置」/「编辑」/「删除」按钮（`v-if="canManage"`），操作列显示「—」。
 - 无 `SYSTEM_CONFIG:VIEW` → 子表区显示 `el-empty`「无权查看域配置」（`v-else-if="!canViewConfig"`）。
 
-> ~~🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user/config/operation-log 同）~~ **已收口（2026-08-31 设计定案，T-PERM-037）**：菜单可见性 v3.5 §4.1 ∃op 派生方案后端已实现（`/auth/user-menu` 双轨下发按权限过滤后的 menus 树），前端接线归入 Phase 3 联调 T-FE-015（登录链路切真实接口时菜单栏从本地静态路由切后端派生 menus 树）；不改 `filterNoPermissionTree` 按 `meta.auths` 过滤（与后端派生方案重复，且 auths 为前端静态声明可绕过）。联调前维持「菜单可见、路由可达、后端 VIEW 403 兜底」。
+> ~~🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user/config/operation-log 同）~~ **已收口（2026-08-31 设计定案，T-PERM-037）**：菜单可见性 v3.5 §4.1 ∃op 派生方案后端已实现（`/api/access/auth/user-menu` 双轨下发按权限过滤后的 menus 树），前端接线归入 Phase 3 联调 T-FE-015（登录链路切真实接口时菜单栏从本地静态路由切后端派生 menus 树）；不改 `filterNoPermissionTree` 按 `meta.auths` 过滤（与后端派生方案重复，且 auths 为前端静态声明可绕过）。联调前维持「菜单可见、路由可达、后端 VIEW 403 兜底」。
 
 ### mock 角色矩阵（`mock/login.ts`）
 

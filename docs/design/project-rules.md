@@ -136,7 +136,7 @@ last_reviewed: 2026-09-14   # T-ACCESS-041：§1.2 互斥句承接（单册 Acce
 - Controller 层**禁止**使用 `@RequestParam` 接收请求参数（文件上传 `MultipartFile` 场景除外）。
 - 所有请求参数必须通过 `@RequestBody` + Request DTO（Java Record）接收，包括单个 ID、查询条件、分页参数等。
 - **禁止**使用 `@GetMapping`/`@PutMapping`/`@DeleteMapping`/`@PatchMapping`，统一使用 `@PostMapping`。
-- 业务 ID、查询条件、分页参数等**禁止**放在路径中（如 `/user/{id}`），必须放在 JSON Body 内。
+- 业务 ID、查询条件、分页参数等**禁止**放在路径中（如 `/api/access/user/{id}`），必须放在 JSON Body 内。
 - `tenantId` 不作为普通业务入参放在 URL 或 Body 中；服务端统一从 `X-Tenant-Id`、Token 或 SecurityContext 读取。
 
 **permission-center 业务键与 `remove` 主键（补充）：**
@@ -161,20 +161,20 @@ last_reviewed: 2026-09-14   # T-ACCESS-041：§1.2 互斥句承接（单册 Acce
 
 | 路径                              | 说明       |
 | --------------------------------- | ---------- |
-| `/api/perm/abstract-role/create`  | 创建角色   |
-| `/api/perm/abstract-role/update`  | 更新角色   |
-| `/api/perm/abstract-role/remove`  | 删除角色   |
-| `/api/perm/abstract-role/list`    | 分页列表   |
-| `/api/perm/log/operation/list`    | 操作日志   |
+| `/api/access/abstract-role/create`  | 创建角色   |
+| `/api/access/abstract-role/update`  | 更新角色   |
+| `/api/access/abstract-role/remove`  | 删除角色   |
+| `/api/access/abstract-role/list`    | 分页列表   |
+| `/api/access/log/operation/list`    | 操作日志   |
 
-> 裸路径族存量为资源根三段形态（Controller 挂 `/user`、`/org` 等，如 `/user/create`，原 admin 域入口），外部经 Gateway 路由 `/admin/**`（StripPrefix=1）访问；新增接口（含裸路径族）统一按上方四段模板。
+> T-ACCESS-042（2026-09-15）URL 单命名空间：原裸路径族已全量迁移为 `/api/access/<资源>/<动作>` 四段形态，外部路径=服务路径（Gateway `Path=/api/access/**` 单路由、无 StripPrefix；`/admin`、`/perm` 外部前缀与裸路径均退役）；新增接口一律按上方四段模板。
 
 规则：
 
 - 路径全部**小写 + 短横线**分隔多词（`/role-group/`）。
 - 路径格式为 `/api/{module}/{resource}/{action}`，第一段为模块标识，不使用版本号。
 - `action` 语义化动词：`create / update / delete / get / page / list / enable / disable / batch-delete`。
-- **禁止** RESTful 风格路径参数（如 `/user/{id}`），ID 统一放 JSON Body。
+- **禁止** RESTful 风格路径参数（如 `/api/access/user/{id}`），ID 统一放 JSON Body。
 
 ### 2.3 Content-Type
 

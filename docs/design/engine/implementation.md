@@ -427,7 +427,7 @@ PermQueryEngine.query(PermQuery q)
 **判定面继承**：作用在**查询前**扩大目标集——查目标 X 时把 X∪同类型祖先链作为查询目标集（改变 allowed/denied）。
 
 - **闭包实现**：`ResourceEntityMapper.selectSelfAndAncestorClosureBatch` 递归 CTE 上溯（UNION 组合去重防环，T-PERM-044 先例；`delete_flag=0` 软删截断；`resource_type` 同类型过滤**止步同类型**）。不走 `selectAllValid` 全量图（管理 API 每调用 1-3 门禁，逐次加载全租户资源不可接受）。
-- **默认值矩阵**（Q12）：管理面写门禁（code/entityId 两轨）**开**；读过滤面（组织可见/菜单可见/日志过滤）**开**；/auth/check、batch-check **关** + `inheritMode` 参数显式开（PARENT/BOTH）；网关快照天然关（API 扁平无树）；清单/视图面不适用（无目标集）。
+- **默认值矩阵**（Q12）：管理面写门禁（code/entityId 两轨）**开**；读过滤面（组织可见/菜单可见/日志过滤）**开**；`/api/access/auth/check`、batch-check **关** + `inheritMode` 参数显式开（PARENT/BOTH）；网关快照天然关（API 扁平无树）；清单/视图面不适用（无目标集）。
 - **批量拒绝回映射**：`computeInstanceDenied` 按闭包成员命中映射回请求目标（§3.1）。
 - **deleteRoles 等价性**：级联根的门禁判定按闭包评估；任一子孙祖先链必含级联根，其判定结论与级联根一致（「级联根有权=整棵可删」为闭包语义的自然结果，RoleManageAppServiceImpl 注释锚定）。
 - **读过滤面落位**：组织可见性走 `getDeniedResourceCodes` 批量轨自动获得闭包；菜单可见性（`getEffectiveResourceAccess`）对授权实例集做一次子孙扩展（`selectDescendantIdsBatch`，语义=判定面继承）后逐目标 contains。
@@ -436,7 +436,7 @@ PermQueryEngine.query(PermQuery q)
 
 - `PermQuery.setInheritParents(true)` / `setInheritChildren(true)`（清单面 `includeInherited`/`includeChildren` 契约字段收编，语义不变）；scopeAll 条目不参与展开。
 - 实现 `expandByPresentMode`：上溯经闭包 CTE（排除自身）、下溯经 `selectDescendantIdsBatch`，均目标下推批量，不走全量图；query-resources 的树扩展（原 `expandResourceScope` AppService 重复实现）已收编本轨道。
-- `/auth/check` 的 `inheritMode` 契约参数（总册 §18.2）从「对单点判定结论无效」接通为目标闭包真实语义：PARENT/BOTH → `inheritClosure=true`；NONE/CHILD 对判定面不适用（子授权不覆盖父判定）。
+- `/api/access/auth/check` 的 `inheritMode` 契约参数（总册 §18.2）从「对单点判定结论无效」接通为目标闭包真实语义：PARENT/BOTH → `inheritClosure=true`；NONE/CHILD 对判定面不适用（子授权不覆盖父判定）。
 
 ### 3.5 条件评估三态、条目互斥与条件上下文
 
@@ -472,12 +472,12 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 
 | 接口         | 路径                                     | 引擎入口                                                      |
 | ------------ | ---------------------------------------- | ------------------------------------------------------------- |
-| 单次鉴权     | `POST /api/perm/auth/check`              | `engine.query(PermQuery.forAuthCheck())`；`inheritMode` 接通闭包（§3.4） |
-| 批量鉴权     | `POST /api/perm/auth/batch-check`        | `engine.queryBatch(PermBatchQuery.forAuthCheckBatch)` A+ 批量化（T-PERM-061，2026-09-11 实施落地，见 §3.10） |
-| 资源权限查询 | `POST /api/perm/auth/query-resources`    | `engine.query(PermQuery.forUserView())`；树扩展经引擎展示面展开轨道（`inheritChildren`/`inheritParents`） |
-| 范围权限查询 | `POST /api/perm/auth/query-scopes`       | 一次 `engine.query(forScopeQuery + setParentResource)`——父判定 + depend_on 过滤 + 条件/互斥评估全在引擎，AppService 只留四态线格式组装（T-PERM-057 第六套形态收编）；整表拒绝仅限父判定失败/无角色，条件评估清空走四态分态（EMPTY） |
-| 接口级判定   | `POST /api/perm/auth/check-interface`    | `engine.query(PermQuery.forInterfaceCheck())`                 |
-| 接口快照     | `POST /api/perm/auth/interface-snapshot` | `engine.query(forUserView + markConditionsOnly)` + `SnapshotAssembler`；`filterRoleMutex` 调用方自理（§3.5） |
+| 单次鉴权     | `POST /api/access/auth/check`              | `engine.query(PermQuery.forAuthCheck())`；`inheritMode` 接通闭包（§3.4） |
+| 批量鉴权     | `POST /api/access/auth/batch-check`        | `engine.queryBatch(PermBatchQuery.forAuthCheckBatch)` A+ 批量化（T-PERM-061，2026-09-11 实施落地，见 §3.10） |
+| 资源权限查询 | `POST /api/access/auth/query-resources`    | `engine.query(PermQuery.forUserView())`；树扩展经引擎展示面展开轨道（`inheritChildren`/`inheritParents`） |
+| 范围权限查询 | `POST /api/access/auth/query-scopes`       | 一次 `engine.query(forScopeQuery + setParentResource)`——父判定 + depend_on 过滤 + 条件/互斥评估全在引擎，AppService 只留四态线格式组装（T-PERM-057 第六套形态收编）；整表拒绝仅限父判定失败/无角色，条件评估清空走四态分态（EMPTY） |
+| 接口级判定   | `POST /api/access/auth/check-interface`    | `engine.query(PermQuery.forInterfaceCheck())`                 |
+| 接口快照     | `POST /api/access/auth/interface-snapshot` | `engine.query(forUserView + markConditionsOnly)` + `SnapshotAssembler`；`filterRoleMutex` 调用方自理（§3.5） |
 
 ### 3.9 收编清单与边界声明
 
@@ -531,9 +531,9 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 
 | 接口         | 路径                                                             | 说明                                             |
 | ------------ | ---------------------------------------------------------------- | ------------------------------------------------ |
-| 查询角色权限 | `POST /api/perm/role-resource-permission/list`                   | 查询角色已有权限列表（含子权限展开）             |
-| 聚合授权提交 | `POST /api/perm/role-resource-permission/apply-grant-plan`       | **授权页面唯一写入口**：记录级 `plan{creates/updates/removes}` + 单事务原子 + 受影响行数断言 |
-| 子权限类型查询 | `POST /api/perm/role-resource-permission/sub-perm-allowed-types` | **授权页只读契约（§6.5.2）**：按父资源类型返回 SUB_PERM 允许策略（mode/reason/allowedChildResourceTypeCodes），AppService 直接映射 `resolveSubPermissionPolicy` 结果 |
+| 查询角色权限 | `POST /api/access/role-resource-permission/list`                   | 查询角色已有权限列表（含子权限展开）             |
+| 聚合授权提交 | `POST /api/access/role-resource-permission/apply-grant-plan`       | **授权页面唯一写入口**：记录级 `plan{creates/updates/removes}` + 单事务原子 + 受影响行数断言 |
+| 子权限类型查询 | `POST /api/access/role-resource-permission/sub-perm-allowed-types` | **授权页只读契约（§6.5.2）**：按父资源类型返回 SUB_PERM 允许策略（mode/reason/allowedChildResourceTypeCodes），AppService 直接映射 `resolveSubPermissionPolicy` 结果 |
 
 > wire 契约（请求/响应/错误码）以 `access-service-api-contract.md §11.2/§11.3/§11.4/§11.5` 为唯一权威；本文不重复完整字段定义。**砍**：expectedRevision CAS / grant_revision 列 / 幂等表 grant_plan_idempotency / clientRequestId / @Idempotent / 20037/20039 / `docs/contracts/perm-grant.schema.json`。
 
@@ -542,7 +542,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 #### 入参 DTO（结构示意，字段定义以契约总册为准）
 
 ```java
-/** POST /api/perm/role-resource-permission/apply-grant-plan */
+/** POST /api/access/role-resource-permission/apply-grant-plan */
 public record ApplyGrantPlanReq(
     String domainCode,
     String roleTypeCode,
@@ -736,7 +736,7 @@ Gateway 本地接口快照未命中时：
   1. 从 Token 中提取 tenant_id、abstract_user_id
   2. 从路由信息提取 serviceCode、httpMethod、path
   3. 构建本地快照 key：perm:snapshot:{tenantId}:{subjectTypeCode}:{userId}:{serviceCode}
-  4. POST /api/perm/auth/interface-snapshot → 权限中心
+  4. POST /api/access/auth/interface-snapshot → 权限中心
      入参：{ subjectTypeCode, subjectExternalId, serviceCode }
   5. 权限中心内部：
      a. SubjectDomainService.resolveEffectiveRoles 读取 EFFECTIVE_ROLES（CacheService L1/L2）

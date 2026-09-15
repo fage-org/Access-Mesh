@@ -13,14 +13,14 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-GW-008 codex 外评 P1 处置：§清
 ## 职责边界
 
 - 作为系统唯一流量入口，负责路由、Token 校验、白名单、请求上下文注入和接口级鉴权。
-- **路由拓扑（T-ACCESS-010，2026-08-22）**：`/admin/**` 与 `/perm/**` 合并为一条路由指向 `lb://access-service`（StripPrefix=1，`metadata.serviceCode=access-service`），`/auth/**` 独立路由同目标（StripPrefix=0）；`/example/**` 不变。旧服务发现目标 `lb://admin-service`、`lb://permission-center` 已删除，无别名兼容。
+- **路由拓扑（T-ACCESS-042 单命名空间，2026-09-15；T-ACCESS-010 的 /admin+/perm 合并路由与 auth-routes 直通路由随之退役）**：`Path=/api/access/**` 单路由指向 `lb://access-service`（`metadata.serviceCode=access-service`，无 StripPrefix——外部路径=服务路径）；`Path=/api/example/**` 指向 `lb://example-service`（同规则）。旧服务发现目标 `lb://admin-service`、`lb://permission-center` 已删除，无别名兼容。外部服务经 service-config 声明接口不得占用 `/api/access` 命名空间（按第二段路由，天然不可达）。
 - 不直接读取业务库或权限中心数据库。
-- 鉴权采用**快照模式**（T-PERM-001）：调用权限服务（access-service）`POST /api/perm/auth/interface-snapshot` 拉取用户全量接口权限快照，本地内存匹配，不再每请求打 RPC。
+- 鉴权采用**快照模式**（T-PERM-001）：调用权限服务（access-service）`POST /api/access/auth/interface-snapshot` 拉取用户全量接口权限快照，本地内存匹配，不再每请求打 RPC。
 - 只处理入口安全和路由职责，不承载业务权限管理页面或授权配置。
 
 ## 核心链路
 
-1. 接收客户端请求并匹配白名单（`/auth/**`、`/public/**`、`/captcha/**`；无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。
+1. 接收客户端请求并匹配白名单（`/api/access/auth/**`、`/public/**`、`/captcha/**`；无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。
 2. 解析 Sa-Token / OAuth2 Token，得到主体信息。
 3. 清洗客户端伪造的安全 Header（含 IP 转发头，见下节 T-GW-008），再注入可信 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
 4. **快照鉴权**（T-PERM-001）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地快照缓存——命中则本地匹配；未命中回源拉取 `interface-snapshot` 快照后缓存再匹配。
@@ -43,8 +43,8 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-GW-008 codex 外评 P1 处置：§清
 
 - 新增 `OAuth2PassthroughFilter`（order -79，白名单 -80 之后、会话校验 -70 之前）：命中 `gateway.oauth2.passthrough-paths`（Ant 通配，**外部路径口径**，默认空 = 无业务路径默认开放）**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时设 `skipAuth=true`，跳过会话校验/权限校验/身份头注入/身份头签名，`Authorization` 头原样透传下游（HeaderClean 清单不含 Authorization），由 access-service 开放路径门禁（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds）判定。
 - **平台 uuid 会话令牌与无 Authorization 头的请求不启用透传**（评审 P1 修复）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限。
-- `/auth/**` 已由白名单覆盖（userinfo 等端点透传，无需重复配置）。
-- **部署约束**：Gateway 匹配外部路径（如 `/admin/api/**`），access-service 匹配 StripPrefix 后路径（`/api/**`，配置于 `access.oauth2.resource-paths`），开放业务路径需双侧同步配置并人工对应；`InternalSecretFilter` 注入的 X-Internal-Secret 在开放路径无消费者（access 侧启动防护禁止开放路径位于 `/api/perm/**`）。
+- `/api/access/auth/**` 已由白名单覆盖（userinfo 等端点透传，无需重复配置）。
+- **部署约束（T-ACCESS-042 更新）**：无 StripPrefix，Gateway 与 access-service 匹配同一路径（开放路径配置于 `access.oauth2.resource-paths`，双侧天然同形）；`InternalSecretFilter` 注入的 X-Internal-Secret 对开放路径同样携带（合法流量恒经 Gateway）——原「启动防护禁止开放路径位于内部凭证前缀」守卫已随单命名空间退役（双凭证并存不构成机制冲突，见 OAuth2ResourcePathProperties）。
 - 门禁语义权威说明见 `../access-service-architecture.md` §6。
 
 
@@ -73,7 +73,7 @@ last_reviewed: 2026-09-10   # 2026-09-10 T-GW-008 codex 外评 P1 处置：§清
    - `hasCondition=false`（无条件授权）→ 立即 `ALLOW`（"任一无条件授权放行"原则）。
    - `hasCondition=true` 且 `conditionRules` 内联（`gateway_evaluable=true`）→ 用请求 `clientIp` + 本进程时钟本地评估：通过则 `ALLOW`，不通过继续遍历。
    - `hasCondition=true` 但 `conditionRules` 未下发（`gateway_evaluable=false` 或防御过滤拒绝）→ 标记需要 `FALLBACK`，继续遍历（后续仍可能有无条件条目兜底）。
-4. 遍历结束：未命中 `ALLOW` 时，有 `FALLBACK` 标记 → 调 `/api/perm/auth/check-interface` 同步回退实时鉴权（context 仅承载 `clientIp`）；否则 `DENY`。
+4. 遍历结束：未命中 `ALLOW` 时，有 `FALLBACK` 标记 → 调 `/api/access/auth/check-interface` 同步回退实时鉴权（context 仅承载 `clientIp`）；否则 `DENY`。
 
 > **条件权限混合评估（T-PERM-017，2026-06-24）**：废止"`hasCondition` 直接放行"。可下发条件（`IP_WHITELIST` / `IP_BLACKLIST` / `DATE_RANGE` / `TIME_RANGE` 四类）由权限中心 `SnapshotAssembler` 内联 `conditionRules` JSON 进 `ApiPermissionEntry`，Gateway 用 `ConditionEvalUtils`（已迁入 `perm-common`）本地重评。跨进程时钟一致性由 NTP 同步保证（亚秒漂移 < 业务粒度小时级），不通过 context 传递 `timestamp`。未来扩展类型（如 `ORG_SCOPE` / `DATA_OWNER`）默认 `gateway_evaluable=false`，由 fallback 通路回到 access-service 评估。`PermissionFilter` 提取 `clientIp`：直用 Gateway 自身观测的 `remoteAddr`（单一可信来源，T-GW-008——外部 XFF/X-Real-IP 已清洗且不作为评估输入；下游消费 Gateway 重建的 XFF）。
 
@@ -107,8 +107,8 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 |---|---|---|
 | `gateway.permission.snapshot-load-deadline` | `5s` | 快照加载全链路墙钟硬截止（含服务发现/LB、连接、发送、处理、响应读取解码及失效竞争重试）；同一授权请求内所有尝试共享同一截止，超时不写缓存并固定 fail-closed 503。上限 5s，超限启动失败 |
 | `gateway.permission.service-url` | `lb://access-service` | 权限服务地址（T-ACCESS-010：目标由 permission-center 切换） |
-| `gateway.permission.interface-snapshot-path` | `/api/perm/auth/interface-snapshot` | 快照拉取端点 |
-| `gateway.permission.check-interface-path` | `/api/perm/auth/check-interface` | 保留（单值鉴权，回退用） |
+| `gateway.permission.interface-snapshot-path` | `/api/access/auth/interface-snapshot` | 快照拉取端点 |
+| `gateway.permission.check-interface-path` | `/api/access/auth/check-interface` | 保留（单值鉴权，回退用） |
 | `accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-ttl` | `15s`（catalog 声明） | 快照 TTL 兜底；有效值 >15s 启动失败（`GatewayCacheBoundaryValidator`） |
 | `accessmesh.cache.catalogs."[gw:interface-snapshot]".l1-maximum-size` | `50000`（catalog 声明） | 本地快照最大条目 |
 
@@ -180,7 +180,7 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
   - `allowed-origin-patterns`：默认 `http://localhost:8848`（前端 dev 实际端口，开发直连调试），`GATEWAY_CORS_ALLOWED_ORIGINS` 环境变量/Nacos 可覆盖；**显式置空 = CORS 禁用**（同源部署终态：跨域请求被 CorsProcessor 主动 403 拒绝且无 CORS 头，启动 INFO 声明）。
   - `allow-credentials: true`（保持；token 走 Authorization 头，无 cookie 依赖，未来接 cookie 会话时不受影响）。
 - **启动 fail-fast**（`GatewayCorsConfigValidator`，校验最终生效值含 Nacos 覆盖后的值）：`allow-credentials=true` 且 origin 列表（`allowed-origin-patterns` 与兄弟键 `allowed-origins`）含任意 `*` 通配 → 启动失败（任意源携带凭证为安全缺陷，含 Nacos 远端旧值回退场景；exact 键通配若漏到运行期会每请求 500）。缺失/显式空均不放行任意源（fail-closed）。
-- 匿名白名单（`gateway.whitelist.paths`）：`/auth/**`、`/public/**`、`/captcha/**`；`/actuator/**` 已全部移除（管理端口提供，见「监控指标」段）。
+- 匿名白名单（`gateway.whitelist.paths`）：`/api/access/auth/**`、`/public/**`、`/captcha/**`；`/actuator/**` 已全部移除（管理端口提供，见「监控指标」段）。
 
 ## 与权限中心的约定
 

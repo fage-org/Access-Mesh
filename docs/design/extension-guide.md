@@ -40,15 +40,15 @@ last_reviewed: 2026-09-13   # T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT �
 
 ### 2.1 接入步骤
 
-1. **注册服务**：管理台「服务+接口映射」页（`POST /api/perm/service-config/save`）登记 `serviceCode`/`name`/`status=1`。
-2. **声明接口**：`POST /api/perm/service-config/sync`（FULL 模式）上报接口清单——一步创建 **API 资源**与 **Gateway 路由映射**（`pathPattern = basePath + path`，行归属标记 `maintainSource=SERVICE_SYNC`）。API 类型恒为 MANAGED，**不要**走 `resource-entity/sync` 通道（会被 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝）。
+1. **注册服务**：管理台「服务+接口映射」页（`POST /api/access/service-config/save`）登记 `serviceCode`/`name`/`status=1`。
+2. **声明接口**：`POST /api/access/service-config/sync`（FULL 模式）上报接口清单——一步创建 **API 资源**与 **Gateway 路由映射**（`pathPattern = basePath + path`，行归属标记 `maintainSource=SERVICE_SYNC`）。API 类型恒为 MANAGED，**不要**走 `resource-entity/sync` 通道（会被 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝）。
 3. **授权**：未授权前 Gateway 对该接口一律拒绝（403）。经管理台授权页（入口见前置 3）对目标角色授该 API 实例（或 API 类型级）的 `ACCESS` 操作——授权写入口须用户身份（ROLE:MANAGE），不收服务身份。
 4. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 按映射做接口级判定（`check-interface`）并对可下发条件做本地重评。授权生效受 Gateway 快照刷新窗口约束（上界 30s）。
 5. **服务侧防直调**：业务服务部署 Gateway 签名校验过滤器（example 的 `GatewaySignatureFilter` 模式）——拒绝未带有效网关签名的请求，防止绕过 Gateway 直调后端。
 
 ### 2.2 服务身份调用（auth/check 等平台 API）
 
-业务服务调用权限查询类 API（`/api/perm/auth/check`、`batch-check`、`query-resources`、`query-scopes`）时的身份：
+业务服务调用权限查询类 API（`/api/access/auth/check`、`batch-check`、`query-resources`、`query-scopes`）时的身份：
 
 | 请求头 | 说明 |
 |---|---|
@@ -83,7 +83,7 @@ last_reviewed: 2026-09-13   # T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT �
 
 ### 3.2 完整链路（六步，SYNC 模式）
 
-以下六步是 **SYNC 模式**（资源事实在业务系统，§3.1 表右行）的链路。**MANAGED 模式（缺省）不走此链路**：其写入口是管理面资源 CRUD（`POST /api/perm/resource-entity/create|batch-create|update|move|remove`，管理台「资源+操作定义」页）——**禁止**走 `resource-entity/sync|full-sync`（类型非 SYNC 一律 `RESOURCE_TYPE_OWNERSHIP_DENIED`，且信封 `code=200` 但 `accepted=false`，只看 HTTP 状态会误判成功）；两模式互斥方向由 20055/所有权门禁双向焊死。
+以下六步是 **SYNC 模式**（资源事实在业务系统，§3.1 表右行）的链路。**MANAGED 模式（缺省）不走此链路**：其写入口是管理面资源 CRUD（`POST /api/access/resource-entity/create|batch-create|update|move|remove`，管理台「资源+操作定义」页）——**禁止**走 `resource-entity/sync|full-sync`（类型非 SYNC 一律 `RESOURCE_TYPE_OWNERSHIP_DENIED`，且信封 `code=200` 但 `accepted=false`，只看 HTTP 状态会误判成功）；两模式互斥方向由 20055/所有权门禁双向焊死。
 
 ```text
 ① 注册服务（service-config/save，status=1）
@@ -134,7 +134,7 @@ last_reviewed: 2026-09-13   # T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT �
 「接入方用户体系与标准设计不一致」的两条路：
 
 1. **本地主体**：平台自管用户（管理台组织与用户页创建，`LOCAL_USER`）；适合接入方把账号体系交给 AccessMesh。
-2. **自有主体类型 + 用户同步通道**：接入方在 `service_config.extra.syncTypes.subjectTypeCodes` 白名单声明自有 subject_type，经 `POST /api/perm/abstract-user/sync` 同步主体（同 §2.2 服务身份）。角色同理：自有 role_type + `POST /api/perm/abstract-role/sync`（`roleTypeCodes` 白名单）。
+2. **自有主体类型 + 用户同步通道**：接入方在 `service_config.extra.syncTypes.subjectTypeCodes` 白名单声明自有 subject_type，经 `POST /api/access/abstract-user/sync` 同步主体（同 §2.2 服务身份）。角色同理：自有 role_type + `POST /api/access/abstract-role/sync`（`roleTypeCodes` 白名单）。
 
 边界：内置事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 等）已声明为 access-service 内部 SYNC——**外部同步一律拒绝**，需要差异化建模时请声明自有类型（如 `BI_MENU`），不要试图写公共类型。
 
@@ -172,7 +172,7 @@ last_reviewed: 2026-09-13   # T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT �
 
 1. **权限串声明**：`src/views/system/<page>/utils/perms.ts` 导出 `<PAGE>_PERM_LIST`（操作码常量，对齐后端 `OperationCode`，engine.constant 唯一常量源）。
 2. **路由注册**：`src/router/modules/*.ts` 路由项 `meta` 引用 PERM_LIST（按钮级 `auths` / 页面级门禁）。注意侧栏菜单已切后端派生（T-FE-015）：**可见性按菜单形态派生（见下条），`meta.showLink` 不再控制侧栏**。
-3. **菜单种子**：sys_menu 行，三条通道按场景选：① bootstrap 固定图种子（平台内置页与默认树，`BootstrapGraphDefinition.menuSeeds()`——固定图**版本升级**须按 rebuild-runbook 重建库，与单加一条菜单无关）；② 后端管理 API `POST /menu/create`（**已实现**，runbook 记载直连 access-service 的造数用法；注意 Gateway 固定图未注册 `/admin/menu/**` 路由——经 Gateway 调用会 403，须直连）；③ 管理台菜单管理**页面**尚未开发（前端无 menu 页），二开者当前走 ①/②。菜单可见性按形态分三支：**挂接资源的业务菜单** = 用户对该资源持有任一有效操作权限（类型级 scopeAll 或实例授权，∃op 派生），无持有面 fail-closed 不可见（自定义页要按权隐藏必须挂资源类型）；**纯展示菜单**（resource_type 为空）= 全员可见；**目录 DIR** = 恒候选（有可见子节点才渲染）。菜单行不单独授 MENU 码、无需逐菜单授权。
+3. **菜单种子**：sys_menu 行，三条通道按场景选：① bootstrap 固定图种子（平台内置页与默认树，`BootstrapGraphDefinition.menuSeeds()`——固定图**版本升级**须按 rebuild-runbook 重建库，与单加一条菜单无关）；② 后端管理 API `POST /api/access/menu/create`（**已实现**，runbook 记载直连 access-service 的造数用法；注意 Gateway 固定图未注册 `/api/access/menu/**` 路由——经 Gateway 调用会 403，须直连（T-ACCESS-042 起直连 `/api/access/**` 须携带 `X-Internal-Secret` 头，见 rebuild-runbook））；③ 管理台菜单管理**页面**尚未开发（前端无 menu 页），二开者当前走 ①/②。菜单可见性按形态分三支：**挂接资源的业务菜单** = 用户对该资源持有任一有效操作权限（类型级 scopeAll 或实例授权，∃op 派生），无持有面 fail-closed 不可见（自定义页要按权隐藏必须挂资源类型）；**纯展示菜单**（resource_type 为空）= 全员可见；**目录 DIR** = 恒候选（有可见子节点才渲染）。菜单行不单独授 MENU 码、无需逐菜单授权。
 4. **API 层**：`src/api/<page>.ts`——全部 POST + JSON Request DTO（禁 GET/RESTful，project-rules §API），响应统一信封 `{code, data, message}`。
 5. **页面分组**（可选）：业务域页为资源类型配置 `CLASSIFY`（domain_config），管理查询按域过滤（ALL/GLOBAL_PLUS/DOMAIN_ONLY 三模式）。
 

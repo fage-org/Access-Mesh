@@ -12,7 +12,7 @@ last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径
 
 本文档只描述权限中心的核心模型和关键规则。API 路径、请求体、响应体以 [access-service-api-contract.md](../access-service-api-contract.md) 为准（契约总册，T-ACCESS-040 两册合一）；表字段、索引、约束以 [../schema/access-service.sql](../schema/access-service.sql) 为准（唯一权威 DDL）；端到端调用链路见 [core-flows.md](core-flows.md)；实现细节和类清单见 [implementation.md](implementation.md)。
 
-> **术语（T-ACCESS-012，2026-08-22；T-ACCESS-041 更新，2026-09-14）**：原独立服务 `permission-center` 已归并为 access-service，其「permission 域」称谓又已随能力包融合（T-ACCESS-033）退役。本文及引擎系列文档中「permission-center / 权限中心」按**权限面**理解（引擎子系统 + 权限事实能力包，同进程同库，经 Gateway 以 `/api/perm/**` 对外），「admin-service / admin」按**管理面**理解（管理能力包）；不再存在跨服务同步链路。
+> **术语（T-ACCESS-012，2026-08-22；T-ACCESS-041 更新，2026-09-14）**：原独立服务 `permission-center` 已归并为 access-service，其「permission 域」称谓又已随能力包融合（T-ACCESS-033）退役。本文及引擎系列文档中「permission-center / 权限中心」按**权限面**理解（引擎子系统 + 权限事实能力包，同进程同库，经 Gateway 以 `/api/access/**` 对外），「admin-service / admin」按**管理面**理解（管理能力包）；不再存在跨服务同步链路。
 
 ## 设计原则
 
@@ -20,7 +20,7 @@ last_reviewed: 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径
 - 所有数据按 `tenant_id` 隔离，运行时租户来自 `X-Tenant-Id` 或安全上下文，请求体不承载 `tenantId`。
 - 所有关联使用逻辑 ID，不使用数据库外键；一致性由应用服务保证。
 - 所有表使用软删除，`delete_flag=0` 表示有效数据。
-- API 统一使用 `POST + JSON Body`，路径统一在 `/api/perm/*` 命名空间下。
+- API 统一使用 `POST + JSON Body`，路径统一在 `/api/access/*` 命名空间下。
 - 运行时接口使用稳定业务键，不要求调用方传权限中心内部主键。
 
 ## 核心对象（8 聚合设计）
@@ -60,7 +60,7 @@ Controller ──► AppService（调度层） ──► DomainService（领域�
 
 在 AccessMesh 管理端语义中，组织既是业务树节点，也是角色容器。管理面主维护组织树和 `user-org` 关系；权限面保存由组织与岗位规则映射出的 ORG/POSITION 角色及最终 `user_role` 权限事实。
 
-默认组织树是管理面的用户目录/身份池。权限面不判断某个组织树是否是默认树，也不直接管理用户生命周期；它只保存能力写编排层（原 access.application）在管理事实写入同一事务内维护的本地投影主体、资源、角色和授权事实（不再有跨服务同步链路；外部业务服务经 `/api/perm/**/sync` 写入自有类型事实）。权限面的所有接口接受业务键（subjectTypeCode + subjectExternalId / resourceTypeCode + resourceCode / roleTypeCode + roleExternalId），内部通过 TypeResolutionService 解析为内部 ID。外部调用方不应存储或使用权限面的内部主键。
+默认组织树是管理面的用户目录/身份池。权限面不判断某个组织树是否是默认树，也不直接管理用户生命周期；它只保存能力写编排层（原 access.application）在管理事实写入同一事务内维护的本地投影主体、资源、角色和授权事实（不再有跨服务同步链路；外部业务服务经 `/api/access/**/sync` 写入自有类型事实）。权限面的所有接口接受业务键（subjectTypeCode + subjectExternalId / resourceTypeCode + resourceCode / roleTypeCode + roleExternalId），内部通过 TypeResolutionService 解析为内部 ID。外部调用方不应存储或使用权限面的内部主键。
 
 用户有效角色由 `SubjectDomainService.resolveEffectiveRoles()` 统一解析（L1 CacheService → L2 Redis → DB），禁止在 Service 中直接查询 `user_role` 表或自己写角色解析逻辑。角色层级用于管理和分组，不默认表示权限继承。
 

@@ -121,7 +121,7 @@
 
 ### T-FE-044 联调注记（2026-09-14）
 
-- **外部路径约定（联调修复的实质缺陷）**：api 层六端点路径误写 `/api/perm/resource-dependency/*`（缺 Gateway `/perm` 前缀）——mock 拦截 url 与错误路径逐字一致，dev 下从未暴露；真实链路 `create` 404 后修正为 `/perm/api/perm/resource-dependency/*`（vite proxy `/perm` → Gateway `Path=/perm/**` StripPrefix=1 → access-service `/api/perm/...`，resource-operation/role-manage 同款约定）。
+- **外部路径约定（联调修复的实质缺陷，2026-09-14 时点）**：api 层六端点路径曾误写 `/api/perm/resource-dependency/*`（缺 Gateway `/perm` 前缀）——mock 拦截 url 与错误路径逐字一致，dev 下从未暴露；真实链路 `create` 404 后修正为 `/perm/api/perm/resource-dependency/*`。T-ACCESS-042 起统一为 `/api/access/resource-dependency/*`（外部=服务路径，URL 契约锁随批更新，vite proxy 单条 `/api`）。
 - **Gateway 端点注册**：六端点入 `BootstrapGraphDefinition.apiRoutes()`（batch-sync 前端不消费不注册）；业务门禁零新增（DEPENDENCY 五档 T-PERM-031 已预置）。
 - **冒烟证据链**（重建库后浏览器实测）：list 空态（bootstrap 不种子依赖）→ create 落表（maintain_source=ADMIN_UI、操作位 bits=2）→ update 全量替换（触发操作 任意→查看=bits 2）→ graph 200 + echarts canvas 渲染 → check 成环对 hasCycle=true / 无环对 false → remove 软删（delete_flag=id）+ 空态回显；操作日志 CREATE/UPDATE/REMOVE 三条 200。错误路径：等价重复 20054（真实 R 信封）；自依赖由前端表单防呆拦截（「源资源与目标资源不能相同」，后端 20044 兜底有单测锁）。
 
