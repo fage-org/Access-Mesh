@@ -67,7 +67,7 @@ import static org.mockito.Mockito.doReturn;
     "accessmesh.sync.scheduler.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
-    "JWT_SECRET_KEY=test-jwt-secret-for-menu-write",
+    "JWT_SECRET_KEY=test-jwt-secret-for-menu-write-0123456789",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-menu-write",
     "PERM_INTERNAL_SECRET=test-internal-secret-for-menu-write"
 })

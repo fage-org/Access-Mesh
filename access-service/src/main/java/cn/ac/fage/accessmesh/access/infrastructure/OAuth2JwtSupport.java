@@ -108,4 +108,22 @@ public final class OAuth2JwtSupport {
         result.add(value);
         return result;
     }
+
+    /**
+     * HS256 签名密钥强度下限（release-preview 双轨评审 P3-3，2026-09-16 用户拍板 fail-fast）：
+     * 32 字符 = 256 bit，与 HS256 安全强度对齐；短密钥静默签发 = 弱签名通道。
+     */
+    public static final int MIN_SECRET_LENGTH = 32;
+
+    /**
+     * 校验 JWT 签名密钥强度：空白或长度 &lt; {@link #MIN_SECRET_LENGTH} 抛 IllegalStateException
+     * （启动 fail-fast，对齐 bootstrap 密码/双密钥拦截器先例；sa-token-jwt 本身不校验长度）。
+     */
+    public static void validateHmacSecretStrength(String secret) {
+        if (secret == null || secret.isBlank() || secret.trim().length() < MIN_SECRET_LENGTH) {
+            throw new IllegalStateException(
+                "sa-token.jwt-secret-key（JWT_SECRET_KEY）必须至少 " + MIN_SECRET_LENGTH
+                    + " 字符（HS256 强度对齐）；空白或过短即拒绝启动");
+        }
+    }
 }

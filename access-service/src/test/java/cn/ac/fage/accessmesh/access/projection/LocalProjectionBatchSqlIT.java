@@ -43,7 +43,7 @@ import static org.assertj.core.api.Assertions.assertThat;
     "accessmesh.sync.scheduler.enabled=false",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
-    "JWT_SECRET_KEY=test-jwt-secret-for-batch-sql",
+    "JWT_SECRET_KEY=test-jwt-secret-for-batch-sql-0123456789",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-batch-sql",
     "PERM_INTERNAL_SECRET=test-internal-secret-for-batch-sql"
 })

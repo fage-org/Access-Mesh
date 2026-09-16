@@ -47,10 +47,10 @@ last_updated: 2026-09-16
 
 | ID | 标题 | 状态 |
 |---|---|---|
-| T-ACCESS-047 | 全栈部署编排——compose app profile + 服务/前端镜像 + 配置占位符 | ⚙️ |
-| T-ACCESS-048 | Q-006 双命名空间失效修复——ORG_VISIBILITY legacy 别名同批 evict + 回归锁 | ⚙️ |
-| T-ACCESS-049 | 发布文档与版本化——quickstart/deployment 基线/CHANGELOG/README/LICENSE | ⚙️ |
-| T-ACCESS-050 | 首次部署验证与版本打点收口——空环境全栈冒烟 + v0.1.0 tag + 042 归档 | ⚙️ |
+| T-ACCESS-047 | 全栈部署编排——compose app profile + 服务/前端镜像 + 配置占位符 | 👀 |
+| T-ACCESS-048 | Q-006 双命名空间失效修复——ORG_VISIBILITY legacy 别名同批 evict + 回归锁 | 👀 |
+| T-ACCESS-049 | 发布文档与版本化——quickstart/deployment 基线/CHANGELOG/README/LICENSE | 👀 |
+| T-ACCESS-050 | 首次部署验证与版本打点收口——空环境全栈冒烟 + v0.1.0 tag + 042 归档 | 🔨 |
 
 依赖：T-ACCESS-049 depends_on T-ACCESS-047（quickstart 须按落地形态成稿）；T-ACCESS-050 depends_on T-ACCESS-047/048/049；T-ACCESS-048 独立。
 
@@ -60,4 +60,4 @@ last_updated: 2026-09-16
 
 ## 当前进度
 
-2026-09-16 立项（用户三问拍板后转出）；四任务待启动。
+2026-09-16：三任务（047/048/049）实施完成转 review，050 空环境冒烟 22/22 与开发模式走查完成、双轨评审处置完毕（两项用户拍板：JWT ≥32 fail-fast、OAuth2 如实口径）；待全量回归复跑后收口打点归档。

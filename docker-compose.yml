@@ -81,6 +81,8 @@ services:
       NACOS_SERVER_ADDR: nacos:8848
       DB_HOST: postgresql
       DB_PORT: "5432"
+      DB_USERNAME: ${DB_USERNAME:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:-accessmesh-dev}
@@ -110,6 +112,8 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:-accessmesh-dev}
+      # 评审 P3-1 处置：透传必须带 yml 同款默认值——空默认会把未配置误变为「禁用 CORS」改变默认行为
+      GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:8848}
       ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
       PERM_INTERNAL_SECRET: ${PERM_INTERNAL_SECRET:-}
     ports:

@@ -75,7 +75,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.autoconfigure.exclude=org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration,org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration,org.redisson.spring.starter.RedissonAutoConfigurationV2,com.alibaba.cloud.nacos.NacosConfigAutoConfiguration,com.alibaba.cloud.nacos.NacosDiscoveryAutoConfiguration,com.alibaba.cloud.nacos.discovery.NacosDiscoveryClientConfiguration",
     "mybatis-flex.configuration.map-underscore-to-camel-case=true",
     "logging.level.cn.ac.fage.accessmesh=WARN",
-    "JWT_SECRET_KEY=test-jwt-secret-for-login-lock",
+    "JWT_SECRET_KEY=test-jwt-secret-for-login-lock-0123456789",
     "ACCESSMESH_SIGNATURE_SECRET=test-signature-secret-for-login-lock",
     "PERM_INTERNAL_SECRET=test-internal-secret-for-login-lock",
     "sa-token.timeout=300",

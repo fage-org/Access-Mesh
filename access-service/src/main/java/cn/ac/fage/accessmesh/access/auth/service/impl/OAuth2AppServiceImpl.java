@@ -23,6 +23,7 @@ import cn.dev33.satoken.secure.BCrypt;
 import cn.dev33.satoken.stp.StpUtil;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -80,6 +81,16 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
 
     @Value("${sa-token.jwt-secret-key}")
     private String jwtSecretKey;
+
+    /**
+     * JWT 签名密钥强度 fail-fast（release-preview 双轨评审 P3-3，2026-09-16 用户拍板）：
+     * sa-token-jwt 对 HS256 密钥长度零校验，短密钥静默签发弱签名；启动期拒绝
+     * （对齐 bootstrap 密码/双密钥拦截器 @PostConstruct fail-fast 先例）。
+     */
+    @PostConstruct
+    void validateJwtSecretStrength() {
+        OAuth2JwtSupport.validateHmacSecretStrength(jwtSecretKey);
+    }
 
     /**
      * 构造函数注入依赖

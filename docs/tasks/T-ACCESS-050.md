@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-050
 title: 首次部署验证与版本打点收口——空环境全栈冒烟 + v0.1.0 tag + 042 归档
-status: proposed
+status: in-progress
 plan: docs/plans/release-preview-plan.md
 domain: access-service
 design_refs:
@@ -41,6 +41,17 @@ last_updated: 2026-09-16
 ## 验收对照
 
 见 acceptance 七条。
+
+## 完成记录
+
+- 空环境全栈验证（2026-09-16）：`docker compose --profile app down -v` → `up -d --build`（镜像含 T-ACCESS-048 修复）→ 七容器 Up（gateway/frontend healthy）；bootstrap 空库首启日志 `Bootstrap graph created: tenant=1, adminSubjectId=1, roleId=1, apiResources=86, mappings=85, grants=135, menus=14, defaultTreeRootOrg=1`；TYPE_DEFINITION 实例投影自愈补种 33 行。
+- 冒烟脚本 22/22 全绿（node 脚本，脚本序列随卡留档于完成记录末尾）：①验证码签发（nginx→gateway→access 链）+ Redis 取码 + admin 真实登录 + accessToken；②user-menu 菜单下发（4322 bytes）；③建角色/建用户（initialPassword 回传 userId=2）/user-role/assign；④接入五步——service-config/save → sync FULL（createdResources=1/createdMappings=1）→ 资源树定位 resourceId=144；⑤目标用户登录 → 授权前经 Gateway 403；⑥apply-grant-plan（items=1）→ 授权后 0.2s 转 200，响应回显 `{"greeting":"hello, release-smoke","userId":"2","tenantId":"1"}`（Gateway 身份注入链）。
+- 048 部署链路实证：同批次 access-service 日志出现 `Evicted all L2 cache for catalog=admin:org-visibility, tenantId=1`（bootstrap 播种事务触发 flush 的 legacy 同批 evict）。
+- 开发模式走查（quickstart 路径 B）：compose 基建 + 手工 `mvn spring-boot:run`（access/gateway，env 经 `set -a; source .env`）+ `VITE_PORT=8890 pnpm dev`；access 就绪 ~12s、bootstrap no-op（幂等证据 `already present and matching — no-op (password untouched)`）；vite 代理链（8890→8080→9100）验证码+登录 200。
+- 全量回归：首跑 access-service fork 内 `TaskExecutionLeaseConcurrencyTest.claimBlockedOverMaxAttempts` 1 失败（expected: 1 but was: 0，L333）——隔离复跑 `-Dtest=TaskExecutionLeaseConcurrencyTest` 10/10 绿（23.1s），定性 `-T 1C` 模块并行负载时序抖动、非本批改动破坏；重跑全量结果见下。
+- dev 环境提示：`down -v` 重建后 dev 库 admin 密码=本地 .env 所填值（冒烟值，用户可改 .env 后 `down -v` 重种）。
+
+（全量重跑与双轨评审结论、版本打点哈希待补）
 
 ## 非目标 / 遗留
 

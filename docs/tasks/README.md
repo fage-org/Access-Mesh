@@ -98,7 +98,7 @@
 | [T-ACCESS-047](T-ACCESS-047.md) | 全栈部署编排——compose app profile + 服务/前端镜像 + 配置占位符 | release-preview-plan | gateway.md §配置项；access-service-architecture §2/§16 | — | 👀 | ✓ |
 | [T-ACCESS-048](T-ACCESS-048.md) | Q-006 双命名空间失效修复——ORG_VISIBILITY legacy 别名同批 evict + 回归锁 | release-preview-plan | dual-layer-cache-framework skill 双副本 | — | 👀 | ✓ |
 | [T-ACCESS-049](T-ACCESS-049.md) | 发布文档与版本化——quickstart/deployment 基线/CHANGELOG/README/LICENSE | release-preview-plan | extension-guide；design/README 三档口径；docs/README | T-ACCESS-047 | 👀 | ✓ |
-| [T-ACCESS-050](T-ACCESS-050.md) | 首次部署验证与版本打点收口——空环境全栈冒烟 + v0.1.0 tag + 042 归档 | release-preview-plan | release-preview-plan；decision-registry | T-ACCESS-047, T-ACCESS-048, T-ACCESS-049 | ⚙️ | ⏳ |
+| [T-ACCESS-050](T-ACCESS-050.md) | 首次部署验证与版本打点收口——空环境全栈冒烟 + v0.1.0 tag + 042 归档 | release-preview-plan | release-preview-plan；decision-registry | T-ACCESS-047, T-ACCESS-048, T-ACCESS-049 | 🔨 | ⏳ |
 
 ### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——未终态仅剩暂缓项 T-PERM-035/036/054 挂本表等 PM 重申）
 

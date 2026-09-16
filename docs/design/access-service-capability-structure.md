@@ -70,7 +70,7 @@ last_reviewed: 2026-09-15 Q-009 收敛退役：§4 裁决表 row9 与 §8.4 豁�
 ## 3. 设施收敛
 
 - **错误码**：合类不合号——已合一为单册 `infrastructure.enums.AccessErrorCode`（T-ACCESS-038，2026-09-13），`1xxxx`、`2xxxx` 编号段原值保留、不重排（architecture §9 分段与不重编号的字面保持）；同名异号三组（USER_NOT_FOUND/USER_ALREADY_EXISTS/INVALID_PARAM）以 `ADMIN_`/`PERM_` 段前缀消解；新增码归属段规则=**能力无专属段**、按错误业务语义选段（architecture §9 成文）。
-- **缓存目录**：已合一为单册 `infrastructure.cache.AccessCacheCatalog`（T-ACCESS-039，2026-09-13；OPERATION_CODE 死条目已随 T-ACCESS-034 删除），全部条目 mode/TTL 零改动；`admin:org-visibility` 越域命名归位为 `access:org-visibility`（跨能力条目取服务级前缀，不做兼容双读，Q-006 滚动发布边界登记不实施）。
+- **缓存目录**：已合一为单册 `infrastructure.cache.AccessCacheCatalog`（T-ACCESS-039，2026-09-13；OPERATION_CODE 死条目已随 T-ACCESS-034 删除），全部条目 mode/TTL 零改动；`admin:org-visibility` 越域命名归位为 `access:org-visibility`（跨能力条目取服务级前缀，不做兼容双读；Q-006 滚动发布边界已随 T-ACCESS-048 实施——legacy 别名同批 evict）。
 - **操作码**：见 §5.1。
 
 ## 4. 概念边界维持项（不合并清单）
@@ -406,7 +406,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | infrastructure 现有底座：AccessRequestContext、CallerType、JsonbStringTypeHandler、MybatisFlexTenantConfig、MybatisFlexTypeHandlerConfig、OAuth2JwtSupport、OAuth2ResourcePathProperties、RequestContext、RequestContextInterceptor、SecurityAttributes、SignatureVerifier、TenantContextHolder、TimestamptzLocalDateTimeTypeHandler、TreeWriteLockSupport、infrastructure.util.HttpRequestUtils、SensitiveDataUtils | 原位 | 照旧 |
 | permission.config：HeaderSignatureInterceptor、InternalApiSecretInterceptor、SecurityWebMvcConfig、AsyncConfig | infrastructure.config | 安全拦截器/异步配置 |
 | permission.aop.PermissionChangeAspect + infrastructure.PermissionChange、PermissionChangeContext | infrastructure | 缓存失效横切（事务后广播） |
-| permission.cache：PermInvalidationPublisher、PermCacheBoundaryValidator；admin.cache.**AdminCacheCatalog** + permission.cache.**PermCacheCatalog** | infrastructure.cache（039 已合一为单册 **AccessCacheCatalog**，两旧册消亡） | `admin:org-visibility` 同任务归位 `access:org-visibility`；条目 mode/TTL 零改动；Q-006 滚动发布边界登记不实施 |
+| permission.cache：PermInvalidationPublisher、PermCacheBoundaryValidator；admin.cache.**AdminCacheCatalog** + permission.cache.**PermCacheCatalog** | infrastructure.cache（039 已合一为单册 **AccessCacheCatalog**，两旧册消亡） | `admin:org-visibility` 同任务归位 `access:org-visibility`；条目 mode/TTL 零改动；Q-006 滚动发布边界已随 T-ACCESS-048 实施（legacy 别名同批 evict） |
 | permission.util：OperatorContext、OperatorUtil、SecurityUtils、StringUtils、PageUtil、PermissionConstants、TreeBuilder；permission.util.SecurityEventType、SecurityLogUtil | infrastructure.util | 跨能力通用（Operator 族消费面横跨全部能力与写编排；PermissionConstants 消费面 grant/resource/role/user；TreeBuilder 消费面 role/resource；SecurityLog/EventType 随拦截器） |
 | **任务治理设施（裁决 4）**：admin.service.domain.TaskExecutionDomainService/Impl、JobInvokeDomainService/Impl；admin.config.TaskExecutorConfig；admin.schedule：JobScheduleReconciler、TaskLeaseTakeoverScheduler；infrastructure.entity.SysTaskExecution；infrastructure.task：JobInvocable、TaskExecutionContext；**SysTaskExecutionMapper → infrastructure.mapper**（§8.1 mapper 子包约定） | infrastructure.task（mapper 接口除外） | 唯一消费方=platform job 链（JobAppServiceImpl 跨包调用） |
 | admin.dto.req.**IdsReq** + permission.dto.req.**EmptyReq** | infrastructure.dto | 跨能力共享 DTO（IdsReq 消费面横跨 platform/user/org 诸能力 Controller 与 Service；EmptyReq 消费面 rule+resource） |
