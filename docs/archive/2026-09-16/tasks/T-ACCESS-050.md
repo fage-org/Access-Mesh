@@ -6,7 +6,6 @@ status: done
 plan: docs/archive/2026-09-16/release-preview-plan.md
 domain: access-service
 design_refs:
-  - docs/plans/release-preview-plan.md
   - docs/design/decision-registry.md
 depends_on: [T-ACCESS-047, T-ACCESS-048, T-ACCESS-049]
 blocks: []

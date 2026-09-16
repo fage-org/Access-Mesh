@@ -20,7 +20,7 @@
 >   Gateway 管理 API 清单（T-FE-015 +20 至 33、T-FE-016 +4 至 37、T-FE-017 +8 至 45、T-FE-020 +9 至 54、T-FE-019 +3 至 57、T-FE-021 +9 至 66、T-FE-022 +16 至 82 端点；T-PERM-059（2026-09-10）删排查两路由后 80 路由、T-FE-044（2026-09-14）资源依赖页 +6 后现值 86 路由/85 映射、菜单 14 行——现值以 `BootstrapGraphDefinition` 与 `AccessBootstrapPgIT` 断言为准，本段为历史增长叙述）、默认组织树（根组织 `root` + 默认树配置 + admin 挂根组织）。
 > - 服务启动密钥环境变量（T-FE-016 实操确认的完整清单；Nacos 配置中心为空不托管，均须启动时注入）：
 >   `ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（bootstrap 种子）、
->   `JWT_SECRET_KEY`（access-service OAuth2 域，HS256 应 ≥32 字符——RFC 7518 建议，代码不强制长度）、
+>   `JWT_SECRET_KEY`（access-service OAuth2 域，HS256 **必须 ≥32 字符**——缺失或过短 access-service 启动 fail-fast，release-preview 起 @PostConstruct 强制校验）、
 >   `ACCESSMESH_SIGNATURE_SECRET`（Gateway 与 access-service **必须同值**——内部请求头验签）、
 >   `PERM_INTERNAL_SECRET`（两侧同值，内部管理 API 防护）；Gateway 另需
 >   `GATEWAY_CORS_ALLOWED_ORIGINS=http://localhost:8890,http://localhost:8848`（缺 8890 时浏览器请求 403 空体）；另 Gateway dev 启动须 `mvn spring-boot:run`——直接 java -cp 起动因依赖清单混入 spring-webmvc 触发 reactive/servlet 冲突（T-FE-017 实操确认）。

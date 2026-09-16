@@ -54,7 +54,7 @@
 
 | 路径                 | 说明                                             |
 | -------------------- | ------------------------------------------------ |
-| `access-service-api-contract.md` | access-service API 契约总册（两 URL 家族同册分列、按能力分章，T-ACCESS-040） |
+| `access-service-api-contract.md` | access-service API 契约总册（单命名空间 `/api/access/**`、按能力分章，T-ACCESS-040/042） |
 | `engine/`            | 引擎子系统设计：概念模型、核心调用链路、实现设计（T-ACCESS-040 迁位） |
 | `permission-center` 目录 | superseded 残件（旧 API 契约册与 query-engine-unification.md——目录已随 T-ACCESS-040 解散，留原位作历史锚点、物理归档随后续批次） |
 | 根目录 `*-design.md` / `*-evolution.md` | 端到端设计契约（`status: adopted`）与演进方向（`status: evolution`，非约束）|

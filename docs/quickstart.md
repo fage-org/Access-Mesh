@@ -26,7 +26,7 @@ cp .env.example .env
 docker compose --profile app up -d --build
 ```
 
-`.env` 必填项：`ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（首管理员密码）、`JWT_SECRET_KEY`（≥32 字符）、`ACCESSMESH_SIGNATURE_SECRET`、`PERM_INTERNAL_SECRET`（后两者三服务同值，模板内有说明）。
+`.env` 必填项：`ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（首管理员密码）、`JWT_SECRET_KEY`（≥32 字符）、`ACCESSMESH_SIGNATURE_SECRET`（gateway/access-service/example-service 三处同值）、`PERM_INTERNAL_SECRET`（仅 gateway 与 access-service 同值）——分发范围详见模板注释。
 
 首次启动时 PostgreSQL 空数据卷自动执行唯一权威 DDL 建库建表；access-service 幂等 bootstrap 创建首管理员 `admin`（密码=你填的值，重复启动不重置）。
 

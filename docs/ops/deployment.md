@@ -43,8 +43,8 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 
 ## 4. X-Forwarded-For 与多层代理（部署前提）
 
-- Gateway 会**清洗**外部传入的 `X-Forwarded-For`/`X-Real-IP`，并以自身观测的 remoteAddr 重建 XFF 下发下游（单值可信来源，IP 条件权限消费该值）。
-- 因此：**多层 LB/CDN 部署时必须在最外层反向代理做客户端真实 IP 透传收敛**（外层传入口的伪造 XFF 一律删除、以观测 remoteAddr 重建）；否则 Gateway 观测到的是 LB IP，网关快照的 IP 条件重评将按 LB 地址判定。
+- Gateway 会**清洗**外部传入的 `X-Forwarded-For`/`X-Real-IP`，并以自身观测的 **remoteAddr（直连对端 socket 地址）** 重建 XFF 下发下游（单值可信来源）；IP 条件权限（白名单/黑名单/快照本地重评）同样只消费该直连地址——**不读任何 XFF 头**。
+- **多层 LB/CDN 部署的真实 IP 边界**：Gateway 恒观测到代理出口 IP——外层代理即使正确重建 XFF，也会被 Gateway 清洗丢弃，**真实客户端 IP 条件在此形态下不可用**。可行处置（对齐 security-standards §7）：① IP 白/黑名单按代理出口网段粗约配置；② 真实 IP 精细管控上移至最外层 WAF/LB；③ 未来需要网关级真实 IP 时另立 trusted-proxies 机制（现无）。外层伪造 XFF 不构成越权风险（Gateway 无条件清洗）。
 - Gateway 管理端口（8081）默认仅绑定回环；Prometheus 抓取需经 `GATEWAY_MANAGEMENT_ADDRESS` 显式放开并配网络访问控制。
 
 ## 5. 时间语义
