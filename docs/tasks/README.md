@@ -59,7 +59,7 @@
 | [T-ACCESS-029](../archive/2026-09-14/tasks/T-ACCESS-029.md) | bootstrap 固定图授权收缩通道——软删墓碑三分判定 | [design-audit-followup](../archive/2026-09-14/design-audit-followup-plan.md)（已归档） | access-service-architecture §14.2 | — | ✅ | ✓ |
 | [T-ACCESS-030](../archive/2026-09-12/tasks/T-ACCESS-030.md) | 容器测试轨道提速——单例容器 + 按类建库 + 复用 + fork 级并行 | —（2026-09-06 用户决策提速定案） | docs/archive/2026-09-12/tasks/T-ACCESS-030.md 设计口径（工程改进，无设计文档回写） | — | ✅ | ✓ |
 | [T-ACCESS-031](../archive/2026-09-12/tasks/T-ACCESS-031.md) | E2E 独立模块分轨——gateway 解除 test 依赖 + skipE2E 日常口径 + -T 模块并行恢复 | —（2026-09-06 用户决策 B+结构性拆分） | docs/archive/2026-09-12/tasks/T-ACCESS-031.md 设计口径；gateway.md §测试域、access-service-architecture §14.8（E2E 落位回写） | — | ✅ | ✓ |
-| [T-ACCESS-042](T-ACCESS-042.md) | URL 单命名空间统一 /api/access/**——外部路径=服务路径（✅ 2026-09-15 收口：全量回归 1699 全绿含 E2E + dev 冒烟九项 + 双轨评审处置完毕；Q-001 收敛） | —（Q-001 单卡转出） | 契约总册 §2 URL 形态总述；capability-structure §6；services/gateway.md；engine/core-flows.md | — | ✅ | ✓ |
+| [T-ACCESS-042](../archive/2026-09-16/tasks/T-ACCESS-042.md) | URL 单命名空间统一 /api/access/**——外部路径=服务路径（✅ 2026-09-15 收口：全量回归 1699 全绿含 E2E + dev 冒烟九项 + 双轨评审处置完毕；Q-001 收敛；2026-09-16 随 release-preview 批次单卡归档） | —（Q-001 单卡转出） | 契约总册 §2 URL 形态总述；capability-structure §6；services/gateway.md；engine/core-flows.md | — | ✅ | ✓ |
 
 ### access-service 能力包融合（2026-09-13 立项）
 
@@ -95,9 +95,9 @@
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-ACCESS-047](T-ACCESS-047.md) | 全栈部署编排——compose app profile + 服务/前端镜像 + 配置占位符 | release-preview-plan | gateway.md §配置项；access-service-architecture §2/§16 | — | 🔨 | ⏳ |
-| [T-ACCESS-048](T-ACCESS-048.md) | Q-006 双命名空间失效修复——ORG_VISIBILITY legacy 别名同批 evict + 回归锁 | release-preview-plan | dual-layer-cache-framework skill 双副本 | — | 🔨 | ⏳ |
-| [T-ACCESS-049](T-ACCESS-049.md) | 发布文档与版本化——quickstart/deployment 基线/CHANGELOG/README/LICENSE | release-preview-plan | extension-guide；design/README 三档口径；docs/README | T-ACCESS-047 | ⚙️ | ⏳ |
+| [T-ACCESS-047](T-ACCESS-047.md) | 全栈部署编排——compose app profile + 服务/前端镜像 + 配置占位符 | release-preview-plan | gateway.md §配置项；access-service-architecture §2/§16 | — | 👀 | ✓ |
+| [T-ACCESS-048](T-ACCESS-048.md) | Q-006 双命名空间失效修复——ORG_VISIBILITY legacy 别名同批 evict + 回归锁 | release-preview-plan | dual-layer-cache-framework skill 双副本 | — | 👀 | ✓ |
+| [T-ACCESS-049](T-ACCESS-049.md) | 发布文档与版本化——quickstart/deployment 基线/CHANGELOG/README/LICENSE | release-preview-plan | extension-guide；design/README 三档口径；docs/README | T-ACCESS-047 | 👀 | ✓ |
 | [T-ACCESS-050](T-ACCESS-050.md) | 首次部署验证与版本打点收口——空环境全栈冒烟 + v0.1.0 tag + 042 归档 | release-preview-plan | release-preview-plan；decision-registry | T-ACCESS-047, T-ACCESS-048, T-ACCESS-049 | ⚙️ | ⏳ |
 
 ### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——未终态仅剩暂缓项 T-PERM-035/036/054 挂本表等 PM 重申）

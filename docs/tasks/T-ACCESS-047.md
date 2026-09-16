@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-047
 title: 全栈部署编排——compose app profile + 服务/前端镜像 + 配置占位符
-status: in-progress
+status: review
 plan: docs/plans/release-preview-plan.md
 domain: access-service
 design_refs:
@@ -20,7 +20,7 @@ acceptance:
   - "单测轨道回归绿（占位符默认值不改变任何既有测试行为）"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-16
 ---
 
@@ -50,3 +50,13 @@ compose 现状仅基建（T-ACCESS-020 定调「仅承诺一键基础设施」�
 ## 非目标 / 遗留
 
 - 不做 CI 发布流水线/镜像推送；不做 DDL 迁移；多实例拓扑；生产 HTTPS（归 deployment.md 文档面，T-ACCESS-049）。
+
+## 完成记录
+
+- 提交 `ffc88ded3`（2026-09-16）。
+- 验收证据：
+  - `docker compose config --services` 默认档=nacos/postgresql/redis 三件（行为不变）、`--profile app` 档=七服务；
+  - `docker compose --profile app up -d --build` 七容器 Up（gateway/frontend healthy）；接线冒烟：前端 `GET http://127.0.0.1/` 200、验证码 `POST /api/access/auth/captcha`（nginx→gateway→access 全链）200 带 base64 图、`POST :8080/api/example/demo/hello` 无令牌 401 信封；
+  - 单测轨道三模块全绿：`mvn test -pl access-service,gateway,example-service -DskipTestcontainers=true`（2026-09-16，access-service 1252 项 + gateway 全量 + example 10 项，BUILD SUCCESS，t047_unit_tests.log）。
+- 实施期四项实证修正（全记录于 Dockerfile/compose 注释）：①ENTRYPOINT 引用须相对 WORKDIR（`/app.jar` 根路径致「Unable to access jarfile」）；②`pnpm-workspace.yaml` 必须先于 install 拷入镜像（pnpm 11 的 allowBuilds 住该文件，缺位→ERR_PNPM_IGNORED_BUILDS）；③基础镜像 node:24 对齐本地（pnpm 11.5 在 node 20 报 ERR_UNKNOWN_BUILTIN_MODULE）+ pnpm 钉 11.5.0；④`.dockerignore` 弃「`target/*`+`!` 反向放行」形态改枚举排除（反向放行在不同 BuildKit 不可移植）。
+- 设计回写：gateway.md §配置项 补占位符键注记；部署文档落位 docs/quickstart.md + docs/ops/deployment.md（T-ACCESS-049 承载）。

@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-048
 title: Q-006 双命名空间失效修复——ORG_VISIBILITY legacy 别名同批 evict + 回归锁
-status: in-progress
+status: review
 plan: docs/plans/release-preview-plan.md
 domain: access-service
 design_refs:
@@ -20,7 +20,7 @@ acceptance:
   - "模块单测轨道全绿；common 模块零改动"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-16
 ---
 
@@ -48,3 +48,12 @@ T-ACCESS-039 将 catalog code `admin:org-visibility` 改名 `access:org-visibili
 ## 非目标 / 遗留
 
 - 不做旧 Nacos 配置键自动迁移（只告警）；不改 RedissonBucketStore/CacheKeyUtil/广播三件套；不引入通用「别名注册机制」（单条目够用，避免过度设计）。
+
+## 完成记录
+
+- 提交 `455b2c29e`（2026-09-16）。
+- 回归证据：定向三测试类 22/22 全绿（AccessCacheCatalogBoundaryTest 12 + DualInstanceCacheInvalidationTest 7 + PermissionChangeAspectTest 3；`mvn test -pl access-service -DskipTestcontainers=true -Dtest=...`，2026-09-16，t048_tests3.log）；common 模块零改动（L2_ONLY 经 `DefaultCacheService.broadcastEvictAll` 的 L1_L2 门控自动免广播）。
+- 部署链路实证：release-preview 空环境全栈镜像（含本修复）access-service 日志出现 `Evicted all L2 cache for catalog=admin:org-visibility, tenantId=1`（bootstrap 播种事务触发 flush）——legacy evict 在真实部署路径生效（2026-09-16，T-ACCESS-050 冒烟批次日志）。
+- 顺带修复：DualInstanceCacheInvalidationTest 的 FakeRedis `keys.delete(String...)` 桩潜伏缺陷——Mockito 对 varargs 展开参数，`getArgument(0)` 单键调用拿到 String 强转 `String[]` 抛 ClassCastException、被生产 catch 吞掉表现为「扫描命中但键未删除」；Q-006 用例首个走到该路径而暴露，改 `getArguments()` 逐元素遍历。
+- 回归锁旧实现下失败性：AspectTest 两处 verify(legacy evictAll) 在无第二次 evictAll 调用的旧实现下 verify 失败；DualInstance 场景锁依赖两次 evictAll 序列。
+- 文档回写：dual-layer-cache-framework skill 双副本（Catalog 设计规范「要求」清单 +2 条：未知覆盖键 WARN、evict-only 别名机制）；Q-006 条目 converted 挂本卡（任务 done 后收敛入索引）。

@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ACCESS-049
 title: 发布文档与版本化——quickstart/deployment 基线/CHANGELOG/README/LICENSE
-status: proposed
+status: review
 plan: docs/plans/release-preview-plan.md
 domain: access-service
 design_refs:
@@ -21,7 +21,7 @@ acceptance:
   - "链接自检：新增文档被索引引用、无悬空；docs-governance 关键词扫描过"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-16
 ---
 
@@ -47,3 +47,11 @@ quickstart、deployment 基线、frontend README、根 LICENSE、CHANGELOG、根
 ## 非目标 / 遗留
 
 - 不建 CONTRIBUTING/SECURITY.md/英文版文档（后续发布批次）；不动 CI；版本号变更本体在 T-ACCESS-050 执行（本任务只备 CHANGELOG 与叙事）。
+
+## 完成记录
+
+- 提交 `e2854c689`（2026-09-16）。
+- 六件交付：docs/quickstart.md（外部五步入口/两条启动路径/example 演练/FAQ 表）、docs/ops/deployment.md（七节基线：拓扑/密钥/TLS/XFF/UTC/数据升级/监控）、frontend/README.md（AccessMesh 口径 + 上游 Third-party Notice）、根 LICENSE（© The AccessMesh Authors）、CHANGELOG.md（v0.1.0 + 六条已知限制 + Unreleased 段）、根 README 分层（项目状态改 v0.1.0 叙事 + 已知限制摘要；文档表 +4 行；快速开始压缩为三命令）。
+- 配套同步：docs/README 新增「外部使用者入口」+ 目录树补 quickstart/deployment；AGENTS.md compose 行补全栈档；compose 头注释翻指 quickstart。
+- LICENSE 复核项落位：frontend/ 是 pure-admin-thin 明确派生——frontend/LICENSE 上游 MIT 声明保留未动 + frontend/README 以 Third-party Notice 交代署名；根 LICENSE 重写（用户 2026-09-16 拍板）。终稿待用户过目确认。
+- 链接自检：新增/修改文档的相对链接目标全部实存（quickstart 7 链、deployment 5 链、README 文档表 8 链逐个核实）。

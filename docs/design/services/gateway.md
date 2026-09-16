@@ -114,6 +114,8 @@ Gateway 启动后订阅 Redis topic `perm:invalidate`。access-service 写路径
 
 > T-ACCESS-008 已删除配置：`gateway.cache.l1.ttl-seconds` / `max-size`（统一到 catalog + `accessmesh.cache` 覆盖）、`gateway.cache.l1.stale-grace-seconds`（stale-allow 删除）、`gateway.permission.fail-mode`（固定 fail-closed，不可切换）。
 
+> T-ACCESS-047：连接类地址占位符化（默认值=原硬编码，本地 dev 零参数不变）——`NACOS_SERVER_ADDR`（discovery/config server-addr，默认 `127.0.0.1:8848`；三服务同键）、`REDIS_HOST`/`REDIS_PORT`/`REDIS_PASSWORD`（既有）、`DB_HOST`/`DB_PORT`（access-service）。容器化部署（compose `--profile app`）经环境变量覆盖为服务名；部署形态与密钥清单见 [docs/quickstart.md](../../quickstart.md) 与 [docs/ops/deployment.md](../../ops/deployment.md)。
+
 ### 失联兜底模式（T-ACCESS-008 固定 fail-closed）
 
 > T-GW-001/T-GW-002/T-GW-003 历史实现的 `closed`/`open`/`stale-allow` 三模式及 stale store 已于 T-ACCESS-008 删除，权限回源失败**固定 fail-closed**，不可配置、不得绕过授权或使用过期结果。
