@@ -2,8 +2,8 @@
 doc_type: task
 id: T-ACCESS-048
 title: Q-006 双命名空间失效修复——ORG_VISIBILITY legacy 别名同批 evict + 回归锁
-status: review
-plan: docs/plans/release-preview-plan.md
+status: done
+plan: docs/archive/2026-09-16/release-preview-plan.md
 domain: access-service
 design_refs:
   - .claude/skills/dual-layer-cache-framework/SKILL.md

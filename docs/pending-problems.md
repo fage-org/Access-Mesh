@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-012           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-16（Q-006 转出 T-ACCESS-048）
+last_updated: 2026-09-16（Q-006 收敛）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,19 +12,6 @@ last_updated: 2026-09-16（Q-006 转出 T-ACCESS-048）
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
-
-## Q-006 ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效（登记不实施 → 转出实施）
-
-- **状态**：converted（2026-09-16 随 release-preview 立项转出实施）
-- **登记**：2026-09-13（历史登记收编——2026-09-13 外评裁决「登记不实施」）
-- **来源**：T-ACCESS-039 当前口径（登记性已知边界）；decision-registry 2026-09-13 融合行处置④
-- **关联**：T-ACCESS-048（release-preview-plan；实施=legacy 别名同批 evict + 未知覆盖键 WARN + 回归锁）
-
-**现象与证据**：T-ACCESS-039 已将 catalog code `admin:org-visibility` 改名为 `access:org-visibility`（2026-09-13 落地，不做兼容双读）——此后若发生新旧实例并存的滚动发布，双方 `evictAll` 各扫自身 catalog code 命名空间互不可删（RedissonBucketStore 按 `{tenantId}:{catalogCode}:*` 精确扫描实证）；Nacos 按旧 code 配置的 TTL 覆盖同批被静默忽略。按 code 索引的运维可见面同批切换：Micrometer `catalog` 标签 series（RedissonBucketStore/CombinedL1L2Store 等以 `catalog.getCode()` 建 series）与日志中的 catalog 值随 code 改名，首次部署的看板/告警须按新 code 取数（2026-09-13 外评 claude 补登，当前仓内零监控规则消费、未部署无实际影响）。
-
-**影响**：现在为什么没出事——项目未正式部署、无新旧实例并存场景；首次滚动发布时若不补，权限/组织关系变更后另一版本命名空间的 org-visibility 缓存不失效，最长旧 TTL 60s 的越界可见/错误拒绝（该条目非安全快照链路，影响有界）。
-
-**设想方向（未定案）**：届时补双命名空间失效（写路径同批 evict 新旧 code）+ 旧 Nacos 键迁移告警 + 新旧共存失效回归锁（外评建议原样在案）。
 
 ## Q-007 sync 通道跨类型父子边是否收紧为同类型父边
 
@@ -56,6 +43,7 @@ last_updated: 2026-09-16（Q-006 转出 T-ACCESS-048）
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-006 | ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效 | closed（T-ACCESS-048 done：ORG_VISIBILITY_LEGACY evict-only 别名 + flush 同批双 evictAll + 未知覆盖键启动 WARN + 三处回归锁；部署镜像日志实证 legacy evict 生效；定案见 registry 2026-09-16 处置行，机制入 dual-layer-cache-framework skill 双副本。滚动发布过渡窗口结束后删除别名与第二次 evictAll 即回退面） | [T-ACCESS-048](archive/2026-09-16/tasks/T-ACCESS-048.md) | 2026-09-16 |
 | Q-009 | 存量跨能力 mapper 直读收敛（19 类 30 边冻结白名单的后续消化） | closed（T-ACCESS-043~046 done：四批全量收敛 30 边至零、白名单退役为零容忍绝对禁断、负向自证改测试源集夹具；全量回归含 E2E 绿 + 双轨评审；定案与硬契约见 registry 2026-09-15 两行） | [capability-mapper-convergence-plan](archive/2026-09-15/capability-mapper-convergence-plan.md)（T-ACCESS-043~046，已归档） | 2026-09-15 |
 | Q-001 | URL 路径风格统一（admin 裸路径 vs perm 前缀路径） | closed（T-ACCESS-042 done：全链路单命名空间 /api/access/**——外部=服务路径、无 Gateway StripPrefix、无 admin/perm 家族段；登录族并入 /api/access/auth/**；user-role/list 双轨碰撞管理轨改名 view；一次性切换零兼容。定案与实施期裁决见 registry 2026-09-15 行） | [T-ACCESS-042](../tasks/T-ACCESS-042.md) | 2026-09-15 |
 | Q-002 | USER 写入口自身豁免的范围限定 | closed（T-PERM-067 done：收窄为档案字段——档案字段豁免保留、启停/删除不豁免（admin 轨 /user/update 自禁对齐 CANNOT_DISABLE_SELF 硬禁 + perm 轨死分支语义统一）、/user/reset-password 定位自助改密通道；定案见 registry 2026-09-14 行；盘点修正=可达暴露面全在 admin 轨） | [T-PERM-067](../archive/2026-09-14/tasks/T-PERM-067.md) | 2026-09-14 |

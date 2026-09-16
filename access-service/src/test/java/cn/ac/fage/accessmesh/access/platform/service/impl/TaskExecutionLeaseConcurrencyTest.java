@@ -324,13 +324,24 @@ class TaskExecutionLeaseConcurrencyTest {
             .isEqualTo(1);
         jdbcTemplate.update("UPDATE sys_task_execution SET attempt_count = 3 "
             + "WHERE tenant_id = ? AND execution_key = ?", TENANT_ID, key);
-        TimeUnit.MILLISECONDS.sleep(1200);
 
         assertThat(taskExecutionMapper.tryClaimExecution(TENANT_ID, key, "owner-B", 1, 3)).isNull();
         assertThat(taskExecutionDomainService.findRetryable(10)).isEmpty();
 
-        // 超限的过期 RUNNING 收敛为终态 FAILED
-        assertThat(taskExecutionDomainService.failExpiredOverMaxAttempts()).isEqualTo(1);
+        // 超限的过期 RUNNING 收敛为终态 FAILED：过期边界轮询至判定成立（有界 5s）——
+        // 固定 sleep 1200ms 对 1s 租约仅 200ms 余量，-T 负载下单次失败已多次实证
+        // （release-preview 收口全量 2/3 失败、隔离恒绿；对齐同类 takeover 用例的 T-ACCESS-030 定式）
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        int converged = 0;
+        while (converged != 1 && System.nanoTime() < deadline) {
+            converged = taskExecutionDomainService.failExpiredOverMaxAttempts();
+            if (converged != 1) {
+                TimeUnit.MILLISECONDS.sleep(200);
+            }
+        }
+        assertThat(converged)
+            .as("5s 内超限的过期 RUNNING 应收敛为 FAILED")
+            .isEqualTo(1);
         SysTaskExecution row = taskExecutionDomainService.findByExecutionKey(TENANT_ID, key);
         assertThat(row.getStatus()).isEqualTo("FAILED");
         assertThat(row.getFinishedAt()).isNotNull();

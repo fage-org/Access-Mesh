@@ -89,16 +89,16 @@
 | [T-ACCESS-045](../archive/2026-09-15/tasks/T-ACCESS-045.md) | 收敛批次③——type/resource/domain 供给读服务（11 边）（✅ 2026-09-15 收口：五新服务落地 + 全租户/IN 双口径；模块双 fork 全绿；白名单 15→4） | 同 | 同 | T-ACCESS-044 | ✅ | ✓ |
 | [T-ACCESS-046](../archive/2026-09-15/tasks/T-ACCESS-046.md) | 收敛批次④——user-role 原始行/投影 + 白名单退役收口（4 边）（✅ 2026-09-15 收口：30 边全收敛、白名单退役零容忍 + fixture 自证；全量 -T 1C 含 E2E 1698 全绿 + 双轨评审处置完毕；Q-009 收敛） | 同 | capability-structure §8.4；project-rules §8.2 | T-ACCESS-045 | ✅ | ✓ |
 
-### 发布预览（release-preview-plan，2026-09-16 立项）
+### 发布预览（release-preview-plan，2026-09-16 立项——✅ 2026-09-16 全部收口归档）
 
-> [release-preview-plan](../plans/release-preview-plan.md)（active）：首个发布预览（v0.1.0）与部署验证——全栈 compose profile + 发布文档全套 + 空环境部署验证；三项定调（全栈 profile / v0.1.0 预览版 / 文档全套+根 LICENSE 重写为本项目名义）为 2026-09-16 用户拍板。
+> [release-preview-plan](../archive/2026-09-16/release-preview-plan.md)（已归档 2026-09-16，四任务全 done）：首个发布预览（v0.1.0）与部署验证——全栈 compose profile + 发布文档全套 + 空环境部署验证 + 本地 tag v0.1.0；三项定调与双轨评审处置见 decision-registry 2026-09-16 两行；最终全量回归含 E2E 全绿（1706 项 0 失败）。
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
-| [T-ACCESS-047](T-ACCESS-047.md) | 全栈部署编排——compose app profile + 服务/前端镜像 + 配置占位符 | release-preview-plan | gateway.md §配置项；access-service-architecture §2/§16 | — | 👀 | ✓ |
-| [T-ACCESS-048](T-ACCESS-048.md) | Q-006 双命名空间失效修复——ORG_VISIBILITY legacy 别名同批 evict + 回归锁 | release-preview-plan | dual-layer-cache-framework skill 双副本 | — | 👀 | ✓ |
-| [T-ACCESS-049](T-ACCESS-049.md) | 发布文档与版本化——quickstart/deployment 基线/CHANGELOG/README/LICENSE | release-preview-plan | extension-guide；design/README 三档口径；docs/README | T-ACCESS-047 | 👀 | ✓ |
-| [T-ACCESS-050](T-ACCESS-050.md) | 首次部署验证与版本打点收口——空环境全栈冒烟 + v0.1.0 tag + 042 归档 | release-preview-plan | release-preview-plan；decision-registry | T-ACCESS-047, T-ACCESS-048, T-ACCESS-049 | 🔨 | ⏳ |
+| [T-ACCESS-047](../archive/2026-09-16/tasks/T-ACCESS-047.md) | 全栈部署编排——compose app profile + 服务/前端镜像 + 配置占位符 | release-preview（已归档） | gateway.md §配置项；access-service-architecture §2/§16 | — | ✅ | ✓ |
+| [T-ACCESS-048](../archive/2026-09-16/tasks/T-ACCESS-048.md) | Q-006 双命名空间失效修复——ORG_VISIBILITY legacy 别名同批 evict + 回归锁 | 同 | dual-layer-cache-framework skill 双副本 | — | ✅ | ✓ |
+| [T-ACCESS-049](../archive/2026-09-16/tasks/T-ACCESS-049.md) | 发布文档与版本化——quickstart/deployment 基线/CHANGELOG/README/LICENSE | 同 | extension-guide；design/README 三档口径；docs/README | T-ACCESS-047 | ✅ | ✓ |
+| [T-ACCESS-050](../archive/2026-09-16/tasks/T-ACCESS-050.md) | 首次部署验证与版本打点收口——空环境全栈冒烟 + v0.1.0 tag + 042 归档 | 同 | release-preview-plan；decision-registry | T-ACCESS-047, T-ACCESS-048, T-ACCESS-049 | ✅ | ✓ |
 
 ### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——未终态仅剩暂缓项 T-PERM-035/036/054 挂本表等 PM 重申）
 

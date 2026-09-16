@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 首个发布预览（v0.1.0）与部署验证
-status: active
+status: completed
 domain: access-service
 design_refs:
   - docs/design/services/gateway.md
@@ -60,4 +60,4 @@ last_updated: 2026-09-16
 
 ## 当前进度
 
-2026-09-16：三任务（047/048/049）实施完成转 review，050 空环境冒烟 22/22 与开发模式走查完成、双轨评审处置完毕（两项用户拍板：JWT ≥32 fail-fast、OAuth2 如实口径）；待全量回归复跑后收口打点归档。
+2026-09-16 全部收口：四任务 done；空环境全栈冒烟 22/22 + 开发模式走查通过；双轨评审（代码轨 P3×6 + 文档轨 P1×2/P2×2/P3×6）逐条核实处置（两项用户拍板）；最终全量回归 `mvn test -T 1C` 十模块含 E2E 全绿（八结果段 1706 项 0 失败，t050_full_regress4.log）；本地 tag v0.1.0；Q-006 收敛、T-ACCESS-042 卡归档、registry 2026-09-16 三行（立项/处置/收口）。计划随本批次归档。

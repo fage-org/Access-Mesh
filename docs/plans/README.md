@@ -6,7 +6,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
-| [release-preview-plan.md](release-preview-plan.md) | 发布编排计划 | active | 首个发布预览（v0.1.0）与部署验证：T-ACCESS-047~050 四任务（全栈 compose profile / Q-006 修复 / 发布文档全套 / 空环境部署验证与版本打点），2026-09-16 用户三问拍板立项 |
+| ~~release-preview-plan.md~~ | （已归档）| — | 首个发布预览（v0.1.0）与部署验证：T-ACCESS-047~050 四任务全 done（全栈 compose profile / Q-006 修复 / 发布文档全套 / 空环境部署验证 + 本地 tag v0.1.0），2026-09-16 归档至 [../archive/2026-09-16/](../archive/2026-09-16/)（四卡+042 卡随迁 tasks/）；定案见 decision-registry 2026-09-16 三行 |
 | ~~capability-mapper-convergence-plan~~ | （已归档）| — | Q-009 跨能力 mapper 直读收敛：T-ACCESS-043~046 四批全 done（30 边→0、白名单退役零容忍），2026-09-15 归档至 [../archive/2026-09-15/](../archive/2026-09-15/)（四卡随迁 tasks/）；定案见 decision-registry 同日两行 |
 | ~~design-review-2026-06-17~~ | （已归档）| — | 设计评审已完成并归档至 [../archive/2026-06-17/](../archive/2026-06-17/)。评审结论沉淀至 `docs/design/`，工作单 A/B/C 已完成并归档，工作单 D/E/F 暂缓项已拆分至 design-review-def-followup-plan（该计划亦已于 2026-09-12 收口归档）。详见归档批次 README |
 | [../archive/2026-06-18/](../archive/2026-06-18/) | 历史归档 | OBSOLETED | v3.0~v3.3 设计演进：双轨 AND + sys_menu.operations 元数据化 + manifest 中心化等历史范式。v3.4（is_entry/sensitivity_level 过度设计）已被 v3.5 取代，通过 git history 追溯。原侧挂 `plans/archive/2026-06/`，2026-09-12 并入统一归档目录。**仅作历史追溯，不再作为开发依据** |

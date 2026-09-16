@@ -2,8 +2,8 @@
 doc_type: task
 id: T-ACCESS-047
 title: 全栈部署编排——compose app profile + 服务/前端镜像 + 配置占位符
-status: review
-plan: docs/plans/release-preview-plan.md
+status: done
+plan: docs/archive/2026-09-16/release-preview-plan.md
 domain: access-service
 design_refs:
   - docs/design/services/gateway.md#配置项
