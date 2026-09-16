@@ -8,12 +8,4 @@ target/maven-status
 target/maven-archiver
 target/surefire-reports
 target/site
-target/classes
-target/test-classes
-target/generated-sources
-target/generated-test-sources
-target/maven-status
-target/maven-archiver
-target/surefire-reports
-target/site
 target/archive-tmp

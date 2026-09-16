@@ -112,8 +112,9 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD:-accessmesh-dev}
-      # 评审 P3-1 处置：透传必须带 yml 同款默认值——空默认会把未配置误变为「禁用 CORS」改变默认行为
-      GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS:-http://localhost:8848}
+      # 评审处置：透传必须带 yml 同款默认值——注意用 `-`（仅未设置取默认）而非 `:-`：
+      # `:-` 会把「显式置空」也吞成默认值，文档承诺的「置空字符串=禁用 CORS」将到不了容器（claude 外评 P3 实证）
+      GATEWAY_CORS_ALLOWED_ORIGINS: ${GATEWAY_CORS_ALLOWED_ORIGINS-http://localhost:8848}
       ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
       PERM_INTERNAL_SECRET: ${PERM_INTERNAL_SECRET:-}
     ports:

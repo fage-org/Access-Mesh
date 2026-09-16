@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- compose `GATEWAY_CORS_ALLOWED_ORIGINS` 透传改 `-` 形态——显式置空（=禁用 CORS）此前被 `:-` 默认值吞掉，文档承诺的关闭路径到不了容器（claude 外评 P3）。
+- 发布文档修正：quickstart 授权闭环补「持角色用户/令牌来源」获取路径；nginx.conf 注释对齐实际 hash 路由；registry/pending-problems 归档连带锚点回写。
+
 ## [0.1.0] - 2026-09-16
 
 首个预览版（preview）：核心产品链路第一次以「一条命令全栈跑起来」的形态对外可验证。

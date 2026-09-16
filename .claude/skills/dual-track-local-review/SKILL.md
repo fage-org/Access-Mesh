@@ -54,7 +54,8 @@ metadata:
 ## 收口 checklist
 
 1. 残留检查首选 `rg` + 阳性对照（pattern 写错任何工具都静默 0 命中）。rg 无 `-r`（默认递归）、无 `--include`（排除用 `-g '!docs/archive/**'`）、二进制默认跳过；裸 `command grep` 全仓噪音比 429:112 文件（2026-09-07 实测），勿再用。超长单行字段编辑后 `rg -o | wc -l` 复核关键短语计数。`command -v rg` 不在时退回 ugrep 包装 grep（双引号假阴性旧坑同日复测已不复发）。
-2. 任务卡写法：禁评审日记与「用户决策」过程节；状态行不写测试总数（以 surefire 报告为准，防逐轮漂移）。
-3. skill 双副本同步：`.claude/skills/` 与 `.agents/skills/` 改一份须同步全部。
-4. 定案登记：本任务产生的用户定案（含 AskUserQuestion 结论）当轮登记 `docs/design/decision-registry.md`，被推翻的旧条目移入「已推翻」节不删。
-5. 提交：subject 精简一句、明细进 body；只本地 commit 不 push（用户明确要求时才 push/CI）。
+2. **归档连带引用扫描**：卡/计划 git mv 至 archive 后，rg 旧路径（`docs/tasks/<ID>`、`docs/plans/<name>`）核连带面同批回写——registry 出处锚点、pending-problems 关联列、归档计划自身状态快照、看板行链接（2026-09-16 claude 外评实证：看板与批次 README 改了、registry 三处锚点与计划快照漏改悬空）。
+3. 任务卡写法：禁评审日记与「用户决策」过程节；状态行不写测试总数（以 surefire 报告为准，防逐轮漂移）。
+4. skill 双副本同步：`.claude/skills/` 与 `.agents/skills/` 改一份须同步全部。
+5. 定案登记：本任务产生的用户定案（含 AskUserQuestion 结论）当轮登记 `docs/design/decision-registry.md`，被推翻的旧条目移入「已推翻」节不删。
+6. 提交：subject 精简一句、明细进 body；只本地 commit 不 push（用户明确要求时才 push/CI）。
