@@ -146,8 +146,11 @@ mvn test -pl access-service -DskipTestcontainers=true
 # 本地启动（需先启动 Nacos + Redis + PostgreSQL）
 mvn spring-boot:run -pl <module>
 
-# Docker Compose 启动基础设施
+# Docker Compose 启动基础设施（默认档：仅 PG/Redis/Nacos）
 docker compose -f docker-compose.yml up -d nacos redis postgresql
+
+# 全栈预览档（T-ACCESS-047：前端+三服务镜像化；前置 mvn package -DskipTests + cp .env.example .env）
+docker compose -f docker-compose.yml --profile app up -d --build
 ```
 
 > **⚠️ 测试运行纪律（T-ACCESS-030 / T-ACCESS-031）**：

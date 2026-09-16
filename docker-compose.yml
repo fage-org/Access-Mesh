@@ -1,16 +1,18 @@
-# AccessMesh 开发期基础设施（T-ACCESS-020）
-# 仅承诺一键基础设施（PostgreSQL / Redis / Nacos），不包含应用服务——
-# 应用启动顺序见 README.md「快速开始」：access-service (9100) → Gateway (8080) → example-service (9300，可选) → 前端。
+# AccessMesh 开发期基础设施 + 全栈预览编排（T-ACCESS-020 / T-ACCESS-047）
+# 两档用法（外部使用者路径详见 docs/quickstart.md）：
+#   docker compose up -d                          # 仅基础设施（PostgreSQL / Redis / Nacos）——默认行为
+#   docker compose --profile app up -d --build    # 全栈预览（前端 + gateway/access/example 三服务）
+# 全栈前置：①宿主机 mvn package -DskipTests（服务镜像为瘦镜像拷 fat jar，不在 Docker 内构建 Maven）；
+#           ②cp .env.example .env 并填齐密钥（必填项见模板注释；缺失时对应服务容器内 fail-fast）。
 #
-# 一键启动：docker compose up -d
-# 端口仅绑定回环地址（127.0.0.1）——本地开发边界，不暴露到外部网络接口。
+# 端口仅绑定回环地址（127.0.0.1）——本地开发/预览边界，不暴露到外部网络接口。
 # PostgreSQL 首次启动（空数据卷）时自动执行唯一权威 DDL（挂载至 initdb.d），
 # 建库 access_db 并写入类型种子；重复 up 不会重复执行（仅空数据目录首启触发）。
 # 库表重建（开发期 DDL 变更后）见 docs/design/access-service-rebuild-runbook.md。
 #
 # PostgreSQL 采用 trust 认证（本地开发，用户 postgres / 无密码），
 # 与 access-service 默认数据源配置（DB_USERNAME=postgres，DB_PASSWORD 空）直接兼容；
-# 生产环境请自行替换认证方式。
+# 生产环境请自行替换认证方式（部署基线见 docs/ops/deployment.md）。
 
 services:
   postgresql:
@@ -65,6 +67,104 @@ services:
       interval: 10s
       timeout: 5s
       retries: 18
+
+  # ==================== 全栈预览（--profile app，T-ACCESS-047）====================
+  # 密钥经根目录 .env 注入（cp .env.example .env 后填值；三服务同值约束见模板注释）。
+  # 缺失密钥不用 :? 硬拦——那会让「仅基建」档也要求 .env；此处留空默认值，
+  # 由各服务自身启动 fail-fast 报明确缺失项（access-service 对 JWT/bootstrap 密码有 fail-fast 检查）。
+  access-service:
+    build: ./access-service
+    image: accessmesh/access-service:dev
+    container_name: accessmesh-access-service
+    profiles: ["app"]
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      DB_HOST: postgresql
+      DB_PORT: "5432"
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-accessmesh-dev}
+      # bootstrap 幂等：空库首启建 admin + 固定图，存量库 no-op 不重置密码（仅单实例启用）
+      ACCESS_BOOTSTRAP_ENABLED: "true"
+      ACCESS_BOOTSTRAP_ADMIN_PASSWORD: ${ACCESS_BOOTSTRAP_ADMIN_PASSWORD:-}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-}
+      ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
+      PERM_INTERNAL_SECRET: ${PERM_INTERNAL_SECRET:-}
+    ports:
+      - "127.0.0.1:9100:9100"
+    depends_on:
+      postgresql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+
+  gateway:
+    build: ./gateway
+    image: accessmesh/gateway:dev
+    container_name: accessmesh-gateway
+    profiles: ["app"]
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-accessmesh-dev}
+      ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
+      PERM_INTERNAL_SECRET: ${PERM_INTERNAL_SECRET:-}
+    ports:
+      - "127.0.0.1:8080:8080"
+    # 健康检查走独立管理端口（容器内回环；T-GW-007 管理端口与主端口分离）
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8081/actuator/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    depends_on:
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+      access-service:
+        condition: service_started
+
+  example-service:
+    build: ./example-service
+    image: accessmesh/example-service:dev
+    container_name: accessmesh-example-service
+    profiles: ["app"]
+    environment:
+      NACOS_SERVER_ADDR: nacos:8848
+      # 身份签名校验：须与 Gateway 同值（不一致时经 Gateway 的请求一律信封 30003）
+      ACCESSMESH_SIGNATURE_SECRET: ${ACCESSMESH_SIGNATURE_SECRET:-}
+    ports:
+      - "127.0.0.1:9300:9300"
+    depends_on:
+      nacos:
+        condition: service_healthy
+      gateway:
+        condition: service_started
+
+  frontend:
+    build:
+      context: ./frontend
+      # npm 源可覆盖：docker compose --profile app build --build-arg NPM_REGISTRY=https://registry.npmjs.org
+      args:
+        NPM_REGISTRY: ${NPM_REGISTRY:-https://registry.npmmirror.com}
+    image: accessmesh/frontend:dev
+    container_name: accessmesh-frontend
+    profiles: ["app"]
+    ports:
+      - "127.0.0.1:80:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    depends_on:
+      gateway:
+        condition: service_healthy
 
 volumes:
   accessmesh-pgdata:

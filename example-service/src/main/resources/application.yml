@@ -9,10 +9,11 @@ spring:
     import: optional:nacos:example-service.yml
   cloud:
     nacos:
+      # T-ACCESS-047：占位符化（默认值=原硬编码，本地 dev 零参数行为不变；容器化经 NACOS_SERVER_ADDR 覆盖）
       discovery:
-        server-addr: 127.0.0.1:8848
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
       config:
-        server-addr: 127.0.0.1:8848
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         file-extension: yml
 
 logging:

@@ -1,0 +1,10 @@
+# 收窄构建上下文：排除 target 构建中间目录（jar 留在上下文）。
+# 不用「target/* + !target/*.jar」反向放行形态——该语义在不同 BuildKit 版本不可移植（T-ACCESS-047 实证）
+target/classes
+target/test-classes
+target/generated-sources
+target/generated-test-sources
+target/maven-status
+target/maven-archiver
+target/surefire-reports
+target/site

@@ -8,10 +8,12 @@ spring:
     import: optional:nacos:access-service.yml
   cloud:
     nacos:
+      # T-ACCESS-047：占位符化（默认值=原硬编码 127.0.0.1:8848，本地 dev 零参数行为不变；
+      # 容器化部署经 NACOS_SERVER_ADDR 覆盖，如 compose app profile 的 nacos:8848）
       discovery:
-        server-addr: 127.0.0.1:8848
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
       config:
-        server-addr: 127.0.0.1:8848
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
         file-extension: yml
   datasource:
     # stringtype=unspecified（T-ACCESS-002 评审修复）：全项目 JSONB 列由实体 String 映射，
@@ -19,14 +21,16 @@ spring:
     # unspecified 让服务端按目标列推断类型（PGJDBC 官方推荐），一处配置覆盖全部 JSONB 列。
     # serverTimezone 残留已删（T-ACCESS-024）：MySQL 语义参数，pgjdbc 忽略且误导；
     # TIMESTAMPTZ 换算由 TypeHandler 显式 UTC 承担，JVM 时区由 common EPP 强制 UTC。
-    url: jdbc:postgresql://127.0.0.1:5432/access_db?useSSL=false&stringtype=unspecified
+    # T-ACCESS-047：DB_HOST/DB_PORT 占位符化（默认值=原硬编码，本地 dev 行为不变）
+    url: jdbc:postgresql://${DB_HOST:127.0.0.1}:${DB_PORT:5432}/access_db?useSSL=false&stringtype=unspecified
     username: ${DB_USERNAME:postgres}
     password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
   data:
     redis:
-      host: 127.0.0.1
-      port: 6379
+      # T-ACCESS-047：REDIS_HOST/REDIS_PORT 占位符化（对齐 gateway 既有形态，默认值不变）
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
       # 默认与 docker-compose.yml 的开发密码一致（Redisson 对空串密码也发 AUTH，无密码 Redis 连不上）
       password: ${REDIS_PASSWORD:accessmesh-dev}
       database: 0
