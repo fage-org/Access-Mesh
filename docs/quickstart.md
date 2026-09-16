@@ -1,0 +1,95 @@
+# 快速开始（Quickstart）
+
+> 本文档面向第一次接触 AccessMesh 的使用者：从 clone 到跑起全栈、登录管理台、体验一次完整的「接口授权生效」闭环。开发者深入文档入口见 [docs/README.md](README.md)。
+
+## 系统要求
+
+| 工具 | 版本 | 用途 |
+|------|------|------|
+| Docker / Docker Compose | Docker 24+（含 compose v2） | 基础设施 + 全栈预览 |
+| JDK | 21+ | 构建服务 jar（全栈档需要） |
+| Maven | 3.9+ | 构建服务 jar |
+| Node.js + pnpm | Node ≥22.13（或 20.19）、pnpm ≥9 | 仅开发模式改前端时需要（全栈档前端在容器内构建） |
+
+> 全栈预览档总共两条命令，其余都是可选项。
+
+## 路径 A：全栈一键预览（推荐第一次使用）
+
+```bash
+# 1. 构建三个服务 jar（跳过测试，约 1~3 分钟）
+mvn package -DskipTests
+
+# 2. 准备密钥（复制模板并填值，四项均为必填）
+cp .env.example .env
+
+# 3. 一键全栈（前端 + gateway + access-service + example-service + PG/Redis/Nacos）
+docker compose --profile app up -d --build
+```
+
+`.env` 必填项：`ACCESS_BOOTSTRAP_ADMIN_PASSWORD`（首管理员密码）、`JWT_SECRET_KEY`（≥32 字符）、`ACCESSMESH_SIGNATURE_SECRET`、`PERM_INTERNAL_SECRET`（后两者三服务同值，模板内有说明）。
+
+首次启动时 PostgreSQL 空数据卷自动执行唯一权威 DDL 建库建表；access-service 幂等 bootstrap 创建首管理员 `admin`（密码=你填的值，重复启动不重置）。
+
+就绪后访问：
+
+| 入口 | 地址 |
+|------|------|
+| 管理前端 | http://127.0.0.1/ |
+| Gateway（API 直调试） | http://127.0.0.1:8080 |
+| Nacos 控制台 | http://127.0.0.1:8848/nacos |
+
+> 默认 `docker compose up -d` 只起基础设施（PG/Redis/Nacos）不启应用——日常开发用这个；`--profile app` 才是全栈。所有端口只绑定 127.0.0.1（本地预览边界，见 [部署基线](ops/deployment.md)）。
+> 前端镜像构建约 3~8 分钟（容器内 pnpm install + vite build），JVM 服务镜像秒级（拷 jar）。
+
+**登录**：浏览器打开 http://127.0.0.1/，用户名 `admin` + 你在 `.env` 填的密码（验证码看图输入）。
+
+**体验授权闭环**（example 演示接口 403 → 授权 → 200）：
+
+1. 登录管理台，进入「服务与接口映射」页，将 example-service 的接口全量声明同步进权限中心（一步创建 API 资源与映射）；
+2. 进入「权限授予」页，给任一角色授予该 API 资源的 `API:ACCESS` 操作；
+3. 用该角色用户的会话调 `POST http://127.0.0.1:8080/api/example/demo/hello`（body `{"name":"accessmesh"}`）——授权前 401/403，授权后 30 秒内变 200（网关快照撤权边界），响应回显 Gateway 注入的用户与租户身份。
+
+完整五步接入指引（含服务身份头、SDK 现状）见 [扩展指南 §2](design/extension-guide.md)。
+
+## 路径 B：开发模式（改代码热迭代）
+
+基础设施用 compose，应用跑在本机便于调试：
+
+```bash
+# 1. 基础设施（仅 PG/Redis/Nacos，与 dev 配置零参数对接）
+docker compose up -d
+
+# 2. access-service（首启注入密钥与首管理员密码；幂等，重复启动 no-op）
+ACCESS_BOOTSTRAP_ENABLED=true ACCESS_BOOTSTRAP_ADMIN_PASSWORD=<密码> \
+  JWT_SECRET_KEY=<密钥> ACCESSMESH_SIGNATURE_SECRET=<签名密钥> PERM_INTERNAL_SECRET=<内部密钥> \
+  mvn spring-boot:run -pl access-service
+
+# 3. Gateway（另开终端）
+ACCESSMESH_SIGNATURE_SECRET=<与上同值> PERM_INTERNAL_SECRET=<与上同值> \
+  mvn spring-boot:run -pl gateway
+
+# 4. example-service（可选演示服务，另开终端）
+ACCESSMESH_SIGNATURE_SECRET=<与上同值> mvn spring-boot:run -pl example-service
+
+# 5. 前端（frontend/ 目录；preinstall 强制 pnpm，禁 npm/yarn）
+cd frontend && pnpm install && pnpm dev
+```
+
+> 前端 dev 默认端口 8848 与 Nacos 控制台同端口——本机同起 Nacos 时用 `VITE_PORT=8890 pnpm dev` 覆盖。前端经 vite 代理把 `/api` 同路径转发到 Gateway 8080。
+
+## 常见问题
+
+| 现象 | 处置 |
+|------|------|
+| access-service 容器反复重启 | `docker compose logs access-service` 看启动失败原因——最常见是 `.env` 密钥缺失（服务 fail-fast 并打印缺失项） |
+| 经 Gateway 的 example 请求全部返回信封 30003 | `ACCESSMESH_SIGNATURE_SECRET` 在 gateway/example-service 两处不同值（身份签名校验失败） |
+| 前端 404 或接口跨域 | 全栈档必须经 http://127.0.0.1/ 访问（nginx 同源反代 `/api`），不要直连 vite dev 端口 |
+| 登录 400 提示租户缺失 / CORS 403 | 请求未走 Gateway（绕过了 8080 或 nginx）——按上表入口访问 |
+| DDL 变更后想重建库 | 开发期销毁重建：`docker compose --profile app down -v` 后重来（无迁移框架，`down -v` 会清掉数据卷，勿对有数据的库使用）；细节见 [rebuild runbook](design/access-service-rebuild-runbook.md) |
+
+## 下一步
+
+- [架构总览](design/architecture.md) / [引擎概念模型](design/engine/overview.md)
+- [API 契约总册](design/access-service-api-contract.md)（单命名空间 `/api/access/**`）
+- [业务服务接入扩展指南](design/extension-guide.md)
+- [生产部署基线](ops/deployment.md)

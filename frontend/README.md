@@ -1,43 +1,46 @@
-<h1>vue-pure-admin精简版（非国际化版本）</h1>
+# AccessMesh 管理前端
 
-[![license](https://img.shields.io/github/license/pure-admin/vue-pure-admin.svg)](LICENSE)
+AccessMesh 的管理控制台前端：登录、组织与用户、角色管理、资源与操作定义、权限授予、条件/冲突规则、业务域、系统与服务配置、操作日志、资源依赖等管理页面（均已切换真实接口，无业务 mock）。
 
-**中文** | [English](./README.en-US.md)
+## 技术栈
 
-## 介绍
+- Vue 3 + TypeScript + Vite
+- Element Plus（组件库）
+- pinia（状态）+ vue-router（路由）
+- pnpm（包管理，`preinstall` 强制——请勿使用 npm/yarn 安装依赖）
 
-精简版是基于 [vue-pure-admin](https://github.com/pure-admin/vue-pure-admin) 提炼出的架子，包含主体功能，更适合实际项目开发，打包后的大小在全局引入 [element-plus](https://element-plus.org) 的情况下仍然低于 `2.3MB`，并且会永久同步完整版的代码。开启 `brotli` 压缩和 `cdn` 替换本地库模式后，打包大小低于 `350kb`
+## 开发模式
 
-## 版本选择
+```bash
+pnpm install
+pnpm dev        # 默认端口 8848（VITE_PORT 可覆盖）
+```
 
-当前是非国际化版本，如果您需要国际化版本 [请点击](https://github.com/pure-admin/pure-admin-thin/tree/i18n)
+- API 经 vite 代理把 `/api` 同路径转发到 Gateway（`VITE_PROXY_TARGET`，默认 `http://localhost:8080`）——见 `vite.config.ts`。
+- 本机同起 Nacos 容器（控制台 8848）时用 `VITE_PORT=8890 pnpm dev` 避让端口。
+- 登录链路为真实接口（`/api/access/auth/**`）；`VITE_MOCK_LOGIN=true` 仅用于纯前端联调（`.env.development`）。
+- 侧栏菜单由登录后 `/api/access/auth/user-menu` 下发的菜单树渲染（后端派生可见性；越权直达由后端 VIEW 403 兜底）。
 
-## 配套视频
+## 构建
 
-[点我查看 UI 设计](https://www.bilibili.com/video/BV17g411T7rq)  
-[点我查看快速开发教程](https://www.bilibili.com/video/BV1kg411v7QT)
+```bash
+pnpm build      # 产物 dist/（NODE_ENV=production，vite build）
+```
 
-## 配套保姆级文档
+生产形态为 **nginx 同源反代**：axios 全部相对路径 `/api/**`，要求与 API 网关同源部署（仓库根 `docker compose --profile app` 的前端容器即此形态，nginx 配置见本目录 `nginx.conf`：`location /api/ → gateway:8080`）。
 
-[点我查看 vue-pure-admin 文档](https://pure-admin.cn/)  
-[点我查看 @pureadmin/utils 文档](https://pure-admin-utils.netlify.app)
+## 目录速览
 
-## 高级服务
+- `src/views/`——管理页面（组织与用户、权限授予、类型定义、条件/冲突规则等）
+- `src/api/`——接口封装（全部真实后端契约）
+- `src/router/`——路由与静态直达兜底
+- `src/components/`——通用组件（`Re*` 前缀为跨页抽取组件）
+- `mock/`——仅剩登录 mock 与静态路由 mock（业务 mock 已全部退役）
 
-[点我查看详情](https://pure-admin.cn/pages/service/)
+更多页面级设计见仓库 `docs/design/frontend/*.md`。
 
-## 预览
+## 上游说明（Third-party Notice）
 
-[查看预览](https://pure-admin-thin.netlify.app/#/login)
+本项目前端派生自 [pure-admin-thin](https://github.com/pure-admin/pure-admin-thin)（vue-pure-admin 精简版，MIT License，© 2020-present pure-admin），并按 AccessMesh 需求大量改造（真实接口对接、页面重设计、mock 退役等）。上游 MIT 许可与版权声明保留于本目录 [LICENSE](LICENSE)。
 
-## 维护者
-
-[xiaoxian521](https://github.com/xiaoxian521)
-
-## ⚠️ 注意
-
-精简版不接受任何 `issues` 和 `pr`，如果有问题请到完整版 [issues](https://github.com/pure-admin/vue-pure-admin/issues/new/choose) 去提，谢谢！
-
-## 许可证
-
-[MIT © 2020-present, pure-admin](./LICENSE)
+组件库与构建链（Element Plus、Vite 等）的许可信息见各自包声明。

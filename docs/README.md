@@ -1,10 +1,21 @@
 # AccessMesh 文档索引
 
+## 外部使用者入口
+
+第一次接触本项目的使用者按此顺序阅读（开发者深入设计见下方权威来源与推荐阅读顺序）：
+
+1. 根 [README](../README.md)——产品定位、特性（三档口径）、架构总览
+2. [quickstart.md](quickstart.md)——从 clone 到全栈跑起来、登录、体验接口授权闭环
+3. [CHANGELOG](../CHANGELOG.md)——版本变更与已知限制
+4. [ops/deployment.md](ops/deployment.md)——生产部署基线（拓扑/密钥/TLS/XFF 前提/数据与升级）
+5. [design/extension-guide.md](design/extension-guide.md)——业务服务接入与自定义资源类型扩展
+
 ## 目录结构
 
 ```
 docs/
 ├── README.md                          # 本文档
+├── quickstart.md                      # 快速开始（外部使用者路径）
 ├── design/                            # 设计文档（权威来源）
 │   ├── README.md                      # 设计文档索引
 │   ├── project-rules.md               # 项目工程规范
@@ -32,6 +43,7 @@ docs/
 │   └── <plan>.md
 ├── pending-problems.md                # 待解决问题清单（暂不足以立任务的问题登记与收敛）
 ├── ops/                               # 运维手册（外部通道操作规程；契约权威仍在 design/）
+│   ├── deployment.md                  # 生产部署基线（T-ACCESS-049）
 │   └── runbook-full-sync.md           # 外部业务服务 sync/full-sync 运维手册（T-PERM-021 F1.e）
 ├── tasks/                             # 任务（原子执行单元，看板为唯一权威清单）
 │   └── README.md
