@@ -197,6 +197,25 @@ public final class AccessCacheCatalog {
             .build();
 
     /**
+     * ORG_VISIBILITY 旧命名空间的 evict-only 兼容别名（Q-006，T-ACCESS-048）
+     * <p>
+     * 仅供写路径失效（PermissionChangeAspect.flush）同批清除 T-ACCESS-039 改名前
+     * 旧实例写入的 {tenantId}:admin:org-visibility:* 残留键——滚动发布期新旧实例并存时，
+     * 只 evict 新命名空间会让旧实例命名的键仅靠 TTL 消亡（最长 60s 失效不可见）。
+     * <b>禁止用于 get/put 读写</b>——读写一律走 {@link #ORG_VISIBILITY}；
+     * L2_ONLY 与现条目一致（不建 L1、不触发失效广播），TTL 仅占位（无读取路径，不生效）。
+     * 滚动发布过渡窗口结束后整体删除（同步删除 flush 的第二次 evictAll 与本条目）。
+     * </p>
+     */
+    public static final CacheCatalogEntry<Set<Long>> ORG_VISIBILITY_LEGACY =
+        CacheCatalogEntry.<Set<Long>>builder()
+            .code("admin:org-visibility")
+            .mode(CacheMode.L2_ONLY)
+            .l2Ttl(Duration.ofSeconds(60))
+            .valueType(new TypeRef<Set<Long>>() {})
+            .build();
+
+    /**
      * 字典类型缓存（T-ACCESS-039 自 AdminCacheCatalog 迁入，code 不变）
      * <p>
      * Key: "all"（全局键）

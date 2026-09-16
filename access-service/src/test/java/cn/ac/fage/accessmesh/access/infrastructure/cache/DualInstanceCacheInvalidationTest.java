@@ -179,8 +179,11 @@ class DualInstanceCacheInvalidationTest {
             });
             doAnswer(del -> {
                 if (down) throw new IllegalStateException("redis down");
-                for (String k : (String[]) del.getArgument(0)) {
-                    store.remove(k);
+                // varargs 桩：Mockito 将 String... 调用参数展开——getArguments() 逐元素返回各键，
+                // getArgument(0) 在单键调用时拿到的是 String 而非 String[]（强转即 ClassCastException，
+                // 被生产 catch 吞掉后表现为「扫描命中但键未删除」；Q-006 用例首个走到此路径而暴露）
+                for (Object k : del.getArguments()) {
+                    store.remove((String) k);
                 }
                 return null;
             }).when(keys).delete(any(String[].class));
@@ -371,5 +374,31 @@ class DualInstanceCacheInvalidationTest {
         instanceA.evictBatch(l1l2Catalog, TENANT_ID, Set.of("b1"));
         assertThat(instanceB.get(l1l2Catalog, TENANT_ID, "b1")).isNull();
         assertThat(instanceB.get(l1l2Catalog, TENANT_ID, "b2")).isEqualTo("v2");
+    }
+
+    /**
+     * Q-006（T-ACCESS-048）：滚动发布期新旧实例并存——旧实例写 1:admin:org-visibility:*、
+     * 新实例写 1:access:org-visibility:*。写路径失效序列（flush 4.5 步：新 code evictAll +
+     * legacy 别名 evictAll，两次调用的行为锁见 PermissionChangeAspectTest）必须同批清掉
+     * 共享 Redis 上两命名空间的键——只清新命名空间时旧键仅靠 TTL 消亡（最长 60s 失效不可见）。
+     */
+    @Test
+    void orgVisibilityRollingRename_flushEvictAllShouldClearBothNamespaces() {
+        redis.store.put("1:access:org-visibility:7",
+            new FakeRedis.Entry("\"new-code\"", System.currentTimeMillis() + 60_000));
+        redis.store.put("1:admin:org-visibility:9",
+            new FakeRedis.Entry("\"legacy-code\"", System.currentTimeMillis() + 60_000));
+
+        // flush 序列（PermissionChangeAspect.flush 4.5 步）：新 code 与 legacy 别名同批 evictAll。
+        // ORG_VISIBILITY 是 L2_ONLY——evictAll 走专用 RedissonBucketStore（对齐 upstreamL2Backfill
+        // 用例的构造形态），按 {tenantId}:{catalogCode}:* 前缀扫描即 Q-006 的失效不可见根因面
+        CacheService l2OnlyInstance = new DefaultCacheService(null,
+            new RedissonBucketStore(redis.client(), objectMapper, redis.meterRegistry, properties),
+            null, properties, null);
+        l2OnlyInstance.evictAll(AccessCacheCatalog.ORG_VISIBILITY, TENANT_ID);
+        l2OnlyInstance.evictAll(AccessCacheCatalog.ORG_VISIBILITY_LEGACY, TENANT_ID);
+
+        assertThat(redis.store).doesNotContainKey("1:access:org-visibility:7");
+        assertThat(redis.store).doesNotContainKey("1:admin:org-visibility:9");
     }
 }

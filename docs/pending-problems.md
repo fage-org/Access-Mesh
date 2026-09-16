@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-012           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-15（Q-009 收敛）
+last_updated: 2026-09-16（Q-006 转出 T-ACCESS-048）
 ---
 
 # 待解决问题清单（pending problems）
@@ -13,12 +13,12 @@ last_updated: 2026-09-15（Q-009 收敛）
 
 ## 未收敛问题
 
-## Q-006 ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效（登记不实施）
+## Q-006 ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效（登记不实施 → 转出实施）
 
-- **状态**：open
+- **状态**：converted（2026-09-16 随 release-preview 立项转出实施）
 - **登记**：2026-09-13（历史登记收编——2026-09-13 外评裁决「登记不实施」）
 - **来源**：T-ACCESS-039 当前口径（登记性已知边界）；decision-registry 2026-09-13 融合行处置④
-- **关联**：—
+- **关联**：T-ACCESS-048（release-preview-plan；实施=legacy 别名同批 evict + 未知覆盖键 WARN + 回归锁）
 
 **现象与证据**：T-ACCESS-039 已将 catalog code `admin:org-visibility` 改名为 `access:org-visibility`（2026-09-13 落地，不做兼容双读）——此后若发生新旧实例并存的滚动发布，双方 `evictAll` 各扫自身 catalog code 命名空间互不可删（RedissonBucketStore 按 `{tenantId}:{catalogCode}:*` 精确扫描实证）；Nacos 按旧 code 配置的 TTL 覆盖同批被静默忽略。按 code 索引的运维可见面同批切换：Micrometer `catalog` 标签 series（RedissonBucketStore/CombinedL1L2Store 等以 `catalog.getCode()` 建 series）与日志中的 catalog 值随 code 改名，首次部署的看板/告警须按新 code 取数（2026-09-13 外评 claude 补登，当前仓内零监控规则消费、未部署无实际影响）。
 

@@ -64,6 +64,14 @@ class AccessCacheCatalogBoundaryTest {
     }
 
     @Test
+    void orgVisibilityLegacyAlias_shouldBeEvictOnlyL2OnlyAlias() {
+        // Q-006（T-ACCESS-048）：旧命名空间兼容别名形态锁——code 钉死改名前旧值、
+        // L2_ONLY（与现条目一致：不建 L1、evictAll 不触发失效广播）；仅写路径失效消费，禁 get/put
+        assertThat(AccessCacheCatalog.ORG_VISIBILITY_LEGACY.getCode()).isEqualTo("admin:org-visibility");
+        assertThat(AccessCacheCatalog.ORG_VISIBILITY_LEGACY.getMode()).isEqualTo(CacheMode.L2_ONLY);
+    }
+
+    @Test
     void dictTypesCode_shouldSurviveCatalogMergeUnchanged() {
         // T-ACCESS-039 合一回归锁：DICT_TYPES 自 AdminCacheCatalog 迁入，code 与容量形态不变
         assertThat(AccessCacheCatalog.DICT_TYPES.getCode()).isEqualTo("admin:dict-types");
@@ -72,7 +80,8 @@ class AccessCacheCatalogBoundaryTest {
 
     @Test
     void mergedCatalog_codesShouldBeDistinct() {
-        // 单册合一回归锁：全部条目 code 两两不同（防止合并/新增条目时 code 撞车）
+        // 单册合一回归锁：全部条目 code 两两不同（防止合并/新增条目时 code 撞车；
+        // 含 Q-006 legacy 别名——别名与现条目 code 必须不同，否则双命名空间语义坍缩）
         List<CacheCatalogEntry<?>> catalogs = Arrays.asList(
             AccessCacheCatalog.EFFECTIVE_ROLES,
             AccessCacheCatalog.ROLE_PERM_SNAPSHOT,
@@ -82,6 +91,7 @@ class AccessCacheCatalogBoundaryTest {
             AccessCacheCatalog.ROLE_MUTEX_RULE,
             AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE,
             AccessCacheCatalog.ORG_VISIBILITY,
+            AccessCacheCatalog.ORG_VISIBILITY_LEGACY,
             AccessCacheCatalog.DICT_TYPES
         );
         long distinctCodes = catalogs.stream().map(CacheCatalogEntry::getCode).distinct().count();
@@ -120,6 +130,35 @@ class AccessCacheCatalogBoundaryTest {
         assertThatThrownBy(validator::afterPropertiesSet)
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("perm:role-perm-snapshot");
+    }
+
+    @Test
+    void validator_shouldDetectLegacyOrgVisibilityOverrideAsUnknownKey() {
+        // Q-006（T-ACCESS-048）：T-ACCESS-039 改名后 Nacos 残留的 admin:org-visibility 覆盖键
+        // 必须被识别为未知 code（evict-only 别名不算已知 code——对旧 code 的残留覆盖恰是要暴露对象）
+        CacheProperties properties = new CacheProperties();
+        CacheProperties.CatalogOverride override = new CacheProperties.CatalogOverride();
+        override.setL2Ttl(Duration.ofSeconds(60));
+        properties.getCatalogs().put("admin:org-visibility", override);
+
+        PermCacheBoundaryValidator validator = new PermCacheBoundaryValidator(properties);
+        assertThat(validator.detectUnknownOverrideKeys())
+            .containsExactly("admin:org-visibility");
+        // 未知覆盖键只告警不阻断启动
+        assertThatCode(validator::afterPropertiesSet).doesNotThrowAnyException();
+    }
+
+    @Test
+    void validator_shouldAcceptKnownCatalogOverrideKeys() {
+        // 全部册内 code（含改名后的 access:org-visibility）的覆盖键不误报
+        CacheProperties properties = new CacheProperties();
+        CacheProperties.CatalogOverride override = new CacheProperties.CatalogOverride();
+        override.setL2Ttl(Duration.ofSeconds(60));
+        properties.getCatalogs().put("access:org-visibility", override);
+        properties.getCatalogs().put("admin:dict-types", override);
+
+        PermCacheBoundaryValidator validator = new PermCacheBoundaryValidator(properties);
+        assertThat(validator.detectUnknownOverrideKeys()).isEmpty();
     }
 
     @Test

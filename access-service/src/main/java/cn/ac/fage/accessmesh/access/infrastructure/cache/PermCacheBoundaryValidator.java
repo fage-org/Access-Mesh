@@ -8,9 +8,12 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.stereotype.Component;
 
+import java.lang.reflect.Field;
 import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 授权缓存安全边界启动校验器（T-ACCESS-008）
@@ -65,8 +68,47 @@ public class PermCacheBoundaryValidator implements InitializingBean {
                 "授权缓存安全边界校验失败（快照链路 catalog 必须 L2_ONLY 且有效 L2 TTL≤"
                     + MAX_SNAPSHOT_L2_TTL.toSeconds() + "s）: " + String.join("; ", violations));
         }
+        // Q-006（T-ACCESS-048）：覆盖键按 catalog code 精确匹配，未知 code 的覆盖静默不生效——
+        // 最典型为 T-ACCESS-039 改名后 Nacos 残留的 admin:org-visibility 覆盖键（TTL 沿用代码默认值）。
+        // 只告警不 fail-fast（覆盖丢失非安全事件，静默才是要暴露的问题）。
+        Set<String> unknownKeys = detectUnknownOverrideKeys();
+        if (!unknownKeys.isEmpty()) {
+            log.warn("accessmesh.cache.catalogs 存在未知 catalog code 的覆盖键（将静默不生效）: {} ——已知 code: {}；"
+                    + "若为 T-ACCESS-039 改名前的 admin:org-visibility，请迁移至 access:org-visibility（Q-006）",
+                unknownKeys, knownCatalogCodes());
+        }
         log.info("Perm cache boundary validated: {} snapshot catalogs are L2_ONLY with effective L2 TTL <= {}s",
             SNAPSHOT_CATALOGS.size(), MAX_SNAPSHOT_L2_TTL.toSeconds());
+    }
+
+    /**
+     * 找出配置了 TTL 覆盖但 catalog 册内不存在的 code（Q-006，T-ACCESS-048）。
+     * 已知 code 集合经反射取 AccessCacheCatalog 全部 CacheCatalogEntry 公共常量——新增条目自动纳入；
+     * evict-only 别名（ORG_VISIBILITY_LEGACY）显式排除：无读取路径、覆盖对其无意义，
+     * 对旧 code 的残留覆盖键恰恰是本检查要暴露的对象。
+     */
+    Set<String> detectUnknownOverrideKeys() {
+        Set<String> known = knownCatalogCodes();
+        return cacheProperties.getCatalogs().keySet().stream()
+            .filter(code -> !known.contains(code))
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private Set<String> knownCatalogCodes() {
+        return Arrays.stream(AccessCacheCatalog.class.getFields())
+            .filter(field -> field.getType() == CacheCatalogEntry.class)
+            .map(this::readCatalogCode)
+            .filter(code -> !code.equals(AccessCacheCatalog.ORG_VISIBILITY_LEGACY.getCode()))
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private String readCatalogCode(Field field) {
+        try {
+            return ((CacheCatalogEntry<?>) field.get(null)).getCode();
+        } catch (IllegalAccessException e) {
+            // 公共常量字段不可达属于编程错误，直接失败
+            throw new IllegalStateException("无法读取 AccessCacheCatalog 常量: " + field.getName(), e);
+        }
     }
 
     private boolean isValid(CacheCatalogEntry<?> catalog) {

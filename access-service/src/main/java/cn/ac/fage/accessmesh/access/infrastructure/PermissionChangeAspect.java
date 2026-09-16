@@ -141,6 +141,10 @@ public class PermissionChangeAspect {
             // 操作者可见组织范围缓存（ORG_VISIBILITY）——可见范围依赖全部权限，操作者集合不可枚举，
             // 租户级目录清除保证权限回收/组织树变更后旧范围不继续暴露
             cacheService.evictAll(AccessCacheCatalog.ORG_VISIBILITY, tenantId);
+            // Q-006（T-ACCESS-048）：同批清除旧命名空间残留——T-ACCESS-039 改名（admin:→access:）后
+            // 滚动发布期新旧实例并存，旧实例写的 admin:org-visibility:* 键不在新 code 扫描模式内，
+            // 只靠 TTL 消亡 = 对端失效不可见（最长 60s 越界可见/错误拒绝）
+            cacheService.evictAll(AccessCacheCatalog.ORG_VISIBILITY_LEGACY, tenantId);
             // 5. 广播失效事件（含 serviceCodes：API mapping/资源/sync 变更触发 Gateway 清本地快照，T-PERM-006 实现）
             publisher.publish(tenantId, roleIds, userIds, serviceCodes);
         } catch (Exception e) {
