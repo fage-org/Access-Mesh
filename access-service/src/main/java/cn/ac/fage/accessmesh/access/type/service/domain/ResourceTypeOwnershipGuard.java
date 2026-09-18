@@ -392,8 +392,8 @@ public class ResourceTypeOwnershipGuard {
 
     /**
      * 管理面级联删除守卫（remove 后代全集按类型值一次批量查询，N+1 禁令）：
-     * 任一类型声明 SYNC 时拒绝（20055）。跨类型父子边（sync 通道允许）下，
-     * MANAGED 根的子树可能含 SYNC 类型后代，删除前必须对全部待删 id 的类型判定。
+     * 任一类型声明 SYNC 时拒绝（20055）。父边入口已收紧同类型（T-PERM-068），
+     * DB 直写脏数据仍可能构成 MANAGED 根子树含 SYNC 类型后代的跨类型子树，删除前必须对全部待删 id 的类型判定。
      */
     public void rejectIfAnySyncManagedByValues(Long tenantId, Collection<Integer> resourceTypeValues) {
         if (resourceTypeValues == null || resourceTypeValues.isEmpty()) {

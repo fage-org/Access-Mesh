@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  *   <li>TYPE_LEVEL 只消费 scopeAll——实例授权不得放行类型级门禁（三态互不串义）；</li>
  *   <li>INSTANCE 判定面继承：查子目标时 {目标}∪同类型祖先链入查询（授父覆盖子）；
  *       批量拒绝轨闭包回映射（条目挂祖先不得误判 DENIED）；</li>
- *   <li>闭包止步同类型（sync 通道允许跨类型父子边，跨类型祖先不参与闭包）；
+ *   <li>闭包止步同类型（跨类型祖先不参与闭包；sync 跨类型父边已随 T-PERM-068 收紧，语义保留作脏数据防线）；
  *       软删祖先截断（CTE 过滤 delete_flag=0）；</li>
  *   <li>/auth/check inheritMode 参数接通为目标闭包真实语义（NONE 关 / PARENT 开）。</li>
  * </ul>
@@ -125,7 +125,7 @@ class TargetModeClosurePgIT {
     }
 
     @Test
-    @DisplayName("闭包止步同类型：跨类型父边（sync 通道形态）上父授权不覆盖异类型子目标")
+    @DisplayName("闭包止步同类型：跨类型父边（历史形态，写通道已拦）上父授权不覆盖异类型子目标")
     void closureStopsAtTypeBoundary() {
         Integer parentType = ensureResourceType("TMCL_C1");
         Integer childType = ensureResourceType("TMCL_C2");
@@ -134,7 +134,7 @@ class TargetModeClosurePgIT {
         long subjectId = nextSubjectId++;
         long roleId = insertRoleAndBind(subjectId, "tmcl-c");
         long parentId = insertResource(parentType, "tmcl-c-parent", null);
-        // 跨类型父子边（sync 通道允许形态，moveResource 写通道会拦但存量/外部同步存在）
+        // 跨类型父子边（历史形态：sync/move 写通道均已拦（T-PERM-068），仅存量与 DB 直写脏数据存在）
         long crossChild = insertResource(childType, "tmcl-c-cross-child", parentId);
 
         // 授权挂父（父类型行）

@@ -201,7 +201,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             throw new BizException(AccessErrorCode.TYPE_CODE_NOT_FOUND.getCode(), "未知的resourceTypeCode: " + req.resourceTypeCode());
         }
 
-        Long parentId = resolveParentId(tenantId, req);
+        Long parentId = resolveParentId(tenantId, req, ownedType.getTypeValue());
 
         ResourceEntity entity = new ResourceEntity();
         entity.setTenantId(tenantId);
@@ -263,8 +263,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         Map<Long, ResourceEntity> parentMap = resourceEntityDomainService.batchSelectByIdsMap(tenantId, allParentIds);
         Set<String> existingCodes = resourceEntityDomainService.findExistingCodes(tenantId, allCodes);
+        // T-PERM-068：跨类型父项不参与批量父解析（循环体按类型拒绝跳过，无需解析）
         List<ResourceResolveRequest> parentResolveRequests = reqs.stream()
-            .filter(this::hasParentBusinessKey)
+            .filter(r -> hasParentBusinessKey(r) && r.parentResourceTypeCode().equals(r.resourceTypeCode()))
             .map(this::toParentResolveRequest)
             .collect(Collectors.toList());
         Map<ResourceResolveKey, Long> parentIdByKey = typeResolutionService.batchResolveResourceIds(tenantId, parentResolveRequests);
@@ -276,8 +277,21 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         for (int i = 0; i < reqs.size(); i++) {
             ResourceCreateReq req = reqs.get(i);
 
+            TypeDefinition ownedType = ownedTypeMap.get(req.resourceTypeCode());
+            Integer resourceType = ownedType != null ? ownedType.getTypeValue() : null;
+            if (resourceType == null) {
+                errors.add("req[" + i + "]: 未知的resourceTypeCode: " + req.resourceTypeCode());
+                continue;
+            }
+
             Long parentId;
             if (hasParentBusinessKey(req)) {
+                // T-PERM-068：跨类型父边对齐 move 20053（宽容收集语义内跳过该项）
+                if (!req.parentResourceTypeCode().equals(req.resourceTypeCode())) {
+                    errors.add("req[" + i + "]: 不可跨资源类型: "
+                        + req.parentResourceTypeCode() + " -> " + req.resourceTypeCode());
+                    continue;
+                }
                 ResourceResolveRequest parentReq = toParentResolveRequest(req);
                 parentId = parentIdByKey.get(parentReq.toKey());
                 if (parentId == null) {
@@ -286,22 +300,22 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 }
             } else {
                 parentId = normalizeParentId(req.parentId());
-            }
-
-            if (!hasParentBusinessKey(req) && req.parentId() != null && req.parentId() > 0 && !parentMap.containsKey(req.parentId())) {
-                errors.add("req[" + i + "]: 父资源不存在: " + req.parentId());
-                continue;
+                if (req.parentId() != null && req.parentId() > 0) {
+                    ResourceEntity parent = parentMap.get(req.parentId());
+                    if (parent == null) {
+                        errors.add("req[" + i + "]: 父资源不存在: " + req.parentId());
+                        continue;
+                    }
+                    // T-PERM-068：裸 parentId 轨补类型比对（存在性校验既有）
+                    if (!parent.getResourceType().equals(resourceType)) {
+                        errors.add("req[" + i + "]: 不可跨资源类型: parentId=" + req.parentId());
+                        continue;
+                    }
+                }
             }
 
             if (req.code() != null && !req.code().isBlank() && existingCodes.contains(req.code())) {
                 errors.add("req[" + i + "]: 编码已存在: " + req.code());
-                continue;
-            }
-
-            TypeDefinition ownedType = ownedTypeMap.get(req.resourceTypeCode());
-            Integer resourceType = ownedType != null ? ownedType.getTypeValue() : null;
-            if (resourceType == null) {
-                errors.add("req[" + i + "]: 未知的resourceTypeCode: " + req.resourceTypeCode());
                 continue;
             }
 
@@ -520,8 +534,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         }
 
         // T-PERM-052：SYNC 类型级联守卫——对删除全集（含展开的后代，非仅请求根集合）判定：
-        // sync 通道允许跨类型父子边，MANAGED 根的子树可能含 SYNC 类型后代，只判根集合会连带
-        // 清掉外部来源维护的子树（一次批量取实体收集类型值，20055）
+        // 入口虽已收紧同类型父边（T-PERM-068），DB 直写脏数据仍可能构成 MANAGED 根子树含
+        // SYNC 类型后代的跨类型子树，只判根集合会连带清掉外部来源维护的子树（一次批量取实体收集类型值，20055）
         Set<Integer> allTypeValues = resourceEntityDomainService
             .batchSelectByIdsMap(tenantId, allIdsToDelete).values().stream()
             .map(ResourceEntity::getResourceType)
@@ -883,9 +897,22 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         return toApiMappingResp(updated, updatedResource);
     }
 
-    private Long resolveParentId(Long tenantId, ResourceCreateReq req) {
+    /**
+     * 解析并校验 create 父节点（T-PERM-068：跨类型父边对齐 move 20053 口径）。
+     * <p>业务键父轨（typeCode+code 成对）：父类型码必须与自身类型码一致（码比对足够——
+     * type_definition code↔value 双射）；裸 parentId 轨：父必须存在（此前单条不校验，
+     * 可落悬挂引用）且类型一致。父业务键半传（只有 code 无 typeCode）仍按「无父造根」
+     * 处理——与 sync 缺省回填语义有意不同（管理面为交互式 API，半传视为前端缺陷更安全）。
+     */
+    private Long resolveParentId(Long tenantId, ResourceCreateReq req, Integer selfTypeValue) {
         if (!hasParentBusinessKey(req)) {
-            return normalizeParentId(req.parentId());
+            return validateRawParentId(tenantId, normalizeParentId(req.parentId()), selfTypeValue);
+        }
+        if (!req.parentResourceTypeCode().equals(req.resourceTypeCode())) {
+            throw new BizException(
+                AccessErrorCode.RESOURCE_PARENT_INVALID.getCode(),
+                "不可跨资源类型创建: " + req.parentResourceTypeCode() + " -> " + req.resourceTypeCode()
+            );
         }
         ResourceResolveRequest parentReq = toParentResolveRequest(req);
         Long parentId = typeResolutionService.resolveResourceId(
@@ -899,6 +926,29 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             throw new BizException(
                 AccessErrorCode.RESOURCE_NOT_FOUND.getCode(),
                 "parent resource not found: " + parentKeyText(parentReq)
+            );
+        }
+        return parentId;
+    }
+
+    /**
+     * 裸 parentId 轨校验：父存在 + 同类型（T-PERM-068 补齐；batch-create 的存在性先例同款）。
+     */
+    private Long validateRawParentId(Long tenantId, Long parentId, Integer selfTypeValue) {
+        if (parentId == null) {
+            return null;
+        }
+        ResourceEntity parent = resourceEntityDomainService.selectValidById(tenantId, parentId);
+        if (parent == null) {
+            throw new BizException(
+                AccessErrorCode.RESOURCE_NOT_FOUND.getCode(),
+                "父资源不存在: " + parentId
+            );
+        }
+        if (!parent.getResourceType().equals(selfTypeValue)) {
+            throw new BizException(
+                AccessErrorCode.RESOURCE_PARENT_INVALID.getCode(),
+                "不可跨资源类型创建: parentId=" + parentId
             );
         }
         return parentId;

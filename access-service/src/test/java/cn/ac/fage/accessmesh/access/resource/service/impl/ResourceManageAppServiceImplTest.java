@@ -465,8 +465,8 @@ class ResourceManageAppServiceImplTest {
     @Test
     @DisplayName("remove 级联守卫：MANAGED 根 + SYNC 类型后代（跨类型父子边）→ 20055 拒绝，后代不软删")
     void shouldRejectRemoveWhenCascadeHitsSyncManagedDescendant() {
-        // 根：HR_MENU(类型1) MANAGED；后代：id=11 类型7（如 BI_MENU，SYNC）——sync 通道允许
-        // 跨类型父子边，旧实现会连同后代一并软删
+        // 根：HR_MENU(类型1) MANAGED；后代：id=11 类型7（如 BI_MENU，SYNC）——跨类型父边
+        // 入口已收紧（T-PERM-068）但守卫须防 DB 直写脏数据，旧实现会连同后代一并软删
         ResourceEntity root = resourceWithKey(10L);
         root.setResourceType(1);
         root.setCode("x");
@@ -642,5 +642,102 @@ class ResourceManageAppServiceImplTest {
         entity.setName("资源X");
         entity.setMaintainSource("SERVICE_SYNC");
         return entity;
+    }
+
+    // ========== T-PERM-068（Q-007 定案②，2026-09-17）：create/batch-create 跨类型父边对齐 move（20053）+ 单条裸 parentId 补存在性/类型校验。以下用例在旧实现（父只查存在、裸 parentId 不校验）下失败。 ==========
+
+    @Test
+    @DisplayName("create 业务键父跨类型 → 20053 拒绝（旧实现仅查父存在，解析成功即挂异类型父）")
+    void shouldRejectCreateWithCrossTypeParentBusinessKey() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "API")).thenReturn(apiType());
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.createResource(1L, new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
+                null, "MENU", "parent-x", null, null, "API", "res-a", null, "资源A", null, null, null), 100L));
+        assertEquals(20053, ex.getErrorCode());
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
+    }
+
+    @Test
+    @DisplayName("create 裸 parentId 不存在 → 20004 拒绝（旧实现不校验直接落库成悬挂引用）")
+    void shouldRejectCreateWhenRawParentIdMissing() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "API")).thenReturn(apiType());
+        when(resourceEntityDomainService.selectValidById(1L, 777L)).thenReturn(null);
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.createResource(1L, new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
+                777L, null, null, null, null, "API", "res-a", null, "资源A", null, null, null), 100L));
+        assertEquals(20004, ex.getErrorCode());
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
+    }
+
+    @Test
+    @DisplayName("create 裸 parentId 跨类型 → 20053 拒绝（旧实现不校验直接落库）")
+    void shouldRejectCreateWhenRawParentIdCrossType() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "API")).thenReturn(apiType());
+        // 父实体类型=1（MENU），自身类型=3（API）→ 跨类型
+        when(resourceEntityDomainService.selectValidById(1L, 55L)).thenReturn(resourceWithKey(55L));
+
+        cn.ac.fage.accessmesh.common.exception.BizException ex = assertThrows(
+            cn.ac.fage.accessmesh.common.exception.BizException.class,
+            () -> service.createResource(1L, new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
+                55L, null, null, null, null, "API", "res-a", null, "资源A", null, null, null), 100L));
+        assertEquals(20053, ex.getErrorCode());
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
+    }
+
+    @Test
+    @DisplayName("batch-create 跨类型父项跳过、其余项成功（宽容收集语义内新增校验；旧实现跨类型父解析成功即入库）")
+    void batchCreateSkipsCrossTypeParentItems() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("API"))))
+            .thenReturn(java.util.Map.of("API", apiType()));
+        when(resourceEntityDomainService.findExistingCodes(eq(1L), anySet())).thenReturn(Set.of());
+        // 旧实现会以 ("MENU","parent-x") 批量解析并拿到有效父 id → 跨类型项照常入库（本用例因此红）；
+        // 新实现跨类型项被过滤出解析集 → stub 不再被消费，lenient 声明
+        lenient().when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of(
+            new cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest(
+                "MENU", "parent-x", null, null).toKey(), 66L));
+
+        var resp = service.batchCreateResources(1L, java.util.List.of(
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
+                null, "MENU", "parent-x", null, null, "API", "res-cross", null, "跨类型", null, null, null),
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
+                null, null, null, null, null, "API", "res-ok", null, "正常", null, null, null)), 100L);
+
+        assertEquals(1, resp.size());
+        assertEquals("res-ok", resp.get(0).code());
+    }
+
+    @Test
+    @DisplayName("batch-create 裸 parentId 跨类型 → 该项跳过、其余成功（裸 id 轨类型比对分支）")
+    void batchCreateSkipsCrossTypeRawParentIdItems() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("API"))))
+            .thenReturn(java.util.Map.of("API", apiType()));
+        when(resourceEntityDomainService.findExistingCodes(eq(1L), anySet())).thenReturn(Set.of());
+        // 父实体类型=1（MENU），自身类型=3（API）→ 裸 id 轨跨类型
+        when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), eq(Set.of(55L))))
+            .thenReturn(java.util.Map.of(55L, resourceWithKey(55L)));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
+
+        var resp = service.batchCreateResources(1L, java.util.List.of(
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
+                55L, null, null, null, null, "API", "res-cross", null, "跨类型裸id", null, null, null),
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
+                null, null, null, null, null, "API", "res-ok", null, "正常", null, null, null)), 100L);
+
+        assertEquals(1, resp.size());
+        assertEquals("res-ok", resp.get(0).code());
     }
 }

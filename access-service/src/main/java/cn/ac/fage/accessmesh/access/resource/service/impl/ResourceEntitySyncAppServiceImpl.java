@@ -153,12 +153,18 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             String codeType = (item.codeType() == null || item.codeType().isBlank()) ? DEFAULT_CODE_TYPE : item.codeType();
             selfCodes.add(item.resourceCode());
             selfCodeTypes.add(codeType);
-            if (item.parentResourceCode() != null && !item.parentResourceCode().isBlank()
-                    && item.parentResourceTypeCode() != null && !item.parentResourceTypeCode().isBlank()) {
+            // T-PERM-068：父字段组激活条件=parentResourceCode 非空；typeCode 缺省回填 scope 类型；
+            // 跨类型项不参与批量父解析（循环体按类型拒绝，无需解析）
+            if (item.parentResourceCode() != null && !item.parentResourceCode().isBlank()) {
+                String parentTypeCode = effectiveParentTypeCode(
+                        item.parentResourceTypeCode(), req.scope().resourceTypeCode());
+                if (!parentTypeCode.equals(req.scope().resourceTypeCode())) {
+                    continue;
+                }
                 String pct = (item.parentCodeType() == null || item.parentCodeType().isBlank())
                         ? DEFAULT_CODE_TYPE : item.parentCodeType();
                 parentRequests.add(new ResourceResolveRequest(
-                        item.parentResourceTypeCode(), item.parentResourceCode(), pct, null));
+                        parentTypeCode, item.parentResourceCode(), pct, null));
             }
         }
 
@@ -201,14 +207,26 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
 
             // 通过 doFullSyncOne 复用 single-sync 的所有版本/依赖语义，但 existing 与 parentId 命中阶段 B 缓存。
             ResourceEntity existing = existingByCodeKey.get(new CodeKey(item.resourceCode(), codeType));
+            // T-PERM-068：父字段组激活条件=parentResourceCode 非空；typeCode 缺省回填 scope 类型
+            boolean parentRequested = item.parentResourceCode() != null && !item.parentResourceCode().isBlank();
+            String itemParentTypeCode = parentRequested
+                    ? effectiveParentTypeCode(item.parentResourceTypeCode(), req.scope().resourceTypeCode())
+                    : null;
+            // T-PERM-068（Q-007 定案①，2026-09-17）：跨类型父边收紧——显式异类型 item 级 NON_RETRYABLE，
+            // 先于 applyVersion 不推进同步版本（码比对足够：type_definition code↔value 双射，码不等即类型值不等）
+            if (parentRequested && !itemParentTypeCode.equals(req.scope().resourceTypeCode())) {
+                failed++;
+                itemResults.add(new SyncResultResp.ItemResult(businessKey, false, false,
+                        SyncResultBuilder.RETRY_NON_RETRYABLE,
+                        "PARENT_TYPE_MISMATCH: " + itemParentTypeCode + ":" + item.parentResourceCode()));
+                continue;
+            }
             Long preResolvedParentId = null;
-            boolean parentRequested = item.parentResourceCode() != null && !item.parentResourceCode().isBlank()
-                    && item.parentResourceTypeCode() != null && !item.parentResourceTypeCode().isBlank();
             if (parentRequested) {
                 String pct = (item.parentCodeType() == null || item.parentCodeType().isBlank())
                         ? DEFAULT_CODE_TYPE : item.parentCodeType();
                 preResolvedParentId = parentResolved.get(new ResourceResolveKey(
-                        item.parentResourceTypeCode(), item.parentResourceCode(), pct, null));
+                        itemParentTypeCode, item.parentResourceCode(), pct, null));
             }
 
             ResourceEntitySyncReq oneReq = new ResourceEntitySyncReq(
@@ -225,7 +243,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 failed++;
                 itemResults.add(new SyncResultResp.ItemResult(businessKey, false, false,
                         SyncResultBuilder.RETRY_NON_RETRYABLE,
-                        "RESOURCE_PARENT_INVALID: " + item.parentResourceTypeCode() + ":" + item.parentResourceCode()));
+                        "RESOURCE_PARENT_INVALID: " + itemParentTypeCode + ":" + item.parentResourceCode()));
                 continue;
             }
             SyncResultResp r = doSyncOneInternal(tenantId, oneReq, resourceTypeValue, existing,
@@ -269,6 +287,17 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
      * code + codeType 二维 key（用于 in-memory 现有实体索引）。
      */
     private record CodeKey(String code, String codeType) {}
+
+    /**
+     * T-PERM-068（Q-007 定案③）：父类型缺省回填——{@code parentResourceTypeCode} 缺省/空白时
+     * 按 item（单条）/scope（full-sync）自身类型解析父（契约 §19.1/§19.2 原意，对齐角色域
+     * full-sync {@code effectiveParentTypeCode} 先例）；回填后与自身类型比对即得跨类型判定。
+     */
+    private static String effectiveParentTypeCode(String parentResourceTypeCode, String itemTypeCode) {
+        return parentResourceTypeCode == null || parentResourceTypeCode.isBlank()
+                ? itemTypeCode
+                : parentResourceTypeCode;
+    }
 
     private SyncResultResp doSyncOne(Long tenantId, ResourceEntitySyncReq req) {
         return doSyncOneInternal(tenantId, req, null, null, false, false, null, false, LocalDateTime.now());
@@ -359,19 +388,28 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         // 事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION）声明 SYNC+access-service，外部来源在入口即被拒，不可达本分支；
         // existing 为 null 的 INSERT 分支由 uk_resource_entity 唯一约束 fail-closed 兜底。
 
-        // resolve parent (optional) —— 先于 applyVersion：环路拒绝不推进同步版本，
+        // resolve parent (optional) —— 先于 applyVersion：环路/类型拒绝不推进同步版本，
         // 上游修正后同版本重试不被判 STALE（对齐角色同步先例 T-PERM-022 评审收口）
         Long parentId = null;
-        boolean callerHasParent = req.parentResourceCode() != null && !req.parentResourceCode().isBlank()
-                && req.parentResourceTypeCode() != null && !req.parentResourceTypeCode().isBlank();
+        // T-PERM-068：父字段组激活条件=parentResourceCode 非空（parentResourceTypeCode 单独
+        // 传不激活——无父编码即无边）；typeCode 缺省回填自身类型（Q-007 定案③，对齐角色域
+        // full-sync effectiveParentTypeCode 先例与契约 §19.1/§19.2 原意）
+        boolean callerHasParent = req.parentResourceCode() != null && !req.parentResourceCode().isBlank();
         if (callerHasParent) {
+            String parentTypeCode = effectiveParentTypeCode(req.parentResourceTypeCode(), req.resourceTypeCode());
+            // T-PERM-068（Q-007 定案①，2026-09-17）：跨类型父边收紧——显式异类型 item 级 NON_RETRYABLE，
+            // 先于父解析不查库（码比对足够：type_definition code↔value 双射，码不等即类型值不等）
+            if (!parentTypeCode.equals(req.resourceTypeCode())) {
+                return SyncResultBuilder.nonRetryable(
+                        "PARENT_TYPE_MISMATCH: " + parentTypeCode + ":" + req.parentResourceCode());
+            }
             String parentCodeType = (req.parentCodeType() == null || req.parentCodeType().isBlank())
                     ? DEFAULT_CODE_TYPE : req.parentCodeType();
             // full-sync 路径已批量预解析；single-sync 路径走单条解析。
             parentId = parentRequested
                     ? preResolvedParentId
                     : typeResolutionService.resolveResourceId(tenantId,
-                            req.parentResourceTypeCode(), req.parentResourceCode(), parentCodeType, null);
+                            parentTypeCode, req.parentResourceCode(), parentCodeType, null);
             if (parentId == null) {
                 return SyncResultBuilder.dependencyMissing("PARENT_RESOURCE_NOT_FOUND");
             }
@@ -383,7 +421,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         if (!cyclePreChecked && OP_UPSERT.equals(req.operation()) && existing != null
                 && isCyclicParent(tenantId, existing.getId(), parentId)) {
             return SyncResultBuilder.nonRetryable(
-                    "RESOURCE_PARENT_INVALID: " + req.parentResourceTypeCode() + ":" + req.parentResourceCode());
+                    "RESOURCE_PARENT_INVALID: " + effectiveParentTypeCode(
+                            req.parentResourceTypeCode(), req.resourceTypeCode())
+                            + ":" + req.parentResourceCode());
         }
 
         SyncMetadataDomainService.ApplyVersionResult vr = syncMetadataDomainService.applyVersion(

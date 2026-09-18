@@ -212,8 +212,8 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
      * 判定面继承目标闭包批量查询（T-PERM-057，递归 CTE 上溯）
      * <p>
      * 对每个目标实体返回 {目标自身}∪同类型祖先链 的全部成员（闭包成员对 targetId×closureId，
-     * 含 targetId=closureId 自身行）。上溯**止步同类型**（2026-09-09 用户定案：sync 通道允许
-     * 跨类型父子边，跨类型祖先不参与闭包——两类型操作位空间各自独立，跨类型授权不越权放行）；
+     * 含 targetId=closureId 自身行）。上溯**止步同类型**（2026-09-09 用户定案：跨类型祖先不参与闭包——两类型操作位空间各自独立，
+     * 跨类型授权不越权放行；sync 通道跨类型父边已随 T-PERM-068 于 2026-09-17 收紧，本语义保留作 DB 直写脏数据防线）；
      * 软删祖先截断（delete_flag=0 过滤）；UNION 组合去重防 parent 环迭代不收敛（T-PERM-044 先例）。
      * 逐次加载全租户资源图不可接受（管理 API 每调用 1-3 门禁），故走目标下推 CTE 而非 selectAllValid。
      * </p>

@@ -60,8 +60,8 @@
         SELECT original_id as resourceId, id as descendantId FROM descendants WHERE id != original_id
     </select>
 
-    <!-- T-PERM-057 判定面继承目标闭包：{目标}∪同类型祖先链（含自身行）；上溯止步同类型（sync 通道
-         允许跨类型父子边，跨类型祖先不参与闭包）；软删祖先截断；UNION 组合去重防环（T-PERM-044 先例） -->
+    <!-- T-PERM-057 判定面继承目标闭包：{目标}∪同类型祖先链（含自身行）；上溯止步同类型（跨类型祖先
+         不参与闭包；sync 跨类型父边已随 T-PERM-068 收紧，语义保留作 DB 直写脏数据防线）；软删祖先截断；UNION 组合去重防环（T-PERM-044 先例） -->
     <select id="selectSelfAndAncestorClosureBatch" resultType="cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper$AncestorClosureResult">
         WITH RECURSIVE closure AS (
             SELECT id, parent_id, resource_type, id as target_id FROM resource_entity

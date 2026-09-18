@@ -463,4 +463,191 @@ class ResourceEntitySyncAppServiceTest {
         org.mockito.Mockito.verify(resourceEntityMapper)
                 .update(org.mockito.ArgumentMatchers.any(ResourceEntity.class));
     }
+
+    // ------------------------------------------------------------------
+    // T-PERM-068（Q-007 定案①③，2026-09-17）：sync 通道跨类型父边收紧（NON_RETRYABLE
+    // PARENT_TYPE_MISMATCH）+ 父字段缺省回填同类型（parentResourceTypeCode 缺省=item/scope
+    // 类型，兑现契约 §19.2 原意与角色域 effectiveParentTypeCode 先例）。以下用例在旧实现
+    // （父类型不比对、半传静默解挂）下失败。
+    // ------------------------------------------------------------------
+
+    @Test
+    void shouldRejectCrossTypeParent_withoutResolvingOrAdvancingVersion() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+
+        // parentResourceTypeCode=BUTTON 显式异类型 → item 级拒绝，先于父解析与版本写入
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
+                "Menu One", "BUTTON", "btn-1", "default", "/menu/one", 1, null,
+                SOURCE_SERVICE, "menu", "menu-1", new SyncVersionRef(OCCURRED_AT, 1L));
+
+        SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        assertThat(resp.reason()).isEqualTo("PARENT_TYPE_MISMATCH: BUTTON:btn-1");
+        verify(typeResolutionService, org.mockito.Mockito.never())
+                .resolveResourceId(anyLong(), anyString(), anyString(), anyString(), any());
+        org.mockito.Mockito.verify(syncMetadataDomainService, org.mockito.Mockito.never()).applyVersion(
+                anyLong(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong());
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insert(any(ResourceEntity.class));
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).update(any(ResourceEntity.class));
+    }
+
+    @Test
+    void shouldResolveParentByOwnType_whenParentTypeCodeOmitted() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(typeResolutionService.resolveResourceId(TENANT_ID, "MENU", "parent-x", "default", null))
+                .thenReturn(88L);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default"))
+                .thenReturn(null);
+        lenient().when(resourceEntityMapper.insert(any(ResourceEntity.class))).thenReturn(1);
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+
+        // parentResourceTypeCode 缺省 → 按 item 自身类型 MENU 解析挂父（旧实现半传被静默解挂）
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
+                "Menu One", null, "parent-x", "default", "/menu/one", 1, null,
+                SOURCE_SERVICE, "menu", "menu-1", new SyncVersionRef(OCCURRED_AT, 1L));
+
+        SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.applied()).isTrue();
+        ArgumentCaptor<ResourceEntity> captor = ArgumentCaptor.forClass(ResourceEntity.class);
+        verify(resourceEntityMapper).insert(captor.capture());
+        assertThat(captor.getValue().getParentId()).isEqualTo(88L);
+    }
+
+    @Test
+    void fullSyncRejectsCrossTypeParentItem_butAppliesOthers() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        ResourceEntity existing = new ResourceEntity();
+        existing.setId(5L);
+        existing.setTenantId(TENANT_ID);
+        existing.setResourceType(0);
+        existing.setCode("menu-1");
+        existing.setCodeType("default");
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+                org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.eq(0),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of(existing));
+        // 跨类型项不参与批量父解析（合法项无父 → 请求集为空）
+        lenient().when(typeResolutionService.batchResolveResourceIds(
+                org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Map.of());
+        lenient().when(resourceEntityMapper.selectAllValid(TENANT_ID))
+                .thenReturn(java.util.List.of(existing));
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        when(syncMetadataDomainService.listScopeForFullSync(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString())).thenReturn(java.util.List.of());
+
+        ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
+                new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
+                java.util.List.of(
+                        new ResourceEntitySyncItem("menu-0", "default", "Cross",
+                                "BUTTON", "btn-1", "default", null, 1, null, null, null,
+                                new SyncVersionRef(OCCURRED_AT, 1L)),
+                        new ResourceEntitySyncItem("menu-1", "default", "Menu One",
+                                null, null, null, null, 1, null, null, null,
+                                new SyncVersionRef(OCCURRED_AT, 2L))));
+
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.detail().appliedCount()).isEqualTo(1);
+        assertThat(resp.detail().itemResults()).hasSize(2);
+        assertThat(resp.detail().itemResults().get(0).applied()).isFalse();
+        assertThat(resp.detail().itemResults().get(0).retryClass())
+                .isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        assertThat(resp.detail().itemResults().get(0).reason())
+                .isEqualTo("PARENT_TYPE_MISMATCH: BUTTON:btn-1");
+        assertThat(resp.detail().itemResults().get(1).applied()).isTrue();
+        // 跨类型 item 不推进版本：applyVersion 仅同批合法项调用一次
+        org.mockito.Mockito.verify(syncMetadataDomainService, org.mockito.Mockito.times(1)).applyVersion(
+                anyLong(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong());
+    }
+
+    @Test
+    void shouldTreatParentAsAbsent_whenOnlyParentTypeCodeProvided() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default"))
+                .thenReturn(null);
+        lenient().when(resourceEntityMapper.insert(any(ResourceEntity.class))).thenReturn(1);
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+
+        // 只有 parentResourceTypeCode、无 parentResourceCode → 父字段组不激活（激活条件=code 非空，
+        // 防未来回改为「任一非空」的语义钉子）
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
+                "Menu One", "MENU", null, null, "/menu/one", 1, null,
+                SOURCE_SERVICE, "menu", "menu-1", new SyncVersionRef(OCCURRED_AT, 1L));
+
+        SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.applied()).isTrue();
+        verify(typeResolutionService, org.mockito.Mockito.never())
+                .resolveResourceId(anyLong(), anyString(), anyString(), anyString(), any());
+        ArgumentCaptor<ResourceEntity> captor = ArgumentCaptor.forClass(ResourceEntity.class);
+        verify(resourceEntityMapper).insert(captor.capture());
+        assertThat(captor.getValue().getParentId()).isNull();
+    }
+
+    @Test
+    void fullSyncResolvesParentByScopeType_whenParentTypeCodeOmitted() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        ResourceEntity existing = new ResourceEntity();
+        existing.setId(5L);
+        existing.setTenantId(TENANT_ID);
+        existing.setResourceType(0);
+        existing.setCode("menu-1");
+        existing.setCodeType("default");
+        existing.setParentId(null);
+        ResourceEntity parent = new ResourceEntity();
+        parent.setId(9L);
+        parent.setTenantId(TENANT_ID);
+        parent.setResourceType(0);
+        parent.setCode("parent-x");
+        parent.setCodeType("default");
+        when(resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+                org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.eq(0),
+                org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.List.of(existing));
+        lenient().when(resourceEntityMapper.selectAllValid(TENANT_ID))
+                .thenReturn(java.util.List.of(existing, parent));
+        lenient().when(typeResolutionService.batchResolveResourceIds(
+                org.mockito.ArgumentMatchers.eq(TENANT_ID), org.mockito.ArgumentMatchers.any()))
+                .thenReturn(java.util.Map.of(new ResourceResolveKey("MENU", "parent-x", "default", null), 9L));
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        when(syncMetadataDomainService.listScopeForFullSync(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString())).thenReturn(java.util.List.of());
+
+        // parentResourceTypeCode 缺省 → 按 scope 类型 MENU 解析挂父（旧实现半传被静默解挂）
+        ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
+                new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
+                java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
+                        null, "parent-x", "default", null, 1, null, null, null,
+                        new SyncVersionRef(OCCURRED_AT, 1L))));
+
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.detail().appliedCount()).isEqualTo(1);
+        ArgumentCaptor<ResourceEntity> captor = ArgumentCaptor.forClass(ResourceEntity.class);
+        verify(resourceEntityMapper).update(captor.capture());
+        assertThat(captor.getValue().getParentId()).isEqualTo(9L);
+    }
 }

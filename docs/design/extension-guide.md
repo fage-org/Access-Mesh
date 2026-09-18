@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-09-15   # T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
+last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父子边限同类型口径改写（原「资源可声明跨类型父子边」过时；sync 缺省回填/显式异类型拒绝/管理面 20053/角色域排除声明）；此前 T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
@@ -114,7 +114,7 @@ last_reviewed: 2026-09-15   # T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT �
 
 ### 3.4 资源树与父子关系
 
-资源可声明跨类型父子边（`parentResourceTypeCode` 可与 item 类型不同）；SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**= `resource_dependency` + `autoGrant`，**当前不生效**（`autoGrant` 全入口拒绝，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定面单点门禁见 api-contract §6.1/§6.7 DEPENDENT 轨道，二者不是一回事。
+资源父子边限同类型（T-PERM-068，2026-09-17 Q-007 定案）：sync/full-sync 的 `parentResourceTypeCode` 缺省按 item/scope 自身类型解析、显式异类型被拒（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；管理面 create/batch-create/move 同口径（20053）；角色域 ORG/POSITION 容器树的结构性跨类型是另一域形态、与资源域无关。SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**= `resource_dependency` + `autoGrant`，**当前不生效**（`autoGrant` 全入口拒绝，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定面单点门禁见 api-contract §6.1/§6.7 DEPENDENT 轨道，二者不是一回事。
 
 ### 3.5 首笔授权引导（创建即建授权根，T-PERM-062）
 

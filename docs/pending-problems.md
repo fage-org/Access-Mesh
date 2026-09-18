@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-012           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-16（Q-006 收敛）
+counter: Q-013           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-17（Q-007 收敛；Q-013 登记）
 ---
 
 # 待解决问题清单（pending problems）
@@ -13,18 +13,18 @@ last_updated: 2026-09-16（Q-006 收敛）
 
 ## 未收敛问题
 
-## Q-007 sync 通道跨类型父子边是否收紧为同类型父边
+## Q-013 TaskExecutionLeaseConcurrencyTest 剩余两个裸 sleep(1200) 方法未改有界轮询
 
 - **状态**：open
-- **登记**：2026-09-13（历史登记收编——原 2026-09-05 T-PERM-052 已知边界「另行评估」）
-- **来源**：T-PERM-052 已知边界（登记，另行评估）
+- **登记**：2026-09-17（T-PERM-068 收口全量首跑失败调查发现）
+- **来源**：[T-PERM-068](archive/2026-09-17/tasks/T-PERM-068.md) 非目标/遗留节
 - **关联**：—
 
-**现象与证据**：resource sync/full-sync 的 `parentResourceTypeCode` 可与 item 自身类型不同（跨类型父子边合法）；remove 级联删除全集守卫（batchGetDescendantIds 展开、含跨类型后代，按类型值一次批量判定）已防御连带误删破坏面。
+**现象与证据**：`takeoverReexecutesWithSameIdempotencyKey` 与 `takeoverAfterExpiryPreventsOldHolderFromOverwriting` 仍以 `sleep(1200)` 压 1s 短租约（200ms 余量）表达过期时序；T-PERM-068 收口当日全量首跑与隔离复跑共 3 次失败（两方法轮换：awaitTerminal 15s 超时 / tryClaim 返回 null 且接管扫描未命中），稳定态与基线（stash 对照）各 4/4 绿——负载敏感抖动。同文件 claimBlockedOverMaxAttempts 已于 2026-09-16 改 5s 有界轮询（registry 同日行，L290 注释点名该形态不可靠），两方法为漏改残留。
 
-**影响**：跨类型父子边可构造跨类型资源树依赖（数据示例：SYNC 类型 A 的资源挂 MANAGED 类型 B 的父节点），该结构是否应为合法终态未定案；现状有守卫兜底、无已知破坏。
+**影响**：高负载窗口（-T 1C 并行、机器热身期）下全量回归随机假失败一轮（本日实证），浪费隔离定性时间；违反「时序用例禁裸 sleep 余量」纪律（AGENTS 测试纪律）。
 
-**设想方向（未定案）**：入口收紧为同类型父边（校验拒绝）或维持合法并文档化——另行评估。
+**设想方向（未定案）**：对齐 2026-09-16 先例改 5s 有界轮询（轮询至租约可接管/终态达成，deadline 兜底）——轻量清扫批次顺手收口即可，无需独立计划。
 
 ## Q-008 SERVICE/API 固定图种子行维持 MANAGED，是否声明内部来源收紧
 
@@ -43,6 +43,7 @@ last_updated: 2026-09-16（Q-006 收敛）
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-007 | sync 通道跨类型父子边是否收紧为同类型父边 | closed（T-PERM-068 done：三定案全落地——①sync/full-sync 显式异类型父边 NON_RETRYABLE/PARENT_TYPE_MISMATCH（先于父解析与版本写入）+ 缺省回填同类型（契约 §19.2 原意兑现，半传静默解挂漂移同步修复）；②管理面 create/batch-create 对齐 move 20053 + 单条裸 parentId 补存在性/类型校验；③判定面闭包止步与 remove 跨类型级联守卫保留作 DB 直写脏数据防线。10 回归锁旧实现下实证失败；全量含 E2E 1716 项 0 失败。定案见 registry 2026-09-17 行） | [T-PERM-068](archive/2026-09-17/tasks/T-PERM-068.md) | 2026-09-17 |
 | Q-006 | ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效 | closed（T-ACCESS-048 done：ORG_VISIBILITY_LEGACY evict-only 别名 + flush 同批双 evictAll + 未知覆盖键启动 WARN + 三处回归锁；部署镜像日志实证 legacy evict 生效；定案见 registry 2026-09-16 处置行，机制入 dual-layer-cache-framework skill 双副本。滚动发布过渡窗口结束后删除别名与第二次 evictAll 即回退面） | [T-ACCESS-048](archive/2026-09-16/tasks/T-ACCESS-048.md) | 2026-09-16 |
 | Q-009 | 存量跨能力 mapper 直读收敛（19 类 30 边冻结白名单的后续消化） | closed（T-ACCESS-043~046 done：四批全量收敛 30 边至零、白名单退役为零容忍绝对禁断、负向自证改测试源集夹具；全量回归含 E2E 绿 + 双轨评审；定案与硬契约见 registry 2026-09-15 两行） | [capability-mapper-convergence-plan](archive/2026-09-15/capability-mapper-convergence-plan.md)（T-ACCESS-043~046，已归档） | 2026-09-15 |
 | Q-001 | URL 路径风格统一（admin 裸路径 vs perm 前缀路径） | closed（T-ACCESS-042 done：全链路单命名空间 /api/access/**——外部=服务路径、无 Gateway StripPrefix、无 admin/perm 家族段；登录族并入 /api/access/auth/**；user-role/list 双轨碰撞管理轨改名 view；一次性切换零兼容。定案与实施期裁决见 registry 2026-09-15 行） | [T-ACCESS-042](archive/2026-09-16/tasks/T-ACCESS-042.md) | 2026-09-15 |
