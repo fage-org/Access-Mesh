@@ -10,7 +10,7 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 051 |
+| access-service 归并（跨服务） | `T-ACCESS` | 052 |
 | permission-center | `T-PERM` | 070 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 009 |
@@ -99,6 +99,12 @@
 | [T-ACCESS-048](../archive/2026-09-16/tasks/T-ACCESS-048.md) | Q-006 双命名空间失效修复——ORG_VISIBILITY legacy 别名同批 evict + 回归锁 | 同 | dual-layer-cache-framework skill 双副本 | — | ✅ | ✓ |
 | [T-ACCESS-049](../archive/2026-09-16/tasks/T-ACCESS-049.md) | 发布文档与版本化——quickstart/deployment 基线/CHANGELOG/README/LICENSE | 同 | extension-guide；design/README 三档口径；docs/README | T-ACCESS-047 | ✅ | ✓ |
 | [T-ACCESS-050](../archive/2026-09-16/tasks/T-ACCESS-050.md) | 首次部署验证与版本打点收口——空环境全栈冒烟 + v0.1.0 tag + 042 归档 | 同 | release-preview-plan；decision-registry | T-ACCESS-047, T-ACCESS-048, T-ACCESS-049 | ✅ | ✓ |
+
+### access-service 零星任务（Q 清单转出）
+
+| ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
+|---|---|---|---|---|---|---|
+| [T-ACCESS-051](../archive/2026-09-18/tasks/T-ACCESS-051.md) | Q-013 时序用例裸 sleep 清扫——TaskExecutionLeaseConcurrencyTest 两方法改 5s 有界轮询（✅ 2026-09-18 收口：定向 10/10 + 全量含 E2E 1724 项 0 失败；双轨评审零 P0-P2，同族三处登记 Q-014） | — | testing-standards rule §10.3（口径已载，无设计回写面） | — | ✅ | — |
 
 ### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——未终态仅剩暂缓项 T-PERM-035/036/054 挂本表等 PM 重申）
 

@@ -198,12 +198,18 @@ class TaskExecutionLeaseConcurrencyTest {
         while (System.currentTimeMillis() < deadline) {
             SysTaskExecution row =
                 taskExecutionDomainService.findByExecutionKey(TENANT_ID, executionKey);
-            if (row != null && ("SUCCESS".equals(row.getStatus()) || "FAILED".equals(row.getStatus()))) {
+            if (isTerminal(row)) {
                 return row;
             }
             TimeUnit.MILLISECONDS.sleep(100);
         }
         throw new AssertionError("execution did not reach terminal state: " + executionKey);
+    }
+
+    /** 终态判定（awaitTerminal 与扫描轮询循环共用，防两处条件漂移） */
+    private static boolean isTerminal(SysTaskExecution row) {
+        return row != null
+            && ("SUCCESS".equals(row.getStatus()) || "FAILED".equals(row.getStatus()));
     }
 
     @Test
@@ -257,11 +263,22 @@ class TaskExecutionLeaseConcurrencyTest {
         // 1s 短租约模拟持有者崩溃后过期
         assertThat(taskExecutionMapper.tryClaimExecution(TENANT_ID, key, "dead-instance", 1, 3))
             .isEqualTo(1);
-        TimeUnit.MILLISECONDS.sleep(1200);
 
-        // 新实例原子接管，重试计数 +1
-        Integer attempt = taskExecutionDomainService.tryClaim(TENANT_ID, key, "owner-B");
-        assertThat(attempt).isEqualTo(2);
+        // 新实例原子接管（重试计数 +1）：轮询至数据库判定租约过期（有界 5s）——
+        // sleep(1200) 固定余量在 -T 负载下不可靠（Q-013：对 1s 租约仅 200ms 余量，
+        // 全量首跑/隔离复跑 3 次假失败实证）；租约未过期时 tryClaim 原子条件不成立
+        // 返回 null、无副作用，轮询安全（对齐同文件 2026-09-16 有界轮询定式）
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        Integer attempt = null;
+        while (attempt == null && System.nanoTime() < deadline) {
+            attempt = taskExecutionDomainService.tryClaim(TENANT_ID, key, "owner-B");
+            if (attempt == null) {
+                TimeUnit.MILLISECONDS.sleep(200);
+            }
+        }
+        assertThat(attempt)
+            .as("5s 内租约应已过期、新实例可接管（attempt=2）")
+            .isEqualTo(2);
 
         // 旧持有者续租失败、结果写回失败（不能覆盖新尝试）
         assertThat(taskExecutionDomainService.renewLease(TENANT_ID, key, "dead-instance", 1)).isFalse();
@@ -289,8 +306,8 @@ class TaskExecutionLeaseConcurrencyTest {
             .isEqualTo(1);
         // 第二次抢占轮询至数据库判定租约过期（有界 5s）：sleep 固定余量在机器负载下不可靠
         // （T-ACCESS-030 -T 试验实证 sleep 1200ms 对 1s 租约的 200ms 余量单次失败）；
-        // 本用例主语是 attempt 级 fencing，过期边界的严格单次判定由
-        // takeoverAfterExpiryPreventsOldHolderFromOverwriting 承担
+        // 本用例主语是同实例（owner 不变）接管自己的过期任务，跨实例接管与旧持有者
+        // fencing 由 takeoverAfterExpiryPreventsOldHolderFromOverwriting 承担（同为有界轮询，Q-013）
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         Integer secondAttempt = null;
         while (secondAttempt == null && System.nanoTime() < deadline) {
@@ -405,11 +422,26 @@ class TaskExecutionLeaseConcurrencyTest {
         String executionKey = "job:" + jobId + ":20260821T130000";
         assertThat(taskExecutionMapper.tryClaimExecution(
             TENANT_ID, executionKey, "dead-instance", 1, 3)).isEqualTo(1);
-        TimeUnit.MILLISECONDS.sleep(1200);
 
-        jobService.takeoverExpiredExecutions();
-
-        SysTaskExecution terminal = awaitTerminal(executionKey);
+        // 接管扫描轮询至过期可接管并达成终态（有界 5s）——sleep(1200) 后单轮扫描在
+        // -T 负载下会因租约尚未过期而整轮漏扫、awaitTerminal 15s 超时假失败（Q-013）；
+        // 扫描对未过期 RUNNING 行无副作用（selectRetryable 仅选 lease_until < now()），
+        // 重复扫描轮即生产 30s 周期扫描器的多轮触发形态
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        SysTaskExecution terminal = null;
+        while (terminal == null && System.nanoTime() < deadline) {
+            jobService.takeoverExpiredExecutions();
+            SysTaskExecution row =
+                taskExecutionDomainService.findByExecutionKey(TENANT_ID, executionKey);
+            if (isTerminal(row)) {
+                terminal = row;
+            } else {
+                TimeUnit.MILLISECONDS.sleep(200);
+            }
+        }
+        assertThat(terminal)
+            .as("5s 内扫描轮应已接管过期执行并达成终态")
+            .isNotNull();
         assertThat(terminal.getStatus()).isEqualTo("SUCCESS");
         assertThat(terminal.getAttemptCount()).isEqualTo(2);
         // 接管重试与首次执行携带同一执行键（外部副作用按该键去重）

@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-013           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-18（Q-008 随 T-PERM-069 收敛）
+counter: Q-014           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-18（Q-008/Q-013 收敛；Q-014 登记）
 ---
 
 # 待解决问题清单（pending problems）
@@ -13,23 +13,24 @@ last_updated: 2026-09-18（Q-008 随 T-PERM-069 收敛）
 
 ## 未收敛问题
 
-## Q-013 TaskExecutionLeaseConcurrencyTest 剩余两个裸 sleep(1200) 方法未改有界轮询
+## Q-014 会话/网关测试三处同族裸 sleep(1200)（时间轴构造形态）
 
 - **状态**：open
-- **登记**：2026-09-17（T-PERM-068 收口全量首跑失败调查发现）
-- **来源**：[T-PERM-068](archive/2026-09-17/tasks/T-PERM-068.md) 非目标/遗留节
+- **登记**：2026-09-18（T-ACCESS-051 双轨评审发现，用户拍板登记）
+- **来源**：[T-ACCESS-051](archive/2026-09-18/tasks/T-ACCESS-051.md) 双轨评审上报项
 - **关联**：—
 
-**现象与证据**：`takeoverReexecutesWithSameIdempotencyKey` 与 `takeoverAfterExpiryPreventsOldHolderFromOverwriting` 仍以 `sleep(1200)` 压 1s 短租约（200ms 余量）表达过期时序；T-PERM-068 收口当日全量首跑与隔离复跑共 3 次失败（两方法轮换：awaitTerminal 15s 超时 / tryClaim 返回 null 且接管扫描未命中），稳定态与基线（stash 对照）各 4/4 绿——负载敏感抖动。同文件 claimBlockedOverMaxAttempts 已于 2026-09-16 改 5s 有界轮询（registry 同日行，L290 注释点名该形态不可靠），两方法为漏改残留。
+**现象与证据**：`PlatformSessionIdleTimeoutTest:156` 以 sleep(1200) 连续构造 3 次「间隔 1.2s 的活跃」，断言 idle 窗口（2s）内不超时；`PlatformSessionAbsoluteTimeoutTest:176~184` 以 4 处 sleep(1200) 拼出 4s 绝对超时时间轴；`gateway/src/test/.../AuthTokenFilterTest:298` 以 sleep(1200)×4 构造续期间隔断言。与 Q-013 同族（裸 sleep 表达时序，testing-standards rule §10.3），但形态为时间轴构造、余量 800ms（2s 窗口 − 1.2s 间隔），历史全量回归未实证击穿。
 
-**影响**：高负载窗口（-T 1C 并行、机器热身期）下全量回归随机假失败一轮（本日实证），浪费隔离定性时间；违反「时序用例禁裸 sleep 余量」纪律（AGENTS 测试纪律）。
+**影响**：-T 1C 极端负载下 sleep 间隔被调度拉长 → 活跃间隔超 2s idle 窗口 → 第 3 次活跃被超时 → 断言假失败（与 Q-013 同类负载敏感抖动，隔离定性成本重演）。
 
-**设想方向（未定案）**：对齐 2026-09-16 先例改 5s 有界轮询（轮询至租约可接管/终态达成，deadline 兜底）——轻量清扫批次顺手收口即可，无需独立计划。
+**设想方向（未定案）**：改确定性时间轴表达（候选：会话 TTL/续期时间操控注入——涉及 sa-token 会话时间操控方式选型，非顺手量级，待轻量批次立项定性）。
 
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-013 | TaskExecutionLeaseConcurrencyTest 剩余两个裸 sleep(1200) 方法未改有界轮询 | closed（T-ACCESS-051 done：takeoverAfterExpiryPreventsOldHolderFromOverwriting 改 5s 有界轮询至 tryClaim 接管成功、takeoverReexecutesWithSameIdempotencyKey 改每轮扫描+终态检查（断言语义均不变），终态条件抽 isTerminal 与 awaitTerminal 共用；双轨评审零 P0-P2；定向容器轨 10/10 绿 + 收口全量含 E2E 1724 项 0 失败。纪律出处 registry 2026-09-06/2026-09-16 行；评审上报三处同族裸 sleep 登记 Q-014） | [T-ACCESS-051](archive/2026-09-18/tasks/T-ACCESS-051.md) | 2026-09-18 |
 | Q-008 | SERVICE/API 固定图种子行维持 MANAGED，是否声明内部来源收紧 | closed（T-PERM-069 done：2026-09-18 用户拍板「仅 API 收紧」——①API 种子声明 SYNC+access-service，唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图，管理面资源 CRUD 20055（回归锁旧种子下实证失败）；②SERVICE 维持 MANAGED（新行唯一通道=管理面手工建行做按服务实例级授权，收紧即零 writer 死局，重启评估须以 service-config 联动建行配套为前置）；存量 dev 库 86 行 MANUAL 全为固定图零野行、订正语句登记 runbook；双轨评审全处置、全量含 E2E 1721 项 0 失败。定案见 registry 2026-09-18 行） | [T-PERM-069](archive/2026-09-18/tasks/T-PERM-069.md) | 2026-09-18 |
 | Q-007 | sync 通道跨类型父子边是否收紧为同类型父边 | closed（T-PERM-068 done：三定案全落地——①sync/full-sync 显式异类型父边 NON_RETRYABLE/PARENT_TYPE_MISMATCH（先于父解析与版本写入）+ 缺省回填同类型（契约 §19.2 原意兑现，半传静默解挂漂移同步修复）；②管理面 create/batch-create 对齐 move 20053 + 单条裸 parentId 补存在性/类型校验；③判定面闭包止步与 remove 跨类型级联守卫保留作 DB 直写脏数据防线。10 回归锁旧实现下实证失败；全量含 E2E 1716 项 0 失败。定案见 registry 2026-09-17 行） | [T-PERM-068](archive/2026-09-17/tasks/T-PERM-068.md) | 2026-09-17 |
 | Q-006 | ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效 | closed（T-ACCESS-048 done：ORG_VISIBILITY_LEGACY evict-only 别名 + flush 同批双 evictAll + 未知覆盖键启动 WARN + 三处回归锁；部署镜像日志实证 legacy evict 生效；定案见 registry 2026-09-16 处置行，机制入 dual-layer-cache-framework skill 双副本。滚动发布过渡窗口结束后删除别名与第二次 evictAll 即回退面） | [T-ACCESS-048](archive/2026-09-16/tasks/T-ACCESS-048.md) | 2026-09-16 |
