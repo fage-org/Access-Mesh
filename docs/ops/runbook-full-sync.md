@@ -27,7 +27,7 @@
 ## 3. 执行步骤
 
 1. 逐条 sync：按事件顺序发送；同幂等键乱序到达由服务端 `sync_metadata` 版本原子比较兜底（旧版本 no-op，见 §4）。
-2. full-sync：构造单请求完整事实清单（含每个 item 的 `syncVersion`），父资源非 scope 默认类型/codeType 时显式传 `parentResourceTypeCode/parentCodeType`。
+2. full-sync：构造单请求完整事实清单（含每个 item 的 `syncVersion`）。父边限同类型（T-PERM-068）：`parentResourceTypeCode` 缺省即按 item/scope 类型解析（同步同类型树只需传 `parentResourceCode`），**显式传异类型会被 `NON_RETRYABLE`/`PARENT_TYPE_MISMATCH` 拒绝**——不要为「不同类型的父」补传该字段；仅 `parentCodeType≠default` 时需显式传 codeType。父字段组仅 UPSERT 生效（DISABLE/DELETE 忽略父字段）；单条 DELETE 在存在有效子资源时返回 `DEPENDENCY_MISSING`/`CHILDREN_EXIST`（先删子再重发父，同版本重发自愈）。
 3. 解析响应：**信封恒 `code=200`，勿以信封判失败**——失败判定 = `data.accepted=false || data.stale=true`（2026-09-12 契约勘误口径）。
 4. full-sync 逐 item 核对 `data.detail.itemResults`（businessKey 级明细）；sync 接口 `data.detail=null`，只看顶层。
 5. 对 `RETRYABLE`/`DEPENDENCY_MISSING` 项按 §4 表重发；对 `NON_RETRYABLE` 项修正请求或源数据后重发——环路/互斥/依赖类拒绝不推进同步版本，修正后同版本重发不会被 STALE 挡；推进 `syncVersion` 作为新事件发送是可选保险（便于区分修复轮次）。
@@ -37,9 +37,9 @@
 | retryClass | 含义 | 重试策略 |
 |---|---|---|
 | `RETRYABLE` | 瞬时失败（部分失败时顶层 `FULL_SYNC_PARTIAL_FAILURE`） | 指数退避重发**原请求**（同版本原样重发不会被 STALE 挡） |
-| `DEPENDENCY_MISSING` | 父资源/关联角色不存在（依赖与判环先于版本写入，不推进版本） | 短退避重发原请求；持续失败先补齐依赖侧 sync |
+| `DEPENDENCY_MISSING` | 父资源/关联角色不存在（依赖与判环先于版本写入，不推进版本）；资源 DELETE 命中有效子资源（`CHILDREN_EXIST`，T-PERM-068） | 短退避重发原请求；持续失败先补齐依赖侧 sync；`CHILDREN_EXIST` 先删子资源再重发父（同版本重发自愈） |
 | `STALE_VERSION` | 旧版本 no-op（唯一 `accepted=true` 的失败：`applied=false, stale=true`） | **不重试**——服务端已持更新事实，调度器置 SUCCESS |
-| `NON_RETRYABLE` | 参数/结构错误：父环路 `RESOURCE_PARENT_INVALID`、成员关系互斥 `ROLE_MUTEX_CONFLICT`、保留键 20045 等 | 不盲目重试；修正请求/源数据后重发（此类拒绝不推进同步版本，同版本重发不会被 STALE 挡；推进版本作新事件为可选保险） |
+| `NON_RETRYABLE` | 参数/结构错误：父环路 `RESOURCE_PARENT_INVALID`、跨类型父边 `PARENT_TYPE_MISMATCH`（父类型码 ≠ item/scope 类型，修正源数据）、成员关系互斥 `ROLE_MUTEX_CONFLICT`、保留键 20045 等 | 不盲目重试；修正请求/源数据后重发（此类拒绝不推进同步版本，同版本重发不会被 STALE 挡；推进版本作新事件为可选保险） |
 | `SECURITY_DENIED` | 服务身份不匹配 / 类型所有权门禁拒绝 / 白名单未命中 / 未注册停用 | **先排根因再动**：核对类型声明、syncTypes 白名单、服务注册状态；排除配置前重发只会继续被拒 |
 
 ## 5. 验收检查

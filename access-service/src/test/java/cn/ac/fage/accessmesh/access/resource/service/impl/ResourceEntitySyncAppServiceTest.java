@@ -603,6 +603,140 @@ class ResourceEntitySyncAppServiceTest {
         assertThat(captor.getValue().getParentId()).isNull();
     }
 
+    // ------------------------------------------------------------------
+    // 外评处置回归锁（2026-09-18，claude/grok 双通道）：①父字段组仅 UPSERT 生效——
+    // DISABLE/DELETE 忽略父字段（用户拍板）；②DELETE 有有效后代 → CHILDREN_EXIST 可重试拒绝
+    // （用户拍板，先于 applyVersion）；③解挂（全不传父字段 UPSERT 已存在行）必须 UpdateEntity
+    // 显式清 parent 列（grok P2——flex update(entity) 忽略 null 列，旧父残留 fail-open）。
+    // ①③在处置前实现下失败；②拒绝/自愈两态分别锁定。
+    // ------------------------------------------------------------------
+
+    @Test
+    void shouldIgnoreParentFields_whenDisableOperation() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        ResourceEntity existing = new ResourceEntity();
+        existing.setId(5L);
+        existing.setTenantId(TENANT_ID);
+        existing.setResourceType(0);
+        existing.setCode("menu-1");
+        existing.setCodeType("default");
+        existing.setStatus(1);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default"))
+                .thenReturn(existing);
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+
+        // DISABLE 携带父字段（父不存在也不得阻塞停用——父字段仅 UPSERT 生效）
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("DISABLE", "MENU", "menu-1", "default",
+                null, "MENU", "ghost-parent", "default", null, null, null,
+                SOURCE_SERVICE, "menu", "menu-1", new SyncVersionRef(OCCURRED_AT, 1L));
+
+        SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.applied()).isTrue();
+        verify(typeResolutionService, org.mockito.Mockito.never())
+                .resolveResourceId(anyLong(), anyString(), anyString(), anyString(), any());
+        verify(resourceEntityMapper).update(any(ResourceEntity.class));
+        assertThat(existing.getStatus()).isEqualTo(0);
+    }
+
+    @Test
+    void shouldRejectDeleteWithoutAdvancingVersion_whenValidDescendantsExist() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        ResourceEntity existing = new ResourceEntity();
+        existing.setId(5L);
+        existing.setTenantId(TENANT_ID);
+        existing.setResourceType(0);
+        existing.setCode("menu-1");
+        existing.setCodeType("default");
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default"))
+                .thenReturn(existing);
+        when(resourceEntityDomainService.batchGetDescendantIds(TENANT_ID, java.util.Set.of(5L)))
+                .thenReturn(java.util.Map.of(5L, java.util.List.of(9L)));
+
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("DELETE", "MENU", "menu-1", "default",
+                null, null, null, null, null, null, null,
+                SOURCE_SERVICE, "menu", "menu-1", new SyncVersionRef(OCCURRED_AT, 1L));
+
+        SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_DEPENDENCY_MISSING);
+        assertThat(resp.reason()).isEqualTo("CHILDREN_EXIST");
+        // 拒绝先于 applyVersion：子删除后同版本重发自愈，不被 STALE 挡
+        org.mockito.Mockito.verify(syncMetadataDomainService, org.mockito.Mockito.never()).applyVersion(
+                anyLong(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong());
+        verify(resourceEntityMapper, org.mockito.Mockito.never())
+                .softDeleteBatch(anyLong(), any(), any());
+    }
+
+    @Test
+    void shouldDelete_whenNoValidDescendants() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        ResourceEntity existing = new ResourceEntity();
+        existing.setId(5L);
+        existing.setTenantId(TENANT_ID);
+        existing.setResourceType(0);
+        existing.setCode("menu-1");
+        existing.setCodeType("default");
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default"))
+                .thenReturn(existing);
+        when(resourceEntityDomainService.batchGetDescendantIds(TENANT_ID, java.util.Set.of(5L)))
+                .thenReturn(java.util.Map.of());
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("DELETE", "MENU", "menu-1", "default",
+                null, null, null, null, null, null, null,
+                SOURCE_SERVICE, "menu", "menu-1", new SyncVersionRef(OCCURRED_AT, 1L));
+
+        SyncResultResp resp = service.sync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.applied()).isTrue();
+        verify(resourceEntityMapper).softDeleteBatch(eq(TENANT_ID), eq(java.util.List.of(5L)), any());
+    }
+
+    @Test
+    void shouldForceNullParentColumn_whenUpsertWithoutParentFieldsOnExistingRow() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        ResourceEntity existing = new ResourceEntity();
+        existing.setId(5L);
+        existing.setTenantId(TENANT_ID);
+        existing.setResourceType(0);
+        existing.setCode("menu-1");
+        existing.setCodeType("default");
+        existing.setParentId(9L);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(TENANT_ID, 0, "menu-1", "default"))
+                .thenReturn(existing);
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), eq("RESOURCE_ENTITY"),
+                eq(SOURCE_SERVICE), anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+
+        // 全不传父字段（契约 §19.1 解挂形态）：已存在行必须显式清 parent 列——只断言 Java 字段
+        // null 在旧实现（plain update(entity)）下同样通过，须断言 updates map 显式含 parentId=null
+        SyncResultResp resp = service.sync(TENANT_ID, upsertReq(), httpRequest);
+
+        assertThat(resp.applied()).isTrue();
+        ArgumentCaptor<ResourceEntity> captor = ArgumentCaptor.forClass(ResourceEntity.class);
+        verify(resourceEntityMapper).update(captor.capture());
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, Object> updates =
+                ((com.mybatisflex.core.update.UpdateWrapper<ResourceEntity>) captor.getValue()).getUpdates();
+        assertThat(updates).containsKey("parentId");
+        assertThat(updates.get("parentId")).isNull();
+        assertThat(captor.getValue().getId()).isEqualTo(5L);
+    }
+
     @Test
     void fullSyncResolvesParentByScopeType_whenParentTypeCodeOmitted() {
         mockHeaderMatch();

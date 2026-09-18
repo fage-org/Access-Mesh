@@ -391,10 +391,12 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         // resolve parent (optional) —— 先于 applyVersion：环路/类型拒绝不推进同步版本，
         // 上游修正后同版本重试不被判 STALE（对齐角色同步先例 T-PERM-022 评审收口）
         Long parentId = null;
-        // T-PERM-068：父字段组激活条件=parentResourceCode 非空（parentResourceTypeCode 单独
-        // 传不激活——无父编码即无边）；typeCode 缺省回填自身类型（Q-007 定案③，对齐角色域
-        // full-sync effectiveParentTypeCode 先例与契约 §19.1/§19.2 原意）
-        boolean callerHasParent = req.parentResourceCode() != null && !req.parentResourceCode().isBlank();
+        // T-PERM-068：父字段组仅 UPSERT 生效（2026-09-18 用户拍板，claude 外评 P2 处置——DISABLE/DELETE
+        // 忽略父字段，删/停不被父资源存否绑架，对齐角色域 OP_UPSERT 守卫先例）；激活条件=parentResourceCode
+        // 非空（parentResourceTypeCode 单独传不激活——无父编码即无边）；typeCode 缺省回填自身类型
+        // （Q-007 定案③，对齐角色域 full-sync effectiveParentTypeCode 先例与契约 §19.1/§19.2 原意）
+        boolean callerHasParent = OP_UPSERT.equals(req.operation())
+                && req.parentResourceCode() != null && !req.parentResourceCode().isBlank();
         if (callerHasParent) {
             String parentTypeCode = effectiveParentTypeCode(req.parentResourceTypeCode(), req.resourceTypeCode());
             // T-PERM-068（Q-007 定案①，2026-09-17）：跨类型父边收紧——显式异类型 item 级 NON_RETRYABLE，
@@ -426,6 +428,16 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                             + ":" + req.parentResourceCode());
         }
 
+        // DELETE 有子拒绝（2026-09-18 用户拍板，外评处置）：存在有效后代（含脏数据跨类型子——CTE
+        // 不按类型过滤，保守阻塞防误删）→ DEPENDENCY_MISSING 可重试，子删除后同版本重发自愈
+        // （拒绝先于 applyVersion 不推进版本，对齐依赖缺失先例）；full-sync 载荷恒 UPSERT，
+        // 本判定仅服务单条 sync DELETE，无循环 N+1
+        if (OP_DELETE.equals(req.operation()) && existing != null
+                && !resourceEntityDomainService.batchGetDescendantIds(tenantId, Set.of(existing.getId()))
+                        .getOrDefault(existing.getId(), List.of()).isEmpty()) {
+            return SyncResultBuilder.dependencyMissing("CHILDREN_EXIST");
+        }
+
         SyncMetadataDomainService.ApplyVersionResult vr = syncMetadataDomainService.applyVersion(
                 tenantId, ENTITY_KIND, req.sourceService(),
                 scopeKeyHash, scopeKey, businessKeyHash, businessKey,
@@ -455,13 +467,28 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 resourceEntityMapper.insert(re);
                 existing = re;
             } else {
-                existing.setParentId(parentId);
-                if (req.name() != null) existing.setName(req.name());
-                if (req.path() != null) existing.setPath(req.path());
-                if (req.status() != null) existing.setStatus(req.status());
-                if (req.extra() != null) existing.setExtra(serializeExtra(req.extra()));
-                existing.setUpdatedAt(now);
-                resourceEntityMapper.update(existing);
+                if (parentId == null) {
+                    // 解挂须显式写 null 列：flex update(entity) 忽略 null 字段（moveResource/投影
+                    // upsertResource 同款 UpdateEntity 先例；grok 外评 P2——「全不传=解挂」契约语义
+                    // 必须落库，否则 applied=true 且版本已推进、旧父边残留 fail-open、同版本重发被 STALE 挡）
+                    ResourceEntity patch = com.mybatisflex.core.util.UpdateEntity.of(ResourceEntity.class);
+                    patch.setId(existing.getId());
+                    patch.setParentId(null);
+                    if (req.name() != null) patch.setName(req.name());
+                    if (req.path() != null) patch.setPath(req.path());
+                    if (req.status() != null) patch.setStatus(req.status());
+                    if (req.extra() != null) patch.setExtra(serializeExtra(req.extra()));
+                    patch.setUpdatedAt(now);
+                    resourceEntityMapper.update(patch);
+                } else {
+                    existing.setParentId(parentId);
+                    if (req.name() != null) existing.setName(req.name());
+                    if (req.path() != null) existing.setPath(req.path());
+                    if (req.status() != null) existing.setStatus(req.status());
+                    if (req.extra() != null) existing.setExtra(serializeExtra(req.extra()));
+                    existing.setUpdatedAt(now);
+                    resourceEntityMapper.update(existing);
+                }
             }
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, STATUS_ACTIVE);

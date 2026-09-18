@@ -4,8 +4,14 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **资源同步父边收紧为同类型（T-PERM-068，破坏性收紧）**：`resource-entity/sync`/`full-sync` 显式异类型 `parentResourceTypeCode` 由放行改为 item 级拒绝（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；`parentResourceTypeCode` 缺省回填 item/scope 自身类型（只传 `parentResourceCode` 也按同类型解析挂父——原实现半传被静默解挂）；父字段组仅 UPSERT 生效（DISABLE/DELETE 忽略父字段）；单条 DELETE 存在有效子资源时拒绝（`DEPENDENCY_MISSING`/`CHILDREN_EXIST`，先删子再重发自愈）。管理面 `resource-entity/create`/`batch-create` 对齐 move：跨类型父 20053、裸 `parentId` 补存在性（20004）与类型校验。
+
 ### Fixed
 
+- 资源同步「解挂」不落库：全不传父字段的 UPSERT 更新已存在行时旧父边残留（`applied=true` 且版本已推进、同版本重发被 STALE 挡）——改为 UpdateEntity 显式清 parent 列（grok 外评 P2）。
+- `docs/ops/runbook-full-sync.md` 同步步骤与重试决策表对齐上述语义（此前仍指导为异类型父显式传 `parentResourceTypeCode`）。
 - compose `GATEWAY_CORS_ALLOWED_ORIGINS` 透传改 `-` 形态——显式置空（=禁用 CORS）此前被 `:-` 默认值吞掉，文档承诺的关闭路径到不了容器（claude 外评 P3）。
 - 发布文档修正：quickstart 授权闭环补「持角色用户/令牌来源」获取路径与密钥分发范围表述；deployment.md §4 真实 IP 边界改准确口径（Gateway IP 条件只消费直连对端地址，多层代理下真实 IP 不可用——codex sol 外评 P2）；nginx.conf 注释对齐实际 hash 路由；registry/pending-problems 归档连带锚点回写；rebuild-runbook JWT 密钥口径随 fail-fast 更新。
 
