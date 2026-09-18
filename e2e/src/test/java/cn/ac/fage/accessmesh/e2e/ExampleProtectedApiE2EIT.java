@@ -135,8 +135,9 @@ class ExampleProtectedApiE2EIT {
             st.execute(ddl);
             // 环境种子：example-service 接入服务注册（service-config/sync 的前置——服务配置须已存在）；
             // 正式接入由管理员经 service-config 管理接口维护。API 资源/映射由第③步
-            // service-config/sync 接口声明通道自动创建（T-PERM-052 后 API 类型恒 MANAGED，
-            // resource-entity/sync 对其一律拒绝，旧 syncTypes.resourceTypeCodes 白名单已退役）
+            // service-config/sync 接口声明通道自动创建（API 类型种子声明 SYNC+access-service，
+            // T-PERM-069——外部 resource-entity/sync 来源不匹配拒绝、资源管理面手工 CRUD 20055，
+            // 旧 syncTypes.resourceTypeCodes 白名单已退役）
             st.execute("INSERT INTO service_config (tenant_id, service_code, name, status) VALUES ("
                 + "1, 'example-service', 'Example Service', 1)");
         }
@@ -223,11 +224,12 @@ class ExampleProtectedApiE2EIT {
     @Order(3)
     @DisplayName("③ example 经 service-config 接口声明通道注册 API 资源与 Gateway 映射（FULL）")
     void step3_createExampleApiResourceAndMapping() {
-        // API 资源的唯一事实入口是 service-config/sync 接口声明通道（api-contract §6.3）：FULL
+        // API 资源的唯一事实入口是 service-config/sync 接口声明通道（api-contract §19.8）：FULL
         // 上报即完整事实来源，自动创建 API 资源与 resource_api_mapping（owner=example-service、
-        // maintainSource=SERVICE_SYNC、pathPattern=basePath+path）。T-PERM-052 类型级所有权后
-        // API 类型恒 MANAGED——resource-entity/sync 通道对其一律 RESOURCE_TYPE_OWNERSHIP_DENIED，
-        // 旧 syncTypes.resourceTypeCodes 白名单已退役，经 Gateway 走管理面（bootstrap 固定图含本路径）
+        // maintainSource=SERVICE_SYNC、pathPattern=basePath+path）。API 类型种子声明
+        // SYNC+access-service（T-PERM-069，2026-09-18 Q-008「仅 API 收紧」）——resource-entity/sync
+        // 外部通道来源不匹配一律 RESOURCE_TYPE_OWNERSHIP_DENIED，资源管理面手工 CRUD 20055，
+        // 本通道（领域直写不经管理面门禁）不受影响，经 Gateway 走管理面（bootstrap 固定图含本路径）
         JsonNode syncResp = postForData(gateway() + "/api/access/service-config/sync", adminToken,
             JSON.createObjectNode()
                 .put("serviceCode", "example-service")

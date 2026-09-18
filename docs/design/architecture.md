@@ -86,7 +86,7 @@ last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文�
 | gateway         | access-service | HTTP (转发)    | `/api/access/**` 单路由（外部路径=服务路径，无 StripPrefix；登录/管理/权限接口统一转发） |
 | gateway         | access-service | HTTP (负载均衡 WebClient) | 快照鉴权：`POST /api/access/auth/interface-snapshot` 拉取全量接口权限快照；未覆盖场景回退 `check-interface` 实时鉴权 |
 | gateway         | example-service | HTTP (转发)   | 演示服务接口转发                                                                             |
-| 管理员/运维（经 Gateway） | access-service | HTTP（管理面，运维期） | 接口资源注册：管理员经 `POST /api/access/service-config/sync`（FULL 接口声明）一步创建 API 资源与映射（T-API-001 E2E 钉死；原 resource-entity/sync 直连通道已随 T-PERM-052 类型级所有权退役——API 类型恒 MANAGED，同步入口一律拒绝）。example-service 运行期对 access-service 零调用——接口级鉴权由 Gateway 承担（T-API-001：example 已删 perm-client/openfeign，无 Feign 鉴权查询） |
+| 管理员/运维（经 Gateway） | access-service | HTTP（管理面，运维期） | 接口资源注册：管理员经 `POST /api/access/service-config/sync`（FULL 接口声明）一步创建 API 资源与映射（T-API-001 E2E 钉死；原 resource-entity/sync 直连通道已随 T-PERM-052 类型级所有权退役——API 类型种子声明 SYNC+access-service（T-PERM-069），外部同步入口来源不匹配一律拒绝、资源管理面手工 CRUD 20055，本通道与 bootstrap 固定图即 API 资源唯一事实入口）。example-service 运行期对 access-service 零调用——接口级鉴权由 Gateway 承担（T-API-001：example 已删 perm-client/openfeign，无 Feign 鉴权查询） |
 
 ### 1.5 管理端前后端交互原则
 

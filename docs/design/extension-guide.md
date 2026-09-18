@@ -19,9 +19,9 @@ last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父�
 
 | # | 扩展面 | 回答的场景提问 | 权威契约 | 验证资产 |
 |---|---|---|---|---|
-| 1 | 业务服务接入 | 「我的服务怎么接入 AccessMesh 鉴权？」 | api-contract §6.3；`services/example-service.md` | `ExampleProtectedApiE2EIT` |
-| 2 | 自有资源类型 | 「我要按门店/项目/单据控制权限，怎么建模？」 | api-contract §5.1/§5.3/§6.2.2/§6.3；类型所有权声明见 api-contract §5.1 | `CustomResourceTypeSlicePgIT`（本指南配套） |
-| 3 | 主体/角色体系 | 「我的用户/角色体系与标准设计不一致」 | api-contract §5.2 + §6.3.1（syncTypes 白名单） | AbstractUserSyncAppServiceTest 等单测组 |
+| 1 | 业务服务接入 | 「我的服务怎么接入 AccessMesh 鉴权？」 | api-contract §19.8；`services/example-service.md` | `ExampleProtectedApiE2EIT` |
+| 2 | 自有资源类型 | 「我要按门店/项目/单据控制权限，怎么建模？」 | api-contract §13/§19.2/§19.1/§19.8；类型所有权声明见 api-contract §13 | `CustomResourceTypeSlicePgIT`（本指南配套） |
+| 3 | 主体/角色体系 | 「我的用户/角色体系与标准设计不一致」 | api-contract §19.4 + §19.9（syncTypes 白名单） | AbstractUserSyncAppServiceTest 等单测组 |
 | 4 | 条件与范围 | 「时间/IP 限制、数据范围怎么配？边界在哪？」 | api-contract §5.6/§6.7；core-flows | 条件双轨制用例组（T-PERM-048） |
 | 5 | 前端页面 | 「我想在管理台加自己的页面」 | `docs/design/frontend/README.md` 及各页面设计 | 前端 view hook 测试组 |
 
@@ -41,7 +41,7 @@ last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父�
 ### 2.1 接入步骤
 
 1. **注册服务**：管理台「服务+接口映射」页（`POST /api/access/service-config/save`）登记 `serviceCode`/`name`/`status=1`。
-2. **声明接口**：`POST /api/access/service-config/sync`（FULL 模式）上报接口清单——一步创建 **API 资源**与 **Gateway 路由映射**（`pathPattern = basePath + path`，行归属标记 `maintainSource=SERVICE_SYNC`）。API 类型恒为 MANAGED，**不要**走 `resource-entity/sync` 通道（会被 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝）。
+2. **声明接口**：`POST /api/access/service-config/sync`（FULL 模式）上报接口清单——一步创建 **API 资源**与 **Gateway 路由映射**（`pathPattern = basePath + path`，行归属标记 `maintainSource=SERVICE_SYNC`）。API 类型由系统种子声明 SYNC+access-service（T-PERM-069），本通道与 bootstrap 固定图即唯一事实入口——**不要**走 `resource-entity/sync` 通道（外部来源不匹配，会被 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝；资源管理面手工 CRUD 亦 20055）。
 3. **授权**：未授权前 Gateway 对该接口一律拒绝（403）。经管理台授权页（入口见前置 3）对目标角色授该 API 实例（或 API 类型级）的 `ACCESS` 操作——授权写入口须用户身份（ROLE:MANAGE），不收服务身份。
 4. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 按映射做接口级判定（`check-interface`）并对可下发条件做本地重评。授权生效受 Gateway 快照刷新窗口约束（上界 30s）。
 5. **服务侧防直调**：业务服务部署 Gateway 签名校验过滤器（example 的 `GatewaySignatureFilter` 模式）——拒绝未带有效网关签名的请求，防止绕过 Gateway 直调后端。
@@ -79,7 +79,7 @@ last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父�
 | `MANAGED`（缺省） | 管理台手工 CRUD 维护资源 | 资源量小、人工维护（如自定义目录） |
 | `SYNC` | 声明来源服务（`syncSourceService`）独占同步，管理面只读（写操作 20055） | 资源事实在业务系统里（订单、门店、项目） |
 
-声明约束（api-contract §5.1 类型所有权声明段 + §6.2.2 同步入口门禁）：SYNC 来源必须为已注册、未软删、`status=1` 的服务；类型下存在有效资源行时声明不可变更（20056），**系统预置类型（is_system=true）所有权声明一律钉死不可变更**（20056）；API 类型禁止声明 SYNC。
+声明约束（api-contract §13 类型所有权声明段 + §19.1 同步入口门禁）：SYNC 来源必须为已注册、未软删、`status=1` 的服务；类型下存在有效资源行时声明不可变更（20056），**系统预置类型（is_system=true）所有权声明一律钉死不可变更**（20056）；API 类型禁止经类型定义接口声明 SYNC——所有权由 DDL 种子钉死 SYNC+access-service（T-PERM-069），唯一事实入口=service-config 接口声明通道+bootstrap 固定图（管理面资源 CRUD 20055）。
 
 ### 3.2 完整链路（六步，SYNC 模式）
 

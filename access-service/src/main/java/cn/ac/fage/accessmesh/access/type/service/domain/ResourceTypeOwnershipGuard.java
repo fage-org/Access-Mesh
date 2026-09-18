@@ -43,7 +43,11 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomain
  *       由种子声明 SYNC + syncSourceService=access-service——外部同步一律拒绝（来源不匹配）、
  *       管理面资源 CRUD 一律 20055（行由用户/组织/菜单/角色管理、文件夹预置/惰性登记、
  *       类型定义管理、条件管理（MANAGED 条件投影，T-PERM-048）自动维护），收编原类型保留
- *       清单与行级 owner=access-service 投影防线两套旧机制。</li>
+ *       清单与行级 owner=access-service 投影防线两套旧机制。API 类型同款种子声明（T-PERM-069，
+ *       2026-09-18「仅 API 收紧」定案）：唯一事实入口=service-config/sync 接口声明通道
+ *       （领域直写不经本守卫管理面门禁）+bootstrap 固定图种子，管理面 20055 enforcement
+ *       堵手工 MANUAL 行口径外通道；SERVICE 维持 MANAGED（新行唯一通道=管理面手工建行，
+ *       做按服务实例级授权目标行——收紧即零 writer）。</li>
  * </ul>
  * <p>
  * 保存边界（type-definition create/update）由 {@link #validateExtraDeclaration} 校验结构，
@@ -221,8 +225,9 @@ public class ResourceTypeOwnershipGuard {
      * 运行时入口 {@link #isSyncEntranceAllowed} 同规则；保留内部来源（access-service 之外，
      * 如 admin-service）拒绝。唯一豁免：{@code syncSourceService=access-service}（内部来源
      * 声明，收编事实链路类型，仅 is_system=true 的系统预置类型可声明，防止自定义类型锁死成
-     * 无人写入的孤岛）；API 类型禁止声明 SYNC（service-config 接口声明通道是其事实 writer，
-     * 双 writer 口径会破坏类型级单来源不变量）。已知键显式 null 拒绝（清除声明=删除键）。
+     * 无人写入的孤岛）；API 类型禁止经本接口声明 SYNC（T-PERM-069 定案后所有权由种子钉死
+     * SYNC+access-service——唯一事实入口=service-config 接口声明通道+bootstrap 固定图，
+     * 经接口声明任何来源均拒绝，防止绕过种子口径造出第二声明）。已知键显式 null 拒绝（清除声明=删除键）。
      *
      * @param typeCode     目标类型编码（API 类型拒绝 SYNC 声明用）
      * @param isSystemType 目标类型是否系统预置（create 恒 false——is_system 不可由 API 创建）
@@ -268,7 +273,8 @@ public class ResourceTypeOwnershipGuard {
             }
         }
         if (MODE_SYNC.equals(modeText) && ResourceTypeCode.API.equals(typeCode)) {
-            throw new IllegalArgumentException("API 类型由 service-config 接口声明通道维护，禁止声明 SYNC");
+            throw new IllegalArgumentException("API 类型所有权由系统种子钉死（SYNC+access-service，"
+                    + "唯一事实入口 service-config 接口声明通道），禁止经类型定义接口声明 SYNC");
         }
         String sourceText = null;
         if (source != null && !source.isNull()) {
@@ -409,10 +415,12 @@ public class ResourceTypeOwnershipGuard {
     private static void rejectIfSyncOwned(Ownership ownership, String resourceTypeCode) {
         if (ownership != null && MODE_SYNC.equals(ownership.managedMode())) {
             // 内部来源（事实链路类型：USER/ORG/MENU/ROLE、ADMIN_FILE 文件夹（T-ADMIN-025）、
-            // TYPE_DEFINITION 类型定义实例投影（T-PERM-051）及 CONDITION 管理页条件投影（T-PERM-048））
+            // TYPE_DEFINITION 类型定义实例投影（T-PERM-051）、CONDITION 管理页条件投影（T-PERM-048）
+            // 及 API 接口资源（T-PERM-069——事实入口 service-config/sync 与 bootstrap，领域直写））
             if (LocalProjectionOwner.SERVICE_CODE.equals(ownership.syncSourceService())) {
                 throw new BizException(AccessErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),
-                        "资源由系统事实链路维护（用户/组织/菜单/角色/类型定义/条件管理、文件上传/预置），资源管理面只读: resourceTypeCode="
+                        "资源由系统事实链路维护（用户/组织/菜单/角色/类型定义/条件管理、文件上传/预置、"
+                                + "服务接口同步 service-config/sync），资源管理面只读: resourceTypeCode="
                                 + resourceTypeCode);
             }
             throw new BizException(AccessErrorCode.RESOURCE_EXTERNALLY_MAINTAINED.getCode(),

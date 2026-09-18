@@ -640,7 +640,7 @@ COMMENT ON COLUMN type_definition.name IS '显示名称';
 COMMENT ON COLUMN type_definition.description IS '描述';
 COMMENT ON COLUMN type_definition.is_system IS '是否系统预置：true=预置不可删改，false=租户自定义可扩展';
 COMMENT ON COLUMN type_definition.sort_order IS '排序';
-COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）——系统预置类型钉死不可变更、自定义类型在类型下存在有效资源行时拒绝（20056），保存边界校验已知键结构（显式 null 拒绝），未知键开放不视为声明（拼错键=无声明按缺省 MANAGED）；读取侧 extra 损坏按 MANAGED 处理（对外部同步 fail-closed、对管理面可写=可恢复方向）。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 七类事实链路类型，种子声明 SYNC+access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 类型定义实例投影由写路径同事务维护+bootstrap 自愈补种产出，T-PERM-051；CONDITION 管理页条件投影由条件写路径同事务维护+bootstrap 自愈补种产出（仅 source=MANAGED），T-PERM-048）。授权根所有者指针（T-PERM-062）：grantOriginRole={"roleTypeCode":..,"roleExternalId":..}（服务端管理键——create 请求经 ownerRoleTypeCode/ownerRoleExternalId 字段注入、extra 自带该键拒绝 20044；仅自定义 resource_type 携带，缺省 BASIC_ROLE/bootstrap-admin，roleTypeCode 值域仅 BASIC_ROLE 功能角色（容器角色拒绝 20044，2026-09-12 claude 外评定案）；指针无清除语义，变更=所有者迁移（同事务先清后种重整化 AUTHORITY_ROOT 行））';
+COMMENT ON COLUMN type_definition.extra IS '扩展配置(JSON)，如 {"max_depth": 5} 控制资源树深度。resource_type 类型承载类型级所有权声明（T-PERM-052，2026-09-05 定案）：managedMode=MANAGED(缺省,管理面维护)/SYNC(外部同步维护)，SYNC 时必填 syncSourceService（须为已注册有效服务，type_key 非 resource_type 携带此二键保存拒绝）；声明有效值变更（含删键隐式切回 MANAGED）——系统预置类型钉死不可变更、自定义类型在类型下存在有效资源行时拒绝（20056），保存边界校验已知键结构（显式 null 拒绝），未知键开放不视为声明（拼错键=无声明按缺省 MANAGED）；读取侧 extra 损坏按 MANAGED 处理（对外部同步 fail-closed、对管理面可写=可恢复方向）。内部来源 syncSourceService=access-service 仅 is_system 预置类型可声明（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION 七类事实链路类型，种子声明 SYNC+access-service；ADMIN_FILE 文件夹实例由 bootstrap 预置+上传惰性登记产出，T-ADMIN-025；TYPE_DEFINITION 类型定义实例投影由写路径同事务维护+bootstrap 自愈补种产出，T-PERM-051；CONDITION 管理页条件投影由条件写路径同事务维护+bootstrap 自愈补种产出（仅 source=MANAGED），T-PERM-048；API 类型同款种子声明（T-PERM-069，2026-09-18 Q-008 定案「仅 API 收紧」）——唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图，管理面资源 CRUD 20055，SERVICE 维持 MANAGED）。授权根所有者指针（T-PERM-062）：grantOriginRole={"roleTypeCode":..,"roleExternalId":..}（服务端管理键——create 请求经 ownerRoleTypeCode/ownerRoleExternalId 字段注入、extra 自带该键拒绝 20044；仅自定义 resource_type 携带，缺省 BASIC_ROLE/bootstrap-admin，roleTypeCode 值域仅 BASIC_ROLE 功能角色（容器角色拒绝 20044，2026-09-12 claude 外评定案）；指针无清除语义，变更=所有者迁移（同事务先清后种重整化 AUTHORITY_ROOT 行））';
 COMMENT ON COLUMN type_definition.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 
 -- 预置类型种子（tenant 1；type_value 为权威数值，与文件头 type_value 终值分配表一致——
@@ -699,10 +699,16 @@ INSERT INTO type_definition (tenant_id, type_key, type_code, type_value, name, i
 -- T-PERM-048（2026-09-11）增 CONDITION：管理页条件实例（code=条件 code，租户内唯一无需复合键）
 -- 由条件写路径同事务投影维护 + bootstrap 自愈补种（仅 source=MANAGED；INLINE 内联条件不投影——
 -- 无资源身份消费者，授权树零过滤），人工不得构造（同款 20055）。
+-- T-PERM-069（2026-09-18 定案「仅 API 收紧」，Q-008 定案）增 API：API 资源行唯一事实入口=
+-- service-config/sync 接口声明通道（契约 §19.8，SERVICE_SYNC 维护来源）+ bootstrap 固定图种子，
+-- 两条通道均领域直写不经管理面门禁；管理面资源 CRUD 20055 enforcement——堵手工 MANUAL 行
+-- 口径外通道（FULL diff 清理与服务删除级联只覆盖 SERVICE_SYNC，MANUAL 行成永久孤儿）。
+-- SERVICE 维持 MANAGED：新 SERVICE 行唯一通道=管理面手工建行（按服务实例级授权目标行），
+-- 收紧即零 writer 死局（配套事实链另议，见 registry 同日行）。
 UPDATE type_definition
 SET extra = '{"managedMode":"SYNC","syncSourceService":"access-service"}'
 WHERE tenant_id = 1 AND type_key = 'resource_type'
-  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE', 'ADMIN_FILE', 'TYPE_DEFINITION', 'CONDITION');
+  AND type_code IN ('USER', 'ORG', 'MENU', 'ROLE', 'ADMIN_FILE', 'TYPE_DEFINITION', 'CONDITION', 'API');
 
 -- -----------------------------------------------------------------------------
 -- 18. biz_domain - 业务域表（扁平列表，无启停，引用检查拒删）
@@ -1019,7 +1025,7 @@ CREATE TABLE service_config (
 
 CREATE UNIQUE INDEX uk_service_config ON service_config (tenant_id, service_code) WHERE delete_flag = 0;
 
-COMMENT ON TABLE service_config IS '接入服务配置：全量同步策略，支持手动增删改接口映射。extra.syncTypes 声明服务可同步的类型白名单（见 api-contract §6.3.1）；停用(status=0)后其接口不参与授权且 sync/full-sync 全部拒绝';
+COMMENT ON TABLE service_config IS '接入服务配置：全量同步策略，支持手动增删改接口映射。extra.syncTypes 声明服务可同步的类型白名单（见 api-contract §19.9）；停用(status=0)后其接口不参与授权且 sync/full-sync 全部拒绝';
 COMMENT ON COLUMN service_config.service_code IS '服务编码，租户内唯一';
 COMMENT ON COLUMN service_config.base_path IS '基础路径前缀';
 COMMENT ON COLUMN service_config.extra IS '扩展属性(JSON)：syncTypes 声明同步类型白名单（subjectTypeCodes/roleTypeCodes/sourceTypes 字符串数组，缺失分类=无权限；资源维度已随 T-PERM-052 类型级所有权退役，保存含 resourceTypeCodes 拒绝）；保存时校验结构，运行时 fail-closed';
@@ -1126,9 +1132,9 @@ CREATE INDEX idx_sync_metadata_sync_key ON sync_metadata (tenant_id, source_serv
 COMMENT ON TABLE sync_metadata IS '外部同步元数据表，统一记录 abstract_user/abstract_role/user_role/resource_entity 的同步来源、scope、业务键、目标内部ID和最后 syncVersion；用于旧版本 no-op 和 full-sync 差异校准';
 COMMENT ON COLUMN sync_metadata.entity_kind IS '同步实体类型：ABSTRACT_USER/ABSTRACT_ROLE/USER_ROLE/RESOURCE_ENTITY';
 COMMENT ON COLUMN sync_metadata.source_service IS '同步来源服务（外部业务服务编码，如 example-service；access-service/admin-service 等内部来源被拒绝）；必须与服务间认证主体一致';
-COMMENT ON COLUMN sync_metadata.scope_key IS 'full-sync 清理范围键原文，采用 api-contract §6.2.2.4 的规范化 scopeKey，不包含 tenantId/sourceService/entityKind';
+COMMENT ON COLUMN sync_metadata.scope_key IS 'full-sync 清理范围键原文，采用 api-contract §19.7 的规范化 scopeKey，不包含 tenantId/sourceService/entityKind';
 COMMENT ON COLUMN sync_metadata.scope_key_hash IS 'scope_key 的 SHA-256 lowercase hex，用于唯一约束和索引';
-COMMENT ON COLUMN sync_metadata.business_key IS '同步对象业务键原文，采用 api-contract §6.2.2.4 的规范化 businessKey，不包含 tenantId/sourceService/entityKind';
+COMMENT ON COLUMN sync_metadata.business_key IS '同步对象业务键原文，采用 api-contract §19.7 的规范化 businessKey，不包含 tenantId/sourceService/entityKind';
 COMMENT ON COLUMN sync_metadata.business_key_hash IS 'business_key 的 SHA-256 lowercase hex，用于唯一约束和索引';
 COMMENT ON COLUMN sync_metadata.sync_key IS '来源内稳定同步键原文，用于定位同一外部事实，格式为 sourceService|entityKind|businessKey';
 COMMENT ON COLUMN sync_metadata.sync_key_hash IS 'sync_key 的 SHA-256 lowercase hex，用于查询索引';

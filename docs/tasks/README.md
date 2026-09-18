@@ -11,7 +11,7 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 051 |
-| permission-center | `T-PERM` | 069 |
+| permission-center | `T-PERM` | 070 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 009 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
@@ -171,6 +171,7 @@
 | [T-PERM-066](../archive/2026-09-14/tasks/T-PERM-066.md) | operationCodeKey 族大小写口径统一——raw 严格化（Q-003 转出；✅ 2026-09-14 收口：入站 DTO @Pattern 大写 400/90001 + 定义侧锁死 + 授权域归一退役两域统一 raw，双轨评审全处置，全量回归含 E2E 全绿，终态见任务卡完成记录） | —（Q-003 单卡转出） | 契约总册 §2.4/§2.5；engine/implementation §8.2 | — | ✅ | ✓ |
 | [T-PERM-067](../archive/2026-09-14/tasks/T-PERM-067.md) | USER 写入口自身豁免收窄——档案字段豁免保留、启停/删除不豁免、reset-password 定位自助改密通道（Q-002 转出；✅ 2026-09-14 收口：admin 轨 /user/update 自禁对齐硬禁 + perm 轨死分支语义统一 + characterization 改锁新语义，双轨评审全处置，全量回归含 E2E 全绿，终态见任务卡完成记录） | —（Q-002 单卡转出） | 契约总册 §4 表/§7.4/§7.7/§7.8/§21.2/§22.2 决策 13 | — | ✅ | ✓ |
 | [T-PERM-068](../archive/2026-09-17/tasks/T-PERM-068.md) | 跨类型父子边收紧——sync/管理面同类型父边门禁 + 父字段缺省同类型回填（Q-007 转出；✅ 2026-09-17 收口：三定案落地 + 10 回归锁旧实现实证红 + 双轨评审处置 + 全量含 E2E 1716 项 0 失败；时序抖动遗留登记 Q-013；2026-09-17 单卡归档） | —（Q-007 单卡转出） | 契约总册 §19.1/§19.2/§12.1；engine/implementation §3；extension-guide §3.4 | — | ✅ | ✓ |
+| [T-PERM-069](../archive/2026-09-18/tasks/T-PERM-069.md) | API 类型内部来源收紧——种子声明 SYNC+access-service，管理面资源 CRUD 20055（Q-008 转出；✅ 2026-09-18 收口：「仅 API 收紧」定案落地 + 回归锁旧种子实证红 + 双轨评审全处置 + 全量含 E2E 1721 项 0 失败；SERVICE 维持 MANAGED 零 writer 死局；2026-09-18 单卡归档） | —（Q-008 单卡转出） | schema §17 种子声明；契约总册 §5/§19.8/§12/§13/§19.1；access-service-architecture T-PERM-052 段；architecture 服务间交互矩阵；example-service；extension-guide | — | ✅ | ✓ |
 
 ### gateway（工作单 C 失联兜底）
 

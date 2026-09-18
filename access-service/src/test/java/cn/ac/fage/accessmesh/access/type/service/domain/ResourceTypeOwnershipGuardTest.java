@@ -395,7 +395,7 @@ class ResourceTypeOwnershipGuardTest {
     }
 
     @Test
-    @DisplayName("声明校验：API 类型禁止声明 SYNC（service-config 通道是其事实 writer）")
+    @DisplayName("声明校验：API 类型禁止经接口声明 SYNC（所有权由种子钉死，T-PERM-069；事实入口 service-config 通道）")
     void validateExtraDeclaration_shouldRejectSyncOnApiType() {
         assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "API",
                 "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"hr-service\"}", true))

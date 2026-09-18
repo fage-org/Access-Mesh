@@ -19,6 +19,8 @@ import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
+import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -35,6 +37,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.lenient;
@@ -237,6 +240,28 @@ class ServiceConfigCascadePgIT {
             assertThat(resp.resourceTypeCode()).isEqualTo(ResourceTypeCode.API);
             assertThat(resp.maintainSource()).isEqualTo("SERVICE_SYNC");
         }
+    }
+
+    /**
+     * T-PERM-069 回归锁（Q-008 定案「仅 API 收紧」，真实 DDL 种子驱动）：API 类型由种子声明
+     * SYNC+access-service——唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图
+     * （两通道领域直写不经管理面门禁），资源管理面写入口须一律 20055 且文案指向事实入口；
+     * 旧种子（API 缺省 MANAGED）下 rejectIfSyncManagedType 返回类型行不抛，本用例即失败。
+     * SERVICE 维持 MANAGED 对照锁：管理面手工建行仍是新 SERVICE 行唯一通道（按服务实例级
+     * 授权目标行），收紧即零 writer（对齐 TypeDefinitionProjectionPgIT 先例形态）。
+     */
+    @Test
+    @DisplayName("T-PERM-069：API 种子声明 SYNC+access-service——管理面写入口 20055 指向 service-config 事实入口；SERVICE 维持 MANAGED 门禁放行")
+    void apiTypeSeedShouldRejectManagementCrudWhileServiceStaysManaged() {
+        assertThatThrownBy(() -> ownershipGuard().rejectIfSyncManagedType(TENANT, ResourceTypeCode.API))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("资源由系统事实链路维护")
+            .hasMessageContaining("服务接口同步 service-config/sync")
+            .hasMessageContaining("API");
+        assertThat(ownershipGuard().rejectIfSyncManagedType(TENANT, ResourceTypeCode.SERVICE))
+            .isNotNull()
+            .extracting(TypeDefinition::getTypeCode)
+            .isEqualTo(ResourceTypeCode.SERVICE);
     }
 
     /**

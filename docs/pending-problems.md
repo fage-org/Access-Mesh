@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-013           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-17（Q-007 收敛；Q-013 登记）
+last_updated: 2026-09-18（Q-008 随 T-PERM-069 收敛）
 ---
 
 # 待解决问题清单（pending problems）
@@ -26,23 +26,11 @@ last_updated: 2026-09-17（Q-007 收敛；Q-013 登记）
 
 **设想方向（未定案）**：对齐 2026-09-16 先例改 5s 有界轮询（轮询至租约可接管/终态达成，deadline 兜底）——轻量清扫批次顺手收口即可，无需独立计划。
 
-## Q-008 SERVICE/API 固定图种子行维持 MANAGED，是否声明内部来源收紧
-
-- **状态**：open
-- **登记**：2026-09-13（历史登记收编——原 2026-09-05 T-PERM-052 已知边界「另行评估」）
-- **来源**：T-PERM-052 已知边界（登记，另行评估）
-- **关联**：—
-
-**现象与证据**：USER/ORG/MENU/ROLE 四类型种子已声明 SYNC+access-service（T-PERM-052 内部来源统一），SERVICE/API 固定图种子行维持 MANAGED——管理面手工 CRUD 现状允许，靠启动固定图校验保护。
-
-**影响**：SERVICE/API 类型行可经管理面手工增删改，与内部事实链路类型的收紧口径不一致；现状靠 bootstrap 固定图校验兜底、无已知破坏。
-
-**设想方向（未定案）**：声明内部来源收紧（对齐四类型）或维持 MANAGED 依赖固定图校验——另行评估。
-
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-008 | SERVICE/API 固定图种子行维持 MANAGED，是否声明内部来源收紧 | closed（T-PERM-069 done：2026-09-18 用户拍板「仅 API 收紧」——①API 种子声明 SYNC+access-service，唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图，管理面资源 CRUD 20055（回归锁旧种子下实证失败）；②SERVICE 维持 MANAGED（新行唯一通道=管理面手工建行做按服务实例级授权，收紧即零 writer 死局，重启评估须以 service-config 联动建行配套为前置）；存量 dev 库 86 行 MANUAL 全为固定图零野行、订正语句登记 runbook；双轨评审全处置、全量含 E2E 1721 项 0 失败。定案见 registry 2026-09-18 行） | [T-PERM-069](archive/2026-09-18/tasks/T-PERM-069.md) | 2026-09-18 |
 | Q-007 | sync 通道跨类型父子边是否收紧为同类型父边 | closed（T-PERM-068 done：三定案全落地——①sync/full-sync 显式异类型父边 NON_RETRYABLE/PARENT_TYPE_MISMATCH（先于父解析与版本写入）+ 缺省回填同类型（契约 §19.2 原意兑现，半传静默解挂漂移同步修复）；②管理面 create/batch-create 对齐 move 20053 + 单条裸 parentId 补存在性/类型校验；③判定面闭包止步与 remove 跨类型级联守卫保留作 DB 直写脏数据防线。10 回归锁旧实现下实证失败；全量含 E2E 1716 项 0 失败。定案见 registry 2026-09-17 行） | [T-PERM-068](archive/2026-09-17/tasks/T-PERM-068.md) | 2026-09-17 |
 | Q-006 | ORG_VISIBILITY 缓存 key 改名后的滚动发布双命名空间失效 | closed（T-ACCESS-048 done：ORG_VISIBILITY_LEGACY evict-only 别名 + flush 同批双 evictAll + 未知覆盖键启动 WARN + 三处回归锁；部署镜像日志实证 legacy evict 生效；定案见 registry 2026-09-16 处置行，机制入 dual-layer-cache-framework skill 双副本。滚动发布过渡窗口结束后删除别名与第二次 evictAll 即回退面） | [T-ACCESS-048](archive/2026-09-16/tasks/T-ACCESS-048.md) | 2026-09-16 |
 | Q-009 | 存量跨能力 mapper 直读收敛（19 类 30 边冻结白名单的后续消化） | closed（T-ACCESS-043~046 done：四批全量收敛 30 边至零、白名单退役为零容忍绝对禁断、负向自证改测试源集夹具；全量回归含 E2E 绿 + 双轨评审；定案与硬契约见 registry 2026-09-15 两行） | [capability-mapper-convergence-plan](archive/2026-09-15/capability-mapper-convergence-plan.md)（T-ACCESS-043~046，已归档） | 2026-09-15 |
