@@ -20,9 +20,9 @@ last_updated: 2026-09-18（Q-008/Q-013 收敛；Q-014 登记）
 - **来源**：[T-ACCESS-051](archive/2026-09-18/tasks/T-ACCESS-051.md) 双轨评审上报项
 - **关联**：—
 
-**现象与证据**：`PlatformSessionIdleTimeoutTest:156` 以 sleep(1200) 连续构造 3 次「间隔 1.2s 的活跃」，断言 idle 窗口（2s）内不超时；`PlatformSessionAbsoluteTimeoutTest:176~184` 以 4 处 sleep(1200) 拼出 4s 绝对超时时间轴；`gateway/src/test/.../AuthTokenFilterTest:298` 以 sleep(1200)×4 构造续期间隔断言。与 Q-013 同族（裸 sleep 表达时序，testing-standards rule §10.3），但形态为时间轴构造、余量 800ms（2s 窗口 − 1.2s 间隔），历史全量回归未实证击穿。
+**现象与证据**：`PlatformSessionIdleTimeoutTest:156` 以 sleep(1200) 构造 3 次「间隔 1.2s 的活跃」断言续命 200（active-timeout=2s；sa-token 整秒除法口径下翻转阈值实测 ≈4s——剩余 <= -2 才判冻结，见该用例 L141 注释）；`PlatformSessionAbsoluteTimeoutTest:176~184` 以 4 处 sleep(1200) 拼 4s 绝对超时时间轴（t≈3.6s 活跃断言 200 须落在 4s 窗口内，累计拉伸预算仅 ≈400ms——与 Q-013 同量级）；`gateway/src/test/.../AuthTokenFilterTest:292~300` 以 4 次调用、3 次 sleep(1200) 构造续期间隔断言（网关冻结阈值按 3.5s 设计）。与 Q-013 同族（裸 sleep 表达时序，testing-standards rule §10.3）；历史全量回归未实证击穿。
 
-**影响**：-T 1C 极端负载下 sleep 间隔被调度拉长 → 活跃间隔超 2s idle 窗口 → 第 3 次活跃被超时 → 断言假失败（与 Q-013 同类负载敏感抖动，隔离定性成本重演）。
+**影响**：-T 1C 极端负载下 sleep 间隔被拉长——idle/续期两处余量较宽（需拉长至 ≈4s/3.5s 冻结阈值才翻转）；绝对超时一处累计预算 ≈400ms 是最可能先假失败的位置（t≈3.6s 断言拿到 401）；隔离定性成本重演，与 Q-013 同类。
 
 **设想方向（未定案）**：改确定性时间轴表达（候选：会话 TTL/续期时间操控注入——涉及 sa-token 会话时间操控方式选型，非顺手量级，待轻量批次立项定性）。
 

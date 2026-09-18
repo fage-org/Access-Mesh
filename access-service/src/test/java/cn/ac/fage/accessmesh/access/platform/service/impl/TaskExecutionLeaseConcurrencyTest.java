@@ -425,7 +425,8 @@ class TaskExecutionLeaseConcurrencyTest {
 
         // 接管扫描轮询至过期可接管并达成终态（有界 5s）——sleep(1200) 后单轮扫描在
         // -T 负载下会因租约尚未过期而整轮漏扫、awaitTerminal 15s 超时假失败（Q-013）；
-        // 扫描对未过期 RUNNING 行无副作用（selectRetryable 仅选 lease_until < now()），
+        // 扫描对未过期 RUNNING 行无副作用（selectRetryable 选过期 RUNNING 与未超限
+        // FAILED，后者被重复扫描会按至少一次语义重跑——本用例 bean 恒成功不触发该分支），
         // 重复扫描轮即生产 30s 周期扫描器的多轮触发形态
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         SysTaskExecution terminal = null;
