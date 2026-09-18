@@ -255,6 +255,10 @@ class ServiceConfigCascadePgIT {
     void apiTypeSeedShouldRejectManagementCrudWhileServiceStaysManaged() {
         assertThatThrownBy(() -> ownershipGuard().rejectIfSyncManagedType(TENANT, ResourceTypeCode.API))
             .isInstanceOf(BizException.class)
+            .extracting("errorCode")
+            .isEqualTo(20055)
+            .isNotNull();
+        assertThatThrownBy(() -> ownershipGuard().rejectIfSyncManagedType(TENANT, ResourceTypeCode.API))
             .hasMessageContaining("资源由系统事实链路维护")
             .hasMessageContaining("服务接口同步 service-config/sync")
             .hasMessageContaining("API");

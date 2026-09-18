@@ -404,6 +404,23 @@ class ResourceTypeOwnershipGuardTest {
     }
 
     @Test
+    @DisplayName("T-PERM-069 外评处置：API 种子同款声明等值回写放行（get-then-update 原样回传不误报 20044；对齐 USER 系统类型先例，有效变更由 20056 钉死）")
+    void validateExtraDeclaration_shouldAllowApiSeedEchoResubmission() {
+        assertThatCode(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "API",
+                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\",\"k\":1}", true))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("T-PERM-069 外评处置：API 种子同款声明在非系统类型形态（create 恒 false）仍拒——内部来源仅系统预置类型可声明")
+    void validateExtraDeclaration_shouldRejectApiInternalSourceOnCreate() {
+        assertThatThrownBy(() -> guard.validateExtraDeclaration(TENANT, "resource_type", "API",
+                "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\"}", false))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("仅系统预置类型");
+    }
+
+    @Test
     @DisplayName("内部来源类型的 20055 message 指向事实链路管理入口（区别于外部来源「到来源系统操作」）")
     void rejectIfSyncManagedType_shouldDistinguishInternalSourceMessage() {
         when(typeDefinitionMapper.selectByTypeKeyAndCode(TENANT, "resource_type", "USER"))

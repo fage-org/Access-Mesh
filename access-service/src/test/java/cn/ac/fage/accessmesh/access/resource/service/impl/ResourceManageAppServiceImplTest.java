@@ -136,7 +136,8 @@ class ResourceManageAppServiceImplTest {
     void shouldNormalizeCodeTypeOnCreate() {
         when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
             isNull(), eq(OperationCode.CREATE))).thenReturn(true);
-        // API 为非保留类型（USER/ORG/MENU/ROLE 保留给管理事实链路，create 被 guard 拒绝）；
+        // API 类型已由种子声明 SYNC+access-service（T-PERM-069，生产 create 被 guard 20055 拒）；
+        // 此处 mock 守卫放行返回权威类型行，单测只覆盖守卫之后的 AppService 落库逻辑；
         // codex 三轮复评 P1-2：create 消费门禁返回的权威类型行（不再经 TYPE_VALUE 类型缓存）
         when(resourceTypeOwnershipGuard.rejectIfSyncManagedType(1L, "API")).thenReturn(apiType());
 

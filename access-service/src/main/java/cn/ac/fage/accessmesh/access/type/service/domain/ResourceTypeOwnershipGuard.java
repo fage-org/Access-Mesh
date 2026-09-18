@@ -225,11 +225,12 @@ public class ResourceTypeOwnershipGuard {
      * 运行时入口 {@link #isSyncEntranceAllowed} 同规则；保留内部来源（access-service 之外，
      * 如 admin-service）拒绝。唯一豁免：{@code syncSourceService=access-service}（内部来源
      * 声明，收编事实链路类型，仅 is_system=true 的系统预置类型可声明，防止自定义类型锁死成
-     * 无人写入的孤岛）；API 类型禁止经本接口声明 SYNC（T-PERM-069 定案后所有权由种子钉死
-     * SYNC+access-service——唯一事实入口=service-config 接口声明通道+bootstrap 固定图，
-     * 经接口声明任何来源均拒绝，防止绕过种子口径造出第二声明）。已知键显式 null 拒绝（清除声明=删除键）。
+     * 无人写入的孤岛）；API 类型仅可携带种子同款声明（SYNC+access-service 等值回写放行——
+     * 语义对齐 USER 系统类型「同声明重复提交放行」先例，有效变更仍由 20056 钉死；携带其他
+     * 来源的 SYNC 声明一律在保存边界拒绝，防止绕过种子口径造出第二声明——T-PERM-069 外评
+     * 处置 2026-09-18）。已知键显式 null 拒绝（清除声明=删除键）。
      *
-     * @param typeCode     目标类型编码（API 类型拒绝 SYNC 声明用）
+     * @param typeCode     目标类型编码（API 类型拒绝非种子来源的 SYNC 声明用）
      * @param isSystemType 目标类型是否系统预置（create 恒 false——is_system 不可由 API 创建）
      * @throws IllegalArgumentException 结构不合法（调用方转为 BizException 20044 返回，
      *                                  对齐 SyncTypeGuard.validateSyncTypesExtra 先例）
@@ -272,10 +273,6 @@ public class ResourceTypeOwnershipGuard {
                         + " 仅允许 " + MODE_MANAGED + "/" + MODE_SYNC + ": " + modeText);
             }
         }
-        if (MODE_SYNC.equals(modeText) && ResourceTypeCode.API.equals(typeCode)) {
-            throw new IllegalArgumentException("API 类型所有权由系统种子钉死（SYNC+access-service，"
-                    + "唯一事实入口 service-config 接口声明通道），禁止经类型定义接口声明 SYNC");
-        }
         String sourceText = null;
         if (source != null && !source.isNull()) {
             if (!source.isTextual()) {
@@ -284,10 +281,10 @@ public class ResourceTypeOwnershipGuard {
             String raw = source.asText();
             sourceText = raw.trim();
             if (sourceText.isEmpty()) {
-                throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE + " 不能为空白");
+                throw new IllegalArgumentException(EXTRA_KEY_SYNC_SOURCE_SERVICE + " 不能为空白");
             }
             if (!sourceText.equals(raw)) {
-                throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE
+                throw new IllegalArgumentException(EXTRA_KEY_SYNC_SOURCE_SERVICE
                         + " 不能含首尾空白（校验按 trim 值、运行时按原值精确匹配，会造出无人可同步的类型）");
             }
             // 长度对齐 service_config.service_code / sync_metadata.source_service 的 128 列宽
@@ -298,13 +295,22 @@ public class ResourceTypeOwnershipGuard {
             }
         }
         if (sourceText != null && !MODE_SYNC.equals(modeText)) {
-            throw new IllegalArgumentException("extra." + EXTRA_KEY_SYNC_SOURCE_SERVICE
+            throw new IllegalArgumentException(EXTRA_KEY_SYNC_SOURCE_SERVICE
                     + " 仅在 " + EXTRA_KEY_MANAGED_MODE + "=" + MODE_SYNC + " 时允许携带");
         }
         if (MODE_SYNC.equals(modeText)) {
             if (sourceText == null) {
                 throw new IllegalArgumentException(EXTRA_KEY_MANAGED_MODE + "=" + MODE_SYNC
                         + " 必须携带 " + EXTRA_KEY_SYNC_SOURCE_SERVICE);
+            }
+            // T-PERM-069 外评处置（2026-09-18，grok P3）：API 硬拒收窄为「非种子同款来源」——
+            // 种子等值回写（SYNC+access-service）落入下方内部来源豁免（对齐 USER 系统类型
+            // 同声明回写放行先例，有效变更由 rejectIfDeclarationChangeBlocked 20056 钉死），
+            // 否则 get-then-update 原样回传种子 extra 会误报 20044 参数错
+            if (ResourceTypeCode.API.equals(typeCode) && !LocalProjectionOwner.SERVICE_CODE.equals(sourceText)) {
+                throw new IllegalArgumentException("API 类型所有权由系统种子钉死（SYNC+access-service，"
+                        + "唯一事实入口 service-config 接口声明通道），禁止经类型定义接口声明其他来源: "
+                        + sourceText);
             }
             // 内部来源豁免：access-service 不是 service_config 注册行（rejectInternalSourceService
             // 同时禁止外部 sync 冒充），仅系统预置类型可声明——事实链路类型（含 T-ADMIN-025 增的 ADMIN_FILE）

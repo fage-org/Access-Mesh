@@ -191,7 +191,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         // 零行放行）→插入落库」，手工行写入 SYNC 类型/已删类型
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         // T-PERM-052：SYNC 类型管理面只读（20055）——事实链路类型（USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION，
-        // T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION、T-PERM-048 增 CONDITION）种子声明
+        // T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION、T-PERM-048 增 CONDITION、T-PERM-069 增 API）种子声明
         // SYNC+access-service，原类型保留清单已收编进本门禁（2026-09-05 内部来源统一）。
         // codex 三轮复评 P1-2（写路径权威化）：门禁为库内直查，返回类型权威行——typeValue 直接
         // 消费该结果、类型不存在当场 fail-closed，不再经 TYPE_VALUE 类型缓存（删除类型无失效时

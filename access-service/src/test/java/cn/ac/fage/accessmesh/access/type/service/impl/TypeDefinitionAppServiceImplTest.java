@@ -557,6 +557,29 @@ class TypeDefinitionAppServiceImplTest {
     }
 
     @Test
+    void shouldAllowApiSeedExtraEchoResubmission() {
+        // T-PERM-069 外评处置（grok P3）：API 种子声明后 get-then-update 原样回传 extra
+        // 必须放行（保存边界硬拒曾使其误报 20044，与 USER 系统类型同声明回写先例分叉）；
+        // 有效变更仍由 rejectIfDeclarationChangeBlocked 的 is_system 钉死 20056
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), any(), any(), any())).thenReturn(true);
+        TypeDefinition apiType = new TypeDefinition();
+        apiType.setId(11L);
+        apiType.setTenantId(1L);
+        apiType.setTypeKey("resource_type");
+        apiType.setTypeCode("API");
+        apiType.setTypeValue(3);
+        apiType.setIsSystem(true);
+        apiType.setExtra("{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\"}");
+        when(typeDefinitionMapper.selectValidById(1L, 11L)).thenReturn(apiType);
+
+        service.updateType(1L, new TypeUpdateReq(11L, null, null, null,
+            "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\"}"), 100L);
+
+        verify(typeDefinitionMapper).update(any(TypeDefinition.class));
+        verify(resourceEntityDomainService, never()).hasValidRowsOfType(anyLong(), any());
+    }
+
+    @Test
     void shouldLockTreeWritesForResourceTypeCreate() {
         // codex 三轮复评 P1-1：resource_type 类型创建与资源写入口共持树写锁（锁先于首次类型读取；
         // 管理面门禁对「类型不存在」放行，创建类型不持锁时在途资源插入可落进并发新建的 SYNC 类型）；
