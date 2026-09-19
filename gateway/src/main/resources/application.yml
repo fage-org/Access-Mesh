@@ -114,6 +114,11 @@ gateway:
       - /api/access/auth/userinfo
       - /api/access/auth/user-menu
       - /api/access/auth/oauth2/**
+      # T-GW-009（registry 2026-09-19 定案⑤）：自助改密通道纳入会话入口族——Gateway
+      # 快照条目仅由 API 类型 ACCESS 位派生，forceResetPwd 阻断人群（普通用户）无该位
+      # 必 403；服务层门禁不变：Sa-Token 登录校验（StpUtil.getLoginIdAsLong）+ 自身
+      # 路径豁免 / 非自身须 USER:RESET_PASSWORD 实例级（T-PERM-067 语义零改动）
+      - /api/access/user/reset-password
       - /public/**
       - /captcha/**
 
@@ -121,7 +126,8 @@ gateway:
   # 命中路径且 Authorization 为 Bearer 三段式 JWT 时跳过会话/权限校验与身份头注入，
   # Authorization 原样透传下游，由 access-service 开放路径门禁（access.oauth2.resource-paths
   # + scope/audience/client_id 启用校验）判定；平台 uuid 会话令牌不启用透传（走正常
-  # 会话校验与接口鉴权，防绕过 Gateway 权限）；/api/access/auth/** 已由白名单覆盖无需重复配置。
+  # 会话校验与接口鉴权，防绕过 Gateway 权限）；/api/access/auth/**（运行时鉴权六端点
+  # 除外）已由白名单覆盖无需重复配置。
   # 注意：T-ACCESS-042 起无 StripPrefix，下游匹配路径即外部路径，双侧天然同形。
   oauth2:
     passthrough-paths: []

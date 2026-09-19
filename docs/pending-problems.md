@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-014           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-18（Q-008/Q-013 收敛；Q-014 登记）
+counter: Q-015           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-19（Q-015 登记）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-18（Q-008/Q-013 收敛；Q-014 登记）
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-015 设计文档两处白名单「整族 /api/access/auth/**」陈旧口径（T-ACCESS-042 收窄漏改存量）
+
+- **状态**：open
+- **登记**：2026-09-19（T-GW-009 双轨评审发现，按登记默认处置——两册不在任务 design_refs，不顺带修超边界）
+- **来源**：T-GW-009 双轨评审（文档轨 P3-3/P3-4）
+- **关联**：T-GW-009（本批已同步修 gateway.md/application.yml/GatewayProperties 同款句）
+
+**现象与证据**：T-ACCESS-042（2026-09-15）将 Gateway 白名单从整族 `/api/access/auth/**` 收窄为会话入口族精确清单后，两册活设计文档仍以整族形态描述白名单：`docs/design/architecture.md:171`「登录接口 /api/access/auth/** 在白名单中，请求透传到 access-service」；`docs/design/access-service-architecture.md:212`（OAuth2 透传段）「/api/access/auth/** 已由白名单覆盖（userinfo 无需重复配置）」——缺「运行时鉴权六端点除外」限定。T-GW-009 批次已将 gateway.md（核心链路/匿名白名单/OAuth2 段三处）、application.yml 注释、GatewayProperties javadoc 同款句精确化，本两册未触达。
+
+**影响**：口径性漂移，无运行时缺陷——读者按整族形态理解会误判运行时鉴权六端点免鉴权（实际走会话/权限校验）。
+
+**设想方向（未定案）**：轻量清扫批次顺带加限定语（各一行，无语义变化）；或随下次触达两册的任务带上。
 
 ## Q-014 会话/网关测试三处同族裸 sleep(1200)（时间轴构造形态）
 

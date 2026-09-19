@@ -81,6 +81,8 @@ last_updated: 2026-09-19
 
 关键依赖：T-FE-046 depends_on T-FE-049（先定登录提示语义再做阻断分支，避免 message 位置返工）与 T-GW-009（白名单前置）；T-FE-056 depends_on T-FE-053（同文件路由守卫，先机械修 return 再加门禁逻辑）。同文件协调（建议串行）：router/index.ts beforeEach 由 046（阻断）/048（门禁 path 集更新方）/056（状态机）三卡触达，建议顺序 053→048（统一能力刷新入口）→056（状态机挂接）→046（阻断）；http 拦截器由 048（403 响应分支）/054（请求 expired 分支）触达；user/index.vue 由 047/050/051 三卡触达，建议串行提交避免冲突。
 
+前置执行状态：**T-GW-009 ✅ 2026-09-19 收口**——`/api/access/user/reset-password` 纳入 Gateway 白名单（application.yml 会话入口族精确清单 + GatewayProperties 默认值同步）+ **access-service `SecurityWebMvcConfig` 密钥豁免清单同源同步**（双轨评审代码轨 P0：漏同步时 Gateway 对白名单路径仍无条件注入内部密钥且不注入租户/用户头，`RequestContextInterceptor` 内部凭证分支先于会话分支命中纯服务子分支 → 400「缺 X-Tenant-Id」遮蔽、端点到不了服务层——白名单只落半边任务目标不成立）。回归锁两处均旧实现实证红：GatewayApplicationConfigTest 配置锁（撤条目复跑断言失败）/ SecurityMatrixIT 链路锁（持密无租户头 400≠401，撤豁免复跑失败）。gateway 模块 106 项 + SecurityMatrixIT 13 项全绿。gateway.md 两处清单同步为 T-ACCESS-042 精确形态（顺带修陈旧整族简写三处）+ 契约 §7.7「Gateway 放行」注记与 §6.4 白名单族补记。遗留：①dev Nacos 未启动，远端 gateway.yml 是否覆盖 `gateway.whitelist.paths` 未核（栈启动后经 Nacos 控制台/配置 API 复核——若远端定义该键须同步补条目）；②两册存量整族句（architecture.md / access-service-architecture.md）登记 Q-015。T-FE-046 依赖解锁。
+
 ## 归档条件
 
 - 全部任务 done/cancelled；
@@ -93,3 +95,4 @@ last_updated: 2026-09-19
 - 2026-09-19 立项：外评 15 项逐条核实完成、四项拍板、12 任务两批登记。
 - 2026-09-19 codex sol 外评（P1×1+P2×3+P3×3，逐条代码级核实：P1 全成立、P2×2 成立、P2×1 部分成立触发定案④改判、P3×2 成立含主代理自误报撤回、P3×1 部分采纳）处置完成：T-FE-046/048/051/056 卡改写、T-FE-052 范围改跨层级拖拽+禁用确认、registry/看板/本计划同步；任务均未开工（proposed）。
 - 2026-09-19 claude 外评（P1×1+P2×2+P3×4，逐条代码级核实：P1 成立=Gateway 白名单缺 reset-password 会锁死阻断人群→定案⑤拍板 Gateway 白名单纳入+T-GW-009 立项；P2×2 成立=/redirect 白名单漏项、048/056 刷新失败状态语义互斥→状态迁移表钉死；P3×4 成立或部分成立=045 过期路径注销无头、051 现状描述失实（十页均已有 catch）、056 清扫面漏 system-config 与效应格、任务卡过程叙事残留→全部处置；外评原文计数勘误 15→14 项）处置完成：五卡修正+registry/看板/本计划同步。
+- 2026-09-19 T-GW-009 收口（白名单+密钥豁免同源同步+双轨评审 P0 处置+两处回归锁旧实现实证红，详见「关键依赖」节前置执行状态）；T-FE-046 前置就绪，P1/P2 前端任务均未开工。

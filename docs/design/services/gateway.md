@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-09-15   # 2026-09-10 T-GW-008 codex 外评 P1 处置：§清洗承诺句修正（对 framework 策略清洗不生效）+ §forward-headers-strategy 启动护栏新增（ForwardHeadersStrategyGuard，framework/native 拒启）；同日早前 §请求头清洗与客户端 IP 重建新增（T-GW-008：XFF 清洗+remoteAddr 重建+清洗叠加语义缺陷修复）；此前：2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031）；2026-08-28（T-ACCESS-027）
+last_reviewed: 2026-09-19   # T-GW-009（registry 定案⑤）：白名单纳入 /api/access/user/reset-password——核心链路/匿名白名单两处清单同步为 T-ACCESS-042 精确形态（顺带修陈旧整族简写）+ 服务层门禁不变口径；此前 2026-09-15（T-ACCESS-042 路由拓扑更新）；2026-09-10 T-GW-008 codex 外评 P1 处置：§清洗承诺句修正（对 framework 策略清洗不生效）+ §forward-headers-strategy 启动护栏新增（ForwardHeadersStrategyGuard，framework/native 拒启）；同日早前 §请求头清洗与客户端 IP 重建新增（T-GW-008：XFF 清洗+remoteAddr 重建+清洗叠加语义缺陷修复）；此前：2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031）；2026-08-28（T-ACCESS-027）
 ---
 
 # Gateway 服务设计
@@ -20,7 +20,7 @@ last_reviewed: 2026-09-15   # 2026-09-10 T-GW-008 codex 外评 P1 处置：§清
 
 ## 核心链路
 
-1. 接收客户端请求并匹配白名单（`/api/access/auth/**`、`/public/**`、`/captcha/**`；无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。
+1. 接收客户端请求并匹配白名单（会话入口族精确清单——T-ACCESS-042 收窄后不整族放行 `/api/access/auth/**`：`/api/access/auth/{captcha,login,login/sms,logout,userinfo,user-menu}`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009 自助改密通道）、`/public/**`、`/captcha/**`；运行时鉴权六端点不放行，无 `/actuator/**`——actuator 经独立管理端口提供，T-GW-007）。
 2. 解析 Sa-Token / OAuth2 Token，得到主体信息。
 3. 清洗客户端伪造的安全 Header（含 IP 转发头，见下节 T-GW-008），再注入可信 `X-Tenant-Id`、`X-Request-Id`、`traceId`、主体标识等上下文。
 4. **快照鉴权**（T-PERM-001）：按 `(tenantId, subjectTypeCode, userId, serviceCode)` 查本地快照缓存——命中则本地匹配；未命中回源拉取 `interface-snapshot` 快照后缓存再匹配。
@@ -43,7 +43,7 @@ last_reviewed: 2026-09-15   # 2026-09-10 T-GW-008 codex 外评 P1 处置：§清
 
 - 新增 `OAuth2PassthroughFilter`（order -79，白名单 -80 之后、会话校验 -70 之前）：命中 `gateway.oauth2.passthrough-paths`（Ant 通配，**外部路径口径**，默认空 = 无业务路径默认开放）**且 Authorization 为 Bearer 三段式 JWT**（形态识别与下游 JWT 分支同口径，不验签——伪造 JWT 透传后下游验签 401）时设 `skipAuth=true`，跳过会话校验/权限校验/身份头注入/身份头签名，`Authorization` 头原样透传下游（HeaderClean 清单不含 Authorization），由 access-service 开放路径门禁（验签 + 黑名单 + 客户端启用 + scope/audience/clientIds）判定。
 - **平台 uuid 会话令牌与无 Authorization 头的请求不启用透传**（评审 P1 修复）：走正常 AuthTokenFilter 会话校验 + PermissionFilter 接口鉴权，平台会话认证路径不变——否则透传路径上 uuid 会话会被下游共享 Redis 会话分支接受，绕过 Gateway 接口权限。
-- `/api/access/auth/**` 已由白名单覆盖（userinfo 等端点透传，无需重复配置）。
+- `/api/access/auth/**`（运行时鉴权六端点除外）已由白名单精确清单覆盖（userinfo 等端点透传，无需重复配置）。
 - **部署约束（T-ACCESS-042 更新）**：无 StripPrefix，Gateway 与 access-service 匹配同一路径（开放路径配置于 `access.oauth2.resource-paths`，双侧天然同形）；`InternalSecretFilter` 注入的 X-Internal-Secret 对开放路径同样携带（合法流量恒经 Gateway）——原「启动防护禁止开放路径位于内部凭证前缀」守卫已随单命名空间退役（双凭证并存不构成机制冲突，见 OAuth2ResourcePathProperties；注意不在 `/api/access/auth/oauth2/**` 下的开放路径会被内部凭证分支遮蔽——运行期 400 缺 X-Tenant-Id，access 侧启动告警提示）。
 - 门禁语义权威说明见 `../access-service-architecture.md` §6。
 
@@ -182,7 +182,7 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
   - `allowed-origin-patterns`：默认 `http://localhost:8848`（前端 dev 实际端口，开发直连调试），`GATEWAY_CORS_ALLOWED_ORIGINS` 环境变量/Nacos 可覆盖；**显式置空 = CORS 禁用**（同源部署终态：跨域请求被 CorsProcessor 主动 403 拒绝且无 CORS 头，启动 INFO 声明）。
   - `allow-credentials: true`（保持；token 走 Authorization 头，无 cookie 依赖，未来接 cookie 会话时不受影响）。
 - **启动 fail-fast**（`GatewayCorsConfigValidator`，校验最终生效值含 Nacos 覆盖后的值）：`allow-credentials=true` 且 origin 列表（`allowed-origin-patterns` 与兄弟键 `allowed-origins`）含任意 `*` 通配 → 启动失败（任意源携带凭证为安全缺陷，含 Nacos 远端旧值回退场景；exact 键通配若漏到运行期会每请求 500）。缺失/显式空均不放行任意源（fail-closed）。
-- 匿名白名单（`gateway.whitelist.paths`）：`/api/access/auth/**`、`/public/**`、`/captcha/**`；`/actuator/**` 已全部移除（管理端口提供，见「监控指标」段）。
+- 匿名白名单（`gateway.whitelist.paths`，会话入口族精确清单——T-ACCESS-042 收窄：整族 `/api/access/auth/**` 不放行、运行时鉴权六端点须走会话/权限校验）：`/api/access/auth/captcha`、`/api/access/auth/login`、`/api/access/auth/login/sms`、`/api/access/auth/logout`、`/api/access/auth/userinfo`、`/api/access/auth/user-menu`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009，2026-09-19 定案⑤：自助改密通道——Gateway 快照条目仅由 API 类型 ACCESS 位派生，forceResetPwd 阻断人群（普通用户）不经白名单放行必 403；服务层门禁不变：Sa-Token 登录校验 + 自身路径豁免 / 非自身 `USER:RESET_PASSWORD` 实例级，T-PERM-067；**access-service `SecurityWebMvcConfig` 密钥豁免清单同源同步纳入**——漏同步时 Gateway 对白名单路径仍无条件注入 X-Internal-Secret 且不注入租户/用户头，`RequestContextInterceptor` 内部凭证分支先于会话分支命中纯服务子分支 → 400「缺 X-Tenant-Id」遮蔽、到不了服务层（T-GW-009 双轨评审 P0；链路锁=SecurityMatrixIT 持密无租户头断言 401））、`/public/**`、`/captcha/**`；`/actuator/**` 已全部移除（管理端口提供，见「监控指标」段）。
 
 ## 与权限中心的约定
 

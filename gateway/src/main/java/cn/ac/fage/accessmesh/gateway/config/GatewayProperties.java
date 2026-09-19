@@ -48,6 +48,7 @@ public class GatewayProperties {
      * （check/batch-check/check-interface/query-resources/query-scopes/interface-snapshot——
      * 旧形态在 /perm/api/perm/auth/* 不匹配旧 /auth/**，非等价替换）；收窄为会话入口族
      * 精确清单，与 access-service SecurityWebMvcConfig 密钥豁免清单同源。
+     * T-GW-009：纳入 /api/access/user/reset-password（自助改密通道，定案⑤）。
      * </p>
      */
     @Getter
@@ -61,6 +62,7 @@ public class GatewayProperties {
             "/api/access/auth/userinfo",
             "/api/access/auth/user-menu",
             "/api/access/auth/oauth2/**",
+            "/api/access/user/reset-password",
             "/public/**",
             "/captcha/**"
         );
@@ -74,7 +76,7 @@ public class GatewayProperties {
      * OAuth2 JWT 认证分支验签 + 开放路径门禁（scope/audience/client_id 启用校验）判定。
      * 路径为 Gateway 外部口径（T-ACCESS-042 起无 StripPrefix，外部路径=服务路径，如
      * /api/access/**，由下游按同形路径匹配 access.oauth2.resource-paths）；
-     * /api/access/auth/** 已在白名单中透传，无需重复配置。
+     * /api/access/auth/**（运行时鉴权六端点除外）已在白名单中透传，无需重复配置。
      * 默认为空（无业务路径默认开放）。
      * </p>
      */

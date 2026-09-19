@@ -49,7 +49,8 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
     public void addInterceptors(InterceptorRegistry registry) {
         // order=1：内部密钥拦截器必须最先执行，成功时写 attribute 供后续决策。
         // 覆盖 /api/access/**（T-ACCESS-042 前为 /api/perm/**——管理面并入后统一「仅经
-        // Gateway 或持密服务可达」）；豁免会话入口族（登录/登出/会话查询/OAuth2 端点——
+        // Gateway 或持密服务可达」）；豁免会话入口族（登录/登出/会话查询/OAuth2 端点 +
+        // 自助改密通道 /user/reset-password（T-GW-009，与 Gateway 白名单同源）——
         // 保留公开/Sa-Token 会话/JWT 自有信任模型，密钥拦截会架空服务层会话分支与 JWT 分支）；
         // 运行时鉴权六端点（check/batch-check/check-interface/query-resources/query-scopes/
         // interface-snapshot）维持覆盖（服务凭证通道，与迁移前 /api/perm/auth/* 一致——
@@ -64,7 +65,8 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
                         "/api/access/auth/logout",
                         "/api/access/auth/userinfo",
                         "/api/access/auth/user-menu",
-                        "/api/access/auth/oauth2/**")
+                        "/api/access/auth/oauth2/**",
+                        "/api/access/user/reset-password")
                 .order(1);
 
         // order=2：签名拦截器，覆盖所有受控路径。

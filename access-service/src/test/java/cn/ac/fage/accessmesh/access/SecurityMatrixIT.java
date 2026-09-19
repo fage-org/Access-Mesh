@@ -138,6 +138,20 @@ class SecurityMatrixIT {
     }
 
     @Test
+    @DisplayName("T-GW-009：自助改密端点纳入密钥豁免——持密无租户头不被内部凭证分支遮蔽，无会话 401")
+    void resetPassword_internalSecretDoesNotShadeSessionBranch_rejected401() throws Exception {
+        // 模拟 Gateway 白名单放行形态：InternalSecretFilter 对白名单路径仍无条件注入密钥、
+        // HeaderEnrichFilter 不注入 X-Tenant-Id/X-User-Id。旧实现（未入豁免清单）此形态落
+        // RequestContextInterceptor 内部凭证纯服务子分支 → 400「缺少必要请求头: X-Tenant-Id」，
+        // 到不了会话分支与服务层；豁免后无 INTERNAL_AUTHENTICATED → 会话分支 → 无会话 401。
+        mockMvc.perform(post("/api/access/user/reset-password")
+                .header("X-Internal-Secret", INTERNAL_SECRET)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"userId\":1}"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("评审 P3：精确路径 /actuator 匿名放行（公开契约一致）")
     void actuatorRootPath_allowsAnonymous() throws Exception {
         var result = mockMvc.perform(get("/actuator")).andReturn();

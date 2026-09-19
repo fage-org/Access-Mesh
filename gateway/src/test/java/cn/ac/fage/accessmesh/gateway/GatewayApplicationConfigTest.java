@@ -221,7 +221,10 @@ class GatewayApplicationConfigTest {
         var wl = props.getWhitelist().getPaths();
         for (String p : java.util.List.of("/api/access/auth/captcha", "/api/access/auth/login",
                 "/api/access/auth/login/sms", "/api/access/auth/logout", "/api/access/auth/userinfo",
-                "/api/access/auth/user-menu", "/api/access/auth/oauth2/**")) {
+                "/api/access/auth/user-menu", "/api/access/auth/oauth2/**",
+                // T-GW-009：自助改密通道（forceResetPwd 阻断人群经 Gateway 必达，回归锁=本断言在
+                // 未纳入白名单的旧实现下失败；服务层 Sa-Token 登录校验兜底不变）
+                "/api/access/user/reset-password")) {
             assertTrue(wl.contains(p), "whitelist 必须包含会话入口端点 " + p + "，实际 " + wl);
         }
         assertTrue(!wl.contains("/api/access/auth/**"),
