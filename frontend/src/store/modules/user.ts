@@ -44,6 +44,8 @@ export const useUserStore = defineStore("pure-user", {
       storageLocal().getItem<DataInfo<number>>(userKey)?.permissions ?? [],
     /** 后端下发的菜单树（v1.4 双轨并行：菜单可见性轨道，登录后由 /api/access/auth/user-menu 填充） */
     menus: [],
+    /** 最近一次 /user-menu 拉取是否失败（T-FE-049，区分「加载失败」与「成功但无菜单」两态空侧栏） */
+    menuLoadFailed: false,
     // 是否勾选了登录页的免登录
     isRemembered: false,
     // 登录页的免登录存储几天，默认7天
@@ -128,21 +130,31 @@ export const useUserStore = defineStore("pure-user", {
      * <p>
      * 响应壳为 R<T>（code=200 为成功）；通过 `unwrap` 解包，
      * 非 200 / 网络异常会抛出 Error，由调用方 try/catch（loginByUsername 已接住降级，仅 console.warn 不阻断）。
+     * <p>
+     * 成败同步维护 `menuLoadFailed`（T-FE-049）：调用方据它与 menus.length 区分
+     * 「加载失败」（占位可重试）与「拉取成功但账号无菜单」（占位提示联系管理员）两态。
      */
     async refreshUserMenu() {
-      const resp = await getUserMenu();
-      const { menus, roles, permissions } = unwrap(resp);
-      this.SET_MENUS(menus ?? []);
-      this.SET_ROLES(roles ?? []);
-      this.SET_PERMS(permissions ?? []);
-      // 与 setToken 写入 userKey 的 schema 对齐，刷新页面时仍可从 storage 恢复
-      const stored =
-        storageLocal().getItem<DataInfo<Date | number>>(userKey) ?? ({} as any);
-      storageLocal().setItem(userKey, {
-        ...stored,
-        roles: roles ?? [],
-        permissions: permissions ?? []
-      });
+      try {
+        const resp = await getUserMenu();
+        const { menus, roles, permissions } = unwrap(resp);
+        this.menuLoadFailed = false;
+        this.SET_MENUS(menus ?? []);
+        this.SET_ROLES(roles ?? []);
+        this.SET_PERMS(permissions ?? []);
+        // 与 setToken 写入 userKey 的 schema 对齐，刷新页面时仍可从 storage 恢复
+        const stored =
+          storageLocal().getItem<DataInfo<Date | number>>(userKey) ??
+          ({} as any);
+        storageLocal().setItem(userKey, {
+          ...stored,
+          roles: roles ?? [],
+          permissions: permissions ?? []
+        });
+      } catch (err) {
+        this.menuLoadFailed = true;
+        throw err;
+      }
     },
     /**
      * 登出（T-FE-045：服务端注销优先、本地清理无条件）。
@@ -170,6 +182,7 @@ export const useUserStore = defineStore("pure-user", {
         this.roles = [];
         this.permissions = [];
         this.menus = [];
+        this.menuLoadFailed = false;
         removeToken();
         useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
         resetRouter();

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
 import { initRouter } from "@/router/utils";
 import { useUserStoreHook } from "@/store/modules/user";
@@ -12,6 +12,26 @@ defineOptions({
 
 const router = useRouter();
 const retrying = ref(false);
+
+const userStore = useUserStoreHook();
+
+/**
+ * 着陆页两态（T-FE-049）：
+ *  - 拉取失败（menuLoadFailed）：「菜单加载失败」——检查网络/后端后重试
+ *  - 拉取成功但账号无菜单：不承诺重试有效，引导联系管理员；
+ *    保留「重新检查」入口——管理员补配权限后无需重登，点击即重取（F5 同效）
+ */
+const emptyButLoaded = computed(() => !userStore.menuLoadFailed);
+
+const pageTitle = computed(() =>
+  emptyButLoaded.value ? "当前账号无可用菜单" : "菜单加载失败"
+);
+
+const pageDesc = computed(() =>
+  emptyButLoaded.value
+    ? "当前账号尚未被分配任何菜单权限。请联系管理员分配角色/权限后，点击下方按钮重新加载（刷新页面同效），无需重新登录。"
+    : "会话菜单拉取失败，为保证安全已按最小权限展示空菜单。\n请检查网络或后端服务后重试；刷新页面同样会触发重取。"
+);
 
 /**
  * 强制重取会话菜单：清空 store 内存态后 initRouter 即走重取分支
@@ -26,8 +46,12 @@ async function retry() {
     if (useUserStoreHook().menus.length > 0) {
       message("菜单已恢复", { type: "success" });
       router.replace("/");
-    } else {
+    } else if (useUserStoreHook().menuLoadFailed) {
       message("菜单加载仍失败，请稍后重试", { type: "error" });
+    } else {
+      message("当前账号仍无可用菜单，请联系管理员分配权限", {
+        type: "warning"
+      });
     }
   } finally {
     retrying.value = false;
@@ -40,23 +64,20 @@ async function retry() {
     <el-card shadow="never" class="retry-card">
       <div class="retry-icon">
         <IconifyIconOffline
-          icon="ep/warning-filled"
+          :icon="emptyButLoaded ? 'ep/menu' : 'ep/warning-filled'"
           width="42px"
           height="42px"
         />
       </div>
-      <h2 class="retry-title">菜单加载失败</h2>
-      <p class="retry-desc">
-        会话菜单拉取失败，为保证安全已按最小权限展示空菜单。<br />
-        请检查网络或后端服务后重试；刷新页面同样会触发重取。
-      </p>
+      <h2 class="retry-title">{{ pageTitle }}</h2>
+      <p class="retry-desc">{{ pageDesc }}</p>
       <el-button
         type="primary"
         :icon="RefreshRight"
         :loading="retrying"
         @click="retry"
       >
-        重新加载菜单
+        {{ emptyButLoaded ? "重新检查菜单" : "重新加载菜单" }}
       </el-button>
     </el-card>
   </div>

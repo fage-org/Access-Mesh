@@ -9,6 +9,9 @@
  * logOut 真注销（T-FE-045）四锁：调用序（先 POST 注销后清本地）/ 服务端失败仍清理 /
  * 登出进行中短路（同一动作只发一次）/ 登出完成后重复触发零请求——旧实现（不调接口）下必红。
  *
+ * menuLoadFailed 状态维护（T-FE-049）：区分「/user-menu 拉取失败」与「拉取成功但账号
+ * 无菜单」两态空侧栏——旧实现无该状态（undefined）下三用例必红。
+ *
  * 边界说明：401 的"清会话回登录页"副作用在 http 响应拦截器（utils/http/index.ts），
  * 本 spec 在 store 层 mock API 直接抛错，不覆盖拦截器内部（不为 10 行拦截器逻辑
  * 搭 axios 测试基建，该路径由真实环境 E2E 覆盖——避免过度设计）。
@@ -195,6 +198,50 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
     expect(result).toEqual(LOGIN_RESP);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe("menuLoadFailed 状态维护（T-FE-049：空侧栏两态区分的事实来源）", () => {
+  it("refreshUserMenu 失败：置 menuLoadFailed=true 且原样 rethrow（语义不变）——旧实现无状态必红", async () => {
+    mockGetUserMenu.mockRejectedValue(new Error("network down"));
+
+    const user = useUserStore();
+    await expect(user.refreshUserMenu()).rejects.toThrow("network down");
+    expect(user.menuLoadFailed).toBe(true);
+  });
+
+  it("失败后重拉成功：翻转为 false 并填充 menus（拉取成功但空菜单=合法形态，非失败）", async () => {
+    const user = useUserStore();
+    mockGetUserMenu.mockRejectedValueOnce(new Error("network down"));
+    await expect(user.refreshUserMenu()).rejects.toThrow();
+    expect(user.menuLoadFailed).toBe(true);
+
+    mockGetUserMenu.mockResolvedValue({
+      code: 200,
+      message: "ok",
+      data: { menus: [], roles: [], permissions: [] }
+    });
+    await user.refreshUserMenu();
+    // 拉取成功即使 menus 为空（零权限账号）也不是失败——占位项走「无可用菜单」分支
+    expect(user.menuLoadFailed).toBe(false);
+    expect(user.menus).toEqual([]);
+  });
+
+  it("logOut 清理会话时同步重置 menuLoadFailed，登出后状态不残留", async () => {
+    const user = useUserStore();
+    mockGetUserMenu.mockRejectedValue(new Error("network down"));
+    await expect(user.refreshUserMenu()).rejects.toThrow();
+    expect(user.menuLoadFailed).toBe(true);
+
+    mockGetToken.mockReturnValue({
+      accessToken: "token-1",
+      expires: 1,
+      refreshToken: ""
+    });
+    mockLogout.mockResolvedValue(undefined);
+    await user.logOut();
+
+    expect(user.menuLoadFailed).toBe(false);
   });
 });
 

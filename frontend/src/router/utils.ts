@@ -204,6 +204,29 @@ const MENU_LOAD_RETRY_ITEM: menuType = {
 } as any;
 
 /**
+ * 拉取成功但账号无菜单占位项（T-FE-049 与「加载失败」区分——重试对该形态无意义，
+ * 提示联系管理员；同样跳 /menu-retry 着陆页，页内按 menuLoadFailed 自适应文案与按钮语义）
+ */
+const MENU_EMPTY_ITEM: menuType = {
+  path: "/menu-retry",
+  name: "MenuLoadEmpty",
+  meta: { title: "当前账号无可用菜单", icon: "ep/menu" }
+} as any;
+
+/**
+ * 空侧栏占位项两态判定（T-FE-049）：menus 为空时按最近一次拉取成败区分形态。
+ * 加载失败 → 可重试占位；拉取成功但无菜单 → 引导联系管理员占位（不承诺重试有效）。
+ */
+export function resolveSidebarFallback(
+  menuLoadFailed: boolean | undefined
+): menuType[] {
+  // 状态未知（undefined，类型层面可能）按失败兜底：可重试占位比「无可用菜单」误导小
+  return [
+    cloneDeep(menuLoadFailed === false ? MENU_EMPTY_ITEM : MENU_LOAD_RETRY_ITEM)
+  ];
+}
+
+/**
  * 后端 menus 树 → 侧栏 wholeMenus 结构转换（T-FE-015 后端树直接渲染）。
  * 后端 buildMenuTree 已完成可见性过滤、DIR 空剪枝与 rank 升序，此处直接消费；
  * 点击按 path 命中本地静态路由。对象形态与静态 wholeMenus 一致（meta.title/icon +
@@ -247,7 +270,8 @@ function buildSidebarMenus(
  *   <li>登录路径：loginByUsername 已拉取 user-menu，此处复用 store 内存结果不重复请求</li>
  *   <li>已登录 F5/启动（menus 内存态丢失）：重取 /api/access/auth/user-menu；失败 fail-closed 空菜单 +
  *       侧栏「菜单加载失败，点击重试」占位项（跳 /menu-retry 重试页），
- *       不持久化 menus、不回退全量静态菜单</li>
+ *       不持久化 menus、不回退全量静态菜单；拉取成功但账号无菜单（零权限）时占位项为
+ *       「当前账号无可用菜单」（T-FE-049 两态区分——重试对该形态无意义）</li>
  *   <li>路由仍全部静态注册：菜单不可见 ≠ 路由不可达，越权直达由后端 VIEW 403 兜底</li>
  * </ul>
  */
@@ -268,7 +292,7 @@ async function initRouter() {
   usePermissionStoreHook().handleBackendMenus(
     userStore.menus.length > 0
       ? buildSidebarMenus(userStore.menus)
-      : [cloneDeep(MENU_LOAD_RETRY_ITEM)]
+      : resolveSidebarFallback(userStore.menuLoadFailed)
   );
   return router;
 }

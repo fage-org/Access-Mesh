@@ -12,6 +12,7 @@ import { useLayout } from "@/layout/hooks/useLayout";
 import { getCaptcha } from "@/api/auth";
 import { useUserStoreHook } from "@/store/modules/user";
 import { initRouter, getTopMenu } from "@/router/utils";
+import { resolveLoginMessages } from "./utils/messages";
 import { bg, avatar, illustration } from "./utils/static";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { useDataThemeChange } from "@/layout/hooks/useDataThemeChange";
@@ -83,14 +84,17 @@ const onLogin = async (formEl: FormInstance | undefined) => {
             router
               .push(getTopMenu(true).path)
               .then(() => {
-                message("登录成功", { type: "success" });
-                // 初始密码/管理员重置后待改密：前端暂无自助改密 UI
-                // （API 层自助通道为 /user/reset-password 自身路径，T-PERM-067 定位），
-                // 非阻断提示引导联系管理员（T-ADMIN-022，归属自 T-FE-041 移入）
-                if (loginData?.forceResetPwd) {
-                  message("当前密码为初始密码，请联系管理员重置", {
-                    type: "warning",
-                    duration: 6000
+                // 登录成功提示语义（T-FE-049 半成功诚实提示）：菜单/权限加载失败或
+                // 账号无菜单时不弹 success，如实 warning 告知（纯函数提取，spec 锁分支）
+                const userStore = useUserStoreHook();
+                for (const toast of resolveLoginMessages({
+                  forceResetPwd: loginData?.forceResetPwd,
+                  menusCount: userStore.menus.length,
+                  menuLoadFailed: userStore.menuLoadFailed
+                })) {
+                  message(toast.text, {
+                    type: toast.type,
+                    duration: toast.duration
                   });
                 }
               })
