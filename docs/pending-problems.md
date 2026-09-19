@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-018           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-19（Q-018 登记）
+counter: Q-019           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-19（Q-019 登记）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-19（Q-018 登记）
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-019 父组织名解析依赖当前已加载树（父节点被过滤/权限排除时回退「未知」）
+
+- **状态**：open
+- **登记**：2026-09-19（T-FE-050 claude 外评存量观察②，用户拍板登记）
+- **来源**：T-FE-050 claude 外评
+- **关联**：T-FE-050（发现载体；orgTree.ts 提取后解析入口集中）
+
+**现象与证据**：user/index.vue 两处父名解析（信息卡模板 + openOrgForm）均从 `orgTreePanelRef.orgTree` 递归查找（utils/orgTree.ts），树面板带 `:org-type-filter="[1]"`（只显 orgType=1 普通组织）；后端 OrgResp 只有 parentOrgId 无 parentOrgName——父节点被类型过滤或权限范围排除在已加载树外时显示「未知」。
+
+**影响**：显示回退「未知」无数据错、无写路径副作用；触发面=父节点被过滤/排除的边缘数据形态（如 orgType≠1 的父节点）。
+
+**设想方向（未定案）**：后端响应体附带 parentOrgName（契约变更）或前端回退策略统一（回退展示与触发边界明确化）；T-FE-051 composable 化/树改造时可能自然重估。
 
 ## Q-018 后端 /org/update 通道可置空组织名（OrgUpdateReq.orgName 无非空校验）
 
@@ -23,6 +36,8 @@ last_updated: 2026-09-19（Q-018 登记）
 **现象与证据**：`OrgCreateReq.orgName` 有 `@NotBlank`，`OrgUpdateReq.orgName` 无任何校验注解（javadoc 自称「可选」），`OrgWriteAppServiceImpl:180` update 分支只判 `req.orgName() != null` 即 `setName(...)`——直连 POST /api/access/org/update 传 `orgName=""` 可将组织名写成空串入库。前端 UI 通道封死（OrgForm required + min 2）。
 
 **影响**：入参校验缺口（「组织名非空」约定 update 通道未强制）；空名组织显示面为空串（树节点/信息卡），前端 findParentOrgName 对空名跳过（新旧实现等价）；无越权面。
+
+**关联现象（T-FE-050 claude 外评存量观察①，用户拍板注记）**：空名数据态下 OrgForm.parentOrgDisplay 三段 fallback（OrgForm.vue:106-114）把空串父名渲染为「根组织」，与信息卡空白显示不一致——本 Q 修复（update 通道拒空串）后该数据态不可再造，渲染差异自然消失，无需独立动作。
 
 **设想方向（未定案）**：update 通道补「null 跳过、空串拒绝」校验——注意直接加 `@NotBlank` 会连 null（=不更新语义）一起拒（Hibernate Validator 对 null 也判 invalid），须选 null 视为合法的约束（如 `@Pattern` 非空白）或服务层显式空串拒绝；配直连 API 回归锁。
 
