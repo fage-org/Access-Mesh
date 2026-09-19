@@ -23,7 +23,9 @@ export function resolveLoginMessages(input: {
   } else if (input.menuLoadFailed) {
     toasts.push({
       type: "warning",
-      text: "登录成功，但菜单与权限加载失败，请点击侧栏占位项重试"
+      // 「进入系统后」限定（claude 外评 P3）：强制改密阻断人群登录后被拦在
+      // /change-password 全屏页（无侧栏），指引动作在改密进入系统后才可达
+      text: "登录成功，但菜单与权限加载失败，进入系统后请点击侧栏占位项重试"
     });
   } else {
     toasts.push({

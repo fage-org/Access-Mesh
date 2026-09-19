@@ -11,9 +11,14 @@ describe("buildChangePasswordRules（T-FE-046）", () => {
 
   it("新密码长度边界 8-32：规则声明 min=8/max=32 与必填（契约 §7.7）", () => {
     const newPassword = rules.newPassword as Array<Record<string, unknown>>;
-    expect(newPassword).toHaveLength(2);
+    expect(newPassword).toHaveLength(3);
     expect(newPassword[0]).toMatchObject({ required: true });
-    expect(newPassword[1]).toMatchObject({ min: 8, max: 32 });
+    expect(newPassword[2]).toMatchObject({ min: 8, max: 32 });
+  });
+
+  it("新密码纯空白拦截：规则声明 whitespace=true——8 个空格可过 required 与 min/max，后端 isBlank 判真走随机密码替换把用户锁死（claude 外评 P3 修复锁，删该规则必红）", () => {
+    const newPassword = rules.newPassword as Array<Record<string, unknown>>;
+    expect(newPassword[1]).toMatchObject({ whitespace: true });
   });
 
   it("确认密码一致时通过（callback 无参）", () => {

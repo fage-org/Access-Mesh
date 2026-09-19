@@ -137,7 +137,7 @@ function openCreateDialog() {
         }
 
         await ElMessageBox.alert(
-          `初始密码：${result.initialPassword}\n\n请将密码通知用户妥善保管；用户登录后系统将提示联系管理员修改密码。`,
+          `初始密码：${result.initialPassword}\n\n请将密码通知用户妥善保管；用户首次登录需先设置新密码后继续使用。`,
           "用户创建成功",
           {
             confirmButtonText: "知道了",
@@ -227,7 +227,7 @@ async function handleResetPassword(row: any) {
     );
     const result = await resetUserPassword({ userId: row.id });
     await ElMessageBox.alert(
-      `新密码：${result.newPassword}\n\n请将密码通知用户妥善保管；用户登录后系统将提示联系管理员修改密码。`,
+      `新密码：${result.newPassword}\n\n请将密码通知用户妥善保管；用户下次登录需先设置新密码后继续使用。`,
       "密码重置成功",
       {
         confirmButtonText: "知道了",

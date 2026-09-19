@@ -11,6 +11,10 @@ export function buildChangePasswordRules(getPassword: () => string): FormRules {
   return {
     newPassword: [
       { required: true, message: "请输入新密码", trigger: "blur" },
+      // 纯空白拦截（claude 外评 P3）：async-validator 的 required 对 string 仅判
+      // 空串、min/max 按长度计——8 个空格三者全过，后端 isBlank 判真走随机密码
+      // 替换且置 force_reset_pwd=false，用户被自设密码锁死（响应明文本页不展示）
+      { whitespace: true, message: "密码不能为纯空白字符", trigger: "blur" },
       { min: 8, max: 32, message: "密码长度为 8-32 位", trigger: "blur" }
     ],
     confirmPassword: [
