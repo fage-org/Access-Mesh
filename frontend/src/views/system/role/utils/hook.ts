@@ -165,9 +165,24 @@ export function useRoleManage() {
     }
   }
 
-  /** 切换角色启用/禁用状态 */
+  /** 切换角色启用/禁用状态（禁用=高影响操作先二次确认，定案④；启用为安全方向不确认） */
   async function handleToggleStatus(node: RoleTreeNode) {
     const next = node.status === 1 ? 0 : 1;
+    if (next === 0) {
+      try {
+        await ElMessageBox.confirm(
+          `确认禁用角色「${node.name}」？禁用后全部持有者立即失去该角色权限。`,
+          "禁用确认",
+          {
+            confirmButtonText: "确认禁用",
+            cancelButtonText: "取消",
+            type: "warning"
+          }
+        );
+      } catch {
+        return; // 取消（按钮触发无开关态，直接返回）
+      }
+    }
     try {
       await updateRole({
         roleId: node.id,
@@ -207,11 +222,11 @@ export function useRoleManage() {
     }
   }
 
-  /** 移动节点（拖拽：修改 parentId） */
+  /** 移动节点（拖拽：修改 parentId）。dropType 为 el-tree NodeDropType（'before'|'inner'|'after'） */
   async function handleNodeDrop(
     draggingNode: { data: RoleTreeNode },
     targetNode: { data: RoleTreeNode },
-    dropType: "prev" | "inner" | "next"
+    dropType: "before" | "inner" | "after"
   ) {
     const dragging = draggingNode.data;
     // 只读类型不可移动
@@ -232,6 +247,37 @@ export function useRoleManage() {
       parentId = targetNode.data.id;
     } else {
       parentId = targetNode.data.parentId;
+    }
+    // 仅 parentId 变化的拖拽是高影响操作（定案④）：父链镜像同步改变实例级管理范围与
+    // 级联删除范围，先二次确认；同父 before/after 排序直接生效不确认。
+    if (parentId !== dragging.parentId) {
+      const fromLabel =
+        dragging.parentId == null
+          ? "顶层"
+          : (findNodeInTree(roleTree.value, dragging.parentId)?.name ?? "未知");
+      const toLabel =
+        dropType === "inner"
+          ? targetNode.data.name
+          : targetNode.data.parentId == null
+            ? "顶层"
+            : (findNodeInTree(roleTree.value, targetNode.data.parentId)?.name ??
+              "未知");
+      try {
+        await ElMessageBox.confirm(
+          `确认将角色「${dragging.name}」的上级由「${fromLabel}」改为「${toLabel}」？
+跨层级移动会同步改变角色资源父链，影响实例级管理范围与级联删除范围。`,
+          "跨层级移动确认",
+          {
+            confirmButtonText: "确认移动",
+            cancelButtonText: "取消",
+            type: "warning"
+          }
+        );
+      } catch {
+        // 取消：el-tree 已按落点移动节点，重拉树恢复
+        await loadTree();
+        return;
+      }
     }
     try {
       await moveRole({ roleId: dragging.id, parentId });

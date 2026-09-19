@@ -6,6 +6,7 @@ import {
   type OrgTreeNode,
   type OrgTreeConfig
 } from "@/api/user-manage";
+import { confirmOrgMoveIfNeeded } from "./confirmMove";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
@@ -240,6 +241,24 @@ function onAddRoot() {
   emit("node-add", null);
 }
 
+/**
+ * 拖拽落点（node-drop 仅真实落点触发，T-FE-052 改挂——原 node-drag-end 不判
+ * dropType，被拒落点如拖入自身子树时 dropType='none' 仍以非空 dropNode 误发
+ * node-move，消费方会向 updateOrg 提交父=自己后代的环路请求）。跨层级移动先
+ * 二次确认（定案④），取消重拉树恢复 el-tree 已移动的节点。
+ */
+async function onNodeDrop(draggingNode: any, dropNode: any, dropType: string) {
+  // allow-drop 限 inner-only，此守卫现状不可达；若未来放宽 before/after，须连带
+  // 改为「重拉树后 return」（el-tree 已移动节点，静默丢弃会视觉/数据漂移）
+  if (!dropNode?.data || dropType !== "inner") return;
+  const ok = await confirmOrgMoveIfNeeded(draggingNode.data, dropNode.data);
+  if (!ok) {
+    await loadTree();
+    return;
+  }
+  emit("node-move", draggingNode.data, dropNode.data.id);
+}
+
 onMounted(async () => {
   if (props.showConfig) {
     await loadConfigs();
@@ -395,13 +414,7 @@ defineExpose({
             editable && canEdit && type === 'inner'
         "
         @node-click="(_data: any) => selectNode(_data)"
-        @node-drag-end="
-          (draggingNode: any, dropNode: any) => {
-            if (dropNode && dropNode.data) {
-              emit('node-move', draggingNode.data, dropNode.data.id);
-            }
-          }
-        "
+        @node-drop="onNodeDrop"
       >
         <template #default="{ data }">
           <div

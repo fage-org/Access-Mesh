@@ -3,7 +3,7 @@ doc_type: design
 title: 2.2 角色管理页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-15   # 2026-09-04 §8 T-PERM-044 收口句终态化（Redisson 口径）；此前 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
+last_reviewed: 2026-09-19   # T-FE-052 收口：§4.1 拖拽跨层级二次确认+禁用确认（定案④）；此前 2026-09-15   # 2026-09-04 §8 T-PERM-044 收口句终态化（Redisson 口径）；此前 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
 ---
 
 # 2.2 角色管理页 前端设计
@@ -89,9 +89,10 @@ last_reviewed: 2026-09-15   # 2026-09-04 §8 T-PERM-044 收口句终态化（Red
 - **拖拽移动**：`draggable` + `:allow-drop` + `node-drop`。
   - `allowDrop` 拦截：只读类型不可拖动；**跨类型禁止**（目标节点 roleTypeCode 须与拖拽节点一致——inner 是父须同类型，before/after 是兄弟须同类型）；inner 到只读类型目标禁止。
   - `handleNodeDrop` 兜底：跨类型 `message` 提示 + `await loadTree()` 回滚（不调 moveRole）；只读类型同理回滚。
+  - **跨层级拖拽二次确认（定案④，T-FE-052）**：仅 parentId 变化的拖拽（inner 到不同父 / before-after 跨父含移至顶层）先 `ElMessageBox.confirm`，文案含原/新上级名与真实后果（父链镜像改变实例级管理范围与级联删除范围）；取消 `await loadTree()` 恢复（el-tree 已按落点移动节点）；**同父 before/after 排序直接生效不确认**。dropType 注解=node-drop 回调可达值（`'before'|'inner'|'after'`，NodeDropType 第四值 `'none'` 经 useDragNode 守卫不触发回调）。
   - 合法则 `moveRole({roleId, parentId})`，**成功后 `await loadTree()` 同步 parentId**（el-tree 仅移动 DOM 不更新 data.parentId，不重拉会导致后续编辑父角色展示/连续拖拽按旧 parentId 判断，评审 P2-拖拽）。
 - **新增**：顶部「新增角色」下拉 → 按类型（BASIC_ROLE）打开表单，默认顶层（parentId=null）。
-- **编辑/删除/启停**：详情卡片按钮（ROLE:MANAGE 统一门禁，见 §7）。
+- **编辑/删除/启停**：详情卡片按钮（ROLE:MANAGE 统一门禁，见 §7）。**禁用为高影响操作先二次确认**（定案④，T-FE-052）——文案含「全部持有者立即失去该角色权限」；启用为安全方向不确认（对齐用户页仅停用确认先例）。
 
 ### 4.1.1 父角色选择器（RoleForm 内 popover 树）
 
