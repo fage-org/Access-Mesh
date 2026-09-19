@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-020           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-19（Q-020 登记；Q-017 随 T-FE-051 收敛）
+counter: Q-021           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-19（Q-021 登记；Q-020 随 T-FE-049 收口登记）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-19（Q-020 登记；Q-017 随 T-FE-051 收敛）
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-021 后端菜单种子 icon 多数未注册离线图标表——侧栏菜单图标渲染为空（ep/* 斜杠形态 × IconifyIconOffline storage 查找）
+
+- **状态**：open
+- **登记**：2026-09-19（T-FE-049 claude 外评存量观察①，主代理代码级核实机制链成立后登记）
+- **来源**：T-FE-049 claude 外评
+- **关联**：—（本次仅顺带注册占位项两态 2 枚 ep/warning-filled、ep/menu；侧栏种子面未触达）
+
+**现象与证据**：`BootstrapGraphDefinition.java` 菜单种子 icon 全为 `ep/xxx` 斜杠形态（coins/connection/document/files/history/key/office-building/setting/share + home-filled）；侧栏 icon 经 useRenderIcon 无冒号即走 IconifyIconOffline（storage 查找），而 `frontend/src/components/ReIcon/src/offlineIcon.ts` 仅注册 5 枚（ep/home-filled、ep/warning-filled、ep/menu、ri/search-line、ri/information-line）——除 home-filled 外 8 个种子图标按机制渲染为空（@iconify/vue offline Icon 未命中 storage 渲染空；未做浏览器侧运行时验证，机制链完整）。
+
+**影响**：侧栏菜单项有标题无图标（纯视觉缺失，无功能/权限影响）；存量面非 T-FE-049 引入（本次两态占位项触达的 2 枚已顺带注册生效）。
+
+**设想方向（未定案）**：种子 icon 全量注册进 offlineIcon.ts（前端单侧）或后端种子收敛到已注册集合/在线形态；处置前建议先浏览器侧运行时验证存量实际形态（机制推断 vs 实际渲染）。
 
 ## Q-020 /menu-retry 页会话过期后「重新检查菜单」按陈旧状态提示（本地凭证已无时不发请求、统一拦截器无介入点）
 

@@ -35,6 +35,13 @@ describe("resolveSidebarFallback 空侧栏占位两态（T-FE-049）", () => {
     expect(items[0].path).toBe("/menu-retry");
   });
 
+  it("占位项不携带未注册路由 name——侧栏 :to 对象 name 优先解析、tagOnClick push({name}) 命中，未注册即 MATCHER_NOT_FOUND（项渲染消失/标签点击失效，claude 外评 P2 回归锁）", () => {
+    // EMPTY 项无 name（walk path 分支）；RETRY 项 name=MenuLoadRetry 恰已注册于 remaining.ts。
+    // 不变量：侧栏项要么不带 name、要么 name 必须已注册（buildSidebarMenus「不产出 name」同款）
+    expect(resolveSidebarFallback(false)[0].name).toBeUndefined();
+    expect(resolveSidebarFallback(undefined)[0].name).toBe("MenuLoadRetry");
+  });
+
   it("menuLoadFailed 未定义（store 旧态/恢复前）按失败占位兜底（fail-closed 方向）", () => {
     expect(resolveSidebarFallback(undefined)[0].meta?.title).toBe(
       "菜单加载失败，点击重试"

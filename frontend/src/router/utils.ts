@@ -205,11 +205,13 @@ const MENU_LOAD_RETRY_ITEM: menuType = {
 
 /**
  * 拉取成功但账号无菜单占位项（T-FE-049 与「加载失败」区分——重试对该形态无意义，
- * 提示联系管理员；同样跳 /menu-retry 着陆页，页内按 menuLoadFailed 自适应文案与按钮语义）
+ * 提示联系管理员；同样跳 /menu-retry 着陆页，页内按 menuLoadFailed 自适应文案与按钮语义）。
+ * 不带 name：侧栏项对象经 :to 直传 router-link、tagOnClick 按 name 优先 push——
+ * name 未注册即 MATCHER_NOT_FOUND 抛错（项渲染消失/标签点击失效），与 buildSidebarMenus
+ * 「不产出 name」同款不变量（claude 外评 P2）；RETRY 项的 name=MenuLoadRetry 恰已注册故保留
  */
 const MENU_EMPTY_ITEM: menuType = {
   path: "/menu-retry",
-  name: "MenuLoadEmpty",
   meta: { title: "当前账号无可用菜单", icon: "ep/menu" }
 } as any;
 

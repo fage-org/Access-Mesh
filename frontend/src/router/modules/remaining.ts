@@ -38,7 +38,9 @@ export default [
     name: "MenuLoadRetry",
     component: () => import("@/views/error/menu-retry.vue"),
     meta: {
-      title: "菜单加载失败",
+      // 中性值：着陆页两态（加载失败/无可用菜单）共用此路由，meta.title 派生
+      // document.title（router/index.ts）与标签显示——单态文案会对零菜单态失真
+      title: "菜单不可用",
       showLink: false
     }
   },

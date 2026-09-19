@@ -346,8 +346,8 @@ export default defineFakeRoute(
               message: "ok",
               data: {
                 // T-FE-015 起侧栏唯一数据源是本接口 menus 树（后端树直接渲染），
-                // 空数组会渲染为「菜单加载失败」占位——mock 下发最小可用树
-                // （welcome 纯展示，对齐 bootstrap 种子形态）；真后端返回完整 DIR/MENU 树
+                // 空数组（拉取成功形态）渲染为「当前账号无可用菜单」占位（T-FE-049 两态）
+                // ——mock 下发最小可用树（welcome 纯展示，对齐 bootstrap 种子形态）；真后端返回完整 DIR/MENU 树
                 menus: [
                   {
                     path: "/welcome",
