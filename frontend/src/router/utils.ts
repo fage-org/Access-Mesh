@@ -258,7 +258,10 @@ async function initRouter() {
       await userStore.refreshUserMenu();
     } catch (err) {
       // fail-closed：拉取失败按空菜单处理（下方占位项给出显式重试入口）
-      console.warn("[initRouter] failed to load /api/access/auth/user-menu", err);
+      console.warn(
+        "[initRouter] failed to load /api/access/auth/user-menu",
+        err
+      );
     }
   }
   handleAsyncRoutes([]);

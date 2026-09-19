@@ -249,7 +249,9 @@ export const updateUser = async (data: {
   phone?: string | null;
   email?: string | null;
 }): Promise<void> => {
-  unwrap(await http.request<R<void>>("post", "/api/access/user/update", { data }));
+  unwrap(
+    await http.request<R<void>>("post", "/api/access/user/update", { data })
+  );
 };
 
 /** 删除用户（POST /api/access/user/delete，IdsReq 批量） */
@@ -389,7 +391,9 @@ export const createOrg = async (data: OrgCreateReq): Promise<number> => {
 
 /** 更新组织（POST /api/access/org/update，仅传变更字段；类型不可改） */
 export const updateOrg = async (data: OrgUpdateReq): Promise<void> => {
-  unwrap(await http.request<R<void>>("post", "/api/access/org/update", { data }));
+  unwrap(
+    await http.request<R<void>>("post", "/api/access/org/update", { data })
+  );
 };
 
 /** 删除组织（POST /api/access/org/delete，IdReq） */

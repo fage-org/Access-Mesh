@@ -240,11 +240,9 @@ export const moveResource = async (data: ResourceMoveReq): Promise<void> => {
 /** 删除资源，支持批量（POST /api/access/resource-entity/remove，业务键集合）。 */
 export const removeResources = async (keys: ResourceKey[]): Promise<void> => {
   unwrap(
-    await http.request<R<void>>(
-      "post",
-      "/api/access/resource-entity/remove",
-      { data: { items: keys } }
-    )
+    await http.request<R<void>>("post", "/api/access/resource-entity/remove", {
+      data: { items: keys }
+    })
   );
 };
 

@@ -168,11 +168,9 @@ export const updateTypeDef = async (
  *  isSystem=true 的系统预置项后端跳过删除。 */
 export const removeTypeDefs = async (ids: number[]): Promise<void> => {
   unwrap(
-    await http.request<R<void>>(
-      "post",
-      "/api/access/type-definition/remove",
-      { data: { ids } }
-    )
+    await http.request<R<void>>("post", "/api/access/type-definition/remove", {
+      data: { ids }
+    })
   );
 };
 
