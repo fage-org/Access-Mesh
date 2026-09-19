@@ -39,9 +39,12 @@ const USER = {
 
 describe("用户删除二次确认与错误反馈（T-FE-047）", () => {
   beforeEach(() => {
+    // clearAllMocks 只清调用记录不清 implementation（vitest 源码 mockClear/mockReset 之分）——
+    // 各 mock 的默认实现须在此逐项重设，防个别用例设置的 rejection 泄漏给后续用例
     vi.clearAllMocks();
     mockConfirm.mockResolvedValue(undefined);
     mockGetUserPage.mockResolvedValue({ items: [], total: 0 });
+    mockDeleteUser.mockResolvedValue(undefined);
   });
 
   it("确认后才删除：先弹确认（含用户名与后果），确认后发 deleteUser、提示成功、刷新列表", async () => {

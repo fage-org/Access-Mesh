@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-016           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-19（Q-016 登记）
+counter: Q-017           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-19（Q-017 登记）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-19（Q-016 登记）
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-017 user/index.vue 死解构 + 组织点击双请求（useUserManage 双实例各发一次 /user/page）
+
+- **状态**：open
+- **登记**：2026-09-19（T-FE-047 claude 外评存量观察，用户拍板登记 Q）
+- **来源**：T-FE-047 claude 外评（存量观察①）
+- **关联**：T-FE-050、T-FE-051（两卡均将触达 user/index.vue，按计划「user/index.vue 由 047/050/051 串行」协调口径顺带收敛）
+
+**现象与证据**：`frontend/src/views/system/user/index.vue:64-78` 从 `useUserManage()` 解构 12 项实际只用 3 项（`pagination`/`loadTable`/`selectedOrgId`，其余 `handleDelete`/`handleCreate`/`handleUpdate`/`onSearch` 等 10 项为死引用）；且 index.vue 与 MemberTab.vue **各自实例化** `useUserManage()`（每调用一次全部 state 新建），每次点选组织：index.vue `onOrgChange` 调自家 `loadTable()` + MemberTab `watch(orgId)` 调自家 `onSearch()`——共发**两次** `/user/page`，其中 index.vue 实例的响应无人消费（其 tableData 从不渲染，MemberTab 渲染自家实例）。
+
+**影响**：每次组织切换多一次无消费请求（幂等只读、纯浪费无数据错）+ 10 项死引用误导后来者；另 watch `immediate: true` 使 MemberTab 挂载即首载一次（index.vue 无初始加载，行为不对称）。
+
+**设想方向（未定案）**：index.vue 收敛为只消费 MemberTab 已有链路（去掉自家 useUserManage 实例，`selectedOrgId` 等状态就地化）或状态上提共享单实例——具体形态随 T-FE-050（同文件递归 bug 修复）/T-FE-051（用户页 loadTable 接线试点）触达时定。
 
 ## Q-016 logOut 本地清理被服务端注销 await 推迟（后端黑洞挂 ≤10s + 窗口内旧清理链清新登录竞态）
 
