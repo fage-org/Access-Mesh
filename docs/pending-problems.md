@@ -20,7 +20,7 @@ last_updated: 2026-09-19（Q-015 登记）
 - **来源**：T-GW-009 双轨评审（文档轨 P3-3/P3-4）
 - **关联**：T-GW-009（本批已同步修 gateway.md/application.yml/GatewayProperties 同款句）
 
-**现象与证据**：T-ACCESS-042（2026-09-15）将 Gateway 白名单从整族 `/api/access/auth/**` 收窄为会话入口族精确清单后，两册活设计文档仍以整族形态描述白名单：`docs/design/architecture.md:171`「登录接口 /api/access/auth/** 在白名单中，请求透传到 access-service」；`docs/design/access-service-architecture.md:212`（OAuth2 透传段）「/api/access/auth/** 已由白名单覆盖（userinfo 无需重复配置）」——缺「运行时鉴权六端点除外」限定。T-GW-009 批次已将 gateway.md（核心链路/匿名白名单/OAuth2 段三处）、application.yml 注释、GatewayProperties javadoc 同款句精确化，本两册未触达。
+**现象与证据**：T-ACCESS-042（2026-09-15）将 Gateway 白名单从整族 `/api/access/auth/**` 收窄为会话入口族精确清单后，两册活设计文档仍以整族形态描述白名单：`docs/design/architecture.md:171`「登录接口 /api/access/auth/** 在白名单中，请求透传到 access-service」；`docs/design/access-service-architecture.md:212`（OAuth2 透传段）「/api/access/auth/** 已由白名单覆盖（userinfo 无需重复配置）」——缺「运行时鉴权六端点除外」限定。T-GW-009 批次已将 gateway.md（核心链路/匿名白名单/OAuth2 段三处）、application.yml 注释、GatewayProperties javadoc 同款句精确化，本两册未触达。**清扫面补充（2026-09-19 claude 外评）**：access-service-architecture.md:212 同行末句「直连开放路径不校验（密钥拦截器豁免 oauth2/**）」属同族密钥豁免枚举半句，清扫时与整族句一并加限定/去枚举化（SecurityWebMvcConfig 类级 javadoc 的枚举形态已随 T-GW-009 外评处置去枚举化，不在此列）；另 `gateway/.../SignatureEnrichFilter.java:31/192` 注释称「HeaderEnrichFilter 之后、InternalSecretFilter 之前」与实际执行序不符（order=-35 晚于 InternalSecret(-40)，无运行时影响）——同批并入清扫（用户拍板 2026-09-19）。
 
 **影响**：口径性漂移，无运行时缺陷——读者按整族形态理解会误判运行时鉴权六端点免鉴权（实际走会话/权限校验）。
 

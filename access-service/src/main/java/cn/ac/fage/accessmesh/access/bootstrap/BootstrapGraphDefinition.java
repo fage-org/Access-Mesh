@@ -137,6 +137,10 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/api/access/user/update", "bootstrap:更新用户", true, false),
             new ApiRoute("POST", "/api/access/user/delete", "bootstrap:删除用户", true, false),
             new ApiRoute("POST", "/api/access/user/enable", "bootstrap:用户启停", true, false),
+            // T-GW-009（2026-09-19 用户拍板「保行+标注失效」）：该端点已入 Gateway 白名单
+            // （会话入口族）——本行的 API:ACCESS 位对 Gateway 放行不再生效（skipAuth 短路
+            // 先于快照鉴权），端点真实边界=服务层门禁（自身免门禁/非自身 USER:RESET_PASSWORD，
+            // T-PERM-067）；保留行作白名单回滚面（去白名单条目即恢复 Gateway 快照强制）。
             new ApiRoute("POST", "/api/access/user/reset-password", "bootstrap:重置密码", true, false),
             new ApiRoute("POST", "/api/access/user/member-candidates", "bootstrap:成员候选查询", true, false),
             new ApiRoute("POST", "/api/access/user-org/list", "bootstrap:用户组织查询", true, false),

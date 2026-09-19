@@ -241,6 +241,11 @@ class GatewayApplicationConfigTest {
         // T-GW-007：主端口白名单不得含任何 /actuator 路径（actuator 经独立管理端口提供）
         assertTrue(props.getWhitelist().getPaths().stream().noneMatch(p -> p.startsWith("/actuator")),
             "whitelist 不得包含 /actuator/**（T-GW-007 移至管理端口），实际 " + props.getWhitelist().getPaths());
+        // T-GW-009（claude 外评处置补强）：Java 默认清单（yml 键丢失/Nacos 空覆盖时的兜底回退位）
+        // 与 yml 同源同步——删除默认条目时本断言红，防三载体（yml/默认值/密钥豁免）漂移回归
+        var defaults = new GatewayProperties().getWhitelist().getPaths();
+        assertTrue(defaults.contains("/api/access/user/reset-password"),
+            "GatewayProperties.Whitelist.paths 默认值必须包含 /api/access/user/reset-password（与 yml 同源），实际 " + defaults);
         // Spring 应用名（Nacos 服务名）配置加载
         String appName = applicationContext.getEnvironment().getProperty("spring.application.name");
         assertTrue("gateway".equals(appName), "spring.application.name 必须为 gateway，实际 " + appName);

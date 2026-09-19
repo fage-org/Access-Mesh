@@ -191,7 +191,7 @@
 | [T-GW-006](../archive/2026-06-28/tasks/T-GW-006.md) | 集成测试基线："杀 permission-center → Gateway 应 503"（重新界定：不在项目内做集成测试，改为独立仓库测试服务） | gateway-fail-mode | — | T-GW-002 | ✅ | ✓ |
 | [T-GW-007](../archive/2026-08-27/tasks/T-GW-007.md) | Gateway CORS 环境化与 actuator 暴露收口（origin 明确列表、credentials 禁 `*`、独立 management 端口） | product-vertical-slice（已归档） | design/services/gateway.md | T-ACCESS-021 | ✅ | ✓ |
 | [T-GW-008](../archive/2026-09-12/tasks/T-GW-008.md) | Gateway XFF 清洗与客户端 IP 重建——IP 条件信任面收口（已收口 2026-09-10，实施定案与存量缺陷修正见任务卡实现记录与 registry） | — | security-standards；gateway.md；rebuild-runbook | — | ✅ | ✓ |
-| T-GW-009 | Gateway 白名单纳入 /user/reset-password（会话入口族；T-FE-046 前置）（✅ 2026-09-19 收口：白名单 + SecurityWebMvcConfig 密钥豁免同源同步（双轨评审 P0——漏配致内部凭证分支 400 遮蔽）+ 配置锁/链路锁均旧实现实证红 + gateway.md/契约 §7.7 清单同步；遗留 Nacos 远端覆盖键未核登记计划；两册存量整族句登记 Q-015） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | gateway.md；api-contract §7.7 | — | ✅ | ✓ |
+| T-GW-009 | Gateway 白名单纳入 /user/reset-password（会话入口族；T-FE-046 前置）（✅ 2026-09-19 收口：白名单 + SecurityWebMvcConfig 密钥豁免同源同步（双轨评审 P0——漏配致内部凭证分支 400 遮蔽）+ 配置锁/链路锁均旧实现实证红 + gateway.md/契约 §7.7 清单同步；claude 外评 P3×2 全采纳（javadoc 去枚举化+固定图 API 行「保行+标注失效」拍板）+锁补强×2，见 registry 同日处置行；遗留 Nacos 远端覆盖键未核登记计划；存量清扫面登记 Q-015） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | gateway.md；api-contract §7.7 | — | ✅ | ✓ |
 
 > 注：T-PERM-008（代码侧 Gateway 失效标记）依赖 T-GW-005（设计侧 S-006 规范）产出，二者构成"设计先行 → 代码落地"链。
 

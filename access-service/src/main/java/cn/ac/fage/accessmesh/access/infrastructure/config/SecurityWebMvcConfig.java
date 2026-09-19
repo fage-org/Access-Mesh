@@ -12,7 +12,8 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * </p>
  * <ol>
  *   <li>order=1 InternalApiSecretInterceptor — 作用于 /api/access/** 豁免会话入口族
- *       （登录/登出/会话查询/OAuth2 端点；运行时鉴权六端点维持覆盖，T-ACCESS-042 URL 单命名空间）。
+ *       （精确清单以 addInterceptors 的 excludePathPatterns 为准，勿在此枚举防漂移；
+ *       运行时鉴权六端点维持覆盖，T-ACCESS-042 URL 单命名空间）。
  *       内部凭证（X-Internal-Secret）通过则在 request 写 INTERNAL_AUTHENTICATED=true；
  *       失败直接 403 阻断后续。</li>
  *   <li>order=2 HeaderSignatureInterceptor — 覆盖 /api/access/**, /internal/**。

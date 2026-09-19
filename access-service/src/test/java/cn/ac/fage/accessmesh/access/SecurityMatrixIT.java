@@ -152,6 +152,18 @@ class SecurityMatrixIT {
     }
 
     @Test
+    @DisplayName("T-GW-009：豁免不反向加宽——非豁免 user 端点无密钥仍 403（豁免清单只含 reset-password）")
+    void userEndpoint_notExempt_withoutSecret_rejected403() throws Exception {
+        // 反向退化锁（claude 外评处置补强）：若豁免被加宽为 /api/access/user/** 整族，
+        // /user/page 无密钥将落会话分支 401 而非本断言的 403——密钥 transport 边界
+        // （「仅经 Gateway 或持密服务可达」）对全部非豁免 /api/access/** 端点保持。
+        mockMvc.perform(post("/api/access/user/page")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("评审 P3：精确路径 /actuator 匿名放行（公开契约一致）")
     void actuatorRootPath_allowsAnonymous() throws Exception {
         var result = mockMvc.perform(get("/actuator")).andReturn();
