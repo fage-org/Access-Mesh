@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { useUserManage } from "./utils/hook";
+import { findParentOrgName } from "./utils/orgTree";
 import UserDetailPanel from "./components/UserDetailPanel.vue";
 import MemberTab from "./components/MemberTab.vue";
 import PositionTab from "./components/PositionTab.vue";
@@ -105,22 +106,6 @@ function findOrgById(nodes: OrgTreeNode[], id: number): OrgTreeNode | null {
   return null;
 }
 
-// 查找父组织名称
-function findParentOrgName(
-  nodes: OrgTreeNode[],
-  parentId: number | null
-): string {
-  if (!parentId) return "根组织";
-  for (const node of nodes) {
-    if (node.id === parentId) return node.orgName;
-    if (node.children) {
-      const found = findParentOrgName(node.children, parentId);
-      if (found) return found;
-    }
-  }
-  return "未知";
-}
-
 function openUserDetail(row: any) {
   addDialog({
     title: `${row.name} 的用户信息`,
@@ -143,10 +128,10 @@ function openOrgForm(mode: "create" | "edit", node?: OrgTreeNode) {
   const parentOrgId = isEdit ? (node?.parentOrgId ?? null) : (node?.id ?? null);
   const parentOrgName = isEdit
     ? node?.parentOrgId
-      ? findParentOrgName(
+      ? (findParentOrgName(
           orgTreePanelRef.value?.orgTree || [],
           node.parentOrgId
-        )
+        ) ?? "未知")
       : "根组织"
     : (node?.orgName ?? "");
 
@@ -300,10 +285,10 @@ async function onNodeMove(node: OrgTreeNode, targetParentId: number) {
             <span class="org-parent-info">
               上级部门：{{
                 selectedOrg.parentOrgId
-                  ? findParentOrgName(
+                  ? (findParentOrgName(
                       orgTreePanelRef?.orgTree || [],
                       selectedOrg.parentOrgId
-                    )
+                    ) ?? "未知")
                   : "根组织"
               }}
             </span>

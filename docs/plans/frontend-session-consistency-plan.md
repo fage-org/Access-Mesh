@@ -71,7 +71,7 @@ last_updated: 2026-09-19
 
 | ID | 标题 | 状态 |
 |---|---|---|
-| T-FE-050 | `findParentOrgName` 递归 bug 修复（仅 user/index.vue；PositionTab 系正确实现非同款 bug） | ⚙️ proposed |
+| [T-FE-050](../tasks/T-FE-050.md) | `findParentOrgName` 递归 bug 修复（仅 user/index.vue；PositionTab 系正确实现非同款 bug） | ✅ done |
 | [T-FE-051](../tasks/T-FE-051.md) | 列表加载统一错误处理 + 请求代际（composable 化） | ⚙️ proposed |
 | T-FE-052 | 跨层级拖拽 + 角色禁用加二次确认（parentId 变化拖拽确认；同级排序直接生效） | ⚙️ proposed |
 | T-FE-053 | 路由守卫 `next()` 后补 return（卫生修） | ⚙️ proposed |
@@ -98,3 +98,4 @@ last_updated: 2026-09-19
 - 2026-09-19 T-GW-009 收口（白名单+密钥豁免同源同步+双轨评审 P0 处置+两处回归锁旧实现实证红，详见「关键依赖」节前置执行状态）；T-FE-046 前置就绪，P1/P2 前端任务均未开工。
 - 2026-09-19 T-FE-045 收口（P1 批首个前端任务）：`api/auth.ts logout(authorization)` 显式携 Authorization 头（api 层纯透传）+ http 请求白名单纳入 logout（防过期分支 logOut 递归与注销空转）+ `logOut()` 服务端注销优先/本地清理无条件/串行防抖（进行中短路、完成后零请求）；回归锁×7 红跑实证（旧实现下全红、既有 7 用例全绿），login.md「登出流程」节回写、T-FE-041「前端登出不调接口」口径退役注记。claude 外评处置完毕（2026-09-19：P0-P1=0、P2×1 成立→用户拍板维持现状不修（accessToken 入 localStorage 扩大令牌存续面反噬）、P3×1 成立→登记 Q-016 不修；存量观察×5 维持现状；定案与明细见 registry 同日处置行）。
 - 2026-09-19 T-FE-047 收口（P1 批第二个）：`user/utils/hook.ts handleDelete` 照角色页 hook 先例加两段 try/catch——ElMessageBox.confirm（取消零请求）+ 删除失败 `message(error.message || "删除失败")`（后端业务错如 CANNOT_DELETE_SELF 经 RequestError.message 透出）；确认文案含真实后果（无法登录+组织/岗位关联一并移除，对齐后端级联语义）；MemberTab 两入口经 hook 自动全覆盖零组件改动。与 T-FE-051 分工：loadTable/handleCreate/handleUpdate 的 catch+message 收口归 051。回归锁×3 红跑实证（stash 源码 3 用例全红）；vitest 242/242 + typecheck/lint/build 全绿。claude 外评处置完毕（2026-09-19 模型 deepseek-flash[1m]：P0-P2=0「未发现生产级缺陷」、P3×1 spec mock 泄漏直接修（beforeEach 逐 mock 重设默认实现）、存量×2→登记 Q-017（index.vue 死解构+双请求，关联 050/051）+ T-FE-051 扩行（启停 catch 透后端 message）；定案与明细见 registry 同日处置行）。
+- 2026-09-19 T-FE-050 收口（P2 批首个）：user/index.vue `findParentOrgName` 递归修复——「未知」truthy 哨兵混入递归返回值，首个子树查找失败即被当成功值上抛、后续兄弟子树永不遍历（选中后位根子树组织时信息卡「上级部门：未知」，openOrgForm 编辑态同源）；未找到改返 null（PositionTab 同款纯查找形态），提取 utils/orgTree.ts（SFC 内函数不可测），两调用点 `?? "未知"` 保展示语义。红跑 4 红 1 绿实证（旧算法逐字迁移作等价被测体）；vitest 247/247 + typecheck/lint/build 全绿。Q-017 收敛载体拍板 T-FE-051、本卡不顺带（定案见 registry 同日行）。双轨评审处置完毕（文档轨 P0=registry 表格断裂直接修；代码轨 P3×3=规范 §2 措辞对齐工具链（`no-import-type-side-effects` 实证，用户拍板直接修）、Q-018 登记 update 空名、T-FE-051 卡回填 Q-017 锚点；定案见 registry 同日行）。

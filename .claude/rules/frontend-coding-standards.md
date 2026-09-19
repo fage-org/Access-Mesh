@@ -17,16 +17,17 @@
 
 ## 2. TypeScript 类型导入
 
-**MUST** 使用内联类型导入 `{ type X }`，禁止单独导入类型。
+**MUST** 与 eslint 工具链一致（`@typescript-eslint/no-import-type-side-effects` + `consistent-type-imports`）：**纯类型语句**（语句内只导入类型）用 `import type { X }`；**混合语句**（同语句导入值+类型）用内联修饰 `{ type X }`。
 
 ```typescript
-// ✅ 正确
-import { type AxiosRequestConfig, type CustomParamsSerializer } from "axios";
-import { type FormInstance } from "element-plus";
-
-// ❌ 禁止
-import type { AxiosRequestConfig } from "axios";
+// ✅ 正确 — 纯类型语句（内联形态被 TS 擦除后残留 side-effect import，lint error + autofix 必改回）
 import type { FormInstance } from "element-plus";
+
+// ✅ 正确 — 混合语句（值+类型，顶层 type 无法修饰混合语句）
+import { getUserPage, type OrgTreeNode } from "@/api/user-manage";
+
+// ❌ 禁止 — 纯类型语句用内联
+import { type FormInstance } from "element-plus";
 ```
 
 ## 3. Vue 组件定义

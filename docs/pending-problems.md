@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-017           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-19（Q-017 登记）
+counter: Q-018           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-19（Q-018 登记）
 ---
 
 # 待解决问题清单（pending problems）
@@ -13,18 +13,31 @@ last_updated: 2026-09-19（Q-017 登记）
 
 ## 未收敛问题
 
+## Q-018 后端 /org/update 通道可置空组织名（OrgUpdateReq.orgName 无非空校验）
+
+- **状态**：open
+- **登记**：2026-09-19（T-FE-050 双轨评审代码轨 P3-2，用户拍板登记）
+- **来源**：T-FE-050 双轨评审
+- **关联**：—
+
+**现象与证据**：`OrgCreateReq.orgName` 有 `@NotBlank`，`OrgUpdateReq.orgName` 无任何校验注解（javadoc 自称「可选」），`OrgWriteAppServiceImpl:180` update 分支只判 `req.orgName() != null` 即 `setName(...)`——直连 POST /api/access/org/update 传 `orgName=""` 可将组织名写成空串入库。前端 UI 通道封死（OrgForm required + min 2）。
+
+**影响**：入参校验缺口（「组织名非空」约定 update 通道未强制）；空名组织显示面为空串（树节点/信息卡），前端 findParentOrgName 对空名跳过（新旧实现等价）；无越权面。
+
+**设想方向（未定案）**：update 通道补「null 跳过、空串拒绝」校验——注意直接加 `@NotBlank` 会连 null（=不更新语义）一起拒（Hibernate Validator 对 null 也判 invalid），须选 null 视为合法的约束（如 `@Pattern` 非空白）或服务层显式空串拒绝；配直连 API 回归锁。
+
 ## Q-017 user/index.vue 死解构 + 组织点击双请求（useUserManage 双实例各发一次 /user/page）
 
 - **状态**：open
 - **登记**：2026-09-19（T-FE-047 claude 外评存量观察，用户拍板登记 Q）
 - **来源**：T-FE-047 claude 外评（存量观察①）
-- **关联**：T-FE-050、T-FE-051（两卡均将触达 user/index.vue，按计划「user/index.vue 由 047/050/051 串行」协调口径顺带收敛）
+- **关联**：T-FE-051（收敛载体。2026-09-19 拍板：T-FE-050 开工时 AskUserQuestion 用户裁定不顺带收敛——两设想方向正是 051「composable 化」的设计决策面，定案见 decision-registry 同日行）
 
 **现象与证据**：`frontend/src/views/system/user/index.vue:64-78` 从 `useUserManage()` 解构 12 项实际只用 3 项（`pagination`/`loadTable`/`selectedOrgId`，其余 `handleDelete`/`handleCreate`/`handleUpdate`/`onSearch` 等 10 项为死引用）；且 index.vue 与 MemberTab.vue **各自实例化** `useUserManage()`（每调用一次全部 state 新建），每次点选组织：index.vue `onOrgChange` 调自家 `loadTable()` + MemberTab `watch(orgId)` 调自家 `onSearch()`——共发**两次** `/user/page`，其中 index.vue 实例的响应无人消费（其 tableData 从不渲染，MemberTab 渲染自家实例）。
 
 **影响**：每次组织切换多一次无消费请求（幂等只读、纯浪费无数据错）+ 10 项死引用误导后来者；另 watch `immediate: true` 使 MemberTab 挂载即首载一次（index.vue 无初始加载，行为不对称）。
 
-**设想方向（未定案）**：index.vue 收敛为只消费 MemberTab 已有链路（去掉自家 useUserManage 实例，`selectedOrgId` 等状态就地化）或状态上提共享单实例——具体形态随 T-FE-050（同文件递归 bug 修复）/T-FE-051（用户页 loadTable 接线试点）触达时定。
+**设想方向（未定案）**：index.vue 收敛为只消费 MemberTab 已有链路（去掉自家 useUserManage 实例，`selectedOrgId` 等状态就地化）或状态上提共享单实例——具体形态随 T-FE-051（用户页 loadTable 接线试点）触达时定（原拟随 T-FE-050/051 任一触达定，2026-09-19 拍板定为 051）。
 
 ## Q-016 logOut 本地清理被服务端注销 await 推迟（后端黑洞挂 ≤10s + 窗口内旧清理链清新登录竞态）
 

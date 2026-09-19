@@ -278,7 +278,7 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 | [T-FE-047](T-FE-047.md) | 用户删除二次确认与错误反馈（✅ 2026-09-19 收口：handleDelete 确认弹窗+失败错误反馈，hook 层两入口全覆盖；红跑 3 锁全红实证；claude 外评 P0-P2=0/P3×1 已修+存量×2 处置（Q-017+T-FE-051 扩行），见 registry 处置行） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | — | — | ✅ | — |
 | [T-FE-048](T-FE-048.md) | 会话权限热刷新（403 触发+手动入口） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md；design/frontend/permission-grant.md | — | ⚙️ | ⏳ |
 | T-FE-049 | 登录半成功语义修正 | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md | — | ⚙️ | ⏳ |
-| T-FE-050 | findParentOrgName 递归 bug 修复（仅 user/index.vue） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | — | — | ⚙️ | — |
+| [T-FE-050](T-FE-050.md) | findParentOrgName 递归 bug 修复（仅 user/index.vue）（✅ 2026-09-19 收口：未找到返 null 不剪兄弟子树，提取 utils/orgTree.ts；红跑 4 红 1 绿实证；Q-017 拍板留给 T-FE-051；双轨评审 P0×1+P3×3 处置（rule §2 对齐工具链/Q-018/051 锚点），见 registry 定案行） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | — | — | ✅ | — |
 | [T-FE-051](T-FE-051.md) | 列表加载统一错误处理+请求代际（composable 化） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | — | — | ⚙️ | — |
 | T-FE-052 | 跨层级拖拽+角色禁用加二次确认 | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/role-manage.md | — | ⚙️ | ⏳ |
 | T-FE-053 | 路由守卫 next() 后补 return（卫生修） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | — | — | ⚙️ | — |
