@@ -77,7 +77,7 @@ const onLogin = async (formEl: FormInstance | undefined) => {
           captchaId: captchaId.value,
           captchaCode: ruleForm.captchaCode
         })
-        .then(loginData => {
+        .then(() => {
           // 获取后端路由
           return initRouter().then(() => {
             disabled.value = true;
@@ -85,17 +85,15 @@ const onLogin = async (formEl: FormInstance | undefined) => {
               .push(getTopMenu(true).path)
               .then(() => {
                 // 登录成功提示语义（T-FE-049 半成功诚实提示）：菜单/权限加载失败或
-                // 账号无菜单时不弹 success，如实 warning 告知（纯函数提取，spec 锁分支）
+                // 账号无菜单时不弹 success，如实 warning 告知（纯函数提取，spec 锁分支）。
+                // forceResetPwd 不再提示（T-FE-046）：登录响应标记写入 userKey 后由
+                // 路由守卫阻断至 /change-password，改密成功才放行
                 const userStore = useUserStoreHook();
                 for (const toast of resolveLoginMessages({
-                  forceResetPwd: loginData?.forceResetPwd,
                   menusCount: userStore.menus.length,
                   menuLoadFailed: userStore.menuLoadFailed
                 })) {
-                  message(toast.text, {
-                    type: toast.type,
-                    duration: toast.duration
-                  });
+                  message(toast.text, { type: toast.type });
                 }
               })
               .finally(() => (disabled.value = false));

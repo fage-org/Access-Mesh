@@ -44,6 +44,18 @@ export default [
       showLink: false
     }
   },
+  // 强制改密页（T-FE-046）：forceResetPwd=true 登录后的阻断着陆页——全屏独立页
+  // （无 Layout：阻断人群不应看到侧栏），登录即达无需权限码；自身改密走
+  // /api/access/user/reset-password 自身路径豁免（契约 §7.7，Gateway 白名单已纳入）
+  {
+    path: "/change-password",
+    name: "ChangePassword",
+    component: () => import("@/views/change-password/index.vue"),
+    meta: {
+      title: "设置新密码",
+      showLink: false
+    }
+  },
   {
     path: "/redirect",
     component: Layout,

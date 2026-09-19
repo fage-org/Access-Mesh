@@ -3,7 +3,7 @@ doc_type: design
 title: 登录页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-19   # 2026-09-19 T-FE-049 收口：登录成功提示按菜单状态两态化（半成功/零权限诚实提示，非阻断）+ menuLoadFailed 空侧栏两态区分；此前：2026-09-19 T-FE-045 登出流程节、2026-09-15 T-FE-015、2026-08-31 T-FE-041
+last_reviewed: 2026-09-20   # 2026-09-20 T-FE-046 收口：强制改密闭环（forceResetPwd 路由守卫阻断 + /change-password 自助改密页，T-ADMIN-022「非阻断提示」口径退役，新增「强制改密闭环」节）；此前：2026-09-19 T-FE-049 登录提示两态、T-FE-045 登出流程节、2026-09-15 T-FE-015、2026-08-31 T-FE-041
 ---
 
 # 登录页 前端设计（T-FE-041 真实登录链路）
@@ -36,7 +36,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 ## 交互流程
 
 1. **页面加载**（onMounted）→ `POST /api/access/auth/captcha` → 展示图片（base64 已含 `data:image/png;base64,` 前缀）、记录 captchaId；失败弹"验证码获取失败"，可点击图片/占位重试。
-2. **提交** → `loginByUsername` → 成功：`initRouter()`（纯静态路由）→ 跳 `getTopMenu()`（里程碑 A 即 `/welcome`）→ **登录提示按菜单状态两态（T-FE-049，`resolveLoginMessages` 唯一出口，非阻断进系统）**：菜单已加载（menus 非空）=「登录成功」success；**半成功**（menus 为空且最近一次 user-menu 拉取失败，含 initRouter 隐式重试仍失败）=一条 warning「登录成功，但菜单与权限加载失败，请点击侧栏占位项重试」；**拉取成功但账号无菜单**（零权限，如建号未配角色）=warning「登录成功，当前账号无可用菜单，请联系管理员分配权限」。若 `forceResetPwd=true` 追加非阻断 warning「当前密码为初始密码，请联系管理员重置」（前端暂无自助改密 UI，API 层自助通道为 `/api/access/user/reset-password` 自身路径（T-PERM-067 定位），阻断闭环归 T-FE-046——其分支在 `resolveLoginMessages` 出口上扩展）；失败（业务 code/网络异常，经 `unwrap` 抛 `RequestError`）：展示后端 message → **无条件刷新验证码**（旧码已被后端消费；刷新 promise 纳入按钮 loading——期间不可重复提交，旧 captchaId/输入即刻失效，新码到达后恢复）。登录失败提示经 message 透传天然区分：**10003 停用**（管理员手工启停，需管理员恢复）与 **10004 临时锁定**（失败计数键剩余 TTL 自动恢复，文案含 30 分钟指引）——T-ADMIN-022 口径，`sys_user.status` 仅 0/1，临时锁定不落库。
+2. **提交** → `loginByUsername` → 成功：`initRouter()`（纯静态路由）→ 跳 `getTopMenu()`（里程碑 A 即 `/welcome`；`forceResetPwd=true` 时该跳转被路由守卫阻断改投 `/change-password`，见「强制改密闭环」节）→ **登录提示按菜单状态两态（T-FE-049，`resolveLoginMessages` 唯一出口，非阻断进系统）**：菜单已加载（menus 非空）=「登录成功」success；**半成功**（menus 为空且最近一次 user-menu 拉取失败，含 initRouter 隐式重试仍失败）=一条 warning「登录成功，但菜单与权限加载失败，请点击侧栏占位项重试」；**拉取成功但账号无菜单**（零权限，如建号未配角色）=warning「登录成功，当前账号无可用菜单，请联系管理员分配权限」。`forceResetPwd` 登录页不再提示（T-FE-046 起由阻断流程取代，标记写入 userKey 由守卫消费）；失败（业务 code/网络异常，经 `unwrap` 抛 `RequestError`）：展示后端 message → **无条件刷新验证码**（旧码已被后端消费；刷新 promise 纳入按钮 loading——期间不可重复提交，旧 captchaId/输入即刻失效，新码到达后恢复）。登录失败提示经 message 透传天然区分：**10003 停用**（管理员手工启停，需管理员恢复）与 **10004 临时锁定**（失败计数键剩余 TTL 自动恢复，文案含 30 分钟指引）——T-ADMIN-022 口径，`sys_user.status` 仅 0/1，临时锁定不落库。
 3. **验证码点击刷新**：任何时刻点击图片重新拉取（发起即失效旧验证码 + 清空输入）。
 
 验证码有效期 5 分钟、一次性；后端运行时强制校验（无开关）。
@@ -52,13 +52,14 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 - `views/login/index.vue`：页面 + 验证码状态（captchaId/captchaImage/refreshCaptcha）
 - `views/login/utils/rule.ts`：表单规则（含 captchaCode required）
-- `views/login/utils/messages.ts`：`resolveLoginMessages` 登录成功提示语义唯一出口（T-FE-049 两态+forceResetPwd 追加；T-FE-046 阻断分支在此扩展，勿散落组件内）
+- `views/login/utils/messages.ts`：`resolveLoginMessages` 登录成功提示语义唯一出口（T-FE-049 两态；forceResetPwd 提示分支已随 T-FE-046 阻断流程删除）
+- `views/change-password/index.vue` + `utils/rules.ts`：强制改密页（T-FE-046，见「强制改密闭环」节）
 - `api/auth.ts`：`getCaptcha`/`login`/`logout`（后两者 `unwrap` 解包）/`getUserMenu` + 固定常量
-- `store/modules/user.ts`：`loginByUsername`（unwrap → expiresIn 转绝对时间 → setToken → refreshUserMenu）、`refreshUserMenu`（成败维护 `menuLoadFailed`——空侧栏两态区分的事实来源，成功但空 menus=合法形态非失败）、`logOut`（服务端注销优先，见「登出流程」）；**无刷新令牌链路**（后端普通 Sa-Token 会话 refreshToken 为 null）
+- `store/modules/user.ts`：`loginByUsername`（unwrap → expiresIn 转绝对时间 → setToken → LoginResp 的 userId/forceResetPwd 随登录写入 userKey（T-FE-046，阻断标记与改密请求主体）→ refreshUserMenu）、`refreshUserMenu`（成败维护 `menuLoadFailed`——空侧栏两态区分的事实来源，成功但空 menus=合法形态非失败）、`logOut`（服务端注销优先，见「登出流程」）；**无刷新令牌链路**（后端普通 Sa-Token 会话 refreshToken 为 null）
 
 ## 权限接线（hasPerms → 按钮 → 降级）
 
-登录页本身无权限门禁（白名单路由）。登录后角色/权限经 `/api/access/auth/user-menu` 写入 store，供路由 `auths` 过滤与页面按钮 `hasPerms` 使用。`forceResetPwd` 提示适配已随 T-ADMIN-022 落地（登录成功后非阻断 warning）。
+登录页本身无权限门禁（白名单路由）。登录后角色/权限经 `/api/access/auth/user-menu` 写入 store，供路由 `auths` 过滤与页面按钮 `hasPerms` 使用。`forceResetPwd=true` 登录后由路由守卫阻断至 `/change-password`（T-FE-046，见下节）——T-ADMIN-022「非阻断提示引导联系管理员」口径就此退役（自助通道 `/api/access/user/reset-password` 自身路径已定位，T-PERM-067）。
 
 ## 令牌生命周期与 401 窄处理
 
@@ -76,6 +77,24 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 3. **串行防抖**：登出进行中重复触发（连点/拦截器程序化调用）直接短路——同一登出动作只发一次 `POST /logout`；登出完成后重复触发时 `getToken()` 已无令牌，不再发请求，仅幂等清理+跳转。
 
 > T-FE-041 原「前端登出仅清本地、不调接口」口径退役（2026-09-19，T-FE-045）——用户点退出后已复制出去的 Bearer token 在服务端仍有效的问题就此闭合。logoutAll 踢全部端点与多设备会话管理为非目标（另立评估）。
+
+## 强制改密闭环（T-FE-046，2026-09-19 拍板）
+
+**流程**：登录成功（`forceResetPwd=true`）→ 标记随登录写入 userKey → 登录页跳 `getTopMenu()` 被路由守卫阻断改投 `/change-password` → 用户设置新密码（8-32 位，无旧密码字段）→ `POST /api/access/user/reset-password`（`userId=当前登录用户自身`、`newPassword` 必传；自身路径免门禁，契约 §7.7）→ 后端置 `force_reset_pwd=false`（T-PERM-066）+ 前端 `clearForceResetPwdFlag` 同步清标记 → 会话保留直接进入系统（后端改密不注销会话——代码级核实：`resetPassword` 全方法无 StpUtil 踢出/登出调用）。
+
+**阻断口径**：
+
+- 阻断是**导航层 UX 门禁，不是安全边界**——后端仍是最终授权边界（改密页自身经会话认证可达，业务接口由后端 403 兜底，T-PERM-037 口径）；后端无全局 force-reset 请求拦截，前端阻断是唯一闸门。
+- 守卫放行清单（`router/index.ts forceResetAllowPaths`）：`/change-password`、`/login` 与公共错误页（`/access-denied`、`/server-error`、`/menu-retry`、`/error/403|404|500`），其余路由 redirect `/change-password`。不含 `/redirect`：真实标签刷新导航是 `/redirect`+fullPath 参数化路径（精确匹配恒不中），裸 `/redirect` 命中 Layout 父记录会把侧栏壳放给阻断人群（双轨评审 P2 处置，2026-09-20）。
+- 页面 `/change-password` 注册于 remaining.ts（全屏独立页，无 Layout——阻断人群不应看到侧栏），登录即达无需权限码。
+
+**标记生命周期**（与登录主体绑定、跨标签共享）：标记 = userKey（localStorage）内 `forceResetPwd` 字段——**登录覆盖**（每次登录从 LoginResp 重写，普通登录写 false 清残留）、**登出清除**（removeToken 整体清 userKey）、**改密成功置 false**（`clearForceResetPwdFlag`，其余字段保留）。sessionStorage 每标签独立（新开标签漏失阻断）不合格，故选 localStorage；跨标签经共享存储自然生效（守卫每次导航重读，无需 storage 事件广播——广播仅缩短延迟，不做）。`userId` 同随登录写入 userKey（改密请求主体；改密前旧会话缺 userId 时页面提示重新登录，不做静默兜底）。
+
+**UI 口径**：首期不设旧密码字段（后端旧密码校验未实现，T-PERM-066 明确另立任务，前端收集不校验的字段是假安全）；文案用「设置新密码」；长度 8-32 对齐契约 §7.7 `ResetPasswordReq`。
+
+**Gateway 前置（T-GW-009，2026-09-19 收口）**：`/api/access/user/reset-password` 已纳入 Gateway 会话入口族白名单 + access-service 密钥豁免清单——否则快照判定对无 API:ACCESS 的普通用户 403，阻断落地即把目标人群锁死在改密页。
+
+> T-ADMIN-022「非阻断 warning 引导联系管理员」口径退役（2026-09-19，T-FE-046）——「系统无用户自助改密通道」的立项依据已被 T-PERM-067/066 证伪（自助通道=reset-password 自身路径 + 改密成功置 false），登录页 warning 分支已删。
 
 ## mock 与动态路由口径（T-FE-041 决策）
 

@@ -105,6 +105,19 @@ export const useUserStore = defineStore("pure-user", {
         username: loginData.username,
         roles: []
       } as DataInfo<Date>);
+      // 强制改密闭环（T-FE-046）：LoginResp 的 userId（自助改密请求入参）与
+      // forceResetPwd（路由守卫阻断标记）随登录写入 userKey——与登录主体绑定、
+      // 跨标签共享（sessionStorage 每标签独立不合格）；改密成功由页面调
+      // clearForceResetPwdFlag 置 false，登出 removeToken 整体清除
+      const stored = storageLocal().getItem<DataInfo<number>>(userKey) ?? {
+        refreshToken: "",
+        expires: 0
+      };
+      storageLocal().setItem(userKey, {
+        ...stored,
+        userId: loginData.userId,
+        forceResetPwd: loginData.forceResetPwd ?? false
+      });
       try {
         await this.refreshUserMenu();
       } catch (err) {

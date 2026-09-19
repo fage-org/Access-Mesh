@@ -585,7 +585,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **Gateway 放行（T-GW-009，2026-09-19 定案⑤）**: 本端点在 Gateway 匿名白名单会话入口族内（精确清单见 `services/gateway.md` 匿名白名单行）——Gateway 不做接口级鉴权。背景：Gateway 快照条目仅由 API 类型 ACCESS 位派生、实例授权只种子给管理用功能角色（绑首管理员），forceResetPwd 阻断人群（普通用户）不经白名单放行经 Gateway 必 403。服务层门禁不变：Sa-Token 登录校验（`StpUtil.getLoginIdAsLong`，未登录拒绝）+ 自身路径豁免 / 非自身 `USER:RESET_PASSWORD` 实例级（T-PERM-067 语义零改动）。前端强制改密闭环（T-FE-046）的前置.
 
-**同步动作**: 无 (密码不进入 permission-center). 重置成功后 `sys_user.force_reset_pwd` 置位口径（T-PERM-067 外评 claude P3 处置，2026-09-14）：非自身重置（密码经管理员之手）置 `true`——DDL 语义「管理员重置后须改密」（T-ADMIN-022，登录页 warning 据此闭环）；自身自助改密置 `false`——用户亲手完成改密（密码经响应当即已知），与归档设计「修改个人密码成功后置 false」口径回归（此前一律置 true 且全仓无清除通道，自助改密后「初始密码」提示永久失真）.
+**同步动作**: 无 (密码不进入 permission-center). 重置成功后 `sys_user.force_reset_pwd` 置位口径（T-PERM-067 外评 claude P3 处置，2026-09-14）：非自身重置（密码经管理员之手）置 `true`——DDL 语义「管理员重置后须改密」（T-ADMIN-022，前端强制改密阻断据此闭环——T-FE-046 起登录后由路由守卫阻断至改密页，登录页 warning 口径已退役）；自身自助改密置 `false`——用户亲手完成改密（密码经响应当即已知），与归档设计「修改个人密码成功后置 false」口径回归（此前一律置 true 且全仓无清除通道，自助改密后「初始密码」提示永久失真）.
 
 **错误码段**: 10210-10229
 

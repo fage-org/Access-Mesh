@@ -116,6 +116,27 @@ export function resetRouter() {
 /** 路由白名单 */
 const whiteList = ["/login"];
 
+/**
+ * 强制改密阻断放行清单（T-FE-046）：forceResetPwd=true 时除下列路径外全部
+ * redirect /change-password。放行=改密页 + 登录页 + 公共错误页（remaining.ts
+ * 全屏错误页 + error.ts 模块三页 + /menu-retry 两态着陆页）。注意不含
+ * /redirect：真实标签刷新导航是 "/redirect"+fullPath 参数化路径（精确匹配
+ * 恒不中），裸 /redirect 命中 Layout 父记录会把侧栏壳放给阻断人群（T-FE-046
+ * 双轨评审代码轨 P2——阻断态拦下 /redirect/** 与拦其目标语义自洽）。阻断是
+ * 导航层 UX 门禁而非安全边界——后端仍是最终授权边界（改密页自身经会话认证
+ * 可达，业务接口由后端 403 兜底，T-PERM-037 口径）。
+ */
+const forceResetAllowPaths = [
+  "/change-password",
+  "/login",
+  "/access-denied",
+  "/server-error",
+  "/menu-retry",
+  "/error/403",
+  "/error/404",
+  "/error/500"
+];
+
 const { VITE_HIDE_HOME } = import.meta.env;
 
 /**
@@ -125,6 +146,8 @@ const { VITE_HIDE_HOME } = import.meta.env;
  * 死分支已删）。守卫纪律：调用 next() 的分支随即离开守卫（return 或块末），
  * 单次导航 next 至多调用一次；例外：externalLink 分支不调 next（模板原状，
  * openLink 新开标签承载交互——T-FE-056 挂状态机时勿假定该路径必有 next）。
+ * 强制改密阻断（T-FE-046）：标记存 localStorage userKey（登录写入、改密成功
+ * 置 false、登出清除），守卫每次导航重读——跨标签经共享存储自然生效，无需广播。
  */
 router.beforeEach((to: ToRouteType, _from, next) => {
   to.meta.loaded = loadedPaths.has(to.path);
@@ -155,6 +178,12 @@ router.beforeEach((to: ToRouteType, _from, next) => {
     whiteList.includes(to.fullPath) ? next(_from.fullPath) : next();
   }
   if (Cookies.get(multipleTabsKey) && userInfo) {
+    // 强制改密阻断（T-FE-046）：forceResetPwd=true 只放行改密页/登录页/公共
+    // 错误页，其余路由 redirect /change-password；改密成功清标记后放行
+    if (userInfo.forceResetPwd && !forceResetAllowPaths.includes(to.path)) {
+      next({ path: "/change-password" });
+      return;
+    }
     // 开启隐藏首页后在浏览器地址栏手动输入首页welcome路由则跳转到404页面
     if (VITE_HIDE_HOME === "true" && to.fullPath === "/welcome") {
       next({ path: "/error/404" });

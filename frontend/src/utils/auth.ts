@@ -19,6 +19,10 @@ export interface DataInfo<T> {
   roles?: Array<string>;
   /** 当前登录用户的按钮级别权限 */
   permissions?: Array<string>;
+  /** 当前登录用户 ID（T-FE-046：登录时从 LoginResp 写入，自助改密请求 userId 入参来源） */
+  userId?: number;
+  /** 强制改密阻断标记（T-FE-046：登录时从 LoginResp.forceResetPwd 写入，路由守卫按它阻断；改密成功置 false） */
+  forceResetPwd?: boolean;
 }
 
 export const userKey = "user-info";
@@ -120,6 +124,18 @@ export function removeToken() {
   Cookies.remove(TokenKey);
   Cookies.remove(multipleTabsKey);
   storageLocal().removeItem(userKey);
+}
+
+/**
+ * 清除强制改密阻断标记（T-FE-046）：改密成功后调用——后端已置
+ * `sys_user.force_reset_pwd=false`（T-PERM-066），前端将 userKey 内标记同步置
+ * false 供路由守卫放行（标记与登录主体绑定存共享 localStorage，跨标签自然生效，
+ * 其余标签下次导航重读即解除阻断）。其余字段原样保留（会话保留不强制重登）。
+ */
+export function clearForceResetPwdFlag() {
+  const stored = storageLocal().getItem<DataInfo<number>>(userKey);
+  if (!stored) return;
+  storageLocal().setItem(userKey, { ...stored, forceResetPwd: false });
 }
 
 /** 格式化token（jwt格式） */

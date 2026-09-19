@@ -26,7 +26,7 @@ tasks:
   - T-FE-056
   - T-GW-009
 acceptance: "P1 批（T-FE-045~049）全 done：登出真注销、强制改密阻断闭环、用户删除确认与错误反馈、会话权限热刷新、登录半成功语义修正；P2 批（T-FE-050~056）全 done：父组织名递归 bug、列表错误处理与请求代际、角色禁用确认、守卫 return-next 卫生、token 过期短路、授予入口文案语义、menus 派生路由门禁；新增行为全部带「旧实现下失败」回归锁（既有行为确认为特征/安全锁，见 T-FE-051/056 锁分类口径）；全量回归（含容器组与 E2E）绿"
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
 ## 目标
@@ -62,7 +62,7 @@ last_updated: 2026-09-19
 | ID | 标题 | 状态 |
 |---|---|---|
 | [T-FE-045](../tasks/T-FE-045.md) | 登出真注销——前端接 `/api/access/auth/logout` | ✅ done |
-| [T-FE-046](../tasks/T-FE-046.md) | 强制改密闭环——自助改密页 + forceResetPwd 阻断 | ⚙️ proposed |
+| [T-FE-046](../tasks/T-FE-046.md) | 强制改密闭环——自助改密页 + forceResetPwd 阻断 | ✅ done |
 | T-FE-047 | 用户删除二次确认与错误反馈 | ✅ done |
 | [T-FE-048](../tasks/T-FE-048.md) | 会话权限热刷新——403 触发自动刷新 + 手动入口 | ⚙️ proposed |
 | T-FE-049 | 登录半成功语义修正（诚实提示） | ✅ done |
@@ -103,3 +103,4 @@ last_updated: 2026-09-19
 - 2026-09-19 T-FE-052 收口（P2 批第三个）：定案④落地——role hook 禁用先确认（钉死短语「全部持有者立即失去该角色权限」，启用安全方向不确认）+ 拖拽仅 parentId 变化先确认（文案含原/新上级名与父链镜像后果；取消重拉树恢复，同父排序直接生效）；ReOrgTreePanel 拖拽事件 node-drag-end→node-drop（事实性修正：element-plus 实证被拒落点仍误发 node-move）+ 确认判定提取 confirmMove.ts。回归锁 hook.spec 旧实现 4红/4绿实证 + confirmMove.spec；vitest 290/290（+11）+ typecheck/lint/build 全绿。双轨评审两轨 P0-P2=0、P3×5 全采纳；role-manage.md §4.1 回写。claude 外评处置完毕（2026-09-19 模型 deepseek-flash[1m]：P0-P2=0、P3×1 编辑表单无确认第二入口两面用户拍板——角色表单状态编辑态只读+组织表单换父提交前确认（confirmMove 扩展移至顶层）；存量×3 维持/注记；vitest 291/291；定案与明细见 registry 同日处置行）。
 - 2026-09-19 T-FE-049 收口（P1 批第三个）：登录半成功诚实提示——两项 AskUserQuestion 拍板（非阻断+诚实提示 / 空菜单与加载失败一并区分，定案见 registry 同日行）。`resolveLoginMessages`（views/login/utils/messages.ts，登录成功提示语义唯一出口，T-FE-046 阻断分支扩展点）：菜单已加载=success；半成功（含 initRouter 隐式重试仍失败）=warning 如实告知+指引占位项；拉取成功但账号无菜单（零权限）=warning 引导联系管理员；forceResetPwd 追加保留。store `menuLoadFailed`（refreshUserMenu 成败维护、logOut 重置）作空侧栏两态事实来源；`resolveSidebarFallback` 占位项两态（失败可重试 vs「当前账号无可用菜单」）；/menu-retry 着陆页按状态自适应文案/按钮（重试后「仍失败」error vs「仍无菜单」warning）。红跑 9 红实证：user.spec 3 红+router/utils.spec 4 红（stash 源码）+ messages.spec 2 红（旧语义等价被测体，既有行为 2 用例绿证不变）；vitest 303/303（+12 含 claude 外评补锁）+ typecheck/lint/build 全绿；login.md 交互流程/组件结构/占位项口径回写。双轨评审处置完毕（P0-P1=0：P2×1=registry 定案行补登记；P3×3 直接修——menu-retry 换行 pre-line/login.md mock 节残留句/remaining.ts 注释两态；存疑×2——menu-retry 会话过期重试失真登记 Q-020〔用户口径 token 失效统一处理不单点修，关联 T-FE-054/056〕、病态交错提示维持现状；定案与明细见 registry 同日处置行）。claude 外评处置完毕（2026-09-19 模型 deepseek-flash[1m]：P0-P1=0、P2×1=零菜单占位项携带未注册 name 致渲染消失/标签点击失效——删 name 对齐 buildSidebarMenus 不变量+spec 补锁；P3×2=mock 注释残留句两态化+meta.title 中性「菜单不可用」；存量×2=占位项两态图标 2 枚顺带注册+侧栏种子 8 枚未注册登记 Q-021、Q-020 已覆盖不另报；定案与明细见 registry 同日处置行）。**T-FE-046 双前置（T-FE-049+T-GW-009）全部就绪，P1 批剩余 046/048。**
 - 2026-09-19 T-FE-053 收口（P2 批第四个）：两项 AskUserQuestion 拍板（定案见 registry 同日行）——①修法=②+③组合：删守卫 meta.roles 死分支（触发面为零：全仓零路由声明 meta.roles、VITE_HIDE_HOME=false；本仓路由权限=后端 menus 派生，模板前端白名单永不启用）+全部 next() 站点统一「每 next 必 return」；utils.ts filterNoPermissionTree 维持现状（活跃链路+结构副作用）；②新建 router/index.spec.ts 守卫首次可测化（mock createRouter 捕获守卫回调+8 模块断环，node 环境零 DOM 零新 devDep；架子 T-FE-056 复用）。红跑实证旧实现 1 红 5 绿（红锁「声明 meta.roles 不再拦 403」got 2 times=双 next 本体）；vitest 309/309（+6）+typecheck/lint/build 全 0。双轨评审：代码轨 P0-P3 全零；文档轨 P3×1（056 卡/计划措辞滞后本批回写）；存疑两处事实性最小修正直接修（index.ts 头注时态+spec mock 分歧注释）、两处维持现状。连带 perms.ts 注释清扫；live 文档 6 处 filterNoPermissionTree 表述经核仍准确。claude 外评处置完毕（2026-09-19 模型 deepseek-flash[1m]：P0-P2=0、P3×1=守卫头注「next 恰一次」全称表述失真直修（三元站点无 return/externalLink 0 次 next 例外限定）+存量×4——单注册断言补锁、asyncRoutes/isOneOfArray 导出/403 路由维持；专项 1-5 全过含 vue-router 4 源码级核证；vitest 310/310；定案与明细见 registry 同日处置行）。**P2 批剩余 054/055/056；T-FE-056 前置就绪（守卫基线=无 roles 分支+每 next 必 return+可测架子）。**
+- 2026-09-20 T-FE-046 收口（P1 批第四个）：强制改密闭环——登录写 userId/forceResetPwd 入 userKey（登录覆盖清残留）+守卫 8 路径放行清单阻断（redirect /change-password）+`/change-password` 全屏页（8-32 位双字段无旧密码，复用 resetUserPassword 自身路径）+改密成功 `clearForceResetPwdFlag` 清标记会话保留进系统（后端改密不注销会话——代码级核实）+登录页 forceResetPwd warning 分支删除（T-ADMIN-022 口径退役，login.md 新增「强制改密闭环」节）。红跑 6 红实证（5 处对 HEAD 旧实现+redirect 族锁对修前清单回填红）；vitest 324/324（+14）+typecheck/lint/build 全 0。双轨评审处置：代码轨 P2×1=放行清单 /redirect 死项（真实刷新路径参数化精确匹配恒不中+裸路径放给 Layout 壳——删+补锁）+P3×2（user.spec Once 队列被 state 初始化吞噬修正；success toast 观感转拍板）；文档轨 P2×1=契约 §7.7 与后端注释「登录页 warning 据此闭环」滞后顺改+P3×2（「已实证」降格代码级核实；/redirect 同轨）。两项 AskUserQuestion 拍板（定案见 registry 2026-09-20 行）：阻断登录 success toast 维持现状；端到端验收（acceptance 第 5 条，经 Gateway 真实用户全链路）登记计划归档时统一跑（与 T-GW-009 Nacos 遗留同批——归档条件本含全量 E2E）。**P1 批剩余 T-FE-048；router/index.ts 守卫 053→046 两卡触达完毕，048（门禁 path 集更新方）/056（状态机）按建议序接力。**

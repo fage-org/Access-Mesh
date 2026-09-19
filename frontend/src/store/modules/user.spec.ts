@@ -201,6 +201,66 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
   });
 });
 
+describe("强制改密标记写入（T-FE-046：LoginResp userId/forceResetPwd 随登录入 userKey）", () => {
+  it("forceResetPwd=true 登录：userId 与阻断标记写入 userKey（跨标签共享存储，守卫阻断的标记源）——旧实现不写必红", async () => {
+    mockLogin.mockResolvedValue({
+      code: 200,
+      message: "ok",
+      data: { ...LOGIN_RESP, forceResetPwd: true }
+    });
+    mockGetUserMenu.mockResolvedValue(MENU_RESP);
+
+    await useUserStore().loginByUsername({
+      username: "admin",
+      password: "Admin@2026",
+      captchaId: "id",
+      captchaCode: "1234"
+    });
+
+    expect(mockStorage.setItem).toHaveBeenCalledWith(
+      "user-info",
+      expect.objectContaining({ userId: 1, forceResetPwd: true })
+    );
+  });
+
+  it("forceResetPwd=false 登录：覆盖旧会话残留标记（登录覆盖生命周期）——旧实现不写必红", async () => {
+    // 模拟 userKey 残留上一阻断会话标记。先取 store 实例使 state 初始化的
+    // 5 次 getItem（avatar/username/nickname/roles/permissions）消化默认 null，
+    // 两个 mockReturnValueOnce 精确落在 loginByUsername 链路读点（标记写入 +
+    // refreshUserMenu spread）——双轨评审代码轨 P3 修复：此前 Once 队列被
+    // state 初始化吞噬，stale 路径未被真正测到
+    const user = useUserStore();
+    const staleUserKey = {
+      username: "prev",
+      roles: [],
+      forceResetPwd: true,
+      userId: 9
+    };
+    mockStorage.getItem
+      .mockReturnValueOnce(staleUserKey)
+      .mockReturnValueOnce(staleUserKey);
+    mockLogin.mockResolvedValue({
+      code: 200,
+      message: "ok",
+      data: { ...LOGIN_RESP, forceResetPwd: false, userId: 2 }
+    });
+    mockGetUserMenu.mockResolvedValue(MENU_RESP);
+
+    await user.loginByUsername({
+      username: "other",
+      password: "Admin@2026",
+      captchaId: "id",
+      captchaCode: "1234"
+    });
+
+    // stale 里的 forceResetPwd:true 被登录响应覆盖为 false（残留不外溢）
+    expect(mockStorage.setItem).toHaveBeenCalledWith(
+      "user-info",
+      expect.objectContaining({ userId: 2, forceResetPwd: false })
+    );
+  });
+});
+
 describe("menuLoadFailed 状态维护（T-FE-049：空侧栏两态区分的事实来源）", () => {
   it("refreshUserMenu 失败：置 menuLoadFailed=true 且原样 rethrow（语义不变）——旧实现无状态必红", async () => {
     mockGetUserMenu.mockRejectedValue(new Error("network down"));

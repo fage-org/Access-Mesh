@@ -115,11 +115,14 @@ const fromNamed = { name: "Welcome", fullPath: "/" };
 /** js-cookie get 为重载签名（vi.mocked 取无参重载致 mockReturnValue 类型不合），放宽为 Mock */
 const cookiesGet = Cookies.get as unknown as Mock;
 
-/** 已登录态：多标签 cookie 在 + localStorage 落用户信息（守卫双条件） */
-function loginAs(roles: string[] = ["BASIC_ROLE"]) {
+/** 已登录态：多标签 cookie 在 + localStorage 落用户信息（守卫双条件）；stored 覆盖 userKey 附加字段（T-FE-046 forceResetPwd/userId） */
+function loginAs(
+  roles: string[] = ["BASIC_ROLE"],
+  stored: Record<string, unknown> = {}
+) {
   memStorage.set(
     userKey,
-    JSON.stringify({ username: "admin", roles, permissions: [] })
+    JSON.stringify({ username: "admin", roles, permissions: [], ...stored })
   );
   // 守卫仅读 multipleTabsKey 一处，固定返回真值即可（js-cookie get 重载签名
   // 与 mockImplementation 不兼容，用 mockReturnValue 表达同一语义）
@@ -191,6 +194,99 @@ describe("路由守卫 beforeEach（T-FE-053）", () => {
     const next = vi.fn();
     guard(makeTo({ path: "/login", fullPath: "/login" }), fromNamed, next);
     expect(removeToken).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith();
+  });
+});
+
+describe("路由守卫 forceResetPwd 阻断（T-FE-046）", () => {
+  /** 阻断态：登录标记 forceResetPwd=true（userKey，跨标签共享 localStorage） */
+  function loginAsForceReset() {
+    loginAs(["BASIC_ROLE"], { forceResetPwd: true, userId: 1 });
+  }
+
+  it("阻断：forceResetPwd=true 访问业务路由 redirect /change-password 恰一次——旧实现（无阻断）next() 无参放行必红", () => {
+    loginAsForceReset();
+    const next = vi.fn();
+    guard(makeTo(), fromNamed, next);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith({ path: "/change-password" });
+  });
+
+  it("放行面：/change-password、公共错误页（/error/403 代表）与未标记用户不受阻断", () => {
+    loginAsForceReset();
+    const nextChange = vi.fn();
+    guard(
+      makeTo({ path: "/change-password", fullPath: "/change-password" }),
+      fromNamed,
+      nextChange
+    );
+    expect(nextChange).toHaveBeenCalledTimes(1);
+    expect(nextChange).toHaveBeenCalledWith();
+
+    const nextError = vi.fn();
+    guard(
+      makeTo({ path: "/error/403", fullPath: "/error/403" }),
+      fromNamed,
+      nextError
+    );
+    expect(nextError).toHaveBeenCalledTimes(1);
+    expect(nextError).toHaveBeenCalledWith();
+
+    // 正常登录态（forceResetPwd 缺省）业务路由照常放行——阻断闸门仅对标记开
+    loginAs();
+    const nextNormal = vi.fn();
+    guard(makeTo(), fromNamed, nextNormal);
+    expect(nextNormal).toHaveBeenCalledTimes(1);
+    expect(nextNormal).toHaveBeenCalledWith();
+  });
+
+  it("阻断态访问 /login：不被改密页重定向（放行清单内），走既有白名单弹回 _from——非阻断用户行为不变", () => {
+    loginAsForceReset();
+    const next = vi.fn();
+    guard(makeTo({ path: "/login", fullPath: "/login" }), fromNamed, next);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith("/");
+  });
+
+  it("新开标签同被阻断：守卫每次导航重读共享存储（无模块级状态），同 storage 连续两次导航均 redirect 改密页——旧实现必红", () => {
+    loginAsForceReset();
+    const nextFirst = vi.fn();
+    guard(makeTo(), fromNamed, nextFirst);
+    const nextSecond = vi.fn();
+    guard(makeTo(), fromNamed, nextSecond);
+    expect(nextFirst).toHaveBeenCalledWith({ path: "/change-password" });
+    expect(nextSecond).toHaveBeenCalledWith({ path: "/change-password" });
+  });
+
+  it("redirect 族不放行：真实标签刷新形态 /redirect/<path> 与裸 /redirect 均 redirect 改密页——裸路径命中 Layout 父记录会把侧栏壳放给阻断人群（双轨评审 P2 修复锁，修前清单含 /redirect 必红）", () => {
+    loginAsForceReset();
+    const nextFresh = vi.fn();
+    guard(
+      makeTo({
+        path: "/redirect/system/user",
+        fullPath: "/redirect/system/user"
+      }),
+      fromNamed,
+      nextFresh
+    );
+    expect(nextFresh).toHaveBeenCalledWith({ path: "/change-password" });
+
+    const nextBare = vi.fn();
+    guard(
+      makeTo({ path: "/redirect", fullPath: "/redirect" }),
+      fromNamed,
+      nextBare
+    );
+    expect(nextBare).toHaveBeenCalledWith({ path: "/change-password" });
+  });
+
+  it("改密成功后放行：标记置 false（clearForceResetPwdFlag 的存储效果）后业务路由 next() 无参放行", () => {
+    loginAsForceReset();
+    // 改密成功 = 共享存储中标记翻转为 false（另一标签同 storage 重读即解除阻断）
+    loginAs(["BASIC_ROLE"], { forceResetPwd: false, userId: 1 });
+    const next = vi.fn();
+    guard(makeTo(), fromNamed, next);
     expect(next).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith();
   });
