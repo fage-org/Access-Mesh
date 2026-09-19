@@ -11,7 +11,7 @@
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
 | access-service 归并（跨服务） | `T-ACCESS` | 052 |
-| permission-center | `T-PERM` | 070 |
+| permission-center | `T-PERM` | 074 |
 | admin-service | `T-ADMIN` | 028 |
 | gateway | `T-GW` | 010 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
@@ -106,7 +106,7 @@
 |---|---|---|---|---|---|---|
 | [T-ACCESS-051](../archive/2026-09-18/tasks/T-ACCESS-051.md) | Q-013 时序用例裸 sleep 清扫——TaskExecutionLeaseConcurrencyTest 两方法改 5s 有界轮询（✅ 2026-09-18 收口：定向 10/10 + 全量含 E2E 1724 项 0 失败；双轨评审零 P0-P2，同族三处登记 Q-014） | — | testing-standards rule §10.3（口径已载，无设计回写面） | — | ✅ | — |
 
-### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——未终态仅剩暂缓项 T-PERM-035/036/054 挂本表等 PM 重申）
+### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——T-PERM-035 已取消〔2026-09-19 定稿拆卡 070~073 承接并随批次归档〕；未终态剩暂缓项 T-PERM-036/054 与 035 实现序列 070~073）
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
@@ -143,7 +143,11 @@
 | T-PERM-032 | 7.2 变更日志后端（已收口 2026-08-29，终态见 design/frontend/permission-change-log.md §5） | [frontend-phase2](../archive/2026-09-14/frontend-phase2-plan.md)（已归档） | api-contract §5.8/§6.8；implementation §2.3 | T-FE-012 | ✅ | ✓ |
 | [T-PERM-033](../archive/2026-09-14/tasks/T-PERM-033.md) | 4.2 权限查询后端（已收口 2026-08-29，终态见任务卡/设计回写） | [frontend-phase2](../archive/2026-09-14/frontend-phase2-plan.md)（已归档） | api-contract §6.6-§6.8；implementation；design/frontend/permission-query.md | T-FE-013 | ✅ | ✓ |
 | [T-PERM-034](../archive/2026-09-14/tasks/T-PERM-034.md) | 4.1 权限授予后端（已收口 2026-08-30，终态见任务卡完成记录） | [frontend-phase2](../archive/2026-09-14/frontend-phase2-plan.md)（已归档） | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；permission-grant.md §12；access-service.sql | T-PERM-031 | ✅ | ✓ |
-| [T-PERM-035](T-PERM-035.md) | 自动授权（resolveAutoGrants + autoGrantForInsert + 循环依赖检测）— ⚠️ design-review §11 E4 暂缓未排期 | —（2026-09-14 脱出已归档计划，暂缓等 PM 重申） | engine/core-flows §12；engine/implementation §4；契约总册 §12.4 | T-PERM-034 | ⚙️ | ⏳ |
+| [T-PERM-035](../archive/2026-09-19/tasks/T-PERM-035.md) | 自动授权（旧口径）— ❌ cancelled 2026-09-19：被定稿设计取代，拆分承接见 T-PERM-070~073；§11 E4 暂缓随定稿解除 | — | docs/design/dependency-auto-grant.md（取代依据） | — | ❌ | — |
+| [T-PERM-070](T-PERM-070.md) | 前置·公共服务认证模块（per-service 静态凭证：仲裁器/白名单/Gateway M2M/信任域 TLS） | —（T-PERM-035 实现序列前置卡） | docs/design/service-authentication.md | — | ⚙️ | ⏳ |
+| [T-PERM-071](T-PERM-071.md) | 依赖声明层（declaration/manifest_sync 表+manifest 通道+编译器+starter+batch-sync 删除） | —（035A） | docs/design/dependency-auto-grant.md §2-§5 | T-PERM-070 | ⚙️ | ⏳ |
+| [T-PERM-072](T-PERM-072.md) | 自动授权物化器（AUTO_DEP+support 二遍追踪+触发面 7 项+两级锁） | —（035B） | docs/design/dependency-auto-grant.md §3.5/§3.6/§6-§8 | T-PERM-071 | ⚙️ | ⏳ |
+| [T-PERM-073](T-PERM-073.md) | 观测与对账（explain+Admin UI 改版+Reconciler） | —（035C） | docs/design/dependency-auto-grant.md §11-§13 | T-PERM-072 | ⚙️ | ⏳ |
 | [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证（scopeMode → SQL 映射链路）— ⚠️ design-review §11 Q7/B 暂缓（延后 example-service） | —（2026-09-14 脱出已归档计划，暂缓等 PM 重申） | 契约总册 §18.6；engine/core-flows；engine/implementation | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |
 | [T-PERM-037](../archive/2026-09-14/tasks/T-PERM-037.md) | 跨页共性接口改造 + api-contract 回写收尾（已收口 2026-08-31，审计型零代码变更，终态见任务卡完成记录） | [frontend-phase2](../archive/2026-09-14/frontend-phase2-plan.md)（已归档） | api-contract；implementation | T-PERM-022~034 | ✅ | ✓ |
 | [T-PERM-038](../archive/2026-09-12/tasks/T-PERM-038.md) | 全局 TODO 收口（已收口 2026-09-12：附录 A 七条定性——3 条消解/2 条 T-PERM-035 预留保留/2 条失效注释删除；终态见任务卡处置记录） | [frontend-phase4](../archive/2026-09-12/frontend-phase4-plan.md) | —（工程改进，无设计回写） | — | ✅ | — |
@@ -312,7 +316,7 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 
 1. 归并主链已全部完成并归档（`docs/archive/2026-08-22/access-service-merge-plan.md`）；后续强化（T-ACCESS-013 OAuth2 资源服务器、T-ACCESS-015 菜单写链路收口）已完成并归档（`docs/archive/2026-08-27/access-post-merge-plan.md`）。
 2. 后端门禁解除：重基线后的 T-PERM/T-ADMIN 任务按各自 `depends_on` 推进（T-PERM-022~041、T-ADMIN-020/021）。
-3. 前端真接口联调（T-FE-015~022）后端依赖已就绪（T-PERM-037 收口 2026-08-31，逐页后端 T-PERM-022~034/037/040/041 全部完成；T-FE-015/016 已收口 2026-08-31/09-01——menus 后端派生接线/默认树/固定图扩容落地，后续各页联调按 T-FE-015 模式扩 Gateway 端点清单；暂缓项 T-PERM-035/036 另行定夺；T-ADMIN-021 已收口 2026-09-03，T-FE-037 二期依赖全部就绪）；纯 mock/UI 任务不受影响。
+3. 前端真接口联调（T-FE-015~022）后端依赖已就绪（T-PERM-037 收口 2026-08-31，逐页后端 T-PERM-022~034/037/040/041 全部完成；T-FE-015/016 已收口 2026-08-31/09-01——menus 后端派生接线/默认树/固定图扩容落地，后续各页联调按 T-FE-015 模式扩 Gateway 端点清单；暂缓项 T-PERM-036 另行定夺（T-PERM-035 已定稿拆卡 070~073）；T-ADMIN-021 已收口 2026-09-03，T-FE-037 二期依赖全部就绪）；纯 mock/UI 任务不受影响。
 4. access-post-merge 准入前置已由 T-ACCESS-017 最小 CI 落地关闭（GitHub Actions 两 job 以退出状态判定成功；原登记 40 项与 68 项实测均为历史口径，不维护计数同步）。
 
 ### access-service 能力包融合（2026-09-13 立项）
@@ -376,7 +380,7 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 
 - `T-PERM-022~034` 逐页后端接口改造 ← 各 Phase 1 前端任务（🔧❌ 清单）
 - `T-PERM-037` 跨页共性接口改造 + api-contract 回写收尾 ← T-PERM-022~034（不重复逐页改造）
-- `T-PERM-035` 自动授权 / `T-PERM-036` 动态数据权限 — ⚠️ design-review §11 暂缓，需 PM 重申
+- `T-PERM-036` 动态数据权限 — ⚠️ design-review §11 暂缓，需 PM 重申（T-PERM-035 自动授权已于 2026-09-19 定稿并拆卡 T-PERM-070~073，暂缓解除）
 - `T-FE-015~022` Phase 3 联调 ← Phase 1 + Phase 2
 - `T-FE-023` 扩展验证 / `T-ADMIN-020` 代码清理 / `T-PERM-038` TODO 收口 / `T-PERM-039` 测试补充 — Phase 4（✅ 全部 done，2026-09-12 随计划归档）
 
@@ -409,7 +413,7 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 
 ### P9 — 产品定位落地（2026-08-28 立项，定位定案：开源通用 IAM）
 
-> 设计定案（2026-08-28）：产品定位 = 开源通用 IAM（通用多租户访问控制平台）；暂缓能力维持暂缓（自动授权写入口 20048 预留禁用、动态数据权限延后 example-service，等 PM 重申重启）。计划已归档（[archive/2026-09-07](../archive/2026-09-07/product-positioning-landing-plan.md)）。
+> 设计定案（2026-08-28）：产品定位 = 开源通用 IAM（通用多租户访问控制平台）；暂缓能力维持暂缓（自动授权写入口 20048 预留禁用、动态数据权限延后 example-service，等 PM 重申重启）。计划已归档（[archive/2026-09-07](../archive/2026-09-07/product-positioning-landing-plan.md)）。【2026-09-19 更新：自动授权已定稿立项（T-PERM-070~073，20048 随 auto_grant 列退役）；仅动态数据权限（T-PERM-036）维持暂缓】
 
 1. `T-ACCESS-028` perm-data 空装配模块删除 — ✅ done（2026-08-28）
 2. `T-ACCESS-027` 文档三档叙事整改 — ✅ done（2026-08-28：三档口径入口落位 design/README、architecture §4.2/§4.3 演示模块重写三档标注、决策过程标注清扫 27 处；计划已 completed，物理归档待后续批次）

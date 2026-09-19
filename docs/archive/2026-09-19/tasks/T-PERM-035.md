@@ -2,13 +2,11 @@
 doc_type: task
 id: T-PERM-035
 title: 自动授权（resolveAutoGrants + autoGrantForInsert + 循环依赖检测）
-status: proposed
-plan: —（2026-09-14 脱出 frontend-phase2 随计划归档；暂缓门禁不变，等 PM 重申）
+status: cancelled
+plan: —（2026-09-14 脱出 frontend-phase2 随计划归档）
 domain: permission-center
 design_refs:
-  - docs/design/engine/core-flows.md
-  - docs/design/engine/implementation.md
-  - docs/design/access-service-api-contract.md#§12.4（autoGrant 预留段；T-ACCESS-040 重挂总册）
+  - docs/design/dependency-auto-grant.md（取代依据；原 engine/core-flows §12、implementation、契约 §12.4 回写义务已转移至 T-PERM-072/073）
 depends_on:
   - T-PERM-034
 blocks: []
@@ -24,13 +22,13 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-06-29
+last_updated: 2026-09-19
 ---
 
 # T-PERM-035 自动授权
 
-> 状态：proposed
-> ⚠️ 执行门禁：design-review §11 E4 — auto-grant 保留 TODO + 排期 Phase X（未排期）。进入 in-progress 前必须 PM 重申解除暂缓。
+> 状态：cancelled（2026-09-19）
+> 被新设计取代：实例级依赖与自动授权 v1 设计定稿（docs/design/dependency-auto-grant.md + service-authentication.md，adopted，2026-09-19 用户确认定稿）——本卡旧口径（resolveAutoGrants/autoGrantForInsert）由拆分卡 T-PERM-070（前置·服务认证）/071（声明层）/072（物化）/073（观测）承接；原 design-review §11 E4 暂缓门禁随定稿解除。
 
 ## decision_refs（暂缓依据，非实现依据）
 
