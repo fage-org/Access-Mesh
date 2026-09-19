@@ -15,9 +15,10 @@
  * - 轨道 2（配权门禁）：矩阵查看/授权动作统一用对目标抽象角色的 `ROLE:VIEW` / `ROLE:MANAGE`
  *   （后端 role-resource-permission/* 均校验目标抽象角色）。
  *
- * ## meta.auths 说明（T-FE-037 评审澄清）
- * 本页路由 auths 为按钮级声明，不参与路由拦截（router/index.ts beforeEach 仅按
- * meta.roles）；页面进入控制=页内 canView（ROLE:VIEW）整页占位 + 后端接口门禁，
+ * ## meta.auths 说明（T-FE-037 评审澄清；T-FE-053 更新口径）
+ * 本页路由 auths 为按钮级声明，不参与路由拦截（router/index.ts beforeEach 不做
+ * 角色拦截，T-FE-053 已删模板 meta.roles 死分支）；页面进入控制=页内
+ * canView（ROLE:VIEW）整页占位 + 后端接口门禁，
  * 左栏数据源串（ORG:VIEW 等）为页内软探查，进不了 auths 也拦不住路由。
  *
  * perm 串字面量全部为既有资源类型:操作码复用（无新增权限串）：

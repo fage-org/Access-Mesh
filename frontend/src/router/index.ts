@@ -17,7 +17,6 @@ import {
   ascending,
   getTopMenu,
   initRouter,
-  isOneOfArray,
   getHistoryMode,
   findRouteByPath,
   handleAliveRoute,
@@ -119,6 +118,13 @@ const whiteList = ["/login"];
 
 const { VITE_HIDE_HOME } = import.meta.env;
 
+/**
+ * 路由级权限口径（T-FE-053，2026-09-19 拍板）：本仓路由权限=后端 menus 派生
+ * （侧栏可见性 T-FE-015 + 路由级 UX 门禁 T-FE-056——落地前路由仍全可达，
+ * 后端 403 兜底），不使用 pure-admin 模板的 meta.roles 前端白名单（全仓零声明，
+ * 死分支已删）。守卫纪律：每处 next() 后立即 return，保证单次导航 next 恰好
+ * 调用一次（贯穿不 return 会触发第二次 next）。
+ */
 router.beforeEach((to: ToRouteType, _from, next) => {
   to.meta.loaded = loadedPaths.has(to.path);
 
@@ -148,13 +154,10 @@ router.beforeEach((to: ToRouteType, _from, next) => {
     whiteList.includes(to.fullPath) ? next(_from.fullPath) : next();
   }
   if (Cookies.get(multipleTabsKey) && userInfo) {
-    // 无权限跳转403页面
-    if (to.meta?.roles && !isOneOfArray(to.meta?.roles, userInfo?.roles)) {
-      next({ path: "/error/403" });
-    }
     // 开启隐藏首页后在浏览器地址栏手动输入首页welcome路由则跳转到404页面
     if (VITE_HIDE_HOME === "true" && to.fullPath === "/welcome") {
       next({ path: "/error/404" });
+      return;
     }
     if (_from?.name) {
       // name为超链接
@@ -208,12 +211,15 @@ router.beforeEach((to: ToRouteType, _from, next) => {
     if (to.path !== "/login") {
       if (whiteList.indexOf(to.path) !== -1) {
         next();
+        return;
       } else {
         removeToken();
         next({ path: "/login" });
+        return;
       }
     } else {
       next();
+      return;
     }
   }
 });
