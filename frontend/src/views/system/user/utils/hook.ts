@@ -1,4 +1,5 @@
 import { ref, reactive } from "vue";
+import { ElMessageBox } from "element-plus";
 import type { UserItem } from "./types";
 import {
   getUserPage,
@@ -92,10 +93,28 @@ export function useUserManage() {
     loadTable();
   }
 
+  /** 删除用户（T-FE-047：销毁性操作先二次确认，取消静默返回；失败透出后端原因——如 CANNOT_DELETE_SELF） */
   async function handleDelete(user: UserItem) {
-    await deleteUser([user.id]);
-    message("用户已删除", { type: "success" });
-    loadTable();
+    try {
+      await ElMessageBox.confirm(
+        `确认删除用户 "${user.name}"？删除后该用户将无法登录，所属组织与岗位关联将一并移除。`,
+        "删除确认",
+        {
+          confirmButtonText: "确认删除",
+          cancelButtonText: "取消",
+          type: "warning"
+        }
+      );
+    } catch {
+      return; // 取消
+    }
+    try {
+      await deleteUser([user.id]);
+      message("用户已删除", { type: "success" });
+      loadTable();
+    } catch (error: any) {
+      message(error.message || "删除失败", { type: "error" });
+    }
   }
 
   return {

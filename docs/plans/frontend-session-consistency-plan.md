@@ -63,7 +63,7 @@ last_updated: 2026-09-19
 |---|---|---|
 | [T-FE-045](../tasks/T-FE-045.md) | 登出真注销——前端接 `/api/access/auth/logout` | ✅ done |
 | [T-FE-046](../tasks/T-FE-046.md) | 强制改密闭环——自助改密页 + forceResetPwd 阻断 | ⚙️ proposed |
-| T-FE-047 | 用户删除二次确认与错误反馈 | ⚙️ proposed |
+| T-FE-047 | 用户删除二次确认与错误反馈 | ✅ done |
 | [T-FE-048](../tasks/T-FE-048.md) | 会话权限热刷新——403 触发自动刷新 + 手动入口 | ⚙️ proposed |
 | T-FE-049 | 登录半成功语义修正（诚实提示） | ⚙️ proposed |
 
@@ -97,3 +97,4 @@ last_updated: 2026-09-19
 - 2026-09-19 claude 外评（P1×1+P2×2+P3×4，逐条代码级核实：P1 成立=Gateway 白名单缺 reset-password 会锁死阻断人群→定案⑤拍板 Gateway 白名单纳入+T-GW-009 立项；P2×2 成立=/redirect 白名单漏项、048/056 刷新失败状态语义互斥→状态迁移表钉死；P3×4 成立或部分成立=045 过期路径注销无头、051 现状描述失实（十页均已有 catch）、056 清扫面漏 system-config 与效应格、任务卡过程叙事残留→全部处置；外评原文计数勘误 15→14 项）处置完成：五卡修正+registry/看板/本计划同步。
 - 2026-09-19 T-GW-009 收口（白名单+密钥豁免同源同步+双轨评审 P0 处置+两处回归锁旧实现实证红，详见「关键依赖」节前置执行状态）；T-FE-046 前置就绪，P1/P2 前端任务均未开工。
 - 2026-09-19 T-FE-045 收口（P1 批首个前端任务）：`api/auth.ts logout(authorization)` 显式携 Authorization 头（api 层纯透传）+ http 请求白名单纳入 logout（防过期分支 logOut 递归与注销空转）+ `logOut()` 服务端注销优先/本地清理无条件/串行防抖（进行中短路、完成后零请求）；回归锁×7 红跑实证（旧实现下全红、既有 7 用例全绿），login.md「登出流程」节回写、T-FE-041「前端登出不调接口」口径退役注记。claude 外评处置完毕（2026-09-19：P0-P1=0、P2×1 成立→用户拍板维持现状不修（accessToken 入 localStorage 扩大令牌存续面反噬）、P3×1 成立→登记 Q-016 不修；存量观察×5 维持现状；定案与明细见 registry 同日处置行）。
+- 2026-09-19 T-FE-047 收口（P1 批第二个）：`user/utils/hook.ts handleDelete` 照角色页 hook 先例加两段 try/catch——ElMessageBox.confirm（取消零请求）+ 删除失败 `message(error.message || "删除失败")`（后端业务错如 CANNOT_DELETE_SELF 经 RequestError.message 透出）；确认文案含真实后果（无法登录+组织/岗位关联一并移除，对齐后端级联语义）；MemberTab 两入口经 hook 自动全覆盖零组件改动。与 T-FE-051 分工：loadTable/handleCreate/handleUpdate 的 catch+message 收口归 051。回归锁×3 红跑实证（stash 源码 3 用例全红）；vitest 242/242 + typecheck/lint/build 全绿。
