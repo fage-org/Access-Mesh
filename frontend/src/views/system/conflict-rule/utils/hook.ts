@@ -2,6 +2,8 @@ import { ref, reactive, computed, onMounted } from "vue";
 import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
 import { hasPerms } from "@/utils/auth";
+import { toErrorMessage } from "@/api/_envelope";
+import { useListLoad } from "@/utils/list-load";
 import {
   getConflictRuleList,
   createConflictRule,
@@ -101,8 +103,17 @@ export function useConflictRule() {
   );
 
   // ========== 列表 ==========
-  const list = ref<ConflictRuleResp[]>([]);
-  const loading = ref(false);
+  // T-FE-051：列表加载收敛 useListLoad（latest-wins 代际 + 失败提示保留旧数据）；
+  // 权限门禁留在包装层（无权限清空列表不发请求）
+  const {
+    list,
+    loading,
+    load: loadListCore
+  } = useListLoad<ConflictRuleResp>({
+    errorText: "加载冲突规则列表失败",
+    fetcher: async () =>
+      (await getConflictRuleList()).items.slice().sort((a, b) => a.id - b.id)
+  });
   const search = reactive({
     keyword: "",
     conflictType: "" as "" | "ROLE_MUTEX" | "PERM_MUTEX"
@@ -134,7 +145,7 @@ export function useConflictRule() {
       roleMap.value = new Map(roles.map(r => [r.id, r]));
       operationMap.value = new Map(operations.map(o => [o.id, o]));
       resourceTypeMap.value = new Map(typeDefs.map(t => [t.typeValue, t]));
-    } catch (e: any) {
+    } catch (e) {
       // 映射加载失败不阻塞主列表（名称将回退显示 #ID）
       console.warn("[conflict-rule] 加载引用数据失败:", e?.message);
     }
@@ -145,15 +156,7 @@ export function useConflictRule() {
       list.value = [];
       return;
     }
-    loading.value = true;
-    try {
-      const res = await getConflictRuleList();
-      list.value = res.items.slice().sort((a, b) => a.id - b.id);
-    } catch (e: any) {
-      message(e.message || "加载冲突规则列表失败", { type: "error" });
-    } finally {
-      loading.value = false;
-    }
+    return loadListCore();
   }
 
   const filteredList = computed(() => {
@@ -250,8 +253,8 @@ export function useConflictRule() {
       }
       await loadList();
       return true;
-    } catch (e: any) {
-      message(e.message || "操作失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "操作失败"), { type: "error" });
       return false;
     }
   }
@@ -275,8 +278,8 @@ export function useConflictRule() {
       message("冲突规则已删除", { type: "success" });
       await loadList();
       return true;
-    } catch (e: any) {
-      message(e.message || "删除失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "删除失败"), { type: "error" });
       return false;
     }
   }
@@ -287,8 +290,8 @@ export function useConflictRule() {
   ): Promise<ConflictDetectResp | null> {
     try {
       return await detectConflictRule(req);
-    } catch (e: any) {
-      message(e.message || "冲突检测失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "冲突检测失败"), { type: "error" });
       return null;
     }
   }

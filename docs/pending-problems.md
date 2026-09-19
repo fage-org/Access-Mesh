@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-019           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-19（Q-019 登记）
+last_updated: 2026-09-19（Q-019 登记；Q-017 随 T-FE-051 收敛）
 ---
 
 # 待解决问题清单（pending problems）
@@ -40,19 +40,6 @@ last_updated: 2026-09-19（Q-019 登记）
 **关联现象（T-FE-050 claude 外评存量观察①，用户拍板注记）**：空名数据态下 OrgForm.parentOrgDisplay 三段 fallback（OrgForm.vue:106-114）把空串父名渲染为「根组织」，与信息卡空白显示不一致——本 Q 修复（update 通道拒空串）后该数据态不可再造，渲染差异自然消失，无需独立动作。
 
 **设想方向（未定案）**：update 通道补「null 跳过、空串拒绝」校验——注意直接加 `@NotBlank` 会连 null（=不更新语义）一起拒（Hibernate Validator 对 null 也判 invalid），须选 null 视为合法的约束（如 `@Pattern` 非空白）或服务层显式空串拒绝；配直连 API 回归锁。
-
-## Q-017 user/index.vue 死解构 + 组织点击双请求（useUserManage 双实例各发一次 /user/page）
-
-- **状态**：open
-- **登记**：2026-09-19（T-FE-047 claude 外评存量观察，用户拍板登记 Q）
-- **来源**：T-FE-047 claude 外评（存量观察①）
-- **关联**：T-FE-051（收敛载体。2026-09-19 拍板：T-FE-050 开工时 AskUserQuestion 用户裁定不顺带收敛——两设想方向正是 051「composable 化」的设计决策面，定案见 decision-registry 同日行）
-
-**现象与证据**：`frontend/src/views/system/user/index.vue:64-78` 从 `useUserManage()` 解构 12 项实际只用 3 项（`pagination`/`loadTable`/`selectedOrgId`，其余 `handleDelete`/`handleCreate`/`handleUpdate`/`onSearch` 等 10 项为死引用）；且 index.vue 与 MemberTab.vue **各自实例化** `useUserManage()`（每调用一次全部 state 新建），每次点选组织：index.vue `onOrgChange` 调自家 `loadTable()` + MemberTab `watch(orgId)` 调自家 `onSearch()`——共发**两次** `/user/page`，其中 index.vue 实例的响应无人消费（其 tableData 从不渲染，MemberTab 渲染自家实例）。
-
-**影响**：每次组织切换多一次无消费请求（幂等只读、纯浪费无数据错）+ 10 项死引用误导后来者；另 watch `immediate: true` 使 MemberTab 挂载即首载一次（index.vue 无初始加载，行为不对称）。
-
-**设想方向（未定案）**：index.vue 收敛为只消费 MemberTab 已有链路（去掉自家 useUserManage 实例，`selectedOrgId` 等状态就地化）或状态上提共享单实例——具体形态随 T-FE-051（用户页 loadTable 接线试点）触达时定（原拟随 T-FE-050/051 任一触达定，2026-09-19 拍板定为 051）。
 
 ## Q-016 logOut 本地清理被服务端注销 await 推迟（后端黑洞挂 ≤10s + 窗口内旧清理链清新登录竞态）
 
@@ -94,9 +81,9 @@ last_updated: 2026-09-19（Q-019 登记）
 **设想方向（未定案）**：改确定性时间轴表达（候选：会话 TTL/续期时间操控注入——涉及 sa-token 会话时间操控方式选型，非顺手量级，待轻量批次立项定性）。
 
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
-
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-017 | user/index.vue 死解构 + 组织点击双请求（useUserManage 双实例各发一次 /user/page） | closed（T-FE-051 done：2026-09-19 AskUserQuestion 拍板「就地化」——index.vue 删除整个 useUserManage 实例（12 项死解构清零），selectedOrgId 就地化本地 ref，onOrgChange 不再调 loadTable，成员表加载由 MemberTab watch(orgId)→onSearch 链路独占（点组织单请求、挂载即首载一次）；重复点击同一节点行为不变（watch 值不变不触发，原 index 实例刷新本就无人消费）。同卡两项拍板之二：handleToggleStatus 移入 hook 透后端 error.message。定案见 registry 同日行） | [T-FE-051](../tasks/T-FE-051.md) | 2026-09-19 |
 | Q-013 | TaskExecutionLeaseConcurrencyTest 剩余两个裸 sleep(1200) 方法未改有界轮询 | closed（T-ACCESS-051 done：takeoverAfterExpiryPreventsOldHolderFromOverwriting 改 5s 有界轮询至 tryClaim 接管成功、takeoverReexecutesWithSameIdempotencyKey 改每轮扫描+终态检查（断言语义均不变），终态条件抽 isTerminal 与 awaitTerminal 共用；双轨评审零 P0-P2；定向容器轨 10/10 绿 + 收口全量含 E2E 1724 项 0 失败。纪律出处 registry 2026-09-06/2026-09-16 行；评审上报三处同族裸 sleep 登记 Q-014） | [T-ACCESS-051](archive/2026-09-18/tasks/T-ACCESS-051.md) | 2026-09-18 |
 | Q-008 | SERVICE/API 固定图种子行维持 MANAGED，是否声明内部来源收紧 | closed（T-PERM-069 done：2026-09-18 用户拍板「仅 API 收紧」——①API 种子声明 SYNC+access-service，唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图，管理面资源 CRUD 20055（回归锁旧种子下实证失败）；②SERVICE 维持 MANAGED（新行唯一通道=管理面手工建行做按服务实例级授权，收紧即零 writer 死局，重启评估须以 service-config 联动建行配套为前置）；存量 dev 库 86 行 MANUAL 全为固定图零野行、订正语句登记 runbook；双轨评审全处置、全量含 E2E 1721 项 0 失败。定案见 registry 2026-09-18 行） | [T-PERM-069](archive/2026-09-18/tasks/T-PERM-069.md) | 2026-09-18 |
 | Q-007 | sync 通道跨类型父子边是否收紧为同类型父边 | closed（T-PERM-068 done：三定案全落地——①sync/full-sync 显式异类型父边 NON_RETRYABLE/PARENT_TYPE_MISMATCH（先于父解析与版本写入）+ 缺省回填同类型（契约 §19.2 原意兑现，半传静默解挂漂移同步修复）；②管理面 create/batch-create 对齐 move 20053 + 单条裸 parentId 补存在性/类型校验；③判定面闭包止步与 remove 跨类型级联守卫保留作 DB 直写脏数据防线。10 回归锁旧实现下实证失败；全量含 E2E 1716 项 0 失败。定案见 registry 2026-09-17 行） | [T-PERM-068](archive/2026-09-17/tasks/T-PERM-068.md) | 2026-09-17 |

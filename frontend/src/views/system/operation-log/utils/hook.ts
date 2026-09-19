@@ -1,10 +1,10 @@
 import { ref, reactive, onMounted } from "vue";
-import { message } from "@/utils/message";
 import {
   getOperationLogList,
   getOperationLogActionOptions,
   type OperationLogResp
 } from "@/api/operation-log";
+import { usePagedList } from "@/utils/list-load";
 import { createEmptySearchForm } from "./types";
 import { formatToWallClockIso } from "@/utils/wall-clock";
 
@@ -17,16 +17,42 @@ import { formatToWallClockIso } from "@/utils/wall-clock";
  *
  * T-PERM-025 收口：筛选维度扩展（module/action/operatorId/时间范围/targetType）+
  * action 下拉由 /log/operation/action-options 动态拉取（全量字典，含 module 过滤参数备用）。
+ * T-FE-051：列表加载接线 usePagedList（失败提示保留旧数据 + latest-wins 请求代际）；
+ * action 字典为一次性挂载加载、无重触发面，保持静默失败（不阻塞列表）不入列表 composable。
  */
 export function useOperationLog() {
-  const tableData = ref<OperationLogResp[]>([]);
-  const loading = ref(false);
   const searchForm = reactive(createEmptySearchForm());
-  const pagination = reactive({ page: 1, size: 15, total: 0 });
   /** action 字典选项（后端实际存在的去重事件码，label=value=code） */
   const actionOptions = ref<ReadonlyArray<{ label: string; value: string }>>(
     []
   );
+
+  const {
+    tableData,
+    loading,
+    pagination,
+    loadTable,
+    onSearch,
+    onPageChange,
+    onPageSizeChange
+  } = usePagedList<OperationLogResp>({
+    errorText: "加载操作日志失败",
+    fetcher: (page, size) =>
+      getOperationLogList({
+        module: searchForm.module || undefined,
+        action: searchForm.action || undefined,
+        operatorId: searchForm.operatorId ?? undefined,
+        since: searchForm.timeRange?.[0]
+          ? formatToWallClockIso(searchForm.timeRange[0])
+          : undefined,
+        until: searchForm.timeRange?.[1]
+          ? formatToWallClockIso(searchForm.timeRange[1])
+          : undefined,
+        targetType: searchForm.targetType || undefined,
+        pageNum: page,
+        pageSize: size
+      })
+  });
 
   async function loadActionOptions() {
     try {
@@ -41,56 +67,13 @@ export function useOperationLog() {
     }
   }
 
-  async function loadTable() {
-    loading.value = true;
-    try {
-      const res = await getOperationLogList({
-        module: searchForm.module || undefined,
-        action: searchForm.action || undefined,
-        operatorId: searchForm.operatorId ?? undefined,
-        since: searchForm.timeRange?.[0]
-          ? formatToWallClockIso(searchForm.timeRange[0])
-          : undefined,
-        until: searchForm.timeRange?.[1]
-          ? formatToWallClockIso(searchForm.timeRange[1])
-          : undefined,
-        targetType: searchForm.targetType || undefined,
-        pageNum: pagination.page,
-        pageSize: pagination.size
-      });
-      tableData.value = res.items;
-      pagination.total = res.total;
-    } catch (e: any) {
-      message(e.message || "加载操作日志失败", { type: "error" });
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  function onSearch() {
-    pagination.page = 1;
-    loadTable();
-  }
-
   function onReset() {
     searchForm.module = null;
     searchForm.action = null;
     searchForm.operatorId = null;
     searchForm.timeRange = null;
     searchForm.targetType = null;
-    pagination.page = 1;
-    loadTable();
-  }
-
-  function onPageChange(page: number) {
-    pagination.page = page;
-    loadTable();
-  }
-
-  function onPageSizeChange(size: number) {
-    pagination.size = size;
-    pagination.page = 1;
-    loadTable();
+    onSearch();
   }
 
   onMounted(() => {

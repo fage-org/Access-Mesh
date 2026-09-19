@@ -1,6 +1,8 @@
 import { ref, reactive, onMounted } from "vue";
 import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
+import { toErrorMessage } from "@/api/_envelope";
+import { useListLoad, usePagedList } from "@/utils/list-load";
 import {
   getBizDomainList,
   createBizDomain,
@@ -34,96 +36,75 @@ import {
  *
  * 主表 CRUD 区别于 system-config：biz-domain 有独立 create/update/remove 接口，
  * 故 handleSubmitBizDomain 区分 create/edit + handleDeleteBizDomain；edit 以业务键 code 定位。
+ *
+ * T-FE-051：主表接线 usePagedList、子表 configReqSeq 代际先例收敛到 useListLoad
+ * （语义不变：切域使在途请求过期、迟到响应丢弃；门禁/切域立即清空仍在页面侧）。
  */
 export function useBizDomain() {
   // ========== 主表：BizDomain ==========
-  const tableData = ref<BizDomainResp[]>([]);
-  const loading = ref(false);
   const searchForm = reactive({ keyword: "" });
-  const pagination = reactive({ page: 1, size: 15, total: 0 });
 
   // 当前选中的业务域（驱动子表加载）
   const currentDomain = ref<BizDomainResp | null>(null);
 
-  // ========== 子表：DomainConfig ==========
-  const configData = ref<DomainConfigResp[]>([]);
-  const configLoading = ref(false);
-
-  async function loadTable() {
-    loading.value = true;
-    try {
+  const {
+    tableData,
+    loading,
+    pagination,
+    loadTable,
+    onSearch,
+    onPageChange,
+    onPageSizeChange
+  } = usePagedList<BizDomainResp>({
+    errorText: "加载业务域失败",
+    fetcher: (page, size) =>
       // T-PERM-026 收口：服务端 keyword 过滤（code/name/description，LIKE）+ 分页，前端只消费。
-      const res = await getBizDomainList({
+      getBizDomainList({
         keyword: searchForm.keyword || undefined,
-        pageNum: pagination.page,
-        pageSize: pagination.size
-      });
-      tableData.value = res.items;
-      pagination.total = res.total;
-    } catch (e: any) {
-      message(e.message || "加载业务域失败", { type: "error" });
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  function onSearch() {
-    pagination.page = 1;
-    loadTable();
-  }
+        pageNum: page,
+        pageSize: size
+      })
+  });
 
   function onReset() {
     searchForm.keyword = "";
-    pagination.page = 1;
-    loadTable();
+    onSearch();
   }
 
-  function onPageChange(page: number) {
-    pagination.page = page;
-    loadTable();
-  }
+  // ========== 子表：DomainConfig ==========
+  // 本次加载的目标域（loadConfigs 带参调用时由包装层写入，fetcher 闭包读取）
+  let configTargetCode: string | null = null;
 
-  function onPageSizeChange(size: number) {
-    pagination.size = size;
-    pagination.page = 1;
-    loadTable();
-  }
+  const {
+    list: configData,
+    loading: configLoading,
+    load: loadConfigCore
+  } = useListLoad<DomainConfigResp>({
+    errorText: "加载域配置失败",
+    fetcher: async () => (await getDomainConfigList(configTargetCode!)).items
+  });
 
   /** 选中业务域 → 加载该域的 DomainConfig 子表。
    *  canViewConfig=false（无 SYSTEM_CONFIG:VIEW 权限）时只选中域、不发 /list 请求，
    *  避免真实后端产生可避免的 403（index.vue 的「配置」按钮已按 canViewConfig 隐藏入口，
-   *  此处为双保险守卫）。 */
+   *  此处为双保险守卫）。切域立即清空旧域数据防慢响应把 A 域配置回写到 B 域标题下；
+   *  在途请求由下次 loadConfigs 的代际守卫废弃（canViewConfig=false 路径仅清空不废弃）。 */
   function selectDomain(row: BizDomainResp, canViewConfig = true) {
     currentDomain.value = row;
-    // 切域立即清空旧域数据并使在途请求过期（防慢响应把 A 域配置回写到 B 域标题下）
     configData.value = [];
     if (canViewConfig) {
       loadConfigs();
     }
   }
 
-  /** 域配置请求序号：仅最新一次 loadConfigs 可回写（权限查询页 reqSeq 同范式） */
-  let configReqSeq = 0;
-
-  /** 加载当前选中域的配置列表 */
-  async function loadConfigs() {
+  /** 加载当前选中域的配置列表（configReqSeq 代际守卫已收敛进 useListLoad） */
+  function loadConfigs() {
     if (!currentDomain.value) {
       configData.value = [];
       return;
     }
-    const seq = ++configReqSeq;
-    configLoading.value = true;
-    try {
-      const res = await getDomainConfigList(currentDomain.value.code);
-      if (seq !== configReqSeq) return;
-      configData.value = res.items;
-    } catch (e: any) {
-      if (seq !== configReqSeq) return;
-      message(e.message || "加载域配置失败", { type: "error" });
-      configData.value = [];
-    } finally {
-      if (seq === configReqSeq) configLoading.value = false;
-    }
+    configTargetCode = currentDomain.value.code;
+    return loadConfigCore();
   }
 
   /** 检查租户下是否已存在全局域（T-PERM-046，create 弹窗打开时调用）。
@@ -175,8 +156,8 @@ export function useBizDomain() {
       }
       await loadTable();
       return true;
-    } catch (e: any) {
-      message(e.message || (mode === "create" ? "创建失败" : "保存失败"), {
+    } catch (e) {
+      message(toErrorMessage(e, mode === "create" ? "创建失败" : "保存失败"), {
         type: "error"
       });
       return false;
@@ -210,8 +191,8 @@ export function useBizDomain() {
       }
       await loadTable();
       return true;
-    } catch (e: any) {
-      message(e.message || "删除失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "删除失败"), { type: "error" });
       return false;
     }
   }
@@ -239,8 +220,8 @@ export function useBizDomain() {
       message("保存成功", { type: "success" });
       await loadConfigs();
       return true;
-    } catch (e: any) {
-      message(e.message || "保存失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "保存失败"), { type: "error" });
       return false;
     }
   }
@@ -266,8 +247,8 @@ export function useBizDomain() {
       message("删除成功", { type: "success" });
       await loadConfigs();
       return true;
-    } catch (e: any) {
-      message(e.message || "删除失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "删除失败"), { type: "error" });
       return false;
     }
   }

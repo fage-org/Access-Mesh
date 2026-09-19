@@ -1,6 +1,8 @@
-import { ref, reactive, onMounted } from "vue";
+import { reactive, onMounted } from "vue";
 import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
+import { toErrorMessage } from "@/api/_envelope";
+import { usePagedList } from "@/utils/list-load";
 import {
   getTypeDefList,
   createTypeDef,
@@ -15,55 +17,37 @@ import { createEmptyTypeDefForm, type TypeDefFormData } from "./types";
  *
  * 范式对齐 user/utils/hook.ts：tableData/loading/searchForm/pagination + loadTable/分页回调。
  * T-PERM-023 收口：list 服务端 typeKey/keyword 过滤 + 分页（ORDER BY sortOrder,id），前端只消费。
+ * T-FE-051：列表加载接线 usePagedList（失败提示保留旧数据 + latest-wins 请求代际）。
  */
 export function useTypeDef() {
-  const tableData = ref<TypeDefResp[]>([]);
-  const loading = ref(false);
   const searchForm = reactive({
     keyword: "",
     typeKey: null as string | null
   });
-  const pagination = reactive({ page: 1, size: 15, total: 0 });
 
-  async function loadTable() {
-    loading.value = true;
-    try {
-      const res = await getTypeDefList({
+  const {
+    tableData,
+    loading,
+    pagination,
+    loadTable,
+    onSearch,
+    onPageChange,
+    onPageSizeChange
+  } = usePagedList<TypeDefResp>({
+    errorText: "加载类型定义失败",
+    fetcher: (page, size) =>
+      getTypeDefList({
         typeKey: searchForm.typeKey ?? undefined,
         keyword: searchForm.keyword || undefined,
-        pageNum: pagination.page,
-        pageSize: pagination.size
-      });
-      tableData.value = res.items;
-      pagination.total = res.total;
-    } catch (e: any) {
-      message(e.message || "加载类型定义失败", { type: "error" });
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  function onSearch() {
-    pagination.page = 1;
-    loadTable();
-  }
+        pageNum: page,
+        pageSize: size
+      })
+  });
 
   function onReset() {
     searchForm.keyword = "";
     searchForm.typeKey = null;
-    pagination.page = 1;
-    loadTable();
-  }
-
-  function onPageChange(page: number) {
-    pagination.page = page;
-    loadTable();
-  }
-
-  function onPageSizeChange(size: number) {
-    pagination.size = size;
-    pagination.page = 1;
-    loadTable();
+    onSearch();
   }
 
   /** 提交新建/编辑 */
@@ -101,8 +85,8 @@ export function useTypeDef() {
       }
       await loadTable();
       return true;
-    } catch (e: any) {
-      message(e.message || "操作失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "操作失败"), { type: "error" });
       return false;
     }
   }
@@ -126,8 +110,8 @@ export function useTypeDef() {
       await removeTypeDefs([row.id]);
       message("删除成功", { type: "success" });
       await loadTable();
-    } catch (e: any) {
-      message(e.message || "删除失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "删除失败"), { type: "error" });
     }
   }
 

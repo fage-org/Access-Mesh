@@ -12,7 +12,8 @@
  * return unwrap(res);
  * ```
  *
- * 当前调用方：`api/user-manage.ts`、`api/auth.ts`。
+ * 当前调用方：`api/user-manage.ts`、`api/auth.ts`（信封类型/unwrap）及各列表 hook 的
+ * 错误文案消费（toErrorMessage，T-FE-051 起）。
  * 新增 API 文件请优先复用本文件，避免每个 API 文件重复定义信封类型。
  */
 
@@ -68,4 +69,29 @@ export function unwrap<T>(res: R<T>): T {
     });
   }
   return res.data;
+}
+
+/**
+ * 统一错误文案来源（T-FE-051）：
+ * - 非 2xx（axios AxiosError 形态）：优先消费后端 body message（Gateway/服务端错误处理器
+ *   均返回 R 信封），无 body 文案回落 fallback——axios 默认 message
+ *   「Request failed with status code xxx」对用户无信息量，不透出；
+ * - 业务错（RequestError）/普通 Error（网络断「Network Error」等）：透出 message；
+ * - 非 Error 值（确认弹窗 cancel 字符串等）：fallback。
+ */
+export function toErrorMessage(error: unknown, fallback: string): string {
+  const axiosLike = error as {
+    response?: { data?: { message?: unknown } } | null;
+  } | null;
+  // null 也是 object——显式排除，防 response:null 形态取 .data 抛 TypeError（双轨评审 P3）
+  if (
+    axiosLike &&
+    typeof axiosLike.response === "object" &&
+    axiosLike.response !== null
+  ) {
+    const body = axiosLike.response.data?.message;
+    return typeof body === "string" && body.trim() ? body : fallback;
+  }
+  if (error instanceof Error && error.message) return error.message;
+  return fallback;
 }

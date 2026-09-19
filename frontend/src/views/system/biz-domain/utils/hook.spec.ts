@@ -18,6 +18,11 @@ vi.mock("@/api/domain-config", () => ({
 
 import { useBizDomain } from "./hook";
 
+/** 排空微任务 + 一个宏任务周期（loadConfigs 经 useListLoad fetcher 包装后多一跳微任务，T-FE-051） */
+function flush() {
+  return new Promise<void>(resolve => setTimeout(resolve));
+}
+
 function domain(code: string) {
   return { id: 1, code, name: code, global: false } as any;
 }
@@ -41,13 +46,13 @@ describe("业务域页域配置加载竞态", () => {
 
     // B（最新请求）先完成
     pending[1]({ items: [{ id: 20, configType: "CLASSIFY" }] });
-    await Promise.resolve();
+    await flush();
     expect(getDomainConfigList).toHaveBeenLastCalledWith("B");
     expect(hook.configData.value).toEqual([{ id: 20, configType: "CLASSIFY" }]);
 
     // A（过期请求）晚归被丢弃，不覆盖 B、不误清 loading
     pending[0]({ items: [{ id: 10, configType: "SUB_PERM" }] });
-    await Promise.resolve();
+    await flush();
     expect(hook.configData.value).toEqual([{ id: 20, configType: "CLASSIFY" }]);
     expect(hook.configLoading.value).toBe(false);
   });
@@ -67,9 +72,9 @@ describe("业务域页域配置加载竞态", () => {
     hook.selectDomain(domain("A"));
     hook.selectDomain(domain("B"));
     resolvers[1]({ items: [{ id: 21 }] });
-    await Promise.resolve();
+    await flush();
     rejecters[0](new Error("stale A failed"));
-    await Promise.resolve();
+    await flush();
 
     expect(hook.configData.value).toEqual([{ id: 21 }]);
     expect(hook.configLoading.value).toBe(false);

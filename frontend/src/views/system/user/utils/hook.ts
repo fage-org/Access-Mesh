@@ -5,14 +5,15 @@ import {
   getUserPage,
   createUser,
   updateUser,
-  deleteUser
+  deleteUser,
+  enableUsers
 } from "@/api/user-manage";
 import { message } from "@/utils/message";
+import { toErrorMessage } from "@/api/_envelope";
+import { usePagedList } from "@/utils/list-load";
 
 export function useUserManage() {
   const selectedOrgId = ref<number | null>(null);
-  const tableData = ref<UserItem[]>([]);
-  const loading = ref(false);
   const searchForm = reactive({
     name: "",
     email: "",
@@ -20,77 +21,71 @@ export function useUserManage() {
     status: null as number | null
   });
 
-  const pagination = reactive({
-    page: 1,
-    size: 15,
-    total: 0
-  });
-
-  async function loadTable() {
-    loading.value = true;
-    try {
-      const result = await getUserPage({
-        pageNum: pagination.page,
-        pageSize: pagination.size,
+  // T-FE-051：列表加载统一接线 usePagedList（失败提示保留旧数据 + latest-wins 请求代际）
+  const {
+    tableData,
+    loading,
+    pagination,
+    loadTable,
+    onSearch,
+    onPageChange,
+    onPageSizeChange
+  } = usePagedList<UserItem>({
+    errorText: "加载用户列表失败",
+    fetcher: (page, size) =>
+      getUserPage({
+        pageNum: page,
+        pageSize: size,
         name: searchForm.name || undefined,
         email: searchForm.email || undefined,
         phone: searchForm.phone || undefined,
         status: searchForm.status ?? undefined,
         orgId: selectedOrgId.value ?? undefined
-      });
-      tableData.value = result.items;
-      pagination.total = result.total;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  function onSearch() {
-    pagination.page = 1;
-    loadTable();
-  }
+      })
+  });
 
   function onReset() {
     searchForm.name = "";
     searchForm.email = "";
     searchForm.phone = "";
     searchForm.status = null;
-    pagination.page = 1;
-    loadTable();
+    onSearch();
   }
 
-  function onPageChange(page: number) {
-    pagination.page = page;
-    loadTable();
-  }
-
-  function onPageSizeChange(size: number) {
-    pagination.size = size;
-    pagination.page = 1;
-    loadTable();
-  }
-
+  /** 创建用户（T-FE-051：失败提示后端原因并返回 null——弹窗保持打开，调用方以返回值决定 closeLoading） */
   async function handleCreate(form: {
     username: string;
     name: string;
     phone?: string;
     email?: string;
     orgId?: number;
-  }) {
-    const result = await createUser(form);
-    loadTable();
-    return result;
+  }): Promise<{ initialPassword: string } | null> {
+    try {
+      const result = await createUser(form);
+      loadTable();
+      return result;
+    } catch (e) {
+      message(toErrorMessage(e, "创建用户失败"), { type: "error" });
+      return null;
+    }
   }
 
+  /** 更新用户（T-FE-051：失败提示后端原因并返回 false，弹窗保持打开） */
   async function handleUpdate(data: {
     id: number;
     name?: string;
     phone?: string | null;
     email?: string | null;
-  }) {
-    await updateUser(data);
-    message("用户更新成功", { type: "success" });
-    loadTable();
+  }): Promise<boolean> {
+    try {
+      await updateUser(data);
+      message("用户更新成功", { type: "success" });
+      loadTable();
+      return true;
+    } catch (e) {
+      message(toErrorMessage(e, "用户更新失败"), { type: "error" });
+      return false;
+    }
   }
 
   /** 删除用户（T-FE-047：销毁性操作先二次确认，取消静默返回；失败透出后端原因——如 CANNOT_DELETE_SELF） */
@@ -112,8 +107,42 @@ export function useUserManage() {
       await deleteUser([user.id]);
       message("用户已删除", { type: "success" });
       loadTable();
-    } catch (error: any) {
-      message(error.message || "删除失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "删除失败"), { type: "error" });
+    }
+  }
+
+  /**
+   * 启停用户（T-FE-051 自 MemberTab 移入 hook，与 handleDelete 同形可测；
+   * 停用影响登录需二次确认，取消恢复开关；失败透出后端原因并回滚开关——
+   * 对齐 role 页 handleToggleStatus 先例，替换原「只显泛文案不透 error.message」双标准）
+   */
+  async function handleToggleStatus(row: UserItem, newVal: number) {
+    const newStatus: 0 | 1 = newVal === 1 ? 1 : 0;
+    const actionText = newStatus === 1 ? "启用" : "停用";
+    if (newStatus === 0) {
+      try {
+        await ElMessageBox.confirm(
+          `确认停用用户 "${row.name}"？停用后该用户将无法登录。`,
+          "停用确认",
+          {
+            confirmButtonText: "确认停用",
+            cancelButtonText: "取消",
+            type: "warning"
+          }
+        );
+      } catch {
+        row.status = 1; // 取消时恢复 switch
+        return;
+      }
+    }
+    try {
+      await enableUsers({ ids: [row.id], status: newStatus });
+      row.status = newStatus;
+      message(`${actionText}成功`, { type: "success" });
+    } catch (e) {
+      row.status = newStatus === 1 ? 0 : 1; // 失败时恢复状态
+      message(toErrorMessage(e, `${actionText}失败`), { type: "error" });
     }
   }
 
@@ -130,6 +159,7 @@ export function useUserManage() {
     onPageSizeChange,
     handleCreate,
     handleUpdate,
-    handleDelete
+    handleDelete,
+    handleToggleStatus
   };
 }

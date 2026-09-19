@@ -7,6 +7,7 @@ import {
   getResourceTree,
   type ResourceTreeNode
 } from "@/api/resource-operation";
+import { useListLoad } from "@/utils/list-load";
 import {
   createEmptyMappingForm,
   mappingToForm,
@@ -39,8 +40,25 @@ type TreeSelectNode = {
 
 const resourceTypes = ref<TypeDefResp[]>([]);
 const selectedResourceTypeCode = ref<string | null>(null);
-const resourceTreeOptions = ref<TreeSelectNode[]>([]);
-const resourceTreeLoading = ref(false);
+
+// T-FE-051：treeRequestSeq 代际守卫先例收敛到 useListLoad（latest-wins——快速切换类型时
+// 丢弃过期响应，旧请求后返回不得覆盖当前类型的树，否则用户可能为 B 类型选中实际属于 A
+// 的资源，T-PERM-028 复评 P2）；onResourceTypeChange 切换时预清空选项，失败保留空集不残留旧类型树。
+// 本次加载的目标类型（loadResourceTree 带参调用时由包装层写入，fetcher 闭包读取）
+let treeTargetTypeCode = "";
+const {
+  list: resourceTreeOptions,
+  loading: resourceTreeLoading,
+  load: loadResourceTreeCore
+} = useListLoad<TreeSelectNode>({
+  errorText: "加载资源树失败",
+  fetcher: async () => {
+    const res = await getResourceTree({ resourceTypeCode: treeTargetTypeCode });
+    return toTreeSelectNodes(
+      res.items.map(i => i.root).filter((n): n is ResourceTreeNode => n != null)
+    );
+  }
+});
 
 function toTreeSelectNodes(nodes: ResourceTreeNode[]): TreeSelectNode[] {
   return nodes.map(node => ({
@@ -63,32 +81,15 @@ async function loadResourceTypes() {
   }
 }
 
-/** 请求序号守卫：快速切换类型时丢弃过期响应（旧请求后返回不得覆盖当前类型的树，
- *  否则用户可能为 B 类型选中实际属于 A 的资源——T-PERM-028 复评 P2） */
-let treeRequestSeq = 0;
-
-async function loadResourceTree(typeCode: string) {
-  const seq = ++treeRequestSeq;
-  resourceTreeLoading.value = true;
-  try {
-    const res = await getResourceTree({ resourceTypeCode: typeCode });
-    if (seq !== treeRequestSeq) return;
-    resourceTreeOptions.value = toTreeSelectNodes(
-      res.items.map(i => i.root).filter((n): n is ResourceTreeNode => n != null)
-    );
-  } catch {
-    if (seq !== treeRequestSeq) return;
-    resourceTreeOptions.value = [];
-  } finally {
-    if (seq === treeRequestSeq) {
-      resourceTreeLoading.value = false;
-    }
-  }
+function loadResourceTree(typeCode: string) {
+  treeTargetTypeCode = typeCode;
+  return loadResourceTreeCore();
 }
 
 function onResourceTypeChange(typeCode: string) {
-  // 切换类型后原选中资源不再属于该类型，清空重选
+  // 切换类型后原选中资源不再属于该类型，清空重选；并预清空旧类型树选项
   formData.resourceEntityId = null;
+  resourceTreeOptions.value = [];
   loadResourceTree(typeCode);
 }
 

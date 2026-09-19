@@ -1,6 +1,8 @@
 import { computed, onMounted, reactive, ref } from "vue";
 import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
+import { toErrorMessage } from "@/api/_envelope";
+import { useListLoad } from "@/utils/list-load";
 import {
   createApiMapping,
   getApiMappingList,
@@ -21,29 +23,107 @@ import type {
 } from "./types";
 import type { ServiceConfigSyncReq } from "@/api/service-interface";
 
-function getErrorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error && error.message ? error.message : fallback;
-}
-
 /**
  * 服务与接口映射页的状态编排。
  *
  * 左栏服务概览通过一次 resource-api-mapping/list 取回映射计数；选中服务的
  * 明细始终走 service-config/apis，既避免为每个服务重复请求，也保持页面对
  * 服务专用接口的真实使用。
+ *
+ * T-FE-051：服务目录 / 接口明细两路列表加载收敛到 useListLoad（latest-wins 代际 +
+ * 失败提示保留旧数据）；错误文案统一走 _envelope toErrorMessage（原本页局部
+ * getErrorMessage 副本退役——非 2xx 优先消费后端 body message）。
  */
 export function useServiceInterface() {
-  const loading = ref(false);
-  const mappingLoading = ref(false);
   const serviceSearch = ref("");
   const selectedServiceCode = ref<string | null>(null);
-  const services = ref<ServiceSummary[]>([]);
-  const mappings = ref<ApiMappingResp[]>([]);
   const mappingSearch = reactive({
     keyword: "",
     method: "",
     enabled: "all" as "all" | "enabled" | "disabled"
   });
+
+  // ========== 接口映射明细（选中服务） ==========
+  // 本次加载的目标服务（loadMappings 带参调用时由包装层写入，fetcher 闭包读取）
+  let mappingsTargetCode: string | null = null;
+
+  const {
+    list: mappings,
+    loading: mappingLoading,
+    load: loadMappingsCore
+  } = useListLoad<ApiMappingResp>({
+    errorText: "加载接口映射失败",
+    fetcher: async () => {
+      const result = await getServiceApis(mappingsTargetCode!);
+      return result.items.slice().sort((left, right) => {
+        const order = (left.matchOrder ?? 100) - (right.matchOrder ?? 100);
+        return order || left.pathPattern.localeCompare(right.pathPattern);
+      });
+    }
+  });
+
+  async function loadMappings(serviceCode = selectedServiceCode.value) {
+    if (!serviceCode) {
+      mappings.value = [];
+      return;
+    }
+    mappingsTargetCode = serviceCode;
+    return loadMappingsCore();
+  }
+
+  // ========== 服务目录（左栏概览 + 映射计数） ==========
+  const {
+    list: services,
+    loading,
+    load: loadDirectoryCore
+  } = useListLoad<ServiceSummary>({
+    errorText: "加载服务目录失败",
+    fetcher: async () => {
+      const [serviceResult, mappingResult] = await Promise.all([
+        getServiceConfigList(),
+        getApiMappingList({})
+      ]);
+      const mappingStats = new Map<
+        string,
+        { total: number; enabled: number }
+      >();
+      for (const mapping of mappingResult.items) {
+        const current = mappingStats.get(mapping.serviceCode) || {
+          total: 0,
+          enabled: 0
+        };
+        current.total += 1;
+        current.enabled += mapping.enabled ? 1 : 0;
+        mappingStats.set(mapping.serviceCode, current);
+      }
+      return serviceResult.items
+        .slice()
+        .sort((left, right) =>
+          left.serviceCode.localeCompare(right.serviceCode)
+        )
+        .map(service => {
+          const stat = mappingStats.get(service.serviceCode);
+          return {
+            ...service,
+            apiCount: stat?.total || 0,
+            enabledApiCount: stat?.enabled || 0
+          };
+        });
+    }
+  });
+
+  /** 刷新服务目录；成功后级联——选中服务若已不存在则回退首项，并刷新其接口映射明细 */
+  async function loadDirectory() {
+    const ok = await loadDirectoryCore();
+    if (!ok) return; // 失败/迟到：useListLoad 已提示，不级联
+    const selectedStillExists = services.value.some(
+      service => service.serviceCode === selectedServiceCode.value
+    );
+    if (!selectedStillExists) {
+      selectedServiceCode.value = services.value[0]?.serviceCode || null;
+    }
+    await loadMappings();
+  }
 
   const visibleServices = computed(() => {
     const keyword = serviceSearch.value.trim().toLowerCase();
@@ -85,73 +165,6 @@ export function useServiceInterface() {
     () => mappings.value.filter(mapping => mapping.enabled).length
   );
 
-  async function loadMappings(serviceCode = selectedServiceCode.value) {
-    if (!serviceCode) {
-      mappings.value = [];
-      return;
-    }
-    mappingLoading.value = true;
-    try {
-      const result = await getServiceApis(serviceCode);
-      mappings.value = result.items.slice().sort((left, right) => {
-        const order = (left.matchOrder ?? 100) - (right.matchOrder ?? 100);
-        return order || left.pathPattern.localeCompare(right.pathPattern);
-      });
-    } catch (error: unknown) {
-      message(getErrorMessage(error, "加载接口映射失败"), { type: "error" });
-    } finally {
-      mappingLoading.value = false;
-    }
-  }
-
-  async function loadDirectory() {
-    loading.value = true;
-    try {
-      const [serviceResult, mappingResult] = await Promise.all([
-        getServiceConfigList(),
-        getApiMappingList({})
-      ]);
-      const mappingStats = new Map<
-        string,
-        { total: number; enabled: number }
-      >();
-      for (const mapping of mappingResult.items) {
-        const current = mappingStats.get(mapping.serviceCode) || {
-          total: 0,
-          enabled: 0
-        };
-        current.total += 1;
-        current.enabled += mapping.enabled ? 1 : 0;
-        mappingStats.set(mapping.serviceCode, current);
-      }
-      services.value = serviceResult.items
-        .slice()
-        .sort((left, right) =>
-          left.serviceCode.localeCompare(right.serviceCode)
-        )
-        .map(service => {
-          const stat = mappingStats.get(service.serviceCode);
-          return {
-            ...service,
-            apiCount: stat?.total || 0,
-            enabledApiCount: stat?.enabled || 0
-          };
-        });
-
-      const selectedStillExists = services.value.some(
-        service => service.serviceCode === selectedServiceCode.value
-      );
-      if (!selectedStillExists) {
-        selectedServiceCode.value = services.value[0]?.serviceCode || null;
-      }
-      await loadMappings();
-    } catch (error: unknown) {
-      message(getErrorMessage(error, "加载服务目录失败"), { type: "error" });
-    } finally {
-      loading.value = false;
-    }
-  }
-
   async function selectService(serviceCode: string) {
     if (serviceCode === selectedServiceCode.value) return;
     selectedServiceCode.value = serviceCode;
@@ -188,7 +201,7 @@ export function useServiceInterface() {
       return true;
     } catch (error: unknown) {
       message(
-        getErrorMessage(
+        toErrorMessage(
           error,
           mode === "create" ? "登记服务失败" : "保存服务失败"
         ),
@@ -221,7 +234,7 @@ export function useServiceInterface() {
       await loadDirectory();
       return true;
     } catch (error: unknown) {
-      message(getErrorMessage(error, "删除服务失败"), { type: "error" });
+      message(toErrorMessage(error, "删除服务失败"), { type: "error" });
       return false;
     }
   }
@@ -275,7 +288,7 @@ export function useServiceInterface() {
       return true;
     } catch (error: unknown) {
       message(
-        getErrorMessage(
+        toErrorMessage(
           error,
           mode === "create" ? "创建接口映射失败" : "保存接口映射失败"
         ),
@@ -305,7 +318,7 @@ export function useServiceInterface() {
       await loadDirectory();
       return true;
     } catch (error: unknown) {
-      message(getErrorMessage(error, "移除接口映射失败"), { type: "error" });
+      message(toErrorMessage(error, "移除接口映射失败"), { type: "error" });
       return false;
     }
   }
@@ -318,7 +331,7 @@ export function useServiceInterface() {
       await loadDirectory();
       return result;
     } catch (error: unknown) {
-      message(getErrorMessage(error, "同步接口失败"), { type: "error" });
+      message(toErrorMessage(error, "同步接口失败"), { type: "error" });
       return null;
     }
   }

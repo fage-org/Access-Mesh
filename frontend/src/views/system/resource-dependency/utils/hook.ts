@@ -2,6 +2,8 @@ import { ref, reactive, computed, onMounted } from "vue";
 import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
 import { hasPerms } from "@/utils/auth";
+import { toErrorMessage } from "@/api/_envelope";
+import { useListLoad } from "@/utils/list-load";
 import {
   getDependencyList,
   createDependency,
@@ -43,8 +45,16 @@ export function useResourceDependency() {
   );
 
   // ========== 列表状态 ==========
-  const loading = ref(false);
-  const list = ref<ResourceDependencyResp[]>([]);
+  // T-FE-051：列表加载收敛 useListLoad（latest-wins 代际 + 失败提示保留旧数据——
+  // 原实现失败清空列表，按全仓统一口径改为保留）；权限门禁留在包装层
+  const {
+    list,
+    loading,
+    load: loadListCore
+  } = useListLoad<ResourceDependencyResp>({
+    errorText: "加载依赖列表失败",
+    fetcher: async () => (await getDependencyList({})).items
+  });
   const search = reactive({ keyword: "" });
 
   // ========== 引用数据 ==========
@@ -182,16 +192,7 @@ export function useResourceDependency() {
 
   async function loadList() {
     if (!canView) return;
-    loading.value = true;
-    try {
-      const res = await getDependencyList({});
-      list.value = res.items;
-    } catch (e: any) {
-      message(e.message || "加载依赖列表失败", { type: "error" });
-      list.value = [];
-    } finally {
-      loading.value = false;
-    }
+    return loadListCore();
   }
 
   // ========== 引用数据加载 ==========
@@ -236,8 +237,8 @@ export function useResourceDependency() {
       resourceTypeOptions.value = Array.from(typeSet)
         .sort()
         .map(code => ({ value: code, label: typeNameMap.get(code) ?? code }));
-    } catch (e: any) {
-      message(e.message || "加载引用数据失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "加载引用数据失败"), { type: "error" });
     }
   }
 
@@ -295,8 +296,8 @@ export function useResourceDependency() {
       }
       await loadList();
       return true;
-    } catch (e: any) {
-      message(e.message || "操作失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "操作失败"), { type: "error" });
       return false;
     }
   }
@@ -324,8 +325,8 @@ export function useResourceDependency() {
       message("资源依赖已删除", { type: "success" });
       await loadList();
       return true;
-    } catch (e: any) {
-      message(e.message || "删除失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "删除失败"), { type: "error" });
       return false;
     }
   }

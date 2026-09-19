@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useUserManage } from "./utils/hook";
 import { findParentOrgName } from "./utils/orgTree";
 import UserDetailPanel from "./components/UserDetailPanel.vue";
 import MemberTab from "./components/MemberTab.vue";
@@ -62,21 +61,10 @@ watch(canViewPosition, visible => {
   }
 });
 
-const {
-  selectedOrgId,
-  tableData,
-  loading,
-  searchForm,
-  pagination,
-  loadTable,
-  onSearch,
-  onReset,
-  onPageChange,
-  onPageSizeChange,
-  handleCreate,
-  handleUpdate,
-  handleDelete
-} = useUserManage();
+// Q-017 收敛（T-FE-051，2026-09-19 拍板就地化）：本组件不再实例化 useUserManage——
+// 成员表格状态与加载由 MemberTab 自家实例独占（watch(orgId)→onSearch 链路），
+// 消除「点组织双请求」（index 实例响应无人消费）与 10 项死解构；selectedOrgId 就地化。
+const selectedOrgId = ref<number | null>(null);
 
 const orgTreePanelRef = ref<InstanceType<typeof ReOrgTreePanel>>();
 
@@ -84,9 +72,8 @@ const orgTreePanelRef = ref<InstanceType<typeof ReOrgTreePanel>>();
 const selectedOrg = ref<OrgTreeNode | null>(null);
 
 function onOrgChange(orgId: number | null) {
+  // 成员表加载由 MemberTab watch(orgId)→onSearch 触发（回第 1 页 + latest-wins 代际守卫）
   selectedOrgId.value = orgId;
-  pagination.page = 1;
-  loadTable();
   // 加载选中组织详情
   if (orgId && orgTreePanelRef.value?.orgTree) {
     selectedOrg.value = findOrgById(orgTreePanelRef.value.orgTree, orgId);

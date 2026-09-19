@@ -1,5 +1,7 @@
-import { ref, reactive, onMounted } from "vue";
+import { reactive, onMounted } from "vue";
 import { message } from "@/utils/message";
+import { toErrorMessage } from "@/api/_envelope";
+import { usePagedList } from "@/utils/list-load";
 import {
   getSystemConfigList,
   saveSystemConfig,
@@ -16,56 +18,37 @@ import {
  *
  * 范式对齐 type-def/utils/hook.ts：tableData/loading/searchForm/pagination + loadTable/分页回调。
  * T-PERM-024 收口：list 服务端 keyword 过滤（configKey/description）+ 分页（ORDER BY configKey,id），
- * 前端只消费。
+ * 前端只消费。T-FE-051：列表加载接线 usePagedList（失败提示保留旧数据 + latest-wins 请求代际）。
  *
  * 后端仅 list/detail/save 三端点，save 为 upsert 幂等——新建/编辑统一走 saveSystemConfig，
  * 无 create/update/remove 调用，无 handleDelete。
  */
 export function useSystemConfig() {
-  const tableData = ref<SystemConfigResp[]>([]);
-  const loading = ref(false);
   const searchForm = reactive({
     keyword: ""
   });
-  const pagination = reactive({ page: 1, size: 15, total: 0 });
 
-  async function loadTable() {
-    loading.value = true;
-    try {
-      const res = await getSystemConfigList({
+  const {
+    tableData,
+    loading,
+    pagination,
+    loadTable,
+    onSearch,
+    onPageChange,
+    onPageSizeChange
+  } = usePagedList<SystemConfigResp>({
+    errorText: "加载系统配置失败",
+    fetcher: (page, size) =>
+      getSystemConfigList({
         keyword: searchForm.keyword || undefined,
-        pageNum: pagination.page,
-        pageSize: pagination.size
-      });
-      tableData.value = res.items;
-      pagination.total = res.total;
-    } catch (e: any) {
-      message(e.message || "加载系统配置失败", { type: "error" });
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  function onSearch() {
-    pagination.page = 1;
-    loadTable();
-  }
+        pageNum: page,
+        pageSize: size
+      })
+  });
 
   function onReset() {
     searchForm.keyword = "";
-    pagination.page = 1;
-    loadTable();
-  }
-
-  function onPageChange(page: number) {
-    pagination.page = page;
-    loadTable();
-  }
-
-  function onPageSizeChange(size: number) {
-    pagination.size = size;
-    pagination.page = 1;
-    loadTable();
+    onSearch();
   }
 
   /** 提交保存（新建/编辑统一 upsert）。
@@ -87,8 +70,8 @@ export function useSystemConfig() {
       message("保存成功", { type: "success" });
       await loadTable();
       return true;
-    } catch (e: any) {
-      message(e.message || "保存失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "保存失败"), { type: "error" });
       return false;
     }
   }

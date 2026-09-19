@@ -2,6 +2,8 @@ import { ref, reactive, computed, onMounted } from "vue";
 import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
 import { hasPerms } from "@/utils/auth";
+import { toErrorMessage } from "@/api/_envelope";
+import { useListLoad } from "@/utils/list-load";
 import {
   getResourceTree,
   createResource,
@@ -61,14 +63,39 @@ export function useResourceOperation() {
       resourceTypes.value = res.items
         .filter(t => t.typeKey === TYPE_KEY.RESOURCE_TYPE)
         .sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id);
-    } catch (e: any) {
-      message(e.message || "加载资源类型失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "加载资源类型失败"), { type: "error" });
     }
   }
 
   // ========== 资源树 ==========
-  const treeData = ref<ResourceTreeNode[]>([]);
-  const resourceLoading = ref(false);
+  // T-FE-051：树/操作表两路加载收敛 useListLoad（latest-wins 代际——切资源类型时
+  // 旧类型的慢响应不再覆盖新类型的数据；权限门禁留在包装层）
+  const {
+    list: treeData,
+    loading: resourceLoading,
+    load: loadTreeCore
+  } = useListLoad<ResourceTreeNode>({
+    errorText: "加载资源树失败",
+    fetcher: async () => {
+      const res = await getResourceTree({
+        resourceTypeCode: selectedResourceTypeCode.value!
+      });
+      return res.items
+        .map(i => i.root)
+        .filter((n): n is ResourceTreeNode => n != null);
+    },
+    // 刷新后重新定位选中节点（名称/状态/路径可能已变；节点被删/移出本类型则置 null）
+    // ——仅最新请求触发，迟到响应不重定位
+    onLoaded: () => {
+      if (selectedNode.value) {
+        selectedNode.value = findNodeById(
+          treeData.value,
+          selectedNode.value.id
+        );
+      }
+    }
+  });
   const resourceSearch = ref("");
   const selectedNode = ref<ResourceTreeNode | null>(null);
 
@@ -92,26 +119,7 @@ export function useResourceOperation() {
       treeData.value = [];
       return;
     }
-    resourceLoading.value = true;
-    try {
-      const res = await getResourceTree({
-        resourceTypeCode: selectedResourceTypeCode.value
-      });
-      treeData.value = res.items
-        .map(i => i.root)
-        .filter((n): n is ResourceTreeNode => n != null);
-      // 刷新后重新定位选中节点（名称/状态/路径可能已变；节点被删/移出本类型则置 null）
-      if (selectedNode.value) {
-        selectedNode.value = findNodeById(
-          treeData.value,
-          selectedNode.value.id
-        );
-      }
-    } catch (e: any) {
-      message(e.message || "加载资源树失败", { type: "error" });
-    } finally {
-      resourceLoading.value = false;
-    }
+    return loadTreeCore();
   }
 
   /** 切换资源类型：回写 typeCode，清空选中节点，按权限刷新树与操作表 */
@@ -126,8 +134,24 @@ export function useResourceOperation() {
   }
 
   // ========== 操作权限表 ==========
-  const operations = ref<OperationPermissionResp[]>([]);
-  const operationLoading = ref(false);
+  const {
+    list: operations,
+    loading: operationLoading,
+    load: loadOperationsCore
+  } = useListLoad<OperationPermissionResp>({
+    errorText: "加载操作权限失败",
+    fetcher: async () => {
+      const res = await getOperationList({
+        resourceTypeCode: selectedResourceTypeCode.value!
+      });
+      // binaryBit 为十进制字符串（63 位 bigint 线格式），BigInt 比较防 >2^53 丢序
+      return res.items.slice().sort((a, b) => {
+        const x = BigInt(a.binaryBit);
+        const y = BigInt(b.binaryBit);
+        return x < y ? -1 : x > y ? 1 : 0;
+      });
+    }
+  });
   const operationSearch = reactive({ keyword: "" });
 
   async function loadOperations() {
@@ -135,22 +159,7 @@ export function useResourceOperation() {
       operations.value = [];
       return;
     }
-    operationLoading.value = true;
-    try {
-      const res = await getOperationList({
-        resourceTypeCode: selectedResourceTypeCode.value
-      });
-      // binaryBit 为十进制字符串（63 位 bigint 线格式），BigInt 比较防 >2^53 丢序
-      operations.value = res.items.slice().sort((a, b) => {
-        const x = BigInt(a.binaryBit);
-        const y = BigInt(b.binaryBit);
-        return x < y ? -1 : x > y ? 1 : 0;
-      });
-    } catch (e: any) {
-      message(e.message || "加载操作权限失败", { type: "error" });
-    } finally {
-      operationLoading.value = false;
-    }
+    return loadOperationsCore();
   }
 
   const filteredOperations = computed(() => {
@@ -209,8 +218,8 @@ export function useResourceOperation() {
       }
       await loadTree();
       return true;
-    } catch (e: any) {
-      message(e.message || "操作失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "操作失败"), { type: "error" });
       return false;
     }
   }
@@ -235,8 +244,8 @@ export function useResourceOperation() {
       if (selectedNode.value?.id === node.id) selectedNode.value = null;
       await loadTree();
       return true;
-    } catch (e: any) {
-      message(e.message || "删除失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "删除失败"), { type: "error" });
       return false;
     }
   }
@@ -250,8 +259,8 @@ export function useResourceOperation() {
       message("资源已移动", { type: "success" });
       await loadTree();
       return true;
-    } catch (e: any) {
-      message(e.message || "移动失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "移动失败"), { type: "error" });
       return false;
     }
   }
@@ -289,8 +298,8 @@ export function useResourceOperation() {
       }
       await loadOperations();
       return true;
-    } catch (e: any) {
-      message(e.message || "操作失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "操作失败"), { type: "error" });
       return false;
     }
   }
@@ -320,8 +329,8 @@ export function useResourceOperation() {
       message("操作权限已删除", { type: "success" });
       await loadOperations();
       return true;
-    } catch (e: any) {
-      message(e.message || "删除失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "删除失败"), { type: "error" });
       return false;
     }
   }

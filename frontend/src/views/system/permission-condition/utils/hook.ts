@@ -1,7 +1,9 @@
-import { ref, reactive, computed, onMounted } from "vue";
+import { reactive, computed, onMounted } from "vue";
 import { message } from "@/utils/message";
 import { ElMessageBox } from "element-plus";
 import { hasPerms } from "@/utils/auth";
+import { toErrorMessage } from "@/api/_envelope";
+import { useListLoad } from "@/utils/list-load";
 import {
   getConditionList,
   createCondition,
@@ -34,24 +36,21 @@ export function usePermissionCondition() {
   const canDelete = computed(() => hasPerms(CONDITION_PERMS.CONDITION_DELETE));
 
   // ========== 列表 ==========
-  const list = ref<ConditionResp[]>([]);
-  const loading = ref(false);
+  // T-FE-051：列表加载收敛 useListLoad（latest-wins 代际 + 失败提示保留旧数据）；
+  // 全量列表 + 本地过滤形态（后端不分页），排序在 fetcher 闭包内完成
+  const {
+    list,
+    loading,
+    load: loadList
+  } = useListLoad<ConditionResp>({
+    errorText: "加载条件列表失败",
+    fetcher: async () =>
+      (await getConditionList()).items.slice().sort((a, b) => a.id - b.id)
+  });
   const search = reactive({
     keyword: "",
     enabled: "" as "" | "true" | "false"
   });
-
-  async function loadList() {
-    loading.value = true;
-    try {
-      const res = await getConditionList();
-      list.value = res.items.slice().sort((a, b) => a.id - b.id);
-    } catch (e: any) {
-      message(e.message || "加载条件列表失败", { type: "error" });
-    } finally {
-      loading.value = false;
-    }
-  }
 
   const filteredList = computed(() => {
     return list.value.filter(c => {
@@ -105,8 +104,8 @@ export function usePermissionCondition() {
       }
       await loadList();
       return true;
-    } catch (e: any) {
-      message(e.message || "操作失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "操作失败"), { type: "error" });
       return false;
     }
   }
@@ -130,8 +129,8 @@ export function usePermissionCondition() {
       message("条件已删除", { type: "success" });
       await loadList();
       return true;
-    } catch (e: any) {
-      message(e.message || "删除失败", { type: "error" });
+    } catch (e) {
+      message(toErrorMessage(e, "删除失败"), { type: "error" });
       return false;
     }
   }

@@ -2,6 +2,12 @@
  * 用户删除二次确认与错误反馈回归（T-FE-047）：
  * 旧实现点击即删（无确认弹窗）、删除失败 rejection 无人处理零提示——
  * 三个用例分别锁「确认后才发请求 / 取消零请求 / 失败有错误反馈且不刷新」，旧实现下全部失败。
+ *
+ * 列表加载错误反馈与请求代际 + 写操作一致性（T-FE-051）：
+ * 旧实现 loadTable try/finally 无 catch（失败零提示）且无请求代际（迟到响应覆盖新结果）；
+ * handleCreate/handleUpdate 无 catch（失败 rejection 上抛弹窗只剩 closeLoading 零提示）；
+ * handleToggleStatus 原在 MemberTab SFC 内（不可 import 测试）且失败只显泛文案——
+ * 移入 hook 后失败透出后端 error.message（对齐 handleDelete 形态）。
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
@@ -9,6 +15,9 @@ const mockDeleteUser = vi.fn();
 const mockGetUserPage = vi.fn();
 const mockConfirm = vi.fn();
 const mockMessage = vi.fn();
+const mockCreateUser = vi.fn();
+const mockUpdateUser = vi.fn();
+const mockEnableUsers = vi.fn();
 
 // 阻断 hook 模块级链（同 biz-domain hook.spec 范式：api/message/element-plus 全 mock）
 vi.mock("element-plus", () => ({
@@ -19,9 +28,10 @@ vi.mock("@/utils/message", () => ({
 }));
 vi.mock("@/api/user-manage", () => ({
   getUserPage: (...args: unknown[]) => mockGetUserPage(...args),
-  createUser: vi.fn(),
-  updateUser: vi.fn(),
-  deleteUser: (...args: unknown[]) => mockDeleteUser(...args)
+  createUser: (...args: unknown[]) => mockCreateUser(...args),
+  updateUser: (...args: unknown[]) => mockUpdateUser(...args),
+  deleteUser: (...args: unknown[]) => mockDeleteUser(...args),
+  enableUsers: (...args: unknown[]) => mockEnableUsers(...args)
 }));
 
 import { useUserManage } from "./hook";
@@ -36,6 +46,22 @@ const USER = {
   orgs: [],
   createdAt: "2026-09-19 00:00:00"
 } as any;
+
+/** 受控 promise：手动 resolve/reject 驱动「A 慢 B 快」并发时序（禁裸 sleep） */
+function defer<T>() {
+  let resolve!: (v: T) => void;
+  let reject!: (e: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+/** 排空微任务 + 一个宏任务周期，让 loadTable 续体确定性跑完 */
+function flush() {
+  return new Promise<void>(resolve => setTimeout(resolve));
+}
 
 describe("用户删除二次确认与错误反馈（T-FE-047）", () => {
   beforeEach(() => {
@@ -86,5 +112,141 @@ describe("用户删除二次确认与错误反馈（T-FE-047）", () => {
       type: "error"
     });
     expect(mockGetUserPage).not.toHaveBeenCalled();
+  });
+});
+
+describe("列表加载错误反馈与请求代际（T-FE-051 回归锁①②）", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfirm.mockResolvedValue(undefined);
+    mockGetUserPage.mockResolvedValue({ items: [], total: 0 });
+    mockDeleteUser.mockResolvedValue(undefined);
+    mockCreateUser.mockResolvedValue({ initialPassword: "P@ssw0rd!" });
+    mockUpdateUser.mockResolvedValue(undefined);
+    mockEnableUsers.mockResolvedValue(undefined);
+  });
+
+  it("加载失败：message 提示后端文案 + loading 复位 + 旧数据保留（旧实现 try/finally 无 catch 必失败）", async () => {
+    const { loadTable, loading, tableData } = useUserManage();
+    mockGetUserPage.mockResolvedValueOnce({ items: [USER], total: 1 });
+    await loadTable();
+    expect(tableData.value).toEqual([USER]);
+
+    mockGetUserPage.mockRejectedValueOnce(new Error("服务器开小差"));
+    // 旧实现 loadTable 无 catch：rejection 上抛、零提示——此 await 在旧实现下失败
+    await loadTable();
+
+    expect(mockMessage).toHaveBeenCalledTimes(1);
+    expect(mockMessage).toHaveBeenCalledWith("服务器开小差", {
+      type: "error"
+    });
+    expect(loading.value).toBe(false);
+    expect(tableData.value).toEqual([USER]); // 旧数据保留，不静默残留也不清空
+  });
+
+  it("并发 A(慢)→B(快)→B 回→A 回：表格终态=B（旧实现无代际守卫被 A 覆盖必失败）", async () => {
+    type Page = { items: unknown[]; total: number };
+    const a = defer<Page>();
+    const b = defer<Page>();
+    const calls: Array<ReturnType<typeof defer<Page>>> = [a, b];
+    let i = 0;
+    mockGetUserPage.mockImplementation(() => calls[i++].promise);
+
+    const { loadTable, tableData, loading } = useUserManage();
+    loadTable(); // A（慢，返回旧结果）
+    loadTable(); // B（快，返回空结果）
+    b.resolve({ items: [], total: 0 });
+    await flush();
+    expect(tableData.value).toEqual([]);
+
+    a.resolve({ items: [USER], total: 1 }); // A 迟到：旧实现覆盖 B
+    await flush();
+    expect(tableData.value).toEqual([]); // 旧实现下此处为 [USER] → 失败
+    expect(loading.value).toBe(false);
+  });
+});
+
+describe("写操作与启停 catch+message 一致性（T-FE-051）", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfirm.mockResolvedValue(undefined);
+    mockGetUserPage.mockResolvedValue({ items: [], total: 0 });
+    mockDeleteUser.mockResolvedValue(undefined);
+    mockCreateUser.mockResolvedValue({ initialPassword: "P@ssw0rd!" });
+    mockUpdateUser.mockResolvedValue(undefined);
+    mockEnableUsers.mockResolvedValue(undefined);
+  });
+
+  it("创建失败：message 透后端文案、返回 null、不刷新列表（旧实现无 catch 上抛必失败）", async () => {
+    mockCreateUser.mockRejectedValue(new Error("用户名已存在"));
+    const { handleCreate } = useUserManage();
+    // 旧实现 handleCreate 无 catch：rejection 上抛——此 await 在旧实现下失败
+    const result = await handleCreate({
+      username: "zhang",
+      name: "张三"
+    });
+
+    expect(result).toBeNull();
+    expect(mockMessage).toHaveBeenCalledWith("用户名已存在", { type: "error" });
+    expect(mockGetUserPage).not.toHaveBeenCalled(); // 失败不刷新
+  });
+
+  it("创建成功：返回结果（initialPassword 供弹窗展示）并刷新列表", async () => {
+    const { handleCreate } = useUserManage();
+    const result = await handleCreate({ username: "zhang", name: "张三" });
+
+    expect(result?.initialPassword).toBe("P@ssw0rd!");
+    expect(mockGetUserPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("更新失败：message 透后端文案、返回 false、不刷新列表（旧实现无 catch 上抛必失败）", async () => {
+    mockUpdateUser.mockRejectedValue(new Error("邮箱已被占用"));
+    const { handleUpdate } = useUserManage();
+    // 旧实现 handleUpdate 无 catch：rejection 上抛——此 await 在旧实现下失败
+    const ok = await handleUpdate({ id: 7, name: "张三" });
+
+    expect(ok).toBe(false);
+    expect(mockMessage).toHaveBeenCalledWith("邮箱已被占用", {
+      type: "error"
+    });
+    expect(mockGetUserPage).not.toHaveBeenCalled();
+  });
+
+  it("停用取消：恢复开关状态、零启停请求、零提示", async () => {
+    mockConfirm.mockRejectedValue("cancel");
+    const row = { ...USER, status: 0 }; // switch 已拨到停用位
+    const { handleToggleStatus } = useUserManage();
+    await handleToggleStatus(row, 0);
+
+    expect(row.status).toBe(1); // 取消时恢复
+    expect(mockEnableUsers).not.toHaveBeenCalled();
+    expect(mockMessage).not.toHaveBeenCalled();
+  });
+
+  it("停用确认成功：发 enableUsers、行状态回写、提示成功", async () => {
+    const row = { ...USER, status: 0 };
+    const { handleToggleStatus } = useUserManage();
+    await handleToggleStatus(row, 0);
+
+    expect(mockConfirm).toHaveBeenCalledTimes(1);
+    expect(mockEnableUsers).toHaveBeenCalledWith({ ids: [7], status: 0 });
+    expect(row.status).toBe(0);
+    expect(mockMessage).toHaveBeenCalledWith("停用成功", { type: "success" });
+  });
+
+  it("启停失败：message 透后端文案而非泛文案「停用失败」（旧实现只显泛文案必失败）+ 开关回滚", async () => {
+    mockEnableUsers.mockRejectedValue(new Error("不能停用当前登录用户"));
+    const row = { ...USER, status: 0 };
+    const { handleToggleStatus } = useUserManage();
+    await handleToggleStatus(row, 0);
+
+    expect(mockMessage).toHaveBeenCalledTimes(1);
+    expect(mockMessage).toHaveBeenCalledWith("不能停用当前登录用户", {
+      type: "error"
+    });
+    expect(mockMessage).not.toHaveBeenCalledWith("停用失败", {
+      type: "error"
+    });
+    expect(row.status).toBe(1); // 失败回滚
   });
 });

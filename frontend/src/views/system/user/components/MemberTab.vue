@@ -19,7 +19,7 @@ import View from "~icons/ep/view";
 import More from "~icons/ep/more-filled";
 import Key from "~icons/ep/key";
 
-import { enableUsers, resetUserPassword } from "@/api/user-manage";
+import { resetUserPassword } from "@/api/user-manage";
 
 defineOptions({
   name: "MemberTab"
@@ -42,14 +42,14 @@ const {
   loading,
   searchForm,
   pagination,
-  loadTable,
   onSearch,
   onReset,
   onPageChange,
   onPageSizeChange,
   handleCreate,
   handleUpdate,
-  handleDelete
+  handleDelete,
+  handleToggleStatus
 } = useUserManage();
 
 const tableRef = ref();
@@ -130,6 +130,11 @@ function openCreateDialog() {
           email: dialogFormData.email || undefined,
           orgId: dialogFormData.orgId ?? undefined
         });
+        // handleCreate 失败在 hook 内已提示并返回 null（T-FE-051）：弹窗保持打开
+        if (!result) {
+          closeLoading();
+          return;
+        }
 
         await ElMessageBox.alert(
           `初始密码：${result.initialPassword}\n\n请将密码通知用户妥善保管；用户登录后系统将提示联系管理员修改密码。`,
@@ -172,12 +177,17 @@ function openEditDialog(row: any) {
       }
 
       try {
-        await handleUpdate({
+        const ok = await handleUpdate({
           id: row.id,
           name: dialogFormData.name,
           phone: dialogFormData.phone || null,
           email: dialogFormData.email || null
         });
+        // handleUpdate 失败在 hook 内已提示并返回 false（T-FE-051）：弹窗保持打开
+        if (!ok) {
+          closeLoading();
+          return;
+        }
         done();
       } catch {
         closeLoading();
@@ -201,37 +211,7 @@ function handleCommand(command: string, row: any) {
       break;
   }
 }
-async function handleToggleStatus(row: any, newVal: number) {
-  const newStatus: 0 | 1 = newVal === 1 ? 1 : 0;
-  const actionText = newStatus === 1 ? "启用" : "停用";
-  // 停用方向需二次确认（影响登录），启用方向直通
-  if (newStatus === 0) {
-    try {
-      await ElMessageBox.confirm(
-        `确认停用用户 "${row.name}"？停用后该用户将无法登录。`,
-        "停用确认",
-        {
-          confirmButtonText: "确认停用",
-          cancelButtonText: "取消",
-          type: "warning"
-        }
-      );
-    } catch {
-      // 取消时恢复 switch
-      row.status = 1;
-      return;
-    }
-  }
-  try {
-    await enableUsers({ ids: [row.id], status: newStatus });
-    row.status = newStatus;
-    message(`${actionText}成功`, { type: "success" });
-  } catch {
-    // 失败时恢复状态
-    row.status = newStatus === 1 ? 0 : 1;
-    message(`${actionText}失败`, { type: "error" });
-  }
-}
+// 启停开关处理在 useUserManage.handleToggleStatus（T-FE-051 移入 hook，失败透后端原因）
 
 // 重置密码
 async function handleResetPassword(row: any) {
