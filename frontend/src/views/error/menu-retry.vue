@@ -113,6 +113,8 @@ async function retry() {
     font-size: 13px;
     line-height: 1.8;
     color: var(--el-text-color-secondary);
+    // pageDesc 失败分支以 \n 表达两段（旧实现 <br /> 同效），保留换行渲染
+    white-space: pre-line;
   }
 }
 </style>

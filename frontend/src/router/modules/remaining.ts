@@ -31,7 +31,8 @@ export default [
     }
   },
   // 会话恢复失败重试页（T-FE-015：user-menu 重取失败 fail-closed 空菜单时，
-  // 侧栏占位项「菜单加载失败，点击重试」跳转至此）
+  // 侧栏占位项跳转至此；T-FE-049 起两态——「菜单加载失败，点击重试」与
+  // 「当前账号无可用菜单」占位项均着陆此页，页内按 menuLoadFailed 自适应）
   {
     path: "/menu-retry",
     name: "MenuLoadRetry",
