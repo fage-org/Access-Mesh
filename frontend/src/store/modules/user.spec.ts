@@ -6,6 +6,9 @@
  *  3. user-menu HTTP 401（会话失效）：不降级，reject
  *  4. user-menu 普通异常（网络等）：降级，仍 resolve
  *
+ * logOut 真注销（T-FE-045）四锁：调用序（先 POST 注销后清本地）/ 服务端失败仍清理 /
+ * 登出进行中短路（同一动作只发一次）/ 登出完成后重复触发零请求——旧实现（不调接口）下必红。
+ *
  * 边界说明：401 的"清会话回登录页"副作用在 http 响应拦截器（utils/http/index.ts），
  * 本 spec 在 store 层 mock API 直接抛错，不覆盖拦截器内部（不为 10 行拦截器逻辑
  * 搭 axios 测试基建，该路径由真实环境 E2E 覆盖——避免过度设计）。
@@ -15,41 +18,54 @@ import { createPinia, setActivePinia } from "pinia";
 import { RequestError } from "@/api/_envelope";
 import type { R } from "@/api/_envelope";
 
-// mock API 层（阻断 http；login/getUserMenu 返回值由用例控制）
-const { mockLogin, mockGetUserMenu } = vi.hoisted(() => ({
+// mock API 层（阻断 http；login/getUserMenu/logout 返回值由用例控制）
+const { mockLogin, mockGetUserMenu, mockLogout } = vi.hoisted(() => ({
   mockLogin: vi.fn(),
-  mockGetUserMenu: vi.fn()
+  mockGetUserMenu: vi.fn(),
+  mockLogout: vi.fn()
 }));
 vi.mock("@/api/auth", () => ({
   login: mockLogin,
   getUserMenu: mockGetUserMenu,
+  logout: mockLogout,
   FIXED_TENANT_ID: "1",
   FIXED_CLIENT_ID: "admin-web"
 }));
 
-// mock setToken/removeToken（真实实现依赖 Cookie/localStorage/Pinia 链，node 环境不可用）
-const { mockSetToken } = vi.hoisted(() => ({ mockSetToken: vi.fn() }));
+// mock setToken/getToken/removeToken（真实实现依赖 Cookie/localStorage/Pinia 链，node 环境不可用）
+const { mockSetToken, mockGetToken, mockRemoveToken } = vi.hoisted(() => ({
+  mockSetToken: vi.fn(),
+  mockGetToken: vi.fn(),
+  mockRemoveToken: vi.fn()
+}));
 vi.mock("@/utils/auth", () => ({
   setToken: mockSetToken,
-  removeToken: vi.fn(),
+  getToken: mockGetToken,
+  removeToken: mockRemoveToken,
+  formatToken: (t: string) => "Bearer " + t,
   userKey: "user-info"
 }));
 
 // mock store 工具桶（阻断 router/storageLocal；store 用真 Pinia 实例）
 // storageLocal 返回共享实例，用例可断言 userKey 持久化写入（评审修复：覆盖 localStorage 副作用）
-const { mockStorage } = vi.hoisted(() => ({
+// responsiveStorageNameSpace 供 multiTags state 初始化（logOut 触发 handleTags 链）
+const { mockStorage, mockRouterPush, mockResetRouter } = vi.hoisted(() => ({
   mockStorage: {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
     removeItem: vi.fn()
-  }
+  },
+  mockRouterPush: vi.fn(),
+  mockResetRouter: vi.fn()
 }));
 vi.mock("../utils", () => ({
   store: createPinia(),
-  router: { push: vi.fn() },
-  resetRouter: vi.fn(),
+  router: { push: mockRouterPush },
+  resetRouter: mockResetRouter,
   routerArrays: [],
-  storageLocal: () => mockStorage
+  constantMenus: [],
+  storageLocal: () => mockStorage,
+  responsiveStorageNameSpace: () => "responsive-"
 }));
 
 import { useUserStore } from "./user";
@@ -179,5 +195,88 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
     expect(result).toEqual(LOGIN_RESP);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe("logOut 真注销（T-FE-045：服务端注销优先、本地清理无条件）", () => {
+  const TOKEN = { accessToken: "token-1", expires: 1, refreshToken: "" };
+
+  it("调用序：先 POST 注销（显式传当前 accessToken）再清本地——removeToken/resetRouter/push 依次在后，Pinia 清空", async () => {
+    mockGetToken.mockReturnValue(TOKEN);
+    mockLogout.mockResolvedValue(undefined);
+
+    await useUserStore().logOut();
+
+    expect(mockLogout).toHaveBeenCalledTimes(1);
+    // 注销请求显式携带当前 token（formatToken 构造 Authorization 头；旧实现不调接口，此断言必红）
+    expect(mockLogout).toHaveBeenCalledWith("Bearer token-1");
+    // 调用序锁：注销请求先于本地清理，清理先于路由重置与跳转
+    expect(mockLogout.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRemoveToken.mock.invocationCallOrder[0]
+    );
+    expect(mockRemoveToken.mock.invocationCallOrder[0]).toBeLessThan(
+      mockResetRouter.mock.invocationCallOrder[0]
+    );
+    expect(mockResetRouter.mock.invocationCallOrder[0]).toBeLessThan(
+      mockRouterPush.mock.invocationCallOrder[0]
+    );
+    expect(mockRouterPush).toHaveBeenCalledWith("/login");
+    // Pinia 状态清空
+    const user = useUserStore();
+    expect(user.username).toBe("");
+    expect(user.roles).toEqual([]);
+    expect(user.permissions).toEqual([]);
+    expect(user.menus).toEqual([]);
+  });
+
+  it("服务端注销失败（网络/后端异常）：console.warn 不弹错，本地清理与跳登录无条件完成", async () => {
+    mockGetToken.mockReturnValue(TOKEN);
+    mockLogout.mockRejectedValue(new Error("network down"));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    await useUserStore().logOut();
+
+    expect(warn).toHaveBeenCalled();
+    expect(mockRemoveToken).toHaveBeenCalledTimes(1);
+    expect(mockResetRouter).toHaveBeenCalledTimes(1);
+    expect(mockRouterPush).toHaveBeenCalledWith("/login");
+    warn.mockRestore();
+  });
+
+  it("登出进行中重复触发直接短路：同一登出动作只发一次 POST /logout，短路方不触发清理", async () => {
+    mockGetToken.mockReturnValue(TOKEN);
+    let resolveLogout!: () => void;
+    mockLogout.mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          resolveLogout = resolve;
+        })
+    );
+
+    const first = useUserStore().logOut();
+    await useUserStore().logOut(); // 注销请求在途 → 短路
+
+    expect(mockLogout).toHaveBeenCalledTimes(1);
+    expect(mockRemoveToken).not.toHaveBeenCalled();
+
+    resolveLogout();
+    await first;
+
+    expect(mockRemoveToken).toHaveBeenCalledTimes(1);
+    expect(mockRouterPush).toHaveBeenCalledWith("/login");
+  });
+
+  it("登出完成后重复触发不再发请求：本地已清（getToken 无令牌）即幂等清理+直接跳登录", async () => {
+    mockGetToken
+      .mockReturnValueOnce(TOKEN) // 第一次登出：持令牌
+      .mockReturnValueOnce(null); // 第二次触发：removeToken 后已无令牌
+    mockLogout.mockResolvedValue(undefined);
+
+    await useUserStore().logOut();
+    await useUserStore().logOut();
+
+    expect(mockLogout).toHaveBeenCalledTimes(1); // 第二次零请求
+    expect(mockRemoveToken).toHaveBeenCalledTimes(2); // 幂等清理照常
+    expect(mockRouterPush).toHaveBeenCalledTimes(2); // 直接跳登录
   });
 });

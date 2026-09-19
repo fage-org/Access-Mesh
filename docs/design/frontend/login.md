@@ -3,7 +3,7 @@ doc_type: design
 title: 登录页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-15   # 2026-08-31 T-FE-015 收口：menus 后端派生接线完成（侧栏直接渲染 user-menu 树、会话恢复 fail-closed、/menu-retry 重试页），mock 与静态路由口径段同步终态化；此前：2026-08-31 T-PERM-037（归入登记）、2026-08-24
+last_reviewed: 2026-09-19   # 2026-09-19 T-FE-045 收口：新增「登出流程」节（服务端注销优先+本地清理无条件+显式携 token），T-FE-041「前端登出不调接口」口径退役；此前：2026-09-15 T-FE-015、2026-08-31 T-FE-041
 ---
 
 # 登录页 前端设计（T-FE-041 真实登录链路）
@@ -52,8 +52,8 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 - `views/login/index.vue`：页面 + 验证码状态（captchaId/captchaImage/refreshCaptcha）
 - `views/login/utils/rule.ts`：表单规则（含 captchaCode required）
-- `api/auth.ts`：`getCaptcha`/`login`（`unwrap` 解包）/`getUserMenu` + 固定常量
-- `store/modules/user.ts`：`loginByUsername`（unwrap → expiresIn 转绝对时间 → setToken → refreshUserMenu）；**无刷新令牌链路**（后端普通 Sa-Token 会话 refreshToken 为 null）
+- `api/auth.ts`：`getCaptcha`/`login`/`logout`（后两者 `unwrap` 解包）/`getUserMenu` + 固定常量
+- `store/modules/user.ts`：`loginByUsername`（unwrap → expiresIn 转绝对时间 → setToken → refreshUserMenu）、`logOut`（服务端注销优先，见「登出流程」）；**无刷新令牌链路**（后端普通 Sa-Token 会话 refreshToken 为 null）
 
 ## 权限接线（hasPerms → 按钮 → 降级）
 
@@ -63,8 +63,18 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 - `expiresIn`（秒）→ `new Date(Date.now() + expiresIn*1000)` 绝对时间供 `setToken`（cookie + localStorage）。
 - 无 refresh-token/自动续期/重试体系（后端无 `/refresh-token`，相关模板代码已删除）。
-- 请求拦截器：本地 `expires` 到期 → `logOut()` 清会话回登录页（本次请求无令牌放行，由 Gateway 401 兜底）；白名单 `/api/access/auth/captcha`、`/api/access/auth/login` 不附加令牌。
-- 响应拦截器：**仅** HTTP 401 → `logOut()` 清会话回登录页；403/503 等由页面自行处理。
+- 请求拦截器：本地 `expires` 到期 → `logOut()`（真注销，见「登出流程」）清会话回登录页（本次请求无令牌放行，由 Gateway 401 兜底）；白名单 `/api/access/auth/captcha`、`/api/access/auth/login` 不经拦截器令牌逻辑，`/api/access/auth/logout` 亦在白名单但由调用方显式携令牌（见「登出流程」）。
+- 响应拦截器：**仅** HTTP 401 → `logOut()`（真注销）清会话回登录页；403/503 等由页面自行处理。
+
+## 登出流程（T-FE-045 真注销）
+
+登出入口（顶栏下拉 `useNav.logout`、请求拦截器本地过期分支、响应拦截器 401 分支）统一走 `useUserStore.logOut()`：
+
+1. **服务端注销优先**：持令牌时先 `POST /api/access/auth/logout`（`api/auth.ts logout()`，`R<Void>` 经 unwrap 解包）。注销请求**显式携带 Authorization 头**（store 读当前 token 经 `formatToken` 构造后传入）——该端点已加入 http 请求白名单，拦截器不注入令牌也不做过期判定（防过期分支 `logOut` 递归），令牌仍照常送达服务端：本地 `expires` 已到期路径触发的登出，也能注销可能仍存活的服务端会话（本地到期时刻与 Sa-Token 服务端会话不完全同步）。
+2. **本地清理无条件**：服务端注销失败（网络/后端异常）仅 `console.warn` 不弹错——退出意图已明确，本地清理不可被服务端失败绑架（浏览器凭证已清，残留服务端会话按 Sa-Token TTL 自然过期）。清理序：清 Pinia（username/roles/permissions/menus）→ `removeToken`（cookie+localStorage）→ multiTags 重置 → `resetRouter` → 跳 `/login`。
+3. **串行防抖**：登出进行中重复触发（连点/拦截器程序化调用）直接短路——同一登出动作只发一次 `POST /logout`；登出完成后重复触发时 `getToken()` 已无令牌，不再发请求，仅幂等清理+跳转。
+
+> T-FE-041 原「前端登出仅清本地、不调接口」口径退役（2026-09-19，T-FE-045）——用户点退出后已复制出去的 Bearer token 在服务端仍有效的问题就此闭合。logoutAll 踢全部端点与多设备会话管理为非目标（另立评估）。
 
 ## mock 与动态路由口径（T-FE-041 决策）
 

@@ -53,8 +53,14 @@ class PureHttp {
           PureHttp.initConfig.beforeRequestCallback(config);
           return config;
         }
-        /** 请求白名单，放置一些不需要`token`的接口（通过设置请求白名单，防止`token`过期后再请求造成的死循环问题） */
-        const whiteList = ["/api/access/auth/captcha", "/api/access/auth/login"];
+        /** 请求白名单，放置不经拦截器附加/判定`token`的接口（通过设置请求白名单，防止`token`过期后再请求造成的死循环问题）。
+         *  logout 由调用方显式携带 Authorization 头（T-FE-045）：本端点入白名单是为跳过
+         *  过期分支（过期时本分支会嵌套触发 logOut 并免头发请求，注销将空转），令牌仍照常送达服务端 */
+        const whiteList = [
+          "/api/access/auth/captcha",
+          "/api/access/auth/login",
+          "/api/access/auth/logout"
+        ];
         return whiteList.some(url => config.url.endsWith(url))
           ? config
           : new Promise(resolve => {

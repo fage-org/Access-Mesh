@@ -62,7 +62,10 @@ export type LoginFormData = Pick<
  * 验证码 5 分钟有效且一次性消费。
  */
 export const getCaptcha = async (): Promise<CaptchaResp> => {
-  const res = await http.request<R<CaptchaResp>>("post", "/api/access/auth/captcha");
+  const res = await http.request<R<CaptchaResp>>(
+    "post",
+    "/api/access/auth/captcha"
+  );
   return unwrap(res);
 };
 
@@ -81,6 +84,21 @@ export const login = (data: LoginFormData): Promise<R<LoginResp>> => {
       clientId: FIXED_CLIENT_ID
     } satisfies LoginReq
   });
+};
+
+/**
+ * 注销当前会话（POST /api/access/auth/logout，T-FE-045）。
+ * <p>
+ * Authorization 头值由调用方显式传入（store 读当前 token 经 formatToken 构造），
+ * 不经请求拦截器附加——本端点已加入 http 请求白名单（防过期分支 logOut 递归），
+ * 拦截器不注入令牌也不做过期判定：本地 `expires` 已到期路径触发的登出，
+ * 也能注销可能仍存活的服务端会话（本地到期时刻与 Sa-Token 服务端会话不完全同步）。
+ */
+export const logout = async (authorization: string): Promise<void> => {
+  const res = await http.request<R<void>>("post", "/api/access/auth/logout", {
+    headers: { Authorization: authorization }
+  });
+  unwrap(res);
 };
 
 // ========== 用户菜单（v1.4 双轨并行） ==========

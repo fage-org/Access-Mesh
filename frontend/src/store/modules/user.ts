@@ -9,6 +9,7 @@ import {
 } from "../utils";
 import {
   login,
+  logout,
   getUserMenu,
   type LoginFormData,
   type LoginResp,
@@ -16,7 +17,17 @@ import {
 } from "@/api/auth";
 import { unwrap } from "@/api/_envelope";
 import { useMultiTagsStoreHook } from "./multiTags";
-import { type DataInfo, setToken, removeToken, userKey } from "@/utils/auth";
+import {
+  type DataInfo,
+  formatToken,
+  getToken,
+  setToken,
+  removeToken,
+  userKey
+} from "@/utils/auth";
+
+/** 登出串行防抖（T-FE-045）：登出进行中重复触发（连点/拦截器程序化调用）直接短路，同一登出动作只发一次 POST /logout */
+let logoutInFlight = false;
 
 export const useUserStore = defineStore("pure-user", {
   state: (): userType => ({
@@ -102,7 +113,10 @@ export const useUserStore = defineStore("pure-user", {
           throw err;
         }
         // 不阻断登录流程；前端可在路由守卫层做兜底（如重定向到错误页）
-        console.warn("[loginByUsername] failed to load /api/access/auth/user-menu", err);
+        console.warn(
+          "[loginByUsername] failed to load /api/access/auth/user-menu",
+          err
+        );
       }
       return loginData;
     },
@@ -130,16 +144,39 @@ export const useUserStore = defineStore("pure-user", {
         permissions: permissions ?? []
       });
     },
-    /** 前端登出（不调用接口） */
-    logOut() {
-      this.username = "";
-      this.roles = [];
-      this.permissions = [];
-      this.menus = [];
-      removeToken();
-      useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
-      resetRouter();
-      router.push("/login");
+    /**
+     * 登出（T-FE-045：服务端注销优先、本地清理无条件）。
+     * <p>
+     * 1. 持有令牌时先调 `POST /api/access/auth/logout` 注销服务端会话（显式携当前 token：
+     *    本地 `expires` 已到期路径触发的登出，令牌在服务端可能仍存活，注销不能空转）。
+     * 2. 服务端失败（网络/后端异常）仅 console.warn 不弹错——本地清理不可被服务端失败
+     *    绑架：退出意图已明确，浏览器凭证已清，残留服务端会话按 Sa-Token TTL 自然过期。
+     * 3. 本地清理无条件执行：清 Pinia → removeToken → multiTags 重置 → resetRouter → 跳 /login。
+     *    登出完成后重复触发时 getToken() 已无令牌，不再发请求，仅幂等清理+跳转。
+     */
+    async logOut() {
+      if (logoutInFlight) return;
+      logoutInFlight = true;
+      try {
+        const token = getToken();
+        if (token?.accessToken) {
+          try {
+            await logout(formatToken(token.accessToken));
+          } catch (err) {
+            console.warn("[logOut] 服务端注销失败，继续本地清理", err);
+          }
+        }
+        this.username = "";
+        this.roles = [];
+        this.permissions = [];
+        this.menus = [];
+        removeToken();
+        useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
+        resetRouter();
+        router.push("/login");
+      } finally {
+        logoutInFlight = false;
+      }
     }
   }
 });

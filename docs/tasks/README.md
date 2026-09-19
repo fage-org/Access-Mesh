@@ -273,7 +273,7 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 | T-FE-042 | ~~前端默认导航收敛~~（❌ cancelled 2026-08-23：范围并入 T-FE-041，同为前端发布面避免任务碎片化） | product-vertical-slice（已归档） | frontend/README | — | ❌ | — |
 | [T-FE-043](../archive/2026-09-12/tasks/T-FE-043.md) | 权限排查页（permission-query）重做——暂停期问题与功能登记（已 cancel：页面随 T-PERM-059 删除，重做考虑事项随卡归档，新形态另立任务） | — | design/frontend/permission-query.md（已归档）；api-contract §6.7 | — | ❌ | — |
 | [T-FE-044](../archive/2026-09-14/tasks/T-FE-044.md) | Phase 3 补遗联调：资源依赖（3.4 mock→真实收口 + Gateway 端点注册 + mock 终态化；Q-011/Q-012 转出；✅ 2026-09-14 收口：api 路径 /perm 前缀缺陷修复 + URL 契约锁，终态见任务卡完成记录） | —（Q-011 转出单卡任务） | api-contract §12.3；design/frontend/resource-dependency.md | T-FE-011, T-PERM-031 | ✅ | ✓ |
-| [T-FE-045](T-FE-045.md) | 登出真注销（接 /auth/logout） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md | — | ⚙️ | ⏳ |
+| [T-FE-045](T-FE-045.md) | 登出真注销（接 /auth/logout）（✅ 2026-09-19 收口：logout() 显式携 Authorization 头+http 请求白名单纳入防过期分支递归；logOut 服务端注销优先/本地清理无条件/串行防抖；回归锁×7 红跑实证；login.md 新增登出流程节） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md | — | ✅ | ✓ |
 | [T-FE-046](T-FE-046.md) | 强制改密闭环（自助改密页+阻断） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md | T-FE-049, T-GW-009 | ⚙️ | ⏳ |
 | T-FE-047 | 用户删除二次确认与错误反馈 | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | — | — | ⚙️ | — |
 | [T-FE-048](T-FE-048.md) | 会话权限热刷新（403 触发+手动入口） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md；design/frontend/permission-grant.md | — | ⚙️ | ⏳ |
