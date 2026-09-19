@@ -13,10 +13,10 @@
 | access-service 归并（跨服务） | `T-ACCESS` | 052 |
 | permission-center | `T-PERM` | 070 |
 | admin-service | `T-ADMIN` | 028 |
-| gateway | `T-GW` | 009 |
+| gateway | `T-GW` | 010 |
 | 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
 | 跨服务 API 契约 | `T-API` | 004 |
-| 前端 | `T-FE` | 045 |
+| 前端 | `T-FE` | 057 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
@@ -191,6 +191,7 @@
 | [T-GW-006](../archive/2026-06-28/tasks/T-GW-006.md) | 集成测试基线："杀 permission-center → Gateway 应 503"（重新界定：不在项目内做集成测试，改为独立仓库测试服务） | gateway-fail-mode | — | T-GW-002 | ✅ | ✓ |
 | [T-GW-007](../archive/2026-08-27/tasks/T-GW-007.md) | Gateway CORS 环境化与 actuator 暴露收口（origin 明确列表、credentials 禁 `*`、独立 management 端口） | product-vertical-slice（已归档） | design/services/gateway.md | T-ACCESS-021 | ✅ | ✓ |
 | [T-GW-008](../archive/2026-09-12/tasks/T-GW-008.md) | Gateway XFF 清洗与客户端 IP 重建——IP 条件信任面收口（已收口 2026-09-10，实施定案与存量缺陷修正见任务卡实现记录与 registry） | — | security-standards；gateway.md；rebuild-runbook | — | ✅ | ✓ |
+| T-GW-009 | Gateway 白名单纳入 /user/reset-password（会话入口族；T-FE-046 前置） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | gateway.md；api-contract §7.7 | — | ⚙️ | ⏳ |
 
 > 注：T-PERM-008（代码侧 Gateway 失效标记）依赖 T-GW-005（设计侧 S-006 规范）产出，二者构成"设计先行 → 代码落地"链。
 
@@ -272,6 +273,18 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 | T-FE-042 | ~~前端默认导航收敛~~（❌ cancelled 2026-08-23：范围并入 T-FE-041，同为前端发布面避免任务碎片化） | product-vertical-slice（已归档） | frontend/README | — | ❌ | — |
 | [T-FE-043](../archive/2026-09-12/tasks/T-FE-043.md) | 权限排查页（permission-query）重做——暂停期问题与功能登记（已 cancel：页面随 T-PERM-059 删除，重做考虑事项随卡归档，新形态另立任务） | — | design/frontend/permission-query.md（已归档）；api-contract §6.7 | — | ❌ | — |
 | [T-FE-044](../archive/2026-09-14/tasks/T-FE-044.md) | Phase 3 补遗联调：资源依赖（3.4 mock→真实收口 + Gateway 端点注册 + mock 终态化；Q-011/Q-012 转出；✅ 2026-09-14 收口：api 路径 /perm 前缀缺陷修复 + URL 契约锁，终态见任务卡完成记录） | —（Q-011 转出单卡任务） | api-contract §12.3；design/frontend/resource-dependency.md | T-FE-011, T-PERM-031 | ✅ | ✓ |
+| [T-FE-045](T-FE-045.md) | 登出真注销（接 /auth/logout） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md | — | ⚙️ | ⏳ |
+| [T-FE-046](T-FE-046.md) | 强制改密闭环（自助改密页+阻断） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md | T-FE-049, T-GW-009 | ⚙️ | ⏳ |
+| T-FE-047 | 用户删除二次确认与错误反馈 | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | — | — | ⚙️ | — |
+| [T-FE-048](T-FE-048.md) | 会话权限热刷新（403 触发+手动入口） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md；design/frontend/permission-grant.md | — | ⚙️ | ⏳ |
+| T-FE-049 | 登录半成功语义修正 | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md | — | ⚙️ | ⏳ |
+| T-FE-050 | findParentOrgName 递归 bug 修复（仅 user/index.vue） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | — | — | ⚙️ | — |
+| [T-FE-051](T-FE-051.md) | 列表加载统一错误处理+请求代际（composable 化） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | — | — | ⚙️ | — |
+| T-FE-052 | 跨层级拖拽+角色禁用加二次确认 | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/role-manage.md | — | ⚙️ | ⏳ |
+| T-FE-053 | 路由守卫 next() 后补 return（卫生修） | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | — | — | ⚙️ | — |
+| T-FE-054 | token 过期拦截器短路+过期提示 | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md | — | ⚙️ | ⏳ |
+| T-FE-055 | 授予入口按钮按 MANAGE/VIEW 分文案 | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/permission-grant.md；design/frontend/role-manage.md | — | ⚙️ | ⏳ |
+| [T-FE-056](T-FE-056.md) | menus 派生路由级 UX 门禁 | [frontend-session-consistency](../plans/frontend-session-consistency-plan.md) | design/frontend/login.md；design/frontend/role-manage.md；design/frontend/biz-domain.md；design/frontend/operation-log.md；design/frontend/type-definition.md | T-FE-053 | ⚙️ | ⏳ |
 
 ---
 

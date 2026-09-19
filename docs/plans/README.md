@@ -6,6 +6,7 @@
 
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
+| [frontend-session-consistency-plan.md](frontend-session-consistency-plan.md) | 前端会话/交互 | proposed | 2026-09-19 外评处置：14 项结论逐条核实（成立 12/降级 3）+ 五项用户拍板（强制改密阻断 / 403 触发权限热刷新 / menus 派生路由门禁 / 跨层级拖拽+禁用确认 / Gateway 白名单纳入改密端点），T-FE-045~056 十二任务 + T-GW-009 前置（P1 阻断试用 + P2 一致性清理）；codex sol 外评（P1×1+P2×3+P3×3）与 claude 外评（P1×1+P2×2+P3×4）处置完成；定案见 decision-registry 2026-09-19 行 |
 | ~~release-preview-plan.md~~ | （已归档）| — | 首个发布预览（v0.1.0）与部署验证：T-ACCESS-047~050 四任务全 done（全栈 compose profile / Q-006 修复 / 发布文档全套 / 空环境部署验证 + 本地 tag v0.1.0），2026-09-16 归档至 [../archive/2026-09-16/](../archive/2026-09-16/)（四卡+042 卡随迁 tasks/）；定案见 decision-registry 2026-09-16 三行 |
 | ~~capability-mapper-convergence-plan~~ | （已归档）| — | Q-009 跨能力 mapper 直读收敛：T-ACCESS-043~046 四批全 done（30 边→0、白名单退役零容忍），2026-09-15 归档至 [../archive/2026-09-15/](../archive/2026-09-15/)（四卡随迁 tasks/）；定案见 decision-registry 同日两行 |
 | ~~design-review-2026-06-17~~ | （已归档）| — | 设计评审已完成并归档至 [../archive/2026-06-17/](../archive/2026-06-17/)。评审结论沉淀至 `docs/design/`，工作单 A/B/C 已完成并归档，工作单 D/E/F 暂缓项已拆分至 design-review-def-followup-plan（该计划亦已于 2026-09-12 收口归档）。详见归档批次 README |

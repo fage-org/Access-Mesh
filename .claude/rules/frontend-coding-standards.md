@@ -591,7 +591,7 @@ pnpm typecheck
 pnpm lint
 ```
 
-当前 frontend/package.json 未定义 `test` 脚本；如后续补充测试命令，提交前应追加运行对应测试。
+frontend/package.json 已定义 `test` 脚本（`vitest run`）；涉前端代码的提交前应运行 `pnpm test`。
 
 ### Commit 前验证要求
 
