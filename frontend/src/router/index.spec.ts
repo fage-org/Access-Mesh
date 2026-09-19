@@ -91,6 +91,10 @@ import { initRouter } from "./utils";
 import { router } from "./index";
 
 type GuardFn = (to: any, from: any, next: (...args: any[]) => void) => void;
+const guardRegistrations = (
+  (router as unknown as { beforeEach: Mock }).beforeEach.mock
+    .calls as unknown as GuardFn[]
+).length;
 const guard = (
   (router as unknown as { beforeEach: Mock }).beforeEach.mock
     .calls[0] as GuardFn[]
@@ -134,6 +138,10 @@ beforeEach(() => {
 });
 
 describe("路由守卫 beforeEach（T-FE-053）", () => {
+  it("守卫单注册：模块加载期 beforeEach 恰注册一次（T-FE-056 复用架子若新增注册，防用例静默只测第一个；计数于 clearAllMocks 前的加载期捕获）", () => {
+    expect(guardRegistrations).toBe(1);
+  });
+
   it('路由声明 meta.roles 也不再拦 403、正常放行——本仓路由权限=后端 menus 派生（旧实现 next({path:"/error/403"})+贯穿二次 next，断言必红）', () => {
     loginAs(["BASIC_ROLE"]);
     const next = vi.fn();
