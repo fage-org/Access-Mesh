@@ -157,6 +157,22 @@ describe("useListLoad（T-FE-051 通用列表层）", () => {
     expect(onLoaded).toHaveBeenCalledTimes(1);
     expect(onLoaded).toHaveBeenCalledWith(["B"]);
   });
+
+  it("onLoaded 回调抛错：数据已回写、不弹加载失败、load 返 true（claude 外评 P3：旧形态走取数失败分支必失败）", async () => {
+    const { list, error, load } = useListLoad<string>({
+      errorText: "加载测试列表失败",
+      fetcher: async () => ["新数据"],
+      onLoaded: () => {
+        throw new Error("callback bug");
+      }
+    });
+
+    const ok = await load();
+    expect(ok).toBe(true); // 取数与回写已成功——旧形态此处 false
+    expect(list.value).toEqual(["新数据"]);
+    expect(mockMessage).not.toHaveBeenCalled(); // 旧形态弹「callback bug」
+    expect(error.value).toBeNull(); // 旧形态置位 error
+  });
 });
 
 describe("usePagedList（T-FE-051 分页层）", () => {

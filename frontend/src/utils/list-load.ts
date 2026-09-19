@@ -40,19 +40,29 @@ export function useListLoad<T>(opts: ListLoadOptions<T>) {
     loading.value = true;
     error.value = null;
     try {
-      const items = await opts.fetcher();
+      let items: T[];
+      try {
+        items = await opts.fetcher();
+      } catch (e) {
+        // 仅取数失败判「加载失败」——onLoaded 回调异常发生在数据回写之后，不属本类
+        // （claude 外评 P3：回调抛错若走本分支会误弹加载失败并暴露内部错误串）
+        if (seq !== reqSeq) return false;
+        error.value = toErrorMessage(e, opts.errorText);
+        message(error.value, { type: "error" });
+        // 失败保留旧数据（比清空友好）
+        return false;
+      }
       // 过期请求静默丢弃（用户已发起更新的请求），含 onLoaded 副作用
       if (seq !== reqSeq) return false;
       list.value = items;
-      opts.onLoaded?.(items);
+      try {
+        opts.onLoaded?.(items);
+      } catch (e) {
+        // 回调属页面侧代码且数据已回写：告警留痕，不冒充加载失败
+        // （total 等回调内写入面可能半提交，由回调自身保证）
+        console.warn("[list-load] onLoaded 回调异常:", e);
+      }
       return true;
-    } catch (e) {
-      // 过期失败同样丢弃
-      if (seq !== reqSeq) return false;
-      error.value = toErrorMessage(e, opts.errorText);
-      message(error.value, { type: "error" });
-      // 失败保留旧数据（比清空友好）
-      return false;
     } finally {
       // 仅最新请求复位 loading，迟到请求不干扰
       if (seq === reqSeq) loading.value = false;
@@ -106,20 +116,22 @@ export function usePagedList<T>(opts: PagedListOptions<T>) {
     return load();
   }
 
+  // 翻页回调返回 load() 的 promise——`await onSearch()` 等「加载完成」语义成立
+  // （claude 外评存量观察②：不返回时 await 在取数发出后即返回）
   function onSearch() {
     pagination.page = 1;
-    load();
+    return load();
   }
 
   function onPageChange(page: number) {
     pagination.page = page;
-    load();
+    return load();
   }
 
   function onPageSizeChange(size: number) {
     pagination.size = size;
     pagination.page = 1;
-    load();
+    return load();
   }
 
   return {
