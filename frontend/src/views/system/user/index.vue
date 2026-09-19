@@ -63,7 +63,7 @@ watch(canViewPosition, visible => {
 
 // Q-017 收敛（T-FE-051，2026-09-19 拍板就地化）：本组件不再实例化 useUserManage——
 // 成员表格状态与加载由 MemberTab 自家实例独占（watch(orgId)→onSearch 链路），
-// 消除「点组织双请求」（index 实例响应无人消费）与 10 项死解构；selectedOrgId 就地化。
+// 消除「点组织双请求」（index 实例响应无人消费）与整片未消费解构；selectedOrgId 就地化。
 const selectedOrgId = ref<number | null>(null);
 
 const orgTreePanelRef = ref<InstanceType<typeof ReOrgTreePanel>>();
