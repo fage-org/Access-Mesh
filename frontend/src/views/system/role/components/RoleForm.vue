@@ -384,7 +384,16 @@ defineExpose({
     </el-form-item>
 
     <el-form-item label="状态" prop="status">
-      <el-radio-group v-model="formData.status">
+      <!-- 编辑态只读：禁用是高影响操作（定案④），启停收敛回详情卡带二次确认的按钮
+           唯一入口（与父角色/外部标识编辑态只读同口径，claude 外评 P3 处置）；
+           新建态保持可选 -->
+      <el-input
+        v-if="isEdit"
+        :model-value="formData.status === 1 ? '启用' : '禁用'"
+        readonly
+        class="w-full!"
+      />
+      <el-radio-group v-else v-model="formData.status">
         <el-radio
           v-for="opt in statusOptions"
           :key="opt.value"

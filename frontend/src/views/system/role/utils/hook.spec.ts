@@ -2,7 +2,8 @@
  * 角色禁用二次确认与跨层级拖拽确认回归（T-FE-052，定案④）：
  * 旧实现 handleToggleStatus 无确认直接禁用、handleNodeDrop 直接 moveRole——
  * old-fail 用例在旧实现下失败；启用不确认/同父排序不确认/非法移动回滚为特征锁
- * （旧实现同行为，锁防回退）。
+ * （旧实现同行为，锁防回退）。只读/跨类型两用例锁的是第二道防线：allow-drop
+ * 已先行拦截（node-drop 不触发），hook 内守卫为兜底（claude 外评存量观察注记）。
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 

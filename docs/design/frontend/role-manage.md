@@ -75,7 +75,7 @@ last_reviewed: 2026-09-19   # T-FE-052 收口：§4.1 拖拽跨层级二次确�
 | name | 必填，2-64 字符 | 角色名称 |
 | externalId | 新建必填（可管理类型）；编辑只读 | 外部标识；BASIC_ROLE 新建强制必填（业务键依赖：schema 唯一索引 `uk_abstract_role_external`；历史上额外角色功能亦依赖此业务键）。**编辑态只读**——externalId 是业务键/定位锚点，改它会破坏既有引用，与 parentId 只读同口径；update 请求不含 externalId 字段 |
 | parentId | 可空 | 父角色（空=顶层森林根） |
-| status | 必填 | 启用/禁用 |
+| status | 必填 | 启用/禁用（编辑态只读——启停唯一入口为详情卡带二次确认按钮，claude 外评 P3 处置 2026-09-19） |
 | sortOrder | 必填，0-9999 | 排序号 |
 | extra | 可空 | 扩展属性 JSON |
 
@@ -92,7 +92,7 @@ last_reviewed: 2026-09-19   # T-FE-052 收口：§4.1 拖拽跨层级二次确�
   - **跨层级拖拽二次确认（定案④，T-FE-052）**：仅 parentId 变化的拖拽（inner 到不同父 / before-after 跨父含移至顶层）先 `ElMessageBox.confirm`，文案含原/新上级名与真实后果（父链镜像改变实例级管理范围与级联删除范围）；取消 `await loadTree()` 恢复（el-tree 已按落点移动节点）；**同父 before/after 排序直接生效不确认**。dropType 注解=node-drop 回调可达值（`'before'|'inner'|'after'`，NodeDropType 第四值 `'none'` 经 useDragNode 守卫不触发回调）。
   - 合法则 `moveRole({roleId, parentId})`，**成功后 `await loadTree()` 同步 parentId**（el-tree 仅移动 DOM 不更新 data.parentId，不重拉会导致后续编辑父角色展示/连续拖拽按旧 parentId 判断，评审 P2-拖拽）。
 - **新增**：顶部「新增角色」下拉 → 按类型（BASIC_ROLE）打开表单，默认顶层（parentId=null）。
-- **编辑/删除/启停**：详情卡片按钮（ROLE:MANAGE 统一门禁，见 §7）。**禁用为高影响操作先二次确认**（定案④，T-FE-052）——文案含「全部持有者立即失去该角色权限」；启用为安全方向不确认（对齐用户页仅停用确认先例）。
+- **编辑/删除/启停**：详情卡片按钮（ROLE:MANAGE 统一门禁，见 §7）。**禁用为高影响操作先二次确认**（定案④，T-FE-052）——文案含「全部持有者立即失去该角色权限」；启用为安全方向不确认（对齐用户页仅停用确认先例）。编辑表单「状态」编辑态只读——启停收敛唯一带确认入口（claude 外评 P3 处置，2026-09-19）。
 
 ### 4.1.1 父角色选择器（RoleForm 内 popover 树）
 

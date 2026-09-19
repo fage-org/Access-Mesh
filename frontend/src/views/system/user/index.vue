@@ -7,6 +7,7 @@ import OrgForm from "./components/OrgForm.vue";
 import { ReOrgTreePanel } from "@/components/ReOrgTreePanel";
 import { addDialog } from "@/components/ReDialog";
 import { createOrg, updateOrg, deleteOrg } from "@/api/user-manage";
+import { confirmOrgMoveIfNeeded } from "@/components/ReOrgTreePanel/src/confirmMove";
 import type { OrgTreeNode } from "@/api/user-manage";
 import { OfficeBuilding, Edit, Plus, Key } from "@element-plus/icons-vue";
 import { message } from "@/utils/message";
@@ -160,6 +161,21 @@ function openOrgForm(mode: "create" | "edit", node?: OrgTreeNode) {
       if (!valid) return;
 
       const formData = formRef.getFormData();
+      // 编辑换父=跨层级移动（与拖拽同后端路径：环路校验+父链镜像），提交前二次确认
+      // （定案④，claude 外评 P3 处置）；未换父（仅改名等）由 util 相等分支直接放行
+      if (isEdit && node) {
+        const newParentId = formData.parentOrgId ?? null;
+        const targetName =
+          newParentId == null
+            ? ""
+            : (findOrgById(orgTreePanelRef.value?.orgTree || [], newParentId)
+                ?.orgName ?? "未知");
+        const ok = await confirmOrgMoveIfNeeded(
+          { orgName: node.orgName, parentOrgId: node.parentOrgId ?? null },
+          { id: newParentId, orgName: targetName }
+        );
+        if (!ok) return; // 取消换父：保持弹窗打开
+      }
       try {
         if (isEdit && node) {
           await updateOrg({
