@@ -71,7 +71,7 @@ class AppServiceOperationLogCoverageTest {
     private static final Set<String> TARGET_TYPE_EXCEPTIONS = Set.of("oauth2_token");
 
     /**
-     * 物理表名白名单（access-service.sql 全部 33 表）。targetType 必须命中该集合
+     * 物理表名白名单（与 access-service.sql 同步）。targetType 必须命中该集合
      * 或 {@link #TARGET_TYPE_EXCEPTIONS}，防止遗留非表名值（BATCH/SINGLE/oauth2_client 等）回潮。
      */
     private static final Set<String> KNOWN_TABLE_NAMES = Set.of(
@@ -82,6 +82,7 @@ class AppServiceOperationLogCoverageTest {
         "operation_permission", "resource_entity", "resource_api_mapping", "service_config",
         "permission_condition", "user_role", "sync_metadata", "role_resource_permission",
         "domain_config", "resource_dependency", "permission_conflict_rule",
+        "permission_dependency_declaration", "service_manifest_sync", "resource_publication_state",
         "permission_change_log", "sys_task_execution"
     );
 
