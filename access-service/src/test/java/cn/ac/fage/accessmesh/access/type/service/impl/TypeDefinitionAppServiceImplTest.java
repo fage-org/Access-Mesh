@@ -1037,6 +1037,40 @@ class TypeDefinitionAppServiceImplTest {
     }
 
     @Test
+    void shouldLockRoleBeforeResource_whenDeletingMixedTypes() {
+        when(engine.getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any()))
+            .thenReturn(java.util.Set.of());
+        TypeDefinition resource = new TypeDefinition();
+        resource.setId(9L);
+        resource.setTenantId(1L);
+        resource.setTypeKey("resource_type");
+        resource.setTypeCode("CUSTOM_RESOURCE");
+        resource.setTypeValue(20);
+        resource.setIsSystem(false);
+        TypeDefinition role = new TypeDefinition();
+        role.setId(10L);
+        role.setTenantId(1L);
+        role.setTypeKey("role_type");
+        role.setTypeCode("CUSTOM_ROLE");
+        role.setTypeValue(21);
+        role.setIsSystem(false);
+        // 锁内重读时目标已被删除，仍必须先按全序取得本请求涉及的锁。
+        when(typeDefinitionMapper.selectValidByIds(1L, java.util.Set.of(9L, 10L)))
+            .thenReturn(java.util.List.of(resource, role), java.util.List.of());
+
+        service.deleteTypesByIds(1L, java.util.List.of(9L, 10L), 100L);
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(treeWriteLockSupport, typeDefinitionMapper);
+        order.verify(typeDefinitionMapper).selectValidByIds(1L, java.util.Set.of(9L, 10L));
+        order.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        order.verify(treeWriteLockSupport).lockTreeWrites(1L,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        order.verify(typeDefinitionMapper).selectValidByIds(1L, java.util.Set.of(9L, 10L));
+        verify(typeDefinitionMapper, never()).softDeleteBatch(anyLong(), any(), any());
+    }
+
+    @Test
     void shouldRejectRoleTypeDeleteWhenReferencedByValidRolesAndTakeRoleTreeLock() {
         // role_type 定案同款；自定义 role_type 角色行的唯一写入口（角色同步）持 ABSTRACT_ROLE
         // 树写锁，批删含 role_type 须共持同锁闭合「守卫查零行→并发建角色→删除落库」交错

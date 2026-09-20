@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-071
 title: 独立依赖声明与可选 SDK 协调
-status: proposed
+status: in-progress
 plan: —（无所属计划；自动授权实施序列）
 domain: access-service
 design_refs:
@@ -34,7 +34,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-20
+last_updated: 2026-09-21
 ---
 
 # T-PERM-071 独立依赖声明与可选 SDK 协调
@@ -45,13 +45,15 @@ last_updated: 2026-09-20
 
 ## 当前口径
 
-T-PERM-078 先收敛设计 §16 的实施协议，T-PERM-074 先闭合既有资源同步重试问题。来源不再落逐路径 support，API 派生仍由 T-PERM-054 承接且维持暂缓。本卡 proposed，不表示新 manifest 端点已交付。
+T-PERM-078 已完成设计 §16 的实施协议校准，T-PERM-074 已闭合同步失败记账问题。来源不再落逐路径 support，API 派生仍由 T-PERM-054 承接且维持暂缓。本卡 in-progress，逐项验收前不表示新 manifest 端点已交付。
 
 ## 范围
 
 声明数据层、编译器、独立 manifest 通道、SDK 发布/可选协调、管理写入口关闭及存量迁移、契约和前端兼容收口。管理只读边界按设计 §5，旧 autoGrant=false 边不得静默转为自动授权声明。资源 sync/full-sync 原有独立使用方式保持，相关协议修正按 M1 已定内容实施；依赖物化回收挂接归 072。
 
 ## 验收对照
+
+当前已实现混合类型批删锁序修正：统一先 ABSTRACT_ROLE 后 RESOURCE_ENTITY，保留单类型入口、门禁和锁内重读。`TypeDefinitionAppServiceImplTest`（2026-09-21）58 tests 通过，新增混合顺序用例在旧实现下失败；`MixedTypeDeletionLockPgIT` 1 test 通过，使用真实事务与 Redis 锁镜像组织投影锁序，不冒充完整组织 API 验证。声明、发布状态、保全迁移及管理写入口退役仍待实现。
 
 见 frontmatter acceptance。以同服务月报/模板为最小业务闭环，同时用无依赖的纯资源接入证明未引入强制依赖。新端点/形状只在正式契约登记，不由任务卡重定义。
 

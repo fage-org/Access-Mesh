@@ -170,7 +170,7 @@
 | [T-PERM-034](../archive/2026-09-14/tasks/T-PERM-034.md) | 4.1 权限授予后端（已收口 2026-08-30，终态见任务卡完成记录） | [frontend-phase2](../archive/2026-09-14/frontend-phase2-plan.md)（已归档） | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；permission-grant.md §12；access-service.sql | T-PERM-031 | ✅ | ✓ |
 | [T-PERM-035](../archive/2026-09-19/tasks/T-PERM-035.md) | 自动授权（旧口径）— ❌ cancelled 2026-09-19：被定稿设计取代，拆分承接见 T-PERM-070~073；§11 E4 暂缓随定稿解除 | — | docs/design/dependency-auto-grant.md（取代依据） | — | ❌ | — |
 | [T-PERM-070](T-PERM-070.md) | 前置·公共服务认证模块（per-service 静态凭证）（✅ 2026-09-20 收口：service_credential 表+管理面四端点+ServiceAuthArbiter 五形态仲裁〔凭证优先/禁止降级/白名单单源〕+Gateway M2M 放行链+SDK 凭证拦截器〔注入面精确镜像+启动声明式 TLS 三态〕+20065~20068+固定图四行；七项拍板见 registry 同日行；双轨评审 P1×2+P0×5 全处置〔SDK 宽注入面收窄+五处既有锁随批更新〕+E2E 真实 sync 成功用例；全量回归含 E2E 绿） | —（T-PERM-035 实现序列前置卡） | docs/design/service-authentication.md；docs/design/access-service-api-contract.md §24 | — | ✅ | ✓ |
-| [T-PERM-071](T-PERM-071.md) | 独立依赖声明与可选 SDK 协调 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-070, T-PERM-078, T-PERM-074 | ⚙️ | ⏳ |
+| [T-PERM-071](T-PERM-071.md) | 独立依赖声明与可选 SDK 协调 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-070, T-PERM-078, T-PERM-074 | 🔨 | ⏳ |
 | [T-PERM-072](T-PERM-072.md) | 自动授权物化与共享推导 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-071 | ⚙️ | ⏳ |
 | [T-PERM-073](T-PERM-073.md) | 按需来源解释、授权界面与对账 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-072 | ⚙️ | ⏳ |
 | [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证（scopeMode → SQL 映射链路）— ⚠️ design-review §11 Q7/B 暂缓（延后 example-service） | —（2026-09-14 脱出已归档计划，暂缓等 PM 重申） | 契约总册 §18.6；engine/core-flows；engine/implementation | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |

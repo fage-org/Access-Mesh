@@ -617,15 +617,15 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // T-PERM-056：含 role_type 时与角色写入口共持 ABSTRACT_ROLE 树写锁——自定义 role_type
         // 角色行的唯一创建入口是角色同步通道（管理面 createRole 经 RoleType.fromValue 枚举校验
         // 只接受种子类型；updateRole/moveRole 可写已存在行但亦持同锁），「行数守卫查零行→并发
-        // 建该类型角色→类型删除落库」交错由此闭合。锁序固定 RESOURCE_ENTITY→ABSTRACT_ROLE
-        // 单向（角色写路径持锁后不再取 RESOURCE_ENTITY 锁，无对向死锁）
+        // 建该类型角色→类型删除落库」交错由此闭合。混合删除按共同树锁全序
+        // ABSTRACT_ROLE→RESOURCE_ENTITY，与组织/角色投影写入一致，避免反向持锁互等。
         boolean containsResourceType = entities.stream().anyMatch(e -> "resource_type".equals(e.getTypeKey()));
         boolean containsRoleType = entities.stream().anyMatch(e -> "role_type".equals(e.getTypeKey()));
-        if (containsResourceType) {
-            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
-        }
         if (containsRoleType) {
             treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
+        }
+        if (containsResourceType) {
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         }
         if (containsResourceType || containsRoleType) {
             entities = typeDefinitionMapper.selectValidByIds(tenantId, validInputIds);
