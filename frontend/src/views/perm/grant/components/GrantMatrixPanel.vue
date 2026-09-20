@@ -30,6 +30,8 @@ const props = defineProps<{
   typeCandidates: TypeDefResp[];
   /** 🔧 T-FE-018（理解 A）：缺少 TYPE_DEFINITION:VIEW 软依赖——类型下拉与矩阵区禁用+重试，不误报空态 */
   typePermDenied: boolean;
+  /** 授予页重试在途标记（T-FE-048 评审 P3-3）：重试按钮 loading，前置能力刷新段防连点 */
+  retryInFlight: boolean;
   /** 当前矩阵类型（MatrixContext，§2.2） */
   currentTypeCode: string | null;
   /** 主体已有权限类型（仅用于下拉标记与排序——有权限的排前，§2.2） */
@@ -501,7 +503,13 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
         sub-title="当前账号缺少类型定义查看权限（TYPE_DEFINITION:VIEW），请联系管理员开通后重试"
       >
         <template #extra>
-          <el-button type="primary" @click="emit('retryDeps')">重试</el-button>
+          <el-button
+            type="primary"
+            :loading="retryInFlight"
+            @click="emit('retryDeps')"
+          >
+            重试
+          </el-button>
         </template>
       </el-result>
       <!-- 类型候选为空（§2.2：候选=全集为空时矩阵区 el-empty 空态） -->

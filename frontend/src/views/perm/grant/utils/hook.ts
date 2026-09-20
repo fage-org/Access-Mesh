@@ -16,6 +16,7 @@ import { onBeforeRouteLeave, useRoute, useRouter } from "vue-router";
 import { ElMessageBox } from "element-plus";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
+import { refreshSessionCapability } from "@/router/utils";
 import {
   getOperationList,
   getResourceTree,
@@ -229,12 +230,30 @@ export function usePermissionGrant() {
     }
   }
 
+  /** 授予页重试在途标记（T-FE-048 评审 P3-3 处置，2026-09-20 用户拍板补 loading）：
+   * 前置能力刷新段位于 loadDeps 闩锁之外，防连点并发双发 user-menu（函数短路 + 按钮 loading 双保险） */
+  const retryInFlight = ref(false);
+
   /**
-   * 🔧 T-FE-018（理解 A）：typePermDenied 降级态的重试入口——重新探查权限串
-   * （权限授予后无需重新登录即可生效于下一次登录态刷新；重试本身幂等）。
+   * 🔧 T-FE-018：typePermDenied 降级态的重试入口——先走会话能力刷新入口（T-FE-048）
+   * 重拉权限串再 loadDeps：管理员补授 TYPE_DEFINITION:VIEW 后无需重登/刷新页面，
+   * 重试即读到新权限串（原实现读 store 旧值，重试永远降级——hook 注释自认「生效于
+   * 下一次登录态刷新」）。刷新失败不阻断重试（旧权限串下照常走既有降级判定，行为
+   * 不劣化）；重试幂等。
    */
-  function retryLoadDeps() {
-    void loadDeps();
+  async function retryLoadDeps() {
+    if (retryInFlight.value) return;
+    retryInFlight.value = true;
+    try {
+      try {
+        await refreshSessionCapability();
+      } catch {
+        // 刷新失败静默：能力刷新入口已保证侧栏/权限串维持旧态，此处继续旧权限串重试
+      }
+      await loadDeps();
+    } finally {
+      retryInFlight.value = false;
+    }
   }
 
   // ========== 查看态（§3.4 开关为查看态过滤，不影响草稿与数据） ==========
@@ -990,6 +1009,8 @@ export function usePermissionGrant() {
     /** 🔧 T-FE-018：TYPE_DEFINITION:VIEW 软依赖降级态（true=类型下拉/矩阵区禁用+重试） */
     typePermDenied,
     retryLoadDeps,
+    /** 授予页重试在途标记（T-FE-048 评审 P3-3）：重试按钮 loading 消费 */
+    retryInFlight,
     // 矩阵上下文（T-FE-038）
     typeCandidates,
     currentTypeCode,

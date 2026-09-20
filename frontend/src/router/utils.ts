@@ -262,6 +262,46 @@ function buildSidebarMenus(
 }
 
 /**
+ * 侧栏按 user store 当前 menus 重建（统一形态：非空后端树 / 空态两态占位项）。
+ * initRouter 与会话能力刷新入口共用同一接线（T-FE-048），保证四调用方
+ * （initRouter / 403 自动刷新 / 顶栏手动入口 / 授予页重试）侧栏形态一致。
+ */
+function rebuildSidebarFromUserMenus() {
+  const userStore = useUserStoreHook();
+  usePermissionStoreHook().handleBackendMenus(
+    userStore.menus.length > 0
+      ? buildSidebarMenus(userStore.menus)
+      : resolveSidebarFallback(userStore.menuLoadFailed)
+  );
+}
+
+/**
+ * 会话能力刷新入口（T-FE-048，2026-09-19 拍板）：单函数原子更新权限串
+ * （roles/permissions/menus，经 user store refreshUserMenu）+ 侧栏 wholeMenus。
+ * 仅刷 store 不重建侧栏会造成「按钮权限已新、侧栏旧菜单残留继续点击 403」，
+ * 故二者必须同入口——调用方：initRouter、http 403 自动刷新、顶栏手动入口、
+ * 授予页 retryLoadDeps。
+ * <p>
+ * 语义：
+ * <ul>
+ *   <li>成功：menus 非空 → 重建后端树侧栏；空 → 按最近拉取成败渲染两态占位项</li>
+ *   <li>失败：原样抛出且不触碰 wholeMenus——按钮/侧栏维持旧态（后端 fail-closed
+ *       兜底）；门禁状态机维持 loaded（failed 仅由首次加载失败产生）——由调用方
+ *       决定静默或提示</li>
+ *   <li>不清理 multiTags 已缓存标签（标签指向的路由由后端 403 兜底，任务卡登记边界）；
+ *       不经 handleAsyncRoutes（其 multiTags 重置仅属登录/F5 的 initRouter 全量路径）</li>
+ *   <li>T-FE-056 落地后：路由门禁 path 集/状态机更新挂接于此（同 owner，勿另开通道）</li>
+ * </ul>
+ */
+export async function refreshSessionCapability(): Promise<void> {
+  // 无会话无可刷（会话失效由拦截器 401 分支 logOut 收口）
+  if (!getToken()) return;
+  const userStore = useUserStoreHook();
+  await userStore.refreshUserMenu();
+  rebuildSidebarFromUserMenus();
+}
+
+/**
  * 初始化路由（`new Promise` 写法保持调用方签名兼容）。
  * <p>
  * T-FE-041 起为纯静态路由模式：所有业务路由由 `src/router/modules/*.ts` 本地声明，
@@ -270,7 +310,8 @@ function buildSidebarMenus(
  * 标题/图标/层级/排序来自 sys_menu，可见性 = v3.5 §4.1 ∃op 派生）：
  * <ul>
  *   <li>登录路径：loginByUsername 已拉取 user-menu，此处复用 store 内存结果不重复请求</li>
- *   <li>已登录 F5/启动（menus 内存态丢失）：重取 /api/access/auth/user-menu；失败 fail-closed 空菜单 +
+ *   <li>已登录 F5/启动（menus 内存态丢失）：经会话能力刷新入口（T-FE-048）重取
+ *       /api/access/auth/user-menu；失败 fail-closed 空菜单 +
  *       侧栏「菜单加载失败，点击重试」占位项（跳 /menu-retry 重试页），
  *       不持久化 menus、不回退全量静态菜单；拉取成功但账号无菜单（零权限）时占位项为
  *       「当前账号无可用菜单」（T-FE-049 两态区分——重试对该形态无意义）</li>
@@ -281,7 +322,8 @@ async function initRouter() {
   const userStore = useUserStoreHook();
   if (getToken() && userStore.menus.length === 0) {
     try {
-      await userStore.refreshUserMenu();
+      // 能力刷新入口同源（T-FE-048）：拉取+侧栏重建与其余三调用方单函数语义一致
+      await refreshSessionCapability();
     } catch (err) {
       // fail-closed：拉取失败按空菜单处理（下方占位项给出显式重试入口）
       console.warn(
@@ -291,11 +333,7 @@ async function initRouter() {
     }
   }
   handleAsyncRoutes([]);
-  usePermissionStoreHook().handleBackendMenus(
-    userStore.menus.length > 0
-      ? buildSidebarMenus(userStore.menus)
-      : resolveSidebarFallback(userStore.menuLoadFailed)
-  );
+  rebuildSidebarFromUserMenus();
   return router;
 }
 

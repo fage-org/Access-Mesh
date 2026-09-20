@@ -9,6 +9,7 @@ import LaySidebarTopCollapse from "../lay-sidebar/components/SidebarTopCollapse.
 
 import LogoutCircleRLine from "~icons/ri/logout-circle-r-line";
 import Setting from "~icons/ri/settings-3-line";
+import Refresh from "~icons/ri/refresh-line";
 
 const {
   layout,
@@ -19,7 +20,9 @@ const {
   username,
   userAvatar,
   avatarsStyle,
-  toggleSideBar
+  toggleSideBar,
+  refreshPermission,
+  capabilityRefreshing
 } = useNav();
 </script>
 
@@ -42,6 +45,15 @@ const {
     <div v-if="layout === 'vertical'" class="vertical-header-right">
       <!-- 菜单搜索 -->
       <LaySearch id="header-search" />
+      <!-- 刷新权限（T-FE-048 手动入口：直连会话能力刷新，成功后按钮显隐/侧栏即时更新） -->
+      <span
+        class="set-icon navbar-bg-hover"
+        :class="{ 'is-refreshing': capabilityRefreshing }"
+        title="刷新权限"
+        @click="refreshPermission"
+      >
+        <IconifyIconOffline :icon="Refresh" />
+      </span>
       <!-- 全屏 -->
       <LaySidebarFullScreen id="full-screen" />
       <!-- 消息通知 -->
@@ -76,6 +88,17 @@ const {
 </template>
 
 <style lang="scss" scoped>
+/* 刷新权限按钮在途旋转（T-FE-048）：与设置按钮同款 set-icon 形态，仅叠加转动反馈 */
+@keyframes navbar-refresh-rotate {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .navbar {
   width: 100%;
   height: 48px;
@@ -130,6 +153,12 @@ const {
     display: inline-flex;
     flex-wrap: wrap;
     min-width: 100%;
+  }
+}
+
+.is-refreshing {
+  :deep(svg) {
+    animation: navbar-refresh-rotate 1s linear infinite;
   }
 }
 </style>

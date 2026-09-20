@@ -2,21 +2,25 @@ import { storeToRefs } from "pinia";
 import { getConfig } from "@/config";
 import { emitter } from "@/utils/mitt";
 import Avatar from "@/assets/user.jpg";
-import { getTopMenu } from "@/router/utils";
+import { getTopMenu, refreshSessionCapability } from "@/router/utils";
 import { useFullscreen } from "@vueuse/core";
 import type { routeMetaType } from "../types";
 import { useRouter, useRoute } from "vue-router";
 import { router, remainingPaths } from "@/router";
-import { computed, type CSSProperties } from "vue";
+import { computed, ref, type CSSProperties } from "vue";
 import { useAppStoreHook } from "@/store/modules/app";
 import { useUserStoreHook } from "@/store/modules/user";
 import { useGlobal, isAllEmpty } from "@pureadmin/utils";
 import { usePermissionStoreHook } from "@/store/modules/permission";
+import { message } from "@/utils/message";
 import ExitFullscreen from "~icons/ri/fullscreen-exit-fill";
 import Fullscreen from "~icons/ri/fullscreen-fill";
 
 const errorInfo =
   "The current routing configuration is incorrect, please check the configuration";
+
+/** 手动刷新在途标记（T-FE-048 模块级共享：useNav 多组件多实例，防止并发双发 user-menu） */
+const capabilityRefreshing = ref(false);
 
 export function useNav() {
   const route = useRoute();
@@ -82,6 +86,25 @@ export function useNav() {
   /** 退出登录 */
   function logout() {
     useUserStoreHook().logOut();
+  }
+
+  /**
+   * 刷新权限（T-FE-048 顶栏手动入口）：直连会话能力刷新入口（不走 403 去重通道——
+   * 显式动作立即响应），成功 message 提示、按钮显隐/侧栏菜单即时更新；失败弹错误
+   * 提示（2026-09-20 用户拍板：显式动作配显式反馈，与 403 自动刷新的静默口径区分）。
+   */
+  async function refreshPermission() {
+    if (capabilityRefreshing.value) return;
+    capabilityRefreshing.value = true;
+    try {
+      await refreshSessionCapability();
+      message("权限已刷新", { type: "success" });
+    } catch (err) {
+      console.warn("[refreshPermission] 会话能力刷新失败", err);
+      message("权限刷新失败，请稍后重试", { type: "error" });
+    } finally {
+      capabilityRefreshing.value = false;
+    }
   }
 
   function backTopMenu() {
@@ -152,6 +175,8 @@ export function useNav() {
     username,
     userAvatar,
     avatarsStyle,
-    tooltipEffect
+    tooltipEffect,
+    refreshPermission,
+    capabilityRefreshing
   };
 }

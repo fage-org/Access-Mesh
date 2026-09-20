@@ -30,6 +30,7 @@ const {
   depsLoading,
   typePermDenied,
   retryLoadDeps,
+  retryInFlight,
   typeCandidates,
   currentTypeCode,
   subjectPermissionTypes,
@@ -119,6 +120,7 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
             :resource-forest="resourceForest"
             :type-candidates="typeCandidates"
             :type-perm-denied="typePermDenied"
+            :retry-in-flight="retryInFlight"
             :current-type-code="currentTypeCode"
             :permission-type-codes="subjectPermissionTypes"
             :visible-columns="visibleColumns"

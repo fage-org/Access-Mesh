@@ -15,6 +15,7 @@ const getConditionList = vi.fn();
 const hasPermsMock = vi.fn();
 const messageMock = vi.fn();
 const routerReplaceMock = vi.fn();
+const refreshCapabilityMock = vi.fn();
 
 /** 可控 route（refreshAndPreset 预选分支按 query.roleExternalId 分发） */
 const routeMock: { query: Record<string, unknown> } = { query: {} };
@@ -24,6 +25,12 @@ vi.mock("vue-router", () => ({
   useRoute: () => routeMock,
   useRouter: () => ({ replace: routerReplaceMock }),
   onBeforeRouteLeave: () => {}
+}));
+// 会话能力刷新入口（T-FE-048 retryLoadDeps 先行依赖）：断链真实 router/utils 图，
+// 由用例控制权限串刷新时机（锁③：刷新翻真后才发依赖请求）
+vi.mock("@/router/utils", () => ({
+  refreshSessionCapability: (...args: unknown[]) =>
+    refreshCapabilityMock(...args)
 }));
 vi.mock("element-plus", () => ({ ElMessageBox: { confirm: vi.fn() } }));
 vi.mock("@/utils/http", () => ({ http: { request: vi.fn() } }));
@@ -66,6 +73,7 @@ describe("授权页类型候选降级判定", () => {
     vi.clearAllMocks();
     setActivePinia(createPinia());
     hasPermsMock.mockReturnValue(true);
+    refreshCapabilityMock.mockResolvedValue(undefined);
     getTypeDefList.mockResolvedValue({ items: [] });
     getResourceTree.mockResolvedValue({ items: [] });
     getOperationList.mockResolvedValue({ items: [] });
@@ -150,6 +158,65 @@ describe("授权页类型候选降级判定", () => {
     await flush();
     expect(hook.typePermDenied.value).toBe(false);
     expect(messageMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("T-FE-048 锁③：retryLoadDeps 先走会话能力刷新入口重拉权限串——刷新使 hasPerms 翻真后重试才发依赖请求（旧实现读 store 旧权限串，重试永远降级）", async () => {
+    // 初态：缺 TYPE_VIEW，首次加载进降级、零依赖请求
+    hasPermsMock.mockReturnValue(false);
+    const hook = usePermissionGrant();
+    hook.retryLoadDeps();
+    await flush();
+    expect(hook.typePermDenied.value).toBe(true);
+    expect(getTypeDefList).not.toHaveBeenCalled();
+
+    // 管理员补授后点击重试：能力刷新入口先更新权限串（此处以刷新回调翻真模拟），
+    // 随后 loadDeps 读到新权限串发出依赖请求——顺序锁由「翻真后才发请求」携带
+    refreshCapabilityMock.mockImplementation(async () => {
+      hasPermsMock.mockReturnValue(true);
+    });
+    await hook.retryLoadDeps();
+    await flush();
+    expect(refreshCapabilityMock).toHaveBeenCalledTimes(2);
+    expect(getTypeDefList).toHaveBeenCalledTimes(1);
+    expect(hook.typePermDenied.value).toBe(false);
+  });
+
+  it("T-FE-048 边界：能力刷新失败不阻断重试——旧权限串下照常走既有降级判定（行为不劣化）", async () => {
+    hasPermsMock.mockReturnValue(false);
+    refreshCapabilityMock.mockRejectedValue(new Error("network down"));
+    const hook = usePermissionGrant();
+    await hook.retryLoadDeps();
+    await flush();
+    expect(refreshCapabilityMock).toHaveBeenCalledTimes(1);
+    expect(hook.typePermDenied.value).toBe(true);
+    expect(messageMock).not.toHaveBeenCalled();
+  });
+
+  it("T-FE-048 评审 P3-3 处置：重试在途短路防重入——前置能力刷新段连点只发一次，完成/失败均复位（旧实现无守卫，二次点击并发双发）", async () => {
+    hasPermsMock.mockReturnValue(true);
+    let resolveRefresh!: () => void;
+    refreshCapabilityMock.mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          resolveRefresh = resolve;
+        })
+    );
+    const hook = usePermissionGrant();
+    const first = hook.retryLoadDeps();
+    expect(hook.retryInFlight.value).toBe(true);
+    // 在途连点：短路，不并发第二次刷新
+    await hook.retryLoadDeps();
+    expect(refreshCapabilityMock).toHaveBeenCalledTimes(1);
+    resolveRefresh();
+    await first;
+    await flush();
+    expect(hook.retryInFlight.value).toBe(false);
+    expect(getTypeDefList).toHaveBeenCalledTimes(1);
+    // 复位后可再次重试
+    refreshCapabilityMock.mockResolvedValue(undefined);
+    await hook.retryLoadDeps();
+    await flush();
+    expect(refreshCapabilityMock).toHaveBeenCalledTimes(2);
   });
 });
 
