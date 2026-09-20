@@ -31,7 +31,7 @@ last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父�
 
 1. **环境初始化**：空库按 `docs/design/access-service-rebuild-runbook.md` 重建数据库，并以 `ACCESS_BOOTSTRAP_ENABLED=true` + `ACCESS_BOOTSTRAP_ADMIN_PASSWORD` 启动 access-service——自动种子首管理员（`admin`，tenantId=1）与管理用功能角色；未启用则空库无管理员，下述管理链全部 401。既有库固定图升级须按 runbook 重建。
 2. **管理 API 均需管理员会话身份**并过对应门禁：如 service-config 写操作=SERVICE:MANAGE、type-definition/create=TYPE_DEFINITION:CREATE、apply-grant-plan=ROLE:MANAGE。授权写入口**不收服务身份**（服务身份无操作者，一律 403）。
-3. **授权页入口**在角色管理页「权限授予」按钮（授权路由不在侧栏单独暴露）。
+3. **授权页入口**在角色管理页「权限授予/查看权限」入口按钮（文案按 ROLE:MANAGE 二分，T-FE-055；授权路由不在侧栏单独暴露）。
 4. **被授权主体**：场景二第 ⑥ 步判定需要一个有角色的用户——可经管理台组织与用户页创建用户并挂角色，或把权限授给既有功能角色（`BASIC_ROLE` **类型**下的 `bootstrap-admin` 等角色）再绑用户。
 
 ## 2. 场景一：业务服务接入接口鉴权（example 模式）

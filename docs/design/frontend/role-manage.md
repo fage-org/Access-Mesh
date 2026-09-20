@@ -3,7 +3,7 @@ doc_type: design
 title: 2.2 角色管理页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-19   # T-FE-052 收口：§4.1 拖拽跨层级二次确认+禁用确认（定案④）；此前 2026-09-15   # 2026-09-04 §8 T-PERM-044 收口句终态化（Redisson 口径）；此前 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
+last_reviewed: 2026-09-20   # T-FE-055 收口：§1 配权入口行与 §4.3 补入口文案二分口径（另持 ROLE:MANAGE「权限授予」/仅 ROLE:VIEW「查看权限」，grant-entry.ts 三入口单源）；此前 2026-09-19   # T-FE-052 收口：§4.1 拖拽跨层级二次确认+禁用确认（定案④）；此前 2026-09-15   # 2026-09-04 §8 T-PERM-044 收口句终态化（Redisson 口径）；此前 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
 ---
 
 # 2.2 角色管理页 前端设计
@@ -27,7 +27,7 @@ last_reviewed: 2026-09-19   # T-FE-052 收口：§4.1 拖拽跨层级二次确�
 **设计依据**：ORG/POSITION/PERSONAL 被抽象成角色，只是为了让它们能"像角色一样被分配权限"——它们本身不是"被管理的角色"。角色管理页的职责是**管理角色**（创建/编辑/删除功能角色），不是**分配和管理权限**。权限分配是权限授予页的职责（v3 已重建，T-FE-036）（`default-org-tree-user-lifecycle.md:72`：功能角色分配走 `ROLE:MANAGE`，不归 `ORG`/`USER` 资源类型）。
 
 - **本页可 CRUD**：BASIC_ROLE（`MANAGEABLE_ROLE_TYPES`，T-PERM-043 后仅此一项）。
-- **配权入口已恢复（T-FE-036，2026-08-02）**：角色信息卡片提供「权限授予」按钮（`ROLE:VIEW` 门控），跳转 `/perm/grant?subjectType=ROLE`；BASIC_ROLE 携带 `roleExternalId` 预选。本页不内嵌配权矩阵。
+- **配权入口已恢复（T-FE-036，2026-08-02）**：角色信息卡片提供「权限授予」按钮（`ROLE:VIEW` 门控），跳转 `/perm/grant?subjectType=ROLE`；BASIC_ROLE 携带 `roleExternalId` 预选。本页不内嵌配权矩阵。**按钮文案按 ROLE:MANAGE 二分（T-FE-055，2026-09-20）**：另持 `ROLE:MANAGE` 显示「权限授予」、仅 `ROLE:VIEW` 显示「查看权限」（进授予页为只读矩阵，文案不承诺授予；`grant-entry.ts` 三入口单源）。
 - **树结构（C2）**：后端 `getRoleTree` 返回**扁平森林**——根 = `parentId=null` 的真实角色，`TreeBuilder` 按 parentId 组装，**无任何"类型虚拟根"节点**。前端 hook `filterVisibleTree` 裁剪为仅 BASIC_ROLE 展示（跳过 mock ROOT 容器、按类型过滤；GROUP_ROLE 节点整棵裁掉）。
 
 ## 2. 布局结构
@@ -111,7 +111,7 @@ C2 后无"类型虚拟根"概念，父角色在**同类型真实角色**中选�
 
 ### 4.3 配权
 
-- 配权入口已恢复（T-FE-036，2026-08-02）：「权限授予」按钮（`ROLE:VIEW` 门控，`Key` 图标，类型主按钮）跳转 `/perm/grant?subjectType=ROLE`，BASIC_ROLE 携带 `roleExternalId` 预选。
+- 配权入口已恢复（T-FE-036，2026-08-02）：「权限授予」按钮（`ROLE:VIEW` 门控，`Key` 图标，类型主按钮）跳转 `/perm/grant?subjectType=ROLE`，BASIC_ROLE 携带 `roleExternalId` 预选。文案按 ROLE:MANAGE 二分（T-FE-055）：「权限授予」/「查看权限」。
 
 ## 5. API 依赖（链接后端契约章节）
 

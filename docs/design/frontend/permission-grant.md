@@ -3,7 +3,7 @@ doc_type: design
 title: 4.1 权限授予 前端设计（v3）
 status: adopted # v3.1 已实现；角色/组织两入口均已完成真实接口联调（T-FE-018 2026-09-02 / T-FE-037 2026-09-04）
 domain: frontend
-last_reviewed: 2026-09-20   # 2026-09-20 T-FE-048：§10 已知缺口重试语义句更新（retryLoadDeps 先走会话能力刷新入口重拉权限串，重试无需重登——原「生效于下一次登录态刷新」口径退役，机制见 login.md「会话权限热刷新」节）；此前 2026-09-11 T-PERM-048 条件双轨制：§1.2 分工改写（引用管理页条件/内联定义双轨）、§3 补内联复制规则、§8 条件列表 includeInline、§9 条件选择器三态值域；此前 2026-09-07 T-PERM-051 后端收口注记：§10 TYPE_DEFINITION 实例投影/复合键/SYNC 只读口径更新（前端零改动）；此前 2026-09-04 # 2026-09-04 T-FE-037 组织入口联调收口与评审修正：§1.1 组织行改已联调（status=1 仅启用为 2026-09-04 定案、GrantContext 派生口径）并补多标签直切边界（2026-09-04 定案登记）、§9 适配器行标已实现（SubjectTreePanel 组织分支 + buildOrgSubjectTree）、§13.1 入口行补组织/岗位入口并删 mock 时代残留行、§13.2 决策 4 补落地修订标；评审修正——preset 同主体判定改双字段比对 isSamePresetSubject（跨入口 id 碰撞防授权目标错乱）、停用主体/未选主体文案中性化；2026-09-03 T-ADMIN-021 后端落地回写：§9 组织主体适配器标注依赖接口已实现（含岗位后端裁剪/故障 fail-closed/响应包装，组织入口联调归 T-FE-037）；同日评审补终案：§10 TYPE_DEFINITION 门禁差异改后端放宽（类型级或任一实例级 VIEW，前端 403 捕获保留为防御层；同日无投影查库核实、实例投影登记 T-PERM-051）；2026-09-02 T-FE-018 需求对齐+联调落地：§10 数据源表下登记 operation-permission/list 分组结构优化（暂不实施，定案登记）、§10 已知缺口 TYPE_DEFINITION:VIEW 定案收口（理解 A 软依赖+降级态）、§14 L570 门禁行同步；此前 2026-08-31 T-PERM-040 后端落地回写：§12 决策 14 改终态口径（类型过滤×2 + 20008 校验已落地、includeGlobalFallback 已退役、domainCode 死参数删除、未知类型空列表）；2026-08-30 T-PERM-041 后端落地回写：§4 停用条件规则补后端已落地与"未修改"比对口径（同 id 重写=存量保留）、§11 S11 与 §12 决策 15 标后端 20041/20042 已落地；同日全局操作概念整体退役回写（T-PERM-049）：§3.2/§7.1 操作列与注记改按类型隔离口径、§8 紧凑类型选择器与子权限操作集合收口、§12 fixtures 6→5 例（global-fallback 移除）；同日 T-PERM-034 后端收口回写：§12 决策 16（sub-perm-allowed-types）与 17（20043 不变量）后端落地、工程加固 GoldenFixturePgIT 落地（引擎级比对）；此前：2026-08-28 §1.1 主体树 enabledOnly 口径（T-PERM-022）；2026-08-09 T-FE-040 v3.1
+last_reviewed: 2026-09-20   # 2026-09-20 T-FE-055：§1.1 入口表组织行标双值文案 + 表后 bullet 补入口文案二分口径（ROLE:MANAGE「权限授予」/仅 VIEW「查看权限」，grant-entry.ts 单源）+ §10 表后补矩阵「授权」按钮降级形态注记（view 态 v-if 隐藏→禁用态渲染+tooltip，对齐表行「按钮禁用 + tooltip」原文）+ §2 能力标签理据句改写（隐藏→禁用）+ §13.1 纯函数行补 grant-entry.ts 与入口行措辞更新；此前 2026-09-20 T-FE-048：§10 已知缺口重试语义句更新（retryLoadDeps 先走会话能力刷新入口重拉权限串，重试无需重登——原「生效于下一次登录态刷新」口径退役，机制见 login.md「会话权限热刷新」节）；此前 2026-09-11 T-PERM-048 条件双轨制：§1.2 分工改写（引用管理页条件/内联定义双轨）、§3 补内联复制规则、§8 条件列表 includeInline、§9 条件选择器三态值域；此前 2026-09-07 T-PERM-051 后端收口注记：§10 TYPE_DEFINITION 实例投影/复合键/SYNC 只读口径更新（前端零改动）；此前 2026-09-04 # 2026-09-04 T-FE-037 组织入口联调收口与评审修正：§1.1 组织行改已联调（status=1 仅启用为 2026-09-04 定案、GrantContext 派生口径）并补多标签直切边界（2026-09-04 定案登记）、§9 适配器行标已实现（SubjectTreePanel 组织分支 + buildOrgSubjectTree）、§13.1 入口行补组织/岗位入口并删 mock 时代残留行、§13.2 决策 4 补落地修订标；评审修正——preset 同主体判定改双字段比对 isSamePresetSubject（跨入口 id 碰撞防授权目标错乱）、停用主体/未选主体文案中性化；2026-09-03 T-ADMIN-021 后端落地回写：§9 组织主体适配器标注依赖接口已实现（含岗位后端裁剪/故障 fail-closed/响应包装，组织入口联调归 T-FE-037）；同日评审补终案：§10 TYPE_DEFINITION 门禁差异改后端放宽（类型级或任一实例级 VIEW，前端 403 捕获保留为防御层；同日无投影查库核实、实例投影登记 T-PERM-051）；2026-09-02 T-FE-018 需求对齐+联调落地：§10 数据源表下登记 operation-permission/list 分组结构优化（暂不实施，定案登记）、§10 已知缺口 TYPE_DEFINITION:VIEW 定案收口（理解 A 软依赖+降级态）、§14 L570 门禁行同步；此前 2026-08-31 T-PERM-040 后端落地回写：§12 决策 14 改终态口径（类型过滤×2 + 20008 校验已落地、includeGlobalFallback 已退役、domainCode 死参数删除、未知类型空列表）；2026-08-30 T-PERM-041 后端落地回写：§4 停用条件规则补后端已落地与"未修改"比对口径（同 id 重写=存量保留）、§11 S11 与 §12 决策 15 标后端 20041/20042 已落地；同日全局操作概念整体退役回写（T-PERM-049）：§3.2/§7.1 操作列与注记改按类型隔离口径、§8 紧凑类型选择器与子权限操作集合收口、§12 fixtures 6→5 例（global-fallback 移除）；同日 T-PERM-034 后端收口回写：§12 决策 16（sub-perm-allowed-types）与 17（20043 不变量）后端落地、工程加固 GoldenFixturePgIT 落地（引擎级比对）；此前：2026-08-28 §1.1 主体树 enabledOnly 口径（T-PERM-022）；2026-08-09 T-FE-040 v3.1
 ---
 
 # 4.1 权限授予 前端设计（v3）
@@ -39,7 +39,7 @@ last_reviewed: 2026-09-20   # 2026-09-20 T-FE-048：§10 已知缺口重试语�
 | 入口 | 挂载位置                        | 主体类型                          | 左栏主体数据源                                                | 编辑能力                                                             |
 | ---- | ------------------------------- | --------------------------------- | ------------------------------------------------------------- | -------------------------------------------------------------------- |
 | 角色 | 角色管理页（2.2）"权限授予"入口 | `ROLE`（T-PERM-043 后仅 BASIC_ROLE） | `abstract-role/tree`（权限中心）                              | BASIC_ROLE 可编辑（GROUP_ROLE 节点不展示，写入口已删除） |
-| 组织 | 组织与用户页（2.1）入口：组织信息卡片「权限授予」按钮 + 岗位管理 Tab 岗位行操作（2026-09-04 定案） | `ORG`（ORG + POSITION）           | admin-service `org-tree`（`includePositions=true`，岗位为组织子节点，T-ADMIN-021 §4.2.1） | 可编辑（**已联调，T-FE-037，2026-09-04**）                          |
+| 组织 | 组织与用户页（2.1）入口：组织信息卡片「权限授予/查看权限」按钮（文案二分 T-FE-055）+ 岗位管理 Tab 岗位行操作（2026-09-04 定案） | `ORG`（ORG + POSITION）           | admin-service `org-tree`（`includePositions=true`，岗位为组织子节点，T-ADMIN-021 §4.2.1） | 可编辑（**已联调，T-FE-037，2026-09-04**）                          |
 | 个人 | 用户管理/详情页（2.1）入口      | `PERSONAL`                        | 用户列表（admin-service）                                     | **首期移除**（见下注）                                               |
 
 - 路由约定：`/perm/grant?subjectType=ROLE|ORG`（前端同一页面组件，`subjectType` 驱动主体数据源与左栏文案；`PERSONAL` 预留，首期不挂路由）。**多标签直切边界（2026-09-04 定案登记）**：multiTags 按 path+query 去重，两入口形成并存标签；直接点击切换时组件实例复用（不触发 onActivated/onMounted/query-watch），左栏树立即切换但矩阵维持旧入口主体——可见不一致态，点任意主体节点即自愈（不补 subjectType watch，避免三路刷新触发点并发的新竞态面；详见任务卡已知边界）。
@@ -48,6 +48,7 @@ last_reviewed: 2026-09-20   # 2026-09-20 T-FE-048：§10 已知缺口重试语�
 - **树启用态过滤（T-PERM-022，设计定案）**：角色入口 `getRoleTree({domainCode: null, enabledOnly: true})`——树接口默认返回全部有效角色（角色管理页需见禁用、可再启用），授权页主体树仅取启用（前端入参后端 SQL 过滤，api-contract §6.10.3）；T-FE-036 既有的节点禁用标记渲染保留为防御展示（正常链路禁用节点不达前端）。**组织入口同口径**（2026-09-04 定案）：`getOrgTree({includePositions: true, status: 1})` 仅启用组织/岗位可作授权目标（对齐角色入口先例；接受节点级过滤副作用——停用父组织下启用子树在本页不可见，用户管理页组织树不受影响）；`ORG:VIEW` 缺失时左栏占位不发请求（§10 轨道 1），岗位按调用者 `ORG:VIEW_POSITION` 后端裁剪（前端不探查）。
 - **组织入口 GrantContext 派生（T-FE-037 已实现）**：组织节点（orgType=1）→ `roleTypeCode: "ORG"`、岗位节点（orgType=2）→ `"POSITION"`；`roleExternalId = String(sys_org.id)`（对齐 abstract_role 投影 external_id，`LocalProjectionDomainServiceImpl.upsertAdminOrg`）；两入口 list/apply-grant-plan 请求结构一致（`domainCode` 恒 null）。
 - 权限接线：各入口按 `subjectType` 映射能力门控（§10）。
+- **入口按钮文案按 ROLE:MANAGE 二分（T-FE-055，2026-09-20）**：三处入口（角色管理页详情卡 / 组织信息卡片 / 岗位行操作）门禁维持 `ROLE:VIEW` 放行（矩阵查看为 VIEW 合法能力），文案按是否另持 `ROLE:MANAGE` 显示「权限授予」/「查看权限」——仅 VIEW 用户进本页 capability='view'（只读矩阵），入口文案不承诺授予动作。文案解析单源 `views/perm/grant/utils/grant-entry.ts`（`resolveGrantEntryLabel`，判定串与 §10 授权动作同源 `ROLE:MANAGE`）。
 
 ### 1.2 与相邻页面分工
 
@@ -72,7 +73,7 @@ last_reviewed: 2026-09-20   # 2026-09-20 T-FE-048：§10 已知缺口重试语�
 ```
 
 - 中栏矩阵为页面主体；右栏变更清单仅在有未保存变更时展示（空态可折叠）。
-- 页面不恢复独立大标题卡片：当前主体由左栏节点高亮，并在矩阵标题行紧凑显示“当前：主体名”；同处显示“可编辑/只读”能力标签，避免只读用户因授权按钮隐藏而无法判断原因。
+- 页面不恢复独立大标题卡片：当前主体由左栏节点高亮，并在矩阵标题行紧凑显示“当前：主体名”；同处显示“可编辑/只读”能力标签，避免只读用户无法判断当前能力态（「授权」按钮 view 态自 T-FE-055 起为禁用态渲染 + tooltip，见 §10 注记）。
 - 矩阵滚动（T-FE-036 实现定稿，2026-08-02）：**el-table-v2 虚拟化表格**（树形数据 + `expand-column-key` + 受控 `expanded-row-keys`，名称列 `fixed`），承载 S7「资源节点 >500 虚拟滚动不卡顿」验收；替代本节原 el-table + CSS max-height 方案（el-table 无虚拟滚动）。行高 36px，表格尺寸随容器 `useElementSize` 自适应。
 
 ### 2.1 主体上下文（GrantContext）
@@ -432,6 +433,8 @@ interface MatrixContext {
 | 操作列                        | OPERATION:VIEW                                                                 | 操作列不可见                   |
 | 权限详情                      | ROLE:VIEW                                                                      | 分支、来源与子权限只读展示     |
 
+> **矩阵「授权」按钮降级形态（T-FE-055，2026-09-20）**：上表「授权/撤销」行的「按钮禁用 + tooltip」此前实现为 view 态直接隐藏（`v-if`），T-FE-055 对齐为禁用态渲染 + tooltip「需要 ROLE:MANAGE 权限」（edit 态 tooltip 关闭；禁用条件 = 未选主体或 view 态）。
+
 > 双层门禁说明（P1-3）：左栏**数据源**可见性沿用入口页既有门禁（`ORG:VIEW` / `USER:VIEW` / 岗位 `ORG:VIEW_POSITION`，对齐 frontend `user/utils/perms.ts`；T-ACCESS-018 类型收敛后权限串）；**矩阵查看/授权动作**统一用对目标抽象角色的 ROLE:VIEW / ROLE:MANAGE（后端 `role-resource-permission/*` 均校验目标抽象角色，`PermissionGrantAppServiceImpl` 各端点入口统一校验）——组织/个人被抽象成角色正是为了"像角色一样被配权"（role-manage.md §1 依据）。
 > 个人入口业务键（P1-3，**首期移除**）：左栏用户列表（admin-service）→ 选中用户 → 业务键 `PERSONAL_{external_id}`（`external_id` = 用户同步到 permission-center 时的 `sys_user.id`，即用户列表返回的 id；对齐 role-manage.md:24）——待个人 `abstract_role` 同步链路建成后恢复（§12 注）。
 
@@ -505,11 +508,11 @@ interface MatrixContext {
 | 页面      | `frontend/src/views/perm/grant/index.vue` + `components/`（SubjectTreePanel / GrantMatrixPanel / MatrixCell / PermissionGlyph / PermissionIconLegend / GrantDialog / GrantChildConfigurator / ConditionPicker / PermissionDetailDrawer / ChangeListPanel） | 无独立标题卡片的三栏布局 + 矩阵图例 + 底部保存条                 |
 | 编排      | `frontend/src/views/perm/grant/utils/hook.ts`                                                                                                                                                                                     | 依赖加载 / 门控 / 生效视图 / 事件编排 / 离开保护                 |
 | 状态机    | `frontend/src/views/perm/grant/utils/grant-store.ts`                                                                                                                                                                              | Pinia 四态 discriminated union（DoD-3）                          |
-| 纯函数    | `utils/source-chain.ts`（来源链，DoD-2）/ `utils/grant-plan.ts`（直接授权键 diff + plan 构建）/ `utils/bits.ts`（BigInt 位运算）/ `utils/cell-visual.ts`（🔧 T-FE-039 颜色无关图标聚合/三态拆分/子权限数量投影，§3.3）          | 纯函数可测                                                       |
+| 纯函数    | `utils/source-chain.ts`（来源链，DoD-2）/ `utils/grant-plan.ts`（直接授权键 diff + plan 构建）/ `utils/bits.ts`（BigInt 位运算）/ `utils/cell-visual.ts`（🔧 T-FE-039 颜色无关图标聚合/三态拆分/子权限数量投影，§3.3）/ `utils/grant-entry.ts`（🔧 T-FE-055 入口文案二分，含 grant-entry.spec.ts）          | 纯函数可测                                                       |
 | fixtures  | `utils/source-chain.fixtures.json` + `source-chain.spec.ts`                                                                                                                                                                       | Golden 用例集（5 例，§12 方案三）                                |
 | API       | `frontend/src/api/permission-grant.ts`                                                                                                                                                                                            | list + apply-grant-plan（契约 §6.4/§6.5.1）+ 错误码映射（DoD-1） |
 | 路由      | `frontend/src/router/modules/perm.ts`                                                                                                                                                                                             | `/perm/grant`（showLink: false；keepAlive）                      |
-| 入口      | `frontend/src/views/system/role/index.vue`（角色"权限授予"按钮，T-FE-036）+ `frontend/src/views/system/user/index.vue`（组织信息卡片按钮，T-FE-037）+ `components/PositionTab.vue`（岗位行操作，T-FE-037）                       | 跳转预选 `roleExternalId`（组织入口 = String(sys_org.id)）        |
+| 入口      | `frontend/src/views/system/role/index.vue`（角色入口按钮，文案二分 T-FE-055）+ `frontend/src/views/system/user/index.vue`（组织信息卡片按钮，T-FE-037）+ `components/PositionTab.vue`（岗位行操作，T-FE-037）                       | 跳转预选 `roleExternalId`（组织入口 = String(sys_org.id)）        |
 | 权限 SSOT | `frontend/src/views/perm/grant/utils/perms.ts`                                                                                                                                                                                    | 无新增权限串，全部既有串复用（§10）                              |
 
 ### 13.2 评审决策落地（2026-08-02）

@@ -13,7 +13,8 @@ import { OfficeBuilding, Edit, Plus, Key } from "@element-plus/icons-vue";
 import { message } from "@/utils/message";
 import { hasPerms } from "@/utils/auth";
 import { ORG_USER_PERMS } from "./utils/perms";
-import { ROLE_MANAGE_PERMS } from "@/views/system/role/utils/perms";
+import { PERMISSION_GRANT_PERMS } from "@/views/perm/grant/utils/perms";
+import { resolveGrantEntryLabel } from "@/views/perm/grant/utils/grant-entry";
 import { useRouter } from "vue-router";
 import { h, ref, computed, watch } from "vue";
 
@@ -40,7 +41,12 @@ const router = useRouter();
  * 权限授予入口可用：ROLE:VIEW（授予页矩阵查看门禁，permission-grant.md §10 轨道 2；
  * 矩阵查看/授权动作统一用对目标抽象角色的 ROLE:VIEW/ROLE:MANAGE）。
  */
-const canGrantPerm = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_VIEW));
+const canGrantPerm = computed(() => hasPerms(PERMISSION_GRANT_PERMS.ROLE_VIEW));
+
+/** 入口文案按 ROLE:MANAGE 二分（T-FE-055）：仅 VIEW 用户进授予页为只读矩阵，文案不承诺授予 */
+const grantEntryLabel = computed(() =>
+  resolveGrantEntryLabel(hasPerms(PERMISSION_GRANT_PERMS.ROLE_MANAGE))
+);
 
 /** 跳转授权页组织入口并预选当前组织（GrantContext roleExternalId = String(sys_org.id)） */
 function goPermissionGrant() {
@@ -304,7 +310,7 @@ async function onNodeMove(node: OrgTreeNode, targetParentId: number) {
               :icon="Key"
               @click="goPermissionGrant"
             >
-              权限授予
+              {{ grantEntryLabel }}
             </el-button>
             <el-button
               v-if="canEditOrg"

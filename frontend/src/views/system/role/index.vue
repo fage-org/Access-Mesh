@@ -7,6 +7,8 @@ import RoleForm from "./components/RoleForm.vue";
 import { addDialog } from "@/components/ReDialog";
 import { hasPerms } from "@/utils/auth";
 import { ROLE_MANAGE_PERMS } from "./utils/perms";
+import { PERMISSION_GRANT_PERMS } from "@/views/perm/grant/utils/perms";
+import { resolveGrantEntryLabel } from "@/views/perm/grant/utils/grant-entry";
 import {
   ROLE_TYPE_LABEL,
   ROLE_TYPE_CODE,
@@ -172,8 +174,13 @@ function allowDrop(draggingNode: any, targetNode: any, type: string): boolean {
 
 const router = useRouter();
 
-/** 权限授予入口可用：ROLE:VIEW（授予页矩阵查看门禁）；BASIC_ROLE 预选（授予页 T-PERM-043 后仅展示 BASIC_ROLE） */
-const canGrant = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_VIEW));
+/** 权限授予入口可用：ROLE:VIEW（授予页矩阵查看门禁，permission-grant.md §10 轨道 2）；BASIC_ROLE 预选（授予页 T-PERM-043 后仅展示 BASIC_ROLE） */
+const canGrant = computed(() => hasPerms(PERMISSION_GRANT_PERMS.ROLE_VIEW));
+
+/** 入口文案按 ROLE:MANAGE 二分（T-FE-055）：仅 VIEW 用户进授予页为只读矩阵，文案不承诺授予 */
+const grantEntryLabel = computed(() =>
+  resolveGrantEntryLabel(hasPerms(PERMISSION_GRANT_PERMS.ROLE_MANAGE))
+);
 
 function goPermissionGrant(node: RoleTreeNode) {
   router.push({
@@ -314,7 +321,7 @@ function statusTagType(status: number) {
                 :icon="Key"
                 @click="goPermissionGrant(selectedRole)"
               >
-                权限授予
+                {{ grantEntryLabel }}
               </el-button>
               <el-button
                 v-if="canEdit && isNodeEditable(selectedRole)"

@@ -19,7 +19,8 @@ import { ElMessageBox } from "element-plus";
 import { addDialog } from "@/components/ReDialog";
 import { hasPerms } from "@/utils/auth";
 import { ORG_USER_PERMS } from "../utils/perms";
-import { ROLE_MANAGE_PERMS } from "@/views/system/role/utils/perms";
+import { PERMISSION_GRANT_PERMS } from "@/views/perm/grant/utils/perms";
+import { resolveGrantEntryLabel } from "@/views/perm/grant/utils/grant-entry";
 import OrgForm from "./OrgForm.vue";
 import AddFill from "~icons/ri/add-circle-line";
 import User from "~icons/ep/user";
@@ -59,7 +60,12 @@ const canAssignPositionUser = computed(() =>
 const router = useRouter();
 
 /** 权限授予入口可用：ROLE:VIEW（授予页矩阵查看门禁，permission-grant.md §10 轨道 2） */
-const canGrantPerm = computed(() => hasPerms(ROLE_MANAGE_PERMS.ROLE_VIEW));
+const canGrantPerm = computed(() => hasPerms(PERMISSION_GRANT_PERMS.ROLE_VIEW));
+
+/** 入口文案按 ROLE:MANAGE 二分（T-FE-055）：仅 VIEW 用户进授予页为只读矩阵，文案不承诺授予 */
+const grantEntryLabel = computed(() =>
+  resolveGrantEntryLabel(hasPerms(PERMISSION_GRANT_PERMS.ROLE_MANAGE))
+);
 
 /** 跳转授权页组织入口并预选该岗位（GrantContext = POSITION + String(sys_org.id)） */
 function goPermissionGrant(position: PositionItem) {
@@ -527,7 +533,7 @@ watch(
                 :icon="useRenderIcon(Key)"
                 @click.stop="goPermissionGrant(position)"
               >
-                权限授予
+                {{ grantEntryLabel }}
               </el-button>
               <el-button
                 v-if="canAssignPositionUser"

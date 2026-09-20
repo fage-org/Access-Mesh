@@ -396,14 +396,23 @@ function cellFlashClass(row: MatrixRow, opCode: string): string {
             {{ capability === "edit" ? "可编辑" : "只读" }}
           </el-tag>
         </div>
-        <el-button
-          v-if="capability === 'edit'"
-          type="primary"
-          :disabled="!hasSubject"
-          @click="emit('grant')"
+        <!-- view 态渲染禁用 + tooltip（§10 权限表「授权/撤销」降级形态，T-FE-055 对齐；
+             span 包裹：element-plus disabled 按钮不触发鼠标事件，tooltip 需外层承接 -->
+        <el-tooltip
+          :disabled="capability === 'edit'"
+          content="需要 ROLE:MANAGE 权限"
+          placement="top"
         >
-          授权
-        </el-button>
+          <span>
+            <el-button
+              type="primary"
+              :disabled="!hasSubject || capability !== 'edit'"
+              @click="emit('grant')"
+            >
+              授权
+            </el-button>
+          </span>
+        </el-tooltip>
       </div>
       <div class="toolbar-row filters">
         <el-tooltip
