@@ -36,12 +36,19 @@ import { hasBit } from "@/utils/bit-ops";
  * 提交时由 resourceMap 反查业务键构造请求。
  */
 export function useResourceDependency() {
-  // ========== 权限门控 ==========
-  const canView = hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_VIEW);
-  const canCreate = hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_ADD);
-  const canEdit = hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_EDIT);
-  const canDelete = hasPerms(
-    RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_DELETE
+  // ========== 权限门控（computed：会话热刷新后即时重算——T-FE-055 复评同族收敛，
+  // 全仓其余页面门控均为 computed 形态，本页原 setup 一次性取值系孤例） ==========
+  const canView = computed(() =>
+    hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_VIEW)
+  );
+  const canCreate = computed(() =>
+    hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_ADD)
+  );
+  const canEdit = computed(() =>
+    hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_EDIT)
+  );
+  const canDelete = computed(() =>
+    hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_DELETE)
   );
 
   // ========== 列表状态 ==========
@@ -191,7 +198,7 @@ export function useResourceDependency() {
   // ========== 列表加载 ==========
 
   async function loadList() {
-    if (!canView) return;
+    if (!canView.value) return;
     return loadListCore();
   }
 

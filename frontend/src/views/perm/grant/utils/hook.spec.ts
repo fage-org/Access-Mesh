@@ -4,6 +4,8 @@
  * 投影口径对齐）；前端对类型候选请求的 403 捕获保留为防御层（覆盖未来门禁变化）。
  * 权限拒绝进入降级块（可重试），不落「暂无资源类型配置」空态；资源树/操作列 403
  * 维持通用错误（无前端前置为既定口径）。
+ * capability 派生三态翻转锁（T-FE-055 复评 P3-2 处置，2026-09-20）：响应式桩
+ * 复现 SET_PERMS → computed 失效链，静态双值锁对回退形态无判别力已重写。
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createPinia, setActivePinia } from "pinia";
@@ -55,6 +57,8 @@ vi.mock("@/api/permission-grant", () => ({
   getRolePermissionList: vi.fn()
 }));
 
+import { ref } from "vue";
+import { PERMISSION_GRANT_PERMS } from "./perms";
 import { usePermissionGrant } from "./hook";
 
 /** SecurityException 经 GlobalExceptionHandler 映射：HTTP 403 + R code=403 */
@@ -273,11 +277,16 @@ describe("预选失败状态清理（T-FE-037 评审修正回归锁）", () => {
   });
 });
 
-describe("capability 派生（T-FE-055 外评处置：codex P2 根因修——canManage 响应式派生取代主体加载时快照）", () => {
+describe("capability 派生（T-FE-055 外评处置：codex P2 根因修——canManage 响应式派生取代主体加载时快照；复评 P3-2 重写为响应式桩三态翻转锁——静态双值锁对「setup 一次性取值」回退形态无判别力）", () => {
+  // hasPerms 桩读响应式 ref：computed 经 mockImplementation 内的 ref 读取建立依赖，
+  // 权限串（ref）变化即触发派生重算——复现生产链 SET_PERMS → computed 失效
+  const permRef = ref<string[]>([PERMISSION_GRANT_PERMS.ROLE_MANAGE]);
+
   beforeEach(() => {
     vi.clearAllMocks();
     setActivePinia(createPinia());
-    hasPermsMock.mockReturnValue(true);
+    permRef.value = [PERMISSION_GRANT_PERMS.ROLE_MANAGE];
+    hasPermsMock.mockImplementation(p => permRef.value.includes(p as string));
     refreshCapabilityMock.mockResolvedValue(undefined);
     getTypeDefList.mockResolvedValue({ items: [] });
     getResourceTree.mockResolvedValue({ items: [] });
@@ -285,25 +294,22 @@ describe("capability 派生（T-FE-055 外评处置：codex P2 根因修——ca
     getConditionList.mockResolvedValue({ items: [] });
   });
 
-  it("形态①（每用户进页初始稳态）：持 MANAGE 未选主体 → capability=edit 且 openGrantDialog 不拒（旧实现 store 默认 view 快照——拒绝+虚假只读提示）", () => {
+  it("三态翻转：同一 hook 实例上权限串变化即时重算（持 MANAGE=edit 未选主体不拒 → 撤销=view 拒开 → 复授=edit 复原）——「setup 一次性取值/快照」回退形态下本用例失败", () => {
     const hook = usePermissionGrant();
-    // 未调用任何主体加载流程（selectSubject/refreshAndPreset 均未走）
+    // 持 MANAGE 未选主体（形态①：每用户进页初始稳态）
     expect(hook.capability.value).toBe("edit");
-    hook.openGrantDialog();
-    expect(messageMock).not.toHaveBeenCalledWith("当前为只读视图，无授权权限", {
-      type: "warning"
-    });
-    expect(hook.dialogVisible.value).toBe(true);
-  });
-
-  it("形态②（降权侧特征锁）：无 MANAGE → capability=view 且 openGrantDialog 拒绝并提示（派生化不得弄丢只读拒绝语义）", () => {
-    hasPermsMock.mockReturnValue(false);
-    const hook = usePermissionGrant();
+    // 撤销 ROLE:MANAGE（形态⑤降权）：派生即时翻 view，openGrantDialog 拒绝并提示
+    permRef.value = [];
     expect(hook.capability.value).toBe("view");
     hook.openGrantDialog();
     expect(messageMock).toHaveBeenCalledWith("当前为只读视图，无授权权限", {
       type: "warning"
     });
     expect(hook.dialogVisible.value).toBe(false);
+    // 复授（形态④升权）：派生即时翻 edit，打开不再被拒
+    permRef.value = [PERMISSION_GRANT_PERMS.ROLE_MANAGE];
+    expect(hook.capability.value).toBe("edit");
+    hook.openGrantDialog();
+    expect(hook.dialogVisible.value).toBe(true);
   });
 });

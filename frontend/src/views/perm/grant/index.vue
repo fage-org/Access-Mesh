@@ -20,7 +20,6 @@ defineOptions({ name: "PermGrant" });
 const {
   subjectType,
   canView,
-  canManage,
   capability,
   grantStore,
   allResourceForest,
