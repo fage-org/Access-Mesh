@@ -1,6 +1,8 @@
 package cn.ac.fage.accessmesh.access.resource.dto.req;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 /**
  * 服务配置保存请求体
@@ -16,7 +18,12 @@ import jakarta.validation.constraints.NotBlank;
  * @param extra       扩展属性JSON，可选
  */
 public record ServiceConfigReq(
-    @NotBlank String serviceCode,
+    // T-PERM-070 外评 P3：与凭证签发侧 ServiceCredentialCreateReq 同宽（同一业务键两个
+    // 写入口形状约束闭合——注册宽松+签发严格会让特殊字符命名的已注册服务永远无法签发凭证）
+    @NotBlank
+    @Size(max = 128, message = "serviceCode 长度不能超过 128")
+    @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9._-]*$", message = "serviceCode 仅允许字母数字与 . _ - 且以字母数字开头")
+    String serviceCode,
     @NotBlank String name,
     String basePath,
     String description,

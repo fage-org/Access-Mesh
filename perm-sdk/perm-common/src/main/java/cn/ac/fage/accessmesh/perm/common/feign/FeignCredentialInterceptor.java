@@ -86,6 +86,14 @@ public class FeignCredentialInterceptor implements RequestInterceptor {
                 + "跨信任边界部署设 false（期望 TLS）——本护栏为启动声明式（不校验实际地址），"
                 + "见 docs/design/service-authentication.md §3.2 TLS 信任域模型");
         }
+        if (!"true".equalsIgnoreCase(allowInsecure.trim()) && !"false".equalsIgnoreCase(allowInsecure.trim())) {
+            // 二值白名单（2026-09-20 claude 外评 P3-2 拍板收紧）：拼写错（flase 等）当场
+            // fail-fast——纯声明护栏 true/false 零运行时行为差异，此处仅防操作者心智模型
+            // 漂移（以为已声明跨边界实际是错值）
+            throw new IllegalStateException(
+                "perm.allow-insecure 值不合法：" + allowInsecure + "（仅允许 true/false——"
+                + "true=单信任域明文 hop 可接受；false=跨边界期望 TLS）");
+        }
     }
 
     @Override

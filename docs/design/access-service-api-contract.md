@@ -1482,7 +1482,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 | -------------------------------------------- | --------------------------------- |
 | `POST /api/access/service-config/list`         | 查询接入服务                      |
 | `POST /api/access/service-config/detail`       | 查询服务详情                      |
-| `POST /api/access/service-config/save`         | 幂等保存服务                      |
+| `POST /api/access/service-config/save`         | 幂等保存服务（serviceCode 形状 `^[A-Za-z0-9][A-Za-z0-9._-]*$` ≤128，与凭证签发侧同宽——T-PERM-070 外评闭合） |
 | `POST /api/access/service-config/remove`       | 删除服务，支持批量                |
 | `POST /api/access/service-config/sync`         | 全量同步服务接口，权限中心做 diff |
 | `POST /api/access/service-config/apis`         | 查询服务接口映射列表（扁平）      |
@@ -2845,7 +2845,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 | `POST /api/access/resource-entity/full-sync` | 资源实体全量校准（§19.2） |
 | `POST /api/access/integration/permission-manifest/full-sync` | 依赖声明 FULL 同步（T-PERM-071 端点，随本卡预留登记） |
 
-白名单外凭证请求一律 403（不依赖 Gateway，SDK 直连同款受限——防凭证能力半径扩大到管理/查询端点）。阶段二逐端点扩展至全部 sync 族（主体/角色/成员/接口声明同步），退役判据=仍依赖旧密钥的端点清零。
+白名单外凭证请求一律 403（不依赖 Gateway，SDK 直连同款受限——防凭证能力半径扩大到管理/查询端点）。两处限定：①仲裁器豁免的会话入口族（§7.7 清单）上凭证头不参与仲裁（无 SERVICE 绑定，回落用户链 401/匿名/会话语义）；②经 Gateway 的半头/白名单外请求不置 skipAuth、回落 AuthTokenFilter **401**（服务端 403 仅发生在仲裁器已注册且完整凭证头的路径上）。阶段二逐端点扩展至全部 sync 族（主体/角色/成员/接口声明同步），退役判据=仍依赖旧密钥的端点清零。
 
 ### 24.2 管理端点（`/api/access/service-credential/*`）
 
@@ -2872,7 +2872,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **经 Gateway**：`M2mCredentialFilter`（-75，白名单后用户认证前）完整凭证头+M2M 路径 → skipAuth 语义（仅透传、服务端仲裁器终验）；`InternalSecretFilter` 收窄为「无凭证头才兜底注入」；半头/缺头回落 AuthTokenFilter 401。**禁止把 /api/access/** 整体加入白名单**。
 - **SDK 直连**：`perm-common` 的 `FeignCredentialInterceptor`（client 与 registration〔071〕两 starter 共用），配置键：
   - `perm.credential-id` + `perm.credential-secret`：成对必填（半配 fail-fast）；已显式声明凭证头的请求不覆盖；
-  - `perm.allow-insecure`：**启动声明式 TLS 信任域护栏**（2026-09-20 拍板）——配置凭证必须显式声明（true=单信任域明文 hop 可接受；false=跨边界期望 TLS；缺省拒启）。护栏为纯声明（服务发现形态下静态地址校验无落点），Gateway→access-service 内网 hop 不校验（同部署单元信任域）。
+  - `perm.allow-insecure`：**启动声明式 TLS 信任域护栏**（2026-09-20 拍板；外评处置收紧为二值白名单）——配置凭证必须显式声明且值域仅 `true`/`false`（大小写不敏感，非法值如拼写错拒启并提示合法值；true=单信任域明文 hop 可接受；false=跨边界期望 TLS；缺省拒启）。护栏为纯声明（服务发现形态下静态地址校验无落点，true/false 无运行时行为差异——值校验仅防声明拼写错静默通过），Gateway→access-service 内网 hop 不校验（同部署单元信任域）。
 - **上线序**（服务端先行向后兼容）：①先发布 access-service 仲裁器（无凭证头存量调用方行为零变化）；②后发布 Gateway 改动与新版 SDK——「凭证头+注入密钥并存」由仲裁器凭证优先规则消解，无同批发布要求。
 
 ## 附录 A. 接口与前端 API 一一对照表（管理面家族）

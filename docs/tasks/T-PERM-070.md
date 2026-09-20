@@ -63,4 +63,6 @@ last_updated: 2026-09-20
 
 **双轨评审处置（2026-09-20）**：代码轨 P0-P2=0、P1×2+P3×9；文档轨 P0×5+P2×2+P3×8——逐条亲核全属实（P1-1 SDK 宽注入面击穿 auth/check 族/五处既有回归锁未随批更新/PgIT 缺 @Tag 落错轨道并实证 BadSqlGrammar 串扰/BootstrapPgIT 三处计数/schema-架构-capability 文档漂移等），全部直修；两项修法拍板（registry 同日行续）：①SDK 注入面收窄=**精确镜像三端点**（副本+注释+双侧测试锁，071 扩白名单同步两处）；②E2E 验收第 9 条锁强度=**补真实 sync 成功用例**（建 E2E_CRED_RES SYNC 类型 fixture→凭证 UPSERT 真实成功信封→DELETE 同步→清理，fixture 为 071 manifest E2E 前置基建）。@Future/issue fail-fast 化/损坏哈希归一/containsKey 语义对齐/feign-core 版本交 BOM/旧口径清扫（T-PERM-035 三处+runbook 计数+AGENTS 权威表补行）等事实项全直修。
 
+**claude 外评处置（2026-09-20，模型 deepseek-flash[1M]）**：P0-P2=0、P3×3、过度设计=0，专项四组全过（双轨处置复核/写读入口/五形态逐分支/既有入口）；P3-1 serviceCode 注册侧补同宽校验、P3-2 allow-insecure 拍板收紧二值白名单、P3-3 契约注释精度直修，存量×3 处置见 registry 同日行；定向复跑全绿。
+
 **测试**（单测 40+容器 3+E2E 1）：ServiceAuthArbiterTest 八形态矩阵（含凭证+自报头+密钥并存以凭证为准、失败禁止降级、白名单外 403）；M2mCredentialEndpointsTest 单源三端点+无通配负向；两拦截器测试各加凭证路径用例（自报头忽略/伪造用户头不拒）；DomainServiceImplTest 十二例（验证顺序锁=错误 secret 掩蔽停用态、格式锁、冲突重试、rotated_at 仅停用记）；AppServiceImplTest 九例（门禁族/死凭证防线/空 patch）；M2mCredentialFilterTest 五例（半头/非 M2M/方法不匹配不 skipAuth）；InternalSecretFilterCredentialNarrowingTest 三例；FeignCredentialInterceptorTest 六例（注入/不覆盖/半配 fail-fast/护栏三态）；ServiceCredentialPgIT 三例（真实 DB 全链 issue→verify→仲裁→上下文绑定、三态生命周期、跨租户全局唯一）；ExampleProtectedApiE2EIT step7（真实 Gateway 链：签发→M2M 认证通过→半头 401→错凭证 403〔body 20065〕→管理端点不旁路 401→停用后 403〔20067〕→清理）。

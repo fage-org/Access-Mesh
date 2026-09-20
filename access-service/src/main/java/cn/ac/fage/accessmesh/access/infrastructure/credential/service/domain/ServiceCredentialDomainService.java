@@ -53,7 +53,7 @@ public interface ServiceCredentialDomainService {
      * 启停凭证（轮换收尾=停旧）。停用时记录 rotated_at=当前时刻（停用时间戳，轮换/吊销
      * 同记——凭证系统不区分两种停用动机）。
      *
-     * @return 实际更新行数（0=行不存在/已删，调用方按 20065 处理）
+     * @return 实际更新行数（0=行不存在/已删，调用方按 20044 参数拒绝处理——20065 族是认证面码）
      */
     int changeStatus(Long tenantId, Long id, int targetStatus, Long operatorId);
 

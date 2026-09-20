@@ -127,11 +127,23 @@ class FeignCredentialInterceptorTest {
     }
 
     @Test
-    @DisplayName("护栏三态：allow-insecure=true/false 均为有效声明（缺省才拒）")
+    @DisplayName("护栏三态：allow-insecure=true/false 均为有效声明（缺省才拒）；大小写不敏感")
     void shouldAcceptExplicitDeclarations() {
         interceptor("sc-a", "sk-b", "true").validateConfiguration();
         interceptor("sc-a", "sk-b", "false").validateConfiguration();
+        interceptor("sc-a", "sk-b", " FALSE ").validateConfiguration();
         // 无异常即通过
         assertThat(true).isTrue();
+    }
+
+    @Test
+    @DisplayName("护栏二值白名单：拼写错（flase）→ 拒启并提示合法值（外评 P3-2 拍板收紧）")
+    void shouldFailFast_onInvalidAllowInsecureValue() {
+        assertThatThrownBy(() -> interceptor("sc-a", "sk-b", "flase").validateConfiguration())
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("仅允许 true/false");
+        assertThatThrownBy(() -> interceptor("sc-a", "sk-b", "yes").validateConfiguration())
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("仅允许 true/false");
     }
 }
