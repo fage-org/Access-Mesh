@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: 前端会话生命周期与交互一致性修复（2026-09 外评处置）
-status: proposed
+status: archived
 domain: frontend
 design_refs:
   - docs/design/frontend/login.md
@@ -55,29 +55,29 @@ last_updated: 2026-09-20
 - 前端真实链路已切换（T-FE-041 起），无 mock 依赖阻塞。
 - 看板无在办前端任务，T-FE 编号 045~056 本批分配。
 
-## 任务清单（引用 [tasks/README 看板](../tasks/README.md)，此处只列 ID+标题+状态快照）
+## 任务清单（引用 [tasks/README 看板](../../tasks/README.md)，此处只列 ID+标题+状态快照）
 
 ### P1 批（阻断真实试用）
 
 | ID | 标题 | 状态 |
 |---|---|---|
-| [T-FE-045](../tasks/T-FE-045.md) | 登出真注销——前端接 `/api/access/auth/logout` | ✅ done |
-| [T-FE-046](../tasks/T-FE-046.md) | 强制改密闭环——自助改密页 + forceResetPwd 阻断 | ✅ done |
+| [T-FE-045](tasks/T-FE-045.md) | 登出真注销——前端接 `/api/access/auth/logout` | ✅ done |
+| [T-FE-046](tasks/T-FE-046.md) | 强制改密闭环——自助改密页 + forceResetPwd 阻断 | ✅ done |
 | T-FE-047 | 用户删除二次确认与错误反馈 | ✅ done |
-| [T-FE-048](../tasks/T-FE-048.md) | 会话权限热刷新——403 触发自动刷新 + 手动入口 | ✅ done |
+| [T-FE-048](tasks/T-FE-048.md) | 会话权限热刷新——403 触发自动刷新 + 手动入口 | ✅ done |
 | T-FE-049 | 登录半成功语义修正（诚实提示） | ✅ done |
 
 ### P2 批（一致性清理）
 
 | ID | 标题 | 状态 |
 |---|---|---|
-| [T-FE-050](../tasks/T-FE-050.md) | `findParentOrgName` 递归 bug 修复（仅 user/index.vue；PositionTab 系正确实现非同款 bug） | ✅ done |
-| [T-FE-051](../tasks/T-FE-051.md) | 列表加载统一错误处理 + 请求代际（composable 化） | ✅ done |
+| [T-FE-050](tasks/T-FE-050.md) | `findParentOrgName` 递归 bug 修复（仅 user/index.vue；PositionTab 系正确实现非同款 bug） | ✅ done |
+| [T-FE-051](tasks/T-FE-051.md) | 列表加载统一错误处理 + 请求代际（composable 化） | ✅ done |
 | T-FE-052 | 跨层级拖拽 + 角色禁用加二次确认（parentId 变化拖拽确认；同级排序直接生效） | ✅ done |
 | T-FE-053 | 路由守卫 `next()` 后补 return + 删 meta.roles 死分支（卫生修，2026-09-19 拍板扩范围） | ✅ done |
 | T-FE-054 | token 过期拦截器短路 + 过期提示 | ✅ done |
 | T-FE-055 | 授予入口按钮按 MANAGE/VIEW 分文案 | ✅ done |
-| [T-FE-056](../tasks/T-FE-056.md) | menus 派生路由级 UX 门禁 | ✅ done |
+| [T-FE-056](tasks/T-FE-056.md) | menus 派生路由级 UX 门禁 | ✅ done |
 
 关键依赖：T-FE-046 depends_on T-FE-049（先定登录提示语义再做阻断分支，避免 message 位置返工）与 T-GW-009（白名单前置）；T-FE-056 depends_on T-FE-053（同文件路由守卫，053 已完成删 meta.roles 死分支+全 next 站点补 return+守卫 spec 架子，本任务再加门禁逻辑）。同文件协调（建议串行）：router/index.ts beforeEach 由 046（阻断）/048（门禁 path 集更新方）/056（状态机）三卡触达，建议顺序 053→048（统一能力刷新入口）→056（状态机挂接）→046（阻断）；http 拦截器由 048（403 响应分支）/054（请求 expired 分支）触达；user/index.vue 由 047/050/051 三卡触达，建议串行提交避免冲突。
 
@@ -108,3 +108,7 @@ last_updated: 2026-09-20
 - 2026-09-20 T-FE-054 收口（P2 批第五个；**P2 批剩余 T-FE-055/056 两卡，计划进入收官段**）：token 过期拦截器短路+过期提示——四项 AskUserQuestion 拍板（定案见 registry 同日行）：①**Q-016 收口**=注销 fire-and-forget（T-FE-045「服务端注销优先」从「等注销完成」演进为「发出即清理」；黑洞挂 ≤10s 与新登录凭据竞态消除）+ refreshSessionCapability 入口 single-flight（指纹=accessToken，同会话并发只发一次 user-menu）+ 代际守卫（refreshUserMenu 回写〔Pinia+userKey〕与侧栏重建双拦截，旧会话响应〔成功/失败〕不污染新会话）；②**Q-020 收口**=initRouter 无凭证分支（提示+logOut+抛 SessionExpiredError，menu-retry retry catch 不再按陈旧菜单状态失真提示——判定挂会话恢复统一入口非页面单点判 token，2026-09-19「统一处理」口径落地）；③本地过期短路与 401 **双分支统一提示**「会话已过期，请重新登录」（10s 去重窗口共用；独立小模块 utils/session-expired.ts——放 http 成环、放 router/utils 职责错位）；④页面层照弹（短路 reject Error 同文案经 toErrorMessage 透出，与 401 现状一致）。红跑 10 红/28 绿（修正一轮：fire-and-forget 主锁补红跑态 try/finally 收尾，防 logoutInFlight 残留污染后续用例）；vitest 348/348+typecheck/lint/build 全 0。双轨评审处置（代码轨 P0-P2=0/P3×3+文档轨 P0-P2=0/P3×5，逐条亲核全成立直接修——logoutInFlight 死码注释如实化/代际锁补 userKey setItem 断言/成环论证措辞补全/「与 401 一致」括注限定照弹形态/menu-retry catch 注释限定/spec 计数去计数化/http spec 头注扩段；T-FE-045 历史载体表述按「历史行不改写」协议不动）；守卫 initRouter().then 无 catch 的跨标签理论窗口登记 T-FE-056 顺手处置（详见任务卡遗留节）。Q-016（含 048 两变体扩行）/Q-020 随卡收敛（pending-problems 已收敛表）；login.md 七面回写（令牌生命周期短路口径/401 统一提示/热刷新节 single-flight+代际两条/useNav 分层说明/登出流程 fire-and-forget+退役注记/组件结构 session-expired/mock 节会话终结分支）。claude 外评处置完毕（2026-09-20 模型 deepseek-flash[1m]：P0-P1=0、P2×1+P3×3 逐条亲核全成立直修——P2 判据单源 isSessionTerminated〔「cookie 清+userKey 残留」形态 Q-020 条目点名〕+守卫 then 连带补 catch（原登记 T-FE-056 遗留提前消化）/代际守卫仅「另一活会话」才拦（会话终结型 401 不吞）/短路改 SessionExpiredError+classifySaveError 按 name 识别/401 令牌仍在才提示；红跑 5 红/73 绿；vitest 352/352 全绿；定案见 registry 同日处置行）。codex sol 复评处置完毕（2026-09-20 模型 gpt-5.6-sol xhigh：P0-P1=0、P2×2 直修〔均 claude 处置轮次生缝隙〕——终结后成功响应不回写〔sessionAlive/sessionReplaced 拆分〕+无凭证请求同短路〔拦截器无条件单源判据〕；**过度设计检查可裁剪项=0**〔用户叮嘱，8 机制逐个判定必要且最小〕；NaN fail-closed 建议不采纳〔残缺形态源头已消除，不可达防御〕；红跑 2 红/30 绿+vitest 354/354 全绿；定案见 registry 同日处置行）。
 - 2026-09-20 T-FE-055 收口（P2 批第六个；**P2 批剩余 T-FE-056 一张卡，本计划进入最后一张卡**）：授予入口按钮按 MANAGE/VIEW 分文案——三项拍板（registry 同日行，无卡形态）：①三入口（角色页详情卡/组织信息卡/岗位行操作）文案按是否另持 ROLE:MANAGE 显示「权限授予」/「查看权限」（`grant-entry.ts` 单源、判定串与授予页 capability 同源），门禁维持 ROLE:VIEW 放行，canGrant/canGrantPerm 同批换绑 PERMISSION_GRANT_PERMS.ROLE_VIEW（值等价、跨页 ROLE_MANAGE_PERMS import 删除）；②GrantMatrixPanel「授权」按钮 view 态由 v-if 隐藏改禁用态渲染+tooltip「需要 ROLE:MANAGE 权限」（对齐 §10 表「按钮禁用 + tooltip」原文），footer「保存全部」与 MatrixCell「+」维持 v-if 现状；③extension-guide.md:34 refs 外同类文案位随批顺带修。红跑=grant-entry.spec 模块缺失红起+两态锁绿（SFC 接线属 T-FE-050/052 无组件测试既定边界）；vitest 356/356（+2）+typecheck/lint/build 全绿。双轨评审（代码轨 P0-P2=0/P3×1、文档轨 P0-P2=0/P3×4 重叠一项）逐条亲核全属实直接修：两册 last_reviewed 补记、permission-grant.md §2 能力标签理据句（隐藏→禁用）/§1.1 入口表组织行/§13.1 入口行与纯函数行同步；过度设计可裁剪项=0（两轨一致）。设计回写 permission-grant.md（§1.1/§2/§10/§13.1）+ role-manage.md（§1/§4.3）。claude+codex sol 双通道外评处置完毕（2026-09-20，定案见 registry 同日处置行）：codex P2「capability 不随权限热刷新重算」用户拍板根因修——capability 改 canManage 响应式派生（grant-store 删快照字段/setCapability，openGrantDialog/footer/Panel 消费面全改读派生值；未选主体/升权虚假 tooltip/降权可操作三形态全消；红跑 stash 快照实现 2 红→修复 12/12、全量 358/358）；文案位漏扫四处直修（quickstart 按 extension-guide 先例类推）；看板行承载拍板维持惯例；存量注释×2 顺手修；过度设计可裁剪项=0（两通道一致）。claude 复评处置完毕（2026-09-20 复评轮：上轮五项处置逐项核实闭合；P3×3 全处置——红跑锁重写为三态翻转锁〔判别力红跑实证〕/死解构直修/降权弹窗暂态拍板登记边界句 + 存量类推 resource-dependency 门控 computed 化；vitest 357/357；定案见 registry 同日复评处置行）。
 - 2026-09-20 T-FE-056 收口（P2 批收官，**13 张卡全部 done——计划任务面完成，剩归档批次**）：menus 派生路由级 UX 门禁——gate.ts 三源判定（menus path 集响应式派生 ∪ remaining.ts 全量白名单〔参数路由 /redirect/:path(.*) 前缀化〕∪ /perm/grant 显式映射 ROLE:VIEW）+user store menuGateStatus 状态机（迁移唯一入口 refreshUserMenu；failed 仅首载失败产生、已 loaded 刷新失败维持 loaded 用旧 path 集、logOut 重置）+守卫等待语义（uninitialized/loading 等 initRouter 完成后判定，防冷启动深链绕过）+拦截落点全屏 /access-denied（用户拍板）。红跑 10 红实证（stash 实现）+vitest 383/383+typecheck/lint/build 全 0；十册「路由可达性」清扫（任务卡 design_refs 补四册+排除清单两册，覆盖判据闭合）+代码注释四处；双轨评审两轨 P0-P2=0、P3×7 全直修（menu-retry 预清锁死形态用户拍板本卡直接修——menu-retry-reload.ts 失败回滚，主锁红跑实证）、过度设计可裁剪项=0；两项拍板与三项实现口径见 registry 2026-09-20 T-FE-056 行。**归档批次待办（此前拍板登记）**：全量回归 mvn test -T 1C（E2E 必跑）+ T-FE-046 端到端验收（经 Gateway 真实用户全链路）+ T-GW-009 Nacos 远端覆盖键复核。
+- 2026-09-20 **归档批次执行完毕（三项待办全过，计划 completed → archived）**：
+  1. **全量回归 `mvn test -T 1C`（E2E 实跑）绿**：1726 项 0 失败 0 错误 0 跳过（含容器轨 212 项 + E2E 14 项实跑——首跑因 Docker Desktop 未启动致容器轨/E2E 被 `@Testcontainers(disabledWithoutDocker=true)` 静默跳过、起 Docker 后重跑收敛；BUILD SUCCESS，总耗时 6:31）；
+  2. **T-FE-046 端到端验收通过（dev 栈：Nacos/Redis/PG 容器 + access-service 9100 + Gateway 8080 + 前端 vite 8890，经 Gateway 全链路）**：目标用户 smoke-release-user（仅授权 `example:demo:hello`、无任何 API:ACCESS 命名空间授权）经 admin 用户页「更多→重置密码」真实管理链路造数（一次性回显新密码，后端 force_reset_pwd=true 实证）→ 六项判据全过——①登录成功即阻断 redirect /change-password（「设置新密码」页+初始密码提示）②阻断期深链 #/system/user、#/system/role 均被守卫弹回改密页 ③纯空白密码（8 空格）提交被前端 whitespace 规则拦截（「密码不能为纯空白字符」，claude 外评 P3-1 配套用例）④正确改密成功（「密码修改成功」）放行进系统 ⑤后端 force_reset_pwd 翻转 false（SQL 实证）⑥新密码重登直达 #/welcome 不再阻断。无 API:ACCESS 用户 reset-password 请求经 Gateway 白名单放行（T-GW-009 前置闭环实证——白名单缺失时该请求会被快照 403 锁死在改密页）；
+  3. **T-GW-009 Nacos 远端覆盖键复核完毕**：Nacos（standalone v2.3.2，127.0.0.1:8848）查询 `dataId=gateway.yml&group=DEFAULT_GROUP` → `config data not exist`——**远端不存在 gateway.yml 配置**，`spring.config.import: optional:nacos:gateway.yml` 的 optional 语义下本地 application.yml 全量生效，`gateway.whitelist.paths` 即 T-GW-009 落地的本地清单，无远端覆盖风险（遗留项收敛，无需补条目）。

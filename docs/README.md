@@ -92,6 +92,7 @@ docs/
 
 | 主题 | 文档 |
 |------|------|
+| ~~前端会话生命周期与交互一致性修复~~ | （已归档 2026-09-20）T-GW-009 + T-FE-045~056 十三任务全 done（P1 阻断试用五卡 + P2 一致性清理七卡 + Gateway 白名单前置）；归档批次三项待办同日执行通过（全量回归 1726 项 0 失败含 E2E 实跑、T-FE-046 端到端验收六项判据全过、T-GW-009 Nacos 复核无覆盖风险），见 [archive/2026-09-20/](archive/2026-09-20/)；定案见 decision-registry 2026-09-19/09-20 各行 |
 | ~~Q-009 跨能力 mapper 直读收敛~~ | （已归档 2026-09-15）T-ACCESS-043~046 四批全 done——冻结白名单 19 类 30 边全量收敛至零、断言退役为零容忍绝对禁断（负向自证改测试源集夹具），见 [archive/2026-09-15/](archive/2026-09-15/)；结构契约 [design/access-service-capability-structure.md](design/access-service-capability-structure.md) §8.4（冻结表转历史基线注记，adopted） |
 | ~~access-service 能力包融合~~ | （已归档 2026-09-14）T-ACCESS-032~041 十任务全 done（能力包终态 + 平行设施归零 + 概念单点收口 + 契约/规则口径收尾），三通道外评处置后用户确认定稿，见 [archive/2026-09-14/](archive/2026-09-14/)；结构契约 [design/access-service-capability-structure.md](design/access-service-capability-structure.md)（adopted） |
 | ~~前端 Phase 2 核心功能补齐 + 后端接口改造~~ | （已归档 2026-09-14）逐页后端 T-PERM-022~034/037/040/041 与前端 T-FE-036/038~040、组织树 T-ADMIN-021 全 done；暂缓项 T-PERM-035/036 脱出挂任务看板（暂缓门禁不变），见 [archive/2026-09-14/](archive/2026-09-14/) |
@@ -155,6 +156,7 @@ docs/
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `archive/2026-09-20/` | frontend-session-consistency-plan 归档：前端会话生命周期与交互一致性修复——T-GW-009 + T-FE-045~056 十三任务全 done（登出真注销/强制改密闭环/删除确认/会话权限热刷新/登录半成功语义/递归 bug/composable 化/拖拽与禁用确认/守卫卫生/token 过期短路/入口文案/menus 派生路由门禁/Gateway 白名单前置），九张独立卡随迁 `tasks/`（其余为纯看板行）；归档批次三项待办同日执行通过——全量回归 `mvn test -T 1C` 1726 项 0 失败（E2E 实跑）+ T-FE-046 端到端验收六项判据全过（真实非管理员用户经 Gateway 阻断→改密→放行，纯空白密码拦截用例一并执行）+ T-GW-009 Nacos 复核（gateway.yml 不存在、无远端覆盖）。定案见 decision-registry 2026-09-19/09-20 各行。 | [archive/2026-09-20/README.md](archive/2026-09-20/README.md) |
 | `archive/2026-09-19/` | T-PERM-035 单卡归档（cancelled）：自动授权旧口径（resolveAutoGrants/autoGrantForInsert）被定稿设计取代——dependency-auto-grant.md + service-authentication.md 双稿 adopted（用户确认定稿），实现承接 T-PERM-070~073，§11 E4 暂缓随定稿解除。定案与任务拆分外评处置见 decision-registry 2026-09-19 行。 | [archive/2026-09-19/README.md](archive/2026-09-19/README.md) |
 | `archive/2026-09-18/` | 两批次：批次一 T-PERM-069（Q-008 转出，API 类型内部来源收紧——种子声明 SYNC+access-service、管理面资源 CRUD 20055；含同日 claude/grok 外评处置）；批次二 T-ACCESS-051（Q-013 转出，TaskExecutionLeaseConcurrencyTest 两裸 sleep(1200) 改 5s 有界轮询；双轨评审上报三处同族裸 sleep 登记 Q-014）。定案与处置见 decision-registry 2026-09-18 行。 | [archive/2026-09-18/README.md](archive/2026-09-18/README.md) |
 | `archive/2026-09-17/` | T-PERM-068 单卡归档（Q-007 转出任务）：跨类型父子边收紧——sync/管理面同类型父边门禁 + 父字段缺省同类型回填，10 回归锁旧实现下实证失败；收口全量含 E2E 1716 项 0 失败；收口时序抖动观察登记 Q-013。定案见 decision-registry 2026-09-17 两行。 | [archive/2026-09-17/README.md](archive/2026-09-17/README.md) |
