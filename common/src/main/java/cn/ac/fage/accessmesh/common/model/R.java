@@ -22,6 +22,9 @@ public class R<T> {
     private String requestId;
     private String traceId;
 
+    /** 供 HTTP 客户端按泛型响应体反序列化，写侧工厂方法保持不变。 */
+    public R() {}
+
     public R(int code, String message, T data, String requestId, String traceId) {
         this.code = code;
         this.message = message;

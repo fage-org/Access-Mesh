@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-071
 title: 独立依赖声明与可选 SDK 协调
-status: in-progress
+status: review
 plan: —（无所属计划；自动授权实施序列）
 domain: access-service
 design_refs:
@@ -45,7 +45,7 @@ last_updated: 2026-09-21
 
 ## 当前口径
 
-T-PERM-078 已完成设计 §16 的实施协议校准，T-PERM-074 已闭合同步失败记账问题。来源不再落逐路径 support，API 派生仍由 T-PERM-054 承接且维持暂缓。本卡 in-progress，逐项验收前不表示新 manifest 端点已交付。
+T-PERM-078 已完成设计 §16 的实施协议校准，T-PERM-074 已闭合同步失败记账问题。来源不再落逐路径 support，API 派生仍由 T-PERM-054 承接且维持暂缓。本卡进入 review，全部实现组件已交付，正在执行整卡回归与验收。
 
 ## 范围
 
@@ -53,13 +53,15 @@ T-PERM-078 已完成设计 §16 的实施协议校准，T-PERM-074 已闭合同�
 
 ## 验收对照
 
-当前已实现混合类型批删锁序修正：统一先 ABSTRACT_ROLE 后 RESOURCE_ENTITY，保留单类型入口、门禁和锁内重读。`TypeDefinitionAppServiceImplTest`（2026-09-21）58 tests 通过，新增混合顺序用例在旧实现下失败；`MixedTypeDeletionLockPgIT` 1 test 通过，使用真实事务与 Redis 锁镜像组织投影锁序，不冒充完整组织 API 验证。manifest 的规范化/纯编译、声明与服务发布状态事务及凭证 HTTP 入口已实现；管理四个写路由及前端写表单/API 已移除。资源增量/FULL 共同代次、原快照重试、一次性切换、完整空清单及分批清理已接入原事务与资源树锁。旧 DTO/写方法、autoGrant 全链及 DEPENDENCY:SYNC 种子已退役，迁移脚本与运行手册已提供。资源删除、类型与操作定义变更的编译生命周期及 dirty 已接入共同锁与原事务；SDK 仍待完成。
+当前已实现混合类型批删锁序修正：统一先 ABSTRACT_ROLE 后 RESOURCE_ENTITY，保留单类型入口、门禁和锁内重读。`TypeDefinitionAppServiceImplTest`（2026-09-21）58 tests 通过，新增混合顺序用例在旧实现下失败；`MixedTypeDeletionLockPgIT` 1 test 通过，使用真实事务与 Redis 锁镜像组织投影锁序，不冒充完整组织 API 验证。manifest 的规范化/纯编译、声明与服务发布状态事务及凭证 HTTP 入口已实现；管理四个写路由及前端写表单/API 已移除。资源增量/FULL 共同代次、原快照重试、一次性切换、完整空清单及分批清理已接入原事务与资源树锁。旧 DTO/写方法、autoGrant 全链及 DEPENDENCY:SYNC 种子已退役，迁移脚本与运行手册已提供。资源删除、类型与操作定义变更的编译生命周期及 dirty 已接入共同锁与原事务；可选 registration starter、静态 JSON 启动发布、动态 Provider 固定快照、显式资源前置与多租户目标已实现；示例 profile 默认关闭。
 
 当前组件验证（2026-09-21）：compiler/normalizer 核心单测通过；PermissionManifestPgIT 的真实凭证 HTTP、同代次/旧代次、部分失败重试、空 scope 隔离、末步故障回滚、并发与 4,370 目标清单均通过。大清单参数上限、stale 明细与非 ASCII canonical 指纹均有旧实现失败证据。SQL/Mapper 和 HTTP 契约架构检查通过；前端 typecheck、定向 lint 与只读 API 用例通过。本地双轨发现已处置并复核，未把这些组件验证写成整卡完成。
 
 资源共序组件的定向验证通过 49 项单测和 26 项数据库测试，覆盖跨键乱序、同代次冲突、部分失败重试、微秒等版确认、真实凭证 HTTP 空数组/缺字段、事务回滚与等待增量提交后拒绝旧 FULL。65,540 行真实范围清理覆盖参数上限；JSONB 数值有效值比较有旧实现失败证据，科学计数法等值与高精度不等值均已锁定。本地双轨复核无未处置问题；契约 §19.1/§19.2 与 full-sync 运维手册已回写。退役与迁移验证另覆盖只读门禁、HTTP 路由、操作码校验、bootstrap、H2/PG schema 及 manifest 真实写入；旧表夹具验证整表/审计字段保全、有效 AUTO_DEP/未知来源中止、形状/目标冲突与末步 DDL 失败回滚。空旧库和含旧边库均能在迁移后通过实际 AppService 发布新声明，旧边不生效；迁移验证不代表已操作任何部署环境。
 
 编译生命周期验证覆盖资源中间节点删除、原清单恢复、启停保持图身份、FULL 删除隔离、末步故障原子回滚、操作位/继承位修改和类型引用回收。提交闸门验证资源/操作删除先持锁而 manifest 重发等待的交错；重发只读取已提交的新事实。架构边界检查与原 manifest/迁移发布回归通过。
+
+SDK 定向测试与公共 R 泛型解码测试通过，生产 Spring Feign HTTP 验证显式租户凭证不被默认配置覆盖。真实 access-service HTTP 验证 FULL/增量前置部分失败后原输入重试、独立清单更新及多租户隔离；同代次成功增量重试使用 PUBLICATION_UNCHANGED，真正旧代次仍阻断。静态启动的文件缺失、完整内容解析和部分失败均拒绝，未把 HTTP 200 当完成。
 
 见 frontmatter acceptance。以同服务月报/模板为最小业务闭环，同时用无依赖的纯资源接入证明未引入强制依赖。新端点/形状只在正式契约登记，不由任务卡重定义。
 

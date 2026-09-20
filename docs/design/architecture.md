@@ -24,7 +24,7 @@ last_reviewed: 2026-09-15 服务清单与拓扑图、§3 章节标题与正文�
 | ----------------------------- | ------------------------------ | ---------------------- | ---------- | ---------------------------------------------------------------------- |
 | gateway                       | Spring Cloud Gateway (WebFlux) | 无（纯网关）           | 8080       | 流量入口：路由转发、Token 校验、接口鉴权                               |
 | access-service（访问控制服务）| Spring Boot 3 (WebMVC)         | PostgreSQL（access_db，public schema） | 9100 | 用户、组织、菜单、认证、字典/通知/文件/审计/调度（管理面）+ 通用权限管理与鉴权引擎（权限面）；能力包模块化单体（12 能力包 + sync/engine/projection/bootstrap/infrastructure，T-ACCESS-033），默认组织树是用户目录；组织既是业务树也是角色容器 |
-| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | 无（瘦身后无数据源，T-API-001） | 9300       | 权限中心接入示例：单受保护接口 `POST /api/example/demo/hello`（身份回显，经 Gateway `/example/**` 路由鉴权，3xxxx 错误码段）；接口级鉴权完全由 Gateway 承担（规范 §2.4），业务服务不引入权限 SDK |
+| example-service（演示服务）   | Spring Boot 3 (WebMVC)         | 无（瘦身后无数据源，T-API-001） | 9300       | 权限中心接入示例：单受保护接口 `POST /api/example/demo/hello`（身份回显，经 Gateway `/example/**` 路由鉴权，3xxxx 错误码段）；接口级鉴权完全由 Gateway 承担（规范 §2.4），业务服务不引入运行时鉴权 SDK；可选 registration 只发布依赖，默认关闭 |
 
 ### 1.2 基础设施
 

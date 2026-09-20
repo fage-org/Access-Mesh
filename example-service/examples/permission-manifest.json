@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "publicationGeneration": "42",
+  "revision": "report-catalog-42",
+  "dependencies": [
+    {
+      "declarationKey": "monthly-report-template",
+      "source": { "resourceTypeCode": "MONTHLY_REPORT", "resourceCode": "sales-monthly" },
+      "sourceOperationCodes": ["VIEW"],
+      "requires": [
+        {
+          "target": { "resourceTypeCode": "MONTHLY_REPORT", "resourceCode": "sales-template" },
+          "operationCodes": ["VIEW"]
+        }
+      ],
+      "description": "月报查看需要同服务模板查看权限"
+    }
+  ]
+}

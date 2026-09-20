@@ -47,9 +47,9 @@ last_reviewed: 2026-09-15
 - 子权限表示当前报表下额外范围，例如仅在销售报表下允许查看 B 部门数据。
 - 全量范围通过对外 `scopeMode=ALL` 表达，不使用 `data:all` 这类特殊资源编码。
 
-## SDK 参考（规划口径，非本服务当前形态）
+## SDK 接入边界
 
-> 本服务当前形态（T-API-001）不引入任何权限 SDK——接口级鉴权由 Gateway 承担，资源注册走内部同步 HTTP 通道（见上节）。以下为未来菜单权限、权限查询等场景的接入规划。
+> 接口级鉴权继续由 Gateway 承担，不引入运行时鉴权 client starter。T-PERM-071 增加可选 registration starter，默认关闭，仅在显式配置后独立发布依赖；示例与 profile 见 [permission-manifest.md](../../../example-service/examples/permission-manifest.md)。资源同步不因此强制使用 SDK。以下菜单权限、权限查询等接入仍属规划。
 
 - Spring Boot 项目（规划）：以 `perm-client-spring-boot-starter` 为核心（当前仅为 Feign 远程查询 SDK，见 architecture §4.4/§4.5.1 名实对齐口径），`perm-gateway-spring-boot-starter` 供网关使用。数据权限参考实现属演进方向，未提供模块。
 - 普通 Java 项目（规划）：提供轻量 client SDK，复用稳定鉴权和权限查询契约，不依赖 Spring Boot 自动配置。

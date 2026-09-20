@@ -154,7 +154,7 @@ last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父�
 
 无代码级判定插槽（§6）。推荐路径：审批流转在接入方系统内完成后，由**持有 ROLE:MANAGE 且对目标键有可转授覆盖的用户身份**（管理台会话）经授权写入口（apply-grant-plan）落授权——权限生效路径与人工授权完全一致，可审计、可回收。授权写入口不收服务身份（服务身份无操作者，403；服务身份适用 §2.2 查询类 API 与 §3.2 第 ④ 步同步写通道）。
 
-> **自动授权接入演进（未交付）**：[简化设计](dependency-auto-grant.md)保留独立资源 sync/按类型 full-sync；纯资源接入无需 manifest 或 registration starter。有依赖需求才独立发布 manifest，SDK 协调可选，不强制大清单。071～073 实施前按现役接口使用，不把自动授权与 API 派生混为一项能力。
+> **独立依赖接入**：[简化设计](dependency-auto-grant.md)保留独立资源 sync/按类型 full-sync；纯资源接入无需 manifest 或 registration starter。有依赖需求才独立发布 manifest，SDK 协调可选，不强制大清单。registration 的配置与调用见契约 §19.10.1 和 [example-service 示例](../../example-service/examples/permission-manifest.md)；角色物化与解释仍由 072/073 交付，不把自动授权与 API 派生混为一项能力。
 
 ## 6. 能力边界（不可扩展项清单）
 

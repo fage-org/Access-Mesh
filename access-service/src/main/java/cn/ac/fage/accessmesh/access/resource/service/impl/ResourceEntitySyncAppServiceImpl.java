@@ -627,7 +627,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         return switch (decision) {
             case GENERATION_REQUIRED -> SyncResultBuilder.nonRetryable("PUBLICATION_GENERATION_REQUIRED");
             case CONFLICT -> SyncResultBuilder.nonRetryable("PUBLICATION_GENERATION_CONFLICT");
-            case STALE, UNCHANGED -> new SyncResultResp(true, false, true,
+            case UNCHANGED -> new SyncResultResp(true, false, true,
+                    SyncResultBuilder.RETRY_STALE_VERSION, "PUBLICATION_UNCHANGED");
+            case STALE -> new SyncResultResp(true, false, true,
                     SyncResultBuilder.RETRY_STALE_VERSION, "PUBLICATION_GENERATION_STALE");
             default -> throw new IllegalStateException("unexpected publication rejection: " + decision);
         };

@@ -1,0 +1,11 @@
+# Only activated by the explicit permission-manifest Spring profile.
+# The file is a complete immutable publication produced by the source, including its reliable generation.
+perm:
+  registration:
+    enabled: true
+    manifest-location: ${PERM_MANIFEST_LOCATION}
+  tenant-id: ${PERM_TENANT_ID}
+  service-code: example-service
+  credential-id: ${PERM_CREDENTIAL_ID}
+  credential-secret: ${PERM_CREDENTIAL_SECRET}
+  allow-insecure: ${PERM_ALLOW_INSECURE}

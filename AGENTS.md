@@ -163,7 +163,7 @@ docker compose -f docker-compose.yml --profile app up -d --build
 > - 容器组基建已单例化（`ItInfra`：**每 fork JVM 一份**单例 PG/Redis + 按类建库 + 按类 Redis 逻辑库索引 + fork 级 2 进程并行——sa-token 的 SaManager 是 JVM 级静态单例，同 JVM 线程级类并发下邻类上下文关闭会把静态 dao 指向已 shutdown 的 Redisson，故并行必须走进程隔离；本机开 `~/.testcontainers.properties` 的 `testcontainers.reuse.enable=true` 后各 fork 按配置哈希复用同一对容器，无该文件的环境（如 CI）每 fork 各起一对）；类库/索引由会话首启自动清理，无需手工维护。
 > - `-T 1C` 模块并行下负载抬升曾击穿两个固定 sleep 余量的时序用例（TaskLease 同实例接管、Gateway 失效代际竞态），均已改确定性机制（轮询至可抢占 / CompletableFuture 提交闸门）；新增并发/时序用例**禁用裸 sleep 余量**表达时序。
 
-> **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter`；example-service 有意不消费权限 SDK starter，接口级鉴权由 Gateway 承担）。
+> **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter`；example-service 不消费运行时鉴权 SDK starter，接口级鉴权由 Gateway 承担；可选 registration starter 只发布依赖，默认关闭）。
 > `mvn compile` 不会将上游模块 install 到本地仓库，依赖方编译时可能拿到**上次 install 的旧版本**。
 > 当上游模块（`perm-sdk/*`、`common`、`perm-entity`）有 API 变更时，**必须**执行 `mvn install -pl <上游模块> -DskipTests` 或全量 `mvn clean install -DskipTests` 后再编译下游模块。
 

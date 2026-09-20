@@ -22,6 +22,11 @@
     </properties>
 
     <dependencies>
+        <dependency>
+            <groupId>cn.ac.fage.accessmesh</groupId>
+            <artifactId>perm-registration-spring-boot-starter</artifactId>
+            <scope>test</scope>
+        </dependency>
         <!-- Internal modules -->
         <dependency>
             <groupId>cn.ac.fage.accessmesh</groupId>

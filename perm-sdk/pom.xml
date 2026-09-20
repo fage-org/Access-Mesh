@@ -17,6 +17,7 @@
     <modules>
         <module>perm-common</module>
         <module>perm-client-spring-boot-starter</module>
+        <module>perm-registration-spring-boot-starter</module>
         <module>perm-gateway-spring-boot-starter</module>
     </modules>
 </project>

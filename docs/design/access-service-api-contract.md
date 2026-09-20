@@ -2327,6 +2327,8 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 正常返回 SyncResultResp，沿用既有 retryClass，不新增数字业务错误码。旧发布代次使用 STALE_VERSION（accepted=true、applied=false、stale=true；reason=PUBLICATION_GENERATION_STALE）；缺代次、范围非法、同代次内容冲突分别 NON_RETRYABLE + PUBLICATION_GENERATION_REQUIRED / PUBLICATION_GENERATION_INVALID / PUBLICATION_GENERATION_CONFLICT。FULL item 逐键版本与快照矛盾使用 NON_RETRYABLE + SYNC_VERSION_CONFLICT，进入既有部分失败统计。请求级反序列化/校验异常仍走统一错误信封。
 
+资源单条同业务键、同代次、同完整指纹已成功时返回 `STALE_VERSION/PUBLICATION_UNCHANGED`（accepted=true、applied=false、stale=true），明确表示已确认的原请求重试；真正旧请求仍为 PUBLICATION_GENERATION_STALE，两者不能混作资源前置成功。
+
 FULL 缺失/null/空白 `publicationGeneration`、缺失/null `items` 在 HTTP DTO 校验阶段返回 400；已切换 scope 的增量省略代次则返回上述 `PUBLICATION_GENERATION_REQUIRED`。规范化后重复业务键整请求返回 `NON_RETRYABLE/DUPLICATE_BUSINESS_KEY`。旧 FULL 的明细全部计入 staleCount，不计 failedCount，且 deactivatedCount=0。
 
 纯增量旧协议仅适用于未切换 scope。切换后不得无代次降级；同一来源按租户、资源类型独立切换。FULL 重试须保持原代次与完整请求，后来已成功的更新使旧 FULL 重试失效时，应由源侧重新采集发布，不能仅改数字重放旧清单。
@@ -2738,7 +2740,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ### 19.10 独立依赖 manifest（071 实施中）
 
-> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动与保全迁移已实现；SDK 协调仍由 071 完成，角色物化由 072 完成。
+> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动与保全迁移已实现；可选 SDK 已提供独立发布与显式资源前置，角色物化由 072 完成；071 整卡验收状态仍以任务看板为准。
 
 `POST /api/access/integration/permission-manifest/full-sync`，仅服务身份入口，按 070 精确 M2M 白名单；tenant 与 service 从已认证上下文取得，不接受 body 中的 serviceCode。来源服务须注册、启用；资源/操作存在性及类型所有权由服务端校验。
 
@@ -2771,6 +2773,18 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 返回现有 `R<SyncResultResp>` 与 FullSyncDetail。itemResults 的 businessKey 采用 SyncKeyCodecUtil 规范：`declarationKey=...&targetResourceTypeCode=...&targetResourceCode=...&targetCodeType=...`，各值 percent-encoded；统计按展开后的目标项计，deactivatedCount 为缺失而删除的声明目标项数量。item applied 表示该声明成功 RESOLVED，REJECTED 返回依赖缺失/非重试分类和具体原因（RESOURCE_MISSING / TYPE_MISSING / OPERATION_INVALID / CROSS_OWNER / SELF_DEPENDENCY / CYCLE）；上层部分失败仍为 FULL_SYNC_PARTIAL_FAILURE，不能只看 HTTP 200。旧代次与同代次请求冲突沿 §19.2.1。
 
 同代次比较完整规范化请求 hash（含 revision、description，排除代次）；语义 hash 仅基于 declarationKey、source/触发操作与目标/操作集合，不含 description/revision。语义 hash 可用于避免重复编译，完整 hash 用于不可变重试，二者不可互相代替。较新代次同图仍保存 revision/description；原代次原请求在未被更新发布覆盖时可重判 PARTIAL/dirty。环路检查以本次替换后保留的图为基础，先保留未变化的已解析贡献，再按声明完整规范键顺序尝试变化项，后到成环项 REJECTED。
+
+#### 19.10.1 可选 registration SDK
+
+`perm-registration-spring-boot-starter` 默认不装配，配置 `perm.registration.enabled=true` 后提供 PermissionRegistrationPublisher。复用 `perm.credential-id/credential-secret` 与显式 true/false 的 `perm.allow-insecure`，不另建密钥；默认单租户静态发布另用 `perm.tenant-id`、`perm.service-code`。多租户逐调用传 RegistrationTarget，自带完整凭证，既有拦截器不覆盖它。
+
+- `capture(generation, revision, PermissionManifestProvider)` 只读取一次依赖并固定输入；generation 来自来源提交顺序。`publish(target, snapshot)` 独立发送 manifest；重试传原 snapshot，不重读 Provider。
+- `prepareAndPublish(target, snapshot, ResourcePreparation)` 复用调用方显式资源输入/同步程序。前置任一业务失败、部分失败或 PUBLICATION_GENERATION_STALE 停止清单发布并保留诊断；同键同代次同内容的 PUBLICATION_UNCHANGED 可继续。资源成功、依赖失败不回滚资源；两步不是分布式事务。
+- 本地校验形状、重复键、重复目标、自依赖与清单内环；资源/操作存在、所有权与联合图仍由平台终验。HTTP/信封错误抛错；正常 SyncResultResp 返回完整业务结果，不能只看 HTTP 200。
+- 静态启动发布仅在设置 `perm.registration.manifest-location` 时执行；JSON 与请求 DTO 同构且自身绑定代次。全流严格解析，缺文件、坏 JSON/尾随内容、缺字段或发布未完整成功均失败，不将异常当空清单。无文件位置时不在启动时发送。
+- TenantRegistrationProvider 返回逐租户的目标与完整清单，先 capture 再逐项发布；SDK 不持共享可变租户状态。无后台重试、队列或平台生成代次。
+
+[example-service 示例](../../example-service/examples/permission-manifest.md)提供静态文件与动态调用说明；可选 profile 为 permission-manifest，默认不发布且不改变 Gateway 鉴权。
 
 ## 20. 错误码与错误原因
 ### 20.1 管理面家族错误码段（10001-10599 / 90001-99999）

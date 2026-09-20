@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent><groupId>cn.ac.fage.accessmesh</groupId><artifactId>perm-sdk</artifactId><version>0.2.0-SNAPSHOT</version></parent>
+    <artifactId>perm-registration-spring-boot-starter</artifactId>
+    <name>Perm Registration Starter</name>
+    <description>Optional independent manifest publisher and explicit resource preparation coordinator</description>
+    <dependencies>
+        <dependency><groupId>cn.ac.fage.accessmesh</groupId><artifactId>common</artifactId></dependency>
+        <dependency><groupId>cn.ac.fage.accessmesh</groupId><artifactId>perm-common</artifactId></dependency>
+        <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-validation</artifactId>
+            <exclusions><exclusion><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-logging</artifactId></exclusion></exclusions>
+        </dependency>
+        <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-openfeign</artifactId></dependency>
+        <dependency><groupId>org.springframework.cloud</groupId><artifactId>spring-cloud-starter-loadbalancer</artifactId></dependency>
+    </dependencies>
+</project>
