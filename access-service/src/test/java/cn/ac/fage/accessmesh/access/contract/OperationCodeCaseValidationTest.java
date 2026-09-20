@@ -1,15 +1,13 @@
 package cn.ac.fage.accessmesh.access.contract;
 
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
-import cn.ac.fage.accessmesh.access.resource.dto.req.DependencyBatchSyncReq;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceDependencyCreateReq;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceDependencyUpdateReq;
 import cn.ac.fage.accessmesh.access.type.dto.req.OperationCreateReq;
 import cn.ac.fage.accessmesh.access.type.dto.req.OperationKeysReq;
 import cn.ac.fage.accessmesh.access.type.dto.req.OperationKeyReq;
 import cn.ac.fage.accessmesh.access.type.dto.req.OperationUpdateReq;
 import cn.ac.fage.accessmesh.access.type.dto.req.TypeCreateReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq;
+import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryResourcesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.req.QueryScopesReq;
@@ -157,32 +155,21 @@ class OperationCodeCaseValidationTest {
     }
 
     @Test
-    @DisplayName("resource-dependency create/update/batch-sync：类型码与两操作码列表小写拒绝")
-    void dependencyReqRejectsLowercaseCodes() {
-        assertTrue(validator().validate(new ResourceDependencyCreateReq(
-            "REPORT", "r:1", null, List.of("VIEW"), "DATA", "d:1", null,
-            List.of("DATA_READ"), null, null)).isEmpty());
-        assertFalse(validator().validate(new ResourceDependencyCreateReq(
-            "report", "r:1", null, null, "DATA", "d:1", null,
-            List.of("DATA_READ"), null, null)).isEmpty(),
-            "小写源资源类型码须拒绝（20005 前移 400）");
-        assertFalse(validator().validate(new ResourceDependencyCreateReq(
-            "REPORT", "r:1", null, List.of("view"), "DATA", "d:1", null,
-            List.of("DATA_READ"), null, null)).isEmpty(),
-            "源操作码元素小写须拒绝");
-        assertFalse(validator().validate(new ResourceDependencyCreateReq(
-            "REPORT", "r:1", null, null, "DATA", "d:1", null,
-            List.of("data_read"), null, null)).isEmpty(),
-            "要求操作码元素小写须拒绝");
-        assertFalse(validator().validate(new ResourceDependencyUpdateReq(
-            1L, "REPORT", "r:1", null, null, "data", "d:1", null,
-            List.of("DATA_READ"), null, null)).isEmpty(),
-            "update 小写目标资源类型码须拒绝");
-        assertFalse(validator().validate(new DependencyBatchSyncReq("svc", "SDK_SCAN", null,
-            List.of(new DependencyBatchSyncReq.DependencySyncItem(
-                "REPORT", "r:1", null, null, "DATA", "d:1", null,
-                List.of("view"), null, null)))).isEmpty(),
-            "batch-sync item 要求操作码元素小写须拒绝");
+    @DisplayName("MANIFEST 级联校验拒绝小写资源类型与源/目标操作码")
+    void manifestRejectsLowercaseCodes() {
+        for (String[] values : List.of(new String[]{"REPORT", "VIEW", "DATA", "READ"},
+                new String[]{"report", "VIEW", "DATA", "READ"},
+                new String[]{"REPORT", "view", "DATA", "READ"},
+                new String[]{"REPORT", "VIEW", "data", "READ"},
+                new String[]{"REPORT", "VIEW", "DATA", "read"})) {
+            var request = new PermissionManifestReq(1, "1", "r1", List.of(
+                    new PermissionManifestReq.Dependency("d1",
+                            new PermissionManifestReq.ResourceKey(values[0], "report", null), List.of(values[1]),
+                            List.of(new PermissionManifestReq.Requirement(
+                                    new PermissionManifestReq.ResourceKey(values[2], "data", null), List.of(values[3]))), null)));
+            boolean uppercase = java.util.Arrays.stream(values).allMatch(v -> v.equals(v.toUpperCase(java.util.Locale.ROOT)));
+            org.junit.jupiter.api.Assertions.assertEquals(uppercase, validator().validate(request).isEmpty());
+        }
     }
 
     @Test

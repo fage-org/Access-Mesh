@@ -223,7 +223,6 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
             row.setDeclarationId(diagnosticIds.get(new EdgeKey(edge.sourceId(), edge.targetId(), edge.sourceOperationBits())));
             row.setOwnerServiceCode(service);
             row.setMaintainSource("MANIFEST");
-            row.setAutoGrant(false); // 071 退役旧字段时删除；当前只标记编译图，不激活旧边。
             row.setCreatedAt(now);
             row.setUpdatedAt(now);
             row.setDeleteFlag(0L);

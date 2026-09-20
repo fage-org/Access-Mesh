@@ -203,10 +203,10 @@ class AccessServiceSchemaH2Test {
     }
 
     @Test
-    @DisplayName("种子数据：type_definition 33 行 / operation_permission 124 行 / system_config 9 行 / oauth2 3 行")
+    @DisplayName("种子数据：type_definition 33 行 / operation_permission 123 行 / system_config 9 行 / oauth2 3 行")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(33, countRows("type_definition"), "type_definition 系统种子 33 行（user_type 3 + role_type 5 + resource_type 25，T-ACCESS-018 收敛 + T-PERM-025 OPERATION_LOG + T-PERM-032 PERMISSION_CHANGE_LOG）");
-        assertEquals(124, countRows("operation_permission"), "operation_permission 种子 124 行（静态类型 CRUD 100 + 非预置扩展 13 + 权限中心运行时必需 11；USER:MANAGE 随 T-ACCESS-034 退役删除）");
+        assertEquals(123, countRows("operation_permission"), "operation_permission 种子 123 行（静态类型 CRUD 100 + 非预置扩展 12 + 权限中心运行时必需 11；DEPENDENCY:SYNC 随 T-PERM-071 退役删除）");
         assertEquals(9, countRows("system_config"), "system_config 种子 9 条（T-ACCESS-007 迁移至 admin.* 前缀）");
         assertEquals(3, countRows("sys_oauth2_client"), "sys_oauth2_client 种子 3 条");
     }
@@ -240,7 +240,6 @@ class AccessServiceSchemaH2Test {
             {"TYPE_DEFINITION", "MANAGE"},
             {"SYSTEM_CONFIG", "MANAGE"},
             {"OPERATION", "MANAGE"},
-            {"DEPENDENCY", "SYNC"},
             {"API", "ACCESS"},
             // Admin 家族扩展码（12 对）
             {"ORG", "CREATE_POSITION"}, {"ORG", "UPDATE_POSITION"},

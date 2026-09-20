@@ -585,11 +585,8 @@ public enum AccessErrorCode {
      */
     CONFIG_KEY_NAMESPACE_INVALID(20047, "配置键必须使用 admin./permission./access. 命名空间前缀"),
 
-    /**
-     * autoGrant=true 不支持：自动授权未实现（T-PERM-035 暂缓，design-review §11 E4），
-     * resource_dependency.auto_grant 为预留字段，实现前所有写入口仅接受 false（2026-08-27 设计定案）。
-     */
-    AUTO_GRANT_NOT_SUPPORTED(20048, "autoGrant=true 不支持：自动授权未实现（预留字段），仅接受 false"),
+    // 20048 已退役：原 autoGrant 开关随 MANIFEST 独占写入移除，编号不复用。
+
 
     /**
      * 类型编码在 tenant+typeKey 内已存在（uk_type_definition_code）。

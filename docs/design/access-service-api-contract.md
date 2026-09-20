@@ -23,7 +23,7 @@ last_reviewed: 2026-09-20   # T-PERM-070：新增 §24 服务凭证与 M2M 服�
 >
 > **覆盖面说明（T-ACCESS-040 登记）**：本册承载原两册的全部成册契约。access-service 另有五组管理面端点族未在原两册成册（`/api/access/auth` 登录族、`/api/access/dict/*`、`/api/access/notice/*`、`/api/access/job/*`、`/api/access/login-log/page`），维持现状以代码与 `HttpApiPathSnapshotTest` 快照为准——登记见 §6.4 与 §17.3，不在本册补写（不新增契约内容）。第六组 `/config/*` 已随 T-ACCESS-037 退役（2026-09-13，僵尸端点删除，见 §17.3 注记）。另有四个零散端点未单独成册（`/api/access/user/detail`、`/api/access/user/user-menus`、`/api/access/org/detail`、`/api/access/role/my-info`——仅存在于门禁表或快照，T-ACCESS-040 评审登记）
 
-> **自动授权待实施设计**：资源 sync/full-sync 继续按 §19 独立提供，依赖 manifest 为独立可选能力。已采纳[简化方案](dependency-auto-grant.md)，T-PERM-078 细化协议后由 071～073 实现并登记新端点/字段；当前资源与依赖接口仍按本册现役条目执行，不能向现有请求擅加 resources/dependencies 字段。现阶段 20048 与旧依赖端点未因文档采纳而消失。
+> **自动授权交付边界**：资源 sync/full-sync 与可选 manifest 独立提供（§19）。管理依赖写入口、autoGrant 字段及 20048 已退役；071 的编译与资源发布组件已实现，其余生命周期/SDK 及 072～073 的物化、解释以任务卡为准，不能把已编译依赖等同于已交付自动授权。设计见[简化方案](dependency-auto-grant.md)。
 
 ## 1. 设计目标与接口分层
 ### 1.1 设计目标（perm 家族）
@@ -1536,7 +1536,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 所有读入口执行 DEPENDENCY:VIEW 类型级门禁。list 保持全量不分页，关键词过滤由前端完成；graph 不含角色来源解释，角色解释目标契约见下一节。check 缺失资源返回既有 RESOURCE_NOT_FOUND，自依赖返回 hasCycle=true。
 
-ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编码/类型/名称、sourceOperationBits、requiredOperationBits、description、ownerServiceCode、maintainSource、createdAt/updatedAt。操作位沿字符串线格式保持 63 位精度，null 触发位为任意操作；前端按资源类型的操作定义拆解显示。聚合边 description 取诊断声明的描述，不代表全部来源。后端 autoGrant 字段仍处于 071 退役过程，前端已删除该开关与列；不能据其历史 false 值把已编译声明视为手工可写。
+ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编码/类型/名称、sourceOperationBits、requiredOperationBits、description、ownerServiceCode、maintainSource、createdAt/updatedAt。操作位沿字符串线格式保持 63 位精度，null 触发位为任意操作；前端按资源类型的操作定义拆解显示。聚合边 description 取诊断声明的描述，不代表全部来源。autoGrant 已从后端实体、响应、新 schema 与前端移除；历史开关仅随原表保全，不再决定新编译图是否生效。旧错误码 20048 退役且不复用。
 
 #### 12.3.1 已采纳待实施：角色自动授权来源解释（073）
 

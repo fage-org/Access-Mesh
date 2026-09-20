@@ -219,8 +219,7 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/api/access/log/operation/action-options", "bootstrap:操作类型字典", true, false),
             new ApiRoute("POST", "/api/access/log/change/list", "bootstrap:权限变更日志列表", true, false),
             // T-FE-044：资源依赖页消费端点（引用数据 resource-entity/tree、operation-permission/list
-            // 已在上方清单）。batch-sync 前端不消费不注册（同步侧通道）；业务门禁零新增
-            // （DEPENDENCY 五档 T-PERM-031 已预置在图）
+            // 已在上方清单）。管理面仅保留 DEPENDENCY:VIEW；写入由独立 MANIFEST 通道承担。
             new ApiRoute("POST", "/api/access/resource-dependency/list", "bootstrap:资源依赖列表", true, false),
             new ApiRoute("POST", "/api/access/resource-dependency/graph", "bootstrap:资源依赖图", true, false),
             new ApiRoute("POST", "/api/access/resource-dependency/check", "bootstrap:依赖循环检测", true, false),
@@ -290,15 +289,8 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.CONDITION, OperationCode.CREATE, null, false),
             new GrantSpec(ResourceTypeCode.CONDITION, OperationCode.UPDATE, null, false),
             new GrantSpec(ResourceTypeCode.CONDITION, OperationCode.DELETE, null, false),
-            // T-PERM-031：资源依赖页读写五档（VIEW/CREATE/UPDATE/DELETE/SYNC）——固定图不持则
-            // 空库上该页读写路径无授予起点（死锁，同 DOMAIN/CONFLICT_RULE 先例）。
-            // SYNC 随四档同补：batch-sync 端点存在且门禁为 SYNC，前端 P0 未接入不改变端点门禁事实；
-            // 不可转授与全部业务门禁同口径（转授链仅 API:ACCESS）
+            // MANIFEST 独占写入；管理页仅提供 VIEW。
             new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.VIEW, null, false),
-            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.CREATE, null, false),
-            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.UPDATE, null, false),
-            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.DELETE, null, false),
-            new GrantSpec(ResourceTypeCode.DEPENDENCY, OperationCode.SYNC, null, false),
             // T-FE-015：组织与用户页读写门禁全档——固定图不持则空库上该页读写路径无授予起点
             // （死锁，同 DEPENDENCY 先例；菜单种子挂 ORG 资源类型走 v3.5 派生同样要求先持有）。
             // ORG 系/USER 系操作码（OperationCode 唯一常量源，T-ACCESS-034 合一；DDL 非预置扩展码组全有种子），

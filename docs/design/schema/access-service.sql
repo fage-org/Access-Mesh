@@ -921,8 +921,6 @@ INSERT INTO operation_permission (tenant_id, resource_type, code, name, binary_b
     (1, 11, 'MANAGE',             '管理系统配置',     16, 2, 0, 0, 0),
     -- OPERATION(12)：更新/删除操作权限门禁
     (1, 12, 'MANAGE',             '管理操作权限',     16, 2, 0, 0, 0),
-    -- DEPENDENCY(15)：批量同步依赖门禁
-    (1, 15, 'SYNC',               '批量同步依赖',     16, 2, 0, 0, 0),
     -- API(3)：网关接口鉴权专用（PermissionCheckAppServiceImpl forInterfaceCheck）
     (1, 3,  'ACCESS',             '访问接口',         16, 0, 0, 0, 0)
 ON CONFLICT (tenant_id, resource_type, code) WHERE resource_type IS NOT NULL AND delete_flag = 0 DO NOTHING;
@@ -1257,10 +1255,9 @@ CREATE TABLE resource_dependency (
     depends_on_resource_entity_id BIGINT NOT NULL,
     source_operation_bits         BIGINT,
     required_operation_bits       BIGINT NOT NULL,
-    auto_grant                    BOOLEAN NOT NULL DEFAULT false,
     declaration_id                BIGINT,
     owner_service_code            VARCHAR(128),
-    maintain_source               VARCHAR(32) NOT NULL DEFAULT 'ADMIN_UI',
+    maintain_source               VARCHAR(32) NOT NULL DEFAULT 'MANIFEST',
     sync_key                      VARCHAR(256),
     description                   VARCHAR(512),
     created_by                    BIGINT,
@@ -1277,15 +1274,14 @@ CREATE INDEX idx_resource_dependency_resource ON resource_dependency (resource_e
 CREATE INDEX idx_resource_dependency_target ON resource_dependency (tenant_id, depends_on_resource_entity_id) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_dependency_sync_owner ON resource_dependency (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
-COMMENT ON TABLE resource_dependency IS '资源依赖：resource_entity_id 是源资源/被授权资源；depends_on_resource_entity_id 是被源资源依赖、需要自动补全的目标资源。source_operation_bits 为触发条件，required_operation_bits 为目标资源需要的操作位。auto_grant 为预留字段（自动授权简化方案已采纳，T-PERM-078 细化、T-PERM-071～073 实施）：字段随声明通道落地退役，退役前所有写入口拒绝 true（错误码 20048），依赖补全当前不生效';
+COMMENT ON TABLE resource_dependency IS 'MANIFEST 声明的聚合编译图，旧规则仅保全到 resource_dependency_legacy；自动授权物化由 T-PERM-072 消费';
 COMMENT ON COLUMN resource_dependency.resource_entity_id IS '源资源ID（被授权资源）。授权该资源且满足 source_operation_bits 时触发依赖补全';
 COMMENT ON COLUMN resource_dependency.depends_on_resource_entity_id IS '被依赖资源ID（自动补全目标资源），即被 resource_entity_id 依赖的资源';
 COMMENT ON COLUMN resource_dependency.source_operation_bits IS '触发条件：源资源授权含这些bit时才触发依赖，NULL=任意操作都触发；唯一约束中按 COALESCE(source_operation_bits,0) 区分同一资源对下不同触发操作';
 COMMENT ON COLUMN resource_dependency.required_operation_bits IS '被依赖目标资源需要自动补全的操作位';
-COMMENT ON COLUMN resource_dependency.auto_grant IS '预留未实现：自动授权按简化方案由 T-PERM-078 细化、T-PERM-071～073 实施；字段随声明通道退役，退役前仅接受 false（true 返回 20048），默认 false';
-COMMENT ON COLUMN resource_dependency.owner_service_code IS '依赖规则维护方服务编码；批量同步时用于限定 FULL diff 删除范围';
-COMMENT ON COLUMN resource_dependency.maintain_source IS '维护来源：ADMIN_UI=管理端维护，SDK_SCAN=SDK扫描，MANIFEST=声明式清单，SERVICE_SYNC=服务同步';
-COMMENT ON COLUMN resource_dependency.sync_key IS '同步源内稳定键，用于 FULL diff 判断。不同维护来源只清理同 owner_service_code + maintain_source 范围内缺失的规则';
+COMMENT ON COLUMN resource_dependency.owner_service_code IS '声明所属服务，编译图按租户与服务替换';
+COMMENT ON COLUMN resource_dependency.maintain_source IS '编译器固定为 MANIFEST';
+COMMENT ON COLUMN resource_dependency.sync_key IS '保留诊断字段，编译图不以此键判断声明存续';
 
 -- 依赖声明与发布状态（T-PERM-071；旧依赖保全由升级脚本处理）
 CREATE TABLE permission_dependency_declaration (

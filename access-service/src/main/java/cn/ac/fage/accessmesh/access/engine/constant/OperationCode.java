@@ -31,7 +31,7 @@ package cn.ac.fage.accessmesh.access.engine.constant;
  */
 public final class OperationCode {
 
-    // ===== 通用（跨资源类型共享：全部类型 CRUD 预置 + 多类型 MANAGE + DEPENDENCY:SYNC） =====
+    // ===== 通用（跨资源类型共享：全部类型 CRUD 预置 + 多类型 MANAGE） =====
 
     /**
      * 创建操作码
@@ -80,15 +80,6 @@ public final class OperationCode {
      * </p>
      */
     public static final String MANAGE = "MANAGE";
-
-    /**
-     * 同步操作码
-     * <p>
-     * 表示数据同步操作（DEPENDENCY:SYNC 批量同步资源依赖）。
-     * 用于外部系统集成和数据导入场景。
-     * </p>
-     */
-    public static final String SYNC = "SYNC";
 
     /**
      * 启用/禁用状态切换（toggle，共享码：USER 用户启停 + ADMIN_JOB 任务启停）。

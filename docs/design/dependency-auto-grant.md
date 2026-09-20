@@ -290,9 +290,9 @@ TypeDefinitionAppServiceImpl.deleteTypesByIds 的混合 resource_type/role_type 
 
 迁移盘点入口为 [auto-grant-migration-preflight.sql](../ops/auto-grant-migration-preflight.sql)：只读一致快照汇总旧依赖来源/auto_grant、历史 AUTO_DEP 与孤立边，并提供限量业务键详情。执行记录必须注明目标环境；本机 ItInfra 数据只能用于脚本验证，不能作为部署零存量结论。
 
-### 10.1 旧依赖保全与执行门禁（071 实施）
+### 10.1 旧依赖保全与执行门禁
 
-当前工作区未提供可连接的应用数据库，迁移交付按可能存在旧数据设计，不以未知存量阻塞功能开发，也不宣称已迁移任何部署环境。部署时的实际盘点是迁移脚本执行前置，必须在停止旧版本写入后重查，开发期间的报告不能替代这次核对。
+[迁移脚本](../ops/auto-grant-migrate-071.sql)与[执行手册](../ops/runbook-auto-grant-migration.md)已交付，并用真实旧表夹具验证。当前工作区未提供可连接的应用数据库，不宣称已迁移任何部署环境。部署时的实际盘点是脚本执行前置，必须在停止旧版本写入后重查，开发期间的报告不能替代这次核对。
 
 - 新安装直接采用新 schema；升级使用单事务脚本，先检查旧表形状与迁移目标是否冲突，任何不符中止且零修改。
 - 旧 resource_dependency 原表整体保全为 resource_dependency_legacy（含软删行、原 ID、auto_grant、来源及审计字段）；仅重命名必要索引，禁止把它当成新编译表、禁止自动生成 MANIFEST。新的 resource_dependency 是编译器专属空表，使用独立的新唯一索引/反向索引；活动模型不再含 auto_grant。旧数据保全表不被新运行时/编译/物化读取，只供迁移诊断。
@@ -302,7 +302,7 @@ TypeDefinitionAppServiceImpl.deleteTypesByIds 的混合 resource_type/role_type 
 
 部署核查与数据处置由有该环境权限的部署方执行，目标任务交付可验证的迁移程序和手册，不包含对未知环境的上线或数据清理。
 
-manifest 不需要用户 API 快照/固定图授权行；管理 explain 需注册固定图及管理门禁。batch-sync/autoGrant 退役须前后端/SDK 锁步，严格 Jackson 下不能残留旧字段回传。运行数据迁移先核实，不能假设没有历史边。
+manifest 不需要用户 API 快照/固定图授权行；管理 explain 需注册固定图及管理门禁。batch-sync/autoGrant 已从管理路由、旧服务方法/DTO、后端实体/响应、新 schema、前端及权限种子移除；严格 Jackson 下不再接受旧字段回传。运行数据迁移先核实，不能假设没有历史边。
 
 <a id="explain"></a>
 ## 11. 按需来源解释

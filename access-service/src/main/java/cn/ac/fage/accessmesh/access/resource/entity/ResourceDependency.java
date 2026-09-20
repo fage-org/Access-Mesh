@@ -13,7 +13,7 @@ import java.time.LocalDateTime;
  * <p>
  * 表示资源之间的权限依赖关系。
  * 定义某个资源的权限依赖于另一个资源的权限。
- * autoGrant 为预留禁用字段（自动授权未实现，写入口拒绝 true），操作位映射（operationBits）已生效。
+ * 由同一服务的 MANIFEST 声明聚合生成；声明 ID 仅供诊断。
  * 用于实现权限的级联授予和依赖管理。
  * </p>
  *
@@ -59,11 +59,6 @@ public class ResourceDependency {
     private Long declarationId;
 
     /**
-     * 预留未实现：自动授权暂缓（T-PERM-035），写入口仅接受 false（true 返回 20048），默认 false
-     */
-    private Boolean autoGrant;
-
-    /**
      * 依赖关系描述
      */
     private String description;
@@ -74,12 +69,12 @@ public class ResourceDependency {
     private String ownerServiceCode;
 
     /**
-     * 维护来源（schema 四值：ADMIN_UI=管理端维护/SDK_SCAN/MANIFEST/SERVICE_SYNC）
+     * 维护来源（编译器固定为 MANIFEST）
      */
     private String maintainSource;
 
     /**
-     * 同步键，用于外部系统同步
+     * 保留诊断字段；声明存续和编译图替换不消费此键
      */
     private String syncKey;
 

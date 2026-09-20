@@ -109,12 +109,12 @@ last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父�
 | `20055 RESOURCE_EXTERNALLY_MAINTAINED` | 管理面 create/update/move/remove | SYNC 类型管理面只读 |
 | `20056 TYPE_OWNERSHIP_CHANGE_CONFLICT` | 声明变更/类型删除 | 类型下有有效资源行；系统预置类型（is_system）声明一律钉死 |
 | `20040 GRANT_CANNOT_DELEGATE` | apply-grant-plan | 授予者未持有覆盖目标键的可转授权限（新类型首笔授权见 §3.5） |
-| `20048 AUTO_GRANT_NOT_SUPPORTED` | create/update/batch-sync | 自动授权预留禁用（承接序列 T-PERM-070~073 的 071/072 落地前），`autoGrant=true` 一律拒绝 |
+| `PUBLICATION_GENERATION_STALE/CONFLICT` | 资源发布/manifest FULL | 旧代次拒绝或同代次内容冲突；按契约 §19.2.1 保留快照重试或重新采集发布 |
 | `20005 / 20044` | 操作码解析/清单校验 | 未知操作码 fail-closed / 畸形清单零副作用 |
 
 ### 3.4 资源树与父子关系
 
-资源父子边限同类型（T-PERM-068，2026-09-17 Q-007 定案）：sync/full-sync 的 `parentResourceTypeCode` 缺省按 item/scope 自身类型解析、显式异类型被拒（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；管理面 create/batch-create/move 同口径（20053）；角色域 ORG/POSITION 容器树的结构性跨类型是另一域形态、与资源域无关。SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**= `resource_dependency` + `autoGrant`，**当前不生效**（`autoGrant` 全入口拒绝，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定面单点门禁见 api-contract §6.1/§6.7 DEPENDENT 轨道，二者不是一回事。
+资源父子边限同类型（T-PERM-068，2026-09-17 Q-007 定案）：sync/full-sync 的 `parentResourceTypeCode` 缺省按 item/scope 自身类型解析、显式异类型被拒（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；管理面 create/batch-create/move 同口径（20053）；角色域 ORG/POSITION 容器树的结构性跨类型是另一域形态、与资源域无关。SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**使用 MANIFEST 声明与编译图，物化由 072 实施（旧 autoGrant 开关已退役，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定面单点门禁见 api-contract §6.1/§6.7 DEPENDENT 轨道，二者不是一回事。
 
 ### 3.5 首笔授权引导（创建即建授权根，T-PERM-062）
 
@@ -162,11 +162,11 @@ last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父�
 |---|---|---|
 | 条件操作符扩展 | **封闭** | 仅 4 类内置操作符，无 SPI |
 | 权限源扩展 | **不存在** | 统一引擎唯一事实源（role_perm_entry + 同事务投影）；历史上设想的「权限源策略」已随 T-PERM-057 统一引擎重构收编 |
-| 自动授权（依赖补全） | **已立项待实现** | 承接序列 T-PERM-070~073 已定稿（2026-09-19；前置凭证基建 070 已落地）；071/072 落地前写入口 `autoGrant=true` 仍全拒（20048）；`resource_dependency` 数据模型已就绪 |
+| 自动授权（依赖补全） | **实施中** | 凭证、声明编译及资源发布共序已落地；071 剩余接线/SDK 和 072/073 物化/解释尚未整体验收，详见任务看板。旧写入口和 autoGrant 已退役 |
 | 动态数据权限端到端 | **延后** | T-PERM-036 延后至 example-service 演示；scopeMode→SQL 映射契约已定（api-contract §6.7） |
 | 内置事实链路类型写入 | **禁止** | USER/ORG/MENU/ROLE 等归 access-service 内部 SYNC，外部同步一律拒（§4） |
 | 异常告警通知渠道 | **不做** | 异步异常可观测性由 log.error 承载；钉钉/邮件等告警渠道不在开源 IAM 核心范围（T-PERM-038 定性），接入方经日志采集侧自行对接 |
-| resource-dependency batch-sync 前端 UI | **P0 不做** | 后端端点已收口可用；前端不暴露按钮（Q5=B 决策） |
+| resource-dependency 管理写入 | **已关闭** | 管理页只读；所属服务经独立 manifest 发布，旧 create/update/remove/batch-sync 不再提供 |
 
 ## 7. 场景五：前端页面扩展（管理台二开）
 

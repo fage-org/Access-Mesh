@@ -27,10 +27,9 @@ import java.time.LocalDateTime;
  * @param targetResourceName    目标资源名称
  * @param sourceOperationBits   源操作权限位（字符串线格式；null=任意操作触发）
  * @param requiredOperationBits 要求的操作权限位（字符串线格式）
- * @param autoGrant             是否自动授权（预留禁用，恒 false）
  * @param description           依赖关系描述
- * @param ownerServiceCode      维护方服务编码（UI 创建行为 null）
- * @param maintainSource        维护来源（ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC）
+ * @param ownerServiceCode      声明所属服务编码
+ * @param maintainSource        维护来源（MANIFEST）
  * @param createdAt             创建时间
  * @param updatedAt             最后更新时间
  */
@@ -47,7 +46,6 @@ public record ResourceDependencyResp(
     String targetResourceName,
     @JsonSerialize(using = ToStringSerializer.class) Long sourceOperationBits,
     @JsonSerialize(using = ToStringSerializer.class) Long requiredOperationBits,
-    Boolean autoGrant,
     String description,
     String ownerServiceCode,
     String maintainSource,

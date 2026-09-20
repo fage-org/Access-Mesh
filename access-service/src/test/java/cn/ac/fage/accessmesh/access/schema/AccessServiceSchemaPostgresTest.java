@@ -115,10 +115,10 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("种子数据齐备（type_definition 33 / operation_permission 124 / system_config 9 / oauth2 3）")
+    @DisplayName("种子数据齐备（type_definition 33 / operation_permission 123 / system_config 9 / oauth2 3）")
     void shouldHaveAllSeedRows() throws SQLException {
         assertEquals(33, countRows("type_definition"));
-        assertEquals(124, countRows("operation_permission")); // USER:MANAGE 随 T-ACCESS-034 退役删除（125→124）
+        assertEquals(123, countRows("operation_permission")); // DEPENDENCY:SYNC 随 T-PERM-071 退役删除
         assertEquals(9, countRows("system_config"));
         assertEquals(3, countRows("sys_oauth2_client"));
     }
@@ -172,7 +172,6 @@ class AccessServiceSchemaPostgresTest {
             {"TYPE_DEFINITION", "MANAGE"},
             {"SYSTEM_CONFIG", "MANAGE"},
             {"OPERATION", "MANAGE"},
-            {"DEPENDENCY", "SYNC"},
             {"API", "ACCESS"},
             {"ORG", "CREATE_POSITION"}, {"ORG", "UPDATE_POSITION"},
             {"ORG", "DELETE_POSITION"}, {"ORG", "ASSIGN_POSITION_USER"},
