@@ -327,6 +327,20 @@ describe("路由守卫 forceResetPwd 阻断（T-FE-046）", () => {
     expect(next).toHaveBeenCalledWith("/");
   });
 
+  it("阻断态公共页冷启动也后台 initRouter 建 wholeMenus（外评 P2 锁，2026-09-20 拍板恢复改前行为）：F5 改密页→改密成功跳转 getTopMenu 读 wholeMenus，不建则解引用 undefined 抛 TypeError——含 !forceResetPwd 跳过条件的实现下 initRouter 不被调必红", async () => {
+    loginAsForceReset();
+    const next = vi.fn();
+    guard(
+      makeTo({ path: "/change-password", fullPath: "/change-password" }),
+      { name: undefined, fullPath: "/" },
+      next
+    );
+    // 同步放行（公共路由不等待）+ 后台 initRouter 已发起
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith();
+    await vi.waitFor(() => expect(initRouter).toHaveBeenCalledTimes(1));
+  });
+
   it("新开标签同被阻断：守卫每次导航重读共享存储（无模块级状态），同 storage 连续两次导航均 redirect 改密页——旧实现必红", () => {
     loginAsForceReset();
     const nextFirst = vi.fn();

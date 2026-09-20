@@ -222,8 +222,10 @@ router.beforeEach((to: ToRouteType, _from, next) => {
   }
   /**
    * 门禁判定分派（T-FE-056，2026-09-20 拍板拦截落点=全屏 /access-denied）：
-   * 公共路由不判门禁不等待（冷启动仍后台建侧栏，阻断人群除外——改密成功进系统
-   * 的导航自然触发）；业务路由 loaded/failed 即时判定；uninitialized/loading
+   * 公共路由不判门禁不等待（冷启动仍后台 initRouter 建 wholeMenus——阻断人群
+   * 同样建：改密页虽无侧栏渲染，改密成功跳转 getTopMenu 同步读 wholeMenus，
+   * 不建则 F5 改密页改密成功解引用 undefined 抛 TypeError〔外评 P2，2026-09-20
+   * 拍板恢复改前行为〕）；业务路由 loaded/failed 即时判定；uninitialized/loading
    * 等待初始化完成后再判定（防冷启动深链绕过——旧实现 initRouter 完成后仅
    * to.name 为空才重导航，静态路由有名即漏判；initRouter 内 single-flight，
    * 并发导航共享同一次拉取）。failed fail-open 放行（门禁是 UX 层不是安全层，
@@ -232,10 +234,7 @@ router.beforeEach((to: ToRouteType, _from, next) => {
   function gateOrAllow() {
     const userStore = useUserStoreHook();
     if (isPublicRoute(to.path)) {
-      if (
-        userStore.menuGateStatus === "uninitialized" &&
-        !userInfo.forceResetPwd
-      ) {
+      if (userStore.menuGateStatus === "uninitialized") {
         initRouter().then(handleColdStartRoute).catch(warnSessionTerminated);
       }
       toCorrectRoute();
