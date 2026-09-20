@@ -4,7 +4,7 @@
 > 任务：T-FE-011（mock 驱动）→ T-FE-044（Phase 3 补遗联调收口，2026-09-14：mock 退役 + Gateway 端点注册 + 真实链路六场景冒烟）
 > 后端契约：access-service-api-contract.md §12.3 / §12.4（`resource-dependency/*`；T-ACCESS-040 契约总册合并后现行锚点）
 > 后端任务：T-PERM-031（depends_on 本任务；已收口 2026-08-30，终态见总册 §12.3 resource-dependency 契约要点）
-> last_reviewed: 2026-09-14（T-FE-044 联调回写：mock 终态化、api 路径 /perm 前缀缺陷修复、六端点入 bootstrap 固定图）
+> last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-14（T-FE-044 联调回写：mock 终态化、api 路径 /perm 前缀缺陷修复、六端点入 bootstrap 固定图）
 
 ## 1. 背景
 
@@ -136,6 +136,9 @@
 | `DEPENDENCY:UPDATE` | 编辑按钮 | updateDependency 类型级校验（T-PERM-031 收窄，原实例级系 ID 空间错位） |
 | `DEPENDENCY:DELETE` | 删除按钮 | deleteDependencies 类型级全有或全无（T-PERM-031 收窄） |
 | `DEPENDENCY:SYNC` | （P0 不暴露按钮，batch-sync 标 TODO） | batchSyncDependencies 类型级校验 |
+
+> 路由可达性效应（T-FE-056 起）为真门禁：无 VIEW ⇒ 菜单不可见 + 路由被拦 403 全屏页（menus 派生路由门禁，与菜单可见性同源不分叉；门禁首载失败 fail-open 时由后端 403 兜底），见 `design/frontend/login.md` §路由级 UX 门禁。
+
 
 - SSOT：`views/system/resource-dependency/utils/perms.ts`（RESOURCE_DEPENDENCY_PERMS / PERM_LIST / VIEW_PERMS）
 - 路由 `meta.auths`：`[...RESOURCE_DEPENDENCY_PERM_LIST]`

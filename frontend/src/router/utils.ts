@@ -359,7 +359,8 @@ export async function refreshSessionCapability(): Promise<void> {
  *       侧栏「菜单加载失败，点击重试」占位项（跳 /menu-retry 重试页），
  *       不持久化 menus、不回退全量静态菜单；拉取成功但账号无菜单（零权限）时占位项为
  *       「当前账号无可用菜单」（T-FE-049 两态区分——重试对该形态无意义）</li>
- *   <li>路由仍全部静态注册：菜单不可见 ≠ 路由不可达，越权直达由后端 VIEW 403 兜底</li>
+ *   <li>路由仍全部静态注册（导航事实）；路由可达性自 T-FE-056 由 menus 派生门禁判定
+ *       （router/gate.ts）：菜单不可见 ⇒ 守卫拦 403 全屏页，后端 VIEW 403 仍为安全兜底</li>
  *   <li>会话已终结（Q-020 收口）：本地凭证已无时统一提示「会话已过期」+ logOut 跳
  *       登录并抛 SessionExpiredError——menu-retry 等放行页内的重试动作不再按陈旧
  *       菜单状态失真提示（守卫/登录路径必有凭证，不触达本分支）</li>

@@ -36,7 +36,8 @@ export const usePermissionStore = defineStore("pure-permission", {
      * 后端派生菜单直写（T-FE-015：/api/access/auth/user-menu menus 树直接渲染）。
      * 侧栏唯一数据源切换——wholeMenus 不再来自静态路由树（标题/图标/层级/排序
      * 全来自 sys_menu）；flatteningRoutes 仍由 handleAsyncRoutes 以静态路由维护
-     * （multiTags 固定标签语义）。菜单不可见 ≠ 路由不可达，越权直达由后端 403 兜底。
+     * （multiTags 固定标签语义）。菜单不可见 ⇒ 路由由 menus 派生门禁拦 403
+     * （T-FE-056，router/gate.ts 与 wholeMenus 同源），后端 403 仍为安全兜底。
      */
     handleBackendMenus(menus: any[]) {
       this.wholeMenus = menus;

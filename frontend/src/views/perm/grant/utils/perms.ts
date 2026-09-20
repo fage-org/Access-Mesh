@@ -16,9 +16,10 @@
  *   （后端 role-resource-permission/* 均校验目标抽象角色）。
  *
  * ## meta.auths 说明（T-FE-037 评审澄清；T-FE-053 更新口径）
- * 本页路由 auths 为按钮级声明，不参与路由拦截（router/index.ts beforeEach 不做
- * 角色拦截，T-FE-053 已删模板 meta.roles 死分支）；页面进入控制=页内
- * canView（ROLE:VIEW）整页占位 + 后端接口门禁，
+ * 本页路由 auths 为按钮级声明，不参与路由拦截（meta.auths 本身无消费方；T-FE-053
+ * 已删模板 meta.roles 死分支）；路由进入控制自 T-FE-056 起为 gate.ts 显式动作路由
+ * 映射（/perm/grant → ROLE:VIEW，hasPerms 判定）；页内数据/动作控制=canView
+ * （ROLE:VIEW）整页占位 + 后端接口门禁，
  * 左栏数据源串（ORG:VIEW 等）为页内软探查，进不了 auths 也拦不住路由。
  *
  * perm 串字面量全部为既有资源类型:操作码复用（无新增权限串）：

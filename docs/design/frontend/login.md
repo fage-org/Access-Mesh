@@ -3,7 +3,7 @@ doc_type: design
 title: 登录页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # 2026-09-20 T-FE-054 收口+claude 外评处置（P2 判据单源 isSessionTerminated/401 令牌仍在才提示/代际守卫会话终结不拦/守卫 then 补 catch/短路 SessionExpiredError）；此前：T-FE-054 短路+双分支提示、T-FE-048 会话权限热刷新节、T-FE-046 强制改密闭环、T-FE-049 登录提示两态、T-FE-045 登出流程节、2026-09-15 T-FE-015、2026-08-31 T-FE-041
+last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-20 T-FE-054 收口+claude 外评处置（P2 判据单源 isSessionTerminated/401 令牌仍在才提示/代际守卫会话终结不拦/守卫 then 补 catch/短路 SessionExpiredError）；此前：T-FE-054 短路+双分支提示、T-FE-048 会话权限热刷新节、T-FE-046 强制改密闭环、T-FE-049 登录提示两态、T-FE-045 登出流程节、2026-09-15 T-FE-015、2026-08-31 T-FE-041
 ---
 
 # 登录页 前端设计（T-FE-041 真实登录链路）
@@ -57,6 +57,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 - `api/auth.ts`：`getCaptcha`/`login`/`logout`（后两者 `unwrap` 解包）/`getUserMenu` + 固定常量
 - `store/modules/user.ts`：`loginByUsername`（unwrap → expiresIn 转绝对时间 → setToken → LoginResp 的 userId/forceResetPwd 随登录写入 userKey（T-FE-046，阻断标记与改密请求主体）→ refreshUserMenu）、`refreshUserMenu`（成败维护 `menuLoadFailed`——空侧栏两态区分的事实来源，成功但空 menus=合法形态非失败；回写前按 accessToken 指纹做会话代际守卫——旧会话响应不污染新会话，Q-016）、`logOut`（服务端注销 fire-and-forget，见「登出流程」）；**无刷新令牌链路**（后端普通 Sa-Token 会话 refreshToken 为 null）
 - `utils/session-expired.ts`：会话已过期统一提示（`notifySessionExpiredOnce` 10s 去重窗口）与 `SessionExpiredError` 信号（initRouter 会话终结分支抛出，T-FE-054；独立小模块：去重状态放 http 会与既有边成环、放 router/utils 属职责错位）
+- `router/gate.ts`：路由级 UX 门禁判定纯函数（`isPublicRoute` 公共白名单 / `collectMenuPaths` menus 树 path 集 / `isRouteAllowed` 三源判定，T-FE-056——见「路由级 UX 门禁」节；独立小模块同 session-expired 先例：守卫消费、可单测）
 
 ## 权限接线（hasPerms → 按钮 → 降级）
 
@@ -76,7 +77,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 **统一能力刷新入口**（`src/router/utils.ts refreshSessionCapability`，单函数原子更新）：权限串（roles/permissions/menus 经 user store `refreshUserMenu`）+ 侧栏 wholeMenus（复用 initRouter 的 `buildSidebarMenus`/`handleBackendMenus` 接线；menus 空时按 `menuLoadFailed` 渲染两态占位）。四个调用方共用：initRouter、403 自动刷新、顶栏手动入口、授予页 retryLoadDeps（permission-grant.md §10）。语义：
 
 - 成功：侧栏即时重建（撤销的菜单项从侧栏消失；全撤销落「当前账号无可用菜单」占位）；
-- 失败：原样抛出且不触碰 wholeMenus——按钮/侧栏维持旧态（后端 fail-closed 兜底）；门禁状态机维持 loaded（failed 仅由首次加载失败产生）——**T-FE-056 落地后路由门禁 path 集/状态机更新挂接于本入口**（同 owner，勿另开通道）；
+- 失败：原样抛出且不触碰 wholeMenus——按钮/侧栏维持旧态（后端 fail-closed 兜底）；门禁状态机维持 loaded（failed 仅由首次加载失败产生）——T-FE-056 起门禁消费面落地：path 集为 menus 的**响应式派生**（每次导航现算，本入口回写 menus 即门禁随会话权限即时收敛，无快照失联——T-FE-055 capability 派生化同款定案）、状态机迁移在本入口所经的 `refreshUserMenu`（见下节）；
 - **single-flight（Q-016 收口，T-FE-054）**：入口内共享在途 Promise——同会话（accessToken 指纹相同）并发调用只发一次 user-menu 请求，403 自动/手动/授予页重试多通道并发不再各发各的（旧响应晚到覆盖新权限串的同会话竞态随之消除）；完成后在途标记复位，下次调用重新发起；
 - **跨会话代际守卫（Q-016 收口，T-FE-054）**：`refreshUserMenu` 回写（Pinia+localStorage userKey）与侧栏重建前均比对 accessToken 指纹——**会话已换**（登出重登、存在另一活会话令牌）时旧响应（成功/失败）一律丢弃，不污染新会话的 menus/权限串/menuLoadFailed；**会话已终结**（getToken 空，如 401 分支已 logOut）不拦——照常置位/上抛（外评 P3 处置：吞掉会话终结型 401 会使手动刷新假成功、登录 401 硬化分支不可达）；
 - 不清理 multiTags 已缓存标签（标签指向的路由由后端 403 兜底）；不经 `handleAsyncRoutes`（其 multiTags 重置仅属登录/F5 的 initRouter 全量路径）。
@@ -86,6 +87,26 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 **顶栏手动入口**（lay-navbar 工具区「刷新权限」图标按钮，经 useNav `refreshPermission`）：直连能力刷新入口（**不走 403 去重通道**——显式动作立即响应，亦不受 10s 窗口限制）；模块级在途 ref（T-FE-054 起「发请求去重」已由入口内 single-flight 承担，useNav 标记职责收窄为防重复进入/重复 message 的 UI 层防抖）；成功 message「权限已刷新」且按钮显隐/侧栏菜单即时更新；失败弹错误 message「权限刷新失败，请稍后重试」（2026-09-20 用户拍板：显式动作配显式反馈）。**已知布局边界（2026-09-20 外评登记，修法定向抽公共组件、暂不实施）**：按钮现仅挂 vertical 布局工具区——mix/horizontal 布局的顶栏工具区由 `NavMix.vue`/`NavHorizontal.vue` 两份手写复制体渲染、暂无此入口；该两布局下靠 403 自动通道（与布局无关）+ F5 兜底，未来收敛为三处共用小组件时消除。
 
 **回归锁**（`src/utils/http/index.spec.ts` + `src/views/perm/grant/utils/hook.spec.ts`）：①403 触发能力刷新恰好一次（窗口内第二次 403 不再触发）；②403 自动刷新成功后侧栏同步重建（撤销项消失/全撤销占位）——两条旧实现（无触发/仅 initRouter 重建）下必红；③retryLoadDeps 先刷权限串（刷新使权限翻真后重试才发依赖请求）——旧实现下必红；附加锁：窗口过期可再触发 / user-menu 自身 403 不触发 / 刷新失败静默维持旧态 / 401 分支不受扰 / 刷新失败不阻断授予页重试。
+
+## 路由级 UX 门禁（T-FE-056，2026-09-19 拍板③；拦截落点 2026-09-20 用户拍板全屏 /access-denied）
+
+**口径演进**：T-PERM-037（2026-08-31）当时维持「菜单可见、路由可达、后端 403 兜底」的理由是「meta.auths 为前端静态声明可绕过，与后端派生方案重复」——T-FE-015 后菜单已是后端按权限派生（menus 树），以 menus 派生路由门禁不再有静态可绕过问题，本机制落地后「路由可达、后端 403 兜底」口径退役为「menus 门禁拦 403 + 后端 403 双层兜底」。
+
+**门禁集合**（`src/router/gate.ts`，三源之并）：
+
+- **menus 树 path 集**（含 children 递归）——与侧栏可见性同源不分叉（后端菜单种子 path 与前端路由 path 同形）；每次导航**现算派生**，menus 更新即集合更新（能力刷新入口回写后门禁随会话权限即时收敛，无快照失联形态）；
+- **公共路由白名单**：remaining.ts 全部节点 path 自动纳入（递归含 children——`/redirect/:path(.*)` 参数形态转前缀匹配，漏配会拦死标签刷新链路 lay-tag onFresh 的 `router.replace("/redirect"+fullPath)`）+ 公共错误页显式登记（`/error/403|404|500`，error.ts 模块路由不在 remaining.ts——防门禁拦截落点与守卫 VITE_HIDE_HOME 重定向 `/error/404` 自环）；
+- **显式动作路由映射**：showLink:false 不进菜单的业务路由按权限串判定（`/perm/grant` → `ROLE:VIEW`，`hasPerms` 单源，与三处入口按钮门禁同源〔T-FE-055〕——纯 menus 白名单会封死授权页）；新增动作路由在 gate.ts 映射表登记。
+
+**守卫状态机**（`router/index.ts` beforeEach 分派 × user store `menuGateStatus`；迁移唯一入口 `refreshUserMenu`）：
+
+- `uninitialized`/`loading`（会话内首次拉取在途）：**等待初始化完成后再判定**（不同步放行）——防冷启动深链绕过（旧实现 initRouter 完成后仅 to.name 为空才重导航，静态路由有名即漏判）；initRouter 内能力刷新 single-flight，并发导航共享同一次拉取；
+- `loaded`（至少成功一次；零权限账号 menus 空集亦 loaded，门禁集合=仅公共白名单+显式映射）：按门禁集合判定，集合外路由 `next({path:"/access-denied"})`——**全屏 403 落点**（remaining.ts 公共页，无 Layout 侧栏壳，与 T-FE-046 阻断着陆页同款先例；页面含「返回首页」按钮，零权限账号 menus 不含 /welcome 时该按钮亦被拦，属零权限边缘形态非缺陷）；
+- `failed`（**仅由首次加载失败产生**）：fail-open 放行——门禁是 UX 层不是安全层，门禁失效的最坏结果=回到现状（路由全可达+后端 403 兜底），不产生新锁死；已 loaded 会话的后续刷新失败**维持 loaded**（`menuLoadFailed=true` 但 menus 保留旧值，守卫用旧 path 集继续判定——门禁不因刷新抖动静默失效）；`logOut` 重置 `uninitialized`。
+
+**与相邻机制的边界**：公共路由不判门禁不等待（冷启动仍后台建侧栏；forceResetPwd 阻断人群不建侧栏——改密成功进系统的导航自然触发）；externalLink 不触门禁（openLink 新开标签，模板原状）；强制改密阻断（T-FE-046）优先于门禁判定；multiTags 残留标签点击被拦（权限回收后的旧标签）落 403 全屏页，标签清理仍属非目标（T-FE-048 边界维持）；冷启动手输未知路径（pathMatch 注册前）被拦 403 而非 404——不可达路由统一按无权限语义拦下，不泄露路由存在性。
+
+**回归锁**（`src/router/index.spec.ts` 守卫行为 + `src/router/gate.spec.ts` 纯函数 + `src/store/modules/user.spec.ts` 状态机）：锁① loaded 态无权限导航拦 403（旧实现放行，红跑实证）；锁② 冷启动深链同步不放行、初始化后被拦（旧实现立即放行，红跑实证）；锁③ `/redirect/:path` 白名单前缀放行（漏配实现红）；锁④ `/perm/grant` 显式映射放行/反向无 `ROLE:VIEW` 拦截（纯 menus 白名单实现红）；锁⑤ failed fail-open 放行（安全锁，现状保持）；状态机五锁（首载 loading→loaded / 首载失败 failed / 刷新失败维持 loaded / 刷新在途不回退 loading / logOut 重置——旧实现无状态机字段红跑实证）。红跑合计 10 红实证后全量 378 绿。
 
 ## 登出流程（T-FE-045 真注销；T-FE-054 起注销改 fire-and-forget）
 

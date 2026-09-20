@@ -29,6 +29,8 @@ import {
   type RouteComponent,
   createRouter
 } from "vue-router";
+import { isPublicRoute, isRouteAllowed } from "./gate";
+import { useUserStoreHook } from "@/store/modules/user";
 import {
   type DataInfo,
   userKey,
@@ -140,12 +142,13 @@ const forceResetAllowPaths = [
 const { VITE_HIDE_HOME } = import.meta.env;
 
 /**
- * 路由级权限口径（T-FE-053，2026-09-19 拍板）：本仓路由权限=后端 menus 派生
- * （侧栏可见性 T-FE-015 + 路由级 UX 门禁 T-FE-056——落地前路由仍全可达，
- * 后端 403 兜底），不使用 pure-admin 模板的 meta.roles 前端白名单（全仓零声明，
- * 死分支已删）。守卫纪律：调用 next() 的分支随即离开守卫（return 或块末），
- * 单次导航 next 至多调用一次；例外：externalLink 分支不调 next（模板原状，
- * openLink 新开标签承载交互——T-FE-056 挂状态机时勿假定该路径必有 next）。
+ * 路由级权限口径（T-FE-053 定基、T-FE-056 挂门禁）：本仓路由权限=后端 menus 派生
+ * ——侧栏可见性（T-FE-015）与路由级 UX 门禁（T-FE-056：menus 树 path 集 ∪ 公共
+ * 路由白名单 ∪ 显式动作路由映射，判定见 router/gate.ts）同源不分叉；不使用
+ * pure-admin 模板的 meta.roles 前端白名单（全仓零声明，死分支已删）。门禁是 UX
+ * 层不是安全层：状态机 failed（首次加载失败）fail-open 放行，越权仍由后端 403 兜底。
+ * 守卫纪律：调用 next() 的分支随即离开守卫（return 或块末），单次导航 next 至多
+ * 调用一次；例外：externalLink 分支不调 next（模板原状，openLink 新开标签承载交互）。
  * 强制改密阻断（T-FE-046）：标记存 localStorage userKey（登录写入、改密成功
  * 置 false、登出清除），守卫每次导航重读——跨标签经共享存储自然生效，无需广播。
  */
@@ -177,6 +180,89 @@ router.beforeEach((to: ToRouteType, _from, next) => {
   function toCorrectRoute() {
     whiteList.includes(to.fullPath) ? next(_from.fullPath) : next();
   }
+  /**
+   * 冷启动初始化完成后的补标签与兜底重导航（旧刷新分支 then 段原样迁移；路由已
+   * 全静态化，isAllEmpty(to.name) 仅在冷启动 pathMatch 注册前手输未知路径可达）。
+   * 仅放行分支调用——被拦导航不落地当前 to，补标签/重导航无意义
+   */
+  function handleColdStartRoute(inited: Router) {
+    if (!useMultiTagsStoreHook().getMultiTagsCache) {
+      const { path } = to;
+      const route = findRouteByPath(path, inited.options.routes[0].children);
+      getTopMenu(true);
+      // query、params模式路由传参数的标签页不在此处处理
+      if (route && route.meta?.title) {
+        if (isAllEmpty(route.parentId) && route.meta?.backstage) {
+          // 此处为动态顶级路由（目录）
+          const { path, name, meta } = route.children[0];
+          useMultiTagsStoreHook().handleTags("push", {
+            path,
+            name,
+            meta
+          });
+        } else {
+          const { path, name, meta } = route;
+          useMultiTagsStoreHook().handleTags("push", {
+            path,
+            name,
+            meta
+          });
+        }
+      }
+    }
+    // 确保动态路由完全加入路由列表并且不影响静态路由（动态路由刷新时router.beforeEach可能会触发两次，第一次触发动态路由还未完全添加，第二次动态路由才完全添加到路由列表，如果需要在router.beforeEach做一些判断可以在to.name存在的条件下去判断，这样就只会触发一次）
+    if (isAllEmpty(to.name)) router.push(to.fullPath);
+  }
+  /**
+   * initRouter 抛会话终结（T-FE-054/Q-020）时仅留痕防 unhandled rejection——
+   * 统一层已提示并 logOut 跳登录，导航中止
+   */
+  function warnSessionTerminated(err: unknown) {
+    console.warn("[router] initRouter 会话已终结，导航中止", err);
+  }
+  /**
+   * 门禁判定分派（T-FE-056，2026-09-20 拍板拦截落点=全屏 /access-denied）：
+   * 公共路由不判门禁不等待（冷启动仍后台建侧栏，阻断人群除外——改密成功进系统
+   * 的导航自然触发）；业务路由 loaded/failed 即时判定；uninitialized/loading
+   * 等待初始化完成后再判定（防冷启动深链绕过——旧实现 initRouter 完成后仅
+   * to.name 为空才重导航，静态路由有名即漏判；initRouter 内 single-flight，
+   * 并发导航共享同一次拉取）。failed fail-open 放行（门禁是 UX 层不是安全层，
+   * 越权仍由后端 403 兜底）
+   */
+  function gateOrAllow() {
+    const userStore = useUserStoreHook();
+    if (isPublicRoute(to.path)) {
+      if (
+        userStore.menuGateStatus === "uninitialized" &&
+        !userInfo.forceResetPwd
+      ) {
+        initRouter().then(handleColdStartRoute).catch(warnSessionTerminated);
+      }
+      toCorrectRoute();
+      return;
+    }
+    const decide = (inited?: Router) => {
+      // 仅 loaded 真判定；failed（首载失败）与等待后仍非 loaded 的不可达形态一律
+      // fail-open 放行——门禁失效的最坏结果=回到现状（路由全可达+后端 403 兜底），
+      // 不产生新锁死
+      if (userStore.menuGateStatus !== "loaded" || isRouteAllowed(to.path)) {
+        toCorrectRoute();
+        // 冷启动放行后补标签/兜底重导航（inited=initRouter resolve 的路由实例，
+        // 与模板原刷新分支同源；SPA 内导航不补）
+        if (inited) handleColdStartRoute(inited);
+      } else {
+        next({ path: "/access-denied" });
+      }
+    };
+    if (
+      userStore.menuGateStatus === "uninitialized" ||
+      userStore.menuGateStatus === "loading"
+    ) {
+      initRouter().then(decide).catch(warnSessionTerminated);
+      return;
+    }
+    decide();
+  }
   if (Cookies.get(multipleTabsKey) && userInfo) {
     // 强制改密阻断（T-FE-046）：forceResetPwd=true 只放行改密页/登录页/公共
     // 错误页，其余路由 redirect /change-password；改密成功清标记后放行
@@ -195,54 +281,12 @@ router.beforeEach((to: ToRouteType, _from, next) => {
         openLink(to?.name as string);
         NProgress.done();
       } else {
-        toCorrectRoute();
+        gateOrAllow();
       }
     } else {
-      // 刷新
-      if (
-        usePermissionStoreHook().wholeMenus.length === 0 &&
-        to.path !== "/login"
-      ) {
-        initRouter()
-          .then((router: Router) => {
-            if (!useMultiTagsStoreHook().getMultiTagsCache) {
-              const { path } = to;
-              const route = findRouteByPath(
-                path,
-                router.options.routes[0].children
-              );
-              getTopMenu(true);
-              // query、params模式路由传参数的标签页不在此处处理
-              if (route && route.meta?.title) {
-                if (isAllEmpty(route.parentId) && route.meta?.backstage) {
-                  // 此处为动态顶级路由（目录）
-                  const { path, name, meta } = route.children[0];
-                  useMultiTagsStoreHook().handleTags("push", {
-                    path,
-                    name,
-                    meta
-                  });
-                } else {
-                  const { path, name, meta } = route;
-                  useMultiTagsStoreHook().handleTags("push", {
-                    path,
-                    name,
-                    meta
-                  });
-                }
-              }
-            }
-            // 确保动态路由完全加入路由列表并且不影响静态路由（注意：动态路由刷新时router.beforeEach可能会触发两次，第一次触发动态路由还未完全添加，第二次动态路由才完全添加到路由列表，如果需要在router.beforeEach做一些判断可以在to.name存在的条件下去判断，这样就只会触发一次）
-            if (isAllEmpty(to.name)) router.push(to.fullPath);
-          })
-          .catch((err: unknown) => {
-            // 会话已终结（T-FE-054/Q-020）：initRouter 判据含本地过期（cookie 被清、
-            // userKey 残留形态同 tab 可达）时抛 SessionExpiredError——统一层已提示并
-            // logOut 跳登录，此处仅留痕防 unhandled rejection
-            console.warn("[router] initRouter 会话已终结，导航中止", err);
-          });
-      }
-      toCorrectRoute();
+      // 刷新/冷启动：由 gateOrAllow 按状态机分派（uninitialized/loading 等待初始化
+      // 完成后判定，不再先放行后补导航）
+      gateOrAllow();
     }
   } else {
     if (to.path !== "/login") {

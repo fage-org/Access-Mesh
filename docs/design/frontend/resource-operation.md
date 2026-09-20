@@ -3,7 +3,7 @@ doc_type: design
 title: 资源与操作定义 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-15   # T-ACCESS-036：字段表删 sortOrder 行（resource_entity.sort_order 全字段面退役，前端类型/提交载荷/表单/mock 同批清理）；此前 2026-09-02 T-FE-017 联调收口（§5 补 Gateway 注册登记与联调注记、§7 权限接线补固定图口径、§8 mock 校验句终态化、联调发现 maintain_source 落库缺陷已修）；2026-08-29 §5/§8 全量收口（T-PERM-028 落地：业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁补齐/resource_type 联动预置）；2026-08-28 §8 增补第 6 项：resource_type 联动预置操作位自 T-PERM-023 改归属登记
+last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-15 # T-ACCESS-036：字段表删 sortOrder 行（resource_entity.sort_order 全字段面退役，前端类型/提交载荷/表单/mock 同批清理）；此前 2026-09-02 T-FE-017 联调收口（§5 补 Gateway 注册登记与联调注记、§7 权限接线补固定图口径、§8 mock 校验句终态化、联调发现 maintain_source 落库缺陷已修）；2026-08-29 §5/§8 全量收口（T-PERM-028 落地：业务键切换/bigint 字符串线格式/extraClear/VIEW 门禁补齐/resource_type 联动预置）；2026-08-28 §8 增补第 6 项：resource_type 联动预置操作位自 T-PERM-023 改归属登记
 ---
 
 # 资源与操作定义 前端设计
@@ -139,6 +139,9 @@ views/system/resource-operation/
 | `OPERATION:VIEW` | OPERATION | 路由可达 + 操作权限表可见 |
 | `OPERATION:CREATE` | OPERATION | 新增操作 |
 | `OPERATION:MANAGE` | OPERATION | 编辑 / 删除操作（后端统一 MANAGE） |
+
+> 路由可达性效应（T-FE-056 起）为真门禁：无 VIEW ⇒ 菜单不可见 + 路由被拦 403 全屏页（menus 派生路由门禁，与菜单可见性同源不分叉；门禁首载失败 fail-open 时由后端 403 兜底），见 `design/frontend/login.md` §路由级 UX 门禁。
+
 
 ### mock 角色矩阵
 

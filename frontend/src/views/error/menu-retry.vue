@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { initRouter } from "@/router/utils";
+import { reloadMenusWithRollback } from "./menu-retry-reload";
 import { useUserStoreHook } from "@/store/modules/user";
 import { message } from "@/utils/message";
 import RefreshRight from "~icons/ep/refresh-right";
@@ -34,19 +34,19 @@ const pageDesc = computed(() =>
 );
 
 /**
- * 强制重取会话菜单：清空 store 内存态后 initRouter 即走重取分支
- * （T-FE-015 设计定案：失败 fail-closed 空菜单 + 可重试，不持久化、不回退全量静态菜单）
+ * 强制重取会话菜单：预清走重取分支 + 失败回滚旧菜单集（门禁不变量，T-FE-056
+ * 双轨评审 P3-1 处置）——编排与回归锁见 ./menu-retry-reload.ts（SFC 逻辑提取
+ * 可测化，orgTree.ts/messages.ts 先例）；三态消费消息与跳转
  */
 async function retry() {
   if (retrying.value) return;
   retrying.value = true;
   try {
-    useUserStoreHook().SET_MENUS([]);
-    await initRouter();
-    if (useUserStoreHook().menus.length > 0) {
+    const outcome = await reloadMenusWithRollback();
+    if (outcome === "recovered") {
       message("菜单已恢复", { type: "success" });
       router.replace("/");
-    } else if (useUserStoreHook().menuLoadFailed) {
+    } else if (outcome === "still-failed") {
       message("菜单加载仍失败，请稍后重试", { type: "error" });
     } else {
       message("当前账号仍无可用菜单，请联系管理员分配权限", {

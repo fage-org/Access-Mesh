@@ -3,7 +3,7 @@ doc_type: design
 title: 6.2 系统配置页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-15   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——ConfigForm 键名 Pattern 对齐后端命名空间前缀强制；keyword LIKE CAST 修复；2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-024 收口：§5/§8/§9 终态化（契约要点补全、种子误报澄清、JSONB 实证+isSystem 修复、list 服务端分页）
+last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-15 # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——ConfigForm 键名 Pattern 对齐后端命名空间前缀强制；keyword LIKE CAST 修复；2026-08-31   # 2026-08-31 T-PERM-037 收口：路由级 auths 登记收口（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-024 收口：§5/§8/§9 终态化（契约要点补全、种子误报澄清、JSONB 实证+isSystem 修复、list 服务端分页）
 ---
 
 # 6.2 系统配置页 前端设计
@@ -140,15 +140,16 @@ views/system/config/
 ### 降级策略
 
 > **路由可达性与按钮门禁现状（项目共性，非本页独有）**：
-> - **路由可达性**：pure-admin-thin 的 `filterNoPermissionTree`（`router/utils.ts:85`）路由过滤**只基于 `meta.roles`，不使用 `meta.auths`**。本页及 user/role/type-def 等所有页 meta 均只有 `auths` 无 `roles`，故菜单对所有登录用户可见，**页面级拦截靠后端 403 兜底**。
+> - **路由可达性（T-FE-056 更新，2026-09-20）**：路由级可达性由 **menus 派生路由门禁**判定（`router/gate.ts`：门禁集合 = 后端 menus 树 path 集 ∪ 公共路由白名单 ∪ 显式动作路由映射；守卫拦截落全屏 `/access-denied`，状态机 failed fail-open 时由后端 403 兜底）——菜单不可见 ⇒ 路由被拦 403，机制详见 `design/frontend/login.md` §路由级 UX 门禁。
 > - **按钮门禁**：本页按钮 `canSave = hasPerms(SYSTEM_CONFIG_PERMS.CONFIG_SAVE)`（`index.vue:39`），`hasPerms`（`utils/auth.ts:131`）读取**登录态 `permissions`**（`/api/access/auth/user-menu` 下发的 perm 串数组），**不是 `meta.auths`**。
 > - **`meta.auths` 的真实用途**：仅作为路由元信息清单（派生自 `SYSTEM_CONFIG_PERM_LIST`），供 `hasAuth`（`router/utils.ts:366`，从当前路由 meta.auths 读）使用；本页按钮未用 `hasAuth`。即 `meta.auths` 是路由级元信息/`hasAuth` 清单，不参与本页按钮显隐。
 > 这与 role-manage.md / type-definition.md 同口径（既有文档同样把按钮门禁写成 auths 控制，属共性表述偏差）。
 
-- 无 `SYSTEM_CONFIG:VIEW` → **菜单仍可见、路由可达**（路由过滤基于 roles，本项目未设 roles）；进入页面后 `loadTable` 调 `/list` 由后端 VIEW 校验拒绝（403），前端 `message` 报错。本页无 VIEW 级按钮（VIEW 只决定列表数据可见性，由后端兜底）。
+- 无 `SYSTEM_CONFIG:VIEW` → **菜单不可见、路由被门禁拦 403**（menus 派生门禁，T-FE-056；fail-open 兜底形态为后端 403）；该兜底形态下进入页面后 `loadTable` 调 `/list` 由后端 VIEW 校验拒绝（403），前端 `message` 报错。本页无 VIEW 级按钮（VIEW 只决定列表数据可见性，由后端兜底）。
 - 无 `SYSTEM_CONFIG:MANAGE` → 隐藏「新增配置」和「编辑」按钮（`v-if="canSave"`，`hasPerms` 读登录态 permissions 判定），操作列显示「—」。
 
 > ~~🔧 路由级 auths 拦截缺失属项目共性问题（type-def/role/user 同）~~ **已收口（2026-08-31 设计定案，T-PERM-037）**：菜单可见性 v3.5 §4.1 ∃op 派生方案后端已实现（`/api/access/auth/user-menu` 双轨下发按权限过滤后的 menus 树），前端接线归入 Phase 3 联调 T-FE-015（登录链路切真实接口时菜单栏从本地静态路由切后端派生 menus 树）；不改 `filterNoPermissionTree` 按 `meta.auths` 过滤（与后端派生方案重复，且 auths 为前端静态声明可绕过）。联调前维持「菜单可见、路由可达、后端 VIEW 403 兜底」。
+> **追注（2026-09-20，T-FE-056）**：路由级拦截已落地——「路由可达、后端 403 兜底」口径演进为「menus 派生路由门禁拦 403 + 后端 403 双层兜底」，见 `design/frontend/login.md` §路由级 UX 门禁。
 
 ### mock 角色矩阵（`mock/login.ts`）
 

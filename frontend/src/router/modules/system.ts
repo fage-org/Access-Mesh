@@ -18,8 +18,8 @@ const Layout = () => import("@/layout/index.vue");
  * <p>
  * T-FE-015（2026-08-31）起侧栏菜单由 /api/access/auth/user-menu 下发的 menus 树直接渲染
  * （sys_menu bootstrap 种子，可见性 = v3.5 §4.1 ∃op 派生），路由 meta.showLink
- * 不再控制侧栏——本文件只承担路由注册与页面元信息：菜单不可见 ≠ 路由不可达，
- * 越权直达 URL 由后端 VIEW 403 兜底。各子页 showLink:false 为 T-FE-041 导航收敛期
+ * 不再控制侧栏——本文件只承担路由注册与页面元信息；路由可达性由 menus 派生门禁
+ * 判定（T-FE-056 router/gate.ts）：菜单不可见 ⇒ 守卫拦 403，后端 VIEW 403 兜底。各子页 showLink:false 为 T-FE-041 导航收敛期
  * 历史标记（保留不动，已无侧栏语义）；「长期隐藏 9 页」口径随 2026-08-31 设计定案
  * 放开（14 页菜单一次种全，普通用户无授权不可见）。
  */

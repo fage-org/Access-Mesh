@@ -547,3 +547,88 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
     expect(mockStorage.setItem).not.toHaveBeenCalled();
   });
 });
+
+describe("门禁状态机迁移（T-FE-056：refreshUserMenu 唯一迁移入口，守卫判定依据）", () => {
+  function withToken() {
+    mockGetToken.mockReturnValue({
+      accessToken: "token-1",
+      expires: 1,
+      refreshToken: ""
+    });
+  }
+
+  it("首载成功：uninitialized → 在途 loading → loaded（守卫由等待转入门禁判定）——旧实现无状态机字段必红", async () => {
+    const user = useUserStore();
+    withToken();
+    let resolveMenu!: (v: unknown) => void;
+    mockGetUserMenu.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveMenu = resolve;
+        })
+    );
+
+    expect(user.menuGateStatus).toBe("uninitialized");
+    const pending = user.refreshUserMenu();
+    // 在途：仅首载（未 loaded）进入 loading——守卫此时等待初始化不判定
+    expect(user.menuGateStatus).toBe("loading");
+    resolveMenu(MENU_RESP);
+    await pending;
+
+    expect(user.menuGateStatus).toBe("loaded");
+  });
+
+  it("首载失败：loading → failed（守卫 fail-open 放行）+ menuLoadFailed 置位 + 上抛——旧实现无状态机字段必红", async () => {
+    const user = useUserStore();
+    withToken();
+    mockGetUserMenu.mockRejectedValue(new Error("network down"));
+
+    await expect(user.refreshUserMenu()).rejects.toThrow("network down");
+    expect(user.menuGateStatus).toBe("failed");
+    expect(user.menuLoadFailed).toBe(true);
+  });
+
+  it("已 loaded 会话刷新失败：维持 loaded（门禁不因刷新抖动静默失效，守卫用旧 path 集继续判定）——降级实现（首败即 failed / 刷新失败置 failed）必红", async () => {
+    const user = useUserStore();
+    withToken();
+    mockGetUserMenu.mockResolvedValueOnce(MENU_RESP);
+    await user.refreshUserMenu();
+    expect(user.menuGateStatus).toBe("loaded");
+
+    mockGetUserMenu.mockRejectedValueOnce(new Error("refresh down"));
+    await expect(user.refreshUserMenu()).rejects.toThrow("refresh down");
+    // 状态迁移表：failed 仅由首次加载失败产生；刷新失败只置 menuLoadFailed
+    expect(user.menuGateStatus).toBe("loaded");
+    expect(user.menuLoadFailed).toBe(true);
+  });
+
+  it("刷新期间维持 loaded（不回退 loading 让守卫等待）：已 loaded 会话的后续刷新在途状态不变", async () => {
+    const user = useUserStore();
+    withToken();
+    mockGetUserMenu.mockResolvedValueOnce(MENU_RESP);
+    await user.refreshUserMenu();
+
+    let resolveMenu!: (v: unknown) => void;
+    mockGetUserMenu.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveMenu = resolve;
+        })
+    );
+    const pending = user.refreshUserMenu();
+    expect(user.menuGateStatus).toBe("loaded");
+    resolveMenu(MENU_RESP);
+    await pending;
+  });
+
+  it("logOut 重置 uninitialized（新会话门禁重新初始化）——旧实现无状态机字段必红", async () => {
+    const user = useUserStore();
+    withToken();
+    mockGetUserMenu.mockResolvedValueOnce(MENU_RESP);
+    await user.refreshUserMenu();
+    expect(user.menuGateStatus).toBe("loaded");
+
+    await user.logOut();
+    expect(user.menuGateStatus).toBe("uninitialized");
+  });
+});

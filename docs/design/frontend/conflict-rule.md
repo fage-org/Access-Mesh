@@ -4,7 +4,7 @@
 > 任务：T-FE-010（mock 驱动）
 > 后端契约：api-contract.md §5.6（`conflict-rule/*` 含 detect；T-PERM-030 收口契约要点）
 > 后端任务：T-PERM-030（depends_on 本任务，已收口 2026-08-30）
-> last_reviewed: 2026-09-12（T-PERM-063：detect 扩展角色对形态——检测对话框双形态切换 + conflictedUserIds 存量持有展示，§5 el-alert 文案与 §Q2 第 8 行同步）；此前 2026-09-02（T-FE-020 联调收口：前端 API 路径修正 + Gateway +5 端点注册 + mock 退役；§4 🔧 六项全收口 + §5 权限接线四档类型级口径——2026-08-30）
+> last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-12（T-PERM-063：detect 扩展角色对形态——检测对话框双形态切换 + conflictedUserIds 存量持有展示，§5 el-alert 文案与 §Q2 第 8 行同步）；此前 2026-09-02（T-FE-020 联调收口：前端 API 路径修正 + Gateway +5 端点注册 + mock 退役；§4 🔧 六项全收口 + §5 权限接线四档类型级口径——2026-08-30）
 
 > **联调注记（T-FE-020，2026-09-02）**：本页 6 端点全部经 Gateway 真实链路收口。联调发现前端 `api/conflict-rule.ts` 仍用裸 `/api/perm/conflict-rule/*`（T-FE-041 全局切 Gateway 外部路径时漏改本页；Gateway 仅路由 /admin/**、/perm/**，裸路径必 404）——已统一修正为 `/perm/api/perm/conflict-rule/*`。（路径形态已于 T-ACCESS-042 统一为 `/api/access/**`，本注记保留联调时点原貌）list/create/update/remove/detect +5 端点补注册 bootstrap 清单（detail 本页不消费未注册）；引用数据 abstract-role/list +1 注册（T-FE-016 登记的届时事项），type-definition/list 与 operation-permission/list 先在册。逐 DTO 比对零漂移；CONFLICT_RULE 四档固定图原持（T-PERM-030 预置，零新增）。
 
@@ -110,6 +110,9 @@
 | `CONFLICT_RULE:CREATE` | 新增按钮 | createConflictRule 校验（类型级） |
 | `CONFLICT_RULE:UPDATE` | 编辑按钮 | updateConflictRule 校验（类型级，T-PERM-030 收窄） |
 | `CONFLICT_RULE:DELETE` | 删除按钮 | deleteConflictRulesByIds 校验（类型级全有或全无，T-PERM-030 收窄） |
+
+
+> 路由可达性效应（T-FE-056 起）为真门禁：无 VIEW ⇒ 菜单不可见 + 路由被拦 403 全屏页（menus 派生路由门禁，与菜单可见性同源不分叉；门禁首载失败 fail-open 时由后端 403 兜底），见 `design/frontend/login.md` §路由级 UX 门禁。
 
 - SSOT：`views/system/conflict-rule/utils/perms.ts`（CONFLICT_RULE_PERMS / CONFLICT_RULE_PERM_LIST / CONFLICT_RULE_VIEW_PERMS）
 - 路由 `meta.auths`：`[...CONFLICT_RULE_PERM_LIST]`

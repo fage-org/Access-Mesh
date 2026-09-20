@@ -46,6 +46,8 @@ export const useUserStore = defineStore("pure-user", {
     menus: [],
     /** 最近一次 /user-menu 拉取是否失败（T-FE-049，区分「加载失败」与「成功但无菜单」两态空侧栏） */
     menuLoadFailed: false,
+    /** 会话门禁状态机（T-FE-056）：迁移唯一入口 refreshUserMenu，见 types.ts 字注视 */
+    menuGateStatus: "uninitialized",
     // 是否勾选了登录页的免登录
     isRemembered: false,
     // 登录页的免登录存储几天，默认7天
@@ -168,10 +170,15 @@ export const useUserStore = defineStore("pure-user", {
         const current = getToken()?.accessToken;
         return current != null && current !== fingerprint;
       };
+      // 门禁状态机（T-FE-056）：仅首次（未 loaded）进入 loading——已 loaded 会话的
+      // 刷新期间维持 loaded，守卫继续用旧 path 集判定不等待
+      if (this.menuGateStatus !== "loaded") this.menuGateStatus = "loading";
       try {
         const resp = await getUserMenu();
         const { menus, roles, permissions } = unwrap(resp);
         if (!sessionAlive()) return;
+        // 门禁状态机（T-FE-056）：成功即 loaded——零权限账号（menus 空集）同样 loaded
+        this.menuGateStatus = "loaded";
         this.menuLoadFailed = false;
         this.SET_MENUS(menus ?? []);
         this.SET_ROLES(roles ?? []);
@@ -187,6 +194,10 @@ export const useUserStore = defineStore("pure-user", {
         });
       } catch (err) {
         if (sessionReplaced()) return;
+        // 门禁状态机（T-FE-056，状态迁移表）：failed 仅由首次加载失败产生（守卫
+        // fail-open 放行）；已 loaded 会话的刷新失败维持 loaded——menuLoadFailed=true
+        // 但 menus 保留旧值，守卫继续用旧 path 集判定（门禁不因刷新抖动静默失效）
+        if (this.menuGateStatus !== "loaded") this.menuGateStatus = "failed";
         this.menuLoadFailed = true;
         throw err;
       }
@@ -220,6 +231,7 @@ export const useUserStore = defineStore("pure-user", {
         this.permissions = [];
         this.menus = [];
         this.menuLoadFailed = false;
+        this.menuGateStatus = "uninitialized";
         removeToken();
         useMultiTagsStoreHook().handleTags("equal", [...routerArrays]);
         resetRouter();

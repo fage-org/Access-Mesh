@@ -3,7 +3,7 @@ doc_type: design
 title: 权限条件 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-15 域共享」→「权限面共享」一处）；此前 2026-09-13   # T-ACCESS-034：操作码常量类名机械改挂 OperationCode；此前 2026-09-11 T-PERM-048 双轨制收口：§9 新增（管理页条件轨定位、list 缺省只回 MANAGED 零改动、门禁/守卫后端变化、错误透传）；此前 2026-09-02 T-FE-020 联调收口（§API 依赖补 Gateway 路径联调注记、§组件结构 mock 终态化）；2026-08-30 §8 全量收口 + 字段/API 表对齐（T-PERM-029 落地：detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案、ConditionResp 补 updatedAt、remove 幂等静默跳过）+ 写门禁口径收窄为类型级（CONDITION 无实例投影，实例级原声称系 ID 空间错位废弃；实例投影与条件双轨制登记 T-PERM-048）；此前 2026-08-08 产品确认移除 CONDITION:VIEW 读取门禁
+last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-15 域共享」→「权限面共享」一处）；此前 2026-09-13   # T-ACCESS-034：操作码常量类名机械改挂 OperationCode；此前 2026-09-11 T-PERM-048 双轨制收口：§9 新增（管理页条件轨定位、list 缺省只回 MANAGED 零改动、门禁/守卫后端变化、错误透传）；此前 2026-09-02 T-FE-020 联调收口（§API 依赖补 Gateway 路径联调注记、§组件结构 mock 终态化）；2026-08-30 §8 全量收口 + 字段/API 表对齐（T-PERM-029 落地：detail/update/remove 切业务键 code、detail 查不到 20006、list 全量不分页设计定案、ConditionResp 补 updatedAt、remove 幂等静默跳过）+ 写门禁口径收窄为类型级（CONDITION 无实例投影，实例级原声称系 ID 空间错位废弃；实例投影与条件双轨制登记 T-PERM-048）；此前 2026-08-08 产品确认移除 CONDITION:VIEW 读取门禁
 ---
 
 # 3.2 权限条件 前端设计
@@ -140,6 +140,8 @@ conditionRules 评估：ConditionEvalUtils（perm-common，Gateway 与 access-se
 | CONDITION:CREATE | openCreate | 新增条件 |
 | CONDITION:UPDATE | openEdit | 编辑 |
 | CONDITION:DELETE | onDelete | 删除 |
+
+> 路由可达性效应（T-FE-056 起）为真门禁：条件页菜单纯展示全员下发 ⇒ 登录即可达（门禁集合含本页 path；机制见 `design/frontend/login.md` §路由级 UX 门禁）。
 
 > 与 RESOURCE/OPERATION 的 CREATE+MANAGE 两档不同，CONDITION 后端用独立的 CREATE/UPDATE/DELETE 三档（ConditionAppServiceImpl 对齐 `OperationCode.UPDATE`/`DELETE`，非 MANAGE）。
 

@@ -1,20 +1,27 @@
 /**
- * 路由守卫 beforeEach 回归锁（T-FE-053）。
+ * 路由守卫 beforeEach 回归锁（T-FE-053；T-FE-056 增门禁锁①~⑤）。
  * 旧实现两处贯穿分支（roles 403 / VITE_HIDE_HOME 404）调 next 后不 return，
  * 会继续走到 toCorrectRoute 二次 next（触发面=零：全仓无路由声明 meta.roles、
  * .env VITE_HIDE_HOME=false，外评据此降级为卫生修）。2026-09-19 拍板：
  * 删 roles 死分支（本仓路由权限=后端 menus 派生，见 beforeEach 头注）+
  * 全部 next() 站点统一「每 next 必 return」。
+ * T-FE-056 门禁语义：守卫 loaded 态判门禁（公共白名单 ∨ menus path 集 ∨ 显式
+ * 动作路由映射）、uninitialized/loading 等待 initRouter 完成后判定（同步不放行）、
+ * failed fail-open 放行——锁①②为 old-fail（旧实现路由全可达必红）、③④为白名单/
+ * 映射实现锁（漏配实现下红）、⑤为安全锁（防门禁自身成新故障面）。
  * mock 说明：index.ts 模块加载即 createRouter+注册守卫（依赖 Layout SFC 树与
  * 两 store 循环引用，此前从未被测试加载），此处 mock createRouter 捕获守卫
  * 回调、按模块路径断环（storageLocal 用内存 Map 替 localStorage——node 环境
  * 无 DOM）；被测对象=守卫纯逻辑，matched 留空避开 document.title 写点。
+ * 门禁状态机/菜单树经真 user store（Pinia 内存实例）直写；mock remaining 对齐
+ * 真实模块形态（顶层全量 path + /redirect 带 children 参数路由）。
  * VITE_HIDE_HOME 分支（import.meta.env 模块级读取）测试环境不可达，其 return
  * 与 404 分支同机械形态，由双轨评审覆盖。
  */
 import { describe, it, expect, vi, beforeEach, type Mock } from "vitest";
+import type { Router } from "vue-router";
 
-const { fakeRouter, memStorage } = vi.hoisted(() => ({
+const { fakeRouter, memStorage, gatePermsBridge } = vi.hoisted(() => ({
   fakeRouter: {
     beforeEach: vi.fn(),
     afterEach: vi.fn(),
@@ -23,7 +30,11 @@ const { fakeRouter, memStorage } = vi.hoisted(() => ({
     push: vi.fn(),
     options: { routes: [] as unknown[] }
   },
-  memStorage: new Map<string, string>()
+  memStorage: new Map<string, string>(),
+  // hasPerms mock 的数据桥（T-FE-056）：真实现读 Pinia permissions 且其依赖链
+  // （auth→user store→store/utils→@/router）在守卫加载序下会循环重入、async 工厂
+  // 竞态失效——改静态工厂后经本桥与 setGateLoaded/resetGateState 单点同步
+  gatePermsBridge: { permissions: [] as string[] }
 }));
 
 vi.mock("vue-router", async importOriginal => {
@@ -48,7 +59,19 @@ vi.mock("./utils", () => ({
     a ? a.some(x => b.includes(x)) : true
 }));
 vi.mock("./modules/remaining", () => ({
-  default: [{ path: "/login" }, { path: "/menu-retry" }, { path: "/redirect" }]
+  // 对齐真实 remaining.ts 顶层形态（T-FE-056 门禁白名单数据源；/redirect 带
+  // children 参数路由——锁③的前缀匹配被测形态）
+  default: [
+    { path: "/login" },
+    { path: "/access-denied" },
+    { path: "/server-error" },
+    { path: "/menu-retry" },
+    { path: "/change-password" },
+    {
+      path: "/redirect",
+      children: [{ path: "/redirect/:path(.*)" }]
+    }
+  ]
 }));
 vi.mock("@/store/modules/multiTags", () => ({
   useMultiTagsStoreHook: () => ({
@@ -64,7 +87,13 @@ vi.mock("@/utils/auth", () => ({
   multipleTabsKey: "multiple-tabs",
   removeToken: vi.fn(),
   getToken: vi.fn(),
-  setToken: vi.fn()
+  setToken: vi.fn(),
+  // hasPerms 等价 stub（gate.ts 显式映射判定消费）：单串/数组两形态与真实现等价，
+  // 数据经 hoisted gatePermsBridge 与 store 状态单点同步（见 setGateLoaded）
+  hasPerms: (value: string | Array<string>) =>
+    Array.isArray(value)
+      ? value.every(v => gatePermsBridge.permissions.includes(v))
+      : gatePermsBridge.permissions.includes(value)
 }));
 vi.mock("js-cookie", () => ({ default: { get: vi.fn() } }));
 vi.mock("@/utils/progress", () => ({
@@ -88,6 +117,7 @@ vi.mock("@pureadmin/utils", () => ({
 import Cookies from "js-cookie";
 import { removeToken, userKey } from "@/utils/auth";
 import { initRouter } from "./utils";
+import { useUserStoreHook } from "@/store/modules/user";
 import { router } from "./index";
 
 type GuardFn = (to: any, from: any, next: (...args: any[]) => void) => void;
@@ -134,10 +164,36 @@ function loginOutState() {
   cookiesGet.mockReturnValue(undefined);
 }
 
+/**
+ * 门禁判定前置（T-FE-056）：真实运行中 SPA 内导航（_from.name 有值）时状态机必已
+ * loaded（登录/F5 初始化完成），用例按需覆盖 menus/permissions 模拟会话能力。
+ * 默认 menus 含被测业务路由 /system/user（既有放行用例语义）
+ */
+function setGateLoaded(
+  menus: Array<{ path: string; children?: [] }> = [{ path: "/system/user" }],
+  permissions: string[] = []
+) {
+  const userStore = useUserStoreHook();
+  userStore.menuGateStatus = "loaded";
+  userStore.menus = menus;
+  userStore.permissions = permissions;
+  gatePermsBridge.permissions = permissions;
+}
+
+/** 门禁状态机复位（Pinia 内存单例跨用例残留——每用例回到会话未初始化态） */
+function resetGateState() {
+  const userStore = useUserStoreHook();
+  userStore.menuGateStatus = "uninitialized";
+  userStore.menus = [];
+  userStore.permissions = [];
+  gatePermsBridge.permissions = [];
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   memStorage.clear();
   cookiesGet.mockReturnValue(undefined);
+  resetGateState();
 });
 
 describe("路由守卫 beforeEach（T-FE-053）", () => {
@@ -147,6 +203,7 @@ describe("路由守卫 beforeEach（T-FE-053）", () => {
 
   it('路由声明 meta.roles 也不再拦 403、正常放行——本仓路由权限=后端 menus 派生（旧实现 next({path:"/error/403"})+贯穿二次 next，断言必红）', () => {
     loginAs(["BASIC_ROLE"]);
+    setGateLoaded();
     const next = vi.fn();
     guard(makeTo({ meta: { roles: ["admin"] } }), fromNamed, next);
     expect(next).toHaveBeenCalledTimes(1);
@@ -161,23 +218,42 @@ describe("路由守卫 beforeEach（T-FE-053）", () => {
     expect(next).toHaveBeenCalledWith("/");
   });
 
-  it("已登录访问普通路由：next() 无参放行恰一次（每 next 必 return 纪律）", () => {
+  it("已登录访问普通路由（menus 集内）：next() 无参放行恰一次（每 next 必 return 纪律；loaded 前置=SPA 内导航真实形态，T-FE-056）", () => {
     loginAs();
+    setGateLoaded();
     const next = vi.fn();
     guard(makeTo(), fromNamed, next);
     expect(next).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith();
   });
 
-  it("F5 刷新（无 _from.name 且 wholeMenus 空）：同步 next() 放行一次，initRouter 异步补路由不再追加 next", async () => {
+  it("冷启动（无 _from.name）menus 集内业务路由：同步不放行，initRouter 完成后判门禁放行恰一次（T-FE-056 等待语义；旧实现同步放行形态见公共页用例）", async () => {
     loginAs();
     const next = vi.fn();
+    vi.mocked(initRouter).mockImplementationOnce(() => {
+      setGateLoaded();
+      return Promise.resolve({
+        options: { routes: [{ children: [] }] }
+      } as unknown as Router);
+    });
     guard(makeTo(), { name: undefined, fullPath: "/" }, next);
-    expect(next).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() => expect(initRouter).toHaveBeenCalled());
-    // then 回调只补路由/handleTags，不得再走 next（放行已由同步分支完成）
+    expect(next).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(next).toHaveBeenCalledTimes(1));
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it("公共页冷启动（/menu-retry）：同步放行一次 + initRouter 后台补侧栏不再追加 next（公共路由不判门禁不等待——现状行为保持）", async () => {
+    loginAs();
+    const next = vi.fn();
+    guard(
+      makeTo({ path: "/menu-retry", fullPath: "/menu-retry" }),
+      { name: undefined, fullPath: "/" },
+      next
+    );
     expect(next).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith();
+    await vi.waitFor(() => expect(initRouter).toHaveBeenCalled());
+    expect(next).toHaveBeenCalledTimes(1);
   });
 
   it('未登录访问非白名单：removeToken + next({path:"/login"}) 恰一次（既有行为特征锁）', () => {
@@ -234,7 +310,9 @@ describe("路由守卫 forceResetPwd 阻断（T-FE-046）", () => {
     expect(nextError).toHaveBeenCalledWith();
 
     // 正常登录态（forceResetPwd 缺省）业务路由照常放行——阻断闸门仅对标记开
+    // （T-FE-056：门禁语义下 menus 集内路由放行——loaded 前置）
     loginAs();
+    setGateLoaded();
     const nextNormal = vi.fn();
     guard(makeTo(), fromNamed, nextNormal);
     expect(nextNormal).toHaveBeenCalledTimes(1);
@@ -281,13 +359,128 @@ describe("路由守卫 forceResetPwd 阻断（T-FE-046）", () => {
     expect(nextBare).toHaveBeenCalledWith({ path: "/change-password" });
   });
 
-  it("改密成功后放行：标记置 false（clearForceResetPwdFlag 的存储效果）后业务路由 next() 无参放行", () => {
+  it("改密成功后放行：标记置 false（clearForceResetPwdFlag 的存储效果）后业务路由 next() 无参放行（loaded 前置=改密成功导航时初始化已完成）", () => {
     loginAsForceReset();
     // 改密成功 = 共享存储中标记翻转为 false（另一标签同 storage 重读即解除阻断）
     loginAs(["BASIC_ROLE"], { forceResetPwd: false, userId: 1 });
+    setGateLoaded();
     const next = vi.fn();
     guard(makeTo(), fromNamed, next);
     expect(next).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith();
+  });
+});
+
+describe("路由级 UX 门禁（T-FE-056）", () => {
+  /** 无权限会话：loaded 但 menus 仅 /welcome（不含被测业务路由 /system/user） */
+  function loginAsNoPerm() {
+    loginAs();
+    setGateLoaded([{ path: "/welcome" }]);
+  }
+
+  it("锁①（old-fail）：loaded 态导航无权限业务路由 → next({path:'/access-denied'})——旧实现（路由全可达放行）必红", () => {
+    loginAsNoPerm();
+    const next = vi.fn();
+    guard(makeTo(), fromNamed, next);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith({ path: "/access-denied" });
+  });
+
+  it("锁②（old-fail）：冷启动深链无权限路由——同步不放行、initRouter 完成后被拦 403——旧实现立即放行必红（防冷启动深链绕过）", async () => {
+    loginAs();
+    const next = vi.fn();
+    vi.mocked(initRouter).mockImplementationOnce(() => {
+      // 真实 initRouter 内部经 refreshUserMenu 迁移状态机——mock 同款效果
+      setGateLoaded([{ path: "/welcome" }]);
+      return Promise.resolve({
+        options: { routes: [{ children: [] }] }
+      } as unknown as Router);
+    });
+    guard(makeTo(), { name: undefined, fullPath: "/" }, next);
+    expect(next).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(next).toHaveBeenCalledTimes(1));
+    expect(next).toHaveBeenCalledWith({ path: "/access-denied" });
+  });
+
+  it("锁③（白名单实现锁）：/redirect/:path 标签刷新链路不被门禁拦截（全角色；menus 不含 /redirect/**，仅靠白名单前缀放行）——漏配参数路由前缀的实现必红", () => {
+    loginAsNoPerm();
+    const next = vi.fn();
+    guard(
+      makeTo({
+        path: "/redirect/system/user",
+        fullPath: "/redirect/system/user"
+      }),
+      fromNamed,
+      next
+    );
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it("锁④（映射实现锁）：持 ROLE:VIEW 用户进 /perm/grant 放行（menus 不含该路由，靠显式动作路由映射）——纯 menus 白名单实现必红（封死授权页）", () => {
+    loginAs();
+    setGateLoaded([{ path: "/welcome" }], ["ROLE:VIEW"]);
+    const next = vi.fn();
+    guard(
+      makeTo({
+        path: "/perm/grant",
+        fullPath: "/perm/grant",
+        name: "PermGrant"
+      }),
+      fromNamed,
+      next
+    );
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it("锁④补：不持 ROLE:VIEW 时 /perm/grant 同被拦 403（映射按权限串判定，非无条件放行）", () => {
+    loginAsNoPerm();
+    const next = vi.fn();
+    guard(
+      makeTo({
+        path: "/perm/grant",
+        fullPath: "/perm/grant",
+        name: "PermGrant"
+      }),
+      fromNamed,
+      next
+    );
+    expect(next).toHaveBeenCalledWith({ path: "/access-denied" });
+  });
+
+  it("锁⑤（安全锁，非 old-fail）：menus 首载失败（failed）放行不拦——门禁 fail-open 不锁死，越权由后端 403 兜底（现状保持锁，防门禁自身成为新故障面）", () => {
+    loginAs();
+    useUserStoreHook().menuGateStatus = "failed";
+    const next = vi.fn();
+    guard(makeTo(), fromNamed, next);
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it("门禁拦截落点 /access-denied 自身在公共白名单内——被拦导航不会对落点二次拦截自环（公共页不判门禁）", () => {
+    loginAsNoPerm();
+    const next = vi.fn();
+    guard(
+      makeTo({ path: "/access-denied", fullPath: "/access-denied" }),
+      fromNamed,
+      next
+    );
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith();
+  });
+
+  it("loaded 后刷新失败维持 loaded 判定（状态迁移表：刷新抖动不静默关掉门禁）——menus 旧值继续生效拦无权限路由", () => {
+    loginAs();
+    // 会话曾 loaded（menus=/system/user），后续能力刷新失败：menus 保留旧值、状态不降级
+    setGateLoaded([{ path: "/system/user" }]);
+    useUserStoreHook().menuLoadFailed = true;
+    const next = vi.fn();
+    guard(
+      makeTo({ path: "/system/role", fullPath: "/system/role" }),
+      fromNamed,
+      next
+    );
+    expect(next).toHaveBeenCalledWith({ path: "/access-denied" });
   });
 });

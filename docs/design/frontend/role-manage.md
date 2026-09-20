@@ -3,7 +3,7 @@ doc_type: design
 title: 2.2 角色管理页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # T-FE-055 收口：§1 配权入口行与 §4.3 补入口文案二分口径（另持 ROLE:MANAGE「权限授予」/仅 ROLE:VIEW「查看权限」，grant-entry.ts 三入口单源）；此前 2026-09-19   # T-FE-052 收口：§4.1 拖拽跨层级二次确认+禁用确认（定案④）；此前 2026-09-15   # 2026-09-04 §8 T-PERM-044 收口句终态化（Redisson 口径）；此前 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
+last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-20 # T-FE-055 收口：§1 配权入口行与 §4.3 补入口文案二分口径（另持 ROLE:MANAGE「权限授予」/仅 ROLE:VIEW「查看权限」，grant-entry.ts 三入口单源）；此前 2026-09-19   # T-FE-052 收口：§4.1 拖拽跨层级二次确认+禁用确认（定案④）；此前 2026-09-15   # 2026-09-04 §8 T-PERM-044 收口句终态化（Redisson 口径）；此前 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
 ---
 
 # 2.2 角色管理页 前端设计
@@ -169,7 +169,7 @@ views/system/role/
 
 ### 降级策略
 
-- 无 `ROLE:VIEW` → 菜单仍可见、路由可达（路由过滤 `filterNoPermissionTree` 只认 `meta.roles` 不消费 `meta.auths`，本项目未设 roles），进入页面后由后端 VIEW 校验拒绝（403 兜底）；菜单级可见性随 Phase 3 联调 T-FE-015 user-menu menus 轨道接线切 v3.5 ∃op 派生（T-PERM-037 收口定案，2026-08-31）。
+- 无 `ROLE:VIEW` → 菜单不可见、路由被门禁拦 403（menus 派生路由门禁，T-FE-056；fail-open 兜底形态下进入页面后由后端 VIEW 校验拒绝 403）；菜单级可见性为 v3.5 §4.1 ∃op 派生（T-FE-015 接线，T-PERM-037 收口定案 2026-08-31），路由门禁与之同源不分叉。
 - 无 `ROLE:CREATE` → 隐藏「新增角色」下拉。
 - 无 `ROLE:MANAGE` → 隐藏编辑/启停/删除按钮。
 - ORG/POSITION/PERSONAL 只读类型 → 无论权限如何，均不展示编辑/删除按钮（业务约束，非权限）；GROUP_ROLE 节点整体不展示（写入口已删除）。
