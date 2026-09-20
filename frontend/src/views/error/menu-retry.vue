@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useRouter } from "vue-router";
-import { reloadMenusWithRollback } from "./menu-retry-reload";
+import { reloadSessionMenus } from "./menu-retry-reload";
 import { useUserStoreHook } from "@/store/modules/user";
 import { message } from "@/utils/message";
 import RefreshRight from "~icons/ep/refresh-right";
@@ -34,15 +34,16 @@ const pageDesc = computed(() =>
 );
 
 /**
- * 强制重取会话菜单：预清走重取分支 + 失败回滚旧菜单集（门禁不变量，T-FE-056
- * 双轨评审 P3-1 处置）——编排与回归锁见 ./menu-retry-reload.ts（SFC 逻辑提取
- * 可测化，orgTree.ts/messages.ts 先例）；三态消费消息与跳转
+ * 强制重取会话菜单：经会话能力刷新入口重取（不预清——失败时 menus/侧栏/门禁
+ * 全保留旧态；T-FE-056 外评处置，2026-09-20 拍板）——编排与回归锁见
+ * ./menu-retry-reload.ts（SFC 逻辑提取可测化，orgTree.ts/messages.ts 先例）；
+ * 三态消费消息与跳转
  */
 async function retry() {
   if (retrying.value) return;
   retrying.value = true;
   try {
-    const outcome = await reloadMenusWithRollback();
+    const outcome = await reloadSessionMenus();
     if (outcome === "recovered") {
       message("菜单已恢复", { type: "success" });
       router.replace("/");
@@ -54,10 +55,11 @@ async function retry() {
       });
     }
   } catch (err) {
-    // 会话已终结（Q-020 收口）：initRouter 无凭证分支抛 SessionExpiredError——
-    // 统一层已提示「会话已过期」并跳登录，不按陈旧菜单状态弹失真业务提示。
-    // 预期冒泡仅此一类（initRouter 内部已吞普通拉取失败）；意外异常同落此处
-    // 仅 console.warn 留痕，不窄化判别（resetModules 跨模块图下 instanceof 不可靠）
+    // 会话已终结（Q-020 收口，含 401 型——拦截器已提示并 logOut）：前置/后置
+    // 双判抛 SessionExpiredError，统一层已提示「会话已过期」并跳登录，不按陈旧
+    // 菜单状态弹失真业务提示。预期冒泡仅此一类（能力刷新入口已吞普通拉取失败
+    // 转 still-failed）；意外异常同落此处仅 console.warn 留痕，不窄化判别
+    // （resetModules 跨模块图下 instanceof 不可靠）
     console.warn("[menu-retry] 菜单重试中止（会话已终结）", err);
   } finally {
     retrying.value = false;

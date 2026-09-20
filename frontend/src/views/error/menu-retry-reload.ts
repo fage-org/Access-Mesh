@@ -1,31 +1,44 @@
-import { initRouter } from "@/router/utils";
+import { refreshSessionCapability } from "@/router/utils";
 import { useUserStoreHook } from "@/store/modules/user";
+import { isSessionTerminated } from "@/utils/auth";
+import {
+  notifySessionExpiredOnce,
+  SessionExpiredError
+} from "@/utils/session-expired";
 
 export type MenuReloadOutcome = "recovered" | "still-failed" | "still-empty";
 
 /**
- * menu-retry 页「重新加载/检查菜单」重载编排（T-FE-015 预清重取 + T-FE-056 失败回滚）。
+ * menu-retry 页「重新加载/检查菜单」重载编排（T-FE-056 外评处置，2026-09-20
+ * 用户拍板：不预清、改用会话能力刷新入口强制重取）。
  * <p>
- * 预清 store 内存态使 initRouter 走重取分支（T-FE-015 设计定案：失败 fail-closed
- * 空菜单 + 可重试，不持久化、不回退全量静态菜单）。门禁落地后（T-FE-056 双轨评审
- * P3-1，2026-09-20 用户拍板直接修）失败分支回滚预清快照：刷新失败时状态机维持
- * loaded 用旧 path 集判定（状态迁移表「menus 保留旧值」），不回滚则门禁集合塌缩为
- * 仅公共白名单、业务路由全拦 403 形成锁死——违背「门禁失效的最坏结果=回到现状，
- * 不产生新锁死」承诺。拉取成功但空（零权限/权限全撤的新事实）**不**回滚——成功
- * 路径的事实覆盖旧快照。
+ * 原 T-FE-015 形态（预清 SET_MENUS([]) 使 initRouter 走重取分支，失败时快照回滚）
+ * 在门禁落地后暴露三形态（claude P3-1/codex P3 同根因）：①预清后请求在途期间
+ * menus 空+状态 loaded，门禁集合塌缩为仅公共白名单，在途导航被误拦；②失败回滚
+ * 只恢复 menus 不恢复侧栏——门禁旧集与「加载失败」占位侧栏分裂；③401 时响应
+ * 拦截器已 logOut 清空 store，回滚分支仍把旧菜单写回已登出的会话并弹失真提示。
+ * 改用 refreshSessionCapability（入口本身无条件发起 user-menu 强制重取；失败时
+ * menus/wholeMenus/门禁状态机全部保留旧态——T-FE-048 统一能力刷新语义），三形态
+ * 一步消除，预清/快照回滚逻辑整体退役。
  * <p>
- * 会话终结（Q-020）：initRouter 抛 SessionExpiredError 原样上抛，由页面 catch 留痕。
+ * 会话终结双判（对齐 initRouter 会话终结分支语义，Q-020）：前置——点击重试时
+ * 本地凭证已无/已过期，统一提示+logOut+抛 SessionExpiredError；后置——拉取 401
+ * 形态（响应拦截器已提示并 logOut）不按陈旧菜单状态弹失真业务提示。
  */
-export async function reloadMenusWithRollback(): Promise<MenuReloadOutcome> {
-  const userStore = useUserStoreHook();
-  const prevMenus = userStore.menus;
-  userStore.SET_MENUS([]);
-  await initRouter();
-  const store = useUserStoreHook();
-  if (store.menus.length > 0) return "recovered";
-  if (store.menuLoadFailed) {
-    if (prevMenus.length > 0) store.SET_MENUS(prevMenus);
+export async function reloadSessionMenus(): Promise<MenuReloadOutcome> {
+  if (isSessionTerminated()) {
+    notifySessionExpiredOnce();
+    await useUserStoreHook().logOut();
+    throw new SessionExpiredError();
+  }
+  try {
+    await refreshSessionCapability();
+  } catch {
+    if (isSessionTerminated()) {
+      // 401 型终结：拦截器已提示「会话已过期」并 logOut——不弹「菜单加载仍失败」失真提示
+      throw new SessionExpiredError();
+    }
     return "still-failed";
   }
-  return "still-empty";
+  return useUserStoreHook().menus.length > 0 ? "recovered" : "still-empty";
 }

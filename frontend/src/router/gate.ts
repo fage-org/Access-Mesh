@@ -13,16 +13,19 @@
 import { hasPerms } from "@/utils/auth";
 import type { UserMenuRoute } from "@/api/auth";
 import { useUserStoreHook } from "@/store/modules/user";
+import { PERMISSION_GRANT_PERMS } from "@/views/perm/grant/utils/perms";
 import remainingRouter from "./modules/remaining";
 
 /**
  * 显式动作路由映射（非菜单业务路由，T-PERM-037 口径演进）：path → 进入所需权限串
  * （hasPerms 单源判定）。/perm/grant 经 perm.ts showLink:false 不进菜单——纯 menus
  * 白名单会封死授权页（codex sol 外评 P1）；门禁=矩阵查看 ROLE:VIEW，与三处入口
- * 按钮门禁同源（T-FE-055 grant-entry.ts）。新增动作路由在此登记。
+ * 按钮门禁同源（T-FE-055 grant-entry.ts）——权限串经 PERMISSION_GRANT_PERMS
+ * SSOT 引用（外评 P3：直写字面量与入口按钮判定形成两份副本，改名时静默分叉）。
+ * 新增动作路由在此登记。
  */
 const ACTION_ROUTE_PERMS: Record<string, string> = {
-  "/perm/grant": "ROLE:VIEW"
+  "/perm/grant": PERMISSION_GRANT_PERMS.ROLE_VIEW
 };
 
 /**

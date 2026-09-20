@@ -104,7 +104,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 - `loaded`（至少成功一次；零权限账号 menus 空集亦 loaded，门禁集合=仅公共白名单+显式映射）：按门禁集合判定，集合外路由 `next({path:"/access-denied"})`——**全屏 403 落点**（remaining.ts 公共页，无 Layout 侧栏壳，与 T-FE-046 阻断着陆页同款先例；页面含「返回首页」按钮，零权限账号 menus 不含 /welcome 时该按钮亦被拦，属零权限边缘形态非缺陷）；
 - `failed`（**仅由首次加载失败产生**）：fail-open 放行——门禁是 UX 层不是安全层，门禁失效的最坏结果=回到现状（路由全可达+后端 403 兜底），不产生新锁死；已 loaded 会话的后续刷新失败**维持 loaded**（`menuLoadFailed=true` 但 menus 保留旧值，守卫用旧 path 集继续判定——门禁不因刷新抖动静默失效）；`logOut` 重置 `uninitialized`。
 
-**与相邻机制的边界**：公共路由不判门禁不等待（冷启动仍后台建侧栏；forceResetPwd 阻断人群不建侧栏——改密成功进系统的导航自然触发）；externalLink 不触门禁（openLink 新开标签，模板原状）；强制改密阻断（T-FE-046）优先于门禁判定；multiTags 残留标签点击被拦（权限回收后的旧标签）落 403 全屏页，标签清理仍属非目标（T-FE-048 边界维持）；冷启动手输未知路径（pathMatch 注册前）被拦 403 而非 404——不可达路由统一按无权限语义拦下，不泄露路由存在性。
+**与相邻机制的边界**：公共路由不判门禁不等待（冷启动仍后台建侧栏；forceResetPwd 阻断人群不建侧栏——改密成功进系统的导航自然触发）；externalLink 不触门禁（openLink 新开标签，模板原状）；强制改密阻断（T-FE-046）优先于门禁判定；multiTags 残留标签点击被拦（权限回收后的旧标签）落 403 全屏页，标签清理仍属非目标（T-FE-048 边界维持）；冷启动手输未知路径（pathMatch 注册前）被拦 403 而非 404——不可达路由统一按无权限语义拦下，不泄露路由存在性；浏览器回退到已失效菜单路由（授权回收+热刷新收缩后）时，守卫 redirect 经 vue-router popstate 语义向历史栈追加 /access-denied 条目——被拦条目之前的页面无法连续回退到达（出路=403 页「返回首页」或浏览器历史菜单），纯导航体验无数据/安全后果——已知边界（外评 P3，2026-09-20 拍板登记；replace:true 可消除但会使点击进入同样丢来源页 push 语义，不采）。
 
 **回归锁**（`src/router/index.spec.ts` 守卫行为 + `src/router/gate.spec.ts` 纯函数 + `src/store/modules/user.spec.ts` 状态机）：锁① loaded 态无权限导航拦 403（旧实现放行，红跑实证）；锁② 冷启动深链同步不放行、初始化后被拦（旧实现立即放行，红跑实证）；锁③ `/redirect/:path` 白名单前缀放行（漏配实现红）；锁④ `/perm/grant` 显式映射放行/反向无 `ROLE:VIEW` 拦截（纯 menus 白名单实现红）；锁⑤ failed fail-open 放行（安全锁，现状保持）；状态机五锁（首载 loading→loaded / 首载失败 failed / 刷新失败维持 loaded / 刷新在途不回退 loading / logOut 重置——旧实现无状态机字段红跑实证）。红跑合计 10 红实证后全量 378 绿。
 
