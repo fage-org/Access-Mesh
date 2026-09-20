@@ -148,14 +148,22 @@ export const useUserStore = defineStore("pure-user", {
      * 「加载失败」（占位可重试）与「拉取成功但账号无菜单」（占位提示联系管理员）两态。
      * <p>
      * 会话代际守卫（Q-016 收口，2026-09-20 拍板）：发起时记当前令牌指纹，响应/失败
-     * 回写前比对——会话已换（登出重登、存在另一活会话令牌）时丢弃旧结果，旧会话的
-     * menus/权限串/menuLoadFailed 不污染新会话。会话已终结（getToken 空，如 401
-     * 分支已 logOut）不拦——照常置位/上抛（claude 外评 P3 处置 2026-09-20：一律吞掉
-     * 会使会话终结型 401 被误判为「跨会话旧响应」，手动刷新假成功、loginByUsername
-     * 的 401 硬化分支不可达）。
+     * 回写前分别比对——
+     * <ul>
+     *   <li>成功回写：当前仍存在且令牌即本会话才写（会话已换〔登出重登〕或已终结
+     *       〔getToken 空，如 401 分支/主动登出已清理〕都不回写——终结后 200 晚到
+     *       曾把已清的 Pinia/userKey 重建，codex sol 外评 P2 收口）；</li>
+     *   <li>失败丢弃：仅存在另一活会话令牌才吞（新会话无关的失败不污染）——会话已
+     *       终结照常置位/上抛（claude 外评 P3 处置：吞掉会话终结型 401 会使手动刷新
+     *       假成功、loginByUsername 的 401 硬化分支不可达）。</li>
+     * </ul>
      */
     async refreshUserMenu() {
       const fingerprint = getToken()?.accessToken;
+      const sessionAlive = () => {
+        const current = getToken()?.accessToken;
+        return current != null && current === fingerprint;
+      };
       const sessionReplaced = () => {
         const current = getToken()?.accessToken;
         return current != null && current !== fingerprint;
@@ -163,7 +171,7 @@ export const useUserStore = defineStore("pure-user", {
       try {
         const resp = await getUserMenu();
         const { menus, roles, permissions } = unwrap(resp);
-        if (sessionReplaced()) return;
+        if (!sessionAlive()) return;
         this.menuLoadFailed = false;
         this.SET_MENUS(menus ?? []);
         this.SET_ROLES(roles ?? []);

@@ -112,6 +112,13 @@ describe("loginByUsername 真实链路（T-FE-041）", () => {
   it("成功：expiresIn 转绝对时间写入 setToken，username 与 roles 占位落位，菜单填充角色权限", async () => {
     mockLogin.mockResolvedValue({ code: 200, message: "ok", data: LOGIN_RESP });
     mockGetUserMenu.mockResolvedValue(MENU_RESP);
+    // setToken 为 mock 不写真存储——getToken 须反映登录后持令牌的真实链路
+    //（refreshUserMenu 代际守卫发起/回写均读 getToken，sol P2 修复后终结形态不回写）
+    mockGetToken.mockReturnValue({
+      accessToken: "token-1",
+      expires: 1,
+      refreshToken: ""
+    });
     const before = Date.now();
 
     const result = await useUserStore().loginByUsername({
@@ -277,6 +284,12 @@ describe("menuLoadFailed 状态维护（T-FE-049：空侧栏两态区分的事�
 
   it("失败后重拉成功：翻转为 false 并填充 menus（拉取成功但空菜单=合法形态，非失败）", async () => {
     const user = useUserStore();
+    // 会话恒在（代际守卫发起/回写读 getToken；undefined 指纹会被判终结不回写）
+    mockGetToken.mockReturnValue({
+      accessToken: "token-1",
+      expires: 1,
+      refreshToken: ""
+    });
     mockGetUserMenu.mockRejectedValueOnce(new Error("network down"));
     await expect(user.refreshUserMenu()).rejects.toThrow();
     expect(user.menuLoadFailed).toBe(true);
@@ -502,5 +515,35 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
     // 已提交实现（getToken 空也拦）：静默 return resolve、menuLoadFailed 不置位（双红）
     await expect(pending).rejects.toThrow();
     expect(user.menuLoadFailed).toBe(true);
+  });
+
+  it("锁（sol 外评 P2）：会话终结后的成功响应不回写——刷新在途时登出/401 已清令牌（getToken 空），200 晚到不得重建 Pinia/userKey（旧判据终结不拦回写，三断言必红）", async () => {
+    const user = useUserStore();
+    user.SET_MENUS([]);
+    user.menuLoadFailed = true; // 终结前的既有状态
+    mockGetToken.mockReturnValueOnce({
+      accessToken: "token-1",
+      expires: 1,
+      refreshToken: ""
+    });
+    let resolveMenu!: (v: unknown) => void;
+    mockGetUserMenu.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveMenu = resolve;
+        })
+    );
+
+    const pending = user.refreshUserMenu();
+    // 刷新在途：主动登出/401 分支已同步清令牌（getToken 变 null）
+    mockGetToken.mockReturnValue(null);
+    resolveMenu(MENU_RESP);
+    await pending;
+
+    // 已提交实现（sessionReplaced 对终结恒 false → 回写）：menus 被 MENU_RESP 覆盖、
+    // menuLoadFailed 置 false、残缺 userKey 重建（setItem 调用）——三断言红
+    expect(user.menus).toEqual([]);
+    expect(user.menuLoadFailed).toBe(true);
+    expect(mockStorage.setItem).not.toHaveBeenCalled();
   });
 });

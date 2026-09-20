@@ -104,26 +104,22 @@ class PureHttp {
           ? config
           : new Promise((resolve, reject) => {
               const data = getToken();
-              if (data) {
-                if (isSessionTerminated(data)) {
-                  // 会话到期短路（T-FE-054，2026-09-20 拍板）：不再无令牌放行（原
-                  // T-FE-041 口径由 Gateway 401 兜底，多一次必然 401 的往返）——统一
-                  // 提示（去重）+ logOut 清会话回登录页（注销 fire-and-forget，本地
-                  // 清理不等服务端），本次请求直接 reject；reject 用 SessionExpiredError
-                  //（message 与提示同源，toErrorMessage 经 Error 分支透出；授予页
-                  // classifySaveError 按 name 识别为「未发出可重试」非「结果未知」——
-                  // claude 外评 P3 处置）。判据单源 isSessionTerminated：cookie 被清、
-                  // userKey 残留形态（getToken 真值但 expires 已过）同判终结——外评 P2
-                  notifySessionExpiredOnce();
-                  useUserStoreHook().logOut();
-                  reject(new SessionExpiredError());
-                } else {
-                  config.headers["Authorization"] = formatToken(
-                    data.accessToken
-                  );
-                  resolve(config);
-                }
+              if (isSessionTerminated(data)) {
+                // 会话终结短路（T-FE-054，2026-09-20 拍板）：不再无令牌放行（原
+                // T-FE-041 口径由 Gateway 401 兜底，多一次必然 401 的往返）——统一
+                // 提示（去重）+ logOut 清会话回登录页（注销 fire-and-forget，本地
+                // 清理不等服务端），本次请求直接 reject；reject 用 SessionExpiredError
+                //（message 与提示同源，toErrorMessage 经 Error 分支透出；授予页
+                // classifySaveError 按 name 识别为「未发出可重试」非「结果未知」——
+                // claude 外评 P3 处置）。判据单源 isSessionTerminated（无凭证 ∨ 本地
+                // expires 已到期——cookie 被清、userKey 残留形态同判终结，外评 P2）：
+                // 无凭证形态同样短路——并发短路首个 logOut 同步清令牌后，后续请求
+                // 不得无头放行再跑一次必然 401 的往返（codex sol 外评 P2 收口）
+                notifySessionExpiredOnce();
+                useUserStoreHook().logOut();
+                reject(new SessionExpiredError());
               } else {
+                config.headers["Authorization"] = formatToken(data.accessToken);
                 resolve(config);
               }
             });

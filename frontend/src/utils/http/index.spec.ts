@@ -285,8 +285,15 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
 
   it("锁（外评 P3）：主动登出后在途请求的 401 不弹「会话已过期」——令牌已清（getToken 空）不提示，仍 logOut 幂等清理（旧实现无条件提示必红）", async () => {
     installAdapter(() => 401);
-    // 模拟主动登出已完成本地清理（logOut removeToken 后 getToken() 为空）
-    mockGetToken.mockReturnValue(null);
+    // 真实链路：请求发出时令牌在（第一个 getToken——拦截器附加头），401 响应回来时
+    // 主动登出已完成本地清理（第二个 getToken——401 分支判定）→ 空
+    mockGetToken
+      .mockReturnValueOnce({
+        accessToken: "token-1",
+        refreshToken: "",
+        expires: Date.now() + 600_000
+      })
+      .mockReturnValue(null);
     await expectRejected("/api/access/in-flight");
     await drainMicrotasks();
     expect(mockMessage).not.toHaveBeenCalled(); // 旧实现弹「会话已过期」误导 → 红
@@ -315,6 +322,19 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
     await expectRejected("/api/access/auth401-b");
     await drainMicrotasks();
     expect(mockMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("锁（sol 外评 P2）：并发短路首个 logOut 同步清令牌后，后续 getToken 为 null 的请求同被短路——无头放行必红（旧实现 else 分支放行，多一次必然 401 的往返）", async () => {
+    // 首请求读到过期对象（短路+logOut 清令牌），次请求 getToken() 已为 null
+    mockGetToken.mockReturnValueOnce(EXPIRED_TOKEN).mockReturnValue(null);
+    installAdapter(() => 403);
+    const first = await http.post("/api/access/a").catch(e => e);
+    const second = await http.post("/api/access/b").catch(e => e);
+    await drainMicrotasks();
+    expect((first as Error).name).toBe("SessionExpiredError");
+    expect((second as Error).name).toBe("SessionExpiredError"); // 旧实现：无头放行→adapter 403 → 红
+    expect(adapterCalls).toHaveLength(0);
+    expect(mockMessage).toHaveBeenCalledTimes(1); // 去重窗口
   });
 
   it("白名单不做过期判定：captcha 过期 token 照常放行发出（错误形态=adapter 拒绝非短路，既有行为特征锁）", async () => {
