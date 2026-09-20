@@ -11,7 +11,7 @@ last_reviewed: 2026-09-21
 
 > 本稿为已采纳的实施方向：资源同步与依赖声明保持独立，SDK 协调可选；保留写时物化，来源按需解释，不建立逐种子逐完整路径的持久 support。原完整路径存储、强制两步接入和跨 owner 手工 override 口径由本稿取代。
 >
-> 交付状态：服务认证前置 T-PERM-070 已完成；T-PERM-071～073 为待实施任务，T-PERM-078 已完成实施前校准。当前代码仍拒绝 autoGrant=true（20048），本文不宣称自动授权已可用。后续实现须按 §16 的协议与验收边界逐项交付，不能以校准代替产品实现。
+> 交付状态：070 服务认证与 078 协议校准已完成；071 声明编译、资源共序、生命周期、迁移及 SDK 已实现并处于整体验收。旧 autoGrant 与 20048 已退役。072 角色物化及 073 解释/界面仍待实施，当前编译图不代表自动授权已可用。
 
 <a id="scope"></a>
 ## 1. 目标与范围
@@ -60,11 +60,11 @@ API 与操作关联派生仍归 T-PERM-054，不通过依赖图授 API 绕过启
 <a id="data-model"></a>
 ## 3. 数据职责
 
-正式 DDL 以 [schema/access-service.sql](schema/access-service.sql) 为唯一权威，以下待实施模型随对应任务落地。
+正式 DDL 以 [schema/access-service.sql](schema/access-service.sql) 为唯一权威，声明、编译与发布状态已随 071 实现，自动授权结果由 072 落地。
 
 ### 3.1 声明事实 permission_dependency_declaration
 
-保存租户、声明来源、稳定声明键、manifest revision、源/目标业务键和操作码、编译状态/原因。源触发操作至多一个，NULL/空集合表示任意操作触发；目标操作集合非空。类型/操作码与 codeType 宽度对齐现契约，codeType 维持 64 字符边界。
+保存租户、声明来源、稳定声明键、源/目标业务键和操作码、编译状态/原因；当前 manifest revision 由同 tenant + service 的 service_manifest_sync 保存，声明行不重复存储。源触发操作至多一个，NULL/空集合表示任意操作触发；目标操作集合非空。类型/操作码与 codeType 宽度对齐现契约，codeType 维持 64 字符边界。
 
 状态为 RESOLVED/REJECTED；原因保留 CROSS_OWNER、RESOURCE_MISSING、TYPE_MISSING、OPERATION_INVALID、SELF_DEPENDENCY、CYCLE。失败行保留用于诊断，由重新提交重驱动，不增加 PENDING/resolver。
 
@@ -82,7 +82,7 @@ MANIFEST 为依赖声明唯一写入来源，范围按 tenant + 服务身份隔�
 
 编译键为源实体 + 目标实体 + COALESCE(source_operation_bits,0)；同键 RESOLVED 声明的目标操作取并集，任一声明变化按键重编译。真实来源按键查询，删除不按诊断字段定位。
 
-auto_grant 随声明通道落地退役，同步全部后端 DTO、前端请求/表单/列表及契约；旧接口退役前维持当前 20048。声明来源仅保留 MANIFEST，不实现 ADMIN_UI 写入分支；旧数据处置见 §5。
+auto_grant 已随声明通道退役，后端 DTO、前端请求/表单/列表及契约已同步移除；旧接口与错误码 20048 均退役。声明来源仅保留 MANIFEST，不实现 ADMIN_UI 写入分支；旧数据处置见 §5。
 
 ### 3.4 自动授权结果
 

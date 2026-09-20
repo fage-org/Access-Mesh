@@ -168,8 +168,7 @@ export default {
         icon: "ep/share",
         title: "资源依赖",
         // 单一事实源派生：见 views/system/resource-dependency/utils/perms.ts
-        // 资源依赖 CRUD 门禁 DEPENDENCY:VIEW/CREATE/UPDATE/DELETE（三档独立，非 MANAGE，对齐后端）
-        // SYNC 权限码已定义但 batch-sync P0 标 TODO，不暴露按钮
+        // 管理页只读，统一 DEPENDENCY:VIEW；声明由所属服务通过 MANIFEST 发布。
         auths: [...RESOURCE_DEPENDENCY_PERM_LIST]
       }
     },
