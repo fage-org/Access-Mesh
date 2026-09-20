@@ -100,6 +100,7 @@ flowchart LR
 - 对外可调用的角色建议必须有 `roleExternalId`，后续授权和分配可以不用内部角色 ID。
 - 在 AccessMesh 管理端场景中，组织既是业务树也是角色容器。能力写编排层（原 access.application）同一事务维护本地投影：`sys_org` → `resource_entity(ORG)` + `abstract_role(ORG/POSITION)`（父角色按父节点实际 orgType 解析，业务键定位，不回填内部 ID）；`sys_user_org` 成员关系同事务写入 `user_role`（POSITION 成员 `relation_id` 指向所属组织角色）。`user-role/assign` 仅用于功能角色等正式用户角色管理操作。
 - 管理端（能力写编排层，原 access.application）不再有同步任务：投影、`permission_change_log` 与缓存失效登记在同一事务内完成，删除用户即级联软删其全部 `user_role`（含功能角色），投影依赖缺失整体回滚（fail-closed）。外部业务服务仍通过 `/api/access/**/sync|full-sync` 维护自有类型投影（保留业务键：subject `LOCAL_USER`（原 ADMIN_USER 更名）/role `ORG|POSITION`/`SYS_USER_ORG` 20045 拒绝；resource 侧为**类型级所有权**（T-PERM-052 定案，2026-09-05，取代 T-ACCESS-018 的行级口径：类型声明 `extra.managedMode=SYNC`+来源服务独占同步、MANAGED 类型管理面维护；事实链路七类型 USER/ORG/MENU/ROLE/ADMIN_FILE/TYPE_DEFINITION/CONDITION （T-PERM-048 增 CONDITION——管理页条件投影，仅 source=MANAGED）种子声明 SYNC+access-service 内部来源（T-ADMIN-025 增 ADMIN_FILE、T-PERM-051 增 TYPE_DEFINITION），原保留清单与行级投影防线已收编删除）。`role_resource_permission` 属于权限面授权事实，不进入管理端写入。
+- 外部 sync 的预期业务拒绝先于版本写入；成员依赖、归属或互斥拒绝后可用同版本重试。full-sync 返回 ItemResult 的业务失败逐项记录、成功项和缺失清理同事务提交；入口预检拒绝不进入处理，抛出的业务或技术异常整批回滚。正式错误与恢复边界见[契约总册 §19.3](../access-service-api-contract.md#193-同步接口通用响应与错误分类)。
 - `GROUP_ROLE` 本身不直接配置权限，通过子角色或额外基本角色产生有效权限。首期用 `extra.basicRoleIds` 简化表达，缓存构建阶段展开，运行时不频繁解析 JSON。
 - `POSITION` 类型分配时可带组织关系字段，用于表达职位在某组织下的上下文。
 - 分配或回收用户角色后，失效该用户有效角色缓存。

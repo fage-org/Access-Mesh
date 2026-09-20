@@ -76,9 +76,19 @@ class UserRoleSyncAppServiceTest {
     void setUp() {
         service = new UserRoleSyncAppServiceImpl(syncMetadataDomainService,
                 typeResolutionService, userRoleMapper, new LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService, permissionConflictDomainService, abstractRoleMapper);
+                subjectDomainService, permissionConflictDomainService, abstractRoleMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
         // 默认放行类型白名单（白名单语义由 SyncTypeGuardTest 单独覆盖）
         lenient().when(syncTypeGuard.validate(anyLong(), anyString(), any())).thenReturn(true);
+    }
+
+    @Test
+    void shouldNotConsumeVersion_whenSubjectMissing() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(null);
+        SyncResultResp result = service.sync(TENANT_ID, externalBindReq(), httpRequest);
+        assertThat(result.reason()).isEqualTo("SUBJECT_NOT_FOUND");
+        verify(syncMetadataDomainService, never()).applyVersion(anyLong(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyLong());
     }
 
     private UserRoleSyncReq bindReq() {
@@ -200,7 +210,6 @@ class UserRoleSyncAppServiceTest {
     @Test
     void shouldRejectLocalOwnedUserRole_whenBind() {
         mockHeaderMatch();
-        mockApplyVersionApplied();
         when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(100L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-1", null)).thenReturn(200L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
@@ -217,7 +226,6 @@ class UserRoleSyncAppServiceTest {
     @Test
     void shouldRejectLocalOwnedUserRole_whenUnbind() {
         mockHeaderMatch();
-        mockApplyVersionApplied();
         when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(100L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-1", null)).thenReturn(200L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
@@ -241,7 +249,6 @@ class UserRoleSyncAppServiceTest {
     @Test
     void shouldRejectBindAsNonRetryableWhenPostStateHitsMutex() {
         mockHeaderMatch();
-        mockApplyVersionApplied();
         when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(100L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-1", null)).thenReturn(200L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
@@ -257,6 +264,8 @@ class UserRoleSyncAppServiceTest {
 
         assertThat(resp.accepted()).isFalse();
         assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        verify(syncMetadataDomainService, never()).applyVersion(anyLong(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyLong());
         assertThat(resp.reason()).isEqualTo("ROLE_MUTEX_CONFLICT");
         verify(userRoleMapper, never()).insert(any(UserRole.class));
     }
@@ -361,7 +370,6 @@ class UserRoleSyncAppServiceTest {
     @Test
     void shouldRejectManualOwnedRow_whenBind() {
         mockHeaderMatch();
-        mockApplyVersionApplied();
         when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(100L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-1", null)).thenReturn(200L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
@@ -375,6 +383,8 @@ class UserRoleSyncAppServiceTest {
 
         assertThat(resp.accepted()).isFalse();
         assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        verify(syncMetadataDomainService, never()).applyVersion(anyLong(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyLong());
         assertThat(resp.reason()).isEqualTo("OWNERSHIP_CONFLICT");
         verify(userRoleMapper, never()).update(any(UserRole.class));
     }
@@ -382,7 +392,6 @@ class UserRoleSyncAppServiceTest {
     @Test
     void shouldRejectManualOwnedRow_whenUnbind() {
         mockHeaderMatch();
-        mockApplyVersionApplied();
         when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(100L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-1", null)).thenReturn(200L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
@@ -400,6 +409,8 @@ class UserRoleSyncAppServiceTest {
 
         assertThat(resp.accepted()).isFalse();
         assertThat(resp.retryClass()).isEqualTo(SyncResultBuilder.RETRY_NON_RETRYABLE);
+        verify(syncMetadataDomainService, never()).applyVersion(anyLong(), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyLong());
         assertThat(resp.reason()).isEqualTo("OWNERSHIP_CONFLICT");
         verify(userRoleMapper, never()).softDeleteBatch(any(), any(), any());
     }

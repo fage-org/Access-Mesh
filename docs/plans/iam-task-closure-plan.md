@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: IAM 核心正确性与用户任务闭环
-status: proposed
+status: active
 domain: cross-service
 design_refs:
   - docs/design/iam-task-closure.md
@@ -26,7 +26,7 @@ tasks:
   - T-ACCESS-054
   - T-ACCESS-055
 acceptance: "所属任务完成或有明确取消依据，核心用户任务验收有实际证据，权威设计回写和旧任务衔接闭合；未交付能力不写为当前可用。"
-last_updated: 2026-09-20
+last_updated: 2026-09-21
 ---
 
 # IAM 核心正确性与用户任务闭环计划
@@ -37,7 +37,7 @@ last_updated: 2026-09-20
 
 ## 非目标
 
-本计划尚未实施产品修复，不启动真实数据恢复或部署；自动授权简化方向已采纳，其他 draft 候选不随之自动采纳。自动授权沿T-PERM-071～073原序列承接；T-PERM-036/054继续维持原启动门禁。其他已知Q事项沿原载体，不因本计划重复立项。
+本计划按任务逐项实施，不启动真实数据恢复或部署；自动授权简化方向已采纳，其他 draft 候选不随之自动采纳。自动授权沿T-PERM-071～073原序列承接；T-PERM-036/054继续维持原启动门禁。其他已知Q事项沿原载体，不因本计划重复立项。
 
 ## 准入条件
 
@@ -51,7 +51,7 @@ last_updated: 2026-09-20
 |---|---|---|---|
 | [T-ORG-002](../tasks/T-ORG-002.md) | 默认身份目录删除与恢复边界闭合 | ⚙️ | — |
 | [T-ADMIN-028](../tasks/T-ADMIN-028.md) | OAuth2 授权码客户端关联校验 | ⚙️ | — |
-| [T-PERM-074](../tasks/T-PERM-074.md) | 同步失败与版本记账事务一致性 | ⚙️ | — |
+| [T-PERM-074](../tasks/T-PERM-074.md) | 同步失败与版本记账事务一致性 | ✅ | — |
 | [T-PERM-075](../tasks/T-PERM-075.md) | 互斥角色有效期与判定入口一致性 | ⚙️ | — |
 | [T-ORG-003](../tasks/T-ORG-003.md) | 组织与岗位成员候选门禁统一 | ⚙️ | — |
 | [T-PERM-076](../tasks/T-PERM-076.md) | 资源批量创建复合身份一致性 | ⚙️ | — |
@@ -84,4 +84,4 @@ last_updated: 2026-09-20
 
 ## 当前进度
 
-计划及实施任务仍为 proposed。自动授权简化方向已 adopted，078 继续收敛设计 M1～M5，071～073 验收已衔接；其他任务待决项维持原安排。已有问题/在途事项的去重与承接见[评审证据映射](../archive/2026-09-20/comprehensive-review.md)。
+计划已 active，T-PERM-074 已 done，其余任务状态见任务清单。自动授权简化方向已 adopted，078 继续收敛设计 M1～M5，071～073 验收已衔接；其他任务待决项维持原安排。已有问题/在途事项的去重与承接见[评审证据映射](../archive/2026-09-20/comprehensive-review.md)。

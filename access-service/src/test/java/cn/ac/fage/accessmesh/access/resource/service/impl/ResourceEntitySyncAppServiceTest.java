@@ -85,6 +85,19 @@ class ResourceEntitySyncAppServiceTest {
                 .thenReturn(true);
     }
 
+    @Test
+    void shouldNotConsumeVersion_whenDisableTargetMissing() {
+        mockHeaderMatch();
+        when(typeResolutionService.resolveTypeValue(TENANT_ID, "resource_type", "MENU")).thenReturn(0);
+        ResourceEntitySyncReq req = new ResourceEntitySyncReq("DISABLE", "MENU", "missing", "default",
+                null, null, null, null, null, null, null, SOURCE_SERVICE, "menu", "missing",
+                new SyncVersionRef(OCCURRED_AT, 1L));
+        SyncResultResp result = service.sync(TENANT_ID, req, httpRequest);
+        assertThat(result.reason()).isEqualTo("RESOURCE_NOT_FOUND");
+        verify(syncMetadataDomainService, org.mockito.Mockito.never()).applyVersion(anyLong(), anyString(),
+                anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), anyString(), any(), anyLong());
+    }
+
     private ResourceEntitySyncReq upsertReq() {
         return new ResourceEntitySyncReq("UPSERT", "MENU", "menu-1", "default",
                 "Menu One", null, null, null, "/menu/one", 1, null,

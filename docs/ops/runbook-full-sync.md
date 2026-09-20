@@ -28,7 +28,7 @@
 
 1. 逐条 sync：按事件顺序发送；同幂等键乱序到达由服务端 `sync_metadata` 版本原子比较兜底（旧版本 no-op，见 §4）。
 2. full-sync：构造单请求完整事实清单（含每个 item 的 `syncVersion`）。父边限同类型（T-PERM-068）：`parentResourceTypeCode` 缺省即按 item/scope 类型解析（同步同类型树只需传 `parentResourceCode`），**显式传异类型会被 `NON_RETRYABLE`/`PARENT_TYPE_MISMATCH` 拒绝**——不要为「不同类型的父」补传该字段；仅 `parentCodeType≠default` 时需显式传 codeType。父字段组仅 UPSERT 生效（DISABLE/DELETE 忽略父字段）；单条 DELETE 在存在有效子资源时返回 `DEPENDENCY_MISSING`/`CHILDREN_EXIST`（先删子再重发父，同版本重发自愈）。
-3. 解析响应：**信封恒 `code=200`，勿以信封判失败**——失败判定 = `data.accepted=false || data.stale=true`（2026-09-12 契约勘误口径）。
+3. 解析响应：先检查 HTTP 状态与信封 code；参数校验、保留键/本地投影不可变 20045 及技术异常走请求级错误信封，不能假定 data 存在。正常返回同步结果的信封为 `code=200`，再检查 `data.accepted`、`data.stale`、`retryClass` 和 FULL 明细，200 不代表所有项成功。
 4. full-sync 逐 item 核对 `data.detail.itemResults`（businessKey 级明细）；sync 接口 `data.detail=null`，只看顶层。
 5. 对 `RETRYABLE`/`DEPENDENCY_MISSING` 项按 §4 表重发；对 `NON_RETRYABLE` 项修正请求或源数据后重发——环路/互斥/依赖类拒绝不推进同步版本，修正后同版本重发不会被 STALE 挡；推进 `syncVersion` 作为新事件发送是可选保险（便于区分修复轮次）。
 
@@ -39,8 +39,10 @@
 | `RETRYABLE` | 瞬时失败（部分失败时顶层 `FULL_SYNC_PARTIAL_FAILURE`） | 指数退避重发**原请求**（同版本原样重发不会被 STALE 挡） |
 | `DEPENDENCY_MISSING` | 父资源/关联角色不存在（依赖与判环先于版本写入，不推进版本）；资源 DELETE 命中有效子资源（`CHILDREN_EXIST`，T-PERM-068） | 短退避重发原请求；持续失败先补齐依赖侧 sync；`CHILDREN_EXIST` 先删子资源再重发父（同版本重发自愈） |
 | `STALE_VERSION` | 旧版本 no-op（唯一 `accepted=true` 的失败：`applied=false, stale=true`） | **不重试**——服务端已持更新事实，调度器置 SUCCESS |
-| `NON_RETRYABLE` | 参数/结构错误：父环路 `RESOURCE_PARENT_INVALID`、跨类型父边 `PARENT_TYPE_MISMATCH`（父类型码 ≠ item/scope 类型，修正源数据）、成员关系互斥 `ROLE_MUTEX_CONFLICT`、保留键 20045 等 | 不盲目重试；修正请求/源数据后重发（此类拒绝不推进同步版本，同版本重发不会被 STALE 挡；推进版本作新事件为可选保险） |
+| `NON_RETRYABLE` | 参数/结构错误：父环路 `RESOURCE_PARENT_INVALID`、跨类型父边 `PARENT_TYPE_MISMATCH`（父类型码 ≠ item/scope 类型，修正源数据）、成员关系互斥 `ROLE_MUTEX_CONFLICT` 等返回同步结果的业务拒绝 | 不盲目重试；修正请求/源数据后重发（此类拒绝不推进同步版本，同版本重发不会被 STALE 挡；推进版本作新事件为可选保险） |
 | `SECURITY_DENIED` | 服务身份不匹配 / 类型所有权门禁拒绝 / 白名单未命中 / 未注册停用 | **先排根因再动**：核对类型声明、syncTypes 白名单、服务注册状态；排除配置前重发只会继续被拒 |
+
+请求级错误（例如参数校验 HTTP 400、保留键/本地投影不可变信封 20045、技术异常）不映射为某个 item 的 retryClass。修正请求级业务错误后重发；技术异常按整批回滚处理，恢复服务后重发原请求。
 
 ## 5. 验收检查
 
@@ -51,7 +53,7 @@
 
 ## 6. 回滚与误删恢复
 
-- **full-sync 不可直接回滚**（删除语义是声明式结果，无事务级逆操作）。恢复手段 = 反向补数据：从备份/源系统导出被误删对象，按逐条 `sync`（UPSERT）重新写入，**syncVersion 必须大于等于历史最高序**。
+- **full-sync 不可直接回滚**（删除语义是声明式结果，无事务级逆操作）。恢复手段 = 反向补数据：从备份/源系统导出被误删对象，按逐条 `sync`（UPSERT）重新写入，**syncVersion 必须严格大于历史最高序**（相等版本为 STALE，不会重建事实）。
 - 误删影响面：full-sync 只清理 `sync_metadata` 命中 scope 的同步事实，不触碰 MANUAL 管理面数据与其他通道（`service-config/sync` 是独立 ownership 通道）——恢复时同样只影响本 scope。
 - `DISABLE`/`DELETE` 单条误操作：以新的 UPSERT + 更高版本覆盖恢复（软删行复活走同幂等键 upsert）。
 
@@ -66,9 +68,21 @@
 | 批量 `RETRYABLE` 持续失败 | access-service 或存储异常 | 查服务端日志与健康端点，恢复后原请求重发（幂等安全） |
 | NON_RETRYABLE 永久放弃的后果 | 该事实在平台内**永久缺失**（如新员工 UPSERT 失败 → 该员工所有鉴权拒绝） | 放弃前必须确认影响并留档；恢复=修正后推进版本重发 |
 
-## 8. 依据锚点
+## 8. 已消费失败版本的定点恢复（T-PERM-074）
 
-- 响应信封恒 200 + 失败以 `accepted/retryClass` 判定：契约总册 §19.3（2026-09-12 勘误，随扩展指南外评修正）。
+代码修复只保证后续失败不记账，不会自动识别或清理旧错误账本。`target_id IS NULL`、事实不存在或 `target_status` 不一致只能筛选候选，不能证明某版本失败：合法 DELETE/UNBIND、本地后续删除也会出现类似形态。
+
+1. 从源侧发布记录与失败响应确认完整身份：tenant、entity_kind、source_service、scope_key、business_key、失败的 occurredAt/sequenceNo；保存对应 metadata 行及事实快照。确认没有更新版本成功、没有后续合法解绑/删除，也没有其他来源接管。
+2. 停止该范围的同步和管理写入，清空在途请求后，在数据库事务内锁定目标 metadata 与仍存在的事实行；逐个复核期望版本和上述完整身份，任何不符即回滚，不能自动覆盖。
+3. 有可核验的最后成功快照时，恢复该键的原版本、target_id、target_status 与对应事实的一致状态；若可证明失败发生在首次应用且从未写入事实，仅删除这一条错误 metadata，随后重发原请求。不得只凭缺失事实删除版本基线，也不得批量按空 target_id 清账。
+4. 无法证明最后成功状态时不回退账本；继续核对源侧记录。若源侧决定重新发布当前真实事实，由源侧按正常版本生成规则产生新事件，不在平台或 SDK 临时捏造版本。
+5. 恢复事务提交后重发已核验的原请求，核对事实、版本、归属和授权效果。保留操作前后快照与审计记录，然后恢复写入。
+
+本手册给出恢复约束，不自动操作任何部署环境或业务数据。
+
+## 9. 依据锚点
+
+- 同步结果信封 200，仍须检查 `accepted/retryClass` 与 FULL 明细；请求级异常另走错误信封：契约总册 §19.3。
 - 类型级所有权门禁与七内部类型：契约总册 §19 规则条 + T-PERM-052 定案（decision-registry 2026-09-05 行）。
 - full-sync ownership 以 `sync_metadata` 为准、两记录列不作清理依据：契约总册 §19.1/§19.2 + access-service-architecture §4.3（T-PERM-021 F1.c 定案 2026-09-12）。
 - 角色/资源同步互斥守卫（BIND 逐条 `ROLE_MUTEX_CONFLICT`）：T-PERM-063/064（decision-registry 2026-09-12 两行）。

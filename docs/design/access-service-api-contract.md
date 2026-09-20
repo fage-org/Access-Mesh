@@ -1255,6 +1255,10 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 11.4 聚合授权提交 apply-grant-plan（T-PERM-034 已落地 2026-08-30，收敛为唯一写入口，收窄）
 
+> **自动授权预览已采纳、待实施（T-PERM-073，2026-09-20）**：按[自动授权设计 §12](dependency-auto-grant.md#admin-ui)，预览仅供参考，保存以事务内最新事实重新校验与计算；自动授撤影响与预览不同不构成拒绝保存或再次确认的条件，不新增强制预览凭证或版本匹配。保存成功后刷新实际权限与来源，预览/刷新失败不能冒充零影响或提交结果。预览正式接口与读取门禁仍待 078 收敛，现役提交校验与回滚规则保持。
+
+> **自动授权物化已采纳、待实施（T-PERM-072，2026-09-20）**：按[自动授权设计 §6.3](dependency-auto-grant.md#materializer)，AUTO_DEP 保留推导出的各操作与条件事实，仅按同角色的资源/操作/条件身份精确去重，不按操作覆盖、条件支配或 MANUAL/类型级覆盖省略自动行。VIEW/UPDATE 即使存在覆盖关系也分别保留，运行时依各入口既有互斥评估集合处理，不以删行规避冲突。此为待实施自动结果规则，MANUAL 唯一性和现役提交契约不变。
+
 **（2026-08-02）收窄**：砍 expectedRevision CAS + grant_revision 列 + 幂等表 grant_plan_idempotency + 20037/20039 + hash canonical + replayed/currentRevision（Stripe 式重幂等对低频内部管理页错配）；单事务原子 + 受影响行数断言；clientRequestId/@Idempotent/幂等表全删（幂等中间件实现取消（未登记看板））；schema 文件删除，本节为唯一权威契约（补结构约束）。
 
 `POST /api/access/role-resource-permission/apply-grant-plan`
@@ -1504,6 +1508,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（死锁防护=持有解锁首管理员页面读写，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例；三条均类型级 scopeAll 且**不可转授**——业务门禁统一口径，转授链仅 API:ACCESS，首管理员不能把 SERVICE 权限授予其他角色）。
 
 ### 12.3 资源依赖（/api/access/resource-dependency/*）
+
+> **已采纳、待实施（T-PERM-071，2026-09-20）**：按[自动授权设计 §5](dependency-auto-grant.md#compiler)，依赖声明仅由所属服务通过 manifest 发布；create/update/remove 管理写入口随 071 关闭，管理台只读，同 owner 也不例外。下述端点为现役契约，尚未因设计定案关闭；071 实施时同步更新本节、前端调用与固定图引用。旧 batch-sync 随 manifest 退役，存量迁移须先核实，不静默将 autoGrant=false 边启用为自动授权。
 
 | 接口                                            | 说明                   |
 | ----------------------------------------------- | ---------------------- |
@@ -2225,6 +2231,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 ## 19. sync 同步通道（/api/access/**/sync 与 full-sync）
 ### 19.1 资源实体专用同步 resource-entity/sync
 
+> **自动授权生命周期已采纳、待实施（T-PERM-071/072，2026-09-20）**：仅资源 DISABLE 或 UPSERT/FULL 的 status 停用、恢复不改变自动授权传播；源、目标、中间资源均不因停用退出推导，既有自动授权保留，恢复不触发重建。显式撤权、资源 DELETE/FULL 缺失删除、依赖声明变更仍按各自规则重算。此决定不改变资源自身的运行时鉴权或来源服务启停门禁，详见[自动授权设计 §7](dependency-auto-grant.md#triggers)。
+
 `POST /api/access/resource-entity/sync`
 
 用于外部事实源把业务对象幂等同步为 permission-center 的 `resource_entity`。该接口只处理资源实体，不是跨实体万能 replay 入口；不接受 `entityType + operationType + payload` 形式。
@@ -2273,6 +2281,10 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 19.2 资源实体分领域全量校准 resource-entity/full-sync
 
+> **完整空清单已采纳、待实施（T-PERM-071/072，2026-09-20）**：明确 items=[] 表示完整空 scope，通过身份、类型所有权与发布代次校验后，仅清理该同步范围的事实并同事务收缩受影响自动授权；其他来源支持的下游授权保留。缺失/null items 非法，读取失败或分页未完成不得作为空快照提交。现役 @NotEmpty 仍拒绝空数组，071 修改请求校验与校准、072 挂接自动回收后回写现役契约，详见[设计 §4.4](dependency-auto-grant.md#integration)。
+
+> **已采纳、待实施（T-PERM-071，2026-09-20）**：按[自动授权设计 §4.4](dependency-auto-grant.md#integration)，本接口增加发布源确定的递增代次，平台按同步 scope 原子拒绝旧代次，拒绝发生在事实写入与缺失删除之前；重试沿用原代次与发布快照。此代次独立于逐项 syncVersion，不由 SDK 临时取当前时间生成。下述请求仍为现役形状；正式代次字段、同代次冲突/重试响应及兼容迁移由 078 收敛、071 实施回写，不代表当前接口已防止旧 FULL 的缺失删除。
+
 `POST /api/access/resource-entity/full-sync`
 
 请求体必须携带强制 scope，permission-center 只在该 scope 对应的同步来源范围内做差异校准，禁止默认按租户全量清理。
@@ -2317,6 +2329,10 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 19.3 同步接口通用响应与错误分类
 
+**事务与版本消费（T-PERM-074）**：依赖缺失、成员关系归属冲突、角色互斥及资源 DISABLE 目标缺失的失败项不消费 `syncVersion`，补齐依赖或修正阻碍后可重发原版本；已成功应用的相同/旧版本按 STALE 返回。版本比较、事实修改与账本状态回填在同一入口事务内完成，技术异常一并回滚。full-sync 已进入逐项阶段且以 ItemResult 返回的业务拒绝逐项记录，成功项与 scope 缺失清理共同提交；入口预检拒绝不进入处理，抛出的异常（含本地投影不可变等业务异常与技术异常）整个请求回滚，不提交部分成功。该逐项版本规则不提供 FULL 快照顺序保护，发布代次仍由 071 承接。
+
+历史上失败但已消费的版本不因本次修复自动恢复；只能按运维手册核实具体业务键、失败版本、最后成功事实后定点修复，禁止全表清账或凭空提高版本。
+
 所有 sync/full-sync 接口成功时仍使用统一响应壳。同步语义结果放在 `data` 中：
 
 ```json
@@ -2329,7 +2345,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 }
 ```
 
-失败不走信封错误码（2026-09-12 勘误：原文「失败时 `code != 200`」与实现漂移，随扩展指南外评修正）：sync/full-sync 端点信封恒 `code=200`（含 `SECURITY_DENIED` 拒绝与条目级失败，Controller 一律 `R.ok` 包裹），同步失败以 `data.accepted=false` + `data.retryClass`/`data.reason` 判定：
+正常返回 `SyncResultResp` 的 sync/full-sync 结果由 Controller 以 `code=200` 信封包裹（含返回结果形式的 `SECURITY_DENIED` 与条目级失败），须进一步读取 `data.accepted`、`data.stale`、`retryClass` 和 FULL 明细。请求级异常不属于该结果协议：参数校验失败、保留键/本地投影不可变（20045）及技术异常走统一异常信封，先检查 HTTP 状态与信封 code，不得无条件读取 data 或视为成功。已进入事务后抛异常会整体回滚。以下为正常返回的同步业务拒绝：
 
 ```json
 {

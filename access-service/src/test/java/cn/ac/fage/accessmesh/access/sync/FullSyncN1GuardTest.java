@@ -279,7 +279,7 @@ class FullSyncN1GuardTest {
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, userRoleMapper,
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService, conflictDomainService, abstractRoleMapper);
+                subjectDomainService, conflictDomainService, abstractRoleMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
 
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
                 new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "ROOT"),
@@ -363,13 +363,15 @@ class FullSyncN1GuardTest {
                 .thenReturn(existingRows);
         when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
                 .thenReturn(scopeMetadata);
+        when(syncMetadataDomainService.isNewerVersion(any(), any(), anyLong())).thenReturn(true);
 
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, userRoleMapper,
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.class),
-                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper.class));
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper.class),
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
                 new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "1"), items);
 

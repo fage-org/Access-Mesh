@@ -23,10 +23,12 @@ acceptance:
   - "declaration/manifest_sync 与编译图落地，RESOLVED/REJECTED、同键并集聚合、反向索引和 dirty 重判符合采用设计；不建 support 表。"
   - "资源单条 sync 与按类型 scope FULL 独立可用；仅资源接入无需 manifest/registration starter/空依赖；更新依赖无需重传全部资源。"
   - "manifest 独立 FULL：静态 JSON/动态 Provider、完整空依赖清单、语义 hash 规范化与四条件幂等、description 更新、逐项失败诊断；不得把 HTTP 200 当全部成功。"
-  - "编译源/目标同 owner、资源与操作存在性、自依赖/联合图环校验；无跨 owner/内部目标 override，MANIFEST 管理面拒改删；同 owner 管理写入口按 M3 结论实施。"
-  - "SDK 复用现役凭证，独立 manifest 发布与可选协调；不强制大清单，不把 git revision 当资源 syncVersion；动态刷新、发布排序、空资源集和前置部分失败按 M1 验收。"
+  - "编译源/目标同 owner、资源与操作存在性、自依赖/联合图环校验；资源 status 停用不等于缺失、不据此拒编或移除贡献，来源服务启用门禁保持；MANIFEST 为唯一声明写入来源，无 ADMIN_UI 或跨 owner/内部目标 override。"
+  - "SDK 复用现役凭证，独立 manifest 发布与可选协调；资源 FULL 与 manifest FULL 按各自 scope 校验发布源递增代次，旧代次在写入/缺失删除前拒绝，重试沿用代次及快照；不以 git revision、资源项 syncVersion 或本机 now() 替代发布排序。"
+  - "按 M1 验证代次并发与同代次冲突、部分失败重试、dirty 重判、FULL 与单条 sync 交错及存量客户端迁移；动态刷新和前置部分失败按其最终协议验收。"
+  - "资源 FULL 接受明确完整空 items=[]，身份/所有权/代次通过后仅清本同步范围，其他维护来源与其他 scope 保留；旧代次空清单零副作用拒绝，缺失/null 非法，读取失败/分页未完/Provider 异常不得提交空快照；自动授权回收由 072 挂接。"
   - "batch-sync、DEPENDENCY:SYNC、autoGrant 全字段链及 bootstrap/前端 perms/routes/mock/SDK/契约锁步退役；实际存量来源与边迁移有核查记录。"
-  - "manifest M2M 精确白名单与服务端所有权校验闭合，不新增用户 API 固定图授权行；管理通道如保留则按 M3 完成门禁与契约，不以 UI 隐藏替代。"
+  - "manifest M2M 精确白名单与服务端所有权校验闭合，不新增用户 API 固定图授权行；关闭 create/update/remove 服务端写入口并同步清理前端调用与固定图引用，验证不能直接请求绕过；读门禁保持。"
   - "真实接口验收分别覆盖仅资源接入、仅依赖更新、可选两步协调失败重试；编译并发协议沿 M4，正式字段/错误码与前端设计回写完成。"
 design_writeback:
   required: true
@@ -46,7 +48,7 @@ T-PERM-078 先收敛设计 §16 的实施协议，T-PERM-074 先闭合既有资�
 
 ## 范围
 
-声明数据层、编译器、独立 manifest 通道、SDK 发布/可选协调、管理写入口迁移、契约和前端兼容收口。资源 sync/full-sync 原有独立使用方式保持，相关协议修正按 M1 已定内容实施；依赖物化回收挂接归 072。
+声明数据层、编译器、独立 manifest 通道、SDK 发布/可选协调、管理写入口关闭及存量迁移、契约和前端兼容收口。管理只读边界按设计 §5，旧 autoGrant=false 边不得静默转为自动授权声明。资源 sync/full-sync 原有独立使用方式保持，相关协议修正按 M1 已定内容实施；依赖物化回收挂接归 072。
 
 ## 验收对照
 
@@ -54,4 +56,4 @@ T-PERM-078 先收敛设计 §16 的实施协议，T-PERM-074 先闭合既有资�
 
 ## 非目标 / 遗留
 
-物化与解释分别归 072/073；跨系统依赖、类型级种子、注解、异步队列不进入本卡。M1/M3/M4 没有稳定结论不得自行猜测接口、迁移或门禁行为。
+物化与解释分别归 072/073；跨系统依赖、类型级种子、注解、异步队列不进入本卡。M3 管理只读边界已定；M1/M4 及存量迁移没有稳定结论不得自行猜测接口或迁移行为。

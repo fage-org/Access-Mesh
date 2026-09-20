@@ -439,6 +439,17 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             return SyncResultBuilder.dependencyMissing("CHILDREN_EXIST");
         }
 
+        if (OP_DISABLE.equals(req.operation()) && existing == null) {
+            // DISABLE 只走单条入口；保留已消费旧版本的 STALE 响应，同时不为新失败写版本。
+            SyncMetadata metadata = syncMetadataDomainService.mapByBusinessKeyHash(tenantId, ENTITY_KIND,
+                    req.sourceService(), scopeKeyHash, Set.of(businessKeyHash)).get(businessKeyHash);
+            if (metadata != null && !syncMetadataDomainService.isNewerVersion(metadata,
+                    req.syncVersion().occurredAt(), req.syncVersion().sequenceNo())) {
+                return SyncResultBuilder.stale();
+            }
+            return SyncResultBuilder.dependencyMissing("RESOURCE_NOT_FOUND");
+        }
+
         SyncMetadataDomainService.ApplyVersionResult vr = syncMetadataDomainService.applyVersion(
                 tenantId, ENTITY_KIND, req.sourceService(),
                 scopeKeyHash, scopeKey, businessKeyHash, businessKey,
@@ -496,9 +507,6 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             syncMetadataDomainService.backfillTargetId(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, existing.getId());
         } else if (OP_DISABLE.equals(req.operation())) {
-            if (existing == null) {
-                return SyncResultBuilder.dependencyMissing("RESOURCE_NOT_FOUND");
-            }
             existing.setStatus(0);
             existing.setUpdatedAt(now);
             resourceEntityMapper.update(existing);
