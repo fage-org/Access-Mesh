@@ -22,6 +22,7 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -99,7 +100,8 @@ class BatchAuthCheckPgIT {
     @SpyBean private RoleResourcePermissionMapper rolePermMapper;
     @SpyBean private ResourceEntityMapper resourceEntityMapper;
     @SpyBean private PermissionConditionMapper conditionMapper;
-    @SpyBean private AuditDomainService auditDomainService;
+    // 断言引擎的同步通知调用；真实异步落库不属于批量判定被测面。
+    @MockBean private AuditDomainService auditDomainService;
 
     // 类级单调递增（JUnit PER_METHOD 生命周期下实例字段每方法重置会撞 uk——同 JVM 内跨方法共享 ID 段）
     private static int nextTypeValue = TYPE_VALUE_BASE;

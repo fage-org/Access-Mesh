@@ -1559,7 +1559,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 `nodes[]` 元素为 `{nodeKey: string, fact: FactKey, explicitSeed: boolean, seedRefs: SeedRef[], desired: boolean, actualPermissionIds: long[]}`；FactKey/SeedRef 沿 §11.4.1，explain 不出现 PREVIEW_INLINE。nodeKey 是本次完整结果按 FactKey 元组排序分配的展示 ID（如 n1），仅在本响应内引用；节点身份始终来自 fact，不跨请求按 n1 合并。`edges[]` 为 `{fromNodeKey: string, toNodeKey: string, triggerOperationCode: string, declarationRefs: [{declarationId: long, declarationKey: string, sourceService: string}]}`，所有字段必填，引用数组排序去重。
 
-有 target 时从目标反向遍历直接来源；无 target 时遍历全集为推导图与未被 desired 支持的 actual AUTO_DEP 节点的并集，显式根及孤立 actual 节点共同作为展示起点，按逻辑键排序后广度优先输出至 maxDepth/maxNodes。孤立 actual 节点也计入总数与预算，desired=false 且没有来源边，不伪造支持关系；只返回两个端点都已输出的边，再按起点/终点逻辑键排序取前 maxEdges 条，超限省略边也必须置 truncated。totalNodeCount/totalEdgeCount 是选定目标子图（无 target 为整个推导图）的完整数量，不是已输出数量。actualPermissionIds 仅列对应 AUTO_DEP 行；显式 MANUAL 来源另由 seedRefs 表示。空数组表示无实际自动行，不能用 null 表示读取失败。
+有 target 时从目标反向遍历直接来源；无 target 时遍历全集为推导图与未被 desired 支持的 actual AUTO_DEP 节点的并集，显式根及孤立 actual 节点共同作为展示起点，按逻辑键排序后广度优先输出至 maxDepth/maxNodes。孤立 actual 节点也计入总数与预算，desired=false 且没有来源边，不伪造支持关系；只返回两个端点都已输出的边，再按起点/终点逻辑键排序取前 maxEdges 条，超限省略边也必须置 truncated。totalNodeCount/totalEdgeCount 是选定目标子图（无 target 为推导图与孤立 actual 节点的并集）的完整数量，不是已输出数量。actualPermissionIds 仅列对应 AUTO_DEP 行；显式 MANUAL 来源另由 seedRefs 表示。空数组表示无实际自动行，不能用 null 表示读取失败。
 
 单次只读一致视图生成共享 DAG，源事实权限不表示用户当前必然 allowed。达到输出限额时显式截断，不能影响完整推导；界面选择节点按直接边逐段展开来源，不持久化或枚举所有完整路径。不存在跨请求冻结承诺；读取失败、角色不存在与权限不足沿正常错误信封处理。
 

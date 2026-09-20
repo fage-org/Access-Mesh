@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.engine.dto.PermBatchQuery;
 import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
 import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
@@ -9,6 +10,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -20,10 +22,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 
 /** 078 校准物化结果的引擎消费契约；直接装配候选结果，不冒充 072 推导/撤销实现。 */
 @Tag("testcontainers")
@@ -49,6 +54,8 @@ class AutoGrantEngineContractPgIT {
 
     @Autowired private PermQueryEngine engine;
     @Autowired private JdbcTemplate jdbc;
+    // 审计持久化异步实现另测；本类只锁定引擎发出的通知，避免异步 target spy 校验竞态。
+    @MockBean private AuditDomainService audit;
 
     @Test
     void shouldKeepConditionsSpecificToEachCanonicalOperation() {
@@ -99,12 +106,28 @@ class AutoGrantEngineContractPgIT {
         // VIEW 判定收集 VIEW 与覆盖它的 UPDATE；UPDATE 判定只收集 UPDATE。
         assertThat(check(f, "VIEW")).isFalse();
         assertThat(check(f, "UPDATE")).isTrue();
+        verify(audit, times(1)).asyncRecordLog(any(AuditDomainService.OperationLogEntry.class));
+        clearInvocations(audit);
         assertThat(batch(f, "VIEW", "UPDATE")).containsExactly(false, true);
+        verify(audit, times(1)).asyncRecordLog(any(AuditDomainService.OperationLogEntry.class));
+        clearInvocations(audit);
         PermQuery list = PermQuery.forUserView(TENANT, f.user());
         list.setEvalContext(context());
         assertThat(engine.query(list).instanceEntries()).isEmpty();
+        verify(audit, times(1)).asyncRecordLog(any(AuditDomainService.OperationLogEntry.class));
         assertThat(jdbc.queryForObject("SELECT count(*) FROM role_resource_permission WHERE abstract_role_id=? AND delete_flag=0",
                 Integer.class, f.role())).as("互斥不改变已保留的物化事实").isEqualTo(2);
+    }
+
+    @Test
+    void shouldKeepDistinctConditionIdentities_whenExpressionsAreEqual() {
+        Fixture f = fixture();
+        operation(f, "VIEW", 2, 0);
+        long first = grant(f, 2, condition(true), "AUTO_DEP");
+        long second = grant(f, 2, condition(true), "AUTO_DEP");
+        PermQuery q = PermQuery.forAuthCheck(TENANT, f.user(), f.typeCode(), "target", "VIEW");
+        q.setEvalContext(context());
+        assertThat(engine.query(q).matchedPermissionIds()).containsExactlyInAnyOrder(first, second);
     }
 
     @Test
