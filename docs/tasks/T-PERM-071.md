@@ -53,7 +53,9 @@ T-PERM-078 已完成设计 §16 的实施协议校准，T-PERM-074 已闭合同�
 
 ## 验收对照
 
-当前已实现混合类型批删锁序修正：统一先 ABSTRACT_ROLE 后 RESOURCE_ENTITY，保留单类型入口、门禁和锁内重读。`TypeDefinitionAppServiceImplTest`（2026-09-21）58 tests 通过，新增混合顺序用例在旧实现下失败；`MixedTypeDeletionLockPgIT` 1 test 通过，使用真实事务与 Redis 锁镜像组织投影锁序，不冒充完整组织 API 验证。声明、发布状态、保全迁移及管理写入口退役仍待实现。
+当前已实现混合类型批删锁序修正：统一先 ABSTRACT_ROLE 后 RESOURCE_ENTITY，保留单类型入口、门禁和锁内重读。`TypeDefinitionAppServiceImplTest`（2026-09-21）58 tests 通过，新增混合顺序用例在旧实现下失败；`MixedTypeDeletionLockPgIT` 1 test 通过，使用真实事务与 Redis 锁镜像组织投影锁序，不冒充完整组织 API 验证。manifest 的规范化/纯编译、声明与服务发布状态事务及凭证 HTTP 入口已实现；管理四个写路由及前端写表单/API 已移除。资源共同代次接线、dirty 生命周期、SDK、保全迁移及后端旧 DTO/autoGrant/权限种子彻底退役仍待完成。
+
+当前组件验证（2026-09-21）：compiler/normalizer 核心单测通过；PermissionManifestPgIT 的真实凭证 HTTP、同代次/旧代次、部分失败重试、空 scope 隔离、末步故障回滚、并发与 4,370 目标清单均通过。大清单参数上限、stale 明细与非 ASCII canonical 指纹均有旧实现失败证据。SQL/Mapper 和 HTTP 契约架构检查通过；前端 typecheck、定向 lint 与只读 API 用例通过。本地双轨发现已处置并复核，未把这些组件验证写成整卡完成。
 
 见 frontmatter acceptance。以同服务月报/模板为最小业务闭环，同时用无依赖的纯资源接入证明未引入强制依赖。新端点/形状只在正式契约登记，不由任务卡重定义。
 

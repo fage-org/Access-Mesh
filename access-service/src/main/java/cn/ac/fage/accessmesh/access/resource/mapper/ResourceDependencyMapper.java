@@ -18,6 +18,14 @@ import java.util.Set;
  */
 public interface ResourceDependencyMapper extends BaseMapper<ResourceDependency> {
 
+    /** 仅替换编译器生成的本服务边，不处理旧手工依赖。 */
+    int removeCompiledScope(@Param("tenantId") Long tenantId, @Param("service") String service,
+                            @Param("now") LocalDateTime now);
+
+    /** 诊断声明的展示描述独立更新，不重建聚合图的身份。 */
+    int refreshCompiledDescriptions(@Param("tenantId") Long tenantId, @Param("service") String service,
+                                    @Param("now") LocalDateTime now);
+
     /**
      * 批量软删除资源依赖关系
      * <p>

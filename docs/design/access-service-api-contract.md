@@ -1524,32 +1524,19 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `resource-api-mapping/create`/`update` 仍以内部 `resourceId` 绑定资源（§12.5 单条响应，§12 定案不随业务键切换）；前端资源选择器已随 **T-PERM-028** 落地（类型下拉 + 资源树选择，选中取节点内部 id 提交，数据源 `resource-entity/tree`），裸数字输入形态已删除。
 - 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（死锁防护=持有解锁首管理员页面读写，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例；三条均类型级 scopeAll 且**不可转授**——业务门禁统一口径，转授链仅 API:ACCESS，首管理员不能把 SERVICE 权限授予其他角色）。
 
-### 12.3 资源依赖（/api/access/resource-dependency/*）
+### 12.3 资源依赖只读查询（/api/access/resource-dependency/*）
 
-> **已采纳、待实施（T-PERM-071，2026-09-20）**：按[自动授权设计 §5](dependency-auto-grant.md#compiler)，依赖声明仅由所属服务通过 manifest 发布；create/update/remove 管理写入口随 071 关闭，管理台只读，同 owner 也不例外。下述端点为现役契约，尚未因设计定案关闭；071 实施时同步更新本节、前端调用与固定图引用。旧 batch-sync 随 manifest 退役，存量迁移须先核实，不静默将 autoGrant=false 边启用为自动授权。
+管理写路由 create/update/remove/batch-sync 已移除，管理台只读；所属服务使用 §19.10 manifest 发布声明。关闭路由不等于已迁移旧数据，071 的保全迁移与其余交付以任务卡为准。
 
-| 接口                                            | 说明                   |
-| ----------------------------------------------- | ---------------------- |
-| `POST /api/access/resource-dependency/list`       | 查询资源依赖           |
-| `POST /api/access/resource-dependency/create`     | 创建资源依赖           |
-| `POST /api/access/resource-dependency/update`     | 更新资源依赖           |
-| `POST /api/access/resource-dependency/remove`     | 删除资源依赖，支持批量 |
-| `POST /api/access/resource-dependency/batch-sync` | 按资源全量同步依赖     |
-| `POST /api/access/resource-dependency/graph`      | 查询依赖图             |
-| `POST /api/access/resource-dependency/check`      | 检查依赖是否成环       |
+| 接口 | 请求 | 返回 |
+|---|---|---|
+| `POST /api/access/resource-dependency/list` | `{resourceEntityId?: long}` | `ItemsResp<ResourceDependencyResp>` |
+| `POST /api/access/resource-dependency/graph` | 同 list | 同 list，扁平边列表，由前端建图 |
+| `POST /api/access/resource-dependency/check` | 源/目标资源业务键（typeCode、code、可选 codeType） | `DependencyCycleCheckResp` |
 
-**resource-dependency 契约要点（T-PERM-031 收口，2026-08-30）**：
+所有读入口执行 DEPENDENCY:VIEW 类型级门禁。list 保持全量不分页，关键词过滤由前端完成；graph 不含角色来源解释，角色解释目标契约见下一节。check 缺失资源返回既有 RESOURCE_NOT_FOUND，自依赖返回 hasCycle=true。
 
-- **门禁五档类型级**（DEPENDENCY 无 resource_entity 实例投影，实例级授权无从配置，同 CONDITION/CONFLICT_RULE 口径）：读 list/graph/check = DEPENDENCY:VIEW（原三读端点无门禁，本批补齐——graph/check 透出全租户依赖图数据）；写 create/update/remove = DEPENDENCY:CREATE/UPDATE/DELETE；batch-sync = DEPENDENCY:SYNC。remove 类型级全有或全无，幽灵 id 解析阶段静默跳过（幂等，响应 Void 无行数）；update 先解析后门禁（未知 id 优先 **20019** DEPENDENCY_NOT_FOUND 且零副作用，T-PERM-029 模式）。
-- **update PUT 全量覆盖语义**（Q3=B 前端契约收口）：UpdateReq 补齐资源对业务键四字段（source/targetResourceTypeCode+Code 必填 + codeType 可选）——原 DTO 缺资源对字段导致前端「改资源对」提交被静默丢弃；全部字段按提交值覆盖（UpdateEntity 显式写列），`sourceOperationCodes` null/空=清空为「任意操作触发」、`description` null=清空；`maintainSource`/`ownerServiceCode` 来源归属不随管理端编辑改写（仅批量同步侧变更）。
-- **等价重复预查**：同源资源+同目标资源+同 `COALESCE(source_operation_bits,0)`（uk_resource_dependency 唯一语义，NULL 与 0 同档）命中拒绝 **20054** DEPENDENCY_DUPLICATE（本批新增错误码，业务层预查 + DB uk 兜底转同码，对齐 conflict-rule 20032 先例）。
-- **操作码 fail-closed**：create/update/batch-sync 收到解析不到的 `operationCodes` 拒绝 **20005** OPERATION_NOT_FOUND（原实现静默丢弃——部分丢弃合并已知位、全 miss 落 0，会写出语义错误规则且无报错）；空白元素忽略、全空白码列表拒绝 20044（三入口统一口径）。
-- **自依赖拒绝**：source==target（即成环）写入口拒绝 20044 INVALID_PARAM（前端表单已校验，后端兜底；check 端点同判定返回 hasCycle=true）。
-- **list 全量不分页**（设计定案，对齐 condition/conflict-rule：量小非流水表）；`resourceEntityId` 内部主键可选过滤保留，关键词过滤由前端本地完成。**graph 维持扁平列表**（非 nodes/edges 图结构，设计定案，前端建图）。
-- **ResourceDependencyResp**：`{id, tenantId, resourceEntityId, sourceResourceCode, sourceResourceTypeCode, sourceResourceName, dependsOnResourceEntityId, depResourceCode, targetResourceTypeCode, targetResourceName, sourceOperationBits, requiredOperationBits, autoGrant, description, ownerServiceCode, maintainSource, createdAt, updatedAt}`——本批补静态字段（类型编码经 type_definition 反查、名称取资源实体、updatedAt/来源归属字段）；`sourceOperationBits`/`requiredOperationBits` 为 63 位 bigint 位值列，改**字符串线格式**下发（T-PERM-028 binaryBit 同款，JS Number ≥2^53 丢精度）；操作码数组不反解（前端经操作列表建 bit 映射拆解，操作软删后残留位反解有歧义）。description ≤512（create/update/sync item）。
-- **maintainSource 四值白名单**：ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC（schema 口径收口，DTO @Pattern 拒绝其他值——原注释 SERVICE/MANUAL 系漂移）；管理端创建行显式落 `ADMIN_UI`+`ownerServiceCode=null`。
-- **batch-sync**（§12.4）：FULL diff 匹配键为「源+目标+COALESCE(source_bits,0)」三元组（原仅按资源对匹配——同资源对不同触发操作是不同规则，漏删且 upsert 错行，本批修正）；资源 ID 与操作位在循环外按类型批量预解析（消解逐条目解析的 N+1）；**清单级预检**（autoGrant + 必填操作码）先于资源解析与全部写操作（畸形清单零副作用）；`items` 级联校验（`@Valid + @NotNull`）与两段操作解析 fail-closed 见 §12.4。
-- **bootstrap 固定图**：DEPENDENCY:VIEW/CREATE/UPDATE/DELETE/SYNC 五条类型级不可转授随本批补入（空库无授予起点死锁防护，同 DOMAIN/CONFLICT_RULE 先例；SYNC 随四档同补——端点存在且门禁为 SYNC，前端 P0 未接入不改变端点事实）。
+ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编码/类型/名称、sourceOperationBits、requiredOperationBits、description、ownerServiceCode、maintainSource、createdAt/updatedAt。操作位沿字符串线格式保持 63 位精度，null 触发位为任意操作；前端按资源类型的操作定义拆解显示。聚合边 description 取诊断声明的描述，不代表全部来源。后端 autoGrant 字段仍处于 071 退役过程，前端已删除该开关与列；不能据其历史 false 值把已编译声明视为手工可写。
 
 #### 12.3.1 已采纳待实施：角色自动授权来源解释（073）
 
@@ -1563,42 +1550,9 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 单次只读一致视图生成共享 DAG，源事实权限不表示用户当前必然 allowed。达到输出限额时显式截断，不能影响完整推导；界面选择节点按直接边逐段展开来源，不持久化或枚举所有完整路径。不存在跨请求冻结承诺；读取失败、角色不存在与权限不足沿正常错误信封处理。
 
-### 12.4 资源依赖批量同步 batch-sync
-`POST /api/access/resource-dependency/batch-sync`
+### 12.4 旧依赖批量同步退役
 
-```json
-{
-  "serviceCode": "example-service",
-  "maintainSource": "MANIFEST",
-  "syncMode": "FULL",
-  "items": [
-    {
-      "sourceResourceTypeCode": "REPORT",
-      "sourceResourceCode": "report:sales",
-      "sourceCodeType": "default",
-      "sourceOperationCodes": ["DATA_READ"],
-      "targetResourceTypeCode": "API",
-      "targetResourceCode": "api:report:sales:query",
-      "targetCodeType": "default",
-      "requiredOperationCodes": ["ACCESS"],
-      "autoGrant": false,
-      "description": "销售报表读取依赖查询接口（自动补全未实现，autoGrant 仅接受 false）"
-    }
-  ]
-}
-```
-
-规则：
-
-- `source*` 表示源资源，即被授权后会触发依赖补全的资源，对应 `resource_dependency.resource_entity_id`。
-- `target*` 表示被源资源依赖、需要自动补全的目标资源，对应 `resource_dependency.depends_on_resource_entity_id`。
-- `maintainSource` 四值白名单：`ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC`（schema 口径，DTO `@Pattern` 拒绝其他值；T-PERM-031 收口，原注释 SERVICE/MANUAL 系漂移）。
-- **`autoGrant` 预留未实现**：已采纳[自动授权简化方案](dependency-auto-grant.md)，T-PERM-078 负责实施前细化，T-PERM-071～073 负责实施；服务凭证前置 T-PERM-070 已完成。字段随声明通道落地退役，不再启用 autoGrant 开关；退役前 create / update / batch-sync 写入口拒绝 `true`（错误码 **20048** `AUTO_GRANT_NOT_SUPPORTED`），仅接受 `false`/省略，表列默认 `false`。依赖补全当前不生效，自动物化为 T-PERM-072 完成后的目标行为。
-- 授权源资源时，自动补全查询条件必须是 `resource_dependency.resource_entity_id = sourceResourceId`，不能反向使用 `depends_on_resource_entity_id` 查询。
-- `sourceOperationCodes` 转为 `source_operation_bits`；为空表示任意源操作触发。`requiredOperationCodes` 转为 `required_operation_bits`，表示目标资源需要自动补全的操作；**条目缺失或全空白该字段拒绝 20044（清单级预检，先于资源解析与 FULL diff——畸形清单零副作用，不因条目资源未解析而绕过）**。任一操作码解析不到拒绝 **20005** OPERATION_NOT_FOUND（fail-closed，不静默丢弃——T-PERM-031 定案；code→id 解析与按 id 二次加载**两段查询均 fail-closed**，间隙并发软删同样 20005，不静默丢位）；空白元素忽略、全空白码列表拒绝 20044（与单条入口统一口径）。`items` 元素级联校验生效（`@Valid + @NotNull`，apply-grant-plan 同款）：条目内 `@NotBlank`/`@Size` 由 400 参数校验通道拒绝，null 元素不进入服务层。
-- FULL diff 只清理同一 `ownerServiceCode=serviceCode + maintainSource` 范围内本次缺失的依赖规则，不清理其他服务或其他维护来源的规则；匹配键为「源资源 + 目标资源 + `COALESCE(source_operation_bits, 0)`」三元组（T-PERM-031 修正：同资源对不同触发操作是不同规则，仅按资源对匹配会漏删且 upsert 定位错行）。
-- 同一语义依赖仍受 `tenant_id + resource_entity_id + depends_on_resource_entity_id + source_operation_bits` 唯一约束保护，避免不同来源重复创建同一条依赖；业务层等价预查命中返回 **20054** DEPENDENCY_DUPLICATE，并发窗口由该约束兜底转同码。**upsert 命中异源同三元组行（ownerServiceCode/maintainSource 与本次请求不一致）时接管归属**——改写为本次 serviceCode/maintainSource，该行随此后 FULL 清单的 owner 范围清理（uk 为全局三元组唯一，接管避免同语义规则整批 20054 拒绝；管理端 UI 行被接管后即受同步清单管辖，2026-08-30 设计定案）。
-- 资源 ID 与操作位在循环外按资源类型批量预解析（消解逐条目解析的 N+1）；资源无法解析的条目静默跳过（同步清单漂移由对账兜底，与单条写入口 20004 fail-closed 不同）——**FULL 模式下跳过条目的同三元组存量行会被连带软删**（清单即终态：资源已不存在的依赖规则为死数据，一并清除；增量模式无删除分支不受影响，2026-08-30 设计定案）。
+`POST /api/access/resource-dependency/batch-sync` 不再注册 Controller 路由；替代通道为 §19.10 独立 MANIFEST FULL。旧维护来源和请求 DTO 不作为新发布输入，旧依赖仅按设计 §10.1 保全，不自动代服务发布。
 
 ### 12.5 resource-api-mapping 单条响应约定
 
@@ -2778,7 +2732,9 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **结构校验**：`service-config/save` 保存时校验 `syncTypes` 必须为对象、内部仅允许 subjectTypeCodes/roleTypeCodes/sourceTypes 三个字段（未知字段拒绝，含已退役的 `resourceTypeCodes`）、各分类（如存在）必须为非空白字符串数组；结构非法保存失败（20044）。缺失配置在运行时按无权限处理（fail-closed），不视为允许全部。
 - **上线准备（fail-closed 发布顺序）**：先为各同步服务通过 `service-config/save` 补齐 `syncTypes` 声明（并确认 `status=1`），再部署严格校验代码；未声明类型的存量服务在严格校验上线后同步全部拒绝，属预期行为。
 
-### 19.10 已采纳待实施：独立依赖 manifest（071）
+### 19.10 独立依赖 manifest（071 实施中）
+
+> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动、SDK 协调和保全迁移仍由 071 完成，角色物化由 072 完成。
 
 `POST /api/access/integration/permission-manifest/full-sync`，仅服务身份入口，按 070 精确 M2M 白名单；tenant 与 service 从已认证上下文取得，不接受 body 中的 serviceCode。来源服务须注册、启用；资源/操作存在性及类型所有权由服务端校验。
 

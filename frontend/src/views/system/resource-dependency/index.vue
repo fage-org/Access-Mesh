@@ -4,7 +4,6 @@ import { PureTableBar } from "@/components/RePureTableBar";
 import { addDialog } from "@/components/ReDialog";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { message } from "@/utils/message";
-import DependencyForm from "./components/DependencyForm.vue";
 import CycleCheckDialog from "./components/CycleCheckDialog.vue";
 import DependencyGraph from "./components/DependencyGraph.vue";
 import { useResourceDependency } from "./utils/hook";
@@ -12,9 +11,6 @@ import {
   type ResourceDependencyResp,
   getDependencyGraph
 } from "@/api/resource-dependency";
-import AddFill from "~icons/ri/add-circle-line";
-import EditPen from "~icons/ep/edit-pen";
-import Delete from "~icons/ep/delete";
 import Search from "~icons/ep/search";
 import Refresh from "~icons/ep/refresh";
 import Share from "~icons/ep/share";
@@ -24,129 +20,28 @@ defineOptions({ name: "SystemResourceDependency" });
 
 const {
   canView,
-  canCreate,
-  canEdit,
-  canDelete,
   loading,
   search,
   filteredList,
   resetFilters,
   loadList,
-  submitDependency,
-  deleteDependency,
   resourceList,
-  operationList,
   resourceTypeOptions,
   resolveResourceName,
   resolveResourceTypeCode,
   bitsToOpNames
 } = useResourceDependency();
 
-// ========== 权限门控 ==========
-// 与 docs/design/frontend/resource-dependency.md §权限接线 对齐。
-// DEPENDENCY:VIEW 门控路由可达性；CREATE/UPDATE/DELETE 三档独立门控写按钮（非 MANAGE，对齐后端）。
-// SYNC 权限码已定义但 batch-sync P0 标 TODO，不暴露按钮。
-// 环检测/依赖图复用 VIEW 门控（后端 check/graph 已补类型级 VIEW 校验，T-PERM-031 收口）。
+// 依赖页只读；声明变更由所属服务发布。
 
 // ========== 列定义 ==========
 const columns = [
   { label: "依赖关系", prop: "relation", minWidth: 280, slot: "relation" },
   { label: "触发操作", prop: "sourceOps", width: 140, slot: "sourceOps" },
   { label: "要求操作", prop: "requiredOps", width: 140, slot: "requiredOps" },
-  { label: "自动", prop: "autoGrant", width: 80, slot: "autoGrant" },
   { label: "描述", prop: "description", minWidth: 160, slot: "description" },
-  { label: "创建时间", prop: "createdAt", width: 160, slot: "createdAt" },
-  {
-    label: "操作",
-    prop: "operation",
-    width: 110,
-    fixed: "right" as const,
-    slot: "operation"
-  }
+  { label: "创建时间", prop: "createdAt", width: 160, slot: "createdAt" }
 ];
-
-type DialogForm<T> = {
-  validate: () => Promise<boolean>;
-  getFormData: () => T;
-};
-
-function getDialogForm<T>(element: unknown): DialogForm<T> | null {
-  if (
-    element &&
-    typeof element === "object" &&
-    "validate" in element &&
-    "getFormData" in element &&
-    typeof element.validate === "function" &&
-    typeof element.getFormData === "function"
-  ) {
-    return element as DialogForm<T>;
-  }
-  return null;
-}
-
-// ========== 弹窗 ==========
-function openCreate() {
-  let formRef: DialogForm<import("./utils/types").DependencyFormData> | null =
-    null;
-  addDialog({
-    title: "新增资源依赖",
-    width: "600px",
-    contentRenderer: () =>
-      h(DependencyForm, {
-        ref: (element: unknown) => {
-          formRef =
-            getDialogForm<import("./utils/types").DependencyFormData>(element);
-        },
-        mode: "create",
-        resourceTypeOptions: resourceTypeOptions.value,
-        resourceList: resourceList.value,
-        operationList: operationList.value
-      }),
-    beforeSure: async (done, { closeLoading }) => {
-      if (!formRef || !(await formRef.validate())) {
-        closeLoading();
-        return;
-      }
-      const saved = await submitDependency(formRef.getFormData(), "create");
-      if (saved) done();
-      else closeLoading();
-    }
-  });
-}
-
-function openEdit(row: ResourceDependencyResp) {
-  let formRef: DialogForm<import("./utils/types").DependencyFormData> | null =
-    null;
-  addDialog({
-    title: `编辑资源依赖 · #${row.id}`,
-    width: "600px",
-    contentRenderer: () =>
-      h(DependencyForm, {
-        ref: (element: unknown) => {
-          formRef =
-            getDialogForm<import("./utils/types").DependencyFormData>(element);
-        },
-        mode: "edit",
-        initialData: row,
-        resourceTypeOptions: resourceTypeOptions.value,
-        resourceList: resourceList.value,
-        operationList: operationList.value
-      }),
-    beforeSure: async (done, { closeLoading }) => {
-      if (!formRef || !(await formRef.validate())) {
-        closeLoading();
-        return;
-      }
-      const saved = await submitDependency(
-        formRef.getFormData(),
-        "edit",
-        row.id
-      );
-      if (saved) done();
-      else closeLoading();
-    }
-  });
-}
 
 function openCycleCheck() {
   addDialog({
@@ -175,10 +70,6 @@ async function openGraph() {
   }
   graphVisible.value = true;
 }
-
-function onDelete(row: ResourceDependencyResp) {
-  deleteDependency(row);
-}
 </script>
 
 <template>
@@ -189,6 +80,11 @@ function onDelete(row: ResourceDependencyResp) {
       class="dependency-empty"
     />
     <div v-else class="table-wrap">
+      <el-alert
+        title="依赖声明由所属业务服务发布，本页提供只读查看与检查。"
+        type="info"
+        :closable="false"
+      />
       <PureTableBar title="" :columns="columns" @refresh="loadList">
         <template #title>
           <el-form :inline="true" class="search-form-inline">
@@ -223,14 +119,6 @@ function onDelete(row: ResourceDependencyResp) {
           >
             依赖图
           </el-button>
-          <el-button
-            v-if="canCreate"
-            type="primary"
-            :icon="useRenderIcon(AddFill)"
-            @click="openCreate"
-          >
-            新增依赖
-          </el-button>
         </template>
         <template v-slot="{ size, dynamicColumns }">
           <pure-table
@@ -250,19 +138,26 @@ function onDelete(row: ResourceDependencyResp) {
               <div class="relation-content">
                 <div class="resource-node">
                   <span class="resource-name">{{
+                    row.sourceResourceName ||
                     resolveResourceName(row.resourceEntityId)
                   }}</span>
                   <el-tag size="small" type="info" effect="plain">
-                    {{ resolveResourceTypeCode(row.resourceEntityId) ?? "-" }}
+                    {{
+                      row.sourceResourceTypeCode ??
+                      resolveResourceTypeCode(row.resourceEntityId) ??
+                      "-"
+                    }}
                   </el-tag>
                 </div>
                 <span class="relation-arrow">-&gt;</span>
                 <div class="resource-node">
                   <span class="resource-name">{{
+                    row.targetResourceName ||
                     resolveResourceName(row.dependsOnResourceEntityId)
                   }}</span>
                   <el-tag size="small" type="success" effect="plain">
                     {{
+                      row.targetResourceTypeCode ??
                       resolveResourceTypeCode(row.dependsOnResourceEntityId) ??
                       "-"
                     }}
@@ -274,7 +169,8 @@ function onDelete(row: ResourceDependencyResp) {
               <span class="text-sm">{{
                 bitsToOpNames(
                   row.sourceOperationBits,
-                  resolveResourceTypeCode(row.resourceEntityId)
+                  row.sourceResourceTypeCode ??
+                    resolveResourceTypeCode(row.resourceEntityId)
                 )
               }}</span>
             </template>
@@ -282,18 +178,10 @@ function onDelete(row: ResourceDependencyResp) {
               <span class="text-sm">{{
                 bitsToOpNames(
                   row.requiredOperationBits,
-                  resolveResourceTypeCode(row.dependsOnResourceEntityId)
+                  row.targetResourceTypeCode ??
+                    resolveResourceTypeCode(row.dependsOnResourceEntityId)
                 )
               }}</span>
-            </template>
-            <template #autoGrant="{ row }">
-              <el-tag
-                :type="row.autoGrant ? 'success' : 'info'"
-                size="small"
-                effect="light"
-              >
-                {{ row.autoGrant ? "自动" : "手动" }}
-              </el-tag>
             </template>
             <template #description="{ row }">
               <span class="text-sm text-gray-500">
@@ -303,37 +191,10 @@ function onDelete(row: ResourceDependencyResp) {
             <template #createdAt="{ row }">
               <span class="time-cell">{{ row.createdAt }}</span>
             </template>
-            <template #operation="{ row }">
-              <el-button
-                v-if="canEdit"
-                class="reset-margin"
-                link
-                type="primary"
-                :size="size"
-                :icon="useRenderIcon(EditPen)"
-                @click="openEdit(row)"
-              >
-                编辑
-              </el-button>
-              <el-button
-                v-if="canDelete"
-                class="reset-margin"
-                link
-                type="danger"
-                :size="size"
-                :icon="useRenderIcon(Delete)"
-                @click="onDelete(row)"
-              >
-                删除
-              </el-button>
-              <span v-if="!canEdit && !canDelete" class="text-sm text-gray-400">
-                -
-              </span>
-            </template>
             <template #empty>
               <el-empty
                 :image-size="60"
-                description="暂无资源依赖，可手工新增"
+                description="暂无依赖声明，请由所属服务发布"
               />
             </template>
           </pure-table>

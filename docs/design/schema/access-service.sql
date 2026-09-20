@@ -1118,6 +1118,8 @@ CREATE TABLE sync_metadata (
     target_status         VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
     last_sync_occurred_at TIMESTAMPTZ NOT NULL,
     last_sync_sequence_no BIGINT NOT NULL,
+    last_publication_generation BIGINT,
+    last_publication_hash CHAR(64),
     extra                 JSONB DEFAULT '{}',
     created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -1256,6 +1258,7 @@ CREATE TABLE resource_dependency (
     source_operation_bits         BIGINT,
     required_operation_bits       BIGINT NOT NULL,
     auto_grant                    BOOLEAN NOT NULL DEFAULT false,
+    declaration_id                BIGINT,
     owner_service_code            VARCHAR(128),
     maintain_source               VARCHAR(32) NOT NULL DEFAULT 'ADMIN_UI',
     sync_key                      VARCHAR(256),
@@ -1271,6 +1274,7 @@ CREATE TABLE resource_dependency (
 
 CREATE UNIQUE INDEX uk_resource_dependency ON resource_dependency (tenant_id, resource_entity_id, depends_on_resource_entity_id, COALESCE(source_operation_bits, 0)) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_dependency_resource ON resource_dependency (resource_entity_id) WHERE delete_flag = 0;
+CREATE INDEX idx_resource_dependency_target ON resource_dependency (tenant_id, depends_on_resource_entity_id) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_dependency_sync_owner ON resource_dependency (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
 COMMENT ON TABLE resource_dependency IS '资源依赖：resource_entity_id 是源资源/被授权资源；depends_on_resource_entity_id 是被源资源依赖、需要自动补全的目标资源。source_operation_bits 为触发条件，required_operation_bits 为目标资源需要的操作位。auto_grant 为预留字段（自动授权简化方案已采纳，T-PERM-078 细化、T-PERM-071～073 实施）：字段随声明通道落地退役，退役前所有写入口拒绝 true（错误码 20048），依赖补全当前不生效';
@@ -1282,6 +1286,92 @@ COMMENT ON COLUMN resource_dependency.auto_grant IS '预留未实现：自动授
 COMMENT ON COLUMN resource_dependency.owner_service_code IS '依赖规则维护方服务编码；批量同步时用于限定 FULL diff 删除范围';
 COMMENT ON COLUMN resource_dependency.maintain_source IS '维护来源：ADMIN_UI=管理端维护，SDK_SCAN=SDK扫描，MANIFEST=声明式清单，SERVICE_SYNC=服务同步';
 COMMENT ON COLUMN resource_dependency.sync_key IS '同步源内稳定键，用于 FULL diff 判断。不同维护来源只清理同 owner_service_code + maintain_source 范围内缺失的规则';
+
+-- 依赖声明与发布状态（T-PERM-071；旧依赖保全由升级脚本处理）
+CREATE TABLE permission_dependency_declaration (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    source_service VARCHAR(128) NOT NULL,
+    declaration_key VARCHAR(128) NOT NULL,
+    business_key TEXT NOT NULL,
+    business_key_hash CHAR(64) NOT NULL,
+    declaration_payload JSONB NOT NULL,
+    semantic_hash CHAR(64) NOT NULL,
+    compile_status VARCHAR(16) NOT NULL,
+    reject_reason VARCHAR(64),
+    source_resource_id BIGINT,
+    target_resource_id BIGINT,
+    source_operation_bits BIGINT,
+    required_operation_bits BIGINT,
+    created_by BIGINT,
+    updated_by BIGINT,
+    deleted_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+    delete_flag BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT ck_dependency_declaration_state CHECK (
+        (compile_status = 'RESOLVED' AND reject_reason IS NULL
+         AND source_resource_id IS NOT NULL AND target_resource_id IS NOT NULL
+         AND required_operation_bits IS NOT NULL AND required_operation_bits > 0)
+        OR (compile_status = 'REJECTED' AND reject_reason IS NOT NULL)
+    )
+);
+CREATE UNIQUE INDEX uk_dependency_declaration_key ON permission_dependency_declaration
+    (tenant_id, source_service, business_key_hash) WHERE delete_flag = 0;
+CREATE INDEX idx_dependency_declaration_source ON permission_dependency_declaration
+    (tenant_id, source_resource_id) WHERE delete_flag = 0;
+CREATE INDEX idx_dependency_declaration_target ON permission_dependency_declaration
+    (tenant_id, target_resource_id) WHERE delete_flag = 0;
+COMMENT ON TABLE permission_dependency_declaration IS '所属服务 MANIFEST 唯一写入的声明事实；每声明目标一项，失败保留诊断，RESOLVED 按编译键聚合；无逐路径 support';
+COMMENT ON COLUMN permission_dependency_declaration.declaration_payload IS '规范化声明：稳定键、源/目标业务键、触发操作、目标操作集合和描述；不含来源路径';
+
+CREATE TABLE service_manifest_sync (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    source_service VARCHAR(128) NOT NULL,
+    publication_generation BIGINT NOT NULL CHECK (publication_generation > 0),
+    revision VARCHAR(128) NOT NULL,
+    payload_hash CHAR(64) NOT NULL,
+    semantic_hash CHAR(64) NOT NULL,
+    sync_status VARCHAR(16) NOT NULL CHECK (sync_status IN ('SUCCESS','PARTIAL','FAILED')),
+    is_dirty BOOLEAN NOT NULL DEFAULT false,
+    last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    created_by BIGINT,
+    updated_by BIGINT,
+    deleted_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+    delete_flag BIGINT NOT NULL DEFAULT 0
+);
+CREATE UNIQUE INDEX uk_service_manifest_sync ON service_manifest_sync (tenant_id, source_service) WHERE delete_flag = 0;
+COMMENT ON TABLE service_manifest_sync IS '服务依赖 FULL 的代次/不可变请求指纹与编译状态；旧代次不得回退声明，PARTIAL 同事务推进，dirty 阻止历史成功短路';
+
+CREATE TABLE resource_publication_state (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    source_service VARCHAR(128) NOT NULL,
+    scope_key TEXT NOT NULL,
+    scope_key_hash CHAR(64) NOT NULL,
+    max_generation BIGINT NOT NULL CHECK (max_generation > 0),
+    last_full_generation BIGINT,
+    last_full_payload_hash CHAR(64),
+    created_by BIGINT,
+    updated_by BIGINT,
+    deleted_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at TIMESTAMPTZ,
+    delete_flag BIGINT NOT NULL DEFAULT 0,
+    CONSTRAINT ck_resource_publication_full CHECK (
+        (last_full_generation IS NULL AND last_full_payload_hash IS NULL)
+        OR (last_full_generation > 0 AND last_full_payload_hash IS NOT NULL AND last_full_generation <= max_generation)
+    )
+);
+CREATE UNIQUE INDEX uk_resource_publication_scope ON resource_publication_state
+    (tenant_id, source_service, scope_key_hash) WHERE delete_flag = 0;
+COMMENT ON TABLE resource_publication_state IS '资源 scope 切入共同顺序后持久保留；max 防旧 FULL，last_full 防旧增量，逐键顺序另存 sync_metadata；不自动退回旧协议';
 
 -- -----------------------------------------------------------------------------
 -- 31. permission_conflict_rule - 权限冲突规则表（角色互斥 + 权限互斥）

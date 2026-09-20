@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.resource.mapper.PermissionDependencyDeclarationMapper">
+    <select id="selectScope" resultType="cn.ac.fage.accessmesh.access.resource.entity.PermissionDependencyDeclaration">
+        SELECT * FROM permission_dependency_declaration
+        WHERE tenant_id=#{tenantId} AND source_service=#{service} AND delete_flag=0 ORDER BY business_key
+    </select>
+    <update id="saveAll">
+        INSERT INTO permission_dependency_declaration
+        (tenant_id,source_service,declaration_key,business_key,business_key_hash,declaration_payload,semantic_hash,
+         compile_status,reject_reason,source_resource_id,target_resource_id,source_operation_bits,required_operation_bits,
+         created_at,updated_at,delete_flag)
+        VALUES
+        <foreach collection="rows" item="r" separator=",">
+            (#{r.tenantId},#{r.sourceService},#{r.declarationKey},#{r.businessKey},#{r.businessKeyHash},
+             CAST(#{r.declarationPayload} AS jsonb),#{r.semanticHash},#{r.compileStatus},#{r.rejectReason},
+             #{r.sourceResourceId},#{r.targetResourceId},#{r.sourceOperationBits},#{r.requiredOperationBits},
+             #{r.createdAt},#{r.updatedAt},0)
+        </foreach>
+        ON CONFLICT (tenant_id,source_service,business_key_hash) WHERE delete_flag=0
+        DO UPDATE SET declaration_key=EXCLUDED.declaration_key,business_key=EXCLUDED.business_key,
+          declaration_payload=EXCLUDED.declaration_payload,semantic_hash=EXCLUDED.semantic_hash,
+          compile_status=EXCLUDED.compile_status,reject_reason=EXCLUDED.reject_reason,
+          source_resource_id=EXCLUDED.source_resource_id,target_resource_id=EXCLUDED.target_resource_id,
+          source_operation_bits=EXCLUDED.source_operation_bits,required_operation_bits=EXCLUDED.required_operation_bits,
+          updated_at=EXCLUDED.updated_at
+    </update>
+    <update id="softDeleteIds">
+        UPDATE permission_dependency_declaration SET delete_flag=id,deleted_at=#{now},updated_at=#{now}
+        WHERE tenant_id=#{tenantId} AND source_service=#{service} AND delete_flag=0 AND id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+</mapper>

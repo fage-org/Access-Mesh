@@ -107,13 +107,10 @@ class HttpApiPathSnapshotTest {
 /api/access/resource-api-mapping/list
 /api/access/resource-api-mapping/remove
 /api/access/resource-api-mapping/update
-/api/access/resource-dependency/batch-sync
+/api/access/integration/permission-manifest/full-sync
 /api/access/resource-dependency/check
-/api/access/resource-dependency/create
 /api/access/resource-dependency/graph
 /api/access/resource-dependency/list
-/api/access/resource-dependency/remove
-/api/access/resource-dependency/update
 /api/access/resource-entity/batch-create
 /api/access/resource-entity/create
 /api/access/resource-entity/detail
@@ -290,13 +287,10 @@ class HttpApiPathSnapshotTest {
 /api/access/resource-api-mapping/list|access.resource.dto.req.ApiMappingListReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ApiMappingResp>>
 /api/access/resource-api-mapping/remove|perm.common.dto.req.IdsReq|common.model.R<Void>
 /api/access/resource-api-mapping/update|access.resource.dto.req.ApiMappingUpdateReq|common.model.R<access.resource.dto.resp.ApiMappingResp>
-/api/access/resource-dependency/batch-sync|access.resource.dto.req.DependencyBatchSyncReq|common.model.R<Void>
+/api/access/integration/permission-manifest/full-sync|perm.common.dto.req.PermissionManifestReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/resource-dependency/check|access.resource.dto.req.ResourceDependencyCheckReq|common.model.R<access.resource.dto.resp.DependencyCycleCheckResp>
-/api/access/resource-dependency/create|access.resource.dto.req.ResourceDependencyCreateReq|common.model.R<access.resource.dto.resp.ResourceDependencyResp>
 /api/access/resource-dependency/graph|access.resource.dto.req.DependencyListReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ResourceDependencyResp>>
 /api/access/resource-dependency/list|access.resource.dto.req.DependencyListReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ResourceDependencyResp>>
-/api/access/resource-dependency/remove|perm.common.dto.req.IdsReq|common.model.R<Void>
-/api/access/resource-dependency/update|access.resource.dto.req.ResourceDependencyUpdateReq|common.model.R<access.resource.dto.resp.ResourceDependencyResp>
 /api/access/resource-entity/batch-create|perm.common.dto.req.ResourceBatchCreateReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ResourceResp>>
 /api/access/resource-entity/create|perm.common.dto.req.ResourceCreateReq|common.model.R<access.resource.dto.resp.ResourceResp>
 /api/access/resource-entity/detail|perm.common.dto.req.ResourceKeyReq|common.model.R<access.resource.dto.resp.ResourceResp>
@@ -421,6 +415,10 @@ class HttpApiPathSnapshotTest {
 
     /** 已按设计决策退役的路径前缀/路径（快照必须不含；负向防回归）。 */
     private static final List<String> RETIRED_PATHS = List.of(
+        "/api/access/resource-dependency/create",
+        "/api/access/resource-dependency/update",
+        "/api/access/resource-dependency/remove",
+        "/api/access/resource-dependency/batch-sync",
         "/sync-task/list", "/sync-task/page", "/sync-task/detail", "/sync-task/delete",
         "/sync-task/due", "/sync-task/reset", "/sync-task/retry-now", "/sync-task/mark-success",
         "/sync-task/mark-failed", "/sync-task/batch-status", "/sync-task/rebuild-from-fact",

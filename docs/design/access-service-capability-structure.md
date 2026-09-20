@@ -265,7 +265,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | permission.service.domain：ResourceEntityDomainService/Impl、MappingSyncHandler/Impl、ResourceSyncHandler/Impl | resource.service.domain | |
 | permission.entity：ResourceEntity、ResourceApiMapping、ResourceDependency、**ServiceConfig** + 4 Mapper | resource | 裁决 3 |
 
-表：`resource_entity`、`resource_api_mapping`、`resource_dependency`、`service_config`。
+表：`resource_entity`、`resource_api_mapping`、`resource_dependency`、`service_config`、`permission_dependency_declaration`、`service_manifest_sync`（依赖声明与服务发布状态，T-PERM-071）。
 
 #### type
 

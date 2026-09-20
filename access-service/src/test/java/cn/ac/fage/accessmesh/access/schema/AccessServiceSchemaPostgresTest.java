@@ -98,13 +98,13 @@ class AccessServiceSchemaPostgresTest {
     }
 
     @Test
-    @DisplayName("原样 DDL 可执行：34 张表")
-    void shouldHave34Tables() throws SQLException {
+    @DisplayName("原样 DDL 可执行：权威表完整")
+    void shouldHaveCanonicalTables() throws SQLException {
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
                  "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'")) {
             rs.next();
-            assertEquals(34, rs.getLong(1));
+            assertEquals(37, rs.getLong(1));
         }
     }
 

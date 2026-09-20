@@ -1,17 +1,11 @@
 import { ref, reactive, computed, onMounted } from "vue";
 import { message } from "@/utils/message";
-import { ElMessageBox } from "element-plus";
 import { hasPerms } from "@/utils/auth";
 import { toErrorMessage } from "@/api/_envelope";
 import { useListLoad } from "@/utils/list-load";
 import {
   getDependencyList,
-  createDependency,
-  updateDependency,
-  removeDependencies,
-  type ResourceDependencyResp,
-  type ResourceDependencyCreateReq,
-  type ResourceDependencyUpdateReq
+  type ResourceDependencyResp
 } from "@/api/resource-dependency";
 import {
   getResourceTree,
@@ -20,7 +14,6 @@ import {
   type OperationPermissionResp
 } from "@/api/resource-operation";
 import { RESOURCE_DEPENDENCY_PERMS } from "./perms";
-import type { DependencyFormData } from "./types";
 import { hasBit } from "@/utils/bit-ops";
 
 /**
@@ -28,12 +21,11 @@ import { hasBit } from "@/utils/bit-ops";
  *
  * 引用数据映射（Resp 已随 T-PERM-031 补静态字段，映射保留为冗余快路径）：
  * - resourceMap：getResourceTree 扁平化 -> id->{name, resourceTypeCode, code, codeType}
- * - operationList：getOperationList 全量操作；bitsToOpCodes(bits, typeCode) 按资源类型
- *   + 全局操作过滤，hasBit（BigInt）位与拆解（P1 修复：typeCode 隔离跨类型同 bit 误匹配，
+ * - operationList：getOperationList 全量操作；bitsToOpNames(bits, typeCode) 按资源类型
+ *   过滤，hasBit（BigInt）位与拆解（P1 修复：typeCode 隔离跨类型同 bit 误匹配，
  *   BigInt 避免 32 位截断）
  *
- * 资源用业务键标识（create/update/check 请求），前端表单以 resourceEntityId 选择，
- * 提交时由 resourceMap 反查业务键构造请求。
+ * 资源业务键用于只读循环检查；声明发布由所属服务完成。
  */
 export function useResourceDependency() {
   // ========== 权限门控（computed：会话热刷新后即时重算——T-FE-055 复评同族收敛，
@@ -41,16 +33,6 @@ export function useResourceDependency() {
   const canView = computed(() =>
     hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_VIEW)
   );
-  const canCreate = computed(() =>
-    hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_ADD)
-  );
-  const canEdit = computed(() =>
-    hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_EDIT)
-  );
-  const canDelete = computed(() =>
-    hasPerms(RESOURCE_DEPENDENCY_PERMS.RESOURCE_DEPENDENCY_DELETE)
-  );
-
   // ========== 列表状态 ==========
   // T-FE-051：列表加载收敛 useListLoad（latest-wins 代际 + 失败提示保留旧数据——
   // 原实现失败清空列表，按全仓统一口径改为保留）；权限门禁留在包装层
@@ -86,31 +68,6 @@ export function useResourceDependency() {
     return resourceMap.value.get(id)?.resourceTypeCode ?? null;
   }
 
-  /** 资源 ID -> "名称（code）" */
-  function resolveResourceLabel(id: number | null | undefined): string {
-    if (id == null) return "—";
-    const node = resourceMap.value.get(id);
-    if (!node) return `#${id}`;
-    return `${node.name}（${node.code}）`;
-  }
-
-  /** 操作位 -> 操作码列表（按资源类型拆解，操作定义按类型隔离；BigInt 位与兼容 63 位）。
-   *  P1 修复：typeCode 隔离避免跨类型同 bit 误匹配；hasBit 避免 32 位截断。 */
-  function bitsToOpCodes(
-    bits: number | string | null,
-    typeCode: string | null
-  ): string[] {
-    if (bits == null || bits === 0) return [];
-    const codes: string[] = [];
-    for (const op of operationList.value) {
-      if (op.binaryBit == null) continue;
-      // 只匹配该资源类型，避免跨类型同 bit 误匹配
-      if (op.resourceTypeCode !== typeCode) continue;
-      if (hasBit(bits, op.binaryBit)) codes.push(op.code);
-    }
-    return codes;
-  }
-
   /** 操作位 -> 操作名称展示（null=任意，空=-）。
    *  P2 修复：直接从经类型过滤的操作对象取 name，避免 find(o => o.code === c)
    *  跨类型同名 code 误匹配（同一 code 在不同资源类型下名称可能不同）。 */
@@ -126,73 +83,6 @@ export function useResourceDependency() {
       if (hasBit(bits, op.binaryBit)) names.push(op.name);
     }
     return names.length === 0 ? "-" : names.join("、");
-  }
-
-  /** 按资源类型过滤的资源选项（表单下拉用） */
-  function resourcesForType(
-    typeCode: string | null
-  ): Array<{ id: number; name: string; code: string }> {
-    if (!typeCode) return [];
-    return resourceList.value
-      .filter(r => r.resourceTypeCode === typeCode)
-      .map(r => ({ id: r.id, name: r.name, code: r.code }))
-      .sort((a, b) => a.id - b.id);
-  }
-
-  /** 按资源类型过滤的操作选项（操作定义按类型隔离） */
-  function operationsForType(
-    typeCode: string | null
-  ): OperationPermissionResp[] {
-    if (!typeCode) return [];
-    return operationList.value.filter(op => op.resourceTypeCode === typeCode);
-  }
-
-  // ========== 请求构造 ==========
-
-  /** 表单 -> 创建请求（反查业务键） */
-  function buildCreatePayload(
-    form: DependencyFormData
-  ): ResourceDependencyCreateReq | null {
-    const source = resourceMap.value.get(form.sourceResourceEntityId!);
-    const target = resourceMap.value.get(form.targetResourceEntityId!);
-    if (!source || !target) return null;
-    return {
-      sourceResourceTypeCode: source.resourceTypeCode,
-      sourceResourceCode: source.code,
-      sourceCodeType: source.codeType,
-      sourceOperationCodes:
-        form.sourceOperationCodes.length > 0 ? form.sourceOperationCodes : null,
-      targetResourceTypeCode: target.resourceTypeCode,
-      targetResourceCode: target.code,
-      targetCodeType: target.codeType,
-      requiredOperationCodes: form.requiredOperationCodes,
-      autoGrant: form.autoGrant,
-      description: form.description || null
-    };
-  }
-
-  /** 表单 -> 更新请求（全量替换，含 id） */
-  function buildUpdatePayload(
-    form: DependencyFormData,
-    id: number
-  ): ResourceDependencyUpdateReq | null {
-    const source = resourceMap.value.get(form.sourceResourceEntityId!);
-    const target = resourceMap.value.get(form.targetResourceEntityId!);
-    if (!source || !target) return null;
-    return {
-      id,
-      sourceResourceTypeCode: source.resourceTypeCode,
-      sourceResourceCode: source.code,
-      sourceCodeType: source.codeType,
-      sourceOperationCodes:
-        form.sourceOperationCodes.length > 0 ? form.sourceOperationCodes : null,
-      targetResourceTypeCode: target.resourceTypeCode,
-      targetResourceCode: target.code,
-      targetCodeType: target.codeType,
-      requiredOperationCodes: form.requiredOperationCodes,
-      autoGrant: form.autoGrant,
-      description: form.description || null
-    };
   }
 
   // ========== 列表加载 ==========
@@ -255,9 +145,11 @@ export function useResourceDependency() {
     const kw = search.keyword.trim().toLowerCase();
     if (!kw) return list.value;
     return list.value.filter(d => {
-      const sourceName = resolveResourceName(d.resourceEntityId).toLowerCase();
-      const targetName = resolveResourceName(
-        d.dependsOnResourceEntityId
+      const sourceName = (
+        d.sourceResourceName || resolveResourceName(d.resourceEntityId)
+      ).toLowerCase();
+      const targetName = (
+        d.targetResourceName || resolveResourceName(d.dependsOnResourceEntityId)
       ).toLowerCase();
       const desc = (d.description ?? "").toLowerCase();
       return (
@@ -274,70 +166,6 @@ export function useResourceDependency() {
     search.keyword = "";
   }
 
-  // ========== CRUD ==========
-
-  async function submitDependency(
-    form: DependencyFormData,
-    mode: "create" | "edit",
-    editingId?: number
-  ): Promise<boolean> {
-    try {
-      if (mode === "create") {
-        const payload = buildCreatePayload(form);
-        if (!payload) {
-          message("资源选择无效，请重新选择", { type: "warning" });
-          return false;
-        }
-        await createDependency(payload);
-        message("资源依赖创建成功", { type: "success" });
-      } else if (editingId) {
-        const payload = buildUpdatePayload(form, editingId);
-        if (!payload) {
-          message("资源选择无效，请重新选择", { type: "warning" });
-          return false;
-        }
-        await updateDependency(payload);
-        message("资源依赖更新成功", { type: "success" });
-      } else {
-        return false;
-      }
-      await loadList();
-      return true;
-    } catch (e) {
-      message(toErrorMessage(e, "操作失败"), { type: "error" });
-      return false;
-    }
-  }
-
-  async function deleteDependency(
-    row: ResourceDependencyResp
-  ): Promise<boolean> {
-    try {
-      await ElMessageBox.confirm(
-        `确认删除依赖「${resolveResourceLabel(row.resourceEntityId)} -> ${resolveResourceLabel(
-          row.dependsOnResourceEntityId
-        )}」吗？`,
-        "删除资源依赖",
-        {
-          type: "warning",
-          confirmButtonText: "删除",
-          cancelButtonText: "取消"
-        }
-      );
-    } catch {
-      return false;
-    }
-    try {
-      await removeDependencies([row.id]);
-      message("资源依赖已删除", { type: "success" });
-      await loadList();
-      return true;
-    } catch (e) {
-      message(toErrorMessage(e, "删除失败"), { type: "error" });
-      return false;
-    }
-  }
-
   // ========== 循环检测 ==========
   // 环检测交互由 CycleCheckDialog 直调 checkDependencyCycle API（业务键经自身资源映射构造），
   // hook 不再重复封装（原 checkCycle 死导出已随外评清扫删除）。
@@ -349,17 +177,12 @@ export function useResourceDependency() {
 
   return {
     canView,
-    canCreate,
-    canEdit,
-    canDelete,
     list,
     loading,
     search,
     filteredList,
     resetFilters,
     loadList,
-    submitDependency,
-    deleteDependency,
     // 引用数据
     resourceMap,
     resourceList,
@@ -368,10 +191,6 @@ export function useResourceDependency() {
     // 映射辅助
     resolveResourceName,
     resolveResourceTypeCode,
-    resolveResourceLabel,
-    bitsToOpCodes,
-    bitsToOpNames,
-    resourcesForType,
-    operationsForType
+    bitsToOpNames
   };
 }

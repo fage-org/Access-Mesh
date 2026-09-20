@@ -224,9 +224,6 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/api/access/resource-dependency/list", "bootstrap:资源依赖列表", true, false),
             new ApiRoute("POST", "/api/access/resource-dependency/graph", "bootstrap:资源依赖图", true, false),
             new ApiRoute("POST", "/api/access/resource-dependency/check", "bootstrap:依赖循环检测", true, false),
-            new ApiRoute("POST", "/api/access/resource-dependency/create", "bootstrap:创建资源依赖", true, false),
-            new ApiRoute("POST", "/api/access/resource-dependency/update", "bootstrap:更新资源依赖", true, false),
-            new ApiRoute("POST", "/api/access/resource-dependency/remove", "bootstrap:删除资源依赖", true, false),
             // T-PERM-070：服务凭证管理面（per-service M2M 凭证签发/轮换/吊销）。门禁挂
             // service-config 管理面同族——写 SERVICE:MANAGE、list SERVICE:VIEW，两条
             // 均已在固定图（T-PERM-027），业务门禁零新增；不设凭证端点白名单（管理面端点，

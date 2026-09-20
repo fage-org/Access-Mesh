@@ -55,6 +55,9 @@ public class ResourceDependency {
      */
     private Long requiredOperationBits;
 
+    /** 聚合编译边的诊断声明 ID，不作完整来源或存续依据。 */
+    private Long declarationId;
+
     /**
      * 预留未实现：自动授权暂缓（T-PERM-035），写入口仅接受 false（true 返回 20048），默认 false
      */

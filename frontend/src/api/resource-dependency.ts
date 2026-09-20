@@ -1,34 +1,4 @@
-/**
- * 资源依赖 API
- * 经 @/utils/http 调用 access-service 端点
- * （`/api/access/resource-dependency/*`——Gateway 外部路径约定：
- * vite proxy 单条 `/api` → Gateway 无 StripPrefix 直达 access-service（T-ACCESS-042 外部=服务路径），
- * resource-operation/role-manage 同款；联调修复：Phase 1 误写 `/api/access/...` 缺 /perm 前缀，
- * mock 拦截 url 与错误路径一致致 dev 从未暴露，T-FE-044 真实链路 404 修正）。
- * T-FE-044 联调收口：Phase 1 mock（vite-plugin-fake-server）已退役，全端点走真实链路
- * （Gateway → access-service；六端点已入 bootstrap 固定图 apiRoutes）。
- * 响应统一为后端 R<T> 信封（code=200 为成功），本层按 code 解包并抛错，对组件暴露裸数据。
- * 信封类型与 unwrap 工具函数共享自 `@/api/_envelope`；列表包络复用 role-manage 定义。
- *
- * 契约依据：docs/design/access-service-api-contract.md §12.3 / §12.4
- * 后端实现：access-service ResourceDependencyController + DependencyAppServiceImpl
- *
- * T-PERM-031 收口（2026-08-30，原 🔧 清单 8 项处置）：
- * - Resp 补静态字段：sourceResourceTypeCode/targetResourceTypeCode、source/targetResourceName、
- *   ownerServiceCode/maintainSource/updatedAt；操作位改字符串线格式（63 位 bigint 位值列，
- *   T-PERM-028 binaryBit 同款）。operationCodes 数组不反解（前端经操作列表建 bit 映射拆解）。
- * - update 补全资源对业务键字段（PUT 全量覆盖契约，Q3=B）：资源对可改，
- *   sourceOperationCodes=null/空=任意触发，description=null 清空。
- * - 门禁五档类型级：读 list/graph/check = DEPENDENCY:VIEW、写三档 + SYNC；
- *   bootstrap 固定图已补五条（空库死锁防护）。
- * - list 维持全量不分页（量小非流水表，029/030 同款定案），resourceEntityId 内部过滤保留，
- *   关键词过滤由前端本地完成；graph 维持扁平列表（前端建图）。
- * - 业务错误码：等价重复 20054 / 依赖不存在 20019 / 资源不存在 20004 / 操作码不存在 20005（fail-closed，
- *   不再静默丢弃）/ 自依赖 20044 / autoGrant=true 20048。
- * - maintainSource 四值白名单（ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC，batch-sync 请求校验）；
- *   batch-sync FULL diff 按三元组（源+目标+触发位）匹配。
- * - batch-sync 端点 P0 标 TODO（Q5=B），前端不调用，mock 不实现。
- */
+/** 资源依赖只读接口；写入由服务 manifest 发布通道承担。 */
 import { http } from "@/utils/http";
 import { type R, unwrap } from "./_envelope";
 import type { ItemsResp } from "./role-manage";
@@ -37,7 +7,7 @@ import type { ItemsResp } from "./role-manage";
 
 /** 资源依赖响应（对齐后端 ResourceDependencyResp，T-PERM-031 已补全静态字段）。
  *  操作位为 63 位 bigint 位值列，后端按字符串线格式下发（避免 JS Number 丢精度）；
- *  操作码数组不反解——bitsToOpCodes(bits, typeCode) 经操作列表 bit 映射拆解（见 hook.ts）。 */
+ *  操作码数组不反解——bitsToOpNames(bits, typeCode) 经操作列表 bit 映射拆解（见 hook.ts）。 */
 export type ResourceDependencyResp = {
   id: number;
   tenantId: number;
@@ -61,12 +31,11 @@ export type ResourceDependencyResp = {
   sourceOperationBits: string | null;
   /** 要求操作位（目标资源需补全的操作，字符串线格式） */
   requiredOperationBits: string;
-  /** 是否自动授权（预留禁用，恒 false） */
-  autoGrant: boolean;
+  /** 依赖描述 */
   description: string | null;
-  /** 维护方服务编码（UI 创建行为 null；T-PERM-031 补） */
+  /** 维护方服务编码，旧数据可能为空 */
   ownerServiceCode: string | null;
-  /** 维护来源（ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC；T-PERM-031 补） */
+  /** 维护来源；新声明编译结果为 MANIFEST */
   maintainSource: string | null;
   createdAt: string;
   /** 最后更新时间（T-PERM-031 补） */
@@ -83,37 +52,6 @@ export type DependencyCycleCheckResp = {
 };
 
 // ========== 请求类型 ==========
-
-/** 资源依赖创建请求（对齐 ResourceDependencyCreateReq，业务键；description ≤512） */
-export type ResourceDependencyCreateReq = {
-  sourceResourceTypeCode: string;
-  sourceResourceCode: string;
-  sourceCodeType?: string | null;
-  sourceOperationCodes?: string[] | null;
-  targetResourceTypeCode: string;
-  targetResourceCode: string;
-  targetCodeType?: string | null;
-  requiredOperationCodes: string[];
-  autoGrant?: boolean | null;
-  description?: string | null;
-};
-
-/** 资源依赖更新请求（对齐 ResourceDependencyUpdateReq，PUT 全量替换契约）。
- *  T-PERM-031 后端已补全资源对业务键字段：资源对可改、全部字段按提交值覆盖；
- *  sourceOperationCodes 空=清空为"任意操作触发"，description null=清空。 */
-export type ResourceDependencyUpdateReq = {
-  id: number;
-  sourceResourceTypeCode: string;
-  sourceResourceCode: string;
-  sourceCodeType?: string | null;
-  sourceOperationCodes?: string[] | null;
-  targetResourceTypeCode: string;
-  targetResourceCode: string;
-  targetCodeType?: string | null;
-  requiredOperationCodes: string[];
-  autoGrant?: boolean | null;
-  description?: string | null;
-};
 
 /** 依赖循环检查请求（对齐 ResourceDependencyCheckReq，业务键） */
 export type ResourceDependencyCheckReq = {
@@ -147,45 +85,6 @@ export const getDependencyList = async (
     { data: params }
   );
   return unwrap(res);
-};
-
-/** 创建资源依赖（POST /api/access/resource-dependency/create，业务键）。
- *  错误码：20004 资源不存在 / 20005 操作码不存在（fail-closed）/ 20044 自依赖 /
- *  20054 等价重复 / 20048 autoGrant=true。 */
-export const createDependency = async (
-  data: ResourceDependencyCreateReq
-): Promise<ResourceDependencyResp> => {
-  const res = await http.request<R<ResourceDependencyResp>>(
-    "post",
-    "/api/access/resource-dependency/create",
-    { data }
-  );
-  return unwrap(res);
-};
-
-/** 更新资源依赖（POST /api/access/resource-dependency/update，PUT 全量替换）。
- *  错误码：20019 依赖不存在（先解析后门禁）/ 20004/20005/20044/20054/20048 同 create。 */
-export const updateDependency = async (
-  data: ResourceDependencyUpdateReq
-): Promise<ResourceDependencyResp> => {
-  const res = await http.request<R<ResourceDependencyResp>>(
-    "post",
-    "/api/access/resource-dependency/update",
-    { data }
-  );
-  return unwrap(res);
-};
-
-/** 删除资源依赖，支持批量（POST /api/access/resource-dependency/remove，IdsReq{ids}）。
- *  类型级 DELETE 全有或全无；幽灵 id 幂等跳过，响应 data=null 无行数。 */
-export const removeDependencies = async (ids: number[]): Promise<void> => {
-  unwrap(
-    await http.request<R<void>>(
-      "post",
-      "/api/access/resource-dependency/remove",
-      { data: { ids } }
-    )
-  );
 };
 
 /** 查询依赖图（POST /api/access/resource-dependency/graph）。

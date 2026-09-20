@@ -2,12 +2,8 @@ package cn.ac.fage.accessmesh.access.resource.controller;
 
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
-import cn.ac.fage.accessmesh.access.resource.dto.req.DependencyBatchSyncReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.DependencyListReq;
-import cn.ac.fage.accessmesh.perm.common.dto.req.IdsReq;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceDependencyCreateReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceDependencyCheckReq;
-import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceDependencyUpdateReq;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.DependencyCycleCheckResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ResourceDependencyResp;
@@ -23,8 +19,8 @@ import java.util.List;
 /**
  * 资源依赖关系管理控制器
  * <p>
- * 提供资源依赖关系的CRUD操作、批量同步、循环检测等功能。
- * 资源依赖关系定义了资源之间的访问依赖，例如访问父资源权限才能访问子资源。
+ * 提供依赖编译图的只读列表、图与循环检查；声明写入由所属服务 manifest 通道承担。
+ * 依赖图表示授予源资源操作时需补全的目标操作；读接口不承担运行时鉴权。
  * 依赖关系可用于实现级联权限控制。
  * 所有接口采用POST + JSON Body方式。
  * </p>
@@ -44,20 +40,7 @@ public class ResourceDependencyController {
         this.dependencyManageService = dependencyManageService;
     }
 
-    /**
-     * 创建资源依赖关系
-     * <p>
-     * 创建源资源到目标资源的依赖关系。
-     * 访问源资源时需要先获得目标资源的权限。
-     * </p>
-     *
-     * @param req 依赖创建请求，包含源资源、目标资源、依赖类型
-     * @return 创建成功的依赖关系详情
-     */
-    @PostMapping("/create")
-    public R<ResourceDependencyResp> createDependency(@Valid @RequestBody ResourceDependencyCreateReq req) {
-        return R.ok(dependencyManageService.createDependency(TenantContextHolder.getTenantId(), req, null));
-    }
+
 
     /**
      * 查询资源依赖关系列表
@@ -75,50 +58,11 @@ public class ResourceDependencyController {
         ));
     }
 
-    /**
-     * 删除资源依赖关系
-     * <p>
-     * 批量删除资源依赖关系。
-     * </p>
-     *
-     * @param req ID集合请求，包含待删除的依赖关系ID列表
-     * @return 操作成功结果
-     */
-    @PostMapping("/remove")
-    public R<Void> deleteDependency(@Valid @RequestBody IdsReq req) {
-        dependencyManageService.deleteDependencies(TenantContextHolder.getTenantId(), req.ids(), null);
-        return R.ok();
-    }
 
-    /**
-     * 批量同步资源依赖关系
-     * <p>
-     * 批量更新资源的依赖关系配置。
-     * 用于导入或更新大量依赖关系。
-     * </p>
-     *
-     * @param req 批量同步请求，包含依赖关系列表
-     * @return 操作成功结果
-     */
-    @PostMapping("/batch-sync")
-    public R<Void> batchSyncDependencies(@Valid @RequestBody DependencyBatchSyncReq req) {
-        dependencyManageService.batchSyncDependencies(TenantContextHolder.getTenantId(), req, null);
-        return R.ok();
-    }
 
-    /**
-     * 更新资源依赖关系信息
-     * <p>
-     * 更新依赖关系的类型、目标资源等属性。
-     * </p>
-     *
-     * @param req 依赖更新请求，包含依赖关系ID和新属性值
-     * @return 更新后的依赖关系详情
-     */
-    @PostMapping("/update")
-    public R<ResourceDependencyResp> updateDependency(@Valid @RequestBody ResourceDependencyUpdateReq req) {
-        return R.ok(dependencyManageService.updateDependency(TenantContextHolder.getTenantId(), req, null));
-    }
+
+
+
 
     /**
      * 查询依赖关系图

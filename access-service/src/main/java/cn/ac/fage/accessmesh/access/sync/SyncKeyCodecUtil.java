@@ -29,6 +29,17 @@ public final class SyncKeyCodecUtil {
     private SyncKeyCodecUtil() {
     }
 
+    /** 依赖 manifest 展开目标项的稳定协议键。 */
+    public static String dependencyDeclarationBusinessKey(String declarationKey, String targetType,
+                                                          String targetCode, String targetCodeType) {
+        LinkedHashMap<String, String> fields = new LinkedHashMap<>();
+        fields.put("declarationKey", declarationKey);
+        fields.put("targetResourceTypeCode", targetType);
+        fields.put("targetResourceCode", targetCode);
+        fields.put("targetCodeType", targetCodeType);
+        return encodeBusinessKey(fields);
+    }
+
     /**
      * businessKey 编码：按入参 LinkedHashMap 顺序拼成 percent-encoded 的 {@code k=v&k=v}。
      */
