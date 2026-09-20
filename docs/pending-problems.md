@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-021           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-19（Q-021 登记；Q-020 随 T-FE-049 收口登记）
+last_updated: 2026-09-20（Q-016、Q-020 随 T-FE-054 收敛）
 ---
 
 # 待解决问题清单（pending problems）
@@ -25,19 +25,6 @@ last_updated: 2026-09-19（Q-021 登记；Q-020 随 T-FE-049 收口登记）
 **影响**：侧栏菜单项有标题无图标（纯视觉缺失，无功能/权限影响）；存量面非 T-FE-049 引入（本次两态占位项触达的 2 枚已顺带注册生效）。
 
 **设想方向（未定案）**：种子 icon 全量注册进 offlineIcon.ts（前端单侧）或后端种子收敛到已注册集合/在线形态；处置前建议先浏览器侧运行时验证存量实际形态（机制推断 vs 实际渲染）。
-
-## Q-020 /menu-retry 页会话过期后「重新检查菜单」按陈旧状态提示（本地凭证已无时不发请求、统一拦截器无介入点）
-
-- **状态**：open
-- **登记**：2026-09-19（T-FE-049 双轨评审代码轨存疑①，用户拍板不单点修、按统一处理口径登记）
-- **来源**：T-FE-049 双轨评审
-- **关联**：T-FE-054（token 过期拦截器短路+过期提示）、T-FE-056（路由守卫状态机）——统一处理候选载体
-
-**现象与证据**：menu-retry.vue retry() 对空 menus 走 initRouter 重取，但 initRouter（router/utils.ts `if (getToken() && menus.length === 0)`）在本地凭证已无（cookie 过期被清/已 removeToken）时**跳过请求**——用户点「重新检查菜单」零请求发出，按陈旧 `menuLoadFailed` 值弹「仍无可用菜单」/「仍失败」（实际原因是会话过期），也不会被 401 响应拦截器拉回登录页（请求层无介入点）。
-
-**影响**：存量结构非 T-FE-049 引入（旧实现同场景弹「仍失败」同级失真）；触发面 = 在 /menu-retry 页停留至会话过期后重试的边缘路径，无数据损坏。
-
-**用户口径（2026-09-19）**：token 失效应由前端请求层统一处理，不做单个入口单独判 token——「本地凭证已无→不发请求」形态的统一处理落点属路由守卫/请求层职责，候选载体 T-FE-054（过期短路提示）/T-FE-056（守卫状态机），触达时统一收口。
 
 ## Q-019 父组织名解析依赖当前已加载树（父节点被过滤/权限排除时回退「未知」）
 
@@ -66,19 +53,6 @@ last_updated: 2026-09-19（Q-021 登记；Q-020 随 T-FE-049 收口登记）
 **关联现象（T-FE-050 claude 外评存量观察①，用户拍板注记）**：空名数据态下 OrgForm.parentOrgDisplay 三段 fallback（OrgForm.vue:106-114）把空串父名渲染为「根组织」，与信息卡空白显示不一致——本 Q 修复（update 通道拒空串）后该数据态不可再造，渲染差异自然消失，无需独立动作。
 
 **设想方向（未定案）**：update 通道补「null 跳过、空串拒绝」校验——注意直接加 `@NotBlank` 会连 null（=不更新语义）一起拒（Hibernate Validator 对 null 也判 invalid），须选 null 视为合法的约束（如 `@Pattern` 非空白）或服务层显式空串拒绝；配直连 API 回归锁。
-
-## Q-016 logOut 本地清理被服务端注销 await 推迟（后端黑洞挂 ≤10s + 窗口内旧清理链清新登录竞态）
-
-- **状态**：open
-- **登记**：2026-09-19（T-FE-045 claude 外评发现，用户拍板登记不修）
-- **来源**：T-FE-045 claude 外评（P3）
-- **关联**：T-FE-045、T-FE-054（token 过期提示相邻面，可并入该卡触达）、T-FE-048（两变体扩行：2026-09-19 双轨评审代码轨 P3-2 跨会话变体——旧刷新响应晚到把旧会话权限串写入新登录侧栏；2026-09-20 codex 外评 P2-1 同会话变体——多通道在途守卫彼此独立、`refreshSessionCapability` 无 single-flight，403 自动刷新在途时点手动/重试，旧响应晚到覆盖新权限串并重建侧栏〔「手动提示成功却显示旧数据」〕；两变体均用户拍板随本 Q 一并收口，同会话变体修法方向=入口内共享在途 Promise，明细见 T-FE-048 任务卡遗留节）
-
-**现象与证据**：`frontend/src/store/modules/user.ts` logOut() 先 `await logout(...)`（显式携 token 注销）再执行本地清理链——axios 默认超时 10s（`utils/http/index.ts:19`），后端不可达且连接黑洞时用户点「退出登录」后界面最长挂 10s 无反馈（顶栏登出按钮无 loading 态，重复点击被 `logoutInFlight` 短路）；极端竞态：窗口内完成一次新登录（`setToken` 写新令牌），挂起的旧清理链恢复后 `removeToken()` 清掉新会话凭据并跳回 /login（可重登恢复，无数据损坏）。服务端健康路径仅延迟几百毫秒，无感。
-
-**影响**：低频组合（后端黑洞 + 点退出）的体验问题 + 新登录凭据被旧登出链清除的竞态（无数据丢失）；与「本地清理不可被服务端失败绑架」定案在直观上相悖（最终仍清理，只是延迟）。
-
-**设想方向（未定案）**：注销 POST 改 fire-and-forget（捕获令牌后不 await、清理立即执行，同时消除挂起与竞态；代价=「服务端注销优先」从「等注销完成」变为「请求已发出即清理」，防抖窗口缩至同步段）；或令牌代际守卫（保留 await，清理前比对 `getToken()` 已变则跳过清理）+ 顶栏退出 loading 反馈。
 
 ## Q-015 设计文档两处白名单「整族 /api/access/auth/**」陈旧口径（T-ACCESS-042 收窄漏改存量）
 
@@ -109,6 +83,8 @@ last_updated: 2026-09-19（Q-021 登记；Q-020 随 T-FE-049 收口登记）
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-016 | logOut 本地清理被服务端注销 await 推迟 + T-FE-048 两变体（同会话并发无 single-flight、跨会话旧响应覆盖） | closed（T-FE-054 done：2026-09-20 AskUserQuestion 四问拍板「注销改 fire-and-forget」——四子项全收口：①注销请求发出即不等（黑洞挂 ≤10s 消除）②本地清理同步段完成、注销完成后不再补清理（新登录凭据竞态消除，回归锁含红跑态 try/finally 收尾防污染）③refreshSessionCapability 入口内共享在途 Promise single-flight（指纹=accessToken，同会话并发只发一次 user-menu）④refreshUserMenu 回写（Pinia+userKey）与侧栏重建前代际守卫（旧会话响应〔成功/失败〕不污染新会话）。原登记行方向 B〔令牌代际守卫保留 await〕随拍板弃用；定案见 registry 2026-09-20 行） | [T-FE-054](tasks/T-FE-054.md) | 2026-09-20 |
+| Q-020 | /menu-retry 页会话过期后「重新检查菜单」按陈旧状态提示（本地凭证已无时不发请求） | closed（T-FE-054 done：2026-09-20 拍板「随本卡收口」——initRouter 开头无凭证分支：统一提示「会话已过期」+ logOut 跳登录 + 抛 SessionExpiredError，menu-retry retry() catch 后不再按陈旧 menuLoadFailed 弹失真业务提示。判定挂在会话能力初始化统一入口（initRouter），非 menu-retry 单点判 token——2026-09-19「不做单入口判空」口径的落地形态；定案见 registry 同日行） | [T-FE-054](tasks/T-FE-054.md) | 2026-09-20 |
 | Q-017 | user/index.vue 死解构 + 组织点击双请求（useUserManage 双实例各发一次 /user/page） | closed（T-FE-051 done：2026-09-19 AskUserQuestion 拍板「就地化」——index.vue 删除整个 useUserManage 实例（未消费解构整体清零），selectedOrgId 就地化本地 ref，onOrgChange 不再调 loadTable，成员表加载由 MemberTab watch(orgId)→onSearch 链路独占（点组织单请求、挂载即首载一次）；重复点击同一节点行为不变（watch 值不变不触发，原 index 实例刷新本就无人消费）。同卡两项拍板之二：handleToggleStatus 移入 hook 透后端 error.message。定案见 registry 同日行） | [T-FE-051](tasks/T-FE-051.md) | 2026-09-19 |
 | Q-013 | TaskExecutionLeaseConcurrencyTest 剩余两个裸 sleep(1200) 方法未改有界轮询 | closed（T-ACCESS-051 done：takeoverAfterExpiryPreventsOldHolderFromOverwriting 改 5s 有界轮询至 tryClaim 接管成功、takeoverReexecutesWithSameIdempotencyKey 改每轮扫描+终态检查（断言语义均不变），终态条件抽 isTerminal 与 awaitTerminal 共用；双轨评审零 P0-P2；定向容器轨 10/10 绿 + 收口全量含 E2E 1724 项 0 失败。纪律出处 registry 2026-09-06/2026-09-16 行；评审上报三处同族裸 sleep 登记 Q-014） | [T-ACCESS-051](archive/2026-09-18/tasks/T-ACCESS-051.md) | 2026-09-18 |
 | Q-008 | SERVICE/API 固定图种子行维持 MANAGED，是否声明内部来源收紧 | closed（T-PERM-069 done：2026-09-18 用户拍板「仅 API 收紧」——①API 种子声明 SYNC+access-service，唯一事实入口=service-config/sync 接口声明通道+bootstrap 固定图，管理面资源 CRUD 20055（回归锁旧种子下实证失败）；②SERVICE 维持 MANAGED（新行唯一通道=管理面手工建行做按服务实例级授权，收紧即零 writer 死局，重启评估须以 service-config 联动建行配套为前置）；存量 dev 库 86 行 MANUAL 全为固定图零野行、订正语句登记 runbook；双轨评审全处置、全量含 E2E 1721 项 0 失败。定案见 registry 2026-09-18 行） | [T-PERM-069](archive/2026-09-18/tasks/T-PERM-069.md) | 2026-09-18 |

@@ -146,11 +146,17 @@ export const useUserStore = defineStore("pure-user", {
      * <p>
      * 成败同步维护 `menuLoadFailed`（T-FE-049）：调用方据它与 menus.length 区分
      * 「加载失败」（占位可重试）与「拉取成功但账号无菜单」（占位提示联系管理员）两态。
+     * <p>
+     * 会话代际守卫（Q-016 收口，2026-09-20 拍板）：发起时记当前令牌指纹，响应/失败
+     * 回写前比对——会话已换（登出重登）时丢弃旧结果，旧会话的 menus/权限串/
+     * menuLoadFailed 不污染新会话。
      */
     async refreshUserMenu() {
+      const fingerprint = getToken()?.accessToken;
       try {
         const resp = await getUserMenu();
         const { menus, roles, permissions } = unwrap(resp);
+        if (getToken()?.accessToken !== fingerprint) return;
         this.menuLoadFailed = false;
         this.SET_MENUS(menus ?? []);
         this.SET_ROLES(roles ?? []);
@@ -165,19 +171,24 @@ export const useUserStore = defineStore("pure-user", {
           permissions: permissions ?? []
         });
       } catch (err) {
+        if (getToken()?.accessToken !== fingerprint) return;
         this.menuLoadFailed = true;
         throw err;
       }
     },
     /**
-     * 登出（T-FE-045：服务端注销优先、本地清理无条件）。
+     * 登出（T-FE-045 真注销；Q-016 收口后注销改 fire-and-forget，2026-09-20 拍板）。
      * <p>
-     * 1. 持有令牌时先调 `POST /api/access/auth/logout` 注销服务端会话（显式携当前 token：
+     * 1. 持有令牌时先发出 `POST /api/access/auth/logout` 注销服务端会话（显式携当前 token：
      *    本地 `expires` 已到期路径触发的登出，令牌在服务端可能仍存活，注销不能空转）。
-     * 2. 服务端失败（网络/后端异常）仅 console.warn 不弹错——本地清理不可被服务端失败
-     *    绑架：退出意图已明确，浏览器凭证已清，残留服务端会话按 Sa-Token TTL 自然过期。
-     * 3. 本地清理无条件执行：清 Pinia → removeToken → multiTags 重置 → resetRouter → 跳 /login。
+     *    注销请求 fire-and-forget：发出即不等完成——后端黑洞时本地清理与跳转不再被
+     *    推迟（原 await 形态最长挂 10s），窗口内新登录的凭据也不再被旧清理链清除；
+     *    失败仅 console.warn 不弹错（浏览器凭证已清，残留服务端会话按 Sa-Token TTL 过期）。
+     * 2. 本地清理无条件立即执行：清 Pinia → removeToken → multiTags 重置 → resetRouter → 跳 /login。
      *    登出完成后重复触发时 getToken() 已无令牌，不再发请求，仅幂等清理+跳转。
+     * 3. logoutInFlight 标记在 fire-and-forget 后无实际拦截窗口（函数体无 await 挂起点，
+     *    同步栈内执行完毕即复位，恒不命中）——保留是防御未来重新引入 await 点时的重入；
+     *    重复触发（连点/拦截器程序化调用）的实际防护由 getToken() 无令牌幂等分支承担。
      */
     async logOut() {
       if (logoutInFlight) return;
@@ -185,11 +196,9 @@ export const useUserStore = defineStore("pure-user", {
       try {
         const token = getToken();
         if (token?.accessToken) {
-          try {
-            await logout(formatToken(token.accessToken));
-          } catch (err) {
-            console.warn("[logOut] 服务端注销失败，继续本地清理", err);
-          }
+          logout(formatToken(token.accessToken)).catch(err => {
+            console.warn("[logOut] 服务端注销失败（不阻断本地清理）", err);
+          });
         }
         this.username = "";
         this.roles = [];

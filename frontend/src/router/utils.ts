@@ -18,6 +18,10 @@ import {
 } from "@pureadmin/utils";
 import { buildHierarchyTree } from "@/utils/tree";
 import { getToken, userKey, type DataInfo } from "@/utils/auth";
+import {
+  notifySessionExpiredOnce,
+  SessionExpiredError
+} from "@/utils/session-expired";
 import type { UserMenuRoute } from "@/api/auth";
 import { type menuType, routerArrays } from "@/layout/types";
 import { useMultiTagsStoreHook } from "@/store/modules/multiTags";
@@ -276,6 +280,18 @@ function rebuildSidebarFromUserMenus() {
 }
 
 /**
+ * 会话能力刷新在途标记（Q-016 同会话变体收口，2026-09-20 拍板：入口内共享在途
+ * Promise single-flight）。fingerprint=发起时的 accessToken——同会话并发调用共享
+ * 同一刷新（多通道〔403 自动/手动/重试〕并发只发一次 user-menu 请求，旧响应晚到
+ * 覆盖新权限串的竞态随之消除）；会话已换（登出重登）时 fingerprint 不同，不复用
+ * 在途、由代际守卫丢弃旧结果。
+ */
+let capabilityRefreshInFlight: {
+  promise: Promise<void>;
+  fingerprint: string | undefined;
+} | null = null;
+
+/**
  * 会话能力刷新入口（T-FE-048，2026-09-19 拍板）：单函数原子更新权限串
  * （roles/permissions/menus，经 user store refreshUserMenu）+ 侧栏 wholeMenus。
  * 仅刷 store 不重建侧栏会造成「按钮权限已新、侧栏旧菜单残留继续点击 403」，
@@ -288,6 +304,9 @@ function rebuildSidebarFromUserMenus() {
  *   <li>失败：原样抛出且不触碰 wholeMenus——按钮/侧栏维持旧态（后端 fail-closed
  *       兜底）；门禁状态机维持 loaded（failed 仅由首次加载失败产生）——由调用方
  *       决定静默或提示</li>
+ *   <li>跨会话代际守卫（Q-016 跨会话变体，2026-09-20 拍板）：refreshUserMenu 内部
+ *       已按代际拦截 store 回写，此处再拦侧栏重建——刷新期间会话已换时，不把旧
+ *       会话的菜单形态重建进新会话侧栏</li>
  *   <li>不清理 multiTags 已缓存标签（标签指向的路由由后端 403 兜底，任务卡登记边界）；
  *       不经 handleAsyncRoutes（其 multiTags 重置仅属登录/F5 的 initRouter 全量路径）</li>
  *   <li>T-FE-056 落地后：路由门禁 path 集/状态机更新挂接于此（同 owner，勿另开通道）</li>
@@ -295,10 +314,30 @@ function rebuildSidebarFromUserMenus() {
  */
 export async function refreshSessionCapability(): Promise<void> {
   // 无会话无可刷（会话失效由拦截器 401 分支 logOut 收口）
-  if (!getToken()) return;
+  const token = getToken();
+  if (!token) return;
+  const fingerprint = token?.accessToken;
+  if (
+    capabilityRefreshInFlight &&
+    capabilityRefreshInFlight.fingerprint === fingerprint
+  ) {
+    return capabilityRefreshInFlight.promise;
+  }
   const userStore = useUserStoreHook();
-  await userStore.refreshUserMenu();
-  rebuildSidebarFromUserMenus();
+  const promise = (async () => {
+    await userStore.refreshUserMenu();
+    if (getToken()?.accessToken === fingerprint) {
+      rebuildSidebarFromUserMenus();
+    }
+  })();
+  capabilityRefreshInFlight = { promise, fingerprint };
+  try {
+    await promise;
+  } finally {
+    if (capabilityRefreshInFlight?.promise === promise) {
+      capabilityRefreshInFlight = null;
+    }
+  }
 }
 
 /**
@@ -316,11 +355,24 @@ export async function refreshSessionCapability(): Promise<void> {
  *       不持久化 menus、不回退全量静态菜单；拉取成功但账号无菜单（零权限）时占位项为
  *       「当前账号无可用菜单」（T-FE-049 两态区分——重试对该形态无意义）</li>
  *   <li>路由仍全部静态注册：菜单不可见 ≠ 路由不可达，越权直达由后端 VIEW 403 兜底</li>
+ *   <li>会话已终结（Q-020 收口）：本地凭证已无时统一提示「会话已过期」+ logOut 跳
+ *       登录并抛 SessionExpiredError——menu-retry 等放行页内的重试动作不再按陈旧
+ *       菜单状态失真提示（守卫/登录路径必有凭证，不触达本分支）</li>
  * </ul>
  */
 async function initRouter() {
   const userStore = useUserStoreHook();
-  if (getToken() && userStore.menus.length === 0) {
+  // 会话已终结（Q-020 收口，2026-09-20 拍板）：本地凭证已无（登出清理/过期销毁）时
+  // 统一提示+走 logOut 跳登录，并抛 SessionExpiredError 让调用方跳过按陈旧菜单状态
+  // 的业务提示（此前 menu-retry 重试零请求发出、误报「仍无可用菜单，请联系管理员」）。
+  // 守卫（multipleTabsKey+userKey 存在才触达）与登录流程（刚 setToken）路径必有凭证，
+  // 本分支实际触发面 = /menu-retry 等放行页内的非导航动作
+  if (!getToken()) {
+    notifySessionExpiredOnce();
+    await userStore.logOut();
+    throw new SessionExpiredError();
+  }
+  if (userStore.menus.length === 0) {
     try {
       // 能力刷新入口同源（T-FE-048）：拉取+侧栏重建与其余三调用方单函数语义一致
       await refreshSessionCapability();

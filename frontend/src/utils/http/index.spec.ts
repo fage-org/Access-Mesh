@@ -8,6 +8,11 @@
  * 该请求，重发无自愈可能）/ 刷新失败静默维持旧态（不重建侧栏、原请求错误照常
  * reject、无 message 弹窗）/ 401 分支不受扰。
  *
+ * token 过期短路与双分支统一提示（T-FE-054，2026-09-20 四项拍板）：本地过期
+ * 请求短路不发（reject 与提示同文案 Error）+ 并发窗口去重只弹一次 + 401 响应
+ * 同提示（双分支统一，共用 10s 去重窗口）——旧实现（无令牌放行+零提示）下必红；
+ * 白名单不做过期判定 / 未过期正常附加头为既有行为特征锁。
+ *
  * 测试形态：真实 http 单例 + 注入 403 adapter（PureHttp.axiosInstance 为 TS 私有
  * static，运行时经 constructor 取得）；store/router 外链全 mock 断链（refreshUserMenu
  * 由 mock 直接改写 mockUser.menus，验证真实 refreshSessionCapability 的「先拉取后
@@ -18,21 +23,29 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { AxiosInstance, InternalAxiosRequestConfig } from "axios";
 
-const { mockUser, mockLogOut, mockRefreshUserMenu, mockHandleBackendMenus } =
-  vi.hoisted(() => {
-    const mockUser = {
-      menus: [] as Array<{ path: string }>,
-      menuLoadFailed: false,
-      logOut: vi.fn(),
-      refreshUserMenu: vi.fn()
-    };
-    return {
-      mockUser,
-      mockLogOut: mockUser.logOut,
-      mockRefreshUserMenu: mockUser.refreshUserMenu,
-      mockHandleBackendMenus: vi.fn()
-    };
-  });
+const {
+  mockUser,
+  mockLogOut,
+  mockRefreshUserMenu,
+  mockHandleBackendMenus,
+  mockGetToken,
+  mockMessage
+} = vi.hoisted(() => {
+  const mockUser = {
+    menus: [] as Array<{ path: string }>,
+    menuLoadFailed: false,
+    logOut: vi.fn(),
+    refreshUserMenu: vi.fn()
+  };
+  return {
+    mockUser,
+    mockLogOut: mockUser.logOut,
+    mockRefreshUserMenu: mockUser.refreshUserMenu,
+    mockHandleBackendMenus: vi.fn(),
+    mockGetToken: vi.fn(),
+    mockMessage: vi.fn()
+  };
+});
 
 vi.mock("@/store/modules/user", () => ({
   useUserStoreHook: () => mockUser
@@ -47,25 +60,29 @@ vi.mock("@/store/modules/multiTags", () => ({
 }));
 vi.mock("@/router", () => ({ router: {} }));
 vi.mock("@/utils/auth", () => ({
-  getToken: () => ({
-    accessToken: "token-1",
-    refreshToken: "",
-    expires: Date.now() + 600_000
-  }),
+  getToken: (...args: unknown[]) => mockGetToken(...args),
   formatToken: (token: string) => `Bearer ${token}`,
   userKey: "user-info"
+}));
+vi.mock("@/utils/message", () => ({
+  message: (...args: unknown[]) => mockMessage(...args)
 }));
 
 /** 每用例经 resetModules 重导入取新实例（403 窗口为模块级状态，用例间必须隔离） */
 type HttpModule = typeof import("@/utils/http");
 let http: HttpModule["http"];
 let CAPABILITY_REFRESH_403_WINDOW_MS: number;
+let SESSION_EXPIRED_NOTIFY_WINDOW_MS: number;
 
 const MENU_A = { path: "/welcome", meta: { title: "首页" } };
 const MENU_B = { path: "/system/user", meta: { title: "用户管理" } };
 
+/** adapter 实际收到的请求 url 序列——短路断言「零请求发出」的事实来源 */
+const adapterCalls: string[] = [];
+
 /** 注入按 url 决定状态码的拒绝 adapter（错误形态对齐 axios：response.status + config） */
 function installAdapter(statusOf: (url: string) => number) {
+  adapterCalls.length = 0;
   // PureHttp.axiosInstance 为 private static，运行时经 constructor 取得（仅测试）
   const ctor = Object.getPrototypeOf(http).constructor as {
     axiosInstance: AxiosInstance;
@@ -73,6 +90,7 @@ function installAdapter(statusOf: (url: string) => number) {
   ctor.axiosInstance.defaults.adapter = (
     config: InternalAxiosRequestConfig
   ) => {
+    adapterCalls.push(config.url ?? "");
     const status = statusOf(config.url ?? "");
     return Promise.reject(
       Object.assign(new Error(`Request failed with status code ${status}`), {
@@ -102,11 +120,20 @@ async function expectRejected(url: string) {
 beforeEach(async () => {
   vi.clearAllMocks();
   mockRefreshUserMenu.mockReset().mockResolvedValue(undefined);
+  // 会话默认未过期（T-FE-054 短路用例各自覆盖为过期形态）
+  mockGetToken.mockReset().mockReturnValue({
+    accessToken: "token-1",
+    refreshToken: "",
+    expires: Date.now() + 600_000
+  });
   // 会话初态：侧栏两菜单（A/B）——锁②撤销断言的前置
   mockUser.menus = [MENU_A, MENU_B];
   mockUser.menuLoadFailed = false;
   vi.resetModules();
   ({ http, CAPABILITY_REFRESH_403_WINDOW_MS } = await import("@/utils/http"));
+  ({ SESSION_EXPIRED_NOTIFY_WINDOW_MS } = await import(
+    "@/utils/session-expired"
+  ));
 });
 
 afterEach(() => {
@@ -192,5 +219,97 @@ describe("http 403 触发会话能力刷新（T-FE-048）", () => {
     await drainMicrotasks();
     expect(mockLogOut).toHaveBeenCalledTimes(1);
     expect(mockRefreshUserMenu).not.toHaveBeenCalled();
+  });
+});
+
+describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
+  const EXPIRED_TOKEN = {
+    accessToken: "token-1",
+    refreshToken: "",
+    expires: Date.now() - 1000
+  };
+
+  it("锁①：本地过期请求短路不发——零 adapter 调用、reject 同文案 Error、logOut 触发（旧实现无令牌放行+resolve 必红）", async () => {
+    mockGetToken.mockReturnValue(EXPIRED_TOKEN);
+    installAdapter(() => 403); // 若发出必经 adapter（任意状态码都证明发出）
+    await expect(http.post("/api/access/type-definition/list")).rejects.toThrow(
+      "会话已过期，请重新登录"
+    );
+    await drainMicrotasks();
+    // 旧实现：请求无令牌放行 → adapter 收到 → 计数 1（此处必红）
+    expect(adapterCalls).toHaveLength(0);
+    expect(mockLogOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("锁②：并发多请求同刻过期——统一提示只弹一次（窗口去重），全部 reject（旧实现无提示必红）", async () => {
+    mockGetToken.mockReturnValue(EXPIRED_TOKEN);
+    installAdapter(() => 403);
+    const results = await Promise.allSettled([
+      http.post("/api/access/a"),
+      http.post("/api/access/b"),
+      http.post("/api/access/c")
+    ]);
+    expect(results.every(r => r.status === "rejected")).toBe(true);
+    expect(mockMessage).toHaveBeenCalledTimes(1); // 旧实现 0 次 → 红
+    expect(mockMessage).toHaveBeenCalledWith("会话已过期，请重新登录", {
+      type: "warning"
+    });
+    // logOut 触发即证（mock 层无防抖语义；真实 store 的 logoutInFlight 在
+    // fire-and-forget 后恒不命中，重复触发防护由 getToken 无令牌幂等分支承担）
+    expect(mockLogOut).toHaveBeenCalled();
+  });
+
+  it("锁③：401 响应弹「会话已过期」（双分支统一，旧实现无提示必红）+ logOut", async () => {
+    installAdapter(() => 401);
+    await expectRejected("/api/access/x");
+    await drainMicrotasks();
+    expect(mockMessage).toHaveBeenCalledTimes(1);
+    expect(mockMessage).toHaveBeenCalledWith("会话已过期，请重新登录", {
+      type: "warning"
+    });
+    expect(mockLogOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("提示窗口跨分支共用去重：401 与短路混合 10s 内只弹一次，窗口过期可再弹", async () => {
+    vi.useFakeTimers({ toFake: ["Date", "setTimeout", "clearTimeout"] });
+    installAdapter(url => (url.includes("auth401") ? 401 : 403));
+    // 路径 2：token 未过期，请求发出收 401 → 提示①
+    await expectRejected("/api/access/auth401-a");
+    await drainMicrotasks();
+    expect(mockMessage).toHaveBeenCalledTimes(1);
+    // 路径 1：同窗口内本地过期短路 → 不再弹
+    mockGetToken.mockReturnValue(EXPIRED_TOKEN);
+    await expect(http.post("/api/access/short-circuit")).rejects.toThrow();
+    await drainMicrotasks();
+    expect(mockMessage).toHaveBeenCalledTimes(1);
+    // 窗口过期：可再弹
+    vi.setSystemTime(Date.now() + SESSION_EXPIRED_NOTIFY_WINDOW_MS + 1);
+    mockGetToken.mockReturnValue({
+      accessToken: "token-1",
+      refreshToken: "",
+      expires: Date.now() + 600_000
+    });
+    await expectRejected("/api/access/auth401-b");
+    await drainMicrotasks();
+    expect(mockMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it("白名单不做过期判定：captcha 过期 token 照常放行发出（错误形态=adapter 拒绝非短路，既有行为特征锁）", async () => {
+    mockGetToken.mockReturnValue(EXPIRED_TOKEN);
+    installAdapter(() => 403);
+    await expect(http.post("/api/access/auth/captcha")).rejects.toThrow(
+      "Request failed with status code 403"
+    );
+    expect(adapterCalls).toHaveLength(1);
+    expect(mockLogOut).not.toHaveBeenCalled();
+    expect(mockMessage).not.toHaveBeenCalled();
+  });
+
+  it("未过期 token 正常附加头发出（特征锁，防短路误伤正常路径）", async () => {
+    installAdapter(() => 403);
+    await expectRejected("/api/access/normal");
+    expect(adapterCalls).toHaveLength(1);
+    expect(mockLogOut).not.toHaveBeenCalled();
+    expect(mockMessage).not.toHaveBeenCalled();
   });
 });

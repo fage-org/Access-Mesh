@@ -5,18 +5,70 @@
  * 在旧实现（恒 retry 占位项）下必红。
  * mock 说明：utils.ts 模块头部 import 链含 router 实例与三个 store hook（均仅
  * 函数内消费），此处 mock 断链——被测对象 resolveSidebarFallback 为纯函数。
+ *
+ * initRouter 无凭证分支（Q-020 收口）与 refreshSessionCapability single-flight/
+ * 代际守卫（Q-016 收口）：mock 全链 + resetModules 动态重导入（single-flight 与
+ * 提示窗口为模块级状态，用例间隔离）。
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("./index", () => ({ router: {} }));
+const {
+  mockUser,
+  mockLogOut,
+  mockRefreshUserMenu,
+  mockHandleBackendMenus,
+  mockHandleWholeMenus,
+  mockGetToken,
+  mockMessage
+} = vi.hoisted(() => {
+  const mockUser = {
+    menus: [] as Array<{ path: string }>,
+    menuLoadFailed: false,
+    logOut: vi.fn(),
+    refreshUserMenu: vi.fn()
+  };
+  return {
+    mockUser,
+    mockLogOut: mockUser.logOut,
+    mockRefreshUserMenu: mockUser.refreshUserMenu,
+    mockHandleBackendMenus: vi.fn(),
+    mockHandleWholeMenus: vi.fn(),
+    mockGetToken: vi.fn(),
+    mockMessage: vi.fn()
+  };
+});
+
+vi.mock("./index", () => ({
+  router: {
+    hasRoute: vi.fn(() => false),
+    addRoute: vi.fn(),
+    options: { routes: [{ children: [] }] }
+  }
+}));
 vi.mock("@/store/modules/multiTags", () => ({
-  useMultiTagsStoreHook: () => ({})
+  useMultiTagsStoreHook: () => ({
+    getMultiTagsCache: false,
+    handleTags: vi.fn()
+  })
 }));
 vi.mock("@/store/modules/permission", () => ({
-  usePermissionStoreHook: () => ({})
+  usePermissionStoreHook: () => ({
+    handleBackendMenus: mockHandleBackendMenus,
+    handleWholeMenus: mockHandleWholeMenus,
+    flatteningRoutes: []
+  })
 }));
-vi.mock("@/store/modules/user", () => ({ useUserStoreHook: () => ({}) }));
+vi.mock("@/store/modules/user", () => ({
+  useUserStoreHook: () => mockUser
+}));
 vi.mock("@/layout/types", () => ({ routerArrays: [] }));
+vi.mock("@/utils/auth", () => ({
+  getToken: (...args: unknown[]) => mockGetToken(...args),
+  userKey: "user-info"
+}));
+vi.mock("@/utils/message", () => ({
+  message: (...args: unknown[]) => mockMessage(...args)
+}));
 
 import { resolveSidebarFallback } from "./utils";
 
@@ -56,5 +108,110 @@ describe("resolveSidebarFallback 空侧栏占位两态（T-FE-049）", () => {
     expect(resolveSidebarFallback(true)[0].meta?.title).toBe(
       "菜单加载失败，点击重试"
     );
+  });
+});
+
+describe("initRouter 无凭证分支（Q-020 收口：menu-retry 会话过期重试不再失真）", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUser.menus = [];
+    mockUser.menuLoadFailed = false;
+  });
+
+  it("锁：本地凭证已无——统一提示+logOut+抛 SessionExpiredError，不构建侧栏（旧实现零动作 return router 必红）", async () => {
+    mockGetToken.mockReturnValue(null);
+    vi.resetModules();
+    const { initRouter } = await import("./utils");
+
+    // name 断言（非 instanceof）：resetModules 后 SessionExpiredError 与本用例模块图不同源
+    const err: unknown = await initRouter().catch(e => e);
+    expect((err as Error)?.name).toBe("SessionExpiredError"); // 旧实现 resolve router → undefined → 红
+    expect((err as Error)?.message).toBe("会话已过期，请重新登录");
+    expect(mockMessage).toHaveBeenCalledTimes(1);
+    expect(mockMessage).toHaveBeenCalledWith("会话已过期，请重新登录", {
+      type: "warning"
+    });
+    expect(mockLogOut).toHaveBeenCalledTimes(1);
+    expect(mockHandleBackendMenus).not.toHaveBeenCalled(); // 旧实现 rebuild 空侧栏占位 → 调用 → 红
+  });
+
+  it("有凭证形态不受扰：走重取分支正常构建侧栏（特征锁，防无凭证分支误伤守卫/登录路径）", async () => {
+    mockGetToken.mockReturnValue({ accessToken: "t1", expires: 1 });
+    mockUser.menus = [];
+    mockRefreshUserMenu.mockImplementation(async () => {
+      mockUser.menus = [{ path: "/welcome" }];
+    });
+    vi.resetModules();
+    const { initRouter } = await import("./utils");
+
+    const result = await initRouter();
+    expect(result).toBeDefined();
+    expect(mockLogOut).not.toHaveBeenCalled();
+    expect(mockMessage).not.toHaveBeenCalled();
+    expect(mockRefreshUserMenu).toHaveBeenCalledTimes(1);
+    // 侧栏重建发生即证（刷新入口内 rebuild + initRouter 尾部兜底 rebuild 为
+    // T-FE-048 既有幂等形态，不锁具体次数——防实现细节漂移）
+    expect(mockHandleBackendMenus).toHaveBeenCalled();
+  });
+});
+
+describe("refreshSessionCapability single-flight 与代际守卫（Q-016 收口）", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUser.menus = [{ path: "/welcome" }];
+    mockUser.menuLoadFailed = false;
+  });
+
+  it("锁：同会话并发两次只发一次 refreshUserMenu，两调用方共享同一在途结果（旧实现两次必红）", async () => {
+    mockGetToken.mockReturnValue({ accessToken: "t1", expires: 1 });
+    let resolveMenu!: () => void;
+    mockRefreshUserMenu.mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          resolveMenu = resolve;
+        })
+    );
+    vi.resetModules();
+    const { refreshSessionCapability } = await import("./utils");
+
+    const p1 = refreshSessionCapability();
+    const p2 = refreshSessionCapability();
+    expect(mockRefreshUserMenu).toHaveBeenCalledTimes(1); // 旧实现并发两发 → 2 → 红
+    resolveMenu();
+    await Promise.all([p1, p2]);
+    expect(mockHandleBackendMenus).toHaveBeenCalledTimes(1);
+  });
+
+  it("锁：跨会话代际——刷新在途时令牌已换（登出重登），旧响应不重建新会话侧栏（旧实现必红）", async () => {
+    mockGetToken.mockReturnValue({ accessToken: "t1", expires: 1 });
+    let resolveMenu!: () => void;
+    mockRefreshUserMenu.mockImplementation(
+      () =>
+        new Promise<void>(resolve => {
+          resolveMenu = resolve;
+        })
+    );
+    vi.resetModules();
+    const { refreshSessionCapability } = await import("./utils");
+
+    const pending = refreshSessionCapability();
+    mockGetToken.mockReturnValue({ accessToken: "t2", expires: 1 });
+    resolveMenu();
+    await pending;
+
+    expect(mockHandleBackendMenus).not.toHaveBeenCalled(); // 旧实现无条件 rebuild → 调用 → 红
+  });
+
+  it("同会话完成后在途标记复位：第二次调用重新发起（single-flight 非永久单次）", async () => {
+    mockGetToken.mockReturnValue({ accessToken: "t1", expires: 1 });
+    mockRefreshUserMenu.mockResolvedValue(undefined);
+    vi.resetModules();
+    const { refreshSessionCapability } = await import("./utils");
+
+    await refreshSessionCapability();
+    await refreshSessionCapability();
+
+    expect(mockRefreshUserMenu).toHaveBeenCalledTimes(2);
+    expect(mockHandleBackendMenus).toHaveBeenCalledTimes(2);
   });
 });

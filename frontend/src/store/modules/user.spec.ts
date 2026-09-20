@@ -6,8 +6,13 @@
  *  3. user-menu HTTP 401（会话失效）：不降级，reject
  *  4. user-menu 普通异常（网络等）：降级，仍 resolve
  *
- * logOut 真注销（T-FE-045）四锁：调用序（先 POST 注销后清本地）/ 服务端失败仍清理 /
- * 登出进行中短路（同一动作只发一次）/ 登出完成后重复触发零请求——旧实现（不调接口）下必红。
+ * logOut 真注销（T-FE-045）四锁 → T-FE-054/Q-016 收口后口径：调用序（先发起 POST 注销
+ * 后清本地，fire-and-forget 不等完成）/ 服务端失败仍清理（告警在微任务后排空再断言）/
+ * fire-and-forget 主锁（注销在途黑洞时本地清理与跳转已完成，注销完成后不再补清理）/
+ * 登出完成后重复触发零请求——旧实现（不调接口 / await 注销挂起）下必红。
+ *
+ * refreshUserMenu 会话代际守卫（Q-016 跨会话变体收口）：旧会话刷新在途时登出重登，
+ * 旧响应（成功/失败）不回写新会话——旧实现覆盖 menus/权限串/menuLoadFailed 必红。
  *
  * menuLoadFailed 状态维护（T-FE-049）：区分「/user-menu 拉取失败」与「拉取成功但账号
  * 无菜单」两态空侧栏——旧实现无该状态（undefined）下三用例必红。
@@ -305,10 +310,15 @@ describe("menuLoadFailed 状态维护（T-FE-049：空侧栏两态区分的事�
   });
 });
 
-describe("logOut 真注销（T-FE-045：服务端注销优先、本地清理无条件）", () => {
+describe("logOut 真注销（T-FE-045；注销 fire-and-forget 化 T-FE-054/Q-016 收口）", () => {
   const TOKEN = { accessToken: "token-1", expires: 1, refreshToken: "" };
 
-  it("调用序：先 POST 注销（显式传当前 accessToken）再清本地——removeToken/resetRouter/push 依次在后，Pinia 清空", async () => {
+  /** 微任务排空（fire-and-forget 的注销 catch 在微任务后，断言前排空） */
+  async function drainMicrotasks(times = 5) {
+    for (let i = 0; i < times; i++) await Promise.resolve();
+  }
+
+  it("调用序：先发起 POST 注销（fire-and-forget 不等完成）再清本地——removeToken/resetRouter/push 依次在后，Pinia 清空", async () => {
     mockGetToken.mockReturnValue(TOKEN);
     mockLogout.mockResolvedValue(undefined);
 
@@ -317,7 +327,7 @@ describe("logOut 真注销（T-FE-045：服务端注销优先、本地清理无�
     expect(mockLogout).toHaveBeenCalledTimes(1);
     // 注销请求显式携带当前 token（formatToken 构造 Authorization 头；旧实现不调接口，此断言必红）
     expect(mockLogout).toHaveBeenCalledWith("Bearer token-1");
-    // 调用序锁：注销请求先于本地清理，清理先于路由重置与跳转
+    // 调用序锁：注销请求发起先于本地清理，清理先于路由重置与跳转
     expect(mockLogout.mock.invocationCallOrder[0]).toBeLessThan(
       mockRemoveToken.mock.invocationCallOrder[0]
     );
@@ -342,6 +352,7 @@ describe("logOut 真注销（T-FE-045：服务端注销优先、本地清理无�
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 
     await useUserStore().logOut();
+    await drainMicrotasks();
 
     expect(warn).toHaveBeenCalled();
     expect(mockRemoveToken).toHaveBeenCalledTimes(1);
@@ -350,7 +361,7 @@ describe("logOut 真注销（T-FE-045：服务端注销优先、本地清理无�
     warn.mockRestore();
   });
 
-  it("登出进行中重复触发直接短路：同一登出动作只发一次 POST /logout，短路方不触发清理", async () => {
+  it("fire-and-forget 主锁：注销在途黑洞时 logOut 已完成本地清理与跳转（旧实现 await 挂起必红），注销完成后不再补清理——窗口内新登录凭据不被旧清理链清除的时序等价", async () => {
     mockGetToken.mockReturnValue(TOKEN);
     let resolveLogout!: () => void;
     mockLogout.mockImplementation(
@@ -360,17 +371,28 @@ describe("logOut 真注销（T-FE-045：服务端注销优先、本地清理无�
         })
     );
 
-    const first = useUserStore().logOut();
-    await useUserStore().logOut(); // 注销请求在途 → 短路
+    let settled = false;
+    const first = useUserStore()
+      .logOut()
+      .finally(() => (settled = true));
+    // 断言失败（红跑态）也必须收尾：注销 defer 不 resolve 会把 logoutInFlight 残留为
+    // true，污染后续用例（旧实现下断言红即中断）——try/finally 保证状态复位
+    try {
+      await drainMicrotasks(10);
 
-    expect(mockLogout).toHaveBeenCalledTimes(1);
-    expect(mockRemoveToken).not.toHaveBeenCalled();
-
-    resolveLogout();
-    await first;
-
+      // 注销仍 pending：logOut 已 settled 且清理链已全部完成——旧实现（await 注销）
+      // 下 first 挂起 settled=false、removeToken 未调用，两断言必红
+      expect(settled).toBe(true);
+      expect(mockRemoveToken).toHaveBeenCalledTimes(1);
+      expect(mockResetRouter).toHaveBeenCalledTimes(1);
+      expect(mockRouterPush).toHaveBeenCalledWith("/login");
+    } finally {
+      resolveLogout();
+      await first.catch(() => {});
+      await drainMicrotasks();
+    }
+    // 注销完成不触发补清理：旧清理链再无机会清掉窗口内新登录的凭据
     expect(mockRemoveToken).toHaveBeenCalledTimes(1);
-    expect(mockRouterPush).toHaveBeenCalledWith("/login");
   });
 
   it("登出完成后重复触发不再发请求：本地已清（getToken 无令牌）即幂等清理+直接跳登录", async () => {
@@ -385,5 +407,69 @@ describe("logOut 真注销（T-FE-045：服务端注销优先、本地清理无�
     expect(mockLogout).toHaveBeenCalledTimes(1); // 第二次零请求
     expect(mockRemoveToken).toHaveBeenCalledTimes(2); // 幂等清理照常
     expect(mockRouterPush).toHaveBeenCalledTimes(2); // 直接跳登录
+  });
+});
+
+describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不污染新会话）", () => {
+  it("旧会话刷新在途时登出重登：旧成功响应不回写新会话（menus/menuLoadFailed 维持新会话态）——旧实现覆盖必红", async () => {
+    const user = useUserStore();
+    user.SET_MENUS([{ path: "/new-session" } as any]);
+    user.menuLoadFailed = true; // 新会话的既有状态
+    mockGetToken.mockReturnValue({
+      accessToken: "token-old",
+      expires: 1,
+      refreshToken: ""
+    });
+    let resolveMenu!: (v: unknown) => void;
+    mockGetUserMenu.mockImplementation(
+      () =>
+        new Promise(resolve => {
+          resolveMenu = resolve;
+        })
+    );
+
+    const pending = user.refreshUserMenu();
+    // 刷新在途：旧会话登出、新登录（令牌已换）
+    mockGetToken.mockReturnValue({
+      accessToken: "token-new",
+      expires: 1,
+      refreshToken: ""
+    });
+    resolveMenu(MENU_RESP);
+    await pending;
+
+    // 旧实现：旧响应照写 → menus 被覆盖为 MENU_RESP、menuLoadFailed 置 false（双红）
+    expect(user.menus).toEqual([{ path: "/new-session" }]);
+    expect(user.menuLoadFailed).toBe(true);
+    // localStorage userKey 回写同被守卫拦截：旧会话的 roles/permissions 不落新会话存储
+    expect(mockStorage.setItem).not.toHaveBeenCalled();
+  });
+
+  it("旧会话的失败不污染新会话：menuLoadFailed 不置位、错误不上抛（新会话无关的失败被吞）——旧实现置位+上抛必红", async () => {
+    const user = useUserStore();
+    user.menuLoadFailed = false;
+    mockGetToken.mockReturnValue({
+      accessToken: "token-old",
+      expires: 1,
+      refreshToken: ""
+    });
+    let rejectMenu!: (e: unknown) => void;
+    mockGetUserMenu.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectMenu = reject;
+        })
+    );
+
+    const pending = user.refreshUserMenu();
+    mockGetToken.mockReturnValue({
+      accessToken: "token-new",
+      expires: 1,
+      refreshToken: ""
+    });
+    rejectMenu(new Error("old session network down"));
+    await pending; // 旧实现：错误上抛，此处即 throw（用例红）
+
+    expect(user.menuLoadFailed).toBe(false); // 旧实现置 true → 红
   });
 });

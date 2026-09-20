@@ -53,6 +53,12 @@ async function retry() {
         type: "warning"
       });
     }
+  } catch (err) {
+    // 会话已终结（Q-020 收口）：initRouter 无凭证分支抛 SessionExpiredError——
+    // 统一层已提示「会话已过期」并跳登录，不按陈旧菜单状态弹失真业务提示。
+    // 预期冒泡仅此一类（initRouter 内部已吞普通拉取失败）；意外异常同落此处
+    // 仅 console.warn 留痕，不窄化判别（resetModules 跨模块图下 instanceof 不可靠）
+    console.warn("[menu-retry] 菜单重试中止（会话已终结）", err);
   } finally {
     retrying.value = false;
   }
