@@ -6,9 +6,9 @@
  * 砍八态的 loading/ready/outcomeUnknown/stale + 代际号 + list 对比恢复 + 重放--
  * 内部管理页低频，超时由 saveFailed(unknownOutcome=true) 提示"网络异常，请刷新页面确认当前状态"覆盖。
  *
- * 正交性（第十一轮 P2-7）：页面 capability（edit/view）仅由门禁派生（ROLE:VIEW->view /
- * ROLE:MANAGE->edit）+ GROUP_ROLE 主体 -> view；AUTO_DEP 降为记录级 readonlyReason，
- * 不进入本状态机。
+ * 正交性（第十一轮 P2-7）：页面 capability（edit/view）仅由门禁派生（ROLE:MANAGE->edit /
+ * 否则 view）——T-FE-055 外评处置起由 hook 以 canManage 响应式派生（权限热刷新即时重算），
+ * 不再作为 store 快照字段；AUTO_DEP 降为记录级 readonlyReason，不进入本状态机。
  *
  * baseline 迁移规则：baseline 只在 apply-grant-plan 明确成功后整体切换（响应 = 完整持久化结果）；
  * 请求失败 -> 全部条目保留标红、整体重试（后端单事务原子无部分成功）。
@@ -33,18 +33,11 @@ import {
 } from "@/api/permission-grant";
 import { RequestError } from "@/api/_envelope";
 import { buildGrantPlan } from "./grant-plan";
-import type {
-  DraftChange,
-  GrantContext,
-  PageCapability,
-  SubmitState
-} from "./types";
+import type { DraftChange, GrantContext, SubmitState } from "./types";
 
 export type GrantStoreState = {
   /** 主体上下文（GrantContext，左栏选中节点派生；domainCode 恒 null） */
   context: GrantContext | null;
-  /** 页面能力（仅门禁派生，与状态机正交） */
-  capability: PageCapability;
   /** 基线（list includeChildren=true 全量：主权限 + 子权限；来源链仅消费主权限） */
   baseline: RolePermissionItem[];
   /** 草稿变更（右栏清单；有序） */
@@ -156,7 +149,6 @@ async function fetchBaseline(
 export const useGrantStore = defineStore("perm-grant", {
   state: (): GrantStoreState => ({
     context: null,
-    capability: "view",
     baseline: [],
     changes: [],
     submit: { kind: "idle" },
@@ -174,10 +166,6 @@ export const useGrantStore = defineStore("perm-grant", {
     isSaving: state => state.submit.kind === "saving"
   },
   actions: {
-    setCapability(capability: PageCapability) {
-      this.capability = capability;
-    },
-
     /**
      * 同步主体展示名（树刷新后角色改名，不重载 baseline，问题 6）。
      * 仅更新 context.displayName，不动 baseline/changes/submit（saving 期间由 onActivated
@@ -423,7 +411,6 @@ export const useGrantStore = defineStore("perm-grant", {
       this.baselineToken += 1;
       this.saveToken += 1;
       this.context = null;
-      this.capability = "view";
       this.baseline = [];
       this.changes = [];
       this.submit = { kind: "idle" };

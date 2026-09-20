@@ -21,6 +21,7 @@ const {
   subjectType,
   canView,
   canManage,
+  capability,
   grantStore,
   allResourceForest,
   allOperationDefs,
@@ -126,7 +127,7 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
             :visible-columns="visibleColumns"
             :union-columns="unionColumns"
             :mark-info="effective.markInfo"
-            :capability="grantStore.capability"
+            :capability="capability"
             :matrix-loading="matrixLoading"
             :has-subject="hasSubject"
             :subject-name="grantStore.context?.displayName ?? null"
@@ -178,7 +179,7 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
             放弃全部
           </el-button>
           <el-button
-            v-if="canManage && grantStore.capability === 'edit'"
+            v-if="capability === 'edit'"
             type="primary"
             :loading="grantStore.isSaving"
             :disabled="!grantStore.isDirty || frozen"

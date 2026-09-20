@@ -272,3 +272,38 @@ describe("预选失败状态清理（T-FE-037 评审修正回归锁）", () => {
     expect(hook.subjectTreeRef.value.preselect).not.toHaveBeenCalled();
   });
 });
+
+describe("capability 派生（T-FE-055 外评处置：codex P2 根因修——canManage 响应式派生取代主体加载时快照）", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setActivePinia(createPinia());
+    hasPermsMock.mockReturnValue(true);
+    refreshCapabilityMock.mockResolvedValue(undefined);
+    getTypeDefList.mockResolvedValue({ items: [] });
+    getResourceTree.mockResolvedValue({ items: [] });
+    getOperationList.mockResolvedValue({ items: [] });
+    getConditionList.mockResolvedValue({ items: [] });
+  });
+
+  it("形态①（每用户进页初始稳态）：持 MANAGE 未选主体 → capability=edit 且 openGrantDialog 不拒（旧实现 store 默认 view 快照——拒绝+虚假只读提示）", () => {
+    const hook = usePermissionGrant();
+    // 未调用任何主体加载流程（selectSubject/refreshAndPreset 均未走）
+    expect(hook.capability.value).toBe("edit");
+    hook.openGrantDialog();
+    expect(messageMock).not.toHaveBeenCalledWith("当前为只读视图，无授权权限", {
+      type: "warning"
+    });
+    expect(hook.dialogVisible.value).toBe(true);
+  });
+
+  it("形态②（降权侧特征锁）：无 MANAGE → capability=view 且 openGrantDialog 拒绝并提示（派生化不得弄丢只读拒绝语义）", () => {
+    hasPermsMock.mockReturnValue(false);
+    const hook = usePermissionGrant();
+    expect(hook.capability.value).toBe("view");
+    hook.openGrantDialog();
+    expect(messageMock).toHaveBeenCalledWith("当前为只读视图，无授权权限", {
+      type: "warning"
+    });
+    expect(hook.dialogVisible.value).toBe(false);
+  });
+});

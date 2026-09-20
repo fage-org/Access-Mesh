@@ -30,7 +30,7 @@ const props = defineProps<{
   sources: CellSource[];
   /** 草稿 diff 标记（add/update/remove → changeId）；MatrixCell 自行拆分为有效/被撤销两侧 */
   markInfo: Map<number, SourceDraftMark>;
-  /** 页面能力（view 时无权限格不响应点击授权） */
+  /** 页面能力（view 态本格点击仍 emit select，由页面层 openGrantDialog 派生 capability 兜底拒绝） */
   capability: "edit" | "view";
 }>();
 

@@ -46,7 +46,7 @@ docker compose --profile app up -d --build
 **体验授权闭环**（example 演示接口 403 → 授权 → 200）：
 
 1. 登录管理台，进入「服务与接口」页（侧栏菜单），登记 example-service 服务并全量声明其接口——一步创建 API 资源与 Gateway 映射；
-2. 在「角色管理」页点目标角色行进入「权限授予」（该页不进侧栏菜单，入口是角色管理页的操作按钮），给该角色授予此 API 资源的 `API:ACCESS` 操作（空库首启只有 admin 与固定图管理角色——可先在「组织与用户」页新建用户并绑定目标角色，或直接授给 admin 自身持有的管理角色后复用 admin 会话体验）；
+2. 在「角色管理」页点目标角色行进入权限入口（按钮文案按是否持 ROLE:MANAGE 为「权限授予」/「查看权限」；该页不进侧栏菜单，入口是角色管理页的操作按钮），给该角色授予此 API 资源的 `API:ACCESS` 操作（空库首启只有 admin 与固定图管理角色——可先在「组织与用户」页新建用户并绑定目标角色，或直接授给 admin 自身持有的管理角色后复用 admin 会话体验）；
 3. 用持有该角色的用户会话调 `POST http://127.0.0.1:8080/api/example/demo/hello`（body `{"name":"accessmesh"}`）——授权前 401/403，授权后 30 秒内变 200（网关快照撤权边界），响应回显 Gateway 注入的用户与租户身份。令牌来源：登录接口 `POST /api/access/auth/login` 响应的 `accessToken`（`Authorization: Bearer <token>` 头），或浏览器登录后从 DevTools 取本地会话令牌。
 
 完整五步接入指引（含服务身份头、SDK 现状）见 [扩展指南 §2](design/extension-guide.md)。

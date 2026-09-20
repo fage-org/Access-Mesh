@@ -48,6 +48,7 @@ import { decideRefreshAction, isSamePresetSubject } from "./subject-tree";
 import type {
   DraftChange,
   GrantContext,
+  PageCapability,
   SubjectType,
   SubjectTreeNode
 } from "./types";
@@ -79,6 +80,15 @@ export function usePermissionGrant() {
   const canView = computed(() => hasPerms(PERMISSION_GRANT_PERMS.ROLE_VIEW));
   const canManage = computed(() =>
     hasPerms(PERMISSION_GRANT_PERMS.ROLE_MANAGE)
+  );
+  /**
+   * 页面能力（§6.5「仅由门禁派生」的忠实实现）：canManage 的响应式派生，
+   * 权限热刷新（T-FE-048 refreshSessionCapability）后即时重算——
+   * 升权即时可授权、降权即时只读；未选主体不再是 view 态（旧「主体加载时快照」
+   * 随 T-FE-055 外评处置退役：快照在热刷新/未选主体形态下与门禁真相失真）。
+   */
+  const capability = computed<PageCapability>(() =>
+    canManage.value ? "edit" : "view"
   );
   // ========== 只读依赖（首次加载；切换主体/类型不重复拉取） ==========
 
@@ -458,9 +468,8 @@ export function usePermissionGrant() {
           }
         }
       }
-      // 后处理守卫：恰好允许本流程的补加载（gen+1）；任何新交互 → 放弃 setCapability/query 消费
+      // 后处理守卫：恰好允许本流程的补加载（gen+1）；任何新交互 → 放弃 query 消费
       if (matrixToken !== gen && matrixToken !== gen + 1) return false;
-      grantStore.setCapability(canManage.value ? "edit" : "view");
       if (route.query.roleExternalId === context.roleExternalId) {
         router.replace({
           query: { ...route.query, roleExternalId: undefined }
@@ -484,7 +493,7 @@ export function usePermissionGrant() {
         currentTypeCode.value = prevTypeCode;
         return false;
       }
-      // 代际校验：过期则放弃后处理（后选主体的流程会设置自己的 capability/消费 query）
+      // 代际校验：过期则放弃后处理（后选主体的流程会消费自己的 query）
       if (matrixToken !== gen + 1) return false;
     } catch (error: any) {
       // 代际校验：过期不回滚 currentTypeCode（可能已被后选主体/类型设置）
@@ -493,7 +502,6 @@ export function usePermissionGrant() {
       message(error.message || "加载权限配置失败", { type: "error" });
       return false;
     }
-    grantStore.setCapability(canManage.value ? "edit" : "view");
     // 一次性入口指令消费：预选成功后移除 query（问题 6）
     if (route.query.roleExternalId === context.roleExternalId) {
       router.replace({
@@ -717,7 +725,7 @@ export function usePermissionGrant() {
           );
           if (!found) {
             // 预选目标不存在（入口指向已停用/已删除主体或 query 失效）：清空旧主体并消费
-            // query——keep-alive 下旧 context/baseline/capability 保留会让矩阵仍指向旧主体、
+            // query——keep-alive 下旧 context/baseline 保留会让矩阵仍指向旧主体、
             // 后续保存作用于错误主体（同 clearSubject 语义：主体失效即清空；作废在途防复活）
             ++matrixToken;
             matrixLoading.value = false;
@@ -783,7 +791,7 @@ export function usePermissionGrant() {
   }>({});
 
   function openGrantDialog(initial: typeof dialogInitial.value = {}) {
-    if (grantStore.capability !== "edit") {
+    if (capability.value !== "edit") {
       message("当前为只读视图，无授权权限", { type: "warning" });
       return;
     }
@@ -996,6 +1004,7 @@ export function usePermissionGrant() {
     subjectType,
     canView,
     canManage,
+    capability,
     grantStore,
     // 依赖数据
     /** 全量资源森林（授权弹窗子权限配置器与详情层使用，子权限可跨类型） */
