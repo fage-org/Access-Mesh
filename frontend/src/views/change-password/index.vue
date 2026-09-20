@@ -5,7 +5,7 @@ import { storageLocal } from "@pureadmin/utils";
 import type { FormInstance } from "element-plus";
 import { message } from "@/utils/message";
 import { resetUserPassword } from "@/api/user-manage";
-import { getTopMenu } from "@/router/utils";
+import { getTopMenu, initRouter } from "@/router/utils";
 import { type DataInfo, clearForceResetPwdFlag, userKey } from "@/utils/auth";
 import { buildChangePasswordRules } from "./utils/rules";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
@@ -47,8 +47,16 @@ const onSubmit = async (formEl: FormInstance | undefined) => {
       await resetUserPassword({ userId, newPassword: ruleForm.newPassword });
       clearForceResetPwdFlag();
       message("密码修改成功", { type: "success" });
+      // 跳转前确保菜单就绪（复评 P3-2，与登录路径同形——await initRouter 后才取
+      // getTopMenu）：守卫后台发起的 initRouter 是不阻塞放行的，慢响应窗口内提交
+      // 时 wholeMenus 仍空，getTopMenu 空树解引用抛 TypeError（密码已改成功却弹
+      // 英文错误滞留本页）。initRouter 内 single-flight：守卫在途请求存在时共享
+      // 同次拉取、menus 已就绪时零额外请求；会话终结时抛 SessionExpiredError 由
+      // catch 识别跳过重复 toast（统一层已提示并跳登录）
+      await initRouter();
       router.push(getTopMenu(true).path);
     } catch (error) {
+      if ((error as Error)?.name === "SessionExpiredError") return;
       message((error as Error)?.message || "密码修改失败", { type: "error" });
     } finally {
       loading.value = false;

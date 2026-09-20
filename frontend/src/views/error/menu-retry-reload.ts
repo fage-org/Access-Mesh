@@ -1,10 +1,7 @@
 import { refreshSessionCapability } from "@/router/utils";
 import { useUserStoreHook } from "@/store/modules/user";
 import { isSessionTerminated } from "@/utils/auth";
-import {
-  notifySessionExpiredOnce,
-  SessionExpiredError
-} from "@/utils/session-expired";
+import { terminateLocalSession } from "@/utils/session-expired";
 
 export type MenuReloadOutcome = "recovered" | "still-failed" | "still-empty";
 
@@ -26,18 +23,16 @@ export type MenuReloadOutcome = "recovered" | "still-failed" | "still-empty";
  * 形态（响应拦截器已提示并 logOut）不按陈旧菜单状态弹失真业务提示。
  */
 export async function reloadSessionMenus(): Promise<MenuReloadOutcome> {
-  if (isSessionTerminated()) {
-    notifySessionExpiredOnce();
-    await useUserStoreHook().logOut();
-    throw new SessionExpiredError();
-  }
+  // 会话终结处置三件套单源（T-FE-056 复评 P3-1 统一）
+  if (isSessionTerminated()) terminateLocalSession();
   try {
     await refreshSessionCapability();
   } catch {
-    if (isSessionTerminated()) {
-      // 401 型终结：拦截器已提示「会话已过期」并 logOut——不弹「菜单加载仍失败」失真提示
-      throw new SessionExpiredError();
-    }
+    // 后置判同样走三件套完整处置：isSessionTerminated 判据（无凭证 ∨ 本地到期）
+    // 宽于 401 型——「在途跨过本地到期点+非 401 失败」形态下原只抛形态会点击无
+    // 反馈且 store 未清理（复评 P3-1 主修点）；401 形态下拦截器已提示过，10s
+    // 去重窗口防双弹
+    if (isSessionTerminated()) terminateLocalSession();
     return "still-failed";
   }
   return useUserStoreHook().menus.length > 0 ? "recovered" : "still-empty";

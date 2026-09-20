@@ -57,8 +57,7 @@ async function retry() {
   } catch (err) {
     // 会话已终结（Q-020 收口，含 401 型——拦截器已提示并 logOut）：前置/后置
     // 双判抛 SessionExpiredError，统一层已提示「会话已过期」并跳登录，不按陈旧
-    // 菜单状态弹失真业务提示。预期冒泡仅此一类（能力刷新入口已吞普通拉取失败
-    // 转 still-failed）；意外异常同落此处仅 console.warn 留痕，不窄化判别
+    // 菜单状态弹失真业务提示。预期冒泡仅此一类（普通拉取失败由本编排 catch 转 still-failed 三态——能力刷新入口自身原样抛出不吞，见其 JSDoc）；意外异常同落此处仅 console.warn 留痕，不窄化判别
     // （resetModules 跨模块图下 instanceof 不可靠）
     console.warn("[menu-retry] 菜单重试中止（会话已终结）", err);
   } finally {

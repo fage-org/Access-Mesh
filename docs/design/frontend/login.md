@@ -45,7 +45,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 - `POST /api/access/auth/captcha` → `R<CaptchaResp{captchaId, image}>`（契约来源：后端 `AdminAuthController`/`CaptchaResp`——平台登录端点族未成册，契约总册 §6.4 已登记，以代码为准）
 - `POST /api/access/auth/login` → `R<LoginResp{accessToken, refreshToken(null), expiresIn(秒), tokenType, userId, username, tenantId, forceResetPwd}>`（契约来源同上：`LoginReq`/`LoginResp`）；业务失败 HTTP 200 + code≠200
-- `POST /api/access/auth/user-menu` → `R<UserMenuData{menus, roles, permissions}>`（拉取时机（T-FE-048 起）：登录（loginByUsername 直调）、会话恢复（initRouter 拉取分支，F5/启动）、403 自动刷新、顶栏手动入口、授予页重试（retryLoadDeps）——登录外四路均收敛到「会话权限热刷新」节的能力刷新入口，登录路径复用 loginByUsername 已拉取结果不重复请求；HTTP 401 会话失效不降级 rethrow，其余异常仅 console.warn 不阻断登录）
+- `POST /api/access/auth/user-menu` → `R<UserMenuData{menus, roles, permissions}>`（拉取时机（T-FE-048 起）：登录（loginByUsername 直调）、会话恢复（initRouter 拉取分支，F5/启动）、403 自动刷新、顶栏手动入口、授予页重试（retryLoadDeps）、menu-retry 重试（reloadSessionMenus，T-FE-056 起）——登录外各路均收敛到「会话权限热刷新」节的能力刷新入口，登录路径复用 loginByUsername 已拉取结果不重复请求；HTTP 401 会话失效不降级 rethrow，其余异常仅 console.warn 不阻断登录）
 - 路径经 Gateway 统一路由（`/api/access/**` 单命名空间，无 StripPrefix——T-ACCESS-042）；开发环境由 vite proxy 单条 `/api` 同路径转发（`VITE_PROXY_TARGET`）
 
 ## 组件结构（含可复用组件识别）
@@ -74,7 +74,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 **问题**：管理员给用户 A 新增 `USER:UPDATE` 后 A 的按钮不出现、撤权后按钮残留点击 403，只能 F5/重登——`refreshUserMenu()` 原全仓仅 loginByUsername 与 initRouter 两处调用，且**仅刷 store 不重建侧栏**（permissionStore.wholeMenus 唯一重建点在 initRouter），「按钮权限已新、侧栏旧菜单残留继续点击 403」。**机制必须落在被授权人会话侧**（管理员授权发生在管理员自己的浏览器，页面内刷新帮不了被授权人），403 触发正是「被授权人下一个动作即自愈」的形态（弃轮询/推送——前者延迟=N 分钟且常驻请求量、后者需后端新事件机制属长期项）。
 
-**统一能力刷新入口**（`src/router/utils.ts refreshSessionCapability`，单函数原子更新）：权限串（roles/permissions/menus 经 user store `refreshUserMenu`）+ 侧栏 wholeMenus（复用 initRouter 的 `buildSidebarMenus`/`handleBackendMenus` 接线；menus 空时按 `menuLoadFailed` 渲染两态占位）。四个调用方共用：initRouter、403 自动刷新、顶栏手动入口、授予页 retryLoadDeps（permission-grant.md §10）。语义：
+**统一能力刷新入口**（`src/router/utils.ts refreshSessionCapability`，单函数原子更新）：权限串（roles/permissions/menus 经 user store `refreshUserMenu`）+ 侧栏 wholeMenus（复用 initRouter 的 `buildSidebarMenus`/`handleBackendMenus` 接线；menus 空时按 `menuLoadFailed` 渲染两态占位）。调用方共用：initRouter、403 自动刷新、顶栏手动入口、授予页 retryLoadDeps、menu-retry 重试编排（T-FE-056 起，经 reloadSessionMenus）——复评 P3-3 同批补记第五方。语义：
 
 - 成功：侧栏即时重建（撤销的菜单项从侧栏消失；全撤销落「当前账号无可用菜单」占位）；
 - 失败：原样抛出且不触碰 wholeMenus——按钮/侧栏维持旧态（后端 fail-closed 兜底）；门禁状态机维持 loaded（failed 仅由首次加载失败产生）——T-FE-056 起门禁消费面落地：path 集为 menus 的**响应式派生**（每次导航现算，本入口回写 menus 即门禁随会话权限即时收敛，无快照失联——T-FE-055 capability 派生化同款定案）、状态机迁移在本入口所经的 `refreshUserMenu`（见下节）；

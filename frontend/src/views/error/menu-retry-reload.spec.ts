@@ -15,6 +15,7 @@ const {
   mockRefreshCapability,
   mockIsSessionTerminated,
   mockNotifyExpired,
+  mockTerminate,
   mockStorage,
   mockRouterPush,
   mockResetRouter
@@ -22,6 +23,7 @@ const {
   mockRefreshCapability: vi.fn(),
   mockIsSessionTerminated: vi.fn(),
   mockNotifyExpired: vi.fn(),
+  mockTerminate: vi.fn(),
   mockStorage: {
     getItem: vi.fn(() => null),
     setItem: vi.fn(),
@@ -38,11 +40,18 @@ vi.mock("@/utils/auth", () => ({
   getToken: vi.fn(),
   setToken: vi.fn(),
   removeToken: vi.fn(),
+  // logOut 消费 formatToken——当前 getToken 桩恒 undefined 不可达，补齐防未来桩
+  // 返回真令牌时误导性 TypeError（T-FE-047 同族 mock 泄漏教训，复评存量观察）
+  formatToken: (t: string) => "Bearer " + t,
   userKey: "user-info"
 }));
 vi.mock("@/utils/session-expired", () => ({
   notifySessionExpiredOnce: mockNotifyExpired,
-  SessionExpiredError: class SessionExpiredError extends Error {}
+  SessionExpiredError: class SessionExpiredError extends Error {},
+  // 三件套桩（复评 P3-1 统一后被测路径消费）：真实行为经 beforeEach 注入——工厂
+  // 内动态 import store 会经 http 链循环重入未完成的 mock 自身（死锁，index.spec
+  // 同坑实证），静态工厂+运行期注入等价且无环
+  terminateLocalSession: mockTerminate
 }));
 vi.mock("@/store/utils", () => ({
   store: createPinia(),
@@ -62,6 +71,13 @@ beforeEach(() => {
   setActivePinia(createPinia());
   vi.clearAllMocks();
   mockIsSessionTerminated.mockReturnValue(false);
+  // terminateLocalSession 三件套真实语义注入（真 store logOut+抛 mock 类）——
+  // 与 src/utils/session-expired.ts 实现逐句对应
+  mockTerminate.mockImplementation((): never => {
+    mockNotifyExpired();
+    useUserStoreHook().logOut();
+    throw new SessionExpiredError();
+  });
 });
 
 describe("menu-retry 重载编排（T-FE-056 外评处置：能力刷新入口形态）", () => {
@@ -148,16 +164,19 @@ describe("menu-retry 重载编排（T-FE-056 外评处置：能力刷新入口�
     expect(mockRouterPush).toHaveBeenCalledWith("/login");
   });
 
-  it("401 后置判：拉取失败且会话已终结（拦截器已 logOut）→ 抛 SessionExpiredError 不弹失真业务提示——预清+回滚旧实现下该形态回滚旧菜单并返回 still-failed 必红", async () => {
-    // 401 形态：刷新抛错后 isSessionTerminated 翻真（令牌已被 http 拦截器 logOut
-    // 清除——本 spec 对 http 断链，以判据 mock 表达同一时序）
-    mockRefreshCapability.mockRejectedValue(new Error("401"));
+  it("后置终结判三件套完整处置（复评 P3-1 主锁）：拉取失败且会话终结 → 提示+logOut+抛 SessionExpiredError——旧形态（后置只抛不提示不清会话，「在途跨过本地到期点+非 401 失败」时点击无反馈）下 notify/push 零调用必红", async () => {
+    // 会话终结形态：刷新抛错后 isSessionTerminated 翻真（401 时 http 拦截器已
+    // logOut；本 spec 对 http 断链，以判据 mock 表达同一时序——「在途跨期+非 401」
+    // 形态下无拦截器前置，三件套是唯一提示与清理通道）
+    mockRefreshCapability.mockRejectedValue(new Error("timeout"));
     mockIsSessionTerminated
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(true);
 
-    // 抛 SessionExpiredError 由页面 catch 留痕（不弹「菜单加载仍失败」失真提示）；
-    // 回滚形态实现下此处 resolve "still-failed"（不抛）必红
+    // 三件套：提示 + logOut 跳登录 + 抛 SessionExpiredError（页面 catch 留痕，
+    // 不弹「菜单加载仍失败」失真提示）
     await expect(reloadSessionMenus()).rejects.toThrow(SessionExpiredError);
+    expect(mockNotifyExpired).toHaveBeenCalledTimes(1);
+    expect(mockRouterPush).toHaveBeenCalledWith("/login");
   });
 });

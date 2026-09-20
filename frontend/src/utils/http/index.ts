@@ -14,7 +14,7 @@ import { getToken, formatToken, isSessionTerminated } from "@/utils/auth";
 import { useUserStoreHook } from "@/store/modules/user";
 import { refreshSessionCapability } from "@/router/utils";
 import {
-  SessionExpiredError,
+  terminateLocalSession,
   notifySessionExpiredOnce
 } from "@/utils/session-expired";
 
@@ -102,22 +102,19 @@ class PureHttp {
         ];
         return whiteList.some(url => config.url.endsWith(url))
           ? config
-          : new Promise((resolve, reject) => {
+          : new Promise(resolve => {
               const data = getToken();
               if (isSessionTerminated(data)) {
                 // 会话终结短路（T-FE-054，2026-09-20 拍板）：不再无令牌放行（原
-                // T-FE-041 口径由 Gateway 401 兜底，多一次必然 401 的往返）——统一
-                // 提示（去重）+ logOut 清会话回登录页（注销 fire-and-forget，本地
-                // 清理不等服务端），本次请求直接 reject；reject 用 SessionExpiredError
-                //（message 与提示同源，toErrorMessage 经 Error 分支透出；授予页
-                // classifySaveError 按 name 识别为「未发出可重试」非「结果未知」——
-                // claude 外评 P3 处置）。判据单源 isSessionTerminated（无凭证 ∨ 本地
-                // expires 已到期——cookie 被清、userKey 残留形态同判终结，外评 P2）：
-                // 无凭证形态同样短路——并发短路首个 logOut 同步清令牌后，后续请求
-                // 不得无头放行再跑一次必然 401 的往返（codex sol 外评 P2 收口）
-                notifySessionExpiredOnce();
-                useUserStoreHook().logOut();
-                reject(new SessionExpiredError());
+                // T-FE-041 口径由 Gateway 401 兜底，多一次必然 401 的往返）。处置
+                // 经 terminateLocalSession 三件套单源（提示+logOut+抛 SessionExpiredError
+                // ——T-FE-056 复评 P3-1 统一；message 与提示同源，授予页
+                // classifySaveError 按 name 识别为「未发出可重试」）；executor 内
+                // throw 被 Promise 构造转为 reject，与原 reject 形态等价。判据单源
+                // isSessionTerminated（无凭证 ∨ 本地 expires 已到期——cookie 被清、
+                // userKey 残留形态同判终结）；无凭证形态同样短路——并发短路首个
+                // logOut 同步清令牌后，后续请求不得无头放行再跑一次必然 401 的往返
+                terminateLocalSession();
               } else {
                 config.headers["Authorization"] = formatToken(data.accessToken);
                 resolve(config);

@@ -23,10 +23,7 @@ import {
   userKey,
   type DataInfo
 } from "@/utils/auth";
-import {
-  notifySessionExpiredOnce,
-  SessionExpiredError
-} from "@/utils/session-expired";
+import { terminateLocalSession } from "@/utils/session-expired";
 import type { UserMenuRoute } from "@/api/auth";
 import { type menuType, routerArrays } from "@/layout/types";
 import { useMultiTagsStoreHook } from "@/store/modules/multiTags";
@@ -272,8 +269,8 @@ function buildSidebarMenus(
 
 /**
  * 侧栏按 user store 当前 menus 重建（统一形态：非空后端树 / 空态两态占位项）。
- * initRouter 与会话能力刷新入口共用同一接线（T-FE-048），保证四调用方
- * （initRouter / 403 自动刷新 / 顶栏手动入口 / 授予页重试）侧栏形态一致。
+ * initRouter 与会话能力刷新入口共用同一接线（T-FE-048），保证各调用方
+ * （initRouter / 403 自动刷新 / 顶栏手动入口 / 授予页重试 / menu-retry 重试编排〔T-FE-056 起〕）侧栏形态一致。
  */
 function rebuildSidebarFromUserMenus() {
   const userStore = useUserStoreHook();
@@ -301,7 +298,7 @@ let capabilityRefreshInFlight: {
  * （roles/permissions/menus，经 user store refreshUserMenu）+ 侧栏 wholeMenus。
  * 仅刷 store 不重建侧栏会造成「按钮权限已新、侧栏旧菜单残留继续点击 403」，
  * 故二者必须同入口——调用方：initRouter、http 403 自动刷新、顶栏手动入口、
- * 授予页 retryLoadDeps。
+ * 授予页 retryLoadDeps、menu-retry 重试编排（T-FE-056 起，经 reloadSessionMenus）。
  * <p>
  * 语义：
  * <ul>
@@ -376,14 +373,12 @@ async function initRouter() {
   // 时该形态漏走刷新分支重弹失真提示。登录流程（刚 setToken 未过期）恒不触达；
   // 触发面 = /menu-retry 等放行页内动作 + 本地过期后的 F5 会话恢复（守卫 then 已
   // 补 catch 留痕，见 router/index.ts）
-  if (isSessionTerminated()) {
-    notifySessionExpiredOnce();
-    await userStore.logOut();
-    throw new SessionExpiredError();
-  }
+  // 会话终结处置三件套单源（T-FE-056 复评 P3-1 统一；原手写 await logOut 与不
+  // await 等价——logOut fire-and-forget 后本地清理在同步段完成，T-FE-054 定案）
+  if (isSessionTerminated()) terminateLocalSession();
   if (userStore.menus.length === 0) {
     try {
-      // 能力刷新入口同源（T-FE-048）：拉取+侧栏重建与其余三调用方单函数语义一致
+      // 能力刷新入口同源（T-FE-048）：拉取+侧栏重建与其余各调用方单函数语义一致
       await refreshSessionCapability();
     } catch (err) {
       // fail-closed：拉取失败按空菜单处理（下方占位项给出显式重试入口）
