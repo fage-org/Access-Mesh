@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-078
 title: 自动授权实施前协议与算法校准
-status: proposed
+status: in-progress
 plan: docs/plans/iam-task-closure-plan.md
 domain: access-service
 design_refs:
@@ -24,7 +24,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-20
+last_updated: 2026-09-21
 ---
 
 # T-PERM-078 自动授权实施前协议与算法校准
@@ -36,6 +36,14 @@ last_updated: 2026-09-20
 ## 当前口径
 
 实施依据为[自动授权设计](../design/dependency-auto-grant.md)，不是已被取代的候选评估稿。[M1～M5](../design/dependency-auto-grant.md#implementation-decisions)按实施前决策核实并回写权威设计与任务。M3 管理写边界、M1 的 FULL 代次拒旧/完整空资源清单/停用不影响传播、M2 保留事实并精确去重及 M5 参考性预览与按最新事实保存已确定；存量迁移、真实引擎验证及其余未决协议继续收敛，不因定案宣称本卡验收完成。
+
+**M1 必须决定的接入边界**：资源 FULL 的发布代次与增量 sync 的逐业务键 `syncVersion` 当前不可比较。`ResourceEntitySyncReq` 仅有 `SyncVersionRef`，`ResourceEntityFullSyncReq` 当前仅 scope/items；FULL 缺失集通过 `seenBusinessKeyHashes` 判断，遍历 scope metadata 后直接标 DELETED/软删，省略项没有可用于版本比较的请求项。资源树锁只串行化服务端事务，不能改变请求在源侧采集的时间顺序。
+
+以仓库真实接入测试 `CustomResourceTypeSlicePgIT` 的 `e2e-order-service / E2E_ORDER / ORDER-1001` 链路为基础：FULL 42 已采集仅含 ORDER-1001，随后源侧新增 ORDER-1002 并通过单条 UPSERT 成功；FULL 42 后到，虽然没有比它更新的 FULL，仍会将 ORDER-1002 当缺失项删除。反向交错同样存在：删除资源后的 FULL 已完成，延迟的旧 UPSERT 没有共同快照顺序，可能重建刚清理的事实。这个问题已有本卡验收承接，不重复登记 pending-problems。
+
+待选择：①混用 FULL 的资源 scope 中，增量与 FULL 共同携带发布源确定的可比较顺序，平台实现双向旧请求防护，纯增量 scope 可保持现役协议；②增量请求形状保持现役，由接入方在采集 FULL 前暂停该 scope 的变更/增量，排空在途请求，FULL 完成后再恢复，平台只保证已定 FULL 对 FULL 拒旧。两者分别增加协议迁移成本或源侧协调/暂停成本，尚未采纳任何选项；不得据此实现新字段或降低一致性承诺。
+
+**迁移证据边界**：本机 Docker 当前仅见 ItInfra 测试 PG/Redis，默认应用数据库 5432 没有监听；这些测试库不能证明部署环境旧依赖数据为空。旧依赖仍不得静默转为自动生效或直接清空，实际数据核查与迁移继续由本卡/071 承接。
 
 ## 范围
 

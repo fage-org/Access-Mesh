@@ -47,7 +47,7 @@
 | [T-PERM-077](T-PERM-077.md) | 操作继承掩码缺省值契约对齐 | ⚙️ | — |
 | [T-ACCESS-052](T-ACCESS-052.md) | 实例委派的目录菜单与管理任务闭环 | ⚙️ | T-ORG-003 |
 | [T-ACCESS-053](T-ACCESS-053.md) | 首次服务接入与撤销验证路径简化 | ⚙️ | T-GW-010 |
-| [T-PERM-078](T-PERM-078.md) | 自动授权实施前协议与算法校准 | ⚙️ | — |
+| [T-PERM-078](T-PERM-078.md) | 自动授权实施前协议与算法校准 | 🔨 | — |
 | [T-ACCESS-054](T-ACCESS-054.md) | 外围任务能力与缓存过渡机制取舍 | ⚙️ | — |
 | [T-ACCESS-055](T-ACCESS-055.md) | 核心用户任务组合验收与文档收口 | ⚙️ | T-ORG-002, T-ADMIN-028, T-PERM-074, T-PERM-075, T-PERM-076, T-FE-057, T-FE-058, T-API-004, T-ADMIN-029, T-FE-059, T-PERM-077, T-ACCESS-052, T-ACCESS-053 |
 
@@ -466,7 +466,7 @@ _（暂无）_
 
 | 设计变更 | 受影响任务 | 核对状态 | 处理要求 |
 |---|---|---|---|
-| [自动授权简化方案](../design/dependency-auto-grant.md)采纳及 M1/M2/M3/M5 已定边界 | T-PERM-071/072/073/078 | 已核对（2026-09-20），design_refs 与验收已更新 | 078 收敛剩余协议、迁移及验证前，071～073 不进入实施；状态仍为 proposed |
+| [自动授权简化方案](../design/dependency-auto-grant.md)采纳及 M1/M2/M3/M5 已定边界 | T-PERM-071/072/073/078 | 已核对（2026-09-20），design_refs 与验收已更新 | 078 收敛剩余协议、迁移及验证前，071～073 不进入实施；078 为 in-progress，071～073 仍为 proposed |
 | `docs/design/schema/` 四份旧 DDL（admin-service.sql / permission-center.sql / seed-admin-operations.sql / seed-perm-operations.sql）标记 superseded，权威 DDL 为 access-service.sql（2026-08-12，T-ACCESS-002） | T-ACCESS-012；T-PERM-019/020/021/034/041（proposed 待重基线） | ✅ 已收口（2026-08-22，T-ACCESS-012：四文件物理归档 `docs/archive/2026-08-22/schema/`；全仓活引用切换 access-service.sql；T-PERM-019/020/021/034/041 已重基线） | 实现与测试以 `schema/access-service.sql` 为唯一依据（已达成；T-PERM-013 为 done 历史事实不改） |
 | `design/access-service-architecture.md` §9 与 `design/project-rules.md` §1.2 明确归并后的错误码归属（2026-08-12） | T-ACCESS-001、T-ACCESS-011、T-ACCESS-012 | ✅ 全部收口（T-ACCESS-011 已验收；T-ACCESS-012 已收口设计一致性，admin-service-api-contract 错误码措辞对齐 §1.2） | 既有管理域 `1xxxx`、权限域 `2xxxx` 原值保留并继续按领域新增；`access.application` 按对外入口所属领域取码，公共技术失败使用 `9xxxx`；禁止合并枚举、重编号或新增 `4xxxx` 段。T-ACCESS-001 保留领域枚举，T-ACCESS-011 扫描验收，T-ACCESS-012 收口设计一致性 |
 | `design/access-service-architecture.md` §7.2/§10 补充授权失效后的陈旧回填防护（2026-08-12） | T-ACCESS-008、T-ACCESS-011、T-ACCESS-012 | ✅ 全部收口（T-ACCESS-008 已实施 2026-08-21；T-ACCESS-011 已验收（容器部分待 CI）；T-ACCESS-012 已收口设计一致性） | 授权 L2 miss 在数据库读取前记录单调时钟起点，回填只能使用从该起点计算的剩余 catalog TTL，预算耗尽不写入，批量/重试不得重置；T-ACCESS-008 扩展受 catalog 上限约束的单次 TTL SPI 并补闩锁竞态测试，实施完成时同步两份缓存 skill，T-ACCESS-011 验收，T-ACCESS-012 收口设计一致性 |

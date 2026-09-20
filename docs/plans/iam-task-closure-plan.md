@@ -64,7 +64,7 @@ last_updated: 2026-09-21
 | [T-PERM-077](../tasks/T-PERM-077.md) | 操作继承掩码缺省值契约对齐 | ⚙️ | — |
 | [T-ACCESS-052](../tasks/T-ACCESS-052.md) | 实例委派的目录菜单与管理任务闭环 | ⚙️ | T-ORG-003 |
 | [T-ACCESS-053](../tasks/T-ACCESS-053.md) | 首次服务接入与撤销验证路径简化 | ⚙️ | T-GW-010 |
-| [T-PERM-078](../tasks/T-PERM-078.md) | 自动授权实施前协议与算法校准 | ⚙️ | — |
+| [T-PERM-078](../tasks/T-PERM-078.md) | 自动授权实施前协议与算法校准 | 🔨 | — |
 | [T-ACCESS-054](../tasks/T-ACCESS-054.md) | 外围任务能力与缓存过渡机制取舍 | ⚙️ | — |
 | [T-ACCESS-055](../tasks/T-ACCESS-055.md) | 核心用户任务组合验收与文档收口 | ⚙️ | T-ORG-002, T-ADMIN-028, T-PERM-074, T-PERM-075, T-PERM-076, T-FE-057, T-FE-058, T-API-004, T-ADMIN-029, T-FE-059, T-PERM-077, T-ACCESS-052, T-ACCESS-053 |
 
@@ -84,4 +84,4 @@ last_updated: 2026-09-21
 
 ## 当前进度
 
-计划已 active，T-PERM-074 已 done，其余任务状态见任务清单。自动授权简化方向已 adopted，078 继续收敛设计 M1～M5，071～073 验收已衔接；其他任务待决项维持原安排。已有问题/在途事项的去重与承接见[评审证据映射](../archive/2026-09-20/comprehensive-review.md)。
+计划已 active，T-PERM-074 已 done，T-PERM-078 为 in-progress，其余任务状态见任务清单。自动授权简化方向已 adopted，078 继续收敛设计 M1～M5，071～073 验收已衔接；其他任务待决项维持原安排。已有问题/在途事项的去重与承接见[评审证据映射](../archive/2026-09-20/comprehensive-review.md)。
