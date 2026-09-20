@@ -10,11 +10,11 @@ import type {
   PureHttpRequestConfig
 } from "./types.d";
 import { stringify } from "qs";
-import { getToken, formatToken } from "@/utils/auth";
+import { getToken, formatToken, isSessionTerminated } from "@/utils/auth";
 import { useUserStoreHook } from "@/store/modules/user";
 import { refreshSessionCapability } from "@/router/utils";
 import {
-  SESSION_EXPIRED_MESSAGE,
+  SessionExpiredError,
   notifySessionExpiredOnce
 } from "@/utils/session-expired";
 
@@ -105,18 +105,18 @@ class PureHttp {
           : new Promise((resolve, reject) => {
               const data = getToken();
               if (data) {
-                const now = new Date().getTime();
-                const expired = parseInt(data.expires) - now <= 0;
-                if (expired) {
+                if (isSessionTerminated(data)) {
                   // 会话到期短路（T-FE-054，2026-09-20 拍板）：不再无令牌放行（原
                   // T-FE-041 口径由 Gateway 401 兜底，多一次必然 401 的往返）——统一
                   // 提示（去重）+ logOut 清会话回登录页（注销 fire-and-forget，本地
-                  // 清理不等服务端），本次请求直接 reject；页面层 catch 的 Error.message
-                  // 与提示同文案，由 toErrorMessage 透出（页面层照弹形态与 401 一致；
-                  // 401 的 axios 错误优先透 Gateway body message，文案不必同源）
+                  // 清理不等服务端），本次请求直接 reject；reject 用 SessionExpiredError
+                  //（message 与提示同源，toErrorMessage 经 Error 分支透出；授予页
+                  // classifySaveError 按 name 识别为「未发出可重试」非「结果未知」——
+                  // claude 外评 P3 处置）。判据单源 isSessionTerminated：cookie 被清、
+                  // userKey 残留形态（getToken 真值但 expires 已过）同判终结——外评 P2
                   notifySessionExpiredOnce();
                   useUserStoreHook().logOut();
-                  reject(new Error(SESSION_EXPIRED_MESSAGE));
+                  reject(new SessionExpiredError());
                 } else {
                   config.headers["Authorization"] = formatToken(
                     data.accessToken
@@ -157,9 +157,11 @@ class PureHttp {
         // HTTP 401 统一窄处理（T-FE-041）：收到 401 即清除本地会话并跳转登录页；
         // 不增加 refresh-token、自动续期或重试体系。后端业务失败为 HTTP 200 + code≠200，
         // 不经过此分支。会话已过期提示（T-FE-054 双分支统一，2026-09-20 拍板）：
-        // 服务端判定失效（30min 冻结/他端登出）与本地过期短路同语义同文案，共用去重窗口
+        // 服务端判定失效（30min 冻结/他端登出）与本地过期短路同语义同文案，共用去重
+        // 窗口。**令牌仍在才提示**（claude 外评 P3 处置）：主动登出（logOut 已清令牌）
+        // 后在途请求的 401 不弹「会话已过期」误导——退出意图是用户自己的动作
         if ($error?.response?.status === 401) {
-          notifySessionExpiredOnce();
+          if (getToken()) notifySessionExpiredOnce();
           useUserStoreHook().logOut();
         }
         // 403 触发会话权限热刷新（T-FE-048）：窗口去重 + 失败静默 + 不重放原请求；

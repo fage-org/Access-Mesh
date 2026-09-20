@@ -44,6 +44,18 @@ export function getToken(): DataInfo<number> {
 }
 
 /**
+ * 会话是否已终结（T-FE-054/Q-020 单源判据，claude 外评 P2 收口 2026-09-20）：
+ * 无凭证（cookie 与 userKey 均无）∨ 本地 `expires` 已到期。请求拦截器短路分支与
+ * initRouter 会话终结分支共用——`getToken()` cookie 缺失时兜底 userKey（setUserKey
+ * 七字段不含 accessToken、仅 removeToken 清除），「cookie 过期被清 + userKey 残留」
+ * 形态下 getToken() 仍真值，仅判 `!getToken()` 会漏（Q-020 条目点名的形态）。
+ */
+export function isSessionTerminated(data = getToken()): boolean {
+  if (!data) return true;
+  return parseInt(data.expires) - Date.now() <= 0;
+}
+
+/**
  * @description 设置`token`以及一些必要信息并采用无感刷新`token`方案
  * 无感刷新：后端返回`accessToken`（访问接口使用的`token`）、`refreshToken`（用于调用刷新`accessToken`的接口时所需的`token`，`refreshToken`的过期时间（比如30天）应大于`accessToken`的过期时间（比如2小时））、`expires`（`accessToken`的过期时间）
  * 将`accessToken`、`expires`、`refreshToken`这三条信息放在key值为authorized-token的cookie里（过期自动销毁）

@@ -17,7 +17,12 @@ import {
   isIncludeAllChildren
 } from "@pureadmin/utils";
 import { buildHierarchyTree } from "@/utils/tree";
-import { getToken, userKey, type DataInfo } from "@/utils/auth";
+import {
+  getToken,
+  isSessionTerminated,
+  userKey,
+  type DataInfo
+} from "@/utils/auth";
 import {
   notifySessionExpiredOnce,
   SessionExpiredError
@@ -362,12 +367,15 @@ export async function refreshSessionCapability(): Promise<void> {
  */
 async function initRouter() {
   const userStore = useUserStoreHook();
-  // 会话已终结（Q-020 收口，2026-09-20 拍板）：本地凭证已无（登出清理/过期销毁）时
-  // 统一提示+走 logOut 跳登录，并抛 SessionExpiredError 让调用方跳过按陈旧菜单状态
-  // 的业务提示（此前 menu-retry 重试零请求发出、误报「仍无可用菜单，请联系管理员」）。
-  // 守卫（multipleTabsKey+userKey 存在才触达）与登录流程（刚 setToken）路径必有凭证，
-  // 本分支实际触发面 = /menu-retry 等放行页内的非导航动作
-  if (!getToken()) {
+  // 会话已终结（Q-020 收口，2026-09-20 拍板）：统一提示+走 logOut 跳登录，并抛
+  // SessionExpiredError 让调用方跳过按陈旧菜单状态的业务提示（此前 menu-retry 重试
+  // 零请求发出、误报「仍无可用菜单，请联系管理员」）。判据单源 isSessionTerminated
+  // （claude 外评 P2 收口）：无凭证 ∨ 本地 expires 已到期——「cookie 过期被清+
+  // userKey 残留」形态（getToken 真值无 accessToken）同判终结，此前仅判 !getToken()
+  // 时该形态漏走刷新分支重弹失真提示。登录流程（刚 setToken 未过期）恒不触达；
+  // 触发面 = /menu-retry 等放行页内动作 + 本地过期后的 F5 会话恢复（守卫 then 已
+  // 补 catch 留痕，见 router/index.ts）
+  if (isSessionTerminated()) {
     notifySessionExpiredOnce();
     await userStore.logOut();
     throw new SessionExpiredError();

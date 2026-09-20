@@ -472,4 +472,35 @@ describe("refreshUserMenu 会话代际守卫（Q-016 收口：旧会话响应不
 
     expect(user.menuLoadFailed).toBe(false); // 旧实现置 true → 红
   });
+
+  it("锁（外评 P3）：会话终结型失败不吞——401 分支已 logOut 清令牌（getToken 空）时照常置位+上抛（旧守卫 undefined!==fingerprint 误拦吞掉，手动刷新假成功/登录 401 硬化不可达，必红）", async () => {
+    const user = useUserStore();
+    user.menuLoadFailed = false;
+    mockGetToken.mockReturnValue({
+      accessToken: "token-1",
+      expires: 1,
+      refreshToken: ""
+    });
+    let rejectMenu!: (e: unknown) => void;
+    mockGetUserMenu.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectMenu = reject;
+        })
+    );
+
+    const pending = user.refreshUserMenu();
+    // 401 到达：响应拦截器已先 logOut（同步清令牌）——getToken() 变 null，
+    // 与「跨会话（另一活会话令牌）」语义不同，不得拦
+    mockGetToken.mockReturnValue(null);
+    rejectMenu(
+      Object.assign(new Error("Request failed with status code 401"), {
+        response: { status: 401 }
+      })
+    );
+
+    // 已提交实现（getToken 空也拦）：静默 return resolve、menuLoadFailed 不置位（双红）
+    await expect(pending).rejects.toThrow();
+    expect(user.menuLoadFailed).toBe(true);
+  });
 });

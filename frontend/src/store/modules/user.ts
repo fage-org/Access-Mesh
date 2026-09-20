@@ -148,15 +148,22 @@ export const useUserStore = defineStore("pure-user", {
      * 「加载失败」（占位可重试）与「拉取成功但账号无菜单」（占位提示联系管理员）两态。
      * <p>
      * 会话代际守卫（Q-016 收口，2026-09-20 拍板）：发起时记当前令牌指纹，响应/失败
-     * 回写前比对——会话已换（登出重登）时丢弃旧结果，旧会话的 menus/权限串/
-     * menuLoadFailed 不污染新会话。
+     * 回写前比对——会话已换（登出重登、存在另一活会话令牌）时丢弃旧结果，旧会话的
+     * menus/权限串/menuLoadFailed 不污染新会话。会话已终结（getToken 空，如 401
+     * 分支已 logOut）不拦——照常置位/上抛（claude 外评 P3 处置 2026-09-20：一律吞掉
+     * 会使会话终结型 401 被误判为「跨会话旧响应」，手动刷新假成功、loginByUsername
+     * 的 401 硬化分支不可达）。
      */
     async refreshUserMenu() {
       const fingerprint = getToken()?.accessToken;
+      const sessionReplaced = () => {
+        const current = getToken()?.accessToken;
+        return current != null && current !== fingerprint;
+      };
       try {
         const resp = await getUserMenu();
         const { menus, roles, permissions } = unwrap(resp);
-        if (getToken()?.accessToken !== fingerprint) return;
+        if (sessionReplaced()) return;
         this.menuLoadFailed = false;
         this.SET_MENUS(menus ?? []);
         this.SET_ROLES(roles ?? []);
@@ -171,7 +178,7 @@ export const useUserStore = defineStore("pure-user", {
           permissions: permissions ?? []
         });
       } catch (err) {
-        if (getToken()?.accessToken !== fingerprint) return;
+        if (sessionReplaced()) return;
         this.menuLoadFailed = true;
         throw err;
       }

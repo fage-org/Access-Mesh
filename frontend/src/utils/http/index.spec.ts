@@ -61,6 +61,15 @@ vi.mock("@/store/modules/multiTags", () => ({
 vi.mock("@/router", () => ({ router: {} }));
 vi.mock("@/utils/auth", () => ({
   getToken: (...args: unknown[]) => mockGetToken(...args),
+  // isSessionTerminated 真实语义镜像（T-FE-054 外评 P2 单源判据的 mock 面）
+  isSessionTerminated: (data?: unknown) => {
+    const d = (data ?? mockGetToken()) as
+      | { expires?: number | string }
+      | null
+      | undefined;
+    if (!d) return true;
+    return parseInt(String(d.expires)) - Date.now() <= 0;
+  },
   formatToken: (token: string) => `Bearer ${token}`,
   userKey: "user-info"
 }));
@@ -229,13 +238,17 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
     expires: Date.now() - 1000
   };
 
-  it("锁①：本地过期请求短路不发——零 adapter 调用、reject 同文案 Error、logOut 触发（旧实现无令牌放行+resolve 必红）", async () => {
+  it("锁①：本地过期请求短路不发——零 adapter 调用、reject SessionExpiredError（同文案）、logOut 触发（旧实现无令牌放行+resolve 必红）", async () => {
     mockGetToken.mockReturnValue(EXPIRED_TOKEN);
     installAdapter(() => 403); // 若发出必经 adapter（任意状态码都证明发出）
-    await expect(http.post("/api/access/type-definition/list")).rejects.toThrow(
-      "会话已过期，请重新登录"
-    );
+    const rejection = await http
+      .post("/api/access/type-definition/list")
+      .catch(e => e);
     await drainMicrotasks();
+    expect((rejection as Error).message).toBe("会话已过期，请重新登录");
+    // SessionExpiredError 形态（claude 外评 P3 处置）：授予页 classifySaveError 按
+    // name 识别为「未发出可重试」非「结果未知」——旧实现（普通 Error）下 name 断言红
+    expect((rejection as Error).name).toBe("SessionExpiredError");
     // 旧实现：请求无令牌放行 → adapter 收到 → 计数 1（此处必红）
     expect(adapterCalls).toHaveLength(0);
     expect(mockLogOut).toHaveBeenCalledTimes(1);
@@ -268,6 +281,16 @@ describe("token 过期短路与双分支统一提示（T-FE-054）", () => {
       type: "warning"
     });
     expect(mockLogOut).toHaveBeenCalledTimes(1);
+  });
+
+  it("锁（外评 P3）：主动登出后在途请求的 401 不弹「会话已过期」——令牌已清（getToken 空）不提示，仍 logOut 幂等清理（旧实现无条件提示必红）", async () => {
+    installAdapter(() => 401);
+    // 模拟主动登出已完成本地清理（logOut removeToken 后 getToken() 为空）
+    mockGetToken.mockReturnValue(null);
+    await expectRejected("/api/access/in-flight");
+    await drainMicrotasks();
+    expect(mockMessage).not.toHaveBeenCalled(); // 旧实现弹「会话已过期」误导 → 红
+    expect(mockLogOut).toHaveBeenCalledTimes(1); // 幂等清理照常
   });
 
   it("提示窗口跨分支共用去重：401 与短路混合 10s 内只弹一次，窗口过期可再弹", async () => {

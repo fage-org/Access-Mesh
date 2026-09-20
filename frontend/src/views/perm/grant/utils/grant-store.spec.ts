@@ -450,6 +450,16 @@ describe("grant-store 四态状态机（DoD-3）", () => {
     ).toBe("其他");
   });
 
+  it("classifySaveError：会话过期短路（SessionExpiredError）归明确拒绝非「结果未知」——请求未发出可安全重试（T-FE-054 外评 P3 锁，旧实现普通 Error 落 unknownOutcome 必红）", () => {
+    const result = classifySaveError(
+      Object.assign(new Error("会话已过期，请重新登录"), {
+        name: "SessionExpiredError"
+      })
+    );
+    expect(result.unknownOutcome).toBe(false); // 旧实现 true（网络异常文案）→ 红
+    expect(result.message).toBe("会话已过期，请重新登录");
+  });
+
   // ========== T-FE-038：switchMatrixType（类型切换，§3.6） ==========
 
   it("switchMatrixType 成功：请求携带 resourceTypeCode；旧草稿已清空，新 baseline 原子提交", async () => {

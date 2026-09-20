@@ -64,6 +64,15 @@ vi.mock("@/store/modules/user", () => ({
 vi.mock("@/layout/types", () => ({ routerArrays: [] }));
 vi.mock("@/utils/auth", () => ({
   getToken: (...args: unknown[]) => mockGetToken(...args),
+  // isSessionTerminated 真实语义镜像（T-FE-054 外评 P2 单源判据的 mock 面）
+  isSessionTerminated: (data?: unknown) => {
+    const d = (data ?? mockGetToken()) as
+      | { expires?: number | string }
+      | null
+      | undefined;
+    if (!d) return true;
+    return parseInt(String(d.expires)) - Date.now() <= 0;
+  },
   userKey: "user-info"
 }));
 vi.mock("@/utils/message", () => ({
@@ -135,8 +144,30 @@ describe("initRouter 无凭证分支（Q-020 收口：menu-retry 会话过期重
     expect(mockHandleBackendMenus).not.toHaveBeenCalled(); // 旧实现 rebuild 空侧栏占位 → 调用 → 红
   });
 
+  it("锁（外评 P2）：cookie 过期被清+userKey 残留形态（getToken 真值、无 accessToken、本地 expires 已过）同判会话终结——Q-020 条目点名形态（此前仅判 !getToken() 漏判、走刷新分支重弹失真提示必红）", async () => {
+    // setUserKey 七字段不含 accessToken：cookie 被浏览器清除后 getToken() 兜底
+    // userKey 返回真值对象（expires 已过、accessToken undefined）
+    mockGetToken.mockReturnValue({
+      refreshToken: "",
+      expires: Date.now() - 1000
+    });
+    vi.resetModules();
+    const { initRouter } = await import("./utils");
+
+    const err: unknown = await initRouter().catch(e => e);
+    // 已提交实现（仅判 !getToken()）：该形态 truthy → 走刷新分支 resolve router →
+    // err=undefined 且无提示无 logOut（三断言红）
+    expect((err as Error)?.name).toBe("SessionExpiredError");
+    expect(mockMessage).toHaveBeenCalledTimes(1);
+    expect(mockLogOut).toHaveBeenCalledTimes(1);
+    expect(mockRefreshUserMenu).not.toHaveBeenCalled(); // 不再走注定被短路的刷新分支
+  });
+
   it("有凭证形态不受扰：走重取分支正常构建侧栏（特征锁，防无凭证分支误伤守卫/登录路径）", async () => {
-    mockGetToken.mockReturnValue({ accessToken: "t1", expires: 1 });
+    mockGetToken.mockReturnValue({
+      accessToken: "t1",
+      expires: Date.now() + 600_000
+    });
     mockUser.menus = [];
     mockRefreshUserMenu.mockImplementation(async () => {
       mockUser.menus = [{ path: "/welcome" }];

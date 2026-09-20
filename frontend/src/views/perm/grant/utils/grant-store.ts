@@ -106,6 +106,15 @@ export function classifySaveError(error: unknown): {
       unknownOutcome: false
     };
   }
+  // 会话已过期短路（T-FE-054，claude 外评 P3 处置）：请求拦截器本地过期短路 reject
+  // SessionExpiredError——请求未发出、服务端未提交，属明确可重试态而非「结果未知」；
+  // message 与全局提示同文案（「会话已过期，请重新登录」）
+  if ((error as { name?: string })?.name === "SessionExpiredError") {
+    return {
+      message: (error as Error)?.message ?? "保存被拒绝，请重试",
+      unknownOutcome: false
+    };
+  }
   // axios 层明确拒绝（服务端未提交，可安全重试）
   const status = (
     error as { response?: { status?: number; data?: { message?: string } } }

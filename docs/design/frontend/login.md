@@ -3,7 +3,7 @@ doc_type: design
 title: 登录页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # 2026-09-20 T-FE-054 收口：本地过期短路+双分支统一提示（令牌生命周期/登出流程/热刷新节 single-flight+代际守卫/initRouter 会话终结分支）；此前：T-FE-048 会话权限热刷新节、T-FE-046 强制改密闭环、T-FE-049 登录提示两态、T-FE-045 登出流程节、2026-09-15 T-FE-015、2026-08-31 T-FE-041
+last_reviewed: 2026-09-20   # 2026-09-20 T-FE-054 收口+claude 外评处置（P2 判据单源 isSessionTerminated/401 令牌仍在才提示/代际守卫会话终结不拦/守卫 then 补 catch/短路 SessionExpiredError）；此前：T-FE-054 短路+双分支提示、T-FE-048 会话权限热刷新节、T-FE-046 强制改密闭环、T-FE-049 登录提示两态、T-FE-045 登出流程节、2026-09-15 T-FE-015、2026-08-31 T-FE-041
 ---
 
 # 登录页 前端设计（T-FE-041 真实登录链路）
@@ -66,8 +66,8 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 - `expiresIn`（秒）→ `new Date(Date.now() + expiresIn*1000)` 绝对时间供 `setToken`（cookie + localStorage）。
 - 无 refresh-token/自动续期/重试体系（后端无 `/refresh-token`，相关模板代码已删除）。
-- 请求拦截器（T-FE-054 短路口径，2026-09-20 拍板）：本地 `expires` 到期 → 统一提示「会话已过期，请重新登录」（10s 去重窗口）+ `logOut()` 清会话回登录页 + **本次请求直接 reject**（Error.message 与提示同文案，页面层 catch 经 toErrorMessage 透出——照弹形态与 401 一致）——原「无令牌放行、由 Gateway 401 兜底」口径退役（多一次必然 401 的往返）。白名单 `/api/access/auth/captcha`、`/api/access/auth/login` 不经拦截器令牌逻辑，`/api/access/auth/logout` 亦在白名单但由调用方显式携令牌（见「登出流程」）。
-- 响应拦截器：**仅** HTTP 401 → 统一提示「会话已过期」（与本地过期短路双分支统一、共用 10s 去重窗口，T-FE-054）+ `logOut()` 清会话回登录页；HTTP 403 → 触发会话权限热刷新（见下节，T-FE-048）；503 等其余状态码由页面层自行处理。
+- 请求拦截器（T-FE-054 短路口径，2026-09-20 拍板；外评 P2 收口后判据单源）：会话终结判据统一走 `utils/auth.ts isSessionTerminated`（无凭证 ∨ 本地 `expires` 到期；**cookie 过期被清 + userKey 残留**形态下 `getToken()` 兜底 localStorage 仍真值——仅判无凭证会漏，该形态同判终结）→ 统一提示「会话已过期，请重新登录」（10s 去重窗口）+ `logOut()` 清会话回登录页 + **本次请求直接 reject**（`SessionExpiredError`，message 与提示同文案；授予页 `classifySaveError` 按 name 识别为「未发出可安全重试」非「结果未知」）——原「无令牌放行、由 Gateway 401 兜底」口径退役（多一次必然 401 的往返）。白名单 `/api/access/auth/captcha`、`/api/access/auth/login` 不经拦截器令牌逻辑，`/api/access/auth/logout` 亦在白名单但由调用方显式携令牌（见「登出流程」）。
+- 响应拦截器：**仅** HTTP 401 → 统一提示「会话已过期」（**令牌仍在才提示**——主动登出（logOut 已清令牌）后在途请求的 401 不弹「会话已过期」误导，外评 P3 处置）+ `logOut()` 清会话回登录页；提示与本地过期短路双分支统一、共用 10s 去重窗口（T-FE-054）；HTTP 403 → 触发会话权限热刷新（见下节，T-FE-048）；503 等其余状态码由页面层自行处理。
 
 ## 会话权限热刷新（T-FE-048，2026-09-19 拍板）
 
@@ -78,7 +78,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 - 成功：侧栏即时重建（撤销的菜单项从侧栏消失；全撤销落「当前账号无可用菜单」占位）；
 - 失败：原样抛出且不触碰 wholeMenus——按钮/侧栏维持旧态（后端 fail-closed 兜底）；门禁状态机维持 loaded（failed 仅由首次加载失败产生）——**T-FE-056 落地后路由门禁 path 集/状态机更新挂接于本入口**（同 owner，勿另开通道）；
 - **single-flight（Q-016 收口，T-FE-054）**：入口内共享在途 Promise——同会话（accessToken 指纹相同）并发调用只发一次 user-menu 请求，403 自动/手动/授予页重试多通道并发不再各发各的（旧响应晚到覆盖新权限串的同会话竞态随之消除）；完成后在途标记复位，下次调用重新发起；
-- **跨会话代际守卫（Q-016 收口，T-FE-054）**：`refreshUserMenu` 回写（Pinia+localStorage userKey）与侧栏重建前均比对 accessToken 指纹——刷新期间登出重登（会话已换）时旧响应（成功/失败）一律丢弃，不污染新会话的 menus/权限串/menuLoadFailed；
+- **跨会话代际守卫（Q-016 收口，T-FE-054）**：`refreshUserMenu` 回写（Pinia+localStorage userKey）与侧栏重建前均比对 accessToken 指纹——**会话已换**（登出重登、存在另一活会话令牌）时旧响应（成功/失败）一律丢弃，不污染新会话的 menus/权限串/menuLoadFailed；**会话已终结**（getToken 空，如 401 分支已 logOut）不拦——照常置位/上抛（外评 P3 处置：吞掉会话终结型 401 会使手动刷新假成功、登录 401 硬化分支不可达）；
 - 不清理 multiTags 已缓存标签（标签指向的路由由后端 403 兜底）；不经 `handleAsyncRoutes`（其 multiTags 重置仅属登录/F5 的 initRouter 全量路径）。
 
 **403 自动刷新**（`src/utils/http/index.ts` 响应拦截器 403 分支）：窗口去重触发能力刷新——**10s 去重窗口**（2026-09-20 用户拍板；起算于触发时刻，窗口内在途双保险：短时间内多次 403 只刷一次），失败静默维持旧态（仅 console.warn，无 message 弹窗——与手动入口的显式反馈口径区分），**不自动重放原请求**（防循环，用户重新点击即可），排除 user-menu 自身（刷新入口即该请求，其 403 下重发无自愈可能）。403 ≠ 必然权限变更（可能是配错/越权访问）——刷新无害（多一次 user-menu 请求），按钮显隐以最新事实为准。错误本身仍原样 reject 由页面层处理展示。
@@ -118,4 +118,4 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 ## mock 与动态路由口径（T-FE-041 决策）
 
 - `mock/login.ts` 由 `VITE_MOCK_LOGIN`（.env.development，默认 **false**）控制注册；开启时注册 `/api/access/auth/captcha`（SVG 占位图）+ `/api/access/auth/login` + `/api/access/auth/user-menu`，响应壳已对齐 R，前端代码零分支（开关经 wrapperEnv 写回 `process.env` 生效，已端到端验证：后端未启动时三端点全走 mock；关闭时请求穿透 vite 代理）。生产构建 mock 由 `VITE_ENABLE_PROD_MOCK=false` 关闭。mock user-menu 自 T-FE-015 起下发最小菜单树（welcome 纯展示，对齐 bootstrap 种子形态）——侧栏唯一数据源已切本接口 menus 树，空数组（拉取成功形态）渲染为「当前账号无可用菜单」占位（T-FE-049 两态——mock 场景不触发失败态）。
-- 纯静态路由：`initRouter` 不再请求 `/get-async-routes`（`src/api/routes.ts` 已删除），路由注册由 `router/modules/*.ts` 静态维护；**侧栏菜单已切后端派生（T-FE-015 已接线 2026-08-31）**——`initRouter` 将 `/api/access/auth/user-menu` 的 menus 树直接渲染为侧栏（标题/图标/层级来自 sys_menu bootstrap 种子，可见性 = v3.5 §4.1 ∃op 派生），`meta.showLink` 不再控制侧栏；会话恢复 = 已登录 F5/启动重取 user-menu，失败 fail-closed 空菜单，不持久化、不回退全量静态菜单。**会话已终结分支（Q-020 收口，T-FE-054）**：`initRouter` 开头判本地凭证已无（登出清理/过期销毁）时统一提示「会话已过期」+ `logOut` 跳登录 + 抛 `SessionExpiredError`（调用方 catch 后跳过按陈旧菜单状态的业务提示）——/menu-retry 重试不再零请求误报「仍无可用菜单，请联系管理员」；守卫与登录路径必有凭证不触达本分支。**空侧栏占位项两态（T-FE-049，`resolveSidebarFallback` 按 `menuLoadFailed` 区分）**：拉取失败=「菜单加载失败，点击重试」（既有，跳 `/menu-retry` 重试页）；拉取成功但账号无菜单=「当前账号无可用菜单」——重试对该形态无意义，着陆页（同为 `/menu-retry`，页内自适应）引导联系管理员、保留「重新检查」入口（管理员补配后点击即恢复，无需重登）。
+- 纯静态路由：`initRouter` 不再请求 `/get-async-routes`（`src/api/routes.ts` 已删除），路由注册由 `router/modules/*.ts` 静态维护；**侧栏菜单已切后端派生（T-FE-015 已接线 2026-08-31）**——`initRouter` 将 `/api/access/auth/user-menu` 的 menus 树直接渲染为侧栏（标题/图标/层级来自 sys_menu bootstrap 种子，可见性 = v3.5 §4.1 ∃op 派生），`meta.showLink` 不再控制侧栏；会话恢复 = 已登录 F5/启动重取 user-menu，失败 fail-closed 空菜单，不持久化、不回退全量静态菜单。**会话已终结分支（Q-020 收口，T-FE-054；外评 P2 收口后判据单源）**：`initRouter` 开头经 `isSessionTerminated()`（无凭证 ∨ 本地过期，与请求拦截器短路同源）判会话已终结时统一提示「会话已过期」+ `logOut` 跳登录 + 抛 `SessionExpiredError`（调用方 catch 后跳过按陈旧菜单状态的业务提示）——/menu-retry 重试不再零请求误报「仍无可用菜单，请联系管理员」（含 cookie 过期被清+userKey 残留形态）；本地过期后的 F5 会话恢复同样命中本分支（守卫 `initRouter().then` 已补 catch 留痕）；登录路径刚 setToken 恒不触达。**空侧栏占位项两态（T-FE-049，`resolveSidebarFallback` 按 `menuLoadFailed` 区分）**：拉取失败=「菜单加载失败，点击重试」（既有，跳 `/menu-retry` 重试页）；拉取成功但账号无菜单=「当前账号无可用菜单」——重试对该形态无意义，着陆页（同为 `/menu-retry`，页内自适应）引导联系管理员、保留「重新检查」入口（管理员补配后点击即恢复，无需重登）。
