@@ -23,6 +23,8 @@ last_reviewed: 2026-09-20   # T-PERM-070：新增 §24 服务凭证与 M2M 服�
 >
 > **覆盖面说明（T-ACCESS-040 登记）**：本册承载原两册的全部成册契约。access-service 另有五组管理面端点族未在原两册成册（`/api/access/auth` 登录族、`/api/access/dict/*`、`/api/access/notice/*`、`/api/access/job/*`、`/api/access/login-log/page`），维持现状以代码与 `HttpApiPathSnapshotTest` 快照为准——登记见 §6.4 与 §17.3，不在本册补写（不新增契约内容）。第六组 `/config/*` 已随 T-ACCESS-037 退役（2026-09-13，僵尸端点删除，见 §17.3 注记）。另有四个零散端点未单独成册（`/api/access/user/detail`、`/api/access/user/user-menus`、`/api/access/org/detail`、`/api/access/role/my-info`——仅存在于门禁表或快照，T-ACCESS-040 评审登记）
 
+> **自动授权待实施设计**：资源 sync/full-sync 继续按 §19 独立提供，依赖 manifest 为独立可选能力。已采纳[简化方案](dependency-auto-grant.md)，T-PERM-078 细化协议后由 071～073 实现并登记新端点/字段；当前资源与依赖接口仍按本册现役条目执行，不能向现有请求擅加 resources/dependencies 字段。现阶段 20048 与旧依赖端点未因文档采纳而消失。
+
 ## 1. 设计目标与接口分层
 ### 1.1 设计目标（perm 家族）
 
@@ -1556,7 +1558,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `source*` 表示源资源，即被授权后会触发依赖补全的资源，对应 `resource_dependency.resource_entity_id`。
 - `target*` 表示被源资源依赖、需要自动补全的目标资源，对应 `resource_dependency.depends_on_resource_entity_id`。
 - `maintainSource` 四值白名单：`ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC`（schema 口径，DTO `@Pattern` 拒绝其他值；T-PERM-031 收口，原注释 SERVICE/MANUAL 系漂移）。
-- **`autoGrant` 预留未实现（2026-08-27 设计定案；2026-09-19 更新）**：自动授权承接序列 T-PERM-070~073 已定稿立项（原 T-PERM-035 已 cancelled、暂缓已解除；前置凭证基建 070 已落地 2026-09-20），071/072 落地前 create / update / batch-sync 全部写入口仍拒绝 `true`（错误码 **20048** `AUTO_GRANT_NOT_SUPPORTED`），仅接受 `false`/省略；表列默认 `false`。依赖补全当前不生效，规则中的「触发依赖补全」语义为 T-PERM-072 实现后的目标态。
+- **`autoGrant` 预留未实现**：已采纳[自动授权简化方案](dependency-auto-grant.md)，T-PERM-078 负责实施前细化，T-PERM-071～073 负责实施；服务凭证前置 T-PERM-070 已完成。字段随声明通道落地退役，不再启用 autoGrant 开关；退役前 create / update / batch-sync 写入口拒绝 `true`（错误码 **20048** `AUTO_GRANT_NOT_SUPPORTED`），仅接受 `false`/省略，表列默认 `false`。依赖补全当前不生效，自动物化为 T-PERM-072 完成后的目标行为。
 - 授权源资源时，自动补全查询条件必须是 `resource_dependency.resource_entity_id = sourceResourceId`，不能反向使用 `depends_on_resource_entity_id` 查询。
 - `sourceOperationCodes` 转为 `source_operation_bits`；为空表示任意源操作触发。`requiredOperationCodes` 转为 `required_operation_bits`，表示目标资源需要自动补全的操作；**条目缺失或全空白该字段拒绝 20044（清单级预检，先于资源解析与 FULL diff——畸形清单零副作用，不因条目资源未解析而绕过）**。任一操作码解析不到拒绝 **20005** OPERATION_NOT_FOUND（fail-closed，不静默丢弃——T-PERM-031 定案；code→id 解析与按 id 二次加载**两段查询均 fail-closed**，间隙并发软删同样 20005，不静默丢位）；空白元素忽略、全空白码列表拒绝 20044（与单条入口统一口径）。`items` 元素级联校验生效（`@Valid + @NotNull`，apply-grant-plan 同款）：条目内 `@NotBlank`/`@Size` 由 400 参数校验通道拒绝，null 元素不进入服务层。
 - FULL diff 只清理同一 `ownerServiceCode=serviceCode + maintainSource` 范围内本次缺失的依赖规则，不清理其他服务或其他维护来源的规则；匹配键为「源资源 + 目标资源 + `COALESCE(source_operation_bits, 0)`」三元组（T-PERM-031 修正：同资源对不同触发操作是不同规则，仅按资源对匹配会漏删且 upsert 定位错行）。

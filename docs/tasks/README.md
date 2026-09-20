@@ -10,13 +10,13 @@
 
 | 领域 | 前缀 | 下一编号 |
 |---|---|---|
-| access-service 归并（跨服务） | `T-ACCESS` | 052 |
-| permission-center | `T-PERM` | 074 |
-| admin-service | `T-ADMIN` | 028 |
-| gateway | `T-GW` | 010 |
-| 组织/用户（跨 admin+perm） | `T-ORG` | 002 |
-| 跨服务 API 契约 | `T-API` | 004 |
-| 前端 | `T-FE` | 057 |
+| access-service 归并（跨服务） | `T-ACCESS` | 056 |
+| permission-center | `T-PERM` | 079 |
+| admin-service | `T-ADMIN` | 030 |
+| gateway | `T-GW` | 011 |
+| 组织/用户（跨 admin+perm） | `T-ORG` | 004 |
+| 跨服务 API 契约 | `T-API` | 005 |
+| 前端 | `T-FE` | 060 |
 
 > 新建任务时从对应领域取下一编号，计数器 +1。
 
@@ -25,6 +25,31 @@
 > 状态简写：⚙️=proposed / 🔨=in-progress / 👀=review / ✅=done / ❌=cancelled。回写：⏳=pending / ✓=done。
 
 > **后端门禁已解除（2026-08-22，T-ACCESS-012 完成）**：`T-PERM-*` / `T-ADMIN-*` 后端任务已全部重基线到 access-service 单模块与 `schema/access-service.sql`，可按各自 `depends_on` 推进；前端真接口联调等待对应 Phase 2 后端任务完成。归并主计划已归档（[archive/2026-08-22/access-service-merge-plan.md](../archive/2026-08-22/access-service-merge-plan.md)），后续强化计划亦已归档（[access-post-merge-plan](../archive/2026-08-27/access-post-merge-plan.md)，T-ACCESS-013~015 全 done，CI 准入前置由 T-ACCESS-017 最小 CI 关闭；68 项为 2026-08-22 外部主机历史验证基线，CI 以退出状态判定成功）。
+
+### IAM 核心正确性与用户任务闭环
+
+[计划](../plans/iam-task-closure-plan.md) · [待实施方案](../design/iam-task-closure.md) · [证据与去重映射](../archive/2026-09-20/comprehensive-review.md)
+
+| ID | 标题 | 状态 | 直接依赖 |
+|---|---|---|---|
+| [T-ORG-002](T-ORG-002.md) | 默认身份目录删除与恢复边界闭合 | ⚙️ | — |
+| [T-ADMIN-028](T-ADMIN-028.md) | OAuth2 授权码客户端关联校验 | ⚙️ | — |
+| [T-PERM-074](T-PERM-074.md) | 同步失败与版本记账事务一致性 | ⚙️ | — |
+| [T-PERM-075](T-PERM-075.md) | 互斥角色有效期与判定入口一致性 | ⚙️ | — |
+| [T-ORG-003](T-ORG-003.md) | 组织与岗位成员候选门禁统一 | ⚙️ | — |
+| [T-PERM-076](T-PERM-076.md) | 资源批量创建复合身份一致性 | ⚙️ | — |
+| [T-FE-057](T-FE-057.md) | 岗位停用后可发现与恢复 | ⚙️ | — |
+| [T-FE-058](T-FE-058.md) | 岗位与成员角色候选分页闭合 | ⚙️ | — |
+| [T-API-004](T-API-004.md) | 可编辑字段显式清空协议贯通 | ⚙️ | — |
+| [T-ADMIN-029](T-ADMIN-029.md) | 公告状态与受众生命周期闭合 | ⚙️ | — |
+| [T-FE-059](T-FE-059.md) | 共享列表上下文与可写对象绑定 | ⚙️ | — |
+| [T-GW-010](T-GW-010.md) | 开发与代理拓扑的 Origin 接入一致性 | ⚙️ | — |
+| [T-PERM-077](T-PERM-077.md) | 操作继承掩码缺省值契约对齐 | ⚙️ | — |
+| [T-ACCESS-052](T-ACCESS-052.md) | 实例委派的目录菜单与管理任务闭环 | ⚙️ | T-ORG-003 |
+| [T-ACCESS-053](T-ACCESS-053.md) | 首次服务接入与撤销验证路径简化 | ⚙️ | T-GW-010 |
+| [T-PERM-078](T-PERM-078.md) | 自动授权实施前协议与算法校准 | ⚙️ | — |
+| [T-ACCESS-054](T-ACCESS-054.md) | 外围任务能力与缓存过渡机制取舍 | ⚙️ | — |
+| [T-ACCESS-055](T-ACCESS-055.md) | 核心用户任务组合验收与文档收口 | ⚙️ | T-ORG-002, T-ADMIN-028, T-PERM-074, T-PERM-075, T-PERM-076, T-FE-057, T-FE-058, T-API-004, T-ADMIN-029, T-FE-059, T-PERM-077, T-ACCESS-052, T-ACCESS-053 |
 
 ### access-service 归并（主链 ✅ 2026-08-22 完成归档；后续强化 ✅ 2026-08-27 归档）
 
@@ -106,7 +131,7 @@
 |---|---|---|---|---|---|---|
 | [T-ACCESS-051](../archive/2026-09-18/tasks/T-ACCESS-051.md) | Q-013 时序用例裸 sleep 清扫——TaskExecutionLeaseConcurrencyTest 两方法改 5s 有界轮询（✅ 2026-09-18 收口：定向 10/10 + 全量含 E2E 1724 项 0 失败；双轨评审零 P0-P2，同族三处登记 Q-014） | — | testing-standards rule §10.3（口径已载，无设计回写面） | — | ✅ | — |
 
-### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——T-PERM-035 已取消〔2026-09-19 定稿拆卡 070~073 承接并随批次归档〕；未终态剩暂缓项 T-PERM-036/054 与 035 实现序列 070~073）
+### permission-center（工作单 A/B 计划与 D/E/F 计划均已归档；前端 Phase 2/4 后端任务计划 2026-09-14 归档——T-PERM-035 已取消〔2026-09-19 定稿拆卡 070~073 承接并随批次归档〕；自动授权前置 T-PERM-070 已完成，实施前细化为 T-PERM-078、实施为 T-PERM-071～073；T-PERM-036/054 维持暂缓）
 
 | ID | 标题 | 计划 | 设计引用 | 依赖 | 状态 | 回写 |
 |---|---|---|---|---|---|---|
@@ -145,9 +170,9 @@
 | [T-PERM-034](../archive/2026-09-14/tasks/T-PERM-034.md) | 4.1 权限授予后端（已收口 2026-08-30，终态见任务卡完成记录） | [frontend-phase2](../archive/2026-09-14/frontend-phase2-plan.md)（已归档） | api-contract §5.5/§6.4/§6.5/§6.5.1/**§6.5.2**；implementation §4/§7.7；core-flows §6；permission-grant.md §12；access-service.sql | T-PERM-031 | ✅ | ✓ |
 | [T-PERM-035](../archive/2026-09-19/tasks/T-PERM-035.md) | 自动授权（旧口径）— ❌ cancelled 2026-09-19：被定稿设计取代，拆分承接见 T-PERM-070~073；§11 E4 暂缓随定稿解除 | — | docs/design/dependency-auto-grant.md（取代依据） | — | ❌ | — |
 | [T-PERM-070](T-PERM-070.md) | 前置·公共服务认证模块（per-service 静态凭证）（✅ 2026-09-20 收口：service_credential 表+管理面四端点+ServiceAuthArbiter 五形态仲裁〔凭证优先/禁止降级/白名单单源〕+Gateway M2M 放行链+SDK 凭证拦截器〔注入面精确镜像+启动声明式 TLS 三态〕+20065~20068+固定图四行；七项拍板见 registry 同日行；双轨评审 P1×2+P0×5 全处置〔SDK 宽注入面收窄+五处既有锁随批更新〕+E2E 真实 sync 成功用例；全量回归含 E2E 绿） | —（T-PERM-035 实现序列前置卡） | docs/design/service-authentication.md；docs/design/access-service-api-contract.md §24 | — | ✅ | ✓ |
-| [T-PERM-071](T-PERM-071.md) | 依赖声明层（declaration/manifest_sync 表+manifest 通道+编译器+starter+batch-sync 删除） | —（035A） | docs/design/dependency-auto-grant.md §2-§5 | T-PERM-070 | ⚙️ | ⏳ |
-| [T-PERM-072](T-PERM-072.md) | 自动授权物化器（AUTO_DEP+support 二遍追踪+触发面 7 项+两级锁） | —（035B） | docs/design/dependency-auto-grant.md §3.5/§3.6/§6-§8 | T-PERM-071 | ⚙️ | ⏳ |
-| [T-PERM-073](T-PERM-073.md) | 观测与对账（explain+Admin UI 改版+Reconciler） | —（035C） | docs/design/dependency-auto-grant.md §11-§13 | T-PERM-072 | ⚙️ | ⏳ |
+| [T-PERM-071](T-PERM-071.md) | 独立依赖声明与可选 SDK 协调 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-070, T-PERM-078, T-PERM-074 | ⚙️ | ⏳ |
+| [T-PERM-072](T-PERM-072.md) | 自动授权物化与共享推导 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-071 | ⚙️ | ⏳ |
+| [T-PERM-073](T-PERM-073.md) | 按需来源解释、授权界面与对账 | —（自动授权实施序列） | [简化设计](../design/dependency-auto-grant.md) | T-PERM-072 | ⚙️ | ⏳ |
 | [T-PERM-036](T-PERM-036.md) | 动态数据权限端到端验证（scopeMode → SQL 映射链路）— ⚠️ design-review §11 Q7/B 暂缓（延后 example-service） | —（2026-09-14 脱出已归档计划，暂缓等 PM 重申） | 契约总册 §18.6；engine/core-flows；engine/implementation | T-FE-013, T-PERM-033 | ⚙️ | ⏳ |
 | [T-PERM-037](../archive/2026-09-14/tasks/T-PERM-037.md) | 跨页共性接口改造 + api-contract 回写收尾（已收口 2026-08-31，审计型零代码变更，终态见任务卡完成记录） | [frontend-phase2](../archive/2026-09-14/frontend-phase2-plan.md)（已归档） | api-contract；implementation | T-PERM-022~034 | ✅ | ✓ |
 | [T-PERM-038](../archive/2026-09-12/tasks/T-PERM-038.md) | 全局 TODO 收口（已收口 2026-09-12：附录 A 七条定性——3 条消解/2 条 T-PERM-035 预留保留/2 条失效注释删除；终态见任务卡处置记录） | [frontend-phase4](../archive/2026-09-12/frontend-phase4-plan.md) | —（工程改进，无设计回写） | — | ✅ | — |
@@ -436,10 +461,12 @@ _（暂无）_
 
 ## 设计变更待核对
 
+
 > 当设计文件 `status` 变为 `superseded` 或章节实质变更时，`design_refs` 指向它的任务在此登记，等待核对验收与回写目标是否仍成立。
 
 | 设计变更 | 受影响任务 | 核对状态 | 处理要求 |
 |---|---|---|---|
+| [自动授权简化方案](../design/dependency-auto-grant.md)采纳 | T-PERM-071/072/073/078 | 已核对（2026-09-20），design_refs 与验收已更新 | 078 收敛 M1～M5 前，071～073 不进入实施；状态仍为 proposed |
 | `docs/design/schema/` 四份旧 DDL（admin-service.sql / permission-center.sql / seed-admin-operations.sql / seed-perm-operations.sql）标记 superseded，权威 DDL 为 access-service.sql（2026-08-12，T-ACCESS-002） | T-ACCESS-012；T-PERM-019/020/021/034/041（proposed 待重基线） | ✅ 已收口（2026-08-22，T-ACCESS-012：四文件物理归档 `docs/archive/2026-08-22/schema/`；全仓活引用切换 access-service.sql；T-PERM-019/020/021/034/041 已重基线） | 实现与测试以 `schema/access-service.sql` 为唯一依据（已达成；T-PERM-013 为 done 历史事实不改） |
 | `design/access-service-architecture.md` §9 与 `design/project-rules.md` §1.2 明确归并后的错误码归属（2026-08-12） | T-ACCESS-001、T-ACCESS-011、T-ACCESS-012 | ✅ 全部收口（T-ACCESS-011 已验收；T-ACCESS-012 已收口设计一致性，admin-service-api-contract 错误码措辞对齐 §1.2） | 既有管理域 `1xxxx`、权限域 `2xxxx` 原值保留并继续按领域新增；`access.application` 按对外入口所属领域取码，公共技术失败使用 `9xxxx`；禁止合并枚举、重编号或新增 `4xxxx` 段。T-ACCESS-001 保留领域枚举，T-ACCESS-011 扫描验收，T-ACCESS-012 收口设计一致性 |
 | `design/access-service-architecture.md` §7.2/§10 补充授权失效后的陈旧回填防护（2026-08-12） | T-ACCESS-008、T-ACCESS-011、T-ACCESS-012 | ✅ 全部收口（T-ACCESS-008 已实施 2026-08-21；T-ACCESS-011 已验收（容器部分待 CI）；T-ACCESS-012 已收口设计一致性） | 授权 L2 miss 在数据库读取前记录单调时钟起点，回填只能使用从该起点计算的剩余 catalog TTL，预算耗尽不写入，批量/重试不得重置；T-ACCESS-008 扩展受 catalog 上限约束的单次 TTL SPI 并补闩锁竞态测试，实施完成时同步两份缓存 skill，T-ACCESS-011 验收，T-ACCESS-012 收口设计一致性 |
@@ -484,6 +511,8 @@ _（暂无）_
 ---
 
 ## 字段说明
+
+分区表可使用「ID、标题、状态、直接依赖」四列简表，与既有七列表并存；任务链接保留，计划、设计引用及回写状态等详细字段以任务卡为准。
 
 - **设计引用**：任务将改动的 `docs/design/...#章节` 锚点；任务 `done` 前必须回写这些章节。
 - **依赖**：`depends_on` 的前置任务 ID；下游任务在前置 `done`/`cancelled` 前不应进 `done`。

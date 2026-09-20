@@ -7,3 +7,9 @@
   2. T-FE-046 端到端验收六项判据全过：smoke-release-user（仅 `example:demo:hello` 授权、无 API:ACCESS）经 admin 用户页真实管理链路重置密码 → 登录即阻断 redirect /change-password → 深链 #/system/user 与 #/system/role 均被守卫弹回 → 纯空白密码（8 空格）被前端 whitespace 规则拦截 → 正确改密成功放行进系统 → 后端 force_reset_pwd 翻转 false + 新密码重登直达不再阻断；reset-password 请求经 Gateway 白名单放行（T-GW-009 前置闭环实证）；
   3. T-GW-009 Nacos 远端覆盖键复核：`dataId=gateway.yml&group=DEFAULT_GROUP` → `config data not exist`，远端无覆盖、白名单即本地 application.yml 清单，遗留收敛。
 - **权威设计入口**：`docs/design/frontend/login.md`（登出流程 / 强制改密闭环 / 会话权限热刷新 / 路由级 UX 门禁等节）、`docs/design/frontend/permission-grant.md`、`docs/design/frontend/role-manage.md`、`docs/design/services/gateway.md`（白名单清单）。
+
+- [comprehensive-review.md](comprehensive-review.md)：全面评审基线、关键证据与后续任务映射；仅追溯，实施入口为 IAM 闭环计划与设计稿。
+
+- [自动授权原完整路径设计](dependency-auto-grant-path-design.md)：已由当前简化设计取代，仅追溯。
+- [自动授权候选评估](auto-grant-assessment.md)：含小图成本证据，候选不作实施依据。
+- [自动授权原定案全文](auto-grant-prior-decisions.md)：当前定案登记表的部分取代来源。

@@ -1,53 +1,55 @@
 ---
 doc_type: task
 id: T-PERM-072
-title: 自动授权物化器（AUTO_DEP + support + 触发面 + 锁模型）
+title: 自动授权物化与共享推导
 status: proposed
-plan: —（无所属计划；T-PERM-035 实现序列 035B）
-domain: permission-center
+plan: —（无所属计划；自动授权实施序列）
+domain: access-service
 design_refs:
-  - docs/design/dependency-auto-grant.md#§3.5（role_permission_auto_support）
-  - docs/design/dependency-auto-grant.md#§3.6（role_resource_permission 零改动论证）
-  - docs/design/dependency-auto-grant.md#§6（AutoGrantMaterializer：种子/闭包/压制/多变体/反链/support）
-  - docs/design/dependency-auto-grant.md#§7（rebuild 触发面 7 项）
-  - docs/design/dependency-auto-grant.md#§8（锁模型与事务边界）
-  - docs/design/engine/core-flows.md（§12 场景九回写）
-  - docs/design/engine/implementation.md（grantDepId 清理链回写）
-  - docs/design/schema/access-service.sql（auto_support DDL + INLINE 注释回写）
-  - docs/design/access-service-api-contract.md（⑦ 引用拒绝错误码与操作生命周期段）
+  - docs/design/dependency-auto-grant.md#data-model
+  - docs/design/dependency-auto-grant.md#materializer
+  - docs/design/dependency-auto-grant.md#triggers
+  - docs/design/dependency-auto-grant.md#consistency
+  - docs/design/engine/core-flows.md
+  - docs/design/engine/implementation.md
+  - docs/design/schema/access-service.sql
+  - docs/design/access-service-api-contract.md
 depends_on:
   - T-PERM-071
 blocks: []
 acceptance:
-  - "schema：role_permission_auto_support（uk 含 source_grant_id 与 COALESCE 组、WHERE delete_flag=0；路径条件/parent_support_id）——四类回归用例齐备"
-  - "物化器核心：种子定义（§6.1 含条件行与判定面继承不展开边界）；闭包批量装载内存图（禁 N+1、跨 owner ADMIN_UI 边时装载租户级图）；触发证明=单操作×条件组（NULL 组吸收非空、多变体并存）；覆盖压制含条件比较；反链压缩含「条件不更窄」；INLINE 1:N 派生引用（T-PERM-048 口径修订）"
-  - "support 二遍路径追踪 035B 一步到位（闭包稳定后同事务补全，含窄路径下游与被压制节点推导档案）"
-  - "applyGrantPlan 挂接 + 触发面 7 项全量落地（含⑦ binaryBit 变更/操作删除引用拒绝、inheritMask 变更重编译、③④⑦ manifest 置脏）；⑦ 引用拒绝为**新增对外拒绝语义**——错误码排号 + 契约总册 §5.3 操作生命周期段回写（沿用/扩写 20059 措辞需明示）"
-  - "INLINE 回收统一模式：①③④⑤收集候选→删除+rebuild→事务末尾一次回收；既有各入口回收调用时序统一后移"
-  - "两级锁全序（树锁族内次序→编译锁→角色锁升序）+ 七入口取锁矩阵 + 锁序断言；缓存失效 afterCommit；v1 全同步"
-  - "设计回写：engine/core-flows.md §12 场景九、engine/implementation.md grantDepId 清理链、schema permission_condition.source INLINE 注释（1:1→1 属主+N 派生引用）"
+  - "按角色 MANUAL 实例主授权种子完整重算，单操作触发、批量装载共享图、条件变体与 desired/actual diff 落地；不建 support 表、不存全路径、不做二遍路径补录。"
+  - "物化/解释/对账可复用同一纯推导与规范化核心；逻辑节点允许无物理 AUTO_DEP，内存记录直接推导关系，不持久化、不要求枚举完整路径。"
+  - "M2 已定规范化覆盖不同操作 NULL 反例、多条件 OR、无条件/窄条件来源、被压制中间节点、非传递/相互覆盖和互斥真实引擎差分；不凭 OR 小图声称等价。"
+  - "共享下游撤销单源保留、撤销末源回收、独立 MANUAL 保留、定义/声明变更及资源删除回收同事务完成；AUTO_DEP 单操作、只读、canGrant=false、depend_on=NULL。"
+  - "完整触发面落地；资源单条/FULL 变化不要求客户端额外发 manifest 才撤权；DISABLE/恢复按 M1 结论实现，外部失效 dirty 与重传恢复验证。"
+  - "INLINE 属主与派生引用按统一时序回收；grant_dep_id 不作为单边清理依据，实际读者核查后收敛。"
+  - "按 M4 完整协议实现编译/新增种子一致性、树锁族序和多角色顺序，覆盖新种子未提交时删边、删除/定义变化交错与事务中断回滚；缓存 afterCommit。"
+  - "操作位修改/删除引用拒绝与错误码回写；schema INLINE 注释、引擎流程/实现及正式契约与最终代码一致，真实 SQL/并发/端到端验收完成。"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
-# T-PERM-072 自动授权物化器（035B）
+# T-PERM-072 自动授权物化与共享推导
 
 ## 背景
 
-T-PERM-035 v1 设计定稿（2026-09-19，用户确认）。授权/依赖变更在写路径同事务物化 AUTO_DEP（单 canonical 操作位/行、canGrant=false、条件多变体），鉴权热路径零改动（三条 SQL 无 grant_source 谓词，已核实）。
+[简化设计](../design/dependency-auto-grant.md)采用写时物化，取消逐种子逐完整路径存储。授权存续依据是完整 desired 重算，来源解释复用逻辑推导，不另建真相源。
+
+## 当前口径
+
+沿 071 承接 078 的实施前结论；M2/M4 未收敛不得实现猜测版本。scope_all/父继承不作种子，权限含义是可独立使用的目标权限。T-PERM-075 的主体有效角色结果需组合核对，但本物化器按角色事实计算，不把 ROLE_MUTEX 混入依赖图或将 075 设为硬前置。
 
 ## 范围
 
-设计稿 §3.5/§3.6/§6/§7/§8 全部：auto_support 表、物化器算法、applyGrantPlan 挂接、触发面 7 项、INLINE 回收、两级锁与事务边界。
-
-## 非目标 / 遗留
-
-- 熔断/队列/异步重建（§14.4）、scope_all 种子、条件路径级追踪（§14.3）、类型级依赖（§14.2）：演进项不做。
-- 存量树锁反序（TypeDefinitionAppServiceImpl 混合批删）收敛：随本卡锁序断言一并统一（设计稿 §8.1 登记）。
-- explain/Reconciler/Admin UI：T-PERM-073。
+共享推导核心、规范化、AUTO_DEP diff、完整生命周期触发、INLINE 回收、并发/事务/缓存失效和审计。沿用权限查询框架与能力包领域服务，不另写鉴权引擎。
 
 ## 验收对照
 
-见 acceptance；核心语义（证明/多变体/压制/反链）回归锁用例清单见设计稿 §6.2。
+见 acceptance。小型菱形图用于证明没有逐路径写放大；真实引擎差分验证条件/覆盖/互斥语义；交错事务与失败回滚验证撤权。小图实验不代替上述验证。
+
+## 非目标 / 遗留
+
+explain HTTP、预览/界面及后台对账编排归 073。跨系统 export、scope_all 展开、异步重建、完整历史推导回放不进入本卡；不得以取消 support 为由删除锁、同步撤权或审计。

@@ -17,7 +17,7 @@
 | 权限查询统一引擎（演进终态） | 已 `status: superseded`（2026-09-10 随 permission-query-unification 计划归档转正，四任务全 done；实现以 [engine/implementation.md](engine/implementation.md) §3 为唯一权威，原文件留 permission-center 目录仅存定案过程追溯、待后续归档） |
 | 权限中心 v3.5 端到端设计 | [permission-center-v3.5-design.md](permission-center-v3.5-design.md)（`status: adopted`）|
 | 权限中心 v3.5.1+ 演进方向 | [permission-center-v3.5.1-evolution.md](permission-center-v3.5.1-evolution.md)（`status: evolution`，非约束）|
-| 权限依赖与自动授权（T-PERM-035）v1 设计 | [dependency-auto-grant.md](dependency-auto-grant.md)（`status: adopted`，2026-09-19 用户确认定稿——四轮外部评审 45 项发现全处置+两轮过度设计裁剪；实现拆分 T-PERM-071/072/073） |
+| 权限依赖与自动授权（简化方案） | [dependency-auto-grant.md](dependency-auto-grant.md)（adopted；独立接入、写时物化与按需来源解释；实施前细化 T-PERM-078，实施 T-PERM-071～073） |
 | 公共服务认证模块（per-service credential） | [service-authentication.md](service-authentication.md)（`status: adopted`，2026-09-19 随上稿同批定稿——M2M 服务身份认证平台能力，含现有认证体系全景盘点；实现载体 T-PERM-070 前置卡） |
 | 默认组织树与用户生命周期 | [default-org-tree-user-lifecycle.md](default-org-tree-user-lifecycle.md)               |
 | 组织与用户·权限契约    | [org-user-permission-contract.md](org-user-permission-contract.md)                     |
@@ -26,6 +26,14 @@
 | ~~admin 域对前端 API 契约~~ | 已 `status: superseded`（2026-09-13 T-ACCESS-040 并入契约总册；原文件在 services 目录保留原位作历史锚点，锚点对照见总册附录 C） |
 | 前端页面级设计 | [frontend/](frontend/)（UI 设计，随 T-FE 任务产出回写） |
 | PostgreSQL 表结构     | [schema/access-service.sql](schema/access-service.sql)（唯一权威 DDL）；[schema/example-service.sql](schema/example-service.sql)（演示库） |
+
+## 待实施方案
+
+| 文档 | 状态 | 关联计划 |
+|---|---|---|
+| [IAM核心正确性与用户任务闭环](iam-task-closure.md) | draft；非现役契约，取舍随任务启动确定 | [执行计划](../plans/iam-task-closure-plan.md) |
+
+[历史简化评估](../archive/2026-09-20/auto-grant-assessment.md)仅作追溯，当前实施依据为上方已采纳的自动授权设计。
 
 ## 推荐阅读顺序
 

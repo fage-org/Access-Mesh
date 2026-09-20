@@ -690,9 +690,9 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
   → PermissionChangeContext.markUsers 登记受影响用户
   → afterCommit 批量失效 EFFECTIVE_ROLES（SubjectDomainService.invalidateRoleCacheBatch）
 
-依赖规则变更（resource_dependency）
-  → 按 grant_dep_id 精准清理 role_resource_permission 中的 AUTO_DEP 补全记录
-  → 重新评估受影响角色的自动补全状态（清理旧补全 + 补全新权限）
+依赖规则变更（规划中，dependency-auto-grant 简化方案；T-PERM-071～073 待实施）
+  → 从当前显式种子与依赖图完整重算受影响角色 desired AUTO_DEP
+  → 同事务与 actual diff；不按 grant_dep_id 单边清理，不存全路径 support
   → 角色权限快照失效（evictBatch ROLE_PERM_SNAPSHOT）+ 用户缓存失效 + Redis 广播 PermInvalidateEvent
 
 API mapping / serviceCode-only 变更

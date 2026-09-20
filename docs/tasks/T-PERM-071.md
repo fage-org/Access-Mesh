@@ -1,52 +1,57 @@
 ---
 doc_type: task
 id: T-PERM-071
-title: 依赖声明层（declaration 表 + manifest 通道 + 编译器 + starter）
+title: 独立依赖声明与可选 SDK 协调
 status: proposed
-plan: —（无所属计划；T-PERM-035 实现序列 035A）
-domain: permission-center
+plan: —（无所属计划；自动授权实施序列）
+domain: access-service
 design_refs:
-  - docs/design/dependency-auto-grant.md#§2（总体架构与单写者分层）
-  - docs/design/dependency-auto-grant.md#§3.1（permission_dependency_declaration）
-  - docs/design/dependency-auto-grant.md#§3.2（service_manifest_sync）
-  - docs/design/dependency-auto-grant.md#§3.4（resource_dependency 改造）
-  - docs/design/dependency-auto-grant.md#§4（Manifest 协议与 starter）
-  - docs/design/dependency-auto-grant.md#§5（DependencyCompiler）
-  - docs/design/access-service-api-contract.md（manifest 章新登记+batch-sync 删除收口）
-  - docs/design/schema/access-service.sql（DDL 落地）
-  - docs/design/frontend/resource-dependency.md（autoGrant/SYNC 退役回写）
+  - docs/design/dependency-auto-grant.md#architecture
+  - docs/design/dependency-auto-grant.md#data-model
+  - docs/design/dependency-auto-grant.md#integration
+  - docs/design/dependency-auto-grant.md#compiler
+  - docs/design/access-service-api-contract.md
+  - docs/design/schema/access-service.sql
+  - docs/design/frontend/resource-dependency.md
+  - docs/design/extension-guide.md
 depends_on:
   - T-PERM-070
+  - T-PERM-078
+  - T-PERM-074
 blocks: []
 acceptance:
-  - "schema 落地：declaration（两态+reason_code、code_type=64、操作码 TEXT[] 至多 1 个）+ manifest_sync（payload_hash、is_dirty）+ resource_dependency 改造（溯源列、depends_on 反向索引、auto_grant 列退役、maintain_source 收敛 MANIFEST/ADMIN_UI）"
-  - "manifest full-sync 端点：三字段（schemaVersion/revision/dependencies）+ SyncResultResp 风格信封 + 幂等四条件（revision+hash+全 RESOLVED+非 dirty）；payload_hash 规范化契约（canonical bytes 排序含操作数组、SHA-256）与六类回归"
-  - "DependencyCompiler：校验链（source 所有权→同 owner 蕴含目标资格→资源/操作码→自依赖→环已提交图优先；**ADMIN_UI 行豁免同 owner 第 2/3 步校验，仅做自依赖/环/操作码校验**——设计 §5.4 编译期 policy）+ 两态状态机 + 同键并集聚合（§5.5）+ declaration 写守卫（MANIFEST 行拒删改）+ 触发位单操作校验（多值 400）+ manifest 置脏联动"
-  - "starter：JSON 清单 + Provider SPI + 单租户配置 + TenantRegistrationProvider 多租户 SPI + 两步编排（资源 full-sync→manifest，同 revision 重试）+ 启动本地最小校验"
-  - "batch-sync 删除连同连带面：契约总册 §12.4/端点表行、DEPENDENCY:SYNC 操作位与 bootstrap 固定图授权行收口（含前端 perms.ts SYNC 项/路由 auths 派生/mock 角色矩阵同步删除）、autoGrant 字段链**全调用面**（后端 DTO + schema 列 + 前端 api 类型与表单载荷〔hook.ts buildCreate/UpdatePayload 恒携带〕与表格列/开关 + 契约 20048 行）前后端 SDK 同批锁步退役——严格 Jackson 下旧载荷回传已删字段即 400（T-ACCESS-036 先例），前端不同步则依赖页新建/编辑必断"
-  - "manifest 端点（/api/access/integration/permission-manifest/full-sync）免 bootstrap 固定图 API 行/API 资源（经 Gateway M2M skipAuth 链，不进用户权限快照）——该判断写入契约注记"
-  - "admin 依赖端点语义迁移（create/update/remove→declaration CRUD + 编译触发；list 增列 compile_status/reason/revision）；契约总册新章与错误码排号登记"
+  - "declaration/manifest_sync 与编译图落地，RESOLVED/REJECTED、同键并集聚合、反向索引和 dirty 重判符合采用设计；不建 support 表。"
+  - "资源单条 sync 与按类型 scope FULL 独立可用；仅资源接入无需 manifest/registration starter/空依赖；更新依赖无需重传全部资源。"
+  - "manifest 独立 FULL：静态 JSON/动态 Provider、完整空依赖清单、语义 hash 规范化与四条件幂等、description 更新、逐项失败诊断；不得把 HTTP 200 当全部成功。"
+  - "编译源/目标同 owner、资源与操作存在性、自依赖/联合图环校验；无跨 owner/内部目标 override，MANIFEST 管理面拒改删；同 owner 管理写入口按 M3 结论实施。"
+  - "SDK 复用现役凭证，独立 manifest 发布与可选协调；不强制大清单，不把 git revision 当资源 syncVersion；动态刷新、发布排序、空资源集和前置部分失败按 M1 验收。"
+  - "batch-sync、DEPENDENCY:SYNC、autoGrant 全字段链及 bootstrap/前端 perms/routes/mock/SDK/契约锁步退役；实际存量来源与边迁移有核查记录。"
+  - "manifest M2M 精确白名单与服务端所有权校验闭合，不新增用户 API 固定图授权行；管理通道如保留则按 M3 完成门禁与契约，不以 UI 隐藏替代。"
+  - "真实接口验收分别覆盖仅资源接入、仅依赖更新、可选两步协调失败重试；编译并发协议沿 M4，正式字段/错误码与前端设计回写完成。"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-19
+last_updated: 2026-09-20
 ---
 
-# T-PERM-071 依赖声明层（035A）
+# T-PERM-071 独立依赖声明与可选 SDK 协调
 
 ## 背景
 
-T-PERM-035 v1 设计定稿（2026-09-19，用户确认；docs/design/dependency-auto-grant.md adopted）——业务系统代码声明依赖关系，Access-Mesh 编译为实例级依赖图；resource_dependency 单写者（仅 DependencyCompiler），ADMIN_UI 也走 declaration。
+自动授权简化方向已采纳，[设计稿](../design/dependency-auto-grant.md)为实施依据。资源同步保持独立；无需自动授权的接入方不承担依赖清单成本。
+
+## 当前口径
+
+T-PERM-078 先收敛设计 §16 的实施协议，T-PERM-074 先闭合既有资源同步重试问题。来源不再落逐路径 support，API 派生仍由 T-PERM-054 承接且维持暂缓。本卡 proposed，不表示新 manifest 端点已交付。
 
 ## 范围
 
-设计稿 §2–§5 全部：三张新表中的 declaration/manifest_sync + resource_dependency 改造、manifest 通道（消费 T-PERM-070 凭证）、编译器、registration starter。物化（035B）与观测（035C）不在本卡。
-
-## 非目标 / 遗留
-
-- 跨系统依赖、PENDING 家族、multi-bit 触发位、注解声明：设计稿 §14 演进项。
-- 既有依赖种子行迁移：实测无对象（BootstrapGraphDefinition 无 resource_dependency 种子、全仓零 INSERT）——无迁移项。
+声明数据层、编译器、独立 manifest 通道、SDK 发布/可选协调、管理写入口迁移、契约和前端兼容收口。资源 sync/full-sync 原有独立使用方式保持，相关协议修正按 M1 已定内容实施；依赖物化回收挂接归 072。
 
 ## 验收对照
 
-见 acceptance；`role_permission_auto_support` 表随 T-PERM-072（035B）落 DDL。
+见 frontmatter acceptance。以同服务月报/模板为最小业务闭环，同时用无依赖的纯资源接入证明未引入强制依赖。新端点/形状只在正式契约登记，不由任务卡重定义。
+
+## 非目标 / 遗留
+
+物化与解释分别归 072/073；跨系统依赖、类型级种子、注解、异步队列不进入本卡。M1/M3/M4 没有稳定结论不得自行猜测接口、迁移或门禁行为。

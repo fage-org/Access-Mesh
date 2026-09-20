@@ -317,28 +317,21 @@ example-service 需要把报表建模为主资源，把城市、部门、门店�
 
 ## 12. 场景九：资源依赖自动补全
 
-目标：授权某个资源时，自动补齐它依赖的接口或数据资源权限。
+目标：授予同服务资源实例的显式权限时，自动补齐声明的目标权限，并在来源撤销时按剩余来源重算回收。
 
-> **状态（2026-08-27 定稿；2026-09-19 更新）**：本场景为**实现中目标态**——自动授权承接序列 T-PERM-070~073 已定稿立项（原 T-PERM-035 已 cancelled、暂缓已解除；设计稿 dependency-auto-grant.md；前置凭证基建 070 已落地 2026-09-20）。071/072 落地前 `autoGrant` 维持预留禁用：create / update / batch-sync 全部写入口拒绝 `true`（20048），仅接受 `false`/省略，依赖补全不生效；依赖规则本身可正常建立与维护（autoGrant=false）。下表流程在 T-PERM-072 落地后生效。
+> **已规划、未交付**：采用[简化设计](../dependency-auto-grant.md)。070 服务认证已完成，078 实施前细化与 071～073 尚待实施。现役依赖写入口仍拒绝 autoGrant=true（20048），不能把下列目标流程当作已实现。
 
-| 步骤 | 接口                                            | 关键入参                                                        | 结果                 |
-| ---- | ----------------------------------------------- | --------------------------------------------------------------- | -------------------- |
-| 1    | `POST /api/access/resource-dependency/create`     | 源资源、依赖资源、触发操作位、required 操作位、`autoGrant=true`（**目标态；当前被 20048 拒绝，仅接受 false**） | 建立依赖规则         |
-| 2    | `POST /api/access/role-resource-permission/apply-grant-plan` | 给角色授权源资源（plan.creates）              | 自动补齐依赖资源权限（grantSource=AUTO_DEP，**目标态行为**） |
-| 3    | 自动处理                                        | 写入 `grantSource=AUTO_DEP + grantDepId`                        | 标记补全来源         |
-| 4    | `POST /api/access/role-resource-permission/list`  | 查询角色权限                                                    | 能看到自动补齐结果   |
-| 5    | `POST /api/access/resource-dependency/batch-sync` | 修改依赖规则                                                    | 清理旧补全并重新评估 |
+| 步骤 | 动作 | 结果 |
+|---|---|---|
+| 1 | 接入方独立调用资源 sync 或按类型 full-sync | 登记资源；无需依赖能力 |
+| 2 | 有依赖需求时独立发布 manifest | 校验、编译为依赖图；SDK 协调可选 |
+| 3 | 管理员通过 apply-grant-plan 授/撤显式权限 | 同事务完整重算受影响角色 AUTO_DEP 并 diff |
+| 4 | 授权页查看自动结果与来源 | 按需共享推导解释，区分应有结果与实际落库 |
+| 5 | 资源/依赖/定义变更 | 平台内部触发收缩/重算，提交后按既有权限变更机制失效缓存 |
 
-关键逻辑：
+resource_dependency.resource_entity_id 是源，depends_on_resource_entity_id 是目标。自动权限可独立使用，不替代 depend_on 父上下文模型，也不包含 API 操作派生。类型级/父继承不作种子，条件与操作规范化按设计 M2 收敛。
 
-- 自动补全不应产生重复授权。
-- `resource_dependency.resource_entity_id` 是源资源/被授权资源；`depends_on_resource_entity_id` 是被源资源依赖、需要自动补全的目标资源。
-- 授权源资源时，自动补全查询条件必须是 `resource_dependency.resource_entity_id = 授权资源ID`。
-- 同一源资源和依赖资源可以按不同 `source_operation_bits` 配置多条依赖规则。
-- `resource-dependency/batch-sync` 的 FULL diff 只能清理同一 `ownerServiceCode + maintainSource` 范围内缺失的规则，不能清理其他服务或其他维护来源的规则；匹配键为「源资源 + 目标资源 + COALESCE(source_operation_bits, 0)」三元组（对齐 uk_resource_dependency 唯一语义——同资源对不同触发操作是不同规则，仅按资源对匹配会漏删，T-PERM-031 修正）。
-- 依赖规则变更时按 `grantDepId` 精准清理自动补全记录。
-- 自动补全同样需要记录变更日志，并通过 `PermissionChangeContext.markRoles/markServiceCodes` 在 afterCommit 阶段失效 `ROLE_PERM_SNAPSHOT`、用户有效角色缓存并广播。
-- **注意**：`auto-grant` 自动补全功能标记为 TODO，Phase 1-5 未完整实现（T-PERM-035 暂缓；当前写入口拒绝 `autoGrant=true` 返回 20048，见本节开头状态声明）。撤销走 `apply-grant-plan` 的 removes（软删+级联+行数断言 20036 fail-closed）；缓存失效与广播由调用方通过 `PermissionChangeContext` + `@PermissionChange` afterCommit 统一处理。
+不按 grant_dep_id 单边清理，不建逐完整路径 support。共享来源最后一个撤销才删除自动结果，独立 MANUAL 保留；正常撤销由主事务保证，不等待后台对账。
 
 ## 13. 场景十：审计排查
 

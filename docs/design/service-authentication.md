@@ -8,7 +8,7 @@ last_reviewed: 2026-09-20   # T-PERM-070 实施落地：§3.2 验证顺序与 TL
 
 # 公共服务认证模块（per-service credential）设计
 
-> **状态口径**：`adopted`（2026-09-19 随 [dependency-auto-grant.md](dependency-auto-grant.md) 同批用户确认定稿，registry 同日行）。实现载体为 **T-PERM-070 前置任务卡**（原 T-PERM-035 已 cancelled，实现序列由 070~073 承接）。
+> **状态口径**：`adopted`（2026-09-19 同批定稿依据见[原定案全文](../archive/2026-09-20/auto-grant-prior-decisions.md)；自动授权部分取代关系见[定案登记表](decision-registry.md)）。本公共模块由 **T-PERM-070** 实现并已完成；自动授权由 **T-PERM-078** 先细化协议，再沿 **T-PERM-071～073** 实施，完整前置依赖以[任务看板](../tasks/README.md)为准。
 >
 > **定位**：机器对机器（M2M）服务身份认证是**多通道共用的平台能力**（资源同步通道、manifest 依赖声明通道、未来任何服务身份端点），不隶属单一特性——本稿从 dependency-auto-grant §9 升格拆出，含现有认证系统的完整盘点。
 
@@ -144,5 +144,5 @@ CREATE TABLE service_credential (
 | 事项 | 说明 |
 |---|---|
 | [dependency-auto-grant.md](dependency-auto-grant.md) §9 | 消费方：manifest 通道强制凭证认证（身份=凭证绑定 tenant+service，请求不收 serviceCode）；资源同步通道同时接受 |
-| 任务结构 | 独立前置任务卡（T-PERM-035 拆卡时单列，先于 035A 交付） |
+| 任务结构 | 独立前置任务卡（T-PERM-035 拆卡时单列，先于 T-PERM-071 交付） |
 | 现状盘点证据 | 见 §2 锚点列（拦截器/过滤器/SDK 拦截器/OAuth2 grant 盘点均为 2026-09-19 代码级核实） |
