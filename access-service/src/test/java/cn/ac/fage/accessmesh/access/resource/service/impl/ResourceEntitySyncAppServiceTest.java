@@ -78,7 +78,7 @@ class ResourceEntitySyncAppServiceTest {
                 typeResolutionService, resourceEntityMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(),
                 resourceTypeOwnershipGuard,
-                resourceEntityDomainService, treeWriteLockSupport);
+                resourceEntityDomainService, treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class));
         // 默认桩：类型门禁放行（SYNC+来源匹配+服务注册启用，T-PERM-052；评审 P1 后门禁含
         // service_config 状态校验）；拒绝态用例按需覆盖为 false
         lenient().when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(anyLong(), anyString(), anyString()))
@@ -283,7 +283,7 @@ class ResourceEntitySyncAppServiceTest {
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
                         null, null, null, null, 1, null, null, null,
-                        new SyncVersionRef(OCCURRED_AT, 1L))));
+                        new SyncVersionRef(OCCURRED_AT, 1L))), "1");
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
 
@@ -406,7 +406,7 @@ class ResourceEntitySyncAppServiceTest {
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
                         "MENU", "child-x", "default", null, 1, null, null, null,
-                        new SyncVersionRef(OCCURRED_AT, 1L))));
+                        new SyncVersionRef(OCCURRED_AT, 1L))), "1");
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
 
@@ -460,7 +460,7 @@ class ResourceEntitySyncAppServiceTest {
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
                         "MENU", "parent-x", "default", null, 1, null, null, null,
-                        new SyncVersionRef(OCCURRED_AT, 1L))));
+                        new SyncVersionRef(OCCURRED_AT, 1L))), "1");
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
 
@@ -570,7 +570,7 @@ class ResourceEntitySyncAppServiceTest {
                                 new SyncVersionRef(OCCURRED_AT, 1L)),
                         new ResourceEntitySyncItem("menu-1", "default", "Menu One",
                                 null, null, null, null, 1, null, null, null,
-                                new SyncVersionRef(OCCURRED_AT, 2L))));
+                                new SyncVersionRef(OCCURRED_AT, 2L))), "1");
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
 
@@ -788,7 +788,7 @@ class ResourceEntitySyncAppServiceTest {
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 java.util.List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu One",
                         null, "parent-x", "default", null, 1, null, null, null,
-                        new SyncVersionRef(OCCURRED_AT, 1L))));
+                        new SyncVersionRef(OCCURRED_AT, 1L))), "1");
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
 

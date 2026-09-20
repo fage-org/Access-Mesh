@@ -1,5 +1,10 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import cn.ac.fage.accessmesh.access.sync.PublicationGeneration;
+import cn.ac.fage.accessmesh.access.sync.ResourcePublicationNormalizer;
+import cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService;
+import cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationPolicy;
+import cn.ac.fage.accessmesh.access.sync.metadata.SyncVersionOrder;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
@@ -43,6 +48,7 @@ import java.util.Set;
 @Service
 public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppService {
 
+    private static final int SQL_BATCH_SIZE = 500;
     private static final String ENTITY_KIND = "RESOURCE_ENTITY";
     private static final String DEFAULT_CODE_TYPE = "default";
     private static final String OP_UPSERT = "UPSERT";
@@ -62,6 +68,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     private final ResourceTypeOwnershipGuard resourceTypeOwnershipGuard;
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final TreeWriteLockSupport treeWriteLockSupport;
+    private final ResourcePublicationDomainService publications;
+    private final ResourcePublicationNormalizer publicationNormalizer;
 
     public ResourceEntitySyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                              SyncMetadataMapper syncMetadataMapper,
@@ -71,7 +79,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                                              LocalProjectionGuard localProjectionGuard,
                                              ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                              ResourceEntityDomainService resourceEntityDomainService,
-                                             TreeWriteLockSupport treeWriteLockSupport) {
+                                             TreeWriteLockSupport treeWriteLockSupport,
+                                             ResourcePublicationDomainService publications) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.syncMetadataMapper = syncMetadataMapper;
         this.typeResolutionService = typeResolutionService;
@@ -81,6 +90,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         this.resourceTypeOwnershipGuard = resourceTypeOwnershipGuard;
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.treeWriteLockSupport = treeWriteLockSupport;
+        this.publications = publications;
+        this.publicationNormalizer = new ResourcePublicationNormalizer(objectMapper);
     }
 
     @Override
@@ -110,7 +121,25 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 && !OP_DELETE.equals(req.operation())) {
             return SyncResultBuilder.nonRetryable("INVALID_OPERATION");
         }
-        return doSyncOne(tenantId, req);
+        Long generation;
+        try { generation = req.publicationGeneration() == null ? null : PublicationGeneration.parse(req.publicationGeneration()); }
+        catch (IllegalArgumentException e) { return SyncResultBuilder.nonRetryable("PUBLICATION_GENERATION_INVALID"); }
+        String scope = SyncKeyCodecUtil.resourceEntityScopeKey(req.resourceTypeCode());
+        var state = publications.read(tenantId, req.sourceService(), scope);
+        SyncMetadata metadata = null;
+        String itemHash = null;
+        if (generation != null) {
+            req = publicationNormalizer.snapshot(req);
+            itemHash = publicationNormalizer.hash(req);
+            String keyHash = SyncKeyCodecUtil.sha256Hex(publicationNormalizer.businessKey(req));
+            metadata = syncMetadataDomainService.mapByBusinessKeyHash(tenantId, ENTITY_KIND, req.sourceService(),
+                    SyncKeyCodecUtil.sha256Hex(scope), Set.of(keyHash)).get(keyHash);
+        }
+        var decision = ResourcePublicationPolicy.single(state, metadata, generation, itemHash);
+        if (decision != ResourcePublicationPolicy.Decision.APPLY) return publicationRejection(decision);
+        SyncResultResp result = doSyncOne(tenantId, req, metadata, generation, itemHash);
+        if (generation != null && result.applied()) publications.acceptSingle(tenantId, req.sourceService(), scope, generation);
+        return result;
     }
 
     @Override
@@ -145,14 +174,31 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                             SyncResultBuilder.RETRY_SECURITY_DENIED, "RESOURCE_TYPE_OWNERSHIP_DENIED")));
         }
 
+        long generation;
+        String fullHash;
+        try {
+            if (req.publicationGeneration() == null) throw new IllegalArgumentException("PUBLICATION_GENERATION_REQUIRED");
+            generation = PublicationGeneration.parse(req.publicationGeneration());
+            if (req.items() == null || req.items().stream().anyMatch(java.util.Objects::isNull)) {
+                throw new IllegalArgumentException("INVALID_FULL_ITEMS");
+            }
+            req = publicationNormalizer.snapshot(req);
+            fullHash = publicationNormalizer.fullHash(req);
+        } catch (IllegalArgumentException e) {
+            return fullPublicationRejected(SyncResultBuilder.RETRY_NON_RETRYABLE, e.getMessage(), req.items() == null ? 0 : req.items().size());
+        }
+        var publicationState = publications.read(tenantId, req.scope().sourceService(), scopeKey);
+        var decision = ResourcePublicationPolicy.full(publicationState, generation, fullHash);
+        if (decision != ResourcePublicationPolicy.Decision.APPLY) return fullPublicationRejected(decision, req);
+        List<SyncMetadata> existingScope = syncMetadataDomainService.listScopeForFullSync(
+                tenantId, ENTITY_KIND, req.scope().sourceService(), scopeKeyHash);
+        Map<String, SyncMetadata> metadataByKey = new HashMap<>();
+        existingScope.forEach(md -> metadataByKey.put(md.getBusinessKeyHash(), md));
+
         // ---- 阶段 A：收集 (resourceCode, codeType) 与 parent (typeCode, code, codeType) 集合 ----
-        Set<String> selfCodes = new HashSet<>(req.items().size());
-        Set<String> selfCodeTypes = new HashSet<>();
         List<ResourceResolveRequest> parentRequests = new ArrayList<>();
         for (ResourceEntitySyncItem item : req.items()) {
             String codeType = (item.codeType() == null || item.codeType().isBlank()) ? DEFAULT_CODE_TYPE : item.codeType();
-            selfCodes.add(item.resourceCode());
-            selfCodeTypes.add(codeType);
             // T-PERM-068：父字段组激活条件=parentResourceCode 非空；typeCode 缺省回填 scope 类型；
             // 跨类型项不参与批量父解析（循环体按类型拒绝，无需解析）
             if (item.parentResourceCode() != null && !item.parentResourceCode().isBlank()) {
@@ -173,15 +219,27 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 tenantId, "resource_type", req.scope().resourceTypeCode());
         // resourceTypeValue 为 null 时不直接拒绝整批，沿用单条 doSyncOne 路径让每条 item 独立返回 dependencyMissing。
         Map<CodeKey, ResourceEntity> existingByCodeKey = new HashMap<>();
-        if (resourceTypeValue != null && !selfCodes.isEmpty()) {
-            for (ResourceEntity re : resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
-                    tenantId, resourceTypeValue, selfCodes, selfCodeTypes)) {
-                existingByCodeKey.put(new CodeKey(re.getCode(), re.getCodeType()), re);
+        if (resourceTypeValue != null) {
+            for (int offset = 0; offset < req.items().size(); offset += SQL_BATCH_SIZE) {
+                var batch = req.items().subList(offset, Math.min(offset + SQL_BATCH_SIZE, req.items().size()));
+                Set<String> batchCodes = new HashSet<>();
+                Set<String> batchCodeTypes = new HashSet<>();
+                for (var item : batch) {
+                    batchCodes.add(item.resourceCode());
+                    batchCodeTypes.add(item.codeType() == null || item.codeType().isBlank() ? DEFAULT_CODE_TYPE : item.codeType());
+                }
+                for (ResourceEntity re : resourceEntityMapper.selectByTypeAndCodesAndCodeTypes(
+                        tenantId, resourceTypeValue, batchCodes, batchCodeTypes)) {
+                    existingByCodeKey.put(new CodeKey(re.getCode(), re.getCodeType()), re);
+                }
             }
         }
-        Map<ResourceResolveKey, Long> parentResolved = parentRequests.isEmpty()
-                ? Map.of()
-                : typeResolutionService.batchResolveResourceIds(tenantId, parentRequests);
+        Map<ResourceResolveKey, Long> parentResolved = new HashMap<>();
+        List<ResourceResolveRequest> uniqueParents = parentRequests.stream().distinct().toList();
+        for (int offset = 0; offset < uniqueParents.size(); offset += SQL_BATCH_SIZE) {
+            parentResolved.putAll(typeResolutionService.batchResolveResourceIds(tenantId,
+                    uniqueParents.subList(offset, Math.min(offset + SQL_BATCH_SIZE, uniqueParents.size()))));
+        }
 
         // ---- 阶段 B.6：全量父子关系内存图（写入前逐项判环用；无父项批次跳过加载，
         // 对齐角色 fullSync 先例——循环体内无数据库调用，N+1 禁令）----
@@ -229,12 +287,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                         itemParentTypeCode, item.parentResourceCode(), pct, null));
             }
 
-            ResourceEntitySyncReq oneReq = new ResourceEntitySyncReq(
-                    OP_UPSERT, req.scope().resourceTypeCode(), item.resourceCode(), codeType,
-                    item.name(), item.parentResourceTypeCode(), item.parentResourceCode(),
-                    item.parentCodeType(), item.path(), item.status(), item.extra(),
-                    req.scope().sourceService(), item.sourceEntityType(), item.sourceEntityId(),
-                    item.syncVersion());
+            ResourceEntitySyncReq oneReq = publicationNormalizer.asSingle(req, item);
+            SyncMetadata itemMetadata = metadataByKey.get(SyncKeyCodecUtil.sha256Hex(businessKey));
+            String itemHash = publicationNormalizer.hash(oneReq);
             // T-PERM-044 评审 P1：环路防护（写入前逐项判定，先于版本写入——拒绝不推进同步版本）：
             // 当前生效图 = 库内既有关系 + 本事务已应用项的边（应用成功后镜像更新）；新建实体
             // 无既有子树天然无环；仅拒绝真正闭合环的本项，指向环的前缀安全项放行
@@ -247,7 +302,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 continue;
             }
             SyncResultResp r = doSyncOneInternal(tenantId, oneReq, resourceTypeValue, existing,
-                    true, parentRequested, preResolvedParentId, true, now);
+                    true, parentRequested, preResolvedParentId, true, now, itemMetadata, generation, itemHash);
             if (r.applied()) {
                 applied++;
                 // doSyncOneInternal 在新建分支会把 insert 后的 ResourceEntity 注入 cache 不在此处再查 DB（避免 N+1）。
@@ -264,22 +319,27 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         // 差异校准（批量软删 targetIds）。清理范围按 sync_metadata(entityKind=RESOURCE_ENTITY,
         // sourceService, scopeKey) 界定（总册 §19.1）：本地投影不写 sync_metadata
         // （§4.2），天然不在清理集合内——类型级保留取消后仍不触及本地投影行。
-        List<SyncMetadata> existingScope = syncMetadataDomainService.listScopeForFullSync(
-                tenantId, ENTITY_KIND, req.scope().sourceService(), scopeKeyHash);
-        List<Long> deactivateTargetIds = new ArrayList<>();
+
+        Set<Long> deactivateTargetIds = new HashSet<>();
+        List<String> missingHashes = new ArrayList<>();
         for (SyncMetadata md : existingScope) {
             if (seenBusinessKeyHashes.contains(md.getBusinessKeyHash())) continue;
             if (STATUS_DELETED.equals(md.getTargetStatus())) continue;
-            syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND,
-                    req.scope().sourceService(), scopeKeyHash, md.getBusinessKeyHash(), STATUS_DELETED);
+            missingHashes.add(md.getBusinessKeyHash());
             if (md.getTargetId() != null) {
                 deactivateTargetIds.add(md.getTargetId());
             }
             deactivated++;
         }
-        if (!deactivateTargetIds.isEmpty()) {
-            resourceEntityMapper.softDeleteBatch(tenantId, deactivateTargetIds, now);
+        for (int offset = 0; offset < missingHashes.size(); offset += SQL_BATCH_SIZE) {
+            publications.markDeleted(tenantId, req.scope().sourceService(), scopeKey,
+                    missingHashes.subList(offset, Math.min(offset + SQL_BATCH_SIZE, missingHashes.size())));
         }
+        List<Long> deleteIds = new ArrayList<>(deactivateTargetIds);
+        for (int offset = 0; offset < deleteIds.size(); offset += SQL_BATCH_SIZE) {
+            resourceEntityMapper.softDeleteBatch(tenantId, deleteIds.subList(offset, Math.min(offset + SQL_BATCH_SIZE, deleteIds.size())), now);
+        }
+        publications.acceptFull(tenantId, req.scope().sourceService(), scopeKey, generation, fullHash, failed > 0);
         return SyncResultBuilder.fullSync(applied, stale, failed, deactivated, itemResults);
     }
 
@@ -299,8 +359,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 : parentResourceTypeCode;
     }
 
-    private SyncResultResp doSyncOne(Long tenantId, ResourceEntitySyncReq req) {
-        return doSyncOneInternal(tenantId, req, null, null, false, false, null, false, LocalDateTime.now());
+    private SyncResultResp doSyncOne(Long tenantId, ResourceEntitySyncReq req, SyncMetadata metadata, Long generation, String hash) {
+        return doSyncOneInternal(tenantId, req, null, null, false, false, null, false,
+                LocalDateTime.now(), metadata, generation, hash);
     }
 
     /**
@@ -363,7 +424,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                                              boolean preExistingResolved,
                                              boolean parentRequested, Long preResolvedParentId,
                                              boolean cyclePreChecked,
-                                             LocalDateTime now) {
+                                             LocalDateTime now, SyncMetadata metadata, Long generation, String publicationHash) {
         String codeType = (req.codeType() == null || req.codeType().isBlank()) ? DEFAULT_CODE_TYPE : req.codeType();
         String businessKey = SyncKeyCodecUtil.resourceEntityBusinessKey(
                 req.resourceTypeCode(), req.resourceCode(), codeType);
@@ -373,6 +434,10 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         String syncKey = SyncKeyCodecUtil.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
         String syncKeyHash = SyncKeyCodecUtil.sha256Hex(syncKey);
 
+        if (preExistingResolved && metadata != null && java.util.Objects.equals(metadata.getLastPublicationGeneration(), generation)) {
+            return java.util.Objects.equals(metadata.getLastPublicationHash(), publicationHash)
+                    ? SyncResultBuilder.stale() : SyncResultBuilder.nonRetryable("PUBLICATION_GENERATION_CONFLICT");
+        }
         Integer resourceTypeValue = preResolvedTypeValue != null
                 ? preResolvedTypeValue
                 : typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
@@ -441,13 +506,23 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
 
         if (OP_DISABLE.equals(req.operation()) && existing == null) {
             // DISABLE 只走单条入口；保留已消费旧版本的 STALE 响应，同时不为新失败写版本。
-            SyncMetadata metadata = syncMetadataDomainService.mapByBusinessKeyHash(tenantId, ENTITY_KIND,
+            SyncMetadata existingMetadata = syncMetadataDomainService.mapByBusinessKeyHash(tenantId, ENTITY_KIND,
                     req.sourceService(), scopeKeyHash, Set.of(businessKeyHash)).get(businessKeyHash);
-            if (metadata != null && !syncMetadataDomainService.isNewerVersion(metadata,
+            if (existingMetadata != null && !syncMetadataDomainService.isNewerVersion(existingMetadata,
                     req.syncVersion().occurredAt(), req.syncVersion().sequenceNo())) {
                 return SyncResultBuilder.stale();
             }
             return SyncResultBuilder.dependencyMissing("RESOURCE_NOT_FOUND");
+        }
+
+        if (preExistingResolved && metadata != null) {
+            int order = SyncVersionOrder.compareIncoming(metadata, req.syncVersion());
+            if (order < 0) return SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
+            if (order == 0) {
+                if (!publicationNormalizer.matchesExisting(req, existing, parentId)) return SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
+                publications.stampItem(tenantId, req.sourceService(), scopeKey, businessKeyHash, generation, publicationHash);
+                return SyncResultBuilder.stale();
+            }
         }
 
         SyncMetadataDomainService.ApplyVersionResult vr = syncMetadataDomainService.applyVersion(
@@ -520,6 +595,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                     scopeKeyHash, businessKeyHash, STATUS_DELETED);
         }
 
+        if (generation != null) publications.stampItem(tenantId, req.sourceService(), scopeKey, businessKeyHash, generation, publicationHash);
         return SyncResultBuilder.applied();
     }
 
@@ -539,6 +615,30 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             throw new SystemException(AccessErrorCode.SYSTEM_INIT_FAILED.getCode(),
                     "serialize resource_entity extra failed", e);
         }
+    }
+
+    private SyncResultResp publicationRejection(ResourcePublicationPolicy.Decision decision) {
+        return switch (decision) {
+            case GENERATION_REQUIRED -> SyncResultBuilder.nonRetryable("PUBLICATION_GENERATION_REQUIRED");
+            case CONFLICT -> SyncResultBuilder.nonRetryable("PUBLICATION_GENERATION_CONFLICT");
+            case STALE, UNCHANGED -> new SyncResultResp(true, false, true,
+                    SyncResultBuilder.RETRY_STALE_VERSION, "PUBLICATION_GENERATION_STALE");
+            default -> throw new IllegalStateException("unexpected publication rejection: " + decision);
+        };
+    }
+    private SyncResultResp fullPublicationRejected(String category, String reason, int count) {
+        return SyncResultBuilder.fullSyncRejected(category, reason, count,
+                List.of(new SyncResultResp.ItemResult("*", false, false, category, reason)));
+    }
+    private SyncResultResp fullPublicationRejected(ResourcePublicationPolicy.Decision decision, ResourceEntityFullSyncReq req) {
+        if (decision != ResourcePublicationPolicy.Decision.STALE) {
+            return fullPublicationRejected(SyncResultBuilder.RETRY_NON_RETRYABLE, "PUBLICATION_GENERATION_CONFLICT", req.items().size());
+        }
+        List<SyncResultResp.ItemResult> items = req.items().stream().map(item -> new SyncResultResp.ItemResult(
+                publicationNormalizer.businessKey(publicationNormalizer.asSingle(req, item)), false, true,
+                SyncResultBuilder.RETRY_STALE_VERSION, "PUBLICATION_GENERATION_STALE")).toList();
+        return new SyncResultResp(true, false, true, SyncResultBuilder.RETRY_STALE_VERSION, "PUBLICATION_GENERATION_STALE",
+                new SyncResultResp.FullSyncDetail(0, items.size(), 0, 0, items));
     }
 
 }

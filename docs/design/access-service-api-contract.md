@@ -2214,7 +2214,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 ## 19. sync 同步通道（/api/access/**/sync 与 full-sync）
 ### 19.1 资源实体专用同步 resource-entity/sync
 
-> **已采纳、待实施（T-PERM-071，2026-09-21）**：混用资源 FULL 的 scope 中，增量与 FULL 共同携带源侧可比较的发布顺序，平台提供双向旧请求防护；纯增量 scope 保持现役协议。正式字段与切换规则由 078 收敛，本节现役请求尚未包含该字段，见[设计 §4.4](dependency-auto-grant.md#integration)。
+> **资源发布顺序（T-PERM-071）**：混用资源 FULL 的 scope 中，增量与 FULL 共同携带源侧分配的 `publicationGeneration`，平台提供双向旧请求防护；尚未切换的纯增量 scope 可省略该字段。字段、响应与一次性切换规则见 §19.2.1。
 
 > **自动授权生命周期已采纳、待实施（T-PERM-071/072，2026-09-20）**：仅资源 DISABLE 或 UPSERT/FULL 的 status 停用、恢复不改变自动授权传播；源、目标、中间资源均不因停用退出推导，既有自动授权保留，恢复不触发重建。显式撤权、资源 DELETE/FULL 缺失删除、依赖声明变更仍按各自规则重算。此决定不改变资源自身的运行时鉴权或来源服务启停门禁，详见[自动授权设计 §7](dependency-auto-grant.md#triggers)。
 
@@ -2243,6 +2243,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
   "sourceService": "hr-service",
   "sourceEntityType": "hr_org",
   "sourceEntityId": "2001",
+  "publicationGeneration": "42",
   "syncVersion": {
     "occurredAt": "2026-06-12T10:00:00.123",
     "sequenceNo": 1024
@@ -2266,9 +2267,9 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 ### 19.2 资源实体分领域全量校准 resource-entity/full-sync
 
-> **完整空清单已采纳、待实施（T-PERM-071/072，2026-09-20）**：明确 items=[] 表示完整空 scope，通过身份、类型所有权与发布代次校验后，仅清理该同步范围的事实并同事务收缩受影响自动授权；其他来源支持的下游授权保留。缺失/null items 非法，读取失败或分页未完成不得作为空快照提交。现役 @NotEmpty 仍拒绝空数组，071 修改请求校验与校准、072 挂接自动回收后回写现役契约，详见[设计 §4.4](dependency-auto-grant.md#integration)。
+> **完整空清单**：明确 `items=[]` 表示完整空 scope，通过身份、类型所有权与发布代次校验后，仅清理该同步范围的事实。缺失/null items 返回 HTTP 400；读取失败或分页未完成不得作为空快照提交。依赖贡献收缩与自动授权回收分别随 071 剩余生命周期接线和 072 交付，当前资源同步组件不表示物化回收已完成。
 
-> **已采纳、待实施（T-PERM-071，2026-09-20）**：按[自动授权设计 §4.4](dependency-auto-grant.md#integration)，本接口增加发布源确定的递增代次，平台按同步 scope 原子拒绝旧代次，拒绝发生在事实写入与缺失删除之前；重试沿用原代次与发布快照。此代次独立于逐项 syncVersion，不由 SDK 临时取当前时间生成。下述请求仍为现役形状；正式代次字段、同代次冲突/重试响应及兼容迁移由 078 收敛、071 实施回写，不代表当前接口已防止旧 FULL 的缺失删除。
+> **范围发布顺序**：`publicationGeneration` 必填，平台在事实写入与缺失删除前按 scope 原子拒旧；重试沿用原代次与完整快照。此代次独立于逐项 `syncVersion`，由源侧绑定一致快照，不能由 SDK 临时取当前时间生成。详见 §19.2.1 与[设计 §4.4](dependency-auto-grant.md#integration)。
 
 `POST /api/access/resource-entity/full-sync`
 
@@ -2280,6 +2281,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
     "sourceService": "hr-service",
     "resourceTypeCode": "HR_ORG"
   },
+  "publicationGeneration": "43",
   "items": [
     {
       "resourceCode": "2001",
@@ -2312,9 +2314,9 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 - 全量接口仍必须执行 source 身份校验、类型级所有权门禁（scope.resourceTypeCode 同 §19.1 单条口径）和旧版本 no-op 规则。
 - 组织资源等有树依赖的数据应按足够小的 scope 调用，避免单请求过大。
 
-#### 19.2.1 已采纳待实施：资源发布顺序字段与响应（071）
+#### 19.2.1 资源发布顺序字段与响应
 
-本节为 071 的目标契约，现役 DTO 尚未提供；完整处理顺序见[自动授权设计 §4.4.1](dependency-auto-grant.md#integration)。
+资源 sync/full-sync 已实现本节协议；完整处理顺序见[自动授权设计 §4.4.1](dependency-auto-grant.md#integration)。071 的 SDK、生命周期与迁移交付状态以任务卡为准。
 
 | 位置 | 字段 | 约束 |
 |---|---|---|
@@ -2324,6 +2326,8 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 | 每个资源 item / sync 顶层 | syncVersion | 维持 occurredAt + sequenceNo；与发布代次共同验证，不能代替范围顺序 |
 
 正常返回 SyncResultResp，沿用既有 retryClass，不新增数字业务错误码。旧发布代次使用 STALE_VERSION（accepted=true、applied=false、stale=true；reason=PUBLICATION_GENERATION_STALE）；缺代次、范围非法、同代次内容冲突分别 NON_RETRYABLE + PUBLICATION_GENERATION_REQUIRED / PUBLICATION_GENERATION_INVALID / PUBLICATION_GENERATION_CONFLICT。FULL item 逐键版本与快照矛盾使用 NON_RETRYABLE + SYNC_VERSION_CONFLICT，进入既有部分失败统计。请求级反序列化/校验异常仍走统一错误信封。
+
+FULL 缺失/null/空白 `publicationGeneration`、缺失/null `items` 在 HTTP DTO 校验阶段返回 400；已切换 scope 的增量省略代次则返回上述 `PUBLICATION_GENERATION_REQUIRED`。规范化后重复业务键整请求返回 `NON_RETRYABLE/DUPLICATE_BUSINESS_KEY`。旧 FULL 的明细全部计入 staleCount，不计 failedCount，且 deactivatedCount=0。
 
 纯增量旧协议仅适用于未切换 scope。切换后不得无代次降级；同一来源按租户、资源类型独立切换。FULL 重试须保持原代次与完整请求，后来已成功的更新使旧 FULL 重试失效时，应由源侧重新采集发布，不能仅改数字重放旧清单。
 

@@ -190,7 +190,7 @@ class FullSyncN1GuardTest {
                 resourceEntityMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), resourceTypeOwnershipGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService.class),
-                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class));
 
         List<ResourceEntitySyncItem> items = new ArrayList<>(ITEM_COUNT);
         for (int i = 0; i < ITEM_COUNT; i++) {
@@ -199,7 +199,7 @@ class FullSyncN1GuardTest {
                     new SyncVersionRef(OCCURRED_AT, (long) i + 1)));
         }
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
-                new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"), items);
+                new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"), items, "1");
 
         SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
         assertThat(resp.accepted()).isTrue();

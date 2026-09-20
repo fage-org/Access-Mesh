@@ -32,6 +32,13 @@
 4. full-sync 逐 item 核对 `data.detail.itemResults`（businessKey 级明细）；sync 接口 `data.detail=null`，只看顶层。
 5. 对 `RETRYABLE`/`DEPENDENCY_MISSING` 项按 §4 表重发；对 `NON_RETRYABLE` 项修正请求或源数据后重发——环路/互斥/依赖类拒绝不推进同步版本，修正后同版本重发不会被 STALE 挡；推进 `syncVersion` 作为新事件发送是可选保险（便于区分修复轮次）。
 
+资源同步还须遵守范围发布顺序（契约 §19.2.1）：
+
+- 资源 FULL 必填 `publicationGeneration`，由源侧在一致快照切点分配并绑定完整快照；范围为 tenant + sourceService + resourceType。逐项 syncVersion 不能替代该范围代次，SDK 不得临时取当前时间或给旧快照换号。
+- 混用 FULL 的 scope 中，增量也须带源侧可比较的代次。首次切换前一次性排空旧客户端并升级该 scope 的全部写者；此后可并发 FULL/增量，不需要每次暂停源变更。未切换且仅用增量的 scope 可保留旧协议；切换成功后无代次请求拒绝。
+- 重试同一 FULL 必须保留原代次和完整快照。部分失败会推进范围屏障，原请求可重试失败项；若期间已有更高代次成功，旧重试返回 `PUBLICATION_GENERATION_STALE`，应重新采集完整快照并分配新代次。修改清单内容需要新的发布，不能沿用旧代次。
+- 明确完整空 `items=[]` 可以清理本同步范围；缺失/null items 非法。读取失败、分页未完成或 Provider 异常必须停止发布，不能转换为空数组。其他类型、服务及无本 scope 同步账本的资源不在清理范围。
+
 ## 4. 响应分类与重试决策表
 
 | retryClass | 含义 | 重试策略 |
@@ -44,10 +51,13 @@
 
 请求级错误（例如参数校验 HTTP 400、保留键/本地投影不可变信封 20045、技术异常）不映射为某个 item 的 retryClass。修正请求级业务错误后重发；技术异常按整批回滚处理，恢复服务后重发原请求。
 
+资源发布顺序拒绝需单独识别 reason：`PUBLICATION_GENERATION_STALE` 表示范围或逐键发布已过期；`PUBLICATION_GENERATION_CONFLICT` 表示同代次内容不同；`PUBLICATION_GENERATION_REQUIRED/INVALID` 表示代次缺失或非法。`SYNC_VERSION_CONFLICT` 表示 FULL 项版本更旧，或相等版本要求改变有效事实。不要把这些情况按瞬时故障反复重试；新发布须重新取得源事实与合法代次。资源 FULL 的缺失/null/空白代次在 HTTP 校验阶段即返回 400。
+
 ## 5. 验收检查
 
 - [ ] `detail.appliedCount + staleCount + failedCount = items 总数`，`deactivatedCount` 与预期的「源侧已删对象数」一致。
 - [ ] 抽查 `sync_metadata`（`source_service/scope_key/sync_key_hash/last_sync_occurred_at/last_sync_sequence_no`）与源侧最新事件版本一致。
+- [ ] 资源范围抽查 `resource_publication_state` 的最大代次、最近 FULL 代次/hash/status，以及逐键 `sync_metadata.last_publication_generation/hash`；部分失败不得被记录为全部成功。
 - [ ] 管理面对应查询（资源树 / 主体 / 角色 / 成员关系）所见与源侧一致；被 full-sync 清理的对象在管理面已消失（软删）或成员已解绑。
 - [ ] 鉴权面冒烟：依赖该批事实的授权判定（或网关接口检查）符合预期。
 
@@ -56,6 +66,8 @@
 - **full-sync 不可直接回滚**（删除语义是声明式结果，无事务级逆操作）。恢复手段 = 反向补数据：从备份/源系统导出被误删对象，按逐条 `sync`（UPSERT）重新写入，**syncVersion 必须严格大于历史最高序**（相等版本为 STALE，不会重建事实）。
 - 误删影响面：full-sync 只清理 `sync_metadata` 命中 scope 的同步事实，不触碰 MANUAL 管理面数据与其他通道（`service-config/sync` 是独立 ownership 通道）——恢复时同样只影响本 scope。
 - `DISABLE`/`DELETE` 单条误操作：以新的 UPSERT + 更高版本覆盖恢复（软删行复活走同幂等键 upsert）。
+
+资源 scope 已切换发布顺序时，以上恢复还必须携带源侧新分配的更高代次；不得回退或删除发布屏障来复用旧请求。
 
 ## 7. 常见故障与处置
 

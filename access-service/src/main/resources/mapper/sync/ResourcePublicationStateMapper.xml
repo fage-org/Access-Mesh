@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cn.ac.fage.accessmesh.access.sync.mapper.ResourcePublicationStateMapper">
+    <select id="selectScope" resultType="cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationState">
+        SELECT * FROM resource_publication_state
+        WHERE tenant_id=#{tenantId} AND source_service=#{service} AND scope_key_hash=#{scopeHash} AND delete_flag=0
+    </select>
+    <update id="acceptSingle">
+        INSERT INTO resource_publication_state(tenant_id,source_service,scope_key,scope_key_hash,max_generation)
+        VALUES(#{tenantId},#{service},#{scopeKey},#{scopeHash},#{generation})
+        ON CONFLICT(tenant_id,source_service,scope_key_hash) WHERE delete_flag=0
+        DO UPDATE SET max_generation=GREATEST(resource_publication_state.max_generation,EXCLUDED.max_generation),updated_at=now()
+        WHERE resource_publication_state.last_full_generation IS NULL
+           OR resource_publication_state.last_full_generation &lt; EXCLUDED.max_generation
+    </update>
+    <update id="acceptFull">
+        INSERT INTO resource_publication_state(tenant_id,source_service,scope_key,scope_key_hash,
+            max_generation,last_full_generation,last_full_payload_hash,last_full_status)
+        VALUES(#{tenantId},#{service},#{scopeKey},#{scopeHash},#{generation},#{generation},#{payloadHash},#{status})
+        ON CONFLICT(tenant_id,source_service,scope_key_hash) WHERE delete_flag=0
+        DO UPDATE SET max_generation=EXCLUDED.max_generation,last_full_generation=EXCLUDED.last_full_generation,
+            last_full_payload_hash=EXCLUDED.last_full_payload_hash,last_full_status=EXCLUDED.last_full_status,updated_at=now()
+        WHERE EXCLUDED.max_generation &gt; resource_publication_state.max_generation
+           OR (EXCLUDED.max_generation=resource_publication_state.max_generation
+               AND EXCLUDED.last_full_generation=resource_publication_state.last_full_generation
+               AND EXCLUDED.last_full_payload_hash=resource_publication_state.last_full_payload_hash)
+    </update>
+</mapper>

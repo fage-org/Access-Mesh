@@ -1357,6 +1357,7 @@ CREATE TABLE resource_publication_state (
     max_generation BIGINT NOT NULL CHECK (max_generation > 0),
     last_full_generation BIGINT,
     last_full_payload_hash CHAR(64),
+    last_full_status VARCHAR(16) CHECK (last_full_status IN ('SUCCESS','PARTIAL')),
     created_by BIGINT,
     updated_by BIGINT,
     deleted_by BIGINT,

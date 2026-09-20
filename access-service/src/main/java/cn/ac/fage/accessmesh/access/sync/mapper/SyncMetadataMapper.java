@@ -16,6 +16,13 @@ import java.util.List;
  */
 public interface SyncMetadataMapper extends BaseMapper<SyncMetadata> {
 
+    int stampResourcePublication(@Param("tenantId") Long tenantId, @Param("service") String service,
+                                 @Param("scopeHash") String scopeHash, @Param("businessHash") String businessHash,
+                                 @Param("generation") long generation, @Param("payloadHash") String payloadHash);
+
+    int markResourcesDeleted(@Param("tenantId") Long tenantId, @Param("service") String service,
+                             @Param("scopeHash") String scopeHash, @Param("hashes") List<String> hashes);
+
     /**
      * 按业务键哈希集合批量预载元数据（写入前版本预判用）。
      *

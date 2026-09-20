@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync.dto;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 import java.util.List;
@@ -11,6 +11,7 @@ import java.util.List;
  */
 public record ResourceEntityFullSyncReq(
         @NotNull @Valid ResourceEntitySyncScope scope,
-        @NotEmpty @Valid List<ResourceEntitySyncItem> items
+        @NotNull List<@NotNull @Valid ResourceEntitySyncItem> items,
+        @NotBlank String publicationGeneration
 ) {
 }
