@@ -705,7 +705,32 @@ public enum AccessErrorCode {
      * 的运行时强制（原 admin /config 侧 CONFIG_SYSTEM_IMMUTABLE(10702) 随僵尸端点退役，perm 侧
      * 自落地起无守卫；本码不复用 10702 退役码值）。
      */
-    CONFIG_KEY_SYSTEM_IMMUTABLE(20064, "系统内置配置不可修改（仅经种子维护，租户自定义键请换新键）");
+    CONFIG_KEY_SYSTEM_IMMUTABLE(20064, "系统内置配置不可修改（仅经种子维护，租户自定义键请换新键）"),
+
+    /**
+     * 服务凭证无效（T-PERM-070，2026-09-20 拍板三码细分）：凭证定位失败（credential_id
+     * 不存在/已删除）或 secret 比对失败、凭证头半传。仲裁器 403 禁止降级回落旧密钥。
+     */
+    SERVICE_CREDENTIAL_INVALID(20065, "服务凭证无效（credential_id 不存在或 secret 错误）"),
+
+    /**
+     * 服务凭证已过期（T-PERM-070 三态细分之一）：expires_at 已过，凭证立即失效；
+     * 处置=签发新凭证轮换。
+     */
+    SERVICE_CREDENTIAL_EXPIRED(20066, "服务凭证已过期（请签发新凭证轮换）"),
+
+    /**
+     * 服务凭证已停用（T-PERM-070 三态细分之一）：status=0，通常为轮换收尾停旧或
+     * 管理员主动吊销；处置=联系平台管理员。
+     */
+    SERVICE_CREDENTIAL_DISABLED(20067, "服务凭证已停用（轮换收尾或管理员吊销，请联系平台管理员）"),
+
+    /**
+     * 凭证绑定的服务未注册或已停用（T-PERM-070）：凭证本身有效，但 service_config
+     * 无该服务的有效启用行——对齐 20055 门禁的服务注册段（设计稿 §3.2 ③前置校验；
+     * 服务停用/注销即同步通道一起断，同 sync 通道白名单语义）。
+     */
+    SERVICE_CREDENTIAL_SERVICE_INACTIVE(20068, "凭证绑定的服务未注册或已停用");
 
     private final int code;
     private final String message;

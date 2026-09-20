@@ -49,6 +49,7 @@ Gateway (8080) -> access-service (9100)    能力包单体：管理面（用户/
 | 引擎子系统概念模型 | `docs/design/engine/overview.md` |
 | 引擎子系统核心流程 | `docs/design/engine/core-flows.md` |
 | 引擎子系统实现设计 | `docs/design/engine/implementation.md` |
+| 公共服务认证模块（per-service credential，M2M 服务身份） | `docs/design/service-authentication.md`（契约登记面=契约总册 §24） |
 | 服务设计           | `docs/design/services/*.md`                  |
 | 表结构             | `docs/design/schema/access-service.sql`（唯一权威；旧 admin/perm DDL 已归档 `docs/archive/2026-08-22/schema/`） |
 

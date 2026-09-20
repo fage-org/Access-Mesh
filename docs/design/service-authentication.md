@@ -3,7 +3,7 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-19
+last_reviewed: 2026-09-20   # T-PERM-070 实施落地：§3.2 验证顺序与 TLS 段按实施拍板修订（registry 2026-09-20 行）、§4 占位换契约 §24 指针；实施终态见任务卡与契约总册 §24
 ---
 
 # 公共服务认证模块（per-service credential）设计
@@ -79,11 +79,12 @@ CREATE TABLE service_credential (
 
 ```text
 请求头：X-Credential-Id + X-Credential-Secret（TLS 传输）
-验证：
-  ① credential 行定位（credential_id **全局唯一**（§3.1 uk），status 有效、未过期）
-  ② BCrypt 常量时间比对 secret
-  ③ 前置校验：凭证绑定的 service 在 service_config 注册且未停用（对齐 20055 门禁的服务注册段）
-  ④ 绑定 SERVICE 上下文：tenantId + serviceCode 均由凭证行派生
+验证（2026-09-20 实施拍板修订：secret 比对先于状态细分——三态细分仅对持有正确 secret 的请求者暴露，半头/错误 secret 一律 20065 无凭证状态探测面；registry 同日行）：
+  ① credential 行定位（credential_id **全局唯一**（§3.1 uk）；行不存在 → 20065）
+  ② BCrypt 常量时间比对 secret（失败 → 20065）
+  ③ 状态/过期细分：停用 → 20067；已过期 → 20066
+  ④ 前置校验：凭证绑定的 service 在 service_config 注册且未停用（→ 20068；对齐 20055 门禁的服务注册段）
+  ⑤ 绑定 SERVICE 上下文：tenantId + serviceCode 均由凭证行派生
      ——tenant+service 绑定是凭证自身的属性，不再自报 X-Service-Code / X-Tenant-Id（消除自报头信任面）
 ```
 
@@ -99,7 +100,7 @@ CREATE TABLE service_credential (
 
 - order 链输入输出（order=1 仲裁器 → order=2 HeaderSignatureInterceptor → order=3 RequestContextInterceptor）：order=1 产出 `ServicePrincipal(CREDENTIAL)` 或既有 `ATTR_INTERNAL_AUTHENTICATED`（旧密钥路径）；order=2 签名验证仅服务**用户链**（凭证请求无签名头，跳过不拒）；order=3 消费规则=**凭证路径只认 ServicePrincipal**（忽略 X-Service-Code/X-Tenant-Id 自报头），**用户/旧密钥路径维持既有绑定**（internalAuthenticated + signatureVerified + userId / 自报头）——不是"全部请求只消费 principal"（那会把管理请求错误绑定为 SERVICE，管理 API 大面积 403）。验证成功产出的 ServicePrincipal 为服务端内存对象，调用方无法伪造（负向回归锁=「凭证头 + 自报头并存时以凭证为准」）。
 - **服务端端点白名单**：`authMethod=CREDENTIAL` 的请求在仲裁器之后强制执行"认证方式 × 精确路径"白名单（resource-entity/sync、full-sync、permission-manifest/full-sync），白名单外一律 403——**不依赖 Gateway 拦截，SDK 直连同样受限**（防直连调 /auth/query-resources、abstract-user/full-sync 等超范围端点扩大凭证能力半径）；白名单清单**单源落 `common` 模块**（Gateway 与 access-service 唯一共同依赖；不可变 method+exact-path 策略与匹配器——勿放 perm-common，Gateway 不依赖它），Gateway M2M 放行（§3.3）与服务端强制消费同一份，防两处漂移。
-- TLS（**信任域模型**，过度设计重评裁剪 2026-09-19）：部署拓扑定义**信任边界**——跨信任边界的 hop（如接入方在客户内网、平台在云端的跨网形态）**必须 TLS**（starter endpoint / Gateway 路由 / SDK 直连三处配置校验 secure scheme，跨边界部署配 HTTP 拒启，护栏先例 ForwardHeadersStrategyGuard）；单机/纯内网 compose 部署**整体视为一个信任域**，显式 `allow-insecure` 配置键 + Spring profile 声明（与现状全局密钥同一内网信任假设，不新增内部证书签发/轮换运维负担）。`X-Credential-Secret` 为可重放 bearer secret（无签名/nonce），信任域边界即其明文暴露边界。
+- TLS（**信任域模型**；2026-09-20 实施拍板修订为**启动声明式护栏**——原「starter endpoint / Gateway 路由 / SDK 直连三处配置校验 secure scheme」假定的直配 URL 形态与实仓不符：三处均为 Nacos 服务发现形态、无静态 URL 可启动校验）：SDK 配置凭证（perm.credential-id/secret）时**必须显式声明 `perm.allow-insecure`**（三态：true=单信任域明文 hop 可接受 / false=跨边界期望 TLS，均为有效声明；**缺省拒启**）——护栏为纯声明不校验实际地址；Gateway→access-service 内网 hop 属平台信任域内部不校验（同部署单元，与现状全局密钥同一内网信任假设）。`X-Credential-Secret` 为可重放 bearer secret（无签名/nonce），信任域边界即其明文暴露边界。
 
 ### 3.3 两类接入形态
 
@@ -132,9 +133,9 @@ CREATE TABLE service_credential (
 
 ---
 
-## 4. 错误码与契约（占位）
+## 4. 错误码与契约（已登记）
 
-凭证无效/过期/停用 → 403 + 新错误码（perm 段顺延排号，随任务卡登记契约总册）；`service_config` 停用服务 → 沿用既有拒绝口径。业务键构造唯一入口 `BusinessKeyUtil`。
+凭证认证失败 403 错误码四枚（2026-09-20 拍板三码细分 + 服务停用码）：**20065** `SERVICE_CREDENTIAL_INVALID`（定位失败/secret 错误/半头）/ **20066** `SERVICE_CREDENTIAL_EXPIRED` / **20067** `SERVICE_CREDENTIAL_DISABLED` / **20068** `SERVICE_CREDENTIAL_SERVICE_INACTIVE`（凭证有效但绑定服务未注册/停用——「沿用既有拒绝口径」的仲裁器细分形态）。端点契约、仲裁状态表、M2M 白名单与 SDK 配置键全部登记于契约总册 §24（T-PERM-070 落地，实现语义以该章为准）。业务键构造唯一入口 `BusinessKeyUtil`。
 
 ---
 

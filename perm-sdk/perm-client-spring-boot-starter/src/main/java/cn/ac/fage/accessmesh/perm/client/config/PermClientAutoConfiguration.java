@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.perm.client.config;
 
 import cn.ac.fage.accessmesh.perm.client.feign.FeignInternalSyncInterceptor;
+import cn.ac.fage.accessmesh.perm.common.feign.FeignCredentialInterceptor;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +25,7 @@ import org.springframework.context.annotation.Import;
  */
 @Configuration
 @EnableFeignClients(basePackages = "cn.ac.fage.accessmesh.perm.client.feign")
-@Import(FeignInternalSyncInterceptor.class)
+@Import({FeignInternalSyncInterceptor.class, FeignCredentialInterceptor.class})
 @ConditionalOnProperty(name = "perm.client.enabled", havingValue = "true", matchIfMissing = true)
 public class PermClientAutoConfiguration {
 }

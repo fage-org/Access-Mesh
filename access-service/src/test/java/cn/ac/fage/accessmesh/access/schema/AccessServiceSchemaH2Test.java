@@ -186,13 +186,13 @@ class AccessServiceSchemaH2Test {
     // ---------------------------------------------------------------------
 
     @Test
-    @DisplayName("空库执行后共有 33 张表")
-    void shouldHave33Tables() throws SQLException {
+    @DisplayName("空库执行后共有 34 张表")
+    void shouldHave34Tables() throws SQLException {
         try (Statement s = conn.createStatement();
              ResultSet rs = s.executeQuery(
                  "SELECT COUNT(*) FROM information_schema.tables WHERE LOWER(table_schema) = 'public'")) {
             rs.next();
-            assertEquals(33, rs.getLong(1), "表数量应为 33（admin 14 + permission 16 + 合并 2 + 基础设施 1，sys_sync_task 已退役）");
+            assertEquals(34, rs.getLong(1), "表数量应为 34（admin 14 + permission 16 + 合并 2 + 基础设施 2，sys_sync_task 已退役，service_credential 随 T-PERM-070 增）");
         }
     }
 

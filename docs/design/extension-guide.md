@@ -109,7 +109,7 @@ last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父�
 | `20055 RESOURCE_EXTERNALLY_MAINTAINED` | 管理面 create/update/move/remove | SYNC 类型管理面只读 |
 | `20056 TYPE_OWNERSHIP_CHANGE_CONFLICT` | 声明变更/类型删除 | 类型下有有效资源行；系统预置类型（is_system）声明一律钉死 |
 | `20040 GRANT_CANNOT_DELEGATE` | apply-grant-plan | 授予者未持有覆盖目标键的可转授权限（新类型首笔授权见 §3.5） |
-| `20048 AUTO_GRANT_NOT_SUPPORTED` | create/update/batch-sync | 自动授权暂缓（T-PERM-035），`autoGrant=true` 一律拒绝 |
+| `20048 AUTO_GRANT_NOT_SUPPORTED` | create/update/batch-sync | 自动授权预留禁用（承接序列 T-PERM-070~073 的 071/072 落地前），`autoGrant=true` 一律拒绝 |
 | `20005 / 20044` | 操作码解析/清单校验 | 未知操作码 fail-closed / 畸形清单零副作用 |
 
 ### 3.4 资源树与父子关系
@@ -160,7 +160,7 @@ last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父�
 |---|---|---|
 | 条件操作符扩展 | **封闭** | 仅 4 类内置操作符，无 SPI |
 | 权限源扩展 | **不存在** | 统一引擎唯一事实源（role_perm_entry + 同事务投影）；历史上设想的「权限源策略」已随 T-PERM-057 统一引擎重构收编 |
-| 自动授权（依赖补全） | **暂缓** | T-PERM-035 未排期；写入口 `autoGrant=true` 全拒（20048）；`resource_dependency` 数据模型已就绪 |
+| 自动授权（依赖补全） | **已立项待实现** | 承接序列 T-PERM-070~073 已定稿（2026-09-19；前置凭证基建 070 已落地）；071/072 落地前写入口 `autoGrant=true` 仍全拒（20048）；`resource_dependency` 数据模型已就绪 |
 | 动态数据权限端到端 | **延后** | T-PERM-036 延后至 example-service 演示；scopeMode→SQL 映射契约已定（api-contract §6.7） |
 | 内置事实链路类型写入 | **禁止** | USER/ORG/MENU/ROLE 等归 access-service 内部 SYNC，外部同步一律拒（§4） |
 | 异常告警通知渠道 | **不做** | 异步异常可观测性由 log.error 承载；钉钉/邮件等告警渠道不在开源 IAM 核心范围（T-PERM-038 定性），接入方经日志采集侧自行对接 |

@@ -227,6 +227,14 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/api/access/resource-dependency/create", "bootstrap:创建资源依赖", true, false),
             new ApiRoute("POST", "/api/access/resource-dependency/update", "bootstrap:更新资源依赖", true, false),
             new ApiRoute("POST", "/api/access/resource-dependency/remove", "bootstrap:删除资源依赖", true, false),
+            // T-PERM-070：服务凭证管理面（per-service M2M 凭证签发/轮换/吊销）。门禁挂
+            // service-config 管理面同族——写 SERVICE:MANAGE、list SERVICE:VIEW，两条
+            // 均已在固定图（T-PERM-027），业务门禁零新增；不设凭证端点白名单（管理面端点，
+            // 走会话/密钥链，M2mCredentialEndpoints 白名单不含本组——凭证请求对其 403）
+            new ApiRoute("POST", "/api/access/service-credential/create", "bootstrap:签发服务凭证", true, false),
+            new ApiRoute("POST", "/api/access/service-credential/update", "bootstrap:更新服务凭证", true, false),
+            new ApiRoute("POST", "/api/access/service-credential/remove", "bootstrap:删除服务凭证", true, false),
+            new ApiRoute("POST", "/api/access/service-credential/list", "bootstrap:服务凭证列表", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/api/access/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }

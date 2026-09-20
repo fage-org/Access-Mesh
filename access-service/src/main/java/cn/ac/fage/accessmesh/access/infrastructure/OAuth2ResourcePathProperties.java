@@ -27,7 +27,7 @@ import java.util.Set;
  * fail-fast 防护：配置模式不得匹配平台会话端点（/auth/userinfo、/auth/user-menu、
  * /api/access/auth/oauth2/authorize——JWT 分支覆盖会导致 authorize 内部会话依赖 NotLoginException→500，
  * 且构成越权面）。T-ACCESS-042 起 URL 单命名空间，开放路径与内部凭证路径同住 /api/access/**：
- * InternalApiSecretInterceptor 对全命名空间统一要求 X-Internal-Secret（合法流量恒经 Gateway，
+ * ServiceAuthArbiter（T-PERM-070 前为 InternalApiSecretInterceptor）对全命名空间统一要求服务认证（合法流量恒经 Gateway，
  * 密钥由 Gateway 无条件注入），OAuth2 JWT 验证发生在其后的 RequestContextInterceptor——
  * 双凭证并存不构成机制冲突，原「内部凭证路径重叠」启动防护随之退役；
  * 业务开放路径（非 userinfo 豁免路径）必须声明 {@code requiredScopes} 与 {@code audience}

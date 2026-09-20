@@ -382,6 +382,115 @@ class ExampleProtectedApiE2EIT {
             .as("直连伪造身份头必须被签名校验拒绝（30003）").isEqualTo(30003);
     }
 
+    @Test
+    @Order(7)
+    @DisplayName("⑦ T-PERM-070 凭证认证链：签发→经 Gateway M2M 认证通过→半头 401/错凭证 403/"
+        + "管理端点不被旁路→停用后 403（20067）")
+    void step7_serviceCredentialM2mAuthChain() throws IOException {
+        // 前置：example-service 已由 @BeforeAll 种 service_config 注册（status=1）
+        // ① 管理面签发凭证（bootstrap 固定图含 service-credential/*；admin 持 SERVICE:MANAGE）
+        JsonNode issued = postForData(gateway() + "/api/access/service-credential/create", adminToken,
+            JSON.createObjectNode().put("serviceCode", "example-service"));
+        String credentialId = issued.path("credentialId").asText();
+        String plainSecret = issued.path("secret").asText();
+        assertThat(credentialId).as("签发必须回显 credentialId（sc- 前缀）").startsWith("sc-");
+        assertThat(plainSecret).as("明文 secret 仅签发响应回显一次（sk- 前缀）").startsWith("sk-");
+
+        Map<String, String> credentialHeaders = Map.of(
+            "X-Credential-Id", credentialId, "X-Credential-Secret", plainSecret);
+        String fullSyncUrl = gateway() + "/api/access/resource-entity/full-sync";
+
+        // ② 完整凭证头（无 Bearer）经 Gateway 调 M2M 白名单端点：认证链通过——到达业务层
+        //（空 body 的参数校验/类型面拒绝均为业务响应，关键断言=非 401 非 403 认证拒绝）
+        EnvelopeResult viaCredential = postEnvelope(fullSyncUrl, null, "{}", credentialHeaders);
+        assertThat(viaCredential.status())
+            .as("凭证经 Gateway M2M 放行链必须通过认证（401/403=认证失败，实际响应：" + viaCredential.rawBody() + "）")
+            .isNotIn(401, 403);
+
+        // ②b 真实同步业务成功（验收第 9 条「经 Gateway 两步同步链路成功」的完整兑现，
+        // 2026-09-20 拍板补全）：为 example-service 建自有 SYNC 类型（类型级所有权门禁
+        // 前置——resourceTypeCode 须声明 managedMode=SYNC + syncSourceService=凭证绑定服务），
+        // 再以凭证真实 UPSERT 一条资源断言信封成功——锁「凭证形态下 scope 解析/类型所有权
+        // 门禁在 SERVICE 上下文（凭证行派生）下的真实行为」。类型 fixture 为 T-PERM-071
+        // manifest 两步同步 E2E 的前置基建，本卡建可直接复用。
+        JsonNode typeCreated = postForData(gateway() + "/api/access/type-definition/create", adminToken,
+            JSON.createObjectNode()
+                .put("typeKey", "resource_type")
+                .put("typeCode", "E2E_CRED_RES")
+                .put("name", "E2E 凭证同步演示类型")
+                .put("extra", "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"example-service\"}"));
+        long fixtureTypeId = typeCreated.path("id").asLong();
+        assertThat(fixtureTypeId)
+            .as("SYNC 类型 fixture 必须创建成功，响应：" + typeCreated).isPositive();
+
+        String syncUrl = gateway() + "/api/access/resource-entity/sync";
+        com.fasterxml.jackson.databind.node.ObjectNode syncBody = JSON.createObjectNode()
+            .put("operation", "UPSERT")
+            .put("resourceTypeCode", "E2E_CRED_RES")
+            .put("resourceCode", "e2e-cred-item-1")
+            .put("codeType", "default")
+            .put("name", "E2E 凭证同步资源")
+            .put("status", 1)
+            .put("sourceService", "example-service")
+            .put("sourceEntityType", "e2e_cred_res")
+            .put("sourceEntityId", "e2e-cred-item-1");
+        syncBody.set("syncVersion", JSON.createObjectNode()
+            .put("occurredAt", "2026-09-20T12:00:00.000")
+            .put("sequenceNo", 1));
+        EnvelopeResult realSync = postEnvelope(syncUrl, null, syncBody.toString(), credentialHeaders);
+        assertThat(realSync.status()).as("凭证真实同步必须 HTTP 200，实际：" + realSync.rawBody()).isEqualTo(200);
+        assertThat(parseEnvelope(realSync).path("code").asInt())
+            .as("凭证真实同步必须信封 code=200（类型所有权门禁在凭证派生 SERVICE 上下文下通过），响应：" + realSync.rawBody())
+            .isEqualTo(200);
+
+        // ②c 凭证 DELETE 同步资源（幂等软删成功信封）——同时为清理段扫清类型删除守卫
+        //（T-PERM-056：类型下有效资源行不可删——SYNC 类型资源行仅能经同步通道软删）
+        com.fasterxml.jackson.databind.node.ObjectNode deleteBody = JSON.createObjectNode()
+            .put("operation", "DELETE")
+            .put("resourceTypeCode", "E2E_CRED_RES")
+            .put("resourceCode", "e2e-cred-item-1")
+            .put("codeType", "default")
+            .put("sourceService", "example-service")
+            .put("sourceEntityType", "e2e_cred_res")
+            .put("sourceEntityId", "e2e-cred-item-1");
+        deleteBody.set("syncVersion", JSON.createObjectNode()
+            .put("occurredAt", "2026-09-20T12:00:01.000")
+            .put("sequenceNo", 2));
+        EnvelopeResult realDelete = postEnvelope(syncUrl, null, deleteBody.toString(), credentialHeaders);
+        assertThat(parseEnvelope(realDelete).path("code").asInt())
+            .as("凭证 DELETE 同步必须信封 code=200，响应：" + realDelete.rawBody()).isEqualTo(200);
+
+        // ③ 半头（缺 secret）→ 不被 M2M 识别 → AuthTokenFilter 401
+        EnvelopeResult half = postEnvelope(fullSyncUrl, null, "{}",
+            Map.of("X-Credential-Id", credentialId));
+        assertThat(half.status()).as("半头凭证请求必须 401（Gateway 不识别，回落用户认证）").isEqualTo(401);
+
+        // ④ 错 secret（完整头）→ M2M 识别透传 → 服务端仲裁器 403（20065，禁止降级）
+        EnvelopeResult wrongSecret = postEnvelope(fullSyncUrl, null, "{}",
+            Map.of("X-Credential-Id", credentialId, "X-Credential-Secret", "sk-wrong-secret"));
+        assertThat(wrongSecret.status()).as("错误凭证必须 403").isEqualTo(403);
+        assertThat(wrongSecret.rawBody()).as("403 body 必须携带细分码 20065").contains("20065");
+
+        // ⑤ 完整凭证头调管理端点（非 M2M 白名单）→ 不 skipAuth → 401（管理端点不被凭证旁路）
+        EnvelopeResult manageViaCredential = postEnvelope(
+            gateway() + "/api/access/service-credential/list", null, "{}", credentialHeaders);
+        assertThat(manageViaCredential.status()).as("凭证不得旁路管理端点（白名单外 401）").isEqualTo(401);
+
+        // ⑥ 停用凭证（轮换收尾语义）→ 同凭证再调 M2M 端点 403（20067）
+        JsonNode updated = postForData(gateway() + "/api/access/service-credential/update", adminToken,
+            JSON.createObjectNode().put("id", issued.path("id").asLong()).put("status", 0));
+        assertThat(updated.path("status").asInt()).as("停用后回读 status=0").isZero();
+        EnvelopeResult disabled = postEnvelope(fullSyncUrl, null, "{}", credentialHeaders);
+        assertThat(disabled.status()).as("停用凭证必须立即失效 403").isEqualTo(403);
+        assertThat(disabled.rawBody()).as("停用细分码 20067").contains("20067");
+
+        // ⑦ 清理：删除凭证与类型 fixture（类型删除级联清资源行；本用例自清理，幂等重复跑不堆积）
+        postForData(gateway() + "/api/access/service-credential/remove", adminToken,
+            JSON.createObjectNode().put("id", issued.path("id").asLong()));
+        postForData(gateway() + "/api/access/type-definition/remove", adminToken,
+            JSON.createObjectNode().set("ids", JSON.createArrayNode().add(fixtureTypeId)));
+    }
+
     // ------------------------------------------------------------------
     // 子进程服务管理
     // ------------------------------------------------------------------

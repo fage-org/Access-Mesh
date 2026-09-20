@@ -5,11 +5,11 @@
 -- 取代：admin-service.sql、permission-center.sql、seed-admin-operations.sql、seed-perm-operations.sql
 --       （四份旧文件已随 T-ACCESS-012 归档至 docs/archive/2026-08-22/schema/，不再作为实现依据）
 --
--- 范围：33 张表
+-- 范围：34 张表
 --   管理事实表（sys_*）14 张（管理面，原 17 张：sys_config/sys_audit_log 并入合并表；sys_sync_task 已随 T-ACCESS-005 退役）
 --   权限事实表 16 张（权限面，原 18 张：system_config/operation_log 由合并表承接）
 --   合并表 2 张（system_config、operation_log）
---   基础设施 1 张（sys_task_execution，T-ACCESS-009 任务租约预建）
+--   基础设施 2 张（sys_task_execution，T-ACCESS-009 任务租约预建；service_credential，T-PERM-070 服务凭证）
 --
 -- 合并说明（access-service-architecture §5.2）：
 --   system_config = sys_config + 原 system_config（字段取超集；tenant_id+config_key 唯一；
@@ -1392,3 +1392,41 @@ COMMENT ON COLUMN sys_task_execution.lease_until IS '租约截止时间；过期
 COMMENT ON COLUMN sys_task_execution.attempt_count IS '已尝试执行次数（幂等重试计数）';
 COMMENT ON COLUMN sys_task_execution.last_error IS '最近一次失败原因';
 COMMENT ON COLUMN sys_task_execution.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
+
+-- -----------------------------------------------------------------------------
+-- 34. service_credential - 服务凭证表（T-PERM-070 per-service 静态凭证，设计稿
+--     docs/design/service-authentication.md §3.1）
+--     M2M 服务身份认证的存储面：credential_id 全局唯一（认证先于租户解析——
+--     tenantId 由凭证行派生，跨租户同 id 会产生定位歧义=跨租户越权面）；
+--     secret 只存 BCrypt 哈希（sa-token BCrypt.hashpw，同 sys_oauth2_client 先例），
+--     明文仅在签发响应回显一次；同服务多凭证并存支撑轮换（新凭证验证生效后再停旧）。
+-- -----------------------------------------------------------------------------
+CREATE TABLE service_credential (
+    id            BIGSERIAL PRIMARY KEY,
+    tenant_id     BIGINT NOT NULL,
+    service_code  VARCHAR(128) NOT NULL,   -- 凭证绑定服务（须为 service_config 已注册且 status=1 启用）
+    credential_id VARCHAR(64) NOT NULL,    -- 线上传输标识（签发生成：sc- + 22 字符 base64url，16 字节熵）
+    secret_hash   VARCHAR(128) NOT NULL,   -- BCrypt 哈希（60 字符，验证走 BCrypt.checkpw）
+    status        SMALLINT NOT NULL DEFAULT 1,   -- 0=停用 1=启用（停用立即失效）
+    rotated_at    TIMESTAMPTZ,             -- 轮换标记（旧凭证停用时记录，供运维追溯轮换时间线）
+    expires_at    TIMESTAMPTZ,             -- 过期时间（NULL=永不过期；过期立即失效）
+    created_by    BIGINT,
+    updated_by    BIGINT,
+    deleted_by    BIGINT,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    deleted_at    TIMESTAMPTZ,
+    delete_flag   BIGINT NOT NULL DEFAULT 0
+);
+
+CREATE UNIQUE INDEX uk_service_credential ON service_credential (credential_id) WHERE delete_flag = 0;
+
+CREATE INDEX idx_service_credential_service ON service_credential (tenant_id, service_code, status) WHERE delete_flag = 0;
+
+COMMENT ON TABLE service_credential IS '服务凭证：per-service M2M 身份认证（X-Credential-Id + X-Credential-Secret 头，认证链见 service-authentication.md §3.2）。tenantId+serviceCode 均由凭证行派生，消除自报头信任面；同服务多凭证并存支撑轮换';
+COMMENT ON COLUMN service_credential.service_code IS '凭证绑定的服务编码（service_config 按 (tenant_id, service_code) 注册，凭证绑定该行；认证前置校验服务注册且启用，停用即拒绝）';
+COMMENT ON COLUMN service_credential.credential_id IS '线上传输标识（非自增）：签发生成 sc- + 22 字符 base64url；全局唯一（跨租户）——认证先于租户解析，跨租户同 id = 定位歧义越权面，签发生成器保证 + 全局唯一索引兜底';
+COMMENT ON COLUMN service_credential.secret_hash IS 'BCrypt 哈希（sa-token BCrypt.hashpw，同 sys_oauth2_client 先例）；明文 secret 仅签发响应回显一次，任何通道不可回查';
+COMMENT ON COLUMN service_credential.status IS '状态：0=停用 1=启用。停用立即失效（认证链判定）；轮换收尾动作=停旧凭证';
+COMMENT ON COLUMN service_credential.rotated_at IS '轮换标记：旧凭证因轮换停用时记录时间，供运维追溯轮换时间线';
+COMMENT ON COLUMN service_credential.expires_at IS '过期时间（NULL=永不过期）；到期立即失效，管理面可 update 改期（T-PERM-070 拍板：update 支持 status + expiresAt）';

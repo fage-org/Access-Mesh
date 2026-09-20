@@ -11,11 +11,13 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * 全库唯一 WebMvcConfigurer，注册统一安全链，执行顺序如下：
  * </p>
  * <ol>
- *   <li>order=1 InternalApiSecretInterceptor — 作用于 /api/access/** 豁免会话入口族
- *       （精确清单以 addInterceptors 的 excludePathPatterns 为准，勿在此枚举防漂移；
- *       运行时鉴权六端点维持覆盖，T-ACCESS-042 URL 单命名空间）。
- *       内部凭证（X-Internal-Secret）通过则在 request 写 INTERNAL_AUTHENTICATED=true；
- *       失败直接 403 阻断后续。</li>
+ *   <li>order=1 ServiceAuthArbiter（T-PERM-070 重构 InternalApiSecretInterceptor 单策略位）
+ *       — 作用于 /api/access/** 豁免会话入口族（精确清单以 addInterceptors 的
+ *       excludePathPatterns 为准，勿在此枚举防漂移；运行时鉴权六端点维持覆盖，
+ *       T-ACCESS-042 URL 单命名空间）。双策略仲裁：凭证头（X-Credential-Id/
+ *       X-Credential-Secret）→ ServicePrincipal attribute + M2M 白名单强制；
+ *       无凭证头回落内部密钥（X-Internal-Secret 通过写 INTERNAL_AUTHENTICATED=true）；
+ *       任一失败直接 403 阻断后续。</li>
  *   <li>order=2 HeaderSignatureInterceptor — 覆盖 /api/access/**, /internal/**。
  *       X-User-Id 头恒需验签（含内部凭证场景）；通过后写 SIGNATURE_VERIFIED attribute。</li>
  *   <li>order=3 RequestContextInterceptor — 覆盖 /**。唯一绑定
@@ -29,14 +31,14 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 public class SecurityWebMvcConfig implements WebMvcConfigurer {
 
-    private final InternalApiSecretInterceptor internalApiSecretInterceptor;
+    private final ServiceAuthArbiter serviceAuthArbiter;
     private final HeaderSignatureInterceptor headerSignatureInterceptor;
     private final RequestContextInterceptor requestContextInterceptor;
 
-    public SecurityWebMvcConfig(InternalApiSecretInterceptor internalApiSecretInterceptor,
+    public SecurityWebMvcConfig(ServiceAuthArbiter serviceAuthArbiter,
                                 HeaderSignatureInterceptor headerSignatureInterceptor,
                                 RequestContextInterceptor requestContextInterceptor) {
-        this.internalApiSecretInterceptor = internalApiSecretInterceptor;
+        this.serviceAuthArbiter = serviceAuthArbiter;
         this.headerSignatureInterceptor = headerSignatureInterceptor;
         this.requestContextInterceptor = requestContextInterceptor;
     }
@@ -48,16 +50,18 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
      */
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // order=1：内部密钥拦截器必须最先执行，成功时写 attribute 供后续决策。
+        // order=1：服务认证仲裁器必须最先执行，成功时写 attribute 供后续决策
+        // （ServicePrincipal=CREDENTIAL 路径或 INTERNAL_AUTHENTICATED=旧密钥路径）。
         // 覆盖 /api/access/**（T-ACCESS-042 前为 /api/perm/**——管理面并入后统一「仅经
-        // Gateway 或持密服务可达」）；豁免会话入口族（登录/登出/会话查询/OAuth2 端点 +
+        // Gateway 或持凭证/密钥服务可达」）；豁免会话入口族（登录/登出/会话查询/OAuth2 端点 +
         // 自助改密通道 /user/reset-password（T-GW-009，与 Gateway 白名单同源）——
         // 保留公开/Sa-Token 会话/JWT 自有信任模型，密钥拦截会架空服务层会话分支与 JWT 分支）；
         // 运行时鉴权六端点（check/batch-check/check-interface/query-resources/query-scopes/
-        // interface-snapshot）维持覆盖（服务凭证通道，与迁移前 /api/perm/auth/* 一致——
-        // INTERNAL_AUTHENTICATED 属性由本拦截器写入，豁免会使签名拦截器按 tenant-only 拒绝）。
+        // interface-snapshot）维持覆盖（旧密钥服务凭证通道，与迁移前 /api/perm/auth/* 一致——
+        // INTERNAL_AUTHENTICATED 属性由本拦截器写入，豁免会使签名拦截器按 tenant-only 拒绝；
+        // 新凭证通道的 M2M 白名单不含运行时鉴权六端点，凭证请求对其 403，见 M2mCredentialEndpoints）。
         // 失败直接 403 终止链。
-        registry.addInterceptor(internalApiSecretInterceptor)
+        registry.addInterceptor(serviceAuthArbiter)
                 .addPathPatterns("/api/access/**")
                 .excludePathPatterns(
                         "/api/access/auth/captcha",

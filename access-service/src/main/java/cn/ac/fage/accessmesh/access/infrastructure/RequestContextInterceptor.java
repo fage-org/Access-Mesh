@@ -27,8 +27,9 @@ import java.util.UUID;
  * permission PermTenantInterceptor 双链）。
  * <p>
  * 是唯一可以绑定 {@link AccessRequestContext} 的 HTTP 入口：外部请求头必须经过
- * 会话（Sa-Token）、签名（{@link SignatureVerifier}）或服务凭证（X-Internal-Secret，
- * 由前置 InternalApiSecretInterceptor 写入 attribute）验证后才能绑定。执行顺序：
+ * 会话（Sa-Token）、签名（{@link SignatureVerifier}）或服务认证（T-PERM-070：X-Credential-*
+ * 凭证 → ServicePrincipal，或 X-Internal-Secret 旧密钥——均由前置 ServiceAuthArbiter
+ * 写入 attribute）验证后才能绑定。执行顺序：
  * </p>
  * <ol>
  *   <li>公开路径（/auth/** 公开子集：验证码/登录/令牌/撤销/登出；/actuator/**）→ ANONYMOUS</li>
@@ -116,6 +117,17 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
             return true;
         }
 
+        // 2-0 凭证路径（T-PERM-070，SERVICE_PRINCIPAL 仅仲裁器可写）：tenantId/serviceCode
+        // 由凭证行派生（ServicePrincipal），X-Service-Code/X-Tenant-Id/X-User-Id 自报头
+        // 一律忽略（不采信、不因格式拒绝）——消除自报头信任面
+        Object principalAttr = request.getAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL);
+        if (principalAttr instanceof ServicePrincipal principal) {
+            AccessRequestContext.bind(
+                RequestContext.service(principal.tenantId(), principal.serviceCode()).withRequestId(requestId));
+            setMdc(requestId, null, String.valueOf(principal.tenantId()), principal.serviceCode());
+            return true;
+        }
+
         boolean internalAuthenticated = Boolean.TRUE.equals(
             request.getAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED));
         boolean signatureVerified = Boolean.TRUE.equals(
@@ -123,7 +135,7 @@ public class RequestContextInterceptor implements AsyncHandlerInterceptor {
         String userIdHeader = request.getHeader(SignatureVerifier.HEADER_USER_ID);
         boolean hasUserIdHeader = userIdHeader != null && !userIdHeader.isBlank();
 
-        // 2. 内部凭证路径（/api/access/** 豁免会话入口族，InternalApiSecretInterceptor 验证通过后）
+        // 2. 旧密钥路径（/api/access/** 豁免会话入口族，ServiceAuthArbiter 密钥策略验证通过后）
         if (internalAuthenticated) {
             if (hasUserIdHeader) {
                 // 凭证 + 用户身份头：必须已验签（HeaderSignature 已拦截未验签者；纵深校验防链序绕过）

@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-19   # T-GW-009（registry 定案⑤）：§7.7 补 Gateway 白名单放行注记（/api/access/user/reset-password 纳入会话入口族，服务层门禁零改动）+ §6.4 会话入口白名单族口径补记；此前 2026-09-18 T-PERM-068 外评处置（claude P2×1 + grok P2×1 + 共同 P3×1，全采纳）：§19.1 父字段组改为仅 UPSERT 生效（DISABLE/DELETE 忽略父字段，用户拍板）+ 解挂显式清 parent 列落库（grok P2：flex update(entity) 忽略 null 列，applied=true 旧父残留 fail-open——UpdateEntity 先例修复）+ 新增 DELETE 有子拒绝 CHILDREN_EXIST 句（用户拍板，DEPENDENCY_MISSING 可重试先于版本写入）；此前 2026-09-17（Q-007 三定案）：§19.1 父资源定位与同类型门禁句改写（父字段组激活条件=parentResourceCode 非空、typeCode 缺省回填自身类型、显式异类型 NON_RETRYABLE/PARENT_TYPE_MISMATCH 先于父解析与版本写入）、§19.2 full-sync 父默认值句改写（缺省回填 scope 类型自本批为真实实现语义——原「默认同类型」与实现半传静默解挂漂移已修）、§12.1 规则表补 create/batch-create 父校验行（20053/20004 对齐 move + 裸 parentId 补校验）+ SYNC 只读行「sync 通道允许跨类型」改「入口已收紧、DB 直写脏数据防线」；此前 T-PERM-066/067 外评处置（claude P3×1 + grok P2×1，全采纳修复）：§2.5 typeCode 注记修正（可选——null 与空串放行走留空生成分支，`^$` 显式放行；正则同步改 `^$|^[A-Z][A-Z0-9_]*$`）、§7.7 force_reset_pwd 置位口径（自身自助改密置 false、非自身置 true——归档设计「修改个人密码成功后置 false」回归）；此前 2026-09-14 T-PERM-067 USER 写入口自身豁免收窄（Q-002 转出）：§4 表 /user/update 行、§7.4 门禁、§7.7 门禁/force_reset_pwd/验收要点（自身=自助改密通道定位，证伪「走另外的修改密码接口」旧句）、§7.8 abstract-user update/remove 行（perm 轨死分支语义统一）、§21.2 验收 2、§22.2 决策 13——档案字段自我豁免保留、启停/删除不豁免；此前 2026-09-14 T-PERM-066 operationCodeKey 族入参大写：§2.4 操作行注记 + §2.5 新增集中注记（@Pattern 覆盖面/边界/守卫/SDK 生效），授权域归一退役两域统一 raw；此前 2026-09-14 T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
+last_reviewed: 2026-09-20   # T-PERM-070：新增 §24 服务凭证与 M2M 服务认证章（/api/access/service-credential/* 四端点+仲裁状态表+M2M 白名单单源+错误码 20065~20068+SDK 配置键）；此前 2026-09-19 T-GW-009（registry 定案⑤）：§7.7 补 Gateway 白名单放行注记（/api/access/user/reset-password 纳入会话入口族，服务层门禁零改动）+ §6.4 会话入口白名单族口径补记；此前 2026-09-18 T-PERM-068 外评处置（claude P2×1 + grok P2×1 + 共同 P3×1，全采纳）：§19.1 父字段组改为仅 UPSERT 生效（DISABLE/DELETE 忽略父字段，用户拍板）+ 解挂显式清 parent 列落库（grok P2：flex update(entity) 忽略 null 列，applied=true 旧父残留 fail-open——UpdateEntity 先例修复）+ 新增 DELETE 有子拒绝 CHILDREN_EXIST 句（用户拍板，DEPENDENCY_MISSING 可重试先于版本写入）；此前 2026-09-17（Q-007 三定案）：§19.1 父资源定位与同类型门禁句改写（父字段组激活条件=parentResourceCode 非空、typeCode 缺省回填自身类型、显式异类型 NON_RETRYABLE/PARENT_TYPE_MISMATCH 先于父解析与版本写入）、§19.2 full-sync 父默认值句改写（缺省回填 scope 类型自本批为真实实现语义——原「默认同类型」与实现半传静默解挂漂移已修）、§12.1 规则表补 create/batch-create 父校验行（20053/20004 对齐 move + 裸 parentId 补校验）+ SYNC 只读行「sync 通道允许跨类型」改「入口已收紧、DB 直写脏数据防线」；此前 T-PERM-066/067 外评处置（claude P3×1 + grok P2×1，全采纳修复）：§2.5 typeCode 注记修正（可选——null 与空串放行走留空生成分支，`^$` 显式放行；正则同步改 `^$|^[A-Z][A-Z0-9_]*$`）、§7.7 force_reset_pwd 置位口径（自身自助改密置 false、非自身置 true——归档设计「修改个人密码成功后置 false」回归）；此前 2026-09-14 T-PERM-067 USER 写入口自身豁免收窄（Q-002 转出）：§4 表 /user/update 行、§7.4 门禁、§7.7 门禁/force_reset_pwd/验收要点（自身=自助改密通道定位，证伪「走另外的修改密码接口」旧句）、§7.8 abstract-user update/remove 行（perm 轨死分支语义统一）、§21.2 验收 2、§22.2 决策 13——档案字段自我豁免保留、启停/删除不豁免；此前 2026-09-14 T-PERM-066 operationCodeKey 族入参大写：§2.4 操作行注记 + §2.5 新增集中注记（@Pattern 覆盖面/边界/守卫/SDK 生效），授权域归一退役两域统一 raw；此前 2026-09-14 T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
 ---
 
 # access-service API 契约总册
@@ -1556,7 +1556,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `source*` 表示源资源，即被授权后会触发依赖补全的资源，对应 `resource_dependency.resource_entity_id`。
 - `target*` 表示被源资源依赖、需要自动补全的目标资源，对应 `resource_dependency.depends_on_resource_entity_id`。
 - `maintainSource` 四值白名单：`ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC`（schema 口径，DTO `@Pattern` 拒绝其他值；T-PERM-031 收口，原注释 SERVICE/MANUAL 系漂移）。
-- **`autoGrant` 预留未实现（2026-08-27 设计定案）**：自动授权暂缓（T-PERM-035，design-review §11 E4），create / update / batch-sync 全部写入口拒绝 `true`（错误码 **20048** `AUTO_GRANT_NOT_SUPPORTED`），仅接受 `false`/省略；表列默认 `false`。依赖补全当前不生效，规则中的「触发依赖补全」语义为 T-PERM-035 实现后的目标态。
+- **`autoGrant` 预留未实现（2026-08-27 设计定案；2026-09-19 更新）**：自动授权承接序列 T-PERM-070~073 已定稿立项（原 T-PERM-035 已 cancelled、暂缓已解除；前置凭证基建 070 已落地 2026-09-20），071/072 落地前 create / update / batch-sync 全部写入口仍拒绝 `true`（错误码 **20048** `AUTO_GRANT_NOT_SUPPORTED`），仅接受 `false`/省略；表列默认 `false`。依赖补全当前不生效，规则中的「触发依赖补全」语义为 T-PERM-072 实现后的目标态。
 - 授权源资源时，自动补全查询条件必须是 `resource_dependency.resource_entity_id = sourceResourceId`，不能反向使用 `depends_on_resource_entity_id` 查询。
 - `sourceOperationCodes` 转为 `source_operation_bits`；为空表示任意源操作触发。`requiredOperationCodes` 转为 `required_operation_bits`，表示目标资源需要自动补全的操作；**条目缺失或全空白该字段拒绝 20044（清单级预检，先于资源解析与 FULL diff——畸形清单零副作用，不因条目资源未解析而绕过）**。任一操作码解析不到拒绝 **20005** OPERATION_NOT_FOUND（fail-closed，不静默丢弃——T-PERM-031 定案；code→id 解析与按 id 二次加载**两段查询均 fail-closed**，间隙并发软删同样 20005，不静默丢位）；空白元素忽略、全空白码列表拒绝 20044（与单条入口统一口径）。`items` 元素级联校验生效（`@Valid + @NotNull`，apply-grant-plan 同款）：条目内 `@NotBlank`/`@Size` 由 400 参数校验通道拒绝，null 元素不进入服务层。
 - FULL diff 只清理同一 `ownerServiceCode=serviceCode + maintainSource` 范围内本次缺失的依赖规则，不清理其他服务或其他维护来源的规则；匹配键为「源资源 + 目标资源 + `COALESCE(source_operation_bits, 0)`」三元组（T-PERM-031 修正：同资源对不同触发操作是不同规则，仅按资源对匹配会漏删且 upsert 定位错行）。
@@ -2816,6 +2816,64 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 4. 所有 Request DTO 移除 `tenantId` 字段，服务端从 Header/SecurityContext 获取租户和操作者。
 5. 首期 `service-config/sync` 仅实现 FULL 全量同步。
 6. `auth/query-resources` 和 `auth/query-scopes` 必须复用 `auth/check` 的角色解析、条件评估、冲突处理、租户过滤和缓存失效逻辑。
+
+## 24. 服务凭证与 M2M 服务认证（T-PERM-070）
+
+> 设计权威：[service-authentication.md](service-authentication.md)（adopted 2026-09-19）；本章为契约登记面。定位：per-service M2M 身份认证是多通道共用的平台能力（资源同步通道、manifest 依赖声明通道〔T-PERM-071〕），替代「全局共享密钥 + 自报头」的现行信任模型（旧密钥路径过渡期维持，退役判据见 §3.5）。
+
+### 24.1 认证协议
+
+**凭证头**：`X-Credential-Id` + `X-Credential-Secret`（TLS 传输；同设计稿「不做签名制」定案——内网 TLS 下重放幂等 full-sync 无害）。
+
+**仲裁状态表**（access-service order=1 `ServiceAuthArbiter`，替换原 InternalApiSecretInterceptor 单策略位）：
+
+| 形态 | 判定 | 结果 |
+|------|------|------|
+| 完整凭证头（自报头/密钥头并存时**一律不采信**） | 验证成功 + 命中 M2M 白名单 | 绑定 SERVICE 上下文（tenantId/serviceCode **由凭证行派生**，忽略 X-Service-Code/X-Tenant-Id/X-User-Id） |
+| 完整凭证头 | 验证失败（20065/20066/20067/20068）或白名单外 | **403，禁止降级回落旧密钥** |
+| 半头（恰一个凭证头） | 形态即拒 | 403（20065，不落库不比对） |
+| 无凭证头 + X-Internal-Secret 有效 | 旧密钥路径 | 行为与迁移前零变化（attribute → 自报头绑定） |
+| 无凭证头 + 密钥无效/缺失 | — | 403（既有行为） |
+
+**验证顺序**（泄露面最小化）：行定位 → BCrypt secret 比对（失败一律 20065）→ 状态/过期细分（20067/20066）→ 服务注册+启用（20068）——**三态细分仅对持有正确 secret 的请求者暴露**（credential_id 高熵不可枚举）。
+
+**服务端凭证端点白名单**（单源 `common` 模块 `M2mCredentialEndpoints`，Gateway M2M 放行与服务端强制消费同一份）：
+
+| method + 精确路径 | 说明 |
+|---|---|
+| `POST /api/access/resource-entity/sync` | 资源实体幂等同步（§19.1） |
+| `POST /api/access/resource-entity/full-sync` | 资源实体全量校准（§19.2） |
+| `POST /api/access/integration/permission-manifest/full-sync` | 依赖声明 FULL 同步（T-PERM-071 端点，随本卡预留登记） |
+
+白名单外凭证请求一律 403（不依赖 Gateway，SDK 直连同款受限——防凭证能力半径扩大到管理/查询端点）。阶段二逐端点扩展至全部 sync 族（主体/角色/成员/接口声明同步），退役判据=仍依赖旧密钥的端点清零。
+
+### 24.2 管理端点（`/api/access/service-credential/*`）
+
+门禁挂 service-config 管理面同族：写操作 `SERVICE:MANAGE`、list `SERVICE:VIEW`（bootstrap 固定图已有授权，零新增；四端点已入固定图 API 清单）。
+
+| 端点 | 请求 | 响应 / 语义 |
+|------|------|------------|
+| `POST /create` | `{serviceCode, expiresAt?}`——serviceCode 须为已注册且启用（status=1）的服务（未注册/停用拒绝 20044「未注册或已停用」防死凭证）；expiresAt 须未来时间 | `{id, credentialId, secret, serviceCode, status, expiresAt}`——**明文 secret 仅本响应回显一次**（服务端只存 BCrypt 哈希，任何通道不可回查）；credentialId=`sc-`+22 字符 base64url（16 字节熵）、secret=`sk-`+43 字符 base64url（32 字节熵）；同服务多凭证并存（轮换窗口），**不设数量上限**（2026-09-20 拍板） |
+| `POST /update` | `{id, status?, expiresAt?}`——三态语义 null=不修改，至少一项（空 patch 90001）；status 值域 0/1（停用即轮换收尾/吊销，立即生效并记 rotated_at）；expiresAt 仅改期，「清除过期时间」不提供（永不过期=签发时不设） | 更新后行视图（无 secret 面） |
+| `POST /remove` | `{id}` | 软删立即失效 |
+| `POST /list` | `{serviceCode?}`（可选过滤，含停用/过期行——轮换状态可见；凭证量低频管理面不分页） | `{items: [...]}`（无 secretHash） |
+
+**错误码**（perm 段顺延，2026-09-20 拍板三码细分 + 服务停用码）：
+
+| 码 | 枚举 | 说明 |
+|----|------|------|
+| 20065 | `SERVICE_CREDENTIAL_INVALID` | 凭证定位失败 / secret 错误 / 半头（认证层 403 body 携带） |
+| 20066 | `SERVICE_CREDENTIAL_EXPIRED` | 已过期（处置=签发新凭证轮换） |
+| 20067 | `SERVICE_CREDENTIAL_DISABLED` | 已停用（轮换收尾或管理员吊销） |
+| 20068 | `SERVICE_CREDENTIAL_SERVICE_INACTIVE` | 凭证绑定的服务未注册或已停用（对齐 20055 门禁的服务注册段——服务停用即同步通道一起断） |
+
+### 24.3 两类接入形态与 SDK 配置
+
+- **经 Gateway**：`M2mCredentialFilter`（-75，白名单后用户认证前）完整凭证头+M2M 路径 → skipAuth 语义（仅透传、服务端仲裁器终验）；`InternalSecretFilter` 收窄为「无凭证头才兜底注入」；半头/缺头回落 AuthTokenFilter 401。**禁止把 /api/access/** 整体加入白名单**。
+- **SDK 直连**：`perm-common` 的 `FeignCredentialInterceptor`（client 与 registration〔071〕两 starter 共用），配置键：
+  - `perm.credential-id` + `perm.credential-secret`：成对必填（半配 fail-fast）；已显式声明凭证头的请求不覆盖；
+  - `perm.allow-insecure`：**启动声明式 TLS 信任域护栏**（2026-09-20 拍板）——配置凭证必须显式声明（true=单信任域明文 hop 可接受；false=跨边界期望 TLS；缺省拒启）。护栏为纯声明（服务发现形态下静态地址校验无落点），Gateway→access-service 内网 hop 不校验（同部署单元信任域）。
+- **上线序**（服务端先行向后兼容）：①先发布 access-service 仲裁器（无凭证头存量调用方行为零变化）；②后发布 Gateway 改动与新版 SDK——「凭证头+注入密钥并存」由仲裁器凭证优先规则消解，无同批发布要求。
 
 ## 附录 A. 接口与前端 API 一一对照表（管理面家族）
 | 后端接口 | 前端 `user-manage.ts` 函数 | 状态 |

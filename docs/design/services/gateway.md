@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-09-19   # T-GW-009（registry 定案⑤）：白名单纳入 /api/access/user/reset-password——核心链路/匿名白名单两处清单同步为 T-ACCESS-042 精确形态（顺带修陈旧整族简写）+ 服务层门禁不变口径；此前 2026-09-15（T-ACCESS-042 路由拓扑更新）；2026-09-10 T-GW-008 codex 外评 P1 处置：§清洗承诺句修正（对 framework 策略清洗不生效）+ §forward-headers-strategy 启动护栏新增（ForwardHeadersStrategyGuard，framework/native 拒启）；同日早前 §请求头清洗与客户端 IP 重建新增（T-GW-008：XFF 清洗+remoteAddr 重建+清洗叠加语义缺陷修复）；此前：2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031）；2026-08-28（T-ACCESS-027）
+last_reviewed: 2026-09-20   # T-PERM-070：新增「M2M 凭证放行链」节（M2mCredentialFilter -75 skipAuth 仅透传 + InternalSecretFilter 收窄无凭证头兜底注入 + 凭证头不入清洗）；此前 2026-09-19   # T-GW-009（registry 定案⑤）：白名单纳入 /api/access/user/reset-password——核心链路/匿名白名单两处清单同步为 T-ACCESS-042 精确形态（顺带修陈旧整族简写）+ 服务层门禁不变口径；此前 2026-09-15（T-ACCESS-042 路由拓扑更新）；2026-09-10 T-GW-008 codex 外评 P1 处置：§清洗承诺句修正（对 framework 策略清洗不生效）+ §forward-headers-strategy 启动护栏新增（ForwardHeadersStrategyGuard，framework/native 拒启）；同日早前 §请求头清洗与客户端 IP 重建新增（T-GW-008：XFF 清洗+remoteAddr 重建+清洗叠加语义缺陷修复）；此前：2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031）；2026-08-28（T-ACCESS-027）
 ---
 
 # Gateway 服务设计
@@ -36,6 +36,14 @@ last_reviewed: 2026-09-19   # T-GW-009（registry 定案⑤）：白名单纳入
 - **网关自身条件重评直用 remoteAddr**（`PermissionFilter.resolveClientIp`）：不读任何请求头——即使清洗配置被误删，网关侧评估也不采信可伪造头；下游消费重建 XFF（值同为该观测值）。
 - **实现约束（存量缺陷修复）**：清洗必须走 `headers(h -> h.remove(...))` 显式删除，**禁止**「构建干净头副本再 `putAll`」——`ServerHttpRequest.Builder#headers` 的 consumer 收到的是原请求头的可写视图，`putAll` 为叠加语义，清洗项不会被移除（归并起旧实现即因此从未真正删除过头，仅靠下游注入 filter 的 set 覆盖兜底；T-GW-008 实测修正并以回归锁钉住）。重建用 `set`（替换）——清洗配置误删时外部任意 XFF 值/多值也被覆盖为单值观测值。
 - **部署前提（多层 LB / nginx / CDN 拓扑）**：Gateway 观测到的是**代理出口 IP**，按真实客户端 IP 的黑白名单在此类拓扑下不工作（所有客户端同呈一个代理 IP）。要么接受白名单只配到代理出口段（粒度变粗），要么把 IP 过滤上移到能看见真实客户端 IP 的最外层可信设施（nginx/WAF）；如需 Gateway 层精确采信真实客户端 IP，须重新评估已弃的 trusted-proxies 方向（另立项）。详见 `.claude/rules/security-standards.md` §7 与 `access-service-rebuild-runbook.md`。
+
+## M2M 凭证放行链（T-PERM-070，2026-09-20）
+
+接入方 per-service 静态凭证（`X-Credential-Id` + `X-Credential-Secret`）经 Gateway 的放行形态（认证协议与状态表权威见 [service-authentication.md](../service-authentication.md) 与契约总册 §24）：
+
+- **`M2mCredentialFilter`（order -75，白名单 -80 之后、会话校验 -70 之前）**：**完整凭证头 + 精确 M2M 路径清单**（单源 `common` 模块 `M2mCredentialEndpoints`——与服务端仲裁器白名单同一份，防双源漂移）命中时置 `skipAuth=true`，跳过用户认证（AuthTokenFilter）与用户权限过滤（PermissionFilter），**仅透传、由 access-service 仲裁器终验**（Gateway 不做凭证验证）。半头/缺头/非 M2M 路径不识别 → 回落 AuthTokenFilter 401；完整凭证头调管理端点同回落（401）——管理端点不被凭证旁路。**禁止把 /api/access/** 整体加入白名单**。
+- **`InternalSecretFilter` 收窄**：由「无条件向所有下游请求注入 X-Internal-Secret」收窄为「无凭证头时兜底注入」——携带任一凭证头（X-Credential-Id/X-Credential-Secret）即不注入，凭证请求由服务端按凭证链终验；「凭证头+密钥并存」窗口由服务端仲裁器凭证优先规则消解（上线序=服务端先行向后兼容，无需同批发布）。
+- 凭证头不加入 `gateway.header.clean` 清洗列表（接入方外部携带即合法通道；X-Internal-Secret 清洗保留防外部伪造密钥）。
 
 ## OAuth2 委托令牌透传（T-ACCESS-013，2026-08-22）
 

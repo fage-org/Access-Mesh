@@ -196,8 +196,8 @@ cn.ac.fage.accessmesh.access
 
 | order | 拦截器 | 覆盖 | 职责 |
 |---|---|---|---|
-| 1 | `InternalApiSecretInterceptor` | `/api/access/**` | 内部凭证（X-Internal-Secret）验证，通过写 `INTERNAL_AUTHENTICATED` attribute |
-| 2 | `HeaderSignatureInterceptor` | `/api/**`、`/internal/**` | X-User-Id 头恒需验签（内部凭证路径不再无条件信任用户头），通过写 `SIGNATURE_VERIFIED` attribute |
+| 1 | `ServiceAuthArbiter`（T-PERM-070 重构，前 InternalApiSecretInterceptor） | `/api/access/**`（豁免会话入口族） | 服务认证仲裁双策略：凭证头（X-Credential-Id/Secret）验证 → `SERVICE_PRINCIPAL` + M2M 白名单强制（白名单外 403 禁止降级）；无凭证头回落旧密钥（X-Internal-Secret）验证，通过写 `INTERNAL_AUTHENTICATED` attribute |
+| 2 | `HeaderSignatureInterceptor` | `/api/**`、`/internal/**` | X-User-Id 头恒需验签（内部凭证路径不再无条件信任用户头；凭证路径 SERVICE_PRINCIPAL 放行不采信用户头），通过写 `SIGNATURE_VERIFIED` attribute |
 | 3 | `RequestContextInterceptor` | `/**` | 唯一上下文绑定入口：安全策略矩阵决策 + MDC 注入 + afterCompletion 清理；/error ERROR dispatch 放行（防真实错误被 401 掩蔽） |
 
 操作者绑定规则（T-ACCESS-004 落地；T-ACCESS-013 扩展 OAuth2 JWT 资源服务器）：`operatorId` 只在 Sa-Token 会话、签名验证通过或 OAuth2 JWT 验签通过后绑定（JWT 来源：`SaJwtUtil` HS256 + loginType + 超时校验 + `oauth2:blacklist:<jti>` 撤销检查）；内部凭证单独不授予操作者身份（SERVICE 调用 operatorId=null，管理接口权限判定 fail-closed）。服务身份绑定规则：内部凭证验证通过后 `X-Service-Code` 视为凭证持有者声明的服务身份（防无凭证外部伪造）；凭证持有者互冒充为已知限制，T-ACCESS-005/010 服务白名单收敛。**主体 ID 语义（§12 定稿）**：统一后 `operatorId` 承载的即主体 ID（`abstract_user.id` = `sys_user.id`），会话 `loginId` 与审计操作者同源，无需转换。

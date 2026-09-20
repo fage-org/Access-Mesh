@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.infrastructure.config;
 
+import cn.ac.fage.accessmesh.access.infrastructure.SecurityAttributes;
 import cn.ac.fage.accessmesh.access.infrastructure.SignatureVerifier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,7 +61,7 @@ class HeaderSignatureInterceptorTest {
         MockHttpServletRequest req = new MockHttpServletRequest();
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader(HEADER_TENANT_ID, "1");
-        req.setAttribute(InternalApiSecretInterceptor.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
 
         boolean result = interceptor.preHandle(req, resp, new Object());
 
@@ -75,7 +76,7 @@ class HeaderSignatureInterceptorTest {
         MockHttpServletResponse resp = new MockHttpServletResponse();
         req.addHeader(HEADER_USER_ID, "100");
         req.addHeader(HEADER_TENANT_ID, "1");
-        req.setAttribute(InternalApiSecretInterceptor.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
         // 缺 HEADER_SIGNATURE 与 HEADER_TIMESTAMP：内部凭证不得无条件信任用户头
 
         boolean result = interceptor.preHandle(req, resp, new Object());
@@ -98,7 +99,7 @@ class HeaderSignatureInterceptorTest {
         req.addHeader(HEADER_TENANT_ID, tenantId);
         req.addHeader(HEADER_SIGNATURE, signature);
         req.addHeader(HEADER_TIMESTAMP, String.valueOf(ts));
-        req.setAttribute(InternalApiSecretInterceptor.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
+        req.setAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED, Boolean.TRUE);
 
         boolean result = interceptor.preHandle(req, resp, new Object());
 
@@ -222,5 +223,26 @@ class HeaderSignatureInterceptorTest {
         String payload = userId + "|" + tenantId + "|" + timestamp;
         byte[] sig = mac.doFinal(payload.getBytes(StandardCharsets.UTF_8));
         return HexFormat.of().formatHex(sig);
+    }
+
+    // ===== T-PERM-070 凭证路径（SERVICE_PRINCIPAL → 跳过验签，用户自报头不采信不拒绝） =====
+
+    @Test
+    @DisplayName("T-PERM-070：SERVICE_PRINCIPAL + 伪造 X-User-Id 无签名 → 放行（凭证行派生，自报头不采信）")
+    void shouldPassThrough_whenServicePrincipalWithForgedUserIdHeader() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest();
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.addHeader(HEADER_USER_ID, "100");
+        req.addHeader(HEADER_TENANT_ID, "1");
+        // 无 HEADER_SIGNATURE/HEADER_TIMESTAMP——旧路径 1 恒拒，凭证路径不采信不拒绝
+        req.setAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL,
+            new cn.ac.fage.accessmesh.access.infrastructure.ServicePrincipal(1L, "example-service", "sc-x"));
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(resp.getStatus()).isEqualTo(200);
+        // 凭证路径不写 SIGNATURE_VERIFIED（该 attribute 仅真实验签可写）
+        assertThat(req.getAttribute(SecurityAttributes.ATTR_SIGNATURE_VERIFIED)).isNull();
     }
 }

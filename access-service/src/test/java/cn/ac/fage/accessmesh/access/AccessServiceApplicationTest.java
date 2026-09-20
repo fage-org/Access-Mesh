@@ -150,10 +150,11 @@ class AccessServiceApplicationTest {
             "cn.ac.fage.accessmesh.access.audit.mapper",
             "cn.ac.fage.accessmesh.access.platform.mapper",
             "cn.ac.fage.accessmesh.access.sync.mapper",
-            "cn.ac.fage.accessmesh.access.infrastructure.mapper"));
+            "cn.ac.fage.accessmesh.access.infrastructure.mapper",
+            "cn.ac.fage.accessmesh.access.infrastructure.credential.mapper"));
         java.util.Set<String> actual = new java.util.LinkedHashSet<>(java.util.List.of(scan.value()));
         org.junit.jupiter.api.Assertions.assertEquals(expected, actual,
-            "@MapperScan 包清单必须与 032 归属清单的全部 *.mapper 子包一致（14 包）");
+            "@MapperScan 包清单必须与归属清单的全部 *.mapper 子包一致（15 包，T-PERM-070 增 infrastructure.credential.mapper）");
     }
 
     /**

@@ -133,6 +133,10 @@ class HttpApiPathSnapshotTest {
 /api/access/service-config/remove
 /api/access/service-config/save
 /api/access/service-config/sync
+/api/access/service-credential/create
+/api/access/service-credential/list
+/api/access/service-credential/remove
+/api/access/service-credential/update
 /api/access/system-config/detail
 /api/access/system-config/list
 /api/access/system-config/save
@@ -311,6 +315,10 @@ class HttpApiPathSnapshotTest {
 /api/access/service-config/list|access.infrastructure.dto.EmptyReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ServiceConfigResp>>
 /api/access/service-config/remove|perm.common.dto.req.IdsReq|common.model.R<Void>
 /api/access/service-config/save|access.resource.dto.req.ServiceConfigReq|common.model.R<access.resource.dto.resp.ServiceConfigResp>
+/api/access/service-credential/create|access.infrastructure.credential.dto.req.ServiceCredentialCreateReq|common.model.R<access.infrastructure.credential.dto.resp.ServiceCredentialCreateResp>
+/api/access/service-credential/list|access.infrastructure.credential.dto.req.ServiceCredentialListReq|common.model.R<perm.common.dto.resp.ItemsResp<access.infrastructure.credential.dto.resp.ServiceCredentialResp>>
+/api/access/service-credential/remove|common.model.IdReq|common.model.R<Void>
+/api/access/service-credential/update|access.infrastructure.credential.dto.req.ServiceCredentialUpdateReq|common.model.R<access.infrastructure.credential.dto.resp.ServiceCredentialResp>
 /api/access/service-config/sync|access.resource.dto.req.ServiceConfigSyncReq|common.model.R<access.resource.dto.resp.ServiceConfigSyncResp>
 /api/access/system-config/detail|access.platform.dto.req.SystemConfigGetReq|common.model.R<access.platform.dto.resp.SystemConfigResp>
 /api/access/system-config/list|access.platform.dto.req.SystemConfigListReq|common.model.R<perm.common.dto.resp.PageResp<access.platform.dto.resp.SystemConfigResp>>

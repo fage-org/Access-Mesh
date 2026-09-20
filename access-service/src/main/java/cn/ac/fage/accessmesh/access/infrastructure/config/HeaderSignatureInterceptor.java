@@ -19,8 +19,12 @@ import java.nio.charset.StandardCharsets;
  * 验证用户身份请求头的 HMAC-SHA256 签名，确保 Gateway 注入的请求头未被篡改，
  * 防止请求头注入攻击。签名验证是强制执行的，不可通过配置禁用。
  * </p>
- * <p>决策树（T-ACCESS-004 调整，修复 G1——内部凭证路径不再无条件信任用户头）：</p>
+ * <p>决策树（T-ACCESS-004 调整，修复 G1——内部凭证路径不再无条件信任用户头；
+ * T-PERM-070 增凭证路径首行）：</p>
  * <ol>
+ *   <li>凭证认证通过（attribute SERVICE_PRINCIPAL，ServiceAuthArbiter 写入）→ 放行——
+ *       凭证请求的用户/租户自报头一律不采信（凭证行派生），既不验签也不拒绝
+ *       （service-authentication.md §3.2 状态表①行）。</li>
  *   <li>X-User-Id 头存在 → 无论是否内部凭证，必须验签（缺签名 / 时间戳无效 /
  *       过期 / HMAC 不匹配均拒绝）；验签通过后写
  *       {@link SecurityAttributes#ATTR_SIGNATURE_VERIFIED} attribute，
@@ -62,6 +66,10 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
         boolean internalAuthenticated = Boolean.TRUE.equals(
             request.getAttribute(SecurityAttributes.ATTR_INTERNAL_AUTHENTICATED)
         );
+        // 凭证路径（T-PERM-070）：自报头一律不采信（凭证行派生），跳过验签不拒绝
+        if (request.getAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL) != null) {
+            return true;
+        }
 
         // 路径 1：用户身份头存在 → 恒需验签（含内部凭证场景，修复 G1：
         // 凭证持有者不得伪造 X-User-Id 冒充操作者）
@@ -69,7 +77,7 @@ public class HeaderSignatureInterceptor implements HandlerInterceptor {
             return verifyUserSignature(request, response, userId, tenantId);
         }
 
-        // 路径 2：服务间内部调用（已通过 InternalApiSecretInterceptor 校验，无用户头）
+        // 路径 2：服务间内部调用（已通过 ServiceAuthArbiter 旧密钥策略校验，无用户头）
         if (internalAuthenticated) {
             return true;
         }

@@ -119,7 +119,7 @@ class SecurityMatrixIT {
     @DisplayName("用户管理：持密无用户身份（SERVICE 上下文）→ 403 显式拒绝（G3 门禁保持，T-ACCESS-042 边界收口）")
     void userAdmin_serviceContextWithoutUser_rejected403() throws Exception {
         mockMvc.perform(post("/api/access/user/page")
-                // T-ACCESS-042：管理面并入内部密钥边界。无密钥直连由 InternalApiSecretInterceptor
+                // T-ACCESS-042：管理面并入内部密钥边界。无密钥直连由 ServiceAuthArbiter（T-PERM-070 前为 InternalApiSecretInterceptor）
                 // 403（transport 边界）；用户面无会话 401 由 Gateway AuthTokenFilter 前置（gateway
                 // 模块测试锁定）；本用例锁服务层身份门禁——持密但无用户操作者（SERVICE 上下文）
                 // 触达用户态端点必须显式拒绝（旧实现环境性异常 500，已收敛）

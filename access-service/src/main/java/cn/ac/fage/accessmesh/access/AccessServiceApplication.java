@@ -30,7 +30,8 @@ import org.springframework.scheduling.annotation.EnableScheduling;
     "cn.ac.fage.accessmesh.access.audit.mapper",
     "cn.ac.fage.accessmesh.access.platform.mapper",
     "cn.ac.fage.accessmesh.access.sync.mapper",
-    "cn.ac.fage.accessmesh.access.infrastructure.mapper"
+    "cn.ac.fage.accessmesh.access.infrastructure.mapper",
+    "cn.ac.fage.accessmesh.access.infrastructure.credential.mapper"
 })
 public class AccessServiceApplication {
 

@@ -161,7 +161,7 @@ last_reviewed: 2026-09-15 Q-009 收敛退役：§4 裁决表 row9 与 §8.4 豁�
 └── enums/ util/           # 按需
 ```
 
-Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{org,menu,role}/`；其余 mapper XML（`resources/mapper/` 根下存量）随所属能力包同规则迁移，namespace/resultType FQCN 同批更新（033 任务卡断言面覆盖）。**Mapper 接口一律落 `*.mapper` 子包**（能力包 `{cap}.mapper`、`sync.mapper`、`infrastructure.mapper`——@MapperScan 按包清单扫描不漏注册；记账/租约的 DomainService 与实体可留在语义子包，mapper 接口不随行）。表基线：权威 DDL 全部 33 张表在 §8.2 各节「表：」行登记。
+Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{org,menu,role}/`；其余 mapper XML（`resources/mapper/` 根下存量）随所属能力包同规则迁移，namespace/resultType FQCN 同批更新（033 任务卡断言面覆盖）。**Mapper 接口一律落 `*.mapper` 子包**（能力包 `{cap}.mapper`、`sync.mapper`、`infrastructure.mapper`——@MapperScan 按包清单扫描不漏注册；记账/租约的 DomainService 与实体可留在语义子包，mapper 接口不随行）。表基线：权威 DDL 全部 34 张表在 §8.2 各节「表：」行登记（T-PERM-070 增 service_credential，落 infrastructure）。
 
 ### 8.2 逐包归属清单（源 → 目标）
 
@@ -404,7 +404,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | 源 | 目标 | 说明 |
 |---|---|---|
 | infrastructure 现有底座：AccessRequestContext、CallerType、JsonbStringTypeHandler、MybatisFlexTenantConfig、MybatisFlexTypeHandlerConfig、OAuth2JwtSupport、OAuth2ResourcePathProperties、RequestContext、RequestContextInterceptor、SecurityAttributes、SignatureVerifier、TenantContextHolder、TimestamptzLocalDateTimeTypeHandler、TreeWriteLockSupport、infrastructure.util.HttpRequestUtils、SensitiveDataUtils | 原位 | 照旧 |
-| permission.config：HeaderSignatureInterceptor、InternalApiSecretInterceptor、SecurityWebMvcConfig、AsyncConfig | infrastructure.config | 安全拦截器/异步配置 |
+| permission.config：HeaderSignatureInterceptor、SecurityWebMvcConfig、AsyncConfig（InternalApiSecretInterceptor 已随 T-PERM-070 删除——ServiceAuthArbiter 取代〔凭证+旧密钥双策略〕；新增 infrastructure.credential 子包承载 service_credential 全链，结构断言零改动） | infrastructure.config | 安全拦截器/异步配置 |
 | permission.aop.PermissionChangeAspect + infrastructure.PermissionChange、PermissionChangeContext | infrastructure | 缓存失效横切（事务后广播） |
 | permission.cache：PermInvalidationPublisher、PermCacheBoundaryValidator；admin.cache.**AdminCacheCatalog** + permission.cache.**PermCacheCatalog** | infrastructure.cache（039 已合一为单册 **AccessCacheCatalog**，两旧册消亡） | `admin:org-visibility` 同任务归位 `access:org-visibility`；条目 mode/TTL 零改动；Q-006 滚动发布边界已随 T-ACCESS-048 实施（legacy 别名同批 evict） |
 | permission.util：OperatorContext、OperatorUtil、SecurityUtils、StringUtils、PageUtil、PermissionConstants、TreeBuilder；permission.util.SecurityEventType、SecurityLogUtil | infrastructure.util | 跨能力通用（Operator 族消费面横跨全部能力与写编排；PermissionConstants 消费面 grant/resource/role/user；TreeBuilder 消费面 role/resource；SecurityLog/EventType 随拦截器） |

@@ -14,7 +14,7 @@ import java.util.Collection;
  * 当调用 access-service 的 {@code /api/access/**} 路径时（典型为 sync/full-sync
  * 同步接口、auth/check 鉴权接口等），自动注入 {@code X-Internal-Secret}
  * 与 {@code X-Service-Code} 两个 Header，用于通过 access-service 端的
- * {@code InternalApiSecretInterceptor} 校验。
+ * {@code ServiceAuthArbiter} 旧密钥策略校验（T-PERM-070 前为 InternalApiSecretInterceptor）。
  * </p>
  * <p>
  * 仅当配置了 {@code perm.internal-secret} 时启用（由

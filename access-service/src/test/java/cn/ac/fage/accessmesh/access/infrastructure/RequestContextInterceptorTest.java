@@ -837,4 +837,41 @@ class RequestContextInterceptorTest {
         oauth2ResourcePaths.setResourcePaths(new ArrayList<>(List.of(
             OAuth2ResourcePathProperties.ResourcePathRule.exactPath("/api/access/auth/oauth2/userinfo"), rule)));
     }
+
+    // ===== T-PERM-070 凭证路径（SERVICE_PRINCIPAL 只认 principal，自报头一律忽略） =====
+
+    @Test
+    @DisplayName("T-PERM-070：SERVICE_PRINCIPAL → 绑定凭证派生 service 上下文，自报头（服务码/租户/用户头）一律忽略")
+    void shouldBindCredentialPrincipal_ignoringSelfDeclaredHeaders() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/resource-entity/sync");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.setAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL,
+            new ServicePrincipal(7L, "example-service", "sc-real"));
+        // 自报头全部与凭证派生值相异——旧路径会绑定这些值，凭证路径必须忽略
+        req.addHeader("X-Service-Code", "attacker-service");
+        req.addHeader("X-Tenant-Id", "999");
+        req.addHeader("X-User-Id", "1");
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(AccessRequestContext.getCallerType()).isEqualTo(CallerType.SERVICE);
+        assertThat(AccessRequestContext.getTenantId()).isEqualTo(7L);
+        assertThat(AccessRequestContext.getServiceCode()).isEqualTo("example-service");
+    }
+
+    @Test
+    @DisplayName("T-PERM-070：SERVICE_PRINCIPAL + 畸形 X-Tenant-Id 自报头 → 仍放行（不采信即不因格式拒绝）")
+    void shouldBindCredentialPrincipal_evenWithMalformedSelfDeclaredHeaders() throws Exception {
+        MockHttpServletRequest req = new MockHttpServletRequest("POST", "/api/access/resource-entity/sync");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+        req.setAttribute(SecurityAttributes.ATTR_SERVICE_PRINCIPAL,
+            new ServicePrincipal(7L, "example-service", "sc-real"));
+        req.addHeader("X-Tenant-Id", "not-a-number");
+
+        boolean result = interceptor.preHandle(req, resp, new Object());
+
+        assertThat(result).isTrue();
+        assertThat(AccessRequestContext.getTenantId()).isEqualTo(7L);
+    }
 }
