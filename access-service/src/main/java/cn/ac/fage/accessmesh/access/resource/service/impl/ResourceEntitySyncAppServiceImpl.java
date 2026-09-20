@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService;
 import cn.ac.fage.accessmesh.access.sync.PublicationGeneration;
 import cn.ac.fage.accessmesh.access.sync.ResourcePublicationNormalizer;
 import cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService;
@@ -59,6 +60,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     private static final String STATUS_DELETED = "DELETED";
     private static final String MAINTAIN_SOURCE_SYNC = "SYNC";
 
+    private final DependencyCompilationDomainService compilation;
     private final SyncMetadataDomainService syncMetadataDomainService;
     private final SyncMetadataMapper syncMetadataMapper;
     private final TypeResolutionService typeResolutionService;
@@ -80,7 +82,9 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                                              ResourceTypeOwnershipGuard resourceTypeOwnershipGuard,
                                              ResourceEntityDomainService resourceEntityDomainService,
                                              TreeWriteLockSupport treeWriteLockSupport,
-                                             ResourcePublicationDomainService publications) {
+                                             ResourcePublicationDomainService publications,
+                                      DependencyCompilationDomainService compilation) {
+        this.compilation = compilation;
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.syncMetadataMapper = syncMetadataMapper;
         this.typeResolutionService = typeResolutionService;
@@ -339,6 +343,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         for (int offset = 0; offset < deleteIds.size(); offset += SQL_BATCH_SIZE) {
             resourceEntityMapper.softDeleteBatch(tenantId, deleteIds.subList(offset, Math.min(offset + SQL_BATCH_SIZE, deleteIds.size())), now);
         }
+        compilation.resourcesDeleted(tenantId, deleteIds, now);
         publications.acceptFull(tenantId, req.scope().sourceService(), scopeKey, generation, fullHash, failed > 0);
         return SyncResultBuilder.fullSync(applied, stale, failed, deactivated, itemResults);
     }
@@ -590,6 +595,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         } else { // DELETE
             if (existing != null) {
                 resourceEntityMapper.softDeleteBatch(tenantId, List.of(existing.getId()), now);
+                compilation.resourcesDeleted(tenantId, List.of(existing.getId()), now);
             }
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, STATUS_DELETED);

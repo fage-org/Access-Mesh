@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.type.service.impl;
 
+import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
 import cn.ac.fage.accessmesh.common.cache.CacheService;
@@ -55,6 +56,7 @@ import java.util.stream.Collectors;
 @Service
 public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
 
+    private final DependencyCompilationDomainService compilation;
     private final TypeDefinitionMapper typeDefinitionMapper;
     private final OperationPermissionMapper operationPermissionMapper;
     private final PermQueryEngine engine;
@@ -96,7 +98,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                                          ResourceApiMappingDomainService apiMappingDomainService,
                                          TreeWriteLockSupport treeWriteLockSupport,
                                          CacheService cacheService,
-                                         GrantOriginDomainService grantOriginDomainService) {
+                                         GrantOriginDomainService grantOriginDomainService,
+                                      DependencyCompilationDomainService compilation) {
+        this.compilation = compilation;
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.engine = engine;
@@ -493,6 +497,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // ②携带键仅自定义 resource_type 允许（其他 typeKey / is_system 类型 20044）；
         // ③变更（新增/改值，用户定案 2026-09-12「允许变更并补齐种子」）：新所有者先行解析
         //   （不存在/停用整单回滚），类型行落库后同事务「先清后种」迁移
+        var previousOwnership = resourceTypeOwnershipGuard.parseOwnership(type.getExtra());
         Long grantOriginMigrationTarget = null;
         if (req.extra() != null) {
             GrantOriginDomainService.GrantOriginRole oldPointer;
@@ -528,6 +533,10 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         }
         type.setUpdatedAt(LocalDateTime.now());
         typeDefinitionMapper.update(type);
+        if ("resource_type".equals(type.getTypeKey())
+                && !previousOwnership.equals(resourceTypeOwnershipGuard.parseOwnership(type.getExtra()))) {
+            compilation.typesChanged(tenantId, Set.of(type.getTypeCode()), false, type.getUpdatedAt());
+        }
         // T-PERM-062：所有者变更同事务迁移（「同事务迁移」定案）：先清后种重整化——软删该类型
         // 全部 AUTHORITY_ROOT 行（含已删角色/误配旧 owner 残留，杜绝误配 owner 的一次性永久扩权），
         // 向新所有者补齐该类型全部有效操作位种子；markRoles 覆盖旧 owners 与新 owner
@@ -750,6 +759,9 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 deletableTypeValues.stream().map(AccessCacheCatalog::operationPermissionsByTypeKey)
                     .collect(Collectors.toCollection(LinkedHashSet::new)));
         }
+        compilation.typesChanged(tenantId, entities.stream()
+                .filter(t -> validIds.contains(t.getId()) && "resource_type".equals(t.getTypeKey()))
+                .map(TypeDefinition::getTypeCode).collect(Collectors.toSet()), true, now);
         // T-PERM-048：级联授权行已软删，引用归零的内联条件同事务回收（含 markConditions）
         if (!cascadeConditionIds.isEmpty()) {
             conditionDomainService.recycleOrphanInlineConditions(tenantId, cascadeConditionIds);

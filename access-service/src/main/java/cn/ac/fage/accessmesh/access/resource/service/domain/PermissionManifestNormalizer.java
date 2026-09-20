@@ -62,6 +62,13 @@ public class PermissionManifestNormalizer {
     public String declarationJson(DependencyCompiler.Declaration declaration) {
         return CanonicalJson.text(mapper.valueToTree(declaration));
     }
+    public DependencyCompiler.Declaration readDeclaration(String json) {
+        try { return mapper.readValue(json, DependencyCompiler.Declaration.class); }
+        catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new cn.ac.fage.accessmesh.common.exception.SystemException(
+                    AccessErrorCode.SYSTEM_INIT_FAILED.getCode(), "invalid stored dependency declaration", e);
+        }
+    }
     public String declarationSemanticHash(DependencyCompiler.Declaration declaration) {
         return CanonicalJson.hash(mapper.valueToTree(new DependencyCompiler.Declaration(
                 declaration.declarationKey(), declaration.source(), declaration.sourceOperationCode(),

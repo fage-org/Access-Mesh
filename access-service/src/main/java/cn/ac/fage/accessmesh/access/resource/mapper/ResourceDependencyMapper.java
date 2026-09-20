@@ -16,14 +16,10 @@ import java.util.List;
  * </p>
  */
 public interface ResourceDependencyMapper extends BaseMapper<ResourceDependency> {
-
-    /** 替换编译器生成的本服务边。 */
-    int removeCompiledScope(@Param("tenantId") Long tenantId, @Param("service") String service,
-                            @Param("now") LocalDateTime now);
-
-    /** 诊断声明的展示描述独立更新，不重建聚合图的身份。 */
-    int refreshCompiledDescriptions(@Param("tenantId") Long tenantId, @Param("service") String service,
-                                    @Param("now") LocalDateTime now);
+    int removeCompiledScopes(@Param("tenantId") Long tenantId, @Param("services") List<String> services,
+                             @Param("now") LocalDateTime now);
+    int refreshCompiledScopeDescriptions(@Param("tenantId") Long tenantId, @Param("services") List<String> services,
+                                         @Param("now") LocalDateTime now);
 
     /**
      * 根据租户ID查询所有有效资源依赖列表

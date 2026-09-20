@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.type.service.impl;
 
+import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService;
 import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog;
@@ -49,6 +50,7 @@ import java.util.stream.Collectors;
 @Service
 public class OperationAppServiceImpl implements OperationAppService {
 
+    private final DependencyCompilationDomainService compilation;
     private final OperationPermissionMapper operationPermissionMapper;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
@@ -74,7 +76,9 @@ public class OperationAppServiceImpl implements OperationAppService {
                                       CacheService cacheService,
                                       TypeDefinitionMapper typeDefinitionMapper,
                                       GrantOriginDomainService grantOriginDomainService,
-                                      TreeWriteLockSupport treeWriteLockSupport) {
+                                      TreeWriteLockSupport treeWriteLockSupport,
+                                      DependencyCompilationDomainService compilation) {
+        this.compilation = compilation;
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
@@ -292,6 +296,7 @@ public class OperationAppServiceImpl implements OperationAppService {
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         OperationPermission op = selectOperationByBusinessKey(tenantId, new OperationKeyReq(req.resourceTypeCode(), req.code()));
         Long fromBit = op.getBinaryBit();
+        Long fromInheritMask = op.getInheritMask();
         if (req.name() != null) op.setName(req.name());
         if (req.binaryBit() != null) op.setBinaryBit(req.binaryBit());
         if (req.inheritMask() != null) op.setInheritMask(req.inheritMask());
@@ -310,6 +315,9 @@ public class OperationAppServiceImpl implements OperationAppService {
                 tenantId, ownerRoleId, op.getResourceType(), fromBit, op.getBinaryBit(), operatorId);
             PermissionChangeContext.markRoles(tenantId, affected);
             PermissionChangeContext.markRoles(tenantId, ownerRoleId);
+        }
+        if (bitChanged || req.inheritMask() != null && !Objects.equals(fromInheritMask, req.inheritMask())) {
+            compilation.typesChanged(tenantId, Set.of(req.resourceTypeCode()), false, LocalDateTime.now());
         }
         // T-PERM-047：位值/继承掩码变更改变覆盖判定输入，提交后失效 per-type 缓存
         // （否则 TTL 窗口内引擎按旧位值判定，已授权角色语义静默翻转）
@@ -384,6 +392,8 @@ public class OperationAppServiceImpl implements OperationAppService {
                 .removeOperationAuthorityRootGrants(tenantId, seedBitsByTypeValue);
             PermissionChangeContext.markRoles(tenantId, affected);
         }
+        compilation.typesChanged(tenantId, customTypeDefs.values().stream().map(TypeDefinition::getTypeCode)
+                .collect(Collectors.toSet()), false, now);
         // T-PERM-047：已删操作在 TTL 窗口内仍参与覆盖判定（陈旧 Map 含已删行），
         // 按受影响类型集合批量失效 per-type 缓存（同类型去重一次提交）
         Set<String> affectedTypeKeys = entities.stream()

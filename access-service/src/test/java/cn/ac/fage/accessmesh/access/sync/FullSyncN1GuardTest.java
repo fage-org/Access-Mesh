@@ -190,7 +190,7 @@ class FullSyncN1GuardTest {
                 resourceEntityMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), resourceTypeOwnershipGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService.class),
-                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class));
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class));
 
         List<ResourceEntitySyncItem> items = new ArrayList<>(ITEM_COUNT);
         for (int i = 0; i < ITEM_COUNT; i++) {

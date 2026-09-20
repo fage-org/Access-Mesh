@@ -308,7 +308,7 @@ class FullSyncResponseContractTest {
                 syncMetadataDomainService, syncMetadataMapper, typeResolutionService, resourceEntityMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), resourceTypeOwnershipGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService.class),
-                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class));
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class));
         ResourceEntityFullSyncReq req = new ResourceEntityFullSyncReq(
                 new ResourceEntitySyncScope(SOURCE_SERVICE, "MENU"),
                 List.of(new ResourceEntitySyncItem("menu-1", "default", "Menu 1",

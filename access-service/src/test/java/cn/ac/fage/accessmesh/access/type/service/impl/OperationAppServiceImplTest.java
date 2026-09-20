@@ -53,7 +53,7 @@ class OperationAppServiceImplTest {
     void setUp() {
         // 测试简化：投影主体 = 传入 operatorId
         service = new OperationAppServiceImpl(operationPermissionMapper, typeResolutionService, engine,
-            cacheService, typeDefinitionMapper, grantOriginDomainService, treeWriteLockSupport);
+            cacheService, typeDefinitionMapper, grantOriginDomainService, treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class));
     }
 
     @Test

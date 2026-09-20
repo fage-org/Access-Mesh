@@ -2267,7 +2267,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 ### 19.2 资源实体分领域全量校准 resource-entity/full-sync
 
-> **完整空清单**：明确 `items=[]` 表示完整空 scope，通过身份、类型所有权与发布代次校验后，仅清理该同步范围的事实。缺失/null items 返回 HTTP 400；读取失败或分页未完成不得作为空快照提交。依赖贡献收缩与自动授权回收分别随 071 剩余生命周期接线和 072 交付，当前资源同步组件不表示物化回收已完成。
+> **完整空清单**：明确 `items=[]` 表示完整空 scope，通过身份、类型所有权与发布代次校验后，仅清理该同步范围的事实。缺失/null items 返回 HTTP 400；读取失败或分页未完成不得作为空快照提交。依赖贡献已随资源删除同事务收缩；自动授权回收由 072 交付，当前资源同步组件不表示物化回收已完成。
 
 > **范围发布顺序**：`publicationGeneration` 必填，平台在事实写入与缺失删除前按 scope 原子拒旧；重试沿用原代次与完整快照。此代次独立于逐项 `syncVersion`，由源侧绑定一致快照，不能由 SDK 临时取当前时间生成。详见 §19.2.1 与[设计 §4.4](dependency-auto-grant.md#integration)。
 
@@ -2738,7 +2738,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ### 19.10 独立依赖 manifest（071 实施中）
 
-> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动、SDK 协调和保全迁移仍由 071 完成，角色物化由 072 完成。
+> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动与保全迁移已实现；SDK 协调仍由 071 完成，角色物化由 072 完成。
 
 `POST /api/access/integration/permission-manifest/full-sync`，仅服务身份入口，按 070 精确 M2M 白名单；tenant 与 service 从已认证上下文取得，不接受 body 中的 serviceCode。来源服务须注册、启用；资源/操作存在性及类型所有权由服务端校验。
 

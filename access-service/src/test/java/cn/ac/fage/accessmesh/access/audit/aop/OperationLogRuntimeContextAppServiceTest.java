@@ -119,7 +119,7 @@ class OperationLogRuntimeContextAppServiceTest {
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.ResourceApiMappingDomainService.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class),
             org.mockito.Mockito.mock(cn.ac.fage.accessmesh.common.cache.CacheService.class),
-            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService.class));
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class));
 
         TypeDefinition first = new TypeDefinition();
         first.setId(1L);

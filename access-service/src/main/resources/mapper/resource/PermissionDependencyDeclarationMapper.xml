@@ -1,6 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.resource.mapper.PermissionDependencyDeclarationMapper">
+    <select id="selectScopes" resultType="cn.ac.fage.accessmesh.access.resource.entity.PermissionDependencyDeclaration">
+        SELECT * FROM permission_dependency_declaration WHERE tenant_id=#{tenantId} AND delete_flag=0 AND source_service IN
+        <foreach collection="services" item="service" open="(" separator="," close=")">#{service}</foreach>
+        ORDER BY source_service,business_key
+    </select>
+    <select id="selectServicesByResourceIds" resultType="java.lang.String">
+        SELECT DISTINCT source_service FROM permission_dependency_declaration
+        WHERE tenant_id=#{tenantId} AND delete_flag=0 AND (source_resource_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        OR target_resource_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>)
+    </select>
+    <sql id="typeReferences">
+        (declaration_payload -&gt; 'source' -&gt;&gt; 'resourceTypeCode' IN
+        <foreach collection="types" item="type" open="(" separator="," close=")">#{type}</foreach>
+        OR declaration_payload -&gt; 'target' -&gt;&gt; 'resourceTypeCode' IN
+        <foreach collection="types" item="type" open="(" separator="," close=")">#{type}</foreach>)
+    </sql>
+    <select id="selectServicesByTypes" resultType="java.lang.String">
+        SELECT DISTINCT source_service FROM permission_dependency_declaration
+        WHERE tenant_id=#{tenantId} AND delete_flag=0 AND <include refid="typeReferences"/>
+    </select>
+    <update id="softDeleteTypes">
+        UPDATE permission_dependency_declaration SET delete_flag=id,deleted_at=#{now},updated_at=#{now}
+        WHERE tenant_id=#{tenantId} AND delete_flag=0 AND <include refid="typeReferences"/>
+    </update>
     <select id="selectScope" resultType="cn.ac.fage.accessmesh.access.resource.entity.PermissionDependencyDeclaration">
         SELECT * FROM permission_dependency_declaration
         WHERE tenant_id=#{tenantId} AND source_service=#{service} AND delete_flag=0 ORDER BY business_key

@@ -9,30 +9,21 @@ import cn.ac.fage.accessmesh.access.resource.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceManifestSync;
 import cn.ac.fage.accessmesh.access.resource.mapper.PermissionDependencyDeclarationMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceDependencyMapper;
-import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceManifestSyncMapper;
 import cn.ac.fage.accessmesh.access.resource.service.PermissionManifestAppService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompiler;
+import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.PermissionManifestNormalizer;
-import cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil;
 import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
-import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
-import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
-import cn.ac.fage.accessmesh.access.type.service.domain.ResourceTypeOwnershipGuard;
-import cn.ac.fage.accessmesh.access.type.service.domain.TypeDefinitionDomainService;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
 import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq;
-import cn.ac.fage.accessmesh.perm.common.dto.req.PermissionManifestReq.ResourceKey;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.SyncResultResp;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,32 +35,22 @@ import java.util.stream.Collectors;
 public class PermissionManifestAppServiceImpl implements PermissionManifestAppService {
     private static final int SQL_BATCH_SIZE = 500;
     private final PermissionManifestNormalizer normalizer;
-    private final DependencyCompiler compiler;
+    private final DependencyCompilationDomainService compilation;
     private final PermissionDependencyDeclarationMapper declarationMapper;
     private final ServiceManifestSyncMapper stateMapper;
     private final ResourceDependencyMapper edgeMapper;
-    private final ResourceEntityMapper resourceMapper;
     private final ServiceConfigMapper serviceMapper;
-    private final TypeDefinitionDomainService types;
-    private final OperationPermissionDomainService operations;
-    private final ResourceTypeOwnershipGuard ownership;
     private final TreeWriteLockSupport locks;
 
-    public PermissionManifestAppServiceImpl(PermissionManifestNormalizer normalizer, DependencyCompiler compiler,
+    public PermissionManifestAppServiceImpl(PermissionManifestNormalizer normalizer, DependencyCompilationDomainService compilation,
             PermissionDependencyDeclarationMapper declarationMapper, ServiceManifestSyncMapper stateMapper,
-            ResourceDependencyMapper edgeMapper, ResourceEntityMapper resourceMapper, ServiceConfigMapper serviceMapper,
-            TypeDefinitionDomainService types, OperationPermissionDomainService operations,
-            ResourceTypeOwnershipGuard ownership, TreeWriteLockSupport locks) {
+            ResourceDependencyMapper edgeMapper, ServiceConfigMapper serviceMapper, TreeWriteLockSupport locks) {
         this.normalizer = normalizer;
-        this.compiler = compiler;
+        this.compilation = compilation;
         this.declarationMapper = declarationMapper;
         this.stateMapper = stateMapper;
         this.edgeMapper = edgeMapper;
-        this.resourceMapper = resourceMapper;
         this.serviceMapper = serviceMapper;
-        this.types = types;
-        this.operations = operations;
-        this.ownership = ownership;
         this.locks = locks;
     }
 
@@ -116,11 +97,11 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
                         row.getTargetResourceId(), row.getSourceOperationBits(), row.getRequiredOperationBits()));
             }).toList(), List.of());
         } else {
-            result = compile(tenantId, service, normalized.declarations(), oldByKey);
+            result = compilation.compile(tenantId, service, normalized.declarations(), oldByKey);
         }
         LocalDateTime now = LocalDateTime.now();
         List<PermissionDependencyDeclaration> rows = result.declarations().stream()
-                .map(r -> toRow(tenantId, service, r, now)).toList();
+                .map(r -> compilation.toRow(tenantId, service, r, now)).toList();
         Set<String> keep = rows.stream().map(PermissionDependencyDeclaration::getBusinessKeyHash).collect(Collectors.toSet());
         List<Long> missing = old.stream().filter(row -> !keep.contains(row.getBusinessKeyHash()))
                 .map(PermissionDependencyDeclaration::getId).toList();
@@ -135,8 +116,8 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
             var batch = rows.subList(offset, Math.min(offset + SQL_BATCH_SIZE, rows.size()));
             if (declarationMapper.saveAll(batch) != batch.size()) throw failure("manifest declaration write count mismatch");
         }
-        if (!unchanged) replaceCompiled(tenantId, service, result.edges(), now);
-        edgeMapper.refreshCompiledDescriptions(tenantId, service, now);
+        if (!unchanged) compilation.replaceGraphs(tenantId, Map.of(service, result.edges()), now);
+        edgeMapper.refreshCompiledScopeDescriptions(tenantId, List.of(service), now);
 
         int failed = (int) result.declarations().stream().filter(r -> r.reason() != null).count();
         var state = new ServiceManifestSync();
@@ -157,108 +138,6 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
         return SyncResultBuilder.fullSync(unchanged ? 0 : count - failed, unchanged ? count : 0, failed, removed, items);
     }
 
-    private DependencyCompiler.Result compile(Long tenantId, String service, List<DependencyCompiler.Declaration> declarations,
-                                               Map<String, PermissionDependencyDeclaration> old) {
-        Map<String, DependencyCompiler.TypeInfo> typeInfo = new HashMap<>();
-        Map<Integer, String> codes = new HashMap<>();
-        for (var type : types.selectByTenantAndTypeKey(tenantId, "resource_type")) {
-            var owner = ownership.parseOwnership(type.getExtra());
-            typeInfo.put(type.getTypeCode(), new DependencyCompiler.TypeInfo(type.getTypeValue(),
-                    ResourceTypeOwnershipGuard.MODE_SYNC.equals(owner.managedMode()) ? owner.syncSourceService() : null));
-            codes.put(type.getTypeValue(), type.getTypeCode());
-        }
-        Set<ResourceKey> requested = new HashSet<>();
-        declarations.forEach(d -> { requested.add(d.source()); requested.add(d.target()); });
-        Set<Integer> values = requested.stream().map(k -> typeInfo.get(k.resourceTypeCode()))
-                .filter(Objects::nonNull).map(DependencyCompiler.TypeInfo::value).collect(Collectors.toSet());
-        Map<ResourceKey, Long> resources = new HashMap<>();
-        List<ResourceKey> requestedList = new ArrayList<>(requested);
-        for (int offset = 0; offset < requestedList.size(); offset += SQL_BATCH_SIZE) {
-            var batch = requestedList.subList(offset, Math.min(offset + SQL_BATCH_SIZE, requestedList.size()));
-            Set<Integer> batchTypes = batch.stream().map(k -> typeInfo.get(k.resourceTypeCode()))
-                    .filter(Objects::nonNull).map(DependencyCompiler.TypeInfo::value).collect(Collectors.toSet());
-            if (batchTypes.isEmpty()) continue;
-            var resourceRows = resourceMapper.selectByTypesAndCodesAndCodeTypes(tenantId, batchTypes,
-                    batch.stream().map(ResourceKey::resourceCode).collect(Collectors.toSet()),
-                    batch.stream().map(ResourceKey::codeType).collect(Collectors.toSet()));
-            for (var row : resourceRows) {
-                ResourceKey key = new ResourceKey(codes.get(row.getResourceType()), row.getCode(), row.getCodeType());
-                if (requested.contains(key)) resources.put(key, row.getId());
-            }
-        }
-        List<Integer> typeValues = new ArrayList<>(values);
-        List<OperationPermission> operationRows = new ArrayList<>();
-        for (int offset = 0; offset < typeValues.size(); offset += SQL_BATCH_SIZE) {
-            operationRows.addAll(operations.selectByTenantAndResourceTypes(tenantId,
-                    new HashSet<>(typeValues.subList(offset, Math.min(offset + SQL_BATCH_SIZE, typeValues.size())))));
-        }
-        List<DependencyCompiler.Edge> retained = edgeMapper.selectByTenantId(tenantId).stream()
-                .filter(e -> e.getDeclarationId() != null && !service.equals(e.getOwnerServiceCode()))
-                .map(e -> new DependencyCompiler.Edge(e.getResourceEntityId(), e.getDependsOnResourceEntityId(),
-                        e.getSourceOperationBits(), e.getRequiredOperationBits())).toList();
-        Set<String> stable = declarations.stream().filter(d -> {
-            var row = old.get(d.businessKey());
-            return row != null && "RESOLVED".equals(row.getCompileStatus()) && semanticHash(d).equals(row.getSemanticHash());
-        }).map(DependencyCompiler.Declaration::businessKey).collect(Collectors.toSet());
-        return compiler.compile(service, declarations, resources, typeInfo,
-                operationRows, retained, stable);
-    }
-
-    private record EdgeKey(Long source, Long target, Long trigger) {}
-    private void replaceCompiled(Long tenantId, String service, List<DependencyCompiler.Edge> edges, LocalDateTime now) {
-        Map<EdgeKey, Long> diagnosticIds = new HashMap<>();
-        for (var row : declarationMapper.selectScope(tenantId, service)) {
-            if ("RESOLVED".equals(row.getCompileStatus())) diagnosticIds.putIfAbsent(new EdgeKey(
-                    row.getSourceResourceId(), row.getTargetResourceId(), row.getSourceOperationBits()), row.getId());
-        }
-        edgeMapper.removeCompiledScope(tenantId, service, now);
-        List<ResourceDependency> compiled = new ArrayList<>();
-        for (var edge : edges) {
-            var row = new ResourceDependency();
-            row.setTenantId(tenantId);
-            row.setResourceEntityId(edge.sourceId());
-            row.setDependsOnResourceEntityId(edge.targetId());
-            row.setSourceOperationBits(edge.sourceOperationBits());
-            row.setRequiredOperationBits(edge.requiredOperationBits());
-            row.setDeclarationId(diagnosticIds.get(new EdgeKey(edge.sourceId(), edge.targetId(), edge.sourceOperationBits())));
-            row.setOwnerServiceCode(service);
-            row.setMaintainSource("MANIFEST");
-            row.setCreatedAt(now);
-            row.setUpdatedAt(now);
-            row.setDeleteFlag(0L);
-            compiled.add(row);
-        }
-        for (int offset = 0; offset < compiled.size(); offset += SQL_BATCH_SIZE) {
-            var batch = compiled.subList(offset, Math.min(offset + SQL_BATCH_SIZE, compiled.size()));
-            if (edgeMapper.insertBatch(batch) != batch.size()) throw failure("compiled edge write count mismatch");
-        }
-    }
-
-    private PermissionDependencyDeclaration toRow(Long tenantId, String service, DependencyCompiler.Resolution resolution, LocalDateTime now) {
-        var d = resolution.declaration();
-        var row = new PermissionDependencyDeclaration();
-        row.setTenantId(tenantId);
-        row.setSourceService(service);
-        row.setDeclarationKey(d.declarationKey());
-        row.setBusinessKey(d.businessKey());
-        row.setBusinessKeyHash(SyncKeyCodecUtil.sha256Hex(d.businessKey()));
-        row.setDeclarationPayload(normalizer.declarationJson(d));
-        row.setSemanticHash(semanticHash(d));
-        row.setCompileStatus(resolution.reason() == null ? "RESOLVED" : "REJECTED");
-        row.setRejectReason(resolution.reason());
-        if (resolution.edge() != null) {
-            row.setSourceResourceId(resolution.edge().sourceId());
-            row.setTargetResourceId(resolution.edge().targetId());
-            row.setSourceOperationBits(resolution.edge().sourceOperationBits());
-            row.setRequiredOperationBits(resolution.edge().requiredOperationBits());
-        }
-        row.setCreatedAt(now);
-        row.setUpdatedAt(now);
-        return row;
-    }
-    private String semanticHash(DependencyCompiler.Declaration d) {
-        return normalizer.declarationSemanticHash(d);
-    }
     private String retryClass(String reason) {
         if (reason == null) return null;
         return "RESOURCE_MISSING".equals(reason) || "TYPE_MISSING".equals(reason)
