@@ -1325,6 +1325,23 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 > **20040 reason 细分（T-PERM-062，2026-09-12）**：拒绝 message 形如 `Cannot delegate <key>; reason=<REASON>`；委托失败（NO_PERMISSION/NO_GRANT_RIGHT）且目标为自定义 resource_type（is_system=false）在租户内零条可转授覆盖行时，reason 为 **TYPE_GRANT_ORIGIN_MISSING**（类型未初始化/种子被直改库清除——前端据此引导到类型定义页确认所有者角色；种子行经产品链路不可销毁，该 reason 正常运维不应出现）。内置类型零可转授行是转授链收窄的设计状态，reason 维持 NO_PERMISSION/NO_GRANT_RIGHT。
 
+#### 11.4.1 已采纳待实施：授撤影响预览（073）
+
+`POST /api/access/role-resource-permission/preview-grant-plan`，管理入口，服务凭证不开放；固定图按现有角色授权族注册。请求为 `{request: ApplyGrantPlanReq, maxItems?: int}`，request 复用现役 domainCode、roleTypeCode、roleExternalId、plan；外层可选 maxItems（1..2000，缺省 500）。ROLE:MANAGE、角色启用与授权委托/形状校验和保存同源；预览无数据库写入，不创建 INLINE 条件。
+
+响应 `R<GrantPlanPreviewResp>`：`advisory=true`、`viewedAt`、`added`、`removed`、`retained`、`totalCount`、`truncated`、`driftDetected`。每个事实包含资源业务键、operationCode、conditionRef 与来源种子引用；retained 指受本计划影响但仍有其他显式来源支持的自动事实。conditionRef 为 NONE / EXISTING（conditionId/可见描述）/ PREVIEW_INLINE（requestItemRef），不将新条件预先落库。totalCount 为完整计算的影响事实数量，maxItems 只截断展示，truncated=true 时不能宣称明细完整。
+
+事实元素统一为 `{fact: FactKey, seeds: SeedRef[]}`，嵌套形状如下（字段必须返回，nullable 字段明确为 null）：
+
+- `ResourceKey = {resourceTypeCode: string, resourceCode: string, codeType: string}`，codeType 已归一为非空默认值。
+- `ConditionRef = {kind: "NONE"|"EXISTING"|"PREVIEW_INLINE", conditionId: long|null, requestItemRef: string|null}`。NONE 后两项均 null；EXISTING 仅 conditionId 非 null；PREVIEW_INLINE 仅 requestItemRef 非 null，如 `creates[0]`、`updates[1]`，同表达式不同条目不得合并。现有 INLINE 就地编辑保持 EXISTING 身份。
+- `FactKey = {resource: ResourceKey, operationCode: string, conditionRef: ConditionRef}`。
+- `SeedRef = {permissionId: long|null, requestItemRef: string|null}`，现有显式来源返回 permissionId，新建预览来源返回请求条目位置，严格二选一。seeds 按身份排序，不返回完整路径组合。
+
+三组均按 ResourceKey 各字段、operationCode、ConditionRef(kind/id/itemRef) 的元组顺序排列（字符串按 Unicode 码点、ID 按数值）。展示预算全局按 removed、added、retained 顺序取前 maxItems 项，再放入对应数组；totalCount 为三组完整数量之和。输出数小于 totalCount 时 truncated=true，空数组不能独立解释为无影响。现有漂移通过 driftDetected 表示，不加入“计划导致”的 added/removed 计数。
+
+基于当前种子得到 beforeDesired、计划假想状态得到 afterDesired，并与实际 AUTO_DEP 标识已有漂移；不把 actual 缺行当“原来没权限”，也不伪称预览已修复漂移。预览失败按正常异常信封返回，前端显示“无法预览”；不返回伪造零影响。保存继续独立接受原 ApplyGrantPlanReq，无预览 token/hash/版本匹配字段。
+
 ### 11.5 子权限类型只读查询（sub-perm-allowed-types，v3.1，已随 T-PERM-034 落地 2026-08-30，收口修订）
 
 `POST /api/access/role-resource-permission/sub-perm-allowed-types`
@@ -1533,6 +1550,18 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - **maintainSource 四值白名单**：ADMIN_UI/SDK_SCAN/MANIFEST/SERVICE_SYNC（schema 口径收口，DTO @Pattern 拒绝其他值——原注释 SERVICE/MANUAL 系漂移）；管理端创建行显式落 `ADMIN_UI`+`ownerServiceCode=null`。
 - **batch-sync**（§12.4）：FULL diff 匹配键为「源+目标+COALESCE(source_bits,0)」三元组（原仅按资源对匹配——同资源对不同触发操作是不同规则，漏删且 upsert 错行，本批修正）；资源 ID 与操作位在循环外按类型批量预解析（消解逐条目解析的 N+1）；**清单级预检**（autoGrant + 必填操作码）先于资源解析与全部写操作（畸形清单零副作用）；`items` 级联校验（`@Valid + @NotNull`）与两段操作解析 fail-closed 见 §12.4。
 - **bootstrap 固定图**：DEPENDENCY:VIEW/CREATE/UPDATE/DELETE/SYNC 五条类型级不可转授随本批补入（空库无授予起点死锁防护，同 DOMAIN/CONFLICT_RULE 先例；SYNC 随四档同补——端点存在且门禁为 SYNC，前端 P0 未接入不改变端点事实）。
+
+#### 12.3.1 已采纳待实施：角色自动授权来源解释（073）
+
+`POST /api/access/resource-dependency/explain`，管理入口，服务凭证不开放；固定图登记，服务端校验 DEPENDENCY:VIEW 类型级权限。输入 roleTypeCode、roleExternalId、可选 domainCode；可选 target（resourceTypeCode、resourceCode、codeType、operationCode、conditionId，其中无条件须明确 conditionId=null）；maxDepth 1..50 缺省 20，maxNodes 1..2000 缺省 500，maxEdges 1..10000 缺省 1000。
+
+响应 `R<AutoGrantExplainResp>`：viewedAt、nodes、edges、totalNodeCount、totalEdgeCount、truncated、driftDetected。节点以完整逻辑事实键标识，包含资源/操作/条件、explicitSeed、desired、actualPermissionIds；边包含 fromNodeKey、toNodeKey、实际触发操作与声明引用。AUTO_DEP 缺失时 actualPermissionIds 为空而 desired=true；孤立存量 AUTO_DEP 以 desired=false 标识，不伪造来源。逻辑节点不能依赖 AUTO_DEP 主键。
+
+`nodes[]` 元素为 `{nodeKey: string, fact: FactKey, explicitSeed: boolean, seedRefs: SeedRef[], desired: boolean, actualPermissionIds: long[]}`；FactKey/SeedRef 沿 §11.4.1，explain 不出现 PREVIEW_INLINE。nodeKey 是本次完整结果按 FactKey 元组排序分配的展示 ID（如 n1），仅在本响应内引用；节点身份始终来自 fact，不跨请求按 n1 合并。`edges[]` 为 `{fromNodeKey: string, toNodeKey: string, triggerOperationCode: string, declarationRefs: [{declarationId: long, declarationKey: string, sourceService: string}]}`，所有字段必填，引用数组排序去重。
+
+有 target 时从目标反向遍历直接来源；无 target 时遍历全集为推导图与未被 desired 支持的 actual AUTO_DEP 节点的并集，显式根及孤立 actual 节点共同作为展示起点，按逻辑键排序后广度优先输出至 maxDepth/maxNodes。孤立 actual 节点也计入总数与预算，desired=false 且没有来源边，不伪造支持关系；只返回两个端点都已输出的边，再按起点/终点逻辑键排序取前 maxEdges 条，超限省略边也必须置 truncated。totalNodeCount/totalEdgeCount 是选定目标子图（无 target 为整个推导图）的完整数量，不是已输出数量。actualPermissionIds 仅列对应 AUTO_DEP 行；显式 MANUAL 来源另由 seedRefs 表示。空数组表示无实际自动行，不能用 null 表示读取失败。
+
+单次只读一致视图生成共享 DAG，源事实权限不表示用户当前必然 allowed。达到输出限额时显式截断，不能影响完整推导；界面选择节点按直接边逐段展开来源，不持久化或枚举所有完整路径。不存在跨请求冻结承诺；读取失败、角色不存在与权限不足沿正常错误信封处理。
 
 ### 12.4 资源依赖批量同步 batch-sync
 `POST /api/access/resource-dependency/batch-sync`
@@ -2231,6 +2260,8 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 ## 19. sync 同步通道（/api/access/**/sync 与 full-sync）
 ### 19.1 资源实体专用同步 resource-entity/sync
 
+> **已采纳、待实施（T-PERM-071，2026-09-21）**：混用资源 FULL 的 scope 中，增量与 FULL 共同携带源侧可比较的发布顺序，平台提供双向旧请求防护；纯增量 scope 保持现役协议。正式字段与切换规则由 078 收敛，本节现役请求尚未包含该字段，见[设计 §4.4](dependency-auto-grant.md#integration)。
+
 > **自动授权生命周期已采纳、待实施（T-PERM-071/072，2026-09-20）**：仅资源 DISABLE 或 UPSERT/FULL 的 status 停用、恢复不改变自动授权传播；源、目标、中间资源均不因停用退出推导，既有自动授权保留，恢复不触发重建。显式撤权、资源 DELETE/FULL 缺失删除、依赖声明变更仍按各自规则重算。此决定不改变资源自身的运行时鉴权或来源服务启停门禁，详见[自动授权设计 §7](dependency-auto-grant.md#triggers)。
 
 `POST /api/access/resource-entity/sync`
@@ -2326,6 +2357,21 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `resource-entity/full-sync` 与既有 `service-config/sync` 是两条独立 ownership 通道。本接口只清理命中 `sync_metadata` scope 的同步事实，绝不按 `resourceTypeCode` 扫描删除资源，也不删除 `service-config/sync`、`MANUAL` 或其他维护来源创建的事实。
 - 全量接口仍必须执行 source 身份校验、类型级所有权门禁（scope.resourceTypeCode 同 §19.1 单条口径）和旧版本 no-op 规则。
 - 组织资源等有树依赖的数据应按足够小的 scope 调用，避免单请求过大。
+
+#### 19.2.1 已采纳待实施：资源发布顺序字段与响应（071）
+
+本节为 071 的目标契约，现役 DTO 尚未提供；完整处理顺序见[自动授权设计 §4.4.1](dependency-auto-grant.md#integration)。
+
+| 位置 | 字段 | 约束 |
+|---|---|---|
+| resource-entity/sync 顶层 | publicationGeneration | 可选十进制字符串，取值 1..9223372036854775807，无前导零/符号/小数；该 scope 切入顺序协议后必填 |
+| resource-entity/full-sync 顶层 | publicationGeneration | 必填，同上；由源侧绑定完整快照，不可由 SDK 当前时间生成 |
+| full-sync 顶层 | items | 必填非 null 数组，允许完整空数组；同一业务键重复项整请求拒绝 |
+| 每个资源 item / sync 顶层 | syncVersion | 维持 occurredAt + sequenceNo；与发布代次共同验证，不能代替范围顺序 |
+
+正常返回 SyncResultResp，沿用既有 retryClass，不新增数字业务错误码。旧发布代次使用 STALE_VERSION（accepted=true、applied=false、stale=true；reason=PUBLICATION_GENERATION_STALE）；缺代次、范围非法、同代次内容冲突分别 NON_RETRYABLE + PUBLICATION_GENERATION_REQUIRED / PUBLICATION_GENERATION_INVALID / PUBLICATION_GENERATION_CONFLICT。FULL item 逐键版本与快照矛盾使用 NON_RETRYABLE + SYNC_VERSION_CONFLICT，进入既有部分失败统计。请求级反序列化/校验异常仍走统一错误信封。
+
+纯增量旧协议仅适用于未切换 scope。切换后不得无代次降级；同一来源按租户、资源类型独立切换。FULL 重试须保持原代次与完整请求，后来已成功的更新使旧 FULL 重试失效时，应由源侧重新采集发布，不能仅改数字重放旧清单。
 
 ### 19.3 同步接口通用响应与错误分类
 
@@ -2731,6 +2777,40 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **保留键纵深**：即使白名单错误声明 `LOCAL_USER`/`ORG`/`POSITION`/`SYS_USER_ORG` 等 AccessMesh 保留键，入口仍以 20045 拒绝。
 - **结构校验**：`service-config/save` 保存时校验 `syncTypes` 必须为对象、内部仅允许 subjectTypeCodes/roleTypeCodes/sourceTypes 三个字段（未知字段拒绝，含已退役的 `resourceTypeCodes`）、各分类（如存在）必须为非空白字符串数组；结构非法保存失败（20044）。缺失配置在运行时按无权限处理（fail-closed），不视为允许全部。
 - **上线准备（fail-closed 发布顺序）**：先为各同步服务通过 `service-config/save` 补齐 `syncTypes` 声明（并确认 `status=1`），再部署严格校验代码；未声明类型的存量服务在严格校验上线后同步全部拒绝，属预期行为。
+
+### 19.10 已采纳待实施：独立依赖 manifest（071）
+
+`POST /api/access/integration/permission-manifest/full-sync`，仅服务身份入口，按 070 精确 M2M 白名单；tenant 与 service 从已认证上下文取得，不接受 body 中的 serviceCode。来源服务须注册、启用；资源/操作存在性及类型所有权由服务端校验。
+
+```json
+{
+  "schemaVersion": 1,
+  "publicationGeneration": "42",
+  "revision": "release-42",
+  "dependencies": [
+    {
+      "declarationKey": "monthly-template",
+      "source": {"resourceTypeCode": "REPORT", "resourceCode": "sales-monthly", "codeType": "default"},
+      "sourceOperationCodes": ["VIEW"],
+      "requires": [
+        {
+          "target": {"resourceTypeCode": "REPORT", "resourceCode": "sales-template", "codeType": "default"},
+          "operationCodes": ["VIEW"]
+        }
+      ],
+      "description": "月报查看依赖模板查看"
+    }
+  ]
+}
+```
+
+schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正整数字符串，与资源发布代次独立。revision 必填非空、最长 128 字符，仅标识来源版本，不能替代排序。dependencies 必填非 null，空数组表示该服务完整空声明；declarationKey 必填、最长 128 字符，在请求中唯一且跨发布稳定。source/target 复用 ResourceKey；类型/操作码按现役严格大写规则，codeType 缺省 default、宽度与资源契约一致。sourceOperationCodes 缺失/null/空数组统一为任意操作；非空必须恰有一个非空操作码。requires 必填非空，同一声明内 target 业务键唯一；operationCodes 必填非空、排序去重。description 可空、最长 512 字符。
+
+形状错误、重复 declarationKey/target、非法 schemaVersion 或代次在声明写入前整请求拒绝。有效请求按 declarationKey + target 业务键展开为编译项，同一组可有 RESOLVED 与 REJECTED 目标，拒绝项保留诊断且不产生边；source 不合法时该组全部目标拒绝。声明存储的逻辑唯一键是 tenant + 服务身份 + declarationKey + target 业务键；新 FULL 删除本服务缺失项，不能通过清空其他来源的编译贡献达成替换。
+
+返回现有 `R<SyncResultResp>` 与 FullSyncDetail。itemResults 的 businessKey 采用 SyncKeyCodecUtil 规范：`declarationKey=...&targetResourceTypeCode=...&targetResourceCode=...&targetCodeType=...`，各值 percent-encoded；统计按展开后的目标项计，deactivatedCount 为缺失而删除的声明目标项数量。item applied 表示该声明成功 RESOLVED，REJECTED 返回依赖缺失/非重试分类和具体原因（RESOURCE_MISSING / TYPE_MISSING / OPERATION_INVALID / CROSS_OWNER / SELF_DEPENDENCY / CYCLE）；上层部分失败仍为 FULL_SYNC_PARTIAL_FAILURE，不能只看 HTTP 200。旧代次与同代次请求冲突沿 §19.2.1。
+
+同代次比较完整规范化请求 hash（含 revision、description，排除代次）；语义 hash 仅基于 declarationKey、source/触发操作与目标/操作集合，不含 description/revision。语义 hash 可用于避免重复编译，完整 hash 用于不可变重试，二者不可互相代替。较新代次同图仍保存 revision/description；原代次原请求在未被更新发布覆盖时可重判 PARTIAL/dirty。环路检查以本次替换后保留的图为基础，先保留未变化的已解析贡献，再按声明完整规范键顺序尝试变化项，后到成环项 REJECTED。
 
 ## 20. 错误码与错误原因
 ### 20.1 管理面家族错误码段（10001-10599 / 90001-99999）

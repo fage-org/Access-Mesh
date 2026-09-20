@@ -170,6 +170,8 @@
 | 2026-09-20 | 自动授权 M1 资源停用/恢复定案：停用不影响自动授权传播，源/目标/中间资源 status 均不作为编译与推导过滤条件；既有自动权限保留，停用期间新增合法种子仍按声明推导，恢复不触发自动权限重建。显式撤权、资源删除、声明变更仍按原规则重算；本项不改变资源自身的运行时鉴权语义或来源服务启停门禁。 | docs/design/dependency-auto-grant.md §5/§6.1/§7/§16、docs/design/access-service-api-contract.md §19.1、docs/tasks/T-PERM-071.md、docs/tasks/T-PERM-072.md、docs/tasks/T-PERM-073.md、docs/tasks/T-PERM-078.md | 报了先核出处；采用停用不影响传播，不实现停用自动撤权/恢复重建；自动授权仍待实施 |
 | 2026-09-20 | 自动授权 M2 操作事实定案：保留推导出的各操作与条件事实，仅合并同角色内资源/操作/条件身份完全相同的自动事实；不做操作覆盖、条件支配或 MANUAL/类型级覆盖压缩。VIEW/UPDATE 同时推导则同时保留，依现有引擎各入口的互斥集合与审计语义处理，接受更多授权行，不通过压缩规避冲突。 | docs/design/dependency-auto-grant.md §3.4/§6/§11/§16、docs/design/access-service-api-contract.md §11.4、docs/tasks/T-PERM-072.md、docs/tasks/T-PERM-073.md、docs/tasks/T-PERM-078.md | 报了先核出处；覆盖仅用于触发/权限匹配，规范化收敛为精确去重；真实引擎验证未完成，不以定案宣称等价或验收通过 |
 | 2026-09-20 | 自动授权 M5 预览与保存定案：预览仅供参考，保存按服务端事务内最新事实重新校验、计算与提交；自动影响变化不拒绝保存、不要求重新预览确认，不新增强制预览凭证或版本匹配。界面提示预览可能变化，保存成功后刷新实际结果；预览/刷新失败不得冒充零影响或已提交结果，现有写权限与失败回滚保持。 | docs/design/dependency-auto-grant.md §12/§16、docs/design/access-service-api-contract.md §11.4、docs/design/frontend/permission-grant.md、docs/tasks/T-PERM-073.md、docs/tasks/T-PERM-078.md | 报了先核出处；选择参考性预览，读取一致视图、正式接口与门禁仍需收敛，未宣称实现完成 |
+| 2026-09-21 | 自动授权 M1 FULL/增量交错定案：混用资源 FULL 的 scope 内，增量与 FULL 共同携带发布源确定的可比较顺序，由平台阻止旧 FULL 删除新增事实及旧增量重建已清理事实；需升级该范围的增量调用方。纯增量 scope 可保持现役协议，不采用每次 FULL 都依赖源侧暂停变更、排空请求的方案。 | docs/design/dependency-auto-grant.md §4.4、docs/design/access-service-api-contract.md §19.1/§19.2、docs/tasks/T-PERM-078.md、docs/tasks/T-PERM-071.md | 报了先核出处；用户选择 A，正式字段、切换及部分失败细节仍由 078 收敛、071 实施，不宣称现役接口已支持 |
+
 
 ## 已推翻（superseded）
 

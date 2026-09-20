@@ -37,13 +37,9 @@ last_updated: 2026-09-21
 
 实施依据为[自动授权设计](../design/dependency-auto-grant.md)，不是已被取代的候选评估稿。[M1～M5](../design/dependency-auto-grant.md#implementation-decisions)按实施前决策核实并回写权威设计与任务。M3 管理写边界、M1 的 FULL 代次拒旧/完整空资源清单/停用不影响传播、M2 保留事实并精确去重及 M5 参考性预览与按最新事实保存已确定；存量迁移、真实引擎验证及其余未决协议继续收敛，不因定案宣称本卡验收完成。
 
-**M1 必须决定的接入边界**：资源 FULL 的发布代次与增量 sync 的逐业务键 `syncVersion` 当前不可比较。`ResourceEntitySyncReq` 仅有 `SyncVersionRef`，`ResourceEntityFullSyncReq` 当前仅 scope/items；FULL 缺失集通过 `seenBusinessKeyHashes` 判断，遍历 scope metadata 后直接标 DELETED/软删，省略项没有可用于版本比较的请求项。资源树锁只串行化服务端事务，不能改变请求在源侧采集的时间顺序。
+**M1 接入边界已定**：混用 FULL 的资源 scope 中，增量与 FULL 共同携带发布源确定的可比较顺序，平台提供双向旧请求防护；纯增量 scope 可保持现役协议。正式字段、首次切换、跨键乱序与部分失败重试已细化于设计 §4.4.1 与契约 §19.2.1，待本卡校准和 071 实施验证。真实反例是 FULL 42 采集 ORDER-1001 后，增量新增 ORDER-1002，晚到 FULL 不得删掉 ORDER-1002；反向延迟增量也不得重建较新 FULL 已清理的事实。设计唯一正文见 §4.4，不再保留候选方案。
 
-以仓库真实接入测试 `CustomResourceTypeSlicePgIT` 的 `e2e-order-service / E2E_ORDER / ORDER-1001` 链路为基础：FULL 42 已采集仅含 ORDER-1001，随后源侧新增 ORDER-1002 并通过单条 UPSERT 成功；FULL 42 后到，虽然没有比它更新的 FULL，仍会将 ORDER-1002 当缺失项删除。反向交错同样存在：删除资源后的 FULL 已完成，延迟的旧 UPSERT 没有共同快照顺序，可能重建刚清理的事实。这个问题已有本卡验收承接，不重复登记 pending-problems。
-
-待选择：①混用 FULL 的资源 scope 中，增量与 FULL 共同携带发布源确定的可比较顺序，平台实现双向旧请求防护，纯增量 scope 可保持现役协议；②增量请求形状保持现役，由接入方在采集 FULL 前暂停该 scope 的变更/增量，排空在途请求，FULL 完成后再恢复，平台只保证已定 FULL 对 FULL 拒旧。两者分别增加协议迁移成本或源侧协调/暂停成本，尚未采纳任何选项；不得据此实现新字段或降低一致性承诺。
-
-**迁移证据边界**：本机 Docker 当前仅见 ItInfra 测试 PG/Redis，默认应用数据库 5432 没有监听；这些测试库不能证明部署环境旧依赖数据为空。旧依赖仍不得静默转为自动生效或直接清空，实际数据核查与迁移继续由本卡/071 承接。
+**迁移证据边界**：本机 Docker 当前仅见 ItInfra 测试 PG/Redis，默认应用数据库 5432 没有监听；这些测试库不能证明部署环境旧依赖数据为空。旧依赖仍不得静默转为自动生效或直接清空；已准备只读盘点 SQL（设计 §10），待用户确认实际部署状态，再核查与确定迁移。
 
 ## 范围
 
@@ -51,7 +47,15 @@ last_updated: 2026-09-21
 
 ## 验收对照
 
-唯一验收清单见 frontmatter `acceptance`；设计回写、状态同步和验证按项目生命周期收口要求执行。
+- M1：A 已登记，资源发布字段、跨键乱序、原快照重试、一次切换、动态发布调用方及 manifest 正式协议已细化；仍需结合实际部署确定迁移。
+- M2：`mvn test -pl access-service -Dtest=AutoGrantEngineContractPgIT`（2026-09-21）5 tests，0 failures / 0 errors / 0 skipped；验证真实引擎消费候选事实，未替代 072 的推导与共享来源撤销验收。
+- M4：设计 §8 明确复用租户 RESOURCE_ENTITY 共同锁及入口矩阵，已点名现役混合类型批删反序由 071 先修；实现侧逐调用点核对和确定性交错验证为 071/072 硬验收。
+- M5：单次只读一致视图、只读计划准备与 INLINE 临时身份、正式 explain/preview 嵌套形状和截断规则已写入设计及契约。
+- M3：实际存量迁移仍待核实，本卡尚不满足 done。
+
+只读迁移盘点 SQL 已在 AutoGrantEngineContractPgIT 专用数据库执行成功（2026-09-21），仅验证语法与候选数据可读，不作为实际部署数据结论。
+
+本地双轨已核实并修正文档校准项：现役混合类型批删反序点名与承接、新接口嵌套形状/截断、孤立 actual 解释节点。生产锁序修复归 071，不将文档改动当已修复。
 
 ## 非目标 / 遗留
 
