@@ -40,16 +40,6 @@ public interface SysUserOrgMapper extends BaseMapper<SysUserOrg> {
                                              @Param("userId") Long userId);
 
     /**
-     * 删除用户的所有组织关联（物理删除，租户隔离）
-     *
-     * @param tenantId 租户ID
-     * @param userId   用户ID
-     * @return 删除行数
-     */
-    int deleteByUserId(@Param("tenantId") Long tenantId,
-                       @Param("userId") Long userId);
-
-    /**
      * 删除用户与指定组织的关联（物理删除，租户隔离）
      *
      * @param tenantId 租户ID

@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.org.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.org.service.UserOrgWriteAppService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
@@ -44,19 +45,22 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
     private final AdminPermissionValidator permissionValidator;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final AuditDomainService auditDomainService;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     public UserOrgWriteAppServiceImpl(UserOrgDomainService userOrgDomainService,
                                       OrgTreeConfigDomainService orgTreeConfigDomainService,
                                       OrgDomainService orgDomainService,
                                       AdminPermissionValidator permissionValidator,
                                       LocalProjectionDomainService localProjectionDomainService,
-                                      AuditDomainService auditDomainService) {
+                                      AuditDomainService auditDomainService,
+                                      TreeWriteLockSupport treeWriteLockSupport) {
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
         this.orgDomainService = orgDomainService;
         this.permissionValidator = permissionValidator;
         this.localProjectionDomainService = localProjectionDomainService;
         this.auditDomainService = auditDomainService;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     @Override
@@ -97,6 +101,11 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
                 ResourceTypeCode.ORG, positionCodes,
                 OrgOperationCodeMapper.resolveForUserOrg("2", OperationCode.UPDATE));
         }
+        // SYS_ORG 树锁（claude 外评 P2）：归属写与组织结构写/树配置守卫串行——否则并发
+        // deleteOrg/setDefault 的守卫读与本次挂载交错，切默认后新归属落在旧树、或
+        // 与并发移除双放行致用户默认树归属归 0；锁覆盖守卫读（findDefaultConfigs/
+        // existingOrgIds）与全部写
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
         List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
         for (SysOrgTreeConfig config : defaultConfigs) {
             if (Boolean.TRUE.equals(config.getSingleAssoc()) && requestedOrgIds.size() > 1) {
@@ -173,6 +182,11 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
             throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
                 "user-org unbind: org not found, orgId=" + orgId);
         }
+        // SYS_ORG 树锁（claude 外评 P2）：守卫读（默认树范围+用户归属）与删除全部入锁——
+        // 否则与并发 deleteOrg 的守卫读双放行（各自见对方未提交前的「仍有其他归属」），
+        // 用户默认树归属被并发拆空（F001 同类后果）；锁先于守卫首读
+        // （resolveDefaultTreeOrgIds），org 存在性解析非守卫输入留在锁前
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
         List<Long> defaultTreeOrgIds = orgTreeConfigDomainService.resolveDefaultTreeOrgIds(tenantId);
         boolean isDefaultTreeOrg = defaultTreeOrgIds.contains(orgId);
         if (isDefaultTreeOrg) {

@@ -244,7 +244,7 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 | `org-tree-config/update`（默认配置改 rootOrgId） | 复用同款归属判定，将使任一用户失去归属则拒绝；安全扩围（新根子树 ⊇ 旧子树）放行 | 11018 `ORG_TREE_CONFIG_DEFAULT_PROTECTED` |
 | `org-tree-config/delete` | 默认配置行无条件拒绝（身份目录结构性存在；无默认配置的租户放行） | 11018 `ORG_TREE_CONFIG_DEFAULT_PROTECTED` |
 
-共享判定收敛于 `OrgTreeConfigDomainService.findUsersLosingDefaultHome(old, new)`（批量两查、无逐用户 SQL）；`org/delete` 守卫在三树锁内、树配置三守卫入口挂 SYS_ORG 树锁后判定（锁内重读配置，防并发写窗口快照过期）。tenant 1 固定图根业务键漂移由 bootstrap 重启检测兜底（与菜单根 code 漂移同口径），写入口不重复拦截。`create` 新配置的根与其他树祖先/后代重叠校验不在守卫面内（不改变现有默认身份池；登记 Q-024 留观）。事故态（守卫上线前的存量/直改库）诊断与定点恢复见 [runbook-default-tree-recovery](../ops/runbook-default-tree-recovery.md)。
+共享判定收敛于 `OrgTreeConfigDomainService.findUsersLosingDefaultHome(old, new)`（批量两查、无逐用户 SQL）；锁覆盖=守卫族全部参与方：`org/delete` 守卫在三树锁内、树配置三守卫入口挂 SYS_ORG 树锁（锁内重读配置，防并发写窗口快照过期）、成员关系两写入口（`user-org/assign`/`remove`）在门禁后挂 SYS_ORG 树锁（claude 外评 P2：成员写不持锁时，并发 deleteOrg/setDefault 的守卫读与成员写交错可双放行致归属归 0——同锁串行后窗口闭合）。tenant 1 固定图根业务键漂移由 bootstrap 重启检测兜底（与菜单根 code 漂移同口径），写入口不重复拦截。`create` 新配置的根与其他树祖先/后代重叠校验不在守卫面内（不改变现有默认身份池；登记 Q-024 留观）。事故态（守卫上线前的存量/直改库）诊断与定点恢复见 [runbook-default-tree-recovery](../ops/runbook-default-tree-recovery.md)。
 
 ### 7.1 组织树归属解析约定
 

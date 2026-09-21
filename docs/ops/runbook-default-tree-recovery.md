@@ -45,7 +45,7 @@ WHERE c.tenant_id = {tenant} AND c.is_default = true AND c.delete_flag = 0;
 -- 默认树有效节点范围
 WITH RECURSIVE tree AS (
     SELECT id FROM sys_org WHERE tenant_id = {tenant} AND id = {root_org_id} AND delete_flag = 0
-    UNION ALL
+    UNION
     SELECT o.id FROM sys_org o JOIN tree t ON o.parent_id = t.id
     WHERE o.tenant_id = {tenant} AND o.delete_flag = 0
 )
@@ -65,7 +65,7 @@ SELECT
 -- 关系——非默认树有归属、默认树无归属的用户同样在本清单内（身份目录失联）
 WITH RECURSIVE default_tree AS (
     SELECT id FROM sys_org WHERE tenant_id = {tenant} AND id = {root_org_id} AND delete_flag = 0
-    UNION ALL
+    UNION
     SELECT o.id FROM sys_org o JOIN default_tree t ON o.parent_id = t.id
     WHERE o.tenant_id = {tenant} AND o.delete_flag = 0
 )
@@ -93,6 +93,12 @@ SELECT
 ## 2. 定点恢复步骤
 
 > 每一步先在**副本库**验证再在生产执行；恢复动作不创建任何新业务对象，只 undo 软删标记。
+
+> **恢复窗口纪律**：默认根墓碑存在期间（§1.2 判定为墓碑 → §2.1 恢复完成之前），
+> `resolveDefaultTreeOrgIds` 返回空集，**全部默认树守卫静默失效**（deleteOrg 的归属检查、
+> removeUserFromOrg 的默认树分支均按非默认树放行）。窗口内对默认树范围的任何组织删除/
+> 成员移除都会**物理删除** `sys_user_org` 行，使 §2.2 的补挂路径退化为逐用户重建——
+> 诊断确认墓碑后应先执行 §2.1 恢复根行，再恢复成员归属。
 
 ### 2.1 默认根墓碑恢复（F001 形态）
 

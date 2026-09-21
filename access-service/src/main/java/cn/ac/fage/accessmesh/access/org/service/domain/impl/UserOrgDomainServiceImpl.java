@@ -76,28 +76,6 @@ public class UserOrgDomainServiceImpl implements UserOrgDomainService {
     }
 
     /**
-     * 删除用户的所有组织关联
-     * <p>
-     * 用于重新分配用户组织时，先删除旧关联再创建新关联。
-     * 直接删除记录（非软删除），因为会立即创建新关联。
-     * 警告：多组织树设计下，该方法会跨树删除用户全部组织关系。
-     * 非默认组织树成员管理不得调用它做普通添加/移除成员；后续应提供
-     * 树内替换或关系级追加/删除方法。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于租户隔离
-     * @param userId   用户ID
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteByUserId(Long tenantId, Long userId) {
-        if (userId == null) {
-            return;
-        }
-        userOrgMapper.deleteByUserId(tenantId, userId);
-    }
-
-    /**
      * 删除用户与指定组织的关联
      * <p>
      * 用于移除单个用户组织关联。

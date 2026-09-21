@@ -116,9 +116,13 @@ class DefaultTreeDirectoryGuardPgIT {
         TenantContextHolder.clear();
     }
 
-    /** 默认树骨架：根(rootId，顶级 parent NULL，对齐生产顶级语义) + 两个叶子，默认配置指根。 */
+    /**
+     * 默认树骨架：根(rootId，parent_id=0 对齐生产顶级口径——bootstrap 固定图与 createOrg
+     * 缺省均写 0，bootstrap 校验并要求 0；schema 注释「NULL=根节点」与实现相反属存量漂移)
+     * + 两个叶子，默认配置指根。
+     */
     private void seedDefaultTree(long rootId, long leafA, long leafB) {
-        insertOrg(rootId, null, "root-" + rootId);
+        insertOrg(rootId, 0L, "root-" + rootId);
         insertOrg(leafA, rootId, "leaf-" + leafA);
         insertOrg(leafB, rootId, "leaf-" + leafB);
         jdbcTemplate.update(
@@ -131,7 +135,8 @@ class DefaultTreeDirectoryGuardPgIT {
         jdbcTemplate.update(
             "INSERT INTO sys_org (id, tenant_id, parent_id, org_type, code, name, level, sort_order, status, delete_flag)"
                 + " VALUES (?, ?, ?, '1', ?, ?, ?, 0, 1, 0)",
-            orgId, TENANT, parentId, code, code + "-name", parentId == null ? 1 : 2);
+            orgId, TENANT, parentId, code, code + "-name",
+            (parentId == null || parentId == 0L) ? 1 : 2);
     }
 
     private void insertUserOrg(long userId, long orgId) {

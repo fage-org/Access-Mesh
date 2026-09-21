@@ -120,18 +120,6 @@ public interface OrgDomainService {
     void softDeleteBatch(Long tenantId, List<Long> orgIds);
 
     /**
-     * 删除组织及其所有子孙组织
-     * <p>
-     * 先查询子孙组织ID，然后批量软删除所有子孙和自身。
-     * 用于组织树的整体删除场景。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于多租户隔离
-     * @param orgId    组织ID，删除该组织及其所有子孙
-     */
-    void deleteWithChildren(Long tenantId, Long orgId);
-
-    /**
      * 检查组织是否有子组织
      * <p>
      * 查询是否存在以该组织为父节点的子组织。

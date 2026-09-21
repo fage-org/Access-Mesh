@@ -255,26 +255,6 @@ public class OrgDomainServiceImpl implements OrgDomainService {
     }
 
     /**
-     * 删除组织及其所有子孙组织
-     * <p>
-     * 先查询所有子孙ID（包括自身），然后批量软删除。
-     * 使用CTE递归查询确保完整的树结构删除。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于租户隔离
-     * @param orgId    组织ID
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void deleteWithChildren(Long tenantId, Long orgId) {
-        SysOrg org = selectValidById(tenantId, orgId);
-        if (org == null) return;
-
-        List<Long> allIds = orgMapper.selectDescendantIdsIncludingSelf(tenantId, orgId);
-        orgMapper.softDeleteBatch(tenantId, allIds, LocalDateTime.now());
-    }
-
-    /**
      * 检查组织是否有子组织
      * <p>
      * 用于删除组织前的校验，判断是否存在下级组织。

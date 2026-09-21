@@ -882,6 +882,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **验收要点**:
 - 移除后用户默认树关系归 0 时抛 `BizException(USER_LOSE_DEFAULT_TREE_HOME)` — 默认树主归属不可被普通组织成员管理员意外清除.
+- 非成员请求（请求用户不在该组织现成员集合中）幂等放行：0 行删除、不抛 11013——守卫统一按「该组织现成员」候选集判定（T-ORG-002 换绑共享守卫；原实现对该输入误拒 11013 已修正，PgIT `nonMemberRemovalIsIdempotentNoop` 锁定）.
 - 被移除关系若是该树内 `is_primary`, 必须同时把同树另一关系提升为主 (业务策略: 选 sort 最小的; 若该树仅此一条则按上一条规则拒绝).
 
 ### 8.10 `POST /api/access/user-org/set-primary` 🔧

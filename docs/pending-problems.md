@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-025           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-21（Q-024/Q-025 登记：T-ORG-002 树配置 create 重叠校验留观+读面平行 helper；同日早前 Q-022 登记 grant_dep_id 死列留观、Q-023 登记删类型所有者角色无守卫）
+counter: Q-026           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-22（Q-026 登记：sys_org.parent_id DDL 注释与实现顶级口径漂移；2026-09-21 Q-024/Q-025 随 T-ORG-002、Q-022/Q-023 同日）
 ---
 
 # 待解决问题清单（pending problems）
@@ -13,6 +13,20 @@ last_updated: 2026-09-21（Q-024/Q-025 登记：T-ORG-002 树配置 create 重�
 
 ## 未收敛问题
 
+## Q-026 sys_org.parent_id DDL 注释「NULL=根节点」与实现顶级口径（0）相反
+
+- **状态**：open
+- **登记**：2026-09-22（T-ORG-002 claude 外评存量观察①，按登记处置）
+- **来源**：T-ORG-002 claude 外评
+- **关联**：T-ORG-002（新 PgIT 夹具注释曾按 DDL 注释写错、已改按实现口径 0）
+
+**现象与证据**：`docs/design/schema/access-service.sql:220` 注释称 parent_id「NULL=根节点」，而生产实现三处一致写 `0`——bootstrap 固定图根 `setParentId(0L)` 且启动校验要求 `parentId == 0`（不符即 tenant 1 重启冲突）、createOrg 顶级缺省 `0`、级联/子节点查询按 parent_id 关联（0 与 NULL 等价地无父行）。
+
+**影响**：纯注释漂移，无运行时缺陷；误导按 DDL 注释理解/实现的后续改动（T-ORG-002 PgIT 夹具注释即被带偏一次）。
+
+**设想方向（未定案）**：DDL 注释改为「0=根节点（历史语义 NULL 亦无父行，新写一律 0）」；注意 schema COMMENT/注释改动须同步迁移脚本核对（AutoGrant 迁移快照比对含注释的先例）。
+
+## Q-025
 ## Q-025 UserOrgAppServiceImpl 读面 resolveDefaultTreeOrgIds 私有副本与新共享入口并存
 
 - **状态**：open

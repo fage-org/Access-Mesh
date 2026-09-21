@@ -245,9 +245,15 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
             throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
         }
         // 挂 SYS_ORG 树锁（守卫读取默认树结构与成员归属，与组织结构写串行）后
-        // 重读配置（评审 P3-1：并发 update 改根后锁前快照的 rootOrgId 已过期）、判定切树影响
+        // 重读配置（评审 P3-1：并发 update 改根后锁前快照的 rootOrgId 已过期）、判定切树影响；
+        // 重读判空与 update 分支同款兜底（claude 外评 P3：锁前读与取锁间被并发
+        // deleteOrgTreeConfigs 软删时，11001 而非 NPE 500）
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
         config = orgTreeConfigMapper.selectByIdSafe(tenantId, id);
+        if (config == null) {
+            throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
+                AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
+        }
         guardDefaultTreeRescope(tenantId, config.getRootOrgId(), "切换默认组织树", true);
         clearDefault();
         config.setIsDefault(true);

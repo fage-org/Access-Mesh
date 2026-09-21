@@ -9,6 +9,7 @@ import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
@@ -55,13 +56,15 @@ class UserOrgWriteAppServiceTest {
     @Mock private AdminPermissionValidator permissionValidator;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private AuditDomainService auditDomainService;
+    @Mock private TreeWriteLockSupport treeWriteLockSupport;
 
     private UserOrgWriteAppServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new UserOrgWriteAppServiceImpl(userOrgDomainService, orgTreeConfigDomainService,
-            orgDomainService, permissionValidator, localProjectionDomainService, auditDomainService);
+            orgDomainService, permissionValidator, localProjectionDomainService, auditDomainService,
+            treeWriteLockSupport);
         TenantContextHolder.setTenantId(TENANT);
         AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));
     }
@@ -94,6 +97,9 @@ class UserOrgWriteAppServiceTest {
             .isInstanceOf(BizException.class)
             .hasMessageContaining("移除后用户在默认组织树无归属关系");
         verify(userOrgDomainService, never()).deleteByUserIdAndOrgId(anyLong(), anyLong(), anyLong());
+        // 守卫读与删除均在 SYS_ORG 树锁内（claude 外评 P2：与组织结构写/树配置守卫串行）
+        verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
     }
 
     @Test

@@ -40,18 +40,6 @@ public interface UserOrgDomainService {
     List<SysUserOrg> findByOrgIds(Long tenantId, List<Long> orgIds);
 
     /**
-     * 删除用户的所有组织关联
-     * <p>
-     * 删除用户与所有组织的关联记录。
-     * 用于用户删除时清理关联数据。
-     * </p>
-     *
-     * @param tenantId 租户ID，用于多租户隔离
-     * @param userId   用户ID
-     */
-    void deleteByUserId(Long tenantId, Long userId);
-
-    /**
      * 删除用户的指定组织关联
      * <p>
      * 删除用户与特定组织的关联记录。

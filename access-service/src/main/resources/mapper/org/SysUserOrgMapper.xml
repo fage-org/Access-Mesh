@@ -17,16 +17,6 @@
         WHERE tenant_id = #{tenantId} AND user_id = #{userId} AND delete_flag = 0
     </select>
 
-    <!--
-        多组织树警告：该语句会删除用户在所有组织树下的关系。
-        普通非默认树成员管理不得用它实现“添加成员前清空旧关系”。
-        后续实现应新增树内替换或关系级幂等写入。
-    -->
-    <delete id="deleteByUserId">
-        DELETE FROM sys_user_org
-        WHERE tenant_id = #{tenantId} AND user_id = #{userId}
-    </delete>
-
     <delete id="deleteByUserIdAndOrgId">
         DELETE FROM sys_user_org
         WHERE tenant_id = #{tenantId} AND user_id = #{userId} AND org_id = #{orgId}
