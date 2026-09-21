@@ -77,7 +77,7 @@ CREATE INDEX idx_resource_dependency_resource ON resource_dependency (resource_e
 CREATE INDEX idx_resource_dependency_target ON resource_dependency (tenant_id, depends_on_resource_entity_id) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_dependency_sync_owner ON resource_dependency (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
-COMMENT ON TABLE resource_dependency IS 'MANIFEST 声明的聚合编译图，旧规则仅保全到 resource_dependency_legacy；自动授权物化由 T-PERM-072 消费';
+COMMENT ON TABLE resource_dependency IS 'MANIFEST 声明的聚合编译图，旧规则仅保全到 resource_dependency_legacy；按角色完整重算物化消费（T-PERM-072 AutoGrantMaterializationDomainService，读取面经 loadCompiledEdges）';
 COMMENT ON COLUMN resource_dependency.resource_entity_id IS '源资源ID（被授权资源）。授权该资源且满足 source_operation_bits 时触发依赖补全';
 COMMENT ON COLUMN resource_dependency.depends_on_resource_entity_id IS '被依赖资源ID（自动补全目标资源），即被 resource_entity_id 依赖的资源';
 COMMENT ON COLUMN resource_dependency.source_operation_bits IS '触发条件：源资源授权含这些bit时才触发依赖，NULL=任意操作都触发；唯一约束中按 COALESCE(source_operation_bits,0) 区分同一资源对下不同触发操作';

@@ -177,8 +177,13 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
         if (resourceEntityIds == null || resourceEntityIds.isEmpty()) {
             return Set.of();
         }
-        Set<Long> roleIds = rolePermissionMapper.selectRoleIdsByResourceIds(
-            tenantId, new ArrayList<>(resourceEntityIds));
+        // 分批定位受影响角色（对齐 071 大清单先例——大 scope 清理的实体集可能超出数据库参数上限）
+        List<Long> orderedIds = new ArrayList<>(resourceEntityIds);
+        Set<Long> roleIds = new java.util.LinkedHashSet<>();
+        for (int offset = 0; offset < orderedIds.size(); offset += SQL_BATCH_SIZE) {
+            List<Long> batch = orderedIds.subList(offset, Math.min(offset + SQL_BATCH_SIZE, orderedIds.size()));
+            roleIds.addAll(rolePermissionMapper.selectRoleIdsByResourceIds(tenantId, batch));
+        }
         return recompute(tenantId, roleIds, Set.of());
     }
 

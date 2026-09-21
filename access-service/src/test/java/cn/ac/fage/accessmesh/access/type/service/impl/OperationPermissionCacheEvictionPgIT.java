@@ -180,6 +180,22 @@ class OperationPermissionCacheEvictionPgIT {
         // 预热：缓存 op_perm:7，覆盖掩码 1024|2048 命中授位 2048 → 放行
         assertThat(permQueryEngine.hasPermissionByCode(TENANT, ids[1], TYPE_RESOURCE, null, "PGIT47_B_MAIN")).isTrue();
 
+        // T-PERM-072 操作引用守卫（20069）：主体行 granted_bits=2048 直接引用 HELPER_B → 整批拒绝
+        AccessRequestContext.bind(RequestContext.user(TENANT, ids[0]));
+        try {
+            org.assertj.core.api.Assertions.assertThatThrownBy(() -> operationAppService.deleteOperations(TENANT,
+                    List.of(new OperationKeyReq(TYPE_RESOURCE, "PGIT47_B_HELPER")), ids[0]))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .hasMessageContaining("不可变更位值或删除");
+        } finally {
+            AccessRequestContext.clear();
+        }
+
+        // 裸 SQL 软删 2048 引用行（绕过 AOP/失效通道——保留 ROLE_PERM_SNAPSHOT 陈旧行，
+        // 与 op_perm:7 陈旧窗口共同构成「仅操作定义缓存失效才翻转」的判定前提）
+        jdbc.update("UPDATE role_resource_permission SET delete_flag=id, deleted_at=now() "
+            + "WHERE tenant_id=? AND resource_type=7 AND granted_bits=2048 AND delete_flag=0", TENANT);
+
         // 真实写路径：软删 HELPER_B
         AccessRequestContext.bind(RequestContext.user(TENANT, ids[0]));
         try {
@@ -189,7 +205,8 @@ class OperationPermissionCacheEvictionPgIT {
             AccessRequestContext.clear();
         }
 
-        // 提交后失效即时生效：陈旧 Map 含已删行才会继续放行——旧实现（无 evict）下断言失败
+        // 提交后失效即时生效：陈旧授权快照行仍在，但 op_perm:7 已不含 HELPER_B——覆盖掩码回到
+        // 1024，授位 2048 不再命中 → 拒绝。旧实现（无 evict）下陈旧 Map 含已删行仍放行 → 断言失败
         assertThat(permQueryEngine.hasPermissionByCode(TENANT, ids[1], TYPE_RESOURCE, null, "PGIT47_B_MAIN")).isFalse();
     }
 
