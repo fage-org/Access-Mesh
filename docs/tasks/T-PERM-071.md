@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-071
 title: 独立依赖声明与可选 SDK 协调
-status: review
+status: done
 plan: —（无所属计划；自动授权实施序列）
 domain: access-service
 design_refs:
@@ -33,7 +33,7 @@ acceptance:
   - "真实接口验收分别覆盖仅资源接入、仅依赖更新、可选两步协调失败重试；编译并发协议沿 M4，正式字段/错误码与前端设计回写完成。"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-21
 ---
 
@@ -45,7 +45,7 @@ last_updated: 2026-09-21
 
 ## 当前口径
 
-T-PERM-078 已完成设计 §16 的实施协议校准，T-PERM-074 已闭合同步失败记账问题。来源不再落逐路径 support，API 派生仍由 T-PERM-054 承接且维持暂缓。本卡进入 review，全部实现组件已交付，正在执行整卡回归与验收。
+T-PERM-078 已完成设计 §16 的实施协议校准，T-PERM-074 已闭合同步失败记账问题。来源不再落逐路径 support，API 派生仍由 T-PERM-054 承接且维持暂缓。本卡已完成：全部组件交付、整卡回归（含 E2E）与双轨/外评处置完毕，2026-09-21 随用户确认转 done；风格清理转出 T-PERM-079，物化与解释归 072/073。
 
 ## 范围
 
@@ -68,3 +68,12 @@ SDK 定向测试与公共 R 泛型解码测试通过，生产 Spring Feign HTTP 
 ## 非目标 / 遗留
 
 物化与解释分别归 072/073；跨系统依赖、类型级种子、注解、异步队列不进入本卡。M3 管理只读与迁移保全边界按设计 §5/§10.1，M1/M4 按 §4.4.1/§8 实施；对未知部署库不自动执行迁移或清理。
+
+## 完成记录
+
+2026-09-21 完成（实现六连 be96a293f～05e3e26ad + 收口 e1678f300～a019bfdba）。声明数据层与编译器、独立 manifest M2M 通道、资源/清单发布代次共序、管理写入口退役与原表保全迁移、SDK registration starter 与示例全部交付；设计回写闭合（dependency-auto-grant 四节、契约 §2.5/§12.3/§19.1/§19.2/§19.2.1/§19.10、schema 三新表、frontend/resource-dependency 只读化、extension-guide 状态行）。
+
+- 全量回归 `mvn test -T 1C`（含 E2E）11 模块全绿，1842 项 0 失败 0 错误，E2E 对最终代码重跑通过；日志整文件落盘。
+- 本地双轨评审处置完毕：P3×1 + P2×6 + P3 文档×5 全直修；两项拍板（manifest 继承旧密钥边界、sync_key 保留）登记 registry 同日行。
+- 四任务内外评审（内部四子代理分任务 + claude deepseek-flash）：验收达标、P0-P2=0；claude P3×3 全处置（MANIFEST_UNCHANGED 契约登记、迁移「只保全不清理」取舍注记、规模上限拍板豁免登记）；零行为风格小修直修，结构性风格重构转出 T-PERM-079（卡为唯一清单源）。
+- 未对任何部署环境执行迁移；迁移验证仅限测试夹具（旧 schema 夹具保全/中止/回滚用例）。

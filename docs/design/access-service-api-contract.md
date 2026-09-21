@@ -2738,9 +2738,9 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 - **结构校验**：`service-config/save` 保存时校验 `syncTypes` 必须为对象、内部仅允许 subjectTypeCodes/roleTypeCodes/sourceTypes 三个字段（未知字段拒绝，含已退役的 `resourceTypeCodes`）、各分类（如存在）必须为非空白字符串数组；结构非法保存失败（20044）。缺失配置在运行时按无权限处理（fail-closed），不视为允许全部。
 - **上线准备（fail-closed 发布顺序）**：先为各同步服务通过 `service-config/save` 补齐 `syncTypes` 声明（并确认 `status=1`），再部署严格校验代码；未声明类型的存量服务在严格校验上线后同步全部拒绝，属预期行为。
 
-### 19.10 独立依赖 manifest（071 已实现，整体验收中）
+### 19.10 独立依赖 manifest（071 已交付）
 
-> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动与保全迁移已实现；可选 SDK 已提供独立发布与显式资源前置，角色物化由 072 完成；071 整卡验收状态仍以任务看板为准。
+> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动与保全迁移已实现；可选 SDK 已提供独立发布与显式资源前置，角色物化由 072 完成；071 已于 2026-09-21 收口交付。
 
 `POST /api/access/integration/permission-manifest/full-sync`，仅服务身份入口，按 070 精确 M2M 白名单；tenant 与 service 从已认证上下文取得，不接受 body 中的 serviceCode。来源服务须注册、启用；资源/操作存在性及类型所有权由服务端校验。
 

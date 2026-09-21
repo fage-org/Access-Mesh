@@ -72,7 +72,7 @@ last_updated: 2026-09-21
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-PERM-071](../tasks/T-PERM-071.md) | 独立依赖声明与可选 SDK 协调 | 👀 | T-PERM-070, T-PERM-078, T-PERM-074 |
+| [T-PERM-071](../tasks/T-PERM-071.md) | 独立依赖声明与可选 SDK 协调 | ✅ | T-PERM-070, T-PERM-078, T-PERM-074 |
 | [T-PERM-072](../tasks/T-PERM-072.md) | 自动授权物化与共享推导 | ⚙️ | T-PERM-071 |
 | [T-PERM-073](../tasks/T-PERM-073.md) | 按需来源解释、授权界面与对账 | ⚙️ | T-PERM-072 |
 | [T-PERM-036](../tasks/T-PERM-036.md) | 动态数据权限端到端验证 | ⚙️（暂缓） | T-FE-013, T-PERM-033 |
@@ -84,4 +84,4 @@ last_updated: 2026-09-21
 
 ## 当前进度
 
-计划已 active，T-PERM-074 已 done，T-PERM-078 已 done，其余任务状态见任务清单。自动授权简化方向已 adopted，078 已完成设计 M1～M5 校准，071～073 验收已衔接；其他任务待决项维持原安排。已有问题/在途事项的去重与承接见[评审证据映射](../archive/2026-09-20/comprehensive-review.md)。
+计划已 active，T-PERM-074 已 done，T-PERM-078 已 done，T-PERM-071 已 done（2026-09-21 收口），其余任务状态见任务清单。自动授权简化方向已 adopted，078 已完成设计 M1～M5 校准，072/073 验收已衔接；其他任务待决项维持原安排。已有问题/在途事项的去重与承接见[评审证据映射](../archive/2026-09-20/comprehensive-review.md)。
