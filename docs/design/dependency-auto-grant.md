@@ -4,14 +4,14 @@ title: 权限依赖声明与自动授权（简化方案）
 status: adopted
 domain: access-service
 supersedes: docs/archive/2026-09-20/dependency-auto-grant-path-design.md
-last_reviewed: 2026-09-21
+last_reviewed: 2026-09-21（072 物化落地回写）
 ---
 
 # 权限依赖声明与自动授权（简化方案）
 
 > 本稿为已采纳的实施方向：资源同步与依赖声明保持独立，SDK 协调可选；保留写时物化，来源按需解释，不建立逐种子逐完整路径的持久 support。原完整路径存储、强制两步接入和跨 owner 手工 override 口径由本稿取代。
 >
-> 交付状态：070 服务认证与 078 协议校准已完成；071 声明编译、资源共序、生命周期、迁移及 SDK 已于 2026-09-21 收口（全量含 E2E 回归 + 双轨/外评处置完毕，风格清理转出 T-PERM-079）。旧 autoGrant 与 20048 已退役。072 角色物化及 073 解释/界面仍待实施，当前编译图不代表自动授权已可用。
+> 交付状态：070 服务认证与 078 协议校准已完成；071 声明编译、资源共序、生命周期、迁移及 SDK 已于 2026-09-21 收口（全量含 E2E 回归 + 双轨/外评处置完毕，风格清理转出 T-PERM-079）。072 角色物化已于 2026-09-21 落地：共享推导核心（AutoGrantDerivation，§6.3.1 全表单测）、物化器（AutoGrantMaterializationDomainService，完整 desired 重算 + 事实键精确 diff）、触发面六入口接线（apply-grant-plan/manifest/资源 DELETE 与 FULL/操作位与掩码变更/类型删除与所有权变更/角色删除）、操作引用拒绝 20069、INLINE 统一时序回收、M4 共同锁与提交闸门（PgIT 验证）；grant_dep_id 定案保留不写不读（Q-022），角色删除回收含授权根（Q-023 留观守卫）。旧 autoGrant 与 20048 已退役。073 解释/界面仍待实施。
 
 <a id="scope"></a>
 ## 1. 目标与范围

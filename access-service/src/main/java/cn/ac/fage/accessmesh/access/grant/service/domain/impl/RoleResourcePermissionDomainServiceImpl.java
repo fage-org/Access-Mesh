@@ -67,6 +67,14 @@ public class RoleResourcePermissionDomainServiceImpl implements RoleResourcePerm
     }
 
     @Override
+    public Set<Long> selectReferencedOperationBits(Long tenantId, Integer resourceType, Set<Long> operationBits) {
+        if (operationBits == null || operationBits.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return roleResourcePermissionMapper.selectReferencedOperationBits(tenantId, resourceType, operationBits);
+    }
+
+    @Override
     public Set<Long> selectReferencedConditionIds(Long tenantId, Set<Long> conditionIds) {
         if (conditionIds == null || conditionIds.isEmpty()) {
             return Collections.emptySet();

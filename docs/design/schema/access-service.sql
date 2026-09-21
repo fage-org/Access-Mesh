@@ -1063,7 +1063,7 @@ COMMENT ON COLUMN permission_condition.name IS '名称';
 COMMENT ON COLUMN permission_condition.condition_rules IS '条件规则(JSON)，如 {"logic":"AND","items":[{"type":"DATE_RANGE","params":{"start":"2025-01-01","end":"2025-12-31"}},{"type":"TIME_RANGE","params":{"start":"09:00","end":"18:00"}},{"type":"IP_WHITELIST","params":{"cidrs":["192.168.1.0/24"]}}]}。预置类型：DATE_RANGE/TIME_RANGE/IP_WHITELIST/IP_BLACKLIST';
 COMMENT ON COLUMN permission_condition.enabled IS '是否启用';
 COMMENT ON COLUMN permission_condition.gateway_evaluable IS '是否可下发 Gateway 评估（T-PERM-017）。true 时条件规则随接口快照内联到 Gateway，由 Gateway 用请求上下文（clientIp）本地重评。可下发类型：IP_WHITELIST/IP_BLACKLIST/DATE_RANGE/TIME_RANGE（4 类全部）。未来扩展类型（如 ORG_SCOPE）默认不下发，需显式审批加入白名单';
-COMMENT ON COLUMN permission_condition.source IS '条件来源（T-PERM-048 双轨制）：MANAGED=权限条件页管理（有 resource_entity(CONDITION) 实例投影 code=条件 code，可被实例级授权 CONDITION:UPDATE/DELETE@code；存量行默认本值）；INLINE=授权页内联（随 apply-grant-plan 同事务创建/回收，1:1 属于授权记录不可共享、code 自动生成 inline- 前缀，管理页查不到也不能管理，不建投影行）';
+COMMENT ON COLUMN permission_condition.source IS '条件来源（T-PERM-048 双轨制）：MANAGED=权限条件页管理（有 resource_entity(CONDITION) 实例投影 code=条件 code，可被实例级授权 CONDITION:UPDATE/DELETE@code；存量行默认本值）；INLINE=授权页内联（随 apply-grant-plan 同事务创建/回收，1 MANUAL 属主 + N AUTO_DEP 派生引用（T-PERM-072 条件直传）、用户不可显式共享、code 自动生成 inline- 前缀，管理页查不到也不能管理，不建投影行；回收时序=物化重算后引用真正归零才同事务软删）';
 
 -- -----------------------------------------------------------------------------
 -- 26. user_role - 用户关联表（统一关联角色，target_type 标记角色类型）
@@ -1147,7 +1147,9 @@ COMMENT ON COLUMN sync_metadata.last_sync_sequence_no IS '最后一次已应用�
 
 -- -----------------------------------------------------------------------------
 -- 28. role_resource_permission - 角色-资源-操作中间表（支持子权限 depend_on，冗余 resource_type）
---     写链路：apply-grant-plan 唯一入口（记录级 plan{creates/updates/removes}）
+--     写链路：apply-grant-plan 唯一 MANUAL 入口（记录级 plan{creates/updates/removes}）；
+--     AUTO_DEP 行由物化器同事务 diff 落库（T-PERM-072，完整 desired 重算，只读不可转授）；
+--     角色删除级联回收全部有效授权行（拍板 A，2026-09-21）
 --     只存勾选节点，查询接口支持展开父级/展开子级
 --     scope_all=true 表示该操作覆盖 resource_type 下全部范围资源，此时 resource_entity_id 为空
 -- -----------------------------------------------------------------------------
@@ -1219,7 +1221,7 @@ COMMENT ON COLUMN role_resource_permission.scope_all IS '是否覆盖该 resourc
 COMMENT ON COLUMN role_resource_permission.can_grant IS '是否可授权(该权限可被当前角色关联的用户授予他人)';
 COMMENT ON COLUMN role_resource_permission.condition_id IS '生效条件ID（引用 permission_condition），NULL 表示始终生效';
 COMMENT ON COLUMN role_resource_permission.grant_source IS '授权来源：MANUAL=手动授权，AUTO_DEP=resource_dependency 自动补全，AUTHORITY_ROOT=类型授权根种子（T-PERM-062：自定义 resource_type 的首授基座，类型创建/追加操作自动补种、所有者变更同事务迁移（先清后种）、类型删除级联清理（T-PERM-050）；apply-grant-plan 不可改删 20061，形状由 ck_role_resource_permission_authority_root 焊死）';
-COMMENT ON COLUMN role_resource_permission.grant_dep_id IS '依赖规则ID（grant_source=AUTO_DEP 时记录触发的 resource_dependency.id）';
+COMMENT ON COLUMN role_resource_permission.grant_dep_id IS '保留诊断列（T-PERM-072 定案不写不读，Q-022 留观）：AUTO_DEP 行由多条编译边与多个种子共同支持，单字段不能表达多来源，物化器永不写入';
 
 -- -----------------------------------------------------------------------------
 -- 29. domain_config - 域配置表（SUB_PERM 子权限 / CLASSIFY 域分类；SCOPE/RELATION/BINDING 为历史设想类型，未实现）
@@ -1276,7 +1278,7 @@ CREATE INDEX idx_resource_dependency_resource ON resource_dependency (resource_e
 CREATE INDEX idx_resource_dependency_target ON resource_dependency (tenant_id, depends_on_resource_entity_id) WHERE delete_flag = 0;
 CREATE INDEX idx_resource_dependency_sync_owner ON resource_dependency (tenant_id, owner_service_code, maintain_source) WHERE delete_flag = 0 AND owner_service_code IS NOT NULL;
 
-COMMENT ON TABLE resource_dependency IS 'MANIFEST 声明的聚合编译图，旧规则仅保全到 resource_dependency_legacy；自动授权物化由 T-PERM-072 消费';
+COMMENT ON TABLE resource_dependency IS 'MANIFEST 声明的聚合编译图，旧规则仅保全到 resource_dependency_legacy；按角色完整重算物化消费（T-PERM-072 AutoGrantMaterializationDomainService，读取面经 loadCompiledEdges）';
 COMMENT ON COLUMN resource_dependency.resource_entity_id IS '源资源ID（被授权资源）。授权该资源且满足 source_operation_bits 时触发依赖补全';
 COMMENT ON COLUMN resource_dependency.depends_on_resource_entity_id IS '被依赖资源ID（自动补全目标资源），即被 resource_entity_id 依赖的资源';
 COMMENT ON COLUMN resource_dependency.source_operation_bits IS '触发条件：源资源授权含这些bit时才触发依赖，NULL=任意操作都触发；唯一约束中按 COALESCE(source_operation_bits,0) 区分同一资源对下不同触发操作';

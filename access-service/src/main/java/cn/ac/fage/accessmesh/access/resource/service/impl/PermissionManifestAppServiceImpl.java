@@ -1,7 +1,10 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
+import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.resource.entity.PermissionDependencyDeclaration;
@@ -24,6 +27,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -41,10 +45,12 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
     private final ResourceDependencyMapper edgeMapper;
     private final ServiceConfigMapper serviceMapper;
     private final TreeWriteLockSupport locks;
+    private final AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
 
     public PermissionManifestAppServiceImpl(PermissionManifestNormalizer normalizer, DependencyCompilationDomainService compilation,
             PermissionDependencyDeclarationMapper declarationMapper, ServiceManifestSyncMapper stateMapper,
-            ResourceDependencyMapper edgeMapper, ServiceConfigMapper serviceMapper, TreeWriteLockSupport locks) {
+            ResourceDependencyMapper edgeMapper, ServiceConfigMapper serviceMapper, TreeWriteLockSupport locks,
+            AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
         this.normalizer = normalizer;
         this.compilation = compilation;
         this.declarationMapper = declarationMapper;
@@ -52,12 +58,14 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
         this.edgeMapper = edgeMapper;
         this.serviceMapper = serviceMapper;
         this.locks = locks;
+        this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     @OperationLog(module = "PERMISSION", action = "PERMISSION_MANIFEST_FULL_SYNC", targetType = "service_manifest_sync",
             targetId = "", summary = "'publish permission manifest'")
+    @PermissionChange
     public SyncResultResp fullSync(Long tenantId, PermissionManifestReq request) {
         var normalized = normalizer.normalize(request);
         String service = AccessRequestContext.getServiceCode();
@@ -116,7 +124,24 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
             var batch = rows.subList(offset, Math.min(offset + SQL_BATCH_SIZE, rows.size()));
             if (declarationMapper.saveAll(batch) != batch.size()) throw failure("manifest declaration write count mismatch");
         }
-        if (!unchanged) compilation.replaceGraphs(tenantId, Map.of(service, result.edges()), now);
+        if (!unchanged) {
+            // 声明变化触发面（§7）：受影响实体 = 本服务旧编译边端点 ∪ 新编译边端点，
+            // 图替换同事务完整重算受影响角色的 AUTO_DEP（T-PERM-072）
+            Set<Long> affectedEntities = new HashSet<>();
+            for (ResourceDependency edge : edgeMapper.selectByTenantId(tenantId)) {
+                if (!service.equals(edge.getOwnerServiceCode())) continue;
+                affectedEntities.add(edge.getResourceEntityId());
+                affectedEntities.add(edge.getDependsOnResourceEntityId());
+            }
+            result.edges().forEach(edge -> {
+                affectedEntities.add(edge.sourceId());
+                affectedEntities.add(edge.targetId());
+            });
+            compilation.replaceGraphs(tenantId, Map.of(service, result.edges()), now);
+            Set<Long> changedRoles = autoGrantMaterializationDomainService
+                .recomputeByResourceEntities(tenantId, affectedEntities);
+            PermissionChangeContext.markRoles(tenantId, changedRoles);
+        }
         edgeMapper.refreshCompiledScopeDescriptions(tenantId, List.of(service), now);
 
         int failed = (int) result.declarations().stream().filter(r -> r.reason() != null).count();

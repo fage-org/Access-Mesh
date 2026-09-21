@@ -66,6 +66,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     private final SubjectDomainService subjectDomainService;
     private final RoleResourcePermissionDomainService roleResourcePermissionDomainService;
     private final cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService;
+    private final cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
     private final ResourceApiMappingDomainService apiMappingDomainService;
     private final TreeWriteLockSupport treeWriteLockSupport;
     private final CacheService cacheService;
@@ -99,7 +100,8 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                                          TreeWriteLockSupport treeWriteLockSupport,
                                          CacheService cacheService,
                                          GrantOriginDomainService grantOriginDomainService,
-                                      DependencyCompilationDomainService compilation) {
+                                      DependencyCompilationDomainService compilation,
+                                      cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
         this.compilation = compilation;
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
@@ -110,6 +112,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         this.subjectDomainService = subjectDomainService;
         this.roleResourcePermissionDomainService = roleResourcePermissionDomainService;
         this.conditionDomainService = conditionDomainService;
+        this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
         this.apiMappingDomainService = apiMappingDomainService;
         this.treeWriteLockSupport = treeWriteLockSupport;
         this.cacheService = cacheService;
@@ -535,7 +538,10 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         typeDefinitionMapper.update(type);
         if ("resource_type".equals(type.getTypeKey())
                 && !previousOwnership.equals(resourceTypeOwnershipGuard.parseOwnership(type.getExtra()))) {
-            compilation.typesChanged(tenantId, Set.of(type.getTypeCode()), false, type.getUpdatedAt());
+            // 所有权变更触发面（§7/T-PERM-072）：声明按 CROSS_OWNER 降级重编译后同事务重算受影响角色 AUTO_DEP
+            Set<Long> affectedEntities = compilation.typesChanged(tenantId, Set.of(type.getTypeCode()), false, type.getUpdatedAt());
+            Set<Long> changedRoles = autoGrantMaterializationDomainService.recomputeByResourceEntities(tenantId, affectedEntities);
+            PermissionChangeContext.markRoles(tenantId, changedRoles);
         }
         // T-PERM-062：所有者变更同事务迁移（「同事务迁移」定案）：先清后种重整化——软删该类型
         // 全部 AUTHORITY_ROOT 行（含已删角色/误配旧 owner 残留，杜绝误配 owner 的一次性永久扩权），
@@ -759,9 +765,12 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
                 deletableTypeValues.stream().map(AccessCacheCatalog::operationPermissionsByTypeKey)
                     .collect(Collectors.toCollection(LinkedHashSet::new)));
         }
-        compilation.typesChanged(tenantId, entities.stream()
+        // 类型删除触发面（§7/T-PERM-072）：声明/边回收后同事务重算受影响角色 AUTO_DEP（含下游类型资源）
+        Set<Long> typeDeleteAffectedEntities = compilation.typesChanged(tenantId, entities.stream()
                 .filter(t -> validIds.contains(t.getId()) && "resource_type".equals(t.getTypeKey()))
                 .map(TypeDefinition::getTypeCode).collect(Collectors.toSet()), true, now);
+        Set<Long> autoDepChangedRoles = autoGrantMaterializationDomainService.recomputeByResourceEntities(tenantId, typeDeleteAffectedEntities);
+        PermissionChangeContext.markRoles(tenantId, autoDepChangedRoles);
         // T-PERM-048：级联授权行已软删，引用归零的内联条件同事务回收（含 markConditions）
         if (!cascadeConditionIds.isEmpty()) {
             conditionDomainService.recycleOrphanInlineConditions(tenantId, cascadeConditionIds);

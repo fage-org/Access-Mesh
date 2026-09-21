@@ -27,6 +27,17 @@ public interface RoleResourcePermissionDomainService {
     List<Long> selectValidPermIdsByResourceIds(Long tenantId, List<Long> resourceIds);
 
     /**
+     * 查询指定资源类型下被有效 MANUAL/AUTO_DEP 授权行直接引用的操作位集合
+     * （T-PERM-072 操作生命周期守卫；AUTHORITY_ROOT 基座行不算用户引用）。
+     *
+     * @param tenantId      租户ID
+     * @param resourceType  资源类型内部值
+     * @param operationBits 候选操作位集合
+     * @return 被引用的操作位集合（候选中未被引用的不在结果中）
+     */
+    Set<Long> selectReferencedOperationBits(Long tenantId, Integer resourceType, Set<Long> operationBits);
+
+    /**
      * 查询指定资源 ID 集合涉及的受影响角色 ID 集合（软删前登记 ROLE_PERM_SNAPSHOT 失效）。
      *
      * @param tenantId    租户ID

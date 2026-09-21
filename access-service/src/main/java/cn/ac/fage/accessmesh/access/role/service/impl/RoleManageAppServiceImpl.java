@@ -71,6 +71,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
     private final AuditDomainService auditDomainService;
     private final LocalProjectionGuard localProjectionGuard;
     private final LocalProjectionDomainService localProjectionDomainService;
+    private final cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
     private final PermQueryEngine engine;
     private final TreeWriteLockSupport treeWriteLockSupport;
 
@@ -94,6 +95,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
                                  AuditDomainService auditDomainService,
                                  LocalProjectionGuard localProjectionGuard,
                                  LocalProjectionDomainService localProjectionDomainService,
+            cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService,
                                  PermQueryEngine engine,
                                  TreeWriteLockSupport treeWriteLockSupport) {
         this.abstractRoleMapper = abstractRoleMapper;
@@ -104,6 +106,7 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         this.auditDomainService = auditDomainService;
         this.localProjectionGuard = localProjectionGuard;
         this.localProjectionDomainService = localProjectionDomainService;
+        this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
         this.engine = engine;
         this.treeWriteLockSupport = treeWriteLockSupport;
     }
@@ -412,6 +415,10 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         subjectDomainService.softDeleteRoleBatch(tenantId, new java.util.HashSet<>(allIdsToDelete));
         // T-ACCESS-019：ROLE 资源投影同事务软删（含级联子孙角色），实例授权目标随之不可解析（fail-closed）
         localProjectionDomainService.softDeleteRoleResources(tenantId, allIdsToDelete);
+        // §7 触发面（T-PERM-072，2026-09-21 拍板 A）：角色删除同事务回收全部有效授权行
+        //（MANUAL+AUTO_DEP+AUTHORITY_ROOT——授权根随角色消亡，registry 边界修订）并按引用归零
+        // 回收 INLINE 条件；被删角色不做 AUTO_DEP 重算，其余角色不受影响（图与角色无关）
+        autoGrantMaterializationDomainService.recycleRoleGrants(tenantId, allIdsToDelete);
         // 投影软删变更日志（覆盖含级联子孙的全量删除集合，与逐投影写登记口径对齐）
         List<AuditDomainService.ChangeLogEntry> projectionDeletes = allIdsToDelete.stream()
             .map(deletedId -> new AuditDomainService.ChangeLogEntry(

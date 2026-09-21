@@ -20,6 +20,8 @@ import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
+import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService;
+import cn.ac.fage.accessmesh.access.grant.service.domain.RoleResourcePermissionDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.GrantOriginDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
@@ -58,6 +60,8 @@ public class OperationAppServiceImpl implements OperationAppService {
     private final TypeDefinitionMapper typeDefinitionMapper;
     private final GrantOriginDomainService grantOriginDomainService;
     private final TreeWriteLockSupport treeWriteLockSupport;
+    private final RoleResourcePermissionDomainService roleResourcePermissionDomainService;
+    private final AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
 
     /**
      * 构造函数注入依赖
@@ -77,7 +81,9 @@ public class OperationAppServiceImpl implements OperationAppService {
                                       TypeDefinitionMapper typeDefinitionMapper,
                                       GrantOriginDomainService grantOriginDomainService,
                                       TreeWriteLockSupport treeWriteLockSupport,
-                                      DependencyCompilationDomainService compilation) {
+                                      DependencyCompilationDomainService compilation,
+                                      RoleResourcePermissionDomainService roleResourcePermissionDomainService,
+                                      AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
         this.compilation = compilation;
         this.operationPermissionMapper = operationPermissionMapper;
         this.typeResolutionService = typeResolutionService;
@@ -86,6 +92,8 @@ public class OperationAppServiceImpl implements OperationAppService {
         this.typeDefinitionMapper = typeDefinitionMapper;
         this.grantOriginDomainService = grantOriginDomainService;
         this.treeWriteLockSupport = treeWriteLockSupport;
+        this.roleResourcePermissionDomainService = roleResourcePermissionDomainService;
+        this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
     }
 
     /**
@@ -297,6 +305,15 @@ public class OperationAppServiceImpl implements OperationAppService {
         OperationPermission op = selectOperationByBusinessKey(tenantId, new OperationKeyReq(req.resourceTypeCode(), req.code()));
         Long fromBit = op.getBinaryBit();
         Long fromInheritMask = op.getInheritMask();
+        // T-PERM-072 操作生命周期守卫（设计 §7）：位变更存在有效 MANUAL/AUTO_DEP 引用时拒绝（写库前零副作用）；
+        // AUTHORITY_ROOT 基座不算用户引用，走既有 T-PERM-062 同事务迁移
+        boolean bitChanged = req.binaryBit() != null && !req.binaryBit().equals(fromBit);
+        if (bitChanged && !roleResourcePermissionDomainService
+                .selectReferencedOperationBits(tenantId, op.getResourceType(), Set.of(fromBit)).isEmpty()) {
+            throw new BizException(AccessErrorCode.OPERATION_REFERENCED_BY_GRANTS.getCode(),
+                AccessErrorCode.OPERATION_REFERENCED_BY_GRANTS.getMessage()
+                    + " (" + req.resourceTypeCode() + ":" + req.code() + ")");
+        }
         if (req.name() != null) op.setName(req.name());
         if (req.binaryBit() != null) op.setBinaryBit(req.binaryBit());
         if (req.inheritMask() != null) op.setInheritMask(req.inheritMask());
@@ -305,7 +322,6 @@ public class OperationAppServiceImpl implements OperationAppService {
         operationPermissionMapper.update(op);
         // 操作位变更联动迁移（grok 外评存量升级定案）：不迁则旧位成指向无定义位的永久死行
         //（20061 不可改删）、新位零种子令该操作回到无人能首授的死锁；is_system 类型无种子不联动
-        boolean bitChanged = req.binaryBit() != null && !req.binaryBit().equals(fromBit);
         TypeDefinition typeDef = bitChanged
             ? typeDefinitionMapper.selectByTypeKeyAndCode(tenantId, "resource_type", req.resourceTypeCode())
             : null;
@@ -317,7 +333,11 @@ public class OperationAppServiceImpl implements OperationAppService {
             PermissionChangeContext.markRoles(tenantId, ownerRoleId);
         }
         if (bitChanged || req.inheritMask() != null && !Objects.equals(fromInheritMask, req.inheritMask())) {
-            compilation.typesChanged(tenantId, Set.of(req.resourceTypeCode()), false, LocalDateTime.now());
+            // 位/继承掩码变更触发面（§7/T-PERM-072）：声明重编译后同事务重算受影响角色 AUTO_DEP
+            //（有效位变化改变触发匹配与覆盖判定输入）
+            Set<Long> affectedEntities = compilation.typesChanged(tenantId, Set.of(req.resourceTypeCode()), false, LocalDateTime.now());
+            Set<Long> changedRoles = autoGrantMaterializationDomainService.recomputeByResourceEntities(tenantId, affectedEntities);
+            PermissionChangeContext.markRoles(tenantId, changedRoles);
         }
         // T-PERM-047：位值/继承掩码变更改变覆盖判定输入，提交后失效 per-type 缓存
         // （否则 TTL 窗口内引擎按旧位值判定，已授权角色语义静默翻转）
@@ -372,6 +392,24 @@ public class OperationAppServiceImpl implements OperationAppService {
             .map(OperationPermission::getId)
             .collect(Collectors.toSet());
 
+        // T-PERM-072 操作生命周期守卫（设计 §7）：删除存在有效 MANUAL/AUTO_DEP 引用的操作整批拒绝
+        //（AUTHORITY_ROOT 基座不算用户引用，走既有种子级联清理）
+        Map<Integer, Set<Long>> bitsByTypeValue = new java.util.LinkedHashMap<>();
+        for (OperationPermission op : entities) {
+            if (op.getResourceType() != null && op.getBinaryBit() != null) {
+                bitsByTypeValue.computeIfAbsent(op.getResourceType(), k -> new java.util.LinkedHashSet<>())
+                    .add(op.getBinaryBit());
+            }
+        }
+        for (var entry : bitsByTypeValue.entrySet()) {
+            if (!roleResourcePermissionDomainService
+                    .selectReferencedOperationBits(tenantId, entry.getKey(), entry.getValue()).isEmpty()) {
+                throw new BizException(AccessErrorCode.OPERATION_REFERENCED_BY_GRANTS.getCode(),
+                    AccessErrorCode.OPERATION_REFERENCED_BY_GRANTS.getMessage()
+                        + " (resourceType=" + entry.getKey() + ", bits=" + entry.getValue() + ")");
+            }
+        }
+
         // 批量软删除（性能修复：使用单条SQL代替循环）
         LocalDateTime now = LocalDateTime.now();
         operationPermissionMapper.softDeleteBatch(tenantId, new java.util.ArrayList<>(validIds), now);
@@ -392,8 +430,12 @@ public class OperationAppServiceImpl implements OperationAppService {
                 .removeOperationAuthorityRootGrants(tenantId, seedBitsByTypeValue);
             PermissionChangeContext.markRoles(tenantId, affected);
         }
-        compilation.typesChanged(tenantId, customTypeDefs.values().stream().map(TypeDefinition::getTypeCode)
-                .collect(Collectors.toSet()), false, now);
+        Set<String> changedTypeCodes = customTypeDefs.values().stream().map(TypeDefinition::getTypeCode)
+                .collect(Collectors.toSet());
+        // 操作删除触发面（§7/T-PERM-072）：声明按 OPERATION_INVALID 降级重编译后同事务重算受影响角色
+        Set<Long> affectedEntities = compilation.typesChanged(tenantId, changedTypeCodes, false, now);
+        Set<Long> changedRoles = autoGrantMaterializationDomainService.recomputeByResourceEntities(tenantId, affectedEntities);
+        PermissionChangeContext.markRoles(tenantId, changedRoles);
         // T-PERM-047：已删操作在 TTL 窗口内仍参与覆盖判定（陈旧 Map 含已删行），
         // 按受影响类型集合批量失效 per-type 缓存（同类型去重一次提交）
         Set<String> affectedTypeKeys = entities.stream()

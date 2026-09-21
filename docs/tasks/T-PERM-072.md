@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-072
 title: 自动授权物化与共享推导
-status: proposed
+status: in-progress
 plan: —（无所属计划；自动授权实施序列）
 domain: access-service
 design_refs:
@@ -31,7 +31,7 @@ acceptance:
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-20
+last_updated: 2026-09-21
 ---
 
 # T-PERM-072 自动授权物化与共享推导
@@ -54,4 +54,4 @@ last_updated: 2026-09-20
 
 ## 非目标 / 遗留
 
-explain HTTP、预览/界面及后台对账编排归 073。跨系统 export、scope_all 展开、异步重建、完整历史推导回放不进入本卡；不得以取消 support 为由删除锁、同步撤权或审计。
+explain HTTP、预览/界面及后台对账编排归 073。跨系统 export、scope_all 展开、异步重建、完整历史推导回放不进入本卡；不得以取消 support 为由删除锁、同步撤权或审计。grant_dep_id 定案保留不写不读（死列留观 Q-022）。

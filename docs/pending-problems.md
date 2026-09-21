@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-021           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-20（Q-016、Q-020 随 T-FE-054 收敛）
+counter: Q-023           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-21（Q-022 登记：grant_dep_id 定案保留后死列留观；Q-023 登记：删类型所有者角色无守卫）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,32 @@ last_updated: 2026-09-20（Q-016、Q-020 随 T-FE-054 收敛）
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-023 删除类型所有者角色（grantOriginRole）无守卫——删后类型授权能力锁死且无提示
+
+- **状态**：open
+- **登记**：2026-09-21（T-PERM-072 启动决策：用户拍板登记留观、不随 072 处理）
+- **来源**：[T-PERM-072](tasks/T-PERM-072.md) 启动决策
+- **关联**：T-PERM-072（角色删除回收范围拍板 A 的伴生发现）
+
+**现象与证据**：`RoleManageAppServiceImpl.deleteRoles` 全链路无 `grantOriginRole` 守卫（rg 核实零命中）；自定义类型的所有者角色被删除时：072 拍板 A 下其 AUTHORITY_ROOT 行随角色软删（角色删除成为授权根第二回收路径）→ 类型仍在（`type_definition` 行未删），但授权根持有者消失 → apply-grant-plan 的 verifyDelegation/checkCanGrant（授权根委托判定）无人可通过 → **该类型无人能再被授予/转授任何权限**。
+
+**影响**：锁死可恢复（updateType 把 `extra.grantOriginRole` 迁到新角色即 rematerialize 先清后种重建授权根），但删角色时无任何提示/守卫——管理员不知道自己锁死了类型的授权入口；发现依赖事后排障。
+
+**设想方向（未定案）**：deleteRoles 校验 `grantOriginRole` 引用并拒绝（提示先迁移所有者），或警告放行；涉及跨包读（type→role）与错误码登记，待后续立项。
+
+## Q-022 role_resource_permission.grant_dep_id 死列（072 定案保留不写不读）
+
+- **状态**：open
+- **登记**：2026-09-21（T-PERM-072 启动拍板：保留列、物化永不写入，死列事实计入问题清单留观）
+- **来源**：[T-PERM-072](tasks/T-PERM-072.md) 启动决策
+- **关联**：T-PERM-072（定案载体；registry 2026-09-21 行）
+
+**现象与证据**：`docs/design/schema/access-service.sql` grant_dep_id 列（注释「grant_source=AUTO_DEP 时记录触发的 resource_dependency.id」）+ 实体 `RoleResourcePermission.grantDepId`——全代码库零读零写。设计 §3.4 定案「单字段不能表达多来源（同一 AUTO_DEP 行由多条边+多个种子共同支持），不作存续或清理依据」；072 物化实施后该列也永远不填（例：声明 A→B 与 D→B 共同推出 B:READ 一行，无单一触发边可写）。
+
+**影响**：纯死列占位，无功能影响；DDL 注释与实际行为（永不写入）已随 072 修正对齐。
+
+**设想方向（未定案）**：沿 sync_key 先例（registry 2026-09-21，「不趁未部署窗口删除」）保留；若未来需要单边诊断或 schema 清理窗口，再评估退役。
 
 ## Q-021 后端菜单种子 icon 多数未注册离线图标表——侧栏菜单图标渲染为空（ep/* 斜杠形态 × IconifyIconOffline storage 查找）
 

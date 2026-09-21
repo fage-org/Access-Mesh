@@ -161,6 +161,20 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                               @Param("updatedAt") LocalDateTime updatedAt);
 
     /**
+     * 查询指定资源类型下被有效 MANUAL/AUTO_DEP 授权行直接引用的操作位集合
+     * （T-PERM-072 操作生命周期守卫：binaryBit 变更/操作删除前判定；
+     * granted_bits 等值命中，AUTHORITY_ROOT 基座行不算用户引用——按 T-PERM-062 既有迁移/级联处理）。
+     *
+     * @param tenantId      租户ID
+     * @param resourceType  资源类型内部值
+     * @param operationBits 候选操作位集合
+     * @return 被引用的操作位集合（候选中未被引用的不在结果中）
+     */
+    Set<Long> selectReferencedOperationBits(@Param("tenantId") Long tenantId,
+                                            @Param("resourceType") Integer resourceType,
+                                            @Param("operationBits") Set<Long> operationBits);
+
+    /**
      * 根据角色ID集合查询有效的权限记录
      *
      * @param tenantId 租户ID

@@ -52,6 +52,7 @@ class RoleManageAppServiceImplTest {
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private PermQueryEngine engine;
     @Mock private TreeWriteLockSupport treeWriteLockSupport;
+    @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
 
     private RoleManageAppServiceImpl service;
 
@@ -66,6 +67,7 @@ class RoleManageAppServiceImplTest {
             auditDomainService,
             new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(),
             localProjectionDomainService,
+            autoGrantMaterializationDomainService,
             engine,
             treeWriteLockSupport
         );

@@ -727,7 +727,15 @@ public enum AccessErrorCode {
      * 无该服务的有效启用行——对齐 20055 门禁的服务注册段（设计稿 §3.2 ③前置校验；
      * 服务停用/注销即同步通道一起断，同 sync 通道白名单语义）。
      */
-    SERVICE_CREDENTIAL_SERVICE_INACTIVE(20068, "凭证绑定的服务未注册或已停用");
+    SERVICE_CREDENTIAL_SERVICE_INACTIVE(20068, "凭证绑定的服务未注册或已停用"),
+
+    /**
+     * 操作被有效授权引用（T-PERM-072 操作生命周期守卫，设计 §7）：binaryBit 变更或操作删除时，
+     * 存在 granted_bits 直接等于该操作位的有效 MANUAL/AUTO_DEP 授权行则整批拒绝；
+     * AUTHORITY_ROOT 基座行不算用户引用（按 T-PERM-062 既有同事务迁移/级联处理）。
+     * 处置=先撤销相关授权（依赖来源须由所属服务重发 manifest 收缩）。
+     */
+    OPERATION_REFERENCED_BY_GRANTS(20069, "操作被有效授权引用，不可变更位值或删除：请先撤销相关授权（类型授权根种子除外）");
 
     private final int code;
     private final String message;

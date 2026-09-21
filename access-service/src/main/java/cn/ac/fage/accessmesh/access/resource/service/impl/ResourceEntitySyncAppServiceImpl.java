@@ -1,5 +1,8 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
+import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
+import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService;
 import cn.ac.fage.accessmesh.access.sync.PublicationGeneration;
 import cn.ac.fage.accessmesh.access.sync.ResourcePublicationNormalizer;
@@ -72,6 +75,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     private final TreeWriteLockSupport treeWriteLockSupport;
     private final ResourcePublicationDomainService publications;
     private final ResourcePublicationNormalizer publicationNormalizer;
+    private final AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
 
     public ResourceEntitySyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                              SyncMetadataMapper syncMetadataMapper,
@@ -83,7 +87,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                                              ResourceEntityDomainService resourceEntityDomainService,
                                              TreeWriteLockSupport treeWriteLockSupport,
                                              ResourcePublicationDomainService publications,
-                                      DependencyCompilationDomainService compilation) {
+                                             DependencyCompilationDomainService compilation,
+                                             AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
         this.compilation = compilation;
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.syncMetadataMapper = syncMetadataMapper;
@@ -96,6 +101,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         this.treeWriteLockSupport = treeWriteLockSupport;
         this.publications = publications;
         this.publicationNormalizer = new ResourcePublicationNormalizer(objectMapper);
+        this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
     }
 
     @Override
@@ -103,6 +109,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_SYNC", targetType = "resource_entity",
         targetId = "#req.resourceCode()",
         summary = "'sync resource_entity from ' + #req.sourceService()")
+    @PermissionChange
     public SyncResultResp sync(Long tenantId, ResourceEntitySyncReq req, HttpServletRequest httpRequest) {
         if (!SyncAuthVerifier.verify(req.sourceService(), httpRequest)) {
             return SyncResultBuilder.securityDenied("SOURCE_SERVICE_MISMATCH");
@@ -151,6 +158,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     @OperationLog(module = "PERMISSION", action = "RESOURCE_ENTITY_FULL_SYNC", targetType = "resource_entity",
         targetId = "",
         summary = "'full sync resource_entity from ' + #req.scope().sourceService()")
+    @PermissionChange
     public SyncResultResp fullSync(Long tenantId, ResourceEntityFullSyncReq req, HttpServletRequest httpRequest) {
         if (!SyncAuthVerifier.verify(req.scope().sourceService(), httpRequest)) {
             return SyncResultBuilder.fullSyncRejected(
@@ -343,7 +351,12 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         for (int offset = 0; offset < deleteIds.size(); offset += SQL_BATCH_SIZE) {
             resourceEntityMapper.softDeleteBatch(tenantId, deleteIds.subList(offset, Math.min(offset + SQL_BATCH_SIZE, deleteIds.size())), now);
         }
-        compilation.resourcesDeleted(tenantId, deleteIds, now);
+        // 资源 FULL 漂移删除触发面（§7/T-PERM-072）：依赖贡献收缩同事务完整重算受影响角色 AUTO_DEP
+        if (!deleteIds.isEmpty()) {
+            var affectedEntities = compilation.resourcesDeleted(tenantId, deleteIds, now);
+            var changedRoles = autoGrantMaterializationDomainService.recomputeByResourceEntities(tenantId, affectedEntities);
+            PermissionChangeContext.markRoles(tenantId, changedRoles);
+        }
         publications.acceptFull(tenantId, req.scope().sourceService(), scopeKey, generation, fullHash, failed > 0);
         return SyncResultBuilder.fullSync(applied, stale, failed, deactivated, itemResults);
     }
@@ -595,7 +608,10 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         } else { // DELETE
             if (existing != null) {
                 resourceEntityMapper.softDeleteBatch(tenantId, List.of(existing.getId()), now);
-                compilation.resourcesDeleted(tenantId, List.of(existing.getId()), now);
+                // 资源单条 DELETE 触发面（§7/T-PERM-072）：依赖贡献收缩同事务重算受影响角色 AUTO_DEP
+                var affectedEntities = compilation.resourcesDeleted(tenantId, List.of(existing.getId()), now);
+                var changedRoles = autoGrantMaterializationDomainService.recomputeByResourceEntities(tenantId, affectedEntities);
+                PermissionChangeContext.markRoles(tenantId, changedRoles);
             }
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, STATUS_DELETED);

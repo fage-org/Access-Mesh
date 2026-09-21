@@ -42,6 +42,8 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService;
+import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
@@ -72,6 +74,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private final SubjectDomainService subjectDomainService;
     private final PermissionConditionDomainService conditionDomainService;
     private final ResourceEntityDomainService resourceEntityDomainService;
+    private final TreeWriteLockSupport treeWriteLockSupport;
+    private final AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
 
     public PermissionGrantAppServiceImpl(OperationPermissionDomainService operationPermissionDomainService,
                                       RoleResourcePermissionMapper rolePermMapper,
@@ -82,7 +86,9 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                                       PermQueryEngine engine,
                                       ObjectMapper objectMapper,
                                       SubjectDomainService subjectDomainService,
-                                      ResourceEntityDomainService resourceEntityDomainService) {
+                                      ResourceEntityDomainService resourceEntityDomainService,
+                                      TreeWriteLockSupport treeWriteLockSupport,
+                                      AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.rolePermMapper = rolePermMapper;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
@@ -93,6 +99,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         this.subjectDomainService = subjectDomainService;
         this.conditionDomainService = conditionDomainService;
         this.resourceEntityDomainService = resourceEntityDomainService;
+        this.treeWriteLockSupport = treeWriteLockSupport;
+        this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
     }
 
     @Override
@@ -102,6 +110,9 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         summary = "'apply role permission grant plan'")
     @PermissionChange
     public List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlanReq req) {
+        // M4 共同串行边界（T-PERM-072）：读取被改授权与推导输入之前取得 RESOURCE_ENTITY 树写锁，
+        // 与 manifest 编译/资源/类型/操作写路径共持同一锁；本入口不持更高序树锁
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         Long roleId = typeResolutionService.resolveRoleId(
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         if (roleId == null) {
@@ -125,6 +136,9 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                 tenantId, operatorId, roleId, req.domainCode(), req.plan());
 
         permissionGrantPlanDomainService.apply(prepared);
+        // 显式授权授/撤/改条件触发面（§7）：同事务完整重算该角色 AUTO_DEP 并 diff 落库；
+        // MANUAL 行删除/换绑的 INLINE 候选并入物化统一时序（重算后按实际引用归零回收）
+        autoGrantMaterializationDomainService.recompute(tenantId, Set.of(roleId), prepared.inlineRecycleCandidates());
         PermissionChangeContext.markRoles(tenantId, roleId);
         recordGrantPlanChanges(tenantId, operatorId, req, role, prepared);
 

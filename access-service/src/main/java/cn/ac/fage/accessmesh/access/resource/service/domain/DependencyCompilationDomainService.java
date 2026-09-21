@@ -149,8 +149,20 @@ public class DependencyCompilationDomainService {
         }
     }
 
-    public PermissionDependencyDeclaration toRow(Long tenantId, String service, DependencyCompiler.Resolution resolution, LocalDateTime now) {
-        var d = resolution.declaration();
+    /**
+     * 装载租户全部有效编译边（物化共享图装载，T-PERM-072）。
+     * <p>
+     * 不按资源启停过滤；grant 能力包经本方法读取编译图（跨包不互读 mapper）。
+     * 调用方持有资源树锁，本方法无缓存直读、不声明独立事务（与类级硬契约一致）。
+     * </p>
+     */
+    public List<DependencyCompiler.Edge> loadCompiledEdges(Long tenantId) {
+        return edgeMapper.selectByTenantId(tenantId).stream()
+                .map(e -> new DependencyCompiler.Edge(e.getResourceEntityId(), e.getDependsOnResourceEntityId(),
+                        e.getSourceOperationBits(), e.getRequiredOperationBits())).toList();
+    }
+
+    public PermissionDependencyDeclaration toRow(Long tenantId, String service, DependencyCompiler.Resolution resolution, LocalDateTime now) {        var d = resolution.declaration();
         var row = new PermissionDependencyDeclaration();
         row.setTenantId(tenantId);
         row.setSourceService(service);
@@ -183,14 +195,25 @@ public class DependencyCompilationDomainService {
         }
         return result;
     }
-    public void resourcesDeleted(Long tenantId, List<Long> ids, LocalDateTime now) {
+    /**
+     * 资源删除：收缩编译贡献；返回受影响实体（受影响服务新旧边端点并集 ∪ 被删资源 ID），
+     * 供调用方定位 AUTO_DEP 重算角色（T-PERM-072）。
+     */
+    public Set<Long> resourcesDeleted(Long tenantId, List<Long> ids, LocalDateTime now) {
         Set<String> services = new HashSet<>();
         for (int offset = 0; offset < ids.size(); offset += SQL_BATCH_SIZE) {
             services.addAll(declarationMapper.selectServicesByResourceIds(tenantId, ids.subList(offset, Math.min(offset + SQL_BATCH_SIZE, ids.size()))));
         }
-        recompileResolved(tenantId, services, now);
+        Set<Long> affected = recompileResolved(tenantId, services, now);
+        affected.addAll(ids);
+        return affected;
     }
-    public void typesChanged(Long tenantId, Set<String> typeCodes, boolean deleted, LocalDateTime now) {
+
+    /**
+     * 类型/所有权/操作定义变更：重编译受影响声明并替换图；返回受影响实体
+     * （受影响服务新旧边端点并集），供调用方定位 AUTO_DEP 重算角色（T-PERM-072）。
+     */
+    public Set<Long> typesChanged(Long tenantId, Set<String> typeCodes, boolean deleted, LocalDateTime now) {
         List<String> keys = new ArrayList<>(typeCodes);
         Set<String> services = new HashSet<>();
         for (int offset = 0; offset < keys.size(); offset += SQL_BATCH_SIZE) {
@@ -198,11 +221,11 @@ public class DependencyCompilationDomainService {
             services.addAll(declarationMapper.selectServicesByTypes(tenantId, batch));
             if (deleted) declarationMapper.softDeleteTypes(tenantId, batch, now);
         }
-        recompileResolved(tenantId, services, now);
+        return recompileResolved(tenantId, services, now);
     }
-    /** 仅重判已成功贡献；REJECTED 保留原状态，须由所属服务重发恢复。 */
-    private void recompileResolved(Long tenantId, Set<String> services, LocalDateTime now) {
-        if (services.isEmpty()) return;
+    /** 仅重判已成功贡献；REJECTED 保留原状态，须由所属服务重发恢复。返回受影响实体集合。 */
+    private Set<Long> recompileResolved(Long tenantId, Set<String> services, LocalDateTime now) {
+        if (services.isEmpty()) return new HashSet<>();
         var existing = loadScopes(tenantId, services);
         Map<String, List<DependencyCompiler.Declaration>> active = new HashMap<>();
         Map<String, Map<String, PermissionDependencyDeclaration>> byService = new HashMap<>();
@@ -212,12 +235,24 @@ public class DependencyCompilationDomainService {
                     .add(normalizer.readDeclaration(row.getDeclarationPayload()));
         }
         Input input = loadInputs(tenantId, active.values().stream().flatMap(List::stream).toList());
+        // 受影响实体=受影响服务旧边端点 ∪ 重编译后新边端点（T-PERM-072 物化重算定位面）
+        Set<Long> affectedEntities = new HashSet<>();
+        input.existingEdges().stream()
+                .filter(e -> services.contains(e.getOwnerServiceCode()))
+                .forEach(e -> {
+                    affectedEntities.add(e.getResourceEntityId());
+                    affectedEntities.add(e.getDependsOnResourceEntityId());
+                });
         Map<String, List<DependencyCompiler.Edge>> graphs = new HashMap<>();
         List<PermissionDependencyDeclaration> changes = new ArrayList<>();
         for (String service : services.stream().sorted().toList()) {
             var result = compileInMemory(service, active.getOrDefault(service, List.of()), byService.getOrDefault(service, Map.of()), input);
             result.declarations().forEach(r -> changes.add(toRow(tenantId, service, r, now)));
             graphs.put(service, result.edges());
+            result.edges().forEach(edge -> {
+                affectedEntities.add(edge.sourceId());
+                affectedEntities.add(edge.targetId());
+            });
         }
         for (int offset = 0; offset < changes.size(); offset += SQL_BATCH_SIZE) {
             var batch = changes.subList(offset, Math.min(offset + SQL_BATCH_SIZE, changes.size()));
@@ -230,6 +265,7 @@ public class DependencyCompilationDomainService {
             stateMapper.markDirtyScopes(tenantId, batch);
             edgeMapper.refreshCompiledScopeDescriptions(tenantId, batch, now);
         }
+        return affectedEntities;
     }
     private SystemException failure(String message) {
         return new SystemException(AccessErrorCode.SYSTEM_INIT_FAILED.getCode(), message);

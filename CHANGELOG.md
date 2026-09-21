@@ -6,6 +6,7 @@
 
 ### Added
 
+- **自动授权物化与共享推导（T-PERM-072）**：`apply-grant-plan` / manifest 发布 / 资源 DELETE 与 FULL 缺失删除 / 操作位与继承掩码变更 / 类型删除与所有权变更 / 角色删除六类写入口同事务触发按角色完整重算——MANUAL 实例主授权种子沿编译图逻辑闭包推导 AUTO_DEP 行（`grant_source=AUTO_DEP`、单 canonical 操作位、条件变体直传含 NULL 并存、完整事实键精确去重），desired 与 actual diff 落库，无来源自动行同事务回收（共享来源单源保留、末源回收；中间事实继续传播；独立 MANUAL 不受物化删除）；资源停用/恢复不改变传播。新增错误码 **20069** `OPERATION_REFERENCED_BY_GRANTS`（操作位变更/删除存在有效 MANUAL/AUTO_DEP 引用时整批拒绝，AUTHORITY_ROOT 基座不算用户引用）。角色删除级联回收全部有效授权行与 INLINE 条件孤儿（授权根随角色消亡，边界修订见 decision-registry 2026-09-21 行）。
 - **独立依赖 manifest 发布通道与可选 SDK（T-PERM-071）**：新增 M2M 端点 `POST /api/access/integration/permission-manifest/full-sync`（服务凭证认证，所属服务发布依赖声明清单，逐项 RESOLVED/REJECTED 诊断）；SDK 新增 `perm-registration-spring-boot-starter`（静态 JSON 启动发布/动态 Provider 固定快照/显式资源前置与两步协调，默认关闭）；资源与清单发布引入发布源递增代次（平台按 scope 原子拒旧、同代次同指纹重试放行）。
 
 ### Changed

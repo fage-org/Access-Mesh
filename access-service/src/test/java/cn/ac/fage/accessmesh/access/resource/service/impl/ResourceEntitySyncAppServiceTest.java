@@ -78,7 +78,8 @@ class ResourceEntitySyncAppServiceTest {
                 typeResolutionService, resourceEntityMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(),
                 resourceTypeOwnershipGuard,
-                resourceEntityDomainService, treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class));
+                resourceEntityDomainService, treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.sync.metadata.ResourcePublicationDomainService.class), org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService.class),
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class));
         // 默认桩：类型门禁放行（SYNC+来源匹配+服务注册启用，T-PERM-052；评审 P1 后门禁含
         // service_config 状态校验）；拒绝态用例按需覆盖为 false
         lenient().when(resourceTypeOwnershipGuard.isSyncEntranceAllowed(anyLong(), anyString(), anyString()))
