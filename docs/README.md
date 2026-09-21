@@ -48,6 +48,7 @@ docs/
 ├── tasks/                             # 任务（原子执行单元，看板为唯一权威清单）
 │   └── README.md
 └── archive/                           # 归档文档（仅追溯，不作为实现依据）
+    ├── 2026-09-21/
     ├── 2026-09-20/
     ├── 2026-09-19/
     ├── 2026-09-18/
@@ -165,6 +166,7 @@ docs/
 
 | 归档批次              | 说明                                                                                                   | 入口                                                         |
 | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------ |
+| `archive/2026-09-21/` | T-PERM-079 单卡归档（done）：自动授权批次风格与可读性清理——七项验收全落地（doSyncOneInternal 参数组 record/状态字面量常量化/服务启用判据单源/SqlBatches 分批样板收敛/var 定调=登记允许/次要项清理/ResourcePublicationHeavyPgIT 拆档+skipHeavyIT 开关），两项用户拍板与 claude 外评处置（P3×2 直修）见 decision-registry 2026-09-21 各行。 | [archive/2026-09-21/README.md](archive/2026-09-21/README.md) |
 | `archive/2026-09-20/` | 同日包含前端会话一致性归档，以及 IAM 全面评审证据、自动授权历史设计/评估与原定案追溯。frontend-session-consistency-plan 归档：前端会话生命周期与交互一致性修复——T-GW-009 + T-FE-045~056 十三任务全 done（登出真注销/强制改密闭环/删除确认/会话权限热刷新/登录半成功语义/递归 bug/composable 化/拖拽与禁用确认/守卫卫生/token 过期短路/入口文案/menus 派生路由门禁/Gateway 白名单前置），九张独立卡随迁 `tasks/`（其余为纯看板行）；归档批次三项待办同日执行通过——全量回归 `mvn test -T 1C` 1726 项 0 失败（E2E 实跑）+ T-FE-046 端到端验收六项判据全过（真实非管理员用户经 Gateway 阻断→改密→放行，纯空白密码拦截用例一并执行）+ T-GW-009 Nacos 复核（gateway.yml 不存在、无远端覆盖）。定案见 decision-registry 2026-09-19/09-20 各行。 | [archive/2026-09-20/README.md](archive/2026-09-20/README.md) |
 | `archive/2026-09-19/` | T-PERM-035 单卡归档（cancelled）：自动授权旧口径（resolveAutoGrants/autoGrantForInsert）被定稿设计取代——dependency-auto-grant.md + service-authentication.md 双稿 adopted（用户确认定稿），实现承接 T-PERM-070~073，§11 E4 暂缓随定稿解除。原定案与拆分依据见 [原定案追溯](archive/2026-09-20/auto-grant-prior-decisions.md)，当前口径见 decision-registry 的简化方案采纳条目。 | [archive/2026-09-19/README.md](archive/2026-09-19/README.md) |
 | `archive/2026-09-18/` | 两批次：批次一 T-PERM-069（Q-008 转出，API 类型内部来源收紧——种子声明 SYNC+access-service、管理面资源 CRUD 20055；含同日 claude/grok 外评处置）；批次二 T-ACCESS-051（Q-013 转出，TaskExecutionLeaseConcurrencyTest 两裸 sleep(1200) 改 5s 有界轮询；双轨评审上报三处同族裸 sleep 登记 Q-014）。定案与处置见 decision-registry 2026-09-18 行。 | [archive/2026-09-18/README.md](archive/2026-09-18/README.md) |

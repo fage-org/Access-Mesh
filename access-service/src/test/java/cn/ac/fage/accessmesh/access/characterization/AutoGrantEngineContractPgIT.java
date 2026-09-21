@@ -76,10 +76,10 @@ class AutoGrantEngineContractPgIT {
     void shouldKeepConditionsSpecificToEachCanonicalOperation() {
         Fixture f = fixture();
         operation(f, "VIEW", BIT_VIEW, 0);
-        operation(f, "EXPORT", BIT_UPDATE, 0);
+        operation(f, "EXPORT", BIT_EXPORT, 0);
         long denied = condition(false);
         grant(f, BIT_VIEW, null, "AUTO_DEP");
-        grant(f, BIT_UPDATE, denied, "AUTO_DEP");
+        grant(f, BIT_EXPORT, denied, "AUTO_DEP");
         assertThat(check(f, "VIEW")).isTrue();
         assertThat(check(f, "EXPORT")).isFalse();
         assertThat(batch(f, "VIEW", "EXPORT")).containsExactly(true, false);
@@ -92,14 +92,14 @@ class AutoGrantEngineContractPgIT {
         long falseCondition = condition(false);
         long trueCondition = condition(true);
         long unconditional = grant(f, BIT_VIEW, null, "AUTO_DEP");
-        long falseFact = grant(f, 2, falseCondition, "AUTO_DEP");
-        long trueFact = grant(f, 2, trueCondition, "AUTO_DEP");
+        long falseFact = grant(f, BIT_VIEW, falseCondition, "AUTO_DEP");
+        long trueFact = grant(f, BIT_VIEW, trueCondition, "AUTO_DEP");
         assertThat(check(f, "VIEW")).isTrue();
         removeFact(unconditional);
         assertThat(check(f, "VIEW")).as("无条件行移除后仍按条件变体 OR 判定").isTrue();
         removeFact(trueFact);
         assertThat(check(f, "VIEW")).as("仅剩不满足条件的自动事实").isFalse();
-        long manual = grant(f, 2, null, "MANUAL");
+        long manual = grant(f, BIT_VIEW, null, "MANUAL");
         assertThat(check(f, "VIEW")).isTrue();
         removeFact(falseFact);
         assertThat(check(f, "VIEW")).as("独立 MANUAL 不依赖 AUTO_DEP 行").isTrue();
@@ -138,8 +138,8 @@ class AutoGrantEngineContractPgIT {
     void shouldKeepDistinctConditionIdentities_whenExpressionsAreEqual() {
         Fixture f = fixture();
         operation(f, "VIEW", BIT_VIEW, 0);
-        long first = grant(f, 2, condition(true), "AUTO_DEP");
-        long second = grant(f, 2, condition(true), "AUTO_DEP");
+        long first = grant(f, BIT_VIEW, condition(true), "AUTO_DEP");
+        long second = grant(f, BIT_VIEW, condition(true), "AUTO_DEP");
         PermQuery q = PermQuery.forAuthCheck(TENANT, f.user(), f.typeCode(), "target", "VIEW");
         q.setEvalContext(context());
         assertThat(engine.query(q).matchedPermissionIds()).containsExactlyInAnyOrder(first, second);
