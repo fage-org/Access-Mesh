@@ -14,7 +14,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.Ser
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorUtil;
-import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.common.enums.GlobalErrorCode;
@@ -131,8 +130,8 @@ public class ServiceCredentialAppServiceImpl implements ServiceCredentialAppServ
 
     /** 绑定服务注册+启用校验（未注册/停用→参数拒绝，防止签发恒拒绝的死凭证）。 */
     private void requireActiveService(Long tenantId, String serviceCode) {
-        ServiceConfig config = serviceConfigDomainService.selectByTenantAndServiceCode(tenantId, serviceCode);
-        if (config == null || config.getStatus() == null || config.getStatus() != 1) {
+        if (!ServiceConfigDomainService.isRegisteredAndEnabled(
+                serviceConfigDomainService.selectByTenantAndServiceCode(tenantId, serviceCode))) {
             throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
                 AccessErrorCode.PERM_INVALID_PARAM.getMessage()
                     + ": 服务 " + serviceCode + " 未注册或已停用，凭证只能绑定已启用的注册服务");

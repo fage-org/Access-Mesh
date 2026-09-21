@@ -9,6 +9,8 @@ import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.impl.ServiceConfigDomainServiceImpl;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceManageAppService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
@@ -53,8 +55,9 @@ class ServiceConfigAppServiceImplTest {
     @BeforeEach
     void setUp() {
         // 真实 SyncTypeGuard（validateSyncTypesExtra 不依赖 mapper）：保存边界结构校验真实生效
+        //（guard 依赖的 ServiceConfigDomainService 用真实实现包 mock mapper——域服务零逻辑纯委托）
         service = new ServiceConfigAppServiceImpl(serviceConfigMapper, engine, resourceApiMappingMapper,
-                new SyncTypeGuard(serviceConfigMapper, new ObjectMapper()),
+                new SyncTypeGuard(new ServiceConfigDomainServiceImpl(serviceConfigMapper), new ObjectMapper()),
                 resourceSyncHandler, typeResolutionService, resourceManageAppService);
     }
 

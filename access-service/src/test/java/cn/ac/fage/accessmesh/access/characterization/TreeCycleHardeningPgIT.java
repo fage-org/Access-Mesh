@@ -261,8 +261,7 @@ class TreeCycleHardeningPgIT {
     @Test
     @DisplayName("树写锁互斥且经事务 afterCompletion 释放（解锁不先于提交）")
     void redisLockHeldUntilTransactionCompletion() throws Exception {
-        String lockKey = "accessmesh:tree-write-lock:"
-            + TreeWriteLockSupport.TreeLockTarget.SYS_MENU.key() + ":" + TENANT;
+        String lockKey = TreeWriteLockSupport.lockKey(TENANT, TreeWriteLockSupport.TreeLockTarget.SYS_MENU);
         org.redisson.api.RLock probeLock = redissonClient.getLock(lockKey);
 
         TransactionTemplate txn = new TransactionTemplate(transactionManager);

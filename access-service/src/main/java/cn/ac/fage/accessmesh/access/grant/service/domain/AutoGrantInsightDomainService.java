@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.grant.service.domain;
 
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.util.OperationPermissionUtils;
+import cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp.ConditionRef;
@@ -63,8 +64,6 @@ import java.util.stream.Collectors;
  */
 @Service
 public class AutoGrantInsightDomainService {
-
-    private static final int SQL_BATCH_SIZE = 500;
 
     /** 种子来源渲染序：现有行按 permissionId 数值在前，计划条目按 requestItemRef 码点在后。 */
     private static final Comparator<SeedRef> SEED_REF_ORDER = Comparator
@@ -166,12 +165,11 @@ public class AutoGrantInsightDomainService {
             endpoints.add(edge.targetId());
         });
         List<Long> endpointList = new ArrayList<>(endpoints);
-        for (int offset = 0; offset < endpointList.size(); offset += SQL_BATCH_SIZE) {
-            for (var entity : resourceEntities.selectValidByIds(tenantId, new LinkedHashSet<>(
-                    endpointList.subList(offset, Math.min(offset + SQL_BATCH_SIZE, endpointList.size()))))) {
+        SqlBatches.forEach(endpointList, batch -> {
+            for (var entity : resourceEntities.selectValidByIds(tenantId, new LinkedHashSet<>(batch))) {
                 resourceTypeByEntity.put(entity.getId(), entity.getResourceType());
             }
-        }
+        });
         List<OperationPermission> operationRows = resourceTypeByEntity.isEmpty() ? List.of()
             : operations.selectByTenantAndResourceTypes(tenantId, new HashSet<>(resourceTypeByEntity.values()));
         return new TenantGraph(edges, resourceTypeByEntity, operationRows, compilation.loadDeclarations(tenantId));
@@ -203,12 +201,11 @@ public class AutoGrantInsightDomainService {
         graph.resourceTypeByEntity().keySet().forEach(involved::add);
         Map<Long, ResourceEntity> resourceById = new HashMap<>();
         List<Long> involvedList = new ArrayList<>(involved);
-        for (int offset = 0; offset < involvedList.size(); offset += SQL_BATCH_SIZE) {
-            for (var entity : resourceEntities.selectValidByIds(tenantId, new LinkedHashSet<>(
-                    involvedList.subList(offset, Math.min(offset + SQL_BATCH_SIZE, involvedList.size()))))) {
+        SqlBatches.forEach(involvedList, batch -> {
+            for (var entity : resourceEntities.selectValidByIds(tenantId, new LinkedHashSet<>(batch))) {
                 resourceById.put(entity.getId(), entity);
             }
-        }
+        });
         // 类型值全集 = 行携带（资源软删防御）∪ 资源行 ∪ 图端点；一次反查类型编码
         Map<Long, Integer> typeByEntity = new HashMap<>(graph.resourceTypeByEntity());
         rows.forEach(row -> {
@@ -391,7 +388,7 @@ public class AutoGrantInsightDomainService {
         // 声明索引：编译键（源实体+目标实体+COALESCE 触发位）→ RESOLVED 声明
         Map<String, List<PermissionDependencyDeclaration>> declarationsByCompileKey = new HashMap<>();
         for (PermissionDependencyDeclaration declaration : view.graph().declarations()) {
-            if (!"RESOLVED".equals(declaration.getCompileStatus())
+            if (!PermissionDependencyDeclaration.COMPILE_STATUS_RESOLVED.equals(declaration.getCompileStatus())
                 || declaration.getSourceResourceId() == null || declaration.getTargetResourceId() == null) {
                 continue;
             }

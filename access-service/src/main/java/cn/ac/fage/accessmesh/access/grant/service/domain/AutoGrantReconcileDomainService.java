@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivation.DependencyEdge;
 import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivation.Fact;
+import cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches;
 import cn.ac.fage.accessmesh.access.resource.entity.PermissionDependencyDeclaration;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
@@ -41,7 +42,6 @@ public class AutoGrantReconcileDomainService {
     private static final Logger log = LoggerFactory.getLogger(AutoGrantReconcileDomainService.class);
     /** 对账角色批大小（rows 批量装载 + 有效角色过滤批查询） */
     private static final int ROLE_BATCH_SIZE = 200;
-    private static final int RESOURCE_BATCH_SIZE = 500;
 
     private final RoleResourcePermissionMapper rolePermissionMapper;
     private final AutoGrantDerivation derivation;
@@ -97,7 +97,7 @@ public class AutoGrantReconcileDomainService {
         }
         Map<String, List<PermissionDependencyDeclaration>> resolvedByKey = new HashMap<>();
         for (PermissionDependencyDeclaration declaration : graph.declarations()) {
-            if (!"RESOLVED".equals(declaration.getCompileStatus())
+            if (!PermissionDependencyDeclaration.COMPILE_STATUS_RESOLVED.equals(declaration.getCompileStatus())
                 || declaration.getSourceResourceId() == null || declaration.getTargetResourceId() == null) {
                 continue;
             }
@@ -135,7 +135,7 @@ public class AutoGrantReconcileDomainService {
             AutoGrantInsightDomainService.TenantGraph graph) {
         Set<Long> referenced = new LinkedHashSet<>();
         for (PermissionDependencyDeclaration declaration : graph.declarations()) {
-            if ("RESOLVED".equals(declaration.getCompileStatus())) {
+            if (PermissionDependencyDeclaration.COMPILE_STATUS_RESOLVED.equals(declaration.getCompileStatus())) {
                 if (declaration.getSourceResourceId() != null) referenced.add(declaration.getSourceResourceId());
                 if (declaration.getTargetResourceId() != null) referenced.add(declaration.getTargetResourceId());
             }
@@ -146,15 +146,14 @@ public class AutoGrantReconcileDomainService {
         }
         Set<Long> validIds = new HashSet<>();
         List<Long> referencedList = new ArrayList<>(referenced);
-        for (int offset = 0; offset < referencedList.size(); offset += RESOURCE_BATCH_SIZE) {
-            for (ResourceEntity entity : resourceEntities.selectValidByIds(tenantId, new LinkedHashSet<>(
-                    referencedList.subList(offset, Math.min(offset + RESOURCE_BATCH_SIZE, referencedList.size()))))) {
+        SqlBatches.forEach(referencedList, batch -> {
+            for (ResourceEntity entity : resourceEntities.selectValidByIds(tenantId, new LinkedHashSet<>(batch))) {
                 validIds.add(entity.getId());
             }
-        }
+        });
         List<String> issues = new ArrayList<>();
         for (PermissionDependencyDeclaration declaration : graph.declarations()) {
-            if (!"RESOLVED".equals(declaration.getCompileStatus())) continue;
+            if (!PermissionDependencyDeclaration.COMPILE_STATUS_RESOLVED.equals(declaration.getCompileStatus())) continue;
             if ((declaration.getSourceResourceId() != null && !validIds.contains(declaration.getSourceResourceId()))
                 || (declaration.getTargetResourceId() != null && !validIds.contains(declaration.getTargetResourceId()))) {
                 issues.add("declaration " + declaration.getId() + " (" + declaration.getDeclarationKey()

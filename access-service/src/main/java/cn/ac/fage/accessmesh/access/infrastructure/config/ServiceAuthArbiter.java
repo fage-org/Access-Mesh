@@ -106,12 +106,7 @@ public class ServiceAuthArbiter implements HandlerInterceptor {
                 userId,
                 tenantId
             );
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-            response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            response.setCharacterEncoding(StandardCharsets.UTF_8.name());
-            response.getWriter().write(
-                "{\"code\":403,\"message\":\"拒绝访问：缺少有效的内部调用凭证\",\"data\":null}"
-            );
+            writeForbiddenJson(response, 403, "拒绝访问：缺少有效的内部调用凭证");
             return false;
         }
         // 标记请求已通过内部密钥校验，供后续拦截器（HeaderSignatureInterceptor）决策
@@ -153,11 +148,19 @@ public class ServiceAuthArbiter implements HandlerInterceptor {
             null,
             null
         );
+        writeForbiddenJson(response, code.getCode(), code.getMessage());
+        return false;
+    }
+
+    /**
+     * 两策略共用的 403 JSON 信封写出（统一响应头与编码；body 形状与 RequestContextInterceptor
+     * 的 writeJson 同族——code/message/data 三段，拦截器层不经全局异常处理器）。
+     */
+    private void writeForbiddenJson(HttpServletResponse response, int code, String message) throws Exception {
         response.setStatus(HttpServletResponse.SC_FORBIDDEN);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.getWriter().write(String.format(
-            "{\"code\":%d,\"message\":\"%s\",\"data\":null}", code.getCode(), code.getMessage()));
-        return false;
+            "{\"code\":%d,\"message\":\"%s\",\"data\":null}", code, message));
     }
 }

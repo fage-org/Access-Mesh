@@ -19,4 +19,18 @@ public interface ServiceConfigDomainService {
      * @return 服务配置实体，不存在返回 null
      */
     ServiceConfig selectByTenantAndServiceCode(Long tenantId, String serviceCode);
+
+    /**
+     * 「服务已注册且启用」行级判定的唯一出口（T-PERM-079 收敛）：行存在且 status=1。
+     * <p>
+     * 软删行经 {@code selectByTenantAndServiceCode} 的 {@code delete_flag=0} 谓词天然排除，
+     * 无需另行判 deleteFlag。消费点：类型所有权门禁（运行时/保存侧）、sync 通道白名单、
+     * manifest 发布入口、凭证签发与验证——五处语义必须同源，不得各自内联。
+     * 消费形态统一为「先 {@link #selectByTenantAndServiceCode} 取行、再本判定」（不做查询+判定
+     * 合并的便捷重载：接口 default 方法会被 Mockito 整体拦截，破坏既有测试对查询方法的桩）。
+     * </p>
+     */
+    static boolean isRegisteredAndEnabled(ServiceConfig config) {
+        return config != null && Integer.valueOf(1).equals(config.getStatus());
+    }
 }

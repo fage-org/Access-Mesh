@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializatio
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
+import cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService;
@@ -58,8 +59,6 @@ import java.util.TreeSet;
 public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMaterializationDomainService {
 
     private static final Logger log = LoggerFactory.getLogger(AutoGrantMaterializationDomainServiceImpl.class);
-    /** 对齐 DependencyCompilationDomainService 先例的 SQL 批大小 */
-    private static final int SQL_BATCH_SIZE = 500;
 
     private final RoleResourcePermissionMapper rolePermissionMapper;
     private final AutoGrantDerivation derivation;
@@ -134,13 +133,12 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
         List<OperationPermission> operationRows = List.of();
         if (!involvedResourceIds.isEmpty()) {
             List<Long> involved = new ArrayList<>(involvedResourceIds);
-            for (int offset = 0; offset < involved.size(); offset += SQL_BATCH_SIZE) {
-                // 分批装载（种子资源 ∪ 全图边端点可超数据库参数上限——对齐 recomputeByResourceEntities 同款修复）
-                for (var entity : resourceEntities.selectValidByIds(tenantId,
-                        new java.util.LinkedHashSet<>(involved.subList(offset, Math.min(offset + SQL_BATCH_SIZE, involved.size()))))) {
+            // 分批装载（种子资源 ∪ 全图边端点可超数据库参数上限——对齐 recomputeByResourceEntities 同款修复）
+            SqlBatches.forEach(involved, batch -> {
+                for (var entity : resourceEntities.selectValidByIds(tenantId, new LinkedHashSet<>(batch))) {
                     resourceTypes.put(entity.getId(), entity.getResourceType());
                 }
-            }
+            });
             if (!edges.isEmpty()) {
                 operationRows = operations.selectByTenantAndResourceTypes(tenantId, new HashSet<>(resourceTypes.values()));
             }
@@ -192,11 +190,9 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
         }
         // 分批定位受影响角色（对齐 071 大清单先例——大 scope 清理的实体集可能超出数据库参数上限）
         List<Long> orderedIds = new ArrayList<>(resourceEntityIds);
-        Set<Long> roleIds = new java.util.LinkedHashSet<>();
-        for (int offset = 0; offset < orderedIds.size(); offset += SQL_BATCH_SIZE) {
-            List<Long> batch = orderedIds.subList(offset, Math.min(offset + SQL_BATCH_SIZE, orderedIds.size()));
-            roleIds.addAll(rolePermissionMapper.selectRoleIdsByResourceIds(tenantId, batch));
-        }
+        Set<Long> roleIds = new LinkedHashSet<>();
+        SqlBatches.forEach(orderedIds,
+                batch -> roleIds.addAll(rolePermissionMapper.selectRoleIdsByResourceIds(tenantId, batch)));
         return recompute(tenantId, roleIds, Set.of());
     }
 
@@ -208,10 +204,8 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
         LocalDateTime now = LocalDateTime.now();
         List<RoleResourcePermission> rows = new ArrayList<>();
         List<Long> orderedRoleIds = new ArrayList<>(roleIds);
-        for (int offset = 0; offset < orderedRoleIds.size(); offset += SQL_BATCH_SIZE) {
-            rows.addAll(rolePermissionMapper.selectValidByRoleIds(tenantId,
-                new java.util.LinkedHashSet<>(orderedRoleIds.subList(offset, Math.min(offset + SQL_BATCH_SIZE, orderedRoleIds.size())))));
-        }
+        SqlBatches.forEach(orderedRoleIds, batch ->
+                rows.addAll(rolePermissionMapper.selectValidByRoleIds(tenantId, new LinkedHashSet<>(batch))));
         if (rows.isEmpty()) {
             return;
         }
@@ -266,8 +260,7 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
     }
 
     private void insertBatch(Long tenantId, List<RoleResourcePermission> rows) {
-        for (int offset = 0; offset < rows.size(); offset += SQL_BATCH_SIZE) {
-            List<RoleResourcePermission> batch = rows.subList(offset, Math.min(offset + SQL_BATCH_SIZE, rows.size()));
+        SqlBatches.forEach(rows, batch -> {
             try {
                 if (rolePermissionMapper.insertBatch(batch) != batch.size()) {
                     throw new BizException(AccessErrorCode.PERMISSION_NOT_FOUND.getCode(),
@@ -280,18 +273,17 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
                 }
                 throw exception;
             }
-        }
+        });
     }
 
     private void softDeleteBatch(Long tenantId, List<Long> ids, LocalDateTime now) {
-        for (int offset = 0; offset < ids.size(); offset += SQL_BATCH_SIZE) {
-            List<Long> batch = ids.subList(offset, Math.min(offset + SQL_BATCH_SIZE, ids.size()));
+        SqlBatches.forEach(ids, batch -> {
             int affected = rolePermissionMapper.softDeleteBatch(tenantId, batch, now);
             if (affected != batch.size()) {
                 throw new BizException(AccessErrorCode.PERMISSION_NOT_FOUND.getCode(),
                     "AUTO_DEP remove count does not match the derived plan");
             }
-        }
+        });
     }
 
     private void recordRecomputeAudit(Long tenantId, Long roleId, List<RoleResourcePermission> inserted,

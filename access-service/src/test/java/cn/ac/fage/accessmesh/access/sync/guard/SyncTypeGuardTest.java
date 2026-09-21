@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync.guard;
 
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
-import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard.SyncTypes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,14 +32,14 @@ class SyncTypeGuardTest {
                     + " \"sourceTypes\": [\"HR_MEMBER\"]}}";
 
     @Mock
-    private ServiceConfigMapper serviceConfigMapper;
+    private ServiceConfigDomainService serviceConfigDomainService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private SyncTypeGuard guard;
 
     @BeforeEach
     void setUp() {
-        guard = new SyncTypeGuard(serviceConfigMapper, objectMapper);
+        guard = new SyncTypeGuard(serviceConfigDomainService, objectMapper);
     }
 
     private ServiceConfig config(String extra, Integer status, Long deleteFlag) {
@@ -55,16 +55,15 @@ class SyncTypeGuardTest {
     @Test
     @DisplayName("服务未注册 → 拒绝")
     void shouldReject_whenServiceNotRegistered() {
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE)).thenReturn(null);
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE)).thenReturn(null);
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isFalse();
     }
 
     @Test
-    @DisplayName("服务已删除 → 拒绝")
+    @DisplayName("服务已删除 → 拒绝（软删行经查询谓词 delete_flag=0 不可见，同未注册）")
     void shouldReject_whenServiceDeleted() {
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
-                .thenReturn(config(DECLARED, 1, 9L));
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE)).thenReturn(null);
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isFalse();
     }
@@ -72,7 +71,7 @@ class SyncTypeGuardTest {
     @Test
     @DisplayName("服务禁用（status=0）→ 拒绝")
     void shouldReject_whenServiceDisabled() {
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE))
                 .thenReturn(config(DECLARED, 0, 0L));
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isFalse();
@@ -81,7 +80,7 @@ class SyncTypeGuardTest {
     @Test
     @DisplayName("extra 缺失 → 拒绝（配置缺失按无权限处理）")
     void shouldReject_whenExtraMissing() {
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE))
                 .thenReturn(config(null, 1, 0L));
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isFalse();
@@ -90,7 +89,7 @@ class SyncTypeGuardTest {
     @Test
     @DisplayName("extra 非法 JSON → 拒绝（配置损坏按无权限处理）")
     void shouldReject_whenExtraInvalid() {
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE))
                 .thenReturn(config("not-json", 1, 0L));
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isFalse();
@@ -99,7 +98,7 @@ class SyncTypeGuardTest {
     @Test
     @DisplayName("syncTypes 缺失 → 拒绝")
     void shouldReject_whenSyncTypesMissing() {
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE))
                 .thenReturn(config("{\"name\": \"hr\"}", 1, 0L));
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isFalse();
@@ -108,7 +107,7 @@ class SyncTypeGuardTest {
     @Test
     @DisplayName("对应分类缺失 → 该分类任何请求拒绝")
     void shouldReject_whenCategoryMissing() {
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE))
                 .thenReturn(config("{\"syncTypes\": {\"roleTypeCodes\": [\"TEAM_ROLE\"]}}", 1, 0L));
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isFalse();
@@ -118,7 +117,7 @@ class SyncTypeGuardTest {
     @Test
     @DisplayName("类型已声明 → 允许")
     void shouldAllow_whenTypeDeclared() {
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE))
                 .thenReturn(config(DECLARED, 1, 0L));
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isTrue();
@@ -131,7 +130,7 @@ class SyncTypeGuardTest {
     @Test
     @DisplayName("类型未声明 → 拒绝（不得使用其他服务的类型空间）")
     void shouldReject_whenTypeNotDeclared() {
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE))
                 .thenReturn(config(DECLARED, 1, 0L));
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("PROJ_USER"))).isFalse();
@@ -141,26 +140,26 @@ class SyncTypeGuardTest {
     @DisplayName("请求无类型要求 → 直接允许（不查配置；仅引用类型不校验）")
     void shouldAllow_whenNoTypeRequired() {
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.NONE)).isTrue();
-        verify(serviceConfigMapper, never()).selectByTenantAndServiceCode(anyLong(), anyString());
+        verify(serviceConfigDomainService, never()).selectByTenantAndServiceCode(anyLong(), anyString());
     }
 
     @Test
     @DisplayName("单次请求只查询一次 service_config（禁止按 item 查询）")
     void shouldQueryConfigOnce() {
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE))
                 .thenReturn(config(DECLARED, 1, 0L));
 
         guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"));
         guard.validate(TENANT, SERVICE, SyncTypes.role("TEAM_ROLE"));
 
-        verify(serviceConfigMapper, times(2)).selectByTenantAndServiceCode(TENANT, SERVICE);
+        verify(serviceConfigDomainService, times(2)).selectByTenantAndServiceCode(TENANT, SERVICE);
     }
 
     @Test
     @DisplayName("声明值去首尾空白、忽略空白项（不做大小写转换，精确匹配）")
     void shouldTrimDeclaredValues() {
         String padded = "{\"syncTypes\": {\"subjectTypeCodes\": [\"  EMP  \", \" \", \"PROJ_USER\"]}}";
-        when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, SERVICE))
+        when(serviceConfigDomainService.selectByTenantAndServiceCode(TENANT, SERVICE))
                 .thenReturn(config(padded, 1, 0L));
 
         assertThat(guard.validate(TENANT, SERVICE, SyncTypes.subject("EMP"))).isTrue();

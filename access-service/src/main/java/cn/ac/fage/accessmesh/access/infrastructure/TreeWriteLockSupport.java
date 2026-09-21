@@ -83,7 +83,7 @@ public class TreeWriteLockSupport {
             throw new IllegalStateException(
                 "lockTreeWrites 必须在事务内调用（释放依赖事务边界的 afterCompletion 回调）: " + target);
         }
-        RLock lock = redissonClient.getLock(LOCK_KEY_PREFIX + target.key + ":" + tenantId);
+        RLock lock = redissonClient.getLock(lockKey(tenantId, target));
         lock.lock();
         // 拿锁成功后注册释放回调；注册本身失败（极端）时立即解锁回滚语义，
         // 不让无释放时机的锁悬挂到 TTL
@@ -108,5 +108,13 @@ public class TreeWriteLockSupport {
             }
             throw e;
         }
+    }
+
+    /**
+     * 构造 (树, 租户) 的锁 key——探测/诊断与 {@link #lockTreeWrites} 共用同一 key 空间的
+     * 唯一入口（前缀与分段格式只在此定义，测试不得裸拼）。
+     */
+    public static String lockKey(Long tenantId, TreeLockTarget target) {
+        return LOCK_KEY_PREFIX + target.key + ":" + tenantId;
     }
 }

@@ -24,6 +24,9 @@ import java.time.LocalDateTime;
 @Table("resource_dependency")
 public class ResourceDependency {
 
+    /** maintain_source 固定值（编译器写入的聚合边，DDL 列注释同口径；唯一引用点，禁字面量散布）。 */
+    public static final String MAINTAIN_SOURCE_MANIFEST = "MANIFEST";
+
     /**
      * 资源依赖关系唯一标识
      */

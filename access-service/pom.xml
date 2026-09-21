@@ -19,7 +19,27 @@
         <skipTestcontainers>false</skipTestcontainers>
         <!-- 容器组 fork 数（T-ACCESS-030）：默认 2；-Dit.forkCount=1 串行复跑定性 fork 级抖动的逃生门 -->
         <it.forkCount>2</it.forkCount>
+        <!-- 容器重组用例开关（T-PERM-079 拆档）：true 时容器 execution 排除
+             testcontainers-heavy 标签（超大规模清理用例，单用例数十秒）；收口形态
+             mvn test -T 1C 不带本开关，heavy 必跑 -->
+        <skipHeavyIT>false</skipHeavyIT>
+        <heavyExcludedGroups></heavyExcludedGroups>
     </properties>
+
+    <profiles>
+        <profile>
+            <id>skip-heavy-it</id>
+            <activation>
+                <property>
+                    <name>skipHeavyIT</name>
+                    <value>true</value>
+                </property>
+            </activation>
+            <properties>
+                <heavyExcludedGroups>testcontainers-heavy</heavyExcludedGroups>
+            </properties>
+        </profile>
+    </profiles>
 
     <dependencies>
         <dependency>
@@ -243,8 +263,9 @@
                             <goal>test</goal>
                         </goals>
                         <configuration>
-                            <!-- 清空继承的 excludedGroups，改为按组纳入容器测试 -->
-                            <excludedGroups combine.self="override"/>
+                            <!-- 清空继承的 excludedGroups，改为按组纳入容器测试；
+                                 heavy 标签经 skipHeavyIT 开关注入排除（T-PERM-079 拆档） -->
+                            <excludedGroups combine.self="override">${heavyExcludedGroups}</excludedGroups>
                             <groups>testcontainers</groups>
                             <!-- 单测轨道开关：mvn test -DskipTestcontainers=true 跳过本 execution -->
                             <skip>${skipTestcontainers}</skip>

@@ -21,6 +21,7 @@ import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.sync.mapper.SyncMetadataMapper;
 import cn.ac.fage.accessmesh.access.resource.service.ResourceEntitySyncAppService;
@@ -52,7 +53,6 @@ import java.util.Set;
 @Service
 public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppService {
 
-    private static final int SQL_BATCH_SIZE = 500;
     private static final String ENTITY_KIND = "RESOURCE_ENTITY";
     private static final String DEFAULT_CODE_TYPE = "default";
     private static final String OP_UPSERT = "UPSERT";
@@ -148,7 +148,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         }
         var decision = ResourcePublicationPolicy.single(state, metadata, generation, itemHash);
         if (decision != ResourcePublicationPolicy.Decision.APPLY) return publicationRejection(decision);
-        SyncResultResp result = doSyncOne(tenantId, req, metadata, generation, itemHash);
+        SyncResultResp result = applySingleSync(tenantId, req, metadata, generation, itemHash);
         if (generation != null && result.applied()) publications.acceptSingle(tenantId, req.sourceService(), scope, generation);
         return result;
     }
@@ -229,11 +229,10 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         // ---- 阶段 B：批量解析 resourceTypeValue + 现有 entities + parent ids ----
         Integer resourceTypeValue = typeResolutionService.resolveTypeValue(
                 tenantId, "resource_type", req.scope().resourceTypeCode());
-        // resourceTypeValue 为 null 时不直接拒绝整批，沿用单条 doSyncOne 路径让每条 item 独立返回 dependencyMissing。
+        // resourceTypeValue 为 null 时不直接拒绝整批，沿用单条 applySingleSync 路径让每条 item 独立返回 dependencyMissing。
         Map<CodeKey, ResourceEntity> existingByCodeKey = new HashMap<>();
         if (resourceTypeValue != null) {
-            for (int offset = 0; offset < req.items().size(); offset += SQL_BATCH_SIZE) {
-                var batch = req.items().subList(offset, Math.min(offset + SQL_BATCH_SIZE, req.items().size()));
+            SqlBatches.forEach(req.items(), batch -> {
                 Set<String> batchCodes = new HashSet<>();
                 Set<String> batchCodeTypes = new HashSet<>();
                 for (var item : batch) {
@@ -244,14 +243,12 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                         tenantId, resourceTypeValue, batchCodes, batchCodeTypes)) {
                     existingByCodeKey.put(new CodeKey(re.getCode(), re.getCodeType()), re);
                 }
-            }
+            });
         }
         Map<ResourceResolveKey, Long> parentResolved = new HashMap<>();
         List<ResourceResolveRequest> uniqueParents = parentRequests.stream().distinct().toList();
-        for (int offset = 0; offset < uniqueParents.size(); offset += SQL_BATCH_SIZE) {
-            parentResolved.putAll(typeResolutionService.batchResolveResourceIds(tenantId,
-                    uniqueParents.subList(offset, Math.min(offset + SQL_BATCH_SIZE, uniqueParents.size()))));
-        }
+        SqlBatches.forEach(uniqueParents,
+                batch -> parentResolved.putAll(typeResolutionService.batchResolveResourceIds(tenantId, batch)));
 
         // ---- 阶段 B.6：全量父子关系内存图（写入前逐项判环用；无父项批次跳过加载，
         // 对齐角色 fullSync 先例——循环体内无数据库调用，N+1 禁令）----
@@ -275,7 +272,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                     req.scope().resourceTypeCode(), item.resourceCode(), codeType);
             seenBusinessKeyHashes.add(SyncKeyCodecUtil.sha256Hex(businessKey));
 
-            // 通过 doFullSyncOne 复用 single-sync 的所有版本/依赖语义，但 existing 与 parentId 命中阶段 B 缓存。
+            // 通过 applyItemSync 复用 single-sync 的所有版本/依赖语义，但 existing 与 parentId 命中阶段 B 缓存。
             ResourceEntity existing = existingByCodeKey.get(new CodeKey(item.resourceCode(), codeType));
             // T-PERM-068：父字段组激活条件=parentResourceCode 非空；typeCode 缺省回填 scope 类型
             boolean parentRequested = item.parentResourceCode() != null && !item.parentResourceCode().isBlank();
@@ -313,11 +310,12 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                         "RESOURCE_PARENT_INVALID: " + itemParentTypeCode + ":" + item.parentResourceCode()));
                 continue;
             }
-            SyncResultResp r = doSyncOneInternal(tenantId, oneReq, resourceTypeValue, existing,
-                    true, parentRequested, preResolvedParentId, true, now, itemMetadata, generation, itemHash);
+            SyncResultResp r = applyItemSync(tenantId, oneReq,
+                    new FullSyncPrefetch(resourceTypeValue, existing, true, parentRequested, preResolvedParentId, true),
+                    now, itemMetadata, generation, itemHash);
             if (r.applied()) {
                 applied++;
-                // doSyncOneInternal 在新建分支会把 insert 后的 ResourceEntity 注入 cache 不在此处再查 DB（避免 N+1）。
+                // applyItemSync 在新建分支会把 insert 后的 ResourceEntity 注入 cache 不在此处再查 DB（避免 N+1）。
                 // 内存图镜像写入语义：更新分支成功后把边改为本项 parent，供后续项判环
                 if (parentGraphById != null && existing != null) {
                     parentGraphById.put(existing.getId(), parentRequested ? preResolvedParentId : null);
@@ -343,14 +341,13 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             }
             deactivated++;
         }
-        for (int offset = 0; offset < missingHashes.size(); offset += SQL_BATCH_SIZE) {
-            publications.markDeleted(tenantId, req.scope().sourceService(), scopeKey,
-                    missingHashes.subList(offset, Math.min(offset + SQL_BATCH_SIZE, missingHashes.size())));
-        }
+        // req 在上方被规范化重赋值，lambda 捕获需终态局部
+        String scopeSource = req.scope().sourceService();
+        SqlBatches.forEach(missingHashes,
+                batch -> publications.markDeleted(tenantId, scopeSource, scopeKey, batch));
         List<Long> deleteIds = new ArrayList<>(deactivateTargetIds);
-        for (int offset = 0; offset < deleteIds.size(); offset += SQL_BATCH_SIZE) {
-            resourceEntityMapper.softDeleteBatch(tenantId, deleteIds.subList(offset, Math.min(offset + SQL_BATCH_SIZE, deleteIds.size())), now);
-        }
+        SqlBatches.forEach(deleteIds,
+                batch -> resourceEntityMapper.softDeleteBatch(tenantId, batch, now));
         // 资源 FULL 漂移删除触发面（§7/T-PERM-072）：依赖贡献收缩同事务完整重算受影响角色 AUTO_DEP
         if (!deleteIds.isEmpty()) {
             var affectedEntities = compilation.resourcesDeleted(tenantId, deleteIds, now);
@@ -367,6 +364,26 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     private record CodeKey(String code, String codeType) {}
 
     /**
+     * full-sync 阶段 B/C 预解析与预装载参数组（T-PERM-079 收敛，原 doSyncOneInternal 的
+     * 6 个预解析/开关散参收拢）。{@code NONE} 为 single-sync 无预载形态——逐项回退
+     * 单条类型解析/现有行查询/单条父解析与 DB 判环。
+     *
+     * @param typeValue        预解析的 resourceTypeValue（null=未预解析）
+     * @param existing         预加载的现有 ResourceEntity（null 配合 {@code existingResolved=true}
+     *                         表示确认不存在；false 时由方法内 fallback 单条 select）
+     * @param existingResolved 调用方是否已完成 existing 解析
+     * @param parentRequested  调用方（full-sync 阶段 A 语义）是否声明了 parent
+     * @param parentId         预解析的 parentId（仅 {@code parentRequested=true} 时使用）
+     * @param cyclePreChecked  调用方是否已用内存图完成判环（跳过方法内 DB 子孙查询判定，
+     *                         避免逐项递归 CTE 的 N+1）
+     */
+    private record FullSyncPrefetch(Integer typeValue, ResourceEntity existing, boolean existingResolved,
+                                    boolean parentRequested, Long parentId, boolean cyclePreChecked) {
+        static final FullSyncPrefetch NONE =
+                new FullSyncPrefetch(null, null, false, false, null, false);
+    }
+
+    /**
      * T-PERM-068（Q-007 定案③）：父类型缺省回填——{@code parentResourceTypeCode} 缺省/空白时
      * 按 item（单条）/scope（full-sync）自身类型解析父（契约 §19.1/§19.2 原意，对齐角色域
      * full-sync {@code effectiveParentTypeCode} 先例）；回填后与自身类型比对即得跨类型判定。
@@ -377,9 +394,10 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                 : parentResourceTypeCode;
     }
 
-    private SyncResultResp doSyncOne(Long tenantId, ResourceEntitySyncReq req, SyncMetadata metadata, Long generation, String hash) {
-        return doSyncOneInternal(tenantId, req, null, null, false, false, null, false,
-                LocalDateTime.now(), metadata, generation, hash);
+    /** single-sync 路径入口：无预载，逐项单条解析/查询（版本/依赖语义与 full-sync 同源）。 */
+    private SyncResultResp applySingleSync(Long tenantId, ResourceEntitySyncReq req,
+                                           SyncMetadata metadata, Long generation, String hash) {
+        return applyItemSync(tenantId, req, FullSyncPrefetch.NONE, LocalDateTime.now(), metadata, generation, hash);
     }
 
     /**
@@ -424,25 +442,11 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
     }
 
     /**
-     * 复用单条 sync 的版本/依赖语义；支持 full-sync 阶段 C 传入已批量预加载的 existing 与 parentId。
-     *
-     * @param preResolvedTypeValue 预解析的 resourceTypeValue（null 表示让本方法自己解析）
-     * @param preLoadedExisting    预加载的 ResourceEntity（null 表示未预加载或确认不存在，由
-     *                             {@code preExistingResolved} 区分）
-     * @param preExistingResolved  调用方是否已完成 existing 解析（true=即使 preLoadedExisting=null 也直接走
-     *                             INSERT/不存在分支，不再查 DB；false=本方法 fallback 单条 select）
-     * @param parentRequested      调用方是否声明了 parent
-     * @param preResolvedParentId  预解析的 parentId（仅当 parentRequested=true 时使用）
-     * @param cyclePreChecked      调用方已完成判环（full-sync 循环体经内存图判定后传入，
-     *                             跳过本方法内的 DB 子孙查询判定，避免逐项递归 CTE 的 N+1）
+     * 单项同步核心（single-sync 与 full-sync 阶段 C 共用）：完整版本/依赖/判环/落库语义，
+     * 预解析事实经 {@link FullSyncPrefetch} 传入（NONE=逐项回退单条查询）。
      */
-    private SyncResultResp doSyncOneInternal(Long tenantId, ResourceEntitySyncReq req,
-                                             Integer preResolvedTypeValue,
-                                             ResourceEntity preLoadedExisting,
-                                             boolean preExistingResolved,
-                                             boolean parentRequested, Long preResolvedParentId,
-                                             boolean cyclePreChecked,
-                                             LocalDateTime now, SyncMetadata metadata, Long generation, String publicationHash) {
+    private SyncResultResp applyItemSync(Long tenantId, ResourceEntitySyncReq req, FullSyncPrefetch prefetch,
+                                         LocalDateTime now, SyncMetadata metadata, Long generation, String publicationHash) {
         String codeType = (req.codeType() == null || req.codeType().isBlank()) ? DEFAULT_CODE_TYPE : req.codeType();
         String businessKey = SyncKeyCodecUtil.resourceEntityBusinessKey(
                 req.resourceTypeCode(), req.resourceCode(), codeType);
@@ -452,19 +456,19 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
         String syncKey = SyncKeyCodecUtil.syncKey(req.sourceService(), ENTITY_KIND, businessKey);
         String syncKeyHash = SyncKeyCodecUtil.sha256Hex(syncKey);
 
-        if (preExistingResolved && metadata != null && java.util.Objects.equals(metadata.getLastPublicationGeneration(), generation)) {
+        if (prefetch.existingResolved() && metadata != null && java.util.Objects.equals(metadata.getLastPublicationGeneration(), generation)) {
             return java.util.Objects.equals(metadata.getLastPublicationHash(), publicationHash)
                     ? SyncResultBuilder.stale() : SyncResultBuilder.nonRetryable("PUBLICATION_GENERATION_CONFLICT");
         }
-        Integer resourceTypeValue = preResolvedTypeValue != null
-                ? preResolvedTypeValue
+        Integer resourceTypeValue = prefetch.typeValue() != null
+                ? prefetch.typeValue()
                 : typeResolutionService.resolveTypeValue(tenantId, "resource_type", req.resourceTypeCode());
         if (resourceTypeValue == null) {
             return SyncResultBuilder.dependencyMissing("RESOURCE_TYPE_NOT_FOUND");
         }
 
-        ResourceEntity existing = preExistingResolved
-                ? preLoadedExisting
+        ResourceEntity existing = prefetch.existingResolved()
+                ? prefetch.existing()
                 : resourceEntityMapper.selectByTypeCodeAndCodeType(tenantId, resourceTypeValue, req.resourceCode(), codeType);
 
         // T-PERM-052：本地投影行防线（owner=access-service 拒绝）已收编进入口类型门禁——
@@ -492,8 +496,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             String parentCodeType = (req.parentCodeType() == null || req.parentCodeType().isBlank())
                     ? DEFAULT_CODE_TYPE : req.parentCodeType();
             // full-sync 路径已批量预解析；single-sync 路径走单条解析。
-            parentId = parentRequested
-                    ? preResolvedParentId
+            parentId = prefetch.parentRequested()
+                    ? prefetch.parentId()
                     : typeResolutionService.resolveResourceId(tenantId,
                             parentTypeCode, req.parentResourceCode(), parentCodeType, null);
             if (parentId == null) {
@@ -503,8 +507,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
 
         // T-PERM-044 评审 P1：parent 环路防护（与 moveResource 同款判定：目标父为自身或其子孙拒绝），
         // 先于 applyVersion；新建分支无既有子树天然无环。full-sync 路径经内存图预判后跳过
-        //（cyclePreChecked），本处 DB 子孙查询判定仅服务 single-sync
-        if (!cyclePreChecked && OP_UPSERT.equals(req.operation()) && existing != null
+        //（prefetch.cyclePreChecked），本处 DB 子孙查询判定仅服务 single-sync
+        if (!prefetch.cyclePreChecked() && OP_UPSERT.equals(req.operation()) && existing != null
                 && isCyclicParent(tenantId, existing.getId(), parentId)) {
             return SyncResultBuilder.nonRetryable(
                     "RESOURCE_PARENT_INVALID: " + effectiveParentTypeCode(
@@ -533,7 +537,7 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
             return SyncResultBuilder.dependencyMissing("RESOURCE_NOT_FOUND");
         }
 
-        if (preExistingResolved && metadata != null) {
+        if (prefetch.existingResolved() && metadata != null) {
             int order = SyncVersionOrder.compareIncoming(metadata, req.syncVersion());
             if (order < 0) return SyncResultBuilder.nonRetryable("SYNC_VERSION_CONFLICT");
             if (order == 0) {

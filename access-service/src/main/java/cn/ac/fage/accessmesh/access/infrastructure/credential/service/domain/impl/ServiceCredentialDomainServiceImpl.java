@@ -5,7 +5,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.credential.entity.ServiceCred
 import cn.ac.fage.accessmesh.access.infrastructure.credential.mapper.ServiceCredentialMapper;
 import cn.ac.fage.accessmesh.access.infrastructure.credential.service.domain.ServiceCredentialDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
-import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
 import cn.dev33.satoken.secure.BCrypt;
 import org.springframework.dao.DuplicateKeyException;
@@ -102,9 +101,8 @@ public class ServiceCredentialDomainServiceImpl implements ServiceCredentialDoma
         }
         // 前置校验：凭证绑定的服务在 service_config 注册且启用（对齐 20055 门禁的服务注册段；
         // 服务停用/注销即同步通道一起断，同 sync 通道白名单语义）
-        ServiceConfig config = serviceConfigDomainService.selectByTenantAndServiceCode(
-            credential.getTenantId(), credential.getServiceCode());
-        if (config == null || config.getStatus() == null || config.getStatus() != 1) {
+        if (!ServiceConfigDomainService.isRegisteredAndEnabled(serviceConfigDomainService.selectByTenantAndServiceCode(
+                credential.getTenantId(), credential.getServiceCode()))) {
             return VerifyResult.failure(AccessErrorCode.SERVICE_CREDENTIAL_SERVICE_INACTIVE);
         }
         return VerifyResult.success(

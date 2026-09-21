@@ -111,7 +111,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             return SyncResultBuilder.nonRetryable("INVALID_OPERATION");
         }
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
-        return doSyncOne(tenantId, req);
+        return applySingleSync(tenantId, req);
     }
 
     @Override
@@ -228,7 +228,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         List<SyncResultResp.ItemResult> itemResults = new ArrayList<>(req.items().size());
         Set<String> seenBusinessKeyHashes = new HashSet<>();
         // grok 复评 P1 修复：请求级「本批已 apply 的新增有效持有」——同批同用户多 BIND
-        // 的互斥两端经批内集合语义命中（doSyncOneInternal BIND 成功后记入，仅新增有效持有）
+        // 的互斥两端经批内集合语义命中（applyItemSync BIND 成功后记入，仅新增有效持有）
         Map<Long, Set<Long>> appliedThisBatch = new HashMap<>();
         LocalDateTime now = LocalDateTime.now();
 
@@ -273,12 +273,13 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                     ? existingByTriKey.get(new TriKey(preUserId, preRoleId, preRelId))
                     : null;
 
-            SyncResultResp r = doSyncOneInternal(tenantId, oneReq,
-                    preUserId, preRoleId, preRelId, preExisting, true, now,
-                    ownedTargetIdsByBusinessKeyHash, appliedThisBatch, metadataByBusinessKeyHash);
+            SyncResultResp r = applyItemSync(tenantId, oneReq,
+                    new FullSyncPreload(true, preUserId, preRoleId, preRelId, preExisting,
+                            ownedTargetIdsByBusinessKeyHash, appliedThisBatch, metadataByBusinessKeyHash),
+                    now);
             if (r.applied()) {
                 applied++;
-                // backfillTargetId 已在 doSyncOneInternal 内完成（upserted.getId()），无需额外查 DB。
+                // backfillTargetId 已在 applyItemSync 内完成（upserted.getId()），无需额外查 DB。
             } else if (r.stale()) stale++;
             else failed++;
             itemResults.add(new SyncResultResp.ItemResult(businessKey, r.applied(), r.stale(),
@@ -327,28 +328,39 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     private record TriKey(Long userId, Long targetId, Long relationId) {}
 
     /**
-     * 执行单次 sync 写入（不做身份/payload 预检，调用方负责）。
+     * full-sync 阶段 B/C 预解析与批级预载参数组（T-PERM-079 收敛，原 doSyncOneInternal 的
+     * 预解析散参与批级 Map 收拢）。{@code NONE} 为 single-sync 无预载形态——逐项回退
+     * 单条主体/角色/关系解析、单条 existing 查询与单条归属/元数据查询。
+     *
+     * @param resolved      调用方是否已批量解析主体/目标角色/关系角色与 existing（true 时
+     *                      null 字段表示确认缺失，不再逐项查询）
+     * @param abstractUserId 预解析的 abstract_user.id
+     * @param roleId        预解析的目标 abstract_role.id
+     * @param relationId    预解析的 relationKey 角色 id
+     * @param existing      预加载的现有 UserRole 行
+     * @param ownedTargetIds full-sync 预加载的当前 scope 归属 Map（businessKeyHash -> target_id），
+     *                       归属校验直接命中不查 DB
+     * @param batchApplied  请求级「本批已 apply 的新增有效持有」（BIND 成功后写入，防同批互斥）
+     * @param metadata      full-sync 预加载的 scope 元数据 Map（businessKeyHash -> SyncMetadata）
      */
-    private SyncResultResp doSyncOne(Long tenantId, UserRoleSyncReq req) {
-        return doSyncOneInternal(tenantId, req, null, null, null, null, false, LocalDateTime.now(), null, null, null);
+    private record FullSyncPreload(boolean resolved, Long abstractUserId, Long roleId, Long relationId,
+                                   UserRole existing, Map<String, Long> ownedTargetIds,
+                                   Map<Long, Set<Long>> batchApplied, Map<String, SyncMetadata> metadata) {
+        static final FullSyncPreload NONE =
+                new FullSyncPreload(false, null, null, null, null, null, null, null);
+    }
+
+    /** single-sync 路径入口：无预载，逐项单条解析/查询（版本/依赖语义与 full-sync 同源）。 */
+    private SyncResultResp applySingleSync(Long tenantId, UserRoleSyncReq req) {
+        return applyItemSync(tenantId, req, FullSyncPreload.NONE, LocalDateTime.now());
     }
 
     /**
-     * 与 {@link #doSyncOne} 相同的版本/依赖语义，但允许 full-sync 阶段 C 传入已批量预解析的
-     * {@code abstractUserId/roleId/relationId} 与已批量预加载的 {@code preExisting}，避免循环单条 select。
-     *
-     * @param preExistingResolved 调用方是否已批量解析主体、目标角色、关系角色与 existing；true 时
-     *                            null 表示确认缺失，不再逐项查询；false 时在 BIND/UNBIND 共用预检中解析
-     * @param ownedTargetIdsByBusinessKeyHash full-sync 预加载的当前 scope 归属 Map（businessKeyHash -> target_id），
-     *                                       归属校验直接命中不查 DB；null 时单条 sync 回退 resolveTargetId
+     * 与 {@link #applySingleSync} 相同的版本/依赖语义，full-sync 阶段 C 经
+     * {@link FullSyncPreload} 传入批量预解析与预载，避免循环单条 select。
      */
-    private SyncResultResp doSyncOneInternal(Long tenantId, UserRoleSyncReq req,
-                                              Long preAbstractUserId, Long preRoleId, Long preRelationId,
-                                              UserRole preExisting, boolean preExistingResolved,
-                                              LocalDateTime now,
-                                              Map<String, Long> ownedTargetIdsByBusinessKeyHash,
-                                              Map<Long, Set<Long>> batchAppliedByUser,
-                                              Map<String, SyncMetadata> preMetadata) {
+    private SyncResultResp applyItemSync(Long tenantId, UserRoleSyncReq req, FullSyncPreload preload,
+                                         LocalDateTime now) {
         String businessKey = SyncKeyCodecUtil.userRoleBusinessKey(
                 req.subjectTypeCode(), req.subjectExternalId(),
                 req.roleTypeCode(), req.roleExternalId(), req.relationKey());
@@ -360,7 +372,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         String syncKeyHash = SyncKeyCodecUtil.sha256Hex(syncKey);
 
         // 旧事件先按 STALE 返回；预检不消费版本，最终仍由数据库原子比较兜底。
-        SyncMetadata selfMeta = (preMetadata != null ? preMetadata
+        SyncMetadata selfMeta = (preload.metadata() != null ? preload.metadata()
                 : syncMetadataDomainService.mapByBusinessKeyHash(tenantId, ENTITY_KIND,
                         req.sourceService(), scopeKeyHash, Set.of(businessKeyHash))).get(businessKeyHash);
         if (selfMeta != null && !syncMetadataDomainService.isNewerVersion(selfMeta,
@@ -369,39 +381,39 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         }
 
         // resolve subject (abstract_user.id) — full-sync 复用阶段 B 结果，single-sync 走单条解析
-        Long abstractUserId = preExistingResolved
-                ? preAbstractUserId
+        Long abstractUserId = preload.resolved()
+                ? preload.abstractUserId()
                 : typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (abstractUserId == null) {
             return SyncResultBuilder.dependencyMissing("SUBJECT_NOT_FOUND");
         }
         // resolve target role (abstract_role.id)
-        Long roleId = preExistingResolved
-                ? preRoleId
+        Long roleId = preload.resolved()
+                ? preload.roleId()
                 : typeResolutionService.resolveRoleId(tenantId, req.roleTypeCode(), req.roleExternalId(), null);
         if (roleId == null) {
             return SyncResultBuilder.dependencyMissing("ROLE_NOT_FOUND");
         }
         // resolve relation_id from relationKey "TYPE:externalId"
-        Long relationId = preExistingResolved
-                ? preRelationId
+        Long relationId = preload.resolved()
+                ? preload.relationId()
                 : resolveRelationRoleId(tenantId, req.relationKey());
         if (relationId == null) {
             return SyncResultBuilder.dependencyMissing("RELATION_ROLE_NOT_FOUND");
         }
 
-        UserRole existingForUpsert = preExistingResolved
-                ? preExisting : findUserRole(tenantId, abstractUserId, roleId, relationId);
+        UserRole existingForUpsert = preload.resolved()
+                ? preload.existing() : findUserRole(tenantId, abstractUserId, roleId, relationId);
         localProjectionGuard.rejectIfLocalUserRole(existingForUpsert);
         if (existingForUpsert != null
                 && !ownedByCurrentSource(tenantId, existingForUpsert, req.sourceService(),
-                scopeKeyHash, businessKeyHash, ownedTargetIdsByBusinessKeyHash)) {
+                scopeKeyHash, businessKeyHash, preload.ownedTargetIds())) {
             return SyncResultBuilder.nonRetryable("OWNERSHIP_CONFLICT");
         }
         boolean introducesEffectiveHolding = OP_BIND.equals(req.operation())
                 && bindIntroducesEffectiveHolding(tenantId, abstractUserId, roleId, req, existingForUpsert, now);
         if (introducesEffectiveHolding
-                && hitsRoleMutexOnBind(tenantId, abstractUserId, roleId, batchAppliedByUser)) {
+                && hitsRoleMutexOnBind(tenantId, abstractUserId, roleId, preload.batchApplied())) {
             return SyncResultBuilder.nonRetryable("ROLE_MUTEX_CONFLICT");
         }
 
@@ -418,8 +430,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         if (OP_BIND.equals(req.operation())) {
             UserRole upserted = upsertUserRoleWithExisting(tenantId, abstractUserId, roleId, relationId, req,
                     existingForUpsert, now);
-            if (introducesEffectiveHolding && batchAppliedByUser != null) {
-                batchAppliedByUser.computeIfAbsent(abstractUserId, k -> new HashSet<>()).add(roleId);
+            if (introducesEffectiveHolding && preload.batchApplied() != null) {
+                preload.batchApplied().computeIfAbsent(abstractUserId, k -> new HashSet<>()).add(roleId);
             }
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, STATUS_ACTIVE);
@@ -490,7 +502,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         return typeResolutionService.resolveRoleId(tenantId, ref.typeCode(), ref.externalId(), null);
     }
 
-    // upsertUserRoleWithExisting 由 doSyncOneInternal 直接调用
+    // upsertUserRoleWithExisting 由 applyItemSync 直接调用
 
     /**
      * 现有行归属校验：目标行必须由当前 {@code sourceService + scopeKey + businessKey} 的

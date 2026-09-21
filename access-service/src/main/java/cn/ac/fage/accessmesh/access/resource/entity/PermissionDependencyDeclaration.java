@@ -14,6 +14,11 @@ import cn.ac.fage.accessmesh.access.infrastructure.JsonbStringTypeHandler;
 @Setter
 @Table("permission_dependency_declaration")
 public class PermissionDependencyDeclaration {
+
+    /** compile_status 值域（DDL CHECK ck_dependency_declaration_state 同域；消费/判读唯一引用点，禁字面量散布）。 */
+    public static final String COMPILE_STATUS_RESOLVED = "RESOLVED";
+    public static final String COMPILE_STATUS_REJECTED = "REJECTED";
+
     @Id(keyType = KeyType.Auto)
     private Long id;
     private Long tenantId;

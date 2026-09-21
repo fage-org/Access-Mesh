@@ -345,7 +345,7 @@ class ResourceTypeOwnershipGuardTest {
     }
 
     @Test
-    @DisplayName("isSyncEntranceAllowed：服务未注册/已软删/已停用 → 拒；注册+启用 → 放行（评审 P1）")
+    @DisplayName("isSyncEntranceAllowed：服务未注册/已软删（查询谓词不可见）/已停用 → 拒；注册+启用 → 放行（评审 P1）")
     void isSyncEntranceAllowed_shouldCheckServiceRegistrationAndStatus() {
         when(typeDefinitionMapper.selectByTypeKeyAndCode(TENANT, "resource_type", "HR_ORG"))
                 .thenReturn(resourceType(1L, "HR_ORG", 5,
@@ -359,8 +359,10 @@ class ResourceTypeOwnershipGuardTest {
                 .thenReturn(serviceConfig(0, 0L));
         assertThat(guard.isSyncEntranceAllowed(TENANT, "HR_ORG", "hr-service")).isFalse();
 
+        // 已软删：selectByTenantAndServiceCode 查询谓词（delete_flag=0）不返回软删行，
+        // 域服务视角同未注册（T-PERM-079 判据收敛后守卫不再重复判 deleteFlag——死分支）
         when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, "hr-service"))
-                .thenReturn(serviceConfig(1, 9L));
+                .thenReturn(null);
         assertThat(guard.isSyncEntranceAllowed(TENANT, "HR_ORG", "hr-service")).isFalse();
 
         when(serviceConfigMapper.selectByTenantAndServiceCode(TENANT, "hr-service"))

@@ -7,17 +7,18 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChange;
 import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches;
 import cn.ac.fage.accessmesh.access.resource.entity.PermissionDependencyDeclaration;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceManifestSync;
 import cn.ac.fage.accessmesh.access.resource.mapper.PermissionDependencyDeclarationMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceDependencyMapper;
-import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ServiceManifestSyncMapper;
 import cn.ac.fage.accessmesh.access.resource.service.PermissionManifestAppService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompiler;
 import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.PermissionManifestNormalizer;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
 import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
@@ -30,33 +31,33 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 /** 服务声明 FULL：身份门禁、共同锁、规范化、编译及状态与事实同事务提交。 */
 @Service
 public class PermissionManifestAppServiceImpl implements PermissionManifestAppService {
-    private static final int SQL_BATCH_SIZE = 500;
+    /** 幂等未变重放的 item 级 reason（仅本类产出；SDK/前端按此识别「无变更不是失败」）。 */
+    private static final String REASON_MANIFEST_UNCHANGED = "MANIFEST_UNCHANGED";
     private final PermissionManifestNormalizer normalizer;
     private final DependencyCompilationDomainService compilation;
     private final PermissionDependencyDeclarationMapper declarationMapper;
     private final ServiceManifestSyncMapper stateMapper;
     private final ResourceDependencyMapper edgeMapper;
-    private final ServiceConfigMapper serviceMapper;
+    private final ServiceConfigDomainService serviceConfigDomainService;
     private final TreeWriteLockSupport locks;
     private final AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
 
     public PermissionManifestAppServiceImpl(PermissionManifestNormalizer normalizer, DependencyCompilationDomainService compilation,
             PermissionDependencyDeclarationMapper declarationMapper, ServiceManifestSyncMapper stateMapper,
-            ResourceDependencyMapper edgeMapper, ServiceConfigMapper serviceMapper, TreeWriteLockSupport locks,
+            ResourceDependencyMapper edgeMapper, ServiceConfigDomainService serviceConfigDomainService, TreeWriteLockSupport locks,
             AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
         this.normalizer = normalizer;
         this.compilation = compilation;
         this.declarationMapper = declarationMapper;
         this.stateMapper = stateMapper;
         this.edgeMapper = edgeMapper;
-        this.serviceMapper = serviceMapper;
+        this.serviceConfigDomainService = serviceConfigDomainService;
         this.locks = locks;
         this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
     }
@@ -70,13 +71,12 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
         var normalized = normalizer.normalize(request);
         String service = AccessRequestContext.getServiceCode();
         int count = normalized.declarations().size();
-        if (service == null || !Objects.equals(tenantId, AccessRequestContext.getTenantId())
-                || LocalProjectionOwner.isLocalOwner(service)) {
+        if (service == null || LocalProjectionOwner.isLocalOwner(service)) {
             return rejected(SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_IDENTITY_REQUIRED", count);
         }
         locks.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
-        var registered = serviceMapper.selectByTenantAndServiceCode(tenantId, service);
-        if (registered == null || !Integer.valueOf(1).equals(registered.getStatus())) {
+        if (!ServiceConfigDomainService.isRegisteredAndEnabled(
+                serviceConfigDomainService.selectByTenantAndServiceCode(tenantId, service))) {
             return rejected(SyncResultBuilder.RETRY_SECURITY_DENIED, "SERVICE_NOT_ENABLED", count);
         }
         ServiceManifestSync previous = stateMapper.selectScope(tenantId, service);
@@ -90,7 +90,7 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
         List<PermissionDependencyDeclaration> old = declarationMapper.selectScope(tenantId, service);
         Map<String, PermissionDependencyDeclaration> oldByKey = old.stream()
                 .collect(Collectors.toMap(PermissionDependencyDeclaration::getBusinessKey, row -> row));
-        boolean unchanged = previous != null && "SUCCESS".equals(previous.getSyncStatus())
+        boolean unchanged = previous != null && ServiceManifestSync.SYNC_STATUS_SUCCESS.equals(previous.getSyncStatus())
                 && !Boolean.TRUE.equals(previous.getIsDirty()) && normalized.revision().equals(previous.getRevision())
                 && normalized.semanticHash().equals(previous.getSemanticHash());
         DependencyCompiler.Result result;
@@ -98,7 +98,7 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
             // 展示字段仍保存；四条件短路仅复用已成功编译的图。
             result = new DependencyCompiler.Result(normalized.declarations().stream().map(d -> {
                 var row = oldByKey.get(d.businessKey());
-                if (row == null || !"RESOLVED".equals(row.getCompileStatus())) {
+                if (row == null || !PermissionDependencyDeclaration.COMPILE_STATUS_RESOLVED.equals(row.getCompileStatus())) {
                     throw failure("manifest SUCCESS state disagrees with declarations");
                 }
                 return new DependencyCompiler.Resolution(d, null, new DependencyCompiler.Edge(row.getSourceResourceId(),
@@ -113,17 +113,15 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
         Set<String> keep = rows.stream().map(PermissionDependencyDeclaration::getBusinessKeyHash).collect(Collectors.toSet());
         List<Long> missing = old.stream().filter(row -> !keep.contains(row.getBusinessKeyHash()))
                 .map(PermissionDependencyDeclaration::getId).toList();
-        int removed = 0;
-        for (int offset = 0; offset < missing.size(); offset += SQL_BATCH_SIZE) {
-            var batch = missing.subList(offset, Math.min(offset + SQL_BATCH_SIZE, missing.size()));
+        // 计数守卫失败即抛；全部批次落库成功时移除量=缺失声明全集
+        SqlBatches.forEach(missing, batch -> {
             int affected = declarationMapper.softDeleteIds(tenantId, service, batch, now);
             if (affected != batch.size()) throw failure("manifest declaration removal count mismatch");
-            removed += affected;
-        }
-        for (int offset = 0; offset < rows.size(); offset += SQL_BATCH_SIZE) {
-            var batch = rows.subList(offset, Math.min(offset + SQL_BATCH_SIZE, rows.size()));
+        });
+        int removed = missing.size();
+        SqlBatches.forEach(rows, batch -> {
             if (declarationMapper.saveAll(batch) != batch.size()) throw failure("manifest declaration write count mismatch");
-        }
+        });
         if (!unchanged) {
             // 声明变化触发面（§7）：受影响实体 = 本服务旧编译边端点 ∪ 新编译边端点，
             // 图替换同事务完整重算受影响角色的 AUTO_DEP（T-PERM-072）
@@ -152,20 +150,26 @@ public class PermissionManifestAppServiceImpl implements PermissionManifestAppSe
         state.setRevision(normalized.revision());
         state.setPayloadHash(normalized.payloadHash());
         state.setSemanticHash(normalized.semanticHash());
-        state.setSyncStatus(failed == 0 ? "SUCCESS" : failed == count ? "FAILED" : "PARTIAL");
+        state.setSyncStatus(failed == 0 ? ServiceManifestSync.SYNC_STATUS_SUCCESS
+                : failed == count ? ServiceManifestSync.SYNC_STATUS_FAILED : ServiceManifestSync.SYNC_STATUS_PARTIAL);
         state.setIsDirty(false);
         state.setLastSyncedAt(now);
         if (stateMapper.save(state) != 1) throw failure("manifest publication state changed during write");
         List<SyncResultResp.ItemResult> items = result.declarations().stream().map(r -> new SyncResultResp.ItemResult(
                 r.declaration().businessKey(), r.reason() == null && !unchanged, unchanged,
                 unchanged ? SyncResultBuilder.RETRY_STALE_VERSION : retryClass(r.reason()),
-                unchanged ? "MANIFEST_UNCHANGED" : r.reason())).toList();
+                unchanged ? REASON_MANIFEST_UNCHANGED : r.reason())).toList();
         return SyncResultBuilder.fullSync(unchanged ? 0 : count - failed, unchanged ? count : 0, failed, removed, items);
     }
 
+    /**
+     * 编译拒绝原因 → retryClass 分类：依赖缺失可重试（上游补齐资源/类型后重发自愈），
+     * 其余拒绝不可重试。与 {@link DependencyCompiler} 的 reason 产出同源常量比较——
+     * 若对字面量比较，编译器改措辞会静默把可重试降级为 NON_RETRYABLE（T-PERM-079 收敛）。
+     */
     private String retryClass(String reason) {
         if (reason == null) return null;
-        return "RESOURCE_MISSING".equals(reason) || "TYPE_MISSING".equals(reason)
+        return DependencyCompiler.REASON_RESOURCE_MISSING.equals(reason) || DependencyCompiler.REASON_TYPE_MISSING.equals(reason)
                 ? SyncResultBuilder.RETRY_DEPENDENCY_MISSING : SyncResultBuilder.RETRY_NON_RETRYABLE;
     }
     private SyncResultResp rejected(String category, String reason, int count) {

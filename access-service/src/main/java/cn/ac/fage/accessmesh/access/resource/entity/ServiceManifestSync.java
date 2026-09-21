@@ -12,6 +12,15 @@ import java.time.LocalDateTime;
 @Setter
 @Table("service_manifest_sync")
 public class ServiceManifestSync {
+
+    /**
+     * sync_status 值域（DDL CHECK 同域；本表与 resource_publication_state.last_full_status 共用
+     * SUCCESS/PARTIAL 子域）。写读唯一引用点，禁字面量散布。
+     */
+    public static final String SYNC_STATUS_SUCCESS = "SUCCESS";
+    public static final String SYNC_STATUS_PARTIAL = "PARTIAL";
+    public static final String SYNC_STATUS_FAILED = "FAILED";
+
     @Id(keyType = KeyType.Auto)
     private Long id;
     private Long tenantId;

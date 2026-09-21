@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-079
 title: 自动授权批次风格与可读性清理（070/074/071 触达面）
-status: proposed
+status: done
 plan: —（无所属计划；2026-09-21 四任务内外评审转出）
 domain: access-service
 design_refs: []   # 工程改进，无设计回写面（先例：T-ACCESS-030/031）
@@ -19,7 +19,7 @@ acceptance:
 design_writeback:
   required: false
   status: none
-last_updated: 2026-09-21
+last_updated: 2026-09-21（done：七项验收全落地+两项拍板 registry 登记+收口全量三段全绿）
 ---
 
 # T-PERM-079 自动授权批次风格与可读性清理
@@ -35,3 +35,21 @@ access-service sync/resource/credential 触达面 + perm-sdk registration starte
 ## 非目标 / 遗留
 
 不改契约语义、不动 072/073 待实施面；resource_dependency.sync_key 保留列与 manifest 继承旧密钥边界为已定案，不在清理面。
+
+## 完成记录（2026-09-21）
+
+**两项用户拍板（registry 同日登记）**：①var 局部变量风格**允许**——生产与测试均可用，071 批存量（生产约 54 处）不回改，后续评审不得以 var 报风格问题；②超大规模清理用例**拆档**——`ResourcePublicationHeavyPgIT` 挂 `testcontainers-heavy` 双标签，pom 新增 `-DskipHeavyIT`（默认 false 收口必跑），日常全量形态命令扩展为 `mvn test -T 1C -DskipE2E=true -DskipHeavyIT=true`（ci.yml 单测 job 现行两开关不受影响）。
+
+**①参数组重构+改名（两文件同批）**：`ResourceEntitySyncAppServiceImpl.doSyncOneInternal`（12 参）的 6 个预解析/开关散参收为私有 record `FullSyncPrefetch`（NONE 静态形态=单条路径无预载）；`UserRoleSyncAppServiceImpl.doSyncOneInternal`（11 参）收为 `FullSyncPreload`（resolved 开关+三项预解析 ID+预载 existing+归属/批内互斥/元数据三个批级 Map）。调用点裸 null/裸 true 全部消除；`doSyncOne/doSyncOneInternal` 改名 `applySingleSync/applyItemSync`（表意 single 入口/单项核心）。
+
+**②状态/来源字面量常量化**：compile_status → 实体常量 `PermissionDependencyDeclaration.COMPILE_STATUS_RESOLVED/_REJECTED`（9 处消费点换用）；sync_status → `ServiceManifestSync.SYNC_STATUS_SUCCESS/_PARTIAL/_FAILED`（manifest 写入/幂等判定 + resource_publication_state.last_full_status 共域消费）；maintain_source → `ResourceDependency.MAINTAIN_SOURCE_MANIFEST`；编译拒绝原因 → `DependencyCompiler.REASON_*` 六常量（产出口径单源）；`retryClass` 改对常量比较（消除「改 reason 措辞静默降级 NON_RETRYABLE」耦合）；schema 两处 CHECK 约束补 `--` 注释钉「代码侧唯一引用点」（纯 SQL 注释，无 DB 对象变更，不触迁移同步面）。
+
+**③服务启用判据收敛**：`ServiceConfigDomainService.isRegisteredAndEnabled(ServiceConfig)` 行级 static 唯一出口（行存在且 status=1；软删行经查询谓词 delete_flag=0 天然排除——守卫侧原 deleteFlag 分支为死分支删除）。6 调用点统一「取行+行级判定」形态：ResourceTypeOwnershipGuard×2、SyncTypeGuard、PermissionManifestAppServiceImpl、ServiceCredentialAppServiceImpl/DomainServiceImpl。**附带修复**：SyncTypeGuard 由直读 `ServiceConfigMapper`（跨包 mapper 直读）改为经 ServiceConfigDomainService；PermissionManifestAppServiceImpl 同步换域服务依赖。不做查询+判定合并的便捷重载——接口 default 方法会被 Mockito 整体拦截破坏既有测试桩（实施中实证）。
+
+**④分批样板收敛**：新建 `infrastructure/util/SqlBatches`（BATCH_SIZE=500 单源声明 + forEach 分批消费），22 处 for+offset 循环（活树实际数，任务卡登记 13 处为评审时点）收敛，6 处私有批大小常量声明删除（SQL_BATCH_SIZE×5+RESOURCE_BATCH_SIZE×1；对账 ROLE_BATCH_SIZE=200 为语义不同的独立批值保留）。
+
+**⑤var**：登记 registry 允许（见拍板①），零代码改动。
+
+**⑥次要项**：ServiceAuthArbiter 两处 403 JSON 信封提取 `writeForbiddenJson` 共用；`AutoGrantEngineContractPgIT` 魔法值常量化（CUSTOM_TYPE_VALUE_BASE=910 注释钉段位依据=终值分配表种子段最大 31+管理面 max+1 顺延、ROLE_TYPE_BASIC_ROLE=6/USER_TYPE_USER=1、BIT_VIEW/UPDATE/EXPORT、TYPE_CODE_PREFIX）；`TreeWriteLockSupport` 新增公开静态 `lockKey(tenantId, target)`（内部与 TreeCycleHardeningPgIT/SyncFailureAtomicityPgIT 两处裸拼共用同一 key 空间）；PermissionManifestAppServiceImpl 恒假租户校验删除（实证：TenantContextHolder.getTenantId 委托 AccessRequestContext，控制器传入与方法内读为同一来源自比较死代码；PermissionManifestPgIT 的 SERVICE_IDENTITY_REQUIRED 断言走 service==null 分支不受影响）；SDK `PermissionRegistrationPublisher` 格式化（SCHEMA_VERSION 常量取代魔法数 1、内联 java.util.* FQCN 改 import、逗号空格）；ResourcePublicationPgIT 拆档（15→12 用例，heavy 1 用例独立类）。测试适配：SyncTypeGuardTest mock 换域服务（已删行用例改注查询谓词语义）、ServiceConfigAppServiceImplTest 用真实域服务实现包 mock mapper、ResourceTypeOwnershipGuardTest 已删行分支改注死分支删除语义。
+
+**验证**：定向单测 117/117（九类：SyncTypeGuard/OwnershipGuard/ServiceConfigApp/ResourceEntitySync/UserRoleSync/FullSyncResponseContract/DependencyCompiler/DependencyApp/ServiceCredentialApp）；容器轨定向 95/95（14 类含 heavy 377s 全绿、AutoGrant 引擎契约 6/物化 19/洞察 16/manifest 8/发布 12/级联 4/凭证 3/锁树 5/原子性 8/SecurityMatrix 14）；SDK 14/14；skipHeavyIT 开关双向验证（默认 heavy 跑、true 时 0 tests 排除）。收口全量回归 `mvn test -T 1C` 三段完成全绿：上游模块（common/gateway/sdk/example）第一轮 SUCCESS；access-service 第二轮（-rf 续跑）SUCCESS——单测轨 305 + 容器组 1308 全绿（含 heavy）；e2e 补跑（`-pl e2e -am`）15 全绿（BasicRoleGrant 8 + ExampleProtectedApi 7）。第一轮 access-service 仅 AutoGrantMigrationPgIT 1 失败——schema CHECK 注释未同步迁移脚本（快照比对含注释已知坑），`docs/ops/auto-grant-migrate-071.sql` 两处注释同批镜像后隔离复跑 6/6 绿。

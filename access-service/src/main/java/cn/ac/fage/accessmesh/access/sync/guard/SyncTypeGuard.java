@@ -1,7 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync.guard;
 
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
-import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
+import cn.ac.fage.accessmesh.access.resource.service.domain.ServiceConfigDomainService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -49,11 +49,11 @@ public class SyncTypeGuard {
     private static final Set<String> SYNC_TYPES_FIELD_WHITELIST = Set.of(
             KEY_SUBJECT_TYPES, KEY_ROLE_TYPES, KEY_SOURCE_TYPES);
 
-    private final ServiceConfigMapper serviceConfigMapper;
+    private final ServiceConfigDomainService serviceConfigDomainService;
     private final ObjectMapper objectMapper;
 
-    public SyncTypeGuard(ServiceConfigMapper serviceConfigMapper, ObjectMapper objectMapper) {
-        this.serviceConfigMapper = serviceConfigMapper;
+    public SyncTypeGuard(ServiceConfigDomainService serviceConfigDomainService, ObjectMapper objectMapper) {
+        this.serviceConfigDomainService = serviceConfigDomainService;
         this.objectMapper = objectMapper;
     }
 
@@ -73,14 +73,9 @@ public class SyncTypeGuard {
         if (requested == null || requested.isEmpty()) {
             return true;
         }
-        ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, authenticatedServiceCode);
-        if (config == null || config.getDeleteFlag() != null && config.getDeleteFlag() != 0L) {
-            log.warn("sync type guard: service not registered or deleted, tenantId={}, serviceCode={}",
-                    tenantId, authenticatedServiceCode);
-            return false;
-        }
-        if (!Integer.valueOf(1).equals(config.getStatus())) {
-            log.warn("sync type guard: service disabled, tenantId={}, serviceCode={}",
+        ServiceConfig config = serviceConfigDomainService.selectByTenantAndServiceCode(tenantId, authenticatedServiceCode);
+        if (!ServiceConfigDomainService.isRegisteredAndEnabled(config)) {
+            log.warn("sync type guard: service not registered or disabled, tenantId={}, serviceCode={}",
                     tenantId, authenticatedServiceCode);
             return false;
         }

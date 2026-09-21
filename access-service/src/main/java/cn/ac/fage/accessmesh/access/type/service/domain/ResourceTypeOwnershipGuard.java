@@ -204,14 +204,9 @@ public class ResourceTypeOwnershipGuard {
             return false;
         }
         ServiceConfig config = serviceConfigDomainService.selectByTenantAndServiceCode(tenantId, sourceService);
-        if (config == null || (config.getDeleteFlag() != null && config.getDeleteFlag() != 0L)) {
-            log.warn("resource type ownership gate: source service not registered or deleted, "
+        if (!ServiceConfigDomainService.isRegisteredAndEnabled(config)) {
+            log.warn("resource type ownership gate: source service not registered or disabled, "
                     + "tenantId={}, serviceCode={}", tenantId, sourceService);
-            return false;
-        }
-        if (!Integer.valueOf(1).equals(config.getStatus())) {
-            log.warn("resource type ownership gate: source service disabled, tenantId={}, serviceCode={}",
-                    tenantId, sourceService);
             return false;
         }
         return true;
@@ -327,11 +322,11 @@ public class ResourceTypeOwnershipGuard {
                 throw new IllegalArgumentException("保留内部来源不可声明为同步来源: " + sourceText);
             }
             // codex 二轮复评 P2：保存侧与运行时入口（isSyncEntranceAllowed）同规则——
-            // 已注册、未软删且 status=1 启用；仅查注册非空会保存出「管理面 20055、
-            // 同步入口 status 拒绝」的无人可写类型
+            // 已注册且 status=1 启用（软删经查询谓词排除，判定单源见
+            // ServiceConfigDomainService.isRegisteredAndEnabled）；仅查注册非空会保存出
+            // 「管理面 20055、同步入口 status 拒绝」的无人可写类型
             ServiceConfig sourceService = serviceConfigDomainService.selectByTenantAndServiceCode(tenantId, sourceText);
-            if (sourceService == null || (sourceService.getDeleteFlag() != null && sourceService.getDeleteFlag() != 0L)
-                    || !Integer.valueOf(1).equals(sourceService.getStatus())) {
+            if (!ServiceConfigDomainService.isRegisteredAndEnabled(sourceService)) {
                 throw new IllegalArgumentException("来源服务未注册或未启用: " + sourceText);
             }
         }

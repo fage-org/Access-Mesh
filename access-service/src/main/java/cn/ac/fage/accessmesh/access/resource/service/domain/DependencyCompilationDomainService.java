@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.service.domain;
 
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches;
 import cn.ac.fage.accessmesh.access.resource.entity.PermissionDependencyDeclaration;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.access.resource.mapper.PermissionDependencyDeclarationMapper;
@@ -30,7 +31,6 @@ import java.util.stream.Collectors;
 /** 声明编译与图替换的复用领域逻辑；调用方持有资源树锁并负责事务。 */
 @Service
 public class DependencyCompilationDomainService {
-    private static final int SQL_BATCH_SIZE = 500;
     private final PermissionManifestNormalizer normalizer;
     private final DependencyCompiler compiler;
     private final PermissionDependencyDeclarationMapper declarationMapper;
@@ -77,11 +77,10 @@ public class DependencyCompilationDomainService {
                 .filter(Objects::nonNull).map(DependencyCompiler.TypeInfo::value).collect(Collectors.toSet());
         Map<ResourceKey, Long> resources = new HashMap<>();
         List<ResourceKey> requestedList = new ArrayList<>(requested);
-        for (int offset = 0; offset < requestedList.size(); offset += SQL_BATCH_SIZE) {
-            var batch = requestedList.subList(offset, Math.min(offset + SQL_BATCH_SIZE, requestedList.size()));
+        SqlBatches.forEach(requestedList, batch -> {
             Set<Integer> batchTypes = batch.stream().map(k -> typeInfo.get(k.resourceTypeCode()))
                     .filter(Objects::nonNull).map(DependencyCompiler.TypeInfo::value).collect(Collectors.toSet());
-            if (batchTypes.isEmpty()) continue;
+            if (batchTypes.isEmpty()) return;
             var resourceRows = resourceMapper.selectByTypesAndCodesAndCodeTypes(tenantId, batchTypes,
                     batch.stream().map(ResourceKey::resourceCode).collect(Collectors.toSet()),
                     batch.stream().map(ResourceKey::codeType).collect(Collectors.toSet()));
@@ -89,13 +88,11 @@ public class DependencyCompilationDomainService {
                 ResourceKey key = new ResourceKey(codes.get(row.getResourceType()), row.getCode(), row.getCodeType());
                 if (requested.contains(key)) resources.put(key, row.getId());
             }
-        }
+        });
         List<Integer> typeValues = new ArrayList<>(values);
         List<OperationPermission> operationRows = new ArrayList<>();
-        for (int offset = 0; offset < typeValues.size(); offset += SQL_BATCH_SIZE) {
-            operationRows.addAll(operations.selectByTenantAndResourceTypes(tenantId,
-                    new HashSet<>(typeValues.subList(offset, Math.min(offset + SQL_BATCH_SIZE, typeValues.size())))));
-        }
+        SqlBatches.forEach(typeValues,
+                batch -> operationRows.addAll(operations.selectByTenantAndResourceTypes(tenantId, new HashSet<>(batch))));
         return new Input(resources, typeInfo, operationRows, edgeMapper.selectByTenantId(tenantId));
     }
     private DependencyCompiler.Result compileInMemory(String service, List<DependencyCompiler.Declaration> declarations,
@@ -106,7 +103,8 @@ public class DependencyCompilationDomainService {
                         e.getSourceOperationBits(), e.getRequiredOperationBits())).toList();
         Set<String> stable = declarations.stream().filter(d -> {
             var row = old.get(d.businessKey());
-            return row != null && "RESOLVED".equals(row.getCompileStatus()) && semanticHash(d).equals(row.getSemanticHash());
+            return row != null && PermissionDependencyDeclaration.COMPILE_STATUS_RESOLVED.equals(row.getCompileStatus())
+                    && semanticHash(d).equals(row.getSemanticHash());
         }).map(DependencyCompiler.Declaration::businessKey).collect(Collectors.toSet());
         return compiler.compile(service, declarations, input.resources(), input.types(),
                 input.operations(), retained, stable);
@@ -116,13 +114,13 @@ public class DependencyCompilationDomainService {
     public void replaceGraphs(Long tenantId, Map<String, List<DependencyCompiler.Edge>> graphs, LocalDateTime now) {
         Map<EdgeKey, Long> diagnosticIds = new HashMap<>();
         for (var row : loadScopes(tenantId, graphs.keySet())) {
-            if ("RESOLVED".equals(row.getCompileStatus())) diagnosticIds.putIfAbsent(new EdgeKey(row.getSourceService(),
-                    row.getSourceResourceId(), row.getTargetResourceId(), row.getSourceOperationBits()), row.getId());
+            if (PermissionDependencyDeclaration.COMPILE_STATUS_RESOLVED.equals(row.getCompileStatus())) {
+                diagnosticIds.putIfAbsent(new EdgeKey(row.getSourceService(),
+                        row.getSourceResourceId(), row.getTargetResourceId(), row.getSourceOperationBits()), row.getId());
+            }
         }
         List<String> services = new ArrayList<>(graphs.keySet());
-        for (int offset = 0; offset < services.size(); offset += SQL_BATCH_SIZE) {
-            edgeMapper.removeCompiledScopes(tenantId, services.subList(offset, Math.min(offset + SQL_BATCH_SIZE, services.size())), now);
-        }
+        SqlBatches.forEach(services, batch -> edgeMapper.removeCompiledScopes(tenantId, batch, now));
         List<ResourceDependency> compiled = new ArrayList<>();
         for (var entry : graphs.entrySet()) {
             String service = entry.getKey();
@@ -135,7 +133,7 @@ public class DependencyCompilationDomainService {
                 row.setRequiredOperationBits(edge.requiredOperationBits());
                 row.setDeclarationId(diagnosticIds.get(new EdgeKey(service, edge.sourceId(), edge.targetId(), edge.sourceOperationBits())));
                 row.setOwnerServiceCode(service);
-                row.setMaintainSource("MANIFEST");
+                row.setMaintainSource(ResourceDependency.MAINTAIN_SOURCE_MANIFEST);
                 row.setCreatedAt(now);
                 row.setUpdatedAt(now);
                 row.setDeleteFlag(0L);
@@ -143,10 +141,9 @@ public class DependencyCompilationDomainService {
             }
         }
 
-        for (int offset = 0; offset < compiled.size(); offset += SQL_BATCH_SIZE) {
-            var batch = compiled.subList(offset, Math.min(offset + SQL_BATCH_SIZE, compiled.size()));
+        SqlBatches.forEach(compiled, batch -> {
             if (edgeMapper.insertBatch(batch) != batch.size()) throw failure("compiled edge write count mismatch");
-        }
+        });
     }
 
     /**
@@ -185,7 +182,9 @@ public class DependencyCompilationDomainService {
         row.setBusinessKeyHash(SyncKeyCodecUtil.sha256Hex(d.businessKey()));
         row.setDeclarationPayload(normalizer.declarationJson(d));
         row.setSemanticHash(semanticHash(d));
-        row.setCompileStatus(resolution.reason() == null ? "RESOLVED" : "REJECTED");
+        row.setCompileStatus(resolution.reason() == null
+                ? PermissionDependencyDeclaration.COMPILE_STATUS_RESOLVED
+                : PermissionDependencyDeclaration.COMPILE_STATUS_REJECTED);
         row.setRejectReason(resolution.reason());
         if (resolution.edge() != null) {
             row.setSourceResourceId(resolution.edge().sourceId());
@@ -204,9 +203,7 @@ public class DependencyCompilationDomainService {
     private List<PermissionDependencyDeclaration> loadScopes(Long tenantId, Set<String> services) {
         List<String> keys = new ArrayList<>(services);
         List<PermissionDependencyDeclaration> result = new ArrayList<>();
-        for (int offset = 0; offset < keys.size(); offset += SQL_BATCH_SIZE) {
-            result.addAll(declarationMapper.selectScopes(tenantId, keys.subList(offset, Math.min(offset + SQL_BATCH_SIZE, keys.size()))));
-        }
+        SqlBatches.forEach(keys, batch -> result.addAll(declarationMapper.selectScopes(tenantId, batch)));
         return result;
     }
     /**
@@ -215,9 +212,7 @@ public class DependencyCompilationDomainService {
      */
     public Set<Long> resourcesDeleted(Long tenantId, List<Long> ids, LocalDateTime now) {
         Set<String> services = new HashSet<>();
-        for (int offset = 0; offset < ids.size(); offset += SQL_BATCH_SIZE) {
-            services.addAll(declarationMapper.selectServicesByResourceIds(tenantId, ids.subList(offset, Math.min(offset + SQL_BATCH_SIZE, ids.size()))));
-        }
+        SqlBatches.forEach(ids, batch -> services.addAll(declarationMapper.selectServicesByResourceIds(tenantId, batch)));
         Set<Long> affected = recompileResolved(tenantId, services, now);
         affected.addAll(ids);
         return affected;
@@ -230,11 +225,10 @@ public class DependencyCompilationDomainService {
     public Set<Long> typesChanged(Long tenantId, Set<String> typeCodes, boolean deleted, LocalDateTime now) {
         List<String> keys = new ArrayList<>(typeCodes);
         Set<String> services = new HashSet<>();
-        for (int offset = 0; offset < keys.size(); offset += SQL_BATCH_SIZE) {
-            var batch = keys.subList(offset, Math.min(offset + SQL_BATCH_SIZE, keys.size()));
+        SqlBatches.forEach(keys, batch -> {
             services.addAll(declarationMapper.selectServicesByTypes(tenantId, batch));
             if (deleted) declarationMapper.softDeleteTypes(tenantId, batch, now);
-        }
+        });
         return recompileResolved(tenantId, services, now);
     }
     /** 仅重判已成功贡献；REJECTED 保留原状态，须由所属服务重发恢复。返回受影响实体集合。 */
@@ -245,8 +239,10 @@ public class DependencyCompilationDomainService {
         Map<String, Map<String, PermissionDependencyDeclaration>> byService = new HashMap<>();
         for (var row : existing) {
             byService.computeIfAbsent(row.getSourceService(), k -> new HashMap<>()).put(row.getBusinessKey(), row);
-            if ("RESOLVED".equals(row.getCompileStatus())) active.computeIfAbsent(row.getSourceService(), k -> new ArrayList<>())
-                    .add(normalizer.readDeclaration(row.getDeclarationPayload()));
+            if (PermissionDependencyDeclaration.COMPILE_STATUS_RESOLVED.equals(row.getCompileStatus())) {
+                active.computeIfAbsent(row.getSourceService(), k -> new ArrayList<>())
+                        .add(normalizer.readDeclaration(row.getDeclarationPayload()));
+            }
         }
         Input input = loadInputs(tenantId, active.values().stream().flatMap(List::stream).toList());
         // 受影响实体=受影响服务旧边端点 ∪ 重编译后新边端点（T-PERM-072 物化重算定位面）
@@ -268,17 +264,15 @@ public class DependencyCompilationDomainService {
                 affectedEntities.add(edge.targetId());
             });
         }
-        for (int offset = 0; offset < changes.size(); offset += SQL_BATCH_SIZE) {
-            var batch = changes.subList(offset, Math.min(offset + SQL_BATCH_SIZE, changes.size()));
+        SqlBatches.forEach(changes, batch -> {
             if (declarationMapper.saveAll(batch) != batch.size()) throw failure("lifecycle declaration write count mismatch");
-        }
+        });
         replaceGraphs(tenantId, graphs, now);
         List<String> keys = new ArrayList<>(services);
-        for (int offset = 0; offset < keys.size(); offset += SQL_BATCH_SIZE) {
-            var batch = keys.subList(offset, Math.min(offset + SQL_BATCH_SIZE, keys.size()));
+        SqlBatches.forEach(keys, batch -> {
             stateMapper.markDirtyScopes(tenantId, batch);
             edgeMapper.refreshCompiledScopeDescriptions(tenantId, batch, now);
-        }
+        });
         return affectedEntities;
     }
     private SystemException failure(String message) {

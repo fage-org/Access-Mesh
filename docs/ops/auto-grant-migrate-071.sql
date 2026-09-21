@@ -109,6 +109,8 @@ CREATE TABLE permission_dependency_declaration (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     deleted_at TIMESTAMPTZ,
     delete_flag BIGINT NOT NULL DEFAULT 0,
+    -- compile_status 值域 {RESOLVED, REJECTED}：代码侧唯一引用点为实体常量
+    -- PermissionDependencyDeclaration.COMPILE_STATUS_*（T-PERM-079 收敛），改值须两处同批。
     CONSTRAINT ck_dependency_declaration_state CHECK (
         (compile_status = 'RESOLVED' AND reject_reason IS NULL
          AND source_resource_id IS NOT NULL AND target_resource_id IS NOT NULL
@@ -133,6 +135,9 @@ CREATE TABLE service_manifest_sync (
     revision VARCHAR(128) NOT NULL,
     payload_hash CHAR(64) NOT NULL,
     semantic_hash CHAR(64) NOT NULL,
+    -- sync_status 值域 {SUCCESS, PARTIAL, FAILED}：代码侧唯一引用点为实体常量
+    -- ServiceManifestSync.SYNC_STATUS_*（T-PERM-079 收敛；resource_publication_state.last_full_status
+    -- 共用 SUCCESS/PARTIAL 子域），改值须两处同批。
     sync_status VARCHAR(16) NOT NULL CHECK (sync_status IN ('SUCCESS','PARTIAL','FAILED')),
     is_dirty BOOLEAN NOT NULL DEFAULT false,
     last_synced_at TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -273,8 +273,8 @@ class SyncFailureAtomicityPgIT {
             try {
                 awaitGate(firstWritten);
                 // 公开 sync 已返回，但外层事务尚未提交，锁必须仍保护已写事实。
-                assertThat(redisson.getLock("accessmesh:tree-write-lock:"
-                        + TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE.key() + ":" + TENANT).isLocked()).isTrue();
+                assertThat(redisson.getLock(
+                        TreeWriteLockSupport.lockKey(TENANT, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE)).isLocked()).isTrue();
                 var second = executor.submit(() -> {
                     Thread.currentThread().setName("full-sync-contender");
                     bind();

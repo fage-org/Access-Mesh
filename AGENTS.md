@@ -139,8 +139,9 @@ mvn test
 # access-service 并行是提速来源，勿去掉 -T）
 mvn test -T 1C
 
-# 全量回归（日常形态，T-ACCESS-031）：再跳过 e2e 模块（两条跨服务验收垂直切片）
-mvn test -T 1C -DskipE2E=true
+# 全量回归（日常形态，T-ACCESS-031）：再跳过 e2e 模块（两条跨服务验收垂直切片）与
+# 容器重组用例（T-PERM-079 拆档：超大规模清理用例挂 testcontainers-heavy 标签）
+mvn test -T 1C -DskipE2E=true -DskipHeavyIT=true
 
 # 仅单测轨道（跳过 access-service 容器组，日常快速反馈；T-ACCESS-030）
 mvn test -pl access-service -DskipTestcontainers=true
@@ -157,7 +158,7 @@ docker compose -f docker-compose.yml --profile app up -d --build
 
 > **⚠️ 测试运行纪律（T-ACCESS-030 / T-ACCESS-031）**：
 > - 日常反馈用单测轨道 `-DskipTestcontainers=true`；**全量（含容器组）只在任务收口时跑**，不在中途反复全量。
-> - 全量分两形态（T-ACCESS-031）：日常 `-T 1C -DskipE2E=true`（跳过 e2e 模块），收口 `-T 1C`（E2E 必跑）——E2E 是产品验收资产（T-ACCESS-021 垂直切片），**收口不得带 -DskipE2E**；ci.yml 单测 job 两个开关都必须带。
+> - 全量分两形态（T-ACCESS-031）：日常 `-T 1C -DskipE2E=true -DskipHeavyIT=true`（跳过 e2e 模块与容器 heavy 组），收口 `-T 1C`（E2E 与 heavy 必跑）——E2E 是产品验收资产（T-ACCESS-021 垂直切片），heavy 是超大规模参数上限验证（T-PERM-079 拆档），**收口不得带 -DskipE2E / -DskipHeavyIT**；ci.yml 单测 job 现行两开关（skipTestcontainers/skipE2E）不变。
 > - e2e 模块（reactor 末位）依赖三服务 artifact，**必须随 reactor 构建**（根构建或 `-pl e2e -am`）——单独 `-pl e2e` 会从本地仓库解析三服务的 repackaged boot jar，类路径为 BOOT-INF 布局必失败。
 > - 全量回归前先停本机 9100 dev 服务（`DualInstanceContainerTest` 占真实端口，冲突即假失败）；mvn 运行期间**禁止改动源码**（并发编译快照污染会制造大面积假失败）。
 > - 全量输出**整文件落盘**再解析（管道 `grep | tail` 会截断聚合统计）；失败先**隔离复跑**定性（已知抖动登记见 decision-registry），再决定是否重跑全量。

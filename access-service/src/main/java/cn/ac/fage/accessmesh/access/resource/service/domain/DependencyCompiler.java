@@ -21,6 +21,15 @@ import java.util.Set;
 /** 已装载事实的纯编译；不读取缓存/数据库，不按资源启停过滤，不物化角色权限。 */
 @Component
 public class DependencyCompiler {
+
+    /** 编译拒绝原因值域（产出口径单源；消费方按 reason 分类 retryClass 时禁止对字面量比较）。 */
+    public static final String REASON_TYPE_MISSING = "TYPE_MISSING";
+    public static final String REASON_CROSS_OWNER = "CROSS_OWNER";
+    public static final String REASON_RESOURCE_MISSING = "RESOURCE_MISSING";
+    public static final String REASON_SELF_DEPENDENCY = "SELF_DEPENDENCY";
+    public static final String REASON_OPERATION_INVALID = "OPERATION_INVALID";
+    public static final String REASON_CYCLE = "CYCLE";
+
     public record Declaration(String declarationKey, ResourceKey source, String sourceOperationCode,
                               ResourceKey target, List<String> requiredOperationCodes, String description) {
         public Declaration { requiredOperationCodes = List.copyOf(requiredOperationCodes); }
@@ -60,27 +69,27 @@ public class DependencyCompiler {
             Long trigger = null;
             long required = 0;
             if (sourceType == null || targetType == null) {
-                reason = "TYPE_MISSING";
+                reason = REASON_TYPE_MISSING;
             } else if (!ownedBy(sourceService, sourceType) || !ownedBy(sourceService, targetType)
                     || ResourceTypeCode.API.equals(declaration.source().resourceTypeCode())
                     || ResourceTypeCode.API.equals(declaration.target().resourceTypeCode())) {
-                reason = "CROSS_OWNER";
+                reason = REASON_CROSS_OWNER;
             } else if (sourceId == null || targetId == null) {
-                reason = "RESOURCE_MISSING";
+                reason = REASON_RESOURCE_MISSING;
             } else if (Objects.equals(sourceId, targetId)) {
-                reason = "SELF_DEPENDENCY";
+                reason = REASON_SELF_DEPENDENCY;
             } else {
                 if (declaration.sourceOperationCode() != null) {
                     trigger = bits.get(new OperationKey(sourceType.value(), declaration.sourceOperationCode()));
-                    if (trigger == null || trigger <= 0) reason = "OPERATION_INVALID";
+                    if (trigger == null || trigger <= 0) reason = REASON_OPERATION_INVALID;
                 }
                 for (String code : declaration.requiredOperationCodes()) {
                     Long bit = bits.get(new OperationKey(targetType.value(), code));
-                    if (bit == null || bit <= 0) reason = "OPERATION_INVALID";
+                    if (bit == null || bit <= 0) reason = REASON_OPERATION_INVALID;
                     else required |= bit;
                 }
-                if (required == 0) reason = "OPERATION_INVALID";
-                if (reason == null && reachable(graph, targetId, sourceId)) reason = "CYCLE";
+                if (required == 0) reason = REASON_OPERATION_INVALID;
+                if (reason == null && reachable(graph, targetId, sourceId)) reason = REASON_CYCLE;
             }
             if (reason != null) {
                 resolutions.add(new Resolution(declaration, reason, null));

@@ -261,31 +261,8 @@ class ResourcePublicationPgIT {
         assertThat(maximum(f)).isEqualTo(1);
     }
 
-    @Test void shouldClearLargeOwnedScope_withoutExceedingDatabaseParameterLimit() {
-        Fixture f = fixture();
-        int size = 65540;
-        jdbc.update("""
-                INSERT INTO resource_entity(tenant_id,resource_type,code,code_type,name)
-                SELECT 1,?,'bulk-' || i,'default','bulk' FROM generate_series(1,?) i
-                """, f.type(), size);
-        String scope = SyncKeyCodecUtil.resourceEntityScopeKey(f.typeCode());
-        String businessTemplate = SyncKeyCodecUtil.resourceEntityBusinessKey(f.typeCode(), "__KEY__", "default");
-        String syncTemplate = SyncKeyCodecUtil.syncKey(f.service(), "RESOURCE_ENTITY", "__BUSINESS__");
-        jdbc.update("""
-                WITH facts AS (
-                    SELECT id,replace(?, '__KEY__', code) AS business_key FROM resource_entity WHERE tenant_id=1 AND resource_type=?
-                ), encoded AS (
-                    SELECT id,business_key,replace(?, '__BUSINESS__', business_key) AS sync_key FROM facts
-                )
-                INSERT INTO sync_metadata(tenant_id,entity_kind,source_service,scope_key,scope_key_hash,
-                    business_key,business_key_hash,sync_key,sync_key_hash,target_id,target_status,last_sync_occurred_at,last_sync_sequence_no)
-                SELECT 1,'RESOURCE_ENTITY',?,?,?,business_key,encode(sha256(convert_to(business_key,'UTF8')),'hex'),
-                    sync_key,encode(sha256(convert_to(sync_key,'UTF8')),'hex'),id,'ACTIVE',now(),1 FROM encoded
-                """, businessTemplate, f.type(), syncTemplate, f.service(), scope, SyncKeyCodecUtil.sha256Hex(scope));
-        assertThat(full(f, "1", List.of()).detail().deactivatedCount()).isEqualTo(size);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM resource_entity WHERE resource_type=? AND delete_flag=0", Integer.class, f.type())).isZero();
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM sync_metadata WHERE source_service=? AND target_status='DELETED'", Integer.class, f.service())).isEqualTo(size);
-    }
+    // 超大规模清理用例（65540 行）已拆档至 ResourcePublicationHeavyPgIT（testcontainers-heavy
+    // 标签，日常形态 -DskipHeavyIT=true 跳过、收口必跑——T-PERM-079）
 
     private SyncResultResp single(Fixture f, String code, String generation, long version) {
         AccessRequestContext.bind(RequestContext.service(1L, f.service()));

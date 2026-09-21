@@ -45,7 +45,22 @@ import static org.mockito.Mockito.verify;
 class AutoGrantEngineContractPgIT {
     private static final long TENANT = 1L;
     private static final LocalDateTime AT = LocalDateTime.of(2026, 9, 21, 12, 0);
-    private static int nextType = 910;
+    /** type_definition 终值分配表（schema 头部）：role_type BASIC_ROLE=6。 */
+    private static final int ROLE_TYPE_BASIC_ROLE = 6;
+    /** type_definition 终值分配表（schema 头部）：user_type USER=1。 */
+    private static final int USER_TYPE_USER = 1;
+    /**
+     * 动态建型 type_value 起始段位：910 远高于种子 resource_type 终值（最大 31，见 schema
+     * 头部分配表）与管理面自动分配段（全量行 max+1 顺延），避免与 bootstrap 种子及其他
+     * 测试类动态建型撞 tenant+type_key+type_value 唯一约束。
+     */
+    private static final int CUSTOM_TYPE_VALUE_BASE = 910;
+    private static final String TYPE_CODE_PREFIX = "AUTO_TEST_";
+    /** operation_permission.binary_bit 测试位段（VIEW/UPDATE/EXPORT 各占独立位，掩码表达覆盖关系）。 */
+    private static final long BIT_VIEW = 2L;
+    private static final long BIT_UPDATE = 4L;
+    private static final long BIT_EXPORT = 8L;
+    private static int nextType = CUSTOM_TYPE_VALUE_BASE;
 
     @DynamicPropertySource
     static void configure(DynamicPropertyRegistry registry) {
@@ -60,11 +75,11 @@ class AutoGrantEngineContractPgIT {
     @Test
     void shouldKeepConditionsSpecificToEachCanonicalOperation() {
         Fixture f = fixture();
-        operation(f, "VIEW", 2, 0);
-        operation(f, "EXPORT", 4, 0);
+        operation(f, "VIEW", BIT_VIEW, 0);
+        operation(f, "EXPORT", BIT_UPDATE, 0);
         long denied = condition(false);
-        grant(f, 2, null, "AUTO_DEP");
-        grant(f, 4, denied, "AUTO_DEP");
+        grant(f, BIT_VIEW, null, "AUTO_DEP");
+        grant(f, BIT_UPDATE, denied, "AUTO_DEP");
         assertThat(check(f, "VIEW")).isTrue();
         assertThat(check(f, "EXPORT")).isFalse();
         assertThat(batch(f, "VIEW", "EXPORT")).containsExactly(true, false);
@@ -73,10 +88,10 @@ class AutoGrantEngineContractPgIT {
     @Test
     void shouldKeepOrVariantsAndManualPermission_whenUnconditionalAutoFactIsRemoved() {
         Fixture f = fixture();
-        operation(f, "VIEW", 2, 0);
+        operation(f, "VIEW", BIT_VIEW, 0);
         long falseCondition = condition(false);
         long trueCondition = condition(true);
-        long unconditional = grant(f, 2, null, "AUTO_DEP");
+        long unconditional = grant(f, BIT_VIEW, null, "AUTO_DEP");
         long falseFact = grant(f, 2, falseCondition, "AUTO_DEP");
         long trueFact = grant(f, 2, trueCondition, "AUTO_DEP");
         assertThat(check(f, "VIEW")).isTrue();
@@ -95,10 +110,10 @@ class AutoGrantEngineContractPgIT {
     @Test
     void shouldApplyMutexToEachEntryPointCollection_withoutCompressingCoveredFacts() {
         Fixture f = fixture();
-        long view = operation(f, "VIEW", 2, 0);
-        long update = operation(f, "UPDATE", 4, 2);
-        grant(f, 2, null, "AUTO_DEP");
-        grant(f, 4, null, "AUTO_DEP");
+        long view = operation(f, "VIEW", BIT_VIEW, 0);
+        long update = operation(f, "UPDATE", BIT_UPDATE, BIT_VIEW);
+        grant(f, BIT_VIEW, null, "AUTO_DEP");
+        grant(f, BIT_UPDATE, null, "AUTO_DEP");
         jdbc.update("""
                 INSERT INTO permission_conflict_rule(tenant_id,conflict_type,first_operation_permission_id,second_operation_permission_id)
                 VALUES (?,'PERM_MUTEX',?,?)
@@ -122,7 +137,7 @@ class AutoGrantEngineContractPgIT {
     @Test
     void shouldKeepDistinctConditionIdentities_whenExpressionsAreEqual() {
         Fixture f = fixture();
-        operation(f, "VIEW", 2, 0);
+        operation(f, "VIEW", BIT_VIEW, 0);
         long first = grant(f, 2, condition(true), "AUTO_DEP");
         long second = grant(f, 2, condition(true), "AUTO_DEP");
         PermQuery q = PermQuery.forAuthCheck(TENANT, f.user(), f.typeCode(), "target", "VIEW");
@@ -133,23 +148,23 @@ class AutoGrantEngineContractPgIT {
     @Test
     void shouldNotInferTransitiveOperationCoverage() {
         Fixture f = fixture();
-        operation(f, "VIEW", 2, 0);
-        operation(f, "UPDATE", 4, 2);
-        operation(f, "EXPORT", 8, 4);
-        grant(f, 8, null, "AUTO_DEP");
+        operation(f, "VIEW", BIT_VIEW, 0);
+        operation(f, "UPDATE", BIT_UPDATE, BIT_VIEW);
+        operation(f, "EXPORT", BIT_EXPORT, BIT_UPDATE);
+        grant(f, BIT_EXPORT, null, "AUTO_DEP");
         assertThat(batch(f, "VIEW", "UPDATE", "EXPORT")).containsExactly(false, true, true);
         // 独立 VIEW 事实必须保留，不能因 EXPORT 覆盖 UPDATE、UPDATE 覆盖 VIEW 将其压缩。
-        grant(f, 2, null, "AUTO_DEP");
+        grant(f, BIT_VIEW, null, "AUTO_DEP");
         assertThat(check(f, "VIEW")).isTrue();
     }
 
     @Test
     void shouldKeepMutuallyCoveringFactsAsDistinctOperations() {
         Fixture f = fixture();
-        operation(f, "VIEW", 2, 4);
-        operation(f, "UPDATE", 4, 2);
-        long view = grant(f, 2, null, "AUTO_DEP");
-        long update = grant(f, 4, null, "AUTO_DEP");
+        operation(f, "VIEW", BIT_VIEW, BIT_UPDATE);
+        operation(f, "UPDATE", BIT_UPDATE, BIT_VIEW);
+        long view = grant(f, BIT_VIEW, null, "AUTO_DEP");
+        long update = grant(f, BIT_UPDATE, null, "AUTO_DEP");
         assertThat(batch(f, "VIEW", "UPDATE")).containsExactly(true, true);
         PermQuery q = PermQuery.forAuthCheck(TENANT, f.user(), f.typeCode(), "target", "VIEW");
         q.setEvalContext(context());
@@ -177,13 +192,13 @@ class AutoGrantEngineContractPgIT {
     private Fixture fixture() {
         int type = nextType++;
         String key = UUID.randomUUID().toString();
-        String typeCode = "AUTO_TEST_" + type;
+        String typeCode = TYPE_CODE_PREFIX + type;
         jdbc.update("INSERT INTO type_definition(tenant_id,type_key,type_code,type_value,name) VALUES (?,'resource_type',?,?,'auto test')",
                 TENANT, typeCode, type);
-        long role = jdbc.queryForObject("INSERT INTO abstract_role(tenant_id,role_type,external_id,name) VALUES (?,6,?,'auto role') RETURNING id",
-                Long.class, TENANT, key);
-        long user = jdbc.queryForObject("INSERT INTO abstract_user(tenant_id,user_type,external_id,name) VALUES (?,1,?,'auto user') RETURNING id",
-                Long.class, TENANT, key);
+        long role = jdbc.queryForObject("INSERT INTO abstract_role(tenant_id,role_type,external_id,name) VALUES (?,?,?,'auto role') RETURNING id",
+                Long.class, TENANT, ROLE_TYPE_BASIC_ROLE, key);
+        long user = jdbc.queryForObject("INSERT INTO abstract_user(tenant_id,user_type,external_id,name) VALUES (?,?,?,'auto user') RETURNING id",
+                Long.class, TENANT, USER_TYPE_USER, key);
         jdbc.update("INSERT INTO user_role(tenant_id,abstract_user_id,target_type,target_id) VALUES (?,?,'ROLE',?)", TENANT, user, role);
         long resource = jdbc.queryForObject("INSERT INTO resource_entity(tenant_id,resource_type,code,code_type,name) VALUES (?,?,'target','default','target') RETURNING id",
                 Long.class, TENANT, type);

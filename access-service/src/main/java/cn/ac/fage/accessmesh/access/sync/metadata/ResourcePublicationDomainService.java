@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.sync.metadata;
 
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import cn.ac.fage.accessmesh.access.resource.entity.ServiceManifestSync;
 import cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil;
 import cn.ac.fage.accessmesh.access.sync.mapper.ResourcePublicationStateMapper;
 import cn.ac.fage.accessmesh.access.sync.mapper.SyncMetadataMapper;
@@ -24,8 +25,9 @@ public class ResourcePublicationDomainService {
         requireOne(states.acceptSingle(tenant, service, scope, SyncKeyCodecUtil.sha256Hex(scope), generation));
     }
     public void acceptFull(Long tenant, String service, String scope, long generation, String hash, boolean partial) {
+        // last_full_status 与 service_manifest_sync.sync_status 共用 SUCCESS/PARTIAL 值域（常量单源）
         requireOne(states.acceptFull(tenant, service, scope, SyncKeyCodecUtil.sha256Hex(scope), generation, hash,
-                partial ? "PARTIAL" : "SUCCESS"));
+                partial ? ServiceManifestSync.SYNC_STATUS_PARTIAL : ServiceManifestSync.SYNC_STATUS_SUCCESS));
     }
     public void stampItem(Long tenant, String service, String scope, String businessHash, long generation, String hash) {
         requireOne(metadata.stampResourcePublication(tenant, service, SyncKeyCodecUtil.sha256Hex(scope), businessHash, generation, hash));
