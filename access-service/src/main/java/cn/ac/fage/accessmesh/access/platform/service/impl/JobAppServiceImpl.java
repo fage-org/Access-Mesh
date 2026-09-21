@@ -679,8 +679,7 @@ public class JobAppServiceImpl implements JobAppService {
                 return;
             }
 
-            jobInvokeDomainService.invoke(job.getInvokeTarget(), context);
-
+            Object invokeResult = jobInvokeDomainService.invoke(job.getInvokeTarget(), context);
             if (!taskExecutionDomainService.complete(context.tenantId(), context.executionKey(),
                 leaseOwner, context.attemptCount(), true, null)) {
                 // 租约被接管（owner/attempt 已变）：本尝试结果丢弃，不覆盖新尝试
@@ -688,6 +687,10 @@ public class JobAppServiceImpl implements JobAppService {
                 message = "Lease lost before completion, result discarded";
                 log.warn("Lease lost before completion: jobId={}, executionKey={}",
                     job.getId(), context.executionKey());
+            } else if (invokeResult instanceof String summary && !summary.isBlank()) {
+                // T-PERM-073：@JobInvocable 方法返回 String 时作为成功消息回传任务日志
+                //（对账类诊断摘要通道；void/null 维持缺省消息）
+                message = summary;
             }
         } catch (Exception e) {
             status = 0;

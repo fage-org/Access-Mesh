@@ -8,6 +8,13 @@
         WHERE id = #{id} AND tenant_id = #{tenantId} AND delete_flag = 0
     </select>
 
+    <!-- T-PERM-073：bootstrap 任务种子 insert-if-absent 定位（tenant+invokeTarget） -->
+    <select id="selectValidByInvokeTarget" resultType="cn.ac.fage.accessmesh.access.platform.entity.SysJob">
+        SELECT * FROM sys_job
+        WHERE tenant_id = #{tenantId} AND invoke_target = #{invokeTarget} AND delete_flag = 0
+        LIMIT 1
+    </select>
+
     <!-- T-ACCESS-009：跨租户单条批量查询（启动加载/多实例对账），替代按租户循环查询（§8.4.8）；
          原按租户的 selectEnabledJobs 已随之删除，避免两套查询口径重新引入循环查询 -->
     <select id="selectAllEnabledJobs" resultType="cn.ac.fage.accessmesh.access.platform.entity.SysJob">

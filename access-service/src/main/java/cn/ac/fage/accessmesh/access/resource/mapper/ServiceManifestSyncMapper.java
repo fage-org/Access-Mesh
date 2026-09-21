@@ -8,4 +8,7 @@ public interface ServiceManifestSyncMapper extends BaseMapper<ServiceManifestSyn
     int markDirtyScopes(@Param("tenantId") Long tenantId, @Param("services") java.util.List<String> services);
     ServiceManifestSync selectScope(@Param("tenantId") Long tenantId, @Param("service") String service);
     int save(@Param("state") ServiceManifestSync state);
+
+    /** 租户全部有效发布状态行（T-PERM-073 声明诊断 declaration-status）。 */
+    java.util.List<ServiceManifestSync> selectByTenantId(@Param("tenantId") Long tenantId);
 }

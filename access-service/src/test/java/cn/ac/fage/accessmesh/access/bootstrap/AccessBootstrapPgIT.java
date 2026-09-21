@@ -15,6 +15,7 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
+import cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionContext;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
@@ -91,6 +92,8 @@ class AccessBootstrapPgIT {
     private StringRedisTemplate stringRedisTemplate;
     @Autowired
     private JdbcTemplate jdbc;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.infrastructure.task.JobInvokeDomainService jobInvokeDomainService;
 
     /** 写入组件 spy：两个回滚用例分别在中段 insertGrants 与末段 bindUserOrg 注入故障，其余用例真实执行（用毕 reset）。 */
     @SpyBean
@@ -194,14 +197,14 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code IN ('" + String.join("','", expectedApiCodes) + "') AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(87L);
+            Long.class, TENANT)).isEqualTo(90L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND re.code LIKE 'POST:%'",
-            Long.class, TENANT)).isEqualTo(86L);
+            Long.class, TENANT)).isEqualTo(89L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
@@ -219,7 +222,20 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(132L);
+            Long.class, TENANT, roleId)).isEqualTo(135L);
+
+        // 系统任务种子（T-PERM-073，2026-09-21 用户定案）：默认停用、预置 cron；invokeTarget
+        // 必须经 @JobInvocable 白名单真实解析（防拼写漂移到首次手动触发才暴露）且 String
+        // 摘要通道回传非空（诊断面契约）；insert-if-absent 不覆盖由种子方法幂等语义保证
+        var jobSeed = jdbc.queryForMap(
+            "SELECT status, cron_expression, job_name FROM sys_job WHERE tenant_id = ? "
+                + "AND invoke_target = 'autoGrantReconcileInvoker.reconcile' AND delete_flag = 0", TENANT);
+        assertThat(((Number) jobSeed.get("status")).intValue()).isZero();
+        assertThat(jobSeed.get("cron_expression")).isEqualTo("0 0 3 * * ?");
+        assertThat(jobSeed.get("job_name")).isEqualTo("自动授权对账");
+        Object invokeSummary = jobInvokeDomainService.invoke("autoGrantReconcileInvoker.reconcile",
+            new TaskExecutionContext(TENANT, 0L, "bootstrap-seed-check", 1, null));
+        assertThat(invokeSummary).isInstanceOf(String.class).asString().contains("reconcile");
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",

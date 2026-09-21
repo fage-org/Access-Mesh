@@ -2,20 +2,26 @@ package cn.ac.fage.accessmesh.access.grant.service.domain;
 
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
+import cn.ac.fage.accessmesh.access.rule.entity.PermissionCondition;
 import cn.ac.fage.accessmesh.perm.common.enums.ScopeMode;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
  * 聚合授权计划的唯一预检与执行入口。
  * <p>主体参数（{@code subjectId}）为权限域投影主体（{@code abstract_user.id}），
  * T-ORG-001 统一后操作者 ID 即主体 ID（{@code abstract_user.id}），无运行时转换层。</p>
+ * <p>T-PERM-073 起校验拆为纯准备（{@link #prepare}，无数据库写入）+ 保存阶段 INLINE 物化：
+ * 预览（preview-grant-plan）与保存（{@link #prevalidate}）共用同一校验，禁止另写宽松预览算法。
+ * 预览临时条件身份=负数合成 ID（{@code PlannedGrantPlan.syntheticConditionRefs} 反查请求条目引用），
+ * 保存阶段物化为真实 conditionId，合成 ID 不落库。</p>
  */
 public interface PermissionGrantPlanDomainService {
 
     /**
-     * 预检授权计划（含 canGrant 委托验证）
+     * 预检授权计划（含 canGrant 委托验证与 INLINE 条件同事务物化——保存专用入口）。
      *
      * @param tenantId   租户ID
      * @param subjectId  权限域投影主体ID（abstract_user.id）
@@ -26,6 +32,14 @@ public interface PermissionGrantPlanDomainService {
      */
     PreparedGrantPlan prevalidate(Long tenantId, Long subjectId, Long roleId, String domainCode,
                                   ApplyGrantPlanReq.GrantPlan plan);
+
+    /**
+     * 纯计划准备（T-PERM-073）：执行与 prevalidate 完全同源的形状/存在性/不变量/委托校验，
+     * 但不写任何数据——INLINE 条件以负数合成 ID 挂在计划行上（保存阶段物化，预览阶段仅作身份）。
+     * <p>预览入口在只读事务内调用本方法；保存入口经 {@link #prevalidate} = prepare + INLINE 物化。</p>
+     */
+    PlannedGrantPlan prepare(Long tenantId, Long subjectId, Long roleId, String domainCode,
+                             ApplyGrantPlanReq.GrantPlan plan);
 
     void apply(PreparedGrantPlan preparedPlan);
 
@@ -102,5 +116,57 @@ public interface PermissionGrantPlanDomainService {
         List<AuditPermissionKey> auditKeys,
         /** 内联回收候选（T-PERM-048）：随换绑/清除/删行失去引用的原条件 id，apply 末段判定归零回收 */
         Set<Long> inlineRecycleCandidates
+    ) {}
+
+    /**
+     * 纯准备结果（T-PERM-073）：与 {@link PreparedGrantPlan} 同源校验产物 + INLINE 写入暂缓面。
+     * <p>creates/updates 行中 INLINE 绑定暂以负数合成 ID 表示（真实条件 ID 恒为正），
+     * 保存阶段由实现物化替换；预览阶段仅作条件身份（同表达式不同条目不合并）。</p>
+     *
+     * @param createItemRefs 与 creates 同长：请求条目引用（如 creates[0]），预览来源定位用
+     * @param inlineCreates  create 轨待物化内联定义（合成 ID → 真实 ID 在保存阶段完成）
+     * @param inlineUpdates  update 轨待物化内联定义（就地编辑保持原 id；换绑新建合成 ID）
+     * @param syntheticConditionRefs 合成 ID → 请求条目引用（预览 PREVIEW_INLINE 身份渲染）
+     * @param resolvedConditions     本计划解析到的全部真实条件（引用轨 + 现绑定轨），预览 EXISTING 渲染用
+     */
+    record PlannedGrantPlan(
+        Long tenantId,
+        Long roleId,
+        List<PreparedCreate> creates,
+        List<String> createItemRefs,
+        List<RoleResourcePermission> updates,
+        List<Long> removes,
+        Set<PermissionGrantDomainService.GrantCheckKey> delegationKeys,
+        List<AuditPermissionKey> auditKeys,
+        Set<Long> inlineRecycleCandidates,
+        List<PendingInlineCreate> inlineCreates,
+        List<PendingInlineUpdate> inlineUpdates,
+        Map<Long, String> syntheticConditionRefs,
+        Map<Long, PermissionCondition> resolvedConditions
+    ) {
+
+        /** 抽出INLINE物化后的保存形态（合成 ID 已全部替换为真实 ID）。 */
+        public PreparedGrantPlan toPrepared() {
+            return new PreparedGrantPlan(tenantId, roleId, creates, updates, removes,
+                delegationKeys, auditKeys, inlineRecycleCandidates);
+        }
+    }
+
+    /** create 轨待物化内联定义：permission 行的 conditionId 当前为合成 ID。 */
+    record PendingInlineCreate(
+        RoleResourcePermission permission,
+        ApplyGrantPlanReq.InlineConditionDef definition,
+        String requestItemRef
+    ) {}
+
+    /**
+     * update 轨待物化内联定义：就地编辑（现绑定 INLINE，1:1 保持同 id）或换绑新建（合成 ID）。
+     */
+    record PendingInlineUpdate(
+        RoleResourcePermission permission,
+        ApplyGrantPlanReq.InlineConditionDef definition,
+        String requestItemRef,
+        boolean inPlaceEdit,
+        PermissionCondition currentCondition
     ) {}
 }

@@ -6,7 +6,7 @@ domain: cross-service
 supersedes:
   - docs/design/permission-center/api-contract.md
   - docs/design/services/admin-service-api-contract.md
-last_reviewed: 2026-09-21   # T-PERM-072：§12.1 补操作引用拒绝 20069（OPERATION_REFERENCED_BY_GRANTS——位变更/删除存在有效 MANUAL/AUTO_DEP 引用整批拒绝，AUTHORITY_ROOT 不算用户引用）与角色删除级联回收口径；此前 T-PERM-071：新增 §19.10 独立依赖 manifest 章与 §19.2.1 发布代次（M2M 端点 integration/permission-manifest/full-sync+RESOLVED/REJECTED 逐项诊断）、§12.3 管理写路由退役口径、§2.5 大写锁覆盖清单补 manifest 端点；此前 2026-09-20 T-PERM-070：新增 §24 服务凭证与 M2M 服务认证章（/api/access/service-credential/* 四端点+仲裁状态表+M2M 白名单单源+错误码 20065~20068+SDK 配置键）；此前 2026-09-19 T-GW-009（registry 定案⑤）：§7.7 补 Gateway 白名单放行注记（/api/access/user/reset-password 纳入会话入口族，服务层门禁零改动）+ §6.4 会话入口白名单族口径补记；此前 2026-09-18 T-PERM-068 外评处置（claude P2×1 + grok P2×1 + 共同 P3×1，全采纳）：§19.1 父字段组改为仅 UPSERT 生效（DISABLE/DELETE 忽略父字段，用户拍板）+ 解挂显式清 parent 列落库（grok P2：flex update(entity) 忽略 null 列，applied=true 旧父残留 fail-open——UpdateEntity 先例修复）+ 新增 DELETE 有子拒绝 CHILDREN_EXIST 句（用户拍板，DEPENDENCY_MISSING 可重试先于版本写入）；此前 2026-09-17（Q-007 三定案）：§19.1 父资源定位与同类型门禁句改写（父字段组激活条件=parentResourceCode 非空、typeCode 缺省回填自身类型、显式异类型 NON_RETRYABLE/PARENT_TYPE_MISMATCH 先于父解析与版本写入）、§19.2 full-sync 父默认值句改写（缺省回填 scope 类型自本批为真实实现语义——原「默认同类型」与实现半传静默解挂漂移已修）、§12.1 规则表补 create/batch-create 父校验行（20053/20004 对齐 move + 裸 parentId 补校验）+ SYNC 只读行「sync 通道允许跨类型」改「入口已收紧、DB 直写脏数据防线」；此前 T-PERM-066/067 外评处置（claude P3×1 + grok P2×1，全采纳修复）：§2.5 typeCode 注记修正（可选——null 与空串放行走留空生成分支，`^$` 显式放行；正则同步改 `^$|^[A-Z][A-Z0-9_]*$`）、§7.7 force_reset_pwd 置位口径（自身自助改密置 false、非自身置 true——归档设计「修改个人密码成功后置 false」回归）；此前 2026-09-14 T-PERM-067 USER 写入口自身豁免收窄（Q-002 转出）：§4 表 /user/update 行、§7.4 门禁、§7.7 门禁/force_reset_pwd/验收要点（自身=自助改密通道定位，证伪「走另外的修改密码接口」旧句）、§7.8 abstract-user update/remove 行（perm 轨死分支语义统一）、§21.2 验收 2、§22.2 决策 13——档案字段自我豁免保留、启停/删除不豁免；此前 2026-09-14 T-PERM-066 operationCodeKey 族入参大写：§2.4 操作行注记 + §2.5 新增集中注记（@Pattern 覆盖面/边界/守卫/SDK 生效），授权域归一退役两域统一 raw；此前 2026-09-14 T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
+last_reviewed: 2026-09-21   # T-PERM-073：§11.4.1 预览/§12.3.1 解释转已落地（prepare 纯准备拆分/PREVIEW_INLINE 合成 ID/ConditionRef.conditionCode 可见描述字段/target 解析错误码口径）+ §12.3 表登记 explain/declaration-status 两端点与 declaration-status 正文（发布状态+声明诊断只读面）；此前 T-PERM-072：§12.1 补操作引用拒绝 20069（OPERATION_REFERENCED_BY_GRANTS——位变更/删除存在有效 MANUAL/AUTO_DEP 引用整批拒绝，AUTHORITY_ROOT 不算用户引用）与角色删除级联回收口径；此前 T-PERM-071：新增 §19.10 独立依赖 manifest 章与 §19.2.1 发布代次（M2M 端点 integration/permission-manifest/full-sync+RESOLVED/REJECTED 逐项诊断）、§12.3 管理写路由退役口径、§2.5 大写锁覆盖清单补 manifest 端点；此前 2026-09-20 T-PERM-070：新增 §24 服务凭证与 M2M 服务认证章（/api/access/service-credential/* 四端点+仲裁状态表+M2M 白名单单源+错误码 20065~20068+SDK 配置键）；此前 2026-09-19 T-GW-009（registry 定案⑤）：§7.7 补 Gateway 白名单放行注记（/api/access/user/reset-password 纳入会话入口族，服务层门禁零改动）+ §6.4 会话入口白名单族口径补记；此前 2026-09-18 T-PERM-068 外评处置（claude P2×1 + grok P2×1 + 共同 P3×1，全采纳）：§19.1 父字段组改为仅 UPSERT 生效（DISABLE/DELETE 忽略父字段，用户拍板）+ 解挂显式清 parent 列落库（grok P2：flex update(entity) 忽略 null 列，applied=true 旧父残留 fail-open——UpdateEntity 先例修复）+ 新增 DELETE 有子拒绝 CHILDREN_EXIST 句（用户拍板，DEPENDENCY_MISSING 可重试先于版本写入）；此前 2026-09-17（Q-007 三定案）：§19.1 父资源定位与同类型门禁句改写（父字段组激活条件=parentResourceCode 非空、typeCode 缺省回填自身类型、显式异类型 NON_RETRYABLE/PARENT_TYPE_MISMATCH 先于父解析与版本写入）、§19.2 full-sync 父默认值句改写（缺省回填 scope 类型自本批为真实实现语义——原「默认同类型」与实现半传静默解挂漂移已修）、§12.1 规则表补 create/batch-create 父校验行（20053/20004 对齐 move + 裸 parentId 补校验）+ SYNC 只读行「sync 通道允许跨类型」改「入口已收紧、DB 直写脏数据防线」；此前 T-PERM-066/067 外评处置（claude P3×1 + grok P2×1，全采纳修复）：§2.5 typeCode 注记修正（可选——null 与空串放行走留空生成分支，`^$` 显式放行；正则同步改 `^$|^[A-Z][A-Z0-9_]*$`）、§7.7 force_reset_pwd 置位口径（自身自助改密置 false、非自身置 true——归档设计「修改个人密码成功后置 false」回归）；此前 2026-09-14 T-PERM-067 USER 写入口自身豁免收窄（Q-002 转出）：§4 表 /user/update 行、§7.4 门禁、§7.7 门禁/force_reset_pwd/验收要点（自身=自助改密通道定位，证伪「走另外的修改密码接口」旧句）、§7.8 abstract-user update/remove 行（perm 轨死分支语义统一）、§21.2 验收 2、§22.2 决策 13——档案字段自我豁免保留、启停/删除不豁免；此前 2026-09-14 T-PERM-066 operationCodeKey 族入参大写：§2.4 操作行注记 + §2.5 新增集中注记（@Pattern 覆盖面/边界/守卫/SDK 生效），授权域归一退役两域统一 raw；此前 2026-09-14 T-ACCESS-041 域叙事改管理面/权限面口径：归并定位/术语映射更新、「管理域家族」→「管理面家族（裸路径族）」全局换词（9 处）、§2/§4/§5/§10/§21/§22 及附录域前缀表述清扫；契约语义零变化；此前 2026-09-13 T-ACCESS-034 操作码合一与 USER 轨细粒度化：§4 操作码常量行改挂唯一常量源 OperationCode（原两册常量类删除）、§7.8 补管理端点字段分档门禁表（update 分档/空 patch 90001/首管理员放行/USER:MANAGE 退役）、§12.1 remove 示例与 §16.4 参照系措辞对清；此前 2026-09-13 T-ACCESS-040 契约深合一：原《Permission Center 外部 API 契约》与《Admin Service 对前端 API 契约》两册并为一份总册——按能力分章、两个 URL 家族同册分列，契约内容语义零变化（仅章节重组、交叉引用重锚、旧包名事实性修正）；两合并源已转 superseded 留原位可解析
 ---
 
 # access-service API 契约总册
@@ -1255,9 +1255,9 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 ### 11.4 聚合授权提交 apply-grant-plan（T-PERM-034 已落地 2026-08-30，收敛为唯一写入口，收窄）
 
-> **自动授权预览已采纳、待实施（T-PERM-073，2026-09-20）**：按[自动授权设计 §12](dependency-auto-grant.md#admin-ui)，预览仅供参考，保存以事务内最新事实重新校验与计算；自动授撤影响与预览不同不构成拒绝保存或再次确认的条件，不新增强制预览凭证或版本匹配。保存成功后刷新实际权限与来源，预览/刷新失败不能冒充零影响或提交结果。预览正式接口与读取门禁仍待 078 收敛，现役提交校验与回滚规则保持。
+> **自动授权预览已随 T-PERM-073 落地（2026-09-21，见 §11.4.1；2026-09-20 M5 采纳）**：按[自动授权设计 §12](dependency-auto-grant.md#admin-ui)，预览仅供参考，保存以事务内最新事实重新校验与计算；自动授撤影响与预览不同不构成拒绝保存或再次确认的条件，不新增强制预览凭证或版本匹配。保存成功后刷新实际权限与来源，预览/刷新失败不能冒充零影响或提交结果。现役提交校验与回滚规则保持。
 
-> **自动授权物化已随 T-PERM-072 落地（2026-09-21）：AUTO_DEP 行由物化器同事务 diff 落库、按角色完整重算收缩（此前 2026-09-20 采纳设计）**：按[自动授权设计 §6.3](dependency-auto-grant.md#materializer)，AUTO_DEP 保留推导出的各操作与条件事实，仅按同角色的资源/操作/条件身份精确去重，不按操作覆盖、条件支配或 MANUAL/类型级覆盖省略自动行。VIEW/UPDATE 即使存在覆盖关系也分别保留，运行时依各入口既有互斥评估集合处理，不以删行规避冲突。此为待实施自动结果规则，MANUAL 唯一性和现役提交契约不变。
+> **自动授权物化已随 T-PERM-072 落地（2026-09-21）：AUTO_DEP 行由物化器同事务 diff 落库、按角色完整重算收缩（此前 2026-09-20 采纳设计）**：按[自动授权设计 §6.3](dependency-auto-grant.md#materializer)，AUTO_DEP 保留推导出的各操作与条件事实，仅按同角色的资源/操作/条件身份精确去重，不按操作覆盖、条件支配或 MANUAL/类型级覆盖省略自动行。VIEW/UPDATE 即使存在覆盖关系也分别保留，运行时依各入口既有互斥评估集合处理，不以删行规避冲突。此为已生效的自动结果规则，MANUAL 唯一性和现役提交契约不变。
 
 **（2026-08-02）收窄**：砍 expectedRevision CAS + grant_revision 列 + 幂等表 grant_plan_idempotency + 20037/20039 + hash canonical + replayed/currentRevision（Stripe 式重幂等对低频内部管理页错配）；单事务原子 + 受影响行数断言；clientRequestId/@Idempotent/幂等表全删（幂等中间件实现取消（未登记看板））；schema 文件删除，本节为唯一权威契约（补结构约束）。
 
@@ -1325,7 +1325,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 > **20040 reason 细分（T-PERM-062，2026-09-12）**：拒绝 message 形如 `Cannot delegate <key>; reason=<REASON>`；委托失败（NO_PERMISSION/NO_GRANT_RIGHT）且目标为自定义 resource_type（is_system=false）在租户内零条可转授覆盖行时，reason 为 **TYPE_GRANT_ORIGIN_MISSING**（类型未初始化/种子被直改库清除——前端据此引导到类型定义页确认所有者角色；种子行经产品链路不可销毁，该 reason 正常运维不应出现）。内置类型零可转授行是转授链收窄的设计状态，reason 维持 NO_PERMISSION/NO_GRANT_RIGHT。
 
-#### 11.4.1 已采纳待实施：授撤影响预览（073）
+#### 11.4.1 授撤影响预览（073 已落地 2026-09-21）
 
 `POST /api/access/role-resource-permission/preview-grant-plan`，管理入口，服务凭证不开放；固定图按现有角色授权族注册。请求为 `{request: ApplyGrantPlanReq, maxItems?: int}`，request 复用现役 domainCode、roleTypeCode、roleExternalId、plan；外层可选 maxItems（1..2000，缺省 500）。ROLE:MANAGE、角色启用与授权委托/形状校验和保存同源；预览无数据库写入，不创建 INLINE 条件。
 
@@ -1333,14 +1333,16 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 事实元素统一为 `{fact: FactKey, seeds: SeedRef[]}`，嵌套形状如下（字段必须返回，nullable 字段明确为 null）：
 
-- `ResourceKey = {resourceTypeCode: string, resourceCode: string, codeType: string}`，codeType 已归一为非空默认值。
-- `ConditionRef = {kind: "NONE"|"EXISTING"|"PREVIEW_INLINE", conditionId: long|null, requestItemRef: string|null}`。NONE 后两项均 null；EXISTING 仅 conditionId 非 null；PREVIEW_INLINE 仅 requestItemRef 非 null，如 `creates[0]`、`updates[1]`，同表达式不同条目不得合并。现有 INLINE 就地编辑保持 EXISTING 身份。
-- `FactKey = {resource: ResourceKey, operationCode: string, conditionRef: ConditionRef}`。
+- `ResourceKey = {resourceTypeCode: string|null, resourceCode: string|null, codeType: string|null}`，codeType 已归一为非空默认值（防御面资源已软删时字段为 null）。
+- `ConditionRef = {kind: "NONE"|"EXISTING"|"PREVIEW_INLINE", conditionId: long|null, conditionCode: string|null, requestItemRef: string|null}`（conditionCode 为 EXISTING 的可见描述；防御路径可空）。NONE 后两项均 null；EXISTING 仅 conditionId 非 null；PREVIEW_INLINE 仅 requestItemRef 非 null，如 `creates[0]`、`updates[1]`，同表达式不同条目不得合并。现有 INLINE 就地编辑保持 EXISTING 身份。
+- `FactKey = {resource: ResourceKey, operationCode: string|null, conditionRef: ConditionRef}`（渲染上下文缺操作定义时 operationCode 为 null）。
 - `SeedRef = {permissionId: long|null, requestItemRef: string|null}`，现有显式来源返回 permissionId，新建预览来源返回请求条目位置，严格二选一。seeds 按身份排序，不返回完整路径组合。
 
 三组均按 ResourceKey 各字段、operationCode、ConditionRef(kind/id/itemRef) 的元组顺序排列（字符串按 Unicode 码点、ID 按数值）。展示预算全局按 removed、added、retained 顺序取前 maxItems 项，再放入对应数组；totalCount 为三组完整数量之和。输出数小于 totalCount 时 truncated=true，空数组不能独立解释为无影响。现有漂移通过 driftDetected 表示，不加入“计划导致”的 added/removed 计数。
 
 基于当前种子得到 beforeDesired、计划假想状态得到 afterDesired，并与实际 AUTO_DEP 标识已有漂移；不把 actual 缺行当“原来没权限”，也不伪称预览已修复漂移。预览失败按正常异常信封返回，前端显示“无法预览”；不返回伪造零影响。保存继续独立接受原 ApplyGrantPlanReq，无预览 token/hash/版本匹配字段。
+
+> **落地状态（T-PERM-073，2026-09-21）**：端点/响应形状已按上文实现——`PermissionGrantPlanDomainService` 拆纯准备 `prepare`（与保存同源校验、INLINE 以负数合成 ID 暂挂）+ 保存阶段物化，预览经 `AutoGrantInsightDomainService`（prepare + 三次共享推导 before/after/affectedOld，retained=受影响但仍有其他显式来源支持，根来源经直接前驱 DAG 拓扑传播，不枚举完整路径）；AppService `@Transactional(readOnly=true, isolation=REPEATABLE_READ)` 单次一致视图，不取写锁、不写任何数据（INLINE 零残留）。条件身份补充口径：`ConditionRef.conditionCode` 为 EXISTING 的可见描述字段（nullable）。回归锁 `AutoGrantInsightPgIT`（真实 PG：retained/removed/added+PREVIEW_INLINE 临时身份/零残留/门禁/停用角色/漂移）。前端：授权页变更清单「预览影响」手动按钮 + 抽屉（M5 边界说明四要素；2026-09-21 用户定案），保存独立不依赖预览。
 
 ### 11.5 子权限类型只读查询（sub-perm-allowed-types，v3.1，已随 T-PERM-034 落地 2026-08-30，收口修订）
 
@@ -1531,26 +1533,32 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 管理写路由 create/update/remove/batch-sync 已移除，管理台只读；所属服务使用 §19.10 manifest 发布声明。关闭路由不等于已迁移旧数据，071 的保全迁移与其余交付以任务卡为准。
 
 | 接口 | 请求 | 返回 |
-|---|---|---|
+| --- | --- | --- |
 | `POST /api/access/resource-dependency/list` | `{resourceEntityId?: long}` | `ItemsResp<ResourceDependencyResp>` |
 | `POST /api/access/resource-dependency/graph` | 同 list | 同 list，扁平边列表，由前端建图 |
 | `POST /api/access/resource-dependency/check` | 源/目标资源业务键（typeCode、code、可选 codeType） | `DependencyCycleCheckResp` |
+| `POST /api/access/resource-dependency/explain` | 角色业务键 + 可选 target 事实（§12.3.1） | `AutoGrantExplainResp` |
+| `POST /api/access/resource-dependency/declaration-status` | `{sourceService?: string}` | `DependencyDeclarationStatusResp`（T-PERM-073） |
 
-所有读入口执行 DEPENDENCY:VIEW 类型级门禁。list 保持全量不分页，关键词过滤由前端完成；graph 不含角色来源解释，角色解释目标契约见下一节。check 缺失资源返回既有 RESOURCE_NOT_FOUND，自依赖返回 hasCycle=true。
+所有读入口执行 DEPENDENCY:VIEW 类型级门禁。list 保持全量不分页，关键词过滤由前端完成；graph 不含角色来源解释，角色解释见 §12.3.1。check 缺失资源返回既有 RESOURCE_NOT_FOUND，自依赖返回 hasCycle=true。
+
+**declaration-status（T-PERM-073，2026-09-21 已落地）**：依赖声明只读诊断面——`manifestSyncs[]`（tenant+service 单行：`sourceService/publicationGeneration/revision/syncStatus(SUCCESS|PARTIAL|FAILED)/isDirty/lastSyncedAt`）+ `declarations[]`（声明行：`id/sourceService/declarationKey/compileStatus(RESOLVED|REJECTED)/rejectReason(RESOURCE_MISSING|TYPE_MISSING|OPERATION_INVALID|CROSS_OWNER|SELF_DEPENDENCY|CYCLE)/description` 与声明载荷业务键回显 `source*/target*` + `sourceOperationCode`（null=任意触发）/`requiredOperationCodes/updatedAt`）。声明载荷损坏（DB 直写/历史脏数据）时业务键字段防御性降级 null，诊断行仍可见状态与拒绝原因。REJECTED 行保留用于诊断，由所属服务重新发布恢复。
 
 ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编码/类型/名称、sourceOperationBits、requiredOperationBits、description、ownerServiceCode、maintainSource、createdAt/updatedAt。操作位沿字符串线格式保持 63 位精度，null 触发位为任意操作；前端按资源类型的操作定义拆解显示。聚合边 description 取诊断声明的描述，不代表全部来源。autoGrant 已从后端实体、响应、新 schema 与前端移除；历史开关仅随原表保全，不再决定新编译图是否生效。旧错误码 20048 退役且不复用。
 
-#### 12.3.1 已采纳待实施：角色自动授权来源解释（073）
+#### 12.3.1 角色自动授权来源解释（073 已落地 2026-09-21）
 
 `POST /api/access/resource-dependency/explain`，管理入口，服务凭证不开放；固定图登记，服务端校验 DEPENDENCY:VIEW 类型级权限。输入 roleTypeCode、roleExternalId、可选 domainCode；可选 target（resourceTypeCode、resourceCode、codeType、operationCode、conditionId，其中无条件须明确 conditionId=null）；maxDepth 1..50 缺省 20，maxNodes 1..2000 缺省 500，maxEdges 1..10000 缺省 1000。
 
 响应 `R<AutoGrantExplainResp>`：viewedAt、nodes、edges、totalNodeCount、totalEdgeCount、truncated、driftDetected。节点以完整逻辑事实键标识，包含资源/操作/条件、explicitSeed、desired、actualPermissionIds；边包含 fromNodeKey、toNodeKey、实际触发操作与声明引用。AUTO_DEP 缺失时 actualPermissionIds 为空而 desired=true；孤立存量 AUTO_DEP 以 desired=false 标识，不伪造来源。逻辑节点不能依赖 AUTO_DEP 主键。
 
-`nodes[]` 元素为 `{nodeKey: string, fact: FactKey, explicitSeed: boolean, seedRefs: SeedRef[], desired: boolean, actualPermissionIds: long[]}`；FactKey/SeedRef 沿 §11.4.1，explain 不出现 PREVIEW_INLINE。nodeKey 是本次完整结果按 FactKey 元组排序分配的展示 ID（如 n1），仅在本响应内引用；节点身份始终来自 fact，不跨请求按 n1 合并。`edges[]` 为 `{fromNodeKey: string, toNodeKey: string, triggerOperationCode: string, declarationRefs: [{declarationId: long, declarationKey: string, sourceService: string}]}`，所有字段必填，引用数组排序去重。
+`nodes[]` 元素为 `{nodeKey: string, fact: FactKey, explicitSeed: boolean, seedRefs: SeedRef[], desired: boolean, actualPermissionIds: long[]}`；FactKey/SeedRef 沿 §11.4.1，explain 不出现 PREVIEW_INLINE。nodeKey 是本次完整结果按 FactKey 元组排序分配的展示 ID（如 n1），仅在本响应内引用；节点身份始终来自 fact，不跨请求按 n1 合并。`edges[]` 为 `{fromNodeKey: string, toNodeKey: string, triggerOperationCode: string, declarationRefs: [{declarationId: long, declarationKey: string, sourceService: string}]}`（triggerOperationCode 防御路径可空），引用数组排序去重。
 
-有 target 时从目标反向遍历直接来源；无 target 时遍历全集为推导图与未被 desired 支持的 actual AUTO_DEP 节点的并集，显式根及孤立 actual 节点共同作为展示起点，按逻辑键排序后广度优先输出至 maxDepth/maxNodes。孤立 actual 节点也计入总数与预算，desired=false 且没有来源边，不伪造支持关系；只返回两个端点都已输出的边，再按起点/终点逻辑键排序取前 maxEdges 条，超限省略边也必须置 truncated。totalNodeCount/totalEdgeCount 是选定目标子图（无 target 为推导图与孤立 actual 节点的并集）的完整数量，不是已输出数量。actualPermissionIds 仅列对应 AUTO_DEP 行；显式 MANUAL 来源另由 seedRefs 表示。空数组表示无实际自动行，不能用 null 表示读取失败。
+有 target 时从目标反向遍历直接来源；无 target 时遍历全集为推导图与未被 desired 支持的 actual AUTO_DEP 节点的并集，参与推导的种子（命中依赖边的显式根，2026-09-21 用户定案 B——未参与推导的显式授权不进解释视图，防孤点淹没推导链；完整授权清单走授权页 list）及孤立 actual 节点共同作为展示起点，按逻辑键排序后广度优先输出至 maxDepth/maxNodes。孤立 actual 节点也计入总数与预算，desired=false 且没有来源边，不伪造支持关系；只返回两个端点都已输出的边，再按起点/终点逻辑键排序取前 maxEdges 条，超限省略边也必须置 truncated。totalNodeCount/totalEdgeCount 是选定目标子图（无 target 为推导图与孤立 actual 节点的并集）的完整数量，不是已输出数量。actualPermissionIds 仅列对应 AUTO_DEP 行；显式 MANUAL 来源另由 seedRefs 表示。空数组表示无实际自动行，不能用 null 表示读取失败。
 
 单次只读一致视图生成共享 DAG，源事实权限不表示用户当前必然 allowed。达到输出限额时显式截断，不能影响完整推导；界面选择节点按直接边逐段展开来源，不持久化或枚举所有完整路径。不存在跨请求冻结承诺；读取失败、角色不存在与权限不足沿正常错误信封处理。
+
+> **落地状态（T-PERM-073，2026-09-21）**：端点已按上文实现（`AutoGrantInsightDomainService` 共享推导 + 反向闭包/BFS 深度限额 + nodeKey 按输出节点 FactKey 元组排序分配；声明引用按编译键匹配 RESOLVED 声明、触发判定与推导核心同口径含 inheritMask）。target 解析错误码与写入口同口径：类型 20007 / 资源 20004 / 操作码任何类型不存在 20005、存在于其他类型 20008 / 条件 20006；角色业务键解析失败 20001 明确抛出（不以空结果掩盖）。driftDetected 按全角色 desired/actual 比对（漂移是角色级属性，不随 target 收窄）。AppService `@Transactional(readOnly=true, isolation=REPEATABLE_READ)`。前端（2026-09-21 用户定案：explain 入口仅依赖页查看器）：角色业务键输入 + 可选目标收窄 + 节点/边表展示，点选节点沿直接边本地展开；截断/漂移/读取失败显式提示，不以「无来源」掩盖。回归锁 `AutoGrantInsightPgIT`（全集 DAG/声明引用/target 闭包/截断 totals/漂移与孤立 actual/门禁/目标解析错误）。
 
 ### 12.4 旧依赖批量同步退役
 
@@ -2218,7 +2226,7 @@ ResourceDependencyResp 提供 id、tenantId、源/目标实体 ID 与业务编�
 
 > **资源发布顺序（T-PERM-071）**：混用资源 FULL 的 scope 中，增量与 FULL 共同携带源侧分配的 `publicationGeneration`，平台提供双向旧请求防护；尚未切换的纯增量 scope 可省略该字段。字段、响应与一次性切换规则见 §19.2.1。
 
-> **自动授权生命周期已采纳、待实施（T-PERM-071/072，2026-09-20）**：仅资源 DISABLE 或 UPSERT/FULL 的 status 停用、恢复不改变自动授权传播；源、目标、中间资源均不因停用退出推导，既有自动授权保留，恢复不触发重建。显式撤权、资源 DELETE/FULL 缺失删除、依赖声明变更仍按各自规则重算。此决定不改变资源自身的运行时鉴权或来源服务启停门禁，详见[自动授权设计 §7](dependency-auto-grant.md#triggers)。
+> **自动授权生命周期已随 T-PERM-071/072 落地（2026-09-21 收口；2026-09-20 采纳）**：仅资源 DISABLE 或 UPSERT/FULL 的 status 停用、恢复不改变自动授权传播；源、目标、中间资源均不因停用退出推导，既有自动授权保留，恢复不触发重建。显式撤权、资源 DELETE/FULL 缺失删除、依赖声明变更仍按各自规则重算。此决定不改变资源自身的运行时鉴权或来源服务启停门禁，详见[自动授权设计 §7](dependency-auto-grant.md#triggers)。
 
 `POST /api/access/resource-entity/sync`
 

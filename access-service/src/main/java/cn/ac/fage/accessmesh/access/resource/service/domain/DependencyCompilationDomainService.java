@@ -153,13 +153,27 @@ public class DependencyCompilationDomainService {
      * 装载租户全部有效编译边（物化共享图装载，T-PERM-072）。
      * <p>
      * 不按资源启停过滤；grant 能力包经本方法读取编译图（跨包不互读 mapper）。
-     * 调用方持有资源树锁，本方法无缓存直读、不声明独立事务（与类级硬契约一致）。
+     * 写路径调用方（物化/编译入口）持有资源树锁；只读解释/预览（T-PERM-073）经
+     * REPEATABLE_READ 一致视图消费，不取写锁（设计 §11/§12 定案形态）。
+     * 本方法无缓存直读、不声明独立事务（与类级硬契约一致）。
      * </p>
      */
     public List<DependencyCompiler.Edge> loadCompiledEdges(Long tenantId) {
         return edgeMapper.selectByTenantId(tenantId).stream()
                 .map(e -> new DependencyCompiler.Edge(e.getResourceEntityId(), e.getDependsOnResourceEntityId(),
                         e.getSourceOperationBits(), e.getRequiredOperationBits())).toList();
+    }
+
+    /**
+     * 装载租户全部有效声明行（T-PERM-073）：解释的边声明引用、声明诊断与对账共用。
+     * <p>
+     * 与 {@link #loadCompiledEdges} 同口径：无缓存直读、不声明独立事务，grant 能力包经
+     * 本方法读取（跨包不互读 mapper）。REJECTED 行含 rejectReason 供诊断；RESOLVED 行
+     * 携带编译键（source/target/触发位）供边↔声明对账。
+     * </p>
+     */
+    public List<PermissionDependencyDeclaration> loadDeclarations(Long tenantId) {
+        return declarationMapper.selectByTenantId(tenantId);
     }
 
     public PermissionDependencyDeclaration toRow(Long tenantId, String service, DependencyCompiler.Resolution resolution, LocalDateTime now) {        var d = resolution.declaration();

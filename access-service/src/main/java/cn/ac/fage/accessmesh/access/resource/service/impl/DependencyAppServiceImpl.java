@@ -1,18 +1,32 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
 import cn.ac.fage.accessmesh.common.exception.BizException;
+import cn.ac.fage.accessmesh.access.resource.dto.req.AutoGrantExplainReq;
+import cn.ac.fage.accessmesh.access.resource.dto.req.DependencyDeclarationStatusReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceDependencyCheckReq;
+import cn.ac.fage.accessmesh.access.resource.dto.resp.AutoGrantExplainResp;
+import cn.ac.fage.accessmesh.access.resource.dto.resp.DependencyDeclarationStatusResp;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ResourceDependencyResp;
+import cn.ac.fage.accessmesh.access.resource.entity.PermissionDependencyDeclaration;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceDependency;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
+import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantInsightDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceDependencyMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
+import cn.ac.fage.accessmesh.access.resource.mapper.ServiceManifestSyncMapper;
 import cn.ac.fage.accessmesh.access.resource.service.DependencyAppService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService;
+import cn.ac.fage.accessmesh.access.resource.service.domain.PermissionManifestNormalizer;
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
+import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
+import cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 
@@ -27,15 +41,33 @@ public class DependencyAppServiceImpl implements DependencyAppService {
     private final ResourceEntityMapper resourceEntityMapper;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
+    private final AutoGrantInsightDomainService autoGrantInsightDomainService;
+    private final OperationPermissionDomainService operationPermissionDomainService;
+    private final PermissionConditionDomainService conditionDomainService;
+    private final PermissionManifestNormalizer manifestNormalizer;
+    private final DependencyCompilationDomainService compilation;
+    private final ServiceManifestSyncMapper manifestSyncMapper;
 
     public DependencyAppServiceImpl(ResourceDependencyMapper dependencyMapper,
                                     ResourceEntityMapper resourceEntityMapper,
                                     TypeResolutionService typeResolutionService,
-                                    PermQueryEngine engine) {
+                                    PermQueryEngine engine,
+                                    AutoGrantInsightDomainService autoGrantInsightDomainService,
+                                    OperationPermissionDomainService operationPermissionDomainService,
+                                    PermissionConditionDomainService conditionDomainService,
+                                    PermissionManifestNormalizer manifestNormalizer,
+                                    DependencyCompilationDomainService compilation,
+                                    ServiceManifestSyncMapper manifestSyncMapper) {
         this.dependencyMapper = dependencyMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
+        this.autoGrantInsightDomainService = autoGrantInsightDomainService;
+        this.operationPermissionDomainService = operationPermissionDomainService;
+        this.conditionDomainService = conditionDomainService;
+        this.manifestNormalizer = manifestNormalizer;
+        this.compilation = compilation;
+        this.manifestSyncMapper = manifestSyncMapper;
     }
 
     /**
@@ -148,6 +180,134 @@ public class DependencyAppServiceImpl implements DependencyAppService {
             if (canReach(graph, next, target, visited)) return true;
         }
         return false;
+    }
+
+    /**
+     * 角色自动授权来源解释（T-PERM-073，契约 §12.3.1）。
+     * <p>类型级 DEPENDENCY:VIEW 门禁 + 角色业务键解析（失败 20001 明确抛出，不以空结果
+     * 掩盖）。target 非空时逐项解析业务键：类型 20007 / 资源 20004 / 操作 20005（任何类型
+     * 都不存在）与 20008（存在于其他类型）/ 条件 20006——与写入口业务键解析同口径。
+     * REPEATABLE_READ 只读事务提供单次一致视图（设计 §11），不取写锁、不写数据。</p>
+     */
+    @Override
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public AutoGrantExplainResp explainAutoGrant(Long tenantId, AutoGrantExplainReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on DEPENDENCY");
+        }
+        Long roleId = typeResolutionService.resolveRoleId(
+            tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
+        if (roleId == null) {
+            throw new BizException(AccessErrorCode.ROLE_NOT_FOUND.getCode(),
+                "role not found: " + req.roleTypeCode() + "/" + req.roleExternalId());
+        }
+        AutoGrantInsightDomainService.ExplainTargetFact target = null;
+        if (req.target() != null) {
+            target = resolveExplainTarget(tenantId, req.target());
+        }
+        return autoGrantInsightDomainService.explain(tenantId, roleId, target,
+            new AutoGrantInsightDomainService.ExplainLimits(
+                req.resolvedMaxDepth(), req.resolvedMaxNodes(), req.resolvedMaxEdges()));
+    }
+
+    /** explain 目标事实解析：资源业务键 + 操作码（20005/20008 区分）+ 条件身份（20006）。 */
+    private AutoGrantInsightDomainService.ExplainTargetFact resolveExplainTarget(
+            Long tenantId, AutoGrantExplainReq.Target target) {
+        Integer typeValue = typeResolutionService.resolveTypeValue(
+            tenantId, "resource_type", target.resourceTypeCode());
+        if (typeValue == null) {
+            throw new BizException(AccessErrorCode.RESOURCE_TYPE_NOT_FOUND.getCode(),
+                "resourceTypeCode not found: " + target.resourceTypeCode());
+        }
+        String codeType = target.codeType() == null || target.codeType().isBlank()
+            ? "default" : target.codeType();
+        Long resourceId = typeResolutionService.resolveResourceId(
+            tenantId, target.resourceTypeCode(), target.resourceCode(), codeType, null);
+        if (resourceId == null) {
+            throw new BizException(AccessErrorCode.RESOURCE_NOT_FOUND.getCode(),
+                "target resource not found: " + target.resourceTypeCode() + "/" + target.resourceCode());
+        }
+        List<OperationPermission> allOperations = operationPermissionDomainService
+            .selectAllOperationsByTenant(tenantId);
+        OperationPermission operation = allOperations.stream()
+            .filter(op -> Objects.equals(op.getResourceType(), typeValue))
+            .filter(op -> target.operationCode().equals(op.getCode()))
+            .findFirst().orElse(null);
+        if (operation == null) {
+            boolean knownCode = allOperations.stream()
+                .anyMatch(op -> target.operationCode().equals(op.getCode()));
+            throw new BizException(knownCode
+                ? AccessErrorCode.RESOURCE_TYPE_OPERATION_MISMATCH.getCode()
+                : AccessErrorCode.OPERATION_NOT_FOUND.getCode(),
+                "target operationCode does not resolve: " + target.operationCode());
+        }
+        Long conditionId = target.conditionId();
+        if (conditionId != null && conditionDomainService
+                .selectValidConditionsByIds(tenantId, Set.of(conditionId)).isEmpty()) {
+            throw new BizException(AccessErrorCode.CONDITION_NOT_FOUND.getCode(),
+                "target conditionId not found: " + conditionId);
+        }
+        return new AutoGrantInsightDomainService.ExplainTargetFact(
+            resourceId, operation.getBinaryBit(), conditionId);
+    }
+
+    /**
+     * 依赖声明诊断（T-PERM-073，契约 §12.3 declaration-status）。
+     * <p>类型级 DEPENDENCY:VIEW 门禁。发布状态行 + 声明行（payload 业务键回显）；
+     * payload 损坏防御性降级为 null 业务字段（诊断行仍可见状态与拒绝原因）。</p>
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public DependencyDeclarationStatusResp declarationStatus(Long tenantId, DependencyDeclarationStatusReq req) {
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.DEPENDENCY, null, OperationCode.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on DEPENDENCY");
+        }
+        String serviceFilter = req == null || req.sourceService() == null || req.sourceService().isBlank()
+            ? null : req.sourceService();
+        List<DependencyDeclarationStatusResp.ManifestSyncItem> manifestSyncs =
+            manifestSyncMapper.selectByTenantId(tenantId).stream()
+                .filter(state -> serviceFilter == null || serviceFilter.equals(state.getSourceService()))
+                .map(state -> new DependencyDeclarationStatusResp.ManifestSyncItem(
+                    state.getSourceService(), state.getPublicationGeneration(), state.getRevision(),
+                    state.getSyncStatus(), state.getIsDirty(), state.getLastSyncedAt()))
+                .toList();
+        List<DependencyDeclarationStatusResp.DeclarationItem> declarations =
+            compilation.loadDeclarations(tenantId).stream()
+                .filter(declaration -> serviceFilter == null
+                    || serviceFilter.equals(declaration.getSourceService()))
+                .map(this::toDeclarationItem)
+                .toList();
+        return new DependencyDeclarationStatusResp(manifestSyncs, declarations);
+    }
+
+    /** 声明行 → 诊断响应项（payload 解析失败时业务键字段降级 null，状态面保持可见）。 */
+    private DependencyDeclarationStatusResp.DeclarationItem toDeclarationItem(
+            PermissionDependencyDeclaration declaration) {
+        String sourceType = null, sourceCode = null, sourceCodeType = null, sourceOperation = null;
+        String targetType = null, targetCode = null, targetCodeType = null, description = null;
+        List<String> requiredOperationCodes = List.of();
+        try {
+            var parsed = manifestNormalizer.readDeclaration(declaration.getDeclarationPayload());
+            sourceType = parsed.source().resourceTypeCode();
+            sourceCode = parsed.source().resourceCode();
+            sourceCodeType = parsed.source().codeType();
+            sourceOperation = parsed.sourceOperationCode();
+            targetType = parsed.target().resourceTypeCode();
+            targetCode = parsed.target().resourceCode();
+            targetCodeType = parsed.target().codeType();
+            requiredOperationCodes = parsed.requiredOperationCodes();
+            description = parsed.description();
+        } catch (Exception ignored) {
+            // payload 损坏（DB 直写/历史脏数据）：诊断行降级渲染，不阻断整面
+        }
+        return new DependencyDeclarationStatusResp.DeclarationItem(
+            declaration.getId(), declaration.getSourceService(), declaration.getDeclarationKey(),
+            declaration.getCompileStatus(), declaration.getRejectReason(), description,
+            sourceType, sourceCode, sourceCodeType, sourceOperation,
+            targetType, targetCode, targetCodeType, requiredOperationCodes,
+            declaration.getUpdatedAt());
     }
 
     /**

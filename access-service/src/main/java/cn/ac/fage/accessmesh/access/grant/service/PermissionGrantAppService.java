@@ -1,8 +1,10 @@
 package cn.ac.fage.accessmesh.access.grant.service;
 
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
+import cn.ac.fage.accessmesh.access.grant.dto.req.PreviewGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.RolePermissionListReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.SubPermAllowedTypesReq;
+import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.RolePermissionItemResp;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.SubPermAllowedTypesResp;
 import java.util.List;
@@ -22,6 +24,13 @@ public interface PermissionGrantAppService {
      * 原子应用记录级授权计划，并返回目标角色的完整持久化权限集合。
      */
     List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlanReq req);
+
+    /**
+     * 授撤影响预览（T-PERM-073，契约 §11.4.1）——只读，仅供参考。
+     * <p>门禁/角色有效性与保存同源（ROLE:MANAGE + 启用角色 + 委托/形状校验经纯准备复用）；
+     * REPEATABLE_READ 只读一致事务，不写任何数据（不创建 INLINE、不产生权限变更标记）。</p>
+     */
+    GrantPlanPreviewResp previewGrantPlan(Long tenantId, PreviewGrantPlanReq req);
 
     /**
      * 查询角色的权限列表

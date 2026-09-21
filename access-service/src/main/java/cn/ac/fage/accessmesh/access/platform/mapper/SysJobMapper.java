@@ -19,6 +19,16 @@ import java.util.List;
 public interface SysJobMapper extends BaseMapper<SysJob> {
 
     /**
+     * 按调用目标查询有效任务（bootstrap 任务种子 insert-if-absent 定位，T-PERM-073）。
+     *
+     * @param tenantId     租户ID
+     * @param invokeTarget 调用目标（beanName.methodName）
+     * @return 任务实体，不存在返回 null
+     */
+    SysJob selectValidByInvokeTarget(@Param("tenantId") Long tenantId,
+                                     @Param("invokeTarget") String invokeTarget);
+
+    /**
      * 根据ID查询有效任务（租户隔离+未删除）
      *
      * @param tenantId 租户ID

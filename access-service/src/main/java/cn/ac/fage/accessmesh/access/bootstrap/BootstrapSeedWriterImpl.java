@@ -16,6 +16,8 @@ import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
+import cn.ac.fage.accessmesh.access.platform.entity.SysJob;
+import cn.ac.fage.accessmesh.access.platform.mapper.SysJobMapper;
 import cn.ac.fage.accessmesh.access.bootstrap.BootstrapSeedWriter;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantDomainService;
 import cn.ac.fage.accessmesh.access.grant.service.domain.PermissionGrantPlanDomainService;
@@ -48,23 +50,26 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
     private final OperationPermissionMapper operationPermissionMapper;
     private final PermissionGrantDomainService permissionGrantDomainService;
     private final PermissionGrantPlanDomainService permissionGrantPlanDomainService;
+    private final SysJobMapper sysJobMapper;
 
     BootstrapSeedWriterImpl(AbstractRoleMapper abstractRoleMapper,
                             ResourceEntityMapper resourceEntityMapper,
                             ResourceApiMappingMapper resourceApiMappingMapper,
                             UserRoleMapper userRoleMapper,
-                            RoleResourcePermissionMapper roleResourcePermissionMapper,
+                            RoleResourcePermissionMapper rolePermissionMapper,
                             OperationPermissionMapper operationPermissionMapper,
                             PermissionGrantDomainService permissionGrantDomainService,
-                            PermissionGrantPlanDomainService permissionGrantPlanDomainService) {
+                            PermissionGrantPlanDomainService permissionGrantPlanDomainService,
+                            SysJobMapper sysJobMapper) {
         this.abstractRoleMapper = abstractRoleMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.resourceApiMappingMapper = resourceApiMappingMapper;
         this.userRoleMapper = userRoleMapper;
-        this.roleResourcePermissionMapper = roleResourcePermissionMapper;
+        this.roleResourcePermissionMapper = rolePermissionMapper;
         this.operationPermissionMapper = operationPermissionMapper;
         this.permissionGrantDomainService = permissionGrantDomainService;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
+        this.sysJobMapper = sysJobMapper;
     }
 
     @Override
@@ -175,5 +180,34 @@ class BootstrapSeedWriterImpl implements BootstrapSeedWriter {
         // （bootstrap 固定图与类型授权根共用；保留两条领域校验 + apply 落库管线，幂等
         // insert-if-absent），本组件不再各自持有一份行构造校验逻辑
         permissionGrantPlanDomainService.seedGrants(tenantId, roleId, grants);
+    }
+
+    /**
+     * 并发窗口注记（2026-09-21 用户定案：接受现状）：多副本同时冷启动可双插同 invokeTarget
+     * 任务行（check-then-insert 无 DB 唯一索引兜底，其余 bootstrap 种子均有 uk）；后果=管理员
+     * 启用后对账多跑几次，只读无正确性危害——不为该极窄窗口动权威 DDL/迁移面。
+     */
+    @Override
+    public boolean insertJobIfAbsent(Long tenantId, String jobName, String invokeTarget, String cronExpression) {
+        if (sysJobMapper.selectValidByInvokeTarget(tenantId, invokeTarget) != null) {
+            return false;
+        }
+        LocalDateTime now = LocalDateTime.now();
+        SysJob job = new SysJob();
+        job.setTenantId(tenantId);
+        job.setJobName(jobName);
+        job.setJobGroup("DEFAULT");
+        job.setInvokeTarget(invokeTarget);
+        job.setCronExpression(cronExpression);
+        job.setMisfirePolicy(1);
+        // 用户定案（2026-09-21）：种子默认停用——对账只发现异常且正常链路同事务保证一致，
+        // 默认零后台负载；管理员经任务管理页手动触发或启用周期巡检
+        job.setStatus(0);
+        job.setRemark("bootstrap 系统任务种子（T-PERM-073）；默认停用，按需启用");
+        job.setCreatedAt(now);
+        job.setUpdatedAt(now);
+        job.setDeleteFlag(0L);
+        sysJobMapper.insert(job);
+        return true;
     }
 }

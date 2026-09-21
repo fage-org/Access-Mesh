@@ -270,6 +270,78 @@ export const applyGrantPlan = async (
   return unwrap(res);
 };
 
+// ========== 授撤影响预览（T-PERM-073，总册 §11.4.1） ==========
+
+/** 条件身份：NONE / EXISTING（conditionId+可见描述）/ PREVIEW_INLINE（请求条目临时身份） */
+export type PreviewConditionRef = {
+  kind: "NONE" | "EXISTING" | "PREVIEW_INLINE";
+  conditionId: number | null;
+  conditionCode: string | null;
+  requestItemRef: string | null;
+};
+
+/** 资源业务键 */
+export type PreviewResourceKey = {
+  resourceTypeCode: string | null;
+  resourceCode: string | null;
+  codeType: string | null;
+};
+
+/** 完整逻辑事实键 */
+export type PreviewFactKey = {
+  resource: PreviewResourceKey;
+  operationCode: string | null;
+  conditionRef: PreviewConditionRef;
+};
+
+/** 根显式来源引用：现有授权 permissionId 或预览新建条目 requestItemRef（严格二选一） */
+export type PreviewSeedRef = {
+  permissionId: number | null;
+  requestItemRef: string | null;
+};
+
+/** 影响事实元素（不返回完整路径组合） */
+export type PreviewFactElement = {
+  fact: PreviewFactKey;
+  seeds: PreviewSeedRef[];
+};
+
+/** 授撤影响预览响应：仅供参考（advisory 恒 true），保存按最新事实重算（M5 定案）。
+ *  removed/added/retained 为计划导致的变化；driftDetected 表示现有漂移（非计划导致）；
+ *  truncated=true 时空数组不能独立解释为无影响。 */
+export type GrantPlanPreviewResp = {
+  advisory: boolean;
+  viewedAt: string;
+  removed: PreviewFactElement[];
+  added: PreviewFactElement[];
+  retained: PreviewFactElement[];
+  totalCount: number;
+  truncated: boolean;
+  driftDetected: boolean;
+};
+
+/** preview-grant-plan 请求：request 复用 ApplyGrantPlanReq 全量结构 + 可选展示预算 */
+export type PreviewGrantPlanReq = {
+  request: ApplyGrantPlanReq;
+  maxItems?: number;
+};
+
+/**
+ * 授撤影响预览（POST /api/access/role-resource-permission/preview-grant-plan）。
+ * 只读：与保存同源校验（不创建 INLINE 条件）；门禁=ROLE:MANAGE + 启用角色。
+ * 预览失败 = 无法预览（显式标识），不能展示为零影响；保存独立进行、不依赖预览。
+ */
+export const previewGrantPlan = async (
+  params: PreviewGrantPlanReq
+): Promise<GrantPlanPreviewResp> => {
+  const res = await http.request<R<GrantPlanPreviewResp>>(
+    "post",
+    "/api/access/role-resource-permission/preview-grant-plan",
+    { data: params }
+  );
+  return unwrap(res);
+};
+
 // ========== v3.1 子权限类型只读契约（总册 §11.5，T-FE-040） ==========
 
 /** 子权限类型策略 mode（判定口径与写校验同源，前端不得硬编码允许集） */

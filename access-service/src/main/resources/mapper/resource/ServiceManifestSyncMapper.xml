@@ -10,6 +10,10 @@
         SELECT * FROM service_manifest_sync
         WHERE tenant_id=#{tenantId} AND source_service=#{service} AND delete_flag=0
     </select>
+    <select id="selectByTenantId" resultType="cn.ac.fage.accessmesh.access.resource.entity.ServiceManifestSync">
+        SELECT * FROM service_manifest_sync
+        WHERE tenant_id=#{tenantId} AND delete_flag=0 ORDER BY source_service
+    </select>
     <!-- 代次屏障（M1 定案的事务内第二道防线，Java 预判见 ResourcePublicationPolicy/应用服务）：
          仅放行严格更新代次，或同代次且完整请求指纹（payload_hash）相等的幂等重放；
          0 行受影响由调用方判为并发代次冲突回滚整事务，勿当冗余条件简化。 -->

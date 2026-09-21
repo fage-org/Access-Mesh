@@ -75,4 +75,12 @@ public interface BootstrapSeedWriter {
      * 写前复用 validateSingleManualGrants / validateGrantAttributes 不变量校验）。
      */
     void insertGrants(Long tenantId, Long roleId, List<RoleResourcePermission> grants);
+
+    /**
+     * 系统任务种子 insert-if-absent（T-PERM-073）：按 tenant+invokeTarget 定位，已存在
+     * （含管理员改名/改 cron/启停）不覆盖；默认停用（status=0），管理员经任务管理页启用/触发。
+     *
+     * @return true=本次创建；false=已存在跳过
+     */
+    boolean insertJobIfAbsent(Long tenantId, String jobName, String invokeTarget, String cronExpression);
 }

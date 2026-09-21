@@ -35,7 +35,7 @@ public class JobInvokeDomainServiceImpl implements JobInvokeDomainService {
     }
 
     @Override
-    public void invoke(String invokeTarget, TaskExecutionContext context) {
+    public Object invoke(String invokeTarget, TaskExecutionContext context) {
         if (invokeTarget == null || invokeTarget.isBlank()) {
             throw new IllegalArgumentException("invoke_target is blank");
         }
@@ -71,7 +71,7 @@ public class JobInvokeDomainServiceImpl implements JobInvokeDomainService {
         }
 
         try {
-            invocableMethod.invoke(bean, context);
+            return invocableMethod.invoke(bean, context);
         } catch (java.lang.reflect.InvocationTargetException e) {
             // 业务异常原样传播，不吞不换
             Throwable cause = e.getCause() != null ? e.getCause() : e;

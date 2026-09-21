@@ -20,9 +20,11 @@ public interface JobInvokeDomainService {
      *
      * @param invokeTarget 调用目标（beanName.methodName）
      * @param context      任务执行上下文（含幂等执行键）
+     * @return 目标方法返回值（T-PERM-073 起；void 方法返回 null）——String 返回值
+     *         由执行编排层用作任务执行日志的成功消息（诊断摘要回传通道）
      * @throws IllegalArgumentException 目标格式非法 / Bean 不存在 / 方法不存在 /
      *                                  方法未标注 @JobInvocable / 签名不支持
      * @throws RuntimeException         目标方法抛出的业务异常原样传播
      */
-    void invoke(String invokeTarget, TaskExecutionContext context);
+    Object invoke(String invokeTarget, TaskExecutionContext context);
 }

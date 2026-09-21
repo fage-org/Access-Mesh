@@ -6,6 +6,8 @@ import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { message } from "@/utils/message";
 import CycleCheckDialog from "./components/CycleCheckDialog.vue";
 import DependencyGraph from "./components/DependencyGraph.vue";
+import DeclarationStatusDrawer from "./components/DeclarationStatusDrawer.vue";
+import ExplainViewerDrawer from "./components/ExplainViewerDrawer.vue";
 import { useResourceDependency } from "./utils/hook";
 import {
   type ResourceDependencyResp,
@@ -15,6 +17,8 @@ import Search from "~icons/ep/search";
 import Refresh from "~icons/ep/refresh";
 import Share from "~icons/ep/share";
 import WarningFilled from "~icons/ep/warning-filled";
+import View from "~icons/ep/view";
+import Tickets from "~icons/ep/tickets";
 
 defineOptions({ name: "SystemResourceDependency" });
 
@@ -26,6 +30,7 @@ const {
   resetFilters,
   loadList,
   resourceList,
+  operationList,
   resourceTypeOptions,
   resolveResourceName,
   resolveResourceTypeCode,
@@ -70,6 +75,10 @@ async function openGraph() {
   }
   graphVisible.value = true;
 }
+
+// ========== 声明诊断 + 来源解释（T-PERM-073，只读诊断抽屉） ==========
+const declarationStatusVisible = ref(false);
+const explainVisible = ref(false);
 </script>
 
 <template>
@@ -105,6 +114,20 @@ async function openGraph() {
           </el-form>
         </template>
         <template #buttons>
+          <el-button
+            v-if="canView"
+            :icon="useRenderIcon(Tickets)"
+            @click="declarationStatusVisible = true"
+          >
+            声明状态
+          </el-button>
+          <el-button
+            v-if="canView"
+            :icon="useRenderIcon(View)"
+            @click="explainVisible = true"
+          >
+            来源解释
+          </el-button>
           <el-button
             v-if="canView"
             :icon="useRenderIcon(WarningFilled)"
@@ -207,6 +230,17 @@ async function openGraph() {
       v-model="graphVisible"
       :deps="graphDeps"
       :resource-list="resourceList"
+    />
+
+    <!-- 声明诊断抽屉（T-PERM-073：发布状态 + REJECTED 原因，只读） -->
+    <DeclarationStatusDrawer v-model="declarationStatusVisible" />
+
+    <!-- 来源解释抽屉（T-PERM-073：角色自动授权共享 DAG，只读） -->
+    <ExplainViewerDrawer
+      v-model="explainVisible"
+      :resource-type-options="resourceTypeOptions"
+      :resource-list="resourceList"
+      :operation-list="operationList"
     />
   </div>
 </template>

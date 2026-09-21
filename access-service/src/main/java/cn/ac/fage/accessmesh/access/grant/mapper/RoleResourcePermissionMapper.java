@@ -67,6 +67,14 @@ public interface RoleResourcePermissionMapper extends BaseMapper<RoleResourcePer
                                          @Param("resourceIds") List<Long> resourceIds);
 
     /**
+     * 租户内持有任意有效授权行的角色全集（T-PERM-073 自动授权对账扫描入口）。
+     *
+     * @param tenantId 租户ID
+     * @return 角色ID集合（去重）
+     */
+    Set<Long> selectValidRoleIds(@Param("tenantId") Long tenantId);
+
+    /**
      * 根据条件ID集合反查受影响的服务编码集合（条件变更场景登记 serviceCodes 失效）。
      * <p>
      * T-PERM-017 P2-A 评审反馈：条件 update/delete 时，已下发到 Gateway 内联 conditionRules 的

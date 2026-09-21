@@ -2,8 +2,8 @@
 
 > status: adopted
 > last_reviewed: 2026-09-21
-> 当前实现：T-PERM-071 的管理写入口关闭与只读页面；进一步的声明诊断、角色来源解释由 T-PERM-073 实现。
-> 正式契约：[总册 §12.3](../access-service-api-contract.md#123-资源依赖只读查询apiaccessresource-dependency)、[manifest §19.10](../access-service-api-contract.md#1910-独立依赖-manifest071-实施中)。历史 CRUD 联调证据见 [T-FE-044](../../archive/2026-09-14/tasks/T-FE-044.md)，不作为现役写契约。
+> 当前实现：T-PERM-071 的管理写入口关闭与只读页面 + T-PERM-073 的声明诊断与来源解释（本页 §5 已实现）。
+> 正式契约：[总册 §12.3](../access-service-api-contract.md#123-资源依赖只读查询apiaccessresource-dependency)、[manifest §19.10（071 已交付）](../access-service-api-contract.md#1910-独立依赖-manifest071-已交付)。历史 CRUD 联调证据见 [T-FE-044](../../archive/2026-09-14/tasks/T-FE-044.md)，不作为现役写契约。
 
 ## 1. 用途与边界
 
@@ -36,8 +36,13 @@ useListLoad 保持 latest-wins 与失败保留旧列表；失败必须提示，�
 - index.vue：说明条、过滤、只读表格、检查对话框与图抽屉。
 - utils/hook.ts：列表与引用数据装载、资源/操作名称映射、过滤；无创建/更新/删除请求构造。
 - components/CycleCheckDialog.vue、DependencyGraph.vue：沿用只读交互。
-- api/resource-dependency.ts：只暴露 list/graph/check；旧写 API 和 DependencyForm/types 已删除。
+- api/resource-dependency.ts：只暴露 list/graph/check/explain/declaration-status 五个只读接口（后两个见 §5）；旧写 API 和 DependencyForm/types 已删除。
 
-## 5. 待实施展示
+## 5. 声明诊断与来源解释（T-PERM-073 已实现，2026-09-21）
 
-073 将增加声明来源服务、发布/编译状态、失败原因，以及按角色目标权限读取的来源 DAG。explain/preview 的正式门禁、条件身份、截断与漂移规则以契约 §11.4.1/§12.3.1 为准。界面不得将截断或读取失败解释为“无来源”，不得把 desired 当成实际已生效权限。
+工具栏两个只读诊断入口（2026-09-21 用户定案：explain 前端入口仅本页）：
+
+- **声明状态**（`resource-dependency/declaration-status`，DEPENDENCY:VIEW）：抽屉展示每服务 manifest 发布状态（代次/revision/状态/dirty/最近同步）+ 声明行（源→目标业务键、RESOLVED/REJECTED 与拒绝原因中文释义）；REJECTED 行提示由所属服务重新发布恢复，载荷损坏降级 null 业务字段不遮蔽状态面。
+- **来源解释**（`resource-dependency/explain`，DEPENDENCY:VIEW）：抽屉输入角色业务键（类型下拉 BASIC_ROLE/ORG/POSITION + externalId）+ 可选目标事实（资源类型/资源/操作级联选择，条件恒查无条件变体）→ 节点/边表展示共享逻辑 DAG；节点状态四象限（显式种子/已生效/应有未落库/无来源存量）区分 desired 与 actual；点选节点沿直接边本地展开；截断（总数另报）与漂移（角色级）显式提示，读取失败不解释为「无来源」。
+
+explain/预览的正式门禁、条件身份、截断与漂移规则以契约 §11.4.1/§12.3.1 为准。界面不得将截断或读取失败解释为“无来源”，不得把 desired 当成实际已生效权限。纯函数（事实标签/状态象限/边过滤）落 `utils/explain-view.ts`（含 vitest），抽屉组件 `components/DeclarationStatusDrawer.vue`、`components/ExplainViewerDrawer.vue`。

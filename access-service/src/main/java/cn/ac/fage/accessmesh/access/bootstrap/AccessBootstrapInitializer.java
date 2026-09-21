@@ -134,6 +134,15 @@ public class AccessBootstrapInitializer {
         for (BootstrapGraphDefinition.FolderSeed seed : BootstrapGraphDefinition.adminFileFolderSeeds()) {
             localProjectionDomainService.ensureAdminFileFolder(tenantId, seed.code(), seed.name());
         }
+        // 系统任务种子（T-PERM-073）：幂等 insert-if-absent（tenant+invokeTarget 定位，已存在
+        // 不覆盖管理员配置——改名/改 cron/启停均放行），no-op 路径同样执行。同款豁免口径：
+        // 不参与固定图检测；默认停用（2026-09-21 用户定案——对账只发现异常，正常链路同事务
+        // 保证一致，默认零后台负载），启用后由 JobAppServiceImpl 调度
+        for (BootstrapGraphDefinition.JobSeed seed : BootstrapGraphDefinition.jobSeeds()) {
+            if (seedWriter.insertJobIfAbsent(tenantId, seed.jobName(), seed.invokeTarget(), seed.cronExpression())) {
+                log.info("系统任务种子已创建（默认停用）: {} -> {}", seed.jobName(), seed.invokeTarget());
+            }
+        }
         // TYPE_DEFINITION 实例投影自愈补种（T-PERM-051，2026-09-07 用户定案启动自愈）：
         // 为全部有效类型定义行幂等补投影（insert-if-absent，no-op 路径同样执行）。同款豁免
         // 口径——缺失只可能是库先于本特性存在（存量种子行无写路径联动可补），无运营意图可保护；

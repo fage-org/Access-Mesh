@@ -82,9 +82,63 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         this.objectMapper = objectMapper;
     }
 
+    /**
+     * 保存专用预检（T-PERM-073 起 = {@link #prepare} + INLINE 同事务物化）：
+     * 校验与预览完全同源；INLINE 条件在全部校验通过后才落库（原实现先建后校，
+     * 纯准备拆分后同批畸形计划不再产生瞬态内联行）。
+     */
     @Override
     public PreparedGrantPlan prevalidate(Long tenantId, Long subjectId, Long roleId, String domainCode,
                                          ApplyGrantPlanReq.GrantPlan plan) {
+        PlannedGrantPlan planned = prepare(tenantId, subjectId, roleId, domainCode, plan);
+        materializeInlineConditions(tenantId, subjectId, planned);
+        return planned.toPrepared();
+    }
+
+    /**
+     * 把纯准备结果中的合成条件 ID 物化为真实 INLINE 条件行（保存阶段专用）。
+     * <p>create 轨逐条新建；update 轨就地编辑（保持原 id）或换绑新建。完成后断言
+     * 计划行不再残留负数合成 ID——防御物化遗漏把合成值写入 condition_id。</p>
+     */
+    private void materializeInlineConditions(Long tenantId, Long subjectId, PlannedGrantPlan planned) {
+        for (PermissionGrantPlanDomainService.PendingInlineCreate pending : planned.inlineCreates()) {
+            PermissionCondition created = conditionDomainService
+                .createInlineCondition(tenantId, subjectId, pending.definition());
+            pending.permission().setConditionId(created.getId());
+        }
+        for (PermissionGrantPlanDomainService.PendingInlineUpdate pending : planned.inlineUpdates()) {
+            if (pending.inPlaceEdit()) {
+                conditionDomainService.editInlineCondition(
+                    tenantId, subjectId, pending.currentCondition(), pending.definition());
+                pending.permission().setConditionId(pending.currentCondition().getId());
+            } else {
+                PermissionCondition created = conditionDomainService
+                    .createInlineCondition(tenantId, subjectId, pending.definition());
+                pending.permission().setConditionId(created.getId());
+            }
+        }
+        for (PermissionGrantPlanDomainService.PreparedCreate create : planned.creates()) {
+            assertNoSyntheticCondition(create.permission());
+            for (RoleResourcePermission child : create.children()) {
+                assertNoSyntheticCondition(child);
+            }
+        }
+        for (RoleResourcePermission update : planned.updates()) {
+            assertNoSyntheticCondition(update);
+        }
+    }
+
+    private static void assertNoSyntheticCondition(RoleResourcePermission permission) {
+        if (permission.getConditionId() != null && permission.getConditionId() < 0L) {
+            throw new IllegalStateException(
+                "synthetic inline condition id leaked into a save-path plan row: " + permission.getConditionId());
+        }
+    }
+
+    @Override
+    public PermissionGrantPlanDomainService.PlannedGrantPlan prepare(Long tenantId, Long subjectId, Long roleId,
+                                                                     String domainCode,
+                                                                     ApplyGrantPlanReq.GrantPlan plan) {
         List<ApplyGrantPlanReq.CreateItem> createItems = plan.createItems();
         List<ApplyGrantPlanReq.UpdateItem> updateItems = plan.updateItems();
         List<Long> removeIds = plan.removeIds();
@@ -219,16 +273,26 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                     "conditionCode not found: " + conditionCode);
             }
         }
-        // 内联创建轨（T-PERM-048 定案①）：create 键携带的内联定义先落库（与计划同事务，
-        // 计划失败整体回滚——取消/失败零残留），生成 code 并入 conditionsByCode 供
-        // toPermission 消费；门禁随授权入口 ROLE:MANAGE 携带（定案②，本域不做条件写门禁）
-        Map<ApplyGrantPlanReq.GrantRecordKey, String> inlineCodesByCreateKey = new HashMap<>();
-        for (ApplyGrantPlanReq.GrantRecordKey key : allKeys) {
-            if (key.inlineCondition() != null && !inlineCodesByCreateKey.containsKey(key)) {
-                PermissionCondition created = conditionDomainService
-                    .createInlineCondition(tenantId, subjectId, key.inlineCondition());
-                conditionsByCode.put(created.getCode(), created);
-                inlineCodesByCreateKey.put(key, created.getCode());
+        // 内联创建轨（T-PERM-048 定案①；T-PERM-073 纯准备化）：create 键携带的内联定义
+        // 不再先落库——按请求条目分配负数合成 ID 作为条件身份（同表达式不同条目不合并，
+        // 契约 §11.4.1 PREVIEW_INLINE 语义），保存阶段由 materializeInlineConditions 物化；
+        // 门禁随授权入口 ROLE:MANAGE 携带（定案②，本域不做条件写门禁）
+        Map<ApplyGrantPlanReq.GrantRecordKey, Long> conditionIdByCreateKey = new HashMap<>();
+        Map<Long, String> syntheticConditionRefs = new LinkedHashMap<>();
+        List<PermissionGrantPlanDomainService.PendingInlineCreate> inlineCreates = new ArrayList<>();
+        List<PermissionGrantPlanDomainService.PendingInlineUpdate> inlineUpdates = new ArrayList<>();
+        List<String> createItemRefs = new ArrayList<>();
+        long nextSynthetic = -1L;
+        for (int index = 0; index < createItems.size(); index++) {
+            ApplyGrantPlanReq.GrantRecordKey key = createItems.get(index).key();
+            if (key.inlineCondition() != null && !conditionIdByCreateKey.containsKey(key)) {
+                // 内联定义校验前移（2026-09-21 用户定案）：纯准备即拒畸形规则，预览/保存同源；
+                // 写入仍由 materializeInlineConditions 承担（createInlineCondition 内同款校验幂等）
+                conditionDomainService.assertConditionRulesValid(key.inlineCondition().conditionRules(),
+                    Boolean.TRUE.equals(key.inlineCondition().gatewayEvaluable()));
+                conditionIdByCreateKey.put(key, nextSynthetic);
+                syntheticConditionRefs.put(nextSynthetic, "creates[" + index + "]");
+                nextSynthetic--;
             }
         }
 
@@ -260,14 +324,15 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         Set<PermissionGrantDomainService.GrantCheckKey> delegationKeys = new LinkedHashSet<>();
         List<PermissionGrantPlanDomainService.AuditPermissionKey> auditKeys = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now();
-        for (ApplyGrantPlanReq.CreateItem create : createItems) {
+        for (int index = 0; index < createItems.size(); index++) {
+            ApplyGrantPlanReq.CreateItem create = createItems.get(index);
             RoleResourcePermission permission = toPermission(tenantId, roleId, domainCode,
                 create.key(), create.parentPermissionId(), typeValues, resourceIds,
-                allOperations, knownOperationCodes, conditionsByCode, inlineCodesByCreateKey, now);
+                allOperations, knownOperationCodes, conditionsByCode, conditionIdByCreateKey, now);
             List<RoleResourcePermission> children = create.childItems().stream()
                 .map(key -> toPermission(tenantId, roleId, domainCode, key, null,
                     typeValues, resourceIds, allOperations, knownOperationCodes,
-                    conditionsByCode, inlineCodesByCreateKey, now))
+                    conditionsByCode, conditionIdByCreateKey, now))
                 .toList();
             preparedCreates.add(new PreparedCreate(permission, children));
             directCreates.add(permission);
@@ -275,6 +340,11 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             create.childItems().stream().map(this::toGrantCheckKey).forEach(delegationKeys::add);
             auditKeys.add(toAuditKey("ADD", create.key()));
             create.childItems().forEach(key -> auditKeys.add(toAuditKey("ADD", key)));
+            createItemRefs.add("creates[" + index + "]");
+            if (create.key().inlineCondition() != null) {
+                inlineCreates.add(new PermissionGrantPlanDomainService.PendingInlineCreate(
+                    permission, create.key().inlineCondition(), "creates[" + index + "]"));
+            }
         }
 
         permissionGrantDomainService.validateSingleManualGrants(
@@ -330,7 +400,8 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 .collect(Collectors.toMap(ResourceEntity::getId, Function.identity()));
 
         List<RoleResourcePermission> preparedUpdates = new ArrayList<>();
-        for (ApplyGrantPlanReq.UpdateItem update : updateItems) {
+        for (int index = 0; index < updateItems.size(); index++) {
+            ApplyGrantPlanReq.UpdateItem update = updateItems.get(index);
             if (update.canGrant() == null && update.conditionCode() == null && update.inlineCondition() == null) {
                 throw validation("An update must change canGrant, conditionCode or inlineCondition");
             }
@@ -350,20 +421,27 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 permission.setConditionId(update.conditionCode().isEmpty()
                     ? null : conditionsByCode.get(update.conditionCode()).getId());
             }
-            // 内联编辑/换绑轨（T-PERM-048 定案①）：inlineCondition 非空 = 该记录最终条件为
-            // 该内联定义——现绑定为 INLINE → 就地编辑规则（1:1 保持，同 id）；
-            // 现绑定为 null/MANAGED → 新建内联行换绑（上方互斥校验保证 conditionCode 此时为
-            // null/精确空串——两者行为等价，均被内联覆盖；MANAGED 引用随换绑解除不回收）
+            // 内联编辑/换绑轨（T-PERM-048 定案①；T-PERM-073 纯准备化）：inlineCondition 非空 =
+            // 该记录最终条件为该内联定义——现绑定为 INLINE → 就地编辑规则（1:1 保持，同 id，
+            // 预览身份=EXISTING）；现绑定为 null/MANAGED → 换绑新建（合成 ID，预览身份=
+            // PREVIEW_INLINE；上方互斥校验保证 conditionCode 此时为 null/精确空串）。
+            // 定义写入延后到保存阶段 materializeInlineConditions；MANAGED 引用随换绑解除不回收
             if (update.inlineCondition() != null) {
+                // 内联定义校验前移（2026-09-21 用户定案，同 create 轨）
+                conditionDomainService.assertConditionRulesValid(update.inlineCondition().conditionRules(),
+                    Boolean.TRUE.equals(update.inlineCondition().gatewayEvaluable()));
                 PermissionCondition current = originalConditionId == null ? null
                     : currentConditionsById.get(originalConditionId);
                 if (current != null && ConditionSource.INLINE.getValue().equals(current.getSource())) {
-                    conditionDomainService.editInlineCondition(tenantId, subjectId, current, update.inlineCondition());
                     permission.setConditionId(current.getId());
+                    inlineUpdates.add(new PermissionGrantPlanDomainService.PendingInlineUpdate(
+                        permission, update.inlineCondition(), "updates[" + index + "]", true, current));
                 } else {
-                    PermissionCondition created = conditionDomainService
-                        .createInlineCondition(tenantId, subjectId, update.inlineCondition());
-                    permission.setConditionId(created.getId());
+                    long synthetic = nextSynthetic--;
+                    permission.setConditionId(synthetic);
+                    syntheticConditionRefs.put(synthetic, "updates[" + index + "]");
+                    inlineUpdates.add(new PermissionGrantPlanDomainService.PendingInlineUpdate(
+                        permission, update.inlineCondition(), "updates[" + index + "]", false, current));
                 }
             }
             permissionGrantDomainService.validateGrantAttributes(permission);
@@ -426,9 +504,16 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         }
 
         verifyDelegation(tenantId, subjectId, domainCode, delegationKeys);
-        return new PreparedGrantPlan(tenantId, roleId, preparedCreates,
-            preparedUpdates, List.copyOf(removeIds), Set.copyOf(delegationKeys), List.copyOf(auditKeys),
-            Set.copyOf(inlineRecycleCandidates));
+        // 本计划解析到的全部真实条件（引用轨 + 现绑定轨）——预览 EXISTING 渲染面
+        Map<Long, PermissionCondition> resolvedConditions = new LinkedHashMap<>();
+        conditionsByCode.values().forEach(condition -> resolvedConditions.put(condition.getId(), condition));
+        currentConditionsById.values().forEach(condition -> resolvedConditions.put(condition.getId(), condition));
+        return new PermissionGrantPlanDomainService.PlannedGrantPlan(tenantId, roleId,
+            List.copyOf(preparedCreates), List.copyOf(createItemRefs),
+            List.copyOf(preparedUpdates),
+            List.copyOf(removeIds), Set.copyOf(delegationKeys), List.copyOf(auditKeys),
+            Set.copyOf(inlineRecycleCandidates), List.copyOf(inlineCreates), List.copyOf(inlineUpdates),
+            Map.copyOf(syntheticConditionRefs), Map.copyOf(resolvedConditions));
     }
 
     @Override
@@ -508,7 +593,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             List<OperationPermission> operations,
             Set<String> knownOperationCodes,
             Map<String, PermissionCondition> conditionsByCode,
-            Map<ApplyGrantPlanReq.GrantRecordKey, String> inlineCodesByCreateKey,
+            Map<ApplyGrantPlanReq.GrantRecordKey, Long> conditionIdByCreateKey,
             LocalDateTime now) {
         Integer resourceType = typeValues.get(key.resourceTypeCode());
         OperationPermission operation = resolveOperation(
@@ -524,9 +609,10 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
             }
         }
         // 条件绑定二选一（T-PERM-048）：conditionCode（引用轨，值域 MANAGED）或
-        // inlineCondition（内联定义，prevalidate 已同事务落库并登记进 inlineCodesByCreateKey）
-        String effectiveConditionCode = key.conditionCode() != null ? key.conditionCode()
-            : inlineCodesByCreateKey.get(key);
+        // inlineCondition（内联轨——纯准备=负数合成 ID，保存阶段物化为真实 ID）
+        Long conditionId = key.conditionCode() != null
+            ? conditionsByCode.get(key.conditionCode()).getId()
+            : conditionIdByCreateKey.get(key);
         RoleResourcePermission permission = new RoleResourcePermission();
         permission.setTenantId(tenantId);
         permission.setAbstractRoleId(roleId);
@@ -536,8 +622,7 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         permission.setDependOn(parentPermissionId);
         permission.setScopeAll(scopeAll);
         permission.setCanGrant(Boolean.TRUE.equals(key.canGrant()));
-        permission.setConditionId(effectiveConditionCode == null ? null
-            : conditionsByCode.get(effectiveConditionCode).getId());
+        permission.setConditionId(conditionId);
         permission.setGrantSource(GrantSource.MANUAL.getValue());
         permission.setCreatedAt(now);
         permission.setUpdatedAt(now);
@@ -545,9 +630,9 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
         permissionGrantDomainService.validateGrantAttributes(permission);
         // 20042 条件启用状态（T-PERM-041）：create 新写入的条件必须启用中
         // （子权限带条件已被 20043 先行拦截，能携带条件到此处的均为主权限；
-        // 内联条件创建即 enabled=true 恒满足）
-        if (effectiveConditionCode != null) {
-            assertConditionEnabled(conditionsByCode.get(effectiveConditionCode), effectiveConditionCode);
+        // 仅引用轨判定——内联条件创建即 enabled=true 恒满足）
+        if (key.conditionCode() != null) {
+            assertConditionEnabled(conditionsByCode.get(key.conditionCode()), key.conditionCode());
         }
         return permission;
     }

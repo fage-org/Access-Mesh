@@ -39,13 +39,20 @@ class DependencyAppServiceImplTest {
     @Mock private ResourceEntityMapper resourceEntityMapper;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private PermQueryEngine engine;
+    @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantInsightDomainService autoGrantInsightDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.type.service.domain.OperationPermissionDomainService operationPermissionDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService conditionDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.resource.service.domain.PermissionManifestNormalizer manifestNormalizer;
+    @Mock private cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService compilation;
+    @Mock private cn.ac.fage.accessmesh.access.resource.mapper.ServiceManifestSyncMapper manifestSyncMapper;
 
     private DependencyAppServiceImpl service;
 
     @BeforeEach
     void setUp() {
         service = new DependencyAppServiceImpl(dependencyMapper, resourceEntityMapper,
-            typeResolutionService, engine);
+            typeResolutionService, engine, autoGrantInsightDomainService, operationPermissionDomainService,
+            conditionDomainService, manifestNormalizer, compilation, manifestSyncMapper);
     }
 
     // ========== 辅助 ==========

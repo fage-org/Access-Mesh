@@ -107,6 +107,24 @@ public final class BootstrapGraphDefinition {
     public record FolderSeed(String code, String name) {}
 
     /**
+     * 系统任务种子条目（T-PERM-073，2026-09-21 用户定案：默认停用——对账只发现异常，
+     * 正常链路同事务保证一致，默认零后台负载；管理员按需手动触发或启用周期巡检）。
+     *
+     * @param jobName        任务名（幂等键之一：tenant+invokeTarget 定位）
+     * @param invokeTarget   调用目标（beanName.methodName，@JobInvocable 白名单）
+     * @param cronExpression 预置周期 cron（UTC；启用后生效）
+     */
+    public record JobSeed(String jobName, String invokeTarget, String cronExpression) {}
+
+    /**
+     * 系统任务种子（insert-if-absent：已按 invokeTarget 存在的任务行不覆盖管理员配置）。
+     */
+    public static List<JobSeed> jobSeeds() {
+        return List.of(
+            new JobSeed("自动授权对账", "autoGrantReconcileInvoker.reconcile", "0 0 3 * * ?"));
+    }
+
+    /**
      * bootstrap 管理 API 清单（§14.3；含目标接口，计数以清单本身为准）。
      */
     public static List<ApiRoute> apiRoutes() {
@@ -118,6 +136,7 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/api/access/permission-condition/list", "bootstrap:授权页条件列表", true, false),
             new ApiRoute("POST", "/api/access/role-resource-permission/list", "bootstrap:授权页既有授权查询", true, false),
             new ApiRoute("POST", "/api/access/role-resource-permission/sub-perm-allowed-types", "bootstrap:授权页子权限类型查询", true, false),
+            new ApiRoute("POST", "/api/access/role-resource-permission/preview-grant-plan", "bootstrap:授撤影响预览", true, false),
             new ApiRoute("POST", "/api/access/user/create", "bootstrap:创建用户", true, false),
             new ApiRoute("POST", "/api/access/abstract-role/create", "bootstrap:创建角色", true, false),
             new ApiRoute("POST", "/api/access/resource-api-mapping/create", "bootstrap:创建API映射", true, false),
@@ -223,6 +242,10 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/api/access/resource-dependency/list", "bootstrap:资源依赖列表", true, false),
             new ApiRoute("POST", "/api/access/resource-dependency/graph", "bootstrap:资源依赖图", true, false),
             new ApiRoute("POST", "/api/access/resource-dependency/check", "bootstrap:依赖循环检测", true, false),
+            // T-PERM-073：依赖诊断只读端点（explain 来源解释 / declaration-status 声明诊断），
+            // 门禁同族 DEPENDENCY:VIEW（上方已有类型级授权），零新增业务门禁
+            new ApiRoute("POST", "/api/access/resource-dependency/explain", "bootstrap:自动授权来源解释", true, false),
+            new ApiRoute("POST", "/api/access/resource-dependency/declaration-status", "bootstrap:依赖声明诊断", true, false),
             // T-PERM-070：服务凭证管理面（per-service M2M 凭证签发/轮换/吊销）。门禁挂
             // service-config 管理面同族——写 SERVICE:MANAGE、list SERVICE:VIEW，两条
             // 均已在固定图（T-PERM-027），业务门禁零新增；不设凭证端点白名单（管理面端点，

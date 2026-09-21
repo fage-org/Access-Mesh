@@ -109,6 +109,8 @@ class HttpApiPathSnapshotTest {
 /api/access/resource-api-mapping/update
 /api/access/integration/permission-manifest/full-sync
 /api/access/resource-dependency/check
+/api/access/resource-dependency/declaration-status
+/api/access/resource-dependency/explain
 /api/access/resource-dependency/graph
 /api/access/resource-dependency/list
 /api/access/resource-entity/batch-create
@@ -123,6 +125,7 @@ class HttpApiPathSnapshotTest {
 /api/access/resource-entity/update
 /api/access/role-resource-permission/apply-grant-plan
 /api/access/role-resource-permission/list
+/api/access/role-resource-permission/preview-grant-plan
 /api/access/role-resource-permission/sub-perm-allowed-types
 /api/access/service-config/apis
 /api/access/service-config/detail
@@ -289,6 +292,8 @@ class HttpApiPathSnapshotTest {
 /api/access/resource-api-mapping/update|access.resource.dto.req.ApiMappingUpdateReq|common.model.R<access.resource.dto.resp.ApiMappingResp>
 /api/access/integration/permission-manifest/full-sync|perm.common.dto.req.PermissionManifestReq|common.model.R<perm.common.dto.resp.SyncResultResp>
 /api/access/resource-dependency/check|access.resource.dto.req.ResourceDependencyCheckReq|common.model.R<access.resource.dto.resp.DependencyCycleCheckResp>
+/api/access/resource-dependency/declaration-status|access.resource.dto.req.DependencyDeclarationStatusReq|common.model.R<access.resource.dto.resp.DependencyDeclarationStatusResp>
+/api/access/resource-dependency/explain|access.resource.dto.req.AutoGrantExplainReq|common.model.R<access.resource.dto.resp.AutoGrantExplainResp>
 /api/access/resource-dependency/graph|access.resource.dto.req.DependencyListReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ResourceDependencyResp>>
 /api/access/resource-dependency/list|access.resource.dto.req.DependencyListReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ResourceDependencyResp>>
 /api/access/resource-entity/batch-create|perm.common.dto.req.ResourceBatchCreateReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ResourceResp>>
@@ -303,6 +308,7 @@ class HttpApiPathSnapshotTest {
 /api/access/resource-entity/update|perm.common.dto.req.ResourceUpdateReq|common.model.R<access.resource.dto.resp.ResourceResp>
 /api/access/role-resource-permission/apply-grant-plan|access.grant.dto.req.ApplyGrantPlanReq|common.model.R<access.grant.dto.resp.RolePermissionItemsResp>
 /api/access/role-resource-permission/list|access.grant.dto.req.RolePermissionListReq|common.model.R<access.grant.dto.resp.RolePermissionItemsResp>
+/api/access/role-resource-permission/preview-grant-plan|access.grant.dto.req.PreviewGrantPlanReq|common.model.R<access.grant.dto.resp.GrantPlanPreviewResp>
 /api/access/role-resource-permission/sub-perm-allowed-types|access.grant.dto.req.SubPermAllowedTypesReq|common.model.R<access.grant.dto.resp.SubPermAllowedTypesResp>
 /api/access/service-config/apis|access.resource.dto.req.ServiceConfigApisReq|common.model.R<perm.common.dto.resp.ItemsResp<access.resource.dto.resp.ApiMappingResp>>
 /api/access/service-config/detail|access.resource.dto.req.ServiceConfigGetReq|common.model.R<access.resource.dto.resp.ServiceConfigResp>

@@ -6,9 +6,12 @@ import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
+import cn.ac.fage.accessmesh.access.grant.dto.req.PreviewGrantPlanReq;
+import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveKey;
 import cn.ac.fage.accessmesh.access.grant.dto.req.SubPermAllowedTypesReq;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.SubPermAllowedTypesResp;
+import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantInsightDomainService;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceResolveRequest;
 import cn.ac.fage.accessmesh.access.grant.dto.req.RolePermissionListReq;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.RolePermissionItemResp;
@@ -76,6 +79,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
     private final ResourceEntityDomainService resourceEntityDomainService;
     private final TreeWriteLockSupport treeWriteLockSupport;
     private final AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
+    private final AutoGrantInsightDomainService autoGrantInsightDomainService;
 
     public PermissionGrantAppServiceImpl(OperationPermissionDomainService operationPermissionDomainService,
                                       RoleResourcePermissionMapper rolePermMapper,
@@ -88,7 +92,8 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                                       SubjectDomainService subjectDomainService,
                                       ResourceEntityDomainService resourceEntityDomainService,
                                       TreeWriteLockSupport treeWriteLockSupport,
-                                      AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
+                                      AutoGrantMaterializationDomainService autoGrantMaterializationDomainService,
+                                      AutoGrantInsightDomainService autoGrantInsightDomainService) {
         this.operationPermissionDomainService = operationPermissionDomainService;
         this.rolePermMapper = rolePermMapper;
         this.permissionGrantPlanDomainService = permissionGrantPlanDomainService;
@@ -101,6 +106,7 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.treeWriteLockSupport = treeWriteLockSupport;
         this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
+        this.autoGrantInsightDomainService = autoGrantInsightDomainService;
     }
 
     @Override
@@ -147,6 +153,37 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         List<RoleResourcePermission> allPermissions = rolePermMapper
             .selectValidByRoleId(tenantId, roleId);
         return toItemRespList(tenantId, allPermissions);
+    }
+
+    /**
+     * 授撤影响预览（T-PERM-073，契约 §11.4.1）。
+     * <p>门禁/角色有效性与保存同源（ROLE:MANAGE + 启用角色）；计算经
+     * {@link AutoGrantInsightDomainService#previewGrantPlan}（纯准备 + 三次共享推导）。
+     * REPEATABLE_READ 只读事务提供单次一致视图；预览不取写锁、不写任何数据——
+     * 预览仅供参考（advisory），保存按最新事实重算（M5 定案）。</p>
+     */
+    @Override
+    @Transactional(readOnly = true, isolation = org.springframework.transaction.annotation.Isolation.REPEATABLE_READ)
+    public GrantPlanPreviewResp previewGrantPlan(Long tenantId, PreviewGrantPlanReq req) {
+        Long roleId = typeResolutionService.resolveRoleId(
+            tenantId, req.request().roleTypeCode(), req.request().roleExternalId(), req.request().domainCode());
+        if (roleId == null) {
+            throw biz(AccessErrorCode.ROLE_NOT_FOUND);
+        }
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE,
+            String.valueOf(roleId), OperationCode.MANAGE)) {
+            throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
+        }
+        AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
+        if (role == null) {
+            throw biz(AccessErrorCode.ROLE_NOT_FOUND);
+        }
+        if (role.getStatus() != PermissionConstants.ENABLED_STATUS) {
+            throw biz(AccessErrorCode.ROLE_DISABLED);
+        }
+        return autoGrantInsightDomainService.previewGrantPlan(tenantId, operatorId, roleId,
+            req.request().domainCode(), req.request().plan(), req.resolvedMaxItems());
     }
 
     /**

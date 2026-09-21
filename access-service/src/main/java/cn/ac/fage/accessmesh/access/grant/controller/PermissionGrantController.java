@@ -3,8 +3,10 @@ package cn.ac.fage.accessmesh.access.grant.controller;
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.grant.dto.req.ApplyGrantPlanReq;
+import cn.ac.fage.accessmesh.access.grant.dto.req.PreviewGrantPlanReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.RolePermissionListReq;
 import cn.ac.fage.accessmesh.access.grant.dto.req.SubPermAllowedTypesReq;
+import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.RolePermissionItemResp;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.RolePermissionItemsResp;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.SubPermAllowedTypesResp;
@@ -51,6 +53,17 @@ public class PermissionGrantController {
         List<RolePermissionItemResp> items = permissionGrantService.applyGrantPlan(
             TenantContextHolder.getTenantId(), req);
         return R.ok(new RolePermissionItemsResp(items));
+    }
+
+    /**
+     * 授撤影响预览（T-PERM-073，总册 §11.4.1）。
+     * <p>只读预览：与保存同源校验（纯准备，不创建 INLINE），输出授撤导致的自动权限
+     * added/removed/retained 与现有漂移标识；仅供参考，不构成保存凭证。</p>
+     */
+    @PostMapping("/preview-grant-plan")
+    public R<GrantPlanPreviewResp> previewGrantPlan(
+            @Valid @RequestBody PreviewGrantPlanReq req) {
+        return R.ok(permissionGrantService.previewGrantPlan(TenantContextHolder.getTenantId(), req));
     }
 
     /**

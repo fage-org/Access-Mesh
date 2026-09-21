@@ -5,7 +5,7 @@
  * 授予/撤销、已有授权属性与子权限配置 = 授权弹窗本地事务；授权记录/子权限现状 = 详情层只读展示；统一提交 = apply-grant-plan 单入口。
  * 路由：/perm/grant?subjectType=ROLE|ORG（角色/组织两入口已联调；PERSONAL 预留不挂路由）。
  */
-import { computed } from "vue";
+import { computed, ref } from "vue";
 import { hasPerms } from "@/utils/auth";
 import { PERMISSION_GRANT_PERMS } from "./utils/perms";
 import { usePermissionGrant } from "./utils/hook";
@@ -14,6 +14,11 @@ import GrantMatrixPanel from "./components/GrantMatrixPanel.vue";
 import ChangeListPanel from "./components/ChangeListPanel.vue";
 import GrantDialog from "./components/GrantDialog.vue";
 import PermissionDetailDrawer from "./components/PermissionDetailDrawer.vue";
+import GrantPreviewDrawer from "./components/GrantPreviewDrawer.vue";
+import { previewGrantPlan } from "@/api/permission-grant";
+import type { GrantPlanPreviewResp } from "@/api/permission-grant";
+import { buildGrantPlan } from "./utils/grant-plan";
+import View from "~icons/ep/view";
 
 defineOptions({ name: "PermGrant" });
 
@@ -67,6 +72,45 @@ const {
 } = usePermissionGrant();
 
 const hasSubject = computed(() => grantStore.context != null);
+
+// ========== 授撤影响预览（T-PERM-073，M5：仅供参考、保存独立） ==========
+
+const previewVisible = ref(false);
+const previewLoading = ref(false);
+const previewResp = ref<GrantPlanPreviewResp | null>(null);
+const previewError = ref<string | null>(null);
+
+/** 手动预览（用户定案 2026-09-21：变更清单手动按钮触发，保存不依赖预览）。
+ *  与保存共用同一 plan 构建（buildGrantPlan）；失败=无法预览，不展示为零影响。 */
+async function handlePreviewImpact() {
+  const context = grantStore.context;
+  if (!context || grantStore.changes.length === 0) return;
+  const plan = buildGrantPlan(grantStore.changes);
+  if (!plan) return;
+  previewVisible.value = true;
+  previewLoading.value = true;
+  previewResp.value = null;
+  previewError.value = null;
+  try {
+    previewResp.value = await previewGrantPlan({
+      request: {
+        // domainCode 恒 null（P1-1：授权页全部请求恒传 null，GrantContext 定案）
+        domainCode: null,
+        roleTypeCode: context.roleTypeCode,
+        roleExternalId: context.roleExternalId,
+        plan
+      }
+    });
+  } catch (error: unknown) {
+    const message =
+      error && typeof error === "object" && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : "";
+    previewError.value = message || "预览请求失败";
+  } finally {
+    previewLoading.value = false;
+  }
+}
 
 // ========== 矩阵单元格事件 ==========
 
@@ -179,6 +223,15 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
           </el-button>
           <el-button
             v-if="capability === 'edit'"
+            :icon="View"
+            :loading="previewLoading"
+            :disabled="!grantStore.isDirty || frozen"
+            @click="handlePreviewImpact"
+          >
+            预览影响
+          </el-button>
+          <el-button
+            v-if="capability === 'edit'"
             type="primary"
             :loading="grantStore.isSaving"
             :disabled="!grantStore.isDirty || frozen"
@@ -215,6 +268,14 @@ function onCellDetail(target: NonNullable<typeof drawerTarget.value>) {
         :children-provider="childrenOf"
         :conditions="conditions"
         :undefined-bits-by-record="sourceChain.undefinedBitsByRecord"
+      />
+
+      <!-- 授撤影响预览（T-PERM-073：仅供参考；保存独立、不依赖预览结果） -->
+      <GrantPreviewDrawer
+        v-model="previewVisible"
+        :loading="previewLoading"
+        :resp="previewResp"
+        :error="previewError"
       />
     </template>
   </div>

@@ -113,4 +113,153 @@ export const checkDependencyCycle = async (
   return unwrap(res);
 };
 
+// ========== 来源解释（T-PERM-073，契约 §12.3.1） ==========
+
+/** 条件身份（对齐后端 GrantPlanPreviewResp.ConditionRef；explain 不出现 PREVIEW_INLINE）。 */
+export type ExplainConditionRef = {
+  kind: "NONE" | "EXISTING" | "PREVIEW_INLINE";
+  conditionId: number | null;
+  conditionCode: string | null;
+  requestItemRef: string | null;
+};
+
+/** 资源业务键 */
+export type ExplainResourceKey = {
+  resourceTypeCode: string | null;
+  resourceCode: string | null;
+  codeType: string | null;
+};
+
+/** 完整逻辑事实键 */
+export type ExplainFactKey = {
+  resource: ExplainResourceKey;
+  operationCode: string | null;
+  conditionRef: ExplainConditionRef;
+};
+
+/** 显式种子引用（现有授权返回 permissionId） */
+export type ExplainSeedRef = {
+  permissionId: number | null;
+  requestItemRef: string | null;
+};
+
+/** 解释节点（nodeKey 为响应内展示 ID，不跨请求合并；节点身份始终来自 fact） */
+export type ExplainNode = {
+  nodeKey: string;
+  fact: ExplainFactKey;
+  explicitSeed: boolean;
+  seedRefs: ExplainSeedRef[];
+  desired: boolean;
+  actualPermissionIds: number[];
+};
+
+/** 编译声明引用 */
+export type ExplainDeclarationRef = {
+  declarationId: number;
+  declarationKey: string;
+  sourceService: string;
+};
+
+/** 直接推导边（实际触发操作 + 声明引用） */
+export type ExplainEdge = {
+  fromNodeKey: string;
+  toNodeKey: string;
+  triggerOperationCode: string | null;
+  declarationRefs: ExplainDeclarationRef[];
+};
+
+/** 来源解释响应：desired/actual 漂移显式标识，不把「应生成」当「已生效」。 */
+export type AutoGrantExplainResp = {
+  viewedAt: string;
+  nodes: ExplainNode[];
+  edges: ExplainEdge[];
+  totalNodeCount: number;
+  totalEdgeCount: number;
+  truncated: boolean;
+  driftDetected: boolean;
+};
+
+/** 解释目标事实（conditionId 传 null=无条件变体；缺省 target=全集视图） */
+export type ExplainTargetReq = {
+  resourceTypeCode: string;
+  resourceCode: string;
+  codeType?: string | null;
+  operationCode: string;
+  conditionId?: number | null;
+};
+
+/** 来源解释请求（角色业务键 + 可选目标 + 输出限额） */
+export type AutoGrantExplainReq = {
+  domainCode?: string | null;
+  roleTypeCode: string;
+  roleExternalId: string;
+  target?: ExplainTargetReq | null;
+  maxDepth?: number;
+  maxNodes?: number;
+  maxEdges?: number;
+};
+
+/** 角色自动授权来源解释（POST /api/access/resource-dependency/explain）。
+ *  门禁 DEPENDENCY:VIEW 类型级；只读一致视图；截断/读取失败不得解释为「无来源」。 */
+export const explainAutoGrant = async (
+  data: AutoGrantExplainReq
+): Promise<AutoGrantExplainResp> => {
+  const res = await http.request<R<AutoGrantExplainResp>>(
+    "post",
+    "/api/access/resource-dependency/explain",
+    { data }
+  );
+  return unwrap(res);
+};
+
+// ========== 声明诊断（T-PERM-073，契约 §12.3 declaration-status） ==========
+
+/** 服务依赖发布状态（tenant+service 单行） */
+export type ManifestSyncItem = {
+  sourceService: string;
+  publicationGeneration: number;
+  revision: string | null;
+  syncStatus: string | null;
+  isDirty: boolean | null;
+  lastSyncedAt: string | null;
+};
+
+/** 声明行（含 REJECTED 原因；payload 业务键回显，损坏时降级 null） */
+export type DeclarationItem = {
+  id: number;
+  sourceService: string;
+  declarationKey: string;
+  compileStatus: string | null;
+  rejectReason: string | null;
+  description: string | null;
+  sourceResourceTypeCode: string | null;
+  sourceResourceCode: string | null;
+  sourceCodeType: string | null;
+  sourceOperationCode: string | null;
+  targetResourceTypeCode: string | null;
+  targetResourceCode: string | null;
+  targetCodeType: string | null;
+  requiredOperationCodes: string[];
+  updatedAt: string | null;
+};
+
+/** 声明诊断响应 */
+export type DependencyDeclarationStatusResp = {
+  manifestSyncs: ManifestSyncItem[];
+  declarations: DeclarationItem[];
+};
+
+/** 依赖声明诊断（POST /api/access/resource-dependency/declaration-status）。
+ *  门禁 DEPENDENCY:VIEW；只读——变更由所属服务 manifest 发布承担。 */
+export const getDeclarationStatus = async (
+  sourceService?: string | null
+): Promise<DependencyDeclarationStatusResp> => {
+  const res = await http.request<R<DependencyDeclarationStatusResp>>(
+    "post",
+    "/api/access/resource-dependency/declaration-status",
+    { data: { sourceService: sourceService ?? null } }
+  );
+  return unwrap(res);
+};
+
 export { type ItemsResp };

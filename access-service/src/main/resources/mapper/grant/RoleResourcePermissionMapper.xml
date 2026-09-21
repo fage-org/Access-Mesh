@@ -84,6 +84,13 @@
           AND delete_flag = 0
     </select>
 
+    <!-- T-PERM-073 自动授权对账：租户内持有任意有效授权行的角色全集（批式重算扫描入口） -->
+    <select id="selectValidRoleIds" resultType="java.lang.Long">
+        SELECT DISTINCT abstract_role_id FROM role_resource_permission
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
     <!-- T-PERM-017 P2-A：按 conditionIds 反查受影响 serviceCodes，供 ConditionAppService update/delete 后 markServiceCodes -->
     <select id="selectServiceCodesByConditionIds" resultType="java.lang.String">
         SELECT DISTINCT service_code

@@ -2,9 +2,13 @@ package cn.ac.fage.accessmesh.access.resource.controller;
 
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.resource.dto.req.AutoGrantExplainReq;
+import cn.ac.fage.accessmesh.access.resource.dto.req.DependencyDeclarationStatusReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.DependencyListReq;
 import cn.ac.fage.accessmesh.access.resource.dto.req.ResourceDependencyCheckReq;
+import cn.ac.fage.accessmesh.access.resource.dto.resp.AutoGrantExplainResp;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.DependencyCycleCheckResp;
+import cn.ac.fage.accessmesh.access.resource.dto.resp.DependencyDeclarationStatusResp;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.ItemsResp;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ResourceDependencyResp;
 import cn.ac.fage.accessmesh.access.resource.service.DependencyAppService;
@@ -99,5 +103,26 @@ public class ResourceDependencyController {
         return R.ok(new DependencyCycleCheckResp(
             hasCycle, req.sourceResourceTypeCode(), req.sourceResourceCode(),
             req.targetResourceTypeCode(), req.targetResourceCode()));
+    }
+
+    /**
+     * 角色自动授权来源解释（T-PERM-073，总册 §12.3.1）。
+     * <p>解释"为什么生成该角色的自动权限"：共享逻辑 DAG（节点=完整事实键、边=直接推导
+     * 关系+声明引用）；desired/actual 漂移显式标识，输出限额只截断展示。</p>
+     */
+    @PostMapping("/explain")
+    public R<AutoGrantExplainResp> explain(@Valid @RequestBody AutoGrantExplainReq req) {
+        return R.ok(dependencyAppService.explainAutoGrant(TenantContextHolder.getTenantId(), req));
+    }
+
+    /**
+     * 依赖声明诊断（T-PERM-073，总册 §12.3 declaration-status）。
+     * <p>每服务 manifest 发布状态 + 声明行（含 REJECTED 原因）；只读，变更由所属服务
+     * manifest 发布承担。</p>
+     */
+    @PostMapping("/declaration-status")
+    public R<DependencyDeclarationStatusResp> declarationStatus(
+            @Valid @RequestBody DependencyDeclarationStatusReq req) {
+        return R.ok(dependencyAppService.declarationStatus(TenantContextHolder.getTenantId(), req));
     }
 }

@@ -72,6 +72,7 @@ class PermissionGrantAppServiceImplTest {
     @Mock private PermissionConditionDomainService conditionDomainService;
     @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
     @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
+    @Mock private cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantInsightDomainService autoGrantInsightDomainService;
 
     private PermissionGrantAppService service;
 
@@ -82,7 +83,7 @@ class PermissionGrantAppServiceImplTest {
             rolePermMapper, conditionDomainService, permissionGrantPlanDomainService,
             auditDomainService, typeResolutionService, engine, new ObjectMapper(),
             subjectDomainService, resourceEntityDomainService,
-            treeWriteLockSupport, autoGrantMaterializationDomainService);
+            treeWriteLockSupport, autoGrantMaterializationDomainService, autoGrantInsightDomainService);
     }
 
     private SubPermAllowedTypesReq subPermReq() {
