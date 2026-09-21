@@ -343,7 +343,7 @@ manifest 不需要用户 API 快照/固定图授权行；管理 explain 需注�
 
 复用同一推导函数，检查 RESOLVED 声明与编译聚合、资源/声明失效残留、desired 与 actual 授权差异。不检查 support 存在性，不做路径回填或另写权限算法。
 
-后台触发复用既有任务设施，周期/诊断已随 073 定案（2026-09-21 用户定案，registry 同日登记）：**bootstrap 种子默认停用的 sys_job**（invokeTarget=`autoGrantReconcileInvoker.reconcile`、cron 预置每日 03:00、insert-if-absent 不覆盖管理员配置），任务管理页手动触发/按需启用周期——drift 只来自改库/历史脏数据（正常链路同事务保证一致），默认零后台负载。对账只发现异常，正常撤销由主事务保证；自动修复若需新写入口，须先定义其门禁/事务/完整触发行为。诊断通道：逐条差异 log.warn + 汇总经 @JobInvocable String 返回值写入任务执行日志成功消息（任务设施最小扩展，void 方法维持缺省消息）；完整事实经 explain 端点核查。已由 `AutoGrantReconcileDomainService`（声明↔编译边一致/失效残留/逐角色 desired diff，种子与防御层口径同物化器）+ `AutoGrantReconcileJob` 落地，PgIT 锁定干净态/漂移/图问题与只读不修复。
+后台触发复用既有任务设施，周期/诊断已随 073 定案（2026-09-21 用户定案，registry 同日登记）：**bootstrap 种子默认停用的 sys_job**（invokeTarget=`autoGrantReconcileInvoker.reconcile`、cron 预置每日 03:00、insert-if-absent 不覆盖管理员配置），任务管理页手动触发/按需启用周期——drift 只来自改库/历史脏数据（正常链路同事务保证一致），默认零后台负载。对账只发现异常，正常撤销由主事务保证；自动修复若需新写入口，须先定义其门禁/事务/完整触发行为。诊断通道：逐条差异 log.warn + 汇总经 @JobInvocable String 返回值写入任务执行日志成功消息（任务设施最小扩展，void 方法维持缺省消息）；完整事实经 explain 端点核查。已由 `AutoGrantReconcileDomainService`（声明↔编译边一致/失效残留/逐角色 desired diff，种子与防御层口径同物化器）+ `AutoGrantReconcileJob` 落地（作业入口持 REPEATABLE_READ 只读一致事务，2026-09-21 claude 外评处置补——无注解时整轮多类查询分属不同快照，并发写窗口可现不可复现假漂移），PgIT 锁定干净态/漂移/图问题与只读不修复。
 
 ## 14. 演进方向（非约束）
 

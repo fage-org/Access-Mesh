@@ -1329,7 +1329,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 `POST /api/access/role-resource-permission/preview-grant-plan`，管理入口，服务凭证不开放；固定图按现有角色授权族注册。请求为 `{request: ApplyGrantPlanReq, maxItems?: int}`，request 复用现役 domainCode、roleTypeCode、roleExternalId、plan；外层可选 maxItems（1..2000，缺省 500）。ROLE:MANAGE、角色启用与授权委托/形状校验和保存同源；预览无数据库写入，不创建 INLINE 条件。
 
-响应 `R<GrantPlanPreviewResp>`：`advisory=true`、`viewedAt`、`added`、`removed`、`retained`、`totalCount`、`truncated`、`driftDetected`。每个事实包含资源业务键、operationCode、conditionRef 与来源种子引用；retained 指受本计划影响但仍有其他显式来源支持的自动事实。conditionRef 为 NONE / EXISTING（conditionId/可见描述）/ PREVIEW_INLINE（requestItemRef），不将新条件预先落库。totalCount 为完整计算的影响事实数量，maxItems 只截断展示，truncated=true 时不能宣称明细完整。
+响应 `R<GrantPlanPreviewResp>`：`advisory=true`、`viewedAt`、`added`、`removed`、`retained`、`removedTotal`、`addedTotal`、`retainedTotal`、`totalCount`、`truncated`、`driftDetected`。每个事实包含资源业务键、operationCode、conditionRef 与来源种子引用；retained 指受本计划影响但仍有其他显式来源支持的自动事实。conditionRef 为 NONE / EXISTING（conditionId/可见描述）/ PREVIEW_INLINE（requestItemRef），不将新条件预先落库。totalCount 为完整计算的影响事实数量，maxItems 只截断展示，truncated=true 时不能宣称明细完整。
 
 事实元素统一为 `{fact: FactKey, seeds: SeedRef[]}`，嵌套形状如下（字段必须返回，nullable 字段明确为 null）：
 
@@ -1338,11 +1338,11 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `FactKey = {resource: ResourceKey, operationCode: string|null, conditionRef: ConditionRef}`（渲染上下文缺操作定义时 operationCode 为 null）。
 - `SeedRef = {permissionId: long|null, requestItemRef: string|null}`，现有显式来源返回 permissionId，新建预览来源返回请求条目位置，严格二选一。seeds 按身份排序，不返回完整路径组合。
 
-三组均按 ResourceKey 各字段、operationCode、ConditionRef(kind/id/itemRef) 的元组顺序排列（字符串按 Unicode 码点、ID 按数值）。展示预算全局按 removed、added、retained 顺序取前 maxItems 项，再放入对应数组；totalCount 为三组完整数量之和。输出数小于 totalCount 时 truncated=true，空数组不能独立解释为无影响。现有漂移通过 driftDetected 表示，不加入“计划导致”的 added/removed 计数。
+三组均按 ResourceKey 各字段、operationCode、ConditionRef(kind/id/itemRef) 的元组顺序排列（字符串按 Unicode 码点、ID 按数值）。展示预算全局按 removed、added、retained 顺序取前 maxItems 项，再放入对应数组；removedTotal/addedTotal/retainedTotal 为对应分组完整数量（不受 maxItems 截断影响，分组计数以之为准而非输出数组长度），totalCount 为三组完整数量之和。输出数小于 totalCount 时 truncated=true，空数组不能独立解释为无影响。现有漂移通过 driftDetected 表示，不加入“计划导致”的 added/removed 计数。
 
 基于当前种子得到 beforeDesired、计划假想状态得到 afterDesired，并与实际 AUTO_DEP 标识已有漂移；不把 actual 缺行当“原来没权限”，也不伪称预览已修复漂移。预览失败按正常异常信封返回，前端显示“无法预览”；不返回伪造零影响。保存继续独立接受原 ApplyGrantPlanReq，无预览 token/hash/版本匹配字段。
 
-> **落地状态（T-PERM-073，2026-09-21）**：端点/响应形状已按上文实现——`PermissionGrantPlanDomainService` 拆纯准备 `prepare`（与保存同源校验、INLINE 以负数合成 ID 暂挂）+ 保存阶段物化，预览经 `AutoGrantInsightDomainService`（prepare + 三次共享推导 before/after/affectedOld，retained=受影响但仍有其他显式来源支持，根来源经直接前驱 DAG 拓扑传播，不枚举完整路径）；AppService `@Transactional(readOnly=true, isolation=REPEATABLE_READ)` 单次一致视图，不取写锁、不写任何数据（INLINE 零残留）。条件身份补充口径：`ConditionRef.conditionCode` 为 EXISTING 的可见描述字段（nullable）。回归锁 `AutoGrantInsightPgIT`（真实 PG：retained/removed/added+PREVIEW_INLINE 临时身份/零残留/门禁/停用角色/漂移）。前端：授权页变更清单「预览影响」手动按钮 + 抽屉（M5 边界说明四要素；2026-09-21 用户定案），保存独立不依赖预览。
+> **落地状态（T-PERM-073，2026-09-21）**：端点/响应形状已按上文实现——`PermissionGrantPlanDomainService` 拆纯准备 `prepare`（与保存同源校验、INLINE 以负数合成 ID 暂挂）+ 保存阶段物化，预览经 `AutoGrantInsightDomainService`（prepare + 三次共享推导 before/after/affectedOld，retained=受影响但仍有其他显式来源支持，根来源经直接前驱 DAG 拓扑传播，不枚举完整路径）；AppService `@Transactional(readOnly=true, isolation=REPEATABLE_READ)` 单次一致视图，不取写锁、不写任何数据（INLINE 零残留）。条件身份补充口径：`ConditionRef.conditionCode` 为 EXISTING 的可见描述字段（nullable）。回归锁 `AutoGrantInsightPgIT`（真实 PG：retained/removed/added+PREVIEW_INLINE 临时身份/零残留/门禁/停用角色/漂移）。前端：授权页变更清单「预览影响」手动按钮 + 抽屉（M5 边界说明四要素；2026-09-21 用户定案），保存独立不依赖预览。2026-09-21 claude 外评处置：响应补 removedTotal/addedTotal/retainedTotal 分组完整数（截断时分组计数不失真），前端分组头按完整数渲染并附「展示前 N 条」注记。
 
 ### 11.5 子权限类型只读查询（sub-perm-allowed-types，v3.1，已随 T-PERM-034 落地 2026-08-30，收口修订）
 

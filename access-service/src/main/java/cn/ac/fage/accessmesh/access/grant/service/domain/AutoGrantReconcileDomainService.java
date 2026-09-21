@@ -31,7 +31,9 @@ import java.util.TreeSet;
  * </p>
  * <p>
  * 对账只发现异常不修复（正常撤销由主事务保证；自动修复须先定义新写入口的门禁/事务/完整触发
- * 行为）。无缓存直读、不声明事务、不写任何数据；只读扫描租户内持有授权行的角色全集。</p>
+ * 行为）。无缓存直读、不写任何数据；不声明事务——一致读视图由唯一调用方
+ * {@link AutoGrantReconcileJob} 持 {@code REPEATABLE_READ} 只读事务提供；只读扫描租户内
+ * 持有授权行的角色全集。</p>
  */
 @Service
 public class AutoGrantReconcileDomainService {

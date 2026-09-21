@@ -315,6 +315,10 @@ export type GrantPlanPreviewResp = {
   removed: PreviewFactElement[];
   added: PreviewFactElement[];
   retained: PreviewFactElement[];
+  /** 分组完整数量（maxItems 只截断展示，分组数字以此为准确非 items.length） */
+  removedTotal: number;
+  addedTotal: number;
+  retainedTotal: number;
   totalCount: number;
   truncated: boolean;
   driftDetected: boolean;

@@ -46,6 +46,7 @@ interface GroupView {
   tagType: "danger" | "success" | "info";
   hint: string;
   items: GrantPlanPreviewResp["removed"];
+  total: number;
 }
 
 const groups = computed<GroupView[]>(() => {
@@ -57,21 +58,24 @@ const groups = computed<GroupView[]>(() => {
       title: "将被回收",
       tagType: "danger",
       hint: "无其他显式来源支持，随本计划回收",
-      items: resp.removed
+      items: resp.removed,
+      total: resp.removedTotal
     },
     {
       key: "added",
       title: "将新增",
       tagType: "success",
       hint: "本计划授予触发的自动权限",
-      items: resp.added
+      items: resp.added,
+      total: resp.addedTotal
     },
     {
       key: "retained",
       title: "仍被其他来源保留",
       tagType: "info",
       hint: "受本计划影响但仍有其他显式来源支持",
-      items: resp.retained
+      items: resp.retained,
+      total: resp.retainedTotal
     }
   ];
 });
@@ -135,7 +139,12 @@ const groups = computed<GroupView[]>(() => {
             <el-tag :type="group.tagType" effect="dark" size="small">
               {{ group.title }}
             </el-tag>
-            <span class="group-count">{{ group.items.length }}</span>
+            <span class="group-count">{{
+              group.total +
+              (group.items.length < group.total
+                ? `（展示前 ${group.items.length} 条）`
+                : "")
+            }}</span>
             <span class="group-hint">{{ group.hint }}</span>
           </div>
           <div

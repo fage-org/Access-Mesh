@@ -72,10 +72,13 @@ last_updated: 2026-09-21
 - API 层：`api/resource-dependency.ts`（explain/declaration-status 全类型）、`api/permission-grant.ts`（previewGrantPlan 全类型）；不重新引入已退役 mock 层（页面全真实接口）。
 
 **验证**：
-- `AutoGrantInsightPgIT`（真实 PG+Redis，14 用例全绿）：explain 全集 DAG/声明引用/target 闭包/截断 totals/漂移与孤立 actual/门禁与角色 20001/目标解析 20004·20005·20006；preview retained（A/C 双源撤 A 保留 B，seed=c 显式授权）/removed（末源撤销）/added+PREVIEW_INLINE 临时身份（creates[0]，零残留）/零数据库写入/门禁与停用角色 20003/既有漂移独立标识；declaration-status（REJECTED RESOURCE_MISSING+发布状态行）；对账（干净态→直插无来源 AUTO 行+直改库删编译边→漂移与图问题均报出、二次对账仍报=只读不修复）。
+- `AutoGrantInsightPgIT`（真实 PG+Redis，16 用例全绿：含双轨评审补的非参与种子排除、claude 外评补的分组完整数截断回归锁）：explain 全集 DAG/声明引用/target 闭包/截断 totals/漂移与孤立 actual/门禁与角色 20001/目标解析 20004·20005·20006；preview retained（A/C 双源撤 A 保留 B，seed=c 显式授权）/removed（末源撤销）/added+PREVIEW_INLINE 临时身份（creates[0]，零残留）/零数据库写入/门禁与停用角色 20003/既有漂移独立标识；declaration-status（REJECTED RESOURCE_MISSING+发布状态行）；对账（干净态→直插无来源 AUTO 行+直改库删编译边→漂移与图问题均报出、二次对账仍报=只读不修复）。
 - 受影响单测：PermissionGrantPlanDomainServiceImplTest/PermissionGrantAppServiceImplTest/DependencyAppServiceImplTest/AutoGrantDerivationTest 86 全过（重构行为保持）。
 - 前端：新增 vitest 22（preview-impact 12 + explain-view 10）+ 全量 vitest 406 全过；vue-tsc/eslint/stylelint/vite build 全过。
 
 **双轨评审与处置（2026-09-21）**：代码轨（P1×1+P2×1+P3×4+减法×2）/文档轨（P1×1+P2×1+P3×6）。四项用户拍板（registry 同日登记）：①内联定义校验前移 prepare（预览/保存同源，畸形规则预览即拒）；②sys_job 种子并发双插窗口接受现状+注记（只读双跑无害，不动 DDL/迁移面）；③删 PlannedGrantPlan.updateItemRefs 与 PendingInline*.syntheticId 两处零消费数据面；④explain 无 target 全集收窄为参与推导的种子（契约 §12.3.1 措辞同批修订，PgIT 补非参与种子排除用例）。直接修复：前端 DataView 图标变量、bootstrap 任务种子回归锁（status=0/cron/invokeTarget 经 @JobInvocable 真实解析+String 摘要回传）、对账全量角色扫描去重、loadCompiledEdges javadoc 锁口径、契约 §11.4 头部与两处 071/072「待实施」残留、ConditionRef 形状行补 conditionCode 与 nullable 口径、设计 §12 将来时两句、前端两设计旧句/失效锚/「待实施」标题。任务卡计数口径维持批次惯例（全仓统一另议）。全量回归收口形态两轮 BUILD SUCCESS（第二轮含 E2E，快照补三条路径+签名后），评审修复后受影响面定向复跑全绿。
+
+
+**claude 外评处置（2026-09-21，P0-P2 零、P3×4）**：headless plan+禁子代理通道。逐条核实后处置——①对账作业缺一致读事务：属实，Job 入口补 REPEATABLE_READ 只读事务（反射调用链保留代理语义已核）+域服务 javadoc 同步；②预览分组计数截断失真：属实（零项分组本被 v-show 隐藏、顶部告警已给 totalCount，较评审描述轻），用户拍板 B——响应补 removedTotal/addedTotal/retainedTotal+前端分组头按完整数渲染附「展示前 N 条」注记+PgIT 回归锁；③explain 种子口径未过滤已删角色：撤回（resolveRoleId 带 delete_flag=0 已删角色 20001 不可达；全租户批量防御层与单角色入口语义不同）；④条件装载 NoTenant 前提：属实（无当前越权），换同租户版 selectValidConditionsByIds（apply 消费点维持 NoTenant=同事务新鲜读红线）。存量清理：控制器末行换行+explain-view 残留 requestItemRef 分支。定向验证 AutoGrantInsightPgIT 16/16 全绿；registry 同日登记。
 
 **文档回写**：契约 §11.4.1/§12.3.1 转已落地+落地注记、§12.3 表登记两端点+declaration-status 正文、frontmatter 链；设计 dependency-auto-grant 交付状态/§11 落地注记/§13 对账定案/§16 M5 行/last_reviewed；前端 resource-dependency §5 已实现回写、permission-grant 演进段回写；extension-guide §4 状态行+§5.3 注记；本卡转 done。CHANGELOG 未触碰（无现役条目惯例变更）。

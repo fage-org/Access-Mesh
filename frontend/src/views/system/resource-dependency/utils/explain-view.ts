@@ -31,10 +31,9 @@ export function explainFactLabel(fact: ExplainFactKey): string {
   } · ${explainConditionLabel(fact)}`;
 }
 
-/** 种子引用展示 */
+/** 种子引用展示（explain 侧 SeedRef 恒为既有授权行 permissionId，无预览条目形态） */
 export function explainSeedLabel(seed: ExplainSeedRef): string {
-  if (seed.permissionId != null) return `显式授权 #${seed.permissionId}`;
-  return `预览条目 ${seed.requestItemRef ?? "?"}`;
+  return `显式授权 #${seed.permissionId}`;
 }
 
 /** 节点状态标签集合（desired/actual 的四象限：普通推导、已生效、缺行漂移、孤立存量） */

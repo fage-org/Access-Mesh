@@ -15,6 +15,9 @@ import java.util.List;
  * @param removed         计划导致回收的自动事实（无其他显式来源支持）
  * @param added           计划导致新增的自动事实
  * @param retained        受本计划影响但仍有其他显式来源支持的自动事实
+ * @param removedTotal    removed 组完整数量（maxItems 只截断展示，分组数字以本字段为准）
+ * @param addedTotal      added 组完整数量
+ * @param retainedTotal   retained 组完整数量
  * @param totalCount      三组完整数量之和（maxItems 只截断展示）
  * @param truncated       输出数小于 totalCount 时 true——空数组不能独立解释为无影响
  * @param driftDetected   现有 desired 与 actual AUTO_DEP 已有漂移（非计划导致）
@@ -25,6 +28,9 @@ public record GrantPlanPreviewResp(
     List<FactElement> removed,
     List<FactElement> added,
     List<FactElement> retained,
+    long removedTotal,
+    long addedTotal,
+    long retainedTotal,
     long totalCount,
     boolean truncated,
     boolean driftDetected

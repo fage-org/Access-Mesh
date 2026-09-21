@@ -255,6 +255,25 @@ class AutoGrantInsightPgIT {
             .isEqualTo(manualPermId(f, "a", VIEW));
     }
 
+    @Test void shouldReportPerGroupTotalsUnderTruncation() {
+        Fixture f = fixture();
+        publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"), dep(f, "bc", "b", "c", "READ", "VIEW"));
+        grantTo(f, "a", "VIEW", null);
+        AccessRequestContext.bind(RequestContext.user(1L, 100L));
+        GrantPlanPreviewResp resp = grants.previewGrantPlan(1L, new PreviewGrantPlanReq(
+            new ApplyGrantPlanReq(null, "BASIC_ROLE", f.roleExternal(),
+                new ApplyGrantPlanReq.GrantPlan(null, null, List.of(manualPermId(f, "a", VIEW)))), 1));
+        // removed 全集 {b:READ, c:VIEW} 超预算 1：分组完整数不受截断影响（removedTotal=2 而非输出数 1）
+        assertThat(resp.truncated()).isTrue();
+        assertThat(resp.totalCount()).isEqualTo(2L);
+        assertThat(resp.removedTotal()).isEqualTo(2L);
+        assertThat(resp.addedTotal()).isZero();
+        assertThat(resp.retainedTotal()).isZero();
+        assertThat(resp.removed()).hasSize(1);
+        assertThat(resp.added()).isEmpty();
+        assertThat(resp.retained()).isEmpty();
+    }
+
     @Test void shouldPreviewAddedFactWithPreviewInlineIdentity() {
         Fixture f = fixture();
         publish(f, dep(f, "db", "d", "b", "VIEW", "READ"));

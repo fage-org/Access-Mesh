@@ -223,7 +223,7 @@ public class AutoGrantInsightDomainService {
         Set<Long> conditionIds = rows.stream().map(RoleResourcePermission::getConditionId)
             .filter(Objects::nonNull).collect(Collectors.toCollection(LinkedHashSet::new));
         Map<Long, PermissionCondition> conditionById = conditionIds.isEmpty() ? Map.of()
-            : conditionDomainService.selectValidConditionsByIdsNoTenant(conditionIds).stream()
+            : conditionDomainService.selectValidConditionsByIds(tenantId, conditionIds).stream()
                 .collect(Collectors.toMap(PermissionCondition::getId, Function.identity()));
         return new RenderContext(resourceById, typeByEntity, typeCodeByValue, conditionById);
     }
@@ -554,6 +554,7 @@ public class AutoGrantInsightDomainService {
 
         boolean driftDetected = !beforeDesired.equals(view.autoDepByFact().keySet());
         return new GrantPlanPreviewResp(true, LocalDateTime.now(), removedOut, addedOut, retainedOut,
+            removedElements.size(), addedElements.size(), retainedElements.size(),
             totalCount, outputCount < totalCount, driftDetected);
     }
 
