@@ -48,6 +48,8 @@ public class PermissionManifestNormalizer {
             }
         }
         declarations.sort(Comparator.comparing(d -> CanonicalJson.text(mapper.valueToTree(d)), CanonicalJson::compareText));
+        // 双指纹分工：payload hash 含 description（锁完整请求身份，供同代次重放检测）；
+        // graph hash 置空 description（锁图身份，展示字段变更不触发重编译、供 unchanged 短路判定）。二者不可互换。
         var payload = mapper.createObjectNode();
         payload.put("schemaVersion", request.schemaVersion());
         payload.put("revision", request.revision());

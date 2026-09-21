@@ -10,6 +10,9 @@
         <foreach collection="hashes" item="hash" open="(" separator="," close=")">#{hash}</foreach>
     </update>
 
+    <!-- 逐键发布戳守卫：仅无戳、更大代次或同代次同指纹幂等重放可盖章（与
+         ResourcePublicationPolicy.single 的 UNCHANGED/CONFLICT/STALE 分支同源）；
+         0 行受影响由调用方判并发变更回滚，勿当冗余条件简化。 -->
     <update id="stampResourcePublication">
         UPDATE sync_metadata SET last_publication_generation=#{generation},last_publication_hash=#{payloadHash},updated_at=now()
         WHERE tenant_id=#{tenantId} AND entity_kind='RESOURCE_ENTITY' AND source_service=#{service}

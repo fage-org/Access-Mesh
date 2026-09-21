@@ -11,7 +11,7 @@
    ```
 
    脚本锁定受影响表后复查旧结构、目标表冲突及授权存量。任一失败使事务回滚；脚本不是可重复覆盖程序，已迁移目标再次执行会拒绝。应检查失败原因和实际 schema，不删除冲突对象来强行继续。
-4. 核对 `resource_dependency_legacy` 与备份中的旧表逐行一致：原 ID、各来源、开关、软删标记和审计字段全部保留。新 `resource_dependency`、`permission_dependency_declaration`、`service_manifest_sync` 为空；原授权与同步版本保留，新逐键发布字段为 null，范围状态为空。新旧依赖表使用独立序列，旧表不被运行时读取。
+4. 核对 `resource_dependency_legacy` 与备份中的旧表逐行一致：原 ID、各来源、开关、软删标记和审计字段全部保留。新 `resource_dependency`、`permission_dependency_declaration`、`service_manifest_sync` 为空；原授权与同步版本保留，新逐键发布字段为 null，范围状态为空。新旧依赖表使用独立序列，旧表不被运行时读取。升级库可能残留已退役的 `DEPENDENCY:SYNC` 操作码种子行（本脚本只保全不清理；管理台会展示为无消费者的可授操作噪音，无功能影响），如需清除由部署方按备份核清后手工软删，新装库 schema 无此行。
 5. 按部署既有角色配置核对新表/序列权限，再启动新程序。所属服务通过现役凭证发布自己的 manifest；不把旧 ADMIN_UI/SDK_SCAN/SERVICE_SYNC 数据自动转换为声明，也不因旧 auto_grant=true/false 激活任何边。核对编译响应和图，HTTP 200 不代表全部声明成功。
 6. 资源 FULL/增量切换按 [full-sync 手册](runbook-full-sync.md) 一次性升级写者，由来源侧分配可靠代次。迁移本身不伪造任何历史发布代次。
 

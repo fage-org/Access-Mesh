@@ -5,6 +5,8 @@
         SELECT * FROM resource_publication_state
         WHERE tenant_id=#{tenantId} AND source_service=#{service} AND scope_key_hash=#{scopeHash} AND delete_flag=0
     </select>
+    <!-- 增量接受守卫：scope 已切入 FULL（last_full_generation 非空）后，仅接受大于该 FULL 代次的
+         增量推进 max_generation（增量后旧 FULL 重试拒旧）；0 行受影响由调用方判并发冲突回滚。 -->
     <update id="acceptSingle">
         INSERT INTO resource_publication_state(tenant_id,source_service,scope_key,scope_key_hash,max_generation)
         VALUES(#{tenantId},#{service},#{scopeKey},#{scopeHash},#{generation})
@@ -13,6 +15,8 @@
         WHERE resource_publication_state.last_full_generation IS NULL
            OR resource_publication_state.last_full_generation &lt; EXCLUDED.max_generation
     </update>
+    <!-- FULL 接受守卫（M1 平台拒旧）：仅放行严格更大代次，或三代次+指纹全等的幂等重放
+         （重试沿用原代次与原快照）；0 行受影响由调用方判并发代次冲突回滚整事务。 -->
     <update id="acceptFull">
         INSERT INTO resource_publication_state(tenant_id,source_service,scope_key,scope_key_hash,
             max_generation,last_full_generation,last_full_payload_hash,last_full_status)

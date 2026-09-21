@@ -2770,7 +2770,7 @@ schemaVersion 必须为整数 1；publicationGeneration 为 §19.2.1 同款正�
 
 形状错误、重复 declarationKey/target、非法 schemaVersion 或代次在声明写入前整请求拒绝。有效请求按 declarationKey + target 业务键展开为编译项，同一组可有 RESOLVED 与 REJECTED 目标，拒绝项保留诊断且不产生边；source 不合法时该组全部目标拒绝。声明存储的逻辑唯一键是 tenant + 服务身份 + declarationKey + target 业务键；新 FULL 删除本服务缺失项，不能通过清空其他来源的编译贡献达成替换。
 
-返回现有 `R<SyncResultResp>` 与 FullSyncDetail。itemResults 的 businessKey 采用 SyncKeyCodecUtil 规范：`declarationKey=...&targetResourceTypeCode=...&targetResourceCode=...&targetCodeType=...`，各值 percent-encoded；统计按展开后的目标项计，deactivatedCount 为缺失而删除的声明目标项数量。item applied 表示该声明成功 RESOLVED，REJECTED 返回依赖缺失/非重试分类和具体原因（RESOURCE_MISSING / TYPE_MISSING / OPERATION_INVALID / CROSS_OWNER / SELF_DEPENDENCY / CYCLE）；上层部分失败仍为 FULL_SYNC_PARTIAL_FAILURE，不能只看 HTTP 200。旧代次与同代次请求冲突沿 §19.2.1。
+返回现有 `R<SyncResultResp>` 与 FullSyncDetail。itemResults 的 businessKey 采用 SyncKeyCodecUtil 规范：`declarationKey=...&targetResourceTypeCode=...&targetResourceCode=...&targetCodeType=...`，各值 percent-encoded；统计按展开后的目标项计，deactivatedCount 为缺失而删除的声明目标项数量。item applied 表示该声明成功 RESOLVED，REJECTED 返回依赖缺失/非重试分类和具体原因（RESOURCE_MISSING / TYPE_MISSING / OPERATION_INVALID / CROSS_OWNER / SELF_DEPENDENCY / CYCLE）；同语义 hash 重发的 unchanged 项返回 `applied=false / stale=true / reason=MANIFEST_UNCHANGED`（该批图已确认的幂等语义，与资源侧 PUBLICATION_UNCHANGED 同族，可继续不重试）。上层部分失败仍为 FULL_SYNC_PARTIAL_FAILURE，不能只看 HTTP 200。旧代次与同代次请求冲突沿 §19.2.1。
 
 同代次比较完整规范化请求 hash（含 revision、description，排除代次）；语义 hash 仅基于 declarationKey、source/触发操作与目标/操作集合，不含 description/revision。语义 hash 可用于避免重复编译，完整 hash 用于不可变重试，二者不可互相代替。较新代次同图仍保存 revision/description；原代次原请求仅在该代次仍是当前已接受代次（未被更新发布覆盖）时可重判 PARTIAL/dirty——已被更晚成功代次覆盖后旧代次重放按 §19.2.1 拒旧，不再触发重判。环路检查以本次替换后保留的图为基础，先保留未变化的已解析贡献，再按声明完整规范键顺序尝试变化项，后到成环项 REJECTED。
 

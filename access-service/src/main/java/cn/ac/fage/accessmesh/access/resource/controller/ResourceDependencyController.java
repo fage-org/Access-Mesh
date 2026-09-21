@@ -29,15 +29,15 @@ import java.util.List;
 @RequestMapping("/api/access/resource-dependency")
 public class ResourceDependencyController {
 
-    private final DependencyAppService dependencyManageService;
+    private final DependencyAppService dependencyAppService;
 
     /**
      * 构造函数注入依赖
      *
-     * @param dependencyManageService 依赖关系管理服务
+     * @param dependencyAppService 依赖关系查询服务（管理面只读）
      */
-    public ResourceDependencyController(DependencyAppService dependencyManageService) {
-        this.dependencyManageService = dependencyManageService;
+    public ResourceDependencyController(DependencyAppService dependencyAppService) {
+        this.dependencyAppService = dependencyAppService;
     }
 
 
@@ -54,7 +54,7 @@ public class ResourceDependencyController {
     @PostMapping("/list")
     public R<ItemsResp<ResourceDependencyResp>> listDependencies(@Valid @RequestBody DependencyListReq req) {
         return R.ok(new ItemsResp<>(
-            dependencyManageService.listDependencies(TenantContextHolder.getTenantId(), req.resourceEntityId())
+            dependencyAppService.listDependencies(TenantContextHolder.getTenantId(), req.resourceEntityId())
         ));
     }
 
@@ -78,8 +78,8 @@ public class ResourceDependencyController {
     public R<ItemsResp<ResourceDependencyResp>> graph(@Valid @RequestBody DependencyListReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
         List<ResourceDependencyResp> items = req.resourceEntityId() != null
-            ? dependencyManageService.listDependencies(tenantId, req.resourceEntityId())
-            : dependencyManageService.listAllDependencies(tenantId);
+            ? dependencyAppService.listDependencies(tenantId, req.resourceEntityId())
+            : dependencyAppService.listAllDependencies(tenantId);
         return R.ok(new ItemsResp<>(items));
     }
 
@@ -95,7 +95,7 @@ public class ResourceDependencyController {
      */
     @PostMapping("/check")
     public R<DependencyCycleCheckResp> check(@Valid @RequestBody ResourceDependencyCheckReq req) {
-        boolean hasCycle = dependencyManageService.hasDependencyCycle(TenantContextHolder.getTenantId(), req);
+        boolean hasCycle = dependencyAppService.hasDependencyCycle(TenantContextHolder.getTenantId(), req);
         return R.ok(new DependencyCycleCheckResp(
             hasCycle, req.sourceResourceTypeCode(), req.sourceResourceCode(),
             req.targetResourceTypeCode(), req.targetResourceCode()));

@@ -631,7 +631,8 @@ public class ResourceEntitySyncAppServiceImpl implements ResourceEntitySyncAppSe
                     SyncResultBuilder.RETRY_STALE_VERSION, "PUBLICATION_UNCHANGED");
             case STALE -> new SyncResultResp(true, false, true,
                     SyncResultBuilder.RETRY_STALE_VERSION, "PUBLICATION_GENERATION_STALE");
-            default -> throw new IllegalStateException("unexpected publication rejection: " + decision);
+            // APPLY 正常路径不经本拒绝映射；显式列出保持枚举新增分支时的编译期保护
+            case APPLY -> throw new IllegalStateException("publication rejection mapped from APPLY: " + decision);
         };
     }
     private SyncResultResp fullPublicationRejected(String category, String reason, int count) {

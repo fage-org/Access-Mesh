@@ -4,8 +4,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.credential.entity.ServiceCred
 
 import java.time.LocalDateTime;
 
-import java.time.LocalDateTime;
-
 /**
  * 服务凭证响应（T-PERM-070）。
  * <p>不含 secretHash（哈希无回查面——明文仅签发响应回显一次）。</p>

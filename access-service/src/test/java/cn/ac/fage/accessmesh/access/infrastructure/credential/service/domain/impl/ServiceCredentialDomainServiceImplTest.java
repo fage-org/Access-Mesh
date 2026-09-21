@@ -29,7 +29,7 @@ import static org.mockito.Mockito.when;
 /**
  * 服务凭证领域服务回归锁（T-PERM-070）：验证顺序（secret 比对先于状态细分——
  * 三态仅对持有正确 secret 者暴露）、生成格式（sc-/sk- 前缀 base64url）、
- * 库内只存哈希、签发冲突重试。
+ * 库内只存哈希、签发撞全局唯一索引 fail-fast（2026-09-20 评审 P3-6 修正，同事务 abort 下重试不可达）。
  */
 class ServiceCredentialDomainServiceImplTest {
 
