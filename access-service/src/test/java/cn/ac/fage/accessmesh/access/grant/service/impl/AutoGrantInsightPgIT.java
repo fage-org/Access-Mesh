@@ -167,6 +167,21 @@ class AutoGrantInsightPgIT {
         assertThat(resp.edges()).isEmpty();
     }
 
+    @Test void shouldKeepExplainTargetInOutputUnderNodeTruncation() {
+        // target 模式目标保底入选（2026-09-21 贴回外评拍板）：maxNodes 不足时名额被祖先
+        // 按资源 id 升序占满，旧形态会把查询目标 C 挤出输出（只剩 A）
+        Fixture f = fixture();
+        publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"), dep(f, "bc", "b", "c", "READ", "VIEW"));
+        grantTo(f, "a", "VIEW", null);
+        AccessRequestContext.bind(RequestContext.user(1L, 100L));
+        AutoGrantExplainResp resp = dependencies.explainAutoGrant(1L, new AutoGrantExplainReq(
+            null, "BASIC_ROLE", f.roleExternal(), target(f, "c", "VIEW", null), null, 1, null));
+        assertThat(resp.truncated()).isTrue();
+        assertThat(resp.totalNodeCount()).isEqualTo(3L);
+        assertThat(resp.nodes()).hasSize(1);
+        assertThat(nodeFacts(resp)).containsExactly("c:VIEW");
+    }
+
     @Test void shouldFlagDriftAndOrphanActualNodes() {
         Fixture f = fixture();
         publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"));

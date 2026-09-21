@@ -263,6 +263,18 @@ public class AutoGrantInsightDomainService {
         Set<Fact> depthEligible = depthLimitedNodes(target, universe, participatingSeeds, predecessors,
             desired, view.autoDepByFact().keySet(), limits.maxDepth());
         List<Fact> outputNodes = depthEligible.stream().sorted().limit(limits.maxNodes()).toList();
+        if (target != null) {
+            // target 模式目标保底入选（2026-09-21 贴回外评拍板）：截断只挤祖先，不把用户
+            // 查询的目标本身挤出输出——目标恒在反向闭包与深度候选内（闭包起点即目标），
+            // 未入选只可能因名额被祖先占满，替换最后一个名额
+            Fact targetFact = new Fact(target.resourceEntityId(), target.operationBit(), target.conditionId());
+            if (depthEligible.contains(targetFact) && !outputNodes.contains(targetFact)) {
+                List<Fact> pinned = new ArrayList<>(outputNodes);
+                pinned.remove(pinned.size() - 1);
+                pinned.add(targetFact);
+                outputNodes = List.copyOf(pinned);
+            }
+        }
         boolean truncated = outputNodes.size() < universe.size();
 
         // 边：两端都已输出的直接推导边，按起点/终点逻辑键排序取前 maxEdges；总数=全集内边数
