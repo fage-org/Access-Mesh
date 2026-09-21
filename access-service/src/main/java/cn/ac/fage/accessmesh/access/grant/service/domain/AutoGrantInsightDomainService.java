@@ -11,7 +11,6 @@ import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp.FactKey;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp.ResourceKey;
 import cn.ac.fage.accessmesh.access.grant.dto.resp.GrantPlanPreviewResp.SeedRef;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
-import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivation.DependencyEdge;
 import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivation.Fact;
@@ -182,10 +181,10 @@ public class AutoGrantInsightDomainService {
      */
     public AutoGrantView loadAutoGrantView(Long tenantId, Long roleId) {
         List<RoleResourcePermission> rows = rolePermissionMapper.selectValidByRoleId(tenantId, roleId);
-        List<RoleResourcePermission> seeds = rows.stream().filter(AutoGrantInsightDomainService::isSeed).toList();
+        List<RoleResourcePermission> seeds = rows.stream().filter(AutoGrantFacts::isSeed).toList();
         Map<Fact, List<RoleResourcePermission>> autoDepByFact = rows.stream()
-            .filter(AutoGrantInsightDomainService::isAutoDep)
-            .collect(Collectors.groupingBy(AutoGrantInsightDomainService::factOf,
+            .filter(AutoGrantFacts::isAutoDep)
+            .collect(Collectors.groupingBy(AutoGrantFacts::factOf,
                 LinkedHashMap::new, Collectors.toList()));
         TenantGraph graph = loadTenantGraph(tenantId);
         return new AutoGrantView(rows, seeds, autoDepByFact, graph,
@@ -235,7 +234,7 @@ public class AutoGrantInsightDomainService {
      */
     public AutoGrantExplainResp explain(Long tenantId, Long roleId, ExplainTargetFact target, ExplainLimits limits) {
         AutoGrantView view = loadAutoGrantView(tenantId, roleId);
-        List<Fact> seedFacts = view.seeds().stream().map(AutoGrantInsightDomainService::factOf).toList();
+        List<Fact> seedFacts = view.seeds().stream().map(AutoGrantFacts::factOf).toList();
         AutoGrantDerivation.Result derived = derivation.derive(seedFacts,
             view.graph().resourceTypeByEntity(), view.graph().edges(), view.graph().operations());
         Set<Fact> desired = new HashSet<>(derived.desiredFacts());
@@ -378,7 +377,7 @@ public class AutoGrantInsightDomainService {
             String nodeKey = "n" + (index + 1);
             nodeKeys.put(fact, nodeKey);
             List<SeedRef> seedRefs = view.seeds().stream()
-                .filter(seed -> factOf(seed).equals(fact))
+                .filter(seed -> AutoGrantFacts.factOf(seed).equals(fact))
                 .map(seed -> SeedSource.existing(seed).toRef()).toList();
             nodes.add(new AutoGrantExplainResp.Node(nodeKey, rendered.get(fact), seedFactSet.contains(fact),
                 seedRefs, desired.contains(fact),
@@ -468,19 +467,19 @@ public class AutoGrantInsightDomainService {
         Map<Fact, List<SeedSource>> afterSeedSources = new TreeMap<>();
         for (RoleResourcePermission row : view.seeds()) {
             if (removedIds.contains(row.getId()) || updatedIds.contains(row.getId())) continue;
-            afterSeedSources.computeIfAbsent(factOf(row), key -> new ArrayList<>())
+            afterSeedSources.computeIfAbsent(AutoGrantFacts.factOf(row), key -> new ArrayList<>())
                 .add(SeedSource.existing(row));
         }
         for (RoleResourcePermission row : planned.updates()) {
-            if (isSeed(row)) {
-                afterSeedSources.computeIfAbsent(factOf(row), key -> new ArrayList<>())
+            if (AutoGrantFacts.isSeed(row)) {
+                afterSeedSources.computeIfAbsent(AutoGrantFacts.factOf(row), key -> new ArrayList<>())
                     .add(SeedSource.existing(row));
             }
         }
         for (int index = 0; index < planned.creates().size(); index++) {
             RoleResourcePermission permission = planned.creates().get(index).permission();
-            if (isSeed(permission)) {
-                afterSeedSources.computeIfAbsent(factOf(permission), key -> new ArrayList<>())
+            if (AutoGrantFacts.isSeed(permission)) {
+                afterSeedSources.computeIfAbsent(AutoGrantFacts.factOf(permission), key -> new ArrayList<>())
                     .add(SeedSource.planned(planned.createItemRefs().get(index)));
             }
         }
@@ -489,12 +488,12 @@ public class AutoGrantInsightDomainService {
         Set<Fact> affectedOldFacts = new LinkedHashSet<>();
         for (Long removedId : removedIds) {
             RoleResourcePermission row = beforeById.get(removedId);
-            if (row != null && isSeed(row)) affectedOldFacts.add(factOf(row));
+            if (row != null && AutoGrantFacts.isSeed(row)) affectedOldFacts.add(AutoGrantFacts.factOf(row));
         }
         for (RoleResourcePermission updated : planned.updates()) {
             RoleResourcePermission before = beforeById.get(updated.getId());
-            if (before != null && isSeed(before) && !factOf(before).equals(factOf(updated))) {
-                affectedOldFacts.add(factOf(before));
+            if (before != null && AutoGrantFacts.isSeed(before) && !AutoGrantFacts.factOf(before).equals(AutoGrantFacts.factOf(updated))) {
+                affectedOldFacts.add(AutoGrantFacts.factOf(before));
             }
         }
 
@@ -512,13 +511,15 @@ public class AutoGrantInsightDomainService {
             }
         }
 
-        List<Fact> beforeSeedFacts = view.seeds().stream().map(AutoGrantInsightDomainService::factOf).toList();
-        AutoGrantDerivation.Result before = derivation.derive(beforeSeedFacts, graphTypes,
+        List<Fact> beforeSeedFacts = view.seeds().stream().map(AutoGrantFacts::factOf).toList();
+        // 三次推导（before/after/affected）共享同一张图的只读索引
+        AutoGrantDerivation.PreparedGraph preparedGraph = derivation.prepareGraph(
             view.graph().edges(), view.graph().operations());
+        AutoGrantDerivation.Result before = derivation.derive(beforeSeedFacts, graphTypes, preparedGraph);
         AutoGrantDerivation.Result after = derivation.derive(new ArrayList<>(afterSeedSources.keySet()),
-            graphTypes, view.graph().edges(), view.graph().operations());
+            graphTypes, preparedGraph);
         AutoGrantDerivation.Result affected = derivation.derive(new ArrayList<>(affectedOldFacts),
-            graphTypes, view.graph().edges(), view.graph().operations());
+            graphTypes, preparedGraph);
 
         Set<Fact> beforeDesired = new HashSet<>(before.desiredFacts());
         Set<Fact> afterDesired = new HashSet<>(after.desiredFacts());
@@ -534,7 +535,7 @@ public class AutoGrantInsightDomainService {
         AutoGrantView afterView = new AutoGrantView(view.rows(), view.seeds(), view.autoDepByFact(),
             view.graph(), extendedRender);
         Map<Fact, List<SeedSource>> beforeSeedSources = view.seeds().stream().collect(Collectors.groupingBy(
-            AutoGrantInsightDomainService::factOf,
+            AutoGrantFacts::factOf,
             Collectors.mapping(seed -> SeedSource.existing(seed), Collectors.toList())));
 
         // 根显式来源归属：added/retained 用 after-DAG（存续来源）、removed 用 before-DAG（旧根）
@@ -684,23 +685,8 @@ public class AutoGrantInsightDomainService {
         return new FactElement(renderFact(view, planned, fact), seeds);
     }
 
-    // ===== 事实/种子口径（与物化器同源，设计 §6.1） =====
-
-    static boolean isSeed(RoleResourcePermission row) {
-        return !Boolean.TRUE.equals(row.getScopeAll())
-            && row.getResourceEntityId() != null
-            && row.getDependOn() == null
-            && !isAutoDep(row)
-            && !GrantSource.AUTHORITY_ROOT.getValue().equals(row.getGrantSource());
-    }
-
-    static boolean isAutoDep(RoleResourcePermission row) {
-        return GrantSource.AUTO_DEP.getValue().equals(row.getGrantSource());
-    }
-
-    static Fact factOf(RoleResourcePermission row) {
-        return new Fact(row.getResourceEntityId(), row.getGrantedBits(), row.getConditionId());
-    }
+    // ===== 口径与编译键 =====
+    // 种子/事实口径唯一实现见 {@link AutoGrantFacts}（物化/解释/对账三方共用，§6.1）。
 
     /** 编译键（源实体 + 目标实体 + COALESCE 触发位，与编译器聚合口径一致）。 */
     static String compileKey(Long sourceId, Long targetId, Long sourceOperationBits) {

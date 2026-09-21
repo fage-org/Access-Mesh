@@ -54,6 +54,23 @@ class AutoGrantDerivationTest {
     private static final Map<Long, Integer> TYPES = Map.of(
         A, 910, B, 910, C, 910, D, 910, X, 910, 999L, 910);
 
+    /** 共享索引形态与便捷形态同图同结果：prepareGraph 复用只省索引构建、不改推导语义。 */
+    @Test
+    void shouldYieldIdenticalResultViaPreparedGraph() {
+        List<DependencyEdge> edges = List.of(
+            edge(A, B, VIEW, READ),
+            edge(B, C, READ, READ | WRITE),
+            edge(D, B, VIEW, READ));
+        List<Fact> seeds = List.of(fact(A, VIEW, C1), fact(A, VIEW, null));
+        List<OperationPermission> operations = List.of(op(VIEW, 0), op(READ, 0));
+
+        Result direct = derivation.derive(seeds, TYPES, edges, operations);
+        Result prepared = derivation.derive(seeds, TYPES, derivation.prepareGraph(edges, operations));
+
+        assertThat(prepared.desiredFacts()).isEqualTo(direct.desiredFacts());
+        assertThat(prepared.directPredecessors()).isEqualTo(direct.directPredecessors());
+    }
+
     /** §6.3.1 行 1：菱形图——条件变体与无条件变体各自闭包，全部四事实推导。 */
     @Test
     void shouldDeriveFullClosureWithConditionAndNullVariants_diamondGraph() {

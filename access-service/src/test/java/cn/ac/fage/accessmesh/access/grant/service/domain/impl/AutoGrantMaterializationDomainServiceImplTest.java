@@ -69,10 +69,13 @@ class AutoGrantMaterializationDomainServiceImplTest {
             return requested.stream().map(AutoGrantMaterializationDomainServiceImplTest::role).toList();
         });
         when(rolePermissionMapper.selectValidByRoleIds(eq(TENANT), anySet())).thenReturn(List.of());
-        when(derivation.derive(any(), any(), any(), any()))
+        when(derivation.derive(any(), any(), any()))
             .thenReturn(new AutoGrantDerivation.Result(List.of(), Map.of()));
 
         assertThat(service.recompute(TENANT, roleIds, null)).isEmpty();
+
+        // 图索引跨全部角色只构建一次（多角色共享 PreparedGraph，不逐角色重建）
+        verify(derivation, times(1)).prepareGraph(any(), any());
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Set<Long>> validCaptor = ArgumentCaptor.forClass(Set.class);

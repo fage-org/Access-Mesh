@@ -4,6 +4,7 @@ import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivation.DependencyEdge;
+import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantFacts;
 import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivation.Fact;
 import cn.ac.fage.accessmesh.access.infrastructure.util.SqlBatches;
 import cn.ac.fage.accessmesh.access.resource.entity.PermissionDependencyDeclaration;
@@ -179,6 +180,8 @@ public class AutoGrantReconcileDomainService {
      *  返回值=本次扫描的角色数（与角色 ID 全量查询共用一次结果，避免重复 DISTINCT 扫描）。 */
     private ScanResult checkRoleDrifts(Long tenantId, AutoGrantInsightDomainService.TenantGraph graph) {
         List<Long> roleIds = new ArrayList<>(new TreeSet<>(rolePermissionMapper.selectValidRoleIds(tenantId)));
+        // 共享图索引：同一张编译图逐角色比对只构建一次索引
+        AutoGrantDerivation.PreparedGraph preparedGraph = derivation.prepareGraph(graph.edges(), graph.operations());
         List<String> drifts = new ArrayList<>();
         for (int offset = 0; offset < roleIds.size(); offset += ROLE_BATCH_SIZE) {
             List<Long> batch = roleIds.subList(offset, Math.min(offset + ROLE_BATCH_SIZE, roleIds.size()));
@@ -192,7 +195,7 @@ public class AutoGrantReconcileDomainService {
             }
             for (Long roleId : batch) {
                 collectRoleDrift(roleId, validRoleIds.contains(roleId),
-                    rowsByRole.getOrDefault(roleId, List.of()), graph, drifts);
+                    rowsByRole.getOrDefault(roleId, List.of()), graph, preparedGraph, drifts);
             }
         }
         return new ScanResult(roleIds.size(), drifts);
@@ -203,20 +206,20 @@ public class AutoGrantReconcileDomainService {
 
     private void collectRoleDrift(Long roleId, boolean roleValid,
             List<RoleResourcePermission> rows, AutoGrantInsightDomainService.TenantGraph graph,
-            List<String> drifts) {
+            AutoGrantDerivation.PreparedGraph preparedGraph, List<String> drifts) {
         // 种子口径与物化器一致（§6.1 + 防御层）：已删角色不作种子（desired 恒空回收滞留行）
         List<Fact> seedFacts = rows.stream()
-            .filter(AutoGrantInsightDomainService::isSeed)
+            .filter(AutoGrantFacts::isSeed)
             .filter(row -> roleValid)
-            .map(AutoGrantInsightDomainService::factOf).toList();
+            .map(AutoGrantFacts::factOf).toList();
         Set<Fact> actual = new TreeSet<>();
         for (RoleResourcePermission row : rows) {
-            if (AutoGrantInsightDomainService.isAutoDep(row)) {
-                actual.add(AutoGrantInsightDomainService.factOf(row));
+            if (AutoGrantFacts.isAutoDep(row)) {
+                actual.add(AutoGrantFacts.factOf(row));
             }
         }
         Set<Fact> desired = new TreeSet<>(derivation.derive(seedFacts,
-            graph.resourceTypeByEntity(), graph.edges(), graph.operations()).desiredFacts());
+            graph.resourceTypeByEntity(), preparedGraph).desiredFacts());
         List<Fact> missing = desired.stream().filter(fact -> !actual.contains(fact)).toList();
         List<Fact> stale = actual.stream().filter(fact -> !desired.contains(fact)).toList();
         if (!missing.isEmpty()) {

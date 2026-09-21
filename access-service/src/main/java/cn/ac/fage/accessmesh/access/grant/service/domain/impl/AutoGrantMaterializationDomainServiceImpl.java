@@ -5,6 +5,7 @@ import cn.ac.fage.accessmesh.access.grant.entity.RoleResourcePermission;
 import cn.ac.fage.accessmesh.access.grant.enums.GrantSource;
 import cn.ac.fage.accessmesh.access.grant.mapper.RoleResourcePermissionMapper;
 import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivation;
+import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantFacts;
 import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivation.DependencyEdge;
 import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantDerivation.Fact;
 import cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService;
@@ -117,10 +118,10 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
         Map<Long, Map<Fact, RoleResourcePermission>> actualAutoByRole = new HashMap<>();
         Set<Long> involvedResourceIds = new LinkedHashSet<>();
         for (RoleResourcePermission row : rows) {
-            if (isAutoDep(row)) {
+            if (AutoGrantFacts.isAutoDep(row)) {
                 actualAutoByRole.computeIfAbsent(row.getAbstractRoleId(), key -> new LinkedHashMap<>())
-                    .put(factOf(row), row);
-            } else if (isSeed(row) && validRoleIds.contains(row.getAbstractRoleId())) {
+                    .put(AutoGrantFacts.factOf(row), row);
+            } else if (AutoGrantFacts.isSeed(row) && validRoleIds.contains(row.getAbstractRoleId())) {
                 seedsByRole.computeIfAbsent(row.getAbstractRoleId(), key -> new ArrayList<>()).add(row);
                 involvedResourceIds.add(row.getResourceEntityId());
             }
@@ -152,12 +153,15 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
             }
         }
 
+        // 共享图索引：同一张编译图逐角色重算只构建一次索引（N 角色×E 边免重复索引构建）
+        AutoGrantDerivation.PreparedGraph preparedGraph = derivation.prepareGraph(edges, operationRows);
+
         Set<Long> changedRoles = new LinkedHashSet<>();
         for (Long roleId : orderedRoleIds) {
             List<RoleResourcePermission> roleSeeds = seedsByRole.getOrDefault(roleId, List.of());
             Map<Fact, RoleResourcePermission> actual = actualAutoByRole.getOrDefault(roleId, Map.of());
-            List<Fact> seedFacts = roleSeeds.stream().map(AutoGrantMaterializationDomainServiceImpl::factOf).toList();
-            List<Fact> desiredList = derivation.derive(seedFacts, resourceTypes, edges, operationRows).desiredFacts();
+            List<Fact> seedFacts = roleSeeds.stream().map(AutoGrantFacts::factOf).toList();
+            List<Fact> desiredList = derivation.derive(seedFacts, resourceTypes, preparedGraph).desiredFacts();
             Set<Fact> desired = new HashSet<>(desiredList);
 
             List<RoleResourcePermission> toInsert = new ArrayList<>();
@@ -227,26 +231,6 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
         }
         softDeleteBatch(tenantId, rowIds, now);
         recycleQuietly(tenantId, inlineCandidates);
-    }
-
-    /** 种子口径（设计 §6.1）：有效 MANUAL 行、scope_all=false、实例 ID 非空、depend_on=NULL，条件不限。 */
-    private boolean isSeed(RoleResourcePermission row) {
-        return !Boolean.TRUE.equals(row.getScopeAll())
-            && row.getResourceEntityId() != null
-            && row.getDependOn() == null
-            && !isAutoDep(row) && !isAuthorityRoot(row);
-    }
-
-    private boolean isAutoDep(RoleResourcePermission row) {
-        return GrantSource.AUTO_DEP.getValue().equals(row.getGrantSource());
-    }
-
-    private boolean isAuthorityRoot(RoleResourcePermission row) {
-        return GrantSource.AUTHORITY_ROOT.getValue().equals(row.getGrantSource());
-    }
-
-    private static Fact factOf(RoleResourcePermission row) {
-        return new Fact(row.getResourceEntityId(), row.getGrantedBits(), row.getConditionId());
     }
 
     private RoleResourcePermission toRow(Long tenantId, Long roleId, Fact fact, Integer resourceType, LocalDateTime now) {

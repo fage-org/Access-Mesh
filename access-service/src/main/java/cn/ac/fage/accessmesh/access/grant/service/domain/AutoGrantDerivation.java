@@ -57,10 +57,24 @@ public class AutoGrantDerivation {
      */
     public record Result(List<Fact> desiredFacts, Map<Fact, Set<Fact>> directPredecessors) {}
 
-    public Result derive(List<Fact> seeds,
-                         Map<Long, Integer> resourceTypes,
-                         List<DependencyEdge> edges,
-                         Collection<OperationPermission> operations) {
+    /**
+     * 预构建只读图索引（源实体→出边 + 操作有效位）：多角色批量重算（recompute/
+     * reconcile/preview 三次推导）对同一张图只构建一次索引、逐角色复用，免 N 角色×
+     * E 边的重复索引构建。索引与输入列表一样按不可变对待——构建后共享、绝不修改。
+     */
+    public static final class PreparedGraph {
+        private final Map<Long, List<DependencyEdge>> edgesBySource;
+        private final Map<OperationKey, Long> effectiveBits;
+
+        private PreparedGraph(Map<Long, List<DependencyEdge>> edgesBySource,
+                              Map<OperationKey, Long> effectiveBits) {
+            this.edgesBySource = edgesBySource;
+            this.effectiveBits = effectiveBits;
+        }
+    }
+
+    /** 构建只读图索引（边按源实体分组 + 操作有效位）；同图多角色推导共享一次构建。 */
+    public PreparedGraph prepareGraph(List<DependencyEdge> edges, Collection<OperationPermission> operations) {
         Map<Long, List<DependencyEdge>> edgesBySource = new HashMap<>();
         for (DependencyEdge edge : edges) {
             edgesBySource.computeIfAbsent(edge.sourceId(), key -> new ArrayList<>()).add(edge);
@@ -73,6 +87,19 @@ public class AutoGrantDerivation {
             effectiveBits.put(new OperationKey(operation.getResourceType(), operation.getBinaryBit()),
                 OperationPermissionUtils.effectiveBits(operation));
         }
+        return new PreparedGraph(edgesBySource, effectiveBits);
+    }
+
+    /** 单次推导便捷形态：内部构建一次索引后走 {@link #derive(List, Map, PreparedGraph)}。 */
+    public Result derive(List<Fact> seeds,
+                         Map<Long, Integer> resourceTypes,
+                         List<DependencyEdge> edges,
+                         Collection<OperationPermission> operations) {
+        return derive(seeds, resourceTypes, prepareGraph(edges, operations));
+    }
+
+    /** 共享索引推导形态：多角色对同一 {@link PreparedGraph} 逐角色调用。 */
+    public Result derive(List<Fact> seeds, Map<Long, Integer> resourceTypes, PreparedGraph graph) {
         Map<Fact, Set<Fact>> predecessors = new TreeMap<>();
         Set<Fact> visited = new LinkedHashSet<>();
         ArrayDeque<Fact> pending = new ArrayDeque<>();
@@ -82,8 +109,8 @@ public class AutoGrantDerivation {
         }
         while (!pending.isEmpty()) {
             Fact current = pending.poll();
-            for (DependencyEdge edge : edgesBySource.getOrDefault(current.resourceEntityId(), List.of())) {
-                if (!triggers(current, edge, resourceTypes, effectiveBits)) continue;
+            for (DependencyEdge edge : graph.edgesBySource.getOrDefault(current.resourceEntityId(), List.of())) {
+                if (!triggers(current, edge, resourceTypes, graph.effectiveBits)) continue;
                 long bits = edge.requiredOperationBits();
                 while (bits != 0L) {
                     long bit = Long.lowestOneBit(bits);
