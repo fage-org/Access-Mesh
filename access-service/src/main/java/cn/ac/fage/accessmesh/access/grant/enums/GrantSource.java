@@ -21,10 +21,11 @@ public enum GrantSource {
     MANUAL("MANUAL"),
 
     /**
-     * 依赖自动补全授权
+     * 依赖自动补全授权（T-PERM-072 物化）
      * <p>
-     * 表示权限由 resource_dependency 规则自动补全授予。
-     * grant_source=AUTO_DEP 时，grant_dep_id 记录触发的 resource_dependency.id。
+     * 表示权限由 resource_dependency 编译图按角色完整重算推导（物化器同事务 diff 落库）：
+     * 单 canonical 操作位、can_grant=false、depend_on=NULL、条件按推导变体直传。
+     * 行可由多条编译边与多个种子共同支持，grant_dep_id 不写入（Q-022 定案保留不写不读）。
      * </p>
      */
     AUTO_DEP("AUTO_DEP"),

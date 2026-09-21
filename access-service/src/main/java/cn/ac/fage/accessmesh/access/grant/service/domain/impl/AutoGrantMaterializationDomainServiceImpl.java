@@ -125,8 +125,13 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
         Map<Long, Integer> resourceTypes = new HashMap<>();
         List<OperationPermission> operationRows = List.of();
         if (!involvedResourceIds.isEmpty()) {
-            for (var entity : resourceEntities.selectValidByIds(tenantId, involvedResourceIds)) {
-                resourceTypes.put(entity.getId(), entity.getResourceType());
+            List<Long> involved = new ArrayList<>(involvedResourceIds);
+            for (int offset = 0; offset < involved.size(); offset += SQL_BATCH_SIZE) {
+                // 分批装载（种子资源 ∪ 全图边端点可超数据库参数上限——对齐 recomputeByResourceEntities 同款修复）
+                for (var entity : resourceEntities.selectValidByIds(tenantId,
+                        new java.util.LinkedHashSet<>(involved.subList(offset, Math.min(offset + SQL_BATCH_SIZE, involved.size()))))) {
+                    resourceTypes.put(entity.getId(), entity.getResourceType());
+                }
             }
             if (!edges.isEmpty()) {
                 operationRows = operations.selectByTenantAndResourceTypes(tenantId, new HashSet<>(resourceTypes.values()));
@@ -296,9 +301,12 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
         }
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(
-                // 服务身份触发的重算（资源/manifest 通道）无用户操作者，取可空读取（getOperatorId 会 fail-closed 拒绝）
+                // 服务身份触发的重算（资源/manifest 通道）无用户操作者，取可空读取（getOperatorId 会 fail-closed 拒绝）；
+                // changeSource 按触发上下文区分：SERVICE 上下文=SERVICE_SYNC，用户操作入口=MANUAL
                 tenantId, AccessRequestContext.getOperatorId(), OperatorContext.getRequestId(),
-                PermConstants.MaintainSource.MANUAL, "auto-grant-materialization"),
+                AccessRequestContext.getServiceCode() != null
+                    ? PermConstants.MaintainSource.SERVICE_SYNC : PermConstants.MaintainSource.MANUAL,
+                "auto-grant-materialization"),
             List.of(new AuditDomainService.ChangeLogEntry(
                 "role_resource_permission", roleId, "AUTO_DEP_DIFF", null, null, diffSnapshot,
                 new Long[0], new Long[] {roleId})));

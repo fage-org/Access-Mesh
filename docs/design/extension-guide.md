@@ -114,7 +114,7 @@ last_reviewed: 2026-09-21   # T-PERM-071：§4 扩展面状态表自动授权行
 
 ### 3.4 资源树与父子关系
 
-资源父子边限同类型（T-PERM-068，2026-09-17 Q-007 定案）：sync/full-sync 的 `parentResourceTypeCode` 缺省按 item/scope 自身类型解析、显式异类型被拒（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；管理面 create/batch-create/move 同口径（20053）；角色域 ORG/POSITION 容器树的结构性跨类型是另一域形态、与资源域无关。SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**使用 MANIFEST 声明与编译图，物化由 072 实施（旧 autoGrant 开关已退役，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定面单点门禁见 api-contract §6.1/§6.7 DEPENDENT 轨道，二者不是一回事。
+资源父子边限同类型（T-PERM-068，2026-09-17 Q-007 定案）：sync/full-sync 的 `parentResourceTypeCode` 缺省按 item/scope 自身类型解析、显式异类型被拒（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；管理面 create/batch-create/move 同口径（20053）；角色域 ORG/POSITION 容器树的结构性跨类型是另一域形态、与资源域无关。SYNC 类型资源出现在管理面资源树（读路径不受限），授权页按类型出矩阵。两个易混概念：**自动授权（依赖补全）**使用 MANIFEST 声明与编译图，物化已随 072 落地（旧 autoGrant 开关已退役，见 §6）；**`depend_on` 子权限**（授权行挂主权限的子权限机制）是在役能力——写侧经 apply-grant-plan 的 `parentPermissionId`/`children` 声明，判定面单点门禁见 api-contract §6.1/§6.7 DEPENDENT 轨道，二者不是一回事。
 
 ### 3.5 首笔授权引导（创建即建授权根，T-PERM-062）
 
@@ -154,7 +154,7 @@ last_reviewed: 2026-09-21   # T-PERM-071：§4 扩展面状态表自动授权行
 
 无代码级判定插槽（§6）。推荐路径：审批流转在接入方系统内完成后，由**持有 ROLE:MANAGE 且对目标键有可转授覆盖的用户身份**（管理台会话）经授权写入口（apply-grant-plan）落授权——权限生效路径与人工授权完全一致，可审计、可回收。授权写入口不收服务身份（服务身份无操作者，403；服务身份适用 §2.2 查询类 API 与 §3.2 第 ④ 步同步写通道）。
 
-> **独立依赖接入**：[简化设计](dependency-auto-grant.md)保留独立资源 sync/按类型 full-sync；纯资源接入无需 manifest 或 registration starter。有依赖需求才独立发布 manifest，SDK 协调可选，不强制大清单。registration 的配置与调用见契约 §19.10.1 和 [example-service 示例](../../example-service/examples/permission-manifest.md)；角色物化与解释仍由 072/073 交付，不把自动授权与 API 派生混为一项能力。
+> **独立依赖接入**：[简化设计](dependency-auto-grant.md)保留独立资源 sync/按类型 full-sync；纯资源接入无需 manifest 或 registration starter。有依赖需求才独立发布 manifest，SDK 协调可选，不强制大清单。registration 的配置与调用见契约 §19.10.1 和 [example-service 示例](../../example-service/examples/permission-manifest.md)；角色物化已由 072 交付、解释由 073 交付，不把自动授权与 API 派生混为一项能力。
 
 ## 6. 能力边界（不可扩展项清单）
 

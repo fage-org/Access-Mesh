@@ -1257,7 +1257,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 > **自动授权预览已采纳、待实施（T-PERM-073，2026-09-20）**：按[自动授权设计 §12](dependency-auto-grant.md#admin-ui)，预览仅供参考，保存以事务内最新事实重新校验与计算；自动授撤影响与预览不同不构成拒绝保存或再次确认的条件，不新增强制预览凭证或版本匹配。保存成功后刷新实际权限与来源，预览/刷新失败不能冒充零影响或提交结果。预览正式接口与读取门禁仍待 078 收敛，现役提交校验与回滚规则保持。
 
-> **自动授权物化已采纳、待实施（T-PERM-072，2026-09-20）**：按[自动授权设计 §6.3](dependency-auto-grant.md#materializer)，AUTO_DEP 保留推导出的各操作与条件事实，仅按同角色的资源/操作/条件身份精确去重，不按操作覆盖、条件支配或 MANUAL/类型级覆盖省略自动行。VIEW/UPDATE 即使存在覆盖关系也分别保留，运行时依各入口既有互斥评估集合处理，不以删行规避冲突。此为待实施自动结果规则，MANUAL 唯一性和现役提交契约不变。
+> **自动授权物化已随 T-PERM-072 落地（2026-09-21）：AUTO_DEP 行由物化器同事务 diff 落库、按角色完整重算收缩（此前 2026-09-20 采纳设计）**：按[自动授权设计 §6.3](dependency-auto-grant.md#materializer)，AUTO_DEP 保留推导出的各操作与条件事实，仅按同角色的资源/操作/条件身份精确去重，不按操作覆盖、条件支配或 MANUAL/类型级覆盖省略自动行。VIEW/UPDATE 即使存在覆盖关系也分别保留，运行时依各入口既有互斥评估集合处理，不以删行规避冲突。此为待实施自动结果规则，MANUAL 唯一性和现役提交契约不变。
 
 **（2026-08-02）收窄**：砍 expectedRevision CAS + grant_revision 列 + 幂等表 grant_plan_idempotency + 20037/20039 + hash canonical + replayed/currentRevision（Stripe 式重幂等对低频内部管理页错配）；单事务原子 + 受影响行数断言；clientRequestId/@Idempotent/幂等表全删（幂等中间件实现取消（未登记看板））；schema 文件删除，本节为唯一权威契约（补结构约束）。
 
@@ -1456,7 +1456,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - **创建即建基座**：`type-definition/create`（typeKey=resource_type）同事务向所有者角色写 CRUD 四操作位 `AUTHORITY_ROOT` 首授行（`grant_source=AUTHORITY_ROOT`；scopeAll + canGrant + 无条件 + 无实例 + 单操作位，形状由 DDL CHECK `ck_role_resource_permission_authority_root` 焊死）；所有者指针持久化于 `type_definition.extra.grantOriginRole`（`{"roleTypeCode":..,"roleExternalId":..}`，roleTypeCode 值域仅 BASIC_ROLE）——**服务端管理键**：create 请求 extra 自带该键拒绝 **20044**（合法输入通道是 `ownerRoleTypeCode/ownerRoleExternalId` 请求字段）。
 - **追加操作补种**：`operation-permission/create` 目标为自定义 resource_type 时同事务向同一所有者补种该操作位（不钩则死锁转移到第五个操作）；`is_system` 类型不钩（内置类型转授链收窄是既有产品选择，T-PERM-027 口径维持）。
 - **所有者变更迁移（用户定案：变更=转移而非叠加）**：`type-definition/update` 的 extra 携带不同 `grantOriginRole` → 新所有者先解析（不存在 20001/停用 20003 整单回滚），类型行落库后同事务「先清后种」重整化——软删该类型全部 AUTHORITY_ROOT 行（含已删角色/误配旧 owner 残留，杜绝误配 owner 的一次性永久扩权——AUTHORITY_ROOT 经授权页不可改删，只补不迁则旧 owner 无产品内移除通道），再向新所有者补齐该类型全部有效操作位；markRoles 覆盖旧 owners 与新 owner。未携带该键 = 保留现值（指针无「清除」语义，所有权无空态）；同值重提交 = 幂等无迁移；指针仅自定义 resource_type 可携带（其他 typeKey / is_system 类型 20044）；指针显式 null / 结构非法 20044（fail-closed）。
-- **种子行只读**：AUTHORITY_ROOT 行经 apply-grant-plan updates/removes（含向其挂子权限）一律拒绝 **20061** `AUTHORITY_ROOT_READONLY`（对齐 AUTO_DEP 只读 20034 先例）；类型删除级联清理是唯一回收路径（T-PERM-050 级联覆盖全部 grant_source）。
+- **种子行只读**：AUTHORITY_ROOT 行经 apply-grant-plan updates/removes（含向其挂子权限）一律拒绝 **20061** `AUTHORITY_ROOT_READONLY`（对齐 AUTO_DEP 只读 20034 先例）；类型删除级联清理是类型生命周期的回收路径（T-PERM-050 级联覆盖全部 grant_source）；角色删除级联是第二回收路径（拍板 A，仅删所有者角色时触及授权根行，registry 2026-09-21）。
 - **写入通道**：bootstrap 直写通道下沉为 `PermissionGrantPlanDomainService.seedGrants`（跳过 prevalidate/verifyDelegation、保留 validateSingleManualGrants + validateGrantAttributes 两条领域校验、幂等 insert-if-absent），bootstrap 固定图与类型授权根共用——「在委托不变量之外建立引导」而非开洞；checkCanGrant 与通用授权链零改动。
 - **20040 reason 细分**：委托失败（NO_PERMISSION/NO_GRANT_RIGHT）且目标为**自定义 resource_type**（is_system=false）在租户内零条可转授覆盖行（canGrant=true + 无条件 + 范围匹配 + 位覆盖，任意角色）时，message reason 改判 `TYPE_GRANT_ORIGIN_MISSING`（区分「类型未初始化」与「操作者持有面不够」；内置类型零可转授行是转授链收窄的设计状态，reason 维持原值——用户定案 2026-09-12）。
 - **恢复路径**：所有者角色被删除致授权根失能时，经 `type-definition/update` 重指所有者即恢复（迁移语义自动清理已删角色残留行并补齐新 owner）——产品内闭环，无需 reseed API（2026-09-12 实施期定案，取代立项时「不采 reseed」的纯结构防护口径：恢复面收敛进 update 单入口）。
@@ -2742,7 +2742,7 @@ full-sync 接口在顶层成功响应壳的基础上，额外在 `data.detail` �
 
 ### 19.10 独立依赖 manifest（071 已交付）
 
-> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动与保全迁移已实现；可选 SDK 已提供独立发布与显式资源前置，角色物化由 072 完成；071 已于 2026-09-21 收口交付。
+> HTTP 入口、声明编译与发布状态事务已实现并经真实凭证验证；资源/定义变更 dirty 联动与保全迁移已实现；可选 SDK 已提供独立发布与显式资源前置；071 已于 2026-09-21 收口交付，072 角色物化已同日落地（AUTO_DEP 行同事务 diff 落库并随资源/声明/操作/角色生命周期收缩）。
 
 `POST /api/access/integration/permission-manifest/full-sync`，仅服务身份入口，按 070 精确 M2M 白名单；tenant 与 service 从已认证上下文取得，不接受 body 中的 serviceCode。来源服务须注册、启用；资源/操作存在性及类型所有权由服务端校验。
 

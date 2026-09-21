@@ -33,7 +33,7 @@ last_updated: 2026-09-21（Q-022 登记：grant_dep_id 定案保留后死列留�
 - **来源**：[T-PERM-072](tasks/T-PERM-072.md) 启动决策
 - **关联**：T-PERM-072（定案载体；registry 2026-09-21 行）
 
-**现象与证据**：`docs/design/schema/access-service.sql` grant_dep_id 列（注释「grant_source=AUTO_DEP 时记录触发的 resource_dependency.id」）+ 实体 `RoleResourcePermission.grantDepId`——全代码库零读零写。设计 §3.4 定案「单字段不能表达多来源（同一 AUTO_DEP 行由多条边+多个种子共同支持），不作存续或清理依据」；072 物化实施后该列也永远不填（例：声明 A→B 与 D→B 共同推出 B:READ 一行，无单一触发边可写）。
+**现象与证据**：`docs/design/schema/access-service.sql` grant_dep_id 列（登记时注释为「grant_source=AUTO_DEP 时记录触发的 resource_dependency.id」，已随 072 修正为保留诊断列口径）+ 实体 `RoleResourcePermission.grantDepId`——全代码库零读零写。设计 §3.4 定案「单字段不能表达多来源（同一 AUTO_DEP 行由多条边+多个种子共同支持），不作存续或清理依据」；072 物化实施后该列也永远不填（例：声明 A→B 与 D→B 共同推出 B:READ 一行，无单一触发边可写）。
 
 **影响**：纯死列占位，无功能影响；DDL 注释与实际行为（永不写入）已随 072 修正对齐。
 

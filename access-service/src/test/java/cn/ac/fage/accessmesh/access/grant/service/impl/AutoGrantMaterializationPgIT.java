@@ -92,6 +92,7 @@ class AutoGrantMaterializationPgIT {
     @Autowired private PermissionManifestAppService manifests;
     @Autowired private ResourceEntitySyncAppService resources;
     @Autowired private OperationAppService operations;
+    @Autowired private cn.ac.fage.accessmesh.access.type.service.TypeDefinitionAppService types;
     @Autowired private RoleManageAppService roleManage;
     @Autowired private JdbcTemplate jdbc;
     @SpyBean private TreeWriteLockSupport locks;
@@ -251,6 +252,96 @@ class AutoGrantMaterializationPgIT {
             Integer.class, f.roleId())).isZero();
     }
 
+    @Test void shouldShrinkAutoDepOnFullSyncMissingDeletion() {
+        Fixture f = fixture();
+        publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"));
+        grantTo(f, "a", "VIEW", null);
+        assertThat(autoFacts(f)).containsExactly("b:READ");
+        // FULL 缺失删除：清单保留 a/c/d（版本递增），b 漂移删除——自动授权同事务收缩
+        bind(f);
+        var kept = List.of("a", "c", "d").stream()
+            .map(c -> new ResourceEntitySyncItem(c, null, c, null, null, null, null, 1, null, null, null, new SyncVersionRef(AT, 2L))).toList();
+        assertThat(resources.fullSync(1L, new ResourceEntityFullSyncReq(new ResourceEntitySyncScope(f.source(), f.code()), kept, "2"), null)
+            .detail().deactivatedCount()).isEqualTo(1);
+        assertThat(autoFacts(f)).isEmpty();
+        assertThat(manualFacts(f)).containsExactly("a:VIEW");
+    }
+
+    @Test void shouldRecomputeWhenInheritMaskChangeUnlocksTrigger() {
+        // inheritMask 变更不拒绝（无引用守卫面）——有效位扩展使既有种子满足触发：物化链即时生效
+        Fixture f = fixture();
+        publish(f, dep(f, "ab", "a", "b", "EXPORT", "READ"));
+        grantTo(f, "a", "VIEW", null);
+        assertThat(autoFacts(f)).isEmpty();
+        AccessRequestContext.bind(RequestContext.user(1L, 100L));
+        operations.updateOperation(1L, new OperationUpdateReq(f.code(), "VIEW", null, null, EXPORT), 100L);
+        assertThat(autoFacts(f)).containsExactly("b:READ");
+    }
+
+    @Test void shouldRejectOwnershipChangeWhileResourcesExist_andRetireTypeAfterClearing() {
+        Fixture f = fixture();
+        publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"));
+        grantTo(f, "a", "VIEW", null);
+        assertThat(autoFacts(f)).containsExactly("b:READ");
+        long typeId = jdbc.queryForObject("SELECT id FROM type_definition WHERE tenant_id=1 AND type_value=?", Long.class, f.type());
+        String newOwner = "owner-" + UUID.randomUUID();
+        jdbc.update("INSERT INTO service_config(tenant_id,service_code,name) VALUES(1,?,'new owner')", newOwner);
+        cn.ac.fage.accessmesh.access.type.dto.req.TypeUpdateReq update = new cn.ac.fage.accessmesh.access.type.dto.req.TypeUpdateReq(
+            typeId, null, null, null, "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"" + newOwner + "\"}");
+        AccessRequestContext.bind(RequestContext.user(1L, 100L));
+        // T-PERM-052 20056：类型下有有效资源行时所有权声明不可变更（变更面资源在时不可达）
+        assertThatThrownBy(() -> types.updateType(1L, update, 100L))
+            .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+            .hasMessageContaining("不可变更");
+        // 合法完整空清单清空资源：AUTO_DEP 同事务收缩（验收「含合法完整空清单」）；MANUAL 种子现状滞留
+        bind(f);
+        assertThat(resources.fullSync(1L, new ResourceEntityFullSyncReq(new ResourceEntitySyncScope(f.source(), f.code()), List.of(), "2"), null)
+            .detail().deactivatedCount()).isEqualTo(4);
+        assertThat(autoFacts(f)).isEmpty();
+        assertThat(manualFacts(f)).containsExactly("a:VIEW");
+        // 资源清空后所有权变更放行；类型删除收尾清理全部残留授权行（含防御性滞留 MANUAL）
+        AccessRequestContext.bind(RequestContext.user(1L, 100L));
+        types.updateType(1L, update, 100L);
+        types.deleteTypesByIds(1L, List.of(typeId), 100L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM role_resource_permission WHERE tenant_id=1 AND resource_type=? AND delete_flag=0",
+            Integer.class, f.type())).isZero();
+    }
+
+    @Test void shouldRecycleAuthorityRootOnOwnerRoleDeletion() {
+        // 拍板 A 特性面：类型所有者角色上的 AUTHORITY_ROOT 行随角色删除级联回收
+        Fixture f = fixture();
+        String ownerExternal = "ag-owner-" + UUID.randomUUID();
+        long ownerRoleId = jdbc.queryForObject("INSERT INTO abstract_role(tenant_id,role_type,external_id,name) VALUES (1,6,?,'ag owner role') RETURNING id", Long.class, ownerExternal);
+        jdbc.update("INSERT INTO role_resource_permission(tenant_id,abstract_role_id,resource_entity_id,resource_type,granted_bits,scope_all,can_grant,condition_id,depend_on,grant_source) "
+            + "VALUES (1,?,NULL,?,?,true,true,NULL,NULL,'AUTHORITY_ROOT')", ownerRoleId, f.type(), VIEW);
+        roleManage.deleteRoles(1L, List.of(ownerRoleId), 100L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM role_resource_permission WHERE abstract_role_id=? AND grant_source='AUTHORITY_ROOT' AND delete_flag=0",
+            Integer.class, ownerRoleId)).isZero();
+    }
+
+    @Test void shouldRollbackSeedAndAutoDepTogether_whenPostMaterializationWriteFails() {
+        // §7/§16 事务中断回滚：物化后的审计写失败注入 → 种子行与 AUTO_DEP 行整体回滚（无半物化状态）
+        Fixture f = fixture();
+        publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"));
+        jdbc.execute("""
+                CREATE FUNCTION reject_auto_dep_audit() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN IF NEW.change_reason = 'auto-grant-materialization' THEN RAISE EXCEPTION 'injected audit failure'; END IF; RETURN NEW; END $$;
+                CREATE TRIGGER reject_auto_dep_audit BEFORE INSERT ON permission_change_log
+                FOR EACH ROW EXECUTE FUNCTION reject_auto_dep_audit();
+                """);
+        try {
+            assertThatThrownBy(() -> grantTo(f, "a", "VIEW", null))
+                .hasMessageContaining("injected audit failure");
+        } finally {
+            jdbc.execute("DROP TRIGGER reject_auto_dep_audit ON permission_change_log; DROP FUNCTION reject_auto_dep_audit()");
+        }
+        assertThat(autoFacts(f)).isEmpty();
+        assertThat(manualFacts(f)).isEmpty();
+        // 回滚后重放同请求成功（无半切换状态残留）
+        grantTo(f, "a", "VIEW", null);
+        assertThat(autoFacts(f)).containsExactly("b:READ");
+    }
+
     // ========== M4 提交闸门：新种子未提交时删边 ==========
 
     @Test void shouldWithdrawAutoDepWhenEdgeDeletedAfterUncommittedSeedCommits() throws Exception {
@@ -259,8 +350,10 @@ class AutoGrantMaterializationPgIT {
         CountDownLatch grantAtLock = new CountDownLatch(1);
         CountDownLatch withdrawSubmitted = new CountDownLatch(1);
         doAnswer(call -> {
+            Object result = call.callRealMethod();
+            // 会合点=已获得锁（callRealMethod 返回后），确保删边线程在锁上排队而非先行获锁
             if ("auto-grant-grant-waiter".equals(Thread.currentThread().getName())) grantAtLock.countDown();
-            return call.callRealMethod();
+            return result;
         }).when(locks).lockTreeWrites(1L, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         try (ExecutorService pool = Executors.newFixedThreadPool(2)) {
             var grantFuture = CompletableFuture.supplyAsync(() -> {

@@ -9,7 +9,7 @@
 
 本页只读查看资源依赖图，并提供循环检查。依赖声明由所属业务服务通过 manifest 发布；页面提示修改入口所在服务。不存在手工新增、编辑、删除、批量导入或跨 owner override。
 
-source 是被授权资源，target 是自动补全的目标资源。sourceOperationBits 为触发操作（null 为任意操作），requiredOperationBits 为目标操作；自动授权物化尚由 072 实施，图中存在依赖不表示用户当下必然获准访问。
+source 是被授权资源，target 是自动补全的目标资源。sourceOperationBits 为触发操作（null 为任意操作），requiredOperationBits 为目标操作；自动授权物化已随 072 落地（图中存在依赖且角色持有满足触发的种子即会物化 AUTO_DEP；物化不改变资源启停等运行时鉴权语义），依赖页仍只读。
 
 ## 2. 布局与交互
 

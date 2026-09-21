@@ -136,8 +136,9 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
                 tenantId, operatorId, roleId, req.domainCode(), req.plan());
 
         permissionGrantPlanDomainService.apply(prepared);
-        // 显式授权授/撤/改条件触发面（§7）：同事务完整重算该角色 AUTO_DEP 并 diff 落库；
-        // MANUAL 行删除/换绑的 INLINE 候选并入物化统一时序（重算后按实际引用归零回收）
+        // 显式授权授/撤/改条件触发面（§7）：同事务完整重算该角色 AUTO_DEP 并 diff 落库。
+        // INLINE 候选传入物化统一回收：apply 内 T-PERM-048 既有回收先行（AUTO_DEP 派生引用
+        // 仍在时被引用计数挡住，安全），物化重算释放派生引用后此处按引用归零补回收（幂等）
         autoGrantMaterializationDomainService.recompute(tenantId, Set.of(roleId), prepared.inlineRecycleCandidates());
         PermissionChangeContext.markRoles(tenantId, roleId);
         recordGrantPlanChanges(tenantId, operatorId, req, role, prepared);
