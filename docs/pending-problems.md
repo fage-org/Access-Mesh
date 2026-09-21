@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-023           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-21（Q-022 登记：grant_dep_id 定案保留后死列留观；Q-023 登记：删类型所有者角色无守卫）
+counter: Q-025           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-21（Q-024/Q-025 登记：T-ORG-002 树配置 create 重叠校验留观+读面平行 helper；同日早前 Q-022 登记 grant_dep_id 死列留观、Q-023 登记删类型所有者角色无守卫）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,32 @@ last_updated: 2026-09-21（Q-022 登记：grant_dep_id 定案保留后死列留�
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-025 UserOrgAppServiceImpl 读面 resolveDefaultTreeOrgIds 私有副本与新共享入口并存
+
+- **状态**：open
+- **登记**：2026-09-21（T-ORG-002 双轨评审文档轨 P3-5，按评审倾向登记留观）
+- **来源**：T-ORG-002 双轨评审
+- **关联**：T-ORG-002（写面平行守卫已消灭，本条为读面同源债务）
+
+**现象与证据**：`UserOrgAppServiceImpl.java:138` 私有 `resolveDefaultTreeOrgIds`（11014 主归属边界判定消费）仍在，与 T-ORG-002 下沉的领域共享入口 `OrgTreeConfigDomainService.resolveDefaultTreeOrgIds`（其 Javadoc 自述「身份目录边界判定的共享入口」）并存；且行为有差——私有副本对多条默认配置 flatMap 全量展开，共享入口按 `get(0)` 取首条。
+
+**影响**：触发面=异常态（多条默认配置——`uk_tree_config_default` 唯一索引正常保证仅一条），正常形态两实现等价；读面 11014 判定与写面守卫判定走不同实现，语义漂移风险随默认树语义演进累积。
+
+**设想方向（未定案）**：UserOrgAppServiceImpl 换绑领域共享入口（一处调用替换+测试），删除私有副本；触达时机可随 T-ORG-003（组织与岗位成员候选门禁统一，同文件域）一并收敛。
+
+## Q-024 createOrgTreeConfig 不校验新根与现有树根的祖先/后代重叠
+
+- **状态**：open
+- **登记**：2026-09-21（T-ORG-002 树配置守卫拍板「最小面」——本项为选项 B 未采纳部分，按拍板登记留观）
+- **来源**：T-ORG-002 启动决策（AskUserQuestion 拍板）
+- **关联**：T-ORG-002（树配置守卫最小面）
+
+**现象与证据**：`OrgTreeConfigAppServiceImpl.createOrgTreeConfig` 的 `rootOrgId` 可指向任意有效组织，包括现有树（含默认树）的中间节点——两棵树形成祖先/后代重叠，违反 `default-org-tree-user-lifecycle.md` §7「默认组织树根节点不能与其他组织树根节点形成祖先/后代重叠」约束；§7.1 resolver 对命中多个 rootOrgId 的组织（自身或祖先链同时命中两棵树的根）反查结果取决于遍历顺序，行为未定义。
+
+**影响**：新建配置非默认、不改变现有默认身份池（T-ORG-002 守卫面之外）；但重叠树一旦建成，resolveTreeRootExternalId/resolveTreeRootExternalIds 对重叠范围内 org 的解析唯一性被破坏（sync 链路 treeRootExternalId 对账可能错桶）。
+
+**设想方向（未定案）**：create 时校验新根与租户全部现有树根的祖先/后代重叠（逐根 descendants 判定或统一 CTE）；触发面=树配置管理面（前端现仅消费 page 端点，无 create UI——实际暴露面为直连 API）。处理时机可等树配置管理 UI 立项时一并落地。
 
 ## Q-023 删除类型所有者角色（grantOriginRole）无守卫——删后类型授权能力锁死且无提示
 

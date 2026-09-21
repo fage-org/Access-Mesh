@@ -3,7 +3,7 @@ doc_type: design
 title: 默认组织树与用户生命周期设计
 status: adopted
 domain: org-user
-last_reviewed: 2026-09-15 2026-09-07   # 2026-09-07 T-PERM-051 六类型口径同步（事实链路类型清单补 TYPE_DEFINITION，一处）；此前 2026-08-15
+last_reviewed: 2026-09-21 2026-09-15   # 2026-09-21 T-ORG-002 §7.0 写入口守卫落地（六入口表+共享判定+恢复 runbook）；此前 2026-09-15（T-PERM-051 六类型口径）
 ---
 
 # 默认组织树与用户生命周期设计
@@ -231,6 +231,21 @@ AccessMesh 支持多棵组织树，以适配企业中不同维度的组织结构
 - 删除默认组织树或默认树节点时，必须先处理其下用户身份归属，不允许造成有效用户无默认树归属。
 - `single_assoc=true` 在默认组织树中表示用户在身份目录内只有一个主归属；岗位树等非默认树可允许多归属。
 
+### 7.0 写入口守卫落地（T-ORG-002，2026-09-21；U001 拍板=拒绝并提示人数）
+
+上列约束中「切换默认树高危」「删除默认树/节点先处理归属」两条已由写入口守卫强制（F001 修复——组织删除曾绕过成员最后归属保护）：
+
+| 入口 | 守卫 | 错误码 |
+|---|---|---|
+| `org/delete`（默认根） | 无条件拒绝，无子节点同样拒绝（删根摧毁身份目录且 tenant 1 固定图重启失败） | 11017 `ORG_DEFAULT_ROOT_DELETE_FORBIDDEN` |
+| `org/delete`（默认树内叶子） | 任一成员失去默认树最后归属则整体拒绝，message 含受影响人数 | 11013 `USER_LOSE_DEFAULT_TREE_HOME` |
+| `user-org/remove`（默认树内） | 最后归属拒绝——与组织删除同码即同一业务结果（级联删除与直接移除一致） | 11013 `USER_LOSE_DEFAULT_TREE_HOME` |
+| `org-tree-config/set-default` | 旧默认树存在任一用户归属时拒绝；空租户（无归属）可切换 | 11018 `ORG_TREE_CONFIG_DEFAULT_PROTECTED` |
+| `org-tree-config/update`（默认配置改 rootOrgId） | 复用同款归属判定，将使任一用户失去归属则拒绝；安全扩围（新根子树 ⊇ 旧子树）放行 | 11018 `ORG_TREE_CONFIG_DEFAULT_PROTECTED` |
+| `org-tree-config/delete` | 默认配置行无条件拒绝（身份目录结构性存在；无默认配置的租户放行） | 11018 `ORG_TREE_CONFIG_DEFAULT_PROTECTED` |
+
+共享判定收敛于 `OrgTreeConfigDomainService.findUsersLosingDefaultHome(old, new)`（批量两查、无逐用户 SQL）；`org/delete` 守卫在三树锁内、树配置三守卫入口挂 SYS_ORG 树锁后判定（锁内重读配置，防并发写窗口快照过期）。tenant 1 固定图根业务键漂移由 bootstrap 重启检测兜底（与菜单根 code 漂移同口径），写入口不重复拦截。`create` 新配置的根与其他树祖先/后代重叠校验不在守卫面内（不改变现有默认身份池；登记 Q-024 留观）。事故态（守卫上线前的存量/直改库）诊断与定点恢复见 [runbook-default-tree-recovery](../ops/runbook-default-tree-recovery.md)。
+
 ### 7.1 组织树归属解析约定
 
 user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 resolver 解析得出：
@@ -263,7 +278,7 @@ user-org / user_role 同步链路上的 `treeRootExternalId` 必须由统一 res
 | ~~P0~~ | ~~清理 `RoleProxyServiceImpl` 中 `ORG_ROLE` 旧口径~~ — **已完成（T-ACCESS-006）**：`RoleProxyServiceImpl` 已删除，admin 侧 `/api/access/role/*` 写端点已删除（T-ADMIN-024，无映射 404），组织/岗位角色由 `access.application` 组织写入事务统一维护 `abstract_role(ORG/POSITION)`；`ORG`→组织角色、`POSITION`→岗位角色映射由 `UserRoleQueryServiceImpl`/`OrgOperationCodeMapper` 承载。 |
 | P0 | 补齐 `sys_user_org -> user_role` 同步和缓存失效。 |
 | P1 | 拆分用户目录、组织成员列表、添加成员候选集的查询语义。 |
-| P1 | 默认组织树切换、删除、根节点配置增加保护规则。 |
+| ~~P1~~ | ~~默认组织树切换、删除、根节点配置增加保护规则。~~ — **已完成（T-ORG-002，2026-09-21）**：§7.0 六入口守卫落地。 |
 | P1 | 内部同步任务模型已由 T-ACCESS-005 退役；管理事实与权限投影同事务维护。外部业务服务仍走 `/api/access/**/sync|full-sync`。 |
 | P2 | 前端文案和按钮从”新增用户”区分为”创建用户”和”添加已有用户”。 |
 

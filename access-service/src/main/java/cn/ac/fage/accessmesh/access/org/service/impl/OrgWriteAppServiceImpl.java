@@ -330,6 +330,29 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
             throw new BizException(AccessErrorCode.ORG_HAS_CHILDREN.getCode(),
                 AccessErrorCode.ORG_HAS_CHILDREN.getMessage());
         }
+        // 默认树身份目录守卫（T-ORG-002，F001：本入口曾绕过成员最后归属保护）——
+        // ①默认根无条件拒绝（无子节点同样拒绝，删根即摧毁身份目录且 bootstrap 固定图重启失败）；
+        // ②默认树内节点删除前批量判定：任一成员将失去默认树最后归属则整体拒绝（U001 拍板：
+        // 拒绝并提示受影响人数，与 removeUserFromOrg 单移保护同一错误码=同一业务结果）。
+        // 非默认树组织不适用身份目录语义，照常删除
+        List<cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig> defaultConfigs =
+            orgTreeConfigDomainService.findDefaultConfigs(tenantId);
+        if (!defaultConfigs.isEmpty() && id.equals(defaultConfigs.get(0).getRootOrgId())) {
+            throw new BizException(AccessErrorCode.ORG_DEFAULT_ROOT_DELETE_FORBIDDEN.getCode(),
+                AccessErrorCode.ORG_DEFAULT_ROOT_DELETE_FORBIDDEN.getMessage());
+        }
+        java.util.Set<Long> defaultTreeOrgIds =
+            new java.util.HashSet<>(orgTreeConfigDomainService.resolveDefaultTreeOrgIds(tenantId));
+        if (defaultTreeOrgIds.contains(id)) {
+            java.util.Set<Long> retainedOrgIds = new java.util.HashSet<>(defaultTreeOrgIds);
+            retainedOrgIds.remove(id);
+            java.util.Set<Long> losingUserIds = orgTreeConfigDomainService
+                .findUsersLosingDefaultHome(tenantId, defaultTreeOrgIds, retainedOrgIds);
+            if (!losingUserIds.isEmpty()) {
+                throw new BizException(AccessErrorCode.USER_LOSE_DEFAULT_TREE_HOME.getCode(),
+                    "删除组织将使 " + losingUserIds.size() + " 名成员失去默认组织树最后归属，请先迁移成员: orgId=" + id);
+            }
+        }
         List<SysUserOrg> members = userOrgDomainService.findByOrgIds(tenantId, List.of(id));
         String roleTypeCode = OrgOperationCodeMapper.isPositionOrg(org.getOrgType()) ? "POSITION" : "ORG";
         // 批量解绑（一次批量加载 + 一次批量软删），替代循环单条 unbind N+1；

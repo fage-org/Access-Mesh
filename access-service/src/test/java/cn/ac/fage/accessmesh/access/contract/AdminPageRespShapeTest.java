@@ -56,9 +56,13 @@ class AdminPageRespShapeTest {
 
         @Mock private SysOrgTreeConfigMapper orgTreeConfigMapper;
         @Mock private AdminPermissionValidator permissionValidator;
+        @Mock private cn.ac.fage.accessmesh.access.org.service.domain.OrgTreeConfigDomainService orgTreeConfigDomainService;
+        @Mock private cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService orgDomainService;
+        @Mock private cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport treeWriteLockSupport;
 
         private OrgTreeConfigAppServiceImpl service() {
-            return new OrgTreeConfigAppServiceImpl(orgTreeConfigMapper, permissionValidator);
+            return new OrgTreeConfigAppServiceImpl(orgTreeConfigMapper, permissionValidator,
+                orgTreeConfigDomainService, orgDomainService, treeWriteLockSupport);
         }
 
         @Test

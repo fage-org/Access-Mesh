@@ -2,6 +2,7 @@ package cn.ac.fage.accessmesh.access.org.service;
 
 import cn.ac.fage.accessmesh.access.org.dto.req.OrgUpdateReq;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
+import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
@@ -598,5 +599,101 @@ class OrgWriteAppServiceTest {
             .isInstanceOf(BizException.class)
             .hasMessageContaining("岗位必须作为普通组织的直接子节点");
         verify(orgDomainService, never()).update(any(SysOrg.class));
+    }
+
+    // ===== 默认树身份目录守卫（T-ORG-002，F001：本入口曾绕过成员最后归属保护） =====
+
+    private SysOrgTreeConfig defaultConfig(Long rootOrgId) {
+        SysOrgTreeConfig config = new SysOrgTreeConfig();
+        config.setId(77L);
+        config.setTenantId(TENANT);
+        config.setRootOrgId(rootOrgId);
+        config.setIsDefault(true);
+        return config;
+    }
+
+    private SysOrg orgWithId(Long id, String code) {
+        SysOrg o = org(code, "1", 2);
+        o.setId(id);
+        return o;
+    }
+
+    @Test
+    @DisplayName("删除默认根 → 拒绝（无子节点同样拒绝，ORG_DEFAULT_ROOT_DELETE_FORBIDDEN）")
+    void deleteDefaultRootRejectedEvenWithoutChildren() {
+        when(orgDomainService.selectValidById(TENANT, 1L)).thenReturn(orgWithId(1L, "ROOT"));
+        when(orgDomainService.hasChildren(TENANT, 1L)).thenReturn(false);
+        when(orgTreeConfigDomainService.findDefaultConfigs(TENANT)).thenReturn(List.of(defaultConfig(1L)));
+
+        assertThatThrownBy(() -> service.deleteOrg(1L))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("默认组织树根不允许删除");
+        // 拒绝发生在解绑/软删/投影删除之前：零副作用
+        verify(orgDomainService, never()).softDeleteBatch(anyLong(), any());
+        verify(userOrgDomainService, never()).deleteByUserIdsAndOrgId(anyLong(), any(), anyLong());
+        verify(localProjectionDomainService, never()).deleteAdminOrg(anyLong(), anyLong(), any());
+    }
+
+    @Test
+    @DisplayName("删除默认树叶子致成员失去最后归属 → 拒绝（USER_LOSE_DEFAULT_TREE_HOME，提示受影响人数）")
+    void deleteDefaultTreeLeafLosingMembersRejected() {
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(orgWithId(ORG_ID, "DEV"));
+        when(orgDomainService.hasChildren(TENANT, ORG_ID)).thenReturn(false);
+        when(orgTreeConfigDomainService.findDefaultConfigs(TENANT)).thenReturn(List.of(defaultConfig(1L)));
+        when(orgTreeConfigDomainService.resolveDefaultTreeOrgIds(TENANT)).thenReturn(List.of(1L, ORG_ID));
+        when(orgTreeConfigDomainService.findUsersLosingDefaultHome(eq(TENANT), any(), any()))
+            .thenReturn(Set.of(100L, 101L));
+
+        assertThatThrownBy(() -> service.deleteOrg(ORG_ID))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("2 名成员失去默认组织树最后归属")
+            .hasMessageContaining("请先迁移成员");
+        verify(orgDomainService, never()).softDeleteBatch(anyLong(), any());
+        verify(userOrgDomainService, never()).deleteByUserIdsAndOrgId(anyLong(), any(), anyLong());
+    }
+
+    @Test
+    @DisplayName("删除默认树叶子且成员均有其他归属 → 放行（守卫不拦截合法删除）")
+    void deleteDefaultTreeLeafWithRetainedMembersAllowed() {
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(orgWithId(ORG_ID, "DEV"));
+        when(orgDomainService.hasChildren(TENANT, ORG_ID)).thenReturn(false);
+        when(orgTreeConfigDomainService.findDefaultConfigs(TENANT)).thenReturn(List.of(defaultConfig(1L)));
+        when(orgTreeConfigDomainService.resolveDefaultTreeOrgIds(TENANT)).thenReturn(List.of(1L, ORG_ID));
+        when(orgTreeConfigDomainService.findUsersLosingDefaultHome(eq(TENANT), any(), any()))
+            .thenReturn(Set.of());
+        when(userOrgDomainService.findByOrgIds(TENANT, List.of(ORG_ID))).thenReturn(List.of());
+        when(localProjectionDomainService.findAdminOrgRoleId(TENANT, ORG_ID, "1")).thenReturn(null);
+
+        service.deleteOrg(ORG_ID);
+
+        verify(orgDomainService).softDeleteBatch(TENANT, List.of(ORG_ID));
+    }
+
+    @Test
+    @DisplayName("删除非默认树组织 → 不做身份目录归属检查，照常删除")
+    void deleteNonDefaultTreeOrgSkipsGuard() {
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(orgWithId(ORG_ID, "EXT"));
+        when(orgDomainService.hasChildren(TENANT, ORG_ID)).thenReturn(false);
+        when(orgTreeConfigDomainService.findDefaultConfigs(TENANT)).thenReturn(List.of(defaultConfig(1L)));
+        when(orgTreeConfigDomainService.resolveDefaultTreeOrgIds(TENANT)).thenReturn(List.of(1L));
+        when(userOrgDomainService.findByOrgIds(TENANT, List.of(ORG_ID))).thenReturn(List.of());
+        when(localProjectionDomainService.findAdminOrgRoleId(TENANT, ORG_ID, "1")).thenReturn(null);
+
+        service.deleteOrg(ORG_ID);
+
+        verify(orgTreeConfigDomainService, never()).findUsersLosingDefaultHome(anyLong(), any(), any());
+        verify(orgDomainService).softDeleteBatch(TENANT, List.of(ORG_ID));
+    }
+
+    @Test
+    @DisplayName("删除有子节点的组织 → 既有拒绝不变（ORG_HAS_CHILDREN 优先于默认树守卫）")
+    void deleteWithChildrenKeepsExistingRejection() {
+        when(orgDomainService.selectValidById(TENANT, ORG_ID)).thenReturn(orgWithId(ORG_ID, "DEV"));
+        when(orgDomainService.hasChildren(TENANT, ORG_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> service.deleteOrg(ORG_ID))
+            .isInstanceOf(BizException.class)
+            .hasMessageContaining("存在子节点");
+        verify(orgTreeConfigDomainService, never()).findUsersLosingDefaultHome(anyLong(), any(), any());
     }
 }

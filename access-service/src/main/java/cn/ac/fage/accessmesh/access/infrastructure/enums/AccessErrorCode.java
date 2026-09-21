@@ -355,6 +355,16 @@ public enum AccessErrorCode {
      */
     USER_NOT_IN_OPERATOR_VISIBLE_SCOPE(11016, "用户不在操作者可见范围内"),
 
+    /**
+     * 默认组织树根不允许删除（身份目录结构性存在，无子节点时同样拒绝；T-ORG-002 U001 拍板）
+     */
+    ORG_DEFAULT_ROOT_DELETE_FORBIDDEN(11017, "默认组织树根不允许删除"),
+
+    /**
+     * 默认组织树配置受保护（切默认/改默认配置根将使用户失去身份目录归属、删除默认配置行；T-ORG-002）
+     */
+    ORG_TREE_CONFIG_DEFAULT_PROTECTED(11018, "默认组织树配置受保护，不允许该操作"),
+
     // ===== 权限段 2xxxx（原 PermissionErrorCode 平移；三组碰撞常量带 PERM_ 前缀） =====
 
     /**

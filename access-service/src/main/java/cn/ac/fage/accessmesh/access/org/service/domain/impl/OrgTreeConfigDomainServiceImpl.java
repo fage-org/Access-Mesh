@@ -2,10 +2,12 @@ package cn.ac.fage.accessmesh.access.org.service.domain.impl;
 
 import cn.ac.fage.accessmesh.access.org.entity.SysOrg;
 import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
+import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgTreeConfigMapper;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgTreeConfigDomainService;
+import cn.ac.fage.accessmesh.access.org.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.springframework.stereotype.Service;
 
@@ -17,6 +19,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 组织树配置领域服务实现类
@@ -31,17 +34,21 @@ public class OrgTreeConfigDomainServiceImpl implements OrgTreeConfigDomainServic
 
     private final SysOrgTreeConfigMapper orgTreeConfigMapper;
     private final OrgDomainService orgDomainService;
+    private final UserOrgDomainService userOrgDomainService;
 
     /**
      * 构造函数注入依赖
      *
      * @param orgTreeConfigMapper 组织树配置数据访问层
      * @param orgDomainService    组织领域服务，用于祖先链解析
+     * @param userOrgDomainService 用户-组织关系领域服务，用于身份目录归属守卫（T-ORG-002）
      */
     public OrgTreeConfigDomainServiceImpl(SysOrgTreeConfigMapper orgTreeConfigMapper,
-                                          OrgDomainService orgDomainService) {
+                                          OrgDomainService orgDomainService,
+                                          UserOrgDomainService userOrgDomainService) {
         this.orgTreeConfigMapper = orgTreeConfigMapper;
         this.orgDomainService = orgDomainService;
+        this.userOrgDomainService = userOrgDomainService;
     }
 
     /**
@@ -62,6 +69,59 @@ public class OrgTreeConfigDomainServiceImpl implements OrgTreeConfigDomainServic
             return List.of();
         }
         return orgTreeConfigMapper.selectDefaultConfigs(tenantId);
+    }
+
+    /**
+     * 解析默认组织树的全部组织 ID（根 + 全部有效后代）。
+     * 无默认配置的租户返回空列表——身份目录守卫按「无默认树语义」放行。
+     */
+    @Override
+    public List<Long> resolveDefaultTreeOrgIds(Long tenantId) {
+        List<SysOrgTreeConfig> defaultConfigs = findDefaultConfigs(tenantId);
+        if (defaultConfigs.isEmpty()) {
+            return List.of();
+        }
+        Long rootOrgId = defaultConfigs.get(0).getRootOrgId();
+        if (rootOrgId == null) {
+            return List.of();
+        }
+        return orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId);
+    }
+
+    /**
+     * 共享守卫核心（T-ORG-002 U001 拍板：拒绝并提示受影响人数）：
+     * 默认树范围 old → new 收窄后失去最后归属的用户集合。
+     * 两次批量查询：被移除范围（old - new）内组织的一次成员加载 +
+     * 候选用户的一次全量归属加载，内存内过滤，无逐用户 SQL。
+     */
+    @Override
+    public Set<Long> findUsersLosingDefaultHome(Long tenantId, Set<Long> oldDefaultOrgIds,
+                                                Set<Long> newDefaultOrgIds) {
+        if (tenantId == null || oldDefaultOrgIds == null || oldDefaultOrgIds.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> retainedOrgIds = newDefaultOrgIds == null ? Set.of() : newDefaultOrgIds;
+        Set<Long> removedOrgIds = new HashSet<>(oldDefaultOrgIds);
+        removedOrgIds.removeAll(retainedOrgIds);
+        if (removedOrgIds.isEmpty()) {
+            return Set.of();
+        }
+        List<SysUserOrg> removedMembers = userOrgDomainService.findByOrgIds(tenantId, List.copyOf(removedOrgIds));
+        if (removedMembers == null || removedMembers.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> candidateUserIds = removedMembers.stream()
+            .map(SysUserOrg::getUserId)
+            .collect(Collectors.toSet());
+        // 候选用户全部归属一次加载，newDefaultOrgIds 内仍有归属者即保留
+        Set<Long> retainedUserIds = userOrgDomainService.findByUserIds(tenantId, List.copyOf(candidateUserIds))
+            .stream()
+            .filter(uo -> retainedOrgIds.contains(uo.getOrgId()))
+            .map(SysUserOrg::getUserId)
+            .collect(Collectors.toSet());
+        Set<Long> losingUserIds = new HashSet<>(candidateUserIds);
+        losingUserIds.removeAll(retainedUserIds);
+        return losingUserIds;
     }
 
     @Override

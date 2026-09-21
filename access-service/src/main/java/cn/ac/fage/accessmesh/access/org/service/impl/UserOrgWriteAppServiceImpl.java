@@ -153,7 +153,7 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         }
         if (req.primaryOrgId() != null
             && toInsert.stream().noneMatch(a -> a.getOrgId().equals(req.primaryOrgId()))) {
-            List<Long> defaultOrgIds = resolveDefaultTreeOrgIds(tenantId, defaultConfigs);
+            List<Long> defaultOrgIds = orgTreeConfigDomainService.resolveDefaultTreeOrgIds(tenantId);
             if (defaultOrgIds.contains(req.primaryOrgId())) {
                 userOrgDomainService.setPrimaryOrgInScope(
                     tenantId, req.userId(), req.primaryOrgId(), defaultOrgIds);
@@ -173,16 +173,20 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
             throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
                 "user-org unbind: org not found, orgId=" + orgId);
         }
-        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
-        List<Long> defaultTreeOrgIds = resolveDefaultTreeOrgIds(tenantId, defaultConfigs);
+        List<Long> defaultTreeOrgIds = orgTreeConfigDomainService.resolveDefaultTreeOrgIds(tenantId);
         boolean isDefaultTreeOrg = defaultTreeOrgIds.contains(orgId);
         if (isDefaultTreeOrg) {
             permissionValidator.checkInstanceLevel(
                 ResourceTypeCode.USER, String.valueOf(userId), OperationCode.UPDATE);
-            List<SysUserOrg> userDefaultOrgs = userOrgDomainService.findByUserId(tenantId, userId).stream()
-                .filter(uo -> defaultTreeOrgIds.contains(uo.getOrgId()) && !uo.getOrgId().equals(orgId))
-                .collect(Collectors.toList());
-            if (userDefaultOrgs.isEmpty()) {
+            // 最后归属保护换绑共享守卫（T-ORG-002）：与组织删除级联、树配置切根同一判定语义，
+            // 避免 AppService 内联过滤与共享守卫语义漂移。成员场景与原内联实现等价；
+            // 非成员请求（用户本不属于该 org）由原实现的误拒 11013 修正为幂等放行
+            // （候选集=该 org 现成员，非成员不在候选集，删除 0 行）
+            Set<Long> retainedOrgIds = new java.util.HashSet<>(defaultTreeOrgIds);
+            retainedOrgIds.remove(orgId);
+            Set<Long> losingUserIds = orgTreeConfigDomainService.findUsersLosingDefaultHome(
+                tenantId, new java.util.HashSet<>(defaultTreeOrgIds), retainedOrgIds);
+            if (losingUserIds.contains(userId)) {
                 throw new BizException(AccessErrorCode.USER_LOSE_DEFAULT_TREE_HOME.getCode(),
                     AccessErrorCode.USER_LOSE_DEFAULT_TREE_HOME.getMessage());
             }
@@ -207,14 +211,6 @@ public class UserOrgWriteAppServiceImpl implements UserOrgWriteAppService {
         if (abstractUserId != null) {
             PermissionChangeContext.markUsers(tenantId, Set.of(abstractUserId));
         }
-    }
-
-    private List<Long> resolveDefaultTreeOrgIds(Long tenantId, List<SysOrgTreeConfig> defaultConfigs) {
-        if (defaultConfigs.isEmpty()) {
-            return List.of();
-        }
-        Long rootOrgId = defaultConfigs.get(0).getRootOrgId();
-        return orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId);
     }
 
     private static Long operatorId() {
