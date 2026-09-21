@@ -406,9 +406,17 @@ public class AutoGrantInsightDomainService {
                 }
                 if (graphEdge.sourceOperationBits() == null || triggers(edge.getKey(),
                         graphEdge.sourceOperationBits(), view, effectiveBits)) {
+                    // 同编译键（源+目标+触发）多条声明的目标位被编译器 OR 聚合到一条边——
+                    // 声明引用必须过滤到「声明了本边目标操作位」的原始声明，否则同键的
+                    // READ/DELETE 声明会同时挂到两条推导边上（来源解释失真）；编译边层过滤
+                    // 无效（聚合后位已合并），只能逐条原始声明按位判定
+                    long targetOperationBit = edge.getValue().operationBit();
                     refs.addAll(declarationsByCompileKey.getOrDefault(
                         compileKey(graphEdge.sourceId(), graphEdge.targetId(), graphEdge.sourceOperationBits()),
-                        List.of()));
+                        List.of()).stream()
+                        .filter(declaration -> declaration.getRequiredOperationBits() != null
+                            && (declaration.getRequiredOperationBits() & targetOperationBit) != 0L)
+                        .toList());
                 }
             }
             refs.sort(Comparator.comparing(PermissionDependencyDeclaration::getId));

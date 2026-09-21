@@ -25,10 +25,10 @@ import java.util.TreeSet;
 /**
  * 自动授权对账领域服务（T-PERM-073，设计 §13）。
  * <p>
- * 复用同一共享推导检查三类一致性：①RESOLVED 声明与编译聚合边一一对应（含目标操作位覆盖）；
- * ②资源/声明失效残留（RESOLVED 声明或编译边引用已软删资源）；③逐角色 desired 与 actual
- * AUTO_DEP 差异（批量装载，种子口径/防御层与物化器一致——已删角色不作种子、其滞留 AUTO_DEP
- * 按 desired 恒空计入差异）。
+ * 复用同一共享推导检查三类一致性：①RESOLVED 声明与编译聚合边一一对应（目标操作位按编译键
+ * 聚合后精确相等——少授/多授双向探测）；②资源/声明失效残留（RESOLVED 声明或编译边引用已软删资源）；
+ * ③逐角色 desired 与实际 AUTO_DEP 差异（批量装载，种子口径/防御层与物化器一致——已删角色不作种子、
+ * 其滞留 AUTO_DEP 按 desired 恒空计入差异）。
  * </p>
  * <p>
  * 对账只发现异常不修复（正常撤销由主事务保证；自动修复须先定义新写入口的门禁/事务/完整触发
@@ -88,7 +88,7 @@ public class AutoGrantReconcileDomainService {
         return new ReconcileReport(roleScan.scannedRoles(), roleScan.drifts(), declarationIssues);
     }
 
-    /** ①声明↔编译边一致：RESOLVED 声明必有对应编译键的边且目标位被覆盖；边必有 RESOLVED 声明背书。 */
+    /** ①声明↔编译边一致：RESOLVED 声明必有对应编译键的边且目标位聚合精确相等；边必有 RESOLVED 声明背书。 */
     private List<String> checkDeclarationsAndGraph(AutoGrantInsightDomainService.TenantGraph graph) {
         Map<String, DependencyEdge> edgesByCompileKey = new HashMap<>();
         for (DependencyEdge edge : graph.edges()) {
@@ -109,17 +109,22 @@ public class AutoGrantReconcileDomainService {
         List<String> issues = new ArrayList<>();
         for (Map.Entry<String, List<PermissionDependencyDeclaration>> entry : resolvedByKey.entrySet()) {
             DependencyEdge edge = edgesByCompileKey.get(entry.getKey());
+            long declaredUnion = 0L;
             for (PermissionDependencyDeclaration declaration : entry.getValue()) {
+                declaredUnion |= declaration.getRequiredOperationBits();
                 if (edge == null) {
                     issues.add("declaration " + declaration.getId() + " (" + declaration.getDeclarationKey()
                         + ", service=" + declaration.getSourceService()
                         + ") is RESOLVED but has no compiled edge");
-                } else if ((edge.requiredOperationBits() & declaration.getRequiredOperationBits())
-                        != declaration.getRequiredOperationBits()) {
-                    issues.add("declaration " + declaration.getId() + " (" + declaration.getDeclarationKey()
-                        + ", service=" + declaration.getSourceService()
-                        + ") requires operations not covered by its compiled edge");
                 }
+            }
+            // 目标位精确相等（聚合口径）：编译边既不得少授也不得多授——角色层 desired 由同一张
+            // 图推导，图位被污染（历史缺陷/迁移脏数据）且 actual 与污染图一致时角色层恒 clean，
+            // 声明层聚合比较是「多授权」的唯一探测器；逐条声明与聚合边比较会把合法多声明
+            // 合并误报为多余位，必须先按编译键 OR 再比
+            if (edge != null && edge.requiredOperationBits() != declaredUnion) {
+                issues.add("compiled edge " + entry.getKey() + " required operation bits "
+                    + edge.requiredOperationBits() + " do not match declared union " + declaredUnion);
             }
         }
         for (String compileKey : edgesByCompileKey.keySet()) {

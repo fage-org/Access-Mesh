@@ -100,11 +100,19 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
         TreeSet<Long> orderedRoleIds = new TreeSet<>(roleIds);
         // 防御层（T-PERM-072 外评 P2）：已删角色的滞留 MANUAL 行不作物种（不推导、不重建），
         // 其 AUTO_DEP 行按 desired 恒空在 diff 中整体回收——正常流删除通道已同事务回收，
-        // 此处兜底 DB 直写/历史脏数据形态
-        Set<Long> validRoleIds = subjectDomainService.selectValidRolesByIds(tenantId, orderedRoleIds).stream()
-            .map(cn.ac.fage.accessmesh.access.role.entity.AbstractRole::getId).collect(java.util.stream.Collectors.toSet());
-
-        List<RoleResourcePermission> rows = rolePermissionMapper.selectValidByRoleIds(tenantId, orderedRoleIds);
+        // 此处兜底 DB 直写/历史脏数据形态。
+        // 角色维度分批：受影响角色集合与 manifest 条目数无关（一条声明×一个源资源即可波及
+        // 全租户持有角色），有效角色与授权行装载同按 SqlBatches 分批防 IN 参数上限
+        //（对齐本类 recycleRoleGrants 与 071 大清单先例）
+        Set<Long> validRoleIds = new HashSet<>();
+        List<RoleResourcePermission> rows = new ArrayList<>();
+        SqlBatches.forEach(new ArrayList<>(orderedRoleIds), batch -> {
+            validRoleIds.addAll(subjectDomainService
+                .selectValidRolesByIds(tenantId, new LinkedHashSet<>(batch)).stream()
+                .map(cn.ac.fage.accessmesh.access.role.entity.AbstractRole::getId)
+                .collect(java.util.stream.Collectors.toSet()));
+            rows.addAll(rolePermissionMapper.selectValidByRoleIds(tenantId, new LinkedHashSet<>(batch)));
+        });
         Map<Long, List<RoleResourcePermission>> seedsByRole = new HashMap<>();
         Map<Long, Map<Fact, RoleResourcePermission>> actualAutoByRole = new HashMap<>();
         Set<Long> involvedResourceIds = new LinkedHashSet<>();

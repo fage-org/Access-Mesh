@@ -398,6 +398,86 @@ class AutoGrantInsightPgIT {
         assertThat(again.clean()).isFalse();
     }
 
+    @Test void shouldReconcileDetectEdgeBitsBeyondDeclaredUnion() {
+        Fixture f = fixture();
+        jdbc.update("INSERT INTO operation_permission(tenant_id,resource_type,code,name,binary_bit,inherit_mask) VALUES(1,?,'DELETE','Delete',8,0)", f.type());
+        publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"));
+        grantTo(f, "a", "VIEW", null);
+        // 污染编译边：目标位并入未声明的 DELETE（历史缺陷/迁移脏数据形态）
+        jdbc.update("UPDATE resource_dependency SET required_operation_bits = required_operation_bits | 8 WHERE tenant_id=1 AND owner_service_code=? AND delete_flag=0", f.source());
+        // 角色层补齐污染图的 desired（actual 含 b:DELETE）→ 角色层 clean——声明层聚合比较
+        // 是「编译边多授」的唯一探测器（角色层 desired 由同一张图推导，图被污染时恒一致）
+        jdbc.update("INSERT INTO role_resource_permission(tenant_id,abstract_role_id,resource_entity_id,resource_type,granted_bits,scope_all,can_grant,grant_source) VALUES (1,?,?,?,?,false,false,'AUTO_DEP')",
+            f.roleId(), resourceId(f, "b"), f.type(), 8L);
+        AutoGrantReconcileDomainService.ReconcileReport report = reconcile.reconcile(1L);
+        // 本角色角色层 clean（污染图的 desired 与 actual 一致——角色层探测不到多授）；
+        // 声明层聚合比较是「编译边多授」的唯一探测器。类共享租户库，其他用例遗留漂移
+        // 不属本用例断言面，按角色号收窄
+        assertThat(report.roleDriftDetails())
+            .noneSatisfy(detail -> assertThat(detail).contains("role " + f.roleId() + " "));
+        assertThat(report.declarationIssueDetails()).anySatisfy(detail ->
+            assertThat(detail).contains("do not match declared union"));
+    }
+
+    @Test void shouldAttributeEdgeDeclarationsToTheirTargetOperation() {
+        Fixture f = fixture();
+        jdbc.update("INSERT INTO operation_permission(tenant_id,resource_type,code,name,binary_bit,inherit_mask) VALUES(1,?,'DELETE','Delete',8,0)", f.type());
+        // 同编译键（a→b@VIEW）两条声明：目标位分别为 READ 与 DELETE——编译器 OR 聚合为一条边、
+        // 推导出两个目标事实；每条推导边的声明引用只能挂声明了该目标操作位的原始声明
+        publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"), dep(f, "ab2", "a", "b", "VIEW", "DELETE"));
+        grantTo(f, "a", "VIEW", null);
+        AutoGrantExplainResp resp = explain(f, null);
+        AutoGrantExplainResp.Node readNode = findNode(resp, "b", "READ");
+        AutoGrantExplainResp.Node deleteNode = findNode(resp, "b", "DELETE");
+        assertThat(resp.edges()).hasSize(2);
+        assertThat(resp.edges()).anySatisfy(edge -> {
+            assertThat(edge.toNodeKey()).isEqualTo(readNode.nodeKey());
+            assertThat(edge.declarationRefs())
+                .extracting(AutoGrantExplainResp.DeclarationRef::declarationKey)
+                .containsExactly("ab");
+        });
+        assertThat(resp.edges()).anySatisfy(edge -> {
+            assertThat(edge.toNodeKey()).isEqualTo(deleteNode.nodeKey());
+            assertThat(edge.declarationRefs())
+                .extracting(AutoGrantExplainResp.DeclarationRef::declarationKey)
+                .containsExactly("ab2");
+        });
+    }
+
+    @Test void shouldPreviewConditionChangeWithoutCorruptingBeforeSnapshot() {
+        Fixture f = fixture();
+        publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"));
+        String tag = UUID.randomUUID().toString().substring(0, 8);
+        String oldCode = "cond-old-" + tag;
+        String newCode = "cond-new-" + tag;
+        long condOld = jdbc.queryForObject(
+            "INSERT INTO permission_condition(tenant_id,code,name,source,enabled) VALUES(1,?,?,'MANAGED',true) RETURNING id",
+            Long.class, oldCode, oldCode);
+        long condNew = jdbc.queryForObject(
+            "INSERT INTO permission_condition(tenant_id,code,name,source,enabled) VALUES(1,?,?,'MANAGED',true) RETURNING id",
+            Long.class, newCode, newCode);
+        // 种子 a:VIEW 绑定条件 C1 → AUTO b:READ/C1（同一预览事务内 view 装载与 prepare 再装载
+        // 同语句命中 SESSION 一级缓存返回同一批实例——before 快照不可被计划构建污染）
+        AccessRequestContext.bind(RequestContext.user(1L, 100L));
+        grants.applyGrantPlan(1L, new ApplyGrantPlanReq(null, "BASIC_ROLE", f.roleExternal(),
+            new ApplyGrantPlanReq.GrantPlan(List.of(new ApplyGrantPlanReq.CreateItem(
+                new ApplyGrantPlanReq.GrantRecordKey(f.code(), "a", "default", "VIEW",
+                    ScopeMode.INSTANCE, oldCode, null, null), null, null)), null, null)));
+        long permissionId = manualPermId(f, "a", VIEW);
+
+        GrantPlanPreviewResp resp = grants.previewGrantPlan(1L, new PreviewGrantPlanReq(
+            new ApplyGrantPlanReq(null, "BASIC_ROLE", f.roleExternal(), new ApplyGrantPlanReq.GrantPlan(
+                null, List.of(new ApplyGrantPlanReq.UpdateItem(permissionId, null, newCode, null)), null)), null));
+
+        assertThat(resp.driftDetected()).isFalse();
+        assertThat(resp.removed()).hasSize(1);
+        assertThat(resp.removed().get(0).fact().operationCode()).isEqualTo("READ");
+        assertThat(resp.removed().get(0).fact().conditionRef().conditionId()).isEqualTo(condOld);
+        assertThat(resp.added()).hasSize(1);
+        assertThat(resp.added().get(0).fact().operationCode()).isEqualTo("READ");
+        assertThat(resp.added().get(0).fact().conditionRef().conditionId()).isEqualTo(condNew);
+    }
+
     // ========== 夹具与辅助（沿 072 PgIT 同款） ==========
 
     private record Fixture(String source, String code, int type, long roleId, String roleExternal) {}

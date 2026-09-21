@@ -31,6 +31,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockedStatic;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -40,9 +41,11 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mockStatic;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -219,6 +222,36 @@ class PermissionGrantAppServiceImplTest {
         assertEquals("报表编辑员", first.path("role").path("roleName").asText());
         assertEquals("ADD", snapshot.path("items").get(1).path("changeType").asText());
         assertEquals("ALL", snapshot.path("items").get(1).path("permission").path("scopeMode").asText());
+    }
+
+    @Test
+    void shouldRevalidateRoleInsideTreeLockBeforeWriting() {
+        // 并发 deleteRoles 已在 RESOURCE_ENTITY 锁内回收全部授权并提交——锁内新鲜读取返回 null
+        when(typeResolutionService.resolveRoleId(TENANT, "BASIC_ROLE", "role_editor", "example"))
+            .thenReturn(ROLE_ID);
+        when(subjectDomainService.selectValidRoleById(TENANT, ROLE_ID)).thenReturn(null);
+
+        ApplyGrantPlanReq req = new ApplyGrantPlanReq("example", "BASIC_ROLE", "role_editor",
+            new ApplyGrantPlanReq.GrantPlan(List.of(), List.of(), List.of(5L)));
+
+        try (MockedStatic<OperatorContext> opCtx = mockStatic(OperatorContext.class)) {
+            opCtx.when(OperatorContext::getOperatorId).thenReturn(OPERATOR);
+            when(engine.hasPermissionByCode(TENANT, OPERATOR, ResourceTypeCode.ROLE,
+                String.valueOf(ROLE_ID), OperationCode.MANAGE)).thenReturn(true);
+
+            assertThatThrownBy(() -> service.applyGrantPlan(TENANT, req))
+                .isInstanceOf(cn.ac.fage.accessmesh.common.exception.BizException.class)
+                .extracting("errorCode").isEqualTo(AccessErrorCode.ROLE_NOT_FOUND.getCode());
+        }
+
+        // 写入守卫读取必须在 RESOURCE_ENTITY 锁内：锁外旧读会让「校验通过→角色删除提交→
+        // 继续写入」交错留下指向已删角色的有效 MANUAL 行（守卫查询与写同锁）
+        InOrder order = inOrder(treeWriteLockSupport, subjectDomainService);
+        order.verify(treeWriteLockSupport).lockTreeWrites(TENANT,
+            cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+        order.verify(subjectDomainService).selectValidRoleById(TENANT, ROLE_ID);
+        verify(permissionGrantPlanDomainService, never())
+            .prevalidate(any(), any(), any(), any(), any());
     }
 
     // ========== role-resource-permission/list 类型过滤（T-PERM-040，SQL 层下沉） ==========

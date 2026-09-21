@@ -126,6 +126,14 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             String.valueOf(roleId), OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on ROLE:" + roleId);
         }
+
+        // M4 共同串行边界（T-PERM-072）：读取被改授权与推导输入（prevalidate 起）之前取得
+        // RESOURCE_ENTITY 树写锁，与 manifest 编译/资源/类型/操作/角色删除写路径共持同一锁；
+        // 本入口不持更高序树锁。门禁与角色有效性分工：门禁读非推导输入、置于锁前（未授权
+        // 请求不得持有租户级写锁）；角色有效性是写入守卫、必须在锁内读取——角色删除在同一把
+        // 锁内回收全部授权行，锁外旧读会让「校验通过→角色删除提交→继续写入」交错留下指向
+        // 已删角色的有效 MANUAL 行（守卫查询与写同锁，T-PERM-044 同款口径）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         AbstractRole role = subjectDomainService.selectValidRoleById(tenantId, roleId);
         if (role == null) {
             throw biz(AccessErrorCode.ROLE_NOT_FOUND);
@@ -133,11 +141,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         if (role.getStatus() != PermissionConstants.ENABLED_STATUS) {
             throw biz(AccessErrorCode.ROLE_DISABLED);
         }
-
-        // M4 共同串行边界（T-PERM-072）：读取被改授权与推导输入（prevalidate 起）之前取得
-        // RESOURCE_ENTITY 树写锁，与 manifest 编译/资源/类型/操作写路径共持同一锁；本入口不持
-        // 更高序树锁。锁置于门禁之后——门禁读非推导输入，未授权请求不得持有租户级写锁
-        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
             permissionGrantPlanDomainService.prevalidate(
                 tenantId, operatorId, roleId, req.domainCode(), req.plan());

@@ -412,7 +412,10 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
                 && update.inlineCondition() != null) {
                 throw validation("conditionCode and inlineCondition are mutually exclusive");
             }
-            RoleResourcePermission permission = existingById.get(update.id());
+            // 计划变更在装载行的副本上构建：预览与保存共用本方法，预览的 before 视图与计划
+            // 构建同事务同会话装载（MyBatis SESSION 一级缓存对同语句返回同一批实例），
+            // 原地修改装载实体会污染调用方持有的改前快照（beforeDesired 按 C2 而非 C1 推导）
+            RoleResourcePermission permission = copyOf(existingById.get(update.id()));
             Long originalConditionId = permission.getConditionId();
             if (update.canGrant() != null) {
                 permission.setCanGrant(update.canGrant());
@@ -1016,6 +1019,31 @@ public class PermissionGrantPlanDomainServiceImpl implements PermissionGrantPlan
 
     private BizException biz(AccessErrorCode errorCode, String message) {
         return new BizException(errorCode.getCode(), message);
+    }
+
+    /** 计划构建专用行副本（全字段复制）：update 轨变更不回写 mapper 装载实体，保持调用方快照语义。 */
+    private static RoleResourcePermission copyOf(RoleResourcePermission source) {
+        RoleResourcePermission copy = new RoleResourcePermission();
+        copy.setId(source.getId());
+        copy.setTenantId(source.getTenantId());
+        copy.setAbstractRoleId(source.getAbstractRoleId());
+        copy.setResourceEntityId(source.getResourceEntityId());
+        copy.setGrantedBits(source.getGrantedBits());
+        copy.setResourceType(source.getResourceType());
+        copy.setDependOn(source.getDependOn());
+        copy.setScopeAll(source.getScopeAll());
+        copy.setCanGrant(source.getCanGrant());
+        copy.setConditionId(source.getConditionId());
+        copy.setGrantSource(source.getGrantSource());
+        copy.setGrantDepId(source.getGrantDepId());
+        copy.setCreatedBy(source.getCreatedBy());
+        copy.setUpdatedBy(source.getUpdatedBy());
+        copy.setDeletedBy(source.getDeletedBy());
+        copy.setCreatedAt(source.getCreatedAt());
+        copy.setUpdatedAt(source.getUpdatedAt());
+        copy.setDeletedAt(source.getDeletedAt());
+        copy.setDeleteFlag(source.getDeleteFlag());
+        return copy;
     }
 
     private record ParentChildTypes(String parentTypeCode, List<String> childTypeCodes) {}

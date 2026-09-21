@@ -273,6 +273,40 @@ class PermissionGrantPlanDomainServiceImplTest {
         }
 
         @Test
+        void shouldKeepLoadedRowSnapshotWhenPreparingConditionUpdate() {
+            // 预览与保存共用 prepare：预览的 before 视图与计划构建同事务同会话装载
+            //（MyBatis SESSION 一级缓存对同语句返回同一批实例），计划变更必须落在副本上
+            RoleResourcePermission row = existing(5L, null, "MANUAL");
+            row.setConditionId(77L);
+            stubUpdateRemoveBase(row);
+            stubDelegationAllowed();
+            PermissionCondition current = new PermissionCondition();
+            current.setId(77L);
+            current.setCode("cond-keep");
+            current.setSource("MANAGED");
+            current.setEnabled(true);
+            PermissionCondition changed = new PermissionCondition();
+            changed.setId(88L);
+            changed.setCode("cond-next");
+            changed.setSource("MANAGED");
+            changed.setEnabled(true);
+            when(conditionDomainService.selectValidConditionsByCodes(TENANT, java.util.Set.of("cond-next")))
+                .thenReturn(List.of(changed));
+            when(conditionDomainService.selectValidConditionsByIds(TENANT, java.util.Set.of(77L)))
+                .thenReturn(List.of(current));
+
+            PermissionGrantPlanDomainService.PlannedGrantPlan planned = service.prepare(
+                TENANT, SUBJECT, ROLE, null,
+                new ApplyGrantPlanReq.GrantPlan(List.of(),
+                    List.of(new ApplyGrantPlanReq.UpdateItem(5L, null, "cond-next", null)), List.of()));
+
+            // 计划行携带变更后条件；装载行保持改前快照（原地修改会污染预览 beforeDesired）
+            assertEquals(88L, planned.updates().get(0).getConditionId());
+            assertEquals(77L, row.getConditionId());
+            assertEquals(Boolean.FALSE, row.getCanGrant());
+        }
+
+        @Test
         void shouldPrepareChildRemoveWithBusinessKeySnapshot() {
             stubUpdateRemoveBase(existing(6L, 5L, "MANUAL"));
 
