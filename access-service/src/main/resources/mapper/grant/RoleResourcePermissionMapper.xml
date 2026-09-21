@@ -155,13 +155,14 @@
     <!-- T-PERM-072 操作生命周期守卫：候选操作位被有效 MANUAL/AUTO_DEP 行直接引用（granted_bits 等值，
          单 canonical 位行；AUTHORITY_ROOT 基座不算用户引用） -->
     <select id="selectReferencedOperationBits" resultType="java.lang.Long">
-        SELECT DISTINCT granted_bits
-        FROM role_resource_permission
-        WHERE tenant_id = #{tenantId}
-          AND delete_flag = 0
-          AND resource_type = #{resourceType}
-          AND COALESCE(grant_source, 'MANUAL') IN ('MANUAL', 'AUTO_DEP')
-          AND granted_bits IN
+        SELECT DISTINCT p.granted_bits
+        FROM role_resource_permission p
+        JOIN abstract_role r ON r.id = p.abstract_role_id AND r.tenant_id = p.tenant_id AND r.delete_flag = 0
+        WHERE p.tenant_id = #{tenantId}
+          AND p.delete_flag = 0
+          AND p.resource_type = #{resourceType}
+          AND COALESCE(p.grant_source, 'MANUAL') IN ('MANUAL', 'AUTO_DEP')
+          AND p.granted_bits IN
             <foreach collection="operationBits" item="bit" open="(" separator="," close=")">
                 #{bit}
             </foreach>

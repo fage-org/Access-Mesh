@@ -110,9 +110,6 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
         summary = "'apply role permission grant plan'")
     @PermissionChange
     public List<RolePermissionItemResp> applyGrantPlan(Long tenantId, ApplyGrantPlanReq req) {
-        // M4 共同串行边界（T-PERM-072）：读取被改授权与推导输入之前取得 RESOURCE_ENTITY 树写锁，
-        // 与 manifest 编译/资源/类型/操作写路径共持同一锁；本入口不持更高序树锁
-        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         Long roleId = typeResolutionService.resolveRoleId(
             tenantId, req.roleTypeCode(), req.roleExternalId(), req.domainCode());
         if (roleId == null) {
@@ -131,6 +128,10 @@ public class PermissionGrantAppServiceImpl implements PermissionGrantAppService 
             throw biz(AccessErrorCode.ROLE_DISABLED);
         }
 
+        // M4 共同串行边界（T-PERM-072）：读取被改授权与推导输入（prevalidate 起）之前取得
+        // RESOURCE_ENTITY 树写锁，与 manifest 编译/资源/类型/操作写路径共持同一锁；本入口不持
+        // 更高序树锁。锁置于门禁之后——门禁读非推导输入，未授权请求不得持有租户级写锁
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         PermissionGrantPlanDomainService.PreparedGrantPlan prepared =
             permissionGrantPlanDomainService.prevalidate(
                 tenantId, operatorId, roleId, req.domainCode(), req.plan());

@@ -65,6 +65,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
     private final SyncTypeGuard syncTypeGuard;
     private final SubjectDomainService subjectDomainService;
     private final TreeWriteLockSupport treeWriteLockSupport;
+    private final cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
 
     public AbstractRoleSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                           TypeResolutionService typeResolutionService,
@@ -73,7 +74,8 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
                                           LocalProjectionGuard localProjectionGuard,
                                           SyncTypeGuard syncTypeGuard,
                                           SubjectDomainService subjectDomainService,
-                                          TreeWriteLockSupport treeWriteLockSupport) {
+                                          TreeWriteLockSupport treeWriteLockSupport,
+                                           cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
         this.syncMetadataDomainService = syncMetadataDomainService;
         this.typeResolutionService = typeResolutionService;
         this.abstractRoleMapper = abstractRoleMapper;
@@ -82,6 +84,7 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         this.syncTypeGuard = syncTypeGuard;
         this.subjectDomainService = subjectDomainService;
         this.treeWriteLockSupport = treeWriteLockSupport;
+        this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
     }
 
     @Override
@@ -418,6 +421,10 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         }
         if (!deactivateTargetIds.isEmpty()) {
             abstractRoleMapper.softDeleteBatch(tenantId, deactivateTargetIds, LocalDateTime.now());
+            // §7 触发面（T-PERM-072 外评 P2）：full-sync 漂移删除同事务级联回收授权行（拍板 A 同款）；
+            // §8 全序补 RESOURCE_ENTITY（已持 ABSTRACT_ROLE）后读取授权引用
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+            autoGrantMaterializationDomainService.recycleRoleGrants(tenantId, new java.util.HashSet<>(deactivateTargetIds));
         }
 
         return SyncResultBuilder.fullSync(applied, stale, failed, deactivated, itemResults);
@@ -481,6 +488,11 @@ public class AbstractRoleSyncAppServiceImpl implements AbstractRoleSyncAppServic
         if (OP_DELETE.equals(operation)) {
             if (existing != null) {
                 abstractRoleMapper.softDeleteBatch(tenantId, List.of(existing.getId()), now);
+                // §7 触发面（T-PERM-072 外评 P2）：角色同步删除同事务级联回收授权行（拍板 A 同款），
+                // 防已删角色种子行被物化器永久纳入；本入口已持 ABSTRACT_ROLE 锁，按 §8 全序补
+                // RESOURCE_ENTITY（读取授权引用之前）再回收
+                treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
+                autoGrantMaterializationDomainService.recycleRoleGrants(tenantId, java.util.Set.of(existing.getId()));
             }
             return null;
         }

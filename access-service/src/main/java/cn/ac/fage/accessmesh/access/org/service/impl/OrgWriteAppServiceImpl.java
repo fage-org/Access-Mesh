@@ -43,6 +43,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
     private final LocalProjectionDomainService localProjectionDomainService;
     private final AuditDomainService auditDomainService;
     private final TreeWriteLockSupport treeWriteLockSupport;
+    private final cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService;
 
     public OrgWriteAppServiceImpl(OrgDomainService orgDomainService,
                                   UserOrgDomainService userOrgDomainService,
@@ -50,7 +51,8 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
                                   AdminPermissionValidator permissionValidator,
                                   LocalProjectionDomainService localProjectionDomainService,
                                   AuditDomainService auditDomainService,
-                                  TreeWriteLockSupport treeWriteLockSupport) {
+                                  TreeWriteLockSupport treeWriteLockSupport,
+                                   cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService autoGrantMaterializationDomainService) {
         this.orgDomainService = orgDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
@@ -58,6 +60,7 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         this.localProjectionDomainService = localProjectionDomainService;
         this.auditDomainService = auditDomainService;
         this.treeWriteLockSupport = treeWriteLockSupport;
+        this.autoGrantMaterializationDomainService = autoGrantMaterializationDomainService;
     }
 
     @Override
@@ -353,6 +356,12 @@ public class OrgWriteAppServiceImpl implements OrgWriteAppService {
         orgDomainService.softDeleteBatch(tenantId, List.of(id));
         Long roleId = localProjectionDomainService.findAdminOrgRoleId(tenantId, id, org.getOrgType());
         localProjectionDomainService.deleteAdminOrg(tenantId, id, org.getOrgType());
+        // §7 触发面（T-PERM-072 外评 P2）：容器角色（ORG/POSITION）随组织删除——授权行同事务
+        // 级联回收（拍板 A 同款），否则已删角色的种子行被物化器永久纳入、20069 守卫被死角色
+        // 引用锁死；本入口已持 SYS_ORG→ABSTRACT_ROLE→RESOURCE_ENTITY 全序三树锁
+        if (roleId != null) {
+            autoGrantMaterializationDomainService.recycleRoleGrants(tenantId, java.util.Set.of(roleId));
+        }
         // entity_id 记录投影主键；投影缺失时记 null（不再冒用 sys_org.id）
         auditDomainService.recordChangeLog(
             new AuditDomainService.ChangeLogContext(

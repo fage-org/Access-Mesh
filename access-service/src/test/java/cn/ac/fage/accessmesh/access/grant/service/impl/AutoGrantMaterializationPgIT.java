@@ -93,6 +93,7 @@ class AutoGrantMaterializationPgIT {
     @Autowired private ResourceEntitySyncAppService resources;
     @Autowired private OperationAppService operations;
     @Autowired private cn.ac.fage.accessmesh.access.type.service.TypeDefinitionAppService types;
+    @Autowired private cn.ac.fage.accessmesh.access.role.service.AbstractRoleSyncAppService roleSync;
     @Autowired private RoleManageAppService roleManage;
     @Autowired private JdbcTemplate jdbc;
     @SpyBean private TreeWriteLockSupport locks;
@@ -340,6 +341,49 @@ class AutoGrantMaterializationPgIT {
         // 回滚后重放同请求成功（无半切换状态残留）
         grantTo(f, "a", "VIEW", null);
         assertThat(autoFacts(f)).containsExactly("b:READ");
+    }
+
+    @Test void shouldRecycleGrantsOnRoleSyncDeleteChannel_andNotLockOperationGuard() {
+        // 外评 P2-1 通道接线：角色同步 DELETE 同事务回收授权行（拍板 A 同款）；回收后死角色
+        // 不参与物化重建、不构成 20069 引用
+        Fixture f = fixture();
+        // fixture 服务声明 BASIC_ROLE 同步白名单（service_config.extra.syncTypes）
+        jdbc.update("UPDATE service_config SET extra=CAST('{\"syncTypes\":{\"roleTypeCodes\":[\"BASIC_ROLE\"]}}' AS jsonb) WHERE tenant_id=1 AND service_code=?", f.source());
+        publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"));
+        grantTo(f, "a", "VIEW", null);
+        assertThat(autoFacts(f)).containsExactly("b:READ");
+        bind(f);
+        roleSync.sync(1L, new cn.ac.fage.accessmesh.access.sync.dto.AbstractRoleSyncReq(
+            "DELETE", "BASIC_ROLE", f.roleExternal(), null, null, null, f.roleExternal(), null, null, null,
+            f.source(), null, null, new SyncVersionRef(AT, 1L)), null);
+        assertThat(autoFacts(f)).isEmpty();
+        assertThat(manualFacts(f)).isEmpty();
+        // 已删角色不再构成操作引用；清操作者覆盖行（有效角色的合法引用）后 VIEW 位删除放行
+        softDeleteGrantRows(f, "VIEW");
+        AccessRequestContext.bind(RequestContext.user(1L, 100L));
+        operations.deleteOperations(1L, List.of(new OperationKeyReq(f.code(), "VIEW")), 100L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM role_resource_permission WHERE abstract_role_id=? AND delete_flag=0",
+            Integer.class, f.roleId())).isZero();
+    }
+
+    @Test void shouldNotRebuildAutoDepForDeletedRoleOnRecomputeDefense() {
+        // 外评 P2-1 防御层：任意通道/DB 直写留下的已删角色授权行，重算不重建 AUTO_DEP、
+        // 20069 守卫不被死角色引用锁死
+        Fixture f = fixture();
+        publish(f, dep(f, "ab", "a", "b", "VIEW", "READ"));
+        grantTo(f, "a", "VIEW", null);
+        assertThat(autoFacts(f)).containsExactly("b:READ");
+        // 裸 SQL 软删角色行（模拟未接线通道/历史脏数据），授权行滞留
+        jdbc.update("UPDATE abstract_role SET delete_flag=id, deleted_at=now() WHERE id=?", f.roleId());
+        assertThat(autoFacts(f)).isNotEmpty();
+        // manifest 撤依赖触发受影响角色重算：死角色种子被过滤（不重建），其 AUTO_DEP 按
+        // desired 恒空整体回收；滞留 MANUAL 行不由物化删除（现状语义）且不构成 20069 引用
+        publishEmpty(f, 2);
+        assertThat(autoFacts(f)).isEmpty();
+        assertThat(manualFacts(f)).containsExactly("a:VIEW");
+        softDeleteGrantRows(f, "VIEW");
+        AccessRequestContext.bind(RequestContext.user(1L, 100L));
+        operations.deleteOperations(1L, List.of(new OperationKeyReq(f.code(), "VIEW")), 100L);
     }
 
     // ========== M4 提交闸门：新种子未提交时删边 ==========

@@ -59,6 +59,7 @@ last_updated: 2026-09-21（终态）
 - **回归证据**：`mvn test -pl access-service -DskipTestcontainers=true`（2026-09-21，1308 项 0 失败）；`mvn test -pl access-service -Dtest=AutoGrantMaterializationPgIT`（2026-09-21，17 项 0 失败）；收口全量 `mvn clean test -T 1C`（2026-09-21，BUILD SUCCESS——单测 1308 + 容器 286 + E2E 15 全绿，处置批后复跑全量同为 BUILD SUCCESS）。
 - **启动拍板**（registry 2026-09-21 行）：grant_dep_id 保留不写不读（Q-022）；角色删除全回收含授权根（拍板 A）；删类型所有者角色无守卫留观（Q-023）。
 - **双轨评审处置**：代码轨 P2×1（deleteRoles 漏 RESOURCE_ENTITY 锁——已补锁）+ P3×6（recompute 装载分批/GrantSource javadoc/INLINE 注释如实化/闸门会合点/覆盖缺口补 5 用例/审计 changeSource 上下文区分——全修）；文档轨 P1×1+P2×4+P3×6（设计 §3.4/§7 定案回写、契约 §11.4/§12.1 矛盾、AGENTS 授权根边界、将来时残留 10+类推 6 处、任务卡/Q-022 口径——全修）；AUTO_DEP 行形状补 DDL CHECK 评审存疑项未采纳（物化器唯一写者 + uk 已限重复，维持现状）。
+- **claude 外评处置**（2026-09-21，deepseek-flash）：P2×2 采纳直修——①角色删除非管理面通道漏接线（组织容器角色级联/角色同步 DELETE 与 FULL 漂移只软删角色行，死角色种子被物化器永久重建、20069 守卫被锁死）→ 三通道统一接 recycleRoleGrants（deleteOrg 沿既有三树锁、角色同步两处补 RESOURCE_ENTITY 全序锁）+ 防御层（物化器种子按有效角色过滤、死角色 AUTO_DEP 按 desired 恒空回收、selectReferencedOperationBits join 有效角色）+ PgIT 补 2 用例（19/19 绿）；②applyGrantPlan/deleteRoles 的 RESOURCE_ENTITY 锁先于授权门禁（未授权请求可持租户级写锁）→ 两处锁下移门禁后（prevalidate/授权回收前，M4 论证不变）。P3×1 采纳（recycleRoleGrants 角色集分批随防御层直修）；P3×1 撤回（selectByTenantAndResourceTypes 空集 500——DomainService 层既有空集短路，评审只查 XML 层）；P3×1 不修（锁内全图端点装载成本——设计 §6.2「一致视图批量装载」定案形态，性能权衡非缺陷，端点投影/可达收窄留 073 对账时再估）。存量观察 5 条按既有划界处置（deleteResources 不可达面/T-ACCESS-019 TTL 边界/服务删除清图归 071 面/角色集 IN 分批已直修/存量回填归 073 对账）。
 
 ## 非目标 / 遗留
 

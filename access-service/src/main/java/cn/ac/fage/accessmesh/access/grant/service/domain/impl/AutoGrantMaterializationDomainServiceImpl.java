@@ -12,6 +12,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.DependencyCompilationDomainService;
 import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceEntityDomainService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService;
@@ -63,6 +64,7 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
     private final RoleResourcePermissionMapper rolePermissionMapper;
     private final AutoGrantDerivation derivation;
     private final DependencyCompilationDomainService compilation;
+    private final SubjectDomainService subjectDomainService;
     private final ResourceEntityDomainService resourceEntities;
     private final OperationPermissionDomainService operations;
     private final PermissionConditionDomainService conditionDomainService;
@@ -70,13 +72,14 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
     private final ObjectMapper objectMapper;
 
     public AutoGrantMaterializationDomainServiceImpl(RoleResourcePermissionMapper rolePermissionMapper,
-            AutoGrantDerivation derivation, DependencyCompilationDomainService compilation,
+            AutoGrantDerivation derivation, DependencyCompilationDomainService compilation, SubjectDomainService subjectDomainService,
             ResourceEntityDomainService resourceEntities, OperationPermissionDomainService operations,
             PermissionConditionDomainService conditionDomainService, AuditDomainService auditDomainService,
             ObjectMapper objectMapper) {
         this.rolePermissionMapper = rolePermissionMapper;
         this.derivation = derivation;
         this.compilation = compilation;
+        this.subjectDomainService = subjectDomainService;
         this.resourceEntities = resourceEntities;
         this.operations = operations;
         this.conditionDomainService = conditionDomainService;
@@ -96,6 +99,11 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
             return Set.of();
         }
         TreeSet<Long> orderedRoleIds = new TreeSet<>(roleIds);
+        // 防御层（T-PERM-072 外评 P2）：已删角色的滞留 MANUAL 行不作物种（不推导、不重建），
+        // 其 AUTO_DEP 行按 desired 恒空在 diff 中整体回收——正常流删除通道已同事务回收，
+        // 此处兜底 DB 直写/历史脏数据形态
+        Set<Long> validRoleIds = subjectDomainService.selectValidRolesByIds(tenantId, orderedRoleIds).stream()
+            .map(cn.ac.fage.accessmesh.access.role.entity.AbstractRole::getId).collect(java.util.stream.Collectors.toSet());
 
         List<RoleResourcePermission> rows = rolePermissionMapper.selectValidByRoleIds(tenantId, orderedRoleIds);
         Map<Long, List<RoleResourcePermission>> seedsByRole = new HashMap<>();
@@ -105,7 +113,7 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
             if (isAutoDep(row)) {
                 actualAutoByRole.computeIfAbsent(row.getAbstractRoleId(), key -> new LinkedHashMap<>())
                     .put(factOf(row), row);
-            } else if (isSeed(row)) {
+            } else if (isSeed(row) && validRoleIds.contains(row.getAbstractRoleId())) {
                 seedsByRole.computeIfAbsent(row.getAbstractRoleId(), key -> new ArrayList<>()).add(row);
                 involvedResourceIds.add(row.getResourceEntityId());
             }
@@ -198,7 +206,12 @@ public class AutoGrantMaterializationDomainServiceImpl implements AutoGrantMater
             return;
         }
         LocalDateTime now = LocalDateTime.now();
-        List<RoleResourcePermission> rows = rolePermissionMapper.selectValidByRoleIds(tenantId, roleIds);
+        List<RoleResourcePermission> rows = new ArrayList<>();
+        List<Long> orderedRoleIds = new ArrayList<>(roleIds);
+        for (int offset = 0; offset < orderedRoleIds.size(); offset += SQL_BATCH_SIZE) {
+            rows.addAll(rolePermissionMapper.selectValidByRoleIds(tenantId,
+                new java.util.LinkedHashSet<>(orderedRoleIds.subList(offset, Math.min(offset + SQL_BATCH_SIZE, orderedRoleIds.size())))));
+        }
         if (rows.isEmpty()) {
             return;
         }

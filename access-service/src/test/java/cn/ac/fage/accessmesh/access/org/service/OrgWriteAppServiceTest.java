@@ -73,7 +73,8 @@ class OrgWriteAppServiceTest {
             permissionValidator,
             localProjectionDomainService,
             auditDomainService,
-            treeWriteLockSupport
+            treeWriteLockSupport,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class)
         );
         TenantContextHolder.setTenantId(TENANT);
         AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));

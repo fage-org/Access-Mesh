@@ -69,7 +69,7 @@ class AbstractRoleSyncAppServiceTest {
         service = new AbstractRoleSyncAppServiceImpl(syncMetadataDomainService,
                 typeResolutionService, abstractRoleMapper, new ObjectMapper(),
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService, treeWriteLockSupport);
+                subjectDomainService, treeWriteLockSupport, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.grant.service.domain.AutoGrantMaterializationDomainService.class));
         org.mockito.Mockito.lenient().when(syncTypeGuard.validate(org.mockito.ArgumentMatchers.anyLong(),
                 org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any())).thenReturn(true);
         // 版本预判领域判定的 mock 默认：无现存元数据（Map 空取 null）= 新版本放行；

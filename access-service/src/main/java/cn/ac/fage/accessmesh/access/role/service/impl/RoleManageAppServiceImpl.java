@@ -338,11 +338,6 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         // 无锁时「查子孙 → 软删」窗口内并发 createRole/moveRole 挂入本子树 → 存活孤儿角色
         //（parent 指向已删行，树上不可见无法管理）；锁内串行后挂入者读到的是已删父（校验拒绝）
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.ABSTRACT_ROLE);
-        // §8 入口矩阵（T-PERM-072）：角色删除随后读取授权引用（recycleRoleGrants 软删全部有效
-        // 授权行）——先取得 RESOURCE_ENTITY 再读，与 deleteTypesByIds 混合批删同款全序
-        //（ABSTRACT_ROLE → RESOURCE_ENTITY）；不补则并发授予事务可在本事务读后向该角色插行，
-        // 留下已删角色上的孤儿种子行被后续重算永久纳入
-        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
 
         if (roleIds == null || roleIds.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
@@ -420,6 +415,10 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         subjectDomainService.softDeleteRoleBatch(tenantId, new java.util.HashSet<>(allIdsToDelete));
         // T-ACCESS-019：ROLE 资源投影同事务软删（含级联子孙角色），实例授权目标随之不可解析（fail-closed）
         localProjectionDomainService.softDeleteRoleResources(tenantId, allIdsToDelete);
+        // §8 入口矩阵（T-PERM-072）：读取授权引用（recycleRoleGrants）前取得 RESOURCE_ENTITY，
+        // 与 deleteTypesByIds 混合批删同款全序（ABSTRACT_ROLE → RESOURCE_ENTITY）；锁置于门禁
+        // 之后——门禁读非推导输入，未授权请求不得持有租户级写锁
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
         // §7 触发面（T-PERM-072，2026-09-21 拍板 A）：角色删除同事务回收全部有效授权行
         //（MANUAL+AUTO_DEP+AUTHORITY_ROOT——授权根随角色消亡，registry 边界修订）并按引用归零
         // 回收 INLINE 条件；被删角色不做 AUTO_DEP 重算，其余角色不受影响（图与角色无关）
