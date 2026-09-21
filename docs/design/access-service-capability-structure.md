@@ -161,7 +161,7 @@ last_reviewed: 2026-09-15 Q-009 收敛退役：§4 裁决表 row9 与 §8.4 豁�
 └── enums/ util/           # 按需
 ```
 
-Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{org,menu,role}/`；其余 mapper XML（`resources/mapper/` 根下存量）随所属能力包同规则迁移，namespace/resultType FQCN 同批更新（033 任务卡断言面覆盖）。**Mapper 接口一律落 `*.mapper` 子包**（能力包 `{cap}.mapper`、`sync.mapper`、`infrastructure.mapper`——@MapperScan 按包清单扫描不漏注册；记账/租约的 DomainService 与实体可留在语义子包，mapper 接口不随行）。表基线：权威 DDL 全部 34 张表在 §8.2 各节「表：」行登记（T-PERM-070 增 service_credential，落 infrastructure）。
+Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{org,menu,role}/`；其余 mapper XML（`resources/mapper/` 根下存量）随所属能力包同规则迁移，namespace/resultType FQCN 同批更新（033 任务卡断言面覆盖）。**Mapper 接口一律落 `*.mapper` 子包**（能力包 `{cap}.mapper`、`sync.mapper`、`infrastructure.mapper`——@MapperScan 按包清单扫描不漏注册；记账/租约的 DomainService 与实体可留在语义子包，mapper 接口不随行）。表基线：权威 DDL 全部 37 张表在 §8.2 各节「表：」行登记（T-PERM-070 增 service_credential，落 infrastructure；T-PERM-071 增 permission_dependency_declaration、service_manifest_sync，落 resource，与 resource_publication_state，落 sync）。
 
 ### 8.2 逐包归属清单（源 → 目标）
 
@@ -259,7 +259,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | 源 | 目标 | 说明 |
 |---|---|---|
 | permission.controller：ResourceController、ResourceApiMappingController、ResourceDependencyController、**ServiceConfigController** | resource.controller | 裁决 3 |
-| permission.dto.req：ResourceListReq、ResourceMoveReq、ResourceDetailReq、ResourceResolveKey、ResourceResolveRequest、ResourceTreeReq、DependencyBatchSyncReq、DependencyListReq、ResourceDependencyCheckReq、ResourceDependencyCreateReq、ResourceDependencyUpdateReq、ApiMappingAddReq、ApiMappingListReq、ApiMappingUpdateReq、ServiceConfigReq、ServiceConfigGetReq、ServiceConfigApisReq、ServiceConfigSyncReq | resource.dto.req | |
+| permission.dto.req：ResourceListReq、ResourceMoveReq、ResourceDetailReq、ResourceResolveKey、ResourceResolveRequest、ResourceTreeReq、DependencyListReq、ResourceDependencyCheckReq、ApiMappingAddReq、ApiMappingListReq、ApiMappingUpdateReq、ServiceConfigReq、ServiceConfigGetReq、ServiceConfigApisReq、ServiceConfigSyncReq | resource.dto.req | |
 | permission.dto.resp：ResourceResp、ResourceTreeResp、ResourceDependencyResp、DependencyCycleCheckResp、ApiMappingResp、ServiceConfigResp、ServiceConfigSyncResp | resource.dto.resp | |
 | permission.service：ResourceManageAppService/Impl、ResourceEntitySyncAppService/Impl（sync 执行层）、ServiceConfigAppService/Impl、ServiceSyncAppService/Impl、DependencyAppService/Impl | resource.service | |
 | permission.service.domain：ResourceEntityDomainService/Impl、MappingSyncHandler/Impl、ResourceSyncHandler/Impl | resource.service.domain | |
@@ -367,7 +367,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | permission.util.SyncKeyCodec | sync | sync API 契约键（类 2026-09-14 Q-004 改名 SyncKeyCodecUtil，现居 access.sync） |
 | permission.dto.req：AbstractUserFullSyncReq、AbstractUserSyncItem、AbstractUserSyncReq、AbstractUserSyncScope、AbstractRoleFullSyncReq、AbstractRoleSyncItem、AbstractRoleSyncReq、AbstractRoleSyncScope、ResourceEntityFullSyncReq、ResourceEntitySyncItem、ResourceEntitySyncReq、ResourceEntitySyncScope、UserRoleFullSyncReq、UserRoleSyncItem、UserRoleSyncReq、UserRoleSyncScope | sync.dto | 通道契约 DTO 随 Controller；执行层跨包 import（能力→sync 边，§2.2 双向边接受） |
 
-表：`sync_metadata`。
+表：`sync_metadata`、`resource_publication_state`（资源 scope 发布代次，T-PERM-071）。
 
 #### engine（§2.3 + 裁决 7）
 

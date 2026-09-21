@@ -4,9 +4,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- **独立依赖 manifest 发布通道与可选 SDK（T-PERM-071）**：新增 M2M 端点 `POST /api/access/integration/permission-manifest/full-sync`（服务凭证认证，所属服务发布依赖声明清单，逐项 RESOLVED/REJECTED 诊断）；SDK 新增 `perm-registration-spring-boot-starter`（静态 JSON 启动发布/动态 Provider 固定快照/显式资源前置与两步协调，默认关闭）；资源与清单发布引入发布源递增代次（平台按 scope 原子拒旧、同代次同指纹重试放行）。
+
 ### Changed
 
 - **资源同步父边收紧为同类型（T-PERM-068，破坏性收紧）**：`resource-entity/sync`/`full-sync` 显式异类型 `parentResourceTypeCode` 由放行改为 item 级拒绝（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；`parentResourceTypeCode` 缺省回填 item/scope 自身类型（只传 `parentResourceCode` 也按同类型解析挂父——原实现半传被静默解挂）；父字段组仅 UPSERT 生效（DISABLE/DELETE 忽略父字段）；单条 DELETE 存在有效子资源时拒绝（`DEPENDENCY_MISSING`/`CHILDREN_EXIST`，先删子再重发自愈）。管理面 `resource-entity/create`/`batch-create` 对齐 move：跨类型父 20053、裸 `parentId` 补存在性（20004）与类型校验。
+- **资源 full-sync 引入发布代次（T-PERM-071，破坏性收紧）**：`resource-entity/full-sync` 必填 `publicationGeneration`（发布源确定、按 scope 原子拒旧——旧代次零副作用拒绝，不得以当前时间或 git revision 冒充；重试沿用原代次与完整快照）；完整空清单 `items=[]` 通过身份/所有权/代次校验后仅清本同步范围；纯增量 scope 维持现役协议。
+
+### Removed
+
+- **资源依赖管理写入口退役（T-PERM-071，破坏性）**：`resource-dependency/create|update|remove|batch-sync` 四端点、`ResourceDependencyResp.autoGrant` 字段、`DEPENDENCY:SYNC` 操作码与 bootstrap 固定图授权档、错误码 20048 全链移除——依赖声明唯一写入来源为所属服务 MANIFEST 发布；管理台只读（list/graph/check）。旧表保全迁移与运行手册见 `docs/ops/runbook-auto-grant-migration.md`。
 
 ### Fixed
 

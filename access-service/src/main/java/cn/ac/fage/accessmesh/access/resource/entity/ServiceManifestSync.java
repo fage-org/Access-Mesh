@@ -7,7 +7,7 @@ import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDateTime;
 
-/** 依赖声明发布持久事实，事务由应用服务管理。 */
+/** 服务依赖 FULL 的发布状态：tenant+source 单行，持代次/不可变请求指纹/语义 hash 与 dirty 标记，由清单发布事务维护。 */
 @Getter
 @Setter
 @Table("service_manifest_sync")

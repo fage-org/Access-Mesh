@@ -97,7 +97,6 @@ T-ACCESS-042 起 URL 单命名空间：全部端点统一 `/api/access/<资源>/
 | `abstract_user` 与 `sys_user` id 不一致 | 走了旧投影补建路径或手工插数 | 空库重建模式下删数重走管理链路 |
 | 登录后权限全拒 | Redis 未清理（旧主体键命中重建后重叠 id） | 重做步骤 1.3 Redis 清理 |
 | 外部主体与本地用户主键冲突 | 序列被手工回拨 | `SELECT setval(pg_get_serial_sequence('abstract_user','id'), (SELECT max(id) FROM abstract_user))` 修正水位 |
-| 资源依赖编辑保存报 20048 | 存量 `auto_grant=true` 行（旧 DDL `DEFAULT true` / 旧 mock 默认 true 时期写入；2026-08-27 起写入口拒绝 true、开关禁用，存量行编辑任何字段都会命中拒绝） | 一次性订正：`UPDATE resource_dependency SET auto_grant = false WHERE auto_grant AND delete_flag = 0;` 后重试；或直接删除重建该依赖 |
 | 域配置编辑报 400（configType 仅支持 SUB_PERM/CLASSIFY） | 存量 `SCOPE`/`RELATION`/`BINDING` 历史类型行（未实现类型，2026-08-27 起写入白名单拒绝） | 一次性订正：`UPDATE domain_config SET delete_flag = id, deleted_at = now() WHERE config_type IN ('SCOPE','RELATION','BINDING') AND delete_flag = 0;` 软删历史行后按两类重新配置 |
 | 部署含 `OPERATION_PERMISSIONS_BY_TYPE` 缓存内容语义变更的版本后，旧口径条目在 2 小时内继续生效 | 该缓存（L2 TTL 120m）仅在 miss 时按新口径重算（当前口径 = 类型专属集，全局操作概念已退役 2026-08-30；T-PERM-034 收口注记；运行时写路径失效已接线 T-PERM-047 2026-09-07——此处仅指**部署期**口径语义变更，L2 跨部署存活，与运行时 evict 无关） | 部署该类变更前 flush 该目录（或 `--scan --delete` 该前缀键），或等 TTL 耗尽；未上线环境无影响 |
 | bootstrap 启动报「管理角色授权缺失/菜单种子部分存在/默认树」等固定图冲突，但库是旧版固定图 | **固定图定义升级后既有库不兼容**（T-FE-015 起：业务门禁 +17、菜单种子 15 行、Gateway 端点 +20、默认组织树；幂等三状态不自动补权，旧图缺新条目即状态③ fail-fast） | 按步骤 1 重建库（未上线项目不做在线迁移）；不要手工往旧图补数——检测断言含结构键比对，手工行属性不匹配同样冲突。**注意（T-ACCESS-029，2026-09-05）**：固定图随版本增长的「新版新增条目缺行且无墓碑」仍按残缺拒启（不自动补权）；资源实体删除后重建会换 `resource_entity_id`，旧墓碑身份键不匹配新行 → 重建的实例授权缺行同样拒启（判定合理：新资源是新授权对象，旧撤销不构成缺行合法性证据） |

@@ -5,9 +5,10 @@
 -- 取代：admin-service.sql、permission-center.sql、seed-admin-operations.sql、seed-perm-operations.sql
 --       （四份旧文件已随 T-ACCESS-012 归档至 docs/archive/2026-08-22/schema/，不再作为实现依据）
 --
--- 范围：34 张表
+-- 范围：37 张表
 --   管理事实表（sys_*）14 张（管理面，原 17 张：sys_config/sys_audit_log 并入合并表；sys_sync_task 已随 T-ACCESS-005 退役）
---   权限事实表 16 张（权限面，原 18 张：system_config/operation_log 由合并表承接）
+--   权限事实表 19 张（权限面，原 18 张：system_config/operation_log 由合并表承接；T-PERM-071 增 3 张：
+--     permission_dependency_declaration、service_manifest_sync、resource_publication_state——依赖声明/发布状态/资源发布代次）
 --   合并表 2 张（system_config、operation_log）
 --   基础设施 2 张（sys_task_execution，T-ACCESS-009 任务租约预建；service_credential，T-PERM-070 服务凭证）
 --
@@ -40,9 +41,10 @@
 --     不会触发运行时生成必须在初始化阶段种入）；②非预置扩展操作（ORG 六码同名同 bit 迁移自
 --     ADMIN_ORG、USER:ENABLE bit 重分配 32、USER:RESET_PASSWORD bit 64 不变、
 --     ADMIN_ROLE:GRANT/REVOKE 零消费者删除不迁移；bit 与 CRUD 不冲突）；③权限中心运行时必需
---     操作（代码实际校验的 MANAGE/ASSIGN/REVOKE/SYNC/MANAGE_API_MAPPING/SYNC_INTERFACE/ACCESS，
+--     操作（代码实际校验的 MANAGE/ASSIGN/REVOKE/MANAGE_API_MAPPING/SYNC_INTERFACE/ACCESS，
 --     缺失时权限引擎 fail-closed 全量拒绝；原 USER:MANAGE 已随 T-ACCESS-034 USER 轨细粒度化
---     退役——update/remove 门禁换绑 UPDATE/DELETE 通用码，16 位空闲不复用）
+--     退役——update/remove 门禁换绑 UPDATE/DELETE 通用码，16 位空闲不复用；DEPENDENCY:SYNC
+--     已随 T-PERM-071 依赖 MANIFEST 独占写入退役删除）
 --
 -- 执行：从空 PostgreSQL 一次性执行本文件即可获得完整结构；本阶段不引入 migration 框架。
 --

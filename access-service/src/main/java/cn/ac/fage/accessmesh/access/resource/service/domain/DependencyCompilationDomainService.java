@@ -101,7 +101,7 @@ public class DependencyCompilationDomainService {
     private DependencyCompiler.Result compileInMemory(String service, List<DependencyCompiler.Declaration> declarations,
                                                         Map<String, PermissionDependencyDeclaration> old, Input input) {
         List<DependencyCompiler.Edge> retained = input.existingEdges().stream()
-                .filter(e -> e.getDeclarationId() != null && !service.equals(e.getOwnerServiceCode()))
+                .filter(e -> !service.equals(e.getOwnerServiceCode()))
                 .map(e -> new DependencyCompiler.Edge(e.getResourceEntityId(), e.getDependsOnResourceEntityId(),
                         e.getSourceOperationBits(), e.getRequiredOperationBits())).toList();
         Set<String> stable = declarations.stream().filter(d -> {

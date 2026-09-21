@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-09-17   # T-PERM-068（Q-007 三定案）：§3.4 资源父子边限同类型口径改写（原「资源可声明跨类型父子边」过时；sync 缺省回填/显式异类型拒绝/管理面 20053/角色域排除声明）；此前 T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
+last_reviewed: 2026-09-21   # T-PERM-071：§4 扩展面状态表自动授权行改「071 已实现、整体验收中」（声明编译/资源发布共序/SDK 已落地，物化与解释归 072/073）；此前 2026-09-17 T-PERM-068（Q-007 三定案）：§3.4 资源父子边限同类型口径改写（原「资源可声明跨类型父子边」过时；sync 缺省回填/显式异类型拒绝/管理面 20053/角色域排除声明）；此前 T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
