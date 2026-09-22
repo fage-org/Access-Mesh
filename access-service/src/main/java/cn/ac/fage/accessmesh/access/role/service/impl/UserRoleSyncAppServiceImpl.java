@@ -225,13 +225,16 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         int applied = 0, stale = 0, failed = 0, deactivated = 0;
         List<SyncResultResp.ItemResult> itemResults = new ArrayList<>(req.items().size());
         Set<String> seenBusinessKeyHashes = new HashSet<>();
-        // grok 复评 P1 修复（T-PERM-075 窗口化）：请求级「本批已 apply 的未过期持有窗口」——
-        // 同批同用户多 BIND 的互斥两端经批内窗口交语义命中
-        Map<Long, Set<SubjectDomainService.RawHolding>> appliedThisBatch = new HashMap<>();
-        // T-PERM-075：原始持有窗口批内一次预载（守卫逐 item 消费，消除循环单查 N+1；
-        // 循环前快照 + appliedThisBatch 批内补偿，与旧「缓存快照 + 批内累积」语义等价）
-        Map<Long, Set<SubjectDomainService.RawHolding>> rawHoldingsByUser = candidateUserIds.isEmpty()
-                ? Map.of() : subjectDomainService.batchResolveRawHoldings(tenantId, candidateUserIds);
+        // grok 复评 P1 修复（T-PERM-075 窗口化）+ 外评 R2 修正（2026-09-22）：请求级批内
+        // 工作状态（多重集）＝循环前原始持有候选预载，随批内成功应用增删补偿——新增/改期
+        // 补入新窗口、被替换绑定移除旧窗口一份提供方（旧实现只增不减，改期后的旧窗口残留
+        // 候选使后续合法改期被 ROLE_MUTEX_CONFLICT 误拒；同值窗口可由多绑定/组展开重复提供，
+        // 多重集按提供方扣减才不误删仍生效的同值窗口）。守卫逐 item 消费，无循环单查 N+1
+        Map<Long, List<SubjectDomainService.RawHolding>> workingHoldingsByUser = new HashMap<>();
+        if (!candidateUserIds.isEmpty()) {
+            subjectDomainService.batchResolveRawHoldingsMultiset(tenantId, candidateUserIds)
+                    .forEach((uid, windows) -> workingHoldingsByUser.put(uid, new ArrayList<>(windows)));
+        }
         // claude 外评 P3-1：互斥规则批内一次预载——新守卫口径下稳态全量重放逐 item 触发，
         // 逐 item DB 直查会在 ABSTRACT_ROLE 树写锁持有期放大语句数（旧口径幂等重放零规则查询）
         List<cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule> mutexRules =
@@ -281,8 +284,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
 
             SyncResultResp r = applyItemSync(tenantId, oneReq,
                     new FullSyncPreload(true, preUserId, preRoleId, preRelId, preExisting,
-                            ownedTargetIdsByBusinessKeyHash, appliedThisBatch, metadataByBusinessKeyHash,
-                            rawHoldingsByUser, mutexRules),
+                            ownedTargetIdsByBusinessKeyHash, workingHoldingsByUser, metadataByBusinessKeyHash,
+                            mutexRules),
                     now);
             if (r.applied()) {
                 applied++;
@@ -347,22 +350,20 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
      * @param existing      预加载的现有 UserRole 行
      * @param ownedTargetIds full-sync 预加载的当前 scope 归属 Map（businessKeyHash -> target_id），
      *                       归属校验直接命中不查 DB
-     * @param batchApplied  请求级「本批已 apply 的新增有效持有」（BIND 成功后写入，防同批互斥）
+     * @param workingHoldings full-sync 批内工作状态（userId -> 原始持有窗口多重集；循环前
+     *                      预载，随批内成功应用增删补偿——新增/改期补新窗口、被替换绑定移除
+     *                      旧窗口一份提供方，外评 R2 修正；single-sync 传 null，守卫内单用户直查）
      * @param metadata      full-sync 预加载的 scope 元数据 Map（businessKeyHash -> SyncMetadata）
-     * @param rawHoldings   full-sync 预加载的原始持有窗口（T-PERM-075，userId -> 未过期窗口集；
-     *                      循环前一次性批量——批内写入不可见由 batchApplied 补偿，与旧缓存快照语义等价；
-     *                      single-sync 传 null，守卫内单用户直查）
      * @param mutexRules    full-sync 预加载的 ROLE_MUTEX 规则集（claude 外评 P3-1，循环前 DB 直查一次；
      *                      single-sync 传 null，守卫内两参重载直查）
      */
     private record FullSyncPreload(boolean resolved, Long abstractUserId, Long roleId, Long relationId,
                                    UserRole existing, Map<String, Long> ownedTargetIds,
-                                   Map<Long, Set<SubjectDomainService.RawHolding>> batchApplied,
+                                   Map<Long, List<SubjectDomainService.RawHolding>> workingHoldings,
                                    Map<String, SyncMetadata> metadata,
-                                   Map<Long, Set<SubjectDomainService.RawHolding>> rawHoldings,
                                    List<cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule> mutexRules) {
         static final FullSyncPreload NONE =
-                new FullSyncPreload(false, null, null, null, null, null, null, null, null, null);
+                new FullSyncPreload(false, null, null, null, null, null, null, null, null);
     }
 
     /** single-sync 路径入口：无预载，逐项单条解析/查询（版本/依赖语义与 full-sync 同源）。 */
@@ -443,11 +444,23 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         }
 
         if (OP_BIND.equals(req.operation())) {
+            // 外评 R2：upsert 原地改写 existing 实体窗口字段，先取旧窗口供批内工作状态扣减
+            SubjectDomainService.RawHolding replacedWindow = existingForUpsert == null ? null
+                    : new SubjectDomainService.RawHolding(existingForUpsert.getTargetId(),
+                            existingForUpsert.getValidFrom(), existingForUpsert.getValidTo());
             UserRole upserted = upsertUserRoleWithExisting(tenantId, abstractUserId, roleId, relationId, req,
                     existingForUpsert, now);
-            if (introducesUnexpiredHolding && preload.batchApplied() != null) {
-                preload.batchApplied().computeIfAbsent(abstractUserId, k -> new HashSet<>())
-                        .add(new SubjectDomainService.RawHolding(roleId, req.validFrom(), req.validTo()));
+            if (preload.workingHoldings() != null) {
+                List<SubjectDomainService.RawHolding> working = preload.workingHoldings()
+                        .computeIfAbsent(abstractUserId, k -> new ArrayList<>());
+                if (replacedWindow != null) {
+                    // List.remove 精确扣减一份提供方（多重集语义）：被替换绑定的旧窗口不再
+                    // 参与后续 item 候选——含改成已过期窗口的替换（旧未过期窗口同样要离开）
+                    working.remove(replacedWindow);
+                }
+                if (introducesUnexpiredHolding) {
+                    working.add(new SubjectDomainService.RawHolding(roleId, req.validFrom(), req.validTo()));
+                }
             }
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, STATUS_ACTIVE);
@@ -484,23 +497,18 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     /**
      * T-PERM-064/T-PERM-075：授予后状态命中 ROLE_MUTEX 对检测。
      * <p>
-     * postState = 原始持有候选（未过期原始行 ∪ 组展开含禁用子树，DB 新鲜读）
-     * ∪ 本目标（不再过滤启用——禁用可逆，U002-2 绑定写时堵死）
-     * ∪ 批内已 apply 目标（full-sync 同批同用户多 BIND 的批内集合语义保留），
+     * postState = 当前绑定状态（full-sync=批内工作状态：原始持有候选多重集随批内成功应用
+     * 增删补偿，外评 R2；single-sync=单用户 DB 新鲜读，单请求单 item 无快照陈旧问题）
+     * ∪ 本目标（不再过滤启用——禁用可逆，U002-2 绑定写时堵死），
      * 与管理面 {@code UserManageAppServiceImpl#rejectRoleMutexOnAssign} 同口径；
      * 规则读取复用 {@code findAssignMutexConflicts} DB 直查（新规则即刻生效）。
      * </p>
      */
     private boolean hitsRoleMutexOnBind(Long tenantId, Long userId, Long roleId,
                                         UserRoleSyncReq req, FullSyncPreload preload) {
-        // full-sync 走循环前批量预载（N+1 防护）；single-sync（NONE preload）单用户直查
-        Set<SubjectDomainService.RawHolding> rawHoldings = preload.rawHoldings() != null
-                ? preload.rawHoldings().getOrDefault(userId, Set.of())
-                : subjectDomainService.resolveRawHoldings(tenantId, userId);
-        Set<SubjectDomainService.RawHolding> postState = new HashSet<>(rawHoldings);
-        if (preload.batchApplied() != null) {
-            postState.addAll(preload.batchApplied().getOrDefault(userId, Set.of()));
-        }
+        Set<SubjectDomainService.RawHolding> postState = preload.workingHoldings() != null
+                ? new HashSet<>(preload.workingHoldings().getOrDefault(userId, List.of()))
+                : new HashSet<>(subjectDomainService.resolveRawHoldings(tenantId, userId));
         postState.add(new SubjectDomainService.RawHolding(roleId, req.validFrom(), req.validTo()));
         // full-sync 传批内预载规则（N+1 防护）；single-sync（NONE preload → null）走两参重载直查
         return !permissionConflictDomainService

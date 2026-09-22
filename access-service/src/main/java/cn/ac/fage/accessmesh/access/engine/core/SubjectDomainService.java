@@ -229,6 +229,23 @@ public interface SubjectDomainService {
     Map<Long, Set<RawHolding>> batchResolveRawHoldings(Long tenantId, Set<Long> userIds);
 
     /**
+     * 批量解析多个用户的原始持有候选——**多重集形态**（同语义，保留绑定多重性）。
+     * <p>
+     * 语义与 {@link #batchResolveRawHoldings} 完全一致（未过期原始行闭包 + 组展开继承窗口，
+     * 不缓存不过滤），唯一差别是同用户下完全相同的窗口（roleId + 两端均同）按提供方
+     * 各保留一份——同角色经多条绑定（不同 relation）或直接持有 + 组展开可产出相同窗口值，
+     * 集合形态会折叠成一份。消费方=full-sync 批内工作状态维护：绑定被替换/删除时按
+     * 「一份提供方」粒度移除旧窗口，折叠形态会误删仍由其他绑定提供的同值窗口
+     * （外评 R2，2026-09-22）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userIds  用户ID集合
+     * @return 用户ID到原始持有窗口列表的映射（含重复窗口值，每绑定一份）
+     */
+    Map<Long, List<RawHolding>> batchResolveRawHoldingsMultiset(Long tenantId, Set<Long> userIds);
+
+    /**
      * 原始持有窗口（T-PERM-075）：角色 id + 有效期窗口（null=无限端，闭区间）。
      * <p>
      * 互斥写守卫按「窗口区间交」判定冲突——两个互斥角色的持有窗口真正不相交时放行

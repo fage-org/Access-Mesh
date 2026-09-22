@@ -17,6 +17,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -61,6 +62,7 @@ class UserWriteAppServiceUpdateGateTest {
     @Mock private OrgVisibilityQueryAppService orgVisibilityQueryService;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private AuditDomainService auditDomainService;
+    @Mock private TreeWriteLockSupport treeWriteLockSupport;
 
     private UserWriteAppServiceImpl service;
 
@@ -74,7 +76,8 @@ class UserWriteAppServiceUpdateGateTest {
             permissionValidator,
             orgVisibilityQueryService,
             localProjectionDomainService,
-            auditDomainService
+            auditDomainService,
+            treeWriteLockSupport
         );
         AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));
     }

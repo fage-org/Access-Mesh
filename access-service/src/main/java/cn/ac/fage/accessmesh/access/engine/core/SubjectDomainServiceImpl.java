@@ -29,6 +29,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -437,6 +438,36 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
      */
     @Override
     public Map<Long, Set<SubjectDomainService.RawHolding>> batchResolveRawHoldings(Long tenantId, Set<Long> userIds) {
+        Map<Long, List<SubjectDomainService.RawHolding>> multiset = buildRawHoldingsMultiset(tenantId, userIds);
+        Map<Long, Set<SubjectDomainService.RawHolding>> result = new HashMap<>();
+        for (Map.Entry<Long, List<SubjectDomainService.RawHolding>> entry : multiset.entrySet()) {
+            result.put(entry.getKey(), new LinkedHashSet<>(entry.getValue()));
+        }
+        return result;
+    }
+
+    /**
+     * 多重集形态（外评 R2，2026-09-22）：同值窗口按提供方各保留一份，供 full-sync
+     * 批内工作状态按绑定粒度移除旧窗口；语义与集合版一致，见接口 javadoc。
+     */
+    @Override
+    public Map<Long, List<SubjectDomainService.RawHolding>> batchResolveRawHoldingsMultiset(
+            Long tenantId, Set<Long> userIds) {
+        return buildRawHoldingsMultiset(tenantId, userIds);
+    }
+
+    /**
+     * 原始持有候选装载核心（Set 版与多重集版共用，T-PERM-075 写守卫专用）。
+     * <p>
+     * 保留有效期窗口供互斥「区间交」判定——两个互斥角色的持有窗口真正不相交时放行。
+     * 与 {@link #resolveEffectiveRolesBatch} 共享数据装载形态（未过期谓词差一个 valid_from 条件）
+     * 但刻意不走缓存、不做启用/禁用/互斥过滤——写时守卫看原始候选，DB 新鲜读。
+     * 直接持有保留行窗口；组绑定行的窗口在展开时继承给全部子树成员（每绑定一份，
+     * 多重集不折叠同值窗口）。
+     * </p>
+     */
+    private Map<Long, List<SubjectDomainService.RawHolding>> buildRawHoldingsMultiset(
+            Long tenantId, Set<Long> userIds) {
         if (userIds == null || userIds.isEmpty()) {
             return Collections.emptyMap();
         }
@@ -444,10 +475,10 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         List<UserRole> allUserRoles = userRoleMapper.selectValidByUserIdsUnexpired(tenantId, userIds, now);
 
         // 直接持有：保留行窗口；组绑定行：窗口在展开时继承给全部子树成员
-        Map<Long, Set<SubjectDomainService.RawHolding>> userToHoldings = new HashMap<>();
+        Map<Long, List<SubjectDomainService.RawHolding>> userToHoldings = new HashMap<>();
         Map<Long, List<UserRole>> groupBindingsByUser = new HashMap<>();
         for (UserRole ur : allUserRoles) {
-            userToHoldings.computeIfAbsent(ur.getAbstractUserId(), k -> new HashSet<>());
+            userToHoldings.computeIfAbsent(ur.getAbstractUserId(), k -> new ArrayList<>());
             if (PermConstants.TargetType.GROUP_ROLE.equals(ur.getTargetType())) {
                 groupBindingsByUser.computeIfAbsent(ur.getAbstractUserId(), k -> new ArrayList<>()).add(ur);
             } else {
@@ -464,7 +495,7 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         }
         Map<Long, Set<Long>> groupRoleExpandCache = resolveGroupRolesAllSubtreeBatch(tenantId, groupRoleIds);
         for (Map.Entry<Long, List<UserRole>> entry : groupBindingsByUser.entrySet()) {
-            Set<SubjectDomainService.RawHolding> holdings = userToHoldings.get(entry.getKey());
+            List<SubjectDomainService.RawHolding> holdings = userToHoldings.get(entry.getKey());
             for (UserRole binding : entry.getValue()) {
                 Set<Long> expandedRoles = groupRoleExpandCache.getOrDefault(binding.getTargetId(), Set.of());
                 for (Long roleId : expandedRoles) {
@@ -475,9 +506,9 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
             }
         }
 
-        Map<Long, Set<SubjectDomainService.RawHolding>> result = new HashMap<>();
+        Map<Long, List<SubjectDomainService.RawHolding>> result = new HashMap<>();
         for (Long userId : userIds) {
-            result.put(userId, userToHoldings.getOrDefault(userId, Collections.emptySet()));
+            result.put(userId, userToHoldings.getOrDefault(userId, Collections.emptyList()));
         }
         return result;
     }

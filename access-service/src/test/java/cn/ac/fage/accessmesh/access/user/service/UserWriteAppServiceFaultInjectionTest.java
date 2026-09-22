@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.AccessRequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.RequestContext;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.common.exception.SystemException;
@@ -53,6 +54,7 @@ class UserWriteAppServiceFaultInjectionTest {
     @Mock private OrgVisibilityQueryAppService orgVisibilityQueryService;
     @Mock private LocalProjectionDomainService localProjectionDomainService;
     @Mock private AuditDomainService auditDomainService;
+    @Mock private TreeWriteLockSupport treeWriteLockSupport;
 
     private UserWriteAppServiceImpl service;
 
@@ -66,7 +68,8 @@ class UserWriteAppServiceFaultInjectionTest {
             permissionValidator,
             orgVisibilityQueryService,
             localProjectionDomainService,
-            auditDomainService
+            auditDomainService,
+            treeWriteLockSupport
         );
         TenantContextHolder.setTenantId(TENANT);
         AccessRequestContext.bind(RequestContext.user(TENANT, OPERATOR));

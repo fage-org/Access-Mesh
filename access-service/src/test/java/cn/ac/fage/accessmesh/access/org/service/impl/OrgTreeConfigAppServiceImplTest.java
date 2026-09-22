@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -30,7 +31,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -293,6 +296,73 @@ class OrgTreeConfigAppServiceImplTest {
             service.deleteOrgTreeConfigs(new IdsReq(List.of(2L, 3L)));
 
             verify(orgTreeConfigMapper).softDeleteBatch(eq(TENANT_ID), eq(List.of(2L, 3L)), any());
+        }
+    }
+
+    @Nested
+    @DisplayName("权威读取入锁（外评 R3：锁内同语句重读命中 MyBatis 会话级一级缓存）")
+    class AuthoritativeReadInsideLock {
+
+        private SysOrgTreeConfig config(Long id, Long rootOrgId, boolean isDefault) {
+            SysOrgTreeConfig config = new SysOrgTreeConfig();
+            config.setId(id);
+            config.setTenantId(TENANT_ID);
+            config.setRootOrgId(rootOrgId);
+            config.setTreeName("树");
+            config.setTreeType("DEFAULT");
+            config.setIsDefault(isDefault);
+            return config;
+        }
+
+        private SysOrg org(Long id) {
+            SysOrg org = new SysOrg();
+            org.setId(id);
+            org.setOrgType("1");
+            return org;
+        }
+
+        @Test
+        @DisplayName("update：配置读取恰一次且在 SYS_ORG 锁后（旧实现锁前读+锁内重读必红）")
+        void updateReadsConfigOnceAfterLock() {
+            SysOrgTreeConfig existing = config(2L, 10L, false);
+            when(orgTreeConfigMapper.selectByIdSafe(TENANT_ID, 2L)).thenReturn(existing);
+
+            service.updateOrgTreeConfig(new OrgTreeConfigUpdateReq(2L, 50L, null, null, null));
+
+            InOrder inOrder = inOrder(treeWriteLockSupport, orgTreeConfigMapper);
+            inOrder.verify(treeWriteLockSupport)
+                .lockTreeWrites(TENANT_ID, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+            inOrder.verify(orgTreeConfigMapper).selectByIdSafe(TENANT_ID, 2L);
+            // 恰一次：同事务同语句二次调用在会话级一级缓存下返回锁前实例（不访问库），
+            // 「锁内重读」形同虚设——结构性回归锁：权威读取=锁内首次读取，不得恢复双读
+            verify(orgTreeConfigMapper, times(1)).selectByIdSafe(TENANT_ID, 2L);
+        }
+
+        @Test
+        @DisplayName("setDefault：配置读取恰一次且在 SYS_ORG 锁后（旧实现锁前读+锁内重读必红）")
+        void setDefaultReadsConfigOnceAfterLock() {
+            SysOrgTreeConfig newConfig = config(5L, 50L, false);
+            when(orgTreeConfigMapper.selectByIdSafe(TENANT_ID, 5L)).thenReturn(newConfig);
+            when(orgDomainService.selectValidById(TENANT_ID, 50L)).thenReturn(org(50L));
+            when(orgTreeConfigDomainService.findDefaultConfigs(TENANT_ID)).thenReturn(List.of());
+
+            service.setDefault(5L);
+
+            InOrder inOrder = inOrder(treeWriteLockSupport, orgTreeConfigMapper);
+            inOrder.verify(treeWriteLockSupport)
+                .lockTreeWrites(TENANT_ID, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+            inOrder.verify(orgTreeConfigMapper).selectByIdSafe(TENANT_ID, 5L);
+            verify(orgTreeConfigMapper, times(1)).selectByIdSafe(TENANT_ID, 5L);
+        }
+
+        @Test
+        @DisplayName("update：无 orgId 纯字段更新同样持锁（防 update 全列回写覆盖并发 setDefault 的 isDefault，旧实现必红）")
+        void updateWithoutOrgIdAlsoLocks() {
+            when(orgTreeConfigMapper.selectByIdSafe(TENANT_ID, 1L)).thenReturn(config(1L, 10L, false));
+
+            service.updateOrgTreeConfig(new OrgTreeConfigUpdateReq(1L, null, "新名称", null, null));
+
+            verify(treeWriteLockSupport).lockTreeWrites(TENANT_ID, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
         }
     }
 }

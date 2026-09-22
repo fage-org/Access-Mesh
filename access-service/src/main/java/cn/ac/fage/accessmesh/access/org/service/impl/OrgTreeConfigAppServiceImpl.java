@@ -132,29 +132,24 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
         // 权限检查 — ORG_TREE_CONFIG 实例级 UPDATE
         permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, req.id().toString(), OperationCode.UPDATE);
 
+        // 默认配置的 rootOrgId 变更 = 默认身份目录范围变化（T-ORG-002，拍板最小面守卫）：
+        // 挂 SYS_ORG 树锁后按共享守卫判定——任一用户将失去默认树最后归属则拒绝；
+        // 安全扩围（新根子树 ⊇ 旧根子树，如根改到自己的祖先）不损失任何归属，放行。
+        // 权威读取整体入锁（外评 R3，2026-09-22）：原「锁前读取 + 锁内同语句重读」的第二次
+        // 调用会命中 MyBatis 会话级一级缓存（同事务同语句同参数直接返回锁前实例，不访问库），
+        // 并发 setDefault/软删后的最新状态在锁内不可见；本表全部写者（update/setDefault/delete）
+        // 均持本锁，锁内首次读取即权威值。无 orgId 的纯字段更新同锁：update(existing) 全列回写
+        // 若与并发 setDefault 交错会把旧 isDefault 覆盖回去（丢失默认标记），同锁彻底闭合。
+        // tenant 1 固定图根业务键漂移由 bootstrap 重启检测兜底（与菜单根 code 漂移同口径），
+        // 写入口不重复挡
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
         SysOrgTreeConfig existing = orgTreeConfigMapper.selectByIdSafe(tenantId, req.id());
         if (existing == null) {
             throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
         }
-
-        // 默认配置的 rootOrgId 变更 = 默认身份目录范围变化（T-ORG-002，拍板最小面守卫）：
-        // 挂 SYS_ORG 树锁后按共享守卫判定——任一用户将失去默认树最后归属则拒绝；
-        // 安全扩围（新根子树 ⊇ 旧根子树，如根改到自己的祖先）不损失任何归属，放行。
-        // 锁前快照仅作「是否可能需要锁」的乐观判定，锁内重读为准（评审 P3-1：并发
-        // setDefault 可使配置在快照读取后转为默认，锁前快照会漏判守卫）
-        // tenant 1 固定图根业务键漂移由 bootstrap 重启检测兜底（与菜单根 code 漂移同口径），
-        // 写入口不重复挡
-        if (req.orgId() != null && !req.orgId().equals(existing.getRootOrgId())) {
-            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
-            existing = orgTreeConfigMapper.selectByIdSafe(tenantId, req.id());
-            if (existing == null) {
-                // 锁前快照存在、锁内被并发删除（deleteConfigs 已挂同锁串行，此为兜底）
-                throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
-                    AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
-            }
-            if (Boolean.TRUE.equals(existing.getIsDefault())) {
-                guardDefaultTreeRescope(tenantId, req.orgId(), "修改默认组织树根", false);
-            }
+        if (req.orgId() != null && !req.orgId().equals(existing.getRootOrgId())
+                && Boolean.TRUE.equals(existing.getIsDefault())) {
+            guardDefaultTreeRescope(tenantId, req.orgId(), "修改默认组织树根", false);
         }
 
         String treeType = req.treeType() != null ? req.treeType() : existing.getTreeType();
@@ -240,16 +235,12 @@ public class OrgTreeConfigAppServiceImpl implements OrgTreeConfigAppService {
         // 权限检查 — ORG_TREE_CONFIG 实例级 UPDATE
         permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_ORG_TREE_CONFIG, id.toString(), OperationCode.TOGGLE);
 
-        SysOrgTreeConfig config = orgTreeConfigMapper.selectByIdSafe(tenantId, id);
-        if (config == null) {
-            throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(), AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
-        }
-        // 挂 SYS_ORG 树锁（守卫读取默认树结构与成员归属，与组织结构写串行）后
-        // 重读配置（评审 P3-1：并发 update 改根后锁前快照的 rootOrgId 已过期）、判定切树影响；
-        // 重读判空与 update 分支同款兜底（claude 外评 P3：锁前读与取锁间被并发
-        // deleteOrgTreeConfigs 软删时，11001 而非 NPE 500）
+        // 挂 SYS_ORG 树锁（守卫读取默认树结构与成员归属，与组织结构写串行）后首次权威读取
+        // 配置（外评 R3，2026-09-22：原「锁前读 + 锁内同语句重读」第二次调用命中 MyBatis
+        // 会话级一级缓存返回锁前旧实例——并发 update 改根/软删后仍按旧值判定；本表全部
+        // 写者均持本锁，锁内首读即权威值；锁前读删除后 NOT_FOUND 判定也随之入锁）
         treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
-        config = orgTreeConfigMapper.selectByIdSafe(tenantId, id);
+        SysOrgTreeConfig config = orgTreeConfigMapper.selectByIdSafe(tenantId, id);
         if (config == null) {
             throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
                 AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());

@@ -260,8 +260,9 @@ class FullSyncN1GuardTest {
         cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService conflictDomainService =
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.class);
         // 用户原始持有为空（冷读形态——最不利：批内第一条写入对第二条不可见；T-PERM-075 起不再
-        // 查目标启用态，禁用目标同入候选，批内集合语义不变；full-sync 走循环前批量预载）
-        lenient().when(subjectDomainService.batchResolveRawHoldings(eq(TENANT_ID), any()))
+        // 查目标启用态，禁用目标同入候选，批内集合语义不变；full-sync 走循环前批量预载，
+        // 外评 R2 起为多重集形态——集合版仅供管理面/20063 写守卫消费）
+        lenient().when(subjectDomainService.batchResolveRawHoldingsMultiset(eq(TENANT_ID), any()))
                 .thenReturn(java.util.Map.of());
         // claude 外评 P3-1：互斥规则批内一次预载（守卫走三参重载，不逐 item 直查）
         lenient().when(conflictDomainService.loadRoleMutexRulesFresh(TENANT_ID))
@@ -303,8 +304,9 @@ class FullSyncN1GuardTest {
         assertThat(resp.detail().itemResults().get(1).reason()).isEqualTo("ROLE_MUTEX_CONFLICT");
         assertThat(resp.detail().itemResults().get(1).retryClass())
                 .isEqualTo(cn.ac.fage.accessmesh.access.sync.SyncResultBuilder.RETRY_NON_RETRYABLE);
-        // T-PERM-075 N+1 次数锁：原始持有候选必须批内一次预载，不逐 item 单查
-        verify(subjectDomainService, times(1)).batchResolveRawHoldings(eq(TENANT_ID), any());
+        // T-PERM-075 N+1 次数锁：原始持有候选必须批内一次预载（外评 R2 起为多重集入口），
+        // 不逐 item 单查
+        verify(subjectDomainService, times(1)).batchResolveRawHoldingsMultiset(eq(TENANT_ID), any());
         verify(subjectDomainService, never()).resolveRawHoldings(anyLong(), anyLong());
         // claude 外评 P3-1 次数锁：互斥规则同样批内一次预载（逐 item 直查实现在此必红）
         verify(conflictDomainService, times(1)).loadRoleMutexRulesFresh(TENANT_ID);
@@ -393,6 +395,287 @@ class FullSyncN1GuardTest {
         // scope metadata 只加载一次（归属 Map + 差异校准复用）
         verify(syncMetadataDomainService, times(1))
                 .listScopeForFullSync(anyLong(), anyString(), anyString(), anyString());
+    }
+
+    /**
+     * 外评 R2（2026-09-22）回归锁：full-sync 批内改期不得被「被替换绑定的旧窗口」误拒——
+     * 批内工作状态随成功应用增删补偿（改期补新窗口、被替换绑定移除旧窗口一份提供方）。
+     * 旧实现（预载快照只增不减）下第二项必 ROLE_MUTEX_CONFLICT，本用例必红。
+     */
+    @Test
+    void userRoleFullSync_rewindowBothMutexRoles_shouldNotBeBlockedByReplacedOldWindow() {
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(LocalDateTime.class), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        when(syncMetadataDomainService.isNewerVersion(any(), any(), anyLong())).thenReturn(true);
+        when(typeResolutionService.batchResolveUserIds(TENANT_ID, "EMP", java.util.Set.of("e-0")))
+                .thenReturn(java.util.Map.of("e-0", 100L));
+        when(typeResolutionService.batchResolveRoleIds(TENANT_ID, "TEAM_ROLE", java.util.Set.of("team-x", "team-y"), null))
+                .thenReturn(java.util.Map.of("team-x", 200L, "team-y", 201L));
+        when(typeResolutionService.batchResolveRoleIds(TENANT_ID, "TEAM_ROLE", java.util.Set.of("rel-0"), null))
+                .thenReturn(java.util.Map.of("rel-0", 300L));
+
+        // X[+100,+110] 与 Y[+111,+120] 初始不相交（合法态）；本批改为 X[+100,+105] / Y[+106,+120]
+        // ——目标态仍不相交，两项都应 applied。旧实现第二项被残留的旧 X 窗口误判重叠
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime xOldTo = now.plusDays(110);
+        LocalDateTime yOldFrom = now.plusDays(111);
+        LocalDateTime xNewTo = now.plusDays(105);
+        LocalDateTime yNewFrom = now.plusDays(106);
+        LocalDateTime xFrom = now.plusDays(100);
+        LocalDateTime yTo = now.plusDays(120);
+        when(userRoleMapper.selectValidByUserTargetRelation(anyLong(), any(), any(), any(), any()))
+                .thenReturn(List.of(
+                        userRoleRow(1000L, 100L, 200L, 300L, xFrom, xOldTo),
+                        userRoleRow(1001L, 100L, 201L, 300L, yOldFrom, yTo)));
+        when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of(
+                        scopeMeta("e-0", "team-x", 1000L),
+                        scopeMeta("e-0", "team-y", 1001L)));
+
+        cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService =
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class);
+        cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService conflictDomainService =
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.class);
+        when(subjectDomainService.batchResolveRawHoldingsMultiset(eq(TENANT_ID), any()))
+                .thenReturn(java.util.Map.of(100L, List.of(
+                        rawHolding(200L, xFrom, xOldTo), rawHolding(201L, yOldFrom, yTo))));
+        stubMutexOverlapAnswer(conflictDomainService, 100L, 200L, 201L);
+
+        UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
+                syncMetadataDomainService, typeResolutionService, userRoleMapper,
+                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
+                subjectDomainService, conflictDomainService,
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
+
+        UserRoleFullSyncReq req = new UserRoleFullSyncReq(
+                new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "ROOT"),
+                List.of(
+                        new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncItem("EMP", "e-0", "TEAM_ROLE", "team-x",
+                                "TEAM_ROLE:rel-0", xFrom, xNewTo, null, null, new SyncVersionRef(OCCURRED_AT, 1L)),
+                        new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncItem("EMP", "e-0", "TEAM_ROLE", "team-y",
+                                "TEAM_ROLE:rel-0", yNewFrom, yTo, null, null, new SyncVersionRef(OCCURRED_AT, 2L))));
+
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.detail().itemResults().get(0).applied()).isTrue();
+        assertThat(resp.detail().itemResults().get(1).applied())
+                .as("合法改期不得被被替换绑定的旧 X 窗口误拒（旧实现在此处 ROLE_MUTEX_CONFLICT）")
+                .isTrue();
+        verify(userRoleMapper, times(2))
+                .update(any(cn.ac.fage.accessmesh.access.role.entity.UserRole.class));
+    }
+
+    /**
+     * 外评 R2 多重集精度锁：同角色经多条绑定提供完全相同的窗口时，替换其中一条后，
+     * 仍由其余绑定提供的窗口必须留在候选中（按提供方扣减一份，不得按窗口值整删）——
+     * 按值整删的实现会让后续真正冲突的改期漏拒。
+     */
+    @Test
+    void userRoleFullSync_duplicateWindowProviders_rewindowMustKeepRemainingProviderWindow() {
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(LocalDateTime.class), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        when(syncMetadataDomainService.isNewerVersion(any(), any(), anyLong())).thenReturn(true);
+        when(typeResolutionService.batchResolveUserIds(TENANT_ID, "EMP", java.util.Set.of("e-0")))
+                .thenReturn(java.util.Map.of("e-0", 100L));
+        when(typeResolutionService.batchResolveRoleIds(TENANT_ID, "TEAM_ROLE", java.util.Set.of("team-x", "team-y"), null))
+                .thenReturn(java.util.Map.of("team-x", 200L, "team-y", 201L));
+        when(typeResolutionService.batchResolveRoleIds(TENANT_ID, "TEAM_ROLE", java.util.Set.of("rel-0"), null))
+                .thenReturn(java.util.Map.of("rel-0", 300L));
+
+        // X 经 rel-0 与 rel-1（本批外）两条绑定持有同值窗口 [+100,+110]；Y[+111,+120]。
+        // item1 把 X@rel-0 挪到 [+300,+310]；item2 把 Y 改 [+105,+120]——与 X@rel-1 仍持有的
+        // [+100,+110] 重叠，必须拒绝（按值整删实现会漏拒）
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime xFrom = now.plusDays(100);
+        LocalDateTime xOldTo = now.plusDays(110);
+        LocalDateTime yOldFrom = now.plusDays(111);
+        LocalDateTime yNewFrom = now.plusDays(105);
+        LocalDateTime yTo = now.plusDays(120);
+        LocalDateTime xFarFrom = now.plusDays(300);
+        LocalDateTime xFarTo = now.plusDays(310);
+        when(userRoleMapper.selectValidByUserTargetRelation(anyLong(), any(), any(), any(), any()))
+                .thenReturn(List.of(
+                        userRoleRow(1000L, 100L, 200L, 300L, xFrom, xOldTo),
+                        userRoleRow(1001L, 100L, 201L, 300L, yOldFrom, yTo)));
+        when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of(
+                        scopeMeta("e-0", "team-x", 1000L),
+                        scopeMeta("e-0", "team-y", 1001L)));
+
+        cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService =
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class);
+        cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService conflictDomainService =
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.class);
+        // 多重集预载：X 窗口两份（rel-0 + rel-1 两个提供方）
+        when(subjectDomainService.batchResolveRawHoldingsMultiset(eq(TENANT_ID), any()))
+                .thenReturn(java.util.Map.of(100L, List.of(
+                        rawHolding(200L, xFrom, xOldTo),
+                        rawHolding(200L, xFrom, xOldTo),
+                        rawHolding(201L, yOldFrom, yTo))));
+        stubMutexOverlapAnswer(conflictDomainService, 100L, 200L, 201L);
+
+        UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
+                syncMetadataDomainService, typeResolutionService, userRoleMapper,
+                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
+                subjectDomainService, conflictDomainService,
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
+
+        UserRoleFullSyncReq req = new UserRoleFullSyncReq(
+                new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "ROOT"),
+                List.of(
+                        new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncItem("EMP", "e-0", "TEAM_ROLE", "team-x",
+                                "TEAM_ROLE:rel-0", xFarFrom, xFarTo, null, null, new SyncVersionRef(OCCURRED_AT, 1L)),
+                        new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncItem("EMP", "e-0", "TEAM_ROLE", "team-y",
+                                "TEAM_ROLE:rel-0", yNewFrom, yTo, null, null, new SyncVersionRef(OCCURRED_AT, 2L))));
+
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.detail().itemResults().get(0).applied()).isTrue();
+        assertThat(resp.detail().itemResults().get(1).applied())
+                .as("X@rel-1 仍持有的同值窗口必须留在候选（按值整删实现在此处漏拒）")
+                .isFalse();
+        assertThat(resp.detail().itemResults().get(1).reason()).isEqualTo("ROLE_MUTEX_CONFLICT");
+    }
+
+    /**
+     * 外评 R2 边界锁：绑定改成已过期窗口时，原未过期窗口同样必须离开批内候选——
+     * 旧实现快照只增不减，过期替换后的残留旧窗口会让后续合法改期被误拒。
+     */
+    @Test
+    void userRoleFullSync_rewindowToExpiredWindow_mustDropOldWindowFromCandidates() {
+        when(syncMetadataDomainService.applyVersion(eq(TENANT_ID), anyString(), anyString(),
+                anyString(), anyString(), anyString(), anyString(),
+                anyString(), anyString(), any(LocalDateTime.class), anyLong()))
+                .thenReturn(SyncMetadataDomainService.ApplyVersionResult.APPLIED);
+        when(syncMetadataDomainService.isNewerVersion(any(), any(), anyLong())).thenReturn(true);
+        when(typeResolutionService.batchResolveUserIds(TENANT_ID, "EMP", java.util.Set.of("e-0")))
+                .thenReturn(java.util.Map.of("e-0", 100L));
+        when(typeResolutionService.batchResolveRoleIds(TENANT_ID, "TEAM_ROLE", java.util.Set.of("team-x", "team-y"), null))
+                .thenReturn(java.util.Map.of("team-x", 200L, "team-y", 201L));
+        when(typeResolutionService.batchResolveRoleIds(TENANT_ID, "TEAM_ROLE", java.util.Set.of("rel-0"), null))
+                .thenReturn(java.util.Map.of("rel-0", 300L));
+
+        // X[+100,+110] 改成已过期窗口 [-200,-100]（守卫谓词不触发、但旧窗口须离开候选）；
+        // Y[+111,+120] 改 [+106,+120]——与 X 新态不相交，应放行
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime xFrom = now.plusDays(100);
+        LocalDateTime xOldTo = now.plusDays(110);
+        LocalDateTime xExpiredFrom = now.minusDays(200);
+        LocalDateTime xExpiredTo = now.minusDays(100);
+        LocalDateTime yOldFrom = now.plusDays(111);
+        LocalDateTime yNewFrom = now.plusDays(106);
+        LocalDateTime yTo = now.plusDays(120);
+        when(userRoleMapper.selectValidByUserTargetRelation(anyLong(), any(), any(), any(), any()))
+                .thenReturn(List.of(
+                        userRoleRow(1000L, 100L, 200L, 300L, xFrom, xOldTo),
+                        userRoleRow(1001L, 100L, 201L, 300L, yOldFrom, yTo)));
+        when(syncMetadataDomainService.listScopeForFullSync(anyLong(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of(
+                        scopeMeta("e-0", "team-x", 1000L),
+                        scopeMeta("e-0", "team-y", 1001L)));
+
+        cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService =
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class);
+        cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService conflictDomainService =
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.class);
+        when(subjectDomainService.batchResolveRawHoldingsMultiset(eq(TENANT_ID), any()))
+                .thenReturn(java.util.Map.of(100L, List.of(
+                        rawHolding(200L, xFrom, xOldTo), rawHolding(201L, yOldFrom, yTo))));
+        stubMutexOverlapAnswer(conflictDomainService, 100L, 200L, 201L);
+
+        UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
+                syncMetadataDomainService, typeResolutionService, userRoleMapper,
+                new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
+                subjectDomainService, conflictDomainService,
+                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
+
+        UserRoleFullSyncReq req = new UserRoleFullSyncReq(
+                new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "ROOT"),
+                List.of(
+                        new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncItem("EMP", "e-0", "TEAM_ROLE", "team-x",
+                                "TEAM_ROLE:rel-0", xExpiredFrom, xExpiredTo, null, null, new SyncVersionRef(OCCURRED_AT, 1L)),
+                        new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncItem("EMP", "e-0", "TEAM_ROLE", "team-y",
+                                "TEAM_ROLE:rel-0", yNewFrom, yTo, null, null, new SyncVersionRef(OCCURRED_AT, 2L))));
+
+        SyncResultResp resp = service.fullSync(TENANT_ID, req, httpRequest);
+
+        assertThat(resp.detail().itemResults().get(0).applied()).isTrue();
+        assertThat(resp.detail().itemResults().get(1).applied())
+                .as("改成已过期窗口后，原未过期窗口不得继续污染候选（旧实现误拒）")
+                .isTrue();
+    }
+
+    /** 构造现有 user_role 行（窗口字段供替换路径与预载对齐）。 */
+    private static cn.ac.fage.accessmesh.access.role.entity.UserRole userRoleRow(
+            long id, long userId, long targetId, long relationId, LocalDateTime validFrom, LocalDateTime validTo) {
+        cn.ac.fage.accessmesh.access.role.entity.UserRole row =
+                new cn.ac.fage.accessmesh.access.role.entity.UserRole();
+        row.setId(id);
+        row.setAbstractUserId(userId);
+        row.setTargetId(targetId);
+        row.setRelationId(relationId);
+        row.setValidFrom(validFrom);
+        row.setValidTo(validTo);
+        return row;
+    }
+
+    /** 构造 scope metadata（businessKey 由固定四元组 + rel-0 组成，targetId 指向现有行）。 */
+    private static cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata scopeMeta(
+            String userExt, String roleExt, long targetId) {
+        String bk = cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil.userRoleBusinessKey(
+                "EMP", userExt, "TEAM_ROLE", roleExt, "TEAM_ROLE:rel-0");
+        cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata md =
+                new cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadata();
+        md.setBusinessKeyHash(cn.ac.fage.accessmesh.access.sync.SyncKeyCodecUtil.sha256Hex(bk));
+        md.setTargetId(targetId);
+        md.setTargetStatus("ACTIVE");
+        return md;
+    }
+
+    private static cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding rawHolding(
+            long roleId, LocalDateTime validFrom, LocalDateTime validTo) {
+        return new cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding(roleId, validFrom, validTo);
+    }
+
+    /**
+     * 冲突判定镜像真实语义（hasOverlappingWindows 闭区间、null=无限端）：first/second 角色
+     * 各自任一持有窗口重叠才命中规则。
+     */
+    private static void stubMutexOverlapAnswer(
+            cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService conflictDomainService,
+            long userId, long firstRoleId, long secondRoleId) {
+        when(conflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any(), any()))
+                .thenAnswer(inv -> {
+                    java.util.Map<Long, java.util.Set<cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding>> postState =
+                            inv.getArgument(1);
+                    java.util.Set<cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding> ps =
+                            postState.getOrDefault(userId, java.util.Set.of());
+                    boolean overlap = ps.stream()
+                            .filter(w -> w.roleId().equals(firstRoleId))
+                            .flatMap(a -> ps.stream()
+                                    .filter(w -> w.roleId().equals(secondRoleId))
+                                    .map(b -> windowsOverlap(a, b)))
+                            .anyMatch(Boolean::booleanValue);
+                    return overlap
+                            ? java.util.List.of(new cn.ac.fage.accessmesh.access.rule.service.domain
+                                    .PermissionConflictDomainService.RoleMutexAssignConflict(
+                                    userId, 9L, firstRoleId, secondRoleId))
+                            : java.util.List.of();
+                });
+    }
+
+    private static boolean windowsOverlap(
+            cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding a,
+            cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding b) {
+        boolean aEndsAfterBStarts = a.validTo() == null || b.validFrom() == null
+                || !a.validTo().isBefore(b.validFrom());
+        boolean bEndsAfterAStarts = b.validTo() == null || a.validFrom() == null
+                || !b.validTo().isBefore(a.validFrom());
+        return aEndsAfterBStarts && bEndsAfterAStarts;
     }
 
     /**

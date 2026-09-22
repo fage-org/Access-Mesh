@@ -28,6 +28,7 @@ import cn.ac.fage.accessmesh.access.infrastructure.PermissionChangeContext;
 import cn.ac.fage.accessmesh.access.projection.PermConstants;
 import cn.ac.fage.accessmesh.access.audit.service.domain.AuditDomainService;
 import cn.ac.fage.accessmesh.access.projection.LocalProjectionDomainService;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.dev33.satoken.secure.BCrypt;
@@ -61,6 +62,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
     private final OrgVisibilityQueryAppService orgVisibilityQueryService;
     private final LocalProjectionDomainService localProjectionDomainService;
     private final AuditDomainService auditDomainService;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     public UserWriteAppServiceImpl(UserDomainService userDomainService,
                                    UserOrgDomainService userOrgDomainService,
@@ -69,7 +71,8 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
                                    AdminPermissionValidator permissionValidator,
                                    OrgVisibilityQueryAppService orgVisibilityQueryService,
                                    LocalProjectionDomainService localProjectionDomainService,
-                                   AuditDomainService auditDomainService) {
+                                   AuditDomainService auditDomainService,
+                                   TreeWriteLockSupport treeWriteLockSupport) {
         this.userDomainService = userDomainService;
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
@@ -78,6 +81,7 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         this.orgVisibilityQueryService = orgVisibilityQueryService;
         this.localProjectionDomainService = localProjectionDomainService;
         this.auditDomainService = auditDomainService;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     @Override
@@ -136,9 +140,15 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
         PermissionChangeContext.markUsers(tenantId, Set.of(subjectId));
 
         if (req.orgId() != null) {
-            validateOrgInDefaultTree(tenantId, req.orgId());
             permissionValidator.checkInstanceLevel(
                 ResourceTypeCode.ORG, String.valueOf(req.orgId()), OperationCode.UPDATE);
+
+            // SYS_ORG 树锁（外评 R4，2026-09-22）：默认树范围校验与成员挂载须与切默认/改默认根
+            // 串行——否则并发 setDefault 的归属守卫看不到本事务未提交的新成员关系而放行切树，
+            // 新用户只落在旧树（创建成功却不在默认身份目录，用户列表不可见）。锁先于默认树
+            // 范围首读（validateOrgInDefaultTree），门禁留在锁前（对齐 assignUserToOrgs 先例）
+            treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
+            validateOrgInDefaultTree(tenantId, req.orgId());
 
             SysUserOrg userOrg = new SysUserOrg();
             userOrg.setTenantId(tenantId);
