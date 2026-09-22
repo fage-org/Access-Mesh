@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access.engine.core;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
 
+import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -82,15 +83,6 @@ public interface SubjectDomainService {
      * @return 角色列表
      */
     List<AbstractRole> selectValidRolesByIds(Long tenantId, Set<Long> roleIds);
-
-    /**
-     * 批量查询启用（status=1）角色 ID（Q-009 收敛读：无缓存直查、DB 侧过滤，供写路径互斥判定等消费）。
-     *
-     * @param tenantId 租户ID
-     * @param roleIds  角色ID集合
-     * @return 启用态角色 ID 列表（空集入参返回空列表）
-     */
-    List<Long> selectEnabledRoleIds(Long tenantId, Set<Long> roleIds);
 
     // ===== user_role 原始行层（Q-009 收敛读/写，T-ACCESS-046）=====
     // 与上方 effectiveRoles 缓存层同服务两档一致性：缓存档（EFFECTIVE_ROLES，afterCommit 失效）
@@ -189,6 +181,19 @@ public interface SubjectDomainService {
     Set<Long> resolveEffectiveRoles(Long tenantId, Long userId);
 
     /**
+     * 解析用户的原始持有候选（单用户便捷版，T-PERM-075 写守卫专用）。
+     * <p>
+     * 语义同 {@link #batchResolveRawHoldings}——未过期原始行闭包（含未来窗口、
+     * 含禁用持有与禁用组子树，保留有效期窗口），不缓存、不做运行时过滤。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userId   用户ID
+     * @return 原始持有窗口集合
+     */
+    Set<RawHolding> resolveRawHoldings(Long tenantId, Long userId);
+
+    /**
      * 批量解析多个用户的有效角色
      *
      * @param tenantId 租户ID
@@ -196,6 +201,42 @@ public interface SubjectDomainService {
      * @return 用户ID到角色ID集合的映射
      */
     Map<Long, Set<Long>> batchResolveEffectiveRoles(Long tenantId, Set<Long> userIds);
+
+    /**
+     * 批量解析多个用户的原始持有候选（T-PERM-075 写守卫专用）。
+     * <p>
+     * 与 {@link #batchResolveEffectiveRoles} 的差别——本方法刻意**不做**运行时过滤，
+     * 返回「未过期原始行闭包」，且**保留有效期窗口**供互斥重叠判定：
+     * </p>
+     * <ul>
+     *   <li>有效期：仅 valid_to 未过期（含尚未生效的未来 valid_from 窗口）；
+     *       已过期行永不生效（改期通道在改写时重查），不计入；</li>
+     *   <li>组角色展开：含禁用组与禁用子树（不剪枝）——禁用是可逆状态，
+     *       启用后持有即参与判定（U002-2 绑定写时堵死）；经组展开的间接持有
+     *       继承该 GROUP_ROLE 绑定行的窗口（用户侧唯一时间约束，保守方向）；</li>
+     *   <li>不做角色启用过滤、不做用户禁用置空、不做互斥过滤——
+     *       写时冲突守卫必须看原始候选，不能先过滤再断言无冲突。</li>
+     * </ul>
+     * <p>
+     * 不走 EFFECTIVE_ROLES 缓存：写路径要求 DB 新鲜读，且「未过期」集合随时间单调演进，
+     * 缓存会引入与写入并发的陈旧窗口。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userIds  用户ID集合
+     * @return 用户ID到原始持有窗口集合的映射（roleId + validFrom/validTo，null=无限端）
+     */
+    Map<Long, Set<RawHolding>> batchResolveRawHoldings(Long tenantId, Set<Long> userIds);
+
+    /**
+     * 原始持有窗口（T-PERM-075）：角色 id + 有效期窗口（null=无限端，闭区间）。
+     * <p>
+     * 互斥写守卫按「窗口区间交」判定冲突——两个互斥角色的持有窗口真正不相交时放行
+     * （U002-1 拍板：写时阻止可确定的重叠，不是按角色集合粗暴互斥）。
+     * 经组展开的间接持有窗口继承 GROUP_ROLE 绑定行窗口。
+     * </p>
+     */
+    record RawHolding(Long roleId, LocalDateTime validFrom, LocalDateTime validTo) {}
 
     /**
      * 批量失效多个用户的角色缓存

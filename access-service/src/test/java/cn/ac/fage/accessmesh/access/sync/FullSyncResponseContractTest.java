@@ -260,7 +260,6 @@ class FullSyncResponseContractTest {
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.class),
-                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
         // scope.roleTypeCode 与 item.roleTypeCode 不一致 → item 级 NON_RETRYABLE（顶层 accepted；
         // 契约 §6.2.2.3：不进入 markStatus 路径，避免污染 metadata）
@@ -288,7 +287,6 @@ class FullSyncResponseContractTest {
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.class),
-                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
                 new UserRoleSyncScope(SOURCE_SERVICE, "SYS_USER_ORG", "ORG", "ROOT"),

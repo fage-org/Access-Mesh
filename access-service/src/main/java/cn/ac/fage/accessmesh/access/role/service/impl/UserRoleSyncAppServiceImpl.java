@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.role.mapper.UserRoleMapper;
 import cn.ac.fage.accessmesh.access.role.service.UserRoleSyncAppService;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard;
 import cn.ac.fage.accessmesh.access.sync.metadata.SyncMetadataDomainService;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.sync.SyncAuthVerifier;
 import cn.ac.fage.accessmesh.access.sync.SyncResultBuilder;
@@ -58,19 +59,17 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     private final UserRoleMapper userRoleMapper;
     private final LocalProjectionGuard localProjectionGuard;
     private final SyncTypeGuard syncTypeGuard;
-    // T-PERM-064：sync 通道角色互斥授予守卫（生效判定 + 冲突检测）
-    private final cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
+    // T-PERM-064/T-PERM-075：sync 通道角色互斥授予守卫（原始持有候选解析 + 冲突检测）
+    private final SubjectDomainService subjectDomainService;
     private final cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService permissionConflictDomainService;
-    private final cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper abstractRoleMapper;
 
     public UserRoleSyncAppServiceImpl(SyncMetadataDomainService syncMetadataDomainService,
                                        TypeResolutionService typeResolutionService,
                                        UserRoleMapper userRoleMapper,
                                        LocalProjectionGuard localProjectionGuard,
                                        SyncTypeGuard syncTypeGuard,
-                                       cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService,
+                                       SubjectDomainService subjectDomainService,
                                        cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService permissionConflictDomainService,
-                                       cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper abstractRoleMapper,
                                        TreeWriteLockSupport treeWriteLockSupport) {
         this.treeWriteLockSupport = treeWriteLockSupport;
         this.syncMetadataDomainService = syncMetadataDomainService;
@@ -80,7 +79,6 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         this.syncTypeGuard = syncTypeGuard;
         this.subjectDomainService = subjectDomainService;
         this.permissionConflictDomainService = permissionConflictDomainService;
-        this.abstractRoleMapper = abstractRoleMapper;
     }
 
     @Override
@@ -227,9 +225,13 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         int applied = 0, stale = 0, failed = 0, deactivated = 0;
         List<SyncResultResp.ItemResult> itemResults = new ArrayList<>(req.items().size());
         Set<String> seenBusinessKeyHashes = new HashSet<>();
-        // grok 复评 P1 修复：请求级「本批已 apply 的新增有效持有」——同批同用户多 BIND
-        // 的互斥两端经批内集合语义命中（applyItemSync BIND 成功后记入，仅新增有效持有）
-        Map<Long, Set<Long>> appliedThisBatch = new HashMap<>();
+        // grok 复评 P1 修复（T-PERM-075 窗口化）：请求级「本批已 apply 的未过期持有窗口」——
+        // 同批同用户多 BIND 的互斥两端经批内窗口交语义命中
+        Map<Long, Set<SubjectDomainService.RawHolding>> appliedThisBatch = new HashMap<>();
+        // T-PERM-075：原始持有窗口批内一次预载（守卫逐 item 消费，消除循环单查 N+1；
+        // 循环前快照 + appliedThisBatch 批内补偿，与旧「缓存快照 + 批内累积」语义等价）
+        Map<Long, Set<SubjectDomainService.RawHolding>> rawHoldingsByUser = candidateUserIds.isEmpty()
+                ? Map.of() : subjectDomainService.batchResolveRawHoldings(tenantId, candidateUserIds);
         LocalDateTime now = LocalDateTime.now();
 
         for (UserRoleSyncItem item : req.items()) {
@@ -275,7 +277,8 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
 
             SyncResultResp r = applyItemSync(tenantId, oneReq,
                     new FullSyncPreload(true, preUserId, preRoleId, preRelId, preExisting,
-                            ownedTargetIdsByBusinessKeyHash, appliedThisBatch, metadataByBusinessKeyHash),
+                            ownedTargetIdsByBusinessKeyHash, appliedThisBatch, metadataByBusinessKeyHash,
+                            rawHoldingsByUser),
                     now);
             if (r.applied()) {
                 applied++;
@@ -342,12 +345,17 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
      *                       归属校验直接命中不查 DB
      * @param batchApplied  请求级「本批已 apply 的新增有效持有」（BIND 成功后写入，防同批互斥）
      * @param metadata      full-sync 预加载的 scope 元数据 Map（businessKeyHash -> SyncMetadata）
+     * @param rawHoldings   full-sync 预加载的原始持有窗口（T-PERM-075，userId -> 未过期窗口集；
+     *                      循环前一次性批量——批内写入不可见由 batchApplied 补偿，与旧缓存快照语义等价；
+     *                      single-sync 传 null，守卫内单用户直查）
      */
     private record FullSyncPreload(boolean resolved, Long abstractUserId, Long roleId, Long relationId,
                                    UserRole existing, Map<String, Long> ownedTargetIds,
-                                   Map<Long, Set<Long>> batchApplied, Map<String, SyncMetadata> metadata) {
+                                   Map<Long, Set<SubjectDomainService.RawHolding>> batchApplied,
+                                   Map<String, SyncMetadata> metadata,
+                                   Map<Long, Set<SubjectDomainService.RawHolding>> rawHoldings) {
         static final FullSyncPreload NONE =
-                new FullSyncPreload(false, null, null, null, null, null, null, null);
+                new FullSyncPreload(false, null, null, null, null, null, null, null, null);
     }
 
     /** single-sync 路径入口：无预载，逐项单条解析/查询（版本/依赖语义与 full-sync 同源）。 */
@@ -410,10 +418,10 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
                 scopeKeyHash, businessKeyHash, preload.ownedTargetIds())) {
             return SyncResultBuilder.nonRetryable("OWNERSHIP_CONFLICT");
         }
-        boolean introducesEffectiveHolding = OP_BIND.equals(req.operation())
-                && bindIntroducesEffectiveHolding(tenantId, abstractUserId, roleId, req, existingForUpsert, now);
-        if (introducesEffectiveHolding
-                && hitsRoleMutexOnBind(tenantId, abstractUserId, roleId, preload.batchApplied())) {
+        boolean introducesUnexpiredHolding = OP_BIND.equals(req.operation())
+                && bindIntroducesUnexpiredHolding(req, now);
+        if (introducesUnexpiredHolding
+                && hitsRoleMutexOnBind(tenantId, abstractUserId, roleId, req, preload)) {
             return SyncResultBuilder.nonRetryable("ROLE_MUTEX_CONFLICT");
         }
 
@@ -430,8 +438,9 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         if (OP_BIND.equals(req.operation())) {
             UserRole upserted = upsertUserRoleWithExisting(tenantId, abstractUserId, roleId, relationId, req,
                     existingForUpsert, now);
-            if (introducesEffectiveHolding && preload.batchApplied() != null) {
-                preload.batchApplied().computeIfAbsent(abstractUserId, k -> new HashSet<>()).add(roleId);
+            if (introducesUnexpiredHolding && preload.batchApplied() != null) {
+                preload.batchApplied().computeIfAbsent(abstractUserId, k -> new HashSet<>())
+                        .add(new SubjectDomainService.RawHolding(roleId, req.validFrom(), req.validTo()));
             }
             syncMetadataDomainService.markStatus(tenantId, ENTITY_KIND, req.sourceService(),
                     scopeKeyHash, businessKeyHash, STATUS_ACTIVE);
@@ -451,49 +460,43 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
     }
 
     /**
-     * T-PERM-064：BIND 是否将新增「当前有效持有」。
+     * T-PERM-064/T-PERM-075：BIND 是否将引入「未过期持有」（触发互斥守卫的谓词）。
      * <p>
-     * 生效谓词镜像运行时 selectValidByUserIdsWithValidity 与管理面守卫（T-PERM-063）：
-     * (valid_from <= now OR NULL) AND (valid_to >= now OR NULL)。新建行按请求有效期判定；
-     * 既有行按「改写前非当前有效 && 改写后当前有效」（重激活）判定。
+     * U002-1 写时拒绝口径（用户拍板 2026-09-22）：仅按 valid_to 未过期判定
+     * (valid_to >= now OR NULL)，不看 valid_from——未来窗口同入候选，改写后与既有
+     * 持有做重叠判定；已过期行永不生效不触发。既有行不做「改写前有效」比较：
+     * 改写后窗口未过期即检查（纯幂等重放因持有侧无重叠天然通过；改期引入新窗口
+     * 引入新冲突面必须重查——旧「幂等改期不触发」口径随窗口重叠判定自然消解，
+     * registry 2026-09-22 修订登记）。
      * </p>
      */
-    private boolean bindIntroducesEffectiveHolding(Long tenantId, Long userId, Long roleId,
-                                                   UserRoleSyncReq req, UserRole existing, LocalDateTime now) {
-        boolean postValid = (req.validFrom() == null || !req.validFrom().isAfter(now))
-                && (req.validTo() == null || !req.validTo().isBefore(now));
-        if (!postValid) {
-            return false;
-        }
-        if (existing == null) {
-            return true;
-        }
-        boolean preValid = (existing.getValidFrom() == null || !existing.getValidFrom().isAfter(now))
-                && (existing.getValidTo() == null || !existing.getValidTo().isBefore(now));
-        return !preValid;
+    private boolean bindIntroducesUnexpiredHolding(UserRoleSyncReq req, LocalDateTime now) {
+        return req.validTo() == null || !req.validTo().isBefore(now);
     }
 
     /**
-     * T-PERM-064：授予后状态命中 ROLE_MUTEX 对检测。
+     * T-PERM-064/T-PERM-075：授予后状态命中 ROLE_MUTEX 对检测。
      * <p>
-     * postState = 现有效角色（批量解析含组展开/启用态）∪ 本目标（仅计启用角色），
-     * 与管理面 {@code UserManageAppServiceImpl#rejectRoleMutexOnAssign} 同源；
+     * postState = 原始持有候选（未过期原始行 ∪ 组展开含禁用子树，DB 新鲜读）
+     * ∪ 本目标（不再过滤启用——禁用可逆，U002-2 绑定写时堵死）
+     * ∪ 批内已 apply 目标（full-sync 同批同用户多 BIND 的批内集合语义保留），
+     * 与管理面 {@code UserManageAppServiceImpl#rejectRoleMutexOnAssign} 同口径；
      * 规则读取复用 {@code findAssignMutexConflicts} DB 直查（新规则即刻生效）。
      * </p>
      */
     private boolean hitsRoleMutexOnBind(Long tenantId, Long userId, Long roleId,
-                                        Map<Long, Set<Long>> batchAppliedByUser) {
-        if (!new HashSet<>(abstractRoleMapper.selectEnabledIdsByIds(tenantId, Set.of(roleId))).contains(roleId)) {
-            return false;
+                                        UserRoleSyncReq req, FullSyncPreload preload) {
+        // full-sync 走循环前批量预载（N+1 防护）；single-sync（NONE preload）单用户直查
+        Set<SubjectDomainService.RawHolding> rawHoldings = preload.rawHoldings() != null
+                ? preload.rawHoldings().getOrDefault(userId, Set.of())
+                : subjectDomainService.resolveRawHoldings(tenantId, userId);
+        Set<SubjectDomainService.RawHolding> postState = new HashSet<>(rawHoldings);
+        if (preload.batchApplied() != null) {
+            postState.addAll(preload.batchApplied().getOrDefault(userId, Set.of()));
         }
-        Set<Long> effective = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
-        Set<Long> postState = new HashSet<>(effective);
-        if (batchAppliedByUser != null) {
-            postState.addAll(batchAppliedByUser.getOrDefault(userId, Set.of()));
-        }
-        postState.add(roleId);
+        postState.add(new SubjectDomainService.RawHolding(roleId, req.validFrom(), req.validTo()));
         return !permissionConflictDomainService
-                .findAssignMutexConflicts(tenantId, Map.of(userId, postState)).isEmpty();
+            .findAssignMutexConflicts(tenantId, Map.of(userId, postState)).isEmpty();
     }
 
     private Long resolveRelationRoleId(Long tenantId, String relationKey) {

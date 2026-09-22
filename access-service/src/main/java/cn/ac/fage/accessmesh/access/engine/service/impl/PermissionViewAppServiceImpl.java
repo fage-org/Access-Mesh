@@ -12,11 +12,11 @@ import cn.ac.fage.accessmesh.access.engine.dto.PermViewResult;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionViewAppService;
-import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.engine.util.PermViewAssembler;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,21 +28,21 @@ import java.util.stream.Collectors;
 public class PermissionViewAppServiceImpl implements PermissionViewAppService {
 
     private final ResourceEntityMapper resourceEntityMapper;
-    private final SubjectDomainService subjectDomainService;
     private final TypeResolutionService typeResolutionService;
     private final PermQueryEngine engine;
     private final PermViewAssembler permViewAssembler;
+    private final PermissionConflictDomainService permissionConflictDomainService;
 
     public PermissionViewAppServiceImpl(ResourceEntityMapper resourceEntityMapper,
-                                         SubjectDomainService subjectDomainService,
                                          TypeResolutionService typeResolutionService,
                                          PermQueryEngine engine,
-                                         PermViewAssembler permViewAssembler) {
+                                         PermViewAssembler permViewAssembler,
+                                         PermissionConflictDomainService permissionConflictDomainService) {
         this.resourceEntityMapper = resourceEntityMapper;
-        this.subjectDomainService = subjectDomainService;
         this.typeResolutionService = typeResolutionService;
         this.engine = engine;
         this.permViewAssembler = permViewAssembler;
+        this.permissionConflictDomainService = permissionConflictDomainService;
     }
 
     /**
@@ -159,8 +159,9 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
             return null;
         }
 
-        // 2. 解析有效角色
-        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
+        // 2. 解析有效角色（T-PERM-075：经共同判定语义入口——互斥过滤后的角色集，
+        //    菜单/权限串视图与 check/快照跨入口一致；双删用户此处为空集按无权限处理）
+        Set<Long> roleIds = permissionConflictDomainService.resolveJudgementRoleIds(tenantId, userId);
         if (roleIds.isEmpty()) {
             return null;
         }

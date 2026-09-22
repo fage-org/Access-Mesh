@@ -10,7 +10,7 @@ import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceEntityMapper;
 import cn.ac.fage.accessmesh.access.engine.service.PermissionViewAppService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
+import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
 import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.engine.util.PermViewAssembler;
@@ -50,7 +50,7 @@ import static org.mockito.Mockito.when;
 class PermissionViewAppServiceImplTest {
 
     @Mock private ResourceEntityMapper resourceEntityMapper;
-    @Mock private SubjectDomainService subjectDomainService;
+    @Mock private PermissionConflictDomainService permissionConflictDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private PermQueryEngine engine;
     @Mock private PermViewAssembler permViewAssembler;
@@ -64,7 +64,7 @@ class PermissionViewAppServiceImplTest {
         operatorContextMock.when(OperatorContext::getOperatorId).thenReturn(1L);
 
         service = new PermissionViewAppServiceImpl(
-            resourceEntityMapper, subjectDomainService, typeResolutionService, engine, permViewAssembler);
+            resourceEntityMapper, typeResolutionService, engine, permViewAssembler, permissionConflictDomainService);
     }
 
     @AfterEach
@@ -76,7 +76,7 @@ class PermissionViewAppServiceImplTest {
     void getEffectivePermissionCodesShouldReturnInheritedEffectiveOperationCodes() {
         // 自查场景：operator 投影主体=1001，subject "1" 投影=1001；buildEffectiveView 无 USER:VIEW 门禁
         when(typeResolutionService.resolveUserId(1L, "LOCAL_USER", "1")).thenReturn(1L);
-        when(subjectDomainService.resolveEffectiveRoles(1L, 1L)).thenReturn(Set.of(20L));
+        when(permissionConflictDomainService.resolveJudgementRoleIds(1L, 1L)).thenReturn(Set.of(20L));
 
         RolePermEntry entry = new RolePermEntry(
             501L, 20L, 200L, null, 1, 4L,
@@ -118,7 +118,7 @@ class PermissionViewAppServiceImplTest {
     void getEffectiveResourceAccessShouldCollectScopeAllTypesAndInstanceIds() {
         // 自查：operator 投影主体=1001，subject "1" 投影=1001；buildEffectiveView 无 USER:VIEW 门禁
         when(typeResolutionService.resolveUserId(1L, "LOCAL_USER", "1")).thenReturn(1L);
-        when(subjectDomainService.resolveEffectiveRoles(1L, 1L)).thenReturn(Set.of(20L));
+        when(permissionConflictDomainService.resolveJudgementRoleIds(1L, 1L)).thenReturn(Set.of(20L));
 
         PermResult result = PermResult.builder(true, null)
             .effectiveOperationEntries(List.of(
@@ -154,7 +154,7 @@ class PermissionViewAppServiceImplTest {
     void getEffectivePermissionCodesForManageShouldAllowSelfWithoutUserView() {
         // 自查：operator 投影主体=1001（sys=1 转换），subject "1" 投影=1001 → 豁免 USER:VIEW，不调用 engine.hasPermission
         when(typeResolutionService.resolveUserId(1L, "LOCAL_USER", "1")).thenReturn(1L);
-        when(subjectDomainService.resolveEffectiveRoles(1L, 1L)).thenReturn(Set.of());
+        when(permissionConflictDomainService.resolveJudgementRoleIds(1L, 1L)).thenReturn(Set.of());
 
         UserEffectivePermissionCodesResp resp = service.getEffectivePermissionCodesForManage(
             1L, new UserEffectivePermissionCodesReq("LOCAL_USER", "1", List.of("USER")));
@@ -182,7 +182,7 @@ class PermissionViewAppServiceImplTest {
         when(typeResolutionService.resolveUserId(1L, "LOCAL_USER", "2")).thenReturn(1002L);
         when(engine.hasPermissionByCode(1L, 1L, ResourceTypeCode.USER, "1002", OperationCode.VIEW))
             .thenReturn(true);
-        when(subjectDomainService.resolveEffectiveRoles(1L, 1002L)).thenReturn(Set.of());
+        when(permissionConflictDomainService.resolveJudgementRoleIds(1L, 1002L)).thenReturn(Set.of());
 
         UserEffectivePermissionCodesResp resp = service.getEffectivePermissionCodesForManage(
             1L, new UserEffectivePermissionCodesReq("LOCAL_USER", "2", List.of("USER")));

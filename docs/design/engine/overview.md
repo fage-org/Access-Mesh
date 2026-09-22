@@ -148,7 +148,7 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 | `PermQuery.forScopeQuery`     | LIST       | 数据范围查询：主资源上下文（`setParentResource`）经引擎执行 depend_on 过滤，条件/互斥评估在引擎 |
 | `PermQuery.forUserView`       | LIST       | 用户视图/清单面：全量角色权限记录 + effectiveBits 操作投影；树扩展经展示面展开轨道 |
 
-**两语义拆分（T-PERM-057）**：判定面继承（目标∪同类型祖先链入查询，改变 allowed/denied，管理面写门禁/读过滤面默认开）与展示面展开（查询后条目克隆 `grantSource=INHERITED`，不改变判定，清单面 `includeChildren`/`includeInherited` 归口）互不混用；条目互斥（PERM_MUTEX）引擎入参开关、角色互斥（ROLE_MUTEX）不归引擎（授权时校验另行立项）。
+**两语义拆分（T-PERM-057）**：判定面继承（目标∪同类型祖先链入查询，改变 allowed/denied，管理面写门禁/读过滤面默认开）与展示面展开（查询后条目克隆 `grantSource=INHERITED`，不改变判定，清单面 `includeChildren`/`includeInherited` 归口）互不混用；条目互斥（PERM_MUTEX）引擎入参开关、角色互斥（ROLE_MUTEX）经 resolveJudgementRoleIds 在角色解析阶段统一过滤（T-PERM-075，2026-09-22——取代「不归引擎」旧定案；授权时校验沿 T-PERM-063）。
 
 **对外接口：**
 

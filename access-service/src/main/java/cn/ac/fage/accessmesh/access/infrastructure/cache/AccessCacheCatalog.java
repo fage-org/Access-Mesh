@@ -127,7 +127,7 @@ public final class AccessCacheCatalog {
             .build();
 
     /**
-     * 角色互斥规则缓存（快照链路——快照构建前 filterRoleMutex 使用）
+     * 角色互斥规则缓存（全部判定入口共同消费——resolveJudgementRoleIds 角色解析时叠加，T-PERM-075）
      * <p>
      * Key: "all"（单一键）
      * Value: String JSON数组格式的互斥规则

@@ -37,10 +37,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * T-PERM-063 验收：角色互斥授权时校验端到端回归锁（真实 PostgreSQL + Redis）。
  * <p>
- * 三面锁——①授予守卫：user-role/assign、batch-assign 写路径事务内互斥校验，
- * 授予后有效角色集命中互斥对整批原子拒绝 20062 且零落库（旧实现直接落库，本类必红）；
- * ②存量守卫：conflict-rule/create 在 ROLE_MUTEX 分支有用户同时持有两角色时拒绝 20063，
- * 解绑后放行；③detect 角色对预检：conflictedUserIds 回传存量持有清单。
+ * 三面锁（+T-PERM-075 共同判定语义端到端）——①授予守卫：user-role/assign、batch-assign
+ * 写路径事务内互斥校验，未过期原始持有窗口与新增窗口区间交命中互斥对整批原子拒绝 20062
+ * 且零落库（旧实现直接落库，本类必红）；②存量守卫：conflict-rule/create 在 ROLE_MUTEX
+ * 分支有用户持有窗口重叠时拒绝 20063，解绑后放行；③detect 角色对预检：conflictedUserIds
+ * 回传存量持有清单；④判定入口一致：check/菜单对双持用户一致双删、撤销/规则软删恢复、
+ * 禁用再启用触发双删（T-PERM-075）。
  * 装配策略与 {@code UserRoleWriteProjectionPgIT} 同款：jdbc 直插事实/授权先于首次引擎调用。
  * Docker 不可用时由 Testcontainers 自动跳过。
  * </p>
@@ -82,6 +84,12 @@ class RoleMutexGuardPgIT {
     private UserManageAppService userManageAppService;
     @Autowired
     private SubjectDomainService subjectDomainService;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine permQueryEngine;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.engine.service.PermissionQueryAppService permissionQueryAppService;
+    @Autowired
+    private cn.ac.fage.accessmesh.access.engine.service.PermissionViewAppService permissionViewAppService;
     @Autowired
     private JdbcTemplate jdbc;
 
@@ -261,6 +269,190 @@ class RoleMutexGuardPgIT {
         ConflictRuleResp created = conflictRuleAppService.createConflictRule(
             TENANT, new ConflictRuleReq("ROLE_MUTEX", null, null, null, basicA, basicB, null), operator);
         assertThat(created.id()).isNotNull();
+    }
+
+    // ===== T-PERM-075：U002 写时候选扩展 + 共同判定语义端到端 =====
+
+    /** U002-1：未来 valid_from 窗口与既有持有重叠 → 写时 20062 拒绝；真正不相交的未来窗口放行。 */
+    @Test
+    @DisplayName("U002-1 未来重叠：assign 未来生效 B 与持有 A 重叠 → 20062；不相交未来窗口放行（旧实现均放行，本用例必红）")
+    void assignShouldRejectFutureWindowOverlap() {
+        Long operator = insertSubject("t075-op-future");
+        Long operatorRole = insertBasicRole("t075-holder-future");
+        insertUserRole(operator, operatorRole);
+        insertScopeAllRolePerm(operatorRole, RESOURCE_TYPE_ROLE, MANAGE_BIT);
+        insertScopeAllRolePerm(operatorRole, RESOURCE_TYPE_CONFLICT_RULE, CREATE_BIT);
+        bindOperator(operator);
+
+        Long roleA = insertBasicRole("t075-fa");
+        Long roleB = insertBasicRole("t075-fb");
+        Long holder = insertSubject("t075-u-future");
+        // A 有限期窗口 [-2d, +2d]：与 [+10d, +11d] 不相交、与 [明天, ∞) 重叠
+        insertUserRoleWithValidity(holder, roleA, java.time.LocalDateTime.now().minusDays(2),
+            java.time.LocalDateTime.now().plusDays(2));
+
+        conflictRuleAppService.createConflictRule(
+            TENANT, new ConflictRuleReq("ROLE_MUTEX", null, null, null, roleA, roleB, null), operator);
+
+        // 重叠未来窗口（明天起无限期）→ 20062（旧口径「未来 validFrom 不进候选」放行落库，必红）
+        assertThatThrownBy(() -> userManageAppService.assignRole(TENANT, new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("USER", "t075-u-future", null, "BASIC_ROLE", "t075-fb", null,
+                java.time.LocalDateTime.now().plusDays(1), null)
+        ))))
+            .isInstanceOf(BizException.class)
+            .extracting(ex -> ((BizException) ex).getErrorCode())
+            .isEqualTo(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode());
+        assertThat(countUserRole(holder, roleB)).isZero();
+
+        // 不相交未来窗口 → 放行（守卫不误伤合法的错峰安排）
+        userManageAppService.assignRole(TENANT, new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("USER", "t075-u-future", null, "BASIC_ROLE", "t075-fb", null,
+                java.time.LocalDateTime.now().plusDays(10), java.time.LocalDateTime.now().plusDays(11))
+        )));
+        assertThat(countUserRole(holder, roleB)).isEqualTo(1);
+    }
+
+    /** U002-2：禁用通道双向堵死——绑禁用的互斥目标拒绝；持有禁用对端再绑启用角色同样拒绝。 */
+    @Test
+    @DisplayName("U002-2 禁用通道：绑定禁用 B（持 A）与持有禁用 B 再绑 A → 均 20062（旧实现均放行，本用例必红）")
+    void assignShouldRejectDisabledTargetAndDisabledHolding() {
+        Long operator = insertSubject("t075-op-dis");
+        Long operatorRole = insertBasicRole("t075-holder-dis");
+        insertUserRole(operator, operatorRole);
+        insertScopeAllRolePerm(operatorRole, RESOURCE_TYPE_ROLE, MANAGE_BIT);
+        insertScopeAllRolePerm(operatorRole, RESOURCE_TYPE_CONFLICT_RULE, CREATE_BIT);
+        bindOperator(operator);
+
+        Long roleA = insertBasicRole("t075-da");
+        Long roleB = insertDisabledBasicRole("t075-db");
+        Long holder = insertSubject("t075-u-dis1");
+        insertUserRole(holder, roleA);
+
+        conflictRuleAppService.createConflictRule(
+            TENANT, new ConflictRuleReq("ROLE_MUTEX", null, null, null, roleA, roleB, null), operator);
+
+        // 正向：给持 A 的用户绑禁用的 B → 20062（旧口径「禁用目标收敛剔除」放行，必红）
+        assertThatThrownBy(() -> userManageAppService.assignRole(TENANT, new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("USER", "t075-u-dis1", null, "BASIC_ROLE", "t075-db", null, null, null)
+        ))))
+            .isInstanceOf(BizException.class)
+            .extracting(ex -> ((BizException) ex).getErrorCode())
+            .isEqualTo(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode());
+
+        // 反向：持有禁用 B 的用户再绑启用的 A → 20062（旧口径「有效角色集看不到禁用持有」放行，必红）
+        Long holder2 = insertSubject("t075-u-dis2");
+        insertUserRole(holder2, roleB);
+        assertThatThrownBy(() -> userManageAppService.assignRole(TENANT, new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("USER", "t075-u-dis2", null, "BASIC_ROLE", "t075-da", null, null, null)
+        ))))
+            .isInstanceOf(BizException.class)
+            .extracting(ex -> ((BizException) ex).getErrorCode())
+            .isEqualTo(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode());
+        assertThat(countUserRole(holder2, roleA)).isZero();
+    }
+
+    /**
+     * 共同判定语义（F004 主验收）：双持用户在引擎 check 与菜单/权限串视图一致双删；
+     * 解绑一端（撤销失效）恢复；重新双持再拒；规则软删后恢复（模拟 TTL 过期）。
+     */
+    @Test
+    @DisplayName("判定入口一致：双持用户 check/菜单一致双删；解绑恢复；规则软删恢复")
+    void judgementEntriesShouldAgreeOnMutexDualHolding() {
+        Long roleA = insertBasicRole("t075-ja");
+        Long roleB = insertBasicRole("t075-jb");
+        insertScopeAllRolePerm(roleA, RESOURCE_TYPE_ROLE, VIEW_BIT);
+        Long holder = insertSubject("t075-u-judge");
+        insertUserRole(holder, roleA);
+
+        // 立规时无双持 → 放行；随后 jdbc 直插构造存量双持（绕过写守卫的通道只在测试存在）
+        conflictRuleAppServiceInsertRuleQuietly(roleA, roleB);
+        insertUserRole(holder, roleB);
+
+        // 双持 → 引擎 check 双删（旧实现不过滤，必红）
+        assertThat(permQueryEngine.hasPermissionByCode(TENANT, holder, "ROLE", null, "VIEW")).isFalse();
+        // 菜单/权限串视图同口径双删（旧实现不过滤，必红）
+        bindOperator(holder); // 自查豁免 USER:VIEW
+        assertThat(permissionViewAppService.getEffectivePermissionCodesForManage(TENANT,
+            new cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq(
+                "USER", "t075-u-judge", List.of("ROLE")))
+        ).satisfiesAnyOf(
+            resp -> assertThat(resp).isNull(),
+            resp -> assertThat(resp.permissions()).doesNotContain("ROLE:VIEW"));
+
+        // 撤销失效：解绑一端 + 失效缓存（jdbc 直改不经写路径 afterCommit）→ 判定恢复
+        jdbc.update("DELETE FROM user_role WHERE tenant_id = ? AND abstract_user_id = ? AND target_id = ?",
+            TENANT, holder, roleB);
+        subjectDomainService.invalidateRoleCacheBatch(TENANT, Set.of(holder));
+        assertThat(permQueryEngine.hasPermissionByCode(TENANT, holder, "ROLE", null, "VIEW")).isTrue();
+
+        // 重新双持（jdbc）→ 再次双删
+        insertUserRole(holder, roleB);
+        subjectDomainService.invalidateRoleCacheBatch(TENANT, Set.of(holder));
+        assertThat(permQueryEngine.hasPermissionByCode(TENANT, holder, "ROLE", null, "VIEW")).isFalse();
+
+        // 规则软删 + 清 ROLE_MUTEX_RULE 缓存（模拟 10s TTL 过期后的形态）→ 判定恢复
+        jdbc.update("UPDATE permission_conflict_rule SET delete_flag = id, deleted_at = NOW() "
+            + "WHERE tenant_id = ? AND conflict_type = 'ROLE_MUTEX' AND delete_flag = 0 "
+            + "AND first_abstract_role_id = ? AND second_abstract_role_id = ?",
+            TENANT, Math.min(roleA, roleB), Math.max(roleA, roleB));
+        cacheServiceEvictMutexRules();
+        assertThat(permQueryEngine.hasPermissionByCode(TENANT, holder, "ROLE", null, "VIEW")).isTrue();
+    }
+
+    /** 禁用后绑定再启用：启用瞬间（缓存失效后）判定双删——运行时兜底残余通道。 */
+    @Test
+    @DisplayName("禁用再启用：禁用持有期间判定正常，启用后（markRoles 失效）双删")
+    void roleEnableShouldTriggerDualDrop() {
+        Long roleA = insertBasicRole("t075-ea");
+        Long roleB = insertDisabledBasicRole("t075-eb");
+        insertScopeAllRolePerm(roleA, RESOURCE_TYPE_ROLE, VIEW_BIT);
+        Long holder = insertSubject("t075-u-enable");
+        insertUserRole(holder, roleA);
+
+        conflictRuleAppServiceInsertRuleQuietly(roleA, roleB);
+        // 禁用持有（jdbc 直插）：有效角色集过滤禁用 → 不双删
+        insertUserRole(holder, roleB);
+        assertThat(permQueryEngine.hasPermissionByCode(TENANT, holder, "ROLE", null, "VIEW")).isTrue();
+
+        // 启用 B + 模拟 markRoles afterCommit 失效（jdbc 直改不经写路径）→ 双删生效
+        jdbc.update("UPDATE abstract_role SET status = 1 WHERE tenant_id = ? AND id = ?", TENANT, roleB);
+        subjectDomainService.invalidateRoleCacheByRoles(TENANT, Set.of(roleB));
+        assertThat(permQueryEngine.hasPermissionByCode(TENANT, holder, "ROLE", null, "VIEW")).isFalse();
+    }
+
+    /** 无门禁直插规则（立规守卫会被本用例构造的双持拦住，绕经 jdbc 构造既有规则形态）。
+     *  同步清 ROLE_MUTEX_RULE 缓存：类内共享租户库下前序用例已装载旧规则集（10s TTL 窗口），
+     *  jdbc 直插不经写路径，不清理则本用例判定面读到不含新对的缓存。 */
+    private void conflictRuleAppServiceInsertRuleQuietly(Long roleA, Long roleB) {
+        jdbc.update(
+            "INSERT INTO permission_conflict_rule (tenant_id, conflict_type, first_abstract_role_id, second_abstract_role_id) "
+                + "VALUES (?, 'ROLE_MUTEX', ?, ?)",
+            TENANT, Math.min(roleA, roleB), Math.max(roleA, roleB));
+        cacheServiceEvictMutexRules();
+    }
+
+    @Autowired
+    private cn.ac.fage.accessmesh.common.cache.CacheService cacheServiceRef;
+
+    /** 清 ROLE_MUTEX_RULE 缓存模拟 TTL 过期（真实失效链=TTL，无主动 evict——见设计口径）。 */
+    private void cacheServiceEvictMutexRules() {
+        cacheServiceRef.evict(cn.ac.fage.accessmesh.access.infrastructure.cache.AccessCacheCatalog.ROLE_MUTEX_RULE,
+            TENANT, "all");
+    }
+
+    private void insertUserRoleWithValidity(Long abstractUserId, Long targetRoleId,
+                                            java.time.LocalDateTime validFrom, java.time.LocalDateTime validTo) {
+        jdbc.update(
+            "INSERT INTO user_role (tenant_id, abstract_user_id, target_type, target_id, valid_from, valid_to) "
+                + "VALUES (?, ?, 'ROLE', ?, ?, ?)",
+            TENANT, abstractUserId, targetRoleId, validFrom, validTo);
+    }
+
+    private Long insertDisabledBasicRole(String externalId) {
+        return jdbc.queryForObject(
+            "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, parent_id, extra) "
+                + "VALUES (?, ?, ?, ?, 0, NULL, '{}') RETURNING id",
+            Long.class, TENANT, ROLE_TYPE_BASIC, externalId, externalId);
     }
 
     // ===== 数据装配（jdbc 直插事实/授权，先于相关主体首次引擎调用） =====

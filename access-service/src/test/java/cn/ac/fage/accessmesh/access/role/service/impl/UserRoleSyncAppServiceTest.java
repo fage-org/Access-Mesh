@@ -63,8 +63,6 @@ class UserRoleSyncAppServiceTest {
     private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService subjectDomainService;
     @Mock
     private cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService permissionConflictDomainService;
-    @Mock
-    private cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper abstractRoleMapper;
     @org.junit.jupiter.api.AfterEach
     void tearDown() {
         AccessRequestContext.clear();
@@ -76,7 +74,7 @@ class UserRoleSyncAppServiceTest {
     void setUp() {
         service = new UserRoleSyncAppServiceImpl(syncMetadataDomainService,
                 typeResolutionService, userRoleMapper, new LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService, permissionConflictDomainService, abstractRoleMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
+                subjectDomainService, permissionConflictDomainService, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
         // 默认放行类型白名单（白名单语义由 SyncTypeGuardTest 单独覆盖）
         lenient().when(syncTypeGuard.validate(anyLong(), anyString(), any())).thenReturn(true);
     }
@@ -243,7 +241,7 @@ class UserRoleSyncAppServiceTest {
         verify(userRoleMapper, never()).softDeleteBatch(any(), any(), any());
     }
 
-    // ===== T-PERM-064：sync 通道角色互斥授予守卫 =====
+    // ===== T-PERM-064/T-PERM-075：sync 通道角色互斥授予守卫 =====
 
     /** BIND 命中互斥对 → item 级 NON_RETRYABLE ROLE_MUTEX_CONFLICT 零写库（旧实现直接落库必红）。 */
     @Test
@@ -252,10 +250,8 @@ class UserRoleSyncAppServiceTest {
         when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(100L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-1", null)).thenReturn(200L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
-        when(abstractRoleMapper.selectEnabledIdsByIds(TENANT_ID, java.util.Set.of(200L)))
-            .thenReturn(java.util.List.of(200L));
-        when(subjectDomainService.resolveEffectiveRoles(TENANT_ID, 100L))
-            .thenReturn(java.util.Set.of(100L));
+        when(subjectDomainService.resolveRawHoldings(TENANT_ID, 100L))
+            .thenReturn(java.util.Set.of(new cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding(100L, null, null)));
         when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
             .thenReturn(java.util.List.of(new cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RoleMutexAssignConflict(
                 100L, 9L, 100L, 200L)));
@@ -270,33 +266,45 @@ class UserRoleSyncAppServiceTest {
         verify(userRoleMapper, never()).insert(any(UserRole.class));
     }
 
-    /** 目标角色禁用不参与判定 → 放行（与管理面守卫启用态过滤同源）。 */
+    /**
+     * T-PERM-075 U002-2（用户拍板 2026-09-22）：目标角色禁用仍进写时候选——BIND 时刻已知互斥对即拒绝。
+     * 旧口径「禁用目标不参与判定放行」退役（旧实现在本用例下放行，必红）。
+     */
     @Test
-    void shouldAllowBindWhenTargetRoleDisabled() {
+    void shouldRejectBindWhenTargetRoleDisabledButMutexPairPresent() {
         mockHeaderMatch();
-        mockApplyVersionApplied();
         when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(100L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-1", null)).thenReturn(200L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
-        when(abstractRoleMapper.selectEnabledIdsByIds(TENANT_ID, java.util.Set.of(200L)))
-            .thenReturn(java.util.List.of());
-        when(userRoleMapper.insert(any(UserRole.class))).thenReturn(1);
+        // 目标 200 禁用：原始持有候选口径下仍并入 postState（不再收敛启用）
+        when(subjectDomainService.resolveRawHoldings(TENANT_ID, 100L))
+            .thenReturn(java.util.Set.of(new cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding(100L, null, null)));
+        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
+            .thenReturn(java.util.List.of(new cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RoleMutexAssignConflict(
+                100L, 9L, 100L, 200L)));
 
         SyncResultResp resp = service.sync(TENANT_ID, externalBindReq(), httpRequest);
 
-        assertThat(resp.applied()).isTrue();
-        verify(permissionConflictDomainService, never()).findAssignMutexConflicts(anyLong(), any());
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.reason()).isEqualTo("ROLE_MUTEX_CONFLICT");
+        verify(userRoleMapper, never()).insert(any(UserRole.class));
     }
 
-    /** 生效期未到（future validFrom）不新增当前有效持有 → 不做冲突检查。 */
+    /**
+     * T-PERM-075 U002-1（用户拍板 2026-09-22）：未来 valid_from 窗口的 BIND 与既有持有重叠 → 写时拒绝。
+     * 旧口径「生效期未到不做冲突检查」退役（旧实现 applied，本用例必红）。
+     */
     @Test
-    void shouldAllowBindWhenValidFromInFuture() {
+    void shouldRejectBindWhenFutureWindowOverlapsMutexPeer() {
         mockHeaderMatch();
-        mockApplyVersionApplied();
         when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(100L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-1", null)).thenReturn(200L);
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
-        when(userRoleMapper.insert(any(UserRole.class))).thenReturn(1);
+        when(subjectDomainService.resolveRawHoldings(TENANT_ID, 100L))
+            .thenReturn(java.util.Set.of(new cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding(100L, null, null)));
+        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
+            .thenReturn(java.util.List.of(new cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RoleMutexAssignConflict(
+                100L, 9L, 100L, 200L)));
         UserRoleSyncReq futureReq = new UserRoleSyncReq("BIND", "HR_MEMBER",
                 "EMP", "e-100", "TEAM_ROLE", "1", "team-1", "TEAM_ROLE:team-2",
                 java.time.LocalDateTime.now().plusDays(7), null, SOURCE_SERVICE, "hr_member", "e-100:team-1",
@@ -304,13 +312,37 @@ class UserRoleSyncAppServiceTest {
 
         SyncResultResp resp = service.sync(TENANT_ID, futureReq, httpRequest);
 
+        assertThat(resp.accepted()).isFalse();
+        assertThat(resp.reason()).isEqualTo("ROLE_MUTEX_CONFLICT");
+        verify(userRoleMapper, never()).insert(any(UserRole.class));
+    }
+
+    /** T-PERM-075 U002-1 边界：valid_to 已过期（永不生效）不触发守卫。 */
+    @Test
+    void shouldSkipGuardWhenBindWindowExpired() {
+        mockHeaderMatch();
+        mockApplyVersionApplied();
+        when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(100L);
+        when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-1", null)).thenReturn(200L);
+        when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
+        when(userRoleMapper.insert(any(UserRole.class))).thenReturn(1);
+        UserRoleSyncReq expiredReq = new UserRoleSyncReq("BIND", "HR_MEMBER",
+                "EMP", "e-100", "TEAM_ROLE", "1", "team-1", "TEAM_ROLE:team-2",
+                null, java.time.LocalDateTime.now().minusDays(1), SOURCE_SERVICE, "hr_member", "e-100:team-1",
+                new SyncVersionRef(OCCURRED_AT, 1L));
+
+        SyncResultResp resp = service.sync(TENANT_ID, expiredReq, httpRequest);
+
         assertThat(resp.applied()).isTrue();
         verify(permissionConflictDomainService, never()).findAssignMutexConflicts(anyLong(), any());
     }
 
-    /** 已当前有效行的幂等改期不新增持有 → 不做冲突检查（拒更新不消除既有违规）。 */
+    /**
+     * T-PERM-075 口径修订：改写后未过期即触发守卫（幂等重放因持有侧无冲突天然通过）——
+     * 旧「已当前有效行的幂等改期不触发」口径随窗口重叠判定消解，本用例锁「守卫被调用且无冲突放行」。
+     */
     @Test
-    void shouldSkipGuardWhenExistingRowAlreadyEffective() {
+    void shouldRecheckGuardOnRewriteEvenWhenAlreadyEffective() {
         mockHeaderMatch();
         mockApplyVersionApplied();
         when(typeResolutionService.resolveUserId(TENANT_ID, "EMP", "e-100")).thenReturn(100L);
@@ -324,15 +356,19 @@ class UserRoleSyncAppServiceTest {
         existing.setTargetId(200L);
         existing.setRelationId(300L);
         existing.setDeleteFlag(0L);
-        // 有效期全空=当前有效 → 幂等改写不触发守卫
+        // 有效期全空=当前有效 → 改写后未过期仍走守卫；持有侧无重叠冲突 → 放行
         when(userRoleMapper.selectOneByQuery(any())).thenReturn(existing);
         when(syncMetadataDomainService.resolveTargetId(anyLong(), anyString(), anyString(), anyString(), anyString()))
             .thenReturn(java.util.Optional.of(888L));
+        when(subjectDomainService.resolveRawHoldings(TENANT_ID, 100L))
+            .thenReturn(java.util.Set.of());
+        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
+            .thenReturn(java.util.List.of());
 
         SyncResultResp resp = service.sync(TENANT_ID, externalBindReq(), httpRequest);
 
         assertThat(resp.applied()).isTrue();
-        verify(permissionConflictDomainService, never()).findAssignMutexConflicts(anyLong(), any());
+        verify(permissionConflictDomainService).findAssignMutexConflicts(eq(TENANT_ID), any());
         verify(userRoleMapper, never()).insert(any(UserRole.class));
     }
 

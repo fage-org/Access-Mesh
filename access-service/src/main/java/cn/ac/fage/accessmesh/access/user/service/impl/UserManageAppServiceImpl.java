@@ -129,14 +129,13 @@ public class UserManageAppServiceImpl implements UserManageAppService {
     }
 
     /**
-     * 角色互斥授予校验（T-PERM-063）：授予后状态命中 ROLE_MUTEX 对即整批原子拒绝 20062。
+     * 角色互斥授予校验（T-PERM-063；候选口径 T-PERM-075 U002 扩展）：命中即整批原子拒绝 20062。
      * <p>
-     * 授予后状态 = 现有效角色（批量解析，已含组角色展开与启用态过滤）∪ 本批新增目标
-     * （仅计启用且有效期覆盖当前时刻的角色——与运行时 filterRoleMutex 判定集合同源：
-     * 禁用角色、生效期未到/已过期关系均不参与运行时判定，外评 P3：仅过滤启用会把
-     * 带 future validFrom 的授予误拒）。
-     * 同批内两个互斥角色由集合语义天然覆盖；规则 DB 直查，新建规则即刻生效。
-     * 并发双开两笔授予的窄竞态窗口接受（运行时双删兜底，fail-closed 无安全回退）。
+     * 候选 = 未过期原始持有窗口（含未来 valid_from、含禁用持有与禁用组子树，组展开继承
+     * 绑定行窗口）∪ 本批未过期新增（含禁用目标）；按区间交判定（闭区间、null=无限期、
+     * 首尾相接同刻算重叠），窗口真正不相交放行，已过期新增不计。
+     * 规则 DB 直查，新建规则即刻生效；并发双开两笔授予与「禁用绑定 vs 启用」竞态窗口
+     * 接受（运行时双删兜底，fail-closed 无安全回退）。
      * </p>
      *
      * @param toInsert 本批将新增的用户-角色关系行
@@ -145,37 +144,35 @@ public class UserManageAppServiceImpl implements UserManageAppService {
         if (toInsert.isEmpty()) {
             return;
         }
-        // 有效期谓词镜像运行时 selectValidByUserIdsWithValidity：
-        // (valid_from <= now OR NULL) AND (valid_to >= now OR NULL)
+        // T-PERM-075 U002 写时候选口径（用户拍板 2026-09-22）：
+        // 1. 新增行按「未过期」谓词入选——(valid_to >= now OR NULL)，不看 valid_from：
+        //    未来窗口（尚未生效）同入候选，与既有持有做区间交判定；已过期行永不生效不计入。
+        //    区间判定为闭区间口径（与运行时 selectValidByUserIdsWithValidity 同谓词系），
+        //    null=无限期、首尾相接当天同刻有效算重叠；两个互斥角色的窗口真正不相交时放行。
+        // 2. 新增目标不再收敛到启用角色——禁用可逆，启用后即参与判定（U002-2 绑定写时堵死），
+        //    绑定时刻已知互斥对即拒绝，不把冲突推迟到启用动作。
         LocalDateTime now = LocalDateTime.now();
-        Map<Long, Set<Long>> newTargetsByUser = new HashMap<>();
+        Map<Long, Set<SubjectDomainService.RawHolding>> newHoldingsByUser = new HashMap<>();
         for (UserRole ur : toInsert) {
-            boolean withinValidity = (ur.getValidFrom() == null || !ur.getValidFrom().isAfter(now))
-                && (ur.getValidTo() == null || !ur.getValidTo().isBefore(now));
-            if (withinValidity) {
-                newTargetsByUser.computeIfAbsent(ur.getAbstractUserId(), k -> new HashSet<>())
-                    .add(ur.getTargetId());
+            boolean unexpired = ur.getValidTo() == null || !ur.getValidTo().isBefore(now);
+            if (unexpired) {
+                newHoldingsByUser.computeIfAbsent(ur.getAbstractUserId(), k -> new HashSet<>())
+                    .add(new SubjectDomainService.RawHolding(ur.getTargetId(), ur.getValidFrom(), ur.getValidTo()));
             }
         }
-        if (newTargetsByUser.isEmpty()) {
+        if (newHoldingsByUser.isEmpty()) {
             return;
         }
-        Set<Long> allNewTargets = newTargetsByUser.values().stream()
-            .flatMap(Set::stream).collect(Collectors.toSet());
-        // 新增目标收敛到启用角色（运行时判定集合同源；禁用角色即使授予也不参与互斥判定）
-        Set<Long> enabledNewTargets = new HashSet<>(
-            subjectDomainService.selectEnabledRoleIds(tenantId, allNewTargets));
 
-        Map<Long, Set<Long>> effectiveByUser =
-            subjectDomainService.batchResolveEffectiveRoles(tenantId, newTargetsByUser.keySet());
-        Map<Long, Set<Long>> postStateByUser = new HashMap<>();
-        for (Map.Entry<Long, Set<Long>> entry : newTargetsByUser.entrySet()) {
-            Set<Long> postState = new HashSet<>(effectiveByUser.getOrDefault(entry.getKey(), Set.of()));
-            for (Long target : entry.getValue()) {
-                if (enabledNewTargets.contains(target)) {
-                    postState.add(target);
-                }
-            }
+        // 持有侧=原始持有窗口（未过期原始行 ∪ 组展开含禁用子树并继承绑定行窗口，DB 新鲜读不经缓存）——
+        // 写时冲突守卫必须看原始候选，不能先做运行时过滤（启用/互斥）再断言无冲突
+        Map<Long, Set<SubjectDomainService.RawHolding>> rawHoldingsByUser =
+            subjectDomainService.batchResolveRawHoldings(tenantId, newHoldingsByUser.keySet());
+        Map<Long, Set<SubjectDomainService.RawHolding>> postStateByUser = new HashMap<>();
+        for (Map.Entry<Long, Set<SubjectDomainService.RawHolding>> entry : newHoldingsByUser.entrySet()) {
+            Set<SubjectDomainService.RawHolding> postState =
+                new HashSet<>(rawHoldingsByUser.getOrDefault(entry.getKey(), Set.of()));
+            postState.addAll(entry.getValue());
             postStateByUser.put(entry.getKey(), postState);
         }
 

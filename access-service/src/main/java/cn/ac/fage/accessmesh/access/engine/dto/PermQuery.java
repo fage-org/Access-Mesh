@@ -154,8 +154,8 @@ public class PermQuery {
 
     /**
      * 是否评估条目级冲突过滤（PERM_MUTEX 条目互斥，入参化按需开启，2026-09-09 定案；
-     * 默认按入口：运行时面开、配置面关。角色互斥不归引擎——授权时校验另立项，
-     * 快照构建的 filterRoleMutex 由调用方自理（权限树端点已随 T-PERM-059 删除））
+     * 默认按入口：运行时面开、配置面关。角色互斥（ROLE_MUTEX）经 resolveJudgementRoleIds
+     * 在角色解析阶段统一过滤，与本开关无关——T-PERM-075，2026-09-22）
      */
     private boolean evaluateConflicts = true;
 
@@ -199,11 +199,6 @@ public class PermQuery {
     private boolean includeConditions;
 
     // ── 缓存 ──
-
-    /**
-     * 是否使用角色缓存
-     */
-    private boolean useRoleCache = true;
 
     /**
      * 绕过 ROLE_PERM_SNAPSHOT 读缓存（LIST 模式直查 DB，不读不回填）——写校验面消费
@@ -439,7 +434,6 @@ public class PermQuery {
     public boolean includeRoles() { return includeRoles; }
     public boolean includeDomains() { return includeDomains; }
     public boolean includeConditions() { return includeConditions; }
-    public boolean useRoleCache() { return useRoleCache; }
     public boolean bypassPermSnapshot() { return bypassPermSnapshot; }
 
     /**

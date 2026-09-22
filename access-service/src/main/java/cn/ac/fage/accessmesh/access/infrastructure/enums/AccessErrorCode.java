@@ -691,10 +691,10 @@ public enum AccessErrorCode {
     AUTHORITY_ROOT_READONLY(20061, "授权根种子行只读（经类型生命周期维护：类型创建/追加操作补种、所有者变更迁移、类型删除清理）"),
 
     /**
-     * 角色互斥授予冲突（T-PERM-063）：user-role/assign、batch-assign 写路径事务内校验
-     * 「授予后有效角色集（现有效 ∪ 本批新增，仅计启用角色）」命中 ROLE_MUTEX 对即整批原子
-     * 拒绝（对齐本入口既有逐项收集 errors 整批抛风格），message 列出冲突用户与角色对。
-     * 规则读取走 DB 直查不经 ROLE_MUTEX_RULE 缓存，新建规则即刻生效。
+     * 角色互斥授予冲突（T-PERM-063；候选口径 T-PERM-075 U002）：user-role/assign、batch-assign
+     * 写路径事务内校验「未过期原始持有窗口 ∪ 本批未过期新增（含禁用目标）」按区间交命中
+     * ROLE_MUTEX 对即整批原子拒绝（对齐本入口既有逐项收集 errors 整批抛风格），message
+     * 列出冲突用户与角色对。规则读取走 DB 直查不经 ROLE_MUTEX_RULE 缓存，新建规则即刻生效。
      */
     ROLE_MUTEX_ASSIGN_CONFLICT(20062, "授予后用户将同时持有互斥角色，已整批拒绝（冲突用户与角色对见 message）"),
 

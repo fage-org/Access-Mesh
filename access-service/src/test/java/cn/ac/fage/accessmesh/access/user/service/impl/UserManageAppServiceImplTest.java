@@ -334,9 +334,8 @@ class UserManageAppServiceImplTest {
             .thenReturn(Map.of("r-200", 200L));
         when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
-        when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of(200L));
-        when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
-            .thenReturn(Map.of(20L, Set.of(100L)));
+        when(subjectDomainService.batchResolveRawHoldings(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, Set.of(raw(100L))));
     }
 
     /** T-PERM-063：授予后状态命中互斥对 → 整批原子拒绝 20062（旧实现直接落库，本用例必红）。 */
@@ -385,9 +384,13 @@ class UserManageAppServiceImplTest {
         }
     }
 
-    /** T-PERM-063：目标角色禁用不参与互斥判定（与运行时有效角色集合同源），授予放行。 */
+    /**
+     * T-PERM-075 U002-2（用户拍板 2026-09-22）：目标角色禁用仍进写时候选——绑定时刻已知互斥对即拒绝，
+     * 不把冲突推迟到启用动作。旧口径「禁用目标不参与互斥判定、放行」随之退役
+     * （旧实现在本用例下放行落库，必红）。
+     */
     @Test
-    void shouldAssignRoleWhenTargetRoleDisabled() {
+    void shouldRejectAssignRoleWhenTargetRoleDisabledButMutexPairPresent() {
         UserAssignRoleReq req = new UserAssignRoleReq(List.of(
             new UserAssignRoleReq.AssignItem("USER", "u-1", null, "BASIC_ROLE", "r-200", null, null, null)
         ));
@@ -397,32 +400,39 @@ class UserManageAppServiceImplTest {
             .thenReturn(Map.of("r-200", 200L));
         when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
-        // 目标角色 200 禁用：postState 不并入 → 即使用户已持互斥对端 100 也放行
-        when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of());
-        when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
-            .thenReturn(Map.of(20L, Set.of(100L)));
+        // 目标 200 禁用：postState 仍并入 200（原始候选口径）→ 用户已持互斥对端 100 → 命中规则拒绝
+        when(subjectDomainService.batchResolveRawHoldings(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, Set.of(raw(100L))));
 
         try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
                 eq(Set.of("200")), eq(OperationCode.MANAGE))).thenReturn(Set.of());
+            when(permissionConflictDomainService.findAssignMutexConflicts(eq(1L), any()))
+                .thenReturn(List.of(new PermissionConflictDomainService.RoleMutexAssignConflict(
+                    20L, 9L, 100L, 200L)));
 
-            service.assignRole(1L, req);
+            BizException exception = assertThrows(BizException.class, () -> service.assignRole(1L, req));
 
-            // 锁「仅计启用角色」分支：postState 不含禁用目标 200（去掉过滤的实现在此必红）
-            org.mockito.ArgumentCaptor<Map<Long, Set<Long>>> postStateCaptor =
+            assertEquals(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
+            org.mockito.Mockito.verify(subjectDomainService, org.mockito.Mockito.never()).insertUserRoles(any());
+            // 锁候选口径：禁用目标 200 在 postState（收敛启用的旧实现在此必红）
+            org.mockito.ArgumentCaptor<Map<Long, Set<cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding>>> postStateCaptor =
                 org.mockito.ArgumentCaptor.forClass(Map.class);
             org.mockito.Mockito.verify(permissionConflictDomainService)
                 .findAssignMutexConflicts(eq(1L), postStateCaptor.capture());
-            assertEquals(Set.of(100L), postStateCaptor.getValue().get(20L));
-            org.mockito.Mockito.verify(subjectDomainService).insertUserRoles(any());
+            assertEquals(Set.of(100L, 200L), rawRoleIds(postStateCaptor.getValue().get(20L)));
         }
     }
 
-    /** T-PERM-063（外评 P3）：生效期未到的目标不计入授予后状态——有效期谓词镜像运行时。 */
+    /**
+     * T-PERM-075 U002-1（用户拍板 2026-09-22）：未来 valid_from 窗口进写时候选——与既有持有
+     * 的重叠在写时即拒绝，不留给运行时双删。旧口径「生效期未到的目标不计入授予后状态」
+     * 随之退役（旧实现 postState 不含 200，规则 (100,200) 不命中放行，本用例必红）。
+     */
     @Test
-    void shouldExcludeFutureValidFromTargetFromPostState() {
-        // 混合批：r-200 带 7 天后生效的 validFrom、r-300 即时生效——postState 应含 300 不含 200
+    void shouldIncludeFutureValidFromTargetInPostState() {
+        // 混合批：r-200 带 7 天后生效的 validFrom、r-300 即时生效——postState 应同时含 200/300
         UserAssignRoleReq req = new UserAssignRoleReq(List.of(
             new UserAssignRoleReq.AssignItem("USER", "u-1", null, "BASIC_ROLE", "r-200",
                 null, java.time.LocalDateTime.now().plusDays(7), null),
@@ -435,10 +445,8 @@ class UserManageAppServiceImplTest {
             .thenReturn(Map.of("r-200", 200L, "r-300", 300L));
         when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L, 300L)), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
-        // 有效期过滤先行：future validFrom 的 200 已不入目标集，启用查询只见 300
-        when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(300L)))).thenReturn(List.of(300L));
-        when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
-            .thenReturn(Map.of(20L, Set.of(100L)));
+        when(subjectDomainService.batchResolveRawHoldings(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, Set.of(raw(100L))));
 
         try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
@@ -447,13 +455,40 @@ class UserManageAppServiceImplTest {
 
             service.assignRole(1L, req);
 
-            // 锁有效期谓词：future validFrom 的 200 不入 postState、即时的 300 入（无谓词实现
-            // postState={100,200,300}——若存在规则 (100,200) 即被误拒，断言不等于此形态必红）
-            org.mockito.ArgumentCaptor<Map<Long, Set<Long>>> postStateCaptor =
+            // 锁候选口径：未来 validFrom 的 200 与即时 300 均入 postState（旧谓词实现必红）
+            org.mockito.ArgumentCaptor<Map<Long, Set<cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding>>> postStateCaptor =
                 org.mockito.ArgumentCaptor.forClass(Map.class);
             org.mockito.Mockito.verify(permissionConflictDomainService)
                 .findAssignMutexConflicts(eq(1L), postStateCaptor.capture());
-            assertEquals(Set.of(100L, 300L), postStateCaptor.getValue().get(20L));
+            assertEquals(Set.of(100L, 200L, 300L), rawRoleIds(postStateCaptor.getValue().get(20L)));
+            org.mockito.Mockito.verify(subjectDomainService).insertUserRoles(any());
+        }
+    }
+
+    /** T-PERM-075 U002-1 边界：已过期（valid_to < now）新增行永不生效，不进写时候选。 */
+    @Test
+    void shouldExcludeExpiredTargetFromPostState() {
+        UserAssignRoleReq req = new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("USER", "u-1", null, "BASIC_ROLE", "r-200",
+                null, null, java.time.LocalDateTime.now().minusDays(1))
+        ));
+        when(typeResolutionService.batchResolveUserIds(eq(1L), eq("USER"), eq(Set.of("u-1"))))
+            .thenReturn(Map.of("u-1", 20L));
+        when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("r-200")), eq((String) null)))
+            .thenReturn(Map.of("r-200", 200L));
+        when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
+            .thenReturn(List.<UserRole>of());
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq(Set.of("200")), eq(OperationCode.MANAGE))).thenReturn(Set.of());
+
+            service.assignRole(1L, req);
+
+            // 全部新增行已过期 → 无未过期新增 → 不触发守卫查询（守卫查询被调用即红）
+            org.mockito.Mockito.verify(permissionConflictDomainService, org.mockito.Mockito.never())
+                .findAssignMutexConflicts(anyLong(), any());
             org.mockito.Mockito.verify(subjectDomainService).insertUserRoles(any());
         }
     }
@@ -470,9 +505,8 @@ class UserManageAppServiceImplTest {
             .thenReturn(200L);
         when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetId(eq(1L), eq(Set.of(20L)), eq(200L), eq(ResourceTypeCode.ROLE)))
             .thenReturn(List.<UserRole>of());
-        when(subjectDomainService.selectEnabledRoleIds(eq(1L), eq(Set.of(200L)))).thenReturn(List.of(200L));
-        when(subjectDomainService.batchResolveEffectiveRoles(eq(1L), eq(Set.of(20L))))
-            .thenReturn(Map.of(20L, Set.of(100L)));
+        when(subjectDomainService.batchResolveRawHoldings(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, Set.of(raw(100L))));
 
         try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
@@ -487,5 +521,49 @@ class UserManageAppServiceImplTest {
             assertEquals(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
             org.mockito.Mockito.verify(subjectDomainService, org.mockito.Mockito.never()).insertUserRoles(any());
         }
+    }
+
+    /**
+     * T-PERM-075 U002-2 反方向：用户已持有「禁用」的互斥对端（经原始持有候选可见），
+     * 再绑定启用角色时同样拒绝——有效角色集口径看不到禁用持有（旧实现放行，本用例必红）。
+     */
+    @Test
+    void shouldRejectAssignRoleWhenHoldingDisabledMutexPeer() {
+        UserAssignRoleReq req = new UserAssignRoleReq(List.of(
+            new UserAssignRoleReq.AssignItem("USER", "u-1", null, "BASIC_ROLE", "r-200", null, null, null)
+        ));
+        when(typeResolutionService.batchResolveUserIds(eq(1L), eq("USER"), eq(Set.of("u-1"))))
+            .thenReturn(Map.of("u-1", 20L));
+        when(typeResolutionService.batchResolveRoleIds(eq(1L), eq("BASIC_ROLE"), eq(Set.of("r-200")), eq((String) null)))
+            .thenReturn(Map.of("r-200", 200L));
+        when(subjectDomainService.selectValidUserRolesByUserIdsAndTargetIds(eq(1L), eq(Set.of(20L)), eq(Set.of(200L)), eq(ResourceTypeCode.ROLE)))
+            .thenReturn(List.<UserRole>of());
+        // 原始持有候选含禁用的 100（运行时有效角色集会过滤掉它，写守卫不看过滤集）
+        when(subjectDomainService.batchResolveRawHoldings(eq(1L), eq(Set.of(20L))))
+            .thenReturn(Map.of(20L, Set.of(raw(100L))));
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq(Set.of("200")), eq(OperationCode.MANAGE))).thenReturn(Set.of());
+            when(permissionConflictDomainService.findAssignMutexConflicts(eq(1L), any()))
+                .thenReturn(List.of(new PermissionConflictDomainService.RoleMutexAssignConflict(
+                    20L, 9L, 100L, 200L)));
+
+            BizException exception = assertThrows(BizException.class, () -> service.assignRole(1L, req));
+
+            assertEquals(AccessErrorCode.ROLE_MUTEX_ASSIGN_CONFLICT.getCode(), exception.getErrorCode());
+            org.mockito.Mockito.verify(subjectDomainService, org.mockito.Mockito.never()).insertUserRoles(any());
+        }
+    }
+
+    private static cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding raw(Long roleId) {
+        return new cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding(roleId, null, null);
+    }
+
+    private static Set<Long> rawRoleIds(Set<cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding> holdings) {
+        return holdings.stream()
+            .map(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding::roleId)
+            .collect(java.util.stream.Collectors.toSet());
     }
 }

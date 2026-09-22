@@ -41,6 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -79,7 +80,6 @@ class PermQueryEngineTest {
     @BeforeEach
     void setUp() {
         engine = new PermQueryEngine(
-            subjectDomainService,
             rolePermMapper,
             resourceEntityMapper,
             abstractRoleMapper,
@@ -97,9 +97,25 @@ class PermQueryEngineTest {
             .thenAnswer(inv -> realCacheService.beginRead(inv.getArgument(0)));
     }
 
+    /**
+     * T-PERM-075 共同判定语义回归锁：引擎解析分支（非显式 roleIds）必须经
+     * {@code resolveJudgementRoleIds}（互斥过滤后的角色集）——直接调 resolveEffectiveRoles
+     * 的旧实现在此必红（stub 不匹配返回 null → NO_ROLE deny，断言失败）。
+     */
+    @Test
+    void queryShouldResolveRolesViaJudgementEntryWithMutexFilter() {
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
+
+        engine.query(PermQuery.forAuthCheck(1L, 10L, "MENU", null, "VIEW"));
+
+        org.mockito.Mockito.verify(conflictDomainService).resolveJudgementRoleIds(1L, 10L);
+        org.mockito.Mockito.verify(subjectDomainService, org.mockito.Mockito.never())
+            .resolveEffectiveRoles(anyLong(), anyLong());
+    }
+
     @Test
     void queryShouldUseBitMaskQueriesAndPopulateGrantedOperations() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
         when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
@@ -153,7 +169,7 @@ class PermQueryEngineTest {
      */
     @Test
     void queryShouldEarlyReturnAllowOnScopeAllMatch() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("SERVICE")))
             .thenReturn(Map.of("SERVICE", 8));
         when(typeResolutionService.batchResolveOperationIds(1L, "SERVICE", Set.of("VIEW")))
@@ -195,7 +211,7 @@ class PermQueryEngineTest {
      */
     @Test
     void getDeniedEntityIdsShouldReturnEmptyOnScopeAllMatch() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("SERVICE")))
             .thenReturn(Map.of("SERVICE", 8));
         when(typeResolutionService.batchResolveOperationIds(1L, "SERVICE", Set.of("VIEW")))
@@ -227,7 +243,7 @@ class PermQueryEngineTest {
 
     @Test
     void testForUserView() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
 
         // T-PERM-018：forUserView 走 ROLE_PERM_SNAPSHOT 读缓存；缓存 miss → 回源 selectValidByRoleIds
         when(cacheService.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
@@ -307,7 +323,7 @@ class PermQueryEngineTest {
 
     @Test
     void testForUserViewEmptyRolesShouldDeny() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of());
 
         PermQuery query = PermQuery.forUserView(1L, 10L);
         PermResult result = engine.query(query);
@@ -318,7 +334,7 @@ class PermQueryEngineTest {
 
     @Test
     void testForUserViewEmptyPermissionsShouldDeny() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(cacheService.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
             .thenReturn(Map.of());
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
@@ -334,7 +350,7 @@ class PermQueryEngineTest {
 
     @Test
     void forUserViewShouldHitCacheAndSkipDbWhenAllRolesCached() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
 
         RolePermEntry cachedEntry = new RolePermEntry(
             501L, 20L, 200L, null, 1, 8L, null, null,
@@ -361,7 +377,7 @@ class PermQueryEngineTest {
 
     @Test
     void forUserViewShouldMissCacheAndBackfillBatch() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L, 21L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L, 21L));
         when(cacheService.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L, 21L))))
             .thenReturn(Map.of());
 
@@ -394,7 +410,7 @@ class PermQueryEngineTest {
 
     @Test
     void forUserViewShouldHandleMixedHitAndMiss() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L, 21L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L, 21L));
         // role 20 命中，role 21 miss
         RolePermEntry cachedEntry = new RolePermEntry(
             501L, 20L, 200L, null, 1, 8L, null, null,
@@ -420,7 +436,7 @@ class PermQueryEngineTest {
 
     @Test
     void forUserViewShouldCacheEmptyListForRoleWithNoPermissions() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(cacheService.getBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(20L))))
             .thenReturn(Map.of());
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
@@ -451,7 +467,7 @@ class PermQueryEngineTest {
      */
     @Test
     void getDeniedResourceCodesShouldResolveBusinessCodesInEntitySpace() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("USER")))
             .thenReturn(Map.of("USER", 6));
         when(typeResolutionService.batchResolveOperationIds(1L, "USER", Set.of("MANAGE")))
@@ -496,7 +512,7 @@ class PermQueryEngineTest {
     /** T-PERM-042：无角色主体 fail-closed 全量拒绝（不解析 code、不查实例级）。 */
     @Test
     void getDeniedResourceCodesShouldDenyAllWhenSubjectHasNoRole() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of());
 
         Set<String> denied = engine.getDeniedResourceCodes(1L, 10L, "ROLE", Set.of("1", "2"), "MANAGE");
 
@@ -511,7 +527,7 @@ class PermQueryEngineTest {
      */
     @Test
     void getDeniedResourceCodesShouldAllowAllOnScopeAllWithoutProjectionResolution() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("USER")))
             .thenReturn(Map.of("USER", 6));
         when(typeResolutionService.batchResolveOperationIds(1L, "USER", Set.of("MANAGE")))
@@ -550,7 +566,7 @@ class PermQueryEngineTest {
      */
     @Test
     void hasPermissionByEntityIdShouldQueryEntityIdSpaceDirectly() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("RESOURCE")))
             .thenReturn(Map.of("RESOURCE", 7));
         when(typeResolutionService.batchResolveOperationIds(1L, "RESOURCE", Set.of("MANAGE")))
@@ -590,7 +606,7 @@ class PermQueryEngineTest {
      */
     @Test
     void resolveBitMasksShouldLoadColdCacheWithSingleBatchedRoundTrip() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("ATYPE", "BTYPE", "CTYPE")))
             .thenReturn(Map.of("ATYPE", 1, "BTYPE", 2, "CTYPE", 3));
         when(typeResolutionService.batchResolveOperationIds(1L, "ATYPE", Set.of("VIEW")))
@@ -636,7 +652,7 @@ class PermQueryEngineTest {
      */
     @Test
     void typeLevelMustNotBeSatisfiedByInstanceOnlyGrantAndNeverQueryInstance() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
         when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
@@ -662,7 +678,7 @@ class PermQueryEngineTest {
      */
     @Test
     void listModeMustReturnInstanceEntries() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         RolePermEntry instanceEntry = new RolePermEntry(
             501L, 20L, 200L, "res-a", 1, 1L, "VIEW", 1L, "MANUAL", false, null, false, null, false);
         when(cacheService.getBatch(any(CacheCatalogEntry.class), eq(1L), eq(Set.of(20L))))
@@ -683,7 +699,7 @@ class PermQueryEngineTest {
      */
     @Test
     void instanceClosureMustExpandQueryTargets() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
         when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
@@ -727,7 +743,7 @@ class PermQueryEngineTest {
      */
     @Test
     void parentResourceContextMustResolveMatchedOpsAndPropagateEvalContext() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         // 主资源 MENU / 父资源 REPORT；父 scopeAll VIEW 授权
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("REPORT")))
             .thenReturn(Map.of("REPORT", 5));
@@ -783,7 +799,7 @@ class PermQueryEngineTest {
      */
     @Test
     void listDenyPathMustLoadOperationDefinitionsForRawEntries() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         // raw 条目类型=2；条件评估清空全部
         RolePermEntry rawEntry = new RolePermEntry(
             501L, 20L, 300L, "data-1", 2, 1L, "READ", 1L, "MANUAL", false, 301L, true, null, false);
@@ -810,7 +826,7 @@ class PermQueryEngineTest {
      */
     @Test
     void typeLevelDenyReasonMustDistinguishConditionFromNoPermission() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
         when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
@@ -847,7 +863,7 @@ class PermQueryEngineTest {
      */
     @Test
     void exactInstanceOnlyMustNotFallBackToScopeAll() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
         when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
@@ -892,7 +908,7 @@ class PermQueryEngineTest {
      */
     @Test
     void bypassPermSnapshotMustQueryDbDirectlyWithoutCache() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
 
         PermQuery q = PermQuery.forUserView(1L, 10L);
@@ -913,7 +929,7 @@ class PermQueryEngineTest {
      */
     @Test
     void unresolvableTargetMustKeepConditionReasonWhenScopeAllEvaluatedEmpty() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
         when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
@@ -950,7 +966,7 @@ class PermQueryEngineTest {
      */
     @Test
     void nullEvalContextMustBePinnedWithEvaluatedAtOnEntry() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(rolePermMapper.selectValidByRoleIds(1L, Set.of(20L))).thenReturn(List.of());
 
         PermQuery q = PermQuery.forUserView(1L, 10L);
@@ -972,7 +988,7 @@ class PermQueryEngineTest {
      */
     @Test
     void dependentEntryMustBeDeniedWithoutParentContext() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("MENU")))
             .thenReturn(Map.of("MENU", 1));
         when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
@@ -1010,7 +1026,7 @@ class PermQueryEngineTest {
      */
     @Test
     void dependentEntryMustPassWhenParentContextMatches() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(eq(1L), eq("resource_type"), any()))
             .thenReturn(Map.of("MENU", 1, "REPORT", 5));
         when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
@@ -1087,7 +1103,7 @@ class PermQueryEngineTest {
      */
     @Test
     void dependentEntryMustDenyWhenParentContextFails() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(eq(1L), eq("resource_type"), any()))
             .thenReturn(Map.of("MENU", 1, "REPORT", 5));
         when(typeResolutionService.batchResolveOperationIds(1L, "MENU", Set.of("VIEW")))
@@ -1135,7 +1151,7 @@ class PermQueryEngineTest {
      */
     @Test
     void scopeAllDependentEntryMustNotPassTypeLevelGate() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("SERVICE")))
             .thenReturn(Map.of("SERVICE", 8));
         when(typeResolutionService.batchResolveOperationIds(1L, "SERVICE", Set.of("VIEW")))
@@ -1170,7 +1186,7 @@ class PermQueryEngineTest {
      */
     @Test
     void getDeniedEntityIdsMustRejectDependentOnlyEntries() {
-        when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
+        when(conflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(20L));
         when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("SERVICE")))
             .thenReturn(Map.of("SERVICE", 8));
         when(typeResolutionService.batchResolveOperationIds(1L, "SERVICE", Set.of("VIEW")))

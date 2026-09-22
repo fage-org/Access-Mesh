@@ -43,8 +43,9 @@ import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomai
 /**
  * 统一权限查询引擎 -- 所有权限校验的唯一入口（T-PERM-057 统一引擎：一个引擎、一套入参、一个结果模型）。
  *
- * <h3>管线阶段（engine/implementation.md §3.3；角色互斥不归引擎——授权时校验另立项，
- * 快照构建的 filterRoleMutex 由调用方自理（权限树端点已随 T-PERM-059 删除），2026-09-09 定案）</h3>
+ * <h3>管线阶段（engine/implementation.md §3.3；角色互斥 2026-09-22 起经 resolveJudgementRoleIds
+ * 进入引擎角色解析（T-PERM-075，取代 2026-09-09「角色互斥不归引擎」定案）——互斥过滤后
+ * 的有效角色是全部判定入口的共同语义，写守卫仍看原始持有候选（batchResolveRawHoldings））</h3>
  * <ol>
  *   <li>入口封装：userId → roleIds（EFFECTIVE_ROLES 缓存）+ 条件上下文装配（四便捷入口自动取当前请求 clientIp）</li>
  *   <li>解析：类型值 / 操作 id / 位掩码（位覆盖并入掩码，常开）</li>
@@ -72,7 +73,6 @@ public class PermQueryEngine {
 
     private static final Logger log = LoggerFactory.getLogger(PermQueryEngine.class);
 
-    private final SubjectDomainService subjectDomainService;
     private final RoleResourcePermissionMapper rolePermMapper;
     private final ResourceEntityMapper resourceEntityMapper;
     private final AbstractRoleMapper abstractRoleMapper;
@@ -86,7 +86,6 @@ public class PermQueryEngine {
     /**
      * 构造函数注入依赖服务
      *
-     * @param subjectDomainService      主体领域服务
      * @param rolePermMapper            角色权限映射器
      * @param resourceEntityMapper      资源实体数据访问层
      * @param abstractRoleMapper        抽象角色数据访问层
@@ -97,7 +96,7 @@ public class PermQueryEngine {
      * @param cacheService              统一缓存服务
      * @param operationPermissionMapper 操作权限数据访问层
      */
-    public PermQueryEngine(SubjectDomainService subjectDomainService,
+    public PermQueryEngine(
                            RoleResourcePermissionMapper rolePermMapper,
                            ResourceEntityMapper resourceEntityMapper,
                            AbstractRoleMapper abstractRoleMapper,
@@ -107,7 +106,6 @@ public class PermQueryEngine {
                            TypeResolutionService typeResolutionService,
                            CacheService cacheService,
                            OperationPermissionMapper operationPermissionMapper) {
-        this.subjectDomainService = subjectDomainService;
         this.rolePermMapper = rolePermMapper;
         this.resourceEntityMapper = resourceEntityMapper;
         this.abstractRoleMapper = abstractRoleMapper;
@@ -118,7 +116,6 @@ public class PermQueryEngine {
         this.cacheService = cacheService;
         this.operationPermissionMapper = operationPermissionMapper;
     }
-
     /**
      * 执行统一权限查询（targetMode 三态判别，互不串义）
      *
@@ -436,7 +433,8 @@ public class PermQueryEngine {
         } else if (bq.userId() == null) {
             roleIds = Set.of();
         } else {
-            roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, bq.userId());
+            // T-PERM-075：批量判定同样消费互斥过滤后的共同判定语义（请求级一次）
+            roleIds = conflictDomainService.resolveJudgementRoleIds(tenantId, bq.userId());
         }
         List<PermBatchQuery.Item> items = bq.items();
         if (roleIds.isEmpty()) {
@@ -1084,8 +1082,8 @@ public class PermQueryEngine {
         }
         Set<String> distinctCodes = new LinkedHashSet<>(resourceCodes);
 
-        // 1. 解析用户角色（1次查询）
-        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, subjectId);
+        // 1. 解析用户角色（T-PERM-075：经共同判定语义入口——互斥过滤后的角色集，1 次查询）
+        Set<Long> roleIds = conflictDomainService.resolveJudgementRoleIds(tenantId, subjectId);
         if (roleIds.isEmpty()) {
             return distinctCodes; // 无角色 = 全部拒绝
         }
@@ -1160,8 +1158,8 @@ public class PermQueryEngine {
             return Set.of();
         }
 
-        // 1. 解析用户角色（1次查询）
-        Set<Long> roleIds = subjectDomainService.resolveEffectiveRoles(tenantId, subjectId);
+        // 1. 解析用户角色（T-PERM-075：经共同判定语义入口——互斥过滤后的角色集，1 次查询）
+        Set<Long> roleIds = conflictDomainService.resolveJudgementRoleIds(tenantId, subjectId);
         if (roleIds.isEmpty()) {
             return new LinkedHashSet<>(resourceEntityIds); // 无角色 = 全部拒绝
         }
@@ -1312,6 +1310,12 @@ public class PermQueryEngine {
 
     /**
      * 解析查询参数中的角色ID
+     * <p>
+     * T-PERM-075：解析分支（未显式指定 roleIds）统一经 {@code resolveJudgementRoleIds}
+     * ——互斥过滤后的有效角色集是全部判定入口的共同语义（check/batch/validate/scope）。
+     * 显式 roleIds 分支不过滤：调用方语义为「按指定角色集合判定」（写校验面模拟角色视角等），
+     * 且菜单/快照链的过滤已在组装侧经同一入口完成，不会双重过滤。
+     * </p>
      */
     private Set<Long> resolveRoleIds(PermQuery q) {
         if (q.roleIds() != null && !q.roleIds().isEmpty()) {
@@ -1320,13 +1324,8 @@ public class PermQueryEngine {
         if (q.userId() == null) {
             return Set.of();
         }
-        if (q.useRoleCache()) {
-            return subjectDomainService.resolveEffectiveRoles(q.tenantId(), q.userId());
-        }
-        // 绕过缓存，直接批量解析
-        Map<Long, Set<Long>> batch = subjectDomainService.batchResolveEffectiveRoles(
-            q.tenantId(), Set.of(q.userId()));
-        return batch.getOrDefault(q.userId(), Set.of());
+        // T-PERM-075：互斥过滤在有效角色之上统一叠加（显式 roleIds 分支不过滤）
+        return conflictDomainService.resolveJudgementRoleIds(q.tenantId(), q.userId());
     }
 
     /**

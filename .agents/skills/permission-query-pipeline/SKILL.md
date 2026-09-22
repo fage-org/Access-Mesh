@@ -129,7 +129,7 @@ Map<String, PermissionGrantDomainService.GrantCheckResult> results =
 | forScopeQuery | LIST | ✅ | ✅ | 不适用 | resource+op+role；主资源上下文 `setParentResource` 由引擎执行 depend_on 过滤 |
 | forUserView | LIST | ✅（标记态 `setMarkConditionsOnly`，快照构建） | ✅ | 不适用 | resource+op+role（用户全量视图，快照读缓存）；树扩展 `setInheritChildren/setInheritParents`（展示面展开） |
 
-**三态互不串义**：TYPE_LEVEL 只消费 scopeAll（零实例查询，实例授权不得放行类型级门禁）；INSTANCE 目标下推+判定面闭包；LIST 按角色全量。**两语义拆分**：判定面继承（`inheritClosure`，查询前目标∪同类型祖先链，改变 allowed/denied）≠ 展示面展开（`inheritParents/inheritChildren`，查询后克隆 `grantSource=INHERITED`，不改变判定）。**角色互斥不归引擎**（2026-09-09 定案）：快照构建的 `filterRoleMutex` 调用方自理（权限树端点已随 T-PERM-059 删除）；授权时校验已由 T-PERM-063 落地（写路径守卫 20062/20063 + 双删日志，registry 2026-09-12）。
+**三态互不串义**：TYPE_LEVEL 只消费 scopeAll（零实例查询，实例授权不得放行类型级门禁）；INSTANCE 目标下推+判定面闭包；LIST 按角色全量。**两语义拆分**：判定面继承（`inheritClosure`，查询前目标∪同类型祖先链，改变 allowed/denied）≠ 展示面展开（`inheritParents/inheritChildren`，查询后克隆 `grantSource=INHERITED`，不改变判定）。**角色互斥经 resolveJudgementRoleIds 进全部判定入口**（T-PERM-075，2026-09-22——取代 2026-09-09「不归引擎」定案）：引擎解析分支/getDenied* 便捷入口/菜单权限串/接口快照消费互斥过滤后角色集（写守卫看原始持有窗口不经此入口）；授予时校验沿 T-PERM-063 落地（registry 2026-09-22 行）。
 
 > 使用政策：`forValidateByEntityId` 仅限引擎内部或已完成解析的调用方（资源树、API 映射、资源依赖、权限树），禁止用于 USER/ROLE 等业务对象门禁。`forResourceQuery` / `forResourceCheck` 已删除（2026-08-28，零生产调用；资源类查询语义由 `forUserView` / `forValidateByEntityId` 覆盖，勿重新引入）。
 

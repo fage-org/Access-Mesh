@@ -3,7 +3,7 @@ doc_type: design
 title: 权限中心 — 核心功能实现设计
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-17（T-PERM-068 Q-007 三定案：§3 引语定案③括注更新——sync 通道跨类型父边已收紧为同类型拒绝，闭包止步语义保留作 DB 直写脏数据防线；§3 遗留节「后续禁止资源树跨类型」改进项划线收口）；此前 2026-09-15 大小写口径由 Q-003 登记待统一改定案终态——raw 严格化，DTO @Pattern 大写边界保证 + 授权域归一退役）；此前 2026-09-14（轻量清扫批次四 Q-004 改名：§8 等正文类名引用 BusinessKeys→BusinessKeyUtil、SyncKeyCodec→SyncKeyCodecUtil，纯改名零行为——历史链内旧类名保留原文）；此前 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径——术语指针、§3.4 门禁入口族叙事、§4.3 门面表述、frontmatter domain 改 access-service）；此前 2026-09-13（T-ACCESS-039：§5.1 缓存表与正文目录册引用改挂合一后 AccessCacheCatalog——mode/TTL 与键格式零改动；last_reviewed 历史链内 2026-09-11 时点注记保留旧册名原文）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode + §8.3 死常量注记口径变更——统一常量面=注册表镜像）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys——2026-09-14 已更名 BusinessKeyUtil + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
+last_reviewed: 2026-09-22（T-PERM-075：§2.4 候选口径统一为未过期原始持有候选 + resolveJudgementRoleIds 共同判定入口成文、§3 头注定案①加取代括注、§3.3 管线图角色解析句、§3.5 ROLE_MUTEX 口径重写、§3.8 接口快照行同步）；此前 2026-09-17（T-PERM-068 Q-007 三定案：§3 引语定案③括注更新——sync 通道跨类型父边已收紧为同类型拒绝，闭包止步语义保留作 DB 直写脏数据防线；§3 遗留节「后续禁止资源树跨类型」改进项划线收口）；此前 2026-09-15 大小写口径由 Q-003 登记待统一改定案终态——raw 严格化，DTO @Pattern 大写边界保证 + 授权域归一退役）；此前 2026-09-14（轻量清扫批次四 Q-004 改名：§8 等正文类名引用 BusinessKeys→BusinessKeyUtil、SyncKeyCodec→SyncKeyCodecUtil，纯改名零行为——历史链内旧类名保留原文）；此前 2026-09-14（T-ACCESS-041：域叙事改管理面/权限面口径——术语指针、§3.4 门禁入口族叙事、§4.3 门面表述、frontmatter domain 改 access-service）；此前 2026-09-13（T-ACCESS-039：§5.1 缓存表与正文目录册引用改挂合一后 AccessCacheCatalog——mode/TTL 与键格式零改动；last_reviewed 历史链内 2026-09-11 时点注记保留旧册名原文）；此前 2026-09-13（T-ACCESS-034：操作码常量类引用改挂合一后 OperationCode + §8.3 死常量注记口径变更——统一常量面=注册表镜像）；此前 2026-09-13（T-ACCESS-040 迁位 docs/design/engine/，内容原样；api-contract 引用重挂总册）；此前 2026-09-12（T-PERM-063：§2.4 角色互斥三面守卫成文 + §3 头注与定案①/遗留清单注记闭环）；此前 2026-09-11   # 2026-09-11 T-PERM-061 实施落地：§3.10 A+ 形态实施（引擎 queryBatch/BatchEvalContext + openBatchEvaluator 四态条件快照 + openBatchMutexEvaluator 计算通知解耦 + batchCheck 编排重写 + queryInstance 空目标集守卫 + BatchAuthCheckPgIT 回归锁①-⑪），§3.8 batch-check 行与 §6.1 a2 批量口径注记（api-contract）同步；此前 2026-09-11 T-PERM-061 设计定稿：新增 §3.10 batchCheck 批量化 A+ 形态设计（共享装载分段化/条件增量四态快照/分组键/投影谓词不变量表/评估粒度与顺序不变量/reason 双轨/b2 ledger 与父判定审计桶/回归锁清单，经外部评审逐条核实处置后用户确认），§3.8 对外接口表 batch-check 行指向目标形态（实施未开始）；同批 §5.1 快照链路四缓存行修正对齐 PermCacheCatalog 实际（L2_ONLY/10s，既有债随文档评审批次修正）；此前 2026-09-11 T-PERM-055 顺带收口：§2.7 域分类接口摘录同步（preloadCoveredTypeCodes 新方法 + 既有 findDomainIdsByTypeCodes 补齐，正文注记批量上下文预载口径）；此前 2026-09-10 T-PERM-059 收口：§3.8 对外接口表权限视图/权限解释两行删除（permission-view 七端点+query-permission-tree 退役）+ §3.1 注记口径更新（登录权限串为 forUserView 管线唯一存续消费面）+ §7.5 权限树整节删 + §6.2 diff_snapshot 形状引用改指 api-contract §5.8；此前 2026-09-10 T-PERM-058 收口：§3.1 便捷入口 depend_on 口径注记 + §3.3 三态判别补 depend_on 处理（TYPE_LEVEL 读侧排除/INSTANCE 主资源上下文过滤与惰性父判定/LIST 不变）+ 管线图补 filterDependentEntries + 遗留清单移除已收口项；此前 2026-09-09 T-PERM-057 §3 全节重写为统一引擎版（targetMode 三态+判定面闭包+评估拉平+六套形态收编；三条实施定案见 §3 头注）；此前 2026-09-07 T-PERM-051 §8.1 typeInstanceBusinessKey 注记改已落地（投影+门禁消费链见 architecture §12.3）；同日早前 T-PERM-019 D2 新增 §8 业务键统一构造（perm-common BusinessKeys——2026-09-14 已更名 BusinessKeyUtil + parity golden 锁）与 D3 一致性核对结论、ASSIGN/REVOKE 死常量删除；此前：2026-08-28 §3.6/§3.7 工厂表收敛（forResourceQuery/forResourceCheck 删除 8→6、补 forValidateByEntityId）
 ---
 
 # 权限中心 — 核心功能实现设计
@@ -211,21 +211,30 @@ public interface AuditDomainService {
 
 ```java
 public interface PermissionConflictDomainService {
-    // 运行时双删（快照构建调用方自理，2026-09-09 定案）；双删命中记 CONFLICT_DETECTED
+    // 运行时双删原语；双删命中记 CONFLICT_DETECTED
     // 操作日志（T-PERM-063，每「租户×用户×规则对」每 JVM 1 小时至多一条，Caffeine 去重限流）
     Set<Long> filterRoleMutex(Long tenantId, Long userId, Set<Long> effectiveRoleIds);
+    // T-PERM-075 共同判定语义唯一入口（2026-09-22 定案，取代 2026-09-09「角色互斥不归引擎」）：
+    // = resolveEffectiveRoles（有效期窗口+启用+组展开）叠加 filterRoleMutex。
+    // check/batch/validate/scope/getDenied*/菜单权限串/接口快照全部经此消费同一角色集；
+    // EFFECTIVE_ROLES 缓存维持「过滤前集合」（互斥判定时叠加，规则变更沿 10s TTL 收敛）；
+    // 写守卫不得使用本方法（写时看原始持有候选 SubjectDomainService.batchResolveRawHoldings）
+    Set<Long> resolveJudgementRoleIds(Long tenantId, Long userId);
     List<RolePermEntry> filterPermMutex(Long tenantId, List<RolePermEntry> passedEntries);
     // T-PERM-061 批量判定：请求级互斥评估器（静态数据共享 + 计算通知解耦，见 §3.10）
     BatchPermMutexEvaluator openBatchMutexEvaluator(Long tenantId);
     // T-PERM-063 授予前校验：规则 DB 直查（不经 ROLE_MUTEX_RULE 缓存，新规则即刻生效），
-    // 调用方组装「授予后状态」（现有效 ∪ 本批新增、仅计启用角色），命中互斥对整批原子拒绝 20062
-    List<RoleMutexAssignConflict> findAssignMutexConflicts(Long tenantId, Map<Long, Set<Long>> postStateRoleIdsByUser);
-    // T-PERM-063 存量守卫：当前有效角色集同时含两角色的用户（规则 create/update 前 20063 检查）
+    // 调用方组装「原始持有候选 ∪ 本批未过期新增」（含未来窗口与禁用，T-PERM-075 U002 口径），
+    // 命中互斥对整批原子拒绝 20062
+    List<RoleMutexAssignConflict> findAssignMutexConflicts(
+        Long tenantId, Map<Long, Set<SubjectDomainService.RawHolding>> holdingsByUser);
+    // T-PERM-063 存量守卫 + T-PERM-075 口径扩展：原始持有候选同时含两角色的用户
+    //（未过期含未来窗口、含禁用持有与禁用组子树——与全部写守卫同口径）
     List<Long> findUsersHoldingBothRoles(Long tenantId, Long firstRoleId, Long secondRoleId);
 }
 ```
 
-角色互斥三面（T-PERM-063，2026-09-12 落地，用户三项拍板见 registry 同日行；T-PERM-064 补全通道面）：①**授予守卫**——`user-role/assign`、`batch-assign` 写路径事务内校验授予后状态，命中即整批原子拒绝 **20062**（对齐入口既有 errors 整批抛风格）；**sync 通道面（T-PERM-064）**——`UserRoleSyncAppServiceImpl.applyItemSync` BIND 分支（sync 与 full-sync 共用单点）同款校验，仅「新增当前有效持有」时检查（新建行或非当前有效行重激活；幂等改期不触发），冲突 item 逐条 `NON_RETRYABLE` + `ROLE_MUTEX_CONFLICT`（full-sync 同批同用户多 BIND 经请求级批内累积判定——postState 并入本批已 apply 的新增有效持有，避免同批互斥两端均被应用）；规则面 create/update 拒绝 ORG/POSITION 角色对（结构角色对由本地投影通道维护，规则面拒绝即闭合投影通道）；②**存量守卫**——`conflict-rule/create`、`update` 的 ROLE_MUTEX 分支写入前检查存量双持，非空拒绝 **20063**（message 含用户 id 清单截断 20），候选经 `findUserIdsByEffectiveRoles` 三路反查（含组角色间接持有），PERM_MUTEX 分支与 remove 不适用；③**运行时可观测**——双删补 CONFLICT_DETECTED 日志（此前静默无痕）。并发双开两笔授予的窄竞态窗口接受（运行时双删兜底 fail-closed，无安全回退）。
+角色互斥守卫与判定（T-PERM-063 2026-09-12 落地；T-PERM-064 补全 sync 通道；T-PERM-075 2026-09-22 候选口径统一）：①**授予守卫**——`user-role/assign`、`batch-assign` 与 `UserRoleSyncAppServiceImpl.applyItemSync` BIND 分支（sync/full-sync 共用单点）事务内校验，命中互斥对分别整批原子拒绝 **20062** / item 级 `NON_RETRYABLE` + `ROLE_MUTEX_CONFLICT`（full-sync 同批同用户多 BIND 经请求级批内累积判定）。候选口径（T-PERM-075 U002 两项拍板，registry 2026-09-22 行）：**未过期原始持有候选**（`batchResolveRawHoldings`：valid_to >= now OR null，未来 valid_from 窗口同入、闭区间口径 null=无限期、首尾相接同刻算重叠；组展开含禁用子树；不缓存 DB 新鲜读）∪ 本批未过期新增（含禁用目标）；已过期行永不生效不计；sync 改写后未过期即检查（旧「幂等改期不触发」随窗口重叠判定消解——纯幂等重放因持有侧无冲突天然通过）；full-sync 批内一次预载消 N+1（批内写入由 appliedThisBatch 补偿）。规则面 create/update 拒绝 ORG/POSITION 角色对（结构角色对由本地投影通道维护，规则面拒绝即闭合投影通道）；②**存量守卫**——`conflict-rule/create`、`update` 的 ROLE_MUTEX 分支写入前检查存量双持（原始持有候选口径，禁用/未来持有同计——消除「绑定时拒、立规时放」双通道不一致），非空拒绝 **20063**（message 含用户 id 清单截断 20），候选经 `findUserIdsByEffectiveRoles` 三路反查（含组角色间接持有），PERM_MUTEX 分支与 remove 不适用；③**运行时统一判定**——全部判定入口经 `resolveJudgementRoleIds` 消费互斥过滤后角色集（双删命中记 CONFLICT_DETECTED 日志；空规则集也回填缓存防判定路径打 DB）。并发双开两笔授予的窄竞态窗口与「禁用角色绑定 vs 启用」竞态窗口接受（运行时双删兜底 fail-closed，无安全回退；角色启用动作不查存量互斥——U002-2 拍板，启用保持全局性）。
 
 成员 sync/full-sync 在依赖与关系预加载前取得租户 ABSTRACT_ROLE 写锁，复用树锁的 afterCompletion 释放协议。版本只读预判、依赖/归属/互斥预检、原子版本比较和关系写入都处于该窗口；预期拒绝不写版本，版本后的技术失败通过入口事务回滚。full-sync 复用批量结果，已确认缺失的主体/角色/关系不回退逐项查询。该锁防止同步入口间旧预加载结果覆盖新事实，不改变管理面与同步面之间已接受的角色互斥竞态边界。
 
@@ -314,7 +323,7 @@ public interface PermissionGrantDomainService {
 
 ## 3. 鉴权查询模块（PermQueryEngine）
 
-> **统一引擎已落地（T-PERM-057，2026-09-09 定案 → 本日实施）**：一个引擎、一套入参、一个结果模型；多入口 = 参数预设的封装。原六套执行形态（query() 六工厂形态分叉 / getDenied\* 手写管线 / query-resources 的 expandResourceScope / deleteRoles 局部级联 / canGrant 直查 / query-scopes AppService 自评管线）全部收编。三条实施定案（2026-09-09 用户拍板）：①**角色互斥不归引擎**——快照/权限树的 `filterRoleMutex` 由调用方自理，引擎只做条目互斥（入参开关）；授权时校验已随 T-PERM-063 落地（写路径守卫 20062/20063 + 双删日志，见 §2.4，2026-09-12）；②**条件上下文为多层对象** `PermEvalContext`（用户环境 clientIp + 服务器环境 evaluatedAt + 调用方上下文）；③**判定面闭包止步同类型**（跨类型祖先不参与闭包；sync 通道跨类型父边已随 T-PERM-068 于 2026-09-17 收紧为同类型拒绝，闭包止步语义保留作 DB 直写脏数据防线）。OAuth2 委托用户链路维持不接入引擎（2026-08-22 用户决策，见 §3.9）。
+> **统一引擎已落地（T-PERM-057，2026-09-09 定案 → 本日实施）**：一个引擎、一套入参、一个结果模型；多入口 = 参数预设的封装。原六套执行形态（query() 六工厂形态分叉 / getDenied\* 手写管线 / query-resources 的 expandResourceScope / deleteRoles 局部级联 / canGrant 直查 / query-scopes AppService 自评管线）全部收编。三条实施定案（2026-09-09 用户拍板）：①**角色互斥不归引擎**——快照/权限树的 `filterRoleMutex` 由调用方自理，引擎只做条目互斥（入参开关）【**已被 2026-09-22 T-PERM-075 部分取代**：引擎自此经 `resolveJudgementRoleIds` 消费互斥过滤后角色集（见 §2.4），`filterRoleMutex` 仍是过滤原语】；授权时校验已随 T-PERM-063 落地（写路径守卫 20062/20063 + 双删日志，见 §2.4，2026-09-12）；②**条件上下文为多层对象** `PermEvalContext`（用户环境 clientIp + 服务器环境 evaluatedAt + 调用方上下文）；③**判定面闭包止步同类型**（跨类型祖先不参与闭包；sync 通道跨类型父边已随 T-PERM-068 于 2026-09-17 收紧为同类型拒绝，闭包止步语义保留作 DB 直写脏数据防线）。OAuth2 委托用户链路维持不接入引擎（2026-08-22 用户决策，见 §3.9）。
 
 ### 3.1 统一入口
 
@@ -391,12 +400,13 @@ Set<Long> deniedEntityIds = engine.getDeniedEntityIds(tenantId, subjectId,
 - **INSTANCE**（实例判定）：带编码/实体 id 目标；scopeAll 类型级命中（评估通过）优先放行；实例查询按目标下推（判定面继承开启时目标集扩为 {目标}∪同类型祖先链）；**depend_on 子权限行按主资源上下文过滤（T-PERM-058）**——无 `parentResource` 上下文一律不计入（fail-closed），给出上下文时惰性父判定（仅当命中集确含子行才触发查询，主行命中的常规路径零额外成本），子行要求 dependOn ∈ 父命中权限 id 集（父判定经 forAuthCheck 递归本引擎、自身无父上下文=只认父的主授权，单层语义）；因「子行被排除致空」的拒绝原因 `DEPENDENT_NOT_IN_PARENT_CONTEXT` 与「无任何授权」区分。
 - **LIST**（全量清单）：无目标、按角色全量拉取（`selectValidByRoleIds` + ROLE_PERM_SNAPSHOT 读缓存）；主资源上下文给出时执行 depend_on 子权限过滤。
 
-**统一管线**（角色互斥不归引擎——2026-09-09 定案）：
+**统一管线**（角色解析分支经 `resolveJudgementRoleIds` 统一互斥过滤——T-PERM-075，2026-09-22）：
 
 ```
 PermQueryEngine.query(PermQuery q)
     │
-    ├─ 0. 入口封装：resolveRoleIds（EFFECTIVE_ROLES 缓存）+ 条件上下文装配（四便捷入口）
+    ├─ 0. 入口封装：resolveRoleIds（显式 roleIds 直用；解析分支= resolveJudgementRoleIds
+    │     ——EFFECTIVE_ROLES 缓存 + 互斥双删叠加，T-PERM-075 共同判定语义）+ 条件上下文装配（四便捷入口）
     │
     ├─ TYPE_LEVEL → queryTypeLevel：
     │     prepareResolveContext → resolveBitMasks → queryScopeAll(1 SQL)
@@ -443,7 +453,7 @@ PermQueryEngine.query(PermQuery q)
 ### 3.5 条件评估三态、条目互斥与条件上下文
 
 - **条件评估三态**：评估（运行时/门禁面默认，含拉平后的管理面写门禁）/ 不评估（配置视图面——canGrant 转授资格看原始授权行）/ 标记下发（快照专用 `markConditionsOnly`，条件在网关用真实请求上下文评，T-PERM-017 C3）。
-- **条目互斥（PERM_MUTEX）入参化**：`evaluateConflicts` 开关，默认按入口（运行时面开、配置面关）。**角色互斥（ROLE_MUTEX）不归引擎**（2026-09-09 定案）：授权时校验已随 T-PERM-063 落地（§2.4 三面守卫）；快照构建的 `filterRoleMutex` 调用点保留为调用方自理（权限树端点已随 T-PERM-059 删除，生产调用点仅剩快照一处）。
+- **条目互斥（PERM_MUTEX）入参化**：`evaluateConflicts` 开关，默认按入口（运行时面开、配置面关）。**角色互斥（ROLE_MUTEX）进引擎角色解析**（T-PERM-075，2026-09-22——取代 2026-09-09「不归引擎」）：引擎 query/queryBatch 解析分支与 getDenied\* 便捷入口、菜单/权限串 `buildEffectiveView`、接口快照全部经 `resolveJudgementRoleIds` 消费互斥过滤后角色集（快照专有过滤消除；显式 roleIds 分支不过滤=调用方语义「按指定角色判定」）；授权时校验沿 T-PERM-063 落地（§2.4 守卫族 + U002 候选口径）；写守卫看原始持有候选不经本入口。
 - **条件上下文 `PermEvalContext`**（多层对象）：`clientIp`（用户环境，入口封装层从当前请求装配）/ `evaluatedAt`（服务器环境，展平时补当前时钟）/ `attributes`（调用方上下文，SDK `context` Map 经 `fromCallerMap` 转换——clientIp 键提取、其余归 attributes）。展平 Map 键：`clientIp`（既有契约）、`evaluatedAt`（ISO-8601，`ConditionEvalUtils` 时间类条件优先消费、缺省回退本机时钟——Gateway 快照重评等无服务器环境上下文的调用方维持既有行为）。原 explain 判定与明细评估共用同一 `PermEvalContext`（同一时钟；该端点已随 T-PERM-059 删除，2026-09-10）。
 
 ### 3.6 PermResult 双轨与回传字段
@@ -479,7 +489,7 @@ query-scopes 四态分组（T-PERM-009 契约维持）：AppService 只留线格
 | 资源权限查询 | `POST /api/access/auth/query-resources`    | `engine.query(PermQuery.forUserView())`；树扩展经引擎展示面展开轨道（`inheritChildren`/`inheritParents`） |
 | 范围权限查询 | `POST /api/access/auth/query-scopes`       | 一次 `engine.query(forScopeQuery + setParentResource)`——父判定 + depend_on 过滤 + 条件/互斥评估全在引擎，AppService 只留四态线格式组装（T-PERM-057 第六套形态收编）；整表拒绝仅限父判定失败/无角色，条件评估清空走四态分态（EMPTY） |
 | 接口级判定   | `POST /api/access/auth/check-interface`    | `engine.query(PermQuery.forInterfaceCheck())`                 |
-| 接口快照     | `POST /api/access/auth/interface-snapshot` | `engine.query(forUserView + markConditionsOnly)` + `SnapshotAssembler`；`filterRoleMutex` 调用方自理（§3.5） |
+| 接口快照     | `POST /api/access/auth/interface-snapshot` | `engine.query(forUserView + markConditionsOnly)` + `SnapshotAssembler`；角色集经 `resolveJudgementRoleIds` 共同判定入口（T-PERM-075，快照专有过滤消除，§3.5） |
 
 ### 3.9 收编清单与边界声明
 

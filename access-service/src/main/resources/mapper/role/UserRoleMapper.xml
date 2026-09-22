@@ -86,6 +86,19 @@
           AND (valid_to &gt;= #{now} OR valid_to IS NULL)
     </select>
 
+    <!-- T-PERM-075 原始持有候选：仅未过期谓词（valid_to >= now OR NULL），不看 valid_from——
+         未来窗口持有（尚未生效）同入候选，供写守卫做窗口重叠判定（U002-1 写时拒绝） -->
+    <select id="selectValidByUserIdsUnexpired" resultType="cn.ac.fage.accessmesh.access.role.entity.UserRole">
+        SELECT * FROM user_role
+        WHERE tenant_id = #{tenantId}
+          AND abstract_user_id IN
+        <foreach collection="userIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+          AND delete_flag = 0
+          AND (valid_to &gt;= #{now} OR valid_to IS NULL)
+    </select>
+
     <select id="selectValidByTargetIdAndType" resultType="cn.ac.fage.accessmesh.access.role.entity.UserRole">
         SELECT * FROM user_role
         WHERE tenant_id = #{tenantId}

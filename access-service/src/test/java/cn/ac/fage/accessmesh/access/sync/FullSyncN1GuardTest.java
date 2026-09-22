@@ -259,20 +259,20 @@ class FullSyncN1GuardTest {
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class);
         cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService conflictDomainService =
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.class);
-        cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper abstractRoleMapper =
-                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper.class);
-        // 目标角色启用；用户现有效角色为空（冷缓存形态——最不利：批内第一条写入对第二条不可见）
-        when(abstractRoleMapper.selectEnabledIdsByIds(eq(TENANT_ID), any()))
-                .thenAnswer(inv -> new ArrayList<>((java.util.Set<Long>) inv.getArgument(1)));
-        when(subjectDomainService.resolveEffectiveRoles(TENANT_ID, 100L))
-                .thenReturn(java.util.Set.of());
-        // 冲突判定镜像真实语义：postState 同时含 200 与 201 才命中规则 (200,201)
+        // 用户原始持有为空（冷读形态——最不利：批内第一条写入对第二条不可见；T-PERM-075 起不再
+        // 查目标启用态，禁用目标同入候选，批内集合语义不变；full-sync 走循环前批量预载）
+        lenient().when(subjectDomainService.batchResolveRawHoldings(eq(TENANT_ID), any()))
+                .thenReturn(java.util.Map.of());
+        // 冲突判定镜像真实语义：两互斥角色的持有窗口存在重叠才命中规则 (200,201)
+        //（批内两条 BIND 窗口均未过期且首端无限期，第二条与第一条经批内补偿集相交）
         when(conflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
                 .thenAnswer(inv -> {
-                    java.util.Map<Long, java.util.Set<Long>> postState = inv.getArgument(1);
-                    java.util.Set<Long> ps = postState.getOrDefault(100L, java.util.Set.of());
-                    return ps.contains(200L) && ps.contains(201L
-                    ) ? java.util.List.of(new cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RoleMutexAssignConflict(
+                    java.util.Map<Long, java.util.Set<cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding>> postState = inv.getArgument(1);
+                    java.util.Set<cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding> ps = postState.getOrDefault(100L, java.util.Set.of());
+                    boolean has200 = ps.stream().anyMatch(w -> w.roleId().equals(200L));
+                    boolean has201 = ps.stream().anyMatch(w -> w.roleId().equals(201L));
+                    return has200 && has201
+                    ? java.util.List.of(new cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RoleMutexAssignConflict(
                             100L, 9L, 200L, 201L))
                       : java.util.List.of();
                 });
@@ -280,7 +280,7 @@ class FullSyncN1GuardTest {
         UserRoleSyncAppServiceImpl service = new UserRoleSyncAppServiceImpl(
                 syncMetadataDomainService, typeResolutionService, userRoleMapper,
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
-                subjectDomainService, conflictDomainService, abstractRoleMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
+                subjectDomainService, conflictDomainService, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
 
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
                 new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "ROOT"),
@@ -300,6 +300,9 @@ class FullSyncN1GuardTest {
         assertThat(resp.detail().itemResults().get(1).reason()).isEqualTo("ROLE_MUTEX_CONFLICT");
         assertThat(resp.detail().itemResults().get(1).retryClass())
                 .isEqualTo(cn.ac.fage.accessmesh.access.sync.SyncResultBuilder.RETRY_NON_RETRYABLE);
+        // T-PERM-075 N+1 次数锁：原始持有候选必须批内一次预载，不逐 item 单查
+        verify(subjectDomainService, times(1)).batchResolveRawHoldings(eq(TENANT_ID), any());
+        verify(subjectDomainService, never()).resolveRawHoldings(anyLong(), anyLong());
         verify(userRoleMapper, times(1)).insert(any(cn.ac.fage.accessmesh.access.role.entity.UserRole.class));
         org.mockito.ArgumentCaptor<cn.ac.fage.accessmesh.access.role.entity.UserRole> cap =
                 org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.access.role.entity.UserRole.class);
@@ -371,7 +374,6 @@ class FullSyncN1GuardTest {
                 new cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionGuard(), syncTypeGuard,
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.class),
-                org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper.class),
                 org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.class));
         UserRoleFullSyncReq req = new UserRoleFullSyncReq(
                 new cn.ac.fage.accessmesh.access.sync.dto.UserRoleSyncScope(SOURCE_SERVICE, "HR_MEMBER", "TEAM_ROLE", "1"), items);

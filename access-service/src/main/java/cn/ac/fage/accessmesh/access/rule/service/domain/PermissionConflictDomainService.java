@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import cn.ac.fage.accessmesh.access.engine.core.BatchPermMutexEvaluator;
+import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 
 /**
  * 权限冲突领域服务接口
@@ -37,31 +38,57 @@ public interface PermissionConflictDomainService {
     Set<Long> filterRoleMutex(Long tenantId, Long userId, Set<Long> effectiveRoleIds);
 
     /**
-     * 授予前互斥冲突检测（T-PERM-063 写路径校验）
+     * 解析参与运行时判定的有效角色集（T-PERM-075 共同判定语义唯一入口）。
+     * <p>
+     * = {@code SubjectDomainService.resolveEffectiveRoles}（有效期窗口 + 启用态 + 组展开）
+     * 叠加 {@link #filterRoleMutex} 互斥双删。check / batch-check / 管理门禁 validate / scope /
+     * 接口快照 / 菜单与权限串视图全部经本方法消费——同一主体/时刻的互斥语义跨入口一致。
+     * </p>
+     * <p>
+     * EFFECTIVE_ROLES 缓存语义维持「过滤前集合」：互斥过滤在判定时叠加（规则经
+     * ROLE_MUTEX_RULE 缓存读取），规则变更沿既有 10s TTL 收敛；写守卫不得使用本方法
+     * （写时必须看原始持有候选，见 {@code SubjectDomainService.batchResolveRawHoldings}）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userId   用户ID
+     * @return 互斥过滤后的有效角色ID集合（双删命中时记录 CONFLICT_DETECTED 审计）
+     */
+    Set<Long> resolveJudgementRoleIds(Long tenantId, Long userId);
+
+    /**
+     * 授予前互斥冲突检测（T-PERM-063 写路径校验；T-PERM-075 窗口语义重定义）
      * <p>
      * 规则走 DB 直查（不经 ROLE_MUTEX_RULE 缓存——写路径要求新建规则即刻生效，
      * 10s TTL 陈旧窗口不可接受；快照链路缓存读取维持不变）。
-     * 调用方负责组装「授予后状态」角色集（现有效 ∪ 本批新增，仅计启用且有效期覆盖当前时刻的角色），
-     * 同批内两个互斥角色由集合语义天然覆盖。
+     * 调用方负责组装「授予后窗口集」（未过期原始持有窗口 ∪ 本批新增窗口）；
+     * 冲突判定按**区间交**：两个互斥角色各自任一持有窗口重叠（闭区间，null=无限端，
+     * 首尾相接当天算重叠）才命中——真正不相交的未来窗口放行（U002-1 拍板口径），
+     * 同批内两个互斥角色由窗口交语义天然覆盖。
      * </p>
      *
-     * @param tenantId                租户ID
-     * @param postStateRoleIdsByUser  每用户授予后角色集（仅含有新增关系的用户）
+     * @param tenantId              租户ID
+     * @param holdingsByUser        每用户授予后持有窗口集（仅含有新增关系的用户）
      * @return 命中的冲突列表（空=无冲突）
      */
-    List<RoleMutexAssignConflict> findAssignMutexConflicts(Long tenantId, Map<Long, Set<Long>> postStateRoleIdsByUser);
+    List<RoleMutexAssignConflict> findAssignMutexConflicts(
+        Long tenantId, Map<Long, Set<SubjectDomainService.RawHolding>> holdingsByUser);
 
     /**
-     * 存量双持查询（T-PERM-063 规则写路径守卫）
+     * 存量双持查询（T-PERM-063 规则写路径守卫；T-PERM-075 口径扩展）
      * <p>
-     * 返回当前有效角色集同时含两角色的用户（经 SubjectDomainService 有效角色解析，
-     * 覆盖有效性窗口、启用态与组角色展开，与运行时 filterRoleMutex 判定集合同源）。
+     * 候选超集经 {@link SubjectDomainService#findUserIdsByEffectiveRoles} 按角色反查用户
+     * （ROLE 直授 + GROUP_ROLE 直绑 + 祖先组展开三路——组角色间接持有同入候选），
+     * 再经 {@link SubjectDomainService#batchResolveRawHoldings} 收敛到原始持有窗口做
+     * 区间交判定——未过期（含未来窗口）、含禁用持有、含禁用组子树，且两个互斥角色的
+     * 持有窗口真正重叠才计双持：与全部用户-角色写守卫同口径（U002 写时堵死），
+     * 避免「绑定时拒、立规时放」的同冲突双通道不一致。
      * </p>
      *
      * @param tenantId     租户ID
      * @param firstRoleId  互斥角色一
      * @param secondRoleId 互斥角色二
-     * @return 同时持有两角色的用户ID列表（空=无存量持有）
+     * @return 持有窗口重叠的用户ID列表（空=无存量持有）
      */
     List<Long> findUsersHoldingBothRoles(Long tenantId, Long firstRoleId, Long secondRoleId);
 

@@ -134,6 +134,22 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     }
 
     /**
+     * 共同判定语义入口（T-PERM-075）：有效角色解析 + 互斥双删一次完成。
+     * <p>
+     * check / batch-check / validate / scope / 快照 / 菜单视图的统一消费点；
+     * 双删审计语义沿 {@link #filterRoleMutex}（去重限流同表）。
+     * </p>
+     */
+    @Override
+    public Set<Long> resolveJudgementRoleIds(Long tenantId, Long userId) {
+        Set<Long> effectiveRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
+        if (effectiveRoleIds.isEmpty()) {
+            return Set.of();
+        }
+        return filterRoleMutex(tenantId, userId, effectiveRoleIds);
+    }
+
+    /**
      * 双删日志（T-PERM-063）：异步记录 CONFLICT_DETECTED，去重限流。
      * <p>
      * 审计写入经 {@link AuditDomainService#asyncRecordLog} 有界线程池异步执行，不阻塞快照链路。
@@ -149,7 +165,7 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             auditDomainService.asyncRecordLog(new AuditDomainService.OperationLogEntry(
                 tenantId, "PERMISSION", "CONFLICT_DETECTED", "permission_conflict_rule", null,
                 String.format("Role mutex dropped: tenantId=%d, userId=%d, roles=%d vs %d "
-                    + "(both roles removed from effective set at snapshot build)",
+                    + "(both roles removed from effective set at judgement, T-PERM-075 unified entries)",
                     tenantId, userId, pair.first(), pair.second()),
                 null, null, null, OperatorContext.getRequestId(), null, null, null
             ));
@@ -163,16 +179,17 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     }
 
     /**
-     * 授予前互斥冲突检测（T-PERM-063 写路径校验）。
+     * 授予前互斥冲突检测（T-PERM-063 写路径校验；T-PERM-075 区间交语义）。
      * <p>
      * 规则 DB 直查（不经缓存），新建规则即刻生效于授予校验。
-     * 冲突判定与运行时 filterRoleMutex 同语义：集合同时含两端即命中。
+     * 冲突判定：两个互斥角色各自任一持有窗口重叠（闭区间，null=无限端）才命中——
+     * 真正不相交的未来窗口放行（U002-1 拍板）。
      * </p>
      */
     @Override
-    public List<RoleMutexAssignConflict> findAssignMutexConflicts(Long tenantId,
-                                                                  Map<Long, Set<Long>> postStateRoleIdsByUser) {
-        if (postStateRoleIdsByUser == null || postStateRoleIdsByUser.isEmpty()) {
+    public List<RoleMutexAssignConflict> findAssignMutexConflicts(
+        Long tenantId, Map<Long, Set<SubjectDomainService.RawHolding>> holdingsByUser) {
+        if (holdingsByUser == null || holdingsByUser.isEmpty()) {
             return List.of();
         }
         List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
@@ -181,15 +198,14 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             return List.of();
         }
         List<RoleMutexAssignConflict> conflicts = new ArrayList<>();
-        for (Map.Entry<Long, Set<Long>> entry : postStateRoleIdsByUser.entrySet()) {
-            Set<Long> postState = entry.getValue();
-            if (postState == null || postState.size() < 2) {
+        for (Map.Entry<Long, Set<SubjectDomainService.RawHolding>> entry : holdingsByUser.entrySet()) {
+            Set<SubjectDomainService.RawHolding> holdings = entry.getValue();
+            if (holdings == null || holdings.size() < 2) {
                 continue;
             }
             for (PermissionConflictRule rule : rules) {
                 if (rule.getFirstAbstractRoleId() != null && rule.getSecondAbstractRoleId() != null
-                    && postState.contains(rule.getFirstAbstractRoleId())
-                    && postState.contains(rule.getSecondAbstractRoleId())) {
+                    && hasOverlappingWindows(holdings, rule.getFirstAbstractRoleId(), rule.getSecondAbstractRoleId())) {
                     conflicts.add(new RoleMutexAssignConflict(
                         entry.getKey(), rule.getId(),
                         rule.getFirstAbstractRoleId(), rule.getSecondAbstractRoleId()));
@@ -200,14 +216,45 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     }
 
     /**
-     * 存量双持查询（T-PERM-063 规则写路径守卫）。
+     * 窗口区间交判定：角色 X 与 Y 各自任一持有窗口重叠即冲突。
      * <p>
-     * 候选超集经 {@link SubjectDomainService#findUserIdsByEffectiveRoles} 按角色反查用户
-     * （ROLE 直授 + GROUP_ROLE 直绑 + 祖先组展开三路——组角色间接持有同入候选，
-     * 双轨评审 P1-1：直授行查询会漏经组展开的持有），再经
-     * {@link SubjectDomainService#batchResolveEffectiveRoles} 收敛到有效角色集做 AND 判定
-     * （覆盖有效性窗口、启用态、组角色展开）——与运行时 filterRoleMutex 的判定集合同源，
-     * 避免把已过期/已禁用关系的持有误计为存量违规。
+     * 闭区间语义（对齐运行时 selectValidByUserIdsWithValidity 谓词系）：
+     * a.to >= b.from && b.to >= a.from，null 端=无穷——首尾相接（a.to == b.from）当天同刻有效算重叠；
+     * 两窗口真正不相交（[m,n] 与 [n+ε,k]）放行。
+     * </p>
+     */
+    private boolean hasOverlappingWindows(Set<SubjectDomainService.RawHolding> holdings,
+                                          Long firstRoleId, Long secondRoleId) {
+        List<SubjectDomainService.RawHolding> firstWindows = new ArrayList<>();
+        List<SubjectDomainService.RawHolding> secondWindows = new ArrayList<>();
+        for (SubjectDomainService.RawHolding holding : holdings) {
+            if (firstRoleId.equals(holding.roleId())) {
+                firstWindows.add(holding);
+            } else if (secondRoleId.equals(holding.roleId())) {
+                secondWindows.add(holding);
+            }
+        }
+        for (SubjectDomainService.RawHolding a : firstWindows) {
+            for (SubjectDomainService.RawHolding b : secondWindows) {
+                boolean aEndsAfterBStarts = a.validTo() == null || b.validFrom() == null
+                    || !a.validTo().isBefore(b.validFrom());
+                boolean bEndsAfterAStarts = b.validTo() == null || a.validFrom() == null
+                    || !b.validTo().isBefore(a.validFrom());
+                if (aEndsAfterBStarts && bEndsAfterAStarts) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 存量双持查询（T-PERM-063 规则写路径守卫；T-PERM-075 口径扩展）。
+     * <p>
+     * 候选超集按角色三路反查（含组角色间接持有），收敛到原始持有窗口做区间交判定
+     * （未过期含未来窗口、含禁用持有与禁用组子树，继承组绑定行窗口）——与全部
+     * 用户-角色写守卫同口径（U002 写时堵死），消除「绑定时拒、立规时放」双通道不一致；
+     * 窗口真正不相交的双持不计。
      * </p>
      */
     @Override
@@ -217,11 +264,13 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
         if (candidates.isEmpty()) {
             return List.of();
         }
-        Map<Long, Set<Long>> effective = subjectDomainService.batchResolveEffectiveRoles(tenantId, candidates);
+        // T-PERM-075：收敛到原始持有窗口（未过期含未来窗口、含禁用持有与禁用组子树），
+        // 按区间交判定双持——与用户-角色全部写守卫同口径，消除「绑定时拒、立规时放」的双通道不一致
+        Map<Long, Set<SubjectDomainService.RawHolding>> rawHoldings =
+            subjectDomainService.batchResolveRawHoldings(tenantId, candidates);
         List<Long> holders = new ArrayList<>();
         for (Long userId : candidates) {
-            Set<Long> roles = effective.getOrDefault(userId, Set.of());
-            if (roles.contains(firstRoleId) && roles.contains(secondRoleId)) {
+            if (hasOverlappingWindows(rawHoldings.getOrDefault(userId, Set.of()), firstRoleId, secondRoleId)) {
                 holders.add(userId);
             }
         }
@@ -242,17 +291,18 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             .map(r -> new RoleMutexPair(r.getFirstAbstractRoleId(), r.getSecondAbstractRoleId()))
             .collect(Collectors.toList());
 
-        // 回填缓存（JSON格式，剩余 TTL）
-        if (!mutexPairs.isEmpty()) {
-            try {
-                List<Map<String, Long>> toCache = mutexPairs.stream()
-                    .map(p -> Map.of("first", p.first(), "second", p.second()))
-                    .collect(Collectors.toList());
-                String json = objectMapper.writeValueAsString(toCache);
-                cacheService.put(readToken, tenantId, "all", json);
-            } catch (Exception e) {
-                log.warn("Failed to serialize mutex rules for caching: tenantId={}", tenantId);
-            }
+        // 回填缓存（JSON格式，剩余 TTL；T-PERM-075：空规则集也缓存——防穿透。
+        // 互斥过滤统一进全部判定入口后，空规则租户的每次判定都会读本缓存，
+        // 不缓存空集会使判定路径每次打 DB。立规后运行时沿 10s TTL 收敛，
+        // 写守卫（findAssignMutexConflicts/findUsersHoldingBothRoles）DB 直查不受影响）
+        try {
+            List<Map<String, Long>> toCache = mutexPairs.stream()
+                .map(p -> Map.of("first", p.first(), "second", p.second()))
+                .collect(Collectors.toList());
+            String json = objectMapper.writeValueAsString(toCache);
+            cacheService.put(readToken, tenantId, "all", json);
+        } catch (Exception e) {
+            log.warn("Failed to serialize mutex rules for caching: tenantId={}", tenantId);
         }
         return mutexPairs;
     }

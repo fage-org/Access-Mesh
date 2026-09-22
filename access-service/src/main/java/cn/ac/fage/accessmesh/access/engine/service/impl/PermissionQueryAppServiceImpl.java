@@ -17,7 +17,6 @@ import cn.ac.fage.accessmesh.access.domain.enums.DomainQueryMode;
 import cn.ac.fage.accessmesh.access.domain.service.domain.DomainClassifyService;
 import cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService;
 import cn.ac.fage.accessmesh.access.engine.dto.PermEvalContext;
 import cn.ac.fage.accessmesh.access.engine.dto.PermQuery;
 import cn.ac.fage.accessmesh.access.engine.dto.PermResult;
@@ -55,7 +54,6 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
 
     private static final Logger log = LoggerFactory.getLogger(PermissionQueryAppServiceImpl.class);
 
-    private final SubjectDomainService subjectDomainService;
     private final PermissionConflictDomainService permissionConflictDomainService;
     private final TypeResolutionService typeResolutionService;
     private final CacheService cacheService;
@@ -66,22 +64,19 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
     /**
      * 构造函数注入依赖
      *
-     * @param subjectDomainService             主体领域服务
-     * @param permissionConflictDomainService  权限冲突领域服务
+     * @param permissionConflictDomainService  权限冲突领域服务（T-PERM-075：快照链经共同判定语义入口消费互斥过滤）
      * @param typeResolutionService            类型解析服务
      * @param cacheService                     缓存服务
      * @param domainClassifyService            域分类服务
      * @param engine                           权限查询引擎
      * @param snapshotAssembler                快照装配器
      */
-    public PermissionQueryAppServiceImpl(SubjectDomainService subjectDomainService,
-                                          PermissionConflictDomainService permissionConflictDomainService,
+    public PermissionQueryAppServiceImpl(PermissionConflictDomainService permissionConflictDomainService,
                                           TypeResolutionService typeResolutionService,
                                           CacheService cacheService,
                                           DomainClassifyService domainClassifyService,
                                           PermQueryEngine engine,
                                           SnapshotAssembler snapshotAssembler) {
-        this.subjectDomainService = subjectDomainService;
         this.permissionConflictDomainService = permissionConflictDomainService;
         this.typeResolutionService = typeResolutionService;
         this.cacheService = cacheService;
@@ -429,10 +424,9 @@ public class PermissionQueryAppServiceImpl implements PermissionQueryAppService 
         Long userId = typeResolutionService.resolveUserId(tenantId, req.subjectTypeCode(), req.subjectExternalId());
         if (userId == null) return new InterfaceSnapshotResp(List.of());
 
-        Set<Long> effectiveRoleIds = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
-        Set<Long> validRoleIds = effectiveRoleIds.isEmpty()
-            ? Set.of()
-            : permissionConflictDomainService.filterRoleMutex(tenantId, userId, effectiveRoleIds);
+        // T-PERM-075：快照链改走共同判定语义入口（互斥过滤并入 resolveJudgementRoleIds，
+        // 与 check/batch/validate/scope/菜单视图同一入口）——快照不再专有过滤
+        Set<Long> validRoleIds = permissionConflictDomainService.resolveJudgementRoleIds(tenantId, userId);
 
         if (validRoleIds.isEmpty()) {
             // 无有效角色 → 空快照。Gateway 缓存空快照，靠 TTL + 广播最终一致。

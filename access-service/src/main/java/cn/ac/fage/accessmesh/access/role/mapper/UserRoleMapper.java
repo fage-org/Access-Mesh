@@ -107,6 +107,22 @@ public interface UserRoleMapper extends BaseMapper<UserRole> {
                                                       @Param("now") LocalDateTime now);
 
     /**
+     * 批量查询多个用户的未过期持有（仅 valid_to 谓词，未来 valid_from 同入候选）
+     * <p>
+     * T-PERM-075 写守卫「原始持有候选」数据源：已过期行永不生效（改期通道在改写时重查），
+     * 其余（当前有效 + 未来窗口）均可能参与后续互斥判定。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @param userIds  用户ID集合
+     * @param now      当前时间
+     * @return 用户角色关联列表
+     */
+    List<UserRole> selectValidByUserIdsUnexpired(@Param("tenantId") Long tenantId,
+                                                   @Param("userIds") Set<Long> userIds,
+                                                   @Param("now") LocalDateTime now);
+
+    /**
      * 查询指定角色和目标类型的有效用户角色关联
      *
      * @param tenantId   租户ID

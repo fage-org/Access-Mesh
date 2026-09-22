@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-026           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-22（Q-026 登记：sys_org.parent_id DDL 注释与实现顶级口径漂移；2026-09-21 Q-024/Q-025 随 T-ORG-002、Q-022/Q-023 同日）
+counter: Q-028           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-22（Q-027/Q-028 登记：T-PERM-075 双轨评审遗留——新增侧组目标不展开（留观）与组展开遍历重复（轻量清扫）；2026-09-22 早前 Q-026：sys_org.parent_id DDL 注释与实现顶级口径漂移；2026-09-21 Q-024/Q-025 随 T-ORG-002、Q-022/Q-023 同日）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,32 @@ last_updated: 2026-09-22（Q-026 登记：sys_org.parent_id DDL 注释与实现�
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-028 SubjectDomainServiceImpl 组展开两套遍历约 100 行重复（expandAllSubtree vs expandInMemory）
+
+- **状态**：open
+- **登记**：2026-09-22（T-PERM-075 双轨评审可裁剪项，用户拍板本批不动、后续轻量清扫）
+- **来源**：T-PERM-075 双轨评审
+- **关联**：T-PERM-075
+
+**现象与证据**：`expandAllSubtree`/`resolveGroupRolesAllSubtreeBatch`（原始候选·不剪禁用）与 `expandInMemory`/`resolveGroupRolesBatch`（有效角色解析·fail-closed 剪枝）遍历形态重复，差异仅禁用剪枝一处。语义刻意相反（写守卫原始候选 vs 运行时过滤集），合并需参数化并搬动热路径剪枝逻辑。
+
+**影响**：纯代码重复，无行为缺陷。
+
+**设想方向（未定案）**：轻量清扫批次参数化合并（如传入空 disabledRoleIds 得全子树行为），须补禁用剪枝/不剪枝两形态等价回归锁。
+
+## Q-027 写守卫「新增侧组目标」不展开成员——绑分组角色可绕过互斥写时拦截（运行时双删兜底）
+
+- **状态**：open
+- **登记**：2026-09-22（T-PERM-075 双轨评审代码轨 Q-1，用户拍板登记留观）
+- **来源**：T-PERM-075 双轨评审
+- **关联**：T-PERM-075（持有侧组展开已进候选 batchResolveRawHoldings；缺口仅新增侧）
+
+**现象与证据**：互斥规则 (X,Y) 存在、用户持有 Y 时绑定子树含 X 的分组角色 G——写守卫 postState={Y, G}（`UserManageAppServiceImpl.rejectRoleMutexOnAssign` 新增行按 targetId 直接入候选，G≠X 不命中）→ 保存成功；运行时 effectiveRoles 组展开后 {X,Y} 同场 → 双删（含原有 Y 端同时失效）。sync/full-sync BIND 同形态。T-PERM-063 起即此形态（本卡未引入回归），U002 拍板文字未覆盖「新增组目标展开」面。
+
+**影响**：绕过方向=静默双删失权（写时无提示）；安全方向无暴露（fail-closed）。
+
+**设想方向（未定案）**：新增侧 GROUP_ROLE 目标做子树展开+窗口继承（复用 expandAllSubtree），assign/batch-assign/sync 三入口同步；需补回归锁。
 
 ## Q-026 sys_org.parent_id DDL 注释「NULL=根节点」与实现顶级口径（0）相反
 

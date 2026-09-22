@@ -50,7 +50,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class PermissionQueryAppServiceImplTest {
 
-    @Mock private SubjectDomainService subjectDomainService;
     @Mock private PermissionConflictDomainService permissionConflictDomainService;
     @Mock private TypeResolutionService typeResolutionService;
     @Mock private CacheService cacheService;
@@ -63,7 +62,7 @@ class PermissionQueryAppServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new PermissionQueryAppServiceImpl(
-            subjectDomainService, permissionConflictDomainService,
+            permissionConflictDomainService,
             typeResolutionService, cacheService,
             domainClassifyService,
             engine, snapshotAssembler
@@ -229,8 +228,7 @@ class PermissionQueryAppServiceImplTest {
         void shouldBuildSnapshotFromEngineEveryCallWithoutToken() {
             // T-PERM-018：access-service 每次实时构建全量快照，不再有 permissionVersion/notModified
             when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(200L));
-            when(permissionConflictDomainService.filterRoleMutex(1L, 10L, Set.of(200L))).thenReturn(Set.of(200L));
+            when(permissionConflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of(200L));
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "API")).thenReturn(2);
             when(engine.query(any(PermQuery.class))).thenReturn(buildPermResult());
             when(snapshotAssembler.buildSnapshot(eq(1L), any(PermResult.class), eq("example-service"), eq(2)))
@@ -252,8 +250,7 @@ class PermissionQueryAppServiceImplTest {
         @Test
         void shouldReturnEmptySnapshotWhenNoEffectiveRoles() {
             when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of());
-            when(permissionConflictDomainService.filterRoleMutex(1L, 10L, Set.of())).thenReturn(Set.of());
+            when(permissionConflictDomainService.resolveJudgementRoleIds(1L, 10L)).thenReturn(Set.of());
 
             InterfaceSnapshotResp resp = service.interfaceSnapshot(1L, new InterfaceSnapshotReq(
                 "USER", "u-1", "example-service"));
@@ -274,7 +271,6 @@ class PermissionQueryAppServiceImplTest {
         @Test
         void shouldReturnScopeAllEntryWhenUserHasScopeAllPermission() {
             lenient().when(typeResolutionService.resolveUserId(1L, "USER", "u-1")).thenReturn(10L);
-            lenient().when(subjectDomainService.resolveEffectiveRoles(1L, 10L)).thenReturn(Set.of(20L));
             lenient().when(typeResolutionService.batchResolveTypeCodes(1L, "resource_type", Set.of(1)))
                 .thenReturn(Map.of(1, "REPORT"));
 

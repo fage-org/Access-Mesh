@@ -182,14 +182,6 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
         return abstractRoleMapper.selectValidByIds(tenantId, roleIds);
     }
 
-    @Override
-    public List<Long> selectEnabledRoleIds(Long tenantId, Set<Long> roleIds) {
-        if (roleIds == null || roleIds.isEmpty()) {
-            return Collections.emptyList();
-        }
-        return abstractRoleMapper.selectEnabledIdsByIds(tenantId, roleIds);
-    }
-
     // ===== user_role 原始行层（Q-009，T-ACCESS-046）：无缓存直读直写，一致性档位见接口 javadoc =====
 
     @Override
@@ -301,6 +293,16 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
     @Override
     public Set<Long> resolveEffectiveRoles(Long tenantId, Long userId) {
         Map<Long, Set<Long>> batchResult = resolveEffectiveRolesBatch(tenantId, Set.of(userId));
+        return batchResult.getOrDefault(userId, Collections.emptySet());
+    }
+
+    /**
+     * 解析用户的原始持有候选（单用户便捷版，委托批量实现；语义见接口 javadoc）。
+     */
+    @Override
+    public Set<SubjectDomainService.RawHolding> resolveRawHoldings(Long tenantId, Long userId) {
+        Map<Long, Set<SubjectDomainService.RawHolding>> batchResult =
+            batchResolveRawHoldings(tenantId, Set.of(userId));
         return batchResult.getOrDefault(userId, Collections.emptySet());
     }
 
@@ -422,6 +424,125 @@ public class SubjectDomainServiceImpl implements SubjectDomainService {
 
         cacheService.putBatch(readToken, tenantId, uncachedResults);
 
+        return result;
+    }
+
+    /**
+     * 批量解析多个用户的原始持有候选（T-PERM-075 写守卫专用，语义见接口 javadoc）。
+     * <p>
+     * 保留有效期窗口供互斥「区间交」判定——两个互斥角色的持有窗口真正不相交时放行。
+     * 与 {@link #resolveEffectiveRolesBatch} 共享数据装载形态（未过期谓词差一个 valid_from 条件）
+     * 但刻意不走缓存、不做启用/禁用/互斥过滤——写时守卫看原始候选，DB 新鲜读。
+     * </p>
+     */
+    @Override
+    public Map<Long, Set<SubjectDomainService.RawHolding>> batchResolveRawHoldings(Long tenantId, Set<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        LocalDateTime now = LocalDateTime.now();
+        List<UserRole> allUserRoles = userRoleMapper.selectValidByUserIdsUnexpired(tenantId, userIds, now);
+
+        // 直接持有：保留行窗口；组绑定行：窗口在展开时继承给全部子树成员
+        Map<Long, Set<SubjectDomainService.RawHolding>> userToHoldings = new HashMap<>();
+        Map<Long, List<UserRole>> groupBindingsByUser = new HashMap<>();
+        for (UserRole ur : allUserRoles) {
+            userToHoldings.computeIfAbsent(ur.getAbstractUserId(), k -> new HashSet<>());
+            if (PermConstants.TargetType.GROUP_ROLE.equals(ur.getTargetType())) {
+                groupBindingsByUser.computeIfAbsent(ur.getAbstractUserId(), k -> new ArrayList<>()).add(ur);
+            } else {
+                userToHoldings.get(ur.getAbstractUserId()).add(new SubjectDomainService.RawHolding(
+                    ur.getTargetId(), ur.getValidFrom(), ur.getValidTo()));
+            }
+        }
+
+        Set<Long> groupRoleIds = new HashSet<>();
+        for (List<UserRole> bindings : groupBindingsByUser.values()) {
+            for (UserRole ur : bindings) {
+                groupRoleIds.add(ur.getTargetId());
+            }
+        }
+        Map<Long, Set<Long>> groupRoleExpandCache = resolveGroupRolesAllSubtreeBatch(tenantId, groupRoleIds);
+        for (Map.Entry<Long, List<UserRole>> entry : groupBindingsByUser.entrySet()) {
+            Set<SubjectDomainService.RawHolding> holdings = userToHoldings.get(entry.getKey());
+            for (UserRole binding : entry.getValue()) {
+                Set<Long> expandedRoles = groupRoleExpandCache.getOrDefault(binding.getTargetId(), Set.of());
+                for (Long roleId : expandedRoles) {
+                    // 间接持有继承 GROUP_ROLE 绑定行窗口（用户侧唯一时间约束，保守方向）
+                    holdings.add(new SubjectDomainService.RawHolding(
+                        roleId, binding.getValidFrom(), binding.getValidTo()));
+                }
+            }
+        }
+
+        Map<Long, Set<SubjectDomainService.RawHolding>> result = new HashMap<>();
+        for (Long userId : userIds) {
+            result.put(userId, userToHoldings.getOrDefault(userId, Collections.emptySet()));
+        }
+        return result;
+    }
+
+    /**
+     * 批量展开组角色（含禁用组与禁用子树，T-PERM-075）。
+     * <p>
+     * 与 {@link #resolveGroupRolesBatch} 同数据源（selectRoleTreeByGroupIds 递归 CTE + extra.basicRoleIds），
+     * 差别仅在不按 status 剪枝——原始持有候选要求禁用可逆状态下的完整子树
+     * （启用后持有即参与判定，U002-2 绑定写时堵死口径）。
+     * </p>
+     */
+    private Map<Long, Set<Long>> resolveGroupRolesAllSubtreeBatch(Long tenantId, Set<Long> groupRoleIds) {
+        Map<Long, Set<Long>> result = new HashMap<>();
+        if (groupRoleIds == null || groupRoleIds.isEmpty()) {
+            return result;
+        }
+
+        List<AbstractRole> allRoles = abstractRoleMapper.selectRoleTreeByGroupIds(groupRoleIds, tenantId);
+        Map<Long, List<AbstractRole>> parentToChildren = allRoles.stream()
+            .filter(r -> r.getParentId() != null)
+            .collect(Collectors.groupingBy(AbstractRole::getParentId));
+        Map<Long, AbstractRole> roleMap = allRoles.stream()
+            .collect(Collectors.toMap(AbstractRole::getId, r -> r));
+
+        for (Long groupRoleId : groupRoleIds) {
+            result.put(groupRoleId, expandAllSubtree(groupRoleId, parentToChildren, roleMap, new HashSet<>()));
+        }
+        return result;
+    }
+
+    /**
+     * 在内存中递归展开组角色全子树（不剪禁用节点，visited 防环）。
+     */
+    private Set<Long> expandAllSubtree(Long roleId, Map<Long, List<AbstractRole>> parentToChildren,
+                                       Map<Long, AbstractRole> roleMap, Set<Long> visited) {
+        if (roleId == null || visited.contains(roleId)) {
+            return Set.of();
+        }
+        visited.add(roleId);
+
+        Set<Long> result = new HashSet<>();
+        AbstractRole role = roleMap.get(roleId);
+        if (role != null) {
+            for (Long basicId : parseBasicRoleIds(role.getExtra())) {
+                AbstractRole basicRole = roleMap.get(basicId);
+                if (basicRole == null) {
+                    continue;
+                }
+                if (basicRole.getRoleType() != null
+                    && basicRole.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
+                    result.addAll(expandAllSubtree(basicId, parentToChildren, roleMap, visited));
+                } else {
+                    result.add(basicId);
+                }
+            }
+        }
+
+        for (AbstractRole child : parentToChildren.getOrDefault(roleId, List.of())) {
+            if (child.getRoleType() != null && child.getRoleType() == RoleType.GROUP_ROLE.getValue()) {
+                result.addAll(expandAllSubtree(child.getId(), parentToChildren, roleMap, visited));
+            } else {
+                result.add(child.getId());
+            }
+        }
         return result;
     }
 

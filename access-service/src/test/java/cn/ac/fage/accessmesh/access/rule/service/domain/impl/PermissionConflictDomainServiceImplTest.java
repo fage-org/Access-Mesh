@@ -24,8 +24,10 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -60,6 +62,13 @@ class PermissionConflictDomainServiceImplTest {
         service = new PermissionConflictDomainServiceImpl(conflictRuleMapper, cacheService,
             new ObjectMapper(), auditDomainService, operationPermissionMapper,
             subjectDomainService);
+    }
+
+    /** T-PERM-075 窗口构造 helper（ISO-8601 字符串形态，null=无限端）。 */
+    private cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding holding(Long roleId, String from, String to) {
+        return new cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding(roleId,
+            from == null ? null : java.time.LocalDateTime.parse(from),
+            to == null ? null : java.time.LocalDateTime.parse(to));
     }
 
     private OperationPermission op(Long id, Integer resourceType, long bit, String code) {
@@ -187,7 +196,8 @@ class PermissionConflictDomainServiceImplTest {
     @Nested
     class AssignMutexConflictDetection {
 
-        /** 写路径校验走 DB 直查（不经缓存），授予后集合双端在场命中（同批双端由集合语义覆盖） */
+        /** 写路径校验走 DB 直查（不经缓存），两互斥角色的持有窗口重叠命中；
+         *  真正不相交的未来窗口放行（T-PERM-075 区间交语义，旧集合语义实现误拒不相交窗口必红） */
         @Test
         void shouldFindAssignConflictsFromFreshDbRules() {
             PermissionConflictRule roleRule = new PermissionConflictRule();
@@ -198,16 +208,39 @@ class PermissionConflictDomainServiceImplTest {
             when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.ROLE_MUTEX.getValue()))
                 .thenReturn(List.of(roleRule));
 
+            // 20：无限期双持（重叠）；21：单端；22：无关角色；
+            // 23：双端但窗口不相交（A[-3d,-1d] vs B[+1d,+2d]）——不命中
             List<PermissionConflictDomainService.RoleMutexAssignConflict> conflicts =
                 service.findAssignMutexConflicts(TENANT, Map.of(
-                    20L, Set.of(100L, 200L),
-                    21L, Set.of(100L),
-                    22L, Set.of(500L)));
+                    20L, Set.of(holding(100L, null, null), holding(200L, null, null)),
+                    21L, Set.of(holding(100L, null, null)),
+                    22L, Set.of(holding(500L, null, null)),
+                    23L, Set.of(holding(100L, "2026-01-01T00:00", "2026-01-03T00:00"),
+                        holding(200L, "2026-01-05T00:00", "2026-01-06T00:00"))));
 
             assertEquals(1, conflicts.size());
             assertEquals(20L, conflicts.get(0).userId());
             assertEquals(9L, conflicts.get(0).ruleId());
             verify(cacheService, never()).get(any(), any(), any());
+        }
+
+        /** 首尾相接（A.to == B.from）闭区间口径下当天同刻有效算重叠——拒绝形态 */
+        @Test
+        void shouldTreatAdjacentWindowsAsOverlap() {
+            PermissionConflictRule roleRule = new PermissionConflictRule();
+            roleRule.setId(9L);
+            roleRule.setConflictType(ConflictType.ROLE_MUTEX.getValue());
+            roleRule.setFirstAbstractRoleId(100L);
+            roleRule.setSecondAbstractRoleId(200L);
+            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.ROLE_MUTEX.getValue()))
+                .thenReturn(List.of(roleRule));
+
+            List<PermissionConflictDomainService.RoleMutexAssignConflict> conflicts =
+                service.findAssignMutexConflicts(TENANT, Map.of(
+                    20L, Set.of(holding(100L, null, "2026-01-03T00:00"),
+                        holding(200L, "2026-01-03T00:00", null))));
+
+            assertEquals(1, conflicts.size());
         }
 
         /** 空入参/无规则零成本短路 */
@@ -216,24 +249,35 @@ class PermissionConflictDomainServiceImplTest {
             assertEquals(List.of(), service.findAssignMutexConflicts(TENANT, Map.of()));
             when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.ROLE_MUTEX.getValue()))
                 .thenReturn(List.of());
-            assertEquals(List.of(), service.findAssignMutexConflicts(TENANT, Map.of(20L, Set.of(100L, 200L))));
+            assertEquals(List.of(), service.findAssignMutexConflicts(TENANT,
+                Map.of(20L, Set.of(holding(100L, null, null), holding(200L, null, null)))));
         }
     }
 
     @Nested
     class UsersHoldingBothRoles {
 
-        /** 候选反查 + 有效角色集 AND 收敛：一端禁用/过期的用户不计存量持有 */
+        /**
+         * T-PERM-075 口径扩展：收敛到原始持有候选——禁用端持有同样计入存量双持
+         * （与全部用户-角色写守卫同口径，消除「绑定时拒、立规时放」双通道不一致；
+         * 旧「有效角色集收敛、禁用不计」实现在带禁用持有的输入下漏判，必红）。
+         */
         @Test
-        void shouldFindHoldersByEffectiveSet() {
+        void shouldFindHoldersByRawHoldingsIncludingDisabled() {
             when(subjectDomainService.findUserIdsByEffectiveRoles(TENANT, Set.of(100L, 200L)))
-                .thenReturn(Set.of(20L, 21L));
-            when(subjectDomainService.batchResolveEffectiveRoles(TENANT, Set.of(20L, 21L)))
-                .thenReturn(Map.of(20L, Set.of(100L, 200L), 21L, Set.of(100L)));
+                .thenReturn(Set.of(20L, 21L, 22L));
+            // 20 双持（含）；21 仅一端（不含）；22 双持但一端禁用（原始候选口径下计入）
+            when(subjectDomainService.batchResolveRawHoldings(TENANT, Set.of(20L, 21L, 22L)))
+                .thenReturn(Map.of(
+                    20L, Set.of(holding(100L, null, null), holding(200L, null, null)),
+                    21L, Set.of(holding(100L, null, null)),
+                    22L, Set.of(holding(100L, null, null), holding(200L, null, null))));
 
             List<Long> holders = service.findUsersHoldingBothRoles(TENANT, 100L, 200L);
 
-            assertEquals(List.of(20L), holders);
+            // 候选集为 Set（无序遍历），断言无序形态
+            assertEquals(2, holders.size());
+            assertTrue(holders.contains(20L) && holders.contains(22L) && !holders.contains(21L));
         }
 
         /** 组角色间接持有入候选（评审 P1-1）：经组展开持有对端同样计双持——
@@ -244,20 +288,60 @@ class PermissionConflictDomainServiceImplTest {
             // 候选必须来自按角色反查（含组路径）才会包含 30
             when(subjectDomainService.findUserIdsByEffectiveRoles(TENANT, Set.of(100L, 200L)))
                 .thenReturn(Set.of(30L));
-            when(subjectDomainService.batchResolveEffectiveRoles(TENANT, Set.of(30L)))
-                .thenReturn(Map.of(30L, Set.of(100L, 200L)));
+            when(subjectDomainService.batchResolveRawHoldings(TENANT, Set.of(30L)))
+                .thenReturn(Map.of(30L, Set.of(holding(100L, null, null), holding(200L, null, null))));
 
             assertEquals(List.of(30L), service.findUsersHoldingBothRoles(TENANT, 100L, 200L));
         }
 
-        /** 候选为空：短路不触有效角色解析 */
+        /** 候选为空：短路不触原始持有解析 */
         @Test
         void shouldReturnEmptyWhenNoCandidates() {
             when(subjectDomainService.findUserIdsByEffectiveRoles(TENANT, Set.of(100L, 200L)))
                 .thenReturn(Set.of());
 
             assertEquals(List.of(), service.findUsersHoldingBothRoles(TENANT, 100L, 200L));
-            verify(subjectDomainService, never()).batchResolveEffectiveRoles(anyLong(), any());
+            verify(subjectDomainService, never()).batchResolveRawHoldings(anyLong(), any());
+        }
+    }
+
+    @Nested
+    class JudgementEntryResolution {
+
+        /** T-PERM-075 共同判定入口：有效角色 + 互斥双删一次完成；空有效角色短路不读规则缓存 */
+        @Test
+        void shouldComposeEffectiveRolesWithMutexFilter() {
+            when(subjectDomainService.resolveEffectiveRoles(TENANT, 10L)).thenReturn(Set.of(100L, 200L, 300L));
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all"))
+                .thenReturn("[{\"first\":100,\"second\":200}]");
+
+            assertEquals(Set.of(300L), service.resolveJudgementRoleIds(TENANT, 10L));
+            verify(cacheService).get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all");
+        }
+
+        /** 空有效角色短路：不触规则缓存读取（NO_ROLE 判定零额外开销） */
+        @Test
+        void shouldShortCircuitWhenNoEffectiveRoles() {
+            when(subjectDomainService.resolveEffectiveRoles(TENANT, 10L)).thenReturn(Set.of());
+
+            assertEquals(Set.of(), service.resolveJudgementRoleIds(TENANT, 10L));
+            verify(cacheService, never()).get(any(), anyLong(), any());
+        }
+
+        /** 空规则集也写缓存（防穿透）：互斥过滤统一进全部判定入口后，
+         *  空规则租户不缓存会使每次判定打 DB（旧「非空才回填」实现在此必红） */
+        @Test
+        void shouldCacheEmptyRuleSetToPreventPenetration() {
+            when(cacheService.get(AccessCacheCatalog.ROLE_MUTEX_RULE, TENANT, "all")).thenReturn(null);
+            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.ROLE_MUTEX.getValue()))
+                .thenReturn(List.of());
+            when(subjectDomainService.resolveEffectiveRoles(TENANT, 10L)).thenReturn(Set.of(100L, 200L));
+
+            assertEquals(Set.of(100L, 200L), service.resolveJudgementRoleIds(TENANT, 10L));
+            // 空集 JSON "[]" 也回填（剩余 TTL 由 CacheReadToken 约束；显式类型见证消 put 重载歧义）
+            verify(cacheService).put(
+                org.mockito.ArgumentMatchers.<cn.ac.fage.accessmesh.common.cache.CacheReadToken<String>>isNull(),
+                eq(TENANT), eq("all"), eq("[]"));
         }
     }
 }
