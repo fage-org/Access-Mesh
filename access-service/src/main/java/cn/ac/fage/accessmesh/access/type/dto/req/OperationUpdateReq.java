@@ -15,7 +15,7 @@ import jakarta.validation.constraints.Pattern;
  * @param code             操作编码，必填（定位键）
  * @param name             操作权限名称，可选
  * @param binaryBit        二进制位，可选，用于位运算权限匹配
- * @param inheritMask      继承掩码，可选，用于权限继承计算
+ * @param inheritMask      继承掩码，可选（null=不更新），用于权限继承计算
  */
 public record OperationUpdateReq(
     @NotBlank
