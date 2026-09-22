@@ -15,6 +15,7 @@ import cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.org.service.domain.UserOrgDomainService;
 import cn.ac.fage.accessmesh.access.org.service.UserOrgWriteAppService;
+import cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,17 +36,20 @@ public class UserOrgAppServiceImpl implements UserOrgAppService {
     private final OrgDomainService orgDomainService;
     private final AdminPermissionValidator permissionValidator;
     private final UserOrgWriteAppService userOrgWriteAppService;
+    private final TreeWriteLockSupport treeWriteLockSupport;
 
     public UserOrgAppServiceImpl(UserOrgDomainService userOrgDomainService,
                               OrgTreeConfigDomainService orgTreeConfigDomainService,
                               OrgDomainService orgDomainService,
                               AdminPermissionValidator permissionValidator,
-                              UserOrgWriteAppService userOrgWriteAppService) {
+                              UserOrgWriteAppService userOrgWriteAppService,
+                              TreeWriteLockSupport treeWriteLockSupport) {
         this.userOrgDomainService = userOrgDomainService;
         this.orgTreeConfigDomainService = orgTreeConfigDomainService;
         this.orgDomainService = orgDomainService;
         this.permissionValidator = permissionValidator;
         this.userOrgWriteAppService = userOrgWriteAppService;
+        this.treeWriteLockSupport = treeWriteLockSupport;
     }
 
     @Override
@@ -91,6 +95,13 @@ public class UserOrgAppServiceImpl implements UserOrgAppService {
             OrgOperationCodeMapper.resolveForUserOrg(targetOrg.getOrgType(), OperationCode.UPDATE)
         );
 
+        // SYS_ORG 树锁（claude 外评 P2，与 assign/remove 同族补齐）：设主的守卫读
+        //（默认树范围+目标归属）与 is_primary 双写全部入锁——否则与并发 deleteOrg
+        //（持同锁级联软删归属行）交错时，清旧主 UPDATE 因 delete_flag=0 滤掉已删行、
+        // 置新主 UPDATE 命中 0 行，接口 200 但用户默认树主归属静默丢失；锁先于守卫首读
+        //（resolveDefaultTreeOrgIds），org 存在性解析与门禁非守卫输入留在锁前
+        //（removeUserFromOrg 同序先例）
+        treeWriteLockSupport.lockTreeWrites(tenantId, TreeWriteLockSupport.TreeLockTarget.SYS_ORG);
         // 首期主组织仅表示默认组织树下的主归属；默认树范围解析换绑领域共享入口
         //（Q-025 随 T-ORG-003 收敛——原私有副本与共享入口并存且多配置展开行为有差，
         // 读面 11014 判定与写面守卫同源；退化根（配置在而根组织失联）由共享入口

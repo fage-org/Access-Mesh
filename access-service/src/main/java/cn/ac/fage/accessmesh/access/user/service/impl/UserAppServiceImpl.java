@@ -554,15 +554,13 @@ public class UserAppServiceImpl implements UserAppService {
 
     /**
      * 校验组织是否属于默认组织树。不属于时抛 {@code BizException(ORG_NOT_IN_DEFAULT_TREE)}。
+     * <p>
+     * 默认树范围解析走领域共享入口（claude 外评 P3 类推收敛——与 UserWriteAppServiceImpl
+     * 的逐字副本同源，Q-025 同款收敛；无默认配置/根失联时共享入口返回空列表，
+     * 统一折算 ORG_NOT_IN_DEFAULT_TREE，与旧实现的空配置分支等价）。
      */
     private void validateOrgInDefaultTree(Long tenantId, Long orgId) {
-        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
-        if (defaultConfigs.isEmpty()) {
-            throw new BizException(AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
-                AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());
-        }
-        Long rootOrgId = defaultConfigs.get(0).getRootOrgId();
-        List<Long> subtreeIds = orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId);
+        List<Long> subtreeIds = orgTreeConfigDomainService.resolveDefaultTreeOrgIds(tenantId);
         if (!subtreeIds.contains(orgId)) {
             throw new BizException(AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getCode(),
                 AccessErrorCode.ORG_NOT_IN_DEFAULT_TREE.getMessage());

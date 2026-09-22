@@ -110,7 +110,8 @@ public interface UserAppService {
      * 查询候选用户（添加组织/岗位成员时使用）
      * <p>
      * 候选范围 = 默认组织树中操作者可见 ∩ 排除目标组织已有成员。
-     * 门禁：ORG:UPDATE@targetOrgId（校验能管理目标组织成员）。
+     * 门禁：与 user-org/assign 同权——先验证目标组织存在，再按目标 orgType 解析成员
+     * 动作码（普通组织 ORG:MANAGE_MEMBER、岗位 ORG:ASSIGN_POSITION_USER，T-ORG-003）。
      * <p>
      * 契约依据：{@code docs/design/access-service-api-contract.md} §7.2
      *

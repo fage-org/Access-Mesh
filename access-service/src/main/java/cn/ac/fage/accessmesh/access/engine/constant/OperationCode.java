@@ -208,7 +208,7 @@ public final class OperationCode {
     /**
      * 挂载/卸载/设主 岗位用户
      * <p>
-     * 与普通组织成员归属（ORG:UPDATE）解耦：作用在 orgType=2 的 sys_org 实例上的
+     * 与普通组织成员归属（ORG:MANAGE_MEMBER）解耦：作用在 orgType=2 的 sys_org 实例上的
      * user-org 关系动作走此操作码，便于"岗位用户运营"独立配权。
      * <p>
      * 映射关系：{@code OrgOperationCodeMapper.resolveForUserOrg(orgType, UPDATE)} → orgType=2 时返回本常量。
