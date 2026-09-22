@@ -568,16 +568,28 @@ watch(
               </div>
             </div>
             <div class="position-actions">
-              <el-button
+              <!-- 停用岗位授权入口死路收敛（claude 外评 P3-1，2026-09-22 拍板入口侧收敛）：授予页
+                   主体树请求层 status=1（2026-09-04 定案）过滤停用岗位，preset 预选必 !found——
+                   入口对停用岗位置禁用态提示先恢复，不触碰树定案面 -->
+              <el-tooltip
                 v-if="canGrantPerm"
-                link
-                type="primary"
-                size="small"
-                :icon="useRenderIcon(Key)"
-                @click.stop="goPermissionGrant(position)"
+                :disabled="position.status === 1"
+                content="岗位已禁用，恢复启用后可在授权页选择"
+                placement="top"
               >
-                {{ grantEntryLabel }}
-              </el-button>
+                <span>
+                  <el-button
+                    link
+                    type="primary"
+                    size="small"
+                    :icon="useRenderIcon(Key)"
+                    :disabled="position.status !== 1"
+                    @click.stop="goPermissionGrant(position)"
+                  >
+                    {{ grantEntryLabel }}
+                  </el-button>
+                </span>
+              </el-tooltip>
               <el-button
                 v-if="canAssignPositionUser"
                 link

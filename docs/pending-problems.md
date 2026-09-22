@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-035           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-22（Q-035 登记：T-FE-057 浏览器实测存量发现——新增岗位弹窗 initialData.parentOrgId 通道失效；同日 Q-034/Q-033/Q-032/Q-031/Q-030/Q-029 登记）
+counter: Q-037           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-22（Q-036/Q-037 登记：T-FE-057 claude 外评存量观察——PositionTab 展示面两处（orgTree prop 无人传、users 失败落空态）与授予页入口死路族（preset !found 不经草稿确认）；同日 Q-035/Q-034/Q-033/Q-032/Q-031/Q-030/Q-029 登记）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,32 @@ last_updated: 2026-09-22（Q-035 登记：T-FE-057 浏览器实测存量发现�
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-037 授予页入口死路族：停用主体入口 preset 必 !found 且草稿被静默清空（不经 confirmDiscardIfDirty）
+
+- **状态**：open
+- **登记**：2026-09-22（T-FE-057 claude 外评 P3-1 类推面——本卡 PositionTab 停用岗位入口已随拍板入口侧收敛〔禁用态+tooltip〕，其余两处为存量）
+- **来源**：T-FE-057 claude 外评
+- **关联**：2026-09-04 主体树 status=1/enabledOnly 过滤定案（T-PERM-022 面）；T-FE-057 registry 行（拍板=入口侧收敛）
+
+**现象与证据**：授予页主体树请求层过滤停用主体（组织入口 `getOrgTree({includePositions:true,status:1})`、角色入口 `getRoleTree({enabledOnly:true})`，SubjectTreePanel.vue:92/111），而三处管理页入口的源列表含停用主体且入口无状态门禁：角色管理页停用角色行（role/index.vue:185/322 入口 vs 页面树含禁用角色）、组织信息卡停用组织入口（user/index.vue）——点击后授予页 `hook.ts` preset 分支 `findNode` 必不命中 → `grantStore.resetAll()` + 「未找到指定角色/组织」提示；该分支不经 `confirmDiscardIfDirty`（confirm 只挂 handleSelectSubject/refresh 路径，hook.ts:419/632/954），keep-alive 授予页在途草稿静默丢失。
+
+**影响**：误导性提示（主体存在仅停用）+ 草稿静默清空；触发面=两处存量入口（PositionTab 岗位面已收敛）。
+
+**设想方向（未定案）**：入口侧类推收敛（停用主体入口禁用态+tooltip，对齐 T-FE-057 PositionTab 拍板形态）；或授予页 preset !found 分支补 confirmDiscardIfDirty（护草稿，属授予页 hook 面改动，与入口侧收敛不互斥）；可随下一张触达角色管理页/授予页的任务顺手收敛。
+
+## Q-036 PositionTab 展示面两处存量：orgTree prop 无调用方（位置列恒「-」）与成员加载失败落「暂无成员」空态
+
+- **状态**：open
+- **登记**：2026-09-22（T-FE-057 claude 外评存量观察①③，主代理核实属实）
+- **来源**：T-FE-057 claude 外评
+- **关联**：Q-019（父组织名解析依赖已加载树族）
+
+**现象与证据**：①`PositionTab` 声明 `orgTree?: any[]` prop 且 `getOrgPath`（PositionTab.vue:143-152）以它解析父链，但唯一调用方 index.vue:349 只传 `:org-id`——orgTree 恒 undefined，卡片「位置」列恒显示「-」（父路径解析失效）。②`loadPositionUsers` 失败（catch 已换绑 toErrorMessage 弹错）后 `positionUsers[id]` 仍为 undefined，展开区落 `v-else` 的 el-empty「暂无成员」——真实加载失败与空成员混淆（T-FE-057 仅换绑文案未改结构）。
+
+**影响**：纯展示缺陷，无数据错误：位置列信息缺失；失败态误显为空态。
+
+**设想方向（未定案）**：①index.vue 把左树数据传入 orgTree prop（或 getOrgPath 改经 orgTreePanelRef 同 UserDetailPanel 形态）；②展开区失败态区分（加载失败显示错误占位而非空态）。可随 T-FE-058（同页分页卡）顺手收敛。
 
 ## Q-035 PositionTab 新增岗位弹窗 initialData.parentOrgId 通道失效——上级组织默认「根组织」，未手选直接提交被拒
 
