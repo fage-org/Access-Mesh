@@ -947,4 +947,46 @@ class ResourceManageAppServiceImplTest {
         assertEquals(1, mixed.size());
         assertEquals("R076_J", mixed.get(0).code());
     }
+
+    @Test
+    @DisplayName("T-PERM-076 claude 外评 P3-1：三元组拼接键塌缩不再误判重——(T,\"a:b\",\"c\") 与 (T,\"a\",\"b:c\") 可共存")
+    void batchCreateCollapsibleTripleKeysNotDeduped() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("DATA"))))
+            .thenReturn(java.util.Map.of("DATA", managedType("DATA", 4)));
+        when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), any())).thenReturn(java.util.Map.of());
+        // 存量行 (DATA,"a:b","c") 与新项 (DATA,"a","b:c") 拼接串同为 "4:a:b:c"——
+        // 旧键下新项被静默判重跳过（resp=0 本用例红）；TripleKey 元组键下两键不同均可落库
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), anySet(), anySet(), anySet()))
+            .thenReturn(List.of(resourceWithTriple(31L, 4, "a:b", "c")))
+            .thenReturn(List.of(resourceWithTriple(301L, 4, "a", "b:c")));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
+
+        var resp = service.batchCreateResources(1L, List.of(
+            batchReq("DATA", "a", "b:c", "塌缩对新项")), 100L);
+
+        assertEquals(1, resp.size());
+        assertEquals("a", resp.get(0).code());
+        assertEquals("b:c", resp.get(0).codeType());
+        assertEquals(301L, resp.get(0).id());
+    }
+
+    @Test
+    @DisplayName("T-PERM-076 claude 外评 P3-1（remove 同根因）：请求键塌缩不把未请求行纳入删除集合")
+    void deleteResourcesCollapsibleTripleKeyExcludesUnrequestedRow() {
+        // 请求 (DATA,"a:b","c")；库中存在未请求行 (DATA,"a","b:c")——拼接串同为 "4:a:b:c"，
+        // 旧键下未请求行被纳入删除集合并 softDelete（本用例红）；TripleKey 下精确排除、空集跳过
+        ResourceEntity unrequested = resourceWithTriple(77L, 4, "a", "b:c");
+        when(typeResolutionService.batchResolveTypeValues(1L, "resource_type", Set.of("DATA")))
+            .thenReturn(java.util.Map.of("DATA", 4));
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), eq(Set.of(4)), anySet(), anySet()))
+            .thenReturn(List.of(unrequested));
+
+        service.deleteResources(1L, List.of(
+            new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceKeyReq("DATA", "a:b", "c")), 99L);
+
+        verify(resourceEntityDomainService, org.mockito.Mockito.never())
+            .softDeleteBatch(anyLong(), any(), any());
+    }
 }

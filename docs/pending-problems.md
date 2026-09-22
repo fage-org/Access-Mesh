@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-030           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-22（Q-029/Q-030 登记：T-ADMIN-028 claude 外评存量观察——OAuth2 委托令牌不随用户禁用即时失效、authorize 不比对客户端租户与会话租户；同日早前 Q-026/Q-027/Q-028）
+counter: Q-031           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-22（Q-031 登记：T-PERM-076 claude 外评存量观察——sync 通道 codeType 归一不 trim 与业务键寻址侧不对称；同日早前 Q-029/Q-030、Q-026/Q-027/Q-028）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-22（Q-029/Q-030 登记：T-ADMIN-028 claude 外评存量�
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-031 资源同步通道 codeType 归一不 trim——带空白 codeType 的同步行业务键不可达
+
+- **状态**：open
+- **登记**：2026-09-22（T-PERM-076 claude 外评存量观察①，按登记处置）
+- **来源**：T-PERM-076 claude 外评
+- **关联**：T-PERM-076（管理面归一 trim 的对称缺口）
+
+**现象与证据**：`ResourceEntitySyncAppServiceImpl` 三处（sync item×2/full-sync item/单条 sync）codeType 归一仅做「null/空白→default」，**不 trim**；而业务键寻址侧（`ResourceKeyReq.normalizedCodeType` 与管理面 create/batch-create 的 `normalizedCodeType`）trim——同步通道写入 `" BIZ "` 形态的行，经 detail/update/remove 业务键（trim 后 `BIZ`）不可达，仅 sync 自查找（同样不 trim）可达。
+
+**影响**：外部来源服务若提交带首尾空白的 codeType，产出的资源行在管理面业务键链路上静默不可寻址（创建侧同码不判重、编辑/删除侧 20004）；存量、非本次变更引入。
+
+**设想方向（未定案）**：sync 通道三处归一补 trim 对齐寻址侧（写入侧归一，存量行不受影响）；或 DTO 层统一 codeType 规范约束（两轨同批）。
 
 ## Q-030 /authorize 不比对客户端 tenant_id 与会话租户——他租户客户端可获本租户会话的授权码与令牌
 

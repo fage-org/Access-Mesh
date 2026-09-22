@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.resource.service.impl;
 
-import cn.ac.fage.accessmesh.perm.common.util.BusinessKeyUtil;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLogRuntimeContext;
@@ -274,13 +273,13 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             dedupCodes.add(req.code());
             dedupCodeTypes.add(normalizedCodeType(req.codeType()));
         }
-        Set<String> existingTriples = dedupTypeValues.isEmpty() ? Set.of()
+        Set<TripleKey> existingTriples = dedupTypeValues.isEmpty() ? Set.of()
             : resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(tenantId, dedupTypeValues, dedupCodes, dedupCodeTypes)
                 .stream()
-                .map(e -> BusinessKeyUtil.resourceTripleValueKey(e.getResourceType(), e.getCode(), e.getCodeType()))
+                .map(e -> new TripleKey(e.getResourceType(), e.getCode(), e.getCodeType()))
                 .collect(Collectors.toSet());
         // 本批已接受项同享完整键身份：首项胜出，后到同键项跳过（不落库即不撞唯一索引）
-        Set<String> acceptedTriples = new HashSet<>();
+        Set<TripleKey> acceptedTriples = new HashSet<>();
         // T-PERM-068：跨类型父项不参与批量父解析（循环体按类型拒绝跳过，无需解析）
         List<ResourceResolveRequest> parentResolveRequests = reqs.stream()
             .filter(r -> hasParentBusinessKey(r) && r.parentResourceTypeCode().equals(r.resourceTypeCode()))
@@ -345,7 +344,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 continue;
             }
             String codeType = normalizedCodeType(req.codeType());
-            String triple = BusinessKeyUtil.resourceTripleValueKey(resourceType, req.code(), codeType);
+            // TripleKey 元组键防拼接串非单射塌缩（claude 外评 P3-1）：code/codeType 可含 ':'，
+            // 拼接串会让 (T,"a:b","c") 与 (T,"a","b:c") 塌缩同键——合法项被静默判重跳过
+            TripleKey triple = new TripleKey(resourceType, req.code(), codeType);
             if (existingTriples.contains(triple) || !acceptedTriples.add(triple)) {
                 errors.add("req[" + i + "]: 资源完整键已存在: "
                     + req.resourceTypeCode() + ":" + req.code() + "/" + codeType);
@@ -382,17 +383,16 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         // T-PERM-076：insertBatch 不回填自增主键（JDBC batch 限制，BatchAdminUserProjectionWriter
         // 回查先例）——成功项身份经完整键回查校准（与单条 create 的 insert 回填对齐）。查重已保证
         // 回查命中与 toInsert 三元组一一对应：批内与存量重复均被跳过，唯一索引兜底并发窗口
-        Map<String, ResourceEntity> insertedByTriple = resourceEntityMapper
+        Map<TripleKey, ResourceEntity> insertedByTriple = resourceEntityMapper
             .selectByTypesAndCodesAndCodeTypes(tenantId, dedupTypeValues, dedupCodes, dedupCodeTypes)
             .stream()
             .collect(Collectors.toMap(
-                e -> BusinessKeyUtil.resourceTripleValueKey(e.getResourceType(), e.getCode(), e.getCodeType()),
+                e -> new TripleKey(e.getResourceType(), e.getCode(), e.getCodeType()),
                 e -> e,
                 (a, b) -> a));
         return toInsert.stream()
             .map(e -> toResourceResp(Objects.requireNonNull(
-                insertedByTriple.get(BusinessKeyUtil.resourceTripleValueKey(
-                    e.getResourceType(), e.getCode(), e.getCodeType())),
+                insertedByTriple.get(new TripleKey(e.getResourceType(), e.getCode(), e.getCodeType())),
                 "inserted resource not visible after batch insert")))
             .collect(Collectors.toList());
     }
@@ -662,13 +662,14 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             return List.of();
         }
 
-        // 请求三元组集合（typeValue:code:codeType），未知类型码的键静默跳过
-        Set<String> triples = new HashSet<>();
+        // 请求三元组集合（TripleKey 元组键，未知类型码的键静默跳过；同 batchCreate 查重键——
+        // claude 外评 P3-1：拼接串非单射会把未请求行塌缩进删除集合，此处语义面更重）
+        Set<TripleKey> triples = new HashSet<>();
         for (Map.Entry<String, Integer> entry : typeValues.entrySet()) {
             Map<String, Set<String>> codes = grouped.getOrDefault(entry.getKey(), Map.of());
             for (Map.Entry<String, Set<String>> codeEntry : codes.entrySet()) {
                 for (String codeType : codeEntry.getValue()) {
-                    triples.add(BusinessKeyUtil.resourceTripleValueKey(entry.getValue(), codeEntry.getKey(), codeType));
+                    triples.add(new TripleKey(entry.getValue(), codeEntry.getKey(), codeType));
                 }
             }
         }
@@ -680,7 +681,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
         List<ResourceEntity> entities = new ArrayList<>();
         for (ResourceEntity entity : resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(tenantId, resolvedTypes, allCodes, allCodeTypes)) {
-            if (triples.contains(BusinessKeyUtil.resourceTripleValueKey(entity.getResourceType(), entity.getCode(), entity.getCodeType()))) {
+            if (triples.contains(new TripleKey(entity.getResourceType(), entity.getCode(), entity.getCodeType()))) {
                 entities.add(entity);
             }
         }
@@ -1023,6 +1024,16 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
     private String parentKeyText(ResourceResolveRequest req) {
         return req.resourceTypeCode() + ":" + req.resourceCode();
     }
+
+    /**
+     * 资源完整业务键三元组（内存判重/回查/键解析匹配用，claude 外评 P3-1）。
+     * <p>元组键替代 BusinessKeyUtil.resourceTripleValueKey 拼接串——后者非单射：
+     * code/codeType 可含 ':'（DTO 无字符约束且 items 不级联校验），拼接串会使
+     * (T,"a:b","c") 与 (T,"a","b:c") 塌缩同键（batch 误跳过合法项 / remove 把未请求
+     * 行纳入删除集合）。仅限本类内存匹配；跨层业务键构造仍走 BusinessKeyUtil（golden 锁）。
+     * sync CodeKey record 同款先例。</p>
+     */
+    private record TripleKey(Integer resourceType, String code, String codeType) {}
 
     private ResourceResp toResourceResp(ResourceEntity entity) {
         String resourceTypeName = ResourceType.safeGetLabel(entity.getResourceType());
