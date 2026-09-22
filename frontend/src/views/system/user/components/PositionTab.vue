@@ -13,12 +13,14 @@ import {
   type OrgPageItem,
   type OrgUserItem
 } from "@/api/user-manage";
+import { toErrorMessage } from "@/api/_envelope";
 import { message } from "@/utils/message";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { ElMessageBox } from "element-plus";
 import { addDialog } from "@/components/ReDialog";
 import { hasPerms } from "@/utils/auth";
 import { ORG_USER_PERMS } from "../utils/perms";
+import { buildPositionPageQuery } from "../utils/positionList";
 import { PERMISSION_GRANT_PERMS } from "@/views/perm/grant/utils/perms";
 import { resolveGrantEntryLabel } from "@/views/perm/grant/utils/grant-entry";
 import OrgForm from "./OrgForm.vue";
@@ -92,6 +94,8 @@ const positionUserCounts = ref<Record<number, number>>({});
 
 // 搜索
 const searchKeyword = ref("");
+/** 状态筛选（服务端参数，对齐 MemberTab 状态筛选先例）：undefined=全部状态——管理面保留停用岗位（T-FE-057） */
+const statusFilter = ref<number>();
 
 // 用户选择弹窗
 const userSelectorVisible = ref(false);
@@ -110,6 +114,13 @@ const filteredPositions = computed(() => {
   }
   return list;
 });
+
+/** 空态文案区分：数据为空 vs 关键词/筛选无匹配（T-FE-057——筛选空态不误导为「没有岗位」） */
+const emptyDescription = computed(() =>
+  positionList.value.length > 0 || statusFilter.value !== undefined
+    ? "无匹配岗位（调整关键词或状态筛选）"
+    : "暂无岗位数据"
+);
 
 /** 递归查找父组织名称 */
 function findParentOrgName(
@@ -161,25 +172,32 @@ function findNodeById(nodes: any[], id: number): any | null {
 
 // ========== 加载数据 ==========
 
+/** 岗位列表请求代际（T-FE-057 双轨评审 P3-1，用户拍板顺手加）：筛选/组织切换并发时旧响应不回写 */
+let positionReqSeq = 0;
+
 async function loadPositions() {
+  const seq = ++positionReqSeq;
   loading.value = true;
   try {
-    const res = await getOrgPage({
-      pageNum: 1,
-      pageSize: 100,
-      orgType: 2,
-      status: 1,
-      orgId: props.orgId ?? undefined
-    });
+    const res = await getOrgPage(
+      buildPositionPageQuery({
+        orgId: props.orgId,
+        status: statusFilter.value
+      })
+    );
+    if (seq !== positionReqSeq) return;
     positionList.value = res.items as PositionItem[];
     // 并行加载每个岗位的用户数（避免 N+1 串行阻塞渲染）
     await Promise.all(
       positionList.value.map(pos => loadPositionUserCount(pos.id))
     );
-  } catch {
-    message("加载岗位失败", { type: "error" });
+  } catch (e) {
+    if (seq !== positionReqSeq) return;
+    message(toErrorMessage(e, "加载岗位失败"), { type: "error" });
   } finally {
-    loading.value = false;
+    if (seq === positionReqSeq) {
+      loading.value = false;
+    }
   }
 }
 
@@ -201,8 +219,8 @@ async function loadPositionUsers(positionId: number) {
     const users = await getOrgUsers(positionId);
     positionUsers.value[positionId] = users;
     positionUserCounts.value[positionId] = users.length;
-  } catch {
-    message("加载用户失败", { type: "error" });
+  } catch (e) {
+    message(toErrorMessage(e, "加载用户失败"), { type: "error" });
   }
 }
 
@@ -264,9 +282,9 @@ function openCreatePositionDialog() {
         message("创建成功", { type: "success" });
         done();
         await loadPositions();
-      } catch {
+      } catch (e) {
         closeLoading();
-        message("创建失败", { type: "error" });
+        message(toErrorMessage(e, "创建失败"), { type: "error" });
       }
     }
   });
@@ -316,9 +334,9 @@ function openEditPositionDialog(position: PositionItem) {
         message("更新成功", { type: "success" });
         done();
         await loadPositions();
-      } catch {
+      } catch (e) {
         closeLoading();
-        message("更新失败", { type: "error" });
+        message(toErrorMessage(e, "更新失败"), { type: "error" });
       }
     }
   });
@@ -341,7 +359,7 @@ async function handleDeletePosition(position: PositionItem) {
     await loadPositions();
   } catch (e: any) {
     if (e !== "cancel") {
-      message("删除失败", { type: "error" });
+      message(toErrorMessage(e, "删除失败"), { type: "error" });
     }
   }
 }
@@ -372,8 +390,8 @@ async function loadAvailableUsers() {
     userList.value = res.items
       .filter(u => !currentUserIds.has(u.id))
       .map(u => ({ id: u.id, name: u.name, username: u.username }));
-  } catch {
-    message("加载用户失败", { type: "error" });
+  } catch (e) {
+    message(toErrorMessage(e, "加载用户失败"), { type: "error" });
   } finally {
     userLoading.value = false;
   }
@@ -398,8 +416,8 @@ async function handleAddUsers() {
     delete positionUsers.value[positionId];
     await loadPositionUsers(positionId);
     userSelectorVisible.value = false;
-  } catch {
-    message("添加失败", { type: "error" });
+  } catch (e) {
+    message(toErrorMessage(e, "添加失败"), { type: "error" });
   }
 }
 
@@ -419,7 +437,7 @@ async function handleRemoveUser(positionId: number, userId: number) {
     message("移除成功", { type: "success" });
   } catch (e: any) {
     if (e !== "cancel") {
-      message("移除失败", { type: "error" });
+      message(toErrorMessage(e, "移除失败"), { type: "error" });
     }
   }
 }
@@ -430,9 +448,14 @@ function onSearch() {
 
 function onReset() {
   searchKeyword.value = "";
+  // 回全部状态：值变化经 statusFilter watcher 重查；本就 undefined 时无需重发（关键词为本地过滤）
+  statusFilter.value = undefined;
 }
 
 // ========== 监听 ==========
+
+// 状态筛选变更即时重查（含 clearable 清空回全部状态）；同值赋值不触发
+watch(statusFilter, () => loadPositions());
 
 watch(
   () => props.orgId,
@@ -465,6 +488,16 @@ watch(
           />
         </template>
       </el-input>
+      <!-- 状态筛选（T-FE-057）：默认全部状态——管理面保留停用岗位；词汇沿用组织域「禁用」（OrgForm/组织信息卡先例） -->
+      <el-select
+        v-model="statusFilter"
+        placeholder="全部状态"
+        clearable
+        class="w-24!"
+      >
+        <el-option label="启用" :value="1" />
+        <el-option label="禁用" :value="0" />
+      </el-select>
       <el-button type="primary" :icon="useRenderIcon(Search)" @click="onSearch">
         搜索
       </el-button>
@@ -502,6 +535,15 @@ watch(
                 <span class="font-medium">{{ position.orgName }}</span>
                 <el-tag size="small" type="info" effect="plain" class="ml-2">
                   {{ position.code }}
+                </el-tag>
+                <!-- 状态标识（T-FE-057，组织信息卡同款）：停用岗位保留可见，经编辑弹窗恢复 -->
+                <el-tag
+                  v-if="position.status !== 1"
+                  size="small"
+                  type="danger"
+                  class="ml-2"
+                >
+                  禁用
                 </el-tag>
               </div>
               <div class="position-meta">
@@ -622,7 +664,7 @@ watch(
       </template>
 
       <!-- 空状态 -->
-      <el-empty v-else description="暂无岗位数据" :image-size="80" />
+      <el-empty v-else :description="emptyDescription" :image-size="80" />
     </div>
 
     <!-- 添加用户弹窗 -->

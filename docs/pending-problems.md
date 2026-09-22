@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-034           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-22（Q-034 登记：T-ORG-003 双轨评审类推——可见性裁剪不按 VIEW_POSITION 精化；同日 Q-033 登记：T-ORG-003 残留扫描——契约总册 org CRUD 门禁行未带岗位精化码（doc-only）；同日 Q-032 登记：T-ORG-003 契约校准面新发现——createUser orgId 门禁裸 UPDATE 与成员码族分叉；Q-025 随 T-ORG-003 收敛关闭（换绑共享入口）；同日早前 Q-031 登记：T-PERM-076 claude 外评存量观察——sync 通道 codeType 归一不 trim 与业务键寻址侧不对称；同日早前 Q-029/Q-030、Q-026/Q-027/Q-028）
+counter: Q-035           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-22（Q-035 登记：T-FE-057 浏览器实测存量发现——新增岗位弹窗 initialData.parentOrgId 通道失效；同日 Q-034/Q-033/Q-032/Q-031/Q-030/Q-029 登记）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-22（Q-034 登记：T-ORG-003 双轨评审类推——可�
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-035 PositionTab 新增岗位弹窗 initialData.parentOrgId 通道失效——上级组织默认「根组织」，未手选直接提交被拒
+
+- **状态**：open
+- **登记**：2026-09-22（T-FE-057 浏览器实测存量发现，非本卡引入）
+- **来源**：T-FE-057 浏览器实测
+- **关联**：Q-019（OrgForm 上级组织展示族）；index.vue openOrgForm（正确通道先例）
+
+**现象与证据**：`PositionTab.openCreatePositionDialog` 把选中的 `props.orgId` 放进 `initialData.parentOrgId` 传入 OrgForm，但 OrgForm create 模式 `initFormData` 走 `defaultFormData()`（只认 **parentOrgId prop**，不看 initialData）——上级组织恒默认「根组织」（null）；index.vue 的 `openOrgForm` 传的是 `parentOrgId` prop（PositionTab.vue:246 vs index.vue:159，通道分叉）。实测：未手选上级直接提交 → 后端拒绝「岗位必须作为普通组织的直接子节点，且不能拥有下级节点」，须点开上级组织选择器手选后才能创建成功。
+
+**影响**：纯 UX 摩擦（每次新增岗位多两步+一次必败提交）；无数据缺陷（后端正确拦截根下岗位）；仅岗位管理 Tab（组织树「新增下级」通道正确）。
+
+**设想方向（未定案）**：`openCreatePositionDialog` 改传 `parentOrgId` prop（对齐 index.vue 先例，一行改动）；上级组织展示名顺带解决（parentOrgName 同通道传入选中组织名）。可随下一张触达 PositionTab 的任务顺手收敛。
 
 ## Q-034 可见性裁剪对岗位节点不按 VIEW_POSITION 精化——与读面 VIEW/VIEW_POSITION 分发分叉
 
