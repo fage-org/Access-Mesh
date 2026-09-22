@@ -48,7 +48,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * T-PERM-062 回归锁组：非所有者操作者仍 20040（checkCanGrant 无管理员豁免）、
  * AUTHORITY_ROOT 行经 apply-grant-plan 改删拒绝（20061）、所有者变更同事务先清后种迁移、
  * 种子被直改库清除后 20040 reason=TYPE_GRANT_ORIGIN_MISSING、所有者解析失败整单回滚、
- * 非 resource_type 类型键不触发钩子、DDL CHECK 焊死种子形状。
+ * 非 resource_type 类型键不触发钩子、DDL CHECK 焊死种子形状；
+ * T-PERM-077 锁：追加操作省略 inheritMask 真 INSERT 落 0（归一）、补种失败（所有者停用
+ * 20003）整单回滚零残留。
  * 主体/角色装配走 jdbc 直插（FileServiceSecurityPgIT 模式），被测对象是 HTTP API 链路本身。
  * Docker 不可用时由 Testcontainers 自动跳过（容器轨道）。
  * </p>
@@ -157,13 +159,21 @@ class CustomResourceTypeSlicePgIT {
                 + "AND code = 'VIEW' AND delete_flag = 0",
             Integer.class, TENANT, typeValue);
         assertThat(seededView).as("resource_type 创建必须自动预置 CRUD 操作（VIEW 在列）").isEqualTo(2);
-        postAsAdmin("/api/access/operation-permission/create", adminUserId,
+        // T-PERM-077：省略 inheritMask——旧实现显式 NULL 覆盖 DDL DEFAULT 0，本请求在真库上
+        // 必以 NOT NULL 违例失败（F013）；省略与显式 0 等价由 OperationAppServiceImplTest 归一锁覆盖
+        JsonNode exportResp = postAsAdmin("/api/access/operation-permission/create", adminUserId,
             JSON.objectNode()
                 .put("resourceTypeCode", CUSTOM_TYPE)
                 .put("code", OP_EXPORT)
                 .put("name", "导出订单")
-                .put("binaryBit", 16L)
-                .put("inheritMask", 0L));
+                .put("binaryBit", 16L));
+        assertThat(exportResp.path("inheritMask").asText())
+            .as("省略 inheritMask 必须归一为 0 回显（T-PERM-077）").isEqualTo("0");
+        Long storedMask = jdbc.queryForObject(
+            "SELECT inherit_mask FROM operation_permission WHERE tenant_id = ? AND resource_type = ? "
+                + "AND code = ? AND delete_flag = 0",
+            Long.class, TENANT, typeValue, OP_EXPORT);
+        assertThat(storedMask).as("真库行 inherit_mask 必须落 0（不再显式写 NULL）").isEqualTo(0L);
         // T-PERM-062 锁②：追加操作同事务向同一所有者补种该操作位（不钩则第五个操作死锁）
         assertThat(authorityRootBits(adminRoleId, typeValue))
             .as("追加操作必须同事务补种该操作位首授行")
@@ -343,11 +353,44 @@ class CustomResourceTypeSlicePgIT {
         //     scope_all/entity 形状保持合法以隔离被测约束） ——
         assertThatThrownBy(() -> jdbc.update(
             "INSERT INTO role_resource_permission "
-                + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, can_grant, grant_source) "
-                + "VALUES (?, ?, NULL, 3, ?, true, true, 'AUTHORITY_ROOT')",
+            + "(tenant_id, abstract_role_id, resource_entity_id, granted_bits, resource_type, scope_all, can_grant, grant_source) "
+            + "VALUES (?, ?, NULL, 3, ?, true, true, 'AUTHORITY_ROOT')",
             TENANT, newOwnerRoleId, typeValue))
             .isInstanceOf(DataIntegrityViolationException.class)
             .hasMessageContaining("ck_role_resource_permission_authority_root");
+
+        // —— 锁⑩（T-PERM-077）：补种失败整单回滚不留半成品——所有者停用（20003）时操作行与
+        //     种子同事务回滚，不残留「有操作行、无种子」的中间态 ——
+        String staleOwnerExternalId = "ext-slice-stale-owner-" + UUID.randomUUID().toString().substring(0, 8);
+        Long staleOwnerRoleId = jdbc.queryForObject(
+            "INSERT INTO abstract_role (tenant_id, role_type, external_id, name, status, parent_id, extra) "
+                + "VALUES (?, 6, ?, '停用所有者角色', 1, NULL, '{}') RETURNING id",
+            Long.class, TENANT, staleOwnerExternalId);
+        postAsAdmin("/api/access/type-definition/create", adminUserId,
+            JSON.objectNode()
+                .put("typeKey", "resource_type")
+                .put("typeCode", "E2E_STALE_OWNER")
+                .put("name", "停用所有者类型")
+                .put("ownerRoleTypeCode", "BASIC_ROLE")
+                .put("ownerRoleExternalId", staleOwnerExternalId));
+        Integer staleTypeValue = jdbc.queryForObject(
+            "SELECT type_value FROM type_definition WHERE tenant_id = ? AND type_key = 'resource_type' "
+                + "AND type_code = 'E2E_STALE_OWNER' AND delete_flag = 0", Integer.class, TENANT);
+        jdbc.update("UPDATE abstract_role SET status = 0 WHERE tenant_id = ? AND id = ?", TENANT, staleOwnerRoleId);
+        // 追加操作同样省略 inheritMask（T-PERM-077 主链形态）；失败点在操作行落库之后的补种环节
+        performExpectCode("/api/access/operation-permission/create", adminUserId,
+            JSON.objectNode()
+                .put("resourceTypeCode", "E2E_STALE_OWNER")
+                .put("code", "EXPORT")
+                .put("name", "导出")
+                .put("binaryBit", 16L), 20003);
+        Integer staleOpRows = jdbc.queryForObject(
+            "SELECT count(*) FROM operation_permission WHERE tenant_id = ? AND resource_type = ? "
+                + "AND code = 'EXPORT' AND delete_flag = 0", Integer.class, TENANT, staleTypeValue);
+        assertThat(staleOpRows).as("补种失败必须整单回滚（操作行零残留）").isZero();
+        assertThat(authorityRootBits(staleOwnerRoleId, staleTypeValue))
+            .as("补种失败必须整单回滚（种子仍为创建时 CRUD 四位，无 EXPORT）")
+            .containsExactlyInAnyOrder(1L, 2L, 4L, 8L);
     }
 
     // ===== 查询助手 =====

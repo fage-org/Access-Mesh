@@ -183,6 +183,10 @@ class OperationCodeCaseValidationTest {
         assertFalse(validator().validate(new OperationCreateReq(
             "data", "DATA_EXPORT", "导出", 8L, null)).isEmpty(),
             "小写资源类型码须拒绝");
+        // T-PERM-077：掩码缺省归一只放开 inheritMask 省略——binaryBit 必填拒绝面不变
+        assertFalse(validator().validate(new OperationCreateReq(
+            "DATA", "DATA_EXPORT", "导出", null, null)).isEmpty(),
+            "binaryBit 缺失须拒绝（@NotNull 不随掩码归一放宽）");
         assertFalse(validator().validate(new OperationUpdateReq(
             "DATA", "view", null, null, null)).isEmpty(),
             "update 小写定位键须拒绝");

@@ -501,6 +501,33 @@ class OperationAppServiceImplTest {
         verify(operationPermissionMapper).softDeleteBatch(eq(1L), any(), any());
     }
 
+    // ========== T-PERM-077：缺省 inheritMask 归一（省略与显式 0 等价） ==========
+
+    @Test
+    @DisplayName("create 省略 inheritMask → 落库实体归一为 0，与显式 0 结果一致（旧实现显式 NULL 覆盖 DDL DEFAULT）")
+    void shouldNormalizeOmittedInheritMaskToZeroOnCreate() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.OPERATION),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "ORDER")).thenReturn(12);
+        when(typeDefinitionMapper.selectByTypeKeyAndCode(1L, "resource_type", "ORDER"))
+            .thenReturn(customType(12, false));
+        when(grantOriginDomainService.resolveOwnerRoleId(eq(1L), any())).thenReturn(55L);
+
+        // 省略掩码（null）与显式 0 各建一条，响应与落库实体必须等价
+        OperationPermissionResp omitted = service.createOperation(1L, "ORDER", "EXPORT", "导出订单", 16L, null, 100L);
+        OperationPermissionResp explicitZero = service.createOperation(1L, "ORDER", "AUDIT", "审计", 32L, 0L, 100L);
+
+        assertEquals("0", omitted.inheritMask().toString());
+        assertEquals(explicitZero.inheritMask(), omitted.inheritMask());
+        org.mockito.ArgumentCaptor<OperationPermission> opCaptor =
+            org.mockito.ArgumentCaptor.forClass(OperationPermission.class);
+        verify(operationPermissionMapper, org.mockito.Mockito.times(2)).insert(opCaptor.capture());
+        // 旧实现（null 直写实体）下必红：省略掩码的请求以显式 NULL 落库，真库形态即
+        // NOT NULL 违例 500（F013）
+        assertEquals(0L, opCaptor.getAllValues().get(0).getInheritMask());
+        assertEquals(0L, opCaptor.getAllValues().get(1).getInheritMask());
+    }
+
     private cn.ac.fage.accessmesh.access.type.entity.TypeDefinition customType(int typeValue, boolean isSystem) {
         cn.ac.fage.accessmesh.access.type.entity.TypeDefinition type =
             new cn.ac.fage.accessmesh.access.type.entity.TypeDefinition();

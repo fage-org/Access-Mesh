@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-22   # 2026-09-22 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
+last_reviewed: 2026-09-22   # 2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -83,9 +83,11 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 **实施口径**：batch-create 查重落位为完整键（`TripleKey` 元组键，一次跨类型批量查询笛卡尔超集+内存精确比对，与 remove 键解析同款——元组键替代拼接串防 code/codeType 含 `:` 时塌缩，claude 外评 P3-1 修正；`BusinessKeyUtil` golden 锁不动，内存匹配键非其射程）——存量与本批已接受项同享该身份，批内同完整键首项胜出、后到项按既有宽容收集逐项跳过（部分成功），不再整批撞唯一索引；同码跨类型/跨 codeType 误拒随之消除。成功响应主键经完整键回查校准（insertBatch 不回填自增主键，投影轨回查先例），与单条 create 的 insert 回填对齐；单条 create 语义不变（唯一索引兜底、并发插入按既有契约）。畸形项（code/name 空白）宽容收集跳过（用户拍板 2026-09-22 顺手修——items 不级联 Bean Validation 的有意拍板下，空白项原样落库会以 NOT NULL 违例连坐整批）；全批类型码 null/空白批同样逐项跳过（守卫空入参返回 `Map.of()`，主循环补 null 防护落既有「未知类型」分支——双轨评审 P3，用户拍板顺手修）。旧 `findExistingCodes`（tenant+code 两维查询链）随修复退役删除。CHANGELOG 补 [Unreleased] Fixed 条目（用户拍板，沿 T-ADMIN-028「安全收紧类补」先例扩展适用于正确性收紧类）。查重与批内/畸形/回查行为以 `ResourceManageAppServiceImplTest`（T-PERM-076 节用例旧实现下实证红）断言为准，真实唯一键/返回主键/所有权不放宽以 `ResourceBatchCreateCompositeIdentityPgIT`（真库 uk_resource_entity）断言为准。
 
 <a id="operation-default"></a>
-### 2.6 追加操作的可选默认值（F013，T-PERM-077）
+### 2.6 追加操作的可选默认值（F013，T-PERM-077；✅ 已实施 2026-09-22）
 
-推荐在操作创建领域入口把缺省inheritMask归一为现行DDL默认0，保留传入非法位值的验证；不依赖显式NULL插入时数据库DEFAULT生效。EXPORT位16、省略mask与显式0结果等价，并同事务补齐该操作授权根。单条创建之外核对同款调用方，不通过大范围ORM策略变化修一个字段。
+推荐在操作创建领域入口把缺省inheritMask归一为现行DDL默认0（原稿「保留传入非法位值的验证」经核实为错误假设——数值级校验三层现状全无、无可保留对象，按 2026-09-22 拍板不新增，拒绝面以既有三面为准）；不依赖显式NULL插入时数据库DEFAULT生效。EXPORT位16、省略mask与显式0结果等价，并同事务补齐该操作授权根。单条创建之外核对同款调用方，不通过大范围ORM策略变化修一个字段。
+
+**实施口径**：归一落在唯一创建入口 `OperationAppServiceImpl.createOperation`（null→0，响应回读归一值，省略与显式0等价）。掩码值**不加符号校验**（2026-09-22 用户拍板：掩码语义看位不看正负，Java Long 有符号只是表示形态）——「非法掩码仍拒绝」按既有拒绝面锁定（`binaryBit` @NotNull 400、code/类型码大写 @Pattern 400、同类型同码/同位唯一索引拒绝），不新增数值校验、不做位域子集校验。同款调用方核对完毕：类型创建 CRUD 预置种子（`TypeDefinitionAppServiceImpl`）与 DDL 种子均显式传掩码、update 通道 `inheritMask` null=不更新语义维持，均不受影响。回归锁：`OperationAppServiceImplTest` 归一锁（旧实现显式 NULL 落库实体下实证红）、`OperationCodeCaseValidationTest` binaryBit 必填面、`CustomResourceTypeSlicePgIT` 主链省略掩码真 INSERT 落 0 + 同事务补种 + 首次转授 + 失败（所有者停用 20003）整单回滚零残留。
 
 ## 3. 有限权限管理员的完整任务
 

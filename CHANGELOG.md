@@ -26,6 +26,7 @@
 - 发布文档修正：quickstart 授权闭环补「持角色用户/令牌来源」获取路径与密钥分发范围表述；deployment.md §4 真实 IP 边界改准确口径（Gateway IP 条件只消费直连对端地址，多层代理下真实 IP 不可用——codex sol 外评 P2）；nginx.conf 注释对齐实际 hash 路由；registry/pending-problems 归档连带锚点回写；rebuild-runbook JWT 密钥口径随 fail-fast 更新。
 - **OAuth2 授权码客户端关联校验（T-ADMIN-028）**：授权码只能由签发时的客户端凭自身 `clientId`+`clientSecret` 兑换——他客户端（同租户/跨租户）凭合法凭据交叉兑换拒绝 `OAUTH2_CODE_INVALID`（10905）并消费授权码；redirect/PKCE 等校验不能替代该绑定。失败尝试写 `sys_login_log` 审计（status=0）。
 - **资源批量创建查重身份补全（T-PERM-076）**：batch-create 查重从仅按 `tenant+code` 收敛为完整业务键（tenant+resourceType+code+归一 codeType，同 DDL 唯一键）——同 code 跨资源类型/同类型跨 codeType 的合法创建不再被误拒；批内同完整键重复首项胜出、逐项跳过（部分成功），不再整批撞唯一索引 SQL 失败；畸形项（code/name 空白）宽容收集跳过，不再以 NOT NULL 违例连坐整批；全批资源类型码缺失不再整批 NPE 500（落既有逐项跳过分支）；成功响应 `id` 经完整键回查校准（此前批量创建返回的 id 恒为 null）。
+- **操作创建掩码缺省归一（T-PERM-077）**：`operation-permission/create` 省略 `inheritMask` 不再以 NOT NULL 违例 500——服务端在唯一创建入口归一缺省为 0（与显式 0 等价，响应回读归一值）；掩码值不做符号校验（掩码看位不看正负，2026-09-22 定案），既有拒绝面（`binaryBit` 必填、code/类型码大写、同类型同码/同位唯一索引）不变。
 
 ## [0.1.0] - 2026-09-16
 

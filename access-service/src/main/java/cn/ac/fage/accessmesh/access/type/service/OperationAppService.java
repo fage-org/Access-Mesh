@@ -23,7 +23,7 @@ public interface OperationAppService {
      * @param code             操作权限编码
      * @param name             操作权限名称
      * @param binaryBit        二进制位，用于位运算权限匹配
-     * @param inheritMask      继承掩码，用于权限继承计算
+     * @param inheritMask      继承掩码，可选，缺省归一为 0（省略与显式 0 等价，T-PERM-077）
      * @param operatorId       操作者ID
      * @return 创建的操作权限详情
      */

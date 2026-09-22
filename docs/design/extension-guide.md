@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-09-21   # T-PERM-073：§4 扩展面状态表自动授权行改已交付（物化+解释/预览/诊断/对账收口）+ §5.3 独立依赖接入注记更新；此前   # T-PERM-071：§4 扩展面状态表自动授权行更新（声明编译/资源发布共序/SDK/迁移已交付并于同日收口，物化与解释归 072/073）；此前 2026-09-17 T-PERM-068（Q-007 三定案）：§3.4 资源父子边限同类型口径改写（原「资源可声明跨类型父子边」过时；sync 缺省回填/显式异类型拒绝/管理面 20053/角色域排除声明）；此前 T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
+last_reviewed: 2026-09-22   # T-PERM-077：§3.5 追加操作条目补 inheritMask 缺省归一口径（省略=显式 0）；此前   # T-PERM-073：§4 扩展面状态表自动授权行改已交付（物化+解释/预览/诊断/对账收口）+ §5.3 独立依赖接入注记更新；此前   # T-PERM-071：§4 扩展面状态表自动授权行更新（声明编译/资源发布共序/SDK/迁移已交付并于同日收口，物化与解释归 072/073）；此前 2026-09-17 T-PERM-068（Q-007 三定案）：§3.4 资源父子边限同类型口径改写（原「资源可声明跨类型父子边」过时；sync 缺省回填/显式异类型拒绝/管理面 20053/角色域排除声明）；此前 T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
@@ -123,7 +123,7 @@ last_reviewed: 2026-09-21   # T-PERM-073：§4 扩展面状态表自动授权行
 **T-PERM-062（2026-09-12 定案）后该缺口在产品内自举闭环**，接入方按 §3.2 走完「创建类型 → 追加操作 → 授权页」即可首授，**无需部署方种子或手工 SQL**：
 
 - **创建即建基座**：`type-definition/create` 同事务向「类型所有者角色」写 CRUD 四操作位首授行（`grant_source=AUTHORITY_ROOT`，类型级 scopeAll + 可转授）；所有者缺省引导角色 `bootstrap-admin`，可经请求字段 `ownerRoleTypeCode/ownerRoleExternalId` 指定（roleTypeCode 仅接受 BASIC_ROLE 功能角色；类型定义页「所有者角色」选择器同入口），指针持久化于 `type_definition.extra.grantOriginRole`。
-- **追加操作自动补种**：后续经 `operation-permission/create` 追加的操作（如 `EXPORT` 位 16）同事务向同一所有者补种——不会出现「CRUD 能授、EXPORT 仍 20040」。
+- **追加操作自动补种**：后续经 `operation-permission/create` 追加的操作（如 `EXPORT` 位 16）同事务向同一所有者补种——不会出现「CRUD 能授、EXPORT 仍 20040」。请求的 `inheritMask` 可省略（服务端归一为 0，与显式 0 等价，T-PERM-077）。
 - **所有者可迁移**：`type-definition/update` 变更 `extra.grantOriginRole` = 同事务「先清后种」迁移（旧所有者种子清理、新所有者补齐全部操作位）；所有者角色被误删时经重指所有者即可恢复授权能力。种子行在授权页只读（20061），类型删除时级联清理。**注意 extra 为整串替换语义**：经 API 迁移时提交的 extra 必须保留现有 `managedMode`/`syncSourceService` 声明键——只提交 `grantOriginRole` 等于删掉所有权声明（类型下有资源行时 20056 拒绝、无资源行时隐式切回 MANAGED）；未携带 `grantOriginRole` 键则保留现值。管理台「所有者角色」选择器自动 merge 进现有 extra，无此风险。
 - **可发现性**：所有者的成员在授权页可见这些种子行（标注「授权根」），并可**向其他角色转授时**收窄为实例级授权（种子行本身只读 20061，不可就地改删）。20040 的 reason 分两种：非所有者成员对**已有授权根**的类型发起授权 → `NO_PERMISSION`/`NO_GRANT_RIGHT`（你的持有面不够——找所有者角色成员操作或加入该角色）；`TYPE_GRANT_ORIGIN_MISSING` 仅出现在**自定义类型且租户内零条可转授行**时（种子行被直改库清除——产品链路内种子不可销毁，正常运维不应出现；去类型定义页确认/重指所有者）。注意所有者角色被删**不会**触发该 reason（角色删除不级联种子行，残留行仍算可转授覆盖）——此时 reason 仍是 `NO_PERMISSION`/`NO_GRANT_RIGHT`，恢复动作同样是经类型定义页重指所有者（迁移语义自动清理已删角色残留行）。
 

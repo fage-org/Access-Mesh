@@ -108,7 +108,7 @@ public class OperationAppServiceImpl implements OperationAppService {
      * @param code            操作码（如VIEW、EDIT、DELETE）
      * @param name            操作名称
      * @param binaryBit       二进制位，用于位运算权限匹配
-     * @param inheritMask     继承掩码，用于权限继承计算
+     * @param inheritMask     继承掩码，可选，缺省归一为 0（省略与显式 0 等价，T-PERM-077）
      * @param operatorId      操作者ID，可选
      * @return 创建的操作权限响应
      * @throws SecurityException     无权限时抛出
@@ -154,7 +154,10 @@ public class OperationAppServiceImpl implements OperationAppService {
         op.setCode(code);
         op.setName(name);
         op.setBinaryBit(binaryBit);
-        op.setInheritMask(inheritMask);
+        // T-PERM-077：缺省归一 null→0（对齐 DDL DEFAULT 0）——flex insert 全列显式写 NULL 会覆盖
+        // 数据库缺省，省略掩码的合法请求以 NOT NULL 违例 500；掩码语义看位不看正负（2026-09-22
+        // 用户拍板），不做符号校验，仅在此唯一创建入口归一缺省值
+        op.setInheritMask(inheritMask == null ? 0L : inheritMask);
         op.setCreatedBy(operatorId);
         LocalDateTime now = LocalDateTime.now();
         op.setCreatedAt(now);
