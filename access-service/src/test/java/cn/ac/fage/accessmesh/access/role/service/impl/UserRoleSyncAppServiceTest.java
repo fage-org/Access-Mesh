@@ -252,7 +252,7 @@ class UserRoleSyncAppServiceTest {
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
         when(subjectDomainService.resolveRawHoldings(TENANT_ID, 100L))
             .thenReturn(java.util.Set.of(new cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding(100L, null, null)));
-        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
+        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any(), any()))
             .thenReturn(java.util.List.of(new cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RoleMutexAssignConflict(
                 100L, 9L, 100L, 200L)));
 
@@ -279,7 +279,7 @@ class UserRoleSyncAppServiceTest {
         // 目标 200 禁用：原始持有候选口径下仍并入 postState（不再收敛启用）
         when(subjectDomainService.resolveRawHoldings(TENANT_ID, 100L))
             .thenReturn(java.util.Set.of(new cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding(100L, null, null)));
-        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
+        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any(), any()))
             .thenReturn(java.util.List.of(new cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RoleMutexAssignConflict(
                 100L, 9L, 100L, 200L)));
 
@@ -302,7 +302,7 @@ class UserRoleSyncAppServiceTest {
         when(typeResolutionService.resolveRoleId(TENANT_ID, "TEAM_ROLE", "team-2", null)).thenReturn(300L);
         when(subjectDomainService.resolveRawHoldings(TENANT_ID, 100L))
             .thenReturn(java.util.Set.of(new cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding(100L, null, null)));
-        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
+        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any(), any()))
             .thenReturn(java.util.List.of(new cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConflictDomainService.RoleMutexAssignConflict(
                 100L, 9L, 100L, 200L)));
         UserRoleSyncReq futureReq = new UserRoleSyncReq("BIND", "HR_MEMBER",
@@ -334,7 +334,7 @@ class UserRoleSyncAppServiceTest {
         SyncResultResp resp = service.sync(TENANT_ID, expiredReq, httpRequest);
 
         assertThat(resp.applied()).isTrue();
-        verify(permissionConflictDomainService, never()).findAssignMutexConflicts(anyLong(), any());
+        verify(permissionConflictDomainService, never()).findAssignMutexConflicts(anyLong(), any(), any());
     }
 
     /**
@@ -362,13 +362,13 @@ class UserRoleSyncAppServiceTest {
             .thenReturn(java.util.Optional.of(888L));
         when(subjectDomainService.resolveRawHoldings(TENANT_ID, 100L))
             .thenReturn(java.util.Set.of());
-        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
+        when(permissionConflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any(), any()))
             .thenReturn(java.util.List.of());
 
         SyncResultResp resp = service.sync(TENANT_ID, externalBindReq(), httpRequest);
 
         assertThat(resp.applied()).isTrue();
-        verify(permissionConflictDomainService).findAssignMutexConflicts(eq(TENANT_ID), any());
+        verify(permissionConflictDomainService).findAssignMutexConflicts(eq(TENANT_ID), any(), any());
         verify(userRoleMapper, never()).insert(any(UserRole.class));
     }
 

@@ -66,6 +66,8 @@ public R<RoleResp> create(@RequestBody RoleCreateReq req) {
 
 **仅**管理查询/日志查询可直查 Mapper（如 `listResources`, `listRoles`, `listChangeLogs`）。
 
+判定面角色集一律经 `PermissionConflictDomainService.resolveJudgementRoleIds`（互斥过滤后集合，T-PERM-075 共同判定语义——引擎/菜单/快照收口同源）；用户-角色写入口的互斥守卫经 `SubjectDomainService.batchResolveRawHoldings`（原始持有窗口，写时看原始候选）。
+
 ```java
 // ✅ 正确 — 权限判定走 PermQueryEngine 显式入口
 if (!engine.hasPermissionByCode(tenantId, subjectId, ResourceTypeCode.ROLE, String.valueOf(roleId), OperationCode.MANAGE)) {
@@ -407,12 +409,19 @@ for (String code : codes) {
 
 ## 11. 角色解析
 
-**MUST** 通过 `SubjectDomainService` 进行用户-角色关系查询。
+**MUST** 通过 `SubjectDomainService` 进行用户-角色关系查询，并按语义选入口（T-PERM-075 起判定面/写守卫分离）：
 
 ```java
-// ✅ 正确
-Set<Long> roles = subjectDomainService.resolveEffectiveRoles(tenantId, userId);
-Map<Long, Set<Long>> roles = subjectDomainService.batchResolveEffectiveRoles(tenantId, userIds);
+// ✅ 正确 — 判定面（门禁/菜单/视图等消费角色集做权限判定的场景）：
+// 经共同判定语义入口（互斥过滤后的角色集），勿直接用 resolveEffectiveRoles/batchResolveEffectiveRoles
+// （那是过滤前集合，直连会重新引入 F004「同一时刻多判定面结论分叉」）
+Set<Long> roleIds = permissionConflictDomainService.resolveJudgementRoleIds(tenantId, userId);
+
+// ✅ 正确 — 写守卫面（用户-角色持有写入口的互斥/重叠校验）：
+// 原始持有窗口（未过期含未来、含禁用，带有效期），DB 新鲜读不经缓存
+Set<SubjectDomainService.RawHolding> raw = subjectDomainService.resolveRawHoldings(tenantId, userId);
+Map<Long, Set<SubjectDomainService.RawHolding>> rawBatch =
+    subjectDomainService.batchResolveRawHoldings(tenantId, userIds);
 
 // ❌ 禁止 — 自己查 UserRole 表
 userRoleMapper.selectListByQuery(...)

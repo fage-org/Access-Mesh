@@ -263,9 +263,12 @@ class FullSyncN1GuardTest {
         // 查目标启用态，禁用目标同入候选，批内集合语义不变；full-sync 走循环前批量预载）
         lenient().when(subjectDomainService.batchResolveRawHoldings(eq(TENANT_ID), any()))
                 .thenReturn(java.util.Map.of());
+        // claude 外评 P3-1：互斥规则批内一次预载（守卫走三参重载，不逐 item 直查）
+        lenient().when(conflictDomainService.loadRoleMutexRulesFresh(TENANT_ID))
+                .thenReturn(java.util.List.of());
         // 冲突判定镜像真实语义：两互斥角色的持有窗口存在重叠才命中规则 (200,201)
         //（批内两条 BIND 窗口均未过期且首端无限期，第二条与第一条经批内补偿集相交）
-        when(conflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any()))
+        when(conflictDomainService.findAssignMutexConflicts(eq(TENANT_ID), any(), any()))
                 .thenAnswer(inv -> {
                     java.util.Map<Long, java.util.Set<cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding>> postState = inv.getArgument(1);
                     java.util.Set<cn.ac.fage.accessmesh.access.engine.core.SubjectDomainService.RawHolding> ps = postState.getOrDefault(100L, java.util.Set.of());
@@ -303,6 +306,8 @@ class FullSyncN1GuardTest {
         // T-PERM-075 N+1 次数锁：原始持有候选必须批内一次预载，不逐 item 单查
         verify(subjectDomainService, times(1)).batchResolveRawHoldings(eq(TENANT_ID), any());
         verify(subjectDomainService, never()).resolveRawHoldings(anyLong(), anyLong());
+        // claude 外评 P3-1 次数锁：互斥规则同样批内一次预载（逐 item 直查实现在此必红）
+        verify(conflictDomainService, times(1)).loadRoleMutexRulesFresh(TENANT_ID);
         verify(userRoleMapper, times(1)).insert(any(cn.ac.fage.accessmesh.access.role.entity.UserRole.class));
         org.mockito.ArgumentCaptor<cn.ac.fage.accessmesh.access.role.entity.UserRole> cap =
                 org.mockito.ArgumentCaptor.forClass(cn.ac.fage.accessmesh.access.role.entity.UserRole.class);

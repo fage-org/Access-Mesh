@@ -224,6 +224,27 @@ class PermissionConflictDomainServiceImplTest {
             verify(cacheService, never()).get(any(), any(), any());
         }
 
+        /** 倒置窗口（valid_from > valid_to）运行时谓词恒假=空窗，不参与重叠判定
+         *  （claude 外评 P3-2；旧实现把它当普通闭区间与无限期对端判重叠误拒，本用例必红） */
+        @Test
+        void shouldTreatInvertedWindowAsNeverEffective() {
+            PermissionConflictRule roleRule = new PermissionConflictRule();
+            roleRule.setId(9L);
+            roleRule.setConflictType(ConflictType.ROLE_MUTEX.getValue());
+            roleRule.setFirstAbstractRoleId(100L);
+            roleRule.setSecondAbstractRoleId(200L);
+            when(conflictRuleMapper.selectByConflictType(TENANT, ConflictType.ROLE_MUTEX.getValue()))
+                .thenReturn(List.of(roleRule));
+
+            // 用户持 100 无限期 + 历史垃圾行 200 倒置窗口 [7月,6月]（永不生效）——放行
+            List<PermissionConflictDomainService.RoleMutexAssignConflict> conflicts =
+                service.findAssignMutexConflicts(TENANT, Map.of(
+                    20L, Set.of(holding(100L, null, null),
+                        holding(200L, "2030-07-01T00:00", "2030-06-01T00:00"))));
+
+            assertEquals(List.of(), conflicts);
+        }
+
         /** 首尾相接（A.to == B.from）闭区间口径下当天同刻有效算重叠——拒绝形态 */
         @Test
         void shouldTreatAdjacentWindowsAsOverlap() {

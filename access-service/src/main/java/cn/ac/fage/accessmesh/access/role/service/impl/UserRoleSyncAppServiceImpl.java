@@ -232,6 +232,10 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
         // 循环前快照 + appliedThisBatch 批内补偿，与旧「缓存快照 + 批内累积」语义等价）
         Map<Long, Set<SubjectDomainService.RawHolding>> rawHoldingsByUser = candidateUserIds.isEmpty()
                 ? Map.of() : subjectDomainService.batchResolveRawHoldings(tenantId, candidateUserIds);
+        // claude 外评 P3-1：互斥规则批内一次预载——新守卫口径下稳态全量重放逐 item 触发，
+        // 逐 item DB 直查会在 ABSTRACT_ROLE 树写锁持有期放大语句数（旧口径幂等重放零规则查询）
+        List<cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule> mutexRules =
+                permissionConflictDomainService.loadRoleMutexRulesFresh(tenantId);
         LocalDateTime now = LocalDateTime.now();
 
         for (UserRoleSyncItem item : req.items()) {
@@ -278,7 +282,7 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             SyncResultResp r = applyItemSync(tenantId, oneReq,
                     new FullSyncPreload(true, preUserId, preRoleId, preRelId, preExisting,
                             ownedTargetIdsByBusinessKeyHash, appliedThisBatch, metadataByBusinessKeyHash,
-                            rawHoldingsByUser),
+                            rawHoldingsByUser, mutexRules),
                     now);
             if (r.applied()) {
                 applied++;
@@ -348,14 +352,17 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
      * @param rawHoldings   full-sync 预加载的原始持有窗口（T-PERM-075，userId -> 未过期窗口集；
      *                      循环前一次性批量——批内写入不可见由 batchApplied 补偿，与旧缓存快照语义等价；
      *                      single-sync 传 null，守卫内单用户直查）
+     * @param mutexRules    full-sync 预加载的 ROLE_MUTEX 规则集（claude 外评 P3-1，循环前 DB 直查一次；
+     *                      single-sync 传 null，守卫内两参重载直查）
      */
     private record FullSyncPreload(boolean resolved, Long abstractUserId, Long roleId, Long relationId,
                                    UserRole existing, Map<String, Long> ownedTargetIds,
                                    Map<Long, Set<SubjectDomainService.RawHolding>> batchApplied,
                                    Map<String, SyncMetadata> metadata,
-                                   Map<Long, Set<SubjectDomainService.RawHolding>> rawHoldings) {
+                                   Map<Long, Set<SubjectDomainService.RawHolding>> rawHoldings,
+                                   List<cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule> mutexRules) {
         static final FullSyncPreload NONE =
-                new FullSyncPreload(false, null, null, null, null, null, null, null, null);
+                new FullSyncPreload(false, null, null, null, null, null, null, null, null, null);
     }
 
     /** single-sync 路径入口：无预载，逐项单条解析/查询（版本/依赖语义与 full-sync 同源）。 */
@@ -495,8 +502,9 @@ public class UserRoleSyncAppServiceImpl implements UserRoleSyncAppService {
             postState.addAll(preload.batchApplied().getOrDefault(userId, Set.of()));
         }
         postState.add(new SubjectDomainService.RawHolding(roleId, req.validFrom(), req.validTo()));
+        // full-sync 传批内预载规则（N+1 防护）；single-sync（NONE preload → null）走两参重载直查
         return !permissionConflictDomainService
-            .findAssignMutexConflicts(tenantId, Map.of(userId, postState)).isEmpty();
+            .findAssignMutexConflicts(tenantId, Map.of(userId, postState), preload.mutexRules()).isEmpty();
     }
 
     private Long resolveRelationRoleId(Long tenantId, String relationKey) {

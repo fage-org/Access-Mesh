@@ -228,6 +228,12 @@ public interface PermissionConflictDomainService {
     // 命中互斥对整批原子拒绝 20062
     List<RoleMutexAssignConflict> findAssignMutexConflicts(
         Long tenantId, Map<Long, Set<SubjectDomainService.RawHolding>> holdingsByUser);
+    // claude 外评 P3-1：预载规则重载（full-sync 批内一次预载，消逐 item 直查的锁内放大）
+    // + 规则预载读取；倒置窗口（from>to）运行时恒假=空窗，不参与重叠（P3-2）
+    List<RoleMutexAssignConflict> findAssignMutexConflicts(Long tenantId,
+        Map<Long, Set<SubjectDomainService.RawHolding>> holdingsByUser,
+        List<PermissionConflictRule> preloadedRules);
+    List<PermissionConflictRule> loadRoleMutexRulesFresh(Long tenantId);
     // T-PERM-063 存量守卫 + T-PERM-075 口径扩展：原始持有候选同时含两角色的用户
     //（未过期含未来窗口、含禁用持有与禁用组子树——与全部写守卫同口径）
     List<Long> findUsersHoldingBothRoles(Long tenantId, Long firstRoleId, Long secondRoleId);

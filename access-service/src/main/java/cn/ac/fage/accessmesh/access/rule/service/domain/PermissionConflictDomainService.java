@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.rule.service.domain;
 
+import cn.ac.fage.accessmesh.access.rule.entity.PermissionConflictRule;
 import cn.ac.fage.accessmesh.access.engine.vo.RolePermEntry;
 
 import java.util.List;
@@ -73,6 +74,29 @@ public interface PermissionConflictDomainService {
      */
     List<RoleMutexAssignConflict> findAssignMutexConflicts(
         Long tenantId, Map<Long, Set<SubjectDomainService.RawHolding>> holdingsByUser);
+
+    /**
+     * 授予前互斥冲突检测（预载规则重载，full-sync 批内复用——claude 外评 P3-1 修复）。
+     * <p>
+     * full-sync 稳态全量重放的每个 item 均触发守卫，逐 item DB 直查规则会在
+     * ABSTRACT_ROLE 树写锁持有期放大语句数（旧口径幂等重放零规则查询）——
+     * 批级调用方经 {@link #loadRoleMutexRulesFresh(Long)} 循环前预载一次传入。
+     * </p>
+     *
+     * @param preloadedRules 预载的 ROLE_MUTEX 规则集（null 时内部直查，与管理面/single-sync 兼容）
+     */
+    List<RoleMutexAssignConflict> findAssignMutexConflicts(
+        Long tenantId, Map<Long, Set<SubjectDomainService.RawHolding>> holdingsByUser,
+        List<PermissionConflictRule> preloadedRules);
+
+    /**
+     * DB 直查当前租户 ROLE_MUTEX 规则集（写路径口径——不经 ROLE_MUTEX_RULE 缓存）。
+     * <p>
+     * 供 full-sync 等批级调用方循环前预载一次（与 rawHoldings 同款请求级预载形态）；
+     * 单条判定调用方直接用 {@link #findAssignMutexConflicts(Long, Map)} 两参版。
+     * </p>
+     */
+    List<PermissionConflictRule> loadRoleMutexRulesFresh(Long tenantId);
 
     /**
      * 存量双持查询（T-PERM-063 规则写路径守卫；T-PERM-075 口径扩展）

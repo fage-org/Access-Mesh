@@ -189,11 +189,28 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
     @Override
     public List<RoleMutexAssignConflict> findAssignMutexConflicts(
         Long tenantId, Map<Long, Set<SubjectDomainService.RawHolding>> holdingsByUser) {
+        return findAssignMutexConflicts(tenantId, holdingsByUser, null);
+    }
+
+    /**
+     * 授予前互斥冲突检测（T-PERM-063 写路径校验；T-PERM-075 区间交语义）。
+     * <p>
+     * 规则 DB 直查（不经缓存），新建规则即刻生效于授予校验；批级调用方
+     * （full-sync）经预载重载复用循环前装载的规则集（claude 外评 P3-1）。
+     * 冲突判定：两个互斥角色各自任一持有窗口重叠（闭区间，null=无限端，
+     * 倒置窗口视为空窗）才命中——真正不相交的未来窗口放行（U002-1 拍板）。
+     * </p>
+     */
+    @Override
+    public List<RoleMutexAssignConflict> findAssignMutexConflicts(
+        Long tenantId, Map<Long, Set<SubjectDomainService.RawHolding>> holdingsByUser,
+        List<PermissionConflictRule> preloadedRules) {
         if (holdingsByUser == null || holdingsByUser.isEmpty()) {
             return List.of();
         }
-        List<PermissionConflictRule> rules = conflictRuleMapper.selectByConflictType(
-            tenantId, ConflictType.ROLE_MUTEX.getValue());
+        List<PermissionConflictRule> rules = preloadedRules != null
+            ? preloadedRules
+            : conflictRuleMapper.selectByConflictType(tenantId, ConflictType.ROLE_MUTEX.getValue());
         if (rules.isEmpty()) {
             return List.of();
         }
@@ -215,6 +232,11 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
         return conflicts;
     }
 
+    @Override
+    public List<PermissionConflictRule> loadRoleMutexRulesFresh(Long tenantId) {
+        return conflictRuleMapper.selectByConflictType(tenantId, ConflictType.ROLE_MUTEX.getValue());
+    }
+
     /**
      * 窗口区间交判定：角色 X 与 Y 各自任一持有窗口重叠即冲突。
      * <p>
@@ -225,9 +247,14 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
      */
     private boolean hasOverlappingWindows(Set<SubjectDomainService.RawHolding> holdings,
                                           Long firstRoleId, Long secondRoleId) {
+        // 倒置窗口（valid_from > valid_to）在运行时谓词下恒假（永不生效、不触发双删），
+        // 判定前剔除——写守卫与运行时对同一数据不得给出相反结论（claude 外评 P3-2）
         List<SubjectDomainService.RawHolding> firstWindows = new ArrayList<>();
         List<SubjectDomainService.RawHolding> secondWindows = new ArrayList<>();
         for (SubjectDomainService.RawHolding holding : holdings) {
+            if (neverEffective(holding)) {
+                continue;
+            }
             if (firstRoleId.equals(holding.roleId())) {
                 firstWindows.add(holding);
             } else if (secondRoleId.equals(holding.roleId())) {
@@ -246,6 +273,12 @@ public class PermissionConflictDomainServiceImpl implements PermissionConflictDo
             }
         }
         return false;
+    }
+
+    /** 倒置窗口（from > to）：运行时谓词恒假，等同空窗不参与重叠判定。 */
+    private boolean neverEffective(SubjectDomainService.RawHolding holding) {
+        return holding.validFrom() != null && holding.validTo() != null
+            && holding.validFrom().isAfter(holding.validTo());
     }
 
     /**
