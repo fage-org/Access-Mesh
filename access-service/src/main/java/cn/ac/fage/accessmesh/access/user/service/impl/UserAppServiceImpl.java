@@ -20,6 +20,7 @@ import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.user.mapper.SysUserMapper;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
+import cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapper;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.user.service.UserAppService;
@@ -441,7 +442,10 @@ public class UserAppServiceImpl implements UserAppService {
      * 查询候选用户（添加组织/岗位成员时使用）。
      * <p>
      * 候选范围 = 默认组织树中操作者可见 ∩ 排除目标组织已有成员。
-     * 门禁：ORG:UPDATE@targetOrgId（校验能管理目标组织成员）。
+     * 门禁：与 {@code user-org/assign} 共用既有成员动作码解析——普通组织
+     * {@code MANAGE_MEMBER}、岗位 {@code ASSIGN_POSITION_USER}（经
+     * {@link OrgOperationCodeMapper#resolveForUserOrg} 按目标 orgType 解析，T-ORG-003；
+     * 先验证目标组织存在，再按类型判权，与 setPrimaryOrg 同序）。
      * <p>
      * 契约依据：{@code docs/design/access-service-api-contract.md} §7.2
      *
@@ -452,19 +456,19 @@ public class UserAppServiceImpl implements UserAppService {
     public PageResp<MemberCandidateItemResp> memberCandidates(MemberCandidatesReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 门禁：ORG:UPDATE@targetOrgId（校验能管理目标组织成员）
-        permissionValidator.checkInstanceLevel(
-            ResourceTypeCode.ORG,
-            String.valueOf(req.targetOrgId()),
-            OperationCode.UPDATE
-        );
-
-        // 校验目标组织存在
+        // 先校验目标组织存在，再按目标类型解析成员动作码判权（T-ORG-003：
+        // 旧实现固定 ORG:UPDATE——仅持成员动作权的有限管理员选不出人，与
+        // user-org/assign 的按类型门禁分叉；先例 setPrimaryOrg 同序）
         SysOrg targetOrg = orgDomainService.selectValidById(tenantId, req.targetOrgId());
         if (targetOrg == null) {
             throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
                 AccessErrorCode.ORG_NOT_FOUND.getMessage());
         }
+        permissionValidator.checkInstanceLevel(
+            ResourceTypeCode.ORG,
+            String.valueOf(req.targetOrgId()),
+            OrgOperationCodeMapper.resolveForUserOrg(targetOrg.getOrgType(), OperationCode.UPDATE)
+        );
 
         // 1. 确定默认组织树中操作者可见的组织范围（P1-D 修复：按 ORG:VIEW 裁剪）
         Long operatorId = StpUtil.getLoginIdAsLong();

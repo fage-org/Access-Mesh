@@ -4,7 +4,6 @@ import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.audit.aop.OperationLog;
 import cn.ac.fage.accessmesh.access.org.dto.req.UserOrgAssignReq;
 import cn.ac.fage.accessmesh.access.user.dto.resp.UserPageItemResp;
-import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
@@ -59,7 +58,7 @@ public class UserOrgAppServiceImpl implements UserOrgAppService {
      * <p>
      * 契约依据：{@code docs/design/access-service-api-contract.md} §8.9
      * <ul>
-     *   <li>非默认树关系：ORG:UPDATE@orgId 门禁</li>
+     *   <li>非默认树关系：按目标 orgType 解析成员动作码（MANAGE_MEMBER/ASSIGN_POSITION_USER，v1.4）</li>
      *   <li>默认树关系：USER:UPDATE@userId 门禁（按身份目录边界）</li>
      *   <li>移除后默认树关系归 0 时拒绝（身份目录高危保护）</li>
      * </ul>
@@ -92,14 +91,15 @@ public class UserOrgAppServiceImpl implements UserOrgAppService {
             OrgOperationCodeMapper.resolveForUserOrg(targetOrg.getOrgType(), OperationCode.UPDATE)
         );
 
-        // 首期主组织仅表示默认组织树下的主归属
-        List<SysOrgTreeConfig> defaultConfigs = orgTreeConfigDomainService.findDefaultConfigs(tenantId);
-        if (defaultConfigs.isEmpty()) {
+        // 首期主组织仅表示默认组织树下的主归属；默认树范围解析换绑领域共享入口
+        //（Q-025 随 T-ORG-003 收敛——原私有副本与共享入口并存且多配置展开行为有差，
+        // 读面 11014 判定与写面守卫同源；退化根（配置在而根组织失联）由共享入口
+        // 空返回统一折算 ORG_TREE_CONFIG_NOT_FOUND，正常形态两实现等价）
+        List<Long> defaultOrgIds = orgTreeConfigDomainService.resolveDefaultTreeOrgIds(tenantId);
+        if (defaultOrgIds.isEmpty()) {
             throw new BizException(AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getCode(),
                 AccessErrorCode.ORG_TREE_CONFIG_NOT_FOUND.getMessage());
         }
-
-        List<Long> defaultOrgIds = resolveDefaultTreeOrgIds(tenantId, defaultConfigs);
         if (!defaultOrgIds.contains(orgId)) {
             throw new BizException(AccessErrorCode.PRIMARY_MUST_BE_IN_DEFAULT_TREE.getCode(),
                 AccessErrorCode.PRIMARY_MUST_BE_IN_DEFAULT_TREE.getMessage());
@@ -120,27 +120,5 @@ public class UserOrgAppServiceImpl implements UserOrgAppService {
     public List<UserPageItemResp.OrgBrief> getUserOrgs(Long userId) {
         Long tenantId = TenantContextHolder.getTenantId();
         return userOrgDomainService.getUserOrgBriefs(tenantId, userId);
-    }
-
-    /**
-     * 判断 sys_org.orgType 是否为岗位类型。
-     * <p>
-     * 委托 {@link OrgOperationCodeMapper#isPositionOrg}。
-     * </p>
-     */
-    private static boolean isPositionOrg(String orgType) {
-        return OrgOperationCodeMapper.isPositionOrg(orgType);
-    }
-
-    /**
-     * 解析默认组织树的全部组织 ID（含根）。
-     */
-    private List<Long> resolveDefaultTreeOrgIds(Long tenantId, List<SysOrgTreeConfig> defaultConfigs) {
-        return defaultConfigs.stream()
-            .map(SysOrgTreeConfig::getRootOrgId)
-            .filter(rootOrgId -> rootOrgId != null)
-            .flatMap(rootOrgId -> orgDomainService.getDescendantIdsIncludingSelf(tenantId, rootOrgId).stream())
-            .distinct()
-            .toList();
     }
 }

@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-22   # 2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
+last_reviewed: 2026-09-22   # 2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -92,11 +92,13 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 ## 3. 有限权限管理员的完整任务
 
 <a id="member-candidates"></a>
-### 3.1 候选与成员写操作同权（F005，T-ORG-003）
+### 3.1 候选与成员写操作同权（F005，T-ORG-003；✅ 已实施 2026-09-22）
 
 推荐先读取并验证目标组织，再用既有OrgOperationCodeMapper按目标类型解析成员操作；候选查询和实际assign使用同一结果。保留默认树中操作者可见用户范围与排除已绑定成员规则，不能改成全租户搜索。
 
 普通组织MANAGE_MEMBER／岗位ASSIGN_POSITION_USER的管理员无需ORG:UPDATE即可完成选人和挂载，仍不得编辑组织结构。该修正独立于菜单重设计：用足够的VIEW权限先进入页面即可验收。权威总册旧UPDATE句与组织权限契约同时对齐。
+
+**实施口径**：门禁收敛落 `UserAppServiceImpl.memberCandidates` 唯一入口——先验目标组织存在（`ORG_NOT_FOUND`，与 setPrimaryOrg 同序）再 `resolveForUserOrg(orgType, UPDATE)` 判权（普通组织 MANAGE_MEMBER、岗位 ASSIGN_POSITION_USER），与 assign/remove/set-primary 共用既有动作码解析；可见范围裁剪与已绑定排除零改动。总册校准面含门禁总表 member-candidates 行与 §8.x user-org 三端点、§7.2 门禁与验收句（含 USER:VIEW 旧措辞修准为 ORG:VIEW 机制描述）；前端选择/提交链路核对无需改动（PositionTab/UserDetailPanel 权限口径本就按成员码门控），仅陈旧注释两处事实修正。Q-025 随本卡收敛（registry 2026-09-21 绑定：UserOrgAppServiceImpl 读面私有副本换绑 `OrgTreeConfigDomainService` 共享入口并删除，顺带清死 helper `isPositionOrg`）。验收④「浏览器分配链」按 2026-09-22 用户拍板让渡 T-ACCESS-055 组合验收承接（其 acceptance③「有限管理员实际操作页面」），本卡以真权限 API 组合链（PgIT：有限管理员候选→挂载→排除已绑定→改结构拒→无成员动作权拒→越租户拒，旧实现下主链 403 实证红）+ 前端静态核对为证据，任务卡验收④同步改写并明确未验收项。回归锁：`UserAppServiceMemberCandidatesGateTest` 门禁解析四锁（旧实现下 4/4 红）。
 
 <a id="delegated-directory"></a>
 ### 3.2 可见目录、菜单与实例授权共同成立（D001，T-ACCESS-052）

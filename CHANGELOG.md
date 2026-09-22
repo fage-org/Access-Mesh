@@ -20,6 +20,7 @@
 
 ### Fixed
 
+- **成员候选与分配门禁统一（T-ORG-003）**：`user/member-candidates` 门禁由固定 `ORG:UPDATE@targetOrgId` 改为与 `user-org/assign` 同权——先验证目标组织存在（`ORG_NOT_FOUND`），再按目标 orgType 解析成员动作码（普通组织 `ORG:MANAGE_MEMBER`、岗位 `ORG:ASSIGN_POSITION_USER`）。仅持成员动作权（无 `ORG:UPDATE`）的有限管理员此前在选择器一步即 403（首管理员全码掩盖，F005）；可见范围裁剪与已绑定排除不变，仍不得编辑组织结构。契约总册门禁表与 §7.2/§8.8/§8.9/§8.10 旧 `ORG:UPDATE` 句同批校准。
 - 资源同步「解挂」不落库：全不传父字段的 UPSERT 更新已存在行时旧父边残留（`applied=true` 且版本已推进、同版本重发被 STALE 挡）——改为 UpdateEntity 显式清 parent 列（grok 外评 P2）。
 - `docs/ops/runbook-full-sync.md` 同步步骤与重试决策表对齐上述语义（此前仍指导为异类型父显式传 `parentResourceTypeCode`）。
 - compose `GATEWAY_CORS_ALLOWED_ORIGINS` 透传改 `-` 形态——显式置空（=禁用 CORS）此前被 `:-` 默认值吞掉，文档承诺的关闭路径到不了容器（claude 外评 P3）。

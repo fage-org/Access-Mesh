@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-031           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-22（Q-031 登记：T-PERM-076 claude 外评存量观察——sync 通道 codeType 归一不 trim 与业务键寻址侧不对称；同日早前 Q-029/Q-030、Q-026/Q-027/Q-028）
+counter: Q-033           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-22（Q-033 登记：T-ORG-003 残留扫描——契约总册 org CRUD 门禁行未带岗位精化码（doc-only）；同日 Q-032 登记：T-ORG-003 契约校准面新发现——createUser orgId 门禁裸 UPDATE 与成员码族分叉；Q-025 随 T-ORG-003 收敛关闭（换绑共享入口）；同日早前 Q-031 登记：T-PERM-076 claude 外评存量观察——sync 通道 codeType 归一不 trim 与业务键寻址侧不对称；同日早前 Q-029/Q-030、Q-026/Q-027/Q-028）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,32 @@ last_updated: 2026-09-22（Q-031 登记：T-PERM-076 claude 外评存量观察�
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-033 契约总册 org CRUD 门禁行/正文未带岗位精化码——与 OrgOperationCodeMapper 实现漂移
+
+- **状态**：open
+- **登记**：2026-09-22（T-ORG-003 收口残留扫描新发现，结构编辑族——非 F005 成员门禁射程）
+- **来源**：T-ORG-003 文档回写
+- **关联**：org-user-permission-contract v1.3/v1.4（精化码定稿权威）
+
+**现象与证据**：契约总册门禁表 org/create、org/update、org/delete 三行写裸 `CREATE`/`UPDATE`/`DELETE`，§8.4/§8.5 正文同款（子级 `ORG:UPDATE@parentOrgId`、`ORG:UPDATE@id`）；实现 `OrgWriteAppServiceImpl` 全部经 `OrgOperationCodeMapper.resolve(orgType, base)` 解析——岗位目标实际判 `CREATE_POSITION`/`UPDATE_POSITION`/`DELETE_POSITION`（v1.3 起定稿，org-user-permission-contract §4/§5 为权威）。
+
+**影响**：纯文档漂移（普通组织场景行值字面正确，仅岗位目标精化缺失）；按总册裸码给岗位配权的管理员会误以为已授权（实际岗位 CRUD 仍 403）。与 T-ORG-003 已校准的成员门禁行（member-candidates/user-org 三端点）同册不同族。
+
+**设想方向（未定案）**：总表三行操作码列与 §8.4/§8.5 门禁句补「按 orgType 精化（岗位 *_POSITION）」注记——doc-only，与 org-user-permission-contract 对齐；可随下一张触达契约 org 章的任务顺手收敛。
+
+## Q-032 /user/create 带 orgId 的挂载门禁仍用裸 ORG:UPDATE——与成员动作码族语义分叉
+
+- **状态**：open
+- **登记**：2026-09-22（T-ORG-003 契约校准面新发现，按任务卡非目标边界登记）
+- **来源**：T-ORG-003 文档回写
+- **关联**：T-ORG-003（同族门禁——member-candidates/assign/remove/set-primary 已按成员码解析）
+
+**现象与证据**：`UserWriteAppServiceImpl.java:140-141`（createUser orgId 非空分支）`checkInstanceLevel(ORG, orgId, OperationCode.UPDATE)` 用裸 UPDATE；契约总表 `/user/create` 行「若入参带 orgId, 同时需 `ORG:UPDATE@orgId`」与实现一致无漂移，但与 v1.4 起挂载族统一经 `resolveForUserOrg` 解析 `MANAGE_MEMBER`/`ASSIGN_POSITION_USER` 的口径分叉——仅持 MANAGE_MEMBER 的有限管理员可给已有用户挂组织（assign），却不能在创建用户时一步挂载（create）。
+
+**影响**：触发面=有限管理员创建用户并指定 orgId（403）；org-user-permission-contract v1.5 变更行「用户页挂载门禁 ORG:UPDATE→ORG:MANAGE_MEMBER/ASSIGN_POSITION_USER 对齐 OrgOperationCodeMapper」未覆盖该入口；首管理员全码掩盖。
+
+**设想方向（未定案）**：createUser orgId 分支换 `resolveForUserOrg(targetOrg.orgType, UPDATE)`（一处替换+单测锁，需先解析 org）；收敛时机建议随 T-ACCESS-055 有限管理员组合验收前由用户拍板（改动会移动 user/create 权限面）。
 
 ## Q-031 资源同步通道 codeType 归一不 trim——带空白 codeType 的同步行业务键不可达
 
@@ -90,20 +116,6 @@ last_updated: 2026-09-22（Q-031 登记：T-PERM-076 claude 外评存量观察�
 **影响**：纯注释漂移，无运行时缺陷；误导按 DDL 注释理解/实现的后续改动（T-ORG-002 PgIT 夹具注释即被带偏一次）。
 
 **设想方向（未定案）**：DDL 注释改为「0=根节点（历史语义 NULL 亦无父行，新写一律 0）」；注意 schema COMMENT/注释改动须同步迁移脚本核对（AutoGrant 迁移快照比对含注释的先例）。
-
-## Q-025
-## Q-025 UserOrgAppServiceImpl 读面 resolveDefaultTreeOrgIds 私有副本与新共享入口并存
-
-- **状态**：open
-- **登记**：2026-09-21（T-ORG-002 双轨评审文档轨 P3-5，按评审倾向登记留观）
-- **来源**：T-ORG-002 双轨评审
-- **关联**：T-ORG-002（写面平行守卫已消灭，本条为读面同源债务）
-
-**现象与证据**：`UserOrgAppServiceImpl.java:138` 私有 `resolveDefaultTreeOrgIds`（11014 主归属边界判定消费）仍在，与 T-ORG-002 下沉的领域共享入口 `OrgTreeConfigDomainService.resolveDefaultTreeOrgIds`（其 Javadoc 自述「身份目录边界判定的共享入口」）并存；且行为有差——私有副本对多条默认配置 flatMap 全量展开，共享入口按 `get(0)` 取首条。
-
-**影响**：触发面=异常态（多条默认配置——`uk_tree_config_default` 唯一索引正常保证仅一条），正常形态两实现等价；读面 11014 判定与写面守卫判定走不同实现，语义漂移风险随默认树语义演进累积。
-
-**设想方向（未定案）**：UserOrgAppServiceImpl 换绑领域共享入口（一处调用替换+测试），删除私有副本；触达时机可随 T-ORG-003（组织与岗位成员候选门禁统一，同文件域）一并收敛。
 
 ## Q-024 createOrgTreeConfig 不校验新根与现有树根的祖先/后代重叠
 
@@ -213,6 +225,7 @@ last_updated: 2026-09-22（Q-031 登记：T-PERM-076 claude 外评存量观察�
 
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
+| Q-025 | UserOrgAppServiceImpl 读面 resolveDefaultTreeOrgIds 私有副本与新共享入口并存 | closed（T-ORG-003 done：换绑 OrgTreeConfigDomainService.resolveDefaultTreeOrgIds 共享入口并删除私有副本——registry 2026-09-21 行绑定的收敛时机兑现；退化根（配置在而根失联）由共享入口空返回统一折算 ORG_TREE_CONFIG_NOT_FOUND，正常形态两实现等价；顺带清无调用方死 helper isPositionOrg） | [T-ORG-003](tasks/T-ORG-003.md) | 2026-09-22 |
 |---|---|---|---|---|
 | Q-016 | logOut 本地清理被服务端注销 await 推迟 + T-FE-048 两变体（同会话并发无 single-flight、跨会话旧响应覆盖） | closed（T-FE-054 done：2026-09-20 AskUserQuestion 四问拍板「注销改 fire-and-forget」——四子项全收口：①注销请求发出即不等（黑洞挂 ≤10s 消除）②本地清理同步段完成、注销完成后不再补清理（新登录凭据竞态消除，回归锁含红跑态 try/finally 收尾防污染）③refreshSessionCapability 入口内共享在途 Promise single-flight（指纹=accessToken，同会话并发只发一次 user-menu）④refreshUserMenu 回写（Pinia+userKey）与侧栏重建前代际守卫（旧会话响应〔成功/失败〕不污染新会话）。原登记行方向 B〔令牌代际守卫保留 await〕随拍板弃用；定案见 registry 2026-09-20 行） | [T-FE-054](archive/2026-09-20/tasks/T-FE-054.md) | 2026-09-20 |
 | Q-020 | /menu-retry 页会话过期后「重新检查菜单」按陈旧状态提示（本地凭证已无时不发请求） | closed（T-FE-054 done：2026-09-20 拍板「随本卡收口」——initRouter 开头无凭证分支：统一提示「会话已过期」+ logOut 跳登录 + 抛 SessionExpiredError，menu-retry retry() catch 后不再按陈旧 menuLoadFailed 弹失真业务提示。判定挂在会话能力初始化统一入口（initRouter），非 menu-retry 单点判 token——2026-09-19「不做单入口判空」口径的落地形态；定案见 registry 同日行） | [T-FE-054](archive/2026-09-20/tasks/T-FE-054.md) | 2026-09-20 |

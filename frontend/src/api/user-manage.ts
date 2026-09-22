@@ -446,7 +446,8 @@ export const resetUserPassword = async (data: {
 
 /**
  * 成员候选查询（POST /api/access/user/member-candidates；语义=默认树身份目录候选，
- * 区别于成员列表 /user/page。门禁 ORG:UPDATE@targetOrgId。
+ * 区别于成员列表 /user/page。门禁与 user-org/assign 同权：普通组织 ORG:MANAGE_MEMBER、
+ * 岗位 ORG:ASSIGN_POSITION_USER（按目标类型解析，T-ORG-003，无需 ORG:UPDATE）。
  * alreadyAssigned 后端恒 false——已在目标组织的过滤由调用方本地完成）
  */
 export const getMemberCandidates = async (
