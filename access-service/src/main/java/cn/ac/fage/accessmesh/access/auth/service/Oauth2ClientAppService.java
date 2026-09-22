@@ -12,7 +12,8 @@ import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
  * <p>
  * 提供OAuth2客户端的管理功能。
  * OAuth2客户端用于第三方应用接入，
- * 支持授权码模式、客户端凭证模式等OAuth2授权流程。
+ * 现役授权流程为授权码模式（含 PKCE）与刷新令牌轮换
+ * （客户端凭证模式无发放实现，历史预留口径见 docs/design/service-authentication.md）。
  * </p>
  */
 public interface Oauth2ClientAppService {

@@ -278,7 +278,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 #### 6.1.1 `POST /api/access/auth/oauth2/authorize`（需平台会话）
 
-平台用户为客户端发起授权，生成一次性授权码（Redis `oauth2:code:<uuid>`，TTL 300s，Lua GET+DEL 原子消费；码记录绑定 clientId/用户/租户/redirectUri/PKCE/scope，兑换时逐项校验——见 §6.1.2）。
+平台用户为客户端发起授权，生成一次性授权码（Redis `oauth2:code:<uuid>`，TTL 300s，Lua GET+DEL 原子消费；码记录绑定 clientId/用户/租户/redirectUri/PKCE/scope——兑换时比对 clientId/redirectUri/PKCE（见 §6.1.2），用户/租户/scope 取自码记录签发，scope 已在 authorize 侧按客户端注册范围校验）。
 
 请求（`AuthorizeReq`）：`clientId`* / `responseType`*（固定 `code`）/ `redirectUri`* / `state` / `scope`（空格分隔，⊆ 客户端注册 scopes，否则 `OAUTH2_SCOPE_INVALID`；**客户端注册 scopes 为空时拒绝非空 scope 请求**——空注册不解释为无限制；空 scope 请求放行，签发的无 scope 令牌因业务路径 requiredScopes 强制非空而仅可访问 userinfo 豁免端点）/ `codeChallenge` / `codeChallengeMethod`（S256|plain）。
 
@@ -288,7 +288,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 
 授权码兑换访问令牌。仅支持 `grant_type=authorization_code`。
 
-**客户端关联校验（T-ADMIN-028/F002）**：授权码只能由签发时（authorize 写入 Redis 记录）的客户端兑换——已认证客户端（`clientId`+`clientSecret`）与授权码记录的 `clientId` 不匹配即拒绝 `OAUTH2_CODE_INVALID`（redirect/PKCE 校验与 authorize 侧 redirect/scope 校验、资源端 audience 门禁均不能替代该关联，同租户与跨租户客户端交叉兑换同拒）；关联校验失败同其余校验失败一样消费授权码（Lua GET+DEL 一次性语义不变），失败尝试经 `sys_login_log` 写 status=0 审计（租户取授权码登记租户）。
+**客户端关联校验（T-ADMIN-028/F002）**：授权码只能由签发时（authorize 写入 Redis 记录）的客户端兑换——已认证客户端（`clientId`+`clientSecret`）与授权码记录的 `clientId` 不匹配即拒绝 `OAUTH2_CODE_INVALID`（redirect/PKCE 校验与 authorize 侧 redirect/scope 校验、资源端 audience 门禁均不能替代该关联，同租户与跨租户客户端交叉兑换同拒）；关联校验失败同其余校验失败一样消费授权码（Lua GET+DEL 一次性语义不变），失败尝试经 `sys_login_log` 写 status=0 审计（租户取授权码登记租户，failReason 携带签发方 clientId——失败行自证码归属，user_id 为 null）。
 
 请求（`TokenReq`）：`grantType`* / `clientId`* / `clientSecret`* / `code`* / `redirectUri`* / `codeVerifier` / `refreshToken`。
 

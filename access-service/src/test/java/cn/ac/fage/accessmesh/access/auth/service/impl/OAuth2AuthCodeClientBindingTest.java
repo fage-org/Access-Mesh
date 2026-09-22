@@ -182,11 +182,14 @@ class OAuth2AuthCodeClientBindingTest {
             ArgumentCaptor.forClass(LoginLogDomainService.LoginLogEntry.class);
         verify(loginLogDomainService).recordLoginLog(captor.capture());
         LoginLogDomainService.LoginLogEntry entry = captor.getValue();
-        // 租户取授权码（A/租户1）登记的上下文；若走 B 注册租户兜底则为 2，断言即红
+        // 租户取授权码（A/租户1）登记的上下文；若走 B 注册租户兜底则为 2，断言即红。
+        // failReason 携带签发方 clientId——失败行自证「码签发给 A」
         assertThat(entry.tenantId()).isEqualTo(1L);
         assertThat(entry.loginType()).isEqualTo("OAUTH2");
         assertThat(entry.clientId()).isEqualTo(CLIENT_B);
         assertThat(entry.status()).isEqualTo(0);
-        assertThat(entry.failReason()).contains("client mismatch");
+        assertThat(entry.failReason())
+            .contains("client mismatch")
+            .contains("issued to " + CLIENT_A);
     }
 }

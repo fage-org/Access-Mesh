@@ -451,7 +451,10 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         // 不能替代该关联——他客户端凭自身合法凭据可原样回传原 redirectUri，无 PKCE 授权码无需 verifier。
         // 失败时授权码已被 Lua GET+DEL 消费，与 redirect/PKCE 校验失败的既有一次性口径一致。
         if (!req.clientId().equals(codeData.getClientId())) {
-            recordOauth2Failure(req.clientId(), "authorization code client mismatch");
+            // 失败原因携带签发方 clientId（非敏感值，落库层 256 截断）——码已被消费且失败行
+            // user_id 为 null，取证需从失败行自证「这张码本来签发给谁」（claude 外评 P3-2 拍板）
+            recordOauth2Failure(req.clientId(),
+                "authorization code client mismatch (issued to " + codeData.getClientId() + ")");
             throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
                 AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
         }

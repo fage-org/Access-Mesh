@@ -11,7 +11,7 @@ import jakarta.validation.constraints.NotBlank;
  *
  * @param dictName 字典名称（必填，显示名称）
  * @param dictType 字典类型（必填，唯一标识）
- * @param status   状态（可选，默认0=正常）
+ * @param status   状态（可选，缺省 1=启用；0=停用，1=启用——与 DDL sys_dict_type.status 一致）
  * @param remark   备注（可选）
  */
 public record DictTypeCreateReq(
@@ -28,7 +28,7 @@ public record DictTypeCreateReq(
     String dictType,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（0=停用，1=启用）
      */
     Integer status,
 

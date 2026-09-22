@@ -70,7 +70,7 @@ public record Oauth2ClientUpdateReq(
     @Min(60) @Max(604800) Integer refreshTokenTtl,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（0=停用，1=启用）
      */
     Integer status
 ) {}

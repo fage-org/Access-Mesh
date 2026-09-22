@@ -13,7 +13,7 @@ import java.util.List;
  * @param id         字典类型ID
  * @param dictName   字典名称（显示名称）
  * @param dictType   字典类型（唯一标识）
- * @param status     状态（0=正常，1=禁用）
+ * @param status     状态（0=停用，1=启用）
  * @param remark     备注
  * @param createdAt  创建时间
  * @param data       字典数据列表
@@ -35,7 +35,7 @@ public record DictTypeResp(
     String dictType,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（0=停用，1=启用）
      */
     Integer status,
 

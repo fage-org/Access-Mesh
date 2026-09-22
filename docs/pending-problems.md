@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-028           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-22（Q-027/Q-028 登记：T-PERM-075 双轨评审遗留——新增侧组目标不展开（留观）与组展开遍历重复（轻量清扫）；2026-09-22 早前 Q-026：sys_org.parent_id DDL 注释与实现顶级口径漂移；2026-09-21 Q-024/Q-025 随 T-ORG-002、Q-022/Q-023 同日）
+counter: Q-030           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-22（Q-029/Q-030 登记：T-ADMIN-028 claude 外评存量观察——OAuth2 委托令牌不随用户禁用即时失效、authorize 不比对客户端租户与会话租户；同日早前 Q-026/Q-027/Q-028）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,32 @@ last_updated: 2026-09-22（Q-027/Q-028 登记：T-PERM-075 双轨评审遗留—
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-030 /authorize 不比对客户端 tenant_id 与会话租户——他租户客户端可获本租户会话的授权码与令牌
+
+- **状态**：open
+- **登记**：2026-09-22（T-ADMIN-028 claude 外评存量观察③，按登记处置）
+- **来源**：T-ADMIN-028 claude 外评
+- **关联**：T-ADMIN-028
+
+**现象与证据**：`OAuth2AppServiceImpl.authorize` 只做 `getValidClient`（`findActiveByClientId` 全局 clientId 点查，`OAuth2ClientDomainServiceImpl` 明示不限租户），码记录租户取会话租户（`TenantContextHolder`）——他租户注册的合法客户端可获该会话租户的码/令牌（令牌 tenant_id=会话租户、client_id=他租户客户端）。
+
+**影响**：跨租户客户端可被授权访问本租户用户上下文（scope 委托面）；仓内无该端点前端调用方（frontend 零 oauth2 authorize 调用），实际暴露面=直连 API + 平台会话手工发起。
+
+**设想方向（未定案）**：authorize 校验 `client.tenantId` 与会话租户一致（不一致拒绝，错误信封选型随实施定）；与 token/refresh 匿名端点全局查询的正当性（无会话租户可取）区分处理，勿一刀切改 `findActiveByClientId`。
+
+## Q-029 OAuth2 委托令牌不随用户禁用/删除即时失效——TTL 内继续可用
+
+- **状态**：open
+- **登记**：2026-09-22（T-ADMIN-028 claude 外评存量观察②，按登记处置）
+- **来源**：T-ADMIN-028 claude 外评
+- **关联**：T-ADMIN-028（客户端启用即时校验先例的对称缺口）
+
+**现象与证据**：资源端 `RequestContextInterceptor.authenticateOAuth2Jwt` 恒定校验清单只含客户端启用动态校验（`findActiveByClientId` 点查、禁用立即 401），不校验被委托用户状态；兑换（`tokenByAuthorizationCode`）与刷新（`refreshToken`）侧同样不校验码/令牌记录中的 user 有效性。access token TTL 默认 86400s、refresh 默认 604800s（客户端可配 60-86400 / 60-604800）。
+
+**影响**：用户被禁用/删除后，其已签发 OAuth2 委托令牌在 TTL 内（刷新链可到刷新令牌过期）仍可访问开放路径——撤权即时性缺口；现役开放路径默认仅 userinfo，暴露面随 `access.oauth2.resource-paths` 配置扩大。
+
+**设想方向（未定案）**：恒定校验清单加用户状态点查（对齐客户端启用点查先例——不缓存保证即时失效，代价=每请求一次点查）；或接受 TTL 边界并文档化；刷新侧拒发需另定（刷新令牌记录含 userId，可校验后再轮换）。
 
 ## Q-028 SubjectDomainServiceImpl 组展开两套遍历约 100 行重复（expandAllSubtree vs expandInMemory）
 

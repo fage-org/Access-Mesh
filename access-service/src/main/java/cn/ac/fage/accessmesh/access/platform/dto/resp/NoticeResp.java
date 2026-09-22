@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
  * @param content        公告内容（富文本）
  * @param noticeType     通知类型（1=通知，2=公告）
  * @param targetUserIds  目标用户ID列表（逗号分隔）
- * @param status         状态（0=正常，1=禁用）
+ * @param status         状态（0=草稿，1=已发布，2=已撤回）
  * @param createdAt      创建时间
  * @param updatedAt      更新时间
  */
@@ -45,7 +45,7 @@ public record NoticeResp(
     String targetUserIds,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（0=草稿，1=已发布，2=已撤回）
      */
     Integer status,
 

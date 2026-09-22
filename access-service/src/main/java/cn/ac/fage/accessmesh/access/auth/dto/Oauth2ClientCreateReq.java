@@ -21,7 +21,7 @@ import jakarta.validation.constraints.Min;
  * @param audiences       令牌受众/资源服务器标识（可选，逗号分隔；配置后签发写入 aud claim）
  * @param accessTokenTtl  访问令牌有效期（可选，秒，范围60-86400）
  * @param refreshTokenTtl 刷新令牌有效期（可选，秒，范围60-604800）
- * @param status          状态（可选，默认0=正常）
+ * @param status          状态（可选，缺省 1=启用；0=停用，1=启用——与 DDL sys_oauth2_client.status 一致）
  */
 public record Oauth2ClientCreateReq(
     /**
@@ -70,7 +70,7 @@ public record Oauth2ClientCreateReq(
     @Min(60) @Max(604800) Integer refreshTokenTtl,
 
     /**
-     * 状态（0=正常，1=禁用）
+     * 状态（0=停用，1=启用）
      */
     Integer status
 ) {}
