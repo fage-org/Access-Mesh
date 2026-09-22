@@ -24,6 +24,7 @@
 - `docs/ops/runbook-full-sync.md` 同步步骤与重试决策表对齐上述语义（此前仍指导为异类型父显式传 `parentResourceTypeCode`）。
 - compose `GATEWAY_CORS_ALLOWED_ORIGINS` 透传改 `-` 形态——显式置空（=禁用 CORS）此前被 `:-` 默认值吞掉，文档承诺的关闭路径到不了容器（claude 外评 P3）。
 - 发布文档修正：quickstart 授权闭环补「持角色用户/令牌来源」获取路径与密钥分发范围表述；deployment.md §4 真实 IP 边界改准确口径（Gateway IP 条件只消费直连对端地址，多层代理下真实 IP 不可用——codex sol 外评 P2）；nginx.conf 注释对齐实际 hash 路由；registry/pending-problems 归档连带锚点回写；rebuild-runbook JWT 密钥口径随 fail-fast 更新。
+- **OAuth2 授权码客户端关联校验（T-ADMIN-028）**：授权码只能由签发时的客户端凭自身 `clientId`+`clientSecret` 兑换——他客户端（同租户/跨租户）凭合法凭据交叉兑换拒绝 `OAUTH2_CODE_INVALID`（10905）并消费授权码；redirect/PKCE 等校验不能替代该绑定。失败尝试写 `sys_login_log` 审计（status=0）。
 
 ## [0.1.0] - 2026-09-16
 

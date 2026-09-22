@@ -106,7 +106,7 @@ pure-admin 模板登录布局不变（背景插画 + 右侧登录框 + 主题切
 
 **与相邻机制的边界**：公共路由不判门禁不等待（冷启动仍后台 initRouter 建 wholeMenus——阻断人群同样建：改密页虽无侧栏渲染，改密成功跳转 getTopMenu 同步读 wholeMenus，不建则 F5 改密页改密成功解引用 undefined 抛 TypeError，外评 P2 处置 2026-09-20 拍板恢复改前行为）；externalLink 不触门禁（openLink 新开标签，模板原状）；强制改密阻断（T-FE-046）优先于门禁判定；multiTags 残留标签点击被拦（权限回收后的旧标签）落 403 全屏页，标签清理仍属非目标（T-FE-048 边界维持）；冷启动手输未知路径（pathMatch 注册前）被拦 403 而非 404——不可达路由统一按无权限语义拦下，不泄露路由存在性；浏览器回退到已失效菜单路由（授权回收+热刷新收缩后）时，守卫 redirect 经 vue-router popstate 语义向历史栈追加 /access-denied 条目——被拦条目之前的页面无法连续回退到达（出路=403 页「返回首页」或浏览器历史菜单），纯导航体验无数据/安全后果——已知边界（外评 P3，2026-09-20 拍板登记；replace:true 可消除但会使点击进入同样丢来源页 push 语义，不采）。
 
-**回归锁**（`src/router/index.spec.ts` 守卫行为 + `src/router/gate.spec.ts` 纯函数 + `src/store/modules/user.spec.ts` 状态机）：锁① loaded 态无权限导航拦 403（旧实现放行，红跑实证）；锁② 冷启动深链同步不放行、初始化后被拦（旧实现立即放行，红跑实证）；锁③ `/redirect/:path` 白名单前缀放行（漏配实现红）；锁④ `/perm/grant` 显式映射放行/反向无 `ROLE:VIEW` 拦截（纯 menus 白名单实现红）；锁⑤ failed fail-open 放行（安全锁，现状保持）；状态机五锁（首载 loading→loaded / 首载失败 failed / 刷新失败维持 loaded / 刷新在途不回退 loading / logOut 重置——旧实现无状态机字段红跑实证）。红跑合计 10 红实证后全量 378 绿。
+**回归锁**（`src/router/index.spec.ts` 守卫行为 + `src/router/gate.spec.ts` 纯函数 + `src/store/modules/user.spec.ts` 状态机）：锁① loaded 态无权限导航拦 403（旧实现放行，红跑实证）；锁② 冷启动深链同步不放行、初始化后被拦（旧实现立即放行，红跑实证）；锁③ `/redirect/:path` 白名单前缀放行（漏配实现红）；锁④ `/perm/grant` 显式映射放行/反向无 `ROLE:VIEW` 拦截（纯 menus 白名单实现红）；锁⑤ failed fail-open 放行（安全锁，现状保持）；状态机行为锁（首载 loading→loaded / 首载失败 failed / 刷新失败维持 loaded / 刷新在途不回退 loading / logOut 重置——旧实现无状态机字段红跑实证）。红跑实证（红数与全量绿数以当轮 vitest 报告为准）。
 
 ## 登出流程（T-FE-045 真注销；T-FE-054 起注销改 fire-and-forget）
 

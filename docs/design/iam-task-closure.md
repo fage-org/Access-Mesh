@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-21   # 2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）；此前 2026-09-20
+last_reviewed: 2026-09-22   # 2026-09-22 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -43,11 +43,11 @@ last_reviewed: 2026-09-21   # 2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍
 **U001，已拍板（2026-09-21）**：**拒绝并提示受影响人数**，不自动迁移到根——与 10103「存在子节点请先删除子节点」、11013 单移成员拒绝、20062 互斥整批拒绝的既有先例一致，避免静默改变组织角色及授权；组织删除与单移成员两通道语义统一。若未来选择迁移，必须同事务重算组织角色和权限，另行立项扩验收。
 
 <a id="oauth"></a>
-### 2.2 授权码与原客户端绑定（F002，T-ADMIN-028）
+### 2.2 授权码与原客户端绑定（F002，T-ADMIN-028；✅ 已实施 2026-09-22）
 
-推荐在现有授权码兑换入口确认已认证客户端与授权码记录中的客户端相同，再签发令牌；沿用现有匿名 token 入口的错误信封和授权码消费规则，不引入新的认证中间层。redirect URI、PKCE、scope、audience与租户校验继续保留，各自不能替代客户端关联。
+**实施口径**：`tokenByAuthorizationCode` 在授权码加载并登记租户上下文后、redirect/PKCE 校验前比对 `codeData.clientId` 与已认证客户端（clientId+secret），不匹配拒绝 `OAUTH2_CODE_INVALID`（10905，沿用既有授权码错误信封）；失败消费授权码，与 redirect/PKCE 校验失败的一次性口径一致（消费时点不变，未新增读-判-删两步）；失败审计沿 `recordOauth2Failure` 写 status=0，租户取授权码登记租户。redirect URI、PKCE、scope、audience与租户校验继续保留，各自不能替代客户端关联。
 
-A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法授权码不能组合B的认证结果签发令牌。正常A兑换、错误客户端、已有PKCE／过期／重复兑换场景通过现有本地测试夹具验证。日志与错误中不包含secret或code。实现先核对当前code消费时点，明确失败是否消费code，避免新分支意外改变既有一次性语义；技术取舍只在有真实消费者影响时提交决策。
+A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法授权码不能组合B的认证结果签发令牌。正常A兑换、错误客户端、已有PKCE／过期／重复兑换场景经本地测试夹具验证——跨客户端兑换拒绝与关联保持以 `OAuth2AuthCodeClientBindingTest` 断言为准（同租户/跨租户/反向负向兑换用例旧实现下实证红），redirect/PKCE/未知过期码/重放与失败消费语义以 `OAuth2CodeExchangeNegativeTest` 断言为准（两类载体均系本任务新增——上述负向分支此前全仓零行为锁）。日志与错误中不包含secret或code。技术取舍未触发真实消费者影响，无用户决策项。
 
 <a id="sync"></a>
 ### 2.3 同步版本只随事实成功消费（F003，T-PERM-074）

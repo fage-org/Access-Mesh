@@ -394,7 +394,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
      *
      * @param req 令牌请求
      * @return 令牌响应
-     * @throws BizException 授权码无效、客户端密钥错误、回调地址不匹配、PKCE验证失败等
+     * @throws BizException 授权码无效、授权码客户端不匹配、客户端密钥错误、回调地址不匹配、PKCE验证失败等
      */
     private TokenResp tokenByAuthorizationCode(TokenReq req) {
         // 1. Validate client
@@ -446,14 +446,24 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
         // 审计租户登记：token 匿名端点 finally 会 clear holder，运行时 override 供 @OperationLog 切面解析
         OperationLogRuntimeContext.setTenantId(codeData.getTenantId());
 
-        // 5. Validate redirect_uri matches
+        // 5. Validate client binding（F002/T-ADMIN-028）：授权码只能由签发时的客户端兑换。
+        // 已认证客户端 = req.clientId() + secret（步骤 1/2）；redirect/PKCE/scope/audience 校验
+        // 不能替代该关联——他客户端凭自身合法凭据可原样回传原 redirectUri，无 PKCE 授权码无需 verifier。
+        // 失败时授权码已被 Lua GET+DEL 消费，与 redirect/PKCE 校验失败的既有一次性口径一致。
+        if (!req.clientId().equals(codeData.getClientId())) {
+            recordOauth2Failure(req.clientId(), "authorization code client mismatch");
+            throw new BizException(AccessErrorCode.OAUTH2_CODE_INVALID.getCode(),
+                AccessErrorCode.OAUTH2_CODE_INVALID.getMessage());
+        }
+
+        // 6. Validate redirect_uri matches
         if (!codeData.getRedirectUri().equals(req.redirectUri())) {
             recordOauth2Failure(req.clientId(), "redirect uri mismatch");
             throw new BizException(AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getCode(),
                 AccessErrorCode.OAUTH2_REDIRECT_MISMATCH.getMessage());
         }
 
-        // 6. Validate PKCE if used
+        // 7. Validate PKCE if used
         if (codeData.getCodeChallenge() != null && !codeData.getCodeChallenge().isBlank()) {
             if (req.codeVerifier() == null || req.codeVerifier().isBlank()) {
                 recordOauth2Failure(req.clientId(), "missing code verifier");
@@ -467,7 +477,7 @@ public class OAuth2AppServiceImpl implements OAuth2AppService {
             }
         }
 
-        // 7. Generate tokens
+        // 8. Generate tokens
         int accessTokenTtl = client.getAccessTokenTtl() != null ? client.getAccessTokenTtl() : 86400;
         int refreshTokenTtl = client.getRefreshTokenTtl() != null ? client.getRefreshTokenTtl() : 604800;
         String scope = codeData.getScope();
