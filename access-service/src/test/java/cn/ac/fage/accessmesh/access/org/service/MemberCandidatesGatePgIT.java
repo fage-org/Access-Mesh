@@ -149,12 +149,16 @@ class MemberCandidatesGatePgIT {
         // —— 阶段 4：有限管理员真实登录拿会话（member-candidates 取操作者走 StpUtil） ——
         String token = loginAs("mcg-limited-" + marker, limitedPassword);
 
-        // —— 主链①：候选查询放行且含默认树可见用户（旧实现固定 ORG:UPDATE，此处必红） ——
+        // —— 主链①：候选查询放行且含默认树可见用户（旧实现固定 ORG:UPDATE，此处必红）——
+        //     正向包含双断言（评审 P3-1 补强）：目标用户必须实际出现在候选池，
+        //     防「可见性裁剪漏人但下界断言仍过」的弱锁形态
         JsonNode candidates = performAndUnwrap("/api/access/user/member-candidates", limitedAdminId,
             JSON.objectNode().put("targetOrgId", positionOrgId), token, 200);
-        assertThat(candidates.path("items").size())
-            .as("默认树内目标用户必须在候选列表（含有限管理员本人，两者均挂叶子部门）：%s", candidates)
-            .isGreaterThanOrEqualTo(2);
+        java.util.List<Long> candidateIds = new java.util.ArrayList<>();
+        candidates.path("items").forEach(i -> candidateIds.add(i.path("id").asLong()));
+        assertThat(candidateIds)
+            .as("目标用户与有限管理员（均挂默认树叶子）必须在候选列表：%s", candidates)
+            .contains(targetUserId, limitedAdminId);
 
         // —— 主链②：挂载成功（assign 门禁与候选同权，无需 ORG:UPDATE） ——
         ObjectNode assignReq = JSON.objectNode().put("userId", targetUserId);

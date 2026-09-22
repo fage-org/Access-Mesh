@@ -47,6 +47,8 @@ class UserAppServiceMemberCandidatesGateTest {
     private static final Long OPERATOR = 900L;
     private static final long POSITION_ORG = 3001L;
     private static final long REGULAR_ORG = 3002L;
+    /** orgType=null 缺省形态的目标（与岗位/普通常量区分，评审 P3-2：常量语义不复用） */
+    private static final long NULL_TYPE_ORG = 3003L;
 
     @Mock private SysUserMapper userMapper;
     @Mock private UserDomainService userDomainService;
@@ -107,10 +109,10 @@ class UserAppServiceMemberCandidatesGateTest {
         verify(permissionValidator).checkInstanceLevel(
             eq(ResourceTypeCode.ORG), eq(String.valueOf(REGULAR_ORG)), eq(OperationCode.MANAGE_MEMBER));
 
-        when(orgDomainService.selectValidById(any(), eq(POSITION_ORG))).thenReturn(org(POSITION_ORG, null));
-        runCandidates(POSITION_ORG);
+        when(orgDomainService.selectValidById(any(), eq(NULL_TYPE_ORG))).thenReturn(org(NULL_TYPE_ORG, null));
+        runCandidates(NULL_TYPE_ORG);
         verify(permissionValidator).checkInstanceLevel(
-            eq(ResourceTypeCode.ORG), eq(String.valueOf(POSITION_ORG)), eq(OperationCode.MANAGE_MEMBER));
+            eq(ResourceTypeCode.ORG), eq(String.valueOf(NULL_TYPE_ORG)), eq(OperationCode.MANAGE_MEMBER));
     }
 
     @Test

@@ -2,7 +2,7 @@
 doc_type: task
 id: T-ORG-003
 title: "组织与岗位成员候选门禁统一"
-status: review
+status: done
 plan: docs/plans/iam-task-closure-plan.md
 domain: org-user
 design_refs:
@@ -53,8 +53,10 @@ last_updated: 2026-09-22
 - **回归锁**：`UserAppServiceMemberCandidatesGateTest` 门禁解析四锁（岗位→ASSIGN_POSITION_USER、普通/null→MANAGE_MEMBER、never 裸 UPDATE、目标不存在 ORG_NOT_FOUND 且不触门禁）——旧实现下 4/4 红实证；`MemberCandidatesGatePgIT` 真权限组合链（bootstrap 真链 + jdbc 直插授权行装配有限管理员 VIEW@默认根+ASSIGN_POSITION_USER@岗位，真实登录会话）：候选放行含默认树可见用户→挂载成功（sys_user_org+POSITION 容器投影落库）→已绑定成员排除→org/update 改结构 403→仅 VIEW 无成员动作权 403→越租户 10101——旧实现下主链 403 实证红（F005 症状复现）。
 - **用户拍板（当轮 registry 登记）**：验收④「浏览器分配链」让渡 T-ACCESS-055 组合验收承接；本卡以真权限 API 组合链 + 前端静态核对为证据，验收④同步改写并明确未验收项。
 - **夹具注记**：bootstrap 固定图业务门禁全 `canGrant=false`（转授链仅 API:ACCESS）、ORG 预置类型无 AUTHORITY_ROOT——apply-grant-plan 对 ORG 操作位无转授起点（20040），PgIT 授权行因此 jdbc 直插（授权消费面测试不依赖转授链）；「首管理员能否经正规入口委派 ORG 权限」属 T-ACCESS-052 U004 首次委派射程。
-- **设计回写**：iam-task-closure §3.1 转已实施+实施口径；契约门禁总表（member-candidates 行+user-org assign/remove/set-primary 三行）与 §7.2/§8.8/§8.9/§8.10 旧 `ORG:UPDATE` 句全面校准为按 orgType 解析成员码（§7.2 验收句补存在性先于判权、候选范围措辞修准为 ORG:VIEW 机制）；CHANGELOG [Unreleased] Fixed；registry 2026-09-22 收口行；pending-problems Q-025 关闭入已收敛索引；plan/看板状态随收口同步。
-- **新发现登记**：Q-032（`UserWriteAppServiceImpl.createUser` orgId 分支裸 `ORG:UPDATE` 与成员码族分叉——契约与实现一致无漂移、非 F005 射程，改动会移动 user/create 权限面，收敛时机待拍板）；Q-033（契约总册 org CRUD 门禁行/正文未带岗位精化码——结构编辑族 doc-only 漂移，org-user-permission-contract v1.3/v1.4 为权威）。
+- **设计回写**：iam-task-closure §3.1 转已实施+实施口径；契约门禁总表（member-candidates 行+user-org assign/remove/set-primary 三行）与 §7.2/§7.5/§8.8/§8.9/§8.10 旧 `ORG:UPDATE` 句全面校准为按 orgType 解析成员码/ORG:VIEW 可见性口径（§7.2 验收句补存在性先于判权、候选范围措辞修准为 ORG:VIEW 机制；§7.5 user/delete 默认树二次校验措辞同批修准）；CHANGELOG [Unreleased] Fixed；registry 2026-09-22 收口行；pending-problems Q-025 关闭入已收敛索引；plan/看板状态随收口同步。
+- **双轨评审处置（代码轨 P0-P2=0、P3×2；文档轨 P1×1+P3×2）**：文档轨 P1——pending-problems 已收敛索引表 Q-025 行误插表头与分隔行之间断表（GFM 插行坑）→ 移正（评审实证，直修）；文档轨 P3-1——收敛行「T-ORG-003 done」超前任务终态 → 措辞改「2026-09-22 随 T-ORG-003 收敛」（随 P1 同批）；文档轨 P3-2——校准面列举漏 §7.5 user/delete → 任务卡/设计稿/registry 三处补全；代码轨 P3-1——PgIT 主链①仅有下界断言（目标用户被可见性错裁仍可绿）→ 补 contains(targetUserId, limitedAdminId) 正向包含断言；代码轨 P3-2——单测 orgType=null 场景复用岗位语义常量 → 独立 NULL_TYPE_ORG 常量。类推发现登记 Q-034（可见性裁剪固定 VIEW 不按 VIEW_POSITION 精化——同 Q-032 精化码族，过严/过宽非越权，随 Q-032/T-ACCESS-055 拍板）。
+- **收口验证**：全量回归（收口形态 `-T 1C` 含 E2E/heavy）全模块 SUCCESS、0 失败 0 错误（13:00 墙钟）；处置批次复跑双测试类全绿（单测 4 + PgIT 组合链）。
+- **新发现登记**：Q-032（`UserWriteAppServiceImpl.createUser` orgId 分支裸 `ORG:UPDATE` 与成员码族分叉——契约与实现一致无漂移、非 F005 射程，改动会移动 user/create 权限面，收敛时机待拍板）；Q-033（契约总册 org CRUD 门禁行/正文未带岗位精化码——结构编辑族 doc-only 漂移，org-user-permission-contract v1.3/v1.4 为权威）；Q-034（双轨评审类推——可见性裁剪对岗位节点不按 VIEW_POSITION 精化，同 Q-032 族）。
 
 ## 非目标 / 遗留
 

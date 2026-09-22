@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-033           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-22（Q-033 登记：T-ORG-003 残留扫描——契约总册 org CRUD 门禁行未带岗位精化码（doc-only）；同日 Q-032 登记：T-ORG-003 契约校准面新发现——createUser orgId 门禁裸 UPDATE 与成员码族分叉；Q-025 随 T-ORG-003 收敛关闭（换绑共享入口）；同日早前 Q-031 登记：T-PERM-076 claude 外评存量观察——sync 通道 codeType 归一不 trim 与业务键寻址侧不对称；同日早前 Q-029/Q-030、Q-026/Q-027/Q-028）
+counter: Q-034           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-22（Q-034 登记：T-ORG-003 双轨评审类推——可见性裁剪不按 VIEW_POSITION 精化；同日 Q-033 登记：T-ORG-003 残留扫描——契约总册 org CRUD 门禁行未带岗位精化码（doc-only）；同日 Q-032 登记：T-ORG-003 契约校准面新发现——createUser orgId 门禁裸 UPDATE 与成员码族分叉；Q-025 随 T-ORG-003 收敛关闭（换绑共享入口）；同日早前 Q-031 登记：T-PERM-076 claude 外评存量观察——sync 通道 codeType 归一不 trim 与业务键寻址侧不对称；同日早前 Q-029/Q-030、Q-026/Q-027/Q-028）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-22（Q-033 登记：T-ORG-003 残留扫描——契约总�
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-034 可见性裁剪对岗位节点不按 VIEW_POSITION 精化——与读面 VIEW/VIEW_POSITION 分发分叉
+
+- **状态**：open
+- **登记**：2026-09-22（T-ORG-003 双轨评审代码轨类推发现，同 Q-032「精化码未覆盖判定面」族）
+- **来源**：T-ORG-003 双轨评审
+- **关联**：Q-032（精化码覆盖族）；org-user-permission-contract v1.4「看普通组织 ≠ 看岗位」口径
+
+**现象与证据**：`OrgVisibilityQueryAppServiceImpl.java:35,69` `filterVisibleOrgIds` 固定 `OPERATION_VIEW="VIEW"` 对全部 org（含 orgType=2 岗位节点）判可见；org 树读面（`OrgAppServiceImpl`）按 orgType 分发 VIEW/VIEW_POSITION（v1.4 细化）。消费面=member-candidates 候选池裁剪与 user/delete 等默认树可见性二次校验。
+
+**影响**：双向均为过严/过宽非越权——仅持 VIEW_POSITION 者在候选/删除可见面看不到岗位子树（过严）；持 VIEW 者可见岗位节点下用户进候选池（候选门禁另挡，无越权）。T-ORG-003 §7.2 验收句按实现写成「ORG:VIEW 的组织范围」后该分叉由隐性变契约明示。
+
+**设想方向（未定案）**：可见性裁剪按 orgType 分发 VIEW/VIEW_POSITION（与读面同构）；涉及候选池语义与既有授权预期（持 VIEW@根 能否看到岗位下用户），随 Q-032/T-ACCESS-055 有限管理员验收一并拍板。
 
 ## Q-033 契约总册 org CRUD 门禁行/正文未带岗位精化码——与 OrgOperationCodeMapper 实现漂移
 
@@ -225,8 +238,8 @@ last_updated: 2026-09-22（Q-033 登记：T-ORG-003 残留扫描——契约总�
 
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
-| Q-025 | UserOrgAppServiceImpl 读面 resolveDefaultTreeOrgIds 私有副本与新共享入口并存 | closed（T-ORG-003 done：换绑 OrgTreeConfigDomainService.resolveDefaultTreeOrgIds 共享入口并删除私有副本——registry 2026-09-21 行绑定的收敛时机兑现；退化根（配置在而根失联）由共享入口空返回统一折算 ORG_TREE_CONFIG_NOT_FOUND，正常形态两实现等价；顺带清无调用方死 helper isPositionOrg） | [T-ORG-003](tasks/T-ORG-003.md) | 2026-09-22 |
 |---|---|---|---|---|
+| Q-025 | UserOrgAppServiceImpl 读面 resolveDefaultTreeOrgIds 私有副本与新共享入口并存 | closed（2026-09-22 随 T-ORG-003 收敛：换绑 OrgTreeConfigDomainService.resolveDefaultTreeOrgIds 共享入口并删除私有副本——registry 2026-09-21 行绑定的收敛时机兑现；退化根（配置在而根失联）由共享入口空返回统一折算 ORG_TREE_CONFIG_NOT_FOUND，正常形态两实现等价；顺带清无调用方死 helper isPositionOrg） | [T-ORG-003](tasks/T-ORG-003.md) | 2026-09-22 |
 | Q-016 | logOut 本地清理被服务端注销 await 推迟 + T-FE-048 两变体（同会话并发无 single-flight、跨会话旧响应覆盖） | closed（T-FE-054 done：2026-09-20 AskUserQuestion 四问拍板「注销改 fire-and-forget」——四子项全收口：①注销请求发出即不等（黑洞挂 ≤10s 消除）②本地清理同步段完成、注销完成后不再补清理（新登录凭据竞态消除，回归锁含红跑态 try/finally 收尾防污染）③refreshSessionCapability 入口内共享在途 Promise single-flight（指纹=accessToken，同会话并发只发一次 user-menu）④refreshUserMenu 回写（Pinia+userKey）与侧栏重建前代际守卫（旧会话响应〔成功/失败〕不污染新会话）。原登记行方向 B〔令牌代际守卫保留 await〕随拍板弃用；定案见 registry 2026-09-20 行） | [T-FE-054](archive/2026-09-20/tasks/T-FE-054.md) | 2026-09-20 |
 | Q-020 | /menu-retry 页会话过期后「重新检查菜单」按陈旧状态提示（本地凭证已无时不发请求） | closed（T-FE-054 done：2026-09-20 拍板「随本卡收口」——initRouter 开头无凭证分支：统一提示「会话已过期」+ logOut 跳登录 + 抛 SessionExpiredError，menu-retry retry() catch 后不再按陈旧 menuLoadFailed 弹失真业务提示。判定挂在会话能力初始化统一入口（initRouter），非 menu-retry 单点判 token——2026-09-19「不做单入口判空」口径的落地形态；定案见 registry 同日行） | [T-FE-054](archive/2026-09-20/tasks/T-FE-054.md) | 2026-09-20 |
 | Q-017 | user/index.vue 死解构 + 组织点击双请求（useUserManage 双实例各发一次 /user/page） | closed（T-FE-051 done：2026-09-19 AskUserQuestion 拍板「就地化」——index.vue 删除整个 useUserManage 实例（未消费解构整体清零），selectedOrgId 就地化本地 ref，onOrgChange 不再调 loadTable，成员表加载由 MemberTab watch(orgId)→onSearch 链路独占（点组织单请求、挂载即首载一次）；重复点击同一节点行为不变（watch 值不变不触发，原 index 实例刷新本就无人消费）。同卡两项拍板之二：handleToggleStatus 移入 hook 透后端 error.message。定案见 registry 同日行） | [T-FE-051](archive/2026-09-20/tasks/T-FE-051.md) | 2026-09-19 |
