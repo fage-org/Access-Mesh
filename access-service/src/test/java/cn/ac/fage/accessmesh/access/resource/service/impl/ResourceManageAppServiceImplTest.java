@@ -372,7 +372,10 @@ class ResourceManageAppServiceImplTest {
         when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(1L, java.util.Set.of("API")))
             .thenReturn(java.util.Map.of("API", apiType()));
         when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), any())).thenReturn(java.util.Map.of());
-        when(resourceEntityDomainService.findExistingCodes(eq(1L), any())).thenReturn(java.util.Set.of());
+        // T-PERM-076：完整键查重首查空集 + 落库后回查返回带主键新行（响应身份回查校准）
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), anySet(), anySet(), anySet()))
+            .thenReturn(List.of())
+            .thenReturn(List.of(resourceWithTriple(61L, 3, "res-lock-b", "default")));
         when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
 
         service.batchCreateResources(1L, java.util.List.of(
@@ -702,7 +705,10 @@ class ResourceManageAppServiceImplTest {
             isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("API"))))
             .thenReturn(java.util.Map.of("API", apiType()));
-        when(resourceEntityDomainService.findExistingCodes(eq(1L), anySet())).thenReturn(Set.of());
+        // T-PERM-076：查重首查空集 + 落库后回查返回带主键新行
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), anySet(), anySet(), anySet()))
+            .thenReturn(List.of())
+            .thenReturn(List.of(resourceWithTriple(71L, 3, "res-ok", "default")));
         // 旧实现会以 ("MENU","parent-x") 批量解析并拿到有效父 id → 跨类型项照常入库（本用例因此红）；
         // 新实现跨类型项被过滤出解析集 → stub 不再被消费，lenient 声明
         lenient().when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of(
@@ -726,7 +732,10 @@ class ResourceManageAppServiceImplTest {
             isNull(), eq(OperationCode.CREATE))).thenReturn(true);
         when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("API"))))
             .thenReturn(java.util.Map.of("API", apiType()));
-        when(resourceEntityDomainService.findExistingCodes(eq(1L), anySet())).thenReturn(Set.of());
+        // T-PERM-076：查重首查空集 + 落库后回查返回带主键新行
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), anySet(), anySet(), anySet()))
+            .thenReturn(List.of())
+            .thenReturn(List.of(resourceWithTriple(81L, 3, "res-ok", "default")));
         // 父实体类型=1（MENU），自身类型=3（API）→ 裸 id 轨跨类型
         when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), eq(Set.of(55L))))
             .thenReturn(java.util.Map.of(55L, resourceWithKey(55L)));
@@ -740,5 +749,202 @@ class ResourceManageAppServiceImplTest {
 
         assertEquals(1, resp.size());
         assertEquals("res-ok", resp.get(0).code());
+    }
+
+    // ========== T-PERM-076：批量创建完整键查重（存量+批内）、畸形项收集与响应身份回查 ==========
+
+    /** 批量项构造助手（仅业务键三段 + name，其余 null） */
+    private static cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq batchReq(
+        String resourceTypeCode, String code, String codeType, String name) {
+        return new cn.ac.fage.accessmesh.perm.common.dto.req.ResourceCreateReq(
+            null, null, null, null, null, resourceTypeCode, code, codeType, name, null, null, null);
+    }
+
+    /** 带完整键三元组的实体（回查/存量桩共用） */
+    private static ResourceEntity resourceWithTriple(Long id, int resourceType, String code, String codeType) {
+        ResourceEntity e = new ResourceEntity();
+        e.setId(id);
+        e.setTenantId(1L);
+        e.setResourceType(resourceType);
+        e.setCode(code);
+        e.setCodeType(codeType);
+        e.setName(code);
+        return e;
+    }
+
+    /** MANAGED 类型权威行（BUTTON=2/DATA=4 种子值） */
+    private static cn.ac.fage.accessmesh.access.type.entity.TypeDefinition managedType(String code, int value) {
+        cn.ac.fage.accessmesh.access.type.entity.TypeDefinition td =
+            new cn.ac.fage.accessmesh.access.type.entity.TypeDefinition();
+        td.setId((long) value);
+        td.setTenantId(1L);
+        td.setTypeKey("resource_type");
+        td.setTypeCode(code);
+        td.setTypeValue(value);
+        return td;
+    }
+
+    @Test
+    @DisplayName("T-PERM-076：同码跨类型/同类型跨 codeType 均可创建且响应携带回查主键（旧实现 tenant+code 查重误拒 + id 恒 null）")
+    void batchCreateAllowsSameCodeAcrossTypeAndCodeType() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("BUTTON", "DATA"))))
+            .thenReturn(java.util.Map.of("BUTTON", managedType("BUTTON", 2), "DATA", managedType("DATA", 4)));
+        when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), any())).thenReturn(java.util.Map.of());
+        // 存量：BUTTON/R076_X/default（同码不同类型）与 DATA/R076_X/default（同类型同码不同 codeType）——
+        // 二者均不构成新项重复；本批新项 DATA/R076_X/custom 与 BUTTON/R076_Y/default 均应成功
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), anySet(), anySet(), anySet()))
+            .thenReturn(List.of(
+                resourceWithTriple(11L, 2, "R076_X", "default"),
+                resourceWithTriple(12L, 4, "R076_X", "default")))
+            .thenReturn(List.of(
+                resourceWithTriple(101L, 4, "R076_X", "custom"),
+                resourceWithTriple(102L, 2, "R076_Y", "default")));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
+
+        var resp = service.batchCreateResources(1L, List.of(
+            batchReq("DATA", "R076_X", "custom", "跨codeType"),
+            batchReq("BUTTON", "R076_Y", null, "跨类型")), 100L);
+
+        assertEquals(2, resp.size());
+        org.assertj.core.api.Assertions.assertThat(resp)
+            .extracting(r -> r.code() + "/" + r.codeType())
+            .containsExactlyInAnyOrder("R076_X/custom", "R076_Y/default");
+        // 响应主键取自回查行（insertBatch 不回填；旧实现恒 null）
+        assertEquals(101L, resp.stream().filter(r -> "R076_X".equals(r.code())).findFirst().orElseThrow().id());
+        assertEquals(102L, resp.stream().filter(r -> "R076_Y".equals(r.code())).findFirst().orElseThrow().id());
+    }
+
+    @Test
+    @DisplayName("T-PERM-076：批内同完整键重复首项胜出、后到项跳过不撞唯一索引（旧实现两项齐入 insertBatch 整批 SQL 失败）")
+    void batchCreateIntraBatchDuplicateFullKeyFirstWins() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("BUTTON"))))
+            .thenReturn(java.util.Map.of("BUTTON", managedType("BUTTON", 2)));
+        when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), any())).thenReturn(java.util.Map.of());
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), anySet(), anySet(), anySet()))
+            .thenReturn(List.of())                                  // 存量查重：空
+            .thenReturn(List.of(resourceWithTriple(201L, 2, "R076_DUP", "default"))); // 回查
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
+
+        var resp = service.batchCreateResources(1L, List.of(
+            batchReq("BUTTON", "R076_DUP", null, "首项"),
+            batchReq("BUTTON", "R076_DUP", null, "后到同键项")), 100L);
+
+        // 旧实现：两项均通过 code 查重（互不可见）→ resp=2 且 insertBatch 带两行同键实体
+        assertEquals(1, resp.size());
+        assertEquals(201L, resp.get(0).id());
+        org.mockito.ArgumentCaptor<List<ResourceEntity>> captor =
+            org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(resourceEntityMapper).insertBatch(captor.capture());
+        assertEquals(1, captor.getValue().size());
+    }
+
+    @Test
+    @DisplayName("T-PERM-076：存量同完整键命中逐项跳过（部分成功），同批其余项不受连坐")
+    void batchCreateSkipsExistingFullKeyItems() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("BUTTON"))))
+            .thenReturn(java.util.Map.of("BUTTON", managedType("BUTTON", 2)));
+        when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), any())).thenReturn(java.util.Map.of());
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), anySet(), anySet(), anySet()))
+            .thenReturn(List.of(resourceWithTriple(31L, 2, "R076_E", "default")))
+            .thenReturn(List.of(resourceWithTriple(32L, 2, "R076_F", "default")));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
+
+        var resp = service.batchCreateResources(1L, List.of(
+            batchReq("BUTTON", "R076_E", null, "存量重复项"),
+            batchReq("BUTTON", "R076_F", null, "正常项")), 100L);
+
+        assertEquals(1, resp.size());
+        assertEquals("R076_F", resp.get(0).code());
+        assertEquals(32L, resp.get(0).id());
+    }
+
+    @Test
+    @DisplayName("T-PERM-076：codeType 归一参与查重——空白归一 default 命中存量 default 行（trim 后同键即重复）")
+    void batchCreateNormalizesCodeTypeForDedup() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("BUTTON"))))
+            .thenReturn(java.util.Map.of("BUTTON", managedType("BUTTON", 2)));
+        when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), any())).thenReturn(java.util.Map.of());
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), anySet(), anySet(), anySet()))
+            .thenReturn(List.of(resourceWithTriple(41L, 2, "R076_H", "default")))
+            .thenReturn(List.of(resourceWithTriple(42L, 2, "R076_I", "default")));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
+
+        var resp = service.batchCreateResources(1L, List.of(
+            batchReq("BUTTON", "R076_H", "  ", "空白codeType归一default应判重"),
+            batchReq("BUTTON", "R076_I", null, "正常项")), 100L);
+
+        assertEquals(1, resp.size());
+        assertEquals("R076_I", resp.get(0).code());
+    }
+
+    @Test
+    @DisplayName("T-PERM-076：畸形项（code/name 空白）宽容收集跳过，不再整批 SQL 崩（2026-09-22 拍板顺手修）")
+    void batchCreateSkipsMalformedItems() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("BUTTON"))))
+            .thenReturn(java.util.Map.of("BUTTON", managedType("BUTTON", 2)));
+        when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), any())).thenReturn(java.util.Map.of());
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), anySet(), anySet(), anySet()))
+            .thenReturn(List.of())
+            .thenReturn(List.of(resourceWithTriple(51L, 2, "R076_OK", "default")));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
+
+        var resp = service.batchCreateResources(1L, java.util.Arrays.asList(
+            batchReq("BUTTON", null, null, "缺code"),
+            batchReq("BUTTON", "   ", null, "空白code"),
+            batchReq("BUTTON", "R076_N", null, null),
+            batchReq("BUTTON", "R076_N2", null, "  "),
+            batchReq("BUTTON", "R076_OK", null, "正常项")), 100L);
+
+        // 旧实现：缺 code/缺 name 项原样进 insertBatch → PG NOT NULL 违例整批回滚（本用例红于 resp 与落库清单）
+        assertEquals(1, resp.size());
+        assertEquals("R076_OK", resp.get(0).code());
+        org.mockito.ArgumentCaptor<List<ResourceEntity>> captor =
+            org.mockito.ArgumentCaptor.forClass(List.class);
+        verify(resourceEntityMapper).insertBatch(captor.capture());
+        assertEquals(1, captor.getValue().size());
+        assertEquals("R076_OK", captor.getValue().get(0).getCode());
+    }
+
+    @Test
+    @DisplayName("T-PERM-076 双轨评审 P3-1：全批类型码 null 不再 NPE 500（Map.of().get(null) 防护），混合批 null 项宽容跳过")
+    void batchCreateAllNullTypeCodeCollectedNotNpe() {
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.CREATE))).thenReturn(true);
+        // 全空类型码批：守卫入参空集——真实守卫返回 Map.of()（get(null) 即 NPE），显式桩还原生产形态
+        //（mock 默认返回宽容空 Map 会掩盖旧实现的 NPE 分支，红跑判别力依赖本桩）
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of())))
+            .thenReturn(java.util.Map.of());
+        when(resourceTypeOwnershipGuard.rejectIfAnySyncManagedByCodes(eq(1L), eq(Set.of("BUTTON"))))
+            .thenReturn(java.util.Map.of("BUTTON", managedType("BUTTON", 2)));
+        when(resourceEntityDomainService.batchSelectByIdsMap(eq(1L), any())).thenReturn(java.util.Map.of());
+        when(resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(eq(1L), anySet(), anySet(), anySet()))
+            .thenReturn(List.of())
+            .thenReturn(List.of(resourceWithTriple(91L, 2, "R076_J", "default")));
+        when(typeResolutionService.batchResolveResourceIds(eq(1L), any())).thenReturn(java.util.Map.of());
+
+        // 全空批：旧实现 Map.of().get(null) NPE 整批 500；新实现落「未知类型」宽容分支返回空
+        var allNull = service.batchCreateResources(1L, List.of(
+            batchReq(null, "R076_K", null, "类型码null"),
+            batchReq("  ", "R076_K2", null, "类型码空白")), 100L);
+        assertEquals(0, allNull.size());
+        verify(resourceEntityMapper, org.mockito.Mockito.never()).insertBatch(org.mockito.ArgumentMatchers.anyList());
+
+        // 混合批：同形态 null 项宽容跳过、正常项照常成功（行为一致性）
+        org.mockito.Mockito.clearInvocations(resourceEntityMapper);
+        var mixed = service.batchCreateResources(1L, java.util.Arrays.asList(
+            batchReq(null, "R076_K3", null, "null项"),
+            batchReq("BUTTON", "R076_J", null, "正常项")), 100L);
+        assertEquals(1, mixed.size());
+        assertEquals("R076_J", mixed.get(0).code());
     }
 }

@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-22   # 2026-09-22 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
+last_reviewed: 2026-09-22   # 2026-09-22 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -74,11 +74,13 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 连带口径：20063 存量双持收敛到原始持有候选（消除「绑定时拒、立规时放」双通道不一致）；sync「幂等改期不触发」随窗口重叠判定自然消解（改写后未过期即检查，纯幂等重放因持有侧无冲突天然通过）。登录角色串（展示面）不纳入判定面统一。
 
 <a id="resource-key"></a>
-### 2.5 资源单条／批量共享完整身份（F006，T-PERM-076）
+### 2.5 资源单条／批量共享完整身份（F006，T-PERM-076；✅ 已实施 2026-09-22）
 
 推荐以tenant、resourceType、code、规范化codeType构成查重身份，复用现有解析和BusinessKey工具。数据库存量及本批已接受项均用该身份，保持宽容逐项跳过的既定批量语义。PROJECT/default/X与DOC/default/X可以共存，同类型另一codeType同理；本批同一完整键重复不可导致整个批次SQL唯一约束失败。
 
 不新增幂等表；保持唯一索引兜底并为并发插入按现有契约处理。校准成功项响应主键是否真实返回，避免只修查重却让后续操作拿不到资源身份。不会拓宽SYNC类型所有权或同类型父边限制。
+
+**实施口径**：batch-create 查重落位为完整键（`BusinessKeyUtil.resourceTripleValueKey` 三元组，一次跨类型批量查询笛卡尔超集+内存精确比对，与 remove 键解析同款）——存量与本批已接受项同享该身份，批内同完整键首项胜出、后到项按既有宽容收集逐项跳过（部分成功），不再整批撞唯一索引；同码跨类型/跨 codeType 误拒随之消除。成功响应主键经完整键回查校准（insertBatch 不回填自增主键，投影轨回查先例），与单条 create 的 insert 回填对齐；单条 create 语义不变（唯一索引兜底、并发插入按既有契约）。畸形项（code/name 空白）宽容收集跳过（用户拍板 2026-09-22 顺手修——items 不级联 Bean Validation 的有意拍板下，空白项原样落库会以 NOT NULL 违例连坐整批）；全批类型码 null/空白批同样逐项跳过（守卫空入参返回 `Map.of()`，主循环补 null 防护落既有「未知类型」分支——双轨评审 P3，用户拍板顺手修）。旧 `findExistingCodes`（tenant+code 两维查询链）随修复退役删除。CHANGELOG 补 [Unreleased] Fixed 条目（用户拍板，沿 T-ADMIN-028「安全收紧类补」先例扩展适用于正确性收紧类）。查重与批内/畸形/回查行为以 `ResourceManageAppServiceImplTest`（T-PERM-076 节用例旧实现下实证红）断言为准，真实唯一键/返回主键/所有权不放宽以 `ResourceBatchCreateCompositeIdentityPgIT`（真库 uk_resource_entity）断言为准。
 
 <a id="operation-default"></a>
 ### 2.6 追加操作的可选默认值（F013，T-PERM-077）

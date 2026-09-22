@@ -120,22 +120,6 @@ public class ResourceEntityDomainServiceImpl implements ResourceEntityDomainServ
     }
 
     /**
-     * 查询已存在的编码集合
-     *
-     * @param tenantId 租户ID
-     * @param codes    编码集合
-     * @return 已存在的编码集合
-     */
-    @Override
-    public Set<String> findExistingCodes(Long tenantId, Set<String> codes) {
-        if (codes == null || codes.isEmpty()) {
-            return Collections.emptySet();
-        }
-        Set<String> existingCodes = resourceEntityMapper.selectExistingCodes(tenantId, codes);
-        return existingCodes != null ? existingCodes : Collections.emptySet();
-    }
-
-    /**
      * 类型下是否存在有效资源行（T-PERM-052 类型所有权声明变更守卫：无有效行才可改）。
      *
      * @param tenantId     租户ID

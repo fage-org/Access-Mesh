@@ -256,13 +256,31 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             .map(req -> normalizeParentId(req.parentId()))
             .filter(Objects::nonNull)
             .collect(Collectors.toSet());
-        Set<String> allCodes = reqs.stream()
-            .map(ResourceCreateReq::code)
-            .filter(c -> c != null && !c.isBlank())
-            .collect(Collectors.toSet());
 
         Map<Long, ResourceEntity> parentMap = resourceEntityDomainService.batchSelectByIdsMap(tenantId, allParentIds);
-        Set<String> existingCodes = resourceEntityDomainService.findExistingCodes(tenantId, allCodes);
+        // T-PERM-076：批量查重身份=完整业务键（tenant+resourceType+code+归一 codeType，同 DDL
+        // uk_resource_entity）——旧实现只按 tenant+code 查重（丢两维）：同码跨类型/跨 codeType 的
+        // 合法创建被误拒，批内同完整键重复又双双落库撞唯一索引令整批 SQL 失败。一次跨类型三元组
+        // 查询（笛卡尔命中超集，三元组内存精确比对，与 resolveResourcesByKeys 同款）
+        Set<Integer> dedupTypeValues = new HashSet<>();
+        Set<String> dedupCodes = new HashSet<>();
+        Set<String> dedupCodeTypes = new HashSet<>();
+        for (ResourceCreateReq req : reqs) {
+            TypeDefinition ownedType = req.resourceTypeCode() == null ? null : ownedTypeMap.get(req.resourceTypeCode());
+            if (ownedType == null || req.code() == null || req.code().isBlank()) {
+                continue; // 未知类型/畸形 code 走循环内既有逐项错误路径
+            }
+            dedupTypeValues.add(ownedType.getTypeValue());
+            dedupCodes.add(req.code());
+            dedupCodeTypes.add(normalizedCodeType(req.codeType()));
+        }
+        Set<String> existingTriples = dedupTypeValues.isEmpty() ? Set.of()
+            : resourceEntityMapper.selectByTypesAndCodesAndCodeTypes(tenantId, dedupTypeValues, dedupCodes, dedupCodeTypes)
+                .stream()
+                .map(e -> BusinessKeyUtil.resourceTripleValueKey(e.getResourceType(), e.getCode(), e.getCodeType()))
+                .collect(Collectors.toSet());
+        // 本批已接受项同享完整键身份：首项胜出，后到同键项跳过（不落库即不撞唯一索引）
+        Set<String> acceptedTriples = new HashSet<>();
         // T-PERM-068：跨类型父项不参与批量父解析（循环体按类型拒绝跳过，无需解析）
         List<ResourceResolveRequest> parentResolveRequests = reqs.stream()
             .filter(r -> hasParentBusinessKey(r) && r.parentResourceTypeCode().equals(r.resourceTypeCode()))
@@ -277,7 +295,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         for (int i = 0; i < reqs.size(); i++) {
             ResourceCreateReq req = reqs.get(i);
 
-            TypeDefinition ownedType = ownedTypeMap.get(req.resourceTypeCode());
+            // 全批类型码均 null/空白时守卫入参为空集返回 Map.of()，get(null) 会 NPE——
+            // 与 dedup 预扫同款 null 防护，落既有「未知类型」宽容分支（混合批次同形态项即走此分支）
+            TypeDefinition ownedType = req.resourceTypeCode() == null ? null : ownedTypeMap.get(req.resourceTypeCode());
             Integer resourceType = ownedType != null ? ownedType.getTypeValue() : null;
             if (resourceType == null) {
                 errors.add("req[" + i + "]: 未知的resourceTypeCode: " + req.resourceTypeCode());
@@ -314,8 +334,21 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 }
             }
 
-            if (req.code() != null && !req.code().isBlank() && existingCodes.contains(req.code())) {
-                errors.add("req[" + i + "]: 编码已存在: " + req.code());
+            // T-PERM-076：畸形项宽容收集（items 不级联 Bean Validation，2026-09-12 拍板）——
+            // code/name 空白原样落库触发 NOT NULL 违例会整批回滚连坐同批正常项
+            if (req.code() == null || req.code().isBlank()) {
+                errors.add("req[" + i + "]: code 不能为空");
+                continue;
+            }
+            if (req.name() == null || req.name().isBlank()) {
+                errors.add("req[" + i + "]: name 不能为空");
+                continue;
+            }
+            String codeType = normalizedCodeType(req.codeType());
+            String triple = BusinessKeyUtil.resourceTripleValueKey(resourceType, req.code(), codeType);
+            if (existingTriples.contains(triple) || !acceptedTriples.add(triple)) {
+                errors.add("req[" + i + "]: 资源完整键已存在: "
+                    + req.resourceTypeCode() + ":" + req.code() + "/" + codeType);
                 continue;
             }
 
@@ -341,13 +374,27 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
             log.warn("批量创建资源验证错误: {}", errors);
         }
 
-        if (!toInsert.isEmpty()) {
-            resourceEntityMapper.insertBatch(toInsert);
-        } else {
+        if (toInsert.isEmpty()) {
             OperationLogRuntimeContext.markSkip();
+            return List.of();
         }
-
-        return toInsert.stream().map(this::toResourceResp).collect(Collectors.toList());
+        resourceEntityMapper.insertBatch(toInsert);
+        // T-PERM-076：insertBatch 不回填自增主键（JDBC batch 限制，BatchAdminUserProjectionWriter
+        // 回查先例）——成功项身份经完整键回查校准（与单条 create 的 insert 回填对齐）。查重已保证
+        // 回查命中与 toInsert 三元组一一对应：批内与存量重复均被跳过，唯一索引兜底并发窗口
+        Map<String, ResourceEntity> insertedByTriple = resourceEntityMapper
+            .selectByTypesAndCodesAndCodeTypes(tenantId, dedupTypeValues, dedupCodes, dedupCodeTypes)
+            .stream()
+            .collect(Collectors.toMap(
+                e -> BusinessKeyUtil.resourceTripleValueKey(e.getResourceType(), e.getCode(), e.getCodeType()),
+                e -> e,
+                (a, b) -> a));
+        return toInsert.stream()
+            .map(e -> toResourceResp(Objects.requireNonNull(
+                insertedByTriple.get(BusinessKeyUtil.resourceTripleValueKey(
+                    e.getResourceType(), e.getCode(), e.getCodeType())),
+                "inserted resource not visible after batch insert")))
+            .collect(Collectors.toList());
     }
 
     @Override

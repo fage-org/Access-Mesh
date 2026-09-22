@@ -42,16 +42,6 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
                                           @Param("resourceIds") Set<Long> resourceIds);
 
     /**
-     * 查询已存在的编码集合
-     *
-     * @param tenantId 租户ID
-     * @param codes    编码集合
-     * @return 已存在的编码集合
-     */
-    Set<String> selectExistingCodes(@Param("tenantId") Long tenantId,
-                                    @Param("codes") Set<String> codes);
-
-    /**
      * 查找指定租户、类型、编码和编码类型的资源
      *
      * @param tenantId     租户ID

@@ -66,18 +66,6 @@ public interface ResourceEntityDomainService {
     List<ResourceEntity> selectValidByIds(Long tenantId, Set<Long> resourceIds);
 
     /**
-     * 查询已存在的编码集合
-     * <p>
-     * 检查指定的编码是否已存在于租户下。
-     * </p>
-     *
-     * @param tenantId 租户ID
-     * @param codes    编码集合
-     * @return 已存在的编码集合
-     */
-    Set<String> findExistingCodes(Long tenantId, Set<String> codes);
-
-    /**
      * 类型下是否存在有效资源行（T-PERM-052 类型所有权声明变更守卫：无有效行才可改）。
      *
      * @param tenantId     租户ID
