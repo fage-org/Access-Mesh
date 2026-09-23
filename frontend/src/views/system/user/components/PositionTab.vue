@@ -520,11 +520,13 @@ function onSearch() {
 }
 
 function onReset() {
-  // 回全部状态与空词：值变化经 watcher 重查；本就 undefined/空串时无需重发
-  const dirty = statusFilter.value !== undefined || searchKeyword.value !== "";
+  // 单发化（claude 外评 P3）：状态筛选有值时其清空必经 watcher 重查（pre-flush 微任务），
+  // 此处不再显式补发避免双请求；仅「关键词脏而状态净」时 watcher 不触发、由本函数发
+  const statusDirty = statusFilter.value !== undefined;
+  const keywordDirty = searchKeyword.value !== "";
   searchKeyword.value = "";
   statusFilter.value = undefined;
-  if (dirty) {
+  if (!statusDirty && keywordDirty) {
     positionPage.value = 1;
     void loadPositions();
   }
@@ -819,6 +821,7 @@ watch(
         multiple
         filterable
         remote
+        reserve-keyword
         :remote-method="searchUsers"
         :loading="userRemoteLoading"
         placeholder="输入姓名/用户名/手机/邮箱搜索"
@@ -829,6 +832,14 @@ watch(
           :key="user.id"
           :label="`${user.name} (${user.username})`"
           :value="user.id"
+        />
+        <!-- 本页全被过滤时占位保菜单（claude 外评 P2）：EP remote 空态规则下选项数为 0
+             会让整个下拉含 #footer 翻页不渲染——占位 option 维持可达，可输词或翻页 -->
+        <el-option
+          v-if="userDisplayOptions.length === 0 && !userRemoteLoading"
+          disabled
+          label="本页候选均已在本岗位，可输入关键词或翻页"
+          value="__empty_placeholder__"
         />
         <template #footer>
           <div class="selector-pagination">

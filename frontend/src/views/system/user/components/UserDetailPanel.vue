@@ -179,7 +179,12 @@ const roleDisplayOptions = computed(() =>
   )
 );
 
-/** 选中即入缓存（提交对象不取自当前页选项——换词/翻页后当前页不含已选） */
+/**
+ * 选中即入缓存（提交对象不取自当前页选项——换词/翻页后当前页不含已选）。
+ * 时序前提（claude 外评 P3 钉正）：watch 默认 pre-flush（微任务，非同步），但微任务
+ * 必先于任何后续用户交互（点「确定」）完成，故提交时缓存必命中；勿改成 flush:'post'
+ * 或在赋值与提交间引入打破该窗口的异步链。
+ */
 watch(selectedRoleKey, key => {
   if (!key || selectedRoleOption.has(key)) return;
   const found = roleDisplayOptions.value.find(
@@ -306,7 +311,7 @@ function openRoleSelector() {
 
 async function handleAssignRole() {
   if (!props.user || !selectedRoleKey.value) return;
-  // 提交对象只取已选缓存：选中必经 watch 同步入缓存（同步 flush，点确定时必命中）
+  // 提交对象只取已选缓存：选中经 watch（pre-flush 微任务）入缓存——微任务先于点「确定」交互，必命中
   const role = selectedRoleOption.get(selectedRoleKey.value);
   if (!role) return;
   try {
@@ -564,6 +569,14 @@ function formatDate(val: string | null): string {
               :key="`${r.roleTypeCode}:${r.roleExternalId}`"
               :label="r.roleName"
               :value="`${r.roleTypeCode}:${r.roleExternalId}`"
+            />
+            <!-- 本页全被过滤时占位保菜单（claude 外评 P2）：EP remote 空态规则下选项数为 0
+                 会让整个下拉含 #footer 翻页不渲染——占位 option 维持可达，可输词或翻页 -->
+            <el-option
+              v-if="roleDisplayOptions.length === 0 && !roleRemoteLoading"
+              disabled
+              label="本页无可选角色，可输入关键词或翻页"
+              value="__empty_placeholder__"
             />
             <template #footer>
               <div class="role-selector-pagination">
