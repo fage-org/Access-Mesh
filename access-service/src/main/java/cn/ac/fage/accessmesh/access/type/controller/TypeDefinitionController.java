@@ -49,7 +49,7 @@ public class TypeDefinitionController {
     @PostMapping("/list")
     public R<PageResp<TypeDefinitionResp>> listTypes(@Valid @RequestBody TypeListReq req) {
         // pageNum/pageSize 均未传 = 字典全量场景（授权页/冲突规则/资源操作等下拉数据源），
-        // 取 PageUtil.MAX_PAGE_SIZE 上限（先例 /role/list LIMIT 0,200）；显式分页走 PageUtil 默认值。
+        // 取 PageUtil.MAX_PAGE_SIZE 上限（字典全量口径同 /system-config/list）；显式分页走 PageUtil 默认值。
         boolean paged = req.pageNum() != null || req.pageSize() != null;
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = paged ? PageUtil.pageSize(req.pageSize()) : PageUtil.MAX_PAGE_SIZE;

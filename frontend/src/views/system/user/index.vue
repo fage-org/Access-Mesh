@@ -346,7 +346,11 @@ async function onNodeMove(node: OrgTreeNode, targetParentId: number) {
           />
         </el-tab-pane>
         <el-tab-pane v-if="canViewPosition" label="岗位管理" name="position">
-          <PositionTab :org-id="selectedOrgId" />
+          <!-- org-tree（Q-036①）：卡片「位置」列父路径解析与新增岗位弹窗上级组织名依赖 -->
+          <PositionTab
+            :org-id="selectedOrgId"
+            :org-tree="orgTreePanelRef?.orgTree"
+          />
         </el-tab-pane>
       </el-tabs>
     </div>

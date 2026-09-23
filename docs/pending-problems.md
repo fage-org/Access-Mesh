@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-041           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-23（Q-041 登记：T-ACCESS-053 双轨评审存量观察——architecture.md SDK 表未列凭证拦截器；同日 Q-040：U008 两套服务身份覆盖面统一）
+counter: Q-042           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-23（Q-042 登记：T-FE-058 文档轨双轨评审范围外存量——org-user 契约 /user-role/list 旧指代；同日 Q-035/Q-036 随 T-FE-058 done 收敛入已收敛索引；同日 Q-041/Q-040 见下）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-23（Q-041 登记：T-ACCESS-053 双轨评审存量观察�
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-042 org-user-permission-contract 三处 `/user-role/list` 旧指代——T-ACCESS-042 改名（list→view）后语义漂移
+
+- **状态**：open
+- **登记**：2026-09-23（T-FE-058 文档轨双轨评审范围外存量——非本卡退役符号，本卡未触达该册）
+- **来源**：T-FE-058 文档轨双轨评审
+- **关联**：T-ACCESS-042（改名定案）；契约总册 §4 快照（`/user-role/list`=权限轨 `R<UserRolesResp>`、`/user-role/view`=管理轨 `R<ItemsResp<UserRoleItemResp>>`）
+
+**现象与证据**：`docs/design/org-user-permission-contract.md:146`「查看用户角色 `USER:VIEW`（`/api/access/user-role/list`）」与 `:147/:230`「`/user-role/list` 保留经 role.service 聚合」——按 T-ACCESS-042 管理轨改名 view 后，经 `UserRoleQueryAppService`（role.service）聚合、返回 ItemsResp 的是 `/user-role/view`；`/user-role/list` 现为权限轨持有角色查询端点（返回 UserRolesResp，HttpApiPathSnapshotTest:334/:406 快照实证）。同款半句已在 T-FE-058 触达行中修正（契约 §8.1 org/users ItemsResp 先例句、OrgController:130 注释）。
+
+**影响**：纯文档指代漂移（读者按旧指代找到的是另一个在役端点，形状不同）；无运行时缺陷。
+
+**设想方向（未定案）**：三处 `/user-role/list` 改 `/user-role/view`；随下次触达该册的任务顺手收敛（本册不在 T-FE-058 design_refs，登记不扩面——Q-015 先例）。
 
 ## Q-041 architecture.md SDK 表未反映凭证拦截器——两套身份口径在架构总览缺一行
 
@@ -77,32 +90,6 @@ last_updated: 2026-09-23（Q-041 登记：T-ACCESS-053 双轨评审存量观察�
 **影响**：误导性提示（主体存在仅停用）+ 草稿静默清空；触发面=两处存量入口（PositionTab 岗位面已收敛）。
 
 **设想方向（未定案）**：入口侧类推收敛（停用主体入口禁用态+tooltip，对齐 T-FE-057 PositionTab 拍板形态）；或授予页 preset !found 分支补 confirmDiscardIfDirty（护草稿，属授予页 hook 面改动，与入口侧收敛不互斥）；可随下一张触达角色管理页/授予页的任务顺手收敛。
-
-## Q-036 PositionTab 展示面两处存量：orgTree prop 无调用方（位置列恒「-」）与成员加载失败落「暂无成员」空态
-
-- **状态**：open
-- **登记**：2026-09-22（T-FE-057 claude 外评存量观察①③，主代理核实属实）
-- **来源**：T-FE-057 claude 外评
-- **关联**：Q-019（父组织名解析依赖已加载树族）
-
-**现象与证据**：①`PositionTab` 声明 `orgTree?: any[]` prop 且 `getOrgPath`（PositionTab.vue:143-152）以它解析父链，但唯一调用方 index.vue:349 只传 `:org-id`——orgTree 恒 undefined，卡片「位置」列恒显示「-」（父路径解析失效）。②`loadPositionUsers` 失败（catch 已换绑 toErrorMessage 弹错）后 `positionUsers[id]` 仍为 undefined，展开区落 `v-else` 的 el-empty「暂无成员」——真实加载失败与空成员混淆（T-FE-057 仅换绑文案未改结构）。
-
-**影响**：纯展示缺陷，无数据错误：位置列信息缺失；失败态误显为空态。
-
-**设想方向（未定案）**：①index.vue 把左树数据传入 orgTree prop（或 getOrgPath 改经 orgTreePanelRef 同 UserDetailPanel 形态）；②展开区失败态区分（加载失败显示错误占位而非空态）。可随 T-FE-058（同页分页卡）顺手收敛。
-
-## Q-035 PositionTab 新增岗位弹窗 initialData.parentOrgId 通道失效——上级组织默认「根组织」，未手选直接提交被拒
-
-- **状态**：open
-- **登记**：2026-09-22（T-FE-057 浏览器实测存量发现，非本卡引入）
-- **来源**：T-FE-057 浏览器实测
-- **关联**：Q-019（OrgForm 上级组织展示族）；index.vue openOrgForm（正确通道先例）
-
-**现象与证据**：`PositionTab.openCreatePositionDialog` 把选中的 `props.orgId` 放进 `initialData.parentOrgId` 传入 OrgForm，但 OrgForm create 模式 `initFormData` 走 `defaultFormData()`（只认 **parentOrgId prop**，不看 initialData）——上级组织恒默认「根组织」（null）；index.vue 的 `openOrgForm` 传的是 `parentOrgId` prop（PositionTab.vue:246 vs index.vue:159，通道分叉）。实测：未手选上级直接提交 → 后端拒绝「岗位必须作为普通组织的直接子节点，且不能拥有下级节点」，须点开上级组织选择器手选后才能创建成功。
-
-**影响**：纯 UX 摩擦（每次新增岗位多两步+一次必败提交）；无数据缺陷（后端正确拦截根下岗位）；仅岗位管理 Tab（组织树「新增下级」通道正确）。
-
-**设想方向（未定案）**：`openCreatePositionDialog` 改传 `parentOrgId` prop（对齐 index.vue 先例，一行改动）；上级组织展示名顺带解决（parentOrgName 同通道传入选中组织名）。可随下一张触达 PositionTab 的任务顺手收敛。
 
 ## Q-034 可见性裁剪对岗位节点不按 VIEW_POSITION 精化——与读面 VIEW/VIEW_POSITION 分发分叉
 
@@ -330,6 +317,8 @@ last_updated: 2026-09-23（Q-041 登记：T-ACCESS-053 双轨评审存量观察�
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-036 | PositionTab 展示面两处存量：位置列恒「-」与成员加载失败落空态 | closed（T-FE-058 done：①index.vue 传 org-tree prop 修复父路径解析；②展开区三态区分（成员列表/失败占位+重试/暂无成员），失败不再误显空态） | [T-FE-058](tasks/T-FE-058.md) | 2026-09-23 |
+| Q-035 | 新增岗位弹窗 initialData.parentOrgId 通道失效——上级恒默认根组织 | closed（T-FE-058 done：openCreatePositionDialog 改传 parentOrgId/parentOrgName prop 对齐 index.vue 先例；浏览器实测上级预选「默认组织」、不手选直接提交创建成功） | [T-FE-058](tasks/T-FE-058.md) | 2026-09-23 |
 | Q-025 | UserOrgAppServiceImpl 读面 resolveDefaultTreeOrgIds 私有副本与新共享入口并存 | closed（2026-09-22 随 T-ORG-003 收敛：换绑 OrgTreeConfigDomainService.resolveDefaultTreeOrgIds 共享入口并删除私有副本——registry 2026-09-21 行绑定的收敛时机兑现；退化根（配置在而根失联）由共享入口空返回统一折算 ORG_TREE_CONFIG_NOT_FOUND，正常形态两实现等价；顺带清无调用方死 helper isPositionOrg） | [T-ORG-003](tasks/T-ORG-003.md) | 2026-09-22 |
 | Q-016 | logOut 本地清理被服务端注销 await 推迟 + T-FE-048 两变体（同会话并发无 single-flight、跨会话旧响应覆盖） | closed（T-FE-054 done：2026-09-20 AskUserQuestion 四问拍板「注销改 fire-and-forget」——四子项全收口：①注销请求发出即不等（黑洞挂 ≤10s 消除）②本地清理同步段完成、注销完成后不再补清理（新登录凭据竞态消除，回归锁含红跑态 try/finally 收尾防污染）③refreshSessionCapability 入口内共享在途 Promise single-flight（指纹=accessToken，同会话并发只发一次 user-menu）④refreshUserMenu 回写（Pinia+userKey）与侧栏重建前代际守卫（旧会话响应〔成功/失败〕不污染新会话）。原登记行方向 B〔令牌代际守卫保留 await〕随拍板弃用；定案见 registry 2026-09-20 行） | [T-FE-054](archive/2026-09-20/tasks/T-FE-054.md) | 2026-09-20 |
 | Q-020 | /menu-retry 页会话过期后「重新检查菜单」按陈旧状态提示（本地凭证已无时不发请求） | closed（T-FE-054 done：2026-09-20 拍板「随本卡收口」——initRouter 开头无凭证分支：统一提示「会话已过期」+ logOut 跳登录 + 抛 SessionExpiredError，menu-retry retry() catch 后不再按陈旧 menuLoadFailed 弹失真业务提示。判定挂在会话能力初始化统一入口（initRouter），非 menu-retry 单点判 token——2026-09-19「不做单入口判空」口径的落地形态；定案见 registry 同日行） | [T-FE-054](archive/2026-09-20/tasks/T-FE-054.md) | 2026-09-20 |

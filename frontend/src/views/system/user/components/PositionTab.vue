@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, h } from "vue";
+import { ref, reactive, computed, watch, h } from "vue";
 import { useRouter } from "vue-router";
 import {
   getOrgPage,
@@ -21,6 +21,7 @@ import { addDialog } from "@/components/ReDialog";
 import { hasPerms } from "@/utils/auth";
 import { ORG_USER_PERMS } from "../utils/perms";
 import { buildPositionPageQuery } from "../utils/positionList";
+import { useRemotePagedOptions, mergeSelected } from "../utils/remoteOptions";
 import { PERMISSION_GRANT_PERMS } from "@/views/perm/grant/utils/perms";
 import { resolveGrantEntryLabel } from "@/views/perm/grant/utils/grant-entry";
 import OrgForm from "./OrgForm.vue";
@@ -91,33 +92,31 @@ const positionList = ref<PositionItem[]>([]);
 const expandedIds = ref<Set<number>>(new Set());
 const positionUsers = ref<Record<number, OrgUserItem[]>>({});
 const positionUserCounts = ref<Record<number, number>>({});
+/** 岗位成员展开区加载失败标记（Q-036②：失败态与空态区分，失败可重试） */
+const positionUserFailed = ref<Set<number>>(new Set());
 
-// 搜索
+// 搜索（T-FE-058：服务端 orgName 模糊，替代本地过滤——本地过滤只能作用于已取回的第一页）
 const searchKeyword = ref("");
 /** 状态筛选（服务端参数，对齐 MemberTab 状态筛选先例）：undefined=全部状态——管理面保留停用岗位（T-FE-057） */
 const statusFilter = ref<number>();
 
+// 分页（T-FE-058）：不再固定第一页 100 条——第 101 个岗位须可翻页到
+const positionPage = ref(1);
+const positionPageSize = ref(20);
+const positionTotal = ref(0);
+
 // 用户选择弹窗
 const userSelectorVisible = ref(false);
 const currentPositionId = ref<number | null>(null);
-const userList = ref<{ id: number; name: string; username: string }[]>([]);
 const selectedUserIds = ref<number[]>([]);
-const userLoading = ref(false);
+/** 已选用户选项缓存（key=userId）：换词/翻页后已选 tag 仍有 label，提交对象取自缓存 */
+const selectedUserOptions = reactive(new Map<number, UserOption>());
 
 // ========== 计算属性 ==========
 
-const filteredPositions = computed(() => {
-  let list = positionList.value;
-  if (searchKeyword.value) {
-    const kw = searchKeyword.value.toLowerCase();
-    list = list.filter(p => p.orgName.toLowerCase().includes(kw));
-  }
-  return list;
-});
-
-/** 空态文案区分：数据为空 vs 关键词/筛选无匹配（T-FE-057——筛选空态不误导为「没有岗位」） */
+/** 空态文案区分：带搜索/筛选条件=无匹配 vs 无数据（服务端过滤语义，T-FE-057→T-FE-058） */
 const emptyDescription = computed(() =>
-  positionList.value.length > 0 || statusFilter.value !== undefined
+  searchKeyword.value || statusFilter.value !== undefined
     ? "无匹配岗位（调整关键词或状态筛选）"
     : "暂无岗位数据"
 );
@@ -172,7 +171,7 @@ function findNodeById(nodes: any[], id: number): any | null {
 
 // ========== 加载数据 ==========
 
-/** 岗位列表请求代际（T-FE-057 双轨评审 P3-1，用户拍板顺手加）：筛选/组织切换并发时旧响应不回写 */
+/** 岗位列表请求代际（T-FE-057 双轨评审 P3-1，用户拍板顺手加）：筛选/组织切换/翻页并发时旧响应不回写 */
 let positionReqSeq = 0;
 
 async function loadPositions() {
@@ -182,11 +181,15 @@ async function loadPositions() {
     const res = await getOrgPage(
       buildPositionPageQuery({
         orgId: props.orgId,
-        status: statusFilter.value
+        status: statusFilter.value,
+        orgName: searchKeyword.value,
+        pageNum: positionPage.value,
+        pageSize: positionPageSize.value
       })
     );
     if (seq !== positionReqSeq) return;
     positionList.value = res.items as PositionItem[];
+    positionTotal.value = res.total;
     // 并行加载每个岗位的用户数（避免 N+1 串行阻塞渲染）
     await Promise.all(
       positionList.value.map(pos => loadPositionUserCount(pos.id))
@@ -207,19 +210,22 @@ async function loadPositionUserCount(positionId: number) {
     const users = await getOrgUsers(positionId);
     positionUsers.value[positionId] = users;
     positionUserCounts.value[positionId] = users.length;
+    positionUserFailed.value.delete(positionId);
   } catch {
     positionUserCounts.value[positionId] = 0;
   }
 }
 
-/** 加载岗位下的用户列表（展开时调用） */
-async function loadPositionUsers(positionId: number) {
-  if (positionUsers.value[positionId]) return;
+/** 加载岗位下的用户列表（展开时调用；force 用于失败重试，Q-036②） */
+async function loadPositionUsers(positionId: number, force = false) {
+  if (!force && positionUsers.value[positionId]) return;
   try {
     const users = await getOrgUsers(positionId);
     positionUsers.value[positionId] = users;
     positionUserCounts.value[positionId] = users.length;
+    positionUserFailed.value.delete(positionId);
   } catch (e) {
+    positionUserFailed.value.add(positionId);
     message(toErrorMessage(e, "加载用户失败"), { type: "error" });
   }
 }
@@ -244,6 +250,11 @@ function isExpanded(positionId: number): boolean {
 /** 打开新增岗位弹窗 */
 function openCreatePositionDialog() {
   let formRef: any = null;
+  // Q-035：上级组织经 parentOrgId prop 传入（index.vue openOrgForm 同通道先例）——
+  // create 模式 initFormData 只认 prop，旧 initialData.parentOrgId 通道失效（恒默认根组织）
+  const parentOrgName = props.orgId
+    ? findNodeById(props.orgTree ?? [], props.orgId)?.orgName
+    : undefined;
   addDialog({
     title: "新增岗位",
     width: "480px",
@@ -253,9 +264,10 @@ function openCreatePositionDialog() {
           formRef = el;
         },
         mode: "create",
+        parentOrgId: props.orgId,
+        parentOrgName,
         initialData: {
           orgType: 2,
-          parentOrgId: props.orgId,
           status: 1
         }
       }),
@@ -383,35 +395,76 @@ async function handleDeletePosition(position: PositionItem) {
 
 // ========== 用户挂载/卸载 ==========
 
-function openAddUserDialog(positionId: number) {
-  currentPositionId.value = positionId;
-  selectedUserIds.value = [];
-  userSelectorVisible.value = true;
-  loadAvailableUsers();
-}
+/** 成员候选选择器选项形态 */
+type UserOption = { id: number; name: string; username: string };
 
-async function loadAvailableUsers() {
-  userLoading.value = true;
-  try {
+/**
+ * 成员候选远程分页装载（T-FE-058）：/user/member-candidates 既有 keyword+分页
+ * （后端先默认树可见性过滤再分页，§7.2 T-ORG-003）——替代固定第一页 100 条本地过滤。
+ */
+const {
+  items: userItems,
+  total: userTotal,
+  hasNext: userHasNext,
+  loading: userRemoteLoading,
+  pageNum: userPageNum,
+  search: searchUsers,
+  prevPage: prevUserPage,
+  nextPage: nextUserPage,
+  reset: resetUserSelector
+} = useRemotePagedOptions<UserOption>(
+  async q => {
     // T-FE-015：候选用户查询切专用接口（语义=默认树身份目录候选；门禁与 user-org/assign
     // 同权——岗位 ORG:ASSIGN_POSITION_USER（按目标类型解析，T-ORG-003），区别于成员列表
     // /user/page）；alreadyAssigned 后端恒 false，已在当前岗位的过滤本地完成
     const res = await getMemberCandidates({
       targetOrgId: currentPositionId.value!,
-      pageNum: 1,
-      pageSize: 100
+      keyword: q.keyword || undefined,
+      pageNum: q.pageNum,
+      pageSize: q.pageSize
     });
     const currentPositionUsers =
       positionUsers.value[currentPositionId.value!] || [];
     const currentUserIds = new Set(currentPositionUsers.map(u => u.userId));
-    userList.value = res.items
-      .filter(u => !currentUserIds.has(u.id))
-      .map(u => ({ id: u.id, name: u.name, username: u.username }));
-  } catch (e) {
-    message(toErrorMessage(e, "加载用户失败"), { type: "error" });
-  } finally {
-    userLoading.value = false;
+    return {
+      items: res.items
+        .filter(u => !currentUserIds.has(u.id))
+        .map(u => ({ id: u.id, name: u.name, username: u.username })),
+      total: res.total,
+      hasNext: res.hasNext
+    };
+  },
+  {
+    pageSize: 20,
+    onError: e => message(toErrorMessage(e, "加载用户失败"), { type: "error" })
   }
+);
+
+/** 下拉渲染源 = 当前页 ∪ 已选（已选不在当前页的补尾，tag 不退化为裸 id） */
+const userDisplayOptions = computed(() =>
+  mergeSelected(userItems.value, selectedUserOptions, u => u.id)
+);
+
+/** 选择变化同步已选缓存：新选中入缓存、取消选中出缓存 */
+watch(selectedUserIds, ids => {
+  for (const id of ids) {
+    if (!selectedUserOptions.has(id)) {
+      const found = userDisplayOptions.value.find(u => u.id === id);
+      if (found) selectedUserOptions.set(id, found);
+    }
+  }
+  for (const id of [...selectedUserOptions.keys()]) {
+    if (!ids.includes(id)) selectedUserOptions.delete(id);
+  }
+});
+
+function openAddUserDialog(positionId: number) {
+  currentPositionId.value = positionId;
+  selectedUserIds.value = [];
+  selectedUserOptions.clear();
+  resetUserSelector();
+  userSelectorVisible.value = true;
+  void searchUsers("");
 }
 
 async function handleAddUsers() {
@@ -422,7 +475,8 @@ async function handleAddUsers() {
   const positionId = currentPositionId.value;
   if (!positionId) return;
   try {
-    // 并行挂载所有选中用户（无序列依赖）
+    // 并行挂载所有选中用户（无序列依赖）；提交对象=选中的稳定 userId，
+    // 不取自当前页选项（换词/翻页后当前页不含已选，T-FE-058 陈旧对象防护）
     await Promise.all(
       selectedUserIds.value.map(userId =>
         assignUserOrgs({ userId, orgIds: [positionId] })
@@ -431,7 +485,7 @@ async function handleAddUsers() {
     message("添加成功", { type: "success" });
     // 刷新该岗位的用户列表（删除缓存，强制重新加载）
     delete positionUsers.value[positionId];
-    await loadPositionUsers(positionId);
+    await loadPositionUsers(positionId, true);
     userSelectorVisible.value = false;
   } catch (e) {
     message(toErrorMessage(e, "添加失败"), { type: "error" });
@@ -460,19 +514,40 @@ async function handleRemoveUser(positionId: number, userId: number) {
 }
 
 function onSearch() {
-  // computed 自动响应
+  // 服务端搜索（T-FE-058）：换词回第 1 页重查
+  positionPage.value = 1;
+  void loadPositions();
 }
 
 function onReset() {
+  // 回全部状态与空词：值变化经 watcher 重查；本就 undefined/空串时无需重发
+  const dirty = statusFilter.value !== undefined || searchKeyword.value !== "";
   searchKeyword.value = "";
-  // 回全部状态：值变化经 statusFilter watcher 重查；本就 undefined 时无需重发（关键词为本地过滤）
   statusFilter.value = undefined;
+  if (dirty) {
+    positionPage.value = 1;
+    void loadPositions();
+  }
+}
+
+function onPageChange(page: number) {
+  positionPage.value = page;
+  void loadPositions();
+}
+
+function onPageSizeChange(size: number) {
+  positionPageSize.value = size;
+  positionPage.value = 1;
+  void loadPositions();
 }
 
 // ========== 监听 ==========
 
 // 状态筛选变更即时重查（含 clearable 清空回全部状态）；同值赋值不触发
-watch(statusFilter, () => loadPositions());
+watch(statusFilter, () => {
+  positionPage.value = 1;
+  void loadPositions();
+});
 
 watch(
   () => props.orgId,
@@ -480,10 +555,13 @@ watch(
     expandedIds.value.clear();
     positionUsers.value = {};
     positionUserCounts.value = {};
+    positionUserFailed.value.clear();
     // 切换组织立即清空旧组织岗位行（T-FE-059，F011 同模式）：加载失败不回填，
     // 旧组织岗位不得在新组织下可写；在途请求由 positionReqSeq 代际废弃
     positionList.value = [];
-    loadPositions();
+    positionPage.value = 1;
+    positionTotal.value = 0;
+    void loadPositions();
   },
   { immediate: true }
 );
@@ -535,11 +613,11 @@ watch(
       </el-button>
     </div>
 
-    <!-- 岗位折叠卡片列表 -->
+    <!-- 岗位折叠卡片列表（T-FE-058：服务端搜索+分页，本地不再过滤） -->
     <div v-loading="loading" class="position-list">
-      <template v-if="filteredPositions.length > 0">
+      <template v-if="positionList.length > 0">
         <div
-          v-for="position in filteredPositions"
+          v-for="position in positionList"
           :key="position.id"
           class="position-card"
         >
@@ -654,7 +732,7 @@ watch(
             </div>
           </div>
 
-          <!-- 展开后的用户列表 -->
+          <!-- 展开后的用户列表（Q-036②：加载失败与空成员区分——失败显示错误占位可重试） -->
           <el-collapse-transition>
             <div v-show="isExpanded(position.id)" class="position-users">
               <div
@@ -690,6 +768,20 @@ watch(
                   </el-button>
                 </div>
               </div>
+              <div
+                v-else-if="positionUserFailed.has(position.id)"
+                class="user-load-error"
+              >
+                <span class="text-xs text-gray-400">成员加载失败</span>
+                <el-button
+                  link
+                  type="primary"
+                  size="small"
+                  @click.stop="loadPositionUsers(position.id, true)"
+                >
+                  重试
+                </el-button>
+              </div>
               <el-empty v-else description="暂无成员" :image-size="60" />
             </div>
           </el-collapse-transition>
@@ -698,9 +790,24 @@ watch(
 
       <!-- 空状态 -->
       <el-empty v-else :description="emptyDescription" :image-size="80" />
+
+      <!-- 分页（T-FE-058）：服务端分页信息落地，第 101 个岗位可翻页到达 -->
+      <div v-if="positionTotal > 0" class="pagination-bar">
+        <el-pagination
+          background
+          size="small"
+          layout="total, sizes, prev, pager, next"
+          :total="positionTotal"
+          :current-page="positionPage"
+          :page-size="positionPageSize"
+          :page-sizes="[20, 50, 100]"
+          @current-change="onPageChange"
+          @size-change="onPageSizeChange"
+        />
+      </div>
     </div>
 
-    <!-- 添加用户弹窗 -->
+    <!-- 添加用户弹窗（T-FE-058：远程搜索 + 下拉内翻页；已选跨换词/翻页保留） -->
     <el-dialog
       v-model="userSelectorVisible"
       title="添加成员到岗位"
@@ -711,16 +818,43 @@ watch(
         v-model="selectedUserIds"
         multiple
         filterable
-        placeholder="选择要添加的用户"
+        remote
+        :remote-method="searchUsers"
+        :loading="userRemoteLoading"
+        placeholder="输入姓名/用户名/手机/邮箱搜索"
         class="w-full!"
-        :loading="userLoading"
       >
         <el-option
-          v-for="user in userList"
+          v-for="user in userDisplayOptions"
           :key="user.id"
           :label="`${user.name} (${user.username})`"
           :value="user.id"
         />
+        <template #footer>
+          <div class="selector-pagination">
+            <el-button
+              size="small"
+              text
+              :disabled="userPageNum <= 1 || userRemoteLoading"
+              @click="prevUserPage"
+            >
+              上一页
+            </el-button>
+            <span class="page-indicator">
+              第 {{ userPageNum }} 页<template v-if="userTotal > 0">
+                · 共 {{ userTotal }} 条</template
+              >
+            </span>
+            <el-button
+              size="small"
+              text
+              :disabled="!userHasNext || userRemoteLoading"
+              @click="nextUserPage"
+            >
+              下一页
+            </el-button>
+          </div>
+        </template>
       </el-select>
       <template #footer>
         <el-button @click="userSelectorVisible = false">取消</el-button>
@@ -766,6 +900,36 @@ watch(
   min-height: 0;
   padding: var(--space-3);
   overflow-y: auto;
+}
+
+/* 分页条（贴列表底部） */
+.pagination-bar {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-2);
+}
+
+/* 下拉内翻页 footer */
+.selector-pagination {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-2);
+}
+
+.page-indicator {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+/* 成员加载失败占位（Q-036②） */
+.user-load-error {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3) 0;
 }
 
 /* 岗位卡片 */

@@ -226,8 +226,8 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 
 | 源 | 目标 | 说明 |
 |---|---|---|
-| admin.controller.AdminRoleController（/role/list、/role/my-info）+ **AdminUserRoleController**（/user-role/list） | role.controller | 后者双轨/外评补登（漏网修正） |
-| admin.dto.req.UserRoleListReq、admin.dto.resp：UserRoleItemResp、RoleListItemResp | role.dto | user-role 持有视角查询族（§2.1 role 行） |
+| admin.controller.AdminRoleController（/role/list、/role/my-info）+ **AdminUserRoleController**（/user-role/list） | role.controller | 后者双轨/外评补登（漏网修正）；/role/list 端点已随 T-FE-058 退役（2026-09-23），/role/my-info 在役 |
+| admin.dto.req.UserRoleListReq、admin.dto.resp：UserRoleItemResp、RoleListItemResp | role.dto | user-role 持有视角查询族（§2.1 role 行）；RoleListItemResp 已随 /role/list 退役删除（T-FE-058） |
 | permission.controller：PermRoleController、PermUserRoleController | role.controller | |
 | permission.dto.req：RoleMoveReq、RoleUpdateReq、RoleTreeReq、UserRoleBatchAssignReq | role.dto.req | |
 | permission.dto.resp：RoleResp、RoleTreeResp、UserRolesResp | role.dto.resp | access↔perm-common 同名跨模块不冲突，保名 |
@@ -235,7 +235,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | permission.service.domain.impl.UserRoleProjectionWriter | role.service.domain | |
 | application.query.UserRoleQueryService/Impl | role.service.**UserRoleQueryAppService**/Impl | 裁决 5 改名 |
 | application.query.mapper.UserRoleQueryMapper + XML | role.mapper + `resources/mapper/role/` | XML 直读 user_role/abstract_role/sys_org |
-| application.query.projection：UserRoleProjection、FunctionalRoleProjection、OrgBriefProjection | role.dto.projection | 唯一消费方 UserRoleQueryMapper 链 |
+| application.query.projection：UserRoleProjection、FunctionalRoleProjection、OrgBriefProjection | role.dto.projection | 唯一消费方 UserRoleQueryMapper 链；FunctionalRoleProjection 已随 /role/list 退役删除（T-FE-058） |
 | permission.entity：AbstractRole、UserRole + 2 Mapper | role | |
 
 表：`abstract_role`、`user_role`。互斥守卫（assign/batch-assign 的 ROLE_MUTEX 拦截、存量立规守卫）随 user-role 写入口在 role；互斥规则本体（PermissionConflictDomainService）在 rule。

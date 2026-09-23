@@ -3,27 +3,6 @@
         "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper">
 
-    <select id="selectFunctionalRoles"
-            resultType="cn.ac.fage.accessmesh.access.role.dto.projection.FunctionalRoleProjection">
-        SELECT role_type AS roleType,
-               external_id AS externalId,
-               name
-        FROM abstract_role
-        WHERE tenant_id = #{tenantId}
-          AND delete_flag = 0
-        <if test="roleTypes != null and roleTypes.size() > 0">
-          AND role_type IN
-          <foreach collection="roleTypes" item="roleType" open="(" separator="," close=")">
-              #{roleType}
-          </foreach>
-        </if>
-        <if test="keyword != null and keyword != ''">
-          AND (name LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%') OR external_id LIKE CONCAT('%', CAST(#{keyword} AS VARCHAR), '%'))
-        </if>
-        ORDER BY id
-        LIMIT #{limit} OFFSET #{offset}
-    </select>
-
     <select id="selectUserRoleProjections"
             resultType="cn.ac.fage.accessmesh.access.role.dto.projection.UserRoleProjection">
         SELECT ur.relation_id AS relationId,

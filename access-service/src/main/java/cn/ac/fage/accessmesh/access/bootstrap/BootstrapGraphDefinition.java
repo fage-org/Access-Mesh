@@ -171,7 +171,9 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/api/access/user-org/set-primary", "bootstrap:设置主组织", true, false),
             new ApiRoute("POST", "/api/access/user-role/view", "bootstrap:用户角色管理视图", true, false),
             new ApiRoute("POST", "/api/access/user-role/revoke", "bootstrap:回收角色", true, false),
-            new ApiRoute("POST", "/api/access/role/list", "bootstrap:功能角色列表", true, false),
+            // /api/access/role/list 已退役（T-FE-058，2026-09-23）：功能角色候选迁
+            // /abstract-role/list（角色管理页同端点，keyword+分页）；管理轨仅类型级 VIEW
+            // 门禁且无分页的旧通道删除，存量库资源行/映射/授权惰性残留（runbook 订正语句）
             // T-FE-016：角色管理页消费端点（tree/create 已在上方清单）——update/remove/move
             // 写路径 + detail 编辑回显（树节点无 extra 字段，编辑表单按业务键拉 detail 回填，
             // role-manage.md §8 既定路径）。list 端点本页不消费（冲突规则页 T-FE-020 届时注册）

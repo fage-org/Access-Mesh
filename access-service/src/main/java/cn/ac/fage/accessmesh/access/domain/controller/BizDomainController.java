@@ -76,7 +76,7 @@ public class BizDomainController {
      * 查询业务域列表
      * <p>
      * 支持关键字过滤（code/name/description）与服务端分页（T-PERM-026 收口，system-config 同范式）。
-     * pageNum/pageSize 均未传 = 字典全量（上限 PageUtil.MAX_PAGE_SIZE，先例 /role/list）。
+     * pageNum/pageSize 均未传 = 字典全量（上限 PageUtil.MAX_PAGE_SIZE，先例 /system-config/list）。
      * </p>
      *
      * @param req 列表查询请求，含关键字与分页参数（均可选）

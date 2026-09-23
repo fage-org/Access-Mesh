@@ -35,7 +35,8 @@ import static org.assertj.core.api.Assertions.assertThat;
  * T-PERM-034 再删 role-resource-permission 旧写入口（save/revoke/children/
  * add-child/remove-child，2026-08-27 设计定案，apply-grant-plan 为唯一写入口）；T-PERM-025 增 action-options。
  * T-ACCESS-037 再删 admin /config 全族（page/detail/update/delete——僵尸端点退役，
- * system_config 管理单入口收敛到 system-config 端点族）。计数不写注释（去计数化）。
+ * system_config 管理单入口收敛到 system-config 端点族）；T-FE-058 再删 /role/list
+ * （功能角色候选迁 /abstract-role/list keyword+分页，2026-09-23）。计数不写注释（去计数化）。
  * </p>
  * <p>
  * 契约断言封闭口径（评审修复：堵住空 method 数组与 path()[0] 逃逸）：
@@ -215,7 +216,6 @@ class HttpApiPathSnapshotTest {
 /api/access/org/tree
 /api/access/org/update
 /api/access/org/users
-/api/access/role/list
 /api/access/role/my-info
 /api/access/user-org/assign
 /api/access/user-org/list
@@ -398,7 +398,6 @@ class HttpApiPathSnapshotTest {
 /api/access/org/tree|access.org.dto.req.OrgQuery|common.model.R<perm.common.dto.resp.ItemsResp<access.org.dto.resp.OrgResp>>
 /api/access/org/update|access.org.dto.req.OrgUpdateReq|common.model.R<Void>
 /api/access/org/users|common.model.IdReq|common.model.R<perm.common.dto.resp.ItemsResp<access.org.dto.resp.OrgUserItemResp>>
-/api/access/role/list|access.role.controller.AdminRoleController$RoleListQueryReq|common.model.R<perm.common.dto.resp.ItemsResp<access.role.dto.resp.RoleListItemResp>>
 /api/access/role/my-info|-|common.model.R<access.auth.dto.UserInfoResp>
 /api/access/user-org/assign|access.org.dto.req.UserOrgAssignReq|common.model.R<Void>
 /api/access/user-org/list|common.model.IdReq|common.model.R<perm.common.dto.resp.ItemsResp<access.user.dto.resp.UserPageItemResp$OrgBrief>>

@@ -19,6 +19,7 @@
 
 ### Removed
 
+- **功能角色候选端点 `/api/access/role/list` 退役（T-FE-058，破坏性）**：该端点服务端写死 `LIMIT 0,200` 且无 keyword/分页（第 201 个功能角色静默不可选），门禁仅类型级 `ROLE:VIEW`（与角色管理页实例准入口径分叉）——功能角色候选唯一消费方（用户详情「分配角色」选择器）迁 `POST /api/access/abstract-role/list`（`roleTypeCodes=[BASIC_ROLE,GROUP_ROLE,PERSONAL]`+keyword+分页；门禁随端点对齐实例准入），旧端点全链移除（无兼容层，POST 404；bootstrap 固定图行同批移除）。存量库资源行/映射/授权惰性残留的订正语句见 `docs/design/access-service-rebuild-runbook.md` 常见问题表。
 - **资源依赖管理写入口退役（T-PERM-071，破坏性）**：`resource-dependency/create|update|remove|batch-sync` 四端点、`ResourceDependencyResp.autoGrant` 字段、`DEPENDENCY:SYNC` 操作码与 bootstrap 固定图授权档、错误码 20048 全链移除——依赖声明唯一写入来源为所属服务 MANIFEST 发布；管理台只读（list/graph/check）。旧表保全迁移与运行手册见 `docs/ops/runbook-auto-grant-migration.md`。
 
 ### Fixed
@@ -32,6 +33,7 @@
 - **资源批量创建查重身份补全（T-PERM-076）**：batch-create 查重从仅按 `tenant+code` 收敛为完整业务键（tenant+resourceType+code+归一 codeType，同 DDL 唯一键）——同 code 跨资源类型/同类型跨 codeType 的合法创建不再被误拒；批内同完整键重复首项胜出、逐项跳过（部分成功），不再整批撞唯一索引 SQL 失败；畸形项（code/name 空白）宽容收集跳过，不再以 NOT NULL 违例连坐整批；全批资源类型码缺失不再整批 NPE 500（落既有逐项跳过分支）；成功响应 `id` 经完整键回查校准（此前批量创建返回的 id 恒为 null）。
 - **操作创建掩码缺省归一（T-PERM-077）**：`operation-permission/create` 省略 `inheritMask` 不再以 NOT NULL 违例 500——服务端在唯一创建入口归一缺省为 0（与显式 0 等价，响应回读归一值）；掩码值不做符号校验（掩码看位不看正负，2026-09-22 定案），既有拒绝面（`binaryBit` 必填、code/类型码大写、同类型同码/同位唯一索引）不变。
 - **岗位停用后可发现与恢复（T-FE-057）**：组织与用户页「岗位管理」列表不再固定只查启用项——默认显示全部状态并新增状态筛选（启用/禁用，服务端参数），被禁用的岗位带红色「禁用」标注保留在管理列表中，可经编辑弹窗重新启用（此前禁用后岗位从列表消失、无任何 UI 恢复入口，仅可直连 API 改回）。禁用岗位上的成员挂载/移除等写操作维持可用（运行时权限由后端事实链剪枝，恢复后自动生效）；用于分配的岗位候选（授权页主体树）仍仅显示启用项。
+- **列表与候选选择器分页闭合（T-FE-058）**：三处固定第一页/硬上限截断消除——①岗位管理列表改用 `/org/page` 既有 `orgName` 服务端模糊搜索+分页（此前固定第一页 100 条+本地过滤，第 101 个岗位不可见不可编辑）；②岗位「添加成员」弹窗改用 `/user/member-candidates` 既有 keyword+分页远程搜索（此前固定第一页 100 条本地过滤，第 101 个可见用户选不到；已选用户跨搜索词/翻页保留）；③用户详情「分配角色」选择器迁 `/abstract-role/list` 远程搜索+分页（第 201 个功能角色可达可分配，见 Removed 节）。另：新增岗位弹窗上级组织恢复预选当前组织（此前恒默认根组织、须手选否则提交被拒）；岗位卡片「位置」列父组织路径恢复显示（orgTree 未接线恒显示「-」）；岗位成员展开加载失败显示错误占位+重试（此前误显「暂无成员」空态）。
 
 ## [0.1.0] - 2026-09-16
 

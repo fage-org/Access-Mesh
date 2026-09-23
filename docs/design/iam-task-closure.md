@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-23（T-FE-059 §4.4 转已实施：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」）同日（T-ACCESS-053 §5.2 补实施定案段：U008 维持现状登记 Q-040/撤销恢复主线 E2E⑧+文档/compose 空环境实测/文档改现有三处）同日（T-ACCESS-052 §3.2 已实施收口：四项拍板+全量同模式目录实例准入+菜单准入+种子四条 canGrant；端到端 DelegatedDirectoryClosurePgIT+双轨评审处置完毕+全量含 E2E 绿） 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
+last_reviewed: 2026-09-23（T-FE-058 §4.2 转已实施：U005 迁移+同批退役 /role/list/选择器形态 el-select remote+下拉内翻页/Q-035+Q-036 随卡收敛，三项拍板见 registry 同日行）同日（T-FE-059 §4.4 转已实施：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」）同日（T-ACCESS-053 §5.2 补实施定案段：U008 维持现状登记 Q-040/撤销恢复主线 E2E⑧+文档/compose 空环境实测/文档改现有三处）同日（T-ACCESS-052 §3.2 已实施收口：四项拍板+全量同模式目录实例准入+菜单准入+种子四条 canGrant；端到端 DelegatedDirectoryClosurePgIT+双轨评审处置完毕+全量含 E2E 绿） 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -130,6 +130,8 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 岗位管理使用现有分页信息；用户／角色选择器采用远程keyword与分页，保留已选择项并避免搜索变更后提交陈旧对象。管理轨role/list若继续是有限ItemsResp，消费者应迁到已有合适分页入口或将该端点契约改为PageResp；**U005**在实现时比较实际消费者和权限等价性后选择，不简单更换端点名（abstract-role/list与管理轨目录权限可能不同）。
 
 不给100／200换更大常量；数据少且有明确上限的字典可循环取全，但用户目录不照搬。验证第101岗位／候选、第201角色可找到且不可越权；不用为所有选择器引入新的通用组件框架。
+
+**实施定案（2026-09-23 用户拍板三项）**：①U005=**迁移+同批退役**——UserDetailPanel 功能角色候选迁 `/api/access/abstract-role/list`（`roleTypeCodes=[BASIC_ROLE,GROUP_ROLE,PERSONAL]`+keyword+分页），`/api/access/role/list` 同批退役（端点链/契约 §10.2 退役注记/bootstrap 固定图行/存量库订正语句同批，RetiredRoleApiContractTest 负向锁 404）；门禁随端点对齐角色管理页实例准入口径（取代 T-ACCESS-052 范围拍板的 role/list 半边，resource-api-mapping/list 半边维持原登记），分配动作仍受 user-role/assign 门禁。②选择器形态=**el-select 远程搜索+下拉内翻页**（remote-method + #footer 上一页/下一页；已选缓存合并渲染保留已选项、提交对象取自缓存不取自当前页；局部 composable `remoteOptions.ts`，不引入通用组件框架）。③**Q-035/Q-036 随卡收敛**（新增岗位弹窗 parentOrgId prop 通道、org-tree prop 接线修复「位置」列、成员展开失败态区分）。岗位列表用 `/org/page` 既有 orgName 模糊+分页（卡片列表+底部分页，默认 20/页）；成员候选用 `/user/member-candidates` 既有 keyword+分页（用户目录不照搬字典拉全）；两后端端点零改动（先过滤再分页口径已在 T-ORG-003/T-ACCESS-052 落地）。
 
 <a id="clear-fields"></a>
 ### 4.3 字段保留、设置、清空三态（F009，T-API-004）

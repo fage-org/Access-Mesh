@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.role.mapper;
 
-import cn.ac.fage.accessmesh.access.role.dto.projection.FunctionalRoleProjection;
 import cn.ac.fage.accessmesh.access.role.dto.projection.OrgBriefProjection;
 import cn.ac.fage.accessmesh.access.role.dto.projection.UserRoleProjection;
 import org.apache.ibatis.annotations.Param;
@@ -17,27 +16,6 @@ import java.util.List;
  * </p>
  */
 public interface UserRoleQueryMapper {
-
-    /**
-     * 分页查询功能角色（对应 permission 域 selectRoleListPaged 的只读投影形态）。
-     * <p>
-     * 语义保持：仅 delete_flag 过滤，无 status/parentId 过滤；角色类型集合为空时不过滤类型。
-     * </p>
-     *
-     * @param tenantId  租户 ID
-     * @param roleTypes 角色类型值集合（type_definition role_type 的 value，可为空）
-     * @param keyword   名称/外部标识模糊关键字（可为 null）
-     * @param offset    行偏移（0 起始）
-     * @param limit     最大返回行数
-     * @return 功能角色投影列表，按 id 升序
-     */
-    List<FunctionalRoleProjection> selectFunctionalRoles(
-        @Param("tenantId") Long tenantId,
-        @Param("roleTypes") Collection<Integer> roleTypes,
-        @Param("keyword") String keyword,
-        @Param("offset") int offset,
-        @Param("limit") int limit
-    );
 
     /**
      * 查询用户在有效期窗口内的角色关系投影（user_role ⨝ abstract_role，target 与 relation 各一次 LEFT JOIN）。

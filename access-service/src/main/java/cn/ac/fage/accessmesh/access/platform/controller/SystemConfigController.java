@@ -73,7 +73,8 @@ public class SystemConfigController {
      * 查询系统配置列表
      * <p>
      * 支持关键字过滤（configKey/description）与服务端分页。
-     * pageNum/pageSize 均未传 = 字典全量（上限 PageUtil.MAX_PAGE_SIZE，先例 /role/list）。
+     * pageNum/pageSize 均未传 = 字典全量（上限 PageUtil.MAX_PAGE_SIZE；字典全量族先例锚为
+     * /system-config/list 本端点，族内其余端点引用本锚，本端点不自指）。
      * </p>
      *
      * @param req 列表查询请求，含关键字与分页参数（均可选）

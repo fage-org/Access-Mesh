@@ -160,16 +160,6 @@ export type OrgPageItem = {
   sort: number;
 };
 
-// ========== 功能角色类型 ==========
-
-/** 功能角色列表项（仅 BASIC_ROLE / GROUP_ROLE / PERSONAL，不含 ORG / POSITION） */
-export type RoleItem = {
-  roleTypeCode: string;
-  roleExternalId: string;
-  roleName: string;
-  roleTypeLabel?: string;
-};
-
 // ========== 成员候选类型（member-candidates，T-FE-015 接入） ==========
 
 /** 成员候选查询参数（对齐后端 MemberCandidatesReq） */
@@ -459,20 +449,6 @@ export const getMemberCandidates = async (
     { data: params }
   );
   return unwrap(res);
-};
-
-// ========== /api/access/role API（仅功能角色） ==========
-
-/** 获取功能角色列表（POST /api/access/role/list，默认仅 BASIC_ROLE / GROUP_ROLE / PERSONAL） */
-export const getRoleList = async (): Promise<RoleItem[]> => {
-  const res = await http.request<R<{ items: RoleItem[] }>>(
-    "post",
-    "/api/access/role/list",
-    {
-      data: {}
-    }
-  );
-  return unwrap(res).items;
 };
 
 // ========== /api/access/org/users 查询组织下用户 ==========

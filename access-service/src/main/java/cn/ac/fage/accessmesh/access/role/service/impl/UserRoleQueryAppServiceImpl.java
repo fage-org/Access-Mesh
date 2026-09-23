@@ -1,6 +1,5 @@
 package cn.ac.fage.accessmesh.access.role.service.impl;
 
-import cn.ac.fage.accessmesh.access.role.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.access.role.dto.resp.UserRoleItemResp;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
@@ -8,19 +7,15 @@ import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.role.service.UserRoleQueryAppService;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper;
-import cn.ac.fage.accessmesh.access.role.dto.projection.FunctionalRoleProjection;
 import cn.ac.fage.accessmesh.access.role.dto.projection.OrgBriefProjection;
 import cn.ac.fage.accessmesh.access.role.dto.projection.UserRoleProjection;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -41,7 +36,6 @@ import java.util.stream.Collectors;
 public class UserRoleQueryAppServiceImpl implements UserRoleQueryAppService {
 
     private static final String ROLE_TYPE_KEY = "role_type";
-    private static final List<String> FUNCTIONAL_ROLE_TYPES = List.of("BASIC_ROLE", "GROUP_ROLE", "PERSONAL");
     private static final Map<String, String> ROLE_TYPE_LABELS = Map.of(
         "BASIC_ROLE", "基础角色",
         "GROUP_ROLE", "分组角色",
@@ -49,7 +43,6 @@ public class UserRoleQueryAppServiceImpl implements UserRoleQueryAppService {
         "ORG", "组织角色",
         "POSITION", "岗位角色"
     );
-    private static final int ROLE_LIST_LIMIT = 200;
 
     private final AdminPermissionValidator permissionValidator;
     private final TypeResolutionService typeResolutionService;
@@ -61,48 +54,6 @@ public class UserRoleQueryAppServiceImpl implements UserRoleQueryAppService {
         this.permissionValidator = permissionValidator;
         this.typeResolutionService = typeResolutionService;
         this.userRoleQueryMapper = userRoleQueryMapper;
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<RoleListItemResp> listRoles(List<String> roleTypeCodes) {
-        permissionValidator.checkTypeLevel(ResourceTypeCode.ROLE, OperationCode.VIEW);
-        List<String> typeCodes = (roleTypeCodes != null && !roleTypeCodes.isEmpty())
-            ? roleTypeCodes
-            : FUNCTIONAL_ROLE_TYPES;
-        // 显式传入 ORG/POSITION 时拒绝，防止通过 /role/list 绕过"仅功能角色"约束暴露本地投影角色
-        for (String typeCode : typeCodes) {
-            if (!FUNCTIONAL_ROLE_TYPES.contains(typeCode)) {
-                throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
-                    "仅支持功能角色类型: BASIC_ROLE/GROUP_ROLE/PERSONAL，收到: " + typeCode);
-            }
-        }
-        Long tenantId = TenantContextHolder.getTenantId();
-        // 类型码 → 值；任一未注册 → 空列表（与 permission 域 listRoles 的 matchNone 语义一致）
-        Map<String, Integer> valueByCode = typeResolutionService.batchResolveTypeValues(
-            tenantId, ROLE_TYPE_KEY, new LinkedHashSet<>(typeCodes));
-        List<Integer> typeValues = new ArrayList<>();
-        for (String typeCode : typeCodes) {
-            Integer value = valueByCode.get(typeCode);
-            if (value == null) {
-                return List.of();
-            }
-            typeValues.add(value);
-        }
-        Map<Integer, String> codeByValue = invert(valueByCode);
-        List<FunctionalRoleProjection> roles =
-            userRoleQueryMapper.selectFunctionalRoles(tenantId, typeValues, null, 0, ROLE_LIST_LIMIT);
-        return roles.stream()
-            .map(r -> {
-                String roleTypeCode = codeByValue.get(r.roleType());
-                return new RoleListItemResp(
-                    roleTypeCode,
-                    r.externalId(),
-                    r.name(),
-                    roleTypeCode != null ? ROLE_TYPE_LABELS.getOrDefault(roleTypeCode, roleTypeCode) : null
-                );
-            })
-            .collect(Collectors.toList());
     }
 
     @Override
@@ -162,11 +113,5 @@ public class UserRoleQueryAppServiceImpl implements UserRoleQueryAppService {
                 );
             })
             .collect(Collectors.toList());
-    }
-
-    private static Map<Integer, String> invert(Map<String, Integer> valueByCode) {
-        Map<Integer, String> codeByValue = new HashMap<>();
-        valueByCode.forEach((code, value) -> codeByValue.put(value, code));
-        return codeByValue;
     }
 }

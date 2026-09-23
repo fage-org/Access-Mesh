@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, computed } from "vue";
+import { ref, reactive, watch, computed } from "vue";
 import {
   getUserRoles,
   revokeRole,
@@ -9,17 +9,17 @@ import {
   removeUserOrg,
   setPrimaryOrg,
   getOrgTree,
-  getRoleList,
   type UserItem,
   type UserRoleItem,
   type OrgBrief,
-  type OrgTreeNode,
-  type RoleItem
+  type OrgTreeNode
 } from "@/api/user-manage";
+import { getRoleList } from "@/api/role-manage";
 import { message } from "@/utils/message";
 import { useRenderIcon } from "@/components/ReIcon/src/hooks";
 import { hasPerms } from "@/utils/auth";
 import { ORG_USER_PERMS } from "../utils/perms";
+import { useRemotePagedOptions, mergeSelected } from "../utils/remoteOptions";
 import Remove from "~icons/ep/remove";
 import AddFill from "~icons/ri/add-circle-line";
 import Star from "~icons/ep/star-filled";
@@ -113,8 +113,80 @@ const selectedOrgIds = ref<number[]>([]);
 // 角色分配状态
 const roleSelectorVisible = ref(false);
 const selectedRoleKey = ref<string | null>(null);
-const assignableRoles = ref<RoleItem[]>([]);
-const assignableRolesLoaded = ref(false);
+
+/** 功能角色选项形态（/abstract-role/list RoleResp 映射） */
+type RoleOption = {
+  roleTypeCode: string;
+  roleExternalId: string;
+  roleName: string;
+  roleTypeLabel?: string;
+};
+
+/** 已选角色选项缓存（key=roleTypeCode:roleExternalId）：换词/翻页后已选仍有 label，提交取自缓存 */
+const selectedRoleOption = reactive(new Map<string, RoleOption>());
+
+/**
+ * 功能角色候选远程分页装载（T-FE-058，U005=迁移）：/abstract-role/list 传
+ * roleTypeCodes=功能角色三类型（对齐原 /role/list 语义，排除 ORG/POSITION 容器行），
+ * keyword 远程搜索 + 分页——第 201 个功能角色不再被 LIMIT 200 静默截断。
+ * 门禁随端点对齐角色管理页实例准入口径（类型级 VIEW 全量，否则可见子集）；
+ * 分配动作仍受 USER_ROLE_ASSIGN 门禁（本面板 canAssignFunctionalRole）。
+ */
+const {
+  items: roleItems,
+  total: roleTotal,
+  hasNext: roleHasNext,
+  loading: roleRemoteLoading,
+  pageNum: rolePageNum,
+  search: searchRoles,
+  prevPage: prevRolePage,
+  nextPage: nextRolePage,
+  reset: resetRoleSelector
+} = useRemotePagedOptions<RoleOption>(
+  async q => {
+    const res = await getRoleList({
+      roleTypeCodes: ["BASIC_ROLE", "GROUP_ROLE", "PERSONAL"],
+      keyword: q.keyword || undefined,
+      pageNum: q.pageNum,
+      pageSize: q.pageSize
+    });
+    return {
+      // externalId 为空的角色无法经业务键定位（detail/assign 同款约束），不入候选
+      items: res.items
+        .filter(r => r.externalId)
+        .map(r => ({
+          roleTypeCode: r.roleTypeCode,
+          roleExternalId: r.externalId as string,
+          roleName: r.name,
+          roleTypeLabel: r.roleTypeName
+        })),
+      total: res.total,
+      hasNext: res.hasNext
+    };
+  },
+  {
+    pageSize: 20,
+    onError: () => message("加载角色列表失败", { type: "error" })
+  }
+);
+
+/** 下拉渲染源 = 当前页 ∪ 已选（已选不在当前页的补尾，单选回显不退化为裸 key） */
+const roleDisplayOptions = computed(() =>
+  mergeSelected(
+    roleItems.value,
+    selectedRoleOption,
+    r => `${r.roleTypeCode}:${r.roleExternalId}`
+  )
+);
+
+/** 选中即入缓存（提交对象不取自当前页选项——换词/翻页后当前页不含已选） */
+watch(selectedRoleKey, key => {
+  if (!key || selectedRoleOption.has(key)) return;
+  const found = roleDisplayOptions.value.find(
+    r => `${r.roleTypeCode}:${r.roleExternalId}` === key
+  );
+  if (found) selectedRoleOption.set(key, found);
+});
 
 function mapUserOrgs(orgs: Array<OrgBrief | UserOrgItem>): UserOrgItem[] {
   return orgs.map(org => ({
@@ -221,26 +293,21 @@ async function handleRevoke(role: UserRoleItem) {
   }
 }
 
-async function openRoleSelector() {
+function openRoleSelector() {
   if (!props.user) return;
   selectedRoleKey.value = null;
+  // 每次打开重置取数并清已选缓存：候选以打开时刻为准（上次弹窗已选不带入——
+  // 缓存角色可能已被删，带入会渲染陈旧选项），不沿用上次弹窗的旧页/旧词结果
+  selectedRoleOption.clear();
+  resetRoleSelector();
   roleSelectorVisible.value = true;
-  // 懒加载功能角色候选；后端 /role/list 默认仅返回 BASIC_ROLE / GROUP_ROLE / PERSONAL
-  if (!assignableRolesLoaded.value) {
-    try {
-      assignableRoles.value = await getRoleList();
-      assignableRolesLoaded.value = true;
-    } catch {
-      message("加载角色列表失败", { type: "error" });
-    }
-  }
+  void searchRoles("");
 }
 
 async function handleAssignRole() {
   if (!props.user || !selectedRoleKey.value) return;
-  const role = assignableRoles.value.find(
-    r => `${r.roleTypeCode}:${r.roleExternalId}` === selectedRoleKey.value
-  );
+  // 提交对象只取已选缓存：选中必经 watch 同步入缓存（同步 flush，点确定时必命中）
+  const role = selectedRoleOption.get(selectedRoleKey.value);
   if (!role) return;
   try {
     await assignRole({
@@ -478,23 +545,51 @@ function formatDate(val: string | null): string {
           </el-button>
         </div>
 
-        <!-- 角色选择器 -->
+        <!-- 角色选择器（T-FE-058：远程搜索 + 下拉内翻页，候选=/abstract-role/list） -->
         <div
           v-if="roleSelectorVisible"
           class="mb-2 p-2 rounded border border-solid border-(--el-border-color)"
         >
           <el-select
             v-model="selectedRoleKey"
-            placeholder="选择功能角色"
+            placeholder="输入角色名称搜索"
             filterable
+            remote
+            :remote-method="searchRoles"
+            :loading="roleRemoteLoading"
             class="w-full! mb-2"
           >
             <el-option
-              v-for="r in assignableRoles"
+              v-for="r in roleDisplayOptions"
               :key="`${r.roleTypeCode}:${r.roleExternalId}`"
               :label="r.roleName"
               :value="`${r.roleTypeCode}:${r.roleExternalId}`"
             />
+            <template #footer>
+              <div class="role-selector-pagination">
+                <el-button
+                  size="small"
+                  text
+                  :disabled="rolePageNum <= 1 || roleRemoteLoading"
+                  @click="prevRolePage"
+                >
+                  上一页
+                </el-button>
+                <span class="page-indicator">
+                  第 {{ rolePageNum }} 页<template v-if="roleTotal > 0">
+                    · 共 {{ roleTotal }} 条</template
+                  >
+                </span>
+                <el-button
+                  size="small"
+                  text
+                  :disabled="!roleHasNext || roleRemoteLoading"
+                  @click="nextRolePage"
+                >
+                  下一页
+                </el-button>
+              </div>
+            </template>
           </el-select>
           <div class="flex gap-1">
             <el-button size="small" type="primary" @click="handleAssignRole">
@@ -633,6 +728,20 @@ function formatDate(val: string | null): string {
   align-items: center;
   font-size: 12px;
   vertical-align: baseline;
+}
+
+/* 下拉内翻页 footer（el-select #footer） */
+.role-selector-pagination {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-2);
+}
+
+.page-indicator {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .role-item {

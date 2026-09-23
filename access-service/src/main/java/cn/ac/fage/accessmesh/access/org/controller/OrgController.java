@@ -127,7 +127,7 @@ public class OrgController {
     @PostMapping("/tree")
     public R<ItemsResp<OrgResp>> treeOrgs(@Valid @RequestBody OrgQuery query) {
         // P1-3：不再返回裸数组，统一 {items:[...]} 包装（复用 perm-common ItemsResp，
-        // 与 /role/list、/user-role/list 同款；契约 §4.2.1）
+        // 与 /user-role/view 同款；契约 §4.2.1）
         return R.ok(new ItemsResp<>(orgService.treeOrgs(query)));
     }
 

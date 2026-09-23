@@ -103,23 +103,13 @@ class QueryMapperXmlContractTest {
     }
 
     @Test
-    @DisplayName("分页查询带 ORDER BY 与 LIMIT/OFFSET，非分页查询无 LIMIT")
-    void pagedSelectsCarryOrderAndLimit() throws IOException {
+    @DisplayName("组合查询 select 无 LIMIT（非分页全量返回，避免隐式截断）")
+    void noSelectUsesLimit() throws IOException {
         List<String> files = queryXmlFiles();
         for (String file : files) {
             String content = Files.readString(Paths.get(file));
-            // selectFunctionalRoles 是唯一分页查询：ORDER BY id LIMIT #{limit} OFFSET #{offset}
-            int idx = content.indexOf("selectFunctionalRoles");
-            if (idx >= 0) {
-                String sql = content.substring(idx, Math.min(content.length(), idx + 1200));
-                assertThat(sql)
-                    .as("selectFunctionalRoles 必须按 id 排序")
-                    .contains("ORDER BY id");
-                assertThat(sql)
-                    .as("selectFunctionalRoles 必须 LIMIT/OFFSET 分页")
-                    .contains("LIMIT #{limit}").contains("OFFSET #{offset}");
-            }
-            // 其他 select 不允许出现 LIMIT（组合查询无分页时全量返回，避免隐式截断）
+            // 全部组合查询 select 不允许出现 LIMIT（调用方全量消费，避免隐式截断）；
+            // 原唯一分页查询 selectFunctionalRoles 已随 /role/list 退役（T-FE-058）
             for (String other : new String[]{"selectMenus", "selectUserOrgsByUserIds", "selectUserRoleProjections",
                 "selectOrgBriefsByIds", "selectDefaultTreeRootOrgIds", "selectDescendantOrgIds"}) {
                 int oi = content.indexOf(other);

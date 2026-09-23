@@ -4,7 +4,7 @@ package cn.ac.fage.accessmesh.access.type.dto.req;
  * 类型定义列表查询请求体
  * <p>
  * 支持按类型键精确过滤、按名称/编码关键字模糊过滤与服务端分页。
- * 不传分页参数时返回字典全量（上限 PageUtil.MAX_PAGE_SIZE，先例 /role/list）。
+ * 不传分页参数时返回字典全量（上限 PageUtil.MAX_PAGE_SIZE，先例 /system-config/list）。
  * </p>
  *
  * @param typeKey  类型键，可选，精确过滤

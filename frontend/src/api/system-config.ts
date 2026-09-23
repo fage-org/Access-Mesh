@@ -39,7 +39,7 @@ export type SystemConfigResp = {
 
 /** 系统配置列表查询参数（T-PERM-024 收口：服务端 keyword 过滤 + 分页）。
  *  keyword 匹配 configKey/description（LIKE，大小写敏感）；pageNum/pageSize 均不传 = 字典全量
- *  （后端上限 200，先例 /role/list）。 */
+ *  （后端上限 200；本端点为字典全量族先例锚，族内其余端点引用本锚）。 */
 export type SystemConfigListQuery = {
   keyword?: string | null;
   pageNum?: number;

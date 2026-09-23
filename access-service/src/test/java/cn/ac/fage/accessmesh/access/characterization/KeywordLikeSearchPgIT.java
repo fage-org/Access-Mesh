@@ -2,7 +2,6 @@ package cn.ac.fage.accessmesh.access.characterization;
 
 import cn.ac.fage.accessmesh.access.org.mapper.SysOrgMapper;
 import cn.ac.fage.accessmesh.access.user.mapper.SysUserMapper;
-import cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SystemConfigMapper;
 import cn.ac.fage.accessmesh.access.it.ItInfra;
 import cn.ac.fage.accessmesh.access.role.mapper.AbstractRoleMapper;
@@ -77,8 +76,6 @@ class KeywordLikeSearchPgIT {
     private SysUserMapper sysUserMapper;
     @Autowired
     private SysOrgMapper sysOrgMapper;
-    @Autowired
-    private UserRoleQueryMapper userRoleQueryMapper;
 
     @Test
     @DisplayName("type-definition keyword：DDL 种子内 LIKE type_code 命中（无夹具）")
@@ -109,15 +106,13 @@ class KeywordLikeSearchPgIT {
     }
 
     @Test
-    @DisplayName("abstract-role / user-role-query keyword：name/external_id LIKE 命中")
+    @DisplayName("abstract-role keyword：name/external_id LIKE 命中")
     void shouldSearchAbstractRoleByKeyword() {
         jdbc.update("INSERT INTO abstract_role (tenant_id, role_type, external_id, name) "
             + "VALUES (1, 6, 'kwtest-role', 'keyword 回归角色')");
         assertThat(abstractRoleMapper.selectRoleListPaged(TENANT, null, "kwtest-role", false, null, 0, 10))
             .extracting(cn.ac.fage.accessmesh.access.role.entity.AbstractRole::getExternalId)
             .contains("kwtest-role");
-        assertThat(userRoleQueryMapper.selectFunctionalRoles(TENANT, null, "kwtest-role", 0, 10))
-            .anySatisfy(p -> assertThat(p.externalId()).isEqualTo("kwtest-role"));
     }
 
     @Test

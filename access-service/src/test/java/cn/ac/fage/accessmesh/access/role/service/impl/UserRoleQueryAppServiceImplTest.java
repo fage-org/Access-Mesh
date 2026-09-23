@@ -1,18 +1,14 @@
 package cn.ac.fage.accessmesh.access.role.service.impl;
 
-import cn.ac.fage.accessmesh.access.role.dto.resp.RoleListItemResp;
 import cn.ac.fage.accessmesh.access.role.dto.resp.UserRoleItemResp;
-import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.role.service.impl.UserRoleQueryAppServiceImpl;
 import cn.ac.fage.accessmesh.access.role.mapper.UserRoleQueryMapper;
-import cn.ac.fage.accessmesh.access.role.dto.projection.FunctionalRoleProjection;
 import cn.ac.fage.accessmesh.access.role.dto.projection.OrgBriefProjection;
 import cn.ac.fage.accessmesh.access.role.dto.projection.UserRoleProjection;
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
 import cn.ac.fage.accessmesh.access.sync.guard.LocalProjectionOwner;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
-import cn.ac.fage.accessmesh.common.exception.BizException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -28,10 +24,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -40,6 +33,9 @@ import static org.mockito.Mockito.when;
 
 /**
  * 用户角色组合查询服务（跨域只读）行为测试。
+ * <p>
+ * 功能角色候选查询（listRoles）已随 /role/list 端点退役（T-FE-058，2026-09-23）。
+ * </p>
  */
 @ExtendWith(MockitoExtension.class)
 class UserRoleQueryAppServiceImplTest {
@@ -61,79 +57,6 @@ class UserRoleQueryAppServiceImplTest {
     @AfterEach
     void tearDown() {
         TenantContextHolder.clear();
-    }
-
-    @Nested
-    @DisplayName("listRoles")
-    class ListRoles {
-
-        @Test
-        @DisplayName("默认功能角色：类型码解析后一次批量查询并映射展示字段")
-        void defaultFunctionalRoles_mapped() {
-            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("role_type"), anySet()))
-                .thenReturn(Map.of("BASIC_ROLE", 6, "GROUP_ROLE", 5, "PERSONAL", 3));
-            when(userRoleQueryMapper.selectFunctionalRoles(eq(TENANT), anyList(), eq(null), eq(0), eq(200)))
-                .thenReturn(List.of(
-                    new FunctionalRoleProjection(6, "r-1", "基础管理员"),
-                    new FunctionalRoleProjection(5, "r-2", "分组管理员")));
-
-            List<RoleListItemResp> result = service.listRoles(null);
-
-            assertThat(result).hasSize(2);
-            assertThat(result.get(0).roleTypeCode()).isEqualTo("BASIC_ROLE");
-            assertThat(result.get(0).roleExternalId()).isEqualTo("r-1");
-            assertThat(result.get(0).roleName()).isEqualTo("基础管理员");
-            assertThat(result.get(0).roleTypeLabel()).isEqualTo("基础角色");
-            assertThat(result.get(1).roleTypeLabel()).isEqualTo("分组角色");
-            // 单次批量查询，无循环单查
-            verify(userRoleQueryMapper).selectFunctionalRoles(eq(TENANT), anyList(), eq(null), eq(0), eq(200));
-        }
-
-        @Test
-        @DisplayName("显式传入 ORG/POSITION 拒绝（防暴露本地投影角色）")
-        void reservedType_rejected() {
-            assertThatThrownBy(() -> service.listRoles(List.of("ORG")))
-                .isInstanceOf(BizException.class)
-                .extracting(ex -> ((BizException) ex).getErrorCode())
-                .isEqualTo(AccessErrorCode.ADMIN_INVALID_PARAM.getCode());
-        }
-
-        @Test
-        @DisplayName("门禁 ROLE:VIEW 在查询前执行")
-        void gateCheckedBeforeQuery() {
-            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("role_type"), anySet()))
-                .thenReturn(Map.of("BASIC_ROLE", 6, "GROUP_ROLE", 5, "PERSONAL", 3));
-            when(userRoleQueryMapper.selectFunctionalRoles(eq(TENANT), anyList(), eq(null), eq(0), eq(200)))
-                .thenReturn(List.of());
-
-            service.listRoles(null);
-
-            verify(permissionValidator).checkTypeLevel(eq("ROLE"), eq("VIEW"));
-        }
-
-        @Test
-        @DisplayName("门禁拒绝时安全异常传播，不执行查询")
-        void gateDenied_propagates() {
-            org.mockito.Mockito.doThrow(new SecurityException("denied"))
-                .when(permissionValidator).checkTypeLevel(any(), any());
-
-            assertThatThrownBy(() -> service.listRoles(null))
-                .isInstanceOf(SecurityException.class)
-                .hasMessageContaining("denied");
-            verify(userRoleQueryMapper, never()).selectFunctionalRoles(any(), any(), any(), anyInt(), anyInt());
-        }
-
-        @Test
-        @DisplayName("功能角色类型未注册（租户缺 role_type 种子）返回空列表（matchNone 语义）")
-        void unresolvedType_returnsEmpty() {
-            when(typeResolutionService.batchResolveTypeValues(eq(TENANT), eq("role_type"), anySet()))
-                .thenReturn(Map.of());
-
-            List<RoleListItemResp> result = service.listRoles(List.of("BASIC_ROLE"));
-
-            assertThat(result).isEmpty();
-            verify(userRoleQueryMapper, never()).selectFunctionalRoles(any(), any(), any(), anyInt(), anyInt());
-        }
     }
 
     @Nested

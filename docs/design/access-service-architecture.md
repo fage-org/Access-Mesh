@@ -83,7 +83,7 @@ cn.ac.fage.accessmesh.access
 
 - 查询服务（接口 + `impl/` 同包实现，方法标注 `@Transactional(readOnly = true)`）：
   - `UserMenuQueryAppService`（menu.service）：`/api/access/auth/user-menu`、`/api/access/user/user-menus`、`/api/access/role/my-info` 聚合（sys_menu 树 + 角色/权限码 + 菜单可见性判定）。
-  - `UserRoleQueryAppService`（role.service）：`/api/access/role/list` 功能角色列表、`/api/access/user-role/list` 角色列表（POSITION 补所属组织名）。
+  - `UserRoleQueryAppService`（role.service）：`/api/access/user-role/view` 聚合查询（POSITION 补所属组织名）；原 `/role/list` 功能角色候选已随 T-FE-058 退役（迁 `/abstract-role/list` keyword+分页，2026-09-23）。
   - `OrgVisibilityQueryAppService`（org.service）：组织可见性过滤（含 ORG_VISIBILITY 缓存，租户级失效由 PermissionChangeAspect 统一执行）。
 - 专用 QueryMapper（`{menu,role,org}.mapper`，XML 在 `resources/mapper/{org,menu,role}/`）：只 SELECT、显式 `tenant_id` 条件、返回 `dto/projection` 包 Projection record，不暴露或修改领域实体；权限判定一律经 `PermQueryEngine`/`TypeResolutionService`，不直查权限表判定。
 - 数据访问白名单（架构测试固化，能力口径见 capability-structure §8.4）：能力包互不使用对方 **Mapper**（实体 import 不禁，断言面=mapper 包）；QueryMapper 归位各能力包后只读前缀契约不变；组合查询的跨能力表读取经 QueryMapper XML 直读（非 Java 类依赖）；引擎输入面装载、projection 投影写路径、sync 记账封装、bootstrap 种子写入器为显式豁免。（Service 层横向依赖不限白名单，2026-08-22 同层调用全局放开。）
@@ -98,7 +98,7 @@ cn.ac.fage.accessmesh.access
 
 - `/api/access/user/user-menus` 查询他人时需 `USER:VIEW@目标用户`，查自己豁免（方案1+2，P1-2；T-ACCESS-018 类型收敛后为 USER）：`AdminUserController.getUserMenus` 在 `req.id() != 当前登录用户` 时经 `AdminPermissionValidator.checkInstanceLevel(USER, id, VIEW)` 门禁。
 - 权限码下发门禁下放入口（方案「门禁下放入口」）：`PermissionViewAppService.buildEffectiveView` 公共管线不再设 `USER:VIEW` 门禁；权限面独立 HTTP 入口 `/effective-permission-codes` 走 `getEffectivePermissionCodesForManage`（自查豁免 + 查他人需 `USER:VIEW`）；menu/role/org 查询入口（原 application.query，T-ACCESS-033 随能力包归位）内部调用由其入口 Controller 门禁（自查豁免 + `USER:VIEW`，P1-2）兜底。（原 `getEffectivePermissions` 管理员视图已随 T-PERM-059 删除，2026-09-10）
-- `/api/access/role/list` 保持 `LIMIT 0,200` 上限并在 `UserRoleQueryAppService` Javadoc 声明（P2-3，设计定案「保持 + 文档声明上限」）：功能角色面向前端下拉，超出 200 属配置异常，由组织治理收敛。
+- 原 `/api/access/role/list` 的 `LIMIT 0,200` 上限声明（P2-3 定案「保持 + 文档声明上限」）已随端点退役失效（T-FE-058，2026-09-23）：功能角色候选迁 `/abstract-role/list` keyword+分页（`roleTypeCodes` 三类型过滤，门禁对齐角色管理页实例准入），超 200 静默截断问题随迁移消除；`UserRoleQueryAppService` 仅存 `/user-role/view` 聚合查询。
 - `OrgVisibilityQueryAppServiceImpl` 缓存读写故障旁路 DB（P2-1）：`CacheService.get/put` 异常时记 `log.warn` 并降级直查 DB，不阻断可见性计算（fail-open 至数据库层，权限判定本身仍经 engine fail-closed）。
 - 角色数据走 query 服务（P2-2，设计定案「角色走 query 服务 + 权限保留 AppService」）：`UserRoleQueryAppService` 经 `UserRoleQueryMapper` 直读 `user_role ⨝ abstract_role`（原 query 包跨域只读形态，T-ACCESS-033 后随 role 能力包归位包内），权限事实（有效权限码/资源访问）保留经 `PermissionViewAppService`。
 
