@@ -9,6 +9,11 @@
  * - usePagedList——分页表格层：在 useListLoad 上叠 pagination 与翻页回调，
  *   total 仅随最新成功请求回写。
  *
+ * 上下文绑定（T-FE-059，F011）：contextKey 声明列表数据的归属上下文（选中服务/类型/
+ * 组织等）——为不同上下文取数时发起即清空旧数据（旧上下文数据不得在新上下文下可写），
+ * 切换后失败保持空集；同上下文刷新失败保留旧数据。clear() 供调用方置空上下文时使用，
+ * 同时作废在途请求。预清空先例（biz-domain selectDomain / MappingForm 切类型）达同语义。
+ *
  * 先例（收敛源）：permission-change-log reqSeq / biz-domain configReqSeq /
  * service-interface MappingForm treeRequestSeq / 授予页 matrixToken（矩阵面，形态不同不收敛）。
  */
@@ -17,6 +22,9 @@ import type { Ref } from "vue";
 import { message } from "@/utils/message";
 import { toErrorMessage } from "@/api/_envelope";
 
+/** 「从未成功加载/已清空」上下文哨兵（与任何 contextKey 返回值不同构，含 null/undefined） */
+const NO_CONTEXT = Symbol("list-load:no-context");
+
 export interface ListLoadOptions<T> {
   /** 取数（调用方闭包内完成排序/映射等变换，返回最终列表） */
   fetcher: () => Promise<T[]>;
@@ -24,6 +32,12 @@ export interface ListLoadOptions<T> {
   errorText: string;
   /** 数据回写后的页面副作用（仅最新请求触发；迟到响应不触发） */
   onLoaded?: (items: T[]) => void;
+  /** 上下文键（T-FE-059）：列表数据归属的稳定标识（选中服务/类型/组织等）。
+   *  提供后：为不同上下文取数时发起即清空旧数据——旧上下文数据不得在新上下文下可写，
+   *  切换后失败保持空集（F011）；同上下文刷新失败仍保留旧数据（不制造额外损失）。 */
+  contextKey?: () => unknown;
+  /** 数据因上下文切换被清空或 clear() 时的副作用（如分页层重置 total） */
+  onClear?: () => void;
 }
 
 export function useListLoad<T>(opts: ListLoadOptions<T>) {
@@ -33,10 +47,36 @@ export function useListLoad<T>(opts: ListLoadOptions<T>) {
   const error = ref<string | null>(null);
 
   let reqSeq = 0;
+  /** 当前数据归属的上下文（NO_CONTEXT=从未成功加载或已清空；contextKey 缺省形态恒为 NO_CONTEXT） */
+  let loadedContext: unknown = NO_CONTEXT;
+  /** 曾成功加载过：区分「null 上下文已加载」与「从未加载」——null 是合法上下文值（如全组织视图） */
+  let hasLoadedContext = false;
+
+  /** 清空数据并作废在途请求（T-FE-059：调用方置空/切换上下文时使用，迟到响应不回写） */
+  function clear() {
+    reqSeq++;
+    list.value = [];
+    error.value = null;
+    loading.value = false;
+    loadedContext = NO_CONTEXT;
+    hasLoadedContext = false;
+    opts.onClear?.();
+  }
 
   /** 加载：latest-wins。返回 true=最新请求成功回写；false=失败（已提示）或迟到被丢弃 */
   async function load(): Promise<boolean> {
     const seq = ++reqSeq;
+    // 请求上下文与 fetcher 同刻捕获（fetcher 同步段读取选择值，二者一致）；
+    // null 不作哨兵归一（null 可以是合法上下文值，如用户页「全组织」视图）
+    const ctx = opts.contextKey ? opts.contextKey() : NO_CONTEXT;
+    // 已有其他上下文的数据且为新上下文取数：立即清空（旧上下文数据不得在新上下文下
+    // 可写；切换后失败不回填旧数据）。从未成功加载或已清空时无数据可清、不触发 onClear。
+    if (opts.contextKey && hasLoadedContext && !Object.is(loadedContext, ctx)) {
+      list.value = [];
+      loadedContext = NO_CONTEXT;
+      hasLoadedContext = false;
+      opts.onClear?.();
+    }
     loading.value = true;
     error.value = null;
     try {
@@ -49,12 +89,14 @@ export function useListLoad<T>(opts: ListLoadOptions<T>) {
         if (seq !== reqSeq) return false;
         error.value = toErrorMessage(e, opts.errorText);
         message(error.value, { type: "error" });
-        // 失败保留旧数据（比清空友好）
+        // 同上下文刷新失败保留旧数据（比清空友好）；上下文切换已在上文清空
         return false;
       }
       // 过期请求静默丢弃（用户已发起更新的请求），含 onLoaded 副作用
       if (seq !== reqSeq) return false;
       list.value = items;
+      loadedContext = ctx;
+      hasLoadedContext = true;
       try {
         opts.onLoaded?.(items);
       } catch (e) {
@@ -69,7 +111,7 @@ export function useListLoad<T>(opts: ListLoadOptions<T>) {
     }
   }
 
-  return { list, loading, error, load };
+  return { list, loading, error, load, clear };
 }
 
 export interface PagedListOptions<T> {
@@ -82,6 +124,8 @@ export interface PagedListOptions<T> {
   errorText: string;
   /** 初始页大小（默认 15，对齐各页现行值） */
   initialSize?: number;
+  /** 上下文键（T-FE-059）：透传列表层——切换上下文清空时 total/page 同步复位 */
+  contextKey?: () => unknown;
 }
 
 export function usePagedList<T>(opts: PagedListOptions<T>) {
@@ -106,6 +150,12 @@ export function usePagedList<T>(opts: PagedListOptions<T>) {
     // total 仅随最新成功请求回写（迟到响应不回写；失败保留旧 total 与旧数据一致）
     onLoaded: ([latest]) => {
       pagination.total = latest.total;
+    },
+    // 上下文切换清空：total/page 与空表格同步复位（T-FE-059）
+    contextKey: opts.contextKey,
+    onClear: () => {
+      pagination.total = 0;
+      pagination.page = 1;
     }
   });
 

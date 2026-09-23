@@ -22,6 +22,8 @@ export function useUserManage() {
   });
 
   // T-FE-051：列表加载统一接线 usePagedList（失败提示保留旧数据 + latest-wins 请求代际）
+  // T-FE-059：成员表归属选中组织（子树）——切组织取数发起即清空旧组织行、失败不回填，
+  // 旧组织成员行不得在新组织下可写（F011 同模式）
   const {
     tableData,
     loading,
@@ -32,6 +34,7 @@ export function useUserManage() {
     onPageSizeChange
   } = usePagedList<UserItem>({
     errorText: "加载用户列表失败",
+    contextKey: () => selectedOrgId.value,
     fetcher: (page, size) =>
       getUserPage({
         pageNum: page,
@@ -70,13 +73,22 @@ export function useUserManage() {
     }
   }
 
-  /** 更新用户（T-FE-051：失败提示后端原因并返回 false，弹窗保持打开） */
-  async function handleUpdate(data: {
-    id: number;
-    name?: string;
-    phone?: string | null;
-    email?: string | null;
-  }): Promise<boolean> {
+  /** 更新用户（T-FE-051：失败提示后端原因并返回 false，弹窗保持打开）。
+   *  openedAtOrgId（T-FE-059，必传）：编辑弹窗打开时的选中组织——提交时与当前不一致
+   *  即拒绝（弹窗存续期间页面上下文变化的窄路径，如后退键离开再回）。 */
+  async function handleUpdate(
+    data: {
+      id: number;
+      name?: string;
+      phone?: string | null;
+      email?: string | null;
+    },
+    openedAtOrgId: number | null
+  ): Promise<boolean> {
+    if (!Object.is(openedAtOrgId, selectedOrgId.value)) {
+      message("该用户不属于当前选中组织，请刷新后重试", { type: "warning" });
+      return false;
+    }
     try {
       await updateUser(data);
       message("用户更新成功", { type: "success" });
@@ -90,6 +102,8 @@ export function useUserManage() {
 
   /** 删除用户（T-FE-047：销毁性操作先二次确认，取消静默返回；失败透出后端原因——如 CANNOT_DELETE_SELF） */
   async function handleDelete(user: UserItem) {
+    // 入口捕获当前选中组织（T-FE-059）：确认框期间上下文可能已变，提交前核对
+    const openedAtOrgId = selectedOrgId.value;
     try {
       await ElMessageBox.confirm(
         `确认删除用户 "${user.name}"？删除后该用户将无法登录，所属组织与岗位关联将一并移除。`,
@@ -102,6 +116,10 @@ export function useUserManage() {
       );
     } catch {
       return; // 取消
+    }
+    if (!Object.is(openedAtOrgId, selectedOrgId.value)) {
+      message("该用户不属于当前选中组织，请刷新后重试", { type: "warning" });
+      return;
     }
     try {
       await deleteUser([user.id]);
@@ -120,6 +138,9 @@ export function useUserManage() {
   async function handleToggleStatus(row: UserItem, newVal: number) {
     const newStatus: 0 | 1 = newVal === 1 ? 1 : 0;
     const actionText = newStatus === 1 ? "启用" : "停用";
+    // 入口捕获当前选中组织（T-FE-059）：停用确认框期间上下文可能已变，提交前核对
+    // （启用路径无确认框、捕获与核对同栈，守卫为对称防御）
+    const openedAtOrgId = selectedOrgId.value;
     if (newStatus === 0) {
       try {
         await ElMessageBox.confirm(
@@ -135,6 +156,11 @@ export function useUserManage() {
         row.status = 1; // 取消时恢复 switch
         return;
       }
+    }
+    if (!Object.is(openedAtOrgId, selectedOrgId.value)) {
+      row.status = newStatus === 1 ? 0 : 1; // 拒绝时恢复 switch
+      message("该用户不属于当前选中组织，请刷新后重试", { type: "warning" });
+      return;
     }
     try {
       await enableUsers({ ids: [row.id], status: newStatus });

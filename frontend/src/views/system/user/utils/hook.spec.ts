@@ -203,7 +203,7 @@ describe("写操作与启停 catch+message 一致性（T-FE-051）", () => {
     mockUpdateUser.mockRejectedValue(new Error("邮箱已被占用"));
     const { handleUpdate } = useUserManage();
     // 旧实现 handleUpdate 无 catch：rejection 上抛——此 await 在旧实现下失败
-    const ok = await handleUpdate({ id: 7, name: "张三" });
+    const ok = await handleUpdate({ id: 7, name: "张三" }, null);
 
     expect(ok).toBe(false);
     expect(mockMessage).toHaveBeenCalledWith("邮箱已被占用", {
@@ -248,5 +248,101 @@ describe("写操作与启停 catch+message 一致性（T-FE-051）", () => {
       type: "error"
     });
     expect(row.status).toBe(1); // 失败回滚
+  });
+});
+
+describe("共享列表上下文与可写对象绑定（T-FE-059 / F011 同模式）", () => {
+  /** 用户行（orgs 标注所属组织，成员表按选中组织子树过滤） */
+  function userOf(id: number, orgIds: number[]) {
+    return {
+      ...USER,
+      id,
+      orgs: orgIds.map(orgId => ({
+        orgId,
+        orgName: `org${orgId}`,
+        isPrimary: orgIds[0] === orgId
+      }))
+    } as any;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockConfirm.mockResolvedValue(undefined);
+    mockGetUserPage.mockResolvedValue({ items: [], total: 0 });
+  });
+
+  it("切组织 B 加载失败：成员表清空、total 归零（旧实现保留 A 组织用户行必失败）", async () => {
+    mockGetUserPage
+      .mockResolvedValueOnce({ items: [userOf(1, [1])], total: 1 })
+      .mockRejectedValueOnce(new Error("组织 2 成员加载失败"));
+    const { selectedOrgId, tableData, pagination, onSearch } = useUserManage();
+
+    selectedOrgId.value = 1;
+    await onSearch();
+    expect(tableData.value).toHaveLength(1);
+
+    selectedOrgId.value = 2;
+    await onSearch(); // 失败
+
+    expect(tableData.value).toEqual([]);
+    expect(pagination.total).toBe(0);
+  });
+
+  it("全组织(null)已加载 → 切组织失败：成员表清空（旧实现哨兵归一残留全组织行必失败）", async () => {
+    mockGetUserPage
+      .mockResolvedValueOnce({
+        items: [userOf(1, [1]), userOf(2, [2])],
+        total: 2
+      })
+      .mockRejectedValueOnce(new Error("组织 5 成员加载失败"));
+    const { selectedOrgId, tableData, onSearch } = useUserManage();
+
+    await onSearch(); // 初始 null=全组织视图，成功加载
+    expect(tableData.value).toHaveLength(2);
+
+    selectedOrgId.value = 5;
+    await onSearch(); // 失败
+
+    expect(tableData.value).toEqual([]);
+  });
+
+  it("handleUpdate：打开时组织 ≠ 当前选中 → 拒绝且不发货（旧实现照发必失败）", async () => {
+    mockUpdateUser.mockResolvedValue(undefined);
+    const { selectedOrgId, handleUpdate } = useUserManage();
+
+    selectedOrgId.value = 2;
+    const ok = await handleUpdate({ id: 1, name: "x" }, 1);
+
+    expect(ok).toBe(false);
+    expect(mockUpdateUser).not.toHaveBeenCalled();
+  });
+
+  it("handleDelete：确认框期间切换组织 → 确认后拒绝且不发货（旧实现照删必失败）", async () => {
+    mockDeleteUser.mockResolvedValue(undefined);
+    const { selectedOrgId, handleDelete } = useUserManage();
+    selectedOrgId.value = 1;
+    // 确认框打开期间组织被切换（如浏览器后退后重进落回别的组织）
+    mockConfirm.mockImplementation(async () => {
+      selectedOrgId.value = 2;
+    });
+
+    await handleDelete(userOf(1, [1]));
+
+    expect(mockDeleteUser).not.toHaveBeenCalled();
+  });
+
+  it("handleToggleStatus：确认框期间切换组织 → 确认后拒绝且不发货、开关回滚（旧实现照发必失败）", async () => {
+    mockEnableUsers.mockResolvedValue(undefined);
+    const { selectedOrgId, handleToggleStatus } = useUserManage();
+    selectedOrgId.value = 1;
+    mockConfirm.mockImplementation(async () => {
+      selectedOrgId.value = 2;
+    });
+    const row = { ...userOf(1, [1]), status: 1 };
+
+    await handleToggleStatus(row, 0);
+
+    expect(mockEnableUsers).not.toHaveBeenCalled();
+    expect(row.status).toBe(1); // 拒绝时回滚开关
   });
 });

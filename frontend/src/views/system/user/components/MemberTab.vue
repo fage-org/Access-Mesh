@@ -158,6 +158,8 @@ function openEditDialog(row: any) {
   dialogFormData.name = row.name;
   dialogFormData.phone = row.phone ?? "";
   dialogFormData.email = row.email ?? "";
+  // 打开时绑定目标上下文（T-FE-059）：提交时与当前选中组织核对，不一致由 hook 拒绝
+  const openedAtOrgId = selectedOrgId.value;
   addDialog({
     title: "编辑用户",
     width: "460px",
@@ -177,12 +179,15 @@ function openEditDialog(row: any) {
       }
 
       try {
-        const ok = await handleUpdate({
-          id: row.id,
-          name: dialogFormData.name,
-          phone: dialogFormData.phone || null,
-          email: dialogFormData.email || null
-        });
+        const ok = await handleUpdate(
+          {
+            id: row.id,
+            name: dialogFormData.name,
+            phone: dialogFormData.phone || null,
+            email: dialogFormData.email || null
+          },
+          openedAtOrgId
+        );
         // handleUpdate 失败在 hook 内已提示并返回 false（T-FE-051）：弹窗保持打开
         if (!ok) {
           closeLoading();
@@ -215,6 +220,8 @@ function handleCommand(command: string, row: any) {
 
 // 重置密码
 async function handleResetPassword(row: any) {
+  // 入口捕获当前选中组织（T-FE-059）：确认框期间上下文可能已变，提交前核对
+  const openedAtOrgId = selectedOrgId.value;
   try {
     await ElMessageBox.confirm(
       `确认重置用户 "${row.name}" 的密码？`,
@@ -225,6 +232,10 @@ async function handleResetPassword(row: any) {
         type: "warning"
       }
     );
+    if (!Object.is(openedAtOrgId, selectedOrgId.value)) {
+      message("该用户不属于当前选中组织，请刷新后重试", { type: "warning" });
+      return;
+    }
     const result = await resetUserPassword({ userId: row.id });
     await ElMessageBox.alert(
       `新密码：${result.newPassword}\n\n请将密码通知用户妥善保管；用户下次登录需先设置新密码后继续使用。`,

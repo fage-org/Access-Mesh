@@ -293,6 +293,8 @@ function openCreatePositionDialog() {
 /** 打开编辑岗位弹窗（模板已加 @click.stop，无需在此再次 stopPropagation） */
 function openEditPositionDialog(position: PositionItem) {
   let formRef: any = null;
+  // 打开时绑定目标上下文（T-FE-059）：提交时与当前选中组织核对，不一致拒绝
+  const openedAtOrgId = props.orgId;
   addDialog({
     title: "编辑岗位",
     width: "480px",
@@ -321,6 +323,13 @@ function openEditPositionDialog(position: PositionItem) {
         closeLoading();
         return;
       }
+      if (!Object.is(openedAtOrgId, props.orgId)) {
+        message("该岗位不属于当前选中组织，请刷新后重试", {
+          type: "warning"
+        });
+        closeLoading();
+        return;
+      }
       const formData = formRef.getFormData();
       try {
         await updateOrg({
@@ -344,6 +353,8 @@ function openEditPositionDialog(position: PositionItem) {
 
 /** 删除岗位（模板已加 @click.stop） */
 async function handleDeletePosition(position: PositionItem) {
+  // 入口捕获当前选中组织（T-FE-059）：确认框期间上下文可能已变，提交前核对
+  const openedAtOrgId = props.orgId;
   try {
     await ElMessageBox.confirm(
       `确认删除岗位 "${position.orgName}"？`,
@@ -354,6 +365,12 @@ async function handleDeletePosition(position: PositionItem) {
         type: "warning"
       }
     );
+    if (!Object.is(openedAtOrgId, props.orgId)) {
+      message("该岗位不属于当前选中组织，请刷新后重试", {
+        type: "warning"
+      });
+      return;
+    }
     await deleteOrg(position.id);
     message("删除成功", { type: "success" });
     await loadPositions();
@@ -462,6 +479,10 @@ watch(
   () => {
     expandedIds.value.clear();
     positionUsers.value = {};
+    positionUserCounts.value = {};
+    // 切换组织立即清空旧组织岗位行（T-FE-059，F011 同模式）：加载失败不回填，
+    // 旧组织岗位不得在新组织下可写；在途请求由 positionReqSeq 代际废弃
+    positionList.value = [];
     loadPositions();
   },
   { immediate: true }

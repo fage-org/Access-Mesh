@@ -50,9 +50,13 @@ export function useServiceInterface() {
   const {
     list: mappings,
     loading: mappingLoading,
-    load: loadMappingsCore
+    load: loadMappingsCore,
+    clear: clearMappings
   } = useListLoad<ApiMappingResp>({
     errorText: "加载接口映射失败",
+    // T-FE-059：明细数据归属选中服务——切服务取数发起即清空旧服务行（失败不回填），
+    // 旧服务行不得在新服务标题下可写（F011）
+    contextKey: () => mappingsTargetCode,
     fetcher: async () => {
       const result = await getServiceApis(mappingsTargetCode!);
       return result.items.slice().sort((left, right) => {
@@ -64,7 +68,8 @@ export function useServiceInterface() {
 
   async function loadMappings(serviceCode = selectedServiceCode.value) {
     if (!serviceCode) {
-      mappings.value = [];
+      // 置空选中：清空并作废在途请求（T-FE-059，迟到响应不回写）
+      clearMappings();
       return;
     }
     mappingsTargetCode = serviceCode;
@@ -242,21 +247,35 @@ export function useServiceInterface() {
   async function submitMapping(
     form: MappingFormData,
     mode: "create",
-    editing?: ApiMappingResp
+    editing?: undefined,
+    openedAtServiceCode?: string
   ): Promise<boolean>;
   async function submitMapping(
     form: MappingFormData,
     mode: "edit",
-    editing: ApiMappingResp
+    editing: ApiMappingResp,
+    openedAtServiceCode?: string
   ): Promise<boolean>;
   async function submitMapping(
     form: MappingFormData,
     mode: "create" | "edit",
-    editing?: ApiMappingResp
+    editing?: ApiMappingResp,
+    openedAtServiceCode?: string
   ): Promise<boolean> {
     const serviceCode = selectedServiceCode.value;
     if (!serviceCode || form.resourceEntityId == null) {
       message("请先选择服务并填写资源实体 ID", { type: "warning" });
+      return false;
+    }
+    // 弹窗打开时服务快照与提交时选中不一致即拒绝（T-FE-059，双轨评审处置：
+    // 新增弹窗标题绑定打开时服务，create 分支提交目标取当前选中——快照与现值分裂面）
+    if (
+      openedAtServiceCode !== undefined &&
+      openedAtServiceCode !== serviceCode
+    ) {
+      message("该弹窗目标服务与当前选中不一致，请刷新后重试", {
+        type: "warning"
+      });
       return false;
     }
     try {
@@ -271,6 +290,14 @@ export function useServiceInterface() {
           extra: form.extra.trim() || null
         });
       } else if (editing) {
+        // 保存时核对仍属于预期上下文（T-FE-059）：行所属服务与当前选中不一致即拒绝——
+        // 覆盖「弹窗存续期间页面上下文变化」（如后退键离开再回）的窄路径
+        if (editing.serviceCode !== serviceCode) {
+          message("该映射不属于当前选中服务，请刷新后重试", {
+            type: "warning"
+          });
+          return false;
+        }
         await updateApiMapping({
           resourceId: editing.resourceEntityId,
           mappingId: editing.id,
@@ -313,6 +340,13 @@ export function useServiceInterface() {
       return false;
     }
     try {
+      // 保存时核对仍属于预期上下文（T-FE-059）：确认框期间页面上下文可能已变
+      if (mapping.serviceCode !== selectedServiceCode.value) {
+        message("该映射不属于当前选中服务，请刷新后重试", {
+          type: "warning"
+        });
+        return false;
+      }
       await removeApiMappings([mapping.id]);
       message("接口映射已移除", { type: "success" });
       await loadDirectory();

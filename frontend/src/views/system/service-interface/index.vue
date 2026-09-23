@@ -173,13 +173,20 @@ function openMappingForm(mode: "create" | "edit", row?: ApiMappingResp) {
         closeLoading();
         return;
       }
+      const formData = formRef.getFormData() as MappingFormData;
       const saved =
         mode === "create"
-          ? await submitMapping(formRef.getFormData() as MappingFormData, mode)
+          ? await submitMapping(
+              formData,
+              "create",
+              undefined,
+              service.serviceCode
+            )
           : await submitMapping(
-              formRef.getFormData() as MappingFormData,
-              mode,
-              row as ApiMappingResp
+              formData,
+              "edit",
+              row as ApiMappingResp,
+              service.serviceCode
             );
       if (saved) done();
       else closeLoading();

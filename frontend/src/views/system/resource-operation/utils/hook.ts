@@ -71,12 +71,16 @@ export function useResourceOperation() {
   // ========== 资源树 ==========
   // T-FE-051：树/操作表两路加载收敛 useListLoad（latest-wins 代际——切资源类型时
   // 旧类型的慢响应不再覆盖新类型的数据；权限门禁留在包装层）
+  // T-FE-059：数据归属选中资源类型——切类型取数发起即清空旧类型数据（失败不回填），
+  // 旧类型树/操作行不得在新类型下可写（F011 同模式）
   const {
     list: treeData,
     loading: resourceLoading,
-    load: loadTreeCore
+    load: loadTreeCore,
+    clear: clearTree
   } = useListLoad<ResourceTreeNode>({
     errorText: "加载资源树失败",
+    contextKey: () => selectedResourceTypeCode.value,
     fetcher: async () => {
       const res = await getResourceTree({
         resourceTypeCode: selectedResourceTypeCode.value!
@@ -116,7 +120,10 @@ export function useResourceOperation() {
 
   async function loadTree() {
     if (!canViewResource.value || !selectedResourceTypeCode.value) {
-      treeData.value = [];
+      // 权限失效/类型置空：清空并作废在途请求（T-FE-059，迟到响应不回写）；
+      // 信息条同步置空防孤儿节点（其编辑/移动/删除入口随树数据失效）
+      clearTree();
+      selectedNode.value = null;
       return;
     }
     return loadTreeCore();
@@ -137,9 +144,12 @@ export function useResourceOperation() {
   const {
     list: operations,
     loading: operationLoading,
-    load: loadOperationsCore
+    load: loadOperationsCore,
+    clear: clearOperations
   } = useListLoad<OperationPermissionResp>({
     errorText: "加载操作权限失败",
+    // T-FE-059：与资源树同上下文（选中资源类型）
+    contextKey: () => selectedResourceTypeCode.value,
     fetcher: async () => {
       const res = await getOperationList({
         resourceTypeCode: selectedResourceTypeCode.value!
@@ -156,7 +166,8 @@ export function useResourceOperation() {
 
   async function loadOperations() {
     if (!canViewOperation.value || !selectedResourceTypeCode.value) {
-      operations.value = [];
+      // 权限失效/类型置空：清空并作废在途请求（T-FE-059）
+      clearOperations();
       return;
     }
     return loadOperationsCore();
@@ -204,6 +215,13 @@ export function useResourceOperation() {
         });
         message("资源创建成功", { type: "success" });
       } else if (editing) {
+        // 保存时核对仍属于预期上下文（T-FE-059）：行所属类型与当前选中不一致即拒绝
+        if (editing.resourceTypeCode !== selectedResourceTypeCode.value) {
+          message("该资源不属于当前选中资源类型，请刷新后重试", {
+            type: "warning"
+          });
+          return false;
+        }
         await updateResource({
           resourceTypeCode: editing.resourceTypeCode,
           code: editing.code,
@@ -239,6 +257,13 @@ export function useResourceOperation() {
       return false;
     }
     try {
+      // 保存时核对仍属于预期上下文（T-FE-059）：确认框期间页面上下文可能已变
+      if (node.resourceTypeCode !== selectedResourceTypeCode.value) {
+        message("该资源不属于当前选中资源类型，请刷新后重试", {
+          type: "warning"
+        });
+        return false;
+      }
       await removeResources([keyOfNode(node)]);
       message("资源已删除", { type: "success" });
       if (selectedNode.value?.id === node.id) selectedNode.value = null;
@@ -252,6 +277,14 @@ export function useResourceOperation() {
 
   async function submitMove(form: ResourceMoveFormData): Promise<boolean> {
     try {
+      // 保存时核对仍属于预期上下文（T-FE-059）：移动弹窗捕获的资源键与当前选中
+      // 类型不一致即拒绝（双轨评审处置：与同页编辑/删除守卫对称）
+      if (form.resource.resourceTypeCode !== selectedResourceTypeCode.value) {
+        message("该资源不属于当前选中资源类型，请刷新后重试", {
+          type: "warning"
+        });
+        return false;
+      }
       await moveResource({
         resource: form.resource,
         parent: form.parent
@@ -282,6 +315,13 @@ export function useResourceOperation() {
         });
         message("操作权限创建成功", { type: "success" });
       } else if (editing) {
+        // 保存时核对仍属于预期上下文（T-FE-059）：行所属类型与当前选中不一致即拒绝
+        if (editing.resourceTypeCode !== selectedResourceTypeCode.value) {
+          message("该操作权限不属于当前选中资源类型，请刷新后重试", {
+            type: "warning"
+          });
+          return false;
+        }
         // 位字段脏检查：与原值一致则不提交（后端 null=不更新）——防止只改名称等场景
         // 经 Number 往返丢精度静默改写高位位值（T-PERM-028 复评 P1）
         const bitChanged = String(form.binaryBit) !== editing.binaryBit;
@@ -321,6 +361,13 @@ export function useResourceOperation() {
       return false;
     }
     try {
+      // 保存时核对仍属于预期上下文（T-FE-059）：确认框期间页面上下文可能已变
+      if (row.resourceTypeCode !== selectedResourceTypeCode.value) {
+        message("该操作权限不属于当前选中资源类型，请刷新后重试", {
+          type: "warning"
+        });
+        return false;
+      }
       const key: OperationKey = {
         resourceTypeCode: row.resourceTypeCode,
         code: row.code

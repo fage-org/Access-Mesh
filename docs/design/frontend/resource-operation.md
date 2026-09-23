@@ -179,4 +179,5 @@ views/system/resource-operation/
 - [x] 资源树 CRUD + 移动（弹窗选目标父节点，防环 + 跨类型拦截）。
 - [x] 操作权限 CRUD，binaryBit 2 的幂次校验 + 同类型内唯一性。
 - [x] hasPerms 门控 `RESOURCE:VIEW/CREATE/MANAGE` + `OPERATION:VIEW/CREATE/MANAGE`，admin/sec 全权、hr/auditor 只读。
+- [x] 资源树与操作权限表绑定选中资源类型上下文（T-FE-059，2026-09-23）：切类型取数发起即清空、失败不回填，权限/类型置空短路同步清空并作废在途请求且重置选中节点；资源编辑/删除/移动与操作权限编辑/删除按 `resourceTypeCode` 与当前选中核对，不一致拒绝且不发货。
 - [x] API 核对清单产出，🔧 项登记 T-PERM-028。

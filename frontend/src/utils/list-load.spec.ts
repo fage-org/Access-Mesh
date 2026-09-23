@@ -175,6 +175,152 @@ describe("useListLoad（T-FE-051 通用列表层）", () => {
   });
 });
 
+describe("useListLoad 上下文绑定（T-FE-059）", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("为不同上下文取数：load() 发起即清空旧上下文数据，成功后回写新上下文（旧实现保留 A 数据必失败）", async () => {
+    let ctx = "A";
+    const b = defer<string[]>();
+    const fetcher = vi
+      .fn<() => Promise<string[]>>()
+      .mockResolvedValueOnce(["A1"])
+      .mockImplementationOnce(() => b.promise);
+    const { list, load } = useListLoad<string>({
+      errorText: "加载测试列表失败",
+      fetcher,
+      contextKey: () => ctx
+    });
+
+    await load();
+    expect(list.value).toEqual(["A1"]);
+
+    ctx = "B";
+    load();
+    // 发起即清空：旧上下文数据不得在新上下文下可写——旧实现此处仍 ["A1"]
+    expect(list.value).toEqual([]);
+
+    b.resolve(["B1"]);
+    await flush();
+    expect(list.value).toEqual(["B1"]);
+  });
+
+  it("切上下文后加载失败：保持空集并提示（旧实现保留 A 数据必失败——F011 形态）", async () => {
+    let ctx = "A";
+    const fetcher = vi
+      .fn<() => Promise<string[]>>()
+      .mockResolvedValueOnce(["A1"])
+      .mockRejectedValueOnce(new Error("B 上下文加载失败"));
+    const { list, error, load } = useListLoad<string>({
+      errorText: "加载测试列表失败",
+      fetcher,
+      contextKey: () => ctx
+    });
+
+    await load();
+    ctx = "B";
+    await load(); // 失败
+
+    expect(list.value).toEqual([]);
+    expect(error.value).toBe("B 上下文加载失败");
+    expect(mockMessage).toHaveBeenCalledWith("B 上下文加载失败", {
+      type: "error"
+    });
+  });
+
+  it("null 是合法上下文值：null 已加载 → 切具体值取数失败保持空集（旧实现哨兵归一残留必失败）", async () => {
+    let ctx: string | null = null;
+    const fetcher = vi
+      .fn<() => Promise<string[]>>()
+      .mockResolvedValueOnce(["全部组织行"])
+      .mockRejectedValueOnce(new Error("组织 5 加载失败"));
+    const { list, load } = useListLoad<string>({
+      errorText: "加载测试列表失败",
+      fetcher,
+      contextKey: () => ctx
+    });
+
+    await load(); // null（全组织）成功加载
+    expect(list.value).toEqual(["全部组织行"]);
+
+    ctx = "5";
+    await load(); // 失败
+
+    expect(list.value).toEqual([]);
+  });
+
+  it("同上下文刷新失败：保留旧数据与既有交互（不制造额外损失）", async () => {
+    const fetcher = vi
+      .fn<() => Promise<string[]>>()
+      .mockResolvedValueOnce(["A1"])
+      .mockRejectedValueOnce(new Error("同上下文刷新失败"));
+    const { list, load } = useListLoad<string>({
+      errorText: "加载测试列表失败",
+      fetcher,
+      contextKey: () => "A"
+    });
+
+    await load();
+    await load(); // 失败
+
+    expect(list.value).toEqual(["A1"]);
+  });
+
+  it("clear()：清空数据、作废在途请求（迟到成功不回写）、复位 loading、触发 onClear（旧实现无此面）", async () => {
+    const a = defer<string[]>();
+    const fetcher = vi
+      .fn<() => Promise<string[]>>()
+      .mockImplementation(() => a.promise);
+    const onClear = vi.fn();
+    const { list, loading, clear, load } = useListLoad<string>({
+      errorText: "加载测试列表失败",
+      fetcher,
+      contextKey: () => "A",
+      onClear
+    });
+
+    load();
+    expect(loading.value).toBe(true);
+
+    clear();
+    expect(list.value).toEqual([]);
+    expect(loading.value).toBe(false);
+    expect(onClear).toHaveBeenCalledTimes(1);
+
+    a.resolve(["A1"]); // clear 作废后的迟到成功：不得回写
+    await flush();
+    expect(list.value).toEqual([]);
+  });
+
+  it("usePagedList 上下文切换清空：tableData 清空且 total 归零（旧实现保留旧页数据与 total 必失败）", async () => {
+    let ctx = 1;
+    const fetcher = vi
+      .fn<
+        (
+          page: number,
+          size: number
+        ) => Promise<{ items: string[]; total: number }>
+      >()
+      .mockResolvedValueOnce({ items: ["u1"], total: 1 })
+      .mockRejectedValueOnce(new Error("组织 2 成员加载失败"));
+    const { tableData, pagination, onSearch } = usePagedList<string>({
+      errorText: "加载测试分页失败",
+      fetcher,
+      contextKey: () => ctx
+    });
+
+    await onSearch();
+    expect(pagination.total).toBe(1);
+
+    ctx = 2;
+    await onSearch(); // 失败
+
+    expect(tableData.value).toEqual([]);
+    expect(pagination.total).toBe(0);
+  });
+});
+
 describe("usePagedList（T-FE-051 分页层）", () => {
   beforeEach(() => {
     vi.clearAllMocks();
