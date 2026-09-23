@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-23（T-FE-058 §4.2 转已实施：U005 迁移+同批退役 /role/list/选择器形态 el-select remote+下拉内翻页/Q-035+Q-036 随卡收敛，三项拍板见 registry 同日行）同日（T-FE-059 §4.4 转已实施：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」）同日（T-ACCESS-053 §5.2 补实施定案段：U008 维持现状登记 Q-040/撤销恢复主线 E2E⑧+文档/compose 空环境实测/文档改现有三处）同日（T-ACCESS-052 §3.2 已实施收口：四项拍板+全量同模式目录实例准入+菜单准入+种子四条 canGrant；端到端 DelegatedDirectoryClosurePgIT+双轨评审处置完毕+全量含 E2E 绿） 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
+last_reviewed: 2026-09-23（T-ADMIN-029 §4.5 转已实施：U007 四项拍板——typed IDs 一次性切换零兼容层/ORG 受众预留不做/严格状态机转换拒绝/my-notices+read 白名单+管理面 bootstrap 五档类型级授权；无存量结论+runbook fail-fast 处置登记）同日（T-FE-058 §4.2 转已实施：U005 迁移+同批退役 /role/list/选择器形态 el-select remote+下拉内翻页/Q-035+Q-036 随卡收敛，三项拍板见 registry 同日行）同日（T-FE-059 §4.4 转已实施：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」）同日（T-ACCESS-053 §5.2 补实施定案段：U008 维持现状登记 Q-040/撤销恢复主线 E2E⑧+文档/compose 空环境实测/文档改现有三处）同日（T-ACCESS-052 §3.2 已实施收口：四项拍板+全量同模式目录实例准入+菜单准入+种子四条 canGrant；端到端 DelegatedDirectoryClosurePgIT+双轨评审处置完毕+全量含 E2E 绿） 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -152,11 +152,13 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 **实施口径**：`useListLoad`/`usePagedList` 扩展可选 `contextKey`（数据归属上下文的 getter）+ `clear()`（清空并作废在途请求）+ `onClear`（清空副作用，分页层复位 total/page）——为不同上下文取数**发起即清空**旧数据（旧上下文数据不得在新上下文下可写，切换后失败不回填）；同上下文刷新失败保留旧数据；`hasLoadedContext` 状态区分「null 上下文已加载」与「从未加载」（null 是合法上下文值，如用户页「全组织」视图——哨兵归一旧形态会把 null 已加载当作未加载、漏清空，已修）。消费面接线：service-interface 接口映射明细（选中服务）、resource-operation 资源树+操作表（选中资源类型，权限/类型置空短路同走 clear 作废在途）、user 页成员表（选中组织，经 usePagedList）、PositionTab 岗位列表（watch 切组织预清空+自有代际，biz-domain 子表与 MappingForm 资源树的「切换预清空」先例维持不动）。**保存时核对层**（2026-09-23 用户拍板「加」）：编辑/删除/移动/新增提交前核对目标上下文与当前选中一致（行自带 serviceCode/resourceTypeCode、弹窗捕获打开时 serviceCode/orgId），不一致拒绝提示、不发请求、开关与弹窗状态回滚——覆盖「弹窗存续期间页面上下文变化」窄路径（弹窗默认 modal 挡住鼠标路径，残余=浏览器后退键+全局弹窗跨路由常驻）；UserDetailPanel 的角色/组织挂载操作不绑（操作目标为弹窗内显式选择的显式 userId，无上下文错位，登记任务卡遗留节）。
 
 <a id="notice"></a>
-### 4.5 公告最小状态与受众闭环（F010，T-ADMIN-029）
+### 4.5 公告最小状态与受众闭环（F010，T-ADMIN-029；✅ 已实施 2026-09-23）
 
 推荐以现有DDL的草稿／发布／撤回语义统一创建、发布、读取、撤回及已读动作；我的公告必须按当前租户和接收者过滤，标记已读也校验可见性。目标用户采用typed ID集合，与JSONB数组表达一致，不能把逗号串直接交JSONB处理。
 
-**U007，启动时决定**：有存量调用者时是否接受旧逗号格式短期迁移？推荐先盘点，零消费者则一次性切换；真实消费者需要兼容时只在边界转换，不维护两套领域状态。历史status=1/2可能被错误逻辑写过，不仅凭值批量翻转；只读核对操作记录、发布时间和使用方，无法判断的记录保留并出恢复清单。本卡闭合现役API，不顺带建设公告管理台或消息平台；若决定撤出交付，应显式取消／改写本卡并说明端点与数据处理。
+**U007，已拍板（2026-09-23）**：①**typed IDs 一次性切换**（消费者盘点=零真实消费——前端 lay-notice 为 pure-admin 模板 mock 硬编码、无 notice API 封装、e2e/example/后端内部零消费）：DTO 迁 `targetType`(ALL/USER，缺省 ALL)+`targetUserIds: List<Long>`，落库 JSONB 数字数组 `[101,102]`，零兼容层（旧逗号串请求自然 400）；②**ORG 受众本卡不做**（值域 ALL/USER，ORG 传值 400 拒绝——按组织成员动态展开属独立产品语义另行立项，DDL 注释同步注记预留）；③**严格状态机转换拒绝**（create=0 草稿；publish 0/2→1〔2→1 重新发布、已读延续、publishedAt 刷新〕；revoke 1→2〔保留已读记录与 publishedAt〕；非法/重复转换 10402 NOTICE_STATUS_CONFLICT 拒绝，不做幂等 no-op）；④**可达性=白名单+服务层门禁**（my-notices/read 进 Gateway 白名单——reset-password 先例**四载体**形态：Gateway yml+GatewayProperties defaults+access-service SecurityWebMvcConfig 密钥豁免+ConfigTest 防漂移断言，双轨评审 P0 处置补齐；端点真实边界=服务层登录态+可见性校验；管理面 7 端点含新 /notice/revoke 进 bootstrap apiRoutes+ADMIN_NOTICE 五档类型级授权〔VIEW/CREATE/UPDATE/DELETE/PUBLISH——操作位 DDL 已预置，ADMIN_NOTICE 无资源投影、实例级校验无资源可挂，服务层门禁全档类型级〕）。
+
+**实施口径**：受众明确语义——ALL 带 targetUserIds 拒（10008）、USER 空列表/缺省拒（10008）、USER 目标须全部为当前租户有效用户（10001）、targetType 非法值含 ORG 拒（90001 @Pattern）；my-notices SQL 层受众过滤（`status=1 AND (target_type='ALL' OR target_type='USER' AND target_ids @> to_jsonb(userId))`，USER 空/NULL 数组 fail-closed 不匹配任何人）；标已读前置可见性校验（不可见统一 10401 不泄露存在性——草稿/撤回/非受众/不存在同码）；删除公告级联物理清理 sys_user_notice（本表无 delete_flag，兑现 Controller 历来 javadoc 声称）；update 用 UpdateEntity 显式列集（USER→ALL 切换 target_ids 必须真置空——update(entity) 忽略 null 列会残留旧受众数组）；编辑不设状态限制（维持现状最小改动，撤回/已发布可编辑，已读记录挂 noticeId 语义自洽）。历史状态错写存量结论=**无存量**（依据：bootstrap 不种公告数据、项目无生产部署、开发库经 rebuild-runbook 重建即可）——不出迁移/翻转语句；已初始化旧库重启将因固定图缺 9 行 API 报「部分存在」fail-fast（预期），处置=重建库（runbook T-ADMIN-029 行）。bootstrap 计数随 9 API 行+5 档授权更新（AccessBootstrapPgIT 98/97/148/50）。红跑实证两层：typed 数组请求旧实现 90001 拒收（零兼容层锁）+旧逗号串请求旧实现 403（bootstrap 无 ADMIN_NOTICE 授权——F010「请求被门禁拒绝」根因实证，旧实现管理面服务层即不可达、行为验证只能靠 403 冒充；本卡授权后行为面才真正可验收）。回归锁 NoticeLifecyclePgIT 真权限链组合两用例（MockMvc 真链+真登录会话）+快照测试 revoke 行。
 
 ## 5. 首次接入与能力边界
 

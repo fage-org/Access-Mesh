@@ -198,6 +198,11 @@ public enum AccessErrorCode {
      */
     NOTICE_NOT_FOUND(10401, "通知不存在"),
 
+    /**
+     * 公告状态不允许该操作（T-ADMIN-029 严格状态机：草稿→发布→撤回，非法/重复转换拒绝）
+     */
+    NOTICE_STATUS_CONFLICT(10402, "公告状态不允许该操作"),
+
     // ===== 文件相关错误（10501-10599） =====
 
     /**

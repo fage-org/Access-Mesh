@@ -71,7 +71,13 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
                         "/api/access/auth/userinfo",
                         "/api/access/auth/user-menu",
                         "/api/access/auth/oauth2/**",
-                        "/api/access/user/reset-password")
+                        "/api/access/user/reset-password",
+                        // T-ADMIN-029：公告自服务两端点（与 Gateway 白名单同源四载体之一）——
+                        // 密钥拦截不豁免则白名单路径（Gateway 只注入密钥不注入用户/租户头）落
+                        // 「纯服务调用」分支恒 400；豁免后走 Sa-Token 会话分支（tenant 从会话读，
+                        // 与 Controller StpUtil 同源），reset-password 同款链路
+                        "/api/access/notice/my-notices",
+                        "/api/access/notice/read")
                 .order(1);
 
         // order=2：签名拦截器，覆盖所有受控路径。

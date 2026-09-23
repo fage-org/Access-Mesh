@@ -58,12 +58,28 @@ public interface SysNoticeMapper extends BaseMapper<SysNotice> {
     long countByTenant(@Param("tenantId") Long tenantId);
 
     /**
-     * 查询已发布且未删除的通知列表（租户隔离），按创建时间倒序
+     * 查询对指定用户可见的已发布公告列表（租户隔离+受众过滤），按创建时间倒序
+     * <p>
+     * 可见口径（T-ADMIN-029）：status=1 且（target_type='ALL' 或
+     * target_type='USER' 且 target_ids JSONB 数组包含该用户 ID）。
+     * target_ids 为 NULL/空数组的 USER 行不匹配任何人（fail-closed）。
+     * </p>
      *
      * @param tenantId 租户ID
+     * @param userId   接收用户ID
      * @return 通知实体列表
      */
-    List<SysNotice> selectPublishedByTenant(@Param("tenantId") Long tenantId);
+    List<SysNotice> selectVisibleByUser(@Param("tenantId") Long tenantId, @Param("userId") Long userId);
+
+    /**
+     * 校验指定用户对某公告的可见性（已发布+受众含该用户；租户隔离）
+     *
+     * @param tenantId 租户ID
+     * @param id       通知ID
+     * @param userId   接收用户ID
+     * @return 可见返回 1，不可见返回 0
+     */
+    long countVisibleById(@Param("tenantId") Long tenantId, @Param("id") Long id, @Param("userId") Long userId);
 
     /**
      * 批量软删除通知公告
@@ -80,4 +96,28 @@ public interface SysNoticeMapper extends BaseMapper<SysNotice> {
     int softDeleteBatch(@Param("tenantId") Long tenantId,
                         @Param("ids") List<Long> ids,
                         @Param("deletedAt") LocalDateTime deletedAt);
+
+    /**
+     * 发布状态原子转换（草稿 0/已撤回 2 → 已发布 1；T-ADMIN-029）
+     * <p>
+     * 条件 UPDATE 下沉状态判定（影响行数 0 = 前置状态不符，服务层转 10402），
+     * 消除读-判-写竞态窗口——严格转换拒绝语义在并发下原子成立。
+     * published_at 刷新为当次发布时间（重新发布语义）。
+     * </p>
+     *
+     * @return 影响行数（0=当前状态不允许发布）
+     */
+    int publishFrom(@Param("tenantId") Long tenantId, @Param("id") Long id,
+                    @Param("now") LocalDateTime now);
+
+    /**
+     * 撤回状态原子转换（已发布 1 → 已撤回 2；T-ADMIN-029）
+     * <p>
+     * 同 {@link #publishFrom} 的原子语义；published_at 保留作发布痕迹，已读记录不清理。
+     * </p>
+     *
+     * @return 影响行数（0=当前状态不允许撤回）
+     */
+    int revokeFrom(@Param("tenantId") Long tenantId, @Param("id") Long id,
+                   @Param("now") LocalDateTime now);
 }

@@ -77,8 +77,8 @@ public interface NoticeAppService {
     /**
      * 发布通知
      * <p>
-     * 将通知状态设置为已发布。
-     * 发布后通知对用户可见。
+     * 将通知状态设置为已发布（0 草稿/2 已撤回 → 1 已发布）。
+     * 发布后通知对目标受众可见；对已发布状态重复发布拒绝。
      * </p>
      *
      * @param id 通知ID
@@ -86,10 +86,22 @@ public interface NoticeAppService {
     void publishNotice(Long id);
 
     /**
+     * 撤回通知（T-ADMIN-029）
+     * <p>
+     * 将已发布通知置为已撤回（1 → 2）。撤回后通知对受众不可见、不可标记已读；
+     * 已读记录保留（重新发布后已读状态延续）。
+     * 对草稿/已撤回状态执行撤回拒绝。
+     * </p>
+     *
+     * @param id 通知ID
+     */
+    void revokeNotice(Long id);
+
+    /**
      * 标记通知为已读
      * <p>
      * 记录用户已阅读指定通知的状态。
-     * 用于追踪通知的阅读情况。
+     * 前置校验该用户对通知的可见性（已发布+受众内），不可见按不存在拒绝。
      * </p>
      *
      * @param noticeId 通知ID
@@ -100,7 +112,7 @@ public interface NoticeAppService {
     /**
      * 获取用户的通知列表（含阅读状态）
      * <p>
-     * 查询指定用户的所有通知及其阅读状态。
+     * 查询指定用户可见的已发布公告（受众过滤）及其阅读状态。
      * 用于用户的未读通知提醒和通知列表展示。
      * </p>
      *
@@ -115,7 +127,7 @@ public interface NoticeAppService {
      * 用于封装用户通知列表的条目信息，包含通知内容和阅读状态。
      * </p>
      */
-    record UserNoticeItem(Long noticeId, String title, String content, String noticeType,
+    record UserNoticeItem(Long noticeId, String title, String content, Integer noticeType,
                           java.time.LocalDateTime createdAt, Boolean isRead,
                           java.time.LocalDateTime readAt) {}
 }

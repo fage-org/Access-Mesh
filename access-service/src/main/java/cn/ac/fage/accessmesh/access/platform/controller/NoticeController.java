@@ -44,8 +44,9 @@ public class NoticeController {
     /**
      * 创建公告
      * <p>
-     * 创建新的公告，设置公告标题、内容、类型等属性。
-     * 创建后公告为草稿状态，需发布后才对用户可见。
+     * 创建新的公告，设置公告标题、内容、类型、目标受众等属性。
+     * 创建后公告为草稿状态（status=0），对接收者不可见，发布后才可见。
+     * targetType=ALL 全员 / USER 指定用户（targetUserIds 必填非空）。
      * </p>
      *
      * @param req 公告创建请求，包含公告基本信息
@@ -74,10 +75,10 @@ public class NoticeController {
     /**
      * 删除公告
      * <p>
-     * 批量删除公告，会同时处理用户已读记录。
+     * 批量软删除公告，并级联清理用户已读记录（T-ADMIN-029 兑现级联语义）。
      * </p>
      *
-     * @param req ID集合请求，包含待删除的公告ID列表
+     * @param req ID集合请求，包含待删除公告ID列表
      * @return 操作成功结果
      */
     @PostMapping("/delete")
@@ -117,7 +118,9 @@ public class NoticeController {
     /**
      * 发布公告
      * <p>
-     * 将草稿状态的公告发布，发布后公告对用户可见。
+     * 将草稿状态的公告发布，发布后公告对目标受众可见。
+     * 已撤回的公告可重新发布（重新上架，已读记录延续）；
+     * 对已发布状态重复发布拒绝。
      * </p>
      *
      * @param req ID请求，包含公告ID
@@ -130,10 +133,27 @@ public class NoticeController {
     }
 
     /**
+     * 撤回公告（T-ADMIN-029）
+     * <p>
+     * 将已发布的公告撤回。撤回后公告对受众不可见、不可标记已读；
+     * 已读记录保留，重新发布后已读状态延续。
+     * 对草稿/已撤回状态执行撤回拒绝。
+     * </p>
+     *
+     * @param req ID请求，包含公告ID
+     * @return 操作成功结果
+     */
+    @PostMapping("/revoke")
+    public R<Void> revokeNotice(@Valid @RequestBody IdReq req) {
+        noticeService.revokeNotice(req.id());
+        return R.ok();
+    }
+
+    /**
      * 标记公告已读
      * <p>
      * 用户阅读公告后标记为已读状态。
-     * 用于统计公告阅读情况。
+     * 前置校验可见性（已发布+受众内），不可见按公告不存在拒绝。
      * </p>
      *
      * @param req ID请求，包含公告ID
@@ -148,7 +168,7 @@ public class NoticeController {
     /**
      * 查询用户公告列表
      * <p>
-     * 查询当前用户可见的公告列表，包含已读状态。
+     * 查询当前用户可见的已发布公告列表（受众过滤），包含已读状态。
      * 用于用户公告中心展示。
      * </p>
      *

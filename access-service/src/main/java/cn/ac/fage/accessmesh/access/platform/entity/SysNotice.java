@@ -49,18 +49,18 @@ public class SysNotice {
     private String content;
 
     /**
-     * 目标类型（ALL=全员，USER=指定用户，ORG=指定组织）
+     * 目标类型（ALL=全员，USER=指定用户；ORG 预留未实现、传值拒绝——T-ADMIN-029）
      */
     private String targetType;
 
     /**
-     * 目标ID列表（逗号分隔）
+     * 目标用户ID列表（targetType=USER 时非空，JSONB 数字数组文本形态如 [101,102]；ALL 时为 NULL）
      */
     @Column(typeHandler = JsonbStringTypeHandler.class)
     private String targetIds;
 
     /**
-     * 状态（0=草稿，1=已发布）
+     * 状态（0=草稿，1=已发布，2=已撤回）
      */
     private Integer status;
 

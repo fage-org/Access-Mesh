@@ -197,6 +197,7 @@ class HttpApiPathSnapshotTest {
 /api/access/notice/page
 /api/access/notice/publish
 /api/access/notice/read
+/api/access/notice/revoke
 /api/access/notice/update
 /api/access/oauth2/client/create
 /api/access/oauth2/client/delete
@@ -379,6 +380,7 @@ class HttpApiPathSnapshotTest {
 /api/access/notice/page|common.model.PageReq|common.model.R<perm.common.dto.resp.PageResp<access.platform.dto.resp.NoticeResp>>
 /api/access/notice/publish|common.model.IdReq|common.model.R<Void>
 /api/access/notice/read|common.model.IdReq|common.model.R<Void>
+/api/access/notice/revoke|common.model.IdReq|common.model.R<Void>
 /api/access/notice/update|access.platform.dto.req.NoticeUpdateReq|common.model.R<Void>
 /api/access/oauth2/client/create|access.auth.dto.Oauth2ClientCreateReq|common.model.R<Long>
 /api/access/oauth2/client/delete|access.infrastructure.dto.IdsReq|common.model.R<Void>

@@ -122,6 +122,13 @@ gateway:
       # 必 403；服务层门禁不变：Sa-Token 登录校验（StpUtil.getLoginIdAsLong）+ 自身
       # 路径豁免 / 非自身须 USER:RESET_PASSWORD 实例级（T-PERM-067 语义零改动）
       - /api/access/user/reset-password
+      # T-ADMIN-029：公告自服务两端点（reset-password 同款形态）——普通用户无
+      # API:ACCESS 位必 403；白名单放行后端点真实边界=服务层登录态+可见性校验
+      #（my-notices 受众过滤 / read 已发布+受众内前置校验，不可见按 10401 拒）；
+      # 管理面七端点（create/update/delete/detail/page/publish/revoke）不在白名单，
+      # 走 bootstrap API:ACCESS 实例授权 + ADMIN_NOTICE 五档类型级业务门禁
+      - /api/access/notice/my-notices
+      - /api/access/notice/read
       - /public/**
       - /captcha/**
 

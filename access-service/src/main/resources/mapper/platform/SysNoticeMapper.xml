@@ -30,11 +30,39 @@
         WHERE tenant_id = #{tenantId} AND delete_flag = 0
     </select>
 
-    <select id="selectPublishedByTenant" resultType="cn.ac.fage.accessmesh.access.platform.entity.SysNotice">
+    <!-- 受众可见口径（T-ADMIN-029）：status=1 且（ALL 或 USER 且 target_ids JSONB 数组包含该用户）；
+         target_ids 为 NULL/空数组的 USER 行不匹配任何人（fail-closed）。
+         to_jsonb(bigint) 构造数字标量供 @> 包含判定，[101,102] @> 101 → true -->
+    <select id="selectVisibleByUser" resultType="cn.ac.fage.accessmesh.access.platform.entity.SysNotice">
         SELECT * FROM sys_notice
         WHERE tenant_id = #{tenantId} AND delete_flag = 0 AND status = 1
-        ORDER BY created_at DESC
+        AND (target_type = 'ALL'
+             OR (target_type = 'USER' AND target_ids @> to_jsonb(#{userId})))
+        ORDER BY created_at DESC, id DESC
     </select>
+
+    <select id="countVisibleById" resultType="long">
+        SELECT COUNT(*) FROM sys_notice
+        WHERE tenant_id = #{tenantId} AND delete_flag = 0 AND id = #{id} AND status = 1
+        AND (target_type = 'ALL'
+             OR (target_type = 'USER' AND target_ids @> to_jsonb(#{userId})))
+    </select>
+
+    <!-- 状态机原子转换（T-ADMIN-029 双轨评审 P2-1：条件 UPDATE 下沉判定，消读-判-写竞态窗口；
+         影响行数 0 = 前置状态不符 → 服务层 10402 严格拒绝） -->
+    <update id="publishFrom">
+        UPDATE sys_notice
+        SET status = 1, published_at = #{now}, updated_at = #{now}
+        WHERE tenant_id = #{tenantId} AND id = #{id} AND delete_flag = 0
+        AND status IN (0, 2)
+    </update>
+
+    <update id="revokeFrom">
+        UPDATE sys_notice
+        SET status = 2, updated_at = #{now}
+        WHERE tenant_id = #{tenantId} AND id = #{id} AND delete_flag = 0
+        AND status = 1
+    </update>
 
     <update id="softDeleteBatch">
         UPDATE sys_notice

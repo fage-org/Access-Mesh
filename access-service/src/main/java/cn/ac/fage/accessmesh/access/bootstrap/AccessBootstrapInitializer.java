@@ -79,7 +79,9 @@ public class AccessBootstrapInitializer {
         ResourceTypeCode.TYPE_DEFINITION, ResourceTypeCode.RESOURCE, ResourceTypeCode.OPERATION,
         ResourceTypeCode.OPERATION_LOG, ResourceTypeCode.PERMISSION_CHANGE_LOG, ResourceTypeCode.DOMAIN,
         ResourceTypeCode.CONFLICT_RULE, ResourceTypeCode.CONDITION, ResourceTypeCode.DEPENDENCY,
-        ResourceTypeCode.SYSTEM_CONFIG);
+        ResourceTypeCode.SYSTEM_CONFIG,
+        // T-ADMIN-029：公告管理面五档类型级授权（VIEW/CREATE/UPDATE/DELETE/PUBLISH）
+        ResourceTypeCode.ADMIN_NOTICE);
 
     /** sys_user.user_type：本地用户管理展示值（与 createUser 链一致；权限域类型由投影链解析） */
     private static final int SYS_USER_TYPE_PERSON = 1;

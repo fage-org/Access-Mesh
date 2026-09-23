@@ -49,6 +49,8 @@ public class GatewayProperties {
      * 旧形态在 /perm/api/perm/auth/* 不匹配旧 /auth/**，非等价替换）；收窄为会话入口族
      * 精确清单，与 access-service SecurityWebMvcConfig 密钥豁免清单同源。
      * T-GW-009：纳入 /api/access/user/reset-password（自助改密通道，定案⑤）。
+     * T-ADMIN-029：纳入公告自服务两端点 my-notices/read（普通用户自服务，reset-password
+     * 同款四载体形态——yml/本默认值/SecurityWebMvcConfig 密钥豁免/ConfigTest 断言）。
      * </p>
      */
     @Getter
@@ -63,6 +65,8 @@ public class GatewayProperties {
             "/api/access/auth/user-menu",
             "/api/access/auth/oauth2/**",
             "/api/access/user/reset-password",
+            "/api/access/notice/my-notices",
+            "/api/access/notice/read",
             "/public/**",
             "/captcha/**"
         );

@@ -197,14 +197,14 @@ class AccessBootstrapPgIT {
             "SELECT count(*) FROM resource_entity WHERE tenant_id = ? "
                 + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND code IN ('" + String.join("','", expectedApiCodes) + "') AND delete_flag = 0",
-            Long.class, TENANT)).isEqualTo(89L);
+            Long.class, TENANT)).isEqualTo(98L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
                 + "WHERE ram.tenant_id = ? AND ram.delete_flag = 0 "
                 + "AND re.resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = 1 AND type_key = 'resource_type' AND type_code = 'API') "
                 + "AND re.code LIKE 'POST:%'",
-            Long.class, TENANT)).isEqualTo(88L);
+            Long.class, TENANT)).isEqualTo(97L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM resource_api_mapping ram JOIN resource_entity re "
                 + "ON ram.resource_entity_id = re.id AND re.tenant_id = ram.tenant_id "
@@ -216,7 +216,7 @@ class AccessBootstrapPgIT {
         // 同样要求先持有）；含 SERVICE 四操作类型级 VIEW/MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE
         // 与 API:ACCESS 类型级+canGrant、OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW、DOMAIN:VIEW、
         // CONFLICT_RULE 与 CONDITION 写各档、DEPENDENCY:VIEW（写档随 T-PERM-071 MANIFEST 独占写入退役）、
-        // TYPE_DEFINITION 写两档
+        // TYPE_DEFINITION 写两档、ADMIN_NOTICE 五档类型级（T-ADMIN-029：VIEW/CREATE/UPDATE/DELETE/PUBLISH）
         // + 每条在册 API 路由派生一条 API:ACCESS 实例授权（各联调任务按页注册，见
         // BootstrapGraphDefinition.apiRoutes()）；canGrant=true=目标 API 实例、API:ACCESS 类型级
         // 与 T-ACCESS-052 最小集四条（SERVICE:MANAGE/MANAGE_API_MAPPING、ORG:MANAGE_MEMBER、
@@ -224,7 +224,7 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(134L);
+            Long.class, TENANT, roleId)).isEqualTo(148L);
 
         // 系统任务种子（T-PERM-073，2026-09-21 用户定案）：默认停用、预置 cron；invokeTarget
         // 必须经 @JobInvocable 白名单真实解析（防拼写漂移到首次手动触发才暴露）且 String
@@ -241,7 +241,7 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
-            Long.class, TENANT, roleId)).isEqualTo(45L);
+            Long.class, TENANT, roleId)).isEqualTo(50L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND can_grant = true",

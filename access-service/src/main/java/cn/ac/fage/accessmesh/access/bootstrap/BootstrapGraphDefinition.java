@@ -259,6 +259,23 @@ public final class BootstrapGraphDefinition {
             new ApiRoute("POST", "/api/access/service-credential/update", "bootstrap:更新服务凭证", true, false),
             new ApiRoute("POST", "/api/access/service-credential/remove", "bootstrap:删除服务凭证", true, false),
             new ApiRoute("POST", "/api/access/service-credential/list", "bootstrap:服务凭证列表", true, false),
+            // T-ADMIN-029：公告管理面消费端点（状态机+受众生命周期闭合）。业务门禁五档
+            // （VIEW/CREATE/UPDATE/DELETE/PUBLISH——操作位 DDL 已全预置）类型级补授见
+            // businessGrants；ADMIN_NOTICE 无 resource_entity 投影，服务层门禁全档类型级
+            //（实例级校验无资源可挂，原有 checkInstanceLevel 形态已随本卡收敛为类型级）
+            new ApiRoute("POST", "/api/access/notice/create", "bootstrap:创建公告", true, false),
+            new ApiRoute("POST", "/api/access/notice/update", "bootstrap:更新公告", true, false),
+            new ApiRoute("POST", "/api/access/notice/delete", "bootstrap:删除公告", true, false),
+            new ApiRoute("POST", "/api/access/notice/detail", "bootstrap:公告详情", true, false),
+            new ApiRoute("POST", "/api/access/notice/page", "bootstrap:公告分页", true, false),
+            new ApiRoute("POST", "/api/access/notice/publish", "bootstrap:发布公告", true, false),
+            new ApiRoute("POST", "/api/access/notice/revoke", "bootstrap:撤回公告", true, false),
+            // T-ADMIN-029：公告自服务两端点（任何登录用户）——已入 Gateway 白名单
+            //（user/reset-password 先例形态），本行的 API:ACCESS 位对 Gateway 放行不再生效
+            //（skipAuth 短路先于快照鉴权），端点真实边界=服务层登录态+可见性校验
+            //（my-notices 受众过滤 / read 可见性前置）；保留行+映射作白名单回滚面
+            new ApiRoute("POST", "/api/access/notice/my-notices", "bootstrap:我的公告(白名单回滚面)", true, false),
+            new ApiRoute("POST", "/api/access/notice/read", "bootstrap:标记已读(白名单回滚面)", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/api/access/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }
@@ -351,6 +368,15 @@ public final class BootstrapGraphDefinition {
             // T-FE-022 联调同样受益；MANAGE 为 DDL 运行时必需码组既有种子）
             new GrantSpec(ResourceTypeCode.SYSTEM_CONFIG, OperationCode.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.SYSTEM_CONFIG, OperationCode.MANAGE, null, false),
+            // T-ADMIN-029：公告管理面五档类型级——固定图不持则空库上公告管理读写路径无授予
+            // 起点（死锁，同款机制；操作位 DDL 已预置：CRUD 四码 CROSS JOIN + ADMIN_NOTICE
+            // 专属 PUBLISH bit16）。ADMIN_NOTICE 无资源投影，实例级授权不可构造，类型级即终态形态；
+            // my-notices/read 自服务面不挂本门禁（Gateway 白名单+服务层可见性校验，见 apiRoutes 注）
+            new GrantSpec(ResourceTypeCode.ADMIN_NOTICE, OperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.ADMIN_NOTICE, OperationCode.CREATE, null, false),
+            new GrantSpec(ResourceTypeCode.ADMIN_NOTICE, OperationCode.UPDATE, null, false),
+            new GrantSpec(ResourceTypeCode.ADMIN_NOTICE, OperationCode.DELETE, null, false),
+            new GrantSpec(ResourceTypeCode.ADMIN_NOTICE, OperationCode.PUBLISH, null, false),
             // T-API-001：类型级 API:ACCESS + canGrant——新接入服务接口的授权必须由首管理员完成，
             // 实例级（仅清单内管理接口）会造成鸡生蛋（无正规入口给新接口授权）。
             new GrantSpec(ResourceTypeCode.API, OperationCode.ACCESS, null, true));

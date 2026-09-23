@@ -403,9 +403,9 @@ CREATE TABLE sys_notice (
 CREATE INDEX idx_notice_tenant_status ON sys_notice (tenant_id, status) WHERE delete_flag = 0;
 
 COMMENT ON TABLE sys_notice IS '通知/公告';
-COMMENT ON COLUMN sys_notice.notice_type IS '类型：ANNOUNCEMENT=公告，NOTIFICATION=通知';
-COMMENT ON COLUMN sys_notice.target_type IS '目标类型：ALL=全员，ORG=指定组织，USER=指定用户';
-COMMENT ON COLUMN sys_notice.target_ids IS '目标ID列表（ORG/USER 时有值），JSON 数组';
+COMMENT ON COLUMN sys_notice.notice_type IS '类型：1=通知，2=公告（T-ADMIN-029 勘误：对齐代码实际存储的数字字符串口径，旧注释 ANNOUNCEMENT/NOTIFICATION 为未落地设计措辞）';
+COMMENT ON COLUMN sys_notice.target_type IS '目标类型：ALL=全员，USER=指定用户（T-ADMIN-029 定案：ORG 受众预留未实现、传值拒绝——按组织成员动态展开属独立产品语义，另行立项）';
+COMMENT ON COLUMN sys_notice.target_ids IS '目标用户ID列表（targetType=USER 时有值，ALL 时为 NULL），JSONB 数字数组（T-ADMIN-029 typed IDs 落库形态，如 [101,102]）';
 COMMENT ON COLUMN sys_notice.status IS '状态：0=草稿，1=已发布，2=已撤回';
 COMMENT ON COLUMN sys_notice.delete_flag IS '逻辑删除：0=未删除，删除时填本行id';
 

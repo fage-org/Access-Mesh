@@ -224,7 +224,10 @@ class GatewayApplicationConfigTest {
                 "/api/access/auth/user-menu", "/api/access/auth/oauth2/**",
                 // T-GW-009：自助改密通道（forceResetPwd 阻断人群经 Gateway 必达，回归锁=本断言在
                 // 未纳入白名单的旧实现下失败；服务层 Sa-Token 登录校验兜底不变）
-                "/api/access/user/reset-password")) {
+                "/api/access/user/reset-password",
+                // T-ADMIN-029：公告自服务两端点（普通用户公告面；四载体防漂移断言之一）
+                "/api/access/notice/my-notices",
+                "/api/access/notice/read")) {
             assertTrue(wl.contains(p), "whitelist 必须包含会话入口端点 " + p + "，实际 " + wl);
         }
         assertTrue(!wl.contains("/api/access/auth/**"),
@@ -246,6 +249,8 @@ class GatewayApplicationConfigTest {
         var defaults = new GatewayProperties().getWhitelist().getPaths();
         assertTrue(defaults.contains("/api/access/user/reset-password"),
             "GatewayProperties.Whitelist.paths 默认值必须包含 /api/access/user/reset-password（与 yml 同源），实际 " + defaults);
+        assertTrue(defaults.contains("/api/access/notice/my-notices") && defaults.contains("/api/access/notice/read"),
+            "GatewayProperties.Whitelist.paths 默认值必须包含公告自服务两端点（与 yml 同源，T-ADMIN-029），实际 " + defaults);
         // Spring 应用名（Nacos 服务名）配置加载
         String appName = applicationContext.getEnvironment().getProperty("spring.application.name");
         assertTrue("gateway".equals(appName), "spring.application.name 必须为 gateway，实际 " + appName);
