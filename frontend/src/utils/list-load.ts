@@ -47,10 +47,10 @@ export function useListLoad<T>(opts: ListLoadOptions<T>) {
   const error = ref<string | null>(null);
 
   let reqSeq = 0;
-  /** 当前数据归属的上下文（NO_CONTEXT=从未成功加载或已清空；contextKey 缺省形态恒为 NO_CONTEXT） */
+  /** 当前数据归属的上下文（NO_CONTEXT=从未成功加载或已清空；contextKey 缺省形态恒为 NO_CONTEXT）。
+   *  哨兵为模块私有 symbol、contextKey getter 不可能返回——loadedContext !== NO_CONTEXT 即
+   *  「已有数据」，null/undefined 均可为合法上下文值（如用户页「全组织」视图） */
   let loadedContext: unknown = NO_CONTEXT;
-  /** 曾成功加载过：区分「null 上下文已加载」与「从未加载」——null 是合法上下文值（如全组织视图） */
-  let hasLoadedContext = false;
 
   /** 清空数据并作废在途请求（T-FE-059：调用方置空/切换上下文时使用，迟到响应不回写） */
   function clear() {
@@ -59,7 +59,6 @@ export function useListLoad<T>(opts: ListLoadOptions<T>) {
     error.value = null;
     loading.value = false;
     loadedContext = NO_CONTEXT;
-    hasLoadedContext = false;
     opts.onClear?.();
   }
 
@@ -71,10 +70,13 @@ export function useListLoad<T>(opts: ListLoadOptions<T>) {
     const ctx = opts.contextKey ? opts.contextKey() : NO_CONTEXT;
     // 已有其他上下文的数据且为新上下文取数：立即清空（旧上下文数据不得在新上下文下
     // 可写；切换后失败不回填旧数据）。从未成功加载或已清空时无数据可清、不触发 onClear。
-    if (opts.contextKey && hasLoadedContext && !Object.is(loadedContext, ctx)) {
+    if (
+      opts.contextKey &&
+      loadedContext !== NO_CONTEXT &&
+      !Object.is(loadedContext, ctx)
+    ) {
       list.value = [];
       loadedContext = NO_CONTEXT;
-      hasLoadedContext = false;
       opts.onClear?.();
     }
     loading.value = true;
@@ -96,7 +98,6 @@ export function useListLoad<T>(opts: ListLoadOptions<T>) {
       if (seq !== reqSeq) return false;
       list.value = items;
       loadedContext = ctx;
-      hasLoadedContext = true;
       try {
         opts.onLoaded?.(items);
       } catch (e) {

@@ -13,6 +13,7 @@ const mockUpdateResource = vi.fn();
 const mockRemoveResources = vi.fn();
 const mockUpdateOperation = vi.fn();
 const mockMoveResource = vi.fn();
+const mockRemoveOperations = vi.fn();
 
 let hasPermsValue = true;
 
@@ -33,7 +34,7 @@ vi.mock("@/api/resource-operation", () => ({
   removeResources: (...args: unknown[]) => mockRemoveResources(...args),
   createOperation: vi.fn(),
   updateOperation: (...args: unknown[]) => mockUpdateOperation(...args),
-  removeOperations: vi.fn()
+  removeOperations: (...args: unknown[]) => mockRemoveOperations(...args)
 }));
 vi.mock("@/api/type-def", () => ({
   getTypeDefList: vi.fn().mockResolvedValue({ items: [] }),
@@ -79,6 +80,7 @@ describe("资源与操作定义页共享列表上下文（T-FE-059 / F011 同模
     mockRemoveResources.mockReset().mockResolvedValue(undefined);
     mockUpdateOperation.mockReset().mockResolvedValue(undefined);
     mockMoveResource.mockReset().mockResolvedValue(undefined);
+    mockRemoveOperations.mockReset().mockResolvedValue(undefined);
     hasPermsValue = true;
   });
 
@@ -183,5 +185,14 @@ describe("资源与操作定义页共享列表上下文（T-FE-059 / F011 同模
 
     expect(ok).toBe(false);
     expect(mockMoveResource).not.toHaveBeenCalled();
+  });
+
+  it("删除操作权限提交：行所属类型 ≠ 当前选中 → 拒绝且不发货（claude 外评处置：守卫补锁）", async () => {
+    const hook = useResourceOperation();
+    hook.selectedResourceTypeCode.value = "type-b";
+
+    await hook.deleteOperation(operationOf("type-a"));
+
+    expect(mockRemoveOperations).not.toHaveBeenCalled();
   });
 });

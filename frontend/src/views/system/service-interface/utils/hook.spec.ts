@@ -100,7 +100,8 @@ describe("服务与接口映射页共享列表上下文（T-FE-059 / F011）", (
     const ok = await hook.submitMapping(
       EDIT_FORM,
       "edit",
-      mappingOf(11, "svc-a")
+      mappingOf(11, "svc-a"),
+      "svc-a"
     );
 
     expect(ok).toBe(false);

@@ -247,20 +247,20 @@ export function useServiceInterface() {
   async function submitMapping(
     form: MappingFormData,
     mode: "create",
-    editing?: undefined,
-    openedAtServiceCode?: string
+    editing: undefined,
+    openedAtServiceCode: string
   ): Promise<boolean>;
   async function submitMapping(
     form: MappingFormData,
     mode: "edit",
     editing: ApiMappingResp,
-    openedAtServiceCode?: string
+    openedAtServiceCode: string
   ): Promise<boolean>;
   async function submitMapping(
     form: MappingFormData,
     mode: "create" | "edit",
     editing?: ApiMappingResp,
-    openedAtServiceCode?: string
+    openedAtServiceCode = ""
   ): Promise<boolean> {
     const serviceCode = selectedServiceCode.value;
     if (!serviceCode || form.resourceEntityId == null) {
@@ -269,10 +269,7 @@ export function useServiceInterface() {
     }
     // 弹窗打开时服务快照与提交时选中不一致即拒绝（T-FE-059，双轨评审处置：
     // 新增弹窗标题绑定打开时服务，create 分支提交目标取当前选中——快照与现值分裂面）
-    if (
-      openedAtServiceCode !== undefined &&
-      openedAtServiceCode !== serviceCode
-    ) {
+    if (openedAtServiceCode !== serviceCode) {
       message("该弹窗目标服务与当前选中不一致，请刷新后重试", {
         type: "warning"
       });
