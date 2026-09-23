@@ -157,9 +157,11 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 ## 5. 首次接入与能力边界
 
 <a id="cors"></a>
-### 5.1 开发Origin与代理配置一致（F012，T-GW-010）
+### 5.1 开发Origin与代理配置一致（F012，T-GW-010；✅ 已实施 2026-09-23）
 
 推荐先修quickstart中端口、域名、scheme与Gateway允许Origin的组合示例及诊断。Vite changeOrigin不抹去浏览器Origin；经Gateway仍可能被CORS拒绝。按localhost默认端口、Nacos冲突后的替代端口、127.0.0.1形态验证，不采用通配Origin+credentials。
+
+实施定案（2026-09-23 用户拍板，registry 同日行）：默认白名单扩为四个环回 dev 形态（localhost/127.0.0.1 × 8848/8890）——8890 避让形态经 F012 实证必要（旧单条默认 403 空体拒），即「已证明运行时必要」；前端 dev 默认端口维持 8848。四形态浏览器登录、nginx 同源实测与三态诊断表证据见任务卡完成记录。
 
 nginx默认80、外部非默认端口、TLS终结是不同形态，选择当前支持形态实测并如实说明。只有已证明运行时必要时才改默认配置；不为修开发文档自动引入trusted-proxy体系或削弱现有转发头信任边界。
 

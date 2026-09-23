@@ -252,14 +252,22 @@ class GatewayApplicationConfigTest {
     }
 
     @Test
-    @DisplayName("T-GW-007 CORS 环境化绑定：默认 localhost 列表 + credentials + 管理端口分离")
+    @DisplayName("T-GW-007/T-GW-010 CORS 环境化绑定：默认四个环回 dev 形态 + credentials + 管理端口分离")
     void corsEnvironmentalizedAndManagementPortSplit() {
         GlobalCorsProperties cors = applicationContext.getBean(GlobalCorsProperties.class);
         CorsConfiguration cfg = cors.getCorsConfigurations().get("/**");
         assertNotNull(cfg, "globalcors /** 配置必须存在（yml 键 '[/**]' 经 Binder 绑定后 key 为 /**）");
-        assertTrue(java.util.List.of("http://localhost:8848").equals(cfg.getAllowedOriginPatterns()),
-            "allowed-origin-patterns 默认必须为明确 localhost 列表（前端 dev 实际端口 8848，开发直连调试；T-GW-007），实际 "
+        // T-GW-010 拍板四条全放：vite 代理 changeOrigin 只改写 Host 不删浏览器 Origin，经代理到达
+        // Gateway 的请求按跨域 Origin 字面匹配白名单（localhost 与 127.0.0.1 是两个不同 Origin）；
+        // 占位符默认值含逗号须正确切分为四条（防粘连成单条导致 8890/127.0.0.1 形态 403 回归）
+        assertTrue(java.util.List.of(
+                "http://localhost:8848", "http://localhost:8890",
+                "http://127.0.0.1:8848", "http://127.0.0.1:8890")
+            .equals(cfg.getAllowedOriginPatterns()),
+            "allowed-origin-patterns 默认必须为四个环回 dev 形态（localhost/127.0.0.1 × 8848/8890，T-GW-010），实际 "
                 + cfg.getAllowedOriginPatterns());
+        assertTrue(cfg.getAllowedOriginPatterns().stream().noneMatch(p -> p.contains("*")),
+            "默认白名单不得含通配（T-GW-007 通配+credentials 启动 fail-fast）");
         assertTrue(Boolean.TRUE.equals(cfg.getAllowCredentials()), "allow-credentials 默认 true");
 
         var env = applicationContext.getEnvironment();

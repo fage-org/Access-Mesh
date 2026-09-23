@@ -14,14 +14,16 @@ import java.util.Map;
  * Gateway CORS 配置启动校验器（T-GW-007）
  * <p>
  * 校验 {@code spring.cloud.gateway.globalcors} 最终生效值（含 Nacos 远端覆盖后的值）。
- * 部署前提：生产 nginx 同源代理、开发 vite 代理（CORS 无生产消费场景）。规则：
+ * 部署前提：生产 nginx 同源代理（CORS 无生产消费场景）。规则：
  * <ul>
  *   <li>origin 列表为空或未配置：允许——CORS 禁用（同源部署终态），跨域请求被
  *       CorsProcessor 主动 403 拒绝且无 CORS 头（fail-closed，不放行任意源），启动 INFO 声明；</li>
  *   <li>origin 列表含通配（任意含 {@code *} 的 pattern）且 {@code allow-credentials=true}：
  *       启动 fail-fast（任意源携带凭证为安全缺陷，含 Nacos 远端旧值回退场景）。</li>
  * </ul>
- * 默认 {@code http://localhost:8848}（前端 dev 实际端口，开发直连调试）恒通过。
+ * 默认白名单为四个环回 dev 形态（localhost/127.0.0.1 × 8848/8890，T-GW-010 拍板）恒通过：
+ * vite 代理 changeOrigin 只改写 Host 不删浏览器 Origin，经代理到达 Gateway 的请求按跨域
+ * Origin 校验——8848=前端 dev 默认端口，8890=quickstart 避让 Nacos 8848 的替代端口。
  * 注意：yml 键 {@code '[/**]'} 经 Binder 绑定后 map key 为 {@code /**}，故按条目遍历校验
  * 而非依赖单一 key。
  * </p>

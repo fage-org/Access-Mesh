@@ -3,7 +3,7 @@ doc_type: design
 title: Gateway 服务设计
 status: adopted
 domain: gateway
-last_reviewed: 2026-09-20   # T-PERM-070：新增「M2M 凭证放行链」节（M2mCredentialFilter -75 skipAuth 仅透传 + InternalSecretFilter 收窄无凭证头兜底注入 + 凭证头不入清洗）；此前 2026-09-19   # T-GW-009（registry 定案⑤）：白名单纳入 /api/access/user/reset-password——核心链路/匿名白名单两处清单同步为 T-ACCESS-042 精确形态（顺带修陈旧整族简写）+ 服务层门禁不变口径；此前 2026-09-15（T-ACCESS-042 路由拓扑更新）；2026-09-10 T-GW-008 codex 外评 P1 处置：§清洗承诺句修正（对 framework 策略清洗不生效）+ §forward-headers-strategy 启动护栏新增（ForwardHeadersStrategyGuard，framework/native 拒启）；同日早前 §请求头清洗与客户端 IP 重建新增（T-GW-008：XFF 清洗+remoteAddr 重建+清洗叠加语义缺陷修复）；此前：2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031）；2026-08-28（T-ACCESS-027）
+last_reviewed: 2026-09-23   # T-GW-010：§CORS 配置终态段修订——默认白名单扩四环回形态+「vite 代理同为同源」前提修正（Gateway 视角跨域）+诊断口径行；此前 2026-09-20   # T-PERM-070：新增「M2M 凭证放行链」节（M2mCredentialFilter -75 skipAuth 仅透传 + InternalSecretFilter 收窄无凭证头兜底注入 + 凭证头不入清洗）；此前 2026-09-19   # T-GW-009（registry 定案⑤）：白名单纳入 /api/access/user/reset-password——核心链路/匿名白名单两处清单同步为 T-ACCESS-042 精确形态（顺带修陈旧整族简写）+ 服务层门禁不变口径；此前 2026-09-15（T-ACCESS-042 路由拓扑更新）；2026-09-10 T-GW-008 codex 外评 P1 处置：§清洗承诺句修正（对 framework 策略清洗不生效）+ §forward-headers-strategy 启动护栏新增（ForwardHeadersStrategyGuard，framework/native 拒启）；同日早前 §请求头清洗与客户端 IP 重建新增（T-GW-008：XFF 清洗+remoteAddr 重建+清洗叠加语义缺陷修复）；此前：2026-09-06 §测试域与 E2E IT 分轨口径更新（T-ACCESS-031）；2026-08-28（T-ACCESS-027）
 ---
 
 # Gateway 服务设计
@@ -183,13 +183,14 @@ Gateway 通过 Micrometer 暴露 Prometheus 指标。依赖 `spring-boot-starter
     summary: "Gateway 快照加载超过 5 秒全链路截止"
 ```
 
-## CORS 配置终态（T-GW-007，2026-08-25）
+## CORS 配置终态（T-GW-007，2026-08-25；T-GW-010 修订 2026-09-23）
 
-- **部署前提**：生产前端经 nginx 反向代理成同源（浏览器请求全部同源，CORS 无生产消费场景）；开发经 vite 代理同为同源。CORS 仅在直连网关调试场景消费。
+- **部署前提**：生产前端经 nginx 反向代理成同源（浏览器请求全部同源；nginx `proxy_set_header Host $host` 保留 Host，Gateway 侧 Spring 同源短路判定放行，不消费白名单——CORS 无生产消费场景）。开发 vite 代理对浏览器同源、**对 Gateway 是跨域请求**：`changeOrigin: true` 只改写 Host 为代理目标、不删浏览器 Origin 头，到达 Gateway 的请求按 Origin 白名单校验（F012/T-GW-010 修正原「开发经 vite 代理同为同源」表述——它仅对浏览器视角成立）。CORS 消费场景=开发代理转发 + 直连网关调试。
 - 配置面：`spring.cloud.gateway.globalcors.cors-configurations.'[/**]'`（Binder 绑定后 map key 为 `/**`）。
-  - `allowed-origin-patterns`：默认 `http://localhost:8848`（前端 dev 实际端口，开发直连调试），`GATEWAY_CORS_ALLOWED_ORIGINS` 环境变量/Nacos 可覆盖；**显式置空 = CORS 禁用**（同源部署终态：跨域请求被 CorsProcessor 主动 403 拒绝且无 CORS 头，启动 INFO 声明）。
+  - `allowed-origin-patterns`：默认四个环回 dev 形态 `http://localhost:8848,http://localhost:8890,http://127.0.0.1:8848,http://127.0.0.1:8890`（T-GW-010 拍板四条全放：8848=前端 dev 默认端口、8890=quickstart 避让 Nacos 的替代端口；localhost 与 127.0.0.1 是两个不同 Origin，按字面各占一条；占位符默认值含逗号由 Binder 切分为列表，绑定锁见 `GatewayApplicationConfigTest`），`GATEWAY_CORS_ALLOWED_ORIGINS` 环境变量/Nacos 可覆盖；**显式置空 = CORS 禁用**（同源部署终态：跨域请求被 CorsProcessor 主动 403 拒绝且无 CORS 头，启动 INFO 声明）。
   - `allow-credentials: true`（保持；token 走 Authorization 头，无 cookie 依赖，未来接 cookie 会话时不受影响）。
 - **启动 fail-fast**（`GatewayCorsConfigValidator`，校验最终生效值含 Nacos 覆盖后的值）：`allow-credentials=true` 且 origin 列表（`allowed-origin-patterns` 与兄弟键 `allowed-origins`）含任意 `*` 通配 → 启动失败（任意源携带凭证为安全缺陷，含 Nacos 远端旧值回退场景；exact 键通配若漏到运行期会每请求 500）。缺失/显式空均不放行任意源（fail-closed）。
+- **诊断口径**（T-GW-010）：CORS 拒绝=403 且响应体无 JSON 信封（浏览器 Console 报 CORS）；路由错误=404；业务 401/403=JSON 信封（含 `code` 字段）——三者可区分；CORS 403 表明请求**已到达 Gateway**（被 Origin 白名单拒绝），不得归因为「未走 Gateway」。用户侧诊断表见 quickstart「常见问题」。
 - 匿名白名单（`gateway.whitelist.paths`，会话入口族精确清单——T-ACCESS-042 收窄：整族 `/api/access/auth/**` 不放行、运行时鉴权六端点须走会话/权限校验）：`/api/access/auth/captcha`、`/api/access/auth/login`、`/api/access/auth/login/sms`、`/api/access/auth/logout`、`/api/access/auth/userinfo`、`/api/access/auth/user-menu`、`/api/access/auth/oauth2/**`、`/api/access/user/reset-password`（T-GW-009，2026-09-19 定案⑤：自助改密通道——Gateway 快照条目仅由 API 类型 ACCESS 位派生，forceResetPwd 阻断人群（普通用户）不经白名单放行必 403；服务层门禁不变：Sa-Token 登录校验 + 自身路径豁免 / 非自身 `USER:RESET_PASSWORD` 实例级，T-PERM-067；**access-service `SecurityWebMvcConfig` 密钥豁免清单同源同步纳入**——漏同步时 Gateway 对白名单路径仍无条件注入 X-Internal-Secret 且不注入租户/用户头，`RequestContextInterceptor` 内部凭证分支先于会话分支命中纯服务子分支 → 400「缺 X-Tenant-Id」遮蔽、到不了服务层（T-GW-009 双轨评审 P0；链路锁=SecurityMatrixIT 持密无租户头断言 401）；该端点的 API:ACCESS 位自白名单起对 Gateway 不再生效（skipAuth 先于快照鉴权，授权页对它的授予/收回不影响可达性）——bootstrap 固定图保留其 API 行作回滚面，端点边界=服务层门禁（claude 外评 P3，2026-09-19 用户拍板「保行+标注失效」））、`/public/**`、`/captcha/**`；`/actuator/**` 已全部移除（管理端口提供，见「监控指标」段）。
 
 ## 与权限中心的约定

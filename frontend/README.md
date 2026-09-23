@@ -17,7 +17,7 @@ pnpm dev        # 默认端口 8848（VITE_PORT 可覆盖）
 ```
 
 - API 经 vite 代理把 `/api` 同路径转发到 Gateway（`VITE_PROXY_TARGET`，默认 `http://localhost:8080`）——见 `vite.config.ts`。
-- 本机同起 Nacos 容器（控制台 8848）时用 `VITE_PORT=8890 pnpm dev` 避让端口。
+- 本机同起 Nacos 容器（控制台 8848）时用 `VITE_PORT=8890 pnpm dev` 避让端口。`localhost`/`127.0.0.1` × 8848/8890 四个页面 Origin 均在 Gateway 默认 CORS 白名单内（T-GW-010）；换其他端口/域名须同步 Gateway `GATEWAY_CORS_ALLOWED_ORIGINS`，否则代理转发的跨域 Origin 被 Gateway 403 拒绝。
 - 登录链路为真实接口（`/api/access/auth/**`）；`VITE_MOCK_LOGIN=true` 仅用于纯前端联调（`.env.development`）。
 - 侧栏菜单由登录后 `/api/access/auth/user-menu` 下发的菜单树渲染（后端派生可见性；越权直达由后端 VIEW 403 兜底）。
 

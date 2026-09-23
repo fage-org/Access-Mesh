@@ -3,7 +3,7 @@ doc_type: ops
 title: 生产部署基线
 status: adopted
 domain: cross-service
-last_reviewed: 2026-09-16
+last_reviewed: 2026-09-23   # T-GW-010：§1 补「仓库实测过的接入形态+TLS/外部非默认端口未测」边界行；此前 2026-09-16（release-preview 产出）
 ---
 
 # 生产部署基线（Deployment Baseline）
@@ -20,6 +20,7 @@ Nacos(8848)：服务注册/配置（三服务共同依赖）
 ```
 
 - 前端与 API **同源**是既定形态：前端 axios 全相对路径 `/api/**`，由 nginx `location /api/` 反代 Gateway（仓库形态见 `frontend/nginx.conf`）；同源部署下 CORS 应显式禁用（`GATEWAY_CORS_ALLOWED_ORIGINS=` 置空），不是配置跨域白名单。
+- 仓库实测过的接入形态（T-GW-010，2026-09-23）：开发 vite 代理（`localhost`/`127.0.0.1` × 8848/8890 四个 Origin 经 Gateway 白名单放行）与 compose 全栈档 nginx 同源反代（`http://127.0.0.1/` 登录链路）；**TLS 终结、外部非默认端口（非 80/443 对外域名）未在仓库环境实测**，生产部署时按本基线自行验证 Origin/转发头行为。
 - API 外部路径 = 服务路径（单命名空间 `/api/access/**`、`/api/example/**`，Gateway 无 StripPrefix）——LB/nginx 反代**不得改写路径**。
 - 信任边界：业务服务（如 example-service）应**仅 Gateway 可达**（网络隔离是根本保障，身份签名校验是纵深防御）。
 
