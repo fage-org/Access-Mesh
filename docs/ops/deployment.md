@@ -19,7 +19,8 @@ last_reviewed: 2026-09-23   # T-GW-010：§1 补「仓库实测过的接入形�
 Nacos(8848)：服务注册/配置（三服务共同依赖）
 ```
 
-- 前端与 API **同源**是既定形态：前端 axios 全相对路径 `/api/**`，由 nginx `location /api/` 反代 Gateway（仓库形态见 `frontend/nginx.conf`）；同源部署下 CORS 应显式禁用（`GATEWAY_CORS_ALLOWED_ORIGINS=` 置空），不是配置跨域白名单。
+- 前端与 API **同源**是既定形态：前端 axios 全相对路径 `/api/**`，由 nginx `location /api/` 反代 Gateway（仓库形态见 `frontend/nginx.conf`）；明文 http 且对外端口与网关观测一致的同源形态下 CORS 应显式禁用（`GATEWAY_CORS_ALLOWED_ORIGINS=` 置空），不是配置跨域白名单。
+- **TLS 终结 / 对外非默认端口形态下 CORS 同源短路不成立，不得置空**（T-GW-010 claude 外评 P2，2026-09-23）：浏览器 Origin（如 `https://<域名>`）与网关观测 URI（明文 http；`X-Forwarded-Proto` 按 T-GW-008 清洗、framework 转发策略被启动护栏拒绝，网关无法感知外层 https）scheme/端口不等，携带 Origin 的请求全部走白名单——置空（禁用）会使全部非 GET 请求 403、登录不可用；**必须把对外 Origin（如 `https://<域名>`）列入 `GATEWAY_CORS_ALLOWED_ORIGINS`**。
 - 仓库实测过的接入形态（T-GW-010，2026-09-23）：开发 vite 代理（`localhost`/`127.0.0.1` × 8848/8890 四个 Origin 经 Gateway 白名单放行）与 compose 全栈档 nginx 同源反代（`http://127.0.0.1/` 登录链路）；**TLS 终结、外部非默认端口（非 80/443 对外域名）未在仓库环境实测**，生产部署时按本基线自行验证 Origin/转发头行为。
 - API 外部路径 = 服务路径（单命名空间 `/api/access/**`、`/api/example/**`，Gateway 无 StripPrefix）——LB/nginx 反代**不得改写路径**。
 - 信任边界：业务服务（如 example-service）应**仅 Gateway 可达**（网络隔离是根本保障，身份签名校验是纵深防御）。

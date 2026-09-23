@@ -84,7 +84,7 @@ cd frontend && pnpm install && pnpm dev
 | access-service 容器反复重启 | `.env` 密钥缺失（服务 fail-fast 并打印缺失项） | `docker compose logs access-service` 看启动失败原因并补齐 `.env` |
 | 经 Gateway 的 example 请求全部返回信封 30003 | `ACCESSMESH_SIGNATURE_SECRET` 在 gateway/example-service 两处不同值（身份签名校验失败） | 两处改同值后重启 |
 | 403，响应体无 JSON 信封，Console 报 CORS 错误 | 请求**已到 Gateway**，但页面 Origin 不在 CORS 白名单（不要归因为「未走 Gateway」） | 用四个默认形态之一访问（`localhost`/`127.0.0.1` × 8848/8890）；自定义端口/域名时设 `GATEWAY_CORS_ALLOWED_ORIGINS` 放行该 Origin（设值=整体替换默认四条，需保留其他形态时全列出） |
-| 404，响应体为非 JSON 短文本（无 `code` 字段） | 路径或路由不对（`/api` 前缀被改写、`VITE_PROXY_TARGET` 指错目标） | 核对请求路径（应为 `/api/<服务命名空间>/**`）与代理目标（Gateway 8080） |
+| 404，JSON 信封 `code=404`（message 为 `No static resource` 类路由文案，无 `requestId`） | 路径或路由不对（`/api` 前缀被改写、`VITE_PROXY_TARGET` 指错目标） | 核对请求路径（应为 `/api/<服务命名空间>/**`）与代理目标（Gateway 8080） |
 | 400 提示租户缺失 | 请求绕过了 Gateway 直连 access-service（租户头由 Gateway 注入） | 前端必须经 vite 代理（dev）或 nginx（http://127.0.0.1/）/Gateway 8080 访问，不要直连 9100 |
 | 401/403，响应体是 JSON 信封（有 `code` 字段） | 已过 Gateway 且 CORS 放行，是会话/权限问题 | 401=令牌缺失/过期重新登录；403=无权限（核对角色授权与接口声明） |
 | DDL 变更后想重建库 | 开发期销毁重建（无迁移框架，`down -v` 会清掉数据卷，勿对有数据的库使用） | `docker compose --profile app down -v` 后重来；细节见 [rebuild runbook](design/access-service-rebuild-runbook.md) |
