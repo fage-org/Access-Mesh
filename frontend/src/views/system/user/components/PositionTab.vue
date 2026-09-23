@@ -174,7 +174,8 @@ function findNodeById(nodes: any[], id: number): any | null {
 /** 岗位列表请求代际（T-FE-057 双轨评审 P3-1，用户拍板顺手加）：筛选/组织切换/翻页并发时旧响应不回写 */
 let positionReqSeq = 0;
 
-async function loadPositions() {
+/** 加载岗位列表；返回是否成功（翻页调用方据此回滚页码，codex 外评 P2） */
+async function loadPositions(): Promise<boolean> {
   const seq = ++positionReqSeq;
   loading.value = true;
   try {
@@ -187,16 +188,18 @@ async function loadPositions() {
         pageSize: positionPageSize.value
       })
     );
-    if (seq !== positionReqSeq) return;
+    if (seq !== positionReqSeq) return false;
     positionList.value = res.items as PositionItem[];
     positionTotal.value = res.total;
     // 并行加载每个岗位的用户数（避免 N+1 串行阻塞渲染）
     await Promise.all(
       positionList.value.map(pos => loadPositionUserCount(pos.id))
     );
+    return true;
   } catch (e) {
-    if (seq !== positionReqSeq) return;
+    if (seq !== positionReqSeq) return false;
     message(toErrorMessage(e, "加载岗位失败"), { type: "error" });
+    return false;
   } finally {
     if (seq === positionReqSeq) {
       loading.value = false;
@@ -521,26 +524,41 @@ function onSearch() {
 
 function onReset() {
   // 单发化（claude 外评 P3）：状态筛选有值时其清空必经 watcher 重查（pre-flush 微任务），
-  // 此处不再显式补发避免双请求；仅「关键词脏而状态净」时 watcher 不触发、由本函数发
+  // 此处不再显式补发避免双请求。重置须回首页（codex 外评 P2）：无筛选条件但停在
+  // 后页时，watcher 不触发——由本函数显式回第 1 页重查；全净且在第 1 页则不动。
   const statusDirty = statusFilter.value !== undefined;
-  const keywordDirty = searchKeyword.value !== "";
+  const needsReload = searchKeyword.value !== "" || positionPage.value !== 1;
   searchKeyword.value = "";
   statusFilter.value = undefined;
-  if (!statusDirty && keywordDirty) {
+  if (!statusDirty && needsReload) {
     positionPage.value = 1;
     void loadPositions();
   }
 }
 
 function onPageChange(page: number) {
+  // 页码先行更新，失败回滚到与保留数据一致的页（codex 外评 P2）；
+  // 回滚仅在本次请求仍是最新代际时执行（迟到失败不覆写新请求的页码）
+  const prev = positionPage.value;
+  const mySeq = positionReqSeq + 1;
   positionPage.value = page;
-  void loadPositions();
+  void loadPositions().then(ok => {
+    if (!ok && positionReqSeq === mySeq) positionPage.value = prev;
+  });
 }
 
 function onPageSizeChange(size: number) {
+  const prevPage = positionPage.value;
+  const prevSize = positionPageSize.value;
+  const mySeq = positionReqSeq + 1;
   positionPageSize.value = size;
   positionPage.value = 1;
-  void loadPositions();
+  void loadPositions().then(ok => {
+    if (!ok && positionReqSeq === mySeq) {
+      positionPageSize.value = prevSize;
+      positionPage.value = prevPage;
+    }
+  });
 }
 
 // ========== 监听 ==========

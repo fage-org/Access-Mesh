@@ -50,32 +50,43 @@ export function useRemotePagedOptions<T>(
       hasNext.value = res.hasNext;
     } catch (e) {
       if (s !== seq) return;
-      // 失败保留当前页数据；反馈经 onError 回调由调用方 toast（不设内部错误态）
+      // 失败保留当前页数据；反馈经 onError 回调由调用方 toast（不设内部错误态）。
+      // rethrow 供翻页调用方回滚页码（页码先行更新，失败须退回与保留数据一致）
       opts?.onError?.(e);
+      throw e;
     } finally {
       if (s === seq) loading.value = false;
     }
   }
 
-  /** 远程搜词（remote-method 入参；清空输入收到 "" 同样回第 1 页重查） */
+  /** 远程搜词（remote-method 入参；清空输入收到 "" 同样回第 1 页重查；失败页码已为 1 无需回滚） */
   function search(kw: string) {
     keyword.value = kw ?? "";
     pageNum.value = 1;
-    void load();
+    void load().catch(() => undefined);
   }
 
-  /** 翻页按钮点击即可换页（模板侧已按 loading 禁用；连点的迟到响应由代际守卫废弃） */
+  /** 翻页：页码先行更新，失败回滚到与保留数据一致的页（codex 外评 P2）；
+   *  回滚仅在该请求仍是最新代际时执行（失败后有新请求接管页码时不覆写） */
   function prevPage() {
     if (pageNum.value > 1) {
+      const prev = pageNum.value;
+      const mySeq = seq + 1;
       pageNum.value--;
-      void load();
+      void load().catch(() => {
+        if (seq === mySeq) pageNum.value = prev;
+      });
     }
   }
 
   function nextPage() {
     if (hasNext.value) {
+      const prev = pageNum.value;
+      const mySeq = seq + 1;
       pageNum.value++;
-      void load();
+      void load().catch(() => {
+        if (seq === mySeq) pageNum.value = prev;
+      });
     }
   }
 

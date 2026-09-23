@@ -80,7 +80,8 @@ describe("useRemotePagedOptions", () => {
     await opts.load();
     expect(opts.items.value).toEqual([1]);
 
-    await opts.load();
+    // load 失败 rethrow（供翻页调用方回滚页码），此处接住验证数据保留
+    await opts.load().catch(() => undefined);
     expect(onError).toHaveBeenCalledWith(expect.any(Error));
     expect(opts.items.value).toEqual([1]);
 
@@ -88,6 +89,49 @@ describe("useRemotePagedOptions", () => {
     expect(opts.items.value).toEqual([]);
     expect(opts.pageNum.value).toBe(1);
     expect(opts.keyword.value).toBe("");
+  });
+
+  it("翻页失败回滚页码到与保留数据一致（codex 外评 P2）", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [1], total: 21, hasNext: true })
+      .mockRejectedValueOnce(new Error("boom"));
+    const opts = useRemotePagedOptions<number>(fetcher);
+
+    await opts.load();
+    opts.nextPage();
+    expect(opts.pageNum.value).toBe(2);
+    await vi.waitFor(() => expect(opts.loading.value).toBe(false));
+    // 失败回滚：页码回到 1，与保留的第 1 页数据一致
+    expect(opts.pageNum.value).toBe(1);
+    expect(opts.items.value).toEqual([1]);
+  });
+
+  it("翻页失败被新请求接管时不回滚（回滚仅限最新代际）", async () => {
+    let rejectPage2: (reason?: unknown) => void = () => {};
+    const page2Promise = new Promise<{
+      items: number[];
+      total: number;
+      hasNext: boolean;
+    }>((_, rej) => {
+      rejectPage2 = rej;
+    });
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({ items: [1], total: 21, hasNext: true })
+      .mockImplementationOnce(() => page2Promise) // 第 2 页挂起
+      .mockResolvedValueOnce({ items: [9], total: 21, hasNext: false });
+    const opts = useRemotePagedOptions<number>(fetcher);
+
+    await opts.load();
+    opts.nextPage(); // → 2，挂起
+    opts.search("新词"); // 接管：页 1、代际+1
+    await vi.waitFor(() => expect(opts.items.value).toEqual([9]));
+    rejectPage2(new Error("late-boom")); // 迟到失败
+    await vi.waitFor(() => expect(opts.loading.value).toBe(false));
+    // 新请求已接管页码，迟到失败不回滚
+    expect(opts.pageNum.value).toBe(1);
+    expect(opts.items.value).toEqual([9]);
   });
 });
 
