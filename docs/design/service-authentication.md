@@ -3,7 +3,7 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-20   # T-PERM-070 实施落地：§3.2 验证顺序与 TLS 段按实施拍板修订（registry 2026-09-20 行）、§4 占位换契约 §24 指针；实施终态见任务卡与契约总册 §24
+last_reviewed: 2026-09-23   # T-ACCESS-053 评审处置：§4 20065 描述补「白名单外路径」（对齐契约 §24.2 单源）；此前 2026-09-20   # T-PERM-070 实施落地：§3.2 验证顺序与 TLS 段按实施拍板修订（registry 2026-09-20 行）、§4 占位换契约 §24 指针；实施终态见任务卡与契约总册 §24
 ---
 
 # 公共服务认证模块（per-service credential）设计
@@ -136,7 +136,7 @@ CREATE TABLE service_credential (
 
 ## 4. 错误码与契约（已登记）
 
-凭证认证失败 403 错误码四枚（2026-09-20 拍板三码细分 + 服务停用码）：**20065** `SERVICE_CREDENTIAL_INVALID`（定位失败/secret 错误/半头）/ **20066** `SERVICE_CREDENTIAL_EXPIRED` / **20067** `SERVICE_CREDENTIAL_DISABLED` / **20068** `SERVICE_CREDENTIAL_SERVICE_INACTIVE`（凭证有效但绑定服务未注册/停用——「沿用既有拒绝口径」的仲裁器细分形态）。端点契约、仲裁状态表、M2M 白名单与 SDK 配置键全部登记于契约总册 §24（T-PERM-070 落地，实现语义以该章为准）。业务键构造唯一入口 `BusinessKeyUtil`。
+凭证认证失败 403 错误码四枚（2026-09-20 拍板三码细分 + 服务停用码）：**20065** `SERVICE_CREDENTIAL_INVALID`（定位失败/secret 错误/半头/白名单外路径——仲裁器对白名单外完整凭证头统一落本码，T-ACCESS-053 实测确认）/ **20066** `SERVICE_CREDENTIAL_EXPIRED` / **20067** `SERVICE_CREDENTIAL_DISABLED` / **20068** `SERVICE_CREDENTIAL_SERVICE_INACTIVE`（凭证有效但绑定服务未注册/停用——「沿用既有拒绝口径」的仲裁器细分形态）。端点契约、仲裁状态表、M2M 白名单与 SDK 配置键全部登记于契约总册 §24（T-PERM-070 落地，实现语义以该章为准）。业务键构造唯一入口 `BusinessKeyUtil`。
 
 ---
 

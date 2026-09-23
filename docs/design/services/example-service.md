@@ -3,7 +3,7 @@ doc_type: design
 title: Example Service 设计
 status: adopted
 domain: example-service
-last_reviewed: 2026-09-15
+last_reviewed: 2026-09-23   # T-ACCESS-053：演示场景表加状态列（前三场景已交付含撤销/恢复主线与凭证链，后四维持规划）+「见上表」方向勘误；此前 2026-09-15
 ---
 
 # Example Service 设计
@@ -23,20 +23,21 @@ last_reviewed: 2026-09-15
 - 接口级鉴权完全由 Gateway 承担（规范 §2.4 服务内不重复鉴权）：Gateway `Path=/api/example/**` 路由（无 StripPrefix、`serviceCode=example-service`，T-ACCESS-042 单命名空间）按接口快照放行/拒绝；业务服务不引入 perm-client/perm-data，无服务内二次鉴权。
 - 接入路径（E2E `ExampleProtectedApiE2EIT` 钉死；2026-09-05 T-PERM-052 后迁移）：管理员经 Gateway 调 `/api/access/service-config/sync`（FULL 接口声明）一步创建 API 资源与 `resource_api_mapping`（owner=example-service、maintainSource=SERVICE_SYNC、pathPattern=basePath+path=外部路径 `/api/example/demo/hello`）→ 授予角色 `API:ACCESS` → 403 变 200。原三段链路（resource-entity/sync 直连 + `syncTypes` 白名单 + 手工建映射）已随 T-PERM-052 类型级所有权退役（API 类型种子声明 SYNC+access-service，T-PERM-069——本通道与 bootstrap 为唯一事实入口：外部同步来源不匹配一律 RESOURCE_TYPE_OWNERSHIP_DENIED、资源管理面手工 CRUD 20055）。
 - 依赖瘦身：POM 删除 perm-client、perm-data、openfeign、MyBatis-Flex、PostgreSQL、Redis、MapStruct、JSqlParser（均无消费方）；保留 common（统一响应体/全局异常处理器）、web、validation、nacos、log4j2。无数据源、无缓存消费（`accessmesh.cache.enabled=false`）。
-- 菜单/按钮/范围/条件权限等其余演示场景仍为规划（见上表），随核心主线后续任务补齐。
+- 菜单/按钮/范围/条件权限等其余演示场景仍为规划（状态见下方演示场景表），随核心主线后续任务补齐。
 - 错误码子段约定：30001-30099 为演示接口（demo）相关错误（`ExampleErrorCode` 代码注释为登记处），30001+ 段位分配随新资源扩展时在代码枚举中登记。
 - **身份签名校验（`GatewaySignatureFilter`）**：复算 Gateway `SignatureEnrichFilter` 注入的 `X-User-Signature`（HMAC-SHA256(secret, userId|tenantId|timestamp)，常量时间比较），时效窗 `example.signature.valid-seconds`（默认 300s，与 access-service `perm.signature.valid-seconds` 运维同调）；携带身份头但签名缺失/不匹配/超窗的请求拒绝信封 **30003**。密钥经 `example.signature.secret`（默认取环境变量 `ACCESSMESH_SIGNATURE_SECRET`，须与 Gateway 同源）——未配置时 fail-closed（凡携带身份头的请求一律拒绝，启动日志 ERROR 提示）。信任边界的根本保障仍是网络隔离（业务服务仅 Gateway 可达），签名校验是纵深防御/直连自证示例。
 
 ## 演示场景
 
-| 场景               | 目标                                                           |
-| ------------------ | -------------------------------------------------------------- |
-| 服务注册与接口同步 | 展示业务服务如何向 access-service 全量同步接口资源               |
-| 接口权限           | 展示 Gateway + access-service 接口级鉴权                        |
-| 菜单/按钮权限      | 展示前端资源和操作权限控制                                     |
-| 报表范围权限       | 展示 `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeMode=ALL`     |
-| 条件权限           | 展示时间、IP 等条件评估                                        |
-| 权限查询           | 展示 `auth/check`、`auth/query-resources`、`auth/query-scopes` |
+| 场景               | 目标                                                           | 状态 |
+| ------------------- | -------------------------------------------------------------- | ---- |
+| 服务注册与接口同步 | 展示业务服务如何向 access-service 全量同步接口资源               | ✅ 已交付（service-config/sync 声明通道；E2E ③） |
+| 接口权限           | 展示 Gateway + access-service 接口级鉴权                        | ✅ 已交付（403→授权→200→**撤销→403→重授恢复**完整主线，T-ACCESS-053；E2E ④~⑥+⑧） |
+| 服务身份（凭证）   | 展示 per-service 凭证签发/认证/轮换吊销（T-PERM-070）           | ✅ 已交付（E2E ⑦ 凭证认证链；两套身份适用面见 extension-guide §2.2） |
+| 菜单/按钮权限      | 展示前端资源和操作权限控制                                     | 规划 |
+| 报表范围权限       | 展示 `query-scopes`、`DIRECT ∪ DEPENDENT`、`scopeMode=ALL`     | 规划 |
+| 条件权限           | 展示时间、IP 等条件评估                                        | 规划 |
+| 权限查询           | 展示 `auth/check`、`auth/query-resources`、`auth/query-scopes` | 规划 |
 
 ## 报表范围权限推荐模型
 

@@ -34,18 +34,22 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntPredicate;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * example-service 受保护接口接入 E2E（T-API-001，Gateway 主线验收链路）。
  *
- * <p>固定 6 步顺序：① 空库 bootstrap 首管理员真实登录 → ② 创建目标用户与空权限
+ * <p>固定 8 步顺序：① 空库 bootstrap 首管理员真实登录 → ② 创建目标用户与空权限
  * BASIC_ROLE 并分配 → ③ 为 example 接口真实创建 API 资源实体与映射（bootstrap 固定图
  * 不含 example 资源）→ ④ 目标用户经 Gateway 调用 /api/example/demo/hello 断言
  * 403（授权前拒绝）→ ⑤ 授予 BASIC_ROLE 该 API 的 API:ACCESS → ⑥ 30 秒陈旧窗口内轮询至
  * HTTP 200 + 信封 code=200 + Gateway 身份头回显（userId=目标用户），并验证授权后参数
- * 非法仍返回信封 code=30001（业务错误不因放行被吞）。
+ * 非法仍返回信封 code=30001（业务错误不因放行被吞）→ ⑦ T-PERM-070 凭证认证链
+ * （签发/M2M 放行/半头 401/错凭证 403/管理端点不被旁路/停用 20067）→ ⑧ 撤销与恢复
+ * （T-ACCESS-053 接入主线闭环）：apply-grant-plan removes 撤销授权行 → 30 秒陈旧
+ * 窗口内轮询回 403（撤权与授权受同一陈旧窗口约束）→ 重授同键 → 轮询回 200。
  *
  * <p><b>拓扑</b>：PG/Redis 为 Testcontainers；access-service、Gateway 与 example-service
  * 以<b>子进程</b>（独立 JVM、固定随机端口）从本测试的 java.class.path 启动（模式与
@@ -123,8 +127,10 @@ class ExampleProtectedApiE2EIT {
     private static long targetUserId;
     private static String targetInitialPassword;
     private static String targetToken;
-    /** 授权（⑤）响应到达的单调时刻——⑥的 30 秒陈旧窗口自该时刻起算 */
+    /** 授权（⑤/⑧恢复）响应到达的单调时刻——⑥授权向与⑧恢复向的 30 秒陈旧窗口均自最近一次赋值起算 */
     private static long grantResponseAtNanos;
+    /** ⑤ 首授产生的授权行 id——⑧撤销（apply-grant-plan removes）以此定位 */
+    private static long grantPermissionId;
 
     @BeforeAll
     static void bootStack() throws Exception {
@@ -179,7 +185,7 @@ class ExampleProtectedApiE2EIT {
     }
 
     // ------------------------------------------------------------------
-    // 固定 6 步
+    // 固定 8 步
     // ------------------------------------------------------------------
 
     @Test
@@ -295,6 +301,19 @@ class ExampleProtectedApiE2EIT {
     @Order(5)
     @DisplayName("⑤ 管理员授予 BASIC_ROLE example API 的 API:ACCESS（apply-grant-plan，与授权页同源写入口）")
     void step5_grantApiAccess() {
+        JsonNode items = grantApiAccessOnce();
+        assertThat(items.isArray() && items.size() == 1)
+            .as("授权计划必须产生恰好一条授权记录").isTrue();
+        grantPermissionId = items.get(0).path("id").asLong();
+        assertThat(grantPermissionId)
+            .as("授权行响应必须回显 id（⑧撤销 removes 依赖），实际 items：" + items).isPositive();
+    }
+
+    /**
+     * 单次 API:ACCESS 授权提交（⑤ 首授与 ⑧ 恢复共用同一请求形态）：
+     * 提交后记录 30 秒陈旧窗口起点，返回响应 items。
+     */
+    private static JsonNode grantApiAccessOnce() {
         var key = JSON.createObjectNode();
         key.put("resourceTypeCode", "API");
         key.put("resourceCode", TARGET_API_RESOURCE_CODE);
@@ -319,8 +338,7 @@ class ExampleProtectedApiE2EIT {
             gateway() + "/api/access/role-resource-permission/apply-grant-plan", adminToken, req)
             .path("items");
         grantResponseAtNanos = System.nanoTime();
-        assertThat(items.isArray() && items.size() == 1)
-            .as("授权计划必须产生恰好一条授权记录").isTrue();
+        return items;
     }
 
     @Test
@@ -489,6 +507,75 @@ class ExampleProtectedApiE2EIT {
             JSON.createObjectNode().put("id", issued.path("id").asLong()));
         postForData(gateway() + "/api/access/type-definition/remove", adminToken,
             JSON.createObjectNode().set("ids", JSON.createArrayNode().add(fixtureTypeId)));
+    }
+
+    @Test
+    @Order(8)
+    @DisplayName("⑧ 撤销与恢复（T-ACCESS-053 接入主线闭环）：removes 撤销→30 秒内 403→重授→30 秒内 200")
+    void step8_revokeAndRestoreGrant() throws IOException {
+        // ① 撤销：授权页唯一删除语义=apply-grant-plan 的 removes 段（removes 旧写入口已物理删除）
+        var revokePlan = JSON.createObjectNode();
+        revokePlan.putNull("creates");
+        revokePlan.putNull("updates");
+        revokePlan.set("removes", JSON.createArrayNode().add(grantPermissionId));
+        var revokeReq = JSON.createObjectNode();
+        revokeReq.putNull("domainCode");
+        revokeReq.put("roleTypeCode", ROLE_TYPE);
+        revokeReq.put("roleExternalId", ROLE_EXTERNAL_ID);
+        revokeReq.set("plan", revokePlan);
+        postForData(gateway() + "/api/access/role-resource-permission/apply-grant-plan",
+            adminToken, revokeReq);
+        long revokeResponseAtNanos = System.nanoTime();
+
+        // ② 撤权生效受与授权相同的 30 秒陈旧窗口约束：轮询回 403（令牌仍有效，非 401；
+        //    等待期 200=陈旧放行、503=回源瞬时失败，与 ⑥ 等待期口径对称）
+        awaitEnvelopeStatus(gateway() + TARGET_API_PATH, targetToken, "{\"name\":\"E2E\"}",
+            revokeResponseAtNanos, 403, status -> status == 200 || status == 503,
+            "撤销授权后必须在 30 秒陈旧窗口内回到 403");
+
+        // ③ 恢复：重授同一键（与 ⑤ 首授完全同款请求——撤销是软删，重授即新建行）
+        JsonNode restoredItems = grantApiAccessOnce();
+
+        // ④ 再次轮询回 200 并断言身份回显（恢复语义=与首次授权同口径）
+        JsonNode restored = awaitEnvelopeStatus(gateway() + TARGET_API_PATH, targetToken,
+            "{\"name\":\"E2E\"}", grantResponseAtNanos, 200, status -> status == 403 || status == 503,
+            "恢复授权后必须在 30 秒陈旧窗口内回到 200");
+        assertThat(restored.path("code").asInt())
+            .as("恢复后信封 code 必须 200，响应：" + restored).isEqualTo(200);
+        assertThat(restored.path("data").path("userId").asLong())
+            .as("恢复后身份回显仍须是 Gateway 注入的目标用户 ID").isEqualTo(targetUserId);
+        assertThat(restoredItems.isArray() && restoredItems.size() == 1)
+            .as("恢复授权必须重新产生恰好一条授权记录").isTrue();
+    }
+
+    /**
+     * 30 秒陈旧窗口内轮询目标接口直至出现期望状态并返回该次响应信封；窗口内的其余状态
+     * 须落在容忍集（撤销向容忍 200=陈旧放行/503=回源瞬时失败，恢复向容忍 403/503），
+     * 容忍集外的状态（如 401/500）立即失败，窗口耗尽亦失败。与 ⑥ 内联轮询同口径。
+     */
+    private static JsonNode awaitEnvelopeStatus(String url, String bearerToken, String body,
+                                                long startNanos, int expectedStatus,
+                                                IntPredicate tolerated,
+                                                String failMessage) throws IOException {
+        long deadline = startNanos + STALE_WINDOW.toNanos();
+        IOException lastError = null;
+        while (System.nanoTime() < deadline) {
+            try {
+                EnvelopeResult r = postEnvelope(url, bearerToken, body);
+                if (r.status() == expectedStatus) {
+                    assertThat(System.nanoTime())
+                        .as("状态翻转必须在 30 秒窗口内到达").isLessThanOrEqualTo(deadline);
+                    return parseEnvelope(r);
+                }
+                assertThat(tolerated.test(r.status()))
+                    .as(failMessage + "（等待期状态 " + r.status() + " 超出容忍集，响应：" + r.rawBody() + "）")
+                    .isTrue();
+            } catch (IOException e) {
+                lastError = e;
+            }
+            sleepQuiet(1000);
+        }
+        throw new AssertionError(failMessage + "（30 秒窗口耗尽，最后错误：" + lastError + "）");
     }
 
     // ------------------------------------------------------------------

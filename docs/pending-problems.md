@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-039           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-23（Q-038/Q-039 登记：T-ACCESS-052 claude 外评存量观察——TreeBuilder 父节点被过滤时可见子静默消失、资源树 status=1 与列表不过滤口径分叉；此前 2026-09-22 批次见历史行）
+counter: Q-041           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-23（Q-041 登记：T-ACCESS-053 双轨评审存量观察——architecture.md SDK 表未列凭证拦截器；同日 Q-040：U008 两套服务身份覆盖面统一）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,32 @@ last_updated: 2026-09-23（Q-038/Q-039 登记：T-ACCESS-052 claude 外评存量
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-041 architecture.md SDK 表未反映凭证拦截器——两套身份口径在架构总览缺一行
+
+- **状态**：open
+- **登记**：2026-09-23（T-ACCESS-053 双轨评审文档轨存量观察，非本批引入）
+- **来源**：T-ACCESS-053 双轨评审
+- **关联**：T-PERM-070（FeignCredentialInterceptor 交付）；extension-guide §2.2/§2.3（两套身份导引载体）
+
+**现象与证据**：`docs/design/architecture.md:349` perm-client starter 行仅列「`X-Internal-Secret`/`X-Service-Code` 身份透传拦截器」，未提 T-PERM-070 的 `FeignCredentialInterceptor`（perm.credential-id/secret/allow-insecure 三键）——两套身份并存口径在架构总览 SDK 表缺一行（`access-service-architecture.md` 的 ServiceAuthArbiter 双策略行已正确，不矛盾，纯总览层漂移）。
+
+**影响**：纯文档漂移，无运行时缺陷；架构总览读者会以为 SDK 只有旧密钥注入形态。
+
+**设想方向（未定案）**：SDK 表 perm-client 行补半句凭证拦截器；architecture.md 不在 T-ACCESS-053 design_refs（超边界不顺带修，Q-015 先例），随下次触达该册的任务顺手收敛。
+
+## Q-040 两套服务身份覆盖面统一——凭证不含运行时权限查询族（auth/check 等），接入方双身份并存
+
+- **状态**：open
+- **登记**：2026-09-23（T-ACCESS-053 U008 启动拍板：维持现状、记录问题后续解决）
+- **来源**：[T-ACCESS-053](tasks/T-ACCESS-053.md) 启动决策（用户 AskUserQuestion 拍板）
+- **关联**：T-ACCESS-053；[service-authentication.md](design/service-authentication.md) §3.5（阶段二规划）；extension-guide §2.2（对照表载体）
+
+**现象与证据**：per-service 凭证（T-PERM-070）仅覆盖 M2M 白名单三端点（`resource-entity/sync`、`resource-entity/full-sync`、`integration/permission-manifest/full-sync`）；服务调运行时权限查询（`auth/check`、`batch-check`、`query-resources`、`query-scopes`）仍必须用旧全局密钥（`X-Internal-Secret` + 自报 `X-Service-Code`/`X-Tenant-Id`）——凭证调 check 被白名单拒 403。接入方须同时维护两套身份（适用面对照表已随 T-ACCESS-053 落 extension-guide §2.2）。
+
+**影响**：接入体验成本（两套配置/两套失效语义并存）；安全面上旧密钥全局共享的单点失陷半径在运行时查询族仍存在（凭证化改造动机只覆盖了同步族）。
+
+**设想方向（未定案）**：阶段二把 auth 查询族逐端点纳入凭证白名单（service-authentication §3.5 既有规划）——须先定义凭证形态下允许查询的主体/资源范围（凭证代表服务，check 请求带 subjectExternalId——服务可查任意租户内主体？范围如何限定）、租户派生与调用方能力语义；属设计+实现工作，届时另立任务卡。
 
 ## Q-039 资源树查询 status=1 与资源列表/计数不过滤 status——同实体树/列表可见口径分叉
 

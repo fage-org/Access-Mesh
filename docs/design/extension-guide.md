@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-09-22   # T-PERM-077：§3.5 追加操作条目补 inheritMask 缺省归一口径（省略=显式 0）；此前   # T-PERM-073：§4 扩展面状态表自动授权行改已交付（物化+解释/预览/诊断/对账收口）+ §5.3 独立依赖接入注记更新；此前   # T-PERM-071：§4 扩展面状态表自动授权行更新（声明编译/资源发布共序/SDK/迁移已交付并于同日收口，物化与解释归 072/073）；此前 2026-09-17 T-PERM-068（Q-007 三定案）：§3.4 资源父子边限同类型口径改写（原「资源可声明跨类型父子边」过时；sync 缺省回填/显式异类型拒绝/管理面 20053/角色域排除声明）；此前 T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
+last_reviewed: 2026-09-23   # T-ACCESS-053：§2 增接入主线一览、§2.1 补第 6 步撤销与恢复、§2.2 改两套服务身份对照表（U008 维持现状拍板；双轨评审补形态限定——白名单外/半头直连=403/20065、经 Gateway=401）、§2.3 补凭证 SDK 三配置键、新增 §2.4 接口/业务权限双层模型（054/036 暂缓区分）、§8 验证资产行更新；此前 2026-09-22   # T-PERM-077：§3.5 追加操作条目补 inheritMask 缺省归一口径（省略=显式 0）；此前   # T-PERM-073：§4 扩展面状态表自动授权行改已交付（物化+解释/预览/诊断/对账收口）+ §5.3 独立依赖接入注记更新；此前   # T-PERM-071：§4 扩展面状态表自动授权行更新（声明编译/资源发布共序/SDK/迁移已交付并于同日收口，物化与解释归 072/073）；此前 2026-09-17 T-PERM-068（Q-007 三定案）：§3.4 资源父子边限同类型口径改写（原「资源可声明跨类型父子边」过时；sync 缺省回填/显式异类型拒绝/管理面 20053/角色域排除声明）；此前 T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
@@ -38,6 +38,17 @@ last_reviewed: 2026-09-22   # T-PERM-077：§3.5 追加操作条目补 inheritMa
 
 完整活例见 `docs/design/services/example-service.md` 与 E2E 测试 `ExampleProtectedApiE2EIT`。
 
+**接入主线一览**（T-ACCESS-053，每环节均可在上表验证资产中找到自动化证据。③服务身份不占 §2.1 步骤序号——管理台接入链不需要它；§2.1 步 5 防直调为服务侧加固项，不属主线环节）：
+
+```text
+① 注册服务（service-config/save）
+② 声明接口（service-config/sync FULL——一步建 API 资源 + Gateway 路由映射）
+③ 服务身份（§2.2：资源同步用 per-service 凭证；运行时权限查询用内部密钥——两套并存）
+④ 授权（API:ACCESS——§2.1 步 3；业务资源权限是另一层，见 §2.4）
+⑤ 实际调用（§2.1 步 4；业务前端持会话令牌经 Gateway 访问；未授权 403 → 授权后 30 秒内 200）
+⑥ 撤销与恢复（§2.1 步 6：删除授权行 30 秒内回 403，重授恢复——撤权与授权同窗口）
+```
+
 ### 2.1 接入步骤
 
 1. **注册服务**：管理台「服务+接口映射」页（`POST /api/access/service-config/save`）登记 `serviceCode`/`name`/`status=1`。
@@ -45,26 +56,44 @@ last_reviewed: 2026-09-22   # T-PERM-077：§3.5 追加操作条目补 inheritMa
 3. **授权**：未授权前 Gateway 对该接口一律拒绝（403）。经管理台授权页（入口见前置 3）对目标角色授该 API 实例（或 API 类型级）的 `ACCESS` 操作——授权写入口须用户身份（ROLE:MANAGE），不收服务身份。
 4. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 按映射做接口级判定（`check-interface`）并对可下发条件做本地重评。授权生效受 Gateway 快照刷新窗口约束（上界 30s）。
 5. **服务侧防直调**：业务服务部署 Gateway 签名校验过滤器（example 的 `GatewaySignatureFilter` 模式）——拒绝未带有效网关签名的请求，防止绕过 Gateway 直调后端。
+6. **撤销与恢复**（T-ACCESS-053 补全，与授权同源）：撤销=授权页删除该条授权行（唯一删除语义 `apply-grant-plan` 的 `removes` 段；旧 `revoke` 端点已物理删除）——撤权生效受与授权相同的 30 秒陈旧窗口约束，窗口内接口回到 403；恢复=对同一资源重授 `ACCESS`（撤销为软删，重授即新建行），同样 30 秒内生效。回归锁：`ExampleProtectedApiE2EIT` 第⑧步（撤销→403→重授→200）。
 
-### 2.2 服务身份调用（auth/check 等平台 API）
+### 2.2 服务身份：两套并存，按端点选用
 
-业务服务调用权限查询类 API（`/api/access/auth/check`、`batch-check`、`query-resources`、`query-scopes`）时的身份：
+平台有两套 M2M 服务身份，**适用面不同、不可互换**（2026-09-23 T-ACCESS-053 U008 拍板：维持现状、覆盖面统一登记问题清单后续解决；阶段二逐端点扩展规划见 [service-authentication §3.5](service-authentication.md)）：
 
-| 请求头 | 说明 |
-|---|---|
-| `X-Internal-Secret` | 内部凭证，值 = 部署配置 `PERM_INTERNAL_SECRET` |
-| `X-Service-Code` | 本服务编码；凭证验证通过后绑定为可信服务身份 |
-| `X-Tenant-Id` | 目标租户（服务调用缺失即 400） |
+| | per-service 凭证（T-PERM-070，推荐） | 内部密钥（过渡期维持） |
+|---|---|---|
+| 请求头 | `X-Credential-Id` + `X-Credential-Secret`（成对必填，半头即拒——直连形态 403 信封 20065；经 Gateway 半头回落用户认证 401，见契约 §24.1 限定②） | `X-Internal-Secret` + 自报 `X-Service-Code` + `X-Tenant-Id` |
+| 适用端点 | **仅 M2M 白名单三端点**：`resource-entity/sync`、`resource-entity/full-sync`、`integration/permission-manifest/full-sync`；白名单外拒绝的形态按通道分：**SDK 直连=403（信封 20065，服务端仲裁器强制）**、**经 Gateway=回落用户认证 401**（不置 M2M 放行）——含 auth/check 族，防凭证能力半径扩大到管理/查询端点 | 全部服务身份端点：**运行时权限查询**（`auth/check`、`batch-check`、`query-resources`、`query-scopes`）与同步族（过渡期） |
+| 租户/服务来源 | **凭证行派生**（tenantId+serviceCode 绑定于凭证，自报头被忽略——消除自报信任面） | 自报头（密钥验证通过后绑定） |
+| 获取方式 | 管理面签发：`POST /api/access/service-credential/create`（经 Gateway，须 SERVICE:MANAGE 会话；响应明文 `secret` 仅回显一次，服务端只存哈希；暂无专用页面，经 API 签发） | 部署配置 `PERM_INTERNAL_SECRET`（gateway 与 access-service 同值；Gateway 对下游请求自动注入） |
+| 失效语义 | 停用/过期立即 403（20066/20067/20068），同服务多凭证并存支持无感轮换 | 全局共享、无法按服务吊销（新凭证的改造动机，见 service-authentication §2 现状问题） |
+
+**典型组合**：资源/依赖同步用**新凭证**，运行时权限查询用**旧密钥**——同一服务两套身份并存是当前预期形态，不是配置错误。凭证认证错误码（20065~20068）与完整仲裁状态表见[契约 §24](access-service-api-contract.md)。
 
 同步类通道（resource-entity/sync 等）的 payload `sourceService` 必须与凭证身份一致（`SyncAuthVerifier`），防止冒充他服务。
 
 ### 2.3 SDK 现状
 
-- `perm-client-spring-boot-starter`：**Feign 远程查询 SDK**（`PermissionFeignClient`：auth/check 族调用入口 + 内部同步拦截器）。适合需要在服务内主动查询权限/范围的场景。拦截器自动注入 `X-Internal-Secret`/`X-Service-Code` 两个头；**`X-Tenant-Id` 须调用方业务侧自行注入**（服务调用缺失即 400）。
+- `perm-client-spring-boot-starter`：**Feign 远程查询 SDK**（`PermissionFeignClient`：auth/check 族调用入口 + 内部同步拦截器）。适合需要在服务内主动查询权限/范围的场景。两套身份的注入形态：
+  - **旧密钥**：`FeignInternalSyncInterceptor` 自动注入 `X-Internal-Secret`/`X-Service-Code` 两个头（不覆盖调用方显式声明）；**`X-Tenant-Id` 须调用方业务侧自行注入**（服务调用缺失即 400）。
+  - **新凭证**：`perm.credential-id` + `perm.credential-secret` 配置键（成对必填，半配 fail-fast）由 `FeignCredentialInterceptor` 注入凭证头（凭证端点内生效，见 §2.2 白名单）；配置凭证时必须同时显式声明 `perm.allow-insecure`（`true`/`false` 二值，缺省或非法值拒启——TLS 信任域声明护栏）。三键契约见[契约 §24.3](access-service-api-contract.md)。
 - `perm-gateway-spring-boot-starter`：网关侧装配（本项目 Gateway 自用）。
 - example-service **有意不消费** starter——接口级鉴权完全由 Gateway 承担，服务内零权限代码。这是当前推荐的轻接入形态。
 - 纯 HTTP 对接（非 Java 技术栈）：直接按 api-contract §6 契约调用，不要求 SDK。
 - **已知差异（T-ACCESS-034 登记）**：SDK `DefaultOpCode` 的 `EDIT` 在服务端操作码注册表**无预置种子**（服务端仅有 VIEW/UPDATE/DELETE 等）——接入方若以 `EDIT` 发起授权/校验，解析将 fail-closed 拒绝；服务端等价语义用 `UPDATE`。SDK 枚举本身不动（接入方契约）。
+
+### 2.4 接口权限与业务权限是两层（易混点）
+
+接入方最常问的「我给角色授了业务资源权限，为什么调接口还是 403」——**两层独立判定，互不派生**：
+
+| 层 | 判定者 | 权限对象 | 效果 |
+|---|---|---|---|
+| 接口层 | Gateway（`check-interface` 快照判定） | API 资源的 `ACCESS` 操作 | 请求能否**过网关到达业务服务**——无 API:ACCESS 一律 403，业务权限再全也不放行 |
+| 业务层 | 业务服务自己（调 `auth/check` 查询后按结果分支） | 业务资源类型的自有操作（如 `REPORT:VIEW`，见 §3 建模） | 业务服务**收到请求后**如何处理——两层是先后关系不是替代关系 |
+
+两个方向的自动化派生**均未交付**，须分开配置：「授业务权限自动派生 API:ACCESS」= T-PERM-054（暂缓，API 操作派生方向待方案，见任务卡）；「业务侧按 scopeMode 动态生成 SQL 数据过滤」= T-PERM-036（暂缓，延后至 example 演示，能力边界见 §6）。
 
 ## 3. 场景二：自有资源类型（自定义数据权限维度）
 
@@ -185,7 +214,7 @@ last_reviewed: 2026-09-22   # T-PERM-077：§3.5 追加操作条目补 inheritMa
 | 资产 | 轨道 | 覆盖 |
 |---|---|---|
 | `CustomResourceTypeSlicePgIT` | access-service 容器组 | 场景二完整链路（本指南 §3 的回归锁；含 T-PERM-062 授权根锁组：创建即落种子/追加操作补种/非所有者 20040/种子行改删 20061/所有者迁移/零授权根 reason=TYPE_GRANT_ORIGIN_MISSING；负向组：裸用户 NO_ROLE / 未同步资源 fail-closed） |
-| `ExampleProtectedApiE2EIT` | e2e 模块 | 场景一完整链路（注册→接口声明→403→授权→30s 内生效） |
+| `ExampleProtectedApiE2EIT` | e2e 模块 | 场景一完整链路（注册→接口声明→403→授权→30s 内生效→**撤销→403→重授恢复**〔T-ACCESS-053 第⑧步〕；含 T-PERM-070 凭证认证链〔第⑦步〕） |
 | `BasicRoleGrantVerticalSliceE2EIT` | e2e 模块 | 内置类型授权垂直切片（bootstrap→建号→授权→判定） |
 
 > 新增扩展面相关改造时，若改变本指南描述的链路步骤或门禁语义，须同步更新本文与对应验证资产（文档治理：指南为导引层，契约变更仍以 api-contract 为准先行）。
