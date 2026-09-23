@@ -1,15 +1,15 @@
 ---
 name: external-review
 description: >-
-  外部 AI 评审执行规范（claude / grok / codex 三通道；codex 默认 luna max、点名 sol 封顶 xhigh 等；
-  两模型分档——luna 显式注入 872k 上下文、sol 用默认 272k；全程禁止子代理；本机运行或用户贴回结论两种形态）。
+  外部 AI 评审执行规范（claude / grok / codex 三通道；codex 默认 gpt-6-luna max、点名 gpt-6-sol 封顶 xhigh 等；
+  两模型分档——luna 显式注入 872k 上下文、sol 不注入覆盖（2026-09-23 换代拍板沿旧分档）；全程禁止子代理；本机运行或用户贴回结论两种形态）。
   TRIGGER when: 用户显式要求外部 AI 评审/复评（「用codex/claude/grok评审」「codex 复评」、逐字给出提示词、
   贴回外部 AI 结论要求「核实并修复」）；仅用户触发，收口流程不得自动串联。
 disable-model-invocation: true
 origin: project
 metadata:
   project: AccessMesh
-  version: "2.4.0"
+  version: "2.5.0"
 ---
 
 # 外部 AI 评审（claude / grok / codex；仅用户触发；全程禁止子代理）
@@ -42,24 +42,24 @@ metadata:
 ### codex（默认 luna max；点名形态如 sol xhigh）
 
 ```bash
-codex exec -m gpt-5.6-luna -c 'model_reasoning_effort="max"' -c model_context_window=872000 --disable multi_agent -s read-only --color never - < prompt.md
+codex exec -m gpt-6-luna -c 'model_reasoning_effort="max"' -c model_context_window=872000 --disable multi_agent -s read-only --color never - < prompt.md
 ```
 
-#### 模型与上下文（2026-09-08 定案默认 luna max；2026-09-13 定规两模型分档）
+#### 模型与上下文（2026-09-08 定案默认 luna max；2026-09-13 定规两模型分档；2026-09-23 模型换代 gpt-5.6→gpt-6）
 
-- 评审默认模型 **`gpt-5.6-luna` + reasoning effort `max`**（「luna max」= luna 模型挂 max 推理档；不存在名为 luna-max 的模型 ID）。一律**显式注入**、不依赖 `~/.codex/config.toml` 默认值。
+- 评审默认模型 **`gpt-6-luna` + reasoning effort `max`**（「luna max」= luna 模型挂 max 推理档；不存在名为 luna-max 的模型 ID）。一律**显式注入**、不依赖 `~/.codex/config.toml` 默认值。
 - **800k 级上下文的写法是 `872000`，不是 `800000`**（2026-09-08 三探针实证，证据为 rollout 会话文件 `model_context_window` 字段）：
   - luna@max 无覆盖：272k×95% = **258.4k**（此前桌面端 828.4k 会话是桌面端自行注入的窗口，CLI 不带覆盖拿不到）；
   - `-c model_context_window=800000`：800k×95% = **760k**——95% 有效窗口折扣同样作用于覆盖值，字面 800k 反而不达标；
   - `-c model_context_window=872000`（= models_cache 中 luna 的 `max_context_window`）：**828.4k** ✅。
-- **两模型参数分档（2026-09-13 用户定规）**：luna 与 sol 能力不同，推理档与上下文注入按模型区分，勿套同一写法：
+- **两模型参数分档（2026-09-13 用户定规；2026-09-23 换代拍板「沿旧分档映射」）**：luna 与 sol 定位不同，推理档与上下文注入按模型区分，勿套同一写法：
 
   | 模型 | reasoning effort | 上下文注入 |
   | ---- | ---------------- | ---------- |
-  | luna（`gpt-5.6-luna`） | `max` | `-c model_context_window=872000`（800k 级写法） |
-  | sol（`gpt-5.6-sol`） | **封顶 `xhigh`**，不越档 | **不注入**，按模型默认 272k（×95% ≈ 258.4k 有效） |
+  | luna（`gpt-6-luna`） | `max` | `-c model_context_window=872000`（800k 级写法） |
+  | sol（`gpt-6-sol`） | **封顶 `xhigh`**，不越档 | **不注入**（保守沿用旧能力判断，见下） |
 
-  - sol 点名写法：`-m gpt-5.6-sol -c 'model_reasoning_effort="xhigh"'`（**不带** `-c model_context_window`）。models_cache 虽列出 sol 的 max/ultra 档位，但按用户定规封顶 xhigh；2026-09-13 缓存实证 sol `max_context_window=272000`——2026-09-11 曾探得 872000 系模型能力漂移，点名时先读 `~/.codex/models_cache.json` 核对当前值再定参数。
+  - sol 点名写法：`-m gpt-6-sol -c 'model_reasoning_effort="xhigh"'`（**不带** `-c model_context_window`）。2026-09-23 models_cache 实证 gpt-6-sol `max_context_window=872000` 且档位支持到 ultra（旧 272k 前提已失效）——用户拍板**维持旧分档**（sol 仍封顶 xhigh+不注入，保守沿用能力判断）；若后续要求解封，须用户显式拍板后再改本表。点名时先读 `~/.codex/models_cache.json` 核对当前值再定参数。
   - 点名模型探针：`codex models` 无 tty 直接报错（`Error: stdin is not a terminal`），改读 `~/.codex/models_cache.json`。
 - 启动后核对 banner `model:` / `reasoning effort:` 行与点名一致，不符即停；启动时 `failed to refresh available models: timeout` ERROR 行为良性噪声，不阻断。
 
