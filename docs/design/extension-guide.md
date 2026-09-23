@@ -6,7 +6,7 @@ domain: common
 design_refs:
   - docs/design/architecture.md
   - docs/design/access-service-api-contract.md
-last_reviewed: 2026-09-23   # T-ACCESS-053：§2 增接入主线一览、§2.1 补第 6 步撤销与恢复、§2.2 改两套服务身份对照表（U008 维持现状拍板；双轨评审补形态限定——白名单外/半头直连=403/20065、经 Gateway=401）、§2.3 补凭证 SDK 三配置键、新增 §2.4 接口/业务权限双层模型（054/036 暂缓区分）、§8 验证资产行更新；此前 2026-09-22   # T-PERM-077：§3.5 追加操作条目补 inheritMask 缺省归一口径（省略=显式 0）；此前   # T-PERM-073：§4 扩展面状态表自动授权行改已交付（物化+解释/预览/诊断/对账收口）+ §5.3 独立依赖接入注记更新；此前   # T-PERM-071：§4 扩展面状态表自动授权行更新（声明编译/资源发布共序/SDK/迁移已交付并于同日收口，物化与解释归 072/073）；此前 2026-09-17 T-PERM-068（Q-007 三定案）：§3.4 资源父子边限同类型口径改写（原「资源可声明跨类型父子边」过时；sync 缺省回填/显式异类型拒绝/管理面 20053/角色域排除声明）；此前 T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
+last_reviewed: 2026-09-23   # T-ACCESS-053：§2 增接入主线一览、§2.1 补第 6 步撤销与恢复、§2.2 改两套服务身份对照表（U008 维持现状拍板；双轨评审补形态限定——白名单外/半头直连=403/20065、经 Gateway=401）、§2.3 补凭证 SDK 三配置键、新增 §2.4 接口/业务权限双层模型（054/036 暂缓区分）、§8 验证资产行更新；同日 claude 外评处置：§2.3 旧密钥括注收窄（仅 X-Service-Code 保留声明、X-Internal-Secret 为追加注入）+ §2.4/§2.1 步 4 判定机制改「接口快照本地判定、未覆盖回退 check-interface」（主/备混淆勘误）；此前 2026-09-22   # T-PERM-077：§3.5 追加操作条目补 inheritMask 缺省归一口径（省略=显式 0）；此前   # T-PERM-073：§4 扩展面状态表自动授权行改已交付（物化+解释/预览/诊断/对账收口）+ §5.3 独立依赖接入注记更新；此前   # T-PERM-071：§4 扩展面状态表自动授权行更新（声明编译/资源发布共序/SDK/迁移已交付并于同日收口，物化与解释归 072/073）；此前 2026-09-17 T-PERM-068（Q-007 三定案）：§3.4 资源父子边限同类型口径改写（原「资源可声明跨类型父子边」过时；sync 缺省回填/显式异类型拒绝/管理面 20053/角色域排除声明）；此前 T-ACCESS-034：§2.3 补 SDK DefaultOpCode.EDIT 无服务端预置已知差异注记、§7 操作码常量源措辞；此前 2026-09-12
 ---
 
 # AccessMesh 扩展指南（接入与二次开发全景）
@@ -54,7 +54,7 @@ last_reviewed: 2026-09-23   # T-ACCESS-053：§2 增接入主线一览、§2.1 �
 1. **注册服务**：管理台「服务+接口映射」页（`POST /api/access/service-config/save`）登记 `serviceCode`/`name`/`status=1`。
 2. **声明接口**：`POST /api/access/service-config/sync`（FULL 模式）上报接口清单——一步创建 **API 资源**与 **Gateway 路由映射**（`pathPattern = basePath + path`，行归属标记 `maintainSource=SERVICE_SYNC`）。API 类型由系统种子声明 SYNC+access-service（T-PERM-069），本通道与 bootstrap 固定图即唯一事实入口——**不要**走 `resource-entity/sync` 通道（外部来源不匹配，会被 `RESOURCE_TYPE_OWNERSHIP_DENIED` 拒绝；资源管理面手工 CRUD 亦 20055）。
 3. **授权**：未授权前 Gateway 对该接口一律拒绝（403）。经管理台授权页（入口见前置 3）对目标角色授该 API 实例（或 API 类型级）的 `ACCESS` 操作——授权写入口须用户身份（ROLE:MANAGE），不收服务身份。
-4. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 按映射做接口级判定（`check-interface`）并对可下发条件做本地重评。授权生效受 Gateway 快照刷新窗口约束（上界 30s）。
+4. **请求链路**：业务前端持平台会话令牌（`Authorization: Bearer <token>`，sa-token）经 **Gateway (8080)** 访问业务接口；Gateway 按映射做**接口快照本地判定**（快照未覆盖或条件未下发时回退 `check-interface` 实时判定）并对可下发条件做本地重评。授权生效受 Gateway 快照刷新窗口约束（上界 30s）。
 5. **服务侧防直调**：业务服务部署 Gateway 签名校验过滤器（example 的 `GatewaySignatureFilter` 模式）——拒绝未带有效网关签名的请求，防止绕过 Gateway 直调后端。
 6. **撤销与恢复**（T-ACCESS-053 补全，与授权同源）：撤销=授权页删除该条授权行（唯一删除语义 `apply-grant-plan` 的 `removes` 段；旧 `revoke` 端点已物理删除）——撤权生效受与授权相同的 30 秒陈旧窗口约束，窗口内接口回到 403；恢复=对同一资源重授 `ACCESS`（撤销为软删，重授即新建行），同样 30 秒内生效。回归锁：`ExampleProtectedApiE2EIT` 第⑧步（撤销→403→重授→200）。
 
@@ -77,7 +77,7 @@ last_reviewed: 2026-09-23   # T-ACCESS-053：§2 增接入主线一览、§2.1 �
 ### 2.3 SDK 现状
 
 - `perm-client-spring-boot-starter`：**Feign 远程查询 SDK**（`PermissionFeignClient`：auth/check 族调用入口 + 内部同步拦截器）。适合需要在服务内主动查询权限/范围的场景。两套身份的注入形态：
-  - **旧密钥**：`FeignInternalSyncInterceptor` 自动注入 `X-Internal-Secret`/`X-Service-Code` 两个头（不覆盖调用方显式声明）；**`X-Tenant-Id` 须调用方业务侧自行注入**（服务调用缺失即 400）。
+  - **旧密钥**：`FeignInternalSyncInterceptor` 自动注入 `X-Internal-Secret`/`X-Service-Code` 两个头——仅 `X-Service-Code` 已显式声明则保留；`X-Internal-Secret` 为无条件追加注入（调用方自行声明时形成同头双值，服务端读首值，勿依赖「覆盖/保留」语义）；**`X-Tenant-Id` 须调用方业务侧自行注入**（服务调用缺失即 400）。
   - **新凭证**：`perm.credential-id` + `perm.credential-secret` 配置键（成对必填，半配 fail-fast）由 `FeignCredentialInterceptor` 注入凭证头（凭证端点内生效，见 §2.2 白名单）；配置凭证时必须同时显式声明 `perm.allow-insecure`（`true`/`false` 二值，缺省或非法值拒启——TLS 信任域声明护栏）。三键契约见[契约 §24.3](access-service-api-contract.md)。
 - `perm-gateway-spring-boot-starter`：网关侧装配（本项目 Gateway 自用）。
 - example-service **有意不消费** starter——接口级鉴权完全由 Gateway 承担，服务内零权限代码。这是当前推荐的轻接入形态。
@@ -90,7 +90,7 @@ last_reviewed: 2026-09-23   # T-ACCESS-053：§2 增接入主线一览、§2.1 �
 
 | 层 | 判定者 | 权限对象 | 效果 |
 |---|---|---|---|
-| 接口层 | Gateway（`check-interface` 快照判定） | API 资源的 `ACCESS` 操作 | 请求能否**过网关到达业务服务**——无 API:ACCESS 一律 403，业务权限再全也不放行 |
+| 接口层 | Gateway（**接口快照本地判定**，快照未覆盖/条件未下发时回退 `check-interface` 实时判定） | API 资源的 `ACCESS` 操作 | 请求能否**过网关到达业务服务**——无 API:ACCESS 一律 403，业务权限再全也不放行 |
 | 业务层 | 业务服务自己（调 `auth/check` 查询后按结果分支） | 业务资源类型的自有操作（如 `REPORT:VIEW`，见 §3 建模） | 业务服务**收到请求后**如何处理——两层是先后关系不是替代关系 |
 
 两个方向的自动化派生**均未交付**，须分开配置：「授业务权限自动派生 API:ACCESS」= T-PERM-054（暂缓，API 操作派生方向待方案，见任务卡）；「业务侧按 scopeMode 动态生成 SQL 数据过滤」= T-PERM-036（暂缓，延后至 example 演示，能力边界见 §6）。

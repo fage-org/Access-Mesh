@@ -66,6 +66,8 @@ last_updated: 2026-09-23
 
 **回归与评审**：E2E 定向 8/8 绿（BUILD SUCCESS）；收口全量 `mvn test -T 1C`（含 E2E/heavy）BUILD SUCCESS 0 失败 0 错误；双轨评审（2026-09-23）：代码轨 P0-P2=0、P3×3（分节注释 6→8 步、字段注释补⑧消费方、IntPredicate import 化）全直修+定向补跑 8/8 绿留痕；文档轨 P2×2（§2.2 白名单外「一律 403」与契约 §24.1 限定②经 Gateway 形态=401 矛盾→补形态限定；iam-task-closure/example-service 两处 frontmatter 漏更）+P3×4（主线一览与 §2.1 编号错位消歧、extension-guide frontmatter 日期回补、service-authentication §4 20065 同步、「见上表」方向勘误）全直修；存量观察登记 Q-041（architecture.md SDK 表未列凭证拦截器，超 design_refs 边界不顺带修，Q-015 先例）。
 
+**claude 外评处置**（2026-09-23，deepseek-flash[1M] headless plan，commit ed06b1641 后；P0-P2=0、P3×2、过度设计=0，专项清单四项全过——双轨处置复核无次生缝隙/E2E⑧专项（静态字段链/容忍集对称/软删重授部分索引不撞键/⑧⑦不互污）/文档断言逐字对照/既有测试无破坏）：P3-1 §2.3「不覆盖调用方显式声明」括注失实（interceptor 仅 X-Service-Code 有守卫、X-Internal-Secret 无条件追加——亲核 :55-62 属实）→ 括注收窄+service-authentication §2 表③类推面同批；P3-2 §2.4「check-interface 快照判定」主/备混淆（主判据=接口快照本地匹配、check-interface 仅 FALLBACK——亲核 PermissionFilter:224 属实）→ §2.4+§2.1 步 4 存量同源句一并同口径。行为变更类建议（secret 补守卫）登记不修；定案见 registry 同日处置行。
+
 **验收对照**：①已证（C 段全链+空环境沿文档）；②已证（E 段+Q-040+对照表含形态限定）；③已证（D 段沿文档六步+§2.4 双层区分）；④已证（零新增框架/配置；example-service 源码零改动——E2E ①~⑦ 步语义不变，⑧为纯追加）。
 
 ## 验收对照

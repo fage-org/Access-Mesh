@@ -3,7 +3,7 @@ doc_type: design
 title: 公共服务认证模块（per-service credential）
 status: adopted
 domain: access-service
-last_reviewed: 2026-09-23   # T-ACCESS-053 评审处置：§4 20065 描述补「白名单外路径」（对齐契约 §24.2 单源）；此前 2026-09-20   # T-PERM-070 实施落地：§3.2 验证顺序与 TLS 段按实施拍板修订（registry 2026-09-20 行）、§4 占位换契约 §24 指针；实施终态见任务卡与契约总册 §24
+last_reviewed: 2026-09-23   # T-ACCESS-053 评审处置：§4 20065 描述补「白名单外路径」（对齐契约 §24.2 单源）+ §2 表③ SDK 注入括注收窄（仅 X-Service-Code 保留声明、X-Internal-Secret 无条件追加——claude 外评 P3 类推面）；此前 2026-09-20   # T-PERM-070 实施落地：§3.2 验证顺序与 TLS 段按实施拍板修订（registry 2026-09-20 行）、§4 占位换契约 §24 指针；实施终态见任务卡与契约总册 §24
 ---
 
 # 公共服务认证模块（per-service credential）设计
@@ -35,7 +35,7 @@ last_reviewed: 2026-09-23   # T-ACCESS-053 评审处置：§4 20065 描述补「
 |---|---|---|---|
 | ① | Sa-Token 会话（仅 Bearer 头，Cookie 通道已关） | 管理面/前端用户 | RequestContextInterceptor（USER 绑定：session tenantId+operatorId）；2026-09-08 Cookie 双向关闭定案 |
 | ② | OAuth2 authorization_code + PKCE / refresh token + JWT HS256 | 外部应用代用户 | sys_oauth2_client.client_secret（BCrypt）；OAuth2JwtSupport（HS256 强度护栏）；**client_credentials 无发放实现**（schema L111 列注释与 L125 `internal-service` 种子行为历史预留、未被消费） |
-| ③ | X-Internal-Secret 全局共享密钥 | 内网基础设施互信 | Spring 配置 `perm.internal-secret`（环境变量，**不落库**）；Gateway `InternalSecretFilter`（GlobalFilter，配置非空时**无条件向所有下游请求注入**）+ `PermissionClient` 直连带密；SDK `FeignInternalSyncInterceptor` 注入 `X-Internal-Secret`+`X-Service-Code`（不覆盖调用方显式声明） |
+| ③ | X-Internal-Secret 全局共享密钥 | 内网基础设施互信 | Spring 配置 `perm.internal-secret`（环境变量，**不落库**）；Gateway `InternalSecretFilter`（GlobalFilter，配置非空时**无条件向所有下游请求注入**）+ `PermissionClient` 直连带密；SDK `FeignInternalSyncInterceptor` 注入 `X-Internal-Secret`+`X-Service-Code`（仅 `X-Service-Code` 已显式声明则保留；`X-Internal-Secret` 为无条件追加注入——T-ACCESS-053 外评处置收窄口径） |
 | ④ | SERVICE 上下文绑定（非独立认证） | ③通过后的自报身份 | 密钥验证（`InternalApiSecretInterceptor`，常量时间比对，失败 403；注册于 `SecurityWebMvcConfig.addInterceptors`，excludePathPatterns 精确豁免会话入口族）→ `X-Service-Code`/`X-Tenant-Id` **自报头**绑定（SignatureVerifier 仅数字解析、无签名）→ `AccessRequestContext.service(tenantId, serviceCode)` |
 
 **现状问题（本模块要解决的）**：
