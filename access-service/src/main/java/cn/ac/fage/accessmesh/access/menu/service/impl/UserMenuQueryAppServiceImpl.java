@@ -40,9 +40,11 @@ import java.util.stream.Collectors;
  * 权限事实经 {@link PermissionViewAppService}（管理查询入口，引擎封装在 permission 域）。
  * </p>
  * <p>
- * 菜单可见性按 adopted v3.5 §4.1 派生公式：
- * MENU(业务)（resource_type 非空）→ 用户对关联资源有任意有效操作码（含 scopeAll 全范围授权）即可见，
- * 无 scopeAll 时 resource_code 为空或资源实例无法解析则不可见（fail-closed）；
+ * 菜单可见性按 adopted v3.5 §4.1 派生公式（T-ACCESS-052 扩展实例准入）：
+ * MENU(业务)（resource_type 非空）→ 用户对关联资源有任意有效操作码（含 scopeAll 全范围授权）即可见；
+ * resource_code 非空时按实例解析匹配（无 scopeAll 且实例无法解析则不可见，fail-closed）；
+ * resource_code 为空（类型页目录菜单）→ 该类型有 scopeAll 全范围授权、或有任一直接实例授权
+ * 即可见（T-ACCESS-052：有限管理员持实例授权可见目录入口，列表内容由目录端点按实例裁剪）；
  * MENU(纯展示)（resource_type IS NULL）→ 全员可见；DIR → 存在可见子节点（树构建剪枝）；
  * HIDDEN → 派生同 MENU(业务) 但响应无 hiddenRoutes 字段，整体不进 menus[]；
  * EXTERNAL/IFRAME → 派生同 MENU(业务)。
@@ -156,8 +158,9 @@ public class UserMenuQueryAppServiceImpl implements UserMenuQueryAppService {
      * 先按 {@code menu_type} 分支（见实现）：DIR 恒候选可见；MENU(纯展示) 全员可见；
      * 业务菜单类型显式限定为 MENU/HIDDEN/EXTERNAL/IFRAME（未知类型默认 fail-closed 不可见），
      * 且 resource_type 非空时经 permission 域有效资源访问事实匹配：资源类型有 scopeAll 全范围授权、
-     * 或解析后的资源实例 ID 在用户有任意有效操作码的集合中；无 scopeAll 时 resource_code 为空或
-     * 资源实例无法解析（无投影）视为不可见（fail-closed）。
+     * resource_code 非空时解析后的资源实例 ID 在用户有任意有效操作码的集合中（无 scopeAll 且实例
+     * 无法解析视为不可见，fail-closed）、resource_code 为空（类型页菜单）时该类型有任一直接实例
+     * 授权即可见（T-ACCESS-052 实例准入）。
      * </p>
      */
     private Set<Long> deriveVisibleMenuIds(Long tenantId, Long userId, List<MenuProjection> allMenus) {
@@ -165,8 +168,9 @@ public class UserMenuQueryAppServiceImpl implements UserMenuQueryAppService {
         //   DIR               → 恒候选可见（是否渲染由树构建剪枝决定：有可见子节点才渲染），不参与资源判定；
         //   MENU(纯展示)      → resource_type IS NULL → 全员可见；
         //   MENU/HIDDEN/EXTERNAL/IFRAME(业务) → resource_type 非空 → 有效资源访问事实匹配
-        //                        （先 scopeAll 全范围授权；无 scopeAll 时 resource_code 为空或
-        //                          资源实例解析失败 fail-closed，DDL 无两列成对约束）；
+        //                        （先 scopeAll 全范围授权；resource_code 非空按实例解析匹配、
+        //                          解析失败 fail-closed；resource_code 为空（类型页菜单）按该类型
+        //                          直接实例授权非空判定，T-ACCESS-052 实例准入）；
         //   resource_type 为空 → 无匹配条件 → fail-closed 不可见；
         //   未知 menu_type     → fail-closed 不可见（DDL 无 CHECK 约束，显式枚举防脏数据误放行）。
         Set<Long> visible = new LinkedHashSet<>();
@@ -216,6 +220,21 @@ public class UserMenuQueryAppServiceImpl implements UserMenuQueryAppService {
             Integer typeValue = typeValueByCode.get(menu.resourceType());
             if (typeValue != null && access.allScopeTypes().contains(typeValue)) {
                 visible.add(menu.id());
+                continue;
+            }
+            // T-ACCESS-052 类型页菜单（resource_code 为空）实例准入：该类型有任一直接实例授权
+            // 即可见——有限管理员（如 service-a 负责人持 SERVICE:a 实例授权）无需类型级
+            // scopeAll 也能看到目录入口；列表内容由各目录端点按实例裁剪（目录=VIEW 过滤，
+            // 菜单=任意操作，U003 拍板 2026-09-23：仅持 CREATE 等不覆盖 VIEW 位者入口可见但目录 403）。
+            // typeValue 判空前置：instanceIdsByType 为不可变 Map.of()（EffectiveResourceAccess.empty()）
+            // 时 get(null) 抛 NPE，且未知类型菜单行（引用已删类型）typeValue 可为 null——先判空再查
+            if (menu.resourceCode() == null) {
+                if (typeValue != null) {
+                    Set<Long> typeInstances = access.instanceIdsByType().get(typeValue);
+                    if (typeInstances != null && !typeInstances.isEmpty()) {
+                        visible.add(menu.id());
+                    }
+                }
                 continue;
             }
             Long entityId = resolved.get(

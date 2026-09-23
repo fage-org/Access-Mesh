@@ -38,10 +38,11 @@ public interface AdminPermissionValidator {
     /**
      * 类型级权限非抛出判定（T-ADMIN-021，供「部分裁剪」类调用方使用）。
      * <p>
-     * 仅在权限引擎<b>成功响应</b>且判定拒绝时返回 false；本地权限引擎技术故障
-     * （如数据库异常）或操作者主体缺失时抛 {@link cn.ac.fage.accessmesh.common.exception.SystemException}
-     * 向上（fail-closed，不得静默降级为裁剪结果——P2-1）。不复用 SecurityException
-     * （全局映射 403，与故障语义矛盾）。
+     * 仅在权限引擎<b>成功响应</b>且判定拒绝时返回 false；引擎技术故障（如数据库异常）抛
+     * {@link cn.ac.fage.accessmesh.common.exception.SystemException} 向上（fail-closed，不得
+     * 静默降级为裁剪结果——P2-1）；操作者主体缺失抛 {@link SecurityException}（403 明确拒绝，
+     * 与 checkAndThrow 同一定性——T-ACCESS-052 修订：sys_user 存在而权限投影缺失是可感知的
+     * 拒绝非技术故障）。
      * </p>
      *
      * @param resourceTypeCode 资源类型码

@@ -50,15 +50,17 @@ public class AdminPermissionValidatorImpl implements AdminPermissionValidator {
             userId = typeResolutionService.resolveUserId(
                 tenantId, LocalProjectionOwner.SUBJECT_LOCAL_USER, String.valueOf(operatorId));
             if (userId == null) {
-                // 主体缺失归技术故障（fail-closed 抛 SystemException），不得当作「明确拒绝」返回 false
-                // ——hasTypeLevel 的 false 语义仅限引擎成功响应且 allowed=false（P2-1）
+                // 主体缺失=明确拒绝（SecurityException 403，与 checkAndThrow 同一定性：
+                // sys_user 存在而权限投影缺失是可感知的拒绝形态，非技术故障；T-ACCESS-052
+                // 组织树实例准入改走本入口后与旧 checkTypeLevel 门禁行为保持一致）；
+                // 不得当作「引擎成功响应且 allowed=false」的常规 false 返回（P2-1）
                 log.warn("Permission check user not found (hasTypeLevel): operatorId={}, resourceType={}, operation={}",
                     operatorId, resourceTypeCode, operationCode);
-                throw new SystemException(GlobalErrorCode.SYSTEM_ERROR.code(),
-                    "权限判定失败: 操作者主体不存在");
+                throw new SecurityException("权限校验失败: 操作者主体不存在");
             }
             return engine.hasPermissionByCode(tenantId, userId, resourceTypeCode, null, operationCode);
-        } catch (SystemException e) {
+        } catch (SystemException | SecurityException e) {
+            // SecurityException=上方主体缺失的明确拒绝（403），放行不得转技术故障
             throw e;
         } catch (RuntimeException e) {
             // 主体解析/引擎技术故障（如数据库异常）向上抛 SystemException，禁止静默降级为裁剪结果（P2-1）；

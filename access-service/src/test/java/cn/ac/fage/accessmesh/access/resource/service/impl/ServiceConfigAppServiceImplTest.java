@@ -16,6 +16,9 @@ import cn.ac.fage.accessmesh.access.resource.service.domain.ResourceSyncHandler;
 import cn.ac.fage.accessmesh.access.sync.guard.SyncTypeGuard;
 import cn.ac.fage.accessmesh.access.engine.core.TypeResolutionService;
 import cn.ac.fage.accessmesh.access.engine.core.PermQueryEngine;
+import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
+import org.mockito.MockedStatic;
+import static org.mockito.Mockito.mockStatic;
 import cn.ac.fage.accessmesh.common.exception.BizException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -251,6 +254,74 @@ class ServiceConfigAppServiceImplTest {
         mapping.setMatchOrder(0);
         mapping.setEnabled(true);
         return mapping;
+    }
+
+    // ===== T-ACCESS-052 服务目录实例准入 =====
+
+    @Test
+    void listServiceConfigs_instanceGrantee_seesOnlyVisibleServices() {
+        ServiceConfig svcA = config(1L, "svc-a");
+        ServiceConfig svcB = config(2L, "svc-b");
+        when(serviceConfigMapper.selectByTenantId(1L)).thenReturn(List.of(svcA, svcB));
+        try (MockedStatic<OperatorContext> op = mockStatic(OperatorContext.class)) {
+            op.when(OperatorContext::getOperatorId).thenReturn(100L);
+            // 类型级 VIEW 拒；实例批量判定仅 svc-b 被拒（持 svc-a 实例授权）
+            when(engine.hasPermissionByCode(eq(1L), eq(100L),
+                eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCode.VIEW)))
+                .thenReturn(false);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.SERVICE),
+                any(), eq(OperationCode.VIEW)))
+                .thenReturn(Set.of("svc-b"));
+
+            List<ServiceConfigResp> result = service.listServiceConfigs(1L);
+
+            assertEquals(1, result.size());
+            assertEquals("svc-a", result.get(0).serviceCode());
+        }
+    }
+
+    @Test
+    void listServiceConfigs_instanceGrantee_allDenied_throws403() {
+        when(serviceConfigMapper.selectByTenantId(1L)).thenReturn(List.of(config(1L, "svc-a")));
+        try (MockedStatic<OperatorContext> op = mockStatic(OperatorContext.class)) {
+            op.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L),
+                eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCode.VIEW)))
+                .thenReturn(false);
+            when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.SERVICE),
+                any(), eq(OperationCode.VIEW)))
+                .thenReturn(Set.of("svc-a"));
+
+            assertThrows(SecurityException.class, () -> service.listServiceConfigs(1L));
+        }
+    }
+
+    @Test
+    void listServiceConfigs_typeLevelGrantee_getsAllServices() {
+        when(serviceConfigMapper.selectByTenantId(1L)).thenReturn(
+            List.of(config(1L, "svc-a"), config(2L, "svc-b")));
+        try (MockedStatic<OperatorContext> op = mockStatic(OperatorContext.class)) {
+            op.when(OperatorContext::getOperatorId).thenReturn(100L);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L),
+                eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCode.VIEW)))
+                .thenReturn(true);
+
+            List<ServiceConfigResp> result = service.listServiceConfigs(1L);
+
+            // 类型级保留全量语义；不触发实例批量判定
+            assertEquals(2, result.size());
+            verify(engine, never()).getDeniedResourceCodes(anyLong(), anyLong(), any(), any(), any());
+        }
+    }
+
+    private ServiceConfig config(Long id, String serviceCode) {
+        ServiceConfig c = new ServiceConfig();
+        c.setId(id);
+        c.setTenantId(1L);
+        c.setServiceCode(serviceCode);
+        c.setName(serviceCode);
+        c.setStatus(1);
+        return c;
     }
 
     private void mockManagePermission() {

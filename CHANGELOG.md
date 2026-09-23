@@ -11,6 +11,7 @@
 
 ### Changed
 
+- **管理目录实例准入与类型页菜单实例可见（T-ACCESS-052）**：`service-config/list`、`resource-entity/tree|list|count`、`abstract-role/tree`、`abstract-role/list|count`（及 `org/tree`、`org/page` 组织轨）读门禁从「类型级 VIEW 才能进入」放宽为「类型级通过全量返回；否则持该类型任一实例 VIEW（含继承覆盖，如 MANAGE 继承 VIEW 位）者进入，结果按可见实例裁剪（树=可见节点∪祖先导航链）；零可见实例仍 403」——有限管理员（如 service-a 负责人持 `SERVICE:a` 实例授权）此前被类型级门禁挡在目录外或被迫拿全类型授权（D001）。`resource-entity/detail`（不存在=20004、无权=403，与写路径同形）与 `abstract-role/detail`（无权与不存在同返回 null，查询语义防探测）门禁改实例级。类型级权限探测入口 `hasTypeLevel` 对操作者主体缺失（sys_user 存在而权限投影缺失）从 500(99999) 收敛为 403 明确拒绝（与 checkAndThrow 同一定性）。菜单派生：`resource_code` 为空的类型页目录菜单在该类型有任一直接实例授权时可见（入口准入）；`org/users` 补目标组织可见性校验（不可见 orgId → `ORG_NOT_FOUND`，防持 `USER:VIEW` 门票者经任意 orgId 探测成员名单）。配套：bootstrap 固定图 `SERVICE:MANAGE`/`SERVICE:MANAGE_API_MAPPING`/`ORG:MANAGE_MEMBER`/`USER:VIEW` 四条 canGrant=true（内置类型实例委派首授解锁——首管理员可经授权页构造限定角色；存量库订正语句见 rebuild-runbook）。
 - **资源同步父边收紧为同类型（T-PERM-068，破坏性收紧）**：`resource-entity/sync`/`full-sync` 显式异类型 `parentResourceTypeCode` 由放行改为 item 级拒绝（`NON_RETRYABLE`/`PARENT_TYPE_MISMATCH`）；`parentResourceTypeCode` 缺省回填 item/scope 自身类型（只传 `parentResourceCode` 也按同类型解析挂父——原实现半传被静默解挂）；父字段组仅 UPSERT 生效（DISABLE/DELETE 忽略父字段）；单条 DELETE 存在有效子资源时拒绝（`DEPENDENCY_MISSING`/`CHILDREN_EXIST`，先删子再重发自愈）。管理面 `resource-entity/create`/`batch-create` 对齐 move：跨类型父 20053、裸 `parentId` 补存在性（20004）与类型校验。
 - **资源 full-sync 引入发布代次（T-PERM-071，破坏性收紧）**：`resource-entity/full-sync` 必填 `publicationGeneration`（发布源确定、按 scope 原子拒旧——旧代次零副作用拒绝，不得以当前时间或 git revision 冒充；重试沿用原代次与完整快照）；完整空清单 `items=[]` 通过身份/所有权/代次校验后仅清本同步范围；纯增量 scope 维持现役协议。
 

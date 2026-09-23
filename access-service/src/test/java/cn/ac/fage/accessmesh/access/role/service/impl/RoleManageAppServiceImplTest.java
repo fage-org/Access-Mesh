@@ -106,9 +106,10 @@ class RoleManageAppServiceImplTest {
         verifyNoInteractions(abstractRoleMapper);
     }
 
-    /** T-PERM-042（architecture §14.5）：角色树读接口补类型级 ROLE:VIEW 门禁。 */
+    /** T-PERM-042 门禁 + T-ACCESS-052 实例准入：类型级拒且租户零可见角色 仍 403（fail-closed）。 */
     @Test
     void shouldRejectRoleTreeWithoutRoleViewPermission() {
+        when(abstractRoleMapper.selectValidRoleIds(1L)).thenReturn(List.of());
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
@@ -116,7 +117,7 @@ class RoleManageAppServiceImplTest {
 
             assertThrows(SecurityException.class, () -> service.getRoleTree(1L, null, false));
         }
-        verifyNoInteractions(abstractRoleMapper);
+        // 403 早于域过滤（域裁剪只对已准入者生效）
         verifyNoInteractions(domainClassifyService);
     }
 
@@ -175,8 +176,9 @@ class RoleManageAppServiceImplTest {
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+            // T-ACCESS-052：detail 门禁改实例级（ROLE 业务码=roleId；类型级 scopeAll 覆盖实例判定）
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
+                eq("123"), eq(OperationCode.VIEW))).thenReturn(true);
 
             cn.ac.fage.accessmesh.access.role.dto.resp.RoleResp resp = service.getRole(1L, "BASIC_ROLE", "ext-1");
             assertNotNull(resp);
@@ -191,30 +193,78 @@ class RoleManageAppServiceImplTest {
     void shouldReturnNullDetailForUnknownRoleType() {
         when(typeResolutionService.resolveTypeValue(1L, "role_type", "GHOST")).thenReturn(null);
 
-        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
-            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
-                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
-
-            assertNull(service.getRole(1L, "GHOST", "ext-1"));
-        }
+        // T-ACCESS-052 后 detail 门禁在角色解析之后：未知类型早退不触引擎与 mapper
+        assertNull(service.getRole(1L, "GHOST", "ext-1"));
         verifyNoInteractions(abstractRoleMapper);
     }
 
-    /** T-PERM-022 评审收口：detail/list/count 读接口补类型级 ROLE:VIEW 门禁（与 /tree 同款，
-     * list 信息量 >= tree 不设门禁会使 tree 门禁事实可绕）。 */
+    /** T-PERM-022 门禁 + T-ACCESS-052 语义：list/count 类型级拒且零可见角色 403；
+     * detail 无权与不存在同返回 null（查询语义防探测，实例级判定）。 */
     @Test
     void shouldRejectDetailAndListWithoutRoleViewPermission() {
+        when(typeResolutionService.resolveTypeValue(1L, "role_type", "BASIC_ROLE")).thenReturn(6);
+        AbstractRole role = new AbstractRole();
+        role.setId(123L);
+        role.setTenantId(1L);
+        role.setRoleType(6);
+        role.setStatus(1);
+        when(abstractRoleMapper.selectByTypeAndExternalId(1L, 6, "ext-1")).thenReturn(role);
+        when(abstractRoleMapper.selectValidRoleIds(1L)).thenReturn(List.of());
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
                 isNull(), eq(OperationCode.VIEW))).thenReturn(false);
+            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+                eq("123"), eq(OperationCode.VIEW))).thenReturn(false);
 
-            assertThrows(SecurityException.class, () -> service.getRole(1L, "BASIC_ROLE", "ext-1"));
+            assertNull(service.getRole(1L, "BASIC_ROLE", "ext-1"));
             assertThrows(SecurityException.class, () -> service.listRoles(1L, null, null, null, null, 0, 10));
             assertThrows(SecurityException.class, () -> service.countRoles(1L, null, null, null, null));
         }
-        verifyNoInteractions(abstractRoleMapper);
+    }
+
+    /** T-ACCESS-052 角色目录实例准入：类型级拒但持实例授权 可见子集下推分页/计数。 */
+    @Test
+    void shouldPushVisibleRoleIdsWhenTypeLevelDenied() {
+        when(abstractRoleMapper.selectValidRoleIds(1L)).thenReturn(List.of(1L, 2L));
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            isNull(), eq(OperationCode.VIEW))).thenReturn(false);
+        // 引擎批量判定：角色 2 被拒（仅持角色 1 实例 VIEW）
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            any(), eq(OperationCode.VIEW))).thenReturn(java.util.Set.of("2"));
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            service.listRoles(1L, null, null, null, null, 0, 10);
+            service.countRoles(1L, null, null, null, null);
+        }
+        org.mockito.ArgumentCaptor<java.util.Set<Long>> captor =
+            org.mockito.ArgumentCaptor.forClass(java.util.Set.class);
+        verify(abstractRoleMapper).selectRoleListPaged(eq(1L), isNull(), isNull(), eq(false),
+            captor.capture(), eq(0), eq(10));
+        assertEquals(java.util.Set.of(1L), captor.getValue());
+        verify(abstractRoleMapper).selectRoleListCount(eq(1L), isNull(), isNull(), eq(false),
+            eq(java.util.Set.of(1L)));
+    }
+
+    /** T-ACCESS-052 类型级拒且全部角色被拒（零可见实例）403（fail-closed，目录=职责范围）。 */
+    @Test
+    void shouldRejectListWhenNoVisibleRoleInstance() {
+        when(abstractRoleMapper.selectValidRoleIds(1L)).thenReturn(List.of(1L, 2L));
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            isNull(), eq(OperationCode.VIEW))).thenReturn(false);
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            any(), eq(OperationCode.VIEW))).thenReturn(java.util.Set.of("1", "2"));
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            assertThrows(SecurityException.class, () -> service.listRoles(1L, null, null, null, null, 0, 10));
+        }
+        verify(abstractRoleMapper, org.mockito.Mockito.never())
+            .selectRoleListPaged(anyLong(), any(), any(), org.mockito.ArgumentMatchers.anyBoolean(),
+                any(), org.mockito.ArgumentMatchers.anyInt(), org.mockito.ArgumentMatchers.anyInt());
     }
 
     /** T-PERM-022 评审收口：删除有 BASIC 子级的 BASIC 角色级联软删子孙（悬挂子树防护）。

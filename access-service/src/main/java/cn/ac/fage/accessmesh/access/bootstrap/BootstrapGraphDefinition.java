@@ -77,7 +77,10 @@ public final class BootstrapGraphDefinition {
      * @param resourceTypeCode 资源类型码
      * @param operationCode    操作码
      * @param resourceCode     实例授权的资源编码；null 表示 scopeAll
-     * @param canGrant         是否可转授（bootstrap 固定图业务门禁均不可转授）
+     * @param canGrant         是否可转授（bootstrap 固定图业务门禁默认不可转授；T-ACCESS-052
+     *                         最小集四条例外——SERVICE:MANAGE/MANAGE_API_MAPPING、
+     *                         ORG:MANAGE_MEMBER、USER:VIEW 可转授，解锁内置类型实例委派的
+     *                         首授构造，其余维持不可转授）
      */
     public record GrantSpec(String resourceTypeCode, String operationCode,
                             String resourceCode, boolean canGrant) {}
@@ -267,15 +270,18 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.ROLE, OperationCode.CREATE, null, false),
             new GrantSpec(ResourceTypeCode.ROLE, OperationCode.MANAGE, null, false),
             // T-API-001：类型级（scopeAll）——接入新服务（如 example-service）的首条 API 映射
-            // 创建必须由首管理员完成，实例级会造成鸡生蛋（无正规入口补授新服务实例）
+            // 创建必须由首管理员完成，实例级会造成鸡生蛋（无正规入口补授新服务实例）；
+            // canGrant=true（T-ACCESS-052 最小集四条）：解锁 service-a 负责人一类实例委派角色的首授构造
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCode.MANAGE_API_MAPPING,
-                null, false),
+                null, true),
             // T-PERM-027：服务与接口映射页门禁——checkCanGrant 要求操作者先持有才能转授，
             // 固定图不持 SERVICE:VIEW/MANAGE/SYNC_INTERFACE 则空库上该页读写路径无授予起点
-            // （死锁，同 DOMAIN:VIEW 先例）。死锁防护=持有解锁首管理员页面读写；三条与全部
-            // 业务门禁同口径不可转授（转授链仅 API:ACCESS），实例粒度由租户后续自行收紧
+            // （死锁，同 DOMAIN:VIEW 先例）。死锁防护=持有解锁首管理员页面读写；VIEW/SYNC_INTERFACE
+            // 维持不可转授（转授链例外见 T-ACCESS-052 最小集四条），实例粒度由租户后续自行收紧
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCode.VIEW, null, false),
-            new GrantSpec(ResourceTypeCode.SERVICE, OperationCode.MANAGE, null, false),
+            // canGrant=true（T-ACCESS-052 最小集四条）：MANAGE 位覆盖 VIEW，持此可转授行即能
+            // 构造「SERVICE:实例 的 VIEW/MANAGE」限定授权（service-a 负责人场景）
+            new GrantSpec(ResourceTypeCode.SERVICE, OperationCode.MANAGE, null, true),
             new GrantSpec(ResourceTypeCode.SERVICE, OperationCode.SYNC_INTERFACE, null, false),
             new GrantSpec(ResourceTypeCode.TYPE_DEFINITION, OperationCode.VIEW, null, false),
             // T-FE-022：类型定义页写门禁（T-PERM-023 收口：create 类型级 CREATE、update/remove
@@ -301,7 +307,7 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.DOMAIN, OperationCode.VIEW, null, false),
             // T-PERM-030：冲突规则页读写四档——固定图不持则空库上该页读写路径无授予起点
             // （死锁，同 DOMAIN 先例）。读取（list/detail/detect）亦有 VIEW 门禁，
-            // 故 VIEW 与写三档同补；不可转授与全部业务门禁同口径
+            // 故 VIEW 与写三档同补；不可转授（默认口径，例外见 T-ACCESS-052 最小集四条）
             new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCode.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCode.CREATE, null, false),
             new GrantSpec(ResourceTypeCode.CONFLICT_RULE, OperationCode.UPDATE, null, false),
@@ -317,19 +323,23 @@ public final class BootstrapGraphDefinition {
             // T-FE-015：组织与用户页读写门禁全档——固定图不持则空库上该页读写路径无授予起点
             // （死锁，同 DEPENDENCY 先例；菜单种子挂 ORG 资源类型走 v3.5 派生同样要求先持有）。
             // ORG 系/USER 系操作码（OperationCode 唯一常量源，T-ACCESS-034 合一；DDL 非预置扩展码组全有种子），
-            // 不可转授与全部业务门禁同口径（转授链仅 API:ACCESS）
+            // 不可转授（默认口径，转授链例外见 T-ACCESS-052 最小集四条与 API:ACCESS）
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.VIEW, null, false),
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.CREATE, null, false),
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.UPDATE, null, false),
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.DELETE, null, false),
-            new GrantSpec(ResourceTypeCode.ORG, OperationCode.MANAGE_MEMBER, null, false),
+            // canGrant=true（T-ACCESS-052 最小集四条）：部门成员管理员场景——转授「ORG:部门A 的
+            // MANAGE_MEMBER」实例授权（操作者先持有才能转授，checkCanGrant 覆盖判定）
+            new GrantSpec(ResourceTypeCode.ORG, OperationCode.MANAGE_MEMBER, null, true),
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.VIEW_POSITION, null, false),
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.CREATE_POSITION, null, false),
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.UPDATE_POSITION, null, false),
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.DELETE_POSITION, null, false),
             new GrantSpec(ResourceTypeCode.ORG, OperationCode.ASSIGN_POSITION_USER, null, false),
             // USER:CREATE 已在图（上方管理 API 段）；此处补页面读写全档（ENABLE/RESET_PASSWORD DDL 非预置扩展码组有种子）
-            new GrantSpec(ResourceTypeCode.USER, OperationCode.VIEW, null, false),
+            // canGrant=true（T-ACCESS-052 最小集四条）：部门成员管理员场景——转授 USER:VIEW
+            // 类型级「用户目录门票」（内容按组织可见性裁剪兜底，门票+裁剪拍板 2026-09-23）
+            new GrantSpec(ResourceTypeCode.USER, OperationCode.VIEW, null, true),
             new GrantSpec(ResourceTypeCode.USER, OperationCode.UPDATE, null, false),
             new GrantSpec(ResourceTypeCode.USER, OperationCode.DELETE, null, false),
             new GrantSpec(ResourceTypeCode.USER, OperationCode.ENABLE, null, false),

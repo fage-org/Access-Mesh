@@ -3,6 +3,7 @@ package cn.ac.fage.accessmesh.access.engine.service;
 import cn.ac.fage.accessmesh.perm.common.dto.req.UserEffectivePermissionCodesReq;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.UserEffectivePermissionCodesResp;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -65,8 +66,18 @@ public interface PermissionViewAppService {
     /**
      * 有效资源访问事实（resource 实例粒度）。
      *
-     * @param allScopeTypes     用户有 scopeAll（全范围）授权的资源类型值集合
-     * @param resourceEntityIds 用户有任意有效操作码的资源实例 ID 集合（非 null）
+     * @param allScopeTypes      用户有 scopeAll（全范围）授权的资源类型值集合
+     * @param resourceEntityIds  用户有任意有效操作码的资源实例 ID 集合（非 null；含读过滤面继承的子孙扩展）
+     * @param instanceIdsByType  直接实例授权行按资源类型值分组的实例 ID 集合（非 null；不含子孙扩展）——
+     *                           T-ACCESS-052 类型页菜单准入（resource_code 为空的目录级菜单在该类型
+     *                           有任一直接实例授权时可见）与目录实例过滤的「该类型有任一可见实例」判定用
      */
-    record EffectiveResourceAccess(Set<Integer> allScopeTypes, Set<Long> resourceEntityIds) {}
+    record EffectiveResourceAccess(Set<Integer> allScopeTypes, Set<Long> resourceEntityIds,
+                                   Map<Integer, Set<Long>> instanceIdsByType) {
+
+        /** 全空访问事实（主体无角色/查询失败时调用方兜底用） */
+        public static EffectiveResourceAccess empty() {
+            return new EffectiveResourceAccess(Set.of(), Set.of(), Map.of());
+        }
+    }
 }

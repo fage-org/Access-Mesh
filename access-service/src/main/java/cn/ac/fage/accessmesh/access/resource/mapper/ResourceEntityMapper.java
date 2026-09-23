@@ -68,6 +68,19 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
                                                @Param("codes") Set<String> codes);
 
     /**
+     * 查询租户全部有效资源实体 ID（轻量 id 查询，不限 status）。
+     * <p>
+     * T-ACCESS-052 目录实例准入：先取全集 id，再经引擎 getDeniedEntityIds 按 VIEW
+     * 批量判定得到可见子集（过滤先于分页/计数下推）。租户资源量为管理面规模（数百到数千），
+     * 单次 IN 批量判定可接受。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 有效资源实体 ID 列表
+     */
+    List<Long> selectValidResourceIds(@Param("tenantId") Long tenantId);
+
+    /**
      * 批量查询指定类型 + 编码 + 编码类型的资源（按编码类型分桶后再查询）。
      * <p>
      * 用于 full-sync 阶段 B 一次性预加载所有 (resourceType, code, codeType) 组合，避免循环单条 select。
@@ -236,42 +249,51 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
     /**
      * 查询资源树（所有有效且启用的资源，可选资源类型过滤）
      *
-     * @param tenantId     租户ID
-     * @param resourceType 资源类型值，可选
-     * @param matchNone    是否匹配空结果（用于域过滤不匹配时）
+     * @param tenantId          租户ID
+     * @param resourceType      资源类型值，可选
+     * @param matchNone         是否匹配空结果（用于域过滤不匹配时）
+     * @param visibleEntityIds  可见实体 ID 白名单（T-ACCESS-052 实例过滤，null=不过滤即类型级放行；
+     *                          非空时仅返回白名单内实体——含祖先导航链，由调用方预先算好传入）
      * @return 资源实体列表
      */
     List<ResourceEntity> selectResourceTree(@Param("tenantId") Long tenantId,
                                              @Param("resourceType") Integer resourceType,
-                                             @Param("matchNone") boolean matchNone);
+                                             @Param("matchNone") boolean matchNone,
+                                             @Param("visibleEntityIds") Set<Long> visibleEntityIds);
 
     /**
      * 分页查询资源列表（带过滤条件）
      *
-     * @param tenantId     租户ID
-     * @param resourceType 资源类型值，可选
-     * @param matchNone    是否匹配空结果
-     * @param offset       偏移量
-     * @param limit        每页数量
+     * @param tenantId          租户ID
+     * @param resourceType      资源类型值，可选
+     * @param matchNone         是否匹配空结果
+     * @param visibleEntityIds  可见实体 ID 白名单（T-ACCESS-052 实例过滤，null=不过滤即类型级放行；
+     *                          过滤先于分页/LIMIT 下推，total 与列表同口径）
+     * @param offset            偏移量
+     * @param limit             每页数量
      * @return 资源实体列表
      */
     List<ResourceEntity> selectResourceListPaged(@Param("tenantId") Long tenantId,
                                                    @Param("resourceType") Integer resourceType,
                                                    @Param("matchNone") boolean matchNone,
+                                                   @Param("visibleEntityIds") Set<Long> visibleEntityIds,
                                                    @Param("offset") int offset,
                                                    @Param("limit") int limit);
 
     /**
      * 统计资源数量（带过滤条件）
      *
-     * @param tenantId     租户ID
-     * @param resourceType 资源类型值，可选
-     * @param matchNone    是否匹配空结果
+     * @param tenantId          租户ID
+     * @param resourceType      资源类型值，可选
+     * @param matchNone         是否匹配空结果
+     * @param visibleEntityIds  可见实体 ID 白名单（T-ACCESS-052 实例过滤，null=不过滤；
+     *                          与 selectResourceListPaged 同口径，先过滤再计数）
      * @return 资源总数
      */
     long selectResourceListCount(@Param("tenantId") Long tenantId,
                                   @Param("resourceType") Integer resourceType,
-                                  @Param("matchNone") boolean matchNone);
+                                  @Param("matchNone") boolean matchNone,
+                                  @Param("visibleEntityIds") Set<Long> visibleEntityIds);
 
     /**
      * 类型下有效资源行计数（T-PERM-052 类型所有权声明变更守卫）。

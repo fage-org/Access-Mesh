@@ -218,7 +218,9 @@ class AccessBootstrapPgIT {
         // CONFLICT_RULE 与 CONDITION 写各档、DEPENDENCY:VIEW（写档随 T-PERM-071 MANIFEST 独占写入退役）、
         // TYPE_DEFINITION 写两档
         // + 每条在册 API 路由派生一条 API:ACCESS 实例授权（各联调任务按页注册，见
-        // BootstrapGraphDefinition.apiRoutes()）；canGrant=true 仅目标 API 实例与 API:ACCESS 类型级
+        // BootstrapGraphDefinition.apiRoutes()）；canGrant=true=目标 API 实例、API:ACCESS 类型级
+        // 与 T-ACCESS-052 最小集四条（SERVICE:MANAGE/MANAGE_API_MAPPING、ORG:MANAGE_MEMBER、
+        // USER:VIEW——内置类型实例委派首授构造解锁，2026-09-23 拍板）
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
@@ -243,7 +245,29 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND can_grant = true",
-            Long.class, TENANT, roleId)).isEqualTo(2L);
+            Long.class, TENANT, roleId)).isEqualTo(6L);
+        // T-ACCESS-052 最小集四条 canGrant（新库按新定义种）：业务门禁可转授行明细
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
+                + "AND delete_flag = 0 AND scope_all = true AND can_grant = true "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
+                + "AND type_key = 'resource_type' AND type_code = 'SERVICE' AND delete_flag = 0) "
+                + "AND granted_bits IN (16, 32)",
+            Long.class, TENANT, roleId, TENANT)).isEqualTo(2L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
+                + "AND delete_flag = 0 AND scope_all = true AND can_grant = true "
+                + "AND granted_bits = 256 " // ORG:MANAGE_MEMBER（bit 256）
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
+                + "AND type_key = 'resource_type' AND type_code = 'ORG' AND delete_flag = 0)",
+            Long.class, TENANT, roleId, TENANT)).isEqualTo(1L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
+                + "AND delete_flag = 0 AND scope_all = true AND can_grant = true "
+                + "AND granted_bits = 2 " // USER:VIEW（bit 2）
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
+                + "AND type_key = 'resource_type' AND type_code = 'USER' AND delete_flag = 0)",
+            Long.class, TENANT, roleId, TENANT)).isEqualTo(1L);
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission p JOIN resource_entity re "
                 + "ON p.resource_entity_id = re.id AND re.tenant_id = p.tenant_id "

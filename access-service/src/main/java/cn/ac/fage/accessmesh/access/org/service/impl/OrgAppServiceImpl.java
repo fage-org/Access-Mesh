@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.org.service.impl;
 
 import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.access.infrastructure.util.OperatorContext;
 import cn.ac.fage.accessmesh.access.org.dto.req.OrgCreateReq;
 import cn.ac.fage.accessmesh.access.org.dto.req.OrgPageReq;
 import cn.ac.fage.accessmesh.access.org.dto.req.OrgQuery;
@@ -20,6 +21,7 @@ import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.engine.constant.OrgOperationCodeMapper;
 import cn.ac.fage.accessmesh.access.org.service.OrgAppService;
+import cn.ac.fage.accessmesh.access.org.service.OrgVisibilityQueryAppService;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgDomainService;
 import cn.ac.fage.accessmesh.access.org.service.domain.OrgTreeConfigDomainService;
 import cn.ac.fage.accessmesh.access.user.service.domain.UserDomainService;
@@ -66,6 +68,7 @@ public class OrgAppServiceImpl implements OrgAppService {
     private final OrgWriteAppService orgWriteAppService;
     private final SysUserOrgMapper userOrgMapper;
     private final UserDomainService userDomainService;
+    private final OrgVisibilityQueryAppService orgVisibilityQueryService;
 
     public OrgAppServiceImpl(SysOrgMapper orgMapper, SysOrgTreeConfigMapper treeConfigMapper,
                           OrgTreeConfigDomainService treeConfigDomainService,
@@ -73,7 +76,8 @@ public class OrgAppServiceImpl implements OrgAppService {
                           AdminPermissionValidator permissionValidator,
                           OrgWriteAppService orgWriteAppService,
                           SysUserOrgMapper userOrgMapper,
-                          UserDomainService userDomainService) {
+                          UserDomainService userDomainService,
+                          OrgVisibilityQueryAppService orgVisibilityQueryService) {
         this.orgMapper = orgMapper;
         this.treeConfigMapper = treeConfigMapper;
         this.treeConfigDomainService = treeConfigDomainService;
@@ -82,6 +86,7 @@ public class OrgAppServiceImpl implements OrgAppService {
         this.orgWriteAppService = orgWriteAppService;
         this.userOrgMapper = userOrgMapper;
         this.userDomainService = userDomainService;
+        this.orgVisibilityQueryService = orgVisibilityQueryService;
     }
 
     @Override
@@ -129,11 +134,19 @@ public class OrgAppServiceImpl implements OrgAppService {
         }
         String orgType = String.valueOf(req.orgType());
 
-        // 类型级 VIEW，按 orgType 分发
-        permissionValidator.checkTypeLevel(
-            ResourceTypeCode.ORG,
-            OrgOperationCodeMapper.resolve(orgType, OperationCode.VIEW)
-        );
+        // T-ACCESS-052 组织分页实例准入（orgType=1 组织轨；orgType=2 岗位分页维持类型级
+        // 门禁——Q-034 边界同树口径）：类型级 VIEW 通过全量，否则按可见组织交集过滤下推
+        //（先过滤再分页/计数，total 与列表同口径）。类型级/实例判定收敛 helper 单点
+        //（hasTypeLevel true 即等价通过，不重复 checkTypeLevel）
+        Set<Long> visibleOrgIds = null;
+        if (req.orgType() == 1) {
+            visibleOrgIds = resolveVisibleOrgIdsOrNull(tenantId, OperatorContext.getOperatorId());
+        } else {
+            permissionValidator.checkTypeLevel(
+                ResourceTypeCode.ORG,
+                OrgOperationCodeMapper.resolve(orgType, OperationCode.VIEW)
+            );
+        }
 
         int pageNum = req.getPageNum();
         int pageSize = req.getPageSize();
@@ -144,6 +157,18 @@ public class OrgAppServiceImpl implements OrgAppService {
                 return new PageResp<>(List.of(), 0, pageNum, pageSize, false);
             }
             orgIds = Set.copyOf(subtreeIds);
+        }
+        if (visibleOrgIds != null) {
+            // 实例过滤与请求子树取交集（orgIds=null 即全集）
+            if (orgIds == null) {
+                orgIds = visibleOrgIds;
+            } else {
+                orgIds = new HashSet<>(orgIds);
+                orgIds.retainAll(visibleOrgIds);
+            }
+            if (orgIds.isEmpty()) {
+                return new PageResp<>(List.of(), 0, pageNum, pageSize, false);
+            }
         }
 
         // XML 分页统一 offset/limit + count 双查询（MyBatis-Flex Page 参数在 XML 映射下不生效）
@@ -184,11 +209,16 @@ public class OrgAppServiceImpl implements OrgAppService {
                 "operationCode=CREATE 限默认树，禁止传 treeConfigId");
         }
 
-        // 门禁：混合树组织轨固定 ORG:VIEW，岗位轨独立 hasTypeLevel 后端裁剪（P2-1）；
-        // 单类型按 orgType 分发（D2=B，OrgOperationCodeMapper 单一事实源）
+        // 门禁：混合树组织轨固定 ORG:VIEW（T-ACCESS-052 实例准入：无类型级时持任一可见组织
+        // 即可进入，树内容按可见子集+祖先导航链裁剪），岗位轨独立 hasTypeLevel 后端裁剪（P2-1；
+        // Q-034 边界：岗位节点可见性仍按 ORG:VIEW 批量判定口径，VIEW_POSITION 精化不在本卡）；
+        // 单类型按 orgType 分发（D2=B，OrgOperationCodeMapper 单一事实源）——orgType=2 岗位树
+        // 维持类型级门禁（实例准入仅组织轨）
         boolean includePositionNodes = false;
+        Set<Long> visibleOrgIds = null;
+        Long operatorId = OperatorContext.getOperatorId();
         if (mixed) {
-            permissionValidator.checkTypeLevel(ResourceTypeCode.ORG, OperationCode.VIEW);
+            visibleOrgIds = resolveVisibleOrgIdsOrNull(tenantId, operatorId);
             includePositionNodes = permissionValidator.hasTypeLevel(
                 ResourceTypeCode.ORG, OperationCode.VIEW_POSITION);
         } else {
@@ -203,10 +233,16 @@ public class OrgAppServiceImpl implements OrgAppService {
                 throw new BizException(AccessErrorCode.ADMIN_INVALID_PARAM.getCode(),
                     "orgType 仅支持 1（普通组织）/ 2（岗位），实际: " + q.orgType());
             }
-            permissionValidator.checkTypeLevel(
-                ResourceTypeCode.ORG,
-                OrgOperationCodeMapper.resolve(String.valueOf(q.orgType()), operationCode)
-            );
+            if (q.orgType() == 1 && OperationCode.VIEW.equals(operationCode)) {
+                // T-ACCESS-052 组织树实例准入（VIEW 语义；CREATE 语义树=挂载点选择，
+                // 维持类型级拒绝——无类型级 CREATE 者不在本卡放宽面）
+                visibleOrgIds = resolveVisibleOrgIdsOrNull(tenantId, operatorId);
+            } else {
+                permissionValidator.checkTypeLevel(
+                    ResourceTypeCode.ORG,
+                    OrgOperationCodeMapper.resolve(String.valueOf(q.orgType()), operationCode)
+                );
+            }
         }
 
         // 树范围：CREATE 强制默认树（新增用户挂载点限默认树）；
@@ -225,6 +261,12 @@ public class OrgAppServiceImpl implements OrgAppService {
                 "树配置根组织不存在或已删除: configId=" + config.getId() + ", rootOrgId=" + config.getRootOrgId());
         }
         List<SysOrg> scoped = scopeToSubtree(all, byId, config.getRootOrgId());
+
+        // T-ACCESS-052 组织树实例裁剪：保留可见节点及其祖先导航链（祖先仅作骨架，写操作逐对象
+        // 校验兜底）；祖先上溯基于全量 byId（scoped 外祖先不进结果，配置子树本就限定范围）
+        if (visibleOrgIds != null) {
+            scoped = filterTreeToVisibleWithAncestors(scoped, byId, visibleOrgIds);
+        }
 
         // 岗位裁剪先于名称/orgType/status 过滤：仅 ORG:VIEW 的调用者不返回任何岗位节点（前端隐藏不是安全边界）
         if (mixed && !includePositionNodes) {
@@ -363,6 +405,14 @@ public class OrgAppServiceImpl implements OrgAppService {
         // 与组织实例的 VIEW / VIEW_POSITION 解耦
         permissionValidator.checkTypeLevel(ResourceTypeCode.USER, OperationCode.VIEW);
 
+        // T-ACCESS-052：目标组织可见性校验（filterVisibleOrgIds 同源 ORG:VIEW 批量判定；
+        // 不可见与不存在同 10101 语义，防持 USER:VIEW 门票者经任意 orgId 探测成员名单）
+        Long visibilityOperatorId = OperatorContext.getOperatorId();
+        if (orgVisibilityQueryService.filterVisibleOrgIds(tenantId, visibilityOperatorId, Set.of(orgId)).isEmpty()) {
+            throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(),
+                AccessErrorCode.ORG_NOT_FOUND.getMessage());
+        }
+
         cn.ac.fage.accessmesh.access.org.entity.table.SysUserOrgTableDef suo = cn.ac.fage.accessmesh.access.org.entity.table.SysUserOrgTableDef.SYS_USER_ORG;
         com.mybatisflex.core.query.QueryWrapper qw = com.mybatisflex.core.query.QueryWrapper.create()
             .where(suo.TENANT_ID.eq(tenantId))
@@ -402,6 +452,54 @@ public class OrgAppServiceImpl implements OrgAppService {
             org.getParentId(), org.getCode(),
             org.getStatus(), org.getSortOrder(), org.getCreatedAt(), org.getUpdatedAt(), children
         );
+    }
+
+    /**
+     * T-ACCESS-052 组织树/分页实例准入：类型级 ORG:VIEW 通过返回 null（不过滤，类型级保留
+     * 全量语义）；否则取租户全部有效组织 ID 经 {@link OrgVisibilityQueryAppService} 按
+     * ORG:VIEW 批量判定（含继承覆盖）得到可见子集；子集为空抛 403（无任何可见组织，
+     * fail-closed——目录=职责范围）。岗位节点可见性同判定口径（Q-034 现状，精化另行拍板）。
+     */
+    private Set<Long> resolveVisibleOrgIdsOrNull(Long tenantId, Long operatorId) {
+        if (permissionValidator.hasTypeLevel(ResourceTypeCode.ORG, OperationCode.VIEW)) {
+            return null;
+        }
+        List<Long> allOrgIds = orgMapper.selectValidOrgIds(tenantId);
+        if (allOrgIds.isEmpty()) {
+            throw new SecurityException("Permission denied: VIEW on ORG");
+        }
+        Set<Long> visible = orgVisibilityQueryService.filterVisibleOrgIds(tenantId, operatorId, allOrgIds);
+        if (visible.isEmpty()) {
+            throw new SecurityException("Permission denied: VIEW on ORG");
+        }
+        return visible;
+    }
+
+    /**
+     * T-ACCESS-052 树形实例裁剪：保留可见节点及其祖先导航链（祖先仅作树形骨架展示，
+     * 写操作仍逐对象校验）。祖先上溯基于全量 byId 图（scoped 外祖先不进结果）；
+     * 已标记祖先链短路，环防护防脏数据 parent 环。
+     * 同款算法三副本（ResourceManage/RoleManage/OrgApp 各一）——互引锚点，修改裁剪语义须三处同步。
+     */
+    private List<SysOrg> filterTreeToVisibleWithAncestors(List<SysOrg> scoped, Map<Long, SysOrg> byId,
+                                                            Set<Long> visibleOrgIds) {
+        Set<Long> allowed = new HashSet<>();
+        for (SysOrg org : scoped) {
+            if (!visibleOrgIds.contains(org.getId())) {
+                continue;
+            }
+            SysOrg current = org;
+            Set<Long> chainVisited = new HashSet<>();
+            while (current != null && chainVisited.add(current.getId())) {
+                if (!allowed.add(current.getId())) {
+                    break;
+                }
+                current = current.getParentId() == null ? null : byId.get(current.getParentId());
+            }
+        }
+        return scoped.stream()
+            .filter(o -> allowed.contains(o.getId()))
+            .collect(Collectors.toList());
     }
 
     /**

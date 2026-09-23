@@ -175,20 +175,23 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     public RoleResp getRole(Long tenantId, String roleTypeCode, String roleExternalId) {
-        // T-PERM-022 评审收口：读接口补类型级 ROLE:VIEW 门禁（与 /tree 同款；
-        // list 信息量 >= tree，不设门禁会使 tree 门禁事实可绕）
-        Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCode.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on ROLE");
-        }
-        // T-PERM-022：业务键二元组定位（uk_abstract_role_external）；
-        // 未知 roleTypeCode 不抛错，与 list 的空分页口径一致（查询语义，非写入校验）
+        // T-PERM-022 读门禁原为类型级 ROLE:VIEW；T-ACCESS-052 改实例级（ROLE 业务码=roleId，
+        // 类型级 scopeAll 覆盖实例判定）——无权与不存在同返回 null（查询语义，防探测，
+        // 与 list 空分页口径一致）
         Integer roleType = typeResolutionService.resolveTypeValue(tenantId, "role_type", roleTypeCode);
         if (roleType == null) {
             return null;
         }
         AbstractRole role = abstractRoleMapper.selectByTypeAndExternalId(tenantId, roleType, roleExternalId);
-        return role != null ? toRoleResp(role) : null;
+        if (role == null) {
+            return null;
+        }
+        Long operatorId = OperatorContext.getOperatorId();
+        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, String.valueOf(role.getId()), OperationCode.VIEW)) {
+            return null;
+        }
+        // T-PERM-022：业务键二元组定位（uk_abstract_role_external）
+        return toRoleResp(role);
     }
 
     @Override
@@ -482,11 +485,11 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     public List<RoleTreeResp> getRoleTree(Long tenantId, String domainCode, boolean enabledOnly) {
-        // T-PERM-042：授权页角色树读门禁（architecture §14.5 终态，类型级 ROLE:VIEW）
+        // T-PERM-042 读门禁原为类型级 ROLE:VIEW；T-ACCESS-052 实例准入：无类型级 VIEW 时持任一
+        // 角色实例 VIEW（含继承覆盖，ROLE 业务码=roleId）者可进入，树内容裁剪到可见角色
+        // （含祖先导航链）；无任何可见实例仍 403（fail-closed）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCode.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on ROLE");
-        }
+        Set<Long> visibleRoleIds = resolveVisibleRoleIdsOrNull(tenantId, operatorId);
         if (domainCode != null && !domainCode.isBlank()
             && !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
                 .contains(ResourceTypeCode.ROLE)) {
@@ -496,6 +499,9 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         // T-PERM-022：默认返回全部有效角色（含禁用）——status 仅作展示字段，禁用角色须在树中
         // 可见可再启用；授权页主体树等仅需启用态的消费方传 enabledOnly=true 由 SQL 过滤
         List<AbstractRole> allRoles = abstractRoleMapper.selectValidRoleTree(tenantId, enabledOnly);
+        if (visibleRoleIds != null) {
+            allRoles = filterTreeToVisibleWithAncestors(allRoles, visibleRoleIds);
+        }
 
         TreeBuilder<AbstractRole, RoleTreeNode> treeBuilder = new TreeBuilder<>(
             AbstractRole::getId,
@@ -519,35 +525,85 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
 
     @Override
     public List<RoleResp> listRoles(Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword, int offset, int limit) {
-        // T-PERM-022 评审收口：读接口补类型级 ROLE:VIEW 门禁（与 /tree 同款）
+        // T-PERM-022 评审收口读门禁 + T-ACCESS-052 实例准入；过滤经 visibleRoleIds 下推 SQL
+        // （先过滤再分页，与 count 同口径）
         Long viewOperatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, viewOperatorId, ResourceTypeCode.ROLE, null, OperationCode.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on ROLE");
-        }
+        Set<Long> visibleRoleIds = resolveVisibleRoleIdsOrNull(tenantId, viewOperatorId);
         RoleTypeFilter roleTypeFilter = resolveRoleTypeFilter(tenantId, roleTypeCode, roleTypeCodes);
         boolean matchNone = roleTypeFilter.matchNone();
         if (domainCode != null && !domainCode.isBlank()) {
             matchNone = matchNone || !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
                 .contains(ResourceTypeCode.ROLE);
         }
-        return abstractRoleMapper.selectRoleListPaged(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone, offset, limit)
+        return abstractRoleMapper.selectRoleListPaged(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone, visibleRoleIds, offset, limit)
             .stream().map(this::toRoleResp).collect(Collectors.toList());
     }
 
     @Override
     public long countRoles(Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword) {
-        // T-PERM-022 评审收口：读接口补类型级 ROLE:VIEW 门禁（与 /tree 同款）
+        // T-PERM-022 评审收口读门禁 + T-ACCESS-052 实例准入（过滤先于计数，与 list 同口径）
         Long countOperatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, countOperatorId, ResourceTypeCode.ROLE, null, OperationCode.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on ROLE");
-        }
+        Set<Long> visibleRoleIds = resolveVisibleRoleIdsOrNull(tenantId, countOperatorId);
         RoleTypeFilter roleTypeFilter = resolveRoleTypeFilter(tenantId, roleTypeCode, roleTypeCodes);
         boolean matchNone = roleTypeFilter.matchNone();
         if (domainCode != null && !domainCode.isBlank()) {
             matchNone = matchNone || !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
                 .contains(ResourceTypeCode.ROLE);
         }
-        return abstractRoleMapper.selectRoleListCount(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone);
+        return abstractRoleMapper.selectRoleListCount(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone, visibleRoleIds);
+    }
+
+    /**
+     * T-ACCESS-052 目录实例准入：类型级 ROLE:VIEW 通过返回 null（不过滤，类型级保留全量语义）；
+     * 否则取租户全部有效角色 ID（ROLE 业务码=roleId）经引擎 getDeniedResourceCodes 按 VIEW
+     * 批量判定（含继承覆盖）得到可见子集；子集为空抛 403（无任何可见实例，fail-closed）。
+     */
+    private Set<Long> resolveVisibleRoleIdsOrNull(Long tenantId, Long operatorId) {
+        if (engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.ROLE, null, OperationCode.VIEW)) {
+            return null;
+        }
+        Set<Long> allRoleIds = new LinkedHashSet<>(abstractRoleMapper.selectValidRoleIds(tenantId));
+        if (allRoleIds.isEmpty()) {
+            throw new SecurityException("Permission denied: VIEW on ROLE");
+        }
+        Set<String> allRoleCodes = allRoleIds.stream().map(String::valueOf).collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> deniedCodes = engine.getDeniedResourceCodes(
+            tenantId, operatorId, ResourceTypeCode.ROLE, allRoleCodes, OperationCode.VIEW);
+        Set<Long> visible = allRoleIds.stream()
+            .filter(id -> !deniedCodes.contains(String.valueOf(id)))
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (visible.isEmpty()) {
+            throw new SecurityException("Permission denied: VIEW on ROLE");
+        }
+        return visible;
+    }
+
+    /**
+     * T-ACCESS-052 树形实例裁剪：保留可见角色及其祖先导航链（祖先仅作树形骨架展示，
+     * 写操作仍逐对象校验）。全量数据已在内存（树构建本就全量拉回），沿 parentId 上溯标记；
+     * 已标记祖先链短路，环防护防脏数据 parent 环。
+     * 同款算法三副本（ResourceManage/RoleManage/OrgApp 各一）——互引锚点，修改裁剪语义须三处同步。
+     */
+    private List<AbstractRole> filterTreeToVisibleWithAncestors(List<AbstractRole> allRoles, Set<Long> visibleRoleIds) {
+        Map<Long, AbstractRole> byId = allRoles.stream()
+            .collect(Collectors.toMap(AbstractRole::getId, r -> r, (a, b) -> a));
+        Set<Long> allowed = new java.util.HashSet<>();
+        for (AbstractRole role : allRoles) {
+            if (!visibleRoleIds.contains(role.getId())) {
+                continue;
+            }
+            AbstractRole current = role;
+            Set<Long> chainVisited = new java.util.HashSet<>();
+            while (current != null && chainVisited.add(current.getId())) {
+                if (!allowed.add(current.getId())) {
+                    break;
+                }
+                current = current.getParentId() == null ? null : byId.get(current.getParentId());
+            }
+        }
+        return allRoles.stream()
+            .filter(r -> allowed.contains(r.getId()))
+            .collect(Collectors.toList());
     }
 
     /** 投影写变更日志（T-ACCESS-019：ROLE 投影 UPSERT 与角色事实同事务登记）；

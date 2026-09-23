@@ -192,7 +192,7 @@ void checkBatchInstanceLevel(String resourceTypeCode, List<String> resourceCodes
 boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 ```
 
-> **终态口径（T-ACCESS-016 定稿，2026-08-23；T-ADMIN-021 增补 `hasTypeLevel`）**：前三个抛出式门禁是 `SecurityException` 的出口（引擎纯查询，见 engine/implementation.md §3.1）——`checkInstanceLevel` 内部走 `engine.hasPermissionByCode`、`checkBatchInstanceLevel` 内部走 `engine.getDeniedResourceCodes`（实施 T-PERM-042）；`hasTypeLevel` 为**非抛出判定**（T-ADMIN-021，供「部分裁剪」类调用方）：仅引擎成功响应且明确拒绝返回 false，技术故障/主体缺失抛 `SystemException(99999)`（非 SecurityException 的第二出口，fail-closed 不静默降级），见 §8.1 岗位裁剪段。业务对象门禁统一**业务编码语义**：`resourceCode` 为业务 ID 字符串（`/api/access/user/**` 的 userId、`/api/access/org/**` 的 orgId；统一主体 ID 后 `resource_entity(USER).code = sys_user.id = abstract_user.id`，数值与语义一致），不得使用 `resource_entity.id`。下表及各章节资源类型串已按收敛映射切换为 `USER/ORG/ROLE`（access-service-architecture §13 资源类型注册表；常量类已合一为 `ResourceTypeCode`，原 `AdminResourceType` 随 T-ACCESS-018 删除）。
+> **终态口径（T-ACCESS-016 定稿，2026-08-23；T-ADMIN-021 增补 `hasTypeLevel`）**：前三个抛出式门禁是 `SecurityException` 的出口（引擎纯查询，见 engine/implementation.md §3.1）——`checkInstanceLevel` 内部走 `engine.hasPermissionByCode`、`checkBatchInstanceLevel` 内部走 `engine.getDeniedResourceCodes`（实施 T-PERM-042）；`hasTypeLevel` 为**非抛出判定**（T-ADMIN-021，供「部分裁剪」类调用方）：仅引擎成功响应且明确拒绝返回 false，引擎技术故障抛 `SystemException(99999)`（非 SecurityException 的第二出口，fail-closed 不静默降级），见 §8.1 岗位裁剪段；操作者主体缺失自 T-ACCESS-052 起与 `checkAndThrow` 同一定性抛 `SecurityException`(403)（可感知拒绝，非技术故障）。业务对象门禁统一**业务编码语义**：`resourceCode` 为业务 ID 字符串（`/api/access/user/**` 的 userId、`/api/access/org/**` 的 orgId；统一主体 ID 后 `resource_entity(USER).code = sys_user.id = abstract_user.id`，数值与语义一致），不得使用 `resource_entity.id`。下表及各章节资源类型串已按收敛映射切换为 `USER/ORG/ROLE`（access-service-architecture §13 资源类型注册表；常量类已合一为 `ResourceTypeCode`，原 `AdminResourceType` 随 T-ACCESS-018 删除）。
 
 资源类型常量（`ResourceTypeCode`，T-ACCESS-018 合一后单一常量源，原 AdminResourceType 已删除）:
 
@@ -216,9 +216,9 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `/api/access/user/enable` | `USER` | 实例级批量 (ids) | `ENABLE` | 启停共用一码（toggle），按入参 `status` 设置实体字段 |
 | `/api/access/user/reset-password` | `USER` | 实例级 (userId) | `RESET_PASSWORD` | 默认树身份目录边界 |
 | `/api/access/user/detail` | `USER` | 实例级 (userId) | `VIEW` | 类型级 VIEW 门禁 + 默认树可见范围裁剪（P1-2：复用 `validateUsersInDefaultTreeScope`，与 `/api/access/user/page` 同等约束，防止知道 ID 即可读列表不可见用户；无组织关系用户拒绝）|
-| `/api/access/org/tree` | `ORG` | 类型级 | `VIEW` 或 `CREATE` | 入参 `operationCode` 决定语义: `VIEW`=可视范围; `CREATE`=新增用户时可选挂载点 (限默认树) |
-| `/api/access/org/page` | `ORG` | 类型级 | `VIEW` | |
-| `/api/access/org/users` | `ORG` | 实例级 (orgId) | `VIEW` | |
+| `/api/access/org/tree` | `ORG` | 类型级 或 实例准入 | `VIEW` 或 `CREATE` | 入参 `operationCode` 决定语义: `VIEW`=可视范围（T-ACCESS-052：组织轨无类型级 VIEW 时持任一可见组织即可进入，树按可见子集+祖先导航链裁剪；岗位节点可见性维持 ORG:VIEW 批量判定口径——Q-034 边界）; `CREATE`=新增用户时可选挂载点 (限默认树，维持类型级) |
+| `/api/access/org/page` | `ORG` | 类型级 或 实例准入 | `VIEW` | T-ACCESS-052：orgType=1 组织轨无类型级 VIEW 时按可见组织交集过滤下推（先过滤再分页/计数）；orgType=2 岗位分页维持类型级（Q-034 边界同树口径） |
+| `/api/access/org/users` | `ORG` | 实例级 (orgId) | `VIEW` | 门禁=类型级 USER:VIEW（「看成员=看用户」D3=A）；T-ACCESS-052 补目标组织可见性校验：目标 orgId 不在操作者可见组织集合 → `ORG_NOT_FOUND`(10101)，防持门票者经任意 orgId 探测成员名单 |
 | `/api/access/org/create` | `ORG` | 实例级 (parentOrgId, 顶级时类型级) | `CREATE` | |
 | `/api/access/org/update` | `ORG` | 实例级 (orgId) | `UPDATE` | 改 `parentOrgId` 等价于"移动", 同时需新父级 `UPDATE` |
 | `/api/access/org/delete` | `ORG` | 实例级 (orgId) | `DELETE` | |
@@ -661,7 +661,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **门禁**: 类型级，`OrgOperationCodeMapper.resolve(orgType, operationCode)` 组合分发（单一事实源）；`includePositions=true` 时组织轨固定 `ORG:VIEW`，岗位轨独立门控（见下）.
 
-**岗位节点裁剪（T-ADMIN-021 已实现）**: `includePositions=true` 时，岗位节点（orgType=2）按调用者岗位权限**后端裁剪**——调用者仅具备 `ORG:VIEW`（无 `ORG:VIEW_POSITION`）时响应不包含任何岗位节点；裁剪判定用非抛出入口 `AdminPermissionValidator.hasTypeLevel(ORG, VIEW_POSITION)`（**仅引擎成功响应且明确拒绝返回 false；本地权限引擎技术故障或操作者主体缺失抛 `SystemException`(99999) 向上，统一响应业务码标识故障，不得静默降级为裁剪后的树**，P2-1；不复用 SecurityException——全局映射 403 与故障语义矛盾）。前端隐藏不作为安全边界。
+**岗位节点裁剪（T-ADMIN-021 已实现）**: `includePositions=true` 时，岗位节点（orgType=2）按调用者岗位权限**后端裁剪**——调用者仅具备 `ORG:VIEW`（无 `ORG:VIEW_POSITION`）时响应不包含任何岗位节点；裁剪判定用非抛出入口 `AdminPermissionValidator.hasTypeLevel(ORG, VIEW_POSITION)`（**仅引擎成功响应且明确拒绝返回 false；本地权限引擎技术故障抛 `SystemException`(99999) 向上、操作者主体缺失抛 `SecurityException`(403)（T-ACCESS-052 与 checkAndThrow 同一定性），统一响应业务码标识故障，不得静默降级为裁剪后的树**，P2-1；不复用 SecurityException——全局映射 403 与故障语义矛盾）。前端隐藏不作为安全边界。
 
 **同步动作**: 无.
 
@@ -923,7 +923,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 ### 9.1 总述与 bootstrap 菜单种子
 > 菜单表仅承载 UI 路由元数据与关联资源 link，不承载权限语义（`sys_menu` 权威 DDL 见 `schema/access-service.sql`；设计语义见 `permission-center-v3.5-design.md` §2.1/§4.1）。按钮级权限由 OperationPermission（L1）承担，不再挂菜单。前端登录菜单聚合走 `/api/access/auth/user-menu`（v3.5 §5 单 RPC 契约），与本节管理接口分离。前端菜单管理页尚未开发（views/system 无 menu 页面），本节契约为先行定稿，无现存消费方破坏面。
 >
-> **bootstrap 菜单种子（T-FE-015，2026-08-31 设计定案）**：空库 bootstrap 固定图幂等种子 14 行菜单——welcome 首页（纯展示）+「系统管理」DIR + 12 业务页 MENU（按页面主资源类型挂接、类型级 `resource_code=null` 走 scopeAll 派生；权限条件页读取全租户开放故挂纯展示；原权限排查页已随 T-PERM-059 删除，2026-09-10）。path 与前端静态路由一一对齐（侧栏点击按 path 跳静态路由）；检测断言以 path 集合为期望键（结构键严格，displayName/icon/sortOrder 容忍菜单管理页改动）。同批种子默认组织树（根组织稳定业务键 `root` + 默认树配置 + 首管理员挂根组织）——`/api/access/user/page` 与 `/api/access/user/member-candidates` 为默认树身份目录视图，无默认树配置则恒空。固定图定义升级后既有库须重建（runbook 常见问题表）。
+> **bootstrap 菜单种子（T-FE-015，2026-08-31 设计定案）**：空库 bootstrap 固定图幂等种子 14 行菜单——welcome 首页（纯展示）+「系统管理」DIR + 12 业务页 MENU（按页面主资源类型挂接、类型级 `resource_code=null` 走 scopeAll 或该类型任一直接实例授权派生（T-ACCESS-052 实例准入——有限管理员持实例授权即见目录入口）；权限条件页读取全租户开放故挂纯展示；原权限排查页已随 T-PERM-059 删除，2026-09-10）。path 与前端静态路由一一对齐（侧栏点击按 path 跳静态路由）；检测断言以 path 集合为期望键（结构键严格，displayName/icon/sortOrder 容忍菜单管理页改动）。同批种子默认组织树（根组织稳定业务键 `root` + 默认树配置 + 首管理员挂根组织）——`/api/access/user/page` 与 `/api/access/user/member-candidates` 为默认树身份目录视图，无默认树配置则恒空。固定图定义升级后既有库须重建（runbook 常见问题表）。
 
 ### 9.2 `POST /api/access/menu/create` 🔧
 
@@ -983,7 +983,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - 可选字符串字段（`path/icon/resourceType/resourceCode/sourceService`）收到空白字符串时**服务端规范化为 null**（空串写库会命中部分唯一索引并被读链路误判为业务菜单；update 时空白等同未提供，跳过保留原值）——设计定案 2026-08-22
 - `status` 仅允许 `0/1`（DTO `@Min(0) @Max(1)` 校验，违规 90001）
 - MENU 投影对 DIR/MENU/EXTERNAL/IFRAME/HIDDEN **全量维护**（无 BUTTON 短路；实例级门禁依赖投影行授权到具体菜单实例）
-- 菜单可见性由 v3.5 §4.1 派生公式在 `/api/access/auth/user-menu` 读链路决定（业务菜单 = `resource_type` 非空走资源访问事实，纯展示 `resource_type` 为空全员可见），不消费投影
+- 菜单可见性由 v3.5 §4.1 派生公式在 `/api/access/auth/user-menu` 读链路决定（业务菜单 = `resource_type` 非空走资源访问事实：`resource_code` 非空按实例匹配、为空的类型页目录菜单在该类型有任一直接实例授权时可见——T-ACCESS-052 实例准入，有限管理员持实例授权即见目录入口；纯展示 `resource_type` 为空全员可见），不消费投影
 - 菜单层级最多 5 级（根=第 1 层）：`calculateDepth` 返回父节点自身深度，新节点深度 = 父深度 + 1；**换父按整棵子树校验**（新根深度 + 子树高度 - 1 ≤ 5，即最深节点不超上限；顶级目标父深度按 0 计，防止把不存在的父层多算一层）
 - 父菜单校验：正数 `parentId` 必须为同租户有效菜单（否则 `10201`，无外键兜底防孤儿节点）；换父时目标父不能是被移动菜单自身或其后代（否则 `10207`，防 parent 链成环——环会导致祖先链遍历与递归 CTE 不收敛）
 - `MENU_PERM_CODE_EXISTS(10202)` 已退役（perm_code 列移除），由 `MENU_PATH_EXISTS(10205)` / `MENU_RESOURCE_EXISTS(10206)` 承接
@@ -1099,7 +1099,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 - `detail`：业务键二元组定位 `{roleTypeCode, roleExternalId}`（tenantId 走上下文，不含 domainCode；原 `IdReq{id}` 内部主键废弃）。依据唯一索引 `uk_abstract_role_external (tenant_id, role_type, external_id)`（`external_id` 非空部分索引——`externalId` 为空的角色不可经本接口定位，管理端新建表单已强制必填）；未命中返回 `data=null`（未知 roleTypeCode 与 list 空分页同口径，不抛错）。
 - `move`：目标父须与移动角色**同角色类型**（同类型内嵌套合法，跨类型嵌套拒绝 **20022** `ROLE_TYPE_MISMATCH`）；目标父为移动角色**自身或其子孙**拒绝 **20050** `ROLE_PARENT_INVALID`（新增错误码，perm 段顺延——parent 链成环后祖先/子孙递归 CTE 不收敛、环节点从树构建中静默消失；对齐管理面 `ORG_PARENT_CYCLE`/`MENU_PARENT_INVALID` 先例）。`parentId=null`（移到顶层）不受两者限制。存量 GROUP_ROLE 组树为冻结读模型，跨类型装配自本任务起无 API 通道。并发语义（T-PERM-044 收口）：校验前先取 (abstract_role, 租户) 树级分布式锁（Redisson，事务提交/回滚后经 afterCompletion 释放），同树 parent 写路径（含 sync/full-sync）串行化，交叉移动的后进锁者校验时可见先提交的 parent——环无法落库；环脏数据下递归 CTE/祖先链遍历亦有防环止损（architecture §17）。
-- `list`/`detail` 读门禁：类型级 `ROLE:VIEW`（评审收口补齐，与 `tree` 同款——`list` 信息量不低于 `tree`，不设门禁会使 tree 门禁事实可绕；无权抛 SecurityException）。
+- `list`/`detail` 读门禁（T-PERM-022 补齐 + T-ACCESS-052 实例准入）：`tree`/`list`/`count` 类型级 `ROLE:VIEW` 通过全量；否则持任一角色实例 VIEW（ROLE 业务码=roleId，含继承覆盖）者进入并按可见角色裁剪（树保留可见节点∪祖先导航链，list/count 可见集合下推，先过滤再分页/计数）；零可见角色 403（`list` 信息量不低于 `tree`，不设门禁会使 tree 门禁事实可绕）。`detail` 门禁改实例级（ROLE 业务码=roleId；无权与不存在同返回 null——查询语义防探测，与 list 空分页口径一致）。
 - `update` 补 `extraClear` 显式清空标志（T-FE-016 联调收口，对齐 §12 resource-entity 同款口径）：boolean 可选，`true`=清空 `extra` 为 null、优先于 `extra`（JSON null 无法区分「未传」与「清空」）；其余字段 null=不更新维持。前端编辑表单按「原 extra 非空且表单清空」判定传 `true`（resource-operation 同构公式）。
 - `sync`/`full-sync` 的 parent 同款环路判定（评审收口补齐）：parent 为目标角色自身或其子孙时拒绝（单条 nonRetryable、批量该项 failed + `ROLE_PARENT_INVALID`）；只读版本预判先行——旧版本无条件按 STALE 钝化（§19.5 成功 no-op，含携带非法父边的旧事件），新版本才进入父解析/判环，判环拒绝不推进版本（上游修正后同版本重试不被判 STALE；预判与写入间的并发交错由 applyVersion 原子判定兜底）。full-sync 为**写入前逐项判定**：当前生效图 = 库内既有关系 + 本事务已应用项的边，内存图严格镜像写入语义（未携带父字段的更新不清图内旧边）——STALE 项不落边、天然保持旧边（含同批次多边共同成环、批内/库内混合、STALE+APPLIED 混合的组合均覆盖），仅拒绝真正闭合环的项、指向环的前缀安全项放行。同批重复 `businessKey` 的后续项写入前拒绝（`DUPLICATE_BUSINESS_KEY`，对齐 user-role/full-sync 先例）。item 省略 `parentRoleTypeCode` 时缺省 = `scope.roleTypeCode`（§19.7 既有规则，父解析/判环/写入均按缺省类型）。
 - `remove` 级联覆盖 BASIC_ROLE 子孙（容器类型 GROUP_ROLE/ORG 之外）；级联根有权即整棵子树可删、不对子孙做独立权限过滤（项目规则「父级有权限子级即有权限」，2026-08-28 设计定案——统一引擎判定面继承落地登记 T-PERM-057，终态设计已并入 engine/implementation.md §3；原 T-PERM-045 已取消并入 057）。
@@ -1451,7 +1451,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 > **resource 面 sortOrder 字段退役（T-ACCESS-036，2026-09-13）**：`resource_entity.sort_order` 全仓零读取方（列表分页 `ORDER BY id`、资源树不按该列排序），列与实体字段、SDK 双册 `ResourceCreateReq/ResourceUpdateReq/ResourceResp`、服务端 `ResourceResp/ResourceTreeResp`、`ResourceEntitySyncReq` 与 full-sync item、`ResourceTreeResp.ResourceTreeNode` 及全部写入点（管理面 create/batch-create/update、资源同步通道、service-config/sync 资源落库）一次性退役；前端提交与表单链路同批清理。仍携带 `sortOrder` 的旧载荷在反序列化层被拒（全局 ObjectMapper 严格模式，未知字段 → 400/90001 信封，与 T-PERM-053 operationCode 退役同机制）；`ResourceSortOrderRetiredTest` 锁定四 DTO 面行为。role/menu/org/type_definition 的 `sortOrder` 不在退役范围（各自在用）。
 
-**读门禁（T-PERM-028 补齐，类型级）**：`resource-entity/list`、`resource-entity/detail` 补 `RESOURCE:VIEW`，`operation-permission/detail` 补 `OPERATION:VIEW`（与既有 tree/list 门禁同口径；bootstrap §14.4 最小集已持有，不阻断首管理员）。
+**读门禁（T-PERM-028 补齐 + T-ACCESS-052 实例准入）**：`resource-entity/tree`/`list`/`count` 类型级 `RESOURCE:VIEW` 通过全量；否则持任一 RESOURCE 实例 VIEW（含继承覆盖）者进入并按可见实例裁剪——树保留可见节点∪祖先导航链，list/count 将可见实体集合下推 SQL（先过滤再分页/计数，total 同口径）；零可见实例 403（fail-closed）。`resource-entity/detail` 门禁改实例级（先按业务键定位再判 RESOURCE:VIEW@实体，类型级 scopeAll 覆盖实例判定）。`operation-permission/detail` 补 `OPERATION:VIEW`（与既有 tree/list 门禁同口径；bootstrap §14.4 最小集已持有，不阻断首管理员）。
 
 **resource_type 创建联动预置（T-PERM-028 实现定案）**：`type-definition/create` 在 `typeKey=resource_type` 时同事务预置 CRUD 四操作位 `CREATE(1,0)/VIEW(2,0)/UPDATE(4,2)/DELETE(8,2)`（DDL CROSS JOIN 预置组模板同款；新类型位段空闲无 uk 冲突）；非 resource_type 类型不预置。
 
@@ -1528,13 +1528,13 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **service-config / resource-api-mapping 契约要点（T-PERM-027 收口，2026-08-29）**：
 
-- `list` 维持 `{}` 全量返回（设计定案：服务登记数量有界——租户内微服务个数，页面左栏目录面板本地过滤，无分页参数与分页响应）；门禁 SERVICE:VIEW 类型级。
+- `list` 维持 `{}` 全量返回（设计定案：服务登记数量有界——租户内微服务个数，页面左栏目录面板本地过滤，无分页参数与分页响应）；门禁 SERVICE:VIEW 类型级（T-ACCESS-052 实例准入：类型级通过全量返回；否则持任一 SERVICE 实例 VIEW〔含继承覆盖，如 MANAGE 继承 VIEW 位〕者进入且结果按可见实例裁剪——service-a 负责人只见 a 不泄露 b；零可见实例仍 403，fail-closed）。
 - `save` 幂等（`{serviceCode, name, basePath?, description?, status?, extra?}`，按 `uk_service_config(tenant_id, service_code)` 定位，null 字段不更新）；`extra.syncTypes` 结构校验见 §19.9。`ServiceConfigResp` 含 `updatedAt`（保存与 FULL 同步回写 basePath 时刷新；`lastSyncedAt` 不设——无现成列且聚合推导语义模糊，登记不做）。
 - `remove` 级联清理（设计定案）：同事务软删该服务**全部** API 映射（含 MANUAL 维护来源——服务已删则其路由不再存在，映射即死路径）+ 该服务 SERVICE_SYNC 自动维护的孤立 API 资源（FULL diff 同清理边界，§19.8；被其他服务跨服务手工映射引用的资源保留），事务提交后广播 Gateway 本地快照失效（受影响 serviceCodes）；整批失败整批不变更。
 - `sync` 仅接受 `syncMode=FULL`（§19.8）：DTO 校验层 `@Pattern("FULL")` 拒绝其他值（`MethodArgumentNotValidException` → HTTP 400，body `code=90001` 参数校验失败），增量策略已删除（全仓零生产调用）。门禁 SERVICE:SYNC_INTERFACE 实例级（serviceCode）。
 - `apis` 与 `resource-api-mapping/list` 返回的 `ApiMappingResp` 含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode/maintainSource`（批量补全；资源已软删时为 null，前端回退展示内部 `resourceEntityId`）——`apis` 实现委托 `list`（同层复用，门禁与补全单点）。`list` 门禁（补齐）：请求带 `serviceCode` 按该服务实例 VIEW 校验；不带（管理全量列表）类型级 VIEW + 结果按服务维裁剪（拒绝服务的映射不出现在结果中）。
 - `resource-api-mapping/create`/`update` 仍以内部 `resourceId` 绑定资源（§12.5 单条响应，§12 定案不随业务键切换）；前端资源选择器已随 **T-PERM-028** 落地（类型下拉 + 资源树选择，选中取节点内部 id 提交，数据源 `resource-entity/tree`），裸数字输入形态已删除。
-- 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（死锁防护=持有解锁首管理员页面读写，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例；三条均类型级 scopeAll 且**不可转授**——业务门禁统一口径，转授链仅 API:ACCESS，首管理员不能把 SERVICE 权限授予其他角色）。
+- 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list；list 为 T-ACCESS-052 实例准入见上，detail 本即实例级）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（死锁防护=持有解锁首管理员页面读写，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例）；转授口径（T-ACCESS-052，2026-09-23 拍板「最小集四条」）：SERVICE:MANAGE 与 SERVICE:MANAGE_API_MAPPING 两条类型级 scopeAll 行 **canGrant=true**（MANAGE 位覆盖 VIEW——持此可转授行即能经 apply-grant-plan 构造「SERVICE:实例 的 VIEW/MANAGE/MANAGE_API_MAPPING」限定角色，service-a 负责人场景首授解锁）；VIEW/SYNC_INTERFACE 维持不可转授。存量已初始化库不自动重种（canGrant 属可变属性，bootstrap 漂移仅 warn 放行），订正语句登记 rebuild-runbook。
 
 ### 12.3 资源依赖只读查询（/api/access/resource-dependency/*）
 

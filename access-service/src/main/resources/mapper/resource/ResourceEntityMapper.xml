@@ -183,6 +183,10 @@
         <if test="!matchNone and resourceType != null">
           AND resource_type = #{resourceType}
         </if>
+        <if test="visibleEntityIds != null">
+          AND id IN
+          <foreach collection="visibleEntityIds" item="vid" open="(" separator="," close=")">#{vid}</foreach>
+        </if>
     </select>
 
     <select id="selectResourceListPaged" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">
@@ -194,6 +198,10 @@
         </if>
         <if test="!matchNone and resourceType != null">
           AND resource_type = #{resourceType}
+        </if>
+        <if test="visibleEntityIds != null">
+          AND id IN
+          <foreach collection="visibleEntityIds" item="vid" open="(" separator="," close=")">#{vid}</foreach>
         </if>
         ORDER BY id
         LIMIT #{limit} OFFSET #{offset}
@@ -209,6 +217,10 @@
         <if test="!matchNone and resourceType != null">
           AND resource_type = #{resourceType}
         </if>
+        <if test="visibleEntityIds != null">
+          AND id IN
+          <foreach collection="visibleEntityIds" item="vid" open="(" separator="," close=")">#{vid}</foreach>
+        </if>
     </select>
 
     <select id="existsValidByType" resultType="int">
@@ -216,6 +228,12 @@
         WHERE tenant_id = #{tenantId}
           AND delete_flag = 0
           AND resource_type = #{resourceType}
+    </select>
+
+    <select id="selectValidResourceIds" resultType="long">
+        SELECT id FROM resource_entity
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
     </select>
 
     <select id="selectDistinctTypesWithValidRows" resultType="int">

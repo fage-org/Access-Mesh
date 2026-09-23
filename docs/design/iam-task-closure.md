@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
+last_reviewed: 2026-09-23（T-ACCESS-052 §3.2 已实施收口：四项拍板+全量同模式目录实例准入+菜单准入+种子四条 canGrant；端到端 DelegatedDirectoryClosurePgIT+双轨评审处置完毕+全量含 E2E 绿） 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -101,17 +101,19 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 **实施口径**：门禁收敛落 `UserAppServiceImpl.memberCandidates` 唯一入口——先验目标组织存在（`ORG_NOT_FOUND`，与 setPrimaryOrg 同序）再 `resolveForUserOrg(orgType, UPDATE)` 判权（普通组织 MANAGE_MEMBER、岗位 ASSIGN_POSITION_USER），与 assign/remove/set-primary 共用既有动作码解析；可见范围裁剪与已绑定排除零改动。总册校准面含门禁总表 member-candidates 行与 §8.x user-org 三端点、§7.2 门禁与验收句（含 USER:VIEW 旧措辞修准为 ORG:VIEW 机制描述）、§7.5 user/delete 默认树二次校验可见性措辞；前端选择/提交链路核对无需改动（PositionTab/UserDetailPanel 权限口径本就按成员码门控），仅陈旧注释两处事实修正。Q-025 随本卡收敛（registry 2026-09-21 绑定：UserOrgAppServiceImpl 读面私有副本换绑 `OrgTreeConfigDomainService` 共享入口并删除，顺带清死 helper `isPositionOrg`）。验收④「浏览器分配链」按 2026-09-22 用户拍板让渡 T-ACCESS-055 组合验收承接（其 acceptance③「有限管理员实际操作页面」），本卡以真权限 API 组合链（PgIT：有限管理员候选→挂载→排除已绑定→改结构拒→无成员动作权拒→越租户拒，旧实现下主链 403 实证红）+ 前端静态核对为证据，任务卡验收④同步改写并明确未验收项。回归锁：`UserAppServiceMemberCandidatesGateTest` 门禁解析四锁（旧实现下 4/4 红）。claude 外评处置（同日）：setPrimaryOrg 补 SYS_ORG 树锁（P2，与 assign/remove 同族——并发 deleteOrg 交错下主归属静默丢失）与两处 validateOrgInDefaultTree 逐字副本换绑共享入口（P3 类推）等四项，详见任务卡完成记录与 registry 同日行。
 
 <a id="delegated-directory"></a>
-### 3.2 可见目录、菜单与实例授权共同成立（D001，T-ACCESS-052）
+### 3.2 可见目录、菜单与实例授权共同成立（D001，T-ACCESS-052；✅ 已实施 2026-09-23）
 
 **推荐目标**：类型级VIEW表示全量；仅有实例权限者只能发现职责对象。有至少一个当前合法可见实例即可显示对应入口，目录返回授权过滤后的对象；路由仍从后端派生menus准入，写操作继续逐对象校验。不要放开任意深链或授予全类型VIEW作为补丁。
 
 目录分页必须先做权限／类型／租户过滤再算total、排序和分页，不能取第一页后在Java或前端过滤导致缺页与侧漏。优先复用引擎已有批量结果／可见集合与现有查询DomainService；不得逐行N次鉴权。遇到条件、继承或大量候选，明确下推可用范围与上限，不能把“有任何权限”视为有VIEW。
 
-**U003，启动时决定**：实例目录是否包含有管理动作但无VIEW者？推荐沿既有操作覆盖关系解析，不自动创建“管理即查看”的新隐含规则。service-a负责人可看a不能看b；部门成员管理员可选可见人员但不能看其他部门名单；无可见对象时空态应说明职责和恢复方式。
+**U003，已拍板（2026-09-23）**：**菜单任意操作／目录 VIEW**——菜单入口=该类型有任一直接实例授权即显示（维持 v3.5 §4.1 任意操作语义，含 CREATE-only）；目录列表内容=按 VIEW（含继承覆盖）过滤，不自动创建“管理即查看”新隐含规则；CREATE-only 者入口可见但列表空。service-a负责人可看a不能看b；部门成员管理员可选可见人员但不能看其他部门名单。
 
-**首次委派也是验收前置**：首管理员要能经现有UI/API产生所需限定授权。核对内置canGrant限制、菜单/API ACCESS、ROLE管理和条件前置；若内置首授无法构造这个角色，**U004**需决定有限范围的合法委派来源／种子调整或正式收窄承诺。推荐先核实既有可授路径，确需改种子只改已证明必要的权限；禁用直接SQL灌授权代替产品闭环，禁全局改成canGrant=true。
+**首次委派（U004），已拍板（2026-09-23）**：**最小集四条**——bootstrap 固定图既有行 canGrant 翻 true：SERVICE:MANAGE、SERVICE:MANAGE_API_MAPPING、ORG:MANAGE_MEMBER、USER:VIEW（USER:VIEW 为部门管理员「用户目录门票」——类型级 VIEW 门票+内容按组织可见性裁剪兜底，「门票+裁剪」同批拍板）；其余内置类型维持不可转授；禁全局 canGrant=true 维持；存量已初始化库登记 runbook 订正语句（幂等种子 canGrant 属可变属性仅 warn 放行不重种）。
 
 先以service-a负责人、部门成员管理员完成端到端，再类推角色／类型／资源目录；发现不同资源的合理差异要列明，不能留下其他同模式页面假称支持实例委派。接口响应仍沿现有分页信封；是否扩展目录端点由实际可复用性决定，不另建全局“能力目录”服务。
+
+**实施口径（进行中）**：改造范围拍板「全量同模式目录」——SERVICE（service-config/list）+ RESOURCE（tree/list/count/detail）+ ROLE（tree/list/count/detail）+ ORG（tree/page 组织轨实例准入、org/users 补可见性校验；user/page 门票+裁剪不动）+ 菜单准入全类型生效；type-definition/list 未纳入（类型数量少且自定义类型首授已有 AUTHORITY_ROOT 机制，类推收益低）。门禁模式统一「类型级 VIEW 通过→全量；否则持任一实例 VIEW（含继承覆盖）→进入并按可见实例裁剪（树=可见节点∪祖先导航链）；零可见实例 403 fail-closed」；ROLE/RESOURCE 的 list/count 经引擎 getDenied* 批量判定得到可见集合后下推 SQL（先过滤再分页/计数）；岗位轨可见性维持 filterVisibleOrgIds 的 ORG:VIEW 判定口径（Q-034 精化另随 T-ACCESS-055 拍板）。
 
 ## 4. 管理页面生命周期
 

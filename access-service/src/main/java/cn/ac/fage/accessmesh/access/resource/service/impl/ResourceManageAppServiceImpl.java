@@ -88,6 +88,8 @@ import java.util.HashMap;
 
 import java.util.HashSet;
 
+import java.util.LinkedHashSet;
+
 import java.util.List;
 
 import java.util.Map;
@@ -399,12 +401,69 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     public ResourceResp getResource(Long tenantId, ResourceKeyReq key) {
-        // T-PERM-028：详情读门禁（类型级 RESOURCE:VIEW，对齐 tree 门禁先例）
+        // T-PERM-028 详情读门禁原为类型级 RESOURCE:VIEW；T-ACCESS-052 改实例级：先按业务键定位
+        //（不存在=20004）再判 RESOURCE:VIEW@实体（无权=403）——与 update/remove 写路径同形；
+        // 类型级 scopeAll 覆盖实例判定
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.VIEW)) {
+        ResourceEntity entity = selectResourceByBusinessKey(tenantId, key);
+        if (!engine.hasPermissionByEntityId(tenantId, operatorId, ResourceTypeCode.RESOURCE, entity.getId(), OperationCode.VIEW)) {
+            throw new SecurityException("Permission denied: VIEW on RESOURCE:" + entity.getId());
+        }
+        return toResourceResp(entity);
+    }
+
+    /**
+     * T-ACCESS-052 目录实例准入：类型级 RESOURCE:VIEW 通过返回 null（不过滤，类型级保留全量语义）；
+     * 否则取租户全部有效资源 ID 经引擎 getDeniedEntityIds 按 VIEW 批量判定（含继承覆盖，如
+     * MANAGE 继承 VIEW 位；菜单入口=任意操作、目录内容=VIEW，U003 拍板 2026-09-23）得到可见子集；
+     * 子集为空抛 403（无任何可见实例，fail-closed——目录=职责范围）。租户资源量为管理面规模
+     * （数百到数千），单次 IN 批量判定可接受。
+     */
+    private Set<Long> resolveVisibleResourceEntityIdsOrNull(Long tenantId, Long operatorId) {
+        if (engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.VIEW)) {
+            return null;
+        }
+        Set<Long> allIds = new LinkedHashSet<>(resourceEntityMapper.selectValidResourceIds(tenantId));
+        if (allIds.isEmpty()) {
             throw new SecurityException("Permission denied: VIEW on RESOURCE");
         }
-        return toResourceResp(selectResourceByBusinessKey(tenantId, key));
+        Set<Long> denied = engine.getDeniedEntityIds(tenantId, operatorId, ResourceTypeCode.RESOURCE, allIds, OperationCode.VIEW);
+        Set<Long> visible = new LinkedHashSet<>(allIds);
+        visible.removeAll(denied);
+        if (visible.isEmpty()) {
+            throw new SecurityException("Permission denied: VIEW on RESOURCE");
+        }
+        return visible;
+    }
+
+    /**
+     * T-ACCESS-052 树形实例裁剪：保留可见节点及其祖先导航链（祖先仅作树形骨架展示，
+     * 写操作仍逐对象校验）。全量数据已在内存（树构建本就全量拉回），沿 parentId 上溯标记；
+     * 已标记祖先链短路，环防护防脏数据 parent 环。
+     * <p>同款算法三副本：本类 / RoleManageAppServiceImpl / OrgAppServiceImpl（Org 版 byId 为全量图，
+     * 其余两版 byId 即结果集）——互引锚点，修改裁剪语义须三处同步（双轨评审 P3-5 登记遗留）。</p>
+     */
+    private List<ResourceEntity> filterTreeToVisibleWithAncestors(List<ResourceEntity> allEntities,
+                                                                   Set<Long> visibleEntityIds) {
+        Map<Long, ResourceEntity> byId = allEntities.stream()
+            .collect(Collectors.toMap(ResourceEntity::getId, e -> e, (a, b) -> a));
+        Set<Long> allowed = new HashSet<>();
+        for (ResourceEntity entity : allEntities) {
+            if (!visibleEntityIds.contains(entity.getId())) {
+                continue;
+            }
+            ResourceEntity current = entity;
+            Set<Long> chainVisited = new HashSet<>();
+            while (current != null && chainVisited.add(current.getId())) {
+                if (!allowed.add(current.getId())) {
+                    break;
+                }
+                current = current.getParentId() == null ? null : byId.get(current.getParentId());
+            }
+        }
+        return allEntities.stream()
+            .filter(e -> allowed.contains(e.getId()))
+            .collect(Collectors.toList());
     }
 
     /**
@@ -690,11 +749,12 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     public List<ResourceTreeResp> getResourceTree(Long tenantId, String resourceTypeCode, String domainCode) {
-        // T-PERM-042：授权页资源树读门禁（architecture §14.5 终态，类型级 RESOURCE:VIEW）
+        // T-PERM-042：授权页资源树读门禁（architecture §14.5 终态，类型级 RESOURCE:VIEW）；
+        // T-ACCESS-052 实例准入：无类型级 VIEW 时持任一资源实例 VIEW（含继承覆盖）者可进入，
+        // 树内容裁剪到可见实体（含祖先导航链）；无任何可见实例仍 403（fail-closed）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on RESOURCE");
-        }
+        Set<Long> visibleEntityIds = resolveVisibleResourceEntityIdsOrNull(tenantId, operatorId);
+
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
@@ -706,7 +766,10 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 .contains(ResourceTypeCode.RESOURCE);
         }
 
-        List<ResourceEntity> allEntities = resourceEntityMapper.selectResourceTree(tenantId, resourceType, matchNone);
+        List<ResourceEntity> allEntities = resourceEntityMapper.selectResourceTree(tenantId, resourceType, matchNone, null);
+        if (visibleEntityIds != null) {
+            allEntities = filterTreeToVisibleWithAncestors(allEntities, visibleEntityIds);
+        }
 
         TreeBuilder<ResourceEntity, ResourceTreeNode> treeBuilder = new TreeBuilder<>(
             ResourceEntity::getId,
@@ -730,11 +793,10 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     @Override
     public List<ResourceResp> listResources(Long tenantId, String resourceTypeCode, String domainCode, int offset, int limit) {
-        // T-PERM-028：列表读门禁（类型级 RESOURCE:VIEW，对齐 tree 门禁先例）
+        // T-PERM-028：列表读门禁（对齐 tree 门禁先例）+ T-ACCESS-052 实例准入；
+        // 实例过滤经 visibleEntityIds 下推 SQL（先过滤再分页，total 与列表同口径）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on RESOURCE");
-        }
+        Set<Long> visibleEntityIds = resolveVisibleResourceEntityIdsOrNull(tenantId, operatorId);
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
@@ -746,17 +808,16 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 .contains(ResourceTypeCode.RESOURCE);
         }
 
-        return resourceEntityMapper.selectResourceListPaged(tenantId, resourceType, matchNone, offset, limit)
+        return resourceEntityMapper.selectResourceListPaged(tenantId, resourceType, matchNone, visibleEntityIds, offset, limit)
             .stream().map(this::toResourceResp).collect(Collectors.toList());
     }
 
     @Override
     public long countResources(Long tenantId, String resourceTypeCode, String domainCode) {
-        // T-PERM-028：列表读门禁（类型级 RESOURCE:VIEW，与 listResources 同口径；list 端点先调本方法）
+        // T-PERM-028：列表读门禁（与 listResources 同口径；list 端点先调本方法）+
+        // T-ACCESS-052 实例准入：过滤先于计数（与 selectResourceListPaged 同一白名单下推）
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.RESOURCE, null, OperationCode.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on RESOURCE");
-        }
+        Set<Long> visibleEntityIds = resolveVisibleResourceEntityIdsOrNull(tenantId, operatorId);
         Integer resourceType = null;
         if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
             resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
@@ -768,7 +829,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 .contains(ResourceTypeCode.RESOURCE);
         }
 
-        return resourceEntityMapper.selectResourceListCount(tenantId, resourceType, matchNone);
+        return resourceEntityMapper.selectResourceListCount(tenantId, resourceType, matchNone, visibleEntityIds);
     }
 
     @Override

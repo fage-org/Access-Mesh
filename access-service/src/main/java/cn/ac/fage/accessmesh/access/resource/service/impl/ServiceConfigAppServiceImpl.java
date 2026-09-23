@@ -30,6 +30,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -170,7 +171,10 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
      * 查询服务配置列表
      * <p>
      * 查询租户下所有服务配置。
-     * 需要SERVICE_VIEW权限。
+     * 类型级 SERVICE:VIEW 通过 → 全量返回（类型级保留全量语义）；
+     * 否则 T-ACCESS-052 实例准入：持任一 SERVICE 实例 VIEW（含继承覆盖，如 MANAGE
+     * 继承 VIEW 位）者可进入，结果按可见实例裁剪（listApiMappings 同款批量判定先例）；
+     * 无任何可见实例仍 403（fail-closed，目录=职责范围）。
      * </p>
      *
      * @param tenantId 租户ID
@@ -181,11 +185,22 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     @Transactional(readOnly = true)
     public List<ServiceConfigResp> listServiceConfigs(Long tenantId) {
         Long operatorId = OperatorContext.getOperatorId();
-        if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.VIEW)) {
+        List<ServiceConfig> all = serviceConfigMapper.selectByTenantId(tenantId);
+        if (engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.VIEW)) {
+            return all.stream().map(this::toServiceConfigResp).collect(Collectors.toList());
+        }
+        Set<String> allCodes = all.stream()
+            .map(ServiceConfig::getServiceCode)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        Set<String> deniedCodes = allCodes.isEmpty() ? Set.of()
+            : engine.getDeniedResourceCodes(tenantId, operatorId, ResourceTypeCode.SERVICE, allCodes, OperationCode.VIEW);
+        if (deniedCodes.size() == allCodes.size()) {
             throw new SecurityException("Permission denied: VIEW on SERVICE");
         }
-
-        return serviceConfigMapper.selectByTenantId(tenantId).stream().map(this::toServiceConfigResp).collect(Collectors.toList());
+        return all.stream()
+            .filter(c -> !deniedCodes.contains(c.getServiceCode()))
+            .map(this::toServiceConfigResp)
+            .collect(Collectors.toList());
     }
 
     /**

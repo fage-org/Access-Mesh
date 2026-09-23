@@ -113,7 +113,7 @@ class KeywordLikeSearchPgIT {
     void shouldSearchAbstractRoleByKeyword() {
         jdbc.update("INSERT INTO abstract_role (tenant_id, role_type, external_id, name) "
             + "VALUES (1, 6, 'kwtest-role', 'keyword 回归角色')");
-        assertThat(abstractRoleMapper.selectRoleListPaged(TENANT, null, "kwtest-role", false, 0, 10))
+        assertThat(abstractRoleMapper.selectRoleListPaged(TENANT, null, "kwtest-role", false, null, 0, 10))
             .extracting(cn.ac.fage.accessmesh.access.role.entity.AbstractRole::getExternalId)
             .contains("kwtest-role");
         assertThat(userRoleQueryMapper.selectFunctionalRoles(TENANT, null, "kwtest-role", 0, 10))

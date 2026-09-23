@@ -98,8 +98,9 @@ class ResourceManageAppServiceImplTest {
     }
 
     @Test
-    @DisplayName("无 RESOURCE:VIEW → SecurityException，不触碰资源查询")
+    @DisplayName("类型级拒且租户零可见资源 → SecurityException（T-ACCESS-052 fail-closed 语义保持）")
     void shouldRejectResourceTreeWithoutResourceViewPermission() {
+        when(resourceEntityMapper.selectValidResourceIds(1L)).thenReturn(List.of());
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
@@ -107,7 +108,6 @@ class ResourceManageAppServiceImplTest {
 
             assertThrows(SecurityException.class, () -> service.getResourceTree(1L, null, null));
         }
-        verifyNoInteractions(resourceEntityMapper);
         verifyNoInteractions(typeResolutionService);
     }
 
@@ -118,7 +118,7 @@ class ResourceManageAppServiceImplTest {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
                 isNull(), eq(OperationCode.VIEW))).thenReturn(true);
-            when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false)))
+            when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false), isNull()))
                 .thenReturn(List.<ResourceEntity>of());
 
             assertEquals(List.of(), service.getResourceTree(1L, null, null));
@@ -157,17 +157,18 @@ class ResourceManageAppServiceImplTest {
     }
 
     @Test
-    @DisplayName("detail 无 RESOURCE:VIEW → SecurityException，不触碰查询")
+    @DisplayName("detail 实例级拒（T-ACCESS-052：先查实体再按实体判定）→ SecurityException")
     void shouldRejectResourceDetailWithoutResourceViewPermission() {
+        when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
+        when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default"))
+            .thenReturn(resourceWithKey(10L));
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-                isNull(), eq(OperationCode.VIEW))).thenReturn(false);
+            when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L,
+                OperationCode.VIEW)).thenReturn(false);
 
             assertThrows(SecurityException.class, () -> service.getResource(1L, key("x")));
         }
-        verifyNoInteractions(resourceEntityMapper);
-        verifyNoInteractions(typeResolutionService);
     }
 
     @Test
@@ -175,8 +176,8 @@ class ResourceManageAppServiceImplTest {
     void shouldGetResourceByBusinessKeyAndThrowWhenMissing() {
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
-            when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
-                isNull(), eq(OperationCode.VIEW))).thenReturn(true);
+            when(engine.hasPermissionByEntityId(1L, 100L, ResourceTypeCode.RESOURCE, 10L,
+                OperationCode.VIEW)).thenReturn(true);
             when(typeResolutionService.resolveTypeValue(1L, "resource_type", "MENU")).thenReturn(1);
             when(resourceEntityMapper.selectByTypeCodeAndCodeType(1L, 1, "x", "default"))
                 .thenReturn(resourceWithKey(10L));
@@ -191,8 +192,9 @@ class ResourceManageAppServiceImplTest {
     }
 
     @Test
-    @DisplayName("list 无 RESOURCE:VIEW → SecurityException（分页列表与树同口径门禁）")
+    @DisplayName("类型级拒且租户零可见资源 → SecurityException（分页/计数与树同口径 fail-closed）")
     void shouldRejectResourceListWithoutResourceViewPermission() {
+        when(resourceEntityMapper.selectValidResourceIds(1L)).thenReturn(List.of());
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
@@ -201,7 +203,61 @@ class ResourceManageAppServiceImplTest {
             assertThrows(SecurityException.class, () -> service.listResources(1L, null, null, 0, 10));
             assertThrows(SecurityException.class, () -> service.countResources(1L, null, null));
         }
-        verifyNoInteractions(resourceEntityMapper);
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-052 资源目录实例准入：类型级拒但持实例授权 → 可见子集下推分页/计数")
+    void shouldPushVisibleEntityIdsWhenTypeLevelDenied() {
+        when(resourceEntityMapper.selectValidResourceIds(1L)).thenReturn(List.of(10L, 20L, 30L));
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.VIEW))).thenReturn(false);
+        // 引擎批量判定：20/30 被拒（仅持实体 10 的 VIEW 实例授权）
+        when(engine.getDeniedEntityIds(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            any(), eq(OperationCode.VIEW))).thenReturn(java.util.Set.of(20L, 30L));
+        when(resourceEntityMapper.selectResourceListPaged(eq(1L), isNull(), eq(false),
+            eq(java.util.Set.of(10L)), eq(0), eq(10))).thenReturn(List.of(resourceWithKey(10L)));
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            var result = service.listResources(1L, null, null, 0, 10);
+            assertEquals(1, result.size());
+            assertEquals(10L, result.get(0).id());
+            service.countResources(1L, null, null);
+        }
+        verify(resourceEntityMapper).selectResourceListCount(1L, null, false, java.util.Set.of(10L));
+    }
+
+    @Test
+    @DisplayName("T-ACCESS-052 资源树实例裁剪：可见节点保留祖先导航链")
+    void shouldKeepAncestorChainInTreeWhenInstanceFiltered() {
+        // 三层树：root(1) > mid(2) > leaf(3)；仅 leaf 可见 → 树含 root+mid+leaf（骨架完整）
+        ResourceEntity root = resourceWithKey(1L);
+        root.setParentId(null);
+        ResourceEntity mid = resourceWithKey(2L);
+        mid.setParentId(1L);
+        ResourceEntity leaf = resourceWithKey(3L);
+        leaf.setParentId(2L);
+        ResourceEntity other = resourceWithKey(9L);
+        other.setParentId(null);
+        when(resourceEntityMapper.selectValidResourceIds(1L)).thenReturn(List.of(1L, 2L, 3L, 9L));
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.VIEW))).thenReturn(false);
+        when(engine.getDeniedEntityIds(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            any(), eq(OperationCode.VIEW))).thenReturn(java.util.Set.of(1L, 2L, 9L));
+        when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false), isNull()))
+            .thenReturn(List.of(root, mid, leaf, other));
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            var tree = service.getResourceTree(1L, null, null);
+            // 仅根节点（骨架 root>mid>leaf 一条链）；other 子树整支被裁
+            assertEquals(1, tree.size());
+            assertEquals(1L, tree.get(0).root().id());
+            assertEquals(2L, tree.get(0).root().children().get(0).id());
+            assertEquals(3L, tree.get(0).root().children().get(0).children().get(0).id());
+        }
     }
 
     @Test

@@ -45,6 +45,12 @@
         </if>
     </select>
 
+    <select id="selectValidOrgIds" resultType="long">
+        SELECT id FROM sys_org
+        WHERE tenant_id = #{tenantId}
+          AND delete_flag = 0
+    </select>
+
     <select id="selectOrgsForTree" resultType="cn.ac.fage.accessmesh.access.org.entity.SysOrg">
         SELECT * FROM sys_org
         WHERE tenant_id = #{tenantId} AND delete_flag = 0

@@ -42,6 +42,18 @@ public interface SysOrgMapper extends BaseMapper<SysOrg> {
                                        @Param("limit") int limit);
 
     /**
+     * 查询租户全部有效组织 ID（轻量 id 查询，不限 orgType/status）。
+     * <p>
+     * T-ACCESS-052 目录实例准入：先取全集 id，再经 OrgVisibilityQueryAppService
+     * 按 ORG:VIEW 批量判定得到可见子集（树裁剪与分页下推共用）。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 有效组织 ID 列表
+     */
+    List<Long> selectValidOrgIds(@Param("tenantId") Long tenantId);
+
+    /**
      * 按条件统计组织数（条件与 {@link #selectOrgsByCondition} 一致，用于分页计算）
      */
     long countOrgsByCondition(@Param("tenantId") Long tenantId,

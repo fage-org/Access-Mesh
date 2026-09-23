@@ -111,11 +111,14 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
     public EffectiveResourceAccess getEffectiveResourceAccess(Long tenantId, UserEffectivePermissionCodesReq req) {
         PermViewResult viewResult = buildEffectiveView(tenantId, req);
         if (viewResult == null) {
-            return new EffectiveResourceAccess(Set.of(), Set.of());
+            return EffectiveResourceAccess.empty();
         }
-        // scopeAll 条目：resourceEntityId 为 null（全范围授权），按资源类型收集
+        // scopeAll 条目：resourceEntityId 为 null（全范围授权），按资源类型收集；
+        // 实例条目按类型分组（instanceIdsByType，不含子孙扩展）供 T-ACCESS-052 类型页菜单准入
+        // 与目录实例过滤的「该类型有任一可见实例」判定
         Set<Integer> allScopeTypes = new LinkedHashSet<>();
         Set<Long> resourceEntityIds = new LinkedHashSet<>();
+        Map<Integer, Set<Long>> instanceIdsByType = new LinkedHashMap<>();
         for (PermResult.EffectiveOperationEntry entry : viewResult.getEffectiveOperationEntries()) {
             if (entry.resourceType() == null) {
                 continue;
@@ -124,6 +127,8 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 allScopeTypes.add(entry.resourceType());
             } else if (entry.resourceEntityId() != null) {
                 resourceEntityIds.add(entry.resourceEntityId());
+                instanceIdsByType.computeIfAbsent(entry.resourceType(), _unused -> new LinkedHashSet<>())
+                    .add(entry.resourceEntityId());
             }
         }
         // 判定面继承（读过滤面默认开，Q12 矩阵；T-PERM-057 落位）：对授权实例集做一次
@@ -135,7 +140,7 @@ public class PermissionViewAppServiceImpl implements PermissionViewAppService {
                 resourceEntityIds.add(pair.getDescendantId());
             }
         }
-        return new EffectiveResourceAccess(allScopeTypes, resourceEntityIds);
+        return new EffectiveResourceAccess(allScopeTypes, resourceEntityIds, instanceIdsByType);
     }
 
     /**

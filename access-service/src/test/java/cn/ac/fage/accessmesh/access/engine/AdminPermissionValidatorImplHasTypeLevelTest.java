@@ -26,8 +26,11 @@ import static org.mockito.Mockito.when;
  * <p>
  * 不变量：①引擎成功响应时返回值透传（false 仅限明确拒绝）；
  * ②引擎技术故障包装 SystemException(99999) 向上（fail-closed，不得静默降级为 false
- * ——否则调用方会返回裁剪后的树，P2-1 故障验收矛盾）；③操作者主体缺失同样归技术故障
- * （hasTypeLevel 的 false 语义仅限引擎成功响应且 allowed=false）。
+ * ——否则调用方会返回裁剪后的树，P2-1 故障验收矛盾）；③操作者主体缺失=明确拒绝
+ * SecurityException(403)（T-ACCESS-052 修订：与 checkAndThrow 同一定性——sys_user 存在
+ * 而权限投影缺失是可感知的拒绝形态；hasTypeLevel 消费面〔组织树实例准入〕与旧
+ * checkTypeLevel 门禁行为保持一致；仍不得返回 false——false 语义仅限引擎成功响应且
+ * allowed=false，P2-1）。
  * </p>
  */
 class AdminPermissionValidatorImplHasTypeLevelTest {
@@ -101,15 +104,15 @@ class AdminPermissionValidatorImplHasTypeLevelTest {
     }
 
     @Test
-    @DisplayName("操作者主体缺失：归技术故障 SystemException(99999)，不返回 false")
-    void missingSubjectIsTechnicalFailure() {
+    @DisplayName("操作者主体缺失：明确拒绝 SecurityException(403)，不返回 false 也不归技术故障")
+    void missingSubjectIsExplicitDenial() {
         when(typeResolutionService.resolveUserId(anyLong(), eq(LocalProjectionOwner.SUBJECT_LOCAL_USER), eq("42")))
             .thenReturn(null);
 
+        // T-ACCESS-052 修订：与 checkAndThrow 同一定性（主体缺失=403 明确拒绝）；
+        // 旧行为（SystemException 99999）曾使组织树门禁对投影缺失用户返回 HTTP 200
         assertThatThrownBy(() -> validator.hasTypeLevel("ORG", "VIEW_POSITION"))
-            .isInstanceOf(SystemException.class)
-            .satisfies(e -> assertThat(((SystemException) e).getErrorCode())
-                .isEqualTo(GlobalErrorCode.SYSTEM_ERROR.code()))
+            .isInstanceOf(SecurityException.class)
             .hasMessageContaining("操作者主体不存在");
     }
 }

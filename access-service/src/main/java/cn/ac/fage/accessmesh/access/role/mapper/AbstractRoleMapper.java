@@ -109,36 +109,54 @@ public interface AbstractRoleMapper extends BaseMapper<AbstractRole> {
                                            @Param("enabledOnly") boolean enabledOnly);
 
     /**
+     * 查询租户全部有效角色 ID（轻量 id 查询，不限 status）。
+     * <p>
+     * T-ACCESS-052 目录实例准入：先取全集 id（ROLE 业务码=roleId），再经引擎
+     * getDeniedResourceCodes 按 VIEW 批量判定得到可见子集。
+     * </p>
+     *
+     * @param tenantId 租户ID
+     * @return 有效角色 ID 列表
+     */
+    List<Long> selectValidRoleIds(@Param("tenantId") Long tenantId);
+
+    /**
      * 分页查询角色列表（带过滤条件）
      *
-     * @param tenantId      租户ID
-     * @param roleType      角色类型值，可选
-     * @param keyword       搜索关键字，可选（LIKE匹配name或external_id）
-     * @param matchNone     是否匹配空结果（用于域过滤不匹配时）
-     * @param offset        偏移量
-     * @param limit         每页数量
+     * @param tenantId         租户ID
+     * @param roleType         角色类型值，可选
+     * @param keyword          搜索关键字，可选（LIKE匹配name或external_id）
+     * @param matchNone        是否匹配空结果（用于域过滤不匹配时）
+     * @param visibleRoleIds   可见角色 ID 白名单（T-ACCESS-052 实例过滤，null=不过滤即类型级放行；
+     *                         过滤先于分页/LIMIT 下推，与 count 同口径）
+     * @param offset           偏移量
+     * @param limit            每页数量
      * @return 角色列表
      */
     List<AbstractRole> selectRoleListPaged(@Param("tenantId") Long tenantId,
                                             @Param("roleTypes") Set<Integer> roleTypes,
                                             @Param("keyword") String keyword,
                                             @Param("matchNone") boolean matchNone,
+                                            @Param("visibleRoleIds") Set<Long> visibleRoleIds,
                                             @Param("offset") int offset,
                                             @Param("limit") int limit);
 
     /**
      * 统计角色数量（带过滤条件）
      *
-     * @param tenantId      租户ID
-     * @param roleType      角色类型值，可选
-     * @param keyword       搜索关键字，可选
-     * @param matchNone     是否匹配空结果
+     * @param tenantId         租户ID
+     * @param roleType         角色类型值，可选
+     * @param keyword          搜索关键字，可选
+     * @param matchNone        是否匹配空结果
+     * @param visibleRoleIds   可见角色 ID 白名单（T-ACCESS-052 实例过滤，null=不过滤；
+     *                         与 selectRoleListPaged 同口径，先过滤再计数）
      * @return 角色总数
      */
     long selectRoleListCount(@Param("tenantId") Long tenantId,
                               @Param("roleTypes") Set<Integer> roleTypes,
                               @Param("keyword") String keyword,
-                              @Param("matchNone") boolean matchNone);
+                              @Param("matchNone") boolean matchNone,
+                              @Param("visibleRoleIds") Set<Long> visibleRoleIds);
 
     /**
      * 根据角色ID集合查询有效且启用的角色ID列表

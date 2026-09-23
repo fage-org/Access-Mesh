@@ -257,8 +257,8 @@ class AdminXmlPaginationPgIT {
             + "(" + tenant + ", 'OTHER_ORG', '无关组织')");
 
         // role：keyword 命中 1，count == paged 全量条数
-        assertThat(abstractRoleMapper.selectRoleListCount(tenant, null, "tadmin026-role", false)).isEqualTo(1L);
-        assertThat(abstractRoleMapper.selectRoleListPaged(tenant, null, "tadmin026-role", false, 0, 10)).hasSize(1);
+        assertThat(abstractRoleMapper.selectRoleListCount(tenant, null, "tadmin026-role", false, null)).isEqualTo(1L);
+        assertThat(abstractRoleMapper.selectRoleListPaged(tenant, null, "tadmin026-role", false, null, 0, 10)).hasSize(1);
 
         // abstract_user：keyword 命中 2
         assertThat(abstractUserMapper.selectUserListCount(tenant, null, "tadmin026-user", false)).isEqualTo(2L);
