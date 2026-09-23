@@ -141,6 +141,15 @@ public interface ResourceManageAppService {
     long countResources(Long tenantId, String resourceTypeCode, String domainCode);
 
     /**
+     * 分页查询资源（list 端点组合形态）：可见集合在同一次调用内解析一次后同时下推 count 与
+     * 分页查询（T-ACCESS-052 claude 外评 P3-1——Controller 分别调 list/count 会使委托路径
+     * 的可见集重建与引擎批量判定翻倍，且两次解析间授权变更可致 total 与 items 瞬时分叉；
+     * 对齐 OrgAppServiceImpl.pageOrgs 单次解析先例）。
+     */
+    cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp<ResourceResp> pageResources(
+        Long tenantId, String resourceTypeCode, String domainCode, int pageNum, int pageSize);
+
+    /**
      * 添加API映射
      * <p>
      * 为资源添加API映射关系，关联HTTP接口与资源。

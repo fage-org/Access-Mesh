@@ -248,18 +248,19 @@ public interface ResourceEntityMapper extends BaseMapper<ResourceEntity> {
 
     /**
      * 查询资源树（所有有效且启用的资源，可选资源类型过滤）
+     * <p>
+     * 树形实例裁剪（T-ACCESS-052 可见节点∪祖先链）由调用方内存执行
+     * （filterTreeToVisibleWithAncestors），本查询不做 SQL 下推——树本就全量拉回建树。
+     * </p>
      *
-     * @param tenantId          租户ID
-     * @param resourceType      资源类型值，可选
-     * @param matchNone         是否匹配空结果（用于域过滤不匹配时）
-     * @param visibleEntityIds  可见实体 ID 白名单（T-ACCESS-052 实例过滤，null=不过滤即类型级放行；
-     *                          非空时仅返回白名单内实体——含祖先导航链，由调用方预先算好传入）
+     * @param tenantId     租户ID
+     * @param resourceType 资源类型值，可选
+     * @param matchNone    是否匹配空结果（用于域过滤不匹配时）
      * @return 资源实体列表
      */
     List<ResourceEntity> selectResourceTree(@Param("tenantId") Long tenantId,
                                              @Param("resourceType") Integer resourceType,
-                                             @Param("matchNone") boolean matchNone,
-                                             @Param("visibleEntityIds") Set<Long> visibleEntityIds);
+                                             @Param("matchNone") boolean matchNone);
 
     /**
      * 分页查询资源列表（带过滤条件）

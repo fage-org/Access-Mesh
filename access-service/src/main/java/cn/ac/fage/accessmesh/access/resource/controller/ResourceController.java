@@ -165,10 +165,8 @@ public class ResourceController {
     public R<PageResp<ResourceResp>> listResources(@Valid @RequestBody ResourceListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
-        int offset = PageUtil.offset(pageNum, pageSize);
         Long tenantId = TenantContextHolder.getTenantId();
-        long total = resourceManageAppService.countResources(tenantId, req.resourceTypeCode(), req.domainCode());
-        List<ResourceResp> items = resourceManageAppService.listResources(tenantId, req.resourceTypeCode(), req.domainCode(), offset, pageSize);
-        return R.ok(new PageResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(resourceManageAppService.pageResources(
+            tenantId, req.resourceTypeCode(), req.domainCode(), pageNum, pageSize));
     }
 }

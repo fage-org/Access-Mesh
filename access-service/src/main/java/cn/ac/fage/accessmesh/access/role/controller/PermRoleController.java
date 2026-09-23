@@ -139,15 +139,9 @@ public class PermRoleController {
     public R<PageResp<RoleResp>> listRoles(@Valid @RequestBody RoleListReq req) {
         int pageNum = PageUtil.pageNum(req.pageNum());
         int pageSize = PageUtil.pageSize(req.pageSize());
-        int offset = PageUtil.offset(pageNum, pageSize);
         Long tenantId = TenantContextHolder.getTenantId();
-        long total = roleManageAppService.countRoles(
-            tenantId, req.domainCode(), req.roleTypeCode(), req.roleTypeCodes(), req.keyword()
-        );
-        List<RoleResp> items = roleManageAppService.listRoles(
-            tenantId, req.domainCode(), req.roleTypeCode(), req.roleTypeCodes(), req.keyword(), offset, pageSize
-        );
-        return R.ok(new PageResp<>(items, total, pageNum, pageSize, PageUtil.hasNext(offset, items.size(), total)));
+        return R.ok(roleManageAppService.pageRoles(
+            tenantId, req.domainCode(), req.roleTypeCode(), req.roleTypeCodes(), req.keyword(), pageNum, pageSize));
     }
 
     /**

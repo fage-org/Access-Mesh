@@ -54,7 +54,7 @@ last_updated: 2026-09-23
 
 四项拍板（registry 同日行）落地：①最小集四条 canGrant（BootstrapGraphDefinition，存量库订正语句登记 rebuild-runbook）；②全量同模式目录实例准入——统一模式「类型级 VIEW 通过全量；否则持任一实例 VIEW（含继承覆盖）进入并裁剪（树=可见节点∪祖先导航链）；零可见 403 fail-closed」，覆盖 SERVICE（service-config/list）+ RESOURCE（tree/list/count/detail）+ ROLE（tree/list/count/detail）+ ORG（org/tree、org/page 组织轨、org/users 补可见性校验）；③菜单类型页目录菜单实例准入（EffectiveResourceAccess 增 instanceIdsByType 分组）；④用户目录门票+裁剪（user/page 门禁不动）。
 
-实现要点：ROLE/RESOURCE 经引擎 getDenied* 批量判定（list/count 可见集合下推 SQL 先过滤再分页/计数）；ORG 走 filterVisibleOrgIds 同源判定；hasTypeLevel 主体缺失改 SecurityException 403（与 checkAndThrow 同一定性，AdminPermissionValidatorImplHasTypeLevelTest 锁同步）。验收载体：DelegatedDirectoryClosurePgIT（产品通道 apply-grant-plan 首授→目录实例过滤→菜单准入→越界 detail 403→撤权即时一致→部门管理员树裁剪+门票+成员名单 10101，主链四红点旧实现必红）+ 各面单测锁（红跑实证）+ AccessBootstrapPgIT canGrant 断言更新。双轨评审（2026-09-23）：代码轨 P2×1（菜单 empty() Map.get(null) NPE——已修+回归锁）+P3×6、文档轨 P1×2+P2×3+P3×4 全处置；两端点范围存疑经用户拍板「维持现状登记遗留」（见非目标/遗留）。收口全量 -T 1C 含 E2E 全绿。
+实现要点：ROLE/RESOURCE 经引擎 getDenied* 批量判定（list/count 可见集合下推 SQL 先过滤再分页/计数）；ORG 走 filterVisibleOrgIds 同源判定；hasTypeLevel 主体缺失改 SecurityException 403（与 checkAndThrow 同一定性，AdminPermissionValidatorImplHasTypeLevelTest 锁同步）。验收载体：DelegatedDirectoryClosurePgIT（产品通道 apply-grant-plan 首授→目录实例过滤→菜单准入→越界 detail 403→撤权即时一致→部门管理员树裁剪+门票+成员名单 10101，主链四红点旧实现必红）+ 各面单测锁（红跑实证）+ AccessBootstrapPgIT canGrant 断言更新。双轨评审（2026-09-23）：代码轨 P2×1（菜单 empty() Map.get(null) NPE——已修+回归锁）+P3×6、文档轨 P1×2+P2×3+P3×4 全处置；两端点范围存疑经用户拍板「维持现状登记遗留」（见非目标/遗留）。收口全量 -T 1C 含 E2E 全绿。claude 外评处置完毕（2026-09-23 deepseek-flash[1M]：P0-P2=0、P3×3 全采纳直修——pageResources/pageRoles 可见集单次解析、位域能力分立表述钉正、补跑留痕；过度设计死参数用户拍板删除；存量 Q-038/Q-039 登记，见 registry 同日处置行）。
 
 ## 验收对照
 
@@ -68,7 +68,7 @@ last_updated: 2026-09-23
 - **岗位节点可见性维持 ORG:VIEW 批量判定口径**（Q-034）：org 树 mixed 岗位轨裁剪（VIEW_POSITION 类型级）与 filterVisibleOrgIds 的 VIEW 判定分叉不在本卡收敛，仍预约随 Q-032/T-ACCESS-055 有限管理员验收一并拍板；orgType=2 岗位分页维持类型级门禁（同口径边界）。
 - **org/tree 的 operationCode=CREATE（挂载点树）维持类型级**：CREATE(1,0) 不继承 VIEW、挂载点选择是写语义入口，未纳入实例准入放宽面。
 - **CREATE-only 组合形态**（U003 拍板自然结果）：仅持 CREATE@a（不覆盖 VIEW）者菜单入口可见（任意操作语义）但目录列表空——「入口显示但列表空」为拍板接受形态，非缺陷。
-- **委派角色构造的操作位范围**：首授可转授面=最小集四条覆盖的操作（SERVICE:MANAGE/MANAGE_API_MAPPING、ORG:MANAGE_MEMBER、USER:VIEW 及其覆盖位）；SERVICE:SYNC_INTERFACE 等其余操作位维持不可转授，需要扩展另行立项（registry 2026-09-23 行纪律①）。
+- **委派角色构造的操作位范围**：首授可转授面按位域能力分立——SERVICE:MANAGE 行可构造 SERVICE:实例 的 VIEW/MANAGE、SERVICE:MANAGE_API_MAPPING 行构造其自身（单持 MANAGE 不能构造 MANAGE_API_MAPPING，covers 18&32=0）、ORG:MANAGE_MEMBER 行可构造 ORG:实例 的 VIEW 与 MANAGE_MEMBER、USER:VIEW 行构造 USER:VIEW；SERVICE:SYNC_INTERFACE 等其余操作位维持不可转授，需要扩展另行立项（registry 2026-09-23 行纪律①；claude 外评 P3-2 钉正）。
 - **两端点维持类型级门禁**（2026-09-23 收口拍板「维持现状登记遗留」）：`/api/access/role/list`（角色候选，用户详情「分配角色」数据源）与 `resource-api-mapping/list` 不带 serviceCode 的管理全量列表——持实例授权的有限管理员在对应页面可用（角色页裁剪后可用、映射查询带 serviceCode 实例校验可用）但这两处 403；后续需要时随 T-ACCESS-055 或另行立项。
 - **树形裁剪算法三副本**（双轨评审 P3-5）：ResourceManage/RoleManage/OrgApp 各一份同款「V∪祖先链」私有实现（已加互引注释锚点）；泛型化收敛属风格重构非缺陷，留待轻量清扫批次。
 - **资源目录可见集合不按请求类型收窄**（双轨评审 P3-4 观察）：`selectValidResourceIds` 为全类型 id 集（大租户 IN 参数以 PG 65535 bind 上限为硬顶）；按类型收窄会同时收窄零可见 403 门槛语义，维持「门票+裁剪」模型，规模压力随 heavy 轨道观测。

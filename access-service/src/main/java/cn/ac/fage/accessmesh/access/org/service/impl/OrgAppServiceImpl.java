@@ -108,8 +108,8 @@ public class OrgAppServiceImpl implements OrgAppService {
     public OrgResp getOrg(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
 
-        // 先加载实例确定 orgType（不存在直接抛 NotFound，避免门禁前的存在性泄漏：
-        // 若先门禁后查存在，无 VIEW 权和不存在两种场景返回不同语义，可被用作存在性探测）
+        // 先加载实例确定 orgType（先查后判：NotFound(10101) 与无权(403) 两种响应形态可区分——
+        // 与 getResource/updateResource 写路径同形的存在性可见面，type 解析需要 orgType 在前）
         SysOrg org = orgDomainService.selectValidById(tenantId, id);
         if (org == null) {
             throw new BizException(AccessErrorCode.ORG_NOT_FOUND.getCode(), AccessErrorCode.ORG_NOT_FOUND.getMessage());

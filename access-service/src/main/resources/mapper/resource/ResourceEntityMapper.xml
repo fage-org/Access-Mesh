@@ -183,10 +183,6 @@
         <if test="!matchNone and resourceType != null">
           AND resource_type = #{resourceType}
         </if>
-        <if test="visibleEntityIds != null">
-          AND id IN
-          <foreach collection="visibleEntityIds" item="vid" open="(" separator="," close=")">#{vid}</foreach>
-        </if>
     </select>
 
     <select id="selectResourceListPaged" resultType="cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity">

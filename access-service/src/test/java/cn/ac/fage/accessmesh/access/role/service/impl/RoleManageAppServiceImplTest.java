@@ -248,6 +248,28 @@ class RoleManageAppServiceImplTest {
             eq(java.util.Set.of(1L)));
     }
 
+    /** T-ACCESS-052 pageRoles 组合形态：可见集合单次解析（count 与分页共用，claude 外评 P3-1）。 */
+    @Test
+    void shouldResolveVisibleRolesOnceInPageRoles() {
+        when(abstractRoleMapper.selectValidRoleIds(1L)).thenReturn(List.of(1L, 2L));
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            isNull(), eq(OperationCode.VIEW))).thenReturn(false);
+        when(engine.getDeniedResourceCodes(eq(1L), eq(100L), eq(ResourceTypeCode.ROLE),
+            any(), eq(OperationCode.VIEW))).thenReturn(java.util.Set.of("2"));
+        when(abstractRoleMapper.selectRoleListCount(eq(1L), isNull(), isNull(), eq(false),
+            eq(java.util.Set.of(1L)))).thenReturn(1L);
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            var page = service.pageRoles(1L, null, null, null, null, 1, 10);
+            assertEquals(1L, page.total());
+        }
+        org.mockito.Mockito.verify(abstractRoleMapper, org.mockito.Mockito.times(1)).selectValidRoleIds(1L);
+        org.mockito.Mockito.verify(abstractRoleMapper, org.mockito.Mockito.times(1))
+            .selectRoleListCount(eq(1L), isNull(), isNull(), eq(false), eq(java.util.Set.of(1L)));
+    }
+
     /** T-ACCESS-052 类型级拒且全部角色被拒（零可见实例）403（fail-closed，目录=职责范围）。 */
     @Test
     void shouldRejectListWhenNoVisibleRoleInstance() {

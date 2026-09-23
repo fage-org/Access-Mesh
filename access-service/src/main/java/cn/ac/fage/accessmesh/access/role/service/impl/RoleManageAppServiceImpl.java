@@ -553,6 +553,28 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         return abstractRoleMapper.selectRoleListCount(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone, visibleRoleIds);
     }
 
+    @Override
+    public cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp<RoleResp> pageRoles(
+            Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes,
+            String keyword, int pageNum, int pageSize) {
+        // 可见集合单次解析（T-ACCESS-052 claude 外评 P3-1）：同请求内 count 与分页共用
+        Long operatorId = OperatorContext.getOperatorId();
+        Set<Long> visibleRoleIds = resolveVisibleRoleIdsOrNull(tenantId, operatorId);
+        RoleTypeFilter roleTypeFilter = resolveRoleTypeFilter(tenantId, roleTypeCode, roleTypeCodes);
+        boolean matchNone = roleTypeFilter.matchNone();
+        if (domainCode != null && !domainCode.isBlank()) {
+            matchNone = matchNone || !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
+                .contains(ResourceTypeCode.ROLE);
+        }
+        long total = abstractRoleMapper.selectRoleListCount(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone, visibleRoleIds);
+        int offset = (pageNum - 1) * pageSize;
+        List<RoleResp> items = total == 0 ? List.of()
+            : abstractRoleMapper.selectRoleListPaged(tenantId, roleTypeFilter.roleTypes(), keyword, matchNone, visibleRoleIds, offset, pageSize)
+                .stream().map(this::toRoleResp).collect(Collectors.toList());
+        return new cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp<>(
+            items, total, pageNum, pageSize, offset + items.size() < total);
+    }
+
     /**
      * T-ACCESS-052 目录实例准入：类型级 ROLE:VIEW 通过返回 null（不过滤，类型级保留全量语义）；
      * 否则取租户全部有效角色 ID（ROLE 业务码=roleId）经引擎 getDeniedResourceCodes 按 VIEW

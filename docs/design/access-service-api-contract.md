@@ -661,7 +661,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 
 **门禁**: 类型级，`OrgOperationCodeMapper.resolve(orgType, operationCode)` 组合分发（单一事实源）；`includePositions=true` 时组织轨固定 `ORG:VIEW`，岗位轨独立门控（见下）.
 
-**岗位节点裁剪（T-ADMIN-021 已实现）**: `includePositions=true` 时，岗位节点（orgType=2）按调用者岗位权限**后端裁剪**——调用者仅具备 `ORG:VIEW`（无 `ORG:VIEW_POSITION`）时响应不包含任何岗位节点；裁剪判定用非抛出入口 `AdminPermissionValidator.hasTypeLevel(ORG, VIEW_POSITION)`（**仅引擎成功响应且明确拒绝返回 false；本地权限引擎技术故障抛 `SystemException`(99999) 向上、操作者主体缺失抛 `SecurityException`(403)（T-ACCESS-052 与 checkAndThrow 同一定性），统一响应业务码标识故障，不得静默降级为裁剪后的树**，P2-1；不复用 SecurityException——全局映射 403 与故障语义矛盾）。前端隐藏不作为安全边界。
+**岗位节点裁剪（T-ADMIN-021 已实现）**: `includePositions=true` 时，岗位节点（orgType=2）按调用者岗位权限**后端裁剪**——调用者仅具备 `ORG:VIEW`（无 `ORG:VIEW_POSITION`）时响应不包含任何岗位节点；裁剪判定用非抛出入口 `AdminPermissionValidator.hasTypeLevel(ORG, VIEW_POSITION)`（**仅引擎成功响应且明确拒绝返回 false；本地权限引擎**技术故障**抛 `SystemException`(99999) 向上（技术故障不复用 SecurityException——全局映射 403 与故障语义矛盾）；操作者**主体缺失**抛 `SecurityException`(403)（T-ACCESS-052 与 checkAndThrow 同一定性，可感知拒绝非故障），统一响应业务码标识故障，不得静默降级为裁剪后的树**，P2-1；不复用 SecurityException——全局映射 403 与故障语义矛盾）。前端隐藏不作为安全边界。
 
 **同步动作**: 无.
 
@@ -1534,7 +1534,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 - `sync` 仅接受 `syncMode=FULL`（§19.8）：DTO 校验层 `@Pattern("FULL")` 拒绝其他值（`MethodArgumentNotValidException` → HTTP 400，body `code=90001` 参数校验失败），增量策略已删除（全仓零生产调用）。门禁 SERVICE:SYNC_INTERFACE 实例级（serviceCode）。
 - `apis` 与 `resource-api-mapping/list` 返回的 `ApiMappingResp` 含关联资源业务字段 `resourceCode/resourceName/resourceTypeCode/maintainSource`（批量补全；资源已软删时为 null，前端回退展示内部 `resourceEntityId`）——`apis` 实现委托 `list`（同层复用，门禁与补全单点）。`list` 门禁（补齐）：请求带 `serviceCode` 按该服务实例 VIEW 校验；不带（管理全量列表）类型级 VIEW + 结果按服务维裁剪（拒绝服务的映射不出现在结果中）。
 - `resource-api-mapping/create`/`update` 仍以内部 `resourceId` 绑定资源（§12.5 单条响应，§12 定案不随业务键切换）；前端资源选择器已随 **T-PERM-028** 落地（类型下拉 + 资源树选择，选中取节点内部 id 提交，数据源 `resource-entity/tree`），裸数字输入形态已删除。
-- 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list；list 为 T-ACCESS-052 实例准入见上，detail 本即实例级）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（死锁防护=持有解锁首管理员页面读写，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例）；转授口径（T-ACCESS-052，2026-09-23 拍板「最小集四条」）：SERVICE:MANAGE 与 SERVICE:MANAGE_API_MAPPING 两条类型级 scopeAll 行 **canGrant=true**（MANAGE 位覆盖 VIEW——持此可转授行即能经 apply-grant-plan 构造「SERVICE:实例 的 VIEW/MANAGE/MANAGE_API_MAPPING」限定角色，service-a 负责人场景首授解锁）；VIEW/SYNC_INTERFACE 维持不可转授。存量已初始化库不自动重种（canGrant 属可变属性，bootstrap 漂移仅 warn 放行），订正语句登记 rebuild-runbook。
+- 权限门禁：读 SERVICE:VIEW（list/detail/apis、mapping list；list 为 T-ACCESS-052 实例准入见上，detail 本即实例级）；写 save/remove = SERVICE:MANAGE、sync = SERVICE:SYNC_INTERFACE、映射 create/update/remove = SERVICE:MANAGE_API_MAPPING（批量 remove 按映射行 serviceCode 批量校验）。SERVICE:VIEW/MANAGE/SYNC_INTERFACE 已补入空库 bootstrap 固定图（死锁防护=持有解锁首管理员页面读写，MANAGE_API_MAPPING 与 DOMAIN:VIEW 先例）；转授口径（T-ACCESS-052，2026-09-23 拍板「最小集四条」）：SERVICE:MANAGE 与 SERVICE:MANAGE_API_MAPPING 两条类型级 scopeAll 行 **canGrant=true**（位域能力分立——MANAGE 行（bit16/mask2，有效位 18）可转授构造 SERVICE:实例 的 VIEW 与 MANAGE；MANAGE_API_MAPPING 行（bit32）转授构造其自身；**单持 MANAGE 行不能构造 MANAGE_API_MAPPING 授权**（covers 判定 18&32=0，需持 MANAGE_API_MAPPING 可转授行——首管理员两条都持故全能构造，service-a 负责人场景首授解锁））；VIEW/SYNC_INTERFACE 维持不可转授。存量已初始化库不自动重种（canGrant 属可变属性，bootstrap 漂移仅 warn 放行），订正语句登记 rebuild-runbook。
 
 ### 12.3 资源依赖只读查询（/api/access/resource-dependency/*）
 

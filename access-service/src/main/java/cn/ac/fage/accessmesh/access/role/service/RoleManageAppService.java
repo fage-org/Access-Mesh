@@ -130,4 +130,12 @@ public interface RoleManageAppService {
      * @return 角色数量
      */
     long countRoles(Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes, String keyword);
+
+    /**
+     * 分页查询角色（list 端点组合形态）：可见集合单次解析后同时下推 count 与分页
+     * （T-ACCESS-052 claude 外评 P3-1，对齐 pageOrgs/pageResources 先例）。
+     */
+    cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp<RoleResp> pageRoles(
+        Long tenantId, String domainCode, String roleTypeCode, List<String> roleTypeCodes,
+        String keyword, int pageNum, int pageSize);
 }

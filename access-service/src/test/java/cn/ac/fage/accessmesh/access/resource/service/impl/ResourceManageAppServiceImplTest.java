@@ -118,7 +118,7 @@ class ResourceManageAppServiceImplTest {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
             when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
                 isNull(), eq(OperationCode.VIEW))).thenReturn(true);
-            when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false), isNull()))
+            when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false)))
                 .thenReturn(List.<ResourceEntity>of());
 
             assertEquals(List.of(), service.getResourceTree(1L, null, null));
@@ -229,6 +229,32 @@ class ResourceManageAppServiceImplTest {
     }
 
     @Test
+    @DisplayName("T-ACCESS-052 pageResources 组合形态：可见集合单次解析（count 与分页共用）")
+    void shouldResolveVisibleSetOnceInPageResources() {
+        when(resourceEntityMapper.selectValidResourceIds(1L)).thenReturn(List.of(10L, 20L));
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            isNull(), eq(OperationCode.VIEW))).thenReturn(false);
+        when(engine.getDeniedEntityIds(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
+            any(), eq(OperationCode.VIEW))).thenReturn(java.util.Set.of(20L));
+        when(resourceEntityMapper.selectResourceListCount(eq(1L), isNull(), eq(false), eq(java.util.Set.of(10L))))
+            .thenReturn(1L);
+        when(resourceEntityMapper.selectResourceListPaged(eq(1L), isNull(), eq(false),
+            eq(java.util.Set.of(10L)), eq(0), eq(10))).thenReturn(List.of(resourceWithKey(10L)));
+
+        try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            var page = service.pageResources(1L, null, null, 1, 10);
+            org.junit.jupiter.api.Assertions.assertEquals(1L, page.total());
+            org.junit.jupiter.api.Assertions.assertEquals(1, page.items().size());
+        }
+        // 可见集只解析一次（旧 Controller 分调 count+list 形态为两次）
+        org.mockito.Mockito.verify(resourceEntityMapper, org.mockito.Mockito.times(1)).selectValidResourceIds(1L);
+        org.mockito.Mockito.verify(resourceEntityMapper, org.mockito.Mockito.times(1))
+            .selectResourceListCount(eq(1L), isNull(), eq(false), eq(java.util.Set.of(10L)));
+    }
+
+    @Test
     @DisplayName("T-ACCESS-052 资源树实例裁剪：可见节点保留祖先导航链")
     void shouldKeepAncestorChainInTreeWhenInstanceFiltered() {
         // 三层树：root(1) > mid(2) > leaf(3)；仅 leaf 可见 → 树含 root+mid+leaf（骨架完整）
@@ -245,7 +271,7 @@ class ResourceManageAppServiceImplTest {
             isNull(), eq(OperationCode.VIEW))).thenReturn(false);
         when(engine.getDeniedEntityIds(eq(1L), eq(100L), eq(ResourceTypeCode.RESOURCE),
             any(), eq(OperationCode.VIEW))).thenReturn(java.util.Set.of(1L, 2L, 9L));
-        when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false), isNull()))
+        when(resourceEntityMapper.selectResourceTree(eq(1L), isNull(), eq(false)))
             .thenReturn(List.of(root, mid, leaf, other));
 
         try (MockedStatic<OperatorContext> operatorContext = mockStatic(OperatorContext.class)) {

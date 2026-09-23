@@ -766,7 +766,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 .contains(ResourceTypeCode.RESOURCE);
         }
 
-        List<ResourceEntity> allEntities = resourceEntityMapper.selectResourceTree(tenantId, resourceType, matchNone, null);
+        List<ResourceEntity> allEntities = resourceEntityMapper.selectResourceTree(tenantId, resourceType, matchNone);
         if (visibleEntityIds != null) {
             allEntities = filterTreeToVisibleWithAncestors(allEntities, visibleEntityIds);
         }
@@ -830,6 +830,31 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         }
 
         return resourceEntityMapper.selectResourceListCount(tenantId, resourceType, matchNone, visibleEntityIds);
+    }
+
+    @Override
+    public cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp<ResourceResp> pageResources(
+            Long tenantId, String resourceTypeCode, String domainCode, int pageNum, int pageSize) {
+        // 可见集合单次解析（T-ACCESS-052 claude 外评 P3-1）：同请求内 count 与分页共用，
+        // 不再经 list/count 两方法各算一遍（委托路径下两次引擎批量判定 + 瞬时分叉面）
+        Long operatorId = OperatorContext.getOperatorId();
+        Set<Long> visibleEntityIds = resolveVisibleResourceEntityIdsOrNull(tenantId, operatorId);
+        Integer resourceType = null;
+        if (resourceTypeCode != null && !resourceTypeCode.isBlank()) {
+            resourceType = typeResolutionService.resolveTypeValue(tenantId, "resource_type", resourceTypeCode);
+        }
+        boolean matchNone = false;
+        if (domainCode != null && !domainCode.isBlank()) {
+            matchNone = !domainClassifyService.preloadCoveredTypeCodes(tenantId, DomainQueryMode.GLOBAL_PLUS, domainCode)
+                .contains(ResourceTypeCode.RESOURCE);
+        }
+        long total = resourceEntityMapper.selectResourceListCount(tenantId, resourceType, matchNone, visibleEntityIds);
+        int offset = (pageNum - 1) * pageSize;
+        List<ResourceResp> items = total == 0 ? List.of()
+            : resourceEntityMapper.selectResourceListPaged(tenantId, resourceType, matchNone, visibleEntityIds, offset, pageSize)
+                .stream().map(this::toResourceResp).collect(Collectors.toList());
+        return new cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp<>(
+            items, total, pageNum, pageSize, offset + items.size() < total);
     }
 
     @Override

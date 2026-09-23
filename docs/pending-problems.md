@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-037           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-22（Q-036/Q-037 登记：T-FE-057 claude 外评存量观察——PositionTab 展示面两处（orgTree prop 无人传、users 失败落空态）与授予页入口死路族（preset !found 不经草稿确认）；同日 Q-035/Q-034/Q-033/Q-032/Q-031/Q-030/Q-029 登记）
+counter: Q-039           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-23（Q-038/Q-039 登记：T-ACCESS-052 claude 外评存量观察——TreeBuilder 父节点被过滤时可见子静默消失、资源树 status=1 与列表不过滤口径分叉；此前 2026-09-22 批次见历史行）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,32 @@ last_updated: 2026-09-22（Q-036/Q-037 登记：T-FE-057 claude 外评存量观�
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-039 资源树查询 status=1 与资源列表/计数不过滤 status——同实体树/列表可见口径分叉
+
+- **状态**：open
+- **登记**：2026-09-23（T-ACCESS-052 claude 外评存量观察，本批实例过滤叠加在两种口径上未改变分叉形态）
+- **来源**：T-ACCESS-052 claude 外评
+- **关联**：T-ACCESS-052
+
+**现象与证据**：`ResourceEntityMapper.xml` selectResourceTree 固定 `status=1`（禁用资源不进树），selectResourceListPaged/selectResourceListCount 不过滤 status（禁用资源在列表可见）——同一实体在授权页资源树与资源列表页的可见口径分叉；实例准入过滤（visibleEntityIds）叠加后分叉形态不变。
+
+**影响**：纯口径分叉（禁用资源「树上不见、列表可见」）；无越权面；触发面=资源停用后的授权页选资源 vs 列表管理两条链路。
+
+**设想方向（未定案）**：统一口径（树含禁用+标识，对齐角色树「禁用可见可再启用」先例；或列表同步过滤）——涉及授权页选择器语义，随 T-ACCESS-055 组合验收或触达资源页的任务定夺。
+
+## Q-038 TreeBuilder 只从 parentId==null 起建树——父节点被前置过滤时可见子节点整支静默消失
+
+- **状态**：open
+- **登记**：2026-09-23（T-ACCESS-052 claude 外评存量观察；实例裁剪的祖先链保留恰好规避了本形态在实例过滤面的触发，但类型/状态过滤仍可达）
+- **来源**：T-ACCESS-052 claude 外评
+- **关联**：T-ACCESS-052；Q-039（同族可见口径面）
+
+**现象与证据**：`TreeBuilder.buildTrees`（infrastructure/util/TreeBuilder.java:57-67）仅从 `parentId==null` 的根递归；当父节点被上游过滤剔除（selectResourceTree 的 `status=1`、selectValidRoleTree 的 `enabledOnly）而子节点保留时，子节点因父不在已过滤集合中不进任何 roots 子树——静默消失（无错误无日志）。T-ACCESS-052 树形实例裁剪（V∪祖先链）在实例过滤面规避了该形态（可见节点的祖先链被显式保留），但 status/enabledOnly 维度过滤仍可达。
+
+**影响**：边缘数据形态（父停用子启用）下树内容静默缺失；无越权面（少显示不多显示）。
+
+**设想方向（未定案）**：TreeBuilder 增加「父缺失节点提升为根」或「父缺失告警日志」形态；属公共工具行为变化，触达三棵树的消费语义，随轻量清扫批次定夺。
 
 ## Q-037 授予页入口死路族：停用主体入口 preset 必 !found 且草稿被静默清空（不经 confirmDiscardIfDirty）
 
