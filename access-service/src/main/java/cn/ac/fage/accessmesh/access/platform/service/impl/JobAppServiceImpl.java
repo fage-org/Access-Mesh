@@ -383,7 +383,7 @@ public class JobAppServiceImpl implements JobAppService {
     @Override
     public JobResp getJob(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
-        // T-ACCESS-054：读端点补 ADMIN_JOB:VIEW 类型级门禁（此前零门禁——任意登录用户可翻任务配置）
+        // T-ACCESS-054：读端点补 ADMIN_JOB:VIEW 类型级门禁（此前零门禁——任务名/cron/状态可被翻阅；invokeTarget 经 JobResp 掩码不外泄）
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
         SysJob job = jobMapper.selectValidById(tenantId, id);
         return JobResp.from(job);
@@ -402,7 +402,7 @@ public class JobAppServiceImpl implements JobAppService {
     @Override
     public PageResp<JobResp> pageJobs(PageReq pageReq, String jobGroup) {
         Long tenantId = TenantContextHolder.getTenantId();
-        // T-ACCESS-054：读端点补 ADMIN_JOB:VIEW 类型级门禁（任务配置含 invokeTarget/cron）
+        // T-ACCESS-054：读端点补 ADMIN_JOB:VIEW 类型级门禁（任务名/cron/状态——invokeTarget 经 JobResp 掩码不外泄）
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
@@ -434,7 +434,7 @@ public class JobAppServiceImpl implements JobAppService {
     @Override
     public PageResp<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
         Long tenantId = TenantContextHolder.getTenantId();
-        // T-ACCESS-054：读端点补 ADMIN_JOB:VIEW 类型级门禁（执行日志含任务摘要/失败原因）
+        // T-ACCESS-054：读端点补 ADMIN_JOB:VIEW 类型级门禁（执行摘要 jobName/status/costTime——invokeTarget 与 message 经 JobLogResp 掩码不外泄）
         permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();

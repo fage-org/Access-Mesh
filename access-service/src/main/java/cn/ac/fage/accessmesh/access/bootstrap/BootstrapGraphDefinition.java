@@ -276,6 +276,21 @@ public final class BootstrapGraphDefinition {
             //（my-notices 受众过滤 / read 可见性前置）；保留行+映射作白名单回滚面
             new ApiRoute("POST", "/api/access/notice/my-notices", "bootstrap:我的公告(白名单回滚面)", true, false),
             new ApiRoute("POST", "/api/access/notice/read", "bootstrap:标记已读(白名单回滚面)", true, false),
+            // T-ACCESS-054（P2 处置，2026-09-24 拍板「补齐路由」）：定时任务管理面 8 端点——
+            // Gateway 快照只由 enabled 映射装配，未注册路径对所有人 DENY 403；只补 ADMIN_JOB
+            // 三档授权不注册路由则「按需触发/启用巡检」经 Gateway 人路径仍不可达（与授权无关）。
+            // 注册后可达性=Gateway API:ACCESS 实例行 + 服务层 ADMIN_JOB 门禁双层：detail/page/
+            // log/page 需 VIEW、trigger 需 TRIGGER、toggle 需 ENABLE（bootstrap-admin 三档已种）；
+            // create/update/delete 在服务层因无 ADMIN_JOB 种子恒 403（拍板收窄形态——真实消费者
+            // 零，任务管理 UI 立项再议），路由行仅保 Gateway 层面不缺映射
+            new ApiRoute("POST", "/api/access/job/create", "bootstrap:创建任务", true, false),
+            new ApiRoute("POST", "/api/access/job/update", "bootstrap:更新任务", true, false),
+            new ApiRoute("POST", "/api/access/job/delete", "bootstrap:删除任务", true, false),
+            new ApiRoute("POST", "/api/access/job/toggle", "bootstrap:启停任务", true, false),
+            new ApiRoute("POST", "/api/access/job/trigger", "bootstrap:触发任务", true, false),
+            new ApiRoute("POST", "/api/access/job/detail", "bootstrap:任务详情", true, false),
+            new ApiRoute("POST", "/api/access/job/page", "bootstrap:任务分页", true, false),
+            new ApiRoute("POST", "/api/access/job/log/page", "bootstrap:任务日志分页", true, false),
             // 目标接口（§14.6）：仅预建资源 + API:ACCESS+canGrant，不建映射
             new ApiRoute("POST", "/api/access/role/my-info", "bootstrap:目标接口(my-info)", false, true));
     }

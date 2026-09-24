@@ -50,7 +50,9 @@ last_updated: 2026-09-24
 
 **双轨评审处置**（代码轨 P1×1+P2×1+P3×3、文档轨 P0×1+P1×1+P2×1+P3×3，核实全部成立）：①「存量库重启自动补种」声明有误（主代理亲核 initialize() 四自愈通道不含授权行，实为加行方向 fail-fast）——五处文档改口径+rebuild-runbook 补行；②读门禁拒绝路径补 count never 锁、ADMIN_JOB 负向锁；③P3-2 写端点门禁序顺手修（用户拍板）：updateJob/toggleJobStatus 先门禁后存在，红跑 1/1 红→恢复 10/10 绿；④architecture §14.4 最小集表全量对齐刷新（含 ADMIN_NOTICE 漏账补行）；⑤Q-006 死链/frontmatter 元数据直修。
 
-**验证**：JobAppServiceImplTest 读门禁两锁（回退三行门禁红跑 **2/2 红**→恢复 9/9 绿）+ AccessBootstrapPgIT 17/17（回退三 GrantSpec 红跑计数断言红；恢复后先因 GRANT_RESOURCE_TYPES 缺 ADMIN_JOB 报「operation_permission 种子缺失: ADMIN_JOB:VIEW」fail-fast——实证固定图类型清单同步约束，补清单后全绿；计数 148→151/50→53+ADMIN_JOB 精确断言 granted_bits IN (2,16,64)=3）+ 单测轨 1397 全绿 + 全量回归 `mvn test -T 1C` 含 E2E 16 项与 heavy 组 BUILD SUCCESS、reactor 合计 2013 项 0 失败（access-service 单测 1398+容器 337）。
+**claude 外评处置（deepseek-flash[1M]，2026-09-24，P0=0/P1=0/P2×1+P3×2、可裁剪=0，逐条代码级核实全部成立；提示词与结论落盘会话）**：①**P2 job 族 8 端点从未进固定图 apiRoutes**——Gateway 快照只由 enabled 映射装配，未注册路径对所有人 DENY 403，只补 ADMIN_JOB 三档授权不注册路由则「按需触发/启用巡检」经 Gateway 人路径仍不可达（用户拍板 **A 补齐路由**：apiRoutes +8 行 withMapping=true，PgIT 计数 98/97/151→106/105/159，存量库重启改报「API资源=98/106 部分存在」fail-fast，T-ADMIN-029「路由+授权」两半先例对齐；CREATE/UPDATE/DELETE 仍无种子=服务层 403 收窄形态不变）；②P3 toggle 请求体补 @NotNull+@Valid+Validator 锁（门禁移序后 id null 从 JOB_NOT_FOUND 变 NPE 500）；③P3 invokeTarget 掩码声明订正（JobResp/JobLogResp 本就掩码 invokeTarget/message，「可翻 invokeTarget」高估暴露面——代码注释三处+CHANGELOG/registry/任务卡同批）+runbook 报错样例改真实顺序（bits 2/64/16）；④存量小项直修：architecture frontmatter 补记、本卡单测计数两处对齐；⑤存量观察两条登记不处置（见遗留节）。
+
+**验证**：JobAppServiceImplTest 读门禁两锁（回退三行门禁红跑 **2/2 红**→恢复 9/9 绿）+ AccessBootstrapPgIT 17/17（回退三 GrantSpec 红跑计数断言红；恢复后先因 GRANT_RESOURCE_TYPES 缺 ADMIN_JOB 报「operation_permission 种子缺失: ADMIN_JOB:VIEW」fail-fast——实证固定图类型清单同步约束，补清单后全绿；计数 148→151/50→53+ADMIN_JOB 精确断言 granted_bits IN (2,16,64)=3）+ 单测轨 1397 全绿（双轨处置前；处置加门禁序锁后 1398，见下方全量口径） + 全量回归 `mvn test -T 1C` 含 E2E 16 项与 heavy 组 BUILD SUCCESS、reactor 合计 2013 项 0 失败（access-service 单测 1398+容器 337）；claude 处置后全量复跑 mvn test -T 1C 同形态 BUILD SUCCESS、reactor 2014 项 0 失败（access-service 单测 1399+容器 337，含 E2E 16 与 heavy 组）。
 
 **回写**：契约总册 §17.3 job 族括注（门禁补齐+存量库自动补种口径）；iam-task-closure §6.2 转已实施；capability-structure §3/§8.2 终态口径；pending-problems Q-006 终结注记；dual-layer-cache-framework skill 双副本；CHANGELOG Changed 两条；registry 2026-09-24 行；rebuild-runbook 常见问题表补 T-ACCESS-054 行。
 
@@ -58,6 +60,7 @@ last_updated: 2026-09-24
 
 - job 管理面无前端页、契约维持未成册（§17.3 括注即登记形态）；CREATE/UPDATE/DELETE 端点维持交付但固定图无授权（真实消费者零）——任务管理 UI 如未来立项另行拍板。
 - 任务底座（sys_job 调度/租约接管/幂等执行键/两系统调度器）保留为终态，非过渡物。
+- 存量观察（claude 外评登记，不处置）：`deleteJobs` 对 ids 中 null 元素会 NPE 500（IdsReq 无元素级 @NotNull）——当前无 ADMIN_JOB:DELETE 授权实际不可达，任务管理 UI 立项时随卡收敛；`getJob` 对不存在/跨租户 id 返 200+data=null（与写端点 JOB_NOT_FOUND 不同形）——既有形态。
 - catalog 改名兼容机制（evict-only 别名模式）保留在 skill 供未来复用，册内现有零别名。
 
 ## 验收对照

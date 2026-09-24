@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.access.platform.service.impl;
 
+import cn.ac.fage.accessmesh.access.platform.controller.JobController;
 import cn.ac.fage.accessmesh.access.platform.entity.SysJob;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysJobLogMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysJobMapper;
@@ -13,6 +14,11 @@ import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.infrastructure.task.JobInvokeDomainService;
 import cn.ac.fage.accessmesh.access.platform.service.domain.JobLogDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionDomainService;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -28,6 +34,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
@@ -55,6 +62,22 @@ import static org.mockito.Mockito.when;
  */
 @ExtendWith(MockitoExtension.class)
 class JobAppServiceImplTest {
+
+    private static ValidatorFactory validatorFactory;
+
+    @BeforeAll
+    static void initValidator() {
+        validatorFactory = Validation.buildDefaultValidatorFactory();
+    }
+
+    @AfterAll
+    static void closeValidator() {
+        if (validatorFactory != null) {
+            validatorFactory.close();
+        }
+    }
+
+    private final Validator validator = validatorFactory.getValidator();
 
     private static final Long TENANT_ID = 10L;
     private static final LocalDateTime SCHEDULED_TIME = LocalDateTime.of(2026, 8, 21, 12, 0, 0);
@@ -291,5 +314,18 @@ class JobAppServiceImplTest {
         } finally {
             TenantContextHolder.setTenantId(null);
         }
+    }
+
+    /**
+     * T-ACCESS-054（claude 外评 P3 处置）：toggle 是 job 族唯一无校验请求体——门禁移序
+     * （先门禁后存在）后 id 为 null 会在 id.toString() 处 NPE 500（原实现 null 等值查库
+     * 不命中走 JOB_NOT_FOUND 业务拒绝）；@NotNull+@Valid 将拒绝前移到 400。
+     * 旧实现（ToggleJobReq 无注解）下本用例红。
+     */
+    @Test
+    void toggleJobReqShouldRejectNullIdAndStatus() {
+        assertThat(validator.validate(new JobController.ToggleJobReq(null, 1))).hasSize(1);
+        assertThat(validator.validate(new JobController.ToggleJobReq(1L, null))).hasSize(1);
+        assertThat(validator.validate(new JobController.ToggleJobReq(1L, 0))).isEmpty();
     }
 }

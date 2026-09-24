@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.access.platform.service.JobAppService;
 import cn.ac.fage.accessmesh.common.model.R;
 import cn.ac.fage.accessmesh.perm.common.dto.resp.PageResp;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -98,7 +99,7 @@ public class JobController {
      * @return 操作成功结果
      */
     @PostMapping("/toggle")
-    public R<Void> toggleJobStatus(@RequestBody ToggleJobReq req) {
+    public R<Void> toggleJobStatus(@Valid @RequestBody ToggleJobReq req) {
         jobService.toggleJobStatus(req.id(), req.status());
         return R.ok();
     }
@@ -164,10 +165,17 @@ public class JobController {
     }
 
     /**
-     * 任务状态切换请求记录
+     * 任务状态切换请求记录。
+     * <p>
+     * T-ACCESS-054（claude 外评 P3 处置）：补 @NotNull+@Valid——此前是 job 族唯一无校验请求体，
+     * 门禁移序（先门禁后存在）后 id 为 null 会在 id.toString() 处 NPE 500（原实现 null 等值查库
+     * 不命中走 JOB_NOT_FOUND 业务拒绝）；与 IdReq/JobUpdateReq 同款先例收敛。
+     * </p>
      *
      * @param id     任务ID
      * @param status 新状态（启用/暂停）
      */
-    public record ToggleJobReq(Long id, Integer status) {}
+    public record ToggleJobReq(
+        @NotNull(message = "任务ID不能为空") Long id,
+        @NotNull(message = "状态不能为空") Integer status) {}
 }
