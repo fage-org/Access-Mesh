@@ -35,11 +35,11 @@ last_updated: 2026-09-20
 
 ## 范围
 
-按 [service-authentication.md](../design/service-authentication.md)（adopted）全文实施：存储/认证链/两类接入形态/生命周期/分期退役（阶段二端点扩展清单与退役判据一并落地为文档口径）。
+按 [service-authentication.md](../../../design/service-authentication.md)（adopted）全文实施：存储/认证链/两类接入形态/生命周期/分期退役（阶段二端点扩展清单与退役判据一并落地为文档口径）。
 
 ## 非目标 / 遗留
 
-- 用户侧认证（Sa-Token/OAuth2）零改动；签名制（nonce/验签）不做（[2026-09-19 原定案](../archive/2026-09-20/auto-grant-prior-decisions.md)）；不借道 OAuth2 client_credentials。
+- 用户侧认证（Sa-Token/OAuth2）零改动；签名制（nonce/验签）不做（[2026-09-19 原定案](../../../archive/2026-09-20/auto-grant-prior-decisions.md)）；不借道 OAuth2 client_credentials。
 - internal-secret 阶段二退役（判据=仍依赖旧密钥的端点清零）为后续演进，不在本卡。
 
 ## 验收对照

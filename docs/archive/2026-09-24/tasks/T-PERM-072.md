@@ -38,7 +38,7 @@ last_updated: 2026-09-21（终态）
 
 ## 背景
 
-[简化设计](../design/dependency-auto-grant.md)采用写时物化，取消逐种子逐完整路径存储。授权存续依据是完整 desired 重算，来源解释复用逻辑推导，不另建真相源。
+[简化设计](../../../design/dependency-auto-grant.md)采用写时物化，取消逐种子逐完整路径存储。授权存续依据是完整 desired 重算，来源解释复用逻辑推导，不另建真相源。
 
 ## 当前口径
 

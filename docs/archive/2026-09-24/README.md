@@ -7,8 +7,9 @@ IAM 核心正确性与用户任务闭环计划（iam-task-closure-plan）18 任�
 ## 内容定位
 
 - `iam-task-closure-plan.md`：计划（status: archived）。承接 2026-09-20 全面评审的 F001~F013 修复、D001 实例委派目录、R001~R003 取舍与 T-ACCESS-055 组合验收；18 张所属任务卡随迁 `tasks/`，四卡附属证据目录（t-access-055/t-fe-057/t-fe-058/t-fe-059）随迁 `tasks/evidence/`。
-- 任务状态权威仍在 `docs/tasks/README.md` 看板（本批 18 行链接已改指本目录）；定案权威在 `docs/design/decision-registry.md` 2026-09-20~09-24 各行。
-- 计划衔接表中引用的 T-PERM-071/072/073（自动授权序列，已 done）与 T-PERM-036/054（暂缓）不属本计划 tasks，仍在 `docs/tasks/`。
+- 任务状态权威仍在 `docs/tasks/README.md` 看板（本批 22 行链接已改指本目录）；定案权威在 `docs/design/decision-registry.md` 2026-09-20~09-24 各行。
+- **同日追加单卡归档（用户指令）**：`tasks/T-PERM-070~073.md` 四张无所属计划的终态卡（done，自动授权实施序列与 035 前置）按 registry 2026-09-12「无所属计划终态单卡即行单卡归档」定案随本批次迁入；`docs/tasks/` 自此仅余未终态卡（T-PERM-036/054 暂缓）。
+- 计划衔接表中仍留 `docs/tasks/` 的引用仅 T-PERM-036/054（暂缓，`../../tasks/` 形态），071~073 已改同目录链接。
 
 ## 关联
 

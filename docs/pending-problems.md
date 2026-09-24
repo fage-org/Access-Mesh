@@ -238,7 +238,7 @@ last_updated: 2026-09-24（同日 Q-033 resolved 随 T-ACCESS-055 收敛+Q-034 �
 
 - **状态**：open
 - **登记**：2026-09-21（T-PERM-072 启动决策：用户拍板登记留观、不随 072 处理）
-- **来源**：[T-PERM-072](tasks/T-PERM-072.md) 启动决策
+- **来源**：[T-PERM-072](archive/2026-09-24/tasks/T-PERM-072.md) 启动决策
 - **关联**：T-PERM-072（角色删除回收范围拍板 A 的伴生发现）
 
 **现象与证据**：`RoleManageAppServiceImpl.deleteRoles` 全链路无 `grantOriginRole` 守卫（rg 核实零命中）；自定义类型的所有者角色被删除时：072 拍板 A 下其 AUTHORITY_ROOT 行随角色软删（角色删除成为授权根第二回收路径）→ 类型仍在（`type_definition` 行未删），但授权根持有者消失 → apply-grant-plan 的 verifyDelegation/checkCanGrant（授权根委托判定）无人可通过 → **该类型无人能再被授予/转授任何权限**。
@@ -251,7 +251,7 @@ last_updated: 2026-09-24（同日 Q-033 resolved 随 T-ACCESS-055 收敛+Q-034 �
 
 - **状态**：open
 - **登记**：2026-09-21（T-PERM-072 启动拍板：保留列、物化永不写入，死列事实计入问题清单留观）
-- **来源**：[T-PERM-072](tasks/T-PERM-072.md) 启动决策
+- **来源**：[T-PERM-072](archive/2026-09-24/tasks/T-PERM-072.md) 启动决策
 - **关联**：T-PERM-072（定案载体；registry 2026-09-21 行）
 
 **现象与证据**：`docs/design/schema/access-service.sql` grant_dep_id 列（登记时注释为「grant_source=AUTO_DEP 时记录触发的 resource_dependency.id」，已随 072 修正为保留诊断列口径）+ 实体 `RoleResourcePermission.grantDepId`——全代码库零读零写。设计 §3.4 定案「单字段不能表达多来源（同一 AUTO_DEP 行由多条边+多个种子共同支持），不作存续或清理依据」；072 物化实施后该列也永远不填（例：声明 A→B 与 D→B 共同推出 B:READ 一行，无单一触发边可写）。
