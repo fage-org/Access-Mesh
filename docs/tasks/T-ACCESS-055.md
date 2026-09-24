@@ -41,7 +41,7 @@ last_updated: 2026-09-24   # 收口：五项拍板+三新组合 PgIT+双视角�
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 S001～S012、全部F的组合证据；基线与静态/动态证据强度见该记录。任务尚未实施，已有测试通过不代表该问题已解决。
+承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 S001～S012、全部F的组合证据；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -100,6 +100,8 @@ last_updated: 2026-09-24   # 收口：五项拍板+三新组合 PgIT+双视角�
 **代码轨（P0-P2=0、P3×6）**：P3-1 门禁/裁剪两次引擎调用「复用 denied 结果」——**技术理由拒绝**：映射 service_code 可含目录外孤儿 code（非目录全集子集），复用会放行孤儿映射；本处独立判定对未知 code fail-closed 是防线非冗余，已在代码内补注释。P3-2 `isEmpty` 永真左支+三元空集守卫冗余——直修（引擎空集短路；先例 listServiceConfigs 同款冗余同批同裁）。P3-3 撤权后 mapping/list 缺 403 收尾断言——直修补一行（撤权方向 fail-closed 直接锁）。P3-4 服务层放行+裁剪分支无 mock 单测——不补（阶段 4b 真库组合锁在册；acceptance⑤ 本卡不复制单元矩阵）。P3-5 DualTenant 直插即时可见依赖 INSTANCE 实时 SQL——javadoc 补实现依赖注记（未来改快照缓存时夹具需调整）。P3-6 主类 FQN 内联——改 import 形态。处置后复跑受影响测试全绿（DelegatedDirectoryClosure/ResourceManageAppServiceImplTest/ServiceConfigCascade/ResourceOperationKey 5+41+4+4，一次 Docker 检测抖动 skip 复跑即绿）。
 
 **文档轨（P1×1、P2×6、P3×8）**：P1-1 看板状态未同步——终态回写（本批）。P2-1 契约 §10.2「维持原登记」同册矛盾——括注补翻案指引。P2-2 iam-task-closure §4.2 旧句——历史定案段加翻案注（不改写原句）。P2-3 registry「已推翻」节缺翻案行——补（ROLE_MUTEX 先例形态）。P2-4 frontend/service-interface-mapping 册未回写——三处补（映射列表门禁括注/SERVICE:VIEW 矩阵行/左栏取数行为句）。P2-5 任务卡「CHANGELOG 两条」计数失实——改一条。P2-6「§1530」行号锚失准无先例——6 处改「§12.2」。P3-1 任务卡 architecture 描述——改「表后注记」准确表述。P3-2 architecture 注记句格式/语义（heredoc 反引号丢失+泛称单端点）——重写。P3-3 Q-033 设想方向段过时——改收敛口径段。P3-4 pending-problems last_updated——补记。P3-5 收口/完成记录称呼——统一完成记录。P3-6 registry 新行前空行断表——删（接回主表）。P3-7 S 编号无仓库锚——evidence 头部补来源注。P3-8 F003 行缺日期——补 2026-09-21。
+
+**claude 外评处置（deepseek-flash[1m]，2026-09-24；P0-P2=0、P3×3、可裁剪=0，专项五项全过——含复核本地评审 P3-1 拒绝理由成立〔孤儿映射 fail-closed 防线〕、六构造点实参序、红跑声明可信性）**：P3-1 前端三处表述停留翻案前口径（hook.ts 注释/spec 用例名与 mock 消息/设计册句把映射全量 403 归因「无类型级 VIEW」——实例准入后 403=零可见实例，与 service-config/list 同源门禁）→ 三处改新口径+补「真实链路仅并发改权/瞬时故障可观测，作降级分支特征锁」限定。P3-2 契约 Q-033 校准句对 org/create 精化码可达路径不准（亲核 OrgWriteAppServiceImpl:91-107 属实：子级=唯一可达岗位创建路径判父组织 UPDATE，CREATE_POSITION 仅恒 400 顶级分支解析）→ §4 表行+§8.4 句改可实现口径（给 CREATE_POSITION 配权对建岗位无效、实际需 UPDATE@父组织）；权威册 org-user-permission-contract:154 为 perm 串/按钮显隐语境不动。P3-3 两张活任务卡未随翻案/终态同步（052:72 后半句「维持原登记」缺翻案括注〔前半句有消解括注不对称〕+055 背景句 done 后失实）→ 052 补括注；类推清扫五张 done 卡背景句（052/054/055/029/004 统一改「实施与验证见完成记录」，2026-09-22 轻量清理定案形态——该轮清理只覆盖当时四卡，后续 done 卡又积累同款句）。存量观察三条登记不处置（UserDetailPanel/PositionTab/grant hook 的 Promise.all 各路门禁同源或明示原子设计；service_code 空白串理论形态无可达构造路径；SERVICE 资源行无目录行的过严面=拍板锚点口径）。处置后复跑：前端 hook.spec 12/12+ResourceManageAppServiceImplTest 绿（处置全为文档/注释/用例名口径，生产代码零改动）。
 
 ## 完成记录（2026-09-24 收口）
 

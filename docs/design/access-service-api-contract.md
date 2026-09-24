@@ -231,7 +231,7 @@ boolean hasTypeLevel(String resourceTypeCode, String operationCode);
 | `/api/access/org/tree` | `ORG` | 类型级 或 实例准入 | `VIEW` 或 `CREATE` | 入参 `operationCode` 决定语义: `VIEW`=可视范围（T-ACCESS-052：组织轨无类型级 VIEW 时持任一可见组织即可进入，树按可见子集+祖先导航链裁剪；岗位节点可见性维持 ORG:VIEW 批量判定口径——Q-034 边界）; `CREATE`=新增用户时可选挂载点 (限默认树，维持类型级) |
 | `/api/access/org/page` | `ORG` | 类型级 或 实例准入 | `VIEW` | T-ACCESS-052：orgType=1 组织轨无类型级 VIEW 时按可见组织交集过滤下推（先过滤再分页/计数）；orgType=2 岗位分页维持类型级（Q-034 边界同树口径） |
 | `/api/access/org/users` | `ORG` | 实例级 (orgId) | `VIEW` | 门禁=类型级 USER:VIEW（「看成员=看用户」D3=A）；T-ACCESS-052 补目标组织可见性校验：目标 orgId 不在操作者可见组织集合 → `ORG_NOT_FOUND`(10101)，防持门票者经任意 orgId 探测成员名单 |
-| `/api/access/org/create` | `ORG` | 实例级 (parentOrgId, 顶级时类型级) | `CREATE`/`CREATE_POSITION`（按目标 orgType 解析，Q-033） | |
+| `/api/access/org/create` | `ORG` | 子级=父组织实例级 / 顶级=类型级 | 子级 `UPDATE`（按父 orgType 解析）/ 顶级 `CREATE`（按新节点 orgType，岗位顶级被拓扑校验拒绝——Q-033 校准） | |
 | `/api/access/org/update` | `ORG` | 实例级 (orgId) | `UPDATE`/`UPDATE_POSITION`（按目标 orgType 解析，Q-033） | 改 `parentOrgId` 等价于"移动", 同时需新父级同族 `UPDATE` |
 | `/api/access/org/delete` | `ORG` | 实例级 (orgId) | `DELETE`/`DELETE_POSITION`（按目标 orgType 解析，Q-033） | |
 | `/api/access/user-org/list` | `USER` | 实例级 (userId) | `VIEW` | 读用户成员关系视图 |
@@ -749,7 +749,7 @@ OAuth2 委托令牌访问业务 API 由显式配置的路径白名单 + 三重�
 **门禁**:
 - 顶级 (`parentOrgId=null`): `ORG:CREATE` 类型级
 - 子级: `ORG:UPDATE@parentOrgId` 实例级 (在父级下添加子节点等价于"修改父级结构")
-- 操作码按目标 `orgType` 解析（Q-033 校准，`OrgOperationCodeMapper` 实现口径）：岗位目标 (`orgType=2`) 实际判定 `CREATE_POSITION`（普通组织为 `CREATE`）——按裸 `CREATE` 给岗位配权不生效
+- 操作码分支（Q-033 校准，`OrgOperationCodeMapper` 实现口径）：**子级（唯一可达的岗位创建路径）判父组织 `UPDATE`**（父必为普通组织，`UPDATE@parentOrgId`）；顶级判新节点类型 `CREATE`（岗位顶级创建被拓扑校验 400 拒绝，`CREATE_POSITION` 仅在该恒拒分支解析——给它配权对建岗位无效，建岗位实际需 `ORG:UPDATE@父组织`）
 
 **投影动作**:
 1. 主事务: INSERT `sys_org`

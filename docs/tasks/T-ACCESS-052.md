@@ -39,7 +39,7 @@ last_updated: 2026-09-23
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 D001；关联F005；基线与静态/动态证据强度见该记录。任务尚未实施，已有测试通过不代表该问题已解决。
+承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 D001；关联F005；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -69,7 +69,7 @@ last_updated: 2026-09-23
 - **org/tree 的 operationCode=CREATE（挂载点树）维持类型级**：CREATE(1,0) 不继承 VIEW、挂载点选择是写语义入口，未纳入实例准入放宽面。
 - **CREATE-only 组合形态**（U003 拍板自然结果）：仅持 CREATE@a（不覆盖 VIEW）者菜单入口可见（任意操作语义）但目录列表空——「入口显示但列表空」为拍板接受形态，非缺陷。
 - **委派角色构造的操作位范围**：首授可转授面按位域能力分立——SERVICE:MANAGE 行可构造 SERVICE:实例 的 VIEW/MANAGE、SERVICE:MANAGE_API_MAPPING 行构造其自身（单持 MANAGE 不能构造 MANAGE_API_MAPPING，covers 18&32=0）、ORG:MANAGE_MEMBER 行可构造 ORG:实例 的 VIEW 与 MANAGE_MEMBER、USER:VIEW 行构造 USER:VIEW；SERVICE:SYNC_INTERFACE 等其余操作位维持不可转授，需要扩展另行立项（registry 2026-09-23 行纪律①；claude 外评 P3-2 钉正）。
-- **两端点维持类型级门禁**（2026-09-23 收口拍板「维持现状登记遗留」）：`/api/access/role/list`（角色候选，用户详情「分配角色」数据源）与 `resource-api-mapping/list` 不带 serviceCode 的管理全量列表——持实例授权的有限管理员在对应页面可用（角色页裁剪后可用、映射查询带 serviceCode 实例校验可用）但这两处 403；后续需要时随 T-ACCESS-055 或另行立项。**（role/list 半边已随 T-FE-058 端点退役消解〔2026-09-23，候选迁 /abstract-role/list 对齐实例准入口径〕；resource-api-mapping/list 半边维持原登记。）**
+- **两端点维持类型级门禁**（2026-09-23 收口拍板「维持现状登记遗留」）：`/api/access/role/list`（角色候选，用户详情「分配角色」数据源）与 `resource-api-mapping/list` 不带 serviceCode 的管理全量列表——持实例授权的有限管理员在对应页面可用（角色页裁剪后可用、映射查询带 serviceCode 实例校验可用）但这两处 403；后续需要时随 T-ACCESS-055 或另行立项。**（role/list 半边已随 T-FE-058 端点退役消解〔2026-09-23，候选迁 /abstract-role/list 对齐实例准入口径〕；resource-api-mapping/list 半边维持原登记——已被 T-ACCESS-055 翻案为实例准入，见 registry 2026-09-24 行与「已推翻」节。）**
 - **树形裁剪算法三副本**（双轨评审 P3-5）：ResourceManage/RoleManage/OrgApp 各一份同款「V∪祖先链」私有实现（已加互引注释锚点）；泛型化收敛属风格重构非缺陷，留待轻量清扫批次。
 - **资源目录可见集合不按请求类型收窄**（双轨评审 P3-4 观察）：`selectValidResourceIds` 为全类型 id 集（大租户 IN 参数以 PG 65535 bind 上限为硬顶）；按类型收窄会同时收窄零可见 403 门槛语义，维持「门票+裁剪」模型，规模压力随 heavy 轨道观测。
 - **instanceIdsByType（直接授权）与 resourceEntityIds（含子孙扩展）两集合分叉**（双轨评审存疑④，接受）：跨类型父行存量（20053 收紧前）可致「实例页菜单可见、类型页菜单不可见」窄面不一致；T-PERM-068 后无新增通道，接受现状。

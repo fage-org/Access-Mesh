@@ -71,7 +71,7 @@ last_reviewed: 2026-09-24（T-API-004：服务保存/更新映射两行补显式
 |---|---|---|---|---|
 | 服务列表 | `POST /api/access/service-config/list` | `{}` | `ItemsResp<ServiceConfigResp>` | ✅（T-PERM-027 收口：维持全量返回设计定案，见 §7.1；T-ACCESS-052：实例准入裁剪） |
 
-> **左栏取数（T-ACCESS-055）**：服务目录与映射计数两路请求独立收果（`Promise.allSettled`）——映射全量 list 403（无类型级 VIEW）时计数降级 0、服务目录独立渲染；服务目录自身失败才走列表加载失败态。旧 `Promise.all` 单路 403 连坐清空左栏形态已退役。
+> **左栏取数（T-ACCESS-055）**：服务目录与映射计数两路请求独立收果（`Promise.allSettled`）——映射全量 list 403（零可见实例，与 service-config/list 同源门禁——实例准入后该降级分支仅并发改权/瞬时故障可观测）时计数降级 0、服务目录独立渲染；服务目录自身失败才走列表加载失败态。旧 `Promise.all` 单路 403 连坐清空左栏形态已退役。
 | 服务详情 | `POST /api/access/service-config/detail` | `{serviceCode}` | `ServiceConfigResp` | ✅ |
 | 服务保存 | `POST /api/access/service-config/save` | `serviceCode/name/basePath/...` | `ServiceConfigResp` | ✅（Resp 含 updatedAt，§7.7；T-API-004：编辑态 basePath/description/extra 清空走 `basePathClear`/`descriptionClear`/`extraClear`〔公式=原值非 null 且表单清空〕，创建分支携带拒绝——统一协议契约 §2.7） |
 | 服务删除 | `POST /api/access/service-config/remove` | `{ids}` | `void` | ✅（T-PERM-027 级联清理落地，§7.2） |

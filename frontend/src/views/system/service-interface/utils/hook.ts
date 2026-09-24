@@ -84,8 +84,10 @@ export function useServiceInterface() {
   } = useListLoad<ServiceSummary>({
     errorText: "加载服务目录失败",
     fetcher: async () => {
-      // 服务目录与映射计数独立收果（T-ACCESS-055）：映射全量 list 需 SERVICE:VIEW 类型级
-      // （实例授权的有限管理员 403），单路失败不得连坐清空服务目录——计数降级 0
+      // 服务目录与映射计数独立收果（T-ACCESS-055）：单路失败不得连坐清空服务目录。
+      // 映射全量 list 与 service-config/list 同源门禁（T-ACCESS-055 实例准入后 403=零可见
+      // 实例；真实链路上该降级分支仅在两请求并发期间权限被改/瞬时故障时可观测，作降级
+      // 分支特征锁），失败时计数降级 0
       const [serviceSettled, mappingSettled] = await Promise.allSettled([
         getServiceConfigList(),
         getApiMappingList({})

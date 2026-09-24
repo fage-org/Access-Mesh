@@ -31,7 +31,7 @@ last_updated: 2026-09-24   # 收口：双轨处置完毕+全量含 E2E BUILD SUC
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 F009；基线与静态/动态证据强度见该记录。任务尚未实施，已有测试通过不代表该问题已解决。
+承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 F009；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 

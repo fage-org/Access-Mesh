@@ -257,7 +257,7 @@ describe("服务目录与映射计数独立收果（T-ACCESS-055：有限管理�
     mockGetServiceApis.mockResolvedValue({ items: [] });
   });
 
-  it("映射全量 list 403（实例授权者无类型级 VIEW）时服务目录独立加载、计数降级 0（旧实现 Promise.all 连坐必失败）", async () => {
+  it("映射全量 list 403（零可见实例，与 service-config/list 同源门禁）时服务目录独立加载、计数降级 0（旧实现 Promise.all 连坐必失败；实例准入后该组合真实链路仅并发改权/瞬时故障可观测，作降级分支特征锁）", async () => {
     const { getServiceConfigList, getApiMappingList } = await import(
       "@/api/service-interface"
     );
@@ -265,7 +265,7 @@ describe("服务目录与映射计数独立收果（T-ACCESS-055：有限管理�
       items: [{ serviceCode: "access-service", name: "a" } as any]
     });
     (getApiMappingList as any).mockRejectedValue(
-      new Error("403 权限不足：resource-api-mapping/list 需类型级 VIEW")
+      new Error("403 权限不足：resource-api-mapping/list 零可见实例")
     );
 
     const hook = useServiceInterface();
