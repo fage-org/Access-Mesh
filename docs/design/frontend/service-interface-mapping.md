@@ -69,13 +69,15 @@ last_reviewed: 2026-09-24（T-API-004：服务保存/更新映射两行补显式
 
 | 操作 | 接口 | 请求 | 响应 | 核对 |
 |---|---|---|---|---|
-| 服务列表 | `POST /api/access/service-config/list` | `{}` | `ItemsResp<ServiceConfigResp>` | ✅（T-PERM-027 收口：维持全量返回设计定案，见 §7.1） |
+| 服务列表 | `POST /api/access/service-config/list` | `{}` | `ItemsResp<ServiceConfigResp>` | ✅（T-PERM-027 收口：维持全量返回设计定案，见 §7.1；T-ACCESS-052：实例准入裁剪） |
+
+> **左栏取数（T-ACCESS-055）**：服务目录与映射计数两路请求独立收果（`Promise.allSettled`）——映射全量 list 403（无类型级 VIEW）时计数降级 0、服务目录独立渲染；服务目录自身失败才走列表加载失败态。旧 `Promise.all` 单路 403 连坐清空左栏形态已退役。
 | 服务详情 | `POST /api/access/service-config/detail` | `{serviceCode}` | `ServiceConfigResp` | ✅ |
 | 服务保存 | `POST /api/access/service-config/save` | `serviceCode/name/basePath/...` | `ServiceConfigResp` | ✅（Resp 含 updatedAt，§7.7；T-API-004：编辑态 basePath/description/extra 清空走 `basePathClear`/`descriptionClear`/`extraClear`〔公式=原值非 null 且表单清空〕，创建分支携带拒绝——统一协议契约 §2.7） |
 | 服务删除 | `POST /api/access/service-config/remove` | `{ids}` | `void` | ✅（T-PERM-027 级联清理落地，§7.2） |
 | 服务接口清单 | `POST /api/access/service-config/apis` | `{serviceCode}` | `ItemsResp<ApiMappingResp>` | ✅（T-PERM-027 补资源业务字段，§7.3） |
 | 完整同步 | `POST /api/access/service-config/sync` | `ServiceConfigSyncReq(FULL)` | `ServiceConfigSyncResp` | ✅（T-PERM-027 后端 FULL-only 校验，§7.4） |
-| 映射列表（计数） | `POST /api/access/resource-api-mapping/list` | `{resourceId?,serviceCode?}` | `ItemsResp<ApiMappingResp>` | ✅（T-PERM-027 补 SERVICE:VIEW 门禁+服务维裁剪，§7.5） |
+| 映射列表（计数） | `POST /api/access/resource-api-mapping/list` | `{resourceId?,serviceCode?}` | `ItemsResp<ApiMappingResp>` | ✅（T-PERM-027 补 SERVICE:VIEW 门禁+服务维裁剪，§7.5；T-ACCESS-055：不带 serviceCode 的全量列表改实例准入——类型级不过时持任一 SERVICE 实例 VIEW 进入+结果按可见服务裁剪） |
 | 新增映射 | `POST /api/access/resource-api-mapping/create` | `resourceId/serviceCode/method/path/...` | `ApiMappingResp` | ✅（§6.10.4；资源键 T-PERM-028 联动，§7.6） |
 | 更新映射 | `POST /api/access/resource-api-mapping/update` | `resourceId/mappingId/...` | `ApiMappingResp` | ✅（§6.10.4；同上；T-API-004：extra 清空走 `extraClear`〔公式=原 extra 非空且表单清空〕） |
 | 移除映射 | `POST /api/access/resource-api-mapping/remove` | `{ids}` | `void` | ✅ |
@@ -99,7 +101,7 @@ views/system/service-interface/
 
 | 权限串 | 服务端门禁 | 前端控制 |
 |---|---|---|
-| `SERVICE:VIEW` | 服务 list/detail/apis | 页面加载；无权限时显示空态，不触发加载 |
+| `SERVICE:VIEW` | 服务 list/detail/apis；映射 list（T-ACCESS-055 起全量列表实例准入） | 页面加载；类型级+实例均无权限时显示空态，不触发加载 |
 | `SERVICE:MANAGE` | 服务 save/remove | 登记、编辑、删除服务 |
 | `SERVICE:SYNC_INTERFACE` | `service-config/sync` | FULL 同步入口 |
 | `SERVICE:MANAGE_API_MAPPING` | 映射 create/update/remove | 新增、编辑、移除映射 |

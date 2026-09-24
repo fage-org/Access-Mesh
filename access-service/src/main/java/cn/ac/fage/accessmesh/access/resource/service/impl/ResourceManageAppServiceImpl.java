@@ -34,6 +34,8 @@ import cn.ac.fage.accessmesh.access.resource.dto.resp.ResourceTreeResp;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ResourceTreeResp.ResourceTreeNode;
 
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
+import cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper;
+import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
 
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceEntity;
 
@@ -118,6 +120,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
 
     private final ResourceApiMappingMapper apiMappingMapper;
 
+    private final ServiceConfigMapper serviceConfigMapper;
+
     private final ResourceEntityDomainService resourceEntityDomainService;
 
     private final TypeResolutionService typeResolutionService;
@@ -145,6 +149,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
      */
     public ResourceManageAppServiceImpl(ResourceEntityMapper resourceEntityMapper,
                                      ResourceApiMappingMapper apiMappingMapper,
+                                     ServiceConfigMapper serviceConfigMapper,
                                      ResourceEntityDomainService resourceEntityDomainService,
                                      TypeResolutionService typeResolutionService,
                                      DomainClassifyService domainClassifyService,
@@ -155,6 +160,7 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                                      TreeWriteLockSupport treeWriteLockSupport) {
         this.resourceEntityMapper = resourceEntityMapper;
         this.apiMappingMapper = apiMappingMapper;
+        this.serviceConfigMapper = serviceConfigMapper;
         this.resourceEntityDomainService = resourceEntityDomainService;
         this.typeResolutionService = typeResolutionService;
         this.domainClassifyService = domainClassifyService;
@@ -958,7 +964,11 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         Long operatorId = OperatorContext.getOperatorId();
 
         // T-PERM-027（§7.5）：映射列表补 SERVICE:VIEW 门禁——指定 serviceCode 按实例校验，
-        // 未指定（管理全量列表）按类型级校验并对结果做服务维裁剪，避免暴露跨服务 API 路径。
+        // 未指定（管理全量列表）类型级通过即全量；T-ACCESS-055 实例准入：类型级不过时
+        // 持任一 SERVICE 实例 VIEW（含继承覆盖，如 MANAGE 继承 VIEW 位）者可进入，结果由
+        // 下方服务维裁剪收敛到可见实例（listServiceConfigs 同款先例）；零可见实例仍 403
+        // fail-closed。翻 T-ACCESS-052 收口「resource-api-mapping/list 半边维持原登记」案
+        //（实例授权有限管理员的映射全量面此前整页 403，经本卡浏览器验收发现并做实）。
         // 空白 serviceCode 与 null 同义（与 selectValidList 的过滤判定对齐，避免门禁与 SQL 语义分叉）
         String normalizedServiceCode = serviceCode == null || serviceCode.isBlank() ? null : serviceCode;
         boolean filteredByService = normalizedServiceCode != null;
@@ -967,7 +977,15 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 throw new SecurityException("Permission denied: VIEW on SERVICE:" + normalizedServiceCode);
             }
         } else if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.VIEW)) {
-            throw new SecurityException("Permission denied: VIEW on SERVICE");
+            // 可见性锚点=服务目录全集（非映射涉及集）：可见服务无映射时应返回空列表而非 403
+            Set<String> allServiceCodes = serviceConfigMapper.selectByTenantId(tenantId).stream()
+                .map(ServiceConfig::getServiceCode)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+            Set<String> deniedServices = engine.getDeniedResourceCodes(
+                tenantId, operatorId, ResourceTypeCode.SERVICE, allServiceCodes, OperationCode.VIEW);
+            if (deniedServices.size() == allServiceCodes.size()) {
+                throw new SecurityException("Permission denied: VIEW on SERVICE");
+            }
         }
 
         List<ResourceApiMapping> mappings = new ArrayList<>(apiMappingMapper.selectValidList(tenantId, resourceId, normalizedServiceCode));
@@ -978,6 +996,8 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
                 .filter(code -> code != null && !code.isBlank())
                 .collect(Collectors.toSet());
             if (!mappingServiceCodes.isEmpty()) {
+                // 门禁阶段 denied 结果不可复用于此处：映射 service_code 可含目录外孤儿 code，
+                // 本处独立判定对未知 code fail-closed 裁剪（复用目录全集结果会放行孤儿映射）
                 Set<String> denied = engine.getDeniedResourceCodes(
                     tenantId, operatorId, ResourceTypeCode.SERVICE, mappingServiceCodes, OperationCode.VIEW);
                 if (!denied.isEmpty()) {

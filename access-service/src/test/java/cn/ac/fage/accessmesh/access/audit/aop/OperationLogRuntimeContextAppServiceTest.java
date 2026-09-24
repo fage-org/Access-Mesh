@@ -144,6 +144,7 @@ class OperationLogRuntimeContextAppServiceTest {
         ResourceManageAppServiceImpl service = new ResourceManageAppServiceImpl(
             resourceEntityMapper,
             resourceApiMappingMapper,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class),
             resourceEntityDomainService,
             typeResolutionService,
             domainClassifyService,

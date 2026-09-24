@@ -249,3 +249,67 @@ describe("服务/映射显式清空公式（T-API-004，U006 拍板）", () => {
     );
   });
 });
+
+describe("服务目录与映射计数独立收果（T-ACCESS-055：有限管理员视角 B 缺口）", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // loadDirectory 成功后级联 loadMappings（getServiceApis）——统一给空集防挂起
+    mockGetServiceApis.mockResolvedValue({ items: [] });
+  });
+
+  it("映射全量 list 403（实例授权者无类型级 VIEW）时服务目录独立加载、计数降级 0（旧实现 Promise.all 连坐必失败）", async () => {
+    const { getServiceConfigList, getApiMappingList } = await import(
+      "@/api/service-interface"
+    );
+    (getServiceConfigList as any).mockResolvedValue({
+      items: [{ serviceCode: "access-service", name: "a" } as any]
+    });
+    (getApiMappingList as any).mockRejectedValue(
+      new Error("403 权限不足：resource-api-mapping/list 需类型级 VIEW")
+    );
+
+    const hook = useServiceInterface();
+    await hook.loadDirectory();
+
+    expect(hook.services.value).toHaveLength(1);
+    expect(hook.services.value[0].serviceCode).toBe("access-service");
+    expect(hook.services.value[0].apiCount).toBe(0);
+    expect(hook.services.value[0].enabledApiCount).toBe(0);
+  });
+
+  it("双路都成功时计数照常聚合（allSettled 改造不改变正常路径）", async () => {
+    const { getServiceConfigList, getApiMappingList } = await import(
+      "@/api/service-interface"
+    );
+    (getServiceConfigList as any).mockResolvedValue({
+      items: [{ serviceCode: "svc-a", name: "a" } as any]
+    });
+    (getApiMappingList as any).mockResolvedValue({
+      items: [
+        { serviceCode: "svc-a", enabled: true },
+        { serviceCode: "svc-a", enabled: false }
+      ] as any[]
+    });
+
+    const hook = useServiceInterface();
+    await hook.loadDirectory();
+
+    expect(hook.services.value[0].apiCount).toBe(2);
+    expect(hook.services.value[0].enabledApiCount).toBe(1);
+  });
+
+  it("服务目录自身失败仍按 useListLoad 失败语义提示（不因映射失败分支吞掉主路错误）", async () => {
+    const { getServiceConfigList, getApiMappingList } = await import(
+      "@/api/service-interface"
+    );
+    (getServiceConfigList as any).mockRejectedValue(
+      new Error("服务目录加载失败")
+    );
+    (getApiMappingList as any).mockResolvedValue({ items: [] });
+
+    const hook = useServiceInterface();
+    await hook.loadDirectory();
+
+    expect(hook.services.value).toEqual([]);
+  });
+});

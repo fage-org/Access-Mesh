@@ -128,6 +128,7 @@ class ResourceOperationKeyPgIT {
 
     private ResourceManageAppServiceImpl newResourceManageAppService(PermQueryEngine engine) {
         return new ResourceManageAppServiceImpl(resourceEntityMapper, resourceApiMappingMapper,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class),
             resourceEntityDomainService, typeResolutionService, domainClassifyService,
             engine, rolePermMapper, org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.rule.service.domain.PermissionConditionDomainService.class), ownershipGuard(),
             mock(TreeWriteLockSupport.class));

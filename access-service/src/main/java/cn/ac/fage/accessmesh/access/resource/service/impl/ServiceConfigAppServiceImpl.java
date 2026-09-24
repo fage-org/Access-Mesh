@@ -236,8 +236,7 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
         Set<String> allCodes = all.stream()
             .map(ServiceConfig::getServiceCode)
             .collect(Collectors.toCollection(LinkedHashSet::new));
-        Set<String> deniedCodes = allCodes.isEmpty() ? Set.of()
-            : engine.getDeniedResourceCodes(tenantId, operatorId, ResourceTypeCode.SERVICE, allCodes, OperationCode.VIEW);
+        Set<String> deniedCodes = engine.getDeniedResourceCodes(tenantId, operatorId, ResourceTypeCode.SERVICE, allCodes, OperationCode.VIEW);
         if (deniedCodes.size() == allCodes.size()) {
             throw new SecurityException("Permission denied: VIEW on SERVICE");
         }

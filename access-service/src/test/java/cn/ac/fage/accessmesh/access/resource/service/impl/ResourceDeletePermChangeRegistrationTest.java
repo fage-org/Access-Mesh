@@ -59,7 +59,9 @@ class ResourceDeletePermChangeRegistrationTest {
     @BeforeEach
     void setUp() {
         service = new ResourceManageAppServiceImpl(
-            resourceEntityMapper, apiMappingMapper, resourceEntityDomainService,
+            resourceEntityMapper, apiMappingMapper,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class),
+            resourceEntityDomainService,
             typeResolutionService, domainClassifyService, engine, rolePermMapper,
             conditionDomainService,
             resourceTypeOwnershipGuard,

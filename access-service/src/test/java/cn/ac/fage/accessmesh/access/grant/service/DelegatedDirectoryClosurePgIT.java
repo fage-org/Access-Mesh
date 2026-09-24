@@ -169,6 +169,28 @@ class DelegatedDirectoryClosurePgIT {
             JSON.objectNode().put("serviceCode", "review-b-" + marker), ownerToken);
         assertThat(deniedCode).as("无实例授权的服务详情必须 403").isEqualTo(403);
 
+        // —— 阶段 4b：映射全量列表实例准入（T-ACCESS-055：翻「resource-api-mapping/list
+        //     半边维持原登记」案）——持实例授权者进入全量列表且结果按可见服务裁剪，
+        //     不泄露越界服务的映射（review-b 补一条映射行做泄露探针） ——
+        Long reviewBResourceId = jdbc.queryForObject(
+            "SELECT re.id FROM resource_entity re JOIN type_definition td "
+                + "ON td.tenant_id = re.tenant_id AND td.type_value = re.resource_type "
+                + "AND td.type_key = 'resource_type' AND td.type_code = 'SERVICE' "
+                + "WHERE re.tenant_id = ? AND re.code = ? AND re.delete_flag = 0",
+            Long.class, TENANT, "review-b-" + marker);
+        jdbc.update(
+            "INSERT INTO resource_api_mapping (tenant_id, resource_entity_id, service_code, http_method, path_pattern, "
+                + "match_order, enabled, created_by, delete_flag) VALUES (?, ?, 'review-b-" + marker + "', 'POST', '/probe/b', 100, true, ?, 0)",
+            TENANT, reviewBResourceId, adminUserId);
+        JsonNode allMappings = performAndUnwrap("/api/access/resource-api-mapping/list", ownerUserId,
+            JSON.objectNode(), ownerToken, 200);
+        List<String> mappingServiceCodes = new ArrayList<>();
+        allMappings.path("items").forEach(m -> mappingServiceCodes.add(m.path("serviceCode").asText()));
+        assertThat(mappingServiceCodes)
+            .as("映射全量列表必须按可见实例裁剪：access-service 的映射在、不泄露 review-b：%s", mappingServiceCodes)
+            .contains(BootstrapGraphDefinition.SERVICE_RESOURCE_CODE)
+            .doesNotContain("review-b-" + marker);
+
         // —— 阶段 6：撤权一致性（apply-grant-plan removes）——目录回 403、菜单入口消失 ——
         Long permissionId = jdbc.queryForObject(
             "SELECT p.id FROM role_resource_permission p JOIN resource_entity re "
@@ -181,6 +203,9 @@ class DelegatedDirectoryClosurePgIT {
         int revokedCode = performRawCode("/api/access/service-config/list", ownerUserId,
             JSON.objectNode(), ownerToken);
         assertThat(revokedCode).as("撤权后目录必须回到 403（零可见实例 fail-closed）").isEqualTo(403);
+        int revokedMappingCode = performRawCode("/api/access/resource-api-mapping/list", ownerUserId,
+            JSON.objectNode(), ownerToken);
+        assertThat(revokedMappingCode).as("撤权后映射全量列表必须同步回到 403（4b 实例准入的撤权方向 fail-closed）").isEqualTo(403);
         JsonNode menusAfter = performAndUnwrap("/api/access/auth/user-menu", ownerUserId,
             JSON.objectNode().put("userId", ownerUserId), ownerToken, 200);
         List<String> menuPathsAfter = new ArrayList<>();

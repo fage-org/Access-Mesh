@@ -530,7 +530,7 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 | `ADMIN_JOB:VIEW/TRIGGER/ENABLE`       | ALL                | 定时任务管理面最小运营三档（T-ACCESS-054：T-PERM-073 对账任务按需手动触发/启用周期巡检的正规入口；CREATE/UPDATE/DELETE 无种子，改 cron 走运维通道） |
 | `API:ACCESS`（类型级）                  | ALL + `canGrant=true` | 向 BASIC_ROLE 授权任意接口（授权传递链；T-API-001 起类型级：新接入服务接口的授权必须由首管理员完成，实例级会造成鸡生蛋）；落管理角色（首管理员唯一绑定，等价仅首管理员持有，见 §14.1）。管理 API 清单的实例级 `API:ACCESS` 授权保留（最小暴露面不变）。**语义强度提示**：该条 + canGrant 使首管理员等效「任意服务、任意<b>已注册</b> API 经 Gateway 放行且可转授」——即已注册接口的内置超管（§14.2 禁止 API 类型级 scopeAll 大包授权的约束下，快照装配将 API 类型级 scopeAll 展开为该服务全部 enabled 映射的 INSTANCE 条目，未注册接口维持默认拒绝），属鸡生蛋消解的必要代价 |
 
-可转授例外全集：T-ACCESS-052 最小集四条（`SERVICE:MANAGE`/`SERVICE:MANAGE_API_MAPPING`/`ORG:MANAGE_MEMBER`/`USER:VIEW`，2026-09-23 拍板）+ `API:ACCESS` 类型级与目标 API 实例行；其余业务门禁均不可转授。上表为设计叙述（2026-09-24 T-ACCESS-054 全量对齐刷新——此前滞留 T-PERM-030 时点口径，T-FE-015/017/022、T-PERM-024/071、T-ACCESS-052、T-ADMIN-029 各批增删未同步；旧「不授予 RESOURCE:CREATE」句为历史口径已废弃）。
+可转授例外全集：T-ACCESS-052 最小集四条（`SERVICE:MANAGE`/`SERVICE:MANAGE_API_MAPPING`/`ORG:MANAGE_MEMBER`/`USER:VIEW`，2026-09-23 拍板）+ `API:ACCESS` 类型级与目标 API 实例行；其余业务门禁均不可转授。上表为设计叙述（2026-09-24 T-ACCESS-054 全量对齐刷新——此前滞留 T-PERM-030 时点口径，T-FE-015/017/022、T-PERM-024/071、T-ACCESS-052、T-ADMIN-029 各批增删未同步；旧「不授予 RESOURCE:CREATE」句为历史口径已废弃）。`resource-api-mapping/list` 全量列表实例准入（T-ACCESS-055，2026-09-24，单端点）：对齐 `listServiceConfigs` 先例——类型级 VIEW 全量，否则持任一 SERVICE 实例 VIEW 进入+结果按可见服务裁剪、零可见实例 403（翻 T-ACCESS-052「维持原登记」案）。
 
 ### 14.5 授权页读接口 VIEW 门禁终态（随 T-PERM-042 补齐 3 项）
 

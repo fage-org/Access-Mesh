@@ -49,7 +49,7 @@
 | [T-ACCESS-053](T-ACCESS-053.md) | 首次服务接入与撤销验证路径简化 | ✅（2026-09-23 收口：四项拍板〔U008 维持现状登记 Q-040/撤销主线 E2E⑧+文档/compose 空环境实测/文档改现有不新建，registry 同日行〕+E2E⑧撤销→403→重授→200+五册接入文档统一+空环境实测主线/业务类型授权根/两套身份全链证据+双轨评审处置完毕（代码轨 P3×3/文档轨 P2×2+P3×4 全直修、Q-041 登记）+全量含 E2E/heavy BUILD SUCCESS 0 失败） | T-GW-010 |
 | [T-PERM-078](T-PERM-078.md) | 自动授权实施前协议与算法校准 | ✅ | — |
 | [T-ACCESS-054](T-ACCESS-054.md) | 外围任务能力与缓存过渡机制取舍 | ✅（2026-09-24 收口：两项拍板〔U010 底座保留+ADMIN_JOB 最小运营三档种子 VIEW/TRIGGER/ENABLE+job 三读端点补 VIEW 门禁、U011 legacy 别名随过渡窗口关闭整体删除——用户确认无旧构建实例在跑〕+红跑实证〔读门禁回退 2/2 红/种子回退计数红/GRANT_RESOURCE_TYPES 缺项 fail-fast 实证〕+单测轨 1397 绿；定案见 registry 同日行） | — |
-| [T-ACCESS-055](T-ACCESS-055.md) | 核心用户任务组合验收与文档收口 | ⚙️ | T-ORG-002, T-ADMIN-028, T-PERM-074, T-PERM-075, T-PERM-076, T-FE-057, T-FE-058, T-API-004, T-ADMIN-029, T-FE-059, T-PERM-077, T-ACCESS-052, T-ACCESS-053 |
+| [T-ACCESS-055](T-ACCESS-055.md) | 核心用户任务组合验收与文档收口 | ✅（2026-09-24 收口：五项拍板〔载体=全组合 PgIT/双视角浏览器/Q-034 维持登记/自动化重跑+手工引用/视角 B 缺口=前端修+后端实例准入翻 052 半边登记〕+三新组合 PgIT 红跑 3/3〔条件变更/岗位剪枝/双租户同码〕+双视角浏览器实测〔A 分配链全链+改密链顺路、B 判定面+缺口修复复验三截图〕+双轨评审处置〔代码轨 P3×6/文档轨 P1×1+P2×6+P3×8〕+全量含 E2E/heavy BUILD SUCCESS 0 失败+前端四件套全绿；证据 evidence/t-access-055/；定案见 registry 同日行含翻案行） | T-ORG-002, T-ADMIN-028, T-PERM-074, T-PERM-075, T-PERM-076, T-FE-057, T-FE-058, T-API-004, T-ADMIN-029, T-FE-059, T-PERM-077, T-ACCESS-052, T-ACCESS-053 |
 
 ### access-service 归并（主链 ✅ 2026-08-22 完成归档；后续强化 ✅ 2026-08-27 归档）
 

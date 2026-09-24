@@ -84,22 +84,30 @@ export function useServiceInterface() {
   } = useListLoad<ServiceSummary>({
     errorText: "加载服务目录失败",
     fetcher: async () => {
-      const [serviceResult, mappingResult] = await Promise.all([
+      // 服务目录与映射计数独立收果（T-ACCESS-055）：映射全量 list 需 SERVICE:VIEW 类型级
+      // （实例授权的有限管理员 403），单路失败不得连坐清空服务目录——计数降级 0
+      const [serviceSettled, mappingSettled] = await Promise.allSettled([
         getServiceConfigList(),
         getApiMappingList({})
       ]);
+      if (serviceSettled.status === "rejected") {
+        throw serviceSettled.reason;
+      }
+      const serviceResult = serviceSettled.value;
       const mappingStats = new Map<
         string,
         { total: number; enabled: number }
       >();
-      for (const mapping of mappingResult.items) {
-        const current = mappingStats.get(mapping.serviceCode) || {
-          total: 0,
-          enabled: 0
-        };
-        current.total += 1;
-        current.enabled += mapping.enabled ? 1 : 0;
-        mappingStats.set(mapping.serviceCode, current);
+      if (mappingSettled.status === "fulfilled") {
+        for (const mapping of mappingSettled.value.items) {
+          const current = mappingStats.get(mapping.serviceCode) || {
+            total: 0,
+            enabled: 0
+          };
+          current.total += 1;
+          current.enabled += mapping.enabled ? 1 : 0;
+          mappingStats.set(mapping.serviceCode, current);
+        }
       }
       return serviceResult.items
         .slice()

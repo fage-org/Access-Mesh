@@ -63,6 +63,7 @@ class ResourceManageAppServiceImplTest {
         service = new ResourceManageAppServiceImpl(
             resourceEntityMapper,
             apiMappingMapper,
+            org.mockito.Mockito.mock(cn.ac.fage.accessmesh.access.resource.mapper.ServiceConfigMapper.class),
             resourceEntityDomainService,
             typeResolutionService,
             domainClassifyService,

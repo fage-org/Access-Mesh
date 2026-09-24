@@ -12,6 +12,7 @@
 
 ### Changed
 
+- **接口映射全量列表实例准入（T-ACCESS-055）**：`resource-api-mapping/list` 不带 `serviceCode` 的管理全量列表门禁从「类型级 `SERVICE:VIEW` 不过即 403」放宽为「类型级通过全量返回；否则持任一 SERVICE 实例 VIEW（含继承覆盖，如 MANAGE 继承 VIEW 位）者进入，结果按可见服务裁剪；零可见实例仍 403」——服务负责人等有限管理员此前被挡在映射查询整页外（T-ACCESS-052 收口时登记的遗留半边，本卡浏览器验收发现其页面级影响后翻案做实）。服务与接口映射页左栏取数同步改为服务目录与映射计数独立收果（`Promise.allSettled`）：映射全量 403 时计数降级 0、服务目录独立渲染（此前 `Promise.all` 单路 403 连坐清空左栏）。契约总册 org CRUD 三端点门禁行/正文同批补「按目标 orgType 解析精化码（CREATE_POSITION/UPDATE_POSITION/DELETE_POSITION）」注记（Q-033 文档漂移收敛）。
 - **定时任务管理面可达性与门禁补齐（T-ACCESS-054）**：job 族 8 端点进 bootstrap 固定图 apiRoutes——此前未注册路径经 Gateway 对所有人 403（快照只由 enabled 映射装配），对账任务的「按需手动触发/启用周期巡检」（T-PERM-073）无正规入口；`detail`/`page`/`log/page` 补 `ADMIN_JOB:VIEW` 类型级门禁（此前零门禁——服务直连/内部密钥通道下任意登录用户可翻任务名/cron/状态与执行摘要，invokeTarget/message 经响应 DTO 掩码不外泄，门禁为纵深防御）；bootstrap 固定图补 ADMIN_JOB 最小运营三档类型级授权（VIEW/TRIGGER/ENABLE，不可转授），CREATE/UPDATE/DELETE 维持无种子=服务层 403 收窄形态；`update`/`toggle` 改先门禁后存在（无权限统一 403，不泄露 id 存在性差异）、`toggle` 请求体补 @NotNull+@Valid（此前 job 族唯一无校验请求体，id null 会 500）。存量已初始化库重启将因缺行 fail-fast 拒启（API 资源 98→106，固定图加行不自动补权），处置=按 rebuild-runbook 重建库。任务底座（sys_job 调度/租约接管/幂等执行键）经盘点保留：唯一 `@JobInvocable` 消费者为自动授权对账任务（T-PERM-073）+两系统维护调度器。
 - **删除 ORG_VISIBILITY_LEGACY evict-only 缓存别名（T-ACCESS-054）**：T-ACCESS-039 缓存目录改名（`admin:org-visibility`→`access:org-visibility`）滚动发布过渡期的兼容层（权限变更 flush 第二次 evictAll 清旧命名空间残留键）随过渡窗口关闭整体删除——用户确认无改名前构建的实例仍在运行；未知覆盖键启动 WARN 保留（旧 Nacos 残留覆盖仍会被暴露）。
 

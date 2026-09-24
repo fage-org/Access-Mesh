@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-043           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-24（同日 Q-006 终结注记随 T-ACCESS-054 落盘；此前 Q-043 登记：T-API-004 显式清空协议同型字段矩阵结论——condition/menu/OAuth2 族未实施沿 Q-015 先例留给触达任务）
+last_updated: 2026-09-24（同日 Q-033 resolved 随 T-ACCESS-055 收敛+Q-034 拍板注记〔维持现状+登记〕；此前同日 Q-006 终结注记随 T-ACCESS-054 落盘；此前 Q-043 登记：T-API-004 显式清空协议同型字段矩阵结论——condition/menu/OAuth2 族未实施沿 Q-015 先例留给触达任务）
 ---
 
 # 待解决问题清单（pending problems）
@@ -115,11 +115,11 @@ last_updated: 2026-09-24（同日 Q-006 终结注记随 T-ACCESS-054 落盘；�
 
 **影响**：双向均为过严/过宽非越权——仅持 VIEW_POSITION 者在候选/删除可见面看不到岗位子树（过严）；持 VIEW 者可见岗位节点下用户进候选池（候选门禁另挡，无越权）。T-ORG-003 §7.2 验收句按实现写成「ORG:VIEW 的组织范围」后该分叉由隐性变契约明示。
 
-**设想方向（未定案）**：可见性裁剪按 orgType 分发 VIEW/VIEW_POSITION（与读面同构）；涉及候选池语义与既有授权预期（持 VIEW@根 能否看到岗位下用户），随 Q-032/T-ACCESS-055 有限管理员验收一并拍板。
+**拍板结果（2026-09-24，T-ACCESS-055）**：**维持现状+登记**（用户拍板）——双向过严/过宽非越权，验收卡不夹带候选池语义变更（分发精化会使持 VIEW@组织者的候选池不再见其下岗位子节点成员——影响所有按 VIEW 配权的部门管理员预期）；本卡按现状口径验收，语义变更留专门任务拍板（registry 同日行）。
 
 ## Q-033 契约总册 org CRUD 门禁行/正文未带岗位精化码——与 OrgOperationCodeMapper 实现漂移
 
-- **状态**：open
+- **状态**：resolved（2026-09-24 随 T-ACCESS-055 收敛——§4 门禁表三行+§8.4/§8.5/§8.6 正文补「按目标 orgType 解析精化码（CREATE_POSITION/UPDATE_POSITION/DELETE_POSITION）」，registry 同日行）
 - **登记**：2026-09-22（T-ORG-003 收口残留扫描新发现，结构编辑族——非 F005 成员门禁射程）
 - **来源**：T-ORG-003 文档回写
 - **关联**：org-user-permission-contract v1.3/v1.4（精化码定稿权威）
@@ -128,7 +128,7 @@ last_updated: 2026-09-24（同日 Q-006 终结注记随 T-ACCESS-054 落盘；�
 
 **影响**：纯文档漂移（普通组织场景行值字面正确，仅岗位目标精化缺失）；按总册裸码给岗位配权的管理员会误以为已授权（实际岗位 CRUD 仍 403）。与 T-ORG-003 已校准的成员门禁行（member-candidates/user-org 三端点）同册不同族。
 
-**设想方向（未定案）**：总表三行操作码列与 §8.4/§8.5 门禁句补「按 orgType 精化（岗位 *_POSITION）」注记——doc-only，与 org-user-permission-contract 对齐；可随下一张触达契约 org 章的任务顺手收敛。
+**收敛口径（2026-09-24 随 T-ACCESS-055）**：§4 门禁表三行操作码列与 §8.4/§8.5/§8.6 门禁句已补「按目标 orgType 解析精化码（岗位 *_POSITION）」注记——与 org-user-permission-contract 对齐，doc-only 完成。
 
 ## Q-032 /user/create 带 orgId 的挂载门禁仍用裸 ORG:UPDATE——与成员动作码族语义分叉
 
