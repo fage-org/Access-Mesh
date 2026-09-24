@@ -24,8 +24,8 @@ acceptance:
   - "类型级VIEW保留全量语义；先按实例权限过滤，再统计total、排序和分页，不逐行N次查询；必要跨服务/浏览器验收通过。"
 design_writeback:
   required: true
-  status: pending
-last_updated: 2026-09-23
+  status: done
+last_updated: 2026-09-24   # 回写补齐收官核验外评处置：role-manage §7 B1 句补写+八文件回写终态核对（见完成记录）
 ---
 
 ## 启动拍板（2026-09-23，AskUserQuestion 四问）
@@ -55,6 +55,8 @@ last_updated: 2026-09-23
 四项拍板（registry 同日行）落地：①最小集四条 canGrant（BootstrapGraphDefinition，存量库订正语句登记 rebuild-runbook）；②全量同模式目录实例准入——统一模式「类型级 VIEW 通过全量；否则持任一实例 VIEW（含继承覆盖）进入并裁剪（树=可见节点∪祖先导航链）；零可见 403 fail-closed」，覆盖 SERVICE（service-config/list）+ RESOURCE（tree/list/count/detail）+ ROLE（tree/list/count/detail）+ ORG（org/tree、org/page 组织轨、org/users 补可见性校验）；③菜单类型页目录菜单实例准入（EffectiveResourceAccess 增 instanceIdsByType 分组）；④用户目录门票+裁剪（user/page 门禁不动）。
 
 实现要点：ROLE/RESOURCE 经引擎 getDenied* 批量判定（list/count 可见集合下推 SQL 先过滤再分页/计数）；ORG 走 filterVisibleOrgIds 同源判定；hasTypeLevel 主体缺失改 SecurityException 403（与 checkAndThrow 同一定性，AdminPermissionValidatorImplHasTypeLevelTest 锁同步）。验收载体：DelegatedDirectoryClosurePgIT（产品通道 apply-grant-plan 首授→目录实例过滤→菜单准入→越界 detail 403→撤权即时一致→部门管理员树裁剪+门票+成员名单 10101，主链四红点旧实现必红）+ 各面单测锁（红跑实证）+ AccessBootstrapPgIT canGrant 断言更新。双轨评审（2026-09-23）：代码轨 P2×1（菜单 empty() Map.get(null) NPE——已修+回归锁）+P3×6、文档轨 P1×2+P2×3+P3×4 全处置；两端点范围存疑经用户拍板「维持现状登记遗留」（见非目标/遗留）。收口全量 -T 1C 含 E2E 全绿。claude 外评处置完毕（2026-09-23 deepseek-flash[1M]：P0-P2=0、P3×3 全采纳直修——pageResources/pageRoles 可见集单次解析、位域能力分立表述钉正、补跑留痕；过度设计死参数用户拍板删除；存量 Q-038/Q-039 登记，见 registry 同日处置行）。
+
+**回写补齐（2026-09-24，收官核验外评处置）**：design_refs 八文件回写终态核对——iam-task-closure §3.2、access-service-api-contract（§4/§8.x/§9.x/§10.3/§12.1/§12.2）、org-user-permission-contract v1.6、rebuild-runbook 随收口回写；access-service-architecture 由 T-ACCESS-054 §14.4 全量对齐刷新折入+T-ACCESS-055 §14.4 注记；frontend/service-interface-mapping 由 T-ACCESS-055 三处回写；**frontend/role-manage §7 B1 读接口门禁句收口时漏写，本批补齐**（类型级→实例准入，2026-09-24）；engine/implementation 与 frontend/login 无契约变更（本卡消费既有 getDenied* 引擎入口、菜单 ∃op 语义维持拍板口径），无需回写。design_writeback 状态据此置 done。
 
 ## 验收对照
 

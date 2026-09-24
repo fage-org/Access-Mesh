@@ -3,7 +3,7 @@ doc_type: design
 title: 2.2 角色管理页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-20 # T-FE-055 收口：§1 配权入口行与 §4.3 补入口文案二分口径（另持 ROLE:MANAGE「权限授予」/仅 ROLE:VIEW「查看权限」，grant-entry.ts 三入口单源）；此前 2026-09-19   # T-FE-052 收口：§4.1 拖拽跨层级二次确认+禁用确认（定案④）；此前 2026-09-15   # 2026-09-04 §8 T-PERM-044 收口句终态化（Redisson 口径）；此前 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
+last_reviewed: 2026-09-24   # T-ACCESS-052 回写补齐：§7 B1 口径注读接口门禁由类型级改实例准入（052 收口时漏写，收官核验外评处置）；此前 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-20 # T-FE-055 收口：§1 配权入口行与 §4.3 补入口文案二分口径（另持 ROLE:MANAGE「权限授予」/仅 ROLE:VIEW「查看权限」，grant-entry.ts 三入口单源）；此前 2026-09-19   # T-FE-052 收口：§4.1 拖拽跨层级二次确认+禁用确认（定案④）；此前 2026-09-15   # 2026-09-04 §8 T-PERM-044 收口句终态化（Redisson 口径）；此前 2026-09-01   # 2026-09-01 T-FE-016 联调收口：§5 表后补联调注记（Gateway 注册/detail 编辑回显接线/extraClear 清空协议/mock 退役）、§9 mock 树句终态化；2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正为菜单可见/路由可达/403 兜底口径（menus 接线归 Phase 3 T-FE-015）；2026-08-28 T-PERM-022 收口：§4.1/§5/§8 终态化（detail 业务键/move 类型一致+环路 20050/tree 全量+enabledOnly）；此前：2026-07-26
 ---
 
 # 2.2 角色管理页 前端设计
@@ -163,7 +163,7 @@ views/system/role/
 
 > 原 `ROLE:ASSIGN`/`ROLE:REVOKE` 两行（分组角色添加/移除额外基本角色）已随 2026-09-14 轻量清扫批次删除（T-PERM-043 后不可达死码，历史形态见 §4.2）。
 
-> **B1 口径**：后端 `RoleManageAppServiceImpl` 的 updateRole/moveRole/deleteRoles 均以 `ROLE:MANAGE` 做门禁，无独立 UPDATE/DELETE/MOVE 操作码；detail/list/tree 读接口以类型级 `ROLE:VIEW` 做门禁（T-PERM-022 收口）。前端 EDIT/DELETE/GRANT 统一映射到 `ROLE:MANAGE`（评审 P2 修正）。`ROLE_MANAGE_PERM_LIST` 用 `Set` 去重，确保路由 `meta.auths` 无冗余。
+> **B1 口径**：后端 `RoleManageAppServiceImpl` 的 updateRole/moveRole/deleteRoles 均以 `ROLE:MANAGE` 做门禁，无独立 UPDATE/DELETE/MOVE 操作码；detail/list/tree/count 读接口实行实例准入（T-ACCESS-052，2026-09-23：类型级 `ROLE:VIEW` 通过全量；否则持任一 ROLE 实例 VIEW〔含继承覆盖〕进入并按可见实例裁剪、零可见实例 403 fail-closed；T-PERM-022 时点旧口径为类型级门禁）。前端 EDIT/DELETE/GRANT 统一映射到 `ROLE:MANAGE`（评审 P2 修正）。`ROLE_MANAGE_PERM_LIST` 用 `Set` 去重，确保路由 `meta.auths` 无冗余。
 >
 > 原「额外角色独立门禁」（canAssign/canRevoke，评审 P1-额外角色）已随 2026-09-14 轻量清扫批次删除（T-PERM-043 后面板不可达，见 §4.2）。
 
