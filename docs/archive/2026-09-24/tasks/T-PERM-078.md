@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-078
 title: 自动授权实施前协议与算法校准
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: access-service
 design_refs:
   - docs/design/iam-task-closure.md#auto-grant
@@ -31,11 +31,11 @@ last_updated: 2026-09-21
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md) R001 与来源证明问题。简化方向已采纳，U009 的路径存储选择已解决；本卡继续承载实施前协议与算法细化，不因方向确认而冒充全部验收完成。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md) R001 与来源证明问题。简化方向已采纳，U009 的路径存储选择已解决；本卡继续承载实施前协议与算法细化，不因方向确认而冒充全部验收完成。
 
 ## 当前口径
 
-实施依据为[自动授权设计](../design/dependency-auto-grant.md)，不是已被取代的候选评估稿。[M1～M5](../design/dependency-auto-grant.md#implementation-decisions)按实施前决策核实并回写权威设计与任务。M1～M5 协议、保全迁移执行门禁与候选结果引擎验证均已完成校准；正式接口、迁移程序、编译物化与界面由 071～073 实施验收。
+实施依据为[自动授权设计](../../../design/dependency-auto-grant.md)，不是已被取代的候选评估稿。[M1～M5](../../../design/dependency-auto-grant.md#implementation-decisions)按实施前决策核实并回写权威设计与任务。M1～M5 协议、保全迁移执行门禁与候选结果引擎验证均已完成校准；正式接口、迁移程序、编译物化与界面由 071～073 实施验收。
 
 **M1 接入边界已定**：混用 FULL 的资源 scope 中，增量与 FULL 共同携带发布源确定的可比较顺序，平台提供双向旧请求防护；纯增量 scope 可保持现役协议。正式字段、首次切换、跨键乱序与部分失败重试已细化于设计 §4.4.1 与契约 §19.2.1，由 071 实施验证。真实反例是 FULL 42 采集 ORDER-1001 后，增量新增 ORDER-1002，晚到 FULL 不得删掉 ORDER-1002；反向延迟增量也不得重建较新 FULL 已清理的事实。设计唯一正文见 §4.4，不再保留候选方案。
 

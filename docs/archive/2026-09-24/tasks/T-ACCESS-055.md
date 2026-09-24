@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-055
 title: "核心用户任务组合验收与文档收口"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: cross-service
 design_refs:
   - docs/design/iam-task-closure.md
@@ -41,7 +41,7 @@ last_updated: 2026-09-24   # 收官核验外评处置：CI 泄漏根因修复+�
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 S001～S012、全部F的组合证据；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 S001～S012、全部F的组合证据；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -50,7 +50,7 @@ last_updated: 2026-09-24   # 收官核验外评处置：CI 泄漏根因修复+�
 
 ## 当前口径
 
-总体设计见 [IAM 闭环方案](../design/iam-task-closure.md)；本卡 frontmatter acceptance 为组合验收唯一清单，设计 §7.1 只回链本卡。沿各前置任务已定口径验证，涉及现行定案变化时先核准并回写权威来源，再实施。
+总体设计见 [IAM 闭环方案](../../../design/iam-task-closure.md)；本卡 frontmatter acceptance 为组合验收唯一清单，设计 §7.1 只回链本卡。沿各前置任务已定口径验证，涉及现行定案变化时先核准并回写权威来源，再实施。
 
 **待决与启动核实**：本卡继承各前置任务已解决的U项；不替它们做最终产品裁决。条件/双租户无法运行时记录具体阻塞，不取消该验收要求。
 

@@ -3,7 +3,7 @@ doc_type: task
 id: T-ORG-002
 title: "默认身份目录删除与恢复边界闭合"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: org-user
 design_refs:
   - docs/design/iam-task-closure.md#directory
@@ -27,7 +27,7 @@ last_updated: 2026-09-21
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 F001：`OrgWriteAppServiceImpl.deleteOrg` 只查子节点后解绑/删组织——直接成员移除有最后归属保护（11013）而组织删除绕过它；隔离库删默认树后 `org/delete` 根成功、user/page 恒空、根 delete_flag=1、重启 exit1（bootstrap 固定图报默认配置根不存在）。树配置三写入口（javadoc 自认「后续实现必须增加迁移保护」）。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 F001：`OrgWriteAppServiceImpl.deleteOrg` 只查子节点后解绑/删组织——直接成员移除有最后归属保护（11013）而组织删除绕过它；隔离库删默认树后 `org/delete` 根成功、user/page 恒空、根 delete_flag=1、重启 exit1（bootstrap 固定图报默认配置根不存在）。树配置三写入口（javadoc 自认「后续实现必须增加迁移保护」）。
 
 ## 实施结果（2026-09-21 收口）
 

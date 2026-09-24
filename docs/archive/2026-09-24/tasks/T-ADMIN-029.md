@@ -3,7 +3,7 @@ doc_type: task
 id: T-ADMIN-029
 title: "公告状态与受众生命周期闭合"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: access-service
 design_refs:
   - docs/design/iam-task-closure.md#notice
@@ -28,7 +28,7 @@ last_updated: 2026-09-23
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 F010；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 F010；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -37,7 +37,7 @@ last_updated: 2026-09-23
 
 ## 当前口径
 
-方案唯一入口：[IAM闭环方案](../design/iam-task-closure.md#notice)（§4.5 实施定案已回写）。U007 四项拍板（2026-09-23）：typed IDs 一次性切换（零兼容层）/ORG 受众预留不做/严格状态机转换拒绝/my-notices+read 白名单+管理面 bootstrap 五档类型级授权——定案全文见 registry 2026-09-23 T-ADMIN-029 行。
+方案唯一入口：[IAM闭环方案](../../../design/iam-task-closure.md#notice)（§4.5 实施定案已回写）。U007 四项拍板（2026-09-23）：typed IDs 一次性切换（零兼容层）/ORG 受众预留不做/严格状态机转换拒绝/my-notices+read 白名单+管理面 bootstrap 五档类型级授权——定案全文见 registry 2026-09-23 T-ADMIN-029 行。
 
 ## 验收对照
 

@@ -3,7 +3,7 @@ doc_type: task
 id: T-ADMIN-028
 title: "OAuth2 授权码客户端关联校验"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: access-service
 design_refs:
   - docs/design/iam-task-closure.md#oauth
@@ -26,7 +26,7 @@ last_updated: 2026-09-22
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 F002；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 F002；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -35,7 +35,7 @@ last_updated: 2026-09-22
 
 ## 当前口径
 
-方案唯一入口：[IAM闭环方案](../design/iam-task-closure.md#oauth)。该方案为draft；沿用其推荐方向编排，涉及现行定案变化时先解决本卡待决项并回写权威来源，再实施。
+方案唯一入口：[IAM闭环方案](../../../design/iam-task-closure.md#oauth)。该方案为draft；沿用其推荐方向编排，涉及现行定案变化时先解决本卡待决项并回写权威来源，再实施。
 
 **待决与启动核实**：无独立设计取舍；实现先核实证据，按推荐最小方案与现行约束执行。
 

@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-075
 title: "互斥角色有效期与判定入口一致性"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: access-service
 design_refs:
   - docs/design/iam-task-closure.md#mutex
@@ -30,7 +30,7 @@ last_updated: 2026-09-22
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 F004、D002；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 F004、D002；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -39,7 +39,7 @@ last_updated: 2026-09-22
 
 ## 当前口径
 
-已实施（2026-09-22）。U002 两项拍板与共同判定语义取代关系登记 [decision-registry](../design/decision-registry.md) 2026-09-22 行；实施口径见 [IAM 闭环方案 §2.4](../design/iam-task-closure.md#mutex) 与 [implementation §2.4](../design/engine/implementation.md)。
+已实施（2026-09-22）。U002 两项拍板与共同判定语义取代关系登记 [decision-registry](../../../design/decision-registry.md) 2026-09-22 行；实施口径见 [IAM 闭环方案 §2.4](../../../design/iam-task-closure.md#mutex) 与 [implementation §2.4](../../../design/engine/implementation.md)。
 
 ## 验收对照
 

@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-052
 title: "实例委派的目录菜单与管理任务闭环"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: cross-service
 design_refs:
   - docs/design/iam-task-closure.md#delegated-directory
@@ -39,7 +39,7 @@ last_updated: 2026-09-24   # 回写补齐收官核验外评处置：role-manage 
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 D001；关联F005；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 D001；关联F005；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -48,7 +48,7 @@ last_updated: 2026-09-24   # 回写补齐收官核验外评处置：role-manage 
 
 ## 当前口径
 
-方案唯一入口：[IAM闭环方案](../design/iam-task-closure.md#delegated-directory) §3.2（U003/U004 已拍板并回写，实施口径见该节与下方启动拍板节）。
+方案唯一入口：[IAM闭环方案](../../../design/iam-task-closure.md#delegated-directory) §3.2（U003/U004 已拍板并回写，实施口径见该节与下方启动拍板节）。
 
 ## 完成记录（2026-09-23 收口）
 

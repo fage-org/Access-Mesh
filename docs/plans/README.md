@@ -4,9 +4,11 @@
 
 ## 当前计划
 
+（无活跃计划——最新批次 iam-task-closure 已于 2026-09-24 归档）
+
 | 文档 | 类型 | 状态 | 说明 |
 |------|------|------|------|
-| [iam-task-closure-plan.md](iam-task-closure-plan.md) | plan | active | IAM核心正确性、有限管理、生命周期与接入闭环 |
+| ~~iam-task-closure-plan~~ | （已归档）| — | IAM 核心正确性、有限管理、生命周期与接入闭环（2026-09-20 立项 → 2026-09-24 收口归档）：18 任务全 done（F001~F013 修复 + D001 实例委派目录 + R001~R003 取舍 + T-ACCESS-055 组合验收）；收官核验外评处置完毕（CI 强制单测泄漏根因修复+双租户反向夹具+S 逐项映射+终态元数据订正），收官核验全量 `mvn test -T 1C` 2017 项 0 失败（E2E 16+heavy 含）、远端强制单测绿（验收基线见 055 证据账本）；定案见 decision-registry 2026-09-20~09-24 各行。2026-09-24 归档至 [../archive/2026-09-24/](../archive/2026-09-24/)（18 卡+4 证据目录随迁 tasks/；T-PERM-036/054 暂缓卡与 070~073 无计划终态卡不属本批） |
 | ~~frontend-session-consistency-plan~~ | （已归档）| — | 前端会话生命周期与交互一致性修复（2026-09-19 立项 → 2026-09-20 收口归档）：T-GW-009 + T-FE-045~056 十三任务全 done（P1 阻断试用五卡 + P2 一致性清理七卡 + Gateway 白名单前置），逐卡双轨评审+外评处置完毕；归档批次三项待办同日执行通过——全量回归 `mvn test -T 1C` 1726 项 0 失败（E2E 实跑）、T-FE-046 端到端验收六项判据全过（真实非管理员用户经 Gateway 阻断→改密→放行）、T-GW-009 Nacos 复核 gateway.yml 不存在无覆盖风险；定案见 decision-registry 2026-09-19/09-20 各行。2026-09-20 归档至 [../archive/2026-09-20/](../archive/2026-09-20/)（九张独立卡随迁 tasks/，T-GW-009/T-FE-049/053/055 为纯看板行） |
 | ~~release-preview-plan.md~~ | （已归档）| — | 首个发布预览（v0.1.0）与部署验证：T-ACCESS-047~050 四任务全 done（全栈 compose profile / Q-006 修复 / 发布文档全套 / 空环境部署验证 + 本地 tag v0.1.0），2026-09-16 归档至 [../archive/2026-09-16/](../archive/2026-09-16/)（四卡+042 卡随迁 tasks/）；定案见 decision-registry 2026-09-16 三行 |
 | ~~capability-mapper-convergence-plan~~ | （已归档）| — | Q-009 跨能力 mapper 直读收敛：T-ACCESS-043~046 四批全 done（30 边→0、白名单退役零容忍），2026-09-15 归档至 [../archive/2026-09-15/](../archive/2026-09-15/)（四卡随迁 tasks/）；定案见 decision-registry 同日两行 |

@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-053
 title: "首次服务接入与撤销验证路径简化"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: cross-service
 design_refs:
   - docs/design/iam-task-closure.md#onboarding
@@ -31,7 +31,7 @@ last_updated: 2026-09-23
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 接入体验建议、S002/S012；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 接入体验建议、S002/S012；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -40,7 +40,7 @@ last_updated: 2026-09-23
 
 ## 当前口径
 
-方案唯一入口：[IAM闭环方案](../design/iam-task-closure.md#onboarding)。实施定案（2026-09-23 用户四项拍板）已回写该节与 registry 同日行：U008 维持现状登记 Q-040、撤销主线=E2E⑧+文档、实测=compose 全栈空环境、文档改现有三处不新建。T-PERM-054/036暂缓未因本卡自动解除。
+方案唯一入口：[IAM闭环方案](../../../design/iam-task-closure.md#onboarding)。实施定案（2026-09-23 用户四项拍板）已回写该节与 registry 同日行：U008 维持现状登记 Q-040、撤销主线=E2E⑧+文档、实测=compose 全栈空环境、文档改现有三处不新建。T-PERM-054/036暂缓未因本卡自动解除。
 
 ## 完成记录
 

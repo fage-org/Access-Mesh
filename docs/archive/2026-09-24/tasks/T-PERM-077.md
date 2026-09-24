@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-077
 title: "操作继承掩码缺省值契约对齐"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: access-service
 design_refs:
   - docs/design/iam-task-closure.md#operation-default
@@ -27,7 +27,7 @@ last_updated: 2026-09-22
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 F013；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 F013；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -35,7 +35,7 @@ last_updated: 2026-09-22
 
 ## 当前口径
 
-方案唯一入口：[IAM闭环方案](../design/iam-task-closure.md#operation-default)。§2.6 已转已实施（2026-09-22），实施口径与拍板见该节。
+方案唯一入口：[IAM闭环方案](../../../design/iam-task-closure.md#operation-default)。§2.6 已转已实施（2026-09-22），实施口径与拍板见该节。
 
 ## 验收对照
 

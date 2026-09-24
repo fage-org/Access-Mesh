@@ -3,7 +3,7 @@ doc_type: task
 id: T-ORG-003
 title: "组织与岗位成员候选门禁统一"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: org-user
 design_refs:
   - docs/design/iam-task-closure.md#member-candidates
@@ -28,7 +28,7 @@ last_updated: 2026-09-22
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 F005；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 F005；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -37,7 +37,7 @@ last_updated: 2026-09-22
 
 ## 当前口径
 
-方案唯一入口：[IAM闭环方案](../design/iam-task-closure.md#member-candidates)。该方案为draft；沿用其推荐方向编排，涉及现行定案变化时先解决本卡待决项并回写权威来源，再实施。
+方案唯一入口：[IAM闭环方案](../../../design/iam-task-closure.md#member-candidates)。该方案为draft；沿用其推荐方向编排，涉及现行定案变化时先解决本卡待决项并回写权威来源，再实施。
 
 **待决与启动核实**：无独立设计取舍；实现先核实证据，按推荐最小方案与现行约束执行。
 

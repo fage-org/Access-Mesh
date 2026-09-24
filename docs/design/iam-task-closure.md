@@ -10,7 +10,7 @@ last_reviewed: 2026-09-24（T-ACCESS-055 组合验收收口：五项拍板〔载
 
 ## 1. 定位与适用边界
 
-本稿承接[评审证据](../archive/2026-09-20/comprehensive-review.md)，实施编排见[计划](../plans/iam-task-closure-plan.md)，任务状态只看[任务看板](../tasks/README.md)。本文件为**待实施方案**，不表示产品已具备所述行为，也不取代现行 adopted 设计。
+本稿承接[评审证据](../archive/2026-09-20/comprehensive-review.md)，实施编排见[计划](../../archive/2026-09-24/iam-task-closure-plan.md)，任务状态只看[任务看板](../tasks/README.md)。本文件为**待实施方案**，不表示产品已具备所述行为，也不取代现行 adopted 设计。
 
 本次授权是制定完整方案与任务；可以重新评估既有设计，尚未决定的技术取舍保留到对应任务启动时处理。任务先核实基线并完成本稿所列最小反例，再解决相关 U 编号；实际采纳时登记 decision-registry、更新权威设计与契约，并同步受影响任务，不把推荐方案自动当作用户定案。自动授权简化方向已另行采纳，§6.1 指向其 adopted 权威设计；其余未决项不受此状态变化影响。无须等待全部 U 项解决才能推进相互独立的任务。
 
@@ -211,7 +211,7 @@ T-PERM-078 已细化[设计 M1～M5](dependency-auto-grant.md#implementation-dec
 <a id="acceptance"></a>
 ### 7.1 用户任务验收（T-ACCESS-055）
 
-组合验收的范围、判据与证据要求统一见 [T-ACCESS-055](../tasks/T-ACCESS-055.md) 的 frontmatter `acceptance` 与任务范围，本设计不另维护一份验收清单。
+组合验收的范围、判据与证据要求统一见 [T-ACCESS-055](../../archive/2026-09-24/tasks/T-ACCESS-055.md) 的 frontmatter `acceptance` 与任务范围，本设计不另维护一份验收清单。
 
 ### 7.2 变更边界与迁移
 

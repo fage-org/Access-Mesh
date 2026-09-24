@@ -3,7 +3,7 @@ doc_type: task
 id: T-ACCESS-054
 title: "外围任务能力与缓存过渡机制取舍"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: cross-service
 design_refs:
   - docs/design/iam-task-closure.md#trimming
@@ -25,7 +25,7 @@ last_updated: 2026-09-24
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 R002、R003；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 R002、R003；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 

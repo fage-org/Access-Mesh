@@ -98,7 +98,7 @@ docs/
 
 ## 执行计划
 
-当前新增：[IAM核心正确性与用户任务闭环计划](plans/iam-task-closure-plan.md)（active）；[方案](design/iam-task-closure.md)为draft，未决取舍在对应任务启动时确定。
+当前无活跃计划；最近批次：[IAM核心正确性与用户任务闭环计划](archive/2026-09-24/iam-task-closure-plan.md)（2026-09-24 收口归档，18 任务全 done）；[方案](design/iam-task-closure.md)为draft，未决取舍在对应任务启动时确定。
 
 | 主题 | 文档 |
 |------|------|

@@ -28,28 +28,28 @@
 
 ### IAM 核心正确性与用户任务闭环
 
-[计划](../plans/iam-task-closure-plan.md) · [待实施方案](../design/iam-task-closure.md) · [证据与去重映射](../archive/2026-09-20/comprehensive-review.md)
+[计划](../archive/2026-09-24/iam-task-closure-plan.md) · [待实施方案](../design/iam-task-closure.md) · [证据与去重映射](../archive/2026-09-20/comprehensive-review.md)
 
 | ID | 标题 | 状态 | 直接依赖 |
 |---|---|---|---|
-| [T-ORG-002](T-ORG-002.md) | 默认身份目录删除与恢复边界闭合 | ✅ | — |
-| [T-ADMIN-028](T-ADMIN-028.md) | OAuth2 授权码客户端关联校验 | ✅ | — |
-| [T-PERM-074](T-PERM-074.md) | 同步失败与版本记账事务一致性 | ✅ | — |
-| [T-PERM-075](T-PERM-075.md) | 互斥角色有效期与判定入口一致性 | ✅ | — |
-| [T-ORG-003](T-ORG-003.md) | 组织与岗位成员候选门禁统一 | ✅（2026-09-22 收口） | — |
-| [T-PERM-076](T-PERM-076.md) | 资源批量创建复合身份一致性 | ✅ | — |
-| [T-FE-057](T-FE-057.md) | 岗位停用后可发现与恢复 | ✅（2026-09-22 收口） | — |
-| [T-FE-058](T-FE-058.md) | 岗位与成员角色候选分页闭合 | ✅（2026-09-23 收口：三项拍板〔U005 迁移 /abstract-role/list+同批退役 /role/list 链/bootstrap 行/runbook 订正、选择器=el-select remote+下拉内翻页、Q-035/Q-036 随卡收敛〕+红跑实证+浏览器四场景三截图+双轨评审处置（代码 P3×4/文档 P2×3+P3×7 直修、裁剪×2 拍板删、Q-042 登记）+全量含 E2E/heavy 1993 项 0 失败；定案见 registry 同日行） | — |
-| [T-API-004](T-API-004.md) | 可编辑字段显式清空协议贯通 | ✅（2026-09-24 收口：U006 四项拍板〔冲突全端点拒绝/type extraClear 拒清/空串拒 400/范围=六字段+perm 轨 extra〕+红跑实证（服务回退 HEAD PgIT 5 红+单测 1 红、门禁修复 1 红）+双轨评审处置完毕（P1 门禁漏计 extraClear 补锁+错误码 20044 校准等九项）+全量含 E2E BUILD SUCCESS 0 失败；定案见 registry 同日行，同型矩阵登记 Q-043） | — |
-| [T-ADMIN-029](T-ADMIN-029.md) | 公告状态与受众生命周期闭合 | ✅ | — |
-| [T-FE-059](T-FE-059.md) | 共享列表上下文与可写对象绑定 | ✅（2026-09-23 收口：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」〔逐入口守卫〕；双轨评审 P1 哨兵归一/P2 submitMove 直修红跑实证、claude 外评 P0-P2=0/P3 计数漂移去计数化、过度设计可裁剪 1 项留拍板；vitest 全绿+typecheck/lint/build 0+浏览器三截图证据；定案与处置见 registry 同日两行） | — |
-| [T-GW-010](T-GW-010.md) | 开发与代理拓扑的 Origin 接入一致性 | ✅（2026-09-23 收口：白名单四条全放+端口维持 8848 两项拍板、四形态浏览器登录+nginx 同源实测、三态诊断表、全量含 E2E 1994 绿；定案与处置见 registry 同日行） | — |
-| [T-PERM-077](T-PERM-077.md) | 操作继承掩码缺省值契约对齐 | ✅ | — |
-| [T-ACCESS-052](T-ACCESS-052.md) | 实例委派的目录菜单与管理任务闭环 | ✅ | T-ORG-003 |
-| [T-ACCESS-053](T-ACCESS-053.md) | 首次服务接入与撤销验证路径简化 | ✅（2026-09-23 收口：四项拍板〔U008 维持现状登记 Q-040/撤销主线 E2E⑧+文档/compose 空环境实测/文档改现有不新建，registry 同日行〕+E2E⑧撤销→403→重授→200+五册接入文档统一+空环境实测主线/业务类型授权根/两套身份全链证据+双轨评审处置完毕（代码轨 P3×3/文档轨 P2×2+P3×4 全直修、Q-041 登记）+全量含 E2E/heavy BUILD SUCCESS 0 失败） | T-GW-010 |
-| [T-PERM-078](T-PERM-078.md) | 自动授权实施前协议与算法校准 | ✅ | — |
-| [T-ACCESS-054](T-ACCESS-054.md) | 外围任务能力与缓存过渡机制取舍 | ✅（2026-09-24 收口：两项拍板〔U010 底座保留+ADMIN_JOB 最小运营三档种子 VIEW/TRIGGER/ENABLE+job 三读端点补 VIEW 门禁、U011 legacy 别名随过渡窗口关闭整体删除——用户确认无旧构建实例在跑〕+红跑实证〔读门禁回退 2/2 红/种子回退计数红/GRANT_RESOURCE_TYPES 缺项 fail-fast 实证〕+单测轨 1397 绿；定案见 registry 同日行） | — |
-| [T-ACCESS-055](T-ACCESS-055.md) | 核心用户任务组合验收与文档收口 | ✅（2026-09-24 收口：五项拍板〔载体=全组合 PgIT/双视角浏览器/Q-034 维持登记/自动化重跑+手工引用/视角 B 缺口=前端修+后端实例准入翻 052 半边登记〕+三新组合 PgIT 红跑 3/3〔条件变更/岗位剪枝/双租户同码〕+双视角浏览器实测〔A 分配链全链+改密链顺路、B 判定面+缺口修复复验三截图〕+双轨评审处置〔代码轨 P3×6/文档轨 P1×1+P2×6+P3×8〕+全量含 E2E/heavy BUILD SUCCESS 0 失败+前端四件套全绿；证据 evidence/t-access-055/；定案见 registry 同日行含翻案行） | T-ORG-002, T-ADMIN-028, T-PERM-074, T-PERM-075, T-PERM-076, T-FE-057, T-FE-058, T-API-004, T-ADMIN-029, T-FE-059, T-PERM-077, T-ACCESS-052, T-ACCESS-053 |
+| [T-ORG-002](../archive/2026-09-24/tasks/T-ORG-002.md) | 默认身份目录删除与恢复边界闭合 | ✅ | — |
+| [T-ADMIN-028](../archive/2026-09-24/tasks/T-ADMIN-028.md) | OAuth2 授权码客户端关联校验 | ✅ | — |
+| [T-PERM-074](../archive/2026-09-24/tasks/T-PERM-074.md) | 同步失败与版本记账事务一致性 | ✅ | — |
+| [T-PERM-075](../archive/2026-09-24/tasks/T-PERM-075.md) | 互斥角色有效期与判定入口一致性 | ✅ | — |
+| [T-ORG-003](../archive/2026-09-24/tasks/T-ORG-003.md) | 组织与岗位成员候选门禁统一 | ✅（2026-09-22 收口） | — |
+| [T-PERM-076](../archive/2026-09-24/tasks/T-PERM-076.md) | 资源批量创建复合身份一致性 | ✅ | — |
+| [T-FE-057](../archive/2026-09-24/tasks/T-FE-057.md) | 岗位停用后可发现与恢复 | ✅（2026-09-22 收口） | — |
+| [T-FE-058](../archive/2026-09-24/tasks/T-FE-058.md) | 岗位与成员角色候选分页闭合 | ✅（2026-09-23 收口：三项拍板〔U005 迁移 /abstract-role/list+同批退役 /role/list 链/bootstrap 行/runbook 订正、选择器=el-select remote+下拉内翻页、Q-035/Q-036 随卡收敛〕+红跑实证+浏览器四场景三截图+双轨评审处置（代码 P3×4/文档 P2×3+P3×7 直修、裁剪×2 拍板删、Q-042 登记）+全量含 E2E/heavy 1993 项 0 失败；定案见 registry 同日行） | — |
+| [T-API-004](../archive/2026-09-24/tasks/T-API-004.md) | 可编辑字段显式清空协议贯通 | ✅（2026-09-24 收口：U006 四项拍板〔冲突全端点拒绝/type extraClear 拒清/空串拒 400/范围=六字段+perm 轨 extra〕+红跑实证（服务回退 HEAD PgIT 5 红+单测 1 红、门禁修复 1 红）+双轨评审处置完毕（P1 门禁漏计 extraClear 补锁+错误码 20044 校准等九项）+全量含 E2E BUILD SUCCESS 0 失败；定案见 registry 同日行，同型矩阵登记 Q-043） | — |
+| [T-ADMIN-029](../archive/2026-09-24/tasks/T-ADMIN-029.md) | 公告状态与受众生命周期闭合 | ✅ | — |
+| [T-FE-059](../archive/2026-09-24/tasks/T-FE-059.md) | 共享列表上下文与可写对象绑定 | ✅（2026-09-23 收口：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」〔逐入口守卫〕；双轨评审 P1 哨兵归一/P2 submitMove 直修红跑实证、claude 外评 P0-P2=0/P3 计数漂移去计数化、过度设计可裁剪 1 项留拍板；vitest 全绿+typecheck/lint/build 0+浏览器三截图证据；定案与处置见 registry 同日两行） | — |
+| [T-GW-010](../archive/2026-09-24/tasks/T-GW-010.md) | 开发与代理拓扑的 Origin 接入一致性 | ✅（2026-09-23 收口：白名单四条全放+端口维持 8848 两项拍板、四形态浏览器登录+nginx 同源实测、三态诊断表、全量含 E2E 1994 绿；定案与处置见 registry 同日行） | — |
+| [T-PERM-077](../archive/2026-09-24/tasks/T-PERM-077.md) | 操作继承掩码缺省值契约对齐 | ✅ | — |
+| [T-ACCESS-052](../archive/2026-09-24/tasks/T-ACCESS-052.md) | 实例委派的目录菜单与管理任务闭环 | ✅ | T-ORG-003 |
+| [T-ACCESS-053](../archive/2026-09-24/tasks/T-ACCESS-053.md) | 首次服务接入与撤销验证路径简化 | ✅（2026-09-23 收口：四项拍板〔U008 维持现状登记 Q-040/撤销主线 E2E⑧+文档/compose 空环境实测/文档改现有不新建，registry 同日行〕+E2E⑧撤销→403→重授→200+五册接入文档统一+空环境实测主线/业务类型授权根/两套身份全链证据+双轨评审处置完毕（代码轨 P3×3/文档轨 P2×2+P3×4 全直修、Q-041 登记）+全量含 E2E/heavy BUILD SUCCESS 0 失败） | T-GW-010 |
+| [T-PERM-078](../archive/2026-09-24/tasks/T-PERM-078.md) | 自动授权实施前协议与算法校准 | ✅ | — |
+| [T-ACCESS-054](../archive/2026-09-24/tasks/T-ACCESS-054.md) | 外围任务能力与缓存过渡机制取舍 | ✅（2026-09-24 收口：两项拍板〔U010 底座保留+ADMIN_JOB 最小运营三档种子 VIEW/TRIGGER/ENABLE+job 三读端点补 VIEW 门禁、U011 legacy 别名随过渡窗口关闭整体删除——用户确认无旧构建实例在跑〕+红跑实证〔读门禁回退 2/2 红/种子回退计数红/GRANT_RESOURCE_TYPES 缺项 fail-fast 实证〕+单测轨 1397 绿；定案见 registry 同日行） | — |
+| [T-ACCESS-055](../archive/2026-09-24/tasks/T-ACCESS-055.md) | 核心用户任务组合验收与文档收口 | ✅（2026-09-24 收口：五项拍板〔载体=全组合 PgIT/双视角浏览器/Q-034 维持登记/自动化重跑+手工引用/视角 B 缺口=前端修+后端实例准入翻 052 半边登记〕+三新组合 PgIT 红跑 3/3〔条件变更/岗位剪枝/双租户同码〕+双视角浏览器实测〔A 分配链全链+改密链顺路、B 判定面+缺口修复复验三截图〕+双轨评审处置〔代码轨 P3×6/文档轨 P1×1+P2×6+P3×8〕+全量含 E2E/heavy BUILD SUCCESS 0 失败+前端四件套全绿；证据 evidence/t-access-055/；定案见 registry 同日行含翻案行） | T-ORG-002, T-ADMIN-028, T-PERM-074, T-PERM-075, T-PERM-076, T-FE-057, T-FE-058, T-API-004, T-ADMIN-029, T-FE-059, T-PERM-077, T-ACCESS-052, T-ACCESS-053 |
 
 ### access-service 归并（主链 ✅ 2026-08-22 完成归档；后续强化 ✅ 2026-08-27 归档）
 

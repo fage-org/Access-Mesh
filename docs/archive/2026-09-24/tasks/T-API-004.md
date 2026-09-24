@@ -3,7 +3,7 @@ doc_type: task
 id: T-API-004
 title: "可编辑字段显式清空协议贯通"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: cross-service
 design_refs:
   - docs/design/iam-task-closure.md#clear-fields
@@ -31,7 +31,7 @@ last_updated: 2026-09-24   # 收口：双轨处置完毕+全量含 E2E BUILD SUC
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 F009；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 F009；基线与静态/动态证据强度见该记录。实施与验证见完成记录。
 
 ## 范围
 
@@ -40,7 +40,7 @@ last_updated: 2026-09-24   # 收口：双轨处置完毕+全量含 E2E BUILD SUC
 
 ## 当前口径
 
-方案唯一入口：[IAM闭环方案](../design/iam-task-closure.md#clear-fields)。该方案为draft；沿用其推荐方向编排，涉及现行定案变化时先解决本卡待决项并回写权威来源，再实施。
+方案唯一入口：[IAM闭环方案](../../../design/iam-task-closure.md#clear-fields)。该方案为draft；沿用其推荐方向编排，涉及现行定案变化时先解决本卡待决项并回写权威来源，再实施。
 
 **待决与启动核实**：U006：新值与Clear并存推荐拒绝；type extra可清部分必须先界定。零消费者优先同批切换，有真实外部消费者才决定窄兼容。
 

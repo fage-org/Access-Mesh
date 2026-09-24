@@ -3,7 +3,7 @@ doc_type: task
 id: T-PERM-074
 title: "同步失败与版本记账事务一致性"
 status: done
-plan: docs/plans/iam-task-closure-plan.md
+plan: docs/archive/2026-09-24/iam-task-closure-plan.md
 domain: access-service
 design_refs:
   - docs/design/iam-task-closure.md#sync
@@ -29,7 +29,7 @@ last_updated: 2026-09-21
 
 ## 背景
 
-承接[评审证据](../archive/2026-09-20/comprehensive-review.md)的 F003；基线与静态/动态证据强度见该记录。缺陷修复与定向验证已完成，收口以本卡验收与实际回归证据为准。
+承接[评审证据](../../../archive/2026-09-20/comprehensive-review.md)的 F003；基线与静态/动态证据强度见该记录。缺陷修复与定向验证已完成，收口以本卡验收与实际回归证据为准。
 
 ## 范围
 
@@ -38,7 +38,7 @@ last_updated: 2026-09-21
 
 ## 当前口径
 
-实现边界见[同步一致性方案](../design/iam-task-closure.md#sync)，正式响应与版本规则见[契约总册 §19.3](../design/access-service-api-contract.md#193-同步接口通用响应与错误分类)。本卡修复既有契约偏差，不采纳 IAM 设计稿中其他未决方案。
+实现边界见[同步一致性方案](../../../design/iam-task-closure.md#sync)，正式响应与版本规则见[契约总册 §19.3](../../../design/access-service-api-contract.md#193-同步接口通用响应与错误分类)。本卡修复既有契约偏差，不采纳 IAM 设计稿中其他未决方案。
 
 **实施边界**：已核实单条与 full-sync 均由 AppService 声明事务；full-sync 逐项流程返回 ItemResult 的业务拒绝不修改该项，成功项与缺失集清理共同提交；入口预检拒绝不进入处理，抛出的业务或技术异常整批回滚。沿用此边界，将依赖、归属、互斥和资源 DISABLE 存在性检查置于版本记账前；保留旧版本预判与数据库原子比较。不得仅撤销版本而保留同项事实。
 
