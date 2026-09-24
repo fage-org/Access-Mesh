@@ -152,7 +152,7 @@ class SecurityMatrixIT {
     }
 
     @Test
-    @DisplayName("T-GW-009：豁免不反向加宽——非豁免 user 端点无密钥仍 403（豁免清单只含 reset-password）")
+    @DisplayName("T-GW-009：豁免不反向加宽——非豁免 user 端点无密钥仍 403（user 族豁免仅 reset-password）")
     void userEndpoint_notExempt_withoutSecret_rejected403() throws Exception {
         // 反向退化锁（claude 外评处置补强）：若豁免被加宽为 /api/access/user/** 整族，
         // /user/page 无密钥将落会话分支 401 而非本断言的 403——密钥 transport 边界

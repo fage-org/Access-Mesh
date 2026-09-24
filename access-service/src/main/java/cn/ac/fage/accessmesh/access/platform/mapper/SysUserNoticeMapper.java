@@ -19,18 +19,6 @@ import java.util.List;
 public interface SysUserNoticeMapper extends BaseMapper<SysUserNotice> {
 
     /**
-     * 根据通知ID和用户ID查询用户通知记录（租户隔离）
-     *
-     * @param noticeId 通知ID
-     * @param userId   用户ID
-     * @param tenantId 租户ID
-     * @return 用户通知关联实体，不存在返回null
-     */
-    SysUserNotice selectByNoticeAndUser(@Param("noticeId") Long noticeId,
-                                        @Param("userId") Long userId,
-                                        @Param("tenantId") Long tenantId);
-
-    /**
      * 根据用户ID和通知ID列表批量查询用户通知记录（租户隔离）
      *
      * @param userId    用户ID

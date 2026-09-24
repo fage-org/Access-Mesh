@@ -53,9 +53,9 @@ public class SecurityWebMvcConfig implements WebMvcConfigurer {
         // order=1：服务认证仲裁器必须最先执行，成功时写 attribute 供后续决策
         // （ServicePrincipal=CREDENTIAL 路径或 INTERNAL_AUTHENTICATED=旧密钥路径）。
         // 覆盖 /api/access/**（T-ACCESS-042 前为 /api/perm/**——管理面并入后统一「仅经
-        // Gateway 或持凭证/密钥服务可达」）；豁免会话入口族（登录/登出/会话查询/OAuth2 端点 +
-        // 自助改密通道 /user/reset-password（T-GW-009，与 Gateway 白名单同源）——
-        // 保留公开/Sa-Token 会话/JWT 自有信任模型，密钥拦截会架空服务层会话分支与 JWT 分支）；
+        // Gateway 或持凭证/密钥服务可达」）；豁免会话入口族与白名单自服务端点（精确清单
+        // 见下方 excludePathPatterns，与 Gateway 白名单同源——保留公开/Sa-Token 会话/JWT
+        // 自有信任模型，密钥拦截会架空服务层会话分支与 JWT 分支）；
         // 运行时鉴权六端点（check/batch-check/check-interface/query-resources/query-scopes/
         // interface-snapshot）维持覆盖（旧密钥服务凭证通道，与迁移前 /api/perm/auth/* 一致——
         // INTERNAL_AUTHENTICATED 属性由本拦截器写入，豁免会使签名拦截器按 tenant-only 拒绝；

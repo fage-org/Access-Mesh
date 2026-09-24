@@ -373,10 +373,11 @@ public class NoticeAppServiceImpl implements NoticeAppService {
         }
     }
 
-    /** JSONB 数组文本 → List&lt;Long&gt;；null/空返回空列表。损坏形态上抛 fail-fast（拍板无存量，
-     * 容错分支无真实输入且静默吞损坏会呈现为「空受众 USER 行」——双轨评审裁剪项） */
+    /** JSONB 数组文本 → List&lt;Long&gt;；null（ALL 行）返回空列表。损坏形态上抛 fail-fast（拍板无存量，
+     * 容错分支无真实输入且静默吞损坏会呈现为「空受众 USER 行」——双轨评审裁剪项；isBlank 半支
+     * 已随 claude 外评裁剪收窄：jsonb 非空文本恒有可见字符，不可达） */
     private static List<Long> deserializeIds(String targetIds) {
-        if (targetIds == null || targetIds.isBlank()) {
+        if (targetIds == null) {
             return List.of();
         }
         try {
@@ -389,7 +390,7 @@ public class NoticeAppServiceImpl implements NoticeAppService {
     private NoticeResp toResp(SysNotice n) {
         return new NoticeResp(n.getId(), n.getTitle(), n.getContent(),
             n.getNoticeType() != null ? Integer.parseInt(n.getNoticeType()) : null,
-            n.getTargetType() != null ? n.getTargetType() : TARGET_TYPE_ALL,
+            n.getTargetType(),
             deserializeIds(n.getTargetIds()),
             n.getStatus(), n.getCreatedAt(), n.getUpdatedAt());
     }
