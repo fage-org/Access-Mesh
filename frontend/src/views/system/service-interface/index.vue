@@ -136,7 +136,8 @@ function openServiceForm(mode: "create" | "edit", row?: ServiceSummary) {
       }
       const saved = await submitService(
         formRef.getFormData() as ServiceConfigFormData,
-        mode
+        mode,
+        initialData ?? undefined
       );
       if (saved) done();
       else closeLoading();

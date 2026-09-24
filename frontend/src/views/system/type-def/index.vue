@@ -86,7 +86,8 @@ function openForm(mode: "create" | "edit", row?: TypeDefResp) {
         return;
       }
       const formData = formRef.getFormData();
-      const ok = await handleSubmitForm(mode, formData, row?.id);
+      // row 原值随行传递（T-API-004）：description 清空公式与 extra 清空守卫的判定基准
+      const ok = await handleSubmitForm(mode, formData, row?.id, row);
       if (ok) done();
       else closeLoading();
     }

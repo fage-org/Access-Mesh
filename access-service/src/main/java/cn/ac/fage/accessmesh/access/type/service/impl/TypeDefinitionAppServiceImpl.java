@@ -13,6 +13,7 @@ import cn.ac.fage.accessmesh.access.type.dto.resp.TypeDefinitionResp;
 import cn.ac.fage.accessmesh.access.type.entity.OperationPermission;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.type.entity.TypeDefinition;
+import com.mybatisflex.core.util.UpdateEntity;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.type.mapper.OperationPermissionMapper;
@@ -465,6 +466,16 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
     public TypeDefinitionResp updateType(Long tenantId, TypeUpdateReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
+        // T-API-004（U006 拍板「type extra 拒绝清空」）：任何非 null extraClear 拒绝——
+        // extra 含服务端管理键（managedMode/syncSourceService 所有权声明 + grantOriginRole
+        // 授权根指针，指针无清除语义），整串清空会破坏类型所有权/授权根；移除业务键请提交
+        // 编辑后的 extra。占位字段给误传调用方明确错误（Jackson 默认静默忽略未知字段拦不住）
+        if (req.extraClear() != null) {
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                AccessErrorCode.PERM_INVALID_PARAM.getMessage()
+                    + ": 类型 extra 不支持清空（含服务端管理键 managedMode/syncSourceService/grantOriginRole）；如需移除业务键请提交编辑后的 extra");
+        }
+
         // T-PERM-051：复合业务键需先载行（typeCode/typeKey 不可变，锁内重读不改变键）
         TypeDefinition type = typeDefinitionMapper.selectValidById(tenantId, req.typeId());
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.TYPE_DEFINITION,
@@ -493,7 +504,13 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         resourceTypeOwnershipGuard.rejectIfDeclarationChangeBlocked(
                 tenantId, type, req.extra() != null ? req.extra() : type.getExtra());
         if (req.name() != null) type.setName(req.name());
-        if (req.description() != null) type.setDescription(req.description());
+        // description 清空走 descriptionClear 显式标志（T-API-004，U006 拍板：type extra 不提供清空）
+        boolean descriptionClear = Boolean.TRUE.equals(req.descriptionClear());
+        if (descriptionClear) {
+            type.setDescription(null);
+        } else if (req.description() != null) {
+            type.setDescription(req.description());
+        }
         if (req.sortOrder() != null) type.setSortOrder(req.sortOrder());
         // T-PERM-062：所有者指针（extra.grantOriginRole）保留/门禁/变更判定——
         // ①未携带键：服务端保留现值（指针无「清除」语义，所有权无空态；改 managedMode 等场景零感知）；
@@ -535,7 +552,20 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
             }
         }
         type.setUpdatedAt(LocalDateTime.now());
-        typeDefinitionMapper.update(type);
+        if (descriptionClear) {
+            // 清空须强制写列（T-API-004）：update(entity) 默认忽略 null 字段，
+            // UpdateEntity 代理记录 set(null) 为显式更新列（role extraClear 同款）
+            TypeDefinition patch = UpdateEntity.of(TypeDefinition.class);
+            patch.setId(type.getId());
+            patch.setName(type.getName());
+            patch.setDescription(null);
+            patch.setSortOrder(type.getSortOrder());
+            patch.setExtra(type.getExtra());
+            patch.setUpdatedAt(type.getUpdatedAt());
+            typeDefinitionMapper.update(patch);
+        } else {
+            typeDefinitionMapper.update(type);
+        }
         if ("resource_type".equals(type.getTypeKey())
                 && !previousOwnership.equals(resourceTypeOwnershipGuard.parseOwnership(type.getExtra()))) {
             // 所有权变更触发面（§7/T-PERM-072）：声明按 CROSS_OWNER 降级重编译后同事务重算受影响角色 AUTO_DEP

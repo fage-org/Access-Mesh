@@ -82,6 +82,9 @@ export function useUserManage() {
       name?: string;
       phone?: string | null;
       email?: string | null;
+      /** T-API-004 显式清空标志：原值非空且表单清空时为 true */
+      phoneClear?: boolean;
+      emailClear?: boolean;
     },
     openedAtOrgId: number | null
   ): Promise<boolean> {

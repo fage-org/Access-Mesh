@@ -3,7 +3,7 @@ doc_type: design
 title: 6.1 类型定义页 前端设计
 status: adopted
 domain: frontend
-last_reviewed: 2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-15 # 2026-09-07 T-PERM-019：create 生成码措辞订正；此前 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——写路径三端点 Gateway 注册+TYPE_DEFINITION:CREATE/MANAGE 补授；2026-08-31   # 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正（403 兜底 + menus 接线归 T-FE-015）、§4.1 切服务端分页终态化、§8 消费方计数三处→四处；2026-08-29 §8 第 4 项收口（T-PERM-028：resource_type 创建联动预置已实现）；2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）
+last_reviewed: 2026-09-24（T-API-004：§4.3 编辑补显式清空三态——descriptionClear 清空/extra 不可清提交前拦截、API 表更新行）2026-09-20   # T-FE-056 收口：「路由可达性」口径清扫为 menus 派生路由门禁（机制与回归锁见 login.md §路由级 UX 门禁）；此前 2026-09-15 # 2026-09-07 T-PERM-019：create 生成码措辞订正；此前 2026-09-03   # 2026-09-03 T-FE-022 联调收口（mock 退役/api 切 Gateway /perm 前缀/浏览器冒烟全过）——写路径三端点 Gateway 注册+TYPE_DEFINITION:CREATE/MANAGE 补授；2026-08-31   # 2026-08-31 T-PERM-037 收口：§7 降级首行「路由不可达」订正（403 兜底 + menus 接线归 T-FE-015）、§4.1 切服务端分页终态化、§8 消费方计数三处→四处；2026-08-29 §8 第 4 项收口（T-PERM-028：resource_type 创建联动预置已实现）；2026-08-28 T-PERM-023 收口：§5/§8/§9 终态化（typeValue 自动分配、typeCode 生成查重、list 服务端过滤分页、isSystem 移除；预置操作位改归属 T-PERM-028）
 ---
 
 # 6.1 类型定义页 前端设计
@@ -95,6 +95,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），非左�
 - 操作列「编辑」按钮（`v-if="canEdit && !isSystemPreset(row)"`，门禁 `TYPE_DEFINITION:MANAGE`）→ 表单弹窗。
 - 编辑态：typeKey/typeCode 只读（稳定），name（系统预置项只读，自定义项可改）、description/sortOrder/extra 可改。
 - 提交 → `updateTypeDef`（仅可改字段，不含 typeKey/typeCode/typeValue）→ mock 对系统预置项拒绝改名（返回 403）→ 成功 `loadTable`。
+- **显式清空三态（T-API-004，U006 拍板 2026-09-24）**：description 清空走 `descriptionClear: true`（公式=原值非 null 且表单清空，role/resource 页 extraClear 同构）；**extra 不支持清空**——原 extra 非空且表单清空时提交前拦截提示（「类型扩展属性不支持清空（含服务端管理键）；如需移除业务键请编辑 JSON 后提交」，warning 不发请求），后端对 `extraClear` 任何非 null 值 20044 拒绝（managedMode/syncSourceService/grantOriginRole 无清除语义）。
 
 ### 4.4 删除
 
@@ -109,7 +110,7 @@ PureTableBar 表格列表范式（遵循 `frontend-layout-patterns`），非左�
 | 列表 | `POST /api/access/type-definition/list` | `{typeKey?,keyword?,pageNum?,pageSize?}` | `PageResp<TypeDefResp>`（服务端过滤+分页，ORDER BY sortOrder,id） | ✅（T-PERM-023 收口） |
 | 详情 | `POST /api/access/type-definition/detail` | `{id}` (IdReq) | `TypeDefResp` | ✅ |
 | 创建 | `POST /api/access/type-definition/create` | `{typeKey,typeCode?,name,description?,sortOrder?,extra?}` | `TypeDefResp` | ✅（T-PERM-023 收口） |
-| 更新 | `POST /api/access/type-definition/update` | `{typeId,name?,description?,sortOrder?,extra?}` | `TypeDefResp` | ✅ |
+| 更新 | `POST /api/access/type-definition/update` | `{typeId,name?,description?,descriptionClear?,sortOrder?,extra?}`（T-API-004：descriptionClear 显式清空；extraClear 不支持——后端 20044） | `TypeDefResp` | ✅ |
 | 删除 | `POST /api/access/type-definition/remove` | `{ids:[]}` | `Void` | ✅ |
 
 ## 6. 组件结构

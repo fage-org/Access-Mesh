@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-23（T-ADMIN-029 §4.5 转已实施：U007 四项拍板——typed IDs 一次性切换零兼容层/ORG 受众预留不做/严格状态机转换拒绝/my-notices+read 白名单+管理面 bootstrap 五档类型级授权；无存量结论+runbook fail-fast 处置登记）同日（T-FE-058 §4.2 转已实施：U005 迁移+同批退役 /role/list/选择器形态 el-select remote+下拉内翻页/Q-035+Q-036 随卡收敛，三项拍板见 registry 同日行）同日（T-FE-059 §4.4 转已实施：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」）同日（T-ACCESS-053 §5.2 补实施定案段：U008 维持现状登记 Q-040/撤销恢复主线 E2E⑧+文档/compose 空环境实测/文档改现有三处）同日（T-ACCESS-052 §3.2 已实施收口：四项拍板+全量同模式目录实例准入+菜单准入+种子四条 canGrant；端到端 DelegatedDirectoryClosurePgIT+双轨评审处置完毕+全量含 E2E 绿） 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
+last_reviewed: 2026-09-24（T-API-004 §4.3 转已实施：U006 四项拍板〔冲突全端点拒绝/type extraClear 拒清空/service extra 清=撤白名单/空串拒 400/范围=六字段+perm 轨 extra〕+同型矩阵结论登记 Q-043，定案见 registry 同日行）同日（T-ADMIN-029 §4.5 转已实施：U007 四项拍板——typed IDs 一次性切换零兼容层/ORG 受众预留不做/严格状态机转换拒绝/my-notices+read 白名单+管理面 bootstrap 五档类型级授权；无存量结论+runbook fail-fast 处置登记）同日（T-FE-058 §4.2 转已实施：U005 迁移+同批退役 /role/list/选择器形态 el-select remote+下拉内翻页/Q-035+Q-036 随卡收敛，三项拍板见 registry 同日行）同日（T-FE-059 §4.4 转已实施：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」）同日（T-ACCESS-053 §5.2 补实施定案段：U008 维持现状登记 Q-040/撤销恢复主线 E2E⑧+文档/compose 空环境实测/文档改现有三处）同日（T-ACCESS-052 §3.2 已实施收口：四项拍板+全量同模式目录实例准入+菜单准入+种子四条 canGrant；端到端 DelegatedDirectoryClosurePgIT+双轨评审处置完毕+全量含 E2E 绿） 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -134,13 +134,13 @@ A的scope=read、audience=aud-a，B的scope=other、audience=aud-b：A的合法�
 **实施定案（2026-09-23 用户拍板三项）**：①U005=**迁移+同批退役**——UserDetailPanel 功能角色候选迁 `/api/access/abstract-role/list`（`roleTypeCodes=[BASIC_ROLE,GROUP_ROLE,PERSONAL]`+keyword+分页），`/api/access/role/list` 同批退役（端点链/契约 §10.2 退役注记/bootstrap 固定图行/存量库订正语句同批，RetiredRoleApiContractTest 负向锁 404）；门禁随端点对齐角色管理页实例准入口径（取代 T-ACCESS-052 范围拍板的 role/list 半边，resource-api-mapping/list 半边维持原登记），分配动作仍受 user-role/assign 门禁。②选择器形态=**el-select 远程搜索+下拉内翻页**（remote-method + #footer 上一页/下一页；已选缓存合并渲染保留已选项、提交对象取自缓存不取自当前页；局部 composable `remoteOptions.ts`，不引入通用组件框架）。③**Q-035/Q-036 随卡收敛**（新增岗位弹窗 parentOrgId prop 通道、org-tree prop 接线修复「位置」列、成员展开失败态区分）。岗位列表用 `/org/page` 既有 orgName 模糊+分页（卡片列表+底部分页，默认 20/页）；成员候选用 `/user/member-candidates` 既有 keyword+分页（用户目录不照搬字典拉全）；两后端端点零改动（先过滤再分页口径已在 T-ORG-003/T-ACCESS-052 落地）。
 
 <a id="clear-fields"></a>
-### 4.3 字段保留、设置、清空三态（F009，T-API-004）
+### 4.3 字段保留、设置、清空三态（F009，T-API-004；✅ 已实施 2026-09-24）
 
-沿既有xxxClear协议贯穿DTO、领域更新、显式NULL持久化和表单构造。覆盖用户phone/email、类型description/extra、服务basePath/description/extra、接口映射extra；是否还有同型字段由实际写／读矩阵确认。字段只设空而响应200不是验收。
+**实施口径**：沿既有 `xxxClear` 协议贯穿 DTO（`@AssertTrue` 冲突锁 + `@Pattern` 空白拒绝）、领域更新（`UpdateEntity` 显式 NULL 列写入——`update(entity)` 默认忽略 null 列，T-PERM-028 先例）与前端构造（统一公式「原值非 null 且表单清空 → `xxxClear=true`」，role/resource 页既有公式推广）。覆盖：user `phoneClear`/`emailClear`、type `descriptionClear`、service `basePathClear`/`descriptionClear`/`extraClear`、api-mapping `extraClear`、abstract-user（perm 轨）`extraClear`。
 
-**U006，启动时决定**：同时提交新值和Clear如何处理？推荐明确冲突拒绝，避免值静默丢失；未传、null保持现有不修改语义，false无清空作用。extra含类型所有权、来源、授权根指针时，不能简单删整串；推荐保留服务端管理键，业务可变部分按已采纳所有权限制处理。须先决定各类extra可清范围，再形成总册唯一字段表；未知键和只读键仍受现有校验。
+**U006，已拍板（2026-09-24，AskUserQuestion 四问全按推荐）**：①**新值与 Clear 同传全端点 400 拒绝**——含 role/resource 既有两域同批对齐（取代旧「Clear 优先于 extra」静默丢值口径；前端公式从不同传真值+true；既有测试未锁 HTTP 同传形态——UserRoleWriteProjectionPgIT 一处服务层直调锁旧优先级防御分支，处置=保留断言改注为防御行为锁，零消费方回退）；②**extra 可清范围**——type extra 拒绝清空（`extraClear` 任何非 null 值 20044〔PERM_INVALID_PARAM〕：含服务端管理键 managedMode/syncSourceService/grantOriginRole，指针无清除语义；实施机制为服务层显式拒绝——核实 access-service 未开严格 Jackson，未知字段默认静默忽略，不能靠「不加字段」天然拒绝），service extra 清空=撤销 syncTypes 同步白名单（fail-closed 文档化）、mapping/abstract-user extra 清为 NULL；③**空串一律拒绝 400**——目标字段（phone/email/description/basePath/extra）空白即拒（`@Pattern "(?s).*\S.*"` 全串匹配语义），清空唯一通道=xxxClear，杜绝空串入库与 `uk_user_phone` 空串撞车（biz-domain description 旧「空串=清空」形态不在本卡范围维持不动）；④**范围=六字段+perm 轨 abstract-user extra**——同型未实施字段（condition description、menu path/icon、OAuth2 client 族、org orgName〔Q-018 已另行登记〕）登记写读矩阵结论不实施，沿 Q-015 先例留给触达任务。service `save` 创建分支携带任一清空标志拒绝 20044（新建无既有值可清）。
 
-没有证据需要兼容层时，采用前后端同批切换，外部消费者存在则先列消费方与迁移影响再决策；不默认增加版本接口、补偿状态或双语义空串。
+回归锁：`ClearFieldProtocolValidationTest`（协议面：冲突×7 端点/空白/单用放行/role-resource 旧域对齐，旧实现下不编译或必红）+ `UserWriteAppServiceUpdateGateTest` 清空行为两锁（旧实现下实证红）+ `ExplicitClearFieldsPgIT` 五用例真库（phone/email/perm 轨 extra/description/三字段/映射 extra 清空真实落 NULL、多用户 phone=NULL 共存不撞部分唯一索引、type extraClear 与 service 创建分支拒绝；服务实现回退 HEAD 红跑实证 5/5 红）+ 前端 `hook.spec.ts` 清空公式四锁（service 三字段/映射 extra，载荷断言）。契约总册新增 §2.7 统一协议章 + 六端点章节同步；type 表单「原 extra 非空且表单清空」提交前拦截提示。
 
 <a id="list-context"></a>
 ### 4.4 列表数据绑定所属上下文（F011，T-FE-059；✅ 已实施 2026-09-23）

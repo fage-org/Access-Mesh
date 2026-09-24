@@ -55,7 +55,8 @@ public interface RoleManageAppService {
      * @param status     状态（0禁用 1启用）
      * @param sortOrder  排序序号
      * @param extra      扩展信息（JSON格式）
-     * @param extraClear 显式清空 extra 为 null，优先于 extra（T-FE-016，对齐 T-PERM-028 资源域）
+     * @param extraClear 显式清空 extra 为 null；与 extra 同传在 DTO 层拒绝（T-FE-016，对齐 T-PERM-028
+     *                   资源域；T-API-004 起取代旧「优先于 extra」口径——U006 拍板全端点冲突拒绝）
      * @param operatorId 操作者ID
      * @return 更新后的角色详情
      */

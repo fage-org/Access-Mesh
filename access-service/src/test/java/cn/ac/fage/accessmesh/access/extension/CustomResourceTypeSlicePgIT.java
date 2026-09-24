@@ -119,11 +119,11 @@ class CustomResourceTypeSlicePgIT {
         assertThat(adminRoleId).as("bootstrap 管理员必须绑定引导角色（bootstrap-admin）").isNotNull();
 
         // —— 阶段 1：注册接入方服务（status=1 启用；SYNC 类型声明的来源门禁前置） ——
+        // basePath 省略（T-API-004：save 目标字段空白 400——空串形态退役，缺省即 NULL 合法）
         JsonNode service = postAsAdmin("/api/access/service-config/save", adminUserId,
             JSON.objectNode()
                 .put("serviceCode", SOURCE_SERVICE)
                 .put("name", "订单服务（扩展链路验证）")
-                .put("basePath", "")
                 .put("status", 1));
         assertThat(service.path("serviceCode").asText()).isEqualTo(SOURCE_SERVICE);
 

@@ -106,7 +106,7 @@ class UserWriteAppServiceUpdateGateTest {
             .when(permissionValidator).checkInstanceLevel(
                 eq(ResourceTypeCode.USER), eq(String.valueOf(TARGET)), eq(OperationCode.ENABLE));
 
-        assertThatThrownBy(() -> service.updateUser(new UserUpdateReq(TARGET, "新名", null, null, 0)))
+        assertThatThrownBy(() -> service.updateUser(new UserUpdateReq(TARGET, "新名", null, null, 0, null, null)))
             .isInstanceOf(SecurityException.class);
 
         // T-PERM-067 重排后启停门禁先行：ENABLE 拒绝即短路，UPDATE 门禁不再到达
@@ -125,7 +125,7 @@ class UserWriteAppServiceUpdateGateTest {
             anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
             .thenReturn(901L);
 
-        service.updateUser(new UserUpdateReq(TARGET, "新名", null, null, null));
+        service.updateUser(new UserUpdateReq(TARGET, "新名", null, null, null, null, null));
 
         verify(permissionValidator).checkInstanceLevel(
             eq(ResourceTypeCode.USER), eq(String.valueOf(TARGET)), eq(OperationCode.UPDATE));
@@ -141,7 +141,7 @@ class UserWriteAppServiceUpdateGateTest {
             anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
             .thenReturn(901L);
 
-        service.updateUser(new UserUpdateReq(TARGET, null, null, null, 0));
+        service.updateUser(new UserUpdateReq(TARGET, null, null, null, 0, null, null));
 
         verify(permissionValidator).checkInstanceLevel(
             eq(ResourceTypeCode.USER), eq(String.valueOf(TARGET)), eq(OperationCode.UPDATE));
@@ -158,7 +158,7 @@ class UserWriteAppServiceUpdateGateTest {
             anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
             .thenReturn(901L);
 
-        service.updateUser(new UserUpdateReq(OPERATOR, "自改名", null, null, null));
+        service.updateUser(new UserUpdateReq(OPERATOR, "自改名", null, null, null, null, null));
 
         verify(permissionValidator, never()).checkInstanceLevel(any(), any(), any());
         verify(userDomainService).update(any(SysUser.class));
@@ -167,7 +167,7 @@ class UserWriteAppServiceUpdateGateTest {
     @Test
     @DisplayName("自身 status=0 硬拒 CANNOT_DISABLE_SELF（对齐 /user/enable，旧实现自身全免必红）")
     void selfStatusDisableHardRejected() {
-        assertThatThrownBy(() -> service.updateUser(new UserUpdateReq(OPERATOR, null, null, null, 0)))
+        assertThatThrownBy(() -> service.updateUser(new UserUpdateReq(OPERATOR, null, null, null, 0, null, null)))
             .isInstanceOf(BizException.class)
             .hasMessageContaining(AccessErrorCode.CANNOT_DISABLE_SELF.getMessage());
 
@@ -183,7 +183,7 @@ class UserWriteAppServiceUpdateGateTest {
             .when(permissionValidator).checkInstanceLevel(
                 eq(ResourceTypeCode.USER), eq(String.valueOf(OPERATOR)), eq(OperationCode.ENABLE));
 
-        assertThatThrownBy(() -> service.updateUser(new UserUpdateReq(OPERATOR, null, null, null, 1)))
+        assertThatThrownBy(() -> service.updateUser(new UserUpdateReq(OPERATOR, null, null, null, 1, null, null)))
             .isInstanceOf(SecurityException.class);
 
         verify(permissionValidator).checkInstanceLevel(
@@ -201,7 +201,7 @@ class UserWriteAppServiceUpdateGateTest {
             anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
             .thenReturn(901L);
 
-        service.updateUser(new UserUpdateReq(OPERATOR, null, null, null, 1));
+        service.updateUser(new UserUpdateReq(OPERATOR, null, null, null, 1, null, null));
 
         verify(permissionValidator).checkInstanceLevel(
             eq(ResourceTypeCode.USER), eq(String.valueOf(OPERATOR)), eq(OperationCode.ENABLE));
@@ -215,5 +215,47 @@ class UserWriteAppServiceUpdateGateTest {
         user.setId(OPERATOR);
         user.setUsername("u900");
         return user;
+    }
+
+    // ---- T-API-004 显式清空（U006 拍板：清空唯一通道=xxxClear；冲突在 DTO @AssertTrue 拒绝） ----
+
+    @Test
+    @DisplayName("phoneClear/emailClear：跳过唯一性检查、内存实体置 null（旧实现无清空分支必红）")
+    void clearFlagsSkipUniquenessCheckAndNullifyEntity() {
+        SysUser existing = target();
+        existing.setPhone("13800000000");
+        existing.setEmail("old@example.com");
+        when(userDomainService.selectValidById(TENANT, TARGET)).thenReturn(existing);
+        when(localProjectionDomainService.upsertAdminUser(
+            anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
+            .thenReturn(901L);
+
+        service.updateUser(new UserUpdateReq(TARGET, null, null, null, null, true, true));
+
+        // 清空无新值：phone 唯一性检查不触发（旧值比对/查重仅针对设置新值）
+        verify(userDomainService, never()).existsByPhone(anyLong(), anyString());
+        var captor = org.mockito.ArgumentCaptor.forClass(SysUser.class);
+        verify(userDomainService).update(captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().getPhone()).isNull();
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().getEmail()).isNull();
+    }
+
+    @Test
+    @DisplayName("设置新值仍走唯一性检查（清空通道不改变设值语义）")
+    void settingNewPhoneStillChecksUniqueness() {
+        SysUser existing = target();
+        existing.setPhone("13800000000");
+        when(userDomainService.selectValidById(TENANT, TARGET)).thenReturn(existing);
+        when(userDomainService.existsByPhone(TENANT, "13900000000")).thenReturn(false);
+        when(localProjectionDomainService.upsertAdminUser(
+            anyLong(), anyLong(), anyString(), org.mockito.ArgumentMatchers.anyBoolean()))
+            .thenReturn(901L);
+
+        service.updateUser(new UserUpdateReq(TARGET, null, "13900000000", null, null, null, null));
+
+        verify(userDomainService).existsByPhone(TENANT, "13900000000");
+        var captor = org.mockito.ArgumentCaptor.forClass(SysUser.class);
+        verify(userDomainService).update(captor.capture());
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().getPhone()).isEqualTo("13900000000");
     }
 }

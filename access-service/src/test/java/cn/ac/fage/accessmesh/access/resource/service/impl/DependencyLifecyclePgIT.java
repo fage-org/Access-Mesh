@@ -155,7 +155,7 @@ class DependencyLifecyclePgIT {
         assertThat(dirty(f)).isFalse();
         String owner="changed-"+UUID.randomUUID();
         jdbc.update("INSERT INTO service_config(tenant_id,service_code,name) VALUES(1,?,'new owner')",owner);
-        types.updateType(1L,new TypeUpdateReq(f.typeId(),null,null,null,"{\"managedMode\":\"SYNC\",\"syncSourceService\":\""+owner+"\"}"),100L);
+        types.updateType(1L,new TypeUpdateReq(f.typeId(),null,null,null,"{\"managedMode\":\"SYNC\",\"syncSourceService\":\""+owner+"\"}", null, null),100L);
         assertThat(dirty(f)).isTrue(); assertThat(rejected(f)).isEqualTo(2); assertThat(edges(f)).isZero();
         types.deleteTypesByIds(1L,List.of(f.typeId()),100L);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM permission_dependency_declaration WHERE source_service=? AND delete_flag=0",Integer.class,f.source())).isZero();

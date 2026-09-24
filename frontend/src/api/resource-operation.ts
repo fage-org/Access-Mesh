@@ -109,7 +109,7 @@ export type ResourceUpdateReq = {
   path?: string | null;
   status?: number;
   extra?: string | null;
-  /** true=清空 extra 为 null（优先于 extra；JSON null 无法区分「未传」与「清空」） */
+  /** true=清空 extra 为 null（JSON null 无法区分「未传」与「清空」）；T-API-004 起与 extra 同传后端 400 拒绝 */
   extraClear?: boolean;
 };
 

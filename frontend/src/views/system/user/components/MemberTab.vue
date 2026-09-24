@@ -184,7 +184,11 @@ function openEditDialog(row: any) {
             id: row.id,
             name: dialogFormData.name,
             phone: dialogFormData.phone || null,
-            email: dialogFormData.email || null
+            email: dialogFormData.email || null,
+            // 显式清空（T-API-004）：原值非空且表单清空 → 清空标志；JSON null 无法区分
+            // 「未传」与「清空」，公式对齐 role/resource 页 extraClear 先例
+            phoneClear: row.phone != null && !dialogFormData.phone,
+            emailClear: row.email != null && !dialogFormData.email
           },
           openedAtOrgId
         );

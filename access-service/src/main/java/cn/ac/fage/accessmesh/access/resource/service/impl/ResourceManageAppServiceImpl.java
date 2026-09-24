@@ -521,7 +521,9 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         if (req.status() != null) entity.setStatus(req.status());
         entity.setUpdatedAt(LocalDateTime.now());
         entity.setUpdatedBy(operatorId);
-        // T-PERM-028：extraClear 显式清空（JSON null 无法区分「未传」与「清空」），优先于 extra。
+        // T-PERM-028：extraClear 显式清空（JSON null 无法区分「未传」与「清空」）——
+        // T-API-004 起 extra 与 extraClear 同传在 DTO @AssertTrue 拒绝（U006 拍板：
+        // 全端点冲突拒绝），本分支仅 extra=null 可达（旧「优先于 extra」口径退役）。
         // extra 置 null 须强制写列：BaseMapper.update(entity) 默认忽略 null 字段，
         // UpdateEntity 代理记录 set 调用（含 null 入参）为显式更新列（mybatis-flex 标准方式）
         if (Boolean.TRUE.equals(req.extraClear())) {
@@ -1017,11 +1019,28 @@ public class ResourceManageAppServiceImpl implements ResourceManageAppService {
         if (req.enabled() != null) {
             mapping.setEnabled(req.enabled());
         }
-        if (req.extra() != null) {
+        boolean extraClear = Boolean.TRUE.equals(req.extraClear());
+        if (extraClear) {
+            mapping.setExtra(null);
+        } else if (req.extra() != null) {
             mapping.setExtra(req.extra());
         }
         mapping.setUpdatedAt(LocalDateTime.now());
-        apiMappingMapper.update(mapping);
+        if (extraClear) {
+            // 清空须强制写列（T-API-004）：update(entity) 默认忽略 null 字段，
+            // UpdateEntity 代理记录 set(null) 为显式更新列（role extraClear 同款）
+            ResourceApiMapping patch = com.mybatisflex.core.util.UpdateEntity.of(ResourceApiMapping.class);
+            patch.setId(mapping.getId());
+            patch.setHttpMethod(mapping.getHttpMethod());
+            patch.setPathPattern(mapping.getPathPattern());
+            patch.setMatchOrder(mapping.getMatchOrder());
+            patch.setEnabled(mapping.getEnabled());
+            patch.setExtra(null);
+            patch.setUpdatedAt(mapping.getUpdatedAt());
+            apiMappingMapper.update(patch);
+        } else {
+            apiMappingMapper.update(mapping);
+        }
 
         // API mapping 变更影响 Gateway 本地快照 → 广播 serviceCode（perm 未变，不 markRoles）
         PermissionChangeContext.markServiceCodes(tenantId, mapping.getServiceCode());

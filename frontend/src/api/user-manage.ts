@@ -238,6 +238,9 @@ export const updateUser = async (data: {
   name?: string;
   phone?: string | null;
   email?: string | null;
+  /** 显式清空标志（T-API-004）：true=对应字段清为 NULL；与新值同传后端 400 */
+  phoneClear?: boolean;
+  emailClear?: boolean;
 }): Promise<void> => {
   unwrap(
     await http.request<R<void>>("post", "/api/access/user/update", { data })

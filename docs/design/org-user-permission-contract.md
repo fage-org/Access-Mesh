@@ -3,7 +3,7 @@ doc_type: design
 title: 「组织与用户」融合页 · 权限契约
 status: adopted
 domain: org-user
-last_reviewed: 2026-09-23 2026-09-15 2026-09-13   # T-ACCESS-034：操作码常量源改挂合一后 OperationCode（原 AdminOperationCode/OperationCodeConstants 两册删除，正文类名机械改挂；备注¹ 定稿考古段保留当时旧类名并加历史限定）；此前 2026-06-20
+last_reviewed: 2026-09-24（T-API-004：§4.B 编辑用户行补显式清空协议括注——phone/email 清空走 phoneClear/emailClear、空白 400、同传 400，统一协议见契约总册 §2.7）2026-09-23 2026-09-15 2026-09-13   # T-ACCESS-034：操作码常量源改挂合一后 OperationCode（原 AdminOperationCode/OperationCodeConstants 两册删除，正文类名机械改挂；备注¹ 定稿考古段保留当时旧类名并加历史限定）；此前 2026-06-20
 ---
 
 # 「组织与用户」融合页 · 权限契约
@@ -132,7 +132,7 @@ v1.4 起前后端**共用同一套权限词法**（乙层 `资源类型:操作�
 | 查看组织成员列表 | `USER:VIEW`（`/api/access/org/users` 或成员列表接口） | `USER:VIEW` | 成员 Tab 空/隐藏 |
 | 创建用户（只能归默认组织树） | `USER:CREATE`（`/api/access/user/create`，`orgId` 必须属于默认组织树） | `USER:CREATE` | 隐藏「+创建用户」 |
 | 添加已有用户到当前组织 | **`ORG:MANAGE_MEMBER`** ²（目标组织实例；候选集来自默认树可见范围） | `ORG:MANAGE_MEMBER` | 隐藏「添加成员」 |
-| 编辑用户 | `USER:UPDATE`（`/api/access/user/update`，改己豁免） | `USER:UPDATE` | 隐藏「修改」 |
+| 编辑用户 | `USER:UPDATE`（`/api/access/user/update`，改己豁免；T-API-004 起 phone/email 清空走 `phoneClear`/`emailClear` 显式标志、空白 400、与新值同传 400——统一协议见契约总册 §2.7） | `USER:UPDATE` | 隐藏「修改」 |
 | 删除用户 | `USER:DELETE`（`/api/access/user/delete`，批量实例级） | `USER:DELETE` | 隐藏「删除」 |
 | 启用/禁用 | `USER:ENABLE`（`/api/access/user/enable`，批量实例级；v1.4 起合并 toggle 语义，启用与禁用共用同一操作码） | `USER:ENABLE` | 隐藏状态切换 |
 | 重置密码 | `USER:RESET_PASSWORD`（`/api/access/user/reset-password`，改己豁免） | `USER:RESET_PASSWORD` | 隐藏「重置密码」 |

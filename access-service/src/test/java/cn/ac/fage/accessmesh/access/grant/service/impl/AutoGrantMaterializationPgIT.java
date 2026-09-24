@@ -288,7 +288,7 @@ class AutoGrantMaterializationPgIT {
         String newOwner = "owner-" + UUID.randomUUID();
         jdbc.update("INSERT INTO service_config(tenant_id,service_code,name) VALUES(1,?,'new owner')", newOwner);
         cn.ac.fage.accessmesh.access.type.dto.req.TypeUpdateReq update = new cn.ac.fage.accessmesh.access.type.dto.req.TypeUpdateReq(
-            typeId, null, null, null, "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"" + newOwner + "\"}");
+            typeId, null, null, null, "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"" + newOwner + "\"}", null, null);
         AccessRequestContext.bind(RequestContext.user(1L, 100L));
         // T-PERM-052 20056：类型下有有效资源行时所有权声明不可变更（变更面资源在时不可达）
         assertThatThrownBy(() -> types.updateType(1L, update, 100L))

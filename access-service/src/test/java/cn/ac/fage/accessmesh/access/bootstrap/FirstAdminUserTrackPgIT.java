@@ -100,12 +100,12 @@ class FirstAdminUserTrackPgIT {
 
         // updateUser 字段分档：name-only 查 USER:UPDATE——旧实现查 MANAGE 恒拒，此处必须放行
         AbstractUserResp renamed = userManageAppService.updateUser(
-            TENANT, new AbstractUserUpdateReq(target.id(), "放行锁目标用户-改名", null, null));
+            TENANT, new AbstractUserUpdateReq(target.id(), "放行锁目标用户-改名", null, null, null));
         assertThat(renamed.name()).isEqualTo("放行锁目标用户-改名");
 
         // updateUser 字段分档：enabled-only 查 USER:ENABLE——同样由拒转放行
         AbstractUserResp disabled = userManageAppService.updateUser(
-            TENANT, new AbstractUserUpdateReq(target.id(), null, false, null));
+            TENANT, new AbstractUserUpdateReq(target.id(), null, false, null, null));
         assertThat(disabled.enabled()).isFalse();
 
         // deleteUsers 换绑 USER:DELETE——旧实现查 MANAGE 恒拒，此处必须放行且投影同事务软删

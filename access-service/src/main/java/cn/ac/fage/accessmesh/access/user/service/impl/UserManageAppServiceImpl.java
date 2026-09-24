@@ -20,6 +20,7 @@ import cn.ac.fage.accessmesh.access.role.dto.resp.UserRolesResp;
 import cn.ac.fage.accessmesh.access.role.dto.resp.UserRolesResp.RoleSummary;
 import cn.ac.fage.accessmesh.access.role.entity.AbstractRole;
 import cn.ac.fage.accessmesh.access.user.entity.AbstractUser;
+import com.mybatisflex.core.util.UpdateEntity;
 import cn.ac.fage.accessmesh.access.role.entity.UserRole;
 import cn.ac.fage.accessmesh.access.user.mapper.AbstractUserMapper;
 import cn.ac.fage.accessmesh.access.user.service.UserManageAppService;
@@ -273,23 +274,38 @@ public class UserManageAppServiceImpl implements UserManageAppService {
             throw new SecurityException("Permission denied: ENABLE on USER:" + req.userId());
         }
         if (!operatorId.equals(req.userId())
-            && (req.name() != null || req.extra() != null)
+            && (req.name() != null || req.extra() != null || Boolean.TRUE.equals(req.extraClear()))
             && !engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.USER,
                 String.valueOf(req.userId()), OperationCode.UPDATE)) {
             throw new SecurityException("Permission denied: UPDATE on USER:" + req.userId());
         }
 
+        boolean extraClear = Boolean.TRUE.equals(req.extraClear());
         if (req.name() != null) {
             existing.setName(req.name());
         }
         if (req.enabled() != null) {
             existing.setEnabled(req.enabled());
         }
-        if (req.extra() != null) {
+        if (extraClear) {
+            existing.setExtra(null);
+        } else if (req.extra() != null) {
             existing.setExtra(req.extra());
         }
         existing.setUpdatedAt(LocalDateTime.now());
-        abstractUserMapper.update(existing);
+        if (extraClear) {
+            // 清空须强制写列（T-API-004）：update(entity) 默认忽略 null 字段，
+            // UpdateEntity 代理记录 set(null) 为显式更新列（role extraClear 同款）
+            AbstractUser patch = UpdateEntity.of(AbstractUser.class);
+            patch.setId(existing.getId());
+            patch.setName(existing.getName());
+            patch.setEnabled(existing.getEnabled());
+            patch.setExtra(null);
+            patch.setUpdatedAt(existing.getUpdatedAt());
+            abstractUserMapper.update(patch);
+        } else {
+            abstractUserMapper.update(existing);
+        }
 
         // T-ACCESS-019：USER 资源投影同事务镜像 name/enabled；enabled 变更影响授权可用性（禁用主体
         // 有效角色置空），登记 markUsers 失效主体有效角色缓存（afterCommit 由 AOP 处理）

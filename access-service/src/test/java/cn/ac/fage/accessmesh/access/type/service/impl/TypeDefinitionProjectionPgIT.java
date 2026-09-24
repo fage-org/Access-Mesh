@@ -239,10 +239,10 @@ class TypeDefinitionProjectionPgIT {
 
         // update 命中授权实例，name 同步投影展示名
         typeDefinitionAppService.updateType(TENANT,
-            new TypeUpdateReq(target.id(), "被管类型改名", null, null, null), manager);
+            new TypeUpdateReq(target.id(), "被管类型改名", null, null, null, null, null), manager);
         assertThat(projectionRow("group_type:PGIT051_MGR_A").get("name")).isEqualTo("被管类型改名");
         assertThatThrownBy(() -> typeDefinitionAppService.updateType(TENANT,
-            new TypeUpdateReq(other.id(), "越权改名", null, null, null), manager))
+            new TypeUpdateReq(other.id(), "越权改名", null, null, null, null, null), manager))
             .isInstanceOf(SecurityException.class);
         assertThat(projectionRow("group_type:PGIT051_MGR_B").get("name")).isEqualTo("旁观类型");
     }

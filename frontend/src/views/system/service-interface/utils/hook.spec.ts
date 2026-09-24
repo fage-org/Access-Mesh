@@ -8,6 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const mockGetServiceApis = vi.fn();
+const mockSaveServiceConfig = vi.fn();
 const mockUpdateApiMapping = vi.fn();
 const mockRemoveApiMappings = vi.fn();
 const mockCreateApiMapping = vi.fn();
@@ -25,7 +26,7 @@ vi.mock("@/api/service-interface", () => ({
   updateApiMapping: (...args: unknown[]) => mockUpdateApiMapping(...args),
   removeApiMappings: (...args: unknown[]) => mockRemoveApiMappings(...args),
   removeServiceConfigs: vi.fn(),
-  saveServiceConfig: vi.fn(),
+  saveServiceConfig: (...args: unknown[]) => mockSaveServiceConfig(...args),
   syncServiceInterfaces: vi.fn()
 }));
 
@@ -132,5 +133,119 @@ describe("服务与接口映射页共享列表上下文（T-FE-059 / F011）", (
 
     expect(ok).toBe(false);
     expect(mockCreateApiMapping).not.toHaveBeenCalled();
+  });
+});
+
+describe("服务/映射显式清空公式（T-API-004，U006 拍板）", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("服务编辑：原值非空且表单清空 → 三个 xxxClear=true 随载荷发出（旧实现不发标志必失败）", async () => {
+    mockSaveServiceConfig.mockResolvedValue({});
+    const hook = useServiceInterface();
+
+    const ok = await hook.submitService(
+      {
+        serviceCode: "svc-a",
+        name: "服务A",
+        basePath: "",
+        description: "",
+        status: 1,
+        extra: "   "
+      } as any,
+      "edit",
+      {
+        serviceCode: "svc-a",
+        name: "服务A",
+        basePath: "/svc-a",
+        description: "旧描述",
+        extra: '{"syncTypes":{}}',
+        apiCount: 0,
+        enabledApiCount: 0
+      } as any
+    );
+
+    expect(ok).toBe(true);
+    expect(mockSaveServiceConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        basePath: null,
+        description: null,
+        extra: null,
+        basePathClear: true,
+        descriptionClear: true,
+        extraClear: true
+      })
+    );
+  });
+
+  it("服务编辑：字段填了新值 → 清空标志全 false（冲突由后端兜底拒绝）", async () => {
+    mockSaveServiceConfig.mockResolvedValue({});
+    const hook = useServiceInterface();
+
+    await hook.submitService(
+      {
+        serviceCode: "svc-a",
+        name: "服务A",
+        basePath: "/new",
+        description: "新描述",
+        status: 1,
+        extra: "{}"
+      } as any,
+      "edit",
+      {
+        serviceCode: "svc-a",
+        basePath: "/svc-a",
+        description: "旧描述",
+        extra: null,
+        apiCount: 0,
+        enabledApiCount: 0
+      } as any
+    );
+
+    expect(mockSaveServiceConfig).toHaveBeenCalledWith(
+      expect.objectContaining({
+        basePathClear: false,
+        descriptionClear: false,
+        extraClear: false
+      })
+    );
+  });
+
+  it("映射编辑：原 extra 非空且表单清空 → extraClear=true（旧实现不发标志必失败）", async () => {
+    mockUpdateApiMapping.mockResolvedValue(undefined);
+    const hook = useServiceInterface();
+    hook.selectedServiceCode.value = "svc-a";
+
+    const editing = { ...mappingOf(11, "svc-a"), extra: '{"k":1}' };
+    const ok = await hook.submitMapping(
+      { ...EDIT_FORM, extra: "" },
+      "edit",
+      editing,
+      "svc-a"
+    );
+
+    expect(ok).toBe(true);
+    expect(mockUpdateApiMapping).toHaveBeenCalledWith(
+      expect.objectContaining({ extra: null, extraClear: true })
+    );
+  });
+
+  it("映射编辑：原 extra 为空 → 清空表单不产 extraClear（无可清值）", async () => {
+    mockUpdateApiMapping.mockResolvedValue(undefined);
+    const hook = useServiceInterface();
+    hook.selectedServiceCode.value = "svc-a";
+
+    const ok = await hook.submitMapping(
+      { ...EDIT_FORM, extra: "" },
+      "edit",
+      mappingOf(11, "svc-a"),
+      "svc-a"
+    );
+
+    expect(ok).toBe(true);
+    expect(mockUpdateApiMapping).toHaveBeenCalledWith(
+      expect.objectContaining({ extra: null, extraClear: false })
+    );
   });
 });

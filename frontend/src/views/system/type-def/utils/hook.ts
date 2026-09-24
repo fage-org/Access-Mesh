@@ -50,11 +50,14 @@ export function useTypeDef() {
     onSearch();
   }
 
-  /** 提交新建/编辑 */
+  /** 提交新建/编辑。
+   *  original（T-API-004，编辑态必传）：编辑行原值——description 清空公式（原值非空且表单
+   *  清空 → descriptionClear）与 extra 清空守卫（type extra 不支持清空，U006 拍板）的判定基准。 */
   async function handleSubmitForm(
     mode: "create" | "edit",
     form: TypeDefFormData,
-    editingId?: number
+    editingId?: number,
+    original?: TypeDefResp
   ): Promise<boolean> {
     try {
       if (mode === "create") {
@@ -74,10 +77,23 @@ export function useTypeDef() {
         });
         message("创建成功", { type: "success" });
       } else if (editingId) {
+        // extra 不支持清空（U006 拍板：含服务端管理键 managedMode/syncSourceService/
+        // grantOriginRole）：原值非空且表单清空时前端拦截提示，不静默提交 null（null=不修改，
+        // 提交后表单重开旧值回显，形成「看似清了实际没清」的静默失败）
+        if (original?.extra != null && original.extra !== "" && !form.extra) {
+          message(
+            "类型扩展属性不支持清空（含服务端管理键）；如需移除业务键请编辑 JSON 后提交",
+            { type: "warning" }
+          );
+          return false;
+        }
         await updateTypeDef({
           typeId: editingId,
           name: form.name,
           description: form.description || null,
+          // 显式清空（T-API-004）：JSON null 无法区分「未传」与「清空」，公式对齐
+          // role/resource 页 extraClear 先例
+          descriptionClear: original?.description != null && !form.description,
           sortOrder: form.sortOrder,
           extra: form.extra || null
         });

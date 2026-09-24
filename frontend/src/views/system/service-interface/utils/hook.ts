@@ -185,9 +185,13 @@ export function useServiceInterface() {
     mappingSearch.enabled = "all";
   }
 
+  /** original（T-API-004，编辑态必传）：编辑行原值——三字段清空公式（原值非空且表单清空
+   *  → xxxClear）的判定基准；JSON null 无法区分「未传」与「清空」，公式对齐 role/resource
+   *  页 extraClear 先例。extraClear 语义=撤销 syncTypes 同步白名单（后端 fail-closed）。 */
   async function submitService(
     form: ServiceConfigFormData,
-    mode: "create" | "edit"
+    mode: "create" | "edit",
+    original?: ServiceSummary
   ): Promise<boolean> {
     try {
       await saveServiceConfig({
@@ -196,7 +200,10 @@ export function useServiceInterface() {
         basePath: form.basePath || null,
         description: form.description || null,
         status: form.status,
-        extra: form.extra.trim() || null
+        extra: form.extra.trim() || null,
+        basePathClear: original?.basePath != null && !form.basePath,
+        descriptionClear: original?.description != null && !form.description,
+        extraClear: original?.extra != null && !form.extra.trim()
       });
       selectedServiceCode.value = form.serviceCode;
       message(mode === "create" ? "服务已登记" : "服务配置已保存", {
@@ -302,7 +309,9 @@ export function useServiceInterface() {
           pathPattern: form.pathPattern,
           matchOrder: form.matchOrder,
           enabled: form.enabled,
-          extra: form.extra.trim() || null
+          extra: form.extra.trim() || null,
+          // 显式清空（T-API-004）：原 extra 非空且表单清空 → 清空标志（role/resource 同款公式）
+          extraClear: editing.extra != null && !form.extra.trim()
         });
       }
       message(mode === "create" ? "接口映射已创建" : "接口映射已保存", {

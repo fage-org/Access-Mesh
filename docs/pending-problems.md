@@ -1,8 +1,8 @@
 ---
 doc_type: problems
 title: 待解决问题清单
-counter: Q-042           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-23（Q-042 登记：T-FE-058 文档轨双轨评审范围外存量——org-user 契约 /user-role/list 旧指代；同日 Q-035/Q-036 随 T-FE-058 done 收敛入已收敛索引；同日 Q-041/Q-040 见下）
+counter: Q-043           # 已分配最大问题号；分配后冻结，不复用不重排
+last_updated: 2026-09-24（Q-043 登记：T-API-004 显式清空协议同型字段矩阵结论——condition/menu/OAuth2 族未实施沿 Q-015 先例留给触达任务）
 ---
 
 # 待解决问题清单（pending problems）
@@ -12,6 +12,19 @@ last_updated: 2026-09-23（Q-042 登记：T-FE-058 文档轨双轨评审范围�
 **边界**：定案结论（含「不解决」拍板）唯一载体是 `docs/design/decision-registry.md`，本文件不复制定案正文；问题转出后方案细节唯一详细来源是任务卡，本文件只保留索引行。
 
 ## 未收敛问题
+
+## Q-043 显式清空协议同型字段未覆盖——condition description、menu path/icon、OAuth2 client 字段族仍无清空通道
+
+- **状态**：open
+- **登记**：2026-09-24（T-API-004 写读矩阵结论：U006 拍板范围=六字段+perm 轨 abstract-user extra，其余同型字段登记不实施）
+- **来源**：T-API-004 实施期同型盘点
+- **关联**：T-API-004；Q-018（org orgName 空串问题——同族但独立登记，处置时顺带对齐协议）
+
+**现象与证据**：与 F009 同形态（null=跳过、无清空通道、表单清空→发 null→清不掉且返回 200）的可选字符串字段仍存在于：`ConditionUpdateReq.description`（rule 域条件描述）、`MenuUpdateReq` 的 path/icon 等展示字段、`Oauth2ClientUpdateReq` 的 grantTypes/redirectUris/scopes/audiences 等（客户端配置族）；org orgName 见 Q-018（update 通道空串可入库——清空协议化时一并收口）。T-API-004 已把协议模板落为契约总册 §2.7 + project-rules §7.6（xxxClear 冲突锁/空白拒绝/UpdateEntity 显式 NULL/前端公式）。
+
+**影响**：这些字段的消费表单当前无人真正清空过（与 F009 同为「静默 no-op」形态——清空提交返回 200、值不变、无报错）；OAuth2 client 族字段清空语义可能需要单独设计（redirectUris 清空=禁止任何重定向，安全语义与服务 extra 白名单类似需按域定夺）。
+
+**设想方向（未定案）**：沿 Q-015 先例，随下次触达对应域的任务按 §2.7 模板顺带收敛（每域=DTO 冲突锁+空白拒绝+UpdateEntity 写入+表单公式+契约行）；OAuth2 client 族触及时先按域拍板各字段清空语义再实施。
 
 ## Q-042 org-user-permission-contract 三处 `/user-role/list` 旧指代——T-ACCESS-042 改名（list→view）后语义漂移
 

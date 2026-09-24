@@ -148,7 +148,7 @@ export type RoleUpdateReq = {
   status?: RoleStatus;
   sortOrder?: number;
   extra?: string | null;
-  /** 清空 extra 为 null 的显式标志，true 时优先于 extra（JSON null 无法区分「未传」与「清空」，T-FE-016 对齐 T-PERM-028 资源域口径） */
+  /** 清空 extra 为 null 的显式标志（JSON null 无法区分「未传」与「清空」，T-FE-016 对齐 T-PERM-028 资源域口径）；T-API-004 起与 extra 同传后端 400 拒绝 */
   extraClear?: boolean;
 };
 

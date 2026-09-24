@@ -41,7 +41,7 @@ class AbstractUserUpdateReqValidationTest {
     @DisplayName("空 patch（仅 userId）拒绝——旧实现下本用例失败")
     void emptyPatchMustBeRejected() {
         Validator validator = validatorFactory.getValidator();
-        assertFalse(validator.validate(new AbstractUserUpdateReq(1L, null, null, null)).isEmpty(),
+        assertFalse(validator.validate(new AbstractUserUpdateReq(1L, null, null, null, null)).isEmpty(),
             "仅 userId 无任何业务字段必须被 Bean Validation 拒绝");
     }
 
@@ -49,16 +49,16 @@ class AbstractUserUpdateReqValidationTest {
     @DisplayName("任一业务字段单独出现即放行（name / enabled / extra 三分支）")
     void anySingleBusinessFieldMustPass() {
         Validator validator = validatorFactory.getValidator();
-        assertTrue(validator.validate(new AbstractUserUpdateReq(1L, "新名", null, null)).isEmpty());
-        assertTrue(validator.validate(new AbstractUserUpdateReq(1L, null, false, null)).isEmpty());
-        assertTrue(validator.validate(new AbstractUserUpdateReq(1L, null, null, "{\"k\":1}")).isEmpty());
+        assertTrue(validator.validate(new AbstractUserUpdateReq(1L, "新名", null, null, null)).isEmpty());
+        assertTrue(validator.validate(new AbstractUserUpdateReq(1L, null, false, null, null)).isEmpty());
+        assertTrue(validator.validate(new AbstractUserUpdateReq(1L, null, null, "{\"k\":1}", null)).isEmpty());
     }
 
     @Test
     @DisplayName("组合字段与全字段放行")
     void combinedFieldsMustPass() {
         Validator validator = validatorFactory.getValidator();
-        assertTrue(validator.validate(new AbstractUserUpdateReq(1L, "新名", true, null)).isEmpty());
-        assertTrue(validator.validate(new AbstractUserUpdateReq(1L, "新名", true, "{\"k\":1}")).isEmpty());
+        assertTrue(validator.validate(new AbstractUserUpdateReq(1L, "新名", true, null, null)).isEmpty());
+        assertTrue(validator.validate(new AbstractUserUpdateReq(1L, "新名", true, "{\"k\":1}", null)).isEmpty());
     }
 }

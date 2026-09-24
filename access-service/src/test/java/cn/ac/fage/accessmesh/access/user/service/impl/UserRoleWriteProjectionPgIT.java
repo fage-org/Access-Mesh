@@ -155,7 +155,9 @@ class UserRoleWriteProjectionPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT extra->>'k' FROM abstract_role WHERE id = ? AND delete_flag = 0",
             String.class, granted.id())).isEqualTo("1");
-        // extra 同传非空值 + extraClear=true：锁契约优先级「true 优先于 extra」（单测锁 extra=null 主路径，此处互补）
+        // extra 同传非空值 + extraClear=true（服务层直调形态）：T-API-004 起 DTO @AssertTrue 已拒 HTTP 面
+        // 同传，本段锁服务层防御分支的既有行为（extraClear=true 时 extra 仍被忽略置 null）——
+        // 编程式调用方（测试/内部）不经 @Valid，该防御面独立于端点契约存在
         roleManageAppService.updateRole(TENANT, granted.id(), null, null, null, "{\"ignored\":true}", true, manager);
         assertThat(jdbc.queryForObject(
             "SELECT extra IS NULL FROM abstract_role WHERE id = ? AND delete_flag = 0",
@@ -209,23 +211,23 @@ class UserRoleWriteProjectionPgIT {
             TENANT, manager, "USER", String.valueOf(other.id()), "UPDATE")).isFalse();
 
         // updateUser 实例级门禁经生产投影命中（无 UPDATE 实例授权的其他用户被拒）
-        userManageAppService.updateUser(TENANT, new AbstractUserUpdateReq(target.id(), "目标用户-改名", false, null));
+        userManageAppService.updateUser(TENANT, new AbstractUserUpdateReq(target.id(), "目标用户-改名", false, null, null));
         Map<String, Object> updated = resourceRow(RESOURCE_TYPE_USER, String.valueOf(target.id()));
         assertThat(updated.get("name")).isEqualTo("目标用户-改名");
         assertThat(((Number) updated.get("status")).intValue()).isZero();
         assertThatThrownBy(() -> userManageAppService.updateUser(
-            TENANT, new AbstractUserUpdateReq(other.id(), "其他用户-改名", null, null)))
+            TENANT, new AbstractUserUpdateReq(other.id(), "其他用户-改名", null, null, null)))
             .isInstanceOf(SecurityException.class);
         // 字段分档回归锁（T-ACCESS-034）：第三用户仅授 UPDATE 位——name-only 放行、
         // enabled-only 拒绝（防 UPDATE 绕过启停分权），name+enabled 组合亦拒（须全过）
         insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, UPDATE_BIT,
             ((Number) resourceRow(RESOURCE_TYPE_USER, String.valueOf(tiered.id())).get("id")).longValue());
-        userManageAppService.updateUser(TENANT, new AbstractUserUpdateReq(tiered.id(), "分档锁用户-改名", null, null));
+        userManageAppService.updateUser(TENANT, new AbstractUserUpdateReq(tiered.id(), "分档锁用户-改名", null, null, null));
         assertThatThrownBy(() -> userManageAppService.updateUser(
-            TENANT, new AbstractUserUpdateReq(tiered.id(), null, false, null)))
+            TENANT, new AbstractUserUpdateReq(tiered.id(), null, false, null, null)))
             .isInstanceOf(SecurityException.class);
         assertThatThrownBy(() -> userManageAppService.updateUser(
-            TENANT, new AbstractUserUpdateReq(tiered.id(), "再改名", true, null)))
+            TENANT, new AbstractUserUpdateReq(tiered.id(), "再改名", true, null, null)))
             .isInstanceOf(SecurityException.class);
 
         // deleteUsers 软删主体与投影；被删编码经引擎 fail-closed 拒绝
@@ -354,7 +356,7 @@ class UserRoleWriteProjectionPgIT {
         insertInstanceRolePerm(managerRole, RESOURCE_TYPE_USER, ENABLE_BIT,
             ((Number) resourceRow(RESOURCE_TYPE_USER, String.valueOf(target)).get("id")).longValue());
         bindOperator(manager);
-        userManageAppService.updateUser(TENANT, new AbstractUserUpdateReq(target, null, false, null));
+        userManageAppService.updateUser(TENANT, new AbstractUserUpdateReq(target, null, false, null, null));
 
         // DDL 语义 enabled=false 鉴权不通过：有效角色置空后门禁全拒
         assertThat(permQueryEngine.hasPermissionByCode(

@@ -10,6 +10,7 @@ import cn.ac.fage.accessmesh.access.org.entity.SysOrgTreeConfig;
 import cn.ac.fage.accessmesh.access.user.entity.SysUser;
 import cn.ac.fage.accessmesh.access.org.entity.SysUserOrg;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
+import com.mybatisflex.core.util.UpdateEntity;
 
 import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
@@ -211,27 +212,47 @@ public class UserWriteAppServiceImpl implements UserWriteAppService {
             throw new BizException(AccessErrorCode.ADMIN_USER_NOT_FOUND.getCode(),
                 AccessErrorCode.ADMIN_USER_NOT_FOUND.getMessage());
         }
-        if (req.phone() != null && !req.phone().equals(user.getPhone())
+        boolean phoneClear = Boolean.TRUE.equals(req.phoneClear());
+        boolean emailClear = Boolean.TRUE.equals(req.emailClear());
+        if (!phoneClear && req.phone() != null && !req.phone().equals(user.getPhone())
             && userDomainService.existsByPhone(tenantId, req.phone())) {
             throw new BizException(AccessErrorCode.PHONE_ALREADY_EXISTS.getCode(),
                 AccessErrorCode.PHONE_ALREADY_EXISTS.getMessage());
         }
-        // 可选字段仅更新提供的字段（null 跳过，保留原值）。
+        // 可选字段仅更新提供的字段（null 跳过，保留原值）；清空走 xxxClear 显式标志（T-API-004，
+        // U006 拍板：冲突已在 DTO @AssertTrue 拒绝，此处 phoneClear=true 时 phone 必为 null）。
         // 内存对象保持旧值 → 投影 upsert 使用事实最新值，管理事实与投影一致。
         if (req.name() != null) {
             user.setName(req.name());
         }
-        if (req.phone() != null) {
+        if (phoneClear) {
+            user.setPhone(null);
+        } else if (req.phone() != null) {
             user.setPhone(req.phone());
         }
-        if (req.email() != null) {
+        if (emailClear) {
+            user.setEmail(null);
+        } else if (req.email() != null) {
             user.setEmail(req.email());
         }
         if (req.status() != null) {
             user.setStatus(req.status());
         }
         user.setUpdatedAt(LocalDateTime.now());
-        userDomainService.update(user);
+        if (phoneClear || emailClear) {
+            // 清空须强制写列：update(entity) 默认忽略 null 字段，UpdateEntity 代理记录 set(null)
+            // 为显式更新列（T-API-004，方式对齐 role extraClear——T-FE-016）
+            SysUser patch = UpdateEntity.of(SysUser.class);
+            patch.setId(user.getId());
+            patch.setName(user.getName());
+            patch.setPhone(user.getPhone());
+            patch.setEmail(user.getEmail());
+            patch.setStatus(user.getStatus());
+            patch.setUpdatedAt(user.getUpdatedAt());
+            userDomainService.update(patch);
+        } else {
+            userDomainService.update(user);
+        }
 
         Long abstractUserId = localProjectionDomainService.upsertAdminUser(
             tenantId, user.getId(), user.getName(), isEnabled(user.getStatus()));

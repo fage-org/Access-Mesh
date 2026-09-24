@@ -311,7 +311,7 @@ class TypeDefinitionAppServiceImplTest {
             .thenReturn(true);
         when(typeDefinitionMapper.selectValidById(1L, 99L)).thenReturn(null);
 
-        TypeUpdateReq req = new TypeUpdateReq(99L, "Updated", "desc", 1, null);
+        TypeUpdateReq req = new TypeUpdateReq(99L, "Updated", "desc", 1, null, null, null);
 
         BizException exception = assertThrows(BizException.class, () -> service.updateType(1L, req, 100L));
 
@@ -489,7 +489,7 @@ class TypeDefinitionAppServiceImplTest {
         when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(true);
 
         BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
-            new TypeUpdateReq(9L, null, null, null, "{\"managedMode\":\"MANAGED\"}"), 100L));
+            new TypeUpdateReq(9L, null, null, null, "{\"managedMode\":\"MANAGED\"}", null, null), 100L));
         assertEquals(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).update(any(TypeDefinition.class));
     }
@@ -509,7 +509,7 @@ class TypeDefinitionAppServiceImplTest {
         when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(true);
 
         BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
-            new TypeUpdateReq(9L, "改名", null, null, "{\"k\":1}"), 100L));
+            new TypeUpdateReq(9L, "改名", null, null, "{\"k\":1}", null, null), 100L));
         assertEquals(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
     }
 
@@ -527,7 +527,7 @@ class TypeDefinitionAppServiceImplTest {
             .thenReturn(registeredEnabledService());
         when(resourceEntityDomainService.hasValidRowsOfType(1L, 5)).thenReturn(false);
 
-        service.updateType(1L, new TypeUpdateReq(9L, null, null, null, SYNC_DECLARATION), 100L);
+        service.updateType(1L, new TypeUpdateReq(9L, null, null, null, SYNC_DECLARATION, null, null), 100L);
 
         verify(typeDefinitionMapper).update(any(TypeDefinition.class));
     }
@@ -549,8 +549,8 @@ class TypeDefinitionAppServiceImplTest {
 
         // 同声明重复提交（仅附加无关键）+ 仅改名称（extra=null 维持原声明）
         service.updateType(1L, new TypeUpdateReq(9L, null, null, null,
-            "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\",\"k\":1}"), 100L);
-        service.updateType(1L, new TypeUpdateReq(9L, "用户类型改名", null, null, null), 100L);
+            "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\",\"k\":1}", null, null), 100L);
+        service.updateType(1L, new TypeUpdateReq(9L, "用户类型改名", null, null, null, null, null), 100L);
 
         verify(typeDefinitionMapper, org.mockito.Mockito.times(2)).update(any(TypeDefinition.class));
         // 声明未变：不触发行数查询
@@ -574,7 +574,7 @@ class TypeDefinitionAppServiceImplTest {
         when(typeDefinitionMapper.selectValidById(1L, 11L)).thenReturn(apiType);
 
         service.updateType(1L, new TypeUpdateReq(11L, null, null, null,
-            "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\"}"), 100L);
+            "{\"managedMode\":\"SYNC\",\"syncSourceService\":\"access-service\"}", null, null), 100L);
 
         verify(typeDefinitionMapper).update(any(TypeDefinition.class));
         verify(resourceEntityDomainService, never()).hasValidRowsOfType(anyLong(), any());
@@ -635,7 +635,7 @@ class TypeDefinitionAppServiceImplTest {
         when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(user);
 
         BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
-            new TypeUpdateReq(9L, null, null, null, "{\"managedMode\":\"MANAGED\"}"), 100L));
+            new TypeUpdateReq(9L, null, null, null, "{\"managedMode\":\"MANAGED\"}", null, null), 100L));
         assertEquals(AccessErrorCode.TYPE_OWNERSHIP_CHANGE_CONFLICT.getCode(), ex.getErrorCode());
         // 钉死判定先于行数查询
         verify(resourceEntityDomainService, never()).hasValidRowsOfType(anyLong(), any());
@@ -656,7 +656,7 @@ class TypeDefinitionAppServiceImplTest {
         hrOrg.setIsSystem(false);
         when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(hrOrg);
 
-        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null), 100L);
+        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null, null, null), 100L);
 
         verify(treeWriteLockSupport).lockTreeWrites(1L,
             cn.ac.fage.accessmesh.access.infrastructure.TreeWriteLockSupport.TreeLockTarget.RESOURCE_ENTITY);
@@ -680,7 +680,7 @@ class TypeDefinitionAppServiceImplTest {
         groupType.setTypeValue(1);
         when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(groupType);
 
-        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null), 100L);
+        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null, null, null), 100L);
 
         verify(treeWriteLockSupport, never()).lockTreeWrites(anyLong(),
             org.mockito.ArgumentMatchers.any());
@@ -762,7 +762,7 @@ class TypeDefinitionAppServiceImplTest {
             .thenReturn(registeredEnabledService());
 
         service.updateType(1L, new TypeUpdateReq(9L, null, null, null,
-            SYNC_DECLARATION.substring(0, SYNC_DECLARATION.length() - 1) + ",\"k\":1}"), 100L);
+            SYNC_DECLARATION.substring(0, SYNC_DECLARATION.length() - 1) + ",\"k\":1}", null, null), 100L);
 
         verify(typeDefinitionMapper).update(any(TypeDefinition.class));
         // 声明未变不触发行数查询
@@ -794,13 +794,13 @@ class TypeDefinitionAppServiceImplTest {
         existing.setTypeValue(5);
         when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
 
-        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null), 100L);
+        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null, null, null), 100L);
         verify(localProjectionDomainService).upsertTypeDefinitionResource(
             1L, "resource_type", "HR_ORG", "改名");
 
         // name 未提供（仅改 sortOrder/description）不触发投影写
         org.mockito.Mockito.clearInvocations(localProjectionDomainService);
-        service.updateType(1L, new TypeUpdateReq(9L, null, "desc", 3, null), 100L);
+        service.updateType(1L, new TypeUpdateReq(9L, null, "desc", 3, null, null, null), 100L);
         verify(localProjectionDomainService, never()).upsertTypeDefinitionResource(anyLong(), any(), any(), any());
     }
 
@@ -818,7 +818,7 @@ class TypeDefinitionAppServiceImplTest {
         existing.setTypeValue(5);
         when(typeDefinitionMapper.selectValidById(1L, 9L)).thenReturn(existing);
 
-        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null), 100L);
+        service.updateType(1L, new TypeUpdateReq(9L, "改名", null, null, null, null, null), 100L);
 
         verify(typeDefinitionMapper).update(any(TypeDefinition.class));
     }
@@ -1239,7 +1239,7 @@ class TypeDefinitionAppServiceImplTest {
                 "BASIC_ROLE", "order-admin"));
         when(grantOriginDomainService.resolveOwnerRoleId(1L, newExtra)).thenReturn(77L);
 
-        service.updateType(1L, new TypeUpdateReq(9L, null, null, null, newExtra), 100L);
+        service.updateType(1L, new TypeUpdateReq(9L, null, null, null, newExtra, null, null), 100L);
 
         verify(grantOriginDomainService).rematerializeAuthorityRootGrants(1L, 5, 77L, 100L);
     }
@@ -1264,7 +1264,7 @@ class TypeDefinitionAppServiceImplTest {
         when(grantOriginDomainService.parseGrantOriginPointer("{\"k\":1}")).thenReturn(null);
         when(grantOriginDomainService.mergeGrantOriginPointer(any(), any(), any())).thenReturn(oldExtra);
 
-        service.updateType(1L, new TypeUpdateReq(9L, null, null, null, "{\"k\":1}"), 100L);
+        service.updateType(1L, new TypeUpdateReq(9L, null, null, null, "{\"k\":1}", null, null), 100L);
 
         verify(grantOriginDomainService).mergeGrantOriginPointer("{\"k\":1}", "BASIC_ROLE", "bootstrap-admin");
         verify(grantOriginDomainService, never()).rematerializeAuthorityRootGrants(anyLong(), any(), any(), any());
@@ -1288,7 +1288,7 @@ class TypeDefinitionAppServiceImplTest {
                 "BASIC_ROLE", "order-admin"));
 
         BizException ex = assertThrows(BizException.class, () -> service.updateType(1L,
-            new TypeUpdateReq(9L, null, null, null, "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"order-admin\"}}"), 100L));
+            new TypeUpdateReq(9L, null, null, null, "{\"grantOriginRole\":{\"roleTypeCode\":\"BASIC_ROLE\",\"roleExternalId\":\"order-admin\"}}", null, null), 100L));
 
         assertEquals(AccessErrorCode.PERM_INVALID_PARAM.getCode(), ex.getErrorCode());
         verify(typeDefinitionMapper, never()).update(any(TypeDefinition.class));

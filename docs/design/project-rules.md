@@ -454,6 +454,15 @@ private LocalDateTime deletedAt;
 - 实体类（Entity）**不使用** `record`（MyBatis-Flex 需要无参构造）。
 - `record` 类禁止添加 setter 方法，保持不可变性。
 
+### 7.6 可编辑字段显式清空协议（T-API-004，2026-09-24 U006 拍板）
+
+更新类 Req DTO 的可选字段统一三态语义：**未传/null=不修改**、**非空值=设置**、**`xxxClear=true`=清空为 NULL**（JSON null 无法区分「未传」与「清空」，显式布尔标志是唯一清空通道；协议详情见契约总册 §2.7）。硬约束：
+
+- 新值与 `xxxClear=true` 同传必须经 `@AssertTrue` 冲突锁拒绝（400/90001）——禁止「Clear 优先」式静默丢值（role/resource 旧口径已随 T-API-004 同批退役）。
+- 纳入协议的字符串字段空串/纯空白必须拒绝（`@Pattern(regexp = "(?s).*\\S.*")`——注意 `@Pattern` 是全串匹配语义，裸 `\\S` 只匹配单字符串）——清空唯一通道=`xxxClear`，禁止「空串=清空」双语义（biz-domain description 历史形态不推广）。
+- 服务层清空落库必须经 MyBatis-Flex `UpdateEntity` 显式 NULL 列写入——`update(entity)` 默认忽略 null 字段，直接 set null 不写列（T-PERM-028 起先例，PgIT 真库锁定）。
+- 前端表单统一公式：原值非 null 且表单清空 → `xxxClear=true`（role/resource 页既有公式）。
+
 ---
 
 ## 8. 分层架构规范

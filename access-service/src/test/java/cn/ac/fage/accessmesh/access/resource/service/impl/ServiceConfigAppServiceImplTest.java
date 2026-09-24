@@ -75,7 +75,7 @@ class ServiceConfigAppServiceImplTest {
             .thenReturn(true);
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-service")).thenReturn(null);
 
-        ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1, null);
+        ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1, null, null, null, null);
         ServiceConfigResp result = service.saveServiceConfig(1L, req, 100L);
 
         ArgumentCaptor<ServiceConfig> captor = ArgumentCaptor.forClass(ServiceConfig.class);
@@ -94,7 +94,7 @@ class ServiceConfigAppServiceImplTest {
             eq(ResourceTypeCode.SERVICE), eq((String) null), eq(OperationCode.MANAGE)))
             .thenReturn(false);
 
-        ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1, null);
+        ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1, null, null, null, null);
         assertThrows(SecurityException.class, () -> service.saveServiceConfig(1L, req, 100L));
     }
 
@@ -104,7 +104,7 @@ class ServiceConfigAppServiceImplTest {
 
         // 结构校验在查询/写入前抛错（不 stub select——校验先于 DB 访问）
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-            "{\"syncTypes\": \"EMP\"}");
+            "{\"syncTypes\": \"EMP\"}", null, null, null);
 
         BizException ex = assertThrows(BizException.class, () -> service.saveServiceConfig(1L, req, 100L));
         assertEquals(20044, ex.getErrorCode());
@@ -117,7 +117,7 @@ class ServiceConfigAppServiceImplTest {
 
         // 合法 JSON 但错误结构（分类为字符串而非数组）——保存时必须拒绝，避免运行时空白名单
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-            "{\"syncTypes\": {\"subjectTypeCodes\": \"EMP\"}}");
+            "{\"syncTypes\": {\"subjectTypeCodes\": \"EMP\"}}", null, null, null);
 
         assertThrows(BizException.class, () -> service.saveServiceConfig(1L, req, 100L));
         verify(serviceConfigMapper, never()).insert(any());
@@ -129,10 +129,10 @@ class ServiceConfigAppServiceImplTest {
 
         assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
             new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-                "{\"syncTypes\": {\"subjectTypeCodes\": [\"  \"]}}"), 100L));
+                "{\"syncTypes\": {\"subjectTypeCodes\": [\"  \"]}}", null, null, null), 100L));
         assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
             new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-                "{\"syncTypes\": {\"roleTypeCodes\": [123]}}"), 100L));
+                "{\"syncTypes\": {\"roleTypeCodes\": [123]}}", null, null, null), 100L));
         verify(serviceConfigMapper, never()).insert(any());
     }
 
@@ -143,10 +143,10 @@ class ServiceConfigAppServiceImplTest {
         // 拼写错误字段（subjectTypesCode）与多余字段必须拒绝，防止错误结构保存后解释为空白名单
         assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
             new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-                "{\"syncTypes\": {\"subjectTypesCode\": [\"EMP\"]}}"), 100L));
+                "{\"syncTypes\": {\"subjectTypesCode\": [\"EMP\"]}}", null, null, null), 100L));
         assertThrows(BizException.class, () -> service.saveServiceConfig(1L,
             new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-                "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"extra\": \"x\"}}"), 100L));
+                "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"extra\": \"x\"}}", null, null, null), 100L));
         verify(serviceConfigMapper, never()).insert(any());
     }
 
@@ -157,7 +157,7 @@ class ServiceConfigAppServiceImplTest {
 
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
             "{\"syncTypes\": {\"subjectTypeCodes\": [\"EMP\"], \"roleTypeCodes\": [\"TEAM_ROLE\"],"
-                + " \"sourceTypes\": [\"HR_MEMBER\"]}}");
+                + " \"sourceTypes\": [\"HR_MEMBER\"]}}", null, null, null);
 
         ServiceConfigResp result = service.saveServiceConfig(1L, req, 100L);
 
@@ -171,7 +171,7 @@ class ServiceConfigAppServiceImplTest {
         when(serviceConfigMapper.selectByTenantAndServiceCode(1L, "my-service")).thenReturn(null);
 
         ServiceConfigReq req = new ServiceConfigReq("my-service", "MyService", "/api", "desc", 1,
-            "{\"region\": \"CN\"}");
+            "{\"region\": \"CN\"}", null, null, null);
 
         ServiceConfigResp result = service.saveServiceConfig(1L, req, 100L);
 

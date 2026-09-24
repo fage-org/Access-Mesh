@@ -229,8 +229,10 @@ public class RoleManageAppServiceImpl implements RoleManageAppService {
         if (extra != null) role.setExtra(extra);
         role.setUpdatedAt(LocalDateTime.now());
         role.setUpdatedBy(operatorId);
-        // T-FE-016：extraClear 显式清空（JSON null 无法区分「未传」与「清空」），优先于 extra——
-        // 对齐 T-PERM-028 资源域标准方式。extra 置 null 须强制写列：BaseMapper.update(entity)
+        // T-FE-016：extraClear 显式清空（JSON null 无法区分「未传」与「清空」）——
+        // T-API-004 起 extra 与 extraClear 同传在 DTO @AssertTrue 拒绝（U006 拍板：
+        // 全端点冲突拒绝），本分支仅 extra=null 可达（旧「Clear 优先于 extra」口径退役）。
+        // extra 置 null 须强制写列：BaseMapper.update(entity)
         // 默认忽略 null 字段，UpdateEntity 代理记录 set 调用（含 null 入参）为显式更新列
         if (Boolean.TRUE.equals(extraClear)) {
             role.setExtra(null);

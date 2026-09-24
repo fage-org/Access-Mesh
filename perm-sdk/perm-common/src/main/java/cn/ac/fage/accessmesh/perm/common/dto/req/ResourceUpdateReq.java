@@ -1,5 +1,6 @@
 package cn.ac.fage.accessmesh.perm.common.dto.req;
 
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
 
 /**
@@ -8,7 +9,8 @@ import jakarta.validation.constraints.NotBlank;
  * 以业务键 (resourceTypeCode, code, codeType) 定位待更新资源（T-PERM-028 定稿，
  * 契约见 api-contract 总册 §12.1「业务键定位」），业务键字段不可更新（编码为稳定标识；
  * 原 id 定位 + code 可更新形态已删除）。extraClear 用于显式清空 extra（JSON null
- * 无法区分「未传」与「清空」）。
+ * 无法区分「未传」与「清空」）；T-API-004 起与 extra 同传拒绝——取代旧「true 优先于
+ * extra」的静默丢值口径（U006 拍板全端点冲突拒绝）。
  * </p>
  */
 public record ResourceUpdateReq(
@@ -41,7 +43,15 @@ public record ResourceUpdateReq(
      */
     String extra,
     /**
-     * 清空 extra 为 null 的显式标志，可选；true 时优先于 extra
+     * 清空 extra 为 null 的显式标志，可选；与 extra 同传拒绝（T-API-004）
      */
     Boolean extraClear
-) {}
+) {
+    /**
+     * T-API-004（U006 拍板：全端点冲突拒绝）：新值与 Clear 同传拒绝。
+     */
+    @AssertTrue(message = "extra 与 extraClear 不能同时提供（清空请只传 extraClear=true）")
+    public boolean isExtraConflictFree() {
+        return extra == null || !Boolean.TRUE.equals(extraClear);
+    }
+}

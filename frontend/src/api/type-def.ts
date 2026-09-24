@@ -110,8 +110,13 @@ export type TypeDefUpdateReq = {
   typeId: number;
   name?: string;
   description?: string | null;
+  /** 描述显式清空（T-API-004）：true=清空 description 为 NULL；与 description 同传后端 400 */
+  descriptionClear?: boolean;
   sortOrder?: number;
   extra?: string | null;
+  /** extra 不支持清空（U006 拍板：含服务端管理键，后端对任何非 null 值 400）——
+   *  类型仅为契约留档，前端不传 */
+  extraClear?: boolean;
 };
 
 // ========== API 函数 ==========

@@ -11,6 +11,7 @@ import cn.ac.fage.accessmesh.access.resource.dto.resp.ApiMappingResp;
 import cn.ac.fage.accessmesh.access.resource.dto.resp.ServiceConfigResp;
 import cn.ac.fage.accessmesh.access.resource.entity.ResourceApiMapping;
 import cn.ac.fage.accessmesh.access.resource.entity.ServiceConfig;
+import com.mybatisflex.core.util.UpdateEntity;
 import cn.ac.fage.accessmesh.access.infrastructure.enums.AccessErrorCode;
 import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
 import cn.ac.fage.accessmesh.access.resource.mapper.ResourceApiMappingMapper;
@@ -102,6 +103,20 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
+        // 值域校验先于门禁（T-PERM-067 先例：门禁先行会使非法载荷报安全拒绝而非业务拒绝）：
+        // 创建分支不接受清空标志（T-API-004）——新建无既有值可清，字段缺省即为空，
+        // 携带即失败暴露调用方语义错位（与 @AssertTrue 冲突拒绝同族 fail-fast）。
+        // upsert 语义下仅创建分支拒绝；存在行的更新分支走合法清空（存在性预判仅 clear 载荷触发）。
+        boolean anyClearFlag = Boolean.TRUE.equals(req.basePathClear())
+            || Boolean.TRUE.equals(req.descriptionClear())
+            || Boolean.TRUE.equals(req.extraClear());
+        if (anyClearFlag
+            && serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode()) == null) {
+            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                AccessErrorCode.PERM_INVALID_PARAM.getMessage()
+                    + ": 创建服务配置不接受 basePathClear/descriptionClear/extraClear（新建字段直接省略即为空）");
+        }
+
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
@@ -133,13 +148,44 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
             serviceConfigMapper.insert(config);
             return toServiceConfigResp(config);
         }
+        boolean basePathClear = Boolean.TRUE.equals(req.basePathClear());
+        boolean descriptionClear = Boolean.TRUE.equals(req.descriptionClear());
+        boolean extraClear = Boolean.TRUE.equals(req.extraClear());
         if (req.name() != null) config.setName(req.name());
-        if (req.basePath() != null) config.setBasePath(req.basePath());
-        if (req.description() != null) config.setDescription(req.description());
+        if (basePathClear) {
+            config.setBasePath(null);
+        } else if (req.basePath() != null) {
+            config.setBasePath(req.basePath());
+        }
+        if (descriptionClear) {
+            config.setDescription(null);
+        } else if (req.description() != null) {
+            config.setDescription(req.description());
+        }
         if (req.status() != null) config.setStatus(req.status());
-        if (req.extra() != null) config.setExtra(req.extra());
+        if (extraClear) {
+            // extra 清空语义（U006 拍板）=撤销 extra.syncTypes 同步白名单声明：
+            // 该服务 user/role 同步通道全拒（fail-closed），可逆（重新提交 extra 即恢复）
+            config.setExtra(null);
+        } else if (req.extra() != null) {
+            config.setExtra(req.extra());
+        }
         config.setUpdatedAt(LocalDateTime.now());
-        serviceConfigMapper.update(config);
+        if (basePathClear || descriptionClear || extraClear) {
+            // 清空须强制写列（T-API-004）：update(entity) 默认忽略 null 字段，
+            // UpdateEntity 代理记录 set(null) 为显式更新列（role extraClear 同款）
+            ServiceConfig patch = UpdateEntity.of(ServiceConfig.class);
+            patch.setId(config.getId());
+            patch.setName(config.getName());
+            patch.setBasePath(config.getBasePath());
+            patch.setDescription(config.getDescription());
+            patch.setStatus(config.getStatus());
+            patch.setExtra(config.getExtra());
+            patch.setUpdatedAt(config.getUpdatedAt());
+            serviceConfigMapper.update(patch);
+        } else {
+            serviceConfigMapper.update(config);
+        }
         return toServiceConfigResp(config);
     }
 

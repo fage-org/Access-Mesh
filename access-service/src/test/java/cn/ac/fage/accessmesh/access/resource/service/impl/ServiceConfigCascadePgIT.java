@@ -285,7 +285,7 @@ class ServiceConfigCascadePgIT {
             ResourceManageAppService manageService = newResourceManageAppService(permitAllEngine());
 
             var resp = manageService.updateApiMapping(TENANT, new cn.ac.fage.accessmesh.access.resource.dto.req.ApiMappingUpdateReq(
-                resource.getId(), mapping.getId(), "PUT", "/pgit27/d/1-v2", 5, true, null));
+                resource.getId(), mapping.getId(), "PUT", "/pgit27/d/1-v2", 5, true, null, null));
 
             assertThat(resp.httpMethod()).isEqualTo("PUT");
             assertThat(resp.pathPattern()).isEqualTo("/pgit27/d/1-v2");

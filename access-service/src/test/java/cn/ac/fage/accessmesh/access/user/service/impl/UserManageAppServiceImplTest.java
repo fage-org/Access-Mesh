@@ -142,7 +142,7 @@ class UserManageAppServiceImplTest {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
             assertThrows(SecurityException.class,
-                () -> service.updateUser(1L, new AbstractUserUpdateReq(77L, "新名", null, null)));
+                () -> service.updateUser(1L, new AbstractUserUpdateReq(77L, "新名", null, null, null)));
         }
         verify(abstractUserMapper, org.mockito.Mockito.never()).update(any(AbstractUser.class));
     }
@@ -158,7 +158,25 @@ class UserManageAppServiceImplTest {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
             assertThrows(SecurityException.class,
-                () -> service.updateUser(1L, new AbstractUserUpdateReq(77L, null, null, "{\"k\":1}")));
+                () -> service.updateUser(1L, new AbstractUserUpdateReq(77L, null, null, "{\"k\":1}", null)));
+        }
+        verify(abstractUserMapper, org.mockito.Mockito.never()).update(any(AbstractUser.class));
+    }
+
+    /** T-API-004 双轨评审 P1：extraClear-only 清空同属 extra 变更，须查 USER:UPDATE——
+     * 门禁条件曾漏计 extraClear（DTO 冲突锁保证 extraClear=true 时 extra 必 null），
+     * 无 UPDATE 权限者可清空他人 extra；本用例在漏计实现下不抛异常必红。 */
+    @Test
+    void shouldRejectUpdateUserExtraClearOnlyWhenUpdateDenied() {
+        when(subjectDomainService.selectValidUserById(1L, 77L)).thenReturn(externalUser(77L));
+        when(engine.hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
+            eq("77"), eq(OperationCode.UPDATE))).thenReturn(false);
+
+        try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
+            operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
+
+            assertThrows(SecurityException.class,
+                () -> service.updateUser(1L, new AbstractUserUpdateReq(77L, null, null, null, true)));
         }
         verify(abstractUserMapper, org.mockito.Mockito.never()).update(any(AbstractUser.class));
     }
@@ -174,7 +192,7 @@ class UserManageAppServiceImplTest {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
             assertThrows(SecurityException.class,
-                () -> service.updateUser(1L, new AbstractUserUpdateReq(77L, null, false, null)));
+                () -> service.updateUser(1L, new AbstractUserUpdateReq(77L, null, false, null, null)));
         }
         verify(abstractUserMapper, org.mockito.Mockito.never()).update(any(AbstractUser.class));
     }
@@ -191,7 +209,7 @@ class UserManageAppServiceImplTest {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
             assertThrows(SecurityException.class,
-                () -> service.updateUser(1L, new AbstractUserUpdateReq(77L, "新名", false, null)));
+                () -> service.updateUser(1L, new AbstractUserUpdateReq(77L, "新名", false, null, null)));
         }
         verify(engine).hasPermissionByCode(eq(1L), eq(100L), eq(ResourceTypeCode.USER),
             eq("77"), eq(OperationCode.ENABLE));
@@ -210,7 +228,7 @@ class UserManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
-            service.updateUser(1L, new AbstractUserUpdateReq(100L, "自改名", null, null));
+            service.updateUser(1L, new AbstractUserUpdateReq(100L, "自改名", null, null, null));
         }
         verify(engine, org.mockito.Mockito.never()).hasPermissionByCode(anyLong(), anyLong(),
             org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.any(),
@@ -230,7 +248,7 @@ class UserManageAppServiceImplTest {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
             assertThrows(SecurityException.class,
-                () -> service.updateUser(1L, new AbstractUserUpdateReq(100L, null, false, null)));
+                () -> service.updateUser(1L, new AbstractUserUpdateReq(100L, null, false, null, null)));
         }
         verify(abstractUserMapper, org.mockito.Mockito.never()).update(any(AbstractUser.class));
     }
@@ -255,7 +273,7 @@ class UserManageAppServiceImplTest {
         try (MockedStatic<OperatorContext> operatorContext = org.mockito.Mockito.mockStatic(OperatorContext.class)) {
             operatorContext.when(OperatorContext::getOperatorId).thenReturn(100L);
 
-            service.updateUser(1L, new AbstractUserUpdateReq(77L, "新名", false, null));
+            service.updateUser(1L, new AbstractUserUpdateReq(77L, "新名", false, null, null));
         }
 
         verify(localProjectionDomainService).upsertUserResource(1L, 77L, "新名", false);

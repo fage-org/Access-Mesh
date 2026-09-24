@@ -34,6 +34,12 @@ export type ServiceConfigSaveReq = {
   description?: string | null;
   status?: number;
   extra?: string | null;
+  /** 显式清空标志（T-API-004）：true=对应字段清为 NULL；与新值同传后端 400；
+   *  仅更新分支有效，创建分支携带被拒（新建字段省略即为空）。
+   *  extraClear 语义=撤销 extra.syncTypes 同步白名单（该服务同步通道全拒，fail-closed） */
+  basePathClear?: boolean;
+  descriptionClear?: boolean;
+  extraClear?: boolean;
 };
 
 export type ApiMappingResp = {
@@ -76,6 +82,8 @@ export type ApiMappingUpdateReq = {
   matchOrder?: number | null;
   enabled?: boolean;
   extra?: string | null;
+  /** extra 显式清空（T-API-004）：true=清空 extra 为 NULL；与 extra 同传后端 400 */
+  extraClear?: boolean;
 };
 
 /** operationCode 已退役（T-PERM-053，2026-09-05）：接口权限模型无操作粒度，运行时固定 ACCESS。 */
