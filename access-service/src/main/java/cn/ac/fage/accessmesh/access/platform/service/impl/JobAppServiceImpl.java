@@ -245,13 +245,13 @@ public class JobAppServiceImpl implements JobAppService {
         targetId = "#req.id()", summary = "'update job ' + #req.id()")
     public void updateJob(JobUpdateReq req) {
         Long tenantId = TenantContextHolder.getTenantId();
+        // 权限检查 — 实例级 UPDATE。先门禁后存在（T-ACCESS-054 双轨评审处置，T-ADMIN-029
+        // 公告族同型先例）：先查存在会让无权限用户凭 JOB_NOT_FOUND 与 403 的差异探测 id 存在性
+        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, req.id().toString(), OperationCode.UPDATE);
         SysJob existing = jobMapper.selectValidById(tenantId, req.id());
         if (existing == null) {
             throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
-
-        // 权限检查 — 实例级 UPDATE
-        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, req.id().toString(), OperationCode.UPDATE);
 
         // 若当前正在运行，先取消调度
         if (existing.getStatus() == JOB_STATUS_ENABLED) {
@@ -328,13 +328,13 @@ public class JobAppServiceImpl implements JobAppService {
         targetId = "#id", summary = "'toggle job ' + #id")
     public void toggleJobStatus(Long id, Integer status) {
         Long tenantId = TenantContextHolder.getTenantId();
+        // 权限检查 — 实例级 ENABLE（启用/禁用共用，toggle 语义，v1.4 合并）。
+        // 先门禁后存在（T-ACCESS-054 双轨评审处置，同 updateJob/triggerJob 形态）
+        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, id.toString(), OperationCode.ENABLE);
         SysJob job = jobMapper.selectValidById(tenantId, id);
         if (job == null) {
             throw new BizException(AccessErrorCode.JOB_NOT_FOUND.getCode(), AccessErrorCode.JOB_NOT_FOUND.getMessage());
         }
-
-        // 权限检查 — 实例级 ENABLE（启用/禁用共用，toggle 语义，v1.4 合并）
-        permissionValidator.checkInstanceLevel(ResourceTypeCode.ADMIN_JOB, id.toString(), OperationCode.ENABLE);
 
         job.setStatus(status);
         job.setUpdatedAt(LocalDateTime.now());
@@ -383,6 +383,8 @@ public class JobAppServiceImpl implements JobAppService {
     @Override
     public JobResp getJob(Long id) {
         Long tenantId = TenantContextHolder.getTenantId();
+        // T-ACCESS-054：读端点补 ADMIN_JOB:VIEW 类型级门禁（此前零门禁——任意登录用户可翻任务配置）
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
         SysJob job = jobMapper.selectValidById(tenantId, id);
         return JobResp.from(job);
     }
@@ -400,6 +402,8 @@ public class JobAppServiceImpl implements JobAppService {
     @Override
     public PageResp<JobResp> pageJobs(PageReq pageReq, String jobGroup) {
         Long tenantId = TenantContextHolder.getTenantId();
+        // T-ACCESS-054：读端点补 ADMIN_JOB:VIEW 类型级门禁（任务配置含 invokeTarget/cron）
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
 
@@ -430,6 +434,8 @@ public class JobAppServiceImpl implements JobAppService {
     @Override
     public PageResp<JobLogResp> pageJobLogs(JobLogPageReq pageReq, Long jobId) {
         Long tenantId = TenantContextHolder.getTenantId();
+        // T-ACCESS-054：读端点补 ADMIN_JOB:VIEW 类型级门禁（执行日志含任务摘要/失败原因）
+        permissionValidator.checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
         int pageNum = pageReq.getPageNum();
         int pageSize = pageReq.getPageSize();
 

@@ -377,28 +377,26 @@ class DualInstanceCacheInvalidationTest {
     }
 
     /**
-     * Q-006（T-ACCESS-048）：滚动发布期新旧实例并存——旧实例写 1:admin:org-visibility:*、
-     * 新实例写 1:access:org-visibility:*。写路径失效序列（flush 4.5 步：新 code evictAll +
-     * legacy 别名 evictAll，两次调用的行为锁见 PermissionChangeAspectTest）必须同批清掉
-     * 共享 Redis 上两命名空间的键——只清新命名空间时旧键仅靠 TTL 消亡（最长 60s 失效不可见）。
+     * L2_ONLY 目录租户级 evictAll 的 store 层前缀扫描锁（原 Q-006/T-ACCESS-048 滚动改名
+     * 用例的保留半边——T-ACCESS-054 删除 evict-only 别名与第二次 evictAll 后，
+     * 仅保留「evictAll 按 {tenantId}:{catalogCode}:* 前缀精确清本命名空间键」的能力断言；
+     * aspect 层两次 evictAll 的行为锁随别名删除退役）。
      */
     @Test
-    void orgVisibilityRollingRename_flushEvictAllShouldClearBothNamespaces() {
+    void orgVisibilityEvictAll_shouldClearOnlyItsNamespaceKeys() {
         redis.store.put("1:access:org-visibility:7",
-            new FakeRedis.Entry("\"new-code\"", System.currentTimeMillis() + 60_000));
-        redis.store.put("1:admin:org-visibility:9",
-            new FakeRedis.Entry("\"legacy-code\"", System.currentTimeMillis() + 60_000));
+            new FakeRedis.Entry("\"operator-7\"", System.currentTimeMillis() + 60_000));
+        redis.store.put("1:admin:dict-types:all",
+            new FakeRedis.Entry("\"dict\"", System.currentTimeMillis() + 60_000));
 
-        // flush 序列（PermissionChangeAspect.flush 4.5 步）：新 code 与 legacy 别名同批 evictAll。
-        // ORG_VISIBILITY 是 L2_ONLY——evictAll 走专用 RedissonBucketStore（对齐 upstreamL2Backfill
-        // 用例的构造形态），按 {tenantId}:{catalogCode}:* 前缀扫描即 Q-006 的失效不可见根因面
+        // ORG_VISIBILITY 是 L2_ONLY——evictAll 走专用 RedissonBucketStore，
+        // 按 {tenantId}:{catalogCode}:* 前缀扫描，不波及其他目录命名空间
         CacheService l2OnlyInstance = new DefaultCacheService(null,
             new RedissonBucketStore(redis.client(), objectMapper, redis.meterRegistry, properties),
             null, properties, null);
         l2OnlyInstance.evictAll(AccessCacheCatalog.ORG_VISIBILITY, TENANT_ID);
-        l2OnlyInstance.evictAll(AccessCacheCatalog.ORG_VISIBILITY_LEGACY, TENANT_ID);
 
         assertThat(redis.store).doesNotContainKey("1:access:org-visibility:7");
-        assertThat(redis.store).doesNotContainKey("1:admin:org-visibility:9");
+        assertThat(redis.store).containsKey("1:admin:dict-types:all");
     }
 }

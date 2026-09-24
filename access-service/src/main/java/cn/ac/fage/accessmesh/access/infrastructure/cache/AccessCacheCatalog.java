@@ -18,7 +18,8 @@ import java.util.Set;
  * 全部条目 mode/TTL 零改动；`admin:org-visibility` 越域命名归位为
  * `access:org-visibility`——该条目读写在 org 能力、失效由权限变更触发，
  * 跨能力归属取服务级前缀；空库无存量键迁移负担（L2 键随 TTL 自然消亡），
- * 不做兼容双读（滚动发布边界登记见 docs/pending-problems.md Q-006）。
+ * 不做兼容双读。改名过渡期的 evict-only 别名（Q-006，T-ACCESS-048）已随滚动发布
+ * 窗口关闭整体删除（T-ACCESS-054，2026-09-24 用户确认无旧构建实例在跑）。
  * TTL 为 {@link Duration} 秒级精度。
  * </p>
  *
@@ -191,25 +192,6 @@ public final class AccessCacheCatalog {
     public static final CacheCatalogEntry<Set<Long>> ORG_VISIBILITY =
         CacheCatalogEntry.<Set<Long>>builder()
             .code("access:org-visibility")
-            .mode(CacheMode.L2_ONLY)
-            .l2Ttl(Duration.ofSeconds(60))
-            .valueType(new TypeRef<Set<Long>>() {})
-            .build();
-
-    /**
-     * ORG_VISIBILITY 旧命名空间的 evict-only 兼容别名（Q-006，T-ACCESS-048）
-     * <p>
-     * 仅供写路径失效（PermissionChangeAspect.flush）同批清除 T-ACCESS-039 改名前
-     * 旧实例写入的 {tenantId}:admin:org-visibility:* 残留键——滚动发布期新旧实例并存时，
-     * 只 evict 新命名空间会让旧实例命名的键仅靠 TTL 消亡（最长 60s 失效不可见）。
-     * <b>禁止用于 get/put 读写</b>——读写一律走 {@link #ORG_VISIBILITY}；
-     * L2_ONLY 与现条目一致（不建 L1、不触发失效广播），TTL 仅占位（无读取路径，不生效）。
-     * 滚动发布过渡窗口结束后整体删除（同步删除 flush 的第二次 evictAll 与本条目）。
-     * </p>
-     */
-    public static final CacheCatalogEntry<Set<Long>> ORG_VISIBILITY_LEGACY =
-        CacheCatalogEntry.<Set<Long>>builder()
-            .code("admin:org-visibility")
             .mode(CacheMode.L2_ONLY)
             .l2Ttl(Duration.ofSeconds(60))
             .valueType(new TypeRef<Set<Long>>() {})

@@ -216,7 +216,9 @@ class AccessBootstrapPgIT {
         // 同样要求先持有）；含 SERVICE 四操作类型级 VIEW/MANAGE/MANAGE_API_MAPPING/SYNC_INTERFACE
         // 与 API:ACCESS 类型级+canGrant、OPERATION_LOG:VIEW、PERMISSION_CHANGE_LOG:VIEW、DOMAIN:VIEW、
         // CONFLICT_RULE 与 CONDITION 写各档、DEPENDENCY:VIEW（写档随 T-PERM-071 MANIFEST 独占写入退役）、
-        // TYPE_DEFINITION 写两档、ADMIN_NOTICE 五档类型级（T-ADMIN-029：VIEW/CREATE/UPDATE/DELETE/PUBLISH）
+        // TYPE_DEFINITION 写两档、ADMIN_NOTICE 五档类型级（T-ADMIN-029：VIEW/CREATE/UPDATE/DELETE/PUBLISH）、
+        // ADMIN_JOB 最小运营三档类型级（T-ACCESS-054：VIEW/TRIGGER/ENABLE——T-PERM-073 按需手动
+        // 触发/启用周期巡检的正规入口；CREATE/UPDATE/DELETE 维持无种子）
         // + 每条在册 API 路由派生一条 API:ACCESS 实例授权（各联调任务按页注册，见
         // BootstrapGraphDefinition.apiRoutes()）；canGrant=true=目标 API 实例、API:ACCESS 类型级
         // 与 T-ACCESS-052 最小集四条（SERVICE:MANAGE/MANAGE_API_MAPPING、ORG:MANAGE_MEMBER、
@@ -224,7 +226,7 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND grant_source = 'MANUAL'",
-            Long.class, TENANT, roleId)).isEqualTo(148L);
+            Long.class, TENANT, roleId)).isEqualTo(151L);
 
         // 系统任务种子（T-PERM-073，2026-09-21 用户定案）：默认停用、预置 cron；invokeTarget
         // 必须经 @JobInvocable 白名单真实解析（防拼写漂移到首次手动触发才暴露）且 String
@@ -241,7 +243,24 @@ class AccessBootstrapPgIT {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND scope_all = true",
-            Long.class, TENANT, roleId)).isEqualTo(50L);
+            Long.class, TENANT, roleId)).isEqualTo(53L);
+        // T-ACCESS-054（U010 拍板）：ADMIN_JOB 最小运营三行精确锁——VIEW bit2/TRIGGER bit64/
+        // ENABLE bit16（DDL 扩展码组），scopeAll 类型级、不可转授；负向锁=ADMIN_JOB 无其他
+        // scopeAll 行（CREATE/UPDATE/DELETE 无种子为拍板收窄形态，防混入后靠总量断言漏检）
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
+                + "AND delete_flag = 0 AND scope_all = true AND can_grant = false "
+                + "AND granted_bits IN (2, 16, 64) "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
+                + "AND type_key = 'resource_type' AND type_code = 'ADMIN_JOB' AND delete_flag = 0)",
+            Long.class, TENANT, roleId, TENANT)).isEqualTo(3L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
+                + "AND delete_flag = 0 AND scope_all = true "
+                + "AND granted_bits NOT IN (2, 16, 64) "
+                + "AND resource_type = (SELECT type_value FROM type_definition WHERE tenant_id = ? "
+                + "AND type_key = 'resource_type' AND type_code = 'ADMIN_JOB' AND delete_flag = 0)",
+            Long.class, TENANT, roleId, TENANT)).isZero();
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM role_resource_permission WHERE tenant_id = ? AND abstract_role_id = ? "
                 + "AND delete_flag = 0 AND can_grant = true",

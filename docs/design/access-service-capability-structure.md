@@ -3,7 +3,7 @@ doc_type: design
 title: access-service 能力包结构与两域融合
 status: adopted
 domain: cross-service
-last_reviewed: 2026-09-15 Q-009 收敛退役：§4 裁决表 row9 与 §8.4 豁免 6 冻结基线转历史注记 + 规则 1 零容忍化（负向样例改 menu.fixture 夹具）+ 四批收敛进度注记（T-ACCESS-043~046）；此前 2026-09-15 文档与叙事第三项落地 + §9 补三行修订对照；域叙事词汇=管理面/权限面）；此前 2026-09-13（T-ACCESS-039：§3/§8.2/§9 缓存目录合一收口——单册 AccessCacheCatalog、admin:org-visibility 越域归位 access:org-visibility、mode/TTL 零改动）；此前 2026-09-13（T-ACCESS-038：§3/§8.2/§9 错误码合一收口——单册 AccessErrorCode、碰撞三组 ADMIN_/PERM_ 段前缀、能力无专属段规则成文）；此前 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
+last_reviewed: 2026-09-24（T-ACCESS-054：§3/§8.2 legacy 别名终态口径——Q-006 过渡窗口关闭整体删除）； 2026-09-15 Q-009 收敛退役：§4 裁决表 row9 与 §8.4 豁免 6 冻结基线转历史注记 + 规则 1 零容忍化（负向样例改 menu.fixture 夹具）+ 四批收敛进度注记（T-ACCESS-043~046）；此前 2026-09-15 文档与叙事第三项落地 + §9 补三行修订对照；域叙事词汇=管理面/权限面）；此前 2026-09-13（T-ACCESS-039：§3/§8.2/§9 缓存目录合一收口——单册 AccessCacheCatalog、admin:org-visibility 越域归位 access:org-visibility、mode/TTL 零改动）；此前 2026-09-13（T-ACCESS-038：§3/§8.2/§9 错误码合一收口——单册 AccessErrorCode、碰撞三组 ADMIN_/PERM_ 段前缀、能力无专属段规则成文）；此前 2026-09-13（T-ACCESS-040：§7 文档与叙事三项执行完毕——契约总册落地/旧册 superseded/内档迁 engine 文档位）
 ---
 
 # access-service 能力包结构与两域融合
@@ -70,7 +70,7 @@ last_reviewed: 2026-09-15 Q-009 收敛退役：§4 裁决表 row9 与 §8.4 豁�
 ## 3. 设施收敛
 
 - **错误码**：合类不合号——已合一为单册 `infrastructure.enums.AccessErrorCode`（T-ACCESS-038，2026-09-13），`1xxxx`、`2xxxx` 编号段原值保留、不重排（architecture §9 分段与不重编号的字面保持）；同名异号三组（USER_NOT_FOUND/USER_ALREADY_EXISTS/INVALID_PARAM）以 `ADMIN_`/`PERM_` 段前缀消解；新增码归属段规则=**能力无专属段**、按错误业务语义选段（architecture §9 成文）。
-- **缓存目录**：已合一为单册 `infrastructure.cache.AccessCacheCatalog`（T-ACCESS-039，2026-09-13；OPERATION_CODE 死条目已随 T-ACCESS-034 删除），全部条目 mode/TTL 零改动；`admin:org-visibility` 越域命名归位为 `access:org-visibility`（跨能力条目取服务级前缀，不做兼容双读；Q-006 滚动发布边界已随 T-ACCESS-048 实施——legacy 别名同批 evict）。
+- **缓存目录**：已合一为单册 `infrastructure.cache.AccessCacheCatalog`（T-ACCESS-039，2026-09-13；OPERATION_CODE 死条目已随 T-ACCESS-034 删除），全部条目 mode/TTL 零改动；`admin:org-visibility` 越域命名归位为 `access:org-visibility`（跨能力条目取服务级前缀，不做兼容双读；Q-006 滚动发布边界曾以 T-ACCESS-048 legacy 别名同批 evict 过渡，别名已随 T-ACCESS-054〔2026-09-24〕过渡窗口关闭整体删除）。
 - **操作码**：见 §5.1。
 
 ## 4. 概念边界维持项（不合并清单）
@@ -406,7 +406,7 @@ Mapper XML 随包迁移：`resources/mapper/query/*.xml` → `resources/mapper/{
 | infrastructure 现有底座：AccessRequestContext、CallerType、JsonbStringTypeHandler、MybatisFlexTenantConfig、MybatisFlexTypeHandlerConfig、OAuth2JwtSupport、OAuth2ResourcePathProperties、RequestContext、RequestContextInterceptor、SecurityAttributes、SignatureVerifier、TenantContextHolder、TimestamptzLocalDateTimeTypeHandler、TreeWriteLockSupport、infrastructure.util.HttpRequestUtils、SensitiveDataUtils | 原位 | 照旧 |
 | permission.config：HeaderSignatureInterceptor、SecurityWebMvcConfig、AsyncConfig（InternalApiSecretInterceptor 已随 T-PERM-070 删除——ServiceAuthArbiter 取代〔凭证+旧密钥双策略〕；新增 infrastructure.credential 子包承载 service_credential 全链，结构断言零改动） | infrastructure.config | 安全拦截器/异步配置 |
 | permission.aop.PermissionChangeAspect + infrastructure.PermissionChange、PermissionChangeContext | infrastructure | 缓存失效横切（事务后广播） |
-| permission.cache：PermInvalidationPublisher、PermCacheBoundaryValidator；admin.cache.**AdminCacheCatalog** + permission.cache.**PermCacheCatalog** | infrastructure.cache（039 已合一为单册 **AccessCacheCatalog**，两旧册消亡） | `admin:org-visibility` 同任务归位 `access:org-visibility`；条目 mode/TTL 零改动；Q-006 滚动发布边界已随 T-ACCESS-048 实施（legacy 别名同批 evict） |
+| permission.cache：PermInvalidationPublisher、PermCacheBoundaryValidator；admin.cache.**AdminCacheCatalog** + permission.cache.**PermCacheCatalog** | infrastructure.cache（039 已合一为单册 **AccessCacheCatalog**，两旧册消亡） | `admin:org-visibility` 同任务归位 `access:org-visibility`；条目 mode/TTL 零改动；Q-006 legacy 别名已随 T-ACCESS-054 过渡窗口关闭删除 |
 | permission.util：OperatorContext、OperatorUtil、SecurityUtils、StringUtils、PageUtil、PermissionConstants、TreeBuilder；permission.util.SecurityEventType、SecurityLogUtil | infrastructure.util | 跨能力通用（Operator 族消费面横跨全部能力与写编排；PermissionConstants 消费面 grant/resource/role/user；TreeBuilder 消费面 role/resource；SecurityLog/EventType 随拦截器） |
 | **任务治理设施（裁决 4）**：admin.service.domain.TaskExecutionDomainService/Impl、JobInvokeDomainService/Impl；admin.config.TaskExecutorConfig；admin.schedule：JobScheduleReconciler、TaskLeaseTakeoverScheduler；infrastructure.entity.SysTaskExecution；infrastructure.task：JobInvocable、TaskExecutionContext；**SysTaskExecutionMapper → infrastructure.mapper**（§8.1 mapper 子包约定） | infrastructure.task（mapper 接口除外） | 唯一消费方=platform job 链（JobAppServiceImpl 跨包调用） |
 | admin.dto.req.**IdsReq** + permission.dto.req.**EmptyReq** | infrastructure.dto | 跨能力共享 DTO（IdsReq 消费面横跨 platform/user/org 诸能力 Controller 与 Service；EmptyReq 消费面 rule+resource） |

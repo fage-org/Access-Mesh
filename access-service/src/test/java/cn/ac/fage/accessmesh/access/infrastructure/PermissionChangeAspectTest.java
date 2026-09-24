@@ -119,8 +119,6 @@ class PermissionChangeAspectTest {
         verify(subjectDomainService).invalidateRoleCacheByRoles(eq(1L), eq(Set.of(200L)));
         verify(cacheService).evictBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(200L)));
         verify(cacheService).evictAll(eq(AccessCacheCatalog.ORG_VISIBILITY), eq(1L));
-        // Q-006（T-ACCESS-048）：旧命名空间别名必须同批失效（滚动发布期双命名空间残留键）
-        verify(cacheService).evictAll(eq(AccessCacheCatalog.ORG_VISIBILITY_LEGACY), eq(1L));
         verify(publisher).publish(eq(1L), eq(Set.of(200L)), any(), any());
 
         // 完成后（afterCompletion）：ThreadLocal 清理
@@ -151,8 +149,6 @@ class PermissionChangeAspectTest {
         verify(subjectDomainService).invalidateRoleCacheByRoles(eq(1L), eq(Set.of(200L)));
         verify(cacheService).evictBatch(eq(AccessCacheCatalog.ROLE_PERM_SNAPSHOT), eq(1L), eq(Set.of(200L)));
         verify(cacheService).evictAll(eq(AccessCacheCatalog.ORG_VISIBILITY), eq(1L));
-        // Q-006（T-ACCESS-048）：无事务立即 flush 路径同样必须同批失效旧命名空间别名
-        verify(cacheService).evictAll(eq(AccessCacheCatalog.ORG_VISIBILITY_LEGACY), eq(1L));
         verify(publisher).publish(eq(1L), eq(Set.of(200L)), any(), any());
         // clear 执行
         assertNull(PermissionChangeContext.snapshot());

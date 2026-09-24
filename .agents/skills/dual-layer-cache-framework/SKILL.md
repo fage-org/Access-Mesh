@@ -171,7 +171,7 @@ public final class AccessCacheCatalog {
 - 默认 TTL 和容量优先写在 catalog 常量中（`Duration` 秒级精度；分钟字段 `l1TtlMinutes`/`l2TtlMinutes` 及 YAML `l1-expire-minutes`/`l2-ttl-minutes` 已删除，无兼容别名）
 - 运维需要覆盖时再用 `accessmesh.cache.default-config.*` 和 `accessmesh.cache.catalogs.*`（如 `accessmesh.cache.catalogs."[perm:effective-roles]".l2-ttl: 10s`）
 - **覆盖键按 catalog code 精确匹配，未知 code 的覆盖静默不生效**——`PermCacheBoundaryValidator` 启动期对未知 code 覆盖键打 WARN（Q-006，T-ACCESS-048）；catalog code 改名后旧 Nacos 覆盖键即属此类
-- **evict-only 别名条目**（Q-006，T-ACCESS-048）：catalog code 改名后滚动发布期新旧实例并存，旧命名空间 `{tenantId}:<旧code>:*` 键按前缀扫描互不可删——改名条目须配一个同 valueType/同 mode 的旧 code 别名（如 `ORG_VISIBILITY_LEGACY`），写路径失效同批两次 `evictAll`（新 code + 别名）；别名**禁止用于 get/put**，过渡窗口结束后整体删除；TTL 覆盖键的未知 code 检测须把别名排除在已知集合外（别名无读取路径，旧 code 残留覆盖恰是要告警对象）
+- **evict-only 别名条目**（Q-006，T-ACCESS-048）：catalog code 改名后滚动发布期新旧实例并存，旧命名空间 `{tenantId}:<旧code>:*` 键按前缀扫描互不可删——改名条目须配一个同 valueType/同 mode 的旧 code 别名（先例 `ORG_VISIBILITY_LEGACY`），写路径失效同批两次 `evictAll`（新 code + 别名）；别名**禁止用于 get/put**，过渡窗口结束后整体删除；TTL 覆盖键的未知 code 检测须把别名排除在已知集合外（别名无读取路径，旧 code 残留覆盖恰是要告警对象）。唯一实例已随过渡窗口关闭删除（T-ACCESS-054，2026-09-24：别名条目+第二次 evictAll+三处回归锁同批退役，用户确认无旧构建实例在跑）——机制保留供未来改名复用，册内现有零别名（AccessCacheCatalogBoundaryTest 反射精确集双向锁）
 - 业务侧禁止硬编码 TTL 换算
 
 ## 事务与失效规范

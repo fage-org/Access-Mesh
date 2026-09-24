@@ -83,9 +83,9 @@ public class PermCacheBoundaryValidator implements InitializingBean {
 
     /**
      * 找出配置了 TTL 覆盖但 catalog 册内不存在的 code（Q-006，T-ACCESS-048）。
-     * 已知 code 集合经反射取 AccessCacheCatalog 全部 CacheCatalogEntry 公共常量——新增条目自动纳入；
-     * evict-only 别名（ORG_VISIBILITY_LEGACY）显式排除：无读取路径、覆盖对其无意义，
-     * 对旧 code 的残留覆盖键恰恰是本检查要暴露的对象。
+     * 已知 code 集合经反射取 AccessCacheCatalog 全部 CacheCatalogEntry 公共常量——新增条目自动纳入。
+     * 改名前的 admin:org-visibility 等 evict-only 别名已删除（T-ACCESS-054）——
+     * 旧 code 不在册内即天然未知，对旧 code 的残留覆盖键恰是本检查要暴露的对象。
      */
     Set<String> detectUnknownOverrideKeys() {
         Set<String> known = knownCatalogCodes();
@@ -98,7 +98,6 @@ public class PermCacheBoundaryValidator implements InitializingBean {
         return Arrays.stream(AccessCacheCatalog.class.getFields())
             .filter(field -> field.getType() == CacheCatalogEntry.class)
             .map(this::readCatalogCode)
-            .filter(code -> !code.equals(AccessCacheCatalog.ORG_VISIBILITY_LEGACY.getCode()))
             .collect(Collectors.toUnmodifiableSet());
     }
 

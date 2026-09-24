@@ -377,6 +377,15 @@ public final class BootstrapGraphDefinition {
             new GrantSpec(ResourceTypeCode.ADMIN_NOTICE, OperationCode.UPDATE, null, false),
             new GrantSpec(ResourceTypeCode.ADMIN_NOTICE, OperationCode.DELETE, null, false),
             new GrantSpec(ResourceTypeCode.ADMIN_NOTICE, OperationCode.PUBLISH, null, false),
+            // T-ACCESS-054（U010 拍板，2026-09-24）：定时任务管理面最小运营档——固定图不持则
+            // 空库上 T-PERM-073 拍板的「管理员按需手动触发或启用周期巡检」无正规入口
+            // （种子对账任务默认停用，trigger/toggle 全 403，运营只能改库）；读端点同批补
+            // ADMIN_JOB:VIEW 门禁（此前零门禁）。VIEW/TRIGGER/ENABLE 三档=采纳决策所需最小集，
+            // CREATE/UPDATE/DELETE 维持无种子（前端零页+外部零消费，改 cron 走运维通道）；
+            // 不可转授（默认口径）
+            new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW, null, false),
+            new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.TRIGGER, null, false),
+            new GrantSpec(ResourceTypeCode.ADMIN_JOB, OperationCode.ENABLE, null, false),
             // T-API-001：类型级 API:ACCESS + canGrant——新接入服务接口的授权必须由首管理员完成，
             // 实例级（仅清单内管理接口）会造成鸡生蛋（无正规入口给新接口授权）。
             new GrantSpec(ResourceTypeCode.API, OperationCode.ACCESS, null, true));

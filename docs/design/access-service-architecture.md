@@ -505,23 +505,32 @@ T-ACCESS-004 落地实现（2026-08-14，`SecurityMatrixIT` 固化）：
 > **权威指针**：条目与计数以 `BootstrapGraphDefinition.businessGrants()`（代码）与 `AccessBootstrapPgIT` 断言为准，本表为设计叙述；代码新增授权时本表同步补行（T-PERM-026/027 曾连续漏同步，2026-08-29 双轨评审收口）。
 
 | 权限                                   | scopeMode          | 资源/说明                                                                                       |
-| -------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------- |
-| `USER:CREATE`                          | ALL                | 创建目标用户                                                                                     |
+| -------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------- |
+| `USER:CREATE`                          | ALL                | 创建目标用户管理 API 门禁（页面全档见 ORG/USER 段）                                                 |
 | `ROLE:CREATE`                          | ALL                | 创建 BASIC_ROLE                                                                                  |
 | `ROLE:MANAGE`                          | ALL                | 管理新建角色与为用户分配角色；继承掩码已含 VIEW，角色树 `ROLE:VIEW`、授权列表与 sub-perm 查询的 `ROLE:VIEW@目标角色` 均被覆盖，不重复授 `ROLE:VIEW` |
-| `SERVICE:MANAGE_API_MAPPING`           | ALL                | 管理任意接入服务的 API 映射（T-API-001 起类型级：新接入服务的首条映射必须由首管理员创建，实例级会造成无正规入口的鸡生蛋） |
-| `SERVICE:VIEW` / `SERVICE:MANAGE` / `SERVICE:SYNC_INTERFACE` | ALL | 服务与接口映射页读写门禁（T-PERM-027：死锁防护=持有解锁首管理员页面读写；三条均类型级、与全部业务门禁同口径不可转授（转授链仅 API:ACCESS），实例粒度由租户自行收紧） |
-| `TYPE_DEFINITION:VIEW`                 | ALL                | 授权页无条件加载类型列表且后端 `listTypes` 强制门禁                                              |
-| `RESOURCE:VIEW`                        | ALL                | 授权页资源树加载门控（门禁补齐见 §14.5）                                                        |
-| `OPERATION:VIEW`                       | ALL                | 授权页操作列表加载门控（同上）                                                                   |
+| `SERVICE:MANAGE_API_MAPPING`           | ALL + `canGrant=true` | 管理任意接入服务的 API 映射（T-API-001 起类型级：新接入服务的首条映射必须由首管理员创建）；canGrant=T-ACCESS-052 最小集四条（解锁 SERVICE 实例委派首授构造） |
+| `SERVICE:VIEW` / `SERVICE:SYNC_INTERFACE` | ALL | 服务与接口映射页读写门禁（T-PERM-027 死锁防护=持有解锁首管理员页面读写；不可转授，实例粒度由租户自行收紧） |
+| `SERVICE:MANAGE`                       | ALL + `canGrant=true` | 同款死锁防护；canGrant=T-ACCESS-052 最小集四条（service-a 负责人实例委派首授；单持 MANAGE 不能构造 MANAGE_API_MAPPING 转授，见契约 §12.2） |
+| `TYPE_DEFINITION:VIEW/CREATE/MANAGE`   | ALL                | 类型定义页读写门禁（VIEW=授权页类型列表；写两档 T-FE-022：create 类型级、update/remove 实例级 MANAGE 由 scopeAll 覆盖） |
+| `RESOURCE:VIEW/CREATE/MANAGE`          | ALL                | 资源页读写门禁（VIEW=授权页资源树，门禁补齐见 §14.5；写两档 T-FE-017：update/move/remove 实例级由 scopeAll 覆盖） |
+| `OPERATION:VIEW/CREATE/MANAGE`         | ALL                | 操作页读写门禁（T-FE-017 同批；VIEW=授权页操作列表门控） |
 | `OPERATION_LOG:VIEW`                   | ALL                | 操作日志查询门禁（T-PERM-025 审计分离：独立权限码取代复用 SYSTEM_CONFIG:VIEW；固定图持否则新码无授予起点） |
-| `PERMISSION_CHANGE_LOG:VIEW`           | ALL                | 权限变更日志查询门禁（T-PERM-032 审计分离：对齐 OPERATION_LOG 先例；排查视图端点族已随 T-PERM-059 删除，2026-09-10） |
+| `PERMISSION_CHANGE_LOG:VIEW`           | ALL                | 权限变更日志查询门禁（T-PERM-032 审计分离；排查视图端点族已随 T-PERM-059 删除，2026-09-10） |
 | `DOMAIN:VIEW`                          | ALL                | 业务域页读门禁（T-PERM-026：固定图不持则空库上业务域页读路径无授予起点死锁，OPERATION_LOG:VIEW 先例） |
-| `CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE` | ALL             | 冲突规则页读写四档（T-PERM-030：读三端点 list/detail/detect 与写三档均类型级；固定图不持则空库上该页读写路径无授予起点死锁，DOMAIN:VIEW 先例；均不可转授） |
-| `CONDITION:CREATE/UPDATE/DELETE`      | ALL                | 权限条件页写门禁三档（T-PERM-030 顺带补授：T-PERM-029 遗漏的同款死锁缺口——checkCanGrant 要求操作者先持有；条件读取无门禁故无 VIEW 条目） |
+| `CONFLICT_RULE:VIEW/CREATE/UPDATE/DELETE` | ALL             | 冲突规则页读写四档（T-PERM-030：固定图不持则空库上该页读写路径无授予起点死锁；均不可转授） |
+| `CONDITION:CREATE/UPDATE/DELETE`      | ALL                | 权限条件页写门禁三档（T-PERM-030 顺带补授；条件读取无门禁故无 VIEW 条目） |
+| `DEPENDENCY:VIEW`                     | ALL                | 依赖声明页读取（写档随 T-PERM-071 MANIFEST 独占写入退役） |
+| `ORG:VIEW/CREATE/UPDATE/DELETE`        | ALL                | 组织与用户页读写门禁全档（T-FE-015；菜单种子挂 ORG 走派生同样要求先持有） |
+| `ORG:MANAGE_MEMBER`                   | ALL + `canGrant=true` | 普通组织成员管理（T-FE-015；canGrant=T-ACCESS-052 最小集四条——部门成员管理员实例委派首授） |
+| `ORG:VIEW_POSITION/CREATE_POSITION/UPDATE_POSITION/DELETE_POSITION/ASSIGN_POSITION_USER` | ALL | 岗位族操作位（T-FE-015；成员候选/挂载门禁按目标 orgType 解析，T-ORG-003） |
+| `USER:VIEW/UPDATE/DELETE/ENABLE/RESET_PASSWORD` | ALL（VIEW 含 canGrant=true） | 用户页读写全档（T-FE-015；USER:VIEW canGrant=T-ACCESS-052 最小集四条——用户目录门票可转授〔门票+组织可见性裁剪，2026-09-23〕） |
+| `SYSTEM_CONFIG:VIEW/MANAGE`           | ALL                | 系统配置页读写门禁（T-FE-015/T-PERM-024；单入口化后唯一消费面=契约 §17.2 族） |
+| `ADMIN_NOTICE:VIEW/CREATE/UPDATE/DELETE/PUBLISH` | ALL | 公告管理面五档（T-ADMIN-029：ADMIN_NOTICE 无资源投影，实例级授权不可构造，类型级即终态形态） |
+| `ADMIN_JOB:VIEW/TRIGGER/ENABLE`       | ALL                | 定时任务管理面最小运营三档（T-ACCESS-054：T-PERM-073 对账任务按需手动触发/启用周期巡检的正规入口；CREATE/UPDATE/DELETE 无种子，改 cron 走运维通道） |
 | `API:ACCESS`（类型级）                  | ALL + `canGrant=true` | 向 BASIC_ROLE 授权任意接口（授权传递链；T-API-001 起类型级：新接入服务接口的授权必须由首管理员完成，实例级会造成鸡生蛋）；落管理角色（首管理员唯一绑定，等价仅首管理员持有，见 §14.1）。管理 API 清单的实例级 `API:ACCESS` 授权保留（最小暴露面不变）。**语义强度提示**：该条 + canGrant 使首管理员等效「任意服务、任意<b>已注册</b> API 经 Gateway 放行且可转授」——即已注册接口的内置超管（§14.2 禁止 API 类型级 scopeAll 大包授权的约束下，快照装配将 API 类型级 scopeAll 展开为该服务全部 enabled 映射的 INSTANCE 条目，未注册接口维持默认拒绝），属鸡生蛋消解的必要代价 |
 
-不授予 `RESOURCE:CREATE` 等 API 资源创建权限，避免无谓扩大根权限。
+可转授例外全集：T-ACCESS-052 最小集四条（`SERVICE:MANAGE`/`SERVICE:MANAGE_API_MAPPING`/`ORG:MANAGE_MEMBER`/`USER:VIEW`，2026-09-23 拍板）+ `API:ACCESS` 类型级与目标 API 实例行；其余业务门禁均不可转授。上表为设计叙述（2026-09-24 T-ACCESS-054 全量对齐刷新——此前滞留 T-PERM-030 时点口径，T-FE-015/017/022、T-PERM-024/071、T-ACCESS-052、T-ADMIN-029 各批增删未同步；旧「不授予 RESOURCE:CREATE」句为历史口径已废弃）。
 
 ### 14.5 授权页读接口 VIEW 门禁终态（随 T-PERM-042 补齐 3 项）
 

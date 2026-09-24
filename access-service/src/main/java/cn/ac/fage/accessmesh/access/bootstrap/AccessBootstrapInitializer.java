@@ -81,7 +81,9 @@ public class AccessBootstrapInitializer {
         ResourceTypeCode.CONFLICT_RULE, ResourceTypeCode.CONDITION, ResourceTypeCode.DEPENDENCY,
         ResourceTypeCode.SYSTEM_CONFIG,
         // T-ADMIN-029：公告管理面五档类型级授权（VIEW/CREATE/UPDATE/DELETE/PUBLISH）
-        ResourceTypeCode.ADMIN_NOTICE);
+        ResourceTypeCode.ADMIN_NOTICE,
+        // T-ACCESS-054：定时任务管理面最小运营三档（VIEW/TRIGGER/ENABLE）
+        ResourceTypeCode.ADMIN_JOB);
 
     /** sys_user.user_type：本地用户管理展示值（与 createUser 链一致；权限域类型由投影链解析） */
     private static final int SYS_USER_TYPE_PERSON = 1;

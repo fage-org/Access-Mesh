@@ -3,7 +3,13 @@ package cn.ac.fage.accessmesh.access.platform.service.impl;
 import cn.ac.fage.accessmesh.access.platform.entity.SysJob;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysJobLogMapper;
 import cn.ac.fage.accessmesh.access.platform.mapper.SysJobMapper;
+import cn.ac.fage.accessmesh.access.platform.dto.req.JobLogPageReq;
+import cn.ac.fage.accessmesh.access.platform.dto.req.JobUpdateReq;
 import cn.ac.fage.accessmesh.access.engine.AdminPermissionValidator;
+import cn.ac.fage.accessmesh.access.engine.constant.OperationCode;
+import cn.ac.fage.accessmesh.access.type.enums.ResourceTypeCode;
+import cn.ac.fage.accessmesh.access.infrastructure.TenantContextHolder;
+import cn.ac.fage.accessmesh.common.model.PageReq;
 import cn.ac.fage.accessmesh.access.infrastructure.task.JobInvokeDomainService;
 import cn.ac.fage.accessmesh.access.platform.service.domain.JobLogDomainService;
 import cn.ac.fage.accessmesh.access.infrastructure.task.TaskExecutionDomainService;
@@ -22,9 +28,13 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.ScheduledFuture;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -210,5 +220,76 @@ class JobAppServiceImplTest {
         verify(future1, never()).cancel(anyBoolean());
         verify(future2, never()).cancel(anyBoolean());
         verify(taskScheduler, times(2)).schedule(any(Runnable.class), any(Trigger.class));
+    }
+
+    /**
+     * T-ACCESS-054：三个读端点（detail/page/log-page）此前零权限门禁——任意租户登录用户
+     * 可翻任务配置（invokeTarget/cron）与执行日志。门禁=ADMIN_JOB:VIEW 类型级；
+     * 旧实现下本用例红（checkTypeLevel 从未被调用）。
+     */
+    @Test
+    void readEndpointsShouldGateOnAdminJobView() {
+        TenantContextHolder.setTenantId(TENANT_ID);
+        try {
+            when(jobMapper.selectValidById(TENANT_ID, 1L)).thenReturn(enabledJob(1L, TENANT_ID, "0 0 0 * * *"));
+            when(jobMapper.countJobsByCondition(TENANT_ID, null)).thenReturn(0L);
+            when(jobLogMapper.countJobLogsByCondition(TENANT_ID, null)).thenReturn(0L);
+
+            newService().getJob(1L);
+            newService().pageJobs(new PageReq(1, 20, null), null);
+            newService().pageJobLogs(new JobLogPageReq(1, 20, null, null), null);
+
+            verify(permissionValidator, times(3))
+                .checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
+        } finally {
+            TenantContextHolder.setTenantId(null);
+        }
+    }
+
+    /**
+     * T-ACCESS-054 双轨评审处置（P3-2）：写端点 update/toggle 先门禁后存在——无权限时
+     * 403 先于任何存在性查询（不泄露任务 id 存在性；与 trigger 及 T-ADMIN-029 公告族同形态）。
+     * 旧实现（先查存在后判权）下无权限即走 selectValidById，本用例红。
+     */
+    @Test
+    void writeEndpointsShouldDenyBeforeExistenceCheck() {
+        doThrow(new SecurityException("Permission denied"))
+            .when(permissionValidator).checkInstanceLevel(any(), any(), any());
+        TenantContextHolder.setTenantId(TENANT_ID);
+        try {
+            assertThatThrownBy(() -> newService().updateJob(new JobUpdateReq(1L, null, null, null, null, null, null, null)))
+                .isInstanceOf(SecurityException.class);
+            assertThatThrownBy(() -> newService().toggleJobStatus(1L, 0))
+                .isInstanceOf(SecurityException.class);
+
+            verify(jobMapper, never()).selectValidById(anyLong(), anyLong());
+        } finally {
+            TenantContextHolder.setTenantId(null);
+        }
+    }
+
+    /**
+     * T-ACCESS-054：无 ADMIN_JOB:VIEW 拒绝发生在任何读取之前（fail-closed，不泄露任务存在性）。
+     */
+    @Test
+    void readEndpointsShouldDenyWithoutAdminJobView() {
+        doThrow(new SecurityException("Permission denied: VIEW on ADMIN_JOB"))
+            .when(permissionValidator).checkTypeLevel(any(), any());
+        TenantContextHolder.setTenantId(TENANT_ID);
+        try {
+            assertThatThrownBy(() -> newService().getJob(1L)).isInstanceOf(SecurityException.class);
+            assertThatThrownBy(() -> newService().pageJobs(new PageReq(1, 20, null), null))
+                .isInstanceOf(SecurityException.class);
+            assertThatThrownBy(() -> newService().pageJobLogs(new JobLogPageReq(1, 20, null, null), null))
+                .isInstanceOf(SecurityException.class);
+
+            verify(jobMapper, never()).selectValidById(anyLong(), anyLong());
+            verify(jobMapper, never()).countJobsByCondition(anyLong(), any());
+            verify(jobMapper, never()).selectJobsByCondition(anyLong(), any(), anyInt(), anyInt());
+            verify(jobLogMapper, never()).countJobLogsByCondition(anyLong(), any());
+            verify(jobLogMapper, never()).selectJobLogsByCondition(anyLong(), any(), anyInt(), anyInt());
+        } finally {
+            TenantContextHolder.setTenantId(null);
+        }
     }
 }

@@ -3,7 +3,7 @@ doc_type: design
 title: IAM 核心正确性与用户任务闭环方案
 status: draft
 domain: cross-service
-last_reviewed: 2026-09-24（T-API-004 §4.3 转已实施：U006 四项拍板〔冲突全端点拒绝/type extraClear 拒清空/service extra 清=撤白名单/空串拒 400/范围=六字段+perm 轨 extra〕+同型矩阵结论登记 Q-043，定案见 registry 同日行）同日（T-ADMIN-029 §4.5 转已实施：U007 四项拍板——typed IDs 一次性切换零兼容层/ORG 受众预留不做/严格状态机转换拒绝/my-notices+read 白名单+管理面 bootstrap 五档类型级授权；无存量结论+runbook fail-fast 处置登记）同日（T-FE-058 §4.2 转已实施：U005 迁移+同批退役 /role/list/选择器形态 el-select remote+下拉内翻页/Q-035+Q-036 随卡收敛，三项拍板见 registry 同日行）同日（T-FE-059 §4.4 转已实施：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」）同日（T-ACCESS-053 §5.2 补实施定案段：U008 维持现状登记 Q-040/撤销恢复主线 E2E⑧+文档/compose 空环境实测/文档改现有三处）同日（T-ACCESS-052 §3.2 已实施收口：四项拍板+全量同模式目录实例准入+菜单准入+种子四条 canGrant；端到端 DelegatedDirectoryClosurePgIT+双轨评审处置完毕+全量含 E2E 绿） 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
+last_reviewed: 2026-09-24（T-ACCESS-054 §6.2 转已实施：U010 底座保留+ADMIN_JOB 最小运营三档种子〔VIEW/TRIGGER/ENABLE〕+job 三读端点补 VIEW 门禁、U011 legacy 别名随过渡窗口关闭整体删除——两项拍板见 registry 同日行）同日（T-API-004 §4.3 转已实施：U006 四项拍板〔冲突全端点拒绝/type extraClear 拒清空/service extra 清=撤白名单/空串拒 400/范围=六字段+perm 轨 extra〕+同型矩阵结论登记 Q-043，定案见 registry 同日行）同日（T-ADMIN-029 §4.5 转已实施：U007 四项拍板——typed IDs 一次性切换零兼容层/ORG 受众预留不做/严格状态机转换拒绝/my-notices+read 白名单+管理面 bootstrap 五档类型级授权；无存量结论+runbook fail-fast 处置登记）同日（T-FE-058 §4.2 转已实施：U005 迁移+同批退役 /role/list/选择器形态 el-select remote+下拉内翻页/Q-035+Q-036 随卡收敛，三项拍板见 registry 同日行）同日（T-FE-059 §4.4 转已实施：loader contextKey/clear/onClear 四消费面接线+保存时核对层拍板「加」）同日（T-ACCESS-053 §5.2 补实施定案段：U008 维持现状登记 Q-040/撤销恢复主线 E2E⑧+文档/compose 空环境实测/文档改现有三处）同日（T-ACCESS-052 §3.2 已实施收口：四项拍板+全量同模式目录实例准入+菜单准入+种子四条 canGrant；端到端 DelegatedDirectoryClosurePgIT+双轨评审处置完毕+全量含 E2E 绿） 2026-09-22   # 2026-09-22 T-FE-057 §4.1 转已实施（管理列表全状态+筛选+禁用标注+编辑弹窗恢复，三项拍板见 registry 同日行）；2026-09-22 T-ORG-003 §3.1 转已实施（候选门禁同权落地+浏览器链让渡 T-ACCESS-055 拍板+Q-025 随卡收敛）；2026-09-22 T-PERM-077 §2.6 转已实施（缺省归一 0 唯一入口+掩码不做符号校验拍板）；同日 T-PERM-076 §2.5 转已实施（完整键查重+批内首项胜出+畸形项收集拍板+响应主键回查）；同日 T-ADMIN-028 §2.2 转已实施（客户端关联校验最小面落地）；2026-09-21 T-ORG-002 §2.1 转已实施（U001 拍板=拒绝并提示人数+树配置最小面落地）
 ---
 
 # IAM 核心正确性与用户任务闭环方案
@@ -196,13 +196,15 @@ T-PERM-078 已细化[设计 M1～M5](dependency-auto-grant.md#implementation-dec
 本文件其他候选仍为 draft，不因自动授权方向确认而一并采纳。
 
 <a id="trimming"></a>
-### 6.2 外围任务与兼容别名的保留条件（R002/R003，T-ACCESS-054）
+### 6.2 外围任务与兼容别名的保留条件（R002/R003，T-ACCESS-054；✅ 已实施 2026-09-24）
 
-**U010**：通用任务管理是否有真实生产消费者或即将复用的IAM后台任务？推荐先核对@JobInvocable、调度触发方和部署扩展；无消费者时可以仅收窄当前交付入口，删除底座前需证明没有引擎／同步／对账依赖。不因消费者少删租约fencing、幂等和线程隔离。
+**实施口径（U010/U011 两项拍板，AskUserQuestion 两问）**：
 
-**U011**：ORG_VISIBILITY_LEGACY是否还有旧实例需要？只有部署版本／升级记录可回答，源码不能证明。无部署证据则保留兼容行为，明确删除前置；确认过渡结束再裁剪别名及双清，并验证混合版本约束已不适用。不得为了任务完成停共享实例或擅自假设无人使用。
+**U010（任务底座保留+管理面最小兑现）**：盘点结论=底座有真实消费者——全仓唯一 `@JobInvocable` 白名单方法即自动授权对账任务（T-PERM-073 adopted 设计，bootstrap 种子默认停用），加 JobScheduleReconciler（60s 配置对账）/TaskLeaseTakeoverScheduler（30s 租约接管）两系统维护调度器（architecture §8.1 在案）；租约/fencing/幂等/线程隔离正确性基建不可删。管理面两缺口按拍板「补最小授权+读端点补门禁」处置：①`ADMIN_JOB` 此前在固定图零授权=新部署 job/trigger、toggle、CRUD 全 403，T-PERM-073 拍板的「按需手动触发/启用周期巡检」无正规入口——bootstrap 固定图补 VIEW/TRIGGER/ENABLE 三档类型级（不可转授，DDL 已预置位；CREATE/UPDATE/DELETE 维持无种子，改 cron 走运维通道），存量已初始化库重启按固定图加行先例 fail-fast 拒启（缺行无墓碑，T-ADMIN-029 同款；处置=重建库，rebuild-runbook 补行）；②job/detail、page、log/page 三读端点此前零门禁（任意租户登录用户可翻任务配置与执行日志）——补 `ADMIN_JOB:VIEW` 类型级门禁（安全收紧）。GRANT_RESOURCE_TYPES 类型清单同批同步（漏项=操作位 fail-fast，PgIT 实证）。
 
-任务结论可以是有证据的保留、缩小交付面或定点删除。若实际需要超出本卡的机制改造，重新评估范围并登记独立任务，不能在评估结论中假称实施已完成。
+**U011（legacy 别名删除）**：用户确认无任何 2026-09-16（T-ACCESS-048）之前构建的实例在跑（含本机 dev 栈）——ORG_VISIBILITY_LEGACY evict-only 别名+PermissionChangeAspect 第二次 evictAll+三处回归锁（AspectTest×2 verify/DualInstance 滚动改名用例/BoundaryTest 别名形态锁）整体删除；PermCacheBoundaryValidator 未知覆盖键 WARN 保留（旧 Nacos 覆盖键天然落未知集合，告警语义不变）；BoundaryTest 册内条目锁升级为反射精确集双向锁（9 条，防别名滞留或悄悄回归）；skill 双副本机制描述改历史先例口径（册内现有零别名）。机制模式保留供未来 catalog 改名复用。
+
+**遗留登记**：job 管理面无前端页、无契约成册（§17.3 括注登记门禁补齐）；CREATE/UPDATE/DELETE 端点维持交付但固定图无授权（真实消费者零）；任务管理 UI 如未来立项另行拍板。
 
 ## 7. 验证与迁移原则
 

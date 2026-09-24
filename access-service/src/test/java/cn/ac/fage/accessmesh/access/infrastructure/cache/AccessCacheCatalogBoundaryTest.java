@@ -5,9 +5,11 @@ import cn.ac.fage.accessmesh.common.cache.CacheMode;
 import cn.ac.fage.accessmesh.common.cache.CacheProperties;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
@@ -64,14 +66,6 @@ class AccessCacheCatalogBoundaryTest {
     }
 
     @Test
-    void orgVisibilityLegacyAlias_shouldBeEvictOnlyL2OnlyAlias() {
-        // Q-006（T-ACCESS-048）：旧命名空间兼容别名形态锁——code 钉死改名前旧值、
-        // L2_ONLY（与现条目一致：不建 L1、evictAll 不触发失效广播）；仅写路径失效消费，禁 get/put
-        assertThat(AccessCacheCatalog.ORG_VISIBILITY_LEGACY.getCode()).isEqualTo("admin:org-visibility");
-        assertThat(AccessCacheCatalog.ORG_VISIBILITY_LEGACY.getMode()).isEqualTo(CacheMode.L2_ONLY);
-    }
-
-    @Test
     void dictTypesCode_shouldSurviveCatalogMergeUnchanged() {
         // T-ACCESS-039 合一回归锁：DICT_TYPES 自 AdminCacheCatalog 迁入，code 与容量形态不变
         assertThat(AccessCacheCatalog.DICT_TYPES.getCode()).isEqualTo("admin:dict-types");
@@ -80,24 +74,26 @@ class AccessCacheCatalogBoundaryTest {
 
     @Test
     void mergedCatalog_codesShouldBeDistinct() {
-        // 单册合一回归锁：全部条目 code 两两不同（防止合并/新增条目时 code 撞车；
-        // 含 Q-006 legacy 别名——别名与现条目 code 必须不同，否则双命名空间语义坍缩）
-        List<CacheCatalogEntry<?>> catalogs = Arrays.asList(
-            AccessCacheCatalog.EFFECTIVE_ROLES,
-            AccessCacheCatalog.ROLE_PERM_SNAPSHOT,
-            AccessCacheCatalog.TYPE_VALUE,
-            AccessCacheCatalog.TYPE_CODE,
-            AccessCacheCatalog.CONDITION_RULES,
-            AccessCacheCatalog.ROLE_MUTEX_RULE,
-            AccessCacheCatalog.OPERATION_PERMISSIONS_BY_TYPE,
-            AccessCacheCatalog.ORG_VISIBILITY,
-            AccessCacheCatalog.ORG_VISIBILITY_LEGACY,
-            AccessCacheCatalog.DICT_TYPES
-        );
-        long distinctCodes = catalogs.stream().map(CacheCatalogEntry::getCode).distinct().count();
-        assertThat(distinctCodes)
-            .as("合一目录册内条目 code 必须两两不同")
-            .isEqualTo(catalogs.size());
+        // 单册合一回归锁（双向，T-ACCESS-054 收紧为反射精确集）：反射枚举全部
+        // CacheCatalogEntry 公共常量，条目集合必须与期望九条逐一相等——新增/删除条目
+        // 不更新本锁即红（防 code 撞车，也防 Q-006 式 evict-only 别名滞留或悄悄回归）
+        Set<String> expected = Set.of(
+            "perm:effective-roles", "perm:role-perm-snapshot", "perm:type-value",
+            "perm:type-code", "perm:condition-rules", "perm:role-mutex-rule",
+            "perm:operation-permissions-by-type", "access:org-visibility", "admin:dict-types");
+        Set<String> actual = Arrays.stream(AccessCacheCatalog.class.getFields())
+            .filter(field -> field.getType() == CacheCatalogEntry.class)
+            .map(field -> readCode(field))
+            .collect(Collectors.toUnmodifiableSet());
+        assertThat(actual).isEqualTo(expected);
+    }
+
+    private String readCode(Field field) {
+        try {
+            return ((CacheCatalogEntry<?>) field.get(null)).getCode();
+        } catch (IllegalAccessException e) {
+            throw new IllegalStateException("无法读取 AccessCacheCatalog 常量: " + field.getName(), e);
+        }
     }
 
     @Test
@@ -135,7 +131,8 @@ class AccessCacheCatalogBoundaryTest {
     @Test
     void validator_shouldDetectLegacyOrgVisibilityOverrideAsUnknownKey() {
         // Q-006（T-ACCESS-048）：T-ACCESS-039 改名后 Nacos 残留的 admin:org-visibility 覆盖键
-        // 必须被识别为未知 code（evict-only 别名不算已知 code——对旧 code 的残留覆盖恰是要暴露对象）
+        // 必须被识别为未知 code——别名条目已删除（T-ACCESS-054），旧 code 不在册内即天然未知，
+        // 对旧 code 的残留覆盖恰是要暴露对象（保留：改库/Nacos 残留仍可能存在）
         CacheProperties properties = new CacheProperties();
         CacheProperties.CatalogOverride override = new CacheProperties.CatalogOverride();
         override.setL2Ttl(Duration.ofSeconds(60));
