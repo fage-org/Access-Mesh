@@ -265,7 +265,9 @@ class JobAppServiceImplTest {
             verify(permissionValidator, times(3))
                 .checkTypeLevel(ResourceTypeCode.ADMIN_JOB, OperationCode.VIEW);
         } finally {
-            TenantContextHolder.setTenantId(null);
+            // clear() 而非 setTenantId(null)：后者在已有上下文时仅置空租户、保留 TASK 壳，
+            // 会泄漏到同 JVM 后续测试的上下文断言（CI SecurityMatrixIT 防泄漏断言实证）
+            TenantContextHolder.clear();
         }
     }
 
@@ -287,7 +289,7 @@ class JobAppServiceImplTest {
 
             verify(jobMapper, never()).selectValidById(anyLong(), anyLong());
         } finally {
-            TenantContextHolder.setTenantId(null);
+            TenantContextHolder.clear();
         }
     }
 
@@ -312,7 +314,7 @@ class JobAppServiceImplTest {
             verify(jobLogMapper, never()).countJobLogsByCondition(anyLong(), any());
             verify(jobLogMapper, never()).selectJobLogsByCondition(anyLong(), any(), anyInt(), anyInt());
         } finally {
-            TenantContextHolder.setTenantId(null);
+            TenantContextHolder.clear();
         }
     }
 

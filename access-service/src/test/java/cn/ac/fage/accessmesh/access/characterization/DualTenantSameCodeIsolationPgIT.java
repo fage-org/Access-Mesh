@@ -44,14 +44,20 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
  * <p>
  * 验证面：①跨读——tenant 1 判定上下文解析 tenant 2 主体 id 得 USER_NOT_FOUND（主体按
  * 租户隔离，S011 原文方向）；②跨写——tenant 1 产品通道对同码资源授权命中 tenant 1 资源行
- * （同码不串租户）；③授权隔离——tenant 1 授权不改变 tenant 2 同码判定（false），tenant 2
- * 夹具补授权行后 tenant 2 判定翻 true 且 tenant 1 判定不受影响。
+ * （同码不串租户）；③授权隔离——tenant 1 授权不改变 tenant 2 同码判定（A→B，false），
+ * tenant 2 夹具补授权行后 tenant 2 判定翻 true 且 tenant 1 判定不受影响；④反向夹具
+ * （B→A，claude 外评处置补强）——同码第二组仅 tenant 2 持授权时 tenant 1 判定必须拒绝
+ * （③末段「tenant 1 仍 true」在其自身已持同码授权时无 B→A 区分能力，负向断言独立夹具承担）。
  * </p>
  * <p>
- * 实现依赖注记：阶段 7 直插授权行后立即可见依赖 auth/check INSTANCE 判定面为实时 SQL
+ * 实现依赖注记：阶段 7/8 直插授权行后立即可见依赖 auth/check INSTANCE 判定面为实时 SQL
  * （queryInstance 直查 rolePermMapper，不经 ROLE_PERM_SNAPSHOT 缓存——该缓存仅 LIST 面
- * 消费）；若未来 INSTANCE 判定改走快照缓存，直插无失效广播会使隔离②断言假红，届时夹具
- * 需改产品通道或显式清缓存。
+ * 消费）；若未来 INSTANCE 判定改走快照缓存，直插无失效广播会使隔离②③断言假红，届时夹具
+ * 需改产品通道或显式清缓存。红跑边界如实登记：授权面两方向（阶段 6 与阶段 8 负向断言）对
+ * 单谓词破坏均受「角色数字 id 全局唯一」锚定保护——selectInstancePermsByBitsBatch 的
+ * WHERE 同时含 tenant_id 与 abstract_role_id/resource_entity_id 数字锚，单去掉 tenant
+ * 谓词不会使对侧授权行命中本租户角色集；本类已证红的单破坏通道是主体解析（阶段 4，
+ * USER_NOT_FOUND 断言）。反向负向断言锁的是业务键重构/多步回归等形态下的不变量。
  * </p>
  * Docker 不可用时由 Testcontainers 自动跳过（容器轨道）。
  */
@@ -98,7 +104,7 @@ class DualTenantSameCodeIsolationPgIT {
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Test
-    @DisplayName("双租户同码夹具：跨读 USER_NOT_FOUND/跨写同码不串/授权隔离互不影响")
+    @DisplayName("双租户同码夹具：跨读 USER_NOT_FOUND/跨写同码不串/授权隔离双向（含 B→A 反向夹具）")
     void dualTenantSameCodeShouldStayIsolatedAcrossReadWriteAndGrant() throws Exception {
         // —— 阶段 0：空库 bootstrap（tenant 1 固定图） ——
         initializer.initialize(ADMIN_PASSWORD);
@@ -224,6 +230,39 @@ class DualTenantSameCodeIsolationPgIT {
             "SELECT count(*) FROM role_resource_permission WHERE delete_flag = 0 AND granted_bits = ? "
                 + "AND abstract_role_id IN (?, ?)", Long.class, SERVICE_VIEW_BIT, roleAId, roleBId))
             .isEqualTo(2L);
+
+        // —— 阶段 8：授权隔离③反向夹具（B→A）——同码第二组仅 tenant 2 持授权，tenant 1 必须拒绝 ——
+        // 阶段 7 末段「tenant 1 仍 true」在其自身已持同码授权时无 B→A 区分能力（对侧授权误入
+        // 也不改变 true），本阶段独立负向夹具：tenant 1 对该码零授权，任何放行即串租户。
+        String reverseResourceCode = sameResourceCode + "-rev";
+        postAsAdmin("/api/access/resource-entity/create", adminUserId,
+            JSON.objectNode()
+                .put("resourceTypeCode", "SERVICE").put("code", reverseResourceCode)
+                .put("name", "同码服务A-反向"));
+        Long resourceBRevId = jdbc.queryForObject(
+            "INSERT INTO resource_entity (tenant_id, resource_type, code, code_type, name, status, extra, "
+                + "maintain_source, delete_flag) VALUES (?, ?, ?, 'default', '同码服务B-反向', 1, '{}', 'MANUAL', 0) RETURNING id",
+            Long.class, TENANT_B, serviceTypeValueB, reverseResourceCode);
+        jdbc.update(
+            "INSERT INTO role_resource_permission (tenant_id, abstract_role_id, resource_entity_id, "
+                + "granted_bits, resource_type, scope_all, can_grant, grant_source, delete_flag) "
+                + "VALUES (?, ?, ?, ?, ?, false, false, 'MANUAL', 0)",
+            TENANT_B, roleBId, resourceBRevId, SERVICE_VIEW_BIT, serviceTypeValueB);
+        assertThat(authCheck(TENANT_B, String.valueOf(userBId), reverseResourceCode).path("allowed").asBoolean())
+            .as("tenant 2 自身授权后同码判定必须放行（反向夹具装配自证）").isTrue();
+        assertThat(authCheck(TENANT_A, String.valueOf(userAId), reverseResourceCode).path("allowed").asBoolean())
+            .as("B→A 反向隔离：tenant 1 无该码授权，不得被 tenant 2 的授权行放行").isFalse();
+        // 反向夹具计数收窄：该码两租户资源各恰一行、授权行仅 tenant 2 一行
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM resource_entity WHERE code = ? AND delete_flag = 0",
+            Long.class, reverseResourceCode))
+            .isEqualTo(2L);
+        assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM role_resource_permission p JOIN resource_entity re "
+                + "ON re.id = p.resource_entity_id AND re.tenant_id = p.tenant_id "
+                + "WHERE re.code = ? AND p.delete_flag = 0 AND p.granted_bits = ?",
+            Long.class, reverseResourceCode, SERVICE_VIEW_BIT))
+            .isEqualTo(1L);
     }
 
     // ===== 请求构造 =====
