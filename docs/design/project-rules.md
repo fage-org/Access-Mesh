@@ -458,8 +458,8 @@ private LocalDateTime deletedAt;
 
 更新类 Req DTO 的可选字段统一三态语义：**未传/null=不修改**、**非空值=设置**、**`xxxClear=true`=清空为 NULL**（JSON null 无法区分「未传」与「清空」，显式布尔标志是唯一清空通道；协议详情见契约总册 §2.7）。硬约束：
 
-- 新值与 `xxxClear=true` 同传必须经 `@AssertTrue` 冲突锁拒绝（400/90001）——禁止「Clear 优先」式静默丢值（role/resource 旧口径已随 T-API-004 同批退役）。
-- 纳入协议的字符串字段空串/纯空白必须拒绝（`@Pattern(regexp = "(?s).*\\S.*")`——注意 `@Pattern` 是全串匹配语义，裸 `\\S` 只匹配单字符串）——清空唯一通道=`xxxClear`，禁止「空串=清空」双语义（biz-domain description 历史形态不推广）。
+- 新值与 `xxxClear=true` 同传必须经 `@AssertTrue` 冲突锁拒绝（400/90001）——禁止「Clear 优先」式静默丢值（role/resource 旧口径已随 T-API-004 同批退役）。**派生校验 getter（`isXxx()`）必须加 `@JsonIgnore`**：Jackson record 命名策略识别 is-getter 为序列化属性，泄露进线格式后服务端严格 mapper（`cacheObjectMapper` 裸 ObjectMapper，未知字段天然 400）反序列化即拒——Java SDK 序列化请求全量 400（claude 外评 2026-09-24 P2，`OperationPermission.getEffectiveBits` 先例；锁=线格式键集==record 组件集）。
+- 纳入协议的字符串字段空串/纯空白必须拒绝（`@Pattern(regexp = "(?s)(?U).*\\S.*")`——注意 `@Pattern` 是全串匹配语义，裸 `\\S` 只匹配单字符串；`(?U)` 必须带：Java 正则 `\s` 默认仅 ASCII 空白，无它则全角空格/NBSP 绕过空白拒绝（claude 外评 2026-09-24））——清空唯一通道=`xxxClear`，禁止「空串=清空」双语义（biz-domain description 历史形态不推广）。
 - 服务层清空落库必须经 MyBatis-Flex `UpdateEntity` 显式 NULL 列写入——`update(entity)` 默认忽略 null 字段，直接 set null 不写列（T-PERM-028 起先例，PgIT 真库锁定）。
 - 前端表单统一公式：原值非 null 且表单清空 → `xxxClear=true`（role/resource 页既有公式）。
 

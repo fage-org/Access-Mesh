@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.perm.common.dto.req;
 
 import jakarta.validation.constraints.AssertTrue;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -83,11 +84,13 @@ public record AuthCheckReq(
     Map<String, Object> context
 ) {
     @AssertTrue(message = "parentResourceTypeCode 与 parentResourceCode 必须同时提供或同时缺省")
+    @JsonIgnore
     public boolean isParentContextConsistent() {
         return (parentResourceTypeCode == null) == (parentResourceCode == null);
     }
 
     @AssertTrue(message = "给出主资源上下文时 parentOperationCodes 必须一并提供且非空（与 query-scopes 必填口径对齐；缺省/空集时父判定必不命中，勿依赖静默回退）")
+    @JsonIgnore
     public boolean isParentOperationsPresent() {
         if (parentResourceTypeCode == null) {
             return true;

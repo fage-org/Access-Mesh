@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.role.dto.req;
 
 import jakarta.validation.constraints.AssertTrue;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotNull;
 
 /**
@@ -31,6 +32,7 @@ public record RoleUpdateReq(
      * T-API-004（U006 拍板：全端点冲突拒绝）：新值与 Clear 同传拒绝。
      */
     @AssertTrue(message = "extra 与 extraClear 不能同时提供（清空请只传 extraClear=true）")
+    @JsonIgnore
     public boolean isExtraConflictFree() {
         return extra == null || !Boolean.TRUE.equals(extraClear);
     }

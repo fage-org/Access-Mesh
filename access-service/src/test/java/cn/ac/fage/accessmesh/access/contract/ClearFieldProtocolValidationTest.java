@@ -115,4 +115,56 @@ class ClearFieldProtocolValidationTest {
     void typeExtraClearDelegatesToServiceLayer() {
         assertTrue(validator.validate(new TypeUpdateReq(1L, null, null, null, null, null, true)).isEmpty());
     }
+
+    // ---- claude 外评（2026-09-24 复核轮）锁面：严格 mapper 线格式 + Unicode 空白 ----
+
+    /** 全部协议 DTO 的线格式键集合必须恰为 record 组件集（派生 @AssertTrue is-getter 泄露
+     * 进线格式时，Java SDK 序列化请求会被服务端严格 mapper 以未知字段拒 400——
+     * claude 外评 P2；@JsonIgnore 先例 OperationPermission.getEffectiveBits）。 */
+    @Test
+    @DisplayName("线格式键集==组件集且严格 mapper 往返成功（旧实现 is-getter 泄露必红）")
+    void wireFormatKeysMustEqualRecordComponents() throws Exception {
+        com.fasterxml.jackson.databind.ObjectMapper mapper =
+            new com.fasterxml.jackson.databind.ObjectMapper()
+                .registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
+        java.util.List<Class<?>> dtos = java.util.List.of(
+            UserUpdateReq.class, AbstractUserUpdateReq.class, TypeUpdateReq.class,
+            ServiceConfigReq.class, ApiMappingUpdateReq.class, RoleUpdateReq.class,
+            cn.ac.fage.accessmesh.perm.common.dto.req.ResourceUpdateReq.class,
+            cn.ac.fage.accessmesh.perm.common.dto.req.AuthCheckReq.class,
+            cn.ac.fage.accessmesh.perm.common.dto.req.BatchAuthCheckReq.class);
+        for (Class<?> dto : dtos) {
+            Object sample = allNullInstance(dto);
+            String json = mapper.writeValueAsString(sample);
+            java.util.Set<String> keys = mapper.readTree(json).properties().stream()
+                .map(java.util.Map.Entry::getKey).collect(java.util.stream.Collectors.toSet());
+            java.util.Set<String> components = java.util.Arrays.stream(dto.getRecordComponents())
+                .map(java.lang.reflect.RecordComponent::getName).collect(java.util.stream.Collectors.toSet());
+            org.junit.jupiter.api.Assertions.assertEquals(components, keys,
+                dto.getSimpleName() + " 线格式键集必须恰为组件集（派生 getter 须 @JsonIgnore）");
+            mapper.readValue(json, dto);
+        }
+    }
+
+    /** 反射构造全 null 组件实例（协议 DTO 组件全为对象类型）。 */
+    private static Object allNullInstance(Class<?> dto) throws Exception {
+        var ctor = dto.getDeclaredConstructors()[0];
+        ctor.setAccessible(true);
+        Object[] args = new Object[ctor.getParameterCount()];
+        java.util.Arrays.fill(args, null);
+        return ctor.newInstance(args);
+    }
+
+    /** Java 正则 \s 默认仅 ASCII——全角空格（U+3000）/NBSP（U+00A0）须同样拒绝
+     * （claude 外评 P3；@Pattern 补 (?U) UNICODE_CHARACTER_CLASS 前、旧正则下本用例必红）。 */
+    @Test
+    @DisplayName("Unicode 空白（全角空格/NBSP）同样拒绝（旧 ASCII-only 正则必红）")
+    void unicodeWhitespaceMustBeRejected() {
+        assertFalse(validator.validate(new UserUpdateReq(1L, null, "　　", null, null, null, null)).isEmpty());
+        assertFalse(validator.validate(new UserUpdateReq(1L, null, null, " ", null, null, null)).isEmpty());
+        assertFalse(validator.validate(new TypeUpdateReq(1L, null, "　", null, null, null, null)).isEmpty());
+        assertFalse(validator.validate(new ServiceConfigReq("svc", "名", " ", null, null, null, null, null, null)).isEmpty());
+        assertFalse(validator.validate(new ApiMappingUpdateReq(1L, 2L, null, null, null, null, "　", null)).isEmpty());
+        assertFalse(validator.validate(new AbstractUserUpdateReq(1L, null, null, " ", null)).isEmpty());
+    }
 }

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.resource.dto.req;
 
 import jakarta.validation.constraints.AssertTrue;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -30,12 +31,12 @@ public record ServiceConfigReq(
     @Pattern(regexp = "^[A-Za-z0-9][A-Za-z0-9._-]*$", message = "serviceCode 仅允许字母数字与 . _ - 且以字母数字开头")
     String serviceCode,
     @NotBlank String name,
-    @Pattern(regexp = "(?s).*\\S.*", message = "basePath 不能为空白；清空请传 basePathClear=true")
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "basePath 不能为空白；清空请传 basePathClear=true")
     String basePath,
-    @Pattern(regexp = "(?s).*\\S.*", message = "description 不能为空白；清空请传 descriptionClear=true")
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "description 不能为空白；清空请传 descriptionClear=true")
     String description,
     Integer status,
-    @Pattern(regexp = "(?s).*\\S.*", message = "extra 不能为空白；清空请传 extraClear=true")
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "extra 不能为空白；清空请传 extraClear=true")
     String extra,
     Boolean basePathClear,
     Boolean descriptionClear,
@@ -45,16 +46,19 @@ public record ServiceConfigReq(
      * T-API-004（U006 拍板：全端点冲突拒绝）：新值与 Clear 同传拒绝。
      */
     @AssertTrue(message = "basePath 与 basePathClear 不能同时提供（清空请只传 basePathClear=true）")
+    @JsonIgnore
     public boolean isBasePathConflictFree() {
         return basePath == null || !Boolean.TRUE.equals(basePathClear);
     }
 
     @AssertTrue(message = "description 与 descriptionClear 不能同时提供（清空请只传 descriptionClear=true）")
+    @JsonIgnore
     public boolean isDescriptionConflictFree() {
         return description == null || !Boolean.TRUE.equals(descriptionClear);
     }
 
     @AssertTrue(message = "extra 与 extraClear 不能同时提供（清空请只传 extraClear=true）")
+    @JsonIgnore
     public boolean isExtraConflictFree() {
         return extra == null || !Boolean.TRUE.equals(extraClear);
     }

@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.user.dto.req;
 
 import jakarta.validation.constraints.AssertTrue;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
@@ -35,13 +36,13 @@ public record UserUpdateReq(
     /**
      * 手机号（空白拒绝——清空唯一通道 phoneClear，杜绝空串入库与唯一索引空串撞车）
      */
-    @Pattern(regexp = "(?s).*\\S.*", message = "phone 不能为空白；清空请传 phoneClear=true")
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "phone 不能为空白；清空请传 phoneClear=true")
     String phone,
 
     /**
      * 邮箱（空白拒绝——清空唯一通道 emailClear）
      */
-    @Pattern(regexp = "(?s).*\\S.*", message = "email 不能为空白；清空请传 emailClear=true")
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "email 不能为空白；清空请传 emailClear=true")
     String email,
 
     /**
@@ -64,11 +65,13 @@ public record UserUpdateReq(
      * 取代 role/resource 旧「Clear 优先、新值静默丢弃」口径，值静默丢失不可接受。
      */
     @AssertTrue(message = "phone 与 phoneClear 不能同时提供（清空请只传 phoneClear=true）")
+    @JsonIgnore
     public boolean isPhoneConflictFree() {
         return phone == null || !Boolean.TRUE.equals(phoneClear);
     }
 
     @AssertTrue(message = "email 与 emailClear 不能同时提供（清空请只传 emailClear=true）")
+    @JsonIgnore
     public boolean isEmailConflictFree() {
         return email == null || !Boolean.TRUE.equals(emailClear);
     }

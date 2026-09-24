@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.user.dto.req;
 
 import jakarta.validation.constraints.AssertTrue;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
@@ -21,7 +22,7 @@ public record AbstractUserUpdateReq(
     @NotNull Long userId,
     String name,
     Boolean enabled,
-    @Pattern(regexp = "(?s).*\\S.*", message = "extra 不能为空白；清空请传 extraClear=true")
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "extra 不能为空白；清空请传 extraClear=true")
     String extra,
     Boolean extraClear
 ) {
@@ -32,6 +33,7 @@ public record AbstractUserUpdateReq(
      * extraClear=true 是合法业务载荷（T-API-004），计入业务字段。
      */
     @AssertTrue(message = "至少需要提供一个业务字段（name/enabled/extra/extraClear）")
+    @JsonIgnore
     public boolean isAtLeastOneBusinessFieldPresent() {
         return name != null || enabled != null || extra != null || Boolean.TRUE.equals(extraClear);
     }
@@ -40,6 +42,7 @@ public record AbstractUserUpdateReq(
      * T-API-004（U006 拍板：全端点冲突拒绝）：新值与 Clear 同传拒绝。
      */
     @AssertTrue(message = "extra 与 extraClear 不能同时提供（清空请只传 extraClear=true）")
+    @JsonIgnore
     public boolean isExtraConflictFree() {
         return extra == null || !Boolean.TRUE.equals(extraClear);
     }

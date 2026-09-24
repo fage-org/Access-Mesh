@@ -103,20 +103,6 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
     public ServiceConfigResp saveServiceConfig(Long tenantId, ServiceConfigReq req, Long operatorId) {
         operatorId = OperatorUtil.resolveOrDefault(operatorId);
 
-        // 值域校验先于门禁（T-PERM-067 先例：门禁先行会使非法载荷报安全拒绝而非业务拒绝）：
-        // 创建分支不接受清空标志（T-API-004）——新建无既有值可清，字段缺省即为空，
-        // 携带即失败暴露调用方语义错位（与 @AssertTrue 冲突拒绝同族 fail-fast）。
-        // upsert 语义下仅创建分支拒绝；存在行的更新分支走合法清空（存在性预判仅 clear 载荷触发）。
-        boolean anyClearFlag = Boolean.TRUE.equals(req.basePathClear())
-            || Boolean.TRUE.equals(req.descriptionClear())
-            || Boolean.TRUE.equals(req.extraClear());
-        if (anyClearFlag
-            && serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode()) == null) {
-            throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
-                AccessErrorCode.PERM_INVALID_PARAM.getMessage()
-                    + ": 创建服务配置不接受 basePathClear/descriptionClear/extraClear（新建字段直接省略即为空）");
-        }
-
         if (!engine.hasPermissionByCode(tenantId, operatorId, ResourceTypeCode.SERVICE, null, OperationCode.MANAGE)) {
             throw new SecurityException("Permission denied: MANAGE on SERVICE");
         }
@@ -132,6 +118,18 @@ public class ServiceConfigAppServiceImpl implements ServiceConfigAppService {
 
         ServiceConfig config = serviceConfigMapper.selectByTenantAndServiceCode(tenantId, req.serviceCode());
         if (config == null) {
+            // 创建分支不接受清空标志（T-API-004）：新建无既有值可清，字段缺省即为空——
+            // 携带即失败暴露调用方语义错位（与 @AssertTrue 冲突拒绝同族 fail-fast）。
+            // 刻意置于门禁后的创建分支内判定（claude 外评 2026-09-24 裁决）：分支归属须读库，
+            // 预判上移到门禁前会构成服务存在性 oracle（无 MANAGE 者凭 20044/403 差异探测 serviceCode
+            // 是否已登记，与 T-ADMIN-029「先门禁后存在性」先例冲突；T-PERM-067「值域先于门禁」
+            // 仅适用不触库的纯参数校验，不适配 upsert 双分支语义）
+            if (Boolean.TRUE.equals(req.basePathClear()) || Boolean.TRUE.equals(req.descriptionClear())
+                || Boolean.TRUE.equals(req.extraClear())) {
+                throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
+                    AccessErrorCode.PERM_INVALID_PARAM.getMessage()
+                        + ": 创建服务配置不接受 basePathClear/descriptionClear/extraClear（新建字段直接省略即为空）");
+            }
             config = new ServiceConfig();
             config.setTenantId(tenantId);
             config.setServiceCode(req.serviceCode());

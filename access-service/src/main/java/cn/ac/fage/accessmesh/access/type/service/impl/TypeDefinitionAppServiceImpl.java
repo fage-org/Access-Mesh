@@ -469,7 +469,7 @@ public class TypeDefinitionAppServiceImpl implements TypeDefinitionAppService {
         // T-API-004（U006 拍板「type extra 拒绝清空」）：任何非 null extraClear 拒绝——
         // extra 含服务端管理键（managedMode/syncSourceService 所有权声明 + grantOriginRole
         // 授权根指针，指针无清除语义），整串清空会破坏类型所有权/授权根；移除业务键请提交
-        // 编辑后的 extra。占位字段给误传调用方明确错误（Jackson 默认静默忽略未知字段拦不住）
+        // 编辑后的 extra。占位字段给误传调用方专门错误信息（严格 mapper 天然 400 已由未知字段拒绝兜底；保留占位=错误可读性，2026-09-24 复核拍板）
         if (req.extraClear() != null) {
             throw new BizException(AccessErrorCode.PERM_INVALID_PARAM.getCode(),
                 AccessErrorCode.PERM_INVALID_PARAM.getMessage()

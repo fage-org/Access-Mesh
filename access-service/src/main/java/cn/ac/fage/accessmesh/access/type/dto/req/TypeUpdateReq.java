@@ -1,6 +1,7 @@
 package cn.ac.fage.accessmesh.access.type.dto.req;
 
 import jakarta.validation.constraints.AssertTrue;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 
@@ -24,10 +25,10 @@ import jakarta.validation.constraints.Pattern;
 public record TypeUpdateReq(
     @NotNull Long typeId,
     String name,
-    @Pattern(regexp = "(?s).*\\S.*", message = "description 不能为空白；清空请传 descriptionClear=true")
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "description 不能为空白；清空请传 descriptionClear=true")
     String description,
     Integer sortOrder,
-    @Pattern(regexp = "(?s).*\\S.*", message = "extra 不能为空白；不支持清空（含服务端管理键）")
+    @Pattern(regexp = "(?s)(?U).*\\S.*", message = "extra 不能为空白；不支持清空（含服务端管理键）")
     String extra,
     Boolean descriptionClear,
     Boolean extraClear
@@ -36,6 +37,7 @@ public record TypeUpdateReq(
      * T-API-004（U006 拍板：全端点冲突拒绝）：新值与 Clear 同传拒绝。
      */
     @AssertTrue(message = "description 与 descriptionClear 不能同时提供（清空请只传 descriptionClear=true）")
+    @JsonIgnore
     public boolean isDescriptionConflictFree() {
         return description == null || !Boolean.TRUE.equals(descriptionClear);
     }
