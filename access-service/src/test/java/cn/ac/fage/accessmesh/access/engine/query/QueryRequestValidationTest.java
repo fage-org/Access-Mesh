@@ -371,5 +371,20 @@ class QueryRequestValidationTest {
                 .as("最小 DECISION 可为 NONE")
                 .doesNotThrowAnyException();
         }
+
+        @Test
+        void should_rejectStructure_whenOutputFactDetailNullViaCanonicalConstructor() {
+            OutputSpec nullDetail = new OutputSpec(null, true, false, false, false, Set.of(), false);
+            assertThatThrownBy(() -> QueryRequestValidator.validate(request(
+                typeLevelItem("k1", ResultForm.FACTS, Evaluation.preserveSkip(), nullDetail))))
+                .as("canonical 构造的 null 事实档位为结构错误——不可绕过 FACTS≥KEPT")
+                .isInstanceOf(QueryValidationException.class)
+                .hasMessageContaining("factDetail");
+            assertThatThrownBy(() -> QueryRequestValidator.validate(request(
+                typeLevelItem("k1", ResultForm.DECISION, Evaluation.full(), nullDetail))))
+                .as("任一结果形式的 null 事实档位均拒绝")
+                .isInstanceOf(QueryValidationException.class)
+                .hasMessageContaining("factDetail");
+        }
     }
 }

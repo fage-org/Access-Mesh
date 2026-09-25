@@ -241,6 +241,8 @@
 
 | 2026-09-25 | **T-PERM-082 claude 外评处置定案**（通道=claude headless plan、实际生效模型=deepseek-flash[1m]〔banner 实证，本机 settings 声明存在漂移〕、禁子代理；P0-P2=0、P3×3 逐条代码级核实全成立、全采纳直修）：①noRoleCoverage 改消费运行态真实解析方式（原硬编码 EXPLICIT_ROLES 在 User 主体 NO_ROLE 场景会失真，084/085 前修除）＋DISALLOW 分支覆盖信息补锁；②CallerContext 契约文本对齐（顶层 null 键过滤/嵌套非 String 键拒绝两套边界写明；未来条件展平必须保持「保留键仅顶层」语义）；③契约 record null 集合/null 元素 NPE 边界与 Roles 复制语义补回归锁。同批减法拍板：OutputSpec.withExtraOperationKeys 零调用删除（沿 NOT_APPLICABLE 先例，随需要按真实调用形态加回）。 | docs/tasks/T-PERM-082.md（claude 外评处置段）、access-service/.../engine/query/（QueryExecutionEngine/CallerContext/OutputSpec＋三测试类） | 报了先核出处；①「新包零调用面」除已删两处（SkipReason.NOT_APPLICABLE/withExtraOperationKeys）外均溯源设计正文且由 085~091 承接（勿再报可裁剪）；②PermEvalContext 与 CallerContext 对同一 attributes 接受面分叉=迁移期设计内差异（勿报缺陷） |
 
+| 2026-09-25 | **T-PERM-082 codex sol 复评处置定案**（通道=codex exec、模型=gpt-6-sol×xhigh、禁子代理、read-only；P0-P2=0、P3×1 逐条代码级核实成立直修；上轮 claude 四组修复确认落位、两删除符号零残留、过度设计/存量观察均无）：OutputSpec canonical 构造 `factDetail=null` 可绕过 FACTS≥KEPT（校验器原只拒 NONE）——校验器补「任一结果形式 factDetail 非空」前置拒绝＋canonical 通道负向锁；类推扫描全包其余可达校验枚举组件均已有 null 检查，唯一缝隙即本处。 | docs/tasks/T-PERM-082.md（codex 复评处置段）、access-service/.../engine/query/（QueryRequestValidator＋QueryRequestValidationTest） | 报了先核出处；①factDetail=null 已在校验器拒绝（勿再报绕过 FACTS≥KEPT）；②codex 侧「surefire 顶层 tests=0」=@Nested 分桶报告既有口径（勿当缺陷） |
+
 ## 已推翻（superseded）
 
 | 原口径 | 出处 | 被取代 |
