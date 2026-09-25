@@ -13,7 +13,7 @@ depends_on:
 blocks: []
 acceptance:
   - "interface-admission / interface-admission-snapshot 版本化端点+DTO（InterfaceAdmissionSnapshot：schemaVersion/tenantId/subject/serviceCode/generatedAt/expiresAt/configGeneration/routes[]/operationCandidates[]/authorizationStage/finalCheckRequired）；PermissionClient 显式可信服务模式调用；新模式失败不回落旧 API:ACCESS"
-  - "网关本地判定序：校验模式/版本/时效→完整路由匹配与歧义检测（N14/N15：多匹配异要求 AMBIGUOUS 阻断、无注册拒绝且 ALL 不放行未注册）→唯一要求→评该要求条件分支（无条件或通过即 MAY_ENTER；需远端求值回源；其余拒绝）；坏条件显式不可用不变无条件；fail-closed 沿现行（缺快照/未知 schema/远端不可用=技术错误，不 stale-allow）"
+  - "网关本地判定序：校验模式/版本/时效→完整路由匹配与歧义检测（N14/N15：多匹配异要求 AMBIGUOUS 阻断、无注册拒绝且 ALL 不放行未注册）→唯一要求→评该要求条件分支（无条件或通过即 MAY_ENTER；N11：条件不可下发且无其他通过分支时本地回源、在线按相同规则求值；其余拒绝）；坏条件显式不可用不变无条件；fail-closed 沿现行（缺快照/未知 schema/远端不可用=技术错误，不 stale-allow）"
   - "N12：同事实/定义/时刻/IP 下本地投影与在线准入一致；N21：快照构建中配置代次改变废弃重建（configGeneration 拍板限定语义）、旧在途不覆盖新代次；N22：新旧 schema/命名空间隔离；N28：权限服务自身认证边界独立、无准入递归、缺映射不自动公共"
 design_writeback:
   required: true

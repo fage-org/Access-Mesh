@@ -117,19 +117,6 @@ last_updated: 2026-09-25（R2 计划立项核对：open 问题逐条对照，无
 
 **拍板结果（2026-09-24，T-ACCESS-055）**：**维持现状+登记**（用户拍板）——双向过严/过宽非越权，验收卡不夹带候选池语义变更（分发精化会使持 VIEW@组织者的候选池不再见其下岗位子节点成员——影响所有按 VIEW 配权的部门管理员预期）；本卡按现状口径验收，语义变更留专门任务拍板（registry 同日行）。
 
-## Q-033 契约总册 org CRUD 门禁行/正文未带岗位精化码——与 OrgOperationCodeMapper 实现漂移
-
-- **状态**：resolved（2026-09-24 随 T-ACCESS-055 收敛——§4 门禁表三行+§8.4/§8.5/§8.6 正文补「按目标 orgType 解析精化码（CREATE_POSITION/UPDATE_POSITION/DELETE_POSITION）」，registry 同日行）
-- **登记**：2026-09-22（T-ORG-003 收口残留扫描新发现，结构编辑族——非 F005 成员门禁射程）
-- **来源**：T-ORG-003 文档回写
-- **关联**：org-user-permission-contract v1.3/v1.4（精化码定稿权威）
-
-**现象与证据**：契约总册门禁表 org/create、org/update、org/delete 三行写裸 `CREATE`/`UPDATE`/`DELETE`，§8.4/§8.5 正文同款（子级 `ORG:UPDATE@parentOrgId`、`ORG:UPDATE@id`）；实现 `OrgWriteAppServiceImpl` 全部经 `OrgOperationCodeMapper.resolve(orgType, base)` 解析——岗位目标实际判 `CREATE_POSITION`/`UPDATE_POSITION`/`DELETE_POSITION`（v1.3 起定稿，org-user-permission-contract §4/§5 为权威）。
-
-**影响**：纯文档漂移（普通组织场景行值字面正确，仅岗位目标精化缺失）；按总册裸码给岗位配权的管理员会误以为已授权（实际岗位 CRUD 仍 403）。与 T-ORG-003 已校准的成员门禁行（member-candidates/user-org 三端点）同册不同族。
-
-**收敛口径（2026-09-24 随 T-ACCESS-055）**：§4 门禁表三行操作码列与 §8.4/§8.5/§8.6 门禁句已补「按目标 orgType 解析精化码（岗位 *_POSITION）」注记——与 org-user-permission-contract 对齐，doc-only 完成。
-
 ## Q-032 /user/create 带 orgId 的挂载门禁仍用裸 ORG:UPDATE——与成员动作码族语义分叉
 
 - **状态**：open
@@ -330,6 +317,7 @@ last_updated: 2026-09-25（R2 计划立项核对：open 问题逐条对照，无
 ## 已收敛（终态索引，一行一条；详情在关联任务卡/decision-registry）
 | Q-ID | 标题 | 收敛形态 | 关联 | 收敛日期 |
 |---|---|---|---|---|
+| Q-033 | 契约总册 org CRUD 门禁行/正文未带岗位精化码 | closed（2026-09-24 随 T-ACCESS-055 doc-only 收敛——§4 门禁表三行+§8.4~§8.6 补「按目标 orgType 解析精化码（岗位 *_POSITION）」注记，与 org-user-permission-contract 对齐；registry 同日行；正文条目 2026-09-25 随 R2 立项内部评审补迁本索引） | [T-ACCESS-055](archive/2026-09-24/tasks/T-ACCESS-055.md) | 2026-09-24 |
 | Q-036 | PositionTab 展示面两处存量：位置列恒「-」与成员加载失败落空态 | closed（T-FE-058 done：①index.vue 传 org-tree prop 修复父路径解析；②展开区三态区分（成员列表/失败占位+重试/暂无成员），失败不再误显空态） | [T-FE-058](archive/2026-09-24/tasks/T-FE-058.md) | 2026-09-23 |
 | Q-035 | 新增岗位弹窗 initialData.parentOrgId 通道失效——上级恒默认根组织 | closed（T-FE-058 done：openCreatePositionDialog 改传 parentOrgId/parentOrgName prop 对齐 index.vue 先例；浏览器实测上级预选「默认组织」、不手选直接提交创建成功） | [T-FE-058](archive/2026-09-24/tasks/T-FE-058.md) | 2026-09-23 |
 | Q-025 | UserOrgAppServiceImpl 读面 resolveDefaultTreeOrgIds 私有副本与新共享入口并存 | closed（2026-09-22 随 T-ORG-003 收敛：换绑 OrgTreeConfigDomainService.resolveDefaultTreeOrgIds 共享入口并删除私有副本——registry 2026-09-21 行绑定的收敛时机兑现；退化根（配置在而根失联）由共享入口空返回统一折算 ORG_TREE_CONFIG_NOT_FOUND，正常形态两实现等价；顺带清无调用方死 helper isPositionOrg） | [T-ORG-003](archive/2026-09-24/tasks/T-ORG-003.md) | 2026-09-22 |

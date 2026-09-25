@@ -1,7 +1,7 @@
 ---
 doc_type: plan
 title: R2 权限查询引擎统一与操作准入（方案 A）
-status: proposed
+status: active
 domain: access-service
 design_refs:
   - docs/design/r2-unified-query-and-admission.md
@@ -101,4 +101,4 @@ last_updated: 2026-09-25
 
 ## 当前进度
 
-2026-09-25 立项，全部 proposed，未开工。依赖主线：T-PERM-080 → 081/082 → 083/084 → 085 → 086/088 → 087/089 → 090 → 091 → 092/093 → 094；ADM 支线：T-ACCESS-056 → 057/058 → 059 → 060 → 061 → 062；T-PERM-054 收口于 T-ACCESS-058/061 之后。
+2026-09-25 立项并转 active（准入条件①设计定稿已达成、②为执行纪律；内部双轨评审处置后修订）。全部任务 proposed 未开工。依赖概览（唯一权威=各卡 frontmatter depends_on）：T-PERM-080 → 081/082 → 083/084 → 085 → 086（088 依赖 083+086，可与 087 并行）→ 087/089 → 090 → 091 → 092/093 → 094；ADM 支线：T-ACCESS-056 → 057（跨线依赖 R2 主线 083~086）/058 → 059 → 060 → 061 → 062；T-PERM-054 收口于 T-ACCESS-058/061 之后。

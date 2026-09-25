@@ -11,8 +11,8 @@ depends_on:
   - T-PERM-080
 blocks: []
 acceptance:
-  - "QueryRequest/QueryItem/四种 Selection（TYPE_LEVEL/TARGET_SET/GRANT_LIST/OPERATION_ADMISSION）/三种 ResultForm/OutputSpec/EvaluationCoverage 模型与不可变构造、受控工厂落地；合法组合表与首版混批约束执行前整体结构校验"
-  - "C01~C08 契约单测全绿：空请求零权限 I/O；DECISION+PRESERVE/SKIP 结构错误；GRANT_LIST+DECISION 混批结构错误；Roles(empty) 返回 NO_ROLE 不回退登录用户；重复 key/空 type/空 op 校验错误；防御性复制；attributes 不可伪造保留键"
+  - "QueryRequest/QueryItem/四种 Selection（TYPE_LEVEL/TARGET_SET/GRANT_LIST/OPERATION_ADMISSION）/三种 ResultForm/OutputSpec/EvaluationCoverage 模型与不可变构造、受控工厂落地；合法组合表与首版混批约束执行前整体结构校验；I07：同一事务先写后新 execute 创建新 RunState、不复用上次事实"
+  - "C01~C08 契约单测全绿：空请求零权限 I/O；DECISION+PRESERVE/SKIP 结构错误；GRANT_LIST+DECISION 混批结构错误；Roles(empty) 返回 NO_ROLE 不回退登录用户；重复 key/空 type/空 op 校验错误；防御性复制；attributes 不可伪造保留键；R03：Roles 主体角色视角不暗中解析用户、不补加角色（Roles({R1,R2}) 互斥对事实完整返回、不因 ROLE_MUTEX 清空——§2.2 定稿口径）"
   - "三结果不互冒充：GrantSetResult 无 allowed()，AdmissionResult 不实现最终授权布尔且恒 finalCheckRequired=true"
 design_writeback:
   required: true

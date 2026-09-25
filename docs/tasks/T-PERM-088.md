@@ -14,7 +14,7 @@ blocks: []
 acceptance:
   - "ConflictEvidence 按 execution+内部 item+stage+ruleRef 聚合；根 execute 统一受控提交一次（纯计算与父项不发日志；共享父被多项引用=一条父证据关联多项）"
   - "A01~A04：未触发规则不进证据（A-C 未触发不列）；重复 key/同规则各维计数按定义去重；一次受控提交无重复通知；后续装载故障保留技术失败、证据标 EXECUTION_ERROR_AFTER_CONFIRMED_STAGE 且不覆盖主异常"
-  - "X01：DB/规则装载/预算故障为技术异常（不当普通 DENY/空清单/半批成功）；TRACE 不用另一时刻重评条件、不为完整过程补跑短路阶段；指标低基数（不使用 resourceCode/permissionId/itemKey 标签）"
+  - "X01：DB/规则装载故障为技术异常（不当普通 DENY/空清单/半批成功）；X02：预算/deadline 超限不返回半份 FACTS 或未经完整评估的 ALLOW；TRACE 不用另一时刻重评条件、不为完整过程补跑短路阶段；敏感角色/授权 ID、IP 规则只向经门禁的诊断开放（§6.1——承接 T-PERM-087 非目标移交）；指标低基数（不使用 resourceCode/permissionId/itemKey 标签）"
 design_writeback:
   required: true
   status: pending

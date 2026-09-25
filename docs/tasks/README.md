@@ -48,7 +48,7 @@
 | [T-PERM-093](T-PERM-093.md) | （R2-T14）候选/规则索引与性能测量 | ⚙️ | T-PERM-091 |
 | [T-PERM-094](T-PERM-094.md) | （R2-T15）灰度、故障、缓存与发布演练 | ⚙️ | T-PERM-092, T-PERM-093 |
 | [T-ACCESS-056](T-ACCESS-056.md) | （ADM-T01）准入定案回写与协议落账 | ⚙️ | T-PERM-080, T-PERM-082 |
-| [T-ACCESS-057](T-ACCESS-057.md) | （ADM-T02）OPERATION_ADMISSION 阶段与新结果 | ⚙️ | T-PERM-083~086, T-ACCESS-056 |
+| [T-ACCESS-057](T-ACCESS-057.md) | （ADM-T02）OPERATION_ADMISSION 阶段与新结果 | ⚙️ | T-PERM-083, T-PERM-084, T-PERM-085, T-PERM-086, T-ACCESS-056 |
 | [T-ACCESS-058](T-ACCESS-058.md) | （ADM-T03）映射模型、服务模式与同步/管理面 | ⚙️ | T-ACCESS-056 |
 | [T-ACCESS-059](T-ACCESS-059.md) | （ADM-T04）新端点、快照与 SDK/网关链路 | ⚙️ | T-ACCESS-057, T-ACCESS-058 |
 | [T-ACCESS-060](T-ACCESS-060.md) | （ADM-T05）失效、TTL 边界与在途代次 | ⚙️ | T-ACCESS-058, T-ACCESS-059 |
@@ -350,6 +350,10 @@ _当前无未终态 T-ADMIN 任务。`T-ADMIN-001~019`（用户角色代理修�
 ## 建议执行顺序
 
 依据：①评审定级（A/B/C 为 P0）②依赖解锁价值 ③验收闭环优先 ④无依赖可立即并行。
+
+### R2 权限查询引擎统一与操作准入（2026-09-25 立项，active）
+
+执行顺序以 [r2-query-engine-and-admission-plan](../plans/r2-query-engine-and-admission-plan.md) 的「当前进度」节为唯一权威；依赖关系以各任务卡 frontmatter `depends_on` 为准。入口：T-PERM-080 全仓清点（与 T-PERM-082 可并行）；动核心实现前先跑 T-PERM-081 语义基线（红跑取证）。
 
 ### product-vertical-slice（✅ 2026-08-27 收口归档：里程碑 A + B 全部达成，18 项任务全 done；计划见 [archive/2026-08-27](../archive/2026-08-27/product-vertical-slice-plan.md)）
 

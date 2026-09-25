@@ -11,7 +11,7 @@ depends_on:
   - T-PERM-082
 blocks: []
 acceptance:
-  - "I02：20 辅助类型默认一次多类型 Mapper 调用（batchLoadOperationsByResourceTypes 逐类型 SQL 直查收敛；辅助操作解析移到输出开关判断之后）——PQ-02 修复面"
+  - "I02：20 辅助类型默认一次多类型 Mapper 调用（batchLoadOperationsByResourceTypes 逐类型 SQL 直查收敛；辅助操作解析移到输出开关判断之后）——PQ-02 修复面；I03：最小输出成功路径无装配专用操作解析/描述读取"
   - "三态记忆（UNLOADED／LOADED_EMPTY／LOADED_VALUE）落地；I04：已读空类型/缺失操作请求内不重复回源（Map.get()==null 不再兼任「未读」与「不存在」）"
   - "I05：缓存回填保留读前令牌/剩余 TTL 不重置；I06：缓存掩码目录与新鲜定义分桶、互不覆盖（缓存掩码不得覆盖 freshDefinitionIndex）"
   - "RolePermEntry 作为缓存载荷边界例外保留（读边界转 GrantFact），新执行器不消费旧 PermResult（§5.4）"

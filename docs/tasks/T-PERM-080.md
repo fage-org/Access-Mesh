@@ -27,7 +27,7 @@ last_updated: 2026-09-25
 
 ## 范围
 
-- rg 全仓盘点旧执行体符号（PermQuery/PermBatchQuery/PermResult/PermBatchResult、query/queryBatch、hasPermissionByCode/getDeniedResourceCodes/hasPermissionByEntityId/getDeniedEntityIds、computeInstanceDenied/passesScopeAll），含 mock 层、测试夹具、文档引用（`-g '!docs/archive/**'`）。
+- rg 全仓盘点旧执行体符号（PermQuery/PermBatchQuery/PermResult/PermBatchResult、query/queryBatch、hasPermissionByCode/getDeniedResourceCodes/hasPermissionByEntityId/getDeniedEntityIds、computeInstanceDenied/passesScopeAll），含 mock 层、测试夹具、文档引用（`-g '!docs/archive/**'`）；清点维度六面：调用/语义/输出形态/事务边界/缓存序列化/协议（设计 §9.2 R2-T01 口径）。
 - 按消费语义分两类登记：旧执行体消费点（迁新 execute）与 LEGACY_API 业务模式消费点（保持共同集合语义迁入新 execute）。
 - 盘点外部 batch 上限与内部 getDenied 容量（分属不同约束面）。
 
