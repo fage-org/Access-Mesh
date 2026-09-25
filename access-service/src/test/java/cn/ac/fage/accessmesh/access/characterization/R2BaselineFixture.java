@@ -76,7 +76,9 @@ public final class R2BaselineFixture {
     public static final long USER_NONE = 9_643_006L;
     public static final long USER_SNAP_ALL = 9_643_007L;
 
-    /** API 映射：svc-a=实例轨单映射 / svc-b=scopeAll 展开双映射 */
+    /** API 映射：svc-a=实例轨单映射 / svc-b=scopeAll 展开双映射；承载服务行（生产形态=映射挂已声明服务，claude 外评 P3 补种） */
+    public static final long SVC_CFG_A = 9_648_001L;
+    public static final long SVC_CFG_B = 9_648_002L;
     public static final long MAP_INST = 9_644_001L;
     public static final long MAP_ALL_1 = 9_644_002L;
     public static final long MAP_ALL_2 = 9_644_003L;
@@ -198,6 +200,17 @@ public final class R2BaselineFixture {
                 + "second_abstract_role_id, description) VALUES (?, ?, 'ROLE_MUTEX', ?, ?, 'r2b-baseline') "
                 + "ON CONFLICT (id) DO NOTHING",
             RULE_ROLE_MUTEX_XY, TENANT, ROLE_X, ROLE_Y);
+
+        // 服务配置行（生产契约：resource_api_mapping 挂已声明服务——SERVICE 行唯一通道=管理面手工建行；
+        // 引擎快照链当前不读该表，此为事实形态保真补种，沿 DelegatedDirectoryClosurePgIT 先例）
+        jdbc.update(
+            "INSERT INTO service_config (id, tenant_id, service_code, name, base_path, status, delete_flag) "
+                + "VALUES (?, ?, ?, 'r2b-服务A', '/api', 1, 0) ON CONFLICT (id) DO NOTHING",
+            SVC_CFG_A, TENANT, SVC_INST);
+        jdbc.update(
+            "INSERT INTO service_config (id, tenant_id, service_code, name, base_path, status, delete_flag) "
+                + "VALUES (?, ?, ?, 'r2b-服务B', '/api', 1, 0) ON CONFLICT (id) DO NOTHING",
+            SVC_CFG_B, TENANT, SVC_ALL);
 
         jdbc.update(
             "INSERT INTO resource_api_mapping (id, tenant_id, resource_entity_id, service_code, http_method, "
