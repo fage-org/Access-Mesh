@@ -117,11 +117,11 @@ last_updated: 2026-09-25
   - gateway / example-service / e2e / common / perm-sdk 无任何直接引用（perm-common `BusinessKeyUtil:262/274` 仅 Javadoc 提及；外部消费全部经 HTTP 协议面——auth/check 族与 interface-snapshot 快照）；
   - 引擎类**反射调用零**（`getDeclaredMethods` 全仓命中 5 个测试文件——Feign 契约、审计切面、操作日志覆盖、HTTP 路径快照、perm-common DTO 契约——均为对自身接口/DTO 的方法枚举，无一反射引擎类）；**方法引用零**（无 `PermQueryEngine::` / `::query` 形态）；
   - `computeInstanceDenied` / `passesScopeAll` 为 `PermQueryEngine` 私有方法，生产代码外部直接调用零（仅 `ConditionAppServiceImpl:187` 行注释提及语义）；它们作为「旧执行体内部实现」随 T-PERM-092 整体删除，无独立迁移目标。
-- 非消费点引用（注释/Javadoc 提及，属 T-PERM-092 删除时的文档清扫面，不设迁移目标）：`RequestContextInterceptor:337`、`OAuth2ResourcePathProperties:21`（两处「不接入 PermQueryEngine」决策注记）、`ResourceEntityMapper:73`、`UserMenuQueryAppService:11`（菜单判定经 PermissionViewAppService 间接消费）、`AccessCacheCatalog:169`、前端 `frontend/src/views/perm/grant/utils/source-chain.ts:5/16/241`（展示口径注释，运行时以引擎为准）。
+- 非消费点引用（注释/Javadoc/前端注释提及，属 T-PERM-092 删除时的文档清扫面，不设迁移目标；**处置口径：代码 Javadoc/注释=T-PERM-092 触达即改，指令面 rules/skills=随 T-PERM-089/092 同批回写**）：`RequestContextInterceptor:337`、`OAuth2ResourcePathProperties:21`（两处「不接入 PermQueryEngine」决策注记）、`ResourceEntityMapper:73`、`UserMenuQueryAppService:11`（菜单判定经 PermissionViewAppService 间接消费）、`AccessCacheCatalog:169`、`engine/constant/OperationCode.java:25/28`（Javadoc `<pre>` 用法示例）、`grant/enums/TargetMode.java:11`、`role/mapper/AbstractRoleMapper.java:114-115`、`org/service/OrgVisibilityQueryAppService.java:10`、`engine/service/PermissionCheckAppService.java:14`、`engine/vo/RolePermEntry.java:8`、前端 `frontend/src/views/perm/grant/utils/source-chain.ts:5/16/241` 与 `source-chain.fixtures.json:7`（展示口径注释，运行时以引擎为准）、`frontend/src/views/system/user/utils/perms.ts:12`。
 
 ### A.1 直接执行入口消费点（`query`/`queryBatch`）
 
-全部为**旧执行体消费点**（迁新 execute）；其中 2 点同时属 LEGACY_API 业务模式（见 A.1 注）。
+全部为**旧执行体消费点**（迁新 execute）；其中 checkInterface 与 interfaceSnapshot 同时属 LEGACY_API 业务模式（见各行标注）。
 
 | # | 调用点 | 入口语义（协议面） | 构造 | 输出消费 | 事务 | 迁移目标（Selection＋ConditionMode/MutexMode＋ResultForm） |
 |---|---|---|---|---|---|---|
@@ -129,7 +129,7 @@ last_updated: 2026-09-25
 | 2 | `PermissionCheckAppServiceImpl:141` batchCheck | 外部 `auth/batch-check` | `PermBatchQuery.forAuthCheckBatch`（T-PERM-061 A+ 分组+请求级共享装载；evaluatedAt 请求级钉住） | `outcomes()` 按输入序回填 AuthCheckItemResult | readOnly | 多个独立 DECISION item **一次 execute 批量表达**；外层保留原序/重复项/请求级父上下文；禁循环 N 次公开 execute |
 | 3 | `PermissionCheckAppServiceImpl:185` checkInterface | **LEGACY_API** 在线接口检查 | `forInterfaceCheck(API, entityIds, ACCESS)` | `toCheckInterfaceResp(q, 30)`（**cacheTtlSeconds=30 秒缓存有效期**，matched 结果记录全量回传——T-API-003 口径） | readOnly | 一个 API:ACCESS TARGET_SET **共同集合**（迁移期不拆项 OR；原注册门禁外层保留）；T-ACCESS-062 退役 |
 | 4 | `engine/service/impl/PermissionQueryAppServiceImpl:119` queryResources | 外部 `query-resources` | `forUserView`（＋`inheritChildren`/`inheritParents` 展示面树扩展开关） | `allEntries`→白名单/排除/投影分页 | readOnly | GRANT_LIST＋FACTS；物理子孙展开在授权集合评估之后 |
-| 5 | `PermissionQueryAppServiceImpl:285` queryScopes | 外部 `query-scopes` | `forScopeQuery` | `rawEntries`/`instanceEntries` 双轨→四态投影 | readOnly | GRANT_LIST＋FACTS，OutputSpec RAW_AND_KEPT（范围四态保留 raw） |
+| 5 | `PermissionQueryAppServiceImpl:285` queryScopes | 外部 `query-scopes` | `forScopeQuery` | `rawEntries`/`instanceEntries` 双轨→四态投影 | readOnly | GRANT_LIST＋**EVALUATE＋ENFORCE**＋FACTS，OutputSpec RAW_AND_KEPT（范围四态保留 raw；§6.2 钉死条件/互斥评估模式对，防 PRESERVE 下 DENIED/EMPTY 退化） |
 | 6 | `PermissionQueryAppServiceImpl:443` interfaceSnapshot | **LEGACY_API** 快照下发（gateway 消费） | 引擎 LIST 口径 | `SnapshotAssembler` | readOnly | GRANT_LIST＋PRESERVE/ENFORCE FACTS；有效位覆盖口径/dependent 排除/ALL 展开语义原样（设计 §6.6）；T-ACCESS-062 退役 |
 | 7 | `engine/service/impl/PermissionViewAppServiceImpl:177`（`getEffectiveResourceAccess`） | 内部：权限视图＋**菜单有效资源链**（UserMenuQueryAppServiceImpl 间接消费） | `forUserView`（LIST 全量） | `PermViewAssembler:62` allEntries | readOnly | GRANT_LIST FULL＋有效操作投影；查看他人门禁（:71）是独立 USER VIEW 实例 DECISION |
 | 8 | `grant/service/domain/impl/PermissionGrantDomainServiceImpl:168` checkCanGrant | 内部：转授资格（写校验面） | `forUserView`＋`evaluateConditions/Conflicts/MatchesBit(false)`＋`includeOperations(true)`＋**`bypassPermSnapshot(true)`** | `instanceEntries`→同行转授资格 | 写事务内 | GRANT_LIST＋PRESERVE＋SKIP＋FACTS，读来源 `ListGrantRead.DATABASE`（§9.1 bypassPermSnapshot 映射的现存实证）；同行资格判定留领域层 |
@@ -181,7 +181,7 @@ last_updated: 2026-09-25
 | `org/.../OrgVisibilityQueryAppServiceImpl:68` | filterVisibleOrgIds——组织可见性（T-PERM-042，code 解析下沉引擎） | ORG×VIEW |
 | `resource/.../ServiceConfigAppServiceImpl:239` | 服务配置列表可见性 | SERVICE×VIEW |
 
-**设计 §6.5 增补勘正**：矩阵 getDenied 行「语义变化四消费面（资源树、API 映射、资源依赖、权限树 ID 轨）」与实际清点不符——四面中「资源依赖」（DependencyAppServiceImpl 无 getDenied 调用，仅 ByCode 单点门禁见 A.2）与「权限树 ID 轨」（`/auth/query-permission-tree` 已随 T-PERM-059 于 2026-09-10 删除，无消费面）两面**不存在**，实存两面（资源树 :436、API 映射 :936/984/1001）；实际全量消费面以上表清单为准（多调用点方法仅 listApiMappings 一处，assignRole/assignRolesBatch/revokeRolesBatch 各 1 点）＋门面透传链。逐面确认清单以上表为准。
+**设计 §6.5 增补勘正**：矩阵 getDenied 行「语义变化四消费面（资源树、API 映射、资源依赖、权限树 ID 轨）」与实际清点不符——四面中「资源依赖」（DependencyAppServiceImpl 无 getDenied 调用，仅 ByCode 单点门禁见 A.2）与「权限树 ID 轨」（`/auth/query-permission-tree` 已随 T-PERM-059 于 2026-09-10 删除，无消费面）两面**不存在**，实存两面（资源树 :436、API 映射 :936/984/1001）；实际全量消费面以上表清单为准（多调用点方法仅 listApiMappings，三个角色候选写守卫方法各含单调用点）＋门面透传链。逐面确认清单以上表为准。
 
 ### A.4 `AdminPermissionValidator` 门面间接消费链（经门面调引擎，随门面实现一并迁移）
 
@@ -205,7 +205,7 @@ last_updated: 2026-09-25
 - `PermQuery`/`PermResult`/`PermBatchQuery`/`PermBatchResult` **均不进任何缓存载荷**（全仓核实零序列化点）；四旧 DTO 退出（T-PERM-092）无缓存兼容动作。
 - 写路径失效联动（OPERATION_PERMISSIONS_BY_TYPE 等）不直接消费旧执行体符号，失效链路随 T-PERM-094 演练覆盖。
 
-### A.7 测试夹具（7 组）
+### A.7 测试夹具
 
 | 组 | 文件 | 迁移目标 |
 |---|---|---|
@@ -219,7 +219,9 @@ last_updated: 2026-09-25
 
 （`PermCommonReqContractTest` 的 `getDeclaredMethods` 为 DTO 反射契约枚举，不消费引擎符号，不入册计数。）
 
-### A.8 活文档引用清单（T-PERM-092 删除前清扫面；superseded 档案不入——留原位待物理归档、不改写，2026-09-25 拍板）
+### A.8 活文档与指令面引用清单（T-PERM-092 删除前清扫面；superseded 档案不入——留原位待物理归档、不改写，2026-09-25 拍板）
+
+**指令面（rules/skills——AGENTS.md 指针表登记的治理入口，随 T-PERM-089/092 同批回写，skills 双副本同批同步）**：`.claude/rules/permission-coding-standards.md`（现役 API 用法示例最密集的指令文件）、`.claude/rules/testing-standards.md`、`.claude/skills/permission-query-pipeline/SKILL.md`＋`.agents/skills/` 双副本（引擎使用规范）、`.claude/skills/accessmesh-patterns/SKILL.md`＋双副本。**活跃任务卡**：`docs/tasks/T-PERM-036.md`（proposed，验收含 PermQueryEngine 链路叙述——该卡若在 R2 完结前推进须按新 execute 口径改写验收）。
 
 高密度（正文以引擎口径行文，回写主目标）：`engine/implementation.md`（最密，R2 完结后 §3 族整体重写）、`engine/overview.md`、`engine/core-flows.md`。契约/治理面（门禁矩阵与调用口径行）：`access-service-api-contract.md`、`access-service-architecture.md`、`project-rules.md`、`access-service-capability-structure.md`、`org-user-permission-contract.md`、`schema/access-service.sql`（注释）、`permission-center-v3.5-design.md`、`dependency-auto-grant.md`、`extension-guide.md`、`iam-task-closure.md`、`frontend/permission-grant.md`、`frontend/service-interface-mapping.md`（:127 `getDeniedResourceCodes` 带日期划线历史注记——T-PERM-092 触达时按「带日期历史句」口径定去留）。治理索引：AGENTS.md、docs/README.md、docs/design/README.md、decision-registry.md（历史定案行不改写）、CHANGELOG.md。文档清扫统一口径=代码退役后按「现行文档规范回写」执行（本计划归档条件），decision-registry 历史行例外保留。
 
