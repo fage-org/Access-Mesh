@@ -2,7 +2,7 @@
 doc_type: problems
 title: 待解决问题清单
 counter: Q-043           # 已分配最大问题号；分配后冻结，不复用不重排
-last_updated: 2026-09-24（同日 Q-033 resolved 随 T-ACCESS-055 收敛+Q-034 拍板注记〔维持现状+登记〕；此前同日 Q-006 终结注记随 T-ACCESS-054 落盘；此前 Q-043 登记：T-API-004 显式清空协议同型字段矩阵结论——condition/menu/OAuth2 族未实施沿 Q-015 先例留给触达任务）
+last_updated: 2026-09-25（R2 计划立项核对：open 问题逐条对照，无一项由该计划直接解决；Q-040 加 T-ACCESS-059 对齐注记。此前 2026-09-24：Q-033 resolved 随 T-ACCESS-055 收敛+Q-034 拍板注记、Q-006 终结随 T-ACCESS-054、Q-043 登记）
 ---
 
 # 待解决问题清单（pending problems）
@@ -57,7 +57,7 @@ last_updated: 2026-09-24（同日 Q-033 resolved 随 T-ACCESS-055 收敛+Q-034 �
 - **状态**：open
 - **登记**：2026-09-23（T-ACCESS-053 U008 启动拍板：维持现状、记录问题后续解决）
 - **来源**：[T-ACCESS-053](archive/2026-09-24/tasks/T-ACCESS-053.md) 启动决策（用户 AskUserQuestion 拍板）
-- **关联**：T-ACCESS-053；[service-authentication.md](design/service-authentication.md) §3.5（阶段二规划）；extension-guide §2.2（对照表载体）
+- **关联**：T-ACCESS-053；[service-authentication.md](design/service-authentication.md) §3.5（阶段二规划）；extension-guide §2.2（对照表载体）；T-ACCESS-059（2026-09-25 R2 计划立项核对注记：新准入端点身份形态须与本 Q 收敛方向对齐——本 Q 仍 open，不因该任务收敛）
 
 **现象与证据**：per-service 凭证（T-PERM-070）仅覆盖 M2M 白名单三端点（`resource-entity/sync`、`resource-entity/full-sync`、`integration/permission-manifest/full-sync`）；服务调运行时权限查询（`auth/check`、`batch-check`、`query-resources`、`query-scopes`）仍必须用旧全局密钥（`X-Internal-Secret` + 自报 `X-Service-Code`/`X-Tenant-Id`）——凭证调 check 被白名单拒 403。接入方须同时维护两套身份（适用面对照表已随 T-ACCESS-053 落 extension-guide §2.2）。
 

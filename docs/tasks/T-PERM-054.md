@@ -1,40 +1,40 @@
 ---
 doc_type: task
 id: T-PERM-054
-title: 手工 API 映射绑定非 API 资源的处置——暂缓（关联权限自动授权方向已定、方案未定）
+title: 手工 API 映射绑定非 API 资源处置——方案 A 落地收口
 status: proposed
-plan: —（2026-09-14 脱出 design-audit-followup 随计划归档；启动门禁不变，等方案定案）
-domain: permission-center
+plan: docs/plans/r2-query-engine-and-admission-plan.md
+domain: access-service
 design_refs:
-  - docs/design/access-service-api-contract.md#§12.2（service-config / api-mapping；T-ACCESS-040 重挂总册）
+  - docs/design/r2-unified-query-and-admission.md §7/§8.1
+  - docs/design/access-service-api-contract.md §12.2
   - docs/design/schema/access-service.sql
-depends_on: []
+depends_on:
+  - T-ACCESS-058
+  - T-ACCESS-061
 blocks: []
 acceptance:
-  - "启动门禁（暂缓卡）：**方向已定（2026-09-09 registry 登记：API 不单独授权、接口权限由操作权限关联派生——授操作权限即有接口权限，网关按 {资源类型:操作} 映射 API 鉴定），方案未定**；方案讨论定案后重写本卡验收并解除暂缓。开放项仅剩映射机制、存量迁移与入口兼容方案（见『讨论范围』三问中未决部分）"
+  - "原卡三问全部闭合：①入口语义=required_operation_id 显式业务操作引用（接口→业务 type-operation），取代「仅 API 类型资源」一刀切与「绑定即联动」两种旧候选；②联动语义=方案 A 两层判定（网关操作准入 MAY_ENTER+业务实例最终鉴权），不再授 API:ACCESS；③存量核对=运行库盘点处置完成（T-ACCESS-061 盘点清单为准）"
+  - "存量非 API 映射逐条盘点处置：显式找到登记 API 并补准入操作，或清理；不凭旧菜单类型猜 VIEW；不确认的数据不启新模式"
+  - "非 API 死配置消灭：新模式下不存在「绑定即可达」或「绑定即恒 deny」通道（缺 required operation 的登记=配置故障阻断，不静默）"
 design_writeback:
   required: true
   status: pending
-last_updated: 2026-09-09
+last_updated: 2026-09-25
 ---
 
-# T-PERM-054 手工 API 映射绑定非 API 资源的处置——暂缓（关联权限自动授权方向已定、方案未定）
-
-> 状态：proposed（**暂缓执行**，2026-09-05 设计体检 P2-3 问题二，定案单独立题暂缓；2026-09-09 统一引擎 grill 定案补方向：API 不单独授权、接口权限由操作权限关联派生，维持暂缓待方案设计）
-> 依赖：无
+# T-PERM-054 手工 API 映射绑定非 API 资源处置——方案 A 落地收口
 
 ## 背景
 
-`addApiMapping`/`updateApiMapping` 仅校验资源存在不校验资源类型，非 API 类型资源（如 MENU）可建映射；运行时 `forInterfaceCheck` 固定 `Set.of("API")+ACCESS` 类型过滤 → 非 API 绑定映射为永远 deny 的死配置（fail-closed，无越权通道，定级 P2）。
+原问题（2026-09-05 设计体检 P2-3）：`addApiMapping`/`updateApiMapping` 仅校验资源存在不校验类型，非 API 类型可建映射；运行时 `forInterfaceCheck` 固定 `Set.of("API")+ACCESS` 过滤——非 API 绑定为恒 deny 死配置（fail-closed 无越权，P2）。
 
-机制上一刀切「入口拒绝非 API 资源」即可收口，但 2026-09-05 定案不简单以入口拒绝收口：**「映射到菜单/其他类型资源 → 该资源权限联动接口权限」与 resource_dependency 的依赖自动补全授权同族**，属「关联权限自动授权」设计方向，值得整体讨论后再定入口语义。
-
-## 讨论范围（启动时展开）
-
-1. 入口是否收紧为「仅 API 类型资源」为基础语义；
-2. 非 API 映射是否赋予「该资源授权联动放行对应路由」的语义（与 resource_dependency 自动补全的关系：复用/区分/互斥）；
-3. 存量核对（现绑非 API 资源的映射，预期为零，发现即处置）。
+方向定案（2026-09-09 registry）：API 不单独授权、接口权限由操作权限关联派生。**方案定稿（2026-09-25）**：统一设计 `r2-unified-query-and-admission.md`（v3.1 adopted）落地方案 A，本卡解除暂缓并归入计划 r2-query-engine-and-admission。
 
 ## 范围
 
-- 暂缓期无实现交付；定案后重写验收。
+本卡为**收口监督卡**：映射模型/同步/管理面实施在 T-ACCESS-058，业务最终检查与存量盘点执行在 T-ACCESS-061，API 独立授权退役在 T-ACCESS-062；本卡验收=原三问闭合+存量处置完成+死配置通道消灭。
+
+## 非目标 / 遗留
+
+- 不恢复「映射到菜单/其他类型资源→该资源权限联动放行路由」的依赖自动补全式语义（与 resource_dependency 的关系已在设计 §8.1 拍板：不编译为 resource_dependency、不借 depend_on 表达 API 关联）。
