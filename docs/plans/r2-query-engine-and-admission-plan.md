@@ -63,7 +63,7 @@ last_updated: 2026-09-25
 | ID | 标题（报告编号） | 状态 |
 |---|---|---|
 | [T-PERM-080](../tasks/T-PERM-080.md) | 全仓调用与语义清点（R2-T01） | ✅ |
-| [T-PERM-081](../tasks/T-PERM-081.md) | PQ-01/06 反例与正常语义基线（R2-T02） | ⚙️ |
+| [T-PERM-081](../tasks/T-PERM-081.md) | PQ-01/06 反例与正常语义基线（R2-T02） | ✅ |
 | [T-PERM-082](../tasks/T-PERM-082.md) | 新请求/结果模型与合法组合（R2-T03） | ⚙️ |
 | [T-PERM-083](../tasks/T-PERM-083.md) | 角色互斥 S/H/D 确定化与纯互斥计算（R2-T04） | ⚙️ |
 | [T-PERM-084](../tasks/T-PERM-084.md) | QueryReadSupport 与读来源分桶（R2-T05） | ⚙️ |
@@ -103,8 +103,9 @@ last_updated: 2026-09-25
 
 ## 当前进度
 
-- 2026-09-25 立项并转 active（准入条件①设计定稿已达成、②为执行纪律）。全部任务 proposed 未开工。依赖概览（唯一权威=各卡 frontmatter depends_on）：T-PERM-080 → 081/082 → 083/084/095（083+095=最小正确性修复基线，§9.3）→ 085 → 086（088 依赖 083+086，可与 087 并行）→ 087/089 → 090 → 091 → 092/093 → 094；ADM 支线：T-ACCESS-056 → 057（跨线依赖 R2 主线 083~086+088）/058 → 059 → 060 → 061 → 062（另依赖 092——两个完成条件在此会合）；T-PERM-054 收口于 T-ACCESS-058/061 之后。
+- 2026-09-25 立项并转 active（准入条件①设计定稿已达成、②为执行纪律）；立项时全部任务 proposed。依赖概览（唯一权威=各卡 frontmatter depends_on）：T-PERM-080 → 081/082 → 083/084/095（083+095=最小正确性修复基线，§9.3）→ 085 → 086（088 依赖 083+086，可与 087 并行）→ 087/089 → 090 → 091 → 092/093 → 094；ADM 支线：T-ACCESS-056 → 057（跨线依赖 R2 主线 083~086+088）/058 → 059 → 060 → 061 → 062（另依赖 092——两个完成条件在此会合）；T-PERM-054 收口于 T-ACCESS-058/061 之后。
 - 2026-09-25 T-PERM-080 完成：全仓清点册见附录 A（清点口径、生产调用点逐点迁移目标、测试/文档/容量盘点与设计 §6.5 增补结论）；设计 §6.5 已增补指针与四消费面勘正。
+- 2026-09-25 T-PERM-081 完成：R2 语义基线资产三件落库（`R2BaselineFixture`＋`MutexSemanticsCharacterizationPgIT`〔PQ-01/06 反例锚，断言=锁当前行为、T-PERM-083/095 修复时翻转〕＋`QuerySemanticsBaselinePgIT`〔四族 X03 差分锚〕，入册 A.7）；红跑取证与三项拍板见 registry 同日行。
 
 ## 附录 A：全仓旧执行体清点册（T-PERM-080 产出）
 
@@ -214,7 +215,7 @@ last_updated: 2026-09-25
 | 结果加工器单测 | `engine/util/PermViewAssemblerTest`、`engine/util/SnapshotAssemblerTest` | 随 A.5 加工面改写（PermResultUtils 无独立测试类，经服务单测覆盖） |
 | grant 域单测 | PermissionGrantDomainServiceImplTest（转授资格） | 随 A.1#8 被测面在 T-PERM-091 改写 |
 | 管理面单测（mock engine） | TypeDefinition/Operation/Condition/ConflictRule/RoleManage/UserManage/BizDomain/DomainConfig/SystemConfig/ServiceConfig/ServiceSync/Dependency/ResourceManage/PermissionGrantApp/ServiceCredential/LogQuery×2/OrgVisibility/FileAppService/OperationLogRuntimeContext/ResourceDeletePermChangeRegistration | 随 A.2/A.3 被测门禁在 T-PERM-089~091 改写 mock 面（mock 目标从 PermQueryEngine 换新 execute/门面） |
-| characterization PgIT | PermissionCharacterization、TargetModeClosure、BatchAuthCheck、GoldenFixture、AutoGrantEngineContract、AuthorizationChangeInvalidation（失效链）、OrgTreeIncludePositions、InstanceGateBusinessCode | **R2 语义基线资产**：T-PERM-081 基线在其上补 PQ-01/06 反例；T-PERM-094 差分对照主力，不全量重写 |
+| characterization PgIT | PermissionCharacterization、TargetModeClosure、BatchAuthCheck、GoldenFixture、AutoGrantEngineContract、AuthorizationChangeInvalidation（失效链）、OrgTreeIncludePositions、InstanceGateBusinessCode | 存量八类沿用；**R2 语义基线资产已由 T-PERM-081 落地为新三件**（`R2BaselineFixture`〔固定事实集共享夹具〕＋`MutexSemanticsCharacterizationPgIT`〔PQ-01/06 反例锚，T-PERM-083/095 落地按断言翻转契约改写〕＋`QuerySemanticsBaselinePgIT`〔check/batch-check/范围四态/快照投影四族 golden〕，2026-09-25）；T-PERM-094 差分对照主力=三件＋存量八类，不全量重写 |
 | 写路径/级联 PgIT 与契约测试 | UserRoleWriteProjection、TypeDefinitionProjection、OperationPermissionCacheEviction、MixedTypeDeletionLock、ServiceConfigCascade、ResourceOperationKey、ResourceBatchCreateCompositeIdentity、DependencyLifecycle、AutoGrantMaterialization、AutoGrantInsight、RoleMutexGuard、FirstAdminUserTrack；BatchEntrySizeValidationTest（@Size(max=1000) 三类放大面锁） | PgIT 断言走业务端点不经旧执行体符号者零改动、引用符号者随被测面改写；BatchEntrySizeValidationTest 迁移目标=持续锁新入口等价上限（T-PERM-089/090 契约面） |
 
 （`PermCommonReqContractTest` 的 `getDeclaredMethods` 为 DTO 反射契约枚举，不消费引擎符号，不入册计数。）
