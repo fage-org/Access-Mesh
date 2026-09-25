@@ -2,7 +2,7 @@
 doc_type: task
 id: T-PERM-082
 title: （R2-T03）新请求/结果模型与合法组合
-status: proposed
+status: done
 plan: docs/plans/r2-query-engine-and-admission-plan.md
 domain: access-service
 design_refs:
@@ -12,11 +12,11 @@ depends_on:
 blocks: []
 acceptance:
   - "QueryRequest/QueryItem/四种 Selection（TYPE_LEVEL/TARGET_SET/GRANT_LIST/OPERATION_ADMISSION）/三种 ResultForm/OutputSpec/EvaluationCoverage 模型与不可变构造、受控工厂落地；合法组合表与首版混批约束执行前整体结构校验；I07：同一事务先写后新 execute 创建新 RunState、不复用上次事实"
-  - "C01~C08 契约单测全绿：空请求零权限 I/O；DECISION+PRESERVE/SKIP 结构错误；GRANT_LIST+DECISION 混批结构错误；Roles(empty) 返回 NO_ROLE 不回退登录用户；重复 key/空 type/空 op 校验错误；防御性复制；attributes 不可伪造保留键；R03：Roles 主体角色视角不暗中解析用户、不补加角色（Roles({R1,R2}) 互斥对事实完整返回、不因 ROLE_MUTEX 清空——§2.2 定稿口径）"
+  - "C01~C08 契约单测全绿：空请求零权限 I/O（C01）；DECISION+PRESERVE/SKIP 结构错误（C02）；GRANT_LIST+DECISION 混批结构错误（C03）；Roles(empty) 返回 NO_ROLE 不回退登录用户（C04）；重复 key/空 type/空 op 校验错误（C05）；两个不同 key 同目标等长同序各自返回（C06）；防御性复制（C07）；attributes 不可伪造保留键（C08）；R03：Roles 主体角色视角不暗中解析用户、不补加角色（Roles({R1,R2}) 互斥对事实完整返回、不因 ROLE_MUTEX 清空——§2.2 定稿口径）"
   - "三结果不互冒充：GrantSetResult 无 allowed()，AdmissionResult 不实现最终授权布尔且恒 finalCheckRequired=true"
 design_writeback:
   required: true
-  status: pending
+  status: done
 last_updated: 2026-09-25
 ---
 
@@ -35,3 +35,20 @@ last_updated: 2026-09-25
 ## 非目标 / 遗留
 
 - 不动旧执行体（迁移在 T-PERM-089+）；本卡产物与旧引擎并行存在直至 T-PERM-092。
+- R03 事实完整性半边与 C06 判定版分别随 T-PERM-086/085 补锁（断言 as() 已标注翻转式契约）；I07 写后复读三态记忆版随 T-PERM-084/085 数据面落地补强。
+- User 主体解析（有效角色+ROLE_MUTEX 共同入口）与全部判定阶段随 T-PERM-084~086 / T-ACCESS-057（ADMISSION_CANDIDATES）落地，骨架期该区域 fail-closed 抛 UnsupportedOperationException。
+
+## 完成记录
+
+**交付（2026-09-25，`engine/query` 新包与旧引擎并行，零生产消费者、旧执行体零改动）**：
+
+- 契约模型：`QueryRequest`/`QueryItem`（受控工厂 decision/facts/grantListFacts/admission/admissionFacts）、Subject 封闭变体 `User`/`Roles`、`CallerContext`（保留键 clientIp/evaluatedAt/timestamp 顶层拒绝＋JSON 值域〔不可变数值白名单〕＋循环引用拒绝＋深层防御性复制）、`ReadOptions`（ListGrantRead DATABASE/ROLE_SNAPSHOT，缺省沿现行 ROLE_SNAPSHOT）、`TypeOperation`/`ResourceRef(ByCode/ByEntityId)`/`TargetClause`/`ParentRequirement`/`Inheritance`/`TypeFallback`、四 Selection 封闭（TypeLevel/TargetSet/GrantList/OperationAdmission）、`Evaluation`（full/evaluateSkip/preserveSkip/preserveEnforce）、`ResultForm`/`OutputSpec`（minimal→full 工厂族）、`QueryResult`＋三结果（DecisionResult/GrantSetResult/AdmissionResult——GrantSetResult 无 allowed()、AdmissionResult 恒 finalCheckRequired=true 且 ALLOW⇔reason 构造契约焊死）、`ResultDetails`、`EvaluationCoverage`（嵌套枚举）与 `Stage`、`QueryValidationException`。
+- 结构校验（`QueryRequestValidator`，包私有）：合法组合矩阵全行（§2.5）＋首版混批约束（GRANT_LIST 单项独占、OPERATION_ADMISSION 纯批且同批同结果形式、至多一个不同父要求）＋§2.6 结构面（空 requirements/clauses、空类型/操作、非法实体 ID、重复 key、id 正数、null 组件、父要求空操作集拒绝、FACTS≥KEPT），执行前整体拒绝零权限 I/O；未知 type/operation/code 不在校验面（运行时按 item 未命中，不过度拒绝）。
+- 骨架执行器（`QueryExecutionEngine`，迁移期暂名——拍板①）：结构校验→空 items 零权限 I/O 短路→创建 `RunState`（注入 Clock 固定服务端时刻，无 ZoneId 抽象——时区拍板落码）→主体解析一次（Roles 原样采用＋EXPLICIT_ROLES＝R03 主体半边；User 随 084/085）→`Roles(empty)` 按结果形式返回 NO_ROLE（C04）→未实现判定阶段抛 UnsupportedOperationException fail-closed（拍板②）→finally 释放运行态；I07 以两次 execute executionId 互异锁运行态不复用。
+- 契约单测三件（`QueryContractModelsTest`/`QueryRequestValidationTest`/`QueryExecutionEngineTest`，纯 JUnit 单测轨）：C01~C08/R03/I07 全覆盖，按拍板③锁结构半边＋as() 翻转式标注（R03 事实半边→T-PERM-086、C06 判定半边→T-PERM-085、I07 记忆版→T-PERM-084/085）。
+
+**三项拍板（registry 2026-09-25 同日行）**：①骨架独立新类 `engine/query`（暂名 QueryExecutionEngine、暂不注册 Spring bean、零消费者、旧 PermQueryEngine 零改动，终名随 T-PERM-092 定，设计 §4.1 已补迁移期注＝本卡 design_writeback）；②未实现判定阶段 UOE fail-closed；③R03/C06 锁结构半边＋翻转式标注。同批减法拍板：SkipReason.NOT_APPLICABLE 零引用删除（随阶段落地卡按需加回）。
+
+**双轨评审处置（代码轨 P2×1+P3×3、文档轨 P3×4，全数逐条核实成立、全采纳直修）**：代码轨——P2 CallerContext 数值分支按引用放行任意可变 Number（AtomicInteger 等非 JSON 值、可变且绕过有限值检查）→收敛不可变数值白名单＋回归锁；P3×3＝null 集合/null 元素构造边界三通道不一致（javadoc 钉死「null=编程错误 NPE、空集合=结构错误」）、「至多一父」按字面判等的寻址等价边界（javadoc 注记调用方归一）、C03 GRANT_LIST+DECISION validator 级负向锁缺失（补断言）。文档轨——P3×4＝前向引用归属修正（ADMISSION_CANDIDATES→T-ACCESS-057〔ADM-T02〕，非 R2 085~088）、acceptance C 编号枚举补 C06 对齐测试口径（沿 T-PERM-061 先例）、设计 §4.1 迁移期注（design_writeback）、三项拍板 registry 当轮登记。计划附录 A.7 不入册三测试类（零旧执行体符号接触、非迁移资产——清点册判据：入册条件为旧符号接触或差分基线锚）。
+
+**回归证据**：定向三契约测试类全绿（2026-09-25，当轮 surefire 报告为准）；收口全量回归 `mvn test -T 1C`（含 E2E/heavy）：BUILD SUCCESS，2026-09-25，总耗时 16:28——access-service 单测组 1448（含本卡三契约测试类 49）＋容器组 362＋E2E 16，全模块 0 失败 0 错误 0 跳过（日志整文件 `/tmp/t082-full-regression.log`）。

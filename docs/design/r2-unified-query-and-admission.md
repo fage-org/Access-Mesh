@@ -258,7 +258,7 @@ TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突
 
 | 部件 | 唯一职责 | 禁止越界 |
 |---|---|---|
-| PermQueryEngine（现行类就地改造为唯一 execute 主体） | 结构校验、根时钟、固定阶段、结果完成与证据提交 | 按旧方法名分发回旧 query／queryBatch |
+| PermQueryEngine（终态就地改造为唯一 execute 主体；**迁移期注（T-PERM-082，2026-09-25 拍板）**：execute 骨架先以 `engine.query` 包独立类 `QueryExecutionEngine`〔暂名〕落位——暂不注册 Spring bean、零生产消费者、旧 PermQueryEngine 零改动，终名随 T-PERM-092 删旧类时定） | 结构校验、根时钟、固定阶段、结果完成与证据提交 | 按旧方法名分发回旧 query／queryBatch |
 | RunState | 此次时刻、角色、已读／缺失记忆、规则、条件结果、父结果、原始行、审计 | 单例字段、ThreadLocal、整个 HTTP 请求跨写复用 |
 | QueryReadSupport | 有租户／空集守卫的批量 DB／缓存访问与同源复用 | 缓存已被某 item 过滤过的候选结果 |
 | CandidateSelector | 按规范化选择＋阶段切出精确候选 | 自行查库、把展示过滤提前 |
