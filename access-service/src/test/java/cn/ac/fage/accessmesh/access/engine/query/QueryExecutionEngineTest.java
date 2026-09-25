@@ -121,6 +121,19 @@ class QueryExecutionEngineTest {
             assertThat(((DecisionResult) result.orderedResults().get(0)).coverage().parentCheck())
                 .isEqualTo(ParentCheckCoverage.NOT_TRIGGERED);
         }
+
+        @Test
+        void should_skipOnlyInstanceStage_whenNoRoleShortCircuitsDisallowedTargetSet() {
+            QueryResult result = engine.execute(request(new Roles(Set.of()), new QueryItem("k1",
+                new TargetSet(List.of(new TargetClause(REPORT_VIEW, new ByCode("REPORT_A", null, null))),
+                    Inheritance.SELF, TypeFallback.DISALLOW, null),
+                Evaluation.full(), ResultForm.DECISION, OutputSpec.minimal())));
+
+            assertThat(((DecisionResult) result.orderedResults().get(0)).coverage().skippedStages())
+                .as("DISALLOW 项 TYPE_GRANT 阶段不适用（不进 skippedStages），仅 INSTANCE 被短路")
+                .containsOnlyKeys(Stage.INSTANCE)
+                .containsValue(SkipReason.NO_ROLE);
+        }
     }
 
     @Test

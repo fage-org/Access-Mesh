@@ -85,7 +85,8 @@ class QueryContractModelsTest {
 
         @Test
         void should_copyResultCollections_whenConstructed() {
-            Roles roles = new Roles(new java.util.HashSet<>(Set.of(1L, 2L)));
+            java.util.HashSet<Long> roleSource = new java.util.HashSet<>(Set.of(1L, 2L));
+            Roles roles = new Roles(roleSource);
             OutputSpec spec = new OutputSpec(FactDetail.KEPT, true, false, false, false,
                 new java.util.HashSet<>(Set.of("REPORT:EXPORT")), false);
             ResultDetails details = new ResultDetails(Set.of(ResultDetails.DetailSection.MATCHED_IDS),
@@ -101,6 +102,7 @@ class QueryContractModelsTest {
             QueryResult result = new QueryResult("exec-1", LocalDateTime.of(2026, 9, 25, 10, 0),
                 new ArrayList<>(List.of(DecisionResult.deny("k1", DecisionResult.Reason.NO_ROLE, coverage, details))));
 
+            roleSource.add(99L);
             assertThat(roles.roleIds()).containsExactlyInAnyOrder(1L, 2L);
             assertThat(spec.extraOperationKeys()).containsExactly("REPORT:EXPORT");
             assertThat(details.matchedRoleIds()).containsExactly(1L);
@@ -114,12 +116,26 @@ class QueryContractModelsTest {
         void should_normalizeNullCollectionsToEmpty_whenConstructedWithNull() {
             assertThat(new QueryRequest(1L, new Roles(Set.of()), CallerContext.of(null),
                 ReadOptions.defaults(), null).items()).isEmpty();
-            assertThat(new Roles(Set.of()).roleIds()).isEmpty();
             assertThat(new CallerContext(null, null).attributes()).isEmpty();
             assertThat(new OutputSpec(FactDetail.NONE, false, false, false, false, null, false)
                 .extraOperationKeys()).isEmpty();
             assertThat(new ReadOptions(null).listGrantRead()).isEqualTo(ListGrantRead.ROLE_SNAPSHOT);
             assertThat(new ResultDetails(null, null, null).loadedSections()).isEmpty();
+        }
+
+        @Test
+        void should_failFastWithNpe_whenNullCollectionPassedToContractRecord() {
+            assertThatThrownBy(() -> new Roles(null))
+                .as("契约 record 的 null 集合=编程错误（构造期 NPE），与空集合=结构错误分界")
+                .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new TypeLevel(null)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new TargetSet(null, Inheritance.SELF, TypeFallback.ALLOW, null))
+                .isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new ParentRequirement("FOLDER",
+                new ByCode("F1", null, null), null)).isInstanceOf(NullPointerException.class);
+            assertThatThrownBy(() -> new Roles(new java.util.HashSet<>(java.util.Arrays.asList(1L, null))))
+                .as("null 元素同样在构造期 NPE")
+                .isInstanceOf(NullPointerException.class);
         }
     }
 
@@ -145,6 +161,16 @@ class QueryContractModelsTest {
             CallerContext context = new CallerContext(null, Map.of("custom", nested));
 
             assertThat((Map<String, Object>) context.attributes().get("custom")).containsKey("evaluatedAt");
+        }
+
+        @Test
+        void should_rejectConstruction_whenNestedMapKeyNotString() {
+            Map<String, Object> nested = new LinkedHashMap<>();
+            nested.put(null, "v");
+            assertThatThrownBy(() -> new CallerContext(null, Map.of("custom", nested)))
+                .as("顶层 null 键静默过滤；嵌套非 String 键（含 null）拒绝——两套边界各安其位")
+                .isInstanceOf(QueryValidationException.class)
+                .hasMessageContaining("String");
         }
 
         @Test

@@ -51,10 +51,4 @@ public record OutputSpec(FactDetail factDetail, boolean matchedIds, boolean desc
     public static OutputSpec full() {
         return new OutputSpec(FactDetail.RAW_AND_KEPT, true, true, true, true, Set.of(), true);
     }
-
-    /** 按目标类型追加额外操作键（仅描述/投影用途）。 */
-    public OutputSpec withExtraOperationKeys(Set<String> keys) {
-        return new OutputSpec(factDetail, matchedIds, descriptions, effectiveOperations,
-            presentationExpansion, keys, trace);
-    }
 }

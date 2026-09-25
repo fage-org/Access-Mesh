@@ -14,10 +14,12 @@ import java.util.Set;
  * 可信 clientIp＋受限 JSON 属性；服务端固定评估时刻（注入 Clock，RunState 持有），
  * 不接受普通客户端覆盖时钟。保留键 {@code clientIp/evaluatedAt/timestamp}
  * 不得通过 attributes 覆盖——顶层出现即拒绝构造。属性值只接受 JSON 值
- * （null/String/Boolean/有限数值/List/Map），拒绝循环引用与任意可变 Java 对象；
- * null 键与 null 值（含嵌套）沿 {@code PermEvalContext} 先例静默过滤。
+ * （null/String/Boolean/有限数值/List/Map，数值限不可变标准实现），拒绝循环引用与任意可变 Java 对象；
+ * 顶层 null 键与各层 null 值静默过滤（顶层过滤沿 {@code PermEvalContext} 先例），
+ * 嵌套 Map 键必须为 String——null 等非 String 键拒绝。
  * 嵌套集合在构造时深度复制为不可变结构——构造后修改源集合不影响执行输入（C07）。
- * 保留键仅约束顶层：嵌套 Map 内的同名键位于调用方自定义命名空间，不参与展平覆盖。
+ * 保留键仅约束顶层：嵌套 Map 内的同名键位于调用方自定义命名空间；未来条件展平实现
+ * 必须保持该语义（不得把嵌套同名键递归提升为顶层覆盖保留键）。
  * </p>
  *
  * @param clientIp   可信客户端 IP（Gateway 重建），可空=无请求上下文

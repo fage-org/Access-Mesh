@@ -84,15 +84,17 @@ public final class QueryExecutionEngine {
     }
 
     private QueryResult noRoleResults(RunState run) {
+        SubjectResolution resolution = Objects.requireNonNull(run.subjectResolution(),
+            "主体解析必须先于 NO_ROLE 结果组装");
         List<ItemResult> results = new ArrayList<>(run.request().items().size());
         for (QueryItem item : run.request().items()) {
-            results.add(noRoleResult(item));
+            results.add(noRoleResult(item, resolution));
         }
         return new QueryResult(run.executionId(), run.evaluatedAt(), results);
     }
 
-    private ItemResult noRoleResult(QueryItem item) {
-        EvaluationCoverage coverage = noRoleCoverage(item);
+    private ItemResult noRoleResult(QueryItem item, SubjectResolution resolution) {
+        EvaluationCoverage coverage = noRoleCoverage(item, resolution);
         return switch (item.resultForm()) {
             case DECISION -> DecisionResult.deny(item.key(), DecisionResult.Reason.NO_ROLE, coverage, ResultDetails.empty());
             case FACTS -> new GrantSetResult(item.key(), GrantSetResult.CollectionStatus.NO_ROLE, coverage, ResultDetails.empty());
@@ -100,7 +102,7 @@ public final class QueryExecutionEngine {
         };
     }
 
-    private EvaluationCoverage noRoleCoverage(QueryItem item) {
+    private EvaluationCoverage noRoleCoverage(QueryItem item, SubjectResolution resolution) {
         Map<Stage, SkipReason> skipped = new EnumMap<>(Stage.class);
         applicableStages(item.selection()).forEach(stage -> skipped.put(stage, SkipReason.NO_ROLE));
         boolean parentRequired = switch (item.selection()) {
@@ -108,7 +110,7 @@ public final class QueryExecutionEngine {
             case GrantList grantList -> grantList.requiredParent() != null;
             default -> false;
         };
-        return new EvaluationCoverage(SubjectResolution.EXPLICIT_ROLES, ConditionCoverage.NO_CANDIDATE,
+        return new EvaluationCoverage(resolution, ConditionCoverage.NO_CANDIDATE,
             MutexCoverage.NO_CANDIDATE,
             parentRequired ? ParentCheckCoverage.NOT_TRIGGERED : ParentCheckCoverage.NOT_REQUIRED,
             Set.of(), skipped, false, authorizationStage(item.resultForm()));
