@@ -167,7 +167,7 @@ docker compose -f docker-compose.yml --profile app up -d --build
 
 > **⚠️ SNAPSHOT 依赖陷阱**：本项目使用多模块 SNAPSHOT 依赖（如 `perm-common` → `perm-client-spring-boot-starter`；example-service 不消费运行时鉴权 SDK starter，接口级鉴权由 Gateway 承担；可选 registration starter 只发布依赖，默认关闭）。
 > `mvn compile` 不会将上游模块 install 到本地仓库，依赖方编译时可能拿到**上次 install 的旧版本**。
-> 当上游模块（`perm-sdk/*`、`common`、`perm-entity`）有 API 变更时，**必须**执行 `mvn install -pl <上游模块> -DskipTests` 或全量 `mvn clean install -DskipTests` 后再编译下游模块。
+> 当上游模块（`perm-sdk/*`、`common`）有 API 变更时，**必须**执行 `mvn install -pl <上游模块> -DskipTests` 或全量 `mvn clean install -DskipTests` 后再编译下游模块。
 
 ## 文档治理
 

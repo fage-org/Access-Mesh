@@ -492,7 +492,7 @@ retained 有类型级覆盖                         → ALL
 |---|---|---|
 | PermissionCheckAppServiceImpl.check | 单项 TYPE_LEVEL 或 TARGET_SET＋DECISION | 外部主体业务键解析、字段校验、SELF 等缺省策略和原响应 |
 | batchCheck | 多个独立 DECISION 项 | 原序、重复项结果、请求级父上下文；不得循环 N 次公开 execute |
-| getDeniedResourceCodes／getDeniedEntityIds | 每个目标独立 item，纯结果投影 | 输入原键回映射、原祖先策略、空输入与业务异常；语义变化四消费面（资源树、API 映射、资源依赖、权限树 ID 轨）逐面确认「跨 item 冲突从全拒变各自判」可接受 |
+| getDeniedResourceCodes／getDeniedEntityIds | 每个目标独立 item，纯结果投影 | 输入原键回映射、原祖先策略、空输入与业务异常；语义变化四消费面（资源树、API 映射、资源依赖、权限树 ID 轨）逐面确认「跨 item 冲突从全拒变各自判」可接受（**勘误见本节末 T-PERM-080 增补——四消费面与实际清点不符，清单以增补为准**） |
 | AdminPermissionValidatorImpl | 普通最终 DECISION，显式管理继承 | 当前操作者、SecurityException 与技术错误分界；不能改成准入 |
 | ResourceManage／TypeDefinition 等直接门禁 | CODE／ENTITY_ID 分型、单或批 DECISION | 对象类型核实、业务事务和现有写守卫 |
 | queryResources／queryScopes | GRANT_LIST＋FACTS；范围保留 raw／kept | 原筛选、分页、父存在性、四态与外部线格式 |
@@ -505,6 +505,8 @@ retained 有类型级覆盖                         → ALL
 | 新准入快照 | 多个 OPERATION_ADMISSION＋FACTS | 完整路由表、条件分支、版本、失效与本地准入协议 |
 
 迁移前清点全仓直接调用、方法引用、反射、缓存序列化、测试夹具与文档，不以这张主要消费者表代替完整引用清单。
+
+> **T-PERM-080 清点增补（2026-09-25）**：全仓清点册已成册——`r2-query-engine-and-admission-plan` 附录 A（生产调用点逐点迁移目标、门面链、结果加工面、缓存序列化面、测试夹具全量分组、活文档清单、容量盘点；行号为 HEAD `320d16a87` 快照）。勘正一处：本节 getDenied 行「语义变化四消费面（资源树、API 映射、资源依赖、权限树 ID 轨）」与实际不符——四面中「资源依赖」（DependencyAppServiceImpl 无 getDenied 调用）与「权限树 ID 轨」（端点已随 T-PERM-059 删除）两面不存在，实际全量消费面清单见附录 A.3；逐面确认以附录 A.3 为准。四旧 DTO（含 PermResult）均不进缓存载荷（唯一缓存接触面=ROLE_PERM_SNAPSHOT 的 List<RolePermEntry>）。
 
 ### 6.6 LEGACY_API 兼容边界不能误写成终态
 
