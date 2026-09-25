@@ -18,7 +18,7 @@ last_reviewed: 2026-09-25
 | 方案 A 依据 | 《Access-Mesh_R2与T-PERM-054_方案A统一实施报告_2026-09-25.md》，以及本轮前的权限改造汇总、报表实例授权讨论 |
 | 代码基线 | 原稿依据 `9778ffc9`；方案 A 依据 `9ba64cf2c0a373554a174d59b83148b5f0b7f07f`。本轮重读 `feat-permission-center`，仍为后者 [B00] |
 | 复核范围 | 分支、`computeInstanceDenied`、`AccessCacheCatalog`、T-PERM-054 任务卡；其他源码事实沿对应固定提交报告引用，不声称重新审完全仓 |
-| 决策状态 | **定稿（2026-09-25 用户确认）**：方案 A 方向与 R2-A 结构约束实现；当日三项拍板已并入正文（§2.2 时区不处理、§5.1 S/H/D、§8.4 configGeneration 限定语义）。实施载体=计划 r2-query-engine-and-admission（T-PERM-080~094 + T-ACCESS-056~062）；T-PERM-054 已解除暂缓归入该计划 |
+| 决策状态 | **定稿（2026-09-25 用户确认）**：方案 A 方向与 R2-A 结构约束实现；当日三项拍板已并入正文（§2.2 时区不处理、§5.1 S/H/D、§8.4 configGeneration 限定语义）。实施载体=计划 r2-query-engine-and-admission（T-PERM-080~094 + T-ACCESS-056~062）；T-PERM-054 已解除暂缓归入该计划。计划完结时内容按现行规范回写对应设计文档族（engine/implementation.md、契约总册、services/gateway.md），本稿转 superseded 随计划归档（2026-09-25 拍板，沿 permission-query-unification 先例） |
 | 验证状态 | v3.0 评审（2026-09-25）对 HEAD 9ba64cf2c 完成 25+ 项代码级事实复核（PQ-01/02/03/05/06、缓存目录边界、任务卡、映射实体与 FULL 清理、快照装配/网关 fail-closed/菜单类型页/条件工具/旧 DTO/checkInterface），勘误已并入本版；未修改仓库代码，未执行编译、集成测试、运行库盘点或性能基准。文中代码为设计示意，不是已实现类 |
 
 本版可独立阅读：必要的契约、算法、反例、调用方迁移和验收均放在正文；附录 A 对照原 v2.0 的保留位置。旧稿的“接口和快照只认 API:ACCESS”仅保留为 **LEGACY_API 迁移期规则**，不再是终态。其他 IMP 写侧解耦和继承触发依赖仍独立，不因本版重开或自动实施。

@@ -14,7 +14,7 @@
 | 引擎子系统概念模型      | [engine/overview.md](engine/overview.md)                                             |
 | 引擎子系统核心调用链路  | [engine/core-flows.md](engine/core-flows.md)                                         |
 | 引擎子系统实现设计      | [engine/implementation.md](engine/implementation.md)                                 |
-| R2 统一查询与操作准入（目标态设计） | [r2-unified-query-and-admission.md](r2-unified-query-and-admission.md)（`status: adopted`，2026-09-25 定稿——R2-A 唯一执行器 + 方案 A 两层判定〔网关操作准入+业务实例鉴权〕；实施载体=[r2-query-engine-and-admission 计划](../plans/r2-query-engine-and-admission-plan.md)；落地前现行实现沿 engine/implementation.md，T-PERM-092 完成后取代其被替代章节） |
+| R2 统一查询与操作准入（目标态设计） | [r2-unified-query-and-admission.md](r2-unified-query-and-admission.md)（`status: adopted`，2026-09-25 定稿——R2-A 唯一执行器 + 方案 A 两层判定〔网关操作准入+业务实例鉴权〕；实施载体=[r2-query-engine-and-admission 计划](../plans/r2-query-engine-and-admission-plan.md)，实施期为本计划权威依据、现行实现沿 engine/implementation.md；计划完结时内容按现行规范回写 engine/implementation.md 与契约总册/services/gateway.md，本稿转 superseded 随计划归档——2026-09-25 拍板，沿 permission-query-unification 先例，不长期占权威表行） |
 | 权限查询统一引擎（演进终态） | 已 `status: superseded`（2026-09-10 随 permission-query-unification 计划归档转正，四任务全 done；实现以 [engine/implementation.md](engine/implementation.md) §3 为唯一权威，原文件留 permission-center 目录仅存定案过程追溯、待后续归档） |
 | 权限中心 v3.5 端到端设计 | [permission-center-v3.5-design.md](permission-center-v3.5-design.md)（`status: adopted`）|
 | 权限中心 v3.5.1+ 演进方向 | [permission-center-v3.5.1-evolution.md](permission-center-v3.5.1-evolution.md)（`status: evolution`，非约束）|

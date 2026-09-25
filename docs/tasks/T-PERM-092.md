@@ -30,7 +30,7 @@ last_updated: 2026-09-25
 
 ## 范围
 
-- 删除与全仓残留清扫（含 mock 层与文档现在时残留）；engine/implementation.md 被替代章节在本卡回写时标 superseded（由本设计取代）。
+- 删除与全仓残留清扫（含 mock 层与文档现在时残留）；回写时把 R2 引擎终态章节按现行规范并入 engine/implementation.md（设计稿对应章节标注已并入；设计稿整体转 superseded 在计划完结归档时，准入面回写由 ADM 系列卡承担）。
 
 ## 非目标 / 遗留
 

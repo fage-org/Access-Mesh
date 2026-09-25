@@ -97,7 +97,7 @@ last_updated: 2026-09-25
 
 ## 归档条件
 
-全部任务 done/cancelled；稳定结论沉淀 `docs/design/`：R2 部分并入 `engine/implementation.md` 相应章节（T-PERM-092 完成时取代其被替代章节），准入部分沉淀契约总册新章与 `services/gateway.md`。
+全部任务 done/cancelled；稳定结论按现行文档规范回写对应设计文档族（2026-09-25 用户拍板）：R2 部分并入 `engine/implementation.md`（overview/core-flows 涉及面随卡回写），准入部分沉淀契约总册新章与 `services/gateway.md`；回写完成后 `r2-unified-query-and-admission.md` 转 superseded 随本计划归档（沿 permission-query-unification 先例），不长期占权威来源表行。
 
 ## 当前进度
 
