@@ -17,7 +17,7 @@ last_reviewed: 2026-09-25
 | 核心设计原稿 | 《Access-Mesh_R2_权限查询引擎详细设计_v2.0.md》（2026-09-23，完整稿，1288 行），不是 v2.1 精简版 |
 | 方案 A 依据 | 《Access-Mesh_R2与T-PERM-054_方案A统一实施报告_2026-09-25.md》，以及本轮前的权限改造汇总、报表实例授权讨论 |
 | 代码基线 | 原稿依据 `9778ffc9`；方案 A 依据 `9ba64cf2c0a373554a174d59b83148b5f0b7f07f`。本轮重读 `feat-permission-center`，仍为后者 [B00] |
-| 本轮复核 | 分支、`computeInstanceDenied`、`AccessCacheCatalog`、T-PERM-054 任务卡；其他源码事实沿对应固定提交报告引用，不声称本轮重新审完全仓 |
+| 复核范围 | 分支、`computeInstanceDenied`、`AccessCacheCatalog`、T-PERM-054 任务卡；其他源码事实沿对应固定提交报告引用，不声称重新审完全仓 |
 | 决策状态 | **定稿（2026-09-25 用户确认）**：方案 A 方向与 R2-A 结构约束实现；当日三项拍板已并入正文（§2.2 时区不处理、§5.1 S/H/D、§8.4 configGeneration 限定语义）。实施载体=计划 r2-query-engine-and-admission（T-PERM-080~094 + T-ACCESS-056~062）；T-PERM-054 已解除暂缓归入该计划 |
 | 验证状态 | v3.0 评审（2026-09-25）对 HEAD 9ba64cf2c 完成 25+ 项代码级事实复核（PQ-01/02/03/05/06、缓存目录边界、任务卡、映射实体与 FULL 清理、快照装配/网关 fail-closed/菜单类型页/条件工具/旧 DTO/checkInterface），勘误已并入本版；未修改仓库代码，未执行编译、集成测试、运行库盘点或性能基准。文中代码为设计示意，不是已实现类 |
 
@@ -113,7 +113,7 @@ record QueryItem(
 
 内部 QueryRequest 不直接作为 Controller 的 JSON DTO。普通外部调用不能指定 Roles、PRESERVE、SKIP、任意读取来源或内部原始实体 ID；合法外部业务键由适配层转换。新准入端点只允许经过认证的网关／服务调用，不让前端自行选择“准入后当最终允许”。
 
-请求集合及嵌套 context 防御性复制；只接受 JSON 值，拒绝循环和任意可变 Java 对象。保留键 clientIp／evaluatedAt／timestamp 不得通过 attributes 覆盖。运行态使用注入 Clock 固定一个服务端时刻；父项共用它。**时区拍板（2026-09-25）**：本项目不做时区处理——日期／时间条件按评估进程本地时钟评估，不引入 ZoneId 抽象；部署前提=全部节点（含容器内 JVM）同一时区（容器化部署统一设置 TZ）。R2 重构不得改变现行评估时钟语义。
+请求集合及嵌套 context 防御性复制；只接受 JSON 值，拒绝循环和任意可变 Java 对象。保留键 clientIp／evaluatedAt／timestamp 不得通过 attributes 覆盖。运行态使用注入 Clock 固定一个服务端时刻；父项共用它。**时区拍板（2026-09-25）**：本项目不做时区处理——日期／时间条件按评估进程本地时钟语义评估，不引入 ZoneId 抽象；现行实现由 common `UtcTimezoneEnvironmentPostProcessor` 启动即强制 JVM 默认时区 UTC（代码级，T-ACCESS-024；含 @SpringBootTest 与 E2E 子进程），部署侧无需任何时区约定。R2 重构不得改变现行评估时钟语义。
 
 ### 2.3 类型、操作和资源必须保持配对
 
@@ -258,7 +258,7 @@ TARGET_SET 实例未解析时，仍保留之前 TYPE_GRANT 曾被条件／冲突
 
 | 部件 | 唯一职责 | 禁止越界 |
 |---|---|---|
-| PermissionQueryEngine | 结构校验、根时钟、固定阶段、结果完成与证据提交 | 按旧方法名分发回旧 query／queryBatch |
+| PermQueryEngine（现行类就地改造为唯一 execute 主体） | 结构校验、根时钟、固定阶段、结果完成与证据提交 | 按旧方法名分发回旧 query／queryBatch |
 | RunState | 此次时刻、角色、已读／缺失记忆、规则、条件结果、父结果、原始行、审计 | 单例字段、ThreadLocal、整个 HTTP 请求跨写复用 |
 | QueryReadSupport | 有租户／空集守卫的批量 DB／缓存访问与同源复用 | 缓存已被某 item 过滤过的候选结果 |
 | CandidateSelector | 按规范化选择＋阶段切出精确候选 | 自行查库、把展示过滤提前 |
@@ -558,7 +558,7 @@ B 请求到达业务服务是方案 A 的预期，并不表示 B 获得权限。
 
 上下文子行作为候选时，至少批量确认 depend_on 对应父行同租户、同角色、存在、未按现有规则失效、为合法主行且无嵌套非法结构。**只证明结构，不评父条件、不猜父操作、不伪造父 matchedPermissionIds。**候选标 `CONTEXT_DEFERRED`，业务必须传真实父上下文。若首版选择全排除子行，必须作为缩小范围的备选定案，未迁入的上下文接口继续受原路径保护；不能一边排除一边宣称方案 A 无误拒支持完整。
 
-当前条件类型包括日期、时间和 IP 白／黑名单 [C12]。在线准入、最终鉴权与本地可下发分支使用共同规则算法和明确的时区／可信 IP。gateway_evaluable=false 表示需要远端评估，不表示通过；缺失、禁用、非法条件是不可用分支，不能变成无条件。未来增加对象属性条件时需补准入处理设计；不得默认未知属性为空即放行。
+当前条件类型包括日期、时间和 IP 白／黑名单 [C12]。在线准入、最终鉴权与本地可下发分支使用共同规则算法和明确的评估时刻语义（时区拍板：不做时区处理，§2.2）／可信 IP。gateway_evaluable=false 表示需要远端评估，不表示通过；缺失、禁用、非法条件是不可用分支，不能变成无条件。未来增加对象属性条件时需补准入处理设计；不得默认未知属性为空即放行。
 
 在**相同事实版本、操作定义、时刻和可信环境**下，应证明最终同操作的合法访问不会仅因“没有类型级授权、不同实例冲突、网关没有父运行时上下文”被准入提前拒绝。这不是跨进程数据库／缓存一致性承诺，时间边界和并发授撤要另测。
 
@@ -997,7 +997,7 @@ var request = new QueryRequest(
 | §21～22 测试、性能与上线 | §10 | 保留原 65 项场景编号，另加 30 项新准入／集成场景；均非已跑结果 |
 | §24、原参考代码验证／附录 | 文首、附录 C | 保留证据限制；不把原参考程序的验证记录冒充本版执行器测试，不随文交付过期参考实现 |
 
-本版相对上一份方案 A 报告补充／澄清的设计包括：新准入的固定读取来源和快照时效；普通条件时区不能随“UTC 时钟”措辞改变；FULL 不得经登记实体删除绕过映射 owner 隔离；路由配置代次变化时的快照废弃；R2 与 legacy 退役的两个独立完成条件。这些是本次补齐的实施建议，需随主方案确认，不是既有仓库事实。
+本版相对上一份方案 A 报告补充／澄清的设计包括：新准入的固定读取来源和快照时效；普通条件评估时钟语义维持不变（时区拍板：不做时区处理，§2.2）；FULL 不得经登记实体删除绕过映射 owner 隔离；路由配置代次变化时的快照废弃；R2 与 legacy 退役的两个独立完成条件。这些是本次补齐的实施建议，需随主方案确认，不是既有仓库事实。
 
 ## 附录 C：源码与版本依据
 
@@ -1050,11 +1050,11 @@ var request = new QueryRequest(
 [C06]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/gateway/src/main/java/cn/ac/fage/accessmesh/gateway/service/InterfaceSnapshotMatcher.java
 [C07]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/gateway/src/main/java/cn/ac/fage/accessmesh/gateway/filter/PermissionFilter.java#L105-L335
 [C08]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/dto/req/ServiceConfigSyncReq.java
-[C09]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/service/domain/impl/MappingSyncHandlerImpl.java#L40-L240
-[C10]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/resources/mapper/grant/RoleResourcePermissionMapper.xml#L245-L355
+[C09]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/java/cn/ac/fage/accessmesh/access/resource/service/domain/impl/MappingSyncHandlerImpl.java#L40-L198
+[C10]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/resources/mapper/grant/RoleResourcePermissionMapper.xml#L245-L346
 [C11]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/java/cn/ac/fage/accessmesh/access/rule/service/domain/impl/PermissionConflictDomainServiceImpl.java#L103-L160
 [C12]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/perm-sdk/perm-common/src/main/java/cn/ac/fage/accessmesh/perm/common/util/ConditionEvalUtils.java
 [C13]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/resources/mapper/grant/RoleResourcePermissionMapper.xml
 [C14]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/java/cn/ac/fage/accessmesh/access/engine/core/PermQueryEngine.java#L1240-L1340
 [C15]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/java/cn/ac/fage/accessmesh/access/menu/service/impl/UserMenuQueryAppServiceImpl.java#L162-L260
-[C16]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/java/cn/ac/fage/accessmesh/access/engine/service/impl/PermissionViewAppServiceImpl.java#L114-L210
+[C16]: https://github.com/fage-org/Access-Mesh/blob/9ba64cf2c0a373554a174d59b83148b5f0b7f07f/access-service/src/main/java/cn/ac/fage/accessmesh/access/engine/service/impl/PermissionViewAppServiceImpl.java#L107-L174
